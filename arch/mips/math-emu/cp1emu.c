@@ -34,6 +34,7 @@
  * Note if you know that you won't have an fpu, then you'll get much 
  * better performance by compiling with -msoft-float!
  */
+#include <linux/compiler.h>
 #include <linux/mm.h>
 #include <linux/signal.h>
 #include <linux/smp.h>
@@ -167,54 +168,6 @@ static int isBranchInstr(mips_instruction * i)
 #define REG_TO_VA (vaddr_t)
 #define VA_TO_REG (unsigned long)
 
-static unsigned long mips_get_word(struct pt_regs *xcp, void *va, int *perr)
-{
-	unsigned long temp;
-
-	if (!user_mode(xcp)) {
-		*perr = 0;
-		return *(unsigned long *) va;
-	}
-
-	*perr = (int) get_user(temp, (unsigned long *) va);
-	return temp;
-}
-
-static unsigned long long
-mips_get_dword(struct pt_regs *xcp, void *va, int *perr)
-{
-	unsigned long long temp;
-
-	if (!user_mode(xcp)) {
-		*perr = 0;
-		return *(unsigned long long *) va;
-	}
-
-	*perr = (int) get_user(temp, (unsigned long long *) va);
-	return temp;
-}
-
-static int mips_put_word(struct pt_regs *xcp, void *va, unsigned long val)
-{
-	if (!user_mode(xcp)) {
-		*(unsigned long *) va = val;
-		return 0;
-	}
-
-	return put_user(val, (unsigned long *) va);
-}
-
-static int mips_put_dword(struct pt_regs *xcp, void *va, long long val)
-{
-	if (!user_mode(xcp)) {
-		*(unsigned long long *) va = val;
-		return 0;
-	}
-
-	return put_user(val, (unsigned long long *) va);
-}
-
-
 /*
  * In the Linux kernel, we support selection of FPR format on the
  * basis of the Status.FR bit.  This does imply that, if a full 32
@@ -232,13 +185,12 @@ static int mips_put_dword(struct pt_regs *xcp, void *va, long long val)
 
 static int cop1Emulate(struct pt_regs *regs, struct mips_fpu_soft_struct *ctx)
 {
+	vaddr_t emulpc, contpc;
 	mips_instruction ir;
-	vaddr_t emulpc;
-	vaddr_t contpc;
 	unsigned int cond;
 	int err = 0;
 
-	ir = mips_get_word(regs, REG_TO_VA regs->cp0_epc, &err);
+	err = get_user(ir, (mips_instruction *) regs->cp0_epc);
 	if (err) {
 		fpuemuprivate.stats.errors++;
 		return SIGBUS;
@@ -270,7 +222,7 @@ static int cop1Emulate(struct pt_regs *regs, struct mips_fpu_soft_struct *ctx)
 #endif
 			return SIGILL;
 		}
-		ir = mips_get_word(regs, emulpc, &err);
+		err = get_user(ir, (mips_instruction *) emulpc);
 		if (err) {
 			fpuemuprivate.stats.errors++;
 			return SIGBUS;
@@ -292,12 +244,13 @@ emul:
 #ifndef SINGLE_ONLY_FPU
 	case ldc1_op:
 		{
-			void *va = REG_TO_VA(regs->regs[MIPSInst_RS(ir)])
-			    + MIPSInst_SIMM(ir);
+			u32 *va = REG_TO_VA(regs->regs[MIPSInst_RS(ir)]) +
+			          MIPSInst_SIMM(ir);
 			int ft = MIPSInst_RT(ir);
+
 			if (!(regs->cp0_status & ST0_FR))
 				ft &= ~1;
-			ctx->regs[ft] = mips_get_dword(regs, va, &err);
+			err = get_user(ctx->regs[ft], va);
 			fpuemuprivate.stats.loads++;
 			if (err) {
 				fpuemuprivate.stats.errors++;
@@ -308,13 +261,14 @@ emul:
 
 	case sdc1_op:
 		{
-			void *va = REG_TO_VA(regs->regs[MIPSInst_RS(ir)])
-			    + MIPSInst_SIMM(ir);
+			fpureg_t *va = REG_TO_VA(regs->regs[MIPSInst_RS(ir)]) +
+			               MIPSInst_SIMM(ir);
 			int ft = MIPSInst_RT(ir);
+
 			if (!(regs->cp0_status & ST0_FR))
 				ft &= ~1;
 			fpuemuprivate.stats.stores++;
-			if (mips_put_dword(regs, va, ctx->regs[ft])) {
+			if (put_user(ctx->regs[ft], va)) {
 				fpuemuprivate.stats.errors++;
 				return SIGBUS;
 			}
@@ -324,19 +278,20 @@ emul:
 
 	case lwc1_op:
 		{
-			void *va = REG_TO_VA(regs->regs[MIPSInst_RS(ir)])
-			    + MIPSInst_SIMM(ir);
-			fpureg_t val;
+			u32 *va = REG_TO_VA(regs->regs[MIPSInst_RS(ir)]) +
+			               MIPSInst_SIMM(ir);
 			int ft = MIPSInst_RT(ir);
+			u32 val;
+
 			fpuemuprivate.stats.loads++;
-			val = mips_get_word(regs, va, &err);
+			err = get_user(val, va);
 			if (err) {
 				fpuemuprivate.stats.errors++;
 				return SIGBUS;
 			}
 			if (regs->cp0_status & ST0_FR) {
 				/* load whole register */
-				ctx->regs[ft] = val;
+				ctx->regs[ft] = (s64) val;
 			} else if (ft & 1) {
 				/* load to m.s. 32 bits */
 #ifdef SINGLE_ONLY_FPU
@@ -344,7 +299,7 @@ emul:
 				return SIGILL;
 #else
 				ctx->regs[(ft & ~1)] &= 0xffffffff;
-				ctx->regs[(ft & ~1)] |= val << 32;
+				ctx->regs[(ft & ~1)] |= (fpureg_t) val << 32;
 #endif
 			} else {
 				/* load to l.s. 32 bits */
@@ -356,10 +311,11 @@ emul:
 
 	case swc1_op:
 		{
-			void *va = REG_TO_VA(regs->regs[MIPSInst_RS(ir)])
-			    + MIPSInst_SIMM(ir);
+			fpureg_t *va = REG_TO_VA(regs->regs[MIPSInst_RS(ir)]) +
+			               MIPSInst_SIMM(ir);
 			unsigned int val;
 			int ft = MIPSInst_RT(ir);
+
 			fpuemuprivate.stats.stores++;
 			if (regs->cp0_status & ST0_FR) {
 				/* store whole register */
@@ -376,7 +332,7 @@ emul:
 				/* store from l.s. 32 bits */
 				val = ctx->regs[ft];
 			}
-			if (mips_put_word(regs, va, val)) {
+			if (put_user(val, va)) {
 				fpuemuprivate.stats.errors++;
 				return SIGBUS;
 			}
@@ -385,10 +341,10 @@ emul:
 #else				/* old 32-bit fpu registers */
 	case lwc1_op:
 		{
-			void *va = REG_TO_VA(regs->regs[MIPSInst_RS(ir)])
-			    + MIPSInst_SIMM(ir);
-			ctx->regs[MIPSInst_RT(ir)] =
-			    mips_get_word(regs, va, &err);
+			fpureg_t *va = REG_TO_VA(regs->regs[MIPSInst_RS(ir)]) +
+			               MIPSInst_SIMM(ir);
+			err = get_user(ctx->regs[MIPSInst_RT(ir)], va);
+
 			fpuemuprivate.stats.loads++;
 			if (err) {
 				fpuemuprivate.stats.errors++;
@@ -399,11 +355,10 @@ emul:
 
 	case swc1_op:
 		{
-			void *va = REG_TO_VA(regs->regs[MIPSInst_RS(ir)])
-			    + MIPSInst_SIMM(ir);
+			u32 *va = REG_TO_VA(regs->regs[MIPSInst_RS(ir)]) +
+			          MIPSInst_SIMM(ir);
 			fpuemuprivate.stats.stores++;
-			if (mips_put_word
-			    (regs, va, ctx->regs[MIPSInst_RT(ir)])) {
+			if (put_user(ctx->regs[MIPSInst_RT(ir)], va)) {
 				fpuemuprivate.stats.errors++;
 				return SIGBUS;
 			}
@@ -417,19 +372,11 @@ emul:
 			int errs = 0;
 			fpuemuprivate.stats.loads++;
 #if (defined(BYTE_ORDER) && BYTE_ORDER == BIG_ENDIAN) || defined(__MIPSEB__)
-			ctx->regs[rt + 1] =
-			    mips_get_word(regs, va + 0, &err);
-			errs += err;
-			ctx->regs[rt + 0] =
-			    mips_get_word(regs, va + 4, &err);
-			errs += err;
+			err = get_user(ctx->regs[rt + 1], va + 0);
+			err |= get_user(ctx->regs[rt + 0], va + 4);
 #else
-			ctx->regs[rt + 0] =
-			    mips_get_word(regs, va + 0, &err);
-			errs += err;
-			ctx->regs[rt + 1] =
-			    mips_get_word(regs, va + 4, &err);
-			errs += err;
+			err = get_user(ctx->regs[rt + 0], va + 0);
+			err |= get_user(ctx->regs[rt + 1], va + 4);
 #endif
 			if (err)
 				return SIGBUS;
@@ -438,19 +385,18 @@ emul:
 
 	case sdc1_op:
 		{
-			void *va = REG_TO_VA(regs->regs[MIPSInst_RS(ir)])
-			    + MIPSInst_SIMM(ir);
+			u32 *va = REG_TO_VA(regs->regs[MIPSInst_RS(ir)]) +
+			          MIPSInst_SIMM(ir);
 			unsigned int rt = MIPSInst_RT(ir) & ~1;
+
 			fpuemuprivate.stats.stores++;
 #if (defined(BYTE_ORDER) && BYTE_ORDER == BIG_ENDIAN) || defined(__MIPSEB__)
-			if (mips_put_word(regs, va + 0, ctx->regs[rt + 1]))
-				return SIGBUS;
-			if (mips_put_word(regs, va + 4, ctx->regs[rt + 0]))
+			if (put_user(ctx->regs[rt + 1], va + 0)
+			    || put_user(ctx->regs[rt + 0], va + 4))
 				return SIGBUS;
 #else
-			if (mips_put_word(regs, va + 0, ctx->regs[rt + 0]))
-				return SIGBUS;
-			if (mips_put_word(regs, va + 4, ctx->regs[rt + 1]))
+			if (put_user(ctx->regs[rt + 0], va + 0)
+			    || put_user(ctx->regs[rt + 1], va + 4))
 				return SIGBUS;
 #endif
 		}
@@ -652,10 +598,10 @@ emul:
 				/* branch taken: emulate dslot instruction */
 				regs->cp0_epc += 4;
 				contpc = REG_TO_VA regs->cp0_epc +
-				         (MIPSInst_SIMM(ir) << 2);
+				                   (MIPSInst_SIMM(ir) << 2);
 
-				ir = mips_get_word(regs, REG_TO_VA(regs->cp0_epc),
-				      &err);
+				err = get_user(ir,
+					(mips_instruction *)regs->cp0_epc);
 				if (err) {
 					fpuemuprivate.stats.errors++;
 					return SIGBUS;
@@ -774,13 +720,13 @@ emul:
 
 int do_dsemulret(struct pt_regs *xcp)
 {
-	unsigned long *pinst;
+	mips_instruction *pinst;
 	unsigned long stackitem;
 	int err = 0;
 
 	/* See if this trap was deliberate. First check the instruction */
 
-	pinst = (unsigned long *) REG_TO_VA(xcp->cp0_epc);
+	pinst = (mips_instruction *) REG_TO_VA(xcp->cp0_epc);
 
 	/* 
 	 * If we can't even access the area, something is very wrong, but we'll
@@ -790,13 +736,13 @@ int do_dsemulret(struct pt_regs *xcp)
 		return 0;
 
 	/* Is the instruction pointed to by the EPC an AdELOAD? */
-	stackitem = mips_get_word(xcp, pinst, &err);
+	err = get_user(stackitem, pinst);
 	if (err || (stackitem != AdELOAD))
 		return 0;
 
 	/* Is the following memory word the BD_COOKIE? */
 
-	stackitem = mips_get_word(xcp, pinst+1, &err);
+	err = get_user(stackitem, pinst + 1);
 	if (err || (stackitem != BD_COOKIE))
 		return 0;
 
@@ -815,7 +761,7 @@ int do_dsemulret(struct pt_regs *xcp)
 #endif
 	/* Fetch the Saved EPC to Resume */
 
-	stackitem = mips_get_word(xcp, pinst+2, &err);
+	err = get_user(stackitem, pinst + 2);
 	if (err) {
 		/* This is not a good situation to be in */
 		fpuemuprivate.stats.errors++;
@@ -834,8 +780,9 @@ int do_dsemulret(struct pt_regs *xcp)
 
 static int mips_dsemul(struct pt_regs *regs, mips_instruction ir, vaddr_t cpc)
 {
-	mips_instruction *dsemul_insns;
 	extern asmlinkage void handle_dsemulret(void);
+	mips_instruction *dsemul_insns;
+	int err;
 
 	if (ir == 0) {		/* a nop is easy */
 		regs->cp0_epc = VA_TO_REG(cpc);
@@ -865,29 +812,17 @@ static int mips_dsemul(struct pt_regs *regs, mips_instruction ir, vaddr_t cpc)
 	dsemul_insns -= 4;	/* Retain 16-byte alignment */
 
 	/* Verify that the stack pointer is not competely insane */
-	if (verify_area
-	    (VERIFY_WRITE, dsemul_insns, sizeof(mips_instruction) * 4))
+	if (unlikely(verify_area(VERIFY_WRITE, dsemul_insns,
+	                         sizeof(mips_instruction) * 4)))
 		return SIGBUS;
 
-	if (mips_put_word(regs, &dsemul_insns[0], ir)) {
+	err = __put_user(ir, &dsemul_insns[0]);
+	err |= __put_user((mips_instruction)AdELOAD, &dsemul_insns[1]);
+	err |= __put_user((mips_instruction)BD_COOKIE, &dsemul_insns[2]);
+	err |= __put_user((mips_instruction)cpc, &dsemul_insns[3]);
+	if (unlikely(err)) {
 		fpuemuprivate.stats.errors++;
-		return (SIGBUS);
-	}
-
-	if (mips_put_word(regs, &dsemul_insns[1], (mips_instruction)AdELOAD)) {
-		fpuemuprivate.stats.errors++;
-		return (SIGBUS);
-	}
-	
-	if (mips_put_word(regs, &dsemul_insns[2], 
-			  (mips_instruction)BD_COOKIE)) {
-		fpuemuprivate.stats.errors++;
-		return (SIGBUS);
-	}
-
-	if (mips_put_word(regs, &dsemul_insns[3], (mips_instruction)cpc)) {
-		fpuemuprivate.stats.errors++;
-		return (SIGBUS);
+		return SIGBUS;
 	}
 
 	regs->cp0_epc = VA_TO_REG & dsemul_insns[0];
@@ -924,15 +859,15 @@ static const unsigned char cmptab[8] = {
 
 #ifdef CP0_STATUS_FR_SUPPORT
 #define DPFROMREG(dp,x)	((dp).bits = \
-			ctx->regs[(xcp->cp0_status & ST0_FR) ? x : (x & ~1)])
-#define DPTOREG(dp,x)	(ctx->regs[(xcp->cp0_status & ST0_FR) ? x : (x & ~1)]\
-			= (dp).bits)
+	ctx->regs[(xcp->cp0_status & ST0_FR) ? x : (x & ~1)])
+#define DPTOREG(dp,x)	(ctx->regs[(xcp->cp0_status & ST0_FR) ? x : (x & ~1)] \
+	= (dp).bits)
 #else
 /* Beware: MIPS COP1 doubles are always little_word endian in registers */
 #define DPFROMREG(dp,x)	\
-  ((dp).bits = ((unsigned long long)ctx->regs[(x)+1] << 32) | ctx->regs[x])
+	((dp).bits = ((u64)ctx->regs[(x)+1] << 32) | ctx->regs[x])
 #define DPTOREG(dp,x) \
-  (ctx->regs[x] = (dp).bits, ctx->regs[(x)+1] = (dp).bits >> 32)
+	(ctx->regs[x] = (dp).bits, ctx->regs[(x)+1] = (dp).bits >> 32)
 #endif
 
 #if __mips >= 4 && __mips != 32
@@ -1003,19 +938,15 @@ static int fpux_emu(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx,
 			switch (MIPSInst_FUNC(ir)) {
 			case lwxc1_op:
 				{
-					void *va =
-					    REG_TO_VA(xcp->
-						      regs[MIPSInst_FR(ir)]
-						      +
-						      xcp->
-						      regs[MIPSInst_FT
-							   (ir)]);
+					void *va = REG_TO_VA(
+						xcp->regs[MIPSInst_FR(ir)] +
+						xcp->regs[MIPSInst_FT(ir)]);
 					fpureg_t val;
 					int err = 0;
-					val = mips_get_word(xcp, va, &err);
+
+					err = get_user(val, (fpureg_t *)va);
 					if (err) {
-						fpuemuprivate.stats.
-						    errors++;
+						fpuemuprivate.stats.errors++;
 						return SIGBUS;
 					}
 					if (xcp->cp0_status & ST0_FR) {
@@ -1054,30 +985,21 @@ static int fpux_emu(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx,
 
 			case swxc1_op:
 				{
-					void *va =
-					    REG_TO_VA(xcp->
-						      regs[MIPSInst_FR(ir)]
-						      +
-						      xcp->
-						      regs[MIPSInst_FT
-							   (ir)]);
+					u32 *va = REG_TO_VA(
+						xcp->regs[MIPSInst_FR(ir)] +
+						xcp->regs[MIPSInst_FT(ir)]);
 					unsigned int val;
+
 					if (xcp->cp0_status & ST0_FR) {
 						/* store whole register */
-						val =
-						    ctx->
-						    regs[MIPSInst_FS(ir)];
+						val = ctx->regs[MIPSInst_FS(ir)];
 					} else if (MIPSInst_FS(ir) & 1) {
 #if defined(SINGLE_ONLY_FPU)
 						/* illegal register in single-float mode */
 						return SIGILL;
 #else
 						/* store from m.s. 32 bits */
-						val =
-						    ctx->
-						    regs[
-							 (MIPSInst_FS(ir) &
-							  ~1)] >> 32;
+						val = ctx->regs[(MIPSInst_FS(ir) & ~1)] >> 32;
 #endif
 					} else {
 						/* store from l.s. 32 bits */
@@ -1085,9 +1007,8 @@ static int fpux_emu(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx,
 						    ctx->
 						    regs[MIPSInst_FS(ir)];
 					}
-					if (mips_put_word(xcp, va, val)) {
-						fpuemuprivate.stats.
-						    errors++;
+					if (put_user(val, va)) {
+						fpuemuprivate.stats.errors++;
 						return SIGBUS;
 					}
 				}
@@ -1155,16 +1076,13 @@ static int fpux_emu(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx,
 			switch (MIPSInst_FUNC(ir)) {
 			case ldxc1_op:
 				{
-					void *va =
-					    REG_TO_VA(xcp->
-						      regs[MIPSInst_FR(ir)]
-						      +
-						      xcp->
-						      regs[MIPSInst_FT
-							   (ir)]);
-					int err = 0;
-					ctx->regs[MIPSInst_FD(ir)] =
-					    mips_get_dword(xcp, va, &err);
+					void *va = REG_TO_VA(
+						xcp->regs[MIPSInst_FR(ir)] +
+						xcp->regs[MIPSInst_FT(ir)]);
+					int err;
+
+					err=get_user(ctx->regs[MIPSInst_FD(ir)],
+					         (unsigned int *)va);
 					if (err) {
 						fpuemuprivate.stats.
 						    errors++;
@@ -1175,18 +1093,13 @@ static int fpux_emu(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx,
 
 			case sdxc1_op:
 				{
-					void *va =
-					    REG_TO_VA(xcp->
-						      regs[MIPSInst_FR(ir)]
-						      +
-						      xcp->
-						      regs[MIPSInst_FT
-							   (ir)]);
-					if (mips_put_dword
-					    (xcp, va,
-					     ctx->regs[MIPSInst_FS(ir)])) {
-						fpuemuprivate.stats.
-						    errors++;
+					void *va = REG_TO_VA(
+						xcp->regs[MIPSInst_FR(ir)] +
+						xcp->regs[MIPSInst_FT(ir)]);
+
+					if (put_user(ctx->regs[MIPSInst_FS(ir)],
+					             (unsigned int *)va)) {
+						fpuemuprivate.stats.errors++;
 						return SIGBUS;
 					}
 				}
@@ -1195,12 +1108,15 @@ static int fpux_emu(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx,
 			case madd_d_op:
 				handler = fpemu_dp_madd;
 				goto dcoptop;
+
 			case msub_d_op:
 				handler = fpemu_dp_msub;
 				goto dcoptop;
+
 			case nmadd_d_op:
 				handler = fpemu_dp_nmadd;
 				goto dcoptop;
+
 			case nmsub_d_op:
 				handler = fpemu_dp_nmsub;
 				goto dcoptop;
@@ -1730,7 +1646,7 @@ int fpu_emulator_cop1Handler(struct pt_regs *xcp)
 			schedule();
 
 		prevepc = xcp->cp0_epc;
-		insn = mips_get_word(xcp, REG_TO_VA(xcp->cp0_epc), &err);
+		err = get_user(insn, (unsigned int *) xcp->cp0_epc);
 		if (err) {
 			fpuemuprivate.stats.errors++;
 			return SIGBUS;
