@@ -37,6 +37,9 @@ void __init setup_replication_mask(int maxnodes)
 
 	numa_kernel_replication_ratio = 0;
 #ifdef CONFIG_REPLICATE_KTEXT
+#ifndef CONFIG_MAPPED_KERNEL
+#error Kernel replication works with mapped kernel support. No calias support.
+#endif
 	numa_kernel_replication_ratio = 1;
 #endif
 
