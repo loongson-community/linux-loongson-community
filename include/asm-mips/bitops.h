@@ -19,13 +19,13 @@
 #define SZLONG_MASK 31UL
 #define __LL	"ll"
 #define __SC	"sc"
-#define cpu_to_lelongp(x) cpu_to_le32p(x) 
+#define cpu_to_lelongp(x) cpu_to_le32p((__u32 *) (x)) 
 #elif (_MIPS_SZLONG == 64)
 #define SZLONG_LOG 6
 #define SZLONG_MASK 63UL
 #define __LL	"lld"
 #define __SC	"scd"
-#define cpu_to_lelongp(x) cpu_to_le64p(x) 
+#define cpu_to_lelongp(x) cpu_to_le64p((__u64 *) (x)) 
 #endif
 
 #ifdef __KERNEL__
