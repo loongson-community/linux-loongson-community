@@ -32,6 +32,7 @@
 #include <asm/reboot.h>
 #include <asm/gdb-stub.h>
 #include <asm/debug.h>
+#include <asm/traps.h>
 
 #include <asm/ddb5xxx/ddb5xxx.h>
 
@@ -118,6 +119,10 @@ static void __init ddb_timer_setup(struct irqaction *irq)
 
 #endif
 }
+
+
+void __init bus_error_init(void) { /* nothing */ }
+
 
 static void ddb5477_board_init(void);
 extern void ddb5477_irq_setup(void);

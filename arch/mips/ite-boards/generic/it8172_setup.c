@@ -40,6 +40,7 @@
 #include <asm/irq.h>
 #include <asm/mipsregs.h>
 #include <asm/reboot.h>
+#include <asm/traps.h>
 #include <asm/it8172/it8172.h>
 #include <asm/it8712.h>
 #ifdef CONFIG_PC_KEYB
@@ -112,6 +113,9 @@ struct {
     { "Boot ROM",      0x1FC00000, 0x1FFFFFFF                 }
 };
 #endif
+
+
+void __init bus_error_init(void) { /* nothing */ }
 
 
 void __init it8172_init_ram_resource(unsigned long memsize)

@@ -31,6 +31,7 @@
 #include <asm/mips-boards/atlasint.h>
 #include <asm/gt64120.h>
 #include <asm/time.h>
+#include <asm/traps.h>
 
 #if defined(CONFIG_SERIAL_CONSOLE) || defined(CONFIG_PROM_CONSOLE)
 extern void console_setup(char *, int *);

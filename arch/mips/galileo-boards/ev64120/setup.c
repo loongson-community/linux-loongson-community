@@ -51,6 +51,7 @@
 #include <asm/ptrace.h>
 #include <asm/reboot.h>
 #include <asm/mc146818rtc.h>
+#include <asm/traps.h>
 
 extern struct rtc_ops no_rtc_ops;
 

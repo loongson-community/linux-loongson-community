@@ -60,10 +60,6 @@ static inline void str2eaddr(unsigned char *ea, unsigned char *str)
 
 extern void ip32_time_init(void);
 
-void __init bus_error_init(void)
-{
-}
-
 void __init ip32_setup(void)
 {
 #ifdef CONFIG_SERIAL_CONSOLE

@@ -59,6 +59,7 @@
 #include <asm/ptrace.h>
 #include <asm/reboot.h>
 #include <asm/mc146818rtc.h>
+#include <asm/traps.h>
 #include <linux/version.h>
 #include <linux/bootmem.h>
 #include <linux/blk.h>
@@ -86,6 +87,10 @@ static void __init setup_l3cache(unsigned long size);
 void __init bus_error_init(void)
 {
 }
+
+
+void __init bus_error_init(void) { /* nothing */ }
+
 
 void __init momenco_ocelot_setup(void)
 {

@@ -37,6 +37,7 @@
 #endif
 #include <asm/dma.h>
 #include <asm/time.h>
+#include <asm/traps.h>
 #ifdef CONFIG_PC_KEYB
 #include <asm/keyboard.h>
 #endif

@@ -24,6 +24,7 @@
 #include <asm/irq_cpu.h>
 #include <asm/mipsregs.h>
 #include <asm/reboot.h>
+#include <asm/traps.h>
 
 #include <asm/dec/interrupts.h>
 #include <asm/dec/kn01.h>
@@ -111,6 +112,16 @@ static void __init dec_time_init(struct irqaction *irq)
 	CMOS_WRITE(CMOS_READ(RTC_REG_B) | RTC_PIE, RTC_REG_B);
 	setup_irq(dec_interrupt[DEC_IRQ_RTC], irq);
 }
+
+
+/*
+ * Bus error (DBE/IBE exceptions and memory interrupts) handling
+ * setup.  Nothing for now.
+ */
+void __init bus_error_init(void)
+{
+}
+
 
 void __init decstation_setup(void)
 {

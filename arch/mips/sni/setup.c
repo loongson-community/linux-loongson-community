@@ -31,6 +31,7 @@
 #include <asm/reboot.h>
 #include <asm/sni.h>
 #include <asm/time.h>
+#include <asm/traps.h>
 
 extern void sni_machine_restart(char *command);
 extern void sni_machine_halt(void);
@@ -48,6 +49,10 @@ static void __init sni_rm200_pci_time_init(struct irqaction *irq)
 	outb(LATCH >> 8 , 0x40);	/* MSB */
 	setup_irq(0, irq);
 }
+
+
+void __init bus_error_init(void) { /* nothing */ }
+
 
 extern unsigned char sni_map_isa_cache;
 

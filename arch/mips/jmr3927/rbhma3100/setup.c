@@ -55,6 +55,7 @@
 #include <asm/gdb-stub.h>
 #include <asm/jmr3927/jmr3927.h>
 #include <asm/mipsregs.h>
+#include <asm/traps.h>
 
 /* Tick Timer divider */
 #define JMR3927_TIMER_CCD	0	/* 1/2 */
@@ -183,6 +184,10 @@ unsigned long jmr3927_do_gettimeoffset(void)
 
        return res;
 }                                         
+
+
+void __init bus_error_init(void) { /* nothing */ }
+
 
 #if defined(CONFIG_BLK_DEV_INITRD)
 extern unsigned long __rd_start, __rd_end, initrd_start, initrd_end;

@@ -5,6 +5,7 @@
  *
  * Copyright (C) 1994, 1995, 1996, 1999, 2000 by Ralf Baechle
  * Copyright (C) 1999, 2000 by Silicon Graphics
+ * Copyright (C) 2002  Maciej W. Rozycki
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -14,23 +15,11 @@
 #include <asm/sn/addrs.h>
 #include <asm/sn/arch.h>
 #include <asm/sn/sn0/hub.h>
+#include <asm/traps.h>
 #include <asm/uaccess.h>
-#include <asm/paccess.h>
 
 extern void dump_tlb_addr(unsigned long addr);
 extern void dump_tlb_all(void);
-
-extern asmlinkage void handle_ip27_ibe(void);
-extern asmlinkage void handle_ip27_dbe(void);
-
-void do_ip27_ibe(struct pt_regs *regs)
-{
-	printk("Got ibe at 0x%lx\n", regs->cp0_epc);
-	show_regs(regs);
-	dump_tlb_addr(regs->cp0_epc);
-	force_sig(SIGBUS, current);
-	while(1);
-}
 
 static void dump_hub_information(unsigned long errst0, unsigned long errst1)
 {
@@ -65,21 +54,17 @@ static void dump_hub_information(unsigned long errst0, unsigned long errst1)
 		? : "invalid");
 }
 
-void do_ip27_dbe(struct pt_regs *regs)
+int be_ip27_handler(struct pt_regs *regs, int is_fixup)
 {
-	unsigned long fixup, errst0, errst1;
+	unsigned long errst0, errst1;
+	int data = regs->cp0_cause & 4;
 	int cpu = LOCAL_HUB_L(PI_CPU_NUM);
 
-	fixup = search_dbe_table(regs->cp0_epc);
-	if (fixup) {
-		long new_epc;
+	if (is_fixup)
+		return MIPS_BE_FIXUP;
 
-		new_epc = fixup_exception(dpf_reg, fixup, regs->cp0_epc);
-		regs->cp0_epc = new_epc;
-		return;
-	}
-
-	printk("Slice %c got dbe at 0x%lx\n", 'A' + cpu, regs->cp0_epc);
+	printk("Slice %c got %cbe at 0x%lx\n", 'A' + cpu, data ? 'd' : 'i',
+	       regs->cp0_epc);
 	printk("Hub information:\n");
 	printk("ERR_INT_PEND = 0x%06lx\n", LOCAL_HUB_L(PI_ERR_INT_PEND));
 	errst0 = LOCAL_HUB_L(cpu ? PI_ERR_STATUS0_B : PI_ERR_STATUS0_A);
@@ -97,8 +82,7 @@ void __init bus_error_init(void)
 	int cpu = LOCAL_HUB_L(PI_CPU_NUM);
 	int cpuoff = cpu << 8;
 
-	set_except_vector(6, handle_ip27_ibe);
-	set_except_vector(7, handle_ip27_dbe);
+	be_board_handler = be_ip27_handler;
 
 	LOCAL_HUB_S(PI_ERR_INT_PEND,
 	            cpu ? PI_ERR_CLEAR_ALL_B : PI_ERR_CLEAR_ALL_A);

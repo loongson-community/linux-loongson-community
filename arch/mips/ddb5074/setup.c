@@ -25,6 +25,7 @@
 #include <asm/gdb-stub.h>
 #include <asm/nile4.h>
 #include <asm/ddb5074.h>
+#include <asm/traps.h>
 
 
 #ifdef CONFIG_REMOTE_DEBUG
@@ -90,6 +91,10 @@ static void __init ddb_time_init(struct irqaction *irq)
 	change_cp0_status(ST0_IM,
 		          IE_IRQ0 | IE_IRQ1 | IE_IRQ2 | IE_IRQ3 | IE_IRQ4);
 }
+
+
+void __init bus_error_init(void) { /* nothing */ }
+
 
 void __init ddb_setup(void)
 {

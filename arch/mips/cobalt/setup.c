@@ -25,6 +25,7 @@
 #include <asm/pci.h>
 #include <asm/processor.h>
 #include <asm/reboot.h>
+#include <asm/traps.h>
 
 extern void cobalt_machine_restart(char *command);
 extern void cobalt_machine_halt(void);
@@ -75,6 +76,10 @@ static void __init cobalt_timer_setup(struct irqaction *irq)
 	/* Unmask timer int */
 	*((volatile unsigned long *) GALILEO_CPU_MASK) = (unsigned long) 0x00000100; 
 }
+
+
+void __init bus_error_init(void) { /* nothing */ }
+
 
 int cobalt_serial_present;
 int cobalt_serial_type;

@@ -25,6 +25,7 @@
 #include <asm/gdb-stub.h>
 #include <asm/time.h>
 #include <asm/debug.h>
+#include <asm/traps.h>
 
 #include <asm/ddb5xxx/ddb5xxx.h>
 
@@ -137,6 +138,10 @@ static struct {
 } ddb5476_iomem = {
 	{ "Nile 4", DDB_BASE, DDB_BASE + DDB_SIZE - 1, IORESOURCE_BUSY}
 };
+
+
+void __init bus_error_init(void) { /* nothing */ }
+
 
 static void ddb5476_board_init(void);
 extern void ddb5476_irq_setup(void);
