@@ -224,6 +224,10 @@ config SOUND_AU1550_AC97
 	tristate "Au1550 AC97 Sound"
 	depends on SOUND_PRIME!=n && SOC_AU1550 && SOUND
 
+config SOUND_AU1550_I2S
+	tristate "Au1550 I2S Sound"
+	depends on SOUND_PRIME!=n && SOC_AU1550 && SOUND
+
 config SOUND_TRIDENT
 	tristate "Trident 4DWave DX/NX, SiS 7018 or ALi 5451 PCI Audio Core"
 	depends on SOUND_PRIME!=n && SOUND && SOUND_GAMEPORT
