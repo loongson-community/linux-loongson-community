@@ -622,7 +622,7 @@ static int init_serdma(serdma_t *dma)
         memset(dma->descrtab, 0, dma->ringsz * sizeof(serdma_descr_t));
         dma->descrtab_end = dma->descrtab + dma->ringsz;
 	/* XXX bloddy mess, use proper DMA API here ...  */
-	dma->descrtab_phys = PHYSADDR((int)dma->descrtab);
+	dma->descrtab_phys = PHYSADDR((long)dma->descrtab);
         dma->descr_add = dma->descr_rem = dma->descrtab;
 
         /* Frame buffer area */
@@ -633,7 +633,7 @@ static int init_serdma(serdma_t *dma)
                 return -1;
         }
         memset(dma->dma_buf, 0, DMA_BUF_SIZE);
-        dma->dma_buf_phys = PHYSADDR((int)dma->dma_buf);
+        dma->dma_buf_phys = PHYSADDR((long)dma->dma_buf);
 
         /* Samples buffer area */
         dma->sbufsz = SAMPLE_BUF_SIZE;
@@ -951,7 +951,7 @@ static void cs4297a_update_ptr(struct cs4297a_state *s, int intflag)
                                 u16 left, right;
                                 descr_a = descr->descr_a;
                                 descr->descr_a &= ~M_DMA_SERRX_SOP;
-                                if ((descr_a & M_DMA_DSCRA_A_ADDR) != PHYSADDR((int)s_ptr)) {
+                                if ((descr_a & M_DMA_DSCRA_A_ADDR) != PHYSADDR((long)s_ptr)) {
                                         printk(KERN_ERR "cs4297a: RX Bad address (read)\n");
                                 }
                                 if (((data & 0x9800000000000000) != 0x9800000000000000) ||
@@ -1022,10 +1022,10 @@ static void cs4297a_update_ptr(struct cs4297a_state *s, int intflag)
                            be a buffer to process. */
                         do {
                                 data = *data_p;
-                                if ((descr->descr_a & M_DMA_DSCRA_A_ADDR) != PHYSADDR((int)data_p)) {
-                                        printk(KERN_ERR "cs4297a: RX Bad address %d (%x %x)\n", d->swptr,
-                                               (int)(descr->descr_a & M_DMA_DSCRA_A_ADDR),
-                                               (int)PHYSADDR((int)data_p));
+                                if ((descr->descr_a & M_DMA_DSCRA_A_ADDR) != PHYSADDR((long)data_p)) {
+                                        printk(KERN_ERR "cs4297a: RX Bad address %d (%llx %lx)\n", d->swptr,
+                                               (long long)(descr->descr_a & M_DMA_DSCRA_A_ADDR),
+                                               (long)PHYSADDR((long)data_p));
                                 }
                                 if (!(data & (1LL << 63)) ||
                                     !(descr->descr_a & M_DMA_SERRX_SOP) ||
@@ -2570,6 +2570,7 @@ static void cs4297a_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		  "cs4297a: cs4297a_interrupt()-\n"));
 }
 
+#if 0
 static struct initvol {
 	int mixch;
 	int vol;
@@ -2585,18 +2586,23 @@ static struct initvol {
 	{SOUND_MIXER_WRITE_SPEAKER, 0x4040},
 	{SOUND_MIXER_WRITE_MIC, 0x0000}
 };
+#endif
 
 static int __init cs4297a_init(void)
 {
 	struct cs4297a_state *s;
-        u64 cfg;
-        u32 pwr, id;
+	u32 pwr, id;
 	mm_segment_t fs;
-        int rval, mdio_val;
+	int rval;
+#ifndef CONFIG_BCM_CS4297A_CSWARM
+	u64 cfg;
+	int mdio_val;
+#endif
 
 	CS_DBGOUT(CS_INIT | CS_FUNCTION, 2, printk(KERN_INFO 
 		"cs4297a: cs4297a_init_module()+ \n"));
 
+#ifndef CONFIG_BCM_CS4297A_CSWARM
         mdio_val = in64(KSEG1 + A_MAC_REGISTER(2, R_MAC_MDIO)) &
                 (M_MAC_MDIO_DIR|M_MAC_MDIO_OUT);
 
@@ -2622,6 +2628,7 @@ static int __init cs4297a_init(void)
         out64(mdio_val | M_MAC_GENC, KSEG1+A_MAC_REGISTER(2, R_MAC_MDIO));
         /* Give the codec some time to finish resetting (start the bit clock) */
         udelay(100);
+#endif
 
 	if (!(s = kmalloc(sizeof(struct cs4297a_state), GFP_KERNEL))) {
 		CS_DBGOUT(CS_ERROR, 1, printk(KERN_ERR
