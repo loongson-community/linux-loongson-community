@@ -44,23 +44,11 @@ endif
 export-objs			+= old-irq.o
 obj-$(CONFIG_ROTTEN_IRQ)	+= old-irq.o
 
-ifndef CONFIG_DECSTATION
-  ifndef CONFIG_BAGET_MIPS
-    ifndef CONFIG_MIPS_ATLAS
-      ifndef CONFIG_MIPS_MALTA
-        ifndef CONFIG_MIPS_EV96100
-	  ifndef CONFIG_MIPS_ITE8172
-            ifndef CONFIG_NINO
-	      ifndef CONFIG_MIPS_IVR
-	        obj-y += time.o
-	      endif
-            endif
-	  endif
-        endif
-      endif
-    endif
-  endif
-endif
+# transition from old time.c to new time.c
+# some boards uses old-time.c, some use time.c, and some use their own ones
+exprot-objs                    += old-time.o time.o
+obj-$(CONFIG_OLD_TIME_C)       += old-time.o
+obj-$(CONFIG_NEW_TIME_C)       += time.o
 
 obj-$(CONFIG_BINFMT_IRIX)	+= irixelf.o irixioctl.o irixsig.o sysirix.o \
 				   irixinv.o

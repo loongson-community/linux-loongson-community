@@ -182,6 +182,10 @@ void disable_irq(unsigned int irq)
 	}
 }
 
+void disable_irq(unsigned int irq)
+{
+}
+
 /**
  *	enable_irq - enable interrupt handling on an irq
  *	@irq: Interrupt to enable
