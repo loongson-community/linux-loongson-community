@@ -21,7 +21,8 @@ obj-$(CONFIG_I8259)		+= i8259.o
 obj-$(CONFIG_IRQ_CPU)		+= irq_cpu.o
 
 obj-$(CONFIG_MODULES)		+= mips64_ksyms.o
-obj-$(CONFIG_MIPS32_COMPAT)	+= linux32.o scall_o32.o signal32.o ioctl32.o
+obj-$(CONFIG_MIPS32_COMPAT)	+= linux32.o scall_o32.o scall_n32.o
+obj-$(CONFIG_MIPS32_COMPAT)	+= signal32.o ioctl32.o
 obj-$(CONFIG_BINFMT_ELF32)	+= binfmt_elf32.o
 obj-$(CONFIG_SMP)		+= smp.o
 

@@ -32,12 +32,12 @@
 	TLBMISS_HANDLER_SETUP_PGD(swapper_pg_dir)
 extern unsigned long pgd_current[];
 
-#ifndef CONFIG_SMP
-#define CPU_CONTEXT(cpu, mm)	(mm)->context
+#ifdef CONFIG_SMP
+#define cpu_context(cpu, mm)	((mm)->context[cpu])
 #else
-#define CPU_CONTEXT(cpu, mm)	(*((unsigned long *)((mm)->context) + cpu))
+#define cpu_context(cpu, mm)	((mm)->context)
 #endif
-#define ASID_CACHE(cpu)		cpu_data[cpu].asid_cache
+#define asid_cache(cpu)		cpu_data[cpu].asid_cache
 
 #if defined(CONFIG_CPU_R3000) || defined(CONFIG_CPU_TX39XX)
 
@@ -65,7 +65,7 @@ static inline void enter_lazy_tlb(struct mm_struct *mm, struct task_struct *tsk,
 static inline void
 get_new_mmu_context(struct mm_struct *mm, unsigned long cpu)
 {
-	unsigned long asid = ASID_CACHE(cpu);
+	unsigned long asid = asid_cache(cpu);
 
 	if (! ((asid += ASID_INC) & ASID_MASK) ) {
 		flush_icache_all();
@@ -73,7 +73,7 @@ get_new_mmu_context(struct mm_struct *mm, unsigned long cpu)
 		if (!asid)		/* fix version if needed */
 			asid = ASID_FIRST_VERSION;
 	}
-	CPU_CONTEXT(cpu, mm) = ASID_CACHE(cpu) = asid;
+	cpu_context(cpu, mm) = asid_cache(cpu) = asid;
 }
 
 /*
@@ -83,9 +83,7 @@ get_new_mmu_context(struct mm_struct *mm, unsigned long cpu)
 static inline int
 init_new_context(struct task_struct *tsk, struct mm_struct *mm)
 {
-#ifndef CONFIG_SMP
-	mm->context = 0;
-#else
+#ifdef CONFIG_SMP
 	mm->context = (unsigned long)kmalloc(smp_num_cpus *
 				sizeof(unsigned long), GFP_KERNEL);
 	/*
@@ -95,6 +93,8 @@ init_new_context(struct task_struct *tsk, struct mm_struct *mm)
 	if (mm->context == 0)
 		return -ENOMEM;
 	memset((void *)mm->context, 0, smp_num_cpus * sizeof(unsigned long));
+#else
+	mm->context = 0;
 #endif
 	return 0;
 }
@@ -103,10 +103,10 @@ static inline void switch_mm(struct mm_struct *prev, struct mm_struct *next,
                              struct task_struct *tsk, unsigned cpu)
 {
 	/* Check if our ASID is of an older version and thus invalid */
-	if ((CPU_CONTEXT(cpu, next) ^ ASID_CACHE(cpu)) & ASID_VERSION_MASK)
+	if ((cpu_context(cpu, next) ^ asid_cache(cpu)) & ASID_VERSION_MASK)
 		get_new_mmu_context(next, cpu);
 
-	set_entryhi(CPU_CONTEXT(cpu, next));
+	set_entryhi(cpu_context(cpu, next));
 	TLBMISS_HANDLER_SETUP_PGD(next->pgd);
 }
 
@@ -132,7 +132,7 @@ activate_mm(struct mm_struct *prev, struct mm_struct *next)
 	/* Unconditionally get a new ASID.  */
 	get_new_mmu_context(next, smp_processor_id());
 
-	set_entryhi(CPU_CONTEXT(smp_processor_id(), next));
+	set_entryhi(cpu_context(smp_processor_id(), next));
 	TLBMISS_HANDLER_SETUP_PGD(next->pgd);
 }
 

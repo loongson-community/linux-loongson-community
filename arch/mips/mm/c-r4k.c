@@ -368,63 +368,63 @@ static void r4k_flush_cache_range_d32i32(struct vm_area_struct *vma,
  */
 static void r4k_flush_cache_mm_s16d16i16(struct mm_struct *mm)
 {
-	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
+	if (cpu_context(smp_processor_id(), mm) != 0) {
 		r4k_flush_cache_all_s16d16i16();
 	}
 }
 
 static void r4k_flush_cache_mm_s32d16i16(struct mm_struct *mm)
 {
-	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
+	if (cpu_context(smp_processor_id(), mm) != 0) {
 		r4k_flush_cache_all_s32d16i16();
 	}
 }
 
 static void r4k_flush_cache_mm_s64d16i16(struct mm_struct *mm)
 {
-	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
+	if (cpu_context(smp_processor_id(), mm) != 0) {
 		r4k_flush_cache_all_s64d16i16();
 	}
 }
 
 static void r4k_flush_cache_mm_s128d16i16(struct mm_struct *mm)
 {
-	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
+	if (cpu_context(smp_processor_id(), mm) != 0) {
 		r4k_flush_cache_all_s128d16i16();
 	}
 }
 
 static void r4k_flush_cache_mm_s32d32i32(struct mm_struct *mm)
 {
-	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
+	if (cpu_context(smp_processor_id(), mm) != 0) {
 		r4k_flush_cache_all_s32d32i32();
 	}
 }
 
 static void r4k_flush_cache_mm_s64d32i32(struct mm_struct *mm)
 {
-	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
+	if (cpu_context(smp_processor_id(), mm) != 0) {
 		r4k_flush_cache_all_s64d32i32();
 	}
 }
 
 static void r4k_flush_cache_mm_s128d32i32(struct mm_struct *mm)
 {
-	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
+	if (cpu_context(smp_processor_id(), mm) != 0) {
 		r4k_flush_cache_all_s128d32i32();
 	}
 }
 
 static void r4k_flush_cache_mm_d16i16(struct mm_struct *mm)
 {
-	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
+	if (cpu_context(smp_processor_id(), mm) != 0) {
 		r4k_flush_cache_all_d16i16();
 	}
 }
 
 static void r4k_flush_cache_mm_d32i32(struct mm_struct *mm)
 {
-	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
+	if (cpu_context(smp_processor_id(), mm) != 0) {
 		r4k_flush_cache_all_d32i32();
 	}
 }
@@ -441,7 +441,7 @@ static void r4k_flush_cache_page_s16d16i16(struct vm_area_struct *vma,
 	 * If ownes no valid ASID yet, cannot possibly have gotten
 	 * this page into the cache.
 	 */
-	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
+	if (cpu_context(smp_processor_id(), mm) == 0)
 		return;
 
 	page &= PAGE_MASK;
@@ -462,8 +462,8 @@ static void r4k_flush_cache_page_s16d16i16(struct vm_area_struct *vma,
 	 * for every cache flush operation.  So we do indexed flushes
 	 * in that case, which doesn't overly flush the cache too much.
 	 */
-	if (CPU_CONTEXT(smp_processor_id(), mm) !=
-	    CPU_CONTEXT(smp_processor_id(), current->mm)) {
+	if (cpu_context(smp_processor_id(), mm) !=
+	    cpu_context(smp_processor_id(), current->mm)) {
 		/*
 		 * Do indexed flush, too much work to get the (possible)
 		 * tlb refills to work correctly.
@@ -487,7 +487,7 @@ static void r4k_flush_cache_page_s32d16i16(struct vm_area_struct *vma,
 	 * If ownes no valid ASID yet, cannot possibly have gotten
 	 * this page into the cache.
 	 */
-	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
+	if (cpu_context(smp_processor_id(), mm) == 0)
 		return;
 
 	page &= PAGE_MASK;
@@ -507,8 +507,8 @@ static void r4k_flush_cache_page_s32d16i16(struct vm_area_struct *vma,
 	 * for every cache flush operation.  So we do indexed flushes
 	 * in that case, which doesn't overly flush the cache too much.
 	 */
-	if (CPU_CONTEXT(smp_processor_id(), mm) !=
-	    CPU_CONTEXT(smp_processor_id(), current->mm)) {
+	if (cpu_context(smp_processor_id(), mm) !=
+	    cpu_context(smp_processor_id(), current->mm)) {
 		/*
 		 * Do indexed flush, too much work to get the (possible)
 		 * tlb refills to work correctly.
@@ -532,7 +532,7 @@ static void r4k_flush_cache_page_s64d16i16(struct vm_area_struct *vma,
 	 * If ownes no valid ASID yet, cannot possibly have gotten
 	 * this page into the cache.
 	 */
-	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
+	if (cpu_context(smp_processor_id(), mm) == 0)
 		return;
 
 	page &= PAGE_MASK;
@@ -552,8 +552,8 @@ static void r4k_flush_cache_page_s64d16i16(struct vm_area_struct *vma,
 	 * for every cache flush operation.  So we do indexed flushes
 	 * in that case, which doesn't overly flush the cache too much.
 	 */
-	if (CPU_CONTEXT(smp_processor_id(), mm) !=
-	    CPU_CONTEXT(smp_processor_id(), current->mm)) {
+	if (cpu_context(smp_processor_id(), mm) !=
+	    cpu_context(smp_processor_id(), current->mm)) {
 		/*
 		 * Do indexed flush, too much work to get the (possible)
 		 * tlb refills to work correctly.
@@ -577,7 +577,7 @@ static void r4k_flush_cache_page_s128d16i16(struct vm_area_struct *vma,
 	 * If ownes no valid ASID yet, cannot possibly have gotten
 	 * this page into the cache.
 	 */
-	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
+	if (cpu_context(smp_processor_id(), mm) == 0)
 		return;
 
 	page &= PAGE_MASK;
@@ -597,8 +597,8 @@ static void r4k_flush_cache_page_s128d16i16(struct vm_area_struct *vma,
 	 * for every cache flush operation.  So we do indexed flushes
 	 * in that case, which doesn't overly flush the cache too much.
 	 */
-	if (CPU_CONTEXT(smp_processor_id(), mm) !=
-	    CPU_CONTEXT(smp_processor_id(), current->mm)) {
+	if (cpu_context(smp_processor_id(), mm) !=
+	    cpu_context(smp_processor_id(), current->mm)) {
 		/*
 		 * Do indexed flush, too much work to get the (possible)
 		 * tlb refills to work correctly.
@@ -622,7 +622,7 @@ static void r4k_flush_cache_page_s32d32i32(struct vm_area_struct *vma,
 	 * If ownes no valid ASID yet, cannot possibly have gotten
 	 * this page into the cache.
 	 */
-	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
+	if (cpu_context(smp_processor_id(), mm) == 0)
 		return;
 
 	page &= PAGE_MASK;
@@ -642,8 +642,8 @@ static void r4k_flush_cache_page_s32d32i32(struct vm_area_struct *vma,
 	 * for every cache flush operation.  So we do indexed flushes
 	 * in that case, which doesn't overly flush the cache too much.
 	 */
-	if (CPU_CONTEXT(smp_processor_id(), mm) !=
-	    CPU_CONTEXT(smp_processor_id(), current->mm)) {
+	if (cpu_context(smp_processor_id(), mm) !=
+	    cpu_context(smp_processor_id(), current->mm)) {
 		/*
 		 * Do indexed flush, too much work to get the (possible)
 		 * tlb refills to work correctly.
@@ -667,7 +667,7 @@ static void r4k_flush_cache_page_s64d32i32(struct vm_area_struct *vma,
 	 * If ownes no valid ASID yet, cannot possibly have gotten
 	 * this page into the cache.
 	 */
-	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
+	if (cpu_context(smp_processor_id(), mm) == 0)
 		return;
 
 	page &= PAGE_MASK;
@@ -688,8 +688,8 @@ static void r4k_flush_cache_page_s64d32i32(struct vm_area_struct *vma,
 	 * for every cache flush operation.  So we do indexed flushes
 	 * in that case, which doesn't overly flush the cache too much.
 	 */
-	if (CPU_CONTEXT(smp_processor_id(), mm) !=
-	    CPU_CONTEXT(smp_processor_id(), current->mm)) {
+	if (cpu_context(smp_processor_id(), mm) !=
+	    cpu_context(smp_processor_id(), current->mm)) {
 		/*
 		 * Do indexed flush, too much work to get the (possible)
 		 * tlb refills to work correctly.
@@ -713,7 +713,7 @@ static void r4k_flush_cache_page_s128d32i32(struct vm_area_struct *vma,
 	 * If ownes no valid ASID yet, cannot possibly have gotten
 	 * this page into the cache.
 	 */
-	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
+	if (cpu_context(smp_processor_id(), mm) == 0)
 		return;
 
 	page &= PAGE_MASK;
@@ -734,8 +734,8 @@ static void r4k_flush_cache_page_s128d32i32(struct vm_area_struct *vma,
 	 * for every cache flush operation.  So we do indexed flushes
 	 * in that case, which doesn't overly flush the cache too much.
 	 */
-	if (CPU_CONTEXT(smp_processor_id(), mm) !=
-	    CPU_CONTEXT(smp_processor_id(), current->mm)) {
+	if (cpu_context(smp_processor_id(), mm) !=
+	    cpu_context(smp_processor_id(), current->mm)) {
 		/* Do indexed flush, too much work to get the (possible)
 		 * tlb refills to work correctly.
 		 */
@@ -758,7 +758,7 @@ static void r4k_flush_cache_page_d16i16(struct vm_area_struct *vma,
 	 * If ownes no valid ASID yet, cannot possibly have gotten
 	 * this page into the cache.
 	 */
-	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
+	if (cpu_context(smp_processor_id(), mm) == 0)
 		return;
 
 	page &= PAGE_MASK;
@@ -802,7 +802,7 @@ static void r4k_flush_cache_page_d32i32(struct vm_area_struct *vma,
 	 * If ownes no valid ASID yet, cannot possibly have gotten
 	 * this page into the cache.
 	 */
-	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
+	if (cpu_context(smp_processor_id(), mm) == 0)
 		return;
 
 	page &= PAGE_MASK;
@@ -847,7 +847,7 @@ static void r4k_flush_cache_page_d32i32_r4600(struct vm_area_struct *vma,
 	 * If ownes no valid ASID yet, cannot possibly have gotten
 	 * this page into the cache.
 	 */
-	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
+	if (cpu_context(smp_processor_id(), mm) == 0)
 		return;
 
 	page &= PAGE_MASK;

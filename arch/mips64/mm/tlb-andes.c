@@ -53,7 +53,7 @@ void local_flush_tlb_all(void)
 
 void local_flush_tlb_mm(struct mm_struct *mm)
 {
-	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
+	if (cpu_context(smp_processor_id(), mm) != 0) {
 		unsigned long flags;
 
 #ifdef DEBUG_TLB
@@ -62,7 +62,7 @@ void local_flush_tlb_mm(struct mm_struct *mm)
 		__save_and_cli(flags);
 		get_new_mmu_context(mm, smp_processor_id());
 		if(mm == current->mm)
-			set_entryhi(CPU_CONTEXT(smp_processor_id(), mm)
+			set_entryhi(cpu_context(smp_processor_id(), mm)
 				    & ASID_MASK);
 		__restore_flags(flags);
 	}
@@ -86,7 +86,7 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 		size = (size + 1) >> 1;
 		if (size <= NTLB_ENTRIES_HALF) {
 			int oldpid = (get_entryhi() & ASID_MASK);
-			int newpid = (CPU_CONTEXT(smp_processor_id(), mm)
+			int newpid = (cpu_context(smp_processor_id(), mm)
 				      & ASID_MASK);
 
 			start &= (PAGE_MASK << 1);
@@ -110,7 +110,7 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 		} else {
 			get_new_mmu_context(mm, smp_processor_id());
 			if(mm == current->mm)
-				set_entryhi(CPU_CONTEXT(smp_processor_id(), mm)
+				set_entryhi(cpu_context(smp_processor_id(), mm)
 					    & ASID_MASK);
 		}
 		__restore_flags(flags);
@@ -119,14 +119,14 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 
 void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 {
-	if (CPU_CONTEXT(smp_processor_id(), vma->vm_mm) != 0) {
+	if (cpu_context(smp_processor_id(), vma->vm_mm) != 0) {
 		unsigned long flags;
 		int oldpid, newpid, idx;
 
 #ifdef DEBUG_TLB
 		printk("[tlbpage<%d,%08lx>]", vma->vm_mm->context, page);
 #endif
-		newpid = (CPU_CONTEXT(smp_processor_id(), vma->vm_mm) &
+		newpid = (cpu_context(smp_processor_id(), vma->vm_mm) &
 			  ASID_MASK);
 		page &= (PAGE_MASK << 1);
 		__save_and_cli(flags);
@@ -167,11 +167,11 @@ static void andes_update_mmu_cache(struct vm_area_struct * vma,
 
 	pid = get_entryhi() & ASID_MASK;
 
-	if ((pid != (CPU_CONTEXT(smp_processor_id(), vma->vm_mm) & ASID_MASK))
-	    || (CPU_CONTEXT(smp_processor_id(), vma->vm_mm) == 0)) {
+	if ((pid != (cpu_context(smp_processor_id(), vma->vm_mm) & ASID_MASK))
+	    || (cpu_context(smp_processor_id(), vma->vm_mm) == 0)) {
 		printk(KERN_WARNING
 		       "%s: Wheee, bogus tlbpid mmpid=%d tlbpid=%d\n",
-		       __FUNCTION__, (int) (CPU_CONTEXT(smp_processor_id(),
+		       __FUNCTION__, (int) (cpu_context(smp_processor_id(),
 		       vma->vm_mm) & ASID_MASK), pid);
 	}
 

@@ -77,7 +77,7 @@ void local_flush_tlb_all(void)
 
 void local_flush_tlb_mm(struct mm_struct *mm)
 {
-	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
+	if (cpu_context(smp_processor_id(), mm) != 0) {
 		unsigned long flags;
 
 #ifdef DEBUG_TLB
@@ -86,7 +86,7 @@ void local_flush_tlb_mm(struct mm_struct *mm)
 		__save_and_cli(flags);
 		get_new_mmu_context(mm, smp_processor_id());
 		if (mm == current->active_mm)
-			set_entryhi(CPU_CONTEXT(smp_processor_id(), mm) &
+			set_entryhi(cpu_context(smp_processor_id(), mm) &
 				    0xff);
 		__restore_flags(flags);
 	}
@@ -110,7 +110,7 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 		size = (size + 1) >> 1;
 		if(size <= mips_cpu.tlbsize/2) {
 			int oldpid = (get_entryhi() & 0xff);
-			int newpid = (CPU_CONTEXT(smp_processor_id(), mm) &
+			int newpid = (cpu_context(smp_processor_id(), mm) &
 				      0xff);
 
 			start &= (PAGE_MASK << 1);
@@ -139,7 +139,7 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 		} else {
 			get_new_mmu_context(mm, smp_processor_id());
 			if (mm == current->active_mm)
-				set_entryhi(CPU_CONTEXT(smp_processor_id(),
+				set_entryhi(cpu_context(smp_processor_id(),
 							mm) & 0xff);
 		}
 		__restore_flags(flags);
@@ -192,14 +192,14 @@ void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
 
 void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 {
-	if (CPU_CONTEXT(smp_processor_id(), vma->vm_mm) != 0) {
+	if (cpu_context(smp_processor_id(), vma->vm_mm) != 0) {
 		unsigned long flags;
 		unsigned long oldpid, newpid, idx;
 
 #ifdef DEBUG_TLB
 		printk("[tlbpage<%d,%08lx>]", vma->vm_mm->context, page);
 #endif
-		newpid = (CPU_CONTEXT(smp_processor_id(), vma->vm_mm) & 0xff);
+		newpid = (cpu_context(smp_processor_id(), vma->vm_mm) & 0xff);
 		page &= (PAGE_MASK << 1);
 		__save_and_cli(flags);
 		oldpid = (get_entryhi() & 0xff);
@@ -244,10 +244,10 @@ void mips64_update_mmu_cache(struct vm_area_struct * vma,
 	pid = get_entryhi() & 0xff;
 
 #ifdef DEBUG_TLB
-	if((pid != (CPU_CONTEXT(smp_processor_id(), vma->vm_mm) & 0xff)) ||
-	   (CPU_CONTEXT(smp_processor_id(), vma->vm_mm) == 0)) {
+	if((pid != (cpu_context(smp_processor_id(), vma->vm_mm) & 0xff)) ||
+	   (cpu_context(smp_processor_id(), vma->vm_mm) == 0)) {
 		printk("update_mmu_cache: Wheee, bogus tlbpid mmpid=%d
-			tlbpid=%d\n", (int) (CPU_CONTEXT(smp_processor_id(),
+			tlbpid=%d\n", (int) (cpu_context(smp_processor_id(),
 			vma->vm_mm) & 0xff), pid);
 	}
 #endif
