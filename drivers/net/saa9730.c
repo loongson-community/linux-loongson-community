@@ -98,7 +98,7 @@ static void evm_saa9730_unblock_lan_int(struct lan_saa9730_private *lp)
 	     &lp->evm_saa9730_regs->InterruptBlock1);
 }
 
-static void show_saa9730_regs(struct lan_saa9730_private *lp)
+static void __attribute_used__ show_saa9730_regs(struct lan_saa9730_private *lp)
 {
 	int i, j;
 	printk("TxmBufferA = %p\n", lp->TxmBuffer[0][0]);
@@ -996,18 +996,18 @@ static int lan_saa9730_init(struct net_device *dev, struct pci_dev *pdev, unsign
 
 	if (get_ethernet_addr(ethernet_addr)) {
 		ret = -ENODEV;
-		goto out;
+		goto out_free_netdev;
 	}
-	
+
 	memcpy(dev->dev_addr, ethernet_addr, 6);
 	dev->base_addr = ioaddr;
 	dev->irq = irq;
-	
-	lp = (struct lan_saa9730_private *) pci_alloc_consistent (pdev, sizeof(*lp), &lp_dma_addr);
+
+	lp = pci_alloc_consistent (pdev, sizeof(*lp), &lp_dma_addr);
 
 	if (!lp) {
 		ret = -ENOMEM;
-                goto out;
+                goto out_free_netdev;
         }
 
 	dev->priv = lp;
@@ -1026,31 +1026,31 @@ static int lan_saa9730_init(struct net_device *dev, struct pci_dev *pdev, unsign
 
 	/* Allocate LAN RX/TX frame buffer space. */
 	if ((ret = lan_saa9730_allocate_buffers(pdev, lp)))
-		goto out;
+		goto out_free_lp;
 
 	/* Stop LAN controller. */
 	if ((ret = lan_saa9730_stop(lp))) 
-		goto out;
+		goto out_free_lp;
 	
 	/* Initialize CAM registers. */
 	if ((ret = lan_saa9730_cam_init(dev)))
-		goto out;
+		goto out_free_lp;
 
 	/* Initialize MII registers. */
 	if ((ret = lan_saa9730_mii_init(lp)))
-		goto out;
+		goto out_free_lp;
 
 	/* Initialize control registers. */
 	if ((ret = lan_saa9730_control_init(lp))) 
-		goto out;
+		goto out_free_lp;
         
 	/* Load CAM registers. */
 	if ((ret = lan_saa9730_cam_load(lp))) 
-		goto out;
+		goto out_free_lp;
 	
 	/* Initialize DMA context registers. */
 	if ((ret = lan_saa9730_dma_init(lp)))
-		goto out;
+		goto out_free_lp;
 	
 	spin_lock_init(&lp->lock);
 		
@@ -1065,17 +1065,16 @@ static int lan_saa9730_init(struct net_device *dev, struct pci_dev *pdev, unsign
 
 	ret = register_netdev (dev);
 	if (ret)
-		goto out;
+		goto out_free_lp;
 	
 	return 0;
 
- out:
-	if (dev) {
-		if (lp)
-			pci_free_consistent (lp->pci_dev, sizeof(*lp), lp, lp->dma_addr);
-		free_netdev(dev);
-	}
-		
+out_free_lp:
+	pci_free_consistent(lp->pci_dev, sizeof(*lp), lp, lp->dma_addr);
+
+out_free_netdev:
+	free_netdev(dev);
+
 	return ret;
 }
 
