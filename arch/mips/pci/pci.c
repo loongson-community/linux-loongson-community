@@ -305,10 +305,12 @@ pcibios_resource_to_bus(struct pci_dev *dev, struct pci_bus_region *region,
 	struct pci_controller *hose = (struct pci_controller *)dev->sysdata;
 	unsigned long offset = 0;
 
-	if (res->flags & IORESOURCE_IO)
-		offset = hose->io_resource->start;
-	else if (res->flags & IORESOURCE_MEM)
-		offset = hose->mem_resource->start;
+	if (hose->iommu) {
+		if (res->flags & IORESOURCE_IO)
+			offset = hose->io_resource->start;
+		else if (res->flags & IORESOURCE_MEM)
+			offset = hose->mem_resource->start;
+	}
 
 	region->start = res->start - offset;
 	region->end = res->end - offset;
