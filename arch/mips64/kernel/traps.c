@@ -400,9 +400,6 @@ asmlinkage void do_ov(struct pt_regs *regs)
 {
 	siginfo_t info;
 
-	if (compute_return_epc(regs))
-		return;
-
 	info.si_code = FPE_INTOVF;
 	info.si_signo = SIGFPE;
 	info.si_errno = 0;
@@ -445,20 +442,11 @@ asmlinkage void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 
 		/* If something went wrong, signal */
 		if (sig)
-		{
-			/*
-			 * Return EPC is not calculated in the FPU emulator,
-			 * if a signal is being send. So we calculate it here.
-			 */
-			compute_return_epc(regs);
 			force_sig(sig, current);
-		}
 
 		return;
 	}
 
-	if (compute_return_epc(regs))
-		return;
 	force_sig(SIGFPE, current);
 }
 
@@ -552,9 +540,6 @@ asmlinkage void do_ri(struct pt_regs *regs)
 {
 	die_if_kernel("Reserved instruction in kernel code", regs);
 
-	if (compute_return_epc(regs))
-		return;
-
 	force_sig(SIGILL, current);
 }
 
@@ -578,20 +563,13 @@ asmlinkage void do_cpu(struct pt_regs *regs)
 
 	if (!(mips_cpu.options & MIPS_CPU_FPU)) {
 		int sig = fpu_emulator_cop1Handler(0, regs, &current->thread.fpu.soft);
-		if (sig) {
-			/*
-			 * Return EPC is not calculated in the FPU emulator, if
-			 * a signal is being send. So we calculate it here.
-			 */
-			compute_return_epc(regs);
+		if (sig)
 			force_sig(sig, current);
-		}
 	}
 
 	return;
 
 bad_cid:
-	compute_return_epc(regs);
 	force_sig(SIGILL, current);
 }
 

@@ -88,6 +88,10 @@
 #define STR(x)  __STR(x)
 #define __STR(x)  #x
 
+#ifdef CONFIG_PROC_FS
+unsigned long unaligned_instructions;
+#endif
+
 static inline int emulate_load_store_insn(struct pt_regs *regs,
 	unsigned long addr, unsigned long pc)
 {
@@ -447,6 +451,13 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 		 */
 		goto sigill;
 	}
+
+	compute_return_epc(regs);
+
+#ifdef CONFIG_PROC_FS
+	unaligned_instructions++;
+#endif
+
 	return 0;
 
 fault:
@@ -478,10 +489,6 @@ sigill:
 
 	return 0;
 }
-
-#ifdef CONFIG_PROC_FS
-unsigned long unaligned_instructions;
-#endif
 
 asmlinkage void do_ade(struct pt_regs *regs)
 {
@@ -516,12 +523,7 @@ asmlinkage void do_ade(struct pt_regs *regs)
 	 * Do branch emulation only if we didn't forward the exception.
 	 * This is all so but ugly ...
 	 */
-	if (!emulate_load_store_insn(regs, regs->cp0_badvaddr, pc))
-		compute_return_epc(regs);
-
-#ifdef CONFIG_PROC_FS
-	unaligned_instructions++;
-#endif
+	emulate_load_store_insn(regs, regs->cp0_badvaddr, pc);
 
 	return;
 

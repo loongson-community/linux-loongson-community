@@ -91,7 +91,7 @@ extern unsigned long sc_ops;
 
 static struct task_struct *ll_task = NULL;
 
-static inline void simulate_ll(struct pt_regs *regp, unsigned int opcode)
+static inline void simulate_ll(struct pt_regs *regs, unsigned int opcode)
 {
 	unsigned long value, *vaddr;
 	long offset;
@@ -107,32 +107,37 @@ static inline void simulate_ll(struct pt_regs *regp, unsigned int opcode)
 	offset <<= 16;
 	offset >>= 16;
 
-	vaddr = (unsigned long *)((long)(regp->regs[(opcode & BASE) >> 21]) + offset);
+	vaddr = (unsigned long *)((long)(regs->regs[(opcode & BASE) >> 21]) + offset);
 
 #ifdef CONFIG_PROC_FS
 	ll_ops++;
 #endif
 
-	if ((unsigned long)vaddr & 3)
+	if ((unsigned long)vaddr & 3) {
 		signal = SIGBUS;
-	else if (get_user(value, vaddr))
-		signal = SIGSEGV;
-	else {
-		if (ll_task == NULL || ll_task == current) {
-			ll_bit = 1;
-		} else {
-			ll_bit = 0;
-		}
-		ll_task = current;
-		regp->regs[(opcode & RT) >> 16] = value;
+		goto sig;
 	}
-	if (compute_return_epc(regp))
-		return;
-	if (signal)
-		send_sig(signal, current, 1);
+	if (get_user(value, vaddr)) {
+		signal = SIGSEGV;
+		goto sig;
+	}
+
+	if (ll_task == NULL || ll_task == current) {
+		ll_bit = 1;
+	} else {
+		ll_bit = 0;
+	}
+	ll_task = current;
+	regs->regs[(opcode & RT) >> 16] = value;
+
+	compute_return_epc(regs);
+	return;
+
+sig:
+	send_sig(signal, current, 1);
 }
 
-static inline void simulate_sc(struct pt_regs *regp, unsigned int opcode)
+static inline void simulate_sc(struct pt_regs *regs, unsigned int opcode)
 {
 	unsigned long *vaddr, reg;
 	long offset;
@@ -148,25 +153,32 @@ static inline void simulate_sc(struct pt_regs *regp, unsigned int opcode)
 	offset <<= 16;
 	offset >>= 16;
 
-	vaddr = (unsigned long *)((long)(regp->regs[(opcode & BASE) >> 21]) + offset);
+	vaddr = (unsigned long *)((long)(regs->regs[(opcode & BASE) >> 21]) + offset);
 	reg = (opcode & RT) >> 16;
 
 #ifdef CONFIG_PROC_FS
 	sc_ops++;
 #endif
 
-	if ((unsigned long)vaddr & 3)
+	if ((unsigned long)vaddr & 3) {
 		signal = SIGBUS;
-	else if (ll_bit == 0 || ll_task != current)
-		regp->regs[reg] = 0;
-	else if (put_user(regp->regs[reg], vaddr))
+		goto sig;
+	}
+	if (ll_bit == 0 || ll_task != current) {
+		regs->regs[reg] = 0;
+		goto sig;
+	}
+
+	if (put_user(regs->regs[reg], vaddr))
 		signal = SIGSEGV;
 	else
-		regp->regs[reg] = 1;
-	if (compute_return_epc(regp))
-		return;
-	if (signal)
-		send_sig(signal, current, 1);
+		regs->regs[reg] = 1;
+
+	compute_return_epc(regs);
+	return;
+
+sig:
+	send_sig(signal, current, 1);
 }
 
 /*
@@ -484,9 +496,6 @@ asmlinkage void do_ov(struct pt_regs *regs)
 {
 	siginfo_t info;
 
-	if (compute_return_epc(regs))
-		return;
-
 	info.si_code = FPE_INTOVF;
 	info.si_signo = SIGFPE;
 	info.si_errno = 0;
@@ -529,20 +538,11 @@ asmlinkage void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 
 		/* If something went wrong, signal */
 		if (sig)
-		{
-			/*
-			 * Return EPC is not calculated in the FPU emulator,
-			 * if a signal is being send. So we calculate it here.
-			 */
-			compute_return_epc(regs);
 			force_sig(sig, current);
-		}
 
 		return;
 	}
 
-	if (compute_return_epc(regs))
-		return;
 	force_sig(SIGFPE, current);
 }
 
@@ -665,8 +665,6 @@ asmlinkage void do_ri(struct pt_regs *regs)
 	}
 #endif /* CONFIG_CPU_HAS_LLSC */
 
-	if (compute_return_epc(regs))
-		return;
 	force_sig(SIGILL, current);
 }
 
@@ -689,14 +687,8 @@ asmlinkage void do_cpu(struct pt_regs *regs)
 	}
 	if (!(mips_cpu.options & MIPS_CPU_FPU)) {
 		int sig = fpu_emulator_cop1Handler(0, regs, &current->thread.fpu.soft);
-		if (sig) {
-			/*
-			 * Return EPC is not calculated in the FPU emulator, if
-			 * a signal is being send. So we calculate it here.
-			 */
-			compute_return_epc(regs);
+		if (sig)
 			force_sig(sig, current);
-		}
 	}
 
 	return;
@@ -710,7 +702,6 @@ bad_cid:
 		return;
 	}
 #endif
-	compute_return_epc(regs);
 	force_sig(SIGILL, current);
 }
 
@@ -817,28 +808,28 @@ asmlinkage void cache_parity_error(void)
  */
 void ejtag_exception_handler(struct pt_regs *regs)
 {
-        unsigned long depc, old_epc;
-        unsigned int debug;
+	unsigned long depc, old_epc;
+	unsigned int debug;
 
-        printk("SDBBP EJTAG debug exception - not handled yet, just ignored!\n");
-        depc = read_c0_depc();
-        debug = read_c0_debug();
-        printk("c0_depc = %08lx, DEBUG = %08x\n", depc, debug);
-        if (debug & 0x80000000) {
-                /*
-                 * In branch delay slot.
-                 * We cheat a little bit here and use EPC to calculate the
-                 * debug return address (DEPC). EPC is restored after the
-                 * calculation.
-                 */
-                old_epc = regs->cp0_epc;
-                regs->cp0_epc = depc;
-                __compute_return_epc(regs);
-                depc = regs->cp0_epc;
-                regs->cp0_epc = old_epc;
-        } else
-                depc += 4;
-        write_c0_depc(depc);
+	printk("SDBBP EJTAG debug exception - not handled yet, just ignored!\n");
+	depc = read_c0_depc();
+	debug = read_c0_debug();
+	printk("c0_depc = %08lx, DEBUG = %08x\n", depc, debug);
+	if (debug & 0x80000000) {
+		/*
+		 * In branch delay slot.
+		 * We cheat a little bit here and use EPC to calculate the
+		 * debug return address (DEPC). EPC is restored after the
+		 * calculation.
+		 */
+		old_epc = regs->cp0_epc;
+		regs->cp0_epc = depc;
+		__compute_return_epc(regs);
+		depc = regs->cp0_epc;
+		regs->cp0_epc = old_epc;
+	} else
+		depc += 4;
+	write_c0_depc(depc);
 
 #if 0
 	printk("\n\n----- Enable EJTAG single stepping ----\n\n");
