@@ -500,7 +500,7 @@ load-$(CONFIG_SIBYTE_SWARM)	:= 0x80100000
 # SNI RM200 PCI
 #
 core-$(CONFIG_SNI_RM200_PCI)	+= arch/mips/sni/
-load-$(CONFIG_SNI_RM200_PCI)	+= 0x80080000
+load-$(CONFIG_SNI_RM200_PCI)	+= 0x80600000
 
 #
 # Toshiba JMR-TX3927 board
@@ -608,7 +608,7 @@ makeboot =$(Q)$(MAKE) -f scripts/Makefile.build obj=arch/mips/boot $(1)
 # SNI firmware is f*cked in interesting ways ...
 #
 ifdef CONFIG_SNI_RM200_PCI
-all:	vmlinux.rm200
+all:	vmlinux.ecoff
 endif
 
 vmlinux.ecoff vmlinux.rm200: vmlinux
