@@ -39,6 +39,9 @@ void macepci_error(int irq, void *dev, struct pt_regs *regs);
 
 struct pci_fixup pcibios_fixups[] = { {0} };
 
+static u8 __init macepci_swizzle(struct pci_dev *dev, u8 * pinp);
+static int __devinit macepci_map_irq(struct pci_dev *dev, u8 slot, u8 pin);
+
 static int __init pcibios_init(void)
 {
 	struct pci_dev *dev = NULL;
@@ -71,7 +74,7 @@ static int __init pcibios_init(void)
 		panic("PCI bridge can't get interrupt; can't happen.");
 
 	pci_scan_bus(0, &macepci_ops, NULL);
-
+	pci_fixup_irqs(macepci_swizzle, macepci_map_irq);
 #ifdef DEBUG_MACE_PCI
 	while ((dev = pci_find_device(PCI_ANY_ID, PCI_ANY_ID, dev)) != NULL) {
 		printk("Device: %d/%d/%d ARCS-assigned bus resource map\n",
@@ -288,7 +291,6 @@ void __init pcibios_update_irq(struct pci_dev *dev, int irq)
 
 void __devinit pcibios_fixup_bus(struct pci_bus *b)
 {
-	pci_fixup_irqs(macepci_swizzle, macepci_map_irq);
 }
 
 /*
