@@ -11,7 +11,7 @@
 
 #include <linux/types.h>
 
-#define _NSIG		64
+#define _NSIG		128
 #define _NSIG_BPW	64
 #define _NSIG_WORDS	(_NSIG / _NSIG_BPW)
 
@@ -139,17 +139,12 @@ struct sigaction {
 	unsigned int	sa_flags;
 	__sighandler_t	sa_handler;
 	sigset_t	sa_mask;
-};
-
-struct __k_sigaction {
-	unsigned int	sa_flags;
-	__sighandler_t	sa_handler;
-	sigset_t	sa_mask;
-	void		(*sa_restorer)(void);	/* Only for 32-bit compat */
+	void		(*sa_restorer)(void);
+	int		sa_resv[1];	/* reserved */
 };
 
 struct k_sigaction {
-	struct __k_sigaction sa;
+	struct sigaction sa;
 };
 
 /* IRIX compatible stack_t  */
