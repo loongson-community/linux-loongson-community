@@ -1289,7 +1289,7 @@ static unsigned int hal2_poll(struct file *file, struct poll_table_struct *wait)
 	if (file->f_mode & FMODE_READ) {
 		struct hal2_codec *adc = &hal2->adc;
 
-		poll_wait(file, &hal2->adc.dma_wait, wait);
+		poll_wait(file, &adc->dma_wait, wait);
 		spin_lock_irqsave(&adc->lock, flags);
 		if (adc->desc[adc->tail].cnt > 0)
 			mask |= POLLIN;
