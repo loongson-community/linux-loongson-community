@@ -22,7 +22,7 @@ SECTIONS
   __stop___ex_table = .;
 
   __start___dbe_table = .;	/* Exception table for data bus errors */
-  __dbe_table : { *(__ex_table) }
+  __dbe_table : { *(__dbe_table) }
   __stop___dbe_table = .;
 
   _etext = .;
