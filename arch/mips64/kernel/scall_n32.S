@@ -28,9 +28,13 @@
 
 	.align  5
 NESTED(handle_sysn32, PT_SIZE, sp)
+	ld	t1, PT_EPC(sp)		# skip syscall on return
+
 	subu	t0, v0, __NR_N32_Linux	# check syscall number
 	sltiu	t0, t0,	__NR_N32_Linux_syscalls + 1
+	daddiu	t1, 4			# skip to next instruction
 	beqz	t0, not_n32_scall
+	sd	t1, PT_EPC(sp)
 
 	dsll	t0, v0, 3		# offset into table
 	ld	t2, (sysn32_call_table - (__NR_N32_Linux * 8))(t0)
