@@ -146,7 +146,7 @@ static int dma_setup(Scsi_Cmnd *cmd, int datainp)
 
 	/* Start up the HPC. */
 	hregs->ndptr = virt_to_bus(hdata->dma_bounce_buffer);
-	if(datainp) {
+	if (datainp) {
 		dma_cache_inv((unsigned long) cmd->SCp.ptr, cmd->SCp.this_residual);
 		hregs->ctrl = (HPC3_SCTRL_ACTIVE);
 	} else {
@@ -160,7 +160,8 @@ static int dma_setup(Scsi_Cmnd *cmd, int datainp)
 static void dma_stop(struct Scsi_Host *instance, Scsi_Cmnd *SCpnt,
 		     int status)
 {
-	struct WD33C93_hostdata *hdata = (struct WD33C93_hostdata *)instance->hostdata;
+	struct WD33C93_hostdata *hdata =
+		(struct WD33C93_hostdata *)instance->hostdata;
 	struct hpc3_scsiregs *hregs;
 
 	if (!SCpnt)
@@ -201,7 +202,7 @@ static inline void init_hpc_chain(uchar *buf)
 
 	start = (unsigned long) buf;
 	end = start + PAGE_SIZE;
-	while(start < end) {
+	while (start < end) {
 		hcp->desc.pnext = virt_to_bus((hcp + 1));
 		hcp->desc.cntinfo = HPCDMA_EOX;
 		hcp++;
@@ -214,91 +215,93 @@ static inline void init_hpc_chain(uchar *buf)
 	dma_cache_wback_inv((unsigned long) buf, PAGE_SIZE);
 }
 
-int __init sgiwd93_detect(Scsi_Host_Template *SGIblows)
+static struct Scsi_Host * __init sgiwd93_setup_scsi(
+	Scsi_Host_Template *SGIblows, int unit, int irq,
+	struct hpc3_scsiregs *hregs, unsigned long wdregs)
 {
-	static unsigned char called = 0;
-	struct hpc3_scsiregs *hregs = &hpc3c0->scsi_chan0;
-	struct hpc3_scsiregs *hregs1 = &hpc3c0->scsi_chan1;
 	struct WD33C93_hostdata *hdata;
-	struct WD33C93_hostdata *hdata1;
+	struct Scsi_Host *host;
+	unsigned char *hpcregs;
 	wd33c93_regs regs;
 	uchar *buf;
-	
-	if(called)
-		return 0; /* Should bitch on the console about this... */
 
-	SGIblows->proc_name = "SGIWD93";
+	host = scsi_register(SGIblows, sizeof(struct WD33C93_hostdata));
+	if (!host)
+		return NULL;
 
-	sgiwd93_host = scsi_register(SGIblows, sizeof(struct WD33C93_hostdata));
-	if(sgiwd93_host == NULL)
-		return 0;
-	sgiwd93_host->base = (unsigned long) hregs;
-	sgiwd93_host->irq = SGI_WD93_0_IRQ;
+	host->base = (unsigned long) hregs;
+	host->irq = irq;
 
 	buf = (uchar *) get_zeroed_page(GFP_KERNEL);
 	if (!buf) {
-		printk(KERN_WARNING "sgiwd93: Could not allocate memory for host0 buffer.\n");
-		scsi_unregister(sgiwd93_host);
-		return 0;
+		printk(KERN_WARNING "sgiwd93: Could not allocate memory for "
+		       "host %d buffer.\n", unit);
+		goto out_unregister;
 	}
 	init_hpc_chain(buf);
-	
-	/* HPC_SCSI_REG0 | 0x03 | KSEG1 */
-	regs.SASR = (unsigned char*) KSEG1ADDR (0x1fbc0003);
-	regs.SCMD = (unsigned char*) KSEG1ADDR (0x1fbc0007);
-	wd33c93_init(sgiwd93_host, regs, dma_setup, dma_stop, WD33C93_FS_16_20);
 
-	hdata = (struct WD33C93_hostdata *)sgiwd93_host->hostdata;
+	/*
+	 * HPC_SCSI_REG1 | 0x03
+	 * We don't check ioremap because it can't ever fail ...
+	 */
+	hpcregs = ioremap(wdregs, 1);
+	if (!hpcregs)
+		goto out_free;
+
+	regs.SASR = hpcregs + 3;
+	regs.SCMD = hpcregs + 7;
+
+	wd33c93_init(host, regs, dma_setup, dma_stop, WD33C93_FS_16_20);
+
+	hdata = (struct WD33C93_hostdata *)host->hostdata;
 	hdata->no_sync = 0;
-	hdata->dma_bounce_buffer = (uchar *) (KSEG1ADDR(buf));
+	hdata->dma_bounce_buffer = (uchar *) KSEG1ADDR(buf);
 
-	if (request_irq(SGI_WD93_0_IRQ, sgiwd93_intr, 0, "SGI WD93", (void *) sgiwd93_host)) {
-		printk(KERN_WARNING "sgiwd93: Could not register IRQ %d (for host 0).\n", SGI_WD93_0_IRQ);
-		wd33c93_release();
-		free_page((unsigned long)buf);
-		scsi_unregister(sgiwd93_host);
-		return 0;
+	if (request_irq(irq, sgiwd93_intr, 0, "SGI WD93", (void *) host)) {
+		printk(KERN_WARNING "sgiwd93: Could not register irq %d "
+		       "for host %d.\n", irq, unit);
+		goto out_unmap;
 	}
-        /* set up second controller on the Indigo2 */
-	if (ip22_is_fullhouse()) {
-		sgiwd93_host1 = scsi_register(SGIblows, sizeof(struct WD33C93_hostdata));
-		if(sgiwd93_host1 != NULL)
-		{
-			sgiwd93_host1->base = (unsigned long) hregs1;
-			sgiwd93_host1->irq = SGI_WD93_1_IRQ;
-	
-			buf = (uchar *) get_zeroed_page(GFP_KERNEL);
-			if (!buf) {
-				printk(KERN_WARNING "sgiwd93: Could not allocate memory for host1 buffer.\n");
-				scsi_unregister(sgiwd93_host1);
-				called = 1;
-				return 1; /* We registered host0 so return success*/
-			}
-			init_hpc_chain(buf);
+	return host;
 
-			/* HPC_SCSI_REG1 | 0x03 | KSEG1 */
-			regs.SASR = (unsigned char*) KSEG1ADDR(0x1fbc8003);
-			regs.SCMD = (unsigned char*) KSEG1ADDR(0x1fbc8007);
-			wd33c93_init(sgiwd93_host1, regs, dma_setup, dma_stop,
-			             WD33C93_FS_16_20);
-	
-			hdata1 = (struct WD33C93_hostdata *)sgiwd93_host1->hostdata;
-			hdata1->no_sync = 0;
-			hdata1->dma_bounce_buffer = (uchar *) (KSEG1ADDR(buf));
-	
-			if (request_irq(SGI_WD93_1_IRQ, sgiwd93_intr, 0, "SGI WD93", (void *) sgiwd93_host1)) {
-				printk(KERN_WARNING "sgiwd93: Could not allocate irq %d (for host1).\n", SGI_WD93_1_IRQ);
-				wd33c93_release();
-				free_page((unsigned long)buf);
-				scsi_unregister(sgiwd93_host1);
-				/* Fall through since host0 registered OK */
-			}
-		}
-	}
-	
+out_unmap:
+	iounmap(hpcregs);
+
+out_free:
+	free_page((unsigned long)buf);
+	wd33c93_release();
+
+out_unregister:
+	scsi_unregister(host);
+
+	return NULL;
+}
+
+int __init sgiwd93_detect(Scsi_Host_Template *SGIblows)
+{
+	static unsigned char called = 0;
+	int found = 0;
+
+	if (called)
+		return 0; /* Should bitch on the console about this... */
+
 	called = 1;
+	SGIblows->proc_name = "SGIWD93";
 
-	return 1; /* Found one. */
+	sgiwd93_host = sgiwd93_setup_scsi(SGIblows, 0, SGI_WD93_0_IRQ,
+	                                  &hpc3c0->scsi_chan0, 0x1fbc0000);
+	if (sgiwd93_host)
+		found++;
+
+	/* Set up second controller on the Indigo2 */
+	if (ip22_is_fullhouse()) {
+		sgiwd93_host1 = sgiwd93_setup_scsi(SGIblows, 1, SGI_WD93_1_IRQ,
+		                          &hpc3c0->scsi_chan1, 0x1fbc8000);
+		if (sgiwd93_host1)
+			found++;
+	}
+
+	return found;
 }
 
 int sgiwd93_release(struct Scsi_Host *instance)
