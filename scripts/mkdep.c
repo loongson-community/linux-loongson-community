@@ -60,7 +60,7 @@ static void handle_config(void)
 			filename);
 }
 
-#if defined(__alpha__) || defined(__i386__)
+#if defined(__alpha__) || defined(__i386__) || defined(__MIPSEL__)
 #define LE_MACHINE
 #endif
 
