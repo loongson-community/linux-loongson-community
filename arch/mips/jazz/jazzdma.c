@@ -78,7 +78,7 @@ void __init vdma_init(void)
 	vdma_pgtbl_init();
 
 	r4030_write_reg32(JAZZ_R4030_TRSTBL_BASE,
-			  PHYSADDR(vdma_pagetable_start));
+			  CPHYSADDR(vdma_pagetable_start));
 	r4030_write_reg32(JAZZ_R4030_TRSTBL_LIM, VDMA_PGTBL_SIZE);
 	r4030_write_reg32(JAZZ_R4030_TRSTBL_INV, 0);
 
