@@ -13,6 +13,7 @@
 #include <linux/config.h>
 #include <asm/addrspace.h>
 #include <asm/page.h>
+#include <asm/byteorder.h>
 
 #ifdef CONFIG_MIPS_ATLAS
 #include <asm/mips-boards/io.h>
@@ -97,26 +98,23 @@ static inline void iounmap(void *addr)
 {
 }
 
-/*
- * This assumes sane hardware.  The Origin is.
- */
-#define readb(addr)		(*(volatile unsigned char *) (addr))
-#define readw(addr)		(*(volatile unsigned short *) (addr))
-#define readl(addr)		(*(volatile unsigned int *) (addr))
+#define readb(addr)		(*(volatile unsigned char *)(addr))
+#define readw(addr)		__ioswab16((*(volatile unsigned short *)(addr)))
+#define readl(addr)		__ioswab32((*(volatile unsigned int *)(addr)))
 
 #define __raw_readb(addr)	(*(volatile unsigned char *)(addr))
 #define __raw_readw(addr)	(*(volatile unsigned short *)(addr))
 #define __raw_readl(addr)	(*(volatile unsigned int *)(addr))
 
-#define writeb(b,addr)		(*(volatile unsigned char *) (addr) = (b))
-#define writew(w,addr)		(*(volatile unsigned short *) (addr) = (w))
-#define writel(l,addr)		(*(volatile unsigned int *) (addr) = (l))
+#define writeb(b,addr) ((*(volatile unsigned char *)(addr)) = (__ioswab8(b)))
+#define writew(b,addr) ((*(volatile unsigned short *)(addr)) = (__ioswab16(b)))
+#define writel(b,addr) ((*(volatile unsigned int *)(addr)) = (__ioswab32(b)))
 
 #define __raw_writeb(b,addr)	((*(volatile unsigned char *)(addr)) = (b))
 #define __raw_writew(w,addr)	((*(volatile unsigned short *)(addr)) = (w))
 #define __raw_writel(l,addr)	((*(volatile unsigned int *)(addr)) = (l))
 
-#define memset_io(a,b,c)	memset((void *) a,(b),(c))
+#define memset_io(a,b,c)	memset((void *)(a),(b),(c))
 #define memcpy_fromio(a,b,c)	memcpy((a),(void *)(b),(c))
 #define memcpy_toio(a,b,c)	memcpy((void *)(a),(b),(c))
 
@@ -231,202 +229,130 @@ out:
 	return retval;
 }
 
-/*
- * Talk about misusing macros..
- */
+#define outb(val,port)							\
+do {									\
+	*(volatile u8 *)(mips_io_port_base + (port)) = __ioswab8(val);	\
+} while(0)
 
-#define __OUT1(s) \
-static inline void __out##s(unsigned int value, unsigned long port) {
+#define outw(val,port)							\
+do {									\
+	*(volatile u16 *)(mips_io_port_base + (port)) = __ioswab16(val);\
+} while(0)
 
-#define __OUT2(m) \
-__asm__ __volatile__ ("s" #m "\t%0,%1(%2)"
+#define outl(val,port)							\
+do {									\
+	*(volatile u32 *)(mips_io_port_base + (port)) = __ioswab32(val);\
+} while(0)
 
-#define __OUT(m,s) \
-__OUT1(s) __OUT2(m) : : "r" (value), "i" (0), "r" (mips_io_port_base+port)); } \
-__OUT1(s##c) __OUT2(m) : : "r" (value), "ir" (port), "r" (mips_io_port_base)); } \
-__OUT1(s##_p) __OUT2(m) : : "r" (value), "i" (0), "r" (mips_io_port_base+port)); \
-	SLOW_DOWN_IO; } \
-__OUT1(s##c_p) __OUT2(m) : : "r" (value), "ir" (port), "r" (mips_io_port_base)); \
-	SLOW_DOWN_IO; }
+#define outb_p(val,port)						\
+do {									\
+	*(volatile u8 *)(mips_io_port_base + (port)) = __ioswab8(val);	\
+	SLOW_DOWN_IO;							\
+} while(0)
 
-#define __IN1(t,s) \
-static inline t __in##s(unsigned long port) { t _v;
+#define outw_p(val,port)						\
+do {									\
+	*(volatile u16 *)(mips_io_port_base + (port)) = __ioswab16(val);\
+	SLOW_DOWN_IO;							\
+} while(0)
 
-/*
- * Required nops will be inserted by the assembler
- */
-#define __IN2(m) \
-__asm__ __volatile__ ("l" #m "\t%0,%1(%2)"
+#define outl_p(val,port)						\
+do {									\
+	*(volatile u32 *)(mips_io_port_base + (port)) = __ioswab32(val);\
+	SLOW_DOWN_IO;							\
+} while(0)
+  
+static inline unsigned char inb(unsigned long port)
+{
+	return __ioswab8(*(volatile u8 *)(mips_io_port_base + port));
+}
+  
+static inline unsigned short inw(unsigned long port)
+{
+	return __ioswab16(*(volatile u16 *)(mips_io_port_base + port));
+}
+  
+static inline unsigned int inl(unsigned long port)
+{
+	return __ioswab32(*(volatile u32 *)(mips_io_port_base + port));
+}
+  
+static inline unsigned char inb_p(unsigned long port)
+{
+	u8 __val;
 
-#define __IN(t,m,s) \
-__IN1(t,s) __IN2(m) : "=r" (_v) : "i" (0), "r" (mips_io_port_base+port)); return _v; } \
-__IN1(t,s##c) __IN2(m) : "=r" (_v) : "ir" (port), "r" (mips_io_port_base)); return _v; } \
-__IN1(t,s##_p) __IN2(m) : "=r" (_v) : "i" (0), "r" (mips_io_port_base+port)); SLOW_DOWN_IO; return _v; } \
-__IN1(t,s##c_p) __IN2(m) : "=r" (_v) : "ir" (port), "r" (mips_io_port_base)); SLOW_DOWN_IO; return _v; }
+	__val = *(volatile u8 *)(mips_io_port_base + port);
+	SLOW_DOWN_IO;
 
-#define __INS1(s) \
-static inline void __ins##s(unsigned long port, void * addr, unsigned long count) {
+	return __ioswab8(__val);
+}
 
-#define __INS2(m) \
-if (count) \
-__asm__ __volatile__ ( \
-	".set\tnoreorder\n\t" \
-	".set\tnoat\n" \
-	"1:\tl" #m "\t$1, %4(%5)\n\t" \
-	"dsubu\t%1, 1\n\t" \
-	"s" #m "\t$1,(%0)\n\t" \
-	"bnez\t%1, 1b\n\t" \
-	"daddiu\t%0, %6\n\t" \
-	".set\tat\n\t" \
-	".set\treorder"
+static inline unsigned short inw_p(unsigned long port)
+{
+	u16 __val;
 
-#define __INS(m,s,i) \
-__INS1(s) __INS2(m) \
-	: "=r" (addr), "=r" (count) \
-	: "0" (addr), "1" (count), "i" (0), "r" (mips_io_port_base+port), \
-	  "I" (i));} \
-__INS1(s##c) __INS2(m) \
-	: "=r" (addr), "=r" (count) \
-	: "0" (addr), "1" (count), "ir" (port), "r" (mips_io_port_base), \
-	  "I" (i));}
+	__val = *(volatile u16 *)(mips_io_port_base + port);
+	SLOW_DOWN_IO;
 
-#define __OUTS1(s) \
-static inline void __outs##s(unsigned long port, const void * addr, unsigned long count) {
+	return __ioswab16(__val);
+}
 
-#define __OUTS2(m) \
-if (count) \
-__asm__ __volatile__ ( \
-	".set\tnoreorder\n\t" \
-	".set\tnoat\n" \
-	"1:\tl" #m "\t$1, (%0)\n\t" \
-	"dsubu\t%1, 1\n\t" \
-	"s" #m "\t$1, %4(%5)\n\t" \
-	"bnez\t%1, 1b\n\t" \
-	"daddiu\t%0, %6\n\t" \
-	".set\tat\n\t" \
-	".set\treorder"
+static inline unsigned int inl_p(unsigned long port)
+{
+	u32 __val;
 
-#define __OUTS(m,s,i) \
-__OUTS1(s) __OUTS2(m) \
-	: "=r" (addr), "=r" (count) \
-	: "0" (addr), "1" (count), "i" (0), "r" (mips_io_port_base+port), \
-	  "I" (i));} \
-__OUTS1(s##c) __OUTS2(m) \
-	: "=r" (addr), "=r" (count) \
-	: "0" (addr), "1" (count), "ir" (port), "r" (mips_io_port_base), \
-	  "I" (i));}
+	__val = *(volatile u32 *)(mips_io_port_base + port);
+	SLOW_DOWN_IO;
+	return __ioswab32(__val);
+}
 
-__IN(unsigned char,b,b)
-__IN(unsigned short,h,w)
-__IN(unsigned int,w,l)
+static inline void outsb(unsigned long port, void *addr, unsigned int count)
+{
+	while (count--) {
+		outb(*(u8 *)addr, port);
+		addr++;
+	}
+}
 
-__OUT(b,b)
-__OUT(h,w)
-__OUT(w,l)
+static inline void insb(unsigned long port, void *addr, unsigned int count)
+{
+	while (count--) {
+		*(u8 *)addr = inb(port);
+		addr++;
+	}
+}
 
-__INS(b,b,1)
-__INS(h,w,2)
-__INS(w,l,4)
+static inline void outsw(unsigned long port, void *addr, unsigned int count)
+{
+	while (count--) {
+		outw(*(u16 *)addr, port);
+		addr += 2;
+	}
+}
 
-__OUTS(b,b,1)
-__OUTS(h,w,2)
-__OUTS(w,l,4)
+static inline void insw(unsigned long port, void *addr, unsigned int count)
+{
+	while (count--) {
+		*(u16 *)addr = inw(port);
+		addr += 2;
+	}
+}
 
-/*
- * Note that due to the way __builtin_constant_p() works, you
- *  - can't use it inside an inline function (it will never be true)
- *  - you don't have to worry about side effects within the __builtin..
- */
-#define outb(val,port) \
-((__builtin_constant_p((port)^(3)) && ((port)^(3)) < 32768) ? \
-	__outbc((val),(port)^(3)) : \
-	__outb((val),(port)^(3)))
+static inline void outsl(unsigned long port, void *addr, unsigned int count)
+{
+	while (count--) {
+		outl(*(u32 *)addr, port);
+		addr += 4;
+	}
+}
 
-#define inb(port) \
-((__builtin_constant_p((port)^(3)) && ((port)^(3)) < 32768) ? \
-	__inbc((port)^(3)) : \
-	__inb((port)^(3)))
-
-#define outb_p(val,port) \
-((__builtin_constant_p((port)^(3)) && ((port)^(3)) < 32768) ? \
-	__outbc_p((val),(port)^(3)) : \
-	__outb_p((val),(port)^(3)))
-
-#define inb_p(port) \
-((__builtin_constant_p((port)^(3)) && ((port)^(3)) < 32768) ? \
-	__inbc_p((port)^(3)) : \
-	__inb_p((port)^(3)))
-
-#define outw(val,port) \
-((__builtin_constant_p(((port)^(2))) && ((port)^(2)) < 32768) ? \
-	__outwc((val),((port)^(2))) : \
-	__outw((val),((port)^(2))))
-
-#define inw(port) \
-((__builtin_constant_p(((port)^(2))) && ((port)^(2)) < 32768) ? \
-	__inwc((port)^(2)) : \
-	__inw((port)^(2)))
-
-#define outw_p(val,port) \
-((__builtin_constant_p((port)^(2)) && ((port)^(2)) < 32768) ? \
-	__outwc_p((val),(port)^(2)) : \
-	__outw_p((val),(port)^(2)))
-
-#define inw_p(port) \
-((__builtin_constant_p((port)^(2)) && ((port)^(2)) < 32768) ? \
-	__inwc_p((port)^(2)) : \
-	__inw_p((port)^(2)))
-
-#define outl(val,port) \
-((__builtin_constant_p((port)) && (port) < 32768) ? \
-	__outlc((val),(port)) : \
-	__outl((val),(port)))
-
-#define inl(port) \
-((__builtin_constant_p((port)) && (port) < 32768) ? \
-	__inlc(port) : \
-	__inl(port))
-
-#define outl_p(val,port) \
-((__builtin_constant_p((port)) && (port) < 32768) ? \
-	__outlc_p((val),(port)) : \
-	__outl_p((val),(port)))
-
-#define inl_p(port) \
-((__builtin_constant_p((port)) && (port) < 32768) ? \
-	__inlc_p(port) : \
-	__inl_p(port))
-
-
-#define outsb(port,addr,count) \
-((__builtin_constant_p((port)) && (port) < 32768) ? \
-	__outsbc((port),(addr),(count)) : \
-	__outsb ((port),(addr),(count)))
-
-#define insb(port,addr,count) \
-((__builtin_constant_p((port)) && (port) < 32768) ? \
-	__insbc((port),(addr),(count)) : \
-	__insb((port),(addr),(count)))
-
-#define outsw(port,addr,count) \
-((__builtin_constant_p((port)) && (port) < 32768) ? \
-	__outswc((port),(addr),(count)) : \
-	__outsw ((port),(addr),(count)))
-
-#define insw(port,addr,count) \
-((__builtin_constant_p((port)) && (port) < 32768) ? \
-	__inswc((port),(addr),(count)) : \
-	__insw((port),(addr),(count)))
-
-#define outsl(port,addr,count) \
-((__builtin_constant_p((port)) && (port) < 32768) ? \
-	__outslc((port),(addr),(count)) : \
-	__outsl ((port),(addr),(count)))
-
-#define insl(port,addr,count) \
-((__builtin_constant_p((port)) && (port) < 32768) ? \
-	__inslc((port),(addr),(count)) : \
-	__insl((port),(addr),(count)))
+static inline void insl(unsigned long port, void *addr, unsigned int count)
+{
+	while (count--) {
+		*(u32 *)addr = inl(port);
+		addr += 4;
+	}
+}
 
 /*
  * The caches on some architectures aren't dma-coherent and have need to

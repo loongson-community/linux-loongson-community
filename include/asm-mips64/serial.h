@@ -20,6 +20,28 @@
  */
 #define BASE_BAUD (1843200 / 16)
 
+#ifdef CONFIG_HAVE_STD_PC_SERIAL_PORT
+
+/* Standard COM flags (except for COM4, because of the 8514 problem) */
+#ifdef CONFIG_SERIAL_DETECT_IRQ
+#define STD_COM_FLAGS (ASYNC_BOOT_AUTOCONF | ASYNC_SKIP_TEST | ASYNC_AUTO_IRQ)
+#define STD_COM4_FLAGS (ASYNC_BOOT_AUTOCONF | ASYNC_AUTO_IRQ)
+#else
+#define STD_COM_FLAGS (ASYNC_BOOT_AUTOCONF | ASYNC_SKIP_TEST)
+#define STD_COM4_FLAGS ASYNC_BOOT_AUTOCONF
+#endif
+
+#define STD_SERIAL_PORT_DEFNS			\
+	/* UART CLK   PORT IRQ     FLAGS        */			\
+	{ 0, BASE_BAUD, 0x3F8, 4, STD_COM_FLAGS },	/* ttyS0 */	\
+	{ 0, BASE_BAUD, 0x2F8, 3, STD_COM_FLAGS },	/* ttyS1 */	\
+	{ 0, BASE_BAUD, 0x3E8, 4, STD_COM_FLAGS },	/* ttyS2 */	\
+	{ 0, BASE_BAUD, 0x2E8, 3, STD_COM4_FLAGS },	/* ttyS3 */
+
+#else /* CONFIG_HAVE_STD_PC_SERIAL_PORTS */
+#define STD_SERIAL_PORT_DEFNS
+#endif /* CONFIG_HAVE_STD_PC_SERIAL_PORTS */
+
 #ifdef CONFIG_MIPS_SEAD
 #include <asm/mips-boards/sead.h>
 #include <asm/mips-boards/seadint.h>
@@ -106,7 +128,8 @@
 #define SERIAL_PORT_DFNS				\
 	IP27_SERIAL_PORT_DEFNS				\
 	IP32_SERIAL_PORT_DEFNS				\
-	SEAD_SERIAL_PORT_DEFNS
+	SEAD_SERIAL_PORT_DEFNS				\
+	STD_SERIAL_PORT_DEFNS
 
 #define RS_TABLE_SIZE	64
 
