@@ -30,7 +30,7 @@
 #include <asm/io.h>
 #include <asm/elf.h>
 
-asmlinkage int cpu_idle(void)
+ATTRIB_NORET void cpu_idle(void)
 {
 	/* endless idle loop with no priority at all */
 	init_idle();

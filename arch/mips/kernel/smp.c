@@ -70,14 +70,12 @@ void prom_boot_secondary(int cpu, unsigned long sp, unsigned long gp);
  *  After we've done initial boot, this function is called to allow the
  *  board code to clean up state, if needed 
  */
-
 void prom_init_secondary(void);
 
-
-void cpu_idle(void);
-
-/* Do whatever setup needs to be done for SMP at the board level.  Return
-   the number of cpus in the system, including this one */
+/*
+ * Do whatever setup needs to be done for SMP at the board level.  Return
+ * the number of cpus in the system, including this one
+ */
 int prom_setup_smp(void);
 
 /*

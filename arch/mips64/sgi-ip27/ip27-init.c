@@ -431,7 +431,6 @@ void __init smp_callin(void)
 
 int __init start_secondary(void)
 {
-	extern int cpu_idle(void);
 	extern atomic_t smp_commenced;
 
 	smp_callin();
