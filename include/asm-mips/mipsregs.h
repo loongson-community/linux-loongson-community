@@ -212,7 +212,6 @@
         ".set\tmips0"                                           \
         : : "r" (value))
 
-#ifdef CONFIG_CPU_MIPS32
 /* 
  * This should be changed when we get a compiler that support the MIPS32 ISA. 
  */
@@ -227,7 +226,6 @@
 	".set\treorder"                                         \
 	:"=r" (__res));                                         \
         __res;})
-#endif
 
 /*
  * R4x00 interrupt enable / cause bits
