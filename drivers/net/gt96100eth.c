@@ -3,10 +3,6 @@
  * Author: MontaVista Software, Inc.
  *         	stevel@mvista.com or source@mvista.com
  *
- * Moved to 2.4.14, ppopov@mvista.com.  Modified driver to add
- * proper gt96100A support.
- *
- *
  * ########################################################################
  *
  *  This program is free software; you can distribute it and/or modify it
@@ -26,6 +22,15 @@
  *
  * Ethernet driver for the MIPS GT96100 Advanced Communication Controller.
  * 
+ *  Revision history
+ *    
+ *    11.11.2001  Moved to 2.4.14, ppopov@mvista.com.  Modified driver to add
+ *                proper gt96100A support.
+ *    12.05.2001  Moved eth port 0 to irq 3 (mapped to GT_SERINT0 on EV96100A)
+ *                in order for both ports to work. Also cleaned up boot
+ *                option support (mac address string parsing), fleshed out
+ *                gt96100_cleanup_module(), and other general code cleanups
+ *                <stevel@mvista.com>.
  */
 
 #ifndef __OPTIMIZE__
@@ -47,7 +52,7 @@
 #include <linux/errno.h>
 #include <linux/in.h>
 #include <linux/ioport.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/interrupt.h>
 #include <linux/pci.h>
 #include <linux/init.h>
@@ -63,7 +68,7 @@
 #define DESC_BE 1
 #define DESC_DATA_BE 1
 
-#define GT96100_DEBUG 3
+#define GT96100_DEBUG 2
 
 #include "gt96100eth.h"
 
@@ -74,8 +79,8 @@ static void gt96100_delay(int msec);
 static int gt96100_add_hash_entry(struct net_device *dev,
 				  unsigned char* addr);
 static void read_mib_counters(struct gt96100_private *gp);
-static int read_MII(struct net_device *dev, u32 reg);
-static int write_MII(struct net_device *dev, u32 reg, u16 data);
+static int read_MII(int phy_addr, u32 reg);
+static int write_MII(int phy_addr, u32 reg, u16 data);
 #if 0
 static void dump_tx_ring(struct net_device *dev);
 static void dump_rx_ring(struct net_device *dev);
@@ -94,7 +99,7 @@ static void abort(struct net_device *dev, u32 abort_bits);
 static void hard_stop(struct net_device *dev);
 static void enable_ether_irq(struct net_device *dev);
 static void disable_ether_irq(struct net_device *dev);
-static int gt96100_probe1(long ioaddr, int irq, int port_num);
+static int gt96100_probe1(int port_num);
 static void reset_tx(struct net_device *dev);
 static void reset_rx(struct net_device *dev);
 static int gt96100_check_tx_consistent(struct gt96100_private *gp);
@@ -109,18 +114,6 @@ static void gt96100_set_rx_mode(struct net_device *dev);
 static struct net_device_stats* gt96100_get_stats(struct net_device *dev);
 
 extern char * __init prom_getcmdline(void);
-
-static char version[] __devinitdata = "gt96100eth.c:0.3, stevel@mvista.com\n";
-
-// PHY device addresses
-static u32 gt96100_phy_addr[2] __devinitdata = {0,1};
-
-// FIX! Need real Ethernet addresses
-static unsigned char gt96100_station_addr[2][6] __devinitdata =
-{
-	{0x00, 0x01, 0x02, 0x03, 0x04, 0x05},
-	{0x00, 0x02, 0x03, 0x04, 0x05, 0x06}
-};
 
 static int max_interrupt_work = 32;
 
@@ -141,15 +134,32 @@ static int max_interrupt_work = 32;
 #define dma16_to_cpu le16_to_cpu
 #endif
 
+static char mac0[18] = "00.02.03.04.05.06";
+static char mac1[18] = "00.01.02.03.04.05";
+MODULE_PARM(mac0, "c18");
+MODULE_PARM(mac1, "c18");
+MODULE_PARM_DESC(mac0, "MAC address for GT96100 ethernet port 0");
+MODULE_PARM_DESC(mac1, "MAC address for GT96100 ethernet port 1");
+
 /*
- * Base address and interupt of the GT96100 ethernet controllers
+ * Info for the GT96100 ethernet controller's ports.
  */
-static struct {
-	unsigned int port;
-	int irq;
+static struct gt96100_if_t {
+	struct net_device *dev;
+	unsigned int  iobase;   // IO Base address of this port
+	int           irq;      // IRQ number of this port
+	char         *mac_str;
 } gt96100_iflist[NUM_INTERFACES] = {
-	{GT96100_ETH0_BASE, GT96100_ETHER0_IRQ},
-	{GT96100_ETH1_BASE, GT96100_ETHER1_IRQ}
+	{
+		NULL,
+		GT96100_ETH0_BASE, GT96100_ETHER0_IRQ,
+		mac0
+	},
+	{
+		NULL,
+		GT96100_ETH1_BASE, GT96100_ETHER1_IRQ,
+		mac1
+	}
 };
 
 static inline const char*
@@ -183,7 +193,7 @@ dmaalloc(size_t size, dma_addr_t *dma_handle)
 			*dma_handle = virt_to_phys(ret);
 
 		/* bump virtual address up to non-cached area */
-		ret = KSEG1ADDR(ret);
+		ret = (void*)KSEG1ADDR(ret);
 	}
 
 	return ret;
@@ -192,7 +202,7 @@ dmaalloc(size_t size, dma_addr_t *dma_handle)
 static void
 dmafree(size_t size, void *vaddr)
 {
-	vaddr = KSEG0ADDR(vaddr);
+	vaddr = (void*)KSEG0ADDR(vaddr);
 	free_pages((unsigned long)vaddr, get_order(size));
 }
 
@@ -209,97 +219,46 @@ gt96100_delay(int ms)
 	}
 }
 
-void parse_mac_addr_options(void)
+static int
+parse_mac_addr(struct net_device *dev, char* macstr)
 {
-	char *argptr;
-	unsigned char mac_0_1[12];
-	int error = 0;
-    
-	argptr = prom_getcmdline();
-	if ((argptr = strstr(argptr, "mac=")) != NULL) {
-		int i, j;
-		unsigned char result, value;
+	int i, j;
+	unsigned char result, value;
 	
-		argptr += 4;
-		for (i=0; i<6; i++) {
-			result = 0;
-			if (*(argptr+2) != ':' && (i != 5)) {
-				printk(KERN_ERR __FILE__
-				       "invalid mac address format: %d %c\n",
-				       i, *(argptr+2));
-				goto mac_done;
-			}
-	    
-			for (j=0; j<2; j++) {
-				if (isxdigit(*argptr) &&
-				    (value = isdigit(*argptr) ? *argptr-'0' : 
-				     toupper(*argptr)-'A'+10) < 16) {
-					result = result*16 + value;
-					argptr++;
-				} else {
-					printk(KERN_ERR __FILE__
-					       "invalid mac address "
-					       "character: %c\n", *argptr);
-					error = 1;
-					goto mac_done;
-				}
-			}
-			argptr++;
-			mac_0_1[i] = result;
+	for (i=0; i<6; i++) {
+		result = 0;
+		if (i != 5 && *(macstr+2) != '.') {
+			err(__FILE__ "invalid mac address format: %d %c\n",
+			    i, *(macstr+2));
+			return -EINVAL;
 		}
-		/* first mac address is good */
-		for (i=0; i<6; i++) {
-			gt96100_station_addr[1][i] = mac_0_1[i];
-		}
-	
-		argptr--;
-		if (*argptr == ',') {
-			/* parse second mac address */
-			argptr++;
-			for (i=6; i<12; i++) {
-				result = 0;
-				if (*(argptr+2) != ':' && (i != 11)) {
-					printk(KERN_ERR __FILE__
-					       "invalid mac address "
-					       "format: %d %c\n",
-					       i, *(argptr+2));
-					goto mac_done;
-				}
 		
-				for (j=0; j<2; j++) {
-					if (isxdigit(*argptr) &&
-					    (value = isdigit(*argptr) ?
-					     *argptr-'0' : 
-					     toupper(*argptr)-'A'+10) < 16) {
-						result = result*16 + value;
-						argptr++;
-					} else {
-						printk(KERN_ERR __FILE__
-						       "invalid mac address "
-						       "character: %c\n",
-						       *argptr);
-						error = 1;
-						goto mac_done;
-					}
-				}
-				argptr++;
-				mac_0_1[i] = result;
+		for (j=0; j<2; j++) {
+			if (isxdigit(*macstr) &&
+			    (value = isdigit(*macstr) ? *macstr-'0' : 
+			     toupper(*macstr)-'A'+10) < 16) {
+				result = result*16 + value;
+				macstr++;
+			} else {
+				err(__FILE__ "invalid mac address "
+				    "character: %c\n", *macstr);
+				return -EINVAL;
 			}
 		}
-		/* second mac address is good */
-		for (i=0; i<6; i++) {
-			gt96100_station_addr[0][i] = mac_0_1[i+6];
-		}
-	mac_done:
+
+		macstr++; // step over '.'
+		dev->dev_addr[i] = result;
 	}
+
+	return 0;
 }
 
+
 static int
-read_MII(struct net_device *dev, u32 reg)
+read_MII(int phy_addr, u32 reg)
 {
-	struct gt96100_private *gp = (struct gt96100_private *)dev->priv;
 	int timedout = 20;
-	u32 smir = smirOpCode | (gp->phy_addr << smirPhyAdBit) |
+	u32 smir = smirOpCode | (phy_addr << smirPhyAdBit) |
 		(reg << smirRegAdBit);
 
 	// wait for last operation to complete
@@ -308,8 +267,8 @@ read_MII(struct net_device *dev, u32 reg)
 		gt96100_delay(1);
 
 		if (--timedout == 0) {
-			err(__FUNCTION__ ": busy timeout!!\n");
-			return -1;
+			printk(KERN_ERR __FUNCTION__ ": busy timeout!!\n");
+			return -ENODEV;
 		}
 	}
     
@@ -322,8 +281,8 @@ read_MII(struct net_device *dev, u32 reg)
 		gt96100_delay(1);
 	
 		if (--timedout == 0) {
-			err(__FUNCTION__ ": timeout!!\n");
-			return -1;
+			printk(KERN_ERR __FUNCTION__ ": timeout!!\n");
+			return -ENODEV;
 		}
 	}
 
@@ -362,11 +321,10 @@ dump_rx_desc(int dbg_lvl, struct net_device *dev, int i)
 }
 
 static int
-write_MII(struct net_device *dev, u32 reg, u16 data)
+write_MII(int phy_addr, u32 reg, u16 data)
 {
-	struct gt96100_private *gp = (struct gt96100_private *)dev->priv;
 	int timedout = 20;
-	u32 smir = (gp->phy_addr << smirPhyAdBit) |
+	u32 smir = (phy_addr << smirPhyAdBit) |
 		(reg << smirRegAdBit) | data;
 
 	// wait for last operation to complete
@@ -375,7 +333,7 @@ write_MII(struct net_device *dev, u32 reg, u16 data)
 		gt96100_delay(1);
 	
 		if (--timedout == 0) {
-			err(__FUNCTION__ ": busy timeout!!\n");
+			printk(KERN_ERR __FUNCTION__ ": busy timeout!!\n");
 			return -1;
 		}
 	}
@@ -416,14 +374,15 @@ static void
 dump_MII(int dbg_lvl, struct net_device *dev)
 {
 	int i, val;
+	struct gt96100_private *gp = (struct gt96100_private *)dev->priv;
     
 	if (dbg_lvl <= GT96100_DEBUG) {
 		for (i=0; i<7; i++) {
-			if ((val = read_MII(dev, i)) >= 0)
+			if ((val = read_MII(gp->phy_addr, i)) >= 0)
 				printk("MII Reg %d=%x\n", i, val);
 		}
 		for (i=16; i<21; i++) {
-			if ((val = read_MII(dev, i)) >= 0)
+			if ((val = read_MII(gp->phy_addr, i)) >= 0)
 				printk("MII Reg %d=%x\n", i, val);
 		}
 	}
@@ -459,7 +418,7 @@ dump_skb(int dbg_lvl, struct net_device *dev, struct sk_buff *skb)
 		    ": skb=%p, skb->data=%p, skb->len=%d\n",
 		    skb, skb->data, skb->len);
 
-		skbdata = KSEG1ADDR(skb->data);
+		skbdata = (unsigned char*)KSEG1ADDR(skb->data);
     
 		for (i=0; i<skb->len; i++) {
 			if (!(i % 16))
@@ -657,28 +616,32 @@ enable_ether_irq(struct net_device *dev)
 {
 	struct gt96100_private *gp = (struct gt96100_private *)dev->priv;
 	u32 intMask;
-
+	/*
+	 * route ethernet interrupt to GT_SERINT0 for port 0,
+	 * GT_INT0 for port 1.
+	 */
+	int intr_mask_reg = (dev->irq == 3) ?
+		GT96100_SERINT0_MASK : GT96100_INT0_HIGH_MASK;
+	
 	if (gp->chip_rev >= REV_GT96100A_1) {
 		intMask = icrTxBufferLow | icrTxEndLow |
 			icrTxErrorLow  | icrRxOVR | icrTxUdr |
-			icrRxBuffer | icrRxBufferQ0 | icrRxErrorQ0 |
+			icrRxBufferQ0 | icrRxErrorQ0 |
 			icrMIIPhySTC | icrEtherIntSum;
 	}
 	else {
 		intMask = icrTxBufferLow | icrTxEndLow |
 			icrTxErrorLow  | icrRxOVR | icrTxUdr |
-			icrRxBuffer | icrRxError | icrMIIPhySTC |
-			icrEtherIntSum;
+			icrRxBuffer | icrRxError |
+			icrMIIPhySTC | icrEtherIntSum;
 	}
 	
 	// unmask interrupts
 	GT96100ETH_WRITE(gp, GT96100_ETH_INT_MASK, intMask);
     
-	// now route ethernet interrupts to GT Int0 (eth0 and eth1 will be
-	// sharing it).
-	intMask = GT96100_READ(GT96100_INT0_HIGH_MASK);
+	intMask = GT96100_READ(intr_mask_reg);
 	intMask |= 1<<gp->port_num;
-	GT96100_WRITE(GT96100_INT0_HIGH_MASK, intMask);
+	GT96100_WRITE(intr_mask_reg, intMask);
 }
 
 static void
@@ -686,10 +649,12 @@ disable_ether_irq(struct net_device *dev)
 {
 	struct gt96100_private *gp = (struct gt96100_private *)dev->priv;
 	u32 intMask;
+	int intr_mask_reg = (dev->irq == 3) ?
+		GT96100_SERINT0_MASK : GT96100_INT0_HIGH_MASK;
 
-	intMask = GT96100_READ(GT96100_INT0_HIGH_MASK);
+	intMask = GT96100_READ(intr_mask_reg);
 	intMask &= ~(1<<gp->port_num);
-	GT96100_WRITE(GT96100_INT0_HIGH_MASK, intMask);
+	GT96100_WRITE(intr_mask_reg, intMask);
     
 	GT96100ETH_WRITE(gp, GT96100_ETH_INT_MASK, 0);
 }
@@ -700,18 +665,34 @@ disable_ether_irq(struct net_device *dev)
  */
 int gt96100_init_module(void)
 {
-	int i, retval;
+	int i, retval=0;
+	u16 vendor_id, device_id;
+	u32 cpuConfig;
 
 #ifndef CONFIG_MIPS_GT96100ETH
 	return -ENODEV;
 #endif
-	parse_mac_addr_options();
+
+	// probe for GT96100 by reading PCI0 vendor/device ID register
+	pcibios_read_config_word(0, 0, PCI_VENDOR_ID, &vendor_id);
+	pcibios_read_config_word(0, 0, PCI_DEVICE_ID, &device_id);
     
-	for (i=NUM_INTERFACES-1; i>0; i--) {
-		int base_addr = gt96100_iflist[i].port;
-		if ((retval = gt96100_probe1(base_addr,
-					     gt96100_iflist[i].irq, i)))
-			break;
+	if (vendor_id != PCI_VENDOR_ID_GALILEO ||
+	    (device_id != PCI_DEVICE_ID_GALILEO_GT96100 &&
+	     device_id != PCI_DEVICE_ID_GALILEO_GT96100A)) {
+		printk(KERN_ERR __FILE__ ": GT96100 not found!\n");
+		return -ENODEV;
+	}
+
+	cpuConfig = GT96100_READ(GT96100_CPU_INTERF_CONFIG);
+	if (cpuConfig & (1<<12)) {
+		printk(KERN_ERR __FILE__
+		       ": must be in Big Endian mode!\n");
+		return -ENODEV;
+	}
+
+	for (i=0; i < NUM_INTERFACES; i++) {
+		retval |= gt96100_probe1(i);
 	}
 
 	return retval;
@@ -720,50 +701,62 @@ int gt96100_init_module(void)
 
 
 static int __init
-gt96100_probe1(long ioaddr, int irq, int port_num)
+gt96100_probe1(int port_num)
 {
-	static unsigned version_printed = 0;
 	struct gt96100_private *gp = NULL;
+	struct gt96100_if_t *gtif = &gt96100_iflist[port_num];
+	int phy_addr, phy_id1, phy_id2;
+	u32 phyAD;
 	int retval;
-	u16 vendor_id, device_id;
-	u32 cpuConfig;
 	unsigned char chip_rev;
 	struct net_device *dev = NULL;
     
-	// probe for GT96100 by reading PCI0 vendor/device ID register
-	pcibios_read_config_word(0, 0, PCI_VENDOR_ID, &vendor_id);
-	pcibios_read_config_word(0, 0, PCI_DEVICE_ID, &device_id);
-    
-	if (vendor_id != PCI_VENDOR_ID_GALILEO ||
-	    (device_id != PCI_DEVICE_ID_GALILEO_GT96100 &&
-	     device_id != PCI_DEVICE_ID_GALILEO_GT96100A))
-		return -ENODEV;
-    
-	if (irq < 0) {
-		err(__FUNCTION__ ": irq unknown - probing not supported\n");
+	if (gtif->irq < 0) {
+		printk(KERN_ERR __FUNCTION__
+		       ": irq unknown - probing not supported\n");
 		return -ENODEV;
 	}
     
-	request_region(ioaddr, GT96100_ETH_IO_SIZE, "GT96100ETH");
+	pcibios_read_config_byte(0, 0, PCI_REVISION_ID, &chip_rev);
 
-	cpuConfig = GT96100_READ(GT96100_CPU_INTERF_CONFIG);
-	if (cpuConfig & (1<<12)) {
-		err(__FUNCTION__ ": must be in Big Endian mode!\n");
-		retval = -ENODEV;
-		goto free_region;
+	if (chip_rev >= REV_GT96100A_1) {
+		phyAD = GT96100_READ(GT96100_ETH_PHY_ADDR_REG);
+		phy_addr = (phyAD >> (5*port_num)) & 0x1f;
+	} else {
+		/*
+		 * not sure what's this about -- probably 
+		 * a gt bug
+		 */
+		phy_addr = port_num;
+		phyAD = GT96100_READ(GT96100_ETH_PHY_ADDR_REG);
+		phyAD &= ~(0x1f << (port_num*5));
+		phyAD |= phy_addr << (port_num*5);
+		GT96100_WRITE(GT96100_ETH_PHY_ADDR_REG, phyAD);
 	}
 	
+	// probe for the external PHY
+	if ((phy_id1 = read_MII(phy_addr, 2)) <= 0 ||
+	    (phy_id2 = read_MII(phy_addr, 3)) <= 0) {
+		printk(KERN_ERR __FUNCTION__
+		       ": no PHY found on MII%d\n", port_num);
+		return -ENODEV;
+	}
+	
+	request_region(gtif->iobase, GT96100_ETH_IO_SIZE, "GT96100ETH");
+
 	dev = init_etherdev(0, sizeof(struct gt96100_private));
-
-	if (version_printed++ == 0)
-		dbg(0, "%s\n", version);
-
+	gtif->dev = dev;
+	
 	/* private struct aligned and zeroed by init_etherdev */
 	/* Fill in the 'dev' fields. */
-	dev->base_addr = ioaddr;
-	dev->irq = irq;
-	memcpy(dev->dev_addr, gt96100_station_addr[port_num],
-	       sizeof(dev->dev_addr));
+	dev->base_addr = gtif->iobase;
+	dev->irq = gtif->irq;
+
+	if ((retval = parse_mac_addr(dev, gtif->mac_str))) {
+		err(__FUNCTION__ ": MAC address parse failed\n");
+		retval = -EINVAL;
+		goto free_region;
+	}
 
 	/* Initialize our private structure. */
 	if (dev->priv == NULL) {
@@ -785,16 +778,15 @@ gt96100_probe1(long ioaddr, int irq, int port_num)
 	gp->port_num = port_num;
 	gp->io_size = GT96100_ETH_IO_SIZE;
 	gp->port_offset = port_num * GT96100_ETH_IO_SIZE;
-	gp->phy_addr = gt96100_phy_addr[port_num];
-
-	pcibios_read_config_byte(0, 0, PCI_REVISION_ID, &chip_rev);
+	gp->phy_addr = phy_addr;
 	gp->chip_rev = chip_rev;
 
-	info("%s found at 0x%lx, irq %d, vendorID 0x%04x, deviceID 0x%04x\n",
-	     chip_name(gp->chip_rev), ioaddr, irq, vendor_id, device_id);
+	info("%s found at 0x%x, irq %d\n",
+	     chip_name(gp->chip_rev), gtif->iobase, gtif->irq);
 	dump_hw_addr(0, dev, "HW Address ", dev->dev_addr);
 	info("%s chip revision=%d\n", chip_name(gp->chip_rev), gp->chip_rev);
 	info("%s ethernet port %d\n", chip_name(gp->chip_rev), gp->port_num);
+	info("external PHY ID1=0x%04x, ID2=0x%04x\n", phy_id1, phy_id2);
 
 	// Allocate Rx and Tx descriptor rings
 	if (gp->rx_ring == NULL) {
@@ -860,7 +852,7 @@ gt96100_probe1(long ioaddr, int irq, int port_num)
 	return 0;
 
  free_region:
-	release_region(ioaddr, gp->io_size);
+	release_region(gtif->iobase, GT96100_ETH_IO_SIZE);
 	unregister_netdev(dev);
 	if (dev->priv != NULL)
 		kfree (dev->priv);
@@ -969,7 +961,7 @@ static int
 gt96100_init(struct net_device *dev)
 {
 	struct gt96100_private *gp = (struct gt96100_private *)dev->priv;
-	u32 phyAD, ciu;
+	u32 tmp;
 	u16 mii_reg;
     
 	dbg(3, __FUNCTION__ ": dev=%p\n", dev);
@@ -982,28 +974,31 @@ gt96100_init(struct net_device *dev)
 	hard_stop(dev);
     
 	// Setup CIU Arbiter
-	ciu = GT96100_READ(GT96100_CIU_ARBITER_CONFIG);
-	ciu |= (0x0c << (gp->port_num*2)); // set Ether DMA req priority to hi
+	tmp = GT96100_READ(GT96100_CIU_ARBITER_CONFIG);
+	tmp |= (0x0c << (gp->port_num*2)); // set Ether DMA req priority to hi
 #ifndef DESC_BE
-	ciu &= ~(1<<31);                   // set desc endianess to little
+	tmp &= ~(1<<31);                   // set desc endianess to little
 #else
-	ciu |= (1<<31);
+	tmp |= (1<<31);
 #endif
-	GT96100_WRITE(GT96100_CIU_ARBITER_CONFIG, ciu);
+	GT96100_WRITE(GT96100_CIU_ARBITER_CONFIG, tmp);
 	dbg(3, __FUNCTION__ ": CIU Config=%x/%x\n",
-	    ciu, GT96100_READ(GT96100_CIU_ARBITER_CONFIG));
+	    tmp, GT96100_READ(GT96100_CIU_ARBITER_CONFIG));
 
 	// Set routing.
-	GT96100_WRITE(GT96100_ROUTE_MAIN, 0x00fc0000);
+	tmp = GT96100_READ(GT96100_ROUTE_MAIN) & (0x3f << 18);
+	tmp |= (0x07 << (18 + gp->port_num*3));
+	GT96100_WRITE(GT96100_ROUTE_MAIN, tmp);
 
-	/* Setup GPP */
-	GT96100_WRITE(GT96100_GPP_CONFIG0, 0x007f0003);
-	/* set MII0 and MII1 as peripheral func */
-	GT96100_WRITE(GT96100_GPP_CONFIG2, 0xffffffff);
-	/* config ports a,b as serial ports */
-	GT96100_WRITE(GT96100_GPP_IO0, 0x00260000);
-	/* Set up port MII1 pin directions */
-	GT96100_WRITE(GT96100_GPP_IO2, 0x003d003d);
+	/* set MII as peripheral func */
+	tmp = GT96100_READ(GT96100_GPP_CONFIG2);
+	tmp |= 0x7fff << (gp->port_num*16);
+	GT96100_WRITE(GT96100_GPP_CONFIG2, tmp);
+	
+	/* Set up MII port pin directions */
+	tmp = GT96100_READ(GT96100_GPP_IO2);
+	tmp |= 0x003d << (gp->port_num*16);
+	GT96100_WRITE(GT96100_GPP_IO2, tmp);
 
 	// Set-up hash table
 	memset(gp->hash_table, 0, RX_HASH_TABLE_SIZE); // clear it
@@ -1032,27 +1027,10 @@ gt96100_init(struct net_device *dev)
 	GT96100ETH_WRITE(gp, GT96100_ETH_PORT_CONFIG_EXT,
 			 pcxrFCTL | pcxrFCTLen | pcxrFLP | pcxrDPLXen);
 
-	if (gp->chip_rev >= REV_GT96100A_1) {
-		phyAD = GT96100_READ(GT96100_ETH_PHY_ADDR_REG);
-		if (gp->port_num == 0) {
-			gp->phy_addr = phyAD & 0x1f;
-		} else {
-			gp->phy_addr = (phyAD>>5) & 0x1f;
-		}
-	} else {
-		/* not sure what's this about -- probably 
-		 * a gt bug
-		 */
-		phyAD = GT96100_READ(GT96100_ETH_PHY_ADDR_REG);
-		phyAD &= ~(0x1f << (gp->port_num*5));
-		phyAD |= gp->phy_addr << (gp->port_num*5);
-		GT96100_WRITE(GT96100_ETH_PHY_ADDR_REG, phyAD);
-	}
-
-	mii_reg = read_MII(dev, 0x11); /* int enable register */
+	mii_reg = read_MII(gp->phy_addr, 0x11); /* int enable register */
 	mii_reg |= 2;  /* enable mii interrupt */
-	write_MII(dev, 0x11, mii_reg);
-
+	write_MII(gp->phy_addr, 0x11, mii_reg);
+	
 	dbg(3, __FUNCTION__ ": PhyAD=%x\n",
 	    GT96100_READ(GT96100_ETH_PHY_ADDR_REG));
 
@@ -1086,7 +1064,7 @@ gt96100_init(struct net_device *dev)
 	 * treated normally and will be sent to the lowest priority
 	 * queue.
 	 *
-	 * Disable flow-control for now. FIX! support flow control?
+	 * Disable flow-control for now. FIXME: support flow control?
 	 */
 
 	// clear all the MIB ctr regs
@@ -1120,8 +1098,7 @@ gt96100_open(struct net_device *dev)
     
 	MOD_INC_USE_COUNT;
 
-	dbg(3, __FUNCTION__ ": dev=%p\n", dev);
-
+	dbg(2, __FUNCTION__ ": dev=%p\n", dev);
 
 	// Initialize and startup the GT-96100 ethernet port
 	if ((retval = gt96100_init(dev))) {
@@ -1138,7 +1115,7 @@ gt96100_open(struct net_device *dev)
 		return retval;
 	}
 	
-	dbg(3, __FUNCTION__ ": Initialization done.\n");
+	dbg(2, __FUNCTION__ ": Initialization done.\n");
 
 	return 0;
 }
@@ -1146,7 +1123,6 @@ gt96100_open(struct net_device *dev)
 static int
 gt96100_close(struct net_device *dev)
 {
-	struct gt96100_private *gp = (struct gt96100_private *)dev->priv;
 	dbg(3, __FUNCTION__ ": dev=%p\n", dev);
 
 	// stop the device
@@ -1447,6 +1423,9 @@ gt96100_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		return;
 	}
 
+	dbg(3, __FUNCTION__ ": entry, icr=%x\n",
+	    GT96100ETH_READ(gp, GT96100_ETH_INT_CAUSE));
+
 	spin_lock(&gp->lock);
 
 	gp->intr_work_done = max_interrupt_work;
@@ -1458,14 +1437,8 @@ gt96100_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		GT96100ETH_WRITE(gp, GT96100_ETH_INT_CAUSE, ~status);
 
 		if ((status & icrEtherIntSum) == 0 &&
-		    !(status & (icrTxBufferLow|icrTxBufferHigh|icrRxBuffer))) {
-			if (gp->intr_work_done == max_interrupt_work)
-				dbg(1, __FUNCTION__
-				    ": no ints? icr=%x,cp0_cause=%x\n",
-				    status,
-				    read_32bit_cp0_register(CP0_CAUSE));
+		    !(status & (icrTxBufferLow|icrTxBufferHigh|icrRxBuffer)))
 			break;
-		}
 	
 		if (status & icrMIIPhySTC) {
 			u32 psr = GT96100ETH_READ(gp, GT96100_ETH_PORT_STATUS);
@@ -1505,7 +1478,7 @@ gt96100_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		if (status & (icrTxBufferLow | icrTxEndLow))
 			gt96100_tx_complete(dev, status);
 
-		if (status & icrRxBuffer) {
+		if (status & (icrRxBuffer | icrRxError)) {
 			gt96100_rx(dev, status);
 		}
 	
@@ -1582,7 +1555,7 @@ gt96100_set_rx_mode(struct net_device *dev)
 
 #if 0
 	/*
-	  FIX! currently multicast doesn't work - need to get hash table
+	  FIXME: currently multicast doesn't work - need to get hash table
 	  working first.
 	*/
 	if (dev->mc_count) {
@@ -1624,7 +1597,52 @@ gt96100_get_stats(struct net_device *dev)
 
 static void gt96100_cleanup_module(void)
 {
+	int i;
+	for (i=0; i<NUM_INTERFACES; i++) {
+		struct gt96100_if_t *gtif = &gt96100_iflist[i];
+		if (gtif->dev != NULL) {
+			struct gt96100_private *gp =
+				(struct gt96100_private *)gtif->dev->priv;
+			release_region(gtif->iobase, gp->io_size);
+			unregister_netdev(gtif->dev);
+			if (gtif->dev->priv != NULL)
+				kfree (gtif->dev->priv);
+			kfree (gtif->dev);
+		}
+	}
 }
+
+
+#ifndef MODULE
+
+static int __init gt96100_setup(char *options)
+{
+	char *this_opt;
+
+	if (!options || !*options)
+		return 0;
+
+        for(this_opt=strtok(options, ",");
+	    this_opt; this_opt=strtok(NULL, ",")) {
+		if (!strncmp(this_opt, "mac0:", 5)) {
+			memcpy(mac0, this_opt+5, 17);
+			mac0[17]= '\0';
+		} else if (!strncmp(this_opt, "mac1:", 5)) {
+			memcpy(mac1, this_opt+5, 17);
+			mac1[17]= '\0';
+		}
+	}
+
+	return 1;
+}
+
+__setup("gt96100eth=", gt96100_setup);
+
+#endif /* !MODULE */
+
 
 module_init(gt96100_init_module);
 module_exit(gt96100_cleanup_module);
+
+MODULE_AUTHOR("Steve Longerbeam <stevel@mvista.com>");
+MODULE_DESCRIPTION("GT96100 Ethernet driver");
