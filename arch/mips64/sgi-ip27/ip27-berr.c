@@ -95,7 +95,7 @@ bus_error_init(void)
 	set_except_vector(7, handle_dbe);
 
 	LOCAL_HUB_S(PI_ERR_INT_PEND,
-	            cpu ? PI_ERR_CLEAR_ALL_A : PI_ERR_CLEAR_ALL_B);
+	            cpu ? PI_ERR_CLEAR_ALL_B : PI_ERR_CLEAR_ALL_A);
 	LOCAL_HUB_S(PI_ERR_INT_MASK_A + cpuoff, 0);
 	LOCAL_HUB_S(PI_ERR_STACK_ADDR_A + cpuoff, 0);
 	LOCAL_HUB_S(PI_ERR_STACK_SIZE, 0);	/* Disable error stack */
