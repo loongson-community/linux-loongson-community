@@ -96,8 +96,8 @@
 	if ((long)(~(pc) & ((a) | ((a)+(s)))) < 0)	\
 		goto sigbus;
 
-static inline void emulate_load_store_insn(struct pt_regs *regs,
-                                           unsigned long addr, unsigned long pc)
+static inline int emulate_load_store_insn(struct pt_regs *regs,
+	unsigned long addr, unsigned long pc)
 {
 	union mips_instruction insn;
 	unsigned long value, fixup;
@@ -170,7 +170,7 @@ static inline void emulate_load_store_insn(struct pt_regs *regs,
 		if (res)
 			goto fault;
 		regs->regs[insn.i_format.rt] = value;
-		return;
+		return 0;
 
 	case lw_op:
 		check_axs(pc, addr, 4);
@@ -197,7 +197,7 @@ static inline void emulate_load_store_insn(struct pt_regs *regs,
 		if (res)
 			goto fault;
 		regs->regs[insn.i_format.rt] = value;
-		return;
+		return 0;
 
 	case lhu_op:
 		check_axs(pc, addr, 2);
@@ -228,7 +228,7 @@ static inline void emulate_load_store_insn(struct pt_regs *regs,
 		if (res)
 			goto fault;
 		regs->regs[insn.i_format.rt] = value;
-		return;
+		return 0;
 
 	case lwu_op:
 	case ld_op:
@@ -267,7 +267,7 @@ static inline void emulate_load_store_insn(struct pt_regs *regs,
 			: "r" (value), "r" (addr), "i" (-EFAULT));
 		if (res)
 			goto fault;
-		return;
+		return 0;
 
 	case sw_op:
 		check_axs(pc, addr, 4);
@@ -295,7 +295,7 @@ static inline void emulate_load_store_insn(struct pt_regs *regs,
 		: "r" (value), "r" (addr), "i" (-EFAULT));
 		if (res)
 			goto fault;
-		return;
+		return 0;
 
 	case sd_op:
 		/* Cannot handle 64-bit instructions in 32-bit kernel */
@@ -328,7 +328,7 @@ static inline void emulate_load_store_insn(struct pt_regs *regs,
 		 */
 		goto sigill;
 	}
-	return;
+	return 0;
 
 fault:
 	/* Did we have an exception handler installed? */
@@ -339,20 +339,24 @@ fault:
 		printk(KERN_DEBUG "%s: Forwarding exception at [<%lx>] (%lx)\n",
 		       current->comm, regs->cp0_epc, new_epc);
 		regs->cp0_epc = new_epc;
-		return;
+		return 1;
 	}
 
 	die_if_kernel ("Unhandled kernel unaligned access", regs);
 	send_sig(SIGSEGV, current, 1);
-	return;
+
+	return 0;
+
 sigbus:
-	die_if_kernel ("Unhandled kernel unaligned access", regs);
+	die_if_kernel("Unhandled kernel unaligned access", regs);
 	send_sig(SIGBUS, current, 1);
-	return;
+
+	return 0;
+
 sigill:
-	die_if_kernel ("Unhandled kernel unaligned access or invalid instruction", regs);
+	die_if_kernel("Unhandled kernel unaligned access or invalid instruction", regs);
 	send_sig(SIGILL, current, 1);
-	return;
+	return 0;
 }
 
 #ifdef CONFIG_PROC_FS
@@ -388,16 +392,21 @@ asmlinkage void do_ade(struct pt_regs *regs)
 	if ((current->thread.mflags & MF_FIXADE) == 0)
 		goto sigbus;
 
-	emulate_load_store_insn(regs, regs->cp0_badvaddr, pc);
+	/*
+	 * Do branch emulation only if we didn't forward the exception.
+	 * This is all so but ugly ...
+	 */
+	if (!emulate_load_store_insn(regs, regs->cp0_badvaddr, pc))
+		compute_return_epc(regs);
+
 #ifdef CONFIG_PROC_FS
 	unaligned_instructions++;
 #endif
-	compute_return_epc(regs);
 
 	return;
 
 sigbus:
-	die_if_kernel ("Kernel unaligned instruction access", regs);
+	die_if_kernel("Kernel unaligned instruction access", regs);
 	force_sig(SIGBUS, current);
 
 	/*
