@@ -356,7 +356,7 @@ out:	jr	ra
 	sys	compat_sys_statfs	2
 	sys	compat_sys_fstatfs	2		/* 4100 */
 	sys	sys_ni_syscall		0		/* sys_ioperm */
-	sys	sys_socketcall		2
+	sys	sys32_socketcall		2
 	sys	sys_syslog		3
 	sys	compat_sys_setitimer	3
 	sys	compat_sys_getitimer	2	/* 4105 */
