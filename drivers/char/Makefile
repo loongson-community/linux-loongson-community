@@ -23,7 +23,7 @@ obj-y	 += mem.o tty_io.o n_tty.o tty_ioctl.o raw.o pty.o misc.o random.o
 
 export-objs     :=	busmouse.o console.o keyboard.o sysrq.o \
 			misc.o pty.o random.o selection.o serial.o \
-			tty_io.o
+			sonypi.o tty_io.o tty_ioctl.o
 
 mod-subdirs	:=	joystick ftape drm pcmcia
 
@@ -45,6 +45,20 @@ ifeq ($(ARCH),mips)
   ifneq ($(CONFIG_PC_KEYB),y)
     KEYBD    =
   endif
+endif
+
+ifeq ($(ARCH),s390x)
+  KEYMAP   =
+  KEYBD    =
+  CONSOLE  =
+  SERIAL   =
+endif
+
+ifeq ($(ARCH),s390)
+  KEYMAP   =
+  KEYBD    =
+  CONSOLE  =
+  SERIAL   =
 endif
 
 ifeq ($(ARCH),s390x)
@@ -154,6 +168,7 @@ obj-$(CONFIG_SYNCLINK) += synclink.o
 obj-$(CONFIG_N_HDLC) += n_hdlc.o
 obj-$(CONFIG_SPECIALIX) += specialix.o
 obj-$(CONFIG_AMIGA_BUILTIN_SERIAL) += amiserial.o
+obj-$(CONFIG_A2232) += ser_a2232.o generic_serial.o
 obj-$(CONFIG_SX) += sx.o generic_serial.o
 obj-$(CONFIG_RIO) += rio/rio.o generic_serial.o
 obj-$(CONFIG_SH_SCI) += sh-sci.o generic_serial.o
@@ -178,6 +193,7 @@ obj-$(CONFIG_BUSMOUSE) += busmouse.o
 obj-$(CONFIG_DTLK) += dtlk.o
 obj-$(CONFIG_R3964) += n_r3964.o
 obj-$(CONFIG_APPLICOM) += applicom.o
+obj-$(CONFIG_SONYPI) += sonypi.o
 obj-$(CONFIG_MS_BUSMOUSE) += msbusmouse.o
 obj-$(CONFIG_82C710_MOUSE) += qpmouse.o
 obj-$(CONFIG_AMIGAMOUSE) += amigamouse.o

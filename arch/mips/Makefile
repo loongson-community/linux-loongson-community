@@ -75,7 +75,8 @@ ifdef CONFIG_CPU_R5432
 GCCFLAGS        += -mcpu=r5000 -mips2 -Wa,--trap
 endif
 ifdef CONFIG_CPU_NEVADA
-GCCFLAGS	+= -mcpu=r5000 -mips2 -Wa,--trap -mmad
+# Cannot use -mmad with currently recommended tools
+GCCFLAGS	+= -mcpu=r5000 -mips2 -Wa,--trap
 endif
 ifdef CONFIG_CPU_RM7000
 GCCFLAGS	+= -mcpu=r5000 -mips2 -Wa,--trap

@@ -69,7 +69,7 @@ static const char RCSid[] = "$Header: /vger/u4/cvs/linux/drivers/scsi/hosts.c,v 
  *  idiocy.
  */
 
-Scsi_Host_Template * scsi_hosts = NULL;
+Scsi_Host_Template * scsi_hosts;
 
 
 /*
@@ -77,12 +77,12 @@ Scsi_Host_Template * scsi_hosts = NULL;
  *      MAX_SCSI_HOSTS here.
  */
 
-Scsi_Host_Name * scsi_host_no_list = NULL;
-struct Scsi_Host * scsi_hostlist = NULL;
-struct Scsi_Device_Template * scsi_devicelist = NULL;
+Scsi_Host_Name * scsi_host_no_list;
+struct Scsi_Host * scsi_hostlist;
+struct Scsi_Device_Template * scsi_devicelist;
 
-int max_scsi_hosts = 0;
-int next_scsi_host = 0;
+int max_scsi_hosts;
+int next_scsi_host;
 
 void
 scsi_unregister(struct Scsi_Host * sh){
@@ -237,6 +237,7 @@ struct Scsi_Host * scsi_register(Scsi_Host_Template * tpnt, int j){
     retval->use_clustering = tpnt->use_clustering;   
 
     retval->select_queue_depths = tpnt->select_queue_depths;
+    retval->max_sectors = tpnt->max_sectors;
 
     if(!scsi_hostlist)
 	scsi_hostlist = retval;

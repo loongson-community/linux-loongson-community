@@ -8,7 +8,7 @@
  *		as published by the Free Software Foundation; either version
  *		2 of the License, or (at your option) any later version.
  *
- * Version:	$Id: af_unix.c,v 1.116 2001/03/03 01:20:11 davem Exp $
+ * Version:	$Id: af_unix.c,v 1.117 2001/07/01 06:59:10 davem Exp $
  *
  * Fixes:
  *		Linus Torvalds	:	Assorted bug cures.
@@ -674,6 +674,7 @@ static int unix_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 	atomic_set(&addr->refcnt, 1);
 
 	if (sunaddr->sun_path[0]) {
+		unsigned int mode;
 		err = 0;
 		/*
 		 * Get the parent directory, calculate the hash for last
@@ -713,8 +714,8 @@ static int unix_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 		/*
 		 * All right, let's create it.
 		 */
-		err = vfs_mknod(nd.dentry->d_inode, dentry,
-			S_IFSOCK|sock->inode->i_mode, 0);
+		mode = S_IFSOCK | (sock->inode->i_mode & ~current->fs->umask);
+		err = vfs_mknod(nd.dentry->d_inode, dentry, mode, 0);
 		if (err)
 			goto out_mknod_dput;
 		up(&nd.dentry->d_inode->i_sem);

@@ -230,6 +230,7 @@ CONFIG_MIPS_AU1000_ENET=y
 #
 # CONFIG_ACENIC is not set
 # CONFIG_ACENIC_OMIT_TIGON_I is not set
+# CONFIG_DL2K is not set
 # CONFIG_MYRI_SBUS is not set
 # CONFIG_HAMACHI is not set
 # CONFIG_YELLOWFIN is not set
@@ -293,6 +294,8 @@ CONFIG_SERIAL_NONSTANDARD=y
 # CONFIG_ESPSERIAL is not set
 # CONFIG_MOXA_INTELLIO is not set
 # CONFIG_MOXA_SMARTIO is not set
+# CONFIG_SYNCLINK is not set
+# CONFIG_N_HDLC is not set
 # CONFIG_RISCOM8 is not set
 # CONFIG_SPECIALIX is not set
 # CONFIG_SX is not set
@@ -336,6 +339,7 @@ CONFIG_UNIX98_PTY_COUNT=256
 # CONFIG_DTLK is not set
 # CONFIG_R3964 is not set
 # CONFIG_APPLICOM is not set
+# CONFIG_SONYPI is not set
 
 #
 # Ftape, the floppy tape device driver

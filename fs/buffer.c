@@ -45,6 +45,7 @@
 #include <linux/quotaops.h>
 #include <linux/iobuf.h>
 #include <linux/highmem.h>
+#include <linux/completion.h>
 
 #include <asm/uaccess.h>
 #include <asm/io.h>
@@ -133,6 +134,14 @@ union bdflush_param {
 int bdflush_min[N_PARAM] = {  0,  10,    5,   25,  0,   1*HZ,   0, 0, 0};
 int bdflush_max[N_PARAM] = {100,50000, 20000, 20000,600*HZ, 6000*HZ, 100, 0, 0};
 
+inline void unlock_buffer(struct buffer_head *bh)
+{
+	clear_bit(BH_Lock, &bh->b_state);
+	smp_mb__after_clear_bit();
+	if (waitqueue_active(&bh->b_wait))
+		wake_up(&bh->b_wait);
+}
+
 /*
  * Rewrote the wait-routines to use the "new" wait-queue functionality,
  * and getting rid of the cli-sti pairs. The wait-queue routines still
@@ -147,7 +156,7 @@ void __wait_on_buffer(struct buffer_head * bh)
 	struct task_struct *tsk = current;
 	DECLARE_WAITQUEUE(wait, tsk);
 
-	atomic_inc(&bh->b_count);
+	get_bh(bh);
 	add_wait_queue(&bh->b_wait, &wait);
 	do {
 		run_task_queue(&tq_disk);
@@ -158,14 +167,18 @@ void __wait_on_buffer(struct buffer_head * bh)
 	} while (buffer_locked(bh));
 	tsk->state = TASK_RUNNING;
 	remove_wait_queue(&bh->b_wait, &wait);
-	atomic_dec(&bh->b_count);
+	put_bh(bh);
 }
 
-/* End-of-write handler.. Just mark it up-to-date and unlock the buffer. */
-static void end_buffer_write(struct buffer_head *bh, int uptodate)
+/*
+ * Default synchronous end-of-IO handler..  Just mark it up-to-date and
+ * unlock the buffer. This is what ll_rw_block uses too.
+ */
+void end_buffer_io_sync(struct buffer_head *bh, int uptodate)
 {
 	mark_buffer_uptodate(bh, uptodate);
 	unlock_buffer(bh);
+	put_bh(bh);
 }
 
 /*
@@ -179,14 +192,14 @@ static void end_buffer_write(struct buffer_head *bh, int uptodate)
 static void write_locked_buffers(struct buffer_head **array, unsigned int count)
 {
 	struct buffer_head *wait = *array;
-	atomic_inc(&wait->b_count);
+	get_bh(wait);
 	do {
 		struct buffer_head * bh = *array++;
-		bh->b_end_io = end_buffer_write;
+		bh->b_end_io = end_buffer_io_sync;
 		submit_bh(WRITE, bh);
 	} while (--count);
 	wait_on_buffer(wait);
-	atomic_dec(&wait->b_count);
+	put_bh(wait);
 }
 
 #define NRSYNC (32)
@@ -210,6 +223,7 @@ repeat:
 			continue;
 		if (test_and_set_bit(BH_Lock, &bh->b_state))
 			continue;
+		get_bh(bh);
 		if (atomic_set_buffer_clean(bh)) {
 			__refile_buffer(bh);
 			array[count++] = bh;
@@ -221,6 +235,7 @@ repeat:
 			goto repeat;
 		}
 		unlock_buffer(bh);
+		put_bh(bh);
 	}
 	spin_unlock(&lru_list_lock);
 
@@ -249,10 +264,10 @@ repeat:
 		if (dev && bh->b_dev != dev)
 			continue;
 
-		atomic_inc(&bh->b_count);
+		get_bh(bh);
 		spin_unlock(&lru_list_lock);
 		wait_on_buffer (bh);
-		atomic_dec(&bh->b_count);
+		put_bh(bh);
 		goto repeat;
 	}
 	spin_unlock(&lru_list_lock);
@@ -552,7 +567,7 @@ static inline struct buffer_head * __get_hash_table(kdev_t dev, int block, int s
 		    bh->b_dev     == dev)
 			break;
 	if (bh)
-		atomic_inc(&bh->b_count);
+		get_bh(bh);
 
 	return bh;
 }
@@ -646,12 +661,12 @@ void __invalidate_buffers(kdev_t dev, int destroy_dirty_buffers)
 			if (!bh->b_pprev)
 				continue;
 			if (buffer_locked(bh)) {
-				atomic_inc(&bh->b_count);
+				get_bh(bh);
 				spin_unlock(&lru_list_lock);
 				wait_on_buffer(bh);
 				slept = 1;
 				spin_lock(&lru_list_lock);
-				atomic_dec(&bh->b_count);
+				put_bh(bh);
 			}
 
 			write_lock(&hash_table_lock);
@@ -711,12 +726,12 @@ void set_blocksize(kdev_t dev, int size)
 			if (!bh->b_pprev)
 				continue;
 			if (buffer_locked(bh)) {
-				atomic_inc(&bh->b_count);
+				get_bh(bh);
 				spin_unlock(&lru_list_lock);
 				wait_on_buffer(bh);
 				slept = 1;
 				spin_lock(&lru_list_lock);
-				atomic_dec(&bh->b_count);
+				put_bh(bh);
 			}
 
 			write_lock(&hash_table_lock);
@@ -803,7 +818,6 @@ static void end_buffer_io_async(struct buffer_head * bh, int uptodate)
 	 */
 	spin_lock_irqsave(&page_uptodate_lock, flags);
 	unlock_buffer(bh);
-	atomic_dec(&bh->b_count);
 	tmp = bh->b_this_page;
 	while (tmp != bh) {
 		if (tmp->b_end_io == end_buffer_io_async && buffer_locked(tmp))
@@ -813,6 +827,7 @@ static void end_buffer_io_async(struct buffer_head * bh, int uptodate)
 
 	/* OK, the async IO on this page is complete. */
 	spin_unlock_irqrestore(&page_uptodate_lock, flags);
+	put_bh(bh);
 
 	/*
 	 * if none of the buffers had errors then we can set the
@@ -832,6 +847,7 @@ static void end_buffer_io_async(struct buffer_head * bh, int uptodate)
 	return;
 
 still_busy:
+	put_bh(bh);
 	spin_unlock_irqrestore(&page_uptodate_lock, flags);
 	return;
 }
@@ -879,7 +895,7 @@ int fsync_inode_buffers(struct inode *inode)
 			bh->b_inode = &tmp;
 			list_add(&bh->b_inode_buffers, &tmp.i_dirty_buffers);
 			if (buffer_dirty(bh)) {
-				atomic_inc(&bh->b_count);
+				get_bh(bh);
 				spin_unlock(&lru_list_lock);
 				ll_rw_block(WRITE, 1, &bh);
 				brelse(bh);
@@ -891,7 +907,7 @@ int fsync_inode_buffers(struct inode *inode)
 	while (!list_empty(&tmp.i_dirty_buffers)) {
 		bh = BH_ENTRY(tmp.i_dirty_buffers.prev);
 		remove_inode_queue(bh);
-		atomic_inc(&bh->b_count);
+		get_bh(bh);
 		spin_unlock(&lru_list_lock);
 		wait_on_buffer(bh);
 		if (!buffer_uptodate(bh))
@@ -935,7 +951,7 @@ int osync_inode_buffers(struct inode *inode)
 	     bh = BH_ENTRY(list), list != &inode->i_dirty_buffers;
 	     list = bh->b_inode_buffers.prev) {
 		if (buffer_locked(bh)) {
-			atomic_inc(&bh->b_count);
+			get_bh(bh);
 			spin_unlock(&lru_list_lock);
 			wait_on_buffer(bh);
 			if (!buffer_uptodate(bh))
@@ -1130,10 +1146,10 @@ void refile_buffer(struct buffer_head *bh)
 void __brelse(struct buffer_head * buf)
 {
 	if (atomic_read(&buf->b_count)) {
-		atomic_dec(&buf->b_count);
+		put_bh(buf);
 		return;
 	}
-	printk("VFS: brelse: Trying to free free buffer\n");
+	printk(KERN_ERR "VFS: brelse: Trying to free free buffer\n");
 }
 
 /*
@@ -1528,7 +1544,7 @@ static int __block_write_full_page(struct inode *inode, struct page *page, get_b
 	do {
 		lock_buffer(bh);
 		bh->b_end_io = end_buffer_io_async;
-		atomic_inc(&bh->b_count);
+		get_bh(bh);
 		set_bit(BH_Uptodate, &bh->b_state);
 		clear_bit(BH_Dirty, &bh->b_state);
 		bh = bh->b_this_page;
@@ -1536,8 +1552,9 @@ static int __block_write_full_page(struct inode *inode, struct page *page, get_b
 
 	/* Stage 3: submit the IO */
 	do {
+		struct buffer_head *next = bh->b_this_page;
 		submit_bh(WRITE, bh);
-		bh = bh->b_this_page;		
+		bh = next;
 	} while (bh != head);
 
 	/* Done - end_buffer_io_async will unlock */
@@ -1729,7 +1746,7 @@ int block_read_full_page(struct page *page, get_block_t *get_block)
 		struct buffer_head * bh = arr[i];
 		lock_buffer(bh);
 		bh->b_end_io = end_buffer_io_async;
-		atomic_inc(&bh->b_count);
+		get_bh(bh);
 	}
 
 	/* Stage 3: start the IO */
@@ -2107,7 +2124,6 @@ int brw_kiovec(int rw, int nr, struct kiobuf *iovec[],
 				offset += size;
 
 				atomic_inc(&iobuf->io_count);
-
 				submit_bh(rw, tmp);
 				/* 
 				 * Wait for IO if we have got too much 
@@ -2175,14 +2191,15 @@ int brw_page(int rw, struct page *page, kdev_t dev, int b[], int size)
 		bh->b_blocknr = *(b++);
 		set_bit(BH_Mapped, &bh->b_state);
 		bh->b_end_io = end_buffer_io_async;
-		atomic_inc(&bh->b_count);
+		get_bh(bh);
 		bh = bh->b_this_page;
 	} while (bh != head);
 
 	/* Stage 2: start the IO */
 	do {
+		struct buffer_head *next = bh->b_this_page;
 		submit_bh(rw, bh);
-		bh = bh->b_this_page;
+		bh = next;
 	} while (bh != head);
 	return 0;
 }
@@ -2235,7 +2252,7 @@ static int grow_buffers(int size)
 	int isize;
 
 	if ((size & 511) || (size > PAGE_SIZE)) {
-		printk("VFS: grow_buffers: size = %d\n",size);
+		printk(KERN_ERR "VFS: grow_buffers: size = %d\n",size);
 		return 0;
 	}
 
@@ -2554,10 +2571,10 @@ static int flush_dirty_buffers(int check_flushtime)
 		}
 
 		/* OK, now we are committed to write it out. */
-		atomic_inc(&bh->b_count);
+		get_bh(bh);
 		spin_unlock(&lru_list_lock);
 		ll_rw_block(WRITE, 1, &bh);
-		atomic_dec(&bh->b_count);
+		put_bh(bh);
 
 		if (current->need_resched)
 			schedule();
@@ -2665,7 +2682,7 @@ asmlinkage long sys_bdflush(int func, long data)
  * the syscall above, but now we launch it ourselves internally with
  * kernel_thread(...)  directly after the first thread in init/main.c
  */
-int bdflush(void *sem)
+int bdflush(void *startup)
 {
 	struct task_struct *tsk = current;
 	int flushed;
@@ -2686,7 +2703,7 @@ int bdflush(void *sem)
 	recalc_sigpending(tsk);
 	spin_unlock_irq(&tsk->sigmask_lock);
 
-	up((struct semaphore *)sem);
+	complete((struct completion *)startup);
 
 	for (;;) {
 		CHECK_EMERGENCY_SYNC
@@ -2711,7 +2728,7 @@ int bdflush(void *sem)
  * You don't need to change your userspace configuration since
  * the userspace `update` will do_exit(0) at the first sys_bdflush().
  */
-int kupdate(void *sem)
+int kupdate(void *startup)
 {
 	struct task_struct * tsk = current;
 	int interval;
@@ -2727,7 +2744,7 @@ int kupdate(void *sem)
 	recalc_sigpending(tsk);
 	spin_unlock_irq(&tsk->sigmask_lock);
 
-	up((struct semaphore *)sem);
+	complete((struct completion *)startup);
 
 	for (;;) {
 		/* update interval */
@@ -2754,7 +2771,7 @@ int kupdate(void *sem)
 				goto stop_kupdate;
 		}
 #ifdef DEBUG
-		printk("kupdate() activated...\n");
+		printk(KERN_DEBUG "kupdate() activated...\n");
 #endif
 		sync_old_buffers();
 	}
@@ -2762,11 +2779,12 @@ int kupdate(void *sem)
 
 static int __init bdflush_init(void)
 {
-	DECLARE_MUTEX_LOCKED(sem);
-	kernel_thread(bdflush, &sem, CLONE_FS | CLONE_FILES | CLONE_SIGNAL);
-	down(&sem);
-	kernel_thread(kupdate, &sem, CLONE_FS | CLONE_FILES | CLONE_SIGNAL);
-	down(&sem);
+	static struct completion startup __initdata = COMPLETION_INITIALIZER(startup);
+
+	kernel_thread(bdflush, &startup, CLONE_FS | CLONE_FILES | CLONE_SIGNAL);
+	wait_for_completion(&startup);
+	kernel_thread(kupdate, &startup, CLONE_FS | CLONE_FILES | CLONE_SIGNAL);
+	wait_for_completion(&startup);
 	return 0;
 }
 

@@ -14,7 +14,7 @@
 #include <asm/processor.h>
 #include <asm/watch.h>
 
-unsigned long unaligned_instructions;
+extern unsigned long unaligned_instructions;
 unsigned int vced_count, vcei_count;
 #ifndef CONFIG_CPU_HAS_LLSC
 unsigned long ll_ops, sc_ops;

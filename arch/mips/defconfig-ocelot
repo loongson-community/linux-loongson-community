@@ -264,6 +264,7 @@ CONFIG_EEPRO100=y
 #
 # CONFIG_ACENIC is not set
 # CONFIG_ACENIC_OMIT_TIGON_I is not set
+# CONFIG_DL2K is not set
 # CONFIG_MYRI_SBUS is not set
 # CONFIG_HAMACHI is not set
 # CONFIG_YELLOWFIN is not set
@@ -354,6 +355,7 @@ CONFIG_UNIX98_PTY_COUNT=256
 # CONFIG_DTLK is not set
 # CONFIG_R3964 is not set
 # CONFIG_APPLICOM is not set
+# CONFIG_SONYPI is not set
 
 #
 # Ftape, the floppy tape device driver

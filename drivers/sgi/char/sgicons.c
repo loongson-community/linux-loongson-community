@@ -13,9 +13,6 @@
 #include <asm/uaccess.h>
 #include "gconsole.h"
 
-/* To make psaux code cleaner */
-unsigned char aux_device_present = 0xaa;
-
 /* This is the system graphics console (the first adapter found) */
 struct console_ops *gconsole = 0;
 struct console_ops *real_gconsole = 0;

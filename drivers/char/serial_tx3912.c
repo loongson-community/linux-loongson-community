@@ -73,16 +73,6 @@ int rs_refcount;
 int rs_initialized = 0;
 
 /*
- * FIXME: Redefines for IO macros in 'include/asm/io.h'
- */
-//#define inb(addr)	readb(addr)
-//#define inw(addr)	readw(addr)
-//#define inl(addr)	readl(addr)
-//#define outb(b, addr)	writeb(b, addr)
-//#define outw(b, addr)	writew(b, addr)
-//#define outl(b, addr)	writel(b, addr)
-
-/*
  * ----------------------------------------------------------------------
  *
  * Here starts the interrupt handling routines.  All of the following

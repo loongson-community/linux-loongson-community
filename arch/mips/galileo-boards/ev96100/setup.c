@@ -71,9 +71,9 @@ extern void mips_reboot_setup(void);
 extern struct rtc_ops no_rtc_ops;
 extern struct resource ioport_resource;
 
-void rm7000_wbflush()
+static void rm7000_wbflush(void)
 {
-    __asm__ __volatile__ ("sync");
+	 __asm__ __volatile__ ("sync");
 }
 
 unsigned char mac_0_1[12];

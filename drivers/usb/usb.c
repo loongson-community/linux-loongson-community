@@ -29,6 +29,7 @@
 #include <linux/kmod.h>
 #include <linux/init.h>
 #include <linux/devfs_fs_kernel.h>
+#include <linux/spinlock.h>
 
 #ifdef CONFIG_USB_DEBUG
 	#define DEBUG
@@ -59,6 +60,7 @@ static void usb_check_support(struct usb_device *);
  */
 LIST_HEAD(usb_driver_list);
 LIST_HEAD(usb_bus_list);
+rwlock_t usb_bus_list_lock = RW_LOCK_UNLOCKED;
 
 devfs_handle_t usb_devfs_handle;	/* /dev/usb dir. */
 
@@ -110,6 +112,7 @@ void usb_scan_devices(void)
 {
 	struct list_head *tmp;
 
+	read_lock_irq (&usb_bus_list_lock);
 	tmp = usb_bus_list.next;
 	while (tmp != &usb_bus_list) {
 		struct usb_bus *bus = list_entry(tmp,struct usb_bus, bus_list);
@@ -117,6 +120,7 @@ void usb_scan_devices(void)
 		tmp = tmp->next;
 		usb_check_support(bus->root_hub);
 	}
+	read_unlock_irq (&usb_bus_list_lock);
 }
 
 /*
@@ -178,6 +182,7 @@ void usb_deregister(struct usb_driver *driver)
 	 */
 	list_del(&driver->driver_list);
 
+	read_lock_irq (&usb_bus_list_lock);
 	tmp = usb_bus_list.next;
 	while (tmp != &usb_bus_list) {
 		struct usb_bus *bus = list_entry(tmp,struct usb_bus,bus_list);
@@ -185,6 +190,7 @@ void usb_deregister(struct usb_driver *driver)
 		tmp = tmp->next;
 		usb_drivers_purge(driver, bus->root_hub);
 	}
+	read_unlock_irq (&usb_bus_list_lock);
 }
 
 struct usb_interface *usb_ifnum_to_if(struct usb_device *dev, unsigned ifnum)
@@ -415,6 +421,7 @@ void usb_register_bus(struct usb_bus *bus)
 {
 	int busnum;
 
+	write_lock_irq (&usb_bus_list_lock);
 	busnum = find_next_zero_bit(busmap.busmap, USB_MAXBUS, 1);
 	if (busnum < USB_MAXBUS) {
 		set_bit(busnum, busmap.busmap);
@@ -426,6 +433,7 @@ void usb_register_bus(struct usb_bus *bus)
 
 	/* Add it to the list of buses */
 	list_add(&bus->bus_list, &usb_bus_list);
+	write_unlock_irq (&usb_bus_list_lock);
 
 	usbdevfs_add_bus(bus);
 
@@ -447,9 +455,11 @@ void usb_deregister_bus(struct usb_bus *bus)
 	 * controller code, as well as having it call this when cleaning
 	 * itself up
 	 */
+	write_lock_irq (&usb_bus_list_lock);
 	list_del(&bus->bus_list);
+	write_unlock_irq (&usb_bus_list_lock);
 
-	usbdevfs_remove_bus(bus);
+       usbdevfs_remove_bus(bus);
 
 	clear_bit(bus->busnum, busmap.busmap);
 
@@ -688,10 +698,12 @@ static int usb_find_interface_driver(struct usb_device *dev, unsigned ifnum)
 		return -1;
 	}
 
+	down(&dev->serialize);
+
 	interface = dev->actconfig->interface + ifnum;
 
 	if (usb_interface_claimed(interface))
-		return -1;
+		goto out_err;
 
 	private = NULL;
 	for (tmp = usb_driver_list.next; tmp != &usb_driver_list;) {
@@ -699,7 +711,6 @@ static int usb_find_interface_driver(struct usb_device *dev, unsigned ifnum)
 		driver = list_entry(tmp, struct usb_driver, driver_list);
 		tmp = tmp->next;
 
-		down(&driver->serialize);
 		id = driver->id_table;
 		/* new style driver? */
 		if (id) {
@@ -707,7 +718,9 @@ static int usb_find_interface_driver(struct usb_device *dev, unsigned ifnum)
 			  	interface->act_altsetting = i;
 				id = usb_match_id(dev, interface, id);
 				if (id) {
+					down(&driver->serialize);
 					private = driver->probe(dev,ifnum,id);
+					up(&driver->serialize);
 					if (private != NULL)
 						break;
 				}
@@ -717,15 +730,21 @@ static int usb_find_interface_driver(struct usb_device *dev, unsigned ifnum)
 				interface->act_altsetting = 0;
 		}
 		else /* "old style" driver */
+		{
+			down(&driver->serialize);
 			private = driver->probe(dev, ifnum, NULL);
+			up(&driver->serialize);
+		}
 
-		up(&driver->serialize);
 		if (private) {
 			usb_driver_claim_interface(driver, interface, private);
+			up(&dev->serialize);
 			return 0;
 		}
 	}
 
+out_err:
+	up(&dev->serialize);
 	return -1;
 }
 
@@ -924,6 +943,8 @@ struct usb_device *usb_alloc_dev(struct usb_device *parent, struct usb_bus *bus)
 	atomic_set(&dev->refcnt, 1);
 	INIT_LIST_HEAD(&dev->inodes);
 	INIT_LIST_HEAD(&dev->filelist);
+
+	init_MUTEX(&dev->serialize);
 
 	dev->bus->op->allocate(dev);
 

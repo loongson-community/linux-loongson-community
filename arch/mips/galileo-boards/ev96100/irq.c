@@ -64,7 +64,6 @@ extern void puts(unsigned char *cp);
 extern void set_debug_traps(void);
 extern void mips_timer_interrupt(int irq, struct pt_regs *regs);
 extern asmlinkage void ev96100IRQ(void);
-irq_cpustat_t irq_stat [NR_CPUS];
 unsigned int local_bh_count[NR_CPUS];
 unsigned int local_irq_count[NR_CPUS];
 unsigned long spurious_count = 0;

@@ -106,6 +106,12 @@ M:	p_gortmaker@yahoo.com
 L:	linux-net@vger.kernel.org
 S:	Maintained
 
+ACENIC DRIVER
+P:	Jes Sorensen
+M:	jes@trained-monkey.org
+L:	linux-acenic@sunsite.dk
+S:	Maintained
+
 ACI MIXER DRIVER
 P:	Robert Siemer
 M:	Robert.Siemer@gmx.de
@@ -566,8 +572,8 @@ S:	Maintained
 
 HIPPI
 P:	Jes Sorensen
-M:	jes@linuxcare.com
-L:	linux-hippi@sunsite.auc.dk
+M:	jes@trained-monkey.org
+L:	linux-hippi@sunsite.dk
 S:	Maintained
 
 HP100:	Driver for HP 10/100 Mbit/s Voice Grade Network Adapter Series
@@ -812,7 +818,7 @@ S:     Maintained
 
 M68K
 P:	Jes Sorensen
-M:	jes@linuxcare.com
+M:	jes@trained-monkey.org
 W:	http://www.clark.net/pub/lawrencc/linux/index.html
 L:	linux-m68k@lists.linux-m68k.org
 S:	Maintained
@@ -834,6 +840,12 @@ MAESTRO PCI SOUND DRIVERS
 P:	Zach Brown
 M:	zab@zabbo.net
 S:	Odd Fixes
+
+MATROX FRAMEBUFFER DRIVER
+P:	Petr Vandrovec
+M:	vandrove@vc.cvut.cz
+L:	linux-fbdev-devel@lists.sourceforge.net
+S:	Maintained
 
 MEMORY TECHNOLOGY DEVICES
 P:	David Woodhouse
@@ -1298,10 +1310,11 @@ W:	http://tlan.kernel.dk
 S:	Maintained
 
 TOKEN-RING NETWORK DRIVER
-P:	Paul Norton
-M:	pnorton@ieee.org
+P:	Mike Phillips
+M:	mikep@linuxtr.net
 L:	linux-net@vger.kernel.org
 L:	linux-tr@linuxtr.net
+W:	http://www.linuxtr.net
 S:	Maintained
 
 TRIDENT 4DWAVE/SIS 7018 PCI AUDIO CORE

@@ -10,9 +10,10 @@
 
 	This driver is for the 3Com EtherLinkIII series.
 
-	The author may be reached as becker@cesdis.gsfc.nasa.gov or
-	C/O Center of Excellence in Space Data and Information Sciences
-		Code 930.5, Goddard Space Flight Center, Greenbelt MD 20771
+	The author may be reached as becker@scyld.com, or C/O
+	Scyld Computing Corporation
+	410 Severn Ave., Suite 210
+	Annapolis MD 21403
 
 	Known limitations:
 	Because of the way 3c509 ISA detection works it's difficult to predict
@@ -174,7 +175,7 @@ static struct el3_mca_adapters_struct el3_mca_adapters[] __initdata = {
 };
 #endif /* CONFIG_MCA */
 
-#ifdef CONFIG_ISAPNP
+#if defined(CONFIG_ISAPNP) || defined(CONFIG_ISAPNP_MODULE)
 static struct isapnp_device_id el3_isapnp_adapters[] __initdata = {
 	{	ISAPNP_ANY_ID, ISAPNP_ANY_ID,
 		ISAPNP_VENDOR('T', 'C', 'M'), ISAPNP_FUNCTION(0x5090),
@@ -203,8 +204,8 @@ static struct isapnp_device_id el3_isapnp_adapters[] __initdata = {
 MODULE_DEVICE_TABLE(isapnp, el3_isapnp_adapters);
 
 static u16 el3_isapnp_phys_addr[8][3];
+#endif /* CONFIG_ISAPNP || CONFIG_ISAPNP_MODULE */
 static int nopnp;
-#endif /* CONFIG_ISAPNP */
 
 int __init el3_probe(struct net_device *dev)
 {
@@ -214,9 +215,9 @@ int __init el3_probe(struct net_device *dev)
 	u16 phys_addr[3];
 	static int current_tag;
 	int mca_slot = -1;
-#ifdef CONFIG_ISAPNP
+#if defined(CONFIG_ISAPNP) || defined(CONFIG_ISAPNP_MODULE)
 	static int pnp_cards;
-#endif /* CONFIG_ISAPNP */
+#endif /* CONFIG_ISAPNP || CONFIG_ISAPNP_MODULE */
 
 	if (dev) SET_MODULE_OWNER(dev);
 
@@ -320,7 +321,7 @@ int __init el3_probe(struct net_device *dev)
 	}
 #endif /* CONFIG_MCA */
 
-#ifdef CONFIG_ISAPNP
+#if defined(CONFIG_ISAPNP) || defined(CONFIG_ISAPNP_MODULE)
 	if (nopnp == 1)
 		goto no_pnp;
 
@@ -356,7 +357,7 @@ int __init el3_probe(struct net_device *dev)
 		}
 	}
 no_pnp:
-#endif /* CONFIG_ISAPNP */
+#endif /* CONFIG_ISAPNP || CONFIG_ISAPNP_MODULE */
 
 	/* Select an open I/O location at 0x1*0 to do contention select. */
 	for ( ; id_port < 0x200; id_port += 0x10) {
@@ -402,7 +403,7 @@ no_pnp:
 		phys_addr[i] = htons(id_read_eeprom(i));
 	}
 
-#ifdef CONFIG_ISAPNP
+#if defined(CONFIG_ISAPNP) || defined(CONFIG_ISAPNP_MODULE)
 	if (nopnp == 0) {
 		/* The ISA PnP 3c509 cards respond to the ID sequence.
 		   This check is needed in order not to register them twice. */
@@ -422,7 +423,7 @@ no_pnp:
 			}
 		}
 	}
-#endif /* CONFIG_ISAPNP */
+#endif /* CONFIG_ISAPNP || CONFIG_ISAPNP_MODULE */
 
 	{
 		unsigned int iobase = id_read_eeprom(8);

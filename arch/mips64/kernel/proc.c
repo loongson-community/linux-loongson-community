@@ -3,9 +3,8 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1995, 1996, 1999 Ralf Baechle
- *
- * XXX Rewrite this mess.
+ * Copyright (C) 1995, 1996, 1999, 2001 Ralf Baechle
+ * Copyright (C) 2001 MIPS Technologies, Inc.
  */
 #include <linux/delay.h>
 #include <linux/kernel.h>
@@ -16,7 +15,7 @@
 #include <asm/processor.h>
 #include <asm/watch.h>
 
-unsigned long unaligned_instructions;
+extern unsigned long unaligned_instructions;
 unsigned int vced_count, vcei_count;
 
 /*

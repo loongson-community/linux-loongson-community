@@ -478,10 +478,10 @@ linux-1.1.x and fairly stable since linux-1.2.x, and are also in FreeBSD
     information in the process.  Second, if you specify the option
     "aic7xxx=verbose:0x1ffff", the system will print out *SOOOO* much
     information as it runs that you won't be able to see anything.
-    However, this can actually be very usefull if your machine simply
+    However, this can actually be very useful if your machine simply
     locks up when trying to boot, since it will pin-point what was last
     happening (in regards to the aic7xxx driver) immediately prior to
-    the lockup.  This is really only usefull if your machine simply can
+    the lockup.  This is really only useful if your machine simply can
     not boot up successfully.  If you can get your machine to run, then
     this will produce far too much information.
 

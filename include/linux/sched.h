@@ -124,6 +124,8 @@ struct sched_param {
 	int sched_priority;
 };
 
+struct completion;
+
 #ifdef __KERNEL__
 
 #include <linux/spinlock.h>
@@ -224,6 +226,8 @@ struct mm_struct {
 	unsigned long cpu_vm_mask;
 	unsigned long swap_address;
 
+	unsigned dumpable:1;
+
 	/* Architecture-specific MM context */
 	mm_context_t context;
 };
@@ -322,7 +326,6 @@ struct task_struct {
 	int pdeath_signal;  /*  The signal sent when the parent dies  */
 	/* ??? */
 	unsigned long personality;
-	int dumpable:1;
 	int did_exec:1;
 	pid_t pid;
 	pid_t pgrp;
@@ -344,7 +347,7 @@ struct task_struct {
 	struct task_struct **pidhash_pprev;
 
 	wait_queue_head_t wait_chldexit;	/* for wait4() */
-	struct semaphore *vfork_sem;		/* for vfork() */
+	struct completion *vfork_done;		/* for vfork() */
 	unsigned long rt_priority;
 	unsigned long it_real_value, it_prof_value, it_virt_value;
 	unsigned long it_real_incr, it_prof_incr, it_virt_incr;
@@ -412,7 +415,6 @@ struct task_struct {
 #define PF_DUMPCORE	0x00000200	/* dumped core */
 #define PF_SIGNALED	0x00000400	/* killed by a signal */
 #define PF_MEMALLOC	0x00000800	/* Allocating memory */
-#define PF_VFORK	0x00001000	/* Wake up parent in mm_release */
 
 #define PF_USEDFPU	0x00100000	/* task used FPU this quantum (SMP) */
 

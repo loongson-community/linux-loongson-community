@@ -45,8 +45,8 @@
 /* #define DEBUG_CMDLINE */
 
 char arcs_cmdline[COMMAND_LINE_SIZE];
-int prom_argc;
-char **prom_argv, **prom_envp;
+extern int prom_argc;
+extern char **prom_argv, **prom_envp;
 
 typedef struct
 {

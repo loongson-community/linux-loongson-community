@@ -328,7 +328,7 @@ static void st_sleep_done(Scsi_Cmnd * SCpnt)
 		(STp->buffer)->last_SRpnt = SCpnt->sc_request;
 		DEB( STp->write_pending = 0; )
 
-		up(SCpnt->request.sem);
+		complete(SCpnt->request.waiting);
 	}
         DEB(
 	else if (debugging)
@@ -359,8 +359,9 @@ static Scsi_Request *
 		}
 	}
 
-	cmd[1] |= (SRpnt->sr_device->lun << 5) & 0xe0;
-	init_MUTEX_LOCKED(&STp->sem);
+	if (SRpnt->sr_device->scsi_level <= SCSI_2)
+		cmd[1] |= (SRpnt->sr_device->lun << 5) & 0xe0;
+	init_completion(&STp->wait);
 	SRpnt->sr_use_sg = (bytes > (STp->buffer)->sg[0].length) ?
 	    (STp->buffer)->use_sg : 0;
 	if (SRpnt->sr_use_sg) {
@@ -371,7 +372,7 @@ static Scsi_Request *
 		bp = (STp->buffer)->b_data;
 	SRpnt->sr_data_direction = direction;
 	SRpnt->sr_cmd_len = 0;
-	SRpnt->sr_request.sem = &(STp->sem);
+	SRpnt->sr_request.waiting = &(STp->wait);
 	SRpnt->sr_request.rq_status = RQ_SCSI_BUSY;
 	SRpnt->sr_request.rq_dev = STp->devt;
 
@@ -379,8 +380,8 @@ static Scsi_Request *
 		    st_sleep_done, timeout, retries);
 
 	if (do_wait) {
-		down(SRpnt->sr_request.sem);
-		SRpnt->sr_request.sem = NULL;
+		wait_for_completion(SRpnt->sr_request.waiting);
+		SRpnt->sr_request.waiting = NULL;
 		(STp->buffer)->syscall_result = st_chk_result(STp, SRpnt);
 	}
 	return SRpnt;
@@ -402,8 +403,8 @@ static void write_behind_check(Scsi_Tape * STp)
 		STp->nbr_finished++;
         ) /* end DEB */
 
-	down(&(STp->sem));
-	(STp->buffer)->last_SRpnt->sr_request.sem = NULL;
+	wait_for_completion(&(STp->wait));
+	(STp->buffer)->last_SRpnt->sr_request.waiting = NULL;
 
 	(STp->buffer)->syscall_result = st_chk_result(STp, (STp->buffer)->last_SRpnt);
 	scsi_release_request((STp->buffer)->last_SRpnt);
@@ -3495,7 +3496,7 @@ static int st_attach(Scsi_Device * SDp)
 	Scsi_Tape *tpnt;
 	ST_mode *STm;
 	ST_partstat *STps;
-	int i, mode, target_nbr;
+	int i, mode, target_nbr, dev_num;
 	unsigned long flags = 0;
 	char *stp;
 
@@ -3573,6 +3574,7 @@ static int st_attach(Scsi_Device * SDp)
 	}
 	memset(tpnt, 0, sizeof(Scsi_Tape));
 	scsi_tapes[i] = tpnt;
+	dev_num = i;
 
 	for (mode = 0; mode < ST_NBR_MODES; ++mode) {
 	    char name[8];
@@ -3653,6 +3655,9 @@ static int st_attach(Scsi_Device * SDp)
 
 	st_template.nr_dev++;
 	write_unlock_irqrestore(&st_dev_arr_lock, flags);
+	printk(KERN_WARNING
+	"Attached scsi tape st%d at scsi%d, channel %d, id %d, lun %d\n",
+	       dev_num, SDp->host->host_no, SDp->channel, SDp->id, SDp->lun);
 
 	/* See if we need to allocate more static buffers */
 	target_nbr = st_template.nr_dev;
@@ -3673,12 +3678,7 @@ static int st_detect(Scsi_Device * SDp)
 {
 	if (SDp->type != TYPE_TAPE || st_incompatible(SDp))
 		return 0;
-
-	printk(KERN_WARNING
-	"Detected scsi tape st%d at scsi%d, channel %d, id %d, lun %d\n",
-	       st_template.dev_noticed++,
-	       SDp->host->host_no, SDp->channel, SDp->id, SDp->lun);
-
+        st_template.dev_noticed++;
 	return 1;
 }
 

@@ -270,7 +270,7 @@ if [ "$CONFIG_MODULES" = "y" ]; then
 fi
 bool 'Remote GDB kernel debugging' CONFIG_REMOTE_DEBUG
 bool 'Magic SysRq key' CONFIG_MAGIC_SYSRQ
-if [ "$CONFIG_SMP" != "n" ]; then
+if [ "$CONFIG_SMP" != "y" ]; then
    bool 'Run uncached' CONFIG_MIPS_UNCACHED
 fi
 endmenu

@@ -75,7 +75,6 @@ extern void breakpoint(void);
 extern void set_debug_traps(void);
 extern void mips_timer_interrupt(int irq, struct pt_regs *regs);
 extern asmlinkage void it8172_IRQ(void);
-irq_cpustat_t irq_stat [NR_CPUS];
 unsigned int local_bh_count[NR_CPUS];
 unsigned int local_irq_count[NR_CPUS];
 unsigned long spurious_count = 0;
@@ -107,16 +106,6 @@ static inline void unmask_irq(unsigned int irq_nr)
 }
 
 void disable_irq(unsigned int irq_nr)
-{
-        unsigned long flags;
-
-        save_and_cli(flags);
-	disable_it8172_irq(irq_nr);
-        restore_flags(flags);
-}
-
-/* FIXME */
-void disable_irq_nosync(unsigned int irq_nr)
 {
         unsigned long flags;
 

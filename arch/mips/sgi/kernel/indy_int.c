@@ -69,8 +69,6 @@ static char lc3msk_to_irqnr[256];
 
 extern asmlinkage void indyIRQ(void);
 
-unsigned long spurious_count = 0;
-
 /* Local IRQ's are layed out logically like this:
  *
  * 0  --> 7   ==   local 0 interrupts

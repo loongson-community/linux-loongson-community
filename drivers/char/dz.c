@@ -14,6 +14,8 @@
  *    after patches by harald to irq code.  
  * [09-JAN-99] triemer minor fix for schedule - due to removal of timeout
  *            field from "current" - somewhere between 2.1.121 and 2.1.131
+Qua Jun 27 15:02:26 BRT 2001
+ * [27-JUN-2001] Arnaldo Carvalho de Melo <acme@conectiva.com.br> - cleanups
  *  
  * Parts (C) 1999 David Airlie, airlied@linux.ie 
  * [07-SEP-99] Bugfixes 
@@ -881,7 +883,7 @@ static int get_serial_info(struct dz_serial *info,
 	tmp.close_delay = info->close_delay;
 	tmp.closing_wait = info->closing_wait;
 
-	return copy_to_user (retinfo, &tmp, sizeof(*retinfo));
+	return copy_to_user(retinfo, &tmp, sizeof(*retinfo)) ? -EFAULT : 0;
 }
 
 static int set_serial_info (struct dz_serial *info,
@@ -1002,9 +1004,9 @@ static int dz_ioctl(struct tty_struct *tty, struct file *file,
 		return 0;
 
 	case TIOCSSOFTCAR:
-		error = get_user (arg, (unsigned long *)arg);
-		if (error)
-			return error;
+		if (get_user (arg, (unsigned long *)arg))
+			return -EFAULT;
+
 		tty->termios->c_cflag = (tty->termios->c_cflag & ~CLOCAL) |
 		                        (arg ? CLOCAL : 0);
 		return 0;
@@ -1020,21 +1022,11 @@ static int dz_ioctl(struct tty_struct *tty, struct file *file,
 		return set_serial_info(info, (struct serial_struct *) arg);
 
 	case TIOCSERGETLSR:		/* Get line status register */
-		error = verify_area(VERIFY_WRITE, (void *)arg,
-		                    sizeof(unsigned int));
-		if (error)
-			return error;
-		else
-			return get_lsr_info (info, (unsigned int *)arg);
+		return get_lsr_info (info, (unsigned int *)arg);
 
 	case TIOCSERGSTRUCT:
-		error = verify_area(VERIFY_WRITE, (void *)arg,
-		                    sizeof(struct dz_serial));
-		if (error)
-			return error;
-		copy_to_user((struct dz_serial *)arg, info,
-		              sizeof(struct dz_serial));
-		return 0;
+		return copy_to_user((struct dz_serial *)arg, info,
+		                    sizeof(struct dz_serial)) ? -EFAULT : 0;
  
 	default:
 		return -ENOIOCTLCMD;
@@ -1505,7 +1497,7 @@ static void dz_console_put_char (unsigned char ch)
  * dz_console_print ()
  *
  * dz_console_print is registered for printk.
- * The console_lock must be held when we get here.
+ * The console must be locked when we get here.
  * ------------------------------------------------------------------- 
  */
 static void dz_console_print (struct console *cons, 

@@ -22,6 +22,7 @@
 #include <linux/swap.h>
 #include <linux/init.h>
 #include <linux/smp_lock.h>
+#include <linux/completion.h>
 
 #include <asm/system.h>
 #include <asm/io.h>
@@ -365,6 +366,11 @@ static void blk_init_free_list(request_queue_t *q)
 	 */
 	for (i = 0; i < queue_nr_requests; i++) {
 		rq = kmem_cache_alloc(request_cachep, SLAB_KERNEL);
+		if (rq == NULL) {
+			/* We'll get a `leaked requests' message from blk_cleanup_queue */
+			printk(KERN_EMERG "blk_init_free_list: error allocating requests\n");
+			break;
+		}
 		memset(rq, 0, sizeof(struct request));
 		rq->rq_status = RQ_INACTIVE;
 		list_add(&rq->table, &q->request_freelist[i & 1]);
@@ -621,7 +627,7 @@ static void attempt_merge(request_queue_t * q,
 	if (req->cmd != next->cmd
 	    || req->rq_dev != next->rq_dev
 	    || req->nr_sectors + next->nr_sectors > max_sectors
-	    || next->sem)
+	    || next->waiting)
 		return;
 	/*
 	 * If we are not allowed to merge these requests, then
@@ -806,7 +812,7 @@ get_rq:
 	req->nr_segments = 1; /* Always 1 for a new request. */
 	req->nr_hw_segments = 1; /* Always 1 for a new request. */
 	req->buffer = bh->b_data;
-	req->sem = NULL;
+	req->waiting = NULL;
 	req->bh = bh;
 	req->bhtail = bh;
 	req->rq_dev = bh->b_rdev;
@@ -955,15 +961,6 @@ void submit_bh(int rw, struct buffer_head * bh)
 	}
 }
 
-/*
- * Default IO end handler, used by "ll_rw_block()".
- */
-static void end_buffer_io_sync(struct buffer_head *bh, int uptodate)
-{
-	mark_buffer_uptodate(bh, uptodate);
-	unlock_buffer(bh);
-}
-
 /**
  * ll_rw_block: low-level access to block devices
  * @rw: whether to %READ or %WRITE or maybe %READA (readahead)
@@ -1050,6 +1047,7 @@ void ll_rw_block(int rw, int nr, struct buffer_head * bhs[])
 			continue;
 
 		/* We have the buffer lock */
+		atomic_inc(&bh->b_count);
 		bh->b_end_io = end_buffer_io_sync;
 
 		switch(rw) {
@@ -1143,8 +1141,8 @@ int end_that_request_first (struct request *req, int uptodate, char *name)
 
 void end_that_request_last(struct request *req)
 {
-	if (req->sem != NULL)
-		up(req->sem);
+	if (req->waiting != NULL)
+		complete(req->waiting);
 
 	blkdev_release_request(req);
 }

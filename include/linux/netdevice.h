@@ -64,7 +64,7 @@ struct divert_blk;
 
 #endif
 
-#define MAX_ADDR_LEN	7		/* Largest hardware address length */
+#define MAX_ADDR_LEN	8		/* Largest hardware address length */
 
 /*
  *	Compute the worst case header length according to the protocols
@@ -487,7 +487,7 @@ static inline void __netif_schedule(struct net_device *dev)
 		local_irq_save(flags);
 		dev->next_sched = softnet_data[cpu].output_queue;
 		softnet_data[cpu].output_queue = dev;
-		__cpu_raise_softirq(cpu, NET_TX_SOFTIRQ);
+		cpu_raise_softirq(cpu, NET_TX_SOFTIRQ);
 		local_irq_restore(flags);
 	}
 }
@@ -536,7 +536,7 @@ static inline void dev_kfree_skb_irq(struct sk_buff *skb)
 		local_irq_save(flags);
 		skb->next = softnet_data[cpu].completion_queue;
 		softnet_data[cpu].completion_queue = skb;
-		__cpu_raise_softirq(cpu, NET_TX_SOFTIRQ);
+		cpu_raise_softirq(cpu, NET_TX_SOFTIRQ);
 		local_irq_restore(flags);
 	}
 }

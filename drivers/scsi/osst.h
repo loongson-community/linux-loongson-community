@@ -4,6 +4,7 @@
 
 #include <asm/byteorder.h>
 #include <linux/config.h>
+#include <linux/completion.h>
 #ifdef CONFIG_DEVFS_FS
 #include <linux/devfs_fs_kernel.h>
 #endif
@@ -535,7 +536,7 @@ typedef struct {
   unsigned capacity;
   Scsi_Device* device;
   struct semaphore lock;       /* for serialization */
-  struct semaphore sem;        /* for SCSI commands */
+  struct completion wait;      /* for SCSI commands */
   OSST_buffer * buffer;
 
   /* Drive characteristics */
@@ -595,7 +596,7 @@ typedef struct {
 						* has been read into STp->buffer and is valid */
   int      frame_seq_number;                   /* logical frame number */
   int      logical_blk_num;                    /* logical block number */
-  unsigned first_frame_position;               /* physical frame to be transfered to/from host */
+  unsigned first_frame_position;               /* physical frame to be transferred to/from host */
   unsigned last_frame_position;                /* physical frame to be transferd to/from tape */
   int      cur_frames;                         /* current number of frames in internal buffer */
   int      max_frames;                         /* max number of frames in internal buffer */

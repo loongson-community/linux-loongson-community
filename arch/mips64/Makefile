@@ -84,7 +84,8 @@ LOADADDR      += 0x88004000
 endif
 
 ifdef CONFIG_SGI_IP27
-LIBS          += arch/mips64/sgi-ip27/ip27.a arch/mips64/arc/arclib.a
+CORE_FILES    += arch/mips64/sgi-ip27/ip27.o
+LIBS          += arch/mips64/arc/arclib.a
 SUBDIRS       += arch/mips64/sgi-ip27 arch/mips64/arc
 #
 # Set LOADADDR to >= 0xc000000000300000 if you want to leave space for

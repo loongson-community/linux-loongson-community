@@ -660,6 +660,7 @@ struct quota_mount_options
 #include <linux/udf_fs_sb.h>
 #include <linux/ncp_fs_sb.h>
 #include <linux/usbdev_fs_sb.h>
+#include <linux/cramfs_fs_sb.h>
 
 extern struct list_head super_blocks;
 
@@ -711,6 +712,7 @@ struct super_block {
 		struct udf_sb_info	udf_sb;
 		struct ncp_sb_info	ncpfs_sb;
 		struct usbdev_sb_info   usbdevfs_sb;
+		struct cramfs_sb_info	cramfs_sb;
 		void			*generic_sbp;
 	} u;
 	/*
@@ -1058,6 +1060,7 @@ extern int fs_may_remount_ro(struct super_block *);
 
 extern int try_to_free_buffers(struct page *, unsigned int);
 extern void refile_buffer(struct buffer_head * buf);
+extern void end_buffer_io_sync(struct buffer_head *bh, int uptodate);
 
 /* reiserfs_writepage needs this */
 extern void set_buffer_async_io(struct buffer_head *bh) ;
@@ -1067,6 +1070,17 @@ extern void set_buffer_async_io(struct buffer_head *bh) ;
 #define BUF_DIRTY	2	/* Dirty buffers, not yet scheduled for write */
 #define BUF_PROTECTED	3	/* Ramdisk persistent storage */
 #define NR_LIST		4
+
+static inline void get_bh(struct buffer_head * bh)
+{
+        atomic_inc(&(bh)->b_count);
+}
+
+static inline void put_bh(struct buffer_head *bh)
+{
+        smp_mb__before_atomic_dec();
+        atomic_dec(&bh->b_count);
+}
 
 /*
  * This is called by bh->b_end_io() handlers when I/O has completed.

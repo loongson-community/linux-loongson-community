@@ -31,6 +31,8 @@
 
 #include <asm/div64.h>
 
+extern void (*board_time_init)(struct irqaction *irq);
+
 extern volatile unsigned long wall_jiffies;
 extern rwlock_t xtime_lock;
 
@@ -426,8 +428,6 @@ static void ioasic_timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 struct irqaction irq0 = {timer_interrupt, SA_INTERRUPT, 0,
 			 "timer", NULL, NULL};
 
-void (*board_time_init) (struct irqaction * irq);
-
 void __init time_init(void)
 {
 	unsigned int year, mon, day, hour, min, sec, real_year;
@@ -485,4 +485,3 @@ void __init time_init(void)
         }
 	board_time_init(&irq0);
 }
-

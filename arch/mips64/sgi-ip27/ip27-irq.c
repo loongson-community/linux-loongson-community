@@ -44,6 +44,10 @@
 #define DBG(x...)
 #endif
 
+/* These should die */
+unsigned char bus_to_wid[256];	/* widget id for linux pci bus */
+unsigned char bus_to_nid[256];	/* nasid for linux pci bus */
+unsigned char num_bridges;	/* number of bridges in the system */
 
 /*
  * Linux has a controller-independent x86 interrupt architecture.

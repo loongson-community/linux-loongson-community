@@ -68,11 +68,13 @@ extern void breakpoint(void);
 #endif
 
 extern asmlinkage void au1000_IRQ(void);
+
 extern void set_debug_traps(void);
-irq_cpustat_t irq_stat [NR_CPUS];
+extern irq_cpustat_t irq_stat [];
+extern irq_desc_t irq_desc[NR_IRQS];
+
 unsigned int local_bh_count[NR_CPUS];
 unsigned int local_irq_count[NR_CPUS];
-irq_desc_t irq_desc[NR_IRQS];
 
 static void setup_local_irq(unsigned int irq, int type, int int_req);
 static unsigned int startup_irq(unsigned int irq);
@@ -83,7 +85,7 @@ static inline void mask_and_ack_fall_edge_irq(unsigned int irq_nr);
 static inline void local_enable_irq(unsigned int irq_nr);
 static inline void local_disable_irq(unsigned int irq_nr);
 
-extern unsigned long spurious_interrupts;
+unsigned long spurious_interrupts;
 extern unsigned int do_IRQ(int irq, struct pt_regs *regs);
 extern void __init init_generic_irq(void);
 

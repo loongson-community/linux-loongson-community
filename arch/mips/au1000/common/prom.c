@@ -48,11 +48,10 @@ char arcs_cmdline[COMMAND_LINE_SIZE];
 int prom_argc;
 char **prom_argv, **prom_envp;
 
-typedef struct
-{
-    char *name;
-/*    char *val; */
-}t_env_var;
+typedef struct {
+	char *name;
+/*	char *val; */
+} t_env_var;
 
 
 char * __init prom_getcmdline(void)
@@ -113,7 +112,7 @@ static inline unsigned char str2hexnum(unsigned char c)
 
 int __init page_is_ram(unsigned long pagenr)
 {
-    return 1;
+	return 1;
 }
 
 void prom_free_prom_memory (void)

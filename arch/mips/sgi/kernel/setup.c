@@ -24,6 +24,7 @@
 #include <asm/sgi/sgimc.h>
 #include <asm/sgi/sgihpc.h>
 #include <asm/sgi/sgint23.h>
+#include <asm/time.h>
 #include <asm/gdb-stub.h>
 
 #ifdef CONFIG_REMOTE_DEBUG
@@ -116,8 +117,6 @@ struct kbd_ops sgi_kbd_ops = {
 	sgi_write_command,
 	sgi_read_status
 };
-
-void (*board_time_init)(struct irqaction *irq);
 
 static unsigned long dosample(volatile unsigned char *tcwp,
                               volatile unsigned char *tc2p)

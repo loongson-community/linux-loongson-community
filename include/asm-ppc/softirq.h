@@ -1,5 +1,5 @@
 /*
- * BK Id: SCCS/s.softirq.h 1.10 06/09/01 22:16:38 paulus
+ * BK Id: SCCS/s.softirq.h 1.13 07/12/01 20:02:34 paulus
  */
 #ifdef __KERNEL__
 #ifndef __ASM_SOFTIRQ_H
@@ -25,12 +25,10 @@ do {							\
 	if (!--local_bh_count(smp_processor_id())	\
 	    && softirq_pending(smp_processor_id())) {	\
 		do_softirq();				\
-		__sti();				\
 	}						\
 } while (0)
 
 #define __cpu_raise_softirq(cpu, nr) set_bit((nr), &softirq_pending(cpu));
-#define raise_softirq(nr)	__cpu_raise_softirq(smp_processor_id(), (nr))
 
 #define in_softirq() (local_bh_count(smp_processor_id()) != 0)
 

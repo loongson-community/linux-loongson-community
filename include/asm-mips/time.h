@@ -1,4 +1,4 @@
-/***********************************************************************
+/*
  * Copyright 2001 MontaVista Software Inc.
  * Author: Jun Sun, jsun@mvista.com or jsun@junsun.net
  *
@@ -9,9 +9,8 @@
  * under  the terms of  the GNU General  Public License as published by the
  * Free Software Foundation;  either version 2 of the  License, or (at your
  * option) any later version.
- ***********************************************************************
+ *
  */
-
 #ifndef _ASM_TIME_H
 #define _ASM_TIME_H
 

@@ -38,6 +38,7 @@
 #define ARPHRD_DLCI	15		/* Frame Relay DLCI		*/
 #define ARPHRD_ATM	19		/* ATM 				*/
 #define ARPHRD_METRICOM	23		/* Metricom STRIP (new IANA id)	*/
+#define	ARPHRD_IEEE1394	24		/* IEEE 1394 IPv4 - RFC 2734	*/
 
 /* Dummy types for non ARP hardware */
 #define ARPHRD_SLIP	256

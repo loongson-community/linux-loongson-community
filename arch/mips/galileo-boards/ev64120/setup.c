@@ -55,7 +55,6 @@
 #include <linux/bootmem.h>
 
 extern struct rtc_ops no_rtc_ops;
-struct rtc_ops *rtc_ops;
 
 /* These functions are used for rebooting or halting the machine*/
 extern void galileo_machine_restart(char *command);
@@ -84,7 +83,7 @@ void prom_free_prom_memory(void)
 {
 }
 
-void (*board_time_init) (struct irqaction * irq);
+extern void (*board_time_init) (struct irqaction * irq);
 
 static unsigned char galileo_rtc_read_data(unsigned long addr)
 {

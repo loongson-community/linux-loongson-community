@@ -38,8 +38,8 @@
 #include <linux/kernel.h>
 #include <linux/sched.h>
 
-int prom_argc;
-char **prom_argv, **prom_envp;
+extern int prom_argc;
+extern char **prom_argv, **prom_envp;
 extern void  __init prom_init_cmdline(void);
 
 int __init prom_init(int argc, char **argv, char **envp, int *prom_vec)

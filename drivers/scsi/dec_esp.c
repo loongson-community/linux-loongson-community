@@ -188,12 +188,12 @@ int dec_esp_detect(Scsi_Host_Template * tpnt)
 
 		esp_initialize(esp);
 
- 		if (request_irq(esp->irq, esp_intr, SA_INTERRUPT, 
- 				"NCR 53C94 SCSI", NULL))
- 			goto err_dealloc;
- 		if (request_irq(SCSI_DMA_INT, scsi_dma_int, SA_INTERRUPT, 
- 				"JUNKIO SCSI DMA", NULL))
- 			goto err_free_irq;
+		if (request_irq(esp->irq, esp_intr, SA_INTERRUPT, 
+				"NCR 53C94 SCSI", NULL))
+			goto err_dealloc;
+		if (request_irq(SCSI_DMA_INT, scsi_dma_int, SA_INTERRUPT, 
+				"JUNKIO SCSI DMA", NULL))
+			goto err_free_irq;
  			
 	}
 

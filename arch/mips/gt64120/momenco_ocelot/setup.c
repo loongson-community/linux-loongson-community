@@ -38,6 +38,7 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
+#include <linux/mc146818rtc.h>
 #include <linux/mm.h>
 #include <linux/swap.h>
 #include <linux/ioport.h>
@@ -64,7 +65,6 @@
 #include "ocelot_pld.h"
 
 extern struct rtc_ops no_rtc_ops;
-struct rtc_ops *rtc_ops;
 
 unsigned long gt64120_base = KSEG1ADDR(GT_DEF_BASE);
 
@@ -72,8 +72,6 @@ unsigned long gt64120_base = KSEG1ADDR(GT_DEF_BASE);
 extern void momenco_ocelot_restart(char *command);
 extern void momenco_ocelot_halt(void);
 extern void momenco_ocelot_power_off(void);
-
-char arcs_cmdline[COMMAND_LINE_SIZE]= { ""/*console=ttyS0,9600"*/ };
 
 extern void gt64120_time_init(void);
 extern void momenco_ocelot_irq_setup(void);

@@ -117,6 +117,7 @@ static int access_count[MAX_HD];
 static char ps2esdi_valid[MAX_HD];
 static int ps2esdi_sizes[MAX_HD << 6];
 static int ps2esdi_blocksizes[MAX_HD << 6];
+static int ps2esdi_maxsect[MAX_HD << 6];
 static int ps2esdi_drives;
 static struct hd_struct ps2esdi[MAX_HD << 6];
 static u_short io_base;
@@ -414,8 +415,11 @@ static void __init ps2esdi_geninit(void)
 
 	ps2esdi_gendisk.nr_real = ps2esdi_drives;
 
-	for (i = 0; i < (MAX_HD << 6); i++)
+	/* 128 was old default, maybe maxsect=255 is ok too? - Paul G. */
+	for (i = 0; i < (MAX_HD << 6); i++) {
+		ps2esdi_maxsect[i] = 128;
 		ps2esdi_blocksizes[i] = 1024;
+	}
 
 	request_dma(dma_arb_level, "ed");
 	request_region(io_base, 4, "ed");
