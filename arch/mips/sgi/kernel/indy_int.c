@@ -218,7 +218,7 @@ static void enable_local3_irq(unsigned int irq)
 	unsigned long flags;
 
 	save_and_cli(flags);
-	printk("Yeeee, got passed irq_nr %d at disable_irq\n", irq);
+	printk("Yeeee, got passed irq_nr %d at enable_local3_irq\n", irq);
 	panic("INVALID IRQ level!");
 	restore_flags(flags);
 }
@@ -239,7 +239,7 @@ void disable_local3_irq(unsigned int irq)
 	 * This way we'll see if anyone would ever want vectored level 3
 	 * interrupts.  Highly unlikely.
 	 */
-	printk("Yeeee, got passed irq_nr %d at disable_irq\n", irq);
+	printk("Yeeee, got passed irq_nr %d at disable_local3_irq\n", irq);
 	panic("INVALID IRQ level!");
 	restore_flags(flags);
 }
