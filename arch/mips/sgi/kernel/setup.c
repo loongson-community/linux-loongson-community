@@ -230,3 +230,4 @@ void __init sgi_setup(void)
 	init_vino();
 #endif
 }
+__initcall(rs_init);
