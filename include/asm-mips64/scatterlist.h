@@ -17,6 +17,6 @@ struct mmu_sglist {
         __u32 dvma_addr;
 };
 
-#define ISA_DMA_THRESHOLD (~0UL)
+#define ISA_DMA_THRESHOLD (0x00ffffffUL)
 
 #endif /* __ASM_MIPS64_SCATTERLIST_H */
