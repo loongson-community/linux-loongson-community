@@ -19,6 +19,7 @@
 #include <linux/sched.h>
 
 #include <asm/atomic.h>
+#include <asm/cpu.h>
 #include <asm/processor.h>
 #include <asm/system.h>
 #include <asm/hardirq.h>
@@ -49,14 +50,35 @@ void __init smp_callin(void)
 #endif
 }
 
-int __init start_secondary(void)
+/*
+ * Hook for doing final board-specific setup after the generic smp setup
+ * is done
+ */
+asmlinkage int start_secondary(void)
 {
-	extern atomic_t smp_commenced;
+	prom_init_secondary();
 
-	smp_callin();
-	while (!atomic_read(&smp_commenced));
+	/* Do stuff that trap_init() did for the first processor */
+	clear_cp0_status(ST0_BEV);
+	if (mips_cpu.options & MIPS_CPU_DIVEC) {
+		set_cp0_cause(CAUSEF_IV);
+	}
 
+	/*
+	 * XXX parity protection should be folded in here when it's converted
+	 * to an option instead of something based on .cputype
+	 */
+	write_32bit_cp0_register(CP0_CONTEXT, smp_processor_id() << 23);
+	pgd_current[smp_processor_id()] = init_mm.pgd;
+	cpu_data[smp_processor_id()].udelay_val = loops_per_jiffy;
+	cpu_data[smp_processor_id()].asid_cache = ASID_FIRST_VERSION;
+	prom_smp_finish();
+	printk("Slave cpu booted successfully\n");
+	CPUMASK_SETB(cpu_online_map, smp_processor_id());
+	atomic_inc(&cpus_booted);
 	cpu_idle();
+
+	return 0;
 }
 
 void __init smp_boot_cpus(void)
