@@ -9,7 +9,7 @@
  *
  * This file is a mess. It really needs some reorganisation!
  *
- * $Id:$
+ * $Id: jazz.h,v 1.5 1997/12/01 21:26:48 ralf Exp $
  */
 #ifndef __ASM_MIPS_JAZZ_H 
 #define __ASM_MIPS_JAZZ_H 
@@ -213,6 +213,7 @@ typedef struct {
 #define JAZZ_SERIAL1_IRQ        18
 #define JAZZ_SERIAL2_IRQ        19
 #define JAZZ_PARALLEL_IRQ       20
+#define JAZZ_MOUSE_IRQ          21
 
 /*
  * JAZZ DMA Channels
