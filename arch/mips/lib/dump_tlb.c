@@ -4,29 +4,45 @@
  * Copyright (C) 1994, 1995 by Waldorf Electronics, written by Ralf Baechle.
  * Copyright (C) 1999 by Silicon Graphics, Inc.
  */
+#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/sched.h>
 #include <linux/string.h>
 
 #include <asm/bootinfo.h>
-#include <asm/cachectl.h>
 #include <asm/cpu.h>
+#include <asm/cachectl.h>
 #include <asm/mipsregs.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
 
-void
-dump_tlb(int first, int last)
+static inline const char *msg2str(unsigned int mask)
+{
+	switch (mask) {
+	case PM_4K:	return "4kb";
+	case PM_16K:	return "16kb";
+	case PM_64K:	return "64kb";
+	case PM_256K:	return "256kb";
+	case PM_1M:	return "1Mb";
+	case PM_4M:	return "4Mb";
+	case PM_16M:	return "16Mb";
+	case PM_64M:	return "64Mb";
+	case PM_256M:	return "256Mb";
+	}
+}
+
+void dump_tlb(int first, int last)
 {
 	int	i;
 	unsigned int pagemask, c0, c1, asid;
-	unsigned long entryhi, entrylo0, entrylo1;
+	unsigned long long entrylo0, entrylo1;
+	unsigned long entryhi;
 
 	asid = get_entryhi() & 0xff;
 
-	for(i=first;i<=last;i++)
-	{
+	printk("\n");
+	for(i=first;i<=last;i++) {
 		write_32bit_cp0_register(CP0_INDEX, i);
 		__asm__ __volatile__(
 			".set\tmips3\n\t"
@@ -38,49 +54,45 @@ dump_tlb(int first, int last)
 			".set\tmips0\n\t");
 		pagemask = read_32bit_cp0_register(CP0_PAGEMASK);
 		entryhi  = read_32bit_cp0_register(CP0_ENTRYHI);
-		entrylo0 = read_32bit_cp0_register(CP0_ENTRYLO0);
-		entrylo1 = read_32bit_cp0_register(CP0_ENTRYLO1);
+		entrylo0 = get_entrylo0();
+		entrylo1 = get_entrylo1();
 
-		/* Unused entries have a virtual address of KSEG0.  */
-		if ((entryhi & 0xffffe000) != 0x80000000
+		/* Unused entries have a virtual address in KSEG0.  */
+		if ((entryhi & 0xf0000000) != 0x80000000
 		    && (entryhi & 0xff) == asid) {
 			/*
 			 * Only print entries in use
 			 */
-			printk("Index: %2d pgmask=%08x ", i, pagemask);
+			printk("Index: %2d pgmask=%s ", i, msg2str(pagemask));
 
 			c0 = (entrylo0 >> 3) & 7;
 			c1 = (entrylo1 >> 3) & 7;
 
-			printk("va=%08lx asid=%08lx"
-			       "  [pa=%06lx c=%d d=%d v=%d g=%ld]"
-			       "  [pa=%06lx c=%d d=%d v=%d g=%ld]",
-			       (entryhi & 0xffffe000),
-			       entryhi & 0xff,
-			       entrylo0 & PAGE_MASK, c0,
+			printk("va=%08lx asid=%02lx\n",
+			       (entryhi & 0xffffe000), (entryhi & 0xff));
+			printk("\t\t\t[pa=%08Lx c=%d d=%d v=%d g=%Ld]\n",
+			       (entrylo0 << 6) & PAGE_MASK, c0,
 			       (entrylo0 & 4) ? 1 : 0,
 			       (entrylo0 & 2) ? 1 : 0,
-			       (entrylo0 & 1),
-			       entrylo1 & PAGE_MASK, c1,
+			       (entrylo0 & 1));
+			printk("\t\t\t[pa=%08Lx c=%d d=%d v=%d g=%Ld]\n",
+			       (entrylo1 << 6) & PAGE_MASK, c1,
 			       (entrylo1 & 4) ? 1 : 0,
 			       (entrylo1 & 2) ? 1 : 0,
 			       (entrylo1 & 1));
-			       
+			printk("\n");
 		}
 	}
-	printk("\n");
 
 	set_entryhi(asid);
 }
 
-void
-dump_tlb_all(void)
+void dump_tlb_all(void)
 {
 	dump_tlb(0, mips_cpu.tlbsize - 1);
 }
 
-void
-dump_tlb_wired(void)
+void dump_tlb_wired(void)
 {
 	int	wired;
 
@@ -139,12 +151,20 @@ dump_list_process(struct task_struct *t, void *address)
 	addr = (unsigned int) address;
 
 	printk("Addr                 == %08x\n", addr);
-	printk("tasks->mm.pgd        == %08x\n", (unsigned int) t->mm->pgd);
+	printk("task                 == %08p\n", t);
+	printk("task->mm             == %08p\n", t->mm);
+	//printk("tasks->mm.pgd        == %08x\n", (unsigned int) t->mm->pgd);
 
-	page_dir = pgd_offset(t->mm, 0);
+	if (addr > KSEG0)
+		page_dir = pgd_offset_k(0);
+	else
+		page_dir = pgd_offset(t->mm, 0);
 	printk("page_dir == %08x\n", (unsigned int) page_dir);
 
-	pgd = pgd_offset(t->mm, addr);
+	if (addr > KSEG0)
+		pgd = pgd_offset_k(addr);
+	else
+		pgd = pgd_offset(t->mm, addr);
 	printk("pgd == %08x, ", (unsigned int) pgd);
 
 	pmd = pmd_offset(pgd, addr);
@@ -154,7 +174,11 @@ dump_list_process(struct task_struct *t, void *address)
 	printk("pte == %08x, ", (unsigned int) pte);
 
 	page = *pte;
-	printk("page == %08x\n", (unsigned int) pte_val(page));
+#ifdef CONFIG_64BIT_PHYS_ADDR
+	printk("page == %08Lx\n", (unsigned long long) pte_val(page));
+#else
+	printk("page == %08lx\n", (unsigned int) pte_val(page));
+#endif
 
 	val = pte_val(page);
 	if (val & _PAGE_PRESENT) printk("present ");
@@ -197,9 +221,11 @@ dump16(unsigned long *p)
 {
 	int i;
 
-	for (i=0;i<8;i++) {
-		printk("*%08lx == %08lx, ", (unsigned long)p, p[0]);
-		printk("*%08lx == %08lx\n", (unsigned long)p, p[1]);
-		p += 2;
+	for(i=0;i<8;i++)
+	{
+		printk("*%08lx == %08lx, ",
+		       (unsigned long)p, (unsigned long)*p++);
+		printk("*%08lx == %08lx\n",
+		       (unsigned long)p, (unsigned long)*p++);
 	}
 }

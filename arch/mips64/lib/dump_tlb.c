@@ -16,8 +16,22 @@
 #include <asm/page.h>
 #include <asm/pgtable.h>
 
-void
-dump_tlb(int first, int last)
+static inline const char *msk2str(unsigned int mask)
+{
+	switch (mask) {
+	case PM_4K:	return "4kb";
+	case PM_16K:	return "16kb";
+	case PM_64K:	return "64kb";
+	case PM_256K:	return "256kb";
+	case PM_1M:	return "1Mb";
+	case PM_4M:	return "4Mb";
+	case PM_16M:	return "16Mb";
+	case PM_64M:	return "64Mb";
+	case PM_256M:	return "256Mb";
+	}
+}
+
+void dump_tlb(int first, int last)
 {
 	unsigned long s_entryhi, entryhi, entrylo0, entrylo1, asid;
 	unsigned int s_index, pagemask, c0, c1, i;
@@ -45,25 +59,24 @@ dump_tlb(int first, int last)
 			/*
 			 * Only print entries in use
 			 */
-			printk("Index: %2d pgmask=%08x ", i, pagemask);
+			printk("Index: %2d pgmask=%s ", i, msk2str(pagemask));
 
 			c0 = (entrylo0 >> 3) & 7;
 			c1 = (entrylo1 >> 3) & 7;
 
-			printk("va=%08lx asid=%02lx"
-			       "  [pa=%06lx c=%d d=%d v=%d g=%ld]"
-			       "  [pa=%06lx c=%d d=%d v=%d g=%ld]\n",
+			printk("va=%011lx asid=%02lx\n",
 			       (entryhi & ~0x1fffUL),
-			       entryhi & 0xff,
-			       entrylo0 & PAGE_MASK, c0,
+			       entryhi & 0xff);
+			printk("\t[pa=%011lx c=%d d=%d v=%d g=%ld] ",
+			       (entrylo0 << 6) & PAGE_MASK, c0,
 			       (entrylo0 & 4) ? 1 : 0,
 			       (entrylo0 & 2) ? 1 : 0,
-			       (entrylo0 & 1),
-			       entrylo1 & PAGE_MASK, c1,
+			       (entrylo0 & 1));
+			printk("[pa=%011lx c=%d d=%d v=%d g=%ld]\n",
+			       (entrylo1 << 6) & PAGE_MASK, c1,
 			       (entrylo1 & 4) ? 1 : 0,
 			       (entrylo1 & 2) ? 1 : 0,
 			       (entrylo1 & 1));
-			       
 		}
 	}
 	printk("\n");
@@ -72,14 +85,12 @@ dump_tlb(int first, int last)
 	set_index(s_index);
 }
 
-void
-dump_tlb_all(void)
+void dump_tlb_all(void)
 {
 	dump_tlb(0, mips_cpu.tlbsize - 1);
 }
 
-void
-dump_tlb_wired(void)
+void dump_tlb_wired(void)
 {
 	int	wired;
 
@@ -94,8 +105,7 @@ dump_tlb_wired(void)
 		"nop;nop;nop;nop;nop;nop;nop\n\t"	\
 		".set\treorder");
 
-void
-dump_tlb_addr(unsigned long addr)
+void dump_tlb_addr(unsigned long addr)
 {
 	unsigned int flags, oldpid;
 	int index;
@@ -120,14 +130,12 @@ dump_tlb_addr(unsigned long addr)
 	dump_tlb(index, index);
 }
 
-void
-dump_tlb_nonwired(void)
+void dump_tlb_nonwired(void)
 {
 	dump_tlb(read_32bit_cp0_register(CP0_WIRED), mips_cpu.tlbsize - 1);
 }
 
-void
-dump_list_process(struct task_struct *t, void *address)
+void dump_list_process(struct task_struct *t, void *address)
 {
 	pgd_t	*page_dir, *pgd;
 	pmd_t	*pmd;
