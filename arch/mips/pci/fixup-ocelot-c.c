@@ -18,8 +18,6 @@
 #include <linux/pci.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
-#include <asm/pci.h>
-
 
 void __init mv64340_board_pcibios_fixup_bus(struct pci_bus *bus)
 {
