@@ -9,13 +9,13 @@
 #ifndef _ASM_PGTABLE_H
 #define _ASM_PGTABLE_H
 
+#include <linux/config.h>
 #include <asm/addrspace.h>
 #include <asm/page.h>
 
 #ifndef _LANGUAGE_ASSEMBLY
 
 #include <linux/linkage.h>
-#include <linux/config.h>
 #include <linux/mmzone.h>
 #include <asm/cachectl.h>
 
