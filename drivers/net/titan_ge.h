@@ -47,25 +47,6 @@ extern unsigned long titan_ge_base;
 
 extern unsigned long titan_ge_sram;
 
-#ifdef CONFIG_NET_FASTROUTE
-
-#include <linux/if_arp.h>
-#include <net/ip.h>
-
-static int titan_accept_fastpath(struct net_device *dev, struct dst_entry *dst)
-{
-	struct net_device *odev = dst->dev;
-
-	if (dst->ops->protocol != __constant_htons(ETH_P_IP))
-		return -1;
-	if (odev->type != ARPHRD_ETHER || odev->accept_fastpath == NULL)
-		return -1;
-
-	return 0;
-}
-#endif
-
-
 /*
  * We may need these constants
  */

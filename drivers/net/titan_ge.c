@@ -1292,70 +1292,6 @@ int titan_ge_start_xmit(struct sk_buff *skb, struct net_device *netdev)
 	return 0;
 }
 
-#ifdef CONFIG_NET_FASTROUTE
-/*
- * Fast forward function for the fast routing. Helps
- * in IP forwarding. No semi fast forward since we
- * have to do that extra copy on the Rx for the IP
- * header alignment
- */
-static int titan_ge_fast_forward(struct net_device *dev, 
-			struct sk_buff *skb, int len)
-{
-	titan_ge_port_info *titan_ge_eth = netdev_priv(dev);
-	struct ethhdr *eth = (void*)skb->data;
-
-	if (eth->h_proto == __constant_htons(ETH_P_IP)) {
-		struct rtable *rt;
-		struct iphdr *iph;
-		unsigned h;
-
-		iph = (struct iphdr*)(skb->data + ETH_HLEN);
-		h=(*(u8*)&iph->daddr^*(u8*)&iph->saddr)&NETDEV_FASTROUTE_HMASK;
-		rt = (struct rtable*)(dev->fastpath[h]);
-		if (rt &&
-			((u16*)&iph->daddr)[0] == ((u16*)&rt->key.dst)[0] &&
-			((u16*)&iph->daddr)[1] == ((u16*)&rt->key.dst)[1] &&
-			((u16*)&iph->saddr)[0] == ((u16*)&rt->key.src)[0] &&
-			((u16*)&iph->saddr)[1] == ((u16*)&rt->key.src)[1] &&
-			rt->u.dst.obsolete == 0) {
-				struct net_device *odev = rt->u.dst.dev;
-
-				if (*(u8*)iph != 0x45 ||
-					(eth->h_dest[0]&1) ||
-					!neigh_is_valid(rt->u.dst.neighbour) ||
-					iph->ttl <= 1) {
-						return 1;		
-				}
-				ip_decrease_ttl(iph);
-				skb_put(skb, len);
-
-				memcpy(eth->h_source, odev->dev_addr, 6);
-				memcpy(eth->h_dest, rt->u.dst.neighbour->ha, 6);
-				skb->dev = odev;
-				skb->pkt_type = PACKET_FASTROUTE;
-
-				if (netif_running(odev) &&
-				   (spin_trylock(&odev->xmit_lock))) {
-					if(odev->xmit_lock_owner != 0) {
-						odev->xmit_lock_owner=0;
-					}
-					if (odev->hard_start_xmit(skb,odev) == 0) {
-						odev->xmit_lock_owner=-1;
-						spin_unlock(&odev->xmit_lock);
-						return 0;
-					} 
-				}
-				skb->nh.raw = skb->data + ETH_HLEN;
-				skb->protocol = __constant_htons(ETH_P_IP);
-				return 1;
-			}
-	}
-	return 1;
-}
-
-#endif
-
 /*
  * Actually does the Rx. Rx side checksumming supported.
  */
@@ -1508,22 +1444,10 @@ static int titan_ge_receive_queue(struct net_device *netdev, unsigned int max)
 		 * idea is to cut down the number of checks and improve
 		 * the fastpath.
 		 */
-#ifdef CONFIG_NET_FASTROUTE
-		switch (titan_ge_fast_forward(netdev, 
-				packet.skb, packet.len)) {
-			case 0:
-				goto gone;
-			case 1:
-				break;
-		}
-#endif
 		skb_put(skb, packet.len);
 
 		if (titan_ge_slowpath(skb, &packet, netdev) < 0) 
 			goto out_next;
-#ifdef CONFIG_NET_FASTROUTE
-gone:
-#endif
 
 #ifdef TITAN_RX_NAPI
 		if (titan_ge_eth->rx_threshold > RX_THRESHOLD) {
@@ -2033,10 +1957,6 @@ static int titan_ge_init(int port)
 	netdev->tx_queue_len = TITAN_GE_TX_QUEUE;
 	netif_carrier_off(netdev);
 	netdev->base_addr = 0;
-
-#ifdef CONFIG_NET_FASTROUTE
-	netdev->accept_fastpath = titan_accept_fastpath;
-#endif
 
 	netdev->change_mtu = titan_ge_change_mtu;
 
