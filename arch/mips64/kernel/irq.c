@@ -395,7 +395,7 @@ asmlinkage unsigned int do_IRQ(int irq, struct pt_regs *regs)
 		irqreturn_t action_ret;
 
 		spin_unlock(&desc->lock);
-		action_ret = handle_IRQ_event(irq, &regs, action);
+		action_ret = handle_IRQ_event(irq, regs, action);
 		spin_lock(&desc->lock);
 		if (!noirqdebug)
 			note_interrupt(irq, desc, action_ret);
