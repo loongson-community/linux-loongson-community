@@ -165,7 +165,7 @@ unsigned long
 sgi_graphics_nopage (struct vm_area_struct *vma, unsigned long address, int write_access)
 {
 	unsigned long page;
-	int board = MINOR (vma->vm_inode->i_rdev);
+	int board = MINOR (vma->vm_dentry->d_inode->i_rdev);
 	
 	printk ("Got a page fault for board %d\n", board);
 	
@@ -222,7 +222,7 @@ sgi_graphics_mmap (struct inode *inode, struct file *file, struct vm_area_struct
 	vma->vm_page_prot = PAGE_USERIO;
 		
 	/* final setup */
-	vma->vm_inode = inode;
+	vma->vm_dentry = dget (file->f_dentry);
 	atomic_inc (&inode->i_count);
 	return 0;
 }
@@ -262,12 +262,23 @@ static struct miscdevice dev_opengl = {
         SGI_OPENGL_MINOR, "sgi-opengl", &sgi_graphics_fops
 };
 
+/* This is called later from the misc-init routine */
+void
+gfx_register (void)
+{
+	misc_register (&dev_graphics);
+	misc_register (&dev_opengl);
+}
+
 void 
 gfx_init (const char **name)
 {
 	struct console_ops *console;
 	struct graphics_ops *g;
 
+	printk ("GFX INIT: ");
+	shmiq_init ();
+	
 	if ((g = newport_probe (boards, name)) != 0){
 		cards [boards] = *g;
 		graphics_ops_post_init (boards);
@@ -283,10 +294,4 @@ gfx_init (const char **name)
 	}
 }
 
-void
-gfx_register (void)
-{
-	misc_register (&dev_graphics);
-	misc_register (&dev_opengl);
-}
 

@@ -312,7 +312,22 @@ void handle_scancode(unsigned char scancode)
 	}
 }
 
+#ifdef CONFIG_FORWARD_KEYBOARD
+extern int forward_chars;
 
+static void put_queue(int ch)
+{
+	if (forward_chars == fg_console+1){
+		kbd_forward_char (ch);
+	} else {
+		wake_up(&keypress_wait);
+		if (tty) {
+			tty_insert_flip_char(tty, ch, 0);
+			tty_schedule_flip(tty);
+		}
+	}
+}
+#else
 static void put_queue(int ch)
 {
 	wake_up(&keypress_wait);
@@ -321,6 +336,7 @@ static void put_queue(int ch)
 		tty_schedule_flip(tty);
 	}
 }
+#endif
 
 static void puts_queue(char *cp)
 {

@@ -72,6 +72,7 @@ else
 fi
 if [ "$CONFIG_CPU_LITTLE_ENDIAN" = "n" ]; then
   define_bool CONFIG_BINFMT_IRIX y
+  define_bool CONFIG_FORWARD_KEYBOARD y
 fi
 define_bool CONFIG_BINFMT_ELF y
 define_bool CONFIG_BINFMT_AOUT n

@@ -9,7 +9,7 @@
 
 O_TARGET := sgichar.o
 O_OBJS   := graphics.o streamable.o newport.o cons_newport.o sgicons.o \
-	vga_font.o rrm.o
+	vga_font.o rrm.o shmiq.o
 
 ifeq ($(CONFIG_SGI_SERIAL),y)
   O_OBJS += sgiserial.o

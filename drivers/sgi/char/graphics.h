@@ -21,3 +21,5 @@ struct graphics_ops {
 	void (*g_restore_context)(void);
 };
 
+void shmiq_init (void);
+void streamable_init (void);
