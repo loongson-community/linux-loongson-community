@@ -1,10 +1,12 @@
 /*
  * BRIEF MODULE DESCRIPTION
- *	Board specific pci fixups.
+ *	Alchemy/AMD Au1x00 pci support.
  *
- * Copyright 2001-2003 MontaVista Software Inc.
+ * Copyright 2001,2002,2003 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
  *         	ppopov@mvista.com or source@mvista.com
+ *
+ *  Support for all devices (greater than 16) added by David Gathright.
  *
  *  This program is free software; you can redistribute  it and/or modify it
  *  under  the terms of  the GNU General  Public License as published by the
@@ -27,9 +29,6 @@
  *  675 Mass Ave, Cambridge, MA 02139, USA.
  */
 #include <linux/config.h>
-
-#ifdef CONFIG_PCI
-
 #include <linux/types.h>
 #include <linux/pci.h>
 #include <linux/kernel.h>
@@ -40,25 +39,36 @@
 #ifdef CONFIG_MIPS_PB1000
 #include <asm/pb1000.h>
 #endif
+#include <asm/pci_channel.h>
 
-#undef	DEBUG
-#ifdef 	DEBUG
-#define	DBG(x...)	printk(x)
-#else
-#define	DBG(x...)
-#endif
+/* TBD */
+static struct resource pci_io_resource = {
+	"pci IO space", 
+	(u32)PCI_IO_START,
+	(u32)PCI_IO_END,
+	IORESOURCE_IO
+};
 
-static void fixup_resource(int r_num, struct pci_dev *dev) ;
+static struct resource pci_mem_resource = {
+	"pci memory space", 
+	(u32)PCI_MEM_START,
+	(u32)PCI_MEM_END,
+	IORESOURCE_MEM
+};
+
+extern struct pci_ops au1x_pci_ops;
+
+static struct pci_controller au1x_controller = {
+	.pci_ops	= &au1x_pci_ops,
+	.io_resource	= &pci_io_resource,
+	.mem_resource	= &pci_mem_resource,
+};
+
 #ifdef CONFIG_SOC_AU1500
 static unsigned long virt_io_addr;
 #endif
 
-/*
- * Ralf: This isn't a fixup but yet necessary, so I didn't delete the code.
- * Anyway, pcibios_fixup is NOT called anymore so this means Au1x00 PCI
- * won't work ...
- */
-void __init pcibios_fixup(void)
+static int __init au1x_pci_setup(void)
 {
 #ifdef CONFIG_SOC_AU1500
 	int i;
@@ -94,38 +104,9 @@ void __init pcibios_fixup(void)
 	// set extend byte to mbar of ext slot
 	au_writel(((pci_mem_start >> 24) & 0xff) |
 	       (1 << 8 | 1 << 9 | 1 << 10 | 1 << 27), PCI_BRIDGE_CONFIG);
-	DBG("Set bridge config to %x\n", au_readl(PCI_BRIDGE_CONFIG));
 #endif
+
+	register_pci_controller(&au1x_controller);
 }
 
-void __init pcibios_fixup_irqs(void)
-{
-#ifdef CONFIG_SOC_AU1500
-	unsigned int slot, func;
-	unsigned char pin;
-	struct pci_dev *dev;
-
-	pci_for_each_dev(dev) {
-		if (dev->bus->number != 0)
-			return;
-
-		dev->irq = 0xff;
-		slot = PCI_SLOT(dev->devfn);
-		switch (slot) {
-			case 12:
-			case 13:
-			default:
-				dev->irq = AU1000_PCI_INTA;
-				break;
-
-		}
-		pci_write_config_byte(dev, PCI_INTERRUPT_LINE, dev->irq);
-		DBG("slot %d irq %d\n", slot, dev->irq);
-	}
-#endif
-}
-
-static void fixup_resource(int r_num, struct pci_dev *dev) 
-{
-}
-#endif
+arch_initcall(au1x_pci_setup);
