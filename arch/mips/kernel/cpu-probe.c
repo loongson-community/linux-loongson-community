@@ -297,8 +297,9 @@ static inline void cpu_probe_legacy(struct cpuinfo_mips *c)
 	case PRID_IMP_TX49:
 		c->cputype = CPU_TX49XX;
 		c->isa_level = MIPS_CPU_ISA_III;
-		c->options = R4K_OPTS | MIPS_CPU_FPU | MIPS_CPU_32FPR |
-		             MIPS_CPU_LLSC;
+		c->options = R4K_OPTS | MIPS_CPU_LLSC;
+		if (!(c->processor_id & 0x08))
+			c->options |= MIPS_CPU_FPU | MIPS_CPU_32FPR;
 		c->tlbsize = 48;
 		break;
 	case PRID_IMP_R5000:
