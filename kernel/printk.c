@@ -34,11 +34,7 @@ static char buf[1024];
 #define MINIMUM_CONSOLE_LOGLEVEL 1 /* Minimum loglevel we let people use */
 #define DEFAULT_CONSOLE_LOGLEVEL 7 /* anything MORE serious than KERN_DEBUG */
 
-unsigned long log_size = 0;
-/* 2.3.47 triggers a linker bug which hits if for a relocation the addend
-   equals the offset and the relocation is against a global variable.  This
-   avoid it to hit us.  It's not a safe workaround of course.  */
-unsigned long silly_linker_bug = 0;
+unsigned long log_size;
 DECLARE_WAIT_QUEUE_HEAD(log_wait);
 
 /* Keep together for sysctl support */
@@ -51,8 +47,8 @@ spinlock_t console_lock = SPIN_LOCK_UNLOCKED;
 
 struct console *console_drivers = NULL;
 static char log_buf[LOG_BUF_LEN];
-static unsigned long log_start = 0;
-static unsigned long logged_chars = 0;
+static unsigned long log_start;
+static unsigned long logged_chars;
 struct console_cmdline console_cmdline[MAX_CMDLINECONSOLES];
 static int preferred_console = -1;
 
