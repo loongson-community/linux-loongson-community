@@ -173,8 +173,8 @@ static const char hexchars[]="0123456789abcdef";
 
 /* Used to prevent crashes in memory access.  Note that they'll crash anyway if
    we haven't set up fault handlers yet... */
-int kgdb_read_byte(unsigned *address, unsigned *dest);
-int kgdb_write_byte(unsigned val, unsigned *dest);
+int kgdb_read_byte(unsigned char *address, unsigned char *dest);
+int kgdb_write_byte(unsigned char val, unsigned char *dest);
 
 /*
  * Convert ch from a hex digit to an int
@@ -901,23 +901,23 @@ void breakpoint(void)
 	if (!initialized)
 		return;
 
-	__asm__ __volatile__("
-			.globl	breakinst
-			.set	noreorder
-			nop
-breakinst:		break
-			nop
-			.set	reorder
-	");
+	__asm__ __volatile__(
+			".globl	breakinst\n\t" 
+			".set\tnoreorder\n\t"
+			"nop\n\t"
+			"breakinst:\tbreak\n\t"
+			"nop\n\t"
+			".set\treorder"
+			);
 }
 
 void adel(void)
 {
-	__asm__ __volatile__("
-			.globl	adel
-			la	$8,0x80000001
-			lw	$9,0($8)
-	");
+	__asm__ __volatile__(
+			".globl\tadel\n\t"
+			"la\t$8,0x80000001\n\t"
+			"lw\t$9,0($8)\n\t"
+			);
 }
 
 #ifdef CONFIG_GDB_CONSOLE
