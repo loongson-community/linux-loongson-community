@@ -157,11 +157,17 @@ struct mips_fpu_hard_struct {
 };
 
 /*
- * FIXME: no fpu emulator yet (but who cares anyway?)
+ * It would be nice to add some more fields for emulator statistics, but there
+ * are a number of fixed offsets in offset.h and elsewhere that would have to
+ * be recalculated by hand.  So the additional information will be private to
+ * the FPU emulator for now.  See asm-mips/fpu_emulator.h.
  */
+typedef u64 fpureg_t;
 struct mips_fpu_soft_struct {
-	long	dummy;
+	fpureg_t	regs[NUM_FPU_REGS];
+	unsigned int	sr;
 };
+
 
 union mips_fpu_union {
         struct mips_fpu_hard_struct hard;
