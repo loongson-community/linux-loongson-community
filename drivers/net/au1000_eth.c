@@ -6,6 +6,9 @@
  * Copyright 2002 TimeSys Corp.
  * Added ethtool/mii-tool support,
  * Copyright 2004 Matt Porter <mporter@kernel.crashing.org>
+ * Update: 2004 Bjoern Riemer, riemer@fokus.fraunhofer.de 
+ * or riemer@riemer-nt.de: fixed the link beat detection with 
+ * ioctls (SIOCGMIIPHY)
  * Author: MontaVista Software, Inc.
  *         	ppopov@mvista.com or source@mvista.com
  *
@@ -64,7 +67,7 @@ static int au1000_debug = 3;
 #endif
 
 #define DRV_NAME	"au1000eth"
-#define DRV_VERSION	"1.4"
+#define DRV_VERSION	"1.5"
 #define DRV_AUTHOR	"Pete Popov <ppopov@embeddedalley.com>"
 #define DRV_DESC	"Au1xxx on-chip Ethernet driver"
 
@@ -1677,6 +1680,11 @@ static int au1000_init(struct net_device *dev)
 	if (link && (dev->if_port == IF_PORT_100BASEFX)) {
 		control |= MAC_FULL_DUPLEX;
 	}
+
+	/* fix for startup without cable */
+	if (!link) 
+		dev->flags &= ~IFF_RUNNING;
+
 	aup->mac->control = control;
 	aup->mac->vlan1_tag = 0x8100; /* activate vlan support */
 	au_sync();
@@ -2133,20 +2141,24 @@ static int au1000_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 	u16 *data = (u16 *)&rq->ifr_ifru;
 
 	switch(cmd) { 
-	case SIOCGMIIPHY:
-		data[0] = aup->phy_addr;
-		/* Fall through */
-	case SIOCGMIIREG:
-		data[3] = mdio_read(dev, aup->phy_addr, data[1]);
-		return 0;
-	case SIOCSMIIREG:
-		if (!capable(CAP_NET_ADMIN))
-			return -EPERM;
-		mdio_write(dev, aup->phy_addr, data[1], data[2]);
-		return 0;
-	default:
-		return -EOPNOTSUPP;
+		case SIOCDEVPRIVATE:	/* Get the address of the PHY in use. */
+		case SIOCGMIIPHY:
+		        if (!netif_running(dev)) return -EINVAL;
+			data[0] = aup->phy_addr;
+		case SIOCDEVPRIVATE+1:	/* Read the specified MII register. */
+		case SIOCGMIIREG:
+			data[3] =  mdio_read(dev, data[0], data[1]); 
+			return 0;
+		case SIOCDEVPRIVATE+2:	/* Write the specified MII register */
+		case SIOCSMIIREG: 
+			if (!capable(CAP_NET_ADMIN))
+				return -EPERM;
+			mdio_write(dev, data[0], data[1],data[2]);
+			return 0;
+		default:
+			return -EOPNOTSUPP;
 	}
+
 }
 
 
