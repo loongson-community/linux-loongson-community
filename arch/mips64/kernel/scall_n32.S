@@ -307,7 +307,7 @@ EXPORT(sysn32_call_table)
 	PTR	sys_fremovexattr
 	PTR	sys_tkill
 	PTR	sys_time
-	PTR	sys_futex
+	PTR	compat_sys_futex
 	PTR	sys32_sched_setaffinity		/* 6195 */
 	PTR	sys32_sched_getaffinity
 	PTR	sys_cacheflush
