@@ -1,4 +1,4 @@
-/* $Id: mips_ksyms.c,v 1.12 1999/02/06 03:57:40 adevries Exp $
+/* $Id: mips_ksyms.c,v 1.13 1999/02/07 21:56:32 ulfc Exp $
  *
  * Export MIPS-specific functions needed for loadable modules.
  *
@@ -111,5 +111,9 @@ EXPORT_SYMBOL(force_sig);
 EXPORT_SYMBOL(__compute_return_epc);
 EXPORT_SYMBOL(register_fpe);
 EXPORT_SYMBOL(unregister_fpe);
+#endif
+
+#ifdef CONFIG_VT
+EXPORT_SYMBOL(screen_info);
 #endif
 

@@ -14,6 +14,7 @@ bool 'SGI DS1286  RTC support' CONFIG_SGI_DS1286
 if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then  
   tristate 'SGI HAL2 Audio support' CONFIG_SGI_HAL2
   tristate 'SGI Newport Graphics support' CONFIG_SGI_NEWPORT_GFX
+  tristate 'SGI Newport Console support' CONFIG_SGI_NEWPORT_CONSOLE
 fi
 
 endmenu

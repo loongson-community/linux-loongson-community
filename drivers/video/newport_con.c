@@ -1,4 +1,4 @@
-/* $Id: newport_con.c,v 1.2 1998/08/25 09:19:51 ralf Exp $
+/* $Id: newport_con.c,v 1.3 1998/09/01 21:43:18 tsbogend Exp $
  *
  * newport_con.c: Abscon for newport hardware
  * 
@@ -19,6 +19,7 @@
 #include <linux/console_struct.h>
 #include <linux/vt_kern.h>
 #include <linux/mm.h>
+#include <linux/module.h>
 
 #include <asm/uaccess.h>
 #include <asm/system.h>
@@ -26,12 +27,12 @@
 #include <asm/pgtable.h>
 #include <asm/newport.h>
 
-struct newport_regs *npregs;
+extern unsigned char vga_font[];
+
+extern struct newport_regs *npregs;
 int newport_num_lines;
 int newport_num_columns;
 int topscan;
-
-extern unsigned char vga_font[];
 
 #define BMASK(c) (c << 24)
 
@@ -122,7 +123,11 @@ void newport_reset (void)
     newport_clear_screen(0,0,1280+63,1024);
 }
 
+#ifdef MODULE
+static const char *newport_startup(void)
+#else
 __initfunc(static const char *newport_startup(void))
+#endif
 {
     struct newport_regs *p;
 
@@ -392,3 +397,23 @@ struct consw newport_con = {
     NULL, /* newport_build_attr */
     NULL  /* newport_invert_region */
 };
+
+#ifdef MODULE
+
+int init_module(void) {
+    if (!newport_startup()) 
+       printk("Error loading SGI Newport Console driver\n");
+    else 
+       printk("Loading SGI Newport Console Driver\n");
+
+    take_over_console(&newport_con,13,16,0);
+
+    return 0;
+}
+
+int cleanup_module(void) {
+    printk("Unloading SGI Newport Console Driver\n");
+    return 0;
+}
+
+#endif

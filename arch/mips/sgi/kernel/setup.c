@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.17 1999/01/04 16:03:57 ralf Exp $
+/* $Id: setup.c,v 1.18 1999/01/27 04:50:28 adevries Exp $
  *
  * setup.c: SGI specific setup, including init of the feature struct.
  *
@@ -151,7 +151,9 @@ __initfunc(void sgi_setup(void))
 #endif
 
 #ifdef CONFIG_VT
+#ifdef CONFIG_SGI_NEWPORT_CONSOLE
 	conswitchp = &newport_con;
+#endif
 #endif
 	rtc_ops = &indy_rtc_ops;
 	kbd_ops = &sgi_kbd_ops;

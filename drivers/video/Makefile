@@ -468,8 +468,12 @@ endif
 
 # Newport Text Console
 
-ifdef CONFIG_SGI
-L_OBJS := $(L_OBJS) newport_con.o
+ifeq (CONFIG_SGI_NEWPORT_CONSOLE,y)
+L_OBJS += newport_con.o vga_font.o
+else
+  ifeq ($(CONFIG_SGI_NEWPORT_CONSOLE),m)
+  M_OBJS += newport_con.o vga_font.o
+  endif
 endif
 
 include $(TOPDIR)/Rules.make

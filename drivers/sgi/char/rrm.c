@@ -12,6 +12,10 @@
 #include <asm/uaccess.h>
 #include <asm/rrm.h>
 
+#ifdef MODULE
+#include <linux/module.h>
+#endif
+
 int
 rrm_open_rn (int rnid, void *arg)
 {
