@@ -214,7 +214,7 @@ EXPORT_SYMBOL(i2c_sibyte_add_bus);
 EXPORT_SYMBOL(i2c_sibyte_del_bus);
 
 #ifdef MODULE
-MODULE_AUTHOR("Kip Walker <kwalker@broadcom.com>");
+MODULE_AUTHOR("Kip Walker, Broadcom Corp.");
 MODULE_DESCRIPTION("SiByte I2C-Bus algorithm");
 MODULE_PARM(bit_scan, "i");
 MODULE_PARM_DESC(bit_scan, "Scan for active chips on the bus");

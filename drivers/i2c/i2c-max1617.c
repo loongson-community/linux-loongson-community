@@ -208,7 +208,7 @@ void i2c_max1617_init(void)
 EXPORT_NO_SYMBOLS;
 
 #ifdef MODULE
-MODULE_AUTHOR("Kip Walker <kwalker@broadcom.com>");
+MODULE_AUTHOR("Kip Walker, Broadcom Corp.");
 MODULE_DESCRIPTION("Max 1617 temperature sensor for SiByte SOC boards");
 MODULE_LICENSE("GPL");
 

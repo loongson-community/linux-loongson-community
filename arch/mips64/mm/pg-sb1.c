@@ -1,9 +1,9 @@
 /*
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  * Copyright (C) 1997, 2001 Ralf Baechle (ralf@gnu.org)
- * Copyright (C) 2000 Sibyte
+ * Copyright (C) 2000 Sibyte, Inc.
  *
- * Written by Justin Carlson (carlson@sibyte.com)
+ * Written by Justin Carlson of SiByte, Inc.
  *
  *
  * This program is free software; you can redistribute it and/or

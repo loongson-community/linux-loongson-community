@@ -96,7 +96,7 @@ int __init i2c_sibyte_init(void)
 EXPORT_NO_SYMBOLS;
 
 #ifdef MODULE
-MODULE_AUTHOR("Kip Walker <kwalker@broadcom.com>");
+MODULE_AUTHOR("Kip Walker, Broadcom Corp.");
 MODULE_DESCRIPTION("SMBus adapter routines for SiByte boards");
 MODULE_LICENSE("GPL");
 

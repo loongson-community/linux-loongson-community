@@ -1687,7 +1687,7 @@ static void __exit swarm_7114h_cleanup(void)
 {
 }
 
-MODULE_AUTHOR("Kip Walker, kwalker@broadcom.com");
+MODULE_AUTHOR("Kip Walker, Broadcom Corp.");
 MODULE_DESCRIPTION("Philips SAA7114H Driver for Broadcom SWARM board");
 
 module_init(swarm_7114h_init);
