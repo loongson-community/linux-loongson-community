@@ -20,6 +20,15 @@
 #include <asm/mipsregs.h>
 #include <asm/stackframe.h>
 
+#define ARC64_TWIDDLE_PC \
+#ifdef CONFIG_ARC64 \
+	/* We get launched at a XKPHYS address but the kernel is linked to \
+	   run at a KSEG0 address, so jump there.  */ \
+	la	t0, 1f \
+	jr	t0 \
+1: \
+#endif
+
 	.text
 
 EXPORT(stext)					# used for profiling
@@ -29,13 +38,7 @@ EXPORT(_stext)
 
 NESTED(kernel_entry, 16, sp)			# kernel entry point
 
-#ifdef CONFIG_ARC64
-	/* We get launched at a XKPHYS address but the kernel is linked to
-	   run at a KSEG0 address, so jump there.  */
-	la	t0, 1f
-	jr	t0
-1:
-#endif
+	ARC64_TWIDDLE_PC
 
 	ori	sp, 0xf				# align stack on 16 byte.
 	xori	sp, 0xf
@@ -49,8 +52,8 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 	mfc0	t0, CP0_STATUS
 	li	t1, ~(ST0_CU1|ST0_CU2|ST0_CU3)
 	and	t0, t1
-	or	t0, (ST0_CU0|ST0_KX|ST0_SX|ST0_FR)
-	mtc0	t0, CP0_STATUS
+	or	t0, (ST0_CU0|ST0_KX|ST0_SX|ST0_FR) # Bogosity: cu0 indicates kernel
+	mtc0	t0, CP0_STATUS			   # thread in copy_thread.
 
 	la	$28, init_task_union		# init current pointer
 	daddiu	t0, $28, KERNEL_STACK_SIZE-32
@@ -62,13 +65,13 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 	END(kernel_entry)
 
 NESTED(bootstrap, 16, sp)
-#ifdef CONFIG_ARC64
-	/* We get launched at a XKPHYS address but the kernel is linked to
-	   run at a KSEG0 address, so jump there.  */
-	la	t0, 1f
-	jr	t0
-1:
-#endif
+	ARC64_TWIDDLE_PC
+	CLI
+	mfc0	t0, CP0_STATUS
+	li	t1, ~(ST0_CU1|ST0_CU2|ST0_CU3)
+	and	t0, t1
+	or	t0, (ST0_CU0|ST0_KX|ST0_SX|ST0_FR) # Bogosity: cu0 indicates kernel
+	mtc0	t0, CP0_STATUS			   # thread in copy_thread.
 	jal	cboot
 	END(bootstrap)
 
