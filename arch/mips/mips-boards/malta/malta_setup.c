@@ -37,6 +37,12 @@
 #endif
 #include <asm/dma.h>
 #include <asm/time.h>
+#ifdef CONFIG_PC_KEYB
+#include <asm/keyboard.h>
+#endif
+#ifdef CONFIG_VT
+#include <linux/console.h>
+#endif
 
 #if defined(CONFIG_SERIAL_CONSOLE) || defined(CONFIG_PROM_CONSOLE)
 extern void console_setup(char *, int *);
@@ -57,6 +63,13 @@ extern struct kbd_ops std_kbd_ops;
 
 extern void mips_reboot_setup(void);
 
+extern void (*board_time_init)(void);
+extern void (*board_timer_setup)(struct irqaction *irq);
+extern unsigned long (*rtc_get_time)(void);
+extern void mips_time_init(void);
+extern void mips_timer_setup(struct irqaction *irq);
+extern unsigned long mips_rtc_get_time(void);
+
 struct resource standard_io_resources[] = {
 	{ "dma1", 0x00, 0x1f, IORESOURCE_BUSY },
 	{ "timer", 0x40, 0x5f, IORESOURCE_BUSY },
@@ -75,15 +88,13 @@ void __init bus_error_init(void)
 {
 }
 
-extern void mips_time_init(void);
-
 void __init malta_setup(void)
 {
 #ifdef CONFIG_REMOTE_DEBUG
 	int rs_putDebugChar(char);
 	char rs_getDebugChar(void);
-	extern int (*generic_putDebugChar)(char);
-	extern char (*generic_getDebugChar)(void);
+	extern int (*putDebugChar)(char);
+	extern char (*getDebugChar)(void);
 #endif
 	char *argptr;
 	int i;
@@ -118,8 +129,8 @@ void __init malta_setup(void)
 		       line ? 1 : 0);
 
 		rs_kgdb_hook(line);
-		generic_putDebugChar = rs_putDebugChar;
-		generic_getDebugChar = rs_getDebugChar;
+		putDebugChar = rs_putDebugChar;
+		getDebugChar = rs_getDebugChar;
 
 		prom_printf("KGDB: Using serial line /dev/ttyS%d for session, "
 			    "please connect your debugger\n", line ? 1 : 0);
@@ -132,9 +143,16 @@ void __init malta_setup(void)
 	argptr = prom_getcmdline();
 	if ((argptr = strstr(argptr, "nofpu")) != NULL)
 		mips_cpu.options &= ~MIPS_CPU_FPU;
+
+        /* 
+	 * For some reason the irq probing doesn't work on the 
+	 * Bonito controller.
+	 * For now this work just fine.
+	 */
+	argptr = prom_getcmdline();
+	strcat(argptr, " ide0=0x1f0,0x3f6,14");
 		
 	rtc_ops = &malta_rtc_ops;
-	board_time_init = mips_time_init;
 
 #ifdef CONFIG_BLK_DEV_IDE
         ide_ops = &std_ide_ops;
@@ -145,5 +163,28 @@ void __init malta_setup(void)
 #ifdef CONFIG_PC_KEYB
 	kbd_ops = &std_kbd_ops;
 #endif
+#ifdef CONFIG_VT
+#if defined(CONFIG_VGA_CONSOLE)
+        conswitchp = &vga_con;
+
+	screen_info = (struct screen_info) {
+		0, 25,			/* orig-x, orig-y */
+		0,			/* unused */
+		0,			/* orig-video-page */
+		0,			/* orig-video-mode */
+		80,			/* orig-video-cols */
+		0,0,0,			/* ega_ax, ega_bx, ega_cx */
+		25,			/* orig-video-lines */
+		1,			/* orig-video-isVGA */
+		16			/* orig-video-points */
+	};
+#elif defined(CONFIG_DUMMY_CONSOLE)
+        conswitchp = &dummy_con;
+#endif
+#endif
 	mips_reboot_setup();
+
+	board_time_init = mips_time_init;
+	board_timer_setup = mips_timer_setup;
+	rtc_get_time = mips_rtc_get_time;
 }

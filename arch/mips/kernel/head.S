@@ -76,7 +76,6 @@
 		 nop
 		END(except_vec4)
 
-#if 0
 		/*
 		 * EJTAG debug exception handler.
 		 * The EJTAG debug exception entry point is 0xbfc00480, which
@@ -139,7 +138,6 @@ ejtag_return:
 		.set    at
 		.set    mips0
 		END(nmi_handler)	
-#endif /* 0 */
 
 		/*
 		 * Kernel entry point

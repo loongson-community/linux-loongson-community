@@ -29,12 +29,27 @@
 
 #include <asm/mips-boards/generic.h>
 #include <asm/gt64120.h>
+#include <asm/mips-boards/bonito64.h>
 #ifdef CONFIG_MIPS_MALTA
 #include <asm/mips-boards/malta.h>
 #endif
+#include <asm/mips-boards/msc01_pci.h>
 
 #define PCI_ACCESS_READ  0
 #define PCI_ACCESS_WRITE 1
+
+/*
+ *  PCI configuration cycle AD bus definition
+ */
+/* Type 0 */
+#define PCI_CFG_TYPE0_REG_SHF           0
+#define PCI_CFG_TYPE0_FUNC_SHF          8
+
+/* Type 1 */
+#define PCI_CFG_TYPE1_REG_SHF           0
+#define PCI_CFG_TYPE1_FUNC_SHF          8
+#define PCI_CFG_TYPE1_DEV_SHF           11
+#define PCI_CFG_TYPE1_BUS_SHF           16
 
 static int
 mips_pcibios_config_access(unsigned char access_type, struct pci_dev *dev,
@@ -42,53 +57,201 @@ mips_pcibios_config_access(unsigned char access_type, struct pci_dev *dev,
 {
 	unsigned char bus = dev->bus->number;
 	unsigned char dev_fn = dev->devfn;
-        u32 intr;
+	unsigned char type;
+	u32 intr, dummy;
+	u64 pci_addr;
 
-	if ((bus == 0) && (dev_fn >= PCI_DEVFN(31,0)))
-	        return -1; /* Because of a bug in the galileo (for slot 31). */
+	switch(mips_revision_corid) {
+	case MIPS_REVISION_CORID_QED_RM5261:
+	case MIPS_REVISION_CORID_CORE_LV:
+	case MIPS_REVISION_CORID_CORE_FPGA:
+	        /* Galileo GT64120 system controller. */
 
-	/* Clear cause register bits */
-	GT_WRITE(GT_INTRCAUSE_OFS, ~(GT_INTRCAUSE_MASABORT0_BIT | 
-	                             GT_INTRCAUSE_TARABORT0_BIT));
+		if ((bus == 0) && (dev_fn >= PCI_DEVFN(31,0)))
+			return -1; /* Because of a bug in the galileo (for slot 31). */
 
-	/* Setup address */
-	GT_WRITE(GT_PCI0_CFGADDR_OFS, 
-		 (bus         << GT_PCI0_CFGADDR_BUSNUM_SHF)   |
-		 (dev_fn      << GT_PCI0_CFGADDR_FUNCTNUM_SHF) |
-		 ((where / 4) << GT_PCI0_CFGADDR_REGNUM_SHF)   |
-		 GT_PCI0_CFGADDR_CONFIGEN_BIT);
+		/* Clear cause register bits */
+		GT_READ(GT_INTRCAUSE_OFS, intr);
+		GT_WRITE(GT_INTRCAUSE_OFS, intr & 
+			 ~(GT_INTRCAUSE_MASABORT0_BIT | 
+			   GT_INTRCAUSE_TARABORT0_BIT));
 
-	if (access_type == PCI_ACCESS_WRITE) {
-	        if (bus == 0 && dev_fn == 0) {
-		        /* 
-			 * Galileo is acting differently than other devices. 
-			 */
-		        GT_WRITE(GT_PCI0_CFGDATA_OFS, *data);
+		/* Setup address */
+		GT_WRITE(GT_PCI0_CFGADDR_OFS, 
+			 (bus         << GT_PCI0_CFGADDR_BUSNUM_SHF)   |
+			 (dev_fn      << GT_PCI0_CFGADDR_FUNCTNUM_SHF) |
+			 ((where / 4) << GT_PCI0_CFGADDR_REGNUM_SHF)   |
+			 GT_PCI0_CFGADDR_CONFIGEN_BIT);
+
+		if (access_type == PCI_ACCESS_WRITE) {
+			if (bus == 0 && dev_fn == 0) {
+				/* 
+				 * The Galileo system controller is acting 
+				 * differently than other devices. 
+				 */
+				GT_WRITE(GT_PCI0_CFGDATA_OFS, *data);
+			} else {
+				GT_PCI_WRITE(GT_PCI0_CFGDATA_OFS, *data);
+			}
 		} else {
-		        GT_PCI_WRITE(GT_PCI0_CFGDATA_OFS, *data);
+			if (bus == 0 && dev_fn == 0) {
+				/* 
+				 * The Galileo system controller is acting 
+				 * differently than other devices. 
+				 */
+				GT_READ(GT_PCI0_CFGDATA_OFS, *data);
+			} else {
+				GT_PCI_READ(GT_PCI0_CFGDATA_OFS, *data);
+			}
 		}
-	} else {
-	        if (bus == 0 && dev_fn == 0) {
-		        /* 
-			 * Galileo is acting differently than other devices. 
-			 */
-		        GT_READ(GT_PCI0_CFGDATA_OFS, *data);
+
+		/* Check for master or target abort */
+		GT_READ(GT_INTRCAUSE_OFS, intr);
+
+		if (intr & (GT_INTRCAUSE_MASABORT0_BIT | 
+			    GT_INTRCAUSE_TARABORT0_BIT))
+		{
+			/* Error occured */
+
+			/* Clear bits */
+			GT_READ(GT_INTRCAUSE_OFS, intr);
+			GT_WRITE(GT_INTRCAUSE_OFS, intr & 
+				 ~(GT_INTRCAUSE_MASABORT0_BIT | 
+				   GT_INTRCAUSE_TARABORT0_BIT));
+
+			return -1;
+		}
+
+		break;
+
+	case MIPS_REVISION_CORID_BONITO64:
+	case MIPS_REVISION_CORID_CORE_20K:
+	        /* Algorithmics Bonito64 system controller. */
+
+	        if ((bus == 0) && (PCI_SLOT(dev_fn) == 0)) {
+		        return -1;
+		}
+
+		/* Clear cause register bits */
+		BONITO_PCICMD |= (BONITO_PCICMD_MABORT_CLR | 
+				  BONITO_PCICMD_MTABORT_CLR);
+
+		/* 
+		 * Setup pattern to be used as PCI "address" for 
+		 * Type 0 cycle 
+		 */
+		if (bus == 0) {
+		        /* IDSEL */
+		        pci_addr = (u64)1 << (PCI_SLOT(dev_fn) + 10);
 		} else {
-		        GT_PCI_READ(GT_PCI0_CFGDATA_OFS, *data);
+		        /* Bus number */
+		        pci_addr = bus << PCI_CFG_TYPE1_BUS_SHF;
+
+			/* Device number */
+			pci_addr |= PCI_SLOT(dev_fn) << PCI_CFG_TYPE1_DEV_SHF;
 		}
-	}
 
-	/* Check for master or target abort */
-	GT_READ(GT_INTRCAUSE_OFS, intr);
+		/* Function (same for Type 0/1) */
+		pci_addr |= PCI_FUNC(dev_fn) << PCI_CFG_TYPE0_FUNC_SHF;
+		
+		/* Register number (same for Type 0/1) */
+		pci_addr |= (where & ~0x3) << PCI_CFG_TYPE0_REG_SHF;
+		
+		if (bus == 0) {
+		        /* Type 0 */
+		        BONITO_PCIMAP_CFG = pci_addr >> 16;
+		} else {
+		        /* Type 1 */
+		        BONITO_PCIMAP_CFG = (pci_addr >> 16) | 0x10000;
+		}
+	  
+		/* Flush Bonito register block */
+		dummy = BONITO_PCIMAP_CFG;
+		__asm__ __volatile__(
+				     ".set\tnoreorder\n\t"
+				     ".set\tnoat\n\t"
+				     "sync\n\t"
+				     ".set\tat\n\t"
+				     ".set\treorder");
 
-	if (intr & (GT_INTRCAUSE_MASABORT0_BIT | GT_INTRCAUSE_TARABORT0_BIT))
-	{
-	        /* Error occured */
+		/* Perform access */
+		if (access_type == PCI_ACCESS_WRITE) {
+		        *(volatile u32 *)(KSEG1ADDR(BONITO_PCICFG_BASE + 
+					  (pci_addr & 0xffff))) = *(u32 *)data;
 
-	        /* Clear bits */
-	        GT_WRITE( GT_INTRCAUSE_OFS, ~(GT_INTRCAUSE_MASABORT0_BIT | 
-					      GT_INTRCAUSE_TARABORT0_BIT) );
+			/* Wait till done */
+			while (BONITO_PCIMSTAT & 0xF)
+			        ;
+		} else {
+		        *(u32 *)data = 
+			  *(volatile u32 *)(KSEG1ADDR(BONITO_PCICFG_BASE + 
+					    (pci_addr & 0xffff)));
+		}
 
+		/* Detect Master/Target abort */
+		if (BONITO_PCICMD & (BONITO_PCICMD_MABORT_CLR | 
+				     BONITO_PCICMD_MTABORT_CLR) )
+		{
+		        /* Error occurred */
+
+		        /* Clear bits */
+		        BONITO_PCICMD |= (BONITO_PCICMD_MABORT_CLR | 
+					  BONITO_PCICMD_MTABORT_CLR);
+    
+			return -1;
+		}
+	        break;
+
+	case MIPS_REVISION_CORID_CORE_MSC:
+	        /* MIPS system controller. */
+
+	        if ((bus == 0) && (PCI_SLOT(dev_fn) == 0)) {
+		        return -1;
+		}
+
+		/* Clear status register bits. */
+		MSC_WRITE(MSC01_PCI_INTSTAT, 
+			  (MSC01_PCI_INTCFG_MA_BIT | 
+			   MSC01_PCI_INTCFG_TA_BIT));
+
+		/* Setup address */
+		if (bus == 0)
+			type = 0;  /* Type 0 */
+		else
+			type = 1;  /* Type 1 */
+
+		MSC_WRITE(MSC01_PCI_CFGADDR,
+			  ((bus              << MSC01_PCI_CFGADDR_BNUM_SHF) |
+			   (PCI_SLOT(dev_fn) << MSC01_PCI_CFGADDR_DNUM_SHF) |
+			   (PCI_FUNC(dev_fn) << MSC01_PCI_CFGADDR_FNUM_SHF) |
+			   ((where /4 )      << MSC01_PCI_CFGADDR_RNUM_SHF) |
+			   (type)));
+
+		/* Perform access */
+		if (access_type == PCI_ACCESS_WRITE) {
+		        MSC_WRITE(MSC01_PCI_CFGDATA, *data);
+		} else {
+			MSC_READ(MSC01_PCI_CFGDATA, *data);
+		}
+
+		/* Detect Master/Target abort */
+		MSC_READ(MSC01_PCI_INTSTAT, intr);
+		if (intr & (MSC01_PCI_INTCFG_MA_BIT | 
+			    MSC01_PCI_INTCFG_TA_BIT))
+		{
+		        /* Error occurred */
+
+		        /* Clear bits */
+			MSC_READ(MSC01_PCI_INTSTAT, intr);
+			MSC_WRITE(MSC01_PCI_INTSTAT,
+				  (MSC01_PCI_INTCFG_MA_BIT | 
+				   MSC01_PCI_INTCFG_TA_BIT));
+
+			return -1;
+		}
+	        break;
+	default:
+	        printk("Unknown Core card, don't know the system controller.\n");
 		return -1;
 	}
 
@@ -216,21 +379,28 @@ void __init pcibios_init(void)
 	printk("PCI: Probing PCI hardware on host bus 0.\n");
 	pci_scan_bus(0, &mips_pci_ops, NULL);
 
-	/* 
-	 * Due to a bug in the Galileo system controller, we need to setup 
-	 * the PCI BAR for the Galileo internal registers.
-	 * This should be done in the bios/bootprom and will be fixed in
-	 * a later revision of YAMON (the MIPS boards boot prom).
-	 */
-	GT_WRITE(GT_PCI0_CFGADDR_OFS,
-		 (0 << GT_PCI0_CFGADDR_BUSNUM_SHF)   |  /* Local bus */
-		 (0 << GT_PCI0_CFGADDR_DEVNUM_SHF)   |  /* GT64120 device */
-		 (0 << GT_PCI0_CFGADDR_FUNCTNUM_SHF) |  /* Function 0 */
-		 ((0x20/4) << GT_PCI0_CFGADDR_REGNUM_SHF) |  /* BAR 4 */
-		 GT_PCI0_CFGADDR_CONFIGEN_BIT );
+	switch(mips_revision_corid) {
+	case MIPS_REVISION_CORID_QED_RM5261:
+	case MIPS_REVISION_CORID_CORE_LV:
+	case MIPS_REVISION_CORID_CORE_FPGA:
+		/* 
+		 * Due to a bug in the Galileo system controller, we need 
+		 * to setup the PCI BAR for the Galileo internal registers.
+		 * This should be done in the bios/bootprom and will be 
+		 * fixed in a later revision of YAMON (the MIPS boards 
+		 * boot prom).
+		 */
+		GT_WRITE(GT_PCI0_CFGADDR_OFS,
+			 (0 << GT_PCI0_CFGADDR_BUSNUM_SHF) | /* Local bus */
+			 (0 << GT_PCI0_CFGADDR_DEVNUM_SHF) | /* GT64120 dev */
+			 (0 << GT_PCI0_CFGADDR_FUNCTNUM_SHF) | /* Function 0*/
+			 ((0x20/4) << GT_PCI0_CFGADDR_REGNUM_SHF) | /* BAR 4*/
+			 GT_PCI0_CFGADDR_CONFIGEN_BIT );
 
-	/* Perform the write */
-	GT_WRITE( GT_PCI0_CFGDATA_OFS, PHYSADDR(MIPS_GT_BASE)); 
+		/* Perform the write */
+		GT_WRITE( GT_PCI0_CFGDATA_OFS, PHYSADDR(MIPS_GT_BASE)); 
+		break;
+	}
 
 #ifdef CONFIG_MIPS_MALTA
 	pci_for_each_dev(pdev) {

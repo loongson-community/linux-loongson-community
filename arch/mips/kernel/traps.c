@@ -777,6 +777,50 @@ asmlinkage void cache_parity_error(void)
 	panic("Can't handle the cache error!");
 }
 
+/*
+ * SDBBP EJTAG debug exception handler.
+ * We skip the instruction and return to the next instruction.
+ */
+void ejtag_exception_handler(struct pt_regs *regs)
+{
+        unsigned int depc, old_epc, debug;
+
+        printk("SDBBP EJTAG debug exception - not handled yet, just ignored!\n");
+        depc = read_32bit_cp0_register(CP0_DEPC);
+        debug = read_32bit_cp0_register(CP0_DEBUG);
+        printk("DEPC = %08x, DEBUG = %08x\n", depc, debug); 
+        if (debug & 0x80000000) {
+                /* 
+                 * In branch delay slot.
+                 * We cheat a little bit here and use EPC to calculate the
+                 * debug return address (DEPC). EPC is restored after the
+                 * calculation.
+                 */
+                old_epc = regs->cp0_epc;
+                regs->cp0_epc = depc;
+                __compute_return_epc(regs);
+                depc = regs->cp0_epc;
+                regs->cp0_epc = old_epc;
+        } else
+                depc += 4;
+        write_32bit_cp0_register(CP0_DEPC, depc);
+
+#if 0
+	printk("\n\n----- Enable EJTAG single stepping ----\n\n");
+	write_32bit_cp0_register(CP0_DEBUG, debug | 0x100);
+#endif
+}
+
+/*
+ * NMI exception handler.
+ */
+void nmi_exception_handler(struct pt_regs *regs)
+{
+        printk("NMI taken!!!!\n");
+        die("NMI", regs);
+        while(1) ;  /* We die here. */
+}
+
 unsigned long exception_handlers[32];
 
 /*
@@ -839,21 +883,19 @@ void __init trap_init(void)
 	memcpy((void *)(KSEG0 + 0x80), &except_vec1_generic, 0x80);
 	memcpy((void *)(KSEG0 + 0x100), &except_vec2_generic, 0x80);
 	memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic, 0x80);
-	flush_icache_range(KSEG0 + 0x80, KSEG0 + 0x200);
+
 	/*
 	 * Setup default vectors
 	 */
 	for (i = 0; i <= 31; i++)
 		set_except_vector(i, handle_reserved);
 
-#if 0
 	/* 
 	 * Copy the EJTAG debug exception vector handler code to it's final 
 	 * destination.
 	 */
 	if (mips_cpu.options & MIPS_CPU_EJTAG)
-		memcpy((void *)(KSEG0 + 0x200), &except_vec_ejtag_debug, 0x80);
-#endif /* 0 */
+		memcpy((void *)(KSEG0 + 0x300), &except_vec_ejtag_debug, 0x80);
 
 	/*
 	 * Only some CPUs have the watch exceptions or a dedicated
@@ -988,7 +1030,7 @@ void __init trap_init(void)
 		restore_fp_context = fpu_emulator_restore_context;
 	}
 
-	flush_icache_range(KSEG0, KSEG0 + 0x200);
+	flush_icache_range(KSEG0, KSEG0 + 0x400);
 
 	if (mips_cpu.isa_level == MIPS_CPU_ISA_IV)
 		set_cp0_status(ST0_XX);

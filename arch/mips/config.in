@@ -156,6 +156,7 @@ if [ "$CONFIG_MIPS_MALTA" = "y" ]; then
    define_bool CONFIG_NONCOHERENT_IO y
    define_bool CONFIG_NEW_TIME_C y
    define_bool CONFIG_SWAP_IO_SPACE y
+   define_bool CONFIG_PC_KEYB y
 fi
 if [ "$CONFIG_MOMENCO_OCELOT" = "y" ]; then
    define_bool CONFIG_PCI y
@@ -339,10 +340,12 @@ choice 'CPU type' \
 
 if [ "$CONFIG_CPU_MIPS32" = "y" ]; then
    define_bool CONFIG_CPU_HAS_PREFETCH y
+   bool '  Support for Virtual Tagged I-cache' CONFIG_VTAG_ICACHE
 fi
 
 if [ "$CONFIG_CPU_MIPS64" = "y" ]; then
    define_bool CONFIG_CPU_HAS_PREFETCH y
+   bool '  Support for Virtual Tagged I-cache' CONFIG_VTAG_ICACHE
 fi
 
 if [ "$CONFIG_CPU_RM7000" = "y" ]; then
