@@ -32,7 +32,7 @@ SYS(sys_mknod, 3)
 SYS(sys_chmod, 2)				/* 4015 */
 SYS(sys_lchown, 3)
 SYS(sys_ni_syscall, 0)
-SYS(sys_stat, 2)
+SYS(sys_ni_syscall, 0)				/* was sys_stat */
 SYS(sys_lseek, 3)
 SYS(sys_getpid, 0)				/* 4020 */
 SYS(sys_mount, 5)
@@ -42,7 +42,7 @@ SYS(sys_getuid, 0)
 SYS(sys_stime, 1)				/* 4025 */
 SYS(sys_ptrace, 4)
 SYS(sys_alarm, 1)
-SYS(sys_fstat, 2)
+SYS(sys_ni_syscall, 0)				/* was sys_fstat */
 SYS(sys_pause, 0)
 SYS(sys_utime, 2)				/* 4030 */
 SYS(sys_ni_syscall, 0)
@@ -96,9 +96,9 @@ SYS(sys_gettimeofday, 2)
 SYS(sys_settimeofday, 2)
 SYS(sys_getgroups, 2)				/* 4080 */
 SYS(sys_setgroups, 2)
-SYS(sys_ni_syscall, 0) /* old_select */
+SYS(sys_ni_syscall, 0)				/* old_select */
 SYS(sys_symlink, 2)
-SYS(sys_lstat, 2)
+SYS(sys_ni_syscall, 0)				/* was sys_lstat */
 SYS(sys_readlink, 3)				/* 4085 */
 SYS(sys_uselib, 1)
 SYS(sys_swapon, 2)

@@ -315,7 +315,7 @@ out:	jr	ra
 	sys	sys_chmod	2			/* 4015 */
 	sys	sys_lchown	3
 	sys	sys_ni_syscall	0
-	sys	sys_stat	2
+	sys	sys_ni_syscall	0			/* was sys_stat */
 	sys	sys_lseek	3
 	sys	sys_getpid	0			/* 4020 */
 	sys	sys_mount	5
@@ -325,7 +325,7 @@ out:	jr	ra
 	sys	sys_stime	1			/* 4025 */
 	sys	sys32_ptrace	4
 	sys	sys32_alarm	1
-	sys	sys_fstat	2
+	sys	sys_ni_syscall	0			/* was sys_fstat */
 	sys	sys_pause	0
 	sys	sys32_utime	2			/* 4030 */
 	sys	sys_ni_syscall	0
@@ -379,9 +379,9 @@ out:	jr	ra
 	sys	sys32_settimeofday 2
 	sys	sys_getgroups	2			/* 4080 */
 	sys	sys_setgroups	2
-	sys	sys_ni_syscall	0 /* old_select */
+	sys	sys_ni_syscall	0			/* old_select */
 	sys	sys_symlink	2
-	sys	sys_lstat	2
+	sys	sys_ni_syscall	0			/* was sys_lstat */
 	sys	sys_readlink	3			/* 4085 */
 	sys	sys_uselib	1
 	sys	sys_swapon	2
