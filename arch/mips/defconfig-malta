@@ -687,6 +687,7 @@ CONFIG_SERIO_SERPORT=y
 #
 # Kernel hacking
 #
+CONFIG_CROSSCOMPILE=y
 # CONFIG_DEBUG_KERNEL is not set
 
 #

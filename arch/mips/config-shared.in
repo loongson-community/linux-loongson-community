@@ -694,6 +694,8 @@ source drivers/input/Config.in
 mainmenu_option next_comment
 comment 'Kernel hacking'
 
+bool 'Are you using a crosscompiler' CONFIG_CROSSCOMPILE
+
 bool 'Kernel debugging' CONFIG_DEBUG_KERNEL
 if [ "$CONFIG_DEBUG_KERNEL" != "n" ]; then
    if [ "$CONFIG_SERIAL" = "y" -o "$CONFIG_AU1000_UART" = "y" ]; then
