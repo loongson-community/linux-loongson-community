@@ -99,14 +99,16 @@ static irqreturn_t sgiwd93_intr(int irq, void *dev_id, struct pt_regs *regs)
 }
 
 static inline
-void fill_hpc_entries(struct hpc_chunk *hcp, void *addr, unsigned long len,
-	int datainp)
+void fill_hpc_entries(struct hpc_chunk *hcp, Scsi_Cmnd *cmd, int datainp)
 {
+	unsigned long len = cmd->SCp.this_residual;
+	void *addr = cmd->SCp.ptr;
 	dma_addr_t physaddr;
 	unsigned long count;
 
 	physaddr = pci_map_single(NULL, addr, len,
-		datainp ? PCI_DMA_FROMDEVICE : PCI_DMA_TODEVICE);
+		scsi_to_pci_dma_dir(cmd->sc_data_direction));
+	cmd->SCp.dma_handle = physaddr;
 
 	while (len) {
 		/*
@@ -150,7 +152,7 @@ static int dma_setup(Scsi_Cmnd *cmd, int datainp)
 	if (cmd->SCp.ptr == NULL || cmd->SCp.this_residual == 0)
 		return 1;
 
-	fill_hpc_entries(hcp, cmd->SCp.ptr, cmd->SCp.this_residual, datainp);
+	fill_hpc_entries(hcp, cmd, datainp);
 
 	DPRINTK(" HPCGO\n");
 
@@ -184,6 +186,8 @@ static void dma_stop(struct Scsi_Host *instance, Scsi_Cmnd *SCpnt,
 			barrier();
 	}
 	hregs->ctrl = 0;
+	pci_unmap_single(NULL, SCpnt->SCp.dma_handle, SCpnt->SCp.this_residual,
+	                 scsi_to_pci_dma_dir(SCpnt->sc_data_direction));
 
 	DPRINTK("\n");
 }
