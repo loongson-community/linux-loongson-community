@@ -14,6 +14,7 @@
 #include <asm/addrspace.h>
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
+#include <asm/ddb5xxx/ddb5477.h>
 
 /*
  * first level interrupt dispatcher for ocelot board -
@@ -55,20 +56,20 @@ ll_vrc5477_irq:
 	j	ret_from_irq
 
 ll_cputimer_irq:
-	li	a0, 7
+	li	a0, CPU_IRQ_BASE + 7
 	move	a1, sp
 	jal	do_IRQ
 	j	ret_from_irq
 
 
 ll_cpu_ip0:
-	li	a0, 0
+	li	a0, CPU_IRQ_BASE + 0
 	move	a1, sp
 	jal	do_IRQ
 	j	ret_from_irq
 
 ll_cpu_ip1:
-	li	a0, 1
+	li	a0, CPU_IRQ_BASE + 1
 	move	a1, sp
 	jal	do_IRQ
 	j	ret_from_irq

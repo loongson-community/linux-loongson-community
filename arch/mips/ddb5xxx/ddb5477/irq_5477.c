@@ -18,6 +18,7 @@
  * This file exports one function:
  *	vrc5477_irq_init(u32 irq_base);
  */
+
 #include <linux/interrupt.h>
 #include <linux/types.h>
 #include <linux/ptrace.h>
@@ -113,15 +114,6 @@ vrc5477_irq_init(u32 irq_base)
 	}
 
 	vrc5477_irq_base = irq_base;
-}
-
-
-int vrc5477_irq_to_irq(int irq)
-{
-	db_assert(irq >= 0);
-	db_assert(irq < NUM_5477_IRQ);
-
-	return irq + vrc5477_irq_base;
 }
 
 void ll_vrc5477_irq_route(int vrc5477_irq, int ip)

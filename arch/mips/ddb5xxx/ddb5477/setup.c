@@ -26,6 +26,7 @@
 #include <linux/kdev_t.h>
 #include <linux/root_dev.h>
 
+#include <asm/cpu.h>
 #include <asm/bootinfo.h>
 #include <asm/addrspace.h>
 #include <asm/time.h>
@@ -33,8 +34,11 @@
 #include <asm/irq.h>
 #include <asm/reboot.h>
 #include <asm/gdb-stub.h>
-#include <asm/debug.h>
 #include <asm/traps.h>
+#include <asm/debug.h>
+#ifdef CONFIG_PC_KEYB
+#include <asm/keyboard.h> 
+#endif 
 
 #include <asm/ddb5xxx/ddb5xxx.h>
 
@@ -43,14 +47,10 @@
 
 // #define	USE_CPU_COUNTER_TIMER	/* whether we use cpu counter */
 
-#ifdef USE_CPU_COUNTER_TIMER
-#define	CPU_COUNTER_FREQUENCY		83000000
-#else
-/* otherwise we use special timer 1 */
-#define	SP_TIMER_FREQUENCY		83000000
 #define	SP_TIMER_BASE			DDB_SPT1CTRL_L
-#define	SP_TIMER_IRQ			(8 + 6)
-#endif
+#define	SP_TIMER_IRQ			VRC5477_IRQ_SPT1
+
+static int bus_frequency = CONFIG_DDB5477_BUS_FREQUENCY*1000;
 
 static void ddb_machine_restart(char *command)
 {
@@ -84,18 +84,70 @@ static void ddb_machine_power_off(void)
 
 extern void rtc_ds1386_init(unsigned long base);
 
+static unsigned int __init detect_bus_frequency(unsigned long rtc_base)
+{
+	unsigned int freq;
+	unsigned char c;
+	unsigned int t1, t2;
+	unsigned i;
+	unsigned preset_freq[]={
+		0,        83330000, 100000000, 124000000,133300000, 0xffffffff};
+
+	ddb_out32(SP_TIMER_BASE, 0xffffffff);
+	ddb_out32(SP_TIMER_BASE+4, 0x1);
+	ddb_out32(SP_TIMER_BASE+8, 0xffffffff);
+	c= *(volatile unsigned char*)rtc_base;
+	for(i=0; (i<100000000) && (c == *(volatile unsigned char*)rtc_base); i++);
+
+	if (c == *(volatile unsigned char*)rtc_base) {
+		printk("Failed to detect bus frequency.  Use default 83.3MHz.\n");
+		return 83333000;
+	}
+
+	/* we are now at the turn of 1/100th second */
+	t1 = ddb_in32(SP_TIMER_BASE+8);
+
+	c= *(volatile unsigned char*)rtc_base;
+	while (c == *(volatile unsigned char*)rtc_base);
+
+	/* we are now at the turn of another 1/100th second */
+	t2 = ddb_in32(SP_TIMER_BASE+8);
+	ddb_out32(SP_TIMER_BASE+4, 0x0);	/* disable it again */
+	freq = (t1 - t2)*100;
+
+	/* find the nearest preset freq */
+	for (i=0; freq > preset_freq[i+1]; i++);
+	if ((freq - preset_freq[i]) >= (preset_freq[i+1]-freq)) 
+		i++;
+
+	printk("DDB bus frequency detection : %d -> %d\n", freq, preset_freq[i]);
+	return preset_freq[i];
+}
+
 static void __init ddb_time_init(void)
 {
-#if defined(USE_CPU_COUNTER_TIMER)
-	mips_counter_frequency = CPU_COUNTER_FREQUENCY;
-#endif
+	unsigned long rtc_base;
+	unsigned int i;
 
 	/* we have ds1396 RTC chip */
-	if (mips_machtype == MACH_NEC_ROCKHOPPER) {
-		rtc_ds1386_init(KSEG1ADDR(DDB_LCS2_BASE));
+	if (mips_machtype == MACH_NEC_ROCKHOPPER
+		||  mips_machtype == MACH_NEC_ROCKHOPPERII) {
+		rtc_base = KSEG1ADDR(DDB_LCS2_BASE);
 	} else {
-		rtc_ds1386_init(KSEG1ADDR(DDB_LCS1_BASE));
+		rtc_base = KSEG1ADDR(DDB_LCS1_BASE);
 	}
+	rtc_ds1386_init(rtc_base);
+
+	/* do we need to do run-time detection of bus speed? */
+	if (bus_frequency == 0) {
+		bus_frequency = detect_bus_frequency(rtc_base);
+	}
+
+	/* mips_counter_frequency is 1/2 of the cpu core freq */
+	i =  (read_32bit_cp0_register(CP0_CONFIG) >> 28 ) & 7;
+	if ((mips_cpu.cputype == CPU_R5432) && (i == 3)) 
+		i = 4;
+	mips_counter_frequency = bus_frequency*(i+4)/4;
 }
 
 extern int setup_irq(unsigned int irq, struct irqaction *irqaction);
@@ -106,7 +158,7 @@ static void __init ddb_timer_setup(struct irqaction *irq)
 	unsigned int count;
 
         /* we are using the cpu counter for timer interrupts */
-	setup_irq(7, irq);
+	setup_irq(CPU_IRQ_BASE + 7, irq);
 
         /* to generate the first timer interrupt */
         count = read_c0_count();
@@ -114,8 +166,8 @@ static void __init ddb_timer_setup(struct irqaction *irq)
 
 #else
 
-	/* if we don't use Special purpose timer 1 */
-	ddb_out32(SP_TIMER_BASE, SP_TIMER_FREQUENCY/HZ);
+	/* if we use Special purpose timer 1 */
+	ddb_out32(SP_TIMER_BASE, bus_frequency/HZ);
 	ddb_out32(SP_TIMER_BASE+4, 0x1);
 	setup_irq(SP_TIMER_IRQ, irq);
 
@@ -132,6 +184,12 @@ extern unsigned long __rd_start, __rd_end, initrd_start, initrd_end;
 void __init ddb_setup(void)
 {
 	extern int panic_timeout;
+#ifdef CONFIG_BLK_DEV_IDE
+	extern struct ide_ops std_ide_ops;   
+#endif
+
+	/* initialize board - we don't trust the loader */
+        ddb5477_board_init();
 
 	irq_setup = ddb5477_irq_setup;
 	set_io_port_base(KSEG1ADDR(DDB_PCI_IO_BASE));
@@ -150,12 +208,14 @@ void __init ddb_setup(void)
 	/* Reboot on panic */
 	panic_timeout = 180;
 
+#ifdef CONFIG_BLK_DEV_IDE
+	ide_ops = &std_ide_ops;
+#endif
+
+
 #ifdef CONFIG_FB
 	conswitchp = &dummy_con;
 #endif
-
-	/* initialize board - we don't trust the loader */
-	ddb5477_board_init();
 
 #if defined(CONFIG_BLK_DEV_INITRD)
 	ROOT_DEV = Root_RAM0;
@@ -170,6 +230,9 @@ void __init bus_error_init(void)
 
 static void __init ddb5477_board_init(void)
 {
+#ifdef CONFIG_PC_KEYB
+	extern struct kbd_ops std_kbd_ops;   
+#endif
 	/* ----------- setup PDARs ------------ */
 
 	/* SDRAM should have been set */
@@ -265,16 +328,117 @@ static void __init ddb5477_board_init(void)
 	ddb_set_pdar(DDB_BARP01, DDB_PCI0_MEM_BASE, DDB_PCI0_MEM_SIZE, 32, 0, 1);
 	ddb_set_pdar(DDB_BARP11, DDB_PCI0_IO_BASE, DDB_PCI0_IO_SIZE, 32, 0, 1);
 
+	if (mips_machtype == MACH_NEC_ROCKHOPPER
+	   ||  mips_machtype == MACH_NEC_ROCKHOPPERII) {
+		/* Disable bus diagnostics. */ 
+		ddb_out32(DDB_PCICTL0_L, 0);
+		ddb_out32(DDB_PCICTL0_H, 0);
+		ddb_out32(DDB_PCICTL1_L, 0);
+		ddb_out32(DDB_PCICTL1_H, 0);         
+	}
+
+	if (mips_machtype == MACH_NEC_ROCKHOPPER) {
+		u16			vid;
+		struct pci_bus		bus;
+		struct pci_dev		dev_m1533;
+		extern struct pci_ops 	ddb5477_ext_pci_ops;
+
+		bus.parent      = NULL;    /* we scan the top level only */
+		bus.ops         = &ddb5477_ext_pci_ops;
+		dev_m1533.bus         = &bus;
+		dev_m1533.sysdata     = NULL;
+		dev_m1533.devfn       = 7*8;     // slot 7: M1533 SouthBridge.
+		pci_read_config_word(&dev_m1533, 0, &vid);
+		if (vid == PCI_VENDOR_ID_AL) {
+			printk("Changing mips_machtype to MACH_NEC_ROCKHOPPERII\n");
+			mips_machtype = MACH_NEC_ROCKHOPPERII;
+		}
+	}
+
 	/* enable USB input buffers */
 	ddb_out32(DDB_PIBMISC, 0x00000007);
 
 	/* For dual-function pins, make them all non-GPIO */
 	ddb_out32(DDB_GIUFUNSEL, 0x0);
 	// ddb_out32(DDB_GIUFUNSEL, 0xfe0fcfff);  /* NEC recommanded value */
+	
+	if (mips_machtype == MACH_NEC_ROCKHOPPERII) {
+#ifdef CONFIG_PC_KEYB
+	printk("kdb_ops is std\n");
+	kbd_ops = &std_kbd_ops;
+#endif                     
+	}
 
-	if (mips_machtype == MACH_NEC_ROCKHOPPER) {
+	if (mips_machtype == MACH_NEC_ROCKHOPPERII) {
+
+		/* enable IDE controller on Ali chip (south bridge) */
+		u8			temp8;
+		struct pci_bus		bus;
+		struct pci_dev		dev_m1533;
+		struct pci_dev		dev_m5229;
+		extern struct pci_ops 	ddb5477_ext_pci_ops;
+
+		/* Setup M1535 registers */
+		bus.parent      = NULL;    /* we scan the top level only */
+		bus.ops         = &ddb5477_ext_pci_ops;
+		dev_m1533.bus         = &bus;
+		dev_m1533.sysdata     = NULL;
+		dev_m1533.devfn       = 7*8;     // slot 7: M1533 SouthBridge.
+
+		/* setup IDE controller
+		 * enable IDE controller (bit 6 - 1)
+		 * IDE IDSEL to be addr:A15 (bit 4:5 - 11)
+		 * disable IDE ATA Secondary Bus Signal Pad Control (bit 3 - 0)
+		 * enable IDE ATA Primary Bus Signal Pad Control (bit 2 - 1)
+		 */
+		pci_write_config_byte(&dev_m1533, 0x58, 0x74);
+
+		/* 
+		 * positive decode (bit6 -0)
+		 * enable IDE controler interrupt (bit 4 -1)
+		 * setup SIRQ to point to IRQ 14 (bit 3:0 - 1101)
+		 */
+		pci_write_config_byte(&dev_m1533, 0x44, 0x1d);
+
+		/* Setup M5229 registers */
+		dev_m5229.bus = &bus;
+		dev_m5229.sysdata = NULL;
+		dev_m5229.devfn = 4*8;  	// slot 4 (AD15): M5229 IDE 
+
+		/*
+		 * enable IDE in the M5229 config register 0x50 (bit 0 - 1)
+		 * M5229 IDSEL is addr:15; see above setting 
+		 */
+		pci_read_config_byte(&dev_m5229, 0x50, &temp8);
+		pci_write_config_byte(&dev_m5229, 0x50, temp8 | 0x1);
+
+		/* 
+		 * enable bus master (bit 2)  and IO decoding  (bit 0) 
+		 */
+		pci_read_config_byte(&dev_m5229, 0x04, &temp8);
+		pci_write_config_byte(&dev_m5229, 0x04, temp8 | 0x5);
+
+		/*
+		 * enable native, copied from arch/ppc/k2boot/head.S
+		 * TODO - need volatile, need to be portable 
+		 */
+		pci_write_config_byte(&dev_m5229, 0x09, 0xef);
+
+		/* Set Primary Channel Command Block Timing */ 
+		pci_write_config_byte(&dev_m5229, 0x59, 0x31);
+
+		/* 
+		 * Enable primary channel 40-pin cable
+		 * M5229 register 0x4a (bit 0)
+		 */
+		pci_read_config_byte(&dev_m5229, 0x4a, &temp8);
+		pci_write_config_byte(&dev_m5229, 0x4a, temp8 | 0x1);
+	}
+
+	if (mips_machtype == MACH_NEC_ROCKHOPPER
+	   ||  mips_machtype == MACH_NEC_ROCKHOPPERII) {
 		printk("lcd44780: initializing\n");
 		lcd44780_init();
-		lcd44780_puts("Linux/MIPS rolls");
+		lcd44780_puts("MontaVista Linux");
 	}
 }

@@ -19,6 +19,8 @@
 #include <asm/system.h>
 #include <asm/mipsregs.h>
 #include <asm/debug.h>
+#include <asm/addrspace.h>
+#include <asm/bootinfo.h>
 
 #include <asm/ddb5xxx/ddb5xxx.h>
 
@@ -69,9 +71,12 @@ set_pci_int_attr(u32 pci, u32 intn, u32 active, u32 trigger)
 	ddb_out32(pci, reg_value);
 }
 
+extern void init_i8259_irqs (void);
 extern void vrc5477_irq_init(u32 base);
 extern void mips_cpu_irq_init(u32 base);
 extern asmlinkage void ddb5477_handle_int(void);
+extern int setup_irq(unsigned int irq, struct irqaction *irqaction);  
+static struct irqaction irq_cascade = { no_action, 0, 0, "cascade", NULL, NULL };
 
 void
 ddb5477_irq_setup(void)
@@ -91,7 +96,10 @@ ddb5477_irq_setup(void)
 	/* setup PCI interrupt attributes */
 	set_pci_int_attr(PCI0, INTA, ACTIVE_LOW, LEVEL_SENSE);
 	set_pci_int_attr(PCI0, INTB, ACTIVE_LOW, LEVEL_SENSE);
-	set_pci_int_attr(PCI0, INTC, ACTIVE_LOW, LEVEL_SENSE);
+	if (mips_machtype == MACH_NEC_ROCKHOPPERII) 
+		set_pci_int_attr(PCI0, INTC, ACTIVE_HIGH, LEVEL_SENSE);
+	else
+		set_pci_int_attr(PCI0, INTC, ACTIVE_LOW, LEVEL_SENSE);
 	set_pci_int_attr(PCI0, INTD, ACTIVE_LOW, LEVEL_SENSE);
 	set_pci_int_attr(PCI0, INTE, ACTIVE_LOW, LEVEL_SENSE);
 
@@ -121,13 +129,34 @@ ddb5477_irq_setup(void)
 	ll_vrc5477_irq_route(31, 1); ll_vrc5477_irq_enable(31);
 
 	/* init all controllers */
-	mips_cpu_irq_init(0);
-	vrc5477_irq_init(8);
+	init_i8259_irqs();
+	mips_cpu_irq_init(CPU_IRQ_BASE);
+	vrc5477_irq_init(VRC5477_IRQ_BASE);
+
+
+	/* setup cascade interrupts */
+	setup_irq(VRC5477_IRQ_BASE + VRC5477_I8259_CASCADE, &irq_cascade);
+	setup_irq(CPU_IRQ_BASE + CPU_VRC5477_CASCADE, &irq_cascade);      
 
 	/* hook up the first-level interrupt handler */
 	set_except_vector(0, ddb5477_handle_int);
 }
 
+u8 i8259_interrupt_ack(void)
+{
+	u8 irq;
+	u32 reg;
+
+	/* Set window 0 for interrupt acknowledge */
+	reg = ddb_in32(DDB_PCIINIT10);
+
+	ddb_set_pmr(DDB_PCIINIT10, DDB_PCICMD_IACK, 0, DDB_PCI_ACCESS_32);
+	irq = *(volatile u8 *) KSEG1ADDR(DDB_PCI_IACK_BASE);
+	ddb_out32(DDB_PCIINIT10, reg);
+
+	/* i8259.c set the base vector to be 0x0 */
+	return irq + I8259_IRQ_BASE;
+}
 /*
  * the first level int-handler will jump here if it is a vrc5477 irq
  */
@@ -154,10 +183,21 @@ vrc5477_irq_dispatch(struct pt_regs *regs)
 	}
 
 	intStatus = ddb_in32(DDB_INT0STAT);
+
+	if (mips_machtype == MACH_NEC_ROCKHOPPERII) {
+		/* check for i8259 interrupts */
+		if (intStatus & (1 << VRC5477_I8259_CASCADE)) {
+			int i8259_irq = i8259_interrupt_ack();
+			do_IRQ(I8259_IRQ_BASE + i8259_irq, regs);
+			return;
+		}
+	}
+
 	for (i=0, bitmask=1; i<= NUM_5477_IRQS; bitmask <<=1, i++) {
 		/* do we need to "and" with the int mask? */
 		if (intStatus & bitmask) {
-			do_IRQ(8 + i, regs);
+			do_IRQ(VRC5477_IRQ_BASE + i, regs);
+			return;
 		}
 	}
 }

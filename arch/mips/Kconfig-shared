@@ -225,20 +225,23 @@ config DDB5476
 	  evaluation board.
 
 	  Features : kernel debugging, serial terminal, NFS root fs, on-board
-	  ether port (Need an additional patch at <http://linux.junsun.net/>),
-	  USB, AC97, PCI, PCI VGA card & framebuffer console, IDE controller,
-	  PS2 keyboard, PS2 mouse, etc.
+	  ether port USB, AC97, PCI, PCI VGA card & framebuffer console, 
+	  IDE controller, PS2 keyboard, PS2 mouse, etc.
 
 config DDB5477
 	bool "Support for NEC DDB Vrc-5477"
 	help
-	  This enables support for the R5432-based NEC DDB Vrc-5477
-	  evaluation board.
+	  This enables support for the R5432-based NEC DDB Vrc-5477,
+	  or Rockhopper/SolutionGear boards with R5432/R5500 CPUs.
 
 	  Features : kernel debugging, serial terminal, NFS root fs, on-board
-	  ether port (Need an additional patch at <http://linux.junsun.net/>),
-	  USB, AC97, PCI, etc.
+	  ether port USB, AC97, PCI, etc.
 
+config DDB5477_BUS_FREQUENCY
+	int "bus frequency (in kHZ, 0 for auto-detect)"
+	depends on DDB5477
+	default 0
+	
 config NEC_OSPREY
 	bool "Support for NEC Osprey board"
 

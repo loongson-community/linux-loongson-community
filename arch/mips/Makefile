@@ -232,7 +232,7 @@ load-$(CONFIG_DDB5476)		+= 0x80080000
 # NEC DDB Vrc-5477
 #
 core-$(CONFIG_DDB5477)		+= arch/mips/ddb5xxx/ddb5477/
-load-$(CONFIG_DDB5477)		+= 0x80080000
+load-$(CONFIG_DDB5477)		+= 0x80100000
 
 core-$(CONFIG_LASAT)		+= arch/mips/lasat/
 load-$(CONFIG_LASAT)		+= 0x80000000
