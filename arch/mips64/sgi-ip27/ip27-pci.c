@@ -1,4 +1,4 @@
-/* $Id: ip27-pci.c,v 1.7 2000/02/03 23:30:59 kanoj Exp $
+/* $Id: ip27-pci.c,v 1.8 2000/02/16 01:07:30 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -183,17 +183,35 @@ pcibios_fixup_bus(struct pci_bus *b)
 	 * stop working if we program the controllers as not having
 	 * PCI_COMMAND_MEMORY, so we have to fudge the mem_flags.
 	 */
+	/*
+	 * XXX need same fixup for qla2100, hardwired to slot 5 for now..
+	 *     also want to enable bus mastering and enable MEM space bit
+	 *     (MOVE THIS TO isp2x00_fixup())
+	 */
 	for (ln=b->devices.next; ln != &b->devices; ln=ln->next) {
 		dev = pci_dev_b(ln);
 		if (PCI_FUNC(dev->devfn) == 0) {
 			if ((PCI_SLOT(dev->devfn) == 0) || 
-						(PCI_SLOT(dev->devfn) == 1)) {
+						(PCI_SLOT(dev->devfn) == 1) ||
+						(PCI_SLOT(dev->devfn) == 5)) {
 				if (pci_read_config_word(dev, PCI_COMMAND, 
 								&command) == 0) {
 					command |= PCI_COMMAND_IO;
 					pci_write_config_word(dev, PCI_COMMAND, 
 									command);
 					dev->resource[1].flags |= 1;
+				}
+			}
+			if (PCI_SLOT(dev->devfn) == 5) {
+				pci_set_master(dev);
+				if (pci_read_config_word(dev, PCI_COMMAND, 
+								&command) == 0) {
+					if (!(command & PCI_COMMAND_MEMORY))
+						printk("qlogicfc: memory mapping was disabled!\n");
+					command |= PCI_COMMAND_MEMORY;
+					pci_write_config_word(dev, PCI_COMMAND, 
+									command);
+					/*dev->resource[1].flags |= 1;*/
 				}
 			}
 		}
@@ -251,8 +269,56 @@ pci_fixup_ioc3(struct pci_dev *d)
 	d->irq = 1;
 }
 
+static void __init
+pci_fixup_isp2x00(struct pci_dev *d)
+{
+	printk("PCI: Fixing base addresses for isp2x00 in %s\n", d->slot_name);
+
+	/* XXX laziness! hardwire for slot 5 for now */
+	d->resource[0].start = 0x8900000;
+	d->resource[0].end = d->resource[0].start + 0xff;
+	d->resource[0].flags = IORESOURCE_IO;
+
+	d->resource[1].start = 0x8900000;
+	d->resource[1].end = d->resource[0].start + 0xfff;
+	d->resource[1].flags = IORESOURCE_MEM;
+
+	/*
+	 * XXX more laziness, set device(5) reg for this device
+	 */
+	{
+		bridge_t *bridge = (bridge_t *) 0x9200000008000000;
+		bridgereg_t devreg;
+		int	i;
+
+		devreg = bridge->b_device[5].reg;
+		devreg &= ~BRIDGE_DEV_OFF_MASK;
+		devreg |= (0x8b00000 >> 20) & BRIDGE_DEV_OFF_MASK;
+		/* turn on byte swapping when register intr handler, not now */
+		devreg |= BRIDGE_DEV_SWAP_DIR;		/* turn on byte swapping */
+		bridge->b_device[5].reg = devreg;
+
+		/* set card's base addr reg */
+		pci_conf0_write_config_dword(d, PCI_BASE_ADDRESS_0, 0x500001);
+		pci_conf0_write_config_dword(d, PCI_BASE_ADDRESS_1, 0x8b00000);
+		pci_conf0_write_config_dword(d, PCI_ROM_ADDRESS, 0x8b20000);
+
+		/* set cache line size */
+		pci_conf0_write_config_byte(d, PCI_CACHE_LINE_SIZE, 0x80);
+
+		/* set latency timer */
+		pci_conf0_write_config_byte(d, PCI_LATENCY_TIMER, 0xf0);
+		
+		bridge->b_wid_tflush;   	/* wait until Bridge PIO complete */
+		for (i=0; i<8; i++)
+			printk("PCI: device(%d)= 0x%x\n",i,bridge->b_device[i].reg);
+	}
+}
+
 struct pci_fixup pcibios_fixups[] = {
 	{ PCI_FIXUP_HEADER, PCI_VENDOR_ID_SGI, PCI_DEVICE_ID_SGI_IOC3,
 	  pci_fixup_ioc3 },
+	{ PCI_FIXUP_HEADER, PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2100,
+	  pci_fixup_isp2x00 },
 	{ 0 }
 };
