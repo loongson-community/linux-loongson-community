@@ -8,8 +8,6 @@
 #
 # Note 2! The CFLAGS definitions are now in the main makefile...
 #
-# $Id$
-#
 
 .S.s:
 	$(CPP) $(CFLAGS) $< -o $*.s
