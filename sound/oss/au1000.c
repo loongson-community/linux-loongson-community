@@ -59,6 +59,7 @@
 #include <linux/slab.h>
 #include <linux/soundcard.h>
 #include <linux/init.h>
+#include <linux/page-flags.h>
 #include <linux/poll.h>
 #include <linux/pci.h>
 #include <linux/bitops.h>
@@ -66,20 +67,17 @@
 #include <linux/spinlock.h>
 #include <linux/smp_lock.h>
 #include <linux/ac97_codec.h>
-#include <linux/wrapper.h>
 #include <linux/interrupt.h>
 #include <asm/io.h>
 #include <asm/uaccess.h>
-#include <asm/au1000.h>
-#include <asm/au1000_dma.h>
+#include <asm/mach-au1x00/au1000.h>
+#include <asm/mach-au1x00/au1000_dma.h>
 
 /* --------------------------------------------------------------------- */
 
 #undef OSS_DOCUMENTED_MIXER_SEMANTICS
 #undef AU1000_DEBUG
 #undef AU1000_VERBOSE_DEBUG
-
-#define USE_COHERENT_DMA
 
 #define AU1000_MODULE_NAME "Au1000 audio"
 #define PFX AU1000_MODULE_NAME
@@ -190,35 +188,6 @@ static inline unsigned ld2(unsigned int x)
 		r++;
 	return r;
 }
-
-
-#ifdef USE_COHERENT_DMA
-static inline void * dma_alloc(size_t size, dma_addr_t * dma_handle)
-{
-	void* ret = (void *)__get_free_pages(GFP_ATOMIC | GFP_DMA,
-					     get_order(size));
-	if (ret != NULL) {
-		memset(ret, 0, size);
-		*dma_handle = virt_to_phys(ret);
-	}
-	return ret;
-}
-
-static inline void dma_free(size_t size, void* va, dma_addr_t dma_handle)
-{
-	free_pages((unsigned long)va, get_order(size));
-}
-#else
-static inline void * dma_alloc(size_t size, dma_addr_t * dma_handle)
-{
-	return pci_alloc_consistent(NULL, size, dma_handle);
-}
-
-static inline void dma_free(size_t size, void* va, dma_addr_t dma_handle)
-{
-	pci_free_consistent(NULL, size, va, dma_handle);
-}
-#endif
 
 /* --------------------------------------------------------------------- */
 
@@ -603,8 +572,11 @@ extern inline void dealloc_dmabuf(struct au1000_state *s, struct dmabuf *db)
 		pend = virt_to_page(db->rawbuf +
 				    (PAGE_SIZE << db->buforder) - 1);
 		for (page = virt_to_page(db->rawbuf); page <= pend; page++)
-			mem_map_unreserve(page);
-		dma_free(PAGE_SIZE << db->buforder, db->rawbuf, db->dmaaddr);
+			ClearPageReserved(page);
+		dma_free_noncoherent(NULL,
+				PAGE_SIZE << db->buforder,
+				db->rawbuf,
+				db->dmaaddr);
 	}
 	db->rawbuf = db->nextIn = db->nextOut = NULL;
 	db->mapped = db->ready = 0;
@@ -622,8 +594,10 @@ static int prog_dmabuf(struct au1000_state *s, struct dmabuf *db)
 		db->ready = db->mapped = 0;
 		for (order = DMABUF_DEFAULTORDER;
 		     order >= DMABUF_MINORDER; order--)
-			if ((db->rawbuf = dma_alloc(PAGE_SIZE << order,
-						  &db->dmaaddr)))
+			if ((db->rawbuf = dma_alloc_noncoherent(NULL,
+						PAGE_SIZE << order,
+						&db->dmaaddr,
+						0)))
 				break;
 		if (!db->rawbuf)
 			return -ENOMEM;
@@ -633,7 +607,7 @@ static int prog_dmabuf(struct au1000_state *s, struct dmabuf *db)
 		pend = virt_to_page(db->rawbuf +
 				    (PAGE_SIZE << db->buforder) - 1);
 		for (page = virt_to_page(db->rawbuf); page <= pend; page++)
-			mem_map_reserve(page);
+			SetPageReserved(page);
 	}
 
 	db->cnt_factor = 1;
@@ -708,7 +682,7 @@ extern inline int prog_dmabuf_dac(struct au1000_state *s)
 
 
 /* hold spinlock for the following */
-static void dac_dma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
+static irqreturn_t dac_dma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	struct au1000_state *s = (struct au1000_state *) dev_id;
 	struct dmabuf  *dac = &s->dma_dac;
@@ -723,7 +697,7 @@ static void dac_dma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 
 	if ((buff_done = get_dma_buffer_done(dac->dmanr)) == 0) {
 		/* fastpath out, to ease interrupt sharing */
-		return;
+		return IRQ_HANDLED;
 	}
 
 	spin_lock(&s->lock);
@@ -786,10 +760,12 @@ static void dac_dma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		wake_up(&dac->wait);
 
 	spin_unlock(&s->lock);
+
+	return IRQ_HANDLED;
 }
 
 
-static void adc_dma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
+static irqreturn_t adc_dma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	struct au1000_state *s = (struct au1000_state *) dev_id;
 	struct dmabuf  *adc = &s->dma_adc;
@@ -804,7 +780,7 @@ static void adc_dma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 
 	if ((buff_done = get_dma_buffer_done(adc->dmanr)) == 0) {
 		/* fastpath out, to ease interrupt sharing */
-		return;
+		return IRQ_HANDLED;
 	}
 
 	spin_lock(&s->lock);
@@ -816,7 +792,7 @@ static void adc_dma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 			stop_adc(s);
 			adc->error++;
 			err("adc overrun");
-			return;
+			return IRQ_NONE;
 		}
 
 		adc->nextIn += adc->dma_fragsize;
@@ -853,7 +829,7 @@ static void adc_dma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 			adc->error++;
 			err("adc overrun");
 			spin_unlock(&s->lock);
-			return;
+			return IRQ_NONE;
 		}
 
 		adc->nextIn += 2*adc->dma_fragsize;
@@ -873,6 +849,8 @@ static void adc_dma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		wake_up(&adc->wait);
 
 	spin_unlock(&s->lock);
+
+	return IRQ_HANDLED;
 }
 
 /* --------------------------------------------------------------------- */
@@ -1338,7 +1316,7 @@ static int au1000_mmap(struct file *file, struct vm_area_struct *vma)
 		ret = -EINVAL;
 		goto out;
 	}
-	if (remap_page_range(vma->vm_start, virt_to_phys(db->rawbuf),
+	if (remap_page_range(vma, vma->vm_start, virt_to_phys(db->rawbuf),
 			     size, vma->vm_page_prot)) {
 		ret = -EAGAIN;
 		goto out;
@@ -2009,7 +1987,9 @@ static int __devinit au1000_probe(void)
 {
 	struct au1000_state *s = &au1000_state;
 	int             val;
+#ifdef AU1000_DEBUG
 	char            proc_str[80];
+#endif
 
 	memset(s, 0, sizeof(struct au1000_state));
 
@@ -2024,7 +2004,8 @@ static int __devinit au1000_probe(void)
 	s->codec.codec_write = wrcodec;
 	s->codec.codec_wait = waitcodec;
 
-	if (!request_region(PHYSADDR(AC97C_CONFIG),
+	/* XXX FIXME, need phys address of AC97C_CONFIG */
+	if (!request_region(AC97C_CONFIG,
 			    0x14, AU1000_MODULE_NAME)) {
 		err("AC'97 ports in use");
 		return -1;
@@ -2049,19 +2030,11 @@ static int __devinit au1000_probe(void)
 	     s->dma_dac.dmanr, get_dma_done_irq(s->dma_dac.dmanr),
 	     s->dma_adc.dmanr, get_dma_done_irq(s->dma_adc.dmanr));
 
-#ifdef USE_COHERENT_DMA
 	// enable DMA coherency in read/write DMA channels
 	set_dma_mode(s->dma_dac.dmanr,
 		     get_dma_mode(s->dma_dac.dmanr) & ~DMA_NC);
 	set_dma_mode(s->dma_adc.dmanr,
 		     get_dma_mode(s->dma_adc.dmanr) & ~DMA_NC);
-#else
-	// disable DMA coherency in read/write DMA channels
-	set_dma_mode(s->dma_dac.dmanr,
-		     get_dma_mode(s->dma_dac.dmanr) | DMA_NC);
-	set_dma_mode(s->dma_adc.dmanr,
-		     get_dma_mode(s->dma_adc.dmanr) | DMA_NC);
-#endif
 
 	/* register devices */
 
@@ -2178,7 +2151,8 @@ static int __devinit au1000_probe(void)
  err_dma2:
 	free_au1000_dma(s->dma_dac.dmanr);
  err_dma1:
-	release_region(PHYSADDR(AC97C_CONFIG), 0x14);
+	/* XXX FIXME, need phys addr of AC97C_CONFIG */
+	release_region(AC97C_CONFIG, 0x14);
 	return -1;
 }
 
@@ -2195,7 +2169,8 @@ static void au1000_remove(void)
 	synchronize_irq();
 	free_au1000_dma(s->dma_adc.dmanr);
 	free_au1000_dma(s->dma_dac.dmanr);
-	release_region(PHYSADDR(AC97C_CONFIG), 0x14);
+	/* XXX FIXME need phys addr for AC97C_CONFIG */
+	release_region(AC97C_CONFIG, 0x14);
 	unregister_sound_dsp(s->dev_audio);
 	unregister_sound_mixer(s->codec.dev_mixer);
 }
@@ -2226,7 +2201,7 @@ static int __init au1000_setup(char *options)
 	if (!options || !*options)
 		return 0;
 
-	while (this_opt = strsep(&options, ",")) {
+	while ((this_opt = strsep(&options, ","))) {
 		if (!*this_opt)
 			continue;
 		if (!strncmp(this_opt, "vra", 3)) {
