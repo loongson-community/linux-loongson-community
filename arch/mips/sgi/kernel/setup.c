@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.10 1998/06/30 00:21:58 ralf Exp $
+/* $Id: setup.c,v 1.11 1998/07/10 01:14:50 ralf Exp $
  *
  * setup.c: SGI specific setup, including init of the feature struct.
  *
@@ -15,7 +15,6 @@
 #include <asm/keyboard.h>
 #include <asm/irq.h>
 #include <asm/reboot.h>
-#include <asm/vector.h>
 #include <asm/sgialib.h>
 #include <asm/sgi.h>
 #include <asm/sgimc.h>
