@@ -16,8 +16,18 @@
 
 #define check_pgt_cache()	do { } while (0)
 
-#define pmd_populate_kernel(mm, pmd, pte)	set_pmd(pmd, __pmd(pte))
-#define pmd_populate(mm, pmd, page)		set_pmd(pmd, __pmd(((page - mem_map) << PAGE_SHIFT) + PAGE_OFFSET))
+static inline void pmd_populate_kernel(struct mm_struct *mm, pmd_t *pmd,
+	pte_t *pte)
+{
+	set_pmd(pmd, __pmd(__pa(pte)));
+}
+
+static inline void pmd_populate(struct mm_struct *mm, pmd_t *pmd,
+	struct page *pte)
+{
+	set_pmd(pmd, __pmd((PAGE_OFFSET + page_to_pfn(pte)) << PAGE_SHIFT));
+}
+
 #define pgd_populate(mm, pgd, pmd)		set_pgd(pgd, __pgd(pmd))
 
 static inline pgd_t *pgd_alloc(struct mm_struct *mm)
@@ -43,19 +53,12 @@ static inline void pgd_free(pgd_t *pgd)
 static inline pte_t *pte_alloc_one_kernel(struct mm_struct *mm,
 	unsigned long address)
 {
-	int count = 0;
 	pte_t *pte;
 
-	do {
-		pte = (pte_t *) __get_free_pages(GFP_KERNEL|__GFP_REPEAT,
-		                                 PTE_ORDER);
-		if (pte)
-			clear_page(pte);
-		else {
-			current->state = TASK_UNINTERRUPTIBLE;
-			schedule_timeout(HZ);
-			}
-	} while (!pte && (count++ < 10));
+	pte = (pte_t *) __get_free_pages(GFP_KERNEL|__GFP_REPEAT,
+	                                 PTE_ORDER);
+	if (pte)
+		clear_page(pte);
 
 	return pte;
 }
@@ -66,15 +69,9 @@ static inline struct page *pte_alloc_one(struct mm_struct *mm,
 	int count = 0;
 	struct page *pte;
 
-	do {
-		pte = alloc_pages(GFP_KERNEL, PTE_ORDER);
-		if (pte)
-			clear_highpage(pte);
-		else {
-			current->state = TASK_UNINTERRUPTIBLE;
-			schedule_timeout(HZ);
-		}
-	} while (!pte && (count++ < 10));
+	pte = alloc_pages(GFP_KERNEL | __GFP_REPEAT, PTE_ORDER);
+	if (pte)
+		clear_highpage(pte);
 
 	return pte;
 }
