@@ -4,7 +4,7 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  *  Copyright (C) 1994, 1995, 1996  Ralf Baechle
  *
- * $Id: signal.c,v 1.12 1998/04/05 11:23:53 ralf Exp $
+ * $Id: signal.c,v 1.13 1998/07/03 23:05:37 ralf Exp $
  *
  * XXX Handle lazy fp context switches correctly.
  */
@@ -23,6 +23,7 @@
 #include <asm/asm.h>
 #include <asm/bitops.h>
 #include <asm/pgtable.h>
+#include <asm/stackframe.h>
 #include <asm/uaccess.h>
 
 #define DEBUG_SIG 0
