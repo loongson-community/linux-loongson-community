@@ -247,6 +247,7 @@ void __init prom_init(void)
 	unsigned int cfe_eptseal;
 	int argc = fw_arg0;
 	char **envp = (char **) fw_arg2;
+	int *prom_vec = (int *) fw_arg3;
 #ifdef CONFIG_KGDB
 	char *arg;
 #endif
