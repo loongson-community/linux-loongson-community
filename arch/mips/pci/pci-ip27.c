@@ -257,11 +257,13 @@ static int pci_conf1_write_config(struct pci_bus *bus, unsigned int devfn,
 	bridge_t *bridge = bc->base;
 	int slot = PCI_SLOT(devfn);
 	int fn = PCI_FUNC(devfn);
+	int busno = bus->number;
 	volatile void *addr;
 	u32 cf, shift, mask, smask;
 	int res;
 
-	addr = &bridge->b_type0_cfg_dev[slot].f[fn].c[PCI_VENDOR_ID];
+	bridge->b_pci_cfg = (busno << 16) | (slot << 11);
+	addr = &bridge->b_type1_cfg.c[(fn << 8) | PCI_VENDOR_ID];
 	if (get_dbe(cf, (u32 *) addr))
 		return PCIBIOS_DEVICE_NOT_FOUND;
 
@@ -272,7 +274,7 @@ static int pci_conf1_write_config(struct pci_bus *bus, unsigned int devfn,
 	if (cf == (PCI_VENDOR_ID_SGI | (PCI_DEVICE_ID_SGI_IOC3 << 16)))
 		goto oh_my_gawd;
 
-	addr = &bridge->b_type0_cfg_dev[slot].f[fn].c[where ^ (4 - size)];
+	addr = &bridge->b_type1_cfg.c[(fn << 8) | (where ^ (4 - size))];
 
 	if (size == 1) {
 		res = put_dbe(value, (u8 *) addr);
