@@ -286,10 +286,10 @@ else
 endif
 
 ifeq ($(CONFIG_SCSI_SUNESP),y)
-L_OBJS += esp.o sparc_esp.o
+L_OBJS += esp.o
 else
   ifeq ($(CONFIG_SCSI_SUNESP),m)
-  M_OBJS += esp.o sparc_esp.o
+  M_OBJS += esp.o
   endif
 endif
 
@@ -471,7 +471,7 @@ else
 endif
 
 ifeq ($(CONFIG_JAZZ_ESP),y)
-L_OBJS += esp.o jazz_esp.o
+L_OBJS += NCR53C9x.o jazz_esp.o
 endif
 
 include $(TOPDIR)/Rules.make

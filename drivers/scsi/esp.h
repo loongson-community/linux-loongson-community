@@ -4,115 +4,11 @@
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
  */
 
-#ifndef _ESP_H
-#define _ESP_H
+#ifndef _SPARC_ESP_H
+#define _SPARC_ESP_H
 
-/* Macros for debugging messages */
-
-/* #define DEBUG_ESP */
-/* #define DEBUG_ESP_HME */
-/* #define DEBUG_ESP_DATA */
-/* #define DEBUG_ESP_QUEUE */
-/* #define DEBUG_ESP_DISCONNECT */
-/* #define DEBUG_ESP_STATUS */
-/* #define DEBUG_ESP_PHASES */
-/* #define DEBUG_ESP_WORKBUS */
-/* #define DEBUG_STATE_MACHINE */
-/* #define DEBUG_ESP_CMDS */
-/* #define DEBUG_ESP_IRQS */
-/* #define DEBUG_SDTR */
-/* #define DEBUG_ESP_SG */
-
-/* Use the following to sprinkle debugging messages in a way which
- * suits you if combinations of the above become too verbose when
- * trying to track down a specific problem.
- */
-/* #define DEBUG_ESP_MISC */
-
-#if defined(DEBUG_ESP)
-#define ESPLOG(foo)  printk foo
-#else
-#define ESPLOG(foo)
-#endif /* (DEBUG_ESP) */
-
-#if defined(DEBUG_ESP_HME)
-#define ESPHME(foo)  printk foo
-#else
-#define ESPHME(foo)
-#endif
-
-#if defined(DEBUG_ESP_DATA)
-#define ESPDATA(foo)  printk foo
-#else
-#define ESPDATA(foo)
-#endif
-
-#if defined(DEBUG_ESP_QUEUE)
-#define ESPQUEUE(foo)  printk foo
-#else
-#define ESPQUEUE(foo)
-#endif
-
-#if defined(DEBUG_ESP_DISCONNECT)
-#define ESPDISC(foo)  printk foo
-#else
-#define ESPDISC(foo)
-#endif
-
-#if defined(DEBUG_ESP_STATUS)
-#define ESPSTAT(foo)  printk foo
-#else
-#define ESPSTAT(foo)
-#endif
-
-#if defined(DEBUG_ESP_PHASES)
-#define ESPPHASE(foo)  printk foo
-#else
-#define ESPPHASE(foo)
-#endif
-
-#if defined(DEBUG_ESP_WORKBUS)
-#define ESPBUS(foo)  printk foo
-#else
-#define ESPBUS(foo)
-#endif
-
-#if defined(DEBUG_ESP_IRQS)
-#define ESPIRQ(foo)  printk foo
-#else
-#define ESPIRQ(foo)
-#endif
-
-#if defined(DEBUG_SDTR)
-#define ESPSDTR(foo)  printk foo
-#else
-#define ESPSDTR(foo)
-#endif
-
-#if defined(DEBUG_ESP_MISC)
-#define ESPMISC(foo)  printk foo
-#else
-#define ESPMISC(foo)
-#endif
-
-#define INTERNAL_ESP_ERROR \
-        (panic ("Internal ESP driver error in file %s, line %d\n", \
-		__FILE__, __LINE__))
-
-#define INTERNAL_ESP_ERROR_NOPANIC \
-        (printk ("Internal ESP driver error in file %s, line %d\n", \
-		 __FILE__, __LINE__))
-
-
-/*
- * padding for register structure
- */
-#ifdef CONFIG_JAZZ_ESP
-#define EREGS_PAD(n)
-#else
-#define EREGS_PAD(n)    unchar n[3];
-#endif
-
+/* For dvma controller register definitions. */
+#include <asm/dma.h>
 
 /* The ESP SCSI controllers have their register sets in three
  * "classes":
@@ -128,48 +24,47 @@
  * apart with a big-endian ordering to the bytes.
  */
 
-struct ESP_regs {
+struct Sparc_ESP_regs {
                                 /* Access    Description              Offset */
     volatile unchar esp_tclow;  /* rw  Low bits of the transfer count 0x00   */
-                                EREGS_PAD(tlpad);
+                                unchar tlpad1[3];
     volatile unchar esp_tcmed;  /* rw  Mid bits of the transfer count 0x04   */
-                                EREGS_PAD(fdpad);
+                                unchar fdpad[3];
     volatile unchar esp_fdata;  /* rw  FIFO data bits                 0x08   */
-                                EREGS_PAD(cbpad);
+                                unchar cbpad[3];
     volatile unchar esp_cmd;    /* rw  SCSI command bits              0x0c   */
-                                EREGS_PAD(stpad);
+                                unchar stpad[3];
     volatile unchar esp_status; /* ro  ESP status register            0x10   */
 #define esp_busid   esp_status  /* wo  Bus ID for select/reselect     0x10   */
-                                EREGS_PAD(irqpd);
+                                unchar irqpd[3];
     volatile unchar esp_intrpt; /* ro  Kind of interrupt              0x14   */
 #define esp_timeo   esp_intrpt  /* wo  Timeout value for select/resel 0x14   */
-                                EREGS_PAD(sspad);
+                                unchar sspad[3];
     volatile unchar esp_sstep;  /* ro  Sequence step register         0x18   */
 #define esp_stp     esp_sstep   /* wo  Transfer period per sync       0x18   */
-                                EREGS_PAD(ffpad);
+                                unchar ffpad[3];
     volatile unchar esp_fflags; /* ro  Bits of current FIFO info      0x1c   */
 #define esp_soff    esp_fflags  /* wo  Sync offset                    0x1c   */
-                                EREGS_PAD(cf1pd);
+                                unchar cf1pd[3];
     volatile unchar esp_cfg1;   /* rw  First configuration register   0x20   */
-                                EREGS_PAD(cfpad);
+                                unchar cfpad[3];
     volatile unchar esp_cfact;  /* wo  Clock conversion factor        0x24   */
 #define esp_status2 esp_cfact   /* ro  HME status2 register           0x24   */
-                                EREGS_PAD(ctpad);
+                                unchar ctpad[3];
     volatile unchar esp_ctest;  /* wo  Chip test register             0x28   */
-                                EREGS_PAD(cf2pd);
+                                unchar cf2pd[3];
     volatile unchar esp_cfg2;   /* rw  Second configuration register  0x2c   */
-                                EREGS_PAD(cf3pd);
+                                unchar cf3pd[3];
 
     /* The following is only found on the 53C9X series SCSI chips */
     volatile unchar esp_cfg3;   /* rw  Third configuration register   0x30  */
-                                EREGS_PAD(holep);
-    volatile unchar esp_hole;   /* hole in register map               0x34  */    
-                                EREGS_PAD(thpd);
+                                unchar thpd[7];
+
     /* The following is found on all chips except the NCR53C90 (ESP100) */
     volatile unchar esp_tchi;   /* rw  High bits of transfer count    0x38  */
 #define esp_uid     esp_tchi    /* ro  Unique ID code                 0x38  */
 #define fas_rlo     esp_tchi    /* rw  HME extended counter           0x38  */
-                                EREGS_PAD(fgpad);
+                                unchar fgpad[3];
     volatile unchar esp_fgrnd;  /* rw  Data base for fifo             0x3c  */
 #define fas_rhi     esp_fgrnd   /* rw  HME extended counter           0x3c  */
 };
@@ -183,19 +78,18 @@ enum esp_rev {
   fas100a    = 0x04,
   fast       = 0x05,
   fashme     = 0x06,
-  fas216     = 0x07,
-  espunknown = 0x08
+  espunknown = 0x07
 };
 
 /* We get one of these for each ESP probed. */
 struct Sparc_ESP {
   struct Sparc_ESP *next;                 /* Next ESP on probed or NULL */
-  struct ESP_regs *eregs;	          /* All esp registers */
+  struct Sparc_ESP_regs *eregs;           /* All esp registers */
   struct Linux_SBus_DMA *dma;             /* Who I do transfers with. */
-  void *dregs;		  		  /* And his registers. */
+  struct sparc_dma_registers *dregs;      /* And his registers. */
   struct Scsi_Host *ehost;                /* Backpointer to SCSI Host */
 
-  void *edev;        		          /* Pointer to controller base/SBus */
+  struct linux_sbus_device *edev;         /* Pointer to SBus entry */
   char prom_name[64];                     /* Name of ESP device from prom */
   int prom_node;                          /* Prom node where ESP found */
   int esp_id;                             /* Unique per-ESP ID number */
@@ -243,7 +137,6 @@ struct Sparc_ESP {
   unsigned int sync_defp;                /* Default sync transfer period */
   unsigned int max_period;               /* longest our period can be */
   unsigned int min_period;               /* shortest period we can withstand */
-  unsigned char ccf;			 /* Clock conversion factor */
   /* For slow to medium speed input clock rates we shoot for 5mb/s,
    * but for high input clock rates we try to do 10mb/s although I
    * don't think a transfer can even run that fast with an ESP even
@@ -285,40 +178,6 @@ struct Sparc_ESP {
    * cannot be assosciated with any specific command.
    */
   unchar resetting_bus;
-
-  unchar do_pio_cmds;		/* Do command transfer with pio */
-
-  /* Functions handling DMA
-   */ 
-  /* Required functions */
-  int  (*dma_bytes_sent)(struct Sparc_ESP *, int);
-  int  (*dma_can_transfer)(struct Sparc_ESP *, Scsi_Cmnd *);
-  void (*dma_dump_state)(struct Sparc_ESP *);
-  void (*dma_init_read)(struct Sparc_ESP *, __u32, int);
-  void (*dma_init_write)(struct Sparc_ESP *, __u32, int);
-  void (*dma_ints_off)(struct Sparc_ESP *);
-  void (*dma_ints_on)(struct Sparc_ESP *);
-  int  (*dma_irq_p)(struct Sparc_ESP *);
-  int  (*dma_ports_p)(struct Sparc_ESP *);
-  void (*dma_setup)(struct Sparc_ESP *, __u32, int, int);
-
-  /* Optional functions (i.e. may be initialized to 0) */
-  void (*dma_barrier)(struct Sparc_ESP *);
-  void (*dma_drain)(struct Sparc_ESP *);
-  void (*dma_invalidate)(struct Sparc_ESP *);
-  void (*dma_irq_entry)(struct Sparc_ESP *);
-  void (*dma_irq_exit)(struct Sparc_ESP *);
-  void (*dma_led_off)(struct Sparc_ESP *);
-  void (*dma_led_on)(struct Sparc_ESP *);
-  void (*dma_poll)(struct Sparc_ESP *, unsigned char *);
-  void (*dma_reset)(struct Sparc_ESP *);
-    
-  /* Optional virtual DMA functions */
-  void (*dma_mmu_get_scsi_one)(struct Sparc_ESP *, Scsi_Cmnd *);
-  void (*dma_mmu_get_scsi_sgl)(struct Sparc_ESP *, Scsi_Cmnd *);
-  void (*dma_mmu_release_scsi_one)(struct Sparc_ESP *, Scsi_Cmnd *);
-  void (*dma_mmu_release_scsi_sgl)(struct Sparc_ESP *, Scsi_Cmnd *);
-  void (*dma_advance_sg)(Scsi_Cmnd *);		    
 };
 
 /* Bitfield meanings for the above registers. */
@@ -525,19 +384,35 @@ struct Sparc_ESP {
 #define ESP_MHZ_TO_CYCLE(mhertz)  ((1000000000) / ((mhertz) / 1000))
 #define ESP_TICK(ccf, cycle)  ((7682 * (ccf) * (cycle) / 1000))
 
+extern int esp_detect(struct SHT *);
+extern const char *esp_info(struct Scsi_Host *);
+extern int esp_queue(Scsi_Cmnd *, void (*done)(Scsi_Cmnd *));
+extern int esp_command(Scsi_Cmnd *);
+extern int esp_abort(Scsi_Cmnd *);
+extern int esp_reset(Scsi_Cmnd *, unsigned int);
+extern int esp_proc_info(char *buffer, char **start, off_t offset, int length,
+			 int hostno, int inout);
 
 extern struct proc_dir_entry proc_scsi_esp;
 
-/* UGLY, UGLY, UGLY! */
-extern int nesps, esps_in_use, esps_running;
+#define SCSI_SPARC_ESP {                                        \
+		proc_dir:       &proc_scsi_esp,			\
+		proc_info:      &esp_proc_info,			\
+		name:           "Sun ESP 100/100a/200",		\
+		detect:         esp_detect,			\
+		info:           esp_info,			\
+		command:        esp_command,			\
+		queuecommand:   esp_queue,			\
+		abort:          esp_abort,			\
+		reset:          esp_reset,			\
+		can_queue:      7,				\
+		this_id:        7,				\
+		sg_tablesize:   SG_ALL,				\
+		cmd_per_lun:    1,				\
+		use_clustering: DISABLE_CLUSTERING, }
 
 /* For our interrupt engine. */
 #define for_each_esp(esp) \
         for((esp) = espchain; (esp); (esp) = (esp)->next)
-extern void do_esp_intr(int irq, void *dev_id, struct pt_regs *pregs);
 
-/* External functions */
-extern struct Sparc_ESP *esp_allocate(Scsi_Host_Template *, void *);
-extern void esp_initialize(struct Sparc_ESP *);
-extern void esp_intr(int, void *, struct pt_regs *);
-#endif /* !(_ESP_H) */
+#endif /* !(_SPARC_ESP_H) */
