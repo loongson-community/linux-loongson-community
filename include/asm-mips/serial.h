@@ -139,25 +139,6 @@
 #define IVR_SERIAL_PORT_DEFNS
 #endif
 
-#ifdef CONFIG_SERIAL_AU1X00
-#include <asm/au1000.h>
-#define AU1X00_SERIAL_PORT_DEFNS                                    \
-    { .baud_base = 0, .iomem_base = (u8 *)UART0_ADDR,               \
-	    .irq = AU1000_UART0_INT,  .flags = STD_COM_FLAGS,       \
-		    .iomem_reg_shift = 2, },                        \
-    { .baud_base = 0, .iomem_base = (u8 *)UART1_ADDR,               \
-	    .irq = AU1000_UART1_INT,  .flags = STD_COM_FLAGS,       \
-		    .iomem_reg_shift = 2 },                         \
-    { .baud_base = 0, .iomem_base = (u8 *)UART2_ADDR,               \
-	    .irq = AU1000_UART2_INT,  .flags = STD_COM_FLAGS,       \
-		    .iomem_reg_shift = 2},                          \
-    { .baud_base = 0, .iomem_base = (u8 *)UART3_ADDR,               \
-	    .irq = AU1000_UART3_INT,  .flags = STD_COM_FLAGS,       \
-		    .iomem_reg_shift = 2},
-#else
-#define AU1X00_SERIAL_PORT_DEFNS
-#endif
-
 #ifdef CONFIG_TOSHIBA_JMR3927
 #include <asm/jmr3927/jmr3927.h>
 #define TXX927_SERIAL_PORT_DEFNS                              \
@@ -371,7 +352,6 @@
 	MOMENCO_OCELOT_SERIAL_PORT_DEFNS		\
 	MOMENCO_OCELOT_G_SERIAL_PORT_DEFNS		\
 	MOMENCO_OCELOT_C_SERIAL_PORT_DEFNS		\
-	AU1X00_SERIAL_PORT_DEFNS			\
 	TXX927_SERIAL_PORT_DEFNS        		\
 	DDB5477_SERIAL_PORT_DEFNS
 

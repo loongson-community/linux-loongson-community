@@ -12,7 +12,7 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  *
- *  $Id: au1x00_uart.c,v 1.2 2003/08/12 08:57:02 ppopov Exp $
+ *  $Id: au1x00_uart.c,v 1.3 2003/08/28 06:42:34 ppopov Exp $
  *
  * A note about mapbase / membase
  *
@@ -36,6 +36,7 @@
 
 #include <asm/io.h>
 #include <asm/irq.h>
+#include <asm/au1000.h>
 
 #if defined(CONFIG_SERIAL_8250_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ)
 #define SUPPORT_SYSRQ
@@ -68,27 +69,31 @@
  */
 #define is_real_interrupt(irq)	((irq) != 0)
 
-/*
- * This converts from our new CONFIG_ symbols to the symbols
- * that asm/serial.h expects.  You _NEED_ to comment out the
- * linux/config.h include contained inside asm/serial.h for
- * this to work.
- */
-#undef CONFIG_SERIAL_MANY_PORTS
-#undef CONFIG_SERIAL_DETECT_IRQ
-#undef CONFIG_SERIAL_MULTIPORT
-#undef CONFIG_HUB6
-
-/*
- * HUB6 is always on.  This will be removed once the header
- * files have been cleaned.
- */
-#define CONFIG_HUB6 1
-
-#include <asm/serial.h>
-
 static struct old_serial_port old_serial_port[] = {
-	SERIAL_PORT_DFNS /* defined in asm/serial.h */
+	{	.baud_base = 0,
+		.iomem_base = (u8 *)UART0_ADDR,
+		.irq = AU1000_UART0_INT,
+		.flags = STD_COM_FLAGS,
+		.iomem_reg_shift = 2,
+	}, {
+		.baud_base = 0,
+		.iomem_base = (u8 *)UART1_ADDR,
+		.irq = AU1000_UART1_INT,
+		.flags = STD_COM_FLAGS,
+		.iomem_reg_shift = 2
+	}, {
+		.baud_base = 0,
+		.iomem_base = (u8 *)UART2_ADDR,
+		.irq = AU1000_UART2_INT,
+		.flags = STD_COM_FLAGS,
+		.iomem_reg_shift = 2
+	}, {
+		.baud_base = 0,
+		.iomem_base = (u8 *)UART3_ADDR,
+		.irq = AU1000_UART3_INT,
+		.flags = STD_COM_FLAGS,
+		.iomem_reg_shift = 2
+	}
 };
 
 #define UART_NR	ARRAY_SIZE(old_serial_port)
