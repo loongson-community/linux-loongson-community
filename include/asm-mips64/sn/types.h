@@ -12,6 +12,8 @@
 
 #include <linux/types.h>
 
+typedef unsigned long 	cpuid_t;
+typedef unsigned long 	cpumask_t;
 typedef signed short	nasid_t;	/* node id in numa-as-id space */
 typedef signed short	cnodeid_t;	/* node id in compact-id space */
 typedef signed char	partid_t;	/* partition ID type */

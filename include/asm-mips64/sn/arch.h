@@ -45,6 +45,9 @@ typedef u64	nic_t;
 #define	INVALID_PARTID		(partid_t)-1
 
 extern nasid_t get_nasid(void);
+extern cnodeid_t get_cpu_cnode(int);
+extern int get_cpu_slice(cpuid_t);
+
 /*
  * NO ONE should access these arrays directly.  The only reason we refer to
  * them here is to avoid the procedure call that would be required in the
@@ -63,6 +66,12 @@ extern nasid_t compact_to_nasid_node[MAX_COMPACT_NODES];
 #define	NASID_TO_REGION(nnode)	      	\
     ((nnode) >> \
      (is_fine_dirmode() ? NASID_TO_FINEREG_SHFT : NASID_TO_COARSEREG_SHFT))
+
+#if !defined(_STANDALONE)
+extern cnodeid_t nasid_to_compact_node[MAX_NASIDS];
+extern nasid_t compact_to_nasid_node[MAX_COMPACT_NODES];
+extern cnodeid_t cpuid_to_compact_node[MAXCPUS];
+#endif
 
 #if !defined(DEBUG) && (!defined(SABLE) || defined(_STANDALONE))
 

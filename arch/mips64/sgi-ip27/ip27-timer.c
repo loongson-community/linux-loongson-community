@@ -258,7 +258,7 @@ void __init time_init(void)
 	xtime.tv_usec = 0;
 
 	/* Don't use ARCS.  ARCS is fragile.  Klconfig is simple and sane.  */
-	board = find_lboard(KLTYPE_IP27);
+	board = find_lboard(KL_CONFIG_INFO(get_nasid()), KLTYPE_IP27);
 	if (!board)
 		panic("Can't find board info for myself.");
 

@@ -124,7 +124,7 @@ static pfn_t slot_psize_compute(cnodeid_t node, int slot)
 
 	nasid = COMPACT_TO_NASID_NODEID(node);
 	/* Find the node board */
-	brd = find_lboard_real((lboard_t *)KL_CONFIG_INFO(nasid), KLTYPE_IP27);
+	brd = find_lboard((lboard_t *)KL_CONFIG_INFO(nasid), KLTYPE_IP27);
 	if (!brd)
 		return 0;
 

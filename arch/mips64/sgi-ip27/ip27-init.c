@@ -15,9 +15,6 @@
 #include <asm/processor.h>
 #include <asm/sn/launch.h>
 
-typedef unsigned long cpumask_t;	/* into asm/sn/types.h */
-typedef unsigned long cpuid_t;
-
 #define	CPUMASK_CLRALL(p)	(p) = 0
 #define CPUMASK_SETB(p, bit)	(p) |= 1 << (bit)
 #define CPUMASK_CLRB(p, bit)	(p) &= ~(1ULL << (bit))
@@ -57,51 +54,6 @@ int is_fine_dirmode(void)
 		>> NSRI_REGIONSIZE_SHFT) & REGIONSIZE_FINE);
 }
 
-lboard_t * find_lboard_real(lboard_t *start, unsigned char brd_type)
-{
-	/* Search all boards stored on this node. */
-	while (start) {
-		if (start->brd_type == brd_type)
-			return start;
-		start = KLCF_NEXT(start);
-	}
-	/* Didn't find it. */
-	return (lboard_t *)NULL;
-}
-
-klinfo_t *find_component(lboard_t *brd, klinfo_t *kli, unsigned char struct_type)
-{
-	int index, j;
-
-	if (kli == (klinfo_t *)NULL) {
-		index = 0;
-	} else {
-		for (j = 0; j < KLCF_NUM_COMPS(brd); j++)
-			if (kli == KLCF_COMP(brd, j))
-				break;
-		index = j;
-		if (index == KLCF_NUM_COMPS(brd)) {
-			printk("find_component: Bad pointer: 0x%p\n", kli);
-			return (klinfo_t *)NULL;
-		}
-		index++;		/* next component */
-	}
-
-	for (; index < KLCF_NUM_COMPS(brd); index++) {
-		kli = KLCF_COMP(brd, index);
-		if (KLCF_COMP_TYPE(kli) == struct_type)
-			return kli;
-	}
-
-	/* Didn't find it. */
-	return (klinfo_t *)NULL;
-}
-
-klinfo_t *find_first_component(lboard_t *brd, unsigned char struct_type)
-{
-	return find_component(brd, (klinfo_t *)NULL, struct_type);
-}
-
 nasid_t get_actual_nasid(lboard_t *brd)
 {
 	klhub_t *hub;
@@ -127,7 +79,7 @@ int do_cpumask(cnodeid_t cnode, nasid_t nasid, cpumask_t *boot_cpumask,
 	int cpus_found = 0;
 	cpuid_t cpuid;
 
-	brd = find_lboard_real((lboard_t *)KL_CONFIG_INFO(nasid), KLTYPE_IP27);
+	brd = find_lboard((lboard_t *)KL_CONFIG_INFO(nasid), KLTYPE_IP27);
 
 	do {
 		acpu = (klcpu_t *)find_first_component(brd, KLSTRUCT_CPU);
@@ -148,7 +100,7 @@ int do_cpumask(cnodeid_t cnode, nasid_t nasid, cpumask_t *boot_cpumask,
 		}
 		brd = KLCF_NEXT(brd);
 		if (brd)
-			brd = find_lboard_real(brd,KLTYPE_IP27);
+			brd = find_lboard(brd,KLTYPE_IP27);
 		else
 			break;
 	} while (brd);
@@ -321,12 +273,11 @@ void allowboot(void)
 		if (CPUMASK_TSTB(boot_cpumask, cpu)) {
 			num_cpus++;
 
-		/*
-		 * Launch a slave into bootstrap().
-		 * It doesn't take an argument, and we'll
-		 * take care of sp and gp when we get there.
-		 */
-/* cputonasid/cputoslice not working yet */
+			/*
+		 	 * Launch a slave into bootstrap().
+		 	 * It doesn't take an argument, and we'll
+		 	 * take care of sp and gp when we get there.
+		 	 */
 			LAUNCH_SLAVE(cputonasid(cpu), cputoslice(cpu), 0, 0, 0, 0);
 		}
 	}
