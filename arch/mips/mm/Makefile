@@ -48,16 +48,16 @@ obj-$(CONFIG_CPU_SB1)		+= tlbex32-r4k.o
 obj-$(CONFIG_CPU_TX39XX)	+= tlbex32-r3k.o
 endif
 ifdef CONFIG_MIPS64
-obj-$(CONFIG_CPU_R4300)		+= tlb64-glue-r4k.o
-obj-$(CONFIG_CPU_R4X00)		+= tlb64-glue-r4k.o
-obj-$(CONFIG_CPU_R5000)		+= tlb64-glue-r4k.o
-obj-$(CONFIG_CPU_NEVADA)	+= tlb64-glue-r4k.o
-obj-$(CONFIG_CPU_R5432)		+= tlb64-glue-r4k.o
-obj-$(CONFIG_CPU_RM7000)	+= tlb64-glue-r4k.o
-obj-$(CONFIG_CPU_RM9000)	+= tlb64-glue-r4k.o
-obj-$(CONFIG_CPU_R10000)	+= tlb64-glue-r4k.o
-obj-$(CONFIG_CPU_SB1)		+= tlb64-glue-sb1.o
-obj-$(CONFIG_CPU_MIPS64)	+= tlb64-glue-r4k.o
+obj-$(CONFIG_CPU_R4300)		+= tlbex64.o
+obj-$(CONFIG_CPU_R4X00)		+= tlbex64.o
+obj-$(CONFIG_CPU_R5000)		+= tlbex64.o
+obj-$(CONFIG_CPU_NEVADA)	+= tlbex64.o
+obj-$(CONFIG_CPU_R5432)		+= tlbex64.o
+obj-$(CONFIG_CPU_RM7000)	+= tlbex64.o
+obj-$(CONFIG_CPU_RM9000)	+= tlbex64.o
+obj-$(CONFIG_CPU_R10000)	+= tlbex64.o
+obj-$(CONFIG_CPU_SB1)		+= tlb6464.o
+obj-$(CONFIG_CPU_MIPS64)	+= tlbex64.o
 endif
 
 
