@@ -46,6 +46,7 @@ extern struct call_data_struct *call_data;
 #define SMP_RESCHEDULE_YOURSELF	0x1	/* XXX braindead */
 #define SMP_CALL_FUNCTION	0x2
 
+extern cpumask_t phys_cpu_present_map;
 extern cpumask_t cpu_online_map;
 
 #define cpu_possible(cpu)	cpu_isset(cpu, phys_cpu_present_map)
