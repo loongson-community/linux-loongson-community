@@ -6,8 +6,8 @@
  * Copyright (C) 2000 Ralf Baechle
  * Copyright (C) 2000 Silicon Graphics, Inc.
  */
-#ifndef _ASM_SGI_IO_H
-#define _ASM_SGI_IO_H
+#ifndef _ASM_SIBYTE_IO_H
+#define _ASM_SIBYTE_IO_H
 
 #include <asm/addrspace.h>
 
@@ -18,4 +18,4 @@
 
 /* XXX ISA specific functions go here here.  */
 
-#endif /* _ASM_SGI_IO_H */
+#endif /* _ASM_SIBYTE_IO_H */

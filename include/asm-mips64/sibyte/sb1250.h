@@ -34,6 +34,4 @@ extern void sb1250_unmask_irq(int cpu, int irq);
 extern void sb1250_smp_finish(void);
 #endif
 
-#define IO_SPACE_BASE KSEG1
-
 #endif
