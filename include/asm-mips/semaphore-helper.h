@@ -1,5 +1,4 @@
-/* $Id: semaphore-helper.h,v 1.6 1999/10/20 21:10:58 ralf Exp $
- *
+/*
  * SMP- and interrupt-safe semaphores helper functions.
  *
  * (C) Copyright 1996 Linus Torvalds
@@ -75,6 +74,7 @@ static inline int waking_non_zero_trylock(struct semaphore *sem)
 		ret = 0;
 	}
 	restore_flags(flags);
+
 	return ret;
 }
 
@@ -92,7 +92,7 @@ waking_non_zero(struct semaphore *sem)
 	"sc\t%0, %2\n\t"
 	"beqz\t%0, 1b\n\t"
 	"2:"
-	: "=r"(ret), "=r"(tmp), "=m"(&sem->waking)
+	: "=r" (ret), "=r" (tmp), "=m" (sem->waking)
 	: "0"(0));
 
 	return ret;
