@@ -126,13 +126,13 @@ asmlinkage void titan_mailbox_irq(struct pt_regs *regs)
  */
 void core_send_ipi(int cpu, unsigned int action)
 {
-	/* 
-	 * Generate an INTMSG so that it can be sent over to the 
-	 * destination CPU. The INTMSG will put the STATUS bits 
+	/*
+	 * Generate an INTMSG so that it can be sent over to the
+	 * destination CPU. The INTMSG will put the STATUS bits
 	 * based on the action desired. An alternative strategy
 	 * is to write to the Interrupt Set register, read the
 	 * Interrupt Status register and clear the Interrupt
-	 * Clear register. The latter is preffered. 
+	 * Clear register. The latter is preffered.
 	 */
 	switch (action) {
 	case SMP_RESCHEDULE_YOURSELF:

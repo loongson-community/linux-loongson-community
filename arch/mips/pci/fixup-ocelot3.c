@@ -6,17 +6,17 @@
  * Copyright (C) 2004 Montavista Software Inc.
  * Author: Manish Lachwani (mlachwani@mvista.com)
  *
- * Looking at the schematics for the Ocelot-3 board, there are 
- * two PCI busses and each bus has two PCI slots. 
+ * Looking at the schematics for the Ocelot-3 board, there are
+ * two PCI busses and each bus has two PCI slots.
  */
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/pci.h>
 #include <asm/mipsregs.h>
 
-/* 
- * Do platform specific device initialization at 
- * pci_enable_device() time 
+/*
+ * Do platform specific device initialization at
+ * pci_enable_device() time
  */
 int pcibios_plat_dev_init(struct pci_dev *dev)
 {

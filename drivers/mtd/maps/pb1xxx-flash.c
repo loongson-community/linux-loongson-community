@@ -3,7 +3,7 @@
  * 
  * (C) 2001 Pete Popov <ppopov@mvista.com>
  * 
- * $Id: pb1xxx-flash.c,v 1.9 2003/06/23 11:48:18 dwmw2 Exp $
+ * $Id: pb1xxx-flash.c,v 1.11 2004/07/12 21:59:44 dwmw2 Exp $
  */
 
 #include <linux/config.h>
@@ -17,6 +17,7 @@
 #include <linux/mtd/partitions.h>
 
 #include <asm/io.h>
+#include <asm/au1000.h>
 
 #ifdef 	DEBUG_RW
 #define	DBG(x...)	printk(x)
@@ -124,7 +125,7 @@ static struct mtd_partition pb1xxx_partitions[] = {
 static struct map_info pb1xxx_mtd_map = {
 	.name		= NAME,
 	.size		= SIZE,
-	.buswidth	= BUSWIDTH,
+	.bankwidth	= BUSWIDTH,
 	.phys		= PADDR,
 };
 
@@ -149,7 +150,7 @@ int __init pb1xxx_mtd_init(void)
 	 */
 	printk(KERN_NOTICE "Pb1xxx flash: probing %d-bit flash bus\n", 
 			BUSWIDTH*8);
-	pb1xxx_mtd_map.virt = (void __iomem *)ioremap(WINDOW_ADDR, WINDOW_SIZE);
+	pb1xxx_mtd_map.virt = (unsigned long)ioremap(WINDOW_ADDR, WINDOW_SIZE);
 
 	simple_map_init(&pb1xxx_mtd_map);
 

@@ -224,286 +224,286 @@ out:	jr	ra
 	.type	sys_call_table,@object;
 sys_call_table:
 	PTR	sys32_syscall			/* 4000 */
-	PTR	sys_exit	
-	PTR	sys_fork	
-	PTR	sys_read	
-	PTR	sys_write	
+	PTR	sys_exit
+	PTR	sys_fork
+	PTR	sys_read
+	PTR	sys_write
 	PTR	sys_open			/* 4005 */
 	PTR	sys_close
 	PTR	sys_waitpid
 	PTR	sys_creat
 	PTR	sys_link
 	PTR	sys_unlink			/* 4010 */
-	PTR	sys32_execve	
-	PTR	sys_chdir	
-	PTR	sys_time	
-	PTR	sys_mknod	
+	PTR	sys32_execve
+	PTR	sys_chdir
+	PTR	sys_time
+	PTR	sys_mknod
 	PTR	sys_chmod			/* 4015 */
-	PTR	sys_lchown	
-	PTR	sys_ni_syscall	
-	PTR	sys_ni_syscall			/* was sys_stat */
-	PTR	sys_lseek	
-	PTR	sys_getpid			/* 4020 */
-	PTR	sys_mount	
-	PTR	sys_oldumount	
-	PTR	sys_setuid	
-	PTR	sys_getuid	
-	PTR	sys_stime			/* 4025 */
-	PTR	sys32_ptrace	
-	PTR	sys_alarm	
-	PTR	sys_ni_syscall			/* was sys_fstat */
-	PTR	sys_pause	
-	PTR	compat_sys_utime		/* 4030 */
-	PTR	sys_ni_syscall	
-	PTR	sys_ni_syscall	
-	PTR	sys_access	
-	PTR	sys_nice	
-	PTR	sys_ni_syscall			/* 4035 */
-	PTR	sys_sync	
-	PTR	sys_kill	
-	PTR	sys_rename	
-	PTR	sys_mkdir	
-	PTR	sys_rmdir			/* 4040 */
-	PTR	sys_dup		
-	PTR	sys_pipe	
-	PTR	compat_sys_times	
-	PTR	sys_ni_syscall	
-	PTR	sys_brk				/* 4045 */
-	PTR	sys_setgid	
-	PTR	sys_getgid	
-	PTR	sys_ni_syscall			/* was signal	2 */
-	PTR	sys_geteuid	
-	PTR	sys_getegid			/* 4050 */
-	PTR	sys_acct	
-	PTR	sys_umount	
-	PTR	sys_ni_syscall	
-	PTR	compat_sys_ioctl	
-	PTR	compat_sys_fcntl		/* 4055 */
-	PTR	sys_ni_syscall	
-	PTR	sys_setpgid	
+	PTR	sys_lchown
 	PTR	sys_ni_syscall
-	PTR	sys_olduname	
+	PTR	sys_ni_syscall			/* was sys_stat */
+	PTR	sys_lseek
+	PTR	sys_getpid			/* 4020 */
+	PTR	sys_mount
+	PTR	sys_oldumount
+	PTR	sys_setuid
+	PTR	sys_getuid
+	PTR	sys_stime			/* 4025 */
+	PTR	sys32_ptrace
+	PTR	sys_alarm
+	PTR	sys_ni_syscall			/* was sys_fstat */
+	PTR	sys_pause
+	PTR	compat_sys_utime		/* 4030 */
+	PTR	sys_ni_syscall
+	PTR	sys_ni_syscall
+	PTR	sys_access
+	PTR	sys_nice
+	PTR	sys_ni_syscall			/* 4035 */
+	PTR	sys_sync
+	PTR	sys_kill
+	PTR	sys_rename
+	PTR	sys_mkdir
+	PTR	sys_rmdir			/* 4040 */
+	PTR	sys_dup
+	PTR	sys_pipe
+	PTR	compat_sys_times
+	PTR	sys_ni_syscall
+	PTR	sys_brk				/* 4045 */
+	PTR	sys_setgid
+	PTR	sys_getgid
+	PTR	sys_ni_syscall			/* was signal	2 */
+	PTR	sys_geteuid
+	PTR	sys_getegid			/* 4050 */
+	PTR	sys_acct
+	PTR	sys_umount
+	PTR	sys_ni_syscall
+	PTR	compat_sys_ioctl
+	PTR	compat_sys_fcntl		/* 4055 */
+	PTR	sys_ni_syscall
+	PTR	sys_setpgid
+	PTR	sys_ni_syscall
+	PTR	sys_olduname
 	PTR	sys_umask			/* 4060 */
-	PTR	sys_chroot	
-	PTR	sys32_ustat	
-	PTR	sys_dup2	
-	PTR	sys_getppid	
+	PTR	sys_chroot
+	PTR	sys32_ustat
+	PTR	sys_dup2
+	PTR	sys_getppid
 	PTR	sys_getpgrp			/* 4065 */
-	PTR	sys_setsid	
-	PTR	sys32_sigaction	
-	PTR	sys_sgetmask	
-	PTR	sys_ssetmask	
+	PTR	sys_setsid
+	PTR	sys32_sigaction
+	PTR	sys_sgetmask
+	PTR	sys_ssetmask
 	PTR	sys_setreuid			/* 4070 */
-	PTR	sys_setregid	
-	PTR	sys32_sigsuspend	
-	PTR	compat_sys_sigpending	
-	PTR	sys_sethostname	
+	PTR	sys_setregid
+	PTR	sys32_sigsuspend
+	PTR	compat_sys_sigpending
+	PTR	sys_sethostname
 	PTR	compat_sys_setrlimit		/* 4075 */
-	PTR	compat_sys_getrlimit	
-	PTR	compat_sys_getrusage	
-	PTR	sys32_gettimeofday 
-	PTR	sys32_settimeofday 
+	PTR	compat_sys_getrlimit
+	PTR	compat_sys_getrusage
+	PTR	sys32_gettimeofday
+	PTR	sys32_settimeofday
 	PTR	sys_getgroups			/* 4080 */
-	PTR	sys_setgroups	
+	PTR	sys_setgroups
 	PTR	sys_ni_syscall			/* old_select */
-	PTR	sys_symlink	
+	PTR	sys_symlink
 	PTR	sys_ni_syscall			/* was sys_lstat */
 	PTR	sys_readlink			/* 4085 */
-	PTR	sys_uselib	
-	PTR	sys_swapon	
-	PTR	sys_reboot	
-	PTR	sys32_readdir	
+	PTR	sys_uselib
+	PTR	sys_swapon
+	PTR	sys_reboot
+	PTR	sys32_readdir
 	PTR	old_mmap			/* 4090 */
-	PTR	sys_munmap	
-	PTR	sys_truncate	
-	PTR	sys_ftruncate	
-	PTR	sys_fchmod	
+	PTR	sys_munmap
+	PTR	sys_truncate
+	PTR	sys_ftruncate
+	PTR	sys_fchmod
 	PTR	sys_fchown			/* 4095 */
-	PTR	sys_getpriority	
-	PTR	sys_setpriority	
-	PTR	sys_ni_syscall	
-	PTR	compat_sys_statfs	
+	PTR	sys_getpriority
+	PTR	sys_setpriority
+	PTR	sys_ni_syscall
+	PTR	compat_sys_statfs
 	PTR	compat_sys_fstatfs		/* 4100 */
 	PTR	sys_ni_syscall			/* sys_ioperm */
-	PTR	sys32_socketcall		
-	PTR	sys_syslog		
-	PTR	compat_sys_setitimer	
+	PTR	sys32_socketcall
+	PTR	sys_syslog
+	PTR	compat_sys_setitimer
 	PTR	compat_sys_getitimer		/* 4105 */
-	PTR	compat_sys_newstat	
-	PTR	compat_sys_newlstat	
-	PTR	compat_sys_newfstat	
-	PTR	sys_uname		
+	PTR	compat_sys_newstat
+	PTR	compat_sys_newlstat
+	PTR	compat_sys_newfstat
+	PTR	sys_uname
 	PTR	sys_ni_syscall			/* sys_ioperm  *//* 4110 */
-	PTR	sys_vhangup		
+	PTR	sys_vhangup
 	PTR	sys_ni_syscall			/* was sys_idle	 */
 	PTR	sys_ni_syscall			/* sys_vm86 */
-	PTR	sys32_wait4		
+	PTR	sys32_wait4
 	PTR	sys_swapoff			/* 4115 */
-	PTR	sys32_sysinfo		
-	PTR	sys32_ipc		
-	PTR	sys_fsync	
-	PTR	sys32_sigreturn	
+	PTR	sys32_sysinfo
+	PTR	sys32_ipc
+	PTR	sys_fsync
+	PTR	sys32_sigreturn
 	PTR	sys_clone			/* 4120 */
-	PTR	sys_setdomainname 
-	PTR	sys32_newuname	
+	PTR	sys_setdomainname
+	PTR	sys32_newuname
 	PTR	sys_ni_syscall			/* sys_modify_ldt */
-	PTR	sys32_adjtimex	
+	PTR	sys32_adjtimex
 	PTR	sys_mprotect			/* 4125 */
-	PTR	compat_sys_sigprocmask	
+	PTR	compat_sys_sigprocmask
 	PTR	sys_ni_syscall			/* was creat_module */
-	PTR	sys_init_module	
-	PTR	sys_delete_module 
+	PTR	sys_init_module
+	PTR	sys_delete_module
 	PTR	sys_ni_syscall			/* 4130, get_kernel_syms */
-	PTR	sys_quotactl	
-	PTR	sys_getpgid	
-	PTR	sys_fchdir	
-	PTR	sys_bdflush	
+	PTR	sys_quotactl
+	PTR	sys_getpgid
+	PTR	sys_fchdir
+	PTR	sys_bdflush
 	PTR	sys_sysfs			/* 4135 */
-	PTR	sys32_personality	
+	PTR	sys32_personality
 	PTR	sys_ni_syscall	 		/* for afs_syscall */
-	PTR	sys_setfsuid	
-	PTR	sys_setfsgid	
+	PTR	sys_setfsuid
+	PTR	sys_setfsgid
 	PTR	sys32_llseek			/* 4140 */
-	PTR	sys32_getdents	
-	PTR	compat_sys_select	
-	PTR	sys_flock	
-	PTR	sys_msync	
+	PTR	sys32_getdents
+	PTR	compat_sys_select
+	PTR	sys_flock
+	PTR	sys_msync
 	PTR	compat_sys_readv		/* 4145 */
-	PTR	compat_sys_writev	
-	PTR	sys_cacheflush	
-	PTR	sys_cachectl	
-	PTR	sys_sysmips	
+	PTR	compat_sys_writev
+	PTR	sys_cacheflush
+	PTR	sys_cachectl
+	PTR	sys_sysmips
 	PTR	sys_ni_syscall			/* 4150 */
-	PTR	sys_getsid	
-	PTR	sys_fdatasync	
-	PTR	sys32_sysctl	
-	PTR	sys_mlock	
+	PTR	sys_getsid
+	PTR	sys_fdatasync
+	PTR	sys32_sysctl
+	PTR	sys_mlock
 	PTR	sys_munlock			/* 4155 */
-	PTR	sys_mlockall	
-	PTR	sys_munlockall	
-	PTR	sys_sched_setparam 
-	PTR	sys_sched_getparam 
+	PTR	sys_mlockall
+	PTR	sys_munlockall
+	PTR	sys_sched_setparam
+	PTR	sys_sched_getparam
 	PTR	sys_sched_setscheduler 		/* 4160 */
-	PTR	sys_sched_getscheduler 
-	PTR	sys_sched_yield	
-	PTR	sys_sched_get_priority_max 
-	PTR	sys_sched_get_priority_min 
+	PTR	sys_sched_getscheduler
+	PTR	sys_sched_yield
+	PTR	sys_sched_get_priority_max
+	PTR	sys_sched_get_priority_min
 	PTR	sys32_sched_rr_get_interval 	/* 4165 */
-	PTR	compat_sys_nanosleep	
-	PTR	sys_mremap	
-	PTR	sys_accept	
-	PTR	sys_bind	
+	PTR	compat_sys_nanosleep
+	PTR	sys_mremap
+	PTR	sys_accept
+	PTR	sys_bind
 	PTR	sys_connect			/* 4170 */
-	PTR	sys_getpeername	
-	PTR	sys_getsockname	
-	PTR	sys_getsockopt	
-	PTR	sys_listen	
+	PTR	sys_getpeername
+	PTR	sys_getsockname
+	PTR	sys_getsockopt
+	PTR	sys_listen
 	PTR	sys_recv			/* 4175 */
-	PTR	sys_recvfrom	
-	PTR	compat_sys_recvmsg	
-	PTR	sys_send	
-	PTR	compat_sys_sendmsg	
+	PTR	sys_recvfrom
+	PTR	compat_sys_recvmsg
+	PTR	sys_send
+	PTR	compat_sys_sendmsg
 	PTR	sys_sendto			/* 4180 */
 	PTR	compat_sys_setsockopt
-	PTR	sys_shutdown	
-	PTR	sys_socket	
-	PTR	sys_socketpair	
+	PTR	sys_shutdown
+	PTR	sys_socket
+	PTR	sys_socketpair
 	PTR	sys_setresuid			/* 4185 */
-	PTR	sys_getresuid	
+	PTR	sys_getresuid
 	PTR	sys_ni_syscall			/* was query_module */
-	PTR	sys_poll	
-	PTR	sys_nfsservctl	
+	PTR	sys_poll
+	PTR	sys_nfsservctl
 	PTR	sys_setresgid			/* 4190 */
-	PTR	sys_getresgid	
-	PTR	sys_prctl	
-	PTR	sys32_rt_sigreturn 
-	PTR	sys32_rt_sigaction 
+	PTR	sys_getresgid
+	PTR	sys_prctl
+	PTR	sys32_rt_sigreturn
+	PTR	sys32_rt_sigaction
 	PTR	sys32_rt_sigprocmask 		/* 4195 */
-	PTR	sys32_rt_sigpending 
-	PTR	sys32_rt_sigtimedwait 
-	PTR	sys32_rt_sigqueueinfo 
-	PTR	sys32_rt_sigsuspend 
+	PTR	sys32_rt_sigpending
+	PTR	sys32_rt_sigtimedwait
+	PTR	sys32_rt_sigqueueinfo
+	PTR	sys32_rt_sigsuspend
 	PTR	sys32_pread			/* 4200 */
-	PTR	sys32_pwrite	
-	PTR	sys_chown	
-	PTR	sys_getcwd	
-	PTR	sys_capget	
+	PTR	sys32_pwrite
+	PTR	sys_chown
+	PTR	sys_getcwd
+	PTR	sys_capget
 	PTR	sys_capset			/* 4205 */
-	PTR	sys32_sigaltstack	
-	PTR	sys32_sendfile	
-	PTR	sys_ni_syscall	
-	PTR	sys_ni_syscall	
+	PTR	sys32_sigaltstack
+	PTR	sys32_sendfile
+	PTR	sys_ni_syscall
+	PTR	sys_ni_syscall
 	PTR	sys32_mmap2			/* 4210 */
-	PTR	sys32_truncate64	
-	PTR	sys32_ftruncate64	
-	PTR	sys_newstat	
-	PTR	sys_newlstat	
+	PTR	sys32_truncate64
+	PTR	sys32_ftruncate64
+	PTR	sys_newstat
+	PTR	sys_newlstat
 	PTR	sys_newfstat			/* 4215 */
-	PTR	sys_pivot_root	
-	PTR	sys_mincore	
-	PTR	sys_madvise	
-	PTR	sys_getdents64	
+	PTR	sys_pivot_root
+	PTR	sys_mincore
+	PTR	sys_madvise
+	PTR	sys_getdents64
 	PTR	compat_sys_fcntl64		/* 4220 */
-	PTR	sys_ni_syscall	
-	PTR	sys_gettid	
-	PTR	sys32_readahead	
-	PTR	sys_setxattr	
+	PTR	sys_ni_syscall
+	PTR	sys_gettid
+	PTR	sys32_readahead
+	PTR	sys_setxattr
 	PTR	sys_lsetxattr			/* 4225 */
-	PTR	sys_fsetxattr	
-	PTR	sys_getxattr	
-	PTR	sys_lgetxattr	
-	PTR	sys_fgetxattr	
+	PTR	sys_fsetxattr
+	PTR	sys_getxattr
+	PTR	sys_lgetxattr
+	PTR	sys_fgetxattr
 	PTR	sys_listxattr			/* 4230 */
-	PTR	sys_llistxattr	
-	PTR	sys_flistxattr	
-	PTR	sys_removexattr	
-	PTR	sys_lremovexattr	
+	PTR	sys_llistxattr
+	PTR	sys_flistxattr
+	PTR	sys_removexattr
+	PTR	sys_lremovexattr
 	PTR	sys_fremovexattr		/* 4235 */
-	PTR	sys_tkill		
-	PTR	sys_sendfile64		
-	PTR	compat_sys_futex	
-	PTR	compat_sys_sched_setaffinity	
+	PTR	sys_tkill
+	PTR	sys_sendfile64
+	PTR	compat_sys_futex
+	PTR	compat_sys_sched_setaffinity
 	PTR	compat_sys_sched_getaffinity	/* 4240 */
-	PTR	sys_io_setup		
-	PTR	sys_io_destroy		
-	PTR	sys_io_getevents	
-	PTR	sys_io_submit		
+	PTR	sys_io_setup
+	PTR	sys_io_destroy
+	PTR	sys_io_getevents
+	PTR	sys_io_submit
 	PTR	sys_io_cancel			/* 4245 */
-	PTR	sys_exit_group		
-	PTR	sys_lookup_dcookie	
-	PTR	sys_epoll_create	
-	PTR	sys_epoll_ctl		
+	PTR	sys_exit_group
+	PTR	sys_lookup_dcookie
+	PTR	sys_epoll_create
+	PTR	sys_epoll_ctl
 	PTR	sys_epoll_wait			/* 4250 */
-	PTR	sys_remap_file_pages	
-	PTR	sys_set_tid_address	
-	PTR	sys_restart_syscall	
-	PTR	sys_fadvise64_64	
+	PTR	sys_remap_file_pages
+	PTR	sys_set_tid_address
+	PTR	sys_restart_syscall
+	PTR	sys_fadvise64_64
 	PTR	compat_sys_statfs64		/* 4255 */
-	PTR	compat_sys_fstatfs64		
-	PTR	sys_timer_create	
-	PTR	compat_sys_timer_settime	
-	PTR	compat_sys_timer_gettime	
+	PTR	compat_sys_fstatfs64
+	PTR	sys_timer_create
+	PTR	compat_sys_timer_settime
+	PTR	compat_sys_timer_gettime
 	PTR	sys_timer_getoverrun		/* 4260 */
-	PTR	sys_timer_delete	
-	PTR	compat_sys_clock_settime	
-	PTR	compat_sys_clock_gettime	
-	PTR	compat_sys_clock_getres	
+	PTR	sys_timer_delete
+	PTR	compat_sys_clock_settime
+	PTR	compat_sys_clock_gettime
+	PTR	compat_sys_clock_getres
 	PTR	compat_sys_clock_nanosleep	/* 4265 */
-	PTR	sys_tgkill		
-	PTR	compat_sys_utimes	
+	PTR	sys_tgkill
+	PTR	compat_sys_utimes
 	PTR	sys_ni_syscall			/* sys_mbind */
 	PTR	sys_ni_syscall			/* sys_get_mempolicy */
 	PTR	sys_ni_syscall			/* 4270 sys_set_mempolicy */
-	PTR	compat_sys_mq_open	
-	PTR	sys_mq_unlink		
-	PTR	compat_sys_mq_timedsend	
-	PTR	compat_sys_mq_timedreceive 
+	PTR	compat_sys_mq_open
+	PTR	sys_mq_unlink
+	PTR	compat_sys_mq_timedsend
+	PTR	compat_sys_mq_timedreceive
 	PTR	compat_sys_mq_notify		/* 4275 */
-	PTR	compat_sys_mq_getsetattr 
+	PTR	compat_sys_mq_getsetattr
 	PTR	sys_ni_syscall			/* sys_vserver */
 	PTR	sys_waitid
 	PTR	sys_ni_syscall			/* available, was setaltroot */
 	PTR	sys_add_key			/* 4280 */
-	PTR	sys_request_key	
+	PTR	sys_request_key
 	PTR	sys_keyctl
 	.size	sys_call_table,.-sys_call_table

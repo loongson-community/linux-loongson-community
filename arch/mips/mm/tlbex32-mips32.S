@@ -88,7 +88,7 @@
 	srl     ptr, 23;             \
 	sll     ptr, 2;              \
 	addu    ptr, scratch, ptr;   \
-	lw      ptr, (ptr);          
+	lw      ptr, (ptr);
 #else
 #define GET_PGD(scratch, ptr)    \
 	lw	ptr, pgd_current;
@@ -186,7 +186,7 @@ invalid_tlbl:
 	 tlbwi
 1:
 	nop
-	.set	mips3	
+	.set	mips3
 	eret
 	.set	mips0
 #endif

@@ -86,7 +86,7 @@ unsigned long ocelot_fpga_base = (signed)0xfc000000;
 /* Serial base */
 unsigned long uart_base = (signed)0xfd000000;
 
-/* 
+/*
  * Marvell Discovery SRAM. This is one place where Ethernet
  * Tx and Rx descriptors can be placed to improve performance
  */
@@ -110,13 +110,13 @@ static inline unsigned long ENTRYLO(unsigned long paddr)
 		_CACHE_UNCACHED)) >> 6;
 }
 
-void __init bus_error_init(void) 
-{ 
-	/* nothing */ 
+void __init bus_error_init(void)
+{
+	/* nothing */
 }
 
-/* 
- * setup code for a handoff from a version 2 PMON 2000 PROM 
+/*
+ * setup code for a handoff from a version 2 PMON 2000 PROM
  */
 void setup_wired_tlb_entries(void)
 {
@@ -201,9 +201,9 @@ void momenco_time_init(void)
 {
 	setup_wired_tlb_entries();
 
-	/* 
-	 * Ocelot-3 board has been built with both 
-	 * the Rm7900 and the Rm7065C 
+	/*
+	 * Ocelot-3 board has been built with both
+	 * the Rm7900 and the Rm7065C
 	 */
 	mips_hpt_frequency = cpu_clock / 2;
 	board_timer_setup = momenco_timer_setup;
@@ -227,7 +227,7 @@ void momenco_time_init(void)
 #define	OCELOT_3_PCI_IO_1_SIZE		0x08000000
 #define	OCELOT_3_PCI_MEM_1_START	0xd0000000
 #define	OCELOT_3_PCI_MEM_1_SIZE		0x10000000
-	
+
 static struct resource mv_pci_io_mem0_resource = {
 	.name	= "MV64340 PCI0 IO MEM",
 	.start	= OCELOT_3_PCI_IO_0_START,
@@ -241,7 +241,7 @@ static struct resource mv_pci_io_mem1_resource = {
 	.end	= OCELOT_3_PCI_IO_1_START + OCELOT_3_PCI_IO_1_SIZE - 1,
 	.flags	= IORESOURCE_IO,
 };
-                                                                                                   
+
 static struct resource mv_pci_mem0_resource = {
 	.name	= "MV64340 PCI0 MEM",
 	.start	= OCELOT_3_PCI_MEM_0_START,
@@ -275,15 +275,15 @@ static struct mv_pci_controller mv_bus1_controller = {
 	.config_addr	= MV64340_PCI_1_CONFIG_ADDR,
 	.config_vreg	= MV64340_PCI_1_CONFIG_DATA_VIRTUAL_REG,
 };
-                                                                                                   
+
 static __init int __init ja_pci_init(void)
 {
 	uint32_t enable;
 	extern int pci_probe_only;
-                                                                                                   
+
 	/* PMON will assign PCI resources */
 	pci_probe_only = 1;
-                                                                                                   
+
 	enable = ~MV_READ(MV64340_BASE_ADDR_ENABLE);
 	/*
 	 * We require at least one enabled I/O or PCI memory window or we
@@ -291,7 +291,7 @@ static __init int __init ja_pci_init(void)
 	 */
 	if (enable & (0x01 <<  9) || enable & (0x01 << 10))
 		register_pci_controller(&mv_bus0_controller.pcic);
-                                                                                                   
+
 	if (enable & (0x01 << 14) || enable & (0x01 << 15))
 		register_pci_controller(&mv_bus1_controller.pcic);
 
@@ -302,10 +302,10 @@ static __init int __init ja_pci_init(void)
 					OCELOT_3_PCI_MEM_1_SIZE - 1;
 
 	set_io_port_base(OCELOT_3_PCI_IO_0_START); /* mips_io_port_base */
-                                                                                                   
+
 	return 0;
 }
-                                                                                                   
+
 arch_initcall(ja_pci_init);
 
 static int __init momenco_ocelot_3_setup(void)
@@ -390,7 +390,7 @@ static int __init momenco_ocelot_3_setup(void)
 	printk("  - Boot flash write jumper: %s\n", (tmpword&0x40)?"installed":"absent");
 	printk("  - L3 cache size: %d MB\n", (1<<((tmpword&12) >> 2))&~1);
 
-	/* Support for 128 MB memory */	
+	/* Support for 128 MB memory */
 	add_memory_region(0x0, 0x08000000, BOOT_MEM_RAM);
 
 	return 0;

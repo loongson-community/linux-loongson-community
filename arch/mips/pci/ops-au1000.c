@@ -297,7 +297,7 @@ static int config_read(struct pci_bus *bus, unsigned int devfn,
        case 2: {
 			u16 _val;
 			int rc = read_config_word(bus, devfn, where, &_val);
-			*val = _val; 
+			*val = _val;
 			return rc;
 		}
 	default:

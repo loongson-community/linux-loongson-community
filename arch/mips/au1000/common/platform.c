@@ -16,7 +16,7 @@
 #include <asm/mach-au1x00/au1000.h>
 
 static struct resource au1xxx_usb_ohci_resources[] = {
-	[0] = {	
+	[0] = {
 		.start		= USB_OHCI_BASE,
 		.end		= USB_OHCI_BASE + USB_OHCI_LEN,
 		.flags		= IORESOURCE_MEM,

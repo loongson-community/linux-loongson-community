@@ -1398,10 +1398,7 @@ static void cfq_put_request(request_queue_t *q, struct request *rq)
 		if (crq->io_context)
 			put_io_context(crq->io_context->ioc);
 
-		if (!cfqq->allocated[crq->is_write]) {
-			WARN_ON(1);
-			cfqq->allocated[crq->is_write] = 1;
-		}
+		BUG_ON(!cfqq->allocated[crq->is_write]);
 		cfqq->allocated[crq->is_write]--;
 
 		mempool_free(crq, cfqd->crq_pool);
@@ -1421,7 +1418,7 @@ static int cfq_set_request(request_queue_t *q, struct request *rq, int gfp_mask)
 	struct cfq_data *cfqd = q->elevator->elevator_data;
 	struct cfq_io_context *cic;
 	const int rw = rq_data_dir(rq);
-	struct cfq_queue *cfqq;
+	struct cfq_queue *cfqq, *saved_cfqq;
 	struct cfq_rq *crq;
 	unsigned long flags;
 
@@ -1439,19 +1436,29 @@ static int cfq_set_request(request_queue_t *q, struct request *rq, int gfp_mask)
 #endif
 	}
 
+repeat:
 	if (cfqq->allocated[rw] >= cfqd->max_queued)
 		goto out_lock;
 
+	cfqq->allocated[rw]++;
 	spin_unlock_irqrestore(q->queue_lock, flags);
 
 	/*
-	 * if hashing type has changed, the cfq_queue might change here. we
-	 * don't bother rechecking ->allocated since it should be a rare
-	 * event
+	 * if hashing type has changed, the cfq_queue might change here.
 	 */
+	saved_cfqq = cfqq;
 	cic = cfq_get_io_context(&cfqq, gfp_mask);
 	if (!cic)
 		goto err;
+
+	/*
+	 * repeat allocation checks on queue change
+	 */
+	if (unlikely(saved_cfqq != cfqq)) {
+		spin_lock_irqsave(q->queue_lock, flags);
+		saved_cfqq->allocated[rw]--;
+		goto repeat;
+	}
 
 	crq = mempool_alloc(cfqd->crq_pool, gfp_mask);
 	if (crq) {
@@ -1465,7 +1472,6 @@ static int cfq_set_request(request_queue_t *q, struct request *rq, int gfp_mask)
 		crq->in_flight = crq->accounted = crq->is_sync = 0;
 		crq->is_write = rw;
 		rq->elevator_private = crq;
-		cfqq->allocated[rw]++;
 		cfqq->alloc_limit[rw] = 0;
 		return 0;
 	}
@@ -1473,6 +1479,7 @@ static int cfq_set_request(request_queue_t *q, struct request *rq, int gfp_mask)
 	put_io_context(cic->ioc);
 err:
 	spin_lock_irqsave(q->queue_lock, flags);
+	cfqq->allocated[rw]--;
 	cfq_put_queue(cfqq);
 out_lock:
 	spin_unlock_irqrestore(q->queue_lock, flags);
@@ -1681,55 +1688,6 @@ cfq_read_key_type(struct cfq_data *cfqd, char *page)
 	return len;
 }
 
-static ssize_t
-cfq_status_show(struct cfq_data *cfqd, char *page)
-{
-	struct list_head *entry;
-	struct cfq_queue *cfqq;
-	ssize_t len;
-	int i = 0, queues;
-
-	len = sprintf(page, "Busy queues: %u\n", cfqd->busy_queues);
-	len += sprintf(page+len, "key type: %s\n",
-				cfq_key_types[cfqd->key_type]);
-	len += sprintf(page+len, "last sector: %Lu\n",
-				(unsigned long long)cfqd->last_sector);
-	len += sprintf(page+len, "max time in iosched: %lu\n",
-				max_elapsed_dispatch);
-	len += sprintf(page+len, "max completion time: %lu\n", max_elapsed_crq);
-
-	len += sprintf(page+len, "Busy queue list:\n");
-	spin_lock_irq(cfqd->queue->queue_lock);
-	list_for_each(entry, &cfqd->rr_list) {
-		i++;
-		cfqq = list_entry_cfqq(entry);
-		len += sprintf(page+len, "  cfqq: key=%lu alloc=%d/%d, "
-			"queued=%d/%d, last_fifo=%lu, service_used=%lu\n",
-			cfqq->key, cfqq->allocated[0], cfqq->allocated[1],
-			cfqq->queued[0], cfqq->queued[1],
-			cfqq->last_fifo_expire, cfqq->service_used);
-	}
-	len += sprintf(page+len, "  busy queues total: %d\n", i);
-	queues = i;
-
-	len += sprintf(page+len, "Empty queue list:\n");
-	i = 0;
-	list_for_each(entry, &cfqd->empty_list) {
-		i++;
-		cfqq = list_entry_cfqq(entry);
-		len += sprintf(page+len, "  cfqq: key=%lu alloc=%d/%d, "
-			"queued=%d/%d, last_fifo=%lu, service_used=%lu\n",
-			cfqq->key, cfqq->allocated[0], cfqq->allocated[1],
-			cfqq->queued[0], cfqq->queued[1],
-			cfqq->last_fifo_expire, cfqq->service_used);
-	}
-	len += sprintf(page+len, "  empty queues total: %d\n", i);
-	queues += i;
-	len += sprintf(page+len, "Total queues: %d\n", queues);
-	spin_unlock_irq(cfqd->queue->queue_lock);
-	return len;
-}
-
 #define SHOW_FUNCTION(__FUNC, __VAR, __CONV)				\
 static ssize_t __FUNC(struct cfq_data *cfqd, char *page)		\
 {									\
@@ -1817,10 +1775,6 @@ static struct cfq_fs_entry cfq_clear_elapsed_entry = {
 	.attr = {.name = "clear_elapsed", .mode = S_IWUSR },
 	.store = cfq_clear_elapsed,
 };
-static struct cfq_fs_entry cfq_misc_entry = {
-	.attr = {.name = "show_status", .mode = S_IRUGO },
-	.show = cfq_status_show,
-};
 static struct cfq_fs_entry cfq_key_type_entry = {
 	.attr = {.name = "key_type", .mode = S_IRUGO | S_IWUSR },
 	.show = cfq_read_key_type,
@@ -1838,7 +1792,6 @@ static struct attribute *default_attrs[] = {
 	&cfq_back_max_entry.attr,
 	&cfq_back_penalty_entry.attr,
 	&cfq_clear_elapsed_entry.attr,
-	&cfq_misc_entry.attr,
 	NULL,
 };
 

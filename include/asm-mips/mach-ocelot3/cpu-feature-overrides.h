@@ -12,7 +12,7 @@
 
 /*
  * Momentum Ocelot-3 is based on Rm7900 processor which
- * is based on the E9000 core. 
+ * is based on the E9000 core.
  */
 #define cpu_has_watch		1
 #define cpu_has_mips16		0

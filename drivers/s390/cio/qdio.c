@@ -56,7 +56,7 @@
 #include "ioasm.h"
 #include "chsc.h"
 
-#define VERSION_QDIO_C "$Revision: 1.88 $"
+#define VERSION_QDIO_C "$Revision: 1.93 $"
 
 /****************** MODULE PARAMETER VARIABLES ********************/
 MODULE_AUTHOR("Utz Bacher <utz.bacher@de.ibm.com>");
@@ -605,8 +605,8 @@ qdio_kick_outbound_q(struct qdio_q *q)
 			sprintf(dbf_text,"%4x%2x%2x",q->irq,q->q_no,
 				atomic_read(&q->busy_siga_counter));
 			QDIO_DBF_TEXT3(0,trace,dbf_text);
-			q->timing.busy_start=0;
 #endif /* CONFIG_QDIO_DEBUG */
+			q->timing.busy_start=0;
 			break;
 		case (2|QDIO_SIGA_ERROR_B_BIT_SET):
 			/* cc=2 and busy bit: */
@@ -1401,7 +1401,7 @@ qdio_alloc_qs(struct qdio_irq *irq_ptr,
 	int result=-ENOMEM;
 
 	for (i=0;i<no_input_qs;i++) {
-		q=kmalloc(sizeof(struct qdio_q),GFP_KERNEL|GFP_DMA);
+		q=kmalloc(sizeof(struct qdio_q),GFP_KERNEL);
 
 		if (!q) {
 			QDIO_PRINT_ERR("kmalloc of q failed!\n");
@@ -1410,7 +1410,7 @@ qdio_alloc_qs(struct qdio_irq *irq_ptr,
 
 		memset(q,0,sizeof(struct qdio_q));
 
-		q->slib=kmalloc(PAGE_SIZE,GFP_KERNEL|GFP_DMA);
+		q->slib=kmalloc(PAGE_SIZE,GFP_KERNEL);
 		if (!q->slib) {
 			QDIO_PRINT_ERR("kmalloc of slib failed!\n");
 			goto out;
@@ -1420,7 +1420,7 @@ qdio_alloc_qs(struct qdio_irq *irq_ptr,
 	}
 
 	for (i=0;i<no_output_qs;i++) {
-		q=kmalloc(sizeof(struct qdio_q),GFP_KERNEL|GFP_DMA);
+		q=kmalloc(sizeof(struct qdio_q),GFP_KERNEL);
 
 		if (!q) {
 			goto out;
@@ -1428,7 +1428,7 @@ qdio_alloc_qs(struct qdio_irq *irq_ptr,
 
 		memset(q,0,sizeof(struct qdio_q));
 
-		q->slib=kmalloc(PAGE_SIZE,GFP_KERNEL|GFP_DMA);
+		q->slib=kmalloc(PAGE_SIZE,GFP_KERNEL);
 		if (!q->slib) {
 			QDIO_PRINT_ERR("kmalloc of slib failed!\n");
 			goto out;
@@ -2088,7 +2088,10 @@ tiqdio_set_subchannel_ind(struct qdio_irq *irq_ptr, int reset_to_zero)
 		u32 kc:4;
 		u32 reserved4:21;
 		u32 isc:3;
-		u32 reserved5[2];
+		u32 word_with_d_bit;
+		/* set to 0x10000000 to enable
+		 * time delay disablement facility */
+		u32 reserved5;
 		u32 subsystem_id;
 		u32 reserved6[1004];
 		struct chsc_header response;
@@ -2126,6 +2129,12 @@ tiqdio_set_subchannel_ind(struct qdio_irq *irq_ptr, int reset_to_zero)
 	scssc_area->kc = QDIO_STORAGE_KEY;
 	scssc_area->isc = TIQDIO_THININT_ISC;
 	scssc_area->subsystem_id = (1<<16) + irq_ptr->irq;
+	/* enables the time delay disablement facility. Don't care
+	 * whether it is really there (i.e. we haven't checked for
+	 * it) */
+	scssc_area->word_with_d_bit = 0x10000000;
+
+
 
 	result = chsc(scssc_area);
 	if (result) {
@@ -2620,6 +2629,7 @@ qdio_allocate(struct qdio_initialize *init_data)
 
 	init_MUTEX(&irq_ptr->setting_up_sema);
 
+	/* QDR must be in DMA area since CCW data address is only 32 bit */
 	irq_ptr->qdr=kmalloc(sizeof(struct qdr), GFP_KERNEL | GFP_DMA);
   	if (!(irq_ptr->qdr)) {
    		kfree(irq_ptr);

@@ -309,7 +309,7 @@ static int inet_create(struct socket *sock, int protocol)
 	inet->id = 0;
 
 	sock_init_data(sock, sk);
-	sk_set_owner(sk, THIS_MODULE);
+	sk_set_owner(sk, sk->sk_prot->owner);
 
 	sk->sk_destruct	   = inet_sock_destruct;
 	sk->sk_family	   = PF_INET;
@@ -809,7 +809,7 @@ struct proto_ops inet_dgram_ops = {
 	.socketpair =	sock_no_socketpair,
 	.accept =	sock_no_accept,
 	.getname =	inet_getname,
-	.poll =		datagram_poll,
+	.poll =		udp_poll,
 	.ioctl =	inet_ioctl,
 	.listen =	sock_no_listen,
 	.shutdown =	inet_shutdown,

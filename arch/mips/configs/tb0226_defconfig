@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.10-rc2
-# Sun Nov 21 14:12:07 2004
+# Linux kernel version: 2.6.10-rc3
+# Sat Dec  4 16:16:00 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -172,6 +172,7 @@ CONFIG_BLK_DEV_LOOP=m
 # CONFIG_BLK_DEV_CRYPTOLOOP is not set
 CONFIG_BLK_DEV_NBD=m
 CONFIG_BLK_DEV_RAM=m
+CONFIG_BLK_DEV_RAM_COUNT=16
 CONFIG_BLK_DEV_RAM_SIZE=4096
 CONFIG_INITRAMFS_SOURCE=""
 # CONFIG_LBD is not set
@@ -247,7 +248,6 @@ CONFIG_SCSI_CONSTANTS=y
 # SCSI low-level drivers
 #
 # CONFIG_SCSI_SATA is not set
-# CONFIG_SCSI_QLOGIC_1280_1040 is not set
 # CONFIG_SCSI_DEBUG is not set
 
 #
@@ -540,6 +540,10 @@ CONFIG_SOUND=y
 #
 # CONFIG_USB_ARCH_HAS_HCD is not set
 # CONFIG_USB_ARCH_HAS_OHCI is not set
+
+#
+# NOTE: USB_STORAGE enables SCSI, and 'SCSI disk support' may also be needed; see USB_STORAGE Help for more information
+#
 
 #
 # USB Gadget Support

@@ -226,7 +226,7 @@ static inline pmd_t *pmd_offset(pgd_t *dir, unsigned long address)
 #define pte_to_pgoff(_pte) (((_pte).pte_high >> 6) + ((_pte).pte_high & 0x3f))
 #define pgoff_to_pte(off) \
  	((pte_t){(((off) & 0x3f) + ((off) << 6) + _PAGE_FILE)})
-  
+
 #else
 #define pte_to_pgoff(_pte) \
 	((((_pte).pte >> 3) & 0x1f ) + (((_pte).pte >> 9) << 6 ))

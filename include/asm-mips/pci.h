@@ -141,7 +141,7 @@ static inline int
 pci_name_bus(char *name, struct pci_bus *bus)
 {
 	struct pci_controller *hose = bus->sysdata;
-                                                                                
+
 	if (likely(hose->need_domain_info == 0)) {
 		sprintf(name, "%02x", bus->number);
 	} else {

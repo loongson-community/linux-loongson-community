@@ -361,5 +361,5 @@ EXPORT(sysn32_call_table)
 	PTR	sys_waitid
 	PTR	sys_ni_syscall			/* available, was setaltroot */
 	PTR	sys_add_key
-	PTR	sys_request_key	
+	PTR	sys_request_key
 	PTR	sys_keyctl			/* 6245 */

@@ -329,7 +329,7 @@ config MOMENCO_OCELOT_3
 	select RM7000_CPU_SCACHE
 	select SWAP_IO_SPACE
 	help
-	  The Ocelot-3 is based off Discovery III System Controller and 
+	  The Ocelot-3 is based off Discovery III System Controller and
 	  PMC-Sierra Rm79000 core.
 
 config MOMENCO_JAGUAR_ATX

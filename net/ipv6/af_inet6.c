@@ -174,10 +174,10 @@ static int inet6_create(struct socket *sock, int protocol)
 		goto out;
 
 	sock_init_data(sock, sk);
-	sk_set_owner(sk, THIS_MODULE);
+	sk->sk_prot = answer_prot;
+	sk_set_owner(sk, sk->sk_prot->owner);
 
 	rc = 0;
-	sk->sk_prot = answer_prot;
 	sk->sk_no_check = answer_no_check;
 	if (INET_PROTOSW_REUSE & answer_flags)
 		sk->sk_reuse = 1;
@@ -501,7 +501,7 @@ struct proto_ops inet6_dgram_ops = {
 	.socketpair =	sock_no_socketpair,		/* a do nothing	*/
 	.accept =	sock_no_accept,			/* a do nothing	*/
 	.getname =	inet6_getname, 
-	.poll =		datagram_poll,			/* ok		*/
+	.poll =		udp_poll,			/* ok		*/
 	.ioctl =	inet6_ioctl,			/* must change  */
 	.listen =	sock_no_listen,			/* ok		*/
 	.shutdown =	inet_shutdown,			/* ok		*/

@@ -30,7 +30,7 @@ static inline void mask_msc_irq(unsigned int irq)
 {
 	if (irq < (irq_base + 32))
 		MSCIC_WRITE(MSC01_IC_DISL, 1<<(irq - irq_base));
-	else 
+	else
 		MSCIC_WRITE(MSC01_IC_DISH, 1<<(irq - irq_base - 32));
 }
 
@@ -39,7 +39,7 @@ static inline void unmask_msc_irq(unsigned int irq)
 {
 	if (irq < (irq_base + 32))
 		MSCIC_WRITE(MSC01_IC_ENAL, 1<<(irq - irq_base));
-	else 
+	else
 		MSCIC_WRITE(MSC01_IC_ENAH, 1<<(irq - irq_base - 32));
 }
 
@@ -185,5 +185,5 @@ void __init init_msc_irqs(unsigned int base, msc_irqmap_t *imp, int nirq)
 	irq_base = base;
 
 	MSCIC_WRITE(MSC01_IC_GENA, MSC01_IC_GENA_GENA_BIT);	/* Enable interrupt generation */
-	
+
 }

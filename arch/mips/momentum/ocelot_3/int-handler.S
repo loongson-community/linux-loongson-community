@@ -33,11 +33,11 @@
 		CLI
 		.set	at
 
-		mfc0	t0, CP0_CAUSE  
+		mfc0	t0, CP0_CAUSE
 		mfc0	t2, CP0_STATUS
 
 		and	t0, t2
-        
+
 		andi	t1, t0, STATUSF_IP0	/* sw0 software interrupt (IRQ0) */
 		bnez	t1, ll_sw0_irq
 
@@ -65,13 +65,13 @@
                 /* now look at extended interrupts */
                 mfc0    t0, CP0_CAUSE
                 cfc0    t1, CP0_S1_INTCONTROL
-                                                                                
+
                 /* shift the mask 8 bits left to line up the bits */
                 sll     t2, t1, 8
-                                                                                
+
                 and     t0, t2
                 srl     t0, t0, 16
-                                                                                
+
                 andi    t1, t0, STATUSF_IP8     /* int6 hardware line (IRQ9) */
                 bnez    t1, ll_mv64340_decode_irq
 
@@ -123,7 +123,7 @@ ll_uart_irq:
 		move	a1, sp
 		jal	do_IRQ
 		j	ret_from_irq
-	
+
 ll_cputimer_irq:
 		li	a0, 7		/* IRQ 8 */
 		move	a1, sp

@@ -4,7 +4,7 @@
  * for more details.
  *
  * Synthesize TLB refill handlers at runtime.
- * 
+ *
  * Copyright (C) 2004 by Thiemo Seufer
  */
 

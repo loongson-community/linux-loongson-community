@@ -53,8 +53,8 @@
 /* MIPS32 defines only values 2 and 3. The rest are implementation
  * dependent.
  */
-#define _CACHE_UNCACHED             (2<<3)  
-#define _CACHE_CACHABLE_NONCOHERENT (3<<3) 
+#define _CACHE_UNCACHED             (2<<3)
+#define _CACHE_CACHABLE_NONCOHERENT (3<<3)
 #define _CACHE_CACHABLE_COW         (3<<3)  /* Au1x                    */
 
 #else

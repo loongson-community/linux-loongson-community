@@ -107,7 +107,7 @@ struct sgi_crime {
 #define CRIME_CPU_ERROR_CPU_ILL_ADDR	0x4
 #define CRIME_CPU_ERROR_VICE_WRT_PRTY	0x2
 #define CRIME_CPU_ERROR_CPU_WRT_PRTY	0x1
-	
+
 	unsigned long _pad0[54];
 
 	volatile unsigned long mc_ctrl;
