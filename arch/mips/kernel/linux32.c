@@ -1616,7 +1616,7 @@ sys32_ipc (u32 call, int first, int second, int third, u32 ptr, u32 fifth)
 		break;
 	case SEMTIMEDOP:
 		err = sys32_semtimedop (first, (struct sembuf *)AA(ptr), second,
-		                      (const struct compat_timespec __user *)fifth);
+		                      (const struct compat_timespec __user *)AA(fifth));
 		break;
 	case SEMGET:
 		err = sys_semget (first, second, third);
