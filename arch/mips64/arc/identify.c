@@ -30,6 +30,7 @@ struct smatch {
 static struct smatch mach_table[] = {
 	{ "SGI-IP22", MACH_GROUP_SGI, MACH_SGI_INDY, PROM_FLAG_ARCS },
 	{ "SGI-IP27", MACH_GROUP_SGI, MACH_SGI_IP27, PROM_FLAG_ARCS },
+	{ "SGI-IP32", MACH_GROUP_SGI, MACH_SGI_IP32, PROM_FLAG_ARCS },
 	{ "Microsoft-Jazz", MACH_GROUP_JAZZ, MACH_MIPS_MAGNUM_4000, 0 },
 	{ "PICA-61", MACH_GROUP_JAZZ, MACH_ACER_PICA_61, 0 },
 	{ "RM200PCI", MACH_GROUP_SNI_RM, MACH_SNI_RM200_PCI, 0 }
@@ -37,8 +38,7 @@ static struct smatch mach_table[] = {
 
 int prom_flags;
 
-static struct smatch * __init
-string_to_mach(const char *s)
+static struct smatch * __init string_to_mach(const char *s)
 {
 	int i;
     
@@ -51,8 +51,7 @@ string_to_mach(const char *s)
 	return NULL;
 }
 
-void __init
-prom_identify_arch(void)
+void __init prom_identify_arch(void)
 {
 	pcomponent *p;
 	struct smatch *mach;
