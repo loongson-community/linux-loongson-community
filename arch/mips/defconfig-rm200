@@ -593,7 +593,7 @@ CONFIG_RTC=y
 #
 # Console display driver support
 #
-# CONFIG_VGA_CONSOLE is not set
+CONFIG_VGA_CONSOLE=y
 # CONFIG_MDA_CONSOLE is not set
 CONFIG_DUMMY_CONSOLE=y
 
