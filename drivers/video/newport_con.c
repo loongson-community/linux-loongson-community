@@ -1,4 +1,4 @@
-/* $Id: newport_con.c,v 1.7 1999/03/07 16:16:27 tsbogend Exp $
+/* $Id: newport_con.c,v 1.8 1999/03/14 15:23:51 tsbogend Exp $
  *
  * newport_con.c: Abscon for newport hardware
  * 
@@ -371,7 +371,7 @@ static int newport_scroll(struct vc_data *vc, int t, int b, int dir, int lines)
     unsigned short *s, *d;
     unsigned short chattr;
 
-    if (t == 0 && b == vc->vc_rows) {
+    if (newport_ysize == 1024 && t == 0 && b == vc->vc_rows) {
 	if (dir == SM_UP) {
 	    topscan = (topscan + (lines << 4)) & 0x3ff;
 	    newport_clear_lines (vc->vc_rows-lines,vc->vc_rows-1);		
