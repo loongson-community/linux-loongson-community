@@ -1621,6 +1621,34 @@ static void r4k_flush_page_to_ram_d32(struct page *page)
 	blast_dcache32_page((unsigned long)page_address(page));
 }
 
+static void
+r4k_flush_icache_range(unsigned long start, unsigned long end)
+{
+	flush_cache_all();
+}
+
+static void
+r4k_flush_icache_page_s(struct vm_area_struct *vma, struct page *page)
+{
+	/*
+	 * We did an scache flush therefore PI is already clean.
+	 */
+}
+
+/*
+ * Ok, this seriously sucks.  We use them to flush a user page but don't
+ * know the virtual address, so we have to blast away the whole icache
+ * which is significantly more expensive than the real thing.
+ */
+static void
+r4k_flush_icache_page_p(struct vm_area_struct *vma, struct page *page)
+{
+	if (!(vma->vm_flags & VM_EXEC))
+		return;
+
+	flush_cache_all();
+}
+
 /*
  * Writeback and invalidate the primary cache dcache before DMA.
  *
@@ -2119,7 +2147,7 @@ static void __init setup_noscache_funcs(void)
 		_flush_page_to_ram = r4k_flush_page_to_ram_d32;
 		break;
 	}
-
+	_flush_icache_page = r4k_flush_icache_page_p;
 	_dma_cache_wback_inv = r4k_dma_cache_wback_inv_pc;
 	_dma_cache_wback = r4k_dma_cache_wback;
 	_dma_cache_inv = r4k_dma_cache_inv_pc;
@@ -2201,6 +2229,7 @@ static void __init setup_scache_funcs(void)
 		_copy_page = r4k_copy_page_s128;
 		break;
 	}
+	_flush_icache_page = r4k_flush_icache_page_s;
 	_dma_cache_wback_inv = r4k_dma_cache_wback_inv_sc;
 	_dma_cache_wback = r4k_dma_cache_wback;
 	_dma_cache_inv = r4k_dma_cache_inv_sc;
@@ -2253,6 +2282,7 @@ void __init ld_mmu_r4xx0(void)
 	if ((read_32bit_cp0_register(CP0_PRID) & 0xfff0) == 0x2020) {
 		_flush_cache_sigtramp = r4600v20k_flush_cache_sigtramp;
 	}
+	_flush_icache_range = r4k_flush_icache_range;	/* Ouch */
 
 	_flush_cache_l2 = r4k_flush_cache_l2;
 
