@@ -109,6 +109,10 @@ config PCMCIA_PROBE
 	bool
 	default y if ISA && !ARCH_SA1100 && !ARCH_CLPS711X
 
+config PCMCIA_VRC4171
+	tristate "NEC VRC4171 Card Controllers support"
+	depends on VRC4171 && PCMCIA
+
 config PCMCIA_VRC4173
 	tristate "NEC VRC4173 CARDU support"
 	depends on CPU_VR41XX && PCI && PCMCIA

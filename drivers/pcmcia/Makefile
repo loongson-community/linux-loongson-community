@@ -11,6 +11,7 @@ obj-$(CONFIG_TCIC)			+= tcic.o
 obj-$(CONFIG_HD64465_PCMCIA)		+= hd64465_ss.o
 obj-$(CONFIG_PCMCIA_SA1100)		+= sa1100_cs.o
 obj-$(CONFIG_PCMCIA_SA1111)		+= sa1111_cs.o
+obj-$(CONFIG_PCMCIA_VRC4171)		+= vrc4171_card.o
 obj-$(CONFIG_PCMCIA_VRC4173)		+= vrc4173_cardu.o
 obj-$(CONFIG_PCMCIA_AU1X00)		+= au1x00_ss.o
 
