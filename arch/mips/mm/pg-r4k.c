@@ -464,7 +464,7 @@ dest = label();
 		build_addiu_a0(2 * store_offset);
 		build_addiu_a1(2 * load_offset);
 		loop_start = store_offset;
-		while ((store_offset - loop_start) < half_scache_line_size()) {
+		do {
 			__build_load_reg( 8);
 			__build_load_reg( 9);
 			__build_load_reg(10);
@@ -478,6 +478,9 @@ dest = label();
 	}
 
 	build_jr_ra();
+
+	flush_icache_range((unsigned long)&copy_page_array,
+	                   (unsigned long) epc);
 
 	BUG_ON(epc > copy_page_array + ARRAY_SIZE(copy_page_array));
 }
