@@ -7,7 +7,7 @@
  *
  * Copyright (c) 1994, 1995, 1996, 1997 by Ralf Baechle
  *
- * $Id: string.h,v 1.5 1998/03/22 23:27:20 ralf Exp $
+ * $Id: string.h,v 1.4 1998/03/21 19:31:09 ralf Exp $
  */
 #ifndef __ASM_MIPS_STRING_H
 #define __ASM_MIPS_STRING_H
@@ -45,14 +45,6 @@ extern __inline__ char *strncpy(char *__dest, __const__ char *__src, size_t __n)
   __asm__ __volatile__(
 	".set\tnoreorder\n\t"
 	".set\tnoat\n"
-1:	beq	%0,%1,2f
-	lb	$1,(%1)
-	addiu	%1,1
-	sb	$1,(%0)
-	addiu	%0,1
-
-
-
 	"1:\tlbu\t$1,(%1)\n\t"
 	"subu\t%2,1\n\t"
 	"sb\t$1,(%0)\n\t"
