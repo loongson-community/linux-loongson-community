@@ -26,13 +26,9 @@
 #include <linux/a.out.h>
 #include <linux/tty.h>
 #include <linux/bootmem.h>
-#ifdef CONFIG_BLK_DEV_RAM
 #include <linux/blk.h>
-#endif
 #include <linux/ide.h>
-#ifdef CONFIG_RTC
 #include <linux/timex.h>
-#endif
 
 #include <asm/asm.h>
 #include <asm/bootinfo.h>
@@ -69,15 +65,15 @@ int EISA_bus = 0;
 
 struct screen_info screen_info;
 
-#ifdef CONFIG_BLK_DEV_FD
 extern struct fd_ops no_fd_ops;
 struct fd_ops *fd_ops;
-#endif
 
 #if defined(CONFIG_BLK_DEV_IDE) || defined(CONFIG_BLK_DEV_IDE_MODULE)
 extern struct ide_ops no_ide_ops;
 struct ide_ops *ide_ops;
 #endif
+
+extern void * __rd_start, * __rd_end;
 
 extern struct rtc_ops no_rtc_ops;
 struct rtc_ops *rtc_ops;
@@ -504,9 +500,6 @@ void __init setup_arch(char **cmdline_p)
 	void momenco_ocelot_setup(void);
 	void nino_setup(void);
 
-#ifdef CONFIG_NINO
-	extern void * __rd_start, * __rd_end;
-#endif
 	unsigned long bootmap_size;
 	unsigned long start_pfn, max_pfn, first_usable_pfn;
 
@@ -697,15 +690,12 @@ void __init setup_arch(char **cmdline_p)
 	/* Reserve the bootmap memory.  */
 	reserve_bootmem(PFN_PHYS(first_usable_pfn), bootmap_size);
 
-#ifdef CONFIG_NINO
+#ifdef CONFIG_BLK_DEV_INITRD
+	/* Board specific code should have set up initrd_start and initrd_end */
 	ROOT_DEV = MKDEV(RAMDISK_MAJOR, 0);
 	initrd_start = (unsigned long)&__rd_start;
 	initrd_end = (unsigned long)&__rd_end;
 	initrd_below_start_ok = 1;
-#endif
-
-#ifdef CONFIG_BLK_DEV_INITRD
-	/* Board specific code should have set up initrd_start and initrd_end */
 	if (initrd_start) {
 		unsigned long initrd_size = ((unsigned char *)initrd_end) - ((unsigned char *)initrd_start); 
 		printk("Initial ramdisk at: 0x%p (%lu bytes)\n",

@@ -284,7 +284,6 @@ archclean:
 	rm -f arch/$(ARCH)/ld.script
 	$(MAKE) -C arch/$(ARCH)/tools clean
 	$(MAKE) -C arch/mips/baget clean
-	$(MAKE) -C arch/mips/philips/nino clean
 
 archmrproper:
 	@$(MAKEBOOT) mrproper

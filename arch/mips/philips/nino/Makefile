@@ -25,7 +25,7 @@ obj-$(CONFIG_BLK_DEV_INITRD)	+= ramdisk.o
 
 ramdisk.o:
 		$(MAKE) -C ramdisk
-		ln -sf ramdisk/ramdisk.o ramdisk.o
+		mv ramdisk/ramdisk.o ramdisk.o
 
 clean:
 		rm -f *.o
