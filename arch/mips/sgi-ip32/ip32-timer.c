@@ -49,7 +49,7 @@ static irqreturn_t cc_timer_interrupt(int irq, void *dev_id, struct pt_regs * re
 
 static inline uint64_t crime_time(void)
 {
-	return crime_read(CRIME_TIME) & CRIME_TIME_MASK;
+	return crime_read(CRIME_TIMER) & CRIME_TIMER_MASK;
 }
 
 void __init ip32_timer_setup (struct irqaction *irq)

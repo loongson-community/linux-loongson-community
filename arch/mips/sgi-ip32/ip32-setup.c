@@ -79,31 +79,32 @@ static int __init ip32_setup(void)
 
 #ifdef CONFIG_SERIAL_8250
  	{
-		static struct uart_port sgio2_serial_ports[]={ {}, {} };
-		memset(sgio2_serial_ports, 0, sizeof(sgio2_serial_ports));
-		sgio2_serial_ports[0].type	= PORT_16550A;
-		sgio2_serial_ports[0].line	= 0;
-		sgio2_serial_ports[0].irq	= MACEISA_SERIAL1_IRQ;
-		sgio2_serial_ports[0].flags	= STD_COM_FLAGS | UPF_RESOURCES;
-		sgio2_serial_ports[0].uartclk	= BASE_BAUD * 16;
-		sgio2_serial_ports[0].iotype	= UPIO_MEM;
-		sgio2_serial_ports[0].membase	= ioremap(MACE_BASE + MACEISA_SER1_BASE, 0x8000);
-		sgio2_serial_ports[0].fifosize	= 14;
+		static struct uart_port o2_serial[2];
+
+		memset(o2_serial, 0, sizeof(o2_serial));
+		o2_serial[0].type	= PORT_16550A;
+		o2_serial[0].line	= 0;
+		o2_serial[0].irq	= MACEISA_SERIAL1_IRQ;
+		o2_serial[0].flags	= STD_COM_FLAGS | UPF_RESOURCES;
+		o2_serial[0].uartclk	= BASE_BAUD * 16;
+		o2_serial[0].iotype	= UPIO_MEM;
+		o2_serial[0].membase	= ioremap(MACE_BASE + MACEISA_SER1, 0x8000);
+		o2_serial[0].fifosize	= 14;
                 /* How much to shift register offset by. Each UART register
 		 * is replicated over 256 byte space */
-		sgio2_serial_ports[0].regshift	= 8;
-		sgio2_serial_ports[1].type	= PORT_16550A;
-		sgio2_serial_ports[1].line	= 1;
-		sgio2_serial_ports[1].irq	= MACEISA_SERIAL2_IRQ;
-		sgio2_serial_ports[1].flags	= STD_COM_FLAGS | UPF_RESOURCES;
-		sgio2_serial_ports[1].uartclk	= BASE_BAUD * 16;
-		sgio2_serial_ports[1].iotype	= UPIO_MEM;
-		sgio2_serial_ports[1].membase	= ioremap(MACE_BASE + MACEISA_SER2_BASE, 0x8000);
-		sgio2_serial_ports[1].fifosize	= 14;
-		sgio2_serial_ports[1].regshift	= 8;
+		o2_serial[0].regshift	= 8;
+		o2_serial[1].type	= PORT_16550A;
+		o2_serial[1].line	= 1;
+		o2_serial[1].irq	= MACEISA_SERIAL2_IRQ;
+		o2_serial[1].flags	= STD_COM_FLAGS | UPF_RESOURCES;
+		o2_serial[1].uartclk	= BASE_BAUD * 16;
+		o2_serial[1].iotype	= UPIO_MEM;
+		o2_serial[1].membase	= ioremap(MACE_BASE + MACEISA_SER2, 0x8000);
+		o2_serial[1].fifosize	= 14;
+		o2_serial[1].regshift	= 8;
 
-		early_serial_setup(sgio2_serial_ports);
-		early_serial_setup(sgio2_serial_ports + 1);
+		early_serial_setup(&o2_serial[0]);
+		early_serial_setup(&o2_serial[1]);
 	}
 #endif
 #ifdef CONFIG_SGI_O2MACE_ETH
@@ -130,12 +131,11 @@ static int __init ip32_setup(void)
 # endif
 #endif
 	crime_init();
+	ip32_pci_setup();
 
 	board_be_init = ip32_be_init;
 	board_time_init = ip32_time_init;
 	board_timer_setup = ip32_timer_setup;
-
- 	ip32_pci_setup();
 
 	return 0;
 }
