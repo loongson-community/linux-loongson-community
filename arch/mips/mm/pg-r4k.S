@@ -63,7 +63,7 @@ LEAF(r4k_clear_page32_d32)
 	sw	zero, 4(a0)
 	sw	zero, 8(a0)
 	sw	zero, 12(a0)
-	addiu	a0, 64
+	addiu	a0, 32
 	sw	zero, -16(a0)
 	sw	zero, -12(a0)
 	sw	zero, -8(a0)
