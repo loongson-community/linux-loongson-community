@@ -92,12 +92,12 @@
 #include <asm/galileo-boards/ev96100.h>
 #include <asm/galileo-boards/ev96100int.h>
 #define EV96100_SERIAL_PORT_DEFNS                                  \
-    { baud_base: EV96100_BASE_BAUD, port: EV96100_UART0_REGS_BASE, \
-      irq: EV96100INT_UART_0, flags: STD_COM_FLAGS, type: 0x3,   \
+    { baud_base: EV96100_BASE_BAUD, irq: EV96100INT_UART_0, \
+      flags: STD_COM_FLAGS,  \
       iomem_base: EV96100_UART0_REGS_BASE, iomem_reg_shift: 2, \
       io_type: SERIAL_IO_MEM }, \
-    { baud_base: EV96100_BASE_BAUD, port: EV96100_UART1_REGS_BASE, \
-      irq: EV96100INT_UART_0, flags: STD_COM_FLAGS, type: 0x3,   \
+    { baud_base: EV96100_BASE_BAUD, irq: EV96100INT_UART_0, \
+      flags: STD_COM_FLAGS, \
       iomem_base: EV96100_UART1_REGS_BASE, iomem_reg_shift: 2, \
       io_type: SERIAL_IO_MEM },
 #else

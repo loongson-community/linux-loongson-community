@@ -34,6 +34,13 @@
  *  675 Mass Ave, Cambridge, MA 02139, USA.
  */
 #include <linux/config.h>
+#include <linux/sched.h>
+#include <linux/mm.h>
+#include <asm/io.h>
+#include <asm/pgtable.h>
+#include <asm/processor.h>
+#include <asm/reboot.h>
+#include <asm/system.h>
 
 #include <asm/reboot.h>
 #include <asm/galileo-boards/ev96100.h>
@@ -43,14 +50,21 @@ static void mips_machine_halt(void);
 
 static void mips_machine_restart(char *command)
 {
-	printk("mips_machine_restart: not implemented\n");
+	set_cp0_status(ST0_BEV | ST0_ERL);
+	change_cp0_config(CONF_CM_CMASK, CONF_CM_UNCACHED);
+	flush_cache_all();
+	write_32bit_cp0_register(CP0_WIRED, 0);
+	__asm__ __volatile__("jr\t%0"::"r"(0xbfc00000));
 	while (1);
 }
 
 static void mips_machine_halt(void)
 {
-	printk("mips_machine_halt: not implemented\n");
-	while (1);
+	printk(KERN_NOTICE "You can safely turn off the power\n");
+	while (1)
+		__asm__(".set\tmips3\n\t"
+	                "wait\n\t"
+			".set\tmips0");
 }
 
 void mips_reboot_setup(void)
