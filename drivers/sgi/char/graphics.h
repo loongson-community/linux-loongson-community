@@ -23,3 +23,4 @@ struct graphics_ops {
 
 void shmiq_init (void);
 void streamable_init (void);
+void usema_init (void);

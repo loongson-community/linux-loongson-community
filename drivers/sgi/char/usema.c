@@ -63,6 +63,7 @@ static struct irix_usema{
 static int
 sgi_usemaclone_open(struct inode *inode, struct file *filp)
 {
+#ifdef USEMA_FOR_REAL
 	int semanum;
 	char semaname[14];
 	struct dentry * semadentry;
@@ -94,6 +95,7 @@ sgi_usemaclone_open(struct inode *inode, struct file *filp)
 	usema_list[semanum].filp = filp;
 	printk("[%s:%d] got usema %d",
 	       current->comm, current->pid, semanum);
+#endif
 	return 0;
 }	
 
@@ -139,6 +141,7 @@ sgi_usema_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 	int retval;
 	printk("[%s:%d] wants ioctl 0x%xd (arg 0x%xd)",
 	       current->comm, current->pid, cmd, arg);
+#ifdef USEMA_FOR_REAL
 	switch(cmd) {
 	case UIOCATTACHSEMA: {
 		/* They pass us information about the semaphore to
@@ -212,6 +215,9 @@ sgi_usema_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 	}
 	}
 	return -ENOSYS;
+#else
+	return 0;
+#endif
 }
 
 static unsigned int
@@ -225,7 +231,7 @@ sgi_usema_poll(struct file *filp, poll_table *wait)
 	   - the lock becomes free and there's a process polling it
 	   And I have to figure out poll()'s semantics. =)
 	   */
-	return -ENOSYS;
+	return 0;
 }
 
 struct file_operations sgi_usema_fops = {

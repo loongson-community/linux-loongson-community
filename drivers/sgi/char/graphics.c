@@ -278,6 +278,7 @@ gfx_init (const char **name)
 
 	printk ("GFX INIT: ");
 	shmiq_init ();
+	usema_init ();
 	
 	if ((g = newport_probe (boards, name)) != 0){
 		cards [boards] = *g;
