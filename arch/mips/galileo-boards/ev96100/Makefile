@@ -17,8 +17,7 @@
 
 O_TARGET:= ev96100.o
 
-export-objs			= irq.o
-
-obj-y	:= init.o pci_ops.o pci_fixups.o time.o irq.o int-handler.o setup.o puts.o
+obj-y	:= init.o pci_ops.o pci_fixups.o time.o irq.o int-handler.o setup.o \
+	   puts.o
 
 include $(TOPDIR)/Rules.make
