@@ -29,7 +29,6 @@
 #include <linux/highmem.h>
 #include <linux/workqueue.h>
 
-#include <asm/kmap_types.h>
 #include <asm/uaccess.h>
 #include <asm/mmu_context.h>
 
