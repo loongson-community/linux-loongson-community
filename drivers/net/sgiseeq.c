@@ -1,4 +1,4 @@
-/* $Id: sgiseeq.c,v 1.17 1996/08/16 04:43:32 dm Exp $
+/* $Id: sgiseeq.c,v 1.1.1.1 1997/06/01 03:17:20 ralf Exp $
  * sgiseeq.c: Seeq8003 ethernet driver for SGI machines.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
@@ -351,6 +351,25 @@ static inline void tx_maybe_reset_collisions(struct sgiseeq_private *sp,
 	}
 }
 
+static inline void kick_tx(struct sgiseeq_tx_desc *td,
+			   volatile struct hpc3_ethregs *hregs)
+{
+	/* If the HPC aint doin nothin, and there are more packets
+	 * with ETXD cleared and XIU set we must make very certain
+	 * that we restart the HPC else we risk locking up the
+	 * adapter.  The following code is only safe iff the HPCDMA
+	 * is not active!
+	 */
+	while((td->tdma.cntinfo & (HPCDMA_XIU | HPCDMA_ETXD)) ==
+	      (HPCDMA_XIU | HPCDMA_ETXD))
+		td = (struct sgiseeq_tx_desc *)
+			KSEG1ADDR(td->tdma.pnext);
+	if(td->tdma.cntinfo & HPCDMA_XIU) {
+		hregs->tx_ndptr = PHYSADDR(td);
+		hregs->tx_ctrl = HPC3_ETXCTRL_ACTIVE;
+	}
+}
+
 static inline void sgiseeq_tx(struct device *dev, struct sgiseeq_private *sp,
 			      volatile struct hpc3_ethregs *hregs,
 			      volatile struct sgiseeq_regs *sregs)
@@ -371,22 +390,8 @@ static inline void sgiseeq_tx(struct device *dev, struct sgiseeq_private *sp,
 			if(status & SEEQ_TSTAT_LCLS)
 				sp->stats.collisions++;
 		}
-		/* If the HPC aint doin nothin, and there are more packets
-		 * with ETXD cleared and XIU set we must make very certain
-		 * that we restart the HPC else we risk locking up the
-		 * adapter.  The following read of tx_ndptr is only safe
-		 * iff the HPCDMA is not active!
-		 */
-		td = (struct sgiseeq_tx_desc *)
-			KSEG1ADDR(((hregs->tx_ndptr) & ~0xf));
-		while((td->tdma.cntinfo & (HPCDMA_XIU | HPCDMA_ETXD)) ==
-		      (HPCDMA_XIU | HPCDMA_ETXD))
-			td = (struct sgiseeq_tx_desc *)
-				KSEG1ADDR(td->tdma.pnext);
-		if(td->tdma.cntinfo & HPCDMA_XIU) {
-			hregs->tx_ndptr = PHYSADDR(td);
-			hregs->tx_ctrl = HPC3_ETXCTRL_ACTIVE;
-		}
+		kick_tx((struct sgiseeq_tx_desc *)KSEG1ADDR((hregs->tx_ndptr & ~0xf)),
+			hregs);
 	}
 
 	/* Ack 'em... */
@@ -515,7 +520,7 @@ static inline int verify_tx(struct sgiseeq_private *sp,
 	}
 
 	if(skb->len <= 0) {
-		printk("%s: skb len is %ld\n", dev->name, skb->len);
+		printk("%s: skb len is %d\n", dev->name, skb->len);
 		return -1;
 	}
 	/* Are we getting in someone else's way? */
@@ -575,10 +580,9 @@ static int sgiseeq_start_xmit(struct sk_buff *skb, struct device *dev)
 	sp->tx_new = NEXT_TX(sp->tx_new); /* Advance. */
 
 	/* Maybe kick the HPC back into motion. */
-	if(!(hregs->tx_ctrl & HPC3_ETXCTRL_ACTIVE)) {
-		hregs->tx_ndptr = PHYSADDR(&sp->srings.tx_desc[sp->tx_old]);
-		hregs->tx_ctrl = HPC3_ETXCTRL_ACTIVE;
-	}
+	if(!(hregs->tx_ctrl & HPC3_ETXCTRL_ACTIVE))
+		kick_tx(&sp->srings.tx_desc[sp->tx_old], hregs);
+
 	dev->trans_start = jiffies;
 	dev_kfree_skb(skb, FREE_WRITE);
 
