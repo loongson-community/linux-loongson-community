@@ -64,6 +64,4 @@ struct gio_dev {
 
 extern struct gio_dev* gio_find_device(unsigned char device, const struct gio_dev *from);
 
-extern void sgigio_init(void);
-
 #endif /* _ASM_SGI_SGIGIO_H */

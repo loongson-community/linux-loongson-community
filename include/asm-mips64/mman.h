@@ -3,7 +3,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1995, 1999 by Ralf Baechle
+ * Copyright (C) 1995, 1999, 2002 by Ralf Baechle
  */
 #ifndef _ASM_MMAN_H
 #define _ASM_MMAN_H
@@ -42,6 +42,8 @@
 #define MAP_DENYWRITE	0x2000		/* ETXTBSY */
 #define MAP_EXECUTABLE	0x4000		/* mark it as an executable */
 #define MAP_LOCKED	0x8000		/* pages are locked */
+#define MAP_POPULATE	0x10000		/* populate (prefault) pagetables */
+#define MAP_NONBLOCK	0x20000		/* do not block on IO */
 
 /*
  * Flags for msync

@@ -11,6 +11,22 @@
 
 #include <asm/scatterlist.h>
 
+/*
+ * Disk stats ...
+ */
+
+#define DK_MAX_MAJOR 16
+#define DK_MAX_DISK 16
+ 
+struct disk_stat {
+        unsigned int drive[DK_MAX_MAJOR][DK_MAX_DISK];
+        unsigned int drive_rio[DK_MAX_MAJOR][DK_MAX_DISK];
+        unsigned int drive_wio[DK_MAX_MAJOR][DK_MAX_DISK];
+        unsigned int drive_rblk[DK_MAX_MAJOR][DK_MAX_DISK];
+        unsigned int drive_wblk[DK_MAX_MAJOR][DK_MAX_DISK];
+};
+extern struct disk_stat dkstat;
+
 struct request_queue;
 typedef struct request_queue request_queue_t;
 struct elevator_s;
@@ -31,7 +47,6 @@ struct request {
 				     * blkdev_dequeue_request! */
 	unsigned long flags;		/* see REQ_ bits below */
 
-	kdev_t rq_dev;
 	sector_t sector;
 	unsigned long nr_sectors;
 	unsigned int current_nr_sectors;
@@ -77,6 +92,7 @@ struct request {
 	/*
 	 * when request is used as a packet command carrier
 	 */
+	unsigned int cmd_len;
 	unsigned char cmd[16];
 
 	unsigned int data_len;

@@ -5,6 +5,7 @@
  *
  * Copyright (C) 1997, 1998, 2001 by Ralf Baechle
  */
+#include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/notifier.h>
@@ -34,7 +35,7 @@
 static unsigned char sgi_volume;
 
 static struct timer_list power_timer, blink_timer, debounce_timer, volume_timer;
-static int shuting_down = 0, has_paniced = 0, setup_done = 0;
+static int shuting_down = 0, has_paniced = 0;
 
 static void sgi_machine_restart(char *command) __attribute__((noreturn));
 static void sgi_machine_halt(void) __attribute__((noreturn));
@@ -225,12 +226,8 @@ static struct notifier_block panic_block = {
 	0
 };
 
-void indy_reboot_setup(void)
+static __init int indy_reboot_setup(void)
 {
-	if (setup_done)
-		return;
-	setup_done = 1;
-
 	_machine_restart = sgi_machine_restart;
 	_machine_halt = sgi_machine_halt;
 	_machine_power_off = sgi_machine_power_off;
@@ -239,4 +236,8 @@ void indy_reboot_setup(void)
 	init_timer(&blink_timer);
 	blink_timer.function = blink_timeout;
 	notifier_chain_register(&panic_notifier_list, &panic_block);
+
+	return 0;
 }
+
+subsys_initcall(indy_reboot_setup);

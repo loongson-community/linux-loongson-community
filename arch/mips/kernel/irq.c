@@ -249,7 +249,7 @@ asmlinkage unsigned int do_IRQ(int irq, struct pt_regs *regs)
 	unsigned int status;
 
 	irq_enter();
-	kstat.irqs[cpu][irq]++;
+	kstat_cpu(cpu).irqs[irq]++;
 	spin_lock(&desc->lock);
 	desc->handler->ack(irq);
 	/*

@@ -265,4 +265,4 @@ SYS(sys_lookup_dcookie, 3)
 SYS(sys_epoll_create, 1)
 SYS(sys_epoll_ctl, 4)
 SYS(sys_epoll_wait, 3)				/* 4250 */
-
+SYS(sys_remap_file_pages, 5)

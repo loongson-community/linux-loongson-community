@@ -1023,6 +1023,14 @@ config TC
 #	bool "Access.Bus support"
 #	depends on TC
 
+config MMU
+	bool
+	default y
+
+config SWAP
+	bool
+	default y
+
 config MCA
 	bool
 

@@ -62,7 +62,6 @@ extern int get_filesystem_list(char *);
 extern int get_exec_domain_list(char *);
 extern int get_dma_list(char *);
 extern int get_locks_status (char *, char **, off_t, int);
-extern int get_swaparea_info (char *);
 #ifdef CONFIG_SGI_DS1286
 extern int get_ds1286_status(char *);
 #endif
@@ -296,18 +295,6 @@ static struct file_operations proc_partitions_operations = {
 	.release	= seq_release,
 };
 
-extern struct seq_operations swaps_op;
-static int swaps_open(struct inode *inode, struct file *file)
-{
-	return seq_open(file, &swaps_op);
-}
-static struct file_operations proc_swaps_operations = {
-	.open		= swaps_open,
-	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= seq_release,
-};
-
 #ifdef CONFIG_MODULES
 extern struct seq_operations modules_op;
 static int modules_open(struct inode *inode, struct file *file)
@@ -360,14 +347,14 @@ static int kstat_read_proc(char *page, char **start, off_t off,
 		int j;
 
 		if(!cpu_online(i)) continue;
-		user += kstat.per_cpu_user[i];
-		nice += kstat.per_cpu_nice[i];
-		system += kstat.per_cpu_system[i];
-		idle += kstat.per_cpu_idle[i];
-		iowait += kstat.per_cpu_iowait[i];
+		user += kstat_cpu(i).cpustat.user;
+		nice += kstat_cpu(i).cpustat.nice;
+		system += kstat_cpu(i).cpustat.system;
+		idle += kstat_cpu(i).cpustat.idle;
+		iowait += kstat_cpu(i).cpustat.iowait;
 #if !defined(CONFIG_ARCH_S390)
 		for (j = 0 ; j < NR_IRQS ; j++)
-			sum += kstat.irqs[i][j];
+			sum += kstat_cpu(i).irqs[j];
 #endif
 	}
 
@@ -381,11 +368,11 @@ static int kstat_read_proc(char *page, char **start, off_t off,
 		if (!cpu_online(i)) continue;
 		len += sprintf(page + len, "cpu%d %u %u %u %u %u\n",
 			i,
-			jiffies_to_clock_t(kstat.per_cpu_user[i]),
-			jiffies_to_clock_t(kstat.per_cpu_nice[i]),
-			jiffies_to_clock_t(kstat.per_cpu_system[i]),
-			jiffies_to_clock_t(kstat.per_cpu_idle[i]),
-			jiffies_to_clock_t(kstat.per_cpu_iowait[i]));
+			jiffies_to_clock_t(kstat_cpu(i).cpustat.user),
+			jiffies_to_clock_t(kstat_cpu(i).cpustat.nice),
+			jiffies_to_clock_t(kstat_cpu(i).cpustat.system),
+			jiffies_to_clock_t(kstat_cpu(i).cpustat.idle),
+			jiffies_to_clock_t(kstat_cpu(i).cpustat.idle));
 	}
 	len += sprintf(page + len, "intr %u", sum);
 
@@ -398,18 +385,18 @@ static int kstat_read_proc(char *page, char **start, off_t off,
 
 	for (major = 0; major < DK_MAX_MAJOR; major++) {
 		for (disk = 0; disk < DK_MAX_DISK; disk++) {
-			int active = kstat.dk_drive[major][disk] +
-				kstat.dk_drive_rblk[major][disk] +
-				kstat.dk_drive_wblk[major][disk];
+			int active = dkstat.drive[major][disk] +
+				dkstat.drive_rblk[major][disk] +
+				dkstat.drive_wblk[major][disk];
 			if (active)
 				len += sprintf(page + len,
 					"(%u,%u):(%u,%u,%u,%u,%u) ",
 					major, disk,
-					kstat.dk_drive[major][disk],
-					kstat.dk_drive_rio[major][disk],
-					kstat.dk_drive_rblk[major][disk],
-					kstat.dk_drive_wio[major][disk],
-					kstat.dk_drive_wblk[major][disk]
+					dkstat.drive[major][disk],
+					dkstat.drive_rio[major][disk],
+					dkstat.drive_rblk[major][disk],
+					dkstat.drive_wio[major][disk],
+					dkstat.drive_wblk[major][disk]
 			);
 		}
 	}
@@ -641,7 +628,6 @@ void __init proc_misc_init(void)
 		entry->proc_fops = &proc_kmsg_operations;
 	create_seq_entry("cpuinfo", 0, &proc_cpuinfo_operations);
 	create_seq_entry("partitions", 0, &proc_partitions_operations);
-	create_seq_entry("swaps", 0, &proc_swaps_operations);
 #if !defined(CONFIG_ARCH_S390)
 	create_seq_entry("interrupts", 0, &proc_interrupts_operations);
 #endif

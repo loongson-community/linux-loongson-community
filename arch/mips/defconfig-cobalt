@@ -97,6 +97,8 @@ CONFIG_CPU_HAS_SYNC=y
 # Bus options (PCI, PCMCIA, EISA, ISA, TC)
 #
 # CONFIG_PCI_NAMES is not set
+CONFIG_MMU=y
+CONFIG_SWAP=y
 # CONFIG_HOTPLUG is not set
 
 #
@@ -450,6 +452,8 @@ CONFIG_DEVPTS_FS=y
 # CONFIG_QNX4FS_FS is not set
 # CONFIG_ROMFS_FS is not set
 CONFIG_EXT2_FS=y
+CONFIG_EXT2_FS_XATTR=y
+CONFIG_EXT2_FS_POSIX_ACL=y
 # CONFIG_SYSV_FS is not set
 # CONFIG_UDF_FS is not set
 # CONFIG_UFS_FS is not set
@@ -471,6 +475,8 @@ CONFIG_LOCKD=y
 # CONFIG_SMB_FS is not set
 # CONFIG_NCP_FS is not set
 # CONFIG_AFS_FS is not set
+CONFIG_FS_MBCACHE=y
+CONFIG_FS_POSIX_ACL=y
 
 #
 # Partition Types

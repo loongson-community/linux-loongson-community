@@ -88,7 +88,7 @@ void cc_timer_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 
 	write_32bit_cp0_register (CP0_COMPARE,
 				  (u32) (count + cc_interval));
-	kstat.irqs[0][irq]++;
+	kstat_cpu(0).irqs[irq]++;
 	do_timer (regs);
 
 	if (!jiffies)

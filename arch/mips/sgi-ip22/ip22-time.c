@@ -180,14 +180,6 @@ static __init void indy_time_init(void)
 		(int) (r4k_tick / 5000), (int) (r4k_tick % 5000) / 50);
 
 	mips_counter_frequency = r4k_tick * HZ;
-
-	/* HACK ALERT! This get's called after traps initialization
-	 * We piggyback the initialization of GIO bus here even though
-	 * it is technically not related with the timer in any way.
-	 * Doing it from ip22_setup wouldn't work since traps aren't
-	 * initialized yet.
-	 */
-	sgigio_init();
 }
 
 /* Generic SGI handler for (spurious) 8254 interrupts */
@@ -199,7 +191,7 @@ void indy_8254timer_irq(struct pt_regs *regs)
 	char c;
 
 	irq_enter();
-	kstat.irqs[cpu][irq]++;
+	kstat_cpu(cpu).irqs[irq]++;
 	printk("indy_8254timer_irq: Whoops, should not have gotten this IRQ\n");
 	ArcRead(0, &c, 1, &cnt);
 	ArcEnterInteractiveMode();
@@ -212,7 +204,7 @@ void indy_r4k_timer_interrupt(struct pt_regs *regs)
 	int irq = SGI_TIMER_IRQ;
 
 	irq_enter();
-	kstat.irqs[cpu][irq]++;
+	kstat_cpu(cpu).irqs[irq]++;
 	timer_interrupt(irq, NULL, regs);
 	irq_exit();
 

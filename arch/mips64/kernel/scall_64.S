@@ -359,3 +359,4 @@ sys_call_table:
 	PTR	sys_epoll_create
 	PTR	sys_epoll_ctl
 	PTR	sys_epoll_wait
+	PTR	sys_remap_file_pages		/* 5210 */

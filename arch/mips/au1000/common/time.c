@@ -6,8 +6,6 @@
  * Carsten Langgaard, carstenl@mips.com
  * Copyright (C) 1999,2000 MIPS Technologies, Inc.  All rights reserved.
  *
- * ########################################################################
- *
  *  This program is free software; you can distribute it and/or modify it
  *  under the terms of the GNU General Public License (Version 2) as
  *  published by the Free Software Foundation.
@@ -21,12 +19,8 @@
  *  with this program; if not, write to the Free Software Foundation, Inc.,
  *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
  *
- * ########################################################################
- *
  * Setting up the clock on the MIPS boards.
- *
  */
-
 #include <linux/types.h>
 #include <linux/config.h>
 #include <linux/init.h>
@@ -81,7 +75,7 @@ void mips_timer_interrupt(struct pt_regs *regs)
 	int cpu = smp_processor_id();
 
 	irq_enter();
-	kstat.irqs[cpu][irq]++;
+	kstat_cpu(cpu).irqs[irq]++;
 
 #ifdef CONFIG_PM
 	printk(KERN_ERR "Unexpected CP0 interrupt\n");
@@ -97,7 +91,7 @@ void mips_timer_interrupt(struct pt_regs *regs)
 		timerhi += (count < timerlo);   /* Wrap around */
 		timerlo = count;
 
-		kstat.irqs[0][irq]++;
+		kstat_cpu(0).irqs[irq]++;
 		do_timer(regs);
 		r4k_cur += r4k_offset;
 		ack_r4ktimer(r4k_cur);
@@ -120,7 +114,7 @@ void counter0_irq(int irq, void *dev_id, struct pt_regs *regs)
 	int time_elapsed;
 	static int jiffie_drift = 0;
 
-	kstat.irqs[0][irq]++;
+	kstat_cpu(0).irqs[irq]++;
 	if (au_readl(SYS_COUNTER_CNTRL) & SYS_CNTRL_M20) {
 		/* should never happen! */
 		printk(KERN_WARNING "counter 0 w status eror\n");

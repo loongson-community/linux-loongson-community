@@ -82,10 +82,14 @@ static int gio_read_proc(char *buf, char **start, off_t off,
 	return p - buf;
 }
 
-void create_gio_proc_entry(void)
+static __init int create_gio_proc_entry(void)
 {
 	create_proc_read_entry("gio", 0, NULL, gio_read_proc, NULL);
+
+	return 0;
 }
+
+subsys_initcall(create_gio_proc_entry);
 
 /**
  * gio_find_device - begin or continue searching for a GIO device by device id
@@ -124,11 +128,11 @@ extern int ip22_baddr(unsigned int *val, unsigned long addr);
  * sgigio_init - scan the GIO space and figure out what hardware is actually
  * present.
  */
-void __init sgigio_init(void)
+static __init int sgigio_init(void)
 {
 	unsigned int i, id, found = 0;
 
-	printk("GIO: Scanning for GIO cards...\n");
+	printk(KERN_INFO "GIO: Scanning for GIO cards...\n");
 	for (i = 0; i < GIO_NUM_SLOTS; i++) {
 		if (ip22_baddr(&id, KSEG1ADDR(gio_slot[i].base_addr)))
 			continue;
@@ -144,10 +148,14 @@ void __init sgigio_init(void)
 		} else
 			gio_slot[i].flags = GIO_VALID_ID_ONLY;
 
-		printk("GIO: Card 0x%02x @ 0x%08lx\n", gio_slot[i].device,
-			gio_slot[i].base_addr);
+		printk(KERN_INFO "GIO: Card 0x%02x @ 0x%08lx\n",
+		       gio_slot[i].device, gio_slot[i].base_addr);
 	}
 
 	if (!found)
-		printk("GIO: No GIO cards present.\n");
+		printk(KERN_INFO "GIO: No GIO cards present.\n");
+
+	return 0;
 }
+
+subsys_initcall(sgigio_init);

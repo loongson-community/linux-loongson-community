@@ -82,7 +82,7 @@ extern int EISA_bus;
 /* This decides where the kernel will search for a free chunk of vm
  * space during mmap's.
  */
-#define TASK_UNMAPPED_BASE	(TASK_SIZE / 3)
+#define TASK_UNMAPPED_BASE	(PAGE_ALIGN(TASK_SIZE / 3))
 
 /*
  * Size of io_bitmap in longwords: 32 is ports 0-0x3ff.
@@ -184,9 +184,6 @@ struct thread_struct {
 #define release_thread(thread) do { } while(0)
 
 extern int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags);
-
-/* Release all segment info associated with a VM */
-#define release_segments(mm) do { } while(0)
 
 extern unsigned long thread_saved_pc(struct thread_struct *t);
 

@@ -1,14 +1,12 @@
 /*
- * Linux/MIPS memory manager definitions
- *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1995, 2002 by Ralf Baechle
+ * Copyright (C) 1995, 1999, 2002 by Ralf Baechle
  */
-#ifndef __ASM_MIPS_MMAN_H
-#define __ASM_MIPS_MMAN_H
+#ifndef _ASM_MMAN_H
+#define _ASM_MMAN_H
 
 /*
  * Protections are chosen from these bits, OR'd together.  The
@@ -44,6 +42,8 @@
 #define MAP_DENYWRITE	0x2000		/* ETXTBSY */
 #define MAP_EXECUTABLE	0x4000		/* mark it as an executable */
 #define MAP_LOCKED	0x8000		/* pages are locked */
+#define MAP_POPULATE	0x10000		/* populate (prefault) pagetables */
+#define MAP_NONBLOCK	0x20000		/* do not block on IO */
 
 /*
  * Flags for msync
@@ -68,4 +68,4 @@
 #define MAP_ANON       MAP_ANONYMOUS
 #define MAP_FILE       0
 
-#endif /* __ASM_MIPS_MMAN_H */
+#endif /* _ASM_MMAN_H */

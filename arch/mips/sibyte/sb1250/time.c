@@ -100,7 +100,7 @@ void sb1250_timer_interrupt(struct pt_regs *regs)
 {
 	int cpu = smp_processor_id();
 
-	kstat.irqs[cpu][K_INT_TIMER_0+cpu]++;
+	kstat_cpu(cpu).irqs[K_INT_TIMER_0 + cpu]++;
 	/* Reset the timer */
 	out64(M_SCD_TIMER_ENABLE|M_SCD_TIMER_MODE_CONTINUOUS,
 	      KSEG1 + A_SCD_TIMER_REGISTER(cpu, R_SCD_TIMER_CFG));

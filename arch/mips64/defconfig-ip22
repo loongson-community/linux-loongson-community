@@ -102,6 +102,8 @@ CONFIG_CPU_HAS_SYNC=y
 # Bus options (PCI, PCMCIA, EISA, ISA, TC)
 #
 # CONFIG_IP22_EISA is not set
+CONFIG_MMU=y
+CONFIG_SWAP=y
 # CONFIG_HOTPLUG is not set
 
 #
@@ -450,8 +452,11 @@ CONFIG_AUTOFS4_FS=y
 # CONFIG_HFS_FS is not set
 # CONFIG_BEFS_FS is not set
 # CONFIG_BFS_FS is not set
-# CONFIG_EXT3_FS is not set
-# CONFIG_JBD is not set
+CONFIG_EXT3_FS=y
+CONFIG_EXT3_FS_XATTR=y
+CONFIG_EXT3_FS_POSIX_ACL=y
+CONFIG_JBD=y
+# CONFIG_JBD_DEBUG is not set
 # CONFIG_FAT_FS is not set
 # CONFIG_EFS_FS is not set
 # CONFIG_CRAMFS is not set
@@ -470,7 +475,7 @@ CONFIG_PROC_FS=y
 CONFIG_DEVPTS_FS=y
 # CONFIG_QNX4FS_FS is not set
 # CONFIG_ROMFS_FS is not set
-CONFIG_EXT2_FS=y
+# CONFIG_EXT2_FS is not set
 # CONFIG_SYSV_FS is not set
 # CONFIG_UDF_FS is not set
 # CONFIG_UFS_FS is not set
@@ -495,6 +500,8 @@ CONFIG_EXPORTFS=y
 # CONFIG_SMB_FS is not set
 # CONFIG_NCP_FS is not set
 # CONFIG_AFS_FS is not set
+CONFIG_FS_MBCACHE=y
+CONFIG_FS_POSIX_ACL=y
 
 #
 # Partition Types

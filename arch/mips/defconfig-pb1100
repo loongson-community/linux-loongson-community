@@ -107,6 +107,8 @@ CONFIG_CPU_HAS_SYNC=y
 # Bus options (PCI, PCMCIA, EISA, ISA, TC)
 #
 CONFIG_PCI_NAMES=y
+CONFIG_MMU=y
+CONFIG_SWAP=y
 CONFIG_HOTPLUG=y
 
 #
@@ -173,6 +175,7 @@ CONFIG_MTD_CFI_INTELEXT=y
 # CONFIG_MTD_PB1100 is not set
 # CONFIG_MTD_PCI is not set
 # CONFIG_MTD_PCMCIA is not set
+# CONFIG_MTD_UCLINUX is not set
 
 #
 # Self-contained MTD device drivers
@@ -602,6 +605,8 @@ CONFIG_REISERFS_FS=m
 # CONFIG_BEFS_FS is not set
 # CONFIG_BFS_FS is not set
 CONFIG_EXT3_FS=y
+CONFIG_EXT3_FS_XATTR=y
+# CONFIG_EXT3_FS_POSIX_ACL is not set
 CONFIG_JBD=y
 # CONFIG_JBD_DEBUG is not set
 # CONFIG_FAT_FS is not set
@@ -627,6 +632,7 @@ CONFIG_DEVPTS_FS=y
 # CONFIG_QNX4FS_FS is not set
 # CONFIG_ROMFS_FS is not set
 CONFIG_EXT2_FS=y
+# CONFIG_EXT2_FS_XATTR is not set
 # CONFIG_SYSV_FS is not set
 # CONFIG_UDF_FS is not set
 # CONFIG_UFS_FS is not set
@@ -652,6 +658,7 @@ CONFIG_SMB_FS=m
 # CONFIG_SMB_NLS_DEFAULT is not set
 # CONFIG_NCP_FS is not set
 # CONFIG_AFS_FS is not set
+CONFIG_FS_MBCACHE=y
 
 #
 # Partition Types

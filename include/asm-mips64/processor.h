@@ -113,7 +113,7 @@ extern int EISA_bus;
  * space during mmap's.
  */
 #define TASK_UNMAPPED_BASE	((current->thread.mflags & MF_32BIT) ? \
-	(TASK_SIZE32 / 3) : (TASK_SIZE / 3))
+	PAGE_ALIGN(TASK_SIZE32 / 3) : PAGE_ALIGN(TASK_SIZE / 3))
 
 /*
  * Size of io_bitmap in longwords: 32 is ports 0-0x3ff.
@@ -217,9 +217,6 @@ struct thread_struct {
 #define release_thread(thread) do { } while(0)
 
 extern int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags);
-
-/* Release all segment info associated with a VM */
-#define release_segments(mm) do { } while(0)
 
 extern unsigned long thread_saved_pc(struct thread_struct *t);
 

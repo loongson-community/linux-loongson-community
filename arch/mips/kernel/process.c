@@ -67,7 +67,7 @@ void start_thread(struct pt_regs * regs, unsigned long pc, unsigned long sp)
 	loose_fpu();
 	regs->cp0_epc = pc;
 	regs->regs[29] = sp;
-	current->thread.current_ds = USER_DS;
+	current_thread_info()->addr_limit = USER_DS;
 }
 
 void exit_thread(void)
@@ -182,7 +182,7 @@ int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
 		".set reorder"
 		: "=r" (retval)
 		: "i" (__NR_clone), "i" (__NR_exit), "r" (arg), "r" (fn),
-		  "r" (flags | CLONE_VM)
+		  "r" (flags | CLONE_VM | CLONE_UNTRACED)
 		 /*
 		  * The called subroutine might have destroyed any of the
 		  * at, result, argument or temporary registers ...

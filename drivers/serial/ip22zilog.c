@@ -4,7 +4,7 @@
  * Driver for Zilog serial chips found on SGI workstations and
  * servers.  This driver could actually be made more generic.
  *
- * This is based on the drivers/serial/sunzilog.c code as of 2.5.45 and the
+ * This is based on the drivers/serial/sunzilog.c code as of 2.5.46 and the
  * old drivers/sgi/char/sgiserial.c code which itself is based of the original
  * drivers/sbus/char/zs.c code.  A lot of code has been simply moved over
  * directly from there but much has been rewritten.  Credits therefore go out
@@ -437,7 +437,7 @@ static void ip22zilog_transmit_chars(struct uart_ip22zilog_port *up,
 	up->port.icount.tx++;
 
 	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
-		uart_event(&up->port, EVT_WRITE_WAKEUP);
+		uart_write_wakeup(&up->port);
 
 	if (!uart_circ_empty(xmit))
 		return;
@@ -917,7 +917,7 @@ static struct uart_driver ip22zilog_reg = {
 #ifdef CONFIG_DEVFS_FS
 	.dev_name	=	"ttyS%d",
 #else
-	.dev_name	=	"ttyS",
+	.dev_name	=	"ttyS%d",
 #endif
 	.major		=	TTY_MAJOR,
 };

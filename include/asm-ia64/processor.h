@@ -179,7 +179,6 @@ struct cpuinfo_ia64 {
 #endif
 #ifdef CONFIG_NUMA
 	struct ia64_node_data *node_data;
-	int nodeid;
 #endif
 };
 
@@ -191,10 +190,6 @@ DECLARE_PER_CPU(struct cpuinfo_ia64, cpu_info);
  */
 #define local_cpu_data		(&__get_cpu_var(cpu_info))
 #define cpu_data(cpu)		(&per_cpu(cpu_info, cpu))
-
-#ifdef CONFIG_NUMA
-#define numa_node_id()		(local_cpu_data->nodeid)
-#endif
 
 extern void identify_cpu (struct cpuinfo_ia64 *);
 extern void print_cpu_info (struct cpuinfo_ia64 *);
@@ -366,10 +361,6 @@ struct task_struct;
  * been called already.
  */
 extern int kernel_thread (int (*fn)(void *), void *arg, unsigned long flags);
-
-/* Copy and release all segment info associated with a VM */
-#define copy_segments(tsk, mm)			do { } while (0)
-#define release_segments(mm)			do { } while (0)
 
 /* Get wait channel for task P.  */
 extern unsigned long get_wchan (struct task_struct *p);

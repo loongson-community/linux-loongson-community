@@ -99,6 +99,8 @@ CONFIG_RTC_DS1742=y
 # Bus options (PCI, PCMCIA, EISA, ISA, TC)
 #
 # CONFIG_PCI_NAMES is not set
+CONFIG_MMU=y
+CONFIG_SWAP=y
 # CONFIG_HOTPLUG is not set
 
 #

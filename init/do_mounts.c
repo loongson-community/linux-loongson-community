@@ -101,7 +101,7 @@ static __init dev_t try_name(char *name, int part)
 
 	/* read device number from .../dev */
 
-	sprintf(path, "/sys/bus/block/devices/%s/dev", name);
+	sprintf(path, "/sys/block/%s/dev", name);
 	fd = open(path, 0, 0);
 	if (fd < 0)
 		goto fail;
@@ -119,7 +119,7 @@ static __init dev_t try_name(char *name, int part)
 		return res;
 
 	/* otherwise read range from .../range */
-	sprintf(path, "/sys/bus/block/devices/%s/range", name);
+	sprintf(path, "/sys/block/%s/range", name);
 	fd = open(path, 0, 0);
 	if (fd < 0)
 		goto fail;
@@ -166,7 +166,7 @@ __init dev_t name_to_dev_t(char *name)
 	int part;
 
 	sys_mkdir("/sys", 0700);
-	if (sys_mount("driverfs", "/sys", "driverfs", 0, NULL) < 0)
+	if (sys_mount("sysfs", "/sys", "sysfs", 0, NULL) < 0)
 		goto out;
 
 	if (strncmp(name, "/dev/", 5) != 0) {
@@ -748,9 +748,7 @@ void prepare_namespace(void)
 		mount_initrd = 0;
 	real_root_dev = ROOT_DEV;
 #endif
-	sys_mkdir("/dev", 0700);
-	sys_mkdir("/root", 0700);
-	sys_mknod("/dev/console", S_IFCHR|0600, MKDEV(TTYAUX_MAJOR, 1));
+
 #ifdef CONFIG_DEVFS_FS
 	sys_mount("devfs", "/dev", "devfs", 0, NULL);
 	do_devfs = 1;

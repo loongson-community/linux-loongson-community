@@ -548,6 +548,7 @@ out:	jr	ra
 	sys	sys_epoll_create	1
 	sys	sys_epoll_ctl		4
 	sys	sys_epoll_wait		3		/* 4250 */
+	sys	sys_remap_file_pages	5
 	.endm
 
 	.macro	sys function, nargs
