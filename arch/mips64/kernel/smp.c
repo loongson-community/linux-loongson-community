@@ -76,7 +76,7 @@ void __init smp_boot_cpus(void)
 	current->processor = 0;
 	init_idle();
 	smp_tune_scheduling();
-	smp_num_cpus = 1; /* maxcpus */
+	smp_num_cpus = maxcpus;
 	allowboot();
 }
 
