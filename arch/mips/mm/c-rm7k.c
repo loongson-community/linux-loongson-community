@@ -130,7 +130,7 @@ rm7k_dma_cache_wback_inv(unsigned long addr, unsigned long size)
 	unsigned long end, a;
 
 	a = addr & ~(sc_lsize - 1);
-	end = (addr + size) & ~(sc_lsize - 1);
+	end = (addr + size - 1) & ~(sc_lsize - 1);
 	while (1) {
 		flush_dcache_line(a);	/* Hit_Writeback_Inv_D */
 		flush_scache_line(a);	/* Hit_Writeback_Inv_SD */
@@ -142,7 +142,7 @@ rm7k_dma_cache_wback_inv(unsigned long addr, unsigned long size)
 		return;
 
 	a = addr & ~(tc_pagesize - 1);
-	end = (addr + size) & ~(tc_pagesize - 1);
+	end = (addr + size - 1) & ~(tc_pagesize - 1);
 	while(1) {
 		invalidate_tcache_page(a);	/* Page_Invalidate_T */
 		if (a == end) break;
@@ -156,7 +156,7 @@ rm7k_dma_cache_inv(unsigned long addr, unsigned long size)
 	unsigned long end, a;
 
 	a = addr & ~(sc_lsize - 1);
-	end = (addr + size) & ~(sc_lsize - 1);
+	end = (addr + size - 1) & ~(sc_lsize - 1);
 	while (1) {
 		invalidate_dcache_line(a);	/* Hit_Invalidate_D */
 		invalidate_scache_line(a);	/* Hit_Invalidate_SD */
@@ -168,7 +168,7 @@ rm7k_dma_cache_inv(unsigned long addr, unsigned long size)
 		return;
 
 	a = addr & ~(tc_pagesize - 1);
-	end = (addr + size) & ~(tc_pagesize - 1);
+	end = (addr + size - 1) & ~(tc_pagesize - 1);
 	while(1) {
 		invalidate_tcache_page(a);	/* Page_Invalidate_T */
 		if (a == end) break;

@@ -65,7 +65,7 @@ static void tx39h_dma_cache_wback_inv(unsigned long addr, unsigned long size)
 
 	iob();
 	a = addr & ~(dcache_lsize - 1);
-	end = (addr + size) & ~(dcache_lsize - 1);
+	end = (addr + size - 1) & ~(dcache_lsize - 1);
 	while (1) {
 		invalidate_dcache_line(a); /* Hit_Invalidate_D */
 		if (a == end) break;
@@ -199,7 +199,7 @@ static void tx39_dma_cache_wback_inv(unsigned long addr, unsigned long size)
 		flush_cache_all();
 	} else {
 		a = addr & ~(dcache_lsize - 1);
-		end = (addr + size) & ~(dcache_lsize - 1);
+		end = (addr + size - 1) & ~(dcache_lsize - 1);
 		while (1) {
 			flush_dcache_line(a); /* Hit_Writeback_Inv_D */
 			if (a == end) break;
@@ -216,7 +216,7 @@ static void tx39_dma_cache_inv(unsigned long addr, unsigned long size)
 		flush_cache_all();
 	} else {
 		a = addr & ~(dcache_lsize - 1);
-		end = (addr + size) & ~(dcache_lsize - 1);
+		end = (addr + size - 1) & ~(dcache_lsize - 1);
 		while (1) {
 			invalidate_dcache_line(a); /* Hit_Invalidate_D */
 			if (a == end) break;

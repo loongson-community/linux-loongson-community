@@ -37,45 +37,70 @@
 
 static inline void flush_icache_line_indexed(unsigned long addr)
 {
-	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
-		"cache %1, (%0)\n\t"
-		".set mips0\n\t"
-		".set reorder"
-		:
-		: "r" (addr),
-		  "i" (Index_Invalidate_I));
+	unsigned long waystep = icache_size/mips_cpu.icache.ways;
+	unsigned int way;
+
+	for (way = 0; way < mips_cpu.icache.ways; way++)
+	{
+		__asm__ __volatile__(
+			".set noreorder\n\t"
+			".set mips3\n\t"
+			"cache %1, (%0)\n\t"
+			".set mips0\n\t"
+			".set reorder"
+			:
+			: "r" (addr),
+			"i" (Index_Invalidate_I));
+		
+		addr += waystep;
+	}
 }
 
 static inline void flush_dcache_line_indexed(unsigned long addr)
 {
-	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
-		"cache %1, (%0)\n\t"
-		".set mips0\n\t"
-		".set reorder"
-		:
-		: "r" (addr),
-		  "i" (Index_Writeback_Inv_D));
+	unsigned long waystep = dcache_size/mips_cpu.dcache.ways;
+	unsigned int way;
+
+	for (way = 0; way < mips_cpu.dcache.ways; way++)
+	{
+		__asm__ __volatile__(
+			".set noreorder\n\t"
+			".set mips3\n\t"
+			"cache %1, (%0)\n\t"
+			".set mips0\n\t"
+			".set reorder"
+			:
+			: "r" (addr),
+			"i" (Index_Writeback_Inv_D));
+
+		addr += waystep;
+	}
 }
 
 static inline void flush_scache_line_indexed(unsigned long addr)
 {
-	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
-		"cache %1, (%0)\n\t"
-		".set mips0\n\t"
-		".set reorder"
-		:
-		: "r" (addr),
-		  "i" (Index_Writeback_Inv_SD));
+	unsigned long waystep = scache_size/mips_cpu.scache.ways;
+	unsigned int way;
+
+	for (way = 0; way < mips_cpu.scache.ways; way++)
+	{
+		__asm__ __volatile__(
+			".set noreorder\n\t"
+			".set mips3\n\t"
+			"cache %1, (%0)\n\t"
+			".set mips0\n\t"
+			".set reorder"
+			:
+			: "r" (addr),
+			"i" (Index_Writeback_Inv_SD));
+
+		addr += waystep;
+	}
 }
 
 static inline void flush_icache_line(unsigned long addr)
 {
+
 	__asm__ __volatile__(
 		".set noreorder\n\t"
 		".set mips3\n\t"
@@ -210,12 +235,17 @@ static inline void blast_dcache_page(unsigned long page)
 
 static inline void blast_dcache_page_indexed(unsigned long page)
 {
-	unsigned long start = page;
-	unsigned long end = (start + PAGE_SIZE);
+	unsigned long start;
+	unsigned long end = (page + PAGE_SIZE);
+	unsigned long waystep = dcache_size/mips_cpu.dcache.ways;
+	unsigned int way;
 
-	while(start < end) {
-		cache_unroll(start,Index_Writeback_Inv_D);
-		start += dc_lsize;
+	for (way = 0; way < mips_cpu.dcache.ways; way++) {
+		start = page + way*waystep;
+		while(start < end) {
+			cache_unroll(start,Index_Writeback_Inv_D);
+			start += dc_lsize;
+		}
 	}
 }
 
@@ -243,12 +273,17 @@ static inline void blast_icache_page(unsigned long page)
 
 static inline void blast_icache_page_indexed(unsigned long page)
 {
-	unsigned long start = page;
-	unsigned long end = (start + PAGE_SIZE);
+	unsigned long start;
+	unsigned long end = (page + PAGE_SIZE);
+	unsigned long waystep = icache_size/mips_cpu.icache.ways;
+	unsigned int way;
 
-	while(start < end) {
-		cache_unroll(start,Index_Invalidate_I);
-		start += ic_lsize;
+	for (way = 0; way < mips_cpu.icache.ways; way++) {
+		start = page + way*waystep;
+		while(start < end) {
+			cache_unroll(start,Index_Invalidate_I);
+			start += ic_lsize;
+		}
 	}
 }
 
@@ -276,12 +311,17 @@ static inline void blast_scache_page(unsigned long page)
 
 static inline void blast_scache_page_indexed(unsigned long page)
 {
-	unsigned long start = page;
-	unsigned long end = page + PAGE_SIZE;
+	unsigned long start;
+	unsigned long end = (page + PAGE_SIZE);
+	unsigned long waystep = scache_size/mips_cpu.scache.ways;
+	unsigned int way;
 
-	while(start < end) {
-		cache_unroll(start,Index_Writeback_Inv_SD);
-		start += sc_lsize;
+	for (way = 0; way < mips_cpu.scache.ways; way++) {
+		start = page + way*waystep;
+		while(start < end) {
+			cache_unroll(start,Index_Writeback_Inv_SD);
+			start += sc_lsize;
+		}
 	}
 }
 

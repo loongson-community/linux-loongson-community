@@ -298,13 +298,18 @@ mips32_flush_icache_range(unsigned long start, unsigned long end)
 static void
 mips32_flush_icache_page(struct vm_area_struct *vma, struct page *page)
 {
-	int address;
-
+	/*
+	 * If there's no context yet, or the page isn't executable, no icache 
+	 * flush is needed.
+	 */
 	if (!(vma->vm_flags & VM_EXEC))
 		return;
 
-	address = KSEG0 + ((unsigned long)page_address(page) & PAGE_MASK & (dcache_size - 1));
-	blast_icache_page_indexed(address);
+	/*
+	 * We're not sure of the virtual address(es) involved here, so
+	 * conservatively flush the entire caches.
+	 */
+	flush_cache_all();
 }
 
 /*
@@ -317,11 +322,11 @@ mips32_dma_cache_wback_inv_pc(unsigned long addr, unsigned long size)
 	unsigned int flags;
 
 	if (size >= dcache_size) {
-		flush_cache_all();
+		 blast_dcache();
 	} else {
 	        local_irq_save(flags);
 		a = addr & ~(dc_lsize - 1);
-		end = (addr + size) & ~(dc_lsize - 1);
+		end = (addr + size - 1) & ~(dc_lsize - 1);
 		while (1) {
 			flush_dcache_line(a); /* Hit_Writeback_Inv_D */
 			if (a == end) break;
@@ -338,12 +343,12 @@ mips32_dma_cache_wback_inv_sc(unsigned long addr, unsigned long size)
 	unsigned long end, a;
 
 	if (size >= scache_size) {
-		flush_cache_all();
+		blast_scache();
 		return;
 	}
 
 	a = addr & ~(sc_lsize - 1);
-	end = (addr + size) & ~(sc_lsize - 1);
+	end = (addr + size - 1) & ~(sc_lsize - 1);
 	while (1) {
 		flush_scache_line(a);	/* Hit_Writeback_Inv_SD */
 		if (a == end) break;
@@ -358,13 +363,13 @@ mips32_dma_cache_inv_pc(unsigned long addr, unsigned long size)
 	unsigned int flags;
 
 	if (size >= dcache_size) {
-		flush_cache_all();
+		blast_dcache();
 	} else {
 	        local_irq_save(flags);
 		a = addr & ~(dc_lsize - 1);
-		end = (addr + size) & ~(dc_lsize - 1);
+		end = (addr + size - 1) & ~(dc_lsize - 1);
 		while (1) {
-			flush_dcache_line(a); /* Hit_Writeback_Inv_D */
+			invalidate_dcache_line(a); /* Hit_Inv_D */
 			if (a == end) break;
 			a += dc_lsize;
 		}
@@ -380,14 +385,14 @@ mips32_dma_cache_inv_sc(unsigned long addr, unsigned long size)
 	unsigned long end, a;
 
 	if (size >= scache_size) {
-		flush_cache_all();
+		blast_scache();
 		return;
 	}
 
 	a = addr & ~(sc_lsize - 1);
-	end = (addr + size) & ~(sc_lsize - 1);
+	end = (addr + size - 1) & ~(sc_lsize - 1);
 	while (1) {
-		flush_scache_line(a); /* Hit_Writeback_Inv_SD */
+		invalidate_scache_line(a); /* Hit_Inv_SD */
 		if (a == end) break;
 		a += sc_lsize;
 	}
@@ -412,7 +417,7 @@ static void mips32_flush_cache_sigtramp(unsigned long addr)
 
 static void mips32_flush_icache_all(void)
 {
-	if (mips_cpu.cputype == CPU_20KC) {
+	if (mips_cpu.icache.flags | MIPS_CACHE_VTAG_CACHE) {
 		blast_icache();
 	}
 }
@@ -423,6 +428,7 @@ static void __init probe_icache(unsigned long config)
         unsigned long config1;
 	unsigned int lsize;
 
+	mips_cpu.icache.flags = 0;
         if (!(config & (1 << 31))) {
 	        /*
 		 * Not a MIPS32 complainant CPU.
@@ -452,6 +458,16 @@ static void __init probe_icache(unsigned long config)
 	       ic_lsize = mips_cpu.icache.linesz;
 	       icache_size = mips_cpu.icache.sets * mips_cpu.icache.ways *
 		             ic_lsize;
+
+	       if ((config & 0x8) || (mips_cpu.cputype == CPU_20KC)) {
+		       /* 
+			* The CPU has a virtually tagged I-cache.
+			* Some older 20Kc chips doesn't have the 'VI' bit in
+			* the config register, so we also check for 20Kc.
+			*/
+		       mips_cpu.icache.flags = MIPS_CACHE_VTAG_CACHE;
+		       printk("Virtually tagged I-cache detected\n");
+	       }
 	}
 	printk("Primary instruction cache %dkb, linesize %d bytes (%d ways)\n",
 	       icache_size >> 10, ic_lsize, mips_cpu.icache.ways);
@@ -462,6 +478,7 @@ static void __init probe_dcache(unsigned long config)
         unsigned long config1;
 	unsigned int lsize;
 
+	mips_cpu.dcache.flags = 0;
         if (!(config & (1 << 31))) {
 	        /*
 		 * Not a MIPS32 complainant CPU.

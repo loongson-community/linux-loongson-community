@@ -314,7 +314,7 @@ r4k_dma_cache_wback_inv(unsigned long addr, unsigned long size)
 		local_irq_save(flags);
 
 		a = addr & ~(dc_lsize - 1);
-		end = (addr + size) & ~(dc_lsize - 1);
+		end = (addr + size - 1) & ~(dc_lsize - 1);
 		while (1) {
 			flush_dcache_line(a); /* Hit_Writeback_Inv_D */
 			if (a == end) break;
@@ -336,7 +336,7 @@ r4k_dma_cache_inv(unsigned long addr, unsigned long size)
 		local_irq_save(flags);
 
 		a = addr & ~(dc_lsize - 1);
-		end = (addr + size) & ~(dc_lsize - 1);
+		end = (addr + size - 1) & ~(dc_lsize - 1);
 		while (1) {
 			flush_dcache_line(a); /* Hit_Writeback_Inv_D */
 			if (a == end) break;

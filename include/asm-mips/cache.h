@@ -27,6 +27,7 @@ struct cache_desc {
  * Flag definitions
  */
 #define MIPS_CACHE_NOT_PRESENT 0x00000001
+#define MIPS_CACHE_VTAG_CACHE  0x00000002 /* Virtually tagged cache. */
 
 #if defined(CONFIG_CPU_R3000) || defined(CONFIG_CPU_R6000) || defined(CONFIG_CPU_TX39XX)
 #define L1_CACHE_BYTES		16
