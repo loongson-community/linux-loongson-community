@@ -1,6 +1,4 @@
 /*
- *  linux/drivers/char/8250.c
- *
  *  Driver for 8250/16550-type serial ports
  *
  *  Based on drivers/char/serial.c, by Linus Torvalds, Theodore Ts'o.
@@ -11,8 +9,6 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
- *
- *  $Id: au1x00_uart.c,v 1.3 2003/08/28 06:42:34 ppopov Exp $
  *
  * A note about mapbase / membase
  *
@@ -38,7 +34,7 @@
 #include <asm/irq.h>
 #include <asm/au1000.h>
 
-#if defined(CONFIG_SERIAL_8250_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ)
+#if defined(CONFIG_SERIAL_AU1X00_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ)
 #define SUPPORT_SYSRQ
 #endif
 
@@ -97,13 +93,6 @@ static struct old_serial_port old_serial_port[] = {
 };
 
 #define UART_NR	ARRAY_SIZE(old_serial_port)
-
-#if defined(CONFIG_SERIAL_8250_RSA) && defined(MODULE)
-
-#define PORT_RSA_MAX 4
-static int probe_rsa[PORT_RSA_MAX];
-static int force_rsa[PORT_RSA_MAX];
-#endif /* CONFIG_SERIAL_8250_RSA  */
 
 struct uart_8250_port {
 	struct uart_port	port;
@@ -343,7 +332,7 @@ receive_chars(struct uart_8250_port *up, int *status, struct pt_regs *regs)
 			 */
 			*status &= up->port.read_status_mask;
 
-#ifdef CONFIG_SERIAL_8250_CONSOLE
+#ifdef CONFIG_SERIAL_AU1X00_CONSOLE
 			if (up->port.line == up->port.cons->index) {
 				/* Recover the break flag from console xmit */
 				*status |= up->lsr_break_flag;
@@ -787,13 +776,6 @@ static void serial8250_shutdown(struct uart_port *port)
 				  UART_FCR_CLEAR_RCVR |
 				  UART_FCR_CLEAR_XMIT);
 	serial_outp(up, UART_FCR, 0);
-
-#ifdef CONFIG_SERIAL_8250_RSA
-	/*
-	 * Reset the RSA board back to 115kbps compat mode.
-	 */
-	disable_rsa(up);
-#endif
 
 	/*
 	 * Read data port to reset things, and then unlink from
