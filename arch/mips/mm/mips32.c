@@ -1,6 +1,4 @@
 /*
- * mips32.c
- *
  * Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
  * Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
  *
@@ -964,6 +962,7 @@ static void __init setup_noscache_funcs(void)
 	_clear_page = (void *)mips32_clear_page_dc;
 	_copy_page = (void *)mips32_copy_page_dc;
 	_flush_cache_all = mips32_flush_cache_all_pc;
+	___flush_cache_all = mips32_flush_cache_all_pc;
 	_flush_cache_mm = mips32_flush_cache_mm_pc;
 	_flush_cache_range = mips32_flush_cache_range_pc;
 	_flush_cache_page = mips32_flush_cache_page_pc;
