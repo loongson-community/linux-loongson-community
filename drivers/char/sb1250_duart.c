@@ -43,13 +43,14 @@
 #include <linux/tty_flip.h>
 #include <linux/timer.h>
 #include <linux/init.h>
+#include <linux/mm.h>
 #include <asm/io.h>
 #include <asm/uaccess.h>
 #include <asm/sibyte/swarm.h>
-#include <asm/sibyte/sb1250.h>
 #include <asm/sibyte/sb1250_regs.h>
 #include <asm/sibyte/sb1250_uart.h>
 #include <asm/sibyte/sb1250_int.h>
+#include <asm/sibyte/sb1250.h>
 #include <asm/sibyte/64bit.h>
 
 /* Toggle spewing of debugging output */
@@ -58,6 +59,10 @@
 #define DEFAULT_CFLAGS          (CS8 | B115200)
 
 #define SB1250_DUART_MINOR_BASE	64
+
+#ifndef MIN
+#define MIN(a,b)	((a) < (b) ? (a) : (b))
+#endif
 
 /*
  * Still not sure what the termios structures set up here are for, 
@@ -68,6 +73,18 @@ static int ref_count;
 static struct tty_struct *duart_table[2];
 static struct termios    *duart_termios[2];
 static struct termios    *duart_termios_locked[2];
+
+/*
+ * tmp_buf is used as a temporary buffer by serial_write.  We need to
+ * lock it in case the copy_from_user blocks while swapping in a page,
+ * and some other program tries to do a serial write at the same time.
+ * Since the lock will only come under contention when the system is
+ * swapping and available memory is low, it makes sense to share one
+ * buffer across all the serial ports, since it significantly saves
+ * memory if large numbers of serial ports are open.
+ */
+static unsigned char *tmp_buf = 0;
+DECLARE_MUTEX(tmp_buf_sem);
 
 /*
  * This lock protects both the open flags for all the uart states as 
@@ -153,9 +170,6 @@ static inline unsigned int get_line(struct tty_struct *tty)
 	return line;
 }
 
-
-
-#define MIN(a, b) (((a)<(b))?(a):(b))
 
 /* 
  * Generic interrupt handler for both channels.  dev_id is a pointer
@@ -262,7 +276,7 @@ static int duart_write(struct tty_struct * tty, int from_user,
 {
 	uart_state_t *us = (uart_state_t *) tty->driver_data;
 	unsigned int line = get_line(tty);
-	int chars_written = 0;
+	int c, total = 0;
 	unsigned long flags;
 
 	if (from_user && verify_area(VERIFY_READ, buf, count)) {
@@ -271,35 +285,66 @@ static int duart_write(struct tty_struct * tty, int from_user,
 #ifdef DUART_SPEW
 	printk("duart_write called for %i chars by %i (%s)\n", count, current->pid, current->comm);
 #endif
-	spin_lock_irqsave(&us->outp_lock, flags);
 	if (!count ||
 	    (us->outp_count == CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE)) {
-		spin_unlock_irqrestore(&us->outp_lock, flags);
 		return 0;
 	}
-	if (us->outp_tail < us->outp_head) {
-		/* Straightforward case; copy from tail to head */
-		chars_written += copy_buf(us->outp_buf + us->outp_tail, buf, 
-					  MIN(count, us->outp_head - us->outp_tail), from_user);
-	} else {
-		/* Copy from tail to end of buffer, wrap around and then
-		   copy to head */
-		chars_written += copy_buf(us->outp_buf + us->outp_tail, buf, 
-					  MIN(CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE - us->outp_tail, count), 
-					  from_user);
-		if (chars_written < count) {
-			chars_written += copy_buf(us->outp_buf, buf + chars_written,
-						  MIN(us->outp_head, count - chars_written), from_user);
+	if (from_user) {
+		down(&tmp_buf_sem);
+		while (1) {
+			c = MIN(count, MIN(PAGE_SIZE - us->outp_count - 1,
+					   PAGE_SIZE - us->outp_tail));
+			if (c <= 0)
+				break;
+			
+			c -= copy_from_user(tmp_buf, buf, c);
+			if (!c) {
+				if (!total)
+					total = -EFAULT;
+				break;
+			}
+			
+			spin_lock_irqsave(&us->outp_lock, flags);
+			c = MIN(c, MIN(CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE - us->outp_count - 1,
+				       CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE - us->outp_tail));
+			memcpy(us->outp_buf + us->outp_tail, tmp_buf, c);
+			us->outp_tail = (us->outp_tail + c) & (CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE-1);
+			us->outp_count += c;
+			spin_unlock_irqrestore(&us->outp_lock, flags);
+			
+			buf += c;
+			count -= c;
+			total += c;
 		}
-	}
-	us->outp_tail = (us->outp_tail + chars_written) &(CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE-1);
-	if (!(us->outp_count || us->outp_stopped)) {
-		duart_unmask_ints(line, M_DUART_IMR_TX);
-	}
-	us->outp_count += chars_written;
-	spin_unlock_irqrestore(&us->outp_lock, flags);
+		up(&tmp_buf_sem);
+	} else {
+	    while (1) {
+		    spin_lock_irqsave(&us->outp_lock, flags);
+		    c = MIN(count, MIN(CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE - us->outp_count - 1,
+				       CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE - us->outp_tail));
+		    if (c <= 0) {
+			    spin_unlock_irqrestore(&us->outp_lock, flags);
+			    break;
+		    }
 
-	return chars_written;
+		    memcpy(us->outp_buf + us->outp_tail, buf, c);
+		    us->outp_tail = (us->outp_tail + c) & (CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE-1);
+		    us->outp_count += c;
+		    spin_unlock_irqrestore(&us->outp_lock, flags);
+
+		    buf += c;
+		    count -= c;
+		    total += c;
+	    }
+	}
+	/* Excessive... */
+	if (us->outp_count && !us->outp_stopped) {
+		spin_lock_irqsave(&us->outp_lock, flags);
+		duart_unmask_ints(line, M_DUART_IMR_TX);
+		spin_unlock_irqrestore(&us->outp_lock, flags);
+	}
+
+	return total;
 }
 
 
@@ -613,23 +658,19 @@ static int duart_open(struct tty_struct *tty, struct file *filp)
 	us = uart_states + line;
 	tty->driver_data = us;
 
+	if (!tmp_buf) {
+		tmp_buf = (unsigned char *) get_free_page(GFP_KERNEL);
+		if (!tmp_buf){
+			return -ENOMEM;
+		}
+	}
+
 	spin_lock_irqsave(&open_lock, flags);
 	if (!us->open) {
 		us->tty = tty;
 		us->tty->termios->c_cflag = us->last_cflags;
 	}
 	us->open++;
-#ifdef FORCED_INPUT
-	if (!line && (us->open == 1)) {
-		next_inp = inp_cmds;
-		init_timer(&inp_timer);
-		inp_timer.expires = jiffies + 20;
-		inp_timer.data = 0;
-		inp_timer.function = stuff_char;
-		stuff_char_tty = tty;
-		add_timer(&inp_timer);
-	}
-#endif
 	duart_unmask_ints(line, M_DUART_IMR_RX);
 	spin_unlock_irqrestore(&open_lock, flags);
 
@@ -651,25 +692,11 @@ static void duart_close(struct tty_struct *tty, struct file *filp)
 	printk("duart_close called by %i (%s)\n", current->pid, current->comm);
 #endif
 
-	if (!us->open)
+	if (!us || !us->open)
 		return;
 
 	spin_lock_irqsave(&open_lock, flags);
 	us->open--;
-#if 0
-	if (!us->open) {
-		/* Flushing TX stuff here is conservative */
-		duart_mask_ints(line, M_DUART_IMR_IN | M_DUART_IMR_BRK |
-		                      M_DUART_IMR_RX | M_DUART_IMR_TX);
-		spin_lock(&us->outp_lock);
-		us->outp_head = 0;
-		us->outp_tail = 0;
-		us->outp_count = 0;
-		us->outp_stopped = 0;
-		us->tty = NULL;
-		spin_unlock(&us->outp_lock);
-	}
-#endif
 	ref_count--;
 	spin_unlock_irqrestore(&open_lock, flags);
 	MOD_DEC_USE_COUNT;
