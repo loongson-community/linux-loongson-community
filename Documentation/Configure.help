@@ -10596,24 +10596,6 @@ MTD debugging verbosity
 CONFIG_MTD_DEBUG_VERBOSE
   Determines the verbosity level of the MTD debugging messages.
 
-ll/sc Instructions available
-CONFIG_CPU_HAS_LLSC
-  MIPS R4000 series and later provide the Load Linked (ll)
-  and Store Conditional (sc) instructions to implement mutual
-  exclusion primitives. More information is available at
-  <http://www.go-ecs.com/mips/miptek1.htm>.
-
-  Say Y if configuring for a CPU which has (ll/sc)
-  instructions available.
-
-  Otherwise, say N.
-
-Writeback Buffer available
-CONFIG_CPU_HAS_WB
-  Say Y if configuring for a CPU with a writeback buffer.
-
-  Otherwise, say N.
-
 Direct chardevice access to MTD devices
 CONFIG_MTD_CHAR
   This provides a character device for each MTD device present in
