@@ -314,6 +314,7 @@ cpuid_t getcpuid(void)
 
 void per_cpu_init(void)
 {
+	extern void install_cpu_nmi_handler(int slice);
 	extern void load_mmu(void);
 	static int is_slave = 0;
 	cpuid_t cpu = getcpuid();
@@ -328,6 +329,8 @@ void per_cpu_init(void)
 	cpu_time_init();
 	if (smp_processor_id())	/* master can't do this early, no kmalloc */
 		install_cpuintr(cpu);
+	/* Install our NMI handler if symmon hasn't installed one. */
+	install_cpu_nmi_handler(cputoslice(smp_processor_id()));
 #if 0
 	install_tlbintr(cpu);
 #endif
