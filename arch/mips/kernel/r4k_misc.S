@@ -1,5 +1,4 @@
-/* $Id: r4k_misc.S,v 1.8 1999/10/09 00:00:58 ralf Exp $
- *
+/*
  * r4k_misc.S: Misc. exception handling code for r4k.
  *
  * Copyright (C) 1994, 1995, 1996 by Ralf Baechle and Andreas Busse
@@ -86,7 +85,7 @@
 	move	a0, sp; \
 	jal	do_page_fault; \
 	 li	a1, write; \
-	j	ret_from_sys_call; \
+	j	ret_from_exception; \
 	 nop; \
 	.set	noat;
 

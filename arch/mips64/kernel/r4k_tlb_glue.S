@@ -37,7 +37,7 @@ ld $2, PT_R2(sp)
 	sd	a2, PT_BVADDR(sp)
 	move	a0, sp
 	jal	do_page_fault
-	j	ret_from_sys_call
+	j	ret_from_exception
 	END(__\name)
 	.endm
 

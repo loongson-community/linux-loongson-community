@@ -1,4 +1,4 @@
-/* $Id: r2300_misc.S,v 1.8 1999/12/08 22:05:10 harald Exp $
+/*
  * misc.S: Misc. exception handling code for R3000/R2000.
  *
  * Copyright (C) 1994, 1995, 1996 by Ralf Baechle and Andreas Busse
@@ -9,6 +9,8 @@
  * Further modifications to make this work:
  * Copyright (c) 1998 Harald Koerfgen
  * Copyright (c) 1998, 1999 Gleb Raiko & Vladimir Roganov
+ * Copyright (c) 2001 Ralf Baechle
+ * Copyright (c) 2001 MIPS Technologies, Inc.
  */
 #include <asm/asm.h>
 #include <asm/current.h>
@@ -68,7 +70,7 @@
 	move	a0, sp; \
 	jal	do_page_fault; \
 	 li	a1, write; \
-	j	ret_from_sys_call; \
+	j	ret_from_exception; \
 	 nop; \
 	.set	noat; \
 	.set	nomacro;
