@@ -109,7 +109,7 @@ static void __init verify_mode(void)
 #define BASE_XBOW_PORT  	8     /* Lowest external port */
 
 unsigned int bus_to_cpu[256];
-unsigned long dev_to_baddr[256];
+extern dma64_addr_t dev_to_baddr[];
 
 void __init pcibr_setup(cnodeid_t nid)
 {

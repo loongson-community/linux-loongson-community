@@ -430,7 +430,8 @@ net2280_free_request (struct usb_ep *_ep, struct usb_request *_req)
 #elif	defined(CONFIG_PPC) && !defined(CONFIG_NOT_COHERENT_CACHE)
 #define USE_KMALLOC
 
-#elif	defined(CONFIG_MIPS) && !defined(CONFIG_NONCOHERENT_IO)
+#elif	defined(CONFIG_MIPS) && \
+	(defined(CONFIG_DMA_COHERENT) || defined(CONFIG_DMA_IP27))
 #define USE_KMALLOC
 
 /* FIXME there are other cases, including an x86-64 one ...  */

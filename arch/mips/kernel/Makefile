@@ -48,10 +48,6 @@ obj-$(CONFIG_MIPS32_O32)	+= binfmt_elfo32.o scall64-o32.o ptrace32.o
 obj-$(CONFIG_KGDB)		+= gdb-low.o gdb-stub.o
 obj-$(CONFIG_PROC_FS)		+= proc.o
 
-ifndef CONFIG_MAPPED_DMA_IO
-obj-y				+= pci-dma.o
-endif
-
 obj-$(CONFIG_MIPS64)		+= cpu-bugs64.o
 
 CFLAGS_cpu-bugs64.o	= $(shell if $(CC) $(CFLAGS) -Wa,-mdaddi -c -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo "-DHAVE_AS_SET_DADDI"; fi)

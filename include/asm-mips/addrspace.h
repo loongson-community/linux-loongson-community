@@ -161,7 +161,7 @@
 #endif
 
 #ifdef CONFIG_MIPS64
-#ifdef CONFIG_NONCOHERENT_IO	/* 64-bit kernel */
+#ifdef CONFIG_DMA_NONCOHERENT	/* 64-bit kernel */
 #define K0BASE			0x9800000000000000
 #else
 #define K0BASE			0xa800000000000000

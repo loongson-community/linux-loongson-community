@@ -20,16 +20,6 @@
 #include <asm/processor.h>
 #include <asm/byteorder.h>
 
-#ifdef CONFIG_SGI_IP27
-extern unsigned long dev_to_baddr[256];
-
-#define dev_to_baddr(bus, addr)	(dev_to_baddr[(bus)->number] + (addr))
-#define baddr_to_dev(bus, addr)	((addr) - dev_to_baddr[(bus)->number])
-#else
-#define dev_to_baddr(bus, addr)	(addr)
-#define baddr_to_dev(bus, addr)	(addr)
-#endif
-
 /*
  * Slowdown I/O port space accesses for antique hardware.
  */
@@ -567,7 +557,7 @@ static inline void __insl(unsigned long port, void *addr, unsigned int count)
  *    be discarded.  This operation is necessary before dma operations
  *    to the memory.
  */
-#ifdef CONFIG_NONCOHERENT_IO
+#ifdef CONFIG_DMA_NONCOHERENT
 
 extern void (*_dma_cache_wback_inv)(unsigned long start, unsigned long size);
 extern void (*_dma_cache_wback)(unsigned long start, unsigned long size);
@@ -586,7 +576,7 @@ extern void (*_dma_cache_inv)(unsigned long start, unsigned long size);
 #define dma_cache_inv(start,size)	\
 	do { (void) (start); (void) (size); } while (0)
 
-#endif /* CONFIG_NONCOHERENT_IO */
+#endif /* CONFIG_DMA_NONCOHERENT */
 
 /*
  * Read a 32-bit register that requires a 64-bit read cycle on the bus.

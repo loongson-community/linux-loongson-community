@@ -77,7 +77,7 @@ void __init pcibios_fixup(void)
 		return;
 	}
 
-#ifdef CONFIG_NONCOHERENT_IO
+#ifdef CONFIG_DMA_NONCOHERENT
 	/* 
 	 *  Set the NC bit in controller for pre-AC silicon
 	 */

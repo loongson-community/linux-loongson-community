@@ -582,7 +582,7 @@ static void r4k_flush_icache_page(struct vm_area_struct *vma,
 		r4k_blast_icache();
 }
 
-#ifdef CONFIG_NONCOHERENT_IO
+#ifdef CONFIG_DMA_NONCOHERENT
 
 static void r4k_dma_cache_wback_inv(unsigned long addr, unsigned long size)
 {
@@ -672,7 +672,7 @@ static void r4k_dma_cache_inv(unsigned long addr, unsigned long size)
 
 	bc_inv(addr, size);
 }
-#endif /* CONFIG_NONCOHERENT_IO */
+#endif /* CONFIG_DMA_NONCOHERENT */
 
 /*
  * While we're protected against bad userland addresses we don't care
@@ -1242,7 +1242,7 @@ void __init ld_mmu_r4xx0(void)
 	flush_data_cache_page	= r4k_flush_data_cache_page;
 	flush_icache_range	= r4k_flush_icache_range;
 
-#ifdef CONFIG_NONCOHERENT_IO
+#ifdef CONFIG_DMA_NONCOHERENT
 	_dma_cache_wback_inv	= r4k_dma_cache_wback_inv;
 	_dma_cache_wback	= r4k_dma_cache_wback_inv;
 	_dma_cache_inv		= r4k_dma_cache_inv;

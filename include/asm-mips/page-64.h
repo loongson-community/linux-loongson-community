@@ -14,12 +14,17 @@
 /*
  * This handles the memory map.
  */
-#ifdef CONFIG_NONCOHERENT_IO
+#ifdef CONFIG_DMA_NONCOHERENT
 #define PAGE_OFFSET	0x9800000000000000UL
 #else
 #define PAGE_OFFSET	0xa800000000000000UL
 #endif
 
+#ifdef CONFIG_SGI_IP27
+#define UNCAC_BASE	0x9600000000000000UL
+#else
+#define UNCAC_BASE	0x9000000000000000UL
+#endif
 
 /*
  * Memory above this physical address will be considered highmem.
