@@ -8,6 +8,8 @@
 #ifndef __ASM_CPU_FEATURES_H
 #define __ASM_CPU_FEATURES_H
 
+#include <asm/cpu.h>
+#include <asm/cpu-info.h>
 #include <cpu-feature-overrides.h>
 
 /*
