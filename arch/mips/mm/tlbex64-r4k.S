@@ -20,19 +20,26 @@
 
 #define _VMALLOC_START	0xc000000000000000
 
+	.macro	GET_PGD, ptr
+#ifdef CONFIG_SMP
+	/*
+	 * Fixme - this is b0rked for pgd_current outside of CKSEG0
+	 */
+	dmfc0	\ptr, CP0_CONTEXT
+	dsra	\ptr, 23			# get pgd_current[cpu]
+	ld	\ptr, (\ptr)
+#else
+	ld	\ptr, pgd_current
+#endif
+	.endm
+
 	/*
 	 * After this macro runs we have a pointer to the pte of the address
-	 * that caused the fault in PTR.  Expects register with c0_badvaddr
+	 * that caused the fault in PTR.  Expects register containing the
+	 * the pagetable root pointer as the ptr argument and c0_badvaddr
 	 * passed as tmp argument.
 	 */
 	.macro	LOAD_PTE2, ptr, tmp
-#ifdef CONFIG_SMP
-	dmfc0	\ptr, CP0_CONTEXT
-	dsra	\ptr, 23			# get pgd_current[cpu]
-#else
-	dla	\ptr, pgd_current
-#endif
-	ld	\ptr, (\ptr)
 	dsrl	\tmp, (_PGDIR_SHIFT-3)		# get pgd offset in bytes
 	andi	\tmp, ((_PTRS_PER_PGD - 1)<<3)
 	daddu	\ptr, \tmp			# add in pgd offset
@@ -123,7 +130,8 @@ LEAF(handle_vec1_r4k)
 	dmfc0	k0, CP0_BADVADDR
 	bltz	k0, 9f
 
-	 LOAD_PTE2 k1 k0
+	 GET_PGD k1				# pointer to root of pgd
+	LOAD_PTE2 k1 k0
 	ld	k0, 0(k1)			# get even pte
 	ld	k1, 8(k1)			# get odd pte
 	PTE_RELOAD k0 k1
@@ -166,7 +174,8 @@ LEAF(handle_vec1_r10k)
 	dmfc0	k0, CP0_BADVADDR
 	bltz	k0, 9f
 
-	 LOAD_PTE2 k1 k0
+	 GET_PGD k1				# pointer to root of pgd
+	LOAD_PTE2 k1 k0
 	ld	k0, 0(k1)			# get even pte
 	ld	k1, 8(k1)			# get odd pte
 	PTE_RELOAD k0 k1
