@@ -629,7 +629,7 @@ static inline int __test_and_change_bit(unsigned long nr,
  */
 static inline int test_bit(unsigned long nr, const volatile unsigned long *addr)
 {
-	return 1UL & (((const volatile unsigned long *) addr)[nr >> SZLONG_LOG] >> (nr & SZLONG_MASK));
+	return 1UL & (addr[nr >> SZLONG_LOG] >> (nr & SZLONG_MASK));
 }
 
 /*

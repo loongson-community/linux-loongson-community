@@ -89,6 +89,7 @@
 #include <linux/random.h>
 #include <linux/jhash.h>
 #include <linux/rcupdate.h>
+#include <linux/times.h>
 #include <net/protocol.h>
 #include <net/ip.h>
 #include <net/route.h>
@@ -1398,9 +1399,6 @@ static void rt_set_nexthop(struct rtable *rt, struct fib_result *res, u32 itag)
 			rt->rt_gateway = FIB_RES_GW(*res);
 		memcpy(rt->u.dst.metrics, fi->fib_metrics,
 		       sizeof(rt->u.dst.metrics));
-		if (rt->u.dst.metrics[RTAX_HOPLIMIT-1] == 0)
-			rt->u.dst.metrics[RTAX_HOPLIMIT-1] =
-				sysctl_ip_default_ttl;
 		if (fi->fib_mtu == 0) {
 			rt->u.dst.metrics[RTAX_MTU-1] = rt->u.dst.dev->mtu;
 			if (rt->u.dst.metrics[RTAX_LOCK-1] & (1 << RTAX_MTU) &&
@@ -1414,6 +1412,8 @@ static void rt_set_nexthop(struct rtable *rt, struct fib_result *res, u32 itag)
 	} else
 		rt->u.dst.metrics[RTAX_MTU-1]= rt->u.dst.dev->mtu;
 
+	if (rt->u.dst.metrics[RTAX_HOPLIMIT-1] == 0)
+		rt->u.dst.metrics[RTAX_HOPLIMIT-1] = sysctl_ip_default_ttl;
 	if (rt->u.dst.metrics[RTAX_MTU-1] > IP_MAX_MTU)
 		rt->u.dst.metrics[RTAX_MTU-1] = IP_MAX_MTU;
 	if (rt->u.dst.metrics[RTAX_ADVMSS-1] == 0)
@@ -2305,11 +2305,11 @@ static int rt_fill_info(struct sk_buff *skb, u32 pid, u32 seq, int event,
 		RTA_PUT(skb, RTA_GATEWAY, 4, &rt->rt_gateway);
 	if (rtnetlink_put_metrics(skb, rt->u.dst.metrics) < 0)
 		goto rtattr_failure;
-	ci.rta_lastuse	= jiffies - rt->u.dst.lastuse;
+	ci.rta_lastuse	= jiffies_to_clock_t(jiffies - rt->u.dst.lastuse);
 	ci.rta_used	= rt->u.dst.__use;
 	ci.rta_clntref	= atomic_read(&rt->u.dst.__refcnt);
 	if (rt->u.dst.expires)
-		ci.rta_expires = rt->u.dst.expires - jiffies;
+		ci.rta_expires = jiffies_to_clock_t(rt->u.dst.expires - jiffies);
 	else
 		ci.rta_expires = 0;
 	ci.rta_error	= rt->u.dst.error;

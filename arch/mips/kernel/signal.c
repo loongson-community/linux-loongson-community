@@ -156,6 +156,9 @@ asmlinkage int restore_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 {
 	int err = 0;
 
+	/* Always make any pending restarted system calls return -EINTR */
+	current_thread_info()->restart_block.fn = do_no_restart_syscall;
+
 	err |= __get_user(regs->cp0_epc, &sc->sc_pc);
 	err |= __get_user(regs->hi, &sc->sc_mdhi);
 	err |= __get_user(regs->lo, &sc->sc_mdlo);
@@ -488,12 +491,8 @@ static inline void handle_signal(unsigned long sig, siginfo_t *info,
 {
 	struct k_sigaction *ka = &current->sighand->action[sig-1];
 
-	/* Always make any pending restarted system calls return -EINTR */
-	current_thread_info()->restart_block.fn = do_no_restart_syscall;
-
 	switch(regs->regs[0]) {
 	case ERESTART_RESTARTBLOCK:
-		current_thread_info()->restart_block.fn = do_no_restart_syscall;
 	case ERESTARTNOHAND:
 		regs->regs[2] = EINTR;
 		break;

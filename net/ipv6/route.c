@@ -27,6 +27,7 @@
 #include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/types.h>
+#include <linux/times.h>
 #include <linux/socket.h>
 #include <linux/sockios.h>
 #include <linux/net.h>
@@ -717,7 +718,7 @@ int ip6_route_add(struct in6_rtmsg *rtmsg, struct nlmsghdr *nlh, void *_rtattr)
 		return -ENOMEM;
 
 	rt->u.dst.obsolete = -1;
-	rt->rt6i_expires = rtmsg->rtmsg_info;
+	rt->rt6i_expires = clock_t_to_jiffies(rtmsg->rtmsg_info);
 	if (nlh && (r = NLMSG_DATA(nlh))) {
 		rt->rt6i_protocol = r->rtm_protocol;
 	} else {
@@ -1533,9 +1534,9 @@ static int rt6_fill_node(struct sk_buff *skb, struct rt6_info *rt,
 	if (rt->u.dst.dev)
 		RTA_PUT(skb, RTA_OIF, sizeof(int), &rt->rt6i_dev->ifindex);
 	RTA_PUT(skb, RTA_PRIORITY, 4, &rt->rt6i_metric);
-	ci.rta_lastuse = jiffies - rt->u.dst.lastuse;
+	ci.rta_lastuse = jiffies_to_clock_t(jiffies - rt->u.dst.lastuse);
 	if (rt->rt6i_expires)
-		ci.rta_expires = rt->rt6i_expires - jiffies;
+		ci.rta_expires = jiffies_to_clock_t(rt->rt6i_expires - jiffies);
 	else
 		ci.rta_expires = 0;
 	ci.rta_used = rt->u.dst.__use;
@@ -1557,13 +1558,13 @@ rtattr_failure:
 static int rt6_dump_route(struct rt6_info *rt, void *p_arg)
 {
 	struct rt6_rtnl_dump_arg *arg = (struct rt6_rtnl_dump_arg *) p_arg;
-	struct rtmsg *rtm;
 	int prefix;
 
-	rtm = NLMSG_DATA(arg->cb->nlh);
-	if (rtm)
+	if (arg->cb->nlh->nlmsg_len >= NLMSG_LENGTH(sizeof(struct rtmsg))) {
+		struct rtmsg *rtm = NLMSG_DATA(arg->cb->nlh);
 		prefix = (rtm->rtm_flags & RTM_F_PREFIX) != 0;
-	else prefix = 0;
+	} else
+		prefix = 0;
 
 	return rt6_fill_node(arg->skb, rt, NULL, NULL, 0, RTM_NEWROUTE,
 		     NETLINK_CB(arg->cb->skb).pid, arg->cb->nlh->nlmsg_seq,

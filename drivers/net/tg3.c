@@ -56,8 +56,8 @@
 
 #define DRV_MODULE_NAME		"tg3"
 #define PFX DRV_MODULE_NAME	": "
-#define DRV_MODULE_VERSION	"2.2"
-#define DRV_MODULE_RELDATE	"August 24, 2003"
+#define DRV_MODULE_VERSION	"2.3"
+#define DRV_MODULE_RELDATE	"November 5, 2003"
 
 #define TG3_DEF_MAC_MODE	0
 #define TG3_DEF_RX_MODE		0
@@ -5935,6 +5935,10 @@ static int tg3_set_settings(struct net_device *dev, struct ethtool_cmd *cmd)
 					tp->link_config.phy_is_low_power)
 		return -EAGAIN;
 
+	spin_lock_irq(&tp->lock);
+	spin_lock(&tp->tx_lock);
+
+	tp->link_config.autoneg = cmd->autoneg;
 	if (cmd->autoneg == AUTONEG_ENABLE) {
 		tp->link_config.advertising = cmd->advertising;
 		tp->link_config.speed = SPEED_INVALID;
@@ -6067,8 +6071,8 @@ static int tg3_set_ringparam(struct net_device *dev, struct ethtool_ringparam *e
 	tp->rx_pending = ering->rx_pending;
 
 	if ((tp->tg3_flags2 & TG3_FLG2_MAX_RXPEND_64) &&
-	    tp->rx_pending > 64)
-		tp->rx_pending = 64;
+	    tp->rx_pending > 63)
+		tp->rx_pending = 63;
 	tp->rx_jumbo_pending = ering->rx_jumbo_pending;
 	tp->tx_pending = ering->tx_pending;
 
@@ -7601,7 +7605,7 @@ static int __devinit tg3_init_one(struct pci_dev *pdev,
 	spin_lock_init(&tp->lock);
 	spin_lock_init(&tp->tx_lock);
 	spin_lock_init(&tp->indirect_lock);
-	PREPARE_WORK(&tp->reset_task, tg3_reset_task, tp);
+	INIT_WORK(&tp->reset_task, tg3_reset_task, tp);
 
 	tp->regs = (unsigned long) ioremap(tg3reg_base, tg3reg_len);
 	if (tp->regs == 0UL) {
@@ -7672,7 +7676,7 @@ static int __devinit tg3_init_one(struct pci_dev *pdev,
 	    !(tp->tg3_flags2 & TG3_FLG2_TSO_CAPABLE) &&
 	    !(tr32(TG3PCI_PCISTATE) & PCISTATE_BUS_SPEED_HIGH)) {
 		tp->tg3_flags2 |= TG3_FLG2_MAX_RXPEND_64;
-		tp->rx_pending = 64;
+		tp->rx_pending = 63;
 	}
 
 	if (GET_ASIC_REV(tp->pci_chip_rev_id) == ASIC_REV_5704)
