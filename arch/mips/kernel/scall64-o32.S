@@ -178,7 +178,6 @@ LEAF(sys32_syscall)
 	ld	t2, (sys_call_table - (__NR_O32_Linux * 8))(v0)
 
 	li	v1, 4000		# indirect syscall number
-	beqz	t2, einval		# null function pointer?
 	beq	a0, v1, einval		# do not recurse
 
 	move	a0, a1			# shift argument registers

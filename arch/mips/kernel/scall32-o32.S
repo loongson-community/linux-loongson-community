@@ -289,7 +289,6 @@ bad_alignment:
 #else
 	li	v1, 4000 - __NR_O32_Linux	# index of sys_syscall
 #endif
-	beqz	t2, einval			# null function pointer?
 	beq	t0, v1, einval			# do not recurse
 
 	/* Some syscalls like execve get their arguments from struct pt_regs
