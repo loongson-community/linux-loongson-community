@@ -17,6 +17,14 @@
 #include <asm/byteorder.h>
 #include <asm/io.h>
 
+#ifndef MAX_HWIFS
+# ifdef CONFIG_PCI
+#define MAX_HWIFS	10
+# else
+#define MAX_HWIFS	6
+# endif
+#endif
+
 struct ide_ops {
 	int (*ide_default_irq)(ide_ioreg_t base);
 	ide_ioreg_t (*ide_default_io_base)(int index);
@@ -54,34 +62,6 @@ static __inline__ void ide_init_default_hwifs(void)
 		ide_register_hw(&hw, NULL);
 	}
 #endif
-}
-
-static __inline__ int ide_request_irq(unsigned int irq, void (*handler)(int,void *, struct pt_regs *),
-			unsigned long flags, const char *device, void *dev_id)
-{
-	return ide_ops->ide_request_irq(irq, handler, flags, device, dev_id);
-}
-
-static __inline__ void ide_free_irq(unsigned int irq, void *dev_id)
-{
-	ide_ops->ide_free_irq(irq, dev_id);
-}
-
-static __inline__ int ide_check_region (ide_ioreg_t from, unsigned int extent)
-{
-	return ide_ops->ide_check_region(from, extent);
-}
-
-static __inline__ void ide_request_region(ide_ioreg_t from,
-                                          unsigned int extent, const char *name)
-{
-	ide_ops->ide_request_region(from, extent, name);
-}
-
-static __inline__ void ide_release_region(ide_ioreg_t from,
-                                          unsigned int extent)
-{
-	ide_ops->ide_release_region(from, extent);
 }
 
 #ifdef __BIG_ENDIAN

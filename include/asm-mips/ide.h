@@ -17,6 +17,14 @@
 #include <asm/byteorder.h>
 #include <asm/io.h>
 
+#ifndef MAX_HWIFS
+# ifdef CONFIG_PCI
+#define MAX_HWIFS	10
+# else
+#define MAX_HWIFS	6
+# endif
+#endif
+
 struct ide_ops {
 	int (*ide_default_irq)(ide_ioreg_t base);
 	ide_ioreg_t (*ide_default_io_base)(int index);
