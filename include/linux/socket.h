@@ -128,7 +128,6 @@ struct ucred {
 	__u32	gid;
 };
 
-
 /* Supported address families. */
 #define AF_UNSPEC	0
 #define AF_UNIX		1	/* Unix domain sockets 		*/
