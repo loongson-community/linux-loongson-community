@@ -6,6 +6,7 @@
  *
  * DECstation changes
  * Copyright (C) 1998 Harald Koerfgen (Harald.Koerfgen@home.ivm.de)
+ * Copyright (C) 2000 Maciej W. Rozycki <macro@ds2.pg.gda.pl>
  *
  * For the rest of the code the original Copyright applies:
  * Copyright (C) 1996 Paul Mackerras (Paul.Mackerras@cs.anu.edu.au)
@@ -50,6 +51,9 @@
 #ifdef CONFIG_KGDB
 #include <asm/kgdb.h>
 #endif
+#ifdef CONFIG_MAGIC_SYSRQ
+#include <linux/sysrq.h>
+#endif
 
 #include "zs.h"
 
@@ -74,6 +78,10 @@ struct tty_struct zs_ttys[NUM_CHANNELS];
 
 #ifdef CONFIG_SERIAL_CONSOLE
 static struct console sercons;
+#endif
+#if defined(CONFIG_SERIAL_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ) \
+    && !defined(MODULE)
+static unsigned long break_pressed; /* break, really ... */
 #endif
 
 #ifdef CONFIG_KGDB
@@ -302,6 +310,8 @@ static inline void rs_recv_clear(struct dec_zschannel *zsc)
  * -----------------------------------------------------------------------
  */
 
+static int tty_break;	/* Set whenever BREAK condition is detected.  */
+
 /*
  * This routine is used by the interrupt handler to schedule
  * processing in the software interrupt portion of the driver.
@@ -320,7 +330,7 @@ static _INLINE_ void receive_chars(struct dec_serial *info,
 	struct tty_struct *tty = info->tty;
 	unsigned char ch, stat, flag;
 
-	while ((read_zsreg(info->zs_channel, 0) & Rx_CH_AV) != 0) {
+	while ((read_zsreg(info->zs_channel, R0) & Rx_CH_AV) != 0) {
 
 		stat = read_zsreg(info->zs_channel, R1);
 		ch = read_zsdata(info->zs_channel);
@@ -330,12 +340,52 @@ static _INLINE_ void receive_chars(struct dec_serial *info,
 			if (ch == 0x03 || ch == '$')
 				breakpoint();
 			if (stat & (Rx_OVR|FRM_ERR|PAR_ERR))
-				write_zsreg(info->zs_channel, 0, ERR_RES);
+				write_zsreg(info->zs_channel, R0, ERR_RES);
 			return;
 		}
 #endif
 		if (!tty)
 			continue;
+
+		if (tty_break) {
+			tty_break = 0;
+#if defined(CONFIG_SERIAL_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ) && !defined(MODULE)
+			if (info->line == sercons.index) {
+				if (!break_pressed) {
+					break_pressed = jiffies;
+					goto ignore_char;
+				}
+				break_pressed = 0;
+			}
+#endif
+			flag = TTY_BREAK;
+			if (info->flags & ZILOG_SAK)
+				do_SAK(tty);
+		} else {
+			if (stat & Rx_OVR) {
+				flag = TTY_OVERRUN;
+			} else if (stat & FRM_ERR) {
+				flag = TTY_FRAME;
+			} else if (stat & PAR_ERR) {
+				flag = TTY_PARITY;
+			} else
+				flag = 0;
+			if (flag)
+				/* reset the error indication */
+				write_zsreg(info->zs_channel, R0, ERR_RES);
+		}
+
+#if defined(CONFIG_SERIAL_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ) && !defined(MODULE)
+		if (break_pressed && info->line == sercons.index) {
+			if (ch != 0 &&
+			    time_before(jiffies, break_pressed + HZ*5)) {
+				handle_sysrq(ch, regs, NULL, NULL);
+				break_pressed = 0;
+				goto ignore_char;
+			}
+			break_pressed = 0;
+		}
+#endif
 
 		if (tty->flip.count >= TTY_FLIPBUF_SIZE) {
 			static int flip_buf_ovf;
@@ -348,26 +398,17 @@ static _INLINE_ void receive_chars(struct dec_serial *info,
 			if (flip_max_cnt < tty->flip.count)
 				flip_max_cnt = tty->flip.count;
 		}
-		if (stat & Rx_OVR) {
-			flag = TTY_OVERRUN;
-		} else if (stat & FRM_ERR) {
-			flag = TTY_FRAME;
-		} else if (stat & PAR_ERR) {
-			flag = TTY_PARITY;
-		} else
-			flag = 0;
-		if (flag)
-			/* reset the error indication */
-			write_zsreg(info->zs_channel, 0, ERR_RES);
+
 		*tty->flip.flag_buf_ptr++ = flag;
 		*tty->flip.char_buf_ptr++ = ch;
+	ignore_char:
 	}
 	tty_flip_buffer_push(tty);
 }
 
 static void transmit_chars(struct dec_serial *info)
 {
-	if ((read_zsreg(info->zs_channel, 0) & Tx_BUF_EMP) == 0)
+	if ((read_zsreg(info->zs_channel, R0) & Tx_BUF_EMP) == 0)
 		return;
 	info->tx_active = 0;
 
@@ -380,7 +421,7 @@ static void transmit_chars(struct dec_serial *info)
 	}
 
 	if ((info->xmit_cnt <= 0) || info->tty->stopped || info->tx_stopped) {
-		write_zsreg(info->zs_channel, 0, RES_Tx_P);
+		write_zsreg(info->zs_channel, R0, RES_Tx_P);
 		return;
 	}
 	/* Send char */
@@ -395,15 +436,22 @@ static void transmit_chars(struct dec_serial *info)
 
 static _INLINE_ void status_handle(struct dec_serial *info)
 {
-	unsigned char status;
+	unsigned char stat;
 
 	/* Get status from Read Register 0 */
-	status = read_zsreg(info->zs_channel, 0);
+	stat = read_zsreg(info->zs_channel, R0);
+
+	if (stat & BRK_ABRT) {
+#ifdef SERIAL_DEBUG_INTR
+		printk("handling break....");
+#endif
+		tty_break = 1;
+	}
 
 	/* FIXEM: Check for DCD transitions */
-	if (((status ^ info->read_reg_zero) & DCD) != 0
+	if (((stat ^ info->read_reg_zero) & DCD) != 0
 	    && info->tty && !C_CLOCAL(info->tty)) {
-		if (status & DCD) {
+		if (stat & DCD) {
 			wake_up_interruptible(&info->open_wait);
 		} else if (!(info->flags & ZILOG_CALLOUT_ACTIVE)) {
 			if (info->tty)
@@ -420,7 +468,7 @@ static _INLINE_ void status_handle(struct dec_serial *info)
 		 * The DCD bit doesn't seem to be inverted
 		 * like this.
 		 */
-		if ((status & CTS) != 0) {
+		if ((stat & CTS) != 0) {
 			if (info->tx_stopped) {
 				info->tx_stopped = 0;
 				if (!info->tx_active)
@@ -432,8 +480,8 @@ static _INLINE_ void status_handle(struct dec_serial *info)
 	}
 
 	/* Clear status condition... */
-	write_zsreg(info->zs_channel, 0, RES_EXT_INT);
-	info->read_reg_zero = status;
+	write_zsreg(info->zs_channel, R0, RES_EXT_INT);
+	info->read_reg_zero = stat;
 }
 
 /*
@@ -459,7 +507,7 @@ void rs_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 		shift = 0;	/* Channel B */
 
 	for (;;) {
-		zs_intreg = read_zsreg(info->zs_chan_a, 3) >> shift; 
+		zs_intreg = read_zsreg(info->zs_chan_a, R3) >> shift; 
 		if ((zs_intreg & CHAN_IRQMASK) == 0)
 			break;
 
