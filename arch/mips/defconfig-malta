@@ -82,15 +82,14 @@ CONFIG_SYSVIPC=y
 # CONFIG_SYSCTL is not set
 
 #
-# Parallel port support
-#
-# CONFIG_PARPORT is not set
-# CONFIG_PCMCIA is not set
-
-#
 # Memory Technology Devices (MTD)
 #
 # CONFIG_MTD is not set
+
+#
+# Parallel port support
+#
+# CONFIG_PARPORT is not set
 
 #
 # Block devices

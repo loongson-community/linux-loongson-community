@@ -89,12 +89,6 @@ CONFIG_BSD_PROCESS_ACCT=y
 CONFIG_SYSCTL=y
 
 #
-# Parallel port support
-#
-# CONFIG_PARPORT is not set
-# CONFIG_PCMCIA is not set
-
-#
 # Memory Technology Devices (MTD)
 #
 CONFIG_MTD=y
@@ -146,6 +140,11 @@ CONFIG_MTD_CHAR=y
 # CONFIG_MTD_BLOCK is not set
 # CONFIG_FTL is not set
 # CONFIG_NFTL is not set
+
+#
+# Parallel port support
+#
+# CONFIG_PARPORT is not set
 
 #
 # Block devices

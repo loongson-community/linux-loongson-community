@@ -275,8 +275,6 @@ bool 'System V IPC' CONFIG_SYSVIPC
 bool 'BSD Process Accounting' CONFIG_BSD_PROCESS_ACCT
 bool 'Sysctl support' CONFIG_SYSCTL
 
-source drivers/parport/Config.in
-
 if [ "$CONFIG_DECSTATION" = "y" ]; then
     bool 'TURBOchannel support' CONFIG_TC
 #    if [ "$CONFIG_TC" = "y" ]; then
@@ -289,13 +287,9 @@ if [ "$CONFIG_ISA" = "y" ]; then
    source drivers/pnp/Config.in
 fi
 
-if [ "$CONFIG_HOTPLUG" = "y" ] ; then
-   source drivers/pcmcia/Config.in
-else
-   define_bool CONFIG_PCMCIA n
-fi
-
 source drivers/mtd/Config.in
+
+source drivers/parport/Config.in
 
 source drivers/block/Config.in
 
@@ -305,10 +299,7 @@ if [ "$CONFIG_NET" = "y" ]; then
    source net/Config.in
 fi
 
-if [ "$CONFIG_DECSTATION" != "y" -a \
-     "$CONFIG_SGI_IP22" != "y" ]; then
-   source drivers/telephony/Config.in
-fi
+source drivers/telephony/Config.in
 
 if [ "$CONFIG_SGI_IP22" != "y" -a \
      "$CONFIG_DECSTATION" != "y" ]; then
