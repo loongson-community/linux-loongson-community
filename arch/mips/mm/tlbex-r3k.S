@@ -90,7 +90,7 @@
 	.set	macro; \
 	SAVE_ALL; \
 	mfc0	a2, CP0_BADVADDR; \
-	STI; \
+	KMODE; \
 	.set	at; \
 	move	a0, sp; \
 	jal	do_page_fault; \
