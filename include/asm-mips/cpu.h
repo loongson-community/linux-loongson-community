@@ -66,7 +66,11 @@
 #define PRID_IMP_4KEC		0x8400
 #define PRID_IMP_4KSC		0x8600
 #define PRID_IMP_25KF		0x8800
-
+#define PRID_IMP_5KE		0x8900
+#define PRID_IMP_4KECR2		0x9000
+#define PRID_IMP_4KEMPR2	0x9100
+#define PRID_IMP_4KSD		0x9200
+#define PRID_IMP_24K		0x9300
 
 #define PRID_IMP_UNKNOWN	0xff00
 
@@ -172,7 +176,8 @@
 #define CPU_25KF		55
 #define CPU_VR4133		56
 #define CPU_AU1550		57
-#define CPU_LAST		57
+#define CPU_24K			58
+#define CPU_LAST		58
 
 /*
  * ISA Level encodings
