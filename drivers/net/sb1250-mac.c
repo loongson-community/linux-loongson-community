@@ -113,7 +113,6 @@ MODULE_PARM(int_timeout, "i");
 #include <asm/sibyte/sb1250_dma.h>
 #include <asm/sibyte/sb1250_int.h>
 #include <asm/sibyte/sb1250_scd.h>
-#include <asm/sibyte/64bit.h>
 
 
 /**********************************************************************
@@ -147,8 +146,8 @@ typedef enum { sbmac_state_uninit, sbmac_state_off, sbmac_state_on,
 
 #define NUMCACHEBLKS(x) (((x)+SMP_CACHE_BYTES-1)/SMP_CACHE_BYTES)
 
-#define SBMAC_READCSR(t)	in64((unsigned long)t)
-#define SBMAC_WRITECSR(t,v)	out64(v, (unsigned long)t)
+#define SBMAC_READCSR(t)	__raw_readq((unsigned long)t)
+#define SBMAC_WRITECSR(t,v)	__raw_writeq(v, (unsigned long)t)
  
 
 #define SBMAC_MAX_TXDESCR	32

@@ -23,10 +23,10 @@
 #include <asm/bootinfo.h>
 #include <asm/mipsregs.h>
 #include <asm/io.h>
+#include <asm/system.h>
 #include <asm/sibyte/sb1250.h>
 #include <asm/sibyte/sb1250_regs.h>
 #include <asm/sibyte/sb1250_scd.h>
-#include <asm/sibyte/64bit.h>
 
 unsigned int sb1_pass;
 unsigned int soc_pass;
@@ -148,7 +148,7 @@ void sb1250_setup(void)
 	int bad_config = 0;
 
 	sb1_pass = read_c0_prid() & 0xff;
-	sys_rev = in64(IO_SPACE_BASE | A_SCD_SYSTEM_REVISION);
+	sys_rev = __raw_readq(IO_SPACE_BASE | A_SCD_SYSTEM_REVISION);
 	soc_type = SYS_SOC_TYPE(sys_rev);
 	soc_pass = G_SYS_REVISION(sys_rev);
 

@@ -34,7 +34,6 @@
 #include <asm/sibyte/sb1250_regs.h>
 #include <asm/sibyte/sb1250_int.h>
 #include <asm/sibyte/sb1250_genbus.h>
-#include <asm/sibyte/64bit.h>
 #include <asm/sibyte/board.h>
 
 /* Note: this should be general for any board using IDE on GenBus */

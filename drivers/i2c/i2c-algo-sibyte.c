@@ -29,7 +29,7 @@
 #include <linux/module.h>
 #include <linux/init.h>
 
-#include <asm/sibyte/64bit.h>
+#include <asm/io.h>
 #include <asm/sibyte/sb1250_regs.h>
 #include <asm/sibyte/sb1250_smbus.h>
 

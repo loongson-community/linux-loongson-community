@@ -47,7 +47,6 @@
 #include <asm/sibyte/sb1250_uart.h>
 #include <asm/sibyte/sb1250_int.h>
 #include <asm/sibyte/sb1250.h>
-#include <asm/sibyte/64bit.h>
 #include <asm/war.h>
 
 /* Toggle spewing of debugging output */
@@ -807,7 +806,7 @@ static int __init sb1250_duart_init(void)
 		if (request_irq(K_INT_UART_0+i, duart_int, 0, "uart", port)) {
 			panic("Couldn't get uart0 interrupt line");
 		}
-		out64(M_DUART_RX_EN|M_DUART_TX_EN,
+		__raw_writeq(M_DUART_RX_EN|M_DUART_TX_EN,
 		      IO_SPACE_BASE | A_DUART_CHANREG(i, R_DUART_CMD));
 		duart_set_cflag(i, DEFAULT_CFLAGS);
 	}

@@ -30,12 +30,12 @@
 #include <linux/sched.h>
 #include <linux/proc_fs.h>
 #include <asm/system.h>
+#include <asm/io.h>
 
 #include <asm/sibyte/sb1250.h>
 #include <asm/sibyte/sb1250_regs.h>
 #include <asm/sibyte/sb1250_int.h>
 #include <asm/sibyte/sb1250_scd.h>
-#include <asm/sibyte/64bit.h>
 
 
 struct bw_stats_struct {

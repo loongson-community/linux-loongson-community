@@ -14,11 +14,11 @@
 /* -------------------- BEGINNING OF CONFIG --------------------- */
 
 #include <linux/delay.h>
+#include <asm/io.h>
 #include <asm/sibyte/sb1250.h>
 #include <asm/sibyte/sb1250_regs.h>
 #include <asm/sibyte/sb1250_uart.h>
 #include <asm/sibyte/sb1250_int.h>
-#include <asm/sibyte/64bit.h>
 #include <asm/addrspace.h>
 
 /*

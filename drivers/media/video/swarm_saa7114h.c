@@ -62,7 +62,6 @@
 
 #include <linux/i2c-algo-sibyte.h>
 
-#include <asm/sibyte/64bit.h>
 #include <asm/sibyte/sb1250_regs.h>
 #include <asm/sibyte/sb1250_int.h>
 #include <asm/sibyte/sb1250_mac.h>
@@ -507,30 +506,30 @@ static int dma_setup(struct saa7114h *d)
 	void *curbuf;
 
 	/* Reset the port */
-	out64(M_MAC_PORT_RESET, MAC2_CSR(R_MAC_ENABLE));
-	in64(MAC2_CSR(R_MAC_ENABLE));
+	__raw_writeq(M_MAC_PORT_RESET, MAC2_CSR(R_MAC_ENABLE));
+	__raw_readq(MAC2_CSR(R_MAC_ENABLE));
 
 	/* Zero everything out, disable filters */
-	out64(0, MAC2_CSR(R_MAC_TXD_CTL));
-	out64(M_MAC_ALLPKT_EN, MAC2_CSR(R_MAC_ADFILTER_CFG));
-	out64(V_MAC_RX_RD_THRSH(4) | V_MAC_RX_RL_THRSH(4),
+	__raw_writeq(0, MAC2_CSR(R_MAC_TXD_CTL));
+	__raw_writeq(M_MAC_ALLPKT_EN, MAC2_CSR(R_MAC_ADFILTER_CFG));
+	__raw_writeq(V_MAC_RX_RD_THRSH(4) | V_MAC_RX_RL_THRSH(4),
 	      MAC2_CSR(R_MAC_THRSH_CFG));
 	for (i=0; i<MAC_CHMAP_COUNT; i++) {
-		out64(0, MAC2_CSR(R_MAC_CHLO0_BASE+(i*8)));
-		out64(0, MAC2_CSR(R_MAC_CHUP0_BASE+(i*8)));
+		__raw_writeq(0, MAC2_CSR(R_MAC_CHLO0_BASE+(i*8)));
+		__raw_writeq(0, MAC2_CSR(R_MAC_CHUP0_BASE+(i*8)));
 	}
 	for (i=0; i<MAC_HASH_COUNT; i++) {
-		out64(0, MAC2_CSR(R_MAC_HASH_BASE+(i*8)));
+		__raw_writeq(0, MAC2_CSR(R_MAC_HASH_BASE+(i*8)));
 	}
 	for (i=0; i<MAC_ADDR_COUNT; i++) {
-		out64(0, MAC2_CSR(R_MAC_ADDR_BASE+(i*8)));
+		__raw_writeq(0, MAC2_CSR(R_MAC_ADDR_BASE+(i*8)));
 	}	 
 	
-	out64(V_MAC_MAX_FRAMESZ(16*1024) | V_MAC_MIN_FRAMESZ(0),
+	__raw_writeq(V_MAC_MAX_FRAMESZ(16*1024) | V_MAC_MIN_FRAMESZ(0),
 	      MAC2_CSR(R_MAC_FRAMECFG));
 
 	/* Select bypass mode */
-	out64((M_MAC_BYPASS_SEL | V_MAC_BYPASS_CFG(K_MAC_BYPASS_EOP) | 
+	__raw_writeq((M_MAC_BYPASS_SEL | V_MAC_BYPASS_CFG(K_MAC_BYPASS_EOP) | 
 	       M_MAC_FC_SEL | M_MAC_SS_EN | V_MAC_SPEED_SEL_1000MBPS),
 	      MAC2_CSR(R_MAC_CFG));
 
@@ -561,15 +560,15 @@ static int dma_setup(struct saa7114h *d)
 		d->ff.descrtab[i].descr_b = 0;
 	}
 
-	out64(V_DMA_INT_PKTCNT(INTR_PKT_CNT) | M_DMA_EOP_INT_EN |
+	__raw_writeq(V_DMA_INT_PKTCNT(INTR_PKT_CNT) | M_DMA_EOP_INT_EN |
 	      V_DMA_RINGSZ(d->ff.ringsz) | M_DMA_TDX_EN,
 	      MAC2_DMARX0_CSR(R_MAC_DMA_CONFIG0));
-	out64(M_DMA_L2CA, MAC2_DMARX0_CSR(R_MAC_DMA_CONFIG1));
-	out64(d->ff.descrtab_phys, MAC2_DMARX0_CSR(R_MAC_DMA_DSCR_BASE));
+	__raw_writeq(M_DMA_L2CA, MAC2_DMARX0_CSR(R_MAC_DMA_CONFIG1));
+	__raw_writeq(d->ff.descrtab_phys, MAC2_DMARX0_CSR(R_MAC_DMA_DSCR_BASE));
 
 	/* Enable interrupts and DMA */
-	out64(M_MAC_INT_EOP_COUNT<<S_MAC_RX_CH0, MAC2_CSR(R_MAC_INT_MASK));
-	out64(M_MAC_RXDMA_EN0 | M_MAC_BYP_RX_ENABLE, MAC2_CSR(R_MAC_ENABLE));
+	__raw_writeq(M_MAC_INT_EOP_COUNT<<S_MAC_RX_CH0, MAC2_CSR(R_MAC_INT_MASK));
+	__raw_writeq(M_MAC_RXDMA_EN0 | M_MAC_BYP_RX_ENABLE, MAC2_CSR(R_MAC_ENABLE));
 
 	return 0;
 }
@@ -671,9 +670,9 @@ static int grab_frame(struct saa7114h *d, void *user_buf, int print_eav)
 	if (saa7114h_reg_read(d, DECODER_STATUS) & 0x2)
 		return -EACCES;
 
-	out64(d->ff.ringsz, MAC2_DMARX0_CSR(R_MAC_DMA_DSCR_CNT));
+	__raw_writeq(d->ff.ringsz, MAC2_DMARX0_CSR(R_MAC_DMA_DSCR_CNT));
 	do {
-		hwptr = (unsigned) (((in64(MAC2_DMARX0_CSR(R_MAC_DMA_CUR_DSCRADDR)) &
+		hwptr = (unsigned) (((__raw_readq(MAC2_DMARX0_CSR(R_MAC_DMA_CUR_DSCRADDR)) &
 				      M_DMA_CURDSCR_ADDR) -
 				     d->ff.descrtab_phys) /
 				    sizeof(fifo_descr_t));
@@ -681,7 +680,7 @@ static int grab_frame(struct saa7114h *d, void *user_buf, int print_eav)
 		
 		if (delta == 0) {
 #if 0
-			uint64_t val = in64(MAC2_DMARX0_CSR(R_MAC_STATUS));
+			uint64_t val = __raw_readq(MAC2_DMARX0_CSR(R_MAC_STATUS));
 			printk("mac status: %08x%08x\n",
 			       (u32)(val >> 32), (u32)(val&0xffffffff));
 #endif
@@ -728,7 +727,7 @@ static int grab_frame(struct saa7114h *d, void *user_buf, int print_eav)
 				to_go -= delta;
 			if (delta > to_go)
 				delta = to_go;
-			out64(delta, MAC2_DMARX0_CSR(R_MAC_DMA_DSCR_CNT));
+			__raw_writeq(delta, MAC2_DMARX0_CSR(R_MAC_DMA_DSCR_CNT));
 		}
 	} while (to_go);
 
@@ -757,10 +756,10 @@ static void saa7114h_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	int swptr = d->ff.next_descr - d->ff.descrtab;
 	int hwptr;
 
-	status_val = in64(MAC2_CSR(R_MAC_STATUS));
+	status_val = __raw_readq(MAC2_CSR(R_MAC_STATUS));
 
 	/* Process finished decsriptors */
-	hwptr = (unsigned) (((in64(MAC2_DMARX0_CSR(R_MAC_DMA_CUR_DSCRADDR)) &
+	hwptr = (unsigned) (((__raw_readq(MAC2_DMARX0_CSR(R_MAC_DMA_CUR_DSCRADDR)) &
 			      M_DMA_CURDSCR_ADDR) - d->ff.descrtab_phys) /
 			    sizeof(fifo_descr_t));
 	delta = (hwptr + d->ff.ringsz - swptr) % d->ff.ringsz;
@@ -899,10 +898,10 @@ static void saa7114h_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	}
 	
 	if (d->dma_enable) {
-		out64(delta, MAC2_DMARX0_CSR(R_MAC_DMA_DSCR_CNT));
+		__raw_writeq(delta, MAC2_DMARX0_CSR(R_MAC_DMA_DSCR_CNT));
 		DBG(DBG_DESCR,
 		    printk(KERN_DEBUG IF_NAME ": interrupt adds %d -> %d descrs\n",
-			   delta, (int)in64(MAC2_DMARX0_CSR(R_MAC_DMA_DSCR_CNT))));
+			   delta, (int)__raw_readq(MAC2_DMARX0_CSR(R_MAC_DMA_DSCR_CNT))));
 	}
 }
 
@@ -936,11 +935,11 @@ static int saa7114h_open(struct video_device *vd, int nb)
 		d->dma_enable = 1;
 		DBG(DBG_DESCR, printk(IF_NAME ": open enabling DMA\n"));
 		/* Force capture to start into frame buffer 0 */
-		descr = in64(MAC2_DMARX0_CSR(R_MAC_DMA_DSCR_CNT));
+		descr = __raw_readq(MAC2_DMARX0_CSR(R_MAC_DMA_DSCR_CNT));
 		DBG(DBG_DESCR,
 		    printk(IF_NAME ": open adds %d -> %d descrs\n",
 			   d->ff.ringsz-desc, descr));
-		out64(d->ff.ringsz-descr, MAC2_DMARX0_CSR(R_MAC_DMA_DSCR_CNT));
+		__raw_writeq(d->ff.ringsz-descr, MAC2_DMARX0_CSR(R_MAC_DMA_DSCR_CNT));
 	}
 #endif
 #endif
@@ -989,8 +988,8 @@ static long saa7114h_read(struct video_device *vd, char *buf,
 #endif
 		/* Fire up the DMA engine again if it stopped */
 		d->dma_enable = 1;
-		descr = in64(MAC2_DMARX0_CSR(R_MAC_DMA_DSCR_CNT));
-		out64(d->ff.ringsz-descr, MAC2_DMARX0_CSR(R_MAC_DMA_DSCR_CNT));
+		descr = __raw_readq(MAC2_DMARX0_CSR(R_MAC_DMA_DSCR_CNT));
+		__raw_writeq(d->ff.ringsz-descr, MAC2_DMARX0_CSR(R_MAC_DMA_DSCR_CNT));
 	}
 #endif
 #endif
@@ -1026,8 +1025,8 @@ static long saa7114h_read(struct video_device *vd, char *buf,
 		DBG(DBG_DESCR, printk(KERN_DEBUG IF_NAME ": enabling DMA\n"));
 		/* Fire up the DMA engine again if it stopped */
 		d->dma_enable = 1;
-		descr = in64(MAC2_DMARX0_CSR(R_MAC_DMA_DSCR_CNT));
-		out64(d->ff.ringsz-descr, MAC2_DMARX0_CSR(R_MAC_DMA_DSCR_CNT));
+		descr = __raw_readq(MAC2_DMARX0_CSR(R_MAC_DMA_DSCR_CNT));
+		__raw_writeq(d->ff.ringsz-descr, MAC2_DMARX0_CSR(R_MAC_DMA_DSCR_CNT));
 	}
 #endif
 #endif
@@ -1256,11 +1255,11 @@ static int saa7114h_ioctl(struct video_device *vd, unsigned int cmd, void *arg)
 		if (!d->dma_enable) {
 			d->dma_enable = 1;
 			d->hwframe = d->swframe = vm.frame;
-			descr = in64(MAC2_DMARX0_CSR(R_MAC_DMA_DSCR_CNT));
+			descr = __raw_readq(MAC2_DMARX0_CSR(R_MAC_DMA_DSCR_CNT));
 			DBG(DBG_DESCR,
 			    printk(KERN_DEBUG IF_NAME ": capture adds %d -> %d descrs\n",
 				   d->ff.ringsz-descr, descr));
-			out64(d->ff.ringsz-descr, MAC2_DMARX0_CSR(R_MAC_DMA_DSCR_CNT));
+			__raw_writeq(d->ff.ringsz-descr, MAC2_DMARX0_CSR(R_MAC_DMA_DSCR_CNT));
 		}
 #endif
 		break;
@@ -1615,8 +1614,8 @@ static int saa7114h_attach(struct i2c_adapter *adap, int addr, unsigned short fl
 	decoder->vd = vd;
 
 	/* Turn on the ITRDY - preserve the GENO pin for syncser */
-	val = in64(KSEG1 + A_MAC_REGISTER(2, R_MAC_MDIO));
-	out64(M_MAC_MDIO_OUT | (val & M_MAC_GENC),
+	val = __raw_readq(KSEG1 + A_MAC_REGISTER(2, R_MAC_MDIO));
+	__raw_writeq(M_MAC_MDIO_OUT | (val & M_MAC_GENC),
 	      KSEG1 + A_MAC_REGISTER(2, R_MAC_MDIO));
 
 	if ((err = dma_setup(decoder))) {

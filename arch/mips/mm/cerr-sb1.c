@@ -24,7 +24,6 @@
 #include <asm/io.h>
 #include <asm/sibyte/sb1250_regs.h>
 #include <asm/sibyte/sb1250_scd.h>
-#include <asm/sibyte/64bit.h>
 #endif
 
 /* SB1 definitions */

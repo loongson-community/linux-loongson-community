@@ -87,7 +87,6 @@
 #include <asm/sibyte/sb1250_syncser.h>
 #include <asm/sibyte/sb1250_mac.h>
 #include <asm/sibyte/sb1250.h>
-#include <asm/sibyte/64bit.h>
 
 struct cs4297a_state;
 EXPORT_NO_SYMBOLS;
@@ -563,44 +562,44 @@ static int ser_init(struct cs4297a_state *s)
         CS_DBGOUT(CS_INIT, 2, 
                   printk(KERN_INFO "cs4297a: Setting up serial parameters\n"));
 
-        out64(M_SYNCSER_CMD_RX_RESET | M_SYNCSER_CMD_TX_RESET, SS_CSR(R_SER_CMD));
+        __raw_writeq(M_SYNCSER_CMD_RX_RESET | M_SYNCSER_CMD_TX_RESET, SS_CSR(R_SER_CMD));
 
-        out64(M_SYNCSER_MSB_FIRST, SS_CSR(R_SER_MODE));
-        out64(32, SS_CSR(R_SER_MINFRM_SZ));
-        out64(32, SS_CSR(R_SER_MAXFRM_SZ));
+        __raw_writeq(M_SYNCSER_MSB_FIRST, SS_CSR(R_SER_MODE));
+        __raw_writeq(32, SS_CSR(R_SER_MINFRM_SZ));
+        __raw_writeq(32, SS_CSR(R_SER_MAXFRM_SZ));
 
-        out64(1, SS_CSR(R_SER_TX_RD_THRSH));
-        out64(4, SS_CSR(R_SER_TX_WR_THRSH));
-        out64(8, SS_CSR(R_SER_RX_RD_THRSH));
+        __raw_writeq(1, SS_CSR(R_SER_TX_RD_THRSH));
+        __raw_writeq(4, SS_CSR(R_SER_TX_WR_THRSH));
+        __raw_writeq(8, SS_CSR(R_SER_RX_RD_THRSH));
 
         /* This looks good from experimentation */
-        out64((M_SYNCSER_TXSYNC_INT | V_SYNCSER_TXSYNC_DLY(0) | M_SYNCSER_TXCLK_EXT |
+        __raw_writeq((M_SYNCSER_TXSYNC_INT | V_SYNCSER_TXSYNC_DLY(0) | M_SYNCSER_TXCLK_EXT |
                M_SYNCSER_RXSYNC_INT | V_SYNCSER_RXSYNC_DLY(1) | M_SYNCSER_RXCLK_EXT | M_SYNCSER_RXSYNC_EDGE),
               SS_CSR(R_SER_LINE_MODE));
 
         /* This looks good from experimentation */
-        out64(V_SYNCSER_SEQ_COUNT(14) | M_SYNCSER_SEQ_ENABLE | M_SYNCSER_SEQ_STROBE,
+        __raw_writeq(V_SYNCSER_SEQ_COUNT(14) | M_SYNCSER_SEQ_ENABLE | M_SYNCSER_SEQ_STROBE,
               SS_TXTBL(0));
-        out64(V_SYNCSER_SEQ_COUNT(15) | M_SYNCSER_SEQ_ENABLE | M_SYNCSER_SEQ_BYTE,
+        __raw_writeq(V_SYNCSER_SEQ_COUNT(15) | M_SYNCSER_SEQ_ENABLE | M_SYNCSER_SEQ_BYTE,
               SS_TXTBL(1));
-        out64(V_SYNCSER_SEQ_COUNT(13) | M_SYNCSER_SEQ_ENABLE | M_SYNCSER_SEQ_BYTE,
+        __raw_writeq(V_SYNCSER_SEQ_COUNT(13) | M_SYNCSER_SEQ_ENABLE | M_SYNCSER_SEQ_BYTE,
               SS_TXTBL(2));
-        out64(V_SYNCSER_SEQ_COUNT( 0) | M_SYNCSER_SEQ_ENABLE |
+        __raw_writeq(V_SYNCSER_SEQ_COUNT( 0) | M_SYNCSER_SEQ_ENABLE |
               M_SYNCSER_SEQ_STROBE | M_SYNCSER_SEQ_LAST, SS_TXTBL(3));
 
-        out64(V_SYNCSER_SEQ_COUNT(14) | M_SYNCSER_SEQ_ENABLE | M_SYNCSER_SEQ_STROBE,
+        __raw_writeq(V_SYNCSER_SEQ_COUNT(14) | M_SYNCSER_SEQ_ENABLE | M_SYNCSER_SEQ_STROBE,
               SS_RXTBL(0));
-        out64(V_SYNCSER_SEQ_COUNT(15) | M_SYNCSER_SEQ_ENABLE | M_SYNCSER_SEQ_BYTE,
+        __raw_writeq(V_SYNCSER_SEQ_COUNT(15) | M_SYNCSER_SEQ_ENABLE | M_SYNCSER_SEQ_BYTE,
               SS_RXTBL(1));
-        out64(V_SYNCSER_SEQ_COUNT(13) | M_SYNCSER_SEQ_ENABLE | M_SYNCSER_SEQ_BYTE,
+        __raw_writeq(V_SYNCSER_SEQ_COUNT(13) | M_SYNCSER_SEQ_ENABLE | M_SYNCSER_SEQ_BYTE,
               SS_RXTBL(2));
-        out64(V_SYNCSER_SEQ_COUNT( 0) | M_SYNCSER_SEQ_ENABLE | M_SYNCSER_SEQ_STROBE |
+        __raw_writeq(V_SYNCSER_SEQ_COUNT( 0) | M_SYNCSER_SEQ_ENABLE | M_SYNCSER_SEQ_STROBE |
               M_SYNCSER_SEQ_LAST, SS_RXTBL(3));
 
         for (i=4; i<16; i++) {
                 /* Just in case... */
-                out64(M_SYNCSER_SEQ_LAST, SS_TXTBL(i));
-                out64(M_SYNCSER_SEQ_LAST, SS_RXTBL(i));
+                __raw_writeq(M_SYNCSER_SEQ_LAST, SS_TXTBL(i));
+                __raw_writeq(M_SYNCSER_SEQ_LAST, SS_RXTBL(i));
         }
 
         return 0;
@@ -667,8 +666,8 @@ static int dma_init(struct cs4297a_state *s)
             init_serdma(&s->dma_dac))
                 return -1;
 
-        if (in64(SS_CSR(R_SER_DMA_DSCR_COUNT_RX))||
-            in64(SS_CSR(R_SER_DMA_DSCR_COUNT_TX))) {
+        if (__raw_readq(SS_CSR(R_SER_DMA_DSCR_COUNT_RX))||
+            __raw_readq(SS_CSR(R_SER_DMA_DSCR_COUNT_TX))) {
                 panic("DMA state corrupted?!");
         }
 
@@ -683,38 +682,38 @@ static int dma_init(struct cs4297a_state *s)
                 s->dma_adc.descrtab[i].descr_b = 0;
         }
 
-        out64((M_DMA_EOP_INT_EN | V_DMA_INT_PKTCNT(DMA_INT_CNT) |
+        __raw_writeq((M_DMA_EOP_INT_EN | V_DMA_INT_PKTCNT(DMA_INT_CNT) |
                V_DMA_RINGSZ(DMA_DESCR) | M_DMA_TDX_EN),
               SS_CSR(R_SER_DMA_CONFIG0_RX));
-        out64(M_DMA_L2CA, SS_CSR(R_SER_DMA_CONFIG1_RX));
-        out64(s->dma_adc.descrtab_phys, SS_CSR(R_SER_DMA_DSCR_BASE_RX));
+        __raw_writeq(M_DMA_L2CA, SS_CSR(R_SER_DMA_CONFIG1_RX));
+        __raw_writeq(s->dma_adc.descrtab_phys, SS_CSR(R_SER_DMA_DSCR_BASE_RX));
 
-        out64(V_DMA_RINGSZ(DMA_DESCR), SS_CSR(R_SER_DMA_CONFIG0_TX));
-        out64(M_DMA_L2CA | M_DMA_NO_DSCR_UPDT, SS_CSR(R_SER_DMA_CONFIG1_TX));
-        out64(s->dma_dac.descrtab_phys, SS_CSR(R_SER_DMA_DSCR_BASE_TX));
+        __raw_writeq(V_DMA_RINGSZ(DMA_DESCR), SS_CSR(R_SER_DMA_CONFIG0_TX));
+        __raw_writeq(M_DMA_L2CA | M_DMA_NO_DSCR_UPDT, SS_CSR(R_SER_DMA_CONFIG1_TX));
+        __raw_writeq(s->dma_dac.descrtab_phys, SS_CSR(R_SER_DMA_DSCR_BASE_TX));
 
         /* Prep the receive DMA descriptor ring */
-        out64(DMA_DESCR, SS_CSR(R_SER_DMA_DSCR_COUNT_RX));
+        __raw_writeq(DMA_DESCR, SS_CSR(R_SER_DMA_DSCR_COUNT_RX));
 
-        out64(M_SYNCSER_DMA_RX_EN | M_SYNCSER_DMA_TX_EN, SS_CSR(R_SER_DMA_ENABLE));
+        __raw_writeq(M_SYNCSER_DMA_RX_EN | M_SYNCSER_DMA_TX_EN, SS_CSR(R_SER_DMA_ENABLE));
 
-        out64((M_SYNCSER_RX_SYNC_ERR | M_SYNCSER_RX_OVERRUN | M_SYNCSER_RX_EOP_COUNT),
+        __raw_writeq((M_SYNCSER_RX_SYNC_ERR | M_SYNCSER_RX_OVERRUN | M_SYNCSER_RX_EOP_COUNT),
               SS_CSR(R_SER_INT_MASK));
 
         /* Enable the rx/tx; let the codec warm up to the sync and
            start sending good frames before the receive FIFO is
            enabled */
-        out64(M_SYNCSER_CMD_TX_EN, SS_CSR(R_SER_CMD));
+        __raw_writeq(M_SYNCSER_CMD_TX_EN, SS_CSR(R_SER_CMD));
         udelay(1000);
-        out64(M_SYNCSER_CMD_RX_EN | M_SYNCSER_CMD_TX_EN, SS_CSR(R_SER_CMD));
+        __raw_writeq(M_SYNCSER_CMD_RX_EN | M_SYNCSER_CMD_TX_EN, SS_CSR(R_SER_CMD));
 
         /* XXXKW is this magic? (the "1" part) */
-        while ((in64(SS_CSR(R_SER_STATUS)) & 0xf1) != 1)
+        while ((__raw_readq(SS_CSR(R_SER_STATUS)) & 0xf1) != 1)
                 ;
 
         CS_DBGOUT(CS_INIT, 4, 
                   printk(KERN_INFO "cs4297a: status: %08x\n",
-                         (unsigned int)(in64(SS_CSR(R_SER_STATUS)) & 0xffffffff)));
+                         (unsigned int)(__raw_readq(SS_CSR(R_SER_STATUS)) & 0xffffffff)));
 
         return 0;
 }
@@ -755,7 +754,7 @@ static int serdma_reg_access(struct cs4297a_state *s, u64 data)
                 descr = &d->descrtab[swptr];
                 data_p = &d->dma_buf[swptr * 4];
                 *data_p = data;
-                out64(1, SS_CSR(R_SER_DMA_DSCR_COUNT_TX));
+                __raw_writeq(1, SS_CSR(R_SER_DMA_DSCR_COUNT_TX));
                 CS_DBGOUT(CS_DESCR, 4,
                           printk(KERN_INFO "cs4297a: add_tx  %p (%x -> %x)\n",
                                  data_p, swptr, d->hwptr));
@@ -809,7 +808,7 @@ static void stop_dac(struct cs4297a_state *s)
         /* XXXKW what do I really want here?  My theory for now is
            that I just flip the "ena" bit, and the interrupt handler
            will stop processing the xmit channel */
-        out64((s->ena & FMODE_READ) ? M_SYNCSER_DMA_RX_EN : 0,
+        __raw_writeq((s->ena & FMODE_READ) ? M_SYNCSER_DMA_RX_EN : 0,
               SS_CSR(R_SER_DMA_ENABLE));
 #endif
 
@@ -928,11 +927,11 @@ static void cs4297a_update_ptr(struct cs4297a_state *s, int intflag)
         serdma_descr_t *descr;
 
 	// update ADC pointer 
-        status = intflag ? in64(SS_CSR(R_SER_STATUS)) : 0;
+        status = intflag ? __raw_readq(SS_CSR(R_SER_STATUS)) : 0;
 
 	if ((s->ena & FMODE_READ) || (status & (M_SYNCSER_RX_EOP_COUNT))) {
                 d = &s->dma_adc;
-                hwptr = (unsigned) (((in64(SS_CSR(R_SER_DMA_CUR_DSCR_ADDR_RX)) & M_DMA_CURDSCR_ADDR) -
+                hwptr = (unsigned) (((__raw_readq(SS_CSR(R_SER_DMA_CUR_DSCR_ADDR_RX)) & M_DMA_CURDSCR_ADDR) -
                                      d->descrtab_phys) / sizeof(serdma_descr_t));
 
                 if (s->ena & FMODE_READ) {
@@ -993,7 +992,7 @@ static void cs4297a_update_ptr(struct cs4297a_state *s, int intflag)
                                 printk(KERN_ERR "cs4297a: bogus receive overflow!!\n");
                         }
                         d->swptr = (d->swptr + diff) % d->ringsz;
-                        out64(diff, SS_CSR(R_SER_DMA_DSCR_COUNT_RX));
+                        __raw_writeq(diff, SS_CSR(R_SER_DMA_DSCR_COUNT_RX));
                         if (d->mapped) {
                                 if (d->count >= (signed) d->fragsize)
                                         wake_up(&d->wait);
@@ -1049,7 +1048,7 @@ static void cs4297a_update_ptr(struct cs4297a_state *s, int intflag)
                                         d->swptr = 0;
                                         data_p = d->dma_buf;
                                 }
-                                out64(1, SS_CSR(R_SER_DMA_DSCR_COUNT_RX));
+                                __raw_writeq(1, SS_CSR(R_SER_DMA_DSCR_COUNT_RX));
                         } while (--diff);
                         d->hwptr = hwptr;
 
@@ -1074,7 +1073,7 @@ static void cs4297a_update_ptr(struct cs4297a_state *s, int intflag)
 	//
 	if (s->ena & FMODE_WRITE) {
                 serdma_t *d = &s->dma_dac;
-                hwptr = (unsigned) (((in64(SS_CSR(R_SER_DMA_CUR_DSCR_ADDR_TX)) & M_DMA_CURDSCR_ADDR) -
+                hwptr = (unsigned) (((__raw_readq(SS_CSR(R_SER_DMA_CUR_DSCR_ADDR_TX)) & M_DMA_CURDSCR_ADDR) -
                                      d->descrtab_phys) / sizeof(serdma_descr_t));
                 diff = (d->ringsz + hwptr - d->hwptr) % d->ringsz;
                 CS_DBGOUT(CS_WAVE_WRITE, 4, printk(KERN_INFO
@@ -1620,7 +1619,7 @@ static int drain_dac(struct cs4297a_state *s, int nonblock)
         if (nonblock)
                 return -EBUSY;
 	add_wait_queue(&s->dma_dac.wait, &wait);
-        while ((count = in64(SS_CSR(R_SER_DMA_DSCR_COUNT_TX))) ||
+        while ((count = __raw_readq(SS_CSR(R_SER_DMA_DSCR_COUNT_TX))) ||
                (s->dma_dac.count > 0)) {
                 if (!signal_pending(current)) {
                         set_current_state(TASK_INTERRUPTIBLE);
@@ -1633,7 +1632,7 @@ static int drain_dac(struct cs4297a_state *s, int nonblock)
         }
         spin_lock_irqsave(&s->lock, flags);
         /* Reset the bookkeeping */
-        hwptr = (int)(((in64(SS_CSR(R_SER_DMA_CUR_DSCR_ADDR_TX)) & M_DMA_CURDSCR_ADDR) -
+        hwptr = (int)(((__raw_readq(SS_CSR(R_SER_DMA_CUR_DSCR_ADDR_TX)) & M_DMA_CURDSCR_ADDR) -
                        s->dma_dac.descrtab_phys) / sizeof(serdma_descr_t));
         s->dma_dac.hwptr = s->dma_dac.swptr = hwptr;
         spin_unlock_irqrestore(&s->lock, flags);
@@ -1811,7 +1810,7 @@ static ssize_t cs4297a_write(struct file *file, const char *buffer,
 		}
 		if (d->underrun) {
 			d->underrun = 0;
-                        hwptr = (unsigned) (((in64(SS_CSR(R_SER_DMA_CUR_DSCR_ADDR_TX)) & M_DMA_CURDSCR_ADDR) -
+                        hwptr = (unsigned) (((__raw_readq(SS_CSR(R_SER_DMA_CUR_DSCR_ADDR_TX)) & M_DMA_CURDSCR_ADDR) -
                                              d->descrtab_phys) / sizeof(serdma_descr_t));
 			d->swptr = d->hwptr = hwptr;
 		}
@@ -1873,7 +1872,7 @@ static ssize_t cs4297a_write(struct file *file, const char *buffer,
                                  "cs4297a: copy in %d to swptr %x\n", cnt, swptr));
 
 		swptr = (swptr + (cnt/FRAME_SAMPLE_BYTES)) % d->ringsz;
-                out64(cnt/FRAME_SAMPLE_BYTES, SS_CSR(R_SER_DMA_DSCR_COUNT_TX));
+                __raw_writeq(cnt/FRAME_SAMPLE_BYTES, SS_CSR(R_SER_DMA_DSCR_COUNT_TX));
 		spin_lock_irqsave(&s->lock, flags);
 		d->swptr = swptr;
 		d->count += cnt;
@@ -2010,7 +2009,7 @@ static int cs4297a_ioctl(struct inode *inode, struct file *file,
                         s->dma_dac.count = s->dma_dac.total_bytes =
                                 s->dma_dac.blocks = s->dma_dac.wakeup = 0;
 			s->dma_dac.swptr = s->dma_dac.hwptr =
-                                (int)(((in64(SS_CSR(R_SER_DMA_CUR_DSCR_ADDR_TX)) & M_DMA_CURDSCR_ADDR) -
+                                (int)(((__raw_readq(SS_CSR(R_SER_DMA_CUR_DSCR_ADDR_TX)) & M_DMA_CURDSCR_ADDR) -
                                        s->dma_dac.descrtab_phys) / sizeof(serdma_descr_t));
 		}
 		if (file->f_mode & FMODE_READ) {
@@ -2019,7 +2018,7 @@ static int cs4297a_ioctl(struct inode *inode, struct file *file,
                         s->dma_adc.count = s->dma_adc.total_bytes =
                                 s->dma_adc.blocks = s->dma_dac.wakeup = 0;
 			s->dma_adc.swptr = s->dma_adc.hwptr =
-                                (int)(((in64(SS_CSR(R_SER_DMA_CUR_DSCR_ADDR_RX)) & M_DMA_CURDSCR_ADDR) -
+                                (int)(((__raw_readq(SS_CSR(R_SER_DMA_CUR_DSCR_ADDR_RX)) & M_DMA_CURDSCR_ADDR) -
                                        s->dma_adc.descrtab_phys) / sizeof(serdma_descr_t));
 		}
 		return 0;
@@ -2393,7 +2392,7 @@ static int cs4297a_open(struct inode *inode, struct file *file)
 		"cs4297a: cs4297a_open(): inode=0x%.8x file=0x%.8x f_mode=0x%x\n",
 			(unsigned) inode, (unsigned) file, file->f_mode));
 	CS_DBGOUT(CS_FUNCTION | CS_OPEN, 2, printk(KERN_INFO
-                "cs4297a: status = %08x\n", (int)in64(SS_CSR(R_SER_STATUS_DEBUG))));
+                "cs4297a: status = %08x\n", (int)__raw_readq(SS_CSR(R_SER_STATUS_DEBUG))));
 
 	list_for_each(entry, &cs4297a_devs)
 	{
@@ -2419,9 +2418,9 @@ static int cs4297a_open(struct inode *inode, struct file *file)
 		return -ENODEV;
 	}
 	if (file->f_mode & FMODE_WRITE) {
-                if (in64(SS_CSR(R_SER_DMA_DSCR_COUNT_TX)) != 0) {
+                if (__raw_readq(SS_CSR(R_SER_DMA_DSCR_COUNT_TX)) != 0) {
                         printk(KERN_ERR "cs4297a: TX pipe needs to drain\n");
-                        while (in64(SS_CSR(R_SER_DMA_DSCR_COUNT_TX)))
+                        while (__raw_readq(SS_CSR(R_SER_DMA_DSCR_COUNT_TX)))
                                 ;
                 }
           
@@ -2522,7 +2521,7 @@ static void cs4297a_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	struct cs4297a_state *s = (struct cs4297a_state *) dev_id;
         u32 status;
 
-        status = in64(SS_CSR(R_SER_STATUS_DEBUG));
+        status = __raw_readq(SS_CSR(R_SER_STATUS_DEBUG));
 
         CS_DBGOUT(CS_INTERRUPT, 6, printk(KERN_INFO
                  "cs4297a: cs4297a_interrupt() HISR=0x%.8x\n", status));
@@ -2530,14 +2529,14 @@ static void cs4297a_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 #if 0
         /* XXXKW what check *should* be done here? */
         if (!(status & (M_SYNCSER_RX_EOP_COUNT | M_SYNCSER_RX_OVERRUN | M_SYNCSER_RX_SYNC_ERR))) {
-                status = in64(SS_CSR(R_SER_STATUS));
+                status = __raw_readq(SS_CSR(R_SER_STATUS));
                 printk(KERN_ERR "cs4297a: unexpected interrupt (status %08x)\n", status);
                 return;
         }
 #endif
 
         if (status & M_SYNCSER_RX_SYNC_ERR) {
-                status = in64(SS_CSR(R_SER_STATUS));
+                status = __raw_readq(SS_CSR(R_SER_STATUS));
                 printk(KERN_ERR "cs4297a: rx sync error (status %08x)\n", status);
                 return;
         }
@@ -2549,9 +2548,9 @@ static void cs4297a_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 
                 /* Fix things up: get the receive descriptor pool
                    clean and give them back to the hardware */
-                while (in64(SS_CSR(R_SER_DMA_DSCR_COUNT_RX)))
+                while (__raw_readq(SS_CSR(R_SER_DMA_DSCR_COUNT_RX)))
                         ;
-                newptr = (unsigned) (((in64(SS_CSR(R_SER_DMA_CUR_DSCR_ADDR_RX)) & M_DMA_CURDSCR_ADDR) -
+                newptr = (unsigned) (((__raw_readq(SS_CSR(R_SER_DMA_CUR_DSCR_ADDR_RX)) & M_DMA_CURDSCR_ADDR) -
                                      s->dma_adc.descrtab_phys) / sizeof(serdma_descr_t));
                 for (i=0; i<DMA_DESCR; i++) {
                         s->dma_adc.descrtab[i].descr_a &= ~M_DMA_SERRX_SOP;
@@ -2559,7 +2558,7 @@ static void cs4297a_interrupt(int irq, void *dev_id, struct pt_regs *regs)
                 s->dma_adc.swptr = s->dma_adc.hwptr = newptr;
                 s->dma_adc.count = 0;
                 s->dma_adc.sb_swptr = s->dma_adc.sb_hwptr = s->dma_adc.sample_buf;
-                out64(DMA_DESCR, SS_CSR(R_SER_DMA_DSCR_COUNT_RX));
+                __raw_writeq(DMA_DESCR, SS_CSR(R_SER_DMA_DSCR_COUNT_RX));
         }
 
 	spin_lock(&s->lock);
@@ -2603,14 +2602,14 @@ static int __init cs4297a_init(void)
 		"cs4297a: cs4297a_init_module()+ \n"));
 
 #ifndef CONFIG_BCM_CS4297A_CSWARM
-        mdio_val = in64(KSEG1 + A_MAC_REGISTER(2, R_MAC_MDIO)) &
+        mdio_val = __raw_readq(KSEG1 + A_MAC_REGISTER(2, R_MAC_MDIO)) &
                 (M_MAC_MDIO_DIR|M_MAC_MDIO_OUT);
 
         /* Check syscfg for synchronous serial on port 1 */
-        cfg = in64(KSEG1 + A_SCD_SYSTEM_CFG);
+        cfg = __raw_readq(KSEG1 + A_SCD_SYSTEM_CFG);
         if (!(cfg & M_SYS_SER1_ENABLE)) {
-                out64(cfg | M_SYS_SER1_ENABLE, KSEG1+A_SCD_SYSTEM_CFG);
-                cfg = in64(KSEG1 + A_SCD_SYSTEM_CFG);
+                __raw_writeq(cfg | M_SYS_SER1_ENABLE, KSEG1+A_SCD_SYSTEM_CFG);
+                cfg = __raw_readq(KSEG1 + A_SCD_SYSTEM_CFG);
                 if (!(cfg & M_SYS_SER1_ENABLE)) {
                   printk(KERN_INFO "cs4297a: serial port 1 not configured for synchronous operation\n");
                   return -1;
@@ -2620,12 +2619,12 @@ static int __init cs4297a_init(void)
                 
                 /* Force the codec (on SWARM) to reset by clearing
                    GENO, preserving MDIO (no effect on CSWARM) */
-                out64(mdio_val, KSEG1+A_MAC_REGISTER(2, R_MAC_MDIO));
+                __raw_writeq(mdio_val, KSEG1+A_MAC_REGISTER(2, R_MAC_MDIO));
                 udelay(10);
         }
 
         /* Now set GENO */
-        out64(mdio_val | M_MAC_GENC, KSEG1+A_MAC_REGISTER(2, R_MAC_MDIO));
+        __raw_writeq(mdio_val | M_MAC_GENC, KSEG1+A_MAC_REGISTER(2, R_MAC_MDIO));
         /* Give the codec some time to finish resetting (start the bit clock) */
         udelay(100);
 #endif

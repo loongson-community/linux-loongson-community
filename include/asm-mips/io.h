@@ -49,12 +49,14 @@ extern unsigned long bus_to_baddr[256];
 #define __ioswab16(x) swab16(x)
 #endif
 #define __ioswab32(x) swab32(x)
+#define __ioswab64(x) swab64(x)
 
 #else
 
 #define __ioswab8(x) (x)
 #define __ioswab16(x) (x)
 #define __ioswab32(x) (x)
+#define __ioswab64(x) (x)
 
 #endif
 
@@ -229,21 +231,74 @@ extern void iounmap(void *addr);
  * 24-31 on SNI.
  * XXX more SNI hacks.
  */
-#define readb(addr)		(*(volatile unsigned char *)(addr))
-#define readw(addr)		__ioswab16((*(volatile unsigned short *)(addr)))
-#define readl(addr)		__ioswab32((*(volatile unsigned int *)(addr)))
-
 #define __raw_readb(addr)	(*(volatile unsigned char *)(addr))
 #define __raw_readw(addr)	(*(volatile unsigned short *)(addr))
 #define __raw_readl(addr)	(*(volatile unsigned int *)(addr))
+#define ____raw_readq(addr)						\
+({									\
+	u64 res;							\
+									\
+	__asm__ __volatile__ (						\
+		"	.set	mips3		# ____raw_readq	\n"	\
+		"	ld	%L0, (%1)			\n"	\
+		"	dsra32	%M0, %L0, 0			\n"	\
+		"	sll	%L0, %L0, 0			\n"	\
+		"	.set	mips0				\n"	\
+		: "=r" (res)						\
+		: "r" (addr));						\
+									\
+	res;								\
+})
 
-#define writeb(b,addr) ((*(volatile unsigned char *)(addr)) = (__ioswab8(b)))
-#define writew(b,addr) ((*(volatile unsigned short *)(addr)) = (__ioswab16(b)))
-#define writel(b,addr) ((*(volatile unsigned int *)(addr)) = (__ioswab32(b)))
+#define __raw_readq(addr)						\
+({									\
+	unsigned long flags;						\
+	u64 res;							\
+									\
+	local_irq_save(flags);						\
+	res = ____raw_readq(addr);					\
+	local_irq_restore(flags);					\
+									\
+	res;								\
+})
+
+#define readb(addr)		__ioswab8(__raw_readb(addr))
+#define readw(addr)		__ioswab16(__raw_readw(addr))
+#define readl(addr)		__ioswab32(__raw_readl(addr))
+#define readq(addr)		__ioswab64(__raw_readq(addr))
 
 #define __raw_writeb(b,addr)	((*(volatile unsigned char *)(addr)) = (b))
 #define __raw_writew(w,addr)	((*(volatile unsigned short *)(addr)) = (w))
 #define __raw_writel(l,addr)	((*(volatile unsigned int *)(addr)) = (l))
+#define ____raw_writeq(val,addr)					\
+({									\
+	u64 tmp;							\
+									\
+	__asm__ __volatile__ (						\
+		"	.set	mips3				\n"	\
+		"	dsll32	%L0, %L0, 0	# ____raw_writeq\n"	\
+		"	dsrl32	%L0, %L0, 0			\n"	\
+		"	dsll32	%M0, %M0, 0			\n"	\
+		"	or	%L0, %L0, %M0			\n"	\
+		"	sd	%L0, (%2)			\n"	\
+		"	.set	mips0				\n"	\
+		: "=r" (tmp)						\
+		: "0" ((unsigned long long)val), "r" (addr));		\
+})
+
+#define __raw_writeq(val,addr)						\
+({									\
+	unsigned long flags;						\
+									\
+	local_irq_save(flags);						\
+	____raw_writeq(val, addr);					\
+	local_irq_restore(flags);					\
+})
+
+#define writeb(b,addr)		__raw_writeb(__ioswap8(b),(addr))
+#define writew(w,addr)		__raw_writew(__ioswap16(w),(addr))
+#define writel(l,addr)		__raw_writel(__ioswap32(l),(addr))
+#define writeq(q,addr)		__raw_writeq(__ioswap64(q),(addr))
 
 #define memset_io(a,b,c)	memset((void *)(a),(b),(c))
 #define memcpy_fromio(a,b,c)	memcpy((a),(void *)(b),(c))
@@ -259,15 +314,17 @@ extern void iounmap(void *addr);
  */
 #define __ISA_IO_base ((char *)(isa_slot_offset))
 
-#define isa_readb(a) readb(__ISA_IO_base + (a))
-#define isa_readw(a) readw(__ISA_IO_base + (a))
-#define isa_readl(a) readl(__ISA_IO_base + (a))
-#define isa_writeb(b,a) writeb(b,__ISA_IO_base + (a))
-#define isa_writew(w,a) writew(w,__ISA_IO_base + (a))
-#define isa_writel(l,a) writel(l,__ISA_IO_base + (a))
-#define isa_memset_io(a,b,c)		memset_io(__ISA_IO_base + (a),(b),(c))
-#define isa_memcpy_fromio(a,b,c)	memcpy_fromio((a),__ISA_IO_base + (b),(c))
-#define isa_memcpy_toio(a,b,c)		memcpy_toio(__ISA_IO_base + (a),(b),(c))
+#define isa_readb(a)		readb(__ISA_IO_base + (a))
+#define isa_readw(a)		readw(__ISA_IO_base + (a))
+#define isa_readl(a)		readl(__ISA_IO_base + (a))
+#define isa_readq(a)		readq(__ISA_IO_base + (a))
+#define isa_writeb(b,a)		writeb(b,__ISA_IO_base + (a))
+#define isa_writew(w,a)		writew(w,__ISA_IO_base + (a))
+#define isa_writel(l,a)		writel(l,__ISA_IO_base + (a))
+#define isa_writeq(q,a)		writeq(q,__ISA_IO_base + (a))
+#define isa_memset_io(a,b,c)	memset_io(__ISA_IO_base + (a),(b),(c))
+#define isa_memcpy_fromio(a,b,c) memcpy_fromio((a),__ISA_IO_base + (b),(c))
+#define isa_memcpy_toio(a,b,c)	memcpy_toio(__ISA_IO_base + (a),(b),(c))
 
 /*
  * We don't have csum_partial_copy_fromio() yet, so we cheat here and
@@ -494,5 +551,19 @@ extern void (*_dma_cache_inv)(unsigned long start, unsigned long size);
 	do { (void) (start); (void) (size); } while (0)
 
 #endif /* CONFIG_NONCOHERENT_IO */
+
+/*
+ * Read a 32-bit register that requires a 64-bit read cycle on the bus.
+ * Avoid interrupt mucking, just adjust the address for 4-byte access.
+ * Assume the addresses are 8-byte aligned.
+ */
+#ifdef __MIPSEB__
+#define __CSR_32_ADJUST 4
+#else
+#define __CSR_32_ADJUST 0
+#endif
+
+#define csr_out32(v,a) (*(volatile u32 *)((unsigned long)(a) + __CSR_32_ADJUST) = (v))
+#define csr_in32(a)    (*(volatile u32 *)((unsigned long)(a) + __CSR_32_ADJUST))
 
 #endif /* _ASM_IO_H */
