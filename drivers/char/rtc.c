@@ -99,13 +99,13 @@ static ssize_t rtc_read(struct file *file, char *buf,
 static int rtc_ioctl(struct inode *inode, struct file *file,
 		     unsigned int cmd, unsigned long arg);
 
-#ifndef __alpha__
+#if !defined(__alpha__) && !defined(CONFIG_DECSTATION)
 static unsigned int rtc_poll(struct file *file, poll_table *wait);
 #endif
 
 static void get_rtc_time (struct rtc_time *rtc_tm);
 static void get_rtc_alm_time (struct rtc_time *alm_tm);
-#ifndef __alpha__
+#if !defined(__alpha__) && !defined(CONFIG_DECSTATION)
 static void rtc_dropped_irq(unsigned long data);
 
 static void set_rtc_irq_bit(unsigned char bit);
@@ -138,7 +138,7 @@ static unsigned long epoch = 1900;	/* year corresponding to 0x00	*/
 static const unsigned char days_in_mo[] = 
 {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
-#ifndef __alpha__
+#if !defined(__alpha__) && !defined(CONFIG_DECSTATION)
 /*
  *	A very tiny interrupt handler. It runs with SA_INTERRUPT set,
  *	so that there is no possibility of conflicting with the
@@ -228,7 +228,7 @@ static int rtc_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 	struct rtc_time wtime; 
 
 	switch (cmd) {
-#ifndef __alpha__
+#if !defined(__alpha__) && !defined(CONFIG_DECSTATION)
 	case RTC_AIE_OFF:	/* Mask alarm int. enab. bit	*/
 	{
 		mask_rtc_irq_bit(RTC_AIE);
@@ -412,7 +412,7 @@ static int rtc_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		spin_unlock_irqrestore(&rtc_lock, flags);
 		return 0;
 	}
-#ifndef __alpha__
+#if !defined(__alpha__) && !defined(CONFIG_DECSTATION)
 	case RTC_IRQP_READ:	/* Read the periodic IRQ rate.	*/
 	{
 		return put_user(rtc_freq, (unsigned long *)arg);
@@ -509,7 +509,7 @@ static int rtc_fasync (int fd, struct file *filp, int on)
 static int rtc_release(struct inode *inode, struct file *file)
 {
 	unsigned long flags;
-#ifndef __alpha__
+#if !defined(__alpha__) && !defined(CONFIG_DECSTATION)
 	/*
 	 * Turn off all interrupts once the device is no longer
 	 * in use, and clear the data.
@@ -545,7 +545,7 @@ static int rtc_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
-#ifndef __alpha__
+#if !defined(__alpha__) && !defined(CONFIG_DECSTATION)
 static unsigned int rtc_poll(struct file *file, poll_table *wait)
 {
 	unsigned long l, flags;
@@ -569,7 +569,7 @@ static unsigned int rtc_poll(struct file *file, poll_table *wait)
 static struct file_operations rtc_fops = {
 	llseek:		rtc_llseek,
 	read:		rtc_read,
-#ifndef __alpha__
+#if !defined(__alpha__) && !defined(CONFIG_DECSTATION)
 	poll:		rtc_poll,
 #endif
 	ioctl:		rtc_ioctl,
@@ -632,7 +632,7 @@ found:
 		return -EIO;
 	}
 
-#ifndef __alpha__
+#if !defined(__alpha__) && !defined(CONFIG_DECSTATION)
 	if(request_irq(RTC_IRQ, rtc_interrupt, SA_INTERRUPT, "rtc", NULL))
 	{
 		/* Yeah right, seeing as irq 8 doesn't even hit the bus. */
@@ -669,6 +669,9 @@ found:
 	if (year > 10 && year < 44) {
 		epoch = 1980;
 		guess = "ARC console";
+	} else if (year >= 70 && year <= 72) {
+		epoch = 1928;
+		guess = "Digital DECstation";
 	} else if (year < 96) {
 		epoch = 1952;
 		guess = "Digital UNIX";
@@ -676,18 +679,15 @@ found:
 	if (guess)
 		printk("rtc: %s epoch (%lu) detected\n", guess, epoch);
 #endif
-#ifdef CONFIG_MIPS_JAZZ
-	epoch = 1980;
-#endif
-#ifndef __alpha__
+#if !defined(__alpha__) && !defined(CONFIG_DECSTATION)
 	init_timer(&rtc_irq_timer);
 	rtc_irq_timer.function = rtc_dropped_irq;
 	spin_lock_irqsave(&rtc_lock, flags);
 	/* Initialize periodic freq. to CMOS reset default, which is 1024Hz */
 	CMOS_WRITE(((CMOS_READ(RTC_FREQ_SELECT) & 0xF0) | 0x06), RTC_FREQ_SELECT);
 	spin_unlock_irqrestore(&rtc_lock, flags);
-#endif
 	rtc_freq = 1024;
+#endif
 
 	printk(KERN_INFO "Real Time Clock Driver v" RTC_VERSION "\n");
 
@@ -708,7 +708,7 @@ static void __exit rtc_exit (void)
 	free_irq (rtc_irq, &rtc_port);
 #else
 	release_region (RTC_PORT (0), RTC_IO_EXTENT);
-#ifndef __alpha__
+#if !defined(__alpha__) && !defined(CONFIG_DECSTATION)
 	free_irq (RTC_IRQ, NULL);
 #endif
 #endif /* __sparc__ */
@@ -718,7 +718,7 @@ module_init(rtc_init);
 module_exit(rtc_exit);
 EXPORT_NO_SYMBOLS;
 
-#ifndef __alpha__
+#if !defined(__alpha__) && !defined(CONFIG_DECSTATION)
 /*
  * 	At IRQ rates >= 4096Hz, an interrupt may get lost altogether.
  *	(usually during an IDE disk interrupt, with IRQ unmasking off)
@@ -933,7 +933,7 @@ static void get_rtc_alm_time(struct rtc_time *alm_tm)
 	}
 }
 
-#ifndef __alpha__
+#if !defined(__alpha__) && !defined(CONFIG_DECSTATION)
 /*
  * Used to disable/enable interrupts for any one of UIE, AIE, PIE.
  * Rumour has it that if you frob the interrupt enable/disable
