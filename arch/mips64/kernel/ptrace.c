@@ -148,9 +148,9 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 			break;
 		case FPC_CSR:
 			if (cpu_has_fpu)
-				tmp = child->thread.fpu.hard.control;
+				tmp = child->thread.fpu.hard.fcr31;
 			else
-				tmp = child->thread.fpu.soft.sr;
+				tmp = child->thread.fpu.soft.fcr31;
 			break;
 		case FPC_EIR: { /* implementation / version register */
 			unsigned int flags;
@@ -194,7 +194,7 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 				/* FP not yet used  */
 				memset(&child->thread.fpu.hard, ~0,
 				       sizeof(child->thread.fpu.hard));
-				child->thread.fpu.hard.control = 0;
+				child->thread.fpu.hard.fcr31 = 0;
 			}
 			/*
 			 * The odd registers are actually the high order bits
@@ -223,9 +223,9 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 			break;
 		case FPC_CSR:
 			if (cpu_has_fpu)
-				child->thread.fpu.hard.control = data;
+				child->thread.fpu.hard.fcr31 = data;
 			else
-				child->thread.fpu.soft.sr = data;
+				child->thread.fpu.soft.fcr31 = data;
 			break;
 		default:
 			/* The rest are not allowed. */
@@ -378,9 +378,9 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			break;
 		case FPC_CSR:
 			if (cpu_has_fpu)
-				tmp = child->thread.fpu.hard.control;
+				tmp = child->thread.fpu.hard.fcr31;
 			else
-				tmp = child->thread.fpu.soft.sr;
+				tmp = child->thread.fpu.soft.fcr31;
 			break;
 		case FPC_EIR: { /* implementation / version register */
 			unsigned int flags;
@@ -423,7 +423,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 				/* FP not yet used  */
 				memset(&child->thread.fpu.hard, ~0,
 				       sizeof(child->thread.fpu.hard));
-				child->thread.fpu.hard.control = 0;
+				child->thread.fpu.hard.fcr31 = 0;
 			}
 			fregs[addr - FPR_BASE] = data;
 			break;
@@ -439,9 +439,9 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			break;
 		case FPC_CSR:
 			if (cpu_has_fpu)
-				child->thread.fpu.hard.control = data;
+				child->thread.fpu.hard.fcr31 = data;
 			else
-				child->thread.fpu.soft.sr = data;
+				child->thread.fpu.soft.fcr31 = data;
 			break;
 		default:
 			/* The rest are not allowed. */

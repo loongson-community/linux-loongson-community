@@ -12,8 +12,9 @@
  * to ABI64 calling convention.  64-bit syscalls are also processed
  * here for now.
  */
-#include <asm/asm.h>
 #include <linux/errno.h>
+#include <asm/asm.h>
+#include <asm/asmmacro.h>
 #include <asm/mipsregs.h>
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
@@ -55,38 +56,34 @@ NESTED(handle_sys, PT_SIZE, sp)
 	bgez	t0, stackargs
 
 stack_done:
-		LONG_L	t0, TI_FLAGS($28)
-						# syscall tracing enabled?
-		bnez	t0, trace_a_syscall
+	LONG_L	t0, TI_FLAGS($28)
+					# syscall tracing enabled?
+	bnez	t0, trace_a_syscall
 
-		jalr	t2			# Do The Real Thing (TM)
+	jalr	t2			# Do The Real Thing (TM)
 
-		li	t0, -EMAXERRNO - 1	# error?
-		sltu	t0, t0, v0
-		sd	t0, PT_R7(sp)		# set error flag
-		beqz	t0, 1f
+	li	t0, -EMAXERRNO - 1	# error?
+	sltu	t0, t0, v0
+	sd	t0, PT_R7(sp)		# set error flag
+	beqz	t0, 1f
 
-		negu	v0			# error
-		sd	v0, PT_R0(sp)		# flag for syscall restarting
-1:		sd	v0, PT_R2(sp)		# result
+	negu	v0			# error
+	sd	v0, PT_R0(sp)		# flag for syscall restarting
+1:	sd	v0, PT_R2(sp)		# result
 
 FEXPORT(o32_syscall_exit)
-		mfc0	t0, CP0_STATUS		# make need_resched and
-		ori	t0, t0, 1		# signals dont change between
-		xori	t0, t0, 1		# sampling and return
-		mtc0	t0, CP0_STATUS
-		SSNOP; SSNOP; SSNOP
+	local_irq_disable		# make need_resched and
+					# signals dont change between
+					# sampling and return
+	LONG_L	a2, TI_FLAGS($28)
+	bnez	a2, o32_syscall_exit_work
 
-		LONG_L	a2, TI_FLAGS($28)
-		bnez	a2, o32_syscall_exit_work
-
-restore_all:	RESTORE_SOME
-		RESTORE_SP
-		eret
+	RESTORE_SOME
+	RESTORE_SP_AND_RET
 
 o32_syscall_exit_work:
-		SAVE_STATIC
-		j	syscall_exit_work
+	SAVE_STATIC
+	j	syscall_exit_work
 
 /* ------------------------------------------------------------------------ */
 
@@ -162,79 +159,78 @@ stackargs:
 	 * The stackpointer for a call with more than 4 arguments is bad.
 	 */
 bad_stack:
-		negu	v0			# error
-		sd	v0, PT_R0(sp)
-		sd	v0, PT_R2(sp)
-		li	t0, 1			# set error flag
-		sd	t0, PT_R7(sp)
-		j	o32_syscall_exit
+	negu	v0			# error
+	sd	v0, PT_R0(sp)
+	sd	v0, PT_R2(sp)
+	li	t0, 1			# set error flag
+	sd	t0, PT_R7(sp)
+	j	o32_syscall_exit
 
 not_o32_scall:
-		/*
-		 * This is not an o32 compatibility syscall, pass it on
-		 * to the 64-bit syscall handlers.
-		 */
+	/*
+	 * This is not an o32 compatibility syscall, pass it on
+	 * to the 64-bit syscall handlers.
+	 */
 #ifdef CONFIG_MIPS32_N32
-		j	handle_sysn32
+	j	handle_sysn32
 #else
-		j	handle_sys64
+	j	handle_sys64
 #endif
 
 illegal_syscall:
-		/* This also isn't a 64-bit syscall, throw an error.  */
-		li	v0, ENOSYS		# error
-		sd	v0, PT_R2(sp)
-		li	t0, 1			# set error flag
-		sd	t0, PT_R7(sp)
-		j	o32_syscall_exit
-		END(handle_sys)
+	/* This also isn't a 64-bit syscall, throw an error.  */
+	li	v0, ENOSYS		# error
+	sd	v0, PT_R2(sp)
+	li	t0, 1			# set error flag
+	sd	t0, PT_R7(sp)
+	j	o32_syscall_exit
+	END(handle_sys)
 
 LEAF(mips_atomic_set)
-		andi	v0, a1, 3		# must be word aligned
-		bnez	v0, bad_alignment
+	andi	v0, a1, 3		# must be word aligned
+	bnez	v0, bad_alignment
 
-		ld	v1, TI_ADDR_LIMIT($28)	# in legal address range?
-		daddiu	a0, a1, 4
-		or	a0, a0, a1
-		and	a0, a0, v1
-		bnez	a0, bad_address
+	ld	v1, TI_ADDR_LIMIT($28)	# in legal address range?
+	daddiu	a0, a1, 4
+	or	a0, a0, a1
+	and	a0, a0, v1
+	bnez	a0, bad_address
 
-		/* Ok, this is the ll/sc case.  World is sane :-)  */
-1:		ll	v0, (a1)
-		move	a0, a2
-2:		sc	a0, (a1)
-		beqz	a0, 1b
+	/* Ok, this is the ll/sc case.  World is sane :-)  */
+1:	ll	v0, (a1)
+	move	a0, a2
+2:	sc	a0, (a1)
+	beqz	a0, 1b
 
-		.section __ex_table,"a"
-		PTR	1b, bad_stack
-		PTR	2b, bad_stack
-		.previous
+	.section __ex_table,"a"
+	PTR	1b, bad_stack
+	PTR	2b, bad_stack
+	.previous
 
-1:		sd	v0, PT_R2(sp)		# result
+1:	sd	v0, PT_R2(sp)		# result
 
-		/* Success, so skip usual error handling garbage.  */
-		LONG_L	t0, TI_FLAGS($28)	# syscall tracing enabled?
-		bltz	t0, 1f
-		b	o32_syscall_exit
+	/* Success, so skip usual error handling garbage.  */
+	LONG_L	t0, TI_FLAGS($28)	# syscall tracing enabled?
+	bltz	t0, 1f
+	b	o32_syscall_exit
 
-1:		SAVE_STATIC
-		jal	do_syscall_trace
-		li	a3, 0			# success
-		j	syscall_exit
+1:	SAVE_STATIC
+	jal	do_syscall_trace
+	j	syscall_exit
 
 bad_address:
-		li	v0, -EFAULT
-		jr	ra
+	li	v0, -EFAULT
+	jr	ra
 
 bad_alignment:
-		li	v0, -EINVAL
-		jr	ra
-		END(mips_atomic_set)
+	li	v0, -EINVAL
+	jr	ra
+	END(mips_atomic_set)
 
 LEAF(sys32_sysmips)
-		beq	a0, MIPS_ATOMIC_SET, mips_atomic_set
-		j	sys_sysmips
-		END(sys32_sysmips)
+	beq	a0, MIPS_ATOMIC_SET, mips_atomic_set
+	j	sys_sysmips
+	END(sys32_sysmips)
 
 LEAF(sys32_syscall)
 	ld	t0, PT_R29(sp)		# user sp

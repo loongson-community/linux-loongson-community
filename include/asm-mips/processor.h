@@ -138,9 +138,11 @@ extern int EISA_bus;
 
 #define NUM_FPU_REGS	32
 
+typedef u64 fpureg_t;
+
 struct mips_fpu_hard_struct {
-	double fp_regs[NUM_FPU_REGS];
-	unsigned int control;
+	fpureg_t	fpr[NUM_FPU_REGS];
+	unsigned int	fcr31;
 };
 
 /*
@@ -149,10 +151,10 @@ struct mips_fpu_hard_struct {
  * be recalculated by hand.  So the additional information will be private to
  * the FPU emulator for now.  See asm-mips/fpu_emulator.h.
  */
-typedef u64 fpureg_t;
+
 struct mips_fpu_soft_struct {
-	fpureg_t	regs[NUM_FPU_REGS];
-	unsigned int	sr;
+	fpureg_t	fpr[NUM_FPU_REGS];
+	unsigned int	fcr31;
 };
 
 union mips_fpu_union {

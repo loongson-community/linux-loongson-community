@@ -18,32 +18,29 @@
 	.previous
 
 /*
- * Return the size of a string (including the ending 0)
- *
- * Return 0 for error, len of string but at max a1 otherwise
+ * Return the size of a string including the ending NUL character upto a
+ * maximum of a1 or 0 in case of error.
  *
  * Note: for performance reasons we deliberately accept that a user may
  *       make strlen_user and strnlen_user access the first few KSEG0
- *       bytes.  There's nothing secret there ...
+ *       bytes.  There's nothing secret there.  On 64-bit accessing beyond
+ *       the maximum is a tad hairier ...
  */
 LEAF(__strnlen_user_asm)
-	lw	v0, TI_ADDR_LIMIT($28)	# pointer ok?
-	and	v0, a0
-	bltz	v0, fault
+	LONG_L		v0, TI_ADDR_LIMIT($28)	# pointer ok?
+	and		v0, a0
+	bltz		v0, fault
 
 FEXPORT(__strnlen_user_nocheck_asm)
-	.type	__strnlen_user_nocheck_asm,@function
-	move	v0, a0
-	addu	a1, a0			# stop pointer
-	.set	noreorder
-1:	beq	v0, a1, 1f		# limit reached?
-	 addiu	v0, 1
-	.set	reorder
-	EX(lb, t0, -1(v0), fault)
-	bnez	t0, 1b
-1:	subu	v0, a0
-	jr	ra
+	move		v0, a0
+	PTR_ADDU	a1, a0			# stop pointer
+1:	beq		v0, a1, 1f		# limit reached?
+	EX(lb, t0, (v0), fault)
+	PTR_ADDU	v0, 1
+	bnez		t0, 1b
+1:	PTR_SUBU	v0, a0
+	jr		ra
 	END(__strnlen_user_asm)
 
-fault:	move	v0, zero
-	jr	ra
+fault:	move		v0, zero
+	jr		ra

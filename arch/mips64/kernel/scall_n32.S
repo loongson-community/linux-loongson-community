@@ -8,8 +8,9 @@
  * Copyright (C) 2001 MIPS Technologies, Inc.
  */
 #include <linux/config.h>
-#include <asm/asm.h>
 #include <linux/errno.h>
+#include <asm/asm.h>
+#include <asm/asmmacro.h>
 #include <asm/mipsregs.h>
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
@@ -62,19 +63,14 @@ NESTED(handle_sysn32, PT_SIZE, sp)
 1:	sd	v0, PT_R2(sp)		# result
 
 FEXPORT(n32_syscall_exit)
-	mfc0	t0, CP0_STATUS		# make sure need_resched and
-	xori	t0, t0, 1		# signals dont change between
-	ori	t0, t0, 1		# sampling and return
-	mtc0	t0, CP0_STATUS
-	SSNOP; SSNOP; SSNOP
-
+	local_irq_disable		# make sure need_resched and
+					# signals dont change between
+					# sampling and return
 	LONG_L  a2, TI_FLAGS($28)	# current->work
 	bnez	a2, n32_syscall_exit_work
 
-restore_all:
 	RESTORE_SOME
-	RESTORE_SP
-	eret
+	RESTORE_SP_AND_RET
 
 n32_syscall_exit_work:
 	SAVE_STATIC

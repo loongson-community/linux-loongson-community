@@ -489,7 +489,7 @@ asmlinkage void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 		 * We can't allow the emulated instruction to leave any of
 		 * the cause bit set in $fcr31.
 		 */
-		current->thread.fpu.soft.sr &= ~FPU_CSR_ALL_X;
+		current->thread.fpu.soft.fcr31 &= ~FPU_CSR_ALL_X;
 
 		/* Restore the hardware register state */
 		restore_fp(current);

@@ -165,7 +165,7 @@ int __compute_return_epc(struct pt_regs *regs)
 	 */
 	case cop1_op:
 		if (!cpu_has_fpu)
-			fcr31 = current->thread.fpu.soft.sr;
+			fcr31 = current->thread.fpu.soft.fcr31;
 		else
 			asm volatile("cfc1\t%0,$31" : "=r" (fcr31));
 		bit = (insn.i_format.rt >> 2);

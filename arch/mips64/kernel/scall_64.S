@@ -10,6 +10,7 @@
 #include <linux/config.h>
 #include <linux/errno.h>
 #include <asm/asm.h>
+#include <asm/asmmacro.h>
 #include <asm/mipsregs.h>
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
@@ -25,74 +26,69 @@
 	.align  5
 NESTED(handle_sys64, PT_SIZE, sp)
 #if !defined(CONFIG_MIPS32_O32) && !defined(CONFIG_MIPS32_N32)
-		/*
-		 * When 32-bit compatibility is configured scall_o32.S
-		 * already did this.
-		 */
-		.set	noat
-		SAVE_SOME
-		STI
-		.set	at
+	/*
+	 * When 32-bit compatibility is configured scall_o32.S
+	 * already did this.
+	 */
+	.set	noat
+	SAVE_SOME
+	STI
+	.set	at
 #endif
-		ld	t1, PT_EPC(sp)		# skip syscall on return
+	ld	t1, PT_EPC(sp)		# skip syscall on return
 
-		subu	t0, v0, __NR_Linux	# check syscall number
-		sltiu	t0, t0,	__NR_Linux_syscalls + 1
-		daddiu	t1, 4			# skip to next instruction
-		beqz	t0, illegal_syscall
-		sd	t1, PT_EPC(sp)
+	subu	t0, v0, __NR_Linux	# check syscall number
+	sltiu	t0, t0,	__NR_Linux_syscalls + 1
+	daddiu	t1, 4			# skip to next instruction
+	beqz	t0, illegal_syscall
+	sd	t1, PT_EPC(sp)
 
-		dsll	t0, v0, 3		# offset into table
-		ld	t2, (sys_call_table - (__NR_Linux * 8))(t0)
-						# syscall routine
+	dsll	t0, v0, 3		# offset into table
+	ld	t2, (sys_call_table - (__NR_Linux * 8))(t0)
+					# syscall routine
 
-		sd	a3, PT_R26(sp)		# save a3 for syscall restarting
+	sd	a3, PT_R26(sp)		# save a3 for syscall restarting
 
-		LONG_L	t0, TI_FLAGS($28)
-		bltz	t0, syscall_trace_entry	# syscall tracing enabled?
+	LONG_L	t0, TI_FLAGS($28)
+	bltz	t0, syscall_trace_entry	# syscall tracing enabled?
 
-		jalr	t2			# Do The Real Thing (TM)
+	jalr	t2			# Do The Real Thing (TM)
 
-		li	t0, -EMAXERRNO - 1	# error?
-		sltu	t0, t0, v0
-		sd	t0, PT_R7(sp)		# set error flag
-		beqz	t0, 1f
+	li	t0, -EMAXERRNO - 1	# error?
+	sltu	t0, t0, v0
+	sd	t0, PT_R7(sp)		# set error flag
+	beqz	t0, 1f
 
-		negu	v0			# error
-		sd	v0, PT_R0(sp)		# set flag for syscall
-						# restarting
-1:		sd	v0, PT_R2(sp)		# result
+	negu	v0			# error
+	sd	v0, PT_R0(sp)		# set flag for syscall
+					# restarting
+1:	sd	v0, PT_R2(sp)		# result
 
 syscall_exit:
-		mfc0	t0, CP0_STATUS		# make sure need_resched and
-		ori	t0, t0, 1		# signals dont change between
-		xori	t0, t0, 1		# sampling and return
-		mtc0	t0, CP0_STATUS
-		SSNOP; SSNOP; SSNOP
+	local_irq_disable		# make sure need_resched and
+					# signals dont change between
+					# sampling and return
+	LONG_L	a2, TI_FLAGS($28)	# current->work
+	bnez	a2, syscall_exit_work
 
-		LONG_L	a2, TI_FLAGS($28)	# current->work
-		bnez	a2, syscall_exit_work
+	j	restore_all
 
-		j	restore_all
-
-work_notifysig:					# deal with pending signals and
-						# notify-resume requests
-		SAVE_STATIC
-		move	a0, sp
-		li	a1, 0
-		jal	do_notify_resume	# a2 already loaded
-		RESTORE_STATIC
-		j	restore_all
+work_notifysig:				# deal with pending signals and
+					# notify-resume requests
+	SAVE_STATIC
+	move	a0, sp
+	li	a1, 0
+	jal	do_notify_resume	# a2 already loaded
+	RESTORE_STATIC
+	j	restore_all
 
 syscall_exit_work:
-		LONG_L	t0, TI_FLAGS($28)	# current->work.syscall_trace
-		bgez	t0, work_pending
+	LONG_L	t0, TI_FLAGS($28)	# current->work.syscall_trace
+	bgez	t0, work_pending
 
-		mfc0	t0, CP0_STATUS		# sti
-		ori	t0, t0, 1
-		mtc0	t0, CP0_STATUS
-		jal	do_syscall_trace
-		j	resume_userspace
+	local_irq_enable
+	jal	do_syscall_trace
+	j	resume_userspace
 
 /* ------------------------------------------------------------------------ */
 

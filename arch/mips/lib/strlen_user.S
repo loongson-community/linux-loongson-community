@@ -23,17 +23,17 @@
  * Return 0 for error
  */
 LEAF(__strlen_user_asm)
-	lw	v0, TI_ADDR_LIMIT($28)	# pointer ok?
-	and	v0, a0
-	bltz	v0, fault
+	LONG_L		v0, TI_ADDR_LIMIT($28)	# pointer ok?
+	and		v0, a0
+	bltz		v0, fault
 
 FEXPORT(__strlen_user_nocheck_asm)
-	move	v0, a0
+	move		v0, a0
 1:	EX(lb, t0, (v0), fault)
-	addiu	v0, 1
-	bnez	t0, 1b
-	subu	v0, a0
-	jr	ra
+	PTR_ADDIU	v0, 1
+	bnez		t0, 1b
+	PTR_SUBU	v0, a0
+	jr		ra
 	END(__strlen_user_asm)
 
 fault:	move	v0, zero

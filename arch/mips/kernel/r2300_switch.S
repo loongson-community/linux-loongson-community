@@ -53,7 +53,7 @@ LEAF(resume)
 #endif
 	mfc0	t1, CP0_STATUS
 	sw	t1, THREAD_STATUS(a0)
-	CPU_SAVE_NONSCRATCH(a0)
+	cpu_save_nonscratch a0
 	sw	ra, THREAD_REG31(a0)
 
 	/* 
@@ -77,7 +77,7 @@ LEAF(resume)
 	and	t0, t0, t1
 	sw	t0, ST_OFF(t3)
 
-	FPU_SAVE_SINGLE(a0, t0)			# clobbers t0
+	fpu_save_single a0, t0			# clobbers t0
 
 1:
 	/*
@@ -85,7 +85,7 @@ LEAF(resume)
 	 * updating $28, $29 and kernelsp without disabling ints.
 	 */
 	move	$28, a2
-	CPU_RESTORE_NONSCRATCH(a1)
+	cpu_restore_nonscratch a1
 
 	addiu	t1, $28, THREAD_SIZE-32
 	sw	t1, kernelsp
@@ -106,7 +106,7 @@ LEAF(resume)
  * Save a thread's fp context.
  */
 LEAF(_save_fp)
-	FPU_SAVE_SINGLE(a0, t1)			# clobbers t1
+	fpu_save_single a0, t1			# clobbers t1
 	jr	ra
 	END(_save_fp)
 
@@ -114,7 +114,7 @@ LEAF(_save_fp)
  * Restore a thread's fp context.
  */
 LEAF(_restore_fp)
-	FPU_RESTORE_SINGLE(a0, t1)		# clobbers t1
+	fpu_restore_single a0, t1		# clobbers t1
 	jr	ra
 	END(_restore_fp)
 

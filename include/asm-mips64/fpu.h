@@ -123,15 +123,15 @@ static inline void restore_fp(struct task_struct *tsk)
 		_restore_fp(tsk);
 }
 
-static inline unsigned long *get_fpu_regs(struct task_struct *tsk)
+static inline fpureg_t *get_fpu_regs(struct task_struct *tsk)
 {
 	if (cpu_has_fpu) {
 		if ((tsk == current) && is_fpu_owner()) 
 			_save_fp(current);
-		return (unsigned long *)&tsk->thread.fpu.hard.fp_regs[0];
-	} else {
-		return (unsigned long *)tsk->thread.fpu.soft.regs;
+		return tsk->thread.fpu.hard.fpr;
 	}
+
+	return tsk->thread.fpu.soft.fpr;
 }
 
 #endif /* _ASM_FPU_H */

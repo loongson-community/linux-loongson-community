@@ -227,12 +227,27 @@
 		ld	$2,  PT_R2(sp)
 		.endm
 
+		.macro	RESTORE_SP_AND_RET
+		ld	sp, PT_R29(sp)
+		.set	mips3
+		eret
+		.set	mips0
+		.endm
+
 		.macro	RESTORE_ALL
 		RESTORE_SOME
 		RESTORE_AT
 		RESTORE_TEMP
 		RESTORE_STATIC
 		RESTORE_SP
+		.endm
+
+		.macro	RESTORE_ALL_AND_RET
+		RESTORE_SOME
+		RESTORE_AT
+		RESTORE_TEMP
+		RESTORE_STATIC
+		RESTORE_SP_AND_RET
 		.endm
 
 /*

@@ -9,11 +9,13 @@
 #include <linux/config.h>
 #include <linux/errno.h>
 #include <asm/asm.h>
+#include <asm/asmmacro.h>
 #include <asm/mipsregs.h>
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
 #include <asm/isadep.h>
 #include <asm/sysmips.h>
+#include <asm/thread_info.h>
 #include <asm/unistd.h>
 #include <asm/offset.h>
 
@@ -22,88 +24,88 @@
 
 	.align  5
 NESTED(handle_sys, PT_SIZE, sp)
-		.set	noat
-		SAVE_SOME
-		STI
-		.set	at
+	.set	noat
+	SAVE_SOME
+	STI
+	.set	at
 
-		lw	t1, PT_EPC(sp)		# skip syscall on return
+	lw	t1, PT_EPC(sp)		# skip syscall on return
 
-		sltiu	t0, v0, MAX_SYSCALL_NO + 1 # check syscall number
-		addiu	t1, 4			# skip to next instruction
-		beqz	t0, illegal_syscall
-		sw	t1, PT_EPC(sp)
+	sltiu	t0, v0, MAX_SYSCALL_NO + 1 # check syscall number
+	addiu	t1, 4			# skip to next instruction
+	beqz	t0, illegal_syscall
+	sw	t1, PT_EPC(sp)
 
-		/* XXX Put both in one cacheline, should save a bit. */
-		sll	t0, v0, 2
-		lw	t2, sys_call_table(t0)	# syscall routine
-		lbu	t3, sys_narg_table(v0)	# number of arguments
-		beqz	t2, illegal_syscall;
+	/* XXX Put both in one cacheline, should save a bit. */
+	sll	t0, v0, 2
+	lw	t2, sys_call_table(t0)	# syscall routine
+	lbu	t3, sys_narg_table(v0)	# number of arguments
+	beqz	t2, illegal_syscall;
 
-		subu	t0, t3, 5		# 5 or more arguments?
-		sw	a3, PT_R26(sp)		# save a3 for syscall restarting
-		bgez	t0, stackargs
+	subu	t0, t3, 5		# 5 or more arguments?
+	sw	a3, PT_R26(sp)		# save a3 for syscall restarting
+	bgez	t0, stackargs
 
 stack_done:
-		sw	a3, PT_R26(sp)          # save for syscall restart
-		LONG_L	t0, TI_FLAGS($28)	# syscall tracing enabled?
-		bltz	t0, syscall_trace_entry	# -> yes
+	sw	a3, PT_R26(sp)          # save for syscall restart
+	LONG_L	t0, TI_FLAGS($28)	# syscall tracing enabled?
+	li	t1, _TIF_SYSCALL_TRACE
+	and	t0, t1, t0
+	bnez	t0, syscall_trace_entry	# -> yes
 
-		jalr	t2			# Do The Real Thing (TM)
+	jalr	t2			# Do The Real Thing (TM)
 
-		li	t0, -EMAXERRNO - 1	# error?
-		sltu	t0, t0, v0
-		sw	t0, PT_R7(sp)		# set error flag
-		beqz	t0, 1f
+	li	t0, -EMAXERRNO - 1	# error?
+	sltu	t0, t0, v0
+	sw	t0, PT_R7(sp)		# set error flag
+	beqz	t0, 1f
 
-		negu	v0			# error
-		sw	v0, PT_R0(sp)		# set flag for syscall
-						# restarting
-1:		sw	v0, PT_R2(sp)		# result
+	negu	v0			# error
+	sw	v0, PT_R0(sp)		# set flag for syscall
+					# restarting
+1:	sw	v0, PT_R2(sp)		# result
 
 EXPORT(o32_syscall_exit)
-		mfc0	t0, CP0_STATUS		# make sure need_resched and
-		ori	t0, t0, 1		# signals dont change between
-		xori	t0, t0, 1		# sampling and return
-		mtc0	t0, CP0_STATUS
-		SSNOP; SSNOP; SSNOP
+	local_irq_disable		# make sure need_resched and
+					# signals dont change between
+					# sampling and return
+	LONG_L	a2, TI_FLAGS($28)	# current->work
+	li	t0, _TIF_ALLWORK_MASK
+	and	t0, a2, t0
+	bnez	a2, o32_syscall_exit_work
 
-		LONG_L	a2, TI_FLAGS($28)	# current->work
-		bnez	a2, o32_syscall_exit_work
-
-o32_restore_all:
-		RESTORE_SOME
-		RESTORE_SP_AND_RET
+	RESTORE_SOME
+	RESTORE_SP_AND_RET
 
 o32_syscall_exit_work:
-		SAVE_STATIC
-		j	syscall_exit_work
+	SAVE_STATIC
+	j	syscall_exit_work
 
 /* ------------------------------------------------------------------------ */
 
 syscall_trace_entry:
-		SAVE_STATIC
-		sw	t2, PT_R1(sp)
-		jal	do_syscall_trace
-		lw	t2, PT_R1(sp)
+	SAVE_STATIC
+	sw	t2, PT_R1(sp)
+	jal	do_syscall_trace
+	lw	t2, PT_R1(sp)
 
-		lw	a0, PT_R4(sp)		# Restore argument registers
-		lw	a1, PT_R5(sp)
-		lw	a2, PT_R6(sp)
-		lw	a3, PT_R7(sp)
-		jalr	t2
+	lw	a0, PT_R4(sp)		# Restore argument registers
+	lw	a1, PT_R5(sp)
+	lw	a2, PT_R6(sp)
+	lw	a3, PT_R7(sp)
+	jalr	t2
 
-		li	t0, -EMAXERRNO - 1	# error?
-		sltu	t0, t0, v0
-		sw	t0, PT_R7(sp)		# set error flag
-		beqz	t0, 1f
+	li	t0, -EMAXERRNO - 1	# error?
+	sltu	t0, t0, v0
+	sw	t0, PT_R7(sp)		# set error flag
+	beqz	t0, 1f
 
-		negu	v0			# error
-		sw	v0, PT_R0(sp)		# set flag for syscall
-						# restarting
-1:		sw	v0, PT_R2(sp)		# result
+	negu	v0			# error
+	sw	v0, PT_R0(sp)		# set flag for syscall
+					# restarting
+1:	sw	v0, PT_R2(sp)		# result
 
-		j	syscall_exit
+	j	syscall_exit
 
 /* ------------------------------------------------------------------------ */
 
@@ -227,13 +229,15 @@ illegal_syscall:
 1:
 
 	/* Success, so skip usual error handling garbage.  */
-	LONG_L	t0, TI_FLAGS($28)	# syscall tracing enabled?
-	bltz	t0, 1f
+	LONG_L	a2, TI_FLAGS($28)	# syscall tracing enabled?
+	li	t0, _TIF_SYSCALL_TRACE
+	and	t0, a2, t0
+	bnez	t0, 1f
+
 	b	o32_syscall_exit
 
 1:	SAVE_STATIC
 	jal	do_syscall_trace
-	li	a3, 0			# success
 	j	syscall_exit
 
 no_mem:	li	v0, -ENOMEM
