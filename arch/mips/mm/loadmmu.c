@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: loadmmu.c,v 1.6 1998/03/22 23:27:15 ralf Exp $
+ * $Id: loadmmu.c,v 1.7 1998/04/05 11:23:55 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -66,6 +66,7 @@ __initfunc(void loadmmu(void))
 	switch(mips_cputype) {
 	case CPU_R2000:
 	case CPU_R3000:
+	case CPU_R3000A:
 		printk("Loading R[23]00 MMU routines.\n");
 		ld_mmu_r2300();
 		break;
