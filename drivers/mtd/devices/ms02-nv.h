@@ -9,6 +9,8 @@
  *	modify it under the terms of the GNU General Public License
  *	as published by the Free Software Foundation; either version
  *	2 of the License, or (at your option) any later version.
+ *
+ *	$Id: ms02-nv.h,v 1.3 2003/08/19 09:25:36 dwmw2 Exp $
  */
 
 #include <linux/ioport.h>
@@ -39,8 +41,8 @@
  * The diagnostic area defines two status words to be read by an
  * operating system, a magic ID to distinguish a MS02-NV board from
  * anything else and a status information providing results of tests
- * as well as the size of SRAM available, which can be 1MB or 2MB
- * (that's what the firmware handles; no idea if 2MB modules ever
+ * as well as the size of SRAM available, which can be 1MiB or 2MiB
+ * (that's what the firmware handles; no idea if 2MiB modules ever
  * existed).
  *
  * The firmware only handles the MS02-NV board if installed in the
