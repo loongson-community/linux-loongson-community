@@ -414,9 +414,9 @@ illegal_syscall:
 	sys	sys_mmap2	6			/* 4210 */
 	sys	sys_truncate64	2
 	sys	sys_ftruncate64	2
-	sys	sys_newstat	3
-	sys	sys_newlstat	3
-	sys	sys_newfstat	3			/* 4215 */
+	sys	sys_newstat	2
+	sys	sys_newlstat	2
+	sys	sys_newfstat	2			/* 4215 */
 	sys	sys_pivot_root	2
 	sys	sys_mincore	3
 	sys	sys_madvise	3
