@@ -105,8 +105,6 @@ static int ioc3_start_xmit(struct sk_buff *skb, struct net_device *dev);
 static void ioc3_timeout(struct net_device *dev);
 static inline unsigned int ioc3_hash(const unsigned char *addr);
 static void ioc3_stop(struct net_device *dev);
-static void ioc3_clean_tx_ring(struct ioc3_private *ip);
-static void ioc3_clean_rx_ring(struct ioc3_private *ip);
 static void ioc3_init(struct net_device *dev);
 
 static const char ioc3_str[] = "IOC3 Ethernet";
@@ -446,7 +444,6 @@ ioc3_rx(struct net_device *dev, struct ioc3_private *ip, struct ioc3 *ioc3)
 
 			ip->stats.rx_packets++;		/* Statistics */
 			ip->stats.rx_bytes += len;
-
 		} else {
  			/* The frame is invalid and the skb never
                            reached the network layer so we can just
@@ -531,17 +528,22 @@ ioc3_error(struct net_device *dev, struct ioc3_private *ip,
 		printk(KERN_ERR "%s: RX overflow.\n", dev->name);
 	}
 	if (eisr & EISR_RXBUFOFLO) {
-		printk(KERN_ERR "%s: RX Buffer overflow.\n", dev->name);
+		printk(KERN_ERR "%s: RX buffer overflow.\n", dev->name);
 	}
 	if (eisr & EISR_RXMEMERR) {
 		printk(KERN_ERR "%s: RX PCI error.\n", dev->name);
+	}
+	if (eisr & EISR_RXPARERR) {
+		printk(KERN_ERR "%s: RX SSRAM parity error.\n", dev->name);
+	}
+	if (eisr & EISR_TXBUFUFLO) {
+		printk(KERN_ERR "%s: TX buffer underflow.\n", dev->name);
 	}
 	if (eisr & EISR_TXMEMERR) {
 		printk(KERN_ERR "%s: TX PCI error.\n", dev->name);
 	}
 
 	ioc3_stop(dev);
-	ioc3_clean_tx_ring(dev->priv);
 	ioc3_init(dev);
 
 	dev->trans_start = jiffies;
@@ -556,7 +558,8 @@ static void ioc3_interrupt(int irq, void *_dev, struct pt_regs *regs)
 	struct ioc3_private *ip = dev->priv;
 	struct ioc3 *ioc3 = ip->regs;
 	const u32 enabled = EISR_RXTIMERINT | EISR_RXOFLO | EISR_RXBUFOFLO |
-	                    EISR_TXEXPLICIT | EISR_RXMEMERR | EISR_TXMEMERR;
+	                    EISR_RXMEMERR | EISR_RXPARERR | EISR_TXBUFUFLO |
+	                    EISR_TXEXPLICIT | EISR_TXMEMERR;
 	u32 eisr;
 
 	eisr = ioc3->eisr & enabled;
@@ -564,13 +567,13 @@ static void ioc3_interrupt(int irq, void *_dev, struct pt_regs *regs)
 		ioc3->eisr = eisr;
 		ioc3->eisr;				/* Flush */
 
+		if (eisr & (EISR_RXOFLO | EISR_RXBUFOFLO | EISR_RXMEMERR |
+		            EISR_RXPARERR | EISR_TXBUFUFLO | EISR_TXMEMERR))
+			ioc3_error(dev, ip, ioc3, eisr);
 		if (eisr & EISR_RXTIMERINT)
 			ioc3_rx(dev, ip, ioc3);
 		if (eisr & EISR_TXEXPLICIT)
 			ioc3_tx(dev, ip, ioc3);
-		if (eisr & (EISR_RXOFLO | EISR_RXBUFOFLO | \
-		            EISR_RXMEMERR | EISR_TXMEMERR))
-			ioc3_error(dev, ip, ioc3, eisr);
 
 		eisr = ioc3->eisr & enabled;
 	}
@@ -618,13 +621,71 @@ int ioc3_mii_init(struct net_device *dev, struct ioc3_private *ip,
 	mii_write(ioc3, phy, 0, mii0 | 0x3100);
 
 	spin_unlock_irq(&ip->ioc3_lock);
-	mdelay(1000);				/* XXX Yikes XXX */
-	spin_lock_irq(&ip->ioc3_lock);
-
-	mii_status = mii_read(ioc3, phy, 1);
-	spin_unlock_irq(&ip->ioc3_lock);
 
 	return 0;
+}
+
+static inline void
+ioc3_clean_rx_ring(struct ioc3_private *ip)
+{
+	struct sk_buff *skb;
+	int i;
+
+	for (i = ip->rx_ci; i & 15; i++) {
+		ip->rx_skbs[ip->rx_pi] = ip->rx_skbs[ip->rx_ci];
+		ip->rxr[ip->rx_pi++] = ip->rxr[ip->rx_ci++];
+	}
+	ip->rx_pi &= 511;
+	ip->rx_ci &= 511;
+
+	for (i = ip->rx_ci; i != ip->rx_pi; i = (i+1) & 511) {
+		struct ioc3_erxbuf *rxb;
+		skb = ip->rx_skbs[i];
+		rxb = (struct ioc3_erxbuf *) (skb->data - RX_OFFSET);
+		rxb->w0 = 0;
+	}
+}
+
+static inline void
+ioc3_clean_tx_ring(struct ioc3_private *ip)
+{
+	struct sk_buff *skb;
+	int i;
+
+	for (i=0; i < 128; i++) {
+		skb = ip->tx_skbs[i];
+		if (skb) {
+			ip->tx_skbs[i] = NULL;
+			dev_kfree_skb_any(skb);
+		}
+		ip->txr[i].cmd = 0;
+	}
+	ip->tx_pi = 0;
+	ip->tx_ci = 0;
+}
+
+static void
+ioc3_free_rings(struct ioc3_private *ip)
+{
+	struct sk_buff *skb;
+	int rx_entry, n_entry;
+
+	ioc3_clean_tx_ring(ip);
+	ip->txr = NULL;
+	free_pages((unsigned long)ip->txr, 2);
+
+	n_entry = ip->rx_ci;
+	rx_entry = ip->rx_pi;
+
+	while (n_entry != rx_entry) {
+		skb = ip->rx_skbs[n_entry];
+		if (skb)
+			dev_kfree_skb_any(skb);
+
+		n_entry = (n_entry + 1) & 511;
+	}
+	free_page((unsigned long)ip->rxr);
+	ip->rxr = NULL;
 }
 
 static void
@@ -682,8 +743,8 @@ ioc3_init_rings(struct net_device *dev, struct ioc3_private *ip,
 
 	ioc3_alloc_rings(dev, ip, ioc3);
 
-	ioc3_clean_tx_ring(ip);
 	ioc3_clean_rx_ring(ip);
+	ioc3_clean_tx_ring(ip);
 
 	/* Now the rx ring base, consume & produce registers.  */
 	ring = (0xa5UL << 56) | ((unsigned long)ip->rxr & TO_PHYS_MASK);
@@ -702,61 +763,6 @@ ioc3_init_rings(struct net_device *dev, struct ioc3_private *ip,
 	ioc3->etpir  = (ip->tx_pi << 7);
 	ioc3->etcir  = (ip->tx_ci << 7);
 	ioc3->etcir;					/* Flush */
-}
-
-static void
-ioc3_clean_tx_ring(struct ioc3_private *ip)
-{
-	struct sk_buff *skb;
-	int i;
-
-	for (i=0; i < 128; i++) {
-		skb = ip->tx_skbs[i];
-		if (skb) {
-			ip->tx_skbs[i] = NULL;
-			dev_kfree_skb_any(skb);
-		}
-		ip->txr[i].cmd = 0;
-	}
-}
-
-static void
-ioc3_clean_rx_ring(struct ioc3_private *ip)
-{
-	struct sk_buff *skb;
-	int i;
-	
-	for (i = 0; i < RX_BUFFS; i++) {
-		struct ioc3_erxbuf *rxb;
-		skb = ip->rx_skbs[i];
-		rxb = (struct ioc3_erxbuf *) (skb->data - RX_OFFSET);
-
-		rxb->w0 = 0;
-	}
-}
-
-static void
-ioc3_free_rings(struct ioc3_private *ip)
-{
-	struct sk_buff *skb;
-	int rx_entry, n_entry;
-
-	ioc3_clean_tx_ring(ip);
-	free_pages((unsigned long)ip->txr, 2);
-	ip->txr = NULL;
-
-	n_entry = ip->rx_ci;
-	rx_entry = ip->rx_pi;
-
-	while (n_entry != rx_entry) {
-		skb = ip->rx_skbs[n_entry];
-		if (skb)
-			dev_kfree_skb_any(skb);
-
-		n_entry = (n_entry + 1) & 511;
-	}
-	free_page((unsigned long)ip->rxr);
-	ip->rxr = NULL;
 }
 
 static inline void
@@ -813,7 +819,8 @@ static void ioc3_init(struct net_device *dev)
 	             EMCR_TXEN | EMCR_RXDMAEN | EMCR_RXEN;
 	ioc3->emcr = ip->emcr;
 	ioc3->eier = EISR_RXTIMERINT | EISR_RXOFLO | EISR_RXBUFOFLO |
-	             EISR_TXEXPLICIT | EISR_RXMEMERR | EISR_TXMEMERR;
+	             EISR_RXMEMERR | EISR_RXPARERR | EISR_TXBUFUFLO |
+	             EISR_TXEXPLICIT | EISR_TXMEMERR;
 	ioc3->eier;
 }
 
@@ -1014,7 +1021,6 @@ static void ioc3_timeout(struct net_device *dev)
 	printk(KERN_ERR "%s: transmit timed out, resetting\n", dev->name);
 
 	ioc3_stop(dev);
-	ioc3_clean_tx_ring(dev->priv);
 	ioc3_init(dev);
 
 	dev->trans_start = jiffies;
