@@ -17,6 +17,7 @@
 #include <linux/highmem.h>
 #include <linux/time.h>
 #include <linux/poll.h>
+#include <linux/slab.h>
 
 #include <asm/uaccess.h>
 #include <asm/mman.h>
@@ -941,6 +942,65 @@ extern asmlinkage int sys32_llseek(unsigned int fd, unsigned int offset_high,
 }
 
 /*
+ * Ooo, nasty.  We need here to frob 32-bit unsigned longs to
+ * 64-bit unsigned longs.
+ */
+
+static inline int
+get_fd_set32(unsigned long n, unsigned long *fdset, u32 *ufdset)
+{
+	if (ufdset) {
+		unsigned long odd;
+
+		if (verify_area(VERIFY_WRITE, ufdset, n*sizeof(u32)))
+			return -EFAULT;
+
+		odd = n & 1UL;
+		n &= ~1UL;
+		while (n) {
+			unsigned long h, l;
+			__get_user(l, ufdset);
+			__get_user(h, ufdset+1);
+			ufdset += 2;
+			*fdset++ = h << 32 | l;
+			n -= 2;
+		}
+		if (odd)
+			__get_user(*fdset, ufdset);
+	} else {
+		/* Tricky, must clear full unsigned long in the
+		 * kernel fdset at the end, this makes sure that
+		 * actually happens.
+		 */
+		memset(fdset, 0, ((n + 1) & ~1)*sizeof(u32));
+	}
+	return 0;
+}
+
+static inline void
+set_fd_set32(unsigned long n, u32 *ufdset, unsigned long *fdset)
+{
+	unsigned long odd;
+
+	if (!ufdset)
+		return;
+
+	odd = n & 1UL;
+	n &= ~1UL;
+	while (n) {
+		unsigned long h, l;
+		l = *fdset++;
+		h = l >> 32;
+		__put_user(l, ufdset);
+		__put_user(h, ufdset+1);
+		ufdset += 2;
+		n -= 2;
+	}
+	if (odd)
+		__put_user(*fdset, ufdset);
+}
+
+/*
  * We can actually return ERESTARTSYS instead of EINTR, but I'd
  * like to be certain this leads to no problems. So I return
  * EINTR just for safety.
@@ -950,29 +1010,30 @@ extern asmlinkage int sys32_llseek(unsigned int fd, unsigned int offset_high,
  */
 #define MAX_SELECT_SECONDS \
 	((unsigned long) (MAX_SCHEDULE_TIMEOUT / HZ)-1)
-#define ROUND_UP(x,y) (((x)+(y)-1)/(y))
 
-asmlinkage int
-sys32_select(int n, fd_set *inp, fd_set *outp, fd_set *exp, struct timeval32 *tvp32)
+asmlinkage int sys32_select(int n, u32 *inp, u32 *outp, u32 *exp, struct timeval32 *tvp)
 {
 	fd_set_bits fds;
 	char *bits;
+	unsigned long nn;
 	long timeout;
 	int ret, size;
 
 	timeout = MAX_SCHEDULE_TIMEOUT;
-	if (tvp32) {
+	if (tvp) {
 		time_t sec, usec;
 
-		get_user(sec, &tvp32->tv_sec);
-		get_user(usec, &tvp32->tv_usec);
+		if ((ret = verify_area(VERIFY_READ, tvp, sizeof(*tvp)))
+		    || (ret = __get_user(sec, &tvp->tv_sec))
+		    || (ret = __get_user(usec, &tvp->tv_usec)))
+			goto out_nofds;
 
 		ret = -EINVAL;
-		if (sec < 0 || usec < 0)
+		if(sec < 0 || usec < 0)
 			goto out_nofds;
 
 		if ((unsigned long) sec < MAX_SELECT_SECONDS) {
-			timeout = ROUND_UP(usec, 1000000/HZ);
+			timeout = (usec + 1000000/HZ - 1) / (1000000/HZ);
 			timeout += sec * (unsigned long) HZ;
 		}
 	}
@@ -980,7 +1041,6 @@ sys32_select(int n, fd_set *inp, fd_set *outp, fd_set *exp, struct timeval32 *tv
 	ret = -EINVAL;
 	if (n < 0)
 		goto out_nofds;
-
 	if (n > current->files->max_fdset)
 		n = current->files->max_fdset;
 
@@ -1001,9 +1061,10 @@ sys32_select(int n, fd_set *inp, fd_set *outp, fd_set *exp, struct timeval32 *tv
 	fds.res_out = (unsigned long *) (bits + 4*size);
 	fds.res_ex  = (unsigned long *) (bits + 5*size);
 
-	if ((ret = get_fd_set(n, inp, fds.in)) ||
-	    (ret = get_fd_set(n, outp, fds.out)) ||
-	    (ret = get_fd_set(n, exp, fds.ex)))
+	nn = (n + 8*sizeof(u32) - 1) / (8*sizeof(u32));
+	if ((ret = get_fd_set32(nn, fds.in, inp)) ||
+	    (ret = get_fd_set32(nn, fds.out, outp)) ||
+	    (ret = get_fd_set32(nn, fds.ex, exp)))
 		goto out;
 	zero_fd_set(n, fds.res_in);
 	zero_fd_set(n, fds.res_out);
@@ -1011,15 +1072,15 @@ sys32_select(int n, fd_set *inp, fd_set *outp, fd_set *exp, struct timeval32 *tv
 
 	ret = do_select(n, &fds, &timeout);
 
-	if (tvp32 && !(current->personality & STICKY_TIMEOUTS)) {
+	if (tvp && !(current->personality & STICKY_TIMEOUTS)) {
 		time_t sec = 0, usec = 0;
 		if (timeout) {
 			sec = timeout / HZ;
 			usec = timeout % HZ;
 			usec *= (1000000/HZ);
 		}
-		put_user(sec, (int *)&tvp32->tv_sec);
-		put_user(usec, (int *)&tvp32->tv_usec);
+		put_user(sec, &tvp->tv_sec);
+		put_user(usec, &tvp->tv_usec);
 	}
 
 	if (ret < 0)
@@ -1031,9 +1092,9 @@ sys32_select(int n, fd_set *inp, fd_set *outp, fd_set *exp, struct timeval32 *tv
 		ret = 0;
 	}
 
-	set_fd_set(n, inp, fds.res_in);
-	set_fd_set(n, outp, fds.res_out);
-	set_fd_set(n, exp, fds.res_ex);
+	set_fd_set32(nn, inp, fds.res_in);
+	set_fd_set32(nn, outp, fds.res_out);
+	set_fd_set32(nn, exp, fds.res_ex);
 
 out:
 	kfree(bits);
