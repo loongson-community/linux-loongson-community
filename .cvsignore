@@ -1,5 +1,6 @@
 !core
 .config
+.config.cmd
 ..config.cmd
 .hdepend
 .tmpver.1
