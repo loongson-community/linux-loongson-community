@@ -12,6 +12,8 @@
 #ifndef _ASM_PROCESSOR_H
 #define _ASM_PROCESSOR_H
 
+#include <linux/config.h>
+
 #include <asm/isadep.h>
 
 /*
@@ -47,7 +49,7 @@ extern char vce_available;		/* Supports VCED / VCEI exceptions */
 extern struct mips_cpuinfo boot_cpu_data;
 extern unsigned int vced_count, vcei_count;
 
-#ifdef __SMP__
+#ifdef CONFIG_SMP
 extern struct mips_cpuinfo cpu_data[];
 #define current_cpu_data cpu_data[smp_processor_id()]
 #else

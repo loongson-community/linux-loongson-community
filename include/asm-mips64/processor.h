@@ -12,6 +12,8 @@
 #ifndef _ASM_PROCESSOR_H
 #define _ASM_PROCESSOR_H
 
+#include <linux/config.h>
+
 /*
  * Default implementation of macro that returns current
  * instruction pointer ("program counter").
@@ -19,7 +21,6 @@
 #define current_text_addr() ({ __label__ _l; _l: &&_l;})
 
 #if !defined (_LANGUAGE_ASSEMBLY)
-#include <linux/config.h>
 #include <asm/cachectl.h>
 #include <asm/mipsregs.h>
 #include <asm/reg.h>
@@ -60,7 +61,7 @@ extern char mips4_available;		/* CPU has MIPS IV ISA or better */
 extern unsigned int vced_count, vcei_count;
 extern struct cpuinfo_mips cpu_data[];
 
-#ifdef __SMP__
+#ifdef CONFIG_SMP
 #define current_cpu_data cpu_data[smp_processor_id()]
 #else
 #define current_cpu_data cpu_data[0]

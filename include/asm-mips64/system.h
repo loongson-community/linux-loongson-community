@@ -11,6 +11,8 @@
 #ifndef _ASM_SYSTEM_H
 #define _ASM_SYSTEM_H
 
+#include <linux/config.h>
+
 #include <asm/sgidefs.h>
 #include <linux/kernel.h>
 
@@ -105,7 +107,7 @@ __restore_flags(int flags)
 		: "$8", "$9", "memory");
 }
 
-#ifdef __SMP__
+#ifdef CONFIG_SMP
 
 extern void __global_cli(void);
 extern void __global_sti(void);
@@ -125,7 +127,7 @@ extern void __global_restore_flags(unsigned long);
 #define restore_flags(x) __restore_flags(x)
 #define save_and_cli(x) __save_and_cli(x)
 
-#endif /* __SMP__ */
+#endif /* CONFIG_SMP */
 
 /* For spinlocks etc */
 #define local_irq_save(x)	__save_and_cli(x);

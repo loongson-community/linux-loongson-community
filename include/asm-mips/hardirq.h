@@ -10,6 +10,8 @@
 #ifndef _ASM_HARDIRQ_H
 #define _ASM_HARDIRQ_H
 
+#include <linux/config.h>
+
 #include <linux/threads.h>
 #include <linux/irq.h>
 
@@ -35,7 +37,7 @@ extern irq_cpustat_t irq_stat [NR_CPUS];
 	(local_irq_count(__cpu) + local_bh_count(__cpu) != 0); })
 #define in_irq() (local_irq_count(smp_processor_id()) != 0)
 
-#ifndef __SMP__
+#ifndef CONFIG_SMP
 
 #define hardirq_trylock(cpu)	(local_irq_count(cpu) == 0)
 #define hardirq_endlock(cpu)	do { } while (0)
@@ -49,5 +51,5 @@ extern irq_cpustat_t irq_stat [NR_CPUS];
 
 #error No habla MIPS SMP
 
-#endif /* __SMP__ */
+#endif /* CONFIG_SMP */
 #endif /* _ASM_HARDIRQ_H */
