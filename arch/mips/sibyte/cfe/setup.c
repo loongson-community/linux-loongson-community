@@ -324,19 +324,6 @@ void prom_free_prom_memory(void)
 	/* Not sure what I'm supposed to do here.  Nothing, I think */
 }
 
-int page_is_ram(unsigned long pagenr)
-{
-	phys_t addr = pagenr << PAGE_SHIFT;
-	int i;
-	for (i = 0; i < board_mem_region_count; i++) {
-		if ((addr >= board_mem_region_addrs[i])
-		    && (addr < (board_mem_region_addrs[i] + board_mem_region_sizes[i]))) {
-			return 1;
-		}
-	}
-	return 0;
-}
-
 void prom_putchar(char c)
 {
 	int ret;

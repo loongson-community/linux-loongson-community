@@ -111,11 +111,6 @@ static inline unsigned char str2hexnum(unsigned char c)
 	return 0; /* foo */
 }
 
-int __init page_is_ram(unsigned long pagenr)
-{
-    return 1;
-}
-
 void prom_free_prom_memory (void)
 {
 }

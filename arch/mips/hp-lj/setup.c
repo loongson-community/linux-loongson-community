@@ -152,8 +152,3 @@ void __init hp_setup(void)
 
    printk("HP SETUP\n");
 }
-
-int __init page_is_ram(unsigned long pagenr)
-{
-	return 1;
-}

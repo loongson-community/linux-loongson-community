@@ -211,11 +211,6 @@ void __init prom_meminit(void)
 	printk("Total memory probed : 0x%lx pages\n", numpages);
 }
 
-int __init page_is_ram(unsigned long pagenr)
-{
-        return 1;
-}
-
 void __init
 prom_free_prom_memory (void)
 {

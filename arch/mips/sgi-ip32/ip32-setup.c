@@ -101,9 +101,3 @@ void __init ip32_setup(void)
 
 	crime_init();
 }
-
-int __init page_is_ram (unsigned long pagenr)
-{
-	/* XXX: to do? */
-	return 1;
-}
