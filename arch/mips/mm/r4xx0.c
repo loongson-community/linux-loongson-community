@@ -1961,47 +1961,37 @@ out:
  *    flush.
  * 3) In KSEG1, no flush necessary.
  */
-static void r4k_flush_page_to_ram_s16d16i16(struct page *page)
+static void r4k_flush_page_to_ram_s16(struct page *page)
 {
 	blast_scache16_page(page_address(page));
 }
 
-static void r4k_flush_page_to_ram_s32d16i16(struct page *page)
+static void r4k_flush_page_to_ram_s32(struct page *page)
 {
 	blast_scache32_page(page_address(page));
 }
 
-static void r4k_flush_page_to_ram_s64d16i16(struct page *page)
+static void r4k_flush_page_to_ram_s64(struct page *page)
 {
 	blast_scache64_page(page_address(page));
 }
 
-static void r4k_flush_page_to_ram_s128d16i16(struct page *page)
+static void r4k_flush_page_to_ram_s128(struct page *page)
 {
 	blast_scache128_page(page_address(page));
 }
 
-static void r4k_flush_page_to_ram_s32d32i32(struct page *page)
-{
-	blast_scache32_page(page_address(page));
-}
-
-static void r4k_flush_page_to_ram_s64d32i32(struct page *page)
-{
-	blast_scache64_page(page_address(page));
-}
-
-static void r4k_flush_page_to_ram_s128d32i32(struct page *page)
-{
-	blast_scache128_page(page_address(page));
-}
-
-static void r4k_flush_page_to_ram_d16i16(struct page *page)
+static void r4k_flush_page_to_ram_d16(struct page *page)
 {
 	blast_dcache16_page(page_address(page));
 }
 
-static void r4k_flush_page_to_ram_d32i32(struct page *page)
+static void r4k_flush_page_to_ram_d32(struct page *page)
+{
+	blast_dcache32_page(page_address(page));
+}
+
+static void r4k_flush_page_to_ram_d32_r4600(struct page *page)
 {
 	unsigned long flags;
 
@@ -2580,25 +2570,27 @@ static void __init setup_noscache_funcs(void)
 		_flush_cache_mm = r4k_flush_cache_mm_d16i16;
 		_flush_cache_range = r4k_flush_cache_range_d16i16;
 		_flush_cache_page = r4k_flush_cache_page_d16i16;
-		_flush_page_to_ram = r4k_flush_page_to_ram_d16i16;
+		_flush_page_to_ram = r4k_flush_page_to_ram_d16;
 		break;
 	case 32:
 		prid = read_32bit_cp0_register(CP0_PRID) & 0xfff0;
 		if (prid == 0x2010) {			/* R4600 V1.7 */
 			_clear_page = r4k_clear_page_r4600_v1;
 			_copy_page = r4k_copy_page_r4600_v1;
+			_flush_page_to_ram = r4k_flush_page_to_ram_d32_r4600;
 		} else if (prid == 0x2020) {		/* R4600 V2.0 */
 			_clear_page = r4k_clear_page_r4600_v2;
 			_copy_page = r4k_copy_page_r4600_v2;
+			_flush_page_to_ram = r4k_flush_page_to_ram_d32;
 		} else {
 			_clear_page = r4k_clear_page_d32;
 			_copy_page = r4k_copy_page_d32;
+			_flush_page_to_ram = r4k_flush_page_to_ram_d32;
 		}
 		_flush_cache_all = r4k_flush_cache_all_d32i32;
 		_flush_cache_mm = r4k_flush_cache_mm_d32i32;
 		_flush_cache_range = r4k_flush_cache_range_d32i32;
 		_flush_cache_page = r4k_flush_cache_page_d32i32;
-		_flush_page_to_ram = r4k_flush_page_to_ram_d32i32;
 		break;
 	}
 	_dma_cache_wback_inv = r4k_dma_cache_wback_inv_pc;
@@ -2616,11 +2608,11 @@ static void __init setup_scache_funcs(void)
 			_flush_cache_mm = r4k_flush_cache_mm_s16d16i16;
 			_flush_cache_range = r4k_flush_cache_range_s16d16i16;
 			_flush_cache_page = r4k_flush_cache_page_s16d16i16;
-			_flush_page_to_ram = r4k_flush_page_to_ram_s16d16i16;
 			break;
 		case 32:
 			panic("Invalid cache configuration detected");
 		};
+		_flush_page_to_ram = r4k_flush_page_to_ram_s16;
 		_clear_page = r4k_clear_page_s16;
 		_copy_page = r4k_copy_page_s16;
 		break;
@@ -2631,16 +2623,15 @@ static void __init setup_scache_funcs(void)
 			_flush_cache_mm = r4k_flush_cache_mm_s32d16i16;
 			_flush_cache_range = r4k_flush_cache_range_s32d16i16;
 			_flush_cache_page = r4k_flush_cache_page_s32d16i16;
-			_flush_page_to_ram = r4k_flush_page_to_ram_s32d16i16;
 			break;
 		case 32:
 			_flush_cache_all = r4k_flush_cache_all_s32d32i32;
 			_flush_cache_mm = r4k_flush_cache_mm_s32d32i32;
 			_flush_cache_range = r4k_flush_cache_range_s32d32i32;
 			_flush_cache_page = r4k_flush_cache_page_s32d32i32;
-			_flush_page_to_ram = r4k_flush_page_to_ram_s32d32i32;
 			break;
 		};
+		_flush_page_to_ram = r4k_flush_page_to_ram_s32;
 		_clear_page = r4k_clear_page_s32;
 		_copy_page = r4k_copy_page_s32;
 		break;
@@ -2651,16 +2642,15 @@ static void __init setup_scache_funcs(void)
 			_flush_cache_mm = r4k_flush_cache_mm_s64d16i16;
 			_flush_cache_range = r4k_flush_cache_range_s64d16i16;
 			_flush_cache_page = r4k_flush_cache_page_s64d16i16;
-			_flush_page_to_ram = r4k_flush_page_to_ram_s64d16i16;
 			break;
 		case 32:
 			_flush_cache_all = r4k_flush_cache_all_s64d32i32;
 			_flush_cache_mm = r4k_flush_cache_mm_s64d32i32;
 			_flush_cache_range = r4k_flush_cache_range_s64d32i32;
 			_flush_cache_page = r4k_flush_cache_page_s64d32i32;
-			_flush_page_to_ram = r4k_flush_page_to_ram_s64d32i32;
 			break;
 		};
+		_flush_page_to_ram = r4k_flush_page_to_ram_s64;
 		_clear_page = r4k_clear_page_s64;
 		_copy_page = r4k_copy_page_s64;
 		break;
@@ -2671,16 +2661,15 @@ static void __init setup_scache_funcs(void)
 			_flush_cache_mm = r4k_flush_cache_mm_s128d16i16;
 			_flush_cache_range = r4k_flush_cache_range_s128d16i16;
 			_flush_cache_page = r4k_flush_cache_page_s128d16i16;
-			_flush_page_to_ram = r4k_flush_page_to_ram_s128d16i16;
 			break;
 		case 32:
 			_flush_cache_all = r4k_flush_cache_all_s128d32i32;
 			_flush_cache_mm = r4k_flush_cache_mm_s128d32i32;
 			_flush_cache_range = r4k_flush_cache_range_s128d32i32;
 			_flush_cache_page = r4k_flush_cache_page_s128d32i32;
-			_flush_page_to_ram = r4k_flush_page_to_ram_s128d32i32;
 			break;
 		};
+		_flush_page_to_ram = r4k_flush_page_to_ram_s128;
 		_clear_page = r4k_clear_page_s128;
 		_copy_page = r4k_copy_page_s128;
 		break;
