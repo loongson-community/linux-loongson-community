@@ -1,4 +1,4 @@
-/* $Id: scall_64.S,v 1.1 1999/11/24 13:14:34 ralf Exp $
+/* $Id: scall_64.S,v 1.2 1999/12/21 12:35:22 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -26,10 +26,6 @@
 
 	.align  5
 NESTED(handle_sys64, PT_SIZE, sp)
-	.set	noat
-	SAVE_SOME
-	STI
-	.set	at
 
 	ld	t1, PT_EPC(sp)		# skip syscall on return
 
@@ -38,7 +34,6 @@ NESTED(handle_sys64, PT_SIZE, sp)
 	beqz	t0, illegal_syscall
 	sd	t1, PT_EPC(sp)
 
-	/* XXX Put both in one cacheline, should save a bit. */
 	dsll	t0, v0, 3
 	ld	t2, (sys_call_table - (__NR_Linux * 8))(t0) # syscall routine
 	beqz	t2, illegal_syscall;

@@ -27,7 +27,7 @@
 #define SIGILL		4		/* Illegal instruction (ANSI).  */
 
 /* Highest syscall used of any syscall flavour */
-#define MAX_SYSCALL_NO	__NR_Linux32 + __NR_Linux_syscalls
+#define MAX_SYSCALL_NO	__NR_Linux32 + __NR_Linux32_syscalls
 
 	.align  5
 NESTED(handle_sys, PT_SIZE, sp)
@@ -35,6 +35,10 @@ NESTED(handle_sys, PT_SIZE, sp)
 	SAVE_SOME
 	STI
 	.set	at
+ SAVE_ALL
+ ld	a1, PT_R2(sp)
+ PRINT("Got syscall %d\n")
+ RESTORE_ALL
 
 	ld	t1, PT_EPC(sp)		# skip syscall on return
 
@@ -45,8 +49,8 @@ NESTED(handle_sys, PT_SIZE, sp)
 
 	/* XXX Put both in one cacheline, should save a bit. */
 	dsll	t0, v0, 3
-	ld	t2, (sys_call_table - (__NR_Linux * 8))(t0) # syscall routine
-	lbu	t3, (sys_narg_table - __NR_Linux)(v0)	# number of arguments
+	ld	t2, (sys_call_table - (__NR_Linux32 * 8))(t0) # syscall routine
+	lbu	t3, (sys_narg_table - __NR_Linux32)(v0)	# number of arguments
 	beqz	t2, illegal_syscall;
 
 	subu	t0, t3, 5		# 5 or more arguments?
@@ -69,8 +73,7 @@ stack_done:
 	sd	v0, PT_R0(sp)		# set flag for syscall restarting
 1:	sd	v0, PT_R2(sp)		# result
 
-EXPORT(o32_ret_from_sys_call)
-	.type	o32_ret_from_sys_call,@function
+FEXPORT(o32_ret_from_sys_call)
 	ld	t0,bh_mask
 	ld	t1,bh_active		# unused delay slot
 	and	t0,t1

@@ -1,4 +1,4 @@
-/* $Id: unistd.h,v 1.4 1999/10/09 00:01:43 ralf Exp $
+/* $Id: unistd.h,v 1.5 1999/12/04 03:59:12 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -1199,7 +1199,7 @@
 /*
  * Offset of the last Linux o32 flavoured syscall
  */
-#define __NR_Linux_syscalls		209
+#define __NR_Linux32_syscalls		209
 
 /*
  * Linux 64-bit syscalls are in the range from 5000 to 5999.
