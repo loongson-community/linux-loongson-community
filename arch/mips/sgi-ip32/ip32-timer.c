@@ -234,5 +234,5 @@ void __init ip32_time_init(void)
 				 read_c0_count()
 				 + cc_interval);
         change_c0_status(ST0_IM, ALLINTS);
-	sti ();
+	local_irq_enable();
 }
