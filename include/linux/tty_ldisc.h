@@ -28,7 +28,7 @@
  * ssize_t (*chars_in_buffer)(struct tty_struct *tty);
  *
  * 	This function returns the number of input characters the line
- *	discpline may have queued up to be delivered to the user mode
+ *	discipline may have queued up to be delivered to the user mode
  *	process.
  * 
  * ssize_t (*read)(struct tty_struct * tty, struct file * file,
