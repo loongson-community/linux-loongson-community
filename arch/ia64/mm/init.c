@@ -13,6 +13,7 @@
 #include <linux/elf.h>
 #include <linux/mm.h>
 #include <linux/mmzone.h>
+#include <linux/module.h>
 #include <linux/personality.h>
 #include <linux/reboot.h>
 #include <linux/slab.h>
@@ -43,6 +44,8 @@ unsigned long MAX_DMA_ADDRESS = PAGE_OFFSET + 0x100000000UL;
 #ifdef CONFIG_VIRTUAL_MEM_MAP
   unsigned long vmalloc_end = VMALLOC_END_INIT;
   struct page *vmem_map;
+
+  EXPORT_SYMBOL(vmem_map);
 #endif
 
 static int pgt_cache_water[2] = { 25, 50 };
@@ -555,6 +558,6 @@ mem_init (void)
 	setup_gate();	/* setup gate pages before we free up boot memory... */
 
 #ifdef CONFIG_IA32_SUPPORT
-	ia32_gdt_init();
+	ia32_boot_gdt_init();
 #endif
 }

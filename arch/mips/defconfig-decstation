@@ -199,6 +199,7 @@ CONFIG_SCSI_DECNCR=y
 # CONFIG_SCSI_DECSII is not set
 # CONFIG_SCSI_AIC7XXX is not set
 # CONFIG_SCSI_AIC7XXX_OLD is not set
+# CONFIG_SCSI_SATA is not set
 # CONFIG_SCSI_EATA_PIO is not set
 # CONFIG_SCSI_DEBUG is not set
 

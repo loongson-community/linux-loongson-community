@@ -446,6 +446,22 @@ config VAC_SERIAL
 	help
 	  This enables the driver for the Baget's VAC RS232 seriall driver.
 
+config SGI_L1_SERIAL
+	bool "SGI Altix L1 serial support"
+	depends on SERIAL_NONSTANDARD && IA64
+	help
+	  If you have an SGI Altix and you want to use the serial port
+	  connected to the system controller (you want this!), say Y.
+	  Otherwise, say N.
+
+config SGI_L1_SERIAL_CONSOLE
+	bool "SGI Altix L1 serial console support"
+	depends on SGI_L1_SERIAL
+	help
+	  If you have an SGI Altix and you would like to use the system
+	  controller serial port as your console (you want this!),
+	  say Y.  Otherwise, say N.
+
 config A2232
 	tristate "Commodore A2232 serial support (EXPERIMENTAL)"
 	depends on EXPERIMENTAL && ZORRO && BROKEN_ON_SMP

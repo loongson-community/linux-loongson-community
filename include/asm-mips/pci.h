@@ -20,6 +20,8 @@ extern unsigned int pcibios_assign_all_busses(void);
 #define PCIBIOS_MIN_IO		0x1000
 #define PCIBIOS_MIN_MEM		0x10000000
 
+#define PCIBIOS_MIN_CARDBUS_IO	0x4000
+
 static inline void pcibios_set_master(struct pci_dev *dev)
 {
 	/* No special bus mastering setup handling */
