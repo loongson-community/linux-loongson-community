@@ -970,10 +970,8 @@ static void __init setup_scache(void)
 	 * Linux memory managment.
 	 */
 	switch (c->cputype) {
-	case CPU_R4000PC:
 	case CPU_R4000SC:
 	case CPU_R4000MC:
-	case CPU_R4400PC:
 	case CPU_R4400SC:
 	case CPU_R4400MC:
 		probe_scache_kseg1 = (probe_func_t) (KSEG1ADDR(&probe_scache));
