@@ -966,10 +966,8 @@ static int init(void * unused)
 
 	/* Launch bdflush from here, instead of the old syscall way. */
 	kernel_thread(bdflush, NULL, 0);
-printk("init() #1\n");while(1);
 	/* Start the background pageout daemon. */
 	kernel_thread(kswapd, NULL, 0);
-printk("init() #2\n");while(1);
 
 #if CONFIG_AP1000
 	/* Start the async paging daemon. */
@@ -985,9 +983,7 @@ printk("init() #2\n");while(1);
 	if (initrd_start && mount_initrd) root_mountflags &= ~MS_RDONLY;
 	else mount_initrd =0;
 #endif
-printk("init() #3\n");while(1);
 	setup(0);
-printk("init() #4\n");while(1);
 
 #ifdef __SMP__
 	/*
