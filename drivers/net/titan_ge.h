@@ -7,7 +7,7 @@
 #include <linux/kernel.h>
 #include <linux/config.h>
 #include <linux/spinlock.h>
-#include <asm/addrspace.h> /* For KSEG1ADDR() */
+#include <asm/byteorder.h>
 
 /*
  * These functions should be later moved to a more generic location since there
