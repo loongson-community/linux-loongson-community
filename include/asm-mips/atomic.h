@@ -23,12 +23,7 @@
 #ifndef _ASM_ATOMIC_H
 #define _ASM_ATOMIC_H
 
-/*
- * This lock is intensionally undeclared and undefined so attempts to reference
- * this code on SMP will result in a linker error.
- *
- * extern spinlock_t atomic_lock;
- */
+extern spinlock_t atomic_lock;
 
 typedef struct { volatile int counter; } atomic_t;
 
