@@ -36,9 +36,12 @@ NESTED(handle_sys, PT_SIZE, sp)
 	STI
 	.set	at
 #if DEBUG_MIPS64
- SAVE_ALL
  jal dodebug
- RESTORE_ALL
+ ld $4, PT_R4(sp)
+ ld $5, PT_R5(sp)
+ ld $6, PT_R6(sp)
+ ld $7, PT_R7(sp)
+ ld $2, PT_R2(sp)
 #endif
 	ld	t1, PT_EPC(sp)		# skip syscall on return
 
