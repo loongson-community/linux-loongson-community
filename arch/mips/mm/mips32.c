@@ -37,11 +37,11 @@
 				     ".set reorder\n\t")
 
 /* Primary cache parameters. */
-static int icache_size, dcache_size; /* Size in bytes */
-static int ic_lsize, dc_lsize;       /* LineSize in bytes */
+int icache_size, dcache_size; 			/* Size in bytes */
+int ic_lsize, dc_lsize;				/* LineSize in bytes */
 
 /* Secondary cache (if present) parameters. */
-static unsigned int scache_size, sc_lsize;	/* Again, in bytes */
+unsigned int scache_size, sc_lsize;		/* Again, in bytes */
 
 #include <asm/cacheops.h>
 #include <asm/mips32_cache.h>
@@ -59,103 +59,6 @@ static struct bcache_ops no_sc_ops = {
 };
 
 struct bcache_ops *bcops = &no_sc_ops;
-
-
-/*
- * Zero an entire page.
- */
-
-static void mips32_clear_page_dc(unsigned long page)
-{
-	unsigned long i;
-
-        if (mips_cpu.options & MIPS_CPU_CACHE_CDEX) {
-	        for (i=page; i<page+PAGE_SIZE; i+=dc_lsize) {
-		        __asm__ __volatile__(
-			        ".set\tnoreorder\n\t"
-				".set\tnoat\n\t"
-				".set\tmips3\n\t"
-				"cache\t%2,(%0)\n\t"
-				".set\tmips0\n\t"
-				".set\tat\n\t"
-				".set\treorder"
-				:"=r" (i)
-				:"0" (i),
-				"I" (Create_Dirty_Excl_D));
-		}
-	}
-	for (i=page; i<page+PAGE_SIZE; i+=4)
-	        *(unsigned long *)(i) = 0;
-}
-
-static void mips32_clear_page_sc(unsigned long page)
-{
-	unsigned long i;
-
-        if (mips_cpu.options & MIPS_CPU_CACHE_CDEX) {
-	        for (i=page; i<page+PAGE_SIZE; i+=sc_lsize) {
-		        __asm__ __volatile__(
-				".set\tnoreorder\n\t"
-				".set\tnoat\n\t"
-				".set\tmips3\n\t"
-				"cache\t%2,(%0)\n\t"
-				".set\tmips0\n\t"
-				".set\tat\n\t"
-				".set\treorder"
-				:"=r" (i)
-				:"0" (i),
-				"I" (Create_Dirty_Excl_SD));
-		}
-	}
-	for (i=page; i<page+PAGE_SIZE; i+=4)
-	        *(unsigned long *)(i) = 0;
-}
-
-static void mips32_copy_page_dc(unsigned long to, unsigned long from)
-{
-	unsigned long i;
-
-        if (mips_cpu.options & MIPS_CPU_CACHE_CDEX) {
-	        for (i=to; i<to+PAGE_SIZE; i+=dc_lsize) {
-		        __asm__ __volatile__(
-			        ".set\tnoreorder\n\t"
-				".set\tnoat\n\t"
-				".set\tmips3\n\t"
-				"cache\t%2,(%0)\n\t"
-				".set\tmips0\n\t"
-				".set\tat\n\t"
-				".set\treorder"
-				:"=r" (i)
-				:"0" (i),
-				"I" (Create_Dirty_Excl_D));
-		}
-	}
-	for (i=0; i<PAGE_SIZE; i+=4)
-	        *(unsigned long *)(to+i) = *(unsigned long *)(from+i);
-}
-
-static void mips32_copy_page_sc(unsigned long to, unsigned long from)
-{
-	unsigned long i;
-
-        if (mips_cpu.options & MIPS_CPU_CACHE_CDEX) {
-	        for (i=to; i<to+PAGE_SIZE; i+=sc_lsize) {
-		        __asm__ __volatile__(
-				".set\tnoreorder\n\t"
-				".set\tnoat\n\t"
-				".set\tmips3\n\t"
-				"cache\t%2,(%0)\n\t"
-				".set\tmips0\n\t"
-				".set\tat\n\t"
-				".set\treorder"
-				:"=r" (i)
-				:"0" (i),
-				"I" (Create_Dirty_Excl_SD));
-		}
-	}
-	for (i=0; i<PAGE_SIZE; i+=4)
-	        *(unsigned long *)(to+i) = *(unsigned long *)(from+i);
-}
 
 static inline void mips32_flush_cache_all_sc(void)
 {
