@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1996, 1997 by Ralf Baechle
  *
- * $Id: uaccess.h,v 1.2 1997/06/25 14:27:16 ralf Exp $
+ * $Id: uaccess.h,v 1.2 1997/06/25 20:18:19 ralf Exp $
  */
 #ifndef __ASM_MIPS_UACCESS_H
 #define __ASM_MIPS_UACCESS_H
@@ -131,9 +131,9 @@ extern size_t __copy_user(void *__to, const void *__from, size_t __n);
  * for 32 bit mode and old iron.
  */
 #ifdef __mips64
-#define __GET_USER_NOCHECK_DW __get_user_nocheck_asm("ld")
+#define __GET_USER_DW __get_user_asm("ld")
 #else
-#define __GET_USER_NOCHECK_DW __get_user_nocheck_asm_ll32
+#define __GET_USER_DW __get_user_asm_ll32
 #endif
 
 #define __get_user_nocheck(x,ptr,size) ({ \
@@ -142,67 +142,14 @@ __typeof(*(ptr)) __gu_val; \
 long __gu_addr; \
 __asm__("":"=r" (__gu_val)); \
 __gu_addr = (long) (ptr); \
-__gu_err = 0; \
+__asm__("":"=r" (__gu_err)); \
 switch (size) { \
-case 1: __get_user_nocheck_asm("lb"); break; \
-case 2: __get_user_nocheck_asm("lh"); break; \
-case 4: __get_user_nocheck_asm("lw"); break; \
-case 8: __GET_USER_NOCHECK_DW; break; \
+case 1: __get_user_asm("lb"); break; \
+case 2: __get_user_asm("lh"); break; \
+case 4: __get_user_asm("lw"); break; \
+case 8: __GET_USER_DW; break; \
 default: __get_user_unknown(); break; \
 } x = (__typeof__(*(ptr))) __gu_val; __gu_err; })
-
-#define __get_user_nocheck_asm(insn) \
-({ \
-__asm__ __volatile__( \
-	"1:\t" insn "\t%1,%3\n" \
-	"2:\n\t" \
-	".section\t.fixup,\"ax\"\n" \
-	"3:\t.set\tnoat\n\t" \
-	"la\t$1,2b\n\t" \
-	"li\t%0,%4\n\t" \
-	"jr\t$1\n\t" \
-	".set\tat\n\t" \
-	".previous\n\t" \
-	".section\t__ex_table,\"a\"\n\t" \
-	STR(PTR)"\t1b,3b\n\t" \
-	".previous" \
-	:"=r" (__gu_err), "=r" (__gu_val) \
-	:"0" (__gu_err), "o" (__m(__gu_addr)), "i" (-EFAULT) \
-	:"$1"); })
-
-/*
- * Get a long long 64 using 32 bit registers.
- */
-#define __get_user_nocheck_asm_ll32 \
-({ \
-__asm__ __volatile__( \
-	"1:\tlw\t%1,%3\n" \
-	"2:\tlw\t%D1,%4\n" \
-	"3:\t.section\t.fixup,\"ax\"\n" \
-	"4:\t.set\tnoat\n\t" \
-	"la\t$1,3b\n\t" \
-	"li\t%0,%5\n\t" \
-	"jr\t$1\n\t" \
-	".set\tat\n\t" \
-	".previous\n\t" \
-	".section\t__ex_table,\"a\"\n\t" \
-	STR(PTR)"\t1b,4b\n\t" \
-	STR(PTR)"\t2b,4b\n\t" \
-	".previous" \
-	:"=r" (__gu_err), "=r" (__gu_val) \
-	:"0" (__gu_err), "o" (__m(__gu_addr)), "o" (__m(__gu_addr + 4)), \
-	 "i" (-EFAULT) \
-	:"$1"); })
-
-/*
- * Yuck.  We need two variants, one for 64bit operation and one
- * for 32 bit mode and old iron.
- */
-#ifdef __mips64
-#define __GET_USER_CHECK_DW __get_user_check_asm("ld")
-#else
-#define __GET_USER_CHECK_DW __get_user_check_asm_ll32
-#endif
 
 #define __get_user_check(x,ptr,size,mask) ({ \
 long __gu_err; \
@@ -210,17 +157,17 @@ __typeof__(*(ptr)) __gu_val; \
 long __gu_addr; \
 __asm__("":"=r" (__gu_val)); \
 __gu_addr = (long) (ptr); \
-__gu_err = -EFAULT; \
+__asm__("":"=r" (__gu_err)); \
 if (__access_ok(__gu_addr,size,mask)) { \
 switch (size) { \
-case 1: __get_user_check_asm("lb"); break; \
-case 2: __get_user_check_asm("lh"); break; \
-case 4: __get_user_check_asm("lw"); break; \
-case 8: __GET_USER_CHECK_DW; break; \
+case 1: __get_user_asm("lb"); break; \
+case 2: __get_user_asm("lh"); break; \
+case 4: __get_user_asm("lw"); break; \
+case 8: __GET_USER_DW; break; \
 default: __get_user_unknown(); break; \
 } } x = (__typeof__(*(ptr))) __gu_val; __gu_err; })
 
-#define __get_user_check_asm(insn) \
+#define __get_user_asm(insn) \
 ({ \
 __asm__ __volatile__( \
 	"1:\t" insn "\t%1,%2\n\t" \
@@ -229,6 +176,7 @@ __asm__ __volatile__( \
 	".section\t.fixup,\"ax\"\n" \
 	"3:\t.set\tnoat\n\t" \
 	"la\t$1,2b\n\t" \
+	"li\t%0,%3\n\t" \
 	"jr\t$1\n\t" \
 	".set\tat\n\t" \
 	".previous\n\t" \
@@ -236,22 +184,22 @@ __asm__ __volatile__( \
 	STR(PTR)"\t1b,3b\n\t" \
 	".previous" \
 	:"=r" (__gu_err), "=r" (__gu_val) \
-	:"o" (__m(__gu_addr)) \
+	:"o" (__m(__gu_addr)), "i" (-EFAULT) \
 	:"$1"); })
 
 /*
  * Get a long long 64 using 32 bit registers.
  */
-#define __get_user_check_asm_ll32 \
+#define __get_user_asm_ll32 \
 ({ \
 __asm__ __volatile__( \
 	"1:\tlw\t%1,%2\n" \
 	"2:\tlw\t%D1,%3\n\t" \
 	"move\t%0,$0\n" \
-	"3:\n\t" \
-	".section\t.fixup,\"ax\"\n" \
+	"3:\t.section\t.fixup,\"ax\"\n" \
 	"4:\t.set\tnoat\n\t" \
 	"la\t$1,3b\n\t" \
+	"li\t%0,%4\n\t" \
 	"jr\t$1\n\t" \
 	".set\tat\n\t" \
 	".previous\n\t" \
@@ -259,8 +207,9 @@ __asm__ __volatile__( \
 	STR(PTR)"\t1b,4b\n\t" \
 	STR(PTR)"\t2b,4b\n\t" \
 	".previous" \
-	:"=r" (__gu_err), "=r" (__gu_val) \
-	:"o" (__m(__gu_addr)),"o"(__m(__gu_addr + 4)) \
+	:"=r" (__gu_err), "=&r" (__gu_val) \
+	:"o" (__m(__gu_addr)), "o" (__m(__gu_addr + 4)), \
+	 "i" (-EFAULT) \
 	:"$1"); })
 
 extern void __get_user_unknown(void);
@@ -270,9 +219,9 @@ extern void __get_user_unknown(void);
  * for 32 bit mode and old iron.
  */
 #ifdef __mips64
-#define __PUT_USER_NOCHECK_DW __put_user_nocheck_asm("sd")
+#define __PUT_USER_DW __put_user_asm("sd")
 #else
-#define __PUT_USER_NOCHECK_DW __put_user_nocheck_asm_ll32
+#define __PUT_USER_DW __put_user_asm_ll32
 #endif
 
 #define __put_user_nocheck(x,ptr,size) ({ \
@@ -281,19 +230,36 @@ __typeof__(*(ptr)) __pu_val; \
 long __pu_addr; \
 __pu_val = (x); \
 __pu_addr = (long) (ptr); \
-__pu_err = 0; \
+__asm__("":"=r" (__pu_err)); \
 switch (size) { \
-case 1: __put_user_nocheck_asm("sb"); break; \
-case 2: __put_user_nocheck_asm("sh"); break; \
-case 4: __put_user_nocheck_asm("sw"); break; \
-case 8: __PUT_USER_NOCHECK_DW; break; \
+case 1: __put_user_asm("sb"); break; \
+case 2: __put_user_asm("sh"); break; \
+case 4: __put_user_asm("sw"); break; \
+case 8: __PUT_USER_DW; break; \
 default: __put_user_unknown(); break; \
 } __pu_err; })
 
-#define __put_user_nocheck_asm(insn) \
+#define __put_user_check(x,ptr,size,mask) ({ \
+long __pu_err; \
+__typeof__(*(ptr)) __pu_val; \
+long __pu_addr; \
+__pu_val = (x); \
+__pu_addr = (long) (ptr); \
+__asm__("":"=r" (__pu_err)); \
+if (__access_ok(__pu_addr,size,mask)) { \
+switch (size) { \
+case 1: __put_user_asm("sb"); break; \
+case 2: __put_user_asm("sh"); break; \
+case 4: __put_user_asm("sw"); break; \
+case 8: __PUT_USER_DW; break; \
+default: __put_user_unknown(); break; \
+} } __pu_err; })
+
+#define __put_user_asm(insn) \
 ({ \
 __asm__ __volatile__( \
-	"1:\t" insn "\t%1,%2\n" \
+	"1:\t" insn "\t%1,%2\n\t" \
+	"move\t%0,$0\n" \
 	"2:\n\t" \
 	".section\t.fixup,\"ax\"\n" \
 	"3:\t.set\tnoat\n\t" \
@@ -309,11 +275,12 @@ __asm__ __volatile__( \
 	:"r" (__pu_val), "o" (__m(__pu_addr)), "i" (-EFAULT) \
 	:"$1"); })
 
-#define __put_user_nocheck_asm_ll32 \
+#define __put_user_asm_ll32 \
 ({ \
 __asm__ __volatile__( \
-	"1:\tsw\t%1,%2\n" \
+	"1:\tsw\t%1,%2\n\t" \
 	"2:\tsw\t%D1,%3\n" \
+	"move\t%0,$0\n" \
 	"3:\n\t" \
 	".section\t.fixup,\"ax\"\n" \
 	"4:\t.set\tnoat\n\t" \
@@ -328,73 +295,7 @@ __asm__ __volatile__( \
 	".previous" \
 	:"=r" (__pu_err) \
 	:"r" (__pu_val), "o" (__m(__pu_addr)), "o" (__m(__pu_addr + 4)), \
-	"i" (-EFAULT) \
-	:"$1"); })
-
-/*
- * Yuck.  We need two variants, one for 64bit operation and one
- * for 32 bit mode and old iron.
- */
-#ifdef __mips64
-#define __PUT_USER_CHECK_DW __put_user_check_asm("sd")
-#else
-#define __PUT_USER_CHECK_DW __put_user_check_asm_ll32
-#endif
-
-#define __put_user_check(x,ptr,size,mask) ({ \
-long __pu_err; \
-__typeof__(*(ptr)) __pu_val; \
-long __pu_addr; \
-__pu_val = (x); \
-__pu_addr = (long) (ptr); \
-__pu_err = -EFAULT; \
-if (__access_ok(__pu_addr,size,mask)) { \
-switch (size) { \
-case 1: __put_user_check_asm("sb"); break; \
-case 2: __put_user_check_asm("sh"); break; \
-case 4: __put_user_check_asm("sw"); break; \
-case 8: __PUT_USER_CHECK_DW; break; \
-default: __put_user_unknown(); break; \
-} } __pu_err; })
-
-#define __put_user_check_asm(insn) \
-({ \
-__asm__ __volatile__( \
-	"1:\t" insn "\t%1,%2\n\t" \
-	"move\t%0,$0\n" \
-	"2:\n\t" \
-	".section\t.fixup,\"ax\"\n" \
-	"3:\t.set\tnoat\n\t" \
-	"la\t$1,2b\n\t" \
-	"jr\t$1\n\t" \
-	".set\tat\n\t" \
-	".previous\n\t" \
-	".section\t__ex_table,\"a\"\n\t" \
-	STR(PTR)"\t1b,3b\n\t" \
-	".previous" \
-	:"=r" (__pu_err) \
-	:"r" (__pu_val), "o" (__m(__pu_addr)) \
-	:"$1"); })
-
-#define __put_user_check_asm_ll32 \
-({ \
-__asm__ __volatile__( \
-	"1:\tsw\t%1,%2\n" \
-	"2:\tsw\t%D1,%3\n\t" \
-	"move\t%0,$0\n" \
-	"3:\n\t" \
-	".section\t.fixup,\"ax\"\n" \
-	"4:\t.set\tnoat\n\t" \
-	"la\t$1,3b\n\t" \
-	"jr\t$1\n\t" \
-	".set\tat\n\t" \
-	".previous\n\t" \
-	".section\t__ex_table,\"a\"\n\t" \
-	STR(PTR)"\t1b,4b\n\t" \
-	STR(PTR)"\t2b,4b\n\t" \
-	".previous" \
-	:"=r" (__pu_err) \
-	:"r" (__pu_val), "o" (__m(__pu_addr)), "o" (__m(__pu_addr + 4)) \
+	 "i" (-EFAULT) \
 	:"$1"); })
 
 extern void __put_user_unknown(void);
