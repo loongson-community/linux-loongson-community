@@ -1195,8 +1195,7 @@ static int titan_ge_eth_open(struct net_device *netdev)
 		return -ENOMEM;
 	}
 
-	memset((void *) titan_ge_eth->rx_desc_area, 0,
-	       titan_ge_eth->tx_desc_area_size);
+	memset(titan_ge_eth->rx_desc_area, 0, titan_ge_eth->rx_desc_area_size);
 
 	/* Now initialize the Rx ring */
 #ifdef TITAN_GE_JUMBO_FRAMES
