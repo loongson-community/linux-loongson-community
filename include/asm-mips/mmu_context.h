@@ -19,12 +19,9 @@
 #include <asm/tlbflush.h>
 
 /*
- * For the fast tlb miss handlers, we currently keep a per cpu array
- * of pointers to the current pgd for each processor. Also, the proc.
- * id is stuffed into the context register. This should be changed to
- * use the processor id via current->processor, where current is stored
- * in watchhi/lo. The context register should be used to contiguously
- * map the page tables.
+ * For the fast tlb miss handlers, we keep a per cpu array of pointers
+ * to the current pgd for each processor. Also, the proc. id is stuffed
+ * into the context register.
  */
 #define TLBMISS_HANDLER_SETUP_PGD(pgd) \
 	pgd_current[smp_processor_id()] = (unsigned long)(pgd)
@@ -150,7 +147,7 @@ static inline void
 activate_mm(struct mm_struct *prev, struct mm_struct *next)
 {
 	unsigned long flags;
-	int cpu = smp_processor_id();
+	unsigned int cpu = smp_processor_id();
 
 	local_irq_save(flags);
 
