@@ -43,11 +43,6 @@ int __init pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 	return pci_irq[virq];
 }
 
-void __init pcibios_fixup_irqs(void)
-{
-}
-
-
 static void __init malta_piix_func0_fixup(struct pci_dev *pdev)
 {
 	unsigned char reg_val;

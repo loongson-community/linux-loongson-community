@@ -40,10 +40,6 @@ int __init pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 	return irq_tab[slot][pin];
 }
 
-void __init pcibios_fixup_irqs(void)
-{
-}
-
 #if CONFIG_KGDB
 /*
  * The PCI scan may have moved the saa9730 I/O address, so reread

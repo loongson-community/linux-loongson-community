@@ -149,75 +149,25 @@ int tx4927_pci66_check(void)
 }
 #endif
 
-void __init pcibios_fixup_irqs(void)
+/*
+ * This is dead, rotten code, needs to be rewritten -- Ralf
+ */
+int __init pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 {
-	unsigned char pin;
 	unsigned char irq;
-	struct pci_dev *dev;
-	unsigned int id;
 
-#ifdef  TX4927_SUPPORT_PCI_66
+#ifdef  TX4927_SUPPORT_PCI_66	/* Has no f*cking biz here  */
 	if (tx4927_pci66_check()) {
 		tx4927_pci66_setup();
 		tx4927_pci_setup();	/* Reinitialize PCIC */
 	}
 #endif
 
-	pci_for_each_dev(dev) {
-		DBG("FIXUP:\n");
-		DBG(" devfn=0x%02x (0x%02x:0x%02x)\n",
-		    dev->devfn, PCI_SLOT(dev->devfn),
-		    PCI_FUNC(dev->devfn));
-
-		pci_read_config_dword(dev, PCI_VENDOR_ID, &id);
-		DBG(" id=0x%08x\n", id);
-
-		pci_read_config_byte(dev, PCI_INTERRUPT_LINE, &irq);
-		DBG(" line=0x%02x/%d\n", irq, irq);
-
-		pci_read_config_byte(dev, PCI_INTERRUPT_PIN, &pin);
-		DBG(" pin=%d\n", pin);
-
-#ifdef DEBUG
-		{
-			unsigned int tmp;
-			pci_read_config_dword(dev, 0x10, &tmp);
-			DBG(" bar0:0x10=0x%08x\n", tmp);
-			pci_read_config_dword(dev, 0x14, &tmp);
-			DBG(" bar1:0x14=0x%08x\n", tmp);
-			pci_read_config_dword(dev, 0x1c, &tmp);
-			DBG(" bar2:0x1c=0x%08x\n", tmp);
-			pci_read_config_dword(dev, 0x20, &tmp);
-			DBG(" bar3:0x20=0x%08x\n", tmp);
-			pci_read_config_dword(dev, 0x24, &tmp);
-			DBG(" bar4:0x24=0x%08x\n", tmp);
-		}
-#endif
-
+	if (dev->vendor == PCI_VENDOR_ID_EFAR &&
+	    dev->device == PCI_DEVICE_ID_EFAR_SLC90E66_1)
+		irq = 14;
+	else
 		irq = 0;
 
-		if (id == 0x91301055) {	/* ide */
-			irq = 14;
-		}
-
-		if (pin == 0) {
-			DBG(" auto irq (now=%d) -- skipping pin=0\n", irq);
-		} else if (irq) {
-			DBG(" auto irq (now=%d) -- skipping hardcoded irq\n", irq);
-		} else {
-			DBG(" auto irq (was=%d)\n", irq);
-			irq = pci_get_irq(dev, pin);
-			pci_write_config_byte(dev, PCI_INTERRUPT_LINE,
-					      irq);
-			dev->irq = irq;
-			DBG(" auto irq (now=%d)\n", irq);
-		}
-
-		pci_read_config_byte(dev, PCI_INTERRUPT_LINE, &irq);
-		printk(KERN_INFO
-		       "PCI: 0x%02x:0x%02x(0x%02x,0x%02x) IRQ=%d\n",
-		       dev->bus->number, dev->devfn, PCI_SLOT(dev->devfn),
-		       PCI_FUNC(dev->devfn), irq);
-
-	}
+	return irq;
 }

@@ -113,26 +113,20 @@ struct pci_controller hp_controller = {
 	.mem_resource	= &iomem_resource,
 };
 
-void __init pcibios_fixup_irqs(void)
+int __init pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 {
-	struct pci_dev *dev = NULL;
-	int slot_num;
-
-	while ((dev = pci_find_device(PCI_ANY_ID, PCI_ANY_ID, dev)) != NULL) {
-		slot_num = PCI_SLOT(dev->devfn);
-		switch (slot_num) {
-		case 2:
-			dev->irq = 3;
-			break;
-		case 3:
-			dev->irq = 4;
-			break;
-		case 4:
-			dev->irq = 5;
-			break;
-		default:
-			break;
-		}
+	switch (slot) {
+	case 2:
+		return 3;
+		break;
+	case 3:
+		return 4;
+		break;
+	case 4:
+		return 5;
+		break;
+	default:
+		break;
 	}
 }
 
