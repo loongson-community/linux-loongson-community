@@ -90,7 +90,7 @@ endif
 #
 GCCFLAGS	+= -pipe
 
-CFLAGS		+= $(GCCFLAGS)
+CFLAGS		:= -I $(TOPDIR)/include/asm/gcc $(CFLAGS) $(GCCFLAGS)
 AFLAGS		+= $(GCCFLAGS)
 
 #
