@@ -1,3 +1,3 @@
 1. Need to figure out why we need the "reallydo" hack in ip27-pci.c.
-2. Need to figure out how to do scatter gather, specifically for the
-Qlogic driver.
+2. Need to figure out RRB allocation in bridge_startup().
+3. Need to figure out why free_initmem() is hanging system.
