@@ -26,6 +26,7 @@
 #include <linux/utsname.h>
 #include <linux/a.out.h>
 #include <linux/tty.h>
+#include <linux/bootmem.h>
 #ifdef CONFIG_BLK_DEV_RAM
 #include <linux/blk.h>
 #endif
@@ -738,11 +739,6 @@ void __init setup_arch(char **cmdline_p)
 #endif
 #ifdef CONFIG_SIBYTE_SWARM
 	swarm_setup();
-	bootmem_init();		/* XXX */
-#endif
-
-#ifdef CONFIG_ARC_MEMORY
-	bootmem_init();
 #endif
 
 	strncpy(command_line, arcs_cmdline, CL_SIZE);
@@ -752,6 +748,8 @@ void __init setup_arch(char **cmdline_p)
 	*cmdline_p = command_line;
 
 	parse_mem_cmdline();
+
+	bootmem_init();
 
 	paging_init();
 }
