@@ -7,7 +7,6 @@
  * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  */
 #include <linux/config.h>
-#include <asm/bootinfo.h>
 #include <asm/jazz.h>
 
 /*

@@ -26,7 +26,6 @@
 #include <asm/cachectl.h>
 #include <asm/mipsregs.h>
 #include <asm/stackframe.h>
-#include <asm/bootinfo.h>
 
 		__INIT
 

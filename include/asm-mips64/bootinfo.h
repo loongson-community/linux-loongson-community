@@ -160,77 +160,17 @@
  */
 #define MACH_NEC_OSPREY                0       /* Osprey eval board */
 
-/*
- * Valid cputype values
- */
-#define CPU_UNKNOWN		0
-#define CPU_R2000		1
-#define CPU_R3000		2
-#define CPU_R3000A		3
-#define CPU_R3041		4
-#define CPU_R3051		5
-#define CPU_R3052		6
-#define CPU_R3081		7
-#define CPU_R3081E		8
-#define CPU_R4000PC		9
-#define CPU_R4000SC		10
-#define CPU_R4000MC		11
-#define CPU_R4200		12
-#define CPU_R4400PC		13
-#define CPU_R4400SC		14
-#define CPU_R4400MC		15
-#define CPU_R4600		16
-#define CPU_R6000		17
-#define CPU_R6000A		18
-#define CPU_R8000		19
-#define CPU_R10000		20
-#define CPU_R4300		21
-#define CPU_R4650		22
-#define CPU_R4700		23
-#define CPU_R5000		24
-#define CPU_R5000A		25
-#define CPU_R4640		26
-#define CPU_NEVADA		27	/* RM5230, RM5260 */
-#define CPU_RM7000		28
-#define CPU_R5432		29
-#define CPU_4KC			30
-#define CPU_5KC			31
-#define CPU_R4310		32
-#define CPU_SB1			33
-#define CPU_TX3912		34
-#define CPU_TX3922		35
-#define CPU_TX3927		36
-#define CPU_AU1000		37
-#define CPU_4KEC		38
-#define CPU_4KSC		39
-#define CPU_VR41XX		40
-#define CPU_R5500		41
-#define CPU_TX49XX		42
-#define CPU_TX39XX		43
-#define CPU_LAST		43
-
-#define CPU_NAMES { "unknown", "R2000", "R3000", "R3000A", "R3041", "R3051", \
-        "R3052", "R3081", "R3081E", "R4000PC", "R4000SC", "R4000MC",         \
-        "R4200", "R4400PC", "R4400SC", "R4400MC", "R4600", "R6000",          \
-        "R6000A", "R8000", "R10000", "R4300", "R4650", "R4700", "R5000",     \
-        "R5000A", "R4640", "Nevada", "RM7000", "R5432", "MIPS 4Kc",          \
-        "MIPS 5Kc", "R4310", "SiByte SB1", "TX3912", "TX3922", "TX3927",     \
-	"Au1000", "MIPS 4KEc", "MIPS 4KSc", "NEC Vr41xx", "R5500", "TX49xx", \
-	"TX39xx" }
-
 #define CL_SIZE			80
-
-#define BOOT_MEM_MAP_MAX	32
-#define BOOT_MEM_RAM		1
-#define BOOT_MEM_ROM_DATA	2
-#define BOOT_MEM_RESERVED	3
-
-#ifndef __ASSEMBLY__
 
 const char *get_system_type(void);
 
 extern unsigned long mips_machtype;
 extern unsigned long mips_machgroup;
+
+#define BOOT_MEM_MAP_MAX	32
+#define BOOT_MEM_RAM		1
+#define BOOT_MEM_ROM_DATA	2
+#define BOOT_MEM_RESERVED	3
 
 /*
  * A memory map that's built upon what was determined
@@ -249,7 +189,5 @@ extern struct boot_mem_map boot_mem_map;
 
 extern void add_memory_region(unsigned long start, unsigned long size,
                               long type);
-
-#endif /* !__ASSEMBLY__ */
 
 #endif /* _ASM_BOOTINFO_H */

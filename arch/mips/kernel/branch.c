@@ -16,7 +16,6 @@
 #include <asm/inst.h>
 #include <asm/ptrace.h>
 #include <asm/uaccess.h>
-#include <asm/bootinfo.h>
 #include <asm/processor.h>
 
 /*

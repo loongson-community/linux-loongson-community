@@ -8,9 +8,9 @@
 #include <linux/types.h>
 #include <linux/string.h>
 
+#include <asm/cpu.h>
 #include <asm/sgi/sgi.h>
 #include <asm/sgialib.h>
-#include <asm/bootinfo.h>
 
 enum sgi_mach sgimach;
 

@@ -21,7 +21,53 @@ unsigned int vced_count, vcei_count;
 unsigned long ll_ops, sc_ops;
 #endif
 
-static const char *cpu_name[] = CPU_NAMES;
+static const char *cpu_name[] = {
+	[CPU_UNKNOWN]	"unknown",
+	[CPU_R2000]	"R2000",
+	[CPU_R3000]	"R3000",
+	[CPU_R3000A]	"R3000A",
+	[CPU_R3041]	"R3041",
+	[CPU_R3051]	"R3051",
+	[CPU_R3052]	"R3052",
+	[CPU_R3081]	"R3081",
+	[CPU_R3081E]	"R3081E",
+	[CPU_R4000PC]	"R4000PC",
+	[CPU_R4000SC]	"R4000SC",
+	[CPU_R4000MC]	"R4000MC",
+        [CPU_R4200]	"R4200",
+	[CPU_R4400PC]	"R4400PC",
+	[CPU_R4400SC]	"R4400SC",
+	[CPU_R4400MC]	"R4400MC",
+	[CPU_R4600]	"R4600",
+	[CPU_R6000]	"R6000",
+        [CPU_R6000A]	"R6000A",
+	[CPU_R8000]	"R8000",
+	[CPU_R10000]	"R10000",
+	[CPU_R4300]	"R4300",
+	[CPU_R4650]	"R4650",
+	[CPU_R4700]	"R4700",
+	[CPU_R5000]	"R5000",
+        [CPU_R5000A]	"R5000A",
+	[CPU_R4640]	"R4640",
+	[CPU_NEVADA]	"Nevada",
+	[CPU_RM7000]	"RM7000",
+	[CPU_R5432]	"R5432",
+	[CPU_4KC]	"MIPS 4Kc",
+        [CPU_5KC]	"MIPS 5Kc",
+	[CPU_R4310]	"R4310",
+	[CPU_SB1]	"SiByte SB1",
+	[CPU_TX3912]	"TX3912",
+	[CPU_TX3922]	"TX3922",
+	[CPU_TX3927]	"TX3927",
+        [CPU_AU1000]	"Au1000",
+	[CPU_4KEC]	"MIPS 4KEc",
+	[CPU_4KSC]	"MIPS 4KSc",
+	[CPU_VR41XX]	"NEC Vr41xx",
+	[CPU_R5500]	"R5500",
+	[CPU_TX49XX]	"TX49xx",
+        [CPU_TX39XX]	"TX39xx"
+};
+
 
 static int show_cpuinfo(struct seq_file *m, void *v)
 {

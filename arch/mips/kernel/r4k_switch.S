@@ -12,7 +12,6 @@
  */
 #include <linux/config.h>
 #include <asm/asm.h>
-#include <asm/bootinfo.h>
 #include <asm/cachectl.h>
 #include <asm/current.h>
 #include <asm/fpregdef.h>

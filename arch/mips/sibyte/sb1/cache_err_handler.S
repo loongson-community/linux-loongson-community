@@ -28,8 +28,6 @@
 #include <asm/cachectl.h>
 #include <asm/mipsregs.h>
 #include <asm/stackframe.h>
-#define __ASSEMBLY__
-#include <asm/bootinfo.h>
 
 	.text
 	/* Special Cache Error handler for SB1 for now*/

@@ -11,7 +11,6 @@
  * Copyright (c) 1998-2000 Harald Koerfgen
  */
 #include <asm/asm.h>
-#include <asm/bootinfo.h>
 #include <asm/cachectl.h>
 #include <asm/current.h>
 #include <asm/fpregdef.h>

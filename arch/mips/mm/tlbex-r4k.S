@@ -14,7 +14,6 @@
 #include <asm/asm.h>
 #include <asm/current.h>
 #include <asm/offset.h>
-#include <asm/bootinfo.h>
 #include <asm/cachectl.h>
 #include <asm/fpregdef.h>
 #include <asm/mipsregs.h>

@@ -18,7 +18,6 @@
 #include <asm/cachectl.h>
 #include <asm/mipsregs.h>
 #include <asm/stackframe.h>
-#include <asm/bootinfo.h>
 #include <asm/cpu.h>
 #include "sbd.h"
 
