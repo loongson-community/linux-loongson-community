@@ -78,7 +78,7 @@ extern struct screen_info screen_info;
 
 #define VIDEO_TYPE_SUN          0x50    /* Sun frame buffer. */
 
-#define VIDEO_TYPE_SGI          0x60    /* Various SGI graphics hardware */
+#define VIDEO_TYPE_SGI          0x61    /* Various SGI graphics hardware */
 
 /*
  * This character is the same as _POSIX_VDISABLE: it cannot be used as
