@@ -4,15 +4,20 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
+ * Copyright (C) 2001 Maciej W. Rozycki <macro@ds2.pg.gda.pl>
  */
+
 #include <linux/config.h>
 
 #include <linux/errno.h>
+#include <linux/sched.h>
 #include <linux/tty.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/delay.h>
 #include <linux/kbd_ll.h>
+#include <linux/kbd_kern.h>
+#include <linux/vt_kern.h>
 
 #include <asm/keyboard.h>
 #include <asm/wbflush.h>
@@ -77,6 +82,8 @@ static unsigned char lk201_reset_string[] = {
 	LK_CMD_LEDS_OFF, LK_PARAM_LED_MASK(0xf)
 };
 
+static struct dec_serial* lk201kbd_info;
+
 static int __init lk201_reset(struct dec_serial *info)
 {
 	int i;
@@ -89,16 +96,115 @@ static int __init lk201_reset(struct dec_serial *info)
 	return 0;
 }
 
-int kbd_rate(struct kbd_repeat *rep)
+#define DEFAULT_KEYB_REP_DELAY	(250/5)	/* [5ms] */
+#define DEFAULT_KEYB_REP_RATE	30	/* [cps] */
+
+static struct kbd_repeat kbdrate = {
+	DEFAULT_KEYB_REP_DELAY,
+	DEFAULT_KEYB_REP_RATE
+};
+
+static void parse_kbd_rate(struct kbd_repeat *r)
 {
-       return 0;
+	if (r->delay <= 0)
+		r->delay = kbdrate.delay;
+	if (r->rate <= 0)
+		r->rate = kbdrate.rate;
+
+	if (r->delay < 5)
+		r->delay = 5;
+	if (r->delay > 630)
+		r->delay = 630;
+	if (r->rate < 12)
+		r->rate = 12;
+	if (r->rate > 127)
+		r->rate = 127;
+	if (r->rate == 125)
+		r->rate = 124;
 }
 
+static int write_kbd_rate(struct kbd_repeat *rep)
+{
+	struct dec_serial* info = lk201kbd_info;
+	int delay, rate;
+	int i;
 
+	delay = rep->delay / 5;
+	rate = rep->rate;
+	for (i = 0; i < 4; i++) {
+		if (info->hook->poll_tx_char(info, LK_CMD_RPT_RATE(i)))
+			return 1;
+		if (info->hook->poll_tx_char(info, LK_PARAM_DELAY(delay)))
+			return 1;
+		if (info->hook->poll_tx_char(info, LK_PARAM_RATE(rate)))
+			return 1;
+	}
+	return 0;
+}
+
+static int lk201kbd_rate(struct kbd_repeat *rep)
+{
+	if (rep == NULL)
+		return -EINVAL;
+
+	parse_kbd_rate(rep);
+
+	if (write_kbd_rate(rep)) {
+		memcpy(rep, &kbdrate, sizeof(struct kbd_repeat));
+		return -EIO;
+	}
+
+	memcpy(&kbdrate, rep, sizeof(struct kbd_repeat));
+
+	return 0;
+}
+
+static void lk201kd_mksound(unsigned int hz, unsigned int ticks)
+{
+	struct dec_serial* info = lk201kbd_info;
+
+	if (!ticks)
+		return;
+
+	/*
+	 * Can't set frequency and we "approximate"
+	 * duration by volume. ;-)
+	 */
+	ticks /= HZ / 32;
+	if (ticks > 7)
+		ticks = 7;
+	ticks = 7 - ticks;
+
+	if (info->hook->poll_tx_char(info, LK_CMD_ENB_BELL))
+		return;
+	if (info->hook->poll_tx_char(info, LK_PARAM_VOLUME(ticks)))
+		return;
+	if (info->hook->poll_tx_char(info, LK_CMD_BELL))
+		return;
+}
 
 void kbd_leds(unsigned char leds)
 {
-	return;
+	struct dec_serial* info = lk201kbd_info;
+	unsigned char l = 0;
+
+	if (!info)		/* FIXME */
+		return;
+
+	/* FIXME -- Only Hold and Lock LEDs for now. --macro */
+	if (leds & LED_SCR)
+		l |= LK_LED_HOLD;
+	if (leds & LED_CAP)
+		l |= LK_LED_LOCK;
+
+	if (info->hook->poll_tx_char(info, LK_CMD_LEDS_ON))
+		return;
+	if (info->hook->poll_tx_char(info, LK_PARAM_LED_MASK(l)))
+		return;
+	if (info->hook->poll_tx_char(info, LK_CMD_LEDS_OFF))
+		return;
+	if (info->hook->poll_tx_char(info, LK_PARAM_LED_MASK(~l)))
+		return;
 }
 
 int kbd_setkeycode(unsigned int scancode, unsigned int keycode)
@@ -131,7 +237,12 @@ static void lk201_kbd_rx_char(unsigned char ch, unsigned char stat)
 
 	if (!stat || stat == 4) {
 		switch (ch) {
-		case LK_KEY_ACK:
+		case LK_STAT_RESUME_ERR:
+		case LK_STAT_ERROR:
+		case LK_STAT_INHIBIT_ACK:
+		case LK_STAT_TEST_ACK:
+		case LK_STAT_MODE_KEYDOWN:
+		case LK_STAT_MODE_ACK:
 			break;
 		case LK_KEY_LOCK:
 			shift_state ^= LK_LOCK;
@@ -170,6 +281,7 @@ static void lk201_kbd_rx_char(unsigned char ch, unsigned char stat)
 		}
 	} else
 		printk("Error reading LKx01 keyboard: 0x%02x\n", stat);
+	tasklet_schedule(&keyboard_tasklet);
 }
 
 static void __init lk201_info(struct dec_serial *info)
@@ -213,6 +325,10 @@ static int __init lk201_init(struct dec_serial *info)
 	 */
 	info->hook->rx_char = lk201_kbd_rx_char;
 
+	lk201kbd_info = info;
+	kbd_rate = lk201kbd_rate;
+	kd_mksound = lk201kd_mksound;
+
 	return 0;
 }
 
@@ -244,7 +360,3 @@ void __init kbd_init_hw(void)
 		printk("LK201 Support for DS3100 not yet ready ...\n");
 	}
 }
-
-
-
-
