@@ -40,18 +40,18 @@
 
 #define PCI_CONFIG_ADDR	KSEG1ADDR(0x0f000c18)
 #define PCI_CONFIG_DATA	KSEG1ADDR(0x0f000c14)
-	
+
 static inline void config_writeb(u8 reg, u8 val)
 {
 	u32 data;
 	int shift;
 
 	writel((1UL << 0x1e) | (reg & 0xfc), PCI_CONFIG_ADDR);
-        data = readl(PCI_CONFIG_DATA);
+	data = readl(PCI_CONFIG_DATA);
 
 	shift = (reg & 3) << 3;
 	data &= ~(0xff << shift);
-	data |= (((u32)val) << shift);
+	data |= (((u32) val) << shift);
 
 	writel(data, PCI_CONFIG_DATA);
 }
@@ -60,15 +60,15 @@ static inline u16 config_readw(u8 reg)
 {
 	u32 data;
 
-	writel(((1UL << 30) | (reg & 0xfc)) , PCI_CONFIG_ADDR);
+	writel(((1UL << 30) | (reg & 0xfc)), PCI_CONFIG_ADDR);
 	data = readl(PCI_CONFIG_DATA);
 
-	return (u16)(data >> ((reg & 2) << 3));
+	return (u16) (data >> ((reg & 2) << 3));
 }
 
 static inline u32 config_readl(u8 reg)
 {
-	writel(((1UL << 30) | (reg & 0xfc)) , PCI_CONFIG_ADDR);
+	writel(((1UL << 30) | (reg & 0xfc)), PCI_CONFIG_ADDR);
 
 	return readl(PCI_CONFIG_DATA);
 }
@@ -92,10 +92,9 @@ void __init vrc4173_preinit(void)
 		 */
 		cmdsts = config_readl(PCI_COMMAND);
 		config_writel(PCI_COMMAND,
-		              cmdsts |
-		              PCI_COMMAND_IO |
-		              PCI_COMMAND_MEMORY |
-		              PCI_COMMAND_MASTER);
+			      cmdsts |
+			      PCI_COMMAND_IO |
+			      PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
 
 		config_writeb(PCI_LATENCY_TIMER, 0x80);
 

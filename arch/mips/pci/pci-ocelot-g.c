@@ -43,7 +43,7 @@
 
 #define MAX_PCI_DEVS 10
 
-void gt64240_board_pcibios_fixup_bus(struct pci_bus* c);
+void gt64240_board_pcibios_fixup_bus(struct pci_bus *c);
 
 /*  Functions to implement "pci ops"  */
 static int galileo_pcibios_read_config_word(int bus, int devfn,
@@ -63,9 +63,9 @@ static void galileo_pcibios_set_master(struct pci_dev *dev);
 #endif
 
 static int pci_read(struct pci_bus *bus, unsigned int devfs, int where,
-						int size, u32* val);
+		    int size, u32 * val);
 static int pci_write(struct pci_bus *bus, unsigned int devfs, int where,
-						int size, u32 val);
+		     int size, u32 val);
 
 /*
  *  General-purpose PCI functions.
@@ -116,7 +116,7 @@ static __inline__ int pci_range_ck(unsigned char bus, unsigned char dev)
  */
 
 static int galileo_pcibios_read_config_dword(int bus, int devfn,
-					      int offset, u32* val)
+					     int offset, u32 * val)
 {
 	int dev, func;
 	uint32_t address_reg, data_reg;
@@ -143,7 +143,7 @@ static int galileo_pcibios_read_config_dword(int bus, int devfn,
 	}
 
 	address = (bus << 16) | (dev << 11) | (func << 8) |
-		(offset & 0xfc) | 0x80000000;
+	    (offset & 0xfc) | 0x80000000;
 
 	/* start the configuration cycle */
 	GT_WRITE(address_reg, address);
@@ -156,7 +156,7 @@ static int galileo_pcibios_read_config_dword(int bus, int devfn,
 
 
 static int galileo_pcibios_read_config_word(int bus, int devfn,
-					     int offset, u16* val)
+					    int offset, u16 * val)
 {
 	int dev, func;
 	uint32_t address_reg, data_reg;
@@ -183,7 +183,7 @@ static int galileo_pcibios_read_config_word(int bus, int devfn,
 	}
 
 	address = (bus << 16) | (dev << 11) | (func << 8) |
-		(offset & 0xfc) | 0x80000000;
+	    (offset & 0xfc) | 0x80000000;
 
 	/* start the configuration cycle */
 	GT_WRITE(address_reg, address);
@@ -195,7 +195,7 @@ static int galileo_pcibios_read_config_word(int bus, int devfn,
 }
 
 static int galileo_pcibios_read_config_byte(int bus, int devfn,
-					     int offset, u8* val)
+					    int offset, u8 * val)
 {
 	int dev, func;
 	uint32_t address_reg, data_reg;
@@ -220,7 +220,7 @@ static int galileo_pcibios_read_config_byte(int bus, int devfn,
 	}
 
 	address = (bus << 16) | (dev << 11) | (func << 8) |
-		(offset & 0xfc) | 0x80000000;
+	    (offset & 0xfc) | 0x80000000;
 
 	/* start the configuration cycle */
 	GT_WRITE(address_reg, address);
@@ -257,7 +257,7 @@ static int galileo_pcibios_write_config_dword(int bus, int devfn,
 	}
 
 	address = (bus << 16) | (dev << 11) | (func << 8) |
-		(offset & 0xfc) | 0x80000000;
+	    (offset & 0xfc) | 0x80000000;
 
 	/* start the configuration cycle */
 	GT_WRITE(address_reg, address);
@@ -295,7 +295,7 @@ static int galileo_pcibios_write_config_word(int bus, int devfn,
 	}
 
 	address = (bus << 16) | (dev << 11) | (func << 8) |
-		(offset & 0xfc) | 0x80000000;
+	    (offset & 0xfc) | 0x80000000;
 
 	/* start the configuration cycle */
 	GT_WRITE(address_reg, address);
@@ -332,7 +332,7 @@ static int galileo_pcibios_write_config_byte(int bus, int devfn,
 	}
 
 	address = (bus << 16) | (dev << 11) | (func << 8) |
-		(offset & 0xfc) | 0x80000000;
+	    (offset & 0xfc) | 0x80000000;
 
 	/* start the configuration cycle */
 	GT_WRITE(address_reg, address);
@@ -363,7 +363,7 @@ int pcibios_enable_resources(struct pci_dev *dev)
 	int idx;
 	struct resource *r;
 
-	pci_read(dev->bus, dev->devfn, PCI_COMMAND, 2, (u32*)&cmd);
+	pci_read(dev->bus, dev->devfn, PCI_COMMAND, 2, (u32 *) & cmd);
 	old_cmd = cmd;
 	for (idx = 0; idx < 6; idx++) {
 		r = &dev->resource[idx];
@@ -387,16 +387,19 @@ int pcibios_enable_resources(struct pci_dev *dev)
 	 * line size = 32 bytes / sizeof dword (4) = 8.
 	 * Latency timer must be > 8.  32 is random but appears to work.
 	 */
-	pci_read(dev->bus, dev->devfn, PCI_CACHE_LINE_SIZE, 1, (u32*)&tmp1);
+	pci_read(dev->bus, dev->devfn, PCI_CACHE_LINE_SIZE, 1,
+		 (u32 *) & tmp1);
 	if (tmp1 != 8) {
-		printk(KERN_WARNING "PCI setting cache line size to 8 from "
-		       "%d\n", tmp1);
+		printk(KERN_WARNING
+		       "PCI setting cache line size to 8 from " "%d\n",
+		       tmp1);
 		pci_write(dev->bus, dev->devfn, PCI_CACHE_LINE_SIZE, 1, 8);
 	}
-	pci_read(dev->bus, dev->devfn, PCI_LATENCY_TIMER, 1, (u32*)&tmp1);
+	pci_read(dev->bus, dev->devfn, PCI_LATENCY_TIMER, 1,
+		 (u32 *) & tmp1);
 	if (tmp1 < 32) {
-		printk(KERN_WARNING "PCI setting latency timer to 32 from %d\n",
-		       tmp1);
+		printk(KERN_WARNING
+		       "PCI setting latency timer to 32 from %d\n", tmp1);
 		pci_write(dev->bus, dev->devfn, PCI_LATENCY_TIMER, 1, 32);
 	}
 
@@ -422,7 +425,7 @@ void pcibios_align_resource(void *data, struct resource *res,
 		if (size > 0x100) {
 			printk(KERN_ERR "PCI: I/O Region %s/%d too large"
 			       " (%ld bytes)\n", dev->slot_name,
-			        dev->resource - res, size);
+			       dev->resource - res, size);
 		}
 
 		start = (start + 1024 - 1) & ~(1024 - 1);
@@ -436,35 +439,41 @@ struct pci_ops galileo_pci_ops = {
 };
 
 static int pci_read(struct pci_bus *bus, unsigned int devfn, int where,
-						int size, u32* val)
+		    int size, u32 * val)
 {
 	switch (size) {
-		case 1:
-			return galileo_pcibios_read_config_byte(bus->number,
-					devfn, where, (u8*) val);
-		case 2:
-			return galileo_pcibios_read_config_word(bus->number,
-					devfn, where, (u16*) val);
-		case 4:
-			return galileo_pcibios_read_config_dword(bus->number,
-					devfn, where, (u32*) val);
+	case 1:
+		return galileo_pcibios_read_config_byte(bus->number,
+							devfn, where,
+							(u8 *) val);
+	case 2:
+		return galileo_pcibios_read_config_word(bus->number,
+							devfn, where,
+							(u16 *) val);
+	case 4:
+		return galileo_pcibios_read_config_dword(bus->number,
+							 devfn, where,
+							 (u32 *) val);
 	}
 	return PCIBIOS_FUNC_NOT_SUPPORTED;
 }
 
 static int pci_write(struct pci_bus *bus, unsigned int devfn, int where,
-						int size, u32 val)
+		     int size, u32 val)
 {
 	switch (size) {
-		case 1:
-			return galileo_pcibios_write_config_byte(bus->number,
-					devfn, where, val);
-		case 2:
-			return galileo_pcibios_write_config_word(bus->number,
-					devfn, where, val);
-		case 4:
-			return galileo_pcibios_write_config_dword(bus->number,
-					devfn, where, val);
+	case 1:
+		return galileo_pcibios_write_config_byte(bus->number,
+							 devfn, where,
+							 val);
+	case 2:
+		return galileo_pcibios_write_config_word(bus->number,
+							 devfn, where,
+							 val);
+	case 4:
+		return galileo_pcibios_write_config_dword(bus->number,
+							  devfn, where,
+							  val);
 	}
 	return PCIBIOS_FUNC_NOT_SUPPORTED;
 }
@@ -493,13 +502,13 @@ void __devinit pcibios_fixup_bus(struct pci_bus *c)
 *
 * Returns:  true.
 */
-void pci0P2PConfig(unsigned int SecondBusLow,unsigned int SecondBusHigh,
-                   unsigned int busNum,unsigned int devNum)
+void pci0P2PConfig(unsigned int SecondBusLow, unsigned int SecondBusHigh,
+		   unsigned int busNum, unsigned int devNum)
 {
 	uint32_t regData;
 
 	regData = (SecondBusLow & 0xff) | ((SecondBusHigh & 0xff) << 8) |
-			((busNum & 0xff) << 16) | ((devNum & 0x1f) << 24);
+	    ((busNum & 0xff) << 16) | ((devNum & 0x1f) << 24);
 	GT_WRITE(PCI_0P2P_CONFIGURATION, regData);
 }
 
@@ -517,13 +526,13 @@ void pci0P2PConfig(unsigned int SecondBusLow,unsigned int SecondBusHigh,
 *
 * Returns:  true.
 */
-void pci1P2PConfig(unsigned int SecondBusLow,unsigned int SecondBusHigh,
-                   unsigned int busNum,unsigned int devNum)
+void pci1P2PConfig(unsigned int SecondBusLow, unsigned int SecondBusHigh,
+		   unsigned int busNum, unsigned int devNum)
 {
 	uint32_t regData;
 
 	regData = (SecondBusLow & 0xff) | ((SecondBusHigh & 0xff) << 8) |
-			((busNum & 0xff) << 16) | ((devNum & 0x1f) << 24);
+	    ((busNum & 0xff) << 16) | ((devNum & 0x1f) << 24);
 	GT_WRITE(PCI_1P2P_CONFIGURATION, regData);
 }
 
@@ -534,9 +543,9 @@ static int __init pcibios_init(void)
 {
 	/* Reset PCI I/O and PCI MEM values */
 	ioport_resource.start = 0xe0000000;
-	ioport_resource.end   = 0xe0000000 + 0x20000000 - 1;
-	iomem_resource.start  = 0xc0000000;
-	iomem_resource.end    = 0xc0000000 + 0x20000000 - 1;
+	ioport_resource.end = 0xe0000000 + 0x20000000 - 1;
+	iomem_resource.start = 0xc0000000;
+	iomem_resource.end = 0xc0000000 + 0x20000000 - 1;
 
 	pci_scan_bus(0, &galileo_pci_ops, NULL);
 	pci_scan_bus(1, &galileo_pci_ops, NULL);
@@ -551,10 +560,10 @@ subsys_initcall(pcibios_init);
  */
 char *pcibios_setup(char *str)
 {
-        printk(KERN_INFO "rr: pcibios_setup\n");
-        /* Nothing to do for now.  */
+	printk(KERN_INFO "rr: pcibios_setup\n");
+	/* Nothing to do for now.  */
 
-        return str;
+	return str;
 }
 
 unsigned __init int pcibios_assign_all_busses(void)

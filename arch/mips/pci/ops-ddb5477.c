@@ -34,12 +34,12 @@
  * original values for future restoring.
  */
 struct pci_config_swap {
-	u32 	pdar;
-	u32	pmr;
-	u32	config_base;
-	u32	config_size;
-	u32	pdar_backup;
-	u32	pmr_backup;
+	u32 pdar;
+	u32 pmr;
+	u32 config_base;
+	u32 config_size;
+	u32 pdar_backup;
+	u32 pmr_backup;
 };
 
 /*
@@ -62,8 +62,7 @@ struct pci_config_swap io_pci_swap = {
 /*
  * access config space
  */
-static inline u32 ddb_access_config_base(struct pci_config_swap *swap,
-					 u32 bus,/* 0 means top level bus */
+static inline u32 ddb_access_config_base(struct pci_config_swap *swap, u32 bus,	/* 0 means top level bus */
 					 u32 slot_num)
 {
 	u32 pci_addr = 0;
@@ -82,10 +81,7 @@ static inline u32 ddb_access_config_base(struct pci_config_swap *swap,
 	swap->pmr_backup = ddb_in32(swap->pmr);
 
 	/* set the pdar (pci window) register */
-	ddb_set_pdar(swap->pdar,
-		     swap->config_base,
-		     swap->config_size,
-		     32,	/* 32 bit wide */
+	ddb_set_pdar(swap->pdar, swap->config_base, swap->config_size, 32,	/* 32 bit wide */
 		     0,		/* not on local memory bus */
 		     0);	/* not visible from PCI bus (N/A) */
 
@@ -110,14 +106,15 @@ static inline u32 ddb_access_config_base(struct pci_config_swap *swap,
 		virt_addr = KSEG1ADDR(swap->config_base + pci_addr);
 		pciinit_offset = 0;
 	} else {
-		db_assert( (pci_addr & (swap->config_size - 1)) == 0);
+		db_assert((pci_addr & (swap->config_size - 1)) == 0);
 		virt_addr = KSEG1ADDR(swap->config_base);
 		pciinit_offset = pci_addr;
 	}
 
 	/* set the pmr register */
 	option = DDB_PCI_ACCESS_32;
-	if (bus != 0) option |= DDB_PCI_CFGTYPE1;
+	if (bus != 0)
+		option |= DDB_PCI_CFGTYPE1;
 	ddb_set_pmr(swap->pmr, DDB_PCICMD_CFG, pciinit_offset, option);
 
 	return virt_addr;
@@ -129,8 +126,8 @@ static inline void ddb_close_config_base(struct pci_config_swap *swap)
 	ddb_out32(swap->pmr, swap->pmr_backup);
 }
 
-static int read_config_dword(struct pci_config_swap *swap, struct pci_bus *bus,
-	u32 where, u32 *val)
+static int read_config_dword(struct pci_config_swap *swap,
+			     struct pci_bus *bus, u32 where, u32 * val)
 {
 	u32 bus, slot_num, func_num;
 	u32 base;
@@ -149,13 +146,13 @@ static int read_config_dword(struct pci_config_swap *swap, struct pci_bus *bus,
 	slot_num = PCI_SLOT(dev->devfn);
 	func_num = PCI_FUNC(dev->devfn);
 	base = ddb_access_config_base(swap, bus, slot_num);
-	*val = *(volatile u32*) (base + (func_num << 8) + where);
+	*val = *(volatile u32 *) (base + (func_num << 8) + where);
 	ddb_close_config_base(swap);
 	return PCIBIOS_SUCCESSFUL;
 }
 
-static int read_config_word(struct pci_config_swap *swap, struct pci_bus *bus,
-	u32 where, u16 *val)
+static int read_config_word(struct pci_config_swap *swap,
+			    struct pci_bus *bus, u32 where, u16 * val)
 {
 	int status;
 	u32 result;
@@ -163,13 +160,15 @@ static int read_config_word(struct pci_config_swap *swap, struct pci_bus *bus,
 	db_assert((where & 1) == 0);
 
 	status = read_config_dword(swap, bus, where & ~3, &result);
-	if (where & 2) result >>= 16;
+	if (where & 2)
+		result >>= 16;
 	*val = result & 0xffff;
 	return status;
 }
 
-static int read_config_byte(struct pci_config_swap *swap, struct pci_bus *bus,
-	unsigned int devfn, u8 *val)
+static int read_config_byte(struct pci_config_swap *swap,
+			    struct pci_bus *bus, unsigned int devfn,
+			    u8 * val)
 {
 	int status;
 	u32 result;
@@ -184,8 +183,9 @@ static int read_config_byte(struct pci_config_swap *swap, struct pci_bus *bus,
 	return status;
 }
 
-static int write_config_dword(struct pci_config_swap *swap, struct pci_bus *bus,
-	unsigned int devfn, u32 val)
+static int write_config_dword(struct pci_config_swap *swap,
+			      struct pci_bus *bus, unsigned int devfn,
+			      u32 val)
 {
 	u32 busno, slot_num, func_num;
 	u32 base;
@@ -204,42 +204,46 @@ static int write_config_dword(struct pci_config_swap *swap, struct pci_bus *bus,
 	slot_num = PCI_SLOT(devfn);
 	func_num = PCI_FUNC(devfn);
 	base = ddb_access_config_base(swap, busno, slot_num);
-	*(volatile u32*) (base + (func_num << 8) + where) = val;
+	*(volatile u32 *) (base + (func_num << 8) + where) = val;
 	ddb_close_config_base(swap);
 	return PCIBIOS_SUCCESSFUL;
 }
 
-static int write_config_word(struct pci_config_swap *swap, struct pci_bus *bus,
-	unsigned int devfn, int where, u16 val)
+static int write_config_word(struct pci_config_swap *swap,
+			     struct pci_bus *bus, unsigned int devfn,
+			     int where, u16 val)
 {
-	int status, shift=0;
+	int status, shift = 0;
 	u32 result;
 
 	db_assert((where & 1) == 0);
 
 	status = read_config_dword(swap, dev, where & ~3, &result);
-	if (status != PCIBIOS_SUCCESSFUL) return status;
+	if (status != PCIBIOS_SUCCESSFUL)
+		return status;
 
 	if (where & 2)
-	        shift += 16;
+		shift += 16;
 	result &= ~(0xffff << shift);
 	result |= val << shift;
 	return write_config_dword(swap, dev, where & ~3, result);
 }
 
-static int write_config_byte(struct pci_config_swap *swap, struct pci_bus *bus,
-	unsigned int devfn, int where, u8 val)
+static int write_config_byte(struct pci_config_swap *swap,
+			     struct pci_bus *bus, unsigned int devfn,
+			     int where, u8 val)
 {
-	int status, shift=0;
+	int status, shift = 0;
 	u32 result;
 
 	status = read_config_dword(swap, dev, where & ~3, &result);
-	if (status != PCIBIOS_SUCCESSFUL) return status;
+	if (status != PCIBIOS_SUCCESSFUL)
+		return status;
 
 	if (where & 2)
-	        shift += 16;
+		shift += 16;
 	if (where & 1)
-	        shift += 8;
+		shift += 8;
 	result &= ~(0xff << shift);
 	result |= val << shift;
 	return write_config_dword(swap, dev, where & ~3, result);
@@ -260,18 +264,18 @@ static int prefix##_##rw##_config(struct pci_bus *bus, int where, int size, unit
 }
 
 MAKE_PCI_OPS(extpci, read, &ext_pci_swap)
-MAKE_PCI_OPS(extpci, write, &ext_pci_swap)
+    MAKE_PCI_OPS(extpci, write, &ext_pci_swap)
 
-MAKE_PCI_OPS(iopci, read, &io_pci_swap)
-MAKE_PCI_OPS(iopci, write, &io_pci_swap)
+    MAKE_PCI_OPS(iopci, read, &io_pci_swap)
+    MAKE_PCI_OPS(iopci, write, &io_pci_swap)
 
-struct pci_ops ddb5477_ext_pci_ops ={
-	.read	= extpci_read_config,
-	.write	= extpci_write_config
+struct pci_ops ddb5477_ext_pci_ops = {
+	.read = extpci_read_config,
+	.write = extpci_write_config
 };
 
 
-struct pci_ops ddb5477_io_pci_ops ={
-	.read	= iopci_read_config,
-	.write	= iopci_write_config
+struct pci_ops ddb5477_io_pci_ops = {
+	.read = iopci_read_config,
+	.write = iopci_write_config
 };

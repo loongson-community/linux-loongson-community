@@ -30,12 +30,12 @@
  * original values for future restoring.
  */
 struct pci_config_swap {
-	u32 	pdar;
-	u32	pmr;
-	u32	config_base;
-	u32	config_size;
-	u32	pdar_backup;
-	u32	pmr_backup;
+	u32 pdar;
+	u32 pmr;
+	u32 config_base;
+	u32 config_size;
+	u32 pdar_backup;
+	u32 pmr_backup;
 };
 
 /*
@@ -48,25 +48,25 @@ struct pci_config_swap ext_pci_swap = {
 	DDB_PCI_CONFIG_SIZE
 };
 
-static int pci_config_workaround=1;
+static int pci_config_workaround = 1;
 
 /*
  * access config space
  */
-static inline u32 ddb_access_config_base(struct pci_config_swap *swap,
-					 u32 bus,/* 0 means top level bus */
+static inline u32 ddb_access_config_base(struct pci_config_swap *swap, u32 bus,	/* 0 means top level bus */
 					 u32 slot_num)
 {
 	u32 pci_addr = 0;
 	u32 pciinit_offset = 0;
-        u32 virt_addr = swap->config_base;
+	u32 virt_addr = swap->config_base;
 	u32 option;
 
 	if (pci_config_workaround) {
-		if (slot_num == 5) slot_num = 14;
-	}
-	else {
-		if (slot_num == 5) return DDB_BASE + DDB_PCI_BASE;
+		if (slot_num == 5)
+			slot_num = 14;
+	} else {
+		if (slot_num == 5)
+			return DDB_BASE + DDB_PCI_BASE;
 	}
 
 	/* minimum pdar (window) size is 2MB */
@@ -80,10 +80,7 @@ static inline u32 ddb_access_config_base(struct pci_config_swap *swap,
 	swap->pmr_backup = ddb_in32(swap->pmr);
 
 	/* set the pdar (pci window) register */
-	ddb_set_pdar(swap->pdar,
-		     swap->config_base,
-		     swap->config_size,
-		     32,	/* 32 bit wide */
+	ddb_set_pdar(swap->pdar, swap->config_base, swap->config_size, 32,	/* 32 bit wide */
 		     0,		/* not on local memory bus */
 		     0);	/* not visible from PCI bus (N/A) */
 
@@ -97,7 +94,8 @@ static inline u32 ddb_access_config_base(struct pci_config_swap *swap,
 	} else {
 		/* type 1 config */
 		pci_addr = 0x00040000 << slot_num;
-		panic("ddb_access_config_base: we don't support type 1 config Yet");
+		panic
+		    ("ddb_access_config_base: we don't support type 1 config Yet");
 	}
 
 	/*
@@ -109,14 +107,15 @@ static inline u32 ddb_access_config_base(struct pci_config_swap *swap,
 		virt_addr = KSEG1ADDR(swap->config_base + pci_addr);
 		pciinit_offset = 0;
 	} else {
-		db_assert( (pci_addr & (swap->config_size - 1)) == 0);
+		db_assert((pci_addr & (swap->config_size - 1)) == 0);
 		virt_addr = KSEG1ADDR(swap->config_base);
 		pciinit_offset = pci_addr;
 	}
 
 	/* set the pmr register */
 	option = DDB_PCI_ACCESS_32;
-	if (bus != 0) option |= DDB_PCI_CFGTYPE1;
+	if (bus != 0)
+		option |= DDB_PCI_CFGTYPE1;
 	ddb_set_pmr(swap->pmr, DDB_PCICMD_CFG, pciinit_offset, option);
 
 	return virt_addr;
@@ -129,9 +128,7 @@ static inline void ddb_close_config_base(struct pci_config_swap *swap)
 }
 
 static int read_config_dword(struct pci_config_swap *swap,
-			     struct pci_dev *dev,
-			     u32 where,
-			     u32 *val)
+			     struct pci_dev *dev, u32 where, u32 * val)
 {
 	u32 bus, slot_num, func_num;
 	u32 base;
@@ -150,46 +147,43 @@ static int read_config_dword(struct pci_config_swap *swap,
 	slot_num = PCI_SLOT(dev->devfn);
 	func_num = PCI_FUNC(dev->devfn);
 	base = ddb_access_config_base(swap, bus, slot_num);
-	*val = *(volatile u32*) (base + (func_num << 8) + where);
+	*val = *(volatile u32 *) (base + (func_num << 8) + where);
 	ddb_close_config_base(swap);
 	return PCIBIOS_SUCCESSFUL;
 }
 
 static int read_config_word(struct pci_config_swap *swap,
-			    struct pci_dev *dev,
-			    u32 where,
-			    u16 *val)
+			    struct pci_dev *dev, u32 where, u16 * val)
 {
-        int status;
-        u32 result;
+	int status;
+	u32 result;
 
 	db_assert((where & 1) == 0);
 
-        status = read_config_dword(swap, dev, where & ~3, &result);
-        if (where & 2) result >>= 16;
-        *val = result & 0xffff;
-        return status;
+	status = read_config_dword(swap, dev, where & ~3, &result);
+	if (where & 2)
+		result >>= 16;
+	*val = result & 0xffff;
+	return status;
 }
 
 static int read_config_byte(struct pci_config_swap *swap,
-			    struct pci_dev *dev,
-			    u32 where,
-			    u8 *val)
+			    struct pci_dev *dev, u32 where, u8 * val)
 {
-        int status;
-        u32 result;
+	int status;
+	u32 result;
 
-        status = read_config_dword(swap, dev, where & ~3, &result);
-        if (where & 1) result >>= 8;
-        if (where & 2) result >>= 16;
-        *val = result & 0xff;
-        return status;
+	status = read_config_dword(swap, dev, where & ~3, &result);
+	if (where & 1)
+		result >>= 8;
+	if (where & 2)
+		result >>= 16;
+	*val = result & 0xff;
+	return status;
 }
 
 static int write_config_dword(struct pci_config_swap *swap,
-			      struct pci_dev *dev,
-			      u32 where,
-			      u32 val)
+			      struct pci_dev *dev, u32 where, u32 val)
 {
 	u32 bus, slot_num, func_num;
 	u32 base;
@@ -208,49 +202,47 @@ static int write_config_dword(struct pci_config_swap *swap,
 	slot_num = PCI_SLOT(dev->devfn);
 	func_num = PCI_FUNC(dev->devfn);
 	base = ddb_access_config_base(swap, bus, slot_num);
-	*(volatile u32*) (base + (func_num << 8) + where) = val;
+	*(volatile u32 *) (base + (func_num << 8) + where) = val;
 	ddb_close_config_base(swap);
 	return PCIBIOS_SUCCESSFUL;
 }
 
 static int write_config_word(struct pci_config_swap *swap,
-			     struct pci_dev *dev,
-			     u32 where,
-			     u16 val)
+			     struct pci_dev *dev, u32 where, u16 val)
 {
-	int status, shift=0;
+	int status, shift = 0;
 	u32 result;
 
 	db_assert((where & 1) == 0);
 
 	status = read_config_dword(swap, dev, where & ~3, &result);
-	if (status != PCIBIOS_SUCCESSFUL) return status;
+	if (status != PCIBIOS_SUCCESSFUL)
+		return status;
 
-        if (where & 2)
-                shift += 16;
-        result &= ~(0xffff << shift);
-        result |= val << shift;
-        return write_config_dword(swap, dev, where & ~3, result);
+	if (where & 2)
+		shift += 16;
+	result &= ~(0xffff << shift);
+	result |= val << shift;
+	return write_config_dword(swap, dev, where & ~3, result);
 }
 
 static int write_config_byte(struct pci_config_swap *swap,
-			     struct pci_dev *dev,
-			     u32 where,
-			     u8 val)
+			     struct pci_dev *dev, u32 where, u8 val)
 {
-	int status, shift=0;
+	int status, shift = 0;
 	u32 result;
 
 	status = read_config_dword(swap, dev, where & ~3, &result);
-	if (status != PCIBIOS_SUCCESSFUL) return status;
+	if (status != PCIBIOS_SUCCESSFUL)
+		return status;
 
-        if (where & 2)
-                shift += 16;
-        if (where & 1)
-                shift += 8;
-        result &= ~(0xff << shift);
-        result |= val << shift;
-        return write_config_dword(swap, dev, where & ~3, result);
+	if (where & 2)
+		shift += 16;
+	if (where & 1)
+		shift += 8;
+	result &= ~(0xff << shift);
+	result |= val << shift;
+	return write_config_dword(swap, dev, where & ~3, result);
 }
 
 #define	MAKE_PCI_OPS(prefix, rw, unitname, unittype, pciswap) \
@@ -263,14 +255,14 @@ static int prefix##_##rw##_config_##unitname(struct pci_dev *dev, int where, uni
 }
 
 MAKE_PCI_OPS(extpci, read, byte, u8 *, &ext_pci_swap)
-MAKE_PCI_OPS(extpci, read, word, u16 *, &ext_pci_swap)
-MAKE_PCI_OPS(extpci, read, dword, u32 *, &ext_pci_swap)
+    MAKE_PCI_OPS(extpci, read, word, u16 *, &ext_pci_swap)
+    MAKE_PCI_OPS(extpci, read, dword, u32 *, &ext_pci_swap)
 
-MAKE_PCI_OPS(extpci, write, byte, u8, &ext_pci_swap)
-MAKE_PCI_OPS(extpci, write, word, u16, &ext_pci_swap)
-MAKE_PCI_OPS(extpci, write, dword, u32, &ext_pci_swap)
+    MAKE_PCI_OPS(extpci, write, byte, u8, &ext_pci_swap)
+    MAKE_PCI_OPS(extpci, write, word, u16, &ext_pci_swap)
+    MAKE_PCI_OPS(extpci, write, dword, u32, &ext_pci_swap)
 
-struct pci_ops ddb5476_ext_pci_ops ={
+struct pci_ops ddb5476_ext_pci_ops = {
 	extpci_read_config_byte,
 	extpci_read_config_word,
 	extpci_read_config_dword,
@@ -294,8 +286,8 @@ void jsun_scan_pci_bus(void)
 	dev.bus = &bus;
 	dev.sysdata = NULL;
 
-	/* scan ext pci bus and io pci bus*/
-	for (j=0; j< 1; j++) {
+	/* scan ext pci bus and io pci bus */
+	for (j = 0; j < 1; j++) {
 		printk(KERN_INFO "scan ddb5476 external PCI bus:\n");
 		bus.ops = &ddb5476_ext_pci_ops;
 
@@ -307,11 +299,12 @@ void jsun_scan_pci_bus(void)
 
 			dev.devfn = devfn;
 			db_verify(pci_read_config_dword(&dev, 0, &temp),
-				    == PCIBIOS_SUCCESSFUL);
-			if (temp == 0xffffffff) continue;
+				  == PCIBIOS_SUCCESSFUL);
+			if (temp == 0xffffffff)
+				continue;
 
-			printk(KERN_INFO "slot %d: (addr %d) \n", devfn/8,
-			       11+devfn/8);
+			printk(KERN_INFO "slot %d: (addr %d) \n",
+			       devfn / 8, 11 + devfn / 8);
 
 			/* verify read word and byte */
 			db_verify(pci_read_config_word(&dev, 2, &temp16),
@@ -324,13 +317,14 @@ void jsun_scan_pci_bus(void)
 				  == PCIBIOS_SUCCESSFUL);
 			db_assert(temp8 == ((temp >> 8) & 0xff));
 
-			for (i=0; i < 16; i++) {
-				if ((i%4) == 0)
+			for (i = 0; i < 16; i++) {
+				if ((i % 4) == 0)
 					printk(KERN_INFO);
-				db_verify(pci_read_config_dword(&dev, i*4, &temp),
+				db_verify(pci_read_config_dword
+					  (&dev, i * 4, &temp),
 					  == PCIBIOS_SUCCESSFUL);
 				printk("\t%08X", temp);
-				if ((i%4) == 3)
+				if ((i % 4) == 3)
 					printk("\n");
 			}
 		}

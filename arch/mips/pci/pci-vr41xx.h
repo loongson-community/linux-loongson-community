@@ -110,17 +110,17 @@
 #define PCIU_CLOCK			0x0080
 #define PCI_CLOCK			0x2000
 
-static inline int pciu_read_config_byte(int where, u8 *val)
+static inline int pciu_read_config_byte(int where, u8 * val)
 {
 	u32 data;
 
 	data = readl(PCIU_CONFIGREGS_BASE + where);
-	*val = (u8)(data >> ((where & 3) << 3));
+	*val = (u8) (data >> ((where & 3) << 3));
 
 	return PCIBIOS_SUCCESSFUL;
 }
 
-static inline int pciu_read_config_word(int where, u16 *val)
+static inline int pciu_read_config_word(int where, u16 * val)
 {
 	u32 data;
 
@@ -128,12 +128,12 @@ static inline int pciu_read_config_word(int where, u16 *val)
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 
 	data = readl(PCIU_CONFIGREGS_BASE + where);
-	*val = (u16)(data >> ((where & 2) << 3));
+	*val = (u16) (data >> ((where & 2) << 3));
 
 	return PCIBIOS_SUCCESSFUL;
 }
 
-static inline int pciu_read_config_dword(int where, u32 *val)
+static inline int pciu_read_config_dword(int where, u32 * val)
 {
 	if (where & 3)
 		return PCIBIOS_BAD_REGISTER_NUMBER;
@@ -164,4 +164,4 @@ static inline int pciu_write_config_dword(int where, u32 val)
 	return 0;
 }
 
-#endif /* __VR41XX_PCIU_H */
+#endif				/* __VR41XX_PCIU_H */

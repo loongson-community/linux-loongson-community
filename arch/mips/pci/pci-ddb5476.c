@@ -11,21 +11,23 @@
 
 static struct resource extpci_io_resource = {
 	"pci IO space",
-	0x1000,				/* leave some room for ISA bus */
-	DDB_PCI_IO_SIZE -1,
-	IORESOURCE_IO};
+	0x1000,			/* leave some room for ISA bus */
+	DDB_PCI_IO_SIZE - 1,
+	IORESOURCE_IO
+};
 
 static struct resource extpci_mem_resource = {
 	"pci memory space",
 	DDB_PCI_MEM_BASE + 0x00100000,	/* leave 1 MB for RTC */
-	DDB_PCI_MEM_BASE + DDB_PCI_MEM_SIZE -1,
-	IORESOURCE_MEM};
+	DDB_PCI_MEM_BASE + DDB_PCI_MEM_SIZE - 1,
+	IORESOURCE_MEM
+};
 
 extern struct pci_ops ddb5476_ext_pci_ops;
 
 struct pci_channel mips_pci_channels[] = {
-	{ &ddb5476_ext_pci_ops, &extpci_io_resource, &extpci_mem_resource },
-	{ NULL, NULL, NULL}
+	{&ddb5476_ext_pci_ops, &extpci_io_resource, &extpci_mem_resource},
+	{NULL, NULL, NULL}
 };
 
 
@@ -53,10 +55,13 @@ struct pci_channel mips_pci_channels[] = {
 static unsigned char irq_map[MAX_SLOT_NUM] = {
 	/* SLOT:  0, AD:11 */ 0xff,
 	/* SLOT:  1, AD:12 */ 0xff,
-	/* SLOT:  2, AD:13 */ 9,		/* USB */
-	/* SLOT:  3, AD:14 */ 10,		/* PMU */
+					/* SLOT:  2, AD:13 */ 9,
+					/* USB */
+					/* SLOT:  3, AD:14 */ 10,
+					/* PMU */
 	/* SLOT:  4, AD:15 */ 0xff,
-	/* SLOT:  5, AD:16 */ 0x0,		/* P2P bridge */
+					/* SLOT:  5, AD:16 */ 0x0,
+					/* P2P bridge */
 	/* SLOT:  6, AD:17 */ nile4_to_irq(PCI_EXT_INTB),
 	/* SLOT:  7, AD:18 */ nile4_to_irq(PCI_EXT_INTC),
 	/* SLOT:  8, AD:19 */ nile4_to_irq(PCI_EXT_INTD),
@@ -64,7 +69,8 @@ static unsigned char irq_map[MAX_SLOT_NUM] = {
 	/* SLOT: 10, AD:21 */ 0xff,
 	/* SLOT: 11, AD:22 */ 0xff,
 	/* SLOT: 12, AD:23 */ 0xff,
-	/* SLOT: 13, AD:24 */ 14,		/* HD controller, M5229 */
+					/* SLOT: 13, AD:24 */ 14,
+					/* HD controller, M5229 */
 	/* SLOT: 14, AD:25 */ 0xff,
 	/* SLOT: 15, AD:26 */ 0xff,
 	/* SLOT: 16, AD:27 */ 0xff,
@@ -77,15 +83,16 @@ static unsigned char irq_map[MAX_SLOT_NUM] = {
 extern int vrc5477_irq_to_irq(int irq);
 void __init pcibios_fixup_irqs(void)
 {
-        struct pci_dev *dev;
-        int slot_num;
+	struct pci_dev *dev;
+	int slot_num;
 
 	pci_for_each_dev(dev) {
 		slot_num = PCI_SLOT(dev->devfn);
 
 		/* we don't do IRQ fixup for sub-bus yet */
 		if (dev->bus->parent != NULL) {
-			db_run(printk("Don't know how to fixup irq for PCI device %d on sub-bus %d\n",
+			db_run(printk
+			       ("Don't know how to fixup irq for PCI device %d on sub-bus %d\n",
 				slot_num, dev->bus->number));
 			continue;
 		}
@@ -115,11 +122,11 @@ void __init ddb_pci_reset_bus(void)
 	 * Then we clear the PCI warm reset bit (bit 30) to 0 in PCICTRL-H.
 	 * The same is true for both PCI channels.
 	 */
-	temp = ddb_in32(DDB_PCICTRL+4);
+	temp = ddb_in32(DDB_PCICTRL + 4);
 	temp |= 0x80000000;
-	ddb_out32(DDB_PCICTRL+4, temp);
+	ddb_out32(DDB_PCICTRL + 4, temp);
 	temp &= ~0xc0000000;
-	ddb_out32(DDB_PCICTRL+4, temp);
+	ddb_out32(DDB_PCICTRL + 4, temp);
 
 }
 
@@ -136,4 +143,3 @@ void __init pcibios_fixup_resources(struct pci_dev *dev)
 void __init pcibios_fixup(void)
 {
 }
-

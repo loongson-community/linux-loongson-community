@@ -26,7 +26,7 @@ do {                                                                         \
 
 #if 0
 /* To do:  Bring this uptodate ...  */
-static void pcimt_pcibios_fixup (void)
+static void pcimt_pcibios_fixup(void)
 {
 	struct pci_dev *dev;
 
@@ -37,7 +37,8 @@ static void pcimt_pcibios_fixup (void)
 		 */
 		if (dev->devfn == PCI_DEVFN(1, 0)) {
 			/* Evil hack ...  */
-			set_cp0_config(CONF_CM_CMASK, CONF_CM_CACHABLE_NO_WA);
+			set_cp0_config(CONF_CM_CMASK,
+				       CONF_CM_CACHABLE_NO_WA);
 			dev->irq = PCIMT_IRQ_SCSI;
 			continue;
 		}
@@ -46,8 +47,8 @@ static void pcimt_pcibios_fixup (void)
 			continue;
 		}
 
-		switch(dev->irq) {
-		case 1 ... 4:
+		switch (dev->irq) {
+		case 1...4:
 			dev->irq += PCIMT_IRQ_INTA - 1;
 			break;
 		case 0:
@@ -66,30 +67,31 @@ static void pcimt_pcibios_fixup (void)
  * We can't address 8 and 16 bit words directly.  Instead we have to
  * read/write a 32bit word and mask/modify the data we actually want.
  */
-static int pcimt_read (struct pci_bus *bus, unsigned int devfn, int where, int size, u32 *val)
+static int pcimt_read(struct pci_bus *bus, unsigned int devfn, int where,
+		      int size, u32 * val)
 {
 	u32 res;
 
 	switch (size) {
 	case 1:
 		mkaddr(bus, devfn, where);
-		res = *(volatile u32 *)PCIMT_CONFIG_DATA;
+		res = *(volatile u32 *) PCIMT_CONFIG_DATA;
 		res = (le32_to_cpu(res) >> ((where & 3) << 3)) & 0xff;
-		*val = (u8)res;
+		*val = (u8) res;
 		break;
 	case 2:
 		if (where & 1)
 			return PCIBIOS_BAD_REGISTER_NUMBER;
 		mkaddr(bus, devfn, where);
-		res = *(volatile u32 *)PCIMT_CONFIG_DATA;
+		res = *(volatile u32 *) PCIMT_CONFIG_DATA;
 		res = (le32_to_cpu(res) >> ((where & 3) << 3)) & 0xffff;
-		*val = (u16)res;
+		*val = (u16) res;
 		break;
 	case 4:
 		if (where & 3)
 			return PCIBIOS_BAD_REGISTER_NUMBER;
 		mkaddr(bus, devfn, where);
-		res = *(volatile u32 *)PCIMT_CONFIG_DATA;
+		res = *(volatile u32 *) PCIMT_CONFIG_DATA;
 		res = le32_to_cpu(res);
 		*val = res;
 		break;
@@ -98,26 +100,27 @@ static int pcimt_read (struct pci_bus *bus, unsigned int devfn, int where, int s
 	return PCIBIOS_SUCCESSFUL;
 }
 
-static int pcimt_write (struct pci_bus *bus, unsigned int devfn,  int where, int size,  u32 val)
+static int pcimt_write(struct pci_bus *bus, unsigned int devfn, int where,
+		       int size, u32 val)
 {
 	switch (size) {
 	case 1:
 		mkaddr(bus, devfn, where);
-		*(volatile u8 *)(PCIMT_CONFIG_DATA + (where & 3)) = 
-		(u8)le32_to_cpu(val);
+		*(volatile u8 *) (PCIMT_CONFIG_DATA + (where & 3)) =
+		    (u8) le32_to_cpu(val);
 		break;
 	case 2:
 		if (where & 1)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
+			return PCIBIOS_BAD_REGISTER_NUMBER;
 		mkaddr(bus, devfn, where);
-		*(volatile u16 *)(PCIMT_CONFIG_DATA + (where & 3)) = 
-		(u16)le32_to_cpu(val);
+		*(volatile u16 *) (PCIMT_CONFIG_DATA + (where & 3)) =
+		    (u16) le32_to_cpu(val);
 		break;
 	case 4:
 		if (where & 3)
 			return PCIBIOS_BAD_REGISTER_NUMBER;
 		mkaddr(bus, devfn, where);
-		*(volatile u32 *)PCIMT_CONFIG_DATA = le32_to_cpu(val);
+		*(volatile u32 *) PCIMT_CONFIG_DATA = le32_to_cpu(val);
 		break;
 	}
 
@@ -125,15 +128,15 @@ static int pcimt_write (struct pci_bus *bus, unsigned int devfn,  int where, int
 }
 
 struct pci_ops sni_pci_ops = {
-	.read = 	pcimt_read,
-	.write = 	pcimt_write,
+	.read = pcimt_read,
+	.write = pcimt_write,
 };
 
 void __devinit pcibios_fixup_bus(struct pci_bus *b)
 {
 }
 
-static int  __init pcibios_init(void)
+static int __init pcibios_init(void)
 {
 	struct pci_ops *ops = &sni_pci_ops;
 
@@ -151,7 +154,7 @@ int __init pcibios_enable_device(struct pci_dev *dev, int mask)
 }
 
 void pcibios_align_resource(void *data, struct resource *res,
-	unsigned long size, unsigned long align)
+			    unsigned long size, unsigned long align)
 {
 }
 
@@ -160,8 +163,7 @@ unsigned __init int pcibios_assign_all_busses(void)
 	return 0;
 }
 
-char * __init
-pcibios_setup(char *str)
+char *__init pcibios_setup(char *str)
 {
 	/* Nothing to do for now.  */
 
@@ -169,5 +171,5 @@ pcibios_setup(char *str)
 }
 
 struct pci_fixup pcibios_fixups[] = {
-	{ 0 }
+	{0}
 };

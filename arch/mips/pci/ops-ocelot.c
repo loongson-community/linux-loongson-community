@@ -106,9 +106,9 @@ static unsigned int pci1GetMemory1Size(void);
 
 /*  Functions to implement "pci ops"  */
 static int galileo_pcibios_read(struct pci_bus *bus, unsigned int devfn,
-			       	int offset, int size, u32 * val);
+				int offset, int size, u32 * val);
 static int galileo_pcibios_write(struct pci_bus *bus, unsigned int devfn,
-				int offset, int size, u32 val);
+				 int offset, int size, u32 val);
 static void galileo_pcibios_set_master(struct pci_dev *dev);
 
 /*
@@ -489,7 +489,7 @@ static unsigned int pci0ReadConfigReg(int offset, struct pci_dev *device)
 	if (PCI_SLOT(device->devfn) == SELF) {	/* This board */
 		GT_READ(GT_PCI0_CFGDATA_OFS, &data);
 		return data;
-	} else { /* The PCI is working in LE Mode so swap the Data. */
+	} else {		/* The PCI is working in LE Mode so swap the Data. */
 		GT_READ(GT_PCI0_CFGDATA_OFS, &data);
 		return cpu_to_le32(data);
 	}
@@ -585,7 +585,7 @@ static void pci1WriteConfigReg(unsigned int offset,
 		 */
 		DataForRegCf8 |= 0x80;
 		GT_WRITE(GT_PCI0_CFGADDR_OFS, DataForRegCf8);
-	} else {	/* configuration Transaction over the pci. */
+	} else {		/* configuration Transaction over the pci. */
 		/* The PCI is working in LE Mode so swap the Data. */
 		GT_WRITE(GT_PCI1_CFGADDR_OFS, DataForRegCf8);
 	}
@@ -616,7 +616,8 @@ static void pci1WriteConfigReg(unsigned int offset,
  * PCIBIOS_BAD_REGISTER_NUMBER when accessing non aligned
  */
 
-static int galileo_pcibios_read (struct pci_bus *bus, unsigned int devfn, int offset, int size, u32 * val)
+static int galileo_pcibios_read(struct pci_bus *bus, unsigned int devfn,
+				int offset, int size, u32 * val)
 {
 	int dev, busnum;
 
@@ -624,10 +625,10 @@ static int galileo_pcibios_read (struct pci_bus *bus, unsigned int devfn, int of
 	dev = PCI_SLOT(devfn);
 
 	if (pci_range_ck(busnum, dev)) {
-		if(size == 1)
-			*val = (u8)0xff;
+		if (size == 1)
+			*val = (u8) 0xff;
 		else if (size == 2)
-			*val = (u16)0xffff;
+			*val = (u16) 0xffff;
 		else if (size == 4)
 			*val = 0xffffffff;
 		return PCIBIOS_DEVICE_NOT_FOUND;
@@ -638,13 +639,14 @@ static int galileo_pcibios_read (struct pci_bus *bus, unsigned int devfn, int of
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 
 	if (busnum == 0) {
-		if(size == 1) {
-			*val = (u8)(pci0ReadConfigReg(offset, bus->dev) >>
+		if (size == 1) {
+			*val = (u8) (pci0ReadConfigReg(offset, bus->dev) >>
 				     ((offset & ~0x3) * 8));
-		}else if (size == 2) {
-			*val = (u16)(pci0ReadConfigReg(offset, bus->dev) >>
-				      ((offset & ~0x3) * 8));
-		}else if (size == 4) {
+		} else if (size == 2) {
+			*val =
+			    (u16) (pci0ReadConfigReg(offset, bus->dev) >>
+				   ((offset & ~0x3) * 8));
+		} else if (size == 4) {
 			*val = pci0ReadConfigReg(offset, bus->dev);
 		}
 	}
@@ -654,27 +656,27 @@ static int galileo_pcibios_read (struct pci_bus *bus, unsigned int devfn, int of
 	 * value if we're not attached to anything.
 	 */
 	switch (size) {
-		case 1:
-			if ((offset == 0xe) && (*val == (u8)0xff)) {
-				u32 MasterAbort;
-				GT_READ(GT_INTRCAUSE_OFS, &MasterAbort);
-				if (MasterAbort & 0x40000) {
-					GT_WRITE(GT_INTRCAUSE_OFS, 
-						 (MasterAbort & 0xfffbffff));
-					return PCIBIOS_DEVICE_NOT_FOUND;
-				}
-			}
-			break;
-		case 4:
-			if ((offset == 0) && (*val == 0xffffffff)) {
+	case 1:
+		if ((offset == 0xe) && (*val == (u8) 0xff)) {
+			u32 MasterAbort;
+			GT_READ(GT_INTRCAUSE_OFS, &MasterAbort);
+			if (MasterAbort & 0x40000) {
+				GT_WRITE(GT_INTRCAUSE_OFS,
+					 (MasterAbort & 0xfffbffff));
 				return PCIBIOS_DEVICE_NOT_FOUND;
 			}
-			break
-	}
+		}
+		break;
+	case 4:
+		if ((offset == 0) && (*val == 0xffffffff)) {
+			return PCIBIOS_DEVICE_NOT_FOUND;
+		}
+	break}
 	return PCIBIOS_SUCCESSFUL;
 }
 
-static int galileo_pcibios_write(struct pci_bus *bus, unsigned int devfn, int offset, int size, u32 val)
+static int galileo_pcibios_write(struct pci_bus *bus, unsigned int devfn,
+				 int offset, int size, u32 val)
 {
 	int dev, busnum;
 	unsigned long tmp;
@@ -687,30 +689,41 @@ static int galileo_pcibios_write(struct pci_bus *bus, unsigned int devfn, int of
 	if (size == 4) {
 		if (offset & 0x3)
 			return PCIBIOS_BAD_REGISTER_NUMBER;
-		if(busnum == 0)
+		if (busnum == 0)
 			pci0WriteConfigReg(offset, bus->dev, val);
 		//if (busnum == 1) pci1WriteConfigReg (offset,bus->dev,val);
 		return PCIBIOS_SUCCESSFUL;
 	}
 	if ((size == 2) && (offset & 0x1))
 		return PCIBIOS_BAD_REGISTER_NUMBER;
-	if (busnum == 0){
+	if (busnum == 0) {
 		tmp = pci0ReadConfigReg(offset, bus->dev);
 		//if (busnum == 1) tmp = pci1ReadConfigReg (offset,bus->dev);
 		if (size == 1) {
 			if ((offset % 4) == 0)
-				tmp = (tmp & 0xffffff00) | (val & (u8)0xff);
+				tmp =
+				    (tmp & 0xffffff00) | (val & (u8) 0xff);
 			if ((offset % 4) == 1)
-				tmp = (tmp & 0xffff00ff) | ((val & (u8)0xff) << 8);
+				tmp =
+				    (tmp & 0xffff00ff) | ((val & (u8) 0xff)
+							  << 8);
 			if ((offset % 4) == 2)
-				tmp = (tmp & 0xff00ffff) | ((val & (u8)0xff) << 16);
+				tmp =
+				    (tmp & 0xff00ffff) | ((val & (u8) 0xff)
+							  << 16);
 			if ((offset % 4) == 3)
-				tmp = (tmp & 0x00ffffff) | ((val & (u8)0xff) << 24);
+				tmp =
+				    (tmp & 0x00ffffff) | ((val & (u8) 0xff)
+							  << 24);
 		} else if (size == 2) {
 			if ((offset % 4) == 0)
-				tmp = (tmp & 0xffff0000) | (val & (u16)0xffff);
+				tmp =
+				    (tmp & 0xffff0000) | (val & (u16)
+							  0xffff);
 			if ((offset % 4) == 2)
-				tmp = (tmp & 0x0000ffff) | ((val & (u16)0xffff) << 16);
+				tmp =
+				    (tmp & 0x0000ffff) |
+				    ((val & (u16) 0xffff) << 16);
 		}
 		if (busnum == 0)
 			pci0WriteConfigReg(offset, bus->dev, tmp);
@@ -753,7 +766,8 @@ int pcibios_enable_resources(struct pci_dev *dev)
 			cmd |= PCI_COMMAND_MEMORY;
 	}
 	if (cmd != old_cmd) {
-		galileo_pcibios_write(dev->bus, dev->devfn, PCI_COMMAND, 2, cmd);
+		galileo_pcibios_write(dev->bus, dev->devfn, PCI_COMMAND, 2,
+				      cmd);
 	}
 
 	/*
@@ -761,17 +775,22 @@ int pcibios_enable_resources(struct pci_dev *dev)
 	 * line size = 32 bytes / sizeof dword (4) = 8.
 	 * Latency timer must be > 8.  32 is random but appears to work.
 	 */
-	galileo_pcibios_read(dev->bus, dev->devfn, PCI_CACHE_LINE_SIZE, 1, &tmp1);
+	galileo_pcibios_read(dev->bus, dev->devfn, PCI_CACHE_LINE_SIZE, 1,
+			     &tmp1);
 	if (tmp1 != 8) {
-		printk(KERN_WARNING "PCI setting cache line size to 8 from "
-		       "%d\n", tmp1);
-		galileo_pcibios_write(dev->bus, dev->devfn, PCI_CACHE_LINE_SIZE, 1, 8);
-	}
-	galileo_pcibios_read(dev->bus, dev->devfn, PCI_LATENCY_TIMER, 1, &tmp1);
-	if (tmp1 < 32) {
-		printk(KERN_WARNING "PCI setting latency timer to 32 from %d\n",
+		printk(KERN_WARNING
+		       "PCI setting cache line size to 8 from " "%d\n",
 		       tmp1);
-		galileo_pcibios_write(dev->bus, dev->devfn, PCI_LATENCY_TIMER, 1, 32);
+		galileo_pcibios_write(dev->bus, dev->devfn,
+				      PCI_CACHE_LINE_SIZE, 1, 8);
+	}
+	galileo_pcibios_read(dev->bus, dev->devfn, PCI_LATENCY_TIMER, 1,
+			     &tmp1);
+	if (tmp1 < 32) {
+		printk(KERN_WARNING
+		       "PCI setting latency timer to 32 from %d\n", tmp1);
+		galileo_pcibios_write(dev->bus, dev->devfn,
+				      PCI_LATENCY_TIMER, 1, 32);
 	}
 
 	return 0;
@@ -796,7 +815,7 @@ void pcibios_align_resource(void *data, struct resource *res,
 		if (size > 0x100) {
 			printk(KERN_ERR "PCI: I/O Region %s/%d too large"
 			       " (%ld bytes)\n", dev->slot_name,
-			        dev->resource - res, size);
+			       dev->resource - res, size);
 		}
 
 		start = (start + 1024 - 1) & ~(1024 - 1);
@@ -805,8 +824,8 @@ void pcibios_align_resource(void *data, struct resource *res,
 }
 
 struct pci_ops galileo_pci_ops = {
-	.read = 	galileo_pcibios_read,
-	.write = 	galileo_pcibios_write,
+	.read = galileo_pcibios_read,
+	.write = galileo_pcibios_write,
 };
 
 struct pci_fixup pcibios_fixups[] = {
@@ -899,7 +918,7 @@ static u32 __init scan_pci_bus(struct pci_device *pci_devices)
 			arrayCounter++;
 		}
 		/*  found a device  */
-	} /*  slot counter  */
+	}			/*  slot counter  */
 
 	if (arrayCounter < MAX_PCI_DEVS)
 		pci_devices[arrayCounter].slot = -1;
@@ -1009,9 +1028,9 @@ static int __init pcibios_init(void)
 	 *  Reset PCI I/O and PCI MEM values to ones supported by EVM.
 	 */
 	ioport_resource.start = GT_PCI_IO_BASE;
-	ioport_resource.end   = GT_PCI_IO_BASE + GT_PCI_IO_SIZE - 1;
-	iomem_resource.start  = GT_PCI_MEM_BASE;
-	iomem_resource.end    = GT_PCI_MEM_BASE + GT_PCI_MEM_BASE - 1;
+	ioport_resource.end = GT_PCI_IO_BASE + GT_PCI_IO_SIZE - 1;
+	iomem_resource.start = GT_PCI_MEM_BASE;
+	iomem_resource.end = GT_PCI_MEM_BASE + GT_PCI_MEM_BASE - 1;
 
 	pci_scan_bus(0, &galileo_pci_ops, NULL);
 
@@ -1025,10 +1044,10 @@ subsys_initcall(pcibios_init);
  */
 char *pcibios_setup(char *str)
 {
-        printk(KERN_INFO "rr: pcibios_setup\n");
-        /* Nothing to do for now.  */
+	printk(KERN_INFO "rr: pcibios_setup\n");
+	/* Nothing to do for now.  */
 
-        return str;
+	return str;
 }
 
 unsigned __init int pcibios_assign_all_busses(void)

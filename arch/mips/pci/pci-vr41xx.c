@@ -53,7 +53,8 @@
 
 extern unsigned long vr41xx_vtclock;
 
-static inline int vr41xx_pci_config_access(unsigned char bus,  unsigned int devfn, int where)
+static inline int vr41xx_pci_config_access(unsigned char bus,
+					   unsigned int devfn, int where)
 {
 	if (bus == 0) {
 		/*
@@ -62,10 +63,9 @@ static inline int vr41xx_pci_config_access(unsigned char bus,  unsigned int devf
 		if (PCI_SLOT(devfn) < 11 || where > 255)
 			return -1;
 
-		writel((1UL << PCI_SLOT(devfn))	|
-		       (PCI_FUNC(devfn) << 8)	|
-		       (where & 0xfc),
-		       PCICONFAREG);
+		writel((1UL << PCI_SLOT(devfn)) |
+		       (PCI_FUNC(devfn) << 8) |
+		       (where & 0xfc), PCICONFAREG);
 	} else {
 		/*
 		 * Type 1 configuration
@@ -73,17 +73,15 @@ static inline int vr41xx_pci_config_access(unsigned char bus,  unsigned int devf
 		if (where > 255)
 			return -1;
 
-		writel((bus << 16)	|
-		       (devfn << 8)	|
-		       (where & 0xfc)	|
-		       1UL,
-		       PCICONFAREG);
+		writel((bus << 16) |
+		       (devfn << 8) | (where & 0xfc) | 1UL, PCICONFAREG);
 	}
 
 	return 0;
 }
 
-static int vr41xx_pci_config_read(struct pci_bus *bus, unsigned int devfn, int where, int size, u32 *val)
+static int vr41xx_pci_config_read(struct pci_bus *bus, unsigned int devfn,
+				  int where, int size, u32 * val)
 {
 	u32 data;
 
@@ -110,7 +108,8 @@ static int vr41xx_pci_config_read(struct pci_bus *bus, unsigned int devfn, int w
 	return PCIBIOS_SUCCESSFUL;
 }
 
-static int vr41xx_pci_config_write(struct pci_bus *bus, unsigned int devfn, int where, int size, u32 val)
+static int vr41xx_pci_config_write(struct pci_bus *bus, unsigned int devfn,
+				   int where, int size, u32 val)
 {
 	u32 data;
 	int shift;
@@ -144,8 +143,8 @@ static int vr41xx_pci_config_write(struct pci_bus *bus, unsigned int devfn, int 
 }
 
 struct pci_ops vr41xx_pci_ops = {
-	.read	= vr41xx_pci_config_read,
-	.write	= vr41xx_pci_config_write,
+	.read = vr41xx_pci_config_read,
+	.write = vr41xx_pci_config_write,
 };
 
 void __init vr41xx_pciu_init(struct vr41xx_pci_address_map *map)
@@ -189,22 +188,22 @@ void __init vr41xx_pciu_init(struct vr41xx_pci_address_map *map)
 	if (map->mem1 != NULL) {
 		s = map->mem1;
 		config = (s->internal_base & 0xff000000) |
-		         ((s->address_mask & 0x7f000000) >> 11) | (1UL << 12) |
-		         ((s->pci_base & 0xff000000) >> 24);
+		    ((s->address_mask & 0x7f000000) >> 11) | (1UL << 12) |
+		    ((s->pci_base & 0xff000000) >> 24);
 		writel(config, PCIMMAW1REG);
 	}
 	if (map->mem2 != NULL) {
 		s = map->mem2;
 		config = (s->internal_base & 0xff000000) |
-		         ((s->address_mask & 0x7f000000) >> 11) | (1UL << 12) |
-		         ((s->pci_base & 0xff000000) >> 24);
+		    ((s->address_mask & 0x7f000000) >> 11) | (1UL << 12) |
+		    ((s->pci_base & 0xff000000) >> 24);
 		writel(config, PCIMMAW2REG);
 	}
 	if (map->io != NULL) {
 		s = map->io;
 		config = (s->internal_base & 0xff000000) |
-		         ((s->address_mask & 0x7f000000) >> 11) | (1UL << 12) |
-		         ((s->pci_base & 0xff000000) >> 24);
+		    ((s->address_mask & 0x7f000000) >> 11) | (1UL << 12) |
+		    ((s->pci_base & 0xff000000) >> 24);
 		writel(config, PCIMIOAWREG);
 	}
 
@@ -227,9 +226,8 @@ void __init vr41xx_pciu_init(struct vr41xx_pci_address_map *map)
 
 	writel(CONFIG_DONE, PCIENREG);
 	pciu_write_config_dword(PCI_COMMAND,
-	                        PCI_COMMAND_IO |
-	                        PCI_COMMAND_MEMORY |
-	                        PCI_COMMAND_MASTER |
-	                        PCI_COMMAND_PARITY |
-	                        PCI_COMMAND_SERR);
+				PCI_COMMAND_IO |
+				PCI_COMMAND_MEMORY |
+				PCI_COMMAND_MASTER |
+				PCI_COMMAND_PARITY | PCI_COMMAND_SERR);
 }

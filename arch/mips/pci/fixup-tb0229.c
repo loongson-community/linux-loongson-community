@@ -39,21 +39,27 @@ void __init pcibios_fixup_irqs(void)
 
 		switch (slot) {
 		case 12:
-			vr41xx_set_irq_trigger(TB0219_PCI_SLOT1_PIN , TRIGGER_LEVEL,
-			                       SIGNAL_THROUGH);
-			vr41xx_set_irq_level(TB0219_PCI_SLOT1_PIN, LEVEL_LOW);
+			vr41xx_set_irq_trigger(TB0219_PCI_SLOT1_PIN,
+					       TRIGGER_LEVEL,
+					       SIGNAL_THROUGH);
+			vr41xx_set_irq_level(TB0219_PCI_SLOT1_PIN,
+					     LEVEL_LOW);
 			dev->irq = TB0219_PCI_SLOT1_IRQ;
 			break;
 		case 13:
-			vr41xx_set_irq_trigger(TB0219_PCI_SLOT2_PIN , TRIGGER_LEVEL,
-			                       SIGNAL_THROUGH);
-			vr41xx_set_irq_level(TB0219_PCI_SLOT2_PIN, LEVEL_LOW);
+			vr41xx_set_irq_trigger(TB0219_PCI_SLOT2_PIN,
+					       TRIGGER_LEVEL,
+					       SIGNAL_THROUGH);
+			vr41xx_set_irq_level(TB0219_PCI_SLOT2_PIN,
+					     LEVEL_LOW);
 			dev->irq = TB0219_PCI_SLOT2_IRQ;
 			break;
 		case 14:
-			vr41xx_set_irq_trigger(TB0219_PCI_SLOT3_PIN , TRIGGER_LEVEL,
-			                       SIGNAL_THROUGH);
-			vr41xx_set_irq_level(TB0219_PCI_SLOT3_PIN, LEVEL_LOW);
+			vr41xx_set_irq_trigger(TB0219_PCI_SLOT3_PIN,
+					       TRIGGER_LEVEL,
+					       SIGNAL_THROUGH);
+			vr41xx_set_irq_level(TB0219_PCI_SLOT3_PIN,
+					     LEVEL_LOW);
 			dev->irq = TB0219_PCI_SLOT3_IRQ;
 			break;
 		default:

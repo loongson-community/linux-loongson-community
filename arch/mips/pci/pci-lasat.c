@@ -17,8 +17,10 @@
 #define Dprintk(fmt...)
 #endif
 
-static int (*lasat_pcibios_config_access)(unsigned char access_type,
-	struct pci_bus *bus, unsigned int devfn, int where, u32 *val);
+static int (*lasat_pcibios_config_access) (unsigned char access_type,
+					   struct pci_bus * bus,
+					   unsigned int devfn, int where,
+					   u32 * val);
 
 /*
  * Because of an error/peculiarity in the Galileo chip, we need to swap the 
@@ -31,41 +33,43 @@ static int (*lasat_pcibios_config_access)(unsigned char access_type,
 
 
 static int lasat_pcibios_config_access_100(unsigned char access_type,
-	struct pci_bus *bus, unsigned int devfn, int where, u32 *val)
+					   struct pci_bus *bus,
+					   unsigned int devfn, int where,
+					   u32 * val)
 {
 	unsigned char busnum = bus->number;
-        u32 intr;
+	u32 intr;
 
-	if ((busnum == 0) && (devfn >= PCI_DEVFN(31,0)))
-	        return -1; /* Because of a bug in the Galileo (for slot 31). */
+	if ((busnum == 0) && (devfn >= PCI_DEVFN(31, 0)))
+		return -1;	/* Because of a bug in the Galileo (for slot 31). */
 
 	/* Clear cause register bits */
-	GT_WRITE( GT_INTRCAUSE_OFS, ~(GT_INTRCAUSE_MASABORT0_BIT | 
-				      GT_INTRCAUSE_TARABORT0_BIT) );
+	GT_WRITE(GT_INTRCAUSE_OFS, ~(GT_INTRCAUSE_MASABORT0_BIT |
+				     GT_INTRCAUSE_TARABORT0_BIT));
 
 	/* Setup address */
-	GT_WRITE( GT_PCI0_CFGADDR_OFS, 
-		  (busnum       << GT_PCI0_CFGADDR_BUSNUM_SHF) |
-		  (devfn    << GT_PCI0_CFGADDR_FUNCTNUM_SHF) |
-		  ((where / 4) << GT_PCI0_CFGADDR_REGNUM_SHF)   |
-		  GT_PCI0_CFGADDR_CONFIGEN_BIT );
+	GT_WRITE(GT_PCI0_CFGADDR_OFS,
+		 (busnum << GT_PCI0_CFGADDR_BUSNUM_SHF) |
+		 (devfn << GT_PCI0_CFGADDR_FUNCTNUM_SHF) |
+		 ((where / 4) << GT_PCI0_CFGADDR_REGNUM_SHF) |
+		 GT_PCI0_CFGADDR_CONFIGEN_BIT);
 
 	if (access_type == PCI_ACCESS_WRITE) {
-	        GT_WRITE( GT_PCI0_CFGDATA_OFS, *val );
+		GT_WRITE(GT_PCI0_CFGDATA_OFS, *val);
 	} else {
-	        GT_READ( GT_PCI0_CFGDATA_OFS, *val );
+		GT_READ(GT_PCI0_CFGDATA_OFS, *val);
 	}
 
 	/* Check for master or target abort */
-	GT_READ( GT_INTRCAUSE_OFS, intr );
+	GT_READ(GT_INTRCAUSE_OFS, intr);
 
-	if( intr & (GT_INTRCAUSE_MASABORT0_BIT | GT_INTRCAUSE_TARABORT0_BIT) )
-	{
-	        /* Error occurred */
+	if (intr &
+	    (GT_INTRCAUSE_MASABORT0_BIT | GT_INTRCAUSE_TARABORT0_BIT)) {
+		/* Error occurred */
 
-	        /* Clear bits */
-	        GT_WRITE( GT_INTRCAUSE_OFS, ~(GT_INTRCAUSE_MASABORT0_BIT | 
-					      GT_INTRCAUSE_TARABORT0_BIT) );
+		/* Clear bits */
+		GT_WRITE(GT_INTRCAUSE_OFS, ~(GT_INTRCAUSE_MASABORT0_BIT |
+					     GT_INTRCAUSE_TARABORT0_BIT));
 
 		return -1;
 	}
@@ -76,10 +80,12 @@ static int lasat_pcibios_config_access_100(unsigned char access_type,
 #define LO(reg) (reg / 4)
 #define HI(reg) (reg / 4 + 1)
 
-volatile unsigned long * const vrc_pciregs = (void *)Vrc5074_BASE;
+volatile unsigned long *const vrc_pciregs = (void *) Vrc5074_BASE;
 
 static int lasat_pcibios_config_access_200(unsigned char access_type,
-	struct pci_bus *bus, unsigned int devfn, int where, u32 *val)
+					   struct pci_bus *bus,
+					   unsigned int devfn, int where,
+					   u32 * val)
 {
 	unsigned char busnum = bus->number;
 	u32 adr, mask, err;
@@ -90,19 +96,20 @@ static int lasat_pcibios_config_access_200(unsigned char access_type,
 		 * controller itself) */
 		return -1;
 
-	if ((busnum == 0) && (devfn == PCI_DEVFN(0,0))) {
+	if ((busnum == 0) && (devfn == PCI_DEVFN(0, 0))) {
 		/* Access controller registers directly */
 		if (access_type == PCI_ACCESS_WRITE) {
-			vrc_pciregs[(0x200+where) >> 2] = *val;
+			vrc_pciregs[(0x200 + where) >> 2] = *val;
 		} else {
-			*val = vrc_pciregs[(0x200+where) >> 2];
+			*val = vrc_pciregs[(0x200 + where) >> 2];
 		}
-	        return 0;
+		return 0;
 	}
 
 	/* Temporarily map PCI Window 1 to config space */
 	mask = vrc_pciregs[LO(NILE4_PCIINIT1)];
-	vrc_pciregs[LO(NILE4_PCIINIT1)] = 0x0000001a | (busnum ? 0x200 : 0);
+	vrc_pciregs[LO(NILE4_PCIINIT1)] =
+	    0x0000001a | (busnum ? 0x200 : 0);
 
 	/* Clear PCI Error register. This also clears the Error Type
 	 * bits in the Control register */
@@ -111,18 +118,24 @@ static int lasat_pcibios_config_access_200(unsigned char access_type,
 
 	/* Setup address */
 	if (busnum == 0)
-	        adr = KSEG1ADDR(PCI_WINDOW1) + ((1 << (PCI_SLOT(devfn) + 15)) | (PCI_FUNC(devfn) << 8) | (where & ~3));
+		adr =
+		    KSEG1ADDR(PCI_WINDOW1) +
+		    ((1 << (PCI_SLOT(devfn) + 15)) | (PCI_FUNC(devfn) << 8)
+		     | (where & ~3));
 	else
-	        adr = KSEG1ADDR(PCI_WINDOW1) | (busnum << 16) | (devfn << 8) | (where & ~3);
+		adr =
+		    KSEG1ADDR(PCI_WINDOW1) | (busnum << 16) | (devfn << 8)
+		    | (where & ~3);
 
 #ifdef DEBUG_PCI
-	printk("PCI config %s: adr %x", access_type == PCI_ACCESS_WRITE ? "write" : "read", adr);
+	printk("PCI config %s: adr %x",
+	       access_type == PCI_ACCESS_WRITE ? "write" : "read", adr);
 #endif
 
 	if (access_type == PCI_ACCESS_WRITE) {
-	        *(u32 *)adr = *val;
+		*(u32 *) adr = *val;
 	} else {
-	        *val = *(u32 *)adr;
+		*val = *(u32 *) adr;
 	}
 
 #ifdef DEBUG_PCI
@@ -135,11 +148,11 @@ static int lasat_pcibios_config_access_200(unsigned char access_type,
 	/* Restore PCI Window 1 */
 	vrc_pciregs[LO(NILE4_PCIINIT1)] = mask;
 
-	if (err)
-	{
+	if (err) {
 		/* Error occured */
 #ifdef DEBUG_PCI
-	        printk("\terror %x at adr %x\n", err, vrc_pciregs[LO(PCIERR)]);
+		printk("\terror %x at adr %x\n", err,
+		       vrc_pciregs[LO(PCIERR)]);
 #endif
 		return -1;
 	}
@@ -147,8 +160,8 @@ static int lasat_pcibios_config_access_200(unsigned char access_type,
 	return 0;
 }
 
-static int lasat_pcibios_read(struct pci_bus *bus, unsigned int devfn, 
-		int where, int size, u32 *val)
+static int lasat_pcibios_read(struct pci_bus *bus, unsigned int devfn,
+			      int where, int size, u32 * val)
 {
 	u32 data = 0;
 
@@ -158,8 +171,8 @@ static int lasat_pcibios_read(struct pci_bus *bus, unsigned int devfn,
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 
 	if (lasat_pcibios_config_access(PCI_ACCESS_READ, bus, devfn, where,
-	                               &data))
-	       return -1;
+					&data))
+		return -1;
 
 	if (size == 1)
 		*val = (data >> ((where & 3) << 3)) & 0xff;
@@ -172,39 +185,39 @@ static int lasat_pcibios_read(struct pci_bus *bus, unsigned int devfn,
 }
 
 static int lasat_pcibios_write(struct pci_bus *bus, unsigned int devfn,
-                              int where, int size, u32 val)
+			       int where, int size, u32 val)
 {
-        u32 data = 0;
+	u32 data = 0;
 
 	if ((size == 2) && (where & 1))
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 	else if ((size == 4) && (where & 3))
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 
-        if (lasat_pcibios_config_access(PCI_ACCESS_READ, bus, devfn, where,
-	                               &data))
-	       return -1;
+	if (lasat_pcibios_config_access(PCI_ACCESS_READ, bus, devfn, where,
+					&data))
+		return -1;
 
 	if (size == 1)
 		data = (data & ~(0xff << ((where & 3) << 3))) |
-		       (val << ((where & 3) << 3));
+		    (val << ((where & 3) << 3));
 	else if (size == 2)
 		data = (data & ~(0xffff << ((where & 3) << 3))) |
-		       (val << ((where & 3) << 3));
+		    (val << ((where & 3) << 3));
 
-	if (lasat_pcibios_config_access(PCI_ACCESS_WRITE, bus, devfn, where,
-	                               &data))
-	       return -1;
+	if (lasat_pcibios_config_access
+	    (PCI_ACCESS_WRITE, bus, devfn, where, &data))
+		return -1;
 
 	return PCIBIOS_SUCCESSFUL;
 }
 
 struct pci_ops lasat_pci_ops = {
-	.read   = lasat_pcibios_read,
-	.write  = lasat_pcibios_write,
+	.read = lasat_pcibios_read,
+	.write = lasat_pcibios_write,
 };
 
-char * __init pcibios_setup(char *str)
+char *__init pcibios_setup(char *str)
 {
 	return str;
 }
@@ -213,10 +226,12 @@ static int __init pcibios_init(void)
 {
 	switch (mips_machtype) {
 	case MACH_LASAT_100:
-		lasat_pcibios_config_access = &lasat_pcibios_config_access_100;
+		lasat_pcibios_config_access =
+		    &lasat_pcibios_config_access_100;
 		break;
 	case MACH_LASAT_200:
-		lasat_pcibios_config_access = &lasat_pcibios_config_access_200;
+		lasat_pcibios_config_access =
+		    &lasat_pcibios_config_access_200;
 		break;
 	default:
 		panic("pcibios_init: mips_machtype incorrect");
@@ -241,7 +256,7 @@ int __init pcibios_enable_device(struct pci_dev *dev, int mask)
 }
 
 void __init pcibios_align_resource(void *data, struct resource *res,
-	unsigned long size, unsigned long align)
+				   unsigned long size, unsigned long align)
 {
 }
 
@@ -251,5 +266,5 @@ unsigned __init int pcibios_assign_all_busses(void)
 }
 
 struct pci_fixup pcibios_fixups[] = {
-	{ 0 }
+	{0}
 };

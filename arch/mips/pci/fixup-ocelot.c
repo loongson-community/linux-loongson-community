@@ -37,35 +37,37 @@ void __devinit gt64120_board_pcibios_fixup_bus(struct pci_bus *bus)
 			 * we double-check against that assumption
 			 */
 			if ((devices->vendor != 0x8086) ||
-			    (devices->device != 0x1209) ) {
-				panic("gt64120_board_pcibios_fixup_bus: found "
-				      "unexpected PCI device in slot 1.");
+			    (devices->device != 0x1209)) {
+				panic
+				    ("gt64120_board_pcibios_fixup_bus: found "
+				     "unexpected PCI device in slot 1.");
 			}
-			devices->irq = 2;       /* irq_nr is 2 for INT0 */
+			devices->irq = 2;	/* irq_nr is 2 for INT0 */
 		} else if (PCI_SLOT(devices->devfn) == 2) {
 			/*
 			 * Slot 2 is secondary ether port, i21143
 			 * we double-check against that assumption
 			 */
 			if ((devices->vendor != 0x1011) ||
-			    (devices->device != 0x19) ) {
+			    (devices->device != 0x19)) {
 				panic("galileo_pcibios_fixup_bus: "
 				      "found unexpected PCI device in slot 2.");
 			}
-			devices->irq = 3;       /* irq_nr is 3 for INT1 */
+			devices->irq = 3;	/* irq_nr is 3 for INT1 */
 		} else if (PCI_SLOT(devices->devfn) == 4) {
 			/* PMC Slot 1 */
-			devices->irq = 8;       /* irq_nr is 8 for INT6 */
+			devices->irq = 8;	/* irq_nr is 8 for INT6 */
 		} else if (PCI_SLOT(devices->devfn) == 5) {
 			/* PMC Slot 1 */
-			devices->irq = 9;       /* irq_nr is 9 for INT7 */
+			devices->irq = 9;	/* irq_nr is 9 for INT7 */
 		} else {
 			/* We don't have assign interrupts for other devices. */
 			devices->irq = 0xff;
 		}
 
 		/* Assign an interrupt number for the device */
-		bus->ops->write_byte(devices, PCI_INTERRUPT_LINE, devices->irq);
+		bus->ops->write_byte(devices, PCI_INTERRUPT_LINE,
+				     devices->irq);
 
 		/* enable master */
 		bus->ops->read_word(devices, PCI_COMMAND, &cmd);

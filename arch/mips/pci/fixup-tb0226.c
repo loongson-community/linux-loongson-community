@@ -37,14 +37,16 @@ void __init pcibios_fixup_irqs(void)
 
 		switch (slot) {
 		case 12:
-			vr41xx_set_irq_trigger(GD82559_1_PIN, TRIGGER_LEVEL,
-			                       SIGNAL_THROUGH);
+			vr41xx_set_irq_trigger(GD82559_1_PIN,
+					       TRIGGER_LEVEL,
+					       SIGNAL_THROUGH);
 			vr41xx_set_irq_level(GD82559_1_PIN, LEVEL_LOW);
 			dev->irq = GD82559_1_IRQ;
 			break;
 		case 13:
-			vr41xx_set_irq_trigger(GD82559_2_PIN, TRIGGER_LEVEL,
-			                       SIGNAL_THROUGH);
+			vr41xx_set_irq_trigger(GD82559_2_PIN,
+					       TRIGGER_LEVEL,
+					       SIGNAL_THROUGH);
 			vr41xx_set_irq_level(GD82559_2_PIN, LEVEL_LOW);
 			dev->irq = GD82559_2_IRQ;
 			break;
@@ -53,23 +55,26 @@ void __init pcibios_fixup_irqs(void)
 			switch (pin) {
 			case 1:
 				vr41xx_set_irq_trigger(UPD720100_INTA_PIN,
-				                       TRIGGER_LEVEL,
-				                       SIGNAL_THROUGH);
-				vr41xx_set_irq_level(UPD720100_INTA_PIN, LEVEL_LOW);
+						       TRIGGER_LEVEL,
+						       SIGNAL_THROUGH);
+				vr41xx_set_irq_level(UPD720100_INTA_PIN,
+						     LEVEL_LOW);
 				dev->irq = UPD720100_INTA_IRQ;
 				break;
 			case 2:
 				vr41xx_set_irq_trigger(UPD720100_INTB_PIN,
-				                       TRIGGER_LEVEL,
-				                       SIGNAL_THROUGH);
-				vr41xx_set_irq_level(UPD720100_INTB_PIN, LEVEL_LOW);
+						       TRIGGER_LEVEL,
+						       SIGNAL_THROUGH);
+				vr41xx_set_irq_level(UPD720100_INTB_PIN,
+						     LEVEL_LOW);
 				dev->irq = UPD720100_INTB_IRQ;
 				break;
 			case 3:
 				vr41xx_set_irq_trigger(UPD720100_INTC_PIN,
-				                       TRIGGER_LEVEL,
-				                       SIGNAL_THROUGH);
-				vr41xx_set_irq_level(UPD720100_INTC_PIN, LEVEL_LOW);
+						       TRIGGER_LEVEL,
+						       SIGNAL_THROUGH);
+				vr41xx_set_irq_level(UPD720100_INTC_PIN,
+						     LEVEL_LOW);
 				dev->irq = UPD720100_INTC_IRQ;
 				break;
 			}

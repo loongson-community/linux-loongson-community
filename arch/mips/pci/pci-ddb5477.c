@@ -24,34 +24,38 @@
 static struct resource extpci_io_resource = {
 	"ext pci IO space",
 	DDB_PCI0_IO_BASE - DDB_PCI_IO_BASE + 0x4000,
-	DDB_PCI0_IO_BASE - DDB_PCI_IO_BASE + DDB_PCI0_IO_SIZE -1,
-	IORESOURCE_IO};
+	DDB_PCI0_IO_BASE - DDB_PCI_IO_BASE + DDB_PCI0_IO_SIZE - 1,
+	IORESOURCE_IO
+};
 
 static struct resource extpci_mem_resource = {
 	"ext pci memory space",
 	DDB_PCI0_MEM_BASE + 0x100000,
-	DDB_PCI0_MEM_BASE + DDB_PCI0_MEM_SIZE -1,
-	IORESOURCE_MEM};
+	DDB_PCI0_MEM_BASE + DDB_PCI0_MEM_SIZE - 1,
+	IORESOURCE_MEM
+};
 
 static struct resource iopci_io_resource = {
 	"io pci IO space",
 	DDB_PCI1_IO_BASE - DDB_PCI_IO_BASE,
-	DDB_PCI1_IO_BASE - DDB_PCI_IO_BASE + DDB_PCI1_IO_SIZE -1,
-	IORESOURCE_IO};
+	DDB_PCI1_IO_BASE - DDB_PCI_IO_BASE + DDB_PCI1_IO_SIZE - 1,
+	IORESOURCE_IO
+};
 
 static struct resource iopci_mem_resource = {
 	"ext pci memory space",
 	DDB_PCI1_MEM_BASE,
-	DDB_PCI1_MEM_BASE + DDB_PCI1_MEM_SIZE -1,
-	IORESOURCE_MEM};
+	DDB_PCI1_MEM_BASE + DDB_PCI1_MEM_SIZE - 1,
+	IORESOURCE_MEM
+};
 
 extern struct pci_ops ddb5477_ext_pci_ops;
 extern struct pci_ops ddb5477_io_pci_ops;
 
 struct pci_channel mips_pci_channels[] = {
-	{ &ddb5477_ext_pci_ops, &extpci_io_resource, &extpci_mem_resource },
-	{ &ddb5477_io_pci_ops, &iopci_io_resource, &iopci_mem_resource },
-	{ NULL, NULL, NULL}
+	{&ddb5477_ext_pci_ops, &extpci_io_resource, &extpci_mem_resource},
+	{&ddb5477_io_pci_ops, &iopci_io_resource, &iopci_mem_resource},
+	{NULL, NULL, NULL}
 };
 
 
@@ -78,11 +82,16 @@ static unsigned char irq_map[MAX_SLOT_NUM] = {
 	/* SLOT:  1, AD:12 */ 0xff,
 	/* SLOT:  2, AD:13 */ 0xff,
 	/* SLOT:  3, AD:14 */ 0xff,
-	/* SLOT:  4, AD:15 */ VRC5477_IRQ_INTA,       /* onboard tulip */
-	/* SLOT:  5, AD:16 */ VRC5477_IRQ_INTB,       /* slot 1 */
-	/* SLOT:  6, AD:17 */ VRC5477_IRQ_INTC,       /* slot 2 */
-	/* SLOT:  7, AD:18 */ VRC5477_IRQ_INTD,       /* slot 3 */
-	/* SLOT:  8, AD:19 */ VRC5477_IRQ_INTE,       /* slot 4 */
+						/* SLOT:  4, AD:15 */ VRC5477_IRQ_INTA,
+						/* onboard tulip */
+						/* SLOT:  5, AD:16 */ VRC5477_IRQ_INTB,
+						/* slot 1 */
+						/* SLOT:  6, AD:17 */ VRC5477_IRQ_INTC,
+						/* slot 2 */
+						/* SLOT:  7, AD:18 */ VRC5477_IRQ_INTD,
+						/* slot 3 */
+						/* SLOT:  8, AD:19 */ VRC5477_IRQ_INTE,
+						/* slot 4 */
 	/* SLOT:  9, AD:20 */ 0xff,
 	/* SLOT: 10, AD:21 */ 0xff,
 	/* SLOT: 11, AD:22 */ 0xff,
@@ -92,40 +101,54 @@ static unsigned char irq_map[MAX_SLOT_NUM] = {
 	/* SLOT: 15, AD:26 */ 0xff,
 	/* SLOT: 16, AD:27 */ 0xff,
 	/* SLOT: 17, AD:28 */ 0xff,
-	/* SLOT: 18, AD:29 */ VRC5477_IRQ_IOPCI_INTC, /* vrc5477 ac97 */
-	/* SLOT: 19, AD:30 */ VRC5477_IRQ_IOPCI_INTB, /* vrc5477 usb peri */
-	/* SLOT: 20, AD:31 */ VRC5477_IRQ_IOPCI_INTA, /* vrc5477 usb host */
+							/* SLOT: 18, AD:29 */ VRC5477_IRQ_IOPCI_INTC,
+							/* vrc5477 ac97 */
+							/* SLOT: 19, AD:30 */ VRC5477_IRQ_IOPCI_INTB,
+							/* vrc5477 usb peri */
+							/* SLOT: 20, AD:31 */ VRC5477_IRQ_IOPCI_INTA,
+							/* vrc5477 usb host */
 };
 static unsigned char rockhopperII_irq_map[MAX_SLOT_NUM] = {
 	/* SLOT:  0, AD:11 */ 0xff,
-	/* SLOT:  1, AD:12 */ VRC5477_IRQ_INTB,       /* onboard AMD PCNET */
+						/* SLOT:  1, AD:12 */ VRC5477_IRQ_INTB,
+						/* onboard AMD PCNET */
 	/* SLOT:  2, AD:13 */ 0xff,
 	/* SLOT:  3, AD:14 */ 0xff,
-	/* SLOT:  4, AD:15 */ 14,                     /* M5229 ide ISA irq */
-	/* SLOT:  5, AD:16 */ VRC5477_IRQ_INTD,       /* slot 3 */
-	/* SLOT:  6, AD:17 */ VRC5477_IRQ_INTA,       /* slot 4 */
-	/* SLOT:  7, AD:18 */ VRC5477_IRQ_INTD,       /* slot 5 */
-	/* SLOT:  8, AD:19 */ 0,                      /* M5457 modem nop */
-	/* SLOT:  9, AD:20 */ VRC5477_IRQ_INTA,       /* slot 2 */
-	/* SLOT: 10, AD:21 */ 0xff,     
+					/* SLOT:  4, AD:15 */ 14,
+					/* M5229 ide ISA irq */
+						/* SLOT:  5, AD:16 */ VRC5477_IRQ_INTD,
+						/* slot 3 */
+						/* SLOT:  6, AD:17 */ VRC5477_IRQ_INTA,
+						/* slot 4 */
+						/* SLOT:  7, AD:18 */ VRC5477_IRQ_INTD,
+						/* slot 5 */
+					/* SLOT:  8, AD:19 */ 0,
+					/* M5457 modem nop */
+						/* SLOT:  9, AD:20 */ VRC5477_IRQ_INTA,
+						/* slot 2 */
+	/* SLOT: 10, AD:21 */ 0xff,
 	/* SLOT: 11, AD:22 */ 0xff,
 	/* SLOT: 12, AD:23 */ 0xff,
 	/* SLOT: 13, AD:24 */ 0xff,
 	/* SLOT: 14, AD:25 */ 0xff,
 	/* SLOT: 15, AD:26 */ 0xff,
 	/* SLOT: 16, AD:27 */ 0xff,
-	/* SLOT: 17, AD:28 */ 0,                      /* M7101 PMU nop */
-	/* SLOT: 18, AD:29 */ VRC5477_IRQ_IOPCI_INTC, /* vrc5477 ac97 */
-	/* SLOT: 19, AD:30 */ VRC5477_IRQ_IOPCI_INTB, /* vrc5477 usb peri */
-	/* SLOT: 20, AD:31 */ VRC5477_IRQ_IOPCI_INTA, /* vrc5477 usb host */
+					/* SLOT: 17, AD:28 */ 0,
+					/* M7101 PMU nop */
+							/* SLOT: 18, AD:29 */ VRC5477_IRQ_IOPCI_INTC,
+							/* vrc5477 ac97 */
+							/* SLOT: 19, AD:30 */ VRC5477_IRQ_IOPCI_INTB,
+							/* vrc5477 usb peri */
+							/* SLOT: 20, AD:31 */ VRC5477_IRQ_IOPCI_INTA,
+							/* vrc5477 usb host */
 };
 
 void __init pcibios_fixup_irqs(void)
 {
-        struct pci_dev *dev;
-        int slot_num;
-        unsigned char *slot_irq_map;
-        unsigned char irq;
+	struct pci_dev *dev;
+	int slot_num;
+	unsigned char *slot_irq_map;
+	unsigned char irq;
 
 	if (mips_machtype == MACH_NEC_ROCKHOPPERII)
 		slot_irq_map = rockhopperII_irq_map;
@@ -139,11 +162,9 @@ void __init pcibios_fixup_irqs(void)
 
 		db_assert(slot_num < MAX_SLOT_NUM);
 
-                db_assert(irq != 0xff);
+		db_assert(irq != 0xff);
 
-		pci_write_config_byte(dev,
-				      PCI_INTERRUPT_LINE,
-				      irq);
+		pci_write_config_byte(dev, PCI_INTERRUPT_LINE, irq);
 
 		dev->irq = irq;
 
@@ -154,7 +175,7 @@ void __init pcibios_fixup_irqs(void)
 			 * Make the M1535 USB - ISA IRQ number 9.
 			 */
 			if (slot_num == 20 && dev->bus->number == 0) {
-				pci_write_config_byte(dev, 
+				pci_write_config_byte(dev,
 						      PCI_INTERRUPT_LINE,
 						      9);
 				dev->irq = 9;
@@ -217,16 +238,16 @@ void __init fix_amd_lance(struct pci_dev *dev)
 	unsigned long ioaddr;
 	u16 temp;
 
-	ioaddr=pci_resource_start(dev, 0);
+	ioaddr = pci_resource_start(dev, 0);
 
-	inw(ioaddr + PCNET32_WIO_RESET);		/* reset chip */
+	inw(ioaddr + PCNET32_WIO_RESET);	/* reset chip */
 
- 	/* bcr_18 |= 0x0800 */
-	outw (18, ioaddr + PCNET32_WIO_RAP);
-	temp = inw (ioaddr + PCNET32_WIO_BDP);
+	/* bcr_18 |= 0x0800 */
+	outw(18, ioaddr + PCNET32_WIO_RAP);
+	temp = inw(ioaddr + PCNET32_WIO_BDP);
 	temp |= 0x0800;
-	outw (18, ioaddr + PCNET32_WIO_RAP);
-	outw (temp, ioaddr + PCNET32_WIO_BDP);
+	outw(18, ioaddr + PCNET32_WIO_RAP);
+	outw(temp, ioaddr + PCNET32_WIO_BDP);
 }
 
 void __init pcibios_fixup(void)
@@ -240,7 +261,8 @@ void __init pcibios_fixup(void)
 
 		printk("Configuring ALI M1535 Super I/O mouse irq.\n");
 
-		request_region(M1535_CONFIG_PORT, 2, "M1535 Super I/O config");
+		request_region(M1535_CONFIG_PORT, 2,
+			       "M1535 Super I/O config");
 
 		/* Enter config mode. */
 		outb(0x51, M1535_CONFIG_PORT);
@@ -257,21 +279,24 @@ void __init pcibios_fixup(void)
 		/* Exit config mode. */
 		outb(0xbb, M1535_CONFIG_PORT);
 
-		pci_for_each_dev(dev) { 
-			if(dev->vendor == PCI_VENDOR_ID_AL)
-				if(dev->device == PCI_DEVICE_ID_AL_M1535
-				    || dev->device == PCI_DEVICE_ID_AL_M1533) {
-				u8 old;
-				printk("Enabling ALI M1533/35 PS2 keyboard/mouse.\n");
-				pci_read_config_byte(dev, 0x41, &old);
-				pci_write_config_byte(dev, 0x41, old | 0xd0);
-			}
+		pci_for_each_dev(dev) {
+			if (dev->vendor == PCI_VENDOR_ID_AL)
+				if (dev->device == PCI_DEVICE_ID_AL_M1535
+				    || dev->device ==
+				    PCI_DEVICE_ID_AL_M1533) {
+					u8 old;
+					printk
+					    ("Enabling ALI M1533/35 PS2 keyboard/mouse.\n");
+					pci_read_config_byte(dev, 0x41,
+							     &old);
+					pci_write_config_byte(dev, 0x41,
+							      old | 0xd0);
+				}
 
-			if (dev->vendor == PCI_VENDOR_ID_AMD && 
-					dev->device == PCI_DEVICE_ID_AMD_LANCE) 
+			if (dev->vendor == PCI_VENDOR_ID_AMD &&
+			    dev->device == PCI_DEVICE_ID_AMD_LANCE)
 				fix_amd_lance(dev);
 		}
-		
+
 	}
 }
-

@@ -40,7 +40,7 @@
 
 #define MAX_PCI_DEVS 10
 
-void mv64340_board_pcibios_fixup_bus(struct pci_bus* c);
+void mv64340_board_pcibios_fixup_bus(struct pci_bus *c);
 
 /*  Functions to implement "pci ops"  */
 static int marvell_pcibios_read_config_word(struct pci_dev *dev,
@@ -106,7 +106,7 @@ static __inline__ int pci_range_ck(unsigned char bus, unsigned char dev)
  */
 
 static int marvell_pcibios_read_config_dword(struct pci_dev *device,
-					      int offset, u32* val)
+					     int offset, u32 * val)
 {
 	int dev, bus, func;
 	uint32_t address_reg, data_reg;
@@ -130,7 +130,7 @@ static int marvell_pcibios_read_config_dword(struct pci_dev *device,
 	}
 
 	address = (bus << 16) | (dev << 11) | (func << 8) |
-		(offset & 0xfc) | 0x80000000;
+	    (offset & 0xfc) | 0x80000000;
 
 	/* start the configuration cycle */
 	MV_WRITE(address_reg, address);
@@ -143,7 +143,7 @@ static int marvell_pcibios_read_config_dword(struct pci_dev *device,
 
 
 static int marvell_pcibios_read_config_word(struct pci_dev *device,
-					     int offset, u16* val)
+					    int offset, u16 * val)
 {
 	int dev, bus, func;
 	uint32_t address_reg, data_reg;
@@ -167,7 +167,7 @@ static int marvell_pcibios_read_config_word(struct pci_dev *device,
 	}
 
 	address = (bus << 16) | (dev << 11) | (func << 8) |
-		(offset & 0xfc) | 0x80000000;
+	    (offset & 0xfc) | 0x80000000;
 
 	/* start the configuration cycle */
 	MV_WRITE(address_reg, address);
@@ -179,7 +179,7 @@ static int marvell_pcibios_read_config_word(struct pci_dev *device,
 }
 
 static int marvell_pcibios_read_config_byte(struct pci_dev *device,
-					     int offset, u8* val)
+					    int offset, u8 * val)
 {
 	int dev, bus, func;
 	uint32_t address_reg, data_reg;
@@ -203,7 +203,7 @@ static int marvell_pcibios_read_config_byte(struct pci_dev *device,
 	}
 
 	address = (bus << 16) | (dev << 11) | (func << 8) |
-		(offset & 0xfc) | 0x80000000;
+	    (offset & 0xfc) | 0x80000000;
 
 	/* start the configuration cycle */
 	MV_WRITE(address_reg, address);
@@ -239,7 +239,7 @@ static int marvell_pcibios_write_config_dword(struct pci_dev *device,
 	}
 
 	address = (bus << 16) | (dev << 11) | (func << 8) |
-		(offset & 0xfc) | 0x80000000;
+	    (offset & 0xfc) | 0x80000000;
 
 	/* start the configuration cycle */
 	MV_WRITE(address_reg, address);
@@ -276,7 +276,7 @@ static int marvell_pcibios_write_config_word(struct pci_dev *device,
 	}
 
 	address = (bus << 16) | (dev << 11) | (func << 8) |
-		(offset & 0xfc) | 0x80000000;
+	    (offset & 0xfc) | 0x80000000;
 
 	/* start the configuration cycle */
 	MV_WRITE(address_reg, address);
@@ -312,7 +312,7 @@ static int marvell_pcibios_write_config_byte(struct pci_dev *device,
 	}
 
 	address = (bus << 16) | (dev << 11) | (func << 8) |
-		(offset & 0xfc) | 0x80000000;
+	    (offset & 0xfc) | 0x80000000;
 
 	/* start the configuration cycle */
 	MV_WRITE(address_reg, address);
@@ -367,15 +367,16 @@ int pcibios_enable_resources(struct pci_dev *dev)
 	 */
 	marvell_pcibios_read_config_byte(dev, PCI_CACHE_LINE_SIZE, &tmp1);
 	if (tmp1 != 8) {
-		printk(KERN_WARNING "PCI setting cache line size to 8 from "
-		       "%d\n", tmp1);
+		printk(KERN_WARNING
+		       "PCI setting cache line size to 8 from " "%d\n",
+		       tmp1);
 		marvell_pcibios_write_config_byte(dev, PCI_CACHE_LINE_SIZE,
 						  8);
 	}
 	marvell_pcibios_read_config_byte(dev, PCI_LATENCY_TIMER, &tmp1);
 	if (tmp1 < 32) {
-		printk(KERN_WARNING "PCI setting latency timer to 32 from %d\n",
-		       tmp1);
+		printk(KERN_WARNING
+		       "PCI setting latency timer to 32 from %d\n", tmp1);
 		marvell_pcibios_write_config_byte(dev, PCI_LATENCY_TIMER,
 						  32);
 	}
@@ -402,7 +403,7 @@ void pcibios_align_resource(void *data, struct resource *res,
 		if (size > 0x100) {
 			printk(KERN_ERR "PCI: I/O Region %s/%d too large"
 			       " (%ld bytes)\n", dev->slot_name,
-			        dev->resource - res, size);
+			       dev->resource - res, size);
 		}
 
 		start = (start + 1024 - 1) & ~(1024 - 1);
@@ -432,9 +433,9 @@ void __init pcibios_init(void)
 {
 	/* Reset PCI I/O and PCI MEM values */
 	ioport_resource.start = 0xe0000000;
-	ioport_resource.end   = 0xe0000000 + 0x20000000 - 1;
-	iomem_resource.start  = 0xc0000000;
-	iomem_resource.end    = 0xc0000000 + 0x20000000 - 1;
+	ioport_resource.end = 0xe0000000 + 0x20000000 - 1;
+	iomem_resource.start = 0xc0000000;
+	iomem_resource.end = 0xc0000000 + 0x20000000 - 1;
 
 	pci_scan_bus(0, &marvell_pci_ops, NULL);
 	pci_scan_bus(1, &marvell_pci_ops, NULL);
@@ -445,10 +446,10 @@ void __init pcibios_init(void)
  */
 char *pcibios_setup(char *str)
 {
-        printk(KERN_INFO "rr: pcibios_setup\n");
-        /* Nothing to do for now.  */
+	printk(KERN_INFO "rr: pcibios_setup\n");
+	/* Nothing to do for now.  */
 
-        return str;
+	return str;
 }
 
 unsigned __init int pcibios_assign_all_busses(void)

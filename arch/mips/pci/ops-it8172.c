@@ -78,12 +78,15 @@ static struct resource pci_mem_resource_1 = {
 extern struct pci_ops it8172_pci_ops;
 
 struct pci_channel mips_pci_channels[] = {
-	{ &it8172_pci_ops, &pci_io_resource, &pci_mem_resource_0, 0x10, 0xff },
-	{ NULL, NULL, NULL, NULL, NULL}
+	{&it8172_pci_ops, &pci_io_resource, &pci_mem_resource_0, 0x10,
+	 0xff},
+	{NULL, NULL, NULL, NULL, NULL}
 };
 
 static int it8172_pcibios_config_access(unsigned char access_type,
-	struct pci_bus *bus, unsigned int devfn, int where, u32 *data)
+					struct pci_bus *bus,
+					unsigned int devfn, int where,
+					u32 * data)
 {
 	/*
 	 * config cycles are on 4 byte boundary only
@@ -91,12 +94,11 @@ static int it8172_pcibios_config_access(unsigned char access_type,
 
 	/* Setup address */
 	IT_WRITE(IT_CONFADDR, (bus->number << IT_BUSNUM_SHF) |
-	                      (devfn << IT_FUNCNUM_SHF) | (where & ~0x3));
+		 (devfn << IT_FUNCNUM_SHF) | (where & ~0x3));
 
 	if (access_type == PCI_ACCESS_WRITE) {
 		IT_WRITE(IT_CONFDATA, *data);
-	}
-	else {
+	} else {
 		IT_READ(IT_CONFDATA, *data);
 	}
 
@@ -112,15 +114,15 @@ static int it8172_pcibios_config_access(unsigned char access_type,
  * read/write a 32bit word and mask/modify the data we actually want.
  */
 static write_config(struct pci_bus *bus, unsigned int devfn, int where,
-	int size, u32 val)
+		    int size, u32 val)
 {
 	u32 data = 0;
 
 	switch (size) {
 	case 1:
-		if (it8172_pcibios_config_access(PCI_ACCESS_READ, dev, where,
-		                                 &data))
-		return -1;
+		if (it8172_pcibios_config_access
+		    (PCI_ACCESS_READ, dev, where, &data))
+			return -1;
 
 		*val = (data >> ((where & 3) << 3)) & 0xff;
 
@@ -131,9 +133,9 @@ static write_config(struct pci_bus *bus, unsigned int devfn, int where,
 		if (where & 1)
 			return PCIBIOS_BAD_REGISTER_NUMBER;
 
-		if (it8172_pcibios_config_access(PCI_ACCESS_READ, dev, where,
-		                                 &data))
-		       return -1;
+		if (it8172_pcibios_config_access
+		    (PCI_ACCESS_READ, dev, where, &data))
+			return -1;
 
 		*val = (data >> ((where & 3) << 3)) & 0xffff;
 		DBG("cfg read word: bus %d dev_fn %x where %x: val %x\n",
@@ -146,8 +148,8 @@ static write_config(struct pci_bus *bus, unsigned int devfn, int where,
 		if (where & 3)
 			return PCIBIOS_BAD_REGISTER_NUMBER;
 
-		if (it8172_pcibios_config_access(PCI_ACCESS_READ, dev, where,
-		                                 &data))
+		if (it8172_pcibios_config_access
+		    (PCI_ACCESS_READ, dev, where, &data))
 			return -1;
 
 		*val = data;
@@ -158,21 +160,21 @@ static write_config(struct pci_bus *bus, unsigned int devfn, int where,
 
 
 static write_config(struct pci_bus *bus, unsigned int devfn, int where,
-	int size, u32 val)
+		    int size, u32 val)
 {
 	u32 data = 0;
 
 	switch (size) {
 	case 1:
-		if (it8172_pcibios_config_access(PCI_ACCESS_READ, dev, where,
-		                                 &data))
+		if (it8172_pcibios_config_access
+		    (PCI_ACCESS_READ, dev, where, &data))
 			return -1;
 
 		data = (data & ~(0xff << ((where & 3) << 3))) |
-		       (val << ((where & 3) << 3));
+		    (val << ((where & 3) << 3));
 
-		if (it8172_pcibios_config_access(PCI_ACCESS_WRITE, dev, where,
-		                                 &data))
+		if (it8172_pcibios_config_access
+		    (PCI_ACCESS_WRITE, dev, where, &data))
 			return -1;
 
 		return PCIBIOS_SUCCESSFUL;
@@ -181,15 +183,15 @@ static write_config(struct pci_bus *bus, unsigned int devfn, int where,
 		if (where & 1)
 			return PCIBIOS_BAD_REGISTER_NUMBER;
 
-		if (it8172_pcibios_config_access(PCI_ACCESS_READ, dev, where,
-		                                 &data))
-			eturn -1;
+		if (it8172_pcibios_config_access
+		    (PCI_ACCESS_READ, dev, where, &data))
+			eturn - 1;
 
 		data = (data & ~(0xffff << ((where & 3) << 3))) |
-	               (val << ((where & 3) << 3));
+		    (val << ((where & 3) << 3));
 
-		if (it8172_pcibios_config_access(PCI_ACCESS_WRITE, dev, where,
-		                                 &data))
+		if (it8172_pcibios_config_access
+		    (PCI_ACCESS_WRITE, dev, where, &data))
 			return -1;
 
 		return PCIBIOS_SUCCESSFUL;
@@ -198,17 +200,17 @@ static write_config(struct pci_bus *bus, unsigned int devfn, int where,
 		if (where & 3)
 			return PCIBIOS_BAD_REGISTER_NUMBER;
 
-		if (it8172_pcibios_config_access(PCI_ACCESS_WRITE, dev, where,
-		                                 &val))
-		       return -1;
+		if (it8172_pcibios_config_access
+		    (PCI_ACCESS_WRITE, dev, where, &val))
+			return -1;
 
 		return PCIBIOS_SUCCESSFUL;
 	}
 }
 
 struct pci_ops it8172_pci_ops = {
-	.read	= read_config,
-	.write	= write_config,
+	.read = read_config,
+	.write = write_config,
 };
 
 unsigned __init int pcibios_assign_all_busses(void)

@@ -133,7 +133,8 @@ static void galileo_pcibios_set_master(struct pci_dev *dev);
  * pci0MapIOspace - Maps PCI0 IO space for the master.
  * Inputs: base and length of pci0Io
  */
-static void pci0MapIOspace(unsigned int pci0IoBase, unsigned int pci0IoLength)
+static void pci0MapIOspace(unsigned int pci0IoBase,
+			   unsigned int pci0IoLength)
 {
 	unsigned int pci0IoTop =
 	    (unsigned int) (pci0IoBase + pci0IoLength);
@@ -493,7 +494,7 @@ static unsigned int pci0ReadConfigReg(int offset, struct pci_dev *device)
 	if (PCI_SLOT(device->devfn) == SELF) {	/* This board */
 		GT_READ(GT_PCI0_CFGDATA_OFS, &data);
 		return data;
-	} else {	/* The PCI is working in LE Mode so swap the Data. */
+	} else {		/* The PCI is working in LE Mode so swap the Data. */
 		GT_READ(GT_PCI0_CFGDATA_OFS, &data);
 		return cpu_to_le32(data);
 	}
@@ -661,8 +662,9 @@ static int galileo_pcibios_read_config_word(struct pci_dev *device,
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 
 	if (bus == 0)
-		*val = (unsigned short) (pci0ReadConfigReg(offset, device) >>
-				         ((offset & ~0x3) * 8));
+		*val =
+		    (unsigned short) (pci0ReadConfigReg(offset, device) >>
+				      ((offset & ~0x3) * 8));
 //  if (bus == 1) *val = (unsigned short) (pci1ReadConfigReg(offset,device) >> ((offset & ~0x3) * 8));
 
 	DBG(KERN_INFO "rr: rcw dev %d offset %x %x\n", dev, offset, *val);

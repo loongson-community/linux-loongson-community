@@ -64,9 +64,9 @@ do {									\
 } while (0)
 
 static int pci_conf0_read_config(struct pci_bus *bus, unsigned int devfn,
-	int where, int size, u32 *value)
+				 int where, int size, u32 * value)
 {
-	u32	vprod;
+	u32 vprod;
 
 	CF0_READ_PCI_CFG(bus, devfn, PCI_VENDOR_ID, &vprod, 0, 0xffffffff);
 	if (vprod == (PCI_VENDOR_ID_SGI | (PCI_DEVICE_ID_SGI_IOC3 << 16))
@@ -78,9 +78,11 @@ static int pci_conf0_read_config(struct pci_bus *bus, unsigned int devfn,
 	if (size == 1)
 		CF0_READ_PCI_CFG(bus, devfn, where, (u8 *) value, 3, 0xff);
 	else if (size == 2)
-		CF0_READ_PCI_CFG(bus, devfn, where, (u16 *) value, 2, 0xffff);
+		CF0_READ_PCI_CFG(bus, devfn, where, (u16 *) value, 2,
+				 0xffff);
 	else
-		CF0_READ_PCI_CFG(bus, devfn, where, (u32 *) value, 0, 0xffffffff);
+		CF0_READ_PCI_CFG(bus, devfn, where, (u32 *) value, 0,
+				 0xffffffff);
 }
 
 #define CF0_WRITE_PCI_CFG(bus,devfn,where,value,bm,mask)		\
@@ -106,9 +108,9 @@ do {									\
 } while (0)
 
 static int pci_conf0_write_config(struct pci_bus *bus, unsigned int devfn,
-	int where, int size, u32 value)
+				  int where, int size, u32 value)
 {
-	u32	vprod;
+	u32 vprod;
 
 	CF0_READ_PCI_CFG(bus, devfn, PCI_VENDOR_ID, &vprod, 0, 0xffffffff);
 	if (vprod == (PCI_VENDOR_ID_SGI | (PCI_DEVICE_ID_SGI_IOC3 << 16))
@@ -117,26 +119,28 @@ static int pci_conf0_write_config(struct pci_bus *bus, unsigned int devfn,
 	}
 
 	if (size == 1)
-		CF0_WRITE_PCI_CFG(bus, devfn, where, (u8)  value, 3,0xff);
+		CF0_WRITE_PCI_CFG(bus, devfn, where, (u8) value, 3, 0xff);
 	else if (size == 2)
-		CF0_WRITE_PCI_CFG(bus, devfn, where, (u16) value, 2,0xffff);
+		CF0_WRITE_PCI_CFG(bus, devfn, where, (u16) value, 2,
+				  0xffff);
 	else
-		CF0_WRITE_PCI_CFG(bus, devfn, where, (u32) value, 0,0xffffffff);
+		CF0_WRITE_PCI_CFG(bus, devfn, where, (u32) value, 0,
+				  0xffffffff);
 }
 
 static struct pci_ops bridge_pci_ops = {
-	.read	= pci_conf0_read_config,
-	.write	= pci_conf0_write_config,
+	.read = pci_conf0_read_config,
+	.write = pci_conf0_write_config,
 };
 
 static int __init pcibios_init(void)
 {
 	struct pci_ops *ops = &bridge_pci_ops;
-	int	i;
+	int i;
 
 	ioport_resource.end = ~0UL;
 
-	for (i=0; i < num_bridges; i++) {
+	for (i = 0; i < num_bridges; i++) {
 		printk("PCI: Probing PCI hardware on host bus %2d.\n", i);
 		pci_scan_bus(i, ops, NULL);
 	}
@@ -148,10 +152,10 @@ subsys_initcall(pcibios_init);
 
 static inline u8 bridge_swizzle(u8 pin, u8 slot)
 {
-	return (((pin-1) + slot) % 4) + 1;
+	return (((pin - 1) + slot) % 4) + 1;
 }
 
-static u8 __devinit pci_swizzle(struct pci_dev *dev, u8 *pinp)
+static u8 __devinit pci_swizzle(struct pci_dev *dev, u8 * pinp)
 {
 	u8 pin = *pinp;
 
@@ -211,7 +215,7 @@ int pcibios_enable_device(struct pci_dev *dev, int mask)
 }
 
 void pcibios_align_resource(void *data, struct resource *res,
-	unsigned long size, unsigned long align)
+			    unsigned long size, unsigned long align)
 {
 }
 
@@ -220,7 +224,7 @@ unsigned int pcibios_assign_all_busses(void)
 	return 0;
 }
 
-char * __devinit pcibios_setup(char *str)
+char *__devinit pcibios_setup(char *str)
 {
 	/* Nothing to do for now.  */
 
@@ -238,34 +242,35 @@ static void __init pci_disable_swapping(struct pci_dev *dev)
 {
 	unsigned int bus_id = (unsigned) dev->bus->number;
 	bridge_t *bridge = (bridge_t *) NODE_SWIN_BASE(bus_to_nid[bus_id],
-	                                               bus_to_wid[bus_id]);
-	int		slot = PCI_SLOT(dev->devfn);
+						       bus_to_wid[bus_id]);
+	int slot = PCI_SLOT(dev->devfn);
 
 	/* Turn off byte swapping */
 	bridge->b_device[slot].reg &= ~BRIDGE_DEV_SWAP_DIR;
-	bridge->b_widget.w_tflush;		/* Flush */
+	bridge->b_widget.w_tflush;	/* Flush */
 }
 
 static void __init pci_enable_swapping(struct pci_dev *dev)
 {
 	unsigned int bus_id = (unsigned) dev->bus->number;
 	bridge_t *bridge = (bridge_t *) NODE_SWIN_BASE(bus_to_nid[bus_id],
-	                                               bus_to_wid[bus_id]);
-	int		slot = PCI_SLOT(dev->devfn);
+						       bus_to_wid[bus_id]);
+	int slot = PCI_SLOT(dev->devfn);
 
 	/* Turn on byte swapping */
 	bridge->b_device[slot].reg |= BRIDGE_DEV_SWAP_DIR;
-	bridge->b_widget.w_tflush;		/* Flush */
+	bridge->b_widget.w_tflush;	/* Flush */
 }
 
 static void __init pci_fixup_ioc3(struct pci_dev *d)
 {
 	unsigned long bus_id = (unsigned) d->bus->number;
 
-	printk("PCI: Fixing base addresses for IOC3 device %s\n", d->slot_name);
+	printk("PCI: Fixing base addresses for IOC3 device %s\n",
+	       d->slot_name);
 
 	d->resource[0].start |= NODE_OFFSET(bus_to_nid[bus_id]);
-	d->resource[0].end   |= NODE_OFFSET(bus_to_nid[bus_id]);
+	d->resource[0].end |= NODE_OFFSET(bus_to_nid[bus_id]);
 
 	pci_disable_swapping(d);
 }
@@ -274,7 +279,8 @@ static void __init pci_fixup_isp1020(struct pci_dev *d)
 {
 	unsigned short command;
 
-	d->resource[0].start |= ((unsigned long)(bus_to_nid[d->bus->number])<<32);
+	d->resource[0].start |=
+	    ((unsigned long) (bus_to_nid[d->bus->number]) << 32);
 	printk("PCI: Fixing isp1020 in [bus:slot.fn] %s\n", d->slot_name);
 
 	/*
@@ -298,17 +304,17 @@ static void __init pci_fixup_isp2x00(struct pci_dev *d)
 {
 	unsigned int bus_id = (unsigned) d->bus->number;
 	bridge_t *bridge = (bridge_t *) NODE_SWIN_BASE(bus_to_nid[bus_id],
-				     bus_to_wid[bus_id]);
-	bridgereg_t 	devreg;
-	int		i;
-	int		slot = PCI_SLOT(d->devfn);
-	unsigned int	start;
+						       bus_to_wid[bus_id]);
+	bridgereg_t devreg;
+	int i;
+	int slot = PCI_SLOT(d->devfn);
+	unsigned int start;
 	unsigned short command;
 
 	printk("PCI: Fixing isp2x00 in [bus:slot.fn] %s\n", d->slot_name);
 
 	/* set the resource struct for this device */
-	start = (u32) (u64)bridge;	/* yes, we want to lose the upper 32 bits here */
+	start = (u32) (u64) bridge;	/* yes, we want to lose the upper 32 bits here */
 	start |= BRIDGE_DEVIO(slot);
 
 	d->resource[0].start = start;
@@ -335,10 +341,10 @@ static void __init pci_fixup_isp2x00(struct pci_dev *d)
 	//pci_write_config_dword(d, PCI_BASE_ADDRESS_1, 0x8b00000);
 	//pci_write_config_dword(d, PCI_ROM_ADDRESS, 0x8b20000);
 
-	/* I got these from booting irix on system...*/
+	/* I got these from booting irix on system... */
 	pci_write_config_dword(d, PCI_BASE_ADDRESS_0, 0x200001);
 	//pci_write_config_dword(d, PCI_BASE_ADDRESS_1, 0xf800000);
-	pci_write_config_dword(d, PCI_ROM_ADDRESS,   0x10200000);
+	pci_write_config_dword(d, PCI_ROM_ADDRESS, 0x10200000);
 
 	pci_write_config_dword(d, PCI_BASE_ADDRESS_1, start);
 	//pci_write_config_dword(d, PCI_ROM_ADDRESS, (start | 0x20000));
@@ -355,9 +361,10 @@ static void __init pci_fixup_isp2x00(struct pci_dev *d)
 	bridge->b_int_host_err = 0x44;
 	bridge->b_wid_tflush;
 
-	bridge->b_wid_tflush;   	/* wait until Bridge PIO complete */
-	for (i=0; i<8; i++)
-		printk("PCI: device(%d)= 0x%x\n",i,bridge->b_device[i].reg);
+	bridge->b_wid_tflush;	/* wait until Bridge PIO complete */
+	for (i = 0; i < 8; i++)
+		printk("PCI: device(%d)= 0x%x\n", i,
+		       bridge->b_device[i].reg);
 
 	/* configure device to allow bus mastering, i/o and memory mapping */
 	pci_set_master(d);
@@ -365,17 +372,20 @@ static void __init pci_fixup_isp2x00(struct pci_dev *d)
 	command |= PCI_COMMAND_MEMORY;
 	command |= PCI_COMMAND_IO;
 	pci_write_config_word(d, PCI_COMMAND, command);
-	/*d->resource[1].flags |= 1;*/
+	/*d->resource[1].flags |= 1; */
 }
 
 struct pci_fixup pcibios_fixups[] = {
-	{ PCI_FIXUP_HEADER, PCI_VENDOR_ID_SGI, PCI_DEVICE_ID_SGI_IOC3,
-	  pci_fixup_ioc3 },
-	{ PCI_FIXUP_HEADER, PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP1020,
-	  pci_fixup_isp1020 },
-	{ PCI_FIXUP_HEADER, PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2100,
-	  pci_fixup_isp2x00 },
-	{ PCI_FIXUP_HEADER, PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2200,
-	  pci_fixup_isp2x00 },
-	{ 0 }
+	{PCI_FIXUP_HEADER, PCI_VENDOR_ID_SGI, PCI_DEVICE_ID_SGI_IOC3,
+	 pci_fixup_ioc3},
+	{PCI_FIXUP_HEADER, PCI_VENDOR_ID_QLOGIC,
+	 PCI_DEVICE_ID_QLOGIC_ISP1020,
+	 pci_fixup_isp1020},
+	{PCI_FIXUP_HEADER, PCI_VENDOR_ID_QLOGIC,
+	 PCI_DEVICE_ID_QLOGIC_ISP2100,
+	 pci_fixup_isp2x00},
+	{PCI_FIXUP_HEADER, PCI_VENDOR_ID_QLOGIC,
+	 PCI_DEVICE_ID_QLOGIC_ISP2200,
+	 pci_fixup_isp2x00},
+	{0}
 };

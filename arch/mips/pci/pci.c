@@ -66,8 +66,8 @@
 extern void pcibios_fixup(void);
 extern void pcibios_fixup_irqs(void);
 
-void __init pcibios_fixup_irqs(void)			/* HP-LJ */
-{
+void __init pcibios_fixup_irqs(void)
+{				/* HP-LJ */
 	struct pci_dev *dev;
 	int slot_num;
 
@@ -90,8 +90,8 @@ void __init pcibios_fixup_irqs(void)			/* HP-LJ */
 	}
 }
 
-void __init pcibios_fixup_resources(struct pci_dev *dev)	/* HP-LJ */
-{
+void __init pcibios_fixup_resources(struct pci_dev *dev)
+{				/* HP-LJ */
 	int pos;
 	int bases;
 
@@ -128,11 +128,12 @@ void __init pcibios_fixup_resources(struct pci_dev *dev)	/* HP-LJ */
 }
 
 struct pci_fixup pcibios_fixups[] = {
-	{ PCI_FIXUP_HEADER, PCI_ANY_ID, PCI_ANY_ID, pcibios_fixup_resources },
-	{ 0 }
+	{PCI_FIXUP_HEADER, PCI_ANY_ID, PCI_ANY_ID,
+	 pcibios_fixup_resources},
+	{0}
 };
 
-extern int pciauto_assign_resources(int busno, struct pci_channel * hose);
+extern int pciauto_assign_resources(int busno, struct pci_channel *hose);
 
 static int __init pcibios_init(void)
 {
@@ -142,17 +143,17 @@ static int __init pcibios_init(void)
 
 #ifdef CONFIG_PCI_AUTO
 	/* assign resources */
-	busno=0;
-	for (p= mips_pci_channels; p->pci_ops != NULL; p++) {
+	busno = 0;
+	for (p = mips_pci_channels; p->pci_ops != NULL; p++) {
 		busno = pciauto_assign_resources(busno, p) + 1;
 	}
 #endif
 
 	/* scan the buses */
 	busno = 0;
-	for (p= mips_pci_channels; p->pci_ops != NULL; p++) {
+	for (p = mips_pci_channels; p->pci_ops != NULL; p++) {
 		bus = pci_scan_bus(busno, p->pci_ops, p);
-		busno = bus->subordinate+1;
+		busno = bus->subordinate + 1;
 	}
 
 	/* machine dependent fixups */
@@ -203,9 +204,9 @@ void __devinit pcibios_fixup_bus(struct pci_bus *bus)
 		   just link its resources to the bus ones */
 		int i;
 
-		for(i=0; i<3; i++) {
+		for (i = 0; i < 3; i++) {
 			bus->resource[i] =
-				&dev->resource[PCI_BRIDGE_RESOURCES+i];
+			    &dev->resource[PCI_BRIDGE_RESOURCES + i];
 			bus->resource[i]->name = bus->name;
 		}
 		bus->resource[0]->flags |= pci_bridge_check_io(dev);
@@ -215,7 +216,7 @@ void __devinit pcibios_fixup_bus(struct pci_bus *bus)
 		bus->resource[0]->end = hose->io_resource->end;
 		bus->resource[1]->end = hose->mem_resource->end;
 		/* Turn off downstream PF memory address range by default */
-		bus->resource[2]->start = 1024*1024;
+		bus->resource[2]->start = 1024 * 1024;
 		bus->resource[2]->end = bus->resource[2]->start - 1;
 	}
 }
@@ -226,7 +227,7 @@ char *pcibios_setup(char *str)
 }
 
 void pcibios_align_resource(void *data, struct resource *res,
-	unsigned long size, unsigned long align)
+			    unsigned long size, unsigned long align)
 {
 	/* this should not be called */
 }

@@ -11,14 +11,16 @@ static int pcibios_enable_resources(struct pci_dev *dev, int mask)
 
 	pci_read_config_word(dev, PCI_COMMAND, &cmd);
 	old_cmd = cmd;
-	for(idx=0; idx<6; idx++) {
+	for (idx = 0; idx < 6; idx++) {
 		/* Only set up the requested stuff */
-		if (!(mask & (1<<idx)))
+		if (!(mask & (1 << idx)))
 			continue;
 
 		r = &dev->resource[idx];
 		if (!r->start && r->end) {
-			printk(KERN_ERR "PCI: Device %s not available because of resource collisions\n", dev->slot_name);
+			printk(KERN_ERR
+			       "PCI: Device %s not available because of resource collisions\n",
+			       dev->slot_name);
 			return -EINVAL;
 		}
 		if (r->flags & IORESOURCE_IO)
@@ -29,7 +31,8 @@ static int pcibios_enable_resources(struct pci_dev *dev, int mask)
 	if (dev->resource[PCI_ROM_RESOURCE].start)
 		cmd |= PCI_COMMAND_MEMORY;
 	if (cmd != old_cmd) {
-		printk("PCI: Enabling device %s (%04x -> %04x)\n", dev->slot_name, old_cmd, cmd);
+		printk("PCI: Enabling device %s (%04x -> %04x)\n",
+		       dev->slot_name, old_cmd, cmd);
 		pci_write_config_word(dev, PCI_COMMAND, cmd);
 	}
 	return 0;
@@ -46,7 +49,7 @@ int pcibios_enable_device(struct pci_dev *dev, int mask)
 }
 
 void __init pcibios_align_resource(void *data, struct resource *res,
-	unsigned long size, unsigned long align)
+				   unsigned long size, unsigned long align)
 {
 	panic("Uhhoh called pcibios_align_resource");
 }
@@ -58,9 +61,9 @@ unsigned __init int pcibios_assign_all_busses(void)
 
 char *pcibios_setup(char *str)
 {
-        return str;
+	return str;
 }
 
 struct pci_fixup pcibios_fixups[] = {
-	{ 0 }
+	{0}
 };

@@ -54,34 +54,34 @@ void __init pcibios_fixup_irqs(void)
 	unsigned short gt_devid = get_gt_devid();
 
 	/*
-	** EV96100/A interrupt routing for pci bus 0
-	**
-	** Note: EV96100A board with irq jumper set on 'VxWorks'
-	** for EV96100 compatibility.
-	*/
+	 ** EV96100/A interrupt routing for pci bus 0
+	 **
+	 ** Note: EV96100A board with irq jumper set on 'VxWorks'
+	 ** for EV96100 compatibility.
+	 */
 
 	pci_for_each_dev(dev) {
 		if (dev->bus->number != 0)
 			return;
 
 		slot = PCI_SLOT(dev->devfn);
-		pci_read_config_dword(dev, PCI_SUBSYSTEM_VENDOR_ID, &vendor);
+		pci_read_config_dword(dev, PCI_SUBSYSTEM_VENDOR_ID,
+				      &vendor);
 
 #ifdef DEBUG
 		printk("devfn %x, slot %d devid %x\n",
-				dev->devfn, slot, gt_devid);
+		       dev->devfn, slot, gt_devid);
 #endif
 
 		/* fixup irq line based on slot # */
 		if (slot == 8) {
 			dev->irq = 5;
 			pci_write_config_byte(dev, PCI_INTERRUPT_LINE,
-					dev->irq);
-		}
-		else if (slot == 9) {
+					      dev->irq);
+		} else if (slot == 9) {
 			dev->irq = 2;
 			pci_write_config_byte(dev, PCI_INTERRUPT_LINE,
-					dev->irq);
+					      dev->irq);
 		}
 	}
 }

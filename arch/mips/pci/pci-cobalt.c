@@ -27,41 +27,44 @@ static void qube_expansion_slot_bist(struct pci_dev *dev)
 	int timeout = 100000;
 
 	pci_read_config_byte(dev, PCI_BIST, &ctrl);
-	if(!(ctrl & PCI_BIST_CAPABLE))
+	if (!(ctrl & PCI_BIST_CAPABLE))
 		return;
 
-	pci_write_config_byte(dev, PCI_BIST, ctrl|PCI_BIST_START);
+	pci_write_config_byte(dev, PCI_BIST, ctrl | PCI_BIST_START);
 	do {
 		pci_read_config_byte(dev, PCI_BIST, &ctrl);
-		if(!(ctrl & PCI_BIST_START))
+		if (!(ctrl & PCI_BIST_START))
 			break;
-	} while(--timeout > 0);
-	if((timeout <= 0) || (ctrl & PCI_BIST_CODE_MASK))
-		printk("PCI: Expansion slot card failed BIST with code %x\n",
-		       (ctrl & PCI_BIST_CODE_MASK));
+	} while (--timeout > 0);
+	if ((timeout <= 0) || (ctrl & PCI_BIST_CODE_MASK))
+		printk
+		    ("PCI: Expansion slot card failed BIST with code %x\n",
+		     (ctrl & PCI_BIST_CODE_MASK));
 }
 
 static void qube_expansion_slot_fixup(struct pci_dev *dev)
 {
 	unsigned short pci_cmd;
-	unsigned long ioaddr_base = 0x10108000; /* It's magic, ask Doug. */
+	unsigned long ioaddr_base = 0x10108000;	/* It's magic, ask Doug. */
 	unsigned long memaddr_base = 0x12001000;
 	int i;
 
 	/* Enable bits in COMMAND so driver can talk to it. */
 	pci_read_config_word(dev, PCI_COMMAND, &pci_cmd);
-	pci_cmd |= (PCI_COMMAND_IO | PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
+	pci_cmd |=
+	    (PCI_COMMAND_IO | PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
 	pci_write_config_word(dev, PCI_COMMAND, pci_cmd);
 
 	/* Give it a working IRQ. */
-	pci_write_config_byte(dev, PCI_INTERRUPT_LINE, COBALT_QUBE_SLOT_IRQ);
+	pci_write_config_byte(dev, PCI_INTERRUPT_LINE,
+			      COBALT_QUBE_SLOT_IRQ);
 	dev->irq = COBALT_QUBE_SLOT_IRQ;
 
 	ioaddr_base += 0x2000 * PCI_FUNC(dev->devfn);
 	memaddr_base += 0x2000 * PCI_FUNC(dev->devfn);
 
 	/* Fixup base addresses, we only support I/O at the moment. */
-	for(i = 0; i <= 5; i++) {
+	for (i = 0; i <= 5; i++) {
 		unsigned int regaddr = (PCI_BASE_ADDRESS_0 + (i * 4));
 		unsigned int rval, mask, size, alignme, aspace;
 		unsigned long *basep = &ioaddr_base;
@@ -69,7 +72,7 @@ static void qube_expansion_slot_fixup(struct pci_dev *dev)
 		/* Check type first, punt if non-IO. */
 		pci_read_config_dword(dev, regaddr, &rval);
 		aspace = (rval & PCI_BASE_ADDRESS_SPACE);
-		if(aspace != PCI_BASE_ADDRESS_SPACE_IO)
+		if (aspace != PCI_BASE_ADDRESS_SPACE_IO)
 			basep = &memaddr_base;
 
 		/* Figure out how much it wants, if anything. */
@@ -77,21 +80,21 @@ static void qube_expansion_slot_fixup(struct pci_dev *dev)
 		pci_read_config_dword(dev, regaddr, &rval);
 
 		/* Unused? */
-		if(rval == 0)
+		if (rval == 0)
 			continue;
 
 		rval &= PCI_BASE_ADDRESS_IO_MASK;
 		mask = (~rval << 1) | 0x1;
 		size = (mask & rval) & 0xffffffff;
 		alignme = size;
-		if(alignme < 0x400)
+		if (alignme < 0x400)
 			alignme = 0x400;
 		rval = ((*basep + (alignme - 1)) & ~(alignme - 1));
 		*basep = (rval + size);
 		pci_write_config_dword(dev, regaddr, rval | aspace);
 		dev->resource[i].start = rval;
 		dev->resource[i].end = *basep - 1;
-		if(aspace == PCI_BASE_ADDRESS_SPACE_IO) {
+		if (aspace == PCI_BASE_ADDRESS_SPACE_IO) {
 			dev->resource[i].start -= 0x10000000;
 			dev->resource[i].end -= 0x10000000;
 		}
@@ -114,7 +117,7 @@ static void qube_raq_via_bmIDE_fixup(struct pci_dev *dev)
 
 	/* Set latency timer to reasonable value. */
 	pci_read_config_byte(dev, PCI_LATENCY_TIMER, &lt);
-	if(lt < 64)
+	if (lt < 64)
 		pci_write_config_byte(dev, PCI_LATENCY_TIMER, 64);
 	pci_write_config_byte(dev, PCI_CACHE_LINE_SIZE, 7);
 }
@@ -135,9 +138,10 @@ static void qube_raq_tulip_fixup(struct pci_dev *dev)
 
 		dev->resource[1].start = 0x12000000;
 		dev->resource[1].end = dev->resource[1].start + 0x3ff;
-		pci_write_config_dword(dev, PCI_BASE_ADDRESS_1, dev->resource[1].start);
+		pci_write_config_dword(dev, PCI_BASE_ADDRESS_1,
+				       dev->resource[1].start);
 
-	/* Fixup the second tulip located at device PCICONF_ETH1 */
+		/* Fixup the second tulip located at device PCICONF_ETH1 */
 	} else if (PCI_SLOT(dev->devfn) == COBALT_PCICONF_ETH1) {
 
 		/* Enable the second Tulip device. */
@@ -147,7 +151,7 @@ static void qube_raq_tulip_fixup(struct pci_dev *dev)
 
 		/* Give it it's IRQ. */
 		pci_write_config_byte(dev, PCI_INTERRUPT_LINE,
-                                      COBALT_ETH1_IRQ);
+				      COBALT_ETH1_IRQ);
 		dev->irq = COBALT_ETH1_IRQ;
 
 		/* And finally, a usable I/O space allocation, right after what
@@ -158,7 +162,8 @@ static void qube_raq_tulip_fixup(struct pci_dev *dev)
 
 		dev->resource[1].start = 0x12000400;
 		dev->resource[1].end = dev->resource[1].start + 0x3ff;
-		pci_write_config_dword(dev, PCI_BASE_ADDRESS_1, dev->resource[1].start);
+		pci_write_config_dword(dev, PCI_BASE_ADDRESS_1,
+				       dev->resource[1].start);
 	}
 }
 
@@ -166,11 +171,11 @@ static void qube_raq_scsi_fixup(struct pci_dev *dev)
 {
 	unsigned short pci_cmd;
 
-        /*
-         * Tell the SCSI device that we expect an interrupt at
-         * IRQ 7 and not the default 0.
-         */
-        pci_write_config_byte(dev, PCI_INTERRUPT_LINE, COBALT_SCSI_IRQ);
+	/*
+	 * Tell the SCSI device that we expect an interrupt at
+	 * IRQ 7 and not the default 0.
+	 */
+	pci_write_config_byte(dev, PCI_INTERRUPT_LINE, COBALT_SCSI_IRQ);
 	dev->irq = COBALT_SCSI_IRQ;
 
 	if (cobalt_board_id == COBALT_BRD_ID_RAQ2) {
@@ -178,12 +183,14 @@ static void qube_raq_scsi_fixup(struct pci_dev *dev)
 		/* Enable the device. */
 		pci_read_config_word(dev, PCI_COMMAND, &pci_cmd);
 
-		pci_cmd |= (PCI_COMMAND_IO | PCI_COMMAND_MASTER | PCI_COMMAND_MEMORY
-			| PCI_COMMAND_INVALIDATE);
+		pci_cmd |=
+		    (PCI_COMMAND_IO | PCI_COMMAND_MASTER |
+		     PCI_COMMAND_MEMORY | PCI_COMMAND_INVALIDATE);
 		pci_write_config_word(dev, PCI_COMMAND, pci_cmd);
 
 		/* Give it it's RAQ IRQ. */
-		pci_write_config_byte(dev, PCI_INTERRUPT_LINE, COBALT_RAQ_SCSI_IRQ);
+		pci_write_config_byte(dev, PCI_INTERRUPT_LINE,
+				      COBALT_RAQ_SCSI_IRQ);
 		dev->irq = COBALT_RAQ_SCSI_IRQ;
 
 		/* And finally, a usable I/O space allocation, right after what
@@ -191,10 +198,13 @@ static void qube_raq_scsi_fixup(struct pci_dev *dev)
 		 */
 		dev->resource[0].start = 0x102000;
 		dev->resource[0].end = dev->resource[0].start + 0xff;
-		pci_write_config_dword(dev, PCI_BASE_ADDRESS_0, 0x10102000);
+		pci_write_config_dword(dev, PCI_BASE_ADDRESS_0,
+				       0x10102000);
 
-		pci_write_config_dword(dev, PCI_BASE_ADDRESS_1, 0x00002000);
-		pci_write_config_dword(dev, PCI_BASE_ADDRESS_2, 0x00100000);
+		pci_write_config_dword(dev, PCI_BASE_ADDRESS_1,
+				       0x00002000);
+		pci_write_config_dword(dev, PCI_BASE_ADDRESS_2,
+				       0x00100000);
 	}
 }
 
@@ -216,7 +226,7 @@ static void qube_raq_galileo_fixup(struct pci_dev *dev)
 	 * something sensible when using the new Galileo.
 	 */
 	pci_read_config_word(dev, PCI_REVISION_ID, &galileo_id);
-	galileo_id &= 0xff;     /* mask off class info */
+	galileo_id &= 0xff;	/* mask off class info */
 	if (galileo_id >= 0x10) {
 		/* New Galileo, assumes PCI stop line to VIA is connected. */
 		GALILEO_OUTL(0x4020, GT_PCI0_TOR_OFS);
@@ -229,8 +239,7 @@ static void qube_raq_galileo_fixup(struct pci_dev *dev)
 	}
 }
 
-static void
-qube_pcibios_fixup(struct pci_dev *dev)
+static void qube_pcibios_fixup(struct pci_dev *dev)
 {
 	if (PCI_SLOT(dev->devfn) == COBALT_PCICONF_PCISLOT) {
 		unsigned int tmp;
@@ -239,29 +248,33 @@ qube_pcibios_fixup(struct pci_dev *dev)
 		 * discover its resources and fixup whatever we need to
 		 */
 		pci_read_config_dword(dev, PCI_VENDOR_ID, &tmp);
-		if(tmp != 0xffffffff && tmp != 0x00000000)
+		if (tmp != 0xffffffff && tmp != 0x00000000)
 			qube_expansion_slot_fixup(dev);
 	}
 }
 
 struct pci_fixup pcibios_fixups[] = {
-	{ PCI_FIXUP_HEADER, PCI_VENDOR_ID_VIA, PCI_DEVICE_ID_VIA_82C586_1, qube_raq_via_bmIDE_fixup },
-	{ PCI_FIXUP_HEADER, PCI_VENDOR_ID_DEC, PCI_DEVICE_ID_DEC_21142, qube_raq_tulip_fixup },
-	{ PCI_FIXUP_HEADER, PCI_VENDOR_ID_GALILEO, PCI_ANY_ID, qube_raq_galileo_fixup },
-	{ PCI_FIXUP_HEADER, PCI_VENDOR_ID_NCR, PCI_DEVICE_ID_NCR_53C860, qube_raq_scsi_fixup },
-	{ PCI_FIXUP_HEADER, PCI_ANY_ID, PCI_ANY_ID, qube_pcibios_fixup }
+	{PCI_FIXUP_HEADER, PCI_VENDOR_ID_VIA, PCI_DEVICE_ID_VIA_82C586_1,
+	 qube_raq_via_bmIDE_fixup},
+	{PCI_FIXUP_HEADER, PCI_VENDOR_ID_DEC, PCI_DEVICE_ID_DEC_21142,
+	 qube_raq_tulip_fixup},
+	{PCI_FIXUP_HEADER, PCI_VENDOR_ID_GALILEO, PCI_ANY_ID,
+	 qube_raq_galileo_fixup},
+	{PCI_FIXUP_HEADER, PCI_VENDOR_ID_NCR, PCI_DEVICE_ID_NCR_53C860,
+	 qube_raq_scsi_fixup},
+	{PCI_FIXUP_HEADER, PCI_ANY_ID, PCI_ANY_ID, qube_pcibios_fixup}
 };
 
 
 static inline int pci_range_ck(struct pci_bus *bus, unsigned int devfn)
 {
-       if ((bus->number == 0)
-           && ((PCI_SLOT(devfn) == 0)
-               || ((PCI_SLOT(devfn) > 6)
-                   && (PCI_SLOT (devfn) <= 12))))
-		return 0;  /* OK device number  */
+	if ((bus->number == 0)
+	    && ((PCI_SLOT(devfn) == 0)
+		|| ((PCI_SLOT(devfn) > 6)
+		    && (PCI_SLOT(devfn) <= 12))))
+		return 0;	/* OK device number  */
 
-	return -1;  /* NOT ok device number */
+	return -1;		/* NOT ok device number */
 }
 
 #define PCI_CFG_SET(devfn,where) \
@@ -271,7 +284,7 @@ static inline int pci_range_ck(struct pci_bus *bus, unsigned int devfn)
 
 
 static int qube_pci_read_config(struct pci_bus *bus, unsigned int devfn,
-	int where, int size, u32 *val)
+				int where, int size, u32 * val)
 {
 	switch (size) {
 	case 4:
@@ -294,7 +307,7 @@ static int qube_pci_read_config(struct pci_bus *bus, unsigned int devfn,
 		}
 		PCI_CFG_SET(devfn, (where & ~0x3));
 		*val = GALILEO_INL(GT_PCI0_CFGDATA_OFS)
-					>> ((where & 3) * 8);
+		    >> ((where & 3) * 8);
 		return PCIBIOS_SUCCESSFUL;
 
 	case 1:
@@ -304,19 +317,19 @@ static int qube_pci_read_config(struct pci_bus *bus, unsigned int devfn,
 		}
 		PCI_CFG_SET(devfn, (where & ~0x3));
 		*val = GALILEO_INL(GT_PCI0_CFGDATA_OFS)
-					>> ((where & 3) * 8);
+		    >> ((where & 3) * 8);
 		return PCIBIOS_SUCCESSFUL;
 	}
 }
 
 static int qube_pci_write_config(struct pci_bus *bus, unsigned int devfn,
-	int where, int size, u32 val)
+				 int where, int size, u32 val)
 {
 	u32 tmp;
 
 	switch (size) {
 	case 4:
-		if(where & 0x3)
+		if (where & 0x3)
 			return PCIBIOS_BAD_REGISTER_NUMBER;
 		if (pci_range_ck(bus, devfn))
 			return PCIBIOS_DEVICE_NOT_FOUND;
@@ -333,7 +346,7 @@ static int qube_pci_write_config(struct pci_bus *bus, unsigned int devfn,
 		PCI_CFG_SET(devfn, (where & ~0x3));
 		tmp = GALILEO_INL(GT_PCI0_CFGDATA_OFS);
 		tmp &= ~(0xffff << ((where & 0x3) * 8));
-		tmp |=  (val << ((where & 0x3) * 8));
+		tmp |= (val << ((where & 0x3) * 8));
 		GALILEO_OUTL(tmp, GT_PCI0_CFGDATA_OFS);
 
 		return PCIBIOS_SUCCESSFUL;
@@ -345,7 +358,7 @@ static int qube_pci_write_config(struct pci_bus *bus, unsigned int devfn,
 		PCI_CFG_SET(devfn, (where & ~0x3));
 		tmp = GALILEO_INL(GT_PCI0_CFGDATA_OFS);
 		tmp &= ~(0xff << ((where & 0x3) * 8));
-		tmp |=  (val << ((where & 0x3) * 8));
+		tmp |= (val << ((where & 0x3) * 8));
 		GALILEO_OUTL(tmp, GT_PCI0_CFGDATA_OFS);
 
 		return PCIBIOS_SUCCESSFUL;
@@ -353,8 +366,8 @@ static int qube_pci_write_config(struct pci_bus *bus, unsigned int devfn,
 }
 
 struct pci_ops qube_pci_ops = {
-	.read	= qube_pci_read_config,
-	.write	= qube_pci_write_config,
+	.read = qube_pci_read_config,
+	.write = qube_pci_write_config,
 };
 
 static int __init pcibios_init(void)
@@ -366,7 +379,7 @@ static int __init pcibios_init(void)
 	/* Read the cobalt id register out of the PCI config space */
 	PCI_CFG_SET(devfn, (VIA_COBALT_BRD_ID_REG & ~0x3));
 	cobalt_board_id = GALILEO_INL(GT_PCI0_CFGDATA_OFS)
-				>> ((VIA_COBALT_BRD_ID_REG & 3) * 8);
+	    >> ((VIA_COBALT_BRD_ID_REG & 3) * 8);
 	cobalt_board_id = VIA_COBALT_BRD_REG_to_ID(cobalt_board_id);
 
 	printk("Cobalt Board ID: %d\n", cobalt_board_id);
@@ -395,14 +408,15 @@ int pcibios_enable_device(struct pci_dev *dev, int mask)
 
 	pci_read_config_word(dev, PCI_COMMAND, &cmd);
 	pci_read_config_word(dev, PCI_STATUS, &status);
-	printk("PCI: Enabling device %s (%04x  %04x)\n", dev->slot_name, cmd, status);
+	printk("PCI: Enabling device %s (%04x  %04x)\n", dev->slot_name,
+	       cmd, status);
 	/* We'll sort this out when we know it isn't enabled ;) */
 
 	return 0;
 }
 
 void pcibios_align_resource(void *data, struct resource *res,
-		unsigned long size, unsigned long align)
+			    unsigned long size, unsigned long align)
 {
 
 	panic("Uhhoh called pcibios_align_resource\n");

@@ -56,7 +56,7 @@ int pci_get_irq(struct pci_dev *dev, int pin)
 	unsigned char irq = pin;
 
 	/* IRQ rotation (PICMG) */
-	irq--;	/* 0-3 */
+	irq--;			/* 0-3 */
 	if (dev->bus->parent == NULL &&
 	    PCI_SLOT(dev->devfn) == TX3927_PCIC_IDSEL_AD_TO_SLOT(23)) {
 		/* PCI CardSlot (IDSEL=A23, DevNu=12) */
@@ -64,7 +64,8 @@ int pci_get_irq(struct pci_dev *dev, int pin)
 		/* NOTE: JMR3927 JP1 must be set to OPEN */
 		irq = (irq + 2) % 4;
 	} else if (dev->bus->parent == NULL &&
-		   PCI_SLOT(dev->devfn) == TX3927_PCIC_IDSEL_AD_TO_SLOT(22)) {
+		   PCI_SLOT(dev->devfn) ==
+		   TX3927_PCIC_IDSEL_AD_TO_SLOT(22)) {
 		/* PCI CardSlot (IDSEL=A22, DevNu=11) */
 		/* PCIA => PCIA (IDSEL=A22) */
 		/* NOTE: JMR3927 JP1 must be set to OPEN */
@@ -72,13 +73,14 @@ int pci_get_irq(struct pci_dev *dev, int pin)
 	} else {
 		/* PCI Backplane */
 		irq = (irq + 3 + PCI_SLOT(dev->devfn)) % 4;
-#if 0	/* ??? */
-		for (bus = dev->bus; bus->parent != NULL; bus = bus->parent) {
+#if 0				/* ??? */
+		for (bus = dev->bus; bus->parent != NULL;
+		     bus = bus->parent) {
 			irq = (irq + 3 + PCI_SLOT(bus->self->devfn)) % 4;
 		}
 #endif
 	}
-	irq++;	/* 1-4 */
+	irq++;			/* 1-4 */
 
 	switch (irq) {
 	case 1:
@@ -113,7 +115,7 @@ int pci_get_irq(struct pci_dev *dev, int pin)
 void __init pcibios_fixup_irqs(void)
 {
 	unsigned char irq;
-        struct pci_dev *dev;
+	struct pci_dev *dev;
 
 	pci_for_each_dev(dev) {
 		pci_read_config_byte(dev, PCI_INTERRUPT_PIN, &irq);
@@ -124,7 +126,8 @@ void __init pcibios_fixup_irqs(void)
 		if (!(dev->vendor == PCI_VENDOR_ID_EFAR &&
 		      dev->device == PCI_DEVICE_ID_EFAR_SLC90E66_1)) {
 			irq = pci_get_irq(dev, irq);
-			pci_write_config_byte(dev, PCI_INTERRUPT_LINE, irq);
+			pci_write_config_byte(dev, PCI_INTERRUPT_LINE,
+					      irq);
 		}
 
 		pci_read_config_byte(dev, PCI_INTERRUPT_LINE, &irq);

@@ -73,12 +73,12 @@ unsigned long ldt_eoi_space;
  */
 static inline u32 READCFG32(u32 addr)
 {
-	return *(u32 *)(cfg_space + (addr&~3));
+	return *(u32 *) (cfg_space + (addr & ~3));
 }
 
 static inline void WRITECFG32(u32 addr, u32 data)
 {
-	*(u32 *)(cfg_space + (addr & ~3)) = data;
+	*(u32 *) (cfg_space + (addr & ~3)) = data;
 }
 
 /*
@@ -96,8 +96,8 @@ static int sb1250_pci_can_access(struct pci_bus *bus, int devfn)
 	if (bus->number == 0) {
 		devno = PCI_SLOT(devfn);
 		if (devno == LDT_BRIDGE_DEVICE)
-		        return (sb1250_bus_status & LDT_BUS_ENABLED) != 0;
- 		else if (sb1250_bus_status & PCI_DEVICE_MODE)
+			return (sb1250_bus_status & LDT_BUS_ENABLED) != 0;
+		else if (sb1250_bus_status & PCI_DEVICE_MODE)
 			return 0;
 		else
 			return 1;
@@ -112,7 +112,7 @@ static int sb1250_pci_can_access(struct pci_bus *bus, int devfn)
  */
 
 static int sb1250_pcibios_read(struct pci_bus *bus, unsigned int devfn,
-	int where, int size, u32 *val)
+			       int where, int size, u32 * val)
 {
 	u32 data = 0;
 
@@ -137,7 +137,7 @@ static int sb1250_pcibios_read(struct pci_bus *bus, unsigned int devfn,
 }
 
 static int sb1250_pcibios_write(struct pci_bus *bus, unsigned int devfn,
-	int where, int size, u32 val)
+				int where, int size, u32 val)
 {
 	u32 cfgaddr = CFGADDR(bus, devfn, where);
 	u32 data = 0;
@@ -154,10 +154,10 @@ static int sb1250_pcibios_write(struct pci_bus *bus, unsigned int devfn,
 
 	if (size == 1)
 		data = (data & ~(0xff << ((where & 3) << 3))) |
-			(val << ((where & 3) << 3));
+		    (val << ((where & 3) << 3));
 	else if (size == 2)
 		data = (data & ~(0xffff << ((where & 3) << 3))) |
-			(val << ((where & 3) << 3));
+		    (val << ((where & 3) << 3));
 
 	WRITECFG32(cfgaddr, data);
 
@@ -165,8 +165,8 @@ static int sb1250_pcibios_write(struct pci_bus *bus, unsigned int devfn,
 }
 
 struct pci_ops sb1250_pci_ops = {
-	.read	= sb1250_pcibios_read,
-	.write	= sb1250_pcibios_write
+	.read = sb1250_pcibios_read,
+	.write = sb1250_pcibios_write
 };
 
 
@@ -175,7 +175,8 @@ void __init pcibios_init(void)
 	uint32_t cmdreg;
 	uint64_t reg;
 
-	cfg_space = ioremap(A_PHYS_LDTPCI_CFG_MATCH_BITS, 16*1024*1024);
+	cfg_space =
+	    ioremap(A_PHYS_LDTPCI_CFG_MATCH_BITS, 16 * 1024 * 1024);
 
 	/*
 	 * See if the PCI bus has been configured by the firmware.
@@ -184,8 +185,10 @@ void __init pcibios_init(void)
 	if (!(reg & M_SYS_PCI_HOST)) {
 		sb1250_bus_status |= PCI_DEVICE_MODE;
 	} else {
-		cmdreg = READCFG32(CFGOFFSET(0, PCI_DEVFN(PCI_BRIDGE_DEVICE, 0),
-					     PCI_COMMAND));
+		cmdreg =
+		    READCFG32(CFGOFFSET
+			      (0, PCI_DEVFN(PCI_BRIDGE_DEVICE, 0),
+			       PCI_COMMAND));
 		if (!(cmdreg & PCI_COMMAND_MASTER)) {
 			printk
 			    ("PCI: Skipping PCI probe.  Bus is not initialized.\n");
@@ -205,9 +208,9 @@ void __init pcibios_init(void)
 	 */
 
 	set_io_port_base((unsigned long)
-		ioremap(A_PHYS_LDTPCI_IO_MATCH_BYTES, 65536));
+			 ioremap(A_PHYS_LDTPCI_IO_MATCH_BYTES, 65536));
 	isa_slot_offset = (unsigned long)
-		ioremap(A_PHYS_LDTPCI_IO_MATCH_BYTES_32, 1024*1024);
+	    ioremap(A_PHYS_LDTPCI_IO_MATCH_BYTES_32, 1024 * 1024);
 
 #ifdef CONFIG_SIBYTE_HAS_LDT
 	/*
@@ -226,7 +229,8 @@ void __init pcibios_init(void)
 		 * (Kseg2/Kseg3) for 32-bit kernel.
 		 */
 		ldt_eoi_space = (unsigned long)
-			ioremap(A_PHYS_LDT_SPECIAL_MATCH_BYTES, 4*1024*1024);
+		    ioremap(A_PHYS_LDT_SPECIAL_MATCH_BYTES,
+			    4 * 1024 * 1024);
 	}
 #endif
 
@@ -236,7 +240,7 @@ void __init pcibios_init(void)
 	pci_scan_bus(0, &sb1250_pci_ops, NULL);
 
 #ifdef CONFIG_VGA_CONSOLE
-	take_over_console(&vga_con,0,MAX_NR_CONSOLES-1,1);
+	take_over_console(&vga_con, 0, MAX_NR_CONSOLES - 1, 1);
 #endif
 }
 
@@ -247,7 +251,7 @@ int pcibios_enable_device(struct pci_dev *dev, int mask)
 }
 
 void pcibios_align_resource(void *data, struct resource *res,
-		       unsigned long size, unsigned long align)
+			    unsigned long size, unsigned long align)
 {
 }
 
