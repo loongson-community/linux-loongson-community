@@ -28,15 +28,15 @@ struct hal2_ctrl_regs {
 	hal_reg idr2;		/* 0x60 Indirect Data Register 2 */
 	hal_reg _unused6[7];
 	hal_reg idr3;		/* 0x70 Indirect Data Register 3 */
-} *h2_ctrl = (struct hal2_ctrl_regs *) KSEG1ADDR(H2_CTRL_PIO);
+} volatile *h2_ctrl = (struct hal2_ctrl_regs *) KSEG1ADDR(H2_CTRL_PIO);
 
 struct hal2_vol_regs {
 	hal_reg right;		/* 0x00 Right volume */
-	hal_reg _unused0[2];
+	hal_reg _unused0[1];
 	hal_reg left;		/* 0x04 Left volume */
-} *h2_vol = (struct hal2_vol_regs *) KSEG1ADDR(H2_VOLUME_PIO);
+} volatile *h2_vol = (struct hal2_vol_regs *) KSEG1ADDR(H2_VOLUME_PIO);
 
-/* AES and synth regs should here if we ever support them */
+/* AES and synth regs should end up here if we ever support them */
 
 /* Indirect status register */
 
