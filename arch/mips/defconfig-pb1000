@@ -359,6 +359,8 @@ CONFIG_UNIX98_PTY_COUNT=256
 # CONFIG_FTAPE is not set
 # CONFIG_AGP is not set
 # CONFIG_DRM is not set
+CONFIG_AU1000_GPIO=y
+CONFIG_TS_AU1000_ADS7846=y
 
 #
 # Multimedia devices

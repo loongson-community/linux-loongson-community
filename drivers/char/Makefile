@@ -23,7 +23,7 @@ obj-y	 += mem.o tty_io.o n_tty.o tty_ioctl.o raw.o pty.o misc.o random.o
 
 export-objs     :=	busmouse.o console.o keyboard.o sysrq.o \
 			misc.o pty.o random.o selection.o serial.o \
-			sonypi.o tty_io.o tty_ioctl.o
+			sonypi.o tty_io.o tty_ioctl.o au1000_gpio.o
 
 mod-subdirs	:=	joystick ftape drm pcmcia
 
@@ -147,6 +147,7 @@ obj-$(CONFIG_SERIAL) += $(SERIAL)
 obj-$(CONFIG_SERIAL_21285) += serial_21285.o
 obj-$(CONFIG_SERIAL_SA1100) += serial_sa1100.o
 obj-$(CONFIG_SERIAL_AMBA) += serial_amba.o
+obj-$(CONFIG_TS_AU1000_ADS7846) += au1000_ts.o
 
 ifndef CONFIG_SUN_KEYBOARD
   obj-$(CONFIG_VT) += keyboard.o $(KEYMAP) $(KEYBD)
@@ -213,6 +214,7 @@ obj-$(CONFIG_TOSHIBA) += toshiba.o
 obj-$(CONFIG_DS1620) += ds1620.o
 obj-$(CONFIG_INTEL_RNG) += i810_rng.o
 obj-$(CONFIG_ITE_GPIO) += ite_gpio.o
+obj-$(CONFIG_AU1000_GPIO) += au1000_gpio.o
 
 obj-$(CONFIG_QIC02_TAPE) += tpqic02.o
 

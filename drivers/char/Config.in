@@ -212,6 +212,10 @@ source drivers/char/drm/Config.in
 if [ "$CONFIG_HOTPLUG" = "y" -a "$CONFIG_PCMCIA" != "n" ]; then
    source drivers/char/pcmcia/Config.in
 fi
+if [ "$CONFIG_MIPS_AU1000" = "y" ]; then
+   tristate ' Alchemy Au1000 GPIO device support' CONFIG_AU1000_GPIO
+   tristate ' Au1000/ADS7846 touchscreen support' CONFIG_TS_AU1000_ADS7846
+fi
 if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
   tristate ' ITE GPIO' CONFIG_ITE_GPIO
 fi
