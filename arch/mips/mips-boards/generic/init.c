@@ -44,7 +44,7 @@ int *_prom_argv, *_prom_envp;
  * YAMON (32-bit PROM) pass arguments and environment as 32-bit pointer.
  * This macro take care of sign extension, if running in 64-bit mode.
  */
-#define prom_envp(index) ((char *)(((int *)(int)_prom_envp)[(index)]))
+#define prom_envp(index) ((char *)(long)(_prom_envp[(index)]))
 
 int init_debug = 0;
 
@@ -127,7 +127,7 @@ int __init prom_init(int argc, char **argv, char **envp)
 	mips_display_message("LINUX");
 
 #ifdef CONFIG_MIPS_SEAD
-	set_io_port_base(KSEG1);
+	set_io_port_base(K1BASE);
 #else
 	mips_revision_corid = MIPS_REVISION_CORID;
 	switch(mips_revision_corid) {
@@ -148,7 +148,7 @@ int __init prom_init(int argc, char **argv, char **envp)
 #if defined(CONFIG_MIPS_MALTA)
 		set_io_port_base(MALTA_GT_PORT_BASE);
 #else
-		set_io_port_base(KSEG1);
+		set_io_port_base(K1BASE);
 #endif
 
 		break;
@@ -178,7 +178,7 @@ int __init prom_init(int argc, char **argv, char **envp)
 #if defined(CONFIG_MIPS_MALTA)
                 set_io_port_base(MALTA_BONITO_PORT_BASE);
 #else
-                set_io_port_base(KSEG1);
+                set_io_port_base(K1BASE);
 #endif
 		break;
 
