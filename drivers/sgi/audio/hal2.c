@@ -110,7 +110,7 @@ struct sgiaudio_chan_ops {
 {										\
 	int cnt = 1000;								\
 	printk("hal2: waiting (isr: %04hx)\n", regs->isr);			\
-	while(regs->isr & H2_ISR_TSTATUS && cnt--)				\
+	while(regs->isr & H2_ISR_TSTATUS && --cnt)				\
 		udelay(1000);							\
 	if (!cnt)								\
 		printk("hal2: failed while waiting for indirect trans.\n");	\
@@ -180,11 +180,21 @@ static void ireg_clearbit(unsigned short write_address, unsigned short
 	INDIRECT_WAIT(h2_ctrl);
 }
 
+static void hal2_reset(void)
+{
+	h2_ctrl->isr &= ~H2_ISR_GLOBAL_RESET_N;		/* reset the card */
+	h2_ctrl->isr &= ~H2_ISR_CODEC_RESET_N;
+	h2_ctrl->isr |= H2_ISR_GLOBAL_RESET_N;		/* and reactivate it */
+	h2_ctrl->isr |= H2_ISR_CODEC_RESET_N;
+}
+
 static int hal2_probe(void)
 {
         unsigned short board, major, minor;
 
-	h2_ctrl->isr = 0;
+	unsigned short tmp;
+
+	hal2_reset();
 
 	if (h2_ctrl->rev & H2_REV_AUDIO_PRESENT) {
 
@@ -215,18 +225,18 @@ static int hal2_probe(void)
 	ireg_write2(H2IW_BRES2_C2, 0x132, 0x231);	/* 32 bit register */
 	printk("hal2: wrote #2\n");
 
-	if (ireg_read(H2IR_DAC_C1) != 0x123) {
-		printk("hal2: Didn't pass register check #1\n");
+	if ((tmp = ireg_read(H2IR_DAC_C1)) != 0x123) {
+		printk("hal2: Didn't pass register check #1 (%04hx)\n", tmp);
 		return -ENODEV;
 	}
 	printk("hal2: read #1\n");
-	if (ireg_read(H2IR_BRES2_C2_0) != 0x132) {
-		printk("hal2: Didn't pass register check #2\n");
+	if ((tmp = ireg_read(H2IR_BRES2_C2_0)) != 0x132) {
+		printk("hal2: Didn't pass register check #2 (%04hx)\n", tmp);
 		return -ENODEV;
 	}
 	printk("hal2: read #2\n");
-	if (ireg_read(H2IR_BRES2_C2_1) != 0x231) {
-		printk("hal2: Didn't pass register check #3\n");
+	if ((tmp = ireg_read(H2IR_BRES2_C2_1)) != 0x231) {
+		printk("hal2: Didn't pass register check #3 (%04hx)\n", tmp);
 		return -ENODEV;
 	}
 	printk("hal2: read #3\n");
@@ -267,8 +277,7 @@ static int hal2_init(struct sgiaudio *sa)
 	printk("hal2: resetting chip\n");
 #endif
 
-	/* do a global reset */
-	h2_ctrl->isr = 0;
+	hal2_reset();
 
 	/* setup indigo codec mode */
 	h2_ctrl->isr &= ~H2_ISR_CODEC_MODE;
