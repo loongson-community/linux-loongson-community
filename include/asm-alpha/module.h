@@ -13,7 +13,7 @@ static inline int
 alpha_module_init(struct module *mod)
 {
         if (!mod_bound(mod->gp - 0x8000, 0, mod)) {
-                printk(KERN_ERR "arch_init_module: mod->gp out of bounds.\n");
+                printk(KERN_ERR "module_arch_init: mod->gp out of bounds.\n");
                 return 1;
         }
 	return 0;

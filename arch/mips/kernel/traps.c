@@ -267,8 +267,9 @@ search_dbe_table(unsigned long addr)
 
 	spin_lock_irqsave(&modlist_lock, flags);
 	for (mp = module_list; mp != NULL; mp = mp->next) {
-		if (!mod_member_present(mp, archdata_start) ||
-		    !mp->archdata_start)
+		if (!mod_member_present(mp, archdata_end) ||
+        	    !mod_archdata_member_present(mp, struct archdata,
+						 dbe_table_end))
 			continue;
 		ap = (struct archdata *)(mp->archdata_start);
 

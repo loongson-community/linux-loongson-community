@@ -26,9 +26,12 @@ mips64_module_init(struct module *mod)
 {
 	struct archdata *archdata;
 
-	if (!mod_member_present(mod, archdata_start) || !mod->archdata_start)
+	if (!mod_member_present(mod, archdata_end))
 		return 0;
+
 	archdata = (struct archdata *)(mod->archdata_start);
+	if (!mod_archdata_member_present(mod, struct archdata, dbe_table_end))
+		return 0;
 
 	if (archdata->dbe_table_start > archdata->dbe_table_end ||
 	    (archdata->dbe_table_start &&
@@ -40,7 +43,7 @@ mips64_module_init(struct module *mod)
 	      (unsigned long)archdata->dbe_table_end) %
 	     sizeof(struct exception_table_entry))) {
 		printk(KERN_ERR
-			"arch_init_module: archdata->dbe_table_* invalid.\n");
+			"module_arch_init: archdata->dbe_table_* invalid.\n");
 		return 1;
 	}
 
