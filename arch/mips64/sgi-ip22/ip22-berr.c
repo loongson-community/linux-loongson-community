@@ -1,4 +1,4 @@
-/* $Id: ip22-berr.c,v 1.1 2000/01/21 21:35:46 ralf Exp $
+/* $Id: ip22-berr.c,v 1.1 2000/01/21 22:34:03 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -12,6 +12,7 @@
 #include <asm/uaccess.h>
 #include <asm/paccess.h>
 #include <asm/addrspace.h>
+#include <asm/ptrace.h>
 
 extern asmlinkage void handle_ibe(void);
 extern asmlinkage void handle_dbe(void);

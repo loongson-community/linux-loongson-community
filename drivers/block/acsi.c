@@ -54,6 +54,7 @@
 #include <linux/fs.h>
 #include <linux/kernel.h>
 #include <linux/genhd.h>
+#include <linux/devfs_fs_kernel.h>
 #include <linux/delay.h>
 #include <linux/mm.h>
 #include <linux/major.h>
@@ -769,7 +770,7 @@ static void unexpected_acsi_interrupt( void )
 static void bad_rw_intr( void )
 
 {
-	if (!CURRENT)
+	if (QUEUE_EMPTY)
 		return;
 
 	if (++CURRENT->errors >= MAX_ERRORS)
@@ -843,7 +844,7 @@ static void acsi_times_out( unsigned long dummy )
 
 	DEVICE_INTR = NULL;
 	printk( KERN_ERR "ACSI timeout\n" );
-	if (!CURRENT) return;
+	if (QUEUE_EMPTY) return;
 	if (++CURRENT->errors >= MAX_ERRORS) {
 #ifdef DEBUG
 		printk( KERN_ERR "ACSI: too many errors.\n" );
@@ -953,7 +954,7 @@ static void redo_acsi_request( void )
 	unsigned long		pbuffer;
 	struct buffer_head	*bh;
 	
-	if (CURRENT && CURRENT->rq_status == RQ_INACTIVE) {
+	if (!QUEUE_EMPTY && CURRENT->rq_status == RQ_INACTIVE) {
 		if (!DEVICE_INTR) {
 			ENABLE_IRQ();
 			stdma_release();
@@ -969,7 +970,7 @@ static void redo_acsi_request( void )
 	/* Another check here: An interrupt or timer event could have
 	 * happened since the last check!
 	 */
-	if (CURRENT && CURRENT->rq_status == RQ_INACTIVE) {
+	if (!QUEUE_EMPTY && CURRENT->rq_status == RQ_INACTIVE) {
 		if (!DEVICE_INTR) {
 			ENABLE_IRQ();
 			stdma_release();
@@ -979,7 +980,7 @@ static void redo_acsi_request( void )
 	if (DEVICE_INTR)
 		return;
 
-	if (!CURRENT) {
+	if (QUEUE_EMPTY) {
 		CLEAR_INTR;
 		ENABLE_IRQ();
 		stdma_release();
@@ -1385,6 +1386,8 @@ static int acsi_mode_sense( int target, int lun, SENSE_DATA *sd )
  ********************************************************************/
 
 
+extern struct block_device_operations acsi_fops;
+
 static struct gendisk acsi_gendisk = {
 	MAJOR_NR,		/* Major number */	
 	"ad",			/* Major name */
@@ -1394,7 +1397,8 @@ static struct gendisk acsi_gendisk = {
 	acsi_sizes,		/* block sizes */
 	0,			/* number */
 	(void *)acsi_info,	/* internal */
-	NULL			/* next */
+	NULL,			/* next */
+	&acsi_fops,		/* file operations */
 };
 	
 #define MAX_SCSI_DEVICE_CODE 10
@@ -1776,16 +1780,14 @@ int acsi_init( void )
 	int err = 0;
 	if (!MACH_IS_ATARI || !ATARIHW_PRESENT(ACSI))
 		return 0;
-
-	if (register_blkdev( MAJOR_NR, "ad", &acsi_fops )) {
+	if (devfs_register_blkdev( MAJOR_NR, "ad", &acsi_fops )) {
 		printk( KERN_ERR "Unable to get major %d for ACSI\n", MAJOR_NR );
 		return -EBUSY;
 	}
-
 	if (!(acsi_buffer =
 		  (char *)atari_stram_alloc( ACSI_BUFFER_SIZE, NULL, "acsi" ))) {
 		printk( KERN_ERR "Unable to get ACSI ST-Ram buffer.\n" );
-		unregister_blkdev( MAJOR_NR, "ad" );
+		devfs_unregister_blkdev( MAJOR_NR, "ad" );
 		return -ENOMEM;
 	}
 	phys_acsi_buffer = virt_to_phys( acsi_buffer );
@@ -1824,7 +1826,7 @@ void cleanup_module(void)
 	blk_cleanup_queue(BLK_DEFAULT_QUEUE(MAJOR_NR));
 	atari_stram_free( acsi_buffer );
 
-	if (unregister_blkdev( MAJOR_NR, "ad" ) != 0)
+	if (devfs_unregister_blkdev( MAJOR_NR, "ad" ) != 0)
 		printk( KERN_ERR "acsi: cleanup_module failed\n");
 
 	for (gdp = &gendisk_head; *gdp; gdp = &((*gdp)->next))

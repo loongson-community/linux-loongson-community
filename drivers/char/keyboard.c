@@ -208,7 +208,7 @@ void handle_scancode(unsigned char scancode, int down)
 	pm_access(pm_kbd);
 
 	do_poke_blanked_console = 1;
-	mark_bh(CONSOLE_BH);
+	tasklet_schedule(&console_tasklet);
 	add_keyboard_randomness(scancode | up_flag);
 
 	tty = ttytab? ttytab[fg_console]: NULL;
@@ -925,6 +925,7 @@ static void kbd_bh(unsigned long dummy)
 	}
 }
 
+EXPORT_SYMBOL(keyboard_tasklet);
 DECLARE_TASKLET_DISABLED(keyboard_tasklet, kbd_bh, 0);
 
 int __init kbd_init(void)

@@ -109,7 +109,7 @@ struct pci_fixup pcibios_fixups[] __initdata = {
 void
 pcibios_align_resource(void *data, struct resource *res, unsigned long size)
 {
-	struct pci_dev * dev = data;
+	struct pci_dev *dev = data;
 	unsigned long alignto;
 	unsigned long start = res->start;
 
@@ -325,10 +325,10 @@ pcibios_fixup_pbus_ranges(struct pci_bus * bus,
 	ranges->mem_end -= bus->resource[1]->start;
 }
 
-int __init
+int
 pcibios_enable_device(struct pci_dev *dev)
 {
-	/* Not needed, since we enable all devices at startup.  */
+	/* Nothing to do, since we enable all devices at startup.  */
 	return 0;
 }
 

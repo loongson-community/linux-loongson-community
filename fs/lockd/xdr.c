@@ -6,6 +6,7 @@
  * Copyright (C) 1995, 1996 Olaf Kirch <okir@monad.swb.de>
  */
 
+#include <linux/config.h>
 #include <linux/types.h>
 #include <linux/sched.h>
 #include <linux/utsname.h>
@@ -46,6 +47,14 @@ nlmxdr_init(void)
 	nlm_lck_denied_nolocks = htonl(NLM_LCK_DENIED_NOLOCKS);
 	nlm_lck_blocked = htonl(NLM_LCK_BLOCKED);
 	nlm_lck_denied_grace_period = htonl(NLM_LCK_DENIED_GRACE_PERIOD);
+
+#ifdef CONFIG_LOCKD_V4
+	nlm4_deadlock = htonl(NLM_DEADLCK);
+	nlm4_rofs = htonl(NLM_ROFS);
+	nlm4_stale_fh = htonl(NLM_STALE_FH);
+	nlm4_fbig = htonl(NLM_FBIG);
+	nlm4_failed = htonl(NLM_FAILED);
+#endif
 
 	inited = 1;
 }
@@ -541,7 +550,8 @@ nlmclt_decode_res(struct rpc_rqst *req, u32 *p, struct nlm_res *resp)
     { "nlm_" #proc,						\
       (kxdrproc_t) nlmclt_encode_##argtype,			\
       (kxdrproc_t) nlmclt_decode_##restype,			\
-      MAX(NLM_##argtype##_sz, NLM_##restype##_sz) << 2		\
+      MAX(NLM_##argtype##_sz, NLM_##restype##_sz) << 2,		\
+      0								\
     }
 
 static struct rpc_procinfo	nlm_procedures[] = {
@@ -586,11 +596,18 @@ static struct rpc_version	nlm_version3 = {
 	3, 24, nlm_procedures,
 };
 
+#ifdef 	CONFIG_LOCKD_V4
+extern struct rpc_version nlm_version4;
+#endif
+
 static struct rpc_version *	nlm_versions[] = {
 	NULL,
 	&nlm_version1,
 	NULL,
 	&nlm_version3,
+#ifdef 	CONFIG_LOCKD_V4
+	&nlm_version4,
+#endif
 };
 
 static struct rpc_stat		nlm_stats;

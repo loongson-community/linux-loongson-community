@@ -860,16 +860,18 @@ void vmtruncate(struct inode * inode, loff_t offset)
 {
 	unsigned long partial, pgoff;
 	struct vm_area_struct * mpnt;
+	struct address_space *mapping = inode->i_mapping;
 
-	truncate_inode_pages(inode, offset);
-	spin_lock(&inode->i_shared_lock);
-	if (!inode->i_mmap)
+	inode->i_size = offset;
+	truncate_inode_pages(mapping, offset);
+	spin_lock(&mapping->i_shared_lock);
+	if (!mapping->i_mmap)
 		goto out_unlock;
 
 	pgoff = (offset + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
 	partial = (unsigned long)offset & (PAGE_CACHE_SIZE - 1);
 
-	mpnt = inode->i_mmap;
+	mpnt = mapping->i_mmap;
 	do {
 		struct mm_struct *mm = mpnt->vm_mm;
 		unsigned long start = mpnt->vm_start;
@@ -903,7 +905,9 @@ void vmtruncate(struct inode * inode, loff_t offset)
 		flush_tlb_range(mm, start, end);
 	} while ((mpnt = mpnt->vm_next_share) != NULL);
 out_unlock:
-	spin_unlock(&inode->i_shared_lock);
+	spin_unlock(&mapping->i_shared_lock);
+	if (inode->i_op && inode->i_op->truncate)
+		inode->i_op->truncate(inode);
 }
 
 
@@ -957,6 +961,7 @@ static int do_swap_page(struct task_struct * tsk,
 			return -1;
 
 		flush_page_to_ram(page);
+		flush_icache_page(vma, page);
 	}
 
 	vma->vm_mm->rss++;
@@ -1057,6 +1062,7 @@ static int do_no_page(struct task_struct * tsk, struct vm_area_struct * vma,
 	 * handle that later.
 	 */
 	flush_page_to_ram(new_page);
+	flush_icache_page(vma, new_page);
 	entry = mk_pte(new_page, vma->vm_page_prot);
 	if (write_access) {
 		entry = pte_mkwrite(pte_mkdirty(entry));

@@ -1,4 +1,4 @@
-/* $Id: page.h,v 1.47 2000/01/29 00:41:49 anton Exp $
+/* $Id: page.h,v 1.48 2000/02/16 07:34:51 davem Exp $
  * page.h:  Various defines and such for MMU operations on the Sparc for
  *          the Linux kernel.
  *
@@ -128,6 +128,20 @@ extern unsigned long sparc_unmapped_base;
 BTFIXUPDEF_SETHI(sparc_unmapped_base)
 
 #define TASK_UNMAPPED_BASE	BTFIXUP_SETHI(sparc_unmapped_base)
+
+/* Pure 2^n version of get_order */
+extern __inline__ int get_order(unsigned long size)
+{
+	int order;
+
+	size = (size-1) >> (PAGE_SHIFT-1);
+	order = -1;
+	do {
+		size >>= 1;
+		order++;
+	} while (size);
+	return order;
+}
 
 #else /* !(__ASSEMBLY__) */
 

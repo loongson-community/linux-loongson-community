@@ -1,4 +1,4 @@
-/* $Id: floppy.h,v 1.25 2000/01/28 13:43:14 jj Exp $
+/* $Id: floppy.h,v 1.28 2000/02/18 13:50:54 davem Exp $
  * asm-sparc64/floppy.h: Sparc specific parts of the Floppy driver.
  *
  * Copyright (C) 1996 David S. Miller (davem@caip.rutgers.edu)
@@ -273,7 +273,7 @@ static struct linux_ebus_dma *sun_pci_fd_ebus_dma;
 static struct pci_dev *sun_pci_ebus_dev;
 static int sun_pci_broken_drive = -1;
 static unsigned int sun_pci_dma_addr = -1U;
-static int sun_pci_dma_len;
+static int sun_pci_dma_len, sun_pci_dma_direction;
 
 extern void floppy_interrupt(int irq, void *dev_id, struct pt_regs *regs);
 
@@ -369,7 +369,8 @@ static void sun_pci_fd_disable_dma(void)
 	if (sun_pci_dma_addr != -1U)
 		pci_unmap_single(sun_pci_ebus_dev,
 				 sun_pci_dma_addr,
-				 sun_pci_dma_len);
+				 sun_pci_dma_len,
+				 sun_pci_dma_direction);
 	sun_pci_dma_addr = -1U;
 }
 
@@ -388,10 +389,13 @@ static void sun_pci_fd_set_dma_mode(int mode)
 	 * For EBus WRITE means to system memory, which is
 	 * READ for us.
 	 */
-	if (mode == DMA_MODE_WRITE)
+	if (mode == DMA_MODE_WRITE) {
 		dcsr &= ~(EBUS_DCSR_WRITE);
-	else
+		sun_pci_dma_direction = PCI_DMA_TODEVICE;
+	} else {
 		dcsr |= EBUS_DCSR_WRITE;
+		sun_pci_dma_direction = PCI_DMA_FROMDEVICE;
+	}
 	writel(dcsr, &sun_pci_fd_ebus_dma->dcsr);
 }
 
@@ -407,7 +411,8 @@ static void sun_pci_fd_set_dma_addr(char *buffer)
 
 	addr = sun_pci_dma_addr = pci_map_single(sun_pci_ebus_dev,
 						 buffer,
-						 sun_pci_dma_len);
+						 sun_pci_dma_len,
+						 sun_pci_dma_direction);
 	writel(addr, &sun_pci_fd_ebus_dma->dacr);
 }
 
@@ -560,12 +565,9 @@ static int sun_pci_fd_test_drive(unsigned long port, int drive)
 
 #endif /* CONFIG_PCI */
 
-static struct linux_prom_registers fd_regs[2];
-
 static unsigned long __init sun_floppy_init(void)
 {
 	char state[128];
-	int fd_node, num_regs;
 	struct sbus_bus *bus;
 	struct sbus_dev *sdev = NULL;
 	static int initialized = 0;
@@ -714,21 +716,19 @@ static unsigned long __init sun_floppy_init(void)
 		return 0;
 #endif
 	}
-	fd_node = sdev->prom_node;
-	prom_getproperty(fd_node, "status", state, sizeof(state));
+	prom_getproperty(sdev->prom_node, "status", state, sizeof(state));
 	if(!strncmp(state, "disabled", 8))
 		return 0;
-	num_regs = prom_getproperty(fd_node, "reg", (char *) fd_regs,
-				    sizeof(fd_regs));
-	num_regs = (num_regs / sizeof(fd_regs[0]));
 
 	/*
-	 * We cannot do sparc_alloc_io here: it does request_region,
+	 * We cannot do sbus_ioremap here: it does request_region,
 	 * which the generic floppy driver tries to do once again.
+	 * But we must use the sdev resource values as they have
+	 * had parent ranges applied.
 	 */
 	sun_fdc = (struct sun_flpy_controller *)
-		(PAGE_OFFSET + fd_regs[0].phys_addr + 
-		 (((unsigned long)fd_regs[0].which_io) << 32));
+		(sdev->resource[0].start +
+		 ((sdev->resource[0].flags & 0x1ffUL) << 32UL));
 
 	/* Last minute sanity check... */
 	if(sbus_readb(&sun_fdc->status1_82077) == 0xff) {

@@ -274,6 +274,12 @@ M:	hpa@zytor.com
 L:	linux-kernel@vger.rutgers.edu
 S:	Maintained
 
+DEVICE FILESYSTEM
+P:	Richard Gooch
+M:	rgooch@atnf.csiro.au
+L:	linux-kernel@vger.rutgers.edu
+S:	Maintained
+
 DIGI INTL. EPCA DRIVER
 P:	 Chad Schwartz
 M:      support@dgii.com
@@ -322,6 +328,13 @@ ETHEREXPRESS-16 NETWORK DRIVER
 P:	Philip Blundell
 M:	Philip.Blundell@pobox.com
 L:	linux-net@vger.rutgers.edu
+S:	Maintained
+
+ETHERNET BRIDGE
+P:	Lennert Buytenhek
+M:	buytenh@openrock.net
+L:	bridge@openrock.net
+W:	http://openrock.net/bridge
 S:	Maintained
 
 ETHERTEAM 16I DRIVER
@@ -391,6 +404,13 @@ P:	Klaus Kudielka
 M:	oe1kib@oe1kib.ampr.org
 L:	linux-hams@vger.rutgers.edu
 S:	Maintained
+
+LOGICAL VOLUME MANAGER
+P:     Heinz Mauelshagen
+M:     linux-LVM@EZ-Darmstadt.Telekom.de
+L:     linux-LVM@msede.com
+W:     http://linux.msede.com/lvm
+S:     Maintained 
 
 HIPPI
 P:	Jes Sorensen
@@ -494,6 +514,11 @@ S:	Maintained
 INTEL APIC/IOAPIC, LOWLEVEL X86 SMP SUPPORT
 P:	Ingo Molnar
 M:	mingo@redhat.com
+S:	Maintained
+
+INTEL P6 MICROCODE UPDATE SUPPORT
+P:	Tigran Aivazian
+M:	tigran@sco.com
 S:	Maintained
 
 IP MASQUERADING:
@@ -806,6 +831,7 @@ QNX4 FILESYSTEM
 P:	Anders Larsen
 M:	al@alarsen.net
 L:	linux-kernel@vger.rutgers.edu
+W:	http://www.alarsen.net/linux/qnx4fs/
 S:	Maintained
 
 REAL TIME CLOCK DRIVER

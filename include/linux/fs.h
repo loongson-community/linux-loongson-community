@@ -349,7 +349,8 @@ struct address_space {
 	unsigned long		nrpages;	/* number of pages */
 	struct address_space_operations *a_ops;	/* methods */
 	void			*host;		/* owner: inode, block_device */
-	void			*private;	/* private data */
+	struct vm_area_struct	*i_mmap;	/* list of mappings */
+	spinlock_t		i_shared_lock;  /* and spinlock protecting it */
 };
 
 struct block_device {
@@ -387,10 +388,8 @@ struct inode {
 	struct super_block	*i_sb;
 	wait_queue_head_t	i_wait;
 	struct file_lock	*i_flock;
-	struct vm_area_struct	*i_mmap;
-	struct address_space	*i_mapping;	
+	struct address_space	*i_mapping;
 	struct address_space	i_data;	
-	spinlock_t		i_shared_lock;
 	struct dquot		*i_dquot[MAXQUOTAS];
 	struct pipe_inode_info	*i_pipe;
 	struct block_device	*i_bdev;
@@ -436,6 +435,7 @@ struct inode {
 #define I_DIRTY		1
 #define I_LOCK		2
 #define I_FREEING	4
+#define I_CLEAR		8
 
 extern void __mark_inode_dirty(struct inode *);
 static inline void mark_inode_dirty(struct inode *inode)
@@ -615,6 +615,15 @@ struct super_block {
 	 * even looking at it. You had been warned.
 	 */
 	struct semaphore s_vfs_rename_sem;	/* Kludge */
+
+	/* The next field is used by knfsd when converting a (inode number based)
+	 * file handle into a dentry. As it builds a path in the dcache tree from
+	 * the bottom up, there may for a time be a subpath of dentrys which is not
+	 * connected to the main tree.  This semaphore ensure that there is only ever
+	 * one such free path per filesystem.  Note that unconnected files (or other
+	 * non-directories) are allowed, but not unconnected diretories.
+	 */
+	struct semaphore s_nfsd_free_path_sem;
 };
 
 /*
@@ -654,6 +663,8 @@ struct file_operations {
 	int (*fsync) (struct file *, struct dentry *);
 	int (*fasync) (int, struct file *, int);
 	int (*lock) (struct file *, int, struct file_lock *);
+	ssize_t (*readv) (struct file *, const struct iovec *, unsigned long, loff_t *);
+	ssize_t (*writev) (struct file *, const struct iovec *, unsigned long, loff_t *);
 };
 
 struct inode_operations {
@@ -675,6 +686,10 @@ struct inode_operations {
 	int (*revalidate) (struct dentry *);
 };
 
+/*
+ * NOTE: write_inode, delete_inode, clear_inode, put_inode can be called
+ * without the big kernel lock held in all filesystems.
+ */
 struct super_operations {
 	void (*read_inode) (struct inode *);
 	void (*write_inode) (struct inode *);
@@ -743,6 +758,19 @@ extern inline int locks_verify_area(int read_write, struct inode *inode,
 	return 0;
 }
 
+extern inline int locks_verify_truncate(struct inode *inode,
+				    struct file *filp,
+				    loff_t size)
+{
+	if (inode->i_flock && MANDATORY_LOCK(inode))
+		return locks_mandatory_area(
+			FLOCK_VERIFY_WRITE, inode, filp,
+			size < inode->i_size ? size : inode->i_size,
+			abs(inode->i_size - size)
+		);
+	return 0;
+}
+
 
 /* fs/open.c */
 
@@ -773,6 +801,8 @@ extern int blkdev_get(struct block_device *, mode_t, unsigned, int);
 extern int blkdev_put(struct block_device *, int);
 
 /* fs/devices.c */
+extern const struct block_device_operations *get_blkfops(unsigned int);
+extern struct file_operations *get_chrfops(unsigned int, unsigned int);
 extern int register_chrdev(unsigned int, const char *, struct file_operations *);
 extern int unregister_chrdev(unsigned int, const char *);
 extern int chrdev_open(struct inode *, struct file *);
@@ -1002,6 +1032,8 @@ extern void put_super(kdev_t);
 unsigned long generate_cluster(kdev_t, int b[], int);
 unsigned long generate_cluster_swab32(kdev_t, int b[], int);
 extern kdev_t ROOT_DEV;
+extern char root_device_name[];
+
 
 extern void show_buffers(void);
 extern void mount_root(void);

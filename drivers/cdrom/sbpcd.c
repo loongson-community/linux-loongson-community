@@ -338,6 +338,7 @@
 #include <linux/kernel.h>
 #include <linux/cdrom.h>
 #include <linux/ioport.h>
+#include <linux/devfs_fs_kernel.h>
 #include <linux/major.h> 
 #include <linux/string.h>
 #include <linux/vmalloc.h>
@@ -4791,9 +4792,7 @@ static void sbp_transfer(struct request *req)
  */
 #undef DEBUG_GTL
 static inline void sbpcd_end_request(struct request *req, int uptodate) {
-	req->next=CURRENT;
-	CURRENT=req;
-	up(&ioctl_read_sem);
+	list_add(&req->queue, &req->q->queue_head);
 	end_request(uptodate);
 }
 /*==========================================================================*/
@@ -4815,7 +4814,7 @@ static void DO_SBPCD_REQUEST(request_queue_t * q)
 #ifdef DEBUG_GTL
 	xnr=++xx_nr;
 
-	if(!CURRENT)
+	if(QUEUE_EMPTY)
 	{
 		printk( "do_sbpcd_request[%di](NULL), Pid:%d, Time:%li\n",
 			xnr, current->pid, jiffies);
@@ -4830,15 +4829,15 @@ static void DO_SBPCD_REQUEST(request_queue_t * q)
 #endif
 	INIT_REQUEST;
 	req=CURRENT;		/* take out our request so no other */
-	CURRENT=req->next;	/* task can fuck it up         GTL  */
-	spin_unlock_irq(&io_request_lock);		/* FIXME!!!! */
+	blkdev_dequeue_request(req);	/* task can fuck it up         GTL  */
 	
-	down(&ioctl_read_sem);
 	if (req->rq_status == RQ_INACTIVE)
 		sbpcd_end_request(req, 0);
 	if (req -> sector == -1)
 		sbpcd_end_request(req, 0);
+	spin_unlock_irq(&io_request_lock);
 
+	down(&ioctl_read_sem);
 	if (req->cmd != READ)
 	{
 		msg(DBG_INF, "bad cmd %d\n", req->cmd);
@@ -4875,8 +4874,9 @@ static void DO_SBPCD_REQUEST(request_queue_t * q)
 		printk(" do_sbpcd_request[%do](%p:%ld+%ld) end 2, Time:%li\n",
 			xnr, req, req->sector, req->nr_sectors, jiffies);
 #endif
+		up(&ioctl_read_sem);
+		spin_lock_irq(&io_request_lock);
 		sbpcd_end_request(req, 1);
-		spin_lock_irq(&io_request_lock);		/* FIXME!!!! */
 		goto request_loop;
 	}
 
@@ -4915,8 +4915,9 @@ static void DO_SBPCD_REQUEST(request_queue_t * q)
 			printk(" do_sbpcd_request[%do](%p:%ld+%ld) end 3, Time:%li\n",
 				xnr, req, req->sector, req->nr_sectors, jiffies);
 #endif
+			up(&ioctl_read_sem);
+			spin_lock_irq(&io_request_lock);
 			sbpcd_end_request(req, 1);
-			spin_lock_irq(&io_request_lock);	/* FIXME!!!! */
 			goto request_loop;
 		}
 	}
@@ -4929,9 +4930,10 @@ static void DO_SBPCD_REQUEST(request_queue_t * q)
 	printk(" do_sbpcd_request[%do](%p:%ld+%ld) end 4 (error), Time:%li\n",
 		xnr, req, req->sector, req->nr_sectors, jiffies);
 #endif
-	sbpcd_end_request(req, 0);
+	up(&ioctl_read_sem);
 	sbp_sleep(0);    /* wait a bit, try again */
-	spin_lock_irq(&io_request_lock);		/* FIXME!!!! */
+	spin_lock_irq(&io_request_lock);
+	sbpcd_end_request(req, 0);
 	goto request_loop;
 }
 /*==========================================================================*/
@@ -5583,12 +5585,16 @@ static int __init config_spea(void)
  *  Test for presence of drive and initialize it.
  *  Called once at boot or load time.
  */
+
+static devfs_handle_t devfs_handle = NULL;
+
 #ifdef MODULE
 int __init __SBPCD_INIT(void)
 #else
 int __init SBPCD_INIT(void)
 #endif MODULE
 {
+	char nbuff[16];
 	int i=0, j=0;
 	int addr[2]={1, CDROM_PORT};
 	int port_index;
@@ -5731,7 +5737,7 @@ int __init SBPCD_INIT(void)
 	OUT(MIXER_data,0xCC); /* one nibble per channel, max. value: 0xFF */
 #endif SOUND_BASE
 	
-	if (register_blkdev(MAJOR_NR, major_name, &cdrom_fops) != 0)
+	if (devfs_register_blkdev(MAJOR_NR, major_name, &cdrom_fops) != 0)
 	{
 		msg(DBG_INF, "Can't get MAJOR %d for Matsushita CDROM\n", MAJOR_NR);
 #ifdef MODULE
@@ -5741,10 +5747,12 @@ int __init SBPCD_INIT(void)
 #endif MODULE
 	}
 	blk_init_queue(BLK_DEFAULT_QUEUE(MAJOR_NR), DEVICE_REQUEST);
+	blk_queue_headactive(BLK_DEFAULT_QUEUE(MAJOR_NR), 0);
 	read_ahead[MAJOR_NR] = buffers * (CD_FRAMESIZE / 512);
 	
 	request_region(CDo_command,4,major_name);
 	
+	devfs_handle = devfs_mk_dir (NULL, "sbp", 0, NULL);
 	for (j=0;j<NR_SBPCD;j++)
 	{
 		struct cdrom_device_info * sbpcd_infop;
@@ -5766,7 +5774,7 @@ int __init SBPCD_INIT(void)
 		if (D_S[j].sbp_buf==NULL)
 		{
 			msg(DBG_INF,"data buffer (%d frames) not available.\n",D_S[j].sbp_bufsiz);
-			if ((unregister_blkdev(MAJOR_NR, major_name) == -EINVAL))
+			if ((devfs_unregister_blkdev(MAJOR_NR, major_name) == -EINVAL))
 			{
 				printk("Can't unregister %s\n", major_name);
 			}
@@ -5793,11 +5801,15 @@ int __init SBPCD_INIT(void)
 		sbpcd_infop->dev = MKDEV(MAJOR_NR, j);
 		strncpy(sbpcd_infop->name,major_name, sizeof(sbpcd_infop->name)); 
 
+		sprintf (nbuff, "c%dt%d/cd", SBPCD_ISSUE - 1, D_S[j].drv_id);
+		sbpcd_infop->de =
+		    devfs_register (devfs_handle, nbuff, 0, DEVFS_FL_DEFAULT,
+				    MAJOR_NR, j, S_IFBLK | S_IRUGO | S_IWUGO,
+				    0, 0, &cdrom_fops, NULL);
 		if (register_cdrom(sbpcd_infop))
 		{
                 	printk(" sbpcd: Unable to register with Uniform CD-ROm driver\n");
 		}
-
 		/*
 		 * set the block size
 		 */
@@ -5827,13 +5839,14 @@ void sbpcd_exit(void)
 {
 	int j;
 	
-	if ((unregister_blkdev(MAJOR_NR, major_name) == -EINVAL))
+	if ((devfs_unregister_blkdev(MAJOR_NR, major_name) == -EINVAL))
 	{
 		msg(DBG_INF, "What's that: can't unregister %s.\n", major_name);
 		return;
 	}
 	release_region(CDo_command,4);
 	
+	devfs_unregister (devfs_handle);
 	for (j=0;j<NR_SBPCD;j++)
 	{
 		if (D_S[j].drv_id==-1) continue;

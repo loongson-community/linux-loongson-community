@@ -1,4 +1,4 @@
-/* $Id: page.h,v 1.7 1999/06/22 23:07:47 ralf Exp $
+/* $Id: page.h,v 1.8 2000/01/27 01:05:37 ralf Exp $
  *
  * Definitions for page handling
  *
@@ -23,8 +23,11 @@
 #define BUG() do { printk("kernel BUG at %s:%d!\n", __FILE__, __LINE__); *(int *)0=0; } while (0)
 #define PAGE_BUG(page) do {  BUG(); } while (0)
 
-extern void (*clear_page)(void * page);
-extern void (*copy_page)(void * to, void * from);
+extern void (*_clear_page)(void * page);
+extern void (*_copy_page)(void * to, void * from);
+
+#define clear_page(page)	_clear_page(page)
+#define copy_page(to, from)	_copy_page(to, from)
 
 /*
  * These are used to make use of C type-checking..
@@ -43,6 +46,20 @@ typedef struct { unsigned long pgprot; } pgprot_t;
 #define __pme(x)	((pme_t) { (x) } )
 #define __pgd(x)	((pgd_t) { (x) } )
 #define __pgprot(x)	((pgprot_t) { (x) } )
+
+/* Pure 2^n version of get_order */
+extern __inline__ int get_order(unsigned long size)
+{
+	int order;
+
+	size = (size-1) >> (PAGE_SHIFT-1);
+	order = -1;
+	do {
+		size >>= 1;
+		order++;
+	} while (size);
+	return order;
+}
 
 #endif /* _LANGUAGE_ASSEMBLY */
 

@@ -24,6 +24,7 @@
 #include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/sysrq.h>
+#include <linux/devfs_fs_kernel.h>
 
 #include <asm/kbio.h>
 #include <asm/vuid_event.h>
@@ -507,7 +508,7 @@ void sunkbd_inchar(unsigned char ch, struct pt_regs *regs)
 	}
 	
 	do_poke_blanked_console = 1;
-	mark_bh(CONSOLE_BH);
+	tasklet_schedule(&console_tasklet);
 	add_keyboard_randomness(keycode);
 
 	tty = ttytab? ttytab[fg_console]: NULL;
@@ -616,7 +617,7 @@ static void put_queue(int ch)
 	wake_up(&keypress_wait);
 	if (tty) {
 		tty_insert_flip_char(tty, ch, 0);
-		tty_schedule_flip(tty);
+		con_schedule_flip(tty);
 	}
 }
 
@@ -630,7 +631,7 @@ static void puts_queue(char *cp)
 		tty_insert_flip_char(tty, *cp, 0);
 		cp++;
 	}
-	tty_schedule_flip(tty);
+	con_schedule_flip(tty);
 }
 
 static void applkey(int key, char mode)
@@ -742,7 +743,7 @@ static void send_intr(void)
 	if (!tty)
 		return;
 	tty_insert_flip_char(tty, 0, TTY_BREAK);
-	tty_schedule_flip(tty);
+	con_schedule_flip(tty);
 }
 
 static void scroll_forw(void)
@@ -1549,7 +1550,11 @@ void __init keyboard_zsinit(void (*put_char)(unsigned char))
 	send_cmd(SKBDCMD_SETLED); send_cmd(0x0); /* All off */
 
 	/* Register the /dev/kbd interface */
-	if (register_chrdev (KBD_MAJOR, "kbd", &kbd_fops)){
+	devfs_register (NULL, "kbd", 0, DEVFS_FL_NONE,
+			KBD_MAJOR, 0,
+			S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH, 0, 0,
+			&kbd_fops, NULL);
+	if (devfs_register_chrdev (KBD_MAJOR, "kbd", &kbd_fops)){
 		printk ("Could not register /dev/kbd device\n");
 		return;
 	}

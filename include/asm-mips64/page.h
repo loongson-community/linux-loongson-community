@@ -1,4 +1,4 @@
-/* $Id: page.h,v 1.4 2000/01/27 01:05:37 ralf Exp $
+/* $Id: page.h,v 1.5 2000/02/06 00:20:27 kanoj Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -24,8 +24,11 @@
 #define BUG() do { printk("kernel BUG at %s:%d!\n", __FILE__, __LINE__); *(int *)0=0; } while (0)
 #define PAGE_BUG(page) do {  BUG(); } while (0)
 
-extern void (*clear_page)(void * page);
-extern void (*copy_page)(void * to, void * from);
+extern void (*_clear_page)(void * page);
+extern void (*_copy_page)(void * to, void * from);
+
+#define clear_page(page)	_clear_page(page)
+#define copy_page(to, from)	_copy_page(to, from)
 
 /*
  * These are used to make use of C type-checking..

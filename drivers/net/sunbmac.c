@@ -1,4 +1,4 @@
-/* $Id: sunbmac.c,v 1.14 2000/02/09 11:15:35 davem Exp $
+/* $Id: sunbmac.c,v 1.18 2000/02/18 13:49:21 davem Exp $
  * sunbmac.c: Driver for Sparc BigMAC 100baseT ethernet adapters.
  *
  * Copyright (C) 1997, 1998, 1999 David S. Miller (davem@redhat.com)
@@ -190,20 +190,14 @@ static void bigmac_clean_rings(struct bigmac *bp)
 
 	for (i = 0; i < RX_RING_SIZE; i++) {
 		if (bp->rx_skbs[i] != NULL) {
-			if (in_irq())
-				dev_kfree_skb_irq(bp->rx_skbs[i]);
-			else
-				dev_kfree_skb(bp->rx_skbs[i]);
+			dev_kfree_skb_any(bp->rx_skbs[i]);
 			bp->rx_skbs[i] = NULL;
 		}
 	}
 
 	for (i = 0; i < TX_RING_SIZE; i++) {
 		if (bp->tx_skbs[i] != NULL) {
-			if (in_irq())
-				dev_kfree_skb_irq(bp->tx_skbs[i]);
-			else
-				dev_kfree_skb(bp->tx_skbs[i]);
+			dev_kfree_skb_any(bp->tx_skbs[i]);
 			bp->tx_skbs[i] = NULL;
 		}
 	}
@@ -240,7 +234,8 @@ static void bigmac_init_rings(struct bigmac *bp, int from_irq)
 
 		bb->be_rxd[i].rx_addr =
 			sbus_map_single(bp->bigmac_sdev, skb->data,
-					RX_BUF_ALLOC_SIZE - 34);
+					RX_BUF_ALLOC_SIZE - 34,
+					SBUS_DMA_FROMDEVICE);
 		bb->be_rxd[i].rx_flags =
 			(RXD_OWN | ((RX_BUF_ALLOC_SIZE - 34) & RXD_LENGTH));
 	}
@@ -776,7 +771,8 @@ static void bigmac_tx(struct bigmac *bp)
 		bp->enet_stats.tx_packets++;
 		bp->enet_stats.tx_bytes += skb->len;
 		sbus_unmap_single(bp->bigmac_sdev,
-				  this->tx_addr, skb->len);
+				  this->tx_addr, skb->len,
+				  SBUS_DMA_TODEVICE);
 
 		DTX(("skb(%p) ", skb));
 		bp->tx_skbs[elem] = NULL;
@@ -787,7 +783,7 @@ static void bigmac_tx(struct bigmac *bp)
 	DTX((" DONE, tx_old=%d\n", elem));
 	bp->tx_old = elem;
 
-	if (test_bit(LINK_STATE_XOFF, &dev->state) &&
+	if (netif_queue_stopped(dev) &&
 	    TX_BUFFS_AVAIL(bp) > 0)
 		netif_wake_queue(bp->dev);
 
@@ -831,14 +827,16 @@ static void bigmac_rx(struct bigmac *bp)
 			}
 			sbus_unmap_single(bp->bigmac_sdev,
 					  this->rx_addr,
-					  RX_BUF_ALLOC_SIZE - 34);
+					  RX_BUF_ALLOC_SIZE - 34,
+					  SBUS_DMA_FROMDEVICE);
 			bp->rx_skbs[elem] = new_skb;
 			new_skb->dev = bp->dev;
 			skb_put(new_skb, ETH_FRAME_LEN);
 			skb_reserve(new_skb, 34);
 			this->rx_addr = sbus_map_single(bp->bigmac_sdev,
 							new_skb->data,
-							RX_BUF_ALLOC_SIZE - 34);
+							RX_BUF_ALLOC_SIZE - 34,
+							SBUS_DMA_FROMDEVICE);
 			this->rx_flags =
 				(RXD_OWN | ((RX_BUF_ALLOC_SIZE - 34) & RXD_LENGTH));
 
@@ -855,7 +853,7 @@ static void bigmac_rx(struct bigmac *bp)
 			skb_reserve(copy_skb, 2);
 			skb_put(copy_skb, len);
 			sbus_dma_sync_single(bp->bigmac_sdev,
-					     this->rx_addr, len);
+					     this->rx_addr, len, SBUS_DMA_FROMDEVICE);
 			eth_copy_and_sum(copy_skb, (unsigned char *)skb->data, len, 0);
 
 			/* Reuse original ring buffer. */
@@ -951,7 +949,7 @@ static int bigmac_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	u32 mapping;
 
 	len = skb->len;
-	mapping = sbus_map_single(bp->bigmac_sdev, skb->data, len);
+	mapping = sbus_map_single(bp->bigmac_sdev, skb->data, len, SBUS_DMA_TODEVICE);
 
 	/* Avoid a race... */
 	spin_lock_irq(&bp->lock);

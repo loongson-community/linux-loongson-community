@@ -1,4 +1,4 @@
-/* $Id: io.h,v 1.8 2000/01/31 21:34:07 kanoj Exp $
+/* $Id: io.h,v 1.9 2000/02/04 07:40:53 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -389,9 +389,13 @@ extern inline void dma_cache_inv(unsigned long start, unsigned long size)
 
 #else
 
-extern void (*dma_cache_wback_inv)(unsigned long start, unsigned long size);
-extern void (*dma_cache_wback)(unsigned long start, unsigned long size);
-extern void (*dma_cache_inv)(unsigned long start, unsigned long size);
+extern void (*_dma_cache_wback_inv)(unsigned long start, unsigned long size);
+extern void (*_dma_cache_wback)(unsigned long start, unsigned long size);
+extern void (*_dma_cache_inv)(unsigned long start, unsigned long size);
+
+#define dma_cache_wback_inv(start,size)	_dma_cache_wback_inv(start,size)
+#define dma_cache_wback(start,size)	_dma_cache_wback(start,size)
+#define dma_cache_inv(start,size)	_dma_cache_inv(start,size)
 
 #endif
 

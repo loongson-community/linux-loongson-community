@@ -1,4 +1,4 @@
-/* $Id: loadmmu.c,v 1.4 2000/01/17 23:32:46 ralf Exp $
+/* $Id: loadmmu.c,v 1.5 2000/01/27 01:05:24 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -21,40 +21,39 @@
 #include <asm/sgialib.h>
 
 /* memory functions */
-void (*clear_page)(void * page);
-void (*copy_page)(void * to, void * from);
+void (*_clear_page)(void * page);
+void (*_copy_page)(void * to, void * from);
 
 /* Cache operations. */
-void (*flush_cache_all)(void);
-void (*flush_cache_mm)(struct mm_struct *mm);
-void (*flush_cache_range)(struct mm_struct *mm, unsigned long start,
-			  unsigned long end);
-void (*flush_cache_page)(struct vm_area_struct *vma, unsigned long page);
-void (*flush_cache_sigtramp)(unsigned long addr);
-void (*flush_page_to_ram)(struct page * page);
+void (*_flush_cache_all)(void);
+void (*_flush_cache_mm)(struct mm_struct *mm);
+void (*_flush_cache_range)(struct mm_struct *mm, unsigned long start,
+                           unsigned long end);
+void (*_flush_cache_page)(struct vm_area_struct *vma, unsigned long page);
+void (*_flush_cache_sigtramp)(unsigned long addr);
+void (*_flush_page_to_ram)(struct page * page);
 
 /* DMA cache operations. */
-void (*dma_cache_wback_inv)(unsigned long start, unsigned long size);
-void (*dma_cache_wback)(unsigned long start, unsigned long size);
-void (*dma_cache_inv)(unsigned long start, unsigned long size);
+void (*_dma_cache_wback_inv)(unsigned long start, unsigned long size);
+void (*_dma_cache_wback)(unsigned long start, unsigned long size);
+void (*_dma_cache_inv)(unsigned long start, unsigned long size);
 
 /* TLB operations. */
-void (*flush_tlb_all)(void);
-void (*flush_tlb_mm)(struct mm_struct *mm);
-void (*flush_tlb_range)(struct mm_struct *mm, unsigned long start,
+void (*_flush_tlb_all)(void);
+void (*_flush_tlb_mm)(struct mm_struct *mm);
+void (*_flush_tlb_range)(struct mm_struct *mm, unsigned long start,
 			unsigned long end);
-void (*flush_tlb_page)(struct vm_area_struct *vma, unsigned long page);
+void (*_flush_tlb_page)(struct vm_area_struct *vma, unsigned long page);
 
 /* Miscellaneous. */
 void (*update_mmu_cache)(struct vm_area_struct * vma,
 			 unsigned long address, pte_t pte);
 
-void (*show_regs)(struct pt_regs *);
+void (*_show_regs)(struct pt_regs *);
 
-int (*user_mode)(struct pt_regs *);
+int (*_user_mode)(struct pt_regs *);
 
 extern void ld_mmu_r4xx0(void);
-extern void ld_mmu_tfp(void);
 extern void ld_mmu_andes(void);
 
 void __init load_mmu(void)
@@ -81,13 +80,6 @@ void __init load_mmu(void)
 	case CPU_NEVADA:
 		printk("Loading R4000 MMU routines.\n");
 		ld_mmu_r4xx0();
-		break;
-#endif
-
-#if defined (CONFIG_CPU_R8000)
-	case CPU_R8000:
-		printk("Loading TFP MMU routines.\n");
-		ld_mmu_tfp();
 		break;
 #endif
 

@@ -1,4 +1,4 @@
-/* $Id: pgalloc.h,v 1.1 2000/02/04 07:40:53 ralf Exp $
+/* $Id: pgalloc.h,v 1.2 2000/02/23 00:41:38 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -10,23 +10,6 @@
 #ifndef _ASM_PGALLOC_H
 #define _ASM_PGALLOC_H
 
-/* Cache flushing:
- *
- *  - flush_cache_all() flushes entire cache
- *  - flush_cache_mm(mm) flushes the specified mm context's cache lines
- *  - flush_cache_page(mm, vmaddr) flushes a single page
- *  - flush_cache_range(mm, start, end) flushes a range of pages
- *  - flush_page_to_ram(page) write back kernel page to ram
- */
-extern void (*flush_cache_all)(void);
-extern void (*flush_cache_mm)(struct mm_struct *mm);
-extern void (*flush_cache_range)(struct mm_struct *mm, unsigned long start,
-				 unsigned long end);
-extern void (*flush_cache_page)(struct vm_area_struct *vma, unsigned long page);
-extern void (*flush_cache_sigtramp)(unsigned long addr);
-extern void (*flush_page_to_ram)(struct page * page);
-#define flush_icache_range(start, end) flush_cache_all()
-
 /* TLB flushing:
  *
  *  - flush_tlb_all() flushes all processes TLB entries
@@ -34,12 +17,22 @@ extern void (*flush_page_to_ram)(struct page * page);
  *  - flush_tlb_page(mm, vmaddr) flushes a single page
  *  - flush_tlb_range(mm, start, end) flushes a range of pages
  */
-extern void (*flush_tlb_all)(void);
-extern void (*flush_tlb_mm)(struct mm_struct *mm);
-extern void (*flush_tlb_range)(struct mm_struct *mm, unsigned long start,
+extern void (*_flush_tlb_all)(void);
+extern void (*_flush_tlb_mm)(struct mm_struct *mm);
+extern void (*_flush_tlb_range)(struct mm_struct *mm, unsigned long start,
 			       unsigned long end);
-extern void (*flush_tlb_page)(struct vm_area_struct *vma, unsigned long page);
-extern inline void flush_tlb_pgtables(struct mm_struct *mm, unsigned long start,                                  unsigned long end);
+extern void (*_flush_tlb_page)(struct vm_area_struct *vma, unsigned long page);
+
+#define flush_tlb_all()			_flush_tlb_all()
+#define flush_tlb_mm(mm)		_flush_tlb_mm(mm)
+#define flush_tlb_range(mm,vmaddr,end)	_flush_tlb_range(mm, vmaddr, end)
+#define flush_tlb_page(vma,page)	_flush_tlb_page(vma, page)
+
+extern inline void flush_tlb_pgtables(struct mm_struct *mm,
+                                      unsigned long start, unsigned long end)
+{
+	/* Nothing to do on MIPS.  */
+}
 
 
 /*

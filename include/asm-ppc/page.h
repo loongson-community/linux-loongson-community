@@ -77,7 +77,7 @@ typedef unsigned long pgprot_t;
 #define PAGE_ALIGN(addr)	(((addr)+PAGE_SIZE-1)&PAGE_MASK)
 
 extern void clear_page(void *page);
-#define copy_page(to,from)	memcpy((void *)(to), (void *)(from), PAGE_SIZE)
+extern void copy_page(void *to, void *from);
 
 /* map phys->virtual and virtual->phys for RAM pages */
 static inline unsigned long ___pa(unsigned long v)
@@ -113,6 +113,21 @@ static inline void* ___va(unsigned long p)
 #define MAP_PAGE_RESERVED	(1<<15)
 
 extern unsigned long get_zero_page_fast(void);
+
+/* Pure 2^n version of get_order */
+extern __inline__ int get_order(unsigned long size)
+{
+	int order;
+
+	size = (size-1) >> (PAGE_SHIFT-1);
+	order = -1;
+	do {
+		size >>= 1;
+		order++;
+	} while (size);
+	return order;
+}
+
 #endif /* __KERNEL__ */
 #endif /* __ASSEMBLY__ */
 #endif /* _PPC_PAGE_H */

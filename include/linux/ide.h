@@ -13,6 +13,7 @@
 #include <linux/hdsmart.h>
 #include <linux/blkdev.h>
 #include <linux/proc_fs.h>
+#include <linux/devfs_fs_kernel.h>
 #include <asm/hdreg.h>
 
 /*
@@ -142,7 +143,7 @@ typedef unsigned char	byte;	/* used everywhere */
 /*
  * Some more useful definitions
  */
-#define IDE_MAJOR_NAME	"ide"	/* the same for all i/f; see also genhd.c */
+#define IDE_MAJOR_NAME	"hd"	/* the same for all i/f; see also genhd.c */
 #define MAJOR_NAME	IDE_MAJOR_NAME
 #define PARTN_BITS	6	/* number of minor dev bits for partitions */
 #define PARTN_MASK	((1<<PARTN_BITS)-1)	/* a useful bit mask */
@@ -156,11 +157,11 @@ typedef unsigned char	byte;	/* used everywhere */
  * Timeouts for various operations:
  */
 #define WAIT_DRQ	(5*HZ/100)	/* 50msec - spec allows up to 20ms */
-#ifdef CONFIG_APM
+#if defined(CONFIG_APM) || defined(CONFIG_APM_MODULE)
 #define WAIT_READY	(5*HZ)		/* 5sec - some laptops are very slow */
 #else
 #define WAIT_READY	(3*HZ/100)	/* 30msec - should be instantaneous */
-#endif /* CONFIG_APM */
+#endif /* CONFIG_APM || CONFIG_APM_MODULE */
 #define WAIT_PIDENTIFY	(10*HZ)	/* 10sec  - should be less than 3ms (?)
 				            if all ATAPI CD is closed at boot */
 #define WAIT_WORSTCASE	(30*HZ)	/* 30sec  - worst case when spinning up */
@@ -290,6 +291,7 @@ typedef struct ide_drive_s {
 	char		name[4];	/* drive name, such as "hda" */
 	void 		*driver;	/* (ide_driver_t *) */
 	void		*driver_data;	/* extra driver data */
+	devfs_handle_t	de;		/* directory for device */
 	struct proc_dir_entry *proc;	/* /proc/ide/ directory entry */
 	void		*settings;	/* /proc/ide/ drive settings */
 	char		driver_req[10];	/* requests specific driver */
@@ -377,6 +379,7 @@ typedef struct hwif_s {
 	u32		dmatable_dma;	/* dma physical region descriptor table (dma view) */
 	struct scatterlist *sg_table;	/* Scatter-gather list used to build the above */
 	int sg_nents;			/* Current number of entries in it */
+	int sg_dma_direction;		/* dma transfer direction */
 	struct hwif_s	*mate;		/* other hwif from same PCI chip */
 	unsigned long	dma_base;	/* base addr for dma ports */
 	unsigned	dma_extra;	/* extra addr for dma ports */

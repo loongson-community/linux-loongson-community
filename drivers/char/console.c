@@ -81,6 +81,7 @@
 #include <linux/mm.h>
 #include <linux/console.h>
 #include <linux/init.h>
+#include <linux/devfs_fs_kernel.h>
 #include <linux/vt_kern.h>
 #include <linux/selection.h>
 #include <linux/console_struct.h>
@@ -119,6 +120,10 @@ struct consw *conswitchp = NULL;
  */
 #define DEFAULT_BELL_PITCH	750
 #define DEFAULT_BELL_DURATION	(HZ/8)
+
+extern int tty_register_devfs (struct tty_driver *driver, unsigned int flags,
+			       unsigned int minor);
+extern void vcs_make_devfs (unsigned int index, int unregister);
 
 #ifndef MIN
 #define MIN(a,b)	((a) < (b) ? (a) : (b))
@@ -177,12 +182,13 @@ static struct vc_data *master_display_fg = NULL;
  * Unfortunately, we need to delay tty echo when we're currently writing to the
  * console since the code is (and always was) not re-entrant, so we insert
  * all filp requests to con_task_queue instead of tq_timer and run it from
- * the console_bh.
+ * the console_tasklet.  The console_tasklet is protected by the IRQ
+ * protected console_lock.
  */
 DECLARE_TASK_QUEUE(con_task_queue);
 
 /*
- * For the same reason, we defer scrollback to the console_bh.
+ * For the same reason, we defer scrollback to the console tasklet.
  */
 static int scrollback_delta = 0;
 
@@ -224,7 +230,7 @@ static inline unsigned short *screenpos(int currcons, int offset, int viewed)
 static inline void scrolldelta(int lines)
 {
 	scrollback_delta += lines;
-	mark_bh(CONSOLE_BH);
+	tasklet_schedule(&console_tasklet);
 }
 
 static void scrup(int currcons, unsigned int t, unsigned int b, int nr)
@@ -546,16 +552,12 @@ void redraw_screen(int new_console, int is_switch)
 {
 	int redraw = 1;
 	int currcons, old_console;
-	static int lock = 0;
 
-	if (lock)
-		return;
 	if (!vc_cons_allocated(new_console)) {
 		/* strange ... */
-		printk("redraw_screen: tty %d not allocated ??\n", new_console+1);
+		/* printk("redraw_screen: tty %d not allocated ??\n", new_console+1); */
 		return;
 	}
-	lock = 1;
 
 	if (is_switch) {
 		currcons = fg_console;
@@ -591,7 +593,6 @@ void redraw_screen(int new_console, int is_switch)
 		set_leds();
 		compute_shiftstate();
 	}
-	lock = 0;
 }
 
 /*
@@ -1785,6 +1786,19 @@ static void do_con_trol(struct tty_struct *tty, unsigned int currcons, int c)
 	}
 }
 
+/* This is a temporary buffer used to prepare a tty console write
+ * so that we can easily avoid touching user space while holding the
+ * console spinlock.  It is allocated in con_init and is shared by
+ * this code and the vc_screen read/write tty calls.
+ *
+ * We have to allocate this statically in the kernel data section
+ * since console_init (and thus con_init) are called before any
+ * kernel memory allocation is available.
+ */
+char con_buf[PAGE_SIZE];
+#define CON_BUF_SIZE	PAGE_SIZE
+DECLARE_MUTEX(con_buf_sem);
+
 static int do_con_write(struct tty_struct * tty, int from_user,
 			const unsigned char *buf, int count)
 {
@@ -1802,6 +1816,8 @@ static int do_con_write(struct tty_struct * tty, int from_user,
 	unsigned long draw_from = 0, draw_to = 0;
 	struct vt_struct *vt = (struct vt_struct *)tty->driver_data;
 	u16 himask, charmask;
+	const unsigned char *orig_buf = NULL;
+	int orig_count;
 
 	currcons = vt->vc_num;
 	if (!vc_cons_allocated(currcons)) {
@@ -1814,11 +1830,31 @@ static int do_con_write(struct tty_struct * tty, int from_user,
 	    return 0;
 	}
 
+	orig_buf = buf;
+	orig_count = count;
+
 	if (from_user) {
-		/* just to make sure that noone lurks at places he shouldn't see. */
-		if (verify_area(VERIFY_READ, buf, count))
-			return 0; /* ?? are error codes legal here ?? */
+		down(&con_buf_sem);
+
+again:
+		if (count > CON_BUF_SIZE)
+			count = CON_BUF_SIZE;
+		if (copy_from_user(con_buf, buf, count)) {
+			n = 0; /* ?? are error codes legal here ?? */
+			goto out;
+		}
+
+		buf = con_buf;
 	}
+
+	/* At this point 'buf' is guarenteed to be a kernel buffer
+	 * and therefore no access to userspace (and therefore sleeping)
+	 * will be needed.  The con_buf_sem serializes all tty based
+	 * console rendering and vcs write/read operations.  We hold
+	 * the console spinlock during the entire write.
+	 */
+
+	spin_lock_irq(&console_lock);
 
 	himask = hi_font_mask;
 	charmask = himask ? 0x1ff : 0xff;
@@ -1827,15 +1863,11 @@ static int do_con_write(struct tty_struct * tty, int from_user,
 	if (IS_FG)
 		hide_cursor(currcons);
 
-	disable_bh(CONSOLE_BH);
 	while (!tty->stopped && count) {
-		enable_bh(CONSOLE_BH);
-		if (from_user)
-			__get_user(c, buf);
-		else
-			c = *buf;
-		buf++; n++; count--;
-		disable_bh(CONSOLE_BH);
+		c = *buf;
+		buf++;
+		n++;
+		count--;
 
 		if (utf) {
 		    /* Combine UTF-8 into Unicode */
@@ -1940,23 +1972,48 @@ static int do_con_write(struct tty_struct * tty, int from_user,
 		do_con_trol(tty, currcons, c);
 	}
 	FLUSH
-	enable_bh(CONSOLE_BH);
+	spin_unlock_irq(&console_lock);
+
+out:
+	if (from_user) {
+		/* If the user requested something larger than
+		 * the CON_BUF_SIZE, and the tty is not stopped,
+		 * keep going.
+		 */
+		if ((orig_count > CON_BUF_SIZE) && !tty->stopped) {
+			orig_count -= CON_BUF_SIZE;
+			orig_buf += CON_BUF_SIZE;
+			count = orig_count;
+			buf = orig_buf;
+			goto again;
+		}
+
+		up(&con_buf_sem);
+	}
+
 	return n;
 #undef FLUSH
 }
 
 /*
- * This is the console switching bottom half handler.
+ * This is the console switching tasklet.
  *
- * Doing console switching in a bottom half handler allows
+ * Doing console switching in a tasklet allows
  * us to do the switches asynchronously (needed when we want
- * to switch due to a keyboard interrupt), while still giving
- * us the option to easily disable it to avoid races when we
- * need to write to the console.
+ * to switch due to a keyboard interrupt).  Synchronization
+ * with other console code and prevention of re-entrancy is
+ * ensured with console_lock.
  */
-static void console_bh(void)
+static void console_softint(unsigned long ignored)
 {
+	/* Runs the task queue outside of the console lock.  These
+	 * callbacks can come back into the console code and thus
+	 * will perform their own locking.
+	 */
 	run_task_queue(&con_task_queue);
+
+	spin_lock_irq(&console_lock);
+
 	if (want_console >= 0) {
 		if (want_console != fg_console && vc_cons_allocated(want_console)) {
 			hide_cursor(fg_console);
@@ -1978,6 +2035,8 @@ static void console_bh(void)
 			sw->con_scrolldelta(vc_cons[currcons].d, scrollback_delta);
 		scrollback_delta = 0;
 	}
+
+	spin_unlock_irq(&console_lock);
 }
 
 #ifdef CONFIG_VT_CONSOLE
@@ -1985,10 +2044,7 @@ static void console_bh(void)
 /*
  *	Console on virtual terminal
  *
- * NOTE NOTE NOTE! This code can do no global locking. In particular,
- * we can't disable interrupts or bottom half handlers globally, because
- * we can be called from contexts that hold critical spinlocks, and
- * trying do get a global lock at this point will lead to deadlocks.
+ * The console_lock must be held when we get here.
  */
 
 void vt_console_print(struct console *co, const char * b, unsigned count)
@@ -2015,7 +2071,7 @@ void vt_console_print(struct console *co, const char * b, unsigned count)
 
 	if (!vc_cons_allocated(currcons)) {
 		/* impossible */
-		printk("vt_console_print: tty %d not allocated ??\n", currcons+1);
+		/* printk("vt_console_print: tty %d not allocated ??\n", currcons+1); */
 		goto quit;
 	}
 
@@ -2263,13 +2319,18 @@ static int con_open(struct tty_struct *tty, struct file * filp)
 		tty->winsize.ws_row = video_num_lines;
 		tty->winsize.ws_col = video_num_columns;
 	}
+	if (tty->count == 1)
+		vcs_make_devfs (currcons, 0);
 	return 0;
 }
 
 static void con_close(struct tty_struct *tty, struct file * filp)
 {
-	if (tty->count == 1)
-		tty->driver_data = 0;
+	if (!tty)
+		return;
+	if (tty->count != 1) return;
+	vcs_make_devfs (MINOR (tty->device) - tty->driver.minor_start, 1);
+	tty->driver_data = 0;
 }
 
 static void vc_init(unsigned int currcons, unsigned int rows, unsigned int cols, int do_clear)
@@ -2305,6 +2366,8 @@ static void vc_init(unsigned int currcons, unsigned int rows, unsigned int cols,
 struct tty_driver console_driver;
 static int console_refcount;
 
+DECLARE_TASKLET_DISABLED(console_tasklet, console_softint, 0);
+
 void __init con_init(void)
 {
 	const char *display_desc = NULL;
@@ -2319,7 +2382,7 @@ void __init con_init(void)
 
 	memset(&console_driver, 0, sizeof(struct tty_driver));
 	console_driver.magic = TTY_DRIVER_MAGIC;
-	console_driver.name = "tty";
+	console_driver.name = "vc/%d";
 	console_driver.name_base = 1;
 	console_driver.major = TTY_MAJOR;
 	console_driver.minor_start = 1;
@@ -2327,6 +2390,11 @@ void __init con_init(void)
 	console_driver.type = TTY_DRIVER_TYPE_CONSOLE;
 	console_driver.init_termios = tty_std_termios;
 	console_driver.flags = TTY_DRIVER_REAL_RAW | TTY_DRIVER_RESET_TERMIOS;
+	/* Tell tty_register_driver() to skip consoles because they are
+	 * registered before kmalloc() is ready. We'll patch them in later. 
+	 * See comments at console_init(); see also con_init_devfs(). 
+	 */
+	console_driver.flags |= TTY_DRIVER_NO_DEVFS;
 	console_driver.refcount = &console_refcount;
 	console_driver.table = console_table;
 	console_driver.termios = console_termios;
@@ -2393,7 +2461,8 @@ void __init con_init(void)
 	register_console(&vt_console_driver);
 #endif
 
-	init_bh(CONSOLE_BH, console_bh);
+	tasklet_enable(&console_tasklet);
+	tasklet_schedule(&console_tasklet);
 }
 
 #ifndef VT_SINGLE_DRIVER
@@ -2484,6 +2553,19 @@ static void set_vesa_blanking(unsigned long arg)
     unsigned int mode;
     get_user(mode, argp);
     vesa_blank_mode = (mode < 4) ? mode : 0;
+}
+
+/* We can't register the console with devfs during con_init(), because it
+ * is called before kmalloc() works.  This function is called later to
+ * do the registration.
+ */
+void __init con_init_devfs (void)
+{
+	int i;
+
+	for (i = 0; i < console_driver.num; i++)
+		tty_register_devfs (&console_driver, 0,
+				    console_driver.minor_start + i);
 }
 
 static void vesa_powerdown(void)
@@ -2744,9 +2826,11 @@ int con_font_op(int currcons, struct console_font_op *op)
 		}
 		op->data = temp;
 	}
-	disable_bh(CONSOLE_BH);
+
+	spin_lock_irq(&console_lock);
 	rc = sw->con_font_op(vc_cons[currcons].d, op);
-	enable_bh(CONSOLE_BH);
+	spin_unlock_irq(&console_lock);
+
 	op->data = old_op.data;
 	if (!rc && !set) {
 		int c = (op->width+7)/8 * 32 * op->charcount;
@@ -2847,6 +2931,7 @@ EXPORT_SYMBOL(video_font_height);
 EXPORT_SYMBOL(video_scan_lines);
 EXPORT_SYMBOL(vc_resize);
 EXPORT_SYMBOL(fg_console);
+EXPORT_SYMBOL(console_blank_hook);
 
 #ifndef VT_SINGLE_DRIVER
 EXPORT_SYMBOL(take_over_console);

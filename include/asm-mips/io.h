@@ -1,4 +1,4 @@
-/* $Id: io.h,v 1.11 2000/02/04 07:40:53 ralf Exp $
+/* $Id: io.h,v 1.12 2000/02/16 01:45:55 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -435,8 +435,12 @@ __OUTS(w,l,4)
  *    be discarded.  This operation is necessary before dma operations
  *    to the memory.
  */
-extern void (*dma_cache_wback_inv)(unsigned long start, unsigned long size);
-extern void (*dma_cache_wback)(unsigned long start, unsigned long size);
-extern void (*dma_cache_inv)(unsigned long start, unsigned long size);
+extern void (*_dma_cache_wback_inv)(unsigned long start, unsigned long size);
+extern void (*_dma_cache_wback)(unsigned long start, unsigned long size);
+extern void (*_dma_cache_inv)(unsigned long start, unsigned long size);
+
+#define dma_cache_wback_inv(start,size)	_dma_cache_wback_inv(start,size)
+#define dma_cache_wback(start,size)	_dma_cache_wback(start,size)
+#define dma_cache_inv(start,size)	_dma_cache_inv(start,size)
 
 #endif /* _ASM_IO_H */

@@ -1,4 +1,4 @@
-/* $Id: srmmu.c,v 1.206 2000/02/08 07:45:59 davem Exp $
+/* $Id: srmmu.c,v 1.208 2000/02/14 04:52:33 jj Exp $
  * srmmu.c:  SRMMU specific routines for memory management.
  *
  * Copyright (C) 1995 David S. Miller  (davem@caip.rutgers.edu)
@@ -201,7 +201,7 @@ static inline pte_t srmmu_pte_modify(pte_t pte, pgprot_t newprot)
 }
 
 /* to find an entry in a top-level page table... */
-static inline pgd_t *srmmu_pgd_offset(struct mm_struct * mm, unsigned long address)
+extern inline pgd_t *srmmu_pgd_offset(struct mm_struct * mm, unsigned long address)
 {
 	return mm->pgd + (address >> SRMMU_PGDIR_SHIFT);
 }
@@ -1366,7 +1366,7 @@ static void srmmu_vac_update_mmu_cache(struct vm_area_struct * vma,
 	if((vma->vm_flags & (VM_WRITE|VM_SHARED)) == (VM_WRITE|VM_SHARED)) {
 		struct vm_area_struct *vmaring;
 		struct file *file;
-		struct inode *inode;
+		struct address_space *mapping;
 		unsigned long flags, offset, vaddr, start;
 		int alias_found = 0;
 		pgd_t *pgdp;
@@ -1378,10 +1378,10 @@ static void srmmu_vac_update_mmu_cache(struct vm_area_struct * vma,
 		file = vma->vm_file;
 		if (!file)
 			goto done;
-		inode = file->f_dentry->d_inode;
+		mapping = file->f_dentry->d_inode->i_mapping;
 		offset = (address & PAGE_MASK) - vma->vm_start;
-		spin_lock(&inode->i_shared_lock);
-		vmaring = inode->i_mmap; 
+		spin_lock(&mapping->i_shared_lock);
+		vmaring = mapping->i_mmap; 
 		do {
 			/* Do not mistake ourselves as another mapping. */
 			if(vmaring == vma)
@@ -1414,7 +1414,7 @@ static void srmmu_vac_update_mmu_cache(struct vm_area_struct * vma,
 				}
 			}
 		} while ((vmaring = vmaring->vm_next_share) != NULL);
-		spin_unlock(&inode->i_shared_lock);
+		spin_unlock(&mapping->i_shared_lock);
 
 		if(alias_found && ((pte_val(pte) & SRMMU_CACHE) != 0)) {
 			pgdp = srmmu_pgd_offset(vma->vm_mm, address);
@@ -2337,7 +2337,6 @@ void __init ld_mmu_srmmu(void)
 	BTFIXUPSET_CALL(pgd_set, srmmu_pgd_set, BTFIXUPCALL_NORM);
 	
 	BTFIXUPSET_INT(pte_modify_mask, SRMMU_CHG_MASK);
-	BTFIXUPSET_CALL(pgd_offset, srmmu_pgd_offset, BTFIXUPCALL_NORM);
 	BTFIXUPSET_CALL(pmd_offset, srmmu_pmd_offset, BTFIXUPCALL_NORM);
 	BTFIXUPSET_CALL(pte_offset, srmmu_pte_offset, BTFIXUPCALL_NORM);
 	BTFIXUPSET_CALL(pte_free_kernel, srmmu_pte_free, BTFIXUPCALL_NORM);

@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: elf.h,v 1.3 2000/01/17 23:32:47 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -6,6 +6,9 @@
  */
 #ifndef _ASM_ELF_H
 #define _ASM_ELF_H
+
+#include <asm/ptrace.h>
+#include <asm/user.h>
 
 #ifndef ELF_ARCH
 /* ELF register definitions */

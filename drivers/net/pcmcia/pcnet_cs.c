@@ -11,7 +11,7 @@
 
     Copyright (C) 1999 David A. Hinds -- dhinds@pcmcia.sourceforge.org
 
-    pcnet_cs.c 1.110 1999/12/06 21:39:18
+    pcnet_cs.c 1.112 2000/02/11 01:24:44
     
     The network driver code is based on Donald Becker's NE2000 code:
 
@@ -72,7 +72,7 @@ static int pc_debug = PCMCIA_DEBUG;
 MODULE_PARM(pc_debug, "i");
 #define DEBUG(n, args...) if (pc_debug>(n)) printk(KERN_DEBUG args)
 static char *version =
-"pcnet_cs.c 1.110 1999/12/06 21:39:18 (David Hinds)";
+"pcnet_cs.c 1.112 2000/02/11 01:24:44 (David Hinds)";
 #else
 #define DEBUG(n, args...)
 #endif
@@ -211,7 +211,8 @@ static hw_info_t hw_info[] = {
       DELAY_OUTPUT | HAS_MISC_REG | USE_BIG_BUF },
     { /* SuperSocket RE450T */ 0x0110, 0x00, 0xe0, 0x98, 0 },
     { /* Volktek NPL-402CT */ 0x0060, 0x00, 0x40, 0x05, 0 },
-    { /* NEC PC-9801N-J12 */ 0x0ff0, 0x00, 0x00, 0x4c, 0 }
+    { /* NEC PC-9801N-J12 */ 0x0ff0, 0x00, 0x00, 0x4c, 0 },
+    { /* PCMCIA Technology OEM */ 0x01c8, 0xa0, 0x0c, 0 }
 };
 
 #define NR_INFO		(sizeof(hw_info)/sizeof(hw_info_t))
@@ -306,7 +307,6 @@ static dev_link_t *pcnet_attach(void)
 	for (i = 0; i < 4; i++)
 	    link->irq.IRQInfo2 |= 1 << irq_list[i];
     link->conf.Attributes = CONF_ENABLE_IRQ;
-    link->conf.Vcc = 50;
     link->conf.IntType = INT_MEMORY_AND_IO;
 
     ethdev_init(dev);
@@ -596,6 +596,7 @@ static void pcnet_config(dev_link_t *link)
     int i, last_ret, last_fn, start_pg, stop_pg, cm_offset;
     int manfid = 0, prodid = 0, has_shmem = 0;
     u_short buf[64];
+    config_info_t conf;
     hw_info_t *hw_info;
 
     DEBUG(0, "pcnet_config(0x%p)\n", link);
@@ -613,6 +614,10 @@ static void pcnet_config(dev_link_t *link)
 
     /* Configure card */
     link->state |= DEV_CONFIG;
+
+    /* Look up current Vcc */
+    CS_CHECK(GetConfigurationInfo, handle, &conf);
+    link->conf.Vcc = conf.Vcc;
 
     tuple.DesiredTuple = CISTPL_MANFID;
     tuple.Attributes = TUPLE_RETURN_COMMON;
@@ -807,8 +812,7 @@ static int pcnet_event(event_t event, int priority,
     case CS_EVENT_CARD_REMOVAL:
 	link->state &= ~DEV_PRESENT;
 	if (link->state & DEV_CONFIG) {
-	    netif_stop_queue(&info->dev);
-	    clear_bit(LINK_STATE_START, &info->dev.state);
+	    netif_device_detach(&info->dev);
 	    link->release.expires = jiffies + HZ/20;
 	    link->state |= DEV_RELEASE_PENDING;
 	    add_timer(&link->release);
@@ -823,10 +827,9 @@ static int pcnet_event(event_t event, int priority,
 	/* Fall through... */
     case CS_EVENT_RESET_PHYSICAL:
 	if (link->state & DEV_CONFIG) {
-	    if (link->open) {
-		netif_stop_queue(&info->dev);
-		clear_bit(LINK_STATE_START, &info->dev.state);
-	    }
+	    if (link->open)
+		netif_device_detach(&info->dev);
+
 	    CardServices(ReleaseConfiguration, link->handle);
 	}
 	break;
@@ -839,8 +842,7 @@ static int pcnet_event(event_t event, int priority,
 	    if (link->open) {
 		pcnet_reset_8390(&info->dev);
 		NS8390_init(&info->dev, 1);
-		netif_start_queue(&info->dev);
-		set_bit(LINK_STATE_START, &info->dev.state);
+		netif_device_attach(&info->dev);
 	    }
 	}
 	break;
@@ -908,7 +910,6 @@ static int pcnet_close(struct net_device *dev)
     free_irq(dev->irq, dev);
     
     link->open--;
-    clear_bit(LINK_STATE_START, &dev->state);
     del_timer(&info->watchdog);
     if (link->state & DEV_STALE_CONFIG) {
 	link->release.expires = jiffies + HZ/20;
@@ -984,7 +985,7 @@ static void ei_watchdog(u_long arg)
     struct net_device *dev = &info->dev;
     ioaddr_t nic_base = dev->base_addr;
 
-    if (!test_bit(LINK_STATE_START, &dev->state))
+    if (!netif_device_present(dev))
 	    goto reschedule;
 
     /* Check for pending interrupt with expired latency timer: with

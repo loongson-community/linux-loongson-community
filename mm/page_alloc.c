@@ -258,7 +258,9 @@ struct page * __alloc_pages (zonelist_t *zonelist, unsigned long order)
 		 */
 		if (!(current->flags & PF_MEMALLOC))
 		{
-			if (classfree(z) > z->pages_high)
+			unsigned long free = classfree(z);
+
+			if (free > z->pages_high)
 			{
 				if (z->low_on_memory)
 					z->low_on_memory = 0;
@@ -270,11 +272,11 @@ struct page * __alloc_pages (zonelist_t *zonelist, unsigned long order)
 				if (z->low_on_memory)
 					goto balance;
 
-				if (classfree(z) <= z->pages_low)
+				if (free <= z->pages_low)
 				{
 					wake_up_interruptible(&kswapd_wait);
 
-					if (classfree(z) <= z->pages_min)
+					if (free <= z->pages_min)
 					{
 						z->low_on_memory = 1;
 						goto balance;
@@ -296,16 +298,6 @@ ready:
 			if (page)
 				return page;
 		}
-	}
-
-	/*
-	 * If we can schedule, do so, and make sure to yield.
-	 * We may be a real-time process, and if kswapd is
-	 * waiting for us we need to allow it to run a bit.
-	 */
-	if (gfp_mask & __GFP_WAIT) {
-		current->policy |= SCHED_YIELD;
-		schedule();
 	}
 
 nopage:
@@ -525,6 +517,9 @@ void __init free_area_init_core(int nid, pg_data_t *pgdat, struct page **gmap,
 	lmem_map = (struct page *)(PAGE_OFFSET + 
 			MAP_ALIGN((unsigned long)lmem_map - PAGE_OFFSET));
 	*gmap = pgdat->node_mem_map = lmem_map;
+	pgdat->node_size = totalpages;
+	pgdat->node_start_paddr = zone_start_paddr;
+	pgdat->node_start_mapnr = (lmem_map - mem_map);
 
 	/*
 	 * Initially all pages are reserved - free ones are freed
@@ -565,6 +560,9 @@ void __init free_area_init_core(int nid, pg_data_t *pgdat, struct page **gmap,
 		zone->pages_low = mask*2;
 		zone->pages_high = mask*3;
 		zone->low_on_memory = 0;
+		zone->zone_mem_map = mem_map + offset;
+		zone->zone_start_mapnr = offset;
+		zone->zone_start_paddr = zone_start_paddr;
 
 		for (i = 0; i < size; i++) {
 			struct page *page = mem_map + offset + i;

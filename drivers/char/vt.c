@@ -22,6 +22,7 @@
 #include <linux/malloc.h>
 #include <linux/major.h>
 #include <linux/fs.h>
+#include <linux/console.h>
 
 #include <asm/io.h>
 #include <asm/uaccess.h>
@@ -105,12 +106,13 @@ _kd_mksound(unsigned int hz, unsigned int ticks)
 {
 	static struct timer_list sound_timer = { NULL, NULL, 0, 0,
 						 kd_nosound };
-
 	unsigned int count = 0;
+	unsigned long flags;
 
 	if (hz > 20 && hz < 32767)
 		count = 1193180 / hz;
 	
+	save_flags(flags);
 	cli();
 	del_timer(&sound_timer);
 	if (count) {
@@ -128,7 +130,7 @@ _kd_mksound(unsigned int hz, unsigned int ticks)
 		}
 	} else
 		kd_nosound(0);
-	sti();
+	restore_flags(flags);
 	return;
 }
 
@@ -804,12 +806,10 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 				 * When we actually do the console switch,
 				 * make sure we are atomic with respect to
 				 * other console switches..
-				 *
-				 * Damn! Was it difficult to make this clean?
 				 */
-				disable_bh(CONSOLE_BH);
+				spin_lock_irq(&console_lock);
 				complete_change_console(newvt);
-				enable_bh(CONSOLE_BH);
+				spin_unlock_irq(&console_lock);
 			}
 		}
 

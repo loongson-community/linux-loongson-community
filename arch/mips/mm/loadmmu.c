@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: loadmmu.c,v 1.13 1999/10/09 00:00:58 ralf Exp $
+ * $Id: loadmmu.c,v 1.14 2000/01/27 01:05:23 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -17,22 +17,22 @@
 #include <asm/sgialib.h>
 
 /* memory functions */
-void (*clear_page)(void * page);
-void (*copy_page)(void * to, void * from);
+void (*_clear_page)(void * page);
+void (*_copy_page)(void * to, void * from);
 
 /* Cache operations. */
-void (*flush_cache_all)(void);
-void (*flush_cache_mm)(struct mm_struct *mm);
-void (*flush_cache_range)(struct mm_struct *mm, unsigned long start,
+void (*_flush_cache_all)(void);
+void (*_flush_cache_mm)(struct mm_struct *mm);
+void (*_flush_cache_range)(struct mm_struct *mm, unsigned long start,
 			  unsigned long end);
-void (*flush_cache_page)(struct vm_area_struct *vma, unsigned long page);
-void (*flush_cache_sigtramp)(unsigned long addr);
-void (*flush_page_to_ram)(struct page * page);
+void (*_flush_cache_page)(struct vm_area_struct *vma, unsigned long page);
+void (*_flush_cache_sigtramp)(unsigned long addr);
+void (*_flush_page_to_ram)(struct page * page);
 
 /* DMA cache operations. */
-void (*dma_cache_wback_inv)(unsigned long start, unsigned long size);
-void (*dma_cache_wback)(unsigned long start, unsigned long size);
-void (*dma_cache_inv)(unsigned long start, unsigned long size);
+void (*_dma_cache_wback_inv)(unsigned long start, unsigned long size);
+void (*_dma_cache_wback)(unsigned long start, unsigned long size);
+void (*_dma_cache_inv)(unsigned long start, unsigned long size);
 
 #ifdef CONFIG_CPU_R3000
 extern void ld_mmu_r2300(void);
@@ -82,21 +82,6 @@ void __init loadmmu(void)
 	case CPU_NEVADA:
 		printk("Loading R4000 MMU routines.\n");
 		ld_mmu_r4xx0();
-		break;
-#endif
-
-#ifdef CONFIG_CPU_R6000
-	case CPU_R6000:
-	case CPU_R6000A:
-		printk("Loading R6000 MMU routines.\n");
-		ld_mmu_r6000();
-		break;
-#endif
-
-#ifdef CONFIG_CPU_R8000
-	case CPU_R8000:
-		printk("Loading TFP MMU routines.\n");
-		ld_mmu_tfp();
 		break;
 #endif
 

@@ -1,4 +1,4 @@
-/* $Id: page.h,v 1.29 1999/12/09 10:32:43 davem Exp $ */
+/* $Id: page.h,v 1.30 2000/02/16 07:34:54 davem Exp $ */
 
 #ifndef _SPARC64_PAGE_H
 #define _SPARC64_PAGE_H
@@ -125,6 +125,20 @@ struct sparc_phys_banks {
 #define SPARC_PHYS_BANKS 32
 
 extern struct sparc_phys_banks sp_banks[SPARC_PHYS_BANKS];
+
+/* Pure 2^n version of get_order */
+extern __inline__ int get_order(unsigned long size)
+{
+	int order;
+
+	size = (size-1) >> (PAGE_SHIFT-1);
+	order = -1;
+	do {
+		size >>= 1;
+		order++;
+	} while (size);
+	return order;
+}
 
 #endif /* !(__ASSEMBLY__) */
 

@@ -754,7 +754,24 @@ static void hid_configure_usage(struct hid_device *device, struct hid_field *fie
 
 		case HID_UP_GENDESK:
 
+			if ((usage->hid & 0xf0) == 0x80) {	/* SystemControl */
+				switch (usage->hid & 0xf) {
+					case 0x1: usage->code = KEY_POWER;  break;
+					case 0x2: usage->code = KEY_SLEEP;  break;
+					case 0x3: usage->code = KEY_WAKEUP; break;
+					default: usage->code = KEY_UNKNOWN; break;
+				}
+				usage->type = EV_KEY; bit = input->keybit; max = KEY_MAX;
+				break;
+			}
+
 			usage->code = usage->hid & 0xf;
+
+			if (field->report_size == 1) {
+				usage->code = BTN_MISC;
+				usage->type = EV_KEY; bit = input->keybit; max = KEY_MAX;
+				break;
+			}
 
 			if (field->flags & HID_MAIN_ITEM_RELATIVE) {
 				usage->type = EV_REL; bit = input->relbit; max = REL_MAX;
@@ -816,18 +833,63 @@ static void hid_configure_usage(struct hid_device *device, struct hid_field *fie
 			}
 			break;
 
+		case HID_UP_CONSUMER:	/* USB HUT v1.1, pages 56-62 */
+			
+			switch (usage->hid & HID_USAGE) {
+
+				case 0x034: usage->code = KEY_SLEEP;		break;
+				case 0x036: usage->code = BTN_MISC;		break;
+				case 0x08a: usage->code = KEY_WWW;		break;
+				case 0x095: usage->code = KEY_HELP;		break;
+
+				case 0x0b4: usage->code = KEY_REWIND;		break;
+				case 0x0b5: usage->code = KEY_NEXTSONG;		break;
+				case 0x0b6: usage->code = KEY_PREVIOUSSONG;	break;
+				case 0x0b7: usage->code = KEY_STOPCD;		break;
+				case 0x0b8: usage->code = KEY_EJECTCD;		break;
+				case 0x0cd: usage->code = KEY_PLAYPAUSE;	break;
+
+				case 0x0e2: usage->code = KEY_MUTE;		break;
+				case 0x0e9: usage->code = KEY_VOLUMEUP;		break;
+				case 0x0ea: usage->code = KEY_VOLUMEDOWN;	break;
+
+				case 0x183: usage->code = KEY_CONFIG;		break;
+				case 0x18a: usage->code = KEY_MAIL;		break;
+				case 0x192: usage->code = KEY_CALC;		break;
+				case 0x194: usage->code = KEY_FILE;		break;
+
+				case 0x21a: usage->code = KEY_UNDO;		break;
+				case 0x21b: usage->code = KEY_COPY;		break;
+				case 0x21c: usage->code = KEY_CUT;		break;
+				case 0x21d: usage->code = KEY_PASTE;		break;
+
+				case 0x221: usage->code = KEY_FIND;		break;
+				case 0x223: usage->code = KEY_HOMEPAGE;		break;
+				case 0x224: usage->code = KEY_BACK;		break;
+				case 0x225: usage->code = KEY_FORWARD;		break;
+				case 0x226: usage->code = KEY_STOP;		break;
+				case 0x227: usage->code = KEY_REFRESH;		break;
+				case 0x22a: usage->code = KEY_BOOKMARKS;	break;
+
+				default:    usage->code = KEY_UNKNOWN;		break;
+
+			}
+		
+			usage->type = EV_KEY; bit = input->keybit; max = KEY_MAX;
+			break;
+
 		default:
 		unknown:
-
-			if (field->flags & HID_MAIN_ITEM_RELATIVE) {
-				usage->code = REL_MISC;
-				usage->type = EV_REL; bit = input->relbit; max = REL_MAX;
-				break;
-			}
 
 			if (field->report_size == 1) {
 				usage->code = BTN_MISC;
 				usage->type = EV_KEY; bit = input->keybit; max = KEY_MAX;
+				break;
+			}
+
+			if (field->flags & HID_MAIN_ITEM_RELATIVE) {
+				usage->code = REL_MISC;
+				usage->type = EV_REL; bit = input->relbit; max = REL_MAX;
 				break;
 			}
 
@@ -864,7 +926,7 @@ static void hid_configure_usage(struct hid_device *device, struct hid_field *fie
 	}
 }
 
-static void hid_process_event(struct input_dev *input, struct hid_usage *usage, __s32 value)
+static void hid_process_event(struct input_dev *input, int flags, struct hid_usage *usage, __s32 value)
 {
 	hid_dump_input(usage, value);
 
@@ -876,6 +938,9 @@ static void hid_process_event(struct input_dev *input, struct hid_usage *usage, 
 	}
 
 	input_event(input, usage->type, usage->code, value);
+
+	if ((flags & HID_MAIN_ITEM_RELATIVE) && (usage->type == EV_KEY))
+		input_event(input, usage->type, usage->code, 0);
 }
 
 /*
@@ -917,19 +982,19 @@ static void hid_input_field(struct hid_device *dev, struct hid_field *field, __u
 			} else {
 				if (value[n] == field->value[n]) continue;
 			}
-			hid_process_event(&dev->input, &field->usage[n], value[n]);
+			hid_process_event(&dev->input, field->flags, &field->usage[n], value[n]);
 
 		} else {
 
 			if (field->value[n] >= min && field->value[n] <= max			/* non-NULL value */
 				&& field->usage[field->value[n] - min].hid			/* nonzero usage */
 				&& search(value, field->value[n], count))
-					hid_process_event(&dev->input, &field->usage[field->value[n] - min], 0);
+					hid_process_event(&dev->input, field->flags, &field->usage[field->value[n] - min], 0);
 
 			if (value[n] >= min && value[n] <= max					/* non-NULL value */
 				&& field->usage[value[n] - min].hid				/* nonzero usage */
 				&& search(field->value, value[n], count))
-					hid_process_event(&dev->input, &field->usage[value[n] - min], 1);
+					hid_process_event(&dev->input, field->flags, &field->usage[value[n] - min], 1);
 		}
 	}
 
@@ -1190,6 +1255,19 @@ static void hid_init_input(struct hid_device *hid)
 	}
 }
 
+#define USB_VENDOR_ID_WACOM		0x056a
+#define USB_DEVICE_ID_WACOM_GRAPHIRE	0x0010
+#define USB_DEVICE_ID_WACOM_INTUOS	0x0021
+
+struct hid_blacklist {
+	__u16 idVendor;
+	__u16 idProduct;
+} hid_blacklist[] = {
+	{ USB_VENDOR_ID_WACOM, USB_DEVICE_ID_WACOM_INTUOS },
+	{ USB_VENDOR_ID_WACOM, USB_DEVICE_ID_WACOM_GRAPHIRE },
+	{ 0, 0 }
+};
+
 static struct hid_device *usb_hid_configure(struct usb_device *dev, int ifnum)
 {
 	struct usb_interface_descriptor *interface = dev->actconfig->interface[ifnum].altsetting + 0;
@@ -1197,6 +1275,10 @@ static struct hid_device *usb_hid_configure(struct usb_device *dev, int ifnum)
 	struct hid_device *hid;
 	unsigned rsize = 0;
 	int n;
+
+	for (n = 0; hid_blacklist[n].idVendor; n++)
+		if ((hid_blacklist[n].idVendor == dev->descriptor.idVendor) &&
+			(hid_blacklist[n].idProduct == dev->descriptor.idProduct)) return NULL;
 
 	if (interface->bInterfaceClass != USB_INTERFACE_CLASS_HID)
 		return NULL;
@@ -1303,7 +1385,7 @@ static void* hid_probe(struct usb_device *dev, unsigned int ifnum)
 	hid_init_input(hid);
 	input_register_device(&hid->input);
 
-	printk(KERN_INFO "input%d: USB HID v%d.%d %s\n",
+	printk(KERN_INFO "input%d: USB HID v%x.%02x %s\n",
 		hid->input.number, hid->version >> 8, hid->version & 0xff,
 		(hid->application & 0xffff) <= 8 ? hid_name[hid->application & 0xffff] : "device");
 
@@ -1340,3 +1422,5 @@ int hid_init(void)
 	usb_register(&hid_driver);
 	return 0;
 }
+
+__initcall(hid_init);

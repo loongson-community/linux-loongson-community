@@ -31,41 +31,49 @@
 #include <asm/core_pyxis.h>
 
 #include "proto.h"
-#include <asm/hw_irq.h>
+#include "irq_impl.h"
 #include "pci_impl.h"
 #include "machvec_impl.h"
 
 
-static void
-cabriolet_update_irq_hw(unsigned long irq, unsigned long mask, int unmask_p)
+/* Note mask bit is true for DISABLED irqs.  */
+static unsigned long cached_irq_mask = ~0UL;
+
+static inline void
+cabriolet_update_irq_hw(unsigned int irq, unsigned long mask)
 {
-	if (irq >= 16)
-		outl(alpha_irq_mask >> 16, 0x804);
-	else if (irq >= 8)
-		outb(mask >> 8, 0xA1);
-	else
-		outb(mask, 0x21);
+	int ofs = (irq - 16) / 8;
+	outb(mask >> (16 + ofs*3), 0x804 + ofs);
 }
 
-
-/* Under SRM console, we must use the CSERVE PALcode routine to manage
-   the interrupt mask for us.  Otherwise, the kernel/HW get out of
-   sync with what the PALcode thinks it needs to deliver/ignore.  */
+static inline void
+cabriolet_enable_irq(unsigned int irq)
+{
+	cabriolet_update_irq_hw(irq, cached_irq_mask &= ~(1UL << irq));
+}
 
 static void
-cabriolet_srm_update_irq_hw(unsigned long irq, unsigned long mask, int unmaskp)
+cabriolet_disable_irq(unsigned int irq)
 {
-	if (irq >= 16) {
-		if (unmaskp)
-			cserve_ena(irq - 16);
-		else
-			cserve_dis(irq - 16);
-	}
-	else if (irq >= 8)
-		outb(mask >> 8, 0xA1);
-	else
-		outb(mask, 0x21);
+	cabriolet_update_irq_hw(irq, cached_irq_mask |= 1UL << irq);
 }
+
+static unsigned int
+cabriolet_startup_irq(unsigned int irq)
+{ 
+	cabriolet_enable_irq(irq);
+	return 0; /* never anything pending */
+}
+
+static struct hw_interrupt_type cabriolet_irq_type = {
+	typename:	"CABRIOLET",
+	startup:	cabriolet_startup_irq,
+	shutdown:	cabriolet_disable_irq,
+	enable:		cabriolet_enable_irq,
+	disable:	cabriolet_disable_irq,
+	ack:		cabriolet_disable_irq,
+	end:		cabriolet_enable_irq,
+};
 
 static void 
 cabriolet_device_interrupt(unsigned long v, struct pt_regs *r)
@@ -86,26 +94,36 @@ cabriolet_device_interrupt(unsigned long v, struct pt_regs *r)
 		if (i == 4) {
 			isa_device_interrupt(v, r);
 		} else {
-			handle_irq(16 + i, 16 + i, r);
+			handle_irq(16 + i, r);
 		}
 	}
 }
 
-static void
+static void __init
 cabriolet_init_irq(void)
 {
-	STANDARD_INIT_IRQ_PROLOG;
+	init_i8259a_irqs();
+	init_rtc_irq();
 
 	if (alpha_using_srm) {
-		alpha_mv.update_irq_hw = cabriolet_srm_update_irq_hw;
 		alpha_mv.device_interrupt = srm_device_interrupt;
+		init_srm_irqs(35, 0);
 	}
 	else {
-		outl(alpha_irq_mask >> 16, 0x804);
+		long i;
+
+		outb(0xff, 0x804);
+		outb(0xff, 0x805);
+		outb(0xff, 0x806);
+
+		for (i = 16; i < 35; ++i) {
+			irq_desc[i].status = IRQ_DISABLED;
+			irq_desc[i].handler = &cabriolet_irq_type;
+		}
 	}
 
-	enable_irq(16 + 4);		/* enable SIO cascade */
-	enable_irq(2);			/* enable cascade */
+	common_init_isa_dma();
+	setup_irq(16+4, &isa_cascade_irqaction);
 }
 
 
@@ -260,14 +278,11 @@ struct alpha_machine_vector cabriolet_mv __initmv = {
 	min_mem_address:	APECS_AND_LCA_DEFAULT_MEM_BASE,
 
 	nr_irqs:		35,
-	irq_probe_mask:		_PROBE_MASK(35),
-	update_irq_hw:		cabriolet_update_irq_hw,
-	ack_irq:		common_ack_irq,
 	device_interrupt:	cabriolet_device_interrupt,
 
 	init_arch:		apecs_init_arch,
 	init_irq:		cabriolet_init_irq,
-	init_pit:		common_init_pit,
+	init_rtc:		common_init_rtc,
 	init_pci:		cabriolet_init_pci,
 	kill_arch:		NULL,
 	pci_map_irq:		cabriolet_map_irq,
@@ -289,14 +304,11 @@ struct alpha_machine_vector eb164_mv __initmv = {
 	min_mem_address:	CIA_DEFAULT_MEM_BASE,
 
 	nr_irqs:		35,
-	irq_probe_mask:		_PROBE_MASK(35),
-	update_irq_hw:		cabriolet_update_irq_hw,
-	ack_irq:		common_ack_irq,
 	device_interrupt:	cabriolet_device_interrupt,
 
 	init_arch:		cia_init_arch,
 	init_irq:		cabriolet_init_irq,
-	init_pit:		common_init_pit,
+	init_rtc:		common_init_rtc,
 	init_pci:		cabriolet_init_pci,
 	pci_map_irq:		cabriolet_map_irq,
 	pci_swizzle:		common_swizzle,
@@ -317,14 +329,11 @@ struct alpha_machine_vector eb66p_mv __initmv = {
 	min_mem_address:	APECS_AND_LCA_DEFAULT_MEM_BASE,
 
 	nr_irqs:		35,
-	irq_probe_mask:		_PROBE_MASK(35),
-	update_irq_hw:		cabriolet_update_irq_hw,
-	ack_irq:		common_ack_irq,
 	device_interrupt:	cabriolet_device_interrupt,
 
 	init_arch:		lca_init_arch,
 	init_irq:		cabriolet_init_irq,
-	init_pit:		common_init_pit,
+	init_rtc:		common_init_rtc,
 	init_pci:		cabriolet_init_pci,
 	pci_map_irq:		eb66p_map_irq,
 	pci_swizzle:		common_swizzle,
@@ -345,14 +354,11 @@ struct alpha_machine_vector lx164_mv __initmv = {
 	min_mem_address:	DEFAULT_MEM_BASE,
 
 	nr_irqs:		35,
-	irq_probe_mask:		_PROBE_MASK(35),
-	update_irq_hw:		cabriolet_update_irq_hw,
-	ack_irq:		common_ack_irq,
 	device_interrupt:	cabriolet_device_interrupt,
 
 	init_arch:		pyxis_init_arch,
 	init_irq:		cabriolet_init_irq,
-	init_pit:		common_init_pit,
+	init_rtc:		common_init_rtc,
 	init_pci:		alphapc164_init_pci,
 	pci_map_irq:		alphapc164_map_irq,
 	pci_swizzle:		common_swizzle,
@@ -373,14 +379,11 @@ struct alpha_machine_vector pc164_mv __initmv = {
 	min_mem_address:	CIA_DEFAULT_MEM_BASE,
 
 	nr_irqs:		35,
-	irq_probe_mask:		_PROBE_MASK(35),
-	update_irq_hw:		cabriolet_update_irq_hw,
-	ack_irq:		common_ack_irq,
 	device_interrupt:	cabriolet_device_interrupt,
 
 	init_arch:		cia_init_arch,
 	init_irq:		cabriolet_init_irq,
-	init_pit:		common_init_pit,
+	init_rtc:		common_init_rtc,
 	init_pci:		alphapc164_init_pci,
 	pci_map_irq:		alphapc164_map_irq,
 	pci_swizzle:		common_swizzle,

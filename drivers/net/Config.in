@@ -76,7 +76,9 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
       fi
       tristate '    SMC Ultra support' CONFIG_ULTRA
       tristate '    SMC Ultra32 EISA support' CONFIG_ULTRA32
-      tristate '    SMC 9194 support' CONFIG_SMC9194
+      if [ "$CONFIG_OBSOLETE" = "y" ]; then
+         tristate '    SMC 9194 support' CONFIG_SMC9194
+      fi
   fi
   bool '  Racal-Interlan (Micom) NI cards' CONFIG_NET_VENDOR_RACAL
   if [ "$CONFIG_NET_VENDOR_RACAL" = "y" ]; then
@@ -86,10 +88,6 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
     tristate '    NI5210 support' CONFIG_NI52
     tristate '    NI6510 support' CONFIG_NI65
   fi
-  if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
-      tristate '  RealTek 8129/8139 (not 8019/8029!) support (EXPERIMENTAL)' CONFIG_RTL8139
-      tristate '  DM9102 PCI Fast Ethernet Adapter support (EXPERIMENTAL)' CONFIG_DM9102
-   fi
    if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
       tristate '  AT1700/1720 support (EXPERIMENTAL)' CONFIG_AT1700
    fi
@@ -97,18 +95,22 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
    bool '  Other ISA cards' CONFIG_NET_ISA
    if [ "$CONFIG_NET_ISA" = "y" ]; then
       tristate '    Cabletron E21xx support' CONFIG_E2100
-      tristate '    EtherWORKS 3 (DE203, DE204, DE205) support' CONFIG_EWRK3
+      if [ "$CONFIG_OBSOLETE" = "y" ]; then
+         tristate '    EtherWORKS 3 (DE203, DE204, DE205) support' CONFIG_EWRK3
+      fi
       tristate '    EtherExpress 16 support' CONFIG_EEXPRESS
       tristate '    EtherExpressPro support' CONFIG_EEXPRESS_PRO
-      tristate '    FMV-181/182/183/184 support' CONFIG_FMV18X
+      if [ "$CONFIG_OBSOLETE" = "y" ]; then
+         tristate '    FMV-181/182/183/184 support' CONFIG_FMV18X
+      fi
       tristate '    HP PCLAN+ (27247B and 27252A) support' CONFIG_HPLAN_PLUS
       tristate '    HP PCLAN (27245 and other 27xxx series) support' CONFIG_HPLAN
       tristate '    HP 10/100VG PCLAN (ISA, EISA, PCI) support' CONFIG_HP100
-      if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
-	 tristate '    ICL EtherTeam 16i/32 support (EXPERIMENTAL)' CONFIG_ETH16I
+      if [ "$CONFIG_OBSOLETE" = "y" ]; then
+	 tristate '    ICL EtherTeam 16i/32 support' CONFIG_ETH16I
       fi
       tristate '    NE2000/NE1000 support' CONFIG_NE2000
-      if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+      if [ "$CONFIG_OBSOLETE" = "y" ]; then
 	 tristate '    SEEQ8005 support (EXPERIMENTAL)' CONFIG_SEEQ8005
       fi
       bool '    SK_G16 support' CONFIG_SK_G16
@@ -117,8 +119,8 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
       tristate '  SKnet MCA support' CONFIG_SKMC
       tristate '  NE/2 (ne2000 MCA version) support' CONFIG_NE2_MCA
    fi
-   bool '  EISA, VLB, PCI and on board controllers' CONFIG_NET_EISA
-   if [ "$CONFIG_NET_EISA" = "y" ]; then
+   bool '  EISA, VLB, PCI and on board controllers' CONFIG_NET_PCI
+   if [ "$CONFIG_NET_PCI" = "y" ]; then
       tristate '    AMD PCnet32 (VLB and PCI) support' CONFIG_PCNET32
       if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
 	 tristate '    Adaptec Starfire support (EXPERIMENTAL)' CONFIG_ADAPTEC_STARFIRE
@@ -128,29 +130,43 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
       fi
 
       tristate '    Apricot Xen-II on board Ethernet' CONFIG_APRICOT
-      tristate '    CS89x0 support' CONFIG_CS89x0
+      if [ "$CONFIG_OBSOLETE" = "y" ]; then
+         tristate '    CS89x0 support' CONFIG_CS89x0
+      fi
       tristate '    Generic DECchip & DIGITAL EtherWORKS PCI/EISA' CONFIG_DE4X5
       tristate '    DECchip Tulip (dc21x4x) PCI support' CONFIG_TULIP
       tristate '    Digi Intl. RightSwitch SE-X support' CONFIG_DGRS
-      tristate '    EtherExpressPro/100 support' CONFIG_EEXPRESS_PRO100
       if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+         tristate '    DM9102 PCI Fast Ethernet Adapter support (EXPERIMENTAL)' CONFIG_DM9102
+      fi
+      tristate '    EtherExpressPro/100 support' CONFIG_EEPRO100
+      if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+         if [ "$CONFIG_EEPRO100" = "y" -o "$CONFIG_EEPRO100" = "m" ]; then
+	    bool '      Enable Power Management (EXPERIMENTAL)' CONFIG_EEPRO100_PM
+	 fi
 	 tristate '    Mylex EISA LNE390A/B support (EXPERIMENTAL)' CONFIG_LNE390
 	 tristate '    Novell/Eagle/Microdyne NE3210 EISA support (EXPERIMENTAL)' CONFIG_NE3210
       fi
       tristate '    PCI NE2000 support' CONFIG_NE2K_PCI
       # tristate '    Sundance Alta support' CONFIG_ALTA
+      if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+         tristate '    RealTek 8129 (not 8019/8029!) support (EXPERIMENTAL)' CONFIG_RTL8129
+      fi
+      tristate '    RealTek RTL-8139 PCI Fast Ethernet Adapter support' CONFIG_8139TOO
       tristate '    SiS 900/7016 PCI Fast Ethernet Adapter support' CONFIG_SIS900
       tristate '    TI ThunderLAN support' CONFIG_TLAN
       tristate '    VIA Rhine support' CONFIG_VIA_RHINE
       if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
 	 tristate '    Racal-Interlan EISA ES3210 support (EXPERIMENTAL)' CONFIG_ES3210
 	 tristate '    SMC EtherPower II (EXPERIMENTAL)' CONFIG_EPIC100
+      fi
+      if [ "$CONFIG_OBSOLETE" = "y" ]; then
 	 bool '    Zenith Z-Note support (EXPERIMENTAL)' CONFIG_ZNET
       fi
    fi
    bool '  Pocket and portable adapters' CONFIG_NET_POCKET
    if [ "$CONFIG_NET_POCKET" = "y" ]; then
-      bool '    AT-LAN-TEC/RealTek pocket adapter support' CONFIG_ATP
+      tristate '    AT-LAN-TEC/RealTek pocket adapter support' CONFIG_ATP
       tristate '    D-Link DE600 pocket adapter support' CONFIG_DE600
       tristate '    D-Link DE620 pocket adapter support' CONFIG_DE620
    fi
@@ -179,6 +195,7 @@ endmenu
 bool 'FDDI driver support' CONFIG_FDDI
 if [ "$CONFIG_FDDI" = "y" ]; then
    bool '  Digital DEFEA and DEFPA adapter support' CONFIG_DEFXX
+   tristate '  SysKonnect FDDI PCI support' CONFIG_SKFP
 fi
 
 if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
@@ -237,7 +254,9 @@ comment 'Wireless LAN (non-hamradio)'
 bool 'Wireless LAN (non-hamradio)' CONFIG_NET_RADIO
 if [ "$CONFIG_NET_RADIO" = "y" ]; then
    dep_tristate '  STRIP (Metricom starmode radio IP)' CONFIG_STRIP $CONFIG_INET
-   tristate '  AT&T WaveLAN & DEC RoamAbout DS support' CONFIG_WAVELAN
+   if [ "$CONFIG_OBSOLETE" = "y" ]; then
+      tristate '  AT&T WaveLAN & DEC RoamAbout DS support' CONFIG_WAVELAN
+   fi
    tristate '  Aironet Arlan 655 & IC2200 DS support' CONFIG_ARLAN
    tristate '  Aironet 4500/4800 series adapters' CONFIG_AIRONET4500
    dep_tristate '   Aironet 4500/4800 ISA/PCI/PNP/365 support ' CONFIG_AIRONET4500_NONCS $CONFIG_AIRONET4500

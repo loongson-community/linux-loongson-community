@@ -29,7 +29,7 @@
 
 /*
  * A special note of gratitude to ATI's devrel for providing documentation,
- * example code and hardware. Thanks Nitya.	-atong
+ * example code and hardware. Thanks Nitya.	-atong and brad
  */
 
 
@@ -129,6 +129,8 @@ static const struct aty128_chip_info aty128_pci_probe_list[] =
     {"PCI_DEVICE_ID_ATI_RAGE128_RF", PCI_VENDOR_ID_ATI, 0x5246},
     {"PCI_DEVICE_ID_ATI_RAGE128_RK", PCI_VENDOR_ID_ATI, 0x524b},
     {"PCI_DEVICE_ID_ATI_RAGE128_RL", PCI_VENDOR_ID_ATI, 0x524c},
+    {"PCI_DEVICE_ID_ATI_RAGE128_PF", PCI_VENDOR_ID_ATI, 0x5046},
+    {"PCI_DEVICE_ID_ATI_RAGE128_PR", PCI_VENDOR_ID_ATI, 0x5052},
     {NULL, 0, 0}
 };
 
@@ -1669,22 +1671,23 @@ aty128_init(struct fb_info_aty128 *info, const char *name)
     var = default_var;
 #else
     memset(&var, 0, sizeof(var));
-#ifdef CONFIG_PMAC
+#ifdef CONFIG_PPC
     if (default_vmode == VMODE_CHOOSE) {
         var = default_var;
-#endif /* CONFIG_PMAC */
+#endif /* CONFIG_PPC */
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,3,1)
-    if (!fb_find_mode(&var, &info->fb_info, mode_option, NULL, 0,
-                      &defaultmode, 8))
-        var = default_var;
+	if (!fb_find_mode(&var, &info->fb_info, mode_option, NULL, 0,
+			  &defaultmode, 8))
+	    var = default_var;
 #endif
 
-#ifdef CONFIG_PMAC
+#ifdef CONFIG_PPC
     } else {
         if (mac_vmode_to_var(default_vmode, default_cmode, &var))
             var = default_var;
-#endif /* CONFIG_PMAC */
+    }
+#endif /* CONFIG_PPC */
 #endif /* MODULE */
 
     if (noaccel)
@@ -2292,19 +2295,6 @@ do_install_cmap(int con, struct fb_info *info)
     /*
      *  Accelerated functions
      */
-
-static void
-aty128_rectdraw(s16 x, s16 y, u16 width, u16 height,
-		struct fb_info_aty128 *info)
-{
-    /* perform rectangle operation */
-    wait_for_fifo(2, info);
-    aty_st_le32(DST_Y_X, (y << 16) | x);
-    aty_st_le32(DST_HEIGHT_WIDTH, (height << 16) | width);
-
-    info->blitter_may_be_busy = 1;
-}
-
 
 static void
 aty128_rectcopy(int srcx, int srcy, int dstx, int dsty,

@@ -458,8 +458,7 @@ static void ioc3_interrupt(int irq, void *_dev, struct pt_regs *regs)
 		ioc3_error(dev, ip, ioc3, eisr);
 	}
 
-	if (test_bit(LINK_STATE_XOFF, &dev->state) &&
-	    (TX_BUFFS_AVAIL(ip) >= 0)) {
+	if ((TX_BUFFS_AVAIL(ip) >= 0) && netif_queue_stopped(dev)) {
 		netif_wake_queue(dev);
 	}
 

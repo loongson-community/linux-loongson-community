@@ -1,4 +1,4 @@
-/* $Id: sparc_ksyms.c,v 1.89 2000/02/09 11:15:03 davem Exp $
+/* $Id: sparc_ksyms.c,v 1.91 2000/02/18 20:23:24 davem Exp $
  * arch/sparc/kernel/ksyms.c: Sparc specific ksyms support.
  *
  * Copyright (C) 1996 David S. Miller (davem@caip.rutgers.edu)
@@ -145,11 +145,8 @@ EXPORT_SYMBOL(kernel_flag);
 EXPORT_SYMBOL(global_irq_holder);
 EXPORT_SYMBOL(global_irq_lock);
 EXPORT_SYMBOL(global_bh_lock);
-EXPORT_SYMBOL(global_bh_count);
-EXPORT_SYMBOL(sparc_bh_lock);
 EXPORT_SYMBOL(global_irq_count);
 EXPORT_SYMBOL(synchronize_irq);
-EXPORT_SYMBOL(synchronize_bh);
 #endif
 EXPORT_SYMBOL(local_irq_count);
 EXPORT_SYMBOL(local_bh_count);
@@ -193,6 +190,8 @@ EXPORT_SYMBOL(sbus_map_sg);
 EXPORT_SYMBOL(sbus_unmap_sg);
 EXPORT_SYMBOL(sbus_dma_sync_single);
 EXPORT_SYMBOL(sbus_dma_sync_sg);
+EXPORT_SYMBOL(sbus_iounmap);
+EXPORT_SYMBOL(sbus_ioremap);
 #endif
 #if CONFIG_PCI
 /* We do not have modular drivers for PCI devices yet. */

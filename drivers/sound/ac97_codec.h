@@ -107,16 +107,17 @@
 /* OSS interface to the ac97s.. */
 #define AC97_STEREO_MASK (SOUND_MASK_VOLUME|SOUND_MASK_PCM|\
 	SOUND_MASK_LINE|SOUND_MASK_CD|\
-	SOUND_MIXER_ALTPCM|SOUND_MASK_IGAIN|\
+	SOUND_MASK_ALTPCM|SOUND_MASK_IGAIN|\
 	SOUND_MASK_LINE1|SOUND_MASK_VIDEO)
 
 #define AC97_SUPPORTED_MASK (AC97_STEREO_MASK | \
 	SOUND_MASK_BASS|SOUND_MASK_TREBLE|\
 	SOUND_MASK_SPEAKER|SOUND_MASK_MIC|\
-	SOUND_MIXER_PHONEIN|SOUND_MIXER_PHONEOUT)
+	SOUND_MASK_PHONEIN|SOUND_MASK_PHONEOUT)
 
 #define AC97_RECORD_MASK (SOUND_MASK_MIC|\
-	SOUND_MASK_CD| SOUND_MASK_VIDEO| SOUND_MASK_LINE1| SOUND_MASK_LINE|\
+	SOUND_MASK_CD|SOUND_MASK_VIDEO|\
+	SOUND_MASK_LINE1| SOUND_MASK_LINE|\
 	SOUND_MASK_PHONEIN)
 
 #define supported_mixer(CODEC,FOO) ( CODEC->supported_mixers & (1<<FOO) )
@@ -153,6 +154,8 @@ struct ac97_codec {
 	unsigned int mixer_state[SOUND_MIXER_NRDEVICES];
 };
 
+extern int ac97_read_proc (char *page_out, char **start, off_t off,
+			   int count, int *eof, void *data);
 extern int ac97_probe_codec(struct ac97_codec *);
 
 #endif /* _AC97_CODEC_H_ */

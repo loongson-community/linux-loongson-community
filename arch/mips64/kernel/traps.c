@@ -1,4 +1,4 @@
-/* $Id: traps.c,v 1.10 1999/11/23 17:12:49 ralf Exp $
+/* $Id: traps.c,v 1.4 2000/01/20 23:50:27 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -22,6 +22,7 @@
 #include <asm/pgtable.h>
 #include <asm/io.h>
 #include <asm/bootinfo.h>
+#include <asm/ptrace.h>
 #include <asm/watch.h>
 #include <asm/system.h>
 #include <asm/uaccess.h>

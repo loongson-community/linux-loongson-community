@@ -58,6 +58,7 @@
 #include <linux/fd.h>
 #include <linux/module.h>
 #include <linux/init.h>
+#include <linux/devfs_fs_kernel.h>
 
 #include <asm/system.h>
 #include <asm/uaccess.h>
@@ -97,6 +98,7 @@ static unsigned long rd_length[NUM_RAMDISKS];	/* Size of RAM disks in bytes   */
 static int rd_hardsec[NUM_RAMDISKS];		/* Size of real blocks in bytes */
 static int rd_blocksizes[NUM_RAMDISKS];		/* Size of 1024 byte blocks :)  */
 static int rd_kbsize[NUM_RAMDISKS];		/* Size in blocks of 1024 bytes */
+static devfs_handle_t devfs_handle = NULL;
 
 /*
  * Parameters for the boot-loading of the RAM disk.  These are set by
@@ -179,6 +181,8 @@ __setup("ramdisk_size=", ramdisk_size2);
  *  Basically, my strategy here is to set up a buffer-head which can't be
  *  deleted, and make that my Ramdisk.  If the request is outside of the
  *  allocated size, we must get rid of it...
+ *
+ * 19-JAN-1998  Richard Gooch <rgooch@atnf.csiro.au>  Added devfs support
  *
  */
 static void rd_request(request_queue_t * q)
@@ -362,6 +366,7 @@ static int rd_open(struct inode * inode, struct file * filp)
 	if (DEVICE_NR(inode->i_rdev) >= NUM_RAMDISKS)
 		return -ENXIO;
 
+	filp->f_op = &def_blk_fops;
 	MOD_INC_USE_COUNT;
 
 	return 0;
@@ -387,6 +392,7 @@ static void __exit rd_cleanup (void)
 	for (i = 0 ; i < NUM_RAMDISKS; i++)
 		destroy_buffers(MKDEV(MAJOR_NR, i));
 
+	devfs_unregister (devfs_handle);
 	unregister_blkdev( MAJOR_NR, "ramdisk" );
 	blk_cleanup_queue(BLK_DEFAULT_QUEUE(MAJOR_NR));
 }
@@ -418,6 +424,11 @@ int __init rd_init (void)
 		rd_blocksizes[i] = rd_blocksize;
 		rd_kbsize[i] = rd_size;
 	}
+	devfs_handle = devfs_mk_dir (NULL, "rd", 0, NULL);
+	devfs_register_series (devfs_handle, "%u", NUM_RAMDISKS,
+			       DEVFS_FL_DEFAULT, MAJOR_NR, 0,
+			       S_IFBLK | S_IRUSR | S_IWUSR, 0, 0,
+			       &fd_fops, NULL);
 
 	hardsect_size[MAJOR_NR] = rd_hardsec;		/* Size of the RAM disk blocks */
 	blksize_size[MAJOR_NR] = rd_blocksizes;		/* Avoid set_blocksize() check */
@@ -560,7 +571,7 @@ done:
  */
 static void __init rd_load_image(kdev_t device, int offset, int unit)
 {
- 	struct inode inode, out_inode;
+ 	struct inode *inode, *out_inode;
 	struct file infile, outfile;
 	struct dentry in_dentry, out_dentry;
 	mm_segment_t fs;
@@ -574,25 +585,27 @@ static void __init rd_load_image(kdev_t device, int offset, int unit)
 	ram_device = MKDEV(MAJOR_NR, unit);
 
 	memset(&infile, 0, sizeof(infile));
-	memset(&inode, 0, sizeof(inode));
 	memset(&in_dentry, 0, sizeof(in_dentry));
-	inode.i_rdev = device;
-	init_waitqueue_head(&inode.i_wait);
+	inode = get_empty_inode();
+	inode->i_rdev = device;
+	inode->i_bdev = bdget(kdev_t_to_nr(device));
 	infile.f_mode = 1; /* read only */
 	infile.f_dentry = &in_dentry;
-	in_dentry.d_inode = &inode;
+	in_dentry.d_inode = inode;
 
 	memset(&outfile, 0, sizeof(outfile));
-	memset(&out_inode, 0, sizeof(out_inode));
 	memset(&out_dentry, 0, sizeof(out_dentry));
-	out_inode.i_rdev = ram_device;
-	init_waitqueue_head(&out_inode.i_wait);
+	out_inode = get_empty_inode();
+	out_inode->i_rdev = ram_device;
+	out_inode->i_bdev = bdget(kdev_t_to_nr(ram_device));
 	outfile.f_mode = 3; /* read/write */
 	outfile.f_dentry = &out_dentry;
-	out_dentry.d_inode = &out_inode;
+	out_dentry.d_inode = out_inode;
 
-	if (blkdev_open(&inode, &infile) != 0) return;
-	if (blkdev_open(&out_inode, &outfile) != 0) return;
+	if (blkdev_open(inode, &infile) != 0)
+		goto free_inodes;
+	if (blkdev_open(out_inode, &outfile) != 0)
+		goto free_inodes;
 
 	fs = get_fs();
 	set_fs(KERNEL_DS);
@@ -655,10 +668,10 @@ static void __init rd_load_image(kdev_t device, int offset, int unit)
 			rotate = 0;
 			invalidate_buffers(device);
 			if (infile.f_op->release)
-				infile.f_op->release(&inode, &infile);
+				infile.f_op->release(inode, &infile);
 			printk("Please insert disk #%d and press ENTER\n", i/devblocks+1);
 			wait_for_keypress();
-			if (blkdev_open(&inode, &infile) != 0)  {
+			if (blkdev_open(inode, &infile) != 0)  {
 				printk("Error opening disk.\n");
 				goto done;
 			}
@@ -678,11 +691,15 @@ static void __init rd_load_image(kdev_t device, int offset, int unit)
 successful_load:
 	invalidate_buffers(device);
 	ROOT_DEV = MKDEV(MAJOR_NR, unit);
+	if (ROOT_DEVICE_NAME != NULL) strcpy (ROOT_DEVICE_NAME, "rd/0");
 
 done:
 	if (infile.f_op->release)
-		infile.f_op->release(&inode, &infile);
+		infile.f_op->release(inode, &infile);
 	set_fs(fs);
+free_inodes:
+	iput(inode);
+	iput(out_inode);
 }
 
 

@@ -1,4 +1,4 @@
-/* $Id: andes.c,v 1.9 2000/01/27 01:05:23 ralf Exp $
+/* $Id: andes.c,v 1.10 2000/02/13 20:52:05 harald Exp $
  *
  * andes.c: MMU and cache operations for the R10000 (ANDES).
  *
@@ -163,15 +163,15 @@ void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 
 void __init ld_mmu_andes(void)
 {
-	clear_page = andes_clear_page;
-	copy_page = andes_copy_page;
+	_clear_page = andes_clear_page;
+	_copy_page = andes_copy_page;
 
-	flush_cache_all = andes_flush_cache_all;
-	flush_cache_mm = andes_flush_cache_mm;
-	flush_cache_range = andes_flush_cache_range;
-	flush_cache_page = andes_flush_cache_page;
-	flush_cache_sigtramp = andes_flush_cache_sigtramp;
-	flush_page_to_ram = andes_flush_page_to_ram;
+	_flush_cache_all = andes_flush_cache_all;
+	_flush_cache_mm = andes_flush_cache_mm;
+	_flush_cache_range = andes_flush_cache_range;
+	_flush_cache_page = andes_flush_cache_page;
+	_flush_cache_sigtramp = andes_flush_cache_sigtramp;
+	_flush_page_to_ram = andes_flush_page_to_ram;
 
 	flush_cache_all();
 	flush_tlb_all();

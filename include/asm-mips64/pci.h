@@ -1,4 +1,4 @@
-/* $Id: pci.h,v 1.2 2000/02/16 01:07:49 ralf Exp $
+/* $Id: pci.h,v 1.3 2000/02/18 00:24:48 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -63,8 +63,11 @@ extern void pci_free_consistent(struct pci_dev *hwdev, size_t size,
  * until either pci_unmap_single or pci_dma_sync_single is performed.
  */
 extern inline dma_addr_t pci_map_single(struct pci_dev *hwdev, void *ptr,
-					size_t size)
+					size_t size, int direction)
 {
+	if (direction == PCI_DMA_NONE)
+		BUG();
+
 	dma_cache_wback_inv((unsigned long)ptr, size);
 
 	return virt_to_bus(ptr);
@@ -79,8 +82,11 @@ extern inline dma_addr_t pci_map_single(struct pci_dev *hwdev, void *ptr,
  * whatever the device wrote there.
  */
 extern inline void pci_unmap_single(struct pci_dev *hwdev, dma_addr_t dma_addr,
-				    size_t size)
+				    size_t size, int direction)
 {
+	if (direction == PCI_DMA_NONE)
+		BUG();
+
 	/* Nothing to do */
 }
 
@@ -101,12 +107,17 @@ extern inline void pci_unmap_single(struct pci_dev *hwdev, dma_addr_t dma_addr,
  * the same here.
  */
 extern inline int pci_map_sg(struct pci_dev *hwdev, struct scatterlist *sg,
-			     int nents)
+			     int nents, int direction)
 {
-	/* Make sure that gcc doesn't leave the empty loop body.  */
 #ifndef CONFIG_COHERENT_IO
 	int i;
+#endif
 
+	if (direction == PCI_DMA_NONE)
+		BUG();
+
+	/* Make sure that gcc doesn't leave the empty loop body.  */
+#ifndef CONFIG_COHERENT_IO
 	for (i = 0; i < nents; i++, sg++)
 		dma_cache_wback_inv((unsigned long)sg->address, sg->length);
 #endif
@@ -120,8 +131,11 @@ extern inline int pci_map_sg(struct pci_dev *hwdev, struct scatterlist *sg,
  * pci_unmap_single() above.
  */
 extern inline void pci_unmap_sg(struct pci_dev *hwdev, struct scatterlist *sg,
-				int nents)
+				int nents, int direction)
 {
+	if (direction == PCI_DMA_NONE)
+		BUG();
+
 	/* Nothing to do */
 }
 
@@ -137,8 +151,11 @@ extern inline void pci_unmap_sg(struct pci_dev *hwdev, struct scatterlist *sg,
  */
 extern inline void pci_dma_sync_single(struct pci_dev *hwdev,
 				       dma_addr_t dma_handle,
-				       size_t size)
+				       size_t size, int direction)
 {
+	if (direction == PCI_DMA_NONE)
+		BUG();
+
 	dma_cache_wback_inv((unsigned long)bus_to_virt(dma_handle), size);
 }
 
@@ -151,12 +168,17 @@ extern inline void pci_dma_sync_single(struct pci_dev *hwdev,
  */
 extern inline void pci_dma_sync_sg(struct pci_dev *hwdev,
 				   struct scatterlist *sg,
-				   int nelems)
+				   int nelems, int direction)
 {
-	/*  Make sure that gcc doesn't leave the empty loop body.  */
 #ifndef CONFIG_COHERENT_IO
 	int i;
+#endif
 
+	if (direction == PCI_DMA_NONE)
+		BUG();
+
+	/*  Make sure that gcc doesn't leave the empty loop body.  */
+#ifndef CONFIG_COHERENT_IO
 	for (i = 0; i < nelems; i++, sg++)
 		dma_cache_wback_inv((unsigned long)sg->address, sg->length);
 #endif

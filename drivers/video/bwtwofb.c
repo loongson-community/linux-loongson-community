@@ -1,4 +1,4 @@
-/* $Id: bwtwofb.c,v 1.12 2000/01/21 03:57:05 anton Exp $
+/* $Id: bwtwofb.c,v 1.13 2000/02/14 02:50:25 davem Exp $
  * bwtwofb.c: BWtwo frame buffer driver
  *
  * Copyright (C) 1998 Jakub Jelinek   (jj@ultra.linux.cz)
@@ -25,7 +25,7 @@
 
 #include <video/sbusfb.h>
 #include <asm/io.h>
-#ifndef __sparc_v9__
+#if !defined(__sparc_v9__) && !defined(__mc68000__)
 #include <asm/sun4paddr.h>
 #endif
 
@@ -214,9 +214,11 @@ char __init *bwtwofb_init(struct fb_info_sbusfb *fb)
 				case BWTWO_SR_ID_NOCONN:
 					return NULL;
 				default:
+#ifndef CONFIG_FB_SUN3
 					prom_printf("bw2: can't handle SR %02x\n",
 						    status);
 					prom_halt();
+#endif					
 					return NULL; /* fool gcc. */
 			}
 			for ( ; *p; p += 2) {

@@ -31,6 +31,8 @@
 #include <linux/mm.h>
 #include <linux/delay.h>
 #include <linux/ioport.h>
+#include <linux/irq.h>
+#include <linux/interrupt.h>
 
 #include <asm/uaccess.h>
 #include <asm/io.h>
@@ -40,7 +42,7 @@
 #include <linux/timex.h>
 
 #include "proto.h"
-#include <asm/hw_irq.h>
+#include "irq_impl.h"
 
 extern rwlock_t xtime_lock;
 extern volatile unsigned long lost_ticks;	/* kernel/sched.c */
@@ -88,13 +90,7 @@ void timer_interrupt(int irq, void *dev, struct pt_regs * regs)
 	__u32 now;
 	long nticks;
 
-#ifdef __SMP__
-	/* When SMP, do this for *all* CPUs, but only do the rest for
-           the boot CPU.  */
-	smp_percpu_timer_interrupt(regs);
-	if (smp_processor_id() != smp_boot_cpuid)
-		return;
-#else
+#ifndef __SMP__
 	/* Not SMP, do kernel PC profiling here.  */
 	if (!user_mode(regs))
 		alpha_do_profile(regs->pc);
@@ -167,55 +163,8 @@ static inline unsigned long mktime(unsigned int year, unsigned int mon,
 	  )*60 + sec; /* finally seconds */
 }
 
-/*
- * Initialize Programmable Interval Timers with standard values.  Some
- * drivers depend on them being initialized (e.g., joystick driver).
- */
-
-#ifdef CONFIG_RTC
 void
-rtc_init_pit(void)
-{
-	unsigned char control;
-
-	/* Turn off RTC interrupts before /dev/rtc is initialized */
-	control = CMOS_READ(RTC_CONTROL);
-	control &= ~(RTC_PIE | RTC_AIE | RTC_UIE);
-	CMOS_WRITE(control, RTC_CONTROL);
-	(void) CMOS_READ(RTC_INTR_FLAGS);
-
-	/* Setup interval timer.  */
-	outb(0x34, 0x43);		/* binary, mode 2, LSB/MSB, ch 0 */
-	outb(LATCH & 0xff, 0x40);	/* LSB */
-	outb(LATCH >> 8, 0x40);		/* MSB */
-
-	outb(0xb6, 0x43);	/* pit counter 2: speaker */
-	outb(0x31, 0x42);
-	outb(0x13, 0x42);
-}
-
-void
-rtc_kill_pit(void)
-{
-	unsigned char control;
-
-	cli();
-
-	/* Reset periodic interrupt frequency.  */
-	CMOS_WRITE(0x26, RTC_FREQ_SELECT);
-
-	/* Turn on periodic interrupts.  */
-	control = CMOS_READ(RTC_CONTROL);
-	control |= RTC_PIE;
-	CMOS_WRITE(control, RTC_CONTROL);	
-	CMOS_READ(RTC_INTR_FLAGS);
-
-	sti();
-}
-#endif
-
-void
-common_init_pit (void)
+common_init_rtc(struct irqaction *action)
 {
 	unsigned char x;
 
@@ -243,12 +192,19 @@ common_init_pit (void)
 	outb(0xb6, 0x43);	/* pit counter 2: speaker */
 	outb(0x31, 0x42);
 	outb(0x13, 0x42);
+
+	setup_irq(RTC_IRQ, action);
 }
 
 void
 time_init(void)
 {
-	void (*irq_handler)(int, void *, struct pt_regs *);
+	static struct irqaction timer_irqaction = {
+		handler:	timer_interrupt,
+		flags:		SA_INTERRUPT,
+		name:		"timer",
+	};
+
 	unsigned int year, mon, day, hour, min, sec, cc1, cc2;
 	unsigned long cycle_freq, one_percent;
 	long diff;
@@ -336,10 +292,8 @@ time_init(void)
 	state.last_rtc_update = 0;
 	state.partial_tick = 0L;
 
-	/* setup timer */ 
-	irq_handler = timer_interrupt;
-	if (request_irq(TIMER_IRQ, irq_handler, 0, "timer", NULL))
-		panic("Could not allocate timer IRQ!");
+	/* Startup the timer source. */
+	alpha_mv.init_rtc(&timer_irqaction);
 }
 
 /*

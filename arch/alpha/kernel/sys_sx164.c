@@ -26,81 +26,12 @@
 #include <asm/core_pyxis.h>
 
 #include "proto.h"
-#include <asm/hw_irq.h>
+#include "irq_impl.h"
 #include "pci_impl.h"
 #include "machvec_impl.h"
 
 
-static void
-sx164_update_irq_hw(unsigned long irq, unsigned long mask, int unmask_p)
-{
-	if (irq >= 16) {
-		/* Make CERTAIN none of the bogus ints get enabled */
-		*(vulp)PYXIS_INT_MASK =
-			~((long)mask >> 16) & ~0x000000000000003bUL;
-		mb();
-		/* ... and read it back to make sure it got written.  */
-		*(vulp)PYXIS_INT_MASK;
-	}
-	else if (irq >= 8)
-		outb(mask >> 8, 0xA1);	/* ISA PIC2 */
-	else
-		outb(mask, 0x21);	/* ISA PIC1 */
-}
-
-static void
-sx164_srm_update_irq_hw(unsigned long irq, unsigned long mask, int unmask_p)
-{
-	if (irq >= 16) {
-		if (unmask_p)
-			cserve_ena(irq - 16);
-		else
-			cserve_dis(irq - 16);
-	}
-	else if (irq >= 8)
-		outb(mask >> 8, 0xA1);	/* ISA PIC2 */
-	else
-		outb(mask, 0x21);	/* ISA PIC1 */
-}
-
-static void 
-sx164_device_interrupt(unsigned long vector, struct pt_regs *regs)
-{
-	unsigned long pld, tmp;
-	unsigned int i;
-
-	/* Read the interrupt summary register of PYXIS */
-	pld = *(vulp)PYXIS_INT_REQ;
-
-	/*
-	 * For now, AND off any bits we are not interested in:
-	 *  HALT (2), timer (6), ISA Bridge (7)
-	 * then all the PCI slots/INTXs (8-23)
-	 */
-	/* Maybe HALT should only be used for SRM console boots? */
-	pld &= 0x0000000000ffffc0UL;
-
-	/*
-	 * Now for every possible bit set, work through them and call
-	 * the appropriate interrupt handler.
-	 */
-	while (pld) {
-		i = ffz(~pld);
-		pld &= pld - 1; /* clear least bit set */
-		if (i == 7) {
-			isa_device_interrupt(vector, regs);
-		} else if (i == 6) {
-			continue;
-		} else {
-			/* if not timer int */
-			handle_irq(16 + i, 16 + i, regs);
-		}
-		*(vulp)PYXIS_INT_REQ = 1UL << i; mb();
-		tmp = *(vulp)PYXIS_INT_REQ;
-	}
-}
-
-static void
+static void __init
 sx164_init_irq(void)
 {
 	outb(0, DMA1_RESET_REG);
@@ -108,20 +39,20 @@ sx164_init_irq(void)
 	outb(DMA_MODE_CASCADE, DMA2_MODE_REG);
 	outb(0, DMA2_MASK_REG);
 
-	if (alpha_using_srm) {
-		alpha_mv.update_irq_hw = sx164_srm_update_irq_hw;
+	if (alpha_using_srm)
 		alpha_mv.device_interrupt = srm_device_interrupt;
-	}
-	else {
-		/* Note invert on MASK bits. */
-		*(vulp)PYXIS_INT_MASK  = ~((long)alpha_irq_mask >> 16);
-		mb();
-		*(vulp)PYXIS_INT_MASK;
-	}
 
-	enable_irq(16 + 6);	/* enable timer */
-	enable_irq(16 + 7);	/* enable ISA PIC cascade */
-	enable_irq(2);		/* enable cascade */
+	init_i8259a_irqs();
+	init_rtc_irq();
+
+	/* Not interested in the bogus interrupts (0,3,4,5,40-47),
+	   NMI (1), or HALT (2).  */
+	if (alpha_using_srm)
+		init_srm_irqs(40, 0x3f0000);
+	else
+		init_pyxis_irqs(0xff00003f0000);
+
+	setup_irq(16+6, &timer_cascade_irqaction);
 }
 
 /*
@@ -160,7 +91,6 @@ sx164_init_irq(void)
  *   7  64 bit PCI option slot 1
  *   8  Cypress I/O
  *   9  32 bit PCI option slot 3
- * 
  */
 
 static int __init
@@ -201,15 +131,12 @@ struct alpha_machine_vector sx164_mv __initmv = {
 	min_io_address:		DEFAULT_IO_BASE,
 	min_mem_address:	DEFAULT_MEM_BASE,
 
-	nr_irqs:		40,
-	irq_probe_mask:		_PROBE_MASK(40),
-	update_irq_hw:		sx164_update_irq_hw,
-	ack_irq:		common_ack_irq,
-	device_interrupt:	sx164_device_interrupt,
+	nr_irqs:		48,
+	device_interrupt:	pyxis_device_interrupt,
 
 	init_arch:		pyxis_init_arch,
 	init_irq:		sx164_init_irq,
-	init_pit:		common_init_pit,
+	init_rtc:		common_init_rtc,
 	init_pci:		sx164_init_pci,
 	kill_arch:		NULL,
 	pci_map_irq:		sx164_map_irq,

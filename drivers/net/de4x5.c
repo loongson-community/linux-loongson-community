@@ -458,6 +458,9 @@ static const char *version = "de4x5.c:V0.545 1999/11/28 davies@maniac.ultranet.c
 #include <asm/byteorder.h>
 #include <asm/unaligned.h>
 #include <asm/uaccess.h>
+#ifdef CONFIG_PPC
+#include <asm/machdep.h>
+#endif /* CONFIG_PPC */
 
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
@@ -1558,15 +1561,14 @@ de4x5_queue_pkt(struct sk_buff *skb, struct net_device *dev)
 	return -1;
 
     /* Transmit descriptor ring full or stale skb */
-    if (test_bit(LINK_STATE_XOFF, &dev->state) ||
-	(u_long) lp->tx_skb[lp->tx_new] > 1) {
+    if (netif_queue_stopped(dev) || (u_long) lp->tx_skb[lp->tx_new] > 1) {
 	if (lp->interrupt) {
 	    de4x5_putb_cache(dev, skb);          /* Requeue the buffer */
 	} else {
 	    de4x5_put_cache(dev, skb);
 	}
 	if (de4x5_debug & DEBUG_TX) {
-	    printk("%s: transmit busy, lost media or stale skb found:\n  STS:%08x\n  tbusy:%d\n  IMR:%08x\n  OMR:%08x\n Stale skb: %s\n",dev->name, inl(DE4X5_STS), test_bit(LINK_STATE_XOFF, &dev->state), inl(DE4X5_IMR), inl(DE4X5_OMR), ((u_long) lp->tx_skb[lp->tx_new] > 1) ? "YES" : "NO");
+	    printk("%s: transmit busy, lost media or stale skb found:\n  STS:%08x\n  tbusy:%d\n  IMR:%08x\n  OMR:%08x\n Stale skb: %s\n",dev->name, inl(DE4X5_STS), netif_queue_stopped(dev), inl(DE4X5_IMR), inl(DE4X5_OMR), ((u_long) lp->tx_skb[lp->tx_new] > 1) ? "YES" : "NO");
 	}
     } else if (skb->len > 0) {
 	/* If we already have stuff queued locally, use that first */
@@ -1575,7 +1577,8 @@ de4x5_queue_pkt(struct sk_buff *skb, struct net_device *dev)
 	    skb = de4x5_get_cache(dev);
 	}
 
-	while (skb && !test_bit(LINK_STATE_XOFF, &dev->state) && (u_long) lp->tx_skb[lp->tx_new] <= 1) {
+	while (skb && !netif_queue_stopped(dev) &&
+	       (u_long) lp->tx_skb[lp->tx_new] <= 1) {
 	    spin_lock_irqsave(&lp->lock, flags);
 	    netif_stop_queue(dev);
 	    load_packet(dev, skb->data, TD_IC | TD_LS | TD_FS | skb->len, skb);
@@ -1663,7 +1666,7 @@ de4x5_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 
     /* Load the TX ring with any locally stored packets */
     if (!test_and_set_bit(0, (void *)&lp->cache.lock)) {
-	while (lp->cache.skb && !test_bit(LINK_STATE_XOFF, &dev->state) && lp->tx_enable) {
+	while (lp->cache.skb && !netif_queue_stopped(dev) && lp->tx_enable) {
 	    de4x5_queue_pkt(de4x5_get_cache(dev), dev);
 	}
 	lp->cache.lock = 0;
@@ -1756,9 +1759,10 @@ static inline void
 de4x5_free_tx_buff(struct de4x5_private *lp, int entry)
 {
     pci_unmap_single(lp->pdev, le32_to_cpu(lp->tx_ring[entry].buf),
-		     le32_to_cpu(lp->tx_ring[entry].des1) & TD_TBS1);
+		     le32_to_cpu(lp->tx_ring[entry].des1) & TD_TBS1,
+		     PCI_DMA_TODEVICE);
     if ((u_long) lp->tx_skb[entry] > 1)
-	dev_kfree_skb(lp->tx_skb[entry]);
+	dev_kfree_skb_irq(lp->tx_skb[entry]);
     lp->tx_skb[entry] = NULL;
 }
 
@@ -1807,7 +1811,7 @@ de4x5_tx(struct net_device *dev)
     }
 
     /* Any resources available? */
-    if (TX_BUFFS_AVAIL && test_bit(LINK_STATE_XOFF, &dev->state)) {
+    if (TX_BUFFS_AVAIL && netif_queue_stopped(dev)) {
 	if (lp->interrupt)
 	    netif_wake_queue(dev);
 	else
@@ -1977,7 +1981,7 @@ load_packet(struct net_device *dev, char *buf, u32 flags, struct sk_buff *skb)
 {
     struct de4x5_private *lp = (struct de4x5_private *)dev->priv;
     int entry = (lp->tx_new ? lp->tx_new-1 : lp->txRingSize-1);
-    dma_addr_t buf_dma = pci_map_single(lp->pdev, buf, flags & TD_TBS1);
+    dma_addr_t buf_dma = pci_map_single(lp->pdev, buf, flags & TD_TBS1, PCI_DMA_TODEVICE);
 
     lp->tx_ring[lp->tx_new].buf = cpu_to_le32(buf_dma);
     lp->tx_ring[lp->tx_new].des1 &= cpu_to_le32(TD_TER);
@@ -4186,20 +4190,24 @@ get_hw_addr(struct net_device *dev)
     /* If possible, try to fix a broken card - SMC only so far */
     srom_repair(dev, broken);
 
-#ifdef CONFIG_PMAC
+#ifdef CONFIG_PPC
     /* 
     ** If the address starts with 00 a0, we have to bit-reverse
     ** each byte of the address.
     */
-    if (dev->dev_addr[0] == 0 && dev->dev_addr[1] == 0xa0) {
-	for (i = 0; i < ETH_ALEN; ++i) {
-	    int x = dev->dev_addr[i];
-	    x = ((x & 0xf) << 4) + ((x & 0xf0) >> 4);
-	    x = ((x & 0x33) << 2) + ((x & 0xcc) >> 2);
-	    dev->dev_addr[i] = ((x & 0x55) << 1) + ((x & 0xaa) >> 1);
-	}
+    if ( (ppc_md.ppc_machine & _MACH_Pmac) &&
+	 (dev->dev_addr[0] == 0) &&
+	 (dev->dev_addr[1] == 0xa0) )
+    {
+	    for (i = 0; i < ETH_ALEN; ++i)
+	    {
+		    int x = dev->dev_addr[i];
+		    x = ((x & 0xf) << 4) + ((x & 0xf0) >> 4);
+		    x = ((x & 0x33) << 2) + ((x & 0xcc) >> 2);
+		    dev->dev_addr[i] = ((x & 0x55) << 1) + ((x & 0xaa) >> 1);
+	    }
     }
-#endif /* CONFIG_PMAC */
+#endif /* CONFIG_PPC */
 
     /* Test for a bad enet address */
     status = test_bad_enet(dev, status);
@@ -5599,18 +5607,19 @@ de4x5_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
     case DE4X5_SET_HWADDR:           /* Set the hardware address */
 	if (!capable(CAP_NET_ADMIN)) return -EPERM;
 	if (copy_from_user(tmp.addr, ioc->data, ETH_ALEN)) return -EFAULT;
+	if (netif_queue_stopped(dev))
+		return -EBUSY;
+	netif_stop_queue(dev);
 	for (i=0; i<ETH_ALEN; i++) {
 	    dev->dev_addr[i] = tmp.addr[i];
 	}
 	build_setup_frame(dev, PHYS_ADDR_ONLY);
 	/* Set up the descriptor and give ownership to the card */
-	while (test_and_set_bit(LINK_STATE_XOFF, &dev->state) != 0)
-	    barrier();
 	load_packet(dev, lp->setup_frame, TD_IC | PERFECT_F | TD_SET | 
 		                                       SETUP_FRAME_LEN, (struct sk_buff *)1);
 	lp->tx_new = (++lp->tx_new) % lp->txRingSize;
 	outl(POLL_DEMAND, DE4X5_TPD);                /* Start the TX */
-	netif_start_queue(dev);                      /* Unlock the TX ring */
+	netif_wake_queue(dev);                      /* Unlock the TX ring */
 	break;
 
     case DE4X5_SET_PROM:             /* Set Promiscuous Mode */
@@ -5762,7 +5771,7 @@ de4x5_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 	}
 	
 	tmp.addr[j++] = lp->txRingSize;
-	tmp.addr[j++] = test_bit(LINK_STATE_XOFF, &dev->state);
+	tmp.addr[j++] = netif_queue_stopped(dev);
 	
 	ioc->len = j;
 	if (copy_to_user(ioc->data, tmp.addr, ioc->len)) return -EFAULT;

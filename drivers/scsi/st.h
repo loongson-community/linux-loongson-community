@@ -8,6 +8,7 @@
 #ifndef _SCSI_H
 #include "scsi.h"
 #endif
+#include <linux/devfs_fs_kernel.h>
 
 /* The tape buffer descriptor. */
 typedef struct {
@@ -18,9 +19,9 @@ typedef struct {
 	int buffer_bytes;
 	int read_pointer;
 	int writing;
-	int last_result;
-	int last_result_fatal;
-	Scsi_Cmnd *last_SCpnt;
+	int midlevel_result;
+	int syscall_result;
+	Scsi_Request *last_SRpnt;
 	unsigned char *b_data;
 	unsigned short use_sg;	/* zero or number of segments for this adapter */
 	unsigned short sg_segs;	/* total number of allocated segments */
@@ -85,6 +86,8 @@ typedef struct {
 	/* Mode characteristics */
 	ST_mode modes[ST_NBR_MODES];
 	int current_mode;
+	devfs_handle_t de_r[ST_NBR_MODES];  /*  Rewind entries     */
+	devfs_handle_t de_n[ST_NBR_MODES];  /*  No-rewind entries  */
 
 	/* Status variables */
 	int partition;

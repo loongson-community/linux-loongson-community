@@ -30,9 +30,6 @@
 #include <linux/ioport.h>
 #include <linux/bootmem.h>
 
-#ifdef CONFIG_RTC
-#include <linux/timex.h>
-#endif
 #ifdef CONFIG_BLK_DEV_INITRD
 #include <linux/blk.h>
 #endif
@@ -452,16 +449,6 @@ setup_arch(char **cmdline_p)
 
 	/* Reserve standard resources.  */
 	reserve_std_resources();
-
-	/* Initialize the timers.  */
-	/* ??? There is some circumstantial evidence that this needs
-	   to be done now rather than later in time_init, which would
-	   be more natural.  Someone please explain or refute.  */
-#if defined(CONFIG_RTC)
-	rtc_init_pit();
-#else
-	alpha_mv.init_pit();
-#endif
 
 	/* 
 	 * Give us a default console.  TGA users will see nothing until

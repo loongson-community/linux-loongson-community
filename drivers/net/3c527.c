@@ -902,7 +902,7 @@ static int mc32_open(struct net_device *dev)
 	mc32_rx_begin(dev);
 	mc32_tx_begin(dev);
 
-	netif_wake_queue(dev);	
+	netif_start_queue(dev);	
 	MOD_INC_USE_COUNT;
 
 	return 0;
@@ -1156,7 +1156,7 @@ static void mc32_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 				   basically a FIFO queue of buffers matching
 				   the card ring */
 				lp->net_stats.tx_bytes+=lp->tx_skb[lp->tx_skb_top]->len;
-				dev_kfree_skb(lp->tx_skb[lp->tx_skb_top]);
+				dev_kfree_skb_irq(lp->tx_skb[lp->tx_skb_top]);
 				lp->tx_skb[lp->tx_skb_top]=NULL;
 				lp->tx_skb_top++;
 				lp->tx_skb_top&=(TX_RING_MAX-1);

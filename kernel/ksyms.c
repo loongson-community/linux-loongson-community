@@ -74,6 +74,7 @@ __attribute__((section("__ksymtab"))) = {
 
 #ifdef CONFIG_KMOD
 EXPORT_SYMBOL(request_module);
+EXPORT_SYMBOL(exec_usermodehelper);
 #endif
 
 #ifdef CONFIG_MODULES
@@ -125,6 +126,7 @@ EXPORT_SYMBOL(highmem_start_page);
 #endif
 
 /* filesystem internal functions */
+EXPORT_SYMBOL(def_blk_fops);
 EXPORT_SYMBOL(in_group_p);
 EXPORT_SYMBOL(update_atime);
 EXPORT_SYMBOL(get_super);
@@ -259,6 +261,7 @@ EXPORT_SYMBOL(is_read_only);
 EXPORT_SYMBOL(set_device_ro);
 EXPORT_SYMBOL(bmap);
 EXPORT_SYMBOL(sync_dev);
+EXPORT_SYMBOL(devfs_register_partitions);
 EXPORT_SYMBOL(blkdev_open);
 EXPORT_SYMBOL(blkdev_get);
 EXPORT_SYMBOL(blkdev_put);
@@ -373,6 +376,7 @@ EXPORT_SYMBOL(do_gettimeofday);
 EXPORT_SYMBOL(loops_per_sec);
 #endif
 EXPORT_SYMBOL(kstat);
+EXPORT_SYMBOL(nr_running);
 
 /* misc */
 EXPORT_SYMBOL(panic);
@@ -460,12 +464,16 @@ EXPORT_SYMBOL(get_fast_time);
 
 /* library functions */
 EXPORT_SYMBOL(strnicmp);
+EXPORT_SYMBOL(strspn);
 
 /* software interrupts */
 EXPORT_SYMBOL(tasklet_hi_vec);
+EXPORT_SYMBOL(tasklet_vec);
 EXPORT_SYMBOL(bh_task_vec);
 EXPORT_SYMBOL(init_bh);
 EXPORT_SYMBOL(remove_bh);
+EXPORT_SYMBOL(tasklet_init);
+EXPORT_SYMBOL(tasklet_kill);
 
 /* init task, for moving kthread roots - ought to export a function ?? */
 

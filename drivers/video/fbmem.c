@@ -25,6 +25,7 @@
 #ifdef CONFIG_KMOD
 #include <linux/kmod.h>
 #endif
+#include <linux/devfs_fs_kernel.h>
 
 #if defined(__mc68000__) || defined(CONFIG_APUS)
 #include <asm/setup.h>
@@ -98,6 +99,8 @@ extern int g364fb_init(void);
 extern int fm2fb_init(void);
 extern int fm2fb_setup(char*);
 extern int q40fb_init(void);
+extern int sun3fb_init(void);
+extern int sun3fb_setup(char *);
 extern int sgivwfb_init(void);
 extern int sgivwfb_setup(char*);
 extern int rivafb_init(void);
@@ -211,6 +214,9 @@ static struct {
 #ifdef CONFIG_FB_FM2
 	{ "fm2fb", fm2fb_init, fm2fb_setup },
 #endif 
+#ifdef CONFIG_FB_SUN3
+       { "sun3", sun3fb_init, sun3fb_setup },
+#endif
 #ifdef CONFIG_GSP_RESOLVER
 	/* Not a real frame buffer device... */
 	{ "resolver", NULL, resolver_video_setup },
@@ -471,6 +477,9 @@ fb_mmap(struct file *file, struct vm_area_struct * vma)
 	vma->vm_flags |= VM_IO;
 #else
 #if defined(__mc68000__)
+#if defined(CONFIG_SUN3)
+	pgprot_val(vma->vm_page_prot) |= SUN3_PAGE_NOCACHE;
+#else
 	if (CPU_IS_020_OR_030)
 		pgprot_val(vma->vm_page_prot) |= _PAGE_NOCACHE030;
 	if (CPU_IS_040_OR_060) {
@@ -478,6 +487,7 @@ fb_mmap(struct file *file, struct vm_area_struct * vma)
 		/* Use no-cache mode, serialized */
 		pgprot_val(vma->vm_page_prot) |= _PAGE_NOCACHE_S;
 	}
+#endif
 #elif defined(__powerpc__)
 	pgprot_val(vma->vm_page_prot) |= _PAGE_NO_CACHE|_PAGE_GUARDED;
 #elif defined(__alpha__)
@@ -558,10 +568,13 @@ static struct file_operations fb_fops = {
 	release:	fb_release,
 };
 
+static devfs_handle_t devfs_handle = NULL;
+
 int
 register_framebuffer(struct fb_info *fb_info)
 {
 	int i, j;
+	char name_buf[8];
 	static int fb_ever_opened[FB_MAX];
 	static int first = 1;
 
@@ -588,12 +601,17 @@ register_framebuffer(struct fb_info *fb_info)
 		first = 0;
 		take_over_console(&fb_con, first_fb_vc, last_fb_vc, fbcon_is_default);
 	}
+	sprintf (name_buf, "%d", i);
+	fb_info->devfs_handle =
+	    devfs_register (devfs_handle, name_buf, 0, DEVFS_FL_NONE,
+			    FB_MAJOR, i, S_IFCHR | S_IRUGO | S_IWUGO, 0, 0,
+			    &fb_fops, NULL);
 
 	return 0;
 }
 
 int
-unregister_framebuffer(const struct fb_info *fb_info)
+unregister_framebuffer(struct fb_info *fb_info)
 {
 	int i, j;
 
@@ -602,7 +620,11 @@ unregister_framebuffer(const struct fb_info *fb_info)
 		if (con2fb_map[j] == i)
 			return -EBUSY;
 	if (!registered_fb[i])
-		return -EINVAL; 
+		return -EINVAL;
+	devfs_unregister (fb_info->devfs_handle);
+	fb_info->devfs_handle = NULL;
+	devfs_unregister (fb_info->devfs_lhandle);
+	fb_info->devfs_lhandle = NULL;
 	registered_fb[i]=NULL;
 	num_registered_fb--;
 	return 0;
@@ -615,7 +637,8 @@ fbmem_init(void)
 
 	create_proc_read_entry("fb", 0, 0, fbmem_read_proc, NULL);
 
-	if (register_chrdev(FB_MAJOR,"fb",&fb_fops))
+	devfs_handle = devfs_mk_dir (NULL, "fb", 0, NULL);
+	if (devfs_register_chrdev(FB_MAJOR,"fb",&fb_fops))
 		printk("unable to get major %d for fb devs\n", FB_MAJOR);
 
 	/*

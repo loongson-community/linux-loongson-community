@@ -75,13 +75,14 @@ static inline void remove_shared_vm_struct(struct vm_area_struct *vma)
 	struct file * file = vma->vm_file;
 
 	if (file) {
+		struct inode *inode = file->f_dentry->d_inode;
 		if (vma->vm_flags & VM_DENYWRITE)
-			atomic_inc(&file->f_dentry->d_inode->i_writecount);
-		spin_lock(&file->f_dentry->d_inode->i_shared_lock);
+			atomic_inc(&inode->i_writecount);
+		spin_lock(&inode->i_mapping->i_shared_lock);
 		if(vma->vm_next_share)
 			vma->vm_next_share->vm_pprev_share = vma->vm_pprev_share;
 		*vma->vm_pprev_share = vma->vm_next_share;
-		spin_unlock(&file->f_dentry->d_inode->i_shared_lock);
+		spin_unlock(&inode->i_mapping->i_shared_lock);
 	}
 }
 
@@ -346,6 +347,7 @@ free_vma:
  * For mmap() without MAP_FIXED and shmat() with addr=0.
  * Return value 0 means ENOMEM.
  */
+#ifndef HAVE_ARCH_UNMAPPED_AREA
 unsigned long get_unmapped_area(unsigned long addr, unsigned long len)
 {
 	struct vm_area_struct * vmm;
@@ -365,6 +367,7 @@ unsigned long get_unmapped_area(unsigned long addr, unsigned long len)
 		addr = vmm->vm_end;
 	}
 }
+#endif
 
 #define vm_avl_empty	(struct vm_area_struct *) NULL
 
@@ -579,7 +582,8 @@ static void free_pgtables(struct mm_struct * mm, struct vm_area_struct *prev,
 	unsigned long start, unsigned long end)
 {
 	unsigned long first = start & PGDIR_MASK;
-	unsigned long last = (end + PGDIR_SIZE - 1) & PGDIR_MASK;
+	unsigned long last = end + PGDIR_SIZE - 1;
+	unsigned long start_index, end_index;
 
 	if (!prev) {
 		prev = mm->mmap;
@@ -607,11 +611,15 @@ static void free_pgtables(struct mm_struct * mm, struct vm_area_struct *prev,
 		break;
 	}
 no_mmaps:
-	first = first >> PGDIR_SHIFT;
-	last = last >> PGDIR_SHIFT;
-	if (last > first) {
-		clear_page_tables(mm, first, last-first);
-		flush_tlb_pgtables(mm, first << PGDIR_SHIFT, last << PGDIR_SHIFT);
+	/*
+	 * If the PGD bits are not consecutive in the virtual address, the
+	 * old method of shifting the VA >> by PGDIR_SHIFT doesn't work.
+	 */
+	start_index = pgd_index(first);
+	end_index = pgd_index(last);
+	if (end_index > start_index) {
+		clear_page_tables(mm, start_index, end_index - start_index);
+		flush_tlb_pgtables(mm, first & PGDIR_MASK, last & PGDIR_MASK);
 	}
 }
 
@@ -884,16 +892,17 @@ void insert_vm_struct(struct mm_struct *mm, struct vm_area_struct *vmp)
 	file = vmp->vm_file;
 	if (file) {
 		struct inode * inode = file->f_dentry->d_inode;
+		struct address_space *mapping = inode->i_mapping;
 		if (vmp->vm_flags & VM_DENYWRITE)
 			atomic_dec(&inode->i_writecount);
       
 		/* insert vmp into inode's share list */
-		spin_lock(&inode->i_shared_lock);
-		if((vmp->vm_next_share = inode->i_mmap) != NULL)
-			inode->i_mmap->vm_pprev_share = &vmp->vm_next_share;
-		inode->i_mmap = vmp;
-		vmp->vm_pprev_share = &inode->i_mmap;
-		spin_unlock(&inode->i_shared_lock);
+		spin_lock(&mapping->i_shared_lock);
+		if((vmp->vm_next_share = mapping->i_mmap) != NULL)
+			mapping->i_mmap->vm_pprev_share = &vmp->vm_next_share;
+		mapping->i_mmap = vmp;
+		vmp->vm_pprev_share = &mapping->i_mmap;
+		spin_unlock(&mapping->i_shared_lock);
 	}
 }
 

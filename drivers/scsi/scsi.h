@@ -16,6 +16,7 @@
 #define _SCSI_H
 
 #include <linux/config.h>	/* for CONFIG_SCSI_LOGGING */
+#include <linux/devfs_fs_kernel.h>
 #include <linux/proc_fs.h>
 
 /*
@@ -29,6 +30,54 @@
 #include <asm/hardirq.h>
 #include <asm/scatterlist.h>
 #include <asm/io.h>
+
+/*
+ * These are the values that the SCpnt->sc_data_direction and 
+ * SRpnt->sr_data_direction can take.  These need to be set
+ * The SCSI_DATA_UNKNOWN value is essentially the default.
+ * In the event that the command creator didn't bother to
+ * set a value, you will see SCSI_DATA_UNKNOWN.
+ */
+#define SCSI_DATA_UNKNOWN       0
+#define SCSI_DATA_WRITE         1
+#define SCSI_DATA_READ          2
+#define SCSI_DATA_NONE          3
+
+#ifdef CONFIG_PCI
+#include <linux/pci.h>
+#if ((SCSI_DATA_UNKNOWN == PCI_DMA_BIDIRECTIONAL) && (SCSI_DATA_WRITE == PCI_DMA_TODEVICE) && (SCSI_DATA_READ == PCI_DMA_FROMDEVICE) && (SCSI_DATA_NONE == PCI_DMA_NONE))
+#define scsi_to_pci_dma_dir(scsi_dir)	((int)(scsi_dir))
+#else
+extern __inline__ int scsi_to_pci_dma_dir(unsigned char scsi_dir)
+{
+        if (scsi_dir == SCSI_DATA_UNKNOWN)
+                return PCI_DMA_BIDIRECTIONAL;
+        if (scsi_dir == SCSI_DATA_WRITE)
+                return PCI_DMA_TODEVICE;
+        if (scsi_dir == SCSI_DATA_READ)
+                return PCI_DMA_FROMDEVICE;
+        return PCI_DMA_NONE;
+}
+#endif
+#endif
+
+#ifdef CONFIG_SBUS
+#include <asm/sbus.h>
+#if ((SCSI_DATA_UNKNOWN == SBUS_DMA_BIDIRECTIONAL) && (SCSI_DATA_WRITE == SBUS_DMA_TODEVICE) && (SCSI_DATA_READ == SBUS_DMA_FROMDEVICE) && (SCSI_DATA_NONE == SBUS_DMA_NONE))
+#define scsi_to_sbus_dma_dir(scsi_dir)	((int)(scsi_dir))
+#else
+extern __inline__ int scsi_to_sbus_dma_dir(unsigned char scsi_dir)
+{
+        if (scsi_dir == SCSI_DATA_UNKNOWN)
+                return SBUS_DMA_BIDIRECTIONAL;
+        if (scsi_dir == SCSI_DATA_WRITE)
+                return SBUS_DMA_TODEVICE;
+        if (scsi_dir == SCSI_DATA_READ)
+                return SBUS_DMA_FROMDEVICE;
+        return SBUS_DMA_NONE;
+}
+#endif
+#endif
 
 /*
  * Some defs, in case these are not defined elsewhere.
@@ -303,6 +352,7 @@ extern const char *const scsi_device_types[MAX_SCSI_DEVICE_CODE];
 #define SUGGEST_MASK        0xf0
 
 #define MAX_COMMAND_SIZE    12
+#define SCSI_SENSE_BUFFERSIZE   64
 
 /*
  *  SCSI command sets
@@ -356,6 +406,10 @@ extern const char *const scsi_device_types[MAX_SCSI_DEVICE_CODE];
  */
 typedef struct scsi_device Scsi_Device;
 typedef struct scsi_cmnd Scsi_Cmnd;
+typedef struct scsi_request Scsi_Request;
+
+#define SCSI_CMND_MAGIC 0xE25C23A5
+#define SCSI_REQ_MAGIC  0x75F6D354
 
 /*
  * Here is where we prototype most of the mid-layer.
@@ -444,10 +498,25 @@ extern void scsi_do_cmd(Scsi_Cmnd *, const void *cmnd,
 			void (*done) (struct scsi_cmnd *),
 			int timeout, int retries);
 extern void scsi_wait_cmd(Scsi_Cmnd *, const void *cmnd,
-			  void *buffer, unsigned bufflen,
-			  int timeout, int retries);
+  			  void *buffer, unsigned bufflen,
+  			  int timeout, int retries);
 extern int scsi_dev_init(void);
 
+/*
+ * Newer request-based interfaces.
+ */
+extern Scsi_Request *scsi_allocate_request(Scsi_Device *);
+extern void scsi_release_request(Scsi_Request *);
+extern void scsi_wait_req(Scsi_Request *, const void *cmnd,
+			  void *buffer, unsigned bufflen,
+			  int timeout, int retries);
+
+extern void scsi_do_req(Scsi_Request *, const void *cmnd,
+			void *buffer, unsigned bufflen,
+			void (*done) (struct scsi_cmnd *),
+			int timeout, int retries);
+extern int scsi_insert_special_req(Scsi_Request * SRpnt, int);
+extern void scsi_init_cmd_from_req(Scsi_Cmnd *, Scsi_Request *);
 
 
 /*
@@ -466,6 +535,7 @@ extern struct proc_dir_entry *proc_scsi;
  */
 extern void print_command(unsigned char *);
 extern void print_sense(const char *, Scsi_Cmnd *);
+extern void print_req_sense(const char *, Scsi_Request *);
 extern void print_driverbyte(int scsiresult);
 extern void print_hostbyte(int scsiresult);
 extern void print_status (int status);
@@ -512,6 +582,7 @@ struct scsi_device {
 	int access_count;	/* Count of open channels/mounts */
 
 	void *hostdata;		/* available to low-level driver */
+	devfs_handle_t de;      /* directory for the device      */
 	char type;
 	char scsi_level;
 	char vendor[8], model[16], rev[4];
@@ -568,6 +639,39 @@ typedef struct scsi_pointer {
 	volatile int phase;
 } Scsi_Pointer;
 
+/*
+ * This is essentially a slimmed down version of Scsi_Cmnd.  The point of
+ * having this is that requests that are injected into the queue as result
+ * of things like ioctls and character devices shouldn't be using a
+ * Scsi_Cmnd until such a time that the command is actually at the head
+ * of the queue and being sent to the driver.
+ */
+struct scsi_request {
+	int     sr_magic;
+	int     sr_result;	/* Status code from lower level driver */
+	unsigned char sr_sense_buffer[SCSI_SENSE_BUFFERSIZE];		/* obtained by REQUEST SENSE
+						 * when CHECK CONDITION is
+						 * received on original command 
+						 * (auto-sense) */
+
+	struct Scsi_Host *sr_host;
+	Scsi_Device *sr_device;
+	Scsi_Cmnd *sr_command;
+	struct request sr_request;	/* A copy of the command we are
+				   working on */
+	unsigned sr_bufflen;	/* Size of data buffer */
+	void *sr_buffer;		/* Data buffer */
+	int sr_allowed;
+	unsigned char sr_data_direction;
+	unsigned char sr_cmd_len;
+	unsigned char sr_cmnd[MAX_COMMAND_SIZE];
+	void (*sr_done) (struct scsi_cmnd *);	/* Mid-level done function */
+	int sr_timeout_per_command;
+	unsigned short sr_use_sg;	/* Number of pieces of scatter-gather */
+	unsigned short sr_sglist_len;	/* size of malloc'd scatter-gather list */
+	unsigned sr_underflow;	/* Return error if less than
+				   this amount is transfered */
+};
 
 /*
  * FIXME(eric) - one of the great regrets that I have is that I failed to define
@@ -578,6 +682,7 @@ typedef struct scsi_pointer {
  * go back and retrofit at least some of the elements here with with the prefix.
  */
 struct scsi_cmnd {
+	int     sc_magic;
 /* private: */
 	/*
 	 * This information is private to the scsi mid-layer.  Wrapping it in a
@@ -587,6 +692,7 @@ struct scsi_cmnd {
 	unsigned short state;
 	unsigned short owner;
 	Scsi_Device *device;
+	Scsi_Request *sc_request;
 	struct scsi_cmnd *next;
 	struct scsi_cmnd *reset_chain;
 
@@ -630,6 +736,8 @@ struct scsi_cmnd {
 	unsigned char channel;
 	unsigned char cmd_len;
 	unsigned char old_cmd_len;
+	unsigned char sc_data_direction;
+	unsigned char sc_old_data_direction;
 
 	/* These elements define the operation we are about to perform */
 	unsigned char cmnd[MAX_COMMAND_SIZE];
@@ -665,7 +773,7 @@ struct scsi_cmnd {
 	struct request request;	/* A copy of the command we are
 				   working on */
 
-	unsigned char sense_buffer[64];		/* obtained by REQUEST SENSE
+	unsigned char sense_buffer[SCSI_SENSE_BUFFERSIZE];		/* obtained by REQUEST SENSE
 						 * when CHECK CONDITION is
 						 * received on original command 
 						 * (auto-sense) */

@@ -1,4 +1,4 @@
-/* $Id: sunlance.c,v 1.94 2000/02/09 11:15:40 davem Exp $
+/* $Id: sunlance.c,v 1.99 2000/02/16 10:36:14 davem Exp $
  * lance.c: Linux/Sparc/Lance driver
  *
  *	Written 1995, 1996 by Miguel de Icaza
@@ -602,7 +602,7 @@ static void lance_tx_dvma(struct net_device *dev)
 					lp->init_ring(dev);
 					load_csrs(lp);
 					init_restart_lance(lp);
-					return;
+					goto out;
 				}
 			}
 
@@ -618,7 +618,7 @@ static void lance_tx_dvma(struct net_device *dev)
 				lp->init_ring(dev);
 				load_csrs(lp);
 				init_restart_lance(lp);
-				return;
+				goto out;
 			}
 		} else if ((bits & LE_T1_POK) == LE_T1_POK) {
 			/*
@@ -640,8 +640,8 @@ static void lance_tx_dvma(struct net_device *dev)
 		j = TX_NEXT(j);
 	}
 	lp->tx_old = j;
-
-	if (test_bit(LINK_STATE_XOFF, &dev->state) &&
+out:
+	if (netif_queue_stopped(dev) &&
 	    TX_BUFFS_AVAIL > 0)
 		netif_wake_queue(dev);
 
@@ -773,7 +773,7 @@ static void lance_tx_pio(struct net_device *dev)
 					lp->init_ring(dev);
 					load_csrs(lp);
 					init_restart_lance(lp);
-					return;
+					goto out;
 				}
 			}
 
@@ -789,7 +789,7 @@ static void lance_tx_pio(struct net_device *dev)
 				lp->init_ring(dev);
 				load_csrs(lp);
 				init_restart_lance(lp);
-				return;
+				goto out;
 			}
 		} else if ((bits & LE_T1_POK) == LE_T1_POK) {
 			/*
@@ -812,10 +812,10 @@ static void lance_tx_pio(struct net_device *dev)
 	}
 	lp->tx_old = j;
 
-	if (test_bit(LINK_STATE_XOFF, &dev->state) &&
+	if (netif_queue_stopped(dev) &&
 	    TX_BUFFS_AVAIL > 0)
 		netif_wake_queue(dev);
-
+out:
 	spin_unlock(&lp->lock);
 }
 
@@ -1014,7 +1014,7 @@ static int lance_reset(struct net_device *dev)
 	return status;
 }
 
-static void lance_piocopy_from_skb(volatile void *dest, char *src, int len)
+static void lance_piocopy_from_skb(volatile void *dest, unsigned char *src, int len)
 {
 	unsigned long piobuf = (unsigned long) dest;
 	u32 *p32;
@@ -1128,9 +1128,9 @@ static int lance_start_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	len = (skblen <= ETH_ZLEN) ? ETH_ZLEN : skblen;
 
-	lp->stats.tx_bytes += len;
-
 	spin_lock_irq(&lp->lock);
+
+	lp->stats.tx_bytes += len;
 
 	entry = lp->tx_new & TX_RING_MOD_MASK;
 	if (lp->pio_buffer) {
@@ -1154,19 +1154,20 @@ static int lance_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	if (TX_BUFFS_AVAIL <= 0)
 		netif_stop_queue(dev);
 
-	spin_unlock_irq(&lp->lock);
-
 	/* Kick the lance: transmit now */
 	sbus_writew(LE_C0_INEA | LE_C0_TDMD, lp->lregs + RDP);
-	dev->trans_start = jiffies;
-	dev_kfree_skb(skb);
-    
+
 	/* Read back CSR to invalidate the E-Cache.
 	 * This is needed, because DMA_DSBL_WR_INV is set.
 	 */
 	if (lp->dregs)
 		sbus_readw(lp->lregs + RDP);
 
+	spin_unlock_irq(&lp->lock);
+
+	dev->trans_start = jiffies;
+	dev_kfree_skb(skb);
+    
 	return 0;
 }
 
@@ -1246,7 +1247,7 @@ static void lance_set_multicast(struct net_device *dev)
 	volatile struct lance_init_block *ib = lp->init_block;
 	u16 mode;
 
-	if (!test_bit(LINK_STATE_START, &dev->state))
+	if (!netif_running(dev))
 		return;
 
 	if (lp->tx_old != lp->tx_new) {

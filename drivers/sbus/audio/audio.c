@@ -1,4 +1,4 @@
-/* $Id: audio.c,v 1.48 2000/02/09 22:33:19 davem Exp $
+/* $Id: audio.c,v 1.49 2000/02/17 05:52:41 davem Exp $
  * drivers/sbus/audio/audio.c
  *
  * Copyright 1996 Thomas K. Dyas (tdyas@noc.rutgers.edu)
@@ -32,6 +32,7 @@
 #include <linux/init.h>
 #include <linux/soundcard.h>
 #include <linux/version.h>
+#include <linux/devfs_fs_kernel.h>
 #include <asm/delay.h>
 #include <asm/pgtable.h>
 
@@ -2198,9 +2199,8 @@ int __init sparcaudio_init(void)
 #endif
 
 	/* Register our character device driver with the VFS. */
-	if (register_chrdev(SOUND_MAJOR, "sparcaudio", &sparcaudio_fops))
+	if (devfs_register_chrdev(SOUND_MAJOR, "sparcaudio", &sparcaudio_fops))
 		return -EIO;
-
 	
 #ifdef CONFIG_SPARCAUDIO_AMD7930
 	amd7930_init();
@@ -2221,7 +2221,7 @@ int __init sparcaudio_init(void)
 #ifdef MODULE
 void cleanup_module(void)
 {
-	unregister_chrdev(SOUND_MAJOR, "sparcaudio");
+	devfs_unregister_chrdev(SOUND_MAJOR, "sparcaudio");
 }
 #endif
 

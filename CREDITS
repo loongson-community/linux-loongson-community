@@ -41,6 +41,7 @@ N: Tigran A. Aivazian
 E: tigran@ocston.org
 W: http://www.ocston.org/~tigran
 D: BFS filesystem
+D: Intel P6 CPU microcode update support
 S: United Kingdom
 
 N: Werner Almesberger
@@ -66,6 +67,10 @@ W: http://www.pdos.lcs.mit.edu/~cananian
 P: 1024/85AD9EED AD C0 49 08 91 67 DF D7  FA 04 1A EE 09 E8 44 B0
 D: Unix98 pty support.
 D: APM update to 1.2 spec.
+D: /devfs hacking.
+S: 322 N. Riverside Dr.
+S: Neptune, NJ 07753
+S: USA
 
 N: Erik Andersen
 E: andersee@debian.org
@@ -362,6 +367,13 @@ D: Original author of Amiga FFS filesystem
 S: Orlando, Florida
 S: USA
 
+N: Lennert Buytenhek
+E: buytenh@gnu.org
+D: Rewrite of the ethernet bridging code
+S: Handelstraat 35
+S: 3131 EK Vlaardingen
+S: The Netherlands
+
 N: Michael Callahan
 E: callahan@maths.ox.ac.uk
 D: PPP for Linux
@@ -637,18 +649,18 @@ S: Grevgatan 11
 S: S-114 53 Stockholm
 S: Sweden
 
-N: Stephane Eranian
-E: eranian@hpl.hp.com
-D: Linux/ia64
-S: 1501 Page Mill Rd, MS 1U17
-S: Palo Alto, CA 94304
-S: USA
-
 N: Paal-Kristian Engstad
 E: engstad@intermetrics.com
 D: Kernel smbfs (to mount WfW, NT and OS/2 network drives.)
 S: 17101 Springdale Street #225
 S: Huntington Beach, California 92649
+S: USA
+
+N: Stephane Eranian
+E: eranian@hpl.hp.com
+D: Linux/ia64
+S: 1501 Page Mill Rd, MS 1U17
+S: Palo Alto, CA 94304
 S: USA
 
 N: Johannes Erdfelt
@@ -784,6 +796,7 @@ E: rgooch@atnf.csiro.au
 D: parent process death signal to children
 D: prctl() syscall
 D: /proc/mtrr support to manipulate MTRRs on Intel P6 family
+D: Device FileSystem (devfs)
 S: CSIRO Australia Telescope National Facility
 S: P.O. Box 76, Epping
 S: New South Wales, 2121
@@ -1285,7 +1298,7 @@ S: USA
 
 N: Andrzej M. Krzysztofowicz
 E: ankry@mif.pg.gda.pl
-D: XT disk driver
+D: Some 8-bit XT disk driver and devfs hacking 
 D: Aladdin 1533/1543(C) chipset IDE
 D: PIIX chipset IDE
 S: ul. Matemblewska 1B/10
@@ -1524,6 +1537,13 @@ D: XF86_Mach32
 D: XF86_Mach8
 D: XF86_8514
 D: cfdisk (curses based disk partitioning program)
+
+N: Heinz Mauelshagen
+E: mge@EZ-Darmstadt.Telekom.de
+D: Logical Volume Manager
+S: Bartningstr. 12
+S: 64289 Darmstadt
+S: Germany 
 
 N: Mike McLagan
 E: mike.mclagan@linux.org
@@ -1838,16 +1858,16 @@ S: M"ullerstr. 69
 S: 13349 Berlin
 S: Germany
 
-N: Nicolas Pitre
-E: nico@cam.org
-D: StrongARM SA1100 support integrator & hacker
-S: Montreal, Quebec, Canada
-
 N: Emanuel Pirker
 E: epirker@edu.uni-klu.ac.at
 D: AIC5800 IEEE 1394, RAW I/O on 1394
 D: Starter of Linux1394 effort
 S: ask per mail for current address
+
+N: Nicolas Pitre
+E: nico@cam.org
+D: StrongARM SA1100 support integrator & hacker
+S: Montreal, Quebec, Canada
 
 N: Ken Pizzini
 E: ken@halcyon.com
@@ -2619,13 +2639,6 @@ D: Miscellaneous kernel fixes
 S: 3078 Sulphur Spring Court
 S: San Jose, California 95148
 S: USA
-
-N: Alessandro Zummo
-E: azummo@ita.flashnet.it
-W: http://freepage.logicom.it/azummo/
-D: CMI8330 support is sb_card.c
-D: ISAPnP fixes in sb_card.c
-S: Italy
 
 N: Alessandro Zummo
 E: azummo@ita.flashnet.it

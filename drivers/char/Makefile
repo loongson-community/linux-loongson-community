@@ -36,8 +36,9 @@ obj-y	 += tty_io.o n_tty.o tty_ioctl.o mem.o raw.o pty.o misc.o random.o
 # All of the (potential) objects that export symbols.
 # This list comes from 'grep -l EXPORT_SYMBOL *.[hc]'.
 
-export-objs     :=	busmouse.o console.o i2c-old.o keyboard.o \
-			misc.o pty.o random.o selection.o serial.o videodev.o
+export-objs     :=	busmouse.o console.o i2c-old.o keyboard.o sysrq.o \
+			misc.o pty.o random.o selection.o serial.o videodev.o \
+			tty_io.o
 
 KEYMAP   =defkeymap.o
 KEYBD    =pc_keyb.o
@@ -45,8 +46,12 @@ CONSOLE  =console.o
 SERIAL   =serial.o
 
 ifeq ($(ARCH),m68k)
-  KEYBD    =
-  SERIAL   =
+   ifdef CONFIG_AMIGA
+      KEYBD = amikeyb.o
+   else
+      KEYBD    =
+   endif
+   SERIAL   =
 endif
 
 ifeq ($(ARCH),arm)
@@ -69,6 +74,7 @@ endif
 ifneq ($(CONFIG_SUN_SERIAL),)
   SERIAL   =
 endif
+
 
 obj-$(CONFIG_VT) += vt.o vc_screen.o consolemap.o consolemap_deftbl.o $(CONSOLE) selection.o
 obj-$(CONFIG_SERIAL) += $(SERIAL)
@@ -106,6 +112,7 @@ obj-$(CONFIG_ESPSERIAL) += esp.o
 obj-$(CONFIG_SYNCLINK) += synclink.o
 obj-$(CONFIG_N_HDLC) += n_hdlc.o
 obj-$(CONFIG_SPECIALIX) += specialix.o
+obj-$(CONFIG_AMIGA_BUILTIN_SERIAL) += amiserial.o
 
 ifeq ($(CONFIG_SX),y)
 obj-y += sx.o generic_serial.o
@@ -147,13 +154,14 @@ obj-$(CONFIG_ACQUIRE_WDT) += acquirewdt.o
 obj-$(CONFIG_MIXCOMWD) += mixcomwd.o
 obj-$(CONFIG_AMIGAMOUSE) += amigamouse.o
 obj-$(CONFIG_ATARIMOUSE) += atarimouse.o
-obj-$(CONFIG_ADBMOUSE) += adbmouse.o
+obj-$(CONFIG_ADBMOUSE) += adbmouse.o busmouse.o
 obj-$(CONFIG_PC110_PAD) += pc110pad.o
 obj-$(CONFIG_WDT) += wdt.o
 obj-$(CONFIG_RTC) += rtc.o
 ifeq ($(CONFIG_PPC),)
   obj-$(CONFIG_NVRAM) += nvram.o
 endif
+obj-$(CONFIG_I810_RNG) += i810_rng.o
 
 obj-$(CONFIG_VIDEO_DEV) += videodev.o
 

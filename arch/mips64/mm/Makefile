@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.3 1999/12/04 03:59:00 ralf Exp $
+# $Id: Makefile,v 1.4 2000/01/17 23:32:46 ralf Exp $
 #
 # Makefile for the Linux/MIPS-specific parts of the memory manager.
 #
@@ -17,9 +17,6 @@ O_OBJS	+= r4xx0.o
 endif
 ifdef CONFIG_CPU_NEVADA
 O_OBJS	+= r4xx0.o
-endif
-ifdef CONFIG_CPU_R8000
-O_OBJS	+= tfp.o
 endif
 ifdef CONFIG_CPU_R10000
 O_OBJS	+= andes.o

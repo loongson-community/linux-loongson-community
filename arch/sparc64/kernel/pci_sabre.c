@@ -1,4 +1,4 @@
-/* $Id: pci_sabre.c,v 1.12 2000/02/08 05:11:33 jj Exp $
+/* $Id: pci_sabre.c,v 1.14 2000/02/18 13:48:55 davem Exp $
  * pci_sabre.c: Sabre specific PCI controller support.
  *
  * Copyright (C) 1997, 1998, 1999 David S. Miller (davem@caipfs.rutgers.edu)
@@ -1105,7 +1105,8 @@ static void __init sabre_scan_bus(struct pci_controller_info *p)
 }
 
 static void __init sabre_iommu_init(struct pci_controller_info *p,
-				    int tsbsize, unsigned long dvma_offset)
+				    int tsbsize, unsigned long dvma_offset,
+				    u32 dma_mask)
 {
 	unsigned long tsbbase, i, order;
 	u64 control;
@@ -1133,16 +1134,14 @@ static void __init sabre_iommu_init(struct pci_controller_info *p,
 	control &= ~(SABRE_IOMMUCTRL_DENAB);
 	sabre_write(p->controller_regs + SABRE_IOMMU_CONTROL, control);
 
-	for(order = 0;; order++)
-		if((PAGE_SIZE << order) >= ((tsbsize * 1024) * 8))
-			break;
-	tsbbase = __get_free_pages(GFP_KERNEL, order);
+	tsbbase = __get_free_pages(GFP_KERNEL, order = get_order(tsbsize * 1024 * 8));
 	if (!tsbbase) {
 		prom_printf("SABRE_IOMMU: Error, gfp(tsb) failed.\n");
 		prom_halt();
 	}
 	p->iommu.page_table = (iopte_t *)tsbbase;
 	p->iommu.page_table_map_base = dvma_offset;
+	p->iommu.dma_addr_mask = dma_mask;
 	memset((char *)tsbbase, 0, PAGE_SIZE << order);
 
 	/* Make sure DMA address 0 is never returned just to allow catching
@@ -1315,7 +1314,7 @@ void __init sabre_init(int pnode)
 	int tsbsize, err;
 	u32 busrange[2];
 	u32 vdma[2];
-	u32 upa_portid;
+	u32 upa_portid, dma_mask;
 	int bus;
 
 	p = kmalloc(sizeof(*p), GFP_ATOMIC);
@@ -1375,12 +1374,19 @@ void __init sabre_init(int pnode)
 		prom_halt();
 	}
 
+	dma_mask = vdma[0];
 	switch(vdma[1]) {
 		case 0x20000000:
+			dma_mask |= 0x1fffffff;
 			tsbsize = 64;
 			break;
 		case 0x40000000:
+			dma_mask |= 0x3fffffff;
+			tsbsize = 128;
+			break;
+
 		case 0x80000000:
+			dma_mask |= 0x7fffffff;
 			tsbsize = 128;
 			break;
 		default:
@@ -1388,7 +1394,7 @@ void __init sabre_init(int pnode)
 			prom_halt();
 	}
 
-	sabre_iommu_init(p, tsbsize, vdma[0]);
+	sabre_iommu_init(p, tsbsize, vdma[0], dma_mask);
 
 	printk("SABRE: DVMA at %08x [%08x]\n", vdma[0], vdma[1]);
 

@@ -1,4 +1,4 @@
-/* $Id: floppy-jazz.c,v 1.1 1998/05/07 18:38:29 ralf Exp $
+/* $Id: floppy-jazz.c,v 1.2 1998/10/18 13:18:25 tsbogend Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -94,26 +94,11 @@ static unsigned long jazz_fd_getfdaddr1(void)
 	return JAZZ_FDC_BASE;
 }
 
-/* Pure 2^n version of get_order */
-extern inline int __get_order(unsigned long size)
-{
-	int order;
-
-	size = (size-1) >> (PAGE_SHIFT-1);
-	order = -1;
-	do {
-		size >>= 1;
-		order++;
-	} while (size);
-	return order;
-}
-
 static unsigned long jazz_fd_dma_mem_alloc(unsigned long size)
 {
-	int order = __get_order(size);
 	unsigned long mem;
 
-	mem = __get_dma_pages(GFP_KERNEL, order);
+	mem = __get_dma_pages(GFP_KERNEL, get_order(size));
 	if(!mem)
 		return 0;
 	vdma_alloc(PHYSADDR(mem), size);	/* XXX error checking */
@@ -125,7 +110,7 @@ static void jazz_fd_dma_mem_free(unsigned long addr,
                                         unsigned long size)
 {       
 	vdma_free(vdma_phys2log(PHYSADDR(addr)));
-	free_pages(addr, __get_order(size));	
+	free_pages(addr, get_order(size));	
 }
 
 static unsigned long jazz_fd_drive_type(unsigned long n)

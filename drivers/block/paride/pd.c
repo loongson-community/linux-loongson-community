@@ -156,6 +156,7 @@ static int pd_drive_count;
 #include <linux/module.h>
 #include <linux/errno.h>
 #include <linux/fs.h>
+#include <linux/devfs_fs_kernel.h>
 #include <linux/kernel.h>
 #include <linux/delay.h>
 #include <linux/genhd.h>
@@ -339,6 +340,8 @@ static char *pd_errs[17] = { "ERR","INDEX","ECC","DRQ","SEEK","WRERR",
 
 /* kernel glue structures */
 
+extern struct block_device_operations pd_fops;
+
 static struct gendisk pd_gendisk = {
         PD_MAJOR,       /* Major number */
         PD_NAME,        /* Major name */
@@ -348,7 +351,8 @@ static struct gendisk pd_gendisk = {
         pd_sizes,       /* block sizes */
         0,              /* number */
         NULL,           /* internal */
-        NULL            /* next */
+        NULL,           /* next */
+	&pd_fops,       /* block device operations */
 };
 
 static struct block_device_operations pd_fops = {
@@ -386,8 +390,7 @@ int pd_init (void)
 {       int i;
 
 	if (disable) return -1;
-
-        if (register_blkdev(MAJOR_NR,name,&pd_fops)) {
+        if (devfs_register_blkdev(MAJOR_NR,name,&pd_fops)) {
                 printk("%s: unable to get major number %d\n",
                         name,major);
                 return -1;
@@ -592,8 +595,7 @@ void    cleanup_module(void)
 {       struct gendisk **gdp;
 	int unit;
 
-        unregister_blkdev(MAJOR_NR,name);
-
+        devfs_unregister_blkdev(MAJOR_NR,name);
         for(gdp=&gendisk_head;*gdp;gdp=&((*gdp)->next))
                 if (*gdp == &pd_gendisk) break;
         if (*gdp) *gdp = (*gdp)->next;
@@ -868,7 +870,7 @@ static void do_pd_request (request_queue_t * q)
 
         if (pd_busy) return;
 repeat:
-        if ((!CURRENT) || (CURRENT->rq_status == RQ_INACTIVE)) return;
+        if (QUEUE_EMPTY || (CURRENT->rq_status == RQ_INACTIVE)) return;
         INIT_REQUEST;
 
         pd_dev = MINOR(CURRENT->rq_dev);
@@ -890,7 +892,7 @@ repeat:
 	pd_cmd = CURRENT->cmd;
 	pd_run = pd_count;
         while ((pd_run <= cluster) &&
-	       (req = req->next) && 
+	       (req = blkdev_next_request(req)) && 
 	       (pd_block+pd_run == req->sector) &&
 	       (pd_cmd == req->cmd) &&
 	       (pd_dev == MINOR(req->rq_dev)))
@@ -922,7 +924,7 @@ static void pd_next_buf( int unit )
 	
 /* paranoia */
 
-	if ((!CURRENT) ||
+	if (QUEUE_EMPTY ||
 	    (CURRENT->cmd != pd_cmd) ||
 	    (MINOR(CURRENT->rq_dev) != pd_dev) ||
 	    (CURRENT->rq_status == RQ_INACTIVE) ||

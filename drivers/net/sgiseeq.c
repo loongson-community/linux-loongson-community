@@ -1,4 +1,4 @@
-/* $Id: sgiseeq.c,v 1.13 1999/12/04 03:59:03 ralf Exp $
+/* $Id: sgiseeq.c,v 1.14 2000/02/23 00:41:14 ralf Exp $
  *
  * sgiseeq.c: Seeq8003 ethernet driver for SGI machines.
  *
@@ -428,8 +428,7 @@ static void sgiseeq_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	if (sp->tx_old != sp->tx_new)
 		sgiseeq_tx(dev, sp, hregs, sregs);
 
-	if ((TX_BUFFS_AVAIL(sp) > 0) && \
-	    test_bit(LINK_STATE_XOFF, &dev->state)) {
+	if ((TX_BUFFS_AVAIL(sp) > 0) && netif_queue_stopped(dev)) {
 		netif_wake_queue(dev);
 	}
 }

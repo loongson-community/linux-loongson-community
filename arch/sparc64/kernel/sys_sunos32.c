@@ -1,4 +1,4 @@
-/* $Id: sys_sunos32.c,v 1.38 2000/01/29 07:40:13 davem Exp $
+/* $Id: sys_sunos32.c,v 1.39 2000/02/16 07:31:37 davem Exp $
  * sys_sunos32.c: SunOS binary compatability layer on sparc64.
  *
  * Copyright (C) 1995, 1996, 1997 David S. Miller (davem@caip.rutgers.edu)
@@ -71,8 +71,10 @@ asmlinkage u32 sunos_mmap(u32 addr, u32 len, u32 prot, u32 flags, u32 fd, u32 of
 	lock_kernel();
 	current->personality |= PER_BSD;
 	if(flags & MAP_NORESERVE) {
-		printk("%s:  unimplemented SunOS MAP_NORESERVE mmap() flag\n",
-		       current->comm);
+		static int cnt;
+		if (cnt++ < 10)
+			printk("%s:  unimplemented SunOS MAP_NORESERVE mmap() flag\n",
+			       current->comm);
 		flags &= ~MAP_NORESERVE;
 	}
 	retval = -EBADF;
@@ -93,15 +95,11 @@ asmlinkage u32 sunos_mmap(u32 addr, u32 len, u32 prot, u32 flags, u32 fd, u32 of
 		}
 	}
 
-	retval = -ENOMEM;
-	if(!(flags & MAP_FIXED) && !addr) {
-		unsigned long attempt = get_unmapped_area(addr, len);
-		if(!attempt || (attempt >= 0xf0000000UL))
-			goto out_putf;
-		addr = (u32) attempt;
-	}
+	retval = -EINVAL;
 	if(!(flags & MAP_FIXED))
 		addr = 0;
+	else if (len > 0xf0000000 || addr > 0xf0000000 - len)
+		goto out_putf;
 	ret_type = flags & _MAP_NEW;
 	flags &= ~_MAP_NEW;
 

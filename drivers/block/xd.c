@@ -41,6 +41,7 @@
 #include <linux/hdreg.h>
 #include <linux/ioport.h>
 #include <linux/init.h>
+#include <linux/devfs_fs_kernel.h>
 
 #include <asm/system.h>
 #include <asm/io.h>
@@ -87,21 +88,8 @@ XD_INFO xd_info[XD_MAXDRIVES];
    should be able to detect your drive's geometry from this info. (eg: xd=0,5,0x320,3 is the "standard"). */
 
 #include <asm/page.h>
-/* coppied from floppy.c */
-static inline int __get_order(unsigned long size)
-{
-	int order;
-
-	size = (size-1) >> (PAGE_SHIFT-1);
-	order = -1;
-	do {
-		size >>= 1;
-		order++;
-	} while (size);
-	return order;
-}
-#define xd_dma_mem_alloc(size) __get_dma_pages(GFP_KERNEL,__get_order(size))
-#define xd_dma_mem_free(addr, size) free_pages(addr, __get_order(size))
+#define xd_dma_mem_alloc(size) __get_dma_pages(GFP_KERNEL,get_order(size))
+#define xd_dma_mem_free(addr, size) free_pages(addr, get_order(size))
 static char *xd_dma_buffer = 0;
 
 static XD_SIGNATURE xd_sigs[] __initdata = {
@@ -130,6 +118,9 @@ static unsigned int xd_bases[] __initdata =
 static struct hd_struct xd_struct[XD_MAXDRIVES << 6];
 static int xd_sizes[XD_MAXDRIVES << 6], xd_access[XD_MAXDRIVES] = { 0, 0 };
 static int xd_blocksizes[XD_MAXDRIVES << 6];
+
+extern struct block_device_operations xd_fops;
+
 static struct gendisk xd_gendisk = {
 	MAJOR_NR,	/* Major number */
 	"xd",		/* Major name */
@@ -139,7 +130,8 @@ static struct gendisk xd_gendisk = {
 	xd_sizes,	/* block sizes */
 	0,		/* number */
 	(void *) xd_info,	/* internal */
-	NULL		/* next */
+	NULL,		/* next */
+	&xd_fops,	/* file operations */
 };
 static struct block_device_operations xd_fops = {
 	open:		xd_open,
@@ -164,13 +156,16 @@ static struct timer_list xd_timer = { NULL, NULL, 0, 0, (timeout_fn) xd_wakeup }
 static volatile u_char xd_error;
 static int nodma = XD_DONT_USE_DMA;
 
+static devfs_handle_t devfs_handle = NULL;
+
 /* xd_init: register the block device number and set up pointer tables */
 int __init xd_init (void)
 {
-	if (register_blkdev(MAJOR_NR,"xd",&xd_fops)) {
+	if (devfs_register_blkdev(MAJOR_NR,"xd",&xd_fops)) {
 		printk("xd: Unable to get major number %d\n",MAJOR_NR);
 		return -1;
 	}
+	devfs_handle = devfs_mk_dir (NULL, xd_gendisk.major_name, 0, NULL);
 	blk_init_queue(BLK_DEFAULT_QUEUE(MAJOR_NR), DEVICE_REQUEST);
 	read_ahead[MAJOR_NR] = 8;	/* 8 sector (4kB) read ahead */
 	xd_gendisk.next = gendisk_head;
@@ -287,7 +282,7 @@ static void do_xd_request (request_queue_t * q)
 	sti();
 	if (xdc_busy)
 		return;
-	while (code = 0, CURRENT) {
+	while (code = 0, !QUEUE_EMPTY) {
 		INIT_REQUEST;	/* do some checking on the request structure */
 
 		if (CURRENT_DEV < xd_drives
@@ -1162,7 +1157,7 @@ int init_module(void)
 	printk(KERN_INFO "XD: Loaded as a module.\n");
 	if (!xd_drives) {
 		/* no drives detected - unload module */
-		unregister_blkdev(MAJOR_NR, "xd");
+		devfs_unregister_blkdev(MAJOR_NR, "xd");
 		xd_done();
 		return (-1);
 	}
@@ -1174,7 +1169,7 @@ void cleanup_module(void)
 {
 	int partition,dev,start;
 
-	unregister_blkdev(MAJOR_NR, "xd");
+	devfs_unregister_blkdev(MAJOR_NR, "xd");
 	for (dev = 0; dev < xd_drives; dev++) {
 		start = dev << xd_gendisk.minor_shift; 
 		for (partition = xd_gendisk.max_p - 1; partition >= 0; partition--) {
@@ -1186,6 +1181,7 @@ void cleanup_module(void)
 		}
 	}
 	xd_done();
+	devfs_unregister (devfs_handle);
 	if (xd_drives) {
 		free_irq(xd_irq, NULL);
 		free_dma(xd_dma);

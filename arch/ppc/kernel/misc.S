@@ -229,7 +229,7 @@ _GLOBAL(flush_dcache_range)
        blr
 
 /*
- * Flush a particular page from the DATA cache
+ * Flush a particular page from the data cache to RAM.
  * Note: this is necessary because the instruction cache does *not*
  * snoop from the data cache.
  * This is a no-op on the 601 which has a unified cache.
@@ -241,18 +241,31 @@ _GLOBAL(__flush_page_to_ram)
 	rlwinm	r5,r5,16,16,31
 	cmpi	0,r5,1
 	beqlr				/* for 601, do nothing */
-	li	r4,0x0FFF
-	andc	r3,r3,r4		/* Get page base address */
 	li	r4,4096/CACHE_LINE_SIZE	/* Number of lines in a page */
 	mtctr	r4
-	mr	r6,r3
 0:	dcbst	0,r3			/* Write line to ram */
 	addi	r3,r3,CACHE_LINE_SIZE
 	bdnz	0b
 	sync
+	blr
+
+/*
+ * Flush a particular page from the instruction cache.
+ * Note: this is necessary because the instruction cache does *not*
+ * snoop from the data cache.
+ * This is a no-op on the 601 which has a unified cache.
+ *
+ *	void __flush_icache_page(void *page)
+ */
+_GLOBAL(__flush_icache_page)
+	mfspr	r5,PVR
+	rlwinm	r5,r5,16,16,31
+	cmpi	0,r5,1
+	beqlr				/* for 601, do nothing */
+	li	r4,4096/CACHE_LINE_SIZE	/* Number of lines in a page */
 	mtctr	r4
-1:	icbi	0,r6
-	addi	r6,r6,CACHE_LINE_SIZE
+1:	icbi	0,r3
+	addi	r3,r3,CACHE_LINE_SIZE
 	bdnz	1b
 	sync
 	isync
@@ -268,6 +281,38 @@ _GLOBAL(clear_page)
 	mtctr	r0
 1:	dcbz	0,r3
 	addi	r3,r3,CACHE_LINE_SIZE
+	bdnz	1b
+	blr
+
+/*
+ * Copy a whole page.  We use the dcbz instruction on the destination
+ * to reduce memory traffic (it eliminates the unnecessary reads of
+ * the destination into cache).  This requires that the destination
+ * is cacheable.
+ */
+_GLOBAL(copy_page)
+	li	r0,4096/CACHE_LINE_SIZE
+	mtctr	r0
+	addi	r3,r3,-4
+	addi	r4,r4,-4
+	li	r5,4
+1:	dcbz	r5,r3
+	lwz	r6,4(r4)
+	lwz	r7,8(r4)
+	lwz	r8,12(r4)
+	lwzu	r9,16(r4)
+	stw	r6,4(r3)
+	stw	r7,8(r3)
+	stw	r8,12(r3)
+	stwu	r9,16(r3)
+	lwz	r6,4(r4)
+	lwz	r7,8(r4)
+	lwz	r8,12(r4)
+	lwzu	r9,16(r4)
+	stw	r6,4(r3)
+	stw	r7,8(r3)
+	stw	r8,12(r3)
+	stwu	r9,16(r3)
 	bdnz	1b
 	blr
 

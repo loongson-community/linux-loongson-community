@@ -1,4 +1,4 @@
-/* $Id: ioport.c,v 1.31 2000/02/06 22:55:32 zaitcev Exp $
+/* $Id: ioport.c,v 1.34 2000/02/18 13:48:48 davem Exp $
  * ioport.c:  Simple io mapping allocator.
  *
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
@@ -44,7 +44,6 @@
 #include <asm/pgtable.h>
 
 struct resource *_sparc_find_resource(struct resource *r, unsigned long);
-int _sparc_len2order(unsigned long len);
 
 static void *_sparc_ioremap(struct resource *res, u32 bus, u32 pa, int sz);
 static void *_sparc_alloc_io(unsigned int busno, unsigned long phys,
@@ -280,7 +279,7 @@ void *sbus_alloc_consistent(struct sbus_dev *sdev, long len, u32 *dma_addrp)
 		return NULL;
 	}
 
-	order = _sparc_len2order(len_total);
+	order = get_order(len_total);
 	va = __get_free_pages(GFP_KERNEL, order);
 	if (va == 0) {
 		/*
@@ -341,7 +340,7 @@ void sbus_free_consistent(struct sbus_dev *sdev, long n, void *p, u32 ba)
 	pgp = (unsigned long) phys_to_virt(mmu_translate_dvma(ba));
 	mmu_unmap_dma_area(ba, n);
 
-	free_pages(pgp, _sparc_len2order(n));
+	free_pages(pgp, get_order(n));
 }
 
 /*
@@ -349,7 +348,7 @@ void sbus_free_consistent(struct sbus_dev *sdev, long n, void *p, u32 ba)
  * CPU view of this memory may be inconsistent with
  * a device view and explicit flushing is necessary.
  */
-u32 sbus_map_single(struct sbus_dev *sdev, void *va, long len)
+u32 sbus_map_single(struct sbus_dev *sdev, void *va, long len, int direction)
 {
 #if 0 /* This is the version that abuses consistent space */
 	unsigned long len_total = (len + PAGE_SIZE-1) & PAGE_MASK;
@@ -396,7 +395,7 @@ u32 sbus_map_single(struct sbus_dev *sdev, void *va, long len)
 #endif
 }
 
-void sbus_unmap_single(struct sbus_dev *sdev, u32 ba, long n)
+void sbus_unmap_single(struct sbus_dev *sdev, u32 ba, long n, int direction)
 {
 #if 0 /* This is the version that abuses consistent space */
 	struct resource *res;
@@ -425,7 +424,7 @@ void sbus_unmap_single(struct sbus_dev *sdev, u32 ba, long n)
 #endif
 }
 
-int sbus_map_sg(struct sbus_dev *sdev, struct scatterlist *sg, int n)
+int sbus_map_sg(struct sbus_dev *sdev, struct scatterlist *sg, int n, int direction)
 {
 	mmu_get_scsi_sgl(sg, n, sdev->bus);
 
@@ -436,14 +435,14 @@ int sbus_map_sg(struct sbus_dev *sdev, struct scatterlist *sg, int n)
 	return n;
 }
 
-void sbus_unmap_sg(struct sbus_dev *sdev, struct scatterlist *sg, int n)
+void sbus_unmap_sg(struct sbus_dev *sdev, struct scatterlist *sg, int n, int direction)
 {
 	mmu_release_scsi_sgl(sg, n, sdev->bus);
 }
 
 /*
  */
-void sbus_dma_sync_single(struct sbus_dev *sdev, u32 ba, long size)
+void sbus_dma_sync_single(struct sbus_dev *sdev, u32 ba, long size, int direction)
 {
 	unsigned long va;
 	struct resource *res;
@@ -457,7 +456,7 @@ void sbus_dma_sync_single(struct sbus_dev *sdev, u32 ba, long size)
 	mmu_inval_dma_area(va, (size + PAGE_SIZE-1) & PAGE_MASK);
 }
 
-void sbus_dma_sync_sg(struct sbus_dev *sdev, struct scatterlist *sg, int n)
+void sbus_dma_sync_sg(struct sbus_dev *sdev, struct scatterlist *sg, int n, int direction)
 {
 	printk("sbus_dma_sync_sg: not implemented yet\n");
 }
@@ -482,7 +481,7 @@ void *pci_alloc_consistent(struct pci_dev *pdev, size_t len, dma_addr_t *pba)
 		return NULL;
 	}
 
-	order = _sparc_len2order(len_total);
+	order = get_order(len_total);
 	va = __get_free_pages(GFP_KERNEL, order);
 	if (va == 0) {
 		printk("pci_alloc_consistent: no %ld pages\n", len_total>>PAGE_SHIFT);
@@ -562,14 +561,14 @@ void pci_free_consistent(struct pci_dev *pdev, size_t n, void *p, dma_addr_t ba)
 	{
 		int x;
 		for (x = 0; x < n; x += PAGE_SIZE) {
-			(*_sparc_unmapioaddr)(p + n);
+			(*_sparc_unmapioaddr)((unsigned long)p + n);
 		}
 	}
 
 	release_resource(res);
 	kfree(res);
 
-	free_pages(pgp, _sparc_len2order(n));
+	free_pages(pgp, get_order(n));
 }
 
 /* Map a single buffer of the indicated size for DMA in streaming mode.
@@ -578,8 +577,10 @@ void pci_free_consistent(struct pci_dev *pdev, size_t n, void *p, dma_addr_t ba)
  * Once the device is given the dma address, the device owns this memory
  * until either pci_unmap_single or pci_dma_sync_single is performed.
  */
-dma_addr_t pci_map_single(struct pci_dev *hwdev, void *ptr, size_t size)
+dma_addr_t pci_map_single(struct pci_dev *hwdev, void *ptr, size_t size, int direction)
 {
+	if (direction == PCI_DMA_NONE)
+		BUG();
 	return virt_to_bus(ptr);
 }
 
@@ -590,8 +591,10 @@ dma_addr_t pci_map_single(struct pci_dev *hwdev, void *ptr, size_t size)
  * After this call, reads by the cpu to the buffer are guarenteed to see
  * whatever the device wrote there.
  */
-void pci_unmap_single(struct pci_dev *hwdev, dma_addr_t dma_addr, size_t size)
+void pci_unmap_single(struct pci_dev *hwdev, dma_addr_t dma_addr, size_t size, int direction)
 {
+	if (direction == PCI_DMA_NONE)
+		BUG();
 	/* Nothing to do... */
 }
 
@@ -610,9 +613,13 @@ void pci_unmap_single(struct pci_dev *hwdev, dma_addr_t dma_addr, size_t size)
  * Device ownership issues as mentioned above for pci_map_single are
  * the same here.
  */
-int pci_map_sg(struct pci_dev *hwdev, struct scatterlist *sg, int nents)
+int pci_map_sg(struct pci_dev *hwdev, struct scatterlist *sg, int nents, int direction)
 {
 	int n;
+
+	if (direction == PCI_DMA_NONE)
+		BUG();
+
 	for (n = 0; n < nents; n++) {
 		sg->dvma_address = virt_to_bus(sg->address);
 		sg->dvma_length = sg->length;
@@ -625,8 +632,10 @@ int pci_map_sg(struct pci_dev *hwdev, struct scatterlist *sg, int nents)
  * Again, cpu read rules concerning calls here are the same as for
  * pci_unmap_single() above.
  */
-void pci_unmap_sg(struct pci_dev *hwdev, struct scatterlist *sg, int nhwents)
+void pci_unmap_sg(struct pci_dev *hwdev, struct scatterlist *sg, int nhwents, int direction)
 {
+	if (direction == PCI_DMA_NONE)
+		BUG();
 	/* Nothing to do... */
 }
 
@@ -639,8 +648,10 @@ void pci_unmap_sg(struct pci_dev *hwdev, struct scatterlist *sg, int nhwents)
  * next point you give the PCI dma address back to the card, the
  * device again owns the buffer.
  */
-void pci_dma_sync_single(struct pci_dev *hwdev, dma_addr_t ba, size_t size)
+void pci_dma_sync_single(struct pci_dev *hwdev, dma_addr_t ba, size_t size, int direction)
 {
+	if (direction == PCI_DMA_NONE)
+		BUG();
 	mmu_inval_dma_area((unsigned long)bus_to_virt(ba),
 	    (size + PAGE_SIZE-1) & PAGE_MASK);
 }
@@ -651,8 +662,10 @@ void pci_dma_sync_single(struct pci_dev *hwdev, dma_addr_t ba, size_t size)
  * The same as pci_dma_sync_single but for a scatter-gather list,
  * same rules and usage.
  */
-void pci_dma_sync_sg(struct pci_dev *hwdev, struct scatterlist *sg, int nents)
+void pci_dma_sync_sg(struct pci_dev *hwdev, struct scatterlist *sg, int nents, int direction)
 {
+	if (direction == PCI_DMA_NONE)
+		BUG();
 	while (nents) {
 		--nents;
 		mmu_inval_dma_area((unsigned long)sg->address,
@@ -737,19 +750,6 @@ _sparc_find_resource(struct resource *root, unsigned long hit)
 			return tmp;
 	}
 	return NULL;
-}
-
-int
-_sparc_len2order(unsigned long len)
-{
-	int order;
-
-	for (order = 0; order < 7; order++)	/* 2^6 pages == 256K */
-		if ((1 << (order + PAGE_SHIFT)) >= len)
-			return order;
-	printk("len2order: from %p: len %lu(0x%lx) yields order >=7.\n",
-	    __builtin_return_address(0), len, len);
-	return 1;
 }
 
 /*

@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 3
-SUBLEVEL = 43
+SUBLEVEL = 47
 EXTRAVERSION =
 
 ARCH = mips
@@ -204,6 +204,10 @@ ifdef CONFIG_PPC
 DRIVERS := $(DRIVERS) drivers/macintosh/macintosh.a
 endif
 
+ifdef CONFIG_MAC
+DRIVERS := $(DRIVERS) drivers/macintosh/macintosh.a
+endif
+
 ifeq ($(CONFIG_ISAPNP),y)
 DRIVERS := $(DRIVERS) drivers/pnp/pnp.o
 endif
@@ -268,8 +272,8 @@ vmlinux: $(CONFIGURATION) init/main.o init/version.o linuxsubdirs
 	$(LD) $(LINKFLAGS) $(HEAD) init/main.o init/version.o \
 		--start-group \
 		$(CORE_FILES) \
-		$(NETWORKS) \
 		$(DRIVERS) \
+		$(NETWORKS) \
 		$(LIBS) \
 		--end-group \
 		-o vmlinux
@@ -401,11 +405,13 @@ modules_install:
 	if [ -f FC4_MODULES   ]; then inst_mod FC4_MODULES   fc4;   fi; \
 	if [ -f IRDA_MODULES  ]; then inst_mod IRDA_MODULES  net;   fi; \
 	if [ -f SK98LIN_MODULES ]; then inst_mod SK98LIN_MODULES  net;   fi; \
+	if [ -f SKFP_MODULES ]; then inst_mod SKFP_MODULES   net;   fi; \
 	if [ -f USB_MODULES   ]; then inst_mod USB_MODULES   usb;   fi; \
 	if [ -f IEEE1394_MODULES ]; then inst_mod IEEE1394_MODULES ieee1394; fi; \
 	if [ -f PCMCIA_MODULES ]; then inst_mod PCMCIA_MODULES pcmcia; fi; \
 	if [ -f PCMCIA_NET_MODULES ]; then inst_mod PCMCIA_NET_MODULES pcmcia; fi; \
 	if [ -f PCMCIA_CHAR_MODULES ]; then inst_mod PCMCIA_CHAR_MODULES pcmcia; fi; \
+	if [ -f PCMCIA_SCSI_MODULES ]; then inst_mod PCMCIA_SCSI_MODULES pcmcia; fi; \
 	\
 	ls -1 -U *.o | sort > $$MODLIB/.allmods; \
 	echo $$MODULES | tr ' ' '\n' | sort | comm -23 $$MODLIB/.allmods - > $$MODLIB/.misc; \

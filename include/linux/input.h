@@ -233,6 +233,12 @@ struct input_event {
 #define KEY_STOPCD		166		
 #define KEY_RECORD		167		
 #define KEY_REWIND		168		
+#define KEY_PHONE		169
+#define KEY_CONFIG		171
+#define KEY_HOMEPAGE		172
+#define KEY_REFRESH		173
+#define KEY_EXIT		174
+#define KEY_MOVE		175
 
 #define KEY_UNKNOWN		180
 

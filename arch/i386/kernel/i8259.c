@@ -311,7 +311,7 @@ spurious_8259A_irq:
 	}
 }
 
-void init_8259A(int auto_eoi)
+void __init init_8259A(int auto_eoi)
 {
 	unsigned long flags;
 
@@ -384,7 +384,7 @@ static struct irqaction irq2 = { no_action, 0, 0, "cascade", NULL, NULL};
 #endif
 
 
-void init_ISA_irqs (void)
+void __init init_ISA_irqs (void)
 {
 	int i;
 

@@ -36,7 +36,7 @@
 #include <linux/module.h>
 #include <linux/kbd_kern.h>
 
-#ifdef CONFIG_X86
+#if defined(CONFIG_X86) || defined(CONFIG_IA64)
 
 static unsigned char keybdev_x86_e0s[] = 
 	{ 0x1c, 0x1d, 0x35, 0x2a, 0x38, 0x39, 0x47, 0x48,
@@ -52,9 +52,9 @@ static unsigned char keybdev_mac_codes[256] =
 	  2,  3,  5,  4, 38, 40, 37, 41, 39, 50, 56, 42,  6,  7,  8,  9,
 	 11, 45, 46, 43, 47, 44,123, 67, 58, 49, 57,122,120, 99,118, 96,
 	 97, 98,100,101,109, 71,107, 89, 91, 92, 78, 86, 87, 88, 69, 83,
-	 84, 85, 82, 65, 42,105, 10,103,111,  0,  0,  0,  0,  0,  0,  0,
-	 76,125, 75,  0,124,  0,115, 62,116, 59, 60,119, 61,121,114,117,
-	  0,  0,  0,  0,127, 24,  0,113,  0,  0,  0,  0,  0, 55, 55,  0 };
+	 84, 85, 82, 65, 42,  0, 10,103,111,  0,  0,  0,  0,  0,  0,  0,
+	 76,125, 75,105,124,  0,115, 62,116, 59, 60,119, 61,121,114,117,
+	  0,  0,  0,  0,127, 81,  0,113,  0,  0,  0,  0,  0, 55, 55 };
 
 #endif
 
@@ -77,7 +77,7 @@ void keybdev_event(struct input_handle *handle, unsigned int type, unsigned int 
 {
 	if (type != EV_KEY || code > 255) return;
 
-#ifdef CONFIG_X86
+#if defined(CONFIG_X86) || defined(CONFIG_IA64)
 
 	if (code >= 189) {
   		printk(KERN_WARNING "keybdev.c: can't emulate keycode %d\n", code);
@@ -118,9 +118,16 @@ void keybdev_event(struct input_handle *handle, unsigned int type, unsigned int 
 static int keybdev_connect(struct input_handler *handler, struct input_dev *dev)
 {
 	struct input_handle *handle;
+	int i;
 
-	if (!test_bit(EV_KEY, dev->evbit) || !test_bit(KEY_A, dev->keybit) || !test_bit(KEY_Z, dev->keybit))
+	if (!test_bit(EV_KEY, dev->evbit))
 		return -1;
+
+	for (i = KEY_RESERVED; i < BTN_MISC; i++)
+		if (test_bit(i, dev->keybit)) break;
+
+	if (i == BTN_MISC)
+ 		return -1;
 
 	if (!(handle = kmalloc(sizeof(struct input_handle), GFP_KERNEL)))
 		return -1;

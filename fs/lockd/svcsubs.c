@@ -6,6 +6,7 @@
  * Copyright (C) 1996, Olaf Kirch <okir@monad.swb.de>
  */
 
+#include <linux/config.h>
 #include <linux/types.h>
 #include <linux/string.h>
 #include <linux/sched.h>
@@ -105,6 +106,11 @@ out_unlock:
 
 out_free:
 	kfree(file);
+#ifdef CONFIG_LOCKD_V4
+	if (nfserr == 1)
+		nfserr = nlm4_stale_fh;
+	else
+#endif
 	nfserr = nlm_lck_denied;
 	goto out_unlock;
 }

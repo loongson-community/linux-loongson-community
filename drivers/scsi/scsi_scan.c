@@ -455,6 +455,7 @@ static int scan_scsis_single(int channel, int dev, int lun, int *max_dev_lun,
 	       int *sparse_lun, Scsi_Device ** SDpnt2, 
 		      struct Scsi_Host *shpnt, char *scsi_result)
 {
+	char devname[64];
 	unsigned char scsi_cmd[MAX_COMMAND_SIZE];
 	struct Scsi_Device_Template *sdtpnt;
 	Scsi_Device *SDtail, *SDpnt = *SDpnt2;
@@ -462,6 +463,7 @@ static int scan_scsis_single(int channel, int dev, int lun, int *max_dev_lun,
 	int bflags, type = -1;
 	static int ghost_channel=-1, ghost_dev=-1;
 	int org_lun = lun;
+	extern devfs_handle_t scsi_devfs_handle;
 
 	SDpnt->host = shpnt;
 	SDpnt->id = dev;
@@ -500,6 +502,7 @@ static int scan_scsis_single(int channel, int dev, int lun, int *max_dev_lun,
 	SCpnt->target = SDpnt->id;
 	SCpnt->lun = SDpnt->lun;
 	SCpnt->channel = SDpnt->channel;
+	SCpnt->sc_data_direction = SCSI_DATA_NONE;
 
 	scsi_wait_cmd (SCpnt, (void *) scsi_cmd,
 	          (void *) NULL,
@@ -537,6 +540,7 @@ static int scan_scsis_single(int channel, int dev, int lun, int *max_dev_lun,
 	scsi_cmd[4] = 255;
 	scsi_cmd[5] = 0;
 	SCpnt->cmd_len = 0;
+	SCpnt->sc_data_direction = SCSI_DATA_READ;
 
 	scsi_wait_cmd (SCpnt, (void *) scsi_cmd,
 	          (void *) scsi_result,
@@ -637,6 +641,11 @@ static int scan_scsis_single(int channel, int dev, int lun, int *max_dev_lun,
 
 	print_inquiry(scsi_result);
 
+        sprintf (devname, "host%d/bus%d/target%d/lun%d",
+                 SDpnt->host->host_no, SDpnt->channel, SDpnt->id, SDpnt->lun);
+        if (SDpnt->de) printk ("DEBUG: dir: \"%s\" already exists\n", devname);
+        else SDpnt->de = devfs_mk_dir (scsi_devfs_handle, devname, 0, NULL);
+
 	for (sdtpnt = scsi_devicelist; sdtpnt;
 	     sdtpnt = sdtpnt->next)
 		if (sdtpnt->detect)
@@ -696,6 +705,7 @@ static int scan_scsis_single(int channel, int dev, int lun, int *max_dev_lun,
 		scsi_cmd[4] = 0x2a;
 		scsi_cmd[5] = 0;
 		SCpnt->cmd_len = 0;
+		SCpnt->sc_data_direction = SCSI_DATA_READ;
 		scsi_wait_cmd (SCpnt, (void *) scsi_cmd,
 	        	(void *) scsi_result, 0x2a,
 	        	SCSI_TIMEOUT, 3);

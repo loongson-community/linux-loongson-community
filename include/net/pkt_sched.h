@@ -7,8 +7,13 @@
 
 #define PSCHED_CLOCK_SOURCE	PSCHED_JIFFIES
 
+#include <linux/config.h>
 #include <linux/pkt_sched.h>
 #include <net/pkt_cls.h>
+
+#ifdef CONFIG_X86_TSC
+#include <asm/msr.h>
+#endif
 
 struct rtattr;
 struct Qdisc;
@@ -247,11 +252,11 @@ extern int psched_clock_scale;
 
 #define PSCHED_US2JIFFIE(delay) (((delay)+psched_clock_per_hz-1)/psched_clock_per_hz)
 
-#if CPU == 586 || CPU == 686
+#ifdef CONFIG_X86_TSC
 
 #define PSCHED_GET_TIME(stamp) \
 ({ u64 __cur; \
-   __asm__ __volatile__ (".byte 0x0f,0x31" :"=A" (__cur)); \
+   rdtscll(__cur); \
    (stamp) = __cur>>psched_clock_scale; \
 })
 
@@ -430,7 +435,7 @@ extern int qdisc_restart(struct net_device *dev);
 
 extern __inline__ void qdisc_run(struct net_device *dev)
 {
-	while (!test_bit(LINK_STATE_XOFF, &dev->state) &&
+	while (!netif_queue_stopped(dev) &&
 	       qdisc_restart(dev)<0)
 		/* NOTHING */;
 }

@@ -17,6 +17,8 @@
  *
  *       Modified by Jirka Hanika geo@ff.cuni.cz to support more
  *       scsi disks using eight major numbers.
+ *
+ *       Modified by Richard Gooch rgooch@atnf.csiro.au to support devfs.
  */
 
 #include <linux/config.h>
@@ -307,9 +309,11 @@ static int sd_init_command(Scsi_Cmnd * SCpnt)
 			return 0;
 		}
 		SCpnt->cmnd[0] = WRITE_6;
+		SCpnt->sc_data_direction = SCSI_DATA_WRITE;
 		break;
 	case READ:
 		SCpnt->cmnd[0] = READ_6;
+		SCpnt->sc_data_direction = SCSI_DATA_READ;
 		break;
 	default:
 		panic("Unknown sd command %d\n", SCpnt->request.cmd);
@@ -489,7 +493,8 @@ static struct gendisk sd_gendisk =
 	NULL,			/* block sizes */
 	0,			/* number */
 	NULL,			/* internal */
-	NULL			/* next */
+	NULL,			/* next */
+        &sd_fops,		/* file operations */
 };
 
 static struct gendisk *sd_gendisks = &sd_gendisk;
@@ -692,6 +697,7 @@ static int sd_init_onedisk(int i)
 			SCpnt->cmd_len = 0;
 			SCpnt->sense_buffer[0] = 0;
 			SCpnt->sense_buffer[2] = 0;
+			SCpnt->sc_data_direction = SCSI_DATA_READ;
 
 			scsi_wait_cmd (SCpnt, (void *) cmd, (void *) buffer,
 				0/*512*/, SD_TIMEOUT, MAX_RETRIES);
@@ -701,6 +707,22 @@ static int sd_init_onedisk(int i)
 			if (the_result == 0
 			    || SCpnt->sense_buffer[2] != UNIT_ATTENTION)
 				break;
+		}
+
+		/*
+		 * If the drive has indicated to us that it doesn't have
+		 * any media in it, don't bother with any of the rest of
+		 * this crap.
+		 */
+		if( the_result != 0
+		    && ((driver_byte(the_result) & DRIVER_SENSE) != 0)
+		    && SCpnt->sense_buffer[2] == UNIT_ATTENTION
+		    && SCpnt->sense_buffer[12] == 0x3A ) {
+			rscsi_disks[i].capacity = 0x1fffff;
+			sector_size = 512;
+			rscsi_disks[i].device->changed = 1;
+			rscsi_disks[i].ready = 0;
+			break;
 		}
 
 		/* Look for non-removable devices that return NOT_READY.
@@ -719,8 +741,9 @@ static int sd_init_onedisk(int i)
 				SCpnt->sense_buffer[0] = 0;
 				SCpnt->sense_buffer[2] = 0;
 
+				SCpnt->sc_data_direction = SCSI_DATA_READ;
 				scsi_wait_cmd(SCpnt, (void *) cmd, (void *) buffer,
-					    512, SD_TIMEOUT, MAX_RETRIES);
+					    0/*512*/, SD_TIMEOUT, MAX_RETRIES);
 			}
 			spintime = 1;
 			spintime_value = jiffies;
@@ -749,6 +772,7 @@ static int sd_init_onedisk(int i)
 		SCpnt->sense_buffer[0] = 0;
 		SCpnt->sense_buffer[2] = 0;
 
+		SCpnt->sc_data_direction = SCSI_DATA_READ;
 		scsi_wait_cmd(SCpnt, (void *) cmd, (void *) buffer,
 			    8, SD_TIMEOUT, MAX_RETRIES);
 
@@ -900,6 +924,7 @@ static int sd_init_onedisk(int i)
 		SCpnt->sense_buffer[2] = 0;
 
 		/* same code as READCAPA !! */
+		SCpnt->sc_data_direction = SCSI_DATA_READ;
 		scsi_wait_cmd(SCpnt, (void *) cmd, (void *) buffer,
 			    512, SD_TIMEOUT, MAX_RETRIES);
 
@@ -948,7 +973,7 @@ static int sd_init()
 
 	if (!sd_registered) {
 		for (i = 0; i <= (sd_template.dev_max - 1) / SCSI_DISKS_PER_MAJOR; i++) {
-			if (register_blkdev(SD_MAJOR(i), "sd", &sd_fops)) {
+			if (devfs_register_blkdev(SD_MAJOR(i), "sd", &sd_fops)) {
 				printk("Unable to get major %d for SCSI disk\n", SD_MAJOR(i));
 				return 1;
 			}
@@ -988,6 +1013,15 @@ static int sd_init()
 		sd_gendisks = (struct gendisk *)
 		    kmalloc(N_USED_SD_MAJORS * sizeof(struct gendisk), GFP_ATOMIC);
 	for (i = 0; i < N_USED_SD_MAJORS; i++) {
+		sd_gendisks[i] = sd_gendisk;
+		sd_gendisks[i].de_arr = kmalloc (SCSI_DISKS_PER_MAJOR * sizeof *sd_gendisks[i].de_arr,
+                                                 GFP_ATOMIC);
+                memset (sd_gendisks[i].de_arr, 0,
+                        SCSI_DISKS_PER_MAJOR * sizeof *sd_gendisks[i].de_arr);
+		sd_gendisks[i].flags = kmalloc (SCSI_DISKS_PER_MAJOR * sizeof *sd_gendisks[i].flags,
+                                                GFP_ATOMIC);
+                memset (sd_gendisks[i].flags, 0,
+                        SCSI_DISKS_PER_MAJOR * sizeof *sd_gendisks[i].flags);
 		sd_gendisks[i].major = SD_MAJOR(i);
 		sd_gendisks[i].major_name = "sd";
 		sd_gendisks[i].minor_shift = 4;
@@ -1061,8 +1095,10 @@ static int sd_detect(Scsi_Device * SDp)
 
 	return 1;
 }
+
 static int sd_attach(Scsi_Device * SDp)
 {
+        unsigned int devnum;
 	Scsi_Disk *dpnt;
 	int i;
 
@@ -1084,6 +1120,10 @@ static int sd_attach(Scsi_Device * SDp)
 	rscsi_disks[i].has_part_table = 0;
 	sd_template.nr_dev++;
 	SD_GENDISK(i).nr_real++;
+        devnum = i % SCSI_DISKS_PER_MAJOR;
+        SD_GENDISK(i).de_arr[devnum] = SDp->de;
+        if (SDp->removable)
+		SD_GENDISK(i).flags[devnum] |= GENHD_FL_REMOVABLE;
 	return 0;
 }
 
@@ -1182,6 +1222,8 @@ static void sd_detach(Scsi_Device * SDp)
 				sd_gendisks->part[index].nr_sects = 0;
 				sd_sizes[index] = 0;
 			}
+                        devfs_register_partitions (&SD_GENDISK (i),
+                                                   SD_MINOR_NUMBER (start), 1);
 			/* unregister_disk() */
 			dpnt->has_part_table = 0;
 			dpnt->device = NULL;
@@ -1212,7 +1254,7 @@ void cleanup_module(void)
 	scsi_unregister_module(MODULE_SCSI_DEV, &sd_template);
 
 	for (i = 0; i <= (sd_template.dev_max - 1) / SCSI_DISKS_PER_MAJOR; i++)
-		unregister_blkdev(SD_MAJOR(i), "sd");
+		devfs_unregister_blkdev(SD_MAJOR(i), "sd");
 
 	sd_registered--;
 	if (rscsi_disks != NULL) {

@@ -125,6 +125,7 @@ enum {
 
 extern const char *if_port_text[];
 
+#include <linux/cache.h>
 #include <linux/skbuff.h>
 
 struct neighbour;
@@ -173,14 +174,17 @@ struct hh_cache
 	unsigned long	hh_data[16/sizeof(unsigned long)];
 };
 
+/* These flag bits are private to the generic network queueing
+ * layer, they may not be explicitly referenced by any other
+ * code.
+ */
+
 enum netdev_state_t
 {
-	LINK_STATE_XOFF=0,
-	LINK_STATE_DOWN,
-	LINK_STATE_START,
-	LINK_STATE_RXSEM,
-	LINK_STATE_TXSEM,
-	LINK_STATE_SCHED
+	__LINK_STATE_XOFF=0,
+	__LINK_STATE_START,
+	__LINK_STATE_PRESENT,
+	__LINK_STATE_SCHED
 };
 
 
@@ -312,9 +316,6 @@ struct net_device
 	/* Called after last user reference disappears. */
 	void			(*destructor)(struct net_device *dev);
 
-	/* Bridge stuff */
-	int			bridge_port_id;		
-	
 	/* Pointers to interface service routines.	*/
 	int			(*open)(struct net_device *dev);
 	int			(*stop)(struct net_device *dev);
@@ -354,6 +355,9 @@ struct net_device
 						     unsigned char *haddr);
 	int			(*neigh_setup)(struct net_device *dev, struct neigh_parms *);
 	int			(*accept_fastpath)(struct net_device *, struct dst_entry*);
+
+	/* bridge stuff */
+	struct net_bridge_port	*br_port;
 
 #ifdef CONFIG_NET_FASTROUTE
 #define NETDEV_FASTROUTE_HMASK 0xF
@@ -426,11 +430,11 @@ struct softnet_data
 
 extern struct softnet_data softnet_data[NR_CPUS];
 
-#define HAS_NETIF_QUEUE
+#define HAVE_NETIF_QUEUE
 
 extern __inline__ void __netif_schedule(struct net_device *dev)
 {
-	if (!test_and_set_bit(LINK_STATE_SCHED, &dev->state)) {
+	if (!test_and_set_bit(__LINK_STATE_SCHED, &dev->state)) {
 		unsigned long flags;
 		int cpu = smp_processor_id();
 
@@ -444,26 +448,59 @@ extern __inline__ void __netif_schedule(struct net_device *dev)
 
 extern __inline__ void netif_schedule(struct net_device *dev)
 {
-	if (!test_bit(LINK_STATE_XOFF, &dev->state))
+	if (!test_bit(__LINK_STATE_XOFF, &dev->state))
 		__netif_schedule(dev);
 }
 
 extern __inline__ void netif_start_queue(struct net_device *dev)
 {
-	clear_bit(LINK_STATE_XOFF, &dev->state);
+	clear_bit(__LINK_STATE_XOFF, &dev->state);
 }
 
 extern __inline__ void netif_wake_queue(struct net_device *dev)
 {
-	if (test_and_clear_bit(LINK_STATE_XOFF, &dev->state))
+	if (test_and_clear_bit(__LINK_STATE_XOFF, &dev->state))
 		__netif_schedule(dev);
 }
 
 extern __inline__ void netif_stop_queue(struct net_device *dev)
 {
-	set_bit(LINK_STATE_XOFF, &dev->state);
+	set_bit(__LINK_STATE_XOFF, &dev->state);
 }
 
+extern __inline__ int netif_queue_stopped(struct net_device *dev)
+{
+	return test_bit(__LINK_STATE_XOFF, &dev->state);
+}
+
+extern __inline__ int netif_running(struct net_device *dev)
+{
+	return test_bit(__LINK_STATE_START, &dev->state);
+}
+
+/* Hot-plugging. */
+extern __inline__ int netif_device_present(struct net_device *dev)
+{
+	return test_bit(__LINK_STATE_PRESENT, &dev->state);
+}
+
+extern __inline__ void netif_device_detach(struct net_device *dev)
+{
+	if (test_and_clear_bit(__LINK_STATE_PRESENT, &dev->state) &&
+	    netif_running(dev))
+		netif_stop_queue(dev);
+}
+
+extern __inline__ void netif_device_attach(struct net_device *dev)
+{
+	if (test_and_set_bit(__LINK_STATE_PRESENT, &dev->state) &&
+	    netif_running(dev))
+		netif_wake_queue(dev);
+}
+
+/* Use this variant when it is known for sure that it
+ * is executing from interrupt context.
+ */
 extern __inline__ void dev_kfree_skb_irq(struct sk_buff *skb)
 {
 	if (atomic_dec_and_test(&skb->users)) {
@@ -478,7 +515,18 @@ extern __inline__ void dev_kfree_skb_irq(struct sk_buff *skb)
 	}
 }
 
+/* Use this variant in places where it could be invoked
+ * either from interrupt or non-interrupt context.
+ */
+extern __inline__ void dev_kfree_skb_any(struct sk_buff *skb)
+{
+	if (in_irq())
+		dev_kfree_skb_irq(skb);
+	else
+		dev_kfree_skb(skb);
+}
 
+extern void		net_call_rx_atomic(void (*fn)(void));
 #define HAVE_NETIF_RX 1
 extern void		netif_rx(struct sk_buff *skb);
 extern int		dev_ioctl(unsigned int cmd, void *);

@@ -69,6 +69,8 @@ extern inline void flush_tlb_pgtables(struct mm_struct *mm,
 extern void flush_icache_range(unsigned long, unsigned long);
 extern void __flush_page_to_ram(unsigned long page_va);
 #define flush_page_to_ram(page)	__flush_page_to_ram(page_address(page))
+extern void __flush_icache_page(unsigned long page_va);
+#define flush_icache_page(vma, page) __flush_icache_page(page_address(page))
 
 extern unsigned long va_to_phys(unsigned long address);
 extern pte_t *va_to_pte(struct task_struct *tsk, unsigned long address);
@@ -413,7 +415,8 @@ extern inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
 #define pgd_offset_k(address) pgd_offset(&init_mm, address)
 
 /* to find an entry in a page-table-directory */
-#define pgd_offset(mm, address)	 ((mm)->pgd + ((address) >> PGDIR_SHIFT))
+#define pgd_index(address)	 ((address) >> PGDIR_SHIFT)
+#define pgd_offset(mm, address)	 ((mm)->pgd + pgd_index(address))
 
 /* Find an entry in the second-level page table.. */
 extern inline pmd_t * pmd_offset(pgd_t * dir, unsigned long address)

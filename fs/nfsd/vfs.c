@@ -73,8 +73,6 @@ struct raparms {
 				p_rawin;
 };
 
-int nfsd_nservers = 0;
-#define FILECACHE_MAX		(2 * nfsd_nservers) 
 static struct raparms *		raparml = NULL;
 static struct raparms *		raparm_cache = NULL;
 
@@ -272,10 +270,7 @@ printk("nfsd_setattr: size change??\n");
 		if (err)
 			goto out_nfserr;
 
-		err = locks_verify_area(FLOCK_VERIFY_WRITE, inode, NULL,
-				  iap->ia_size<inode->i_size ? iap->ia_size : inode->i_size,
-				  abs(inode->i_size - iap->ia_size));
-
+		err = locks_verify_truncate(inode, NULL, iap->ia_size);
 		if (err)
 			goto out_nfserr;
 		DQUOT_INIT(inode);
@@ -310,11 +305,6 @@ printk("nfsd_setattr: size change??\n");
 	if (iap->ia_valid & ATTR_SIZE) {
 		fh_lock(fhp);
 		err = notify_change(dentry, iap);
-		if (!err) {
-			vmtruncate(inode,iap->ia_size);		
-			if (inode->i_op && inode->i_op->truncate)
-				inode->i_op->truncate(inode);
-		}
 		fh_unlock(fhp);
 		put_write_access(inode);
 	}
@@ -382,7 +372,7 @@ nfsd_access(struct svc_rqst *rqstp, struct svc_fh *fhp, u32 *access)
 	int			error;
 
 	error = fh_verify(rqstp, fhp, 0, MAY_NOP);
-	if (error < 0)
+	if (error)
 		goto out;
 
 	export = fhp->fh_export;
@@ -1066,9 +1056,7 @@ nfsd_truncate(struct svc_rqst *rqstp, struct svc_fh *fhp, unsigned long size)
 	err = get_write_access(inode);
 	if (err)
 		goto out_nfserr;
-	err = locks_verify_area(FLOCK_VERIFY_WRITE, inode, NULL,
-				  size<inode->i_size ? size : inode->i_size,
-				  abs(inode->i_size - size));
+	err = locks_verify_truncate(inode, NULL, size);
 	if (err)
 		goto out_nfserr;
 
@@ -1082,11 +1070,6 @@ nfsd_truncate(struct svc_rqst *rqstp, struct svc_fh *fhp, unsigned long size)
 		cap_clear(current->cap_effective);
 	}
 	err = notify_change(dentry, &newattrs);
-	if (!err) {
-		vmtruncate(inode, size);
-		if (inode->i_op && inode->i_op->truncate)
-			inode->i_op->truncate(inode);
-	}
 	if (current->fsuid != 0)
 		current->cap_effective = saved_cap;
 	put_write_access(inode);
@@ -1574,7 +1557,7 @@ nfsd_readdir(struct svc_rqst *rqstp, struct svc_fh *fhp, loff_t offset,
 	if (cd.offset) {
 #ifdef CONFIG_NFSD_V3
 		if (rqstp->rq_vers == 3)
-			(void)enc64(cd.offset, file.f_pos);
+			(void)xdr_encode_hyper(cd.offset, file.f_pos);
 		else
 #endif /* CONFIG_NFSD_V3 */
 			*cd.offset = htonl(file.f_pos);
@@ -1713,34 +1696,34 @@ nfsd_racache_shutdown(void)
 {
 	if (!raparm_cache)
 		return;
-	dprintk("nfsd: freeing %d readahead buffers.\n", FILECACHE_MAX);
+	dprintk("nfsd: freeing readahead buffers.\n");
 	kfree(raparml);
-	nfsd_nservers = 0;
 	raparm_cache = raparml = NULL;
 }
 /*
  * Initialize readahead param cache
  */
-void
-nfsd_racache_init(void)
+int
+nfsd_racache_init(int cache_size)
 {
 	int	i;
 
 	if (raparm_cache)
-		return;
-	raparml = kmalloc(sizeof(struct raparms) * FILECACHE_MAX, GFP_KERNEL);
+		return 0;
+	raparml = kmalloc(sizeof(struct raparms) * cache_size, GFP_KERNEL);
 
 	if (raparml != NULL) {
 		dprintk("nfsd: allocating %d readahead buffers.\n",
-			FILECACHE_MAX);
-		memset(raparml, 0, sizeof(struct raparms) * FILECACHE_MAX);
-		for (i = 0; i < FILECACHE_MAX - 1; i++) {
+			cache_size);
+		memset(raparml, 0, sizeof(struct raparms) * cache_size);
+		for (i = 0; i < cache_size - 1; i++) {
 			raparml[i].p_next = raparml + i + 1;
 		}
 		raparm_cache = raparml;
 	} else {
 		printk(KERN_WARNING
 		       "nfsd: Could not allocate memory read-ahead cache.\n");
-		nfsd_nservers = 0;
+		return -ENOMEM;
 	}
+	return 0;
 }

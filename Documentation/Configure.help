@@ -65,7 +65,7 @@
 Prompt for development and/or incomplete code/drivers
 CONFIG_EXPERIMENTAL
   Some of the various things that Linux supports (such as network 
-  drivers, filesystems, network protocols, etc.) can be in a state 
+  drivers, file systems, network protocols, etc.) can be in a state 
   of development where the functionality, stability, or the level of 
   testing is not yet high enough for general use. This is usually
   known as the "alpha-test" phase amongst developers. If a feature is
@@ -224,7 +224,7 @@ CONFIG_MAC_FLOPPY
 RAM disk support
 CONFIG_BLK_DEV_RAM
   Saying Y here will allow you to use a portion of your RAM memory as
-  a block device, so that you can make filesystems on it, read and
+  a block device, so that you can make file systems on it, read and
   write to it and do all the other things that you can do with normal
   block devices (such as hard drives). It is usually used to load and
   store a copy of a minimal root file system off of a floppy into RAM
@@ -260,7 +260,7 @@ CONFIG_BLK_DEV_LOOP
   burning the CD, or if you want to use floppy images without first
   writing them to floppy.
 
-  The loop device driver can also be used to "hide" a filesystem in a
+  The loop device driver can also be used to "hide" a file system in a
   disk partition, floppy, or regular file, either using encryption
   (scrambling the data) or steganography (hiding the data in the low
   bits of, say, a sound file). This is also safe if the file resides
@@ -270,12 +270,12 @@ CONFIG_BLK_DEV_LOOP
   ftp://verden.pvv.org/pub/linux/kerneli/v2.1/ , and then you need to
   say Y to this option.
 
-  Note that alternative ways to use encrypted filesystems are provided
+  Note that alternative ways to use encrypted file systems are provided
   by the cfs package, which can be gotten from
   ftp://ftp.replay.com/pub/crypto/disk/ , and the newer tcfs package,
   available at http://tcfs.dia.unisa.it/ . You do not need to say Y
   here if you want to use one of these. However, using cfs requires
-  saying Y to "NFS filesystem support" below while using tcfs requires
+  saying Y to "NFS file system support" below while using tcfs requires
   applying a kernel patch.
 
   To use the loop device, you need the losetup utility and a recent
@@ -297,7 +297,7 @@ Network Block Device support
 CONFIG_BLK_DEV_NBD
   Saying Y here will allow your computer to be a client for network
   block devices, i.e. it will be able to use block devices exported by
-  servers (mount filesystems on them etc.). Communication between
+  servers (mount file systems on them etc.). Communication between
   client and server works over TCP/IP networking, but to the client
   program this is hidden: it looks like a regular local file access to
   a block device special file such as /dev/nd0. 
@@ -343,7 +343,7 @@ CONFIG_BLK_DEV_IDE
   inserted in and removed from the running kernel whenever you want),
   say M here and read Documentation/modules.txt and
   Documentation/ide.txt. The module will be called ide.o. Do not
-  compile this driver as a module if your root filesystem (the one
+  compile this driver as a module if your root file system (the one
   containing the directory /) is located on an IDE device.
 
   If you have one or more IDE drives, say Y or M here. If your system
@@ -400,7 +400,7 @@ CONFIG_BLK_DEV_IDEDISK
   inserted in and removed from the running kernel whenever you want),
   say M here and read Documentation/modules.txt. The module will be
   called ide-disk.o. Do not compile this driver as a module if your
-  root filesystem (the one containing the directory /) is located on
+  root file system (the one containing the directory /) is located on
   the IDE disk. If unsure, say Y.
 
 Use multi-mode by default
@@ -424,7 +424,7 @@ CONFIG_BLK_DEV_IDECD
   along with other IDE devices, as "hdb" or "hdc", or something
   similar (check the boot messages with dmesg). If this is your only
   CDROM drive, you can say N to all other CDROM options, but be sure
-  to say Y or M to "ISO 9660 CDROM filesystem support".
+  to say Y or M to "ISO 9660 CDROM file system support".
 
   Read the CDROM-HOWTO, available from
   http://www.linuxdoc.org/docs.html#howto and the file
@@ -631,7 +631,7 @@ CONFIG_IDEDMA_PCI_AUTO
   DMA for IDE drives and chipsets which support it. Due to concerns
   about a couple of cases where buggy hardware may have caused damage,
   the default is now to NOT use DMA automatically. To revert to the
-  previous behaviour, say Y to this question.
+  previous behavior, say Y to this question.
 
   If you suspect your hardware is at all flakey, say N here.
   Do NOT email the IDE kernel people regarding this issue!
@@ -1069,7 +1069,7 @@ CONFIG_PARIDE_PCD
   system. Among the devices supported by this driver are the
   MicroSolutions backpack CD-ROM drives and the Freecom Power CD. If
   you have such a CD-ROM drive, you should also say Y or M to "ISO
-  9660 CDROM filesystem support" below, because that's the filesystem
+  9660 CDROM file system support" below, because that's the file system
   used on CDROMs.
 
 Parallel port ATAPI disks
@@ -1259,6 +1259,30 @@ CONFIG_PARIDE_ON26
   should answer M to build it as a loadable module. The module will be
   called on26.o. You must also have a high-level driver for the type
   of device that you want to support.
+
+Logical Volume Manager (LVM) support
+CONFIG_BLK_DEV_LVM
+  This driver lets you combine several hard disks, hard disk
+  partitions, multiple devices or even loop devices (for evaluation
+  purposes) into a volume group.  Imagine a volume group as a kind of
+  virtual disk. Logical volumes, which can be thought of as virtual
+  partitions, can be created in the volume group.  You can resize
+  volume groups and logical volumes after creation time, corresponding
+  to new capacity needs.  Logical volumes are accessed as block
+  devices named /dev/VolumeGroupName/LogicalVolumeName.
+
+  For details see /usr/src/linux/Documentaion/LVM-HOWTO.
+
+  To get the newest software see <http://linux.msede.com/lvm>.
+
+Logical Volume Manager /proc file system information
+CONFIG_LVM_PROC_FS
+  If you say Y here, you are able to access overall Logical Volume
+  Manager, Volume Group, Logical and Physical Volume information in
+  /proc/lvm.
+
+  To use this option, you have to check, that the "/proc file system
+  support" (CONFIG_PROC_FS) is enabled too.
 
 Multiple devices driver support
 CONFIG_BLK_DEV_MD
@@ -1562,7 +1586,7 @@ CONFIG_NETFILTER
   are completely invisible to the outside world, even though they can
   reach the outside and can receive replies. It is even possible to
   run globally visible servers from within a masqueraded local network
-  using a mechanism called portforwarding. Masquerading is also often
+  using a mechanism called port-forwarding. Masquerading is also often
   called NAT (Network Address Translation).
 
   Another use of Netfilter is in transparent proxying: if a machine on
@@ -1572,7 +1596,7 @@ CONFIG_NETFILTER
 
   Various modules exist for netfilter which replace the previous
   masquerading (ipmasqadm), packet filtering (ipchains), transparent
-  proxying, and portforwarding mechanisms. More information is
+  proxying, and port-forwarding mechanisms. More information is
   available from http://netfilter.kernelnotes.org .
  
   Make sure to say N to "Fast switching" below if you intend to say Y
@@ -1581,7 +1605,7 @@ CONFIG_NETFILTER
   Chances are that you should say Y here if you compile a kernel which
   will run as a router and N for regular hosts. If unsure, say N.
  
-SYN flood protection
+SIN flood protection
 CONFIG_SYN_COOKIES
   Normal TCP/IP networking is open to an attack known as "SYN
   flooding". This denial-of-service attack prevents legitimate remote
@@ -1608,12 +1632,12 @@ CONFIG_SYN_COOKIES
   them off.
 
   If you say Y here, note that SYN cookies aren't enabled by default;
-  you can enable them by saying Y to "/proc filesystem support" and
+  you can enable them by saying Y to "/proc file system support" and
   "Sysctl support" below and executing the command
 
     echo 1 >/proc/sys/net/ipv4/tcp_syncookies 
 
-  at boot time after the proc filesystem has been mounted.
+  at boot time after the /proc file system has been mounted.
   
   If unsure, say Y.
 
@@ -1949,7 +1973,7 @@ CONFIG_I2O_SCSI
 
 I2O /proc support
 CONFIG_I2O_PROC
-  If you say Y here and to "/proc filesystem support", you will be
+  If you say Y here and to "/proc file system support", you will be
   able to read I2O related information from the virtual directory
   /proc/i2o.
 
@@ -1969,7 +1993,7 @@ CONFIG_PNP
   Say Y here if you would like Linux to configure your Plug and Play
   devices. You should then also say Y to "ISA Plug and Play support",
   below. Alternatively, you can configure your PnP devices using the
-  user space utilities contained in the isapnptools package.
+  user space utilities contained in the ISAPNP tools package.
   
   This support is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
@@ -2058,7 +2082,7 @@ CONFIG_SYSCTL
   certain kernel parameters and variables on the fly without requiring
   a recompile of the kernel or reboot of the system. The primary
   interface consists of a system call, but if you say Y to "/proc
-  filesystem support", a tree of modifiable sysctl entries will be
+  file system support", a tree of modifiable sysctl entries will be
   generated beneath the /proc/sys directory. They are explained in the
   files in Documentation/sysctl/. Note that enabling this option will
   enlarge the kernel by at least 8 KB.
@@ -2069,7 +2093,7 @@ CONFIG_SYSCTL
 
 Kernel core (/proc/kcore) format
 CONFIG_KCORE_ELF
-  If you enabled support for /proc filesystem then the file /proc/kcore
+  If you enabled support for /proc file system then the file /proc/kcore
   will contain the kernel core image. This can be used in gdb:
 
   $ cd /usr/src/linux ; gdb vmlinux /proc/kcore
@@ -2163,7 +2187,7 @@ CONFIG_BINFMT_MISC
   Documentation/java.txt for information about how to include Java
   support.
 
-  You must say Y to "proc filesystem support" (CONFIG_PROC_FS) to
+  You must say Y to "/proc file system support" (CONFIG_PROC_FS) to
   use this part of the kernel.
 
   You may say M here for module support and later load the module when
@@ -2475,7 +2499,7 @@ CONFIG_FONT_8x8
   provided by the text console 80x50 (and higher) modes.
   Note this is a poor quality font. The VGA 8x16 font is quite a lot
   more readable.
-  Given the resolution provided by the frame buffer device, anwser N
+  Given the resolution provided by the frame buffer device, answer N
   here is safe.
 
 Backward compatibility mode for Xpmac
@@ -2773,7 +2797,7 @@ CONFIG_PARPORT_AX
 
 Support IEEE1284 status readback
 CONFIG_PRINTER_READBACK
-  If you have a device on your parrallel port that support this protocol,
+  If you have a device on your parallel port that support this protocol,
   this option'll enable it to report its status.
   It is safe to say Y.
 
@@ -2813,7 +2837,7 @@ CONFIG_MODVERSIONS
 
 Kernel module loader support
 CONFIG_KMOD
-  Normally when you have selected some drivers and/or filesystems to
+  Normally when you have selected some drivers and/or file systems to
   be created as loadable modules, you also have the responsibility to
   load the corresponding modules (using the programs insmod or
   modprobe) before you can use them. If you say Y here however, the
@@ -2865,7 +2889,7 @@ CONFIG_INET
   Internet connected Unix computer; for more information, read
   http://www.bart.nl/~patrickr/term-howto/Term-HOWTO.html ).
   
-  If you say Y here and also to "/proc filesystem support" and "Sysctl
+  If you say Y here and also to "/proc file system support" and "Sysctl
   support" below, you can change various aspects of the behavior of
   the TCP/IP code by writing to the (virtual) files in
   /proc/sys/net/ipv4/*; the options are explained in the file
@@ -2898,12 +2922,12 @@ CONFIG_IP_ADVANCED_ROUTER
 
   Note that your box can only act as a router if you enable IP
   forwarding in your kernel; you can do that by saying Y to "/proc
-  filesystem support" and "Sysctl support" below and executing the
+  file system support" and "Sysctl support" below and executing the
   line
 
     echo "1" > /proc/sys/net/ipv4/ip_forward
 
-  at boot time after the /proc filesystem has been mounted. 
+  at boot time after the /proc file system has been mounted. 
 
   If you turn on IP forwarding, you will also get the rp_filter, which
   automatically rejects incoming packets if the routing table entry
@@ -2997,12 +3021,12 @@ CONFIG_IP_ROUTER
 
   Note that your box can only act as a router if you enable IP
   forwarding in your kernel; you can do that by saying Y to "/proc
-  filesystem support" and "Sysctl support" below and executing the
+  file system support" and "Sysctl support" below and executing the
   line
 
     echo "1" > /proc/sys/net/ipv4/ip_forward
 
-  at boot time after the /proc filesystem has been mounted. You can do
+  at boot time after the /proc file system has been mounted. You can do
   that even if you say N here.
 
   If unsure, say N here.
@@ -3019,7 +3043,7 @@ CONFIG_IP_PNP
 
 BOOTP support
 CONFIG_IP_PNP_BOOTP
-  If you want your Linux box to mount its whole root filesystem (the
+  If you want your Linux box to mount its whole root file system (the
   one containing the directory /) from some other computer over the
   net via NFS and you want the IP address of your computer to be
   discovered automatically at boot time using the BOOTP protocol (a
@@ -3032,7 +3056,7 @@ CONFIG_IP_PNP_BOOTP
 
 RARP support
 CONFIG_IP_PNP_RARP
-  If you want your Linux box to mount its whole root filesystem (the
+  If you want your Linux box to mount its whole root file system (the
   one containing the directory /) from some other computer over the
   net via NFS and you want the IP address of your computer to be
   discovered automatically at boot time using the RARP protocol (an
@@ -3260,7 +3284,7 @@ CONFIG_IPX
   ftp://metalab.unc.edu/pub/Linux/system/filesystems/ ) or from within
   the Linux DOS emulator DOSEMU (read the DOSEMU-HOWTO, available from
   http://www.linuxdoc.org/docs.html#howto ). In order to do the
-  former, you'll also have to say Y to "NCP filesystem support",
+  former, you'll also have to say Y to "NCP file systems support",
   below.
 
   IPX is similar in scope to IP, while SPX, which runs on top of IPX,
@@ -3319,7 +3343,7 @@ CONFIG_SPX
 
   Note that Novell NetWare file sharing does not use SPX; it uses a
   protocol called NCP, for which separate Linux support is available
-  ("NCP filesystem support" below for the client side, and the user
+  ("NCP file systems support" below for the client side, and the user
   space programs lwared or mars_nwe for the server side).
 
   Say Y here if you have use for SPX; read the IPX-HOWTO at
@@ -3344,7 +3368,7 @@ CONFIG_DECNET
   More detailed documentation is available in the
   Documentation/networking/decnet.txt file.
 
-  Be sure to say Y to "/proc filesystem support" and "Sysctl support"
+  Be sure to say Y to "/proc file systems support" and "Sysctl support"
   below when using DECnet, since you will need sysctl support to aid
   in configuration at run time.
 
@@ -3891,25 +3915,25 @@ CONFIG_LLC
   This is a Logical Link Layer protocol used for X.25 connections over
   Ethernet, using ordinary Ethernet cards. 
 
-Bridging (EXPERIMENTAL)
+802.1d Ethernet Bridging
 CONFIG_BRIDGE
   If you say Y here, then your Linux box will be able to act as an
   Ethernet bridge, which means that the different Ethernet segments it
   is connected to will appear as one Ethernet to the participants.
   Several such bridges can work together to create even larger
-  networks of Ethernets using the IEEE802.1 spanning tree algorithm.
+  networks of Ethernets using the IEEE 802.1d spanning tree protocol.
   As this is a standard, Linux bridges will interwork properly with
   other third party bridge products. 
 
-  In order to use this, you'll need the bridge configuration tools
-  available from ftp://shadow.cabi.net/pub/Linux . Please read the
-  Bridge mini-HOWTO for more information. Note that if your box acts
-  as a bridge, it probably contains several Ethernet devices, but the
-  kernel is not able to recognize more than one at boot time without
-  help; for details read the Ethernet-HOWTO, available from
+  In order to use the ethernet bridge, you'll need the bridge
+  configuration tools available from ftp://openrock.net/bridge. Please
+  read the Bridge mini-HOWTO for more information. Note that if your
+  box acts as a bridge, it probably contains several Ethernet devices,
+  but the kernel is not able to recognize more than one at boot time
+  without help; for details read the Ethernet-HOWTO, available from in
   http://www.linuxdoc.org/docs.html#howto .
 
-  The Bridging code is still in test. If unsure, say N.
+  If unsure, say N.
 
 Packet socket
 CONFIG_PACKET
@@ -3990,13 +4014,13 @@ CONFIG_ATM_CLIP
   ATMARP. Typically you will either use LAN Emulation (LANE) or
   Classical IP to communicate with other IP hosts on your ATM network.
 
-Do NOT send ICMP if no neighbour
+Do NOT send ICMP if no neighbor
 CONFIG_ATM_CLIP_NO_ICMP
-  Normally, an "ICMP host unreachable" message is sent if a neighbour
+  Normally, an "ICMP host unreachable" message is sent if a neighbor
   cannot be reached because there is no VC to it in the kernel's
   ATMARP table. This may cause problems when ATMARP table entries are
   briefly removed during revalidation. If you say Y here, packets to
-  such neighbours are silently discarded instead.
+  such neighbors are silently discarded instead.
 
 LAN Emulation (LANE) support
 CONFIG_ATM_LANE
@@ -4235,7 +4259,7 @@ CONFIG_SCSI
   The module will be called scsi_mod.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt and
   Documentation/scsi.txt. However, do not compile this as a module if
-  your root filesystem (the one containing the directory /) is located
+  your root file systems (the one containing the directory /) is located
   on a SCSI device.
 
 SCSI disk support
@@ -4251,7 +4275,7 @@ CONFIG_BLK_DEV_SD
   The module will be called sd_mod.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt and
   Documentation/scsi.txt. Do not compile this driver as a module if
-  your root filesystem (the one containing the directory /) is located
+  your root file systems (the one containing the directory /) is located
   on a SCSI disk. In this case, do not compile the driver for your
   SCSI host adapter (below) as a module either.
 
@@ -4298,7 +4322,7 @@ CONFIG_BLK_DEV_SR
   If you want to use a SCSI CDROM under Linux, say Y and read the
   SCSI-HOWTO and the CDROM-HOWTO at
   http://www.linuxdoc.org/docs.html#howto . Also make sure to say Y
-  or M to "ISO 9660 CDROM filesystem support" later.
+  or M to "ISO 9660 CDROM file systems support" later.
 
   This driver is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
@@ -4378,12 +4402,12 @@ CONFIG_SCSI_LOGGING
   of SCSI related problems. 
 
   If you say Y here, no logging output will appear by default, but you
-  can enable logging by saying Y to "/proc filesystem support" and
+  can enable logging by saying Y to "/proc file systems support" and
   "Sysctl support" below and executing the command
 
      echo "scsi log token [level]" > /proc/scsi/scsi
 
-  at boot time after the /proc filesystem has been mounted.
+  at boot time after the /proc file systems has been mounted.
 
   There are a number of things that can be used for 'token' (you can
   find them in the source: drivers/scsi/scsi.c), and this allows you
@@ -4546,7 +4570,7 @@ CONFIG_AIC7XXX_PROC_STATS
   small amount of overhead to each and every SCSI command the aic7xxx
   driver handles, so if you aren't really interested in this
   information, it is best to leave it disabled. This will only work if
-  you also say Y to "/proc filesystem support", below. 
+  you also say Y to "/proc file system support", below. 
 
   If unsure, say N.
 
@@ -5796,16 +5820,16 @@ CONFIG_AIRONET4500
   This configuration option enables common code for all devices (PCI, ISA,
   PCMCIA)
   module is aironet4500_core
-  quickconfig parameters: 
+  quick config parameters: 
 	SSID=tsunami - "The Password"
 	adhoc=1  	there are no Access Points around
 	master=1 	Adhoc master (the one who creates network sync)
 	slave=1		Adhoc slave(btw, it is still forming own net 
 			sometimes)
 	channel=1..? 	meaningful in adhoc mode
-  all other parameters can be set via proc interface
+  all other parameters can be set via /proc interface
   These parameters belong to .._card module, but alas, they are here
-  if you have problems with screwin up card, both_bap_lock=1 is conservative
+  if you have problems with screwing up card, both_bap_lock=1 is conservative
   value (performance hit 15%)
   for any other configuration options look at ..._proc module
 
@@ -5841,7 +5865,7 @@ CONFIG_AIRONET4500_ISA
 Aironet 4500/4800 I365 broken support (EXPERIMENTAL)
 CONFIG_AIRONET4500_I365
 	This option enables support for PCMCIA cards on i365 controller 
-	_without_ cardservices. Doesnt have much sense and is not working
+	_without_ cardservices. Doesn't have much sense and is not working
 	properly. Comes from times where there was no PCMCIA support in
 	kernel main source tree
 
@@ -5854,7 +5878,7 @@ CONFIG_AIRONET4500_CS
 	The same option is both on:
 		1. PCMCIA netdevices configuring panel
 		2. Wireless netdevices configuring panel
-	Possibility to change this option depeds on options set in 2.
+	Possibility to change this option depends on options set in 2.
 	
 Aironet 4500/4800 PROC interface
 CONFIG_AIRONET4500_PROC
@@ -6281,9 +6305,9 @@ CONFIG_NET_SCHED
   That package also contains some documentation; for more, check out
   http://snafu.freedom.org/linux2.2/iproute-notes.html .
 
-  If you say Y here and to "/proc filesystem" below, you will be able
-  to read status information about packet schedulers from the file
-  /proc/net/psched.
+  If you say Y here and to "/proc file system support" below, you will
+  be able to read status information about packet schedulers from the
+  file /proc/net/psched.
   
   The available schedulers are listed in the following questions; you
   can say Y to as many as you like. If unsure, say N now.
@@ -6486,7 +6510,7 @@ CONFIG_NET_CLS_RSVP6
 
 Network code profiler
 CONFIG_NET_PROFILE
-  If you say Y here and to "/proc filesystem support" below, some
+  If you say Y here and to "/proc file system support" below, some
   obscure and undocumented information about the network code's
   performance will be written to /proc/net/profile. If you don't know
   what it is about, you don't need it: say N.
@@ -6841,17 +6865,29 @@ CONFIG_NI65
   module, say M here and read Documentation/modules.txt as well as
   Documentation/networking/net-modules.txt.
 
-RealTek 8129/8139 (not 8019/8029!) support
-CONFIG_RTL8139
+RealTek 8129 (not 8019/8029!) support (EXPERIMENTAL)
+CONFIG_RTL8129
   This is a driver for the Fast Ethernet PCI network cards based on
-  the RTL8129 and RTL8139 chips. If you have one of those, say Y and
+  the RTL8129 chip. If you have one of those, say Y and
   read the Ethernet-HOWTO, available from
   http://www.linuxdoc.org/docs.html#howto .
 
   If you want to compile this driver as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want),
   say M here and read Documentation/modules.txt. This is recommended.
-  The module will be called rtl8139.o.
+  The module will be called rtl8129.o.
+
+RealTek RTL-8139 PCI Fast Ethernet Adapter support
+CONFIG_8139TOO
+  This is a driver for the Fast Ethernet PCI network cards based on
+  the RTL8139 chip. If you have one of those, say Y and
+  read the Ethernet-HOWTO, available from
+  http://www.linuxdoc.org/docs.html#howto .
+
+  If you want to compile this driver as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want),
+  say M here and read Documentation/modules.txt. This is recommended.
+  The module will be called 8139too.o.
 
 SiS 900 PCI Fast Ethernet Adapter support
 CONFIG_SIS900
@@ -6944,7 +6980,7 @@ CONFIG_SK98LIN
   The dual link adapters support a link-failover feature.
   Read Documentation/networking/sk98lin.txt for information about
   optional driver parameters.
-  Questions concerning this driver may be addresse to:
+  Questions concerning this driver may be addressed to:
     linux@syskonnect.de
 
   If you want to compile this driver as a module ( = code which can be
@@ -7401,7 +7437,7 @@ CONFIG_SKMC
   Documentation/networking/net-modules.txt.
 
 EISA, VLB, PCI and on board controllers
-CONFIG_NET_EISA
+CONFIG_NET_PCI
   This is another class of network cards which attach directly to the
   bus. If you have one of those, say Y and read the Ethernet-HOWTO,
   available from http://www.linuxdoc.org/docs.html#howto .
@@ -7522,7 +7558,7 @@ CONFIG_DGRS
   Documentation/networking/net-modules.txt.
 
 EtherExpress PRO/100 support
-CONFIG_EEXPRESS_PRO100
+CONFIG_EEPRO100
   If you have an Intel EtherExpress PRO/100 PCI network (Ethernet)
   card, say Y and read the Ethernet-HOWTO, available from
   http://www.linuxdoc.org/docs.html#howto .
@@ -7737,7 +7773,7 @@ CONFIG_TMS380TR
   Compaq 4/16 PCI, Thomas-Conrad TC4048 4/16 PCI, and several
   Madge adapters.  If selected, you will be asked to select
   which cards to support below.  If you're using modules, each
-  class of card will be supported by a seperate module.
+  class of card will be supported by a separate module.
 
   If you have such an adapter and would like to use it, say Y or M and
   read the Token-Ring mini-HOWTO, available from
@@ -7809,6 +7845,36 @@ Digital DEFEA and DEFPA adapter support
 CONFIG_DEFXX
   This is support for the DIGITAL series of EISA (DEFEA) and PCI
   (DEFPA) controllers which can connect you to a local FDDI network.
+
+SysKonnect FDDI PCI support
+CONFIG_SKFP
+  Say Y here if you have a SysKonnect FDDI PCI adapter.
+  The following adapters are supported by this driver:
+  - SK-5521 (SK-NET FDDI-UP)
+  - SK-5522 (SK-NET FDDI-UP DAS)
+  - SK-5541 (SK-NET FDDI-FP)
+  - SK-5543 (SK-NET FDDI-LP)
+  - SK-5544 (SK-NET FDDI-LP DAS)
+  - SK-5821 (SK-NET FDDI-UP64)
+  - SK-5822 (SK-NET FDDI-UP64 DAS)
+  - SK-5841 (SK-NET FDDI-FP64)
+  - SK-5843 (SK-NET FDDI-LP64)
+  - SK-5844 (SK-NET FDDI-LP64 DAS)
+  - Netelligent 100 FDDI DAS Fibre SC
+  - Netelligent 100 FDDI SAS Fibre SC
+  - Netelligent 100 FDDI DAS UTP
+  - Netelligent 100 FDDI SAS UTP
+  - Netelligent 100 FDDI SAS Fibre MIC
+  Read Documentation/networking/skfp.txt for information about
+  the driver.
+  WARNING: this driver does currently not support 64 bit systems!
+  Questions concerning this driver can be addressed to:
+    linux@syskonnect.de
+
+  If you want to compile this driver as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want),
+  say M here and read Documentation/modules.txt. This is recommended.
+  The module will be called skfp.o.
 
 HIgh Performance Parallel Interface support (EXPERIMENTAL)
 CONFIG_HIPPI
@@ -7883,7 +7949,7 @@ CONFIG_CD_NO_IDESCSI
   read Documentation/modules.txt. 
 
   If you want to use any of these CDROM drivers, you also have to
-  answer Y or M to "ISO 9660 CDROM filesystem support" below (this
+  answer Y or M to "ISO 9660 CDROM file systems support" below (this
   answer will get "defaulted" for you if you enable any of the Linux
   CDROM drivers).
 
@@ -7900,7 +7966,7 @@ CONFIG_CDU31A
   explained in the SCSI-HOWTO. 
 
   If you say Y here, you should also say Y or M to "ISO 9660 CDROM
-  filesystem support" below, because that's the filesystem used on
+  file systems support" below, because that's the file systems used on
   CDROMs. 
 
   This driver is also available as a module ( = code which can be
@@ -7922,7 +7988,7 @@ CONFIG_MCD
   this. If you want that one, say N here.
 
   If you say Y here, you should also say Y or M to "ISO 9660 CDROM
-  filesystem support" below, because that's the filesystem used on
+  file systems support" below, because that's the file systems used on
   CDROMs. 
 
   This driver is also available as a module ( = code which can be
@@ -7955,7 +8021,7 @@ CONFIG_MCDX
   Documentation/cdrom/mcdx.
 
   If you say Y here, you should also say Y or M to "ISO 9660 CDROM
-  filesystem support" below, because that's the filesystem used on
+  file systems support" below, because that's the file systems used on
   CDROMs. 
 
   This driver is also available as a module ( = code which can be
@@ -7993,7 +8059,7 @@ CONFIG_SBPCD
   usable.
 
   If you say Y here, you should also say Y or M to "ISO 9660 CDROM
-  filesystem support" below, because that's the filesystem used on
+  file systems support" below, because that's the file systems used on
   CDROMs. 
 
   This driver is also available as a module ( = code which can be
@@ -8018,7 +8084,7 @@ CONFIG_AZTCD
   CDA269-031SE. Please read the file Documentation/cdrom/aztcd. 
 
   If you say Y here, you should also say Y or M to "ISO 9660 CDROM
-  filesystem support" below, because that's the filesystem used on
+  file systems support" below, because that's the file systems used on
   CDROMs.
 
   This driver is also available as a module ( = code which can be
@@ -8032,7 +8098,7 @@ CONFIG_CDU535
   drives. Please read the file Documentation/cdrom/sonycd535.
 
   If you say Y here, you should also say Y or M to "ISO 9660 CDROM
-  filesystem support" below, because that's the filesystem used on
+  file system support" below, because that's the file system used on
   CDROMs.
 
   This driver is also available as a module ( = code which can be
@@ -8048,7 +8114,7 @@ CONFIG_GSCD
   kernel. Please read the file Documentation/cdrom/gscd. 
 
   If you say Y here, you should also say Y or M to "ISO 9660 CDROM
-  filesystem support" below, because that's the filesystem used on
+  file system support" below, because that's the file system used on
   CDROMs. 
 
   This driver is also available as a module ( = code which can be
@@ -8063,7 +8129,7 @@ CONFIG_CM206
   Documentation/cdrom/cm206. 
 
   If you say Y here, you should also say Y or M to "ISO 9660 CDROM
-  filesystem support" below, because that's the filesystem used on
+  file system support" below, because that's the file system used on
   CDROMs. 
 
   This driver is also available as a module ( = code which can be
@@ -8080,7 +8146,7 @@ CONFIG_OPTCD
   one. Please read the file Documentation/cdrom/optcd. 
 
   If you say Y here, you should also say Y or M to "ISO 9660 CDROM
-  filesystem support" below, because that's the filesystem used on
+  file system support" below, because that's the file system used on
   CDROMs. 
 
   This driver is also available as a module ( = code which can be
@@ -8092,8 +8158,8 @@ Sanyo CDR-H94A CDROM support
 CONFIG_SJCD
   If this is your CDROM drive, say Y here and read the file
   Documentation/cdrom/sjcd. You should then also say Y or M to
-  "ISO 9660 CDROM filesystem support" below, because that's the
-  filesystem used on CDROMs.
+  "ISO 9660 CDROM file system support" below, because that's the
+  file system used on CDROMs.
 
   This driver is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
@@ -8128,7 +8194,7 @@ Quota support
 CONFIG_QUOTA
   If you say Y here, you will be able to set per user limits for disk
   usage (also called disk quotas). Currently, it works only for the
-  ext2 filesystem. You need additional software in order to use quota
+  ext2 file system. You need additional software in order to use quota
   support; for details, read the Quota mini-HOWTO, available from
   http://www.linuxdoc.org/docs.html#howto . Probably the quota
   support is only useful for multi user systems. If unsure, say N.
@@ -8172,6 +8238,17 @@ CONFIG_USB_UHCI
   inserted in and removed from the running kernel whenever you want).
   The module will be called usb-uhci.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt.
+  
+USB-UHCI High Bandwidth support
+CONFIG_USB_UHCI_HIGH_BANDWIDTH
+  This option enables the so called reclamation loop in usb-uhci, thus
+  allowing much higher transfer bandwidth for USB-bulk and control
+  messages; isochronous transfers (audio, video etc.) are not affected.
+  Due to a very simple design of the UHCI controller, this may cause
+  a significant PCI congestion under certain conditions. If you are
+  experiencing a system slowdown, disable this option.
+  
+  If unsure, say N.
   
 UHCI (intel PIIX4, VIA, ...) alternate (JE) support?
 CONFIG_USB_UHCI_ALT
@@ -8341,17 +8418,8 @@ CONFIG_USB_SERIAL_WHITEHEAT
 USB Handspring Visor Driver
 CONFIG_USB_SERIAL_VISOR
   Say Y here if you want to connect to your HandSpring Visor through
-  its USB docking station.
-
-USB Belkin Single Port Serial Driver
-CONFIG_USB_SERIAL_BELKIN
-  Say Y here if you want to use a Belkin single port USB to serial 
-  converter device.
-  
-USB Peracom Single Port Serial Driver
-CONFIG_USB_SERIAL_PERACOM
-  Say Y here if you want to use a Peracom single port USB to serial 
-  converter device.
+  its USB docking station. See http://usbvisor.sourceforge.net for
+  more information on using this driver.
 
 USB Printer support
 CONFIG_USB_PRINTER
@@ -8468,7 +8536,7 @@ CONFIG_USB_USS720
   The module will be called uss720.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt.
   
-USB device filesystem
+USB device file system
 CONFIG_USB_DEVICEFS
   This file system implements a "devices" file, that lists
   the currently connected to your USB busses, a "drivers" file
@@ -8491,6 +8559,14 @@ CONFIG_USB_DABUSB
   The module will be called dabusb.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt.
  
+PLUSB driver
+CONFIG_USB_PLUSB
+  A driver for the Prolific PL-2302 USB to USB network device. This 'USB
+  cable' connects two hosts via a point to point network with bandwidth of
+  5Mbit/s.  Configure this driver after connecting the USB cable via
+  ifconfig plusb0 10.0.0.1 pointopoint 10.0.0.2 
+  (and vice versa on the other host).
+ 
 ACPI support
 CONFIG_ACPI
   Advanced Configuration and Power Interface (ACPI) is an interface
@@ -8500,10 +8576,10 @@ CONFIG_ACPI
 Minix fs support
 CONFIG_MINIX_FS
   Minix is a simple operating system used in many classes about OS's.
-  The minix filesystem (method to organize files on a hard disk
-  partition or a floppy disk) was the original filesystem for Linux,
-  but has been superseded by the second extended filesystem ext2fs.
-  You don't want to use the minix filesystem on your hard disk because
+  The minix file system (method to organize files on a hard disk
+  partition or a floppy disk) was the original file system for Linux,
+  but has been superseded by the second extended file system ext2fs.
+  You don't want to use the minix file system on your hard disk because
   of certain built-in restrictions, but it is sometimes found on older
   Linux floppy disks. This option will enlarge your kernel by about 
   28 kB. If unsure, say N.
@@ -8511,16 +8587,16 @@ CONFIG_MINIX_FS
   If you want to compile this as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want),
   say M here and read Documentation/modules.txt. The module will be
-  called minix.o. Note that the filesystem of your root partition (the
+  called minix.o. Note that the file system of your root partition (the
   one containing the directory /) cannot be compiled as a module.
 
 Second extended fs support
 CONFIG_EXT2_FS
-  This is the de facto standard Linux filesystem (method to organize
+  This is the de facto standard Linux file system (method to organize
   files on a storage device) for hard disks. 
 
   You want to say Y here, unless you intend to use Linux exclusively
-  from inside a DOS partition using the umsdos filesystem. The
+  from inside a DOS partition using the umsdos file system. The
   advantage of the latter is that you can get away without
   repartitioning your hard drive (which often implies backing
   everything up and restoring afterwards); the disadvantage is that
@@ -8531,16 +8607,16 @@ CONFIG_EXT2_FS
   Linux partition later. Another (rare) case which doesn't require
   ext2fs is a diskless Linux box which mounts all files over the
   network using NFS (in this case it's sufficient to say Y to "NFS
-  filesystem support" below). Saying Y here will enlarge your kernel
+  file system support" below). Saying Y here will enlarge your kernel
   by about 44 kB.
 
   The Ext2fs-Undeletion mini-HOWTO, available from
   http://www.linuxdoc.org/docs.html#howto , gives information about
-  how to retrieve deleted files on ext2fs filesystems.
+  how to retrieve deleted files on ext2fs file systems.
 
-  To change the behavior of ext2 filesystems, you can use the tune2fs
+  To change the behavior of ext2 file systems, you can use the tune2fs
   utility ("man tune2fs"). To modify attributes of files and
-  directories on ext2 filesystems, use chattr ("man chattr").
+  directories on ext2 file systems, use chattr ("man chattr").
   
   Ext2fs partitions can be read from within DOS using the ext2tool
   command line tool package (available via FTP (user: anonymous) from
@@ -8551,35 +8627,35 @@ CONFIG_EXT2_FS
   NT and includes experimental write support; it is available from
   http://jnewbigin-pc.it.swin.edu.au/Linux/Explore2fs.htm .
 
-  If you want to compile this filesystem as a module ( = code which
+  If you want to compile this file system as a module ( = code which
   can be inserted in and removed from the running kernel whenever you
   want), say M here and read Documentation/modules.txt. The module
-  will be called ext2.o. Be aware however that the filesystem of your
+  will be called ext2.o. Be aware however that the file system of your
   root partition (the one containing the directory /) cannot be
   compiled as a module, and so this could be dangerous. Most everyone
   wants to say Y here.
 
-SCO UnixWare BFS Support
+BFS file system support (EXPERIMENTAL)
 CONFIG_BFS_FS
-  Boot Filesystem (BFS) is a filesystem used under SCO UnixWare to
+  Boot File System (BFS) is a file system used under SCO UnixWare to
   allow bootloader access the kernel image and other important files
   during the boot process. It is usually mounted under /stand and
   corresponds to the slice marked as "STAND" in the UnixWare
   partition. This is useful if you want to access files on your /stand
-  slice from Linux. More information on this filesystem can be found in
+  slice from Linux. More information on this file system can be found in
   Documentation/filesystems/bfs.txt file. If you do not know what it is, 
   say N.
 
   If you want to compile this as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want),
   say M here and read Documentation/modules.txt. The module will be
-  called bfs.o. Note that the filesystem of your root partition (the
+  called bfs.o. Note that the file system of your root partition (the
   one containing the directory /) cannot be compiled as a module.
  
-ISO 9660 CDROM filesystem support
+ISO 9660 CDROM file system support
 CONFIG_ISO9660_FS
-  This is the standard filesystem used on CDROMs. It was previously
-  known as "High Sierra Filesystem" and is called "hsfs" on other Unix
+  This is the standard file system used on CDROMs. It was previously
+  known as "High Sierra File System" and is called "hsfs" on other Unix
   systems. The so-called Rock-Ridge extensions which allow for long
   Unix filenames and symbolic links are also supported by this driver.
   If you have a CDROM drive and want to do more with it than just
@@ -8595,21 +8671,21 @@ CONFIG_ISO9660_FS
 
 Microsoft Joliet CDROM extensions
 CONFIG_JOLIET
-  Joliet is a Microsoft extension for the ISO 9660 CDROM filesystem
+  Joliet is a Microsoft extension for the ISO 9660 CDROM file system
   which allows for long filenames in unicode format (unicode is the
   new 16 bit character code, successor to ASCII, which encodes the
   characters of almost all languages of the world; see
   http://www.unicode.org for more information). Say Y here if you want
   to be able to read Joliet CDROMs under Linux.
 
-UDF Filesystem support (read only)
+UDF file system support (read only)
 CONFIG_UDF_FS
-  This is the new filesystem used by some CDROMS and DVD drivers. Say
+  This is the new file system used by some CDROMS and DVD drivers. Say
   Y if you intend to mount DVD discs or CDRW's written in packet mode,
   or if written to by other UDF utilities, such as DirectCD. Please
   read Documentation/filesystems/udf.txt.
 
-  This filesystem support is also available as a module ( = code which
+  This file system support is also available as a module ( = code which
   can be inserted in and removed from the running kernel whenever you
   want). The module is called udf.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt. 
@@ -8618,32 +8694,32 @@ CONFIG_UDF_FS
 
 UDF write support (DANGEROUS)
 CONFIG_UDF_RW
-  Say Y if you want to test write support for UDF filesystems.
+  Say Y if you want to test write support for UDF file systems.
   Due to lack of support for writing to CDR/CDRW's, this option
   is only supported for Hard Discs, DVD-RAM, and loopback files.
 
 DOS FAT fs support
 CONFIG_FAT_FS
-  If you want to use one of the FAT-based filesystems (the MS-DOS,
+  If you want to use one of the FAT-based file systems (the MS-DOS,
   VFAT (Windows 95) and UMSDOS (used to run Linux on top of an
-  ordinary DOS partition) filesystems), then you must say Y or M here
+  ordinary DOS partition) file systems), then you must say Y or M here
   to include FAT support. You will then be able to mount partitions or
-  diskettes with FAT-based filesystems and transparently access the
+  diskettes with FAT-based file systems and transparently access the
   files on them, i.e. MSDOS files will look and behave just like all
   other Unix files.
 
-  This FAT support is not a filesystem in itself, it only provides the
-  foundation for the other filesystems. You will have to say Y or M to
+  This FAT support is not a file system in itself, it only provides the
+  foundation for the other file systems. You will have to say Y or M to
   at least one of "msdos fs support" or "vfat fs support" in order to
   make use of it.
 
   Another way to read and write MSDOS floppies and hard drive
   partitions from within Linux (but not transparently) is with the
   mtools ("man mtools") program suite. This doesn't require the FAT
-  filesystem support.
+  file system support.
 
   It is now also becoming possible to read and write compressed FAT
-  filesystems; read Documentation/filesystems/fat_cvf.txt for details.
+  file systems; read Documentation/filesystems/fat_cvf.txt for details.
   
   The FAT support will enlarge your kernel by about 37 KB. If unsure,
   say Y.
@@ -8652,11 +8728,11 @@ CONFIG_FAT_FS
   be inserted in and removed from the running kernel whenever you
   want), say M here and read Documentation/modules.txt. The module
   will be called fat.o. Note that if you compile the FAT support as a
-  module, you cannot compile any of the FAT-based filesystems into the
-  kernel -- they will have to be modules as well. The filesystem of
+  module, you cannot compile any of the FAT-based file systems into the
+  kernel -- they will have to be modules as well. The file system of
   your root partition (the one containing the directory /) cannot be a
   module, so don't say M here if you intend to use UMSDOS as your root
-  filesystem.
+  file system.
 
 MSDOS fs support
 CONFIG_MSDOS_FS
@@ -8671,12 +8747,12 @@ CONFIG_MSDOS_FS
   transparent, i.e. the MSDOS files look and behave just like all
   other Unix files.
 
-  If you want to use umsdos, the Unix-like filesystem on top of DOS,
+  If you want to use umsdos, the Unix-like file system on top of DOS,
   which allows you to run Linux from within a DOS partition without
   repartitioning, you'll have to say Y or M here. 
 
   If you have Windows 95 or Windows NT installed on your MSDOS
-  partitions, you should use the VFAT filesystem (say Y to "vfat fs
+  partitions, you should use the VFAT file system (say Y to "vfat fs
   support" below), or you will not be able to see the long filenames
   generated by Windows 95 / Windows NT.
 
@@ -8689,11 +8765,11 @@ CONFIG_MSDOS_FS
 
 VFAT (Windows-95) fs support
 CONFIG_VFAT_FS
-  This option provides support for normal Windows filesystems with
-  long filenames. That includes non-compressed FAT-based filesystems
+  This option provides support for normal Windows file systems with
+  long filenames. That includes non-compressed FAT-based file systems
   used by Windows 95, Windows 98, Windows NT 4.0, and mtools. 
 
-  You cannot use the VFAT filesystem for your Linux root partition
+  You cannot use the VFAT file system for your Linux root partition
   (the one containing the directory /); use UMSDOS instead if you
   want to run Linux from within a DOS partition (i.e. say Y to
   "umsdos: Unix like fs on top of std MSDOS fs", below).
@@ -8708,7 +8784,7 @@ CONFIG_VFAT_FS
   say M here and read Documentation/modules.txt. The module will be
   called vfat.o.
 
-UMSDOS: Unix-like filesystem on top of standard MSDOS filesystem
+UMSDOS: Unix-like file system on top of standard MSDOS fs
 CONFIG_UMSDOS_FS
   Say Y here if you want to run Linux from within an existing DOS
   partition of your hard drive. The advantage of this is that you can
@@ -8718,11 +8794,11 @@ CONFIG_UMSDOS_FS
   disadvantage is that Linux becomes susceptible to DOS viruses and
   that UMSDOS is somewhat slower than ext2fs. Another use of UMSDOS
   is to write files with long unix filenames to MSDOS floppies; it
-  also allows Unix-style softlinks and owner/permissions of files on
+  also allows Unix-style soft-links and owner/permissions of files on
   MSDOS floppies. You will need a program called umssync in order to
   make use of umsdos; read Documentation/filesystems/umsdos.txt. 
 
-  To get utilities for initializing/checking UMSDOS filesystem, or
+  To get utilities for initializing/checking UMSDOS file system, or
   latest patches and/or information, visit UMSDOS homepage at
   http://www.voyager.hr/~mnalis/umsdos/ .
 
@@ -8731,13 +8807,13 @@ CONFIG_UMSDOS_FS
   you want to compile this as a module ( = code which can be inserted
   in and removed from the running kernel whenever you want), say M
   here and read Documentation/modules.txt. The module will be called
-  umsdos.o. Note that the filesystem of your root partition (the one
+  umsdos.o. Note that the file system of your root partition (the one
   containing the directory /) cannot be a module, so saying M could be
   dangerous. If unsure, say N.
 
-/proc filesystem support
+/proc file system support
 CONFIG_PROC_FS
-  This is a virtual filesystem providing information about the status
+  This is a virtual file system providing information about the status
   of the system. "Virtual" means that it doesn't take up any space on
   your hard disk: the files are created on the fly by the kernel when
   you try to access them. Also, you cannot read the files with older
@@ -8750,14 +8826,34 @@ CONFIG_PROC_FS
   often a source of trouble if two devices are mistakenly configured
   to use the same IRQ). 
 
-  The /proc filesystem is explained in the file
+  The /proc file system is explained in the file
   Documentation/filesystems/proc.txt and on the proc(5) manpage ("man
   5 proc").
 
   This option will enlarge your kernel by about 67 KB. Several
   programs depend on this, so everyone should say Y here.
 
-NFS filesystem support
+/dev file system support (EXPERIMENTAL)
+CONFIG_DEVFS_FS
+  This is another virtual file system (like /proc) which provides the
+  file system interface to device drivers, normally found in /dev.
+  Devfs does not depend on major and minor number allocations. Device
+  drivers register entries in /dev which appear automagically. Without
+  devfs you need to populate /dev with hundreds, even thousands of
+  inodes.
+  This is work in progress. If you want to use this you *must* read
+  Documentation/filesystems/devfs/README
+  In particular, make sure you install devfsd. If you don't, expect to
+  spend time patching broken code and updating configuration files.
+
+Debug devfs
+CONFIG_DEVFS_DEBUG
+  This option appears if you have CONFIG_DEVFS_FS enabled. Setting
+  this to 'Y' enables devfs debugging output. See the file
+  Documentation/filesystems/devfs/boot-options for more details.
+  The default is 'N'.
+
+NFS file system support
 CONFIG_NFS_FS
   If you are connected to some other (usually local) Unix computer
   (using SLIP, PLIP, PPP or Ethernet) and want to mount files residing
@@ -8765,25 +8861,25 @@ CONFIG_NFS_FS
   protocol, say Y. "Mounting files" means that the client can access
   the files with usual UNIX commands as if they were sitting on the
   client's hard disk. For this to work, the server must run the
-  programs nfsd and mountd (but does not need to have NFS filesystem
+  programs nfsd and mountd (but does not need to have NFS file system
   support enabled in its kernel). NFS is explained in the Network
   Administrator's Guide, available from
   http://metalab.unc.edu/mdw/linux.html#guide , on its man page: "man
   nfs", and in the NFS-HOWTO.
   
   A superior but less widely used alternative to NFS is provided by
-  the Coda filesystem; see "Coda filesystem support" below.
+  the Coda file system; see "Coda file system support" below.
 
   If you say Y here, you should have said Y to TCP/IP networking also.
   This option would enlarge your kernel by about 27 KB. 
 
-  This filesystem is also available as a module ( = code which can be
+  This file system is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
   The module is called nfs.o. If you want to compile it as a module,
   say M here and read Documentation/modules.txt. 
 
   If you are configuring a diskless machine which will mount its root
-  filesystem over NFS at boot time, say Y here and to "IP: kernel
+  file system over NFS at boot time, say Y here and to "IP: kernel
   level autoconfiguration" above and to "Root file system on NFS"
   below. You cannot compile this driver as a module in this case.
   There are two packages designed for booting diskless machines over
@@ -8794,7 +8890,7 @@ CONFIG_NFS_FS
 
 Root file system on NFS
 CONFIG_ROOT_NFS
-  If you want your Linux box to mount its whole root filesystem (the
+  If you want your Linux box to mount its whole root file system (the
   one containing the directory /) from some other computer over the
   net via NFS (presumably because your box doesn't have a hard disk),
   say Y. Read Documentation/nfsroot.txt for details. It is likely that
@@ -8830,24 +8926,24 @@ CONFIG_NFSD
 Provide NFSv3 server support (EXPERIMENTAL)
 CONFIG_NFSD_V3
   If you would like to include the NFSv3 server was well as the NFSv2
-  server, say Y here.  File locking, via the NLMv4 protocol, is not
-  supported yet. If unsure, say N.
+  server, say Y here.  File locking, via the NLMv4 protocol, is also
+  supported. If unsure, say N.
 
-OS/2 HPFS filesystem support
+OS/2 HPFS file system support
 CONFIG_HPFS_FS
   OS/2 is IBM's operating system for PC's, the same as Warp, and HPFS
-  is the filesystem used for organizing files on OS/2 hard disk
+  is the file system used for organizing files on OS/2 hard disk
   partitions. Say Y if you want to be able to read files from an OS/2
   HPFS partition of your hard drive. OS/2 floppies however are in
   regular MSDOS format, so you don't need this option in order to be
   able to read them. Read Documentation/filesystems/hpfs.txt. 
 
-  This filesystem is also available as a module ( = code which can be
+  This file system is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
   The module is called hpfs.o. If you want to compile it as a module,
   say M here and read Documentation/modules.txt. If unsure, say N.
 
-Windows NT NTFS support (read only)
+NTFS file system support (read only)
 CONFIG_NTFS_FS
   NTFS is the file system of Microsoft Windows NT. Say Y if you want
   to get read access to files on NTFS partitions of your hard drive.
@@ -8870,7 +8966,7 @@ CONFIG_NTFS_RW
 
   If unsure, say N.
 
-System V and Coherent filesystem support (read only)
+System V and Coherent file system support (read only)
 CONFIG_SYSV_FS
   SCO, Xenix and Coherent are commercial Unix systems for Intel
   machines. Saying Y here would allow you to read from their floppies
@@ -8886,15 +8982,15 @@ CONFIG_SYSV_FS
   ftp://tsx-11.mit.edu/pub/linux/BETA ).
 
   If you only intend to mount files from some other Unix over the
-  network using NFS, you don't need the System V filesystem support
-  (but you need NFS filesystem support obviously). 
+  network using NFS, you don't need the System V file system support
+  (but you need NFS file system support obviously). 
 
   Note that this option is generally not needed for floppies, since a
   good portable way to transport files and directories between unixes
   (and even other operating systems) is given by the tar program ("man
   tar" or preferably "info tar"). Note also that this option has
   nothing whatsoever to do with the option "System V IPC". Read about
-  the System V filesystem in Documentation/filesystems/sysv-fs.txt.
+  the System V file system in Documentation/filesystems/sysv-fs.txt.
   Saying Y here will enlarge your kernel by about 27 kB.
 
   If you want to compile this as a module ( = code which can be
@@ -8904,7 +9000,7 @@ CONFIG_SYSV_FS
 
   If you haven't heard about all of this before, it's safe to say N.
 
-SYSV filesystem write support (DANGEROUS)
+SYSV file system write support (DANGEROUS)
 CONFIG_SYSV_FS_WRITE
   If you say Y here, you will (hopefully) be able to write to System V
   and Coherent file systems as well as read from them. The read-write
@@ -8913,9 +9009,9 @@ CONFIG_SYSV_FS_WRITE
 
   If unsure, say N.
 
-Amiga FFS filesystem support
+Amiga FFS file system support
 CONFIG_AFFS_FS
-  The Fast File System (FFS) is the common filesystem used on hard
+  The Fast File System (FFS) is the common file system used on hard
   disks by Amiga(tm) systems since AmigaOS Version 1.3 (34.20). Say Y
   if you want to be able to read and write files from and to an Amiga
   FFS partition on your hard drive. Amiga floppies however cannot be
@@ -8929,31 +9025,31 @@ CONFIG_AFFS_FS
   If you want to do this, you will also need to say Y or M to "Loop
   device support", above.
 
-  This filesystem is also available as a module ( = code which can be
+  This file system is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
   The module is called affs.o. If you want to compile it as a module,
   say M here and read Documentation/modules.txt. If unsure, say N.
 
-Apple Macintosh filesystem support (EXPERIMENTAL)
+Apple Macintosh file system support (EXPERIMENTAL)
 CONFIG_HFS_FS
   If you say Y here, you will be able to mount Macintosh-formatted
   floppy disks and hard drive partitions with full read-write access.
   Please read fs/hfs/HFS.txt to learn about the available mount
   options. 
 
-  This filesystem support is also available as a module ( = code which
+  This file system support is also available as a module ( = code which
   can be inserted in and removed from the running kernel whenever you
   want). The module is called hfs.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt.
 
-ROM filesystem support
+ROM file system support
 CONFIG_ROMFS_FS
-  This is a very small read-only filesystem mainly intended for
+  This is a very small read-only file system mainly intended for
   initial ram disks of installation disks, but it could be used for
   other read-only media as well. Read
   Documentation/filesystems/romfs.txt for details. 
 
-  This filesystem support is also available as a module ( = code which
+  This file system support is also available as a module ( = code which
   can be inserted in and removed from the running kernel whenever you
   want). The module is called romfs.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt. 
@@ -8961,14 +9057,14 @@ CONFIG_ROMFS_FS
   If you don't know whether you need it, then you don't need it:
   answer N.
 
-QNX4 filesystem support (read only) (EXPERIMENTAL)
+QNX4 file system support (read only) (EXPERIMENTAL)
 CONFIG_QNX4FS_FS  
-  This is the filesystem used by the operating system QNX 4. Say Y if
+  This is the file system used by the operating system QNX 4. Say Y if
   you intend to mount QNX hard disks or floppies. Unless you say Y to
   "QNX4FS write support" below, you will only be able to read
-  these filesystems.
+  these file systems.
 
-  This filesystem support is also available as a module ( = code which
+  This file system support is also available as a module ( = code which
   can be inserted in and removed from the running kernel whenever you
   want). The module is called qnx4.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt. 
@@ -8978,18 +9074,18 @@ CONFIG_QNX4FS_FS
 
 QNX4FS write support (DANGEROUS)
 CONFIG_QNX4FS_RW
-  Say Y if you want to test write support for QNX4 filesystems.
+  Say Y if you want to test write support for QNX4 file systems.
 
 Kernel automounter support
 CONFIG_AUTOFS_FS
-  The automounter is a tool to automatically mount remote filesystems
+  The automounter is a tool to automatically mount remote file systems
   on demand. This implementation is partially kernel-based to reduce
   overhead in the already-mounted case; this is unlike the BSD
   automounter (amd), which is a pure user space daemon.
 
   To use the automounter you need the user-space tools from
   ftp://ftp.kernel.org/pub/linux/daemons/autofs ; you also want to
-  answer Y to "NFS filesystem support", below.
+  answer Y to "NFS file system support", below.
 
   If you want to compile this as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want),
@@ -9002,16 +9098,16 @@ CONFIG_AUTOFS_FS
   If you want to use the newer version of autofs with more features,
   say N here and select automounter v4.
 
-Kernel automounter v4 support
+Kernel automounter version 4 support (also supports v3)
 CONFIG_AUTOFS4_FS
-  The automounter is a tool to automatically mount remote filesystems
+  The automounter is a tool to automatically mount remote file systems
   on demand. This implementation is partially kernel-based to reduce
   overhead in the already-mounted case; this is unlike the BSD
   automounter (amd), which is a pure user space daemon.
 
   To use the automounter you need the user-space tools from
   ftp://ftp.kernel.org/pub/linux/daemons/autofs/testing-v4 ; you also
-  want to answer Y to "NFS filesystem support", below.
+  want to answer Y to "NFS file system support", below.
 
   If you want to compile this as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want),
@@ -9023,17 +9119,17 @@ CONFIG_AUTOFS4_FS
   have a laptop which needs to dynamically reconfigure to the local
   network, you probably do not need an automounter, and can say N here.
 
-EFS filesystem support (read only) (EXPERIMENTAL)
+EFS file system support (read only) (EXPERIMENTAL)
 CONFIG_EFS_FS
-  EFS is an older filesystem used for non-ISO9660 CDROMs and hard disk
+  EFS is an older file system used for non-ISO9660 CDROMs and hard disk
   partitions by SGI's IRIX operating system (IRIX 6.0 and newer uses
-  the XFS filesystem for hard disk partitions however).
+  the XFS file system for hard disk partitions however).
 
   This implementation only offers read-only access. If you don't know
   what all this is about, it's safe to say N. For more information
   about EFS see its home page at http://aeschi.ch.eu.org/efs/ .
 
-  If you want to compile the EFS filesystem support as a module ( =
+  If you want to compile the EFS file system support as a module ( =
   code which can be inserted in and removed from the running kernel
   whenever you want), say M here and read Documentation/modules.txt.
   The module will be called efs.o. 
@@ -9043,19 +9139,19 @@ CONFIG_SGI_DISKLABEL
   Say Y to this only if you plan on mounting disks with SGI
   disklabels. This is not required to mount EFS-format CDROMs.
 
-UFS filesystem support (read only)
+UFS file system support (read only)
 CONFIG_UFS_FS
   BSD and derivate versions of Unix (such as SunOS, FreeBSD, NetBSD,
-  OpenBSD and NeXTstep) use a filesystem called UFS. Some System V
+  OpenBSD and NeXTstep) use a file system called UFS. Some System V
   Unixes can create and mount hard disk partitions and diskettes using
-  this filesystem as well. Saying Y here will allow you to read from
+  this file system as well. Saying Y here will allow you to read from
   these partitions; if you also want to write to them, say Y to the
-  experimental "UFS filesystem write support", below. Please read the
+  experimental "UFS file system write support", below. Please read the
   file Documentation/filesystems/ufs.txt for more information.
 
   If you only intend to mount files from some other Unix over the
-  network using NFS, you don't need the UFS filesystem support (but
-  you need NFS filesystem support obviously). 
+  network using NFS, you don't need the UFS file system support (but
+  you need NFS file system support obviously). 
 
   Note that this option is generally not needed for floppies, since a
   good portable way to transport files and directories between unixes
@@ -9066,14 +9162,14 @@ CONFIG_UFS_FS
   NeXT character set to the Latin1 character set; use the program
   recode ("info recode") for this purpose. 
 
-  If you want to compile the UFS filesystem support as a module ( =
+  If you want to compile the UFS file system support as a module ( =
   code which can be inserted in and removed from the running kernel
   whenever you want), say M here and read Documentation/modules.txt.
   The module will be called ufs.o. 
 
   If you haven't heard about all of this before, it's safe to say N.
 
-UFS filesystem write support (DANGEROUS)
+UFS file system write support (DANGEROUS)
 CONFIG_UFS_FS_WRITE
   Say Y here if you want to try writing to UFS partitions. This is
   experimental, so you should back up your UFS partitions beforehand.
@@ -9111,7 +9207,7 @@ CONFIG_BSD_DISKLABEL
   first sector a new partition table in BSD disklabel format. Saying Y
   here allows you to read these disklabels and further mount FreeBSD
   partitions from within Linux if you have also said Y to "UFS
-  filesystem support", above. If you don't know what all this is
+  file system support", above. If you don't know what all this is
   about, say N.
 
 Sun partition tables support
@@ -9119,7 +9215,7 @@ CONFIG_SUN_PARTITION
   Like most systems, SunOS uses its own hard disk partition table
   format, incompatible with all others. Saying Y here allows you to
   read these partition tables and further mount SunOS partitions from
-  within Linux if you have also said Y to "UFS filesystem support",
+  within Linux if you have also said Y to "UFS file system support",
   above. This is mainly used to carry data from a SPARC under SunOS to
   your Linux box via a removable medium like magneto-optical or ZIP
   drives; note however that a good portable way to transport files and
@@ -9133,16 +9229,16 @@ CONFIG_SOLARIS_X86_PARTITION
   table format, incompatible with all others. Saying Y here allows you
   to read these partition tables and further mount Solaris x86
   partitions from within Linux if you have also said Y to "UFS
-  filesystem support", above.
+  file system support", above.
 
 SGI partition support
 CONFIG_SGI_PARTITION
   Say Y here if you would like to be able to read the hard disk
   partition table format used by SGI machines.
 
-ADFS filesystem support (read only) (EXPERIMENTAL)
+ADFS file system support (read only) (EXPERIMENTAL)
 CONFIG_ADFS_FS
-  The Acorn Disc Filing System is the standard filesystem of the
+  The Acorn Disc Filing System is the standard file system of the
   RiscOS operating system which runs on Acorn's ARM-based Risc PC
   systems and the Acorn Archimedes range of machines. If you say Y
   here, Linux will be able to read from ADFS partitions on hard drives
@@ -9159,10 +9255,10 @@ CONFIG_ADFS_FS
 
   If unsure, say N.
 
-/dev/pts filesystem for Unix98 PTYs
+/dev/pts file system for Unix98 PTYs
 CONFIG_DEVPTS_FS
   You should say Y here if you said Y to "Unix98 PTY support" above.
-  You'll then get a virtual filesystem which can be mounted on
+  You'll then get a virtual file system which can be mounted on
   /dev/pts with "mount -t devpts". This, together with the pseudo
   terminal master multiplexer /dev/ptmx, is used for pseudo terminal
   support as described in The Open Group's Unix98 standard: in order
@@ -9175,14 +9271,17 @@ CONFIG_DEVPTS_FS
   mode of operation; you also need client programs that use the Unix98
   API.
 
+  Note that CONFIG_DEVFS_FS is a more general facility.
+
 UnixWare slices support (EXPERIMENTAL)
 CONFIG_UNIXWARE_DISKLABEL
   Like some systems, UnixWare uses its own slice table inside a
   partition (VTOC - Virtual Table of Contents). Its format is
   incompatible with all other OSes. Saying Y here allows you to read
   VTOC and further mount UnixWare partitions read-only from within
-  Linux if you have also said Y to "UFS filesystem support" or "System
-  V and Coherent filesystem support", above.
+  Linux if you have also said Y to "UFS file system support", "System
+  V and Coherent file system support" or "BFS file system support",
+  above.
 
   This is mainly used to carry data from a UnixWare box to your
   Linux box via a removable medium like magneto-optical, ZIP or
@@ -9193,12 +9292,12 @@ CONFIG_UNIXWARE_DISKLABEL
 
   If you don't know what all this is about, say N.
 
-SMB filesystem support (to mount Windows shares etc.)
+SMB file system support (to mount Windows shares etc.)
 CONFIG_SMB_FS
   SMB (Server Message Block) is the protocol Windows for Workgroups
   (WfW), Windows 95/98, Windows NT and OS/2 Lan Manager use to share
   files and printers over local networks. Saying Y here allows you to
-  mount their filesystems (often called "shares" in this context) and
+  mount their file systems (often called "shares" in this context) and
   access them just like any other Unix directory. Currently, this
   works only if the Windows machines use TCP/IP as the underlying
   transport protocol, and not NetBEUI. For details, read
@@ -9219,10 +9318,10 @@ CONFIG_SMB_FS
   want), say M here and read Documentation/modules.txt. The module
   will be called smbfs.o. Most people say N, however.
 
-Coda filesystem support (advanced network fs)
+Coda file system support (advanced network fs)
 CONFIG_CODA_FS
-  Coda is an advanced network filesystem, similar to NFS in that it
-  enables you to mount filesystems of a remote server and access them
+  Coda is an advanced network file system, similar to NFS in that it
+  enables you to mount file systems of a remote server and access them
   with regular Unix commands as if they were sitting on your hard
   disk. Coda has several advantages over NFS: support for disconnected
   operation (e.g. for laptops), read/write server replication,
@@ -9240,7 +9339,7 @@ CONFIG_CODA_FS
   whenever you want), say M here and read Documentation/modules.txt.
   The module will be called coda.o. 
 
-NCP filesystem support (to mount NetWare volumes)
+NCP file system support (to mount NetWare volumes)
 CONFIG_NCP_FS
   NCP (NetWare Core Protocol) is a protocol that runs over IPX and is
   used by Novell NetWare clients to talk to file servers. It is to IPX
@@ -9348,7 +9447,7 @@ CONFIG_NCPFS_EXTRAS
 
 nls codepage 437
 CONFIG_NLS_CODEPAGE_437
-  The Microsoft fat filesystem family can deal with filenames in
+  The Microsoft fat file system family can deal with filenames in
   native language character sets. These character sets are stored
   in so-called DOS codepages. You need to include the appropriate
   codepage if you want to be able to read/write these filenames on
@@ -9359,7 +9458,7 @@ CONFIG_NLS_CODEPAGE_437
 
 nls codepage 737
 CONFIG_NLS_CODEPAGE_737
-  The Microsoft fat filesystem family can deal with filenames in
+  The Microsoft fat file system family can deal with filenames in
   native language character sets. These character sets are stored
   in so-called DOS codepages. You need to include the appropriate
   codepage if you want to be able to read/write these filenames on
@@ -9370,7 +9469,7 @@ CONFIG_NLS_CODEPAGE_737
 
 nls codepage 775
 CONFIG_NLS_CODEPAGE_775
-  The Microsoft fat filesystem family can deal with filenames in
+  The Microsoft fat file system family can deal with filenames in
   native language character sets. These character sets are stored
   in so-called DOS codepages. You need to include the appropriate
   codepage if you want to be able to read/write these filenames on
@@ -9381,7 +9480,7 @@ CONFIG_NLS_CODEPAGE_775
 
 nls codepage 850
 CONFIG_NLS_CODEPAGE_850
-  The Microsoft fat filesystem family can deal with filenames in
+  The Microsoft fat file system family can deal with filenames in
   native language character sets. These character sets are stored in
   so-called DOS codepages. You need to include the appropriate
   codepage if you want to be able to read/write these filenames on
@@ -9396,7 +9495,7 @@ CONFIG_NLS_CODEPAGE_850
 
 nls codepage 852
 CONFIG_NLS_CODEPAGE_852
-  The Microsoft fat filesystem family can deal with filenames in
+  The Microsoft fat file system family can deal with filenames in
   native language character sets. These character sets are stored in
   so-called DOS codepages. You need to include the appropriate
   codepage if you want to be able to read/write these filenames on
@@ -9410,7 +9509,7 @@ CONFIG_NLS_CODEPAGE_852
 
 nls codepage 855
 CONFIG_NLS_CODEPAGE_855
-  The Microsoft fat filesystem family can deal with filenames in
+  The Microsoft fat file system family can deal with filenames in
   native language character sets. These character sets are stored in
   so-called DOS codepages. You need to include the appropriate
   codepage if you want to be able to read/write these filenames on
@@ -9420,7 +9519,7 @@ CONFIG_NLS_CODEPAGE_855
 
 nls codepage 857
 CONFIG_NLS_CODEPAGE_857
-  The Microsoft fat filesystem family can deal with filenames in
+  The Microsoft fat file system family can deal with filenames in
   native language character sets. These character sets are stored in
   so-called DOS codepages. You need to include the appropriate
   codepage if you want to be able to read/write these filenames on
@@ -9430,7 +9529,7 @@ CONFIG_NLS_CODEPAGE_857
 
 nls codepage 860
 CONFIG_NLS_CODEPAGE_860
-  The Microsoft fat filesystem family can deal with filenames in
+  The Microsoft fat file system family can deal with filenames in
   native language character sets. These character sets are stored in
   so-called DOS codepages. You need to include the appropriate
   codepage if you want to be able to read/write these filenames on
@@ -9440,7 +9539,7 @@ CONFIG_NLS_CODEPAGE_860
 
 nls codepage 861
 CONFIG_NLS_CODEPAGE_861
-  The Microsoft fat filesystem family can deal with filenames in
+  The Microsoft fat file system family can deal with filenames in
   native language character sets. These character sets are stored in
   so-called DOS codepages. You need to include the appropriate
   codepage if you want to be able to read/write these filenames on
@@ -9450,7 +9549,7 @@ CONFIG_NLS_CODEPAGE_861
 
 nls codepage 862
 CONFIG_NLS_CODEPAGE_862
-  The Microsoft fat filesystem family can deal with filenames in
+  The Microsoft fat file system family can deal with filenames in
   native language character sets. These character sets are stored in
   so-called DOS codepages. You need to include the appropriate
   codepage if you want to be able to read/write these filenames on
@@ -9460,7 +9559,7 @@ CONFIG_NLS_CODEPAGE_862
 
 nls codepage 863
 CONFIG_NLS_CODEPAGE_863
-  The Microsoft fat filesystem family can deal with filenames in
+  The Microsoft fat file system family can deal with filenames in
   native language character sets. These character sets are stored in
   so-called DOS codepages. You need to include the appropriate
   codepage if you want to be able to read/write these filenames on
@@ -9471,7 +9570,7 @@ CONFIG_NLS_CODEPAGE_863
 
 nls codepage 864
 CONFIG_NLS_CODEPAGE_864
-  The Microsoft fat filesystem family can deal with filenames in
+  The Microsoft fat file system family can deal with filenames in
   native language character sets. These character sets are stored in
   so-called DOS codepages. You need to include the appropriate
   codepage if you want to be able to read/write these filenames on
@@ -9481,7 +9580,7 @@ CONFIG_NLS_CODEPAGE_864
 
 nls codepage 865
 CONFIG_NLS_CODEPAGE_865
-  The Microsoft fat filesystem family can deal with filenames in
+  The Microsoft fat file system family can deal with filenames in
   native language character sets. These character sets are stored in
   so-called DOS codepages. You need to include the appropriate
   codepage if you want to be able to read/write these filenames on
@@ -9492,7 +9591,7 @@ CONFIG_NLS_CODEPAGE_865
 
 nls codepage 866
 CONFIG_NLS_CODEPAGE_866
-  The Microsoft fat filesystem family can deal with filenames in
+  The Microsoft fat file system family can deal with filenames in
   native language character sets. These character sets are stored in
   so-called DOS codepages. You need to include the appropriate
   codepage if you want to be able to read/write these filenames on
@@ -9503,7 +9602,7 @@ CONFIG_NLS_CODEPAGE_866
 
 nls codepage 869
 CONFIG_NLS_CODEPAGE_869
-  The Microsoft fat filesystem family can deal with filenames in
+  The Microsoft fat file system family can deal with filenames in
   native language character sets. These character sets are stored in
   so-called DOS codepages. You need to include the appropriate
   codepage if you want to be able to read/write these filenames on
@@ -9516,7 +9615,7 @@ CONFIG_NLS_CODEPAGE_869
 
 nls codepage 874
 CONFIG_NLS_CODEPAGE_874
-  The Microsoft fat filesystem family can deal with filenames in
+  The Microsoft fat file system family can deal with filenames in
   native language character sets. These character sets are stored in
   so-called DOS codepages. You need to include the appropriate
   codepage if you want to be able to read/write these filenames on
@@ -9527,7 +9626,7 @@ CONFIG_NLS_CODEPAGE_874
 nls iso8859-1
 CONFIG_NLS_ISO8859_1
   If you want to display filenames with native language characters
-  from the Microsoft fat filesystem family or from JOLIET CDROMs
+  from the Microsoft fat file system family or from JOLIET CDROMs
   correctly on the screen, you need to include the appropriate
   input/output character sets. Say Y here for the Latin 1 character
   set, which covers most West European languages such as Albanian,
@@ -9538,7 +9637,7 @@ CONFIG_NLS_ISO8859_1
 nls iso8859-2
 CONFIG_NLS_ISO8859_2
   If you want to display filenames with native language characters
-  from the Microsoft fat filesystem family or from JOLIET CDROMs
+  from the Microsoft fat file system family or from JOLIET CDROMs
   correctly on the screen, you need to include the appropriate
   input/output character sets. Say Y here for the Latin 2 character
   set, which works for most Latin-written Slavic and Central European
@@ -9548,7 +9647,7 @@ CONFIG_NLS_ISO8859_2
 nls iso8859-3
 CONFIG_NLS_ISO8859_3
   If you want to display filenames with native language characters
-  from the Microsoft fat filesystem family or from JOLIET CDROMs
+  from the Microsoft fat file system family or from JOLIET CDROMs
   correctly on the screen, you need to include the appropriate
   input/output character sets. Say Y here for the Latin 3 character
   set, which is popular with authors of Esperanto, Galician, Maltese,
@@ -9557,7 +9656,7 @@ CONFIG_NLS_ISO8859_3
 nls iso8859-4
 CONFIG_NLS_ISO8859_4
   If you want to display filenames with native language characters
-  from the Microsoft fat filesystem family or from JOLIET CDROMs
+  from the Microsoft fat file system family or from JOLIET CDROMs
   correctly on the screen, you need to include the appropriate
   input/output character sets. Say Y here for the Latin 4 character
   set which introduces letters for Estonian, Latvian, and
@@ -9566,7 +9665,7 @@ CONFIG_NLS_ISO8859_4
 nls iso8859-5
 CONFIG_NLS_ISO8859_5
   If you want to display filenames with native language characters
-  from the Microsoft fat filesystem family or from JOLIET CDROMs
+  from the Microsoft fat file system family or from JOLIET CDROMs
   correctly on the screen, you need to include the appropriate
   input/output character sets. Say Y here for ISO8859-5, a Cyrillic
   character set with which you can type Bulgarian, Byelorussian,
@@ -9576,7 +9675,7 @@ CONFIG_NLS_ISO8859_5
 nls iso8859-6
 CONFIG_NLS_ISO8859_6
   If you want to display filenames with native language characters
-  from the Microsoft fat filesystem family or from JOLIET CDROMs
+  from the Microsoft fat file system family or from JOLIET CDROMs
   correctly on the screen, you need to include the appropriate
   input/output character sets. Say Y here for ISO8859-6, the Arabic
   character set.
@@ -9584,7 +9683,7 @@ CONFIG_NLS_ISO8859_6
 nls iso8859-7
 CONFIG_NLS_ISO8859_7
   If you want to display filenames with native language characters
-  from the Microsoft fat filesystem family or from JOLIET CDROMs
+  from the Microsoft fat file system family or from JOLIET CDROMs
   correctly on the screen, you need to include the appropriate
   input/output character sets. Say Y here for ISO8859-7, the Modern
   Greek character set.
@@ -9592,7 +9691,7 @@ CONFIG_NLS_ISO8859_7
 nls iso8859-8
 CONFIG_NLS_ISO8859_8
   If you want to display filenames with native language characters
-  from the Microsoft fat filesystem family or from JOLIET CDROMs
+  from the Microsoft fat file system family or from JOLIET CDROMs
   correctly on the screen, you need to include the appropriate
   input/output character sets. Say Y here for ISO8859-8, the Hebrew
   character set.
@@ -9600,7 +9699,7 @@ CONFIG_NLS_ISO8859_8
 nls iso8859-9
 CONFIG_NLS_ISO8859_9
   If you want to display filenames with native language characters
-  from the Microsoft fat filesystem family or from JOLIET CDROMs
+  from the Microsoft fat file system family or from JOLIET CDROMs
   correctly on the screen, you need to include the appropriate
   input/output character sets. Say Y here for the Latin 5 character
   set, and it replaces the rarely needed Icelandic letters in Latin 1
@@ -9609,7 +9708,7 @@ CONFIG_NLS_ISO8859_9
 nls iso8859-10
 CONFIG_NLS_ISO8859_10
   If you want to display filenames with native language characters
-  from the Microsoft fat filesystem family or from JOLIET CDROMs
+  from the Microsoft fat file system family or from JOLIET CDROMs
   correctly on the screen, you need to include the appropriate
   input/output character sets. Say Y here for the Latin 6 character
   set, which adds the last Inuit (Greenlandic) and Sami (Lappish)
@@ -9619,7 +9718,7 @@ CONFIG_NLS_ISO8859_10
 NLS ISO 8859-14 (Latin 8; Celtic)
 CONFIG_NLS_ISO8859_14
   If you want to display filenames with native language characters
-  from the Microsoft fat filesystem family or from JOLIET CDROMs
+  from the Microsoft fat file system family or from JOLIET CDROMs
   correctly on the screen, you need to include the appropriate
   input/output character sets. Say Y here for the Latin 8 character
   set, which adds the last accented vowels for Welsh (aka Cymraeg)
@@ -9629,7 +9728,7 @@ CONFIG_NLS_ISO8859_14
 nls iso8859-15
 CONFIG_NLS_ISO8859_15
   If you want to display filenames with native language characters
-  from the Microsoft fat filesystem family or from JOLIET CDROMs
+  from the Microsoft fat file system family or from JOLIET CDROMs
   correctly on the screen, you need to include the appropriate
   input/output character sets. Say Y here for the Latin 9 character
   set, which covers most West European languages such as Albanian,
@@ -9644,7 +9743,7 @@ CONFIG_NLS_ISO8859_15
 nls koi8-r
 CONFIG_NLS_KOI8_R
   If you want to display filenames with native language characters
-  from the Microsoft fat filesystem family or from JOLIET CDROMs
+  from the Microsoft fat file system family or from JOLIET CDROMs
   correctly on the screen, you need to include the appropriate
   input/output character sets. Say Y here for the preferred Russian
   character set.
@@ -9979,8 +10078,8 @@ CONFIG_UNIX98_PTYS
   traditionally /dev/ttyp2 will then be /dev/pts/2, for example.
 
   The entries in /dev/pts/ are created on the fly by a virtual
-  filesystem; therefore, if you say Y here you should say Y to
-  "/dev/pts filesystem for Unix98 PTYs" as well.
+  file system; therefore, if you say Y here you should say Y to
+  "/dev/pts file system for Unix98 PTYs" as well.
 
   If you want to say Y here, you need to have the C library glibc 2.1
   or later (equal to libc-6.1, check with "ls -l /lib/libc.so.*").
@@ -10033,7 +10132,7 @@ CONFIG_LP_CONSOLE
   option "console=lp" to the kernel at boot time.
 
   Note that kernel messages can get lost if the printer is out of
-  paper (or off, or unplugged, or too busy..), but this behaviour
+  paper (or off, or unplugged, or too busy..), but this behavior
   can be changed. See drivers/char/lp.c (do this at your own risk).
 
   If unsure, say N.
@@ -10302,7 +10401,7 @@ CONFIG_FT_NR_BUFFERS
 Procfs entry for ftape
 CONFIG_FT_PROC_FS
   Optional. Saying Y will result in creation of a directory
-  `/proc/ftape' under the proc file system. The files can be viewed
+  `/proc/ftape' under the /proc file system. The files can be viewed
   with your favorite pager (i.e. use "more /proc/ftape/history" or
   "less /proc/ftape/history" or simply "cat /proc/ftape/history"). The
   file will contain some status information about the inserted
@@ -10312,9 +10411,10 @@ CONFIG_FT_PROC_FS
   by approximately 2 KB.
 
   WARNING: When compiling ftape as a module (i.e. saying M to
-  "Floppy tape drive") it is dangerous to use ftape's proc file system
-  interface. Accessing `/proc/ftape' while the module is unloaded will
-  result in a kernel Oops. This cannot be fixed from inside ftape.
+  "Floppy tape drive") it is dangerous to use ftape's /proc file
+  system interface. Accessing `/proc/ftape' while the module is
+  unloaded will result in a kernel Oops. This cannot be fixed from
+  inside ftape.
 
 Controlling the amount of debugging output of ftape
 CONFIG_FT_NORMAL_DEBUG
@@ -10643,6 +10743,11 @@ CONFIG_APM
    11) exchange RAM chips 
    12) exchange the motherboard.
 
+  To compile this driver as a module ( = code which can be inserted in
+  and removed from the running kernel whenever you want), say M here
+  and read Documentation/modules.txt. The module will be called
+  apm.o.
+
 Ignore USER SUSPEND
 CONFIG_APM_IGNORE_USER_SUSPEND
   This option will ignore USER SUSPEND requests. On machines with a
@@ -10724,14 +10829,6 @@ CONFIG_APM_ALLOW_INTS
   many of the newer IBM Thinkpads.  If you experience hangs when you
   suspend, try setting this to Y.  Otherwise, say N.
 
-Entry point offset fix (some Acer laptops)
-CONFIG_APM_BAD_ENTRY_OFFSET
-  Some implementations of the APM BIOS provide the driver with a bad
-  entry point offset.  If you set this option to Y, then the upper
-  sixteen bits of the offset will be set to zero.  This is usually
-  unnecessary but harmless.  This is required for the Acer Travelmate
-  510DX, Travelmate 510T and Extensa 503T.  For others, say N.
-
 Use real mode APM BIOS call to power off
 CONFIG_APM_REAL_MODE_POWER_OFF
   Use real mode APM BIOS calls to switch off the computer. This is
@@ -10763,7 +10860,7 @@ CONFIG_WATCHDOG
 
 Disable watchdog shutdown on close
 CONFIG_WATCHDOG_NOWAYOUT
-  The default watchdog behaviour (which you get if you say N here) is
+  The default watchdog behavior (which you get if you say N here) is
   to stop the timer if the process managing it closes the file
   /dev/watchdog. It's always remotely possible that this process might
   get killed. If you say Y here, the watchdog cannot be stopped once
@@ -10836,6 +10933,25 @@ CONFIG_ACQUIRE_WDT
   module, say M here and read Documentation/modules.txt. Most people
   will say N.
 
+Intel P6 CPU Microcode Update Support
+CONFIG_MICROCODE
+  If you say Y here you will be able to update microcode on 
+  Intel processors in P6 family, e.g.  Pentium Pro, Pentium II, 
+  Pentium III, Xeon etc. You will obviously need the actual microcode
+  binary data itself which is not shipped with the Linux kernel. 
+  Contact Intel to obtain the latest revision of microcode for 
+  your CPU(s). With this support compiled you can use dd(1) to write
+  microcode, for example:
+
+     # dd if=/etc/microcode of=/proc/driver/microcode bs=98304 count=1
+
+  You need to be superuser to do that.
+
+  This driver is also available as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want).
+  The module will be called microcode.o. If you want to compile it as a
+  module, say M here and read Documentation/modules.txt.
+
 Enhanced Real Time Clock Support
 CONFIG_RTC
   If you say Y here and create a character special file /dev/rtc with
@@ -10844,7 +10960,7 @@ CONFIG_RTC
   Every PC has such a clock built in. It can be used to generate
   signals from as low as 1Hz up to 8192Hz, and can also be used
   as a 24 hour alarm. It reports status information via the file
-  /proc/driver/rtc and its behaviour is set by various ioctls on
+  /proc/driver/rtc and its behavior is set by various ioctls on
   /dev/rtc.
 
   If you run Linux on a multiprocessor machine and said Y to
@@ -11037,7 +11153,7 @@ CONFIG_NWBUTTON
   row.
 
   Do not hold the button down for too long, as the driver does not
-  alter the behaviour of the hardware reset circuitry attached to the
+  alter the behavior of the hardware reset circuitry attached to the
   button; it will still execute a hard reset if the button is held
   down for longer than approximately five seconds.
 
@@ -11830,11 +11946,16 @@ CONFIG_HISAX_NO_LLC
   If you have trouble with some ugly exchanges try to select this
   option.
 
+Disable keypad protocol option
+CONFIG_HISAX_NO_KEYPAD
+  If you like to send special dialstrings including * or # without
+  using the keypad protocol, select this option.
+
 HiSax Support for german 1TR6
 CONFIG_HISAX_1TR6
   Enable this if you have a old german 1TR6 line.
 
-HiSax Support for Teles 16.0/8.0
+Teles 16.0/8.0
 CONFIG_HISAX_16_0
   This enables HiSax support for the Teles ISDN-cards S0-16.0, S0-8
   and many compatibles. 
@@ -11843,7 +11964,7 @@ CONFIG_HISAX_16_0
   different cards, a different D-channel protocol, or non-standard
   IRQ/port/shmem settings.
 
-HiSax Support for Teles 16.3 or PNP or PCMCIA
+Teles 16.3 or PNP or PCMCIA
 CONFIG_HISAX_16_3
   This enables HiSax support for the Teles ISDN-cards S0-16.3 the
   Teles/Creatix PnP and the Teles PCMCIA.
@@ -11852,17 +11973,17 @@ CONFIG_HISAX_16_3
   different cards, a different D-channel protocol, or non-standard
   IRQ/port settings.
 
-HiSax Support for Teles PCI
+Teles PCI
 CONFIG_HISAX_TELESPCI
   This enables HiSax support for the Teles PCI.
   See Documentation/isdn/README.HiSax on how to configure it.
 
-HiSax Support for Teles S0Box
+Teles S0Box
 CONFIG_HISAX_S0BOX
   This enables HiSax support for the Teles/Creatix parallel port
   S0BOX.  See Documentation/isdn/README.HiSax on how to configure it.
 
-HiSax Support for AVM A1 (Fritz)
+AVM A1 (Fritz)
 CONFIG_HISAX_AVM_A1
   This enables HiSax support for the AVM A1 (aka "Fritz").
   
@@ -11870,17 +11991,17 @@ CONFIG_HISAX_AVM_A1
   different cards, a different D-channel protocol, or non-standard
   IRQ/port settings.
 
-HiSax Support for AVM PnP/PCI (Fritz!PNP/PCI)
+AVM PnP/PCI (Fritz!PNP/PCI)
 CONFIG_HISAX_FRITZPCI
   This enables HiSax support for the AVM "Fritz!PnP" and "Fritz!PCI".
   See Documentation/isdn/README.HiSax on how to configure it.
 
-HiSax Support for AVM A1 PCMCIA (Fritz)
+AVM A1 PCMCIA (Fritz)
 CONFIG_HISAX_AVM_A1_PCMCIA
   This enables HiSax support for the AVM A1 "Fritz!PCMCIA").
   See Documentation/isdn/README.HiSax on how to configure it.
 
-HiSax Support for Elsa cards
+Elsa cards
 CONFIG_HISAX_ELSA
   This enables HiSax support for the Elsa Mircolink ISA cards, for the
   Elsa Quickstep series cards and Elsa PCMCIA.
@@ -11889,7 +12010,7 @@ CONFIG_HISAX_ELSA
   different cards, a different D-channel protocol, or non-standard
   IRQ/port settings.
 
-HiSax Support for ITK ix1-micro Revision 2
+ITK ix1-micro Revision 2
 CONFIG_HISAX_IX1MICROR2
   This enables HiSax support for the ITK ix1-micro Revision 2 card.
 
@@ -11897,7 +12018,7 @@ CONFIG_HISAX_IX1MICROR2
   different cards, a different D-channel protocol, or non-standard
   IRQ/port settings.
 
-HiSax Support for Eicon.Diehl Diva cards
+Eicon.Diehl Diva cards
 CONFIG_HISAX_DIEHLDIVA
   This enables HiSax support for the Eicon.Diehl Diva none PRO
   versions passive ISDN cards.
@@ -11906,16 +12027,16 @@ CONFIG_HISAX_DIEHLDIVA
   different cards, a different D-channel protocol, or non-standard
   IRQ/port settings.
 
-HiSax Support for ASUSCOM cards
+ASUSCOM ISA cards
 CONFIG_HISAX_ASUSCOM
   This enables HiSax support for the AsusCom and their OEM versions
-  passive ISDN cards.
+  passive ISDN ISA cards.
 
   See Documentation/isdn/README.HiSax on how to configure it using the
   different cards, a different D-channel protocol, or non-standard
   IRQ/port settings.
 
-HiSax Support for TELEINT cards
+TELEINT cards
 CONFIG_HISAX_TELEINT
   This enables HiSax support for the TELEINT SA1 semiactiv ISDN card.
 
@@ -11923,7 +12044,7 @@ CONFIG_HISAX_TELEINT
   different cards, a different D-channel protocol, or non-standard
   IRQ/port settings.
 
-HiSax Support for HFC-S based cards
+HFC-S based cards
 CONFIG_HISAX_HFCS
   This enables HiSax support for the HFC-S 2BDS0 based cards, like
   teles 16.3c.
@@ -11932,7 +12053,7 @@ CONFIG_HISAX_HFCS
   different cards, a different D-channel protocol, or non-standard
   IRQ/port settings.
 
-HiSax Support for Sedlbauer cards
+Sedlbauer cards
 CONFIG_HISAX_SEDLBAUER
   This enables HiSax support for the Sedlbauer passive ISDN cards.
 
@@ -11940,21 +12061,21 @@ CONFIG_HISAX_SEDLBAUER
   different cards, a different D-channel protocol, or non-standard
   IRQ/port settings.
 
-HiSax Support for USR Sportster internal TA
+USR Sportster internal TA
 CONFIG_HISAX_SPORTSTER
   This enables HiSax support for the USR Sportster internal TA card.
 
   See Documentation/isdn/README.HiSax on how to configure it using a
   different D-channel protocol, or non-standard IRQ/port settings.
 
-HiSax Support for MIC card
+MIC card
 CONFIG_HISAX_MIC
   This enables HiSax support for the ITH MIC card. 
 
   See Documentation/isdn/README.HiSax on how to configure it using a
   different D-channel protocol, or non-standard IRQ/port settings.
 
-HiSax Support for NETjet card
+NETjet card
 CONFIG_HISAX_NETJET
   This enables HiSax support for the NetJet from Traverse
   Technologies.
@@ -11962,62 +12083,67 @@ CONFIG_HISAX_NETJET
   See Documentation/isdn/README.HiSax on how to configure it using a
   different D-channel protocol, or non-standard IRQ/port settings.
 
-HiSax Support for Niccy PnP/PCI card
+Niccy PnP/PCI card
 CONFIG_HISAX_NICCY
   This enables HiSax support for the Dr. Neuhaus Niccy PnP or PCI. 
 
   See Documentation/isdn/README.HiSax on how to configure it using a
   different D-channel protocol, or non-standard IRQ/port settings.
 
-HiSax Support for Siemens I-Surf card
+Siemens I-Surf card
 CONFIG_HISAX_ISURF
   This enables HiSax support for the Siemens I-Talk/I-Surf card with
   ISAR chip.
   See Documentation/isdn/README.HiSax on how to configure it using a
   different D-channel protocol, or non-standard IRQ/port settings.
 
-HiSax Support for HST Saphir card
+HST Saphir card
 CONFIG_HISAX_HSTSAPHIR
   This enables HiSax support for the HST Saphir card.
   
   See Documentation/isdn/README.HiSax on how to configure it using a
   different D-channel protocol, or non-standard IRQ/port settings.
 
-HiSax Support for Telekom A4T card
+Telekom A4T card
 CONFIG_HISAX_BKM_A4T
   This enables HiSax support for the Telekom A4T card.
   
   See Documentation/isdn/README.HiSax on how to configure it using a
   different D-channel protocol, or non-standard IRQ/port settings.
 
-HiSax Support for Scitel Quadro card
+Scitel Quadro card
 CONFIG_HISAX_SCT_QUADRO
   This enables HiSax support for the Scitel Quadro card.
   
   See Documentation/isdn/README.HiSax on how to configure it using a
   different D-channel protocol, or non-standard IRQ/port settings.
 
-HiSax Support for Gazel cards
+Gazel cards
 CONFIG_HISAX_GAZEL
   This enables HiSax support for the Gazel cards.
 
   See Documentation/isdn/README.HiSax on how to configure it using a
   different D-channel protocol, or non-standard IRQ/port settings.
 
-HiSax Support for HFC PCI-Bus cards
+HFC PCI-Bus cards
 CONFIG_HISAX_HFC_PCI
   This enables HiSax support for the HFC-S PCI 2BDS0 based cards.
   
   For more informations see under Documentation/isdn/README.hfc-pci.
 
-HiSax Support for Winbond W6692 based cards
+Winbond W6692 based cards
 CONFIG_HISAX_W6692
   This enables HiSax support for Winbond W6692 based PCI ISDN cards.
   
   See Documentation/isdn/README.HiSax on how to configure it using a
   different D-channel protocol, or non-standard IRQ/port settings.
 
-HiSax Support for Am7930 (EXPERIMENTAL)
+HFC-S+, HFC-SP, HFC-PCMCIA cards (EXPERIMENTAL)
+CONFIG_HISAX_HFC_SX
+  This enables HiSax support for the HFC-S+, HFC-SP and HFC-PCMCIA cards.
+  This code is not finished yet.
+
+Am7930 (EXPERIMENTAL)
 CONFIG_HISAX_AMD7930
   This enables HiSax support for the AMD7930 chips on some SPARCs.
   This code is not finished yet.
@@ -12376,7 +12502,7 @@ CONFIG_ZORRO
   Say Y if you want your expansion cards to be identified on bootup;
   it will enlarge your kernel by about 10 KB. The identification
   information is also available through /proc/zorro (say Y to
-  "/proc filesystem support"!).
+  "/proc file system support"!).
 
   Note that even if you say N here, you can still use your expansion
   cards. If in doubt, say Y.
@@ -13159,7 +13285,7 @@ CONFIG_VIDEO_BWQCAM
 
 Colour QuickCam Video For Linux
 CONFIG_VIDEO_CQCAM
-  This is the video4linux driver for the colour version of the
+  This is the video4linux driver for the color version of the
   Connectix Quickcam. If you have one of these cameras, say Y here,
   otherwise say N. This driver does not work with the original
   monochrome Quickcam, Quickcam VC or QuickClip. It is also available
@@ -13212,7 +13338,7 @@ CONFIG_AGP
   megs due to kernel allocation issues), you could use PCI accesses
   and have up to a couple gigs of texture space.
 
-  Note that this is the only meas to have get XFree4/GLX use
+  Note that this is the only mean to have get XFree4/GLX use
   write-combining with MTRR support on AGP bus. Without, OpenGL
   direct rendering will be a lot slower but still faster than PIO.
 
@@ -13351,7 +13477,7 @@ CONFIG_NWFPE
   Say Y to include the NWFPE floating point emulator in the kernel.
   This is necessary to run most binaries. Linux does not currently
   support floating point hardware so you need to say Y here even if
-  your machine has an FPA or floating point co-processor podule.
+  your machine has an FPA or floating point co-processor module.
 
   It is also possible to say M to build the emulator as a module
   (nwfpe.o) or indeed to leave it out altogether. However, unless you
@@ -13408,12 +13534,12 @@ CONFIG_DEBUG_INFO
   time and disk space needed for compilation of the kernel. If in
   doubt say N.
 
-Split initialisation functions into discardable section
+Split initialization functions into discardable section
 CONFIG_TEXT_SECTIONS
   If you say Y here, kernel code that is only used during
-  initialisation is collected into a special area of the kernel so
+  initialization is collected into a special area of the kernel so
   that it can be discarded and the memory reclaimed when
-  initialisation is complete. In addition, if the kernel you wish to
+  initialization is complete. In addition, if the kernel you wish to
   build is able to run on multiple architectures, it allows the unused
   code to be discarded. Some versions of binutils, however, have a bug
   that causes the kernel to crash during startup when this option is
@@ -13474,7 +13600,7 @@ CONFIG_HOST_FOOTBRIDGE
 MFM hard disk support
 CONFIG_BLK_DEV_MFM
   Support the MFM hard drives on the Acorn Archimedes both
-  on-board the A4x0 motherboards and via the Acorn MFM podules.
+  on-board the A4x0 motherboards and via the Acorn MFM modules.
   Drives up to 64MB are supported. If you haven't got one of these
   machines or drives just say N.
 
@@ -13793,7 +13919,7 @@ Kernel httpd acceleration (EXPERIMENTAL)
 CONFIG_KHTTPD
   The kernel httpd acceleration daemon (kHTTPd) is a (limited) 
   web server build into the kernel. It is limited since it can only
-  serve files from the filesystem. Saying "M" here builds the
+  serve files from the file system. Saying "M" here builds the
   kHTTPd module; this is NOT enough to have a working kHTTPd. 
   For safety reasons, the module has to be activated by doing a
   "echo 1 > /proc/sys/net/khttpd/start" after inserting the module.
@@ -13869,7 +13995,7 @@ CONFIG_I2C_CHARDEV
 # LocalWords:  CONFIG coprocessor DX Pentium SX lilo loadlin HOWTO ftp metalab
 # LocalWords:  unc edu docs emu README kB BLK DEV FD Thinkpad fd MFM RLL IDE gz
 # LocalWords:  cdrom diskless netboot nfs xzvf ATAPI MB ide pavia rubini pl pd
-# LocalWords:  HD CDROMs IDECD NEC MITSUMI filesystem XT XD PCI BIOS cezar ATEN
+# LocalWords:  HD CDROMs IDECD NEC MITSUMI XT XD PCI BIOS cezar ATEN
 # LocalWords:  ISA EISA Microchannel VESA BIOSes IPC SYSVIPC ipc Ctrl dmesg hlt
 # LocalWords:  BINFMT Linkable http ac uk jo html GCC SPARC AVANTI CABRIOLET EB
 # LocalWords:  netscape gcc LD CC toplevel MODVERSIONS insmod rmmod modprobe IP
@@ -13899,7 +14025,7 @@ CONFIG_I2C_CHARDEV
 # LocalWords:  readprofile diskdrives org com masq EtherTalk tcp netrom sunacm
 # LocalWords:  misc AIC aic pio scc Portmaster eql GIS PhotoCDs MCDX Perell PG
 # LocalWords:  mcdx gscd optcd sjcd ISP hdparm Workgroups Lan samba PARIDE PCD
-# LocalWords:  filesystems smbfs ATA ppp PCTech RZ www powerquest txt CMD ESDI
+# LocalWords:  smbfs ATA ppp PCTech RZ www powerquest txt CMD ESDI
 # LocalWords:  chipset FB multicast MROUTE appletalk ifconfig IBMTR multiport
 # LocalWords:  Multisession STALDRV EasyIO EC EasyConnection ISTALLION ONboard
 # LocalWords:  Brumby pci TNC cis ohio faq usenet NETLINK dev hydra ca Tyne mem
@@ -13921,7 +14047,7 @@ CONFIG_I2C_CHARDEV
 # LocalWords:  AlphaPC mca AOUT OUTput PPro sipx gwdg lo nwe FourPort Boca unm
 # LocalWords:  Keepalive linefill RELCOM keepalive analogue CDR conf CDI INIT
 # LocalWords:  OPTi isp irq noisp VFAT vfat NTFS losetup dmsdosfs dosfs ISDN MP
-# LocalWords:  NOWAYOUT behaviour dialin isdn callback BTX Teles ICN EDSS Cisco
+# LocalWords:  NOWAYOUT behavior dialin isdn callback BTX Teles ICN EDSS Cisco
 # LocalWords:  ipppd syncppp RFC MPP VJ downloaded icn NICCY Creatix shmem ufr
 # LocalWords:  ibp md ARCnet ether encap NDIS arcether ODI Amigas AmiTCP NetBSD
 # LocalWords:  initrd tue util DES funet des OnNet BIOSP smc Travan Iomega CMS
@@ -14026,7 +14152,7 @@ CONFIG_I2C_CHARDEV
 # LocalWords:  struct APIC realtime OSs LynxOS CNC tmp cvf HFS hfs ADFS Risc os
 # LocalWords:  adfs ncpmount namespace SUBDIR reexport NDS kcore FT SPX spx DAT
 # LocalWords:  interserver BLKSZ NUMBUFFERS apmd Tadpole ANA roestock QuickCam
-# LocalWords:  isapnptools Colour CQCAM colour Connectix QuickClip prive mentre
+# LocalWords:  isapnptools Colour CQCAM color Connectix QuickClip prive mentre
 # LocalWords:  KMOD kmod conformant utexas kharker UnixWare Mwave cgi cl ts ibm
 # LocalWords:  eXchange threepio oakland simtel pre ULTRAMCA EtherLink isa luik
 # LocalWords:  EtherLink OpenBSD pts DEVPTS devpts ptmx ttyp glibc readback SA
@@ -14090,7 +14216,7 @@ CONFIG_I2C_CHARDEV
 # LocalWords:  VROOTHUB KBD ARRs MCRs NWBUTTON nwbutton NUM WaveArtist APNE cpu
 # LocalWords:  apne blackhawke PlanB lu mlan planb NWFPE FPA nwfpe unbootable
 # LocalWords:  FPEmulator ds vmlinux initialisation discardable pgtable PGT mdw
-# LocalWords:  quicklist pagetable arthur StrongARM podule podules Autodetect
+# LocalWords:  quicklist pagetable arthur StrongARM module modules Autodetect
 # LocalWords:  dodgy IrPORT irport Litelink litelink SuSE rtfm internet hda CY
 # LocalWords:  multmode DriveReady SeekComplete DriveStatusError miscompile AEC
 # LocalWords:  mainboard's Digital's alim FastTrak aec PIIXn piix Gayle Eyetech

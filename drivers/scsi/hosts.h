@@ -362,6 +362,17 @@ struct Scsi_Host
      * initialized, as required.
      */
 
+    /*
+     * The maximum length of SCSI commands that this host can accept.
+     * Probably 12 for most host adapters, but could be 16 for others.
+     * For drivers that don't set this field, a value of 12 is
+     * assumed.  I am leaving this as a number rather than a bit
+     * because you never know what subsequent SCSI standards might do
+     * (i.e. could there be a 20 byte or a 24-byte command a few years
+     * down the road?).  
+     */
+    unsigned char max_cmd_len;
+
     int this_id;
     int can_queue;
     short cmd_per_lun;
@@ -379,6 +390,12 @@ struct Scsi_Host
      * Host has rejected a command because it was busy.
      */
     unsigned host_blocked:1;
+
+    /*
+     * Host has requested that no further requests come through for the
+     * time being.
+     */
+    unsigned host_self_blocked:1;
     
     /*
      * Host uses correct SCSI ordering not PC ordering. The bit is
@@ -413,6 +430,20 @@ struct Scsi_Host
 extern void scsi_free_host_dev(Scsi_Device * SDpnt);
 extern Scsi_Device * scsi_get_host_dev(struct Scsi_Host * SHpnt);
 
+extern void scsi_unblock_requests(struct Scsi_Host * SHpnt);
+extern void scsi_block_requests(struct Scsi_Host * SHpnt);
+extern void scsi_report_bus_reset(struct Scsi_Host * SHpnt, int channel);
+
+typedef struct SHN
+    {
+    struct SHN * next;
+    char * name;
+    unsigned short host_no;
+    unsigned short host_registered;
+    unsigned loaded_as_module;
+    } Scsi_Host_Name;
+	
+extern Scsi_Host_Name * scsi_host_no_list;
 extern struct Scsi_Host * scsi_hostlist;
 extern struct Scsi_Device_Template * scsi_devicelist;
 
@@ -504,6 +535,15 @@ extern void scsi_unregister_module(int, void *);
  * tackle the character devices first, as there aren't any locking implications
  * in the block device layer.   The block devices will require more work.
  */
+#ifndef CONFIG_SD_EXTRA_DEVS
+#define CONFIG_SD_EXTRA_DEVS 2
+#endif
+#ifndef CONFIG_ST_EXTRA_DEVS
+#define CONFIG_ST_EXTRA_DEVS 2
+#endif
+#ifndef CONFIG_SR_EXTRA_DEVS
+#define CONFIG_SR_EXTRA_DEVS 2
+#endif
 #define SD_EXTRA_DEVS CONFIG_SD_EXTRA_DEVS
 #define ST_EXTRA_DEVS CONFIG_ST_EXTRA_DEVS
 #define SR_EXTRA_DEVS CONFIG_SR_EXTRA_DEVS

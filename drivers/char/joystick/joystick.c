@@ -38,6 +38,7 @@
 #include <linux/delay.h>
 #include <linux/errno.h>
 #include <linux/joystick.h>
+#include <linux/devfs_fs_kernel.h>
 #include <linux/kernel.h>
 #include <linux/major.h>
 #include <linux/malloc.h>
@@ -694,6 +695,10 @@ struct js_port *js_unregister_port(struct js_port *port)
 	return prev;
 }
 
+extern struct file_operations js_fops;
+
+static devfs_handle_t devfs_handle = NULL;
+
 int js_register_device(struct js_port *port, int number, int axes, int buttons, char *name,
 					js_ops_func open, js_ops_func close)
 {
@@ -702,6 +707,7 @@ int js_register_device(struct js_port *port, int number, int axes, int buttons, 
 	void *all;
 	int i = 0;
 	unsigned long flags;
+	char devfs_name[8];
 
 	if (!(all = kmalloc(sizeof(struct js_dev) + 2 * axes * sizeof(int) +
 			2 * (((buttons - 1) >> 5) + 1) * sizeof(int) +
@@ -745,6 +751,13 @@ int js_register_device(struct js_port *port, int number, int axes, int buttons, 
 
 	spin_unlock_irqrestore(&js_lock, flags);	
 
+	sprintf(devfs_name, "js%d", i);
+	curd->devfs_handle = devfs_register(devfs_handle, devfs_name, 0,
+					    DEVFS_FL_DEFAULT,
+					    JOYSTICK_MAJOR, i,
+					    S_IFCHR | S_IRUGO | S_IWUSR, 0, 0,
+					    &js_fops, NULL);
+
 	return i;
 }
 
@@ -760,6 +773,7 @@ void js_unregister_device(struct js_dev *dev)
 
 	spin_unlock_irqrestore(&js_lock, flags);	
 
+	devfs_unregister(dev->devfs_handle);
 	kfree(dev);
 }
 
@@ -788,10 +802,11 @@ int __init js_init(void)
 #endif
 {
 
-	if (register_chrdev(JOYSTICK_MAJOR, "js", &js_fops)) {
+	if (devfs_register_chrdev(JOYSTICK_MAJOR, "js", &js_fops)) {
 		printk(KERN_ERR "js: unable to get major %d for joystick\n", JOYSTICK_MAJOR);
 		return -EBUSY;
 	}
+	devfs_handle = devfs_mk_dir(NULL, "joysticks", 9, NULL);
 
 	printk(KERN_INFO "js: Joystick driver v%d.%d.%d (c) 1999 Vojtech Pavlik <vojtech@suse.cz>\n",
 		JS_VERSION >> 16 & 0xff, JS_VERSION >> 8 & 0xff, JS_VERSION & 0xff);
@@ -871,7 +886,8 @@ int __init js_init(void)
 void cleanup_module(void)
 {
 	del_timer(&js_timer);
-	if (unregister_chrdev(JOYSTICK_MAJOR, "js"))
+	devfs_unregister(devfs_handle);
+	if (devfs_unregister_chrdev(JOYSTICK_MAJOR, "js"))
 		printk(KERN_ERR "js: can't unregister device\n");
 }
 #endif

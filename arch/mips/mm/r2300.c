@@ -7,7 +7,7 @@
  * Copyright (C) 1998, 2000 Harald Koerfgen
  * Copyright (C) 1998 Gleb Raiko & Vladimir Roganov
  *
- * $Id: r2300.c,v 1.13 2000/01/27 01:05:23 ralf Exp $
+ * $Id: r2300.c,v 1.14 2000/02/13 20:52:05 harald Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -636,20 +636,20 @@ void __init ld_mmu_r2300(void)
 {
 	printk("CPU revision is: %08x\n", read_32bit_cp0_register(CP0_PRID));
 
-	clear_page = r3k_clear_page;
-	copy_page = r3k_copy_page;
+	_clear_page = r3k_clear_page;
+	_copy_page = r3k_copy_page;
 
 	probe_icache();
 	probe_dcache();
 
-	flush_cache_all = r3k_flush_cache_all;
-	flush_cache_mm = r3k_flush_cache_mm;
-	flush_cache_range = r3k_flush_cache_range;
-	flush_cache_page = r3k_flush_cache_page;
-	flush_cache_sigtramp = r3k_flush_cache_sigtramp;
-	flush_page_to_ram = r3k_flush_page_to_ram;
+	_flush_cache_all = r3k_flush_cache_all;
+	_flush_cache_mm = r3k_flush_cache_mm;
+	_flush_cache_range = r3k_flush_cache_range;
+	_flush_cache_page = r3k_flush_cache_page;
+	_flush_cache_sigtramp = r3k_flush_cache_sigtramp;
+	_flush_page_to_ram = r3k_flush_page_to_ram;
 
-        dma_cache_wback_inv = r3k_dma_cache_wback_inv;
+        _dma_cache_wback_inv = r3k_dma_cache_wback_inv;
 
 	flush_tlb_all();
 }

@@ -17,7 +17,8 @@ obj-            :=
 SUB_DIRS     := 
 MOD_SUB_DIRS :=
 MOD_IN_SUB_DIRS :=
-ALL_SUB_DIRS := $(SUB_DIRS) fc hamradio irda pcmcia tokenring wan sk98lin arcnet
+ALL_SUB_DIRS := $(SUB_DIRS) fc hamradio irda pcmcia tokenring wan sk98lin \
+		arcnet skfp
 
 O_TARGET := net.o
 MOD_LIST_NAME := NET_MODULES
@@ -119,7 +120,7 @@ obj-$(CONFIG_RCPCI) += rcpci.o
 obj-$(CONFIG_VORTEX) += 3c59x.o
 obj-$(CONFIG_NE2K_PCI) += ne2k-pci.o 8390.o
 obj-$(CONFIG_PCNET32) += pcnet32.o
-obj-$(CONFIG_EEXPRESS_PRO100) += eepro100.o
+obj-$(CONFIG_EEPRO100) += eepro100.o
 obj-$(CONFIG_TLAN) += tlan.o
 obj-$(CONFIG_TULIP) += tulip.o
 obj-$(CONFIG_EPIC100) += epic100.o
@@ -134,6 +135,15 @@ obj-y += sk98lin/sk98lin.o
 else
   ifeq ($(CONFIG_SK98LIN),m)
   MOD_IN_SUB_DIRS += sk98lin
+  endif
+endif
+
+ifeq ($(CONFIG_SKFP),y)
+  SUB_DIRS += skfp
+  obj-y += skfp/skfp.o
+else
+  ifeq ($(CONFIG_SKFP),m)
+    MOD_IN_SUB_DIRS += skfp
   endif
 endif
 
@@ -228,7 +238,8 @@ obj-$(CONFIG_EL3) += 3c509.o
 obj-$(CONFIG_3C515) += 3c515.o
 obj-$(CONFIG_EEXPRESS) += eexpress.o
 obj-$(CONFIG_EEXPRESS_PRO) += eepro.o
-obj-$(CONFIG_RTL8139) += rtl8139.o
+obj-$(CONFIG_RTL8129) += rtl8129.o
+obj-$(CONFIG_8139TOO) += 8139too.o
 obj-$(CONFIG_WAVELAN) += wavelan.o
 obj-$(CONFIG_ARLAN) += arlan.o arlan-proc.o
 obj-$(CONFIG_ZNET) += znet.o

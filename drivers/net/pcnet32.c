@@ -1162,7 +1162,7 @@ pcnet32_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 
 		/* We must free the original skb */
 		if (lp->tx_skbuff[entry]) {
-		    dev_kfree_skb(lp->tx_skbuff[entry]);
+		    dev_kfree_skb_irq(lp->tx_skbuff[entry]);
 		    lp->tx_skbuff[entry] = 0;
 		}
 		dirty_tx++;
@@ -1176,8 +1176,8 @@ pcnet32_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 	    }
 #endif
 	    if (lp->tx_full &&
-	        test_bit(LINK_STATE_XOFF, &dev->flags) &&
-		dirty_tx > lp->cur_tx - TX_RING_SIZE + 2) {
+	        netif_queue_stopped(dev) &&
+			dirty_tx > lp->cur_tx - TX_RING_SIZE + 2) {
 		/* The ring is no longer full, clear tbusy. */
 		lp->tx_full = 0;
 		netif_wake_queue (dev);

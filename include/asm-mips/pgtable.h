@@ -1,4 +1,4 @@
-/* $Id: pgtable.h,v 1.28 2000/02/04 07:40:53 ralf Exp $
+/* $Id: pgtable.h,v 1.29 2000/02/23 00:41:38 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -19,9 +19,31 @@
 #include <asm/cachectl.h>
 #include <linux/config.h>
 
-extern __inline__ void flush_tlb_pgtables(struct mm_struct *mm, unsigned long start, unsigned long end)
-{
-}
+/* Cache flushing:
+ *
+ *  - flush_cache_all() flushes entire cache
+ *  - flush_cache_mm(mm) flushes the specified mm context's cache lines
+ *  - flush_cache_page(mm, vmaddr) flushes a single page
+ *  - flush_cache_range(mm, start, end) flushes a range of pages
+ *  - flush_page_to_ram(page) write back kernel page to ram
+ */
+extern void (*_flush_cache_all)(void);
+extern void (*_flush_cache_mm)(struct mm_struct *mm);
+extern void (*_flush_cache_range)(struct mm_struct *mm, unsigned long start,
+				 unsigned long end);
+extern void (*_flush_cache_page)(struct vm_area_struct *vma, unsigned long page);
+extern void (*_flush_cache_sigtramp)(unsigned long addr);
+extern void (*_flush_page_to_ram)(struct page * page);
+
+#define flush_cache_all()		_flush_cache_all()
+#define flush_cache_mm(mm)		_flush_cache_mm(mm)
+#define flush_cache_range(mm,start,end)	_flush_cache_range(mm,start,end)
+#define flush_cache_page(vma,page)	_flush_cache_page(vma, page)
+#define flush_cache_sigtramp(addr)	_flush_cache_sigtramp(addr)
+#define flush_page_to_ram(page)		_flush_page_to_ram(page)
+
+#define flush_icache_range(start, end)	flush_cache_all()
+#define flush_icache_page(start,page)	do { } while(0)
 
 
 /*
@@ -379,10 +401,12 @@ extern inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
 /* to find an entry in a kernel page-table-directory */
 #define pgd_offset_k(address) pgd_offset(&init_mm, address)
 
+#define pgd_index(address)	((address) >> PGDIR_SHIFT)
+
 /* to find an entry in a page-table-directory */
 extern inline pgd_t *pgd_offset(struct mm_struct *mm, unsigned long address)
 {
-	return mm->pgd + (address >> PGDIR_SHIFT);
+	return mm->pgd + pgd_index(address);
 }
 
 /* Find an entry in the second-level page table.. */

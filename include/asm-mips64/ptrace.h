@@ -1,4 +1,4 @@
-/* $Id: ptrace.h,v 1.2 1999/09/28 22:27:19 ralf Exp $
+/* $Id: ptrace.h,v 1.3 1999/12/04 03:59:12 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -64,7 +64,9 @@ struct pt_regs {
 #ifndef __ASSEMBLY__
 #define instruction_pointer(regs) ((regs)->cp0_epc)
 
-extern void (*show_regs)(struct pt_regs *);
+extern void (*_show_regs)(struct pt_regs *);
+#define show_regs(regs)	_show_regs(regs)
+
 #endif /* !(__ASSEMBLY__) */
 
 #endif

@@ -1,4 +1,4 @@
-/* $Id: andes.c,v 1.4 2000/01/17 23:32:46 ralf Exp $
+/* $Id: andes.c,v 1.5 2000/01/27 01:05:24 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -436,25 +436,25 @@ void __init ld_mmu_andes(void)
 	printk("Secondary cache sized at %ldK, linesize %ld\n",
 	       scache_size() >> 10, sc_lsize());
 
-	clear_page = andes_clear_page;
-	copy_page = andes_copy_page;
+	_clear_page = andes_clear_page;
+	_copy_page = andes_copy_page;
 
-	flush_cache_all = andes_flush_cache_all;
-	flush_cache_mm = andes_flush_cache_mm;
-	flush_cache_range = andes_flush_cache_range;
-	flush_cache_page = andes_flush_cache_page;
-	flush_cache_sigtramp = andes_flush_cache_sigtramp;
-	flush_page_to_ram = andes_flush_page_to_ram;
+	_flush_cache_all = andes_flush_cache_all;
+	_flush_cache_mm = andes_flush_cache_mm;
+	_flush_cache_range = andes_flush_cache_range;
+	_flush_cache_page = andes_flush_cache_page;
+	_flush_cache_sigtramp = andes_flush_cache_sigtramp;
+	_flush_page_to_ram = andes_flush_page_to_ram;
 
-	flush_tlb_all = andes_flush_tlb_all;
-	flush_tlb_mm = andes_flush_tlb_mm;
-	flush_tlb_range = andes_flush_tlb_range;
-	flush_tlb_page = andes_flush_tlb_page;
+	_flush_tlb_all = andes_flush_tlb_all;
+	_flush_tlb_mm = andes_flush_tlb_mm;
+	_flush_tlb_range = andes_flush_tlb_range;
+	_flush_tlb_page = andes_flush_tlb_page;
     
 	update_mmu_cache = andes_update_mmu_cache;
-	show_regs = andes_show_regs;
 
-	user_mode = andes_user_mode;
+	_show_regs = andes_show_regs;
+	_user_mode = andes_user_mode;
 
         flush_cache_all();
         write_32bit_cp0_register(CP0_WIRED, 0);

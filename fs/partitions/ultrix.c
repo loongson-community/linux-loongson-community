@@ -36,7 +36,7 @@ int ultrix_partition(struct gendisk *hd, kdev_t dev,
 
 	bh = bread (dev, SBLOCK, get_ptable_blocksize(dev));
 	if (!bh) {
-		printk (" unable to read block 0x%lx\n", SBLOCK);
+		if (warn_no_part) printk (" unable to read block 0x%lx\n", SBLOCK);
 		return -1;
 	}
 	

@@ -124,7 +124,7 @@ void invalidate_inode_pages(struct inode * inode)
  * Truncate the page cache at a set offset, removing the pages
  * that are beyond that offset (and zeroing out partial pages).
  */
-void truncate_inode_pages(struct inode * inode, loff_t lstart)
+void truncate_inode_pages(struct address_space * mapping, loff_t lstart)
 {
 	struct list_head *head, *curr;
 	struct page * page;
@@ -134,7 +134,7 @@ void truncate_inode_pages(struct inode * inode, loff_t lstart)
 	start = (lstart + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
 
 repeat:
-	head = &inode->i_mapping->pages;
+	head = &mapping->pages;
 	spin_lock(&pagecache_lock);
 	curr = head->next;
 	while (curr != head) {
@@ -479,8 +479,8 @@ static inline void __add_to_page_cache(struct page * page,
 	struct page *alias;
 	unsigned long flags;
 
-	flags = page->flags & ~((1 << PG_uptodate) | (1 << PG_error) | (1 << PG_referenced));
-	page->flags = flags | (1 << PG_locked);
+	flags = page->flags & ~((1 << PG_uptodate) | (1 << PG_error));
+	page->flags = flags | (1 << PG_locked) | (1 << PG_referenced);
 	get_page(page);
 	page->index = offset;
 	add_page_to_inode_queue(mapping, page);
@@ -1945,8 +1945,6 @@ generic_file_write(struct file *file,const char *buf,size_t count,loff_t *ppos)
 			count -= status;
 			pos += status;
 			buf += status;
-			if (pos > inode->i_size)
-				inode->i_size = pos;
 		}
 unlock:
 		/* Mark it unlocked again and drop the page.. */

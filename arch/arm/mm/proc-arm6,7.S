@@ -30,6 +30,8 @@ ENTRY(cpu_arm6_flush_cache_entry)
 ENTRY(cpu_arm7_flush_cache_entry)
 ENTRY(cpu_arm6_flush_icache_area)
 ENTRY(cpu_arm7_flush_icache_area)
+ENTRY(cpu_arm6_flush_icache_page)
+ENTRY(cpu_arm7_flush_icache_page)
 ENTRY(cpu_arm6_cache_wback_area)
 ENTRY(cpu_arm7_cache_wback_area)
 ENTRY(cpu_arm6_cache_purge_area)
@@ -103,9 +105,9 @@ msg:		.ascii	"DA*%p=%p\n\0"
 		.align
 
 ENTRY(cpu_arm6_data_abort)
-Ldata_simple:
 		ldr	r4, [r0]			@ read instruction causing problem
 		mov	r2, r4, lsr #19			@ r2 b1 = L
+Ldata_simple:
 		and	r2, r2, #2			@ check read/write bit
 		mrc	p15, 0, r0, c6, c0, 0		@ get FAR
 		mrc	p15, 0, r1, c5, c0, 0		@ get FSR
@@ -465,6 +467,7 @@ ENTRY(arm6_processor_functions)
 		.word	cpu_arm6_cache_purge_area
 		.word	cpu_arm6_flush_tlb_page
 		.word	cpu_arm6_do_idle
+		.word	cpu_arm6_flush_icache_page
 		.size	arm6_processor_functions, . - arm6_processor_functions
 
 /*
@@ -493,6 +496,7 @@ ENTRY(arm7_processor_functions)
 		.word	cpu_arm7_cache_purge_area
 		.word	cpu_arm7_flush_tlb_page
 		.word	cpu_arm7_do_idle
+		.word	cpu_arm7_flush_icache_page
 		.size	arm7_processor_functions, . - arm7_processor_functions
 
 		.type	cpu_arm6_info, #object

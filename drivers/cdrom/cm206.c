@@ -187,6 +187,7 @@ History:
 #include <linux/interrupt.h>
 #include <linux/timer.h>
 #include <linux/cdrom.h>
+#include <linux/devfs_fs_kernel.h>
 #include <linux/ioport.h>
 #include <linux/mm.h>
 #include <linux/malloc.h>
@@ -816,7 +817,7 @@ static void do_cm206_request(request_queue_t * q)
   
   while(1) {	 /* repeat until all requests have been satisfied */
     INIT_REQUEST;
-    if (CURRENT == NULL || CURRENT->rq_status == RQ_INACTIVE)
+    if (QUEUE_EMPTY || CURRENT->rq_status == RQ_INACTIVE)
       return;
     if (CURRENT->cmd != READ) {
       debug(("Non-read command %d on cdrom\n", CURRENT->cmd));
@@ -1277,7 +1278,7 @@ static void cleanup(int level)
       printk("Can't unregister cdrom cm206\n");
       return;
     }
-    if (unregister_blkdev(MAJOR_NR, "cm206")) {
+    if (devfs_unregister_blkdev(MAJOR_NR, "cm206")) {
       printk("Can't unregister major cm206\n");
       return;
     }
@@ -1390,7 +1391,7 @@ int __init cm206_init(void)
     return -EIO;
   }
   printk(".\n");
-  if (register_blkdev(MAJOR_NR, "cm206", &cdrom_fops) != 0) {
+  if (devfs_register_blkdev(MAJOR_NR, "cm206", &cdrom_fops) != 0) {
     printk(KERN_INFO "Cannot register for major %d!\n", MAJOR_NR);
     cleanup(3);
     return -EIO;

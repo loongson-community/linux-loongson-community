@@ -1,4 +1,4 @@
-/* $Id: r4xx0.c,v 1.6 2000/01/17 23:32:46 ralf Exp $
+/* $Id: r4xx0.c,v 1.7 2000/01/27 01:05:24 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -2352,36 +2352,36 @@ static void __init setup_noscache_funcs(void)
 
 	switch(dc_lsize) {
 	case 16:
-		clear_page = r4k_clear_page_d16;
-		copy_page = r4k_copy_page_d16;
-		flush_cache_all = r4k_flush_cache_all_d16i16;
-		flush_cache_mm = r4k_flush_cache_mm_d16i16;
-		flush_cache_range = r4k_flush_cache_range_d16i16;
-		flush_cache_page = r4k_flush_cache_page_d16i16;
-		flush_page_to_ram = r4k_flush_page_to_ram_d16i16;
+		_clear_page = r4k_clear_page_d16;
+		_copy_page = r4k_copy_page_d16;
+		_flush_cache_all = r4k_flush_cache_all_d16i16;
+		_flush_cache_mm = r4k_flush_cache_mm_d16i16;
+		_flush_cache_range = r4k_flush_cache_range_d16i16;
+		_flush_cache_page = r4k_flush_cache_page_d16i16;
+		_flush_page_to_ram = r4k_flush_page_to_ram_d16i16;
 		break;
 	case 32:
 		prid = read_32bit_cp0_register(CP0_PRID) & 0xfff0;
 		if (prid == 0x2010) {			/* R4600 V1.7 */
-			clear_page = r4k_clear_page_r4600_v1;
-			copy_page = r4k_copy_page_r4600_v1;
+			_clear_page = r4k_clear_page_r4600_v1;
+			_copy_page = r4k_copy_page_r4600_v1;
 		} else if (prid == 0x2020) {		/* R4600 V2.0 */
-			clear_page = r4k_clear_page_r4600_v2;
-			copy_page = r4k_copy_page_r4600_v2;
+			_clear_page = r4k_clear_page_r4600_v2;
+			_copy_page = r4k_copy_page_r4600_v2;
 		} else {
-			clear_page = r4k_clear_page_d32;
-			copy_page = r4k_copy_page_d32;
+			_clear_page = r4k_clear_page_d32;
+			_copy_page = r4k_copy_page_d32;
 		}
-		flush_cache_all = r4k_flush_cache_all_d32i32;
-		flush_cache_mm = r4k_flush_cache_mm_d32i32;
-		flush_cache_range = r4k_flush_cache_range_d32i32;
-		flush_cache_page = r4k_flush_cache_page_d32i32;
-		flush_page_to_ram = r4k_flush_page_to_ram_d32i32;
+		_flush_cache_all = r4k_flush_cache_all_d32i32;
+		_flush_cache_mm = r4k_flush_cache_mm_d32i32;
+		_flush_cache_range = r4k_flush_cache_range_d32i32;
+		_flush_cache_page = r4k_flush_cache_page_d32i32;
+		_flush_page_to_ram = r4k_flush_page_to_ram_d32i32;
 		break;
 	}
-	dma_cache_wback_inv = r4k_dma_cache_wback_inv_pc;
-	dma_cache_wback = r4k_dma_cache_wback;
-	dma_cache_inv = r4k_dma_cache_inv_pc;
+	_dma_cache_wback_inv = r4k_dma_cache_wback_inv_pc;
+	_dma_cache_wback = r4k_dma_cache_wback;
+	_dma_cache_inv = r4k_dma_cache_inv_pc;
 }
 
 static void __init setup_scache_funcs(void)
@@ -2390,82 +2390,82 @@ static void __init setup_scache_funcs(void)
 	case 16:
 		switch(dc_lsize) {
 		case 16:
-			flush_cache_all = r4k_flush_cache_all_s16d16i16;
-			flush_cache_mm = r4k_flush_cache_mm_s16d16i16;
-			flush_cache_range = r4k_flush_cache_range_s16d16i16;
-			flush_cache_page = r4k_flush_cache_page_s16d16i16;
-			flush_page_to_ram = r4k_flush_page_to_ram_s16d16i16;
+			_flush_cache_all = r4k_flush_cache_all_s16d16i16;
+			_flush_cache_mm = r4k_flush_cache_mm_s16d16i16;
+			_flush_cache_range = r4k_flush_cache_range_s16d16i16;
+			_flush_cache_page = r4k_flush_cache_page_s16d16i16;
+			_flush_page_to_ram = r4k_flush_page_to_ram_s16d16i16;
 			break;
 		case 32:
 			panic("Invalid cache configuration detected");
 		};
-		clear_page = r4k_clear_page_s16;
-		copy_page = r4k_copy_page_s16;
+		_clear_page = r4k_clear_page_s16;
+		_copy_page = r4k_copy_page_s16;
 		break;
 	case 32:
 		switch(dc_lsize) {
 		case 16:
-			flush_cache_all = r4k_flush_cache_all_s32d16i16;
-			flush_cache_mm = r4k_flush_cache_mm_s32d16i16;
-			flush_cache_range = r4k_flush_cache_range_s32d16i16;
-			flush_cache_page = r4k_flush_cache_page_s32d16i16;
-			flush_page_to_ram = r4k_flush_page_to_ram_s32d16i16;
+			_flush_cache_all = r4k_flush_cache_all_s32d16i16;
+			_flush_cache_mm = r4k_flush_cache_mm_s32d16i16;
+			_flush_cache_range = r4k_flush_cache_range_s32d16i16;
+			_flush_cache_page = r4k_flush_cache_page_s32d16i16;
+			_flush_page_to_ram = r4k_flush_page_to_ram_s32d16i16;
 			break;
 		case 32:
-			flush_cache_all = r4k_flush_cache_all_s32d32i32;
-			flush_cache_mm = r4k_flush_cache_mm_s32d32i32;
-			flush_cache_range = r4k_flush_cache_range_s32d32i32;
-			flush_cache_page = r4k_flush_cache_page_s32d32i32;
-			flush_page_to_ram = r4k_flush_page_to_ram_s32d32i32;
+			_flush_cache_all = r4k_flush_cache_all_s32d32i32;
+			_flush_cache_mm = r4k_flush_cache_mm_s32d32i32;
+			_flush_cache_range = r4k_flush_cache_range_s32d32i32;
+			_flush_cache_page = r4k_flush_cache_page_s32d32i32;
+			_flush_page_to_ram = r4k_flush_page_to_ram_s32d32i32;
 			break;
 		};
-		clear_page = r4k_clear_page_s32;
-		copy_page = r4k_copy_page_s32;
+		_clear_page = r4k_clear_page_s32;
+		_copy_page = r4k_copy_page_s32;
 		break;
 	case 64:
 		switch(dc_lsize) {
 		case 16:
-			flush_cache_all = r4k_flush_cache_all_s64d16i16;
-			flush_cache_mm = r4k_flush_cache_mm_s64d16i16;
-			flush_cache_range = r4k_flush_cache_range_s64d16i16;
-			flush_cache_page = r4k_flush_cache_page_s64d16i16;
-			flush_page_to_ram = r4k_flush_page_to_ram_s64d16i16;
+			_flush_cache_all = r4k_flush_cache_all_s64d16i16;
+			_flush_cache_mm = r4k_flush_cache_mm_s64d16i16;
+			_flush_cache_range = r4k_flush_cache_range_s64d16i16;
+			_flush_cache_page = r4k_flush_cache_page_s64d16i16;
+			_flush_page_to_ram = r4k_flush_page_to_ram_s64d16i16;
 			break;
 		case 32:
-			flush_cache_all = r4k_flush_cache_all_s64d32i32;
-			flush_cache_mm = r4k_flush_cache_mm_s64d32i32;
-			flush_cache_range = r4k_flush_cache_range_s64d32i32;
-			flush_cache_page = r4k_flush_cache_page_s64d32i32;
-			flush_page_to_ram = r4k_flush_page_to_ram_s64d32i32;
+			_flush_cache_all = r4k_flush_cache_all_s64d32i32;
+			_flush_cache_mm = r4k_flush_cache_mm_s64d32i32;
+			_flush_cache_range = r4k_flush_cache_range_s64d32i32;
+			_flush_cache_page = r4k_flush_cache_page_s64d32i32;
+			_flush_page_to_ram = r4k_flush_page_to_ram_s64d32i32;
 			break;
 		};
-		clear_page = r4k_clear_page_s64;
-		copy_page = r4k_copy_page_s64;
+		_clear_page = r4k_clear_page_s64;
+		_copy_page = r4k_copy_page_s64;
 		break;
 	case 128:
 		switch(dc_lsize) {
 		case 16:
-			flush_cache_all = r4k_flush_cache_all_s128d16i16;
-			flush_cache_mm = r4k_flush_cache_mm_s128d16i16;
-			flush_cache_range = r4k_flush_cache_range_s128d16i16;
-			flush_cache_page = r4k_flush_cache_page_s128d16i16;
-			flush_page_to_ram = r4k_flush_page_to_ram_s128d16i16;
+			_flush_cache_all = r4k_flush_cache_all_s128d16i16;
+			_flush_cache_mm = r4k_flush_cache_mm_s128d16i16;
+			_flush_cache_range = r4k_flush_cache_range_s128d16i16;
+			_flush_cache_page = r4k_flush_cache_page_s128d16i16;
+			_flush_page_to_ram = r4k_flush_page_to_ram_s128d16i16;
 			break;
 		case 32:
-			flush_cache_all = r4k_flush_cache_all_s128d32i32;
-			flush_cache_mm = r4k_flush_cache_mm_s128d32i32;
-			flush_cache_range = r4k_flush_cache_range_s128d32i32;
-			flush_cache_page = r4k_flush_cache_page_s128d32i32;
-			flush_page_to_ram = r4k_flush_page_to_ram_s128d32i32;
+			_flush_cache_all = r4k_flush_cache_all_s128d32i32;
+			_flush_cache_mm = r4k_flush_cache_mm_s128d32i32;
+			_flush_cache_range = r4k_flush_cache_range_s128d32i32;
+			_flush_cache_page = r4k_flush_cache_page_s128d32i32;
+			_flush_page_to_ram = r4k_flush_page_to_ram_s128d32i32;
 			break;
 		};
-		clear_page = r4k_clear_page_s128;
-		copy_page = r4k_copy_page_s128;
+		_clear_page = r4k_clear_page_s128;
+		_copy_page = r4k_copy_page_s128;
 		break;
 	}
-	dma_cache_wback_inv = r4k_dma_cache_wback_inv_sc;
-	dma_cache_wback = r4k_dma_cache_wback;
-	dma_cache_inv = r4k_dma_cache_inv_sc;
+	_dma_cache_wback_inv = r4k_dma_cache_wback_inv_sc;
+	_dma_cache_wback = r4k_dma_cache_wback;
+	_dma_cache_inv = r4k_dma_cache_inv_sc;
 }
 
 typedef int (*probe_func_t)(unsigned long);
@@ -2509,24 +2509,23 @@ void __init ld_mmu_r4xx0(void)
 	case CPU_R4700:
 	case CPU_R5000:
 	case CPU_NEVADA:
-		flush_cache_page = r4k_flush_cache_page_d32i32_r4600;
+		_flush_cache_page = r4k_flush_cache_page_d32i32_r4600;
 	}
 
-	flush_cache_sigtramp = r4k_flush_cache_sigtramp;
+	_flush_cache_sigtramp = r4k_flush_cache_sigtramp;
 	if ((read_32bit_cp0_register(CP0_PRID) & 0xfff0) == 0x2020) {
-		flush_cache_sigtramp = r4600v20k_flush_cache_sigtramp;
+		_flush_cache_sigtramp = r4600v20k_flush_cache_sigtramp;
 	}
 
-	flush_tlb_all = r4k_flush_tlb_all;
-	flush_tlb_mm = r4k_flush_tlb_mm;
-	flush_tlb_range = r4k_flush_tlb_range;
-	flush_tlb_page = r4k_flush_tlb_page;
+	_flush_tlb_all = r4k_flush_tlb_all;
+	_flush_tlb_mm = r4k_flush_tlb_mm;
+	_flush_tlb_range = r4k_flush_tlb_range;
+	_flush_tlb_page = r4k_flush_tlb_page;
 
 	update_mmu_cache = r4k_update_mmu_cache;
 
-	show_regs = r4k_show_regs;
-    
-	user_mode = r4k_user_mode;
+	_show_regs = r4k_show_regs;
+	_user_mode = r4k_user_mode;
 
 	flush_cache_all();
 	write_32bit_cp0_register(CP0_WIRED, 0);

@@ -28,6 +28,7 @@
 #include <linux/sunrpc/stats.h>
 #include <linux/nfs_fs.h>
 #include <linux/lockd/bind.h>
+#include <linux/smp_lock.h>
 
 #include <asm/system.h>
 #include <asm/uaccess.h>
@@ -102,6 +103,7 @@ nfs_delete_inode(struct inode * inode)
 
 	dprintk("NFS: delete_inode(%x/%ld)\n", inode->i_dev, inode->i_ino);
 
+	lock_kernel();
 	if (S_ISDIR(inode->i_mode)) {
 		nfs_free_dircache(inode);
 	} else {
@@ -129,6 +131,8 @@ printk("nfs_delete_inode: inode %ld has pending RPC requests\n", inode->i_ino);
 	if (failed)
 		printk("NFS: inode %ld had %d failed requests\n",
 			inode->i_ino, failed);
+	unlock_kernel();
+
 	clear_inode(inode);
 }
 
@@ -683,8 +687,8 @@ printk("nfs_notify_change: revalidate failed, error=%d\n", error);
 		if (attr->ia_size != fattr.size)
 			printk("nfs_notify_change: attr=%Ld, fattr=%d??\n",
 			       (long long) attr->ia_size, fattr.size);
-		inode->i_size  = attr->ia_size;
 		inode->i_mtime = fattr.mtime.seconds;
+		vmtruncate(inode, attr->ia_size);
 	}
 	if (attr->ia_valid & ATTR_MTIME)
 		inode->i_mtime = fattr.mtime.seconds;

@@ -26,6 +26,7 @@ extern pgd_t swapper_pg_dir[1024];
 #define flush_cache_page(vma, vmaddr)		do { } while (0)
 #define flush_page_to_ram(page)			do { } while (0)
 #define flush_icache_range(start, end)		do { } while (0)
+#define flush_icache_page(vma,pg)		do { } while (0)
 
 #define __flush_tlb()							\
 	do {								\
@@ -51,7 +52,7 @@ extern pgd_t swapper_pg_dir[1024];
 			"movl %%cr3, %0;  # flush TLB        \n"	\
 			"movl %0, %%cr3;                     \n"	\
 			"movl %2, %%cr4;  # turn PGE back on \n"	\
-			: "=r" (tmpreg)					\
+			: "=&r" (tmpreg)				\
 			: "r" (mmu_cr4_features & ~X86_CR4_PGE),	\
 			  "r" (mmu_cr4_features)			\
 			: "memory");					\
@@ -129,7 +130,8 @@ extern unsigned long empty_zero_page[1024];
  * area for the same reason. ;)
  */
 #define VMALLOC_OFFSET	(8*1024*1024)
-#define VMALLOC_START	(((unsigned long) high_memory + VMALLOC_OFFSET) & ~(VMALLOC_OFFSET-1))
+#define VMALLOC_START	(((unsigned long) high_memory + 2*VMALLOC_OFFSET-1) & \
+						~(VMALLOC_OFFSET-1))
 #define VMALLOC_VMADDR(x) ((unsigned long)(x))
 #define VMALLOC_END	(FIXADDR_START)
 
@@ -292,10 +294,11 @@ extern inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
 ((unsigned long) __va(pmd_val(pmd) & PAGE_MASK))
 
 /* to find an entry in a page-table-directory. */
-#define __pgd_offset(address) \
-		((address >> PGDIR_SHIFT) & (PTRS_PER_PGD-1))
+#define pgd_index(address) ((address >> PGDIR_SHIFT) & (PTRS_PER_PGD-1))
 
-#define pgd_offset(mm, address) ((mm)->pgd+__pgd_offset(address))
+#define __pgd_offset(address) pgd_index(address)
+
+#define pgd_offset(mm, address) ((mm)->pgd+pgd_index(address))
 
 /* to find an entry in a kernel page-table-directory */
 #define pgd_offset_k(address) pgd_offset(&init_mm, address)

@@ -2611,7 +2611,7 @@ static struct initvol {
 				 ((dev)->resource[(num)].flags & PCI_BASE_ADDRESS_SPACE) == PCI_BASE_ADDRESS_SPACE_IO)
 #define RSRCADDRESS(dev,num) ((dev)->resource[(num)].start)
 
-static int es1371_probe(struct pci_dev *pcidev, const struct pci_device_id *pciid)
+static int __devinit es1371_probe(struct pci_dev *pcidev, const struct pci_device_id *pciid)
 {
 	struct es1371_state *s;
 	mm_segment_t fs;
@@ -2624,6 +2624,10 @@ static int es1371_probe(struct pci_dev *pcidev, const struct pci_device_id *pcii
 		return -1;
 	if (pcidev->irq == 0) 
 		return -1;
+	if (!pci_dma_supported(pcidev, 0xffffffff)) {
+		printk(KERN_WARNING "es1371: architecture does not support 32bit PCI busmaster DMA\n");
+		return -1;
+	}
 	if (!(s = kmalloc(sizeof(struct es1371_state), GFP_KERNEL))) {
 		printk(KERN_WARNING "es1371: out of memory\n");
 		return -1;
@@ -2764,7 +2768,7 @@ static int es1371_probe(struct pci_dev *pcidev, const struct pci_device_id *pcii
 	return -1;
 }
 
-static void es1371_remove(struct pci_dev *dev)
+static void __devinit es1371_remove(struct pci_dev *dev)
 {
 	struct es1371_state *s = (struct es1371_state *)dev->driver_data;
 
@@ -2788,7 +2792,7 @@ static void es1371_remove(struct pci_dev *dev)
 	dev->driver_data = NULL;
 }
 
-static const struct pci_device_id id_table[] = {
+static struct pci_device_id id_table[] __devinitdata = {
 	{ PCI_VENDOR_ID_ENSONIQ, PCI_DEVICE_ID_ENSONIQ_ES1371, PCI_ANY_ID, PCI_ANY_ID, 0, 0 },
 	{ PCI_VENDOR_ID_ENSONIQ, PCI_DEVICE_ID_ENSONIQ_CT5880, PCI_ANY_ID, PCI_ANY_ID, 0, 0 },
 	{ PCI_VENDOR_ID_ECTIVA, PCI_DEVICE_ID_ECTIVA_EV1938, PCI_ANY_ID, PCI_ANY_ID, 0, 0 },
@@ -2809,8 +2813,10 @@ static int __init init_es1371(void)
 	if (!pci_present())   /* No PCI bus in this machine! */
 		return -ENODEV;
 	printk(KERN_INFO "es1371: version v0.25 time " __TIME__ " " __DATE__ "\n");
-	if (!pci_register_driver(&es1371_driver))
+	if (!pci_register_driver(&es1371_driver)) {
+		pci_unregister_driver(&es1371_driver);
 		return -ENODEV;
+	}
 	return 0;
 }
 

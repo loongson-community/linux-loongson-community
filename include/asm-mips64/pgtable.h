@@ -1,4 +1,4 @@
-/* $Id: pgtable.h,v 1.10 2000/02/10 21:38:10 kanoj Exp $
+/* $Id: pgtable.h,v 1.11 2000/02/23 00:41:38 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -20,9 +20,32 @@
 #include <linux/mmzone.h>
 #include <asm/cachectl.h>
 
-extern __inline__ void flush_tlb_pgtables(struct mm_struct *mm, unsigned long start, unsigned long end)
-{
-}
+/* Cache flushing:
+ *
+ *  - flush_cache_all() flushes entire cache
+ *  - flush_cache_mm(mm) flushes the specified mm context's cache lines
+ *  - flush_cache_page(mm, vmaddr) flushes a single page
+ *  - flush_cache_range(mm, start, end) flushes a range of pages
+ *  - flush_page_to_ram(page) write back kernel page to ram
+ */
+extern void (*_flush_cache_all)(void);
+extern void (*_flush_cache_mm)(struct mm_struct *mm);
+extern void (*_flush_cache_range)(struct mm_struct *mm, unsigned long start,
+                                 unsigned long end);
+extern void (*_flush_cache_page)(struct vm_area_struct *vma, unsigned long page);
+extern void (*_flush_cache_sigtramp)(unsigned long addr);
+extern void (*_flush_page_to_ram)(struct page * page);
+
+#define flush_cache_all()		_flush_cache_all()
+#define flush_cache_mm(mm)		_flush_cache_mm(mm)
+#define flush_cache_range(mm,start,end)	_flush_cache_range(mm,start,end)
+#define flush_cache_page(vma,page)	_flush_cache_page(vma, page)
+#define flush_cache_sigtramp(addr)	_flush_cache_sigtramp(addr)
+#define flush_page_to_ram(page)		_flush_page_to_ram(page)
+
+#define flush_icache_range(start, end)	flush_cache_all()
+#define flush_icache_page(start, page)	do { } while(0)
+
 
 /* Basically we have the same two-level (which is the logical three level
  * Linux page table layout folded) page tables as the i386.  Some day
@@ -416,10 +439,12 @@ extern inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
 /* to find an entry in a kernel page-table-directory */
 #define pgd_offset_k(address) pgd_offset(&init_mm, address)
 
+#define pgd_index(address)	((address >> PGDIR_SHIFT) & (PTRS_PER_PGD - 1))
+
 /* to find an entry in a page-table-directory */
 extern inline pgd_t *pgd_offset(struct mm_struct *mm, unsigned long address)
 {
-	return mm->pgd + ((address >> PGDIR_SHIFT) & (PTRS_PER_PGD - 1));
+	return mm->pgd + pgd_index(address);
 }
 
 /* Find an entry in the second-level page table.. */
@@ -448,9 +473,16 @@ extern pgd_t swapper_pg_dir[1024];
 extern void (*update_mmu_cache)(struct vm_area_struct *vma,
 				unsigned long address, pte_t pte);
 
+/*
+ * Non-present pages:  high 24 bits are offset, next 8 bits type,
+ * low 32 bits zero.
+ */
+extern inline pte_t mk_swap_pte(unsigned long type, unsigned long offset)
+{ pte_t pte; pte_val(pte) = (type << 32) | (offset << 40); return pte; }
+
 #define SWP_TYPE(x)		(((x).val >> 32) & 0xff)
 #define SWP_OFFSET(x)		((x).val >> 40)
-#define SWP_ENTRY(type,offset)	((swp_entry_t) { ((type) << 32) | ((offset) << 40) })
+#define SWP_ENTRY(type,offset)	((swp_entry_t) { pte_val(mk_swap_pte((type),(offset))) })
 #define pte_to_swp_entry(pte)	((swp_entry_t) { pte_val(pte) })
 #define swp_entry_to_pte(x)	((pte_t) { (x).val })
 
