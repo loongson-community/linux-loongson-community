@@ -133,7 +133,6 @@ void ev64120_setup(void)
 
 	board_time_init = galileo_time_init;
 	mips_io_port_base = KSEG1;
-	clear_cp0_status(ST0_FR);
 
 #ifdef CONFIG_L2_L3_CACHE
 #error "external cache not implemented yet"
