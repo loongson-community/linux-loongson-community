@@ -41,8 +41,10 @@
 #include <linux/init.h>
 #include <linux/in.h>
 #include <linux/pci.h>
+#include <linux/workqueue.h>
 #include <asm/smp.h>
 #include <linux/skbuff.h>
+#include <linux/tcp.h>
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <net/ip.h>
@@ -309,7 +311,7 @@ static void mv64340_eth_tx_timeout(struct net_device *dev)
 	printk(KERN_INFO "Resetting card \n");
 
 	/* Do the reset outside of interrupt context */
-        schedule_task(&mp->tx_timeout_task);
+	schedule_work(&mp->tx_timeout_task);
 }
 
 /*
@@ -548,13 +550,13 @@ static irqreturn_t mv64340_eth_int_handler(int irq, void *dev_id,
 #else
 		unsigned int total_received = 0;
 		
-		if (eth_int_cause & (BIT2 | BIT11)) {
-			total_received +=
-			    mv64340_eth_receive_queue(dev, 0);
-		}
+		if (eth_int_cause & (BIT2 | BIT11))
+			total_received += mv64340_eth_receive_queue(dev, 0);
+
 		/*
-		 * After forwarded received packets to upper layer, add a task in an
-		 * interrupts enabled context that refills the RX ring with skb's.
+		 * After forwarded received packets to upper layer, add a task
+		 * in an interrupts enabled context that refills the RX ring
+		 * with skb's.
 		 */
 #if MV64340_RX_QUEUE_FILL_ON_TASK
 		/* Unmask all interrupts on ethernet port */
@@ -750,10 +752,7 @@ static int mv64340_eth_real_open(struct net_device *dev)
 
 	eth_port_init(mp);
 
-	/* Set rx_task pointers */
-	mp->rx_task.sync = 0;
-	mp->rx_task.routine = mv64340_eth_rx_task;
-	mp->rx_task.data = dev;
+	INIT_WORK(&mp->rx_task, (void (*)(void *)) mv64340_eth_rx_task, dev);
 
 	memset(&mp->timeout, 0, sizeof(struct timer_list));
 	mp->timeout.function = mv64340_eth_rx_task_timer_wrapper;
@@ -1012,7 +1011,7 @@ static int mv64340_poll(struct net_device *dev, int *budget)
 		if (orig_budget > dev->quota)
 			orig_budget = dev->quota;
 		work_done = mv64340_eth_receive_queue(dev, 0, orig_budget);
-		mp->rx_task.routine(dev);
+		mp->rx_task.func(dev);
 		*budget -= work_done;
 		dev->quota -= work_done;
 		if (work_done >= orig_budget)
@@ -1263,8 +1262,8 @@ static int mv64340_eth_init(int port_num)
 	mp->port_num = port_num;
 
 	/* Configure the timeout task */
-        INIT_TQUEUE(&mp->tx_timeout_task,
-                        (void (*)(void *))mv64340_eth_tx_timeout_task, dev);
+        INIT_WORK(&mp->tx_timeout_task,
+                  (void (*)(void *))mv64340_eth_tx_timeout_task, dev);
 
 	spin_lock_init(&mp->lock);
 

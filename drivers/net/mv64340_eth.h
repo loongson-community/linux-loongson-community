@@ -7,6 +7,7 @@
 #include <linux/kernel.h>
 #include <linux/config.h>
 #include <linux/spinlock.h>
+#include <linux/workqueue.h>
 
 #include <asm/mv64340.h>
 
@@ -530,7 +531,7 @@ struct eth_port_info {
 	volatile ETH_TX_DESC *p_tx_desc_area;
 	unsigned int tx_desc_area_size;
 	struct sk_buff* tx_skb[MV64340_TX_QUEUE_SIZE];
-	struct tq_struct tx_timeout_task;
+	struct work_struct tx_timeout_task;
 
 	/*
 	 * Former struct mv64340_eth_priv members start here
@@ -549,7 +550,7 @@ struct eth_port_info {
 	/*
 	 * rx_task used to fill RX ring out of bottom half context 
 	 */
-	struct tq_struct rx_task;
+	struct work_struct rx_task;
 
 	/* 
 	 * Used in case RX Ring is empty, which can be caused when 
