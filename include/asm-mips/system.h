@@ -387,7 +387,7 @@ static inline unsigned long __cmpxchg_u32(volatile int * m, unsigned long old,
 	__asm__ __volatile__(
 	"1:	ll	%2, %3			# __cmpxchg_u32	\n"
 	"	li	%0, 1					\n"
-	"	bnez	%2, %z4, 2f				\n"
+	"	bne	%2, %z4, 2f				\n"
 	"	move	%2, %z5					\n"
 	"	sc	%2, %1					\n"
 	"	beqz	%2, 1b					\n"
@@ -422,9 +422,9 @@ static inline unsigned long __cmpxchg_u64(volatile int * m, unsigned long old,
 	unsigned long dummy;
 
 	__asm__ __volatile__(
-	"1:	ll	%2, %3			# __cmpxchg_u32	\n"
+	"1:	ll	%2, %3			# __cmpxchg_u64	\n"
 	"	li	%0, 1					\n"
-	"	bnez	%2, %z4, 2f				\n"
+	"	bne	%2, %z4, 2f				\n"
 	"	move	%2, %z5					\n"
 	"	sc	%2, %1					\n"
 	"	beqz	%2, 1b					\n"
