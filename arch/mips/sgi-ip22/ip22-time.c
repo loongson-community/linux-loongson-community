@@ -8,6 +8,8 @@
  *
  * Copyright (C) 2001 by Ladislav Michl
  */
+
+#include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
 #include <linux/kernel_stat.h>
@@ -225,7 +227,7 @@ static void indy_timer_setup(struct irqaction *irq)
 	setup_irq(SGI_TIMER_IRQ, irq);
 }
 
-void sgitime_init(void)
+void __init ip22_time_init(void)
 {
 	/* setup hookup functions */
 	rtc_get_time = indy_rtc_get_time;

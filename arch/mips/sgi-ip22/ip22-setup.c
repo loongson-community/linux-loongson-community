@@ -39,8 +39,6 @@ static int remote_debug = 0;
 extern void console_setup(char *);
 #endif
 
-extern void sgitime_init(void);
-
 extern struct rtc_ops ip22_rtc_ops;
 
 #define KBD_STAT_IBF		0x02	/* Keyboard input buffer full */
@@ -65,6 +63,9 @@ void ip22_do_break(void)
 	ArcEnterInteractiveMode();
 }
 
+extern void ip22_be_init(void) __init;
+extern void ip22_time_init(void) __init;
+
 void __init ip22_setup(void)
 {
 	char *ctype;
@@ -73,7 +74,7 @@ void __init ip22_setup(void)
 #endif
 
 	board_be_init = ip22_be_init;
-	sgitime_init();
+	ip22_time_init();
 
 	/* Init the INDY HPC I/O controller.  Need to call this before
 	 * fucking with the memory controller because it needs to know the
