@@ -185,11 +185,11 @@ asmlinkage void sb1_cache_error(void)
 	  "=r" (dpahi), "=r" (dpalo), "=r" (eepc));
 
 	cerr_dpa = (((uint64_t)dpahi) << 32) | dpalo;
-	prom_printf(" cp0_errorepc ==   %08x\n", eepc);
-	prom_printf(" cp0_errctl   ==   %08x", errctl);
+	prom_printf(" c0_errorepc ==   %08x\n", eepc);
+	prom_printf(" c0_errctl   ==   %08x", errctl);
 	breakout_errctl(errctl);
 	if (errctl & CP0_ERRCTL_ICACHE) {
-		prom_printf(" cp0_cerr_i   ==   %08x", cerr_i);
+		prom_printf(" c0_cerr_i   ==   %08x", cerr_i);
 		breakout_cerri(cerr_i);
 		if (CP0_CERRI_IDX_VALID(cerr_i)) {
 			if ((eepc & SB1_CACHE_INDEX_MASK) != (cerr_i & SB1_CACHE_INDEX_MASK))
@@ -203,10 +203,10 @@ asmlinkage void sb1_cache_error(void)
 		}
 	}
 	if (errctl & CP0_ERRCTL_DCACHE) {
-		prom_printf(" cp0_cerr_d   ==   %08x", cerr_d);
+		prom_printf(" c0_cerr_d   ==   %08x", cerr_d);
 		breakout_cerrd(cerr_d);
 		if (CP0_CERRD_DPA_VALID(cerr_d)) {
-			prom_printf(" cp0_cerr_dpa == %010llx\n", cerr_dpa);
+			prom_printf(" c0_cerr_dpa == %010llx\n", cerr_dpa);
 			if (!CP0_CERRD_IDX_VALID(cerr_d)) {
 				res = extract_dc(cerr_dpa & SB1_CACHE_INDEX_MASK,
 						 (cerr_d & CP0_CERRD_DATA) != 0);
