@@ -804,7 +804,7 @@ S:	Maintained
 IOC3 DRIVER
 P:	Ralf Baechle
 M:	ralf@oss.sgi.com
-L:	linux-mips@oss.sgi.com
+L:	linux-mips@linux-mips.org
 S:	Maintained
 
 IP MASQUERADING:
@@ -1007,7 +1007,7 @@ MIPS
 P:	Ralf Baechle
 M:	ralf@gnu.org
 W:	http://oss.sgi.com/mips/mips-howto.html
-L:	linux-mips@oss.sgi.com
+L:	linux-mips@linux-mips.org
 S:	Maintained
 
 MISCELLANEOUS MCA-SUPPORT
@@ -1248,7 +1248,7 @@ S:	Maintained
 PHILIPS NINO PALM PC
 P:	Steven Hill
 M:	sjhill@realitydiluted.com
-L:	linux-mips@oss.sgi.com
+L:	linux-mips@linux-mips.org
 W:	http://www.realitydiluted.com/projects/nino
 S:	Maintained
 
