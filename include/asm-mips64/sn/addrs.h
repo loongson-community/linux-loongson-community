@@ -18,13 +18,11 @@
 #include <asm/reg.h>
 #include <asm/sn/kldir.h>
 
-#if defined(CONFIG_SGI_IO)
 #if defined(CONFIG_SGI_IP27)
 #include <asm/sn/sn0/addrs.h>
 #elif defined(CONFIG_SGI_IP35)
 #include <asm/sn/sn1/addrs.h>
 #endif
-#endif	/* CONFIG_SGI_IO */
 
 
 #if _LANGUAGE_C
