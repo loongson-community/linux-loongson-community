@@ -10,6 +10,7 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 
+#include <asm/bootinfo.h>
 #include <asm/sgialib.h>
 
 #undef DEBUG_PROM_INIT
