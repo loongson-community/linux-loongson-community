@@ -339,9 +339,6 @@ extern void ipc_init(void);
 #ifdef CONFIG_MIPS_JAZZ
 #include <asm/jazzdma.h>
 #endif
-#ifdef CONFIG_REMOTE_DEBUG
-#include <asm/gdb-stub.h>
-#endif
 
 extern int serial_console;
 
@@ -1154,10 +1151,6 @@ asmlinkage void __init start_kernel(void)
 		memset(prof_buffer, 0, prof_len * sizeof(unsigned int));
 	}
 
-#ifdef CONFIG_REMOTE_DEBUG
-	set_debug_traps();
-	/* breakpoint(); */	/* execute a BREAK insn */
-#endif
 	memory_start = kmem_cache_init(memory_start, memory_end);
 	sti();
 	calibrate_delay();
