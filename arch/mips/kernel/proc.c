@@ -14,7 +14,7 @@
 
 unsigned long unaligned_instructions;
 unsigned int vced_count, vcei_count;
-#ifdef CONFIG_PROC_FS
+#if !defined(CONFIG_CPU_HAS_LLSC)
 unsigned long ll_ops, sc_ops;
 #endif
 
@@ -88,9 +88,9 @@ int get_cpuinfo(char *buffer)
 	len += sprintf(buffer + len, fmt, 'I', vcei_count);
 
 #if !defined(CONFIG_CPU_HAS_LLSC)
-	len += sprintf(buffer + len, "ll emulations\t: %lu\n",
+	len += sprintf(buffer + len, "ll emulations\t\t: %lu\n",
 		       ll_ops);
-	len += sprintf(buffer + len, "sc emulations\t: %lu\n",
+	len += sprintf(buffer + len, "sc emulations\t\t: %lu\n",
 		       sc_ops);
 #endif
 	return len;
