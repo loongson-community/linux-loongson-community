@@ -1,4 +1,4 @@
-/* $Id: head.S,v 1.12 1998/05/26 06:16:52 ralf Exp $
+/* $Id: head.S,v 1.9 1998/08/25 09:14:38 ralf Exp $
  *
  * arch/mips/kernel/head.S
  *
@@ -19,6 +19,7 @@
 #include <linux/tasks.h>
 
 #include <asm/asm.h>
+#include <asm/cacheops.h>
 #include <asm/current.h>
 #include <asm/offset.h>
 #include <asm/processor.h>
@@ -34,10 +35,10 @@
 	/*
 	 * Reserved space for exception handlers.
 	 * Necessary for machines which link their kernels at KSEG0.
-	 * FIXME: We could overwrite some of the useless handlers
-	 * with those actually being used.
+	 * FIXME: Use the initcode feature to get rid of unused handler
+	 * variants.
 	 */
-	.fill	520
+	.fill	0x280
 /*	
  * This is space for the interrupt handlers.
  * After trap_init() they are located at virtual address KSEG0.
@@ -322,16 +323,48 @@
 	NESTED(except_vec3_r4000, 0, sp)
 	.set	noat
 	mfc0	k1, CP0_CAUSE
-
-	/* XXX Have to check for VCE's _before_ we do a load or store. */
-
-	la	k0, exception_handlers
 	andi	k1, k1, 0x7c
+	li	k0, 31<<2
+	beq	k1, k0, handle_vced
+	 li	k0, 14<<2
+	beq	k1, k0, handle_vcei
+	 la	k0, exception_handlers
 	addu	k0, k0, k1
 	lw	k0, (k0)
 	nop
 	jr	k0
 	 nop
+
+/*
+ * Big shit, we now may have two dirty primary cache lines for the same
+ * physical address.  We can savely invalidate the line pointed to by
+ * c0_badvaddr because after return from this exception handler the load /
+ * store will be re-executed.
+ */
+handle_vced:
+	mfc0	k0, CP0_BADVADDR
+ li k1, -4
+ and k0, k1
+	mtc0	zero, CP0_TAGLO
+ //	nop;nop
+	cache	Index_Store_Tag_D,(k0)
+ //	nop;nop
+	cache	Hit_Writeback_Inv_SD,(k0)
+	lui	k0, %hi(vced_count)
+	lw	k1, %lo(vced_count)(k0)
+	addiu	k1, 1
+	sw	k1, %lo(vced_count)(k0)
+	eret
+
+handle_vcei:
+	mfc0	k0, CP0_BADVADDR
+	cache	Hit_Writeback_Inv_SD,(k0)		# also cleans pi
+	lui	k0, %hi(vcei_count)
+	lw	k1, %lo(vcei_count)(k0)
+	addiu	k1, 1
+	sw	k1, %lo(vcei_count)(k0)
+	eret
+
 	END(except_vec3_r4000)
 	.set	at
 

@@ -1,4 +1,4 @@
-/* $Id: traps.c,v 1.14 1998/07/16 19:10:02 ralf Exp $
+/* $Id: traps.c,v 1.15 1998/08/25 09:14:43 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -55,9 +55,7 @@ extern asmlinkage void handle_ri(void);
 extern asmlinkage void handle_cpu(void);
 extern asmlinkage void handle_ov(void);
 extern asmlinkage void handle_tr(void);
-extern asmlinkage void handle_vcei(void);
 extern asmlinkage void handle_fpe(void);
-extern asmlinkage void handle_vced(void);
 extern asmlinkage void handle_watch(void);
 extern asmlinkage void handle_reserved(void);
 
@@ -65,6 +63,7 @@ static char *cpu_names[] = CPU_NAMES;
 
 char watch_available = 0;
 char dedicated_iv_available = 0;
+char vce_available = 0;
 
 void (*ibe_board_handler)(struct pt_regs *regs);
 void (*dbe_board_handler)(struct pt_regs *regs);
@@ -359,24 +358,6 @@ bad_cid:
 	force_sig(SIGILL, current);
 }
 
-void do_vcei(struct pt_regs *regs)
-{
-	/*
-	 * Only possible on R4[04]00[SM]C. No handler because I don't have
-	 * such a cpu.  Theory says this exception doesn't happen.
-	 */
-	panic("Caught VCEI exception - should not happen");
-}
-
-void do_vced(struct pt_regs *regs)
-{
-	/*
-	 * Only possible on R4[04]00[SM]C. No handler because I don't have
-	 * such a cpu.  Theory says this exception doesn't happen.
-	 */
-	panic("Caught VCE exception - should not happen");
-}
-
 void do_watch(struct pt_regs *regs)
 {
 	/*
@@ -513,11 +494,8 @@ __initfunc(void trap_init(void))
 	case CPU_R4400MC:
 	case CPU_R4000SC:
 	case CPU_R4400SC:
-		/* XXX The following won't work because we _cannot_
-		 * XXX perform any load/store before the VCE handler.
-		 */
-		set_except_vector(14, handle_vcei);
-		set_except_vector(31, handle_vced);
+		vce_available = 1;
+		/* Fall through ...  */
 	case CPU_R4000PC:
 	case CPU_R4400PC:
 	case CPU_R4200:
@@ -533,13 +511,16 @@ __initfunc(void trap_init(void))
 		else
 			memcpy((void *)KSEG0, &except_vec0_r4000, 0x80);
 
-		/*
-		 * The idea is that this special r4000 general exception
-		 * vector will check for VCE exceptions before calling
-		 * out of the exception array.  XXX TODO
-		 */
+		/* Cache error vector  */
 		memcpy((void *)(KSEG0 + 0x100), (void *) KSEG0, 0x80);
-		memcpy((void *)(KSEG0 + 0x180), &except_vec3_r4000, 0x80);
+
+		if (vce_available) {
+			memcpy((void *)(KSEG0 + 0x180), &except_vec3_r4000,
+			       0x180);
+		} else {
+			memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic,
+			       0x100);
+		}
 
 		save_fp_context = r4k_save_fp_context;
 		restore_fp_context = r4k_restore_fp_context;

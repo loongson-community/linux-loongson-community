@@ -1,4 +1,4 @@
-/* $Id: sgiseeq.c,v 1.3 1997/11/16 13:57:45 alan Exp $
+/* $Id: sgiseeq.c,v 1.8 1998/08/25 09:17:45 ralf Exp $
  *
  * sgiseeq.c: Seeq8003 ethernet driver for SGI machines.
  *
@@ -86,7 +86,7 @@ struct sgiseeq_init_block { /* Note the name ;-) */
 	/* Ptrs to the descriptors in KSEG1 uncached space. */
 	struct sgiseeq_rx_desc *rx_desc;
 	struct sgiseeq_tx_desc *tx_desc;
-	unsigned long _padding[14]; /* Pad out to largest cache line size. */
+	unsigned long _padding[30]; /* Pad out to largest cache line size. */
 
 	struct sgiseeq_rx_desc rxvector[SEEQ_RX_BUFFERS];
 	struct sgiseeq_tx_desc txvector[SEEQ_TX_BUFFERS];
