@@ -26,7 +26,9 @@
 #include <asm/bootinfo.h>
 #include <asm/mips-boards/prom.h>
 #include <asm/mips-boards/generic.h>
+#ifdef CONFIG_MIPS_GT64120
 #include <asm/gt64120.h>
+#endif
 #include <asm/mips-boards/msc01_pci.h>
 #include <asm/mips-boards/bonito64.h>
 #ifdef CONFIG_MIPS_MALTA
