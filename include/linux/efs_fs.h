@@ -9,7 +9,7 @@
 #ifndef __EFS_FS_H__
 #define __EFS_FS_H__
 
-#define EFS_VERSION "0.98d"
+#define EFS_VERSION "1.0"
 
 static const char cprt[] = "EFS: "EFS_VERSION" - (c) 1999 Al Smith <Al.Smith@aeschi.ch.eu.org>";
 
@@ -58,7 +58,7 @@ extern int efs_statfs(struct super_block *, struct statfs *, int);
 extern void efs_read_inode(struct inode *);
 extern efs_block_t efs_map_block(struct inode *, efs_block_t);
 
-extern int efs_lookup(struct inode *, struct dentry *);
+extern struct dentry *efs_lookup(struct inode *, struct dentry *);
 extern int efs_bmap(struct inode *, int);
 
 extern int init_efs_fs(void);

@@ -39,7 +39,7 @@ static char *efs_linktarget(struct inode *in, int *len) {
 	efs_block_t size = in->i_size;
   
 	if (size > 2 * EFS_BLOCKSIZE) {
-		printk("EFS: linktarget(): name too long: %lu\n", in->i_size);
+		printk(KERN_ERR "EFS: linktarget(): name too long: %lu\n", in->i_size);
 		return NULL;
 	}
   
@@ -50,7 +50,7 @@ static char *efs_linktarget(struct inode *in, int *len) {
 	bh = bread(in->i_dev, efs_bmap(in, 0), EFS_BLOCKSIZE);
 	if (!bh) {
 		kfree(name);
-		printk("EFS: linktarget(): couldn't read block %d\n", efs_bmap(in, 0));
+		printk(KERN_ERR "EFS: linktarget(): couldn't read block %d\n", efs_bmap(in, 0));
 		return NULL;
 	}
 
@@ -61,7 +61,7 @@ static char *efs_linktarget(struct inode *in, int *len) {
 		bh = bread(in->i_dev, efs_bmap(in, 1), EFS_BLOCKSIZE);
 		if (!bh) {
 			kfree(name);
-			printk("EFS: linktarget(): couldn't read block %d\n", efs_bmap(in, 1));
+			printk(KERN_ERR "EFS: linktarget(): couldn't read block %d\n", efs_bmap(in, 1));
 			return NULL;
 		}
 		memcpy(name + EFS_BLOCKSIZE, bh->b_data, size - EFS_BLOCKSIZE);

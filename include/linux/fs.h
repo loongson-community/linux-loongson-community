@@ -274,13 +274,13 @@ static inline int buffer_protected(struct buffer_head * bh)
 #include <linux/sysv_fs_i.h>
 #include <linux/affs_fs_i.h>
 #include <linux/ufs_fs_i.h>
+#include <linux/efs_fs_i.h>
 #include <linux/coda_fs_i.h>
 #include <linux/romfs_fs_i.h>
 #include <linux/smb_fs_i.h>
 #include <linux/hfs_fs_i.h>
 #include <linux/adfs_fs_i.h>
 #include <linux/qnx4_fs_i.h>
-#include <linux/efs_fs_i.h>
 
 /*
  * Attribute flags.  These should be or-ed together to figure out what
@@ -386,13 +386,13 @@ struct inode {
 		struct sysv_inode_info		sysv_i;
 		struct affs_inode_info		affs_i;
 		struct ufs_inode_info		ufs_i;
+		struct efs_inode_info		efs_i;
 		struct romfs_inode_info		romfs_i;
 		struct coda_inode_info		coda_i;
 		struct smb_inode_info		smbfs_i;
 		struct hfs_inode_info		hfs_i;
 		struct adfs_inode_info		adfs_i;
 		struct qnx4_inode_info		qnx4_i;
-		struct efs_inode_info		efs_i;
 		struct socket			socket_i;
 		void				*generic_ip;
 	} u;
@@ -509,8 +509,8 @@ extern int fasync_helper(int, struct file *, int, struct fasync_struct **);
 #include <linux/sysv_fs_sb.h>
 #include <linux/affs_fs_sb.h>
 #include <linux/ufs_fs_sb.h>
-#include <linux/romfs_fs_sb.h>
 #include <linux/efs_fs_sb.h>
+#include <linux/romfs_fs_sb.h>
 #include <linux/smb_fs_sb.h>
 #include <linux/hfs_fs_sb.h>
 #include <linux/adfs_fs_sb.h>
@@ -552,8 +552,8 @@ struct super_block {
 		struct sysv_sb_info	sysv_sb;
 		struct affs_sb_info	affs_sb;
 		struct ufs_sb_info	ufs_sb;
-		struct romfs_sb_info	romfs_sb;
 		struct efs_sb_info	efs_sb;
+		struct romfs_sb_info	romfs_sb;
 		struct smb_sb_info	smbfs_sb;
 		struct hfs_sb_info	hfs_sb;
 		struct adfs_sb_info	adfs_sb;

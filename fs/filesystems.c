@@ -22,13 +22,13 @@
 #include <linux/ncp_fs.h>
 #include <linux/affs_fs.h>
 #include <linux/ufs_fs.h>
+#include <linux/efs_fs.h>
 #include <linux/romfs_fs.h>
 #include <linux/auto_fs.h>
 #include <linux/qnx4_fs.h>
 #include <linux/ntfs_fs.h>
 #include <linux/hfs_fs.h>
 #include <linux/devpts_fs.h>
-#include <linux/efs_fs.h>
 #include <linux/major.h>
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
@@ -130,12 +130,12 @@ void __init filesystem_setup(void)
 	init_ufs_fs();
 #endif
 
-#ifdef CONFIG_AUTOFS_FS
-	init_autofs_fs();
-#endif
-
 #ifdef CONFIG_EFS_FS
 	init_efs_fs();
+#endif
+
+#ifdef CONFIG_AUTOFS_FS
+	init_autofs_fs();
 #endif
 
 #ifdef CONFIG_ADFS_FS

@@ -19,20 +19,20 @@ static efs_ino_t efs_find_entry(struct inode *inode, const char *name, int len) 
 	efs_block_t		block;
  
 	if (inode->i_size & (EFS_DIRBSIZE-1))
-		printk("EFS: WARNING: find_entry(): directory size not a multiple of EFS_DIRBSIZE\n");
+		printk(KERN_WARNING "EFS: WARNING: find_entry(): directory size not a multiple of EFS_DIRBSIZE\n");
 
 	for(block = 0; block < inode->i_blocks; block++) {
 
 		bh = bread(inode->i_dev, efs_bmap(inode, block), EFS_DIRBSIZE);
 		if (!bh) {
-			printk("EFS: find_entry(): failed to read dir block %d\n", block);
+			printk(KERN_ERR "EFS: find_entry(): failed to read dir block %d\n", block);
 			return 0;
 		}
     
 		dirblock = (struct efs_dir *) bh->b_data;
 
 		if (be16_to_cpu(dirblock->magic) != EFS_DIRBLK_MAGIC) {
-			printk("EFS: find_entry(): invalid directory block\n");
+			printk(KERN_ERR "EFS: find_entry(): invalid directory block\n");
 			brelse(bh);
 			return(0);
 		}
@@ -54,21 +54,22 @@ static efs_ino_t efs_find_entry(struct inode *inode, const char *name, int len) 
 	return(0);
 }
 
-int efs_lookup(struct inode *dir, struct dentry *dentry) {
+struct dentry *efs_lookup(struct inode *dir, struct dentry *dentry) {
 	efs_ino_t inodenum;
 	struct inode * inode;
 
-	if (!dir || !S_ISDIR(dir->i_mode)) return -ENOENT;
+	if (!dir || !S_ISDIR(dir->i_mode))
+		return ERR_PTR(-ENOENT);
 
 	inode = NULL;
 
 	inodenum = efs_find_entry(dir, dentry->d_name.name, dentry->d_name.len);
 	if (inodenum) {
 		if (!(inode = iget(dir->i_sb, inodenum)))
-			return -EACCES;
+			return ERR_PTR(-EACCES);
 	}
 
 	d_add(dentry, inode);
-	return 0;
+	return NULL;
 }
 

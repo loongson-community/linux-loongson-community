@@ -49,15 +49,17 @@ struct inode_operations efs_file_inode_operations = {
 int efs_bmap(struct inode *inode, efs_block_t block) {
 
 	if (block < 0) {
-		printk("EFS: bmap(): block < 0\n");
+		printk(KERN_WARNING "EFS: bmap(): block < 0\n");
 		return 0;
 	}
 
 	/* are we about to read past the end of a file ? */
 	if (!(block < inode->i_blocks)) {
 #ifdef DEBUG
-		/* i have no idea why this happens as often as it does */
-		printk("EFS: bmap(): block %d >= %ld (filesize %ld)\n",
+		/*
+		 * i have no idea why this happens as often as it does
+		 */
+		printk(KERN_WARNING "EFS: bmap(): block %d >= %ld (filesize %ld)\n",
 			block,
 			inode->i_blocks,
 			inode->i_size);
