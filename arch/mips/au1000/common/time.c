@@ -304,8 +304,7 @@ unsigned long cal_r4koff(void)
 
 /* This is for machines which generate the exact clock. */
 #define USECS_PER_JIFFY (1000000/HZ)
-#define USECS_PER_JIFFY_FRAC (0x100000000*1000000/HZ&0xffffffff)
-
+#define USECS_PER_JIFFY_FRAC (0x100000000LL*1000000/HZ&0xffffffff)
 
 static unsigned long
 div64_32(unsigned long v1, unsigned long v2, unsigned long v3)
