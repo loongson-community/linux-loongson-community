@@ -118,9 +118,8 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 	 * New tasks loose permission to use the fpu. This accelerates context
 	 * switching for most programs since they don't use the fpu.
 	 */
-	p->thread.cp0_status = read_c0_status() &
-                            ~(ST0_CU3|ST0_CU2|ST0_CU1|ST0_KSU);
-	childregs->cp0_status &= ~(ST0_CU3|ST0_CU2|ST0_CU1);
+	p->thread.cp0_status = read_c0_status() & ~(ST0_CU2|ST0_CU1|ST0_KSU);
+	childregs->cp0_status &= ~(ST0_CU2|ST0_CU1);
 
 	return 0;
 }
