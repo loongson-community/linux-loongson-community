@@ -287,7 +287,7 @@ void __init paging_init(void)
 
 void __init mem_init(void)
 {
-	extern char _ftext, _etext, _fdata, _edata;
+	extern char _stext, _etext, _fdata, _edata;
 	extern char __init_begin, __init_end;
 	extern unsigned long totalram_pages;
 	extern unsigned long setup_zero_pages(void);
@@ -367,7 +367,7 @@ void __init mem_init(void)
 		}
 	}
 
-	codesize =  (unsigned long) &_etext - (unsigned long) &_ftext;
+	codesize =  (unsigned long) &_etext - (unsigned long) &_stext;
 	datasize =  (unsigned long) &_edata - (unsigned long) &_fdata;
 	initsize =  (unsigned long) &__init_end - (unsigned long) &__init_begin;
 
