@@ -7,6 +7,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  * Copyright (C) 1997 - 2002 Ralf Baechle (ralf@gnu.org)
+ * Copyright (C) 2004 Ralf Baechle (ralf@linux-mips.org)
  */
 #ifndef _ASM_R4KCACHE_H
 #define _ASM_R4KCACHE_H
@@ -29,10 +30,10 @@
 
 #define cache_op(op,addr)						\
 	__asm__ __volatile__(						\
-	"	.set	noreorder		\n"			\
-	"	.set	mips3\n\t		\n"			\
-	"	cache	%0, %1			\n"			\
-	"	.set	mips0			\n"			\
+	"	.set	noreorder				\n"	\
+	"	.set	mips3\n\t				\n"	\
+	"	cache	%0, %1					\n"	\
+	"	.set	mips0					\n"	\
 	"	.set	reorder"					\
 	:								\
 	: "i" (op), "m" (*(unsigned char *)(addr)))
@@ -124,30 +125,30 @@ static inline void invalidate_tcache_page(unsigned long addr)
 	cache_op(Page_Invalidate_T, addr);
 }
 
-#define cache16_unroll32(base,op)				\
-	__asm__ __volatile__("					\
-		.set noreorder;					\
-		.set mips3;					\
-		cache %1, 0x000(%0); cache %1, 0x010(%0);	\
-		cache %1, 0x020(%0); cache %1, 0x030(%0);	\
-		cache %1, 0x040(%0); cache %1, 0x050(%0);	\
-		cache %1, 0x060(%0); cache %1, 0x070(%0);	\
-		cache %1, 0x080(%0); cache %1, 0x090(%0);	\
-		cache %1, 0x0a0(%0); cache %1, 0x0b0(%0);	\
-		cache %1, 0x0c0(%0); cache %1, 0x0d0(%0);	\
-		cache %1, 0x0e0(%0); cache %1, 0x0f0(%0);	\
-		cache %1, 0x100(%0); cache %1, 0x110(%0);	\
-		cache %1, 0x120(%0); cache %1, 0x130(%0);	\
-		cache %1, 0x140(%0); cache %1, 0x150(%0);	\
-		cache %1, 0x160(%0); cache %1, 0x170(%0);	\
-		cache %1, 0x180(%0); cache %1, 0x190(%0);	\
-		cache %1, 0x1a0(%0); cache %1, 0x1b0(%0);	\
-		cache %1, 0x1c0(%0); cache %1, 0x1d0(%0);	\
-		cache %1, 0x1e0(%0); cache %1, 0x1f0(%0);	\
-		.set mips0;					\
-		.set reorder"					\
-		:						\
-		: "r" (base),					\
+#define cache16_unroll32(base,op)					\
+	__asm__ __volatile__(						\
+	"	.set noreorder					\n"	\
+	"	.set mips3					\n"	\
+	"	cache %1, 0x000(%0); cache %1, 0x010(%0)	\n"	\
+	"	cache %1, 0x020(%0); cache %1, 0x030(%0)	\n"	\
+	"	cache %1, 0x040(%0); cache %1, 0x050(%0)	\n"	\
+	"	cache %1, 0x060(%0); cache %1, 0x070(%0)	\n"	\
+	"	cache %1, 0x080(%0); cache %1, 0x090(%0)	\n"	\
+	"	cache %1, 0x0a0(%0); cache %1, 0x0b0(%0)	\n"	\
+	"	cache %1, 0x0c0(%0); cache %1, 0x0d0(%0)	\n"	\
+	"	cache %1, 0x0e0(%0); cache %1, 0x0f0(%0)	\n"	\
+	"	cache %1, 0x100(%0); cache %1, 0x110(%0)	\n"	\
+	"	cache %1, 0x120(%0); cache %1, 0x130(%0)	\n"	\
+	"	cache %1, 0x140(%0); cache %1, 0x150(%0)	\n"	\
+	"	cache %1, 0x160(%0); cache %1, 0x170(%0)	\n"	\
+	"	cache %1, 0x180(%0); cache %1, 0x190(%0)	\n"	\
+	"	cache %1, 0x1a0(%0); cache %1, 0x1b0(%0)	\n"	\
+	"	cache %1, 0x1c0(%0); cache %1, 0x1d0(%0)	\n"	\
+	"	cache %1, 0x1e0(%0); cache %1, 0x1f0(%0)	\n"	\
+	"	.set mips0					\n"	\
+	"	.set reorder					\n"	\
+		:							\
+		: "r" (base),						\
 		  "i" (op));
 
 static inline void blast_dcache16(void)
@@ -169,10 +170,10 @@ static inline void blast_dcache16_page(unsigned long page)
 	unsigned long start = page;
 	unsigned long end = start + PAGE_SIZE;
 
-	while (start < end) {
+	do {
 		cache16_unroll32(start,Hit_Writeback_Inv_D);
 		start += 0x200;
-	}
+	} while (start < end);
 }
 
 static inline void blast_dcache16_page_indexed(unsigned long page)
@@ -208,10 +209,10 @@ static inline void blast_icache16_page(unsigned long page)
 	unsigned long start = page;
 	unsigned long end = start + PAGE_SIZE;
 
-	while (start < end) {
+	do {
 		cache16_unroll32(start,Hit_Invalidate_I);
 		start += 0x200;
-	}
+	} while (start < end);
 }
 
 static inline void blast_icache16_page_indexed(unsigned long page)
@@ -247,10 +248,10 @@ static inline void blast_scache16_page(unsigned long page)
 	unsigned long start = page;
 	unsigned long end = page + PAGE_SIZE;
 
-	while (start < end) {
+	do {
 		cache16_unroll32(start,Hit_Writeback_Inv_SD);
 		start += 0x200;
-	}
+	} while (start < end);
 }
 
 static inline void blast_scache16_page_indexed(unsigned long page)
@@ -267,30 +268,30 @@ static inline void blast_scache16_page_indexed(unsigned long page)
 			cache16_unroll32(addr|ws,Index_Writeback_Inv_SD);
 }
 
-#define cache32_unroll32(base,op)				\
-	__asm__ __volatile__("					\
-		.set noreorder;					\
-		.set mips3;					\
-		cache %1, 0x000(%0); cache %1, 0x020(%0);	\
-		cache %1, 0x040(%0); cache %1, 0x060(%0);	\
-		cache %1, 0x080(%0); cache %1, 0x0a0(%0);	\
-		cache %1, 0x0c0(%0); cache %1, 0x0e0(%0);	\
-		cache %1, 0x100(%0); cache %1, 0x120(%0);	\
-		cache %1, 0x140(%0); cache %1, 0x160(%0);	\
-		cache %1, 0x180(%0); cache %1, 0x1a0(%0);	\
-		cache %1, 0x1c0(%0); cache %1, 0x1e0(%0);	\
-		cache %1, 0x200(%0); cache %1, 0x220(%0);	\
-		cache %1, 0x240(%0); cache %1, 0x260(%0);	\
-		cache %1, 0x280(%0); cache %1, 0x2a0(%0);	\
-		cache %1, 0x2c0(%0); cache %1, 0x2e0(%0);	\
-		cache %1, 0x300(%0); cache %1, 0x320(%0);	\
-		cache %1, 0x340(%0); cache %1, 0x360(%0);	\
-		cache %1, 0x380(%0); cache %1, 0x3a0(%0);	\
-		cache %1, 0x3c0(%0); cache %1, 0x3e0(%0);	\
-		.set mips0;					\
-		.set reorder"					\
-		:						\
-		: "r" (base),					\
+#define cache32_unroll32(base,op)					\
+	__asm__ __volatile__(						\
+	"	.set noreorder					\n"	\
+	"	.set mips3					\n"	\
+	"	cache %1, 0x000(%0); cache %1, 0x020(%0)	\n"	\
+	"	cache %1, 0x040(%0); cache %1, 0x060(%0)	\n"	\
+	"	cache %1, 0x080(%0); cache %1, 0x0a0(%0)	\n"	\
+	"	cache %1, 0x0c0(%0); cache %1, 0x0e0(%0)	\n"	\
+	"	cache %1, 0x100(%0); cache %1, 0x120(%0)	\n"	\
+	"	cache %1, 0x140(%0); cache %1, 0x160(%0)	\n"	\
+	"	cache %1, 0x180(%0); cache %1, 0x1a0(%0)	\n"	\
+	"	cache %1, 0x1c0(%0); cache %1, 0x1e0(%0)	\n"	\
+	"	cache %1, 0x200(%0); cache %1, 0x220(%0)	\n"	\
+	"	cache %1, 0x240(%0); cache %1, 0x260(%0)	\n"	\
+	"	cache %1, 0x280(%0); cache %1, 0x2a0(%0)	\n"	\
+	"	cache %1, 0x2c0(%0); cache %1, 0x2e0(%0)	\n"	\
+	"	cache %1, 0x300(%0); cache %1, 0x320(%0)	\n"	\
+	"	cache %1, 0x340(%0); cache %1, 0x360(%0)	\n"	\
+	"	cache %1, 0x380(%0); cache %1, 0x3a0(%0)	\n"	\
+	"	cache %1, 0x3c0(%0); cache %1, 0x3e0(%0)	\n"	\
+	"	.set mips0					\n"	\
+	"	.set reorder					\n"	\
+		:							\
+		: "r" (base),						\
 		  "i" (op));
 
 static inline void blast_dcache32(void)
@@ -312,10 +313,10 @@ static inline void blast_dcache32_page(unsigned long page)
 	unsigned long start = page;
 	unsigned long end = start + PAGE_SIZE;
 
-	while (start < end) {
+	do {
 		cache32_unroll32(start,Hit_Writeback_Inv_D);
 		start += 0x400;
-	}
+	} while (start < end);
 }
 
 static inline void blast_dcache32_page_indexed(unsigned long page)
@@ -351,10 +352,10 @@ static inline void blast_icache32_page(unsigned long page)
 	unsigned long start = page;
 	unsigned long end = start + PAGE_SIZE;
 
-	while (start < end) {
+	do {
 		cache32_unroll32(start,Hit_Invalidate_I);
 		start += 0x400;
-	}
+	} while (start < end);
 }
 
 static inline void blast_icache32_page_indexed(unsigned long page)
@@ -390,10 +391,10 @@ static inline void blast_scache32_page(unsigned long page)
 	unsigned long start = page;
 	unsigned long end = page + PAGE_SIZE;
 
-	while (start < end) {
+	do {
 		cache32_unroll32(start,Hit_Writeback_Inv_SD);
 		start += 0x400;
-	}
+	} while (start < end);
 }
 
 static inline void blast_scache32_page_indexed(unsigned long page)
@@ -410,30 +411,30 @@ static inline void blast_scache32_page_indexed(unsigned long page)
 			cache32_unroll32(addr|ws,Index_Writeback_Inv_SD);
 }
 
-#define cache64_unroll32(base,op)				\
-	__asm__ __volatile__("					\
-		.set noreorder;					\
-		.set mips3;					\
-		cache %1, 0x000(%0); cache %1, 0x040(%0);	\
-		cache %1, 0x080(%0); cache %1, 0x0c0(%0);	\
-		cache %1, 0x100(%0); cache %1, 0x140(%0);	\
-		cache %1, 0x180(%0); cache %1, 0x1c0(%0);	\
-		cache %1, 0x200(%0); cache %1, 0x240(%0);	\
-		cache %1, 0x280(%0); cache %1, 0x2c0(%0);	\
-		cache %1, 0x300(%0); cache %1, 0x340(%0);	\
-		cache %1, 0x380(%0); cache %1, 0x3c0(%0);	\
-		cache %1, 0x400(%0); cache %1, 0x440(%0);	\
-		cache %1, 0x480(%0); cache %1, 0x4c0(%0);	\
-		cache %1, 0x500(%0); cache %1, 0x540(%0);	\
-		cache %1, 0x580(%0); cache %1, 0x5c0(%0);	\
-		cache %1, 0x600(%0); cache %1, 0x640(%0);	\
-		cache %1, 0x680(%0); cache %1, 0x6c0(%0);	\
-		cache %1, 0x700(%0); cache %1, 0x740(%0);	\
-		cache %1, 0x780(%0); cache %1, 0x7c0(%0);	\
-		.set mips0;					\
-		.set reorder"					\
-		:						\
-		: "r" (base),					\
+#define cache64_unroll32(base,op)					\
+	__asm__ __volatile__(						\
+	"	.set noreorder					\n"	\
+	"	.set mips3					\n"	\
+	"	cache %1, 0x000(%0); cache %1, 0x040(%0)	\n"	\
+	"	cache %1, 0x080(%0); cache %1, 0x0c0(%0)	\n"	\
+	"	cache %1, 0x100(%0); cache %1, 0x140(%0)	\n"	\
+	"	cache %1, 0x180(%0); cache %1, 0x1c0(%0)	\n"	\
+	"	cache %1, 0x200(%0); cache %1, 0x240(%0)	\n"	\
+	"	cache %1, 0x280(%0); cache %1, 0x2c0(%0)	\n"	\
+	"	cache %1, 0x300(%0); cache %1, 0x340(%0)	\n"	\
+	"	cache %1, 0x380(%0); cache %1, 0x3c0(%0)	\n"	\
+	"	cache %1, 0x400(%0); cache %1, 0x440(%0)	\n"	\
+	"	cache %1, 0x480(%0); cache %1, 0x4c0(%0)	\n"	\
+	"	cache %1, 0x500(%0); cache %1, 0x540(%0)	\n"	\
+	"	cache %1, 0x580(%0); cache %1, 0x5c0(%0)	\n"	\
+	"	cache %1, 0x600(%0); cache %1, 0x640(%0)	\n"	\
+	"	cache %1, 0x680(%0); cache %1, 0x6c0(%0)	\n"	\
+	"	cache %1, 0x700(%0); cache %1, 0x740(%0)	\n"	\
+	"	cache %1, 0x780(%0); cache %1, 0x7c0(%0)	\n"	\
+	"	.set mips0					\n"	\
+	"	.set reorder					\n"	\
+		:							\
+		: "r" (base),						\
 		  "i" (op));
 
 static inline void blast_icache64(void)
@@ -455,10 +456,10 @@ static inline void blast_icache64_page(unsigned long page)
 	unsigned long start = page;
 	unsigned long end = start + PAGE_SIZE;
 
-	while (start < end) {
+	do {
 		cache64_unroll32(start,Hit_Invalidate_I);
 		start += 0x800;
-	}
+	} while (start < end);
 }
 
 static inline void blast_icache64_page_indexed(unsigned long page)
@@ -494,10 +495,10 @@ static inline void blast_scache64_page(unsigned long page)
 	unsigned long start = page;
 	unsigned long end = page + PAGE_SIZE;
 
-	while (start < end) {
+	do {
 		cache64_unroll32(start,Hit_Writeback_Inv_SD);
 		start += 0x800;
-	}
+	} while (start < end);
 }
 
 static inline void blast_scache64_page_indexed(unsigned long page)
@@ -514,30 +515,30 @@ static inline void blast_scache64_page_indexed(unsigned long page)
 			cache64_unroll32(addr|ws,Index_Writeback_Inv_SD);
 }
 
-#define cache128_unroll32(base,op)				\
-	__asm__ __volatile__("					\
-		.set noreorder;					\
-		.set mips3;					\
-		cache %1, 0x000(%0); cache %1, 0x080(%0);	\
-		cache %1, 0x100(%0); cache %1, 0x180(%0);	\
-		cache %1, 0x200(%0); cache %1, 0x280(%0);	\
-		cache %1, 0x300(%0); cache %1, 0x380(%0);	\
-		cache %1, 0x400(%0); cache %1, 0x480(%0);	\
-		cache %1, 0x500(%0); cache %1, 0x580(%0);	\
-		cache %1, 0x600(%0); cache %1, 0x680(%0);	\
-		cache %1, 0x700(%0); cache %1, 0x780(%0);	\
-		cache %1, 0x800(%0); cache %1, 0x880(%0);	\
-		cache %1, 0x900(%0); cache %1, 0x980(%0);	\
-		cache %1, 0xa00(%0); cache %1, 0xa80(%0);	\
-		cache %1, 0xb00(%0); cache %1, 0xb80(%0);	\
-		cache %1, 0xc00(%0); cache %1, 0xc80(%0);	\
-		cache %1, 0xd00(%0); cache %1, 0xd80(%0);	\
-		cache %1, 0xe00(%0); cache %1, 0xe80(%0);	\
-		cache %1, 0xf00(%0); cache %1, 0xf80(%0);	\
-		.set mips0;					\
-		.set reorder"					\
-		:						\
-		: "r" (base),					\
+#define cache128_unroll32(base,op)					\
+	__asm__ __volatile__(						\
+	"	.set noreorder					\n"	\
+	"	.set mips3					\n"	\
+	"	cache %1, 0x000(%0); cache %1, 0x080(%0)	\n"	\
+	"	cache %1, 0x100(%0); cache %1, 0x180(%0)	\n"	\
+	"	cache %1, 0x200(%0); cache %1, 0x280(%0)	\n"	\
+	"	cache %1, 0x300(%0); cache %1, 0x380(%0)	\n"	\
+	"	cache %1, 0x400(%0); cache %1, 0x480(%0)	\n"	\
+	"	cache %1, 0x500(%0); cache %1, 0x580(%0)	\n"	\
+	"	cache %1, 0x600(%0); cache %1, 0x680(%0)	\n"	\
+	"	cache %1, 0x700(%0); cache %1, 0x780(%0)	\n"	\
+	"	cache %1, 0x800(%0); cache %1, 0x880(%0)	\n"	\
+	"	cache %1, 0x900(%0); cache %1, 0x980(%0)	\n"	\
+	"	cache %1, 0xa00(%0); cache %1, 0xa80(%0)	\n"	\
+	"	cache %1, 0xb00(%0); cache %1, 0xb80(%0)	\n"	\
+	"	cache %1, 0xc00(%0); cache %1, 0xc80(%0)	\n"	\
+	"	cache %1, 0xd00(%0); cache %1, 0xd80(%0)	\n"	\
+	"	cache %1, 0xe00(%0); cache %1, 0xe80(%0)	\n"	\
+	"	cache %1, 0xf00(%0); cache %1, 0xf80(%0)	\n"	\
+	"	.set mips0					\n"	\
+	"	.set reorder					\n"	\
+		:							\
+		: "r" (base),						\
 		  "i" (op));
 
 static inline void blast_scache128(void)
@@ -559,10 +560,10 @@ static inline void blast_scache128_page(unsigned long page)
 	unsigned long start = page;
 	unsigned long end = page + PAGE_SIZE;
 
-	while (start < end) {
+	do {
 		cache128_unroll32(start,Hit_Writeback_Inv_SD);
 		start += 0x1000;
-	}
+	} while (start < end);
 }
 
 static inline void blast_scache128_page_indexed(unsigned long page)

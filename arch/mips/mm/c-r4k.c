@@ -53,80 +53,46 @@ do {									\
 		__asm__ __volatile__("nop;nop;nop;nop");		\
 } while (0)
 
-static void r4k_blast_dcache_page(unsigned long addr)
+static void (*r4k_blast_dcache_page)(unsigned long addr);
+
+static inline void r4k_blast_dcache_page_dc32(unsigned long addr)
 {
-	static void *l = &&init;
-	unsigned long dc_lsize;
-
-	goto *l;
-
-dc_16:
-	blast_dcache16_page(addr);
-	return;
-
-dc_32:
 	R4600_HIT_CACHEOP_WAR_IMPL;
 	blast_dcache32_page(addr);
-	return;
-
-init:
-	dc_lsize = cpu_dcache_line_size();
-
-	if (dc_lsize == 16)
-		l = &&dc_16;
-	else if (dc_lsize == 32)
-		l = &&dc_32;
-	goto *l;
 }
 
-static void r4k_blast_dcache_page_indexed(unsigned long addr)
+static inline void r4k_blast_dcache_page_setup(void)
 {
-	static void *l = &&init;
-	unsigned long dc_lsize;
-
-	goto *l;
-
-dc_16:
-	blast_dcache16_page_indexed(addr);
-	return;
-
-dc_32:
-	blast_dcache32_page_indexed(addr);
-	return;
-
-init:
-	dc_lsize = cpu_dcache_line_size();
+	unsigned long  dc_lsize = cpu_dcache_line_size();
 
 	if (dc_lsize == 16)
-		l = &&dc_16;
+		r4k_blast_dcache_page = blast_dcache16_page;
 	else if (dc_lsize == 32)
-		l = &&dc_32;
-	goto *l;
+		r4k_blast_dcache_page = r4k_blast_dcache_page_dc32;
 }
 
-static void r4k_blast_dcache(void)
+static void (* r4k_blast_dcache_page_indexed)(unsigned long addr);
+
+static inline void r4k_blast_dcache_page_indexed_setup(void)
 {
-	static void *l = &&init;
-	unsigned long dc_lsize;
-
-	goto *l;
-
-dc_16:
-	blast_dcache16();
-	return;
-
-dc_32:
-	blast_dcache32();
-	return;
-
-init:
-	dc_lsize = cpu_dcache_line_size();
+	unsigned long dc_lsize = cpu_dcache_line_size();
 
 	if (dc_lsize == 16)
-		l = &&dc_16;
+		r4k_blast_dcache_page_indexed = blast_dcache16_page_indexed;
 	else if (dc_lsize == 32)
-		l = &&dc_32;
-	goto *l;
+		r4k_blast_dcache_page_indexed = blast_dcache32_page_indexed;
+}
+
+static void (* r4k_blast_dcache)(void);
+
+static void r4k_blast_dcache_setup(void)
+{
+	unsigned long dc_lsize = cpu_dcache_line_size();
+
+	if (dc_lsize == 16)
+		r4k_blast_dcache = blast_dcache16;
+	else if (dc_lsize == 32)
+		r4k_blast_dcache = blast_dcache32;
 }
 
 /* force code alignment (used for TX49XX_ICACHE_INDEX_INV_WAR) */
@@ -181,185 +147,84 @@ static inline void tx49_blast_icache32_page_indexed(unsigned long page)
 			cache32_unroll32(addr|ws,Index_Invalidate_I);
 }
 
-static void r4k_blast_icache_page(unsigned long addr)
+static void (* r4k_blast_icache_page)(unsigned long addr);
+
+static inline void r4k_blast_icache_page_setup(void)
 {
-	static void *l = &&init;
-	unsigned long ic_lsize;
-
-	goto *l;
-
-ic_16:
-	blast_icache16_page(addr);
-	return;
-
-ic_32:
-	blast_icache32_page(addr);
-	return;
-
-ic_64:
-	blast_icache64_page(addr);
-	return;
-
-init:
-	ic_lsize = cpu_icache_line_size();
+	unsigned long ic_lsize = cpu_icache_line_size();
 
 	if (ic_lsize == 16)
-		l = &&ic_16;
+		r4k_blast_icache_page = blast_icache16_page;
 	else if (ic_lsize == 32)
-		l = &&ic_32;
+		r4k_blast_icache_page = blast_icache32_page;
 	else if (ic_lsize == 64)
-		l = &&ic_64;
-	goto *l;
+		r4k_blast_icache_page = blast_icache64_page;
 }
 
-static void r4k_blast_icache_page_indexed(unsigned long addr)
+
+static void (* r4k_blast_icache_page_indexed)(unsigned long addr);
+
+static inline void r4k_blast_icache_page_indexed_setup(void)
 {
-	unsigned long ic_lsize;
-	static void *l = &&init;
-
-	goto *l;
-
-ic_16:
-	blast_icache16_page_indexed(addr);
-	return;
-
-ic_32:
-	blast_icache32_page_indexed(addr);
-	return;
-
-ic_64:
-	blast_icache64_page_indexed(addr);
-	return;
-
-ic_32_tx49:
-	tx49_blast_icache32_page_indexed(addr);
-	return;
-
-init:
-	ic_lsize = cpu_icache_line_size();
+	unsigned long ic_lsize = cpu_icache_line_size();
 
 	if (ic_lsize == 16)
-		l = &&ic_16;
+		r4k_blast_icache_page_indexed = blast_icache16_page_indexed;
+	else if (ic_lsize == 32 && TX49XX_ICACHE_INDEX_INV_WAR)
+		r4k_blast_icache_page_indexed = tx49_blast_icache32_page_indexed;
+	else if (ic_lsize == 32)
+		r4k_blast_icache_page_indexed = blast_icache32_page_indexed;
+	else if (ic_lsize == 64)
+		r4k_blast_icache_page_indexed = blast_icache64_page_indexed;
+}
+
+static void (* r4k_blast_icache)(void);
+
+static inline void r4k_blast_icache_setup(void)
+{
+	unsigned long ic_lsize = cpu_icache_line_size();
+
+	if (ic_lsize == 16)
+		r4k_blast_icache = blast_icache16;
 	else if (ic_lsize == 32)
 		if (TX49XX_ICACHE_INDEX_INV_WAR)
-			l = &&ic_32_tx49;
+			r4k_blast_icache = tx49_blast_icache32;
 		else
-			l = &&ic_32;
+			r4k_blast_icache = blast_icache32;
 	else if (ic_lsize == 64)
-		l = &&ic_64;
-	goto *l;
+		r4k_blast_icache = blast_icache64;
 }
 
-static void r4k_blast_icache(void)
+static void (* r4k_blast_scache_page)(unsigned long addr);
+
+static inline void r4k_blast_scache_page_setup(void)
 {
-	static void *l = &&init;
-	unsigned long ic_lsize;
-
-	goto *l;
-
-ic_16:
-	blast_icache16();
-	return;
-
-ic_32:
-	blast_icache32();
-	return;
-
-ic_64:
-	blast_icache64();
-	return;
-
-ic_32_tx49:
-	tx49_blast_icache32();
-	return;
-
-init:
-	ic_lsize = cpu_icache_line_size();
-
-	if (ic_lsize == 16)
-		l = &&ic_16;
-	else if (ic_lsize == 32)
-		if (TX49XX_ICACHE_INDEX_INV_WAR)
-			l = &&ic_32_tx49;
-		else
-			l = &&ic_32;
-	else if (ic_lsize == 64)
-		l = &&ic_64;
-	goto *l;
-}
-
-static void r4k_blast_scache_page(unsigned long addr)
-{
-	static void *l = &&init;
-	unsigned long sc_lsize;
-
-	goto *l;
-
-sc_16:
-	blast_scache16_page(addr);
-	return;
-
-sc_32:
-	blast_scache32_page(addr);
-	return;
-
-sc_64:
-	blast_scache64_page(addr);
-	return;
-
-sc_128:
-	blast_scache128_page(addr);
-	return;
-
-init:
-	sc_lsize = cpu_scache_line_size();
+	unsigned long sc_lsize = cpu_scache_line_size();
 
 	if (sc_lsize == 16)
-		l = &&sc_16;
+		r4k_blast_scache_page = blast_scache16_page;
 	else if (sc_lsize == 32)
-		l = &&sc_32;
+		r4k_blast_scache_page = blast_scache32_page;
 	else if (sc_lsize == 64)
-		l = &&sc_64;
+		r4k_blast_scache_page = blast_scache64_page;
 	else if (sc_lsize == 128)
-		l = &&sc_128;
-	goto *l;
+		r4k_blast_scache_page = blast_scache128_page;
 }
 
-static void r4k_blast_scache(void)
+static void (* r4k_blast_scache)(void);
+
+static inline void r4k_blast_scache_setup(void)
 {
-	static void *l = &&init;
-	unsigned long sc_lsize;
-
-	goto *l;
-
-sc_16:
-	blast_scache16();
-	return;
-
-sc_32:
-	blast_scache32();
-	return;
-
-sc_64:
-	blast_scache64();
-	return;
-
-sc_128:
-	blast_scache128();
-	return;
-
-init:
-	sc_lsize = cpu_scache_line_size();
+	unsigned long sc_lsize = cpu_scache_line_size();
 
 	if (sc_lsize == 16)
-		l = &&sc_16;
+		r4k_blast_scache = blast_scache16;
 	else if (sc_lsize == 32)
-		l = &&sc_32;
+		r4k_blast_scache = blast_scache32;
 	else if (sc_lsize == 64)
-		l = &&sc_64;
+		r4k_blast_scache = blast_scache64;
 	else if (sc_lsize == 128)
-		l = &&sc_128;
-	goto *l;
+		r4k_blast_scache = blast_scache128;
 }
 
 static void r4k_flush_cache_all(void)
@@ -1170,6 +1035,15 @@ void __init ld_mmu_r4xx0(void)
 
 	if (c->dcache.sets * c->dcache.ways > PAGE_SIZE)
 		c->dcache.flags |= MIPS_CACHE_ALIASES;
+
+	r4k_blast_dcache_page_setup();
+	r4k_blast_dcache_page_indexed_setup();
+	r4k_blast_dcache_setup();
+	r4k_blast_icache_page_setup();
+	r4k_blast_icache_page_indexed_setup();
+	r4k_blast_icache_setup();
+	r4k_blast_scache_page_setup();
+	r4k_blast_scache_setup();
 
 	/*
 	 * Some MIPS32 and MIPS64 processors have physically indexed caches.
