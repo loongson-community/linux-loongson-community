@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: irixsig.c,v 1.12 1999/09/28 22:25:46 ralf Exp $
+ * $Id: irixsig.c,v 1.13 1999/10/09 00:00:58 ralf Exp $
  */
 
 #include <linux/kernel.h>
@@ -508,6 +508,7 @@ asmlinkage int irix_sigsuspend(struct pt_regs *regs)
 	spin_lock_irq(&current->sigmask_lock);
 	saveset = current->blocked;
 	current->blocked = newset;
+	recalc_sigpending(current);
 	spin_unlock_irq(&current->sigmask_lock);
 
 	regs->regs[2] = -EINTR;
