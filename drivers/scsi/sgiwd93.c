@@ -5,13 +5,14 @@
  *
  * (In all truth, Jed Schimmel wrote all this code.)
  *
- * $Id: sgiwd93.c,v 1.11 1999/03/25 22:41:20 tsbogend Exp $
+ * $Id: sgiwd93.c,v 1.12 1999/03/28 22:03:20 tsbogend Exp $
  */
 #include <linux/init.h>
 #include <linux/types.h>
 #include <linux/mm.h>
 #include <linux/blk.h>
 #include <linux/version.h>
+#include <linux/delay.h>
 
 #include <asm/page.h>
 #include <asm/pgtable.h>
@@ -233,6 +234,15 @@ static void dma_stop(struct Scsi_Host *instance, Scsi_Cmnd *SCpnt,
 #ifdef DEBUG_DMA
 	printk("\n");
 #endif
+}
+
+void sgiwd93_reset(void)
+{
+	struct hpc3_scsiregs *hregs = &hpc3c0->scsi_chan0;
+
+	hregs->ctrl = HPC3_SCTRL_CRESET;
+	udelay (50);
+	hregs->ctrl = 0;
 }
 
 static inline void init_hpc_chain(uchar *buf)
