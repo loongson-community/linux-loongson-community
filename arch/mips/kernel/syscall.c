@@ -82,7 +82,16 @@ out:
 asmlinkage unsigned long old_mmap(unsigned long addr, size_t len, int prot,
                                   int flags, int fd, off_t offset)
 {
-	return do_mmap2(addr, len, prot, flags, fd, offset >> PAGE_SHIFT);
+	int result;
+
+	result = -EINVAL;
+	if (result & ~PAGE_MASK)
+		goto out;
+
+	result = do_mmap2(addr, len, prot, flags, fd, offset >> PAGE_SHIFT);
+
+out:
+	return result;
 }
 
 asmlinkage long
