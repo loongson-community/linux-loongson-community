@@ -247,26 +247,31 @@ vmalloc_fault:
 		/*
 		 * Synchronize this task's top level page-table
 		 * with the 'reference' page table.
+		 *
+		 * Do _not_ use "tsk" here. We might be inside
+		 * an interrupt in the middle of a task switch..
 		 */
-		int offset = pgd_index(address);
+		int offset = __pgd_offset(address);
 		pgd_t *pgd, *pgd_k;
 		pmd_t *pmd, *pmd_k;
+		pte_t *pte_k;
 
-		pgd = tsk->active_mm->pgd + offset;
+		pgd = (pgd_t *) pgd_current[smp_processor_id()] + offset;
 		pgd_k = init_mm.pgd + offset;
 
-		if (!pgd_present(*pgd)) {
-			if (!pgd_present(*pgd_k))
-				goto bad_area_nosemaphore;
-			set_pgd(pgd, *pgd_k);
-			return;
-		}
+		if (!pgd_present(*pgd))
+			goto no_context;
+		set_pgd(pgd, *pgd_k);
 
 		pmd = pmd_offset(pgd, address);
 		pmd_k = pmd_offset(pgd_k, address);
-
-		if (pmd_present(*pmd) || !pmd_present(*pmd_k))
-			goto bad_area_nosemaphore;
+		if (!pmd_present(*pmd_k))
+			goto no_context;
 		set_pmd(pmd, *pmd_k);
+
+		pte_k = pte_offset(pmd_k, address);
+		if (!pte_present(*pte_k))
+			goto no_context;
+		return;
 	}
 }
