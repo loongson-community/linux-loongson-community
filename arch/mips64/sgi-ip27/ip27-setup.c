@@ -20,6 +20,7 @@
 #include <asm/ioc3.h>
 #include <asm/mipsregs.h>
 #include <asm/sn/arch.h>
+#include <asm/sn/sn_private.h>
 #include <asm/pci/bridge.h>
 #include <asm/paccess.h>
 
@@ -90,8 +91,6 @@ static void __init verify_mode(void)
 static void __init pcibr_setup(void)
 {
 	bridge_t *bridge = (bridge_t *) 0x9200000008000000;
-	bridgereg_t devreg;
-	int	    slot;
 
 	/*
 	 * Clear all pending interrupts.
@@ -109,7 +108,10 @@ void __init ip27_setup(void)
 	nasid_t nid;
 	hubreg_t p, e;
 
-	set_cp0_status(ST0_IM, 0);
+	/*
+	 * hub_rtc init and cpu clock intr enabled for later calibrate_delay.
+	 */
+	per_cpu_init();
 	nid = get_nasid();
 	printk("IP27: Running on node %d.\n", nid);
 

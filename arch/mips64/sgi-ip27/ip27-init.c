@@ -15,6 +15,7 @@
 #include <asm/smp.h>
 #include <asm/processor.h>
 #include <asm/sn/launch.h>
+#include <asm/sn/sn_private.h>
 
 #define CPU_NONE		(cpuid_t)-1
 
@@ -23,11 +24,17 @@
 #define CPUMASK_CLRB(p, bit)	(p) &= ~(1ULL << (bit))
 #define CPUMASK_TSTB(p, bit)	((p) & (1ULL << (bit)))
 
+#define CNODEMASK_CLRALL(p)	(p) = 0
+#define CNODEMASK_TSTB(p, bit)	((p) & (1ULL << (bit)))
+#define CNODEMASK_SETB(p, bit)	((p) |= 1ULL << (bit))
+
 cpumask_t	boot_cpumask;
 static volatile cpumask_t boot_barrier;
 hubreg_t	region_mask = 0;
 static int	fine_mode = 0;
 int		maxcpus;
+static spinlock_t hub_mask_lock = SPIN_LOCK_UNLOCKED;
+static cnodemask_t hub_init_mask;
 
 cnodeid_t	nasid_to_compact_node[MAX_NASIDS];
 nasid_t		compact_to_nasid_node[MAX_COMPACT_NODES];
@@ -194,6 +201,7 @@ void mlreset (void)
 	initpdas();
 
 	gen_region_mask(&region_mask, numnodes);
+	CNODEMASK_CLRALL(hub_init_mask);
 
 	/*
 	 * Set all nodes' calias sizes to 8k
@@ -269,17 +277,25 @@ void sn_mp_setup(void)
 #endif
 }
 
-void per_cpu_init(void)
+void per_hub_init(cnodeid_t cnode)
 {
-#if 0
-	cpuid_t cpu = getcpuid();
-	cnodeid_t cnode = get_compact_nodeid();
+	cnodemask_t	done;
 
-	intr_init();
-	per_hub_init(cnode);
-	install_cpuintr(cpu);
-	install_tlbintr(cpu);
-#endif
+	spin_lock(&hub_mask_lock);
+	/* Test our bit. */
+	if (!(done = CNODEMASK_TSTB(hub_init_mask, cnode))) {
+		/* Turn our bit on in the mask. */
+		CNODEMASK_SETB(hub_init_mask, cnode);
+	}
+	spin_unlock(&hub_mask_lock);
+
+	/*
+	 * Do the actual initialization if it hasn't been done yet.
+	 * We don't need to hold a lock for this work.
+	 */
+	if (!done) {
+		hub_rtc_init(cnode);
+	}
 }
 
 /*
@@ -291,6 +307,37 @@ cpuid_t getcpuid(void)
 
 	klcpu = nasid_slice_to_cpuinfo(get_nasid(),LOCAL_HUB_L(PI_CPU_NUM));
 	return klcpu->cpu_info.virtid;
+}
+
+void per_cpu_init(void)
+{
+#if 0
+	cpuid_t cpu = getcpuid();
+#endif
+	cnodeid_t cnode = get_compact_nodeid();
+
+#if 0
+	intr_init();
+#endif
+	set_cp0_status(ST0_IM, 0);
+	cpu_time_init();
+	per_hub_init(cnode);
+#if 0
+	install_cpuintr(cpu);
+	install_tlbintr(cpu);
+#endif
+}
+
+cnodeid_t get_compact_nodeid(void)
+{
+	nasid_t nasid;
+
+	nasid = get_nasid();
+	/*
+	 * Map the physical node id to a virtual node id (virtual node ids
+	 * are contiguous).
+	 */
+	return NASID_TO_COMPACT_NODEID(nasid);
 }
 
 #ifdef CONFIG_SMP
@@ -318,8 +365,8 @@ void cboot(void)
 {
 	atomic_inc(&numstarted);
 	CPUMASK_CLRB(boot_barrier, getcpuid());	/* needs atomicity */
-#if 0
 	per_cpu_init();
+#if 0
 	ecc_init();
 	bte_lateinit();
 	init_mfhi_war();
@@ -337,7 +384,7 @@ void allowboot(void)
 	extern void	bootstrap(void);
 
 	sn_mp_setup();
-	per_cpu_init();
+	/* Master has already done per_cpu_init() */
 #if 0
 	bte_lateinit();
 	ecc_init();

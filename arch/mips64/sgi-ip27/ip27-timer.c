@@ -19,6 +19,7 @@
 #include <asm/sn/klconfig.h>
 #include <asm/sn/arch.h>
 #include <asm/sn/addrs.h>
+#include <asm/sn/sn_private.h>
 #include <asm/sn/sn0/ip27.h>
 #include <asm/sn/sn0/hub.h>
 
@@ -44,7 +45,6 @@ static int set_rtc_mmss(unsigned long nowtime)
 {               
         int retval = 0;
         int real_seconds, real_minutes, cmos_minutes;
-        unsigned char save_control, save_freq_select;
 	struct m48t35_rtc *rtc;
 	nasid_t nid;
 
@@ -223,7 +223,8 @@ static unsigned long __init get_m48t35_time(void)
 	nasid_t nid;
 
 	nid = get_nasid();
-	rtc = KL_CONFIG_CH_CONS_INFO(nid)->memory_base + IOC3_BYTEBUS_DEV0;
+	rtc = (struct m48t35_rtc *)(KL_CONFIG_CH_CONS_INFO(nid)->memory_base + 
+							IOC3_BYTEBUS_DEV0);
 
         rtc->control |= M48T35_RTC_READ;
 	sec = rtc->sec;
@@ -250,13 +251,16 @@ extern void ioc3_eth_init(void);
 
 void __init time_init(void)
 {
+	xtime.tv_sec = get_m48t35_time();
+	xtime.tv_usec = 0;
+}
+
+void __init cpu_time_init(void)
+{
 	lboard_t *board;
 	klcpu_t *cpu;
 	int cpuid;
 	
-	xtime.tv_sec = get_m48t35_time();
-	xtime.tv_usec = 0;
-
 	/* Don't use ARCS.  ARCS is fragile.  Klconfig is simple and sane.  */
 	board = find_lboard(KL_CONFIG_INFO(get_nasid()), KLTYPE_IP27);
 	if (!board)
@@ -267,15 +271,30 @@ void __init time_init(void)
 	if (!cpu)
 		panic("No information about myself?");
 
+	printk("CPU %d clock is %dMHz.\n", cpu->cpu_speed, smp_processor_id());
 	printk("CPU clock is %dMHz.\n", cpu->cpu_speed);
 
-	/* Don't worry about second CPU, it's disabled.  */
-	LOCAL_HUB_S(PI_RT_EN_A, 1);
-	LOCAL_HUB_S(PI_PROF_EN_A, 0);
-	ct_cur = CYCLES_PER_JIFFY;
-	LOCAL_HUB_S(PI_RT_COMPARE_A, ct_cur);
-	LOCAL_HUB_S(PI_RT_COUNT, 0);
-	LOCAL_HUB_S(PI_RT_PEND_A, 0);
-
 	set_cp0_status(SRB_TIMOCLK, SRB_TIMOCLK);
+}
+
+void __init hub_rtc_init(cnodeid_t cnode)
+{
+	/*
+	 * We only need to initialize the current node.
+	 * If this is not the current node then it is a cpuless
+	 * node and timeouts will not happen there.
+	 */
+	if (get_compact_nodeid() == cnode) {
+		LOCAL_HUB_S(PI_RT_EN_A, 1);
+		LOCAL_HUB_S(PI_RT_EN_B, 1);
+		LOCAL_HUB_S(PI_PROF_EN_A, 0);
+		LOCAL_HUB_S(PI_PROF_EN_B, 0);
+		ct_cur = CYCLES_PER_JIFFY;
+		LOCAL_HUB_S(PI_RT_COMPARE_A, ct_cur);
+		LOCAL_HUB_S(PI_RT_COUNT, 0);
+		LOCAL_HUB_S(PI_RT_PEND_A, 0);
+		LOCAL_HUB_S(PI_RT_COMPARE_B, ct_cur);
+		LOCAL_HUB_S(PI_RT_COUNT, 0);
+		LOCAL_HUB_S(PI_RT_PEND_B, 0);
+	}
 }
