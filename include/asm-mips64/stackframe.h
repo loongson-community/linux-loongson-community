@@ -135,11 +135,11 @@
 		sd	k0, PT_R29(sp)
 		sd	$3, PT_R3(sp)
 		sd	$0, PT_R0(sp)
-		dmfc0	v1, CP0_STATUS
+		mfc0	v1, CP0_STATUS
 		sd	$2, PT_R2(sp)
 		sd	v1, PT_STATUS(sp)
 		sd	$4, PT_R4(sp)
-		dmfc0	v1, CP0_CAUSE
+		mfc0	v1, CP0_CAUSE
 		sd	$5, PT_R5(sp)
 		sd	v1, PT_CAUSE(sp)
 		sd	$6, PT_R6(sp)
@@ -214,7 +214,7 @@
 		nor	v1, $0, v1
 		and	v0, v1
 		or	v0, t0
-		dmtc0	v0, CP0_STATUS
+		mtc0	v0, CP0_STATUS
 		ld	v1, PT_EPC(sp)
 		dmtc0	v1, CP0_EPC
 		ld	$31, PT_R31(sp)

@@ -8,6 +8,7 @@
  * Modified for further R[236]000 support by Paul M. Antoine, 1996.
  * Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
  * Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
+ * Copyright (C) 2003  Maciej W. Rozycki
  */
 #ifndef _ASM_MIPSREGS_H
 #define _ASM_MIPSREGS_H
@@ -24,6 +25,15 @@
 #endif
 #ifndef STR
 #define STR(x) __STR(x)
+#endif
+
+/*
+ *  Configure language
+ */
+#ifdef __ASSEMBLY__
+#define _ULCAST_
+#else
+#define _ULCAST_ (unsigned long)
 #endif
 
 /*
@@ -190,26 +200,26 @@
 /*
  * R4x00 interrupt enable / cause bits
  */
-#define IE_SW0          (1<< 8)
-#define IE_SW1          (1<< 9)
-#define IE_IRQ0         (1<<10)
-#define IE_IRQ1         (1<<11)
-#define IE_IRQ2         (1<<12)
-#define IE_IRQ3         (1<<13)
-#define IE_IRQ4         (1<<14)
-#define IE_IRQ5         (1<<15)
+#define IE_SW0          (_ULCAST_(1) <<  8)
+#define IE_SW1          (_ULCAST_(1) <<  9)
+#define IE_IRQ0         (_ULCAST_(1) << 10)
+#define IE_IRQ1         (_ULCAST_(1) << 11)
+#define IE_IRQ2         (_ULCAST_(1) << 12)
+#define IE_IRQ3         (_ULCAST_(1) << 13)
+#define IE_IRQ4         (_ULCAST_(1) << 14)
+#define IE_IRQ5         (_ULCAST_(1) << 15)
 
 /*
  * R4x00 interrupt cause bits
  */
-#define C_SW0           (1<< 8)
-#define C_SW1           (1<< 9)
-#define C_IRQ0          (1<<10)
-#define C_IRQ1          (1<<11)
-#define C_IRQ2          (1<<12)
-#define C_IRQ3          (1<<13)
-#define C_IRQ4          (1<<14)
-#define C_IRQ5          (1<<15)
+#define C_SW0           (_ULCAST_(1) <<  8)
+#define C_SW1           (_ULCAST_(1) <<  9)
+#define C_IRQ0          (_ULCAST_(1) << 10)
+#define C_IRQ1          (_ULCAST_(1) << 11)
+#define C_IRQ2          (_ULCAST_(1) << 12)
+#define C_IRQ3          (_ULCAST_(1) << 13)
+#define C_IRQ4          (_ULCAST_(1) << 14)
+#define C_IRQ5          (_ULCAST_(1) << 15)
 
 /*
  * Bitfields in the R4xx0 cp0 status register
@@ -244,9 +254,9 @@
 /*
  * Bits specific to the R4640/R4650
  */
-#define ST0_UM                 (1   <<  4)
-#define ST0_IL                 (1   << 23)
-#define ST0_DL                 (1   << 24)
+#define ST0_UM			(_ULCAST_(1) <<  4)
+#define ST0_IL			(_ULCAST_(1) << 23)
+#define ST0_DL			(_ULCAST_(1) << 24)
 
 /*
  * Bitfields in the TX39 family CP0 Configuration Register 3
@@ -286,37 +296,37 @@
  */
 #define ST0_IM			0x0000ff00
 #define  STATUSB_IP0		8
-#define  STATUSF_IP0		(1   <<  8)
+#define  STATUSF_IP0		(_ULCAST_(1) <<  8)
 #define  STATUSB_IP1		9
-#define  STATUSF_IP1		(1   <<  9)
+#define  STATUSF_IP1		(_ULCAST_(1) <<  9)
 #define  STATUSB_IP2		10
-#define  STATUSF_IP2		(1   << 10)
+#define  STATUSF_IP2		(_ULCAST_(1) << 10)
 #define  STATUSB_IP3		11
-#define  STATUSF_IP3		(1   << 11)
+#define  STATUSF_IP3		(_ULCAST_(1) << 11)
 #define  STATUSB_IP4		12
-#define  STATUSF_IP4		(1   << 12)
+#define  STATUSF_IP4		(_ULCAST_(1) << 12)
 #define  STATUSB_IP5		13
-#define  STATUSF_IP5		(1   << 13)
+#define  STATUSF_IP5		(_ULCAST_(1) << 13)
 #define  STATUSB_IP6		14
-#define  STATUSF_IP6		(1   << 14)
+#define  STATUSF_IP6		(_ULCAST_(1) << 14)
 #define  STATUSB_IP7		15
-#define  STATUSF_IP7		(1   << 15)
+#define  STATUSF_IP7		(_ULCAST_(1) << 15)
 #define  STATUSB_IP8		0
-#define  STATUSF_IP8		(1   << 0)
+#define  STATUSF_IP8		(_ULCAST_(1) <<  0)
 #define  STATUSB_IP9		1
-#define  STATUSF_IP9		(1   << 1)
+#define  STATUSF_IP9		(_ULCAST_(1) <<  1)
 #define  STATUSB_IP10		2
-#define  STATUSF_IP10		(1   << 2)
+#define  STATUSF_IP10		(_ULCAST_(1) <<  2)
 #define  STATUSB_IP11		3
-#define  STATUSF_IP11		(1   << 3)
+#define  STATUSF_IP11		(_ULCAST_(1) <<  3)
 #define  STATUSB_IP12		4
-#define  STATUSF_IP12		(1   << 4)
+#define  STATUSF_IP12		(_ULCAST_(1) <<  4)
 #define  STATUSB_IP13		5
-#define  STATUSF_IP13		(1   << 5)
+#define  STATUSF_IP13		(_ULCAST_(1) <<  5)
 #define  STATUSB_IP14		6
-#define  STATUSF_IP14		(1   << 6)
+#define  STATUSF_IP14		(_ULCAST_(1) <<  6)
 #define  STATUSB_IP15		7
-#define  STATUSF_IP15		(1   << 7)
+#define  STATUSF_IP15		(_ULCAST_(1) <<  7)
 #define ST0_CH			0x00040000
 #define ST0_SR			0x00100000
 #define ST0_TS			0x00200000
@@ -336,31 +346,31 @@
  * Refer to your MIPS R4xx0 manual, chapter 5 for explanation.
  */
 #define  CAUSEB_EXCCODE		2
-#define  CAUSEF_EXCCODE		(31  <<  2)
+#define  CAUSEF_EXCCODE		(_ULCAST_(31)  <<  2)
 #define  CAUSEB_IP		8
-#define  CAUSEF_IP		(255 <<  8)
+#define  CAUSEF_IP		(_ULCAST_(255) <<  8)
 #define  CAUSEB_IP0		8
-#define  CAUSEF_IP0		(1   <<  8)
+#define  CAUSEF_IP0		(_ULCAST_(1)   <<  8)
 #define  CAUSEB_IP1		9
-#define  CAUSEF_IP1		(1   <<  9)
+#define  CAUSEF_IP1		(_ULCAST_(1)   <<  9)
 #define  CAUSEB_IP2		10
-#define  CAUSEF_IP2		(1   << 10)
+#define  CAUSEF_IP2		(_ULCAST_(1)   << 10)
 #define  CAUSEB_IP3		11
-#define  CAUSEF_IP3		(1   << 11)
+#define  CAUSEF_IP3		(_ULCAST_(1)   << 11)
 #define  CAUSEB_IP4		12
-#define  CAUSEF_IP4		(1   << 12)
+#define  CAUSEF_IP4		(_ULCAST_(1)   << 12)
 #define  CAUSEB_IP5		13
-#define  CAUSEF_IP5		(1   << 13)
+#define  CAUSEF_IP5		(_ULCAST_(1)   << 13)
 #define  CAUSEB_IP6		14
-#define  CAUSEF_IP6		(1   << 14)
+#define  CAUSEF_IP6		(_ULCAST_(1)   << 14)
 #define  CAUSEB_IP7		15
-#define  CAUSEF_IP7		(1   << 15)
+#define  CAUSEF_IP7		(_ULCAST_(1)   << 15)
 #define  CAUSEB_IV		23
-#define  CAUSEF_IV		(1   << 23)
+#define  CAUSEF_IV		(_ULCAST_(1)   << 23)
 #define  CAUSEB_CE		28
-#define  CAUSEF_CE		(3   << 28)
+#define  CAUSEF_CE		(_ULCAST_(3)   << 28)
 #define  CAUSEB_BD		31
-#define  CAUSEF_BD		(1   << 31)
+#define  CAUSEF_BD		(_ULCAST_(1)   << 31)
 
 /*
  * Bits in the coprozessor 0 config register.
@@ -374,21 +384,21 @@
 #define CONF_CM_CACHABLE_CUW		6
 #define CONF_CM_CACHABLE_ACCELERATED	7
 #define CONF_CM_CMASK			7
-#define CONF_CU				(1 <<  3)
-#define CONF_DB				(1 <<  4)
-#define CONF_IB				(1 <<  5)
-#define CONF_SE				(1 << 12)
-#define CONF_SC				(1 << 17)
-#define CONF_AC                         (1 << 23)
-#define CONF_HALT                       (1 << 25)
+#define CONF_CU			(_ULCAST_(1) <<  3)
+#define CONF_DB			(_ULCAST_(1) <<  4)
+#define CONF_IB			(_ULCAST_(1) <<  5)
+#define CONF_SE			(_ULCAST_(1) << 12)
+#define CONF_SC			(_ULCAST_(1) << 17)
+#define CONF_AC			(_ULCAST_(1) << 23)
+#define CONF_HALT		(_ULCAST_(1) << 25)
 
 /*
  * Bits in the TX49 coprozessor 0 config register.
  */
-#define TX49_CONF_DC			(1 << 16)
-#define TX49_CONF_IC			(1 << 17)  /* conflict with CONF_SC */
-#define TX49_CONF_HALT			(1 << 18)
-#define TX49_CONF_CWFON			(1 << 27)
+#define TX49_CONF_DC		(_ULCAST_(1) << 16)
+#define TX49_CONF_IC		(_ULCAST_(1) << 17)  /* conflict with CONF_SC */
+#define TX49_CONF_HALT		(_ULCAST_(1) << 18)
+#define TX49_CONF_CWFON		(_ULCAST_(1) << 27)
 
 /*
  * R10000 performance counter definitions.
