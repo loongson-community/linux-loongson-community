@@ -107,12 +107,18 @@ dc_16:
 	blast_dcache16_page_indexed(addr);
 	return;
 
+dc_32_lsb:
+	blast_dcache32_page_indexed(addr);
+	addr ^= 1UL;				/* Fall through */
+
 dc_32:
 	blast_dcache32_page_indexed(addr);
 	return;
 
 init:
-	if (dc_lsize == 16)
+	if (current_cpu_data.cputype == CPU_R5432)
+		l = &&dc_32_lsb;
+	else if (dc_lsize == 16)
 		l = &&dc_16;
 	else if (dc_lsize == 32)
 		l = &&dc_32;
@@ -129,12 +135,17 @@ dc_16:
 	blast_dcache16();
 	return;
 
+dc_32_lsb:
+	blast_dcache32_wayLSB();
+
 dc_32:
 	blast_dcache32();
 	return;
 
 init:
-	if (dc_lsize == 16)
+	if (current_cpu_data.cputype == CPU_R5432)
+		l = &&dc_32_lsb;
+	else if (dc_lsize == 16)
 		l = &&dc_16;
 	else if (dc_lsize == 32)
 		l = &&dc_32;
@@ -173,12 +184,18 @@ ic_16:
 	blast_icache16_page_indexed(addr);
 	return;
 
+ic_32_lsb:
+	blast_icache32_page_indexed(addr);
+	addr ^= 1UL;				/* Fall through */
+
 ic_32:
 	blast_icache32_page_indexed(addr);
 	return;
 
 init:
-	if (ic_lsize == 16)
+	if (current_cpu_data.cputype == CPU_R5432)
+		l = &&ic_32_lsb;
+	else if (ic_lsize == 16)
 		l = &&ic_16;
 	else if (ic_lsize == 32)
 		l = &&ic_32;
@@ -195,12 +212,17 @@ ic_16:
 	blast_icache16();
 	return;
 
+ic_32_lsb:
+	blast_icache32_wayLSB();
+
 ic_32:
 	blast_icache32();
 	return;
 
 init:
-	if (ic_lsize == 16)
+	if (current_cpu_data.cputype == CPU_R5432)
+		l = &&ic_32_lsb;
+	else if (ic_lsize == 16)
 		l = &&ic_16;
 	else if (ic_lsize == 32)
 		l = &&ic_32;
@@ -308,7 +330,7 @@ static void r4k_flush_cache_page(struct vm_area_struct *vma,
 	 * If the page isn't marked valid, the page cannot possibly be
 	 * in the cache.
 	 */
-	if (!(pte_val(*ptep) & _PAGE_VALID))
+	if (!(pte_val(*ptep) & _PAGE_PRESENT))
 		return;
 
 	/*
@@ -317,7 +339,7 @@ static void r4k_flush_cache_page(struct vm_area_struct *vma,
 	 * for every cache flush operation.  So we do indexed flushes
 	 * in that case, which doesn't overly flush the cache too much.
 	 */
-	if (mm == current->active_mm) {
+	if ((mm == current->active_mm) && (pte_val(*ptep) & _PAGE_VALID)) {
 		r4k_blast_dcache_page(page);
 		if (exec)
 			r4k_blast_icache_page(page);
@@ -626,6 +648,7 @@ static void __init probe_icache(unsigned long config)
 	case CPU_R4700:
 	case CPU_R5000:
 	case CPU_NEVADA:
+	case CPU_R5432:
 		current_cpu_data.icache.ways = 2;
 		break;
 
@@ -662,6 +685,7 @@ static void __init probe_dcache(unsigned long config)
 	case CPU_R4700:
 	case CPU_R5000:
 	case CPU_NEVADA:
+	case CPU_R5432:
 		current_cpu_data.dcache.ways = 2;
 		break;
 
@@ -849,8 +873,7 @@ void __init ld_mmu_r4xx0(void)
 	extern char except_vec2_generic;
 	unsigned int sets;
 
-	/* Default cache error handler for R4000 family */
-
+	/* Default cache error handler for R4000 and R5000 family */
 	memcpy((void *)(KSEG0 + 0x100), &except_vec2_generic, 0x80);
 	memcpy((void *)(KSEG1 + 0x100), &except_vec2_generic, 0x80);
 
@@ -879,7 +902,8 @@ void __init ld_mmu_r4xx0(void)
 	}
 
 	shm_align_mask = max_t(unsigned long,
-	                       (dcache_size >> sets) - 1, PAGE_SIZE - 1);
+	                       (dcache_size / current_cpu_data.dcache.ways) - 1,
+	                        PAGE_SIZE - 1);
 
 	flush_cache_sigtramp = r4k_flush_cache_sigtramp;
 	if ((read_c0_prid() & 0xfff0) == 0x2020) {

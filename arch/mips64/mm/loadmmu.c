@@ -58,7 +58,6 @@ extern void ld_mmu_r23000(void);
 extern void ld_mmu_r4xx0(void);
 extern void ld_mmu_tx39(void);
 extern void ld_mmu_tx49(void);
-extern void ld_mmu_r5432(void);
 extern void ld_mmu_r6000(void);
 extern void ld_mmu_rm7k(void);
 extern void ld_mmu_tfp(void);
@@ -73,18 +72,15 @@ extern void sb1_tlb_init(void);
 void __init load_mmu(void)
 {
 	if (cpu_has_4ktlb) {
-#if defined(CONFIG_CPU_R4X00) || defined(CONFIG_CPU_VR41XX) || \
-    defined(CONFIG_CPU_R4300) || defined(CONFIG_CPU_R5000) || \
-    defined(CONFIG_CPU_NEVADA)
+#if defined(CONFIG_CPU_R4X00)  || defined(CONFIG_CPU_VR41XX) || \
+    defined(CONFIG_CPU_R4300)  || defined(CONFIG_CPU_R5000)  || \
+    defined(CONFIG_CPU_NEVADA) || defined(CONFIG_CPU_R5432)  || \
+    defined(CONFIG_CPU_R5500)
 		ld_mmu_r4xx0();
 		r4k_tlb_init();
 #endif
 #if defined(CONFIG_CPU_RM7000)
 		ld_mmu_rm7k();
-		r4k_tlb_init();
-#endif
-#if defined(CONFIG_CPU_R5432) || defined(CONFIG_CPU_R5500)
-		ld_mmu_r5432();
 		r4k_tlb_init();
 #endif
 #if defined(CONFIG_CPU_TX49XX)
