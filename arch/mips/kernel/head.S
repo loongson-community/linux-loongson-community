@@ -186,7 +186,7 @@ NESTED(smp_bootstrap, 16, sp)
 	ARC64_TWIDDLE_PC
 #endif /* CONFIG_SGI_IP27 */
 
-	jal	start_secondary
+	j	start_secondary
 	END(smp_bootstrap)
 #endif /* CONFIG_SMP */
 
