@@ -19,6 +19,7 @@
  */
 
 #include <linux/config.h>
+#include <linux/errno.h>
 #include <linux/init.h>
 
 #include <asm/dec/machtype.h>
@@ -35,6 +36,7 @@ int register_dec_serial_hook(unsigned int channel,
 	if (IOASIC)
 		return register_zs_hook(channel, hook);
 #endif
+	return 0;
 }
 
 int unregister_dec_serial_hook(unsigned int channel)
@@ -43,6 +45,7 @@ int unregister_dec_serial_hook(unsigned int channel)
 	if (IOASIC)
 		return unregister_zs_hook(channel);
 #endif
+	return 0;
 }
 
 
@@ -63,6 +66,7 @@ int __init rs_init(void)
 	if (!IOASIC)
 		return dz_init();
 #endif
+	return -ENXIO;
 }
 
 __initcall(rs_init);
