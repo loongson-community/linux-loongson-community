@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.18 1999/01/27 04:50:28 adevries Exp $
+/* $Id: setup.c,v 1.19 1999/02/09 22:54:10 adevries Exp $
  *
  * setup.c: SGI specific setup, including init of the feature struct.
  *
@@ -153,6 +153,8 @@ __initfunc(void sgi_setup(void))
 #ifdef CONFIG_VT
 #ifdef CONFIG_SGI_NEWPORT_CONSOLE
 	conswitchp = &newport_con;
+#else
+	conswitchp = &dummy_con;
 #endif
 #endif
 	rtc_ops = &indy_rtc_ops;
@@ -163,5 +165,8 @@ __initfunc(void sgi_setup(void))
 
 #ifdef CONFIG_SGI_HAL2
         sgiaudio_init();
+#endif
+#ifdef CONFIG_VIDEO_VINO
+	init_vino();
 #endif
 }
