@@ -26,12 +26,6 @@ extern void (*flush_cache_sigtramp)(unsigned long addr);
 extern void (*flush_page_to_ram)(unsigned long page);
 #define flush_icache_range(start, end) flush_cache_all()
 
-/*
- * Prototype of the DMA related cacheflushing stuff.
- */
-extern void (*flush_cache_pre_dma_out)(unsigned long start, unsigned long size);
-extern void (*flush_cache_post_dma_in)(unsigned long start, unsigned long size);
-
 /* TLB flushing:
  *
  *  - flush_tlb_all() flushes all processes TLB entries

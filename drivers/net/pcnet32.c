@@ -321,7 +321,7 @@ __initfunc(static int pcnet32_probe1(struct device *dev, unsigned int ioaddr, un
     
     /* Make certain the data structures used by the PCnet32 are 16byte aligned and DMAble. */
     lp = (struct pcnet32_private *) (((unsigned long)kmalloc(sizeof(*lp)+15, GFP_DMA | GFP_KERNEL)+15) & ~15);
-    flush_cache_post_dma_in(lp, sizeof(*lp)+15);
+    dma_cache_inv(lp, sizeof(*lp)+15);
 #ifdef __mips__
     /* XXX Maybe modify kmalloc() to return KSEG1 memory?  This would
      * make lots of modifications to drivers unnecessary but possibly
@@ -634,8 +634,8 @@ pcnet32_start_xmit(struct sk_buff *skb, struct device *dev)
 	lp->tx_ring[entry].base = (u32)le32_to_cpu(virt_to_bus(skb->data));
         lp->tx_ring[entry].status = le16_to_cpu(0x8300);
 
-	flush_cache_pre_dma_out((void *)skb->data,
-	                        (skb->len < ETH_ZLEN) ? ETH_ZLEN : skb->len);
+	dma_cache_wback_inv((void *)skb->data,
+	                    (skb->len < ETH_ZLEN) ? ETH_ZLEN : skb->len);
 
 	lp->cur_tx++;
 
@@ -847,7 +847,7 @@ pcnet32_rx(struct device *dev)
 					pkt_len,0);
 				skb->protocol=eth_type_trans(skb,dev);
 				netif_rx(skb);
-				flush_cache_post_dma_in(bus_to_virt(le32_to_cpu(lp->rx_ring[entry].base)), pkt_len);
+				dma_cache_inv(bus_to_virt(le32_to_cpu(lp->rx_ring[entry].base)), pkt_len);
 				lp->stats.rx_packets++;
 			}
 		}

@@ -33,7 +33,7 @@ endif
 # Do we want to be able to execute IRIX elf binaries?
 #
 ifdef CONFIG_BINFMT_IRIX
-O_OBJS += irixelf.o irixioctl.o irixsig.o sysirix.o irixinv.o 
+O_OBJS += irixelf.o irixioctl.o irixsig.o sysirix.o irixinv.o
 endif
 
 #

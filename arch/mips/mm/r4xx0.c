@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: r4xx0.c,v 1.10 1997/12/02 14:49:20 ralf Exp $
+ * $Id: r4xx0.c,v 1.19 1998/01/18 02:49:41 ralf Exp $
  *
  * To do:
  *
@@ -11,13 +11,13 @@
  *  - many of the bug workarounds are not efficient at all, but at
  *    least they are functional ...
  */
-#include <linux/config.h>
-
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
 #include <linux/autoconf.h>
 
+#include <asm/bcache.h>
+#include <asm/io.h>
 #include <asm/sgi.h>
 #include <asm/sgimc.h>
 #include <asm/page.h>
@@ -43,6 +43,18 @@ static scache_size, sc_lsize;        /* Again, in bytes */
 #include <asm/r4kcache.h>
 
 #undef DEBUG_CACHE
+
+/*
+ * Dummy cache handling routines for machines without boardcaches
+ */
+static void no_sc_noop(void) {}
+
+static struct bcache_ops no_sc_ops = {
+	(void *)no_sc_noop, (void *)no_sc_noop,
+	(void *)no_sc_noop, (void *)no_sc_noop
+};
+
+struct bcache_ops *bcops = &no_sc_ops;
 
 /*
  * On processors with QED R4600 style two set assosicative cache
@@ -1892,47 +1904,48 @@ static void r4k_flush_page_to_ram_d32i32(unsigned long page)
  * in .pdf format.)
  */
 static void
-r4k_flush_cache_pre_dma_out_pc(unsigned long addr, unsigned long size)
+r4k_dma_cache_wback_inv_pc(unsigned long addr, unsigned long size)
 {
 	unsigned long end, a;
-	unsigned int cmode, flags;
-
-	cmode = read_32bit_cp0_register(CP0_CONFIG) & CONFIG_CM_CMASK;
-	if (cmode == CONFIG_CM_CACHABLE_WA ||
-	    cmode == CONFIG_CM_CACHABLE_NO_WA) {
-		/* primary dcache is writethrough, therefore memory
-		   is already consistent with the caches.  */
-		return;
-	}
+	unsigned int flags;
 
 	if (size >= dcache_size) {
 		flush_cache_all();
-		return;
-	}
+	} else {
+		/* Workaround for R4600 bug.  See comment above. */
+		save_and_cli(flags);
+		*(volatile unsigned long *)KSEG1;
 
-	/* Workaround for R4600 bug.  See comment above. */
-	save_and_cli(flags);
-	*(volatile unsigned long *)KSEG1;
-
-	a = addr & ~(dc_lsize - 1);
-	end = (addr + size) & ~(dc_lsize - 1);
-	while (1) {
-		flush_dcache_line(a); /* Hit_Writeback_Inv_D */
-		if (a == end) break;
-		a += dc_lsize;
+		a = addr & ~(dc_lsize - 1);
+		end = (addr + size) & ~(dc_lsize - 1);
+		while (1) {
+			flush_dcache_line(a); /* Hit_Writeback_Inv_D */
+			if (a == end) break;
+			a += dc_lsize;
+		}
+		restore_flags(flags);
 	}
-	restore_flags(flags);
+	bcops->bc_wback_inv(addr, size);
 }
 
 static void
-r4k_flush_cache_pre_dma_out_sc(unsigned long addr, unsigned long size)
+r4k_dma_cache_wback_inv_sc(unsigned long addr, unsigned long size)
 {
-	unsigned long end;
-	unsigned long a;
+	unsigned long end, a;
+	unsigned int flags;
 
 	if (size >= scache_size) {
 		flush_cache_all();
-		return;
+	} else {
+		save_and_cli(flags);
+		a = addr & ~(dc_lsize - 1);
+		end = (addr + size) & ~(dc_lsize - 1);
+		while (1) {
+			flush_dcache_line(a); /* Hit_Writeback_Inv_D */
+			if (a == end) break;
+			a += dc_lsize;
+		}
+		restore_flags(flags);
 	}
 
 	a = addr & ~(sc_lsize - 1);
@@ -1942,94 +1955,60 @@ r4k_flush_cache_pre_dma_out_sc(unsigned long addr, unsigned long size)
 		if (addr == end) break;
 		addr += sc_lsize;
 	}
-	r4k_flush_cache_pre_dma_out_pc(addr, size);
 }
 
 static void
-r4k_flush_cache_post_dma_in_pc(unsigned long addr, unsigned long size)
+r4k_dma_cache_inv_pc(unsigned long addr, unsigned long size)
 {
-	unsigned long end;
-	unsigned long a;
+	unsigned long end, a;
+	unsigned int flags;
 
 	if (size >= dcache_size) {
 		flush_cache_all();
-		return;
+	} else {
+		/* Workaround for R4600 bug.  See comment above. */
+		save_and_cli(flags);
+		*(volatile unsigned long *)KSEG1;
+
+		a = addr & ~(dc_lsize - 1);
+		end = (addr + size) & ~(dc_lsize - 1);
+		while (1) {
+			flush_dcache_line(a); /* Hit_Writeback_Inv_D */
+			if (a == end) break;
+			a += dc_lsize;
+		}
+		restore_flags(flags);
 	}
 
-	/* Workaround for R4600 bug.  See comment above. */
-	*(volatile unsigned long *)KSEG1;
-
-	a = addr & ~(dc_lsize - 1);
-	end = (addr + size) & ~(dc_lsize - 1);
-	while (1) {
-		invalidate_dcache_line(a); /* Hit_Invalidate_D */
-		if (a == end) break;
-		a += dc_lsize;
-	}
+	bcops->bc_inv(addr, size);
 }
 
 static void
-r4k_flush_cache_post_dma_in_sc(unsigned long addr, unsigned long size)
+r4k_dma_cache_inv_sc(unsigned long addr, unsigned long size)
 {
-	unsigned long end;
-	unsigned long a;
+	unsigned long end, a;
+	unsigned int flags;
 
 	if (size >= scache_size) {
 		flush_cache_all();
-		return;
+	} else {
+		save_and_cli(flags);
+		a = addr & ~(dc_lsize - 1);
+		end = (addr + size) & ~(dc_lsize - 1);
+		while (1) {
+			flush_dcache_line(a); /* Hit_Writeback_Inv_D */
+			if (a == end) break;
+			a += dc_lsize;
+		}
+		restore_flags(flags);
 	}
 
 	a = addr & ~(sc_lsize - 1);
 	end = (addr + size) & ~(sc_lsize - 1);
 	while (1) {
-		invalidate_scache_line(addr); /* Hit_Invalidate_SD */
+		flush_scache_line(addr); /* Hit_Writeback_Inv_SD */
 		if (addr == end) break;
 		addr += sc_lsize;
-	}
-	r4k_flush_cache_pre_dma_out_pc(addr, size);
-}
-
-static void r4k_flush_page_to_ram_d32i32_r4600(unsigned long page)
-{
-	page &= PAGE_MASK;
-	if((page >= KSEG0 && page < KSEG1) || (page >= KSEG2)) {
-		unsigned long flags;
-
-#ifdef DEBUG_CACHE
-		printk("r4600_cram[%08lx]", page);
-#endif
-		save_and_cli(flags);
-		blast_dcache32_page(page);
-#ifdef CONFIG_SGI
-		{
-			unsigned long tmp1, tmp2;
-
-			__asm__ __volatile__("
-			.set noreorder
-			.set mips3
-			li	%0, 0x1
-			dsll	%0, 31
-			or	%0, %0, %2
-			lui	%1, 0x9000
-			dsll32	%1, 0
-			or	%0, %0, %1
-			daddu	%1, %0, 0x0fe0
-			li	%2, 0x80
-			mtc0	%2, $12
-			nop; nop; nop; nop;
-1:			sw	$0, 0(%0)
-			bltu	%0, %1, 1b
-			daddu	%0, 32
-			mtc0	$0, $12
-			nop; nop; nop; nop;
-			.set mips0
-			.set reorder"
-			: "=&r" (tmp1), "=&r" (tmp2),
-			  "=&r" (page)
-			: "2" (page & 0x0007f000));
-		}
-#endif /* CONFIG_SGI */
-		restore_flags(flags);
 	}
 }
 
@@ -2396,180 +2375,22 @@ static void r4k_add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 /* Detect and size the various r4k caches. */
 static void probe_icache(unsigned long config)
 {
-	unsigned long tmp;
+	icache_size = 1 << (12 + ((config >> 6) & 7));
+	ic_lsize = 16 << ((config >> 4) & 1);
 
-	tmp = (config >> 9) & 7;
-	icache_size = (1 << (12 + tmp));
-	if((config >> 5) & 1)
-		ic_lsize = 32;
-	else
-		ic_lsize = 16;
-
-	printk("Primary ICACHE %dK (linesize %d bytes)\n",
-	       (int)(icache_size >> 10), (int)ic_lsize);
+	printk("Primary instruction cache %dkb, linesize %d bytes)\n",
+	       icache_size, ic_lsize);
 }
 
 static void probe_dcache(unsigned long config)
 {
-	unsigned long tmp;
+	dcache_size = 1 << (12 + ((config >> 6) & 7));
+	dc_lsize = 16 << ((config >> 4) & 1);
 
-	tmp = (config >> 6) & 7;
-	dcache_size = (1 << (12 + tmp));
-	if((config >> 4) & 1)
-		dc_lsize = 32;
-	else
-		dc_lsize = 16;
-
-	printk("Primary DCACHE %dK (linesize %d bytes)\n",
-	       (int)(dcache_size >> 10), (int)dc_lsize);
+	printk("Primary data cache %dkb, linesize %d bytes)\n",
+	       dcache_size, dc_lsize);
 }
 
-/*
- * Activate the chipset controlled R4600 and R5000 caches of the Indy
- */
-static inline void enable_indy_scache(void)
-{
-	unsigned long addr, tmp1, tmp2;
-
-	/* This is really cool... */
-	printk("Enabling R4600 SCACHE\n");
-	__asm__ __volatile__("
-		.set noreorder
-		.set mips3
-		mfc0	%2, $12
-		nop; nop; nop; nop;
-		li	%1, 0x80
-		mtc0	%1, $12
-		nop; nop; nop; nop;
-		li	%0, 0x1
-		dsll	%0, 31
-		lui	%1, 0x9000
-		dsll32	%1, 0
-		or	%0, %1, %0
-		sb	$0, 0(%0)
-		mtc0	$0, $12
-		nop; nop; nop; nop;
-		mtc0	%2, $12
-		nop; nop; nop; nop;
-		.set mips0
-		.set reorder"
-		: "=r" (tmp1), "=r" (tmp2), "=r" (addr));
-}
-
-static int probe_scache_eeprom(unsigned long config)
-{
-#ifdef CONFIG_SGI
-	volatile unsigned int *cpu_control;
-	unsigned short cmd = 0xc220;
-	unsigned long data = 0;
-	int i, n;
-
-#ifdef __MIPSEB__
-	cpu_control = (volatile unsigned int *) KSEG1ADDR(0x1fa00034);
-#else
-	cpu_control = (volatile unsigned int *) KSEG1ADDR(0x1fa00030);
-#endif
-#define DEASSERT(bit) (*(cpu_control) &= (~(bit)))
-#define ASSERT(bit) (*(cpu_control) |= (bit))
-#define DELAY  for(n = 0; n < 100000; n++) __asm__ __volatile__("")
-	DEASSERT(SGIMC_EEPROM_PRE);
-	DEASSERT(SGIMC_EEPROM_SDATAO);
-	DEASSERT(SGIMC_EEPROM_SECLOCK);
-	DEASSERT(SGIMC_EEPROM_PRE);
-	DELAY;
-	ASSERT(SGIMC_EEPROM_CSEL); ASSERT(SGIMC_EEPROM_SECLOCK);
-	for(i = 0; i < 11; i++) {
-		if(cmd & (1<<15))
-			ASSERT(SGIMC_EEPROM_SDATAO);
-		else
-			DEASSERT(SGIMC_EEPROM_SDATAO);
-		DEASSERT(SGIMC_EEPROM_SECLOCK);
-		ASSERT(SGIMC_EEPROM_SECLOCK);
-		cmd <<= 1;
-	}
-	DEASSERT(SGIMC_EEPROM_SDATAO);
-	for(i = 0; i < (sizeof(unsigned short) * 8); i++) {
-		unsigned int tmp;
-
-		DEASSERT(SGIMC_EEPROM_SECLOCK);
-		DELAY;
-		ASSERT(SGIMC_EEPROM_SECLOCK);
-		DELAY;
-		data <<= 1;
-		tmp = *cpu_control;
-		if(tmp & SGIMC_EEPROM_SDATAI)
-			data |= 1;
-	}
-	DEASSERT(SGIMC_EEPROM_SECLOCK);
-	DEASSERT(SGIMC_EEPROM_CSEL);
-	ASSERT(SGIMC_EEPROM_PRE);
-	ASSERT(SGIMC_EEPROM_SECLOCK);
-	data <<= PAGE_SHIFT;
-	printk("R4600/R5000 SCACHE size %dK ", (int) (data >> 10));
-	switch(mips_cputype) {
-	case CPU_R4600:
-	case CPU_R4640:
-		sc_lsize = 32;
-		break;
-
-	default:
-		sc_lsize = 128;
-		break;
-	}
-	printk("linesize %d bytes\n", sc_lsize);
-	scache_size = data;
-	if(data) {
-		unsigned long addr;
-
-		/* Enable r4600/r5000 cache.  But flush it first. */
-		for(addr = KSEG0; addr < (KSEG0 + dcache_size);
-		    addr += dc_lsize)
-			flush_dcache_line_indexed(addr);
-		for(addr = KSEG0; addr < (KSEG0 + icache_size);
-		    addr += ic_lsize)
-			flush_icache_line_indexed(addr);
-		for(addr = KSEG0; addr < (KSEG0 + scache_size);
-		    addr += sc_lsize)
-			flush_scache_line_indexed(addr);
-
-		/*
-		 * R5000 scache enable is in CP0 config, on R4600 variants
-		 * the scache is enable by the memory mapped cache controller.
-		 */
-		if (mips_cputype == CPU_R4600 ||
-		    mips_cputype == CPU_R5000) {
-			enable_indy_scache();
-			return 1;
-		}
-#if 0
-		if(mips_cputype == CPU_R5000) {
-			unsigned long config;
-
-			config = read_32bit_cp0_register(CP0_CONFIG);
-			config |= 0x1000;
-			write_32bit_cp0_register(CP0_CONFIG, config);
-		}
-#endif
-		return 1;
-
-	} else {
-		if(mips_cputype == CPU_R5000)
-			return -1;
-		else
-			return 0;
-	}
-#else
-	/*
-	 * XXX For now we don't panic and assume that existing chipset
-	 * controlled caches are setup correnctly and are completly
-	 * transparent.  Works fine for those MIPS machines I know.
-	 * Morituri the salutant ...
-	 */
-	return 0;
-
-	panic("Cannot probe SCACHE on this machine.");
-#endif
-}
 
 /* If you even _breathe_ on this function, look at the gcc output
  * and make sure it does not pop things on and off the stack for
@@ -2693,8 +2514,8 @@ static void setup_noscache_funcs(void)
 		flush_page_to_ram = r4k_flush_page_to_ram_d32i32;
 		break;
 	}
-	flush_cache_pre_dma_out = r4k_flush_cache_pre_dma_out_pc;
-	flush_cache_post_dma_in = r4k_flush_cache_post_dma_in_pc;
+	dma_cache_wback_inv = r4k_dma_cache_wback_inv_pc;
+	dma_cache_inv = r4k_dma_cache_inv_pc;
 }
 
 static void setup_scache_funcs(void)
@@ -2787,76 +2608,49 @@ static void setup_scache_funcs(void)
 		};
 		break;
 	}
-
-	/* XXX Do these for Indy style caches also.  No need for now ... */
-	flush_cache_pre_dma_out = r4k_flush_cache_pre_dma_out_sc;
-	flush_cache_post_dma_in = r4k_flush_cache_post_dma_in_sc;
+	dma_cache_wback_inv = r4k_dma_cache_wback_inv_sc;
+	dma_cache_inv = r4k_dma_cache_inv_sc;
 }
 
 typedef int (*probe_func_t)(unsigned long);
-static probe_func_t probe_scache_kseg1;
+
+static inline void setup_scache(unsigned int config)
+{
+	probe_func_t probe_scache_kseg1;
+	int sc_present = 0;
+
+	/* Maybe the cpu knows about a l2 cache? */
+	probe_scache_kseg1 = (probe_func_t) (KSEG1ADDR(&probe_scache));
+	sc_present = probe_scache_kseg1(config);
+
+	if (sc_present) {
+		setup_scache_funcs();
+		return;
+	}
+
+	setup_noscache_funcs();
+}
 
 void ld_mmu_r4xx0(void)
 {
-	unsigned long cfg = read_32bit_cp0_register(CP0_CONFIG);
-	int sc_present = 0;
+	unsigned long config = read_32bit_cp0_register(CP0_CONFIG);
 
 	printk("CPU revision is: %08x\n", read_32bit_cp0_register(CP0_PRID));
 
 	set_cp0_config(CONFIG_CM_CMASK, CONFIG_CM_CACHABLE_NONCOHERENT);
 
-	probe_icache(cfg);
-	probe_dcache(cfg);
+	probe_icache(config);
+	probe_dcache(config);
+	setup_scache(config);
 
 	switch(mips_cputype) {
-	case CPU_R4000PC:
-	case CPU_R4000SC:
-	case CPU_R4000MC:
-	case CPU_R4400PC:
-	case CPU_R4400SC:
-	case CPU_R4400MC:
-		probe_scache_kseg1 = (probe_func_t) (KSEG1ADDR(&probe_scache));
-		sc_present = probe_scache_kseg1(cfg);
-		break;
-
-	case CPU_R4600:
-	case CPU_R4640:
+	case CPU_R4600:			/* QED style two way caches? */
 	case CPU_R4700:
-	case CPU_R5000:	/* XXX: We don't handle the true R5000 SCACHE */
+	case CPU_R5000:
 	case CPU_NEVADA:
-		probe_scache_kseg1 = (probe_func_t)
-			(KSEG1ADDR(&probe_scache_eeprom));
-		sc_present = probe_scache_eeprom(cfg);
-
-		/* Try using tags if eeprom gives us bogus data. */
-		if(sc_present == -1) {
-			probe_scache_kseg1 =
-				(probe_func_t) (KSEG1ADDR(&probe_scache));
-			sc_present = probe_scache_kseg1(cfg);
-		}
-		break;
-	};
-
-	if(sc_present == 1
-	   && (mips_cputype == CPU_R4000SC
-               || mips_cputype == CPU_R4000MC
-               || mips_cputype == CPU_R4400SC
-               || mips_cputype == CPU_R4400MC)) {
-		/* Has a true secondary cache. */
-		setup_scache_funcs();
-	} else {
-		/* Lacks true secondary cache. */
-		setup_noscache_funcs();
-		if (mips_cputype == CPU_R4600 ||
-		    mips_cputype == CPU_R5000) {
-			flush_cache_page =
-				r4k_flush_cache_page_d32i32_r4600;
-			flush_page_to_ram =
-				r4k_flush_page_to_ram_d32i32_r4600;
-		}
+		flush_cache_page = r4k_flush_cache_page_d32i32_r4600;
 	}
 
-	/* XXX Handle true second level cache w/ split I/D */
 	flush_cache_sigtramp = r4k_flush_cache_sigtramp;
 	if ((read_32bit_cp0_register(CP0_PRID) & 0xfff0) == 0x2020) {
 		flush_cache_sigtramp = r4600v20k_flush_cache_sigtramp;

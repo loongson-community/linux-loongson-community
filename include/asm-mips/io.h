@@ -372,4 +372,21 @@ __OUTS(w,l,4)
 	__inslc((port),(addr),(count)) : \
 	__insl((port),(addr),(count)))
 
+/*
+ * The caches on some architectures aren't dma-coherent and have need to
+ * handle this in software.  There are two types of operations that
+ * can be applied to dma buffers.
+ *
+ *  - dma_cache_wback_inv(start, size) makes caches and coherent by
+ *    writing the content of the caches back to memory, if necessary.
+ *    The function also invalidates the affected part of the caches as
+ *    necessary before DMA transfers from outside to memory.
+ *  - dma_cache_inv(start, size) invalidates the affected parts of the
+ *    caches.  Dirty lines of the caches may be written back or simply
+ *    be discarded.  This operation is necessary before dma operations
+ *    to the memory.
+ */
+extern void (*dma_cache_wback_inv)(unsigned long start, unsigned long size);
+extern void (*dma_cache_inv)(unsigned long start, unsigned long size);
+
 #endif /* __ASM_MIPS_IO_H */
