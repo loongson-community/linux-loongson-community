@@ -296,6 +296,10 @@ S: 4 Place Jussieu
 S: 75252 Paris Cedex 05
 S: France
 
+N: Ulf Carlsson
+D: SGI Indy audio (HAL2) drivers
+E: ulfc@bun.falkenberg.se
+
 N: Ed Carp
 E: ecarp@netcom.com
 D: uucp, elm, pine, pico port

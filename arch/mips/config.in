@@ -221,7 +221,7 @@ fi
 endmenu
 
 if [ "$CONFIG_SGI" = "y" ]; then
-  source drivers/sgi/char/Config.in
+  source drivers/sgi/Config.in
 fi
 
 mainmenu_option next_comment

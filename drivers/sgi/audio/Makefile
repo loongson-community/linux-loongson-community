@@ -7,18 +7,28 @@
 #
 # Note 2! The CFLAGS definitions are now in the main makefile...
 
-SUB_DIRS     :=
-MOD_SUB_DIRS := $(SUB_DIRS) audio
-ALL_SUB_DIRS := $(SUB_DIRS) char audio
-
-
-L_OBJS   := 
-L_TARGET := sgi.a
-MOD_LIST_NAME := SGI_MODULES
-
-# Character and Audio devices for SGI machines.
 #
-SUB_DIRS += char audio
-L_OBJS += char/sgichar.o audio/sgiaudio.o
+# sbus audio drivers
+#
+
+O_TARGET := sgiaudio.o
+O_OBJS   :=
+M_OBJS   :=
+M :=
+MM :=
+
+
+
+
+
+ifeq ($(CONFIG_SGI_HAL2),y)
+M=y
+OX_OBJS += hal2.o
+else
+  ifeq ($(CONFIG_SGI_HAL2),m)
+  MM=y
+  MX_OBJS += hal2.o
+  endif
+endif
 
 include $(TOPDIR)/Rules.make

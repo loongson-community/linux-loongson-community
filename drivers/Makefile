@@ -46,6 +46,7 @@ endif
 
 ifdef CONFIG_SGI
 SUB_DIRS += sgi
+MOD_SUB_DIRS += sgi
 endif
 
 # If CONFIG_SCSI is set, the core of SCSI support will be added to the kernel,
