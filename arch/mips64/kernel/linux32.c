@@ -2081,81 +2081,42 @@ struct sysctl_args32
 	unsigned int __unused[4];
 };
 
-asmlinkage long sys32_sysctl(struct sysctl_args32 *uargs32)
+asmlinkage long sys32_sysctl(struct sysctl_args32 *args)
 {
-	struct __sysctl_args kargs;
-	struct sysctl_args32 kargs32;
-	mm_segment_t old_fs;
-	int name[CTL_MAXNAME];
-	size_t oldlen[1];
-	int err, ret;
+	struct sysctl_args32 tmp;
+	int error;
+	size_t oldlen, *oldlenp = NULL;
+	unsigned long addr = (((long)&args->__unused[0]) + 7) & ~7;
 
-	ret = -EFAULT;
+	if (copy_from_user(&tmp, args, sizeof(tmp)))
+		return -EFAULT;
 
-	memset(&kargs, 0, sizeof (kargs));
-
-	err = get_user(kargs32.name, &uargs32->name);
-	err |= __get_user(kargs32.nlen, &uargs32->nlen);
-	err |= __get_user(kargs32.oldval, &uargs32->oldval);
-	err |= __get_user(kargs32.oldlenp, &uargs32->oldlenp);
-	err |= __get_user(kargs32.newval, &uargs32->newval);
-	err |= __get_user(kargs32.newlen, &uargs32->newlen);
-	if (err)
-		goto out;
-
-	if (kargs32.nlen == 0 || kargs32.nlen >= CTL_MAXNAME) {
-		ret = -ENOTDIR;
-		goto out;
-	}
-
-	kargs.name = name;
-	kargs.nlen = kargs32.nlen;
-	if (copy_from_user(kargs.name, (int *)A(kargs32.name),
-			   kargs32.nlen * sizeof(name) / sizeof(name[0])))
-		goto out;
-
-	if (kargs32.oldval) {
-		if (!kargs32.oldlenp || get_user(oldlen[0],
-						 (int *)A(kargs32.oldlenp)))
+	if (tmp.oldval && tmp.oldlenp) {
+		/* Duh, this is ugly and might not work if sysctl_args
+		   is in read-only memory, but do_sysctl does indirectly
+		   a lot of uaccess in both directions and we'd have to
+		   basically copy the whole sysctl.c here, and
+		   glibc's __sysctl uses rw memory for the structure
+		   anyway.  */
+		if (get_user(oldlen, (u32 *)A(tmp.oldlenp)) ||
+		    put_user(oldlen, (size_t *)addr))
 			return -EFAULT;
-		kargs.oldlenp = oldlen;
-		kargs.oldval = kmalloc(oldlen[0], GFP_KERNEL);
-		if (!kargs.oldval) {
-			ret = -ENOMEM;
-			goto out;
+		oldlenp = (size_t *)addr;
+	}
+
+	lock_kernel();
+	error = do_sysctl((int *)A(tmp.name), tmp.nlen, (void *)A(tmp.oldval),
+			  oldlenp, (void *)A(tmp.newval), tmp.newlen);
+	unlock_kernel();
+	if (oldlenp) {
+		if (!error) {
+			if (get_user(oldlen, (size_t *)addr) ||
+			    put_user(oldlen, (u32 *)A(tmp.oldlenp)))
+				error = -EFAULT;
 		}
+		copy_to_user(args->__unused, tmp.__unused, sizeof(tmp.__unused));
 	}
-
-	if (kargs32.newval && kargs32.newlen) {
-		kargs.newval = kmalloc(kargs32.newlen, GFP_KERNEL);
-		if (!kargs.newval) {
-			ret = -ENOMEM;
-			goto out;
-		}
-		if (copy_from_user(kargs.newval, (int *)A(kargs32.newval),
-				   kargs32.newlen))
-			goto out;
-	}
-
-	old_fs = get_fs(); set_fs (KERNEL_DS);
-	ret = sys_sysctl(&kargs);
-	set_fs (old_fs);
-
-	if (ret)
-		goto out;
-
-	if (kargs.oldval) {
-		if (put_user(oldlen[0], (int *)A(kargs32.oldlenp)) ||
-		    copy_to_user((int *)A(kargs32.oldval), kargs.oldval,
-				 oldlen[0]))
-			ret = -EFAULT;
-	}
-out:
-	if (kargs.oldval)
-		kfree(kargs.oldval);
-	if (kargs.newval)
-		kfree(kargs.newval);
-	return ret;
+	return error;
 }
 
 asmlinkage long sys32_newuname(struct new_utsname * name)
