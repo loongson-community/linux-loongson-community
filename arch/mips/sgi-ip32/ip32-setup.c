@@ -94,8 +94,9 @@ void __init ip32_setup(void)
 	rtc_ops = &ip32_rtc_ops;
 	board_be_init = ip32_be_init;
 	board_time_init = ip32_time_init;
+	board_timer_setup = ip32_timer_setup;
 
-	crime_init ();
+	crime_init();
 }
 
 int __init page_is_ram (unsigned long pagenr)

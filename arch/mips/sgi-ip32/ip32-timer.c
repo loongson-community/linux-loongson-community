@@ -45,10 +45,16 @@ static unsigned int timerhi, timerlo;
 #define USECS_PER_JIFFY (1000000/HZ)
 
 
+static irqreturn_t cc_timer_interrupt(int irq, void *dev_id, struct pt_regs * regs);
+
 void __init ip32_timer_setup (struct irqaction *irq)
 {
 	u64 crime_time;
 	u32 cc_tick;
+
+
+	write_c0_count(0);
+	irq->handler = cc_timer_interrupt;
 
 	printk("Calibrating system timer... ");
 
@@ -70,12 +76,14 @@ void __init ip32_timer_setup (struct irqaction *irq)
 	printk("%d MHz CPU detected\n", (int) (cc_interval / PER_MHZ));
 
 	setup_irq (CLOCK_IRQ, irq);
+#define ALLINTS (IE_IRQ0 | IE_IRQ1 | IE_IRQ2 | IE_IRQ3 | IE_IRQ4 | IE_IRQ5)
+	/* Set ourselves up for future interrupts */
+	write_c0_compare(read_c0_count() + cc_interval);
+        change_c0_status(ST0_IM, ALLINTS);
+	local_irq_enable();
 }
 
-struct irqaction irq0  = { NULL, SA_INTERRUPT, 0,
-			   "timer", NULL, NULL};
-
-irqreturn_t cc_timer_interrupt(int irq, void *dev_id, struct pt_regs * regs)
+static irqreturn_t cc_timer_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 {
 	u32 count;
 
@@ -150,15 +158,4 @@ void __init ip32_time_init(void)
 	xtime.tv_sec = mktime(year, mon, day, hour, min, sec);
 	xtime.tv_nsec = 0;
 	write_sequnlock_irq(&xtime_lock);
-
-	write_c0_count(0);
-	irq0.handler = cc_timer_interrupt;
-
-	ip32_timer_setup (&irq0);
-
-#define ALLINTS (IE_IRQ0 | IE_IRQ1 | IE_IRQ2 | IE_IRQ3 | IE_IRQ4 | IE_IRQ5)
-	/* Set ourselves up for future interrupts */
-	write_c0_compare(read_c0_count() + cc_interval);
-        change_c0_status(ST0_IM, ALLINTS);
-	local_irq_enable();
 }
