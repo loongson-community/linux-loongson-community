@@ -146,6 +146,7 @@ config TOSHIBA_JMR3927
 	depends on MIPS32
 	select DMA_NONCOHERENT
 	select HW_HAS_PCI
+	select SWAP_IO_SPACE
 
 config MIPS_COBALT
 	bool "Support for Cobalt Server (EXPERIMENTAL)"
@@ -198,6 +199,7 @@ config MIPS_EV96100
 	select IRQ_CPU
 	select MIPS_GT96100
 	select RM7000_CPU_SCACHE
+	select SWAP_IO_SPACE
 	help
 	  This is an evaluation board based on the Galileo GT-96100 LAN/WAN
 	  communications controllers containing a MIPS R5000 compatible core
@@ -268,6 +270,7 @@ config MIPS_ATLAS
 	bool "Support for MIPS Atlas board"
 	select DMA_NONCOHERENT
 	select HW_HAS_PCI
+	select SWAP_IO_SPACE
 	help
 	  This enables support for the QED R5231-based MIPS Atlas evaluation
 	  board.
@@ -277,6 +280,7 @@ config MIPS_MALTA
 	select HAVE_STD_PC_SERIAL_PORT
 	select DMA_NONCOHERENT
 	select HW_HAS_PCI
+	select SWAP_IO_SPACE
 	help
 	  This enables support for the VR5000-based MIPS Malta evaluation
 	  board.
@@ -294,6 +298,7 @@ config MOMENCO_OCELOT
 	select IRQ_CPU
 	select IRQ_CPU_RM7K
 	select RM7000_CPU_SCACHE
+	select SWAP_IO_SPACE
 	help
 	  The Ocelot is a MIPS-based Single Board Computer (SBC) made by
 	  Momentum Computer <http://www.momenco.com/>.
@@ -306,6 +311,7 @@ config MOMENCO_OCELOT_G
 	select IRQ_CPU_RM7K
 	select PCI_MARVELL
 	select RM7000_CPU_SCACHE
+	select SWAP_IO_SPACE
 	help
 	  The Ocelot is a MIPS-based Single Board Computer (SBC) made by
 	  Momentum Computer <http://www.momenco.com/>.
@@ -318,6 +324,7 @@ config MOMENCO_OCELOT_C
 	select IRQ_MV64340
 	select PCI_MARVELL
 	select RM7000_CPU_SCACHE
+	select SWAP_IO_SPACE
 	help
 	  The Ocelot is a MIPS-based Single Board Computer (SBC) made by
 	  Momentum Computer <http://www.momenco.com/>.
@@ -332,6 +339,7 @@ config MOMENCO_JAGUAR_ATX
 	select LIMITED_DMA
 	select PCI_MARVELL
 	select RM7000_CPU_SCACHE
+	select SWAP_IO_SPACE
 	help
 	  The Jaguar ATX is a MIPS-based Single Board Computer (SBC) made by
 	  Momentum Computer <http://www.momenco.com/>.
@@ -411,6 +419,7 @@ config SGI_IP22
 	select DMA_NONCOHERENT
 	select IP22_CPU_SCACHE
 	select IRQ_CPU
+	select SWAP_IO_SPACE
 	help
 	  This are the SGI Indy, Challenge S and Indigo2, as well as certain
 	  OEM variants like the Tandem CMN B006S. To compile a Linux kernel
@@ -529,12 +538,14 @@ config MIPS_PB1000
 	depends on SOC_AU1000
 	select DMA_NONCOHERENT
 	select HW_HAS_PCI
+	select SWAP_IO_SPACE
 
 config MIPS_PB1100
 	bool "PB1100 board"
 	depends on SOC_AU1100
 	select DMA_NONCOHERENT
 	select HW_HAS_PCI
+	select SWAP_IO_SPACE
 
 config MIPS_PB1500
 	bool "PB1500 board"
@@ -596,6 +607,7 @@ config SIBYTE_SB1xxx_SOC
 	bool "Support for Broadcom BCM1xxx SOCs (EXPERIMENTAL)"
 	depends on EXPERIMENTAL
 	select DMA_COHERENT
+	select SWAP_IO_SPACE
 
 choice
 	prompt "BCM1xxx SOC-based board"
@@ -818,6 +830,7 @@ config TOSHIBA_RBTX4927
 	select DMA_NONCOHERENT
 	select HW_HAS_PCI
 	select ISA
+	select SWAP_IO_SPACE
 
 config RWSEM_GENERIC_SPINLOCK
 	bool
@@ -934,8 +947,6 @@ config ITE_BOARD_GEN
 
 config SWAP_IO_SPACE
 	bool
-	depends on TOSHIBA_JMR3927 || TOSHIBA_RBTX4927 || SIBYTE_SB1xxx_SOC || SGI_IP22 || MOMENCO_OCELOT_C || MOMENCO_OCELOT_G || MOMENCO_OCELOT || MOMENCO_JAGUAR_ATX || MIPS_MALTA || MIPS_ATLAS || MIPS_EV96100 || MIPS_PB1100 || MIPS_PB1000
-	default y
 
 #
 # Unfortunately not all GT64120 systems run the chip at the same clock.
