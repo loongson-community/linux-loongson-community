@@ -154,14 +154,32 @@ pci_swizzle(struct pci_dev *dev, u8 *pinp)
 	return PCI_SLOT(dev->devfn);
 }
 
-/* XXX This should include the node ID into the final interrupt number.  */
+/*
+ * All observed requests have pin == 1. We could have a global here, that
+ * gets incremented and returned every time - unfortunately, pci_map_irq
+ * may be called on the same device over and over, and need to return the
+ * same value. On o2000, pin can be 0 or 1, and PCI slots can be [0..3]. 
+ * The format of the returned irq is:
+ *		NASID	WID	BUS PIN SLOT
+ *		  8 	 8	 4   1	 3
+ * Just to make sure the interpcu intrs do not collide with any irq's
+ * assigned this way, we keep the intercpu intrs at a low value, and 
+ * add in the offset. IOC3_ETH_INT does not collide with other pci irqs
+ * as it has a pin = 0 in the interpreted irq value.
+ */
 static int __init
 pci_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 {
 	int rv;
-	rv = (slot + (((pin-1) & 1) << 2)) & 7;
+
+	if ((dev->bus->number > 16) || (slot > 7) || (pin > 1)) {
+		printk("PCI_MAP_IRQ: Time to change IRQ format %d, %d, %d\n", dev->bus->number, slot, pin);
+		while(0);
+	}
+	rv = (dev->bus->number << 4) + (slot + (((pin-1) & 1) << 3));
 	rv |= (bus_to_wid[dev->bus->number] << 8);
 	rv |= (bus_to_nid[dev->bus->number] << 16);
+	rv += BASE_PCI_IRQ;
 	return rv;
 }
 
@@ -251,20 +269,18 @@ pci_fixup_isp1020(struct pci_dev *d)
 
 	/* Configure device to allow bus mastering, i/o and memory mapping. 
 	 * Older qlogicisp driver expects to have the IO space enable 
-	 * bit set. Things stop working if we program the controllers as not having
-	 * PCI_COMMAND_MEMORY, so we have to fudge the mem_flags.
+	 * bit set. Things stop working if we program the controllers as not 
+	 * having PCI_COMMAND_MEMORY, so we have to fudge the mem_flags.
 	 */
 
-	/* only turn on scsi's on main bus */
-	if (d->bus->number == 0) {
-		pci_set_master(d);
-		pci_read_config_word(d, PCI_COMMAND, &command);
-		command |= PCI_COMMAND_MEMORY;
-		command |= PCI_COMMAND_IO;
-		pci_write_config_word(d, PCI_COMMAND, command);
-		d->resource[1].flags |= 1;
-	}
+	pci_set_master(d);
+	pci_read_config_word(d, PCI_COMMAND, &command);
+	command |= PCI_COMMAND_MEMORY;
+	command |= PCI_COMMAND_IO;
+	pci_write_config_word(d, PCI_COMMAND, command);
+	d->resource[1].flags |= 1;
 }
+
 static void __init
 pci_fixup_isp2x00(struct pci_dev *d)
 {
