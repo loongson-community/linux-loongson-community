@@ -13,6 +13,9 @@
  * thorough pass to merge in the rest of the updates.
  * Better still, someone really ought to make it a common
  * code module for both platforms.   kevink@mips.com
+ *
+ * 20010616 - Klaus Naumann <spock@mgnet.de> : Make serial console work with
+ *                                             any speed - not only 9600
  */
 
 #include <linux/config.h> /* for CONFIG_REMOTE_DEBUG */
@@ -97,6 +100,7 @@ static unsigned char zscons_regs[16] = {
 DECLARE_TASK_QUEUE(tq_serial);
 
 struct tty_driver serial_driver, callout_driver;
+struct console *sgisercon;
 static int serial_refcount;
 
 /* serial subtype definitions */
@@ -684,7 +688,7 @@ static int startup(struct sgi_serial * info)
 	save_flags(flags); cli();
 
 #ifdef SERIAL_DEBUG_OPEN
-	printk("starting up ttys%d (irq %d)...", info->line, info->irq);
+	printk("starting up ttys%d (irq %d)...\n", info->line, info->irq);
 #endif
 
 	/*
@@ -1772,11 +1776,19 @@ int rs_open(struct tty_struct *tty, struct file * filp)
 		change_speed(info);
 	}
 
+	/* If this is the serial console change the speed to 
+	 * the right value
+	 */
+	if (info->is_cons) {
+		info->tty->termios->c_cflag = sgisercon->cflag;
+		change_speed(info);		
+	}
+
 	info->session = current->session;
 	info->pgrp = current->pgrp;
 
 #ifdef SERIAL_DEBUG_OPEN
-	printk("rs_open ttys%d successful...", info->line);
+	printk("rs_open ttys%d successful...\n", info->line);
 #endif
 	return 0;
 }
@@ -1826,9 +1838,6 @@ rs_cons_check(struct sgi_serial *ss, int channel)
 	}
 	if(o && i)
 		io = 1;
-	if (ss->zs_baud != 9562)	/* Don't ask... */
-		panic("Bad console baud rate %d", ss->zs_baud);
-
 
 	/* Set flag variable for this port so that it cannot be
 	 * opened for other uses by accident.
@@ -2039,7 +2048,6 @@ void
 rs_cons_hook(int chip, int out, int line)
 {
 	int channel;
-
 	
 	if(chip)
 		panic("rs_cons_hook called with chip not zero");
@@ -2124,11 +2132,11 @@ static kdev_t zs_console_device(struct console *con)
 static int __init zs_console_setup(struct console *con, char *options)
 {
 	struct sgi_serial *info;
-	int	baud = 9600;
+	int	baud;
 	int	bits = 8;
 	int	parity = 'n';
 	int	cflag = CREAD | HUPCL | CLOCAL;
-	char	*s;
+	char	*s, *dbaud;
 	int     i, brg;
     
 	if (options) {
@@ -2138,6 +2146,21 @@ static int __init zs_console_setup(struct console *con, char *options)
 			s++;
 		if (*s) parity = *s++;
 		if (*s) bits   = *s - '0';
+	}
+	else {
+		/* If the user doesn't set console=... try to read the
+		 * PROM variable - if this fails use 9600 baud and
+		 * inform the user about the problem
+		 */
+		dbaud = ArcGetEnvironmentVariable("dbaud");
+		if(dbaud) baud = simple_strtoul(dbaud, NULL, 10);
+		else {
+			/* Use prom_printf() to make sure that the user
+			 * is getting anything ...
+			 */
+			prom_printf("No dbaud set in PROM ?!? Using 9600.\n");
+			baud = 9600;
+		}
 	}
 
 	/*
@@ -2193,7 +2216,8 @@ static int __init zs_console_setup(struct console *con, char *options)
 	info = zs_soft + con->index;
 	info->is_cons = 1;
     
-	printk("Console: ttyS%d (Zilog8530)\n", info->line);
+	printk("Console: ttyS%d (Zilog8530), %d baud\n", 
+						info->line, baud);
 
 	i = con->cflag & CBAUD;
 	if (con->cflag & CBAUDEX) {
@@ -2232,6 +2256,8 @@ static int __init zs_console_setup(struct console *con, char *options)
 		zscons_regs[4] |= SB2;
 	else
 		zscons_regs[4] |= SB1;
+	
+	sgisercon = con;
 
 	brg = BPS_TO_BRG(baud, ZS_CLOCK / info->clk_divisor);
 	zscons_regs[12] = brg & 0xff;
