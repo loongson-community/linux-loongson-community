@@ -13,6 +13,7 @@
 #include <linux/compiler.h>
 #include <linux/types.h>
 #include <asm/byteorder.h>		/* sigh ... */
+#include <asm/cpu-features.h>
 
 #if (_MIPS_SZLONG == 32)
 #define SZLONG_LOG 5
@@ -43,25 +44,15 @@
  * Only disable interrupt for kernel mode stuff to keep usermode stuff
  * that dares to use kernel include files alive.
  */
+
 #define __bi_flags			unsigned long flags
-#define __bi_cli()			local_irq_disable()
-#define __bi_save_flags(x)		local_save_flags(x)
 #define __bi_local_irq_save(x)		local_irq_save(x)
 #define __bi_local_irq_restore(x)	local_irq_restore(x)
 #else
 #define __bi_flags
-#define __bi_cli()
-#define __bi_save_flags(x)
 #define __bi_local_irq_save(x)
 #define __bi_local_irq_restore(x)
 #endif /* __KERNEL__ */
-
-#ifdef CONFIG_CPU_HAS_LLSC
-
-/*
- * These functions for MIPS ISA > 1 are interrupt and SMP proof and
- * interrupt friendly
- */
 
 /*
  * set_bit - Atomically set a bit in memory
@@ -78,13 +69,25 @@ static inline void set_bit(unsigned long nr, volatile unsigned long *addr)
 	unsigned long *m = ((unsigned long *) addr) + (nr >> SZLONG_LOG);
 	unsigned long temp;
 
-	__asm__ __volatile__(
+	if (cpu_has_llsc) {
+		__asm__ __volatile__(
 		"1:\t" __LL "\t%0, %1\t\t# set_bit\n\t"
 		"or\t%0, %2\n\t"
 		__SC "\t%0, %1\n\t"
 		"beqz\t%0, 1b"
 		: "=&r" (temp), "=m" (*m)
 		: "ir" (1UL << (nr & SZLONG_MASK)), "m" (*m));
+	} else {
+		volatile unsigned long *a = addr;
+		unsigned long mask;
+		__bi_flags;
+
+		a += nr >> SZLONG_LOG;
+		mask = 1 << (nr & SZLONG_MASK);
+		__bi_local_irq_save(flags);
+		*a |= mask;
+		__bi_local_irq_restore(flags);
+	}
 }
 
 /*
@@ -118,13 +121,25 @@ static inline void clear_bit(unsigned long nr, volatile unsigned long *addr)
 	unsigned long *m = ((unsigned long *) addr) + (nr >> SZLONG_LOG);
 	unsigned long temp;
 
-	__asm__ __volatile__(
+	if (cpu_has_llsc) {
+		__asm__ __volatile__(
 		"1:\t" __LL "\t%0, %1\t\t# clear_bit\n\t"
 		"and\t%0, %2\n\t"
 		__SC "\t%0, %1\n\t"
 		"beqz\t%0, 1b\n\t"
 		: "=&r" (temp), "=m" (*m)
 		: "ir" (~(1UL << (nr & SZLONG_MASK))), "m" (*m));
+	} else {
+		volatile unsigned long *a = addr;
+		unsigned long mask;
+		__bi_flags;
+
+		a += nr >> SZLONG_LOG;
+		mask = 1 << (nr & SZLONG_MASK);
+		__bi_local_irq_save(flags);
+		*a &= ~mask;
+		__bi_local_irq_restore(flags);
+	}
 }
 
 /*
@@ -154,16 +169,28 @@ static inline void __clear_bit(unsigned long nr, volatile unsigned long * addr)
  */
 static inline void change_bit(unsigned long nr, volatile unsigned long *addr)
 {
-	unsigned long *m = ((unsigned long *) addr) + (nr >> SZLONG_LOG);
-	unsigned long temp;
+	if (cpu_has_llsc) {
+		unsigned long *m = ((unsigned long *) addr) + (nr >> SZLONG_LOG);
+		unsigned long temp;
 
-	__asm__ __volatile__(
+		__asm__ __volatile__(
 		"1:\t" __LL "\t%0, %1\t\t# change_bit\n\t"
 		"xor\t%0, %2\n\t"
 		__SC "\t%0, %1\n\t"
 		"beqz\t%0, 1b"
 		: "=&r" (temp), "=m" (*m)
 		: "ir" (1UL << (nr & SZLONG_MASK)), "m" (*m));
+	} else {
+		volatile unsigned long *a = addr;
+		unsigned long mask;
+		__bi_flags;
+
+		a += nr >> SZLONG_LOG;
+		mask = 1 << (nr & SZLONG_MASK);
+		__bi_local_irq_save(flags);
+		*a ^= mask;
+		__bi_local_irq_restore(flags);
+	}
 }
 
 /*
@@ -193,10 +220,11 @@ static inline void __change_bit(unsigned long nr, volatile unsigned long * addr)
 static inline int test_and_set_bit(unsigned long nr,
 	volatile unsigned long *addr)
 {
-	unsigned long *m = ((unsigned long *) addr) + (nr >> SZLONG_LOG);
-	unsigned long temp, res;
+	if (cpu_has_llsc) {
+		unsigned long *m = ((unsigned long *) addr) + (nr >> SZLONG_LOG);
+		unsigned long temp, res;
 
-	__asm__ __volatile__(
+		__asm__ __volatile__(
 		".set\tnoreorder\t\t# test_and_set_bit\n"
 		"1:\t" __LL "\t%0, %1\n\t"
 		"or\t%2, %0, %3\n\t"
@@ -211,7 +239,22 @@ static inline int test_and_set_bit(unsigned long nr,
 		: "r" (1UL << (nr & SZLONG_MASK)), "m" (*m)
 		: "memory");
 
-	return res != 0;
+		return res != 0;
+	} else {
+		volatile unsigned long *a = addr;
+		unsigned long mask;
+		int retval;
+		__bi_flags;
+
+		a += nr >> SZLONG_LOG;
+		mask = 1 << (nr & SZLONG_MASK);
+		__bi_local_irq_save(flags);
+		retval = (mask & *a) != 0;
+		*a |= mask;
+		__bi_local_irq_restore(flags);
+
+		return retval;
+	}
 }
 
 /*
@@ -249,10 +292,11 @@ static inline int __test_and_set_bit(unsigned long nr,
 static inline int test_and_clear_bit(unsigned long nr,
 	volatile unsigned long *addr)
 {
-	unsigned long *m = ((unsigned long *) addr) + (nr >> SZLONG_LOG);
-	unsigned long temp, res;
+	if (cpu_has_llsc) {
+		unsigned long *m = ((unsigned long *) addr) + (nr >> SZLONG_LOG);
+		unsigned long temp, res;
 
-	__asm__ __volatile__(
+		__asm__ __volatile__(
 		".set\tnoreorder\t\t# test_and_clear_bit\n"
 		"1:\t" __LL "\t%0, %1\n\t"
 		"or\t%2, %0, %3\n\t"
@@ -268,7 +312,22 @@ static inline int test_and_clear_bit(unsigned long nr,
 		: "r" (1UL << (nr & SZLONG_MASK)), "m" (*m)
 		: "memory");
 
-	return res != 0;
+		return res != 0;
+	} else {
+		volatile unsigned long *a = addr;
+		unsigned long mask;
+		int retval;
+		__bi_flags;
+
+		a += nr >> SZLONG_LOG;
+		mask = 1 << (nr & SZLONG_MASK);
+		__bi_local_irq_save(flags);
+		retval = (mask & *a) != 0;
+		*a &= ~mask;
+		__bi_local_irq_restore(flags);
+
+		return retval;
+	}
 }
 
 /*
@@ -306,10 +365,11 @@ static inline int __test_and_clear_bit(unsigned long nr,
 static inline int test_and_change_bit(unsigned long nr,
 	volatile unsigned long *addr)
 {
-	unsigned long *m = ((unsigned long *) addr) + (nr >> SZLONG_LOG);
-	unsigned long temp, res;
+	if (cpu_has_llsc) {
+		unsigned long *m = ((unsigned long *) addr) + (nr >> SZLONG_LOG);
+		unsigned long temp, res;
 
-	__asm__ __volatile__(
+		__asm__ __volatile__(
 		".set\tnoreorder\t\t# test_and_change_bit\n"
 		"1:\t" __LL "\t%0, %1\n\t"
 		"xor\t%2, %0, %3\n\t"
@@ -324,7 +384,21 @@ static inline int test_and_change_bit(unsigned long nr,
 		: "r" (1UL << (nr & SZLONG_MASK)), "m" (*m)
 		: "memory");
 
-	return res != 0;
+		return res != 0;
+	} else {
+		volatile unsigned long *a = addr;
+		unsigned long mask, retval;
+		__bi_flags;
+
+		a += nr >> SZLONG_LOG;
+		mask = 1 << (nr & SZLONG_MASK);
+		__bi_local_irq_save(flags);
+		retval = (mask & *a) != 0;
+		*a ^= mask;
+		__bi_local_irq_restore(flags);
+
+		return retval;
+	}
 }
 
 /*
@@ -346,281 +420,14 @@ static inline int __test_and_change_bit(unsigned long nr,
 	a += (nr >> SZLONG_LOG);
 	mask = 1UL << (nr & SZLONG_MASK);
 	retval = ((mask & *a) != 0);
-	*a ^= mask;
-
-	return retval;
-}
-
-#else /* MIPS I */
-
-/*
- * set_bit - Atomically set a bit in memory
- * @nr: the bit to set
- * @addr: the address to start counting from
- *
- * This function is atomic and may not be reordered.  See __set_bit()
- * if you do not require the atomic guarantees.
- * Note that @nr may be almost arbitrarily large; this function is not
- * restricted to acting on a single-word quantity.
- */
-static inline void set_bit(unsigned long nr, volatile unsigned long * addr)
-{
-	volatile unsigned long *a = addr;
-	unsigned long mask;
-	__bi_flags;
-
-	a += nr >> SZLONG_LOG;
-	mask = 1 << (nr & SZLONG_MASK);
-	__bi_local_irq_save(flags);
-	*a |= mask;
-	__bi_local_irq_restore(flags);
-}
-
-/*
- * __set_bit - Set a bit in memory
- * @nr: the bit to set
- * @addr: the address to start counting from
- *
- * Unlike set_bit(), this function is non-atomic and may be reordered.
- * If it's called on the same region of memory simultaneously, the effect
- * may be that only one operation succeeds.
- */
-static inline void __set_bit(unsigned long nr, volatile unsigned long * addr)
-{
-	volatile unsigned long *a = addr;
-	unsigned long mask;
-
-	a += nr >> SZLONG_LOG;
-	mask = 1 << (nr & SZLONG_MASK);
-	*a |= mask;
-}
-
-/*
- * clear_bit - Clears a bit in memory
- * @nr: Bit to clear
- * @addr: Address to start counting from
- *
- * clear_bit() is atomic and may not be reordered.  However, it does
- * not contain a memory barrier, so if it is used for locking purposes,
- * you should call smp_mb__before_clear_bit() and/or smp_mb__after_clear_bit()
- * in order to ensure changes are visible on other processors.
- */
-static inline void clear_bit(unsigned long nr, volatile unsigned long * addr)
-{
-	volatile unsigned long *a = addr;
-	unsigned long mask;
-	__bi_flags;
-
-	a += nr >> SZLONG_LOG;
-	mask = 1 << (nr & SZLONG_MASK);
-	__bi_local_irq_save(flags);
-	*a &= ~mask;
-	__bi_local_irq_restore(flags);
-}
-
-static inline void __clear_bit(unsigned long nr, volatile unsigned long * addr)
-{
-	volatile unsigned long *a = addr;
-	unsigned long mask;
-
-	a += nr >> SZLONG_LOG;
-	mask = 1 << (nr & SZLONG_MASK);
-	*a &= ~mask;
-}
-
-/*
- * change_bit - Toggle a bit in memory
- * @nr: Bit to change
- * @addr: Address to start counting from
- *
- * change_bit() is atomic and may not be reordered.
- * Note that @nr may be almost arbitrarily large; this function is not
- * restricted to acting on a single-word quantity.
- */
-static inline void change_bit(unsigned long nr, volatile unsigned long * addr)
-{
-	volatile unsigned long *a = addr;
-	unsigned long mask;
-	__bi_flags;
-
-	a += nr >> SZLONG_LOG;
-	mask = 1 << (nr & SZLONG_MASK);
-	__bi_local_irq_save(flags);
-	*a ^= mask;
-	__bi_local_irq_restore(flags);
-}
-
-/*
- * __change_bit - Toggle a bit in memory
- * @nr: the bit to change
- * @addr: the address to start counting from
- *
- * Unlike change_bit(), this function is non-atomic and may be reordered.
- * If it's called on the same region of memory simultaneously, the effect
- * may be that only one operation succeeds.
- */
-static inline void __change_bit(unsigned long nr, volatile unsigned long * addr)
-{
-	unsigned long * m = ((unsigned long *) addr) + (nr >> SZLONG_LOG);
-
-	*m ^= 1UL << (nr & SZLONG_MASK);
-}
-
-/*
- * test_and_set_bit - Set a bit and return its old value
- * @nr: Bit to set
- * @addr: Address to count from
- *
- * This operation is atomic and cannot be reordered.
- * It also implies a memory barrier.
- */
-static inline int test_and_set_bit(unsigned long nr,
-	volatile unsigned long * addr)
-{
-	volatile unsigned long *a = addr;
-	unsigned long mask;
-	int retval;
-	__bi_flags;
-
-	a += nr >> SZLONG_LOG;
-	mask = 1 << (nr & SZLONG_MASK);
-	__bi_local_irq_save(flags);
-	retval = (mask & *a) != 0;
-	*a |= mask;
-	__bi_local_irq_restore(flags);
-
-	return retval;
-}
-
-/*
- * __test_and_set_bit - Set a bit and return its old value
- * @nr: Bit to set
- * @addr: Address to count from
- *
- * This operation is non-atomic and can be reordered.
- * If two examples of this operation race, one can appear to succeed
- * but actually fail.  You must protect multiple accesses with a lock.
- */
-static inline int __test_and_set_bit(unsigned long nr,
-	volatile unsigned long *addr)
-{
-	volatile unsigned long *a = addr;
-	unsigned long mask;
-	int retval;
-
-	a += nr >> SZLONG_LOG;
-	mask = 1 << (nr & SZLONG_MASK);
-	retval = (mask & *a) != 0;
-	*a |= mask;
-
-	return retval;
-}
-
-/*
- * test_and_clear_bit - Clear a bit and return its old value
- * @nr: Bit to clear
- * @addr: Address to count from
- *
- * This operation is atomic and cannot be reordered.
- * It also implies a memory barrier.
- */
-static inline int test_and_clear_bit(unsigned long nr,
-	volatile unsigned long * addr)
-{
-	volatile unsigned long *a = addr;
-	unsigned long mask;
-	int retval;
-	__bi_flags;
-
-	a += nr >> SZLONG_LOG;
-	mask = 1 << (nr & SZLONG_MASK);
-	__bi_local_irq_save(flags);
-	retval = (mask & *a) != 0;
-	*a &= ~mask;
-	__bi_local_irq_restore(flags);
-
-	return retval;
-}
-
-/*
- * __test_and_clear_bit - Clear a bit and return its old value
- * @nr: Bit to clear
- * @addr: Address to count from
- *
- * This operation is non-atomic and can be reordered.
- * If two examples of this operation race, one can appear to succeed
- * but actually fail.  You must protect multiple accesses with a lock.
- */
-static inline int __test_and_clear_bit(unsigned long nr,
-	volatile unsigned long * addr)
-{
-	volatile unsigned long *a = addr;
-	unsigned long mask;
-	int retval;
-
-	a += (nr >> SZLONG_LOG);
-	mask = 1UL << (nr & SZLONG_MASK);
-	retval = ((mask & *a) != 0);
-	*a &= ~mask;
-
-	return retval;
-}
-
-/*
- * test_and_change_bit - Change a bit and return its old value
- * @nr: Bit to change
- * @addr: Address to count from
- *
- * This operation is atomic and cannot be reordered.
- * It also implies a memory barrier.
- */
-static inline int test_and_change_bit(unsigned long nr,
-	volatile unsigned long * addr)
-{
-	volatile unsigned long *a = addr;
-	unsigned long mask, retval;
-	__bi_flags;
-
-	a += nr >> SZLONG_LOG;
-	mask = 1 << (nr & SZLONG_MASK);
-	__bi_local_irq_save(flags);
-	retval = (mask & *a) != 0;
-	*a ^= mask;
-	__bi_local_irq_restore(flags);
-
-	return retval;
-}
-
-/*
- * __test_and_change_bit - Change a bit and return its old value
- * @nr: Bit to change
- * @addr: Address to count from
- *
- * This operation is non-atomic and can be reordered.
- * If two examples of this operation race, one can appear to succeed
- * but actually fail.  You must protect multiple accesses with a lock.
- */
-static inline int __test_and_change_bit(unsigned long nr,
-	volatile unsigned long * addr)
-{
-	volatile unsigned long *a = addr;
-	unsigned long mask;
-	int retval;
-
-	a += (nr >> SZLONG_LOG);
-	mask = 1 << (nr & SZLONG_MASK);
-	retval = (mask & *a) != 0;
 	*a ^= mask;
 
 	return retval;
 }
 
 #undef __bi_flags
-#undef __bi_cli
-#undef __bi_save_flags
+#undef __bi_local_irq_save
 #undef __bi_local_irq_restore
-
-#endif /* MIPS I */
 
 /*
  * test_bit - Determine whether a bit is set
