@@ -2313,12 +2313,12 @@ static int serial_console_setup(struct console *co, char *options)
 }
 
 static struct console sercons = {
-	name:           TXX927_TTY_NAME,
-	write:          serial_console_write,
-	device:	        serial_console_device,
-	setup:	        serial_console_setup,
-	flags:	        CON_PRINTBUFFER,
-	index:	        -1,
+	.name           = TXX927_TTY_NAME,
+	.write          = serial_console_write,
+	.device	        = serial_console_device,
+	.setup	        = serial_console_setup,
+	.flags	        = CON_PRINTBUFFER,
+	.index	        = -1,
 };
 
 /*

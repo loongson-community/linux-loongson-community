@@ -113,32 +113,32 @@ static struct rs_port {
 = {
 	/* NR_PORTS = 0 */
 	{base:		0xff1f0000 + 0xf300,
-	 irq:		36,
-	 baud_base:	40000000 / 16 / 2,
-	 io_type:	-1,		/* virtual memory mapped */
-	 flags: 	TXX9_SERIAL_HAVE_CTS_LINE,},
+	 .irq		= 36,
+	 .baud_base	= 40000000 / 16 / 2,
+	 .io_type	= -1,		/* virtual memory mapped */
+	 .flags 	= TXX9_SERIAL_HAVE_CTS_LINE,},
 	/* NR_PORTS = 1 */
 	{base:		0xff1f0000 + 0xf400,
-	 irq:		37,
-	 baud_base:	40000000 / 16 / 2,
-	 io_type:	-1,		/* virtual memory mapped */
-	 flags: 	TXX9_SERIAL_HAVE_CTS_LINE,}
+	 .irq		= 37,
+	 .baud_base	= 40000000 / 16 / 2,
+	 .io_type	= -1,		/* virtual memory mapped */
+	 .flags 	= TXX9_SERIAL_HAVE_CTS_LINE,}
 };
 #endif
 #ifdef CONFIG_TOSHIBA_RBTX4927
 = {
 	/* NR_PORTS = 0 */
 	{base:		0xff1f0000 + 0xf300,
-	 irq:		32,
-	 baud_base:	50000000 / 16 / 2,
-	 io_type:	-1,		/* virtual memory mapped */
-	 flags: 	TXX9_SERIAL_HAVE_CTS_LINE,},
+	 .irq		= 32,
+	 .baud_base	= 50000000 / 16 / 2,
+	 .io_type	= -1,		/* virtual memory mapped */
+	 .flags 	= TXX9_SERIAL_HAVE_CTS_LINE,},
 	/* NR_PORTS = 1 */
 	{base:		0xff1f0000 + 0xf400,
-	 irq:		33,
-	 baud_base:	50000000 / 16 / 2,
-	 io_type:	-1,		/* virtual memory mapped */
-	 flags: 	TXX9_SERIAL_HAVE_CTS_LINE,}
+	 .irq		= 33,
+	 .baud_base	= 50000000 / 16 / 2,
+	 .io_type	= -1,		/* virtual memory mapped */
+	 .flags 	= TXX9_SERIAL_HAVE_CTS_LINE,}
 };
 #endif
 
@@ -294,17 +294,17 @@ static void rs_close (void *ptr);
  * Used by generic serial driver to access hardware
  */
 static struct real_driver rs_real_driver = {
-	disable_tx_interrupts: rs_disable_tx_interrupts,
-	enable_tx_interrupts:  rs_enable_tx_interrupts,
-	disable_rx_interrupts: rs_disable_rx_interrupts,
-	enable_rx_interrupts:  rs_enable_rx_interrupts,
+	.disable_tx_interrupts = rs_disable_tx_interrupts,
+	.enable_tx_interrupts  = rs_enable_tx_interrupts,
+	.disable_rx_interrupts = rs_disable_rx_interrupts,
+	.enable_rx_interrupts  = rs_enable_rx_interrupts,
 	get_CD:                rs_get_CD,
-	shutdown_port:         rs_shutdown_port,
-	set_real_termios:      rs_set_real_termios,
-	chars_in_buffer:       rs_chars_in_buffer,
-	close:                 rs_close,
-	hungup:                rs_hungup,
-	getserial:             rs_getserial,
+	.shutdown_port         = rs_shutdown_port,
+	.set_real_termios      = rs_set_real_termios,
+	.chars_in_buffer       = rs_chars_in_buffer,
+	.close                 = rs_close,
+	.hungup                = rs_hungup,
+	.getserial             = rs_getserial,
 };
 
 /*
@@ -1319,10 +1319,10 @@ static struct pci_device_id serial_txx9_pci_tbl[] __devinitdata = {
 MODULE_DEVICE_TABLE(pci, serial_txx9_pci_tbl);
 
 static struct pci_driver serial_txx9_pci_driver = {
-       name:           "serial_txx9",
-       probe:          serial_txx9_init_one,
-       remove:	       __devexit_p(serial_txx9_remove_one),
-       id_table:       serial_txx9_pci_tbl,
+       .name           = "serial_txx9",
+       .probe          = serial_txx9_init_one,
+       .remove	       = __devexit_p(serial_txx9_remove_one),
+       .id_table       = serial_txx9_pci_tbl,
 };
 
 /*
@@ -1614,12 +1614,12 @@ static int serial_console_setup(struct console *co, char *options)
 }
 
 static struct console sercons = {
-	name:		TXX9_TTY_NAME,
-	write:		serial_console_write,
-	device:		serial_console_device,
-	setup:		serial_console_setup,
-	flags:		CON_PRINTBUFFER,
-	index:		-1,
+	.name		= TXX9_TTY_NAME,
+	.write		= serial_console_write,
+	.device		= serial_console_device,
+	.setup		= serial_console_setup,
+	.flags		= CON_PRINTBUFFER,
+	.index		= -1,
 };
 
 static int __init txx9_serial_console_init(void)

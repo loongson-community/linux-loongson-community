@@ -233,10 +233,10 @@ static int au1000gpio_ioctl(struct inode *inode, struct file *file,
 
 static struct file_operations au1000gpio_fops =
 {
-	owner:		THIS_MODULE,
-	ioctl:		au1000gpio_ioctl,
-	open:		au1000gpio_open,
-	release:	au1000gpio_release,
+	.owner		= THIS_MODULE,
+	.ioctl		= au1000gpio_ioctl,
+	.open		= au1000gpio_open,
+	.release	= au1000gpio_release,
 };
 
 

@@ -456,14 +456,14 @@ static int usbraw_ioctl(struct inode *inode, struct file *filp,
 
 
 static struct file_operations usbraw_fops = {
-        owner:          THIS_MODULE,
-        write:          usbraw_write,
-	read:           usbraw_read,
-	poll:           usbraw_poll,
-	ioctl:		usbraw_ioctl,
-	fasync:         usbraw_fasync,
-	open:		usbraw_open,
-	release:	usbraw_release,
+        .owner          = THIS_MODULE,
+        .write          = usbraw_write,
+	.read           = usbraw_read,
+	.poll           = usbraw_poll,
+	.ioctl		= usbraw_ioctl,
+	.fasync         = usbraw_fasync,
+	.open		= usbraw_open,
+	.release	= usbraw_release,
 };
 
 void usbfn_raw_exit(void)

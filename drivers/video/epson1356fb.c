@@ -194,16 +194,16 @@ void e1356fb_setup(char *options, int *ints);
 static int currcon = 0;
 
 static struct fb_ops e1356fb_ops = {
-	owner:	THIS_MODULE,
-	fb_open:        e1356fb_open,
-	fb_release:     e1356fb_release,
-	fb_get_fix:	e1356fb_get_fix,
-	fb_get_var:	e1356fb_get_var,
-	fb_set_var:	e1356fb_set_var,
-	fb_get_cmap:    e1356fb_get_cmap,
-	fb_set_cmap:    e1356fb_set_cmap,
-	fb_pan_display: e1356fb_pan_display,
-	fb_mmap:        e1356fb_mmap,
+	.owner	= THIS_MODULE,
+	.fb_open        = e1356fb_open,
+	.fb_release     = e1356fb_release,
+	.fb_get_fix	= e1356fb_get_fix,
+	.fb_get_var	= e1356fb_get_var,
+	.fb_set_var	= e1356fb_set_var,
+	.fb_get_cmap    = e1356fb_get_cmap,
+	.fb_set_cmap    = e1356fb_set_cmap,
+	.fb_pan_display = e1356fb_pan_display,
+	.fb_mmap        = e1356fb_mmap,
 };
 
 #define PCI_VENDOR_ID_EPSON         0x10f4
@@ -1313,29 +1313,29 @@ e1356_cfbX_cursor(struct display *p, int mode, int x, int y)
 
 #ifdef FBCON_HAS_CFB8
 static struct display_switch fbcon_e1356_8 = {
-	setup:		fbcon_cfb8_setup, 
-	bmove:		e1356_cfbX_bmove, 
-	clear:		e1356_cfb8_clear, 
-	putc:		e1356_cfb8_putc,
-	putcs:		e1356_cfb8_putcs, 
-	revc:		e1356_cfbX_revc,   
-	cursor:		e1356_cfbX_cursor, 
-	clear_margins:	e1356_cfbX_clear_margins,
-	fontwidthmask:	FONTWIDTHRANGE(6,16)
+	.setup		= fbcon_cfb8_setup, 
+	.bmove		= e1356_cfbX_bmove, 
+	.clear		= e1356_cfb8_clear, 
+	.putc		= e1356_cfb8_putc,
+	.putcs		= e1356_cfb8_putcs, 
+	.revc		= e1356_cfbX_revc,   
+	.cursor		= e1356_cfbX_cursor, 
+	.clear_margins	= e1356_cfbX_clear_margins,
+	.fontwidthmask	= FONTWIDTHRANGE(6,16)
 };
 #endif
 
 #ifdef FBCON_HAS_CFB16
 static struct display_switch fbcon_e1356_16 = {
-	setup:		fbcon_cfb16_setup, 
-	bmove:		e1356_cfbX_bmove, 
-	clear:		e1356_cfb16_clear, 
-	putc:		e1356_cfb16_putc,
-	putcs:		e1356_cfb16_putcs, 
-	revc:		e1356_cfbX_revc, 
-	cursor:		e1356_cfbX_cursor, 
-	clear_margins:	e1356_cfbX_clear_margins,
-	fontwidthmask:	FONTWIDTHRANGE(6,16)
+	.setup		= fbcon_cfb16_setup, 
+	.bmove		= e1356_cfbX_bmove, 
+	.clear		= e1356_cfb16_clear, 
+	.putc		= e1356_cfb16_putc,
+	.putcs		= e1356_cfb16_putcs, 
+	.revc		= e1356_cfbX_revc, 
+	.cursor		= e1356_cfbX_cursor, 
+	.clear_margins	= e1356_cfbX_clear_margins,
+	.fontwidthmask	= FONTWIDTHRANGE(6,16)
 };
 #endif
 

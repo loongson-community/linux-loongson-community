@@ -587,12 +587,12 @@ au1000_release(struct inode * inode, struct file * filp)
 
 
 static struct file_operations ts_fops = {
-	read:           au1000_read,
-	poll:           au1000_poll,
-	ioctl:		au1000_ioctl,
-	fasync:         au1000_fasync,
-	open:		au1000_open,
-	release:	au1000_release,
+	.read           = au1000_read,
+	.poll           = au1000_poll,
+	.ioctl		= au1000_ioctl,
+	.fasync         = au1000_fasync,
+	.open		= au1000_open,
+	.release	= au1000_release,
 };
 
 /* +++++++++++++ End File operations ++++++++++++++*/

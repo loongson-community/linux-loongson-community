@@ -880,12 +880,12 @@ static int ser_console_setup(struct console *cons, char *str)
 }
 
 static struct console sb1250_ser_cons = {
-	name:		"duart",
-	write:		ser_console_write,
-	device:		ser_console_device,
-	setup:		ser_console_setup,
-	flags:		CON_PRINTBUFFER,
-	index:		-1,
+	.name		= "duart",
+	.write		= ser_console_write,
+	.device		= ser_console_device,
+	.setup		= ser_console_setup,
+	.flags		= CON_PRINTBUFFER,
+	.index		= -1,
 };
 
 static int __init sb1250_serial_console_init(void)
