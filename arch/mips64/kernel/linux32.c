@@ -1843,3 +1843,22 @@ asmlinkage ssize_t sys32_readahead(int fd, u32 pad0, u64 a2, u64 a3,
 {
 	return sys_readahead(fd, merge_64(a2, a3), count);
 }
+
+asmlinkage long compat_sys_utimes(char __user * filename,
+	struct compat_timeval __user * utimes)
+{
+	struct timeval times[2];
+                                                                                
+	if (utimes) {
+		if (verify_area(VERIFY_READ, utimes, 2 * sizeof(*utimes)))
+			return -EFAULT;
+
+		if (__get_user(times[0].tv_sec, &utimes[0].tv_sec) | 
+		    __get_user(times[0].tv_usec, &utimes[0].tv_usec) | 
+		    __get_user(times[1].tv_sec, &utimes[1].tv_sec) | 
+		    __get_user(times[1].tv_usec, &utimes[1].tv_usec))
+			return -EFAULT;
+	}
+
+	return do_utimes(filename, utimes ? times : NULL);
+}

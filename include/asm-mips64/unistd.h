@@ -283,11 +283,12 @@
 #define __NR_O32_clock_getres		(__NR_O32_Linux + 264)
 #define __NR_O32_clock_nanosleep	(__NR_O32_Linux + 265)
 #define __NR_O32_tgkill			(__NR_O32_Linux + 266)
+#define __NR_O32_utimes			(__NR_O32_Linux + 267)
 
 /*
  * Offset of the last Linux o32 flavoured syscall
  */
-#define __NR_O32_Linux_syscalls		266
+#define __NR_O32_Linux_syscalls		267
 
 
 /*
@@ -520,11 +521,12 @@
 #define __NR_clock_getres		(__NR_Linux + 223)
 #define __NR_clock_nanosleep		(__NR_Linux + 224)
 #define __NR_tgkill			(__NR_Linux + 225)
+#define __NR_utimes			(__NR_Linux + 226)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		225
+#define __NR_Linux_syscalls		226
 
 /*
  * Linux N32 syscalls are in the range from 6000 to 6999.
@@ -760,11 +762,12 @@
 #define __NR_N32_clock_getres		(__NR_N32_Linux + 228)
 #define __NR_N32_clock_nanosleep	(__NR_N32_Linux + 229)
 #define __NR_N32_tgkill			(__NR_N32_Linux + 230)
+#define __NR_N32_utimes			(__NR_N32_Linux + 231)
 
 /*
  * Offset of the last N32 flavoured syscall
  */
-#define __NR_N32_Linux_syscalls		230
+#define __NR_N32_Linux_syscalls		231
 
 #ifndef __ASSEMBLY__
 

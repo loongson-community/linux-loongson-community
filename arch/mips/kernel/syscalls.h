@@ -281,3 +281,4 @@ SYS(sys_clock_gettime, 2)
 SYS(sys_clock_getres, 2)
 SYS(sys_clock_nanosleep, 4)			/* 4265 */
 SYS(sys_tgkill, 3)
+SYS(sys_utimes, 2)

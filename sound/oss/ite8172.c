@@ -94,6 +94,19 @@
 #define warn(format, arg...) printk(KERN_WARNING PFX ": " format "\n" , ## arg)
 
 
+#define IT8172_MODULE_NAME "IT8172 audio"
+#define PFX IT8172_MODULE_NAME
+
+#ifdef IT8172_DEBUG
+#define dbg(format, arg...) printk(KERN_DEBUG PFX ": " format "\n" , ## arg)
+#else
+#define dbg(format, arg...) do {} while (0)
+#endif
+#define err(format, arg...) printk(KERN_ERR PFX ": " format "\n" , ## arg)
+#define info(format, arg...) printk(KERN_INFO PFX ": " format "\n" , ## arg)
+#define warn(format, arg...) printk(KERN_WARNING PFX ": " format "\n" , ## arg)
+
+
 static const unsigned sample_shift[] = { 0, 1, 1, 2 };
 
 

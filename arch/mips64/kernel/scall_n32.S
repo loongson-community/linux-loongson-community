@@ -343,3 +343,4 @@ EXPORT(sysn32_call_table)
 	PTR	sys_clock_getres
 	PTR	sys_clock_nanosleep
 	PTR	sys_tgkill
+	PTR	compat_sys_utimes		/* 6230 */

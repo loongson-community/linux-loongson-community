@@ -19,6 +19,7 @@ CONFIG_SYSVIPC=y
 CONFIG_SYSCTL=y
 CONFIG_LOG_BUF_SHIFT=14
 # CONFIG_EMBEDDED is not set
+CONFIG_KALLSYMS=y
 CONFIG_FUTEX=y
 CONFIG_EPOLL=y
 
@@ -103,7 +104,6 @@ CONFIG_CPU_HAS_LLSC=y
 CONFIG_CPU_HAS_WB=y
 CONFIG_CPU_HAS_SYNC=y
 # CONFIG_PREEMPT is not set
-CONFIG_KALLSYMS=y
 # CONFIG_DEBUG_SPINLOCK_SLEEP is not set
 
 #
@@ -403,7 +403,6 @@ CONFIG_IRDA_FAST_RR=y
 #
 # Dongle support
 #
-# CONFIG_DONGLE is not set
 
 #
 # Old SIR device drivers
@@ -414,18 +413,12 @@ CONFIG_IRDA_FAST_RR=y
 #
 # Old Serial dongle support
 #
-# CONFIG_DONGLE_OLD is not set
 
 #
 # FIR device drivers
 #
-# CONFIG_NSC_FIR is not set
-# CONFIG_WINBOND_FIR is not set
 # CONFIG_TOSHIBA_OLD is not set
 # CONFIG_TOSHIBA_FIR is not set
-# CONFIG_SMC_IRCC_OLD is not set
-# CONFIG_SMC_IRCC_FIR is not set
-# CONFIG_ALI_FIR is not set
 # CONFIG_VLSI_FIR is not set
 
 #

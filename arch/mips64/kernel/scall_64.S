@@ -378,3 +378,4 @@ sys_call_table:
 	PTR	sys_clock_getres
 	PTR	sys_clock_nanosleep
 	PTR	sys_tgkill			/* 5225 */
+	PTR	sys_utimes
