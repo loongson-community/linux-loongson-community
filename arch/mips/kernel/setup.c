@@ -4,7 +4,7 @@
  * for more details.
  *
  * Copyright (C) 1995  Linus Torvalds
- * Copyright (C) 1995, 1996, 1997, 1998  Ralf Baechle
+ * Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000  Ralf Baechle
  * Copyright (C) 1996  Stoned Elipot
  */
 #include <linux/config.h>
@@ -195,14 +195,14 @@ static inline void cpu_probe(void)
 	case PRID_IMP_R6000A:
 		mips_cputype = CPU_R6000A;
 		break;
+	case PRID_IMP_RM7000:
+		mips_cputype = CPU_R7000;
+		break;
 	case PRID_IMP_R8000:
 		mips_cputype = CPU_R8000;
 		break;
 	case PRID_IMP_R10000:
 		mips_cputype = CPU_R10000;
-		break;
-	case PRID_IMP_RM7000:
-		mips_cputype = CPU_R5000;
 		break;
 	default:
 		mips_cputype = CPU_UNKNOWN;
