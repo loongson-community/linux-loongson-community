@@ -450,19 +450,22 @@ static int sgiseeq_open(struct net_device *dev)
 	unsigned long flags;
 	int err;
 
-	save_and_cli(flags);
-	if (request_irq(dev->irq, sgiseeq_interrupt, 0, sgiseeqstr, (void *) dev)) {
+	__save_and_cli(flags);
+
+	err = -EAGAIN;
+	if (request_irq(dev->irq, sgiseeq_interrupt, 0, sgiseeqstr, dev)) {
 		printk("Seeq8003: Can't get irq %d\n", dev->irq);
-		restore_flags(flags);
-		return -EAGAIN;
+		goto out;
 	}
 	err = init_seeq(dev, sp, sregs);
 	if (err)
-		return err;
+		goto out;
 
 	netif_start_queue(dev);
-	restore_flags(flags);
-	return 0;
+
+out:
+	__restore_flags(flags);
+	return err;
 }
 
 static int sgiseeq_close(struct net_device *dev)
