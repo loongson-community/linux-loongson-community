@@ -125,6 +125,57 @@ static __inline__ void ide_release_region(ide_ioreg_t from,
 
 #if defined(__MIPSEB__)
 
+/* get rid of defs from io.h - ide has its private and conflicting versions */
+#ifdef insw
+#undef insw
+#endif
+#ifdef outsw
+#undef outsw
+#endif
+#ifdef insl
+#undef insl
+#endif
+#ifdef outsl
+#undef outsl
+#endif
+
+#define insw(port, addr, count) ide_insw(port, addr, count)
+#define insl(port, addr, count) ide_insl(port, addr, count)
+#define outsw(port, addr, count) ide_outsw(port, addr, count)
+#define outsl(port, addr, count) ide_outsl(port, addr, count)
+
+static inline void ide_insw(unsigned long port, void *addr, unsigned int count)
+{
+	while (count--) {
+		*(u16 *)addr = *(volatile u16 *)(mips_io_port_base + port);
+		addr += 2;
+	}
+}
+
+static inline void ide_outsw(unsigned long port, void *addr, unsigned int count)
+{
+	while (count--) {
+		*(volatile u16 *)(mips_io_port_base + (port)) = *(u16 *)addr;
+		addr += 2;
+	}
+}
+
+static inline void ide_insl(unsigned long port, void *addr, unsigned int count)
+{
+	while (count--) {
+		*(u32 *)addr = *(volatile u32 *)(mips_io_port_base + port);
+		addr += 4;
+	}
+}
+
+static inline void ide_outsl(unsigned long port, void *addr, unsigned int count)
+{
+	while (count--) {
+		*(volatile u32 *)(mips_io_port_base + (port)) = *(u32 *)addr;
+		addr += 4;
+	}
+}
+
 #define T_CHAR          (0x0000)        /* char:  don't touch  */
 #define T_SHORT         (0x4000)        /* short: 12 -> 21     */
 #define T_INT           (0x8000)        /* int:   1234 -> 4321 */

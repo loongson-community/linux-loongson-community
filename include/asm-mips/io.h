@@ -250,22 +250,29 @@ do {									\
 	SLOW_DOWN_IO;							\
 } while(0)
 
-static inline unsigned char inb(unsigned long port)
+#define inb(port) __inb(port)
+#define inw(port) __inw(port)
+#define inl(port) __inl(port)
+#define inb_p(port) __inb_p(port)
+#define inw_p(port) __inw_p(port)
+#define inl_p(port) __inl_p(port)
+
+static inline unsigned char __inb(unsigned long port)
 {
 	return __ioswab8(*(volatile u8 *)(mips_io_port_base + port));
 }
 
-static inline unsigned short inw(unsigned long port)
+static inline unsigned short __inw(unsigned long port)
 {
 	return __ioswab16(*(volatile u16 *)(mips_io_port_base + port));
 }
 
-static inline unsigned int inl(unsigned long port)
+static inline unsigned int __inl(unsigned long port)
 {
 	return __ioswab32(*(volatile u32 *)(mips_io_port_base + port));
 }
 
-static inline unsigned char inb_p(unsigned long port)
+static inline unsigned char __inb_p(unsigned long port)
 {
 	u8 __val;
 
@@ -275,7 +282,7 @@ static inline unsigned char inb_p(unsigned long port)
 	return __ioswab8(__val);
 }
 
-static inline unsigned short inw_p(unsigned long port)
+static inline unsigned short __inw_p(unsigned long port)
 {
 	u16 __val;
 
@@ -285,7 +292,7 @@ static inline unsigned short inw_p(unsigned long port)
 	return __ioswab16(__val);
 }
 
-static inline unsigned int inl_p(unsigned long port)
+static inline unsigned int __inl_p(unsigned long port)
 {
 	u32 __val;
 
@@ -294,7 +301,14 @@ static inline unsigned int inl_p(unsigned long port)
 	return __ioswab32(__val);
 }
 
-static inline void outsb(unsigned long port, void *addr, unsigned int count)
+#define outsb(port, addr, count) __outsb(port, addr, count)
+#define insb(port, addr, count) __insb(port, addr, count)
+#define outsw(port, addr, count) __outsw(port, addr, count)
+#define insw(port, addr, count) __insw(port, addr, count)
+#define outsl(port, addr, count) __outsl(port, addr, count)
+#define insl(port, addr, count) __insl(port, addr, count)
+
+static inline void __outsb(unsigned long port, void *addr, unsigned int count)
 {
 	while (count--) {
 		outb(*(u8 *)addr, port);
@@ -302,7 +316,7 @@ static inline void outsb(unsigned long port, void *addr, unsigned int count)
 	}
 }
 
-static inline void insb(unsigned long port, void *addr, unsigned int count)
+static inline void __insb(unsigned long port, void *addr, unsigned int count)
 {
 	while (count--) {
 		*(u8 *)addr = inb(port);
@@ -310,7 +324,7 @@ static inline void insb(unsigned long port, void *addr, unsigned int count)
 	}
 }
 
-static inline void outsw(unsigned long port, void *addr, unsigned int count)
+static inline void __outsw(unsigned long port, void *addr, unsigned int count)
 {
 	while (count--) {
 		outw(*(u16 *)addr, port);
@@ -318,7 +332,7 @@ static inline void outsw(unsigned long port, void *addr, unsigned int count)
 	}
 }
 
-static inline void insw(unsigned long port, void *addr, unsigned int count)
+static inline void __insw(unsigned long port, void *addr, unsigned int count)
 {
 	while (count--) {
 		*(u16 *)addr = inw(port);
@@ -326,7 +340,7 @@ static inline void insw(unsigned long port, void *addr, unsigned int count)
 	}
 }
 
-static inline void outsl(unsigned long port, void *addr, unsigned int count)
+static inline void __outsl(unsigned long port, void *addr, unsigned int count)
 {
 	while (count--) {
 		outl(*(u32 *)addr, port);
@@ -334,7 +348,7 @@ static inline void outsl(unsigned long port, void *addr, unsigned int count)
 	}
 }
 
-static inline void insl(unsigned long port, void *addr, unsigned int count)
+static inline void __insl(unsigned long port, void *addr, unsigned int count)
 {
 	while (count--) {
 		*(u32 *)addr = inl(port);
