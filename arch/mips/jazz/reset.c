@@ -2,6 +2,8 @@
  *  linux/arch/mips/jazz/process.c
  *
  *  Reset a Jazz machine.
+ *
+ *  $Id:$
  */
 
 #include <linux/sched.h>

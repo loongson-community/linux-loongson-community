@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1996, 1997 by Ralf Baechle
  *
- * $Id: setup.c,v 1.6 1997/12/02 03:43:43 ralf Exp $
+ * $Id: setup.c,v 1.7 1997/12/29 00:06:49 tsbogend Exp $
  */
 #include <linux/init.h>
 #include <linux/ioport.h>
@@ -100,9 +100,9 @@ __initfunc(void jazz_setup(void))
 	}
     }
 
-        add_wired_entry (0x02000017, 0x03c00017, 0xe0000000, PM_64K);
-        add_wired_entry (0x02400017, 0x02440017, 0xe2000000, PM_16M);
-        add_wired_entry (0x01800017, 0x01000017, 0xe4000000, PM_4M);
+	add_wired_entry (0x02000017, 0x03c00017, 0xe0000000, PM_64K);
+	add_wired_entry (0x02400017, 0x02440017, 0xe2000000, PM_16M);
+	add_wired_entry (0x01800017, 0x01000017, 0xe4000000, PM_4M);
 
 	irq_setup = jazz_irq_setup;
 	fd_cacheflush = jazz_fd_cacheflush;
