@@ -58,12 +58,6 @@ extern void galileo_machine_power_off(void);
  */
 extern struct pci_ops galileo_pci_ops;
 
-char arcs_cmdline[CL_SIZE] = {
-	"console=ttyS0,115200 "
-	"root=/dev/nfs rw nfsroot=192.168.1.1:/mnt/disk2/fs.gal "
-	"ip=192.168.1.211:192.168.1.1:::gt::"
-};
-
 unsigned long __init prom_free_prom_memory(void)
 {
 	return 0;

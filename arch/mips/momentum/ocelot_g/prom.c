@@ -35,7 +35,6 @@ struct callvectors {
 };
 
 struct callvectors* debug_vectors;
-char arcs_cmdline[CL_SIZE];
 
 extern unsigned long gt64240_base;
 extern unsigned long bus_clock;

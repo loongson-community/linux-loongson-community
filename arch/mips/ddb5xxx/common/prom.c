@@ -18,8 +18,6 @@
 #include <asm/ddb5xxx/ddb5xxx.h>
 #include <asm/debug.h>
 
-char arcs_cmdline[CL_SIZE];
-
 const char *get_system_type(void)
 {
 	switch (mips_machtype) {
@@ -43,8 +41,11 @@ void __init prom_init(void)
 	char **arg = (char**) fw_arg1;
 	int i;
 
+	/* if user passes kernel args, ignore the default one */
+	if (argc > 1)
+		arcs_cmdline[0] = '\0';
+
 	/* arg[0] is "g", the rest is boot parameters */
-	arcs_cmdline[0] = '\0';
 	for (i = 1; i < argc; i++) {
 		if (strlen(arcs_cmdline) + strlen(arg[i] + 1)
 		    >= sizeof(arcs_cmdline))
@@ -52,9 +53,6 @@ void __init prom_init(void)
 		strcat(arcs_cmdline, arg[i]);
 		strcat(arcs_cmdline, " ");
 	}
-
-	/* by default all these boards use dhcp/nfs root fs */
-	strcat(arcs_cmdline, "ip=bootp");
 
 	mips_machgroup = MACH_GROUP_NEC_DDB;
 

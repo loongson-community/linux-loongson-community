@@ -13,8 +13,6 @@
 
 #undef PROM_DEBUG
 
-char arcs_cmdline[CL_SIZE];
-
 void __init prom_init_cmdline(s32 argc, s32 *argv, u32 magic)
 {
 	char *arg;

@@ -50,7 +50,6 @@ typedef struct {
 
 int prom_argc;
 char **prom_argv, **prom_envp;
-char arcs_cmdline[CL_SIZE];
 
 int init_debug = 0;
 

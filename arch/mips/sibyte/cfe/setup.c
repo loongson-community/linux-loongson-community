@@ -51,11 +51,6 @@ phys_t board_mem_region_addrs[SIBYTE_MAX_MEM_REGIONS];
 phys_t board_mem_region_sizes[SIBYTE_MAX_MEM_REGIONS];
 unsigned int board_mem_region_count;
 
-/* This is the kernel command line.  Actually, it's
-   copied, eventually, to command_line, and looks to be
-   quite redundant.  But not something to fix just now */
-extern char arcs_cmdline[];
-
 int cfe_cons_handle;
 
 #ifdef CONFIG_BLK_DEV_INITRD

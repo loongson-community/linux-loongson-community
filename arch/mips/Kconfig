@@ -1448,6 +1448,16 @@ config CROSSCOMPILE
 	  Say Y here if you are compiling the kernel on a different
 	  architecture than the one it is intended to run on.
 
+config CMDLINE
+	string "Default kernel command string"
+	default ""
+	help
+          On some platforms, there is currently no way for the boot loader to
+          pass arguments to the kernel. For these platforms, you can supply
+          some command-line options at build time by entering them here.  In
+          other cases you can specify kernel args so that you don't have
+	  to set them up in board prom initialization routines.
+
 config DEBUG_KERNEL
 	bool "Kernel debugging"
 

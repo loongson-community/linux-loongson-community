@@ -22,8 +22,6 @@
 #include <asm/mipsregs.h>
 #include <asm/vr41xx/vr41xx.h>
 
-char arcs_cmdline[CL_SIZE];
-
 const char *get_system_type(void)
 {
 	return "Victor MP-C303/304";

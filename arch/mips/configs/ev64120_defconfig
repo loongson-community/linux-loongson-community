@@ -595,6 +595,7 @@ CONFIG_MSDOS_PARTITION=y
 # Kernel hacking
 #
 CONFIG_CROSSCOMPILE=y
+CONFIG_CMDLINE="console=ttyS0,115200 root=/dev/nfs rw nfsroot=192.168.1.1:/mnt/disk2/fs.gal ip=192.168.1.211:192.168.1.1:::gt::"
 # CONFIG_DEBUG_KERNEL is not set
 
 #

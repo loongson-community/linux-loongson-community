@@ -31,7 +31,7 @@ extern void cobalt_machine_power_off(void);
 
 int cobalt_board_id;
 
-char arcs_cmdline[CL_SIZE] = {
+static char my_cmdline[CL_SIZE] = {
  "console=ttyS0,115200 "
 #ifdef CONFIG_IP_PNP
  "ip=on "
@@ -136,6 +136,8 @@ early_initcall(cobalt_setup);
 void __init prom_init(void)
 {
 	int argc = fw_arg0;
+
+	strcpy(arcs_cmdline, my_cmdline);
 
 	mips_machgroup = MACH_GROUP_COBALT;
 

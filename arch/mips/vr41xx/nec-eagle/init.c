@@ -44,8 +44,6 @@
 
 #include <asm/bootinfo.h>
 
-char arcs_cmdline[CL_SIZE];
-
 const char *get_system_type(void)
 {
 	return "NEC Eagle/Hawk";

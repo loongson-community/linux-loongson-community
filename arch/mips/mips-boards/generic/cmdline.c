@@ -31,8 +31,6 @@ extern int *_prom_argv;
  */
 #define prom_argv(index) ((char *)(long)_prom_argv[(index)])
 
-char arcs_cmdline[CL_SIZE];
-
 char * __init prom_getcmdline(void)
 {
 	return &(arcs_cmdline[0]);

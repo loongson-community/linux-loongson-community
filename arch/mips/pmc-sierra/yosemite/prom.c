@@ -34,7 +34,6 @@ struct callvectors {
 };
 
 struct callvectors* debug_vectors;
-char arcs_cmdline[CL_SIZE];
 
 extern unsigned long yosemite_base;
 extern unsigned long cpu_clock;

@@ -36,12 +36,6 @@
 #include <asm/cpu.h>
 #include <asm/tx4927/tx4927.h>
 
-#ifndef COMMAND_LINE_SIZE
-#define COMMAND_LINE_SIZE CL_SIZE
-#endif
-
-char arcs_cmdline[COMMAND_LINE_SIZE] = "console=ttyS0,38400 ip=any root=nfs rw";
-
 void __init prom_init_cmdline(void)
 {
 	int argc = (int) fw_arg0;

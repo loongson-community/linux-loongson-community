@@ -84,8 +84,6 @@ static void setup_prom_vectors(void)
 	prom_printf("prom vectors set up\n");
 }
 
-char arcs_cmdline[CL_SIZE];
-
 static struct at93c_defs at93c_defs[N_MACHTYPES] = {
 	{(void *)AT93C_REG_100, (void *)AT93C_RDATA_REG_100, AT93C_RDATA_SHIFT_100,
 	AT93C_WDATA_SHIFT_100, AT93C_CS_M_100, AT93C_CLK_M_100},

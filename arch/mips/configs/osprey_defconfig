@@ -545,6 +545,7 @@ CONFIG_MSDOS_PARTITION=y
 # Kernel hacking
 #
 CONFIG_CROSSCOMPILE=y
+CONFIG_CMDLINE="ip=bootp ether=46,0x03fe0300,eth0"
 # CONFIG_DEBUG_KERNEL is not set
 
 #

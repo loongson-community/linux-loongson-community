@@ -17,8 +17,6 @@
 const char CommandLine[] = Delimiter
   "root=/dev/hda3                                                                                                                                                                                                                                            ";
 
-char arcs_cmdline[CL_SIZE];
-
 void __init prom_init(void)
 {
 	ulong mem_size = get_mem_avail();

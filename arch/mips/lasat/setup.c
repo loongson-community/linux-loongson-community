@@ -54,8 +54,6 @@
 int lasat_command_line = 0;
 void lasatint_init(void);
 
-extern char arcs_cmdline[CL_SIZE];
-
 extern void lasat_reboot_setup(void);
 extern void pcisetup(void);
 extern void edhac_init(void *, void *, void *);

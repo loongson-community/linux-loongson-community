@@ -27,8 +27,6 @@
 #include <asm/bootinfo.h>
 #include <asm/reboot.h>
 
-extern char arcs_cmdline[];
-
 #ifdef CONFIG_EMBEDDED_RAMDISK
 /* These are symbols defined by the ramdisk linker script */
 extern unsigned char __rd_start;
