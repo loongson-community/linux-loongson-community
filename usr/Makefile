@@ -30,3 +30,4 @@ $(obj)/initramfs_data.cpio.gz: $(obj)/initramfs_data.cpio FORCE
 
 targets += initramfs_data.cpio.gz
 
+clean-files := initramfs_data.S
