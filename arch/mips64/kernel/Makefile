@@ -18,6 +18,8 @@ obj-$(CONFIG_MIPS32_N32)	+= binfmt_elfn32.o scall_n32.o
 obj-$(CONFIG_MIPS32_O32)	+= binfmt_elfo32.o scall_o32.o
 obj-$(CONFIG_SMP)		+= smp.o
 
+obj-$(CONFIG_KGDB)		+= gdb-low.o gdb-stub.o
+
 ifndef CONFIG_MAPPED_DMA_IO
 obj-y				+= pci-dma.o
 endif
