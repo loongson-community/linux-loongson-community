@@ -91,6 +91,8 @@ LEAF(lazy_fpu_switch)
 	fpu_save_16even a0 t1			# clobbers t1
 2:
 
+	beqz	a1, 3f
+
 	sll	t0, t0, 5			# load new fp state
 	bgez	t0, 1f
 	 ldc1	$f0, (THREAD_FPU + 0x00)($28)
@@ -98,6 +100,7 @@ LEAF(lazy_fpu_switch)
 1:
 	.set	reorder
 	fpu_restore_16even $28, t0		# clobbers t0
+3:
 	jr	ra
 	END(lazy_fpu_switch)
 

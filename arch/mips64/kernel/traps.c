@@ -350,8 +350,9 @@ void do_cpu(struct pt_regs *regs)
 		return;
 
 	if (current->used_math) {		/* Using the FPU again.  */
-		lazy_fpu_switch(last_task_used_math);
+		lazy_fpu_switch(last_task_used_math, current);
 	} else {				/* First time FPU user.  */
+		lazy_fpu_switch(last_task_used_math, 0);
 		init_fpu();
 		current->used_math = 1;
 	}
