@@ -77,10 +77,6 @@ static void __init cobalt_timer_setup(struct irqaction *irq)
 	*((volatile unsigned long *) GALILEO_CPU_MASK) = (unsigned long) 0x00000100;
 }
 
-int cobalt_serial_present;
-int cobalt_serial_type;
-int cobalt_is_raq;
-
 void __init cobalt_setup(void)
 {
 
@@ -103,14 +99,6 @@ void __init cobalt_setup(void)
 	 *  get to the stage of setting up a real serial console.
 	 */
 	/*ns16550_setup_console();*/
-
-	/* We have to do this early, here, before the value could
-	 * possibly be overwritten by the bootup sequence.
-	 */
-	cobalt_serial_present = *((unsigned long *) 0xa020001c);
-	cobalt_serial_type    = *((unsigned long *) 0xa0200020);
-	cobalt_is_raq         = (cobalt_serial_present != 0x0
-				 && cobalt_serial_type == 0x1);
 }
 
 /* Prom init. We read our one and only communication with the
