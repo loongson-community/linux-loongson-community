@@ -39,7 +39,7 @@
 
 struct hpc_chunk {
 	struct hpc_dma_desc desc;
-	unsigned long padding;
+	u32 _padding;	/* align to quadword boundary */
 };
 
 struct Scsi_Host *sgiwd93_host = NULL;
