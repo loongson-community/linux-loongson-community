@@ -2,8 +2,6 @@
 # Makefile for the Linux/MIPS-specific parts of the memory manager.
 #
 
-obj-y				+= init.o
-
 obj-$(CONFIG_CPU_TX49XX)	+= tlbex-r4k.o
 obj-$(CONFIG_CPU_R4300)		+= tlbex-r4k.o
 obj-$(CONFIG_CPU_R4X00)		+= tlbex-r4k.o

@@ -99,10 +99,8 @@ static void __init kmap_init(void)
 	kmap_prot = PAGE_KERNEL;
 }
 
-#endif /* CONFIG_HIGHMEM */
-
-#ifdef CONFIG_HIGHMEM
-static void __init fixrange_init (unsigned long start, unsigned long end,
+#ifdef CONFIG_MIPS64
+static void __init fixrange_init(unsigned long start, unsigned long end,
 	pgd_t *pgd_base)
 {
 	pgd_t *pgd;
@@ -130,10 +128,10 @@ static void __init fixrange_init (unsigned long start, unsigned long end,
 		j = 0;
 	}
 }
-#endif
+#endif /* CONFIG_MIPS64 */
+#endif /* CONFIG_HIGHMEM */
 
 #ifndef CONFIG_DISCONTIGMEM
-
 extern void pagetable_init(void);
 
 void __init paging_init(void)
@@ -166,7 +164,7 @@ void __init paging_init(void)
 		printk(KERN_WARNING "This processor doesn't support highmem.");
 		if (high - low)
 			printk(" %dk highmem ignored", high - low);
-			printk("\n");
+		printk("\n");
 	} else
 		zones_size[ZONE_HIGHMEM] = high - low;
 #endif
@@ -263,10 +261,11 @@ void __init mem_init(void)
 #ifdef CONFIG_BLK_DEV_INITRD
 void free_initrd_mem(unsigned long start, unsigned long end)
 {
+#ifdef CONFIG_MIPS64
 	/* Switch from KSEG0 to XKPHYS addresses */
 	start = (unsigned long)phys_to_virt(CPHYSADDR(start));
 	end = (unsigned long)phys_to_virt(CPHYSADDR(end));
-
+#endif
 	if (start < end)
 		printk(KERN_INFO "Freeing initrd memory: %ldk freed\n",
 		       (end - start) >> 10);
@@ -290,7 +289,11 @@ void free_initmem(void)
 
 	addr = (unsigned long) &__init_begin;
 	while (addr < (unsigned long) &__init_end) {
+#ifdef CONFIG_MIPS64
 		page = PAGE_OFFSET | CPHYSADDR(addr);
+#else
+		page = addr;
+#endif
 		ClearPageReserved(virt_to_page(page));
 		set_page_count(virt_to_page(page), 1);
 		free_page(page);
