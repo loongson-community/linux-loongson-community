@@ -55,11 +55,11 @@ int rm7k_tcache_enabled = 0;
 static inline void invalidate_tcache_page(unsigned long addr)
 {
 	__asm__ __volatile__(
-		".set noreorder\n\t"
-		".set mips3\n\t"
-		"cache %1, (%0)\n\t"
-		".set mips0\n\t"
-		".set reorder"
+		".set\tnoreorder\t\t\t# invalidate_tcache_page\n\t"
+		".set\tmips3\n\t"
+		"cache\t%1, (%0)\n\t"
+		".set\tmips0\n\t"
+		".set\treorder"
 		:
 		: "r" (addr),
 		  "i" (Page_Invalidate_T));
@@ -489,25 +489,25 @@ void update_mmu_cache(struct vm_area_struct * vma,
 void show_regs(struct pt_regs * regs)
 {
 	/* Saved main processor registers. */
-	printk("$0 : %08lx %08lx %08lx %08lx\n",
+	printk(KERN_INFO "$0 : %08lx %08lx %08lx %08lx\n",
 	       0UL, regs->regs[1], regs->regs[2], regs->regs[3]);
-	printk("$4 : %08lx %08lx %08lx %08lx\n",
+	printk(KERN_INFO "$4 : %08lx %08lx %08lx %08lx\n",
                regs->regs[4], regs->regs[5], regs->regs[6], regs->regs[7]);
-	printk("$8 : %08lx %08lx %08lx %08lx\n",
+	printk(KERN_INFO "$8 : %08lx %08lx %08lx %08lx\n",
 	       regs->regs[8], regs->regs[9], regs->regs[10], regs->regs[11]);
-	printk("$12: %08lx %08lx %08lx %08lx\n",
+	printk(KERN_INFO "$12: %08lx %08lx %08lx %08lx\n",
                regs->regs[12], regs->regs[13], regs->regs[14], regs->regs[15]);
-	printk("$16: %08lx %08lx %08lx %08lx\n",
+	printk(KERN_INFO "$16: %08lx %08lx %08lx %08lx\n",
 	       regs->regs[16], regs->regs[17], regs->regs[18], regs->regs[19]);
-	printk("$20: %08lx %08lx %08lx %08lx\n",
+	printk(KERN_INFO "$20: %08lx %08lx %08lx %08lx\n",
                regs->regs[20], regs->regs[21], regs->regs[22], regs->regs[23]);
-	printk("$24: %08lx %08lx\n",
+	printk(KERN_INFO "$24: %08lx %08lx\n",
 	       regs->regs[24], regs->regs[25]);
-	printk("$28: %08lx %08lx %08lx %08lx\n",
+	printk(KERN_INFO "$28: %08lx %08lx %08lx %08lx\n",
 	       regs->regs[28], regs->regs[29], regs->regs[30], regs->regs[31]);
 
 	/* Saved cp0 registers. */
-	printk("epc   : %08lx\nStatus: %08lx\nCause : %08lx\n",
+	printk(KERN_INFO "epc   : %08lx\nStatus: %08lx\nCause : %08lx\n",
 	       regs->cp0_epc, regs->cp0_status, regs->cp0_cause);
 }
 
@@ -593,14 +593,14 @@ static inline void probe_icache(unsigned long config)
 {
 	icache_size = 1 << (12 + ((config >> 9) & 7));
 
-	printk("Primary instruction cache %dKiB.\n", icache_size >> 10);
+	printk(KERN_INFO "Primary instruction cache %dKiB.\n", icache_size >> 10);
 }
 
 static inline void probe_dcache(unsigned long config)
 {
 	dcache_size = 1 << (12 + ((config >> 6) & 7));
 
-	printk("Primary data cache %dKiB.\n", dcache_size >> 10);
+	printk(KERN_INFO "Primary data cache %dKiB.\n", dcache_size >> 10);
 }
 
 
@@ -618,10 +618,8 @@ static inline void probe_dcache(unsigned long config)
  * following DaveM's lead in r4xx0.c
  *
  * It seems we get our kicks from relying on unguaranteed behaviour in GCC
- *
  */
-
-static void setup_scache(void)
+static __init void setup_scache(void)
 {
 	int register i;
 	
@@ -646,18 +644,18 @@ static void setup_scache(void)
 
 static inline void probe_scache(unsigned long config)
 {
-	int (*func)(void)=KSEG1ADDR(&setup_scache);
+	void (*func)(void) = KSEG1ADDR(&setup_scache);
 
 	if ((config >> 31) & 1)
 		return;
 
-	printk("Secondary cache %dKiB, linesize %d bytes.\n",
+	printk(KERN_INFO "Secondary cache %dKiB, linesize %d bytes.\n",
 	       (scache_size >> 10), sc_lsize);
 
 	if ((config >> 3) & 1)
 		return;
 
-	printk("Enabling secondary cache...");
+	printk(KERN_INFO "Enabling secondary cache...");
 	func();
 	printk("Done\n");
 }
@@ -676,7 +674,8 @@ static inline void probe_tcache(unsigned long config)
 	 * it, and may specify the size of the L3 cache so we don't have
 	 * to probe it. 
 	 */
-	printk("Tertiary cache present, %s enabled\n", config&(1<<12)?"already":"not (yet)");
+	printk(KERN_INFO "Tertiary cache present, %s enabled\n",
+	       config&(1<<12) ? "already" : "not (yet)");
 
 	if ((config >> 12) & 1)
 		rm7k_tcache_enabled = 1;
@@ -685,10 +684,40 @@ static inline void probe_tcache(unsigned long config)
 void __init ld_mmu_rm7k(void)
 {
 	unsigned long config = read_32bit_cp0_register(CP0_CONFIG);
+	unsigned long addr;
 
 	printk("CPU revision is: %08x\n", read_32bit_cp0_register(CP0_PRID));
 
+        change_cp0_config(CONF_CM_CMASK, CONF_CM_UNCACHED);
+
+	/* RM7000 erratum #31. The icache is screwed at startup. */
+	set_taglo(0);
+	set_taghi(0);
+	for (addr = KSEG0; addr <= KSEG0 + 4096; addr += ic_lsize) {
+		__asm__ __volatile__ (
+			".set noreorder\n\t"
+			".set mips3\n\t"
+			"cache\t%1, 0(%0)\n\t"
+			"cache\t%1, 0x1000(%0)\n\t"
+			"cache\t%1, 0x2000(%0)\n\t"
+			"cache\t%1, 0x3000(%0)\n\t"
+			"cache\t%2, 0(%0)\n\t"
+			"cache\t%2, 0x1000(%0)\n\t"
+			"cache\t%2, 0x2000(%0)\n\t"
+			"cache\t%2, 0x3000(%0)\n\t"
+			"cache\t%1, 0(%0)\n\t"
+			"cache\t%1, 0x1000(%0)\n\t"
+			"cache\t%1, 0x2000(%0)\n\t"
+			"cache\t%1, 0x3000(%0)\n\t"
+			".set\tmips0\n\t"
+			".set\treorder\n\t"
+			:
+			: "r" (addr), "i" (Index_Store_Tag_I), "i" (Fill));
+	}
+
+#ifndef CONFIG_MIPS_UNCACHED
 	change_cp0_config(CONF_CM_CMASK, CONF_CM_CACHABLE_NONCOHERENT);
+#endif
 
 	probe_icache(config);
 	probe_dcache(config);
