@@ -164,7 +164,7 @@ static inline void volume_down_button(unsigned long data)
 
 static void panel_int(int irq, void *dev_id, struct pt_regs *regs)
 {
-	unsigned char buttons;
+	unsigned int buttons;
 
 	buttons = sgioc->panel;
 	sgioc->panel = SGIOC_PANEL_POWERON | SGIOC_PANEL_POWERINTR;
