@@ -40,7 +40,7 @@ static char *arcs_mtypes[8] = {
 	"Free/Contig RAM",
 	"Generic Free RAM",
 	"Bad Memory",
-	"Standlone Program Pages",
+	"Standalone Program Pages",
 	"ARCS Temp Storage Area",
 	"ARCS Permanent Storage Area"
 };
