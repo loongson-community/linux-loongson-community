@@ -19,14 +19,25 @@
 #include <asm/stackframe.h>
 #include <asm/war.h>
 
+#define PANIC_PIC(msg)					\
+		.set push;				\
+		.set	reorder;			\
+		PTR_LA	a0,8f;				\
+		.set	noat;				\
+		PTR_LA	AT, panic;			\
+		jr	AT;				\
+9:		b	9b;				\
+		.set	pop;				\
+		TEXT(msg)
+
 	__INIT
 
 NESTED(except_vec0_generic, 0, sp)
-	PANIC("Exception vector 0 called")
+	PANIC_PIC("Exception vector 0 called")
 	END(except_vec0_generic)
 
 NESTED(except_vec1_generic, 0, sp)
-	PANIC("Exception vector 1 called")
+	PANIC_PIC("Exception vector 1 called")
 	END(except_vec1_generic)
 
 /*
