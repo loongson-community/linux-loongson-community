@@ -16,6 +16,8 @@
 #define linux_logo_banner "Linux/MIPS version " UTS_RELEASE
 #define LINUX_LOGO_COLORS 212
 
+#define __HAVE_ARCH_LINUX_LOGO
+
 #ifdef INCLUDE_LINUX_LOGO_DATA
 unsigned char linux_logo_red[] __initdata = {
   0x03, 0x82, 0xE9, 0xBF, 0x42, 0xC9, 0x7E, 0xC0,
