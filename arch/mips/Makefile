@@ -29,9 +29,11 @@ endif
 
 ifdef CONFIG_MIPS32
 tool-prefix		= $(32bit-tool-prefix)
+UTS_MACHINE		:= mips
 endif
 ifdef CONFIG_MIPS64
 tool-prefix		= $(64bit-tool-prefix)
+UTS_MACHINE		:= mips64
 endif
 
 ifdef CONFIG_CROSSCOMPILE
