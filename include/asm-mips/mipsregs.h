@@ -797,6 +797,24 @@ do {									\
 #define read_c0_framemask()	__read_32bit_c0_register($21, 0)
 #define write_c0_framemask(val)	__write_32bit_c0_register($21, 0, val)
 
+#define read_c0_diag()		__read_32bit_c0_register($22, 0)
+#define write_c0_diag(val)	__write_32bit_c0_register($22, 0, val)
+
+#define read_c0_diag1()		__read_32bit_c0_register($22, 1)
+#define write_c0_diag1(val)	__write_32bit_c0_register($22, 1, val)
+
+#define read_c0_diag2()		__read_32bit_c0_register($22, 2)
+#define write_c0_diag2(val)	__write_32bit_c0_register($22, 2, val)
+
+#define read_c0_diag3()		__read_32bit_c0_register($22, 3)
+#define write_c0_diag3(val)	__write_32bit_c0_register($22, 3, val)
+
+#define read_c0_diag4()		__read_32bit_c0_register($22, 4)
+#define write_c0_diag4(val)	__write_32bit_c0_register($22, 4, val)
+
+#define read_c0_diag5()		__read_32bit_c0_register($22, 5)
+#define write_c0_diag5(val)	__write_32bit_c0_register($22, 5, val)
+
 #define read_c0_debug()		__read_32bit_c0_register($23, 0)
 #define write_c0_debug(val)	__write_32bit_c0_register($23, 0, val)
 
