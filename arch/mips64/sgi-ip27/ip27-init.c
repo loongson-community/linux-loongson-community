@@ -221,7 +221,11 @@ void mlreset (void)
 		 * thinks it is a node 0 address.
 		 */
 		REMOTE_HUB_S(nasid, PI_REGION_PRESENT, (region_mask | 1));
+#ifdef CONFIG_REPLICATE_EXHANDLERS
+		REMOTE_HUB_S(nasid, PI_CALIAS_SIZE, PI_CALIAS_SIZE_8K);
+#else
 		REMOTE_HUB_S(nasid, PI_CALIAS_SIZE, PI_CALIAS_SIZE_0);
+#endif
 
 #ifdef LATER
 		/*
@@ -301,6 +305,27 @@ void per_hub_init(cnodeid_t cnode)
 	if (!done) {
 		hub_rtc_init(cnode);
 		pcibr_setup(cnode); 
+#ifdef CONFIG_REPLICATE_EXHANDLERS
+		/*
+		 * If this is not a headless node initialization, 
+		 * copy over the caliased exception handlers.
+		 */
+		if (get_compact_nodeid() == cnode) {
+			extern char except_vec0, except_vec1_r10k;
+			extern char except_vec2_generic, except_vec3_generic;
+
+			memcpy((void *)(KSEG0 + 0x100), &except_vec2_generic,
+								0x80);
+			memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic,
+								0x80);
+			memcpy((void *)KSEG0, &except_vec0, 0x80);
+			memcpy((void *)KSEG0 + 0x080, &except_vec1_r10k, 0x80);
+			memcpy((void *)(KSEG0 + 0x100), (void *) KSEG0, 0x80);
+			memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic,
+								0x100);
+			flush_cache_all();
+		}
+#endif
 	}
 }
 
