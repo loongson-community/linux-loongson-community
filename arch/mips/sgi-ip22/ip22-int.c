@@ -307,7 +307,6 @@ static struct irqaction map1_cascade =
 
 extern int setup_irq(unsigned int irq, struct irqaction *irqaction);
 extern void mips_cpu_irq_init(u32 irq_base);
-extern void init_generic_irq(void);
 	
 void __init init_IRQ(void)
 {

@@ -82,7 +82,6 @@ void enable_it8172_irq(unsigned int irq_nr);
 extern void set_debug_traps(void);
 extern void mips_timer_interrupt(int irq, struct pt_regs *regs);
 extern asmlinkage void it8172_IRQ(void);
-extern void init_generic_irq(void);
 
 struct it8172_intc_regs volatile *it8172_hw0_icregs
 	= (struct it8172_intc_regs volatile *)(KSEG1ADDR(IT8172_PCI_IO_BASE + IT_INTC_BASE));

@@ -16,8 +16,6 @@
 
 void (*irq_setup)(void);
 
-extern void init_generic_irq(void);
-
 void __init init_IRQ(void)
 {
 #ifdef CONFIG_REMOTE_DEBUG

@@ -85,7 +85,6 @@ inline void local_enable_irq(unsigned int irq_nr);
 inline void local_disable_irq(unsigned int irq_nr);
 
 extern unsigned int do_IRQ(int irq, struct pt_regs *regs);
-extern void __init init_generic_irq(void);
 
 #ifdef CONFIG_PM
 extern void counter0_irq(int irq, void *dev_id, struct pt_regs *regs);

@@ -194,7 +194,6 @@ void irq_bad(struct pt_regs *regs)
 void __init nino_irq_setup(void)
 {
 	extern asmlinkage void ninoIRQ(void);
-	extern void init_generic_irq(void);
 
 	unsigned int i;
 
