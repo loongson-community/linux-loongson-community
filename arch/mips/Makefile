@@ -568,6 +568,7 @@ load-$(CONFIG_SIBYTE_SWARM)	:= 0x80100000
 # SNI RM200 PCI
 #
 core-$(CONFIG_SNI_RM200_PCI)	+= arch/mips/sni/
+cflags-$(CONFIG_SNI_RM200_PCI)	+= -Iinclude/asm-mips/mach-rm200
 load-$(CONFIG_SNI_RM200_PCI)	+= 0x80600000
 
 #
