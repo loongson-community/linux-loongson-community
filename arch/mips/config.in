@@ -390,12 +390,9 @@ if [ "$CONFIG_CD_NO_IDESCSI" != "n" ]; then
 fi
 endmenu
 
-if [ "$CONFIG_DECSTATION" != "y" -a \
-     "$CONFIG_SGI_IP22" != "y" ]; then
-   source drivers/char/Config.in
+source drivers/char/Config.in
 
-   source drivers/media/Config.in
-fi
+source drivers/media/Config.in
 
 if [ "$CONFIG_DECSTATION" = "y" ]; then
    mainmenu_option next_comment
