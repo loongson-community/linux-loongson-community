@@ -346,12 +346,10 @@ static int titan_ge_change_mtu(struct net_device *netdev, int new_mtu)
 	titan_ge_port_info *titan_ge_eth = netdev_priv(netdev);
 	unsigned long flags;
 
-	spin_lock_irqsave(&titan_ge_eth->lock, flags);
-
-	if ((new_mtu > 9500) || (new_mtu < 64)) {
-		spin_unlock_irqrestore(&titan_ge_eth->lock, flags);
+	if ((new_mtu > 9500) || (new_mtu < 64))
 		return -EINVAL;
-	}
+
+	spin_lock_irqsave(&titan_ge_eth->lock, flags);
 
 	netdev->mtu = new_mtu;
 
