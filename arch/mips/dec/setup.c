@@ -257,13 +257,13 @@ __initfunc(void dec_init_kn02(void))
 
     dec_interrupt[MEMORY].cpu_mask = IE_IRQ3;
     dec_interrupt[MEMORY].iemask = 0;
-    cpu_mask_tbl[1] = IE_IRQ3;
-    cpu_irq_nr[1] = MEMORY;
+    cpu_mask_tbl[2] = IE_IRQ3;
+    cpu_irq_nr[2] = MEMORY;
 
     dec_interrupt[FPU].cpu_mask = IE_IRQ5;
     dec_interrupt[FPU].iemask = 0;
-    cpu_mask_tbl[2] = IE_IRQ5;
-    cpu_irq_nr[2] = FPU;
+    cpu_mask_tbl[3] = IE_IRQ5;
+    cpu_irq_nr[3] = FPU;
 
 }				/* dec_init_kn02 */
 

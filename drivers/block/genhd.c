@@ -1224,6 +1224,7 @@ static int ultrix_partition(struct gendisk *hd, kdev_t dev, unsigned long first_
 					      label->pt_part[i].pi_blkoff,
 					      label->pt_part[i].pi_nblocks);
 		brelse(bh);
+		printk ("\n");
 		return 1;
 	} else {
 		brelse(bh);

@@ -1401,7 +1401,7 @@ __initfunc(int dz_init(void))
 static void dz_console_put_char (unsigned char ch)
 {
   long flags;
-  int  loops = 1000;
+  int  loops = 2500;
   unsigned short tmp = ch;
   /* this code sends stuff out to serial device - spinning its
       wheels and waiting. */
@@ -1513,7 +1513,10 @@ __initfunc(static int dz_console_setup(struct console *co, char *options))
 
 	/* TOFIX: force to console line */
 	dz_console = &multi[CONSOLE_LINE];
+    	if ((mips_machtype == MACH_DS23100) || (mips_machtype == MACH_DS5100)) 
 	dz_console->port = KN01_DZ11_BASE;
+       	else 
+       		dz_console->port = KN02_DZ11_BASE; 
 	dz_console->line = CONSOLE_LINE;
 
 	dz_out(dz_console, DZ_CSR, DZ_CLR);
@@ -1541,7 +1544,10 @@ __initfunc(static int dz_console_setup(struct console *co, char *options))
 
 	/* TOFIX: force to console line */
 	dz_console = &multi[CONSOLE_LINE];
+    	if ((mips_machtype == MACH_DS23100) || (mips_machtype == MACH_DS5100)) 
 	dz_console->port = KN01_DZ11_BASE;
+       	else 
+       		dz_console->port = KN02_DZ11_BASE; 
 	dz_console->line = CONSOLE_LINE;
 
 	dz_out(dz_console, DZ_CSR, DZ_CLR);

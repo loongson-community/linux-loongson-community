@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.14 1999/01/27 23:59:02 ralf Exp $
+# $Id: Makefile,v 1.16 1999/02/09 23:11:30 adevries Exp $
 #
 # This file is subject to the terms and conditions of the GNU General Public
 # License.  See the file "COPYING" in the main directory of this archive
@@ -173,7 +173,16 @@ HEAD := arch/mips/kernel/head.o arch/mips/kernel/init_task.o
 
 SUBDIRS := $(SUBDIRS) $(addprefix arch/mips/, kernel mm lib tools)
 CORE_FILES := arch/mips/kernel/kernel.o arch/mips/mm/mm.o $(CORE_FILES)
-LIBS := arch/mips/lib/lib.a $(LIBS) arch/mips/lib/lib.a
+LIBS := arch/mips/lib/lib.a $(LIBS)
+
+ifdef CONFIG_BAGET_MIPS
+
+BAGETBOOT = $(MAKE) -C arch/$(ARCH)/baget
+
+balo:  vmlinux
+	$(BAGETBOOT) balo
+
+endif
 
 MAKEBOOT = $(MAKE) -C arch/$(ARCH)/boot
 

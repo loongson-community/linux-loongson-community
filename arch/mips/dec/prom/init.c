@@ -85,6 +85,9 @@ __initfunc(int prom_init(int argc, char **argv,
 	/* Determine which PROM's we have (and therefore which machine we're on!) */
 	which_prom(magic, prom_vec);
 
+	if (magic == REX_PROM_MAGIC)
+		rex_clear_cache();
+
 	prom_meminit(magic);
 	prom_identify_arch(magic);
 	prom_init_cmdline(argc, argv, magic);
