@@ -148,6 +148,24 @@ static unsigned long cycles_per_jiffy=0;
 /* Cycle counter value at the previous timer interrupt.. */
 static unsigned int timerhi, timerlo;
 
+/* 
+ * Cycle counter value after which next timer interrupt is considered "missed".
+ * Suppose we are serving timer interrupt scheduled at time t, the theorectical 
+ * expiriing point for next interrupt is t + 2 * cycles_per_jiffy.
+ * In practice, we set it a little earlier, which is 
+ * 	t + 2 * cycles_per_jiffy - EXTRA_CUSHION_CYCLES
+ * just to make sure we still have some time to set registers after we
+ * decide whether a timer interrupt is missed.
+ */
+static unsigned int expirehi, expirelo;
+
+/* 
+ * extra "cushion" cycles used when we decide whether we have missed an
+ * timer interrupt (in the case of using cpu counter).  It should be long
+ * enough to cover at least 20 instructions.
+ */
+#define	EXTRA_CUSHION_CYCLES	200
+
 /* last time when xtime and rtc are sync'ed up */
 static long last_rtc_update;
 
@@ -338,6 +356,15 @@ void local_timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
  * high-level timer interrupt service routines.  This function
  * is set as irqaction->handler and is invoked through do_IRQ.
  */
+static inline int 
+bit64_compare(unsigned hi1, unsigned lo1, unsigned hi2, unsigned lo2)
+{
+	if (hi1 == hi2) 
+		return lo1 - lo2;
+	else 
+		return hi1 - hi2;
+}
+
 void timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	if (cpu_has_counter) {
@@ -348,17 +375,22 @@ void timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		 * a minute at current count rates of upto 150MHz or so.
 		 */
 		count = read_c0_count();
-		timerhi += (count < timerlo);   /* Wrap around */
+		timerhi += count < timerlo;	/* Wrap around */
 		timerlo = count;
 
-		/*
-		 * set up for next timer interrupt - no harm if the machine
-		 * is using another timer interrupt source.
-		 * Note that writing to COMPARE register clears the interrupt
-		 */
-		write_c0_compare(
-					  count + cycles_per_jiffy);
-
+		/* check to see if we have missed a timer interrupt */
+		if (bit64_compare(timerhi, timerlo, expirehi, expirelo) < 0) {
+			unsigned int old_expirelo=expirelo;
+			expirelo += cycles_per_jiffy;
+			expirehi += expirelo < old_expirelo;
+			write_c0_compare(old_expirelo + EXTRA_CUSHION_CYCLES);
+		} else {
+			// missed_timer_count ++;
+			/* we have missed at least one timer interrupt */
+			expirelo = timerlo + cycles_per_jiffy*2 - EXTRA_CUSHION_CYCLES;
+			expirehi = timerhi + (expirelo < timerlo);
+			write_c0_compare(timerlo + cycles_per_jiffy);
+		}
 	}
 
 	/*
@@ -512,8 +544,6 @@ void __init time_init(void)
 
 	/* caclulate cache parameters */
 	if (mips_counter_frequency) {
-		u32 count;
-
 		cycles_per_jiffy = mips_counter_frequency / HZ;
 
 		/* sll32_usecs_per_cycle = 10^6 * 2^32 / mips_counter_freq */
@@ -526,9 +556,9 @@ void __init time_init(void)
 		 * For those using cpu counter as timer,  this sets up the
 		 * first interrupt
 		 */
-		count = read_c0_count();
-		write_c0_compare(
-					  count + cycles_per_jiffy);
+		write_c0_compare(cycles_per_jiffy);
+		write_c0_count(0);
+		expirelo = cycles_per_jiffy * 2 - EXTRA_CUSHION_CYCLES;
 	}
 
 	/*

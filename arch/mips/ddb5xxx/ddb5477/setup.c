@@ -45,7 +45,7 @@
 #include "lcd44780.h"
 
 
-// #define	USE_CPU_COUNTER_TIMER	/* whether we use cpu counter */
+#define	USE_CPU_COUNTER_TIMER	/* whether we use cpu counter */
 
 #define	SP_TIMER_BASE			DDB_SPT1CTRL_L
 #define	SP_TIMER_IRQ			VRC5477_IRQ_SPT1
@@ -157,10 +157,6 @@ static void __init ddb_timer_setup(struct irqaction *irq)
 
         /* we are using the cpu counter for timer interrupts */
 	setup_irq(CPU_IRQ_BASE + 7, irq);
-
-        /* to generate the first timer interrupt */
-        count = read_c0_count();
-        write_c0_compare(count + 1000);
 
 #else
 
