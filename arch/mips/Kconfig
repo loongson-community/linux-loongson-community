@@ -781,9 +781,9 @@ config BOOT_ELF32
 
 config MIPS_L1_CACHE_SHIFT
 	int
-	default "5"
 	default "4" if DECSTATION
 	default "7" if SGI_IP27
+	default "5"
 
 config ARC32
 	bool
