@@ -10,18 +10,15 @@
  * Free Software Foundation;  either version 2 of the  License, or (at your
  * option) any later version.
  *
+ * Please refer to Documentation/mips/time.README.
  */
-
-/*
- * Please refer to Documentation/MIPS/time.README.
- */
-
 #ifndef _ASM_TIME_H
 #define _ASM_TIME_H
 
-#include <linux/ptrace.h>               /* for struct pt_regs */
-#include <linux/linkage.h>              /* for asmlinkage */
-#include <linux/rtc.h>                  /* for struct rtc_time */
+#include <linux/interrupt.h>
+#include <linux/linkage.h>
+#include <linux/ptrace.h>
+#include <linux/rtc.h>
 
 /*
  * RTC ops.  By default, they point a no-RTC functions.
