@@ -82,7 +82,12 @@ void show_stack(struct task_struct *task, unsigned long *sp)
 	long stackdata;
 	int i;
 
-	sp = sp ? sp : (unsigned long *) &sp;
+	if (!sp) {
+		if (task && task != current)
+			sp = (unsigned long *) task->thread.reg29;
+		else
+			sp = (unsigned long *) &sp;
+	}
 
 	printk("Stack :");
 	i = 0;
@@ -110,8 +115,12 @@ void show_trace(struct task_struct *task, unsigned long *stack)
 	const int field = 2 * sizeof(unsigned long);
 	unsigned long addr;
 
-	if (!stack)
-		stack = (unsigned long*)&stack;
+	if (!stack) {
+		if (task && task != current)
+			stack = (unsigned long *) task->thread.reg29;
+		else
+			stack = (unsigned long *) &stack;
+	}
 
 	printk("Call Trace:");
 #ifdef CONFIG_KALLSYMS
