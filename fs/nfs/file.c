@@ -26,6 +26,7 @@
 #include <linux/malloc.h>
 #include <linux/pagemap.h>
 #include <linux/lockd/bind.h>
+#include <linux/smp_lock.h>
 
 #include <asm/uaccess.h>
 #include <asm/segment.h>
@@ -70,13 +71,13 @@ struct inode_operations nfs_file_inode_operations = {
 	NULL,			/* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow_link */
+	NULL,			/* bmap */
 	nfs_readpage,		/* readpage */
 	nfs_writepage,		/* writepage */
-	NULL,			/* bmap */
+	NULL,			/* flushpage */
 	NULL,			/* truncate */
 	NULL,			/* permission */
 	NULL,			/* smap */
-	NULL,			/* updatepage */
 	nfs_revalidate,		/* revalidate */
 };
 
@@ -172,8 +173,11 @@ static long nfs_write_one_page(struct file *file, struct page *page, unsigned lo
 
 	bytes -= copy_from_user((u8*)page_address(page) + offset, buf, bytes);
 	status = -EFAULT;
-	if (bytes)
+	if (bytes) {
+		lock_kernel();
 		status = nfs_updatepage(file, page, offset, bytes);
+		unlock_kernel();
+	}
 	return status;
 }
 

@@ -1,4 +1,4 @@
-/* $Id: init.c,v 1.12 1999/02/25 21:06:44 tsbogend Exp $
+/* $Id: init.c,v 1.13 1999/05/01 22:40:40 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -132,7 +132,7 @@ static inline unsigned long setup_zero_pages(void)
 	pg = MAP_NR(empty_zero_page);
 	while(pg < MAP_NR(empty_zero_page) + (1 << order)) {
 		set_bit(PG_reserved, &mem_map[pg].flags);
-		atomic_set(&mem_map[pg].count, 0);
+		set_page_count(mem_map + pg, 0);
 		pg++;
 	}
 
@@ -254,10 +254,10 @@ void show_mem(void)
 			reserved++;
 		else if (PageSwapCache(mem_map+i))
 			cached++;
-		else if (!atomic_read(&mem_map[i].count))
+		else if (!page_count(mem_map + i))
 			free++;
 		else
-			shared += atomic_read(&mem_map[i].count) - 1;
+			shared += page_count(mem_map + i) - 1;
 	}
 	printk("%d pages of RAM\n", total);
 	printk("%d reserved pages\n", reserved);
@@ -324,7 +324,7 @@ __initfunc(void mem_init(unsigned long start_mem, unsigned long end_mem))
 			continue;
 		}
 		num_physpages++;
-		atomic_set(&mem_map[MAP_NR(tmp)].count, 1);
+		set_page_count(mem_map + MAP_NR(tmp), 1);
 #ifdef CONFIG_BLK_DEV_INITRD
 		if (!initrd_start || (tmp < initrd_start || tmp >=
 		    initrd_end))
@@ -354,7 +354,7 @@ void free_initmem(void)
 	addr = (unsigned long)(&__init_begin);
 	for (; addr < (unsigned long)(&__init_end); addr += PAGE_SIZE) {
 		mem_map[MAP_NR(addr)].flags &= ~(1 << PG_reserved);
-		atomic_set(&mem_map[MAP_NR(addr)].count, 1);
+		set_page_count(mem_map + MAP_NR(addr), 1);
 		free_page(addr);
 	}
 	printk("Freeing unused kernel memory: %dk freed\n",
@@ -374,9 +374,9 @@ void si_meminfo(struct sysinfo *val)
 		if (PageReserved(mem_map+i))
 			continue;
 		val->totalram++;
-		if (!atomic_read(&mem_map[i].count))
+		if (!page_count(mem_map + i))
 			continue;
-		val->sharedram += atomic_read(&mem_map[i].count) - 1;
+		val->sharedram += page_count(mem_map + i) - 1;
 	}
 	val->totalram <<= PAGE_SHIFT;
 	val->sharedram <<= PAGE_SHIFT;

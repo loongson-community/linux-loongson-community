@@ -106,7 +106,6 @@ EXPORT_SYMBOL(mem_map);
 EXPORT_SYMBOL(remap_page_range);
 EXPORT_SYMBOL(max_mapnr);
 EXPORT_SYMBOL(high_memory);
-EXPORT_SYMBOL(update_vm_cache);
 EXPORT_SYMBOL(vmtruncate);
 EXPORT_SYMBOL(find_vma);
 EXPORT_SYMBOL(get_unmapped_area);
@@ -168,14 +167,12 @@ EXPORT_SYMBOL(add_blkdev_randomness);
 EXPORT_SYMBOL(generic_file_read);
 EXPORT_SYMBOL(generic_file_write);
 EXPORT_SYMBOL(generic_file_mmap);
-EXPORT_SYMBOL(generic_readpage);
 EXPORT_SYMBOL(file_lock_table);
 EXPORT_SYMBOL(posix_lock_file);
 EXPORT_SYMBOL(posix_test_lock);
 EXPORT_SYMBOL(posix_block_lock);
 EXPORT_SYMBOL(posix_unblock_lock);
 EXPORT_SYMBOL(dput);
-EXPORT_SYMBOL(get_cached_page);
 EXPORT_SYMBOL(put_cached_page);
 EXPORT_SYMBOL(is_root_busy);
 EXPORT_SYMBOL(prune_dcache);
@@ -302,10 +299,12 @@ EXPORT_SYMBOL(disable_hlt);
 EXPORT_SYMBOL(enable_hlt);
 #endif
 
-/* IO port handling */
-EXPORT_SYMBOL(check_region);
-EXPORT_SYMBOL(request_region);
-EXPORT_SYMBOL(release_region);
+/* resource handling */
+EXPORT_SYMBOL(check_resource);
+EXPORT_SYMBOL(request_resource);
+EXPORT_SYMBOL(release_resource);
+EXPORT_SYMBOL(occupy_resource);
+EXPORT_SYMBOL(vacate_resource);
 
 /* process management */
 EXPORT_SYMBOL(__wake_up);
@@ -361,7 +360,6 @@ EXPORT_SYMBOL(sys_tz);
 EXPORT_SYMBOL(__wait_on_super);
 EXPORT_SYMBOL(file_fsync);
 EXPORT_SYMBOL(clear_inode);
-EXPORT_SYMBOL(refile_buffer);
 EXPORT_SYMBOL(nr_async_pages);
 EXPORT_SYMBOL(___strtok);
 EXPORT_SYMBOL(init_special_inode);

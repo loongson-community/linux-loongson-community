@@ -1,4 +1,4 @@
-/* $Id: page.h,v 1.5 1998/08/28 23:24:03 tsbogend Exp $
+/* $Id: page.h,v 1.6 1999/01/04 16:09:24 ralf Exp $
  *
  * Definitions for page handling
  *
@@ -6,7 +6,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1994 - 1998 by Ralf Baechle
+ * Copyright (C) 1994 - 1999 by Ralf Baechle
  */
 #ifndef __ASM_MIPS_PAGE_H
 #define __ASM_MIPS_PAGE_H
@@ -21,6 +21,9 @@
 #define STRICT_MM_TYPECHECKS
 
 #ifndef _LANGUAGE_ASSEMBLY
+
+#define BUG() do { printk("kernel BUG at %s:%d!\n", __FILE__, __LINE__); *(int *)0=0; } while (0)
+#define PAGE_BUG(page) do {  BUG(); } while (0)
 
 extern void (*clear_page)(unsigned long page);
 extern void (*copy_page)(unsigned long to, unsigned long from);

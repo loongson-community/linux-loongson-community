@@ -131,10 +131,7 @@ static int check_block_empty(struct inode *inode, struct buffer_head *bh,
 
 	if (bh->b_count == 1) {
 		int tmp;
-		if (ind_bh)
-			tmp = le32_to_cpu(*p);
-		else
-			tmp = *p;
+		tmp = le32_to_cpu(*p);
 		*p = 0;
 		inode->i_blocks -= (inode->i_sb->s_blocksize / 512);
 		mark_inode_dirty(inode);
@@ -160,6 +157,9 @@ out:
 	return retry;
 }
 
+#define DATA_BUFFER_USED(bh) \
+	((bh->b_count > 1) || buffer_locked(bh))
+
 static int trunc_direct (struct inode * inode)
 {
 	struct buffer_head * bh;
@@ -170,7 +170,7 @@ static int trunc_direct (struct inode * inode)
 
 	for (i = direct_block ; i < EXT2_NDIR_BLOCKS ; i++) {
 		u32 * p = inode->u.ext2_i.i_data + i;
-		int tmp = *p;
+		int tmp = le32_to_cpu(*p);
 
 		if (!tmp)
 			continue;
@@ -178,7 +178,7 @@ static int trunc_direct (struct inode * inode)
 		bh = find_buffer(inode->i_dev, tmp, inode->i_sb->s_blocksize);
 		if (bh) {
 			bh->b_count++;
-			if(bh->b_count != 1 || buffer_locked(bh)) {
+			if (DATA_BUFFER_USED(bh)) {
 				brelse(bh);
 				retry = 1;
 				continue;
@@ -215,11 +215,11 @@ static int trunc_indirect (struct inode * inode, int offset, u32 * p,
 	unsigned long block_to_free = 0, free_count = 0;
 	int indirect_block, addr_per_block, blocks;
 
-	tmp = dind_bh ? le32_to_cpu(*p) : *p;
+	tmp = le32_to_cpu(*p);
 	if (!tmp)
 		return 0;
 	ind_bh = bread (inode->i_dev, tmp, inode->i_sb->s_blocksize);
-	if (tmp != (dind_bh ? le32_to_cpu(*p) : *p)) {
+	if (tmp != le32_to_cpu(*p)) {
 		brelse (ind_bh);
 		return 1;
 	}
@@ -255,8 +255,8 @@ static int trunc_indirect (struct inode * inode, int offset, u32 * p,
 		bh = find_buffer(inode->i_dev, tmp, inode->i_sb->s_blocksize);
 		if (bh) {
 			bh->b_count++;
-			if (bh->b_count != 1 || buffer_locked(bh)) {
-				brelse (bh);
+			if (DATA_BUFFER_USED(bh)) {
+				brelse(bh);
 				retry = 1;
 				continue;
 			}
@@ -297,11 +297,11 @@ static int trunc_dindirect (struct inode * inode, int offset, u32 * p,
 	int i, tmp, retry = 0;
 	int dindirect_block, addr_per_block;
 
-	tmp = tind_bh ? le32_to_cpu(*p) : *p;
+	tmp = le32_to_cpu(*p);
 	if (!tmp)
 		return 0;
 	dind_bh = bread (inode->i_dev, tmp, inode->i_sb->s_blocksize);
-	if (tmp != (tind_bh ? le32_to_cpu(*p) : *p)) {
+	if (tmp != le32_to_cpu(*p)) {
 		brelse (dind_bh);
 		return 1;
 	}
@@ -344,10 +344,11 @@ static int trunc_tindirect (struct inode * inode)
 	int i, tmp, retry = 0;
 	int tindirect_block, addr_per_block, offset;
 
-	if (!(tmp = *p))
+	tmp = le32_to_cpu(*p);
+	if (!tmp)
 		return 0;
 	tind_bh = bread (inode->i_dev, tmp, inode->i_sb->s_blocksize);
-	if (tmp != *p) {
+	if (tmp != le32_to_cpu(*p)) {
 		brelse (tind_bh);
 		return 1;
 	}
@@ -384,8 +385,6 @@ static int trunc_tindirect (struct inode * inode)
 		
 void ext2_truncate (struct inode * inode)
 {
-	int err, offset;
-
 	if (!(S_ISREG(inode->i_mode) || S_ISDIR(inode->i_mode) ||
 	    S_ISLNK(inode->i_mode)))
 		return;
@@ -410,25 +409,6 @@ void ext2_truncate (struct inode * inode)
 		run_task_queue(&tq_disk);
 		current->policy |= SCHED_YIELD;
 		schedule();
-	}
-	/*
-	 * If the file is not being truncated to a block boundary, the
-	 * contents of the partial block following the end of the file
-	 * must be zeroed in case it ever becomes accessible again due
-	 * to subsequent file growth.
-	 */
-	offset = inode->i_size & (inode->i_sb->s_blocksize - 1);
-	if (offset) {
-		struct buffer_head * bh;
-		bh = ext2_bread (inode,
-				 inode->i_size >> EXT2_BLOCK_SIZE_BITS(inode->i_sb),
-				 0, &err);
-		if (bh) {
-			memset (bh->b_data + offset, 0,
-				inode->i_sb->s_blocksize - offset);
-			mark_buffer_dirty (bh, 0);
-			brelse (bh);
-		}
 	}
 	inode->i_mtime = inode->i_ctime = CURRENT_TIME;
 	mark_inode_dirty(inode);

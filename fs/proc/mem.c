@@ -298,7 +298,7 @@ int mem_mmap(struct file * file, struct vm_area_struct * vma)
 		set_pte(dest_table, *src_table);
 		mapnr = MAP_NR(pte_page(*src_table));
 		if (mapnr < max_mapnr)
-			atomic_inc(&mem_map[MAP_NR(pte_page(*src_table))].count);
+			get_page(mem_map + MAP_NR(pte_page(*src_table)));
 
 		stmp += PAGE_SIZE;
 		dtmp += PAGE_SIZE;
@@ -336,9 +336,12 @@ struct inode_operations proc_mem_inode_operations = {
 	NULL,			/* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow_link */
+	NULL,			/* bmap */
 	NULL,			/* readpage */
 	NULL,			/* writepage */
-	NULL,			/* bmap */
+	NULL,			/* flushpage */
 	NULL,			/* truncate */
-	proc_permission		/* permission */
+	proc_permission,	/* permission */
+	NULL,			/* smap */
+	NULL			/* revalidate */
 };

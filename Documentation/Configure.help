@@ -7723,13 +7723,6 @@ CONFIG_SMB_FS
   want), say M here and read Documentation/modules.txt. The module
   will be called smbfs.o. Most people say N, however.
 
-SMB Win95 bug work-around
-CONFIG_SMB_WIN95
-  If you want to connect to a share exported by Windows 95, you should
-  say Y here. The Windows 95 server contains a bug that makes listing
-  directories unreliable. This option slows down the listing of
-  directories. This makes the Windows 95 server a bit more stable.
-
 Coda filesystem support
 CONFIG_CODA_FS
   Coda is an advanced network filesystem, similar to NFS in that it
@@ -11355,7 +11348,8 @@ Footbridge Mode
 CONFIG_HOST_FOOTBRIDGE
   The 21285 Footbridge chip can operate in either `host mode' or
   `add-in' mode.  Say Y if your 21285 is in host mode, and therefore
-  is the configuration master, otherwise say N.
+  is the configuration master, otherwise say N.  This must not be
+  set to 'Y' if the card is used in 'add-in' mode.
 
 MFM harddisk support
 CONFIG_BLK_DEV_MFM

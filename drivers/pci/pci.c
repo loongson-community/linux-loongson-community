@@ -47,13 +47,23 @@ pci_find_slot(unsigned int bus, unsigned int devfn)
 struct pci_dev *
 pci_find_device(unsigned int vendor, unsigned int device, struct pci_dev *from)
 {
-	if (!from)
-		from = pci_devices;
-	else
-		from = from->next;
-	while (from && (from->vendor != vendor || from->device != device))
-		from = from->next;
-	return from;
+	struct pci_dev *next;
+
+	next = pci_devices;
+	if (from)
+		next = from->next;
+
+	while (next) {
+		struct pci_dev *dev = next;
+		next = next->next;
+		if (vendor != PCI_ANY_ID && dev->vendor != vendor)
+			continue;
+		if (device != PCI_ANY_ID && dev->device != device)
+			continue;
+
+		return dev;
+	}
+	return NULL;
 }
 
 
@@ -178,10 +188,8 @@ __initfunc(unsigned int pci_scan_bus(struct pci_bus *bus))
 
 		if (pcibios_read_config_dword(bus->number, devfn, PCI_VENDOR_ID, &l) ||
 		    /* some broken boards return 0 if a slot is empty: */
-		    l == 0xffffffff || l == 0x00000000 || l == 0x0000ffff || l == 0xffff0000) {
-			is_multi = 0;
+		    l == 0xffffffff || l == 0x00000000 || l == 0x0000ffff || l == 0xffff0000)
 			continue;
-		}
 
 		dev = kmalloc(sizeof(*dev), GFP_ATOMIC);
 		memset(dev, 0, sizeof(*dev));

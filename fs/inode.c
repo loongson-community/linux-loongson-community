@@ -130,7 +130,6 @@ static inline void init_once(struct inode * inode)
 	INIT_LIST_HEAD(&inode->i_hash);
 	INIT_LIST_HEAD(&inode->i_dentry);
 	sema_init(&inode->i_sem, 1);
-	sema_init(&inode->i_atomic_write, 1);
 }
 
 static inline void write_inode(struct inode *inode)
@@ -337,7 +336,7 @@ int invalidate_inodes(struct super_block * sb)
  *      dispose_list.
  */
 #define CAN_UNUSE(inode) \
-	(((inode)->i_count | (inode)->i_state) == 0)
+	(((inode)->i_count | (inode)->i_state | (inode)->i_nrpages) == 0)
 #define INODE(entry)	(list_entry(entry, struct inode, i_list))
 
 static int free_inodes(void)
@@ -527,6 +526,7 @@ void clean_inode(struct inode *inode)
 	inode->i_generation = 0;
 	memset(&inode->i_dquot, 0, sizeof(inode->i_dquot));
 	sema_init(&inode->i_sem, 1);
+	inode->i_pipe = NULL;
 }
 
 /*
@@ -765,9 +765,6 @@ printk(KERN_ERR "iput: device %s inode %ld count changed, count=%d\n",
 kdevname(inode->i_dev), inode->i_ino, inode->i_count);
 if (atomic_read(&inode->i_sem.count) != 1)
 printk(KERN_ERR "iput: Aieee, semaphore in use inode %s/%ld, count=%d\n",
-kdevname(inode->i_dev), inode->i_ino, atomic_read(&inode->i_sem.count));
-if (atomic_read(&inode->i_atomic_write.count) != 1)
-printk(KERN_ERR "iput: Aieee, atomic write semaphore in use inode %s/%ld, count=%d\n",
 kdevname(inode->i_dev), inode->i_ino, atomic_read(&inode->i_sem.count));
 #endif
 		}

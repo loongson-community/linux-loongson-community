@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 3
-SUBLEVEL = 6
+SUBLEVEL = 7
 EXTRAVERSION =
 
 ARCH = mips
@@ -15,7 +15,7 @@ TOPDIR	:= $(shell if [ "$$PWD" != "" ]; then echo $$PWD; else pwd; fi)
 HPATH   	= $(TOPDIR)/include
 FINDHPATH	= $(HPATH)/asm $(HPATH)/linux $(HPATH)/scsi $(HPATH)/net
 
-HOSTCC  	= cc
+HOSTCC  	= gcc
 HOSTCFLAGS	= -O2
 
 CROSS_COMPILE 	=
