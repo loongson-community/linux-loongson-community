@@ -48,7 +48,7 @@ static void qube_expansion_slot_fixup(struct pci_dev *dev)
 {
 	unsigned short pci_cmd;
 	unsigned long ioaddr_base = 0x10108000; /* It's magic, ask Doug. */
-	unsigned long memaddr_base = 0x12000000;
+	unsigned long memaddr_base = 0x12001000;
 	int i;
 
 	/* Enable bits in COMMAND so driver can talk to it. */
@@ -126,26 +126,28 @@ static void qube_raq_tulip_fixup(struct pci_dev *dev)
 	/* Fixup the first tulip located at device PCICONF_ETH0 */
 	if (PCI_SLOT(dev->devfn) == COBALT_PCICONF_ETH0) {
 		/*
-		 * The IRQ of the first Tulip is different on Qube and RaQ
+		 * IRQs of the first Tulip is the same for (at least)
+		 * RAQ2 and QUBE2
 		 */
-		if (cobalt_board_id == COBALT_BRD_ID_RAQ2) {
-			/* Setup the first Tulip on the RAQ */
+		if ((cobalt_board_id == COBALT_BRD_ID_RAQ2) ||
+		    (cobalt_board_id == COBALT_BRD_ID_QUBE2)) {
+			/* Setup the first Tulip on the RAQ2/QUBE2 */
 			pci_write_config_byte(dev, PCI_INTERRUPT_LINE,
-					      COBALT_RAQ_ETH0_IRQ);
-			dev->irq = COBALT_RAQ_ETH0_IRQ;
+					      COBALT_ETH0_IRQ);
+			dev->irq = COBALT_ETH0_IRQ;
 		} else {
-			/* All Qube's route this the same way. */
+			/* Possibly only RAQ1/QUBE1 route this way!  */
 			pci_write_config_byte(dev, PCI_INTERRUPT_LINE,
-					      COBALT_QUBE_ETH_IRQ);
-			dev->irq = COBALT_QUBE_ETH_IRQ;
+					      COBALT_RAQ1_ETH_IRQ);
+			dev->irq = COBALT_RAQ1_ETH_IRQ;
 		}
 		dev->resource[0].start = 0x100000;
 		dev->resource[0].end = 0x10007f;
-		if (dev->resource[1].start < 0x10000000) {
-			dev->resource[1].start = 0xe9ffec00;
-			dev->resource[1].end = 0xe9ffefff;
-			pci_write_config_dword(dev, PCI_BASE_ADDRESS_1, 0xe9ffec00);
-		}
+
+		dev->resource[1].start = 0x12000000;
+		dev->resource[1].end = dev->resource[1].start + 0x3ff;
+		pci_write_config_dword(dev, PCI_BASE_ADDRESS_1, dev->resource[1].start);
+
 	/* Fixup the second tulip located at device PCICONF_ETH1 */
 	} else if (PCI_SLOT(dev->devfn) == COBALT_PCICONF_ETH1) {
 
@@ -156,14 +158,18 @@ static void qube_raq_tulip_fixup(struct pci_dev *dev)
 
 		/* Give it it's IRQ. */
 		pci_write_config_byte(dev, PCI_INTERRUPT_LINE,
-                                      COBALT_RAQ_ETH1_IRQ);
-		dev->irq = COBALT_RAQ_ETH1_IRQ;
+                                      COBALT_ETH1_IRQ);
+		dev->irq = COBALT_ETH1_IRQ;
 
 		/* And finally, a usable I/O space allocation, right after what
 		 * the first Tulip uses.
 		 */
 		dev->resource[0].start = 0x101000;
 		dev->resource[0].end = 0x10107f;
+
+		dev->resource[1].start = 0x12000400;
+		dev->resource[1].end = dev->resource[1].start + 0x3ff;
+		pci_write_config_dword(dev, PCI_BASE_ADDRESS_1, dev->resource[1].start);
 	}
 }
 
@@ -219,7 +225,7 @@ static void qube_raq_galileo_fixup(struct pci_dev *dev)
 	 */
 	pci_read_config_word(dev, PCI_REVISION_ID, &galileo_id);
 	galileo_id &= 0xff;     /* mask off class info */
-	if (galileo_id == 0x10) {
+	if (galileo_id >= 0x10) {
 		/* New Galileo, assumes PCI stop line to VIA is connected. */
 		*((volatile unsigned int *)0xb4000c04) = 0x00004020;
 	} else if (galileo_id == 0x1 || galileo_id == 0x2) {
@@ -403,7 +409,7 @@ char *pcibios_setup(char *str)
 	return str;
 }
 
-int pcibios_enable_device(struct pci_dev *dev)
+int pcibios_enable_device(struct pci_dev *dev, int mask)
 {
 	u16 cmd, status;
 

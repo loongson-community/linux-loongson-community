@@ -56,7 +56,7 @@
 		 andi	a0,s0,CAUSEF_IP4
 
 		/* Ethernet 0 interrupt */
-		li	a0,COBALT_RAQ_ETH0_IRQ
+		li	a0,COBALT_ETH0_IRQ
 		jal     do_IRQ
 		 move	a1,sp
 
@@ -68,7 +68,7 @@
 		 andi	a0,s0,CAUSEF_IP5
 
 		/* Ethernet 1 interrupt */
-		li	a0,COBALT_RAQ_ETH1_IRQ
+		li	a0,COBALT_ETH1_IRQ
 		jal     do_IRQ
 		 move	a1,sp
 
