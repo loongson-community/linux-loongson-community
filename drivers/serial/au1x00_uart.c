@@ -778,7 +778,6 @@ serial8250_set_termios(struct uart_port *port, struct termios *termios,
 	 */
 	baud = uart_get_baud_rate(port, termios, old, 0, port->uartclk/16); 
 	quot = serial8250_get_divisor(port, baud);
-	quot = 0x35; /* FIXME */
 
 	/*
 	 * Work around a bug in the Oxford Semiconductor 952 rev B
@@ -1046,7 +1045,7 @@ static void __init serial8250_isa_init_ports(void)
 	     i++, up++) {
 		up->port.iobase   = old_serial_port[i].port;
 		up->port.irq      = old_serial_port[i].irq;
-		up->port.uartclk  = get_au1x00_uart_baud_base();
+		up->port.uartclk  = get_au1x00_uart_baud_base() * 16;
 		up->port.flags    = old_serial_port[i].flags;
 		up->port.hub6     = old_serial_port[i].hub6;
 		up->port.membase  = old_serial_port[i].iomem_base;
