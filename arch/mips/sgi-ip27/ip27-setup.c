@@ -109,7 +109,7 @@ static void __init verify_mode(void)
 #define BASE_XBOW_PORT  	8     /* Lowest external port */
 
 unsigned int bus_to_cpu[256];
-unsigned long bus_to_baddr[256];
+unsigned long dev_to_baddr[256];
 
 void __init pcibr_setup(cnodeid_t nid)
 {
@@ -156,7 +156,7 @@ void __init pcibr_setup(cnodeid_t nid)
         		bus_to_wid[0] = 0x8;
 			bus_to_nid[0] = 0;
 			masterwid = 0xa;
-			bus_to_baddr[0] = 0xa100000000000000UL;
+			dev_to_baddr[0] = 0xa100000000000000UL;
 		} else if (partnum == XBOW_WIDGET_PART_NUM) {
 			lboard_t *brd;
 			klxbow_t *xbow_p;
@@ -208,7 +208,7 @@ void __init pcibr_setup(cnodeid_t nid)
 					printk("widget 0x%x is a bridge\n", i);
 					bus_to_wid[num_bridges] = i;
 					bus_to_nid[num_bridges] = nasid;
-					bus_to_baddr[num_bridges] = ((masterwid << 60) | (1UL << 56));	/* Barrier set */
+					dev_to_baddr[num_bridges] = ((masterwid << 60) | (1UL << 56));	/* Barrier set */
 					num_bridges++;
 				   }
 				}
@@ -227,9 +227,9 @@ void __init pcibr_setup(cnodeid_t nid)
         		bus_to_nid[1] = 0;
         		bus_to_nid[2] = 0;
 
-			bus_to_baddr[0] = 0xa100000000000000UL;
-			bus_to_baddr[1] = 0xa100000000000000UL;
-			bus_to_baddr[2] = 0xa100000000000000UL;
+			dev_to_baddr[0] = 0xa100000000000000UL;
+			dev_to_baddr[1] = 0xa100000000000000UL;
+			dev_to_baddr[2] = 0xa100000000000000UL;
 			masterwid = 0xa;
 			num_bridges = 3;
 		}

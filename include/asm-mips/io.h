@@ -21,13 +21,13 @@
 #include <asm/byteorder.h>
 
 #ifdef CONFIG_SGI_IP27
-extern unsigned long bus_to_baddr[256];
+extern unsigned long dev_to_baddr[256];
 
-#define bus_to_baddr(bus, addr)	(bus_to_baddr[(bus)->number] + (addr))
-#define baddr_to_bus(bus, addr)	((addr) - bus_to_baddr[(bus)->number])
+#define dev_to_baddr(bus, addr)	(dev_to_baddr[(bus)->number] + (addr))
+#define baddr_to_dev(bus, addr)	((addr) - dev_to_baddr[(bus)->number])
 #else
-#define bus_to_baddr(bus, addr)	(addr)
-#define baddr_to_bus(bus, addr)	(addr)
+#define dev_to_baddr(bus, addr)	(addr)
+#define baddr_to_dev(bus, addr)	(addr)
 #endif
 
 /*

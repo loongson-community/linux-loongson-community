@@ -66,7 +66,7 @@ dma_map_single(struct device *dev, void *ptr, size_t size,
 
 	__dma_sync(addr, size, direction);
 
-	return bus_to_baddr(hwdev->bus, __pa(ptr));
+	return dev_to_baddr(hwdev->bus, __pa(ptr));
 }
 
 static inline void
@@ -77,7 +77,7 @@ dma_unmap_single(struct device *dev, dma_addr_t dma_addr, size_t size,
 
 	if (direction != DMA_TO_DEVICE) {
 		unsigned long addr;
-		addr = baddr_to_bus(hwdev->bus, dma_addr) + PAGE_OFFSET;
+		addr = baddr_to_dev(hwdev->bus, dma_addr) + PAGE_OFFSET;
 		dma_cache_wback_inv(addr, size);
 	}
 }
@@ -96,7 +96,7 @@ dma_map_sg(struct device *dev, struct scatterlist *sg, int nents,
 		addr = (unsigned long) page_address(sg->page);
 		if (addr)
 		        __dma_sync(addr + sg->offset, sg->length, direction);
-		sg->dma_address = (dma_addr_t) bus_to_baddr(hwdev->bus,
+		sg->dma_address = (dma_addr_t) dev_to_baddr(hwdev->bus,
 			page_to_phys(sg->page) + sg->offset);
 	}
 
@@ -114,7 +114,7 @@ dma_map_page(struct device *dev, struct page *page, unsigned long offset,
 	addr = (unsigned long) page_address(page) + offset;
 	dma_cache_wback_inv(addr, size);
 
-	return bus_to_baddr(hwdev->bus, page_to_phys(page) + offset);
+	return dev_to_baddr(hwdev->bus, page_to_phys(page) + offset);
 }
 
 static inline void
@@ -126,7 +126,7 @@ dma_unmap_page(struct device *dev, dma_addr_t dma_address, size_t size,
 	if (direction != DMA_TO_DEVICE) {
 		unsigned long addr;
 
-		addr = baddr_to_bus(hwdev->bus, dma_address) + PAGE_OFFSET;
+		addr = baddr_to_dev(hwdev->bus, dma_address) + PAGE_OFFSET;
 		dma_cache_wback_inv(addr, size);
 	}
 }
@@ -159,7 +159,7 @@ dma_sync_single(struct device *dev, dma_addr_t dma_handle, size_t size,
  
 	BUG_ON(direction == DMA_NONE);
  
-	addr = baddr_to_bus(hwdev->bus, dma_handle) + PAGE_OFFSET;
+	addr = baddr_to_dev(hwdev->bus, dma_handle) + PAGE_OFFSET;
 	__dma_sync(addr, size, direction);
 }
 
@@ -172,7 +172,7 @@ dma_sync_single_range(struct device *dev, dma_addr_t dma_handle,
 
 	BUG_ON(direction == DMA_NONE);
 
-	addr = baddr_to_bus(hwdev->bus, dma_handle) + offset + PAGE_OFFSET;
+	addr = baddr_to_dev(hwdev->bus, dma_handle) + offset + PAGE_OFFSET;
 	__dma_sync(addr, size, direction);
 }
 
