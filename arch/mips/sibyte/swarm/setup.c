@@ -59,13 +59,14 @@ extern void *l3info;
 #ifdef CONFIG_HIGHMEM
 #ifdef CONFIG_64BIT_PHYS_ADDR
 /* #define MAX_RAM_SIZE (0xffffffffffffffff) */
-#define MAX_RAM_SIZE (0xffffffff)
+#define MAX_RAM_SIZE (~0ULL)
 #else
-#define MAX_RAM_SIZE (0xffffffff)
+#define MAX_RAM_SIZE (0xffffffffULL)
 #endif
 #else
-#define MAX_RAM_SIZE (0xfffffff)
+#define MAX_RAM_SIZE (0x1fffffffULL)
 #endif
+
 
 #ifndef CONFIG_SWARM_STANDALONE
 
@@ -250,7 +251,7 @@ void __init swarm_setup(void)
 #endif
 	       " runs\n");
 
-	board_time_init = swarm_time_init;
+	board_timer_setup = swarm_time_init;
 
 #ifdef CONFIG_BLK_DEV_IDE_SWARM
 	ide_ops = &swarm_ide_ops;
