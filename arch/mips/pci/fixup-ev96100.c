@@ -36,44 +36,12 @@
 #include <asm/gt64120.h>
 #include <asm/galileo-boards/ev96100.h>
 
-extern unsigned short get_gt_devid(void);
+static char irq_tab_ev96100[][5] __initdata = {
+ [8] = { 0, 5, 5, 5, 5 },
+ [9] = { 0, 2, 2, 2, 2 }
+};
 
-void __init pcibios_fixup_irqs(void)
+int __init pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 {
-	struct pci_dev *dev = NULL;
-	unsigned int slot;
-	u32 vendor;
-	unsigned short gt_devid = get_gt_devid();
-
-	/*
-	 ** EV96100/A interrupt routing for pci bus 0
-	 **
-	 ** Note: EV96100A board with irq jumper set on 'VxWorks'
-	 ** for EV96100 compatibility.
-	 */
-
-	while ((dev = pci_find_device(PCI_ANY_ID, PCI_ANY_ID, dev)) != NULL) {
-		if (dev->bus->number != 0)
-			return;
-
-		slot = PCI_SLOT(dev->devfn);
-		pci_read_config_dword(dev, PCI_SUBSYSTEM_VENDOR_ID,
-				      &vendor);
-
-#ifdef DEBUG
-		printk("devfn %x, slot %d devid %x\n",
-		       dev->devfn, slot, gt_devid);
-#endif
-
-		/* fixup irq line based on slot # */
-		if (slot == 8) {
-			dev->irq = 5;
-			pci_write_config_byte(dev, PCI_INTERRUPT_LINE,
-					      dev->irq);
-		} else if (slot == 9) {
-			dev->irq = 2;
-			pci_write_config_byte(dev, PCI_INTERRUPT_LINE,
-					      dev->irq);
-		}
-	}
+	return irq_tab_ev96100[slot][pin];
 }
