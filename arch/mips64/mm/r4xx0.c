@@ -6,7 +6,7 @@
  * r4xx0.c: R4000 processor variant specific MMU/Cache routines.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
- * Copyright (C) 1997, 1998, 1999, 2000 Ralf Baechle (ralf@gnu.org)
+ * Copyright (C) 1997, 1998, 1999, 2000, 2001 Ralf Baechle (ralf@gnu.org)
  * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  */
 #include <linux/init.h>
@@ -377,7 +377,7 @@ static void r4k_copy_page_d16(void * to, void * from)
 		"ld\t%3,-8(%1)\n\t"
 		"sd\t%2,-16(%0)\n\t"
 		"bne\t$1,%0,1b\n\t"
-		" sd\t%4,-8(%0)\n\t"
+		" sd\t%3,-8(%0)\n\t"
 		".set\tat\n\t"
 		".set\treorder"
 		:"=r" (dummy1), "=r" (dummy2), "=&r" (reg1), "=&r" (reg2)
