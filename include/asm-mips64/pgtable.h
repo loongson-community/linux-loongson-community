@@ -289,7 +289,9 @@ extern inline void pgd_clear(pgd_t *pgdp)
 #ifndef CONFIG_DISCONTIGMEM
 #define pte_pagenr(x)		((unsigned long)((pte_val(x) >> PAGE_SHIFT)))
 #else
-#define pte_pagenr(x)		(PLAT_NODE_DATA_STARTNR(PHYSADDR_TO_NID((pte_val(x) & PAGE_MASK))) + PLAT_NODE_DATA_LOCALNR((pte_val(x) & PAGE_MASK), PHYSADDR_TO_NID((pte_val(x) >> PAGE_SHIFT))))
+#define pte_pagenr(x) \
+	(PLAT_NODE_DATA_STARTNR(PHYSADDR_TO_NID(pte_val(x))) + \
+	PLAT_NODE_DATA_LOCALNR(pte_val(x), PHYSADDR_TO_NID(pte_val(x))))
 #endif
 #define pte_page(x)		(mem_map+pte_pagenr(x))
 
@@ -378,18 +380,18 @@ extern inline pte_t pte_mkyoung(pte_t pte)
  * and a page entry and page directory to the page they refer to.
  */
 #ifndef CONFIG_DISCONTIGMEM
-#define PAGE_TO_PFN(page)	(page - mem_map)
+#define PAGE_TO_PA(page)	((page - mem_map) << PAGE_SHIFT)
 #else
-#define PAGE_TO_PFN(page)	(((page)-(page)->zone->zone_pgdat->node_mem_map) \
-				   + ((PAGE_TO_PLAT_NODE(page))->physstart >> \
-						PAGE_SHIFT))
+#define PAGE_TO_PA(page) \
+		((((page)-(page)->zone->zone_pgdat->node_mem_map) << PAGE_SHIFT) \
+		+ ((PAGE_TO_PLAT_NODE(page))->physstart))
 #endif
 #define mk_pte(page, pgprot)						\
 ({									\
 	pte_t	__pte;							\
 									\
-	pte_val(__pte) = ((unsigned long)(PAGE_TO_PFN(page)) << PAGE_SHIFT) | \
-	                 pgprot_val(pgprot);				\
+	pte_val(__pte) = ((unsigned long)(PAGE_TO_PA(page))) |		\
+						pgprot_val(pgprot);	\
 									\
 	__pte;								\
 })
