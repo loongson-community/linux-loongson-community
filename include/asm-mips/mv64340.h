@@ -1063,9 +1063,8 @@ extern unsigned long mv64340_base;
 #define MV_RESET_REG_BITS(ofs, bits)	\
 	(*((volatile u32 *)(MV64340_BASE + (ofs)))) &= ~((u32)cpu_to_le32(bits))
 
-/*
- * PCI bus ops
- */
+extern void mv64340_irq_init(unsigned int base);
+
 extern struct pci_ops mv64340_bus0_pci_ops;
 extern struct pci_ops mv64340_bus1_pci_ops;
 
