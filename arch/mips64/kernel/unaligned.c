@@ -469,7 +469,7 @@ fault:
 		printk(KERN_DEBUG "%s: Forwarding exception at [<%lx>] (%lx)\n",
 		       current->comm, regs->cp0_epc, new_epc);
 		regs->cp0_epc = new_epc;
-		return 1;
+		return;
 	}
 
 	die_if_kernel ("Unhandled kernel unaligned access", regs);
