@@ -64,12 +64,12 @@ static inline void serial_out(int offset, int value)
 
 static inline unsigned int serial_in(int offset)
 {
-	return inb(info->port + offset);
+	return inb(0x3f8 + offset);
 }
 
 static inline void serial_out(int offset, int value)
 {
-	outb(value, info->port + offset);
+	outb(value, 0x3f8 + offset);
 }
 #endif
 
