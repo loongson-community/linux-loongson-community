@@ -1725,56 +1725,6 @@ asmlinkage long sys32_sysctl(struct sysctl_args32 *args)
 
 #endif /* CONFIG_SYSCTL */
 
-extern asmlinkage int sys_sched_setaffinity(pid_t pid, unsigned int len,
-					    unsigned long *user_mask_ptr);
-
-asmlinkage int sys32_sched_setaffinity(compat_pid_t pid, unsigned int len,
-				       u32 *user_mask_ptr)
-{
-	unsigned long kernel_mask;
-	mm_segment_t old_fs;
-	int ret;
-
-	if (get_user(kernel_mask, user_mask_ptr))
-		return -EFAULT;
-
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-	ret = sys_sched_setaffinity(pid,
-				    /* XXX Nice api... */
-				    sizeof(kernel_mask),
-				    &kernel_mask);
-	set_fs(old_fs);
-
-	return ret;
-}
-
-extern asmlinkage int sys_sched_getaffinity(pid_t pid, unsigned int len,
-					    unsigned long *user_mask_ptr);
-
-asmlinkage int sys32_sched_getaffinity(compat_pid_t pid, unsigned int len,
-				       u32 *user_mask_ptr)
-{
-	unsigned long kernel_mask;
-	mm_segment_t old_fs;
-	int ret;
-
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-	ret = sys_sched_getaffinity(pid,
-				    /* XXX Nice api... */
-				    sizeof(kernel_mask),
-				    &kernel_mask);
-	set_fs(old_fs);
-
-	if (ret == 0) {
-		if (put_user(kernel_mask, user_mask_ptr))
-			ret = -EFAULT;
-	}
-
-	return ret;
-}
-
 asmlinkage long sys32_newuname(struct new_utsname * name)
 {
 	int ret = 0;

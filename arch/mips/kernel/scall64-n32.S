@@ -305,8 +305,8 @@ EXPORT(sysn32_call_table)
 	PTR	sys_tkill
 	PTR	sys_ni_syscall
 	PTR	compat_sys_futex
-	PTR	sys32_sched_setaffinity		/* 6195 */
-	PTR	sys32_sched_getaffinity
+	PTR	compat_sys_sched_setaffinity	/* 6195 */
+	PTR	compat_sys_sched_getaffinity
 	PTR	sys_cacheflush
 	PTR	sys_cachectl
 	PTR	sys_sysmips
