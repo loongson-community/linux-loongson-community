@@ -153,17 +153,66 @@ static inline struct sk_buff * ioc3_alloc_skb(unsigned long length,
 
 #define IOC3_SIZE 0x100000
 
-#define ioc3_r(reg)							\
-({									\
-	u32 __res;							\
-	__res = ioc3->reg;						\
-	__res;								\
-})
-
-#define ioc3_w(reg,val)							\
-do {									\
-	(ioc3->reg = (val));						\
-} while(0)
+/*
+ * IOC3 is a big endian device
+ *
+ * Unorthodox but makes the users of these macros more readable - the pointer
+ * to the IOC3's memory mapped registers is expected as struct ioc3 * ioc3
+ * in the environment.
+ */
+#define ioc3_r_mcr()		be32_to_cpu(ioc3->mcr)
+#define ioc3_w_mcr(v)		do { ioc3->mcr = cpu_to_be32(v); } while (0)
+#define ioc3_w_gpcr_s(v)	do { ioc3->gpcr_s = cpu_to_be32(v); } while (0)
+#define ioc3_r_emcr()		be32_to_cpu(ioc3->emcr)
+#define ioc3_w_emcr(v)		do { ioc3->emcr = cpu_to_be32(v); } while (0)
+#define ioc3_r_eisr()		be32_to_cpu(ioc3->eisr)
+#define ioc3_w_eisr(v)		do { ioc3->eisr = cpu_to_be32(v); } while (0)
+#define ioc3_r_eier()		be32_to_cpu(ioc3->eier)
+#define ioc3_w_eier(v)		do { ioc3->eier = cpu_to_be32(v); } while (0)
+#define ioc3_r_ercsr()		be32_to_cpu(ioc3->ercsr)
+#define ioc3_w_ercsr(v)		do { ioc3->ercsr = cpu_to_be32(v); } while (0)
+#define ioc3_r_erbr_h()		be32_to_cpu(ioc3->erbr_h)
+#define ioc3_w_erbr_h(v)	do { ioc3->erbr_h = cpu_to_be32(v); } while (0)
+#define ioc3_r_erbr_l()		be32_to_cpu(ioc3->erbr_l)
+#define ioc3_w_erbr_l(v)	do { ioc3->erbr_l = cpu_to_be32(v); } while (0)
+#define ioc3_r_erbar()		be32_to_cpu(ioc3->erbar)
+#define ioc3_w_erbar(v)		do { ioc3->erbar = cpu_to_be32(v); } while (0)
+#define ioc3_r_ercir()		be32_to_cpu(ioc3->ercir)
+#define ioc3_w_ercir(v)		do { ioc3->ercir = cpu_to_be32(v); } while (0)
+#define ioc3_r_erpir()		be32_to_cpu(ioc3->erpir)
+#define ioc3_w_erpir(v)		do { ioc3->erpir = cpu_to_be32(v); } while (0)
+#define ioc3_r_ertr()		be32_to_cpu(ioc3->ertr)
+#define ioc3_w_ertr(v)		do { ioc3->ertr = cpu_to_be32(v); } while (0)
+#define ioc3_r_etcsr()		be32_to_cpu(ioc3->etcsr)
+#define ioc3_w_etcsr(v)		do { ioc3->etcsr = cpu_to_be32(v); } while (0)
+#define ioc3_r_ersr()		be32_to_cpu(ioc3->ersr)
+#define ioc3_w_ersr(v)		do { ioc3->ersr = cpu_to_be32(v); } while (0)
+#define ioc3_r_etcdc()		be32_to_cpu(ioc3->etcdc)
+#define ioc3_w_etcdc(v)		do { ioc3->etcdc = cpu_to_be32(v); } while (0)
+#define ioc3_r_ebir()		be32_to_cpu(ioc3->ebir)
+#define ioc3_w_ebir(v)		do { ioc3->ebir = cpu_to_be32(v); } while (0)
+#define ioc3_r_etbr_h()		be32_to_cpu(ioc3->etbr_h)
+#define ioc3_w_etbr_h(v)	do { ioc3->etbr_h = cpu_to_be32(v); } while (0)
+#define ioc3_r_etbr_l()		be32_to_cpu(ioc3->etbr_l)
+#define ioc3_w_etbr_l(v)	do { ioc3->etbr_l = cpu_to_be32(v); } while (0)
+#define ioc3_r_etcir()		be32_to_cpu(ioc3->etcir)
+#define ioc3_w_etcir(v)		do { ioc3->etcir = cpu_to_be32(v); } while (0)
+#define ioc3_r_etpir()		be32_to_cpu(ioc3->etpir)
+#define ioc3_w_etpir(v)		do { ioc3->etpir = cpu_to_be32(v); } while (0)
+#define ioc3_r_emar_h()		be32_to_cpu(ioc3->emar_h)
+#define ioc3_w_emar_h(v)	do { ioc3->emar_h = cpu_to_be32(v); } while (0)
+#define ioc3_r_emar_l()		be32_to_cpu(ioc3->emar_l)
+#define ioc3_w_emar_l(v)	do { ioc3->emar_l = cpu_to_be32(v); } while (0)
+#define ioc3_r_ehar_h()		be32_to_cpu(ioc3->ehar_h)
+#define ioc3_w_ehar_h(v)	do { ioc3->ehar_h = cpu_to_be32(v); } while (0)
+#define ioc3_r_ehar_l()		be32_to_cpu(ioc3->ehar_l)
+#define ioc3_w_ehar_l(v)	do { ioc3->ehar_l = cpu_to_be32(v); } while (0)
+#define ioc3_r_micr()		be32_to_cpu(ioc3->micr)
+#define ioc3_w_micr(v)		do { ioc3->micr = cpu_to_be32(v); } while (0)
+#define ioc3_r_midr_r()		be32_to_cpu(ioc3->midr_r)
+#define ioc3_w_midr_r(v)	do { ioc3->midr_r = cpu_to_be32(v); } while (0)
+#define ioc3_r_midr_w()		be32_to_cpu(ioc3->midr_w)
+#define ioc3_w_midr_w(v)	do { ioc3->midr_w = cpu_to_be32(v); } while (0)
 
 static inline u32 mcr_pack(u32 pulse, u32 sample)
 {
@@ -175,7 +224,7 @@ static int nic_wait(struct ioc3 *ioc3)
 	u32 mcr;
 
         do {
-                mcr = ioc3_r(mcr);
+                mcr = ioc3_r_mcr();
         } while (!(mcr & 2));
 
         return mcr & 1;
@@ -185,10 +234,10 @@ static int nic_reset(struct ioc3 *ioc3)
 {
         int presence;
 
-	ioc3_w(mcr, mcr_pack(500, 65));
+	ioc3_w_mcr(mcr_pack(500, 65));
 	presence = nic_wait(ioc3);
 
-	ioc3_w(mcr, mcr_pack(0, 500));
+	ioc3_w_mcr(mcr_pack(0, 500));
 	nic_wait(ioc3);
 
         return presence;
@@ -198,9 +247,9 @@ static inline int nic_read_bit(struct ioc3 *ioc3)
 {
 	int result;
 
-	ioc3_w(mcr, mcr_pack(6, 13));
+	ioc3_w_mcr(mcr_pack(6, 13));
 	result = nic_wait(ioc3);
-	ioc3_w(mcr, mcr_pack(0, 100));
+	ioc3_w_mcr(mcr_pack(0, 100));
 	nic_wait(ioc3);
 
 	return result;
@@ -209,9 +258,9 @@ static inline int nic_read_bit(struct ioc3 *ioc3)
 static inline void nic_write_bit(struct ioc3 *ioc3, int bit)
 {
 	if (bit)
-		ioc3_w(mcr, mcr_pack(6, 110));
+		ioc3_w_mcr(mcr_pack(6, 110));
 	else
-		ioc3_w(mcr, mcr_pack(80, 30));
+		ioc3_w_mcr(mcr_pack(80, 30));
 
 	nic_wait(ioc3);
 }
@@ -353,7 +402,7 @@ static void ioc3_get_eaddr_nic(struct ioc3_private *ip)
 	int tries = 2; /* There may be some problem with the battery?  */
 	int i;
 
-	ioc3_w(gpcr_s, (1 << 21));
+	ioc3_w_gpcr_s(1 << 21);
 
 	while (tries--) {
 		if (!nic_init(ioc3))
@@ -409,11 +458,11 @@ static int ioc3_mdio_read(struct net_device *dev, int phy, int reg)
 	struct ioc3_private *ip = netdev_priv(dev);
 	struct ioc3 *ioc3 = ip->regs;
 
-	while (ioc3->micr & MICR_BUSY);
-	ioc3->micr = (phy << MICR_PHYADDR_SHIFT) | reg | MICR_READTRIG;
-	while (ioc3->micr & MICR_BUSY);
+	while (ioc3_r_micr() & MICR_BUSY);
+	ioc3_w_micr((phy << MICR_PHYADDR_SHIFT) | reg | MICR_READTRIG);
+	while (ioc3_r_micr() & MICR_BUSY);
 
-	return ioc3->midr_r & MIDR_DATA_MASK;
+	return ioc3_r_micr() & MIDR_DATA_MASK;
 }
 
 static void ioc3_mdio_write(struct net_device *dev, int phy, int reg, int data)
@@ -421,10 +470,10 @@ static void ioc3_mdio_write(struct net_device *dev, int phy, int reg, int data)
 	struct ioc3_private *ip = netdev_priv(dev);
 	struct ioc3 *ioc3 = ip->regs;
 
-	while (ioc3->micr & MICR_BUSY);
-	ioc3->midr_w = data;
-	ioc3->micr = (phy << MICR_PHYADDR_SHIFT) | reg;
-	while (ioc3->micr & MICR_BUSY);
+	while (ioc3_r_micr() & MICR_BUSY);
+	ioc3_w_midr_w(data);
+	ioc3_w_micr((phy << MICR_PHYADDR_SHIFT) | reg);
+	while (ioc3_r_micr() & MICR_BUSY);
 }
 
 static int ioc3_mii_init(struct ioc3_private *ip);
@@ -434,7 +483,7 @@ static struct net_device_stats *ioc3_get_stats(struct net_device *dev)
 	struct ioc3_private *ip = netdev_priv(dev);
 	struct ioc3 *ioc3 = ip->regs;
 
-	ip->stats.collisions += (ioc3->etcdc & ETCDC_COLLCNT_MASK);
+	ip->stats.collisions += (ioc3_r_etcdc() & ETCDC_COLLCNT_MASK);
 	return &ip->stats;
 }
 
@@ -584,7 +633,7 @@ next:
 		rxb = (struct ioc3_erxbuf *) (skb->data - RX_OFFSET);
 		w0 = be32_to_cpu(rxb->w0);
 	}
-	ioc3->erpir = (n_entry << 3) | ERPIR_ARM;
+	ioc3_w_erpir((n_entry << 3) | ERPIR_ARM);
 	ip->rx_pi = n_entry;
 	ip->rx_ci = rx_entry;
 }
@@ -598,7 +647,7 @@ static inline void ioc3_tx(struct ioc3_private *ip)
 	u32 etcir;
 
 	spin_lock(&ip->ioc3_lock);
-	etcir = ioc3->etcir;
+	etcir = ioc3_r_etcir();
 
 	tx_entry = (etcir >> 7) & 127;
 	o_entry = ip->tx_ci;
@@ -614,7 +663,7 @@ static inline void ioc3_tx(struct ioc3_private *ip)
 
 		o_entry = (o_entry + 1) & 127;		/* Next */
 
-		etcir = ioc3->etcir;			/* More pkts sent?  */
+		etcir = ioc3_r_etcir();			/* More pkts sent?  */
 		tx_entry = (etcir >> 7) & 127;
 	}
 
@@ -677,22 +726,19 @@ static irqreturn_t ioc3_interrupt(int irq, void *_dev, struct pt_regs *regs)
 	                    EISR_TXEXPLICIT | EISR_TXMEMERR;
 	u32 eisr;
 
-	eisr = ioc3->eisr & enabled;
+	eisr = ioc3_r_eisr() & enabled;
 
-	while (eisr) {
-		ioc3->eisr = eisr;
-		ioc3->eisr;				/* Flush */
+	ioc3_w_eisr(eisr);
+	(void) ioc3_r_eisr();				/* Flush */
 
-		if (eisr & (EISR_RXOFLO | EISR_RXBUFOFLO | EISR_RXMEMERR |
-		            EISR_RXPARERR | EISR_TXBUFUFLO | EISR_TXMEMERR))
-			ioc3_error(ip, eisr);
-		if (eisr & EISR_RXTIMERINT)
-			ioc3_rx(ip);
-		if (eisr & EISR_TXEXPLICIT)
-			ioc3_tx(ip);
+	if (eisr & (EISR_RXOFLO | EISR_RXBUFOFLO | EISR_RXMEMERR |
+	            EISR_RXPARERR | EISR_TXBUFUFLO | EISR_TXMEMERR))
+		ioc3_error(ip, eisr);
+	if (eisr & EISR_RXTIMERINT)
+		ioc3_rx(ip);
+	if (eisr & EISR_TXEXPLICIT)
+		ioc3_tx(ip);
 
-		eisr = ioc3->eisr & enabled;
-	}
 	return IRQ_HANDLED;
 }
 
@@ -879,21 +925,21 @@ static void ioc3_init_rings(struct net_device *dev)
 
 	/* Now the rx ring base, consume & produce registers.  */
 	ring = (0xa5UL << 56) | ((unsigned long)ip->rxr & TO_PHYS_MASK);
-	ioc3->erbr_h = ring >> 32;
-	ioc3->erbr_l = ring & 0xffffffff;
-	ioc3->ercir  = (ip->rx_ci << 3);
-	ioc3->erpir  = (ip->rx_pi << 3) | ERPIR_ARM;
+	ioc3_w_erbr_h(ring >> 32);
+	ioc3_w_erbr_l(ring & 0xffffffff);
+	ioc3_w_ercir(ip->rx_ci << 3);
+	ioc3_w_erpir((ip->rx_pi << 3) | ERPIR_ARM);
 
 	ring = (0xa5UL << 56) | ((unsigned long)ip->txr & TO_PHYS_MASK);
 
 	ip->txqlen = 0;					/* nothing queued  */
 
 	/* Now the tx ring base, consume & produce registers.  */
-	ioc3->etbr_h = ring >> 32;
-	ioc3->etbr_l = ring & 0xffffffff;
-	ioc3->etpir  = (ip->tx_pi << 7);
-	ioc3->etcir  = (ip->tx_ci << 7);
-	ioc3->etcir;					/* Flush */
+	ioc3_w_etbr_h(ring >> 32);
+	ioc3_w_etbr_l(ring & 0xffffffff);
+	ioc3_w_etpir(ip->tx_pi << 7);
+	ioc3_w_etcir(ip->tx_ci << 7);
+	(void) ioc3_r_etcir();				/* Flush */
 }
 
 static inline void ioc3_ssram_disc(struct ioc3_private *ip)
@@ -904,7 +950,7 @@ static inline void ioc3_ssram_disc(struct ioc3_private *ip)
 	unsigned int pattern = 0x5555;
 
 	/* Assume the larger size SSRAM and enable parity checking */
-	ioc3->emcr |= (EMCR_BUFSIZ | EMCR_RAMPAR);
+	ioc3_w_emcr(ioc3_r_emcr() | (EMCR_BUFSIZ | EMCR_RAMPAR));
 
 	*ssram0 = pattern;
 	*ssram1 = ~pattern & IOC3_SSRAM_DM;
@@ -913,10 +959,9 @@ static inline void ioc3_ssram_disc(struct ioc3_private *ip)
 	    (*ssram1 & IOC3_SSRAM_DM) != (~pattern & IOC3_SSRAM_DM)) {
 		/* set ssram size to 64 KB */
 		ip->emcr = EMCR_RAMPAR;
-		ioc3->emcr &= ~EMCR_BUFSIZ;
-	} else {
+		ioc3_w_emcr(ioc3_r_emcr() & ~EMCR_BUFSIZ);
+	} else
 		ip->emcr = EMCR_BUFSIZ | EMCR_RAMPAR;
-	}
 }
 
 static void ioc3_init(struct net_device *dev)
@@ -926,43 +971,42 @@ static void ioc3_init(struct net_device *dev)
 
 	del_timer(&ip->ioc3_timer);		/* Kill if running	*/
 
-	ioc3->emcr = EMCR_RST;			/* Reset		*/
-	ioc3->emcr;				/* Flush WB		*/
+	ioc3_w_emcr(EMCR_RST);			/* Reset		*/
+	(void) ioc3_r_emcr();			/* Flush WB		*/
 	udelay(4);				/* Give it time ...	*/
-	ioc3->emcr = 0;
-	ioc3->emcr;
+	ioc3_w_emcr(0);
+	(void) ioc3_r_emcr();
 
 	/* Misc registers  */
-	ioc3->erbar = 0;
-	ioc3->etcsr = (17<<ETCSR_IPGR2_SHIFT) | (11<<ETCSR_IPGR1_SHIFT) | 21;
-	ioc3->etcdc;				/* Clear on read */
-	ioc3->ercsr = 15;			/* RX low watermark  */
-	ioc3->ertr = 0;				/* Interrupt immediately */
-	ioc3->emar_h = (dev->dev_addr[5] << 8) | dev->dev_addr[4];
-	ioc3->emar_l = (dev->dev_addr[3] << 24) | (dev->dev_addr[2] << 16) |
-	               (dev->dev_addr[1] <<  8) | dev->dev_addr[0];
-	ioc3->ehar_h = ip->ehar_h;
-	ioc3->ehar_l = ip->ehar_l;
-	ioc3->ersr = 42;			/* XXX should be random */
+	ioc3_w_erbar(0);
+	(void) ioc3_r_etcdc();			/* Clear on read */
+	ioc3_w_ercsr(15);			/* RX low watermark  */
+	ioc3_w_ertr(0);				/* Interrupt immediately */
+	ioc3_w_emar_h((dev->dev_addr[5] <<  8) | dev->dev_addr[4]);
+	ioc3_w_emar_l((dev->dev_addr[3] << 24) | (dev->dev_addr[2] << 16) |
+	              (dev->dev_addr[1] <<  8) | dev->dev_addr[0]);
+	ioc3_w_ehar_h(ip->ehar_h);
+	ioc3_w_ehar_l(ip->ehar_l);
+	ioc3_w_ersr(42);			/* XXX should be random */
 
 	ioc3_init_rings(dev);
 
 	ip->emcr |= ((RX_OFFSET / 2) << EMCR_RXOFF_SHIFT) | EMCR_TXDMAEN |
-	             EMCR_TXEN | EMCR_RXDMAEN | EMCR_RXEN;
-	ioc3->emcr = ip->emcr;
-	ioc3->eier = EISR_RXTIMERINT | EISR_RXOFLO | EISR_RXBUFOFLO |
-	             EISR_RXMEMERR | EISR_RXPARERR | EISR_TXBUFUFLO |
-	             EISR_TXEXPLICIT | EISR_TXMEMERR;
-	ioc3->eier;
+	             EMCR_TXEN | EMCR_RXDMAEN | EMCR_RXEN | EMCR_PADEN;
+	ioc3_w_emcr(ip->emcr);
+	ioc3_w_eier(EISR_RXTIMERINT | EISR_RXOFLO | EISR_RXBUFOFLO |
+	            EISR_RXMEMERR | EISR_RXPARERR | EISR_TXBUFUFLO |
+	            EISR_TXEXPLICIT | EISR_TXMEMERR);
+	(void) ioc3_r_eier();
 }
 
 static inline void ioc3_stop(struct ioc3_private *ip)
 {
 	struct ioc3 *ioc3 = ip->regs;
 
-	ioc3->emcr = 0;				/* Shutup */
-	ioc3->eier = 0;				/* Disable interrupts */
-	ioc3->eier;				/* Flush */
+	ioc3_w_emcr(0);				/* Shutup */
+	ioc3_w_eier(0);				/* Disable interrupts */
+	(void) ioc3_r_eier();			/* Flush */
 }
 
 static int ioc3_open(struct net_device *dev)
@@ -1334,11 +1378,11 @@ static int ioc3_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	ip->tx_skbs[produce] = skb;			/* Remember skb */
 	produce = (produce + 1) & 127;
 	ip->tx_pi = produce;
-	ioc3->etpir = produce << 7;			/* Fire ... */
+	ioc3_w_etpir(produce << 7);			/* Fire ... */
 
 	ip->txqlen++;
 
-	if (ip->txqlen > 127)
+	if (ip->txqlen >= 127)
 		netif_stop_queue(dev);
 
 	spin_unlock_irq(&ip->ioc3_lock);
@@ -1479,12 +1523,12 @@ static void ioc3_set_multicast_list(struct net_device *dev)
 		/* Unconditionally log net taps.  */
 		printk(KERN_INFO "%s: Promiscuous mode enabled.\n", dev->name);
 		ip->emcr |= EMCR_PROMISC;
-		ioc3->emcr = ip->emcr;
-		ioc3->emcr;
+		ioc3_w_emcr(ip->emcr);
+		(void) ioc3_r_emcr();
 	} else {
 		ip->emcr &= ~EMCR_PROMISC;
-		ioc3->emcr = ip->emcr;			/* Clear promiscuous. */
-		ioc3->emcr;
+		ioc3_w_emcr(ip->emcr);			/* Clear promiscuous. */
+		(void) ioc3_r_emcr();
 
 		if ((dev->flags & IFF_ALLMULTI) || (dev->mc_count > 64)) {
 			/* Too many for hashing to make sense or we want all
@@ -1505,8 +1549,8 @@ static void ioc3_set_multicast_list(struct net_device *dev)
 			ip->ehar_h = ehar >> 32;
 			ip->ehar_l = ehar & 0xffffffff;
 		}
-		ioc3->ehar_h = ip->ehar_h;
-		ioc3->ehar_l = ip->ehar_l;
+		ioc3_w_ehar_h(ip->ehar_h);
+		ioc3_w_ehar_l(ip->ehar_l);
 	}
 
 	netif_wake_queue(dev);			/* Let us get going again. */
