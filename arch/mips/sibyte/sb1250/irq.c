@@ -255,8 +255,10 @@ void __init init_sb1250_irqs(void)
 }
 
 
-static void sb1250_dummy_handler(int irq, void *dev_id, struct pt_regs *regs)
+static irqreturn_t  sb1250_dummy_handler(int irq, void *dev_id,
+	struct pt_regs *regs)
 {
+	return IRQ_NONE;
 }
 
 static struct irqaction sb1250_dummy_action = {
