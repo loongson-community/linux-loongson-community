@@ -550,20 +550,31 @@ static __init void resolve_relocs(struct reloc *rel, struct label *lab)
 				__resolve_relocs(rel, l);
 }
 
+static __init void move_relocs(struct reloc *rel, u32 *first, u32 *end,
+			       long off)
+{
+	for (; rel->lab != label_invalid; rel++)
+		if (rel->addr >= first && rel->addr < end)
+			rel->addr += off;
+}
+
+static __init void move_labels(struct label *lab, u32 *first, u32 *end,
+			       long off)
+{
+	for (; lab->lab != label_invalid; lab++)
+		if (lab->addr >= first && lab->addr < end)
+			lab->addr += off;
+}
+
 static __init void copy_handler(struct reloc *rel, struct label *lab,
-				u32 *first, u32 *end, u32* target)
+				u32 *first, u32 *end, u32 *target)
 {
 	long off = (long)(target - first);
 
 	memcpy(target, first, (end - first) * sizeof(u32));
 
-	for (; rel->lab != label_invalid; rel++)
-		if (rel->addr >= first && rel->addr < end)
-			rel->addr += off;
-
-	for (; lab->lab != label_invalid; lab++)
-		if (lab->addr >= first && lab->addr < end)
-			lab->addr += off;
+	move_relocs(rel, first, end, off);
+	move_labels(lab, first, end, off);
 }
 
 static __init int __attribute__((unused)) insn_has_bdelay(struct reloc *rel,
@@ -1141,6 +1152,7 @@ static void __init build_r4000_tlb_refill_handler(void)
 			i_nop(&f);
 		else {
 			copy_handler(relocs, labels, split, split + 1, f);
+			move_labels(labels, f, f + 1, -1);
 			f++;
 			split++;
 		}
