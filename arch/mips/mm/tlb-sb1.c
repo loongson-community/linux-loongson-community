@@ -28,8 +28,6 @@
 
 /* These are probed at ld_mmu time */
 
-static unsigned int tlb_entries;
-
 /* Dump the current entry* and pagemask registers */
 static inline void dump_cur_tlb_regs(void)
 {
@@ -78,7 +76,7 @@ void sb1_dump_tlb(void)
 	printk("\n\nFull TLB Dump:"
 	       "Idx      EntryHi       EntryLo0          EntryLo1     PageMask\n"
 	       "--------------------------------------------------------------\n");
-	for (entry = 0; entry < tlb_entries; entry++) {
+	for (entry = 0; entry < mips_cpu.tlbsize; entry++) {
 		set_index(entry);
 		printk("\n%02i ", entry);
 		__asm__ __volatile__ (
@@ -102,7 +100,7 @@ void local_flush_tlb_all(void)
 	old_ctx = (get_entryhi() & 0xff);
 	set_entrylo0(0);
 	set_entrylo1(0);
-	for (entry = 0; entry < tlb_entries; entry++) {
+	for (entry = 0; entry < mips_cpu.tlbsize; entry++) {
 		set_entryhi(KSEG0 + (PAGE_SIZE << 1) * entry);
 		set_index(entry);
 		tlb_write_indexed();
@@ -123,11 +121,12 @@ void sb1_sanitize_tlb(void)
 {
 	int entry;
 	long addr = 0;
+
 	long inc = 1<<24;  /* 16MB */
 	/* Save old context and create impossible VPN2 value */
 	set_entrylo0(0);
 	set_entrylo1(0);
-	for (entry = 0; entry < tlb_entries; entry++) {
+	for (entry = 0; entry < mips_cpu.tlbsize; entry++) {
 		do {
 			addr += inc;
 			set_entryhi(addr);
@@ -138,7 +137,7 @@ void sb1_sanitize_tlb(void)
 	}
 	/* Now that we know we're safe from collisions, we can safely flush
 	   the TLB with the "normal" routine. */
-	flush_tlb_all();
+	local_flush_tlb_all();
 }
 
 
@@ -296,7 +295,7 @@ void sb1_tlb_init(void)
 	u32 config1;
 
 	config1 = read_mips32_cp0_config1();
-	tlb_entries = ((config1 >> 25) & 0x3f) + 1;
+	mips_cpu.tlbsize = ((config1 >> 25) & 0x3f) + 1;
 
 	/*
 	 * We don't know what state the firmware left the TLB's in, so this is
