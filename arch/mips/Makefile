@@ -552,8 +552,10 @@ load-$(CONFIG_SGI_IP32)		+= 0x80004000
 # removed (as happens, even if they have __initcall/module_init)
 #
 core-$(CONFIG_SIBYTE_BCM112X)	+= arch/mips/sibyte/sb1250/
+cflags-$(CONFIG_SIBYTE_BCM112X)	+= -Iinclude/asm-mips/mach-sibyte
 
 core-$(CONFIG_SIBYTE_SB1250)	+= arch/mips/sibyte/sb1250/
+cflags-$(CONFIG_SIBYTE_SB1250)	+= -Iinclude/asm-mips/mach-sibyte
 
 #
 # Sibyte BCM91120x (Carmel) board
