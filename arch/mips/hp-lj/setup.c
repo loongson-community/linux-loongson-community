@@ -146,4 +146,4 @@ static void __init hp_setup(void)
    printk("HP SETUP\n");
 }
 
-early_initcall(swarm_setup);
+early_initcall(hp_setup);
