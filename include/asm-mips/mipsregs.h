@@ -508,6 +508,19 @@
 	:"=r" (__res));                                         \
         __res;})
 
+/*
+ * Macros to access the floating point coprocessor control registers
+ */
+#define read_32bit_cp1_register(source)                         \
+({ int __res;                                                   \
+        __asm__ __volatile__(                                   \
+	".set\tpush\n\t"					\
+	".set\treorder\n\t"					\
+        "cfc1\t%0,"STR(source)"\n\t"                            \
+	".set\tpop"						\
+        : "=r" (__res));                                        \
+        __res;})
+
 /* TLB operations. */
 static inline void tlb_probe(void)
 {
