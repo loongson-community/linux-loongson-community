@@ -115,8 +115,6 @@ asmlinkage void start_secondary(void)
 	calibrate_delay();
 	cpu_data[cpu].udelay_val = loops_per_jiffy;
 
-	printk("Slave cpu booted successfully\n");
-
 	prom_smp_finish();
 
 	cpu_set(cpu, cpu_callin_map);
@@ -315,14 +313,11 @@ int __devinit __cpu_up(unsigned int cpu)
 {
 	int ret;
 
-	printk(KERN_INFO "Processor %d is spinning up...\n", cpu);
-
 	/* Processor goes to start_secondary(), sets online flag */
 	ret = do_boot_cpu(cpu);
 	if (ret < 0)
 		return ret;
 
-	printk(KERN_INFO "Processor %d has spun up...\n", cpu);
 	return 0;
 }
 
