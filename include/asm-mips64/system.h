@@ -238,6 +238,7 @@ extern __inline__ unsigned long xchg_u32(volatile int * m, unsigned long val)
 		"sc\t%2, %1\n\t"
 		"beqzl\t%2, 1b\n\t"
 		" ll\t%0, %3\n\t"
+		"sync"
 		".set\tpop"
 		: "=&r" (val), "=m" (*m), "=&r" (dummy)
 		: "R" (*m), "Jr" (val)
@@ -259,6 +260,7 @@ extern __inline__ unsigned long xchg_u64(volatile int * m, unsigned long val)
 		"scd\t%2, %1\n\t"
 		"beqzl\t%2, 1b\n\t"
 		" lld\t%0, %3\n\t"
+		"sync"
 		".set\tpop"
 		: "=&r" (val), "=m" (*m), "=&r" (dummy)
 		: "R" (*m), "Jr" (val)
