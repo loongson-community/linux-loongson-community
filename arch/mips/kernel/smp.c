@@ -174,7 +174,7 @@ int smp_call_function (void (*func) (void *info), void *info, int retry,
 
 	/* Send a message to all other CPUs and wait for them to respond */
 	for (i = 0; i < NR_CPUS; i++)
-		if (cpu_online(cpu) && i != cpu)
+		if (cpu_online(i) && i != cpu)
 			core_send_ipi(i, SMP_CALL_FUNCTION);
 
 	/* Wait for response */
