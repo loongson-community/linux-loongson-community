@@ -128,7 +128,7 @@ static inline void read_unlock(rwlock_t *rw)
 	"sub\t%1, 1\n\t"
 	"sc\t%1, %0\n\t"
 	"beqz\t%1, 1b\n\t"
-	"sync\n\t"
+	" sync\n\t"
 	".set\treorder"	
 	: "=m" (rw->lock), "=&r" (tmp)
 	: "m" (rw->lock)
