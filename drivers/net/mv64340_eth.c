@@ -466,7 +466,13 @@ static int mv64340_eth_receive_queue(struct net_device *dev, unsigned int max)
 
 			eth_h = (struct ethhdr *) skb->data;
 			ip_h = (struct iphdr *) (skb->data + ETH_HLEN);
-			skb->ip_summed = CHECKSUM_NONE;
+			if (pkt_info.cmd_sts & ETH_LAYER_4_CHECKSUM_OK) {
+				skb->ip_summed = CHECKSUM_UNNECESSARY;
+				skb->csum = htons((pkt_info.cmd_sts
+							& 0x0007fff8) >> 3);
+			}
+			else 
+				skb->ip_summed = CHECKSUM_NONE;
 			skb->protocol = eth_type_trans(skb, dev);
 			netif_rx(skb);
 		}
@@ -763,6 +769,20 @@ static int mv64340_eth_real_open(struct net_device *dev)
 	mv64340_eth_rx_task(dev);
 
 	eth_port_start(ethernet_private);
+
+	/* Interrupt Coalescing */
+
+	port_private->rx_int_coal =
+		eth_port_set_rx_coal (port_num, 133000000, MV64340_RX_COAL);
+
+	port_private->tx_int_coal =
+		eth_port_set_tx_coal (port_num, 133000000, MV64340_TX_COAL);
+
+	/* Increase the Rx side buffer size */
+
+	MV_WRITE (MV64340_ETH_PORT_SERIAL_CONTROL_REG(port_num), (0x5 << 17) |
+			(MV_READ_DATA (MV64340_ETH_PORT_SERIAL_CONTROL_REG(port_num))
+			 				& 0xfff1ffff));
 
 	/* Check Link status on phy */
 	eth_port_read_smi_reg(port_num, 1, &phy_reg_data);
@@ -2502,7 +2522,6 @@ static ETH_FUNC_RET_STATUS eth_rx_return_buff(ETH_PORT_INFO * p_eth_port_ctrl,
 	return ETH_OK;
 }
 
-#ifdef MDD_CUT
 /*******************************************************************************
  * eth_port_set_rx_coal - Sets coalescing interrupt mechanism on RX path
  *
@@ -2575,6 +2594,7 @@ static unsigned int eth_port_set_tx_coal(ETH_PORT eth_port_num,
 	return coal;
 }
 
+#ifdef MDD_CUT
 /*******************************************************************************
  * eth_b_copy - Copy bytes from source to destination
  *
