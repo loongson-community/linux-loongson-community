@@ -409,7 +409,7 @@ cpu_4kc:
 			 * Why do we set all these options by default, THEN
 			 * query them??
 			 */
-			mips_cpu.cputype = MIPS_CPU_ISA_M32;
+			mips_cpu.isa_level = MIPS_CPU_ISA_M32;
 			mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX | 
 				           MIPS_CPU_4KTLB | MIPS_CPU_COUNTER | 
 				           MIPS_CPU_DIVEC | MIPS_CPU_WATCH;
@@ -424,7 +424,7 @@ cpu_4kc:
 			break;
 		case PRID_IMP_5KC:
 			mips_cpu.cputype = CPU_5KC;
-			mips_cpu.cputype = MIPS_CPU_ISA_M64;
+			mips_cpu.isa_level = MIPS_CPU_ISA_M64;
 			/* See comment above about querying options */
 			mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX | 
 				           MIPS_CPU_4KTLB | MIPS_CPU_COUNTER | 
@@ -471,9 +471,13 @@ cpu_4kc:
 		switch (mips_cpu.processor_id & 0xff00) {
 		case PRID_IMP_SB1:
 			mips_cpu.cputype = CPU_SB1;
-			mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX | 
-				           MIPS_CPU_COUNTER | MIPS_CPU_DIVEC | MIPS_CPU_FPU |
-		      	           MIPS_CPU_VCE;
+			mips_cpu.isa_level = MIPS_CPU_ISA_M64;
+			mips_cpu.options = (MIPS_CPU_TLB | MIPS_CPU_4KEX |
+			                   MIPS_CPU_COUNTER | MIPS_CPU_DIVEC);
+#ifndef CONFIG_SB1_PASS_1_WORKAROUNDS
+			/* FPU in pass1 is known to have issues. */
+			mips_cpu.options |= MIPS_CPU_FPU;
+#endif
 			break;
 		default:
 			mips_cpu.cputype = CPU_UNKNOWN;
@@ -618,6 +622,7 @@ void __init setup_arch(char **cmdline_p)
 	void sgi_setup(void);
         void ev96100_setup(void);
 	void malta_setup(void);
+	void ikos_setup(void);
 	void momenco_ocelot_setup(void);
 	void nino_setup(void);
 	void nec_osprey_setup(void);
@@ -730,6 +735,11 @@ void __init setup_arch(char **cmdline_p)
 #ifdef CONFIG_MIPS_PB1000
 	case MACH_GROUP_ALCHEMY:
 		au1000_setup();
+		break;
+#endif
+#ifdef CONFIG_SIBYTE_SWARM
+	case MACH_GROUP_SIBYTE:
+		swarm_setup();
 		break;
 #endif
 	default:
