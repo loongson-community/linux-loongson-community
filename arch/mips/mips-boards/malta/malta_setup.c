@@ -80,7 +80,7 @@ void __init fd_activate(void)
 }
 #endif
 
-static void __init malta_setup(void)
+static int __init malta_setup(void)
 {
 	unsigned int i;
 
@@ -97,6 +97,70 @@ static void __init malta_setup(void)
 	kgdb_config ();
 #endif
 
+	if ((mips_revision_corid == MIPS_REVISION_CORID_BONITO64) ||
+	    (mips_revision_corid == MIPS_REVISION_CORID_CORE_20K) ||
+	    (mips_revision_corid == MIPS_REVISION_CORID_CORE_EMUL_BON)) {
+		char *argptr;
+
+		argptr = prom_getcmdline();
+		if (strstr(argptr, "debug")) {
+			BONITO_BONGENCFG |= BONITO_BONGENCFG_DEBUGMODE;
+			printk ("Enabled Bonito debug mode\n");
+		}
+		else
+			BONITO_BONGENCFG &= ~BONITO_BONGENCFG_DEBUGMODE;
+
+#ifdef CONFIG_DMA_COHERENT
+		if (BONITO_PCICACHECTRL & BONITO_PCICACHECTRL_CPUCOH_PRES) {
+			BONITO_PCICACHECTRL |= BONITO_PCICACHECTRL_CPUCOH_EN;
+			printk("Enabled Bonito CPU coherency\n");
+
+			argptr = prom_getcmdline();
+			if (strstr(argptr, "iobcuncached")) {
+				BONITO_PCICACHECTRL &= ~BONITO_PCICACHECTRL_IOBCCOH_EN;
+				BONITO_PCIMEMBASECFG = BONITO_PCIMEMBASECFG & 
+					~(BONITO_PCIMEMBASECFG_MEMBASE0_CACHED |
+					  BONITO_PCIMEMBASECFG_MEMBASE1_CACHED);
+				printk("Disabled Bonito IOBC coherency\n");
+			}
+			else {
+				BONITO_PCICACHECTRL |= BONITO_PCICACHECTRL_IOBCCOH_EN;
+				BONITO_PCIMEMBASECFG |= 
+					(BONITO_PCIMEMBASECFG_MEMBASE0_CACHED | 
+					 BONITO_PCIMEMBASECFG_MEMBASE1_CACHED);
+				printk("Disabled Bonito IOBC coherency\n");
+			}
+		}
+		else
+			panic ("Hardware DMA cache coherency not supported\n");
+
+#endif
+	}
+#ifdef CONFIG_DMA_COHERENT
+	else {
+		panic ("Hardware DMA cache coherency not supported\n");
+	}
+#endif
+
+#ifdef CONFIG_BLK_DEV_IDE
+	/* Check PCI clock */
+	{
+		int jmpr = (*((volatile unsigned int *)ioremap(MALTA_JMPRS_REG, sizeof(unsigned int))) >> 2) & 0x07;
+		static const int pciclocks[] __initdata = {
+			33, 20, 25, 30, 12, 16, 37, 10
+		};
+		int pciclock = pciclocks[jmpr];
+		char *argptr = prom_getcmdline();
+
+		if (pciclock != 33 && !strstr (argptr, "idebus=")) {
+			printk("WARNING: PCI clock is %dMHz, setting idebus\n", pciclock);
+			argptr += strlen(argptr);
+			sprintf (argptr, " idebus=%d", pciclock);
+			if (pciclock < 20 || pciclock > 66)
+				printk ("WARNING: IDE timing calculations will be incorrect\n");
+		}
+	}
+#endif
 #ifdef CONFIG_BLK_DEV_FD
 	fd_activate ();
 #endif
@@ -124,6 +188,8 @@ static void __init malta_setup(void)
 	board_time_init = mips_time_init;
 	board_timer_setup = mips_timer_setup;
 	rtc_get_time = mips_rtc_get_time;
+
+	return 0;
 }
 
 early_initcall(malta_setup);
