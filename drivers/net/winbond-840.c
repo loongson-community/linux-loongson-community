@@ -149,6 +149,8 @@ KERN_INFO "  http://www.scyld.com/network/drivers.html\n";
 
 MODULE_AUTHOR("Donald Becker <becker@scyld.com>");
 MODULE_DESCRIPTION("Winbond W89c840 Ethernet driver");
+MODULE_LICENSE("GPL");
+
 MODULE_PARM(max_interrupt_work, "i");
 MODULE_PARM(debug, "i");
 MODULE_PARM(rx_copybreak, "i");
@@ -555,7 +557,7 @@ static int eeprom_read(long addr, int location)
 {
 	int i;
 	int retval = 0;
-	int ee_addr = addr + EECtrl;
+	long ee_addr = addr + EECtrl;
 	int read_cmd = location | EE_ReadCmd;
 	writel(EE_ChipSelect, ee_addr);
 

@@ -99,7 +99,7 @@ static int  ircc_pmproc(struct pm_dev *dev, pm_request_t rqst, void *data);
 #define	SERx4	8	/* SuperIO Chip supports 115,2 KBaud * 4=460,8 KBaud */
 
 /* These are the currently known SMC SuperIO chipsets */
-static const smc_chip_t __init fdc_chips_flat[]=
+static smc_chip_t __initdata fdc_chips_flat[]=
 {
 	/* Base address 0x3f0 or 0x370 */
 	{ "37C44",	KEY55_1|NoIRDA,		0x00, 0x00 }, /* This chip can not detected */
@@ -113,7 +113,7 @@ static const smc_chip_t __init fdc_chips_flat[]=
 	{ NULL }
 };
 
-static const smc_chip_t __init fdc_chips_paged[]=
+static smc_chip_t __initdata fdc_chips_paged[]=
 {
 	/* Base address 0x3f0 or 0x370 */
 	{ "37B72X",	KEY55_1|SIR|SERx4,	0x4c, 0x00 },
@@ -127,12 +127,12 @@ static const smc_chip_t __init fdc_chips_paged[]=
 	{ "37M707",	KEY55_1|SIR|SERx4,	0x42, 0x00 },
 	{ "37M81X",	KEY55_1|SIR|SERx4,	0x4d, 0x00 },
 	{ "37N958FR",	KEY55_1|FIR|SERx4,	0x09, 0x04 },
-	{ "37N972",	KEY55_1|FIR|SERx4,	0x0a, 0x00 },
+	{ "37N971",	KEY55_1|FIR|SERx4,	0x0a, 0x00 },
 	{ "37N972",	KEY55_1|FIR|SERx4,	0x0b, 0x00 },
 	{ NULL }
 };
 
-static const smc_chip_t __init lpc_chips_flat[]=
+static smc_chip_t __initdata lpc_chips_flat[]=
 {
 	/* Base address 0x2E or 0x4E */
 	{ "47N227",	KEY55_1|FIR|SERx4,	0x5a, 0x00 },
@@ -140,7 +140,7 @@ static const smc_chip_t __init lpc_chips_flat[]=
 	{ NULL }
 };
 
-static const smc_chip_t __init lpc_chips_paged[]=
+static smc_chip_t __initdata lpc_chips_paged[]=
 {
 	/* Base address 0x2E or 0x4E */
 	{ "47B27X",	KEY55_1|SIR|SERx4,	0x51, 0x00 },
@@ -158,6 +158,7 @@ static int ircc_irq=255;
 static int ircc_dma=255;
 static int ircc_fir=0;
 static int ircc_sir=0;
+static int ircc_cfg=0;
 
 static unsigned short	dev_count=0;
 
@@ -393,6 +394,13 @@ int __init ircc_init(void)
 		return -ENODEV;
 	}
 
+	/* try user provided configuration register base address */
+	if (ircc_cfg>0) {
+	        MESSAGE(" Overriding configuration address 0x%04x\n", ircc_cfg);
+		if (!smc_superio_fdc(ircc_cfg))
+			ret=0;
+	}
+
 	/* Trys to open for all the SMC chipsets we know about */
 
 	IRDA_DEBUG(0, __FUNCTION__ 
@@ -401,6 +409,8 @@ int __init ircc_init(void)
 	if (!smc_superio_fdc(0x3f0))
 		ret=0;
 	if (!smc_superio_fdc(0x370))
+		ret=0;
+	if (!smc_superio_fdc(0xe0))
 		ret=0;
 	if (!smc_superio_lpc(0x2e))
 		ret=0;
@@ -1219,6 +1229,8 @@ module_exit(smc_cleanup);
  
 MODULE_AUTHOR("Thomas Davis <tadavis@jps.net>");
 MODULE_DESCRIPTION("SMC IrCC controller driver");
+MODULE_LICENSE("GPL");
+
 MODULE_PARM(ircc_dma, "1i");
 MODULE_PARM_DESC(ircc_dma, "DMA channel");
 MODULE_PARM(ircc_irq, "1i");
@@ -1227,5 +1239,7 @@ MODULE_PARM(ircc_fir, "1-4i");
 MODULE_PARM_DESC(ircc_fir, "FIR Base Address");
 MODULE_PARM(ircc_sir, "1-4i");
 MODULE_PARM_DESC(ircc_sir, "SIR Base Address");
+MODULE_PARM(ircc_cfg, "1-4i");
+MODULE_PARM_DESC(ircc_cfg, "Configuration register base address");
 
 #endif /* MODULE */

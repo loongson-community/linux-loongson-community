@@ -68,4 +68,6 @@ typedef struct {
 #error cpumask macros only defined for 128p kernels
 #endif
 
+extern cpumask_t cpu_online_map;
+
 #endif /* __ASM_SMP_H */

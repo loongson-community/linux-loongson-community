@@ -29,6 +29,7 @@
 #include <linux/smp_lock.h>
 #include <asm/system.h>
 #include <asm/uaccess.h>
+#include <linux/module.h>
 
 extern struct inode_operations affs_symlink_inode_operations;
 extern struct timezone sys_tz;
@@ -300,7 +301,7 @@ affs_new_inode(struct inode *dir)
 	u32			 block;
 	struct buffer_head	*bh;
 
-	if (!(inode = get_empty_inode()))
+	if (!(inode = new_inode(sb)))
 		goto err_inode;
 
 	if (!(block = affs_alloc_block(dir, dir->i_ino)))
@@ -312,8 +313,6 @@ affs_new_inode(struct inode *dir)
 	mark_buffer_dirty_inode(bh, inode);
 	affs_brelse(bh);
 
-	inode->i_sb      = sb;
-	inode->i_dev     = sb->s_dev;
 	inode->i_uid     = current->fsuid;
 	inode->i_gid     = current->fsgid;
 	inode->i_ino     = block;
@@ -415,3 +414,4 @@ err:
 	affs_unlock_link(inode);
 	goto done;
 }
+MODULE_LICENSE("GPL");

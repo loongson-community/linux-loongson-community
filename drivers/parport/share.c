@@ -18,6 +18,7 @@
 #undef PARPORT_DEBUG_SHARING		/* undef for production */
 
 #include <linux/config.h>
+#include <linux/module.h>
 #include <linux/string.h>
 #include <linux/threads.h>
 #include <linux/parport.h>
@@ -41,10 +42,10 @@ unsigned long parport_default_timeslice = PARPORT_DEFAULT_TIMESLICE;
 int parport_default_spintime =  DEFAULT_SPIN_TIME;
 
 static struct parport *portlist = NULL, *portlist_tail = NULL;
-spinlock_t parportlist_lock = SPIN_LOCK_UNLOCKED;
+static spinlock_t parportlist_lock = SPIN_LOCK_UNLOCKED;
 
 static struct parport_driver *driver_chain = NULL;
-spinlock_t driverlist_lock = SPIN_LOCK_UNLOCKED;
+static spinlock_t driverlist_lock = SPIN_LOCK_UNLOCKED;
 
 /* What you can do to a port that's gone away.. */
 static void dead_write_lines (struct parport *p, unsigned char b){}
@@ -1140,3 +1141,4 @@ int parport_parse_dmas(int nports, const char *dmastr[], int dmaval[])
 	return parport_parse_params (nports, dmastr, dmaval, PARPORT_DMA_AUTO,
 				     PARPORT_DMA_NONE, PARPORT_DMA_NOFIFO);
 }
+MODULE_LICENSE("GPL");

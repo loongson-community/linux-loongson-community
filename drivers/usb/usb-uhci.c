@@ -71,9 +71,6 @@
 #define DEBUG_SYMBOLS
 #ifdef DEBUG_SYMBOLS
 	#define _static
-	#ifndef EXPORT_SYMTAB
-		#define EXPORT_SYMTAB
-	#endif
 #else
 	#define _static static
 #endif
@@ -2528,7 +2525,7 @@ _static int process_iso (uhci_t *s, urb_t *urb, int mode)
 	int i;
 	int ret = 0;
 	urb_priv_t *urb_priv = urb->hcpriv;
-	struct list_head *p = urb_priv->desc_list.next;
+	struct list_head *p = urb_priv->desc_list.next, *p_tmp;
 	uhci_desc_t *desc = list_entry (urb_priv->desc_list.prev, uhci_desc_t, desc_list);
 
 	dbg("urb contains iso request");
@@ -2578,8 +2575,9 @@ _static int process_iso (uhci_t *s, urb_t *urb, int mode)
 		dbg("process_iso: %i: len:%d %08x status:%x",
 		     i, urb->iso_frame_desc[i].actual_length, le32_to_cpu(desc->hw.td.status),urb->iso_frame_desc[i].status);
 
-		list_del (p);
+		p_tmp = p;
 		p = p->next;
+		list_del (p_tmp);
 		delete_desc (s, desc);
 	}
 	
@@ -3131,4 +3129,5 @@ module_exit (uhci_hcd_cleanup);
 
 MODULE_AUTHOR( DRIVER_AUTHOR );
 MODULE_DESCRIPTION( DRIVER_DESC );
+MODULE_LICENSE("GPL");
 

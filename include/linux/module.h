@@ -346,12 +346,21 @@ extern struct module *module_list;
 #define __EXPORT_SYMBOL(sym,str)   error config_must_be_included_before_module
 #define EXPORT_SYMBOL(var)	   error config_must_be_included_before_module
 #define EXPORT_SYMBOL_NOVERS(var)  error config_must_be_included_before_module
+#define EXPORT_SYMBOL_GPL(var)  error config_must_be_included_before_module
 
 #elif !defined(CONFIG_MODULES)
 
 #define __EXPORT_SYMBOL(sym,str)
 #define EXPORT_SYMBOL(var)
 #define EXPORT_SYMBOL_NOVERS(var)
+#define EXPORT_SYMBOL_GPL(var)
+
+#elif !defined(EXPORT_SYMTAB)
+
+#define __EXPORT_SYMBOL(sym,str)   error this_object_must_be_defined_as_export_objs_in_the_Makefile
+#define EXPORT_SYMBOL(var)	   error this_object_must_be_defined_as_export_objs_in_the_Makefile
+#define EXPORT_SYMBOL_NOVERS(var)  error this_object_must_be_defined_as_export_objs_in_the_Makefile
+#define EXPORT_SYMBOL_GPL(var)  error this_object_must_be_defined_as_export_objs_in_the_Makefile
 
 #else
 
@@ -362,10 +371,19 @@ const struct module_symbol __ksymtab_##sym 		\
 __attribute__((section("__ksymtab"))) =			\
 { (unsigned long)&sym, __kstrtab_##sym }
 
+#define __EXPORT_SYMBOL_GPL(sym, str)			\
+const char __kstrtab_##sym[]				\
+__attribute__((section(".kstrtab"))) = "GPLONLY_" str;	\
+const struct module_symbol __ksymtab_##sym		\
+__attribute__((section("__ksymtab"))) =			\
+{ (unsigned long)&sym, __kstrtab_##sym }
+
 #if defined(MODVERSIONS) || !defined(CONFIG_MODVERSIONS)
 #define EXPORT_SYMBOL(var)  __EXPORT_SYMBOL(var, __MODULE_STRING(var))
+#define EXPORT_SYMBOL_GPL(var)  __EXPORT_SYMBOL_GPL(var, __MODULE_STRING(var))
 #else
 #define EXPORT_SYMBOL(var)  __EXPORT_SYMBOL(var, __MODULE_STRING(__VERSIONED_SYMBOL(var)))
+#define EXPORT_SYMBOL_GPL(var)  __EXPORT_SYMBOL(var, __MODULE_STRING(__VERSIONED_SYMBOL(var)))
 #endif
 
 #define EXPORT_SYMBOL_NOVERS(var)  __EXPORT_SYMBOL(var, __MODULE_STRING(var))

@@ -82,7 +82,7 @@ static void
 sys_irq_end(unsigned int irq)
 {
 	if(!(irq_desc[irq].status & (IRQ_DISABLED | IRQ_INPROGRESS)))
-		sys_irq_enable();
+		sys_irq_enable(irq);
 }
 
 static hw_irq_controller sys_irq_controller = {

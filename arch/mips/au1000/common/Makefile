@@ -19,6 +19,8 @@ all: au1000.o
 
 O_TARGET := au1000.o
 
+export-objs		= prom.o serial.o
+
 obj-y := prom.o int-handler.o dma.o irq.o puts.o time.o reset.o power.o clocks.o
 
 obj-$(CONFIG_AU1000_UART) += serial.o             

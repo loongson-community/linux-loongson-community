@@ -235,3 +235,5 @@ SYS(sys_mincore, 3)
 SYS(sys_madvise, 3)
 SYS(sys_getdents64, 3)
 SYS(sys_fcntl64, 3)				/* 4220 */
+SYS(sys_ni_syscall, 0)
+SYS(sys_gettid, 0)

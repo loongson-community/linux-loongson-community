@@ -454,6 +454,8 @@ illegal_syscall:
 	sys	sys_madvise	3
 	sys	sys_getdents64	3
 	sys	sys32_fcntl64	3			/* 4220 */
+	sys	sys_ni_syscall	0
+	sys	sys_gettid	0
 	.endm
 
 	.macro	sys function, nargs

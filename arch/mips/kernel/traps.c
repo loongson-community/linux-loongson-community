@@ -223,8 +223,9 @@ void show_regs(struct pt_regs * regs)
 	/*
 	 * Saved cp0 registers
 	 */
-	printk("epc  : %08lx\nStatus: %08x\nCause : %08x\n",
-	       regs->cp0_epc, regs->cp0_status, regs->cp0_cause);
+	printk("epc  : %08lx    %s\nStatus: %08x\nCause : %08x\n",
+	       regs->cp0_epc, print_tainted(), regs->cp0_status,
+	       regs->cp0_cause);
 }
 
 spinlock_t die_lock;

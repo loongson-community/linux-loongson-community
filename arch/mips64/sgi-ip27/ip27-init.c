@@ -522,6 +522,7 @@ void allowboot(void)
 			 */
 			__cpu_number_map[cpu] = num_cpus;
 			__cpu_logical_map[num_cpus] = cpu;
+			CPUMASK_SETB(cpu_online_map, cpu);
 			num_cpus++;
 			/*
 			 * Wait this cpu to start up and initialize its hub,

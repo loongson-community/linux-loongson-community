@@ -1,5 +1,5 @@
 /*
- * BK Id: SCCS/s.process.c 1.27 08/28/01 22:01:21 paulus
+ * BK Id: SCCS/s.process.c 1.31 10/02/01 09:51:41 paulus
  */
 /*
  *  linux/arch/ppc/kernel/process.c
@@ -226,8 +226,10 @@ _switch_to(struct task_struct *prev, struct task_struct *new,
 	if ((prev->thread.regs && (prev->thread.regs->msr & MSR_VEC)))
 		giveup_altivec(prev);
 #endif /* CONFIG_ALTIVEC */	
-	current_set[smp_processor_id()] = new;
 #endif /* CONFIG_SMP */
+
+	current_set[smp_processor_id()] = new;
+
 	/* Avoid the trap.  On smp this this never happens since
 	 * we don't set last_task_used_altivec -- Cort
 	 */
@@ -243,8 +245,8 @@ void show_regs(struct pt_regs * regs)
 {
 	int i;
 
-	printk("NIP: %08lX XER: %08lX LR: %08lX SP: %08lX REGS: %p TRAP: %04lx\n",
-	       regs->nip, regs->xer, regs->link, regs->gpr[1], regs,regs->trap);
+	printk("NIP: %08lX XER: %08lX LR: %08lX SP: %08lX REGS: %p TRAP: %04lx    %s\n",
+	       regs->nip, regs->xer, regs->link, regs->gpr[1], regs,regs->trap, print_tainted());
 	printk("MSR: %08lx EE: %01x PR: %01x FP: %01x ME: %01x IR/DR: %01x%01x\n",
 	       regs->msr, regs->msr&MSR_EE ? 1 : 0, regs->msr&MSR_PR ? 1 : 0,
 	       regs->msr & MSR_FP ? 1 : 0,regs->msr&MSR_ME ? 1 : 0,

@@ -78,6 +78,8 @@
 		Andrew Morton - Clear blocked signals, avoid
 		buffer overrun setting current->comm.
 
+		Kalle Olavi Niemitalo - Wake-on-LAN ioctls
+
 	Submitting bug reports:
 
 		"rtl8139-diag -mmmaaavvveefN" output
@@ -137,7 +139,7 @@ an MMIO register read.
 */
 
 #define DRV_NAME	"8139too"
-#define DRV_VERSION	"0.9.18a"
+#define DRV_VERSION	"0.9.19"
 
 
 #include <linux/config.h>
@@ -429,9 +431,32 @@ enum Config1Bits {
 	PWRDN = (1 << 0),	/* only on 8139, 8139A */
 };
 
+/* Bits in Config3 */
+enum Config3Bits {
+	Cfg3_FBtBEn    = (1 << 0), /* 1 = Fast Back to Back */
+	Cfg3_FuncRegEn = (1 << 1), /* 1 = enable CardBus Function registers */
+	Cfg3_CLKRUN_En = (1 << 2), /* 1 = enable CLKRUN */
+	Cfg3_CardB_En  = (1 << 3), /* 1 = enable CardBus registers */
+	Cfg3_LinkUp    = (1 << 4), /* 1 = wake up on link up */
+	Cfg3_Magic     = (1 << 5), /* 1 = wake up on Magic Packet (tm) */
+	Cfg3_PARM_En   = (1 << 6), /* 0 = software can set twister parameters */
+	Cfg3_GNTSel    = (1 << 7), /* 1 = delay 1 clock from PCI GNT signal */
+};
+
 /* Bits in Config4 */
 enum Config4Bits {
 	LWPTN = (1 << 2),	/* not on 8139, 8139A */
+};
+
+/* Bits in Config5 */
+enum Config5Bits {
+	Cfg5_PME_STS     = (1 << 0), /* 1 = PCI reset resets PME_Status */
+	Cfg5_LANWake     = (1 << 1), /* 1 = enable LANWake signal */
+	Cfg5_LDPS        = (1 << 2), /* 0 = save power when link is down */
+	Cfg5_FIFOAddrPtr = (1 << 3), /* Realtek internal SRAM testing */
+	Cfg5_UWF         = (1 << 4), /* 1 = accept unicast wakeup frame */
+	Cfg5_MWF         = (1 << 5), /* 1 = accept multicast wakeup frame */
+	Cfg5_BWF         = (1 << 6), /* 1 = accept broadcast wakeup frame */
 };
 
 enum RxConfigBits {
@@ -592,6 +617,8 @@ struct rtl8139_private {
 
 MODULE_AUTHOR ("Jeff Garzik <jgarzik@mandrakesoft.com>");
 MODULE_DESCRIPTION ("RealTek RTL-8139 Fast Ethernet driver");
+MODULE_LICENSE("GPL");
+
 MODULE_PARM (multicast_filter_limit, "i");
 MODULE_PARM (max_interrupt_work, "i");
 MODULE_PARM (media, "1-" __MODULE_STRING(MAX_UNITS) "i");
@@ -618,6 +645,7 @@ static int netdev_ioctl (struct net_device *dev, struct ifreq *rq, int cmd);
 static struct net_device_stats *rtl8139_get_stats (struct net_device *dev);
 static inline u32 ether_crc (int length, unsigned char *data);
 static void rtl8139_set_rx_mode (struct net_device *dev);
+static void __set_rx_mode (struct net_device *dev);
 static void rtl8139_hw_start (struct net_device *dev);
 
 #ifdef USE_IO_OPS
@@ -825,6 +853,7 @@ static int __devinit rtl8139_init_board (struct pci_dev *pdev,
 #ifdef USE_IO_OPS
 	ioaddr = (void *) pio_start;
 	dev->base_addr = pio_start;
+	tp->mmio_addr = ioaddr;
 #else
 	/* ioremap MMIO region */
 	ioaddr = ioremap (mmio_start, mmio_len);
@@ -959,6 +988,7 @@ static int __devinit rtl8139_init_one (struct pci_dev *pdev,
 	dev->do_ioctl = netdev_ioctl;
 	dev->tx_timeout = rtl8139_tx_timeout;
 	dev->watchdog_timeo = TX_TIMEOUT;
+	dev->features |= NETIF_F_SG|NETIF_F_HW_CSUM;
 
 	dev->irq = pdev->irq;
 
@@ -1036,11 +1066,11 @@ static int __devinit rtl8139_init_one (struct pci_dev *pdev,
 		tp->duplex_lock = 1;
 	}
 	if (tp->default_port) {
-		printk(KERN_INFO "  Forcing %dMbs %s-duplex operation.\n",
+		printk(KERN_INFO "  Forcing %dMbps %s-duplex operation.\n",
 			   (option & 0x20 ? 100 : 10),
 			   (option & 0x10 ? "full" : "half"));
 		mdio_write(dev, tp->phys[0], 0,
-				   ((option & 0x20) ? 0x2000 : 0) | 	/* 100mbps? */
+				   ((option & 0x20) ? 0x2000 : 0) | 	/* 100Mbps? */
 				   ((option & 0x10) ? 0x0100 : 0)); /* Full duplex? */
 	}
 
@@ -1395,9 +1425,10 @@ static void rtl8139_hw_start (struct net_device *dev)
 	rtl_check_media (dev);
 
 	if (tp->chipset >= CH_8139B) {
-		/* disable magic packet scanning, which is enabled
-		 * when PM is enabled in Config1 */
-		RTL_W8 (Config3, RTL_R8 (Config3) & ~(1<<5));
+		/* Disable magic packet scanning, which is enabled
+		 * when PM is enabled in Config1.  It can be reenabled
+		 * via ETHTOOL_SWOL if desired.  */
+		RTL_W8 (Config3, RTL_R8 (Config3) & ~Cfg3_Magic);
 	}
 
 	DPRINTK("init buffer addresses\n");
@@ -1722,18 +1753,21 @@ static int rtl8139_start_xmit (struct sk_buff *skb, struct net_device *dev)
 	assert (tp->tx_info[entry].mapping == 0);
 
 	tp->tx_info[entry].skb = skb;
-	if ((long) skb->data & 3) {	/* Must use alignment buffer. */
-		/* tp->tx_info[entry].mapping = 0; */
-		memcpy (tp->tx_buf[entry], skb->data, skb->len);
-		dma_addr = tp->tx_bufs_dma + (tp->tx_buf[entry] - tp->tx_bufs);
-	} else {
+	if ( !((unsigned long)skb->data & 3) && skb_shinfo(skb)->nr_frags == 0 &&
+			skb->ip_summed != CHECKSUM_HW) {
 		tp->xstats.tx_buf_mapped++;
 		tp->tx_info[entry].mapping =
 		    pci_map_single (tp->pci_dev, skb->data, skb->len,
 				    PCI_DMA_TODEVICE);
 		dma_addr = tp->tx_info[entry].mapping;
-	}
-
+	} else if (skb->len < TX_BUF_SIZE) {
+		skb_copy_and_csum_dev(skb, tp->tx_buf[entry]);
+		dma_addr = tp->tx_bufs_dma + (tp->tx_buf[entry] - tp->tx_bufs);
+	} else {
+		dev_kfree_skb(skb);
+		tp->tx_info[entry].skb = NULL;
+		return 0;
+  	}
 	/* Note: the chip doesn't have auto-pad! */
 	spin_lock_irq(&tp->lock);
 	RTL_W32_F (TxAddr0 + (entry * 4), dma_addr);
@@ -1844,8 +1878,8 @@ static void rtl8139_rx_err (u32 rx_status, struct net_device *dev,
 			    struct rtl8139_private *tp, void *ioaddr)
 {
 	u8 tmp8;
-	int tmp_work = 1000;
-
+	int tmp_work;
+    
 	DPRINTK ("%s: Ethernet frame had errors, status %8.8x.\n",
 	         dev->name, rx_status);
 	if (rx_status & RxTooLong) {
@@ -1860,33 +1894,52 @@ static void rtl8139_rx_err (u32 rx_status, struct net_device *dev,
 		tp->stats.rx_length_errors++;
 	if (rx_status & RxCRCErr)
 		tp->stats.rx_crc_errors++;
+
 	/* Reset the receiver, based on RealTek recommendation. (Bug?) */
-	tp->cur_rx = 0;
 
 	/* disable receive */
-	RTL_W8 (ChipCmd, CmdTxEnb);
-
-	/* A.C.: Reset the multicast list. */
-	rtl8139_set_rx_mode (dev);
-
-	/* XXX potentially temporary hack to
-	 * restart hung receiver */
+	RTL_W8_F (ChipCmd, CmdTxEnb);
+	tmp_work = 200;
 	while (--tmp_work > 0) {
-		barrier();
+		udelay(1);
+		tmp8 = RTL_R8 (ChipCmd);
+		if (!(tmp8 & CmdRxEnb))
+			break;
+	}
+	if (tmp_work <= 0)
+		printk (KERN_WARNING PFX "rx stop wait too long\n");
+	/* restart receive */
+	tmp_work = 200;
+	while (--tmp_work > 0) {
+		RTL_W8_F (ChipCmd, CmdRxEnb | CmdTxEnb);
+		udelay(1);
 		tmp8 = RTL_R8 (ChipCmd);
 		if ((tmp8 & CmdRxEnb) && (tmp8 & CmdTxEnb))
 			break;
-		RTL_W8 (ChipCmd, CmdRxEnb | CmdTxEnb);
 	}
-
-	/* G.S.: Re-enable receiver */
-	/* XXX temporary hack to work around receiver hang */
-	rtl8139_set_rx_mode (dev);
-
 	if (tmp_work <= 0)
 		printk (KERN_WARNING PFX "tx/rx enable wait too long\n");
-}
 
+	/* and reinitialize all rx related registers */
+	RTL_W8_F (Cfg9346, Cfg9346_Unlock);
+	/* Must enable Tx/Rx before setting transfer thresholds! */
+	RTL_W8 (ChipCmd, CmdRxEnb | CmdTxEnb);
+
+	tp->rx_config = rtl8139_rx_config | AcceptBroadcast | AcceptMyPhys;
+	RTL_W32 (RxConfig, tp->rx_config);
+	tp->cur_rx = 0;
+
+	DPRINTK("init buffer addresses\n");
+
+	/* Lock Config[01234] and BMCR register writes */
+	RTL_W8 (Cfg9346, Cfg9346_Lock);
+
+	/* init Rx ring buffer DMA address */
+	RTL_W32_F (RxBuf, tp->rx_ring_dma);
+
+	/* A.C.: Reset the multicast list. */
+	__set_rx_mode (dev);
+}
 
 static void rtl8139_rx_interrupt (struct net_device *dev,
 				  struct rtl8139_private *tp, void *ioaddr)
@@ -2182,15 +2235,148 @@ static int rtl8139_close (struct net_device *dev)
 }
 
 
+/* Get the ethtool settings.  Assumes that eset points to kernel
+   memory, *eset has been initialized as {ETHTOOL_GSET}, and other
+   threads or interrupts aren't messing with the 8139.  */
+static void netdev_get_eset (struct net_device *dev, struct ethtool_cmd *eset)
+{
+	struct rtl8139_private *np = dev->priv;
+	void *ioaddr = np->mmio_addr;
+	u16 advert;
+
+	eset->supported = SUPPORTED_10baseT_Half
+		      	| SUPPORTED_10baseT_Full
+		      	| SUPPORTED_100baseT_Half
+		      	| SUPPORTED_100baseT_Full
+		      	| SUPPORTED_Autoneg
+		      	| SUPPORTED_TP;
+
+	eset->advertising = ADVERTISED_TP | ADVERTISED_Autoneg;
+	advert = mdio_read (dev, np->phys[0], 4);
+	if (advert & 0x0020)
+		eset->advertising |= ADVERTISED_10baseT_Half;
+	if (advert & 0x0040)
+		eset->advertising |= ADVERTISED_10baseT_Full;
+	if (advert & 0x0080)
+		eset->advertising |= ADVERTISED_100baseT_Half;
+	if (advert & 0x0100)
+		eset->advertising |= ADVERTISED_100baseT_Full;
+
+	eset->speed = (RTL_R8 (MediaStatus) & 0x08) ? 10 : 100;
+	/* (KON)FIXME: np->full_duplex is set or reset by the thread,
+	   which means this always shows half duplex if the interface
+	   isn't up yet, even if it has already autonegotiated.  */
+	eset->duplex = np->full_duplex ? DUPLEX_FULL : DUPLEX_HALF;
+	eset->port = PORT_TP;
+	/* (KON)FIXME: Is np->phys[0] correct?  starfire.c uses that.  */
+	eset->phy_address = np->phys[0];
+	eset->transceiver = XCVR_INTERNAL;
+	eset->autoneg = (mdio_read (dev, np->phys[0], 0) & 0x1000) != 0;
+	eset->maxtxpkt = 1;
+	eset->maxrxpkt = 1;
+}
+
+
+/* Get the ethtool Wake-on-LAN settings.  Assumes that wol points to
+   kernel memory, *wol has been initialized as {ETHTOOL_GWOL}, and
+   other threads or interrupts aren't messing with the 8139.  */
+static void netdev_get_wol (struct net_device *dev, struct ethtool_wolinfo *wol)
+{
+	struct rtl8139_private *np = dev->priv;
+	void *ioaddr = np->mmio_addr;
+
+	if (rtl_chip_info[np->chipset].flags & HasLWake) {
+		u8 cfg3 = RTL_R8 (Config3);
+		u8 cfg5 = RTL_R8 (Config5);
+
+		wol->supported = WAKE_PHY | WAKE_MAGIC
+			| WAKE_UCAST | WAKE_MCAST | WAKE_BCAST;
+
+		wol->wolopts = 0;
+		if (cfg3 & Cfg3_LinkUp)
+			wol->wolopts |= WAKE_PHY;
+		if (cfg3 & Cfg3_Magic)
+			wol->wolopts |= WAKE_MAGIC;
+		/* (KON)FIXME: See how netdev_set_wol() handles the
+		   following constants.  */
+		if (cfg5 & Cfg5_UWF)
+			wol->wolopts |= WAKE_UCAST;
+		if (cfg5 & Cfg5_MWF)
+			wol->wolopts |= WAKE_MCAST;
+		if (cfg5 & Cfg5_BWF)
+			wol->wolopts |= WAKE_BCAST;
+	}
+}
+
+
+/* Set the ethtool Wake-on-LAN settings.  Return 0 or -errno.  Assumes
+   that wol points to kernel memory and other threads or interrupts
+   aren't messing with the 8139.  */
+static int netdev_set_wol (struct net_device *dev,
+			   const struct ethtool_wolinfo *wol)
+{
+	struct rtl8139_private *np = dev->priv;
+	void *ioaddr = np->mmio_addr;
+	u32 support;
+	u8 cfg3, cfg5;
+
+	support = ((rtl_chip_info[np->chipset].flags & HasLWake)
+		   ? (WAKE_PHY | WAKE_MAGIC
+		      | WAKE_UCAST | WAKE_MCAST | WAKE_BCAST)
+		   : 0);
+	if (wol->wolopts & ~support)
+		return -EINVAL;
+
+	cfg3 = RTL_R8 (Config3) & ~(Cfg3_LinkUp | Cfg3_Magic);
+	if (wol->wolopts & WAKE_PHY)
+		cfg3 |= Cfg3_LinkUp;
+	if (wol->wolopts & WAKE_MAGIC)
+		cfg3 |= Cfg3_Magic;
+	RTL_W8 (Cfg9346, Cfg9346_Unlock);
+	RTL_W8 (Config3, cfg3);
+	RTL_W8 (Cfg9346, Cfg9346_Lock);
+
+	cfg5 = RTL_R8 (Config5) & ~(Cfg5_UWF | Cfg5_MWF | Cfg5_BWF);
+	/* (KON)FIXME: These are untested.  We may have to set the
+	   CRC0, Wakeup0 and LSBCRC0 registers too, but I have no
+	   documentation.  */
+	if (wol->wolopts & WAKE_UCAST)
+		cfg5 |= Cfg5_UWF;
+	if (wol->wolopts & WAKE_MCAST)
+		cfg5 |= Cfg5_MWF;
+	if (wol->wolopts & WAKE_BCAST)
+		cfg5 |= Cfg5_BWF;
+	RTL_W8 (Config5, cfg5);	/* need not unlock via Cfg9346 */
+
+	return 0;
+}
+
+
 static int netdev_ethtool_ioctl (struct net_device *dev, void *useraddr)
 {
 	struct rtl8139_private *np = dev->priv;
 	u32 ethcmd;
 
+	/* dev_ioctl() in ../../net/core/dev.c has already checked
+	   capable(CAP_NET_ADMIN), so don't bother with that here.  */
+
 	if (copy_from_user (&ethcmd, useraddr, sizeof (ethcmd)))
 		return -EFAULT;
 
 	switch (ethcmd) {
+	case ETHTOOL_GSET:
+		{
+			struct ethtool_cmd eset = { ETHTOOL_GSET };
+			spin_lock_irq (&np->lock);
+			netdev_get_eset (dev, &eset);
+			spin_unlock_irq (&np->lock);
+			if (copy_to_user (useraddr, &eset, sizeof (eset)))
+				return -EFAULT;
+			return 0;
+		}
+
+	/* TODO: ETHTOOL_SSET */
+		
 	case ETHTOOL_GDRVINFO:
 		{
 			struct ethtool_drvinfo info = { ETHTOOL_GDRVINFO };
@@ -2202,12 +2388,36 @@ static int netdev_ethtool_ioctl (struct net_device *dev, void *useraddr)
 			return 0;
 		}
 
+	case ETHTOOL_GWOL:
+		{
+			struct ethtool_wolinfo wol = { ETHTOOL_GWOL };
+			spin_lock_irq (&np->lock);
+			netdev_get_wol (dev, &wol);
+			spin_unlock_irq (&np->lock);
+			if (copy_to_user (useraddr, &wol, sizeof (wol)))
+				return -EFAULT;
+			return 0;
+		}
+
+	case ETHTOOL_SWOL:
+		{
+			struct ethtool_wolinfo wol;
+			int rc;
+			if (copy_from_user (&wol, useraddr, sizeof (wol)))
+				return -EFAULT;
+			spin_lock_irq (&np->lock);
+			rc = netdev_set_wol (dev, &wol);
+			spin_unlock_irq (&np->lock);
+			return rc;
+		}
+
 	default:
 		break;
 	}
 
 	return -EOPNOTSUPP;
 }
+
 
 static int netdev_ioctl (struct net_device *dev, struct ifreq *rq, int cmd)
 {
@@ -2218,8 +2428,11 @@ static int netdev_ioctl (struct net_device *dev, struct ifreq *rq, int cmd)
 
 	DPRINTK ("ENTER\n");
 
-	data->phy_id &= 0x1f;
-	data->reg_num &= 0x1f;
+	if (cmd != SIOCETHTOOL) {
+		/* With SIOCETHTOOL, this would corrupt the pointer.  */
+		data->phy_id &= 0x1f;
+		data->reg_num &= 0x1f;
+	}
 
 	switch (cmd) {
 	case SIOCETHTOOL:
@@ -2309,11 +2522,10 @@ static inline u32 ether_crc (int length, unsigned char *data)
 }
 
 
-static void rtl8139_set_rx_mode (struct net_device *dev)
+static void __set_rx_mode (struct net_device *dev)
 {
 	struct rtl8139_private *tp = dev->priv;
 	void *ioaddr = tp->mmio_addr;
-	unsigned long flags;
 	u32 mc_filter[2];	/* Multicast hash filter */
 	int i, rx_mode;
 	u32 tmp;
@@ -2350,22 +2562,28 @@ static void rtl8139_set_rx_mode (struct net_device *dev)
 		}
 	}
 
-	spin_lock_irqsave (&tp->lock, flags);
-
 	/* We can safely update without stopping the chip. */
 	tmp = rtl8139_rx_config | rx_mode;
 	if (tp->rx_config != tmp) {
-		RTL_W32 (RxConfig, tmp);
+		RTL_W32_F (RxConfig, tmp);
 		tp->rx_config = tmp;
 	}
 	RTL_W32_F (MAR0 + 0, mc_filter[0]);
 	RTL_W32_F (MAR0 + 4, mc_filter[1]);
 
-	spin_unlock_irqrestore (&tp->lock, flags);
 
 	DPRINTK ("EXIT\n");
 }
 
+static void rtl8139_set_rx_mode (struct net_device *dev)
+{
+	unsigned long flags;
+	struct rtl8139_private *tp = dev->priv;
+
+	spin_lock_irqsave (&tp->lock, flags);
+	__set_rx_mode(dev);
+	spin_unlock_irqrestore (&tp->lock, flags);
+}
 
 #ifdef CONFIG_PM
 

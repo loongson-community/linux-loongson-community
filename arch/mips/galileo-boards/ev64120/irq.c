@@ -390,13 +390,6 @@ int probe_irq_off(unsigned long irqs)
 	return 0;
 }
 
-int (*irq_cannonicalize) (int irq);
-
-int galileo_irq_cannonicalize(int i)
-{
-	return i;
-}
-
 /********************************************************************
  *galileo_irq_setup -
  *
@@ -461,11 +454,8 @@ void __init init_IRQ(void)
 		irq_desc[i].lock = SPIN_LOCK_UNLOCKED;
 	}
 
-	irq_cannonicalize = galileo_irq_cannonicalize;
 	galileo_irq_setup();
 }
-
-/* EXPORT_SYMBOL(irq_cannonicalize); */
 
 /*
  * Overrides for Emacs so that we follow Linus's tabbing style.

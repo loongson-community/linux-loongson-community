@@ -46,10 +46,6 @@ struct poll_table_struct;
 #define BLOCK_SIZE_BITS 10
 #define BLOCK_SIZE (1<<BLOCK_SIZE_BITS)
 
-/* buffer header fixed size for the blkdev I/O through pagecache */
-#define BUFFERED_BLOCKSIZE_BITS 10
-#define BUFFERED_BLOCKSIZE (1 << BUFFERED_BLOCKSIZE_BITS)
-
 /* And dynamically-tunable limits and defaults: */
 struct files_stat_struct {
 	int nr_files;		/* read only */
@@ -112,6 +108,7 @@ extern int leases_enable, dir_notify_enable, lease_break_time;
 #define MS_NOATIME	1024	/* Do not update access times. */
 #define MS_NODIRATIME	2048	/* Do not update directory access times */
 #define MS_BIND		4096
+#define MS_REC		16384
 #define MS_NOUSER	(1<<31)
 
 /*
@@ -282,7 +279,7 @@ void init_buffer(struct buffer_head *, bh_end_io_t *, void *);
 
 extern void set_bh_page(struct buffer_head *bh, struct page *page, unsigned long offset);
 
-#define touch_buffer(bh)	SetPageReferenced(bh->b_page)
+#define touch_buffer(bh)	mark_page_accessed(bh->b_page)
 
 
 #include <linux/pipe_fs_i.h>
@@ -437,6 +434,7 @@ struct inode {
 	time_t			i_atime;
 	time_t			i_mtime;
 	time_t			i_ctime;
+	unsigned int		i_blkbits;
 	unsigned long		i_blksize;
 	unsigned long		i_blocks;
 	unsigned long		i_version;
@@ -653,6 +651,7 @@ struct quota_mount_options
  */
 
 #define MNT_FORCE	0x00000001	/* Attempt to forcibily umount */
+#define MNT_DETACH	0x00000002	/* Just detach from the tree */
 
 #include <linux/minix_fs_sb.h>
 #include <linux/ext2_fs_sb.h>
@@ -921,11 +920,11 @@ static inline void mark_inode_dirty_pages(struct inode *inode)
 struct dquot_operations {
 	void (*initialize) (struct inode *, short);
 	void (*drop) (struct inode *);
-	int (*alloc_block) (const struct inode *, unsigned long, char);
+	int (*alloc_block) (struct inode *, unsigned long, char);
 	int (*alloc_inode) (const struct inode *, unsigned long);
-	void (*free_block) (const struct inode *, unsigned long);
+	void (*free_block) (struct inode *, unsigned long);
 	void (*free_inode) (const struct inode *, unsigned long);
-	int (*transfer) (struct dentry *, struct iattr *);
+	int (*transfer) (struct inode *, struct iattr *);
 };
 
 struct file_system_type {
@@ -1174,14 +1173,10 @@ extern int invalidate_device(kdev_t, int);
 extern void invalidate_inode_pages(struct inode *);
 extern void invalidate_inode_pages2(struct address_space *);
 extern void invalidate_inode_buffers(struct inode *);
-#define invalidate_buffers(dev)	__invalidate_buffers((dev), 0, 0)
-#define destroy_buffers(dev)	__invalidate_buffers((dev), 1, 0)
-#define update_buffers(dev)			\
-do {						\
-	__invalidate_buffers((dev), 0, 1);	\
-	__invalidate_buffers((dev), 0, 2);	\
-} while (0)
-extern void __invalidate_buffers(kdev_t dev, int, int);
+#define invalidate_buffers(dev)	__invalidate_buffers((dev), 0)
+#define destroy_buffers(dev)	__invalidate_buffers((dev), 1)
+extern void invalidate_bdev(struct block_device *, int);
+extern void __invalidate_buffers(kdev_t dev, int);
 extern void sync_inodes(kdev_t);
 extern void sync_unlocked_inodes(void);
 extern void write_inode_now(struct inode *, int);
@@ -1287,9 +1282,10 @@ typedef int (*read_actor_t)(read_descriptor_t *, struct page *, unsigned long, u
 /* needed for stackable file system support */
 extern loff_t default_llseek(struct file *file, loff_t offset, int origin);
 
-extern int __user_walk(const char *, unsigned, struct nameidata *);
-extern int path_init(const char *, unsigned, struct nameidata *);
-extern int path_walk(const char *, struct nameidata *);
+extern int FASTCALL(__user_walk(const char *, unsigned, struct nameidata *));
+extern int FASTCALL(path_init(const char *, unsigned, struct nameidata *));
+extern int FASTCALL(path_walk(const char *, struct nameidata *));
+extern int FASTCALL(link_path_walk(const char *, struct nameidata *));
 extern void path_release(struct nameidata *);
 extern int follow_down(struct vfsmount **, struct dentry **);
 extern int follow_up(struct vfsmount **, struct dentry **);
@@ -1312,12 +1308,14 @@ static inline struct inode *iget(struct super_block *sb, unsigned long ino)
 
 extern void clear_inode(struct inode *);
 extern struct inode * get_empty_inode(void);
+
 static inline struct inode * new_inode(struct super_block *sb)
 {
 	struct inode *inode = get_empty_inode();
 	if (inode) {
 		inode->i_sb = sb;
 		inode->i_dev = sb->s_dev;
+		inode->i_blkbits = sb->s_blocksize_bits;
 	}
 	return inode;
 }
@@ -1344,7 +1342,7 @@ static inline void bforget(struct buffer_head *buf)
 	if (buf)
 		__bforget(buf);
 }
-extern void set_blocksize(kdev_t, int);
+extern int set_blocksize(kdev_t, int);
 extern struct buffer_head * bread(kdev_t, int, int);
 extern void wakeup_bdflush(void);
 
@@ -1362,12 +1360,12 @@ extern int block_read_full_page(struct page*, get_block_t*);
 extern int block_prepare_write(struct page*, unsigned, unsigned, get_block_t*);
 extern int cont_prepare_write(struct page*, unsigned, unsigned, get_block_t*,
 				unsigned long *);
+extern int block_commit_write(struct page *page, unsigned from, unsigned to);
 extern int block_sync_page(struct page *);
 
 int generic_block_bmap(struct address_space *, long, get_block_t *);
 int generic_commit_write(struct file *, struct page *, unsigned, unsigned);
 int block_truncate_page(struct address_space *, loff_t, get_block_t *);
-extern int generic_direct_IO(int, struct inode *, struct kiobuf *, unsigned long, int, get_block_t *);
 extern void create_empty_buffers(struct page *, kdev_t, unsigned long);
 
 extern int waitfor_one_page(struct page*);

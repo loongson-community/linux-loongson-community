@@ -76,14 +76,16 @@ extern struct page * __find_get_page(struct address_space *mapping,
 	__find_get_page(mapping, index, page_hash(mapping, index))
 extern struct page * __find_lock_page (struct address_space * mapping,
 				unsigned long index, struct page **hash);
+extern struct page * find_or_create_page(struct address_space *mapping,
+				unsigned long index, unsigned int gfp_mask);
+
 extern void lock_page(struct page *page);
 #define find_lock_page(mapping, index) \
 	__find_lock_page(mapping, index, page_hash(mapping, index))
 
-extern void __add_page_to_hash_queue(struct page * page, struct page **p);
-
 extern void add_to_page_cache(struct page * page, struct address_space *mapping, unsigned long index);
 extern void add_to_page_cache_locked(struct page * page, struct address_space *mapping, unsigned long index);
+extern int add_to_page_cache_unique(struct page * page, struct address_space *mapping, unsigned long index, struct page **hash);
 
 extern void ___wait_on_page(struct page *);
 

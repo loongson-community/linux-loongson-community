@@ -102,7 +102,6 @@ CONFIG_MTD=y
 # CONFIG_MTD_DEBUG is not set
 # CONFIG_MTD_PARTITIONS is not set
 # CONFIG_MTD_REDBOOT_PARTS is not set
-# CONFIG_MTD_BOOTLDR_PARTS is not set
 
 #
 # User Modules And Translation Layers
@@ -117,14 +116,17 @@ CONFIG_MTD_CHAR=y
 # RAM/ROM/Flash chip drivers
 #
 CONFIG_MTD_CFI=y
-# CONFIG_MTD_CFI_VIRTUAL_ER is not set
+# CONFIG_MTD_JEDECPROBE is not set
+CONFIG_MTD_GEN_PROBE=y
 # CONFIG_MTD_CFI_ADV_OPTIONS is not set
 CONFIG_MTD_CFI_INTELEXT=y
 # CONFIG_MTD_CFI_AMDSTD is not set
-# CONFIG_MTD_AMDSTD is not set
-# CONFIG_MTD_SHARP is not set
 # CONFIG_MTD_RAM is not set
 # CONFIG_MTD_ROM is not set
+# CONFIG_MTD_ABSENT is not set
+# CONFIG_MTD_OBSOLETE_CHIPS is not set
+# CONFIG_MTD_AMDSTD is not set
+# CONFIG_MTD_SHARP is not set
 # CONFIG_MTD_JEDEC is not set
 
 #
@@ -134,16 +136,7 @@ CONFIG_MTD_PHYSMAP=y
 CONFIG_MTD_PHYSMAP_START=8000000
 CONFIG_MTD_PHYSMAP_LEN=2000000
 CONFIG_MTD_PHYSMAP_BUSWIDTH=4
-# CONFIG_MTD_PNC2000 is not set
-# CONFIG_MTD_RPXLITE is not set
-# CONFIG_MTD_SBC_GXX is not set
-# CONFIG_MTD_ELAN_104NC is not set
-# CONFIG_MTD_DBOX2 is not set
 # CONFIG_MTD_CSTM_MIPS_IXX is not set
-# CONFIG_MTD_CFI_FLAGADM is not set
-# CONFIG_MTD_MIXMEM is not set
-# CONFIG_MTD_OCTAGON is not set
-# CONFIG_MTD_VMAX is not set
 # CONFIG_MTD_OCELOT is not set
 
 #
@@ -152,6 +145,7 @@ CONFIG_MTD_PHYSMAP_BUSWIDTH=4
 # CONFIG_MTD_PMC551 is not set
 # CONFIG_MTD_SLRAM is not set
 # CONFIG_MTD_MTDRAM is not set
+# CONFIG_MTD_BLKMTD is not set
 
 #
 # Disk-On-Chip Device Drivers
@@ -556,6 +550,7 @@ CONFIG_UNIX98_PTY_COUNT=256
 # CONFIG_VFAT_FS is not set
 # CONFIG_EFS_FS is not set
 # CONFIG_JFFS_FS is not set
+# CONFIG_JFFS2_FS is not set
 # CONFIG_CRAMFS is not set
 # CONFIG_TMPFS is not set
 # CONFIG_RAMFS is not set

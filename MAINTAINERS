@@ -132,6 +132,14 @@ L:	linux-sound@vger.kernel.org
 W:	http://www.uni-karlsruhe.de/~Robert.Siemer/Private/
 S:	Maintained
 
+ACP/MWAVE MODEM
+P:	Paul B Schroeder
+M:	paulsch@us.ibm.com
+P:	Mike Sullivan
+M:	sullivam@us.ibm.com
+W:	http://www.ibm.com/linux/ltc/
+S:	Supported
+
 ACPI
 P:	Andy Grover
 M:	andrew.grover@intel.com
@@ -327,6 +335,12 @@ S:	Maintained
 CPUID/MSR DRIVER
 P:	H. Peter Anvin
 M:	hpa@zytor.com
+S:	Maintained
+
+CRAMFS FILESYSTEM
+P:	Daniel Quinlan
+M:	quinlan@transmeta.com
+W:	http://sourceforge.net/projects/cramfs/
 S:	Maintained
 
 CREDITS FILE
@@ -1480,7 +1494,6 @@ S:	Supported
 
 USB HUB
 P:	Johannes Erdfelt
-M:	jerdfelt@valinux.com
 M:	johannes@erdfelt.com
 L:	linux-usb-users@lists.sourceforge.net
 L:	linux-usb-devel@lists.sourceforge.net
@@ -1585,7 +1598,6 @@ W:	http://misc.nu/hugh/keyspan/
 
 USB SUBSYSTEM
 P:	Johannes Erdfelt
-M:	jerdfelt@valinux.com
 M:	johannes@erdfelt.com
 L:	linux-usb-users@lists.sourceforge.net
 L:	linux-usb-devel@lists.sourceforge.net

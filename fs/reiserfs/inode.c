@@ -758,11 +758,8 @@ int reiserfs_get_block (struct inode * inode, long block,
 	    struct cpu_key tmp_key;
 	    struct unfm_nodeinfo un = {0, 0};
 
-#ifdef CONFIG_REISERFS_CHECK
-	    if (pos_in_item != le16_to_cpu (ih->ih_item_len) / UNFM_P_SIZE)
-		reiserfs_panic (inode->i_sb, "vs-: reiserfs_get_block: "
-				"invalid position for append");
-#endif
+	    RFALSE( pos_in_item != le16_to_cpu (ih->ih_item_len) / UNFM_P_SIZE,
+		    "vs-804: invalid position for append");
 	    /* indirect item has to be appended, set up key of that position */
 	    make_cpu_key (&tmp_key, inode,
 			  le_key_k_offset (version, &(ih->ih_key)) + op_bytes_number (ih, inode->i_sb->s_blocksize),
@@ -1428,7 +1425,6 @@ struct inode * reiserfs_new_inode (struct reiserfs_transaction_handle *th,
     }
 
     sb = dir->i_sb;
-    inode->i_sb = sb;
     inode->i_flags = 0;//inode->i_sb->s_flags;
 
     /* item head of new item */

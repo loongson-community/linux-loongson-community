@@ -176,12 +176,12 @@
 #define		HERMES_RID_CNF_TX_KEY		(0xfcb1)
 #define		HERMES_RID_CNF_TICKTIME		(0xfce0)
 
-#define		HERMES_RID_CNF_PRISM2_WEP_ON	(0xfc28)
-#define		HERMES_RID_CNF_PRISM2_TX_KEY	(0xfc23)
-#define		HERMES_RID_CNF_PRISM2_KEY0	(0xfc24)
-#define		HERMES_RID_CNF_PRISM2_KEY1	(0xfc25)
-#define		HERMES_RID_CNF_PRISM2_KEY2	(0xfc26)
-#define		HERMES_RID_CNF_PRISM2_KEY3	(0xfc27)
+#define		HERMES_RID_CNF_INTERSIL_WEP_ON	(0xfc28)
+#define		HERMES_RID_CNF_INTERSIL_TX_KEY	(0xfc23)
+#define		HERMES_RID_CNF_INTERSIL_KEY0	(0xfc24)
+#define		HERMES_RID_CNF_INTERSIL_KEY1	(0xfc25)
+#define		HERMES_RID_CNF_INTERSIL_KEY2	(0xfc26)
+#define		HERMES_RID_CNF_INTERSIL_KEY3	(0xfc27)
 #define		HERMES_RID_CNF_SYMBOL_MANDATORY_BSSID	(0xfc21)
 #define		HERMES_RID_CNF_SYMBOL_AUTH_TYPE		(0xfc2A)
 #define		HERMES_RID_CNF_SYMBOL_BASIC_RATES	(0xfc8A)
@@ -202,24 +202,21 @@
 #define		HERMES_RID_WEP_AVAIL		(0xfd4f)
 #define		HERMES_RID_CURRENT_CHANNEL	(0xfdc1)
 #define		HERMES_RID_DATARATES		(0xfdc6)
-#define		HERMES_RID_SYMBOL_PRIMARY_VER	(0xfd03)
-#define		HERMES_RID_SYMBOL_SECONDARY_VER	(0xfd21)
+#define		HERMES_RID_SYMBOL_SECONDARY_VER	(0xfd24)
 #define		HERMES_RID_SYMBOL_KEY_LENGTH	(0xfc2B)
 
 /*
  * Frame structures and constants
  */
 
-#define __PACKED__ __attribute__ ((packed))
-
 typedef struct hermes_frame_desc {
 	/* Hermes - i.e. little-endian byte-order */
-	uint16_t status __PACKED__;
-	uint16_t res1, res2 __PACKED__;
-	uint16_t q_info __PACKED__;
-	uint16_t res3, res4 __PACKED__;
-	uint16_t tx_ctl __PACKED__;
-} hermes_frame_desc_t;
+	u16 status;
+	u16 res1, res2;
+	u16 q_info;
+	u16 res3, res4;
+	u16 tx_ctl;
+} __attribute__ ((packed)) hermes_frame_desc_t;
 
 #define		HERMES_RXSTAT_ERR		(0x0003)
 #define		HERMES_RXSTAT_MACPORT		(0x0700)
@@ -241,21 +238,21 @@ typedef struct hermes_frame_desc {
 typedef struct hermes {
 	uint iobase;
 
-	uint16_t inten; /* Which interrupts should be enabled? */
+	u16 inten; /* Which interrupts should be enabled? */
 } hermes_t;
 
 typedef struct hermes_response {
-	uint16_t status, resp0, resp1, resp2;
+	u16 status, resp0, resp1, resp2;
 } hermes_response_t;
 
 /* "ID" structure - used for ESSID and station nickname */
 typedef struct hermes_id {
-	uint16_t len;
-	uint16_t val[16];
+	u16 len;
+	u16 val[16];
 } __attribute__ ((packed)) hermes_id_t;
 
 typedef struct hermes_multicast {
-	uint8_t addr[HERMES_MAX_MULTICAST][ETH_ALEN];
+	u8 addr[HERMES_MAX_MULTICAST][ETH_ALEN];
 } __attribute__ ((packed)) hermes_multicast_t;
 
 /* Register access convenience macros */
@@ -265,25 +262,21 @@ typedef struct hermes_multicast {
 #define hermes_read_regn(hw, name) (hermes_read_reg((hw), HERMES_##name))
 #define hermes_write_regn(hw, name, val) (hermes_write_reg((hw), HERMES_##name, (val)))
 
-/* Note that for the next two, the count is in 16-bit words, not bytes */
-#define hermes_read_data(hw, off, buf, count) (insw((hw)->iobase + (off), (buf), (count)))
-#define hermes_write_data(hw, off, buf, count) (outsw((hw)->iobase + (off), (buf), (count)))
-
 /* Function prototypes */
 void hermes_struct_init(hermes_t *hw, uint io);
 int hermes_reset(hermes_t *hw);
-int hermes_docmd_wait(hermes_t *hw, uint16_t cmd, uint16_t parm0, hermes_response_t *resp);
-int hermes_allocate(hermes_t *hw, uint16_t size, uint16_t *fid);
+int hermes_docmd_wait(hermes_t *hw, u16 cmd, u16 parm0, hermes_response_t *resp);
+int hermes_allocate(hermes_t *hw, u16 size, u16 *fid);
 
-
-int hermes_bap_pread(hermes_t *hw, int bap, void *buf, uint16_t len,
-		       uint16_t id, uint16_t offset);
-int hermes_bap_pwrite(hermes_t *hw, int bap, const void *buf, uint16_t len,
-			uint16_t id, uint16_t offset);
-int hermes_read_ltv(hermes_t *hw, int bap, uint16_t rid, int buflen,
-		    uint16_t *length, void *buf);
-int hermes_write_ltv(hermes_t *hw, int bap, uint16_t rid,
-		      uint16_t length, const void *value);
+int hermes_bap_seek(hermes_t *hw, int bap, u16 id, u16 offset);
+int hermes_bap_pread(hermes_t *hw, int bap, void *buf, int len,
+		       u16 id, u16 offset);
+int hermes_bap_pwrite(hermes_t *hw, int bap, const void *buf, int len,
+			u16 id, u16 offset);
+int hermes_read_ltv(hermes_t *hw, int bap, u16 rid, int buflen,
+		    u16 *length, void *buf);
+int hermes_write_ltv(hermes_t *hw, int bap, u16 rid,
+		      u16 length, const void *value);
 
 /* Inline functions */
 
@@ -292,13 +285,13 @@ static inline int hermes_present(hermes_t *hw)
 	return hermes_read_regn(hw, SWSUPPORT0) == HERMES_MAGIC;
 }
 
-static inline void hermes_enable_interrupt(hermes_t *hw, uint16_t events)
+static inline void hermes_enable_interrupt(hermes_t *hw, u16 events)
 {
 	hw->inten |= events;
 	hermes_write_regn(hw, INTEN, hw->inten);
 }
 
-static inline void hermes_set_irqmask(hermes_t *hw, uint16_t events)
+static inline void hermes_set_irqmask(hermes_t *hw, u16 events)
 {
 	hw->inten = events;
 	hermes_write_regn(hw, INTEN, events);
@@ -323,14 +316,18 @@ static inline int hermes_disable_port(hermes_t *hw, int port)
 #define HERMES_BYTES_TO_RECLEN(n) ( ((n) % 2) ? (((n)+1)/2)+1 : ((n)/2)+1 )
 #define HERMES_RECLEN_TO_BYTES(n) ( ((n)-1) * 2 )
 
+/* Note that for the next two, the count is in 16-bit words, not bytes */
+#define hermes_read_words(hw, off, buf, count) (insw((hw)->iobase + (off), (buf), (count)))
+#define hermes_write_words(hw, off, buf, count) (outsw((hw)->iobase + (off), (buf), (count)))
+
 #define HERMES_READ_RECORD(hw, bap, rid, buf) \
 	(hermes_read_ltv((hw),(bap),(rid), sizeof(*buf), NULL, (buf)))
 #define HERMES_WRITE_RECORD(hw, bap, rid, buf) \
 	(hermes_write_ltv((hw),(bap),(rid),HERMES_BYTES_TO_RECLEN(sizeof(*buf)),(buf)))
 
-static inline int hermes_read_wordrec(hermes_t *hw, int bap, uint16_t rid, uint16_t *word)
+static inline int hermes_read_wordrec(hermes_t *hw, int bap, u16 rid, u16 *word)
 {
-	uint16_t rec;
+	u16 rec;
 	int err;
 
 	err = HERMES_READ_RECORD(hw, bap, rid, &rec);
@@ -338,9 +335,9 @@ static inline int hermes_read_wordrec(hermes_t *hw, int bap, uint16_t rid, uint1
 	return err;
 }
 
-static inline int hermes_write_wordrec(hermes_t *hw, int bap, uint16_t rid, uint16_t word)
+static inline int hermes_write_wordrec(hermes_t *hw, int bap, u16 rid, u16 word)
 {
-	uint16_t rec = cpu_to_le16(word);
+	u16 rec = cpu_to_le16(word);
 	return HERMES_WRITE_RECORD(hw, bap, rid, &rec);
 }
 

@@ -12,13 +12,14 @@
 
 #include <linux/config.h>
 #include <asm/system.h>
+#include <asm/page.h>
 #include <asm/ptrace.h>
 
 /*
  * Default implementation of macro that returns current
  * instruction pointer ("program counter").
  */
-#define current_text_addr() ({void *pc; __asm__ ("move.d pc,%0" : "=rm" (pc)); pc; })
+#define current_text_addr() ({void *pc; __asm__ ("move.d $pc,%0" : "=rm" (pc)); pc; })
 
 /* CRIS has no problems with write protection */
 
@@ -140,5 +141,7 @@ extern inline unsigned long thread_saved_pc(struct thread_struct *t)
 
 #define init_task       (init_task_union.task)
 #define init_stack      (init_task_union.stack)
+
+#define cpu_relax()	do { } while (0)
 
 #endif /* __ASM_CRIS_PROCESSOR_H */

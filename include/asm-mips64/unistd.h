@@ -237,11 +237,13 @@
 #define __NR_Linux32_madvise		(__NR_Linux32 + 218)
 #define __NR_Linux32_getdents64		(__NR_Linux32 + 219)
 #define __NR_Linux32_fcntl64		(__NR_Linux32 + 220)
+#define __NR_Linux32_security		(__NR_Linux32 + 221)
+#define __NR_Linux32_gettid		(__NR_Linux32 + 222)
 
 /*
  * Offset of the last Linux o32 flavoured syscall
  */
-#define __NR_Linux32_syscalls		220
+#define __NR_Linux32_syscalls		222
 
 /*
  * Linux 64-bit syscalls are in the range from 5000 to 5999.
@@ -461,11 +463,13 @@
 #define __NR_mincore			(__NR_Linux + 211)
 #define __NR_madvise			(__NR_Linux + 212)
 #define __NR_getdents64			(__NR_Linux + 213)
+#define __NR__security			(__NR_Linux + 214)
+#define __NR__gettid			(__NR_Linux + 215)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		213
+#define __NR_Linux_syscalls		215
 
 #ifndef _LANGUAGE_ASSEMBLY
 

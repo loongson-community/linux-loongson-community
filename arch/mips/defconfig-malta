@@ -237,7 +237,6 @@ CONFIG_SD_EXTRA_DEVS=40
 # CONFIG_SCSI_INITIO is not set
 # CONFIG_SCSI_INIA100 is not set
 # CONFIG_SCSI_NCR53C406A is not set
-# CONFIG_SCSI_NCR_D700 is not set
 # CONFIG_SCSI_NCR53C7xx is not set
 # CONFIG_SCSI_NCR53C8XX is not set
 # CONFIG_SCSI_SYM53C8XX is not set
@@ -458,6 +457,7 @@ CONFIG_AUTOFS_FS=y
 # CONFIG_VFAT_FS is not set
 CONFIG_EFS_FS=y
 # CONFIG_JFFS_FS is not set
+# CONFIG_JFFS2_FS is not set
 # CONFIG_CRAMFS is not set
 # CONFIG_TMPFS is not set
 # CONFIG_RAMFS is not set

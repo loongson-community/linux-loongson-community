@@ -347,3 +347,5 @@ sys_call_table:
 	PTR	sys_mincore
 	PTR	sys_madvise
 	PTR	sys_getdents64
+	PTR	sys_ni_syscall
+	PTR	sys_gettid				/* 5215 */

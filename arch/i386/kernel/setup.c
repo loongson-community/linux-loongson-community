@@ -2422,6 +2422,10 @@ int get_cpuinfo(char * buffer)
 		if (!(cpu_online_map & (1<<n)))
 			continue;
 #endif
+		/* Stupid hack */
+		if (p - buffer > (3*PAGE_SIZE)/4)
+			break;
+
 		p += sprintf(p,"processor\t: %d\n"
 			"vendor_id\t: %s\n"
 			"cpu family\t: %d\n"
@@ -2479,7 +2483,7 @@ int get_cpuinfo(char * buffer)
 	return p - buffer;
 }
 
-static unsigned long cpu_initialized __initdata = 0;
+unsigned long cpu_initialized __initdata = 0;
 
 /*
  * cpu_init() initializes state that is per-CPU. Some data is already

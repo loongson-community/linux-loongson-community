@@ -357,6 +357,7 @@ struct page * __alloc_pages(unsigned int gfp_mask, unsigned int order, zonelist_
 
 	/* here we're in the low on memory slow path */
 
+rebalance:
 	if (current->flags & PF_MEMALLOC) {
 		zone = zonelist->zones;
 		for (;;) {
@@ -371,46 +372,36 @@ struct page * __alloc_pages(unsigned int gfp_mask, unsigned int order, zonelist_
 		return NULL;
 	}
 
- rebalance:
+	/* Atomic allocations - we can't balance anything */
+	if (!(gfp_mask & __GFP_WAIT))
+		return NULL;
+
 	page = balance_classzone(classzone, gfp_mask, order, &freed);
 	if (page)
 		return page;
 
 	zone = zonelist->zones;
-	if (likely(freed)) {
-		for (;;) {
-			zone_t *z = *(zone++);
-			if (!z)
-				break;
+	for (;;) {
+		zone_t *z = *(zone++);
+		if (!z)
+			break;
 
-			if (zone_free_pages(z, order) > z->pages_min) {
-				page = rmqueue(z, order);
-				if (page)
-					return page;
-			}
-		}
-		goto rebalance;
-	} else {
-		/* 
-		 * Check that no other task is been killed meanwhile,
-		 * in such a case we can succeed the allocation.
-		 */
-		for (;;) {
-			zone_t *z = *(zone++);
-			if (!z)
-				break;
-
-			if (zone_free_pages(z, order) > z->pages_high) {
-				page = rmqueue(z, order);
-				if (page)
-					return page;
-			}
+		if (zone_free_pages(z, order) > z->pages_min) {
+			page = rmqueue(z, order);
+			if (page)
+				return page;
 		}
 	}
 
-	printk(KERN_NOTICE "__alloc_pages: %u-order allocation failed (gfp=0x%x/%i) from %p\n",
-	       order, gfp_mask, !!(current->flags & PF_MEMALLOC), __builtin_return_address(0));
-	return NULL;
+	/* Don't let big-order allocations loop */
+	if (order)
+		return NULL;
+
+	/* Yield for kswapd, and try again */
+	current->policy |= SCHED_YIELD;
+	__set_current_state(TASK_RUNNING);
+	schedule();
+	goto rebalance;
 }
 
 /*
@@ -480,7 +471,7 @@ unsigned int nr_free_buffer_pages (void)
 	zone_t **zonep, *zone;
 
 	do {
-		zonelist = pgdat->node_zonelists + __GFP_HIGHMEM;
+		zonelist = pgdat->node_zonelists + (GFP_USER & GFP_ZONEMASK);
 		zonep = zonelist->zones;
 
 		for (zone = *zonep++; zone; zone = *zonep++)
@@ -515,6 +506,30 @@ void show_free_areas_core(pg_data_t *pgdat)
 {
  	unsigned int order;
 	unsigned type;
+	pg_data_t *tmpdat = pgdat;
+
+	printk("Free pages:      %6dkB (%6dkB HighMem)\n",
+		nr_free_pages() << (PAGE_SHIFT-10),
+		nr_free_highpages() << (PAGE_SHIFT-10));
+
+	while (tmpdat) {
+		zone_t *zone;
+		for (zone = tmpdat->node_zones;
+			       	zone < tmpdat->node_zones + MAX_NR_ZONES; zone++)
+			printk("Zone:%s freepages:%6lukB min:%6luKB low:%6lukB " 
+				       "high:%6lukB\n", 
+					zone->name,
+					(zone->free_pages)
+					<< ((PAGE_SHIFT-10)),
+					zone->pages_min
+					<< ((PAGE_SHIFT-10)),
+					zone->pages_low
+					<< ((PAGE_SHIFT-10)),
+					zone->pages_high
+					<< ((PAGE_SHIFT-10)));
+			
+		tmpdat = tmpdat->node_next;
+	}
 
 	printk("Free pages:      %6dkB (%6dkB HighMem)\n",
 		nr_free_pages() << (PAGE_SHIFT-10),

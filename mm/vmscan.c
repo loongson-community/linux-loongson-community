@@ -125,18 +125,20 @@ drop_pte:
 	 * we have the swap cache set up to associate the
 	 * page with that swap entry.
 	 */
-	swap_list_lock();
-	entry = get_swap_page();
-	if (entry.val) {
+	for (;;) {
+		entry = get_swap_page();
+		if (!entry.val)
+			break;
 		/* Add it to the swap cache and mark it dirty */
-		add_to_swap_cache(page, entry);
-		swap_list_unlock();
-		set_page_dirty(page);
-		goto set_swap_pte;
+		if (add_to_swap_cache(page, entry) == 0) {
+			set_page_dirty(page);
+			goto set_swap_pte;
+		}
+		/* Raced with "speculative" read_swap_cache_async */
+		swap_free(entry);
 	}
 
 	/* No swap space left */
-	swap_list_unlock();
 	set_pte(page_table, pte);
 	UnlockPage(page);
 	return 0;
@@ -332,7 +334,6 @@ static int shrink_cache(int nr_pages, int max_scan, zone_t * classzone, unsigned
 	spin_lock(&pagemap_lru_lock);
 	while (max_scan && (entry = inactive_list.prev) != &inactive_list) {
 		struct page * page;
-		swp_entry_t swap;
 
 		if (unlikely(current->need_resched)) {
 			spin_unlock(&pagemap_lru_lock);
@@ -407,12 +408,6 @@ static int shrink_cache(int nr_pages, int max_scan, zone_t * classzone, unsigned
 			if (try_to_free_buffers(page, gfp_mask)) {
 				if (!page->mapping) {
 					/*
-					 * Account we successfully freed a page
-					 * of buffer cache.
-					 */
-					atomic_dec(&buffermem_pages);
-
-					/*
 					 * We must not allow an anon page
 					 * with no buffers to be visible on
 					 * the LRU, so we unlock the page after
@@ -472,23 +467,17 @@ static int shrink_cache(int nr_pages, int max_scan, zone_t * classzone, unsigned
 
 		/* point of no return */
 		if (likely(!PageSwapCache(page))) {
-			swap.val = 0;
 			__remove_inode_page(page);
+			spin_unlock(&pagecache_lock);
 		} else {
+			swp_entry_t swap;
 			swap.val = page->index;
 			__delete_from_swap_cache(page);
+			spin_unlock(&pagecache_lock);
+			swap_free(swap);
 		}
-		spin_unlock(&pagecache_lock);
 
 		__lru_cache_del(page);
-
-		if (unlikely(swap.val != 0)) {
-			/* must drop lru lock if getting swap_list lock */
-			spin_unlock(&pagemap_lru_lock);
-			swap_free(swap);
-			spin_lock(&pagemap_lru_lock);
-		}
-
 		UnlockPage(page);
 
 		/* effectively free the page here */
@@ -536,33 +525,40 @@ static void refill_inactive(int nr_pages)
 static int FASTCALL(shrink_caches(int priority, zone_t * classzone, unsigned int gfp_mask, int nr_pages));
 static int shrink_caches(int priority, zone_t * classzone, unsigned int gfp_mask, int nr_pages)
 {
-	int max_scan = nr_inactive_pages / priority;
+	int max_scan;
+	int chunk_size = nr_pages;
+	unsigned long ratio;
 
 	nr_pages -= kmem_cache_reap(gfp_mask);
 	if (nr_pages <= 0)
 		return 0;
 
-	/* Do we want to age the active list? */
-	if (nr_inactive_pages < nr_active_pages*2)
-		refill_inactive(nr_pages);
-
+	nr_pages = chunk_size;
+	/* try to keep the active list 2/3 of the size of the cache */
+	ratio = (unsigned long) nr_pages * nr_active_pages / ((nr_inactive_pages + 1) * 2);
+	refill_inactive(ratio);
+  
+	max_scan = nr_inactive_pages / priority;
 	nr_pages = shrink_cache(nr_pages, max_scan, classzone, gfp_mask);
 	if (nr_pages <= 0)
 		return 0;
 
 	shrink_dcache_memory(priority, gfp_mask);
 	shrink_icache_memory(priority, gfp_mask);
+#ifdef CONFIG_QUOTA
+	shrink_dqcache_memory(DEF_PRIORITY, gfp_mask);
+#endif
 
 	return nr_pages;
 }
 
 int try_to_free_pages(zone_t * classzone, unsigned int gfp_mask, unsigned int order)
 {
-	int priority = DEF_PRIORITY;
 	int ret = 0;
+	int priority = DEF_PRIORITY;
+	int nr_pages = SWAP_CLUSTER_MAX;
 
 	do {
-		int nr_pages = SWAP_CLUSTER_MAX;
 		nr_pages = shrink_caches(priority, classzone, gfp_mask, nr_pages);
 		if (nr_pages <= 0)
 			return 1;
@@ -602,7 +598,7 @@ static int kswapd_balance_pgdat(pg_data_t * pgdat)
 		if (!try_to_free_pages(zone, GFP_KSWAPD, 0)) {
 			zone->need_balance = 0;
 			__set_current_state(TASK_INTERRUPTIBLE);
-			schedule_timeout(HZ*5);
+			schedule_timeout(HZ);
 			continue;
 		}
 		if (check_classzone_need_balance(zone))
@@ -625,6 +621,9 @@ static void kswapd_balance(void)
 		do
 			need_more_balance |= kswapd_balance_pgdat(pgdat);
 		while ((pgdat = pgdat->node_next));
+		if (need_more_balance && out_of_memory()) {
+			oom_kill();	
+		}
 	} while (need_more_balance);
 }
 

@@ -552,12 +552,22 @@ int dev_alloc_name(struct net_device *dev, const char *name)
 {
 	int i;
 	char buf[32];
+	char *p;
 
 	/*
-	 *	If you need over 100 please also fix the algorithm...
+	 * Verify the string as this thing may have come from
+	 * the user.  There must be one "%d" and no other "%"
+	 * characters.
+	 */
+	p = strchr(name, '%');
+	if (!p || p[1] != 'd' || strchr(p+2, '%'))
+		return -EINVAL;
+
+	/*
+	 * If you need over 100 please also fix the algorithm...
 	 */
 	for (i = 0; i < 100; i++) {
-		sprintf(buf,name,i);
+		snprintf(buf,sizeof(buf),name,i);
 		if (__dev_get_by_name(buf) == NULL) {
 			strcpy(dev->name, buf);
 			return i;
