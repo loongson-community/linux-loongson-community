@@ -228,7 +228,7 @@ extern __inline__ int atomic_sub_return(int i, atomic_t * v)
  * other cases.  Note that the guaranteed
  * useful range of an atomic_t is only 24 bits.
  */
-#define atomic_inc_and_test(v) (atomic_inc_return(1, (v)) == 0)
+#define atomic_inc_and_test(v) (atomic_inc_return(v) == 0)
 
 /*
  * atomic_dec_and_test - decrement by 1 and test

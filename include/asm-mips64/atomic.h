@@ -140,8 +140,8 @@ extern __inline__ int atomic_sub_return(int i, atomic_t * v)
  * and returns true if the result is zero, or false for all
  * other cases.  Note that the guaranteed
  * useful range of an atomic_t is only 24 bits.
- * atomic_inc_and_test is currently not implemented for mips64.
  */
+#define atomic_inc_and_test(v) (atomic_inc_return(v) == 0)
 
 /*
  * atomic_dec_and_test - decrement by 1 and test
