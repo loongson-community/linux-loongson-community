@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1996, 1997 by Ralf Baechle
  *
- * $Id: setup.c,v 1.4 1997/07/29 17:57:06 ralf Exp $
+ * $Id: setup.c,v 1.5 1997/12/01 17:57:24 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/ioport.h>
@@ -106,7 +106,7 @@ __initfunc(void jazz_setup(void))
 	fd_cacheflush = jazz_fd_cacheflush;
 	keyboard_setup = jazz_keyboard_setup;
 	feature = &jazz_feature;			// Will go away
-	port_base = JAZZ_PORT_BASE;
+	mips_io_port_base = JAZZ_PORT_BASE;
 	isa_slot_offset = 0xe3000000;
 	request_region(0x00,0x20,"dma1");
 	request_region(0x40,0x20,"timer");
