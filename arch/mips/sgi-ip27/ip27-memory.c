@@ -224,7 +224,7 @@ prom_free_prom_memory (void)
 
 #ifdef CONFIG_DISCONTIGMEM
 
-static pfn_t pagenr = 0;
+static pfn_t pagenr;
 
 void __init paging_init(void)
 {

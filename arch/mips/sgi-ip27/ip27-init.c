@@ -46,8 +46,8 @@
 #define CNODEMASK_SETB(p, bit)	((p) |= 1ULL << (bit))
 
 cpumask_t	boot_cpumask;
-hubreg_t	region_mask = 0;
-static int	fine_mode = 0;
+hubreg_t	region_mask;
+static int	fine_mode;
 int		maxcpus;
 static spinlock_t hub_mask_lock = SPIN_LOCK_UNLOCKED;
 static cnodemask_t hub_init_mask;
@@ -821,4 +821,3 @@ dump_klcfg(void)
 	dump_topology();
 }
 #endif
-
