@@ -98,6 +98,7 @@ static void __init kmap_init(void)
 
 #endif /* CONFIG_HIGHMEM */
 
+#ifdef CONFIG_HIGHMEM
 static void __init fixrange_init (unsigned long start, unsigned long end,
 	pgd_t *pgd_base)
 {
@@ -126,22 +127,25 @@ static void __init fixrange_init (unsigned long start, unsigned long end,
 		j = 0;
 	}
 }
+#endif
 
 void __init pagetable_init(void)
 {
+#ifdef CONFIG_HIGHMEM
 	unsigned long vaddr;
 	pgd_t *pgd, *pgd_base;
 	pmd_t *pmd;
 	pte_t *pte;
+#endif
 
 	/* Initialize the entire pgd.  */
 	pgd_init((unsigned long)swapper_pg_dir);
 	pgd_init((unsigned long)swapper_pg_dir +
 	         sizeof(pgd_t ) * USER_PTRS_PER_PGD);
 
+#ifdef CONFIG_HIGHMEM
 	pgd_base = swapper_pg_dir;
 
-#ifdef CONFIG_HIGHMEM
 	/*
 	 * Fixed mappings:
 	 */
