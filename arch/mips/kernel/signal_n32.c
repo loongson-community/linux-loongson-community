@@ -73,7 +73,7 @@ struct rt_sigframe_n32 {
 	struct ucontextn32 rs_uc;
 };
 
-extern asmlinkage int restore_sigcontext(struct pt_regs *regs, struct sigcontext *sc);
+extern int restore_sigcontext(struct pt_regs *regs, struct sigcontext *sc);
 extern int inline setup_sigcontext(struct pt_regs *regs, struct sigcontext *sc);
 
 asmlinkage void sysn32_rt_sigreturn(nabi_no_regargs struct pt_regs regs)

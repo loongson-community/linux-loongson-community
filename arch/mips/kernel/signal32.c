@@ -106,7 +106,7 @@ typedef struct siginfo32 {
 
 #define _BLOCKABLE (~(sigmask(SIGKILL) | sigmask(SIGSTOP)))
 
-extern asmlinkage int do_signal32(sigset_t *oldset, struct pt_regs *regs);
+extern int do_signal32(sigset_t *oldset, struct pt_regs *regs);
 
 /* 32-bit compatibility types */
 
@@ -192,6 +192,7 @@ static inline int get_sigset(sigset_t *kbuf, const compat_sigset_t *ubuf)
 /*
  * Atomically swap in the new signal mask, and wait for a signal.
  */
+
 save_static_function(sys32_sigsuspend);
 __attribute_used__ noinline static int
 _sys32_sigsuspend(nabi_no_regargs struct pt_regs regs)
@@ -333,8 +334,7 @@ asmlinkage int sys32_sigaltstack(nabi_no_regargs struct pt_regs regs)
 	return ret;
 }
 
-static asmlinkage int restore_sigcontext32(struct pt_regs *regs,
-					   struct sigcontext32 *sc)
+static int restore_sigcontext32(struct pt_regs *regs, struct sigcontext32 *sc)
 {
 	int err = 0;
 
@@ -759,7 +759,7 @@ static inline void handle_signal(unsigned long sig, siginfo_t *info,
 	}
 }
 
-asmlinkage int do_signal32(sigset_t *oldset, struct pt_regs *regs)
+int do_signal32(sigset_t *oldset, struct pt_regs *regs)
 {
 	struct k_sigaction ka;
 	siginfo_t info;
