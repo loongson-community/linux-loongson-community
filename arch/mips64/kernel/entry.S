@@ -85,6 +85,6 @@ LEAF(spurious_interrupt)
 1:		ll      t0, %lo(irq_err_count)(t1)
 		addiu   t0, 1
 		sc      t0, %lo(irq_err_count)(t1)
-		beq	t0, 1b
+		beqz	t0, 1b
 		j	ret_from_irq
 		END(spurious_interrupt)
