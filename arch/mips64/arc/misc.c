@@ -20,7 +20,6 @@
 #include <asm/bootinfo.h>
 #include <asm/system.h>
 
-extern unsigned long mips_cputype;
 extern void *sgiwd93_host;
 extern void reset_wd33c93(void *instance);
 

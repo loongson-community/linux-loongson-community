@@ -34,6 +34,7 @@
 #include <asm/pgalloc.h>
 #include <asm/mmu_context.h>
 #include <asm/tlb.h>
+#include <asm/cpu.h>
 
 mmu_gather_t mmu_gathers[NR_CPUS];
 unsigned long totalram_pages;
@@ -131,7 +132,7 @@ unsigned long setup_zero_pages(void)
 	unsigned long order, size;
 	struct page *page;
 
-	switch (mips_cputype) {
+	switch (mips_cpu.cputype) {
 	case CPU_R4000SC:
 	case CPU_R4000MC:
 	case CPU_R4400SC:

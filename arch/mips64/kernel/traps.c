@@ -447,7 +447,7 @@ static inline void setup_dedicated_int(void)
 {
 	extern void except_vec4(void);
 
-	switch(mips_cputype) {
+	switch(mips_cpu.cputype) {
 	case CPU_NEVADA:
 		memcpy((void *)(KSEG0 + 0x200), except_vec4, 8);
 		set_cp0_cause(CAUSEF_IV);
@@ -475,7 +475,7 @@ void set_except_vector(int n, void *addr)
 
 static inline void mips4_setup(void)
 {
-	switch (mips_cputype) {
+	switch (mips_cpu.cputype) {
 	case CPU_R5000:
 	case CPU_R5000A:
 	case CPU_NEVADA:
@@ -521,7 +521,7 @@ void __init trap_init(void)
 	 * Only some CPUs have the watch exceptions or a dedicated
 	 * interrupt vector.
 	 */
-	watch_init(mips_cputype);
+	watch_init(mips_cpu.cputype);
 	setup_dedicated_int();
 	mips4_setup();
 	go_64();		/* In memoriam C128 ;-)  */
@@ -532,7 +532,7 @@ void __init trap_init(void)
 	/*
 	 * Handling the following exceptions depends mostly of the cpu type
 	 */
-	switch(mips_cputype) {
+	switch(mips_cpu.cputype) {
 	case CPU_R10000:
 		/*
 		 * The R10000 is in most aspects similar to the R4400.  It
@@ -590,7 +590,7 @@ r4k:
 		break;
 
 	case CPU_R8000:
-		panic("unsupported CPU type %s.\n", cpu_names[mips_cputype]);
+		panic("unsupported CPU type %s.\n", cpu_names[mips_cpu.cputype]);
 		break;
 
 	case CPU_UNKNOWN:

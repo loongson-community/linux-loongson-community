@@ -32,8 +32,8 @@ int get_cpuinfo(char *buffer)
 	len = sprintf(buffer, "cpu\t\t\t: MIPS\n");
 #if 0
 	len += sprintf(buffer + len, "cpu model\t\t: %s V%d.%d\n",
-	               cpu_name[mips_cputype <= CPU_LAST ?
-	                        mips_cputype :
+	               cpu_name[mips_cpu.cputype <= CPU_LAST ?
+	                        mips_cpu.cputype :
 	                        CPU_UNKNOWN],
 	               (version >> 4) & 0x0f,
 	               version & 0x0f);

@@ -17,6 +17,7 @@
 #include <asm/pgtable.h>
 #include <asm/system.h>
 #include <asm/bootinfo.h>
+#include <asm/cpu.h>
 
 /* memory functions */
 void (*_clear_page)(void * page);
@@ -52,7 +53,7 @@ extern void ld_mmu_sb1(void);
 
 void __init load_mmu(void)
 {
-	switch(mips_cputype) {
+	switch(mips_cpu.cputype) {
 #if defined (CONFIG_CPU_R4300)						\
     || defined (CONFIG_CPU_R4X00)					\
     || defined (CONFIG_CPU_R5000)					\

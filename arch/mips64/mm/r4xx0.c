@@ -21,6 +21,7 @@
 #include <asm/system.h>
 #include <asm/bootinfo.h>
 #include <asm/mmu_context.h>
+#include <asm/cpu.h>
 
 /* CP0 hazard avoidance. */
 #define BARRIER __asm__ __volatile__(".set noreorder\n\t" \
@@ -38,6 +39,7 @@ static unsigned int scache_size, sc_lsize;	/* Again, in bytes */
 #include <asm/r4kcache.h>
 
 #undef DEBUG_CACHE
+
 
 /*
  * Dummy cache handling routines for machines without boardcaches
@@ -2371,7 +2373,7 @@ void __init ld_mmu_r4xx0(void)
 	probe_dcache(config);
 	setup_scache(config);
 
-	switch(mips_cputype) {
+	switch(mips_cpu.cputype) {
 	case CPU_R4600:			/* QED style two way caches? */
 	case CPU_R4700:
 	case CPU_R5000:

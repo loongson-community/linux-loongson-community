@@ -96,7 +96,7 @@
  */
 struct mips_cpu {
 	unsigned int processor_id;
-	unsigned int cputype;		/* Old "mips_cputype" code */
+	unsigned int cputype;
 	int isa_level;
 	int options;
 	int tlbsize;

@@ -82,7 +82,6 @@ struct kbd_ops *kbd_ops;
  *
  * These are initialized so they are in the .data section
  */
-unsigned long mips_cputype = CPU_UNKNOWN;
 unsigned long mips_machtype = MACH_UNKNOWN;
 unsigned long mips_machgroup = MACH_GROUP_UNKNOWN;
 
@@ -103,7 +102,7 @@ extern void ip32_setup(void);
 static inline void check_wait(void)
 {
 	printk("Checking for 'wait' instruction... ");
-	switch(mips_cputype) {
+	switch(mips_cpu.cputype) {
 	case CPU_R4200: 
 	case CPU_R4300: 
 	case CPU_R4600: 
