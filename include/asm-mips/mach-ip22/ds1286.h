@@ -12,7 +12,7 @@
 
 #include <asm/sgi/hpc3.h>
 
-#define rtc_read(reg)		(hpc3c0->rtcregs[(reg)])
+#define rtc_read(reg)		(hpc3c0->rtcregs[(reg)] & 0xff)
 #define rtc_write(data, reg)	do { hpc3c0->rtcregs[(reg)] = (data); } while(0)
 
 #endif /* __ASM_MACH_IP22_DS1286_H */
