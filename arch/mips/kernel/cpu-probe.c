@@ -464,7 +464,7 @@ __init void cpu_probe(void)
 			mips_cpu.isa_level = MIPS_CPU_ISA_M64;
 			mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX |
 			                   MIPS_CPU_COUNTER | MIPS_CPU_DIVEC |
-			                   MIPS_CPU_MCHECK;
+			                   MIPS_CPU_MCHECK | MIPS_CPU_EJTAG;
 #ifndef CONFIG_SB1_PASS_1_WORKAROUNDS
 			/* FPU in pass1 is known to have issues. */
 			mips_cpu.options |= MIPS_CPU_FPU;
