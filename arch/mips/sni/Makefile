@@ -14,7 +14,7 @@
 
 all: sni.o
 O_TARGET := sni.o
-O_OBJS	 := dma.o int-handler.o io.o pci.o pcimt_scache.o reset.o setup.o
+O_OBJS	 := dma.o int-handler.o io.o irq.o pci.o pcimt_scache.o reset.o setup.o
 
 int-handler.o: int-handler.S
 
