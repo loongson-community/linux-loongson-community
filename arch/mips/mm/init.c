@@ -41,7 +41,9 @@
 #include <asm/sgialib.h>
 #endif
 #include <asm/mmu_context.h>
+#include <asm/tlb.h>
 
+mmu_gather_t mmu_gathers[NR_CPUS];
 static unsigned long totalram_pages;
 
 extern void prom_free_prom_memory(void);
