@@ -1,4 +1,4 @@
-/* $Id: ip27-irq.c,v 1.7 2000/03/02 02:36:50 ralf Exp $
+/* $Id: ip27-irq.c,v 1.8 2000/03/07 15:45:29 ralf Exp $
  *
  * ip27-irq.c: Highlevel interrupt handling for IP27 architecture.
  *
@@ -8,7 +8,6 @@
 #include <linux/init.h>
 
 #include <linux/errno.h>
-#include <linux/kernel_stat.h>
 #include <linux/signal.h>
 #include <linux/sched.h>
 #include <linux/types.h>
@@ -17,8 +16,8 @@
 #include <linux/timex.h>
 #include <linux/malloc.h>
 #include <linux/random.h>
-#include <linux/smp.h>
 #include <linux/smp_lock.h>
+#include <linux/kernel_stat.h>
 
 #include <asm/bitops.h>
 #include <asm/bootinfo.h>
@@ -51,6 +50,11 @@
  */
 
 irq_cpustat_t irq_stat [NR_CPUS];
+
+#ifdef CONFIG_SMP
+int global_irq_holder = NO_PROC_ID;
+spinlock_t global_irq_lock;
+#endif
 
 extern asmlinkage void ip27_irq(void);
 int (*irq_cannonicalize)(int irq);
@@ -105,7 +109,7 @@ asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 	int do_random, cpu;
 
 	cpu = smp_processor_id();
-	irq_enter(cpu);
+	irq_enter(cpu, irq);
 	kstat.irqs[cpu][irq]++;
 
 	action = *(irq + irq_action);
@@ -123,7 +127,7 @@ asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 			add_interrupt_randomness(irq);
 		__cli();
 	}
-	irq_exit(cpu);
+	irq_exit(cpu, irq);
 
 	/* unmasking and bottom half handling is done magically for us. */
 }

@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.7 2000/02/04 07:40:24 ralf Exp $
+/* $Id: setup.c,v 1.8 2000/03/02 02:36:50 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -40,7 +40,7 @@
 #include <asm/sn/sn0/addrs.h>
 #endif
 
-struct mips_cpuinfo boot_cpu_data;
+struct cpuinfo_mips boot_cpu_data;
 
 #ifdef CONFIG_VT
 struct screen_info screen_info;

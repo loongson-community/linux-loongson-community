@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: timex.h,v 1.1 1999/08/18 23:37:53 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -33,7 +33,15 @@ extern cycles_t cacheflush_time;
 
 static inline cycles_t get_cycles (void)
 {
-	return read_32bit_cp0_register(CP0_COUNT);
+	cycles_t val;
+
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		"mfc0 %0, $9\n\t"
+		".set reorder"
+		: "=r" (val));
+
+	return val;
 }
 
 #endif /*  _ASM_TIMEX_H */

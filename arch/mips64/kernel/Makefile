@@ -25,6 +25,10 @@ ifdef CONFIG_BINFMT_ELF32
 O_OBJS += binfmt_elf32.o
 endif
 
+ifdef CONFIG_SMP
+O_OBJS += smp.o
+endif
+
 clean:
 
 include $(TOPDIR)/Rules.make

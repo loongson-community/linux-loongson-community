@@ -1,4 +1,4 @@
-/* $Id: processor.h,v 1.9 2000/02/05 06:47:37 ralf Exp $
+/* $Id: processor.h,v 1.10 2000/02/24 00:13:20 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -24,13 +24,15 @@
 #include <asm/reg.h>
 #include <asm/system.h>
 
-struct mips_cpuinfo {
+struct cpuinfo_mips {
 	unsigned long udelay_val;
 	unsigned long *pgd_quick;
 	unsigned long *pmd_quick;
 	unsigned long *pte_quick;
 	unsigned long pgtable_cache_sz;
-};
+	unsigned long last_asn;
+	unsigned int irq_count, bh_count;
+} __attribute__((aligned(128)));
 
 /*
  * System setup and hardware flags..
@@ -42,11 +44,11 @@ extern char dedicated_iv_available;	/* some embedded MIPS like Nevada */
 extern char vce_available;		/* Supports VCED / VCEI exceptions */
 extern char mips4_available;		/* CPU has MIPS IV ISA or better */
 
-extern struct mips_cpuinfo boot_cpu_data;
+extern struct cpuinfo_mips boot_cpu_data;
 extern unsigned int vced_count, vcei_count;
 
 #ifdef __SMP__
-extern struct mips_cpuinfo cpu_data[];
+extern struct cpuinfo_mips cpu_data[];
 #define current_cpu_data cpu_data[smp_processor_id()]
 #else
 #define cpu_data &boot_cpu_data

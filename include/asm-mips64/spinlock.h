@@ -1,4 +1,4 @@
-/* $Id: spinlock.h,v 1.3 2000/01/23 21:15:52 ralf Exp $
+/* $Id: spinlock.h,v 1.4 2000/01/25 00:41:46 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -21,6 +21,9 @@ typedef struct {
 #define SPIN_LOCK_UNLOCKED (spinlock_t) { 0 }
 
 #define spin_lock_init(x)	do { (x)->lock = 0; } while(0);
+
+#define spin_is_locked(x)	((x)->lock != 0)
+#define spin_unlock_wait(x)	({ do { barrier(); } while ((x)->lock); })
 
 /*
  * Simple spin lock operations.  There are two variants, one clears IRQ's

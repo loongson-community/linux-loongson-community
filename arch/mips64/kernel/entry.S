@@ -1,4 +1,4 @@
-/* $Id: entry.S,v 1.4 2000/01/17 23:32:46 ralf Exp $
+/* $Id: entry.S,v 1.5 2000/02/23 00:41:00 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -33,10 +33,11 @@ reschedule:	jal	schedule
 
 FEXPORT(ret_from_sys_call)
 FEXPORT(ret_from_irq)
-#ifdef __SMP__
-#error Barffff...
-#else
 		la	t1, softirq_state
+#ifdef __SMP__
+		lwu	t0, TASK_PROCESSOR($28)
+		dsll	t0, t0, 5
+		daddu	t1, t0
 #endif
 		lw	t0, 0 (t1)
 		lw	t1, 4 (t1)		# unused delay slot
