@@ -560,5 +560,4 @@ r4k:
 
 	atomic_inc(&init_mm.mm_count);	/* XXX UP?  */
 	current->active_mm = &init_mm;
-	current_pgd = init_mm.pgd;
 }

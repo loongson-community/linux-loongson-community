@@ -16,7 +16,6 @@
 
 /* Fuck.  The f-word is here so you can grep for it :-)  */
 extern unsigned long asid_cache;
-extern pgd_t *current_pgd;
 
 #define ASID_INC	0x1
 #define ASID_MASK	0xff
@@ -62,7 +61,6 @@ extern inline void switch_mm(struct mm_struct *prev, struct mm_struct *next,
 	if ((next->context ^ asid_cache) & ASID_VERSION_MASK)
 		get_new_mmu_context(next);
 
-	current_pgd = next->pgd;
 	set_entryhi(next->context);
 }
 
@@ -85,7 +83,6 @@ activate_mm(struct mm_struct *prev, struct mm_struct *next)
 	/* Unconditionally get a new ASID.  */
 	get_new_mmu_context(next);
 
-	current_pgd = next->pgd;
 	set_entryhi(next->context);
 }
 

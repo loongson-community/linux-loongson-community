@@ -83,7 +83,6 @@ NESTED(bootstrap, 16, sp)
 	__FINIT
 
 	.comm	kernelsp, 8, 8			# current stackpointer
-	.comm	current_pgd, 8, 8		# current page tables
 
 #define PAGE_SIZE	0x1000
 
