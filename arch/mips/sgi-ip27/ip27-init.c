@@ -83,17 +83,27 @@ static __init void per_slice_init(cnodeid_t cnode, int slice)
 	int cpu = smp_processor_id();
 	int i;
 
+	for (i = 0; i < LEVELS_PER_SLICE; i++)
+		si->level_to_irq[i] = -1;
 	/*
 	 * Some interrupts are reserved by hardware or by software convention.
 	 * Mark these as reserved right away so they won't be used accidently
 	 * later.
 	 */
-	for (i = 0; i <= BASE_PCI_IRQ; i++)
-		set_bit(i, si->irqmask);
-	set_bit(IP_PEND0_6_63, si->irqmask);
+	for (i = 0; i <= BASE_PCI_IRQ; i++) {
+		__set_bit(i, si->irq_alloc_mask);
+		LOCAL_HUB_S(PI_INT_PEND_MOD, i);
+	}
 
-	for (i = NI_BRDCAST_ERR_A; i <= MSC_PANIC_INTR; i++)
-		set_bit(i, si->irqmask + 1);
+	__set_bit(IP_PEND0_6_63, si->irq_alloc_mask);
+	LOCAL_HUB_S(PI_INT_PEND_MOD, IP_PEND0_6_63);
+
+	for (i = NI_BRDCAST_ERR_A; i <= MSC_PANIC_INTR; i++) {
+		__set_bit(i, si->irq_alloc_mask + 1);
+		LOCAL_HUB_S(PI_INT_PEND_MOD, i);
+	}
+
+	LOCAL_HUB_L(PI_INT_PEND0);
 
 	/*
 	 * We use this so we can find the local hub's data as fast as only

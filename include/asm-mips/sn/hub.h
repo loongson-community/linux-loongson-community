@@ -7,8 +7,12 @@
 #include <asm/sn/klkernvars.h>
 #include <asm/xtalk/xtalk.h>
 
+#define LEVELS_PER_SLICE	128
+
 struct slice_data {
-	unsigned long irqmask[2];
+	unsigned long irq_alloc_mask[2];
+	unsigned long irq_enable_mask[2];
+	int level_to_irq[LEVELS_PER_SLICE];
 };
                                                                                 
 struct hub_data {
