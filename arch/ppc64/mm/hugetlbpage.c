@@ -14,7 +14,6 @@
 #include <linux/pagemap.h>
 #include <linux/smp_lock.h>
 #include <linux/slab.h>
-#include <linux/module.h>
 #include <linux/err.h>
 #include <linux/sysctl.h>
 #include <asm/mman.h>
@@ -395,7 +394,7 @@ void unmap_hugepage_range(struct vm_area_struct *vma,
 			flush_hash_hugepage(mm->context, addr,
 					    pte, local);
 
-		huge_page_release(page);
+		put_page(page);
 	}
 
 	mm->rss -= (end - start) >> PAGE_SHIFT;

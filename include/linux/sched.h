@@ -149,9 +149,10 @@ typedef struct task_struct task_t;
 extern void sched_init(void);
 extern void init_idle(task_t *idle, int cpu);
 
+extern cpumask_t idle_cpu_mask;
+
 extern void show_state(void);
 extern void show_regs(struct pt_regs *);
-extern void show_trace_task(task_t *tsk);
 
 /*
  * TASK is a pointer to the task whose backtrace we want to see (or NULL for current
@@ -801,7 +802,8 @@ static inline int thread_group_empty(task_t *p)
 
 extern void unhash_process(struct task_struct *p);
 
-/* Protects ->fs, ->files, ->mm, and synchronises with wait4().
+/*
+ * Protects ->fs, ->files, ->mm, ->ptrace and synchronises with wait4().
  * Nests both inside and outside of read_lock(&tasklist_lock).
  * It must not be nested with write_lock_irq(&tasklist_lock),
  * neither inside nor outside.

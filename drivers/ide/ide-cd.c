@@ -360,6 +360,14 @@ static int cdrom_log_sense(ide_drive_t *drive, struct request *rq,
 				break;
 			log = 1;
 			break;
+		case ILLEGAL_REQUEST:
+			/*
+			 * don't log START_STOP unit with LoEj set, since
+			 * we cannot reliably check if drive can auto-close
+			 */
+			if (rq->cmd[0] == GPCMD_START_STOP_UNIT && sense->asc == 0x24)
+				log = 0;
+			break;
 		case UNIT_ATTENTION:
 			/*
 			 * Make good and sure we've seen this potential media
@@ -965,7 +973,7 @@ static void cdrom_buffer_sectors (ide_drive_t *drive, unsigned long sector,
 	struct cdrom_info *info = drive->driver_data;
 
 	/* Number of sectors to read into the buffer. */
-	int sectors_to_buffer = MIN (sectors_to_transfer,
+	int sectors_to_buffer = min_t(int, sectors_to_transfer,
 				     (SECTOR_BUFFER_SIZE >> SECTOR_BITS) -
 				       info->nsectors_buffered);
 
@@ -1114,7 +1122,7 @@ static ide_startstop_t cdrom_read_intr (ide_drive_t *drive)
 
 	/* First, figure out if we need to bit-bucket
 	   any of the leading sectors. */
-	nskip = MIN((int)(rq->current_nr_sectors - bio_cur_sectors(rq->bio)), sectors_to_transfer);
+	nskip = min_t(int, rq->current_nr_sectors - bio_cur_sectors(rq->bio), sectors_to_transfer);
 
 	while (nskip > 0) {
 		/* We need to throw away a sector. */
@@ -1144,7 +1152,7 @@ static ide_startstop_t cdrom_read_intr (ide_drive_t *drive)
 			/* Transfer data to the buffers.
 			   Figure out how many sectors we can transfer
 			   to the current buffer. */
-			this_transfer = MIN (sectors_to_transfer,
+			this_transfer = min_t(int, sectors_to_transfer,
 					     rq->current_nr_sectors);
 
 			/* Read this_transfer sectors
@@ -1860,7 +1868,7 @@ static ide_startstop_t cdrom_write_intr(ide_drive_t *drive)
 		/*
 		 * Figure out how many sectors we can transfer
 		 */
-		this_transfer = MIN(sectors_to_transfer,rq->current_nr_sectors);
+		this_transfer = min_t(int, sectors_to_transfer, rq->current_nr_sectors);
 
 		while (this_transfer > 0) {
 			HWIF(drive)->atapi_output_bytes(drive, rq->buffer, SECTOR_SIZE);
@@ -2152,6 +2160,7 @@ static int cdrom_eject(ide_drive_t *drive, int ejectflag,
 		       struct request_sense *sense)
 {
 	struct request req;
+	char loej = 0x02;
 
 	if (CDROM_CONFIG_FLAGS(drive)->no_eject && !ejectflag)
 		return -EDRIVE_CANT_DO_THIS;
@@ -2162,9 +2171,13 @@ static int cdrom_eject(ide_drive_t *drive, int ejectflag,
 
 	cdrom_prepare_request(&req);
 
+	/* only tell drive to close tray if open, if it can do that */
+	if (ejectflag && !CDROM_CONFIG_FLAGS(drive)->close_tray)
+		loej = 0;
+
 	req.sense = sense;
 	req.cmd[0] = GPCMD_START_STOP_UNIT;
-	req.cmd[4] = 0x02 + (ejectflag != 0);
+	req.cmd[4] = loej | (ejectflag != 0);
 	return cdrom_queue_packet_command(drive, &req);
 }
 

@@ -293,7 +293,7 @@ iosapic_set_affinity (unsigned int irq, cpumask_t mask)
 	irq &= (~IA64_IRQ_REDIRECTED);
 	vec = irq_to_vector(irq);
 
-	if (cpus_empty(mask) || vec >= IA64_NUM_VECTORS)
+	if (cpus_empty(mask))
 		return;
 
 	dest = cpu_physical_id(first_cpu(mask));
@@ -648,6 +648,16 @@ void
 iosapic_enable_intr (unsigned int vector)
 {
 	unsigned int dest;
+	irq_desc_t *desc;
+
+	/*
+	 * In the case of a shared interrupt, do not re-route the vector, and
+	 * especially do not mask a running interrupt (startup will not get
+	 * called for a shared interrupt).
+	 */
+	desc = irq_descp(vector);
+	if (desc->action)
+		return;
 
 #ifdef CONFIG_SMP
 	/*

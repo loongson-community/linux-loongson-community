@@ -119,7 +119,7 @@ static int task_alloc_security(struct task_struct *task)
 	memset(tsec, 0, sizeof(struct task_security_struct));
 	tsec->magic = SELINUX_MAGIC;
 	tsec->task = task;
-	tsec->osid = tsec->sid = SECINITSID_UNLABELED;
+	tsec->osid = tsec->sid = tsec->ptrace_sid = SECINITSID_UNLABELED;
 	task->security = tsec;
 
 	return 0;
@@ -1331,13 +1331,19 @@ static int post_create(struct inode *dir,
 
 static int selinux_ptrace(struct task_struct *parent, struct task_struct *child)
 {
+	struct task_security_struct *psec = parent->security;
+	struct task_security_struct *csec = child->security;
 	int rc;
 
 	rc = secondary_ops->ptrace(parent,child);
 	if (rc)
 		return rc;
 
-	return task_has_perm(parent, child, PROCESS__PTRACE);
+	rc = task_has_perm(parent, child, PROCESS__PTRACE);
+	/* Save the SID of the tracing process for later use in apply_creds. */
+	if (!rc)
+		csec->ptrace_sid = psec->sid;
+	return rc;
 }
 
 static int selinux_capget(struct task_struct *target, kernel_cap_t *effective,
@@ -1745,9 +1751,9 @@ static inline void flush_unauthorized_files(struct files_struct * files)
 	spin_unlock(&files->file_lock);
 }
 
-static void selinux_bprm_compute_creds(struct linux_binprm *bprm)
+static void selinux_bprm_apply_creds(struct linux_binprm *bprm, int unsafe)
 {
-	struct task_security_struct *tsec, *psec;
+	struct task_security_struct *tsec;
 	struct bprm_security_struct *bsec;
 	u32 sid;
 	struct av_decision avd;
@@ -1755,7 +1761,7 @@ static void selinux_bprm_compute_creds(struct linux_binprm *bprm)
 	struct rlimit *rlim, *initrlim;
 	int rc, i;
 
-	secondary_ops->bprm_compute_creds(bprm);
+	secondary_ops->bprm_apply_creds(bprm, unsafe);
 
 	tsec = current->security;
 
@@ -1766,34 +1772,33 @@ static void selinux_bprm_compute_creds(struct linux_binprm *bprm)
 	if (tsec->sid != sid) {
 		/* Check for shared state.  If not ok, leave SID
 		   unchanged and kill. */
-		if ((atomic_read(&current->fs->count) > 1 ||
-		     atomic_read(&current->files->count) > 1 ||
-		     atomic_read(&current->sighand->count) > 1)) {
-			rc = avc_has_perm(tsec->sid, sid,
+		if (unsafe & LSM_UNSAFE_SHARE) {
+			rc = avc_has_perm_noaudit(tsec->sid, sid,
 					  SECCLASS_PROCESS, PROCESS__SHARE,
-					  NULL, NULL);
+					  NULL, &avd);
 			if (rc) {
+				task_unlock(current);
+				avc_audit(tsec->sid, sid, SECCLASS_PROCESS,
+				    PROCESS__SHARE, &avd, rc, NULL);
 				force_sig_specific(SIGKILL, current);
-				return;
+				goto lock_out;
 			}
 		}
 
 		/* Check for ptracing, and update the task SID if ok.
 		   Otherwise, leave SID unchanged and kill. */
-		task_lock(current);
-		if (current->ptrace & PT_PTRACED) {
-			psec = current->parent->security;
-			rc = avc_has_perm_noaudit(psec->sid, sid,
+		if (unsafe & (LSM_UNSAFE_PTRACE | LSM_UNSAFE_PTRACE_CAP)) {
+			rc = avc_has_perm_noaudit(tsec->ptrace_sid, sid,
 					  SECCLASS_PROCESS, PROCESS__PTRACE,
 					  NULL, &avd);
 			if (!rc)
 				tsec->sid = sid;
 			task_unlock(current);
-			avc_audit(psec->sid, sid, SECCLASS_PROCESS,
+			avc_audit(tsec->ptrace_sid, sid, SECCLASS_PROCESS,
 				  PROCESS__PTRACE, &avd, rc, NULL);
 			if (rc) {
 				force_sig_specific(SIGKILL, current);
-				return;
+				goto lock_out;
 			}
 		} else {
 			tsec->sid = sid;
@@ -1846,6 +1851,10 @@ static void selinux_bprm_compute_creds(struct linux_binprm *bprm)
 		/* Wake up the parent if it is waiting so that it can
 		   recheck wait permission to the new task SID. */
 		wake_up_interruptible(&current->parent->wait_chldexit);
+
+lock_out:
+		task_lock(current);
+		return;
 	}
 }
 
@@ -2560,7 +2569,7 @@ static int selinux_task_setrlimit(unsigned int resource, struct rlimit *new_rlim
 	/* Control the ability to change the hard limit (whether
 	   lowering or raising it), so that the hard limit can
 	   later be used as a safe reset point for the soft limit
-	   upon context transitions. See selinux_bprm_compute_creds. */
+	   upon context transitions. See selinux_bprm_apply_creds. */
 	if (old_rlim->rlim_max != new_rlim->rlim_max)
 		return task_has_perm(current, current, PROCESS__SETRLIMIT);
 
@@ -3971,7 +3980,7 @@ struct security_operations selinux_ops = {
 
 	.bprm_alloc_security =		selinux_bprm_alloc_security,
 	.bprm_free_security =		selinux_bprm_free_security,
-	.bprm_compute_creds =		selinux_bprm_compute_creds,
+	.bprm_apply_creds =		selinux_bprm_apply_creds,
 	.bprm_set_security =		selinux_bprm_set_security,
 	.bprm_check_security =		selinux_bprm_check_security,
 	.bprm_secureexec =		selinux_bprm_secureexec,
@@ -4216,4 +4225,57 @@ out:
 
 __initcall(selinux_nf_ip_init);
 
+#ifdef CONFIG_SECURITY_SELINUX_DISABLE
+static void selinux_nf_ip_exit(void)
+{
+	printk(KERN_INFO "SELinux:  Unregistering netfilter hooks\n");
+
+	nf_unregister_hook(&selinux_ipv4_op);
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
+	nf_unregister_hook(&selinux_ipv6_op);
+#endif	/* IPV6 */
+}
+#endif
+
+#else /* CONFIG_SECURITY_NETWORK && CONFIG_NETFILTER */
+
+#ifdef CONFIG_SECURITY_SELINUX_DISABLE
+#define selinux_nf_ip_exit()
+#endif
+
 #endif /* CONFIG_SECURITY_NETWORK && CONFIG_NETFILTER */
+
+#ifdef CONFIG_SECURITY_SELINUX_DISABLE
+int selinux_disable(void)
+{
+	extern void exit_sel_fs(void);
+	static int selinux_disabled = 0;
+
+	if (ss_initialized) {
+		/* Not permitted after initial policy load. */
+		return -EINVAL;
+	}
+
+	if (selinux_disabled) {
+		/* Only do this once. */
+		return -EINVAL;
+	}
+
+	printk(KERN_INFO "SELinux:  Disabled at runtime.\n");
+
+	selinux_disabled = 1;
+
+	/* Reset security_ops to the secondary module, dummy or capability. */
+	security_ops = secondary_ops;
+
+	/* Unregister netfilter hooks. */
+	selinux_nf_ip_exit();
+
+	/* Unregister selinuxfs. */
+	exit_sel_fs();
+
+	return 0;
+}
+#endif
+
+

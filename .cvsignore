@@ -4,6 +4,7 @@
 .hdepend
 .tmp*
 .version
+Module.symvers
 System.map
 vmlinux
 vmlinux.64

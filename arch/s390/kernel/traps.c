@@ -64,7 +64,7 @@ extern void pfault_fini(void);
 extern void pfault_interrupt(struct pt_regs *regs, __u16 error_code);
 static ext_int_info_t ext_int_pfault;
 #endif
-#ifdef CONFIG_VIRT_TIMER
+#if defined(CONFIG_NO_IDLE_HZ) || defined(CONFIG_VIRT_TIMER)
 extern pgm_check_handler_t do_monitor_call;
 #endif
 
@@ -103,17 +103,6 @@ void show_trace(struct task_struct *task, unsigned long * stack)
 		backchain = *((unsigned long *) backchain) & PSW_ADDR_INSN;
 	}
 	printk("\n");
-}
-
-void show_trace_task(struct task_struct *tsk)
-{
-	/*
-	 * We can't print the backtrace of a running process. It is
-	 * unreliable at best and can cause kernel oopses.
-	 */
-	if (tsk->state == TASK_RUNNING)
-		return;
-	show_trace(tsk, (unsigned long *) tsk->thread.ksp);
 }
 
 void show_stack(struct task_struct *task, unsigned long *sp)
@@ -631,7 +620,7 @@ void __init trap_init(void)
 #endif /* CONFIG_ARCH_S390X */
         pgm_check_table[0x15] = &operand_exception;
         pgm_check_table[0x1C] = &privileged_op;
-#ifdef CONFIG_VIRT_TIMER
+#if defined(CONFIG_VIRT_TIMER) || defined(CONFIG_NO_IDLE_HZ)
 	pgm_check_table[0x40] = &do_monitor_call;
 #endif
 	if (MACHINE_IS_VM) {

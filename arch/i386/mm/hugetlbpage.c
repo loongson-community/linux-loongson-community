@@ -12,7 +12,6 @@
 #include <linux/pagemap.h>
 #include <linux/smp_lock.h>
 #include <linux/slab.h>
-#include <linux/module.h>
 #include <linux/err.h>
 #include <linux/sysctl.h>
 #include <asm/mman.h>
@@ -210,19 +209,18 @@ void unmap_hugepage_range(struct vm_area_struct *vma,
 {
 	struct mm_struct *mm = vma->vm_mm;
 	unsigned long address;
-	pte_t *pte;
+	pte_t pte;
 	struct page *page;
 
 	BUG_ON(start & (HPAGE_SIZE - 1));
 	BUG_ON(end & (HPAGE_SIZE - 1));
 
 	for (address = start; address < end; address += HPAGE_SIZE) {
-		pte = huge_pte_offset(mm, address);
-		if (pte_none(*pte))
+		pte = ptep_get_and_clear(huge_pte_offset(mm, address));
+		if (pte_none(pte))
 			continue;
-		page = pte_page(*pte);
-		huge_page_release(page);
-		pte_clear(pte);
+		page = pte_page(pte);
+		put_page(page);
 	}
 	mm->rss -= (end - start) >> PAGE_SHIFT;
 	flush_tlb_range(vma, start, end);
