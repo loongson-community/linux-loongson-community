@@ -904,7 +904,7 @@ static int vrc5477_ac97_open_mixdev(struct inode *inode, struct file *file)
 			break;
 	}
 	file->private_data = s;
-	return 0;
+	return nonseekable_open(inode, file);
 }
 
 static int vrc5477_ac97_release_mixdev(struct inode *inode, struct file *file)
@@ -1079,8 +1079,6 @@ vrc5477_ac97_read(struct file *file,
 	int copyCount;
 	size_t avail;
 
-	if (ppos != &file->f_pos)
-		return -ESPIPE;
 	if (!access_ok(VERIFY_WRITE, buffer, count))
 		return -EFAULT;
 
@@ -1265,8 +1263,6 @@ static ssize_t vrc5477_ac97_write(struct file *file, const char *buffer,
 	unsigned long flags;
 	int copyCount, avail;
 
-	if (ppos != &file->f_pos)
-		return -ESPIPE;
 	if (!access_ok(VERIFY_READ, buffer, count))
 		return -EFAULT;
 	ret = 0;
@@ -1610,7 +1606,8 @@ static int vrc5477_ac97_open(struct inode *inode, struct file *file)
 	struct list_head *list;
 	struct vrc5477_ac97_state *s;
 	int ret=0;
-    
+
+	nonseekable_open(inode, file);    
 	for (list = devs.next; ; list = list->next) {
 		if (list == &devs)
 			return -ENODEV;

@@ -75,6 +75,11 @@ extern int leases_enable, dir_notify_enable, lease_break_time;
 #define FMODE_READ 1
 #define FMODE_WRITE 2
 
+/* Internal kernel extensions */
+#define FMODE_LSEEK	4
+#define FMODE_PREAD	8
+#define FMODE_PWRITE	FMODE_PREAD	/* These go hand in hand */
+
 #define RW_MASK		1
 #define RWA_MASK	2
 #define READ 0
@@ -1430,6 +1435,7 @@ extern loff_t no_llseek(struct file *file, loff_t offset, int origin);
 extern loff_t generic_file_llseek(struct file *file, loff_t offset, int origin);
 extern loff_t remote_llseek(struct file *file, loff_t offset, int origin);
 extern int generic_file_open(struct inode * inode, struct file * filp);
+extern int nonseekable_open(struct inode * inode, struct file * filp);
 
 static inline void do_generic_file_read(struct file * filp, loff_t *ppos,
 					read_descriptor_t * desc,
@@ -1526,6 +1532,8 @@ struct tree_descr { char *name; struct file_operations *ops; int mode; };
 extern int simple_fill_super(struct super_block *, int, struct tree_descr *);
 extern int simple_pin_fs(char *name, struct vfsmount **mount, int *count);
 extern void simple_release_fs(struct vfsmount **mount, int *count);
+
+extern ssize_t simple_read_from_buffer(void __user *, size_t, loff_t *, const void *, size_t);
 
 extern int inode_change_ok(struct inode *, struct iattr *);
 extern int __must_check inode_setattr(struct inode *, struct iattr *);
