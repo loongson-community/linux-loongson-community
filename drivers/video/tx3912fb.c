@@ -10,6 +10,7 @@
  *
  *  Framebuffer for LCD controller in TMPR3912/05 and PR31700 processors
  */
+#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>

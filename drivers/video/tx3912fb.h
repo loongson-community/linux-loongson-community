@@ -9,6 +9,7 @@
  *
  *  Includes for TMPR3912/05 and PR31700 LCD controller registers
  */
+#include <linux/config.h>
 
 /*
  * Begin platform specific configurations
