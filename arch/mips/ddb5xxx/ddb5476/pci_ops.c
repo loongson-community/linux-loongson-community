@@ -64,13 +64,25 @@ static inline u32 ddb_access_config_base(struct pci_config_swap *swap,
 	u32 option;
 
 	if (pci_config_workaround) {
-	/* [jsun] work around Vrc5476 controller itself */
-	if (slot_num == 12) slot_num = 0;
+		/* [jsun] work around Vrc5476 controller itself, returnning
+		 * slot 0 essentially makes vrc5476 invisible
+		 */ 
+		if (slot_num == 12) slot_num = 0;
 
-	/* BUG : skip P2P bridge for now */
-	if (slot_num == 5) slot_num = 0;
+#if 0
+		/* BUG : skip P2P bridge for now */
+		if (slot_num == 5) slot_num = 0;
+#endif
+
 	} else {
-		if (slot_num == 12) return DDB_BASE + DDB_PCI_BASE;
+		/* now we have to be hornest, returning the true
+		 * PCI config headers for vrc5476
+		 */ 
+		if (slot_num == 12) {
+			swap->pdar_backup = ddb_in32(swap->pdar);
+			swap->pmr_backup = ddb_in32(swap->pmr);
+			return DDB_BASE + DDB_PCI_BASE;
+		}
 	}
 
 	/* minimum pdar (window) size is 2MB */
@@ -101,7 +113,7 @@ static inline u32 ddb_access_config_base(struct pci_config_swap *swap,
 	} else {
 		/* type 1 config */
 		pci_addr = (bus << 16) | (slot_num << 11);
-		panic("ddb_access_config_base: we don't support type 1 config Yet");
+		/* panic("ddb_access_config_base: we don't support type 1 config Yet"); */
 	}
 
 	/*

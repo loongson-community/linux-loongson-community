@@ -52,10 +52,10 @@ struct pci_channel mips_pci_channels[] = {
 static unsigned char irq_map[MAX_SLOT_NUM] = {
 	/* SLOT:  0, AD:11 */ 0xff,
 	/* SLOT:  1, AD:12 */ 0xff,
-	/* SLOT:  2, AD:13 */ 9,
-	/* SLOT:  3, AD:14 */ 10,
+	/* SLOT:  2, AD:13 */ 9,		/* USB */
+	/* SLOT:  3, AD:14 */ 10,		/* PMU */
 	/* SLOT:  4, AD:15 */ 0xff,
-	/* SLOT:  5, AD:16 */ 0xff,
+	/* SLOT:  5, AD:16 */ 0x0,		/* P2P bridge */
 	/* SLOT:  6, AD:17 */ nile4_to_irq(PCI_EXT_INTB),
 	/* SLOT:  7, AD:18 */ nile4_to_irq(PCI_EXT_INTC),
 	/* SLOT:  8, AD:19 */ nile4_to_irq(PCI_EXT_INTD),
@@ -81,6 +81,14 @@ void __init pcibios_fixup_irqs(void)
 
 	pci_for_each_dev(dev) {
 		slot_num = PCI_SLOT(dev->devfn);
+
+		/* we don't do IRQ fixup for sub-bus yet */
+		if (dev->bus->parent != NULL) {
+			db_run(printk("Don't know how to fixup irq for PCI device %d on sub-bus %d\n",
+				slot_num, dev->bus->number));
+			continue;
+		}
+
 		db_assert(slot_num < MAX_SLOT_NUM);
 		db_assert(irq_map[slot_num] != 0xff);
 

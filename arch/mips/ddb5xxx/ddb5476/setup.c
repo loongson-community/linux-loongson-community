@@ -272,9 +272,9 @@ static void ddb5476_board_init(void)
 	/* setup USB interrupt to IRQ 9, (bit 0:3 - 0001)
 	 * no IOCHRDY signal, (bit 7 - 1)
 	 * M1543C & M7101 VID and Subsys Device ID are read-only (bit 6 - 1)
-	 * Bypass USB Master INTAJ level to edge conversion (bit 4 - 0)
+	 * Make USB Master INTAJ level to edge conversion (bit 4 - 1)
 	 */
-	*(unsigned char *) 0xa8040074 = 0xc1;
+	*(unsigned char *) 0xa8040074 = 0xd1;
 
 	/* setup PMU(SCI to IRQ 10 (bit 0:3 - 0011)
 	 * SCI routing to IRQ 13 disabled (bit 7 - 1)
