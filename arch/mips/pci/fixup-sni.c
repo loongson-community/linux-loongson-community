@@ -29,18 +29,22 @@
  * Device 0: PCI EISA Bridge	(directly routed)
  * Device 1: NCR53c810 SCSI	(directly routed)
  * Device 2: PCnet32 Ethernet	(directly routed)
- * Device 3: Unsued
+ * Device 3: VGA		(routed to INTB)
  * Device 4: Unused
  * Device 5: Slot 2
  * Device 6: Slot 3
  * Device 7: Slot 4	
+ *
+ * Documentation says the VGA is device 5 and device 3 is unused but that
+ * seem to be a documentation error.  At least on my RM200C the Cirrus
+ * Logic CL-GD5434 VGA is device 3.
  */
 static char irq_tab_rm200[8][5] __initdata = {
 	/*       INTA  INTB  INTC  INTD */
 	{     0,    0,    0,    0,    0 },	/* EISA bridge */
 	{  SCSI, SCSI, SCSI, SCSI, SCSI },	/* SCSI */
 	{   ETH,  ETH,  ETH,  ETH,  ETH },	/* Ethernet */
-	{     0,    0,    0,    0,    0 },	/* Unused */
+	{  INTB, INTB, INTB, INTB, INTB },	/* VGA */
 	{     0,    0,    0,    0,    0 },	/* Unused */
 	{     0, INTB, INTC, INTD, INTA },	/* Slot 2 */
 	{     0, INTC, INTD, INTA, INTB },	/* Slot 3 */
@@ -49,13 +53,15 @@ static char irq_tab_rm200[8][5] __initdata = {
 
 /*
  * In Revision D of the RM300 Device 2 has become a normal purpose Slot 1
+ *
+ * The VGA card is optional for RM300 systems.
  */
 static char irq_tab_rm300d[8][5] __initdata = {
 	/*       INTA  INTB  INTC  INTD */
 	{     0,    0,    0,    0,    0 },	/* EISA bridge */
 	{  SCSI, SCSI, SCSI, SCSI, SCSI },	/* SCSI */
 	{     0, INTC, INTD, INTA, INTB },	/* Slot 1 */
-	{     0,    0,    0,    0,    0 },	/* Unused */
+	{  INTB, INTB, INTB, INTB, INTB },	/* VGA */
 	{     0,    0,    0,    0,    0 },	/* Unused */
 	{     0, INTB, INTC, INTD, INTA },	/* Slot 2 */
 	{     0, INTC, INTD, INTA, INTB },	/* Slot 3 */
