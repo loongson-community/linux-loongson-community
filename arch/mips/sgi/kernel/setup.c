@@ -30,17 +30,16 @@
 #ifdef CONFIG_REMOTE_DEBUG
 extern void rs_kgdb_hook(int);
 extern void breakpoint(void);
+static int remote_debug = 0;
 #endif
 
-#if defined(CONFIG_SERIAL_CONSOLE) || defined(CONFIG_PROM_CONSOLE)
+#if defined(CONFIG_SERIAL_CONSOLE) || defined(CONFIG_SGI_PROM_CONSOLE)
 extern void console_setup(char *);
 #endif
 
 extern struct rtc_ops indy_rtc_ops;
 void indy_reboot_setup(void);
 void sgi_volume_set(unsigned char);
-
-static int remote_debug = 0;
 
 #define sgi_kh ((struct hpc_keyb *) (KSEG1 + 0x1fbd9800 + 64))
 
@@ -197,9 +196,9 @@ void __init sgi_setup(void)
 #endif
 
 #ifdef CONFIG_SGI_PROM_CONSOLE
-	console_setup("ttyS0", NULL);
+	console_setup("ttyS0");
 #endif
-  
+ 
 	sgi_volume_set(simple_strtoul(ArcGetEnvironmentVariable("volume"), NULL, 10));
 
 #ifdef CONFIG_VT
