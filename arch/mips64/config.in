@@ -28,6 +28,9 @@ if [ "$CONFIG_SGI_IP27" = "y" ]; then
    bool '  Multi-Processing support' CONFIG_SMP
    #bool '  IP27 XXL' CONFIG_SGI_SN0_XXL
 fi
+if [ "$CONFIG_SIBYTE_SWARM" = "y" ]; then
+   bool '  Multi-Processing support' CONFIG_SMP
+fi
 endmenu
 
 define_bool CONFIG_RWSEM_GENERIC_SPINLOCK y
