@@ -45,8 +45,7 @@ extern void (*flush_icache_range)(unsigned long start, unsigned long end);
 #define copy_to_user_page(vma, page, vaddr, dst, src, len)		\
 do {									\
 	memcpy(dst, (void *) src, len);					\
-	flush_icache_page(vma, (struct page *)				\
-			((unsigned long) (dst) & PAGE_MASK));		\
+	flush_icache_page(vma, page);					\
 } while (0)
 #define copy_from_user_page(vma, page, vaddr, dst, src, len)		\
 	memcpy(dst, src, len)
