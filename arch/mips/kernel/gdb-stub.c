@@ -125,6 +125,8 @@
 #include <linux/mm.h>
 #include <linux/console.h>
 #include <linux/init.h>
+#include <linux/slab.h>
+#include <linux/reboot.h>
 
 #include <asm/asm.h>
 #include <asm/mipsregs.h>
@@ -593,30 +595,10 @@ void handle_exception (struct gdb_regs *regs)
 	char *ptr;
 	unsigned long *stack;
 
-#if 0
-	printk("in handle_exception()\n");
-	show_gdbregs(regs);
-#endif
-
-	/*
-	 * First check trap type. If this is CPU_UNUSABLE and CPU_ID is 1,
-	 * the simply switch the FPU on and return since this is no error
-	 * condition. kernel/traps.c does the same.
-	 * FIXME: This doesn't work yet, so we don't catch CPU_UNUSABLE
-	 * traps for now.
-	 */
-	trap = (regs->cp0_cause & 0x7c) >> 2;
-/*	printk("trap=%d\n",trap); */
-	if (trap == 11) {
-		if (((regs->cp0_cause >> CAUSEB_CE) & 3) == 1) {
-			regs->cp0_status |= ST0_CU1;
-			return;
-		}
-	}
-
 	/*
 	 * If we're in breakpoint() increment the PC
 	 */
+	trap = (regs->cp0_cause & 0x7c) >> 2;
 	if (trap == 9 && regs->cp0_epc == (unsigned long)breakinst)
 		regs->cp0_epc += 4;
 
@@ -705,6 +687,11 @@ void handle_exception (struct gdb_regs *regs)
 			output_buffer[3] = 0;
 			break;
 
+		case 'D':
+			/* detach; let CPU run */
+			putpacket(output_buffer);
+			return;
+
 		case 'd':
 			/* toggle debug flag */
 			break;
@@ -724,26 +711,21 @@ void handle_exception (struct gdb_regs *regs)
 
 		/*
 		 * set the value of the CPU registers - return OK
-		 * FIXME: Needs to be written
 		 */
 		case 'G':
 		{
-#if 0
-			unsigned long *newsp, psr;
-
 			ptr = &input_buffer[1];
-			hex2mem(ptr, (char *)registers, 16 * 4, 0); /* G & O regs */
-
-			/*
-			 * See if the stack pointer has moved. If so, then copy the
-			 * saved locals and ins to the new location.
-			 */
-
-			newsp = (unsigned long *)registers[SP];
-			if (sp != newsp)
-				sp = memcpy(newsp, sp, 16 * 4);
-
-#endif
+			hex2mem(ptr, (char *)&regs->reg0, 32*4, 0);
+			ptr += 32*8;
+			hex2mem(ptr, (char *)&regs->cp0_status, 6*4, 0);
+			ptr += 6*8;
+			hex2mem(ptr, (char *)&regs->fpr0, 32*4, 0);
+			ptr += 32*8;
+			hex2mem(ptr, (char *)&regs->cp1_fsr, 2*4, 0);
+			ptr += 2*8;
+			hex2mem(ptr, (char *)&regs->frame_ptr, 2*4, 0);
+			ptr += 2*8;
+			hex2mem(ptr, (char *)&regs->cp0_index, 16*4, 0);
 			strcpy(output_buffer,"OK");
 		 }
 		break;
@@ -809,18 +791,13 @@ void handle_exception (struct gdb_regs *regs)
 
 
 		/*
-		 * kill the program
+		 * kill the program; let us try to restart the machine
+		 * Reset the whole machine.
 		 */
-		case 'k' :
-			break;		/* do nothing */
-
-
-		/*
-		 * Reset the whole machine (FIXME: system dependent)
-		 */
+		case 'k':
 		case 'r':
+			machine_restart("kgdb restarts machine");
 			break;
-
 
 		/*
 		 * Step to next instruction
@@ -918,6 +895,20 @@ void adel(void)
 			"la\t$8,0x80000001\n\t"
 			"lw\t$9,0($8)\n\t"
 			);
+}
+
+/*
+ * malloc is needed by gdb client in "call func()", even a private one
+ * will make gdb happy
+ */
+static void *malloc(size_t size)
+{
+	return kmalloc(size, GFP_ATOMIC);
+}
+
+static void free(void *where)
+{
+	kfree(where);
 }
 
 #ifdef CONFIG_GDB_CONSOLE
