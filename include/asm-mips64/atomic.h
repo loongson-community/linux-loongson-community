@@ -181,9 +181,8 @@ extern __inline__ int atomic_sub_return(int i, atomic_t * v)
  * if the result is negative, or false when
  * result is greater than or equal to zero.  Note that the guaranteed
  * useful range of an atomic_t is only 24 bits.
- *
- * atomic_add_negative is currently not implemented for mips64.
  */
+#define atomic_add_negative(i,v) (atomic_add_return(i, (v)) < 0)
 
 /* Atomic operations are already serializing */
 #define smp_mb__before_atomic_dec()	smp_mb()
