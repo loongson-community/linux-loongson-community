@@ -1,4 +1,4 @@
-/***********************************************************************
+/*
  *
  * Copyright 2001 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
@@ -29,8 +29,6 @@
  *  You should have received a copy of the  GNU General Public License along
  *  with this program; if not, write  to the Free Software Foundation, Inc.,
  *  675 Mass Ave, Cambridge, MA 02139, USA.
- *
- ***********************************************************************
  */
 
 
@@ -40,6 +38,7 @@
  * pointers expected by the MIPS generic timer code.
  */
 
+#include <linux/bcd.h>
 #include <linux/types.h>
 #include <linux/time.h>
 #include <linux/rtc.h>
@@ -52,11 +51,11 @@
 
 #define	EPOCH		2000
 
-#undef BCD_TO_BIN
-#define BCD_TO_BIN(val) (((val)&15) + ((val)>>4)*10)
+#undef BCD2BIN
+#define BCD2BIN(val) (((val)&15) + ((val)>>4)*10)
 
-#undef BIN_TO_BCD
-#define BIN_TO_BCD(val) ((((val)/10)<<4) + (val)%10)
+#undef BIN2BCD
+#define BIN2BCD(val) ((((val)/10)<<4) + (val)%10)
 
 static unsigned long rtc_base;
 
@@ -67,13 +66,13 @@ rtc_ds1742_get_time(void)
 	unsigned int century;
 
 	CMOS_WRITE(RTC_READ, RTC_CONTROL);
-	second = BCD_TO_BIN(CMOS_READ(RTC_SECONDS) & RTC_SECONDS_MASK);
-	minute = BCD_TO_BIN(CMOS_READ(RTC_MINUTES));
-	hour = BCD_TO_BIN(CMOS_READ(RTC_HOURS));
-	day = BCD_TO_BIN(CMOS_READ(RTC_DATE));
-	month = BCD_TO_BIN(CMOS_READ(RTC_MONTH));
-	year = BCD_TO_BIN(CMOS_READ(RTC_YEAR));
-	century = BCD_TO_BIN(CMOS_READ(RTC_CENTURY) & RTC_CENTURY_MASK);
+	second = BCD2BIN(CMOS_READ(RTC_SECONDS) & RTC_SECONDS_MASK);
+	minute = BCD2BIN(CMOS_READ(RTC_MINUTES));
+	hour = BCD2BIN(CMOS_READ(RTC_HOURS));
+	day = BCD2BIN(CMOS_READ(RTC_DATE));
+	month = BCD2BIN(CMOS_READ(RTC_MONTH));
+	year = BCD2BIN(CMOS_READ(RTC_YEAR));
+	century = BCD2BIN(CMOS_READ(RTC_CENTURY) & RTC_CENTURY_MASK);
 	CMOS_WRITE(0, RTC_CONTROL);
 
 	year += century * 100;
@@ -105,17 +104,17 @@ rtc_ds1742_set_time(unsigned long t)
 	to_tm(t, &tm);
 
 	/* check each field one by one */
-	year = BIN_TO_BCD(tm.tm_year - EPOCH);
+	year = BIN2BCD(tm.tm_year - EPOCH);
 	if (year != cmos_year) {
 		CMOS_WRITE(year,RTC_YEAR);
 	}
 
-	month = BIN_TO_BCD(tm.tm_mon);
+	month = BIN2BCD(tm.tm_mon);
 	if (month != (cmos_month & 0x1f)) {
 		CMOS_WRITE((month & 0x1f) | (cmos_month & ~0x1f),RTC_MONTH);
 	}
 
-	day = BIN_TO_BCD(tm.tm_mday);
+	day = BIN2BCD(tm.tm_mday);
 	if (day != cmos_day) {
 
 		CMOS_WRITE(day, RTC_DATE);
@@ -125,22 +124,22 @@ rtc_ds1742_set_time(unsigned long t)
 		/* 12 hour format */
 		hour = 0x40;
 		if (tm.tm_hour > 12) {
-			hour |= 0x20 | (BIN_TO_BCD(hour-12) & 0x1f);
+			hour |= 0x20 | (BIN2BCD(hour-12) & 0x1f);
 		} else {
-			hour |= BIN_TO_BCD(tm.tm_hour);
+			hour |= BIN2BCD(tm.tm_hour);
 		}
 	} else {
 		/* 24 hour format */
-		hour = BIN_TO_BCD(tm.tm_hour) & 0x3f;
+		hour = BIN2BCD(tm.tm_hour) & 0x3f;
 	}
 	if (hour != cmos_hour) CMOS_WRITE(hour, RTC_HOURS);
 
-	minute = BIN_TO_BCD(tm.tm_min);
+	minute = BIN2BCD(tm.tm_min);
 	if (minute !=  cmos_minute) {
 		CMOS_WRITE(minute, RTC_MINUTES);
 	}
 
-	second = BIN_TO_BCD(tm.tm_sec);
+	second = BIN2BCD(tm.tm_sec);
 	if (second !=  cmos_second) {
 		CMOS_WRITE(second & RTC_SECONDS_MASK,RTC_SECONDS);
 	}

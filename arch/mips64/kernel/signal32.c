@@ -423,7 +423,7 @@ badframe:
 	force_sig(SIGSEGV, current);
 }
 
-static int inline setup_sigcontext(struct pt_regs *regs,
+static inline int setup_sigcontext(struct pt_regs *regs,
 				   struct sigcontext *sc)
 {
 	int err = 0;
@@ -494,7 +494,7 @@ static inline void *get_sigframe(struct k_sigaction *ka, struct pt_regs *regs,
 	return (void *)((sp - frame_size) & ALMASK);
 }
 
-static void inline setup_frame(struct k_sigaction * ka, struct pt_regs *regs,
+static inline void setup_frame(struct k_sigaction * ka, struct pt_regs *regs,
 			       int signr, sigset_t *set)
 {
 	struct sigframe *frame;
@@ -549,7 +549,7 @@ give_sigsegv:
 	force_sig(SIGSEGV, current);
 }
 
-static void inline setup_rt_frame(struct k_sigaction * ka,
+static inline void setup_rt_frame(struct k_sigaction * ka,
 				  struct pt_regs *regs, int signr,
 				  sigset_t *set, siginfo_t *info)
 {

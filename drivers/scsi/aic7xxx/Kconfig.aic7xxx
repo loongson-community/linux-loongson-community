@@ -1,6 +1,6 @@
 #
 # AIC7XXX and AIC79XX 2.5.X Kernel configuration File.
-# $Id: //depot/linux-aic79xx-2.5.0/drivers/scsi/aic7xxx/Kconfig.aic7xxx#4 $
+# $Id: //depot/linux-aic79xx-2.5.0/drivers/scsi/aic7xxx/Kconfig.aic7xxx#5 $
 #
 config SCSI_AIC7XXX
 	tristate "Adaptec AIC7xxx Fast -> U160 support (New Driver)"
@@ -52,6 +52,7 @@ config AIC7XXX_RESET_DELAY_MS
 
 config AIC7XXX_PROBE_EISA_VL
 	bool "Probe for EISA and VL AIC7XXX Adapters"
+	depends on SCSI_AIC7XXX
 	help
 	Probe for EISA and VLB Aic7xxx controllers.  In many newer systems,
 	the invasive probes necessary to detect these controllers can cause

@@ -24,6 +24,7 @@
 
 #define RTC_VERSION		"1.09b"
 
+#include <linux/bcd.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
@@ -35,6 +36,7 @@
 #include <linux/poll.h>
 #include <linux/proc_fs.h>
 #include <linux/smp_lock.h>
+#include <linux/bcd.h>
 
 #include <asm/m48t35.h>
 #include <asm/sn/ioc3.h>
@@ -132,12 +134,12 @@ static int rtc_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		if (yrs >= 100)
 			yrs -= 100;
 
-		BIN_TO_BCD(sec);
-		BIN_TO_BCD(min);
-		BIN_TO_BCD(hrs);
-		BIN_TO_BCD(day);
-		BIN_TO_BCD(mon);
-		BIN_TO_BCD(yrs);
+		BIN2BCD(sec);
+		BIN2BCD(min);
+		BIN2BCD(hrs);
+		BIN2BCD(day);
+		BIN2BCD(mon);
+		BIN2BCD(yrs);
 
 		spin_lock_irq(&rtc_lock);
 		rtc->control &= ~M48T35_RTC_SET;
@@ -317,12 +319,12 @@ static void get_rtc_time(struct rtc_time *rtc_tm)
 	rtc->control &= ~M48T35_RTC_READ;
 	spin_unlock_irq(&rtc_lock);
 
-	BCD_TO_BIN(rtc_tm->tm_sec);
-	BCD_TO_BIN(rtc_tm->tm_min);
-	BCD_TO_BIN(rtc_tm->tm_hour);
-	BCD_TO_BIN(rtc_tm->tm_mday);
-	BCD_TO_BIN(rtc_tm->tm_mon);
-	BCD_TO_BIN(rtc_tm->tm_year);
+	BCD2BIN(rtc_tm->tm_sec);
+	BCD2BIN(rtc_tm->tm_min);
+	BCD2BIN(rtc_tm->tm_hour);
+	BCD2BIN(rtc_tm->tm_mday);
+	BCD2BIN(rtc_tm->tm_mon);
+	BCD2BIN(rtc_tm->tm_year);
 
 	/*
 	 * Account for differences between how the RTC uses the values

@@ -48,6 +48,7 @@
 #include <linux/stat.h>
 #include <linux/ipc.h>
 #include <linux/compat.h>
+#include <linux/vfs.h>
 
 #include <asm/types.h>
 #include <asm/uaccess.h>
@@ -2396,6 +2397,17 @@ shmctl32 (int first, int second, void *uptr)
 	return err;
 }
 
+static long
+semtimedop32(int semid, struct sembuf *tsems, int nsems,
+	     const struct timespec32 *timeout32)
+{
+	struct timespec t;
+	if (get_user (t.tv_sec, &timeout32->tv_sec) ||
+	    get_user (t.tv_nsec, &timeout32->tv_nsec))
+		return -EFAULT;
+	return sys_semtimedop(semid, tsems, nsems, &t);
+}
+
 asmlinkage long
 sys32_ipc (u32 call, int first, int second, int third, u32 ptr, u32 fifth)
 {
@@ -2407,7 +2419,10 @@ sys32_ipc (u32 call, int first, int second, int third, u32 ptr, u32 fifth)
 	switch (call) {
 	      case SEMOP:
 		/* struct sembuf is the same on 32 and 64bit :)) */
-		return sys_semop(first, (struct sembuf *)AA(ptr), second);
+		return sys_semtimedop(first, (struct sembuf *)AA(ptr), second, NULL);
+	      case SEMTIMEDOP:
+		return semtimedop32(first, (struct sembuf *)AA(ptr), second,
+				    (const struct timespec32 *)AA(fifth));
 	      case SEMGET:
 		return sys_semget(first, second, third);
 	      case SEMCTL:

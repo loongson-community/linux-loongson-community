@@ -8,6 +8,7 @@
  * found in some MIPS systems.
  *
  */
+#include <linux/bcd.h>
 #include <linux/types.h>
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -17,6 +18,7 @@
 #include <linux/string.h>
 #include <linux/mm.h>
 #include <linux/interrupt.h>
+#include <linux/bcd.h>
 
 #include <asm/cpu.h>
 #include <asm/bootinfo.h>
@@ -281,7 +283,7 @@ static int set_rtc_mmss(unsigned long nowtime)
 
 	cmos_minutes = CMOS_READ(RTC_MINUTES);
 	if (!(save_control & RTC_DM_BINARY) || RTC_ALWAYS_BCD)
-		BCD_TO_BIN(cmos_minutes);
+		BCD2BIN(cmos_minutes);
 
 	/*
 	 * since we're only adjusting minutes and seconds,
@@ -297,8 +299,8 @@ static int set_rtc_mmss(unsigned long nowtime)
 
 	if (abs(real_minutes - cmos_minutes) < 30) {
 		if (!(save_control & RTC_DM_BINARY) || RTC_ALWAYS_BCD) {
-			BIN_TO_BCD(real_seconds);
-			BIN_TO_BCD(real_minutes);
+			BIN2BCD(real_seconds);
+			BIN2BCD(real_minutes);
 		}
 		CMOS_WRITE(real_seconds, RTC_SECONDS);
 		CMOS_WRITE(real_minutes, RTC_MINUTES);
@@ -329,7 +331,7 @@ static long last_rtc_update;
  * timer_interrupt() needs to keep up the real-time clock,
  * as well as call the "do_timer()" routine every clocktick
  */
-static void inline
+static inline void
 timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	volatile unsigned char dummy;
@@ -461,12 +463,12 @@ void __init time_init(void)
 		year = CMOS_READ(RTC_YEAR);
 	} while (sec != CMOS_READ(RTC_SECONDS));
 	if (!(CMOS_READ(RTC_CONTROL) & RTC_DM_BINARY) || RTC_ALWAYS_BCD) {
-		BCD_TO_BIN(sec);
-		BCD_TO_BIN(min);
-		BCD_TO_BIN(hour);
-		BCD_TO_BIN(day);
-		BCD_TO_BIN(mon);
-		BCD_TO_BIN(year);
+		BCD2BIN(sec);
+		BCD2BIN(min);
+		BCD2BIN(hour);
+		BCD2BIN(day);
+		BCD2BIN(mon);
+		BCD2BIN(year);
 	}
 	/*
 	 * The PROM will reset the year to either '72 or '73.

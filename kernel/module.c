@@ -1,4 +1,5 @@
 /* Rewritten by Rusty Russell, on the backs of many others...
+   Copyright (C) 2002 Richard Henderson
    Copyright (C) 2001 Rusty Russell, 2002 Rusty Russell IBM.
 
     This program is free software; you can redistribute it and/or modify
@@ -27,6 +28,8 @@
 #include <linux/rcupdate.h>
 #include <linux/cpu.h>
 #include <linux/moduleparam.h>
+#include <linux/errno.h>
+#include <linux/err.h>
 #include <asm/uaccess.h>
 #include <asm/semaphore.h>
 #include <asm/pgalloc.h>
@@ -37,6 +40,13 @@
 #else
 #define DEBUGP(fmt , a...)
 #endif
+
+#ifndef ARCH_SHF_SMALL
+#define ARCH_SHF_SMALL 0
+#endif
+
+/* If this is set, the section belongs in the init part of the module */
+#define INIT_OFFSET_MASK (1UL << (BITS_PER_LONG-1))
 
 #define symbol_is(literal, string)				\
 	(strcmp(MODULE_SYMBOL_PREFIX literal, (string)) == 0)
@@ -53,12 +63,12 @@ static inline int strong_try_module_get(struct module *mod)
 	return try_module_get(mod);
 }
 
-/* Convenient structure for holding init and core sizes */
-struct sizes
+/* Stub function for modules which don't have an initfn */
+int init_module(void)
 {
-	unsigned long init_size;
-	unsigned long core_size;
-};
+	return 0;
+}
+EXPORT_SYMBOL(init_module);
 
 /* Find a symbol, return value and the symbol group */
 static unsigned long __find_symbol(const char *name,
@@ -87,7 +97,7 @@ static unsigned long find_local_symbol(Elf_Shdr *sechdrs,
 				       const char *name)
 {
 	unsigned int i;
-	Elf_Sym *sym = (void *)sechdrs[symindex].sh_offset;
+	Elf_Sym *sym = (void *)sechdrs[symindex].sh_addr;
 
 	/* Search (defined) internal symbols first. */
 	for (i = 1; i < sechdrs[symindex].sh_size/sizeof(*sym); i++) {
@@ -357,6 +367,12 @@ static inline int try_force(unsigned int flags)
 }
 #endif /* CONFIG_MODULE_FORCE_UNLOAD */
 
+/* Stub function for modules which don't have an exitfn */
+void cleanup_module(void)
+{
+}
+EXPORT_SYMBOL(cleanup_module);
+
 asmlinkage long
 sys_delete_module(const char *name_user, unsigned int flags)
 {
@@ -405,7 +421,9 @@ sys_delete_module(const char *name_user, unsigned int flags)
 		}
 	}
 
-	if (!mod->exit || mod->unsafe) {
+	/* If it has an init func, it must have an exit func to unload */
+	if ((mod->init != init_module && mod->exit == cleanup_module)
+	    || mod->unsafe) {
 		forced = try_force(flags);
 		if (!forced) {
 			/* This module can't be removed */
@@ -452,8 +470,7 @@ sys_delete_module(const char *name_user, unsigned int flags)
 
  destroy:
 	/* Final destruction now noone is using it. */
-	if (mod->exit)
-		mod->exit();
+	mod->exit();
 	free_module(mod);
 
  out:
@@ -473,7 +490,7 @@ static void print_unload_info(struct seq_file *m, struct module *mod)
 	if (mod->unsafe)
 		seq_printf(m, " [unsafe]");
 
-	if (!mod->exit)
+	if (mod->init != init_module && mod->exit == cleanup_module)
 		seq_printf(m, " [permanent]");
 
 	seq_printf(m, "\n");
@@ -555,24 +572,19 @@ static int param_set_byte(const char *val, struct kernel_param *kp)
 	return 0;
 }
 
-static int param_string(const char *name, const char *val,
-			unsigned int min, unsigned int max,
-			char *dest)
+/* Bounds checking done below */
+static int obsparm_copy_string(const char *val, struct kernel_param *kp)
 {
-	if (strlen(val) < min || strlen(val) > max) {
-		printk(KERN_ERR
-		       "Parameter %s length must be %u-%u characters\n",
-		       name, min, max);
-		return -EINVAL;
-	}
-	strcpy(dest, val);
+	strcpy(kp->arg, val);
 	return 0;
 }
 
 extern int set_obsolete(const char *val, struct kernel_param *kp)
 {
 	unsigned int min, max;
-	char *p, *endp;
+	unsigned int size, maxsize;
+	char *endp;
+	const char *p;
 	struct obsolete_modparm *obsparm = kp->arg;
 
 	if (!val) {
@@ -604,9 +616,31 @@ extern int set_obsolete(const char *val, struct kernel_param *kp)
 		return param_array(kp->name, val, min, max, obsparm->addr,
 				   sizeof(long), param_set_long);
 	case 's':
-		return param_string(kp->name, val, min, max, obsparm->addr);
+		return param_array(kp->name, val, min, max, obsparm->addr,
+				   sizeof(char *), param_set_charp);
+
+	case 'c':
+		/* Undocumented: 1-5c50 means 1-5 strings of up to 49 chars,
+		   and the decl is "char xxx[5][50];" */
+		p = endp+1;
+		maxsize = simple_strtol(p, &endp, 10);
+		/* We check lengths here (yes, this is a hack). */
+		p = val;
+		while (p[size = strcspn(p, ",")]) {
+			if (size >= maxsize) 
+				goto oversize;
+			p += size+1;
+		}
+		if (size >= maxsize) 
+			goto oversize;
+		return param_array(kp->name, val, min, max, obsparm->addr,
+				   maxsize, obsparm_copy_string);
 	}
 	printk(KERN_ERR "Unknown obsolete parameter type %s\n", obsparm->type);
+	return -EINVAL;
+ oversize:
+	printk(KERN_ERR
+	       "Parameter %s doesn't fit in %u chars.\n", kp->name, maxsize);
 	return -EINVAL;
 }
 
@@ -707,15 +741,15 @@ static void free_module(struct module *mod)
 	list_del(&mod->extable.list);
 	spin_unlock_irq(&modlist_lock);
 
-	/* These may be NULL, but that's OK */
-	module_free(mod, mod->module_init);
-	module_free(mod, mod->module_core);
-
 	/* Module unload stuff */
 	module_unload_free(mod);
 
-	/* Finally, free the module structure */
-	module_free(mod, mod);
+	/* This may be NULL, but that's OK */
+	module_free(mod, mod->module_init);
+	kfree(mod->args);
+
+	/* Finally, free the core (containing the module structure) */
+	module_free(mod, mod->module_core);
 }
 
 void *__symbol_get(const char *symbol)
@@ -733,64 +767,6 @@ void *__symbol_get(const char *symbol)
 }
 EXPORT_SYMBOL_GPL(__symbol_get);
 
-/* Transfer one ELF section to the correct (init or core) area. */
-static void *copy_section(const char *name,
-			  void *base,
-			  Elf_Shdr *sechdr,
-			  struct module *mod,
-			  struct sizes *used)
-{
-	void *dest;
-	unsigned long *use;
-	unsigned long max;
-
-	/* Only copy to init section if there is one */
-	if (strstr(name, ".init") && mod->module_init) {
-		dest = mod->module_init;
-		use = &used->init_size;
-		max = mod->init_size;
-	} else {
-		dest = mod->module_core;
-		use = &used->core_size;
-		max = mod->core_size;
-	}
-
-	/* Align up */
-	*use = ALIGN(*use, sechdr->sh_addralign);
-	dest += *use;
-	*use += sechdr->sh_size;
-
-	if (*use > max)
-		return ERR_PTR(-ENOEXEC);
-
-	/* May not actually be in the file (eg. bss). */
-	if (sechdr->sh_type != SHT_NOBITS)
-		memcpy(dest, base + sechdr->sh_offset, sechdr->sh_size);
-
-	return dest;
-}
-
-/* Look for the special symbols */
-static int grab_private_symbols(Elf_Shdr *sechdrs,
-				unsigned int symbolsec,
-				const char *strtab,
-				struct module *mod)
-{
-	Elf_Sym *sym = (void *)sechdrs[symbolsec].sh_offset;
-	unsigned int i;
-
-	for (i = 1; i < sechdrs[symbolsec].sh_size/sizeof(*sym); i++) {
-		if (symbol_is("__initfn", strtab + sym[i].st_name))
-			mod->init = (void *)sym[i].st_value;
-#ifdef CONFIG_MODULE_UNLOAD
-		if (symbol_is("__exitfn", strtab + sym[i].st_name))
-			mod->exit = (void *)sym[i].st_value;
-#endif
-	}
-
-	return 0;
-}
-
 /* Deal with the given section */
 static int handle_section(const char *name,
 			  Elf_Shdr *sechdrs,
@@ -800,7 +776,7 @@ static int handle_section(const char *name,
 			  struct module *mod)
 {
 	int ret;
-	const char *strtab = (char *)sechdrs[strindex].sh_offset;
+	const char *strtab = (char *)sechdrs[strindex].sh_addr;
 
 	switch (sechdrs[i].sh_type) {
 	case SHT_REL:
@@ -808,9 +784,6 @@ static int handle_section(const char *name,
 		break;
 	case SHT_RELA:
 		ret = apply_relocate_add(sechdrs, strtab, symindex, i, mod);
-		break;
-	case SHT_SYMTAB:
-		ret = grab_private_symbols(sechdrs, i, strtab, mod);
 		break;
 	default:
 		DEBUGP("Ignoring section %u: %s\n", i,
@@ -833,38 +806,11 @@ static int handle_section(const char *name,
 	return ret;
 }
 
-/* Figure out total size desired for the common vars */
-static unsigned long read_commons(void *start, Elf_Shdr *sechdr)
-{
-	unsigned long size, i, max_align;
-	Elf_Sym *sym;
-	
-	size = max_align = 0;
-
-	for (sym = start + sechdr->sh_offset, i = 0;
-	     i < sechdr->sh_size / sizeof(Elf_Sym);
-	     i++) {
-		if (sym[i].st_shndx == SHN_COMMON) {
-			/* Value encodes alignment. */
-			if (sym[i].st_value > max_align)
-				max_align = sym[i].st_value;
-			/* Pad to required alignment */
-			size = ALIGN(size, sym[i].st_value) + sym[i].st_size;
-		}
-	}
-
-	/* Now, add in max alignment requirement (with align
-	   attribute, this could be large), so we know we have space
-	   whatever the start alignment is */
-	return size + max_align;
-}
-
 /* Change all symbols so that sh_value encodes the pointer directly. */
-static void simplify_symbols(Elf_Shdr *sechdrs,
-			     unsigned int symindex,
-			     unsigned int strindex,
-			     void *common,
-			     struct module *mod)
+static int simplify_symbols(Elf_Shdr *sechdrs,
+			    unsigned int symindex,
+			    unsigned int strindex,
+			    struct module *mod)
 {
 	unsigned int i;
 	Elf_Sym *sym;
@@ -872,18 +818,15 @@ static void simplify_symbols(Elf_Shdr *sechdrs,
 	/* First simplify defined symbols, so if they become the
            "answer" to undefined symbols, copying their st_value us
            correct. */
-	for (sym = (void *)sechdrs[symindex].sh_offset, i = 0;
+	for (sym = (void *)sechdrs[symindex].sh_addr, i = 0;
 	     i < sechdrs[symindex].sh_size / sizeof(Elf_Sym);
 	     i++) {
 		switch (sym[i].st_shndx) {
 		case SHN_COMMON:
-			/* Value encodes alignment. */
-			common = (void *)ALIGN((unsigned long)common,
-					       sym[i].st_value);
-			/* Change it to encode pointer */
-			sym[i].st_value = (unsigned long)common;
-			common += sym[i].st_size;
-			break;
+			/* We compiled with -fno-common.  These are not
+			   supposed to happen.  */
+			DEBUGP("Common symbol: %s\n", strtab + sym[i].st_name);
+			return -ENOEXEC;
 
 		case SHN_ABS:
 			/* Don't need to do anything */
@@ -897,20 +840,20 @@ static void simplify_symbols(Elf_Shdr *sechdrs,
 		default:
 			sym[i].st_value 
 				= (unsigned long)
-				(sechdrs[sym[i].st_shndx].sh_offset
+				(sechdrs[sym[i].st_shndx].sh_addr
 				 + sym[i].st_value);
 		}
 	}
 
 	/* Now try to resolve undefined symbols */
-	for (sym = (void *)sechdrs[symindex].sh_offset, i = 0;
+	for (sym = (void *)sechdrs[symindex].sh_addr, i = 0;
 	     i < sechdrs[symindex].sh_size / sizeof(Elf_Sym);
 	     i++) {
 		if (sym[i].st_shndx == SHN_UNDEF) {
 			/* Look for symbol */
 			struct kernel_symbol_group *ksg = NULL;
 			const char *strtab 
-				= (char *)sechdrs[strindex].sh_offset;
+				= (char *)sechdrs[strindex].sh_addr;
 
 			sym[i].st_value
 				= find_symbol_internal(sechdrs,
@@ -919,41 +862,72 @@ static void simplify_symbols(Elf_Shdr *sechdrs,
 						       strtab + sym[i].st_name,
 						       mod,
 						       &ksg);
-			/* We fake up "__this_module" */
-			if (symbol_is("__this_module", strtab+sym[i].st_name))
-				sym[i].st_value = (unsigned long)mod;
 		}
 	}
+
+	return 0;
 }
 
-/* Get the total allocation size of the init and non-init sections */
-static struct sizes get_sizes(const Elf_Ehdr *hdr,
-			      const Elf_Shdr *sechdrs,
-			      const char *secstrings,
-			      unsigned long common_length)
+/* Update size with this section: return offset. */
+static long get_offset(unsigned long *size, Elf_Shdr *sechdr)
 {
-	struct sizes ret = { 0, common_length };
-	unsigned i;
+	long ret;
 
-	/* Everything marked ALLOC (this includes the exported
-           symbols) */
-	for (i = 1; i < hdr->e_shnum; i++) {
-		unsigned long *add;
+	ret = ALIGN(*size, sechdr->sh_addralign ?: 1);
+	*size = ret + sechdr->sh_size;
+	return ret;
+}
 
-		/* If it's called *.init*, and we're init, we're interested */
-		if (strstr(secstrings + sechdrs[i].sh_name, ".init") != 0)
-			add = &ret.init_size;
-		else
-			add = &ret.core_size;
+/* Lay out the SHF_ALLOC sections in a way not dissimilar to how ld
+   might -- code, read-only data, read-write data, small data.  Tally
+   sizes, and place the offsets into sh_link fields: high bit means it
+   belongs in init. */
+static void layout_sections(struct module *mod,
+			    const Elf_Ehdr *hdr,
+			    Elf_Shdr *sechdrs,
+			    const char *secstrings)
+{
+	static unsigned long const masks[][2] = {
+		{ SHF_EXECINSTR | SHF_ALLOC, ARCH_SHF_SMALL },
+		{ SHF_ALLOC, SHF_WRITE | ARCH_SHF_SMALL },
+		{ SHF_WRITE | SHF_ALLOC, ARCH_SHF_SMALL },
+		{ ARCH_SHF_SMALL | SHF_ALLOC, 0 }
+	};
+	unsigned int m, i;
 
-		if (sechdrs[i].sh_flags & SHF_ALLOC) {
-			/* Pad up to required alignment */
-			*add = ALIGN(*add, sechdrs[i].sh_addralign ?: 1);
-			*add += sechdrs[i].sh_size;
+	for (i = 0; i < hdr->e_shnum; i++)
+		sechdrs[i].sh_link = ~0UL;
+
+	DEBUGP("Core section allocation order:\n");
+	for (m = 0; m < ARRAY_SIZE(masks); ++m) {
+		for (i = 0; i < hdr->e_shnum; ++i) {
+			Elf_Shdr *s = &sechdrs[i];
+
+			if ((s->sh_flags & masks[m][0]) != masks[m][0]
+			    || (s->sh_flags & masks[m][1])
+			    || s->sh_link != ~0UL
+			    || strstr(secstrings + s->sh_name, ".init"))
+				continue;
+			s->sh_link = get_offset(&mod->core_size, s);
+			DEBUGP("\t%s\n", name);
 		}
 	}
 
-	return ret;
+	DEBUGP("Init section allocation order:\n");
+	for (m = 0; m < ARRAY_SIZE(masks); ++m) {
+		for (i = 0; i < hdr->e_shnum; ++i) {
+			Elf_Shdr *s = &sechdrs[i];
+
+			if ((s->sh_flags & masks[m][0]) != masks[m][0]
+			    || (s->sh_flags & masks[m][1])
+			    || s->sh_link != ~0UL
+			    || !strstr(secstrings + s->sh_name, ".init"))
+				continue;
+			s->sh_link = (get_offset(&mod->init_size, s)
+				      | INIT_OFFSET_MASK);
+			DEBUGP("\t%s\n", name);
+		}
+	}
 }
 
 /* Allocate and load the module */
@@ -963,12 +937,10 @@ static struct module *load_module(void *umod,
 {
 	Elf_Ehdr *hdr;
 	Elf_Shdr *sechdrs;
-	char *secstrings;
+	char *secstrings, *args;
 	unsigned int i, symindex, exportindex, strindex, setupindex, exindex,
-		modnameindex, obsparmindex;
+		modindex, obsparmindex;
 	long arglen;
-	unsigned long common_length;
-	struct sizes sizes, used;
 	struct module *mod;
 	long err = 0;
 	void *ptr = NULL; /* Stops spurious gcc uninitialized warning */
@@ -1006,29 +978,31 @@ static struct module *load_module(void *umod,
 	exportindex = setupindex = obsparmindex = 0;
 
 	/* And these should exist, but gcc whinges if we don't init them */
-	symindex = strindex = exindex = modnameindex = 0;
+	symindex = strindex = exindex = modindex = 0;
 
 	/* Find where important sections are */
 	for (i = 1; i < hdr->e_shnum; i++) {
+		/* Mark all sections sh_addr with their address in the
+		   temporary image. */
+		sechdrs[i].sh_addr = (size_t)hdr + sechdrs[i].sh_offset;
+
 		if (sechdrs[i].sh_type == SHT_SYMTAB) {
 			/* Internal symbols */
 			DEBUGP("Symbol table in section %u\n", i);
 			symindex = i;
+			/* Strings */
+			strindex = sechdrs[i].sh_link;
+			DEBUGP("String table found in section %u\n", strindex);
 		} else if (strcmp(secstrings+sechdrs[i].sh_name,
-				  ".gnu.linkonce.modname") == 0) {
-			/* This module's name */
-			DEBUGP("Module name in section %u\n", i);
-			modnameindex = i;
+				  ".gnu.linkonce.this_module") == 0) {
+			/* The module struct */
+			DEBUGP("Module in section %u\n", i);
+			modindex = i;
 		} else if (strcmp(secstrings+sechdrs[i].sh_name, "__ksymtab")
 			   == 0) {
 			/* Exported symbols. */
 			DEBUGP("EXPORT table in section %u\n", i);
 			exportindex = i;
-		} else if (strcmp(secstrings + sechdrs[i].sh_name, ".strtab")
-			   == 0) {
-			/* Strings */
-			DEBUGP("String table found in section %u\n", i);
-			strindex = i;
 		} else if (strcmp(secstrings+sechdrs[i].sh_name, "__param")
 			   == 0) {
 			/* Setup parameter info */
@@ -1057,58 +1031,45 @@ static struct module *load_module(void *umod,
 #endif
 	}
 
-	if (!modnameindex) {
-		DEBUGP("Module has no name!\n");
+	if (!modindex) {
+		printk(KERN_WARNING "No module found in object\n");
 		err = -ENOEXEC;
 		goto free_hdr;
 	}
+	mod = (void *)sechdrs[modindex].sh_addr;
 
-	/* Now allocate space for the module proper, and copy name and args. */
+	/* Now copy in args */
 	err = strlen_user(uargs);
 	if (err < 0)
 		goto free_hdr;
 	arglen = err;
 
-	mod = module_alloc(sizeof(*mod) + arglen+1);
-	if (!mod) {
+	args = kmalloc(arglen+1, GFP_KERNEL);
+	if (!args) {
 		err = -ENOMEM;
 		goto free_hdr;
 	}
-	memset(mod, 0, sizeof(*mod) + arglen+1);
-	if (copy_from_user(mod->args, uargs, arglen) != 0) {
+	if (copy_from_user(args, uargs, arglen+1) != 0) {
 		err = -EFAULT;
 		goto free_mod;
 	}
-	strncpy(mod->name, (char *)hdr + sechdrs[modnameindex].sh_offset,
-		sizeof(mod->name)-1);
 
 	if (find_module(mod->name)) {
 		err = -EEXIST;
 		goto free_mod;
 	}
 
-	mod->symbols.owner = mod;
 	mod->state = MODULE_STATE_COMING;
-	module_unload_init(mod);
 
-	/* How much space will we need?  (Common area in first) */
-	common_length = read_commons(hdr, &sechdrs[symindex]);
-	sizes = get_sizes(hdr, sechdrs, secstrings, common_length);
-
-	/* Set these up, and allow archs to manipulate them. */
-	mod->core_size = sizes.core_size;
-	mod->init_size = sizes.init_size;
-
-	/* Allow archs to add to them. */
-	err = module_init_size(hdr, sechdrs, secstrings, mod);
+	/* Allow arches to frob section contents and sizes.  */
+	err = module_frob_arch_sections(hdr, sechdrs, secstrings, mod);
 	if (err < 0)
 		goto free_mod;
-	mod->init_size = err;
 
-	err = module_core_size(hdr, sechdrs, secstrings, mod);
-	if (err < 0)
-		goto free_mod;
-	mod->core_size = err;
+	/* Determine total sizes, and put offsets in sh_link.  For now
+	   this is done generically; there doesn't appear to be any
+	   special cases for the architectures. */
+	layout_sections(mod, hdr, sechdrs, secstrings);
 
 	/* Do the allocs. */
 	ptr = module_alloc(mod->core_size);
@@ -1127,33 +1088,41 @@ static struct module *load_module(void *umod,
 	memset(ptr, 0, mod->init_size);
 	mod->module_init = ptr;
 
-	/* Transfer each section which requires ALLOC, and set sh_offset
-	   fields to absolute addresses. */
-	used.core_size = common_length;
-	used.init_size = 0;
-	for (i = 1; i < hdr->e_shnum; i++) {
-		if (sechdrs[i].sh_flags & SHF_ALLOC) {
-			ptr = copy_section(secstrings + sechdrs[i].sh_name,
-					   hdr, &sechdrs[i], mod, &used);
-			if (IS_ERR(ptr))
-				goto cleanup;
-			sechdrs[i].sh_offset = (unsigned long)ptr;
-		} else {
-			sechdrs[i].sh_offset += (unsigned long)hdr;
-		}
+	/* Transfer each section which specifies SHF_ALLOC */
+	for (i = 0; i < hdr->e_shnum; i++) {
+		void *dest;
+
+		if (!(sechdrs[i].sh_flags & SHF_ALLOC))
+			continue;
+
+		if (sechdrs[i].sh_link & INIT_OFFSET_MASK)
+			dest = mod->module_init
+				+ (sechdrs[i].sh_link & ~INIT_OFFSET_MASK);
+		else
+			dest = mod->module_core + sechdrs[i].sh_link;
+
+		if (sechdrs[i].sh_type != SHT_NOBITS)
+			memcpy(dest, (void *)sechdrs[i].sh_addr,
+			       sechdrs[i].sh_size);
+		/* Update sh_addr to point to copy in image. */
+		sechdrs[i].sh_addr = (unsigned long)dest;
 	}
-	/* Don't use more than we allocated! */
-	if (used.init_size > mod->init_size || used.core_size > mod->core_size)
-		BUG();
+	/* Module has been moved. */
+	mod = (void *)sechdrs[modindex].sh_addr;
+
+	/* Now we've moved module, initialize linked lists, etc. */
+	module_unload_init(mod);
 
 	/* Fix up syms, so that st_value is a pointer to location. */
-	simplify_symbols(sechdrs, symindex, strindex, mod->module_core, mod);
+	err = simplify_symbols(sechdrs, symindex, strindex, mod);
+	if (err < 0)
+		goto cleanup;
 
 	/* Set up EXPORTed symbols */
 	if (exportindex) {
 		mod->symbols.num_syms = (sechdrs[exportindex].sh_size
 					/ sizeof(*mod->symbols.syms));
-		mod->symbols.syms = (void *)sechdrs[exportindex].sh_offset;
+		mod->symbols.syms = (void *)sechdrs[exportindex].sh_addr;
 	}
 
 	/* Set up exception table */
@@ -1162,7 +1131,7 @@ static struct module *load_module(void *umod,
 		mod->extable.num_entries = (sechdrs[exindex].sh_size
 					    / sizeof(struct
 						     exception_table_entry));
-		mod->extable.entry = (void *)sechdrs[exindex].sh_offset;
+		mod->extable.entry = (void *)sechdrs[exindex].sh_addr;
 	}
 
 	/* Now handle each section. */
@@ -1174,27 +1143,28 @@ static struct module *load_module(void *umod,
 	}
 
 #ifdef CONFIG_KALLSYMS
-	mod->symtab = (void *)sechdrs[symindex].sh_offset;
+	mod->symtab = (void *)sechdrs[symindex].sh_addr;
 	mod->num_syms = sechdrs[symindex].sh_size / sizeof(Elf_Sym);
-	mod->strtab = (void *)sechdrs[strindex].sh_offset;
+	mod->strtab = (void *)sechdrs[strindex].sh_addr;
 #endif
 	err = module_finalize(hdr, sechdrs, mod);
 	if (err < 0)
 		goto cleanup;
 
+	mod->args = args;
 	if (obsparmindex) {
 		err = obsolete_params(mod->name, mod->args,
 				      (struct obsolete_modparm *)
-				      sechdrs[obsparmindex].sh_offset,
+				      sechdrs[obsparmindex].sh_addr,
 				      sechdrs[obsparmindex].sh_size
 				      / sizeof(struct obsolete_modparm),
 				      sechdrs, symindex,
-				      (char *)sechdrs[strindex].sh_offset);
+				      (char *)sechdrs[strindex].sh_addr);
 	} else {
 		/* Size of section 0 is 0, so this works well if no params */
 		err = parse_args(mod->name, mod->args,
 				 (struct kernel_param *)
-				 sechdrs[setupindex].sh_offset,
+				 sechdrs[setupindex].sh_addr,
 				 sechdrs[setupindex].sh_size
 				 / sizeof(struct kernel_param),
 				 NULL);
@@ -1214,7 +1184,7 @@ static struct module *load_module(void *umod,
  free_core:
 	module_free(mod, mod->module_core);
  free_mod:
-	module_free(mod, mod);
+	kfree(args);
  free_hdr:
 	vfree(hdr);
 	if (err < 0) return ERR_PTR(err);
@@ -1265,7 +1235,7 @@ sys_init_module(void *umod,
 	up(&module_mutex);
 
 	/* Start the module */
-	ret = mod->init ? mod->init() : 0;
+	ret = mod->init();
 	if (ret < 0) {
 		/* Init routine failed: abort.  Try to protect us from
                    buggy refcounters. */

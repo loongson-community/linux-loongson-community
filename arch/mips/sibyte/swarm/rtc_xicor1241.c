@@ -11,6 +11,7 @@
  *
  */
 
+#include <linux/bcd.h>
 #include <linux/types.h>
 #include <linux/time.h>
 
@@ -108,8 +109,8 @@ static int xicor_write(uint8_t addr, int b)
 	}
 }
 
-#define BCD_TO_BIN(val) ((val)=((val)&15) + ((val)>>4)*10)
-#define BIN_TO_BCD(val) ((val)=(((val)/10)<<4) + (val)%10)
+#define BCD2BIN(val) ((val)=((val)&15) + ((val)>>4)*10)
+#define BIN2BCD(val) ((val)=(((val)/10)<<4) + (val)%10)
 
 int xicor_set_time(unsigned long t)
 {
@@ -123,18 +124,18 @@ int xicor_set_time(unsigned long t)
 	xicor_write(X1241REG_SR, X1241REG_SR_WEL | X1241REG_SR_RWEL);
 
 	/* trivial ones */
-	BIN_TO_BCD(tm.tm_sec);
+	BIN2BCD(tm.tm_sec);
 	xicor_write(X1241REG_SC, tm.tm_sec);
 
-	BIN_TO_BCD(tm.tm_min);
+	BIN2BCD(tm.tm_min);
 	xicor_write(X1241REG_MN, tm.tm_min);
 
-	BIN_TO_BCD(tm.tm_mday);
+	BIN2BCD(tm.tm_mday);
 	xicor_write(X1241REG_DT, tm.tm_mday);
 
 	/* tm_mon starts from 0, *ick* */
 	tm.tm_mon ++;
-	BIN_TO_BCD(tm.tm_mon);
+	BIN2BCD(tm.tm_mon);
 	xicor_write(X1241REG_MO, tm.tm_mon);
 
 	/* year is split */
@@ -147,7 +148,7 @@ int xicor_set_time(unsigned long t)
 	tmp = xicor_read(X1241REG_HR);
 	if (tmp & X1241REG_HR_MIL) {
 		/* 24 hour format */
-		BIN_TO_BCD(tm.tm_hour);
+		BIN2BCD(tm.tm_hour);
 		tmp = (tmp & ~0x3f) | (tm.tm_hour & 0x3f);
 	} else {
 		/* 12 hour format, with 0x2 for pm */
@@ -156,7 +157,7 @@ int xicor_set_time(unsigned long t)
 			tmp |= 0x20;
 			tm.tm_hour -= 12;
 		}
-		BIN_TO_BCD(tm.tm_hour);
+		BIN2BCD(tm.tm_hour);
 		tmp |= tm.tm_hour;
 	}
 	xicor_write(X1241REG_HR, tmp);
@@ -186,13 +187,13 @@ unsigned long xicor_get_time(void)
 	year = xicor_read(X1241REG_YR);
 	y2k = xicor_read(X1241REG_Y2K);
 
-	BCD_TO_BIN(sec);
-	BCD_TO_BIN(min);
-	BCD_TO_BIN(hour);
-	BCD_TO_BIN(day);
-	BCD_TO_BIN(mon);
-	BCD_TO_BIN(year);
-	BCD_TO_BIN(y2k);
+	BCD2BIN(sec);
+	BCD2BIN(min);
+	BCD2BIN(hour);
+	BCD2BIN(day);
+	BCD2BIN(mon);
+	BCD2BIN(year);
+	BCD2BIN(y2k);
 
 	year += (y2k * 100);
 

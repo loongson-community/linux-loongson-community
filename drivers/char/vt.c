@@ -130,7 +130,7 @@ extern void console_map_init(void);
 extern void prom_con_init(void);
 #endif
 #ifdef CONFIG_MDA_CONSOLE
-extern void mda_console_init(void);
+extern int mda_console_init(void);
 #endif
 #ifdef CONFIG_FRAMEBUFFER_CONSOLE
 extern int fb_console_init(void);
@@ -2646,7 +2646,7 @@ static void __init con_init_devfs (void)
 	int i;
 
 	for (i = 0; i < console_driver.num; i++)
-		tty_register_devfs (&console_driver, DEVFS_FL_DEFAULT,
+		tty_register_device (&console_driver,
 				    console_driver.minor_start + i);
 }
 

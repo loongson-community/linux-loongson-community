@@ -165,7 +165,7 @@ static struct uhci_td *uhci_alloc_td(struct uhci_hcd *uhci, struct usb_device *d
 	return td;
 }
 
-static void inline uhci_fill_td(struct uhci_td *td, __u32 status,
+static inline void uhci_fill_td(struct uhci_td *td, __u32 status,
 		__u32 token, __u32 buffer)
 {
 	td->status = cpu_to_le32(status);
@@ -2280,7 +2280,7 @@ err_alloc_skelqh:
 	uhci->term_td = NULL;
 
 err_alloc_term_td:
-	usb_free_dev(udev);
+	usb_put_dev(udev);
 	hcd->self.root_hub = NULL;
 
 err_alloc_root_hub:

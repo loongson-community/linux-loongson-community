@@ -38,7 +38,7 @@
 #define BYTES_PER_LONG 4
 #else
 #define FB_WRITEL fb_writeq
-#define FB_READL  fb_readq(x)
+#define FB_READL  fb_readq
 #define SHIFT_PER_LONG 6
 #define BYTES_PER_LONG 8
 #endif
@@ -399,11 +399,6 @@ void cfb_copyarea(struct fb_info *p, struct fb_copyarea *area)
 		}	
 	}
 }
-
-#ifdef MODULE
-int init_module(void) { return 0; };
-void cleanup_module(void) {};
-#endif
 
 EXPORT_SYMBOL(cfb_copyarea);
 

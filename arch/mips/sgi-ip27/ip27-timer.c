@@ -2,6 +2,7 @@
  * Copytight (C) 1999, 2000 Ralf Baechle (ralf@gnu.org)
  * Copytight (C) 1999, 2000 Silicon Graphics, Inc.
  */
+#include <linux/bcd.h>
 #include <linux/config.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -11,6 +12,7 @@
 #include <linux/param.h>
 #include <linux/timex.h>
 #include <linux/mm.h>
+#include <linux/bcd.h>
 
 #include <asm/time.h>
 #include <asm/pgtable.h>
@@ -57,7 +59,7 @@ static int set_rtc_mmss(unsigned long nowtime)
 
 	rtc->control |= M48T35_RTC_READ;
 	cmos_minutes = rtc->min;
-	BCD_TO_BIN(cmos_minutes);
+	BCD2BIN(cmos_minutes);
 	rtc->control &= ~M48T35_RTC_READ;
 
 	/*
@@ -72,8 +74,8 @@ static int set_rtc_mmss(unsigned long nowtime)
 	real_minutes %= 60;
 
 	if (abs(real_minutes - cmos_minutes) < 30) {
-		BIN_TO_BCD(real_seconds);
-		BIN_TO_BCD(real_minutes);
+		BIN2BCD(real_seconds);
+		BIN2BCD(real_minutes);
 		rtc->control |= M48T35_RTC_SET;
 		rtc->sec = real_seconds;
 		rtc->min = real_minutes;
@@ -174,12 +176,12 @@ static __init unsigned long get_m48t35_time(void)
 	year = rtc->year;
 	rtc->control &= ~M48T35_RTC_READ;
 
-        BCD_TO_BIN(sec);
-        BCD_TO_BIN(min);
-        BCD_TO_BIN(hour);
-        BCD_TO_BIN(date);
-        BCD_TO_BIN(month);
-        BCD_TO_BIN(year);
+        BCD2BIN(sec);
+        BCD2BIN(min);
+        BCD2BIN(hour);
+        BCD2BIN(date);
+        BCD2BIN(month);
+        BCD2BIN(year);
 
         year += 1970;
 

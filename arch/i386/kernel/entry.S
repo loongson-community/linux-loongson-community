@@ -91,18 +91,21 @@ VM_MASK		= 0x00020000
 	pushl %edx; \
 	pushl %ecx; \
 	pushl %ebx; \
-	movl $(__KERNEL_DS), %edx; \
+	movl $(__USER_DS), %edx; \
 	movl %edx, %ds; \
 	movl %edx, %es;
 
-#define RESTORE_REGS	\
+#define RESTORE_INT_REGS \
 	popl %ebx;	\
 	popl %ecx;	\
 	popl %edx;	\
 	popl %esi;	\
 	popl %edi;	\
 	popl %ebp;	\
-	popl %eax;	\
+	popl %eax
+
+#define RESTORE_REGS	\
+	RESTORE_INT_REGS; \
 1:	popl %ds;	\
 2:	popl %es;	\
 .section .fixup,"ax";	\
@@ -271,9 +274,9 @@ ENTRY(sysenter_entry)
 	movl TI_FLAGS(%ebx), %ecx
 	testw $_TIF_ALLWORK_MASK, %cx
 	jne syscall_exit_work
-	RESTORE_REGS
-	movl 4(%esp),%edx
-	movl 16(%esp),%ecx
+	RESTORE_INT_REGS
+	movl 12(%esp),%edx
+	movl 24(%esp),%ecx
 	sti
 	sysexit
 
@@ -428,7 +431,7 @@ error_code:
 	movl %esp, %edx
 	pushl %esi			# push the error code
 	pushl %edx			# push the pt_regs pointer
-	movl $(__KERNEL_DS), %edx
+	movl $(__USER_DS), %edx
 	movl %edx, %ds
 	movl %edx, %es
 	call *%edi
@@ -792,8 +795,8 @@ ENTRY(sys_call_table)
 	.long sys_io_getevents
 	.long sys_io_submit
 	.long sys_io_cancel
-	.long sys_alloc_hugepages /* 250 */
-	.long sys_free_hugepages
+	.long sys_ni_syscall 	/* 250 sys_alloc_hugepages - reuse this */
+	.long sys_ni_syscall	/* was sys_free_hugepages - reuse this */
 	.long sys_exit_group
 	.long sys_lookup_dcookie
 	.long sys_epoll_create

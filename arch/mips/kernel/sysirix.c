@@ -24,6 +24,7 @@
 #include <linux/smp_lock.h>
 #include <linux/utsname.h>
 #include <linux/file.h>
+#include <linux/vfs.h>
 #include <linux/namei.h>
 #include <linux/socket.h>
 

@@ -576,8 +576,10 @@ int ext3_htree_fill_tree(struct file *dir_file, __u32 start_hash,
 			     (hinfo.minor_hash < start_minor_hash)))
 				continue;
 			if ((err = ext3_htree_store_dirent(dir_file,
-				   hinfo.hash, hinfo.minor_hash, de)) != 0)
+				   hinfo.hash, hinfo.minor_hash, de)) != 0) {
+				brelse(bh);
 				goto errout;
+			}
 			count++;
 		}
 		brelse (bh);
@@ -702,7 +704,7 @@ static inline int ext3_match (int len, const char * const name,
 /*
  * Returns 0 if not found, -1 on failure, and 1 on success
  */
-static int inline search_dirblock(struct buffer_head * bh,
+static inline int search_dirblock(struct buffer_head * bh,
 				  struct inode *dir,
 				  struct dentry *dentry,
 				  unsigned long offset,

@@ -12,7 +12,6 @@
 #define _ASM_PROCESSOR_H
 
 #include <linux/config.h>
-#include <linux/cache.h>
 #include <linux/threads.h>
 #include <asm/isadep.h>
 #include <asm/page.h>
@@ -24,6 +23,7 @@
 #define current_text_addr() ({ __label__ _l; _l: &&_l;})
 
 #ifndef __ASSEMBLY__
+#include <linux/cache.h>
 #include <linux/smp.h>
 #include <linux/threads.h>
 

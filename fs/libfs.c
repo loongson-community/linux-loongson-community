@@ -4,7 +4,16 @@
  */
 
 #include <linux/pagemap.h>
-#include <linux/smp_lock.h>
+#include <linux/vfs.h>
+
+int simple_getattr(struct vfsmount *mnt, struct dentry *dentry,
+		   struct kstat *stat)
+{
+	struct inode *inode = dentry->d_inode;
+	generic_fillattr(inode, stat);
+	stat->blocks = inode->i_mapping->nrpages << (PAGE_CACHE_SHIFT - 9);
+	return 0;
+}
 
 int simple_statfs(struct super_block *sb, struct statfs *buf)
 {

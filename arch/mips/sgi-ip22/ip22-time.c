@@ -9,6 +9,7 @@
  * Copyright (C) 2001 by Ladislav Michl
  */
 
+#include <linux/bcd.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
@@ -46,12 +47,12 @@ static unsigned long indy_rtc_get_time(void)
 
 	CMOS_WRITE(save_control, RTC_CMD);
 
-	BCD_TO_BIN(sec);
-	BCD_TO_BIN(min);
-	BCD_TO_BIN(hrs);
-	BCD_TO_BIN(day);
-	BCD_TO_BIN(mon);
-	BCD_TO_BIN(yrs);
+	BCD2BIN(sec);
+	BCD2BIN(min);
+	BCD2BIN(hrs);
+	BCD2BIN(day);
+	BCD2BIN(mon);
+	BCD2BIN(yrs);
 
 	if (yrs < 45)
 		yrs += 30;
@@ -73,12 +74,12 @@ static int indy_rtc_set_time(unsigned long tim)
 	if (tm.tm_year >= 100)
 		tm.tm_year -= 100;
 
-	BIN_TO_BCD(tm.tm_sec);
-	BIN_TO_BCD(tm.tm_min);
-	BIN_TO_BCD(tm.tm_hour);
-	BIN_TO_BCD(tm.tm_mday);
-	BIN_TO_BCD(tm.tm_mon);
-	BIN_TO_BCD(tm.tm_year);
+	BIN2BCD(tm.tm_sec);
+	BIN2BCD(tm.tm_min);
+	BIN2BCD(tm.tm_hour);
+	BIN2BCD(tm.tm_mday);
+	BIN2BCD(tm.tm_mon);
+	BIN2BCD(tm.tm_year);
 
 	save_control = CMOS_READ(RTC_CMD);
 	CMOS_WRITE((save_control|RTC_TE), RTC_CMD);

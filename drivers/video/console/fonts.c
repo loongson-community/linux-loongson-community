@@ -19,7 +19,7 @@
 #if defined(__mc68000__) || defined(CONFIG_APUS)
 #include <asm/setup.h>
 #endif
-#include "font.h"
+#include <linux/font.h>
 
 #define NO_FONTS
 
@@ -129,9 +129,6 @@ struct font_desc *get_default_font(int xres, int yres)
     }
     return g;
 }
-
-int init_module(void) { return 0; };
-void cleanup_module(void) {};
 
 EXPORT_SYMBOL(fonts);
 EXPORT_SYMBOL(find_font);

@@ -7,6 +7,7 @@
  *
  * Copyright (C) 2001 Keith M Wesolowski
  */
+#include <linux/bcd.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/errno.h>
@@ -200,12 +201,12 @@ void __init ip32_time_init(void)
 		year = CMOS_READ(RTC_YEAR);
 	} while (sec != CMOS_READ(RTC_SECONDS));
 	if (!(CMOS_READ(RTC_CONTROL) & RTC_DM_BINARY) || RTC_ALWAYS_BCD) {
-		BCD_TO_BIN(sec);
-		BCD_TO_BIN(min);
-		BCD_TO_BIN(hour);
-		BCD_TO_BIN(day);
-		BCD_TO_BIN(mon);
-		BCD_TO_BIN(year);
+		BCD2BIN(sec);
+		BCD2BIN(min);
+		BCD2BIN(hour);
+		BCD2BIN(day);
+		BCD2BIN(mon);
+		BCD2BIN(year);
 	}
 
 	/* Attempt to guess the epoch.  This is the same heuristic as in

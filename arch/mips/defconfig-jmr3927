@@ -407,6 +407,14 @@ CONFIG_TXX927_SERIAL_CONSOLE=y
 # CONFIG_I2C is not set
 
 #
+# I2C Hardware Sensors Mainboard support
+#
+
+#
+# I2C Hardware Sensors Chip support
+#
+
+#
 # Mice
 #
 # CONFIG_BUSMOUSE is not set
@@ -428,7 +436,6 @@ CONFIG_TXX927_SERIAL_CONSOLE=y
 #
 # CONFIG_FTAPE is not set
 # CONFIG_AGP is not set
-# CONFIG_AGP3 is not set
 # CONFIG_DRM is not set
 # CONFIG_RAW_DRIVER is not set
 

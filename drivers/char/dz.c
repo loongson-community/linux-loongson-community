@@ -1404,9 +1404,9 @@ int __init dz_init(void)
 		printk("ttyS%02d at 0x%08x (irq = %d)\n", info->line,
 		       info->port, dec_interrupt[DEC_IRQ_DZ11]);
 
-		tty_register_devfs(&serial_driver, 0,
+		tty_register_devfs(&serial_driver,
 				 serial_driver.minor_start + info->line);
-		tty_register_devfs(&callout_driver, 0,
+		tty_register_devfs(&callout_driver,
 				callout_driver.minor_start + info->line);
 	}
 

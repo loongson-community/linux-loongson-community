@@ -58,6 +58,7 @@
 #include <linux/init.h>
 #include <linux/aio_abi.h>
 #include <linux/compat.h>
+#include <linux/vfs.h>
 #include <asm/mman.h>
 #include <asm/types.h>
 #include <asm/uaccess.h>
@@ -84,6 +85,11 @@
 #define low2highuid(uid) ((uid) == (u16)-1) ? (uid_t)-1 : (uid_t)(uid)
 #define low2highgid(gid) ((gid) == (u16)-1) ? (gid_t)-1 : (gid_t)(gid)
 extern int overflowuid,overflowgid; 
+
+
+extern asmlinkage long sys_newstat(char * filename, struct stat * statbuf);
+extern asmlinkage long sys_newlstat(char * filename, struct stat * statbuf);
+extern asmlinkage long sys_newfstat(unsigned int fd, struct stat * statbuf);
 
 
 int cp_compat_stat(struct kstat *kbuf, struct compat_stat *ubuf)

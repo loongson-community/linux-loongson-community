@@ -12,7 +12,6 @@
 #define _ASM_PROCESSOR_H
 
 #include <linux/config.h>
-#include <linux/cache.h>
 
 /*
  * Return current * instruction pointer ("program counter").
@@ -31,6 +30,7 @@
 })
 
 #ifndef __ASSEMBLY__
+#include <linux/cache.h>
 #include <linux/smp.h>
 #include <linux/threads.h>
 

@@ -184,7 +184,6 @@ CONFIG_BLK_DEV_SD=y
 # CONFIG_SCSI_ACARD is not set
 # CONFIG_SCSI_AACRAID is not set
 # CONFIG_SCSI_AIC7XXX is not set
-# CONFIG_AIC7XXX_PROBE_EISA_VL is not set
 # CONFIG_SCSI_AIC7XXX_OLD is not set
 # CONFIG_SCSI_AIC79XX is not set
 # CONFIG_SCSI_DPT_I2O is not set
@@ -439,6 +438,14 @@ CONFIG_UNIX98_PTY_COUNT=256
 # CONFIG_I2C is not set
 
 #
+# I2C Hardware Sensors Mainboard support
+#
+
+#
+# I2C Hardware Sensors Chip support
+#
+
+#
 # Mice
 #
 # CONFIG_BUSMOUSE is not set
@@ -459,7 +466,6 @@ CONFIG_RTC=y
 #
 # CONFIG_FTAPE is not set
 # CONFIG_AGP is not set
-# CONFIG_AGP3 is not set
 # CONFIG_DRM is not set
 # CONFIG_RAW_DRIVER is not set
 

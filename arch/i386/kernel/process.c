@@ -219,8 +219,8 @@ int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
 	regs.ebx = (unsigned long) fn;
 	regs.edx = (unsigned long) arg;
 
-	regs.xds = __KERNEL_DS;
-	regs.xes = __KERNEL_DS;
+	regs.xds = __USER_DS;
+	regs.xes = __USER_DS;
 	regs.orig_eax = -1;
 	regs.eip = (unsigned long) kernel_thread_helper;
 	regs.xcs = __KERNEL_CS;
@@ -558,8 +558,11 @@ asmlinkage int sys_execve(struct pt_regs regs)
 	if (IS_ERR(filename))
 		goto out;
 	error = do_execve(filename, (char **) regs.ecx, (char **) regs.edx, &regs);
-	if (error == 0)
+	if (error == 0) {
 		current->ptrace &= ~PT_DTRACE;
+		/* Make sure we don't return using sysenter.. */
+		set_thread_flag(TIF_SIGPENDING);
+	}
 	putname(filename);
 out:
 	return error;

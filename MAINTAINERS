@@ -644,7 +644,7 @@ S:	Supported
 
 FRAMEBUFFER LAYER
 P:	James Simmons, Geert Uytterhoeven	
-M:	jsimmons@users.sf.net, geert@linux-m68k.org	
+M:	jsimmons@infradead.org, geert@linux-m68k.org	
 L:	linux-fbdev-devel@lists.sourceforge.net	
 W:	http://www.linux-fbdev.org
 S:	Supported
@@ -761,6 +761,15 @@ M:	frodol@dds.nl
 L:	linux-i2c@pelican.tk.uni-linz.ac.at
 W:	http://www.tk.uni-linz.ac.at/~simon/private/i2c
 S:	Maintained
+
+SENSORS DRIVERS
+P:      Frodo Looijaard
+M:      frodol@dds.nl
+P:      Philip Edelbrock
+M:      phil@netroedge.com
+L:      sensors@stimpy.netroedge.com
+W:      http://www.lm-sensors.nu/
+S:      Maintained
 
 i386 BOOT CODE
 P:	Riley H. Williams
