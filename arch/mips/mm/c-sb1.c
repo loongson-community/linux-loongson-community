@@ -39,9 +39,6 @@ static unsigned int icache_sets;
 static unsigned int dcache_sets;
 static unsigned int tlb_entries;
 
-/* Define this to be insanely conservative (e.g. flush everything, lots) */
-#undef SB1_TLB_CONSERVATIVE
-#undef SB1_CACHE_CONSERVATIVE
 void pgd_init(unsigned long page)
 {
 	unsigned long *p = (unsigned long *) page;
@@ -72,7 +69,7 @@ void pgd_init(unsigned long page)
  * to flush it
  */
 
-static void _sb1_flush_cache_all(void)
+static void sb1_flush_cache_all(void)
 {
 
 	/*
@@ -132,12 +129,6 @@ static void _sb1_flush_cache_all(void)
 	}
 }
 
-static void sb1_flush_cache_all(void)
-{
-	smp_call_function(sb1_flush_cache_all_ipi, 0, 1, 1);
-	_sb1_flush_cache_all();
-}
-
 /*
  * When flushing a range in the icache, we have to first writeback
  * the dcache for the same range, so new ifetches will see any
@@ -152,7 +143,7 @@ static void sb1_flush_cache_all(void)
  *
 */
 
-static void _sb1_flush_icache_range(unsigned long start, unsigned long end)
+static void sb1_flush_icache_range(unsigned long start, unsigned long end)
 {
 	if (icache_sets) {
 		if (dcache_sets) {
@@ -229,32 +220,6 @@ static void _sb1_flush_icache_range(unsigned long start, unsigned long end)
 	}
 }
 
-/* XXXKW how should I pass these instead? */
-unsigned long flush_range_start;
-unsigned long flush_range_end;
-
-static void sb1_flush_icache_range(unsigned long start, unsigned long end)
-{
-#ifdef SB1_CACHE_CONSERVATIVE
-	sb1_flush_cache_all();
-#else
-	if (start == end) {
-		return;
-	}
-	start &= ~((long)(dcache_line_size - 1));
-	end   = (end - 1) & ~((long)(dcache_line_size - 1));
-
-	if ((end-start) >= (16*1024*1024)) {
-		sb1_flush_cache_all();
-	} else {
-		_sb1_flush_icache_range(start, end);
-		flush_range_start = start;
-		flush_range_end = end;
-		smp_call_function(sb1_flush_icache_range_ipi, 0, 1, 1);
-	}
-#endif
-}
-
 /*
  * If there's no context yet, or the page isn't executable, no icache flush
  * is needed
@@ -268,11 +233,12 @@ static void sb1_flush_icache_page(struct vm_area_struct *vma, struct page *page)
 	}
 
 	addr = (unsigned long)page_address(page);
-	/* XXXKW addr is a Kseg0 address, whereas hidden higher up the
-	   call stack, we may really need to flush a Useg address.
-	   Our Icache is virtually tagged, which means we have to be
-	   super conservative.  See comments in
-	   _sb1_flush_icache_rage. */
+	/*
+	 * XXXKW addr is a Kseg0 address, whereas hidden higher up the call
+	 * stack, we may really need to flush a Useg address.  Our Icache is
+	 * virtually tagged, which means we have to be super conservative.
+	 *  See comments in sb1_flush_icache_rage.
+	 */
 	sb1_flush_icache_range(addr, addr + PAGE_SIZE);
 }
 
