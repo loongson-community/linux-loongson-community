@@ -1030,7 +1030,7 @@ static void __init build_r4000_tlb_refill_handler(void)
 	/*
 	 * create the plain linear handler
 	 */
-	if (bcm1250_m3_war) {
+	if (bcm1250_m3_war()) {
 		i_MFC0(&p, K0, C0_BADVADDR);
 		i_MFC0(&p, K1, C0_ENTRYHI);
 		i_xor(&p, K0, K0, K1);
