@@ -379,17 +379,15 @@ asmlinkage int sys_ipc (uint call, int first, int second,
 /*
  * Native ABI that is O32 or N64 version
  */
-asmlinkage long sys_shmat(int shmid, char __user *shmaddr,
-                          int shmflg, unsigned long *addr)
+asmlinkage long sys_shmat(int shmid, char __user *shmaddr, int shmflg)
 {
-	unsigned long raddr;
-	int err;
+	unsigned long raddr, err;
 
 	err = do_shmat(shmid, shmaddr, shmflg, &raddr);
 	if (err)
 		return err;
 
-	return put_user(raddr, addr);
+	return raddr;
 }
 
 /*
