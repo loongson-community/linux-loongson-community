@@ -226,6 +226,7 @@ config MIPS_ATLAS
 
 config MIPS_MALTA
 	bool "Support for MIPS Malta board"
+	select HAVE_STD_PC_SERIAL_PORT
 	help
 	  This enables support for the VR5000-based MIPS Malta evaluation
 	  board.
@@ -279,6 +280,7 @@ config HYPERTRANSPORT
 config DDB5074
 	bool "Support for NEC DDB Vrc-5074 (EXPERIMENTAL)"
 	depends on EXPERIMENTAL
+	select HAVE_STD_PC_SERIAL_PORT
 	select IRQ_CPU
 	help
 	  This enables support for the VR5000-based NEC DDB Vrc-5074
@@ -286,6 +288,7 @@ config DDB5074
 
 config DDB5476
 	bool "Support for NEC DDB Vrc-5476"
+	select HAVE_STD_PC_SERIAL_PORT
 	select IRQ_CPU
 	help
 	  This enables support for the R5432-based NEC DDB Vrc-5476
@@ -925,8 +928,6 @@ config FB_G364
 
 config HAVE_STD_PC_SERIAL_PORT
 	bool
-	depends on DDB5476 || DDB5074 || MIPS_MALTA
-	default y
 
 config VR4181
 	bool
