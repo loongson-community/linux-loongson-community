@@ -61,9 +61,9 @@ extern phys_t (*fixup_bigphys_addr)(phys_t phys_addr, phys_t size);
 static phys_t au1500_fixup_bigphys_addr(phys_t phys_addr, phys_t size);
 #endif
 extern void au1xxx_time_init(void);
-extern void au1xxx_timer_setup(void);
+extern void au1xxx_timer_setup(struct irqaction *irq);
 
-static void au1x00_setup(void)
+static int __init au1x00_setup(void)
 {
 	char *argptr;
 
@@ -168,6 +168,7 @@ static void au1x00_setup(void)
 	au_sync();
 	while (au_readl(SYS_COUNTER_CNTRL) & SYS_CNTRL_T0S);
 	au_writel(0, SYS_TOYTRIM);
+	return 0;
 }
 
 early_initcall(au1x00_setup);

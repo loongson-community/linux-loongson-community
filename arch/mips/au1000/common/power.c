@@ -41,6 +41,8 @@
 #include <asm/system.h>
 #include <asm/mach-au1x00/au1000.h>
 
+#ifdef CONFIG_PM
+
 #define DEBUG 1
 #ifdef DEBUG
 #  define DPRINTK(fmt, args...)	printk("%s: " fmt, __FUNCTION__ , ## args)
@@ -63,7 +65,6 @@ extern void local_enable_irq(unsigned int irq_nr);
 #define	ACPI_S1_SLP_TYP 19
 #define	ACPI_SLEEP 21
 
-#ifdef CONFIG_PM
 
 static spinlock_t pm_lock = SPIN_LOCK_UNLOCKED;
 

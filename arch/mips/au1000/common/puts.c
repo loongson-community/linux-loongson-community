@@ -44,7 +44,7 @@ static volatile unsigned long * const com1 = (unsigned long *)SERIAL_BASE;
 
 
 #ifdef SLOW_DOWN
-static inline void slow_down()
+static inline void slow_down(void)
 {
     int k;
     for (k=0; k<10000; k++);
