@@ -7,7 +7,6 @@
  *
  * Copyright (C) 1997 - 2000 Ralf Baechle
  */
-#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/pci.h>
@@ -15,8 +14,6 @@
 #include <asm/byteorder.h>
 #include <asm/pci_channel.h>
 #include <asm/hp-lj/asic.h>
-
-#ifdef CONFIG_PCI
 
 volatile u32* pci_config_address_reg = (volatile u32*)0xfdead000;
 volatile u32* pci_config_data_reg = (volatile u32*)0xfdead000;
@@ -225,6 +222,3 @@ void __init pcibios_fixup_resources(struct pci_dev *dev)
     }
 
 }
-
-
-#endif /* CONFIG_PCI */

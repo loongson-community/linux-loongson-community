@@ -29,9 +29,6 @@
  *  675 Mass Ave, Cambridge, MA 02139, USA.
  */
 #include <linux/config.h>
-
-#ifdef CONFIG_PCI
-
 #include <linux/types.h>
 #include <linux/pci.h>
 #include <linux/kernel.h>
@@ -318,5 +315,3 @@ struct pci_ops au1x_pci_ops = {
 	config_read,
 	config_write
 };
-
-#endif /* CONFIG_PCI */

@@ -22,7 +22,6 @@
  *  with this program; if not, write  to the Free Software Foundation, Inc.,
  *  675 Mass Ave, Cambridge, MA 02139, USA.
  */
-#include <linux/config.h>
 #include <linux/types.h>
 #include <linux/pci.h>
 #include <linux/kernel.h>
@@ -33,8 +32,6 @@
 #include <asm/mv64340.h>
 
 #include <linux/init.h>
-
-#ifdef CONFIG_PCI
 
 /*
  * These functions and structures provide the BIOS scan and mapping of the PCI
@@ -458,5 +455,3 @@ unsigned __init int pcibios_assign_all_busses(void)
 {
 	return 1;
 }
-
-#endif	/* CONFIG_PCI */

@@ -420,25 +420,6 @@ static void alloc_cpupda(cpuid_t cpu, int cpunum)
 	cpu_data[cpunum].p_cpuid = cpu;
 }
 
-static volatile cpumask_t boot_barrier;
-
-void __init start_secondary(void)
-{
-	CPUMASK_CLRB(boot_barrier, getcpuid());	/* needs atomicity */
-	cpu_probe();
-	per_cpu_init();
-	per_cpu_trap_init();
-#if 0
-	ecc_init();
-	bte_lateinit();
-	init_mfhi_war();
-#endif
-	local_flush_tlb_all();
-	__flush_cache_all();
-
-	return cpu_idle();
-}
-
 static struct task_struct * __init fork_by_hand(void)
 {
 	struct pt_regs regs;
@@ -457,8 +438,6 @@ static int __init do_boot_cpu(int cpu, int num_cpus)
 
 	if (cpu == mycpuid) {
 		alloc_cpupda(cpu, num_cpus);
-		/* We're already started, clear our bit */
-		CPUMASK_CLRB(boot_barrier, cpu);
 		return 1;
 	}
 
@@ -536,7 +515,6 @@ void __init smp_boot_cpus(void)
 #endif
 
 	replicate_kernel_text(numnodes);
-	boot_barrier = boot_cpumask;
 	/* Launch slaves. */
 	for (cpu = 0; cpu < maxcpus; cpu++) {
 		num_cpus += do_boot_cpu(cpu, num_cpus);

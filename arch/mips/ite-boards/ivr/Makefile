@@ -7,6 +7,4 @@
 # board-specific files.
 #
 
-obj-y := init.o
-
-obj-$(CONFIG_PCI) += pci_fixup.o
+obj-y		+= init.o

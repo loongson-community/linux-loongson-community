@@ -8,8 +8,6 @@
  * Copyright (C) 1995, 1996, 1997, 2002 by Ralf Baechle
  * Copyright (C) 2001, 2002, 2003 by Liam Davies (ldavies@agile.tv)
  */
-
-#include <linux/config.h>
 #include <linux/types.h>
 #include <linux/pci.h>
 #include <linux/kernel.h>
@@ -20,8 +18,6 @@
 #include <asm/gt64120.h>
 
 #include <asm/cobalt/cobalt.h>
-
-#ifdef CONFIG_PCI
 
 int cobalt_board_id;
 
@@ -421,5 +417,3 @@ unsigned int __init pcibios_assign_all_busses(void)
 {
 	return 1;
 }
-
-#endif /* CONFIG_PCI */

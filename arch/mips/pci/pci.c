@@ -66,6 +66,67 @@
 extern void pcibios_fixup(void);
 extern void pcibios_fixup_irqs(void);
 
+void __init pcibios_fixup_irqs(void)			/* HP-LJ */
+{
+	struct pci_dev *dev;
+	int slot_num;
+
+
+	pci_for_each_dev(dev) {
+		slot_num = PCI_SLOT(dev->devfn);
+		switch (slot_num) {
+		case 2:
+			dev->irq = 3;
+			break;
+		case 3:
+			dev->irq = 4;
+			break;
+		case 4:
+			dev->irq = 5;
+			break;
+		default:
+			break;
+		}
+	}
+}
+
+void __init pcibios_fixup_resources(struct pci_dev *dev)	/* HP-LJ */
+{
+	int pos;
+	int bases;
+
+	printk("adjusting pci device: %s\n", dev->name);
+
+	switch (dev->hdr_type) {
+	case PCI_HEADER_TYPE_NORMAL:
+		bases = 6;
+		break;
+	case PCI_HEADER_TYPE_BRIDGE:
+		bases = 2;
+		break;
+	case PCI_HEADER_TYPE_CARDBUS:
+		bases = 1;
+		break;
+	default:
+		bases = 0;
+		break;
+	}
+	for (pos = 0; pos < bases; pos++) {
+		struct resource *res = &dev->resource[pos];
+		if (res->start >= IO_MEM_LOGICAL_START &&
+		    res->end <= IO_MEM_LOGICAL_END) {
+			res->start += IO_MEM_VIRTUAL_OFFSET;
+			res->end += IO_MEM_VIRTUAL_OFFSET;
+		}
+		if (res->start >= IO_PORT_LOGICAL_START &&
+		    res->end <= IO_PORT_LOGICAL_END) {
+			res->start += IO_PORT_VIRTUAL_OFFSET;
+			res->end += IO_PORT_VIRTUAL_OFFSET;
+		}
+	}
+
+}
+
 struct pci_fixup pcibios_fixups[] = {
 	{ PCI_FIXUP_HEADER, PCI_ANY_ID, PCI_ANY_ID, pcibios_fixup_resources },
 	{ 0 }

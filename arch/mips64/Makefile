@@ -205,6 +205,8 @@ load-$(CONFIG_SIBYTE_SWARM)	:= 0x80100000
 core-$(CONFIG_SNI_RM200_PCI)	+= arch/mips/sni/
 load-$(CONFIG_SNI_RM200_PCI)	+= 0x80080000
 
+drivers-$(CONFIG_PCI)		+= arch/mips/pci/
+
 #
 # Some machines like the Indy need 32-bit ELF binaries for booting purposes.
 # Other need ECOFF, so we build a 32-bit ELF binary for them which we then

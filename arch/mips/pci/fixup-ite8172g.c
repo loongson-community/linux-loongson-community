@@ -1,7 +1,6 @@
 /*
- *
  * BRIEF MODULE DESCRIPTION
- *	Globespan IVR board-specific pci fixups.
+ *	Board specific pci fixups.
  *
  * Copyright 2000 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
@@ -27,10 +26,6 @@
  *  with this program; if not, write  to the Free Software Foundation, Inc.,
  *  675 Mass Ave, Cambridge, MA 02139, USA.
  */
-#include <linux/config.h>
-
-#ifdef CONFIG_PCI
-
 #include <linux/types.h>
 #include <linux/pci.h>
 #include <linux/kernel.h>
@@ -64,8 +59,9 @@ void __init pcibios_fixup_irqs(void)
         };
 
 	pci_for_each_dev(dev) {
-		if (dev->bus->number != 0)
+		if (dev->bus->number != 0) {
 			return;
+		}
 
 		pci_read_config_byte(dev, PCI_INTERRUPT_PIN, &pin);
 		slot = PCI_SLOT(dev->devfn);
@@ -75,15 +71,74 @@ void __init pcibios_fixup_irqs(void)
 			case 0x01:
 			    /*
 			     * Internal device 1 is actually 7 different
-			     * internal devices on the IT8172G (multi-function
-			     * device).
+			     * internal devices on the IT8172G (a multi-
+			     * function device).
 			     */
 			    if (func < 7)
 				dev->irq = internal_func_irqs[func];
 			    break;
-			case 0x11:   // Realtek RTL-8139
+			case 0x10:
 				switch (pin) {
-					case 0: /* pin A, hardware bug */
+					case 1: /* pin A */
+						dev->irq = IT8172_PCI_INTA_IRQ;
+						break;
+					case 2: /* pin B */
+						dev->irq = IT8172_PCI_INTB_IRQ;
+						break;
+					case 3: /* pin C */
+						dev->irq = IT8172_PCI_INTC_IRQ;
+						break;
+					case 4: /* pin D */
+						dev->irq = IT8172_PCI_INTD_IRQ;
+						break;
+					default:
+						dev->irq = 0xff;
+						break;
+
+				}
+				break;
+			case 0x11:
+				switch (pin) {
+					case 1: /* pin A */
+						dev->irq = IT8172_PCI_INTA_IRQ;
+						break;
+					case 2: /* pin B */
+						dev->irq = IT8172_PCI_INTB_IRQ;
+						break;
+					case 3: /* pin C */
+						dev->irq = IT8172_PCI_INTC_IRQ;
+						break;
+					case 4: /* pin D */
+						dev->irq = IT8172_PCI_INTD_IRQ;
+						break;
+					default:
+						dev->irq = 0xff;
+						break;
+
+				}
+				break;
+			case 0x12:
+				switch (pin) {
+					case 1: /* pin A */
+						dev->irq = IT8172_PCI_INTB_IRQ;
+						break;
+					case 2: /* pin B */
+						dev->irq = IT8172_PCI_INTC_IRQ;
+						break;
+					case 3: /* pin C */
+						dev->irq = IT8172_PCI_INTD_IRQ;
+						break;
+					case 4: /* pin D */
+						dev->irq = IT8172_PCI_INTA_IRQ;
+						break;
+					default:
+						dev->irq = 0xff;
+						break;
+
+				}
+				break;
+			case 0x13:
+				switch (pin) {
 					case 1: /* pin A */
 						dev->irq = IT8172_PCI_INTC_IRQ;
 						break;
@@ -102,41 +157,19 @@ void __init pcibios_fixup_irqs(void)
 
 				}
 				break;
-			case 0x12:   // ivr slot
+			case 0x14:
 				switch (pin) {
-				case 0: /* pin A, hardware bug */
-				case 1: /* pin A */
-					dev->irq = IT8172_PCI_INTB_IRQ;
-					break;
-				case 2: /* pin B */
-					dev->irq = IT8172_PCI_INTB_IRQ;
-					break;
-				case 3: /* pin C */
-					dev->irq = IT8172_PCI_INTC_IRQ;
-					break;
-				case 4: /* pin D */
-					dev->irq = IT8172_PCI_INTD_IRQ;
-					break;
-				default:
-					dev->irq = 0xff;
-					break;
-
-				}
-				break;
-			case 0x13:   // expansion slot
-				switch (pin) {
-					case 0: /* pin A, hardware bug */
 					case 1: /* pin A */
-						dev->irq = IT8172_PCI_INTA_IRQ;
+						dev->irq = IT8172_PCI_INTD_IRQ;
 						break;
 					case 2: /* pin B */
-						dev->irq = IT8172_PCI_INTB_IRQ;
+						dev->irq = IT8172_PCI_INTA_IRQ;
 						break;
 					case 3: /* pin C */
-						dev->irq = IT8172_PCI_INTC_IRQ;
+						dev->irq = IT8172_PCI_INTB_IRQ;
 						break;
 					case 4: /* pin D */
-						dev->irq = IT8172_PCI_INTD_IRQ;
+						dev->irq = IT8172_PCI_INTC_IRQ;
 						break;
 					default:
 						dev->irq = 0xff;
@@ -145,7 +178,7 @@ void __init pcibios_fixup_irqs(void)
 				}
 				break;
 			default:
-				break;
+				continue; /* do nothing */
 		}
 #ifdef DEBUG
 		printk("irq fixup: slot %d, int line %d, int number %d\n",
@@ -154,4 +187,3 @@ void __init pcibios_fixup_irqs(void)
 		pci_write_config_byte(dev, PCI_INTERRUPT_LINE, dev->irq);
 	}
 }
-#endif

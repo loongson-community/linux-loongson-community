@@ -1,9 +1,8 @@
 /*
- *
  * BRIEF MODULE DESCRIPTION
- *	EV96100 Board specific pci fixups.
+ *	Board specific pci fixups.
  *
- * Copyright 2001 MontaVista Software Inc.
+ * Copyright 2001-2003 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
  *         	ppopov@mvista.com or source@mvista.com
  *
@@ -28,69 +27,96 @@
  *  675 Mass Ave, Cambridge, MA 02139, USA.
  */
 #include <linux/config.h>
-
-#ifdef CONFIG_PCI
-
 #include <linux/types.h>
 #include <linux/pci.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
-#include <linux/pci_ids.h>
 
-#include <asm/gt64120.h>
-#include <asm/galileo-boards/ev96100.h>
+#include <asm/au1000.h>
+//#include <asm/pb1500.h>
+#ifdef CONFIG_MIPS_PB1000
+#include <asm/pb1000.h>
+#endif
 
-extern unsigned short get_gt_devid(void);
+#undef	DEBUG
+#ifdef 	DEBUG
+#define	DBG(x...)	printk(x)
+#else
+#define	DBG(x...)
+#endif
+
+static void fixup_resource(int r_num, struct pci_dev *dev) ;
+#ifdef CONFIG_SOC_AU1500
+static unsigned long virt_io_addr;
+#endif
 
 void __init pcibios_fixup_resources(struct pci_dev *dev)
 {
+	/* will need to fixup IO resources */
 }
 
 void __init pcibios_fixup(void)
 {
+#ifdef CONFIG_SOC_AU1500
+	int i;
+	struct pci_dev *dev;
+	
+	virt_io_addr = (unsigned long)ioremap(Au1500_PCI_IO_START, 
+			Au1500_PCI_IO_END - Au1500_PCI_IO_START + 1);
+
+	if (!virt_io_addr) {
+		printk(KERN_ERR "Unable to ioremap pci space\n");
+		return;
+	}
+
+	set_io_port_base(virt_io_addr);
+#endif
+
+#ifdef CONFIG_MIPS_PB1000 /* This is truly board specific */
+	unsigned long pci_mem_start = (unsigned long) PCI_MEM_START;
+
+	au_writel(0, PCI_BRIDGE_CONFIG); // set extend byte to 0
+	au_writel(0, SDRAM_MBAR);        // set mbar to 0
+	au_writel(0x2, SDRAM_CMD);       // enable memory accesses
+	au_sync_delay(1);
+
+	// set extend byte to mbar of ext slot
+	au_writel(((pci_mem_start >> 24) & 0xff) |
+	       (1 << 8 | 1 << 9 | 1 << 10 | 1 << 27), PCI_BRIDGE_CONFIG);
+	DBG("Set bridge config to %x\n", au_readl(PCI_BRIDGE_CONFIG));
+#endif
 }
 
 void __init pcibios_fixup_irqs(void)
 {
+#ifdef CONFIG_SOC_AU1500
+	unsigned int slot, func;
+	unsigned char pin;
 	struct pci_dev *dev;
-	unsigned int slot;
-	u32 vendor;
-	unsigned short gt_devid = get_gt_devid();
-
-	/*
-	** EV96100/A interrupt routing for pci bus 0
-	**
-	** Note: EV96100A board with irq jumper set on 'VxWorks'
-	** for EV96100 compatibility.
-	*/
 
 	pci_for_each_dev(dev) {
 		if (dev->bus->number != 0)
 			return;
 
+		dev->irq = 0xff;
 		slot = PCI_SLOT(dev->devfn);
-		pci_read_config_dword(dev, PCI_SUBSYSTEM_VENDOR_ID, &vendor);
+		switch (slot) {
+			case 12:
+			case 13:
+				dev->irq = AU1000_PCI_INTA;
+				break;
 
-#ifdef DEBUG
-		printk("devfn %x, slot %d devid %x\n",
-				dev->devfn, slot, gt_devid);
-#endif
-
-		/* fixup irq line based on slot # */
-		if (slot == 8) {
-			dev->irq = 5;
-			pci_write_config_byte(dev, PCI_INTERRUPT_LINE,
-					dev->irq);
 		}
-		else if (slot == 9) {
-			dev->irq = 2;
-			pci_write_config_byte(dev, PCI_INTERRUPT_LINE,
-					dev->irq);
-		}
+		pci_write_config_byte(dev, PCI_INTERRUPT_LINE, dev->irq);
+		DBG("slot %d irq %d\n", slot, dev->irq);
 	}
+#endif
 }
 unsigned int pcibios_assign_all_busses(void)
 {
 	return 0;
 }
-#endif
+
+static void fixup_resource(int r_num, struct pci_dev *dev) 
+{
+}

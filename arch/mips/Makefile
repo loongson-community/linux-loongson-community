@@ -337,6 +337,8 @@ core-$(CONFIG_TOSHIBA_RBTX4927)	+= arch/mips/tx4927/toshiba_rbtx4927/
 core-$(CONFIG_TOSHIBA_RBTX4927)	+= arch/mips/tx4927/common/
 load-$(CONFIG_TOSHIBA_RBTX4927)	:= 0x80020000
 
+drivers-$(CONFIG_PCI)		+= arch/mips/pci/
+
 
 #
 # Choosing incompatible machines durings configuration will result in

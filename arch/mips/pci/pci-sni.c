@@ -7,15 +7,12 @@
  *
  * Copyright (C) 1997 - 2000 Ralf Baechle
  */
-#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/pci.h>
 #include <linux/types.h>
 #include <asm/byteorder.h>
 #include <asm/sni.h>
-
-#ifdef CONFIG_PCI
 
 #define mkaddr(bus, devfn, where)                                                   \
 do {                                                                         \
@@ -174,5 +171,3 @@ pcibios_setup(char *str)
 struct pci_fixup pcibios_fixups[] = {
 	{ 0 }
 };
-
-#endif /* CONFIG_PCI */

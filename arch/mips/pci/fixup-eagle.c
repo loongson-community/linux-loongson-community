@@ -37,12 +37,11 @@
  *  - Added support for NEC Hawk.
  *
  *  Paul Mundt <lethal@chaoticdreams.org>
- *  - Fix empty break statements, remove useless CONFIG_PCI.
+ *  - Fix empty break statements.
  *
  *  MontaVista Software Inc. <yyuasa@mvista.com> or <source@mvista.com>
  *  - New creation, NEC Eagle is supported.
  */
-#include <linux/config.h>
 #include <linux/init.h>
 #include <linux/pci.h>
 

@@ -12,9 +12,6 @@
  * written by RidgeRun, Inc,  Copyright (C) 2000 RidgeRun, Inc.
  *   glonnon@ridgerun.com, skranz@ridgerun.com, stevej@ridgerun.com
  *
- * Copyright 2001 MontaVista Software Inc.
- * Author: Jun Sun, jsun@mvista.com or jsun@junsun.net
- *
  *  This program is free software; you can redistribute  it and/or modify it
  *  under  the terms of  the GNU General  Public License as published by the
  *  Free Software Foundation;  either version 2 of the  License, or (at your
@@ -35,20 +32,25 @@
  *  with this program; if not, write  to the Free Software Foundation, Inc.,
  *  675 Mass Ave, Cambridge, MA 02139, USA.
  */
-#include <linux/config.h>
 #include <linux/types.h>
 #include <linux/pci.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include <linux/version.h>
-#include <linux/cache.h>
 #include <asm/pci.h>
 #include <asm/io.h>
-#include <asm/gt64120/gt64120.h>
+#include <asm/galileo-boards/ev64120.h>
+#include <asm/gt64120.h>
 
 #include <linux/init.h>
 
-#ifdef CONFIG_PCI
+#undef PCI_DEBUG
+
+#ifdef PCI_DEBUG
+#define DBG(x...) printk(x)
+#else
+#define DBG(x...)
+#endif
 
 #define SELF 0
 
@@ -69,10 +71,11 @@ static void __init scan_and_initialize_pci(void);
 static u32 __init scan_pci_bus(struct pci_device *pci_devices);
 static void __init allocate_pci_space(struct pci_device *pci_devices);
 
+static void __devinit galileo_pcibios_fixup_bus(struct pci_bus *bus);
+
 /*
  * The functions that actually read and write to the controller.
- *
- *  Copied from or modified from Galileo Technology code.
+ * Copied from or modified from Galileo Technology code.
  */
 static unsigned int pci0ReadConfigReg(int offset, struct pci_dev *device);
 static void pci0WriteConfigReg(unsigned int offset,
@@ -108,23 +111,29 @@ static unsigned int pci1GetMemory1Size(void);
 
 
 /*  Functions to implement "pci ops"  */
-static int galileo_pcibios_read(struct pci_bus *bus, unsigned int devfn,
-			       	int offset, int size, u32 * val);
-static int galileo_pcibios_write(struct pci_bus *bus, unsigned int devfn,
-				int offset, int size, u32 val);
+static int galileo_pcibios_read_config_word(struct pci_dev *dev,
+					    int offset, u16 * val);
+static int galileo_pcibios_read_config_byte(struct pci_dev *dev,
+					    int offset, u8 * val);
+static int galileo_pcibios_read_config_dword(struct pci_dev *dev,
+					     int offset, u32 * val);
+static int galileo_pcibios_write_config_byte(struct pci_dev *dev,
+					     int offset, u8 val);
+static int galileo_pcibios_write_config_word(struct pci_dev *dev,
+					     int offset, u16 val);
+static int galileo_pcibios_write_config_dword(struct pci_dev *dev,
+					      int offset, u32 val);
 static void galileo_pcibios_set_master(struct pci_dev *dev);
 
 /*
- *  General-purpose PCI functions.
+ * General-purpose PCI functions.
  */
 
 /*
  * pci0MapIOspace - Maps PCI0 IO space for the master.
  * Inputs: base and length of pci0Io
  */
-
-static void pci0MapIOspace(unsigned int pci0IoBase,
-			   unsigned int pci0IoLength)
+static void pci0MapIOspace(unsigned int pci0IoBase, unsigned int pci0IoLength)
 {
 	unsigned int pci0IoTop =
 	    (unsigned int) (pci0IoBase + pci0IoLength);
@@ -254,7 +263,6 @@ static unsigned int pci0GetIOspaceBase(void)
  * Inputs: N/A
  * Returns: PCI0 IO Bar Size.
  */
-
 static unsigned int pci0GetIOspaceSize(void)
 {
 	unsigned int top, base, size;
@@ -272,7 +280,6 @@ static unsigned int pci0GetIOspaceSize(void)
  * Inputs: N/A
  * Returns: PCI0 Memory 0 Base Address.
  */
-
 static unsigned int pci0GetMemory0Base(void)
 {
 	unsigned int base;
@@ -286,7 +293,6 @@ static unsigned int pci0GetMemory0Base(void)
  * Inputs: N/A
  * Returns: PCI0 Memory 0 Bar Size.
  */
-
 static unsigned int pci0GetMemory0Size(void)
 {
 	unsigned int top, base, size;
@@ -304,7 +310,6 @@ static unsigned int pci0GetMemory0Size(void)
  * Inputs: N/A
  * Returns: PCI0 Memory 1 Base Address.
  */
-
 static unsigned int pci0GetMemory1Base(void)
 {
 	unsigned int base;
@@ -444,13 +449,10 @@ static unsigned int pci1GetMemory1Size(void)
  */
 static __inline__ int pci_range_ck(unsigned char bus, unsigned char dev)
 {
-	/*
-	 * We don't even pretend to handle other busses than bus 0 correctly.
-	 * Accessing device 31 crashes the CP7000 for some reason.
-	 */
-	if ((bus == 0) && (dev != 31))
-		return 0;
-	return -1;
+	//DBG(KERN_INFO "p_r_c %d %d\n",bus,dev);
+	if (((bus == 0) || (bus == 1)) && (dev >= 6) && (dev <= 8))
+		return 0;	// Bus/Device Number OK
+	return -1;		// Bus/Device Number not OK
 }
 
 /*
@@ -481,18 +483,17 @@ static unsigned int pci0ReadConfigReg(int offset, struct pci_dev *device)
 			 (offset & ~0x3)) | 0x80000000;
 	GT_WRITE(GT_PCI0_CFGADDR_OFS, DataForRegCf8);
 
-	/*
-	 * The casual observer might wonder why the READ is duplicated here,
-	 * rather than immediately following the WRITE, and just have the swap
-	 * in the "if".  That's because there is a latency problem with trying
-	 * to read immediately after setting up the address register.  The "if"
-	 * check gives enough time for the address to stabilize, so the READ
-	 * can work.
+	/*  The casual observer might wonder why the READ is duplicated here,
+	   rather than immediately following the WRITE, and just have the
+	   swap in the "if".  That's because there is a latency problem
+	   with trying to read immediately after setting up the address
+	   register.  The "if" check gives enough time for the address
+	   to stabilize, so the READ can work.
 	 */
 	if (PCI_SLOT(device->devfn) == SELF) {	/* This board */
 		GT_READ(GT_PCI0_CFGDATA_OFS, &data);
 		return data;
-	} else { /* The PCI is working in LE Mode so swap the Data. */
+	} else {	/* The PCI is working in LE Mode so swap the Data. */
 		GT_READ(GT_PCI0_CFGDATA_OFS, &data);
 		return cpu_to_le32(data);
 	}
@@ -506,13 +507,12 @@ static unsigned int pci1ReadConfigReg(int offset, struct pci_dev *device)
 	DataForRegCf8 = ((PCI_SLOT(device->devfn) << 11) |
 			 (PCI_FUNC(device->devfn) << 8) |
 			 (offset & ~0x3)) | 0x80000000;
-	/*
-	 * The casual observer might wonder why the READ is duplicated here,
-	 * rather than immediately following the WRITE, and just have the
-	 * swap in the "if".  That's because there is a latency problem
-	 * with trying to read immediately after setting up the address
-	 * register.  The "if" check gives enough time for the address
-	 * to stabilize, so the READ can work.
+	/*  The casual observer might wonder why the READ is duplicated here,
+	   rather than immediately following the WRITE, and just have the
+	   swap in the "if".  That's because there is a latency problem
+	   with trying to read immediately after setting up the address
+	   register.  The "if" check gives enough time for the address
+	   to stabilize, so the READ can work.
 	 */
 	if (PCI_SLOT(device->devfn) == SELF) {	/* This board */
 		/* when configurating our own PCI 1 L-unit the access is through
@@ -575,20 +575,17 @@ static void pci1WriteConfigReg(unsigned int offset,
 	DataForRegCf8 = ((PCI_SLOT(device->devfn) << 11) |
 			 (PCI_FUNC(device->devfn) << 8) |
 			 (offset & ~0x3)) | 0x80000000;
-	/*
-	 * There is a latency problem
-	 * with trying to read immediately after setting up the address
-	 * register.  The "if" check gives enough time for the address
-	 * to stabilize, so the WRITE can work.
+	/*  There is a latency problem
+	   with trying to read immediately after setting up the address
+	   register.  The "if" check gives enough time for the address
+	   to stabilize, so the WRITE can work.
 	 */
 	if (PCI_SLOT(device->devfn) == SELF) {	/* This board */
-		/*
-		 * when configurating our own PCI 1 L-unit the access is through
-		 * the PCI 0 interface with reg number = reg number + 0x80
-		 */
+		/* when configurating our own PCI 1 L-unit the access is through
+		   the PCI 0 interface with reg number = reg number + 0x80 */
 		DataForRegCf8 |= 0x80;
 		GT_WRITE(GT_PCI0_CFGADDR_OFS, DataForRegCf8);
-	} else {	/* configuration Transaction over the pci. */
+	} else {		/* configuration Transaction over the pci. */
 		/* The PCI is working in LE Mode so swap the Data. */
 		GT_WRITE(GT_PCI1_CFGADDR_OFS, DataForRegCf8);
 	}
@@ -601,16 +598,15 @@ static void pci1WriteConfigReg(unsigned int offset,
 
 
 /*
- * galileo_pcibios_(read/write) -
+ * galileo_pcibios_(read/write)_config_(dword/word/byte) -
  *
  * reads/write a dword/word/byte register from the configuration space
  * of a device.
  *
  * Inputs :
  * bus - bus number
- * devfn - device function index
+ * dev - device number
  * offset - register offset in the configuration space
- * size - size of value (1=byte,2=word,4-dword)
  * val - value to be written / read
  *
  * Outputs :
@@ -619,106 +615,181 @@ static void pci1WriteConfigReg(unsigned int offset,
  * PCIBIOS_BAD_REGISTER_NUMBER when accessing non aligned
  */
 
-static int galileo_pcibios_read (struct pci_bus *bus, unsigned int devfn, int offset, int size, u32 * val)
+static int galileo_pcibios_read_config_dword(struct pci_dev *device,
+					     int offset, u32 * val)
 {
-	int dev, busnum;
+	int dev, bus;
+	//DBG(KERN_INFO "rcd entry \n",offset,val);
+	bus = device->bus->number;
+	dev = PCI_SLOT(device->devfn);
 
-	busnum = bus->number;
-	dev = PCI_SLOT(devfn);
-
-	if (pci_range_ck(busnum, dev)) {
-		if(size == 1)
-			*val = (u8)0xff;
-		else if (size == 2)
-			*val = (u16)0xffff;
-		else if (size == 4)
-			*val = 0xffffffff;
+	if (pci_range_ck(bus, dev)) {
+		*val = 0xffffffff;
 		return PCIBIOS_DEVICE_NOT_FOUND;
 	}
-	if ((size == 2) && (offset & 0x1))
+	if (offset & 0x3)
 		return PCIBIOS_BAD_REGISTER_NUMBER;
-	else if ((size == 4) && (offset & 0x3))
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-
-	if (busnum == 0) {
-		if(size == 1) {
-			*val = (u8)(pci0ReadConfigReg(offset, bus->dev) >>
-				     ((offset & ~0x3) * 8));
-		}else if (size == 2) {
-			*val = (u16)(pci0ReadConfigReg(offset, bus->dev) >>
-				      ((offset & ~0x3) * 8));
-		}else if (size == 4) {
-			*val = pci0ReadConfigReg(offset, bus->dev);
-		}
-	}
+	if (bus == 0)
+		*val = pci0ReadConfigReg(offset, device);
+//  if (bus == 1) *val = pci1ReadConfigReg (offset,device);
+	DBG(KERN_INFO "rr: rcd dev %d offset %x %x\n", dev, offset, *val);
 
 	/*
-	 *  This is so that the upper PCI layer will get the correct return
+	 * This is so that the upper PCI layer will get the correct return
 	 * value if we're not attached to anything.
 	 */
-	switch (size) {
-		case 1:
-			if ((offset == 0xe) && (*val == (u8)0xff)) {
-				u32 MasterAbort;
-				GT_READ(GT_INTRCAUSE_OFS, &MasterAbort);
-				if (MasterAbort & 0x40000) {
-					GT_WRITE(GT_INTRCAUSE_OFS, 
-						 (MasterAbort & 0xfffbffff));
-					return PCIBIOS_DEVICE_NOT_FOUND;
-				}
-			}
-			break;
-		case 4:
-			if ((offset == 0) && (*val == 0xffffffff)) {
-				return PCIBIOS_DEVICE_NOT_FOUND;
-			}
-			break
+	if ((offset == 0) && (*val == 0xffffffff)) {
+		return PCIBIOS_DEVICE_NOT_FOUND;
 	}
+
 	return PCIBIOS_SUCCESSFUL;
 }
 
-static int galileo_pcibios_write(struct pci_bus *bus, unsigned int devfn, int offset, int size, u32 val)
+static int galileo_pcibios_read_config_word(struct pci_dev *device,
+					    int offset, u16 * val)
 {
-	int dev, busnum;
+	int dev, bus;
+
+	bus = device->bus->number;
+	dev = PCI_SLOT(device->devfn);
+
+	if (pci_range_ck(bus, dev)) {
+		*val = 0xffff;
+		return PCIBIOS_DEVICE_NOT_FOUND;
+	}
+	if (offset & 0x1)
+		return PCIBIOS_BAD_REGISTER_NUMBER;
+
+	if (bus == 0)
+		*val = (unsigned short) (pci0ReadConfigReg(offset, device) >>
+				         ((offset & ~0x3) * 8));
+//  if (bus == 1) *val = (unsigned short) (pci1ReadConfigReg(offset,device) >> ((offset & ~0x3) * 8));
+
+	DBG(KERN_INFO "rr: rcw dev %d offset %x %x\n", dev, offset, *val);
+
+	return PCIBIOS_SUCCESSFUL;
+}
+
+static int galileo_pcibios_read_config_byte(struct pci_dev *device,
+					    int offset, u8 * val)
+{
+	int dev, bus;
+
+	bus = device->bus->number;
+	dev = PCI_SLOT(device->devfn);
+
+	if (pci_range_ck(bus, dev)) {
+		*val = 0xff;
+		return PCIBIOS_DEVICE_NOT_FOUND;
+	}
+
+	if (bus == 0)
+		*val =
+		    (unsigned char) (pci0ReadConfigReg(offset, device) >>
+				     ((offset & ~0x3) * 8));
+//  if (bus == 1) *val = (unsigned char) (pci1ReadConfigReg(offset,device) >> ((offset & ~0x3) * 8));
+
+	DBG(KERN_INFO "rr: rcb dev %d offset %x %x\n", dev, offset, *val);
+
+	/*  This is so that the upper PCI layer will get the correct return value if
+	   we're not attached to anything.  */
+	if ((offset == 0xe) && (*val == 0xff)) {
+		u32 MasterAbort;
+		GT_READ(GT_INTRCAUSE_OFS, &MasterAbort);
+		if (MasterAbort & 0x40000) {
+			DBG(KERN_INFO "PCI Master Abort, ICR %x\n",
+			    MasterAbort);
+			GT_WRITE(GT_INTRCAUSE_OFS,
+				 (MasterAbort & 0xfffbffff));
+			return PCIBIOS_DEVICE_NOT_FOUND;
+		}
+	}
+
+	return PCIBIOS_SUCCESSFUL;
+}
+
+static int galileo_pcibios_write_config_dword(struct pci_dev *device,
+					      int offset, u32 val)
+{
+	int dev, bus;
+
+	bus = device->bus->number;
+	dev = PCI_SLOT(device->devfn);
+
+	if (pci_range_ck(bus, dev))
+		return PCIBIOS_DEVICE_NOT_FOUND;
+	if (offset & 0x3)
+		return PCIBIOS_BAD_REGISTER_NUMBER;
+	if (bus == 0)
+		pci0WriteConfigReg(offset, device, val);
+//  if (bus == 1) pci1WriteConfigReg (offset,device,val);
+
+	DBG(KERN_INFO "rr: wcd dev %d, offset %x, val %x\n", dev, offset,
+	    val);
+	return PCIBIOS_SUCCESSFUL;
+}
+
+
+static int galileo_pcibios_write_config_word(struct pci_dev *device,
+					     int offset, u16 val)
+{
+	int dev, bus;
 	unsigned long tmp;
 
-	busnum = bus->number;
-	dev = PCI_SLOT(devfn);
+	bus = device->bus->number;
+	dev = PCI_SLOT(device->devfn);
 
-	if (pci_range_ck(busnum, dev))
+	if (pci_range_ck(bus, dev))
 		return PCIBIOS_DEVICE_NOT_FOUND;
-	if (size == 4) {
-		if (offset & 0x3)
-			return PCIBIOS_BAD_REGISTER_NUMBER;
-		if(busnum == 0)
-			pci0WriteConfigReg(offset, bus->dev, val);
-		//if (busnum == 1) pci1WriteConfigReg (offset,bus->dev,val);
-		return PCIBIOS_SUCCESSFUL;
-	}
-	if ((size == 2) && (offset & 0x1))
+	if (offset & 0x1)
 		return PCIBIOS_BAD_REGISTER_NUMBER;
-	if (busnum == 0){
-		tmp = pci0ReadConfigReg(offset, bus->dev);
-		//if (busnum == 1) tmp = pci1ReadConfigReg (offset,bus->dev);
-		if (size == 1) {
-			if ((offset % 4) == 0)
-				tmp = (tmp & 0xffffff00) | (val & (u8)0xff);
-			if ((offset % 4) == 1)
-				tmp = (tmp & 0xffff00ff) | ((val & (u8)0xff) << 8);
-			if ((offset % 4) == 2)
-				tmp = (tmp & 0xff00ffff) | ((val & (u8)0xff) << 16);
-			if ((offset % 4) == 3)
-				tmp = (tmp & 0x00ffffff) | ((val & (u8)0xff) << 24);
-		} else if (size == 2) {
-			if ((offset % 4) == 0)
-				tmp = (tmp & 0xffff0000) | (val & (u16)0xffff);
-			if ((offset % 4) == 2)
-				tmp = (tmp & 0x0000ffff) | ((val & (u16)0xffff) << 16);
-		}
-		if (busnum == 0)
-			pci0WriteConfigReg(offset, bus->dev, tmp);
-		//if (busnum == 1) pci1WriteConfigReg (offset,bus->dev,tmp);
-	}
+	if (bus == 0)
+		tmp = pci0ReadConfigReg(offset, device);
+//  if (bus == 1) tmp = pci1ReadConfigReg (offset,device);
+
+	if ((offset % 4) == 0)
+		tmp = (tmp & 0xffff0000) | (val & 0xffff);
+	if ((offset % 4) == 2)
+		tmp = (tmp & 0x0000ffff) | ((val & 0xffff) << 16);
+
+	if (bus == 0)
+		pci0WriteConfigReg(offset, device, tmp);
+//  if (bus == 1) pci1WriteConfigReg (offset,device,tmp);
+	DBG(KERN_INFO "rr: wcw dev %d, offset %x, val %x\n", dev, offset,
+	    val);
+	return PCIBIOS_SUCCESSFUL;
+}
+
+static int galileo_pcibios_write_config_byte(struct pci_dev *device,
+					     int offset, u8 val)
+{
+	int dev, bus;
+	unsigned long tmp;
+
+	bus = device->bus->number;
+	dev = PCI_SLOT(device->devfn);
+
+	if (pci_range_ck(bus, dev))
+		return PCIBIOS_DEVICE_NOT_FOUND;
+	if (bus == 0)
+		tmp = pci0ReadConfigReg(offset, device);
+//  if (bus == 1) tmp = pci1ReadConfigReg (offset,device);
+
+	if ((offset % 4) == 0)
+		tmp = (tmp & 0xffffff00) | (val & 0xff);
+	if ((offset % 4) == 1)
+		tmp = (tmp & 0xffff00ff) | ((val & 0xff) << 8);
+	if ((offset % 4) == 2)
+		tmp = (tmp & 0xff00ffff) | ((val & 0xff) << 16);
+	if ((offset % 4) == 3)
+		tmp = (tmp & 0x00ffffff) | ((val & 0xff) << 24);
+
+	if (bus == 0)
+		pci0WriteConfigReg(offset, device, tmp);
+//  if (bus == 1) pci1WriteConfigReg (offset,device,tmp);
+	DBG(KERN_INFO "rr: wcb dev %d, offset %x, val %x\n", dev, offset,
+	    val);
+
 	return PCIBIOS_SUCCESSFUL;
 }
 
@@ -726,9 +797,12 @@ static void galileo_pcibios_set_master(struct pci_dev *dev)
 {
 	u16 cmd;
 
-	galileo_pcibios_read(dev->bus, dev->devfn, PCI_COMMAND, 2, &cmd);
+	DBG(KERN_INFO "rr: galileo_pcibios_set_master\n");
+
+	galileo_pcibios_read_config_word(dev, PCI_COMMAND, &cmd);
 	cmd |= PCI_COMMAND_MASTER;
-	galileo_pcibios_write(dev->bus, dev->devfn, PCI_COMMAND, 2, cmd);
+	galileo_pcibios_write_config_word(dev, PCI_COMMAND, cmd);
+	DBG("PCI: Enabling device %s (%04x)\n", dev->slot_name, cmd);
 }
 
 /*  Externally-expected functions.  Do not change function names  */
@@ -736,18 +810,24 @@ static void galileo_pcibios_set_master(struct pci_dev *dev)
 int pcibios_enable_resources(struct pci_dev *dev)
 {
 	u16 cmd, old_cmd;
+	u16 tmp;
 	u8 tmp1;
 	int idx;
 	struct resource *r;
 
-	galileo_pcibios_read(dev->bus, dev->devfn, PCI_COMMAND, 2, &cmd);
+	DBG(KERN_INFO "rr: pcibios_enable_resources\n");
+
+	galileo_pcibios_read_config_word(dev, PCI_COMMAND, &cmd);
 	old_cmd = cmd;
 	for (idx = 0; idx < 6; idx++) {
 		r = &dev->resource[idx];
+		DBG(KERN_INFO
+		    "rr: BAR %d, start %lx, end %lx, flags %lx\n", idx,
+		    r->start, r->end, r->flags);
 		if (!r->start && r->end) {
 			printk(KERN_ERR
-			       "PCI: Device %s not available because of "
-			       "resource collisions\n", dev->slot_name);
+			       "PCI: Device %s not available because of resource collisions\n",
+			       dev->slot_name);
 			return -EINVAL;
 		}
 		if (r->flags & IORESOURCE_IO)
@@ -756,25 +836,30 @@ int pcibios_enable_resources(struct pci_dev *dev)
 			cmd |= PCI_COMMAND_MEMORY;
 	}
 	if (cmd != old_cmd) {
-		galileo_pcibios_write(dev->bus, dev->devfn, PCI_COMMAND, 2, cmd);
+		DBG(KERN_INFO "PCI: Enabling device %s (%04x -> %04x)\n",
+		    dev->slot_name, old_cmd, cmd);
+		galileo_pcibios_write_config_word(dev, PCI_COMMAND, cmd);
 	}
 
 	/*
-	 * Let's fix up the latency timer and cache line size here.  Cache
-	 * line size = 32 bytes / sizeof dword (4) = 8.
-	 * Latency timer must be > 8.  32 is random but appears to work.
+	   Let's fix up the latency timer and cache line size here.  Cache line size =
+	   32 bytes / sizeof dword (4) = 8.
+	   Latency timer must be > 8.  32 is random but appears to work.
 	 */
-	galileo_pcibios_read(dev->bus, dev->devfn, PCI_CACHE_LINE_SIZE, 1, &tmp1);
+	galileo_pcibios_read_config_byte(dev, PCI_CACHE_LINE_SIZE, &tmp1);
 	if (tmp1 != 8) {
-		printk(KERN_WARNING "PCI setting cache line size to 8 from "
-		       "%d\n", tmp1);
-		galileo_pcibios_write(dev->bus, dev->devfn, PCI_CACHE_LINE_SIZE, 1, 8);
+		DBG(KERN_INFO
+		    "rr: PCI setting cache line size to 8 from %d\n",
+		    tmp1);
+		galileo_pcibios_write_config_byte(dev, PCI_CACHE_LINE_SIZE,
+						  8);
 	}
-	galileo_pcibios_read(dev->bus, dev->devfn, PCI_LATENCY_TIMER, 1, &tmp1);
+	galileo_pcibios_read_config_byte(dev, PCI_LATENCY_TIMER, &tmp1);
 	if (tmp1 < 32) {
-		printk(KERN_WARNING "PCI setting latency timer to 32 from %d\n",
-		       tmp1);
-		galileo_pcibios_write(dev->bus, dev->devfn, PCI_LATENCY_TIMER, 1, 32);
+		DBG(KERN_INFO
+		    "rr: PCI setting latency timer to 32 from %d\n", tmp1);
+		galileo_pcibios_write_config_byte(dev, PCI_LATENCY_TIMER,
+						  32);
 	}
 
 	return 0;
@@ -782,14 +867,13 @@ int pcibios_enable_resources(struct pci_dev *dev)
 
 int pcibios_enable_device(struct pci_dev *dev, int mask)
 {
+	DBG(KERN_INFO "rr: pcibios_enable_device\n");
 	return pcibios_enable_resources(dev);
 }
 
 void pcibios_align_resource(void *data, struct resource *res,
 			    unsigned long size, unsigned long align)
 {
-	struct pci_dev *dev = data;
-
 	if (res->flags & IORESOURCE_IO) {
 		unsigned long start = res->start;
 
@@ -797,9 +881,9 @@ void pcibios_align_resource(void *data, struct resource *res,
 		   and other strange ISA hardware, so we always want the
 		   addresses kilobyte aligned.  */
 		if (size > 0x100) {
-			printk(KERN_ERR "PCI: I/O Region %s/%d too large"
-			       " (%ld bytes)\n", dev->slot_name,
-			        dev->resource - res, size);
+			DBG(KERN_ERR "PCI: I/O Region %s/%d too large"
+			    " (%ld bytes)\n", dev->slot_name,
+			    dev->resource - res, size);
 		}
 
 		start = (start + 1024 - 1) & ~(1024 - 1);
@@ -807,18 +891,67 @@ void pcibios_align_resource(void *data, struct resource *res,
 	}
 }
 
+/*
+ * structure galileo_pci_ops
+ *
+ * This structure holds the pointers for the PCI configuration space
+ * access, and the fixup for the interrupts.
+ * This structure is registered to the operating system in boot time
+ */
 struct pci_ops galileo_pci_ops = {
-	.read = 	galileo_pcibios_read,
-	.write = 	galileo_pcibios_write,
+	galileo_pcibios_read_config_byte,
+	galileo_pcibios_read_config_word,
+	galileo_pcibios_read_config_dword,
+	galileo_pcibios_write_config_byte,
+	galileo_pcibios_write_config_word,
+	galileo_pcibios_write_config_dword
 };
 
+/*
+ * galileo_pcibios_fixup_bus -
+ *
+ * After detecting all agents over the PCI , this function is called
+ * in order to give an interrupt number for each PCI device starting
+ * from IRQ 20. It does also enables master for each device.
+ *
+ * Inputs :
+ * mem_start , mem_end are not relevant in MIPS architecture.
+ *
+ * Outpus :
+ * return always mem_start
+ */
+static void __devinit galileo_pcibios_fixup_bus(struct pci_bus *bus)
+{
+	unsigned int Current_IRQ = 20;
+	struct pci_bus *current_bus = bus;
+	struct pci_dev *devices;
+	struct list_head *devices_link;
+
+	list_for_each(devices_link, &(current_bus->devices)) {
+		devices = pci_dev_b(devices_link);
+		if (devices != NULL) {
+			devices->irq = Current_IRQ++;
+
+			/* Assign an interrupt number for the device */
+			galileo_pcibios_write_config_byte(devices,
+							  PCI_INTERRUPT_LINE,
+							  Current_IRQ);
+			galileo_pcibios_set_master(devices);
+
+		}
+	}
+
+}
+
 struct pci_fixup pcibios_fixups[] = {
+//    { PCI_FIXUP_HEADER, 0x4620, 0x11ab, galileo_pcibios_fixup },
 	{0}
 };
 
 void __devinit pcibios_fixup_bus(struct pci_bus *c)
 {
-	gt64120_board_pcibios_fixup_bus(c);
+	DBG(KERN_INFO "rr: pcibios_fixup_bus\n");
+	galileo_pcibios_fixup_bus(c);
 }
 
 /*
@@ -829,7 +962,6 @@ void __devinit pcibios_fixup_bus(struct pci_bus *c)
  * not scan behind bridges.  Those would be simple to implement, but we don't
  * currently need this.
  */
-
 static void __init scan_and_initialize_pci(void)
 {
 	struct pci_device pci_devices[MAX_PCI_DEVS];
@@ -855,26 +987,24 @@ static u32 __init scan_pci_bus(struct pci_device *pci_devices)
 	u32 c18RegValue;
 	struct pci_dev device;
 
+	DBG(KERN_INFO "rr: scan_pci_bus\n");
+
 	/*
-	 * According to PCI REV 2.1 MAX agents on the bus are 21.
-	 * We don't bother scanning ourselves (slot 0).
+	   According to PCI REV 2.1 MAX agents on the bus are 21.
+	   We don't bother scanning ourselves (slot 0).
 	 */
 	for (pci_slot = 1; pci_slot < 22; pci_slot++) {
 
 		device.devfn = PCI_DEVFN(pci_slot, 0);
 		id = pci0ReadConfigReg(PCI_VENDOR_ID, &device);
 
-		/*
-		 *  Check for a PCI Master Abort (nothing responds in the
-		 * slot)
-		 */
+		/*  Check for a PCI Master Abort (nothing responds in the slot) */
 		GT_READ(GT_INTRCAUSE_OFS, &c18RegValue);
-		/*
-		 * Clearing bit 18 of in the Cause Register 0xc18 by
-		 * writting 0.
-		 */
+		/* Clearing bit 18 of in the Cause Register 0xc18 by writting 0. */
 		GT_WRITE(GT_INTRCAUSE_OFS, (c18RegValue & 0xfffbffff));
 		if ((id != 0xffffffff) && !(c18RegValue & 0x40000)) {
+			DBG(KERN_INFO "rr: found device %x, slot %d\n", id,
+			    pci_slot);
 			pci_devices[arrayCounter].slot = pci_slot;
 			for (bar = 0; bar < 6; bar++) {
 				memType =
@@ -897,18 +1027,27 @@ static u32 __init scan_pci_bus(struct pci_device *pci_devices)
 					    BARsize[bar] =
 					    ~(memSize & 0xfffffff0) + 1;
 				}
+				DBG(KERN_INFO
+				    "rr: BAR %d, type %d, size %x\n", bar,
+				    (memType & 1),
+				    pci_devices[arrayCounter].
+				    BARsize[bar]);
 			}	/*  BAR counter  */
 
 			arrayCounter++;
 		}
 		/*  found a device  */
-	} /*  slot counter  */
+	}			/*  slot counter  */
 
-	if (arrayCounter < MAX_PCI_DEVS)
+	DBG(KERN_INFO "rr: found %d devices\n", arrayCounter);
+	if (arrayCounter < MAX_PCI_DEVS) {
 		pci_devices[arrayCounter].slot = -1;
-
-	return arrayCounter;
+	}
+	return (arrayCounter);
 }
+
+#define ALIGN(val,align)        (((val) + ((align) - 1)) & ~((align) - 1))
+#define MAX(val1, val2) ((val1) > (val2) ? (val1) : (val2))
 
 /*
  * This function goes through the list of devices and allocates the BARs in
@@ -926,6 +1065,11 @@ static void __init allocate_pci_space(struct pci_device *pci_devices)
 	u32 pci0_io_base = pci0GetIOspaceBase();
 	struct pci_dev device;
 
+	DBG(KERN_INFO "rr: allocate_pci_space\n");
+
+	DBG(KERN_INFO "pci0_io_base %x\n", pci0_io_base);
+	DBG(KERN_INFO "pci0_mem_base %x\n", pci0_mem_base);
+
 	/*  How many PCI devices do we have?  */
 	maxcount = MAX_PCI_DEVS;
 	for (count = 0; count < MAX_PCI_DEVS; count++) {
@@ -934,6 +1078,8 @@ static void __init allocate_pci_space(struct pci_device *pci_devices)
 			break;
 		}
 	}
+
+//    DBG(KERN_INFO "Found %d devices\n", maxcount);
 
 	do {
 		/*  Find the largest size BAR we need to allocate  */
@@ -952,69 +1098,90 @@ static void __init allocate_pci_space(struct pci_device *pci_devices)
 		}
 
 		/*
-		 * We've found the largest BAR.  Allocate it into IO or
-		 * mem space.  We don't idiot check the bases to make
-		 * sure they haven't overflowed the current size for that
-		 * aperture.
-		 * Don't bother to enable the device's IO or MEM space here.
-		 * That will be done in pci_enable_resources if the device is
-		 * activated by a driver.
+		   We've found the largest BAR.  Allocate it into IO or
+		   mem space.  We don't idiot check the bases to make
+		   sure they haven't overflowed the current size for that aperture.
+
+		   Don't bother to enable the device's IO or MEM space here.  That will
+		   be done in pci_enable_resources if the device is activated by a driver.
 		 */
 		if (maxSize) {
 			device.devfn =
 			    PCI_DEVFN(pci_devices[maxDevice].slot, 0);
 			if (pci_devices[maxDevice].BARtype[maxBAR] == 1) {
-				alignto = max(0x1000U, maxSize);
+				alignto = MAX(0x1000, maxSize);
 				base = ALIGN(pci0_io_base, alignto);
 				pci0WriteConfigReg(PCI_BASE_ADDRESS_0 +
 						   (maxBAR * 4), &device,
 						   base | 0x1);
 				pci0_io_base = base + alignto;
+				DBG(KERN_INFO
+				    "Device %d BAR %d address %x\n",
+				    pci_devices[maxDevice].slot, maxBAR,
+				    base);
+				DBG(KERN_INFO "New IO base %x\n",
+				    pci0_io_base);
 			} else {
-				alignto = max(0x1000U, maxSize);
+				alignto = MAX(0x1000, maxSize);
 				base = ALIGN(pci0_mem_base, alignto);
 				pci0WriteConfigReg(PCI_BASE_ADDRESS_0 +
 						   (maxBAR * 4), &device,
 						   base);
 				pci0_mem_base = base + alignto;
+				DBG(KERN_INFO
+				    "Device %d BAR %d address %x\n",
+				    pci_devices[maxDevice].slot, maxBAR,
+				    base);
+				DBG(KERN_INFO "New mem base %x\n",
+				    pci0_mem_base);
 			}
 			/*
-			 * This entry is finished.  Remove it from the list
-			 * we'll scan.
+			   This entry is finished.  Remove it from the list we'll scan.
 			 */
 			pci_devices[maxDevice].BARsize[maxBAR] = 0;
 		}
 	} while (maxSize);
 }
 
+unsigned __init int pcibios_assign_all_busses(void)
+{
+	return 1;
+}
+
 static int __init pcibios_init(void)
 {
+
 	u32 tmp;
 	struct pci_dev controller;
 
 	controller.devfn = SELF;
 
+	DBG(KERN_INFO "rr: pcibios_init\n");
 	GT_READ(GT_PCI0_CMD_OFS, &tmp);
+	DBG(KERN_INFO "rr: PCI0 command - %x\n", tmp);
 	GT_READ(GT_PCI0_BARE_OFS, &tmp);
+	DBG(KERN_INFO "rr: BAR0 - %x\n", tmp);
 
 	/*
 	 * You have to enable bus mastering to configure any other
 	 * card on the bus.
 	 */
 	tmp = pci0ReadConfigReg(PCI_COMMAND, &controller);
+	DBG(KERN_INFO "rr: command/status - %x\n", tmp);
 	tmp |= PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER | PCI_COMMAND_SERR;
+	DBG(KERN_INFO "rr: new command/status - %x\n", tmp);
 	pci0WriteConfigReg(PCI_COMMAND, &controller, tmp);
 
 	/*  This scans the PCI bus and sets up initial values.  */
 	scan_and_initialize_pci();
 
 	/*
-	 *  Reset PCI I/O and PCI MEM values to ones supported by EVM.
+	 * Reset PCI I/O and PCI MEM values to ones supported by EVM.
 	 */
-	ioport_resource.start = GT_PCI_IO_BASE;
-	ioport_resource.end   = GT_PCI_IO_BASE + GT_PCI_IO_SIZE - 1;
-	iomem_resource.start  = GT_PCI_MEM_BASE;
-	iomem_resource.end    = GT_PCI_MEM_BASE + GT_PCI_MEM_BASE - 1;
+	ioport_resource.start = 0x10000000;
+	ioport_resource.end = 0x11ffffff;	/*  32 MB */
+	iomem_resource.start = 0x12000000;
+	iomem_resource.end = 0x13ffffff;	/* 32 MB */
 
 	pci_scan_bus(0, &galileo_pci_ops, NULL);
 
@@ -1023,20 +1190,10 @@ static int __init pcibios_init(void)
 
 subsys_initcall(pcibios_init);
 
-/*
- * for parsing "pci=" kernel boot arguments.
- */
 char *pcibios_setup(char *str)
 {
-        printk(KERN_INFO "rr: pcibios_setup\n");
-        /* Nothing to do for now.  */
+	printk(KERN_INFO "rr: pcibios_setup\n");
+	/* Nothing to do for now.  */
 
-        return str;
+	return str;
 }
-
-unsigned __init int pcibios_assign_all_busses(void)
-{
-	return 1;
-}
-
-#endif	/* CONFIG_PCI */

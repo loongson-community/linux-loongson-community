@@ -19,8 +19,6 @@
  * DDB5477 has two PCI channels, external PCI and IOPIC (internal)
  * Therefore we provide two sets of pci_ops.
  */
-
-#include <linux/config.h>
 #include <linux/pci.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
