@@ -5,7 +5,7 @@
  *
  *		The IP fragmentation functionality.
  *		
- * Version:	$Id: ip_fragment.c,v 1.23 1997/05/31 12:36:35 freitag Exp $
+ * Version:	$Id: ip_fragment.c,v 1.2 1997/06/17 13:31:27 ralf Exp $
  *
  * Authors:	Fred N. van Kempen <waltje@uWalt.NL.Mugnet.ORG>
  *		Alan Cox <Alan.Cox@linux.org>
@@ -357,6 +357,9 @@ static struct sk_buff *ip_glue(struct ipq *qp)
 		count += fp->len;
 		fp = fp->next;
 	}
+
+	skb->pkt_type = qp->fragments->skb->pkt_type;
+	skb->protocol = qp->fragments->skb->protocol;
 
 	/* We glued together all fragments, so remove the queue entry. */
 	ip_free(qp);

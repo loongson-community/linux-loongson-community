@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: r4xx0.c,v 1.4 1997/07/01 09:00:50 ralf Exp $
+ * $Id: r4xx0.c,v 1.5 1997/07/29 22:54:52 tsbogend Exp $
  */
 #include <linux/config.h>
 
@@ -1943,7 +1943,7 @@ static void r4k_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 		int oldpid, newpid, idx;
 
 #ifdef DEBUG_TLB
-		printk("[tlbpage<%d,%08lx>]", vma->vm_mm->context, page);
+               printk("[tlbpage<%d,%08lx>]", vma->vm_mm->context, page);
 #endif
 		newpid = (vma->vm_mm->context & 0xff);
 		page &= (PAGE_MASK << 1);

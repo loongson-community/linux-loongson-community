@@ -5,7 +5,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * $Id: keyboard.h,v 1.5 1997/07/23 17:41:07 ralf Exp $
+ * $Id: keyboard.h,v 1.4 1997/07/24 01:55:56 ralf Exp $
  */
 #ifndef __ASM_MIPS_KEYBOARD_H
 #define __ASM_MIPS_KEYBOARD_H
@@ -25,6 +25,7 @@ extern int pckbd_translate(unsigned char scancode, unsigned char *keycode,
 extern char pckbd_unexpected_up(unsigned char keycode);
 extern void pckbd_leds(unsigned char leds);
 extern void pckbd_init_hw(void);
+extern unsigned char pckbd_sysrq_xlate[128];
 
 #define kbd_setkeycode		pckbd_setkeycode
 #define kbd_getkeycode		pckbd_getkeycode
@@ -33,6 +34,9 @@ extern void pckbd_init_hw(void);
 #define kbd_unexpected_up	pckbd_unexpected_up
 #define kbd_leds		pckbd_leds
 #define kbd_init_hw		pckbd_init_hw
+#define kbd_sysrq_xlate         pckbd_sysrq_xlate
+
+#define SYSRQ_KEY 0x54
 
 #define INIT_KBD	/* full initialization for the keyboard controller. */
 

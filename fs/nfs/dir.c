@@ -326,7 +326,28 @@ nfs_free_dircache(void)
 		cache->entry = NULL;
 	}
 }
- 
+
+/*
+ * This is called every time the dcache has a lookup hit,
+ * and we should check whether we can really trust that
+ * lookup.
+ *
+ * NOTE! The hit can be a negative hit too, don't assume
+ * we have an inode!
+ *
+ * The decision to drop the dentry should probably be
+ * smarter than this. Right now we believe in directories
+ * for 10 seconds, and in normal files for five..
+ */
+static int nfs_lookup_revalidate(struct dentry * dentry)
+{
+	unsigned long time = jiffies - dentry->d_time;
+	unsigned long max = 5*HZ;
+
+	if (dentry->d_inode && S_ISDIR(dentry->d_inode->i_mode))
+		max = 10*HZ;
+	return time < max;
+}
 
 static int nfs_lookup(struct inode *dir, struct dentry * dentry)
 {
@@ -358,6 +379,8 @@ static int nfs_lookup(struct inode *dir, struct dentry * dentry)
 	} else if (error != -ENOENT)
 		return error;
 
+	dentry->d_time = jiffies;
+	dentry->d_revalidate = nfs_lookup_revalidate;
 	d_add(dentry, inode);
 	return 0;
 }
@@ -394,6 +417,7 @@ static int nfs_create(struct inode *dir, struct dentry * dentry, int mode)
 	if (!inode)
 		return -EACCES;
 
+	nfs_invalidate_dircache(dir);
 	d_instantiate(dentry, inode);
 	return 0;
 }
@@ -433,6 +457,7 @@ static int nfs_mknod(struct inode *dir, struct dentry *dentry, int mode, int rde
 	if (!inode)
 		return -EACCES;
 
+	nfs_invalidate_dircache(dir);
 	d_instantiate(dentry, inode);
 	return 0;
 }
@@ -470,6 +495,7 @@ static int nfs_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 	if (!inode)
 		return -EACCES;
 
+	nfs_invalidate_dircache(dir);
 	d_instantiate(dentry, inode);
 	return 0;
 }
@@ -493,6 +519,7 @@ static int nfs_rmdir(struct inode *dir, struct dentry *dentry)
 	if (error)
 		return error;
 
+	nfs_invalidate_dircache(dir);
 	d_delete(dentry);
 	return 0;
 }
@@ -520,6 +547,7 @@ static int nfs_unlink(struct inode *dir, struct dentry *dentry)
 	if (error)
 		return error;
 
+	nfs_invalidate_dircache(dir);
 	d_delete(dentry);
 	return 0;
 }
@@ -560,6 +588,7 @@ static int nfs_symlink(struct inode *dir, struct dentry *dentry, const char *sym
 	if (!inode)
 		return -EACCES;
 
+	nfs_invalidate_dircache(dir);
 	d_instantiate(dentry, inode);
 	return 0;
 }
@@ -586,6 +615,7 @@ static int nfs_link(struct inode *inode, struct inode *dir, struct dentry *dentr
 	if (error)
 		return error;
 
+	nfs_invalidate_dircache(dir);
 	inode->i_count++;
 	d_instantiate(dentry, inode);
 	return 0;
@@ -628,6 +658,9 @@ static int nfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 
 	if (error)
 		return error;
+
+	nfs_invalidate_dircache(old_dir);
+	nfs_invalidate_dircache(new_dir);
 
 	/* Update the dcache */
 	d_move(old_dentry, new_dentry->d_parent, &new_dentry->d_name);

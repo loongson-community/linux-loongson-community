@@ -1,4 +1,4 @@
-/* $Id: plip.c,v 1.3.6.2 1997/04/16 15:07:56 phil Exp $ */
+/* $Id: plip.c,v 1.1.1.1 1997/06/01 03:17:24 ralf Exp $ */
 /* PLIP: A parallel port "network" driver for Linux. */
 /* This driver is for parallel port with 5-bit cable (LapLink (R) cable). */
 /*
@@ -204,7 +204,7 @@ struct net_local {
 	struct tq_struct deferred;
 	struct plip_local snd_data;
 	struct plip_local rcv_data;
-	struct ppd *pardev;
+	struct pardevice *pardev;
 	unsigned long  trigger;
 	unsigned long  nibble;
 	enum plip_connection_state connection;
@@ -228,7 +228,7 @@ __initfunc(int
 plip_init_dev(struct device *dev, struct parport *pb))
 {
 	struct net_local *nl;
-	struct ppd *pardev;
+	struct pardevice *pardev;
 
 	dev->irq = pb->irq;
 	dev->base_addr = pb->base;
@@ -239,8 +239,8 @@ plip_init_dev(struct device *dev, struct parport *pb))
 	}
 	
 	pardev = parport_register_device(pb, dev->name, plip_preempt,
-					plip_wakeup,
-					plip_interrupt, PARPORT_DEV_LURK, dev);
+					 plip_wakeup, plip_interrupt, 
+					 PARPORT_DEV_LURK, dev);
 
 	printk(version);
 	printk("%s: Parallel port at %#3lx, using IRQ %d\n", dev->name,
@@ -1045,7 +1045,7 @@ plip_preempt(void *handle)
 	return 0;
 }
 
-static int
+static void
 plip_wakeup(void *handle)
 {
 	struct device *dev = (struct device *)handle;
@@ -1058,12 +1058,12 @@ plip_wakeup(void *handle)
 			/* bus_owner is already set (but why?) */
 			printk(KERN_DEBUG "%s: I'm broken.\n", dev->name);
 		else
-			return 1;
+			return;
 	}
 	
 	if (!(dev->flags & IFF_UP))
 		/* Don't need the port when the interface is down */
-		return 1;
+		return;
 
 	if (!parport_claim(nl->pardev)) {
 		nl->port_owner = 1;
@@ -1072,7 +1072,7 @@ plip_wakeup(void *handle)
 		outb (0x00, PAR_DATA(dev));
 	}
 
-	return 0;
+	return;
 }
 
 static struct net_device_stats *

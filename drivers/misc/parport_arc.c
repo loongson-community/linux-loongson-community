@@ -1,4 +1,4 @@
-/* $Id: parport_arc.c,v 1.1 1997/07/25 01:53:12 ralf Exp $
+/* $Id: parport_arc.c,v 1.1 1997/07/29 03:59:12 ralf Exp $
  * Parallel-port routines for ARC onboard hardware.
  *
  * Author: Phil Blundell <pjb27@cam.ac.uk>
@@ -10,7 +10,6 @@
 #include <asm/io.h>
 #include <asm/dma.h>
 
-#include <linux/config.h>
 #include <linux/delay.h>
 #include <linux/errno.h>
 #include <linux/interrupt.h>

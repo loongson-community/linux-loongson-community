@@ -5,7 +5,7 @@
  *	Authors:
  *	Pedro Roque		<roque@di.fc.ul.pt>	
  *
- *	$Id: route.c,v 1.12 1997/04/29 09:38:50 mj Exp $
+ *	$Id: route.c,v 1.1.1.1 1997/06/01 03:16:27 ralf Exp $
  *
  *	This program is free software; you can redistribute it and/or
  *      modify it under the terms of the GNU General Public License
@@ -1427,8 +1427,8 @@ static void rt6_info_node(struct fib6_node *fn, void *p_arg)
 		}
 		arg->len += sprintf(arg->buffer + arg->len,
 				    " %08lx %08x %08x %08lx %8s\n",
-				    rt->rt6i_metric, rt->rt6i_use,
-				    rt->rt6i_ref, rt->rt6i_flags, 
+				    rt->rt6i_metric, atomic_read(&rt->rt6i_use),
+				    atomic_read(&rt->rt6i_ref), rt->rt6i_flags, 
 				    rt->rt6i_dev ? rt->rt6i_dev->name : "");
 	}
 }

@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 1
-SUBLEVEL = 47
+SUBLEVEL = 48
 
 ARCH = mips
 
@@ -191,6 +191,7 @@ vmlinux: $(CONFIGURATION) init/main.o init/version.o linuxsubdirs
 		$(LIBS) \
 		-o vmlinux
 	$(NM) vmlinux | grep -v '\(compiled\)\|\(\.o$$\)\|\( [aU] \)\|\(\.\.ng$$\)\|\(LASH[RL]DI\)' | sort > System.map
+	elf2ecoff vmlinux /tmpu/miguel/vmlinux.ecoff
 
 symlinks:
 	rm -f include/asm
@@ -340,7 +341,6 @@ clean:	archclean
 mrproper: clean
 	rm -f include/linux/autoconf.h include/linux/version.h
 	rm -f drivers/sound/local.h drivers/sound/.defines
-	rm -f drivers/scsi/aic7xxx_asm drivers/scsi/aic7xxx_seq.h
 	rm -f drivers/char/uni_hash.tbl drivers/char/conmakehash
 	rm -f drivers/net/soundmodem/sm_tbl_{afsk1200,afsk2666,fsk9600}.h
 	rm -f drivers/net/soundmodem/sm_tbl_{hapn4800,psk4800}.h

@@ -1,4 +1,4 @@
-/* $Id: parport_probe.c,v 1.1.1.1 1997/06/01 03:17:25 ralf Exp $ 
+/* $Id: parport_probe.c,v 1.2 1997/07/29 03:59:29 ralf Exp $ 
  * Parallel port device probing code
  * 
  * Authors:    Carsten Gross, carsten@sol.wohnheim.uni-ulm.de
@@ -86,15 +86,15 @@ static long read_polled(struct parport *port, char *buf,
 
 static struct wait_queue *wait_q = NULL;
 
-static int wakeup(void *ref)
+static void wakeup(void *ref)
 {
 	struct pardevice **dev = (struct pardevice **)ref;
 	
 	if (!wait_q || parport_claim(*dev))
-		return 1;
+		return;
 
 	wake_up(&wait_q);
-	return 0;
+	return;
 }
 
 int parport_probe(struct parport *port, char *buffer, int len)

@@ -19,6 +19,9 @@
 /* This is the system graphics console (the first adapter found) */
 struct console_ops *gconsole = 0;
 
+/* To make psaux code cleaner */
+int aux_device_present = 0xaa;
+
 void
 register_gconsole (struct console_ops *gc)
 {

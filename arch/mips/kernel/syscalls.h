@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1995, 1996, 1997 by Ralf Baechle
  *
- * $Id: syscalls.h,v 1.4 1997/06/25 20:07:40 ralf Exp $
+ * $Id: syscalls.h,v 1.5 1997/07/20 14:57:27 ralf Exp $
  */
 
 /*
@@ -208,5 +208,7 @@ SYS(sys_getresuid, 3)
 SYS(sys_query_module, 5)
 SYS(sys_poll, 3)
 SYS(sys_nfsservctl, 3)
+SYS(sys_setresgid, 3)				/* 4190 */
+SYS(sys_getresgid, 3)
 SYS(sys_setresgid, 3)				/* 4190 */
 SYS(sys_getresgid, 3)

@@ -2,12 +2,14 @@
  *  linux/include/asm-ppc/keyboard.h
  *
  *  Created 3 Nov 1996 by Geert Uytterhoeven
+ *  Modified for Power Macintosh by Paul Mackerras
  *
- * $Id: keyboard.h,v 1.3 1997/07/22 23:18:19 ralf Exp $
+ * $Id: keyboard.h,v 1.3 1997/07/24 01:55:57 ralf Exp $
  */
 
 /*
- *  This file contains the ppc architecture specific keyboard definitions
+ * This file contains the ppc architecture specific keyboard definitions -
+ * like the intel pc for prep systems, different for power macs.
  */
 
 #ifndef __ASMPPC_KEYBOARD_H
@@ -16,6 +18,29 @@
 #ifdef __KERNEL__
 
 #include <asm/io.h>
+
+#include <linux/config.h>
+
+#ifdef CONFIG_MAC_KEYBOARD
+
+extern int mackbd_setkeycode(unsigned int scancode, unsigned int keycode);
+extern int mackbd_getkeycode(unsigned int scancode);
+extern int mackbd_pretranslate(unsigned char scancode, char raw_mode);
+extern int mackbd_translate(unsigned char scancode, unsigned char *keycode,
+			   char raw_mode);
+extern int mackbd_unexpected_up(unsigned char keycode);
+extern void mackbd_leds(unsigned char leds);
+extern void mackbd_init_hw(void);
+
+#define kbd_setkeycode		mackbd_setkeycode
+#define kbd_getkeycode		mackbd_getkeycode
+#define kbd_pretranslate	mackbd_pretranslate
+#define kbd_translate		mackbd_translate
+#define kbd_unexpected_up	mackbd_unexpected_up
+#define kbd_leds		mackbd_leds
+#define kbd_init_hw		mackbd_init_hw
+
+#else /* CONFIG_MAC_KEYBOARD */
 
 #define KEYBOARD_IRQ			1
 #define DISABLE_KBD_DURING_INTERRUPTS	0
@@ -47,6 +72,7 @@ extern void pckbd_init_hw(void);
 #define kbd_pause() do { } while(0)
 
 #define INIT_KBD
+#endif /* CONFIG_MAC_KEYBOARD */
 
 #define keyboard_setup()						\
 	request_region(0x60, 16, "keyboard")

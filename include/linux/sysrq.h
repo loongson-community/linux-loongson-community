@@ -1,6 +1,6 @@
 /* -*- linux-c -*-
  *
- *	$Id: sysrq.h,v 1.2 1997/05/31 18:33:41 mj Exp $
+ *	$Id: sysrq.h,v 1.1 1997/06/17 13:30:39 ralf Exp $
  *
  *	Linux Magic System Request Key Hacks
  *
@@ -9,12 +9,25 @@
 
 #include <linux/config.h>
 
+struct pt_regs;
+struct kbd_struct;
+struct tty_struct;
+
+/* Generic SysRq interface -- you may call it from any device driver, supplying
+ * ASCII code of the key, pointer to registers and kbd/tty structs (if they
+ * are available -- else NULL's).
+ */
+
+void handle_sysrq(int, struct pt_regs *, struct kbd_struct *, struct tty_struct *);
+
+/* Deferred actions */
+
 extern int emergency_sync_scheduled;
 
 #define EMERG_SYNC 1
 #define EMERG_REMOUNT 2
 
-extern void do_emergency_sync(void);
+void do_emergency_sync(void);
 
 #ifdef CONFIG_MAGIC_SYSRQ
 #define CHECK_EMERGENCY_SYNC			\

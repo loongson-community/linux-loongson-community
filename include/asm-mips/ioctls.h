@@ -96,8 +96,10 @@
 
 #define TCSBRKP		0x5486	/* Needed for POSIX tcsendbreak() */
 #define TIOCTTYGSTRUCT	0x5487  /* For debugging only */
+#ifdef WHAT_TO_DO_WITH_THIS_DULPLICATE
 #define TIOCSBRK	0x5427  /* BSD compatibility */
 #define TIOCCBRK	0x5428  /* BSD compatibility */
+#endif
 
 #define TIOCSERCONFIG	0x5488
 #define TIOCSERGWILD	0x5489
@@ -110,5 +112,7 @@
 #define TIOCSERSETMULTI 0x5490 /* Set multiport config */
 #define TIOCMIWAIT      0x5491 /* wait for a change on serial input line(s) */
 #define TIOCGICOUNT     0x5492 /* read serial port inline interrupt counts */
+#define TIOCSBRK	0x5491  /* BSD compatibility */
+#define TIOCCBRK	0x5492  /* BSD compatibility */
 
 #endif /* __ASM_MIPS_IOCTLS_H */

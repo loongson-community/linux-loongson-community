@@ -49,8 +49,9 @@ static char buffersize_index[17] =
 
 #define BUFSIZE_INDEX(X) ((int) buffersize_index[(X)>>9])
 #define MAX_BUF_PER_PAGE (PAGE_SIZE / 512)
-#define MAX_UNUSED_BUFFERS 30 /* don't ever have more than this number of 
-				 unused buffer heads */
+#define NR_RESERVED (2*MAX_BUF_PER_PAGE)
+#define MAX_UNUSED_BUFFERS NR_RESERVED+20 /* don't ever have more than this 
+					     number of unused buffer heads */
 #define HASH_PAGES         4  /* number of pages to use for the hash table */
 #define HASH_PAGES_ORDER   2
 #define NR_HASH (HASH_PAGES*PAGE_SIZE/sizeof(struct buffer_head *))
@@ -560,6 +561,7 @@ struct buffer_head * get_hash_table(kdev_t dev, int block, int size)
 		if (!bh)
 			return NULL;
 		bh->b_count++;
+		bh->b_lru_time = jiffies;
 		wait_on_buffer(bh);
 		if (bh->b_dev == dev		&&
 		    bh->b_blocknr == block	&&
@@ -642,34 +644,20 @@ void set_blocksize(kdev_t dev, int size)
 	}
 }
 
-/* Check if a buffer is OK to be reclaimed. */
-static inline int can_reclaim(struct buffer_head *bh, int size)
-{
-	if (bh->b_count			|| 
-	    buffer_protected(bh)	||
-	    buffer_locked(bh))
-		return 0;
-			 
-	if (buffer_dirty(bh)) {
-		refile_buffer(bh);
-		return 0;
-	}
-
-	if (bh->b_size != size)
-		return 0;
-
-	return 1;
-}
-
-/* Find a candidate buffer to be reclaimed. */
-static struct buffer_head *find_candidate(struct buffer_head *list,
+/*
+ * Find a candidate buffer to be reclaimed. 
+ * N.B. Must search the entire BUF_LOCKED list rather than terminating
+ * when the first locked buffer is found.  Buffers are unlocked at 
+ * completion of IO, and under some conditions there may be (many)
+ * unlocked buffers after the first locked one.
+ */
+static struct buffer_head *find_candidate(struct buffer_head *bh,
 					  int *list_len, int size)
 {
-	struct buffer_head *bh;
-	
-	for (bh = list; 
-	     bh && (*list_len) > 0; 
-	     bh = bh->b_next_free, (*list_len)--) {
+	if (!bh)
+		goto no_candidate;
+
+	for (; (*list_len) > 0; bh = bh->b_next_free, (*list_len)--) {
 		if (size != bh->b_size) {
 			/* This provides a mechanism for freeing blocks
 			 * of other sizes, this is necessary now that we
@@ -680,110 +668,144 @@ static struct buffer_head *find_candidate(struct buffer_head *list,
 				break;
 			continue;
 		}
-
-		if (buffer_locked(bh) && bh->b_list == BUF_LOCKED) {
-			/* Buffers are written in the order they are placed 
-			 * on the locked list. If we encounter a locked
-			 * buffer here, this means that the rest of them
-			 * are also locked.
-			 */
-			(*list_len) = 0;
-			return NULL;
-		}
-
-		if (can_reclaim(bh,size))
-		    return bh;
+		else if (!bh->b_count		&& 
+			 !buffer_locked(bh)	&& 
+			 !buffer_protected(bh)	&&
+			 !buffer_dirty(bh)) 
+			return bh;
 	}
 
+no_candidate:
 	return NULL;
 }
 
 static void refill_freelist(int size)
 {
-	struct buffer_head * bh;
+	struct buffer_head * bh, * next;
 	struct buffer_head * candidate[BUF_DIRTY];
-	unsigned int best_time, winner;
 	int buffers[BUF_DIRTY];
 	int i;
-	int needed;
+	int needed, obtained=0;
 
 	refilled = 1;
-	/* If there are too many dirty buffers, we wake up the update process
-	 * now so as to ensure that there are still clean buffers available
-	 * for user processes to use (and dirty).
-	 */
 	
 	/* We are going to try to locate this much memory. */
 	needed = bdf_prm.b_un.nrefill * size;  
 
-	while ((nr_free_pages > min_free_pages*2)	&&
-	       (needed > 0)				&&
-	       grow_buffers(GFP_BUFFER, size))
-		needed -= PAGE_SIZE;
+	while ((nr_free_pages > min_free_pages*2) && 
+		grow_buffers(GFP_BUFFER, size)) {
+		obtained += PAGE_SIZE;
+		if (obtained >= needed)
+			return;
+	}
 
+	/*
+	 * Update the needed amount based on the number of potentially
+	 * freeable buffers. We don't want to free more than one quarter
+	 * of the available buffers.
+	 */
+	i = (nr_buffers_type[BUF_CLEAN] + nr_buffers_type[BUF_LOCKED]) >> 2;
+	if (i < bdf_prm.b_un.nrefill) {
+		needed = i * size;
+		if (needed < PAGE_SIZE)
+			needed = PAGE_SIZE;
+	}
+
+	/* 
+	 * OK, we cannot grow the buffer cache, now try to get some
+	 * from the lru list.
+	 */
 repeat:
-	if(needed <= 0)
+	if (obtained >= needed)
 		return;
 
-	/* OK, we cannot grow the buffer cache, now try to get some
-	 * from the lru list.
-	 *
+	/*
 	 * First set the candidate pointers to usable buffers.  This
-	 * should be quick nearly all of the time.
+	 * should be quick nearly all of the time.  N.B. There must be 
+	 * no blocking calls after setting up the candidate[] array!
 	 */
-
-	for(i=0; i<BUF_DIRTY; i++) {
+	for (i = BUF_CLEAN; i<BUF_DIRTY; i++) {
 		buffers[i] = nr_buffers_type[i];
 		candidate[i] = find_candidate(lru_list[i], &buffers[i], size);
 	}
 	
-	/* Now see which candidate wins the election. */
-	
-	winner = best_time = UINT_MAX;	
-	for(i=0; i<BUF_DIRTY; i++) {
-		if(!candidate[i])
-			continue;
-		if(candidate[i]->b_lru_time < best_time) {
-			best_time = candidate[i]->b_lru_time;
-			winner = i;
+	/*
+	 * Select the older of the available buffers until we reach our goal.
+	 */
+	for (;;) {
+		i = BUF_CLEAN;
+		if (!candidate[BUF_CLEAN]) {
+			if (!candidate[BUF_LOCKED])
+				break;
+			i = BUF_LOCKED;
 		}
-	}
-	
-	/* If we have a winner, use it, and then get a new candidate from that list. */
-	if(winner != UINT_MAX) {
-		i = winner;
-		while (needed>0 && (bh=candidate[i])) {
-			candidate[i] = bh->b_next_free;
-			if(candidate[i] == bh)
-				candidate[i] = NULL;  /* Got last one */		
-			remove_from_queues(bh);
-			bh->b_dev = B_FREE;
-			put_last_free(bh);
-			needed -= bh->b_size;
-			buffers[i]--;
-			if(buffers[i] == 0)
-				candidate[i] = NULL;
-		
-			if (candidate[i] && !can_reclaim(candidate[i],size))
-				candidate[i] = find_candidate(candidate[i],
-							      &buffers[i], size);
-		}
-		goto repeat;
-	}
+		else if (candidate[BUF_LOCKED] &&
+				(candidate[BUF_LOCKED]->b_lru_time < 
+				 candidate[BUF_CLEAN ]->b_lru_time))
+			i = BUF_LOCKED;
+		/*
+		 * Free the selected buffer and get the next candidate.
+		 */
+		bh = candidate[i];
+		next = bh->b_next_free;
+
+		obtained += bh->b_size;
+		remove_from_queues(bh);
+		put_last_free(bh);
+		if (obtained >= needed)
+			return;
+
+		if (--buffers[i] && bh != next)
+			candidate[i] = find_candidate(next, &buffers[i], size);
+		else
+			candidate[i] = NULL;
+	}	
+
+	/*
+	 * If we achieved at least half of our goal, return now.
+	 */
+	if (obtained >= (needed >> 1))
+		return;
 	
 	/* Too bad, that was not enough. Try a little harder to grow some. */
 	if (nr_free_pages > min_free_pages + 5) {
 		if (grow_buffers(GFP_BUFFER, size)) {
-			needed -= PAGE_SIZE;
+			obtained += PAGE_SIZE;
 			goto repeat;
 		}
 	}
-	
-	/* And repeat until we find something good. */
+
+	/*
+	 * Make one more attempt to allocate some buffers.
+	 */
 	if (grow_buffers(GFP_ATOMIC, size))
-		needed -= PAGE_SIZE;
-	else
-		wakeup_bdflush(1);
+		obtained += PAGE_SIZE;
+
+	/*
+	 * If we got any buffers, or another task freed some, 
+	 * return now to let this task proceed.
+	 */
+	if (obtained || free_list[BUFSIZE_INDEX(size)]) {
+#ifdef BUFFER_DEBUG
+printk("refill_freelist: obtained %d of %d, free list=%d\n", 
+obtained, needed, free_list[BUFSIZE_INDEX(size)] != NULL);
+#endif
+		return;
+	}
+
+	/*
+	 * System is _very_ low on memory ... wake up bdflush and wait.
+	 */
+#ifdef BUFFER_DEBUG
+printk("refill_freelist: waking bdflush\n");
+#endif
+	wakeup_bdflush(1);
+	/*
+	 * While we slept, other tasks may have needed buffers and entered
+	 * refill_freelist.  This could be a big problem ... reset the 
+	 * needed amount to the absolute minimum.
+	 */
+	needed = size;
 	goto repeat;
 }
 
@@ -831,6 +853,8 @@ repeat:
 	 * and that it's unused (b_count=0), unlocked (buffer_locked=0), and clean.
 	 */
 	bh->b_count=1;
+	bh->b_list	= BUF_CLEAN;
+	bh->b_lru_time	= jiffies;
 	bh->b_flushtime=0;
 	bh->b_state=(1<<BH_Touched);
 	bh->b_dev=dev;
@@ -856,6 +880,16 @@ void set_writetime(struct buffer_head * buf, int flag)
 
 
 /*
+ * Put a buffer into the appropriate list, without side-effects.
+ */
+static inline void file_buffer(struct buffer_head *bh, int list)
+{
+	remove_from_queues(bh);
+	bh->b_list = list;
+	insert_into_queues(bh);
+}
+
+/*
  * A buffer may need to be moved from one buffer list to another
  * (e.g. in case it is not shared any more). Handle this.
  */
@@ -873,15 +907,9 @@ void refile_buffer(struct buffer_head * buf)
 		dispose = BUF_LOCKED;
 	else
 		dispose = BUF_CLEAN;
-	if(dispose == BUF_CLEAN)
-		buf->b_lru_time = jiffies;
 	if(dispose != buf->b_list) {
-		if(dispose == BUF_DIRTY)
-			 buf->b_lru_time = jiffies;
-		remove_from_queues(buf);
-		buf->b_list = dispose;
-		insert_into_queues(buf);
-		if (dispose == BUF_DIRTY) {
+		file_buffer(buf, dispose);
+		if(dispose == BUF_DIRTY) {
 			int too_many = (nr_buffers * bdf_prm.b_un.nfract/100);
 
 			/* This buffer is dirty, maybe we need to start flushing.
@@ -1034,32 +1062,9 @@ static void put_unused_buffer_head(struct buffer_head * bh)
 	nr_unused_buffer_heads++;
 	bh->b_next_free = unused_list;
 	unused_list = bh;
+	if (!waitqueue_active(&buffer_wait))
+		return;
 	wake_up(&buffer_wait);
-}
-
-static void get_more_buffer_heads(void)
-{
-	struct buffer_head * bh;
-
-	while (!unused_list) {
-		/* This is critical.  We can't swap out pages to get
-		 * more buffer heads, because the swap-out may need
-		 * more buffer-heads itself.  Thus SLAB_ATOMIC.
-		 */
-		if((bh = kmem_cache_alloc(bh_cachep, SLAB_ATOMIC)) != NULL) {
-			put_unused_buffer_head(bh);
-			nr_buffer_heads++;
-			return;
-		}
-
-		/* Uhhuh. We're _really_ low on memory. Now we just
-		 * wait for old buffer heads to become free due to
-		 * finishing IO..
-		 */
-		run_task_queue(&tq_disk);
-		sleep_on(&buffer_wait);
-	}
-
 }
 
 /* 
@@ -1083,18 +1088,59 @@ static inline void recover_reusable_buffer_heads(void)
 	}
 }
 
-static struct buffer_head * get_unused_buffer_head(void)
+/*
+ * Reserve NR_RESERVED buffer heads for async IO requests to avoid
+ * no-buffer-head deadlock.  Return NULL on failure; waiting for
+ * buffer heads is now handled in create_buffers().
+ */ 
+static struct buffer_head * get_unused_buffer_head(int async)
 {
 	struct buffer_head * bh;
 
 	recover_reusable_buffer_heads();
-	get_more_buffer_heads();
-	if (!unused_list)
-		return NULL;
-	bh = unused_list;
-	unused_list = bh->b_next_free;
-	nr_unused_buffer_heads--;
-	return bh;
+	if (nr_unused_buffer_heads > NR_RESERVED) {
+		bh = unused_list;
+		unused_list = bh->b_next_free;
+		nr_unused_buffer_heads--;
+		return bh;
+	}
+
+	/* This is critical.  We can't swap out pages to get
+	 * more buffer heads, because the swap-out may need
+	 * more buffer-heads itself.  Thus SLAB_ATOMIC.
+	 */
+	if((bh = kmem_cache_alloc(bh_cachep, SLAB_ATOMIC)) != NULL) {
+		memset(bh, 0, sizeof(*bh));
+		nr_buffer_heads++;
+		return bh;
+	}
+
+	/*
+	 * If we need an async buffer, use the reserved buffer heads.
+	 */
+	if (async && unused_list) {
+		bh = unused_list;
+		unused_list = bh->b_next_free;
+		nr_unused_buffer_heads--;
+		return bh;
+	}
+
+#if 0
+	/*
+	 * (Pending further analysis ...)
+	 * Ordinary (non-async) requests can use a different memory priority
+	 * to free up pages. Any swapping thus generated will use async
+	 * buffer heads.
+	 */
+	if(!async &&
+	   (bh = kmem_cache_alloc(bh_cachep, SLAB_KERNEL)) != NULL) {
+		memset(bh, 0, sizeof(*bh));
+		nr_buffer_heads++;
+		return bh;
+	}
+#endif
+
+	return NULL;
 }
 
 /*
@@ -1102,16 +1148,22 @@ static struct buffer_head * get_unused_buffer_head(void)
  * the size of each buffer.. Use the bh->b_this_page linked list to
  * follow the buffers created.  Return NULL if unable to create more
  * buffers.
+ * The async flag is used to differentiate async IO (paging, swapping)
+ * from ordinary buffer allocations, and only async requests are allowed
+ * to sleep waiting for buffer heads. 
  */
-static struct buffer_head * create_buffers(unsigned long page, unsigned long size)
+static struct buffer_head * create_buffers(unsigned long page, 
+						unsigned long size, int async)
 {
+	struct wait_queue wait = { current, NULL };
 	struct buffer_head *bh, *head;
 	long offset;
 
+try_again:
 	head = NULL;
 	offset = PAGE_SIZE;
 	while ((offset -= size) >= 0) {
-		bh = get_unused_buffer_head();
+		bh = get_unused_buffer_head(async);
 		if (!bh)
 			goto no_grow;
 
@@ -1138,7 +1190,35 @@ no_grow:
 		bh = bh->b_this_page;
 		put_unused_buffer_head(head);
 	}
-	return NULL;
+
+	/*
+	 * Return failure for non-async IO requests.  Async IO requests
+	 * are not allowed to fail, so we have to wait until buffer heads
+	 * become available.  But we don't want tasks sleeping with 
+	 * partially complete buffers, so all were released above.
+	 */
+	if (!async)
+		return NULL;
+
+	/* Uhhuh. We're _really_ low on memory. Now we just
+	 * wait for old buffer heads to become free due to
+	 * finishing IO.  Since this is an async request and
+	 * the reserve list is empty, we're sure there are 
+	 * async buffer heads in use.
+	 */
+	run_task_queue(&tq_disk);
+
+	/* 
+	 * Set our state for sleeping, then check again for buffer heads.
+	 * This ensures we won't miss a wake_up from an interrupt.
+	 */
+	add_wait_queue(&buffer_wait, &wait);
+	current->state = TASK_UNINTERRUPTIBLE;
+	recover_reusable_buffer_heads();
+	schedule();
+	remove_wait_queue(&buffer_wait, &wait);
+	current->state = TASK_RUNNING;
+	goto try_again;
 }
 
 /* Run the hooks that have to be done when a page I/O has completed. */
@@ -1189,12 +1269,13 @@ int brw_page(int rw, struct page *page, kdev_t dev, int b[], int size, int bmap)
 	clear_bit(PG_uptodate, &page->flags);
 	clear_bit(PG_error, &page->flags);
 	/*
-	 * Allocate buffer heads pointing to this page, just for I/O.
+	 * Allocate async buffer heads pointing to this page, just for I/O.
 	 * They do _not_ show up in the buffer hash table!
 	 * They are _not_ registered in page->buffers either!
 	 */
-	bh = create_buffers(page_address(page), size);
+	bh = create_buffers(page_address(page), size, 1);
 	if (!bh) {
+		/* WSH: exit here leaves page->count incremented */
 		clear_bit(PG_locked, &page->flags);
 		wake_up(&page->wait);
 		return -ENOMEM;
@@ -1405,16 +1486,15 @@ static int grow_buffers(int pri, int size)
 		return 0;
 	}
 
-	isize = BUFSIZE_INDEX(size);
-
 	if (!(page = __get_free_page(pri)))
 		return 0;
-	bh = create_buffers(page, size);
+	bh = create_buffers(page, size, 0);
 	if (!bh) {
 		free_page(page);
 		return 0;
 	}
 
+	isize = BUFSIZE_INDEX(size);
 	insert_point = free_list[isize];
 
 	tmp = bh;
@@ -1554,6 +1634,18 @@ void buffer_init(void)
 				      SLAB_HWCACHE_ALIGN, NULL, NULL);
 	if(!bh_cachep)
 		panic("Cannot create buffer head SLAB cache\n");
+	/*
+	 * Allocate the reserved buffer heads.
+	 */
+	while (nr_buffer_heads < NR_RESERVED) {
+		struct buffer_head * bh;
+
+		bh = kmem_cache_alloc(bh_cachep, SLAB_ATOMIC);
+		if (!bh)
+			break;
+		put_unused_buffer_head(bh);
+		nr_buffer_heads++;
+	}
 
 	lru_list[BUF_CLEAN] = 0;
 	grow_buffers(GFP_KERNEL, BLOCK_SIZE);

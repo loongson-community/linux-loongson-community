@@ -13,13 +13,15 @@
  * diskquota system. This implementation is not based on any BSD
  * kernel sourcecode.
  * 
- * Version: $Id: dquot.c,v 1.2 1997/06/17 13:25:58 ralf Exp $
+ * Version: $Id: dquot.c,v 1.3 1997/07/20 14:59:17 ralf Exp $
  * 
  * Author:  Marco van Wieringen <mvw@mcs.ow.nl> <mvw@tnix.net>
  * 
  * Fixes:   Dmitry Gorodchanin <begemot@bgm.rosprint.net>, 11 Feb 96
  *	    removed race conditions in dqput(), dqget() and iput(). 
  *          Andi Kleen removed all verify_area() calls, 31 Dec 96  
+ *          Nick Kralevich <nickkral@cal.alumni.berkeley.edu>, 21 Jul 97
+ *          Fixed a condition where user and group quotas could get mixed up.
  *
  * (C) Copyright 1994, 1995 Marco van Wieringen 
  *
@@ -555,12 +557,14 @@ static struct dquot *dqget(kdev_t dev, unsigned int id, short type)
 repeat:
 	dquot = *(hash(dev, id, type));
 	while (dquot) {
-		if (dquot->dq_dev != dev || dquot->dq_id != id) {
+		if (dquot->dq_dev != dev || dquot->dq_id != id ||
+		    dquot->dq_type != type) {
 			dquot = dquot->dq_hash_next;
 			continue;
 		}
 		wait_on_dquot(dquot);
-		if (dquot->dq_dev != dev || dquot->dq_id != id)
+		if (dquot->dq_dev != dev || dquot->dq_id != id ||
+		    dquot->dq_type != type)
 			goto repeat;
 		if (!dquot->dq_count)
 			nr_free_dquots--;

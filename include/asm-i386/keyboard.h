@@ -3,7 +3,7 @@
  *
  *  Created 3 Nov 1996 by Geert Uytterhoeven
  *
- * $Id: keyboard.h,v 1.4 1997/07/23 06:06:09 ralf Exp $
+ * $Id: keyboard.h,v 1.3 1997/07/24 01:55:55 ralf Exp $
  */
 
 /*
@@ -30,6 +30,7 @@ extern int pckbd_translate(unsigned char scancode, unsigned char *keycode,
 extern char pckbd_unexpected_up(unsigned char keycode);
 extern void pckbd_leds(unsigned char leds);
 extern void pckbd_init_hw(void);
+extern unsigned char pckbd_sysrq_xlate[128];
 
 #define kbd_setkeycode		pckbd_setkeycode
 #define kbd_getkeycode		pckbd_getkeycode
@@ -38,6 +39,9 @@ extern void pckbd_init_hw(void);
 #define kbd_unexpected_up	pckbd_unexpected_up
 #define kbd_leds		pckbd_leds
 #define kbd_init_hw		pckbd_init_hw
+#define kbd_sysrq_xlate		pckbd_sysrq_xlate
+
+#define SYSRQ_KEY 0x54
 
 /* How to access the keyboard macros on this platform.  */
 #define kbd_read_input() inb(KBD_DATA_REG)
