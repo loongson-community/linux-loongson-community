@@ -1,4 +1,4 @@
-/* $Id: graphics.c,v 1.13 1998/08/25 09:18:57 ralf Exp $
+/* $Id: graphics.c,v 1.14 1998/09/19 19:17:50 ralf Exp $
  *
  * gfx.c: support for SGI's /dev/graphics, /dev/opengl
  *
@@ -30,9 +30,12 @@
 #include <linux/sched.h>
 #include <linux/mm.h>
 #include <linux/mman.h>
+#include <linux/malloc.h>
+#include <linux/module.h>
 #include <asm/uaccess.h>
 #include "gconsole.h"
 #include "graphics.h"
+#include "usema.h"
 #include <asm/gfx.h>
 #include <asm/rrm.h>
 #include <asm/page.h>
@@ -41,15 +44,16 @@
 /* The boards */
 extern struct graphics_ops *newport_probe (int, const char **);
 
-#ifdef PRODUCTION_DRIVER
-#define enable_gconsole()
-#define disable_gconsole()
-#endif
-
 static struct graphics_ops cards [MAXCARDS];
 static int boards;
 
 #define GRAPHICS_CARD(inode) 0
+
+/*
+void enable_gconsole(void) {};
+void disable_gconsole(void) {};
+*/
+
 
 int
 sgi_graphics_open (struct inode *inode, struct file *file)
@@ -329,3 +333,16 @@ __initfunc(void gfx_init (const char **name))
 	if (boards > MAXCARDS)
 		printk (KERN_WARNING "Too many cards found on the system\n");
 }
+
+#ifdef MODULE
+int init_module(void) {
+  printk("SGI Newport Graphics version %i.%i.%i\n",42,54,69);
+
+}
+
+void cleanup_module(void) {
+
+  printk("Shutting down SGI Newport Graphics\n");
+
+}
+#endif

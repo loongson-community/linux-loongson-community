@@ -33,6 +33,7 @@
 #include <linux/mm.h>
 #include <linux/slab.h>
 #include <linux/smp_lock.h>
+#include "usema.h"
 
 #include <asm/usioctl.h>
 #include <asm/mman.h>
@@ -42,6 +43,7 @@ struct irix_usema {
 	struct file *filp;
 	struct wait_queue *proc_list;
 };
+
 
 static int
 sgi_usema_attach (usattach_t * attach, struct irix_usema *usema)

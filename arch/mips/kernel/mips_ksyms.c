@@ -1,4 +1,4 @@
-/* $Id: mips_ksyms.c,v 1.10 1999/01/03 17:50:51 ralf Exp $
+/* $Id: mips_ksyms.c,v 1.11 1999/01/27 19:24:54 ulfc Exp $
  *
  * Export MIPS-specific functions needed for loadable modules.
  *
@@ -25,6 +25,7 @@
 #include <asm/sgihpc.h>
 #include <asm/softirq.h>
 #include <asm/uaccess.h>
+#include <asm/indy_pbus.h>
 
 extern void *__bzero(void *__s, size_t __count);
 extern long __strncpy_from_user_nocheck_asm(char *__to,
@@ -119,3 +120,4 @@ EXPORT_SYMBOL(__compute_return_epc);
 EXPORT_SYMBOL(register_fpe);
 EXPORT_SYMBOL(unregister_fpe);
 #endif
+

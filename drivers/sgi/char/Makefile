@@ -8,8 +8,8 @@
 # Note 2! The CFLAGS definitions are now in the main makefile...
 
 O_TARGET := sgichar.o
-O_OBJS   := graphics.o streamable.o newport.o sgicons.o \
-	vga_font.o rrm.o shmiq.o usema.o
+O_OBJS   := newport.o sgicons.o \
+	vga_font.o usema.o shmiq.o streamable.o
 
 ifeq ($(CONFIG_SGI_SERIAL),y)
   O_OBJS += sgiserial.o
@@ -17,6 +17,15 @@ endif
 
 ifeq ($(CONFIG_SGI_DS1286),y)
   O_OBJS += ds1286.o
+endif
+
+ifeq ($(CONFIG_SGI_NEWPORT_GFX),y)
+  O_OBJS +=  graphics.o rrm.o
+else 
+ifeq ($(CONFIG_SGI_NEWPORT_GFX),m)
+  OX_OBJS  +=  graphics_syms.o
+  MX_OBJS +=  graphics.o rrm.o
+endif
 endif
 
 include $(TOPDIR)/Rules.make

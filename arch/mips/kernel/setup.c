@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.10 1998/10/18 13:25:32 tsbogend Exp $
+/* $Id: setup.c,v 1.11 1999/01/03 17:50:52 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -210,12 +210,6 @@ __initfunc(void setup_arch(char **cmdline_p,
 	 */
 	memory_end -= 128;
 	memory_end &= PAGE_MASK;
-
-#ifdef CONFIG_BLK_DEV_RAM
-	rd_image_start = RAMDISK_FLAGS & RAMDISK_IMAGE_START_MASK;
-	rd_prompt = ((RAMDISK_FLAGS & RAMDISK_PROMPT_FLAG) != 0);
-	rd_doload = ((RAMDISK_FLAGS & RAMDISK_LOAD_FLAG) != 0);
-#endif
 
         strncpy (command_line, arcs_cmdline, CL_SIZE);
 	memcpy(saved_command_line, command_line, CL_SIZE);
