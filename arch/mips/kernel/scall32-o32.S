@@ -66,7 +66,7 @@ stack_done:
 					# restarting
 1:	sw	v0, PT_R2(sp)		# result
 
-EXPORT(o32_syscall_exit)
+o32_syscall_exit:
 	local_irq_disable		# make sure need_resched and
 					# signals dont change between
 					# sampling and return
