@@ -43,12 +43,6 @@
 #define PRID_VR4133		0x00000c84
 
 /*
- * Memory resource
- */
-#define IO_MEM_RESOURCE_START	0UL
-#define IO_MEM_RESOURCE_END	0x1fffffffUL
-
-/*
  * Bus Control Uint
  */
 extern unsigned long vr41xx_get_vtclock_frequency(void);
