@@ -364,38 +364,6 @@ config AU1X00_USB_RAW
 	tristate "Au1000 USB Raw Device support"
 	depends on MIPS && MIPS_AU1000 && AU1000_USB_DEVICE=y && AU1000_USB_TTY!=y && AU1X00_USB_DEVICE
 
-config SERIAL_TX3912
-	bool "TX3912/PR31700 serial port support"
-	depends on MIPS && CPU_TX39XX=y
-	help
-	  The TX3912 is a Toshiba RISC processor based on the MIPS 3900 core;
-	  see <http://www.toshiba.com/taec/components/Generic/risc/tx3912.htm>.
-	  Say Y here to enable kernel support for the on-board serial port.
-
-config SERIAL_TX3912_CONSOLE
-	bool "Console on TX3912/PR31700 serial port"
-	depends on SERIAL_TX3912
-	help
-	  The TX3912 is a Toshiba RISC processor based on the MIPS 3900 core;
-	  see <http://www.toshiba.com/taec/components/Generic/risc/tx3912.htm>.
-	  Say Y here to direct console I/O to the on-board serial port.
-
-config TXX927_SERIAL
-	bool "TXx927 SIO support"
-	depends on MIPS && CPU_TX39XX=y
-
-config TXX927_SERIAL_CONSOLE
-	bool "TXx927 SIO Console support"
-	depends on TXX927_SERIAL
-
-config SERIAL_TXX9
-	bool "TMPTX39XX/49XX SIO support"
-	depends on MIPS && TOSHIBA_BOARDS=y
-
-config SERIAL_TXX9_CONSOLE
-	bool "TMPTX39XX/49XX SIO Console support"
-	depends on SERIAL_TXX9
-
 config SIBYTE_SB1250_DUART
 	bool "Support for BCM1xxx onchip DUART"
 	depends on MIPS && SIBYTE_SB1xxx_SOC=y

@@ -623,6 +623,7 @@ config TOSHIBA_JMR3927
 config TOSHIBA_RBTX4927
 	bool "Support for Toshiba TBTX49[23]7 board"
 	select DMA_NONCOHERENT
+	select HAS_TXX9_SERIAL
 	select HW_HAS_PCI
 	select I8259
 	select ISA
@@ -769,6 +770,7 @@ config MIPS_GT64120
 
 config MIPS_TX3927
 	bool
+	select HAS_TXX9_SERIAL
 
 config PCI_MARVELL
 	bool
