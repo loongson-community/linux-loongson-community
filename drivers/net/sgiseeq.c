@@ -615,8 +615,6 @@ int sgiseeq_init(struct hpc3_regs* regs, int irq)
 		free_page((unsigned long) sp);
 		return -ENOMEM;
 	}
-	/* let unregister_netdev free memory for us */
-	dev->features |= NETIF_F_DYNALLOC;
 
 	if (request_irq(irq, sgiseeq_interrupt, 0, sgiseeqstr, dev)) {
 		printk(KERN_ERR "Seeq8003: Can't get irq %d\n", dev->irq);
@@ -705,6 +703,7 @@ static void __exit sgiseeq_exit(void)
 		free_irq(dev->irq, dev);
 		free_page((unsigned long) sp);
 		unregister_netdev(dev);
+		kfree(dev);
 		dev = next;
 	}
 }
