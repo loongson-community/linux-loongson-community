@@ -55,10 +55,9 @@ typedef struct siginfo32 {
 		struct {
 			compat_pid_t _pid;	/* which child */
 			compat_uid_t _uid;	/* sender's uid */
-			compat_clock_t _utime;
 			int _status;		/* exit code */
+			compat_clock_t _utime;
 			compat_clock_t _stime;
-			struct compat_rusage _rusage;
 		} _sigchld;
 
 		/* IRIX SIGCHLD */
