@@ -78,7 +78,6 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 	childksp = (unsigned long)p + KERNEL_STACK_SIZE - 32;
 
 	if (last_task_used_math == current) {
-		set_cp0_status(ST0_CU1, ST0_CU1);
 		save_fp(p);
 	}
 	/* set up new TSS. */
