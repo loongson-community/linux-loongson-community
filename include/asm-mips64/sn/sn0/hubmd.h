@@ -425,7 +425,6 @@
  */
 
 #ifndef __ASSEMBLY__
-#ifndef _STANDALONE
 
 /*
  * LED register macros
@@ -537,8 +536,6 @@
 
 #define MD_SPROT_MIGMD_GET(value) ( \
 	((value) & MD_SPROT_MIGMD_MASK) >> MD_SPROT_MIGMD_SHFT)
-
-#endif /* _STANDALONE */
 
 /*
  * Format of dir_error, mem_error, protocol_error and misc_error registers
