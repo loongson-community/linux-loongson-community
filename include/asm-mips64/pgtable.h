@@ -266,11 +266,6 @@ extern pmd_t empty_bad_pmd_table[2*PAGE_SIZE/sizeof(pmd_t)];
  * Conversion functions: convert a page and protection to a page entry,
  * and a page entry and page directory to the page they refer to.
  */
-extern inline unsigned long pte_page(pte_t pte)
-{
-	return PAGE_OFFSET + (pte_val(pte) & PAGE_MASK);
-}
-
 extern inline unsigned long pmd_page(pmd_t pmd)
 {
 	return pmd_val(pmd);
