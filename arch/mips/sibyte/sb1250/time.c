@@ -83,7 +83,9 @@ void sb1250_time_init(void)
 	 * This interrupt is "special" in that it doesn't use the request_irq
 	 * way to hook the irq line.  The timer interrupt is initialized early
 	 * enough to make this a major pain, and it's also firing enough to
-	 * warrant a bit of special case code.  sb1250_timer_interrupt is called	 * directly from irq_handler.S when IP[4] is set during an interrupt
+	 * warrant a bit of special case code.  sb1250_timer_interrupt is
+	 * called directly from irq_handler.S when IP[4] is set during an
+	 * interrupt
 	 */
 }
 
