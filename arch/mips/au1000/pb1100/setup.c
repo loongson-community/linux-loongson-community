@@ -127,7 +127,7 @@ void __init au1100_setup(void)
 	au_writel(0, SYS_PININPUTEN);
 	udelay(100);
 
-#if defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1000_USB_DEVICE)
+#if defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1X00_USB_DEVICE)
 #ifdef CONFIG_USB_OHCI
 	if ((argptr = strstr(argptr, "usb_ohci=")) == NULL) {
 	        char usb_args[80];
@@ -174,12 +174,12 @@ void __init au1100_setup(void)
 
 	// get USB Functionality pin state (device vs host drive pins)
 	pin_func = au_readl(SYS_PINFUNC) & (u32)(~0x8000);
-#ifndef CONFIG_AU1000_USB_DEVICE
+#ifndef CONFIG_AU1X00_USB_DEVICE
 	// 2nd USB port is USB host
 	pin_func |= 0x8000;
 #endif
 	au_writel(pin_func, SYS_PINFUNC);
-#endif // defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1000_USB_DEVICE)
+#endif // defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1X00_USB_DEVICE)
 
 #ifdef CONFIG_USB_OHCI
 	// enable host controller and wait for reset done

@@ -118,7 +118,7 @@ void __init au1000_setup(void)
 	au_writel(0, SYS_PINSTATERD);
 	udelay(100);
 
-#if defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1000_USB_DEVICE)
+#if defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1X00_USB_DEVICE)
 #ifdef CONFIG_USB_OHCI
 	if ((argptr = strstr(argptr, "usb_ohci=")) == NULL) {
 	        char usb_args[80];
@@ -180,7 +180,7 @@ void __init au1000_setup(void)
 #ifdef CONFIG_USB_OHCI
 	sys_clksrc |= ((4<<12) | (0<<11) | (0<<10));
 #endif
-#ifdef CONFIG_AU1000_USB_DEVICE
+#ifdef CONFIG_AU1X00_USB_DEVICE
 	sys_clksrc |= ((4<<7) | (0<<6) | (0<<5));
 #endif
 	au_writel(sys_clksrc, SYS_CLKSRC);
@@ -199,14 +199,14 @@ void __init au1000_setup(void)
 	// configure pins GPIO[14:9] as GPIO
 	pin_func = au_readl(SYS_PINFUNC) & (u32)(~0x8080);
 
-#ifndef CONFIG_AU1000_USB_DEVICE
+#ifndef CONFIG_AU1X00_USB_DEVICE
 	// 2nd USB port is USB host
 	pin_func |= 0x8000;
 #endif
 	au_writel(pin_func, SYS_PINFUNC);
 	au_writel(0x2800, SYS_TRIOUTCLR);
 	au_writel(0x0030, SYS_OUTPUTCLR);
-#endif // defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1000_USB_DEVICE)
+#endif // defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1X00_USB_DEVICE)
 
 	// make gpio 15 an input (for interrupt line)
 	pin_func = au_readl(SYS_PINFUNC) & (u32)(~0x100);
