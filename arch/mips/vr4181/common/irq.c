@@ -187,7 +187,6 @@ static struct irqaction reserved =
 void __init arch_init_irq(void)
 {
 	int i;
-	extern irq_desc_t irq_desc[];
 
 	set_except_vector(0, vr4181_handle_irq);
 
