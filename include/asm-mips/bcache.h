@@ -28,22 +28,22 @@ extern void sni_pcimt_sc_init(void);
 
 extern struct bcache_ops *bcops;
 
-extern inline void bc_enable(void)
+static inline void bc_enable(void)
 {
 	bcops->bc_enable();
 }
 
-extern inline void bc_disable(void)
+static inline void bc_disable(void)
 {
 	bcops->bc_disable();
 }
 
-extern inline void bc_wback_inv(unsigned long page, unsigned long size)
+static inline void bc_wback_inv(unsigned long page, unsigned long size)
 {
 	bcops->bc_wback_inv(page, size);
 }
 
-extern inline void bc_inv(unsigned long page, unsigned long size)
+static inline void bc_inv(unsigned long page, unsigned long size)
 {
 	bcops->bc_inv(page, size);
 }

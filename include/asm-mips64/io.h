@@ -155,7 +155,7 @@ out:
  */
 
 #define __OUT1(s) \
-extern inline void __out##s(unsigned int value, unsigned long port) {
+static inline void __out##s(unsigned int value, unsigned long port) {
 
 #define __OUT2(m) \
 __asm__ __volatile__ ("s" #m "\t%0,%1(%2)"
@@ -169,7 +169,7 @@ __OUT1(s##c_p) __OUT2(m) : : "r" (value), "ir" (port), "r" (mips_io_port_base));
 	SLOW_DOWN_IO; }
 
 #define __IN1(t,s) \
-extern inline t __in##s(unsigned long port) { t _v;
+static inline t __in##s(unsigned long port) { t _v;
 
 /*
  * Required nops will be inserted by the assembler
@@ -184,7 +184,7 @@ __IN1(t,s##_p) __IN2(m) : "=r" (_v) : "i" (0), "r" (mips_io_port_base+port)); SL
 __IN1(t,s##c_p) __IN2(m) : "=r" (_v) : "ir" (port), "r" (mips_io_port_base)); SLOW_DOWN_IO; return _v; }
 
 #define __INS1(s) \
-extern inline void __ins##s(unsigned long port, void * addr, unsigned long count) {
+static inline void __ins##s(unsigned long port, void * addr, unsigned long count) {
 
 #define __INS2(m) \
 if (count) \
@@ -210,7 +210,7 @@ __INS1(s##c) __INS2(m) \
 	  "I" (i));}
 
 #define __OUTS1(s) \
-extern inline void __outs##s(unsigned long port, const void * addr, unsigned long count) {
+static inline void __outs##s(unsigned long port, const void * addr, unsigned long count) {
 
 #define __OUTS2(m) \
 if (count) \

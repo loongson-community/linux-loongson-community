@@ -272,7 +272,7 @@ typedef struct {
  */
 #ifndef _LANGUAGE_ASSEMBLY
 
-extern inline void r4030_delay(void)
+static inline void r4030_delay(void)
 {
 __asm__ __volatile__(
 	".set\tnoreorder\n\t"
@@ -283,27 +283,27 @@ __asm__ __volatile__(
 	".set\treorder");
 }
 
-extern inline unsigned short r4030_read_reg16(unsigned addr)
+static inline unsigned short r4030_read_reg16(unsigned addr)
 {
 	unsigned short ret = *((volatile unsigned short *)addr);
 	r4030_delay();
 	return ret;
 }
 
-extern inline unsigned int r4030_read_reg32(unsigned addr)
+static inline unsigned int r4030_read_reg32(unsigned addr)
 {
 	unsigned int ret = *((volatile unsigned int *)addr);
 	r4030_delay();
 	return ret;
 }
 
-extern inline void r4030_write_reg16(unsigned addr, unsigned val)
+static inline void r4030_write_reg16(unsigned addr, unsigned val)
 {
 	*((volatile unsigned short *)addr) = val;
 	r4030_delay();
 }
 
-extern inline void r4030_write_reg32(unsigned addr, unsigned val)
+static inline void r4030_write_reg32(unsigned addr, unsigned val)
 {
 	*((volatile unsigned int *)addr) = val;
 	r4030_delay();

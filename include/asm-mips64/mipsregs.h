@@ -573,7 +573,7 @@ static inline void set_context(unsigned long val)
  * Mostly used to access the interrupt bits.
  */
 #define __BUILD_SET_CP0(name,register)				\
-extern inline unsigned int					\
+static inline unsigned int					\
 set_cp0_##name(unsigned int set)				\
 {								\
 	unsigned int res;					\
@@ -585,7 +585,7 @@ set_cp0_##name(unsigned int set)				\
 	return res;						\
 }								\
 								\
-extern inline unsigned int					\
+static inline unsigned int					\
 clear_cp0_##name(unsigned int clear)				\
 {								\
 	unsigned int res;					\
@@ -597,7 +597,7 @@ clear_cp0_##name(unsigned int clear)				\
 	return res;						\
 }								\
 								\
-extern inline unsigned int					\
+static inline unsigned int					\
 change_cp0_##name(unsigned int change, unsigned int new)	\
 {								\
 	unsigned int res;					\

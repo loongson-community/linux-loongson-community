@@ -37,30 +37,46 @@
 /*
  * XXX Some of these are probably not needed (or even legal?)
  */
-extern inline u8 mace_read_8 (unsigned long __offset) {
+static inline u8 mace_read_8 (unsigned long __offset)
+{
 	return *((volatile u8 *) (MACE_BASE + __offset));
 }
-extern inline u16 mace_read_16 (unsigned long __offset) {
+
+static inline u16 mace_read_16 (unsigned long __offset)
+{
 	return *((volatile u16 *) (MACE_BASE + __offset));
 }
-extern inline u32 mace_read_32 (unsigned long __offset) {
+
+static inline u32 mace_read_32 (unsigned long __offset)
+{
 	return *((volatile u32 *) (MACE_BASE + __offset));
 }
-extern inline u64 mace_read_64 (unsigned long __offset) {
+
+static inline u64 mace_read_64 (unsigned long __offset)
+{
 	return *((volatile u64 *) (MACE_BASE + __offset));
 }
-extern inline void mace_write_8 (unsigned long __offset, u8 __val) {
+
+static inline void mace_write_8 (unsigned long __offset, u8 __val)
+{
 	*((volatile u8 *) (MACE_BASE + __offset)) = __val;
 }
-extern inline void mace_write_16 (unsigned long __offset, u16 __val) {
+
+static inline void mace_write_16 (unsigned long __offset, u16 __val)
+{
 	*((volatile u16 *) (MACE_BASE + __offset)) = __val;
 }
-extern inline void mace_write_32 (unsigned long __offset, u32 __val) {
+
+static inline void mace_write_32 (unsigned long __offset, u32 __val)
+{
 	*((volatile u32 *) (MACE_BASE + __offset)) = __val;
 }
-extern inline void mace_write_64 (unsigned long __offset, u64 __val) {
+
+static inline void mace_write_64 (unsigned long __offset, u64 __val)
+{
 	*((volatile u64 *) (MACE_BASE + __offset)) = __val;
 }
+
 #endif
 
 #undef BIT

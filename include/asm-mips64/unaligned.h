@@ -15,7 +15,7 @@ extern void __put_unaligned_bad_length(void);
 /*
  * Load quad unaligned.
  */
-extern inline unsigned long __ldq_u(const unsigned long * __addr)
+static inline unsigned long __ldq_u(const unsigned long * __addr)
 {
 	unsigned long __res;
 
@@ -29,7 +29,7 @@ extern inline unsigned long __ldq_u(const unsigned long * __addr)
 /*
  * Load long unaligned.
  */
-extern inline unsigned long __ldl_u(const unsigned int * __addr)
+static inline unsigned long __ldl_u(const unsigned int * __addr)
 {
 	unsigned long __res;
 
@@ -43,7 +43,7 @@ extern inline unsigned long __ldl_u(const unsigned int * __addr)
 /*
  * Load word unaligned.
  */
-extern inline unsigned long __ldw_u(const unsigned short * __addr)
+static inline unsigned long __ldw_u(const unsigned short * __addr)
 {
 	unsigned long __res;
 
@@ -57,7 +57,7 @@ extern inline unsigned long __ldw_u(const unsigned short * __addr)
 /*
  * Store quad ununaligned.
  */
-extern inline void __stq_u(unsigned long __val, unsigned long * __addr)
+static inline void __stq_u(unsigned long __val, unsigned long * __addr)
 {
 	__asm__("usd\t%1, %0"
 		: "=m" (*__addr)
@@ -67,7 +67,7 @@ extern inline void __stq_u(unsigned long __val, unsigned long * __addr)
 /*
  * Store long ununaligned.
  */
-extern inline void __stl_u(unsigned long __val, unsigned int * __addr)
+static inline void __stl_u(unsigned long __val, unsigned int * __addr)
 {
 	__asm__("usw\t%1, %0"
 		: "=m" (*__addr)
@@ -77,7 +77,7 @@ extern inline void __stl_u(unsigned long __val, unsigned int * __addr)
 /*
  * Store word ununaligned.
  */
-extern inline void __stw_u(unsigned long __val, unsigned short * __addr)
+static inline void __stw_u(unsigned long __val, unsigned short * __addr)
 {
 	__asm__("ush\t%1, %0"
 		: "=m" (*__addr)

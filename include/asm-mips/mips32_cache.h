@@ -35,7 +35,7 @@
 #include <asm/asm.h>
 #include <asm/cacheops.h>
 
-extern inline void flush_icache_line_indexed(unsigned long addr)
+static inline void flush_icache_line_indexed(unsigned long addr)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
@@ -48,7 +48,7 @@ extern inline void flush_icache_line_indexed(unsigned long addr)
 		  "i" (Index_Invalidate_I));
 }
 
-extern inline void flush_dcache_line_indexed(unsigned long addr)
+static inline void flush_dcache_line_indexed(unsigned long addr)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
@@ -61,7 +61,7 @@ extern inline void flush_dcache_line_indexed(unsigned long addr)
 		  "i" (Index_Writeback_Inv_D));
 }
 
-extern inline void flush_scache_line_indexed(unsigned long addr)
+static inline void flush_scache_line_indexed(unsigned long addr)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
@@ -74,7 +74,7 @@ extern inline void flush_scache_line_indexed(unsigned long addr)
 		  "i" (Index_Writeback_Inv_SD));
 }
 
-extern inline void flush_icache_line(unsigned long addr)
+static inline void flush_icache_line(unsigned long addr)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
@@ -87,7 +87,7 @@ extern inline void flush_icache_line(unsigned long addr)
 		  "i" (Hit_Invalidate_I));
 }
 
-extern inline void flush_dcache_line(unsigned long addr)
+static inline void flush_dcache_line(unsigned long addr)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
@@ -100,7 +100,7 @@ extern inline void flush_dcache_line(unsigned long addr)
 		  "i" (Hit_Writeback_Inv_D));
 }
 
-extern inline void invalidate_dcache_line(unsigned long addr)
+static inline void invalidate_dcache_line(unsigned long addr)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
@@ -113,7 +113,7 @@ extern inline void invalidate_dcache_line(unsigned long addr)
 		  "i" (Hit_Invalidate_D));
 }
 
-extern inline void invalidate_scache_line(unsigned long addr)
+static inline void invalidate_scache_line(unsigned long addr)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
@@ -126,7 +126,7 @@ extern inline void invalidate_scache_line(unsigned long addr)
 		  "i" (Hit_Invalidate_SD));
 }
 
-extern inline void flush_scache_line(unsigned long addr)
+static inline void flush_scache_line(unsigned long addr)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
@@ -142,7 +142,7 @@ extern inline void flush_scache_line(unsigned long addr)
 /*
  * The next two are for badland addresses like signal trampolines.
  */
-extern inline void protected_flush_icache_line(unsigned long addr)
+static inline void protected_flush_icache_line(unsigned long addr)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
@@ -158,7 +158,7 @@ extern inline void protected_flush_icache_line(unsigned long addr)
 		  "i" (Hit_Invalidate_I));
 }
 
-extern inline void protected_writeback_dcache_line(unsigned long addr)
+static inline void protected_writeback_dcache_line(unsigned long addr)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
@@ -186,7 +186,7 @@ extern inline void protected_writeback_dcache_line(unsigned long addr)
 		  "i" (op));
 
 
-extern inline void blast_dcache(void)
+static inline void blast_dcache(void)
 {
 	unsigned long start = KSEG0;
 	unsigned long end = (start + dcache_size);
@@ -197,7 +197,7 @@ extern inline void blast_dcache(void)
 	}
 }
 
-extern inline void blast_dcache_page(unsigned long page)
+static inline void blast_dcache_page(unsigned long page)
 {
 	unsigned long start = page;
 	unsigned long end = (start + PAGE_SIZE);
@@ -208,7 +208,7 @@ extern inline void blast_dcache_page(unsigned long page)
 	}
 }
 
-extern inline void blast_dcache_page_indexed(unsigned long page)
+static inline void blast_dcache_page_indexed(unsigned long page)
 {
 	unsigned long start = page;
 	unsigned long end = (start + PAGE_SIZE);
@@ -219,7 +219,7 @@ extern inline void blast_dcache_page_indexed(unsigned long page)
 	}
 }
 
-extern inline void blast_icache(void)
+static inline void blast_icache(void)
 {
 	unsigned long start = KSEG0;
 	unsigned long end = (start + icache_size);
@@ -230,7 +230,7 @@ extern inline void blast_icache(void)
 	}
 }
 
-extern inline void blast_icache_page(unsigned long page)
+static inline void blast_icache_page(unsigned long page)
 {
 	unsigned long start = page;
 	unsigned long end = (start + PAGE_SIZE);
@@ -241,7 +241,7 @@ extern inline void blast_icache_page(unsigned long page)
 	}
 }
 
-extern inline void blast_icache_page_indexed(unsigned long page)
+static inline void blast_icache_page_indexed(unsigned long page)
 {
 	unsigned long start = page;
 	unsigned long end = (start + PAGE_SIZE);
@@ -252,7 +252,7 @@ extern inline void blast_icache_page_indexed(unsigned long page)
 	}
 }
 
-extern inline void blast_scache(void)
+static inline void blast_scache(void)
 {
 	unsigned long start = KSEG0;
 	unsigned long end = KSEG0 + scache_size;
@@ -263,7 +263,7 @@ extern inline void blast_scache(void)
 	}
 }
 
-extern inline void blast_scache_page(unsigned long page)
+static inline void blast_scache_page(unsigned long page)
 {
 	unsigned long start = page;
 	unsigned long end = page + PAGE_SIZE;
@@ -274,7 +274,7 @@ extern inline void blast_scache_page(unsigned long page)
 	}
 }
 
-extern inline void blast_scache_page_indexed(unsigned long page)
+static inline void blast_scache_page_indexed(unsigned long page)
 {
 	unsigned long start = page;
 	unsigned long end = page + PAGE_SIZE;

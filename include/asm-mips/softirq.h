@@ -13,13 +13,13 @@
 #include <asm/atomic.h>
 #include <asm/hardirq.h>
 
-extern inline void cpu_bh_disable(int cpu)
+static inline void cpu_bh_disable(int cpu)
 {
 	local_bh_count(cpu)++;
 	barrier();
 }
  
-extern inline void __cpu_bh_enable(int cpu)
+static inline void __cpu_bh_enable(int cpu)
 {
 	barrier();
 	local_bh_count(cpu)--;

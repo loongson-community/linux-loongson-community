@@ -18,7 +18,7 @@ extern void __put_unaligned_bad_length(void);
  * This could have been implemented in plain C like IA64 but egcs 1.0.3a
  * inflates this to 23 instructions ...
  */
-extern inline unsigned long long __ldq_u(const unsigned long long * __addr)
+static inline unsigned long long __ldq_u(const unsigned long long * __addr)
 {
 	unsigned long long __res;
 
@@ -33,7 +33,7 @@ extern inline unsigned long long __ldq_u(const unsigned long long * __addr)
 /*
  * Load word unaligned.
  */
-extern inline unsigned long __ldl_u(const unsigned int * __addr)
+static inline unsigned long __ldl_u(const unsigned int * __addr)
 {
 	unsigned long __res;
 
@@ -47,7 +47,7 @@ extern inline unsigned long __ldl_u(const unsigned int * __addr)
 /*
  * Load halfword unaligned.
  */
-extern inline unsigned long __ldw_u(const unsigned short * __addr)
+static inline unsigned long __ldw_u(const unsigned short * __addr)
 {
 	unsigned long __res;
 
@@ -61,7 +61,7 @@ extern inline unsigned long __ldw_u(const unsigned short * __addr)
 /*
  * Store doubleword ununaligned.
  */
-extern inline void __stq_u(unsigned long __val, unsigned long long * __addr)
+static inline void __stq_u(unsigned long __val, unsigned long long * __addr)
 {
 	__asm__("usw\t%1, %0\n\t"
 		"usw\t%D1, 4+%0"
@@ -72,7 +72,7 @@ extern inline void __stq_u(unsigned long __val, unsigned long long * __addr)
 /*
  * Store long ununaligned.
  */
-extern inline void __stl_u(unsigned long __val, unsigned int * __addr)
+static inline void __stl_u(unsigned long __val, unsigned int * __addr)
 {
 	__asm__("usw\t%1, %0"
 		: "=m" (*__addr)
@@ -82,7 +82,7 @@ extern inline void __stl_u(unsigned long __val, unsigned int * __addr)
 /*
  * Store word ununaligned.
  */
-extern inline void __stw_u(unsigned long __val, unsigned short * __addr)
+static inline void __stw_u(unsigned long __val, unsigned short * __addr)
 {
 	__asm__("ush\t%1, %0"
 		: "=m" (*__addr)

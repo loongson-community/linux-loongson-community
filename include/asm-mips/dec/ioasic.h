@@ -11,12 +11,12 @@
 
 extern volatile unsigned int *ioasic_base;
 
-extern inline void ioasic_write(unsigned int reg, unsigned int v)
+static inline void ioasic_write(unsigned int reg, unsigned int v)
 {
 	ioasic_base[reg / 4] = v;
 }
 
-extern inline unsigned int ioasic_read(unsigned int reg)
+static inline unsigned int ioasic_read(unsigned int reg)
 {
 	return ioasic_base[reg / 4];
 }

@@ -261,29 +261,29 @@ extern pmd_t invalid_pte_table[PAGE_SIZE/sizeof(pmd_t)];
  * Conversion functions: convert a page and protection to a page entry,
  * and a page entry and page directory to the page they refer to.
  */
-extern inline unsigned long pmd_page(pmd_t pmd)
+static inline unsigned long pmd_page(pmd_t pmd)
 {
 	return pmd_val(pmd);
 }
 
-extern inline void pmd_set(pmd_t * pmdp, pte_t * ptep)
+static inline void pmd_set(pmd_t * pmdp, pte_t * ptep)
 {
 	pmd_val(*pmdp) = (((unsigned long) ptep) & PAGE_MASK);
 }
 
-extern inline int pte_none(pte_t pte)    { return !pte_val(pte); }
-extern inline int pte_present(pte_t pte) { return pte_val(pte) & _PAGE_PRESENT; }
+static inline int pte_none(pte_t pte)    { return !pte_val(pte); }
+static inline int pte_present(pte_t pte) { return pte_val(pte) & _PAGE_PRESENT; }
 
 /* Certain architectures need to do special things when pte's
  * within a page table are directly modified.  Thus, the following
  * hook is made available.
  */
-extern inline void set_pte(pte_t *ptep, pte_t pteval)
+static inline void set_pte(pte_t *ptep, pte_t pteval)
 {
 	*ptep = pteval;
 }
 
-extern inline void pte_clear(pte_t *ptep)
+static inline void pte_clear(pte_t *ptep)
 {
 	set_pte(ptep, __pte(0));
 }
@@ -298,23 +298,23 @@ extern inline void pte_clear(pte_t *ptep)
 /*
  * Empty pgd/pmd entries point to the invalid_pte_table.
  */
-extern inline int pmd_none(pmd_t pmd)
+static inline int pmd_none(pmd_t pmd)
 {
 	return pmd_val(pmd) == (unsigned long) invalid_pte_table;
 }
 
-extern inline int pmd_bad(pmd_t pmd)
+static inline int pmd_bad(pmd_t pmd)
 {
 	return ((pmd_page(pmd) > (unsigned long) high_memory) ||
 	        (pmd_page(pmd) < PAGE_OFFSET));
 }
 
-extern inline int pmd_present(pmd_t pmd)
+static inline int pmd_present(pmd_t pmd)
 {
 	return (pmd_val(pmd) != (unsigned long) invalid_pte_table);
 }
 
-extern inline void pmd_clear(pmd_t *pmdp)
+static inline void pmd_clear(pmd_t *pmdp)
 {
 	pmd_val(*pmdp) = ((unsigned long) invalid_pte_table);
 }
@@ -324,10 +324,10 @@ extern inline void pmd_clear(pmd_t *pmdp)
  * setup: the pgd is never bad, and a pmd always exists (as it's folded
  * into the pgd entry)
  */
-extern inline int pgd_none(pgd_t pgd)		{ return 0; }
-extern inline int pgd_bad(pgd_t pgd)		{ return 0; }
-extern inline int pgd_present(pgd_t pgd)	{ return 1; }
-extern inline void pgd_clear(pgd_t *pgdp)	{ }
+static inline int pgd_none(pgd_t pgd)		{ return 0; }
+static inline int pgd_bad(pgd_t pgd)		{ return 0; }
+static inline int pgd_present(pgd_t pgd)	{ return 1; }
+static inline void pgd_clear(pgd_t *pgdp)	{ }
 
 /*
  * Permanent address of a page.  On MIPS we never have highmem, so this
@@ -344,36 +344,36 @@ extern inline void pgd_clear(pgd_t *pgdp)	{ }
  * The following only work if pte_present() is true.
  * Undefined behaviour if not..
  */
-extern inline int pte_read(pte_t pte)	{ return pte_val(pte) & _PAGE_READ; }
-extern inline int pte_write(pte_t pte)	{ return pte_val(pte) & _PAGE_WRITE; }
-extern inline int pte_dirty(pte_t pte)	{ return pte_val(pte) & _PAGE_MODIFIED; }
-extern inline int pte_young(pte_t pte)	{ return pte_val(pte) & _PAGE_ACCESSED; }
+static inline int pte_read(pte_t pte)	{ return pte_val(pte) & _PAGE_READ; }
+static inline int pte_write(pte_t pte)	{ return pte_val(pte) & _PAGE_WRITE; }
+static inline int pte_dirty(pte_t pte)	{ return pte_val(pte) & _PAGE_MODIFIED; }
+static inline int pte_young(pte_t pte)	{ return pte_val(pte) & _PAGE_ACCESSED; }
 
-extern inline pte_t pte_wrprotect(pte_t pte)
+static inline pte_t pte_wrprotect(pte_t pte)
 {
 	pte_val(pte) &= ~(_PAGE_WRITE | _PAGE_SILENT_WRITE);
 	return pte;
 }
 
-extern inline pte_t pte_rdprotect(pte_t pte)
+static inline pte_t pte_rdprotect(pte_t pte)
 {
 	pte_val(pte) &= ~(_PAGE_READ | _PAGE_SILENT_READ);
 	return pte;
 }
 
-extern inline pte_t pte_mkclean(pte_t pte)
+static inline pte_t pte_mkclean(pte_t pte)
 {
 	pte_val(pte) &= ~(_PAGE_MODIFIED|_PAGE_SILENT_WRITE);
 	return pte;
 }
 
-extern inline pte_t pte_mkold(pte_t pte)
+static inline pte_t pte_mkold(pte_t pte)
 {
 	pte_val(pte) &= ~(_PAGE_ACCESSED|_PAGE_SILENT_READ);
 	return pte;
 }
 
-extern inline pte_t pte_mkwrite(pte_t pte)
+static inline pte_t pte_mkwrite(pte_t pte)
 {
 	pte_val(pte) |= _PAGE_WRITE;
 	if (pte_val(pte) & _PAGE_MODIFIED)
@@ -381,7 +381,7 @@ extern inline pte_t pte_mkwrite(pte_t pte)
 	return pte;
 }
 
-extern inline pte_t pte_mkread(pte_t pte)
+static inline pte_t pte_mkread(pte_t pte)
 {
 	pte_val(pte) |= _PAGE_READ;
 	if (pte_val(pte) & _PAGE_ACCESSED)
@@ -389,7 +389,7 @@ extern inline pte_t pte_mkread(pte_t pte)
 	return pte;
 }
 
-extern inline pte_t pte_mkdirty(pte_t pte)
+static inline pte_t pte_mkdirty(pte_t pte)
 {
 	pte_val(pte) |= _PAGE_MODIFIED;
 	if (pte_val(pte) & _PAGE_WRITE)
@@ -414,7 +414,7 @@ static inline pgprot_t pgprot_noncached(pgprot_t _prot)
 	return __pgprot(prot);
 }
 
-extern inline pte_t pte_mkyoung(pte_t pte)
+static inline pte_t pte_mkyoung(pte_t pte)
 {
 	pte_val(pte) |= _PAGE_ACCESSED;
 	if (pte_val(pte) & _PAGE_READ)
@@ -448,7 +448,7 @@ extern inline pte_t pte_mkyoung(pte_t pte)
 })
 #endif
 
-extern inline pte_t mk_pte_phys(unsigned long physpage, pgprot_t pgprot)
+static inline pte_t mk_pte_phys(unsigned long physpage, pgprot_t pgprot)
 {
 #ifdef CONFIG_CPU_VR41XX
         return __pte((physpage << 2) | pgprot_val(pgprot));
@@ -457,7 +457,7 @@ extern inline pte_t mk_pte_phys(unsigned long physpage, pgprot_t pgprot)
 #endif
 }
 
-extern inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
+static inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
 {
 	return __pte((pte_val(pte) & _PAGE_CHG_MASK) | pgprot_val(newprot));
 }
@@ -470,19 +470,19 @@ extern inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
 #define pgd_index(address)	((address) >> PGDIR_SHIFT)
 
 /* to find an entry in a page-table-directory */
-extern inline pgd_t *pgd_offset(struct mm_struct *mm, unsigned long address)
+static inline pgd_t *pgd_offset(struct mm_struct *mm, unsigned long address)
 {
 	return mm->pgd + pgd_index(address);
 }
 
 /* Find an entry in the second-level page table.. */
-extern inline pmd_t *pmd_offset(pgd_t *dir, unsigned long address)
+static inline pmd_t *pmd_offset(pgd_t *dir, unsigned long address)
 {
 	return (pmd_t *) dir;
 }
 
 /* Find an entry in the third-level page table.. */ 
-extern inline pte_t *pte_offset(pmd_t * dir, unsigned long address)
+static inline pte_t *pte_offset(pmd_t * dir, unsigned long address)
 {
 	return (pte_t *) (pmd_page(*dir)) +
 	       ((address >> PAGE_SHIFT) & (PTRS_PER_PTE - 1));

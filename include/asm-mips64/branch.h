@@ -9,14 +9,14 @@
  */
 #include <asm/ptrace.h>
 
-extern inline int delay_slot(struct pt_regs *regs)
+static inline int delay_slot(struct pt_regs *regs)
 {
 	return regs->cp0_cause & CAUSEF_BD;
 }
 
 extern int __compute_return_epc(struct pt_regs *regs);
 
-extern inline int compute_return_epc(struct pt_regs *regs)
+static inline int compute_return_epc(struct pt_regs *regs)
 {
 	if (!delay_slot(regs)) {
 		regs->cp0_epc += 4;

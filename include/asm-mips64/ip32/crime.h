@@ -23,10 +23,10 @@
 #endif
 
 #ifndef _LANGUAGE_ASSEMBLY
-extern inline u64 crime_read_64 (unsigned long __offset) {
+static inline u64 crime_read_64 (unsigned long __offset) {
         return *((volatile u64 *) (CRIME_BASE + __offset));
 }
-extern inline void crime_write_64 (unsigned long __offset, u64 __val) {
+static inline void crime_write_64 (unsigned long __offset, u64 __val) {
         *((volatile u64 *) (CRIME_BASE + __offset)) = __val;
 }
 #endif

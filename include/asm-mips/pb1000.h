@@ -109,54 +109,54 @@
 #define PCI_MEM_START     0x18000000
 #define PCI_MEM_END       0x18ffffff
 
-extern inline u8 au_pci_io_readb(u32 addr)
+static inline u8 au_pci_io_readb(u32 addr)
 {
 	writel(addr, PCI_IO_ADDR);
 	writel((readl(PCI_BRIDGE_CONFIG) & 0xffffcfff) | (1<<12), PCI_BRIDGE_CONFIG);
 	return (readl(PCI_IO_DATA_PORT) & 0xff);
 }
 
-extern inline u16 au_pci_io_readw(u32 addr)
+static inline u16 au_pci_io_readw(u32 addr)
 {
 	writel(addr, PCI_IO_ADDR);
 	writel((readl(PCI_BRIDGE_CONFIG) & 0xffffcfff) | (1<<13), PCI_BRIDGE_CONFIG);
 	return (readl(PCI_IO_DATA_PORT) & 0xffff);
 }
 
-extern inline u32 au_pci_io_readl(u32 addr)
+static inline u32 au_pci_io_readl(u32 addr)
 {
 	writel(addr, PCI_IO_ADDR);
 	writel((readl(PCI_BRIDGE_CONFIG) & 0xffffcfff), PCI_BRIDGE_CONFIG);
 	return readl(PCI_IO_DATA_PORT);
 }
 
-extern inline void au_pci_io_writeb(u8 val, u32 addr)
+static inline void au_pci_io_writeb(u8 val, u32 addr)
 {
 	writel(addr, PCI_IO_ADDR);
 	writel((readl(PCI_BRIDGE_CONFIG) & 0xffffcfff) | (1<<12), PCI_BRIDGE_CONFIG);
 	writel(val, PCI_IO_DATA_PORT);
 }
 
-extern inline void au_pci_io_writew(u16 val, u32 addr)
+static inline void au_pci_io_writew(u16 val, u32 addr)
 {
 	writel(addr, PCI_IO_ADDR);
 	writel((readl(PCI_BRIDGE_CONFIG) & 0xffffcfff) | (1<<13), PCI_BRIDGE_CONFIG);
 	writel(val, PCI_IO_DATA_PORT);
 }
 
-extern inline void au_pci_io_writel(u32 val, u32 addr)
+static inline void au_pci_io_writel(u32 val, u32 addr)
 {
 	writel(addr, PCI_IO_ADDR);
 	writel(readl(PCI_BRIDGE_CONFIG) & 0xffffcfff, PCI_BRIDGE_CONFIG);
 	writel(val, PCI_IO_DATA_PORT);
 }
 
-extern inline void set_sdram_extbyte(void)
+static inline void set_sdram_extbyte(void)
 {
 	writel(readl(PCI_BRIDGE_CONFIG) & 0xffffff00, PCI_BRIDGE_CONFIG);
 }
 
-extern inline void set_slot_extbyte(void)
+static inline void set_slot_extbyte(void)
 {
 	writel((readl(PCI_BRIDGE_CONFIG) & 0xffffbf00) | 0x18, PCI_BRIDGE_CONFIG);
 }

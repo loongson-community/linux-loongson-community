@@ -43,7 +43,7 @@ extern void flush_tlb_page(struct vm_area_struct *, unsigned long);
 
 #endif /* CONFIG_SMP */
 
-extern inline void flush_tlb_pgtables(struct mm_struct *mm,
+static inline void flush_tlb_pgtables(struct mm_struct *mm,
                                       unsigned long start, unsigned long end)
 {
 	/* Nothing to do on MIPS.  */

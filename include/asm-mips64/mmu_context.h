@@ -51,7 +51,7 @@ static inline void enter_lazy_tlb(struct mm_struct *mm, struct task_struct *tsk,
 #define ASID_VERSION_MASK  ((unsigned long)~(ASID_MASK|(ASID_MASK-1)))
 #define ASID_FIRST_VERSION ((unsigned long)(~ASID_VERSION_MASK) + 1)
 
-extern inline void
+static inline void
 get_new_cpu_mmu_context(struct mm_struct *mm, unsigned long cpu)
 {
 	unsigned long asid = ASID_CACHE(cpu);
@@ -68,7 +68,7 @@ get_new_cpu_mmu_context(struct mm_struct *mm, unsigned long cpu)
  * Initialize the context related info for a new mm_struct
  * instance.
  */
-extern inline int
+static inline int
 init_new_context(struct task_struct *tsk, struct mm_struct *mm)
 {
 #ifndef CONFIG_SMP
@@ -87,7 +87,7 @@ init_new_context(struct task_struct *tsk, struct mm_struct *mm)
 	return 0;
 }
 
-extern inline void switch_mm(struct mm_struct *prev, struct mm_struct *next,
+static inline void switch_mm(struct mm_struct *prev, struct mm_struct *next,
                              struct task_struct *tsk, unsigned cpu)
 {
 	/* Check if our ASID is of an older version and thus invalid */
@@ -102,7 +102,7 @@ extern inline void switch_mm(struct mm_struct *prev, struct mm_struct *next,
  * Destroy context related info for an mm_struct that is about
  * to be put to rest.
  */
-extern inline void destroy_context(struct mm_struct *mm)
+static inline void destroy_context(struct mm_struct *mm)
 {
 #ifdef CONFIG_SMP
 	if (mm->context)
@@ -114,7 +114,7 @@ extern inline void destroy_context(struct mm_struct *mm)
  * After we have set current->mm to a new value, this activates
  * the context for the new mm so we see the new mappings.
  */
-extern inline void
+static inline void
 activate_mm(struct mm_struct *prev, struct mm_struct *next)
 {
 	/* Unconditionally get a new ASID.  */
