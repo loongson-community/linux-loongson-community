@@ -14,8 +14,10 @@
 #include <linux/types.h>
 
 #include <asm/addrspace.h>
+#include <asm/cpu.h>
 #include <asm/page.h>
 #include <asm/pgtable-bits.h>
+#include <asm/processor.h>
 #include <asm/byteorder.h>
 
 #ifdef CONFIG_SGI_IP27
@@ -174,8 +176,17 @@ extern unsigned long isa_slot_offset;
  */
 #define page_to_phys(page)	((dma_addr_t)page_to_pfn(page) << PAGE_SHIFT)
 
-extern void * __ioremap(phys_t offset, phys_t size, unsigned long flags);
-extern void __iounmap(void *addr);
+extern void * __ioremap_tlb(phys_t offset, phys_t size, unsigned long flags);
+extern void __iounmap_tlb(void *addr);
+
+static inline void * __ioremap(unsigned long offset, unsigned long size,
+	unsigned long flags)
+{
+	if (cpu_has_64bits)
+		return (void *) ((unsigned long)K1BASE + offset);
+
+	return __ioremap_tlb(offset, size, flags);
+}
 
 /*
  * ioremap     -   map bus memory into CPU space
@@ -212,13 +223,25 @@ extern void __iounmap(void *addr);
  */
 #define ioremap_nocache(offset, size)					\
 	__ioremap((offset), (size), _CACHE_UNCACHED)
+
+/*
+ * These two are MIPS specific ioremap variant.  ioremap_cacheable_cow
+ * requests a cachable mapping, ioremap_uncached_accelerated requests a
+ * mapping using the uncached accelerated mode which isn't supported on
+ * all processors.
+ */
 #define ioremap_cacheable_cow(offset, size)				\
 	__ioremap((offset), (size), _CACHE_CACHABLE_COW)
 #define ioremap_uncached_accelerated(offset, size)			\
 	__ioremap((offset), (size), _CACHE_UNCACHED_ACCELERATED)
 
-#define iounmap(addr)							\
-	__iounmap(addr)
+static inline void iounmap(void *addr)
+{
+	if (cpu_has_64bits)
+		return;
+
+	__iounmap_tlb(addr);
+}
 
 /*
  * XXX We need system specific versions of these to handle EISA address bits
