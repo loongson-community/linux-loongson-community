@@ -18,7 +18,7 @@
 #define KU_USER 0x10
 
 		.text
-		.align 4
+		.align	5
 EXPORT(ret_from_irq)
 EXPORT(ret_from_exception)
 		ld	t0, PT_STATUS(sp)	# returning to kernel mode?

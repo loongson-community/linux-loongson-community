@@ -53,7 +53,7 @@
 #endif
 
 		.text
-		.align 4
+		.align	5
 		.set	push
 		.set	reorder
 EXPORT(ret_from_irq)
