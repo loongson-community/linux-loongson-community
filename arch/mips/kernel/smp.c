@@ -43,6 +43,7 @@
 /* Ze Big Kernel Lock! */
 spinlock_t kernel_flag __cacheline_aligned_in_smp = SPIN_LOCK_UNLOCKED;
 int smp_threads_ready;
+atomic_t smp_commenced = ATOMIC_INIT(0);
 int smp_num_cpus = 1;			/* Number that came online.  */
 cpumask_t cpu_online_map;		/* Bitmask of currently online CPUs */
 struct cpuinfo_mips cpu_data[NR_CPUS];
