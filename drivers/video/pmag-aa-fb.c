@@ -15,7 +15,7 @@
  *
  *	2002-09-28  Karsten Merker <merker@linuxtag.org>
  *		Version 0.01: First try to get a PMAG-AA running.
- * 
+ *
  *	2003-02-24  Thiemo Seufer  <seufer@csv.ica.uni-stuttgart.de>
  *		Version 0.02: Major code cleanup.
  *
@@ -296,7 +296,7 @@ static int aafb_set_cmap(struct fb_cmap *cmap, int kspc, int con,
 	    && cmap->transp == NULL)
 		return 0;
 	else
-	return -EINVAL;
+		return -EINVAL;
 }
 
 static int aafb_ioctl(struct inode *inode, struct file *file, u32 cmd,
@@ -492,7 +492,7 @@ int __init pmagaafb_init(void)
 		init_one(sid);
 	}
 
-	return found ? 0 : -ENODEV;
+	return found ? 0 : -ENXIO;
 }
 
 static void __exit pmagaafb_exit(void)
