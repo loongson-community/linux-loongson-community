@@ -63,6 +63,12 @@ endif
 ifdef CONFIG_CPU_R10000
 CFLAGS		:= $(CFLAGS) -mcpu=r8000 -mips4
 endif
+ifdef CONFIG_CPU_SB1
+GCCFLAGS	+= -mcpu=sb1 -mips2 -Wa,--trap
+ifdef CONFIG_SB1_PASS_1_WORKAROUNDS
+MODFLAGS	+= -msb1-pass1-workarounds
+endif
+endif
 
 ifdef CONFIG_MIPS_FPU_EMULATOR
 CORE_FILES	+= arch/mips64/math-emu/fpu_emulator.o

@@ -10,9 +10,8 @@
 #
 # Machine selection
 #
-# CONFIG_SGI_IP22 is not set
 CONFIG_SGI_IP27=y
-# CONFIG_SGI_IP32 is not set
+# CONFIG_SIBYTE_SWARM is not set
 # CONFIG_SGI_SN0_N_MODE is not set
 CONFIG_DISCONTIGMEM=y
 CONFIG_NUMA=y
@@ -43,6 +42,7 @@ CONFIG_L1_CACHE_SHIFT=7
 # CONFIG_CPU_NEVADA is not set
 # CONFIG_CPU_R8000 is not set
 CONFIG_CPU_R10000=y
+# CONFIG_CPU_SB1 is not set
 
 #
 # General setup

@@ -11,10 +11,12 @@ endmenu
 
 mainmenu_option next_comment
 comment 'Machine selection'
-choice 'Machine type'						\
-	"SGI-IP22,Indy/Indigo2 CONFIG_SGI_IP22			\
-	 SGI-IP27,Origin200/2000 CONFIG_SGI_IP27		\
-	 SGI-IP32,O2 CONFIG_SGI_IP32"  CONFIG_SGI_IP27
+bool '  Support for SGI-IP27 (Origin200/2000)' CONFIG_SGI_IP27
+if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+   bool '  Support for SGI-IP22 (Indy/Indigo2)' CONFIG_SGI_IP22
+   bool '  Support for SGI-IP32 (O2)' CONFIG_SGI_IP32
+fi
+bool '  Support for SiByte SWARM board' CONFIG_SIBYTE_SWARM
 
 if [ "$CONFIG_SGI_IP27" = "y" ]; then
    bool '  IP27 N-Mode' CONFIG_SGI_SN0_N_MODE
@@ -77,6 +79,15 @@ if [ "$CONFIG_SGI_IP32" = "y" ]; then
    define_int CONFIG_L1_CACHE_SHIFT 5
 fi
 
+if [ "$CONFIG_SIBYTE_SWARM" = "y" ]; then
+   define_bool CONFIG_BOOT_ELF64 y
+   define_bool CONFIG_COHERENT_IO y
+   define_bool CONFIG_SWAP_IO_SPACE y
+   define_bool CONFIG_CFE y
+   define_bool CONFIG_SIBYTE_SB1250 y
+   define_int CONFIG_L1_CACHE_SHIFT 5
+fi
+
 if [ "$CONFIG_ISA" != "y" ]; then
    define_bool CONFIG_ISA n
    define_bool CONFIG_EISA n
@@ -100,7 +111,8 @@ choice 'CPU type'				\
 	 R5000 CONFIG_CPU_R5000			\
 	 R52x0 CONFIG_CPU_NEVADA		\
 	 R8000 CONFIG_CPU_R8000			\
-	 R10000 CONFIG_CPU_R10000" R4x00
+	 R10000 CONFIG_CPU_R10000		\
+	 SB1   CONFIG_CPU_SB1" R4x00
 endmenu
 
 mainmenu_option next_comment

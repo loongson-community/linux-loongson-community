@@ -10,9 +10,10 @@ CONFIG_EXPERIMENTAL=y
 #
 # Machine selection
 #
-# CONFIG_SGI_IP22 is not set
 # CONFIG_SGI_IP27 is not set
+# CONFIG_SGI_IP22 is not set
 CONFIG_SGI_IP32=y
+# CONFIG_SIBYTE_SWARM is not set
 CONFIG_RWSEM_GENERIC_SPINLOCK=y
 # CONFIG_RWSEM_XCHGADD_ALGORITHM is not set
 CONFIG_BOOT_ELF32=y
@@ -36,6 +37,7 @@ CONFIG_CPU_R5000=y
 # CONFIG_CPU_NEVADA is not set
 # CONFIG_CPU_R8000 is not set
 # CONFIG_CPU_R10000 is not set
+# CONFIG_CPU_SB1 is not set
 
 #
 # General setup
