@@ -616,10 +616,12 @@ void esp_initialize(struct Sparc_ESP *esp)
 	esp->neg_defp = ESP_NEG_DEFP(fmhz, ccf);
 	esp->sync_defp = SYNC_DEFP_SLOW;
 
+	printk("SCSI ID %d  Clock %d MHz CCF=%d Time-Out %d ",
+	       esp->scsi_id, (esp->cfreq / 1000000),
+	       esp->ccf, (int) esp->neg_defp);
 
 	/* Fill in ehost data */
 	esp->ehost->base = (unsigned char *) eregs;
-	esp->ehost->io_port = (unsigned int) eregs;
 	esp->ehost->this_id = esp->scsi_id;
 	esp->ehost->irq = esp->irq;
 
@@ -684,10 +686,6 @@ void esp_initialize(struct Sparc_ESP *esp)
 	esp_bootup_reset(esp, eregs);
 	
 	esps_in_use++;
-
-	printk("SCSI ID %d  Clock %d MHz CCF=%d Time-Out %d ",
-	       esp->scsi_id, (esp->cfreq / 1000000),
-	       esp->ccf, (int) esp->neg_defp);
 }
 
 /* The info function will return whatever useful
@@ -1197,12 +1195,12 @@ after_nego_msg_built:
 			eregs->fas_rlo = 0;
 			eregs->fas_rhi = 0;
 			esp_cmd(esp, eregs, the_esp_command);
-			esp->dma_init_write(esp, (char *) esp->esp_command, 16);
+			esp->dma_init_write(esp, esp->esp_command_dvma, 16);
 		} else {
 			/* Set up the ESP counters */
 			eregs->esp_tclow = i;
 			eregs->esp_tcmed = 0;
-			esp->dma_init_write(esp, (char *) esp->esp_command, i);
+			esp->dma_init_write(esp, esp->esp_command_dvma, i);
 
 			/* Tell ESP to "go". */
 			esp_cmd(esp, eregs, the_esp_command);
@@ -1234,23 +1232,11 @@ int esp_queue(Scsi_Cmnd *SCpnt, void (*done)(Scsi_Cmnd *))
 		SCpnt->SCp.buffer           =
 			(struct scatterlist *) SCpnt->request_buffer;
 		SCpnt->SCp.buffers_residual = 0;
-#ifdef CONFIG_SCSI_SUNESP
-		/* Sneaky. */
-		SCpnt->SCp.have_data_in = mmu_get_scsi_one((char *)SCpnt->SCp.buffer,
-							   SCpnt->SCp.this_residual,
-							   esp->edev->my_bus);
-		/* XXX The casts are extremely gross, but with 64-bit kernel
-		 * XXX and 32-bit SBUS what am I to do? -DaveM
-		 */
-		SCpnt->SCp.ptr = (char *)((unsigned long)SCpnt->SCp.have_data_in);
-#else
 	        if (esp->dma_mmu_get_scsi_one)
 		    esp->dma_mmu_get_scsi_one (esp, SCpnt);
 	        else
 		    SCpnt->SCp.have_data_in = (int) SCpnt->SCp.ptr =
 			    (char *)SCpnt->request_buffer;
-#endif
-
 	} else {
 		ESPQUEUE(("use_sg "));
 #ifdef DEBUG_ESP_SG
@@ -1260,18 +1246,10 @@ int esp_queue(Scsi_Cmnd *SCpnt, void (*done)(Scsi_Cmnd *))
 		SCpnt->SCp.buffer           = (struct scatterlist *) SCpnt->buffer;
 		SCpnt->SCp.buffers_residual = SCpnt->use_sg - 1;
 		SCpnt->SCp.this_residual    = SCpnt->SCp.buffer->length;
-#ifdef CONFIG_SCSI_SUNESP
-		mmu_get_scsi_sgl((struct mmu_sglist *) SCpnt->SCp.buffer,
-				 SCpnt->SCp.buffers_residual,
-				 ((struct linux_sbus_device *) (esp->edev))->my_bus);
-		/* XXX Again these casts are sick... -DaveM */
-		SCpnt->SCp.ptr=(char *)((unsigned long)SCpnt->SCp.buffer->dvma_address);
-#else
 	        if (esp->dma_mmu_get_scsi_sgl)
 		    esp->dma_mmu_get_scsi_sgl (esp, SCpnt);
 	        else
 	            SCpnt->SCp.ptr = SCpnt->SCp.buffer->address;
-#endif
 	}
 	SCpnt->SCp.Status           = CHECK_CONDITION;
 	SCpnt->SCp.Message          = 0xff;
@@ -1468,22 +1446,11 @@ static void esp_done(struct Sparc_ESP *esp, int error)
 
 		/* Free dvma entry. */
 		if(!done_SC->use_sg) {
-#ifdef CONFIG_SCSI_SUNESP
-			/* Sneaky. */
-			mmu_release_scsi_one(done_SC->SCp.have_data_in,
-					     done_SC->request_bufflen,
-					     ((struct linux_sbus_device *) (esp->edev))->my_bus);
-#endif
 		        if (esp->dma_mmu_release_scsi_one)
 			    esp->dma_mmu_release_scsi_one (esp, done_SC);
 		} else {
 #ifdef DEBUG_ESP_SG
 			printk("esp%d: unmapping sg ", esp->esp_id);
-#endif
-#ifdef CONFIG_SCSI_SUNESP
-			mmu_release_scsi_sgl((struct mmu_sglist *) done_SC->buffer,
-					     done_SC->use_sg - 1,
-					     ((struct linux_sbus_device *) (esp->edev))->my_bus);
 #endif
 		    	if (esp->dma_mmu_release_scsi_sgl)
 			    esp->dma_mmu_release_scsi_sgl (esp, done_SC);
@@ -1858,14 +1825,10 @@ static inline void advance_sg(struct Sparc_ESP *esp, Scsi_Cmnd *sp)
 	++sp->SCp.buffer;
 	--sp->SCp.buffers_residual;
 	sp->SCp.this_residual = sp->SCp.buffer->length;
-#ifdef CONFIG_SCSI_SUNESP
-	sp->SCp.ptr = (char *)((unsigned long)sp->SCp.buffer->dvma_address);
-#else
         if (esp->dma_advance_sg)
 	    esp->dma_advance_sg(sp);
         else
 	    sp->SCp.ptr = sp->SCp.buffer->address;	    
-#endif
 }
 
 /* Please note that the way I've coded these routines is that I _always_
@@ -1906,12 +1869,12 @@ static inline int esp_do_data(struct Sparc_ESP *esp, struct ESP_regs *eregs)
 		esp_cmd(esp, eregs, ESP_CMD_DMA | ESP_CMD_TI);
 
 		if(thisphase == in_datain)
-			esp->dma_init_read(esp, SCptr->SCp.ptr, hmuch);
+			esp->dma_init_read(esp, (__u32) SCptr->SCp.ptr, hmuch);
 		else
-			esp->dma_init_write(esp, SCptr->SCp.ptr, hmuch);
+			esp->dma_init_write(esp, (__u32) SCptr->SCp.ptr, hmuch);
 	} else {
 		esp_setcount(eregs, hmuch, 0);
-		esp->dma_setup(esp, SCptr->SCp.ptr, hmuch, (thisphase == in_datain));
+		esp->dma_setup(esp, (__u32) SCptr->SCp.ptr, hmuch, (thisphase == in_datain));
 		ESPDATA(("DMA|TI --> do_intr_end\n"));
 		esp_cmd(esp, eregs, ESP_CMD_DMA | ESP_CMD_TI);
 	}
@@ -2376,7 +2339,7 @@ static int esp_do_phase_determine(struct Sparc_ESP *esp,
 					esp->esp_command[1] = 0xff;
 					eregs->esp_tclow = 2;
 					eregs->esp_tcmed = 0;
-					esp->dma_init_read(esp, (char *) esp->esp_command, 2);
+					esp->dma_init_read(esp, esp->esp_command_dvma, 2);
 					esp_cmd(esp, eregs, ESP_CMD_DMA | ESP_CMD_ICCSEQ);
 				} else {
 					/* Using DVMA for status/message bytes is
@@ -3126,7 +3089,7 @@ static int esp_do_cmdbegin(struct Sparc_ESP *esp, struct ESP_regs *eregs)
 		esp_cmd(esp, eregs, ESP_CMD_FLUSH);
 		esp_setcount(eregs, i, 1);
 		esp_cmd(esp, eregs, (ESP_CMD_DMA | ESP_CMD_TI));
-		esp->dma_init_write(esp, (char *) esp->esp_command, i);
+		esp->dma_init_write(esp, esp->esp_command_dvma, i);
 	} else {
 		esp_cmd(esp, eregs, ESP_CMD_FLUSH);
 		eregs->esp_fdata = *esp->esp_scmdp++;
@@ -3176,7 +3139,7 @@ static int esp_do_msgout(struct Sparc_ESP *esp, struct ESP_regs *eregs)
 				hme_fifo_push(esp, eregs, &esp->cur_msgout[0], 2);
 				esp_cmd(esp, eregs, ESP_CMD_TI);
 			} else {
-				esp->dma_setup(esp, (char *) esp->esp_command, 2, 0);
+				esp->dma_setup(esp, esp->esp_command_dvma, 2, 0);
 				esp_setcount(eregs, 2, 0);
 				esp_cmd(esp, eregs, ESP_CMD_DMA | ESP_CMD_TI);
 			}
@@ -3200,7 +3163,7 @@ static int esp_do_msgout(struct Sparc_ESP *esp, struct ESP_regs *eregs)
 				hme_fifo_push(esp, eregs, &esp->cur_msgout[0], 4);
 				esp_cmd(esp, eregs, ESP_CMD_TI);
 			} else {
-				esp->dma_setup(esp, (char *) esp->esp_command, 4, 0);
+				esp->dma_setup(esp, esp->esp_command_dvma, 4, 0);
 				esp_setcount(eregs, 4, 0);
 				esp_cmd(esp, eregs, ESP_CMD_DMA | ESP_CMD_TI);
 			}
@@ -3226,7 +3189,7 @@ static int esp_do_msgout(struct Sparc_ESP *esp, struct ESP_regs *eregs)
 				hme_fifo_push(esp, eregs, &esp->cur_msgout[0], 5);
 				esp_cmd(esp, eregs, ESP_CMD_TI);
 			} else {
-				esp->dma_setup(esp, (char *) esp->esp_command, 5, 0);
+				esp->dma_setup(esp, esp->esp_command_dvma, 5, 0);
 				esp_setcount(eregs, 5, 0);
 				esp_cmd(esp, eregs, ESP_CMD_DMA | ESP_CMD_TI);
 			}
@@ -3379,7 +3342,7 @@ inline void esp_handle(struct Sparc_ESP *esp)
 	Scsi_Cmnd *SCptr;
 	int what_next = do_intr_end;
 #ifdef CONFIG_SCSI_SUNESP
-	struct dma_registers *dregs = esp->dregs;
+	struct sparc_dma_registers *dregs = esp->dregs;
 #endif
 	eregs = esp->eregs;
 	SCptr = esp->current_SC;
@@ -3588,17 +3551,6 @@ again:
 		if(esp->current_SC) {
 			Scsi_Cmnd *SCptr = esp->current_SC;
 
-#ifdef CONFIG_SCSI_SUNESP
-			if(!SCptr->use_sg)
-				mmu_release_scsi_one(SCptr->SCp.have_data_in,
-						     SCptr->request_bufflen,
-						     ((struct linux_sbus_device *) (esp->edev))->my_bus);
-			else
-				mmu_release_scsi_sgl((struct mmu_sglist *)
-						     SCptr->buffer,
-						     SCptr->use_sg - 1,
-						     ((struct linux_sbus_device *) (esp->edev))->my_bus);
-#endif
 		        if(!SCptr->use_sg) {
 			    if (esp->dma_mmu_release_scsi_one)
 				esp->dma_mmu_release_scsi_one (esp, SCptr);
@@ -3614,17 +3566,6 @@ again:
 		if(esp->disconnected_SC) {
 			Scsi_Cmnd *SCptr;
 			while((SCptr = remove_first_SC(&esp->disconnected_SC))) {
-#ifdef CONFIG_SCSI_SUNESP			    
-				if(!SCptr->use_sg)
-					mmu_release_scsi_one(SCptr->SCp.have_data_in,
-							     SCptr->request_bufflen,
-							     ((struct linux_sbus_device *) (esp->edev))->my_bus);
-				else
-					mmu_release_scsi_sgl((struct mmu_sglist *)
-							     SCptr->buffer,
-							     SCptr->use_sg - 1,
-							     ((struct linux_sbus_device *) (esp->edev))->my_bus);
-#endif
 			    	if(!SCptr->use_sg) {
 				    if (esp->dma_mmu_release_scsi_one)
 					esp->dma_mmu_release_scsi_one (esp, SCptr);

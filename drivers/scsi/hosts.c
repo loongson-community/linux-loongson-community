@@ -175,7 +175,7 @@
 #endif
 
 #ifdef CONFIG_SCSI_SUNESP
-#include "esp.h"
+#include "sparc_esp.h"
 #endif
 
 #ifdef CONFIG_SCSI_SGIWD93

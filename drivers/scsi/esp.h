@@ -191,7 +191,7 @@ enum esp_rev {
 struct Sparc_ESP {
   struct Sparc_ESP *next;                 /* Next ESP on probed or NULL */
   struct ESP_regs *eregs;	          /* All esp registers */
-  struct Linux_DMA *dma;                  /* Who I do transfers with. */
+  struct Linux_SBus_DMA *dma;             /* Who I do transfers with. */
   void *dregs;		  		  /* And his registers. */
   struct Scsi_Host *ehost;                /* Backpointer to SCSI Host */
 
@@ -294,13 +294,13 @@ struct Sparc_ESP {
   int  (*dma_bytes_sent)(struct Sparc_ESP *, int);
   int  (*dma_can_transfer)(struct Sparc_ESP *, Scsi_Cmnd *);
   void (*dma_dump_state)(struct Sparc_ESP *);
-  void (*dma_init_read)(struct Sparc_ESP *, char *, int);
-  void (*dma_init_write)(struct Sparc_ESP *, char *, int);
+  void (*dma_init_read)(struct Sparc_ESP *, __u32, int);
+  void (*dma_init_write)(struct Sparc_ESP *, __u32, int);
   void (*dma_ints_off)(struct Sparc_ESP *);
   void (*dma_ints_on)(struct Sparc_ESP *);
   int  (*dma_irq_p)(struct Sparc_ESP *);
   int  (*dma_ports_p)(struct Sparc_ESP *);
-  void (*dma_setup)(struct Sparc_ESP *, char *, int, int);
+  void (*dma_setup)(struct Sparc_ESP *, __u32, int, int);
 
   /* Optional functions (i.e. may be initialized to 0) */
   void (*dma_barrier)(struct Sparc_ESP *);

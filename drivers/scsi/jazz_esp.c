@@ -30,13 +30,13 @@
 static int  dma_bytes_sent(struct Sparc_ESP *esp, int fifo_count);
 static int  dma_can_transfer(struct Sparc_ESP *esp, Scsi_Cmnd *sp);
 static void dma_dump_state(struct Sparc_ESP *esp);
-static void dma_init_read(struct Sparc_ESP *esp, char *vaddress, int length);
-static void dma_init_write(struct Sparc_ESP *esp, char *vaddress, int length);
+static void dma_init_read(struct Sparc_ESP *esp, __u32 vaddress, int length);
+static void dma_init_write(struct Sparc_ESP *esp, __u32 vaddress, int length);
 static void dma_ints_off(struct Sparc_ESP *esp);
 static void dma_ints_on(struct Sparc_ESP *esp);
 static int  dma_irq_p(struct Sparc_ESP *esp);
 static int  dma_ports_p(struct Sparc_ESP *esp);
-static void dma_setup(struct Sparc_ESP *esp, char *addr, int count, int write);
+static void dma_setup(struct Sparc_ESP *esp, __u32 addr, int count, int write);
 static void dma_mmu_get_scsi_one (struct Sparc_ESP *esp, Scsi_Cmnd *sp);
 static void dma_mmu_get_scsi_sgl (struct Sparc_ESP *esp, Scsi_Cmnd *sp);
 static void dma_mmu_release_scsi_one (struct Sparc_ESP *esp, Scsi_Cmnd *sp);
@@ -115,6 +115,9 @@ int jazz_esp_detect(Scsi_Host_Template *tpnt)
 	/* Set the command buffer */
 	esp->esp_command = (volatile unsigned char *)cmd_buffer;
 	
+	/* get virtual dma address for command buffer */
+	esp->esp_command_dvma = vdma_alloc(PHYSADDR(cmd_buffer), sizeof (cmd_buffer));
+	
 	esp->irq = JAZZ_SCSI_IRQ;
 	request_irq(JAZZ_SCSI_IRQ, esp_intr, SA_INTERRUPT, "JAZZ SCSI", esp_intr);
 
@@ -129,7 +132,7 @@ int jazz_esp_detect(Scsi_Host_Template *tpnt)
 
 	esp_initialize(esp);
 	
-	printk("\nESP: Total of %d ESP hosts found, %d actually in use.\n", nesps,esps_in_use);
+	printk("ESP: Total of %d ESP hosts found, %d actually in use.\n", nesps,esps_in_use);
 	esps_running = esps_in_use;
 	return esps_in_use;
     }
@@ -160,22 +163,22 @@ static void dma_dump_state(struct Sparc_ESP *esp)
 	    esp->esp_id, vdma_get_enable((int)esp->dregs), vdma_get_resdiue((int)esp->dregs)));
 }
 
-static void dma_init_read(struct Sparc_ESP *esp, char *vaddress, int length)
+static void dma_init_read(struct Sparc_ESP *esp, __u32 vaddress, int length)
 {
     flush_cache_all();
     vdma_disable ((int)esp->dregs);
     vdma_set_mode ((int)esp->dregs, DMA_MODE_READ);
-    vdma_set_addr ((int)esp->dregs, (long)virt_to_bus(vaddress));
+    vdma_set_addr ((int)esp->dregs, vaddress);
     vdma_set_count ((int)esp->dregs, length);
     vdma_enable ((int)esp->dregs);
 }
 
-static void dma_init_write(struct Sparc_ESP *esp, char *vaddress, int length)
+static void dma_init_write(struct Sparc_ESP *esp, __u32 vaddress, int length)
 {
     flush_cache_all();
     vdma_disable ((int)esp->dregs);    
     vdma_set_mode ((int)esp->dregs, DMA_MODE_WRITE);
-    vdma_set_addr ((int)esp->dregs, (long)virt_to_bus(vaddress));
+    vdma_set_addr ((int)esp->dregs, vaddress);
     vdma_set_count ((int)esp->dregs, length);
     vdma_enable ((int)esp->dregs);    
 }
@@ -202,7 +205,7 @@ static int dma_ports_p(struct Sparc_ESP *esp)
     return (enable & R4030_CHNL_ENABLE);
 }
 
-static void dma_setup(struct Sparc_ESP *esp, char *addr, int count, int write)
+static void dma_setup(struct Sparc_ESP *esp, __u32 addr, int count, int write)
 {
     /* 
      * On the Sparc, DMA_ST_WRITE means "move data from device to memory"

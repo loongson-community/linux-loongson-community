@@ -287,10 +287,10 @@ else
 endif
 
 ifeq ($(CONFIG_SCSI_SUNESP),y)
-L_OBJS += esp.o
+L_OBJS += esp.o sparc_esp.o
 else
   ifeq ($(CONFIG_SCSI_SUNESP),m)
-  M_OBJS += esp.o
+  M_OBJS += esp.o sparc_esp.o
   endif
 endif
 
