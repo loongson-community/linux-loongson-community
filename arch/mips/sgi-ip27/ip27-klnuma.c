@@ -67,12 +67,11 @@ static __init void set_ktext_source(nasid_t client_nasid, nasid_t server_nasid)
 
 	client_cnode = NASID_TO_COMPACT_NODEID(client_nasid);
 
-	kvp = &(PLAT_NODE_DATA(client_cnode)->kern_vars);
+	kvp = node_kern_vars(client_cnode);
 
 	KERN_VARS_ADDR(client_nasid) = (unsigned long)kvp;
 
 	kvp->kv_magic = KV_MAGIC;
-
 	kvp->kv_ro_nasid = server_nasid;
 	kvp->kv_rw_nasid = master_nasid;
 	kvp->kv_ro_baseaddr = NODE_CAC_BASE(server_nasid);

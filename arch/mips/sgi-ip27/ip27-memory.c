@@ -37,7 +37,7 @@ extern pfn_t node_getfirstfree(cnodeid_t cnode);
 short slot_lastfilled_cache[MAX_COMPACT_NODES];
 unsigned short slot_psize_cache[MAX_COMPACT_NODES][MAX_MEM_SLOTS];
 
-plat_pg_data_t *plat_node_data[MAX_COMPACT_NODES];
+ip27_pg_data_t *ip27_node_data[MAX_COMPACT_NODES];
 bootmem_data_t plat_node_bdata[MAX_COMPACT_NODES];
 
 int numa_debug(void)
@@ -182,7 +182,7 @@ void __init prom_meminit(void)
 	unsigned long bootmap_size;
 	int node_datasz;
 
-	node_datasz = PFN_UP(sizeof(plat_pg_data_t));
+	node_datasz = PFN_UP(sizeof(ip27_pg_data_t));
 	mlreset();
 
 	max_low_pfn = num_physpages = szmem(0, 0);
@@ -195,7 +195,7 @@ void __init prom_meminit(void)
 		/*
 		 * Allocate the node data structure on the node first.
 		 */
-		plat_node_data[node] = (plat_pg_data_t *)(__va(slot_freepfn << PAGE_SHIFT));
+		ip27_node_data[node] = __va(slot_freepfn << PAGE_SHIFT);
 
 		NODE_DATA(node)->bdata = plat_node_bdata + node;
 		slot_freepfn += node_datasz;

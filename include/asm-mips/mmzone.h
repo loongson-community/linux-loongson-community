@@ -5,24 +5,8 @@
 #ifndef _ASM_MMZONE_H_
 #define _ASM_MMZONE_H_
 
-#include <linux/config.h>
-#include <asm/sn/addrs.h>
-#include <asm/sn/klkernvars.h>
+#include <mmzone.h>
 
-typedef struct plat_pglist_data {
-	pg_data_t	gendata;
-	kern_vars_t	kern_vars;
-} plat_pg_data_t;
-
-extern int numa_debug(void);
-extern plat_pg_data_t *plat_node_data[];
-
-#define PLAT_NODE_DATA(n)	(plat_node_data[n])
-
-#ifdef CONFIG_DISCONTIGMEM
-#define NODE_DATA(n)		(&(plat_node_data[n]->gendata))
-
-#define pa_to_nid(addr)		NASID_TO_COMPACT_NODEID(NASID_GET(addr))
 #define kvaddr_to_nid(kvaddr)	pa_to_nid(__pa(kvaddr))
 #define pfn_to_nid(pfn)		pa_to_nid((pfn) << PAGE_SHIFT)
 #define pfn_valid(pfn)		((pfn) < num_physpages)
@@ -56,5 +40,4 @@ static inline int kern_addr_valid(unsigned long kvaddr)
 	return test_bit(bit, pg->valid_addr_bitmap);
 }
 
-#endif /* CONFG_DISCONTIGMEM */
 #endif /* _ASM_MMZONE_H_ */
