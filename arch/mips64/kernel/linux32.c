@@ -2454,7 +2454,37 @@ asmlinkage int sys32_get_kernel_syms(struct kernel_sym32 *table)
         return i;
 }
 
-#else
+#else /* CONFIG_MODULES */
+
+asmlinkage unsigned long
+sys32_create_module(const char *name_user, size_t size)
+{
+	return -ENOSYS;
+}
+
+asmlinkage int
+sys32_init_module(const char *name_user, struct module *mod_user)
+{
+	return -ENOSYS;
+}
+
+asmlinkage int
+sys32_delete_module(const char *name_user)
+{
+	return -ENOSYS;
+}
+
+asmlinkage int
+sys32_query_module(const char *name_user, int which, char *buf, size_t bufsize,
+		 size_t *ret)
+{
+	/* Let the program know about the new interface.  Not that
+	   it'll do them much good.  */
+	if (which == 0)
+		return 0;
+
+	return -ENOSYS;
+}
 
 asmlinkage long
 sys32_get_kernel_syms(struct kernel_sym *table)
@@ -2462,4 +2492,4 @@ sys32_get_kernel_syms(struct kernel_sym *table)
 	return -ENOSYS;
 }
 
-#endif
+#endif /* CONFIG_MODULES */
