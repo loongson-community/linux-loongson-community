@@ -535,14 +535,4 @@ __BUILD_SET_CP0(config,CP0_CONFIG)
 #define CEB_KERNEL	2	/* Count events in kernel mode EXL = ERL = 0 */
 #define CEB_EXL		1	/* Count events with EXL = 1, ERL = 0 */
 
-#ifndef _LANGUAGE_ASSEMBLY
-/*
- * Functions to access the performance counter and control registers
- */
-extern asmlinkage unsigned int read_perf_cntr(unsigned int counter);
-extern asmlinkage void write_perf_cntr(unsigned int counter, unsigned int val);
-extern asmlinkage unsigned int read_perf_cntl(unsigned int counter);
-extern asmlinkage void write_perf_cntl(unsigned int counter, unsigned int val);
-#endif
-
 #endif /* _ASM_MIPSREGS_H */
