@@ -589,6 +589,7 @@ struct super_block {
 	struct list_head	s_files;
 
 	struct block_device	*s_bdev;
+	struct quota_mount_options s_dquot;	/* Diskquota specific options */
 
 	union {
 		struct minix_sb_info	minix_sb;
@@ -730,7 +731,6 @@ struct file_system_type {
 	struct file_system_type * next;
 };
 
-#ifdef MODULE
 #define DECLARE_FSTYPE(var,type,read,flags) \
 struct file_system_type var = { \
 	name:		type, \
@@ -738,14 +738,6 @@ struct file_system_type var = { \
 	fs_flags:	flags, \
 	owner:		THIS_MODULE, \
 }
-#else
-#define DECLARE_FSTYPE(var,type,read,flags) \
-struct file_system_type var = { \
-	name:		type, \
-	read_super:	read, \
-	fs_flags:	flags, \
-}
-#endif
 
 #define DECLARE_FSTYPE_DEV(var,type,read) \
 	DECLARE_FSTYPE(var,type,read,FS_REQUIRES_DEV)
@@ -821,7 +813,7 @@ extern int do_truncate(struct dentry *, loff_t start);
 extern int get_unused_fd(void);
 extern void put_unused_fd(unsigned int);
 
-extern struct file *filp_open(const char *, int, int);
+extern struct file *filp_open(const char *, int, int, struct dentry *);
 extern int filp_close(struct file *, fl_owner_t id);
 
 extern char * getname(const char *);
@@ -936,10 +928,15 @@ extern int notify_change(struct dentry *, struct iattr *);
 extern int permission(struct inode *, int);
 extern int get_write_access(struct inode *);
 extern void put_write_access(struct inode *);
-extern struct dentry * open_namei(const char *, int, int);
 extern struct dentry * do_mknod(const char *, int, dev_t);
 extern int do_pipe(int *);
-extern int do_unlink(const char * name);
+extern int do_unlink(const char * name, struct dentry *);
+extern struct dentry * __open_namei(const char *, int, int, struct dentry *);
+
+static inline struct dentry * open_namei(const char *pathname)
+{
+	return __open_namei(pathname, 0, 0, NULL);
+}
 
 /* fs/dcache.c -- generic fs support functions */
 extern int is_subdir(struct dentry *, struct dentry *);
@@ -989,6 +986,7 @@ typedef int (*read_actor_t)(read_descriptor_t *, struct page *, unsigned long, u
 
 
 extern struct dentry * lookup_dentry(const char *, struct dentry *, unsigned int);
+extern struct dentry * lookup_one(const char *, struct dentry *);
 extern struct dentry * __namei(const char *, unsigned int);
 
 #define namei(pathname)		__namei(pathname, 1)

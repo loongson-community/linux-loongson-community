@@ -1,4 +1,4 @@
-/* $Id: page.h,v 1.8 2000/01/27 01:05:37 ralf Exp $
+/* $Id: page.h,v 1.9 2000/02/24 00:13:19 ralf Exp $
  *
  * Definitions for page handling
  *
@@ -28,6 +28,8 @@ extern void (*_copy_page)(void * to, void * from);
 
 #define clear_page(page)	_clear_page(page)
 #define copy_page(to, from)	_copy_page(to, from)
+#define clear_user_page(page, vaddr)	clear_page(page)
+#define copy_user_page(to, from, vaddr)	copy_page(to, from)
 
 /*
  * These are used to make use of C type-checking..

@@ -12,6 +12,8 @@
 #include <linux/string.h>
 #include <linux/stat.h>
 #include <linux/malloc.h>
+#include <linux/locks.h>
+#include <linux/smp_lock.h>
 #include <linux/binfmts.h>
 #include <linux/elf.h>
 #include <linux/init.h>
@@ -81,7 +83,7 @@ static int load_em86(struct linux_binprm *bprm,struct pt_regs *regs)
 	 * space, and we don't need to copy it.
 	 */
 	lock_kernel();
-	dentry = open_namei(interp, 0, 0);
+	dentry = open_namei(interp);
 	unlock_kernel();
 	if (IS_ERR(dentry))
 		return PTR_ERR(dentry);

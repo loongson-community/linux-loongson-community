@@ -70,10 +70,9 @@ static struct net_device *init_alloc_dev(int sizeof_priv)
 {
 	struct net_device *dev;
 	int alloc_size;
-	
-	/* 32-byte alignment */
+
+	/* ensure 32-byte alignment of the private area */
 	alloc_size = sizeof (*dev) + IFNAMSIZ + sizeof_priv + 31;
-	alloc_size &= ~31;		
 
 	dev = (struct net_device *) kmalloc (alloc_size, GFP_KERNEL);
 	if (dev == NULL)
@@ -85,9 +84,9 @@ static struct net_device *init_alloc_dev(int sizeof_priv)
 	memset(dev, 0, alloc_size);
 
 	if (sizeof_priv)
-		dev->priv = (void *) (dev + 1);
+		dev->priv = (void *) (((long)(dev + 1) + 31) & ~31);
 
-	dev->name = sizeof_priv + (char *)(dev + 1);
+	dev->name = sizeof_priv + 31 + (char *)(dev + 1);
 	return dev;
 }
 
@@ -395,6 +394,8 @@ int ether_config(struct net_device *dev, struct ifmap *map)
 
 int register_netdev(struct net_device *dev)
 {
+	int err;
+
 	rtnl_lock();
 
 	/*
@@ -404,8 +405,9 @@ int register_netdev(struct net_device *dev)
 	 
 	if (dev->name && strchr(dev->name, '%'))
 	{
+		err = -EBUSY;
 		if(dev_alloc_name(dev, dev->name)<0)
-			return -EBUSY;
+			goto out;
 	}
 	
 	/*
@@ -414,17 +416,21 @@ int register_netdev(struct net_device *dev)
 	
 	if (dev->name && (dev->name[0]==0 || dev->name[0]==' '))
 	{
+		err = -EBUSY;
 		if(dev_alloc_name(dev, "eth%d")<0)
-			return -EBUSY;
+			goto out;
 	}
 		
 		
-	if (register_netdevice(dev)) {
-		rtnl_unlock();
-		return -EIO;
-	}
+	err = -EIO;
+	if (register_netdevice(dev))
+		goto out;
+
+	err = 0;
+
+out:
 	rtnl_unlock();
-	return 0;
+	return err;
 }
 
 void unregister_netdev(struct net_device *dev)

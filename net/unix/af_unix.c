@@ -8,7 +8,7 @@
  *		as published by the Free Software Foundation; either version
  *		2 of the License, or (at your option) any later version.
  *
- * Version:	$Id: af_unix.c,v 1.89 2000/02/27 19:52:50 davem Exp $
+ * Version:	$Id: af_unix.c,v 1.90 2000/03/16 20:38:45 davem Exp $
  *
  * Fixes:
  *		Linus Torvalds	:	Assorted bug cures.
@@ -569,7 +569,7 @@ static unix_socket *unix_find_other(struct sockaddr_un *sunname, int len,
 
 		/* Do not believe to VFS, grab kernel lock */
 		lock_kernel();
-		dentry = open_namei(sunname->sun_path, 2|O_NOFOLLOW, S_IFSOCK);
+		dentry = __open_namei(sunname->sun_path, 2|O_NOFOLLOW, S_IFSOCK, NULL);
 		if (IS_ERR(dentry)) {
 			*error = PTR_ERR(dentry);
 			unlock_kernel();

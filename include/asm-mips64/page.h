@@ -1,4 +1,4 @@
-/* $Id: page.h,v 1.5 2000/02/06 00:20:27 kanoj Exp $
+/* $Id: page.h,v 1.6 2000/02/24 00:13:20 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -29,6 +29,8 @@ extern void (*_copy_page)(void * to, void * from);
 
 #define clear_page(page)	_clear_page(page)
 #define copy_page(to, from)	_copy_page(to, from)
+#define clear_user_page(page, vaddr)	clear_page(page)
+#define copy_user_page(to, from, vaddr)	copy_page(to, from)
 
 /*
  * These are used to make use of C type-checking..

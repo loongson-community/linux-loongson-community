@@ -528,6 +528,7 @@ static unsigned int yenta_probe_irq(pci_socket_t *socket, u32 isa_irq_mask)
 		cb_writel(socket, CB_SOCKET_EVENT, -1);
 	}
 	cb_writel(socket, CB_SOCKET_MASK, 0);
+	exca_writeb(socket, I365_CSCINT, 0);
 	
 	mask = probe_irq_mask(val) & 0xffff;
 
@@ -739,8 +740,18 @@ static struct cardbus_override_struct {
 	struct pci_socket_ops *op;
 } cardbus_override[] = {
 	{ PD(TI,1130),	&ti113x_ops },
+	{ PD(TI,1031),	&ti_ops },
 	{ PD(TI,1131),	&ti113x_ops },
 	{ PD(TI,1250),	&ti1250_ops },
+	{ PD(TI,1220),	&ti_ops },
+	{ PD(TI,1221),	&ti_ops },
+	{ PD(TI,1210),	&ti_ops },
+	{ PD(TI,1450),	&ti_ops },
+	{ PD(TI,1225),	&ti_ops },
+	{ PD(TI,1251A),	&ti_ops },
+	{ PD(TI,1211),	&ti_ops },
+	{ PD(TI,1251B),	&ti_ops },
+	{ PD(TI,1420),	&ti_ops },
 
 	{ PD(RICOH,RL5C465), &ricoh_ops },
 	{ PD(RICOH,RL5C466), &ricoh_ops },

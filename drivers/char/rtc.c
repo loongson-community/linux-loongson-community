@@ -87,11 +87,11 @@ static struct fasync_struct *rtc_async_queue;
 
 static DECLARE_WAIT_QUEUE_HEAD(rtc_wait);
 
-static spinlock_t rtc_lock = SPIN_LOCK_UNLOCKED;
+extern spinlock_t rtc_lock;
 
 static struct timer_list rtc_irq_timer;
 
-static long long rtc_llseek(struct file *file, loff_t offset, int origin);
+static loff_t rtc_llseek(struct file *file, loff_t offset, int origin);
 
 static ssize_t rtc_read(struct file *file, char *buf,
 			size_t count, loff_t *ppos);
@@ -141,8 +141,11 @@ static const unsigned char days_in_mo[] =
 #if !defined(__alpha__) && !defined(CONFIG_DECSTATION)
 /*
  *	A very tiny interrupt handler. It runs with SA_INTERRUPT set,
- *	so that there is no possibility of conflicting with the
- *	set_rtc_mmss() call that happens during some timer interrupts.
+ *	but there is possibility of conflicting with the set_rtc_mmss()
+ *	call (the rtc irq and the timer irq can easily run at the same
+ *	time in two different CPUs). So we need to serializes
+ *	accesses to the chip with the rtc_lock spinlock that each
+ *	architecture should implement in the timer code.
  *	(See ./arch/XXXX/kernel/time.c for the set_rtc_mmss() function.)
  */
 
@@ -175,7 +178,7 @@ static void rtc_interrupt(int irq, void *dev_id, struct pt_regs *regs)
  *	Now all the various file operations that we export.
  */
 
-static long long rtc_llseek(struct file *file, loff_t offset, int origin)
+static loff_t rtc_llseek(struct file *file, loff_t offset, int origin)
 {
 	return -ESPIPE;
 }

@@ -420,7 +420,7 @@ static int __devinit via_rhine_init_one (struct pci_dev *pdev,
 	if (via_rhine_chip_info[chip_id].flags & PCI_USES_MASTER)
 		pci_set_master (pdev);
 
-	dev = init_etherdev(NULL, sizeof (*np));
+	dev = init_etherdev(NULL, sizeof(*np));
 	if (dev == NULL) {
 		printk (KERN_ERR "init_ethernet failed for card #%d\n",
 			card_idx);

@@ -165,14 +165,12 @@ asmlinkage long sys_uselib(const char * library)
 	if (file && file->f_dentry && file->f_op && file->f_op->read) {
 		spin_lock(&binfmt_lock);
 		for (fmt = formats ; fmt ; fmt = fmt->next) {
-			int (*fn)(int) = fmt->load_shlib;
-			if (!fn)
+			if (!fmt->load_shlib)
 				continue;
 			if (!try_inc_mod_count(fmt->module))
 				continue;
 			spin_unlock(&binfmt_lock);
-			/* N.B. Should use file instead of fd */
-			retval = fn(fd);
+			retval = fmt->load_shlib(file);
 			spin_lock(&binfmt_lock);
 			put_binfmt(fmt);
 			if (retval != -ENOEXEC)
@@ -718,6 +716,8 @@ void compute_creds(struct linux_binprm *bprm)
         if (current->euid != current->uid || current->egid != current->gid ||
 	    !cap_issubset(new_permitted, current->cap_permitted))
                 current->dumpable = 0;
+
+	current->keep_capabilities = 0;
 }
 
 
@@ -775,7 +775,7 @@ int search_binary_handler(struct linux_binprm *bprm,struct pt_regs *regs)
                     bprm_loader.page[i] = NULL;
 
 		lock_kernel();
-		dentry = open_namei(dynloader[0], 0, 0);
+		dentry = open_namei(dynloader[0]);
 		unlock_kernel();
 		retval = PTR_ERR(dentry);
 		if (IS_ERR(dentry))
@@ -855,7 +855,7 @@ int do_execve(char * filename, char ** argv, char ** envp, struct pt_regs * regs
 	memset(bprm.page, 0, MAX_ARG_PAGES*sizeof(bprm.page[0])); 
 
 	lock_kernel();
-	dentry = open_namei(filename, 0, 0);
+	dentry = open_namei(filename);
 	unlock_kernel();
 
 	retval = PTR_ERR(dentry);
@@ -944,7 +944,7 @@ int do_coredump(long signr, struct pt_regs * regs)
 #else
 	corename[4] = '\0';
 #endif
-	file = filp_open(corename, O_CREAT | 2 | O_TRUNC | O_NOFOLLOW, 0600);
+	file = filp_open(corename, O_CREAT | 2 | O_TRUNC | O_NOFOLLOW, 0600, NULL);
 	if (IS_ERR(file))
 		goto fail;
 	dentry = file->f_dentry;

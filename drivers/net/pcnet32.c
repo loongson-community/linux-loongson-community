@@ -949,7 +949,7 @@ pcnet32_init_ring(struct net_device *dev)
 	lp->tx_ring[i].status = 0;
     }
 
-    lp->init_block.tlen_rlen = TX_RING_LEN_BITS | RX_RING_LEN_BITS;
+    lp->init_block.tlen_rlen = le16_to_cpu(TX_RING_LEN_BITS | RX_RING_LEN_BITS);
     for (i = 0; i < 6; i++)
 	lp->init_block.phys_addr[i] = dev->dev_addr[i];
     lp->init_block.rx_ring = (u32)le32_to_cpu(virt_to_bus(lp->rx_ring));
@@ -1073,8 +1073,10 @@ pcnet32_start_xmit(struct sk_buff *skb, struct net_device *dev)
 
     if (lp->tx_ring[(entry+1) & TX_RING_MOD_MASK].base == 0)
 	netif_start_queue(dev);
-    else
+    else {
 	lp->tx_full = 1;
+	netif_stop_queue(dev);
+    }
     spin_unlock_irqrestore(&lp->lock, flags);
     return 0;
 }

@@ -451,6 +451,76 @@ no_inode:
 }
 
 /*
+ * Restricted form of lookup. Doesn't follow links, single-component only,
+ * needs parent already locked. Doesn't follow mounts.
+ */
+struct dentry * lookup_one(const char * name, struct dentry * base)
+{
+	struct dentry * dentry;
+	struct inode *inode;
+	int err;
+	unsigned long hash;
+	struct qstr this;
+	unsigned int c;
+
+	inode = base->d_inode;
+	err = permission(inode, MAY_EXEC);
+	dentry = ERR_PTR(err);
+	if (err)
+		goto out;
+
+	this.name = name;
+	c = *(const unsigned char *)name;
+	if (!c)
+		goto access;
+
+	hash = init_name_hash();
+	do {
+		name++;
+		if (c == '/')
+			goto access;
+		hash = partial_name_hash(c, hash);
+		c = *(const unsigned char *)name;
+	} while (c);
+	this.len = name - (const char *) this.name;
+	this.hash = end_name_hash(hash);
+
+	/*
+	 * See if the low-level filesystem might want
+	 * to use its own hash..
+	 */
+	if (base->d_op && base->d_op->d_hash) {
+		err = base->d_op->d_hash(base, &this);
+		dentry = ERR_PTR(err);
+		if (err < 0)
+			goto out;
+	}
+
+	dentry = cached_lookup(base, &this, 0);
+	if (!dentry) {
+		struct dentry *new = d_alloc(base, &this);
+		dentry = ERR_PTR(-ENOMEM);
+		if (!new)
+			goto out;
+		dentry = inode->i_op->lookup(inode, new);
+		if (!dentry)
+			dentry = new;
+		else {
+			dput(new);
+			if (IS_ERR(dentry))
+				goto out;
+		}
+	}
+
+out:
+	dput(base);
+	return dentry;
+access:
+	dentry = ERR_PTR(-EACCES);
+	goto out;
+}
+
+/*
  *	namei()
  *
  * is used by most simple commands to get the inode of a specified name.
@@ -609,13 +679,13 @@ exit_lock:
  * which is a lot more logical, and also allows the "no perm" needed
  * for symlinks (where the permissions are checked later).
  */
-struct dentry * open_namei(const char * pathname, int flag, int mode)
+struct dentry * __open_namei(const char * pathname, int flag, int mode, struct dentry * dir)
 {
 	int acc_mode, error;
 	struct inode *inode;
 	struct dentry *dentry;
 
-	dentry = lookup_dentry(pathname, NULL, lookup_flags(flag));
+	dentry = lookup_dentry(pathname, dir, lookup_flags(flag));
 	if (IS_ERR(dentry))
 		return dentry;
 
@@ -1012,13 +1082,13 @@ int vfs_unlink(struct inode *dir, struct dentry *dentry)
 	return error;
 }
 
-int do_unlink(const char * name)
+int do_unlink(const char * name, struct dentry * base)
 {
 	int error;
 	struct dentry *dir;
 	struct dentry *dentry;
 
-	dentry = lookup_dentry(name, NULL, 0);
+	dentry = lookup_dentry(name, base, 0);
 	error = PTR_ERR(dentry);
 	if (IS_ERR(dentry))
 		goto exit;
@@ -1043,7 +1113,7 @@ asmlinkage long sys_unlink(const char * pathname)
 	if(IS_ERR(tmp))
 		return PTR_ERR(tmp);
 	lock_kernel();
-	error = do_unlink(tmp);
+	error = do_unlink(tmp, NULL);
 	unlock_kernel();
 	putname(tmp);
 
@@ -1427,16 +1497,17 @@ asmlinkage long sys_rename(const char * oldname, const char * newname)
 
 int vfs_readlink(struct dentry *dentry, char *buffer, int buflen, const char *link)
 {
-	u32 len;
+	int len;
 
 	len = PTR_ERR(link);
 	if (IS_ERR(link))
 		goto out;
 
 	len = strlen(link);
-	if (len > buflen)
+	if (len > (unsigned) buflen)
 		len = buflen;
-	copy_to_user(buffer, link, len);
+	if (copy_to_user(buffer, link, len))
+		len = -EFAULT;
 out:
 	return len;
 }

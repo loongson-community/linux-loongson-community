@@ -320,6 +320,47 @@ CONFIG_BLK_DEV_NBD
 
   If unsure, say N.
 
+ATA/IDE/MFM/RLL support
+CONFIG_IDE
+  If you say Y here, your kernel will be able to manage low cost mass storage
+  units such as ATA/(E)IDE and ATAPI units.
+
+  Integrated Disk Electronics (IDE aka ATA-1) is a connecting standard for
+  mass storage units such as hard disks. It was designed by Western Digital
+  and Compaq Computer in 1984. It was then named ST506.
+  Quite a number of disks use IDE interface.  State of the art disks use SCSI
+  interface.
+	
+  AT Atachment (ATA) is a subset of the IDE specifications.
+  ST506 was also called ATA-1.
+
+  Fast-IDE is ATA-2 (also named Fast ATA), Enhanced IDE (EIDE) is ATA-3. It 
+  provides support for larger disks (up to 8.4GB by means of the LBA standard),
+  more disks (4 instead of 2) and for other mass storage units such as tapes 
+  and cdrom.
+  UDMA/33 (aka UltraDMA/33) is ATA-4 and provides faster (and more CPU friendly)
+  transfer modes than previous PIO (Programmed processor Input/Ouput) from
+  previous ATA/IDE standards by means of fast DMA controlers.
+
+  ATA Packet Interface (ATAPI) is a protocol used by EIDE tape and CDROM
+  drives, similar in many respects to the SCSI protocol.
+  
+  SMART IDE (Self Monitoring, Analysis and Reporting Technology) was designed
+  in order to prevent data corruption and disk crash by detecting pre hardware
+  faillure conditions (heat, access time, and the like...). Disks builded since
+  june 1995 may follow this standard. The kernel itself don't manage this;
+  however there are quite a number of user programs such as smart that can
+  query the status of SMART parameters disk.
+
+  If you want to compile this driver as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want),
+  say M here and read Documentation/modules.txt. The module will be
+  called ide.o.
+
+  For further information, please read Documentation/ide.txt.
+
+  If unsure, say Y.
+
 Enhanced IDE/MFM/RLL disk/cdrom/tape/floppy support
 CONFIG_BLK_DEV_IDE
   If you say Y here, you will use the full-featured IDE driver to
@@ -1657,6 +1698,230 @@ CONFIG_NETFILTER
   Chances are that you should say Y here if you compile a kernel which
   will run as a router and N for regular hosts. If unsure, say N.
  
+IP: connection tracking (required for masq/NAT)
+CONFIG_IP_NF_CONNTRACK
+  Connection tracking keeps a record of what packets have passed
+  through your machine, in order to figure out how they are related
+  into connections.
+
+  This is required to do Masquerading or other kinds of Network
+  Address Translation (except for Fast NAT).  It can also be used to
+  enhance packet filtering (see `Connection state match support'
+  below).
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+FTP protocol support
+CONFIG_IP_NF_FTP
+  Tracking FTP connections is problematic: special helpers are
+  required for tracking them, and doing masquerading and other forms
+  of Network Address Translation on them.
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `Y'.
+
+IP: userspace queueing via NETLINK (EXPERIMENTAL)
+CONFIG_IP_NF_QUEUE
+  Netfilter has the ability to queue packets to userspace: the netlink
+  device can be used to access them using this driver.
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+IP: ip tables support (required for filtering/masq/NAT)
+CONFIG_IP_NF_IPTABLES
+  iptables is a general, extensible packet identification framework.
+  The packet filtering and full NAT (masquerading, port forwarding,
+  etc) subsystems now use this: say `Y' or `M' here if you want to use
+  either of those.
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+limit match support
+CONFIG_IP_NF_MATCH_LIMIT
+  limit matching allows you to control the rate at which a rule can be
+  matched: mainly useful in combination with the LOG target.
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+MAC address match support
+CONFIG_IP_NF_MATCH_MAC
+  mac matching allows you to match packets based on the source
+  ethernet address of the packet.
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+netfilter mark match support
+CONFIG_IP_NF_MATCH_MARK
+  Netfilter mark matching allows you to match packets based on the
+  `nfmark' value in the packet.  This can be set by the MARK target
+  (see below).
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+Multiple port match support
+CONFIG_IP_NF_MATCH_MULTIPORT
+  Multiport matching allows you to match TCP or UDP packets based on
+  a series of source or destination ports: normally a rule can only
+  match a single range of ports.
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+TOS match support
+CONFIG_IP_NF_MATCH_TOS
+  TOS matching allows you to match packets based on the Type Of
+  Service fields of the IP packet.
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+Connection state match support
+CONFIG_IP_NF_MATCH_STATE
+  Connection state matching allows you to match packets based on their
+  relationship to a tracked connection (ie. previous packets).  This
+  is a powerful tool for packet classification.
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+Unclean match support (EXPERIMENTAL)
+CONFIG_IP_NF_MATCH_UNCLEAN
+  Unclean packet matching matches any strange or invalid packets, by
+  looking at a series of fields in the IP, TCP, UDP and ICMP headers.
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+Owner match support (EXPERIMENTAL)
+CONFIG_IP_NF_MATCH_OWNER
+
+  Packet owner matching allows you to match locally-generated packets
+  based on who created them: the user, group, process or session.
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+Packet filtering
+CONFIG_IP_NF_FILTER
+  Packet filtering defines a table `filter', which has a series of
+  rules for simple packet filtering at local input, forwarding and
+  local output.  See the man page for iptables(8).
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+REJECT target support
+CONFIG_IP_NF_TARGET_REJECT
+  The REJECT target allows a filtering rule to specify that an ICMP
+  error should be issued in response to an incoming packet, rather
+  than silently being dropped.
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+MIRROR target support (EXPERIMENTAL)
+CONFIG_IP_NF_TARGET_MIRROR
+  The MIRROR target allows a filtering rule to specify that an
+  incoming packet should be bounced back to the sender.
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+Full NAT
+CONFIG_IP_NF_NAT
+  The Full NAT option allows masquerading, port forwarding and other
+  forms of full Network Address Port Translation.  It is controlled by
+  the `nat' table in iptables: see the man page for iptables(8).
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+MASQUERADE target support
+CONFIG_IP_NF_TARGET_MASQUERADE
+  Masquerading is a special case of NAT: all outgoing connections are
+  changed to seem to come from a particular interface's address, and
+  if the interface goes down, those connections are lost.  This is
+  only useful for dialup accounts with dynamic IP address (ie. your IP
+  address will be different on next dialup).
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+REDIRECT target support
+CONFIG_IP_NF_TARGET_REDIRECT
+  REDIRECT is a special case of NAT: all incoming connections are
+  mapped onto the incoming interface's address, causing the packets to
+  come to the local machine instead of passing through.  This is
+  useful for tranparent proxies.
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+Packet mangling
+CONFIG_IP_NF_MANGLE
+  This option adds a `mangle' table to iptables: see the man page for
+  iptables(8).  This table is used for various packet alterations
+  which can effect how the packet is routed.
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+TOS target support
+CONFIG_IP_NF_TARGET_TOS
+  This option adds a `TOS' target, which allows you to create rules in
+  the `mangle' table which alter the Type Of Service field of an IP
+  packet prior to routing.
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+MARK target support
+CONFIG_IP_NF_TARGET_MARK
+  This option adds a `MARK' target, which allows you to create rules in
+  the `mangle' table which alter the netfilter mark (nfmark) field
+  associated with the packet packet prior to routing.  This can change
+  the routing method (see `IP: use netfilter MARK value as routing key')
+  and can also be used by other subsystems to change their behavior.
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+LOG target support
+CONFIG_IP_NF_TARGET_LOG
+  This option adds a `LOG' target, which allows you to create rules in
+  any iptables table which records the packet header to the syslog.
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+ipchains (2.2-style) support
+CONFIG_IP_NF_COMPAT_IPCHAINS
+  This option places ipchains (with masquerading and redirection
+  support) back into the kernel, using the new netfilter
+  infrastructure.  It is not recommended for new installations (see
+  `Packet filtering').  With this enabled, you should be able to use
+  the ipchains tool exactly as in 2.2 kernels.
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
+ipfwadm (2.0-style) support
+CONFIG_IP_NF_COMPAT_IPFWADM
+  This option places ipfwadm (with masquerading and redirection
+  support) back into the kernel, using the new netfilter
+  infrastructure.  It is not recommended for new installations (see
+  `Packet filtering').  With this enabled, you should be able to use
+  the ipfwadm tool exactly as in 2.0 kernels.
+
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt.  If unsure, say `N'.
+
 SYN flood protection
 CONFIG_SYN_COOKIES
   Normal TCP/IP networking is open to an attack known as "SYN
@@ -3098,17 +3363,16 @@ CONFIG_IP_ROUTE_MULTIPATH
 
 IP: use TOS value as routing key
 CONFIG_IP_ROUTE_TOS
-  The header of every IP packet carries a TOS (Type of Service) value
+  The header of every IP packet carries a TOS (Type Of Service) value
   with which the packet requests a certain treatment, e.g. low latency
   (for interactive traffic), high throughput, or high reliability. If
   you say Y here, you will be able to specify different routes for
   packets with different TOS values.
 
-IP: use FWMARK value as routing key
+IP: use netfilter MARK value as routing key
 CONFIG_IP_ROUTE_FWMARK
   If you say Y here, you will be able to specify different routes for
-  packets with different FWMARK ("firewalling mark") values
-  (see ipchains(8), "-m" argument).
+  packets with different mark values (see iptables(8), MARK target).
 
 IP: verbose route monitoring
 CONFIG_IP_ROUTE_VERBOSE
@@ -5793,6 +6057,26 @@ CONFIG_NETDEVICES
   Guide", to be found in ftp://metalab.unc.edu/pub/Linux/docs/LDP . If
   unsure, say Y.
 
+Bonding driver support
+CONFIG_BONDING
+  Say 'Y' or 'M' if you wish to be able to 'bond' multiple Ethernet
+  Channels together.  This is called 'Etherchannel' by Cisco, 'Trunking'
+  by Sun, and 'Bonding' in Linux.
+
+  If you have two ethernet connections to some other computer, you can
+  make them behave like one double speed connection using this driver.
+  Naturally, this has to be supported at the other end as well, either
+  with a similar Bonding Linux driver, a Cisco 5500 switch or a
+  SunTrunking SunSoft driver.
+
+  This is similar to the EQL driver, but it merge etherner segments instead
+  of serial lines.
+
+  If you want to compile this as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want),
+  say M here and read Documentation/modules.txt. The module will be
+  called bonding.o.
+
 Dummy net driver support
 CONFIG_DUMMY
   This is essentially a bit-bucket device (i.e. traffic you send to
@@ -7085,11 +7369,12 @@ CONFIG_NE2K_PCI
   module, say M here and read Documentation/modules.txt as well as
   Documentation/networking/net-modules.txt.
 
-PCI DM9102 support
+PCI DM9102(A)/DM9132/DM9801 support 
 CONFIG_DM9102
   This driver is for DM9102 compatible PCI cards from Davicom 
-  (http://www.davicom.com.tw) 
-  If you have a PCI DM9102 network (Ethernet) card, say Y.
+  (http://www.davicom.com.tw) including models DM9132 & DM9801.
+  If you have a PCI DM9102, DM9132 or DM9801 network (Ethernet)
+  card, say Y.
 
   This driver is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
@@ -8220,6 +8505,14 @@ CONFIG_SKFP
   inserted in and removed from the running kernel whenever you want),
   say M here and read Documentation/modules.txt. This is recommended.
   The module will be called skfp.o.
+
+Linux telephony support
+CONFIG_PHONE
+  This option enable the kernel to manage telephony cards.
+
+  There are very few supported cards at this moment.
+
+  If unsure, say N.
 
 HIgh Performance Parallel Interface support (EXPERIMENTAL)
 CONFIG_HIPPI
@@ -9454,7 +9747,7 @@ CONFIG_ROMFS_FS
   answer N.
 
 QNX4 file system support (read only) (EXPERIMENTAL)
-CONFIG_QNX4FS_FS  
+CONFIG_QNX4FS_FS
   This is the file system used by the operating system QNX 4. Say Y if
   you intend to mount QNX hard disks or floppies. Unless you say Y to
   "QNX4FS write support" below, you will only be able to read
@@ -11076,6 +11369,16 @@ CONFIG_APPLICOM
   applicom.o.
 
   If unsure, say N.
+
+Power Management support
+CONFIG_PM
+  This enable the kernel to lower the requested computer power by making some
+  devices enter in lower power levels (standy, sleep, ... modes).
+  Basically, this let you save power.
+  Two majors interfaces exist between the hardware and the OS, the older
+  Advanced Power Management (APM) and the newer Advanced Configuration and
+  Power Interface (ACPI).
+  Both are supported by the Linux Kernel.
 
 Enter S1 for sleep (EXPERIMENTAL)
 CONFIG_ACPI_S1_SLEEP
@@ -13908,7 +14211,7 @@ CONFIG_ARCH_NETWINDER
   Say Y here if you intend to run this kernel on the NetWinder.
 
 Include support for the Compaq Personal Server
-CONFIG_PERSONAL_SERVER
+CONFIG_ARCH_PERSONAL_SERVER
   Say Y here if you intend to run this kernel on the Compaq
   Personal Server.
   

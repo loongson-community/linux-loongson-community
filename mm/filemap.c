@@ -108,14 +108,15 @@ void invalidate_inode_pages(struct inode * inode)
 		curr = curr->next;
 
 		/* We cannot invalidate a locked page */
-		if (PageLocked(page))
+		if (TryLockPage(page))
 			continue;
 
 		lru_cache_del(page);
-
 		remove_page_from_inode_queue(page);
 		remove_page_from_hash_queue(page);
 		page->mapping = NULL;
+		UnlockPage(page);
+
 		page_cache_release(page);
 	}
 	spin_unlock(&pagecache_lock);
@@ -1413,7 +1414,7 @@ success:
 		struct page *new_page = page_cache_alloc();
 
 		if (new_page) {
-			copy_highpage(new_page, old_page);
+			copy_user_highpage(new_page, old_page, address);
 			flush_page_to_ram(new_page);
 		} else
 			new_page = NOPAGE_OOM;

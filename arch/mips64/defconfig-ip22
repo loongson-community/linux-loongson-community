@@ -53,12 +53,8 @@ CONFIG_BINFMT_ELF=y
 # Block devices
 #
 # CONFIG_BLK_DEV_FD is not set
-# CONFIG_BLK_DEV_IDE is not set
-
-#
-# Please see Documentation/ide.txt for help/info on IDE drives
-#
-# CONFIG_BLK_DEV_HD_ONLY is not set
+# CONFIG_BLK_DEV_XD is not set
+# CONFIG_PARIDE is not set
 
 #
 # Additional Block Devices
@@ -67,10 +63,6 @@ CONFIG_BINFMT_ELF=y
 # CONFIG_BLK_DEV_NBD is not set
 # CONFIG_BLK_DEV_MD is not set
 # CONFIG_BLK_DEV_RAM is not set
-# CONFIG_BLK_DEV_XD is not set
-# CONFIG_PARIDE is not set
-# CONFIG_BLK_DEV_IDE_MODES is not set
-# CONFIG_BLK_DEV_HD is not set
 
 #
 # Networking options
@@ -102,12 +94,20 @@ CONFIG_SKB_LARGE=y
 #
 # CONFIG_IPX is not set
 # CONFIG_ATALK is not set
+# CONFIG_DECNET is not set
 
 #
 # Telephony Support
 #
 # CONFIG_PHONE is not set
 # CONFIG_PHONE_IXJ is not set
+
+#
+# ATA/IDE/MFM/RLL support
+#
+# CONFIG_IDE is not set
+# CONFIG_BLK_DEV_IDE_MODES is not set
+# CONFIG_BLK_DEV_HD is not set
 
 #
 # SCSI support
@@ -225,7 +225,6 @@ CONFIG_VT_CONSOLE=y
 # CONFIG_WATCHDOG is not set
 # CONFIG_NVRAM is not set
 # CONFIG_RTC is not set
-# CONFIG_EFI_RTC is not set
 
 #
 # Video For Linux
