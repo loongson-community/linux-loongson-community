@@ -57,9 +57,6 @@ static int galileo_pcibios_write_config_word(int bus, int devfn,
 					     int offset, u16 val);
 static int galileo_pcibios_write_config_dword(int bus, int devfn,
 					      int offset, u32 val);
-#if 0
-static void galileo_pcibios_set_master(struct pci_dev *dev);
-#endif
 
 static int pci_read(struct pci_bus *bus, unsigned int devfs, int where,
 		    int size, u32 * val);
@@ -341,17 +338,6 @@ static int galileo_pcibios_write_config_byte(int bus, int devfn,
 
 	return PCIBIOS_SUCCESSFUL;
 }
-
-#if 0
-static void galileo_pcibios_set_master(struct pci_dev *dev)
-{
-	u16 cmd;
-
-	galileo_pcibios_read_config_word(dev, PCI_COMMAND, &cmd);
-	cmd |= PCI_COMMAND_MASTER;
-	galileo_pcibios_write_config_word(dev, PCI_COMMAND, cmd);
-}
-#endif
 
 struct pci_ops galileo_pci_ops = {
 	.read = pci_read,

@@ -108,7 +108,6 @@ static int galileo_pcibios_read(struct pci_bus *bus, unsigned int devfn,
 				int offset, int size, u32 * val);
 static int galileo_pcibios_write(struct pci_bus *bus, unsigned int devfn,
 				 int offset, int size, u32 val);
-static void galileo_pcibios_set_master(struct pci_dev *dev);
 
 /*
  *  General-purpose PCI functions.
@@ -729,15 +728,6 @@ static int galileo_pcibios_write(struct pci_bus *bus, unsigned int devfn,
 		//if (busnum == 1) pci1WriteConfigReg (offset,bus->dev,tmp);
 	}
 	return PCIBIOS_SUCCESSFUL;
-}
-
-static void galileo_pcibios_set_master(struct pci_dev *dev)
-{
-	u16 cmd;
-
-	galileo_pcibios_read(dev->bus, dev->devfn, PCI_COMMAND, 2, &cmd);
-	cmd |= PCI_COMMAND_MASTER;
-	galileo_pcibios_write(dev->bus, dev->devfn, PCI_COMMAND, 2, cmd);
 }
 
 /*  Externally-expected functions.  Do not change function names  */

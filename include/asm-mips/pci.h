@@ -17,15 +17,17 @@
 
 extern unsigned int pcibios_assign_all_busses(void);
 
+#if defined(CONFIG_DDB5074) || defined(CONFIG_DDB5476)
+#define PCIBIOS_MIN_IO		0x0100000
+#define PCIBIOS_MIN_MEM		0x1000000
+#else
 #define PCIBIOS_MIN_IO		0x1000
 #define PCIBIOS_MIN_MEM		0x10000000
+#endif
 
 #define PCIBIOS_MIN_CARDBUS_IO	0x4000
 
-static inline void pcibios_set_master(struct pci_dev *dev)
-{
-	/* No special bus mastering setup handling */
-}
+extern void pcibios_set_master(struct pci_dev *dev);
 
 static inline void pcibios_penalize_isa_irq(int irq)
 {
@@ -42,13 +44,6 @@ static inline void pcibios_penalize_isa_irq(int irq)
 #include <asm/scatterlist.h>
 #include <linux/string.h>
 #include <asm/io.h>
-
-#if defined(CONFIG_DDB5074) || defined(CONFIG_DDB5476)
-#undef PCIBIOS_MIN_IO
-#undef PCIBIOS_MIN_MEM
-#define PCIBIOS_MIN_IO		0x0100000
-#define PCIBIOS_MIN_MEM		0x1000000
-#endif
 
 struct pci_dev;
 

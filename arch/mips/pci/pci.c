@@ -30,7 +30,7 @@ unsigned int pci_probe = PCI_ASSIGN_ALL_BUSSES;
 /*
  * The PCI controller list.
  */
-                                                                                
+
 struct pci_controller *hose_head, **hose_tail = &hose_head;
 struct pci_controller *pci_isa_hose;
 
@@ -131,6 +131,27 @@ static int pcibios_enable_resources(struct pci_dev *dev, int mask)
 		pci_write_config_word(dev, PCI_COMMAND, cmd);
 	}
 	return 0;
+}
+
+/*
+ *  If we set up a device for bus mastering, we need to check the latency
+ *  timer as certain crappy BIOSes forget to set it properly.
+ */
+unsigned int pcibios_max_latency = 255;
+
+void pcibios_set_master(struct pci_dev *dev)
+{
+	u8 lat;
+	pci_read_config_byte(dev, PCI_LATENCY_TIMER, &lat);
+	if (lat < 16)
+		lat = (64 <= pcibios_max_latency) ? 64 : pcibios_max_latency;
+	else if (lat > pcibios_max_latency)
+		lat = pcibios_max_latency;
+	else
+		return;
+	printk(KERN_DEBUG "PCI: Setting latency timer of device %s to %d\n",
+	       pci_name(dev), lat);
+	pci_write_config_byte(dev, PCI_LATENCY_TIMER, lat);
 }
 
 static int pcibios_enable_irq(struct pci_dev *dev)

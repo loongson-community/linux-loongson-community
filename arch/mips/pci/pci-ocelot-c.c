@@ -54,7 +54,6 @@ static int marvell_pcibios_write_config_word(struct pci_dev *dev,
 					     int offset, u16 val);
 static int marvell_pcibios_write_config_dword(struct pci_dev *dev,
 					      int offset, u32 val);
-static void marvell_pcibios_set_master(struct pci_dev *dev);
 
 /*
  *  General-purpose PCI functions.
@@ -320,15 +319,6 @@ static int marvell_pcibios_write_config_byte(struct pci_dev *device,
 	MV_WRITE_8(data_reg + (offset & 0x3), val);
 
 	return PCIBIOS_SUCCESSFUL;
-}
-
-static void marvell_pcibios_set_master(struct pci_dev *dev)
-{
-	u16 cmd;
-
-	marvell_pcibios_read_config_word(dev, PCI_COMMAND, &cmd);
-	cmd |= PCI_COMMAND_MASTER;
-	marvell_pcibios_write_config_word(dev, PCI_COMMAND, cmd);
 }
 
 struct pci_ops marvell_pci_ops = {
