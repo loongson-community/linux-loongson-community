@@ -33,9 +33,12 @@
 #include <asm/pci/bridge.h>
 #include <asm/sn/sn0/hub.h>
 #include <asm/sn/sn0/ip27.h>
+#include <asm/sn/addrs.h>
+#include <asm/sn/agent.h>
 #include <asm/sn/arch.h>
 #include <asm/sn/intr.h>
 #include <asm/sn/intr_public.h>
+
 
 #undef DEBUG_IRQ
 #ifdef DEBUG_IRQ
@@ -513,6 +516,34 @@ void handle_resched_intr(int irq, void *dev_id, struct pt_regs *regs)
 {
 	/* Nothing, the return from intr will work for us */
 }
+
+#ifdef CONFIG_SMP
+
+void sendintr(int destid, unsigned char status)
+{
+	int irq;
+
+#if (CPUS_PER_NODE == 2)
+	switch (status) {
+		case DORESCHED:	irq = CPU_RESCHED_A_IRQ; break;
+		case DOCALL:	irq = CPU_CALL_A_IRQ; break;
+		default:	panic("sendintr");
+	}
+	irq += cputoslice(destid);
+
+	/*
+	 * Convert the compact hub number to the NASID to get the correct
+	 * part of the address space.  Then set the interrupt bit associated
+	 * with the CPU we want to send the interrupt to.
+	 */
+	REMOTE_HUB_SEND_INTR(COMPACT_TO_NASID_NODEID(cputocnode(destid)),
+			FAST_IRQ_TO_LEVEL(irq));
+#else
+	<< Bomb!  Must redefine this for more than 2 CPUS. >>
+#endif
+}
+
+#endif
 
 extern void smp_call_function_interrupt(void);
 
