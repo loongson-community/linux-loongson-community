@@ -45,7 +45,9 @@ dep_tristate '  ESS Maestro3/Allegro driver (EXPERIMENTAL)' CONFIG_SOUND_MAESTRO
 dep_tristate '  Intel ICH (i8xx) audio support' CONFIG_SOUND_ICH $CONFIG_PCI
 dep_tristate '  RME Hammerfall (RME96XX) support' CONFIG_SOUND_RME96XX $CONFIG_SOUND $CONFIG_PCI $CONFIG_EXPERIMENTAL
 dep_tristate '  S3 SonicVibes' CONFIG_SOUND_SONICVIBES $CONFIG_SOUND
-dep_tristate '  SGI Visual Workstation sound' CONFIG_SOUND_VWSND $CONFIG_SOUND $CONFIG_VISWS
+if [ "$CONFIG_VISWS" = "y" ]; then
+   dep_tristate '  SGI Visual Workstation sound' CONFIG_SOUND_VWSND $CONFIG_SOUND
+fi
 dep_tristate '  SGI HAL2 sound (EXPERIMENTAL)' CONFIG_SOUND_HAL2 $CONFIG_SOUND $CONFIG_SGI_IP22 $CONFIG_EXPERIMENTAL
 
 if [ "$CONFIG_MIPS_ITE8172" = "y" -o "$CONFIG_MIPS_IVR" = "y" ]; then
