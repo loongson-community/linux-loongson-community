@@ -38,7 +38,6 @@
  *  - Free rings and buffers when closing or before re-initializing rings.
  *  - Handle allocation failures in ioc3_alloc_skb() more gracefully.
  *  - Handle allocation failures in ioc3_init_rings().
- *  - Maybe implement private_ioctl().
  *  - Use prefetching for large packets.  What is a good lower limit for
  *    prefetching?
  *  - We're probably allocating a bit too much memory.
@@ -75,6 +74,17 @@
 /* 32 RX buffers.  This is tunable in the range of 16 <= x < 512.  */
 #define RX_BUFFS 32
 
+/* Private ioctls that de facto are well known and used for examply
+   by mii-tool.  */
+#define SIOCGMIIPHY (SIOCDEVPRIVATE)	/* Read from current PHY */
+#define SIOCGMIIREG (SIOCDEVPRIVATE+1)	/* Read any PHY register */
+#define SIOCSMIIREG (SIOCDEVPRIVATE+2)	/* Write any PHY register */
+
+/* These exist in other drivers; we don't use them at this time.  */
+#define SIOCGPARAMS (SIOCDEVPRIVATE+3)	/* Read operational parameters */
+#define SIOCSPARAMS (SIOCDEVPRIVATE+4)	/* Set operational parameters */
+
+static int ioc3_ioctl(struct net_device *dev, struct ifreq *rq, int cmd);
 static void ioc3_set_multicast_list(struct net_device *dev);
 static int ioc3_open(struct net_device *dev);
 static int ioc3_start_xmit(struct sk_buff *skb, struct net_device *dev);
@@ -132,8 +142,6 @@ struct ioc3_private {
 	struct ioc3_private *_ip = (ip);				\
 	((512 + _ip->tx_ci + 1) - _ip->tx_pi) & 511;			\
 })
-//#undef TX_BUFFS_AVAIL
-//#define TX_BUFFS_AVAIL(ip) (1)
 
 
 #define IOC3_SIZE 0x100000
@@ -276,6 +284,8 @@ static void ioc3_get_eaddr(struct net_device *dev, struct ioc3 *ioc3)
 	printk(".\n");
 }
 
+/* Caller must hold the ioc3_lock ever for MII readers.  This is also
+   used to protect the transmitter side but it's low contention.  */
 static u16 mii_read(struct ioc3 *ioc3, int phy, int reg)
 {
 	while (ioc3->micr & MICR_BUSY);
@@ -470,8 +480,8 @@ static void ioc3_interrupt(int irq, void *_dev, struct pt_regs *regs)
 	return;
 }
 
-int
-ioc3_eth_init(struct net_device *dev, struct ioc3_private *p, struct ioc3 *ioc3)
+int ioc3_eth_init(struct net_device *dev, struct ioc3_private *ip,
+                  struct ioc3 *ioc3)
 {
 	u16 word, mii0, mii_status, mii2, mii3, mii4;
 	u32 vendor, model, rev;
@@ -482,6 +492,7 @@ ioc3_eth_init(struct net_device *dev, struct ioc3_private *p, struct ioc3 *ioc3)
 	udelay(4);				/* Give it time ...	*/
 	ioc3->emcr = 0;
 
+	spin_lock_irq(&ip->ioc3_lock);
 	phy = -1;
 	for (i = 0; i < 32; i++) {
 		word = mii_read(ioc3, i, 2);
@@ -491,10 +502,11 @@ ioc3_eth_init(struct net_device *dev, struct ioc3_private *p, struct ioc3 *ioc3)
 		}
 	}
 	if (phy == -1) {
+		spin_unlock_irq(&ip->ioc3_lock);
 		printk("Didn't find a PHY, goodbye.\n");
 		return -ENODEV;
 	}
-	p->phy = phy;
+	ip->phy = phy;
 
 	mii0 = mii_read(ioc3, phy, 0);
 	mii_status = mii_read(ioc3, phy, 1);
@@ -512,8 +524,13 @@ ioc3_eth_init(struct net_device *dev, struct ioc3_private *p, struct ioc3 *ioc3)
 
 	/* Autonegotiate 100mbit and fullduplex. */
 	mii_write(ioc3, phy, 0, mii0 | 0x3100);
-	mdelay(1000);
+
+	spin_unlock_irq(&ip->ioc3_lock);
+	mdelay(1000);				/* XXX Yikes XXX */
+	spin_lock_irq(&ip->ioc3_lock);
+
 	mii_status = mii_read(ioc3, phy, 1);
+	spin_unlock_irq(&ip->ioc3_lock);
 
 	return 0;	/* XXX */
 }
@@ -644,13 +661,14 @@ static void ioc3_probe1(struct net_device *dev, struct ioc3 *ioc3)
 	//ioc3->erpir = ERPIR_ARM;
 
 	/* The IOC3-specific entries in the device structure. */
-	dev->open		= &ioc3_open;
-	dev->hard_start_xmit	= &ioc3_start_xmit;
+	dev->open		= ioc3_open;
+	dev->hard_start_xmit	= ioc3_start_xmit;
 	dev->tx_timeout		= ioc3_timeout;
 	dev->watchdog_timeo	= (400 * HZ) / 1000;
-	dev->stop		= &ioc3_close;
-	dev->get_stats		= &ioc3_get_stats;
-	dev->set_multicast_list	= &ioc3_set_multicast_list;
+	dev->stop		= ioc3_close;
+	dev->get_stats		= ioc3_get_stats;
+	dev->do_ioctl		= ioc3_ioctl;
+	dev->set_multicast_list	= ioc3_set_multicast_list;
 }
 
 int
@@ -855,6 +873,40 @@ ioc3_hash(const unsigned char *addr)
 	}
 
 	return temp;
+}
+
+/* Provide ioctl() calls to examine the MII xcvr state. */
+static int ioc3_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
+{
+	struct ioc3_private *ip = (struct ioc3_private *) dev->priv;
+	u16 *data = (u16 *)&rq->ifr_data;
+	struct ioc3 *ioc3 = ip->regs;
+	int phy = ip->phy;
+
+	switch (cmd) {
+	case SIOCGMIIPHY:	/* Get the address of the PHY in use.  */
+		if (phy == -1)
+			return -ENODEV;
+		data[0] = phy;
+		return 0;
+
+	case SIOCGMIIREG:	/* Read any PHY register.  */
+		spin_lock_irq(&ip->ioc3_lock);
+		data[3] = mii_read(ioc3, data[0], data[1]);
+		spin_unlock_irq(&ip->ioc3_lock);
+		return 0;
+
+	case SIOCSMIIREG:	/* Write any PHY register.  */
+		spin_lock_irq(&ip->ioc3_lock);
+		mii_write(ioc3, data[0], data[1], data[2]);
+		spin_unlock_irq(&ip->ioc3_lock);
+		return 0;
+
+	default:
+		return -EOPNOTSUPP;
+	}
+
+	return -EOPNOTSUPP;
 }
 
 static void ioc3_set_multicast_list(struct net_device *dev)
