@@ -2,6 +2,8 @@
  * r4xx0.c: R4000 processor variant specific MMU/Cache routines.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
+ *
+ * $Id: r4xx0.c,v 1.5 1997/06/28 23:27:20 ralf Exp $
  */
 #include <linux/config.h>
 
@@ -370,7 +372,7 @@ static inline void r4k_flush_cache_all_s16d16i16(void)
 {
 	unsigned long flags;
 
-	save_flags(flags); cli();
+	save_and_cli(flags);
 	blast_dcache16(); blast_icache16(); blast_scache16();
 	restore_flags(flags);
 }
@@ -379,7 +381,7 @@ static inline void r4k_flush_cache_all_s32d16i16(void)
 {
 	unsigned long flags;
 
-	save_flags(flags); cli();
+	save_and_cli(flags);
 	blast_dcache16(); blast_icache16(); blast_scache32();
 	restore_flags(flags);
 }
@@ -388,7 +390,7 @@ static inline void r4k_flush_cache_all_s64d16i16(void)
 {
 	unsigned long flags;
 
-	save_flags(flags); cli();
+	save_and_cli(flags);
 	blast_dcache16(); blast_icache16(); blast_scache64();
 	restore_flags(flags);
 }
@@ -397,7 +399,7 @@ static inline void r4k_flush_cache_all_s128d16i16(void)
 {
 	unsigned long flags;
 
-	save_flags(flags); cli();
+	save_and_cli(flags);
 	blast_dcache16(); blast_icache16(); blast_scache128();
 	restore_flags(flags);
 }
@@ -406,7 +408,7 @@ static inline void r4k_flush_cache_all_s16d32i32(void)
 {
 	unsigned long flags;
 
-	save_flags(flags); cli();
+	save_and_cli(flags);
 	blast_dcache32(); blast_icache32(); blast_scache16();
 	restore_flags(flags);
 }
@@ -415,7 +417,7 @@ static inline void r4k_flush_cache_all_s32d32i32(void)
 {
 	unsigned long flags;
 
-	save_flags(flags); cli();
+	save_and_cli(flags);
 	blast_dcache32(); blast_icache32(); blast_scache32();
 	restore_flags(flags);
 }
@@ -424,7 +426,7 @@ static inline void r4k_flush_cache_all_s64d32i32(void)
 {
 	unsigned long flags;
 
-	save_flags(flags); cli();
+	save_and_cli(flags);
 	blast_dcache32(); blast_icache32(); blast_scache64();
 	restore_flags(flags);
 }
@@ -433,7 +435,7 @@ static inline void r4k_flush_cache_all_s128d32i32(void)
 {
 	unsigned long flags;
 
-	save_flags(flags); cli();
+	save_and_cli(flags);
 	blast_dcache32(); blast_icache32(); blast_scache128();
 	restore_flags(flags);
 }
@@ -442,7 +444,7 @@ static inline void r4k_flush_cache_all_d16i16(void)
 {
 	unsigned long flags;
 
-	save_flags(flags); cli();
+	save_and_cli(flags);
 	blast_dcache16(); blast_icache16();
 	restore_flags(flags);
 }
@@ -451,7 +453,7 @@ static inline void r4k_flush_cache_all_d32i32(void)
 {
 	unsigned long flags;
 
-	save_flags(flags); cli();
+	save_and_cli(flags);
 	blast_dcache32(); blast_icache32();
 	restore_flags(flags);
 }
@@ -481,7 +483,7 @@ r4k_flush_cache_range_s16d16i16(struct mm_struct *mm,
 			pte_t *pte;
 			int text;
 
-			save_flags(flags); cli();
+			save_and_cli(flags);
 			text = vma->vm_flags & VM_EXEC;
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
@@ -526,7 +528,7 @@ r4k_flush_cache_range_s32d16i16(struct mm_struct *mm,
 			pte_t *pte;
 			int text;
 
-			save_flags(flags); cli();
+			save_and_cli(flags);
 			text = vma->vm_flags & VM_EXEC;
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
@@ -570,7 +572,7 @@ static void r4k_flush_cache_range_s64d16i16(struct mm_struct *mm,
 			pte_t *pte;
 			int text;
 
-			save_flags(flags); cli();
+			save_and_cli(flags);
 			text = vma->vm_flags & VM_EXEC;
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
@@ -614,7 +616,7 @@ static void r4k_flush_cache_range_s128d16i16(struct mm_struct *mm,
 			pte_t *pte;
 			int text;
 
-			save_flags(flags); cli();
+			save_and_cli(flags);
 			text = vma->vm_flags & VM_EXEC;
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
@@ -658,7 +660,7 @@ static void r4k_flush_cache_range_s16d32i32(struct mm_struct *mm,
 			pte_t *pte;
 			int text;
 
-			save_flags(flags); cli();
+			save_and_cli(flags);
 			text = vma->vm_flags & VM_EXEC;
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
@@ -702,7 +704,7 @@ static void r4k_flush_cache_range_s32d32i32(struct mm_struct *mm,
 			pte_t *pte;
 			int text;
 
-			save_flags(flags); cli();
+			save_and_cli(flags);
 			text = vma->vm_flags & VM_EXEC;
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
@@ -746,7 +748,7 @@ static void r4k_flush_cache_range_s64d32i32(struct mm_struct *mm,
 			pte_t *pte;
 			int text;
 
-			save_flags(flags); cli();
+			save_and_cli(flags);
 			text = vma->vm_flags & VM_EXEC;
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
@@ -790,7 +792,7 @@ static void r4k_flush_cache_range_s128d32i32(struct mm_struct *mm,
 			pte_t *pte;
 			int text;
 
-			save_flags(flags); cli();
+			save_and_cli(flags);
 			text = vma->vm_flags & VM_EXEC;
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
@@ -820,7 +822,7 @@ static void r4k_flush_cache_range_d16i16(struct mm_struct *mm,
 #ifdef DEBUG_CACHE
 		printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
 #endif
-		save_flags(flags); cli();
+		save_and_cli(flags);
 		blast_dcache16(); blast_icache16();
 		restore_flags(flags);
 	}
@@ -836,7 +838,7 @@ static void r4k_flush_cache_range_d32i32(struct mm_struct *mm,
 #ifdef DEBUG_CACHE
 		printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
 #endif
-		save_flags(flags); cli();
+		save_and_cli(flags);
 		blast_dcache32(); blast_icache32();
 		restore_flags(flags);
 	}
@@ -967,7 +969,7 @@ static void r4k_flush_cache_page_s16d16i16(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	save_flags(flags); cli();
+	save_and_cli(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -1025,7 +1027,7 @@ static void r4k_flush_cache_page_s32d16i16(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	save_flags(flags); cli();
+	save_and_cli(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -1082,7 +1084,7 @@ static void r4k_flush_cache_page_s64d16i16(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	save_flags(flags); cli();
+	save_and_cli(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -1140,7 +1142,7 @@ static void r4k_flush_cache_page_s128d16i16(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	save_flags(flags); cli();
+	save_and_cli(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -1199,7 +1201,7 @@ static void r4k_flush_cache_page_s16d32i32(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	save_flags(flags); cli();
+	save_and_cli(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -1257,7 +1259,7 @@ static void r4k_flush_cache_page_s32d32i32(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	save_flags(flags); cli();
+	save_and_cli(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -1317,7 +1319,7 @@ static void r4k_flush_cache_page_s64d32i32(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	save_flags(flags); cli();
+	save_and_cli(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -1377,7 +1379,7 @@ static void r4k_flush_cache_page_s128d32i32(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	save_flags(flags); cli();
+	save_and_cli(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -1434,7 +1436,7 @@ static void r4k_flush_cache_page_d16i16(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	save_flags(flags); cli();
+	save_and_cli(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -1493,7 +1495,7 @@ static void r4k_flush_cache_page_d32i32(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	save_flags(flags); cli();
+	save_and_cli(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -1551,7 +1553,7 @@ static void r4k_flush_cache_page_d32i32_r4600(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	save_flags(flags); cli();
+	save_and_cli(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -1609,7 +1611,7 @@ static void r4k_flush_page_to_ram_s16d16i16(unsigned long page)
 #ifdef DEBUG_CACHE
 		printk("cram[%08lx]", page);
 #endif
-		save_flags(flags); cli();
+		save_and_cli(flags);
 		blast_dcache16_page(page);
 		blast_scache16_page(page);
 		restore_flags(flags);
@@ -1625,7 +1627,7 @@ static void r4k_flush_page_to_ram_s32d16i16(unsigned long page)
 #ifdef DEBUG_CACHE
 		printk("cram[%08lx]", page);
 #endif
-		save_flags(flags); cli();
+		save_and_cli(flags);
 		blast_dcache16_page(page);
 		blast_scache32_page(page);
 		restore_flags(flags);
@@ -1641,7 +1643,7 @@ static void r4k_flush_page_to_ram_s64d16i16(unsigned long page)
 #ifdef DEBUG_CACHE
 		printk("cram[%08lx]", page);
 #endif
-		save_flags(flags); cli();
+		save_and_cli(flags);
 		blast_dcache16_page(page);
 		blast_scache64_page(page);
 		restore_flags(flags);
@@ -1657,7 +1659,7 @@ static void r4k_flush_page_to_ram_s128d16i16(unsigned long page)
 #ifdef DEBUG_CACHE
 		printk("cram[%08lx]", page);
 #endif
-		save_flags(flags); cli();
+		save_and_cli(flags);
 		blast_dcache16_page(page);
 		blast_scache128_page(page);
 		restore_flags(flags);
@@ -1673,7 +1675,7 @@ static void r4k_flush_page_to_ram_s16d32i32(unsigned long page)
 #ifdef DEBUG_CACHE
 		printk("cram[%08lx]", page);
 #endif
-		save_flags(flags); cli();
+		save_and_cli(flags);
 		blast_dcache32_page(page);
 		blast_scache16_page(page);
 		restore_flags(flags);
@@ -1689,7 +1691,7 @@ static void r4k_flush_page_to_ram_s32d32i32(unsigned long page)
 #ifdef DEBUG_CACHE
 		printk("cram[%08lx]", page);
 #endif
-		save_flags(flags); cli();
+		save_and_cli(flags);
 		blast_dcache32_page(page);
 		blast_scache32_page(page);
 		restore_flags(flags);
@@ -1705,7 +1707,7 @@ static void r4k_flush_page_to_ram_s64d32i32(unsigned long page)
 #ifdef DEBUG_CACHE
 		printk("cram[%08lx]", page);
 #endif
-		save_flags(flags); cli();
+		save_and_cli(flags);
 		blast_dcache32_page(page);
 		blast_scache64_page(page);
 		restore_flags(flags);
@@ -1721,7 +1723,7 @@ static void r4k_flush_page_to_ram_s128d32i32(unsigned long page)
 #ifdef DEBUG_CACHE
 		printk("cram[%08lx]", page);
 #endif
-		save_flags(flags); cli();
+		save_and_cli(flags);
 		blast_dcache32_page(page);
 		blast_scache128_page(page);
 		restore_flags(flags);
@@ -1737,7 +1739,7 @@ static void r4k_flush_page_to_ram_d16i16(unsigned long page)
 #ifdef DEBUG_CACHE
 		printk("cram[%08lx]", page);
 #endif
-		save_flags(flags); cli();
+		save_and_cli(flags);
 		blast_dcache16_page(page);
 		restore_flags(flags);
 	}
@@ -1752,7 +1754,7 @@ static void r4k_flush_page_to_ram_d32i32(unsigned long page)
 #ifdef DEBUG_CACHE
 		printk("cram[%08lx]", page);
 #endif
-		save_flags(flags); cli();
+		save_and_cli(flags);
 		blast_dcache32_page(page);
 		restore_flags(flags);
 	}
@@ -1782,7 +1784,7 @@ static void r4k_flush_page_to_ram_d32i32_r4600(unsigned long page)
 		 */
 		*(volatile unsigned long *)KSEG1;
 
-		save_flags(flags); cli();
+		save_and_cli(flags);
 		blast_dcache32_page(page);
 		blast_dcache32_page(page ^ 0x2000);
 #ifdef CONFIG_SGI
@@ -1809,15 +1811,14 @@ static void r4k_flush_page_to_ram_d32i32_r4600(unsigned long page)
 			daddu	%0, 32
 			mtc0	$0, $12
 			nop; nop; nop; nop;
-			mtc0	%3, $12
-			nop; nop; nop; nop;
 			.set mips0
 			.set reorder"
 			: "=&r" (tmp1), "=&r" (tmp2),
-			  "=&r" (page), "=&r" (flags)
-			: "2" (page & 0x0007f000), "3" (flags));
+			  "=&r" (page)
+			: "2" (page & 0x0007f000));
 		}
 #endif /* CONFIG_SGI */
+		restore_flags(flags);
 	}
 }
 
@@ -1847,7 +1848,7 @@ static inline void r4k_flush_tlb_all(void)
 	printk("[tlball]");
 #endif
 
-	save_flags(flags); cli();
+	save_and_cli(flags);
 	/* Save old context and create impossible VPN2 value */
 	old_ctx = (get_entryhi() & 0xff);
 	set_entryhi(KSEG0);
@@ -1878,7 +1879,7 @@ static void r4k_flush_tlb_mm(struct mm_struct *mm)
 #ifdef DEBUG_TLB
 		printk("[tlbmm<%d>]", mm->context);
 #endif
-		save_flags(flags); cli();
+		save_and_cli(flags);
 		get_new_mmu_context(mm, asid_cache);
 		if(mm == current->mm)
 			set_entryhi(mm->context & 0xff);
@@ -1897,7 +1898,7 @@ static void r4k_flush_tlb_range(struct mm_struct *mm, unsigned long start,
 		printk("[tlbrange<%02x,%08lx,%08lx>]", (mm->context & 0xff),
 		       start, end);
 #endif
-		save_flags(flags); cli();
+		save_and_cli(flags);
 		size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
 		size = (size + 1) >> 1;
 		if(size <= NTLB_ENTRIES_HALF) {
@@ -1946,7 +1947,7 @@ static void r4k_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 #endif
 		newpid = (vma->vm_mm->context & 0xff);
 		page &= (PAGE_MASK << 1);
-		save_flags(flags); cli();
+		save_and_cli(flags);
 		oldpid = (get_entryhi() & 0xff);
 		set_entryhi(page | newpid);
 		BARRIER;
@@ -2018,7 +2019,7 @@ static void r4k_update_mmu_cache(struct vm_area_struct * vma,
 	}
 #endif
 
-	save_flags(flags); cli();
+	save_and_cli(flags);
 	address &= (PAGE_MASK << 1);
 	set_entryhi(address | (pid));
 	pgdp = pgd_offset(vma->vm_mm, address);
@@ -2077,7 +2078,7 @@ static void r4k_update_mmu_cache_hwbug(struct vm_area_struct * vma,
 	pte_t *ptep;
 	int idx;
 
-	save_flags(flags); cli();
+	save_and_cli(flags);
 	address &= (PAGE_MASK << 1);
 	set_entryhi(address | (get_entryhi() & 0xff));
 	pgdp = pgd_offset(vma->vm_mm, address);
@@ -2244,16 +2245,16 @@ static int probe_scache_eeprom(unsigned long config)
 			__asm__ __volatile__("
 			.set noreorder
 			.set mips3
-			li	%0, 0x1
-			dsll	%0, 31
-			lui	%1, 0x9000
-			dsll32	%1, 0
-			or	%0, %1, %0
 			mfc0	%2, $12
 			nop; nop; nop; nop;
 			li	%1, 0x80
 			mtc0	%1, $12
 			nop; nop; nop; nop;
+			li	%0, 0x1
+			dsll	%0, 31
+			lui	%1, 0x9000
+			dsll32	%1, 0
+			or	%0, %1, %0
 			sb	$0, 0(%0)
 			mtc0	$0, $12
 			nop; nop; nop; nop;
@@ -2321,7 +2322,7 @@ static int probe_scache(unsigned long config)
 	/* This is such a bitch, you'd think they would make it
 	 * easy to do this.  Away you daemons of stupidity!
 	 */
-	save_flags(flags); cli();
+	save_and_cli(flags);
 
 	/* Fill each size-multiple cache line with a valid tag. */
 	pow2 = (64 * 1024);
