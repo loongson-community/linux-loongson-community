@@ -116,7 +116,7 @@ void show_trace(struct task_struct *task, unsigned long *stack)
 #ifdef CONFIG_KALLSYMS
 	printk("\n");
 #endif
-	while (((long) stack & (THREAD_SIZE-1)) != 0) {
+	while (!kstack_end(stack)) {
 		addr = *stack++;
 		if (kernel_text_address(addr)) {
 			printk(" [<%0*lx>] ", field, addr);

@@ -77,6 +77,10 @@
 #define PTE_ORDER		0
 #endif
 
+#define PTRS_PER_PGD	((PAGE_SIZE << PGD_ORDER) / sizeof(pgd_t))
+#define PTRS_PER_PMD	((PAGE_SIZE << PMD_ORDER) / sizeof(pmd_t))
+#define PTRS_PER_PTE	((PAGE_SIZE << PTE_ORDER) / sizeof(pte_t))
+
 #define USER_PTRS_PER_PGD	(TASK_SIZE / PGDIR_SIZE)
 #define FIRST_USER_PGD_NR	0
 
@@ -199,9 +203,6 @@ static inline pmd_t *pmd_offset(pgd_t * dir, unsigned long address)
  */
 extern void pgd_init(unsigned long page);
 extern void pmd_init(unsigned long page, unsigned long pagetable);
-
-extern pgd_t swapper_pg_dir[PTRS_PER_PGD];
-extern void paging_init(void);
 
 /*
  * Non-present pages:  high 24 bits are offset, next 8 bits type,

@@ -69,6 +69,10 @@ extern int add_temporary_entry(unsigned long entrylo0, unsigned long entrylo1,
 #define PTE_ORDER	0
 #endif
 
+#define PTRS_PER_PGD	((PAGE_SIZE << PGD_ORDER) / sizeof(pgd_t))
+#define PTRS_PER_PMD	1
+#define PTRS_PER_PTE	((PAGE_SIZE << PTE_ORDER) / sizeof(pte_t))
+
 #define USER_PTRS_PER_PGD	(0x80000000UL/PGDIR_SIZE)
 #define FIRST_USER_PGD_NR	0
 
@@ -188,9 +192,6 @@ static inline pmd_t *pmd_offset(pgd_t *dir, unsigned long address)
 	((pte_t *)page_address(pmd_page(*(dir))) + __pte_offset(address))
 #define pte_unmap(pte) ((void)(pte))
 #define pte_unmap_nested(pte) ((void)(pte))
-
-extern pgd_t swapper_pg_dir[PTRS_PER_PGD];
-extern void paging_init(void);
 
 /* Swap entries must have VALID and GLOBAL bits cleared. */
 #if defined(CONFIG_CPU_R3000) || defined(CONFIG_CPU_TX39XX)

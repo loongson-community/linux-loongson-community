@@ -157,6 +157,7 @@ CONFIG_TRAD_SIGNALS=y
 #
 # Block devices
 #
+# CONFIG_BLK_DEV_FD is not set
 # CONFIG_BLK_DEV_LOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
 # CONFIG_BLK_DEV_RAM is not set

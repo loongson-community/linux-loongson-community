@@ -49,6 +49,8 @@ asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long write,
 	       field, regs->cp0_epc);
 #endif
 
+	info.si_code = SEGV_MAPERR;
+
 	/*
 	 * We fault-in kernel-space virtual memory on-demand. The
 	 * 'reference' page table is init_mm.pgd.
@@ -58,16 +60,15 @@ asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long write,
 	 * only copy the information from the master page table,
 	 * nothing more.
 	 */
-	if (address >= VMALLOC_START)
+	if (unlikely(address >= VMALLOC_START))
 		goto vmalloc_fault;
 
-	info.si_code = SEGV_MAPERR;
 	/*
 	 * If we're in an interrupt or have no user
 	 * context, we must not take the fault..
 	 */
 	if (in_atomic() || !mm)
-		goto no_context;
+		goto bad_area_nosemaphore;
 
 	down_read(&mm->mmap_sem);
 	vma = find_vma(mm, address);
@@ -125,6 +126,7 @@ survive:
 bad_area:
 	up_read(&mm->mmap_sem);
 
+bad_area_nosemaphore:
 	/* User mode accesses just cause a SIGSEGV */
 	if (user_mode(regs)) {
 		tsk->thread.cp0_badvaddr = address;
@@ -185,6 +187,10 @@ out_of_memory:
 do_sigbus:
 	up_read(&mm->mmap_sem);
 
+	/* Kernel mode? Handle exceptions or die */
+	if (!user_mode(regs))
+		goto no_context;
+
 	/*
 	 * Send a sigbus, regardless of whether we were in kernel
 	 * or user mode.
@@ -195,10 +201,6 @@ do_sigbus:
 	info.si_code = BUS_ADRERR;
 	info.si_addr = (void *) address;
 	force_sig_info(SIGBUS, &info, tsk);
-
-	/* Kernel mode? Handle exceptions or die */
-	if (!user_mode(regs))
-		goto no_context;
 
 	return;
 
