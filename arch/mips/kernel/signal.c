@@ -31,6 +31,8 @@
 #include <asm/ucontext.h>
 #include <asm/cpu-features.h>
 
+#include "signal-common.h"
+
 #define DEBUG_SIG 0
 
 #define _BLOCKABLE (~(sigmask(SIGKILL) | sigmask(SIGSTOP)))
@@ -303,85 +305,6 @@ badframe:
 	force_sig(SIGSEGV, current);
 }
 
-inline int setup_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
-{
-	int err = 0;
-
-	err |= __put_user(regs->cp0_epc, &sc->sc_pc);
-	err |= __put_user(regs->cp0_status, &sc->sc_status);
-
-#define save_gp_reg(i) do {						\
-	err |= __put_user(regs->regs[i], &sc->sc_regs[i]);		\
-} while(0)
-	__put_user(0, &sc->sc_regs[0]); save_gp_reg(1); save_gp_reg(2);
-	save_gp_reg(3); save_gp_reg(4); save_gp_reg(5); save_gp_reg(6);
-	save_gp_reg(7); save_gp_reg(8); save_gp_reg(9); save_gp_reg(10);
-	save_gp_reg(11); save_gp_reg(12); save_gp_reg(13); save_gp_reg(14);
-	save_gp_reg(15); save_gp_reg(16); save_gp_reg(17); save_gp_reg(18);
-	save_gp_reg(19); save_gp_reg(20); save_gp_reg(21); save_gp_reg(22);
-	save_gp_reg(23); save_gp_reg(24); save_gp_reg(25); save_gp_reg(26);
-	save_gp_reg(27); save_gp_reg(28); save_gp_reg(29); save_gp_reg(30);
-	save_gp_reg(31);
-#undef save_gp_reg
-
-	err |= __put_user(regs->hi, &sc->sc_mdhi);
-	err |= __put_user(regs->lo, &sc->sc_mdlo);
-	err |= __put_user(regs->cp0_cause, &sc->sc_cause);
-	err |= __put_user(regs->cp0_badvaddr, &sc->sc_badvaddr);
-
-	err |= __put_user(current->used_math, &sc->sc_used_math);
-
-	if (!current->used_math)
-		goto out;
-
-	/*
-	 * Save FPU state to signal context.  Signal handler will "inherit"
-	 * current FPU state.
-	 */
-	preempt_disable();
-
-	if (!is_fpu_owner()) {
-		own_fpu();
-		restore_fp(current);
-	}
-	err |= save_fp_context(sc);
-
-	preempt_enable();
-
-out:
-	return err;
-}
-
-/*
- * Determine which stack to use..
- */
-static inline void *get_sigframe(struct k_sigaction *ka, struct pt_regs *regs,
-	size_t frame_size)
-{
-	unsigned long sp, almask;
-
-	/* Default to using normal stack */
-	sp = regs->regs[29];
-
-	/*
- 	 * FPU emulator may have it's own trampoline active just
- 	 * above the user stack, 16-bytes before the next lowest
- 	 * 16 byte boundary.  Try to avoid trashing it.
- 	 */
- 	sp -= 32;
-
-	/* This is the X/Open sanctioned signal stack switching.  */
-	if ((ka->sa.sa_flags & SA_ONSTACK) && (sas_ss_flags (sp) == 0))
-		sp = current->sas_ss_sp + current->sas_ss_size;
-
-	if (PLAT_TRAMPOLINE_STUFF_LINE)
-		almask = ~(PLAT_TRAMPOLINE_STUFF_LINE - 1);
-	else
-		almask = ALMASK;
-
-	return (void *)((sp - frame_size) & almask);
-}
-
 #ifdef CONFIG_TRAD_SIGNALS
 static void inline setup_frame(struct k_sigaction * ka, struct pt_regs *regs,
 	int signr, sigset_t *set)
@@ -634,7 +557,7 @@ asmlinkage void do_notify_resume(struct pt_regs *regs, sigset_t *oldset,
 		}
 #endif
 #ifdef CONFIG_BINFMT_IRIX
-		if (unlikely(current->personality != PER_LINUX)) {
+		if (unlikely(current->personality != PER_LINUX) {
 			do_irix_signal(oldset, regs);
 			return;
 		}

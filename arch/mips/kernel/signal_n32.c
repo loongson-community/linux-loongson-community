@@ -37,8 +37,10 @@
 #include <asm/fpu.h>
 #include <asm/cpu-features.h>
 
+#include "signal-common.h"
+
 /*
- * Including <asm/unistd.h would give use the 64-bit syscall numbers ...
+ * Including <asm/unistd.h> would give use the 64-bit syscall numbers ...
  */
 #define __NR_N32_rt_sigreturn		6211
 #define __NR_N32_restart_syscall	6214
@@ -125,36 +127,6 @@ _sysn32_rt_sigreturn(nabi_no_regargs struct pt_regs regs)
 
 badframe:
 	force_sig(SIGSEGV, current);
-}
-
-/*
- * Determine which stack to use..
- */
-static inline void *get_sigframe(struct k_sigaction *ka, struct pt_regs *regs,
-	size_t frame_size)
-{
-	unsigned long sp, almask;
-
-	/* Default to using normal stack */
-	sp = regs->regs[29];
-
-	/*
- 	 * FPU emulator may have it's own trampoline active just
- 	 * above the user stack, 16-bytes before the next lowest
- 	 * 16 byte boundary.  Try to avoid trashing it.
- 	 */
- 	sp -= 32;
-
-	/* This is the X/Open sanctioned signal stack switching.  */
-	if ((ka->sa.sa_flags & SA_ONSTACK) && (sas_ss_flags (sp) == 0))
-		sp = current->sas_ss_sp + current->sas_ss_size;
-
-	if (PLAT_TRAMPOLINE_STUFF_LINE)
-		almask = ~(PLAT_TRAMPOLINE_STUFF_LINE - 1);
-	else
-		almask = ALMASK;
-
-	return (void *)((sp - frame_size) & almask);
 }
 
 void setup_rt_frame_n32(struct k_sigaction * ka,
