@@ -136,13 +136,14 @@ static struct pci_ops bridge_pci_ops = {
 static int __init pcibios_init(void)
 {
 	struct pci_ops *ops = &bridge_pci_ops;
-	int i;
+	int bus, i;
 
 	ioport_resource.end = ~0UL;
 
-	for (i = 0; i < num_bridges; i++) {
+	for (i = 0, bus = 0; i < num_bridges; i++) {
 		printk("PCI: Probing PCI hardware on host bus %2d.\n", i);
-		pci_scan_bus(i, ops, NULL);
+		pci_scan_bus(bus, ops, NULL);
+		bus = bus->subordinate + 1;
 	}
 
 	return 0;
