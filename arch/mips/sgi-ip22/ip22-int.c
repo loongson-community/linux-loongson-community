@@ -79,14 +79,13 @@ static void end_local0_irq (unsigned int irq)
 }
 
 static struct hw_interrupt_type ip22_local0_irq_type = {
-	"IP22 local 0",
-	startup_local0_irq,
-	shutdown_local0_irq,
-	enable_local0_irq,
-	disable_local0_irq,
-	mask_and_ack_local0_irq,
-	end_local0_irq,
-	NULL
+	.typename	= "IP22 local 0",
+	.startup	= startup_local0_irq,
+	.shutdown	= shutdown_local0_irq,
+	.enable		= enable_local0_irq,
+	.disable	= disable_local0_irq,
+	.ack		= mask_and_ack_local0_irq,
+	.end		= end_local0_irq,
 };
 
 static void enable_local1_irq(unsigned int irq)
@@ -126,14 +125,13 @@ static void end_local1_irq (unsigned int irq)
 }
 
 static struct hw_interrupt_type ip22_local1_irq_type = {
-	"IP22 local 1",
-	startup_local1_irq,
-	shutdown_local1_irq,
-	enable_local1_irq,
-	disable_local1_irq,
-	mask_and_ack_local1_irq,
-	end_local1_irq,
-	NULL
+	.typename	= "IP22 local 1",
+	.startup	= startup_local1_irq,
+	.shutdown	= shutdown_local1_irq,
+	.enable		= enable_local1_irq,
+	.disable	= disable_local1_irq,
+	.ack		= mask_and_ack_local1_irq,
+	.end		= end_local1_irq,
 };
 
 static void enable_local2_irq(unsigned int irq)
@@ -173,14 +171,13 @@ static void end_local2_irq (unsigned int irq)
 }
 
 static struct hw_interrupt_type ip22_local2_irq_type = {
-	"IP22 local 2",
-	startup_local2_irq,
-	shutdown_local2_irq,
-	enable_local2_irq,
-	disable_local2_irq,
-	mask_and_ack_local2_irq,
-	end_local2_irq,
-	NULL
+	.typename	= "IP22 local 2",
+	.startup	= startup_local2_irq,
+	.shutdown	= shutdown_local2_irq,
+	.enable		= enable_local2_irq,
+	.disable	= disable_local2_irq,
+	.ack		= mask_and_ack_local2_irq,
+	.end		= end_local2_irq,
 };
 
 static void enable_local3_irq(unsigned int irq)
@@ -224,14 +221,13 @@ static void end_local3_irq (unsigned int irq)
 }
 
 static struct hw_interrupt_type ip22_local3_irq_type = {
-	"IP22 local 3",
-	startup_local3_irq,
-	shutdown_local3_irq,
-	enable_local3_irq,
-	disable_local3_irq,
-	mask_and_ack_local3_irq,
-	end_local3_irq,
-	NULL
+	.typename	= "IP22 local 3",
+	.startup	= startup_local3_irq,
+	.shutdown	= shutdown_local3_irq,
+	.enable		= enable_local3_irq,
+	.disable	= disable_local3_irq,
+	.ack		= mask_and_ack_local3_irq,
+	.end		= end_local3_irq,
 };
 
 void indy_local0_irqdispatch(struct pt_regs *regs)
@@ -292,17 +288,36 @@ void indy_buserror_irq(struct pt_regs *regs)
 	irq_exit();
 }
 
-static struct irqaction local0_cascade =
-	{ no_action, SA_INTERRUPT, 0, "local0 cascade", NULL, NULL };
-static struct irqaction local1_cascade =
-	{ no_action, SA_INTERRUPT, 0, "local1 cascade", NULL, NULL };
-static struct irqaction buserr =
-	{ no_action, SA_INTERRUPT, 0, "Bus Error", NULL, NULL };
-static struct irqaction map0_cascade =
-	{ no_action, SA_INTERRUPT, 0, "mappable0 cascade", NULL, NULL };
+static struct irqaction local0_cascade = { 
+	.handler	= no_action,
+	.flags		= SA_INTERRUPT,
+	.name		= "local0 cascade",
+};
+
+static struct irqaction local1_cascade = { 
+	.handler	= no_action,
+	.flags		= SA_INTERRUPT,
+	.name		= "local1 cascade",
+};
+
+static struct irqaction buserr = { 
+	.handler	= no_action,
+	.flags		= SA_INTERRUPT,
+	.name		= "Bus Error",
+};
+
+static struct irqaction map0_cascade = { 
+	.handler	= no_action,
+	.flags		= SA_INTERRUPT,
+	.name		= "mapable0 cascade",
+};
+
 #ifdef I_REALLY_NEED_THIS_IRQ
-static struct irqaction map1_cascade =
-	{ no_action, SA_INTERRUPT, 0, "mappable1 cascade", NULL, NULL };
+static struct irqaction map1_cascade = { 
+	.handler	= no_action,
+	.flags		= SA_INTERRUPT,
+	.name		= "mapable1 cascade",
+};
 #endif
 
 extern void mips_cpu_irq_init(unsigned int irq_base);

@@ -153,14 +153,13 @@ static void end_eisa1_irq(unsigned int irq)
 }
 
 static struct hw_interrupt_type ip22_eisa1_irq_type = {
-	"IP22 EISA",
-	startup_eisa1_irq,
-	shutdown_eisa1_irq,
-	enable_eisa1_irq,
-	disable_eisa1_irq,
-	mask_and_ack_eisa1_irq,
-	end_eisa1_irq,
-	NULL
+	.typename	= "IP22 EISA",
+	.startup	= startup_eisa1_irq,
+	.shutdown	= shutdown_eisa1_irq,
+	.enable		= enable_eisa1_irq,
+	.disable	= disable_eisa1_irq,
+	.ack		= mask_and_ack_eisa1_irq,
+	.end		= end_eisa1_irq,
 };
 
 static void enable_eisa2_irq(unsigned int irq)
@@ -217,22 +216,23 @@ static void end_eisa2_irq(unsigned int irq)
 }
 
 static struct hw_interrupt_type ip22_eisa2_irq_type = {
-	"IP22 EISA",
-	startup_eisa2_irq,
-	shutdown_eisa2_irq,
-	enable_eisa2_irq,
-	disable_eisa2_irq,
-	mask_and_ack_eisa2_irq,
-	end_eisa2_irq,
-	NULL
+	.typename	= "IP22 EISA",
+	.startup	= startup_eisa2_irq,
+	.shutdown	= shutdown_eisa2_irq,
+	.enable		= enable_eisa2_irq,
+	.disable	= disable_eisa2_irq,
+	.ack		= mask_and_ack_eisa2_irq,
+	.end		= end_eisa2_irq,
 };
 
 static struct irqaction eisa_action = {
-	ip22_eisa_intr, 0, 0, "EISA", NULL, NULL
+	.handler	= ip22_eisa_intr,
+	.name		= "EISA",
 };
 
 static struct irqaction cascade_action = {
-	no_action, 0, 0, "EISA cascade", NULL, NULL
+	.handler	= no_action,
+	.name		= "EISA cascade",
 };
 
 int __init ip22_eisa_init(void)

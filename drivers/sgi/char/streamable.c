@@ -50,7 +50,7 @@ get_sioc (struct strioctl *sioc, unsigned long arg)
 static int
 sgi_gfx_ioctl (struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
 {
-	printk ("GFX: ioctl 0x%x %ld called\n", cmd, arg);
+	printk (KERN_BEBUG "GFX: ioctl 0x%x %ld called\n", cmd, arg);
 	return 0;
 	return -EINVAL;
 }
@@ -60,7 +60,9 @@ struct file_operations sgi_gfx_fops = {
 };
 
 static struct miscdevice dev_gfx = {
-	SGI_GFX_MINOR, "sgi-gfx", &sgi_gfx_fops
+	.minor	= SGI_GFX_MINOR,
+	.name	= "sgi-gfx",
+	.fops	= &sgi_gfx_fops,
 };
 
 /* /dev/input/keyboard streams device */
@@ -169,7 +171,9 @@ struct file_operations sgi_keyb_fops = {
 };
 
 static struct miscdevice dev_input_keyboard = {
-	SGI_STREAMS_KEYBOARD, "streams-keyboard", &sgi_keyb_fops
+	.minor	= SGI_STREAMS_KEYBOARD,
+	.name	= "streams-keyboard",
+	.fops	= &sgi_keyb_fops,
 };
 
 /* /dev/input/mouse streams device */
@@ -300,13 +304,15 @@ struct file_operations sgi_mouse_fops = {
 
 /* /dev/input/mouse */
 static struct miscdevice dev_input_mouse = {
-	SGI_STREAMS_KEYBOARD, "streams-mouse", &sgi_mouse_fops
+	.minor	= SGI_STREAMS_KEYBOARD,
+	.name	= "streams-mouse",
+	.fops	= &sgi_mouse_fops,
 };
 
 void
 streamable_init (void)
 {
-	printk ("streamable misc devices registered (keyb:%d, gfx:%d)\n",
+	printk (KERN_INFO "streamable misc devices registered (keyb:%d, gfx:%d)\n",
 		SGI_STREAMS_KEYBOARD, SGI_GFX_MINOR);
 
 	misc_register (&dev_gfx);

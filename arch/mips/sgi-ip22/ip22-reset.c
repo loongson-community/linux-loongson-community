@@ -221,9 +221,7 @@ static int panic_event(struct notifier_block *this, unsigned long event,
 }
 
 static struct notifier_block panic_block = {
-	panic_event,
-	NULL,
-	0
+	.notifier_call	= panic_event,
 };
 
 static __init int indy_reboot_setup(void)

@@ -290,9 +290,9 @@ static struct file_operations ds1286_fops = {
 
 static struct miscdevice ds1286_dev=
 {
-	RTC_MINOR,
-	"rtc",
-	&ds1286_fops
+	.minor	= RTC_MINOR,
+	.name	= "rtc",
+	.fops	= &ds1286_fops,
 };
 
 int __init ds1286_init(void)

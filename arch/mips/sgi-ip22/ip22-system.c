@@ -19,18 +19,37 @@ struct smatch {
 	int type;
 };
 
-static struct smatch sgi_cputable[] = {
-	{ "MIPS-R2000", CPU_R2000 },
-	{ "MIPS-R3000", CPU_R3000 },
-	{ "MIPS-R3000A", CPU_R3000A },
-	{ "MIPS-R4000", CPU_R4000SC },
-	{ "MIPS-R4400", CPU_R4400SC },
-	{ "MIPS-R4600", CPU_R4600 },
-	{ "MIPS-R8000", CPU_R8000 },
-	{ "MIPS-R5000", CPU_R5000 },
-	{ "MIPS-R5000A", CPU_R5000A },
-	{ "MIPS-R10000", CPU_R10000 }
-};
+static struct smatch sgi_cputable[] = {{ 
+	.name	= "MIPS-R2000",
+	.type	= CPU_R2000,
+},{
+	.name	= "MIPS-R3000",
+	.type	= CPU_R3000,
+},{
+	.name	= "MIPS-R3000A",
+	.type	= CPU_R3000A,
+},{
+	.name	= "MIPS-4000",
+	.type	= CPU_R4000SC,
+},{
+	.name	= "MIPS-R4400",
+	.type	= CPU_R4400SC,
+},{
+	.name	= "MIPS-R4600",
+	.type	= CPU_R4600,
+},{
+	.name	= "MIPS-R8000",
+	.type	= CPU_R8000,
+},{
+	.name	= "MIPS-R5000",
+	.type	= CPU_R5000,
+},{
+	.name	= "MIPS-R5000A",
+	.type	= CPU_R5000A,
+},{
+	.name	= "MIPS-R10000",
+	.type	= CPU_R10000,
+}};
 
 static int __init string_to_cpu(char *s)
 {

@@ -170,13 +170,15 @@ struct file_operations sgi_usemaclone_fops = {
 };
 
 static struct miscdevice dev_usemaclone = {
-	SGI_USEMACLONE, "usemaclone", &sgi_usemaclone_fops
+	.minor	= SGI_USEMACLONE,
+	.name	= "usemaclone",
+	.fops	= &sgi_usemaclone_fops,
 };
 
 void
 usema_init(void)
 {
-	printk("usemaclone misc device registered (minor: %d)\n",
+	printk(KERN_INFO "usemaclone misc device registered (minor: %d)\n",
 	       SGI_USEMACLONE);
 	misc_register(&dev_usemaclone);
 }

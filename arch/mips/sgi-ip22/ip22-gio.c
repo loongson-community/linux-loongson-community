@@ -27,41 +27,25 @@
 
 #define GIO_NO_DEVICE		0x80
 
-static struct gio_dev gio_slot[GIO_NUM_SLOTS] = {
-	{
-		0,
-		0,
-		0,
-		GIO_NO_DEVICE,
-		GIO_SLOT_GFX,
-		GIO_ADDR_GFX,
-		GIO_GFX_MAP_SIZE,
-		NULL,
-		"GFX"
-	},
-	{
-		0,
-		0,
-		0,
-		GIO_NO_DEVICE,
-		GIO_SLOT_GIO1,
-		GIO_ADDR_GIO1,
-		GIO_GIO1_MAP_SIZE,
-		NULL,
-		"EXP0"
-	},
-	{
-		0,
-		0,
-		0,
-		GIO_NO_DEVICE,
-		GIO_SLOT_GIO2,
-		GIO_ADDR_GIO2,
-		GIO_GIO2_MAP_SIZE,
-		NULL,
-		"EXP1"
-	}
-};
+static struct gio_dev gio_slot[GIO_NUM_SLOTS] = {{
+	.flags		= GIO_NO_DEVICE,
+	.slot_number	= GIO_SLOT_GFX,
+	.base_addr	= GIO_ADDR_GFX,
+	.map_size	= GIO_GFX_MAP_SIZE,
+	.slot_name	= "GFX",
+}, {
+	.flags		= GIO_NO_DEVICE,
+	.slot_number	= GIO_SLOT_GIO1,
+	.base_addr	= GIO_ADDR_GIO1,
+	.map_size	= GIO_GIO1_MAP_SIZE,
+	.slot_name	= "EXP0",
+}, {
+	.flags		= GIO_NO_DEVICE,
+	.slot_number	= GIO_SLOT_GIO2,
+	.base_addr	= GIO_ADDR_GIO2,
+	.map_size	= GIO_GIO2_MAP_SIZE,
+	.slot_name	= "EXP1"
+}};
 
 static int gio_read_proc(char *buf, char **start, off_t off,
 			 int count, int *eof, void *data)
