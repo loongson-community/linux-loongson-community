@@ -16,13 +16,6 @@
  * 4  N/C
  */
 
-#define chkslot(_bus,_devfn)					\
-do {							        \
-	if ((_bus)->number > 0 || PCI_SLOT (_devfn) < 1		\
-	    || PCI_SLOT (_devfn) > 3)			        \
-		return PCIBIOS_DEVICE_NOT_FOUND;		\
-} while (0)
-
 #define SCSI0  MACEPCI_SCSI0_IRQ
 #define SCSI1  MACEPCI_SCSI1_IRQ
 #define INTA0  MACEPCI_SLOT0_IRQ
