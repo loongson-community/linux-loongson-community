@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: indy_pbus.c,v 1.1 1999/01/27 04:50:27 adevries Exp $
  *
  * indy_pbus.c: Routines for manipulation of the HPC PBUS DMA controller.
  *
@@ -38,7 +38,7 @@ struct pbus_fifo {
 	int size;
 };
 
-struct pbus_fifo pbus_fifo_busy = {
+static struct pbus_fifo pbus_fifo_busy = {
 	NULL,
 	-1,
 	0,
