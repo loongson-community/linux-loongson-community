@@ -128,15 +128,8 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 /* Fill in the fpu structure for a core dump.. */
 int dump_fpu(struct pt_regs *regs, elf_fpregset_t *r)
 {
-	/* We actually store the FPU info in the task->thread
-	 * area.
-	 */
-	if (regs->cp0_status & ST0_CU1) {
-		memcpy(r, &current->thread.fpu, sizeof(current->thread.fpu));
-		return 1;
-	}
-
-	return 0; /* Task didn't use the fpu at all. */
+	memcpy(r, &current->thread.fpu, sizeof(current->thread.fpu));
+	return 1;
 }
 
 /*
