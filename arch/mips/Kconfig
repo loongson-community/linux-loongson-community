@@ -260,6 +260,7 @@ config MOMENCO_OCELOT_C
 
 config MOMENCO_JAGUAR_ATX
 	bool "Support for Momentum Jaguar board"
+	select IRQ_CPU
 	select IRQ_CPU_RM7K
 	help
 	  The Jaguar ATX is a MIPS-based Single Board Computer (SBC) made by
