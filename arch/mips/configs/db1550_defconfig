@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.9
-# Wed Oct 20 02:27:35 2004
+# Tue Oct 19 23:46:02 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -18,7 +18,7 @@ CONFIG_BROKEN_ON_SMP=y
 #
 # General setup
 #
-CONFIG_LOCALVERSION="pete_should_update_his_damn_defconfig_files"
+CONFIG_LOCALVERSION=""
 CONFIG_SWAP=y
 CONFIG_SYSVIPC=y
 # CONFIG_POSIX_MQUEUE is not set
@@ -254,7 +254,11 @@ CONFIG_MTD_DB1550_USER=y
 #
 # NAND Flash Device Drivers
 #
-# CONFIG_MTD_NAND is not set
+CONFIG_MTD_NAND=m
+# CONFIG_MTD_NAND_VERIFY_WRITE is not set
+CONFIG_MTD_NAND_IDS=m
+CONFIG_MTD_NAND_AU1550=m
+# CONFIG_MTD_NAND_DISKONCHIP is not set
 
 #
 # Parallel port support
