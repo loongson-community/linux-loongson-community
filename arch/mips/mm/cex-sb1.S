@@ -46,8 +46,7 @@
 	beq	k0, k1, leave_cerr
 1:
 #endif
-	la	k1, handle_vec2_sb1
-	jr	k1
+	j	handle_vec2_sb1
 
 leave_cerr:
 	# clear/unlock the registers
