@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: checksum.h,v 1.3 1999/11/19 20:35:48 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -58,12 +58,12 @@ csum_fold(unsigned int sum)
 {
 	__asm__("
 	.set	noat            
-	sll	$1,%0,16
-	addu	%0,$1
-	sltu	$1,%0,$1
-	srl	%0,%0,16
-	addu	%0,$1
-	xori	%0,0xffff
+	sll	$1, %0, 16
+	addu	%0, $1
+	sltu	$1, %0, $1
+	srl	%0, %0, 16
+	addu	%0, $1
+	xori	%0, 0xffff
 	.set	at"
 	: "=r" (sum)
 	: "0" (sum)
@@ -94,11 +94,10 @@ ip_fast_csum(unsigned char * iph, unsigned int ihl)
 	.set	noat
 	lw	%0, (%1)
 	subu	%2, 4
-	#blez	%2, 2f
-	sll	%2, 2			# delay slot
+	dsll	%2, 2
 
 	lw	%3, 4(%1)
-	daddu	%2, %1			# delay slot
+	daddu	%2, %1
 	addu	%0, %3
 	sltu	$1, %0, %3
 	lw	%3, 8(%1)
@@ -116,7 +115,7 @@ ip_fast_csum(unsigned char * iph, unsigned int ihl)
 	addu	%0, %3
 	sltu	$1, %0, %3
 	bne	%2, %1, 1b
-	addu	%0, $1			# delay slot
+	 addu	%0, $1
 
 2:	.set	at
 	.set	reorder"
@@ -137,26 +136,20 @@ csum_tcpudp_nofold(unsigned long saddr, unsigned long daddr,
 {
     __asm__("
 	.set	noat
-	addu	%0,%2
-	sltu	$1,%0,%2
-	addu	%0,$1
-
-	addu	%0,%3
-	sltu	$1,%0,%3
-	addu	%0,$1
-
-	addu	%0,%4
-	sltu	$1,%0,%4
-	addu	%0,$1
+	daddu	%0, %2
+	daddu	%0, %3
+	daddu	%0, %4
+	dsll32	$1, %0, 0
+	daddu	%0, $1		# never results in an overflow
+	dsrl32	%0, %0, 0
 	.set	at"
 	: "=r" (sum)
-	: "0" (daddr), "r"(saddr),
+	: "0" (sum), "r"(saddr), "r" (daddr),
 #ifdef __MIPSEL__
-	    "r" ((ntohs(len)<<16)+proto*256),
+	    "r" ((ntohs(len)<<16)+proto*256)
 #else
-	    "r" (((proto)<<16)+len),
+	    "r" (((proto)<<16)+len)
 #endif
-	    "r"(sum)
 	: "$1");
 
 	return sum;
@@ -191,51 +184,51 @@ csum_ipv6_magic(struct in6_addr *saddr, struct in6_addr *daddr, __u16 len,
 	__asm__("
 		.set	noreorder
 		.set	noat
-		addu	%0,%5		# proto (long in network byte order)
-		sltu	$1,%0,%5
-		addu	%0,$1
+		addu	%0, %5		# proto (long in network byte order)
+		sltu	$1, %0, %5
+		addu	%0, $1
 
-		addu	%0,%6		# csum
-		sltu	$1,%0,%6
-		lw	%1,0(%2)	# four words source address
-		addu	%0,$1
-		addu	%0,%1
-		sltu	$1,%0,$1
+		addu	%0, %6		# csum
+		sltu	$1, %0, %6
+		lw	%1, 0(%2)	# four words source address
+		addu	%0, $1
+		addu	%0, %1
+		sltu	$1, %0, $1
 
-		lw	%1,4(%2)
-		addu	%0,$1
-		addu	%0,%1
-		sltu	$1,%0,$1
+		lw	%1, 4(%2)
+		addu	%0, $1
+		addu	%0, %1
+		sltu	$1, %0, $1
 
-		lw	%1,8(%2)
-		addu	%0,$1
-		addu	%0,%1
-		sltu	$1,%0,$1
+		lw	%1, 8(%2)
+		addu	%0, $1
+		addu	%0, %1
+		sltu	$1, %0, $1
 
-		lw	%1,12(%2)
-		addu	%0,$1
-		addu	%0,%1
-		sltu	$1,%0,$1
+		lw	%1, 12(%2)
+		addu	%0, $1
+		addu	%0, %1
+		sltu	$1, %0, $1
 
-		lw	%1,0(%3)
-		addu	%0,$1
-		addu	%0,%1
-		sltu	$1,%0,$1
+		lw	%1, 0(%3)
+		addu	%0, $1
+		addu	%0, %1
+		sltu	$1, %0, $1
 
-		lw	%1,4(%3)
-		addu	%0,$1
-		addu	%0,%1
-		sltu	$1,%0,$1
+		lw	%1, 4(%3)
+		addu	%0, $1
+		addu	%0, %1
+		sltu	$1, %0, $1
 
-		lw	%1,8(%3)
-		addu	%0,$1
-		addu	%0,%1
-		sltu	$1,%0,$1
+		lw	%1, 8(%3)
+		addu	%0, $1
+		addu	%0, %1
+		sltu	$1, %0, $1
 
-		lw	%1,12(%3)
-		addu	%0,$1
-		addu	%0,%1
-		sltu	$1,%0,$1
+		lw	%1, 12(%3)
+		addu	%0, $1
+		addu	%0, %1
+		sltu	$1, %0, $1
 		.set	noat
 		.set	noreorder"
 		: "=r" (sum), "=r" (proto)
