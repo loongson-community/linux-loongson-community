@@ -36,7 +36,7 @@ __asm__ (
 	".set\tpop\n\t"
 	".endm");
 
-extern inline void local_irq_enable(void)
+static inline void local_irq_enable(void)
 {
 	__asm__ __volatile__(
 		"local_irq_enable"
@@ -67,7 +67,7 @@ __asm__ (
 	".set\tpop\n\t"
 	".endm");
 
-extern inline void local_irq_disable(void)
+static inline void local_irq_disable(void)
 {
 	__asm__ __volatile__(
 		"local_irq_disable"
@@ -288,7 +288,7 @@ do { \
  * For 32 and 64 bit operands we can take advantage of ll and sc.
  * FIXME: This doesn't work for R3000 machines.
  */
-extern __inline__ unsigned long xchg_u32(volatile int * m, unsigned long val)
+static __inline__ unsigned long xchg_u32(volatile int * m, unsigned long val)
 {
 #ifdef CONFIG_CPU_HAS_LLSC
 	unsigned long dummy;

@@ -30,7 +30,7 @@ __asm__ (
 	".set\tpop\n\t"
 	".endm");
 
-extern inline void local_irq_enable(void)
+static inline void local_irq_enable(void)
 {
 	__asm__ __volatile__(
 		"local_irq_enable"
@@ -61,7 +61,7 @@ __asm__ (
 	".set\tpop\n\t"
 	".endm");
 
-extern inline void local_irq_disable(void)
+static inline void local_irq_disable(void)
 {
 	__asm__ __volatile__(
 		"local_irq_disable"
@@ -272,7 +272,7 @@ do { \
 	(last) = resume(prev, next, next->thread_info); \
 } while(0)
 
-extern __inline__ unsigned long xchg_u32(volatile int * m, unsigned long val)
+static __inline__ unsigned long xchg_u32(volatile int * m, unsigned long val)
 {
 	unsigned long dummy;
 
@@ -294,7 +294,7 @@ extern __inline__ unsigned long xchg_u32(volatile int * m, unsigned long val)
 	return val;
 }
 
-extern __inline__ unsigned long xchg_u64(volatile int * m, unsigned long val)
+static __inline__ unsigned long xchg_u64(volatile int * m, unsigned long val)
 {
 	unsigned long dummy;
 

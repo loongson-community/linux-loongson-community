@@ -15,7 +15,7 @@
 
 extern unsigned long loops_per_jiffy;
 
-extern __inline__ void
+static __inline__ void
 __delay(unsigned long loops)
 {
 	__asm__ __volatile__ (
@@ -37,7 +37,7 @@ __delay(unsigned long loops)
  * first constant multiplications gets optimized away if the delay is
  * a constant)
  */
-extern __inline__ void __udelay(unsigned long usecs, unsigned long lpj)
+static __inline__ void __udelay(unsigned long usecs, unsigned long lpj)
 {
 	unsigned long lo;
 
