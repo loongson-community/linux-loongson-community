@@ -1,4 +1,4 @@
-/* $Id: addrspace.h,v 1.2 1999/12/04 03:59:12 ralf Exp $
+/* $Id: addrspace.h,v 1.3 2000/01/17 23:32:47 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -29,16 +29,16 @@
 /*
  * Returns the physical address of a KSEG0/KSEG1 address
  */
-#define CPHYSADDR(a)		(((unsigned long)(a)) & 0x1fffffffUL)
-#define PHYSADDR(a)		(((unsigned long)(a)) & 0x1fffffffUL)
+#define CPHYSADDR(a)		(((unsigned long)(a)) & 0x000000ffffffffffUL)
+#define PHYSADDR(a)		(((unsigned long)(a)) & 0x000000ffffffffffUL)
 
 /*
  * Map an address to a certain kernel segment
  */
-#define KSEG0ADDR(a)		((__typeof__(a))(((unsigned long)(a) & 0x1fffffff) | KSEG0))
-#define KSEG1ADDR(a)		((__typeof__(a))(((unsigned long)(a) & 0x1fffffff) | KSEG1))
-#define KSEG2ADDR(a)		((__typeof__(a))(((unsigned long)(a) & 0x1fffffff) | KSEG2))
-#define KSEG3ADDR(a)		((__typeof__(a))(((unsigned long)(a) & 0x1fffffff) | KSEG3))
+#define KSEG0ADDR(a)		((__typeof__(a))(((unsigned long)(a) & 0x000000ffffffffffUL) | KSEG0))
+#define KSEG1ADDR(a)		((__typeof__(a))(((unsigned long)(a) & 0x000000ffffffffffUL) | KSEG1))
+#define KSEG2ADDR(a)		((__typeof__(a))(((unsigned long)(a) & 0x000000ffffffffffUL) | KSEG2))
+#define KSEG3ADDR(a)		((__typeof__(a))(((unsigned long)(a) & 0x000000ffffffffffUL) | KSEG3))
 
 /*
  * Memory segments (64bit kernel mode addresses)
