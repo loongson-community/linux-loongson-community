@@ -86,6 +86,9 @@ __asm__ (                                                               \
 
 #define PTRACE_OLDSETOPTIONS	21
 
+#define PTRACE_GET_THREAD_AREA	25
+#define PTRACE_SET_THREAD_AREA	26
+
 #ifdef __ASSEMBLY__
 #include <asm/offset.h>
 #endif

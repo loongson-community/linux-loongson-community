@@ -36,7 +36,7 @@
 #include <asm/sections.h>
 #include <asm/tlb.h>
 
-mmu_gather_t mmu_gathers[NR_CPUS];
+struct mmu_gather mmu_gathers[NR_CPUS];
 unsigned long highstart_pfn, highend_pfn;
 static unsigned long totalram_pages;
 static unsigned long totalhigh_pages;

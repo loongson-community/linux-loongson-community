@@ -179,7 +179,7 @@ static struct bc_hw_ops hfc_ops = {
 };
 
 static void
-TeleInt_interrupt(int intno, void *dev_id, struct pt_regs *regs)
+teleint_interrupt(int intno, void *dev_id, struct pt_regs *regs)
 {
 	struct IsdnCardState *cs = dev_id;
 	u8 val;
@@ -217,17 +217,16 @@ TeleInt_Timer(struct IsdnCardState *cs)
 	add_timer(&cs->hw.hfc.timer);
 }
 
-void
-release_io_TeleInt(struct IsdnCardState *cs)
+static void
+teleint_release(struct IsdnCardState *cs)
 {
 	del_timer(&cs->hw.hfc.timer);
 	releasehfc(cs);
-	if (cs->hw.hfc.addr)
-		release_region(cs->hw.hfc.addr, 2);
+	hisax_release_resources(cs);
 }
 
-static void
-reset_TeleInt(struct IsdnCardState *cs)
+static int
+teleint_reset(struct IsdnCardState *cs)
 {
 	printk(KERN_INFO "TeleInt: resetting card\n");
 	cs->hw.hfc.cirm |= HFC_RESET;
@@ -238,29 +237,24 @@ reset_TeleInt(struct IsdnCardState *cs)
 	byteout(cs->hw.hfc.addr | 1, cs->hw.hfc.cirm);	/* Reset Off */
 	set_current_state(TASK_UNINTERRUPTIBLE);
 	schedule_timeout((10*HZ)/1000);
+	return 0;
 }
 
-static int
-TeleInt_card_msg(struct IsdnCardState *cs, int mt, void *arg)
+static void
+teleint_init(struct IsdnCardState *cs)
 {
-	switch (mt) {
-		case CARD_RESET:
-			reset_TeleInt(cs);
-			return(0);
-		case CARD_RELEASE:
-			release_io_TeleInt(cs);
-			return(0);
-		case CARD_INIT:
-			inithfc(cs);
-			initisac(cs);
-			cs->hw.hfc.timer.expires = jiffies + 1;
-			add_timer(&cs->hw.hfc.timer);
-			return(0);
-		case CARD_TEST:
-			return(0);
-	}
-	return(0);
+	inithfc(cs);
+	initisac(cs);
+	cs->hw.hfc.timer.expires = jiffies + 1;
+	add_timer(&cs->hw.hfc.timer);
 }
+
+static struct card_ops teleint_ops = {
+	.init     = teleint_init,
+	.reset    = teleint_reset,
+	.release  = teleint_release,
+	.irq_func = teleint_interrupt,
+};
 
 int __init
 setup_TeleInt(struct IsdnCard *card)
@@ -270,8 +264,6 @@ setup_TeleInt(struct IsdnCard *card)
 
 	strcpy(tmp, TeleInt_revision);
 	printk(KERN_INFO "HiSax: TeleInt driver Rev. %s\n", HiSax_getrev(tmp));
-	if (cs->typ != ISDN_CTYPE_TELEINT)
-		return (0);
 
 	cs->hw.hfc.addr = card->para[1] & 0x3fe;
 	cs->irq = card->para[0];
@@ -285,16 +277,9 @@ setup_TeleInt(struct IsdnCard *card)
 	cs->hw.hfc.timer.function = (void *) TeleInt_Timer;
 	cs->hw.hfc.timer.data = (long) cs;
 	init_timer(&cs->hw.hfc.timer);
-	if (check_region((cs->hw.hfc.addr), 2)) {
-		printk(KERN_WARNING
-		       "HiSax: %s config port %x-%x already in use\n",
-		       CardType[card->typ],
-		       cs->hw.hfc.addr,
-		       cs->hw.hfc.addr + 2);
-		return (0);
-	} else {
-		request_region(cs->hw.hfc.addr, 2, "TeleInt isdn");
-	}
+	if (!request_io(&cs->rs, cs->hw.hfc.addr, 2, "TeleInt isdn"))
+		goto err;
+	
 	/* HW IO = IO */
 	byteout(cs->hw.hfc.addr, cs->hw.hfc.addr & 0xff);
 	byteout(cs->hw.hfc.addr | 1, ((cs->hw.hfc.addr & 0x300) >> 8) | 0x54);
@@ -319,8 +304,7 @@ setup_TeleInt(struct IsdnCard *card)
 			break;
 		default:
 			printk(KERN_WARNING "TeleInt: wrong IRQ\n");
-			release_io_TeleInt(cs);
-			return (0);
+			goto err;
 	}
 	byteout(cs->hw.hfc.addr | 1, cs->hw.hfc.cirm);
 	byteout(cs->hw.hfc.addr | 1, cs->hw.hfc.ctmt);
@@ -330,11 +314,12 @@ setup_TeleInt(struct IsdnCard *card)
 	       cs->hw.hfc.addr,
 	       cs->irq);
 
-	reset_TeleInt(cs);
-	cs->dc_hw_ops = &isac_ops;
-	cs->bc_hw_ops = &hfc_ops;
-	cs->cardmsg = &TeleInt_card_msg;
-	cs->irq_func = &TeleInt_interrupt;
-	ISACVersion(cs, "TeleInt:");
-	return (1);
+	cs->card_ops = &teleint_ops;
+	teleint_reset(cs);
+	isac_setup(cs, &isac_ops);
+	hfc_setup(cs, &hfc_ops);
+	return 1;
+ err:
+	teleint_release(cs);
+	return 0;
 }

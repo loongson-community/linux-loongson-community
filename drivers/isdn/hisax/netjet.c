@@ -839,6 +839,7 @@ static void
 tiger_l2l1(struct PStack *st, int pr, void *arg)
 {
 	struct sk_buff *skb = arg;
+	struct IsdnCardState *cs = st->l1.bcs->cs;
 
 	switch (pr) {
 		case (PH_DATA | REQUEST):
@@ -853,13 +854,13 @@ tiger_l2l1(struct PStack *st, int pr, void *arg)
 		case (PH_ACTIVATE | REQUEST):
 			test_and_set_bit(BC_FLG_ACTIV, &st->l1.bcs->Flag);
 			mode_tiger(st->l1.bcs, st->l1.mode, st->l1.bc);
-			/* 2001/10/04 Christoph Ersfeld, Formula-n Europe AG */
-			st->l1.bcs->cs->cardmsg(st->l1.bcs->cs, MDL_BC_ASSIGN, (void *)(&st->l1.bc));
+			if (cs->hw.njet.bc_activate)
+				(cs->hw.njet.bc_activate)(cs, st->l1.bc);
 			l1_msg_b(st, pr, arg);
 			break;
 		case (PH_DEACTIVATE | REQUEST):
-			/* 2001/10/04 Christoph Ersfeld, Formula-n Europe AG */
-			st->l1.bcs->cs->cardmsg(st->l1.bcs->cs, MDL_BC_RELEASE, (void *)(&st->l1.bc));
+			if (cs->hw.njet.bc_deactivate)
+				(cs->hw.njet.bc_deactivate)(cs, st->l1.bc);
 			l1_msg_b(st, pr, arg);
 			break;
 		case (PH_DEACTIVATE | CONFIRM):
@@ -937,6 +938,8 @@ setstack_tiger(struct PStack *st, struct BCState *bcs)
  
 static struct bc_l1_ops netjet_l1_ops = {
 	.fill_fifo = netjet_fill_dma,
+	.open      = setstack_tiger,
+	.close     = close_tigerstate,
 };
 
 void __init
@@ -994,13 +997,9 @@ inittiger(struct IsdnCardState *cs)
 		inl(cs->hw.njet.base + NETJET_DMA_READ_ADR),
 		bytein(cs->hw.njet.base + NETJET_PULSE_CNT));
 	cs->hw.njet.last_is0 = 0;
-	cs->bcs[0].BC_SetStack = setstack_tiger;
-	cs->bcs[1].BC_SetStack = setstack_tiger;
-	cs->bcs[0].BC_Close = close_tigerstate;
-	cs->bcs[1].BC_Close = close_tigerstate;
 }
 
-void
+static void
 releasetiger(struct IsdnCardState *cs)
 {
 	if (cs->bcs[0].hw.tiger.send) {
@@ -1026,11 +1025,11 @@ releasetiger(struct IsdnCardState *cs)
 }
 
 void
-release_io_netjet(struct IsdnCardState *cs)
+netjet_release(struct IsdnCardState *cs)
 {
 	byteout(cs->hw.njet.base + NETJET_IRQMASK0, 0);
 	byteout(cs->hw.njet.base + NETJET_IRQMASK1, 0);
 	releasetiger(cs);
-	release_region(cs->hw.njet.base, 256);
+	hisax_release_resources(cs);
 }
 

@@ -166,70 +166,11 @@ static struct bc_hw_ops hscx_ops = {
 	.write_fifo = hscx_write_fifo,
 };
  
-static void
-s0box_interrupt(int intno, void *dev_id, struct pt_regs *regs)
-{
-#define MAXCOUNT 5
-	struct IsdnCardState *cs = dev_id;
-	u8 val;
-	int count = 0;
-
-	spin_lock(&cs->lock);
-	val = hscx_read(cs, 1, HSCX_ISTA);
-      Start_HSCX:
-	if (val)
-		hscx_int_main(cs, val);
-	val = isac_read(cs, ISAC_ISTA);
-      Start_ISAC:
-	if (val)
-		isac_interrupt(cs, val);
-	count++;
-	val = hscx_read(cs, 1, HSCX_ISTA);
-	if (val && count < MAXCOUNT) {
-		if (cs->debug & L1_DEB_HSCX)
-			debugl1(cs, "HSCX IntStat after IntRoutine");
-		goto Start_HSCX;
-	}
-	val = isac_read(cs, ISAC_ISTA);
-	if (val && count < MAXCOUNT) {
-		if (cs->debug & L1_DEB_ISAC)
-			debugl1(cs, "ISAC IntStat after IntRoutine");
-		goto Start_ISAC;
-	}
-	if (count >= MAXCOUNT)
-		printk(KERN_WARNING "S0Box: more than %d loops in s0box_interrupt\n", count);
-	hscx_write(cs, 0, HSCX_MASK, 0xFF);
-	hscx_write(cs, 1, HSCX_MASK, 0xFF);
-	isac_write(cs, ISAC_MASK, 0xFF);
-	isac_write(cs, ISAC_MASK, 0x0);
-	hscx_write(cs, 0, HSCX_MASK, 0x0);
-	hscx_write(cs, 1, HSCX_MASK, 0x0);
-	spin_unlock(&cs->lock);
-}
-
-void
-release_io_s0box(struct IsdnCardState *cs)
-{
-	release_region(cs->hw.teles3.cfg_reg, 8);
-}
-
-static int
-S0Box_card_msg(struct IsdnCardState *cs, int mt, void *arg)
-{
-	switch (mt) {
-		case CARD_RESET:
-			break;
-		case CARD_RELEASE:
-			release_io_s0box(cs);
-			break;
-		case CARD_INIT:
-			inithscxisac(cs);
-			break;
-		case CARD_TEST:
-			break;
-	}
-	return(0);
-}
+static struct card_ops s0box_ops = {
+	.init     = inithscxisac,
+	.release  = hisax_release_resources,
+	.irq_func = hscxisac_irq,
+};
 
 int __init
 setup_s0box(struct IsdnCard *card)
@@ -239,9 +180,6 @@ setup_s0box(struct IsdnCard *card)
 
 	strcpy(tmp, s0box_revision);
 	printk(KERN_INFO "HiSax: S0Box IO driver Rev. %s\n", HiSax_getrev(tmp));
-	if (cs->typ != ISDN_CTYPE_S0BOX)
-		return (0);
-
 	cs->hw.teles3.cfg_reg = card->para[1];
 	cs->hw.teles3.hscx[0] = -0x20;
 	cs->hw.teles3.hscx[1] = 0x0;
@@ -250,14 +188,8 @@ setup_s0box(struct IsdnCard *card)
 	cs->hw.teles3.hscxfifo[0] = cs->hw.teles3.hscx[0] + 0x3e;
 	cs->hw.teles3.hscxfifo[1] = cs->hw.teles3.hscx[1] + 0x3e;
 	cs->irq = card->para[0];
-	if (!request_region(cs->hw.teles3.cfg_reg,8, "S0Box parallel I/O")) {
-		printk(KERN_WARNING
-		       "HiSax: %s ports %x-%x already in use\n",
-		       CardType[cs->typ],
-                       cs->hw.teles3.cfg_reg,
-                       cs->hw.teles3.cfg_reg + 7);
-		return 0;
-	} 
+	if (!request_io(&cs->rs, cs->hw.teles3.cfg_reg, 8, "S0Box parallel I/O"))
+		goto err;
 	printk(KERN_INFO
 	       "HiSax: %s config irq:%d isac:0x%x  cfg:0x%x\n",
 	       CardType[cs->typ], cs->irq,
@@ -265,16 +197,11 @@ setup_s0box(struct IsdnCard *card)
 	printk(KERN_INFO
 	       "HiSax: hscx A:0x%x  hscx B:0x%x\n",
 	       cs->hw.teles3.hscx[0], cs->hw.teles3.hscx[1]);
-	cs->dc_hw_ops = &isac_ops;
-	cs->bc_hw_ops = &hscx_ops;
-	cs->cardmsg = &S0Box_card_msg;
-	cs->irq_func = &s0box_interrupt;
-	ISACVersion(cs, "S0Box:");
-	if (HscxVersion(cs, "S0Box:")) {
-		printk(KERN_WARNING
-		       "S0Box: wrong HSCX versions check IO address\n");
-		release_io_s0box(cs);
-		return (0);
-	}
-	return (1);
+	cs->card_ops = &s0box_ops;
+	if (hscxisac_setup(cs, &isac_ops, &hscx_ops))
+		goto err;
+	return 1;
+ err:
+	hisax_release_resources(cs);
+	return 0;
 }

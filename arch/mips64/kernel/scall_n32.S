@@ -247,8 +247,8 @@ EXPORT(sysn32_call_table)
 	PTR	sys_mknod
 	PTR	sys32_personality
 	PTR	sys_ustat
-	PTR	sys32_statfs
-	PTR	sys32_fstatfs			/* 6135 */
+	PTR	compat_sys_statfs
+	PTR	compat_sys_fstatfs		/* 6135 */
 	PTR	sys_sysfs
 	PTR	sys_getpriority
 	PTR	sys_setpriority

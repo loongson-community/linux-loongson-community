@@ -70,7 +70,21 @@ struct compat_flock {
 	s32		l_sysid;
 	compat_pid_t	l_pid;
 	short		__unused;
-	s32	pad[4];
+	s32		pad[4];
+};
+
+struct compat_statfs {
+	int		f_type;
+	int		f_bsize;
+	int		f_frsize;
+	int		f_blocks;
+	int		f_bfree;
+	int		f_files;
+	int		f_ffree;
+	int		f_bavail;
+	compat_fsid_t	f_fsid;
+	int		f_namelen;
+	int		f_spare[6];
 };
 
 #endif /* _ASM_COMPAT_H */

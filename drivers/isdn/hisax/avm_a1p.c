@@ -189,38 +189,31 @@ avm_a1p_interrupt(int intno, void *dev_id, struct pt_regs *regs)
 	spin_unlock(&cs->lock);
 }
 
-static int
-AVM_card_msg(struct IsdnCardState *cs, int mt, void *arg)
+static void
+avm_a1p_init(struct IsdnCardState *cs)
 {
-	switch (mt) {
-		case CARD_RESET:
-			byteout(cs->hw.avm.cfg_reg+ASL0_OFFSET,0x00);
-			HZDELAY(HZ / 5 + 1);
-			byteout(cs->hw.avm.cfg_reg+ASL0_OFFSET,ASL0_W_RESET);
-			HZDELAY(HZ / 5 + 1);
-			byteout(cs->hw.avm.cfg_reg+ASL0_OFFSET,0x00);
-			return 0;
+	byteout(cs->hw.avm.cfg_reg+ASL0_OFFSET,
+		ASL0_W_TDISABLE|ASL0_W_TRESET|ASL0_W_IRQENABLE);
+	inithscxisac(cs);
+}
 
-		case CARD_RELEASE:
-			/* free_irq is done in HiSax_closecard(). */
-		        /* free_irq(cs->irq, cs); */
-			return 0;
+static int
+avm_a1p_reset(struct IsdnCardState *cs)
+{
+	byteout(cs->hw.avm.cfg_reg+ASL0_OFFSET,0x00);
+	HZDELAY(HZ / 5 + 1);
+	byteout(cs->hw.avm.cfg_reg+ASL0_OFFSET,ASL0_W_RESET);
+	HZDELAY(HZ / 5 + 1);
+	byteout(cs->hw.avm.cfg_reg+ASL0_OFFSET,0x00);
 
-		case CARD_INIT:
-			byteout(cs->hw.avm.cfg_reg+ASL0_OFFSET,ASL0_W_TDISABLE|ASL0_W_TRESET|ASL0_W_IRQENABLE);
-			inithscxisac(cs);
-			return 0;
-
-		case CARD_TEST:
-			/* we really don't need it for the PCMCIA Version */
-			return 0;
-
-		default:
-			/* all card drivers ignore others, so we do the same */
-			return 0;
-	}
 	return 0;
 }
+
+static struct card_ops avm_a1p_ops = {
+	.init     = avm_a1p_init,
+	.reset    = avm_a1p_reset,
+	.irq_func = avm_a1p_interrupt,
+};
 
 int __devinit
 setup_avm_a1_pcmcia(struct IsdnCard *card)
@@ -232,10 +225,7 @@ setup_avm_a1_pcmcia(struct IsdnCard *card)
 
 	strcpy(tmp, avm_revision);
 	printk(KERN_INFO "HiSax: AVM A1 PCMCIA driver Rev. %s\n",
-						 HiSax_getrev(tmp));
-	if (cs->typ != ISDN_CTYPE_A1_PCMCIA)
-		return (0);
-
+	       HiSax_getrev(tmp));
 	cs->hw.avm.cfg_reg = card->para[1];
 	cs->irq = card->para[0];
 
@@ -256,16 +246,9 @@ setup_avm_a1_pcmcia(struct IsdnCard *card)
 	printk(KERN_INFO "AVM A1 PCMCIA: io 0x%x irq %d model %d version %d\n",
 				cs->hw.avm.cfg_reg, cs->irq, model, vers);
 
-	cs->dc_hw_ops = &isac_ops;
-	cs->bc_hw_ops = &hscx_ops;
-	cs->cardmsg = &AVM_card_msg;
-	cs->irq_func = &avm_a1p_interrupt;
+	cs->card_ops = &avm_a1p_ops;
+	if (hscxisac_setup(cs, &isac_ops, &hscx_ops))
+		return 0;
 
-	ISACVersion(cs, "AVM A1 PCMCIA:");
-	if (HscxVersion(cs, "AVM A1 PCMCIA:")) {
-		printk(KERN_WARNING
-		       "AVM A1 PCMCIA: wrong HSCX versions check IO address\n");
-		return (0);
-	}
-	return (1);
+	return 1;
 }

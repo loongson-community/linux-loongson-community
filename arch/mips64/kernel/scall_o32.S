@@ -402,11 +402,11 @@ out:	jr	ra
 	sys	sys_getpriority	2
 	sys	sys_setpriority	3
 	sys	sys_ni_syscall	0
-	sys	sys32_statfs	2
-	sys	sys32_fstatfs	2		/* 4100 */
-	sys	sys_ni_syscall	0		/* sys_ioperm */
-	sys	sys_socketcall	2
-	sys	sys_syslog	3
+	sys	compat_sys_statfs	2
+	sys	compat_sys_fstatfs	2		/* 4100 */
+	sys	sys_ni_syscall		0		/* sys_ioperm */
+	sys	sys_socketcall		2
+	sys	sys_syslog		3
 	sys	compat_sys_setitimer	3
 	sys	compat_sys_getitimer	2	/* 4105 */
 	sys	compat_sys_newstat	2
