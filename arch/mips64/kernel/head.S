@@ -1,5 +1,4 @@
-/* $Id: head.S,v 1.6 2000/03/27 21:05:04 ulfc Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
@@ -21,6 +20,16 @@
 #include <asm/stackframe.h>
 #include <asm/pgtable.h>
 
+	.macro	ARC64_TWIDDLE_PC
+#ifdef CONFIG_ARC64
+	/* We get launched at a XKPHYS address but the kernel is linked to
+	   run at a KSEG0 address, so jump there.  */
+	la	t0, \@f
+	jr	t0
+\@:
+#endif
+	.endm
+
 	.text
 
 EXPORT(stext)					# used for profiling
@@ -35,11 +44,7 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 
 	jal	mapped_kernel_setup_tlb
 
-#ifdef CONFIG_ARC64
-	la	t0, 1f
-	jr	t0
-1:
-#endif
+	ARC64_TWIDDLE_PC
 
 	/* Note that all firmware passed argument registers still
 	   have their values.  */
@@ -103,11 +108,7 @@ NESTED(mapped_kernel_setup_tlb, 16, sp)
 
 NESTED(bootstrap, 16, sp)
 	jal	mapped_kernel_setup_tlb
-#ifdef CONFIG_ARC64
-	la	t0, 1f
-	jr	t0
-1:
-#endif
+	ARC64_TWIDDLE_PC
 	CLI
 	mfc0	t0, CP0_STATUS
 	li	t1, ~(ST0_CU1|ST0_CU2|ST0_CU3)
