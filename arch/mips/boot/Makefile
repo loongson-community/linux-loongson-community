@@ -19,7 +19,7 @@ endif
 # Drop some uninteresting sections in the kernel.
 # This is only relevant for ELF kernels but doesn't hurt a.out
 #
-drop-sections	= .reginfo .mdebug .comment .note
+drop-sections	= .reginfo .mdebug .comment .note .pdr
 strip-flags	= $(addprefix --remove-section=,$(drop-sections))
 
 all: vmlinux.ecoff vmlinux.srec addinitrd
@@ -27,9 +27,10 @@ all: vmlinux.ecoff vmlinux.srec addinitrd
 vmlinux.rm200: vmlinux
 	$(OBJCOPY) \
 		--change-addresses=0xfffffffc \
-		-O elf32-tradlittlemips \
+		-O ecoff-littlemips \
 		$(strip-flags) \
-		$< $@
+		--impure \
+		vmlinux $@
 
 vmlinux.ecoff:	$(obj)/elf2ecoff vmlinux
 	./elf2ecoff vmlinux $(obj)/vmlinux.ecoff $(E2EFLAGS)
