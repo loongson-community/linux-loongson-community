@@ -281,49 +281,49 @@ do {									\
 
 static inline void outsb(unsigned long port, void *addr, unsigned int count)
 {
-	while(count--) {
+	while (count--) {
 		outb(*(__u8 *)addr, port);
-		addr++; port++;
+		addr++;
 	}
 }
 
 static inline void insb(unsigned long port, void *addr, unsigned int count)
 {
-	while(count--) {
+	while (count--) {
 		*(__u8 *)addr = inb(port);
-		addr++; port++;
+		addr++;
 	}
 }
 
 static inline void outsw(unsigned long port, void *addr, unsigned int count)
 {
-	while(count--) {
+	while (count--) {
 		outw(*(__u16 *)addr, port);
-		addr+=2; port+=2;
+		addr += 2;
 	}
 }
 
 static inline void insw(unsigned long port, void *addr, unsigned int count)
 {
-	while(count--) {
+	while (count--) {
 		*(__u16 *)addr = inw(port);
-		addr+=2; port+=2;
+		addr += 2;
 	}
 }
 
 static inline void outsl(unsigned long port, void *addr, unsigned int count)
 {
-	while(count--) {
+	while (count--) {
 		outl(*(__u32 *)addr, port);
-		addr+=4; port+=4;
+		addr += 4;
 	}
 }
 
 static inline void insl(unsigned long port, void *addr, unsigned int count)
 {
-	while(count--) {
+	while (count--) {
 		*(__u32 *)addr = inw(port);
-		addr+=4; port+=4;
+		addr += 4;
 	}
 }
 
