@@ -49,6 +49,9 @@ extern asmlinkage void handle_watch(void);
 extern asmlinkage void handle_mcheck(void);
 extern asmlinkage void handle_reserved(void);
 
+extern int fpu_emulator_cop1Handler(struct pt_regs *);
+void fpu_emulator_init_fpu(void);
+
 char watch_available = 0;
 char dedicated_iv_available = 0;
 
@@ -471,10 +474,14 @@ void do_ri(struct pt_regs *regs)
 void do_cpu(struct pt_regs *regs)
 {
 	u32 cpid;
+	int sig;
 
 	cpid = (regs->cp0_cause >> CAUSEB_CE) & 3;
 	if (cpid != 1)
 		goto bad_cid;
+
+	if (!(mips_cpu.options & MIPS_CPU_FPU))
+		goto fp_emul;
 
 	regs->cp0_status |= ST0_CU1;
 
@@ -499,6 +506,16 @@ void do_cpu(struct pt_regs *regs)
 	}
 	last_task_used_math = current;
 #endif
+	return;
+
+fp_emul:
+	if (!current->used_math) {
+		fpu_emulator_init_fpu();
+		current->used_math = 1;
+	}
+	sig = fpu_emulator_cop1Handler(regs);
+	if (sig)
+		force_sig(sig, current);
 	return;
 
 bad_cid:
