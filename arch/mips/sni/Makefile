@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.3 1998/10/28 12:38:16 ralf Exp $
+# $Id: Makefile,v 1.3 1999/01/04 16:03:57 ralf Exp $
 #
 # Makefile for the SNI specific part of the kernel
 #
@@ -14,7 +14,7 @@
 
 all: sni.o
 O_TARGET := sni.o
-O_OBJS	 := int-handler.o io.o pci.o pcimt_scache.o reset.o setup.o
+O_OBJS	 := dma.o int-handler.o io.o pci.o pcimt_scache.o reset.o setup.o
 
 int-handler.o: int-handler.S
 

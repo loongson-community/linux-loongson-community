@@ -1,4 +1,4 @@
-/* $Id: fault.c,v 1.4 1999/12/04 03:59:00 ralf Exp $
+/* $Id: fault.c,v 1.5 2000/02/04 07:40:24 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -50,6 +50,7 @@ do_page_fault(struct pt_regs *regs, unsigned long write, unsigned long address)
 	struct vm_area_struct * vma;
 	struct task_struct *tsk = current;
 	struct mm_struct *mm = tsk->mm;
+	int si_code = SEGV_MAPERR;
 	unsigned long fixup;
 
 	/*
@@ -77,6 +78,8 @@ do_page_fault(struct pt_regs *regs, unsigned long write, unsigned long address)
  * we can handle it..
  */
 good_area:
+	si_code = SEGV_ACCERR;
+
 	if (write) {
 		if (!(vma->vm_flags & VM_WRITE))
 			goto bad_area;
@@ -109,6 +112,7 @@ bad_area:
 	up(&mm->mmap_sem);
 
 	if (user_mode(regs)) {
+		struct siginfo si;
 		tsk->thread.cp0_badvaddr = address;
 		tsk->thread.error_code = write;
 #if 0
@@ -120,7 +124,10 @@ bad_area:
 		       (unsigned long) regs->cp0_epc,
 		       (unsigned long) regs->regs[31]);
 #endif
-		force_sig(SIGSEGV, tsk);
+		si.si_signo = SIGSEGV;
+		si.si_code = si_code;
+		si.si_addr = (void *) address;
+		force_sig_info(SIGSEGV, &si, tsk);
 		return;
 	}
 

@@ -1,4 +1,4 @@
-/* $Id: sys_sunos.c,v 1.108 2000/01/06 23:51:46 davem Exp $
+/* $Id: sys_sunos.c,v 1.111 2000/01/22 05:17:55 anton Exp $
  * sys_sunos.c: SunOS specific syscall compatibility support.
  *
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
@@ -366,6 +366,7 @@ asmlinkage unsigned long sunos_sigblock(unsigned long blk_mask)
 	spin_lock_irq(&current->sigmask_lock);
 	old = current->blocked.sig[0];
 	current->blocked.sig[0] |= (blk_mask & _BLOCKABLE);
+	recalc_sigpending(current);
 	spin_unlock_irq(&current->sigmask_lock);
 	return old;
 }
@@ -377,6 +378,7 @@ asmlinkage unsigned long sunos_sigsetmask(unsigned long newmask)
 	spin_lock_irq(&current->sigmask_lock);
 	retval = current->blocked.sig[0];
 	current->blocked.sig[0] = (newmask & _BLOCKABLE);
+	recalc_sigpending(current);
 	spin_unlock_irq(&current->sigmask_lock);
 	return retval;
 }
@@ -579,7 +581,7 @@ struct sunos_utsname {
 asmlinkage int sunos_uname(struct sunos_utsname *name)
 {
 	int ret;
-	down(&uts_sem);
+	down_read(&uts_sem);
 	ret = copy_to_user(&name->sname[0], &system_utsname.sysname[0], sizeof(name->sname) - 1);
 	if (!ret) {
 		ret |= __copy_to_user(&name->nname[0], &system_utsname.nodename[0], sizeof(name->nname) - 1);
@@ -588,22 +590,29 @@ asmlinkage int sunos_uname(struct sunos_utsname *name)
 		ret |= __copy_to_user(&name->ver[0], &system_utsname.version[0], sizeof(name->ver) - 1);
 		ret |= __copy_to_user(&name->mach[0], &system_utsname.machine[0], sizeof(name->mach) - 1);
 	}
-	up(&uts_sem);
+	up_read(&uts_sem);
 	return ret;
 }
 
 asmlinkage int sunos_nosys(void)
 {
 	struct pt_regs *regs;
+	siginfo_t info;
+	static int cnt;
 
 	lock_kernel();
 	regs = current->thread.kregs;
-	current->thread.sig_address = regs->pc;
-	current->thread.sig_desc = regs->u_regs[UREG_G1];
-	send_sig(SIGSYS, current, 1);
-	printk("Process makes ni_syscall number %d, register dump:\n",
-	       (int) regs->u_regs[UREG_G1]);
-	show_regs(regs);
+	info.si_signo = SIGSYS;
+	info.si_errno = 0;
+	info.si_code = __SI_FAULT|0x100;
+	info.si_addr = (void *)regs->pc;
+	info.si_trapno = regs->u_regs[UREG_G1];
+	send_sig_info(SIGSYS, &info, current);
+	if (cnt++ < 4) {
+		printk("Process makes ni_syscall number %d, register dump:\n",
+		       (int) regs->u_regs[UREG_G1]);
+		show_regs(regs);
+	}
 	unlock_kernel();
 	return -ENOSYS;
 }

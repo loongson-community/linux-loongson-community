@@ -21,19 +21,17 @@ export-objs		:= usb.o input.o
 
 # Multipart objects.
 
-list-multi		:= usbcore.o usb-uhci.o usb-ohci-hcd.o
+list-multi		:= usbcore.o
 usbcore-objs		:= usb.o usb-debug.o usb-core.o hub.o
-usb-uhci-objs		:= uhci.o uhci-debug.o
-usb-ohci-hcd-objs	:= ohci-hcd.o
-usb-scsi-objs		:= usb_scsi.o
+usb-storage-objs	:= usb_storage.o
 
 # Optional parts of multipart objects.
 
 ifeq ($(CONFIG_USB_DEVICEFS),y)
 	usbcore-objs	+= devio.o inode.o drivers.o devices.o
 endif
-ifeq ($(CONFIG_USB_SCSI_DEBUG),y)
-	usb-scsi-objs	+= usb_scsi_debug.o
+ifeq ($(CONFIG_USB_STORAGE_DEBUG),y)
+	usb-storage-objs	+= usb_storage_debug.o
 endif
 
 # Object file lists.
@@ -47,7 +45,7 @@ obj-	:=
 
 obj-$(CONFIG_USB)		+= usbcore.o
 obj-$(CONFIG_USB_UHCI)		+= usb-uhci.o
-obj-$(CONFIG_USB_OHCI_HCD)	+= usb-ohci-hcd.o
+obj-$(CONFIG_USB_OHCI)		+= usb-ohci.o
 
 obj-$(CONFIG_USB_MOUSE)		+= usbmouse.o input.o
 obj-$(CONFIG_USB_HID)		+= hid.o input.o
@@ -65,8 +63,9 @@ obj-$(CONFIG_USB_PRINTER)	+= printer.o
 obj-$(CONFIG_USB_SERIAL)	+= usb-serial.o
 obj-$(CONFIG_USB_AUDIO)		+= audio.o
 obj-$(CONFIG_USB_CPIA)		+= cpia.o
+obj-$(CONFIG_USB_IBMCAM)	+= ibmcam.o
 obj-$(CONFIG_USB_DC2XX)		+= dc2xx.o
-obj-$(CONFIG_USB_SCSI)		+= usb-scsi.o
+obj-$(CONFIG_USB_STORAGE)	+= usb-storage.o
 obj-$(CONFIG_USB_USS720)	+= uss720.o
 obj-$(CONFIG_USB_DABUSB)	+= dabusb.o
 obj-$(CONFIG_USB_OV511)		+= ov511.o
@@ -106,11 +105,5 @@ include $(TOPDIR)/Rules.make
 usbcore.o: $(usbcore-objs)
 	$(LD) -r -o $@ $(usbcore-objs)
 
-usb-uhci.o: $(usb-uhci-objs)
-	$(LD) -r -o $@ $(usb-uhci-objs)
-
-usb-ohci-hcd.o: $(usb-ohci-hcd-objs)
-	$(LD) -r -o $@ $(usb-ohci-hcd-objs)
-
-usb-scsi.o: $(usb-scsi-objs)
-	$(LD) -r -o $@ $(usb-scsi-objs)
+usb-storage.o: $(usb-storage-objs)
+	$(LD) -r -o $@ $(usb-storage-objs)

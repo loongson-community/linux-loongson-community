@@ -9,7 +9,7 @@ if [ ! "$CONFIG_USB" = "n" ]; then
 
 comment 'USB Controllers'
    dep_tristate '  UHCI (Intel PIIX4, VIA, ...) support' CONFIG_USB_UHCI $CONFIG_USB
-   dep_tristate '  OHCI-HCD (Compaq, iMacs, OPTi, SiS, ALi, ...) support' CONFIG_USB_OHCI_HCD $CONFIG_USB
+   dep_tristate '  OHCI (Compaq, iMacs, OPTi, SiS, ALi, ...) support' CONFIG_USB_OHCI $CONFIG_USB
 
 comment 'Miscellaneous USB options'
    bool '  Preliminary USB device filesystem' CONFIG_USB_DEVICEFS
@@ -22,17 +22,19 @@ comment 'USB Devices'
    dep_tristate '  USB Serial Converter support' CONFIG_USB_SERIAL $CONFIG_USB
    if [ "$CONFIG_USB_SERIAL" != "n" ]; then
       bool '    USB Generic Serial Driver' CONFIG_USB_SERIAL_GENERIC
-      bool '    USB ConnectTech WhiteHEAT Serial Driver' CONFIG_USB_SERIAL_WHITEHEAT
       bool '    USB Handspring Visor Driver' CONFIG_USB_SERIAL_VISOR
-      bool '    USB Belkin Single Port Serial Driver' CONFIG_USB_SERIAL_BELKIN
-      bool '    USB Peracom Single Port Serial Driver' CONFIG_USB_SERIAL_PERACOM
+      bool '    USB ConnectTech WhiteHEAT Serial Driver (EXPERIMENTAL)' CONFIG_USB_SERIAL_WHITEHEAT
+      bool '    USB FTDI Single Port Serial Driver (EXPERIMENTAL)' CONFIG_USB_SERIAL_FTDI
+      bool '    USB Belkin Single Port Serial Driver (EXPERIMENTAL)' CONFIG_USB_SERIAL_BELKIN
+      bool '    USB Peracom Single Port Serial Driver (EXPERIMENTAL)' CONFIG_USB_SERIAL_PERACOM
    fi
    dep_tristate '  USB CPiA Camera support' CONFIG_USB_CPIA $CONFIG_USB
+   dep_tristate '  USB IBM (Xirlink) C-it Camera support' CONFIG_USB_IBMCAM $CONFIG_USB
    dep_tristate '  USB OV511 Camera support' CONFIG_USB_OV511 $CONFIG_USB
    dep_tristate '  USB Kodak DC-2xx Camera support' CONFIG_USB_DC2XX $CONFIG_USB
-   dep_tristate '  USB SCSI (mass storage) support' CONFIG_USB_SCSI $CONFIG_USB
-   if [ "$CONFIG_USB_SCSI" != "n" ]; then
-      bool '    USB SCSI verbose debug' CONFIG_USB_SCSI_DEBUG
+   dep_tristate '  USB Mass Storage support' CONFIG_USB_STORAGE $CONFIG_USB
+   if [ "$CONFIG_USB_STORAGE" != "n" ]; then
+      bool '    USB Mass Storage verbose debug' CONFIG_USB_STORAGE_DEBUG
    fi
    dep_tristate '  USS720 parport driver' CONFIG_USB_USS720 $CONFIG_USB $CONFIG_PARPORT
    dep_tristate '  DABUSB driver' CONFIG_USB_DABUSB $CONFIG_USB 
@@ -48,7 +50,12 @@ comment 'USB HID'
    dep_tristate '  Keyboard support' CONFIG_INPUT_KEYBDEV $CONFIG_USB
    dep_tristate '  Mouse support' CONFIG_INPUT_MOUSEDEV $CONFIG_USB
    if [ "$CONFIG_INPUT_MOUSEDEV" != "n" ]; then
-      bool '      Mix all mice into one device' CONFIG_INPUT_MOUSEDEV_MIX
+      bool '    Mix all mice into one device' CONFIG_INPUT_MOUSEDEV_MIX
+      bool '    Support for digitizers' CONFIG_INPUT_MOUSEDEV_DIGITIZER
+      if [ "$CONFIG_INPUT_MOUSEDEV_DIGITIZER" != "n" ]; then
+         int '     Horizontal screen resolution' CONFIG_INPUT_MOUSEDEV_SCREEN_X 1024
+         int '      Vertical screen resolution' CONFIG_INPUT_MOUSEDEV_SCREEN_Y 768
+      fi
    fi
    dep_tristate '  Joystick support' CONFIG_INPUT_JOYDEV $CONFIG_USB
    dep_tristate '  Event interface support' CONFIG_INPUT_EVDEV $CONFIG_USB

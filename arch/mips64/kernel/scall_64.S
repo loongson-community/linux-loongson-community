@@ -1,4 +1,4 @@
-/* $Id: scall_64.S,v 1.2 1999/12/21 12:35:22 ralf Exp $
+/* $Id: scall_64.S,v 1.5 2000/01/24 01:34:16 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -344,3 +344,4 @@ sys_call_table:
 	PTR	sys_sendfile
 	PTR	sys_ni_syscall
 	PTR	sys_ni_syscall
+	PTR	sys_pivot_root				/* 4210 */

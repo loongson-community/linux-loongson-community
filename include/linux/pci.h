@@ -315,6 +315,11 @@ struct pci_dev {
 
 	struct pci_driver *driver;	/* which driver has allocated this device */
 	void		*driver_data;	/* data private to the driver */
+	dma_addr_t	dma_mask;	/* Mask of the bits of bus address this
+					   device implements.  Normally this is
+					   0xffffffff.  You only need to change
+					   this if your device has broken DMA
+					   or supports 64-bit transfers.  */
 
 	/* device is compatible with these IDs */
 	unsigned short vendor_compatible[DEVICE_COUNT_COMPATIBLE];
@@ -462,16 +467,16 @@ int pci_proc_detach_device(struct pci_dev *dev);
 void pci_name_device(struct pci_dev *dev);
 char *pci_class_name(u32 class);
 void pci_read_bridge_bases(struct pci_bus *child);
-struct resource *pci_find_parent_resource(struct pci_dev *dev, struct resource *res);
+struct resource *pci_find_parent_resource(const struct pci_dev *dev, struct resource *res);
 int pci_setup_device(struct pci_dev * dev);
 
 /* Generic PCI functions exported to card drivers */
 
-struct pci_dev *pci_find_device (unsigned int vendor, unsigned int device, struct pci_dev *from);
+struct pci_dev *pci_find_device (unsigned int vendor, unsigned int device, const struct pci_dev *from);
 struct pci_dev *pci_find_subsys (unsigned int vendor, unsigned int device,
 				 unsigned int ss_vendor, unsigned int ss_device,
-				 struct pci_dev *from);
-struct pci_dev *pci_find_class (unsigned int class, struct pci_dev *from);
+				 const struct pci_dev *from);
+struct pci_dev *pci_find_class (unsigned int class, const struct pci_dev *from);
 struct pci_dev *pci_find_slot (unsigned int bus, unsigned int devfn);
 int pci_find_capability (struct pci_dev *dev, int cap);
 
@@ -526,8 +531,8 @@ int pci_register_driver(struct pci_driver *);
 void pci_unregister_driver(struct pci_driver *);
 void pci_insert_device(struct pci_dev *, struct pci_bus *);
 void pci_remove_device(struct pci_dev *);
-struct pci_driver *pci_dev_driver(struct pci_dev *);
-const struct pci_device_id *pci_match_device(const struct pci_device_id *ids, struct pci_dev *dev);
+struct pci_driver *pci_dev_driver(const struct pci_dev *);
+const struct pci_device_id *pci_match_device(const struct pci_device_id *ids, const struct pci_dev *dev);
 
 /*
  *  If the system does not have PCI, clearly these return errors.  Define
@@ -548,17 +553,17 @@ extern inline int pcibios_present(void) { return 0; }
 _PCI_NOP_ALL(read, *)
 _PCI_NOP_ALL(write,)
 
-extern inline struct pci_dev *pci_find_device(unsigned int vendor, unsigned int device, struct pci_dev *from)
+extern inline struct pci_dev *pci_find_device(unsigned int vendor, unsigned int device, const struct pci_dev *from)
 { return NULL; }
 
-extern inline struct pci_dev *pci_find_class(unsigned int class, struct pci_dev *from)
+extern inline struct pci_dev *pci_find_class(unsigned int class, const struct pci_dev *from)
 { return NULL; }
 
 extern inline struct pci_dev *pci_find_slot(unsigned int bus, unsigned int devfn)
 { return NULL; }
 
 extern inline struct pci_dev *pci_find_subsys(unsigned int vendor, unsigned int device,
-unsigned int ss_vendor, unsigned int ss_device, struct pci_dev *from)
+unsigned int ss_vendor, unsigned int ss_device, const struct pci_dev *from)
 { return NULL; }
 
 extern inline void pci_set_master(struct pci_dev *dev) { }

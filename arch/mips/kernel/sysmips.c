@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1995, 1996, 1997 by Ralf Baechle
  *
- * $Id: sysmips.c,v 1.7 1999/10/09 00:00:58 ralf Exp $
+ * $Id: sysmips.c,v 1.8 2000/02/05 06:47:08 ralf Exp $
  */
 #include <linux/errno.h>
 #include <linux/linkage.h>
@@ -72,6 +72,7 @@ sys_sysmips(int cmd, int arg1, int arg2, int arg3)
 		if (len == 0 || len > __NEW_UTS_LEN)
 			goto out;
 
+		/* Fiiiixmeeee...  */
 		copy_from_user(system_utsname.nodename, name, len);
 		system_utsname.nodename[len] = '\0';
 		retval = 0;

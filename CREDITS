@@ -854,12 +854,12 @@ S: Oakland, CA
 S: USA
 
 N: Jochen Hein
-E: jochen.hein@delphi.central.de
+E: jochen@jochen.org
 P: 1024/4A27F015 25 72 FB E3 85 9F DE 3B  CB 0A DA DA 40 77 05 6C
 D: National Language Support
 D: Linux Internationalization Project
 D: German Localization for Linux and GNU software
-S: Frankenstraﬂe
+S: Frankenstraﬂe 33
 S: 34131 Kassel
 S: Germany
 
@@ -937,7 +937,7 @@ S: CV5 8BZ
 S: United Kingdom
 
 N: Ron Holt
-E: ron@holt.org
+E: ron@sovereign.org
 W: http://www.holt.org/
 W: http://www.ronholt.com/
 D: Kernel development
@@ -997,6 +997,14 @@ S: 2 Lexington Close
 S: Cambridge
 S: CB3 0DS
 S: United Kingdom
+
+N: Andreas Jaeger
+E: aj@suse.de
+D: Various smaller kernel fixes
+D: glibc developer
+S: Gottfried-Kinkel-Str. 18
+S: D 67659 Kaiserslautern
+S: Germany
 
 N: Mike Jagdis
 E: jaggy@purplet.demon.co.uk
@@ -1667,7 +1675,7 @@ E: vojtech@suse.cz
 D: Joystick driver
 D: arcnet-hardware readme
 D: Minor ARCnet hacking
-D: USB hacking
+D: USB (HID, ACM, Printer ...)
 S: Ucitelska 1576
 S: Prague 8
 S: 182 00 Czech Republic

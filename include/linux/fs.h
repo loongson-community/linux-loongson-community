@@ -19,6 +19,7 @@
 #include <linux/dcache.h>
 #include <linux/stat.h>
 #include <linux/cache.h>
+#include <linux/stddef.h>
 
 #include <asm/atomic.h>
 #include <asm/bitops.h>
@@ -65,10 +66,6 @@ extern int max_super_blocks, nr_super_blocks;
 #define SPECIAL 4	/* For non-blockdevice requests in request queue */
 
 #define WRITERAW 5	/* raw write - don't play with buffer lists */
-
-#ifndef NULL
-#define NULL ((void *) 0)
-#endif
 
 #define NIL_FILP	((struct file *)0)
 #define SEL_IN		1
@@ -783,9 +780,9 @@ extern int register_chrdev(unsigned int, const char *, struct file_operations *)
 extern int unregister_chrdev(unsigned int, const char *);
 extern int chrdev_open(struct inode *, struct file *);
 extern struct file_operations def_chr_fops;
-extern char * bdevname(kdev_t);
-extern char * cdevname(kdev_t);
-extern char * kdevname(kdev_t);
+extern const char * bdevname(kdev_t);
+extern const char * cdevname(kdev_t);
+extern const char * kdevname(kdev_t);
 extern void init_special_inode(struct inode *, umode_t, int);
 
 extern struct inode_operations fifo_inode_operations;
@@ -1001,8 +998,8 @@ extern ssize_t generic_file_read(struct file *, char *, size_t, loff_t *);
 extern ssize_t generic_file_write(struct file *, const char *, size_t, loff_t *, writepage_t);
 extern void do_generic_file_read(struct file *, loff_t *, read_descriptor_t *, read_actor_t);
 
-extern int vfs_readlink(struct dentry *, char *, int, char *);
-extern struct dentry *vfs_follow_link(struct dentry *, struct dentry *, unsigned, char *);
+extern int vfs_readlink(struct dentry *, char *, int, const char *);
+extern struct dentry *vfs_follow_link(struct dentry *, struct dentry *, unsigned, const char *);
 extern int page_readlink(struct dentry *, char *, int);
 extern struct dentry *page_follow_link(struct dentry *, struct dentry *, unsigned);
 

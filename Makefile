@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 3
-SUBLEVEL = 40
+SUBLEVEL = 41
 EXTRAVERSION =
 
 ARCH = mips
@@ -205,7 +205,7 @@ DRIVERS := $(DRIVERS) drivers/macintosh/macintosh.a
 endif
 
 ifeq ($(CONFIG_ISAPNP),y)
-DRIVERS := $(DRIVERS) drivers/pnp/isa-pnp.o
+DRIVERS := $(DRIVERS) drivers/pnp/pnp.o
 endif
 
 ifdef CONFIG_SGI_IP22
@@ -449,6 +449,10 @@ mrproper: clean archmrproper
 	rm -f drivers/net/hamradio/soundmodem/gentbl
 	rm -f drivers/char/hfmodem/gentbl drivers/char/hfmodem/tables.h
 	rm -f drivers/sound/*_boot.h drivers/sound/.*.boot
+	rm -f drivers/sound/msndinit.c
+	rm -f drivers/sound/msndperm.c
+	rm -f drivers/sound/pndsperm.c
+	rm -f drivers/sound/pndspini.c
 	rm -f .version .config* config.in config.old
 	rm -f scripts/tkparse scripts/kconfig.tk scripts/kconfig.tmp
 	rm -f scripts/lxdialog/*.o scripts/lxdialog/lxdialog

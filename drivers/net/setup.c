@@ -48,6 +48,7 @@ extern int rcpci_probe(void);
 extern int rr_hippi_probe(void); 
 extern int rtl8139_probe(void); 
 extern int sdla_setup(void); 
+extern int sdla_c_setup(void); 
 extern int sis900_probe(void); 
 extern int skge_probe(void); 
 extern int sparc_lance_probe(void); 
@@ -56,6 +57,10 @@ extern int tc59x_probe(void);
 extern int tulip_probe(void); 
 extern int via_rhine_probe(void); 
 extern int yellowfin_probe(void);
+
+extern int abyss_probe(void);
+extern int madgemc_probe(void);
+extern int tms_pci_probe(void);
 
 /* Pad device name to IFNAMSIZ=16. F.e. __PAD6 is tring of 9 zeros. */
 #define __PAD6 "\0\0\0\0\0\0\0\0\0"
@@ -94,7 +99,7 @@ struct net_probe pci_probes[] __initdata = {
 	{dlci_setup, 0},
 #endif
 #if defined(CONFIG_SDLA)
-	{sdla_setup, 0},
+	{sdla_c_setup, 0},
 #endif
 #if defined(CONFIG_LAPBETHER)
 	{lapbeth_init, 0},
@@ -249,7 +254,19 @@ struct net_probe pci_probes[] __initdata = {
 #ifdef CONFIG_YAM
 	{yam_init, 0},
 #endif	/* CONFIG_YAM */
-  
+
+/*
+ *	Token Ring Drivers
+ */  
+#ifdef CONFIG_ABYSS
+	{abyss_probe, 0},
+#endif
+#ifdef CONFIG_MADGEMC
+	{madgemc_probe, 0},
+#endif
+#ifdef CONFIG_TMSPCI
+	{tms_pci_probe, 0},
+#endif
  
 	{NULL, 0},
 };

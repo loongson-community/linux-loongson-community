@@ -5,7 +5,7 @@
  *
  *		PACKET - implements raw packet sockets.
  *
- * Version:	$Id: af_packet.c,v 1.26 1999/12/20 05:20:02 davem Exp $
+ * Version:	$Id: af_packet.c,v 1.28 2000/01/24 23:35:59 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -789,13 +789,8 @@ static int packet_release(struct socket *sock)
 	 *	Now the socket is dead. No more input will appear.
 	 */
 
-	write_lock_irq(&sk->callback_lock);
+	sock_orphan(sk);
 	sock->sk = NULL;
-	sk->socket = NULL;
-	sk->dead = 1;
-	sk->sleep = NULL;
-	write_unlock_irq(&sk->callback_lock);
-
 
 	/* Purge queues */
 
@@ -1537,15 +1532,8 @@ static void packet_mm_close(struct vm_area_struct *vma)
 }
 
 static struct vm_operations_struct packet_mmap_ops = {
-	packet_mm_open,		/* open */
-	packet_mm_close,	/* close */
-	NULL,			/* unmap */
-	NULL,			/* no special protect */
-	NULL,			/* sync */
-	NULL,			/* advise */
-	NULL,			/* nopage */
-	NULL,			/* wppage */
-	NULL			/* swapout */
+	open:	packet_mm_open,
+	close:	packet_mm_close,
 };
 
 static void free_pg_vec(unsigned long *pg_vec, unsigned order, unsigned len)

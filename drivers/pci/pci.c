@@ -47,7 +47,7 @@ pci_find_slot(unsigned int bus, unsigned int devfn)
 struct pci_dev *
 pci_find_subsys(unsigned int vendor, unsigned int device,
 		unsigned int ss_vendor, unsigned int ss_device,
-		struct pci_dev *from)
+		const struct pci_dev *from)
 {
 	struct list_head *n = from ? from->global_list.next : pci_devices.next;
 
@@ -65,14 +65,14 @@ pci_find_subsys(unsigned int vendor, unsigned int device,
 
 
 struct pci_dev *
-pci_find_device(unsigned int vendor, unsigned int device, struct pci_dev *from)
+pci_find_device(unsigned int vendor, unsigned int device, const struct pci_dev *from)
 {
 	return pci_find_subsys(vendor, device, PCI_ANY_ID, PCI_ANY_ID, from);
 }
 
 
 struct pci_dev *
-pci_find_class(unsigned int class, struct pci_dev *from)
+pci_find_class(unsigned int class, const struct pci_dev *from)
 {
 	struct list_head *n = from ? from->global_list.next : pci_devices.next;
 
@@ -116,9 +116,9 @@ pci_find_capability(struct pci_dev *dev, int cap)
  *  it should be allocated from.
  */
 struct resource *
-pci_find_parent_resource(struct pci_dev *dev, struct resource *res)
+pci_find_parent_resource(const struct pci_dev *dev, struct resource *res)
 {
-	struct pci_bus *bus = dev->bus;
+	const struct pci_bus *bus = dev->bus;
 	int i;
 	struct resource *best = NULL;
 
@@ -203,7 +203,7 @@ pci_enable_device(struct pci_dev *dev)
 static LIST_HEAD(pci_drivers);
 
 const struct pci_device_id *
-pci_match_device(const struct pci_device_id *ids, struct pci_dev *dev)
+pci_match_device(const struct pci_device_id *ids, const struct pci_dev *dev)
 {
 	while (ids->vendor || ids->subvendor || ids->class_mask) {
 		if ((ids->vendor == PCI_ANY_ID || ids->vendor == dev->vendor) &&
@@ -315,7 +315,7 @@ static struct pci_driver pci_compat_driver = {
 };
 
 struct pci_driver *
-pci_dev_driver(struct pci_dev *dev)
+pci_dev_driver(const struct pci_dev *dev)
 {
 	if (dev->driver)
 		return dev->driver;
@@ -808,6 +808,10 @@ static struct pci_dev * __init pci_scan_device(struct pci_dev *temp)
 	memcpy(dev, temp, sizeof(*dev));
 	dev->vendor = l & 0xffff;
 	dev->device = (l >> 16) & 0xffff;
+
+	/* Assume 32-bit PCI; let 64-bit PCI cards (which are far rarer)
+	   set this higher, assuming the system even supports it.  */
+	dev->dma_mask = 0xffffffff;
 	if (pci_setup_device(dev) < 0) {
 		kfree(dev);
 		dev = NULL;
@@ -902,12 +906,12 @@ static unsigned int __init pci_do_scan_bus(struct pci_bus *bus)
 	return max;
 }
 
-static int __init pci_bus_exists(struct list_head *list, int nr)
+static int __init pci_bus_exists(const struct list_head *list, int nr)
 {
-	struct list_head *l;
+	const struct list_head *l;
 
 	for(l=list->next; l != list; l = l->next) {
-		struct pci_bus *b = pci_bus_b(l);
+		const struct pci_bus *b = pci_bus_b(l);
 		if (b->number == nr || pci_bus_exists(&b->children, nr))
 			return 1;
 	}

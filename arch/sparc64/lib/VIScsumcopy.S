@@ -1,4 +1,4 @@
-/* $Id: VIScsumcopy.S,v 1.6 1999/05/25 16:53:03 jj Exp $
+/* $Id: VIScsumcopy.S,v 1.7 2000/01/19 04:06:03 davem Exp $
  * VIScsumcopy.S: High bandwidth IP checksumming with simultaneous
  *            copying utilizing the UltraSparc Visual Instruction Set.
  *
@@ -75,7 +75,7 @@
 	membar		#Sync
 
 
-#define DO_THE_TRICK(f0,f2,f4,f6,f8,f10,f12,f14,F0,F2,F4,F6,F8,F10,F12,F14,DUMMY1,A0,A2,A4,A6,A8,A10,A12,A14,B14,DYMMY2,LOAD,STORE1,STORE2,STORE3,STORE4,STORE5,STORE6,STORE7,STORE8,DUMMY3,BRANCH...)	\
+#define DO_THE_TRICK(f0,f2,f4,f6,f8,f10,f12,f14,F0,F2,F4,F6,F8,F10,F12,F14,DUMMY1,A0,A2,A4,A6,A8,A10,A12,A14,B14,DUMMY2,LOAD,STORE1,STORE2,STORE3,STORE4,STORE5,STORE6,STORE7,STORE8,DUMMY3,BRANCH...)	\
 	LOAD					/*  Load	Group			*/;	\
 	faligndata	%A14, %F0, %A14		/*  FPA		Group			*/;	\
 	inc		%x5			/*  IEU0				*/;	\

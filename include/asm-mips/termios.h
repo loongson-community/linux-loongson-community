@@ -1,4 +1,4 @@
-/* $Id: termios.h,v 1.8 2000/01/27 22:49:42 ralf Exp $
+/* $Id: termios.h,v 1.8 2000/01/27 23:45:30 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -83,6 +83,7 @@ struct termio {
 #define TIOCM_DSR	0x400		/* data set ready */
 #define TIOCM_OUT1	0x2000
 #define TIOCM_OUT2	0x4000
+#define TIOCM_LOOP	0x8000
 
 /* line disciplines */
 #define N_TTY		0

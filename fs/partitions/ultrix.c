@@ -13,11 +13,11 @@
 #include <linux/blk.h>
 
 #include "check.h"
-#include "ultrix.h"
 
-int ultrix_partition(struct gendisk *hd, kdev_t dev, unsigned long first_sector, int first_part_minor)
+static int ultrix_partition(struct gendisk *hd, kdev_t dev,
+                            unsigned long first_sector, int curren_minor)
 {
-	int i;
+	int i, minor = current_minor;
 	struct buffer_head *bh;
 	struct ultrix_disklabel {
 		s32	pt_magic;	/* magic no. indicating part. info exits */
@@ -27,6 +27,12 @@ int ultrix_partition(struct gendisk *hd, kdev_t dev, unsigned long first_sector,
 			u32		pi_blkoff;  /* block offset for start */
 		} pt_part[8];
 	} *label;
+
+#define PT_MAGIC	0x032957	/* Partition magic number */
+#define PT_VALID	1		/* Indicates if struct is valid */
+
+#define	SBLOCK	((unsigned long)((16384 - sizeof(struct ultrix_disklabel)) \
+                  /get_ptable_blocksize(dev)))
 
 	bh = bread (dev, SBLOCK, get_ptable_blocksize(dev));
 	if (!bh) {
@@ -38,14 +44,12 @@ int ultrix_partition(struct gendisk *hd, kdev_t dev, unsigned long first_sector,
                                             + get_ptable_blocksize(dev)
                                             - sizeof(struct ultrix_disklabel));
 
-	if (le32_to_cpu(label->pt_magic) == PT_MAGIC && 
-	    le32_to_cpu(label->pt_valid == PT_VALID)) {
-		for (i=0; i<8; i++, first_part_minor++)
-			if (le32_to_cpu(label->pt_part[i].pi_nblocks))
-				add_gd_partition(hd, first_part_minor, 
-			   			le32_to_cpu(label->pt_part[i].pi_blkoff), 			
-	      					le32_to_cpu(label->pt_part[i].pi_nblocks));
-
+	if (label->pt_magic == PT_MAGIC && label->pt_valid == PT_VALID) {
+		for (i=0; i<8; i++, minor++)
+			if (label->pt_part[i].pi_nblocks)
+				add_gd_partition(hd, minor, 
+					      label->pt_part[i].pi_blkoff,
+					      label->pt_part[i].pi_nblocks);
 		brelse(bh);
 		printk ("\n");
 		return 1;
@@ -54,4 +58,3 @@ int ultrix_partition(struct gendisk *hd, kdev_t dev, unsigned long first_sector,
 		return 0;
 	}
 }
-

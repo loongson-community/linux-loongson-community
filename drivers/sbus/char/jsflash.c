@@ -191,12 +191,21 @@ static ssize_t jsf_read(struct file * file, char * buf,
 	}
 
 	if (p < JSF_BASE_ALL && togo != 0) {
+#if 0 /* __bzero XXX */
 		size_t x = JSF_BASE_ALL - p;
 		if (x > togo) x = togo;
 		clear_user(tmp, x);
 		tmp += x;
 		p += x;
 		togo -= x;
+#else
+		/*
+		 * Implementation of clear_user() calls __bzero
+		 * without regard to modversions,
+		 * so we cannot build a module.
+		 */
+		return 0;
+#endif
 	}
 
 	while (togo >= 4) {

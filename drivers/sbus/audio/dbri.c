@@ -1,4 +1,4 @@
-/* $Id: dbri.c,v 1.16 1999/11/19 09:56:05 davem Exp $
+/* $Id: dbri.c,v 1.17 2000/01/20 07:57:47 anton Exp $
  * drivers/sbus/audio/dbri.c
  *
  * Copyright (C) 1997 Rudolf Koenig (rfkoenig@immd4.informatik.uni-erlangen.de)
@@ -225,8 +225,8 @@ static void dbri_detach(struct dbri *dbri)
 	dbri_reset(dbri);
         free_irq(dbri->irq, dbri);
         sbus_iounmap(dbri->regs, dbri->regs_size);
-        sbus_free_consistant(dbri->sdev, sizeof(struct dbri_dma),
-                             dbri->dma, dbry->dma_dvma);
+        sbus_free_consistent(dbri->sdev, sizeof(struct dbri_dma),
+                             dbri->dma, dbri->dma_dvma);
         kfree(dbri);
 }
 
@@ -999,7 +999,7 @@ static void recv_on_pipe(struct dbri *dbri, int pipe,
         /* Make sure buffer size is multiple of four */
         len &= ~3;
 
-        buf_buffer_base = buf_buffer = sbus_map_single(dbri->sdev, buffer, len);
+        bus_buffer_base = bus_buffer = sbus_map_single(dbri->sdev, buffer, len);
 
 	while (len > 0) {
 		int rd, mylen;
@@ -2232,7 +2232,7 @@ static int dbri_attach(struct sparcaudio_driver *drv,
 	dbri = (struct dbri *) drv->private;
         memset(dbri, 0, sizeof(*dbri));
 
-        dbri->dma = sbus_alloc_consistant(sdev,
+        dbri->dma = sbus_alloc_consistent(sdev,
                                           sizeof(struct dbri_dma),
                                           &dbri->dma_dvma);
 
@@ -2251,7 +2251,7 @@ static int dbri_attach(struct sparcaudio_driver *drv,
                                   "DBRI Registers");
 	if (!dbri->regs) {
 		printk(KERN_ERR "DBRI: could not allocate registers\n");
-                sbus_free_consistant(sdev, sizeof(struct dbri_dma),
+                sbus_free_consistent(sdev, sizeof(struct dbri_dma),
                                      dbri->dma, dbri->dma_dvma);
 		kfree(drv->private);
 		return -EIO;
@@ -2265,7 +2265,7 @@ static int dbri_attach(struct sparcaudio_driver *drv,
 	if (err) {
 		printk(KERN_ERR "DBRI: Can't get irq %d\n", dbri->irq);
                 sbus_iounmap(dbri->regs, dbri->regs_size);
-                sbus_free_consistant(sdev, sizeof(struct dbri_dma),
+                sbus_free_consistent(sdev, sizeof(struct dbri_dma),
                                      dbri->dma, dbri->dma_dvma);
 		kfree(drv->private);
 		return err;

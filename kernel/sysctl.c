@@ -43,7 +43,7 @@ extern int sysctl_overcommit_memory;
 extern int max_threads;
 extern int nr_queued_signals, max_queued_signals;
 
-/* this is needed for the proc_dointvec_minmax for overflow UID and GID */
+/* this is needed for the proc_dointvec_minmax for [fs_]overflow UID and GID */
 static int maxolduid = 65535;
 static int minolduid = 0;
 
@@ -722,9 +722,16 @@ static int proc_doutsstring(ctl_table *table, int write, struct file *filp,
 		  void *buffer, size_t *lenp)
 {
 	int r;
-	down(&uts_sem);
-	r=proc_dostring(table,write,filp,buffer,lenp);
-	up(&uts_sem);
+
+	if (!write) {
+		down_read(&uts_sem);
+		r=proc_dostring(table,0,filp,buffer,lenp);
+		up_read(&uts_sem);
+	} else {
+		down_write(&uts_sem);
+		r=proc_dostring(table,1,filp,buffer,lenp);
+		up_write(&uts_sem);
+	}
 	return r;
 }
 
