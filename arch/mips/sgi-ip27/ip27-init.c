@@ -301,8 +301,6 @@ void prom_init_secondary(void)
 	set_c0_status(SRB_DEV0 | SRB_DEV1);
 	if (is_slave) {
 		clear_c0_status(ST0_BEV);
-		if (current_cpu_data.isa_level == MIPS_CPU_ISA_IV)
-			set_c0_status(ST0_XX);
 		set_c0_status(ST0_KX|ST0_SX|ST0_UX);
 		local_irq_enable();
 		atomic_inc(&numstarted);
