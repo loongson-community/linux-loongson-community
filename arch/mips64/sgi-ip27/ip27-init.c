@@ -424,6 +424,7 @@ void allowboot(void)
 			 */
 			kernel_thread(0, NULL, CLONE_PID);
 			p = init_task.prev_task;
+			sprintf(p->comm, "%s%d", "Idle", num_cpus);
 			init_tasks[num_cpus] = p;
 			p->processor = num_cpus;
 			p->has_cpu = 1; /* we schedule the first task manually */
