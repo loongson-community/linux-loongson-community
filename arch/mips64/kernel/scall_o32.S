@@ -192,12 +192,14 @@ illegal_syscall:
 	END(handle_sys)
 
 	LEAF(mips_atomic_set)
-	ld	v1, THREAD_CURDS($28)
+	andi	v0, a1, 3			# must be word aligned
+	bnez	v0, bad_alignment
+
+	ld	v1, THREAD_CURDS($28)		# in legal address range?
 	daddiu	a0, a1, 4
 	or	a0, a0, a1
-	li	v0, -EFAULT
 	and	a0, a0, v1
-	bltz	a0, 9f
+	bltz	a0, bad_address
 
 	/* Ok, this is the ll/sc case.  World is sane :-)  */
 1:	ll	v0, (a1)
@@ -223,7 +225,12 @@ illegal_syscall:
 	li	a3, 0			# success
 	j	ret_from_sys_call
 
-9:	li	v0, -EFAULT
+bad_address:
+	li	v0, -EFAULT
+	jr	ra
+
+bad_alignment:
+	li	v0, -EINVAL
 	jr	ra
 	END(mips_atomic_set)
 

@@ -196,12 +196,14 @@ illegal_syscall:
 	END(handle_sys)
 
 	LEAF(mips_atomic_set)
-	lw	v1, THREAD_CURDS($28)
+	andi	v0, a1, 3			# must be word aligned
+	bnez	v0, bad_alignment
+
+	lw	v1, THREAD_CURDS($28)		# in legal address range?
 	addiu	a0, a1, 4
 	or	a0, a0, a1
-	li	v0, -EFAULT
 	and	a0, a0, v1
-	bltz	a0, 8f
+	bltz	a0, bad_address
 
 #ifdef CONFIG_CPU_HAS_LLSC
 	/* Ok, this is the ll/sc case.  World is sane :-)  */
@@ -256,8 +258,13 @@ illegal_syscall:
 no_mem:	li	v0, -ENOMEM
 	jr	ra
 
-8:	li	v0, -EFAULT
-9:	jr	ra
+bad_address:
+	li	v0, -EFAULT
+	jr	ra
+
+bad_alignment:
+	li	v0, -EINVAL
+	jr	ra
 	END(mips_atomic_set)	
 
 	LEAF(sys_sysmips)
