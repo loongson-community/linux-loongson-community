@@ -61,8 +61,8 @@ typedef unsigned long   cpumask_t;
 
 #define CPUMASK_CLRALL(p)	(p) = 0
 #define CPUMASK_SETB(p, bit)	(p) |= 1 << (bit)
-#define CPUMASK_CLRB(p, bit)	(p) &= ~(1ULL << (bit))
-#define CPUMASK_TSTB(p, bit)	((p) & (1ULL << (bit)))
+#define CPUMASK_CLRB(p, bit)	(p) &= ~(1UL << (bit))
+#define CPUMASK_TSTB(p, bit)	((p) & (1UL << (bit)))
 
 #elif (NR_CPUS <= 128)
 
@@ -79,11 +79,11 @@ typedef struct {
 
 #define	CPUMASK_CLRALL(p)	(p)._bits[0] = 0, (p)._bits[1] = 0
 #define CPUMASK_SETB(p, bit)	(p)._bits[CPUMASK_INDEX(bit)] |= \
-					(1ULL << CPUMASK_SHFT(bit))
+					(1UL << CPUMASK_SHFT(bit))
 #define CPUMASK_CLRB(p, bit)	(p)._bits[CPUMASK_INDEX(bit)] &= \
-					~(1ULL << CPUMASK_SHFT(bit))
+					~(1UL << CPUMASK_SHFT(bit))
 #define CPUMASK_TSTB(p, bit)	((p)._bits[CPUMASK_INDEX(bit)] & \
-					(1ULL << CPUMASK_SHFT(bit)))
+					(1UL << CPUMASK_SHFT(bit)))
 
 #else
 #error cpumask macros only defined for 128p kernels
