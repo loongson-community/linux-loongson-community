@@ -12,12 +12,11 @@
 
 #include <asm/types.h>
 
-struct Naca
-{
+struct naca_struct {
 	void *xItVpdAreas;
 	void *xRamDisk;
 	u64 xRamDiskSize;		/* In pages */
-	struct Paca *paca;		/* Ptr to an array of pacas */
+	struct paca_struct *paca;	/* Ptr to an array of pacas */
 	u64 debug_switch;		/* Bits to control debug printing */
 	u16 processorCount;		/* # of physical processors */
 	u16 dCacheL1LineSize;		/* Line size of L1 DCache in bytes */
@@ -31,9 +30,11 @@ struct Naca
 	u64 pftSize;			/* Log base 2 of page table size */
 	u64 serialPortAddr;		/* Phyical address of serial port */
 	u8 interrupt_controller;	/* Type of interrupt controller */ 
-	u8 resv0[6];			/* Padding */
+	u8 resv0;    			/* Type of interrupt controller */
+	u16 platform;			/* Platform flags */
+	u8 resv1[12];			/* Padding */
 };
 
-extern struct Naca *naca;
+extern struct naca_struct *naca;
 
 #endif /* _NACA_H */

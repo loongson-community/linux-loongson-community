@@ -745,7 +745,7 @@ static int init_irq(struct ata_channel *ch)
 #else
 	printk("%s at %p on irq 0x%08x", ch->name,
 		ch->io_ports[IDE_DATA_OFFSET], ch->irq);
-#endif /* __mc68000__ && CONFIG_APUS */
+#endif
 	if (match)
 		printk(" (%sed with %s)",
 			ch->sharing_irq ? "shar" : "serializ", match->name);
@@ -780,12 +780,6 @@ static void init_gendisk(struct ata_channel *hwif)
 	if (!gd->part)
 		goto err_kmalloc_gd_part;
 	memset(gd->part, 0, minors * sizeof(struct hd_struct));
-
-	blksize_size[hwif->major] = kmalloc (minors*sizeof(int), GFP_KERNEL);
-	if (!blksize_size[hwif->major])
-		goto err_kmalloc_bs;
-	for (i = 0; i < minors; ++i)
-	    blksize_size[hwif->major][i] = BLOCK_SIZE;
 
 	for (unit = 0; unit < MAX_DRIVES; ++unit)
 		hwif->drives[unit].part = &gd->part[unit << PARTN_BITS];

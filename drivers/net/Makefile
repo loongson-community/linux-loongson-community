@@ -41,7 +41,7 @@ subdir-$(CONFIG_TR) += tokenring
 subdir-$(CONFIG_WAN) += wan
 subdir-$(CONFIG_NET_FC) += fc
 subdir-$(CONFIG_ARCNET) += arcnet
-subdir-$(CONFIG_APPLETALK) += appletalk
+subdir-$(CONFIG_DEV_APPLETALK) += appletalk
 subdir-$(CONFIG_SK98LIN) += sk98lin
 subdir-$(CONFIG_SKFP) += skfp
 
@@ -220,16 +220,6 @@ ifeq ($(CONFIG_ARCH_ACORN),y)
 mod-subdirs	+= ../acorn/net
 subdir-y	+= ../acorn/net
 obj-y		+= ../acorn/net/acorn-net.o
-endif
-
-#
-# HIPPI adapters
-#
-
-ifneq ($(ARCH),s390)
-ifneq ($(ARCH),s390x)
-obj-y += auto_irq.o
-endif
 endif
 
 include $(TOPDIR)/Rules.make
