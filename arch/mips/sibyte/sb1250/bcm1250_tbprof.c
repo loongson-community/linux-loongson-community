@@ -33,7 +33,6 @@
 #include <asm/sibyte/sb1250_regs.h>
 #include <asm/sibyte/sb1250_scd.h>
 #include <asm/sibyte/sb1250_int.h>
-#include <asm/sibyte/sbmips.h>
 #include <asm/sibyte/64bit.h>
 #include "bcm1250_tbprof.h"
 
