@@ -5,7 +5,8 @@
  * Copyright (C) 1994-2000 Algorithmics Ltd.  All rights reserved.
  * http://www.algor.co.uk
  *
- * ########################################################################
+ * Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
+ * Copyright (C) 2000  MIPS Technologies, Inc.
  *
  *  This program is free software; you can distribute it and/or modify it
  *  under the terms of the GNU General Public License (Version 2) as
@@ -20,8 +21,6 @@
  *  with this program; if not, write to the Free Software Foundation, Inc.,
  *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
  *
- * ########################################################################
- *
  * A complete emulator for MIPS coprocessor 1 instructions.  This is
  * required for #float(switch) or #float(trap), where it catches all
  * COP1 instructions via the "CoProcessor Unusable" exception.  
@@ -32,24 +31,9 @@
  * quite nasty because emulation of some non-COP1 instructions is
  * required, e.g. in branch delay slots.
  * 
- * Notes: 
- *  1) the IEEE754 library (-le) performs the actual arithmetic;
- *  2) if you know that you won't have an fpu, then you'll get much 
- *     better performance by compiling with -msoft-float!  */
-
-/**************************************************************************
- *  Nov 7, 2000
- *  Massive changes to integrate with Linux kernel.
- *
- *  Replace use of kernel data area with use of user stack 
- *  for execution of instructions in branch delay slots.
- *
- *  Replace use of static kernel variables with thread_struct elements.
- *
- *  Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
- *  Copyright (C) 2000  MIPS Technologies, Inc.  All rights reserved.
- *************************************************************************/
-#include <linux/config.h>
+ * Note if you know that you won't have an fpu, then you'll get much 
+ * better performance by compiling with -msoft-float!
+ */
 #include <linux/mm.h>
 #include <linux/signal.h>
 #include <linux/smp.h>
