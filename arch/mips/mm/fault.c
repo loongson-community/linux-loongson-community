@@ -220,6 +220,14 @@ vmalloc_fault:
 			if (!pgd_present(*pgd_k))
 				goto bad_area_nosemaphore;
 			set_pgd(pgd, *pgd_k);
+			return;
 		}
+
+		pmd = pmd_offset(pgd, address);
+		pmd_k = pmd_offset(pgd_k, address);
+
+		if (pmd_present(*pmd) || !pmd_present(*pmd_k))
+			goto bad_area_nosemaphore;
+		set_pmd(pmd, *pmd_k);
 	}
 }
