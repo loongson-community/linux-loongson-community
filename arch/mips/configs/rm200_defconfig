@@ -666,7 +666,29 @@ CONFIG_PLIP=m
 #
 # Amateur Radio support
 #
-# CONFIG_HAMRADIO is not set
+CONFIG_HAMRADIO=y
+
+#
+# Packet Radio protocols
+#
+CONFIG_AX25=m
+CONFIG_AX25_DAMA_SLAVE=y
+CONFIG_NETROM=m
+CONFIG_ROSE=m
+
+#
+# AX.25 network device drivers
+#
+# CONFIG_MKISS is not set
+# CONFIG_6PACK is not set
+CONFIG_BPQETHER=m
+# CONFIG_DMASCC is not set
+# CONFIG_SCC is not set
+# CONFIG_BAYCOM_SER_FDX is not set
+# CONFIG_BAYCOM_SER_HDX is not set
+# CONFIG_BAYCOM_PAR is not set
+# CONFIG_BAYCOM_EPP is not set
+# CONFIG_YAM is not set
 
 #
 # IrDA (infrared) support
