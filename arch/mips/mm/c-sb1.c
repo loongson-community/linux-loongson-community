@@ -548,7 +548,6 @@ void ld_mmu_sb1(void)
 	 * before subsequent instruction fetch.
 	 */
 	write_c0_epc(&&here);
-here:
 	__asm__ __volatile__(
 	"	.set	noreorder		\n"
 	"	.set	mips3\n\t		\n"
@@ -558,6 +557,7 @@ here:
 	:
 	:
 	: "memory");
+here:
 
 	flush_cache_all();
 }
