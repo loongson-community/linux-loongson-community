@@ -26,6 +26,7 @@ CONFIG_ARC32=y
 CONFIG_PCI=y
 CONFIG_ISA=y
 CONFIG_PC_KEYB=y
+CONFIG_BOARD_SCACHE=y
 
 #
 # Loadable module support
