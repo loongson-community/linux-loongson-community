@@ -89,7 +89,7 @@ asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long write,
 	 * only copy the information from the master page table,
 	 * nothing more.
 	 */
-	if (address >= TASK_SIZE)
+	if (address >= VMALLOC_START)
 		goto vmalloc_fault;
 
 	info.si_code = SEGV_MAPERR;
