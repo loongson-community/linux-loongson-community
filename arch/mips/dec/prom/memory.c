@@ -108,10 +108,10 @@ void __init prom_meminit(unsigned int magic)
 		rex_setup_memory_region();
 }
 
-void prom_free_prom_memory (void)
+void __init prom_free_prom_memory (void)
 {
 	unsigned long addr, end;
-	extern	char _ftext;
+	extern char _ftext;
 
 	/*
 	 * Free everything below the kernel itself but leave
@@ -126,16 +126,16 @@ void prom_free_prom_memory (void)
 	 * XXX: save this address for use in dec_lance.c?
 	 */
 	if (IOASIC)
-		end = PHYSADDR(&_ftext) - 0x00020000;
+		end = __pa(&_ftext) - 0x00020000;
 	else
 #endif
-		end = PHYSADDR(&_ftext);
+		end = __pa(&_ftext);
 
 	addr = PAGE_SIZE;
 	while (addr < end) {
-		ClearPageReserved(virt_to_page(addr));
-		set_page_count(virt_to_page(addr), 1);
-		free_page(addr);
+		ClearPageReserved(virt_to_page(__va(addr)));
+		set_page_count(virt_to_page(__va(addr)), 1);
+		free_page((unsigned long)__va(addr));
 		addr += PAGE_SIZE;
 	}
 
