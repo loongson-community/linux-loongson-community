@@ -123,11 +123,11 @@ static int ohci_hub_suspend (struct usb_hcd *hcd)
 			if (ohci_readl (&ohci->regs->intrstatus) & OHCI_INTR_SF)
 				break;
 		}
-		dl_done_list (ohci, 0);
+		dl_done_list (ohci, NULL);
 		mdelay (7);
 	}
-	dl_done_list (ohci, 0);
-	finish_unlinks (ohci, OHCI_FRAME_NO(ohci->hcca), 0);
+	dl_done_list (ohci, NULL);
+	finish_unlinks (ohci, OHCI_FRAME_NO(ohci->hcca), NULL);
 	writel (ohci_readl (&ohci->regs->intrstatus), &ohci->regs->intrstatus);
 
 	/* maybe resume can wake root hub */
@@ -190,7 +190,7 @@ static int ohci_hub_resume (struct usb_hcd *hcd)
 		break;
 	case OHCI_USB_RESUME:
 		/* HCFS changes sometime after INTR_RD */
-		ohci_info (ohci, "remote wakeup\n");
+		ohci_info (ohci, "wakeup\n");
 		break;
 	case OHCI_USB_OPER:
 		ohci_dbg (ohci, "odd resume\n");
@@ -515,7 +515,7 @@ static int ohci_hub_control (
 #ifndef	OHCI_VERBOSE_DEBUG
 	if (*(u16*)(buf+2))	/* only if wPortChange is interesting */
 #endif
-		dbg_port (ohci, "GetStatus", wIndex + 1, temp);
+		dbg_port (ohci, "GetStatus", wIndex, temp);
 		break;
 	case SetHubFeature:
 		switch (wValue) {

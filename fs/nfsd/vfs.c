@@ -611,7 +611,7 @@ static int
 nfsd_read_actor(read_descriptor_t *desc, struct page *page, unsigned long offset , unsigned long size)
 {
 	unsigned long count = desc->count;
-	struct svc_rqst *rqstp = (struct svc_rqst *)desc->buf;
+	struct svc_rqst *rqstp = desc->arg.data;
 
 	if (size > count)
 		size = count;
@@ -641,7 +641,7 @@ nfsd_read_actor(read_descriptor_t *desc, struct page *page, unsigned long offset
  */
 int
 nfsd_read(struct svc_rqst *rqstp, struct svc_fh *fhp, loff_t offset,
-          struct iovec *vec, int vlen, unsigned long *count)
+          struct kvec *vec, int vlen, unsigned long *count)
 {
 	struct raparms	*ra;
 	mm_segment_t	oldfs;
@@ -673,7 +673,7 @@ nfsd_read(struct svc_rqst *rqstp, struct svc_fh *fhp, loff_t offset,
 	} else {
 		oldfs = get_fs();
 		set_fs(KERNEL_DS);
-		err = vfs_readv(&file, vec, vlen, &offset);
+		err = vfs_readv(&file, (struct iovec __user *)vec, vlen, &offset);
 		set_fs(oldfs);
 	}
 
@@ -704,7 +704,7 @@ out:
  */
 int
 nfsd_write(struct svc_rqst *rqstp, struct svc_fh *fhp, loff_t offset,
-				struct iovec *vec, int vlen,
+				struct kvec *vec, int vlen,
 	   			unsigned long cnt, int *stablep)
 {
 	struct svc_export	*exp;
@@ -753,7 +753,7 @@ nfsd_write(struct svc_rqst *rqstp, struct svc_fh *fhp, loff_t offset,
 
 	/* Write the data. */
 	oldfs = get_fs(); set_fs(KERNEL_DS);
-	err = vfs_writev(&file, vec, vlen, &offset);
+	err = vfs_writev(&file, (struct iovec __user *)vec, vlen, &offset);
 	set_fs(oldfs);
 	if (err >= 0) {
 		nfsdstats.io_write += cnt;
@@ -1477,10 +1477,12 @@ nfsd_readdir(struct svc_rqst *rqstp, struct svc_fh *fhp, loff_t *offsetp,
 	err = nfsd_open(rqstp, fhp, S_IFDIR, MAY_READ, &file);
 	if (err)
 		goto out;
-	if (offset > ~(u32) 0)
-		goto out_close;
 
-	file.f_pos = offset;
+	offset = vfs_llseek(&file, offset, 0);
+	if (offset < 0) {
+		err = nfserrno((int)offset);
+		goto out_close;
+	}
 
 	/*
 	 * Read the directory entries. This silly loop is necessary because
@@ -1496,7 +1498,7 @@ nfsd_readdir(struct svc_rqst *rqstp, struct svc_fh *fhp, loff_t *offsetp,
 		err = nfserrno(err);
 	else
 		err = cdp->err;
-	*offsetp = file.f_pos;
+	*offsetp = vfs_llseek(&file, 0, 1);
 
 	if (err == nfserr_eof || err == nfserr_toosmall)
 		err = nfs_ok; /* can still be found in ->err */

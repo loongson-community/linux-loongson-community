@@ -101,7 +101,7 @@ static struct pci_driver airo_driver = {
    infront of the label, that statistic will not be included in the list
    of statistics in the /proc filesystem */
 
-#define IGNLABEL(comment) 0
+#define IGNLABEL(comment) NULL
 static char *statsLabels[] = {
 	"RxOverrun",
 	IGNLABEL("RxPlcpCrcErr"),
@@ -1210,6 +1210,7 @@ struct airo_info {
 	APListRid		*APList;
 #define	PCI_SHARED_LEN		2*MPI_MAX_FIDS*PKTSIZE+RIDSIZE
 	u32			pci_state[16];
+	char			proc_name[IFNAMSIZ];
 };
 
 static inline int bap_read(struct airo_info *ai, u16 *pu16Dst, int bytelen,
@@ -2346,7 +2347,7 @@ void stop_airo_card( struct net_device *dev, int freeres )
 		if (ai->wifidev) {
 			unregister_netdev(ai->wifidev);
 			free_netdev(ai->wifidev);
-			ai->wifidev = 0;
+			ai->wifidev = NULL;
 		}
 		clear_bit(FLAG_REGISTERED, &ai->flags);
 	}
@@ -2358,7 +2359,7 @@ void stop_airo_card( struct net_device *dev, int freeres )
 	 * Clean out tx queue
 	 */
 	if (test_bit(FLAG_MPI, &ai->flags) && skb_queue_len (&ai->txq) > 0) {
-		struct sk_buff *skb = 0;
+		struct sk_buff *skb = NULL;
 		for (;(skb = skb_dequeue(&ai->txq));)
 			dev_kfree_skb(skb);
 	}
@@ -3162,11 +3163,12 @@ static irqreturn_t airo_interrupt ( int irq, void* dev_id, struct pt_regs *regs)
 			} else
 				hdrlen = ETH_ALEN * 2;
 
-			skb = dev_alloc_skb( len + hdrlen + 2 );
+			skb = dev_alloc_skb( len + hdrlen + 2 + 2 );
 			if ( !skb ) {
 				apriv->stats.rx_dropped++;
 				goto badrx;
 			}
+			skb_reserve(skb, 2); /* This way the IP header is aligned */
 			buffer = (u16*)skb_put (skb, len + hdrlen);
 			if (test_bit(FLAG_802_11, &apriv->flags)) {
 				buffer[0] = fc;
@@ -4369,7 +4371,8 @@ static int setup_proc_entry( struct net_device *dev,
 			     struct airo_info *apriv ) {
 	struct proc_dir_entry *entry;
 	/* First setup the device directory */
-	apriv->proc_entry = create_proc_entry(dev->name,
+	strcpy(apriv->proc_name,dev->name);
+	apriv->proc_entry = create_proc_entry(apriv->proc_name,
 					      S_IFDIR|airo_perm,
 					      airo_entry);
         apriv->proc_entry->uid = proc_uid;
@@ -4470,7 +4473,7 @@ static int takedown_proc_entry( struct net_device *dev,
 	remove_proc_entry("APList",apriv->proc_entry);
 	remove_proc_entry("BSSList",apriv->proc_entry);
 	remove_proc_entry("WepKey",apriv->proc_entry);
-	remove_proc_entry(dev->name,airo_entry);
+	remove_proc_entry(apriv->proc_name,airo_entry);
 	return 0;
 }
 

@@ -38,9 +38,9 @@ MODULE_LICENSE("GPL");
 
 /*
  * Addresses we probe for an MS02-NV at.  Modules may be located
- * at any 8MB boundary within a 0MB up to 112MB range or at any 32MB
- * boundary within a 0MB up to 448MB range.  We don't support a module
- * at 0MB, though.
+ * at any 8MiB boundary within a 0MiB up to 112MiB range or at any 32MiB
+ * boundary within a 0MiB up to 448MiB range.  We don't support a module
+ * at 0MiB, though.
  */
 static ulong ms02nv_addrs[] __initdata = {
 	0x07000000, 0x06800000, 0x06000000, 0x05800000, 0x05000000,
@@ -130,7 +130,7 @@ static int __init ms02nv_init_one(ulong addr)
 
 	int ret = -ENODEV;
 
-	/* The module decodes 8MB of address space. */
+	/* The module decodes 8MiB of address space. */
 	mod_res = kmalloc(sizeof(*mod_res), GFP_KERNEL);
 	if (!mod_res)
 		return -ENOMEM;
@@ -233,7 +233,7 @@ static int __init ms02nv_init_one(ulong addr)
 		goto err_out_csr_res;
 	}
 
-	printk(KERN_INFO "mtd%d: %s at 0x%08lx, size %uMB.\n",
+	printk(KERN_INFO "mtd%d: %s at 0x%08lx, size %uMiB.\n",
 		mtd->index, ms02nv_name, addr, size >> 20);
 
 	mp->next = root_ms02nv_mtd;

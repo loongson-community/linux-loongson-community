@@ -82,6 +82,8 @@ extern void jfs_write_inode(struct inode *inode, int wait);
 extern struct dentry *jfs_get_parent(struct dentry *dentry);
 extern int jfs_extendfs(struct super_block *, s64, int);
 
+extern struct dentry_operations jfs_ci_dentry_operations;
+
 #ifdef PROC_FS_JFS		/* see jfs_debug.h */
 extern void jfs_proc_init(void);
 extern void jfs_proc_clean(void);
@@ -141,10 +143,13 @@ static void jfs_destroy_inode(struct inode *inode)
 {
 	struct jfs_inode_info *ji = JFS_IP(inode);
 
+	spin_lock_irq(&ji->ag_lock);
 	if (ji->active_ag != -1) {
 		struct bmap *bmap = JFS_SBI(inode->i_sb)->bmap;
 		atomic_dec(&bmap->db_active[ji->active_ag]);
+		ji->active_ag = -1;
 	}
+	spin_unlock_irq(&ji->ag_lock);
 
 #ifdef CONFIG_JFS_POSIX_ACL
 	if (ji->i_acl != JFS_ACL_NOT_CACHED) {
@@ -422,7 +427,7 @@ static int jfs_fill_super(struct super_block *sb, void *data, int silent)
 		goto out_kfree;
 	}
 	if (sb->s_flags & MS_RDONLY)
-		sbi->log = 0;
+		sbi->log = NULL;
 	else {
 		rc = jfs_mount_rw(sb, 0);
 		if (rc) {
@@ -442,6 +447,9 @@ static int jfs_fill_super(struct super_block *sb, void *data, int silent)
 	sb->s_root = d_alloc_root(inode);
 	if (!sb->s_root)
 		goto out_no_root;
+
+	if (sbi->mntflag & JFS_OS2)
+		sb->s_root->d_op = &jfs_ci_dentry_operations;
 
 	/* logical blocks are represented by 40 bits in pxd_t, etc. */
 	sb->s_maxbytes = ((u64) sb->s_blocksize) << 40;
@@ -559,6 +567,7 @@ static void init_once(void *foo, kmem_cache_t * cachep, unsigned long flags)
 		init_rwsem(&jfs_ip->rdwrlock);
 		init_MUTEX(&jfs_ip->commit_sem);
 		init_rwsem(&jfs_ip->xattr_sem);
+		spin_lock_init(&jfs_ip->ag_lock);
 		jfs_ip->active_ag = -1;
 #ifdef CONFIG_JFS_POSIX_ACL
 		jfs_ip->i_acl = JFS_ACL_NOT_CACHED;
@@ -600,7 +609,7 @@ static int __init init_jfs_fs(void)
 	/*
 	 * I/O completion thread (endio)
 	 */
-	jfsIOthread = kernel_thread(jfsIOWait, 0, CLONE_KERNEL);
+	jfsIOthread = kernel_thread(jfsIOWait, NULL, CLONE_KERNEL);
 	if (jfsIOthread < 0) {
 		jfs_err("init_jfs_fs: fork failed w/rc = %d", jfsIOthread);
 		goto end_txmngr;
@@ -613,7 +622,7 @@ static int __init init_jfs_fs(void)
 		commit_threads = MAX_COMMIT_THREADS;
 
 	for (i = 0; i < commit_threads; i++) {
-		jfsCommitThread[i] = kernel_thread(jfs_lazycommit, 0,
+		jfsCommitThread[i] = kernel_thread(jfs_lazycommit, NULL,
 						   CLONE_KERNEL);
 		if (jfsCommitThread[i] < 0) {
 			jfs_err("init_jfs_fs: fork failed w/rc = %d",
@@ -625,7 +634,7 @@ static int __init init_jfs_fs(void)
 		wait_for_completion(&jfsIOwait);
 	}
 
-	jfsSyncThread = kernel_thread(jfs_sync, 0, CLONE_KERNEL);
+	jfsSyncThread = kernel_thread(jfs_sync, NULL, CLONE_KERNEL);
 	if (jfsSyncThread < 0) {
 		jfs_err("init_jfs_fs: fork failed w/rc = %d", jfsSyncThread);
 		goto kill_committask;

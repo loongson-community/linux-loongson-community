@@ -261,7 +261,7 @@ out:
 
 static ssize_t
 smb_file_sendfile(struct file *file, loff_t *ppos,
-		  size_t count, read_actor_t actor, void __user *target)
+		  size_t count, read_actor_t actor, void *target)
 {
 	struct dentry *dentry = file->f_dentry;
 	ssize_t status;
@@ -271,7 +271,7 @@ smb_file_sendfile(struct file *file, loff_t *ppos,
 
 	status = smb_revalidate_inode(dentry);
 	if (status) {
-		PARANOIA("%s/%s validation failed, error=%zd\n",
+		PARANOIA("%s/%s validation failed, error=%Zd\n",
 			 DENTRY_PATH(dentry), status);
 		goto out;
 	}

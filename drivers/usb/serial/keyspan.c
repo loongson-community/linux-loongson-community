@@ -107,19 +107,11 @@
 #include <linux/module.h>
 #include <linux/spinlock.h>
 #include <asm/uaccess.h>
-
-#ifdef CONFIG_USB_SERIAL_DEBUG
-	static int debug = 1;
-	#define DEBUG
-#else
-	static int debug;
-	#undef DEBUG
-#endif
-
 #include <linux/usb.h>
-
 #include "usb-serial.h"
 #include "keyspan.h"
+
+static int debug;
 
 /*
  * Version Information
@@ -1175,7 +1167,7 @@ static void keyspan_close(struct usb_serial_port *port, struct file *filp)
 			stop_urb(p_priv->out_urbs[i]);
 		}
 	}
-	port->tty = 0;
+	port->tty = NULL;
 }
 
 
@@ -2362,6 +2354,6 @@ MODULE_AUTHOR( DRIVER_AUTHOR );
 MODULE_DESCRIPTION( DRIVER_DESC );
 MODULE_LICENSE("GPL");
 
-MODULE_PARM(debug, "i");
+module_param(debug, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(debug, "Debug enabled or not");
 

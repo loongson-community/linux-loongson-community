@@ -443,7 +443,8 @@ int sock_getsockopt(struct socket *sock, int level, int optname,
 		struct timeval tm;
 	} v;
 	
-	unsigned int lv=sizeof(int),len;
+	unsigned int lv = sizeof(int);
+	int len;
   	
   	if(get_user(len,optlen))
   		return -EFAULT;
@@ -709,6 +710,27 @@ void sock_rfree(struct sk_buff *skb)
 	struct sock *sk = skb->sk;
 
 	atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
+}
+
+
+int sock_i_uid(struct sock *sk)
+{
+	int uid;
+
+	read_lock(&sk->sk_callback_lock);
+	uid = sk->sk_socket ? SOCK_INODE(sk->sk_socket)->i_uid : 0;
+	read_unlock(&sk->sk_callback_lock);
+	return uid;
+}
+
+unsigned long sock_i_ino(struct sock *sk)
+{
+	unsigned long ino;
+
+	read_lock(&sk->sk_callback_lock);
+	ino = sk->sk_socket ? SOCK_INODE(sk->sk_socket)->i_ino : 0;
+	read_unlock(&sk->sk_callback_lock);
+	return ino;
 }
 
 /*
@@ -1043,30 +1065,12 @@ int sock_no_mmap(struct file *file, struct socket *sock, struct vm_area_struct *
 ssize_t sock_no_sendpage(struct socket *sock, struct page *page, int offset, size_t size, int flags)
 {
 	ssize_t res;
-	struct msghdr msg;
-	struct iovec iov;
-	mm_segment_t old_fs;
-	char *kaddr;
-
-	kaddr = kmap(page);
-
-	msg.msg_name = NULL;
-	msg.msg_namelen = 0;
-	msg.msg_iov = &iov;
-	msg.msg_iovlen = 1;
-	msg.msg_control = NULL;
-	msg.msg_controllen = 0;
-	msg.msg_flags = flags;
-
-	/* This cast is ok because of the "set_fs(KERNEL_DS)" */
-	iov.iov_base = (void __user *) (kaddr + offset);
+	struct msghdr msg = {.msg_flags = flags};
+	struct kvec iov;
+	char *kaddr = kmap(page);
+	iov.iov_base = kaddr + offset;
 	iov.iov_len = size;
-
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-	res = sock_sendmsg(sock, &msg, size);
-	set_fs(old_fs);
-
+	res = kernel_sendmsg(sock, &msg, &iov, 1, size);
 	kunmap(page);
 	return res;
 }
@@ -1379,6 +1383,8 @@ EXPORT_SYMBOL(sock_rmalloc);
 EXPORT_SYMBOL(sock_setsockopt);
 EXPORT_SYMBOL(sock_wfree);
 EXPORT_SYMBOL(sock_wmalloc);
+EXPORT_SYMBOL(sock_i_uid);
+EXPORT_SYMBOL(sock_i_ino);
 #ifdef CONFIG_SYSCTL
 EXPORT_SYMBOL(sysctl_optmem_max);
 EXPORT_SYMBOL(sysctl_rmem_max);

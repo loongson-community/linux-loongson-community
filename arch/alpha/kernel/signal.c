@@ -53,8 +53,7 @@ static int do_signal(sigset_t *, struct pt_regs *, struct switch_stack *,
  * operation, as all of this is local to this thread.
  */
 asmlinkage unsigned long
-osf_sigprocmask(int how, unsigned long newmask, long a2, long a3,
-		long a4, long a5, struct pt_regs regs)
+do_osf_sigprocmask(int how, unsigned long newmask, struct pt_regs *regs)
 {
 	unsigned long oldmask = -EINVAL;
 
@@ -78,7 +77,7 @@ osf_sigprocmask(int how, unsigned long newmask, long a2, long a3,
 		recalc_sigpending();
 		spin_unlock_irq(&current->sighand->siglock);
 
-		(&regs)->r0 = 0;		/* special no error return */
+		regs->r0 = 0;		/* special no error return */
 	}
 	return oldmask;
 }
@@ -304,7 +303,7 @@ do_sigreturn(struct sigcontext __user *sc, struct pt_regs *regs,
 		info.si_signo = SIGTRAP;
 		info.si_errno = 0;
 		info.si_code = TRAP_BRKPT;
-		info.si_addr = (void *) regs->pc;
+		info.si_addr = (void __user *) regs->pc;
 		info.si_trapno = 0;
 		send_sig_info(SIGTRAP, &info, current);
 	}
@@ -342,7 +341,7 @@ do_rt_sigreturn(struct rt_sigframe __user *frame, struct pt_regs *regs,
 		info.si_signo = SIGTRAP;
 		info.si_errno = 0;
 		info.si_code = TRAP_BRKPT;
-		info.si_addr = (void *) regs->pc;
+		info.si_addr = (void __user *) regs->pc;
 		info.si_trapno = 0;
 		send_sig_info(SIGTRAP, &info, current);
 	}

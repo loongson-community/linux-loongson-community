@@ -17,7 +17,6 @@
  */
  
 #include <asm/hardware.h>
-#include <asm/mach-types.h>
 #include <asm/io.h>
 
 #include <asm/arch/bus.h>
@@ -563,6 +562,10 @@ static const struct hc_driver ohci_omap_hc_driver = {
 	 */
 	.hub_status_data =	ohci_hub_status_data,
 	.hub_control =		ohci_hub_control,
+#ifdef	CONFIG_USB_SUSPEND
+	.hub_suspend =		ohci_hub_suspend,
+	.hub_resume =		ohci_hub_resume,
+#endif
 };
 
 /*-------------------------------------------------------------------------*/

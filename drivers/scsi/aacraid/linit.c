@@ -178,15 +178,14 @@ static struct aac_driver_ident aac_drivers[] = {
 static int aac_get_next_adapter_fib_ioctl(unsigned int fd, unsigned int cmd, 
 		unsigned long arg, struct file *file)
 {
-	struct fib_ioctl *f;
+	struct fib_ioctl __user *f;
 
 	f = compat_alloc_user_space(sizeof(*f));
 	if (!access_ok(VERIFY_WRITE, f, sizeof(*f)))
 		return -EFAULT;
 
 	clear_user(f, sizeof(*f));
-	if (copy_from_user((void *)f, (void *)arg, 
-				sizeof(struct fib_ioctl) - sizeof(u32)))
+	if (copy_in_user(f, (void __user *)arg, sizeof(struct fib_ioctl) - sizeof(u32)))
 		return -EFAULT;
 
 	return sys_ioctl(fd, cmd, (unsigned long)f);
@@ -356,7 +355,7 @@ static int aac_slave_configure(struct scsi_device *sdev)
 	return 0;
 }
 
-static int aac_ioctl(struct scsi_device *sdev, int cmd, void * arg)
+static int aac_ioctl(struct scsi_device *sdev, int cmd, void __user * arg)
 {
 	struct aac_dev *dev = (struct aac_dev *)sdev->host->hostdata;
 	return aac_do_ioctl(dev, cmd, arg);
@@ -463,7 +462,7 @@ static int aac_cfg_open(struct inode *inode, struct file *file)
 static int aac_cfg_ioctl(struct inode *inode,  struct file *file,
 		unsigned int cmd, unsigned long arg)
 {
-	return aac_do_ioctl(file->private_data, cmd, (void *)arg);
+	return aac_do_ioctl(file->private_data, cmd, (void __user *)arg);
 }
 
 static struct file_operations aac_cfg_fops = {

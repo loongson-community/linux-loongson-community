@@ -3,7 +3,7 @@
  *
  * Author: Jonas Holmberg <jonas.holmberg@axis.com>
  *
- * $Id: amd_flash.c,v 1.23 2003/06/12 09:24:13 dwmw2 Exp $
+ * $Id: amd_flash.c,v 1.24 2004/07/12 13:34:30 dwmw2 Exp $
  *
  * Copyright (c) 2001 Axis Communications AB
  *
@@ -718,7 +718,7 @@ static struct mtd_info *amd_flash_probe(struct map_info *map)
 		       "memory for MTD erase region info\n", map->name);
 		kfree(mtd);
 		map->fldrv_priv = NULL;
-		return 0;
+		return NULL;
 	}
 
 	reg_idx = 0;

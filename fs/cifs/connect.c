@@ -189,8 +189,7 @@ cifs_demultiplex_thread(struct TCP_Server_Info *server)
 	unsigned int pdu_length, total_read;
 	struct smb_hdr *smb_buffer = NULL;
 	struct msghdr smb_msg;
-	mm_segment_t temp_fs;
-	struct iovec iov;
+	struct kvec iov;
 	struct socket *csocket = server->ssocket;
 	struct list_head *tmp;
 	struct cifsSesInfo *ses;
@@ -203,9 +202,6 @@ cifs_demultiplex_thread(struct TCP_Server_Info *server)
 	current->flags |= PF_MEMALLOC;
 	server->tsk = current;	/* save process info to wake at shutdown */
 	cFYI(1, ("Demultiplex PID: %d", current->pid));
-
-	temp_fs = get_fs();	/* we must turn off socket api parm checking */
-	set_fs(get_ds());
 
 	while (server->tcpStatus != CifsExiting) {
 		if (smb_buffer == NULL)
@@ -222,16 +218,15 @@ cifs_demultiplex_thread(struct TCP_Server_Info *server)
 		iov.iov_base = smb_buffer;
 		iov.iov_len = sizeof (struct smb_hdr) - 1;	
         /* 1 byte less above since wct is not always returned in error cases */
-		smb_msg.msg_iov = &iov;
-		smb_msg.msg_iovlen = 1;
 		smb_msg.msg_control = NULL;
 		smb_msg.msg_controllen = 0;
 
 		length =
-		    sock_recvmsg(csocket, &smb_msg,
-				 sizeof (struct smb_hdr) -
-				 1 /* RFC1001 header and SMB header */ ,
-				 MSG_PEEK /* flags see socket.h */ );
+		    kernel_recvmsg(csocket, &smb_msg,
+				   &iov, 1,
+				   sizeof (struct smb_hdr) -
+				   1 /* RFC1001 header and SMB header */ ,
+				   MSG_PEEK /* flags see socket.h */ );
 
 		if(server->tcpStatus == CifsExiting) {
 			break;
@@ -276,12 +271,14 @@ cifs_demultiplex_thread(struct TCP_Server_Info *server)
 			if (temp[0] == (char) RFC1002_SESSION_KEEP_ALIVE) {
 				iov.iov_base = smb_buffer;
 				iov.iov_len = 4;
-				length = sock_recvmsg(csocket, &smb_msg, 4, 0);
+				length = kernel_recvmsg(csocket, &smb_msg,
+							&iov, 1, 4, 0);
 				cFYI(0,("Received 4 byte keep alive packet"));
 			} else if (temp[0] == (char) RFC1002_POSITIVE_SESSION_RESPONSE) {
-					iov.iov_base = smb_buffer;
-					iov.iov_len = 4;
-					length = sock_recvmsg(csocket, &smb_msg, 4, 0);
+				iov.iov_base = smb_buffer;
+				iov.iov_len = 4;
+				length = kernel_recvmsg(csocket, &smb_msg,
+							&iov, 1, 4, 0);
 					cFYI(1,("Good RFC 1002 session rsp"));
 			} else if ((temp[0] == (char)RFC1002_NEGATIVE_SESSION_RESPONSE)
 				   && (length == 5)) {
@@ -341,7 +338,8 @@ cifs_demultiplex_thread(struct TCP_Server_Info *server)
 					for (total_read = 0; 
 					     total_read < pdu_length;
 					     total_read += length) {	
-						length = sock_recvmsg(csocket, &smb_msg, 
+						length = kernel_recvmsg(csocket, &smb_msg, 
+							&iov, 1,
 							pdu_length - total_read, 0);
 						if (length == 0) {
 							cERROR(1,
@@ -392,7 +390,9 @@ cifs_demultiplex_thread(struct TCP_Server_Info *server)
 			     ("Frame less than four bytes received  %d bytes long.",
 			      length));
 			if (length > 0) {
-				length = sock_recvmsg(csocket, &smb_msg, length, 0);	/* throw away junk frame */
+				length = kernel_recvmsg(csocket, &smb_msg,
+					&iov, 1,
+					length, 0);	/* throw away junk frame */
 				cFYI(1,
 				     (" with junk  0x%x in it ",
 				      *(__u32 *) smb_buffer));
@@ -418,7 +418,6 @@ cifs_demultiplex_thread(struct TCP_Server_Info *server)
 		sock_release(csocket);
 		server->ssocket = NULL;
 	}
-	set_fs(temp_fs);
 	if (smb_buffer) /* buffer usually freed in free_mid - need to free it on error or exit */
 		cifs_buf_release(smb_buffer);
 
@@ -715,6 +714,8 @@ cifs_parse_mount_options(char *options, const char *devname, struct smb_vol *vol
 				if((i==15) && (value[i] != 0))
 					printk(KERN_WARNING "CIFS: netbiosname longer than 15 and was truncated.\n");
 			}
+		} else if (strnicmp(data, "credentials", 4) == 0) {
+			/* ignore */
 		} else if (strnicmp(data, "version", 3) == 0) {
 			/* ignore */
 		} else if (strnicmp(data, "rw", 2) == 0) {
@@ -1443,7 +1444,7 @@ CIFSSessSetup(unsigned int xid, struct cifsSesInfo *ses,
 
 	/* send SMBsessionSetup here */
 	header_assemble(smb_buffer, SMB_COM_SESSION_SETUP_ANDX,
-			0 /* no tCon exists yet */ , 13 /* wct */ );
+			NULL /* no tCon exists yet */ , 13 /* wct */ );
 
 	pSMB->req_no_secext.AndXCommand = 0xFF;
 	pSMB->req_no_secext.MaxBufferSize = cpu_to_le16(ses->server->maxBuf);
@@ -1699,7 +1700,7 @@ CIFSSpnegoSessSetup(unsigned int xid, struct cifsSesInfo *ses,
 
 	/* send SMBsessionSetup here */
 	header_assemble(smb_buffer, SMB_COM_SESSION_SETUP_ANDX,
-			0 /* no tCon exists yet */ , 12 /* wct */ );
+			NULL /* no tCon exists yet */ , 12 /* wct */ );
 	pSMB->req.hdr.Flags2 |= SMBFLG2_EXT_SEC;
 	pSMB->req.AndXCommand = 0xFF;
 	pSMB->req.MaxBufferSize = cpu_to_le16(ses->server->maxBuf);
@@ -1961,7 +1962,7 @@ CIFSNTLMSSPNegotiateSessSetup(unsigned int xid,
 
 	/* send SMBsessionSetup here */
 	header_assemble(smb_buffer, SMB_COM_SESSION_SETUP_ANDX,
-			0 /* no tCon exists yet */ , 12 /* wct */ );
+			NULL /* no tCon exists yet */ , 12 /* wct */ );
 	pSMB->req.hdr.Flags2 |= SMBFLG2_EXT_SEC;
 	pSMB->req.hdr.Flags |= (SMBFLG_CASELESS | SMBFLG_CANONICAL_PATH_FORMAT);
 
@@ -2301,7 +2302,7 @@ CIFSNTLMSSPAuthSessSetup(unsigned int xid, struct cifsSesInfo *ses,
 
 	/* send SMBsessionSetup here */
 	header_assemble(smb_buffer, SMB_COM_SESSION_SETUP_ANDX,
-			0 /* no tCon exists yet */ , 12 /* wct */ );
+			NULL /* no tCon exists yet */ , 12 /* wct */ );
 	pSMB->req.hdr.Flags |= (SMBFLG_CASELESS | SMBFLG_CANONICAL_PATH_FORMAT);
 	pSMB->req.hdr.Flags2 |= SMBFLG2_EXT_SEC;
 	pSMB->req.AndXCommand = 0xFF;
@@ -2674,7 +2675,7 @@ CIFSTCon(unsigned int xid, struct cifsSesInfo *ses,
 	smb_buffer_response = smb_buffer;
 
 	header_assemble(smb_buffer, SMB_COM_TREE_CONNECT_ANDX,
-			0 /*no tid */ , 4 /*wct */ );
+			NULL /*no tid */ , 4 /*wct */ );
 	smb_buffer->Uid = ses->Suid;
 	pSMB = (TCONX_REQ *) smb_buffer;
 	pSMBr = (TCONX_RSP *) smb_buffer_response;

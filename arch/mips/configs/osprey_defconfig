@@ -395,6 +395,11 @@ CONFIG_LEGACY_PTY_COUNT=256
 # CONFIG_I2C is not set
 
 #
+# Dallas's 1-wire bus
+#
+# CONFIG_W1 is not set
+
+#
 # Misc devices
 #
 
@@ -458,7 +463,8 @@ CONFIG_EXT2_FS=y
 #
 # DOS/FAT/NT Filesystems
 #
-# CONFIG_FAT_FS is not set
+# CONFIG_MSDOS_FS is not set
+# CONFIG_VFAT_FS is not set
 # CONFIG_NTFS_FS is not set
 
 #
@@ -484,6 +490,7 @@ CONFIG_RAMFS=y
 # CONFIG_BEFS_FS is not set
 # CONFIG_BFS_FS is not set
 # CONFIG_EFS_FS is not set
+# CONFIG_JFFS2_COMPRESSION_OPTIONS is not set
 # CONFIG_CRAMFS is not set
 # CONFIG_VXFS_FS is not set
 # CONFIG_HPFS_FS is not set
@@ -543,6 +550,6 @@ CONFIG_CMDLINE="ip=bootp ether=46,0x03fe0300,eth0"
 #
 # Library routines
 #
-CONFIG_CRC16=m
+# CONFIG_CRC_CCITT is not set
 # CONFIG_CRC32 is not set
 CONFIG_LIBCRC32C=m

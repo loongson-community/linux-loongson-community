@@ -456,13 +456,27 @@ static void cfq_put_queue(struct cfq_data *cfqd, struct cfq_queue *cfqq)
 	mempool_free(cfqq, cfq_mpool);
 }
 
-static struct cfq_queue *cfq_get_queue(struct cfq_data *cfqd, int pid)
+static struct cfq_queue *__cfq_get_queue(struct cfq_data *cfqd, int pid,
+					 int gfp_mask)
 {
 	const int hashval = hash_long(current->tgid, CFQ_QHASH_SHIFT);
-	struct cfq_queue *cfqq = __cfq_find_cfq_hash(cfqd, pid, hashval);
+	struct cfq_queue *cfqq, *new_cfqq = NULL;
+	request_queue_t *q = cfqd->queue;
+
+retry:
+	cfqq = __cfq_find_cfq_hash(cfqd, pid, hashval);
 
 	if (!cfqq) {
-		cfqq = mempool_alloc(cfq_mpool, GFP_NOIO);
+		if (new_cfqq) {
+			cfqq = new_cfqq;
+			new_cfqq = NULL;
+		} else if (gfp_mask & __GFP_WAIT) {
+			spin_unlock_irq(q->queue_lock);
+			new_cfqq = mempool_alloc(cfq_mpool, gfp_mask);
+			spin_lock_irq(q->queue_lock);
+			goto retry;
+		} else
+			return NULL;
 
 		INIT_LIST_HEAD(&cfqq->cfq_hash);
 		INIT_LIST_HEAD(&cfqq->cfq_list);
@@ -473,6 +487,22 @@ static struct cfq_queue *cfq_get_queue(struct cfq_data *cfqd, int pid)
 		list_add(&cfqq->cfq_hash, &cfqd->cfq_hash[hashval]);
 	}
 
+	if (new_cfqq)
+		mempool_free(new_cfqq, cfq_mpool);
+
+	return cfqq;
+}
+
+static struct cfq_queue *cfq_get_queue(struct cfq_data *cfqd, int pid,
+				       int gfp_mask)
+{
+	request_queue_t *q = cfqd->queue;
+	struct cfq_queue *cfqq;
+
+	spin_lock_irq(q->queue_lock);
+	cfqq = __cfq_get_queue(cfqd, pid, gfp_mask);
+	spin_unlock_irq(q->queue_lock);
+
 	return cfqq;
 }
 
@@ -480,13 +510,21 @@ static void cfq_enqueue(struct cfq_data *cfqd, struct cfq_rq *crq)
 {
 	struct cfq_queue *cfqq;
 
-	cfqq = cfq_get_queue(cfqd, current->tgid);
+	cfqq = __cfq_get_queue(cfqd, current->tgid, GFP_ATOMIC);
+	if (cfqq) {
+		cfq_add_crq_rb(cfqd, cfqq, crq);
 
-	cfq_add_crq_rb(cfqd, cfqq, crq);
-
-	if (list_empty(&cfqq->cfq_list)) {
-		list_add(&cfqq->cfq_list, &cfqd->rr_list);
-		cfqd->busy_queues++;
+		if (list_empty(&cfqq->cfq_list)) {
+			list_add(&cfqq->cfq_list, &cfqd->rr_list);
+			cfqd->busy_queues++;
+		}
+	} else {
+		/*
+		 * should can only happen if the request wasn't allocated
+		 * through blk_alloc_request(), eg stack requests from ide-cd
+		 * (those should be removed) _and_ we are in OOM.
+		 */
+		list_add_tail(&crq->request->queuelist, cfqd->dispatch);
 	}
 }
 
@@ -617,9 +655,19 @@ static void cfq_put_request(request_queue_t *q, struct request *rq)
 static int cfq_set_request(request_queue_t *q, struct request *rq, int gfp_mask)
 {
 	struct cfq_data *cfqd = q->elevator.elevator_data;
-	struct cfq_rq *crq = mempool_alloc(cfqd->crq_pool, gfp_mask);
+	struct cfq_queue *cfqq;
+	struct cfq_rq *crq;
 
+	/*
+	 * prepare a queue up front, so cfq_enqueue() doesn't have to
+	 */
+	cfqq = cfq_get_queue(cfqd, current->tgid, gfp_mask);
+	if (!cfqq)
+		return 1;
+
+	crq = mempool_alloc(cfqd->crq_pool, gfp_mask);
 	if (crq) {
+		memset(crq, 0, sizeof(*crq));
 		RB_CLEAR(&crq->rb_node);
 		crq->request = rq;
 		crq->cfq_queue = NULL;

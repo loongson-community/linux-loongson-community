@@ -225,8 +225,16 @@ struct metapage *__get_metapage(struct inode *inode, unsigned long lblock,
 
 	if (absolute)
 		mapping = inode->i_sb->s_bdev->bd_inode->i_mapping;
-	else
+	else {
+		/*
+		 * If an nfs client tries to read an inode that is larger
+		 * than any existing inodes, we may try to read past the
+		 * end of the inode map
+		 */
+		if ((lblock << inode->i_blkbits) >= inode->i_size)
+			return NULL;
 		mapping = inode->i_mapping;
+	}
 
 	hash_ptr = meta_hash(mapping, lblock);
 again:
@@ -320,7 +328,7 @@ again:
 		atomic_set(&mp->nohomeok,0);
 		mp->mapping = mapping;
 		mp->index = lblock;
-		mp->page = 0;
+		mp->page = NULL;
 		mp->logical_size = size;
 		add_to_hash(mp, hash_ptr);
 		spin_unlock(&meta_lock);
@@ -465,7 +473,7 @@ void release_metapage(struct metapage * mp)
 		set_bit(META_stale, &mp->flag);
 		spin_unlock(&meta_lock);
 		kunmap(mp->page);
-		mp->data = 0;
+		mp->data = NULL;
 		if (test_bit(META_dirty, &mp->flag))
 			__write_metapage(mp);
 		if (test_bit(META_sync, &mp->flag)) {
@@ -491,7 +499,7 @@ void release_metapage(struct metapage * mp)
 		 */
 		log = mp->log;
 		LOGSYNC_LOCK(log);
-		mp->log = 0;
+		mp->log = NULL;
 		mp->lsn = 0;
 		mp->clsn = 0;
 		log->count--;

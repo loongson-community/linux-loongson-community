@@ -105,22 +105,24 @@ static inline void shmem_dir_unmap(struct page **dir)
 
 static swp_entry_t *shmem_swp_map(struct page *page)
 {
+	return (swp_entry_t *)kmap_atomic(page, KM_USER1);
+}
+
+static inline void shmem_swp_balance_unmap(void)
+{
 	/*
-	 * We have to avoid the unconditional inc_preempt_count()
-	 * in kmap_atomic(), since shmem_swp_unmap() will also be
-	 * applied to the low memory addresses within i_direct[].
-	 * PageHighMem and high_memory tests are good for all arches
-	 * and configs: highmem_start_page and FIXADDR_START are not.
+	 * When passing a pointer to an i_direct entry, to code which
+	 * also handles indirect entries and so will shmem_swp_unmap,
+	 * we must arrange for the preempt count to remain in balance.
+	 * What kmap_atomic of a lowmem page does depends on config
+	 * and architecture, so pretend to kmap_atomic some lowmem page.
 	 */
-	return PageHighMem(page)?
-		(swp_entry_t *)kmap_atomic(page, KM_USER1):
-		(swp_entry_t *)page_address(page);
+	(void) kmap_atomic(ZERO_PAGE(0), KM_USER1);
 }
 
 static inline void shmem_swp_unmap(swp_entry_t *entry)
 {
-	if (entry >= (swp_entry_t *)high_memory)
-		kunmap_atomic(entry, KM_USER1);
+	kunmap_atomic(entry, KM_USER1);
 }
 
 static inline struct shmem_sb_info *SHMEM_SB(struct super_block *sb)
@@ -263,8 +265,10 @@ static swp_entry_t *shmem_swp_entry(struct shmem_inode_info *info, unsigned long
 	struct page **dir;
 	struct page *subdir;
 
-	if (index < SHMEM_NR_DIRECT)
+	if (index < SHMEM_NR_DIRECT) {
+		shmem_swp_balance_unmap();
 		return info->i_direct+index;
+	}
 	if (!info->i_indirect) {
 		if (page) {
 			info->i_indirect = *page;
@@ -306,17 +310,7 @@ static swp_entry_t *shmem_swp_entry(struct shmem_inode_info *info, unsigned long
 		*page = NULL;
 	}
 	shmem_dir_unmap(dir);
-
-	/*
-	 * With apologies... caller shmem_swp_alloc passes non-NULL
-	 * page (though perhaps NULL *page); and now we know that this
-	 * indirect page has been allocated, we can shortcut the final
-	 * kmap if we know it contains no swap entries, as is commonly
-	 * the case: return pointer to a 0 which doesn't need kmapping.
-	 */
-	return (page && !subdir->nr_swapped)?
-		(swp_entry_t *)&subdir->nr_swapped:
-		shmem_swp_map(subdir) + offset;
+	return shmem_swp_map(subdir) + offset;
 }
 
 static void shmem_swp_set(struct shmem_inode_info *info, swp_entry_t *entry, unsigned long value)
@@ -343,7 +337,6 @@ static swp_entry_t *shmem_swp_alloc(struct shmem_inode_info *info, unsigned long
 	struct shmem_sb_info *sbinfo = SHMEM_SB(inode->i_sb);
 	struct page *page = NULL;
 	swp_entry_t *entry;
-	static const swp_entry_t unswapped = { 0 };
 
 	if (sgp != SGP_WRITE &&
 	    ((loff_t) index << PAGE_CACHE_SHIFT) >= i_size_read(inode))
@@ -351,7 +344,7 @@ static swp_entry_t *shmem_swp_alloc(struct shmem_inode_info *info, unsigned long
 
 	while (!(entry = shmem_swp_entry(info, index, &page))) {
 		if (sgp == SGP_READ)
-			return (swp_entry_t *) &unswapped;
+			return shmem_swp_map(ZERO_PAGE(0));
 		/*
 		 * Test free_blocks against 1 not 0, since we have 1 data
 		 * page (and perhaps indirect index pages) yet to allocate:
@@ -650,8 +643,10 @@ static int shmem_unuse_inode(struct shmem_inode_info *info, swp_entry_t entry, s
 	if (size > SHMEM_NR_DIRECT)
 		size = SHMEM_NR_DIRECT;
 	offset = shmem_find_swp(entry, ptr, ptr+size);
-	if (offset >= 0)
+	if (offset >= 0) {
+		shmem_swp_balance_unmap();
 		goto found;
+	}
 	if (!info->i_indirect)
 		goto lost2;
 	/* we might be racing with shmem_truncate */
@@ -1478,7 +1473,7 @@ static ssize_t shmem_file_read(struct file *filp, char __user *buf, size_t count
 
 	desc.written = 0;
 	desc.count = count;
-	desc.buf = buf;
+	desc.arg.buf = buf;
 	desc.error = 0;
 
 	do_shmem_file_read(filp, ppos, &desc, file_read_actor);
@@ -1488,7 +1483,7 @@ static ssize_t shmem_file_read(struct file *filp, char __user *buf, size_t count
 }
 
 static ssize_t shmem_file_sendfile(struct file *in_file, loff_t *ppos,
-			 size_t count, read_actor_t actor, void __user *target)
+			 size_t count, read_actor_t actor, void *target)
 {
 	read_descriptor_t desc;
 
@@ -1497,7 +1492,7 @@ static ssize_t shmem_file_sendfile(struct file *in_file, loff_t *ppos,
 
 	desc.written = 0;
 	desc.count = count;
-	desc.buf = target;
+	desc.arg.data = target;
 	desc.error = 0;
 
 	do_shmem_file_read(in_file, ppos, &desc, actor);

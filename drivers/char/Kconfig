@@ -444,22 +444,6 @@ config VAC_SERIAL
 	help
 	  This enables the driver for the Baget's VAC RS232 seriall driver.
 
-config SGI_L1_SERIAL
-	bool "SGI Altix L1 serial support"
-	depends on SERIAL_NONSTANDARD && IA64
-	help
-	  If you have an SGI Altix and you want to use the serial port
-	  connected to the system controller (you want this!), say Y.
-	  Otherwise, say N.
-
-config SGI_L1_SERIAL_CONSOLE
-	bool "SGI Altix L1 serial console support"
-	depends on SGI_L1_SERIAL
-	help
-	  If you have an SGI Altix and you would like to use the system
-	  controller serial port as your console (you want this!),
-	  say Y.  Otherwise, say N.
-
 config A2232
 	tristate "Commodore A2232 serial support (EXPERIMENTAL)"
 	depends on EXPERIMENTAL && ZORRO && BROKEN_ON_SMP
@@ -846,16 +830,6 @@ config COBALT_LCD
 	help
 	  This option enables support for the LCD display and buttons found
 	  on Cobalt systems through a misc device.
-
-config H8
-	bool "Tadpole ANA H8 Support (OBSOLETE)"
-	depends on OBSOLETE && ALPHA_BOOK1
-	help
-	  The Hitachi H8/337 is a microcontroller used to deal with the power
-	  and thermal environment. If you say Y here, you will be able to
-	  communicate with it via a character special device.
-
-	  If unsure, say N.
 
 config DTLK
 	tristate "Double Talk PC internal speech card support"

@@ -1280,6 +1280,7 @@ int diFree(struct inode *ip)
 	 * to be freed by the transaction;  
 	 */
 	tid = txBegin(ipimap->i_sb, COMMIT_FORCE);
+	down(&JFS_IP(ipimap)->commit_sem);
 
 	/* acquire tlock of the iag page of the freed ixad 
 	 * to force the page NOHOMEOK (even though no data is
@@ -1312,6 +1313,7 @@ int diFree(struct inode *ip)
 	rc = txCommit(tid, 1, &iplist[0], COMMIT_FORCE);
 
 	txEnd(tid);
+	up(&JFS_IP(ipimap)->commit_sem);
 
 	/* unlock the AG inode map information */
 	AG_UNLOCK(imap, agno);
@@ -2061,7 +2063,7 @@ static int diAllocBit(struct inomap * imap, struct iag * iagp, int ino)
 {
 	int extno, bitno, agno, sword, rc;
 	struct metapage *amp = NULL, *bmp = NULL;
-	struct iag *aiagp = 0, *biagp = 0;
+	struct iag *aiagp = NULL, *biagp = NULL;
 	u32 mask;
 
 	/* check if this is the last free inode within the iag.
@@ -2207,7 +2209,7 @@ static int diAllocBit(struct inomap * imap, struct iag * iagp, int ino)
 static int diNewExt(struct inomap * imap, struct iag * iagp, int extno)
 {
 	int agno, iagno, fwd, back, freei = 0, sword, rc;
-	struct iag *aiagp = 0, *biagp = 0, *ciagp = 0;
+	struct iag *aiagp = NULL, *biagp = NULL, *ciagp = NULL;
 	struct metapage *amp, *bmp, *cmp, *dmp;
 	struct inode *ipimap;
 	s64 blkno, hint;
@@ -2622,10 +2624,13 @@ diNewIAG(struct inomap * imap, int *iagnop, int agno, struct metapage ** mpp)
 		 */
 #endif				/*  _STILL_TO_PORT */
 		tid = txBegin(sb, COMMIT_FORCE);
+		down(&JFS_IP(ipimap)->commit_sem);
 
 		/* update the inode map addressing structure to point to it */
 		if ((rc =
 		     xtInsert(tid, ipimap, 0, blkno, xlen, &xaddr, 0))) {
+			txEnd(tid);
+			up(&JFS_IP(ipimap)->commit_sem);
 			/* Free the blocks allocated for the iag since it was
 			 * not successfully added to the inode map
 			 */
@@ -2650,6 +2655,7 @@ diNewIAG(struct inomap * imap, int *iagnop, int agno, struct metapage ** mpp)
 		rc = txCommit(tid, 1, &iplist[0], COMMIT_FORCE);
 
 		txEnd(tid);
+		up(&JFS_IP(ipimap)->commit_sem);
 
 		duplicateIXtree(sb, blkno, xlen, &xaddr);
 
@@ -2910,7 +2916,7 @@ int diExtendFS(struct inode *ipimap, struct inode *ipbmap)
 {
 	int rc, rcx = 0;
 	struct inomap *imap = JFS_IP(ipimap)->i_imap;
-	struct iag *iagp = 0, *hiagp = 0;
+	struct iag *iagp = NULL, *hiagp = NULL;
 	struct bmap *mp = JFS_SBI(ipbmap->i_sb)->bmap;
 	struct metapage *bp, *hbp;
 	int i, n, head;
