@@ -923,6 +923,7 @@ change_c0_##name(unsigned int change, unsigned int new)		\
 __BUILD_SET_C0(status,CP0_STATUS)
 __BUILD_SET_C0(cause,CP0_CAUSE)
 __BUILD_SET_C0(config,CP0_CONFIG)
+__BUILD_SET_C0(intcontrol,CP0_CONFIG)
 
 #endif /* !__ASSEMBLY__ */
 

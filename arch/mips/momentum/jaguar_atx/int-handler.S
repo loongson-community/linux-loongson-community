@@ -80,47 +80,47 @@
 
 		.align	5
 ll_sw0_irq:
-		li	a0, 1
+		li	a0, 0
 		move	a1, sp
 		jal	do_IRQ
 		j	ret_from_irq
 ll_sw1_irq:
-		li	a0, 2
+		li	a0, 1
 		move	a1, sp
 		jal	do_IRQ
 		j	ret_from_irq
 ll_pcixa_irq:
-		li	a0, 3
+		li	a0, 2
 		move	a1, sp
 		jal	do_IRQ
 		j	ret_from_irq
 
 ll_pcixb_irq:
-		li	a0, 4
+		li	a0, 3
 		move	a1, sp
 		jal	do_IRQ
 		j	ret_from_irq
 
 ll_pcia_irq:
-		li	a0, 5
+		li	a0, 4
 		move	a1, sp
 		jal	do_IRQ
 		j	ret_from_irq
 	
 ll_pcib_irq:
-		li	a0, 6
+		li	a0, 5
 		move	a1, sp
 		jal	do_IRQ
 		j	ret_from_irq
 	
 ll_uart_irq:
-		li	a0, 7
+		li	a0, 6
 		move	a1, sp
 		jal	do_IRQ
 		j	ret_from_irq
 	
 ll_cputimer_irq:
-		li	a0, 8
+		li	a0, 7
 		move	a1, sp
 		jal	do_IRQ
 		j	ret_from_irq
@@ -129,4 +129,3 @@ ll_mv64340_decode_irq:
 		move	a0, sp
 		jal	ll_mv64340_irq
 		j	ret_from_irq
-

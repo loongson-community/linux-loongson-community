@@ -4,14 +4,13 @@
  *
  * arch/mips/momentum/jaguar_atx/mv-irq.c
  *     Interrupt routines for mv64340.  Interrupt numbers are assigned from
- *     MV64340_IRQ_BASE to MV64340_IRQ_BASE+64.
+ *     MV64340_IRQ_BASE to MV64340_IRQ_BASE + 63.
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
  * Free Software Foundation;  either version 2 of the  License, or (at your
  * option) any later version.
  */
-
 #include <linux/module.h>
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
@@ -22,8 +21,6 @@
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/mv64340.h>
-
-extern unsigned int do_IRQ(int irq, struct pt_regs *regs);
 
 #define MV64340_IRQ_BASE	16
 

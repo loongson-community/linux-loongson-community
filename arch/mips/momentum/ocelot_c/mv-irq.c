@@ -4,7 +4,7 @@
  *
  * arch/mips/momentum/ocelot_c/mv-irq.c
  *     Interrupt routines for mv64340.  Interrupt numbers are assigned from
- *     MV64340_IRQ_BASE to MV64340_IRQ_BASE+64.
+ *     MV64340_IRQ_BASE to MV64340_IRQ_BASE+63.
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
