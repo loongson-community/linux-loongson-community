@@ -200,9 +200,6 @@ static const char invalid_magic[] =
         }                                          \
 })
 
-#define list_for_each(pos, head) \
-        for (pos = (head)->next; pos != (head); pos = pos->next)
-
 struct list_head cs4297a_devs = { &cs4297a_devs, &cs4297a_devs };
 
 typedef struct serdma_descr_s {
