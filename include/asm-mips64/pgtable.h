@@ -64,15 +64,9 @@ do {									\
 #define flush_cache_range(mm,start,end)	_flush_cache_range(mm,start,end)
 #define flush_cache_page(vma,page)	_flush_cache_page(vma, page)
 #define flush_page_to_ram(page)		_flush_page_to_ram(page)
+#define flush_icache_range(start, end)	_flush_icache_range(start, end)
+#define flush_icache_page(vma, page)	_flush_icache_page(vma, page)
 
-#define flush_icache_range(start, end)	_flush_cache_l1()
-
-#define flush_icache_page(vma, page)					\
-do {									\
-	unsigned long addr;						\
-	addr = (unsigned long) page_address(page);			\
-	_flush_cache_page(vma, addr);					\
-} while (0)                                                              
 #endif /* !CONFIG_CPU_R10000 */
 
 /*
