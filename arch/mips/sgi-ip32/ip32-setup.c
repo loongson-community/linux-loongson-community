@@ -59,7 +59,6 @@ extern void ip32_time_init(void);
 extern void ip32_be_init(void);
 extern void __init ip32_timer_setup (struct irqaction *irq);
 extern void __init crime_init (void);
-extern int console_setup(const char*);
 
 #ifdef CONFIG_SERIAL_8250
 #include <linux/tty.h>
@@ -116,12 +115,14 @@ static int __init ip32_setup(void)
 
 #if defined(CONFIG_SERIAL_CORE_CONSOLE)
 	{
-		char* ctype = ArcGetEnvironmentVariable("console");
-		if (*ctype == 'd') {
-			if (ctype[1] == '2')
-				console_setup ("ttyS1");
-			else
-				console_setup ("ttyS0");
+		char* con = ArcGetEnvironmentVariable("console");
+		if (con && *con == 'd') {
+			static char options[8];
+			char *baud = ArcGetEnvironmentVariable("dbaud");
+			if (baud)
+				strcpy(options, baud);
+			add_preferred_console("ttyS", *(con + 1) == '2' ? 1 : 0,
+					      baud ? options : NULL);
 		}
 	}
 #endif

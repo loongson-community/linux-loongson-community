@@ -57,11 +57,9 @@ void ip22_do_break(void)
 extern void ip22_be_init(void) __init;
 extern void ip22_time_init(void) __init;
 
-extern int console_setup(char *) __init;
-
 static int __init ip22_setup(void)
 {
-	char *ctype;
+	char *con;
 #ifdef CONFIG_KGDB
 	char *kgdb_ttyd;
 #endif
@@ -90,17 +88,18 @@ static int __init ip22_setup(void)
 	 * graphics console, it is set to "d" for the first serial
 	 * line and "d2" for the second serial line.
 	 */
-	ctype = ArcGetEnvironmentVariable("console");
-	if (ctype && *ctype == 'd') {
-		static char con[16];
-		char *dbaud = ArcGetEnvironmentVariable("dbaud");
-		sprintf(con, "ttyS%c,%s", *(ctype + 1) == '2' ? '1' : '0',
-					  dbaud ? dbaud : "9600");
-		console_setup(con);
-	} else if (!ctype || *ctype != 'g') {
+	con = ArcGetEnvironmentVariable("console");
+	if (con && *con == 'd') {
+		static char options[8];
+		char *baud = ArcGetEnvironmentVariable("dbaud");
+		if (baud)
+			strcpy(options, baud);
+		add_preferred_console("ttyS", *(con + 1) == '2' ? 1 : 0,
+				      baud ? options : NULL);
+	} else if (!con || *con != 'g') {
 		/* Use ARC if we don't want serial ('d') or Newport ('g'). */
 		prom_flags |= PROM_FLAG_USE_AS_CONSOLE;
-		console_setup("arc");
+		add_preferred_console("arc", 0, NULL);
 	}
 
 #ifdef CONFIG_KGDB
