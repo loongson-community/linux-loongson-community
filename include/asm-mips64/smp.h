@@ -34,6 +34,9 @@ extern int __cpu_logical_map[NR_CPUS];
 
 #define NO_PROC_ID	(-1)
 
+#define SMP_RESCHEDULE_YOURSELF	0x1	/* XXX braindead */
+#define SMP_CALL_FUNCTION	0x2
+
 #if (NR_CPUS <= _MIPS_SZLONG)
 
 typedef unsigned long   cpumask_t;

@@ -1,15 +1,18 @@
 /*
- * This exists merely to satisfy <linux/irq.h>.  There is
- * nothing that would go here of general interest.
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
  *
- * Everything of consequence is in arch/alpha/kernel/irq_impl.h,
- * to be used only in arch/alpha/kernel/.
+ * Copyright (C) 2000, 2001 by Ralf Baechle
  */
+#ifndef _ASM_HW_IRQ_H
+#define _ASM_HW_IRQ_H
 
-/*
- * Special interrupt numbers for SMP
- *
- * XXX ATM this is IP27 specific.
- */
-#define DORESCHED       0xab
-#define DOCALL          0xbc
+extern volatile unsigned long irq_err_count;
+
+/* This may not be apropriate for all machines, we'll see ...  */
+static inline void hw_resend_irq(struct hw_interrupt_type *h, unsigned int i)
+{
+}
+
+#endif /* _ASM_HW_IRQ_H */

@@ -79,7 +79,7 @@ void smp_send_stop(void)
  */
 void smp_send_reschedule(int cpu)
 {
-	sendintr(cpu, DORESCHED);
+	sendintr(cpu, SMP_RESCHEDULE_YOURSELF);
 }
 
 /* Not really SMP stuff ... */
@@ -305,7 +305,7 @@ int smp_call_function (void (*func) (void *info), void *info, int retry,
 	/* Send a message to all other CPUs and wait for them to respond */
 	for (i = 0; i < smp_num_cpus; i++)
 		if (smp_processor_id() != i)
-			sendintr(i, DOCALL);
+			sendintr(i, SMP_CALL_FUNCTION);
 
 	/* Wait for response */
 	/* FIXME: lock-up detection, backtrace on lock-up */

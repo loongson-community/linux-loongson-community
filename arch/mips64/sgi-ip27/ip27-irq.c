@@ -525,9 +525,14 @@ void sendintr(int destid, unsigned char status)
 
 #if (CPUS_PER_NODE == 2)
 	switch (status) {
-		case DORESCHED:	irq = CPU_RESCHED_A_IRQ; break;
-		case DOCALL:	irq = CPU_CALL_A_IRQ; break;
-		default:	panic("sendintr");
+		case SMP_RESCHEDULE_YOURSELF:
+			irq = CPU_RESCHED_A_IRQ;
+			break;
+		case SMP_CALL_FUNCTION:
+			irq = CPU_CALL_A_IRQ;
+			break;
+		default:
+			panic("sendintr");
 	}
 	irq += cputoslice(destid);
 
