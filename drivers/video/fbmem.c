@@ -121,6 +121,7 @@ extern int pmagbbfb_init(void);
 extern int pmagbbfb_setup(char *options, int *ints);
 extern void maxinefb_init(void);
 extern void maxinefb_setup(char *options, int *ints);
+extern int tx3912fb_init(void);
 
 static struct {
 	const char *name;
@@ -261,6 +262,9 @@ static struct {
 #endif
 #ifdef CONFIG_FB_HIT
 	{ "hitfb", hitfb_init, NULL },
+#endif
+#ifdef CONFIG_FB_TX3912
+	{ "tx3912", tx3912fb_init, NULL },
 #endif
 
 	/*

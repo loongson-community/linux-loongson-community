@@ -501,7 +501,7 @@ CONFIG_MSDOS_PARTITION=y
 # Console drivers
 #
 # CONFIG_VGA_CONSOLE is not set
-CONFIG_FB=y
+# CONFIG_MDA_CONSOLE is not set
 
 #
 # Frame-buffer support

@@ -413,7 +413,7 @@ CONFIG_SGI_PARTITION=y
 # Console drivers
 #
 # CONFIG_VGA_CONSOLE is not set
-# CONFIG_FB is not set
+# CONFIG_MDA_CONSOLE is not set
 
 #
 # Frame-buffer support
