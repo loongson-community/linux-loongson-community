@@ -1,4 +1,4 @@
-/* $Id: int-handler.S,v 1.11 1998/08/26 21:39:03 tsbogend Exp $
+/* $Id: int-handler.S,v 1.11 1998/08/26 21:45:46 tsbogend Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -163,7 +163,7 @@ ll_isa_nmi:	li	s1,~IE_IRQ3
 ll_timer:	lw	zero,JAZZ_TIMER_REGISTER # timer irq cleared on read
 		li	s1,~IE_IRQ4
 
-		li	a0,0
+		li	a0, JAZZ_TIMER_IRQ
 		jal	do_IRQ
 		 move	a1,sp
 
@@ -228,14 +228,14 @@ loc_parallel:	li	s1,~JAZZ_IE_PARALLEL
 		b	loc_call
 
 /*
- * Floppy IRQ, remapped to level 6
+ * Floppy IRQ
  */
 loc_floppy:	li	s1,~JAZZ_IE_FLOPPY
 		li	a0,JAZZ_FLOPPY_IRQ
 		b	loc_call
 
 /*
- * Sound? What sound hardware (whistle) ???
+ * Sound IRQ
  */
 loc_sound:	PANIC("Unimplemented loc_sound handler")
 loc_video:	PANIC("Unimplemented loc_video handler")
