@@ -3,8 +3,8 @@
  *
  * Author: Miguel de Icaza (miguel@nuclecu.unam.mx)
  *
- * On IRIX, /dev/graphics is [57, 0]
- *          /dev/opengl   is [57, 1]
+ * On IRIX, /dev/graphics is [10, 146]
+ *          /dev/opengl   is [10, 147]
  *
  * From a mail with Mark J. Kilgard, /dev/opengl and /dev/graphics are
  * the same thing, the use of /dev/graphics seems deprecated though.
@@ -37,8 +37,15 @@
 /* The boards */
 #include "newport.h"
 
+#ifdef PRODUCTION_DRIVER
+#define enable_gconsole()
+#define disable_gconsole()
+#endif
+
 static struct graphics_ops cards [MAXCARDS];
 static int boards;
+
+#define GRAPHICS_CARD(inode) 0
 
 int
 sgi_graphics_open (struct inode *inode, struct file *file)
@@ -50,7 +57,7 @@ int
 sgi_graphics_ioctl (struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
 {
 	unsigned int board;
-	unsigned int minor = MINOR (inode->i_rdev);
+	unsigned int devnum = GRAPHICS_CARD (inode->i_rdev);
 	int i;
 	
 	if ((cmd >= RRM_BASE) && (cmd <= RRM_CMD_LIMIT))
@@ -89,7 +96,7 @@ sgi_graphics_ioctl (struct inode *inode, struct file *file, unsigned int cmd, un
 		struct gfx_attach_board_args *att = (void *) arg;
 		void *vaddr;
 		int  r;
-		
+
 		i = verify_area (VERIFY_READ, (void *)arg, sizeof (struct gfx_attach_board_args));
 		if (i) return i;
 
@@ -102,8 +109,8 @@ sgi_graphics_ioctl (struct inode *inode, struct file *file, unsigned int cmd, un
 		 * Otherwise we fail, we use this assumption in the mmap code
 		 * below to find our board information.
 		 */
-		if (board != minor){
-			printk ("Parameter board does not match minor\n");
+		if (board != devnum){
+			printk ("Parameter board does not match the current board\n");
 			return -EINVAL;
 		}
 		
@@ -123,6 +130,7 @@ sgi_graphics_ioctl (struct inode *inode, struct file *file, unsigned int cmd, un
 			 PROT_READ|PROT_WRITE, MAP_FIXED|MAP_PRIVATE, 0);
 		if (r)
 			return r;
+
 	}
 
 	/* Strange, the real mapping seems to be done at GFX_ATTACH_BOARD,
@@ -131,29 +139,41 @@ sgi_graphics_ioctl (struct inode *inode, struct file *file, unsigned int cmd, un
 	case GFX_MAPALL:
 		return 0;
 
+	case GFX_LABEL:
+		return 0;
+			
+		/* Version check
+		 * for my IRIX 6.2 X server, this is what the kernel returns
+		 */
+	case 1:
+		return 3;
+		
 	/* Xsgi does not use this one, I assume minor is the board being queried */
 	case GFX_IS_MANAGED:
-		if (minor > boards)
+		if (devnum > boards)
 			return -EINVAL;
-		return (cards [minor].g_owner != 0);
+		return (cards [devnum].g_owner != 0);
 
+	default:
+		if (cards [devnum].g_ioctl)
+			return (*cards [devnum].g_ioctl)(devnum, cmd, arg);
 		
-	} /* ioctl switch (cmd) */
-	
+	}
 	return -EINVAL;
 }
 
 int
 sgi_graphics_close (struct inode *inode, struct file *file)
 {
-	int minor = MINOR (inode->i_rdev);
+	int board = GRAPHICS_CARD (inode->i_rdev);
 	
 	/* Tell the rendering manager that one client is going away */
 	rrm_close (inode, file);
 
 	/* Was this file handle from the board owner?, clear it */
-	if (current == cards [minor].g_owner){
-		cards [minor].g_owner = 0;
+	if (current == cards [board].g_owner){
+		cards [board].g_owner = 0;
+		(*cards [board].g_reset_console)();
 		enable_gconsole ();
 	}
 	return 0;
@@ -167,26 +187,34 @@ unsigned long
 sgi_graphics_nopage (struct vm_area_struct *vma, unsigned long address, int write_access)
 {
 	unsigned long page;
-	int board = MINOR (vma->vm_dentry->d_inode->i_rdev);
-	
-	printk ("Got a page fault for board %d\n", board);
-	
-	if (current == cards [board].g_user){
-		printk ("Mhm, strange, graphics registers should be already mapped\n");
+	int board = GRAPHICS_CARD (vma->vm_dentry->d_inode->i_rdev);
 
-		/* force a segfault */
-		return 0;
-	}
+#ifdef DEBUG_GRAPHICS
+	printk ("Got a page fault for board %d address=%lx guser=%lx\n", board, address,
+		cards [board].g_user);
+#endif
 	
 	/* 1. figure out if another process has this mapped,
 	 * and revoke the mapping in that case.
 	 */
-	if (cards [board].g_user)
+	if (cards [board].g_user && cards [board].g_user != current){
+		/* FIXME: save graphics context here, dump it to rendering node? */
 		remove_mapping (cards [board].g_user, vma->vm_start, vma->vm_end);
+	}
+	cards [board].g_user = current;
+#if DEBUG_GRAPHICS
+	printk ("Registers: 0x%lx\n", cards [board].g_regs);
+	printk ("vm_start:  0x%lx\n", vma->vm_start);
+	printk ("address:   0x%lx\n", address);
+	printk ("diff:      0x%lx\n", (address - vma->vm_start));
 
+	printk ("page/pfn:  0x%lx\n", page);
+	printk ("TLB entry: %lx\n", pte_val (mk_pte (page + PAGE_OFFSET, PAGE_USERIO)));
+#endif
+	
 	/* 2. Map this into the current process address space */
-	page = ((cards [board].g_regs) + (vma->vm_start - address));
-	return page >> PAGE_SHIFT;
+	page = ((cards [board].g_regs) + (address - vma->vm_start));
+	return page + PAGE_OFFSET;
 }
 
 /*
@@ -225,7 +253,6 @@ sgi_graphics_mmap (struct inode *inode, struct file *file, struct vm_area_struct
 		
 	/* final setup */
 	vma->vm_dentry = dget (file->f_dentry);
-	atomic_inc (&inode->i_count);
 	return 0;
 }
 	
