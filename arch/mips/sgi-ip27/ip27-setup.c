@@ -105,7 +105,7 @@ static void __init verify_mode(void)
 }
 
 #define XBOW_WIDGET_PART_NUM    0x0
-#define XXBOW_WIDGET_PART_NUM   0xd000          /* Xbridge */
+#define XXBOW_WIDGET_PART_NUM   0xd000  /* Xbow in Xbridge */
 #define BASE_XBOW_PORT  	8     /* Lowest external port */
 
 extern int bridge_probe(nasid_t nasid, int widget, int masterwid);
@@ -119,9 +119,16 @@ static int __init probe_one_port(nasid_t nasid, int widget, int masterwid)
 		(RAW_NODE_SWIN_BASE(nasid, widget) + WIDGET_ID);
 	partnum = XWIDGET_PART_NUM(widget_id);
 
+	printk(KERN_INFO "Cpu %d, Nasid 0x%x, widget 0x%x: partnum 0x%x is ",
+			smp_processor_id(), nasid, widget, partnum);
+
 	switch (partnum) {
 	case BRIDGE_WIDGET_PART_NUM:
+	case XBRIDGE_WIDGET_PART_NUM:
 		bridge_probe(nasid, widget, masterwid);
+		break;
+	default:
+		break;
 	}
 
 	return 0;
@@ -133,23 +140,19 @@ static int __init xbow_probe(nasid_t nasid)
 	klxbow_t *xbow_p;
 	unsigned masterwid, i;
 
+	printk("is xbow\n");
+
 	/*
 	 * found xbow, so may have multiple bridges
 	 * need to probe xbow
 	 */
-	printk("...is xbow\n");
 	brd = find_lboard((lboard_t *)KL_CONFIG_INFO(nasid), KLTYPE_MIDPLANE8);
-	if (!brd) {
-		printk("argh\n");
+	if (!brd)
 		return -ENODEV;
-	}
 	
-	printk("brd = 0x%lx\n", (unsigned long) brd);
 	xbow_p = (klxbow_t *)find_component(brd, NULL, KLSTRUCT_XBOW);
-	if (!xbow_p) {
-		printk("argh\n");
+	if (!xbow_p)
 		return -ENODEV;
-	}
 
 	/*
 	 * Okay, here's a xbow. Lets arbitrate and find
@@ -184,17 +187,7 @@ static int __init xbow_probe(nasid_t nasid)
 	return 0;
 }
 
-/* XXX: assumes ibrick.  should do the same as xbow_probe() instead.. */
-static int __init xxbow_probe(nasid_t nasid)
-{
-	printk("...is xbridge\n");
-
-	bridge_probe(0, 0xb, 0xa);
-	bridge_probe(0, 0xe, 0xa);
-	bridge_probe(0, 0xf, 0xa);
-
-	return 0;
-}
+static spinlock_t pcibr_setup_lock = SPIN_LOCK_UNLOCKED;
 
 void __init pcibr_setup(cnodeid_t nid)
 {
@@ -202,6 +195,9 @@ void __init pcibr_setup(cnodeid_t nid)
 	nasid_t	 		nasid;
 	xwidget_part_num_t	partnum;
 	widgetreg_t 		widget_id;
+
+
+	spin_lock(&pcibr_setup_lock);
 
 	/*
 	 * If the master is doing this for headless node, nothing to do.
@@ -213,30 +209,38 @@ void __init pcibr_setup(cnodeid_t nid)
 	 * is selectable by WIDGET_A below.
 	 */
 	if (nid != get_compact_nodeid())
-		return;
+		goto out;
 
 	/* find what's on our local node */
 	nasid = COMPACT_TO_NASID_NODEID(nid);
 	hubreg = REMOTE_HUB_L(nasid, IIO_LLP_CSR);
-	if (!(hubreg & IIO_LLP_CSR_IS_UP))
-		return;
 
-	/* link is up */
+	/* check whether the link is up */
+	if (!(hubreg & IIO_LLP_CSR_IS_UP))
+		goto out;
+
 	widget_id = *(volatile widgetreg_t *)
                        (RAW_NODE_SWIN_BASE(nasid, 0x0) + WIDGET_ID);
 	partnum = XWIDGET_PART_NUM(widget_id);
 
-	printk("Cpu %d, Nasid 0x%x, pcibr_setup(): found partnum= 0x%x",
-				smp_processor_id(), nasid, partnum);
+	printk(KERN_INFO "Cpu %d, Nasid 0x%x: partnum 0x%x is ",
+			smp_processor_id(), nasid, partnum);
 
 	switch (partnum) {
 	case BRIDGE_WIDGET_PART_NUM:
 		bridge_probe(0, 0x8, 0xa);
-	case XXBOW_WIDGET_PART_NUM:
-		xxbow_probe(nasid);
+		break;
 	case XBOW_WIDGET_PART_NUM:
+	case XXBOW_WIDGET_PART_NUM:
 		xbow_probe(nasid);
+		break;
+	default:
+		printk(" unknown widget??\n");
+		break;
 	}
+
+ out:
+	spin_unlock(&pcibr_setup_lock);
 }
 
 extern void ip27_setup_console(void);

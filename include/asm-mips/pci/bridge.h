@@ -389,9 +389,11 @@ typedef struct bridge_err_cmdword_s {
 
 /* Widget part number of bridge */
 #define BRIDGE_WIDGET_PART_NUM		0xc002
+#define XBRIDGE_WIDGET_PART_NUM		0xd002
 
 /* Manufacturer of bridge */
 #define BRIDGE_WIDGET_MFGR_NUM		0x036
+#define XBRIDGE_WIDGET_MFGR_NUM		0x024
 
 /* Revision numbers for known Bridge revisions */
 #define BRIDGE_REV_A			0x1

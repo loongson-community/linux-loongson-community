@@ -27,6 +27,11 @@
  */
 #define MAX_DEVICES_PER_PCIBUS	8
 
+/*
+ * XXX: No kmalloc available when we do our crosstalk scan,
+ * 	we should try to move it later in the boot process.
+ */
+static struct bridge_controller bridges[MAX_PCI_BUSSES];
 
 /*
  * No locking needed until PCI initialization is done parallely.
@@ -186,10 +191,15 @@ int __init bridge_probe(nasid_t nasid, int widget_id, int masterwid)
 {
 	struct bridge_controller *bc;
 	bridge_t *bridge;
+	static int num_bridges = 0;
 
-	bc = kmalloc(sizeof(*bc), GFP_KERNEL);
-	if (!bc)
-		return -ENOMEM;
+	printk("is bridge\n");
+
+	/* XXX: kludge alert.. */
+	if (!num_bridges)
+		ioport_resource.end = ~0UL;
+
+	bc = &bridges[num_bridges++];
 
 	bc->pc.pci_ops		= &bridge_pci_ops;
 	bc->pc.mem_resource	= &bc->mem;
