@@ -51,8 +51,8 @@
 extern int con3215_activate(void);
 #endif
 
-#ifdef CONFIG_MAC
-extern void nubus_init(void);
+#ifdef CONFIG_NUBUS
+#include <linux/nubus.h>
 #endif
 
 #ifdef CONFIG_ISAPNP
@@ -79,8 +79,6 @@ extern void nubus_init(void);
 
 extern char _stext, _etext;
 extern char *linux_banner;
-
-extern int console_loglevel;
 
 static int init(void *);
 
@@ -255,7 +253,9 @@ static struct dev_name_struct {
 	{ "ida/c0d14p",0x48E0 },
 	{ "ida/c0d15p",0x48F0 },
 #endif
-
+#ifdef CONFIG_NFTL
+	{ "nftla", 0x5d00 },
+#endif
 	{ NULL, 0 }
 };
 
@@ -684,7 +684,7 @@ static void __init do_basic_setup(void)
 #ifdef CONFIG_DIO
 	dio_init();
 #endif
-#ifdef CONFIG_MAC
+#ifdef CONFIG_NUBUS
 	nubus_init();
 #endif
 #ifdef CONFIG_ISAPNP
@@ -704,6 +704,7 @@ static void __init do_basic_setup(void)
 	else mount_initrd =0;
 #endif
 
+	start_context_thread();
 	do_initcalls();
 
 	/* .. filesystems .. */
@@ -714,14 +715,6 @@ static void __init do_basic_setup(void)
 #endif
 #ifdef CONFIG_PCMCIA
 	init_pcmcia_ds();		/* Do this last */
-#endif
-
-#ifdef CONFIG_HOTPLUG
-	/* do this after other 'do this last' stuff, because we want
-	 * to minimize spurious executions of /sbin/hotplug
-	 * during boot-up
-	 */
-	net_notifier_init();
 #endif
 
 	/* Mount the root filesystem.. */

@@ -317,7 +317,7 @@ static volatile int fdc_busy = 0;
 static DECLARE_WAIT_QUEUE_HEAD(fdc_wait);
 static DECLARE_WAIT_QUEUE_HEAD(format_wait);
 
-static unsigned int changed_floppies = 0xff, fake_change = 0;
+static unsigned long changed_floppies = 0xff, fake_change = 0;
 #define	CHECK_CHANGE_DELAY	HZ/2
 
 #define	FD_MOTOR_OFF_DELAY	(3*HZ)
@@ -1990,7 +1990,7 @@ int __init atari_floppy_init (void)
 	SelectedDrive = -1;
 	BufferDrive = -1;
 
-	DMABuffer = atari_stram_alloc( BUFFER_SIZE+512, NULL, "ataflop" );
+	DMABuffer = atari_stram_alloc(BUFFER_SIZE+512, "ataflop");
 	if (!DMABuffer) {
 		printk(KERN_ERR "atari_floppy_init: cannot get dma buffer\n");
 		unregister_blkdev(MAJOR_NR, "fd");

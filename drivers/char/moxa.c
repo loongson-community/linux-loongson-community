@@ -152,7 +152,7 @@ struct moxa_str {
 	unsigned short closing_wait;
 	int count;
 	int blocked_open;
-	int event;
+	long event; /* long req'd for set_bit --RR */
 	int asyncflags;
 	long session;
 	long pgrp;
@@ -540,13 +540,14 @@ static void do_moxa_softint(void *private_)
 	struct moxa_str *ch = (struct moxa_str *) private_;
 	struct tty_struct *tty;
 
-	if (!ch || !(tty = ch->tty))
-		return;
-	if (test_and_clear_bit(MOXA_EVENT_HANGUP, &ch->event)) {
-		tty_hangup(tty);
-		wake_up_interruptible(&ch->open_wait);
-		ch->asyncflags &= ~(ASYNC_NORMAL_ACTIVE | ASYNC_CALLOUT_ACTIVE);
+	if (ch && (tty = ch->tty)) {
+		if (test_and_clear_bit(MOXA_EVENT_HANGUP, &ch->event)) {
+			tty_hangup(tty);	/* FIXME: module removal race here - AKPM */
+			wake_up_interruptible(&ch->open_wait);
+			ch->asyncflags &= ~(ASYNC_NORMAL_ACTIVE | ASYNC_CALLOUT_ACTIVE);
+		}
 	}
+	MOD_DEC_USE_COUNT;
 }
 
 static int moxa_open(struct tty_struct *tty, struct file *filp)
@@ -1013,7 +1014,9 @@ static void moxa_poll(unsigned long ignored)
 						wake_up_interruptible(&ch->open_wait);
 					else {
 						set_bit(MOXA_EVENT_HANGUP, &ch->event);
-						queue_task(&ch->tqueue, &tq_scheduler);
+						MOD_DEC_USE_COUNT;
+						if (schedule_task(&ch->tqueue) == 0)
+							MOD_INC_USE_COUNT;
 					}
 				}
 			}

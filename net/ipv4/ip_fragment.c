@@ -5,7 +5,7 @@
  *
  *		The IP fragmentation functionality.
  *		
- * Version:	$Id: ip_fragment.c,v 1.50 2000/07/07 22:29:42 davem Exp $
+ * Version:	$Id: ip_fragment.c,v 1.53 2000/12/08 17:15:53 davem Exp $
  *
  * Authors:	Fred N. van Kempen <waltje@uWalt.NL.Mugnet.ORG>
  *		Alan Cox <Alan.Cox@linux.org>
@@ -51,6 +51,9 @@
 int sysctl_ipfrag_high_thresh = 256*1024;
 int sysctl_ipfrag_low_thresh = 192*1024;
 
+/* Important NOTE! Fragment queue must be destroyed before MSL expires.
+ * RFC791 is wrong proposing to prolongate timer each fragment arrival by TTL.
+ */
 int sysctl_ipfrag_time = IP_FRAG_TIME;
 
 struct ipfrag_skb_cb
@@ -80,7 +83,7 @@ struct ipq {
 	atomic_t	refcnt;
 	struct timer_list timer;	/* when will this queue expire?		*/
 	struct ipq	**pprev;
-	struct net_device	*dev;	/* Device - for icmp replies */
+	int		iif;		/* Device index - for icmp replies	*/
 };
 
 /* Hash table. */
@@ -252,8 +255,13 @@ static void ip_expire(unsigned long arg)
 	IP_INC_STATS_BH(IpReasmFails);
 
 	if ((qp->last_in&FIRST_IN) && qp->fragments != NULL) {
+		struct sk_buff *head = qp->fragments;
+
 		/* Send an ICMP "Fragment Reassembly Timeout" message. */
-		icmp_send(qp->fragments, ICMP_TIME_EXCEEDED, ICMP_EXC_FRAGTIME, 0);
+		if ((head->dev = dev_get_by_index(qp->iif)) != NULL) {
+			icmp_send(head, ICMP_TIME_EXCEEDED, ICMP_EXC_FRAGTIME, 0);
+			dev_put(head->dev);
+		}
 	}
 out:
 	spin_unlock(&qp->lock);
@@ -286,6 +294,9 @@ static struct ipq *ip_frag_intern(unsigned int hash, struct ipq *qp_in)
 	}
 #endif
 	qp = qp_in;
+
+	if (!mod_timer(&qp->timer, jiffies + sysctl_ipfrag_time))
+		atomic_inc(&qp->refcnt);
 
 	atomic_inc(&qp->refcnt);
 	if((qp->next = ipq_hash[hash]) != NULL)
@@ -366,9 +377,6 @@ static void ip_frag_queue(struct ipq *qp, struct sk_buff *skb)
 
 	if (qp->last_in & COMPLETE)
 		goto err;
-
-	if (!mod_timer(&qp->timer, jiffies + sysctl_ipfrag_time))
-		atomic_inc(&qp->refcnt);
 
 	offset = ntohs(iph->frag_off);
 	flags = offset & ~IP_OFFSET;
@@ -477,7 +485,8 @@ static void ip_frag_queue(struct ipq *qp, struct sk_buff *skb)
 	else
 		qp->fragments = skb;
 
-	qp->dev = skb->dev;
+	qp->iif = skb->dev->ifindex;
+	skb->dev = NULL;
 	qp->meat += skb->len;
 	atomic_add(skb->truesize, &ip_frag_mem);
 	if (offset == 0)
@@ -496,7 +505,7 @@ err:
  * of bits on input. Until the new skb data handling is in I'm not going
  * to touch this with a bargepole. 
  */
-static struct sk_buff *ip_frag_reasm(struct ipq *qp)
+static struct sk_buff *ip_frag_reasm(struct ipq *qp, struct net_device *dev)
 {
 	struct sk_buff *skb;
 	struct iphdr *iph;
@@ -537,13 +546,13 @@ static struct sk_buff *ip_frag_reasm(struct ipq *qp)
 		if (skb->ip_summed != fp->ip_summed)
 			skb->ip_summed = CHECKSUM_NONE;
 		else if (skb->ip_summed == CHECKSUM_HW)
-			skb->csum = csum_chain(skb->csum, fp->csum);
+			skb->csum = csum_add(skb->csum, fp->csum);
 	}
 
 	skb->dst = dst_clone(head->dst);
 	skb->pkt_type = head->pkt_type;
 	skb->protocol = head->protocol;
-	skb->dev = qp->dev;
+	skb->dev = dev;
 
 	/*
 	*  Clearly bogus, because security markings of the individual
@@ -592,12 +601,15 @@ struct sk_buff *ip_defrag(struct sk_buff *skb)
 {
 	struct iphdr *iph = skb->nh.iph;
 	struct ipq *qp;
+	struct net_device *dev;
 	
 	IP_INC_STATS_BH(IpReasmReqds);
 
 	/* Start by cleaning up the memory. */
 	if (atomic_read(&ip_frag_mem) > sysctl_ipfrag_high_thresh)
 		ip_evictor();
+
+	dev = skb->dev;
 
 	/* Lookup (or create) queue header */
 	if ((qp = ip_find(iph)) != NULL) {
@@ -609,7 +621,7 @@ struct sk_buff *ip_defrag(struct sk_buff *skb)
 
 		if (qp->last_in == (FIRST_IN|LAST_IN) &&
 		    qp->meat == qp->len)
-			ret = ip_frag_reasm(qp);
+			ret = ip_frag_reasm(qp, dev);
 
 		spin_unlock(&qp->lock);
 		ipq_put(qp);

@@ -53,9 +53,7 @@ isofs_cmp(struct dentry * dentry, const char * compare, int dlen)
  *	isofs_find_entry()
  *
  * finds an entry in the specified directory with the wanted name. It
- * returns the cache buffer in which the entry was found, and the entry
- * itself (as an inode number). It does NOT read the inode of the
- * entry - you'll have to do that yourself if you want to.
+ * returns the inode number of the found entry, or 0 on error.
  */
 static unsigned long
 isofs_find_entry(struct inode *dir, struct dentry *dentry,
@@ -123,7 +121,7 @@ isofs_find_entry(struct inode *dir, struct dentry *dentry,
 
 		if (dir->i_sb->u.isofs_sb.s_rock &&
 		    ((i = get_rock_ridge_filename(de, tmpname, dir)))) {
-			dlen = i;
+			dlen = i; 	/* possibly -1 */
 			dpnt = tmpname;
 #ifdef CONFIG_JOLIET
 		} else if (dir->i_sb->u.isofs_sb.s_joliet_level) {
@@ -142,8 +140,9 @@ isofs_find_entry(struct inode *dir, struct dentry *dentry,
 		 * Skip hidden or associated files unless unhide is set 
 		 */
 		match = 0;
-		if ((!(de->flags[-dir->i_sb->u.isofs_sb.s_high_sierra] & 5)
-		    || dir->i_sb->u.isofs_sb.s_unhide == 'y') && dlen)
+		if (dlen > 0 &&
+		    (!(de->flags[-dir->i_sb->u.isofs_sb.s_high_sierra] & 5)
+		     || dir->i_sb->u.isofs_sb.s_unhide == 'y'))
 		{
 			match = (isofs_cmp(dentry,dpnt,dlen) == 0);
 		}
@@ -162,13 +161,14 @@ struct dentry *isofs_lookup(struct inode * dir, struct dentry * dentry)
 	struct inode *inode;
 	struct page *page;
 
-#ifdef DEBUG
-	printk("lookup: %x %s\n",dir->i_ino, dentry->d_name.name);
-#endif
 	dentry->d_op = dir->i_sb->s_root->d_op;
 
 	page = alloc_page(GFP_USER);
-	ino = isofs_find_entry(dir, dentry, page_address(page), 1024 + page_address(page));
+	if (!page)
+		return ERR_PTR(-ENOMEM);
+
+	ino = isofs_find_entry(dir, dentry, page_address(page),
+			       1024 + page_address(page));
 	__free_page(page);
 
 	inode = NULL;

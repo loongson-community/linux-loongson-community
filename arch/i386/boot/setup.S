@@ -825,10 +825,18 @@ bootsect_panic_mess:
 #
 # Some machines have delusions that the keyboard buffer is always full
 # with no keyboard attached...
+#
+# If there is no keyboard controller, we will usually get 0xff
+# to all the reads.  With each IO taking a microsecond and
+# a timeout of 100,000 iterations, this can take about half a
+# second ("delay" == outb to port 0x80). That should be ok,
+# and should also be plenty of time for a real keyboard controller
+# to empty.
+#
 
 empty_8042:
 	pushl	%ecx
-	movl	$0x00FFFFFF, %ecx
+	movl	$100000, %ecx
 
 empty_8042_loop:
 	decl	%ecx
@@ -867,7 +875,7 @@ gettime:
 
 # Delay is needed after doing I/O
 delay:
-	jmp	.+2				# jmp $+2
+	outb	%al,$0x80
 	ret
 
 # Descriptor tables

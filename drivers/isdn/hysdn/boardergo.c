@@ -1,4 +1,4 @@
-/* $Id: boardergo.c,v 1.4 2000/11/13 22:51:47 kai Exp $
+/* $Id: boardergo.c,v 1.5 2000/11/22 17:13:13 kai Exp $
 
  * Linux driver for HYSDN cards, specific routines for ergo type boards.
  *
@@ -458,7 +458,7 @@ ergo_inithardware(hysdn_card * card)
 	card->writebootseq = ergo_writebootseq;
 	card->waitpofready = ergo_waitpofready;
 	card->set_errlog_state = ergo_set_errlog_state;
-	card->irq_queue.next = 0;
+	INIT_LIST_HEAD(&card->irq_queue.list);
 	card->irq_queue.sync = 0;
 	card->irq_queue.data = card;	/* init task queue for interrupt */
 	card->irq_queue.routine = (void *) (void *) ergo_irq_bh;

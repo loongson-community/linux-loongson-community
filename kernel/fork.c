@@ -196,6 +196,7 @@ fail_nomem:
 }
 
 #define allocate_mm()	(kmem_cache_alloc(mm_cachep, SLAB_KERNEL))
+#define free_mm(mm)	(kmem_cache_free(mm_cachep, (mm)))
 
 static struct mm_struct * mm_init(struct mm_struct * mm)
 {
@@ -206,7 +207,7 @@ static struct mm_struct * mm_init(struct mm_struct * mm)
 	mm->pgd = pgd_alloc();
 	if (mm->pgd)
 		return mm;
-	kmem_cache_free(mm_cachep, mm);
+	free_mm(mm);
 	return NULL;
 }
 	
@@ -236,7 +237,7 @@ inline void __mmdrop(struct mm_struct *mm)
 	if (mm == &init_mm) BUG();
 	pgd_free(mm->pgd);
 	destroy_context(mm);
-	kmem_cache_free(mm_cachep, mm);
+	free_mm(mm);
 }
 
 /*
@@ -541,7 +542,7 @@ static inline void copy_flags(unsigned long clone_flags, struct task_struct *p)
  * arch/ia64/kernel/process.c.
  */
 int do_fork(unsigned long clone_flags, unsigned long stack_start,
-	    struct pt_regs *regs, unsigned long stack_top)
+	    struct pt_regs *regs, unsigned long stack_size)
 {
 	int retval = -ENOMEM;
 	struct task_struct *p;
@@ -636,7 +637,7 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 		goto bad_fork_cleanup_fs;
 	if (copy_mm(clone_flags, p))
 		goto bad_fork_cleanup_sighand;
-	retval = copy_thread(0, clone_flags, stack_start, stack_top, p, regs);
+	retval = copy_thread(0, clone_flags, stack_start, stack_size, p, regs);
 	if (retval)
 		goto bad_fork_cleanup_sighand;
 	p->semundo = NULL;

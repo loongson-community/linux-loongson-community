@@ -41,7 +41,7 @@ N: Tigran A. Aivazian
 E: tigran@veritas.com
 W: http://www.ocston.org/~tigran
 D: BFS filesystem
-D: Intel P6 CPU microcode update support
+D: Intel IA32 CPU microcode update support
 D: Various kernel patches
 S: United Kingdom
 
@@ -152,10 +152,12 @@ E: balasub@cis.ohio-state.edu
 D: Wrote SYS V IPC (part of standard kernel since 0.99.10)
 
 N: Dario Ballabio
-E: dario@milano.europe.dg.com
+E: ballabio_dario@emc.com
+E: dario.ballabio@tiscalinet.it
+E: dario.ballabio@inwind.it
 D: Author and maintainer of the Ultrastor 14F/34F SCSI driver
 D: Author and maintainer of the EATA ISA/EISA/PCI SCSI driver
-S: Data General Corporation
+S: EMC Corporation
 S: Milano
 S: Italy
 
@@ -339,6 +341,7 @@ D: Texas Instruments PCILynx IEEE 1394 driver
 N: Al Borchers
 E: alborchers@steinerpoint.com
 D: Author/maintainer of Digi AccelePort USB driver
+D: work on usbserial and keyspan_pda drivers
 S: 4912 Zenith Ave. S.
 S: Minneapolis, MN  55410
 S: USA
@@ -407,6 +410,10 @@ S: The Netherlands
 N: Zach Brown
 E: zab@zabbo.net
 D: maestro pci sound
+
+N: Gary Brubaker
+E: xavyer@ix.netcom.com
+D: USB Serial Empeg Empeg-car Mark I/II Driver
 
 N: Ray Burr
 E: ryb@nightmare.com
@@ -760,6 +767,7 @@ N: Nils Faerber
 E: nils@kernelconcepts.de
 D: i810 TCO watchdog driver author
 D: Mitsumi LU005 tests and fixes
+D: port and fixes of cs46xx sounddriver
 S: Dreisbachstrasse 24
 S: D-57250 Netphen
 S: Germany

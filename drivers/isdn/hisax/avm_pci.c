@@ -1,4 +1,4 @@
-/* $Id: avm_pci.c,v 1.18 2000/08/20 07:34:04 keil Exp $
+/* $Id: avm_pci.c,v 1.22.6.2 2000/11/29 16:00:14 kai Exp $
  *
  * avm_pci.c    low level stuff for AVM Fritz!PCI and ISA PnP isdn cards
  *              Thanks to AVM, Berlin for informations
@@ -10,6 +10,7 @@
  */
 #define __NO_VERSION__
 #include <linux/config.h>
+#include <linux/init.h>
 #include "hisax.h"
 #include "isac.h"
 #include "isdnl1.h"
@@ -17,17 +18,10 @@
 #include <linux/interrupt.h>
 
 extern const char *CardType[];
-static const char *avm_pci_rev = "$Revision: 1.18 $";
+static const char *avm_pci_rev = "$Revision: 1.22.6.2 $";
 
 #define  AVM_FRITZ_PCI		1
 #define  AVM_FRITZ_PNP		2
-
-#ifndef PCI_VENDOR_ID_AVM
-#define PCI_VENDOR_ID_AVM	0x1244
-#endif
-#ifndef PCI_DEVICE_ID_AVM_FRITZ
-#define PCI_DEVICE_ID_AVM_FRITZ	0xa00
-#endif
 
 #define  HDLC_FIFO		0x0
 #define  HDLC_STATUS		0x4
@@ -649,8 +643,8 @@ setstack_hdlc(struct PStack *st, struct BCState *bcs)
 	return (0);
 }
 
-HISAX_INITFUNC(void
-clear_pending_hdlc_ints(struct IsdnCardState *cs))
+void __init
+clear_pending_hdlc_ints(struct IsdnCardState *cs)
 {
 	u_int val;
 
@@ -679,8 +673,8 @@ clear_pending_hdlc_ints(struct IsdnCardState *cs))
 	}
 }
 
-HISAX_INITFUNC(void
-inithdlc(struct IsdnCardState *cs))
+void __init
+inithdlc(struct IsdnCardState *cs)
 {
 	cs->bcs[0].BC_SetStack = setstack_hdlc;
 	cs->bcs[1].BC_SetStack = setstack_hdlc;
@@ -764,10 +758,10 @@ AVM_card_msg(struct IsdnCardState *cs, int mt, void *arg)
 	return(0);
 }
 
-static 	struct pci_dev *dev_avm __initdata = NULL;
+static struct pci_dev *dev_avm __initdata = NULL;
 
-__initfunc(int
-setup_avm_pcipnp(struct IsdnCard *card))
+int __init
+setup_avm_pcipnp(struct IsdnCard *card)
 {
 	u_int val, ver;
 	struct IsdnCardState *cs = card->cs;
@@ -788,7 +782,7 @@ setup_avm_pcipnp(struct IsdnCard *card))
 			return(0);
 		}
 		if ((dev_avm = pci_find_device(PCI_VENDOR_ID_AVM,
-			PCI_DEVICE_ID_AVM_FRITZ,  dev_avm))) {
+			PCI_DEVICE_ID_AVM_A1,  dev_avm))) {
 			cs->irq = dev_avm->irq;
 			if (!cs->irq) {
 				printk(KERN_ERR "FritzPCI: No IRQ for PCI card found\n");

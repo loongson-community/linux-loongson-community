@@ -91,6 +91,9 @@ static int try_to_swap_out(struct mm_struct * mm, struct vm_area_struct* vma, un
 	 */
 	if (PageSwapCache(page)) {
 		entry.val = page->index;
+		if (pte_dirty(pte))
+			SetPageDirty(page);
+set_swap_pte:
 		swap_duplicate(entry);
 		set_pte(page_table, swp_entry_to_pte(entry));
 drop_pte:
@@ -99,7 +102,8 @@ drop_pte:
 		flush_tlb_page(vma, address);
 		deactivate_page(page);
 		page_cache_release(page);
-		goto out_failed;
+out_failed:
+		return 0;
 	}
 
 	/*
@@ -166,13 +170,13 @@ drop_pte:
 		flush_tlb_page(vma, address);
 		spin_unlock(&mm->page_table_lock);
 		error = swapout(page, file);
-		UnlockPage(page);
 		if (file) fput(file);
-		if (!error)
-			goto out_free_success;
+		if (error < 0)
+			goto out_unlock_restore;
+		UnlockPage(page);
 		deactivate_page(page);
 		page_cache_release(page);
-		return error;
+		return 1;	/* We released page_table_lock */
 	}
 
 	/*
@@ -185,33 +189,11 @@ drop_pte:
 	if (!entry.val)
 		goto out_unlock_restore; /* No swap space left */
 
-	/* Make sure to flush the TLB _before_ we start copying things.. */
-	flush_tlb_page(vma, address);
-	if (!(page = prepare_highmem_swapout(page)))
-		goto out_swap_free;
-
-	swap_duplicate(entry);	/* One for the process, one for the swap cache */
-
-	/* Add it to the swap cache */
+	/* Add it to the swap cache and mark it dirty */
 	add_to_swap_cache(page, entry);
+	SetPageDirty(page);
+	goto set_swap_pte;
 
-	/* Put the swap entry into the pte after the page is in swapcache */
-	mm->rss--;
-	set_pte(page_table, swp_entry_to_pte(entry));
-	spin_unlock(&mm->page_table_lock);
-
-	/* OK, do a physical asynchronous write to swap.  */
-	rw_swap_page(WRITE, page, 0);
-	deactivate_page(page);
-
-out_free_success:
-	page_cache_release(page);
-	return 1;
-out_swap_free:
-	set_pte(page_table, pte);
-	swap_free(entry);
-out_failed:
-	return 0;
 out_unlock_restore:
 	set_pte(page_table, pte);
 	UnlockPage(page);
@@ -501,7 +483,7 @@ struct page * reclaim_page(zone_t * zone)
 			continue;
 		}
 
-		/* The page is dirty, or locked, move to inactive_diry list. */
+		/* The page is dirty, or locked, move to inactive_dirty list. */
 		if (page->buffers || TryLockPage(page)) {
 			del_page_from_inactive_clean_list(page);
 			add_page_to_inactive_dirty_list(page);
@@ -616,6 +598,36 @@ dirty_page_rescan:
 		}
 
 		/*
+		 * Dirty swap-cache page? Write it out if
+		 * last copy..
+		 */
+		if (PageDirty(page)) {
+			int (*writepage)(struct page *) = page->mapping->a_ops->writepage;
+			if (!writepage)
+				goto page_active;
+
+			/* Can't start IO? Move it to the back of the list */
+			if (!can_get_io_locks) {
+				list_del(page_lru);
+				list_add(page_lru, &inactive_dirty_list);
+				UnlockPage(page);
+				continue;
+			}
+
+			/* OK, do a physical asynchronous write to swap.  */
+			ClearPageDirty(page);
+			page_cache_get(page);
+			spin_unlock(&pagemap_lru_lock);
+
+			writepage(page);
+			page_cache_release(page);
+
+			/* And re-start the thing.. */
+			spin_lock(&pagemap_lru_lock);
+			continue;
+		}
+
+		/*
 		 * If the page has buffers, try to free the buffer mappings
 		 * associated with this page. If we succeed we either free
 		 * the page (in case it was a buffercache only page) or we
@@ -701,6 +713,7 @@ dirty_page_rescan:
 			UnlockPage(page);
 			cleaned_pages++;
 		} else {
+page_active:
 			/*
 			 * OK, we don't know what to do with the page.
 			 * It's no use keeping it here, so we move it to
@@ -924,13 +937,6 @@ static int refill_inactive(unsigned int gfp_mask, int user)
 		 */
 		shrink_dcache_memory(priority, gfp_mask);
 		shrink_icache_memory(priority, gfp_mask);
-
-		/* Try to get rid of some shared memory pages.. */
-		while (shm_swap(priority, gfp_mask)) {
-			made_progress = 1;
-			if (--count <= 0)
-				goto done;
-		}
 
 		/*
 		 * Then, try to page stuff out..

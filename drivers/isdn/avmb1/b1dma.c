@@ -1,11 +1,17 @@
 /*
- * $Id: b1dma.c,v 1.9 2000/11/01 14:05:02 calle Exp $
+ * $Id: b1dma.c,v 1.11 2000/11/19 17:02:47 kai Exp $
  * 
  * Common module for AVM B1 cards that support dma with AMCC
  * 
  * (c) Copyright 2000 by Carsten Paeth (calle@calle.in-berlin.de)
  * 
  * $Log: b1dma.c,v $
+ * Revision 1.11  2000/11/19 17:02:47  kai
+ * compatibility cleanup - part 3
+ *
+ * Revision 1.10  2000/11/19 17:01:53  kai
+ * compatibility cleanup - part 2
+ *
  * Revision 1.9  2000/11/01 14:05:02  calle
  * - use module_init/module_exit from linux/init.h.
  * - all static struct variables are initialized with "membername:" now.
@@ -48,6 +54,7 @@
 #include <linux/ioport.h>
 #include <linux/capi.h>
 #include <asm/io.h>
+#include <linux/init.h>
 #include <asm/uaccess.h>
 #include <linux/netdevice.h>
 #include "capilli.h"
@@ -55,7 +62,7 @@
 #include "capicmd.h"
 #include "capiutil.h"
 
-static char *revision = "$Revision: 1.9 $";
+static char *revision = "$Revision: 1.11 $";
 
 /* ------------------------------------------------------------- */
 
@@ -978,11 +985,6 @@ EXPORT_SYMBOL(b1dma_release_appl);
 EXPORT_SYMBOL(b1dma_send_message);
 EXPORT_SYMBOL(b1dmactl_read_proc);
 
-#ifdef MODULE
-#define b1dma_init init_module
-void cleanup_module(void);
-#endif
-
 int b1dma_init(void)
 {
 	char *p;
@@ -1000,8 +1002,9 @@ int b1dma_init(void)
 	return 0;
 }
 
-#ifdef MODULE
-void cleanup_module(void)
+void b1dma_exit(void)
 {
 }
-#endif
+
+module_init(b1dma_init);
+module_exit(b1dma_exit);

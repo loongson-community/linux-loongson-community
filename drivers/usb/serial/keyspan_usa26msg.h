@@ -92,16 +92,8 @@
 #ifndef	__USA26MSG__
 #define	__USA26MSG__
 
-#ifndef __stubs__
-#include "datadefs.h"
-#endif
 
-typedef struct txAckMessage
-{
-	u8	dummy;
-} txAckMessage;
-
-typedef struct portControlMessage
+typedef struct keyspan_usa26_portControlMessage
 {
 	/*
 		there are three types of "commands" sent in the control message:
@@ -172,7 +164,7 @@ typedef struct portControlMessage
 		returnStatus,	// BOTH: return current status (even if it hasn't changed)
 		resetDataToggle;// BOTH: reset data toggle state to DATA0
 	
-} portControlMessage;
+} keyspan_usa26_portControlMessage;
 
 // defines for bits in lcr
 #define	USA_DATABITS_5		0x00
@@ -190,7 +182,7 @@ typedef struct portControlMessage
 
 // all things called "StatusMessage" are sent on the status endpoint
 
-typedef struct portStatusMessage	// one for each port
+typedef struct keyspan_usa26_portStatusMessage	// one for each port
 {
 	u8	port,			// BOTH: 0=first, 1=second, other=see below
 		hskia_cts,		// USA26: reports HSKIA pin
@@ -203,7 +195,7 @@ typedef struct portStatusMessage	// one for each port
 		_txXoff,		// port is in XOFF state (either host or RX XOFF)
 		rxEnabled,		// as configured by rxOn/rxOff 1=on, 0=off
 		controlResponse;// 1=a control message has been processed
-} portStatusMessage;
+} keyspan_usa26_portStatusMessage;
 
 // bits in RX data message when STAT byte is included
 #define	RXERROR_OVERRUN	0x02
@@ -211,28 +203,28 @@ typedef struct portStatusMessage	// one for each port
 #define	RXERROR_FRAMING	0x08
 #define	RXERROR_BREAK	0x10
 
-typedef struct globalControlMessage
+typedef struct keyspan_usa26_globalControlMessage
 {
 	u8	sendGlobalStatus,	// 2=request for two status responses
 		resetStatusToggle,	// 1=reset global status toggle
 		resetStatusCount;	// a cycling value
-} globalControlMessage;
+} keyspan_usa26_globalControlMessage;
 
-typedef struct globalStatusMessage
+typedef struct keyspan_usa26_globalStatusMessage
 {
 	u8	port,				// 3
 		sendGlobalStatus,	// from request, decremented
 		resetStatusCount;	// as in request
-} globalStatusMessage;
+} keyspan_usa26_globalStatusMessage;
 
-typedef struct globalDebugMessage
+typedef struct keyspan_usa26_globalDebugMessage
 {
 	u8	port,				// 2
 		a,
 		b,
 		c,
 		d;
-} globalDebugMessage;
+} keyspan_usa26_globalDebugMessage;
 
 // ie: the maximum length of an EZUSB endpoint buffer
 #define	MAX_DATA_LEN			64

@@ -286,6 +286,7 @@ plip_init_dev(struct net_device *dev, struct parport *pb)
 	struct net_local *nl;
 	struct pardevice *pardev;
 
+	SET_MODULE_OWNER(dev);
 	dev->irq = pb->irq;
 	dev->base_addr = pb->base;
 
@@ -348,18 +349,18 @@ plip_init_dev(struct net_device *dev, struct parport *pb)
 	nl->nibble	= PLIP_NIBBLE_WAIT;
 
 	/* Initialize task queue structures */
-	nl->immediate.next = NULL;
+	INIT_LIST_HEAD(&nl->immediate.list);
 	nl->immediate.sync = 0;
 	nl->immediate.routine = (void (*)(void *))plip_bh;
 	nl->immediate.data = dev;
 
-	nl->deferred.next = NULL;
+	INIT_LIST_HEAD(&nl->deferred.list);
 	nl->deferred.sync = 0;
 	nl->deferred.routine = (void (*)(void *))plip_kick_bh;
 	nl->deferred.data = dev;
 
 	if (dev->irq == -1) {
-		nl->timer.next = NULL;
+		INIT_LIST_HEAD(&nl->timer.list);
 		nl->timer.sync = 0;
 		nl->timer.routine = (void (*)(void *))plip_timer_bh;
 		nl->timer.data = dev;
@@ -1164,7 +1165,6 @@ plip_open(struct net_device *dev)
 
 	netif_start_queue (dev);
 
-	MOD_INC_USE_COUNT;
 	return 0;
 }
 
@@ -1212,7 +1212,6 @@ plip_close(struct net_device *dev)
 	/* Reset. */
 	outb(0x00, PAR_CONTROL(dev));
 #endif
-	MOD_DEC_USE_COUNT;
 	return 0;
 }
 

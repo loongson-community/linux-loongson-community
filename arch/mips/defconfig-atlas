@@ -28,7 +28,7 @@ CONFIG_MIPS_ATLAS=y
 # CONFIG_MCA is not set
 # CONFIG_SBUS is not set
 CONFIG_PCI=y
-# CONFIG_ISA is not set
+CONFIG_SWAP_IO_SPACE=y
 # CONFIG_ISA is not set
 # CONFIG_EISA is not set
 # CONFIG_I8259 is not set
@@ -429,8 +429,6 @@ CONFIG_LOCKD=y
 # CONFIG_NCPFS_NFS_NS is not set
 # CONFIG_NCPFS_OS2_NS is not set
 # CONFIG_NCPFS_SMALLDOS is not set
-# CONFIG_NCPFS_MOUNT_SUBDIR is not set
-# CONFIG_NCPFS_NDS_DOMAINS is not set
 # CONFIG_NCPFS_NLS is not set
 # CONFIG_NCPFS_EXTRAS is not set
 

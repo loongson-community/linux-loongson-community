@@ -50,7 +50,7 @@ static int ps_nice = 0;
 static spinlock_t ps_spinlock __attribute__((unused)) = SPIN_LOCK_UNLOCKED;
 
 static struct timer_list ps_timer = { function: ps_timer_int };
-static struct tq_struct ps_tq = {0,0,ps_tq_int,NULL};
+static struct tq_struct ps_tq = { routine: ps_tq_int };
 
 static void ps_set_intr( void (*continuation)(void), 
 			 int (*ready)(void),
@@ -71,7 +71,7 @@ static void ps_set_intr( void (*continuation)(void),
                 disable_hlt();
 #endif
 		ps_tq_active = 1;
-                queue_task(&ps_tq,&tq_scheduler);
+                schedule_task(&ps_tq);
 	}
 
         if (!ps_timer_active) {
@@ -114,7 +114,7 @@ static void ps_tq_int( void *data )
 #endif
 
         ps_tq_active = 1;
-	queue_task(&ps_tq,&tq_scheduler);
+	schedule_task(&ps_tq);
         spin_unlock_irqrestore(&ps_spinlock,flags);
 }
 

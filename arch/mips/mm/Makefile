@@ -8,46 +8,20 @@
 # Note 2! The CFLAGS definition is now in the main makefile...
 
 O_TARGET := mm.o
-O_OBJS	 := extable.o init.o fault.o loadmmu.o
 
-ifdef CONFIG_CPU_R3000
-O_OBJS   += r2300.o
-endif
+obj-y				+= extable.o init.o fault.o loadmmu.o
 
-ifdef CONFIG_CPU_R4300
-O_OBJS   += r4xx0.o
-endif
+obj-$(CONFIG_CPU_R3000)		+= r2300.o
+obj-$(CONFIG_CPU_R4300)		+= r4xx0.o
+obj-$(CONFIG_CPU_R4X00)		+= r4xx0.o
+obj-$(CONFIG_CPU_R5000)		+= r4xx0.o
+obj-$(CONFIG_CPU_NEVADA)	+= r4xx0.o
+obj-$(CONFIG_CPU_R5432)		+= r5432.o
+obj-$(CONFIG_CPU_RM7000)	+= rm7k.o
+obj-$(CONFIG_CPU_MIPS32)	+= mips32.o
+obj-$(CONFIG_SGI_IP22)		+= umap.o
+obj-$(CONFIG_BAGET_MIPS)	+= umap.o
 
-ifdef CONFIG_CPU_R4X00
-O_OBJS   += r4xx0.o
-endif
-
-ifdef CONFIG_CPU_R5000
-O_OBJS   += r4xx0.o
-endif
-
-ifdef CONFIG_CPU_R5432
-O_OBJS   += r5432.o
-endif
-
-ifdef CONFIG_CPU_RM7000
-O_OBJS   += rm7k.o
-endif
-
-ifdef CONFIG_CPU_NEVADA
-O_OBJS   += r4xx0.o
-endif
-
-ifdef CONFIG_CPU_MIPS32
-O_OBJS   += mips32.o
-endif
-
-ifdef CONFIG_SGI_IP22
-O_OBJS   += umap.o
-endif
-
-ifdef CONFIG_BAGET_MIPS
-O_OBJS   += umap.o
-endif
+O_OBJS		:= $(filter-out $(export-objs), $(obj-y))
 
 include $(TOPDIR)/Rules.make

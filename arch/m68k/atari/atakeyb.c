@@ -13,6 +13,7 @@
  * enhanced by Bjoern Brauel and Roman Hodek
  */
 
+#include <linux/config.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
@@ -24,6 +25,7 @@
 #include <linux/random.h>
 #include <linux/init.h>
 #include <linux/kbd_ll.h>
+#include <linux/kbd_kern.h>
 
 #include <asm/atariints.h>
 #include <asm/atarihw.h>
@@ -362,7 +364,7 @@ static void keyboard_interrupt(int irq, void *dummy, struct pt_regs *fp)
     if (acia_stat & ACIA_RDRF)	/* received a character */
     {
 	scancode = acia.key_data;	/* get it or reset the ACIA, I'll get it! */
-	mark_bh(KEYBOARD_BH);
+	tasklet_schedule(&keyboard_tasklet);
       interpret_scancode:
 	switch (kb_state.state)
 	{
@@ -860,3 +862,16 @@ int atari_kbdrate( struct kbd_repeat *k )
 	
 	return( 0 );
 }
+
+int atari_kbd_translate(unsigned char keycode, unsigned char *keycodep, char raw_mode)
+{
+#ifdef CONFIG_MAGIC_SYSRQ
+        /* ALT+HELP pressed? */
+        if ((keycode == 98) && ((shift_state & 0xff) == 8))
+                *keycodep = 0xff;
+        else
+#endif
+                *keycodep = keycode;
+        return 1;
+}
+

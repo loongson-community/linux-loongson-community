@@ -1,4 +1,4 @@
-/* $Id: bkm_a4t.c,v 1.11 2000/06/26 08:59:12 keil Exp $
+/* $Id: bkm_a4t.c,v 1.13.6.2 2000/11/29 16:00:14 kai Exp $
  * bkm_a4t.c    low level stuff for T-Berkom A4T
  *              derived from the original file sedlbauer.c
  *              derived from the original file niccy.c
@@ -13,6 +13,7 @@
 #define __NO_VERSION__
 
 #include <linux/config.h>
+#include <linux/init.h>
 #include "hisax.h"
 #include "isac.h"
 #include "hscx.h"
@@ -23,7 +24,7 @@
 
 extern const char *CardType[];
 
-const char *bkm_a4t_revision = "$Revision: 1.11 $";
+const char *bkm_a4t_revision = "$Revision: 1.13.6.2 $";
 
 
 static inline u_char
@@ -265,8 +266,8 @@ BKM_card_msg(struct IsdnCardState *cs, int mt, void *arg)
 
 static struct pci_dev *dev_a4t __initdata = NULL;
 
-__initfunc(int
-	   setup_bkm_a4t(struct IsdnCard *card))
+int __init
+setup_bkm_a4t(struct IsdnCard *card)
 {
 	struct IsdnCardState *cs = card->cs;
 	char tmp[64];
@@ -294,7 +295,7 @@ __initfunc(int
 
 		sub_vendor = dev_a4t->subsystem_vendor;
 		sub_sys = dev_a4t->subsystem_device;
-		if ((sub_sys == A4T_SUBSYS_ID) && (sub_vendor == A4T_SUBVEN_ID)) {
+		if ((sub_sys == PCI_DEVICE_ID_BERKOM_A4T) && (sub_vendor == PCI_VENDOR_ID_BERKOM)) {
 			if (pci_enable_device(dev_a4t))
 				return(0);
 			found = 1;

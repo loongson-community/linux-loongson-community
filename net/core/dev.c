@@ -154,6 +154,12 @@ static void sample_queue(unsigned long dummy);
 static struct timer_list samp_timer = { function: sample_queue };
 #endif
 
+#ifdef CONFIG_HOTPLUG
+static int net_run_sbin_hotplug(struct net_device *dev, char *action);
+#else
+#define net_run_sbin_hotplug(dev, action) ({ 0; })
+#endif
+
 /*
  *	Our notifier list
  */
@@ -617,7 +623,7 @@ void netdev_state_change(struct net_device *dev)
 
 void dev_load(const char *name)
 {
-	if (!__dev_get_by_name(name) && capable(CAP_SYS_MODULE))
+	if (!dev_get(name) && capable(CAP_SYS_MODULE))
 		request_module(name);
 }
 
@@ -875,8 +881,6 @@ void dev_queue_xmit_nit(struct sk_buff *skb, struct net_device *dev)
 
 			skb2->h.raw = skb2->nh.raw;
 			skb2->pkt_type = PACKET_OUTGOING;
-			skb2->rx_dev = skb->dev;
-			dev_hold(skb2->rx_dev);
 			ptype->func(skb2, skb->dev, ptype);
 		}
 	}
@@ -1129,10 +1133,7 @@ int netif_rx(struct sk_buff *skb)
 				goto drop;
 
 enqueue:
-			if (skb->rx_dev)
-				dev_put(skb->rx_dev);
-			skb->rx_dev = skb->dev;
-			dev_hold(skb->rx_dev);
+			dev_hold(skb->dev);
 			__skb_queue_tail(&queue->input_pkt_queue,skb);
 			__cpu_raise_softirq(this_cpu, NET_RX_SOFTIRQ);
 			local_irq_restore(flags);
@@ -1206,11 +1207,11 @@ static int deliver_to_old_ones(struct packet_type *pt, struct sk_buff *skb, int 
  */
 static __inline__ void skb_bond(struct sk_buff *skb)
 {
-	struct net_device *dev = skb->rx_dev;
+	struct net_device *dev = skb->dev;
 	
 	if (dev->master) {
 		dev_hold(dev->master);
-		skb->dev = skb->rx_dev = dev->master;
+		skb->dev = dev->master;
 		dev_put(dev);
 	}
 }
@@ -1320,6 +1321,7 @@ static void net_rx_action(struct softirq_action *h)
 
 	for (;;) {
 		struct sk_buff *skb;
+		struct net_device *rx_dev;
 
 		local_irq_disable();
 		skb = __skb_dequeue(&queue->input_pkt_queue);
@@ -1330,10 +1332,13 @@ static void net_rx_action(struct softirq_action *h)
 
 		skb_bond(skb);
 
+		rx_dev = skb->dev;
+
 #ifdef CONFIG_NET_FASTROUTE
 		if (skb->pkt_type == PACKET_FASTROUTE) {
 			netdev_rx_stat[this_cpu].fastroute_deferred_out++;
 			dev_queue_xmit(skb);
+			dev_put(rx_dev);
 			continue;
 		}
 #endif
@@ -1369,6 +1374,7 @@ static void net_rx_action(struct softirq_action *h)
 			if (skb->dev->br_port != NULL &&
 			    br_handle_frame_hook != NULL) {
 				handle_bridge(skb, pt_prev);
+				dev_put(rx_dev);
 				continue;
 			}
 #endif
@@ -1398,6 +1404,8 @@ static void net_rx_action(struct softirq_action *h)
 			} else
 				kfree_skb(skb);
 		}
+
+		dev_put(rx_dev);
 
 		if (bugdet-- < 0 || jiffies - start_time > 1)
 			goto softnet_break;
@@ -2196,9 +2204,11 @@ int dev_ioctl(unsigned int cmd, void *arg)
 			if (!capable(CAP_NET_ADMIN))
 				return -EPERM;
 			dev_load(ifr.ifr_name);
+			dev_probe_lock();
 			rtnl_lock();
 			ret = dev_ifsioc(&ifr, cmd);
 			rtnl_unlock();
+			dev_probe_unlock();
 			return ret;
 	
 		case SIOCGIFMEM:
@@ -2217,9 +2227,11 @@ int dev_ioctl(unsigned int cmd, void *arg)
 			if (cmd >= SIOCDEVPRIVATE &&
 			    cmd <= SIOCDEVPRIVATE + 15) {
 				dev_load(ifr.ifr_name);
+				dev_probe_lock();
 				rtnl_lock();
 				ret = dev_ifsioc(&ifr, cmd);
 				rtnl_unlock();
+				dev_probe_unlock();
 				if (!ret && copy_to_user(arg, &ifr, sizeof(struct ifreq)))
 					return -EFAULT;
 				return ret;
@@ -2303,6 +2315,12 @@ int register_netdevice(struct net_device *dev)
 #endif
 
 	if (dev_boot_phase) {
+#ifdef CONFIG_NET_DIVERT
+		ret = alloc_divert_blk(dev);
+		if (ret)
+			return ret;
+#endif /* CONFIG_NET_DIVERT */
+		
 		/* This is NOT bug, but I am not sure, that all the
 		   devices, initialized before netdev module is started
 		   are sane. 
@@ -2328,12 +2346,6 @@ int register_netdevice(struct net_device *dev)
 		dev_hold(dev);
 		write_unlock_bh(&dev_base_lock);
 
-#ifdef CONFIG_NET_DIVERT
-		ret = alloc_divert_blk(dev);
-		if (ret)
-			return ret;
-#endif /* CONFIG_NET_DIVERT */
-		
 		/*
 		 *	Default initial state at registry is that the
 		 *	device is present.
@@ -2344,6 +2356,12 @@ int register_netdevice(struct net_device *dev)
 		return 0;
 	}
 
+#ifdef CONFIG_NET_DIVERT
+	ret = alloc_divert_blk(dev);
+	if (ret)
+		return ret;
+#endif /* CONFIG_NET_DIVERT */
+	
 	dev->iflink = -1;
 
 	/* Init, if this function is available */
@@ -2383,14 +2401,10 @@ int register_netdevice(struct net_device *dev)
 	dev->deadbeaf = 0;
 	write_unlock_bh(&dev_base_lock);
 
-#ifdef CONFIG_NET_DIVERT
-	ret = alloc_divert_blk(dev);
-	if (ret)
-		return ret;
-#endif /* CONFIG_NET_DIVERT */
-	
 	/* Notify protocols, that a new device appeared. */
 	notifier_call_chain(&netdev_chain, NETDEV_REGISTER, dev);
+
+	net_run_sbin_hotplug(dev, "register");
 
 	return 0;
 }
@@ -2414,11 +2428,12 @@ int netdev_finish_unregister(struct net_device *dev)
 		return 0;
 	}
 #ifdef NET_REFCNT_DEBUG
-	printk(KERN_DEBUG "netdev_finish_unregister: %s%s.\n", dev->name, dev->new_style?"":", old style");
+	printk(KERN_DEBUG "netdev_finish_unregister: %s%s.\n", dev->name,
+	       (dev->features & NETIF_F_DYNALLOC)?"":", old style");
 #endif
 	if (dev->destructor)
 		dev->destructor(dev);
-	if (dev->new_style)
+	if (dev->features & NETIF_F_DYNALLOC)
 		kfree(dev);
 	return 0;
 }
@@ -2462,6 +2477,10 @@ int unregister_netdevice(struct net_device *dev)
 		return -ENODEV;
 	}
 
+	/* Synchronize to net_rx_action. */
+	br_write_lock_bh(BR_NETPROTO_LOCK);
+	br_write_unlock_bh(BR_NETPROTO_LOCK);
+
 	if (dev_boot_phase == 0) {
 #ifdef CONFIG_NET_FASTROUTE
 		dev_clear_fastroute(dev);
@@ -2469,6 +2488,8 @@ int unregister_netdevice(struct net_device *dev)
 
 		/* Shutdown queueing discipline. */
 		dev_shutdown(dev);
+
+		net_run_sbin_hotplug(dev, "unregister");
 
 		/* Notify protocols, that we are about to destroy
 		   this device. They should clean all the things.
@@ -2491,7 +2512,7 @@ int unregister_netdevice(struct net_device *dev)
 	free_divert_blk(dev);
 #endif
 
-	if (dev->new_style) {
+	if (dev->features & NETIF_F_DYNALLOC) {
 #ifdef NET_REFCNT_DEBUG
 		if (atomic_read(&dev->refcnt) != 1)
 			printk(KERN_DEBUG "unregister_netdevice: holding %s refcnt=%d\n", dev->name, atomic_read(&dev->refcnt)-1);
@@ -2709,29 +2730,15 @@ int __init net_dev_init(void)
 /* Notify userspace when a netdevice event occurs,
  * by running '/sbin/hotplug net' with certain
  * environment variables set.
- *
- * Currently reported events are listed in netdev_event_names[].
  */
 
-/* /sbin/hotplug ONLY executes for events named here */
-static char *netdev_event_names[] = {
-	[NETDEV_REGISTER]	= "register",
-	[NETDEV_UNREGISTER]	= "unregister",
-};
-
-static int run_sbin_hotplug(struct notifier_block *this,
-			    unsigned long event, void *ptr)
+static int net_run_sbin_hotplug(struct net_device *dev, char *action)
 {
-	struct net_device *dev = (struct net_device *) ptr;
-	char *argv[3], *envp[5], ifname[12 + IFNAMSIZ], action[32];
+	char *argv[3], *envp[5], ifname[12 + IFNAMSIZ], action_str[32];
 	int i;
 
-	if ((event >= ARRAY_SIZE(netdev_event_names)) ||
-	    !netdev_event_names[event])
-		return NOTIFY_DONE;
-
 	sprintf(ifname, "INTERFACE=%s", dev->name);
-	sprintf(action, "ACTION=%s", netdev_event_names[event]);
+	sprintf(action_str, "ACTION=%s", action);
 
         i = 0;
         argv[i++] = hotplug_path;
@@ -2743,27 +2750,9 @@ static int run_sbin_hotplug(struct notifier_block *this,
 	envp [i++] = "HOME=/";
 	envp [i++] = "PATH=/sbin:/bin:/usr/sbin:/usr/bin";
 	envp [i++] = ifname;
-	envp [i++] = action;
+	envp [i++] = action_str;
 	envp [i] = 0;
 	
-	call_usermodehelper (argv [0], argv, envp);
-
-	return NOTIFY_DONE;
-}
-
-static struct notifier_block sbin_hotplug = {
-	notifier_call: run_sbin_hotplug,
-};
-
-/*
- * called from init/main.c, -after- all the initcalls are complete.
- * Registers a hook that calls /sbin/hotplug on every netdev
- * addition and removal.
- */
-void __init net_notifier_init (void)
-{
-	if (register_netdevice_notifier(&sbin_hotplug))
-		printk (KERN_WARNING "unable to register netdev notifier\n"
-			KERN_WARNING "/sbin/hotplug will not be run.\n");
+	return call_usermodehelper(argv [0], argv, envp);
 }
 #endif

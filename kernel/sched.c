@@ -197,7 +197,7 @@ static inline int preemption_goodness(struct task_struct * prev, struct task_str
 
 /*
  * This is ugly, but reschedule_idle() is very timing-critical.
- * We `are called with the runqueue spinlock held and we must
+ * We are called with the runqueue spinlock held and we must
  * not claim the tasklist_lock.
  */
 static FASTCALL(void reschedule_idle(struct task_struct * p));
@@ -272,8 +272,10 @@ send_now_idle:
 	}
 	tsk = target_tsk;
 	if (tsk) {
-		if (oldest_idle != -1ULL)
+		if (oldest_idle != -1ULL) {
+			best_cpu = tsk->processor;
 			goto send_now_idle;
+		}
 		tsk->need_resched = 1;
 		if (tsk->processor != this_cpu)
 			smp_send_reschedule(tsk->processor);
@@ -452,7 +454,7 @@ static inline void __schedule_tail(struct task_struct *prev)
 		goto needs_resched;
 
 out_unlock:
-	task_unlock(prev);
+	task_unlock(prev);	/* Synchronise here with release_task() if prev is TASK_ZOMBIE */
 	return;
 
 	/*
@@ -511,10 +513,7 @@ asmlinkage void schedule(void)
 	int this_cpu, c;
 
 	if (!current->active_mm) BUG();
-	if (tq_scheduler)
-		goto handle_tq_scheduler;
-tq_scheduler_back:
-
+need_resched_back:
 	prev = current;
 	this_cpu = prev->processor;
 
@@ -652,7 +651,7 @@ still_running_back:
 same_process:
 	reacquire_kernel_lock(current);
 	if (current->need_resched)
-		goto tq_scheduler_back;
+		goto need_resched_back;
 
 	return;
 
@@ -676,15 +675,6 @@ still_running:
 handle_softirq:
 	do_softirq();
 	goto handle_softirq_back;
-
-handle_tq_scheduler:
-	/*
-	 * do not run the task queue with disabled interrupts,
-	 * cli() wouldn't work on SMP
-	 */
-	sti();
-	run_task_queue(&tq_scheduler);
-	goto tq_scheduler_back;
 
 move_rr_last:
 	if (!prev->counter) {

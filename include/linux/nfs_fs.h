@@ -63,8 +63,7 @@
  */
 #define NFS_SUPER_MAGIC			0x6969
 
-#define NFS_FH(dentry)			((struct nfs_fh *) ((dentry)->d_fsdata))
-#define NFS_DSERVER(dentry)		(&(dentry)->d_sb->u.nfs_sb.s_server)
+#define NFS_FH(inode)			(&(inode)->u.nfs_i.fh)
 #define NFS_SERVER(inode)		(&(inode)->i_sb->u.nfs_sb.s_server)
 #define NFS_CLIENT(inode)		(NFS_SERVER(inode)->client)
 #define NFS_PROTO(inode)		(NFS_SERVER(inode)->rpc_ops)
@@ -93,6 +92,7 @@ do { \
 
 #define NFS_FLAGS(inode)		((inode)->u.nfs_i.flags)
 #define NFS_REVALIDATING(inode)		(NFS_FLAGS(inode) & NFS_INO_REVALIDATING)
+#define NFS_STALE(inode)		(NFS_FLAGS(inode) & NFS_INO_STALE)
 
 #define NFS_FILEID(inode)		((inode)->u.nfs_i.fileid)
 #define NFS_FSID(inode)			((inode)->u.nfs_i.fsid)
@@ -139,13 +139,16 @@ unsigned long page_index(struct page *page)
 extern struct super_block *nfs_read_super(struct super_block *, void *, int);
 extern int init_nfs_fs(void);
 extern void nfs_zap_caches(struct inode *);
+extern int nfs_inode_is_stale(struct inode *, struct nfs_fh *,
+				struct nfs_fattr *);
 extern struct inode *nfs_fhget(struct dentry *, struct nfs_fh *,
 				struct nfs_fattr *);
 extern int nfs_refresh_inode(struct inode *, struct nfs_fattr *);
 extern int nfs_revalidate(struct dentry *);
+extern int nfs_permission(struct inode *, int);
 extern int nfs_open(struct inode *, struct file *);
 extern int nfs_release(struct inode *, struct file *);
-extern int __nfs_revalidate_inode(struct nfs_server *, struct dentry *);
+extern int __nfs_revalidate_inode(struct nfs_server *, struct inode *);
 extern int nfs_notify_change(struct dentry *, struct iattr *);
 
 /*
@@ -192,7 +195,7 @@ extern void nfs_complete_unlink(struct dentry *);
 /*
  * linux/fs/nfs/write.c
  */
-extern int  nfs_writepage(struct file *file, struct page *);
+extern int  nfs_writepage(struct page *);
 extern int  nfs_flush_incompatible(struct file *file, struct page *page);
 extern int  nfs_updatepage(struct file *, struct page *, unsigned int, unsigned int);
 /*
@@ -264,12 +267,11 @@ extern int  nfs3_mount(struct sockaddr_in *, char *, struct nfs_fh *);
  * inline functions
  */
 static inline int
-nfs_revalidate_inode(struct nfs_server *server, struct dentry *dentry)
+nfs_revalidate_inode(struct nfs_server *server, struct inode *inode)
 {
-	struct inode *inode = dentry->d_inode;
 	if (time_before(jiffies, NFS_READTIME(inode)+NFS_ATTRTIMEO(inode)))
-		return 0;
-	return __nfs_revalidate_inode(server, dentry);
+		return NFS_STALE(inode) ? -ESTALE : 0;
+	return __nfs_revalidate_inode(server, inode);
 }
 
 static inline loff_t

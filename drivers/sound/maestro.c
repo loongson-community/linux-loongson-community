@@ -115,6 +115,8 @@
  *	themselves, but we'll see.  
  *	
  * History
+ *  (still kind of v0.14) Nov 23 - Alan Cox <alan@redhat.com>
+ *	Add clocking= for people with seriously warped hardware
  *  (still v0.14) Nov 10 2000 - Bartlomiej Zolnierkiewicz <bkz@linux-ide.org>
  *	add __init to maestro_ac97_init() and maestro_install()
  *  (still based on v0.14) Mar 29 2000 - Zach Brown <zab@redhat.com>
@@ -262,6 +264,10 @@ static int debug=0;
 static int dsps_order=0;
 /* wether or not we mess around with power management */
 static int use_pm=2; /* set to 1 for force */
+/* clocking for broken hardware - a few laptops seem to use a 50Khz clock
+	ie insmod with clocking=50000 or so */
+	
+static int clocking=48000;
 
 /* --------------------------------------------------------------------- */
 #define DRIVER_VERSION "0.14"
@@ -1200,7 +1206,10 @@ static u32 compute_rate(struct ess_state *s, u32 freq)
 {
 	u32 clock = clock_freq[s->card->card_type];     
 
-	if (freq == 48000) return 0x10000;
+	freq = (freq * clocking)/48000;
+	
+	if (freq == 48000) 
+		return 0x10000;
 
 	return ((freq / clock) <<16 )+  
 		(((freq % clock) << 16) / clock);
@@ -1958,6 +1967,7 @@ mixer_push_state(struct ess_card *card)
 static int mixer_ioctl(struct ess_card *card, unsigned int cmd, unsigned long arg)
 {
 	int i, val=0;
+       unsigned long flags;
 
 	VALIDATE_CARD(card);
         if (cmd == SOUND_MIXER_INFO) {
@@ -1990,9 +2000,9 @@ static int mixer_ioctl(struct ess_card *card, unsigned int cmd, unsigned long ar
 			if(!card->mix.recmask_io) {
 				val = 0;
 			} else {
-				spin_lock(&card->lock);
+                               spin_lock_irqsave(&card->lock, flags);
 				val = card->mix.recmask_io(card,1,0);
-				spin_unlock(&card->lock);
+                               spin_unlock_irqrestore(&card->lock, flags);
 			}
 			break;
 			
@@ -2019,9 +2029,9 @@ static int mixer_ioctl(struct ess_card *card, unsigned int cmd, unsigned long ar
 				return -EINVAL;
 
 			/* do we ever want to touch the hardware? */
-/*			spin_lock(&card->lock);
+/*                     spin_lock_irqsave(&card->lock, flags);
 			val = card->mix.read_mixer(card,i);
-			spin_unlock(&card->lock);*/
+                       spin_unlock_irqrestore(&card->lock, flags);*/
 
 			val = card->mix.mixer_state[i];
 /*			M_printk("returned 0x%x for mixer %d\n",val,i);*/
@@ -2046,9 +2056,9 @@ static int mixer_ioctl(struct ess_card *card, unsigned int cmd, unsigned long ar
 		if(!val) return 0;
 		if(! (val &= card->mix.record_sources)) return -EINVAL;
 
-		spin_lock(&card->lock);
+               spin_lock_irqsave(&card->lock, flags);
 		card->mix.recmask_io(card,0,val);
-		spin_unlock(&card->lock);
+               spin_unlock_irqrestore(&card->lock, flags);
 		return 0;
 
 	default:
@@ -2057,9 +2067,9 @@ static int mixer_ioctl(struct ess_card *card, unsigned int cmd, unsigned long ar
 		if ( ! supported_mixer(card,i)) 
 			return -EINVAL;
 
-		spin_lock(&card->lock);
+               spin_lock_irqsave(&card->lock, flags);
 		set_mixer(card,i,val);
-		spin_unlock(&card->lock);
+               spin_unlock_irqrestore(&card->lock, flags);
 
 		return 0;
 	}
@@ -3392,6 +3402,19 @@ maestro_install(struct pci_dev *pcidev, int card_type)
 	
 	ess = &card->channels[0];
 
+	if (pci_enable_device(pcidev)) {
+		printk (KERN_ERR "maestro: pci_enable_device() failed\n");
+		for (i = 0; i < NR_DSPS; i++) {
+			struct ess_state *s = &card->channels[i];
+			if (s->dev_audio != -1)
+				unregister_sound_dsp(s->dev_audio);
+		}
+		release_region(card->iobase, 256);
+		unregister_reboot_notifier(&maestro_nb);
+		kfree(card);
+		return 0;
+	}
+
 	/*
 	 *	Ok card ready. Begin setup proper
 	 */
@@ -3564,6 +3587,7 @@ MODULE_PARM(debug,"i");
 #endif
 MODULE_PARM(dsps_order,"i");
 MODULE_PARM(use_pm,"i");
+MODULE_PARM(clocking, "i");
 
 void cleanup_module(void) {
 	M_printk("maestro: unloading\n");

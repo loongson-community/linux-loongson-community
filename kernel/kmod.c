@@ -19,6 +19,7 @@
 #include <linux/module.h>
 #include <linux/sched.h>
 #include <linux/unistd.h>
+#include <linux/kmod.h>
 #include <linux/smp_lock.h>
 
 #include <asm/uaccess.h>
@@ -165,7 +166,7 @@ static int exec_modprobe(void * module_name)
  
 int request_module(const char * module_name)
 {
-	int pid;
+	pid_t pid;
 	int waitpid_result;
 	sigset_t tmpsig;
 	int i;
@@ -256,43 +257,105 @@ EXPORT_SYMBOL(hotplug_path);
 
 #endif /* CONFIG_HOTPLUG */
 
+struct subprocess_info {
+	struct semaphore *sem;
+	char *path;
+	char **argv;
+	char **envp;
+	pid_t retval;
+};
 
-static int exec_helper (void *arg)
+/*
+ * This is the task which runs the usermode application
+ */
+static int ____call_usermodehelper(void *data)
 {
-	void **params = (void **) arg;
-	char *path = (char *) params [0];
-	char **argv = (char **) params [1];
-	char **envp = (char **) params [2];
-	return exec_usermodehelper (path, argv, envp);
+	struct subprocess_info *sub_info = data;
+	int retval;
+
+	retval = -EPERM;
+	if (current->fs->root)
+		retval = exec_usermodehelper(sub_info->path, sub_info->argv, sub_info->envp);
+
+	/* Exec failed? */
+	sub_info->retval = (pid_t)retval;
+	do_exit(0);
 }
 
-
-int call_usermodehelper (char *path, char **argv, char **envp)
+/*
+ * This is run by keventd.
+ */
+static void __call_usermodehelper(void *data)
 {
-	void *params [3] = { path, argv, envp };
-	int pid, pid2, retval;
-	mm_segment_t fs;
+	struct subprocess_info *sub_info = data;
+	pid_t pid;
 
-	if ( ! current->fs->root ) {
-		printk(KERN_ERR "call_usermodehelper[%s]: no root fs\n",
-			path);
-		return -EPERM;
-	}
-	if ((pid = kernel_thread (exec_helper, (void *) params, 0)) < 0) {
-		printk(KERN_ERR "failed fork %s, errno = %d", argv [0], -pid);
-		return -1;
-	}
+	/*
+	 * CLONE_VFORK: wait until the usermode helper has execve'd successfully
+	 * We need the data structures to stay around until that is done.
+	 */
+	pid = kernel_thread(____call_usermodehelper, sub_info, CLONE_VFORK | SIGCHLD);
+	if (pid < 0)
+		sub_info->retval = pid;
+	up(sub_info->sem);
+}
 
-	fs = get_fs ();
-	set_fs (KERNEL_DS);
-	pid2 = waitpid (pid, &retval, __WCLONE);
-	set_fs (fs);
+/**
+ * call_usermodehelper - start a usermode application
+ * @path: pathname for the application
+ * @argv: null-terminated argument list
+ * @envp: null-terminated environment list
+ *
+ * Runs a user-space application.  The application is started asynchronously.  It
+ * runs as a child of keventd.  It runs with full root capabilities.  keventd silently
+ * reaps the child when it exits.
+ *
+ * Must be called from process context.  Returns zero on success, else a negative
+ * error code.
+ */
+int call_usermodehelper(char *path, char **argv, char **envp)
+{
+	DECLARE_MUTEX_LOCKED(sem);
+	struct subprocess_info sub_info = {
+		sem:		&sem,
+		path:		path,
+		argv:		argv,
+		envp:		envp,
+		retval:		0,
+	};
+	struct tq_struct tqs = {
+		routine:	__call_usermodehelper,
+		data:		&sub_info,
+	};
 
-	if (pid2 != pid) {
-		printk(KERN_ERR "waitpid(%d) failed, %d\n", pid, pid2);
-			return -1;
+	if (path[0] == '\0')
+		goto out;
+
+	if (current_is_keventd()) {
+		/* We can't wait on keventd! */
+		__call_usermodehelper(&sub_info);
+	} else {
+		schedule_task(&tqs);
+		down(&sem);		/* Wait until keventd has started the subprocess */
 	}
-	return retval;
+out:
+	return sub_info.retval;
+}
+
+/*
+ * This is for the serialisation of device probe() functions
+ * against device open() functions
+ */
+static DECLARE_MUTEX(dev_probe_sem);
+
+void dev_probe_lock(void)
+{
+	down(&dev_probe_sem);
+}
+
+void dev_probe_unlock(void)
+{
+	up(&dev_probe_sem);
 }
 
 EXPORT_SYMBOL(exec_usermodehelper);

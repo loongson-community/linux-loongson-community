@@ -1324,7 +1324,7 @@ static void ide_do_request(ide_hwgroup_t *hwgroup, int masked_irq)
 				mod_timer(&hwgroup->timer, sleep);
 				/* we purposely leave hwgroup->busy==1 while sleeping */
 			} else {
-				/* Ugly, but how can we sleep for the lock otherwise? perhaps from tq_scheduler? */
+				/* Ugly, but how can we sleep for the lock otherwise? perhaps from tq_disk? */
 				ide_release_lock(&ide_lock);	/* for atari only */
 				hwgroup->busy = 0;
 			}
@@ -3241,6 +3241,12 @@ static void __init probe_for_hwifs (void)
 		macide_init();
 	}
 #endif /* CONFIG_BLK_DEV_MAC_IDE */
+#ifdef CONFIG_BLK_DEV_Q40IDE
+	{
+		extern void q40ide_init(void);
+		q40ide_init();
+	}
+#endif /* CONFIG_BLK_DEV_Q40IDE */
 #ifdef CONFIG_BLK_DEV_BUDDHA
 	{
 		extern void buddha_init(void);

@@ -139,6 +139,9 @@ Digi AccelePort Driver
   (plus a parallel port) and 4 port USB serial converters.  The driver
   does NOT yet support the Digi AccelePort USB 8.
 
+  This driver works under SMP with the usb-uhci driver.  It does not
+  work under SMP with the uhci driver.
+
   The driver is generally working, though we still have a few more ioctls
   to implement and final testing and debugging to do.  The paralled port
   on the USB 2 is supported as a serial to parallel converter; in other
@@ -180,6 +183,33 @@ TO DO List:
   -- Add error reporting back to application for UART error conditions.
   -- Add support for flush ioctls.
   -- Add everything else that is missing :)
+
+
+Empeg empeg-car Mark I/II Driver (empeg.c)
+
+  This is an experimental driver to provide connectivity support for the
+  client synchronization tools for an Empeg empeg-car mp3 player.
+
+  Tips:
+
+    * Don't forget to create the device nodes for ttyUSB{0,1,2,...}
+    * modprobe empeg (modprobe is your friend)
+    * emptool --usb /dev/ttyUSB0 (or whatever you named your device node)
+
+  The driver is still pretty new, so some testing 'in the wild' would be
+  helpful. :)
+
+
+MCT USB Single Port Serial Adapter U232
+
+ This driver is for the MCT USB-RS232 Converter (25 pin, Model No.
+ U232-P25) from Magic Control Technology Corp. (there is also a 9 pin
+ Model No. U232-P9). More information about this device can be found
+ at the manufacture's web-site: http://www.mct.com.tw.
+
+ The driver is generally working, though it still needs some more
+ testing. It is derived from the Belkin USB Serial Adapter F5U103
+ driver and its TODO list is valid for this driver as well.
 
 
 Generic Serial driver

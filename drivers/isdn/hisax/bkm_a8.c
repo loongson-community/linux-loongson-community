@@ -1,4 +1,4 @@
-/* $Id: bkm_a8.c,v 1.12 2000/06/26 08:59:12 keil Exp $
+/* $Id: bkm_a8.c,v 1.14.6.2 2000/11/29 16:00:14 kai Exp $
  * bkm_a8.c     low level stuff for Scitel Quadro (4*S0, passive)
  *              derived from the original file sedlbauer.c
  *              derived from the original file niccy.c
@@ -12,6 +12,7 @@
 #define __NO_VERSION__
 
 #include <linux/config.h>
+#include <linux/init.h>
 #include "hisax.h"
 #include "isac.h"
 #include "ipac.h"
@@ -26,7 +27,7 @@
 
 extern const char *CardType[];
 
-const char sct_quadro_revision[] = "$Revision: 1.12 $";
+const char sct_quadro_revision[] = "$Revision: 1.14.6.2 $";
 
 static const char *sct_quadro_subtypes[] =
 {
@@ -268,8 +269,8 @@ BKM_card_msg(struct IsdnCardState *cs, int mt, void *arg)
 	return (0);
 }
 
-__initfunc(int
-sct_alloc_io(u_int adr, u_int len))
+int __init
+sct_alloc_io(u_int adr, u_int len)
 {
 	if (check_region(adr, len)) {
 		printk(KERN_WARNING
@@ -291,8 +292,8 @@ static u_char pci_irq __initdata = 0;
 
 #endif /* CONFIG_PCI */
 
-__initfunc(int
-setup_sct_quadro(struct IsdnCard *card))
+int __init
+setup_sct_quadro(struct IsdnCard *card)
 {
 #if CONFIG_PCI
 	struct IsdnCardState *cs = card->cs;
@@ -316,8 +317,8 @@ setup_sct_quadro(struct IsdnCard *card))
 			CardType[card->typ]);
 		return (0);
 	}
-	if ((cs->subtyp != SCT_1) && ((sub_sys_id != SCT_SUBSYS_ID) ||
-		(sub_vendor_id != SCT_SUBVEN_ID)))
+	if ((cs->subtyp != SCT_1) && ((sub_sys_id != PCI_DEVICE_ID_BERKOM_SCITEL_QUADRO) ||
+		(sub_vendor_id != PCI_VENDOR_ID_BERKOM)))
 		return (0);
 	if (cs->subtyp == SCT_1) {
 		if (!pci_present()) {
@@ -329,8 +330,8 @@ setup_sct_quadro(struct IsdnCard *card))
 			
 			sub_vendor_id = dev_a8->subsystem_vendor;
 			sub_sys_id = dev_a8->subsystem_device;
-			if ((sub_sys_id == SCT_SUBSYS_ID) &&
-				(sub_vendor_id == SCT_SUBVEN_ID)) {
+			if ((sub_sys_id == PCI_DEVICE_ID_BERKOM_SCITEL_QUADRO) &&
+				(sub_vendor_id == PCI_VENDOR_ID_BERKOM)) {
 				if (pci_enable_device(dev_a8))
 					return(0);
 				pci_ioaddr1 = pci_resource_start(dev_a8, 1);

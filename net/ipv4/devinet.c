@@ -1,7 +1,7 @@
 /*
  *	NET3	IP device support routines.
  *
- *	Version: $Id: devinet.c,v 1.38 2000/08/19 23:22:56 davem Exp $
+ *	Version: $Id: devinet.c,v 1.39 2000/12/10 22:24:11 davem Exp $
  *
  *		This program is free software; you can redistribute it and/or
  *		modify it under the terms of the GNU General Public License
@@ -519,6 +519,7 @@ int devinet_ioctl(unsigned int cmd, void *arg)
 		return -EINVAL;
 	}
 
+	dev_probe_lock();
 	rtnl_lock();
 
 	if ((dev = __dev_get_by_name(ifr.ifr_name)) == NULL) {
@@ -649,10 +650,12 @@ int devinet_ioctl(unsigned int cmd, void *arg)
 	}
 done:
 	rtnl_unlock();
+	dev_probe_unlock();
 	return ret;
 
 rarok:
 	rtnl_unlock();
+	dev_probe_unlock();
 	if (copy_to_user(arg, &ifr, sizeof(struct ifreq)))
 		return -EFAULT;
 	return 0;

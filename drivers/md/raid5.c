@@ -1516,8 +1516,8 @@ static int raid5_sync_request (mddev_t *mddev, unsigned long block_nr)
 	raid5_conf_t *conf = (raid5_conf_t *) mddev->private;
 	struct stripe_head *sh;
 	int sectors_per_chunk = conf->chunk_size >> 9;
-	unsigned long stripe = (block_nr<<2)/sectors_per_chunk;
-	int chunk_offset = (block_nr<<2) % sectors_per_chunk;
+	unsigned long stripe = (block_nr<<1)/sectors_per_chunk;
+	int chunk_offset = (block_nr<<1) % sectors_per_chunk;
 	int dd_idx, pd_idx;
 	unsigned long first_sector;
 	int raid_disks = conf->raid_disks;
@@ -2352,19 +2352,16 @@ static mdk_personality_t raid5_personality=
 	sync_request:	raid5_sync_request
 };
 
-int raid5_init (void)
+static int md__init raid5_init (void)
 {
 	return register_md_personality (RAID5, &raid5_personality);
 }
 
-#ifdef MODULE
-int init_module (void)
-{
-	return raid5_init();
-}
-
-void cleanup_module (void)
+static void raid5_exit (void)
 {
 	unregister_md_personality (RAID5);
 }
-#endif
+
+module_init(raid5_init);
+module_exit(raid5_exit);
+

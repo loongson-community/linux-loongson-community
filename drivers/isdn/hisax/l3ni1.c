@@ -1,20 +1,24 @@
-// $Id: l3ni1.c,v 2.3 2000/06/26 08:59:14 keil Exp $
+// $Id: l3ni1.c,v 2.5 2000/11/19 17:02:48 kai Exp $
+//
 //-----------------------------------------------------------------------------
 //
 // NI1 D-channel protocol
 //
-// Author                Matt Henderson & Guy Ellis - Traverse Tecnologies Pty Ltd
-//                                www.traverse.com.au
+// Authors:
+// Matt Henderson & Guy Ellis - Traverse Tecnologies Pty Ltd
+// www.traverse.com.au
 //
 // 2000.6.6 Initial implementation of routines for US NI1 
 // Layer 3 protocol based on the EURO/DSS1 D-channel protocol 
-// driver written by Karsten Keil et al.  Thanks also for the 
-// code provided by Ragnar Paulson and Will Scales.
+// driver written by Karsten Keil et al.  
+// NI-1 Hall of Fame - Thanks to.... 
+// Ragnar Paulson - for some handy code fragments
+// Will Scales - beta tester extraordinaire
+// Brett Whittacre - beta tester and remote devel system in Vegas
 //
 // This file is (c) under GNU PUBLIC LICENSE
 //
 //-----------------------------------------------------------------------------
-
 #define __NO_VERSION__
 #include "hisax.h"
 #include "isdnl3.h"
@@ -22,7 +26,7 @@
 #include <linux/ctype.h>
 
 extern char *HiSax_getrev(const char *revision);
-const char *ni1_revision = "$Revision: 2.3 $";
+const char *ni1_revision = "$Revision: 2.5 $";
 
 #define EXT_BEARER_CAPS 1
 
@@ -439,6 +443,27 @@ l3ni1_message(struct l3_process *pc, u_char mt)
 		return;
 	p = skb_put(skb, 4);
 	MsgHead(p, pc->callref, mt);
+	l3_msg(pc->st, DL_DATA | REQUEST, skb);
+}
+
+static void
+l3ni1_message_plus_chid(struct l3_process *pc, u_char mt)
+/* sends an l3 messages plus channel id -  added GE 05/09/00 */
+{
+	struct sk_buff *skb;
+	u_char tmp[16];
+	u_char *p = tmp;
+	u_char chid;
+
+	chid = (u_char)(pc->para.bchannel & 0x03) | 0x88;
+	MsgHead(p, pc->callref, mt);
+	*p++ = IE_CHANNEL_ID;
+	*p++ = 0x01;
+	*p++ = chid;
+
+	if (!(skb = l3_alloc_skb(7)))
+		return;
+	memcpy(skb_put(skb, 7), tmp, 7);
 	l3_msg(pc->st, DL_DATA | REQUEST, skb);
 }
 
@@ -1175,9 +1200,9 @@ l3ni1_setup_req(struct l3_process *pc, u_char pr,
 	case 1:	                  /* Telephony                                */
 		*p++ = IE_BEARER;
 		*p++ = 0x3;	  /* Length                                   */
-		*p++ = 0x90;	  /* Coding Std. CCITT, 3.1 kHz audio         */
+		*p++ = 0x90;	  /* 3.1khz Audio      			      */
 		*p++ = 0x90;	  /* Circuit-Mode 64kbps                      */
-		*p++ = 0xa3;	  /* A-Law Audio                              */
+		*p++ = 0xa2;	  /* u-Law Audio                              */
 		break;
 	case 5:	                  /* Datatransmission 64k, BTX                */
 	case 7:	                  /* Datatransmission 64k                     */
@@ -1240,7 +1265,7 @@ l3ni1_setup_req(struct l3_process *pc, u_char pr,
 			*p++ = 0x3;	/* Length                                   */
 			*p++ = 0x90;	/* Coding Std. CCITT, 3.1 kHz audio         */
 			*p++ = 0x90;	/* Circuit-Mode 64kbps                      */
-			*p++ = 0xa3;	/* A-Law Audio                              */
+			*p++ = 0xa2;	/* u-Law Audio                              */
 			break;
 		case 5:	                /* Datatransmission 64k, BTX                */
 		case 7:	                /* Datatransmission 64k                     */
@@ -1641,7 +1666,9 @@ l3ni1_setup_rsp(struct l3_process *pc, u_char pr,
            return;
          }
 	newl3state(pc, 8);
-	l3ni1_message(pc, MT_CONNECT);
+	if (pc->debug & L3_DEB_WARN)
+		l3_debug(pc->st, "D-chan connect for waiting call");
+	l3ni1_message_plus_chid(pc, MT_CONNECT); /* GE 05/09/00 */ 
 	L3DelTimer(&pc->timer);
 	L3AddTimer(&pc->timer, T313, CC_T313);
 }
@@ -2544,6 +2571,7 @@ l3ni1_global_restart(struct l3_process *pc, u_char pr, void *arg)
 			up->st->lli.l4l3(up->st, CC_RESTART | REQUEST, up);
 		else if (up->para.bchannel == chan)
 			up->st->lli.l4l3(up->st, CC_RESTART | REQUEST, up);
+		
 		up = up->next;
 	}
 	p = tmp;

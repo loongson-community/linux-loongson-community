@@ -30,7 +30,7 @@
 #include <linux/interrupt.h>  /* for in_interrupt() */
 #include <linux/kmod.h>
 #include <linux/init.h>
-
+#include <linux/devfs_fs_kernel.h>
 
 #ifdef CONFIG_USB_DEBUG
 	#define DEBUG
@@ -67,6 +67,8 @@ static void usb_check_support(struct usb_device *);
 LIST_HEAD(usb_driver_list);
 LIST_HEAD(usb_bus_list);
 
+devfs_handle_t usb_devfs_handle;	/* /dev/usb dir. */
+
 static struct usb_busmap busmap;
 
 static struct usb_driver *usb_minors[16];
@@ -86,7 +88,7 @@ int usb_register(struct usb_driver *new_driver)
 	init_MUTEX(&new_driver->serialize);
 
 	/* Add it to the list of known drivers */
-	list_add(&new_driver->driver_list, &usb_driver_list);
+	list_add_tail(&new_driver->driver_list, &usb_driver_list);
 
 	usb_scan_devices();
 
@@ -296,11 +298,13 @@ void usb_claim_bandwidth (struct usb_device *dev, struct urb *urb, int bustime, 
 	else
 		dev->bus->bandwidth_int_reqs++;
 	urb->bandwidth = bustime;
-	
+
+#ifdef USB_BANDWIDTH_MESSAGES
 	dbg("bandwidth alloc increased by %d to %d for %d requesters",
 		bustime,
 		dev->bus->bandwidth_allocated,
 		dev->bus->bandwidth_int_reqs + dev->bus->bandwidth_isoc_reqs);
+#endif
 }
 
 /*
@@ -316,10 +320,12 @@ void usb_release_bandwidth(struct usb_device *dev, struct urb *urb, int isoc)
 	else
 		dev->bus->bandwidth_int_reqs--;
 
+#ifdef USB_BANDWIDTH_MESSAGES
 	dbg("bandwidth alloc reduced by %d to %d for %d requesters",
 		urb->bandwidth,
 		dev->bus->bandwidth_allocated,
 		dev->bus->bandwidth_int_reqs + dev->bus->bandwidth_isoc_reqs);
+#endif
 	urb->bandwidth = 0;
 }
 
@@ -554,7 +560,7 @@ usb_match_id(struct usb_device *dev, struct usb_interface *interface,
 			continue;
 
 		if (id->bDeviceSubClass &&
-		    id->bDeviceSubClass!= dev->descriptor.bDeviceClass)
+		    id->bDeviceSubClass!= dev->descriptor.bDeviceSubClass)
 			continue;
 
 		if (id->bDeviceProtocol &&
@@ -2047,9 +2053,9 @@ int usb_new_device(struct usb_device *dev)
 	if (err < 0) {
 		err("unable to get device %d configuration (error=%d)",
 			dev->devnum, err);
-		usb_destroy_configuration(dev);
 		clear_bit(dev->devnum, &dev->bus->devmap.devicemap);
 		dev->devnum = -1;
+		usb_free_dev(dev);
 		return 1;
 	}
 
@@ -2119,16 +2125,20 @@ static struct file_operations usb_fops = {
 
 int usb_major_init(void)
 {
-	if (register_chrdev(USB_MAJOR,"usb",&usb_fops)) {
+	if (devfs_register_chrdev(USB_MAJOR, "usb", &usb_fops)) {
 		err("unable to get major %d for usb devices", USB_MAJOR);
 		return -EBUSY;
 	}
+
+	usb_devfs_handle = devfs_mk_dir(NULL, "usb", NULL);
+
 	return 0;
 }
 
 void usb_major_cleanup(void)
 {
-	unregister_chrdev(USB_MAJOR, "usb");
+	devfs_unregister(usb_devfs_handle);
+	devfs_unregister_chrdev(USB_MAJOR, "usb");
 }
 
 
@@ -2231,3 +2241,5 @@ EXPORT_SYMBOL(usb_unlink_urb);
 
 EXPORT_SYMBOL(usb_control_msg);
 EXPORT_SYMBOL(usb_bulk_msg);
+
+EXPORT_SYMBOL(usb_devfs_handle);

@@ -168,6 +168,7 @@ struct module_info
  * Keith Owens <kaos@ocs.com.au> 28 Oct 2000.
  */
 
+#ifdef __KERNEL__
 #define HAVE_INTER_MODULE
 extern void inter_module_register(const char *, struct module *, const void *);
 extern void inter_module_unregister(const char *);
@@ -183,6 +184,7 @@ struct inter_module_entry {
 };
 
 extern int try_inc_mod_count(struct module *mod);
+#endif /* __KERNEL__ */
 
 #if defined(MODULE) && !defined(__GENKSYMS__)
 
@@ -345,7 +347,7 @@ __attribute__((section("__ksymtab"))) =			\
 #endif /* MODULE */
 
 #ifdef CONFIG_MODULES
-#define SET_MODULE_OWNER(some_struct) do { some_struct->owner = THIS_MODULE; } while (0)
+#define SET_MODULE_OWNER(some_struct) do { (some_struct)->owner = THIS_MODULE; } while (0)
 #else
 #define SET_MODULE_OWNER(some_struct) do { } while (0)
 #endif

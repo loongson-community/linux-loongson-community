@@ -113,6 +113,8 @@ extern int tdfxfb_init(void);
 extern int tdfxfb_setup(char*);
 extern int sisfb_init(void);
 extern int sisfb_setup(char*);
+extern int stifb_init(void);
+extern int stifb_setup(char*);
 extern int pmagbafb_init(void);
 extern int pmagbafb_setup(char *);
 
@@ -200,6 +202,9 @@ static struct {
 	 * management!
 	 */
 
+#ifdef CONFIG_FB_STI
+	{ "stifb", stifb_init, stifb_setup },
+#endif
 #ifdef CONFIG_FB_OF
 	{ "offb", offb_init, NULL },
 #endif

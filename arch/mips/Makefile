@@ -151,7 +151,8 @@ LOADADDR      += 0x80080000
 endif
 
 ifdef CONFIG_SGI_IP22
-LIBS          += arch/mips/sgi/kernel/sgikern.a arch/mips/arc/arclib.a
+CORE_FILES    += arch/mips/sgi/kernel/ip22-kern.o
+LIBS          += arch/mips/arc/arclib.a
 SUBDIRS       += arch/mips/sgi/kernel arch/mips/arc
 #
 # Set LOADADDR to >= 0x88069000 if you want to leave space for symmon,
@@ -273,7 +274,6 @@ zdisk: vmlinux
 archclean:
 	@$(MAKEBOOT) clean
 	rm -f arch/$(ARCH)/ld.script
-	$(MAKE) -C arch/$(ARCH)/kernel clean
 	$(MAKE) -C arch/$(ARCH)/tools clean
 	$(MAKE) -C arch/mips/baget clean
 

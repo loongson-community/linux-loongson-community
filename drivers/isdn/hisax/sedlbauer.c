@@ -1,4 +1,4 @@
-/* $Id: sedlbauer.c,v 1.23 2000/06/26 08:59:14 keil Exp $
+/* $Id: sedlbauer.c,v 1.25.6.2 2000/11/29 17:48:59 kai Exp $
  *
  * sedlbauer.c  low level stuff for Sedlbauer cards
  *              includes support for the Sedlbauer speed star (speed star II),
@@ -40,6 +40,7 @@
 */
 
 #define __NO_VERSION__
+#include <linux/init.h>
 #include <linux/config.h>
 #include "hisax.h"
 #include "isac.h"
@@ -51,19 +52,13 @@
 
 extern const char *CardType[];
 
-const char *Sedlbauer_revision = "$Revision: 1.23 $";
+const char *Sedlbauer_revision = "$Revision: 1.25.6.2 $";
 
 const char *Sedlbauer_Types[] =
 	{"None", "speed card/win", "speed star", "speed fax+", 
 	"speed win II / ISDN PC/104", "speed star II", "speed pci",
 	"speed fax+ pyramid", "speed fax+ pci"};
 
-#ifndef PCI_VENDOR_ID_TIGERJET
-#define PCI_VENDOR_ID_TIGERJET		0xe159
-#endif
-#ifndef PCI_DEVICE_ID_TIGERJET_100
-#define PCI_DEVICE_ID_TIGERJET_100	0x0002
-#endif
 #define PCI_SUBVENDOR_SPEEDFAX_PYRAMID	0x51
 #define PCI_SUBVENDOR_SEDLBAUER_PCI	0x53
 #define PCI_SUBVENDOR_SPEEDFAX_PCI	0x54
@@ -534,10 +529,10 @@ Sedl_card_msg(struct IsdnCardState *cs, int mt, void *arg)
 	return(0);
 }
 
-static 	struct pci_dev *dev_sedl __initdata = NULL;
+static struct pci_dev *dev_sedl __devinitdata = NULL;
 
-__initfunc(int
-setup_sedlbauer(struct IsdnCard *card))
+int __devinit
+setup_sedlbauer(struct IsdnCard *card)
 {
 	int bytecnt, ver, val;
 	struct IsdnCardState *cs = card->cs;

@@ -227,7 +227,7 @@ skip_copy_pte_range:		address = (address + PMD_SIZE) & PMD_MASK;
 
 				/* If it's a COW mapping, write protect it both in the parent and the child */
 				if (cow) {
-					ptep_clear_wrprotect(src_pte);
+					ptep_set_wrprotect(src_pte);
 					pte = *src_pte;
 				}
 
@@ -269,6 +269,8 @@ static inline int free_pte(pte_t page)
 		 * free_page() used to be able to clear swap cache
 		 * entries.  We may now have to do it manually.  
 		 */
+		if (pte_dirty(page))
+			SetPageDirty(ptpage);
 		free_page_and_swap_cache(ptpage);
 		return 1;
 	}
@@ -829,8 +831,9 @@ static int do_wp_page(struct mm_struct *mm, struct vm_area_struct * vma,
 	 * - we're the only user (count == 1)
 	 * - the only other user is the swap cache,
 	 *   and the only swap cache user is itself,
-	 *   in which case we can remove the page
-	 *   from the swap cache.
+	 *   in which case we can just continue to
+	 *   use the same swap cache (it will be
+	 *   marked dirty).
 	 */
 	switch (page_count(old_page)) {
 	case 2:
@@ -845,7 +848,6 @@ static int do_wp_page(struct mm_struct *mm, struct vm_area_struct * vma,
 			UnlockPage(old_page);
 			break;
 		}
-		delete_from_swap_cache_nolock(old_page);
 		UnlockPage(old_page);
 		/* FallThrough */
 	case 1:
@@ -885,45 +887,6 @@ bad_wp_page:
 	return -1;
 }
 
-/*
- * This function zeroes out partial mmap'ed pages at truncation time..
- */
-static void partial_clear(struct vm_area_struct *vma, unsigned long address)
-{
-	unsigned int offset;
-	struct page *page;
-	pgd_t *page_dir;
-	pmd_t *page_middle;
-	pte_t *page_table, pte;
-
-	page_dir = pgd_offset(vma->vm_mm, address);
-	if (pgd_none(*page_dir))
-		return;
-	if (pgd_bad(*page_dir)) {
-		pgd_ERROR(*page_dir);
-		pgd_clear(page_dir);
-		return;
-	}
-	page_middle = pmd_offset(page_dir, address);
-	if (pmd_none(*page_middle))
-		return;
-	if (pmd_bad(*page_middle)) {
-		pmd_ERROR(*page_middle);
-		pmd_clear(page_middle);
-		return;
-	}
-	page_table = pte_offset(page_middle, address);
-	pte = *page_table;
-	if (!pte_present(pte))
-		return;
-	flush_cache_page(vma, address);
-	page = pte_page(pte);
-	if ((!VALID_PAGE(page)) || PageReserved(page))
-		return;
-	offset = address & ~PAGE_MASK;
-	memclear_highpage_flush(page, offset, PAGE_SIZE - offset);
-}
-
 static void vmtruncate_list(struct vm_area_struct *mpnt,
 			    unsigned long pgoff, unsigned long partial)
 {
@@ -951,10 +914,6 @@ static void vmtruncate_list(struct vm_area_struct *mpnt,
 		/* Ok, partially affected.. */
 		start += diff << PAGE_SHIFT;
 		len = (len - diff) << PAGE_SHIFT;
-		if (start & ~PAGE_MASK) {
-			partial_clear(mpnt, start);
-			start = (start + ~PAGE_MASK) & PAGE_MASK;
-		}
 		flush_cache_range(mm, start, end);
 		zap_page_range(mm, start, len);
 		flush_tlb_range(mm, start, end);
@@ -1085,14 +1044,9 @@ static int do_swap_page(struct mm_struct * mm,
 	 */
 	lock_page(page);
 	swap_free(entry);
-	if (write_access && !is_page_shared(page)) {
-		delete_from_swap_cache_nolock(page);
-		UnlockPage(page);
-		page = replace_with_highmem(page);
-		pte = mk_pte(page, vma->vm_page_prot);
+	if (write_access && !is_page_shared(page))
 		pte = pte_mkwrite(pte_mkdirty(pte));
-	} else
-		UnlockPage(page);
+	UnlockPage(page);
 
 	set_pte(page_table, pte);
 	/* No need to invalidate - it was non-present before */

@@ -1,4 +1,4 @@
-/* $Id: sab82532.c,v 1.53 2000/11/15 07:28:09 davem Exp $
+/* $Id: sab82532.c,v 1.54 2000/12/07 04:35:39 anton Exp $
  * sab82532.c: ASYNC Driver for the SIEMENS SAB82532 DUSCC.
  *
  * Copyright (C) 1997  Eddie C. Dost  (ecd@skynet.be)
@@ -527,8 +527,9 @@ check_modem:
 #ifdef SERIAL_DEBUG_OPEN
 			printk("scheduling hangup...");
 #endif
-
-			queue_task(&info->tqueue_hangup, &tq_scheduler);
+			MOD_INC_USE_COUNT;
+			if (schedule_task(&info->tqueue_hangup) == 0)
+				MOD_DEC_USE_COUNT;
 		}
 	}
 
@@ -676,10 +677,9 @@ static void do_serial_hangup(void *private_)
 	struct tty_struct *tty;
 
 	tty = info->tty;
-	if (!tty)
-		return;
-
-	tty_hangup(tty);
+	if (tty)
+		tty_hangup(tty);
+	MOD_DEC_USE_COUNT;
 }
 
 static void
@@ -2134,7 +2134,7 @@ static void __init sab82532_kgdb_hook(int line)
 
 static inline void __init show_serial_version(void)
 {
-	char *revision = "$Revision: 1.53 $";
+	char *revision = "$Revision: 1.54 $";
 	char *version, *p;
 
 	version = strchr(revision, ' ');
