@@ -833,9 +833,9 @@ found:
 no_irq:
 #else
 	if (RTC_IOMAPPED)
-		r = check_region(RTC_PORT(0), RTC_IO_EXTENT);
+		r = request_region(RTC_PORT(0), RTC_IO_EXTENT);
 	else
-		r = check_mem_region(RTC_PORT(0), RTC_IO_EXTENT);
+		r = request_mem_region(RTC_PORT(0), RTC_IO_EXTENT);
 	if (!r) {
 		printk(KERN_ERR "rtc: I/O resource %d is not free.\n", RTC_PORT (0));
 		return -EIO;
@@ -845,14 +845,14 @@ no_irq:
 	if(request_irq(RTC_IRQ, rtc_interrupt, SA_INTERRUPT, "rtc", NULL)) {
 		/* Yeah right, seeing as irq 8 doesn't even hit the bus. */
 		printk(KERN_ERR "rtc: IRQ %d is not free.\n", RTC_IRQ);
+		if (RTC_IOMAPPED)
+			release_region(RTC_PORT(0), RTC_IO_EXTENT, "rtc");
+		else
+			release_mem_region(RTC_PORT(0), RTC_IO_EXTENT, "rtc");
 		return -EIO;
 	}
 #endif
 
-	if (RTC_IOMAPPED)
-		request_region(RTC_PORT(0), RTC_IO_EXTENT, "rtc");
-	else
-		request_mem_region(RTC_PORT(0), RTC_IO_EXTENT, "rtc");
 #endif /* __sparc__ vs. others */
 
 	misc_register(&rtc_dev);

@@ -39,7 +39,7 @@ struct exec_domain;
 #define CLONE_FS	0x00000200	/* set if fs info shared between processes */
 #define CLONE_FILES	0x00000400	/* set if open files shared between processes */
 #define CLONE_SIGHAND	0x00000800	/* set if signal handlers and blocked signals shared */
-#define CLONE_PID	0x00001000	/* set if pid shared */
+#define CLONE_IDLETASK	0x00001000	/* set if new pid should be 0 (kernel only)*/
 #define CLONE_PTRACE	0x00002000	/* set if we want to let tracing continue on the child too */
 #define CLONE_VFORK	0x00004000	/* set if the parent wants the child to wake it up on mm_release */
 #define CLONE_PARENT	0x00008000	/* set if we want to have the same parent as the cloner */
@@ -206,7 +206,24 @@ struct signal_struct {
 	spinlock_t		siglock;
 };
 
+/*
+ * Priority of a process goes from 0..MAX_PRIO-1, valid RT
+ * priority is 0..MAX_RT_PRIO-1, and SCHED_OTHER tasks are
+ * in the range MAX_RT_PRIO..MAX_PRIO-1. Priority values
+ * are inverted: lower p->prio value means higher priority.
+ *
+ * The MAX_RT_USER_PRIO value allows the actual maximum
+ * RT priority to be separate from the value exported to
+ * user-space.  This allows kernel threads to set their
+ * priority to a value higher than any user task. Note:
+ * MAX_RT_PRIO must not be smaller than MAX_USER_RT_PRIO.
+ */
 
+#define MAX_USER_RT_PRIO	100
+#define MAX_RT_PRIO		MAX_USER_RT_PRIO
+
+#define MAX_PRIO		(MAX_RT_PRIO + 40)
+ 
 /*
  * Some day this will be a full-fledged user tracking system..
  */
@@ -459,6 +476,11 @@ extern void free_uid(struct user_struct *);
 
 #include <asm/current.h>
 
+/*
+ * The 64-bit value is not volatile - you MUST NOT read it
+ * without holding read_lock_irq(&xtime_lock)
+ */
+extern u64 jiffies_64;
 extern unsigned long volatile jiffies;
 extern unsigned long itimer_ticks;
 extern unsigned long itimer_next;
@@ -662,7 +684,7 @@ extern void daemonize(void);
 extern task_t *child_reaper;
 
 extern int do_execve(char *, char **, char **, struct pt_regs *);
-extern int do_fork(unsigned long, unsigned long, struct pt_regs *, unsigned long);
+extern struct task_struct *do_fork(unsigned long, unsigned long, struct pt_regs *, unsigned long);
 
 extern void FASTCALL(add_wait_queue(wait_queue_head_t *q, wait_queue_t * wait));
 extern void FASTCALL(add_wait_queue_exclusive(wait_queue_head_t *q, wait_queue_t * wait));
