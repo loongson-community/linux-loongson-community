@@ -36,7 +36,7 @@
 
 
 
-#define	USE_CPU_COUNTER_TIMER	/* whether we use cpu counter */
+// #define	USE_CPU_COUNTER_TIMER	/* whether we use cpu counter */
 
 #ifdef USE_CPU_COUNTER_TIMER
 #define	CPU_COUNTER_FREQUENCY		83000000
@@ -88,10 +88,6 @@ static void __init ddb_time_init(void)
 	rtc_ds1386_init(KSEG1ADDR(DDB_LCS1_BASE));
 }
 
-#if defined(CONFIG_DEBUG)
-int  board_init_done_flag = 0;
-#endif
-
 extern int setup_irq(unsigned int irq, struct irqaction *irqaction);
 static void __init ddb_timer_setup(struct irqaction *irq)
 {
@@ -113,9 +109,6 @@ static void __init ddb_timer_setup(struct irqaction *irq)
 	setup_irq(SP_TIMER_IRQ, irq);
 
 #endif
-	
-	/* this is the last board dependent code */
-	db_run(board_init_done_flag = 1);
 }
 
 static void ddb5477_board_init(void);

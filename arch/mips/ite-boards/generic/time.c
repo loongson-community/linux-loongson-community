@@ -139,9 +139,6 @@ void __init it8172_timer_setup(struct irqaction *irq)
 	r4k_cur = (read_32bit_cp0_register(CP0_COUNT) + r4k_offset);
 	write_32bit_cp0_register(CP0_COMPARE, r4k_cur);
 	set_cp0_status(ALLINTS);
-
-	/* this is the last board dependent code */
-	db_run(board_init_done_flag = 1);
 }
 
 void local_timer_interrupt(struct pt_regs *regs)

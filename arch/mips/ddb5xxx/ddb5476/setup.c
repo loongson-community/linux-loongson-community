@@ -28,13 +28,20 @@
 
 #include <asm/ddb5xxx/ddb5xxx.h>
 
-#ifdef CONFIG_REMOTE_DEBUG
-extern void rs_kgdb_hook(int);
-extern void breakpoint(void);
+// #define USE_CPU_COUNTER_TIMER	/* whether we use cpu counter */
+
+#ifdef USE_CPU_COUNTER_TIMER
+
+#define CPU_COUNTER_FREQUENCY           83000000
+#else
+/* otherwise we use general purpose timer */
+#define TIMER_FREQUENCY			83000000
+#define TIMER_BASE			DDB_T2CTRL
+#define TIMER_IRQ			(VRC5476_IRQ_BASE + VRC5476_IRQ_GPT)
 #endif
 
-#if defined(CONFIG_SERIAL_CONSOLE)
-extern void console_setup(char *);
+#ifdef CONFIG_REMOTE_DEBUG
+extern void breakpoint(void);
 #endif
 
 extern struct ide_ops std_ide_ops;
@@ -75,22 +82,20 @@ extern void rtc_ds1386_init(unsigned long base);
 
 static void __init ddb_time_init(void)
 {
-	mips_counter_frequency = 83000000;
+#if defined(USE_CPU_COUNTER_TIMER)
+	mips_counter_frequency = CPU_COUNTER_FREQUENCY;
+#endif
 
 	/* we have ds1396 RTC chip */
 	rtc_ds1386_init(KSEG1ADDR(DDB_PCI_MEM_BASE));
-
-	/* optional: we don't have a good way to set RTC time,
-	 * so we will hack here to set a time.  In normal running.
-	 * it should *not* be called becaues RTC will keep the correct time.
-	 */
-	/* rtc_set_time(mktime(2001, 10, 05, 17, 20, 0)); */
 }
 
 
 extern int setup_irq(unsigned int irq, struct irqaction *irqaction);
 static void __init ddb_timer_setup(struct irqaction *irq)
 {
+#if defined(USE_CPU_COUNTER_TIMER)
+
 	unsigned int count;
 
 	/* we are using the cpu counter for timer interrupts */
@@ -99,6 +104,13 @@ static void __init ddb_timer_setup(struct irqaction *irq)
 	/* to generate the first timer interrupt */
 	count = read_32bit_cp0_register(CP0_COUNT);
 	write_32bit_cp0_register(CP0_COMPARE, count + 1000);
+
+#else
+
+	ddb_out32(TIMER_BASE, TIMER_FREQUENCY/HZ);
+	ddb_out32(TIMER_BASE+4, 0x1);	/* enable timer */
+	setup_irq(TIMER_IRQ, irq);
+#endif
 }
 
 static struct {
