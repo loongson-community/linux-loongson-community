@@ -7,6 +7,7 @@
 #include <linux/mmzone.h>
 #include <linux/kernel.h>
 
+#include <asm/page.h>
 #include <asm/sn/types.h>
 #include <asm/sn/arch.h>
 #include <asm/sn/gda.h>
@@ -19,6 +20,7 @@
 #define CPUMASK_SETB(p, bit)	(p) |= 1 << (bit)
 #define CPUMASK_TSTB(p, bit)	((p) & (1ULL << (bit)))
 
+extern char _end;
 static cpumask_t ktext_repmask;
 
 /*
@@ -117,3 +119,28 @@ void __init replicate_kernel_text(int maxnodes)
 		set_ktext_source(client_nasid, server_nasid);
 	}
 }
+
+/*
+ * Return pfn of first free page of memory on a node. PROM may allocate
+ * data structures on the first couple of pages of the first slot of each 
+ * node. If this is the case, getfirstfree(node) > getslotstart(node, 0).
+ */
+pfn_t node_getfirstfree(cnodeid_t cnode)
+{
+	unsigned long loadbase = CKSEG0;
+	nasid_t nasid = COMPACT_TO_NASID_NODEID(cnode);
+	unsigned long offset;
+
+#ifdef CONFIG_MAPPED_KERNEL
+	loadbase = CKSSEG + 16777216;
+#endif
+	offset = PAGE_ALIGN((unsigned long)(&_end)) - loadbase;
+	if (cnode == 0)
+		return (offset >> PAGE_SHIFT);
+	else if (CPUMASK_TSTB(ktext_repmask, cnode))
+		return (TO_NODE(nasid, offset) >> PAGE_SHIFT);
+	else
+		return (KDM_TO_PHYS(PAGE_ALIGN(SYMMON_STK_ADDR(nasid, 0))) >> 
+								PAGE_SHIFT);
+}
+

@@ -27,8 +27,6 @@
 #include <asm/sn/arch.h>
 #include <asm/mmzone.h>
 
-extern char _end;
-
 #define PFN_UP(x)	(((x) + PAGE_SIZE-1) >> PAGE_SHIFT)
 #define SLOT_IGNORED	0xffff
 
@@ -45,25 +43,6 @@ int numa_debug(void)
 	printk("NUMA debug\n");
 	*(int *)0 = 0;
 	return(0);
-}
-
-/*
- * Return pfn of first free page of memory on a node. PROM may allocate
- * data structures on the first couple of pages of the first slot of each 
- * node. If this is the case, getfirstfree(node) > getslotstart(node, 0).
- */
-pfn_t node_getfirstfree(cnodeid_t cnode)
-{
-	unsigned long loadbase = CKSEG0;
-	nasid_t nasid = COMPACT_TO_NASID_NODEID(cnode);
-
-#ifdef CONFIG_MAPPED_KERNEL
-	loadbase = CKSSEG + 16777216;
-#endif
-	if (cnode == 0)
-		return (KDM_TO_PHYS(PAGE_ALIGN((unsigned long)(&_end)) - 
-					(loadbase - K0BASE)) >> PAGE_SHIFT);
-	return (KDM_TO_PHYS(PAGE_ALIGN(SYMMON_STK_ADDR(nasid, 0))) >> PAGE_SHIFT);
 }
 
 /*

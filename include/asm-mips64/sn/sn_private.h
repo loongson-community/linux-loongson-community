@@ -8,3 +8,4 @@ extern void install_cpuintr(int cpu);
 extern void install_tlbintr(int cpu);
 extern void setup_replication_mask(int);
 extern void replicate_kernel_text(int);
+extern pfn_t node_getfirstfree(cnodeid_t);
