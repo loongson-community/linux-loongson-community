@@ -1,8 +1,10 @@
-/* $Id: newport_con.c,v 1.9 1999/03/15 21:36:43 tsbogend Exp $
+/* $Id: newport_con.c,v 1.10 1999/03/19 23:07:18 tsbogend Exp $
  *
  * newport_con.c: Abscon for newport hardware
  * 
  * (C) 1998 Thomas Bogendoerfer (tsbogend@alpha.franken.de)
+ *
+ * Optimized and fixed by Ulf Carlsson (ulfc@bun.falkenberg.se)
  * 
  * This driver is based on sgicons.c and cons_newport.
  * 
@@ -51,7 +53,8 @@ static int newport_ysize;
 #define TESTVAL 0xdeadbeef
 #define XSTI_TO_FXSTART(val) (((val) & 0xffff) << 11)
 
-static inline void newport_render_background(int xpos, int ypos, int ci)
+static inline void newport_render_background(int xstart, int ystart,
+					     int xend, int yend, int ci)
 {
     newport_wait();
     npregs->set.wrmask = 0xffffffff;
@@ -59,8 +62,8 @@ static inline void newport_render_background(int xpos, int ypos, int ci)
 			     NPORT_DMODE0_DOSETUP | NPORT_DMODE0_STOPX |
 			     NPORT_DMODE0_STOPY);
     npregs->set.colori = ci;
-    npregs->set.xystarti = (xpos << 16) | ((ypos + topscan) & 0x3ff);
-    npregs->go.xyendi = ((xpos + 7) << 16) | ((ypos + topscan + 15) & 0x3ff);
+    npregs->set.xystarti = (xstart << 16) | ((ystart + topscan) & 0x3ff);
+    npregs->go.xyendi = ((xend + 7) << 16) | ((yend + topscan + 15) & 0x3ff);
 }
 
 static inline void newport_init_cmap(void)
@@ -77,23 +80,23 @@ static inline void newport_init_cmap(void)
     }
 }
 
-static inline void newport_clear_screen(int xstart, int ystart, int xend, int yend)
-{
+static inline void newport_clear_screen(int xstart, int ystart, int xend,
+					int yend, int ci) {
     newport_wait();
     npregs->set.wrmask = 0xffffffff;
     npregs->set.drawmode0 = (NPORT_DMODE0_DRAW | NPORT_DMODE0_BLOCK |
 			     NPORT_DMODE0_DOSETUP | NPORT_DMODE0_STOPX |
 			     NPORT_DMODE0_STOPY);
-    npregs->set.colori = 0;
+    npregs->set.colori = ci;
     npregs->set.xystarti = (xstart << 16) | ystart;
     npregs->go.xyendi = (xend << 16) | yend;
 }
 
-static inline void newport_clear_lines(int ystart, int yend)
+static inline void newport_clear_lines(int ystart, int yend, int ci)
 {
     ystart = ((ystart << 4) + topscan) & 0x3ff;
     yend = ((yend << 4) + topscan + 15) & 0x3ff;    
-    newport_clear_screen (0, ystart, 1280+63, yend);
+    newport_clear_screen (0, ystart, 1280+63, yend, ci);
 }
 
 void newport_reset (void)
@@ -132,7 +135,7 @@ void newport_reset (void)
     npregs->cset.xywin = (4096 << 16) | 4096;
 
     /* Clear the screen. */
-    newport_clear_screen(0,0,1280+63,1024);
+    newport_clear_screen(0,0,1280+63,1024,0);
 }
 
 /*
@@ -272,10 +275,13 @@ static void newport_clear(struct vc_data *vc, int sy, int sx, int height, int wi
     int yend = (((sy + height) << 4) + topscan - 1) & 0x3ff;
     
     if (ystart < yend) {
-	newport_clear_screen(sx << 3, ystart, xend, yend);
+	newport_clear_screen(sx << 3, ystart, xend, yend,
+			     (vc->vc_color & 0xf0) >> 4);
     } else {
-	newport_clear_screen(sx << 3, ystart, xend, 1023);
-	newport_clear_screen(sx << 3, 0, xend, yend);
+	newport_clear_screen(sx << 3, ystart, xend, 1023,
+			     (vc->vc_color & 0xf0) >> 4);
+	newport_clear_screen(sx << 3, 0, xend, yend,
+			     (vc->vc_color & 0xf0) >> 4);
     }
 }
 
@@ -288,7 +294,8 @@ static void newport_putc(struct vc_data *vc, int charattr, int ypos, int xpos)
     xpos <<= 3;
     ypos <<= 4;
 
-    newport_render_background(xpos, ypos, (charattr & 0xf0) >> 4);
+    newport_render_background(xpos, ypos, xpos, ypos,
+			      (charattr & 0xf0) >> 4);
     
     /* Set the color and drawing mode. */
     newport_wait();
@@ -306,11 +313,42 @@ static void newport_putc(struct vc_data *vc, int charattr, int ypos, int xpos)
     RENDER(npregs, p);
 }
 
-static void newport_putcs(struct vc_data *vc, const unsigned short *s, int count,
-			  int ypos, int xpos)
+static void newport_putcs(struct vc_data *vc, const unsigned short *s,
+			  int count, int ypos, int xpos)
 {
-    while (count--)
-	newport_putc (vc, *s++, ypos, xpos++);
+    int i;
+    int charattr;
+    unsigned char *p; 
+
+    charattr = (*s >> 8) & 0xff;
+
+    xpos <<= 3;
+    ypos <<= 4;
+
+    /* Clear the area behing the string */
+    newport_render_background(xpos, ypos, xpos + ((count-1) << 3), ypos,
+			      (charattr & 0xf0) >> 4);
+
+    newport_wait();
+
+    /* Set the color and drawing mode. */
+    npregs->set.colori = charattr & 0xf;
+    npregs->set.drawmode0 = (NPORT_DMODE0_DRAW | NPORT_DMODE0_BLOCK |
+			     NPORT_DMODE0_STOPX | NPORT_DMODE0_ZPENAB |
+			     NPORT_DMODE0_L32);
+    
+    for (i = 0; i < count; i++, xpos += 8) {
+	p = &vga_font[(s[i] & 0xff) << 4];
+
+	newport_wait();
+
+	/* Set coordinates for bitmap operation. */
+	npregs->set.xystarti = (xpos << 16) | ((ypos + topscan) & 0x3ff);
+	npregs->set.xyendi = ((xpos + 7) << 16);
+
+	/* Go, baby, go... */
+	RENDER(npregs, p);
+    }
 }
 
 static void newport_cursor(struct vc_data *vc, int mode)
@@ -384,10 +422,11 @@ static int newport_scroll(struct vc_data *vc, int t, int b, int dir, int lines)
     if (t == 0 && b == vc->vc_rows) {
 	if (dir == SM_UP) {
 	    topscan = (topscan + (lines << 4)) & 0x3ff;
-	    newport_clear_lines (vc->vc_rows-lines,vc->vc_rows-1);		
+	    newport_clear_lines (vc->vc_rows-lines,vc->vc_rows-1,
+				 (vc->vc_color & 0xf0) >> 4);
 	} else {
 	    topscan = (topscan + (-lines << 4)) & 0x3ff;
-	    newport_clear_lines (0,lines-1);
+	    newport_clear_lines (0,lines-1, (vc->vc_color & 0xf0) >> 4);
 	}
 	npregs->cset.topscan = (topscan - 1) & 0x3ff;
 	return 0;
