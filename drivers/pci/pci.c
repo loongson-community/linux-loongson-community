@@ -1218,11 +1218,17 @@ static int __devinit pci_scan_bridge(struct pci_bus *bus, struct pci_dev * dev, 
 {
 	unsigned int buses;
 	unsigned short cr;
+	unsigned short bctl;
 	struct pci_bus *child;
 	int is_cardbus = (dev->hdr_type == PCI_HEADER_TYPE_CARDBUS);
 
 	pci_read_config_dword(dev, PCI_PRIMARY_BUS, &buses);
 	DBG("Scanning behind PCI bridge %s, config %06x, pass %d\n", dev->slot_name, buses & 0xffffff, pass);
+	/* Disable MasterAbortMode during probing to avoid reporting
+           of bus errors (in some architectures) */
+	pci_read_config_word(dev, PCI_BRIDGE_CONTROL, &bctl);
+	pci_write_config_word(dev, PCI_BRIDGE_CONTROL, 
+			      bctl & ~PCI_BRIDGE_CTL_MASTER_ABORT);
 	if ((buses & 0xffff00) && !pcibios_assign_all_busses()) {
 		/*
 		 * Bus already configured by firmware, process it in the first
@@ -1281,6 +1287,7 @@ static int __devinit pci_scan_bridge(struct pci_bus *bus, struct pci_dev * dev, 
 		pci_write_config_byte(dev, PCI_SUBORDINATE_BUS, max);
 		pci_write_config_word(dev, PCI_COMMAND, cr);
 	}
+	pci_write_config_word(dev, PCI_BRIDGE_CONTROL, bctl);
 	sprintf(child->name, (is_cardbus ? "PCI CardBus #%02x" : "PCI Bus #%02x"), child->number);
 
 	return max;
