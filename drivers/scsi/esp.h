@@ -534,7 +534,7 @@ extern int nesps, esps_in_use, esps_running;
 /* For our interrupt engine. */
 #define for_each_esp(esp) \
         for((esp) = espchain; (esp); (esp) = (esp)->next)
-
+extern void do_esp_intr(int irq, void *dev_id, struct pt_regs *pregs);
 
 /* External functions */
 extern struct Sparc_ESP *esp_allocate(Scsi_Host_Template *, void *);

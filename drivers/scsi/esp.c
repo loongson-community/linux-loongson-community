@@ -91,7 +91,7 @@ struct Sparc_ESP *espchain = 0;
 int nesps = 0, esps_in_use = 0, esps_running = 0;
 
 void esp_intr(int irq, void *dev_id, struct pt_regs *pregs);
-static void do_esp_intr(int irq, void *dev_id, struct pt_regs *pregs);
+void do_esp_intr(int irq, void *dev_id, struct pt_regs *pregs);
 
 /* Debugging routines */
 struct esp_cmdstrings {
@@ -3609,7 +3609,7 @@ esp_handle_done:
 	return;
 }
 
-static void do_esp_intr(int irq, void *dev_id, struct pt_regs *pregs)
+void do_esp_intr(int irq, void *dev_id, struct pt_regs *pregs)
 {
 	unsigned long flags;
 

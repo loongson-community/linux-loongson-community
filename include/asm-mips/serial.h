@@ -1,9 +1,10 @@
-/*
- * include/asm-mips/serial.h
+/* $Id: serial.h,v 1.1 1998/05/04 12:43:16 ralf Exp $
  *
- * $Id: serial.h,v 1.1 1998/05/04 12:43:16 ralf Exp $
+ * include/asm-mips/serial.h
  */
 #include <linux/config.h>
+#include <asm/bootinfo.h>
+#include <asm/jazz.h>
 
 /*
  * This assumes you have a 1.8432 MHz clock for your UART.
@@ -12,12 +13,11 @@
  * clock, since the 16550A is capable of handling a top speed of 1.5
  * megabits/second; but this requires the faster clock.
  */
-#ifdef CONFIG_MIPS_JAZZ
-/* XXX This doesn't seem to be true for all Jazz machines.  */
-#define JAZZ_BASE_BAUD ( 8000000 / 16 ) /* ( 3072000 / 16) */
-#else
 #define BASE_BAUD ( 1843200 / 16 )
-#endif
+
+/* Some Jazz machines seem to have an 8MHz crystal clock but I don't know
+   exactly which ones ... XXX */
+#define JAZZ_BASE_BAUD ( 8000000 / 16 ) /* ( 3072000 / 16) */
 
 /* Standard COM flags (except for COM4, because of the 8514 problem) */
 #ifdef CONFIG_SERIAL_DETECT_IRQ
@@ -34,7 +34,7 @@
 #define BOCA_FLAGS 0
 #define HUB6_FLAGS 0
 #endif
-	
+
 /*
  * The following define the access methods for the HUB6 card. All
  * access is through two ports for all 24 possible chips. The card is
@@ -54,9 +54,9 @@
 #ifdef CONFIG_MIPS_JAZZ
 #define JAZZ_SERIAL_PORT_DEFNS			\
 	/* UART CLK   PORT IRQ     FLAGS        */			\
-	{ 0, JAZZ_BASE_BAUD, JAZZ_SERIAL1_BASE,         /* ttyS0 */
-	  JAZZ_SERIAL1_IRQ, STD_COM_FLAGS },
-	{ 0, JAZZ_BASE_BAUD, JAZZ_SERIAL2_BASE,         /* ttyS1 */
+	{ 0, JAZZ_BASE_BAUD, JAZZ_SERIAL1_BASE,         /* ttyS0 */	\
+	  JAZZ_SERIAL1_IRQ, STD_COM_FLAGS },				\
+	{ 0, JAZZ_BASE_BAUD, JAZZ_SERIAL2_BASE,         /* ttyS1 */	\
 	  JAZZ_SERIAL2_IRQ, STD_COM_FLAGS },
 #else
 #define JAZZ_SERIAL_PORT_DEFNS
@@ -137,8 +137,8 @@
 #define MCA_SERIAL_PORT_DFNS
 #endif
 
-#define JAZZ_PORT_DFNS			\
-	SERIAL_PORT_DFNS		\
+#define SERIAL_PORT_DFNS		\
+	JAZZ_SERIAL_PORT_DEFNS		\
 	STD_SERIAL_PORT_DEFNS		\
 	EXTRA_SERIAL_PORT_DEFNS		\
 	HUB6_SERIAL_PORT_DFNS

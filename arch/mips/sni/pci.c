@@ -1,11 +1,12 @@
-/*
+/* $Id: pci.c,v 1.5 1998/05/07 02:57:22 ralf Exp $
+ *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
  * SNI specific PCI support for RM200/RM300.
  *
- * $Id: pci.c,v 1.5 1998/05/04 01:15:23 ralf Exp $
+ * Copyright (C) 1997, 1998 Ralf Baechle
  */
 #include <linux/config.h>
 #include <linux/pci.h>
@@ -25,8 +26,7 @@ do {                                                                         \
 	                                        (where  & 0xfc);             \
 } while(0);
 
-static unsigned long sni_rm200_pcibios_fixup (unsigned long memory_start,
-                                              unsigned long memory_end)
+static void sni_rm200_pcibios_fixup (void)
 {
 	/*
 	 * TODO: Fix PCI_INTERRUPT_LINE register for onboard cards.
@@ -35,8 +35,6 @@ static unsigned long sni_rm200_pcibios_fixup (unsigned long memory_start,
 	 */
 	pcibios_write_config_byte(0, PCI_DEVFN(1, 0), PCI_INTERRUPT_LINE,
 	                          PCIMT_IRQ_SCSI);
-
-	return memory_start;
 }
 
 /*

@@ -3008,20 +3008,6 @@ __initfunc(int rs_init(void))
 	dualsp_serial_init ();
 #endif
 
-	rs_table = rs_table_std;
-#ifdef __mips__
-	if (mips_machgroup == MACH_GROUP_JAZZ) {
-		rs_table = rs_table_jazz;
-		if (mips_machtype == MACH_OLIVETTI_M700) {
-			/*
-			 * Some jazz machines use the normal crystal, some
-			 * a different clock ...
-			 */
-			rs_table[0].baud_base = BASE_BAUD;
-			rs_table[1].baud_base = BASE_BAUD;
-		}
-	}
-#endif
 	init_bh(SERIAL_BH, do_serial_bh);
 	timer_table[RS_TIMER].fn = rs_timer;
 	timer_table[RS_TIMER].expires = 0;

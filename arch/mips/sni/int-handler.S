@@ -1,9 +1,8 @@
-/*
+/* $Id: int-handler.S,v 1.2 1997/12/01 17:57:40 ralf Exp $
+ *
  * SNI RM200 PCI specific interrupt handler code.
  *
  * Copyright (C) 1994 - 1997 by Ralf Baechle
- *
- * $Id: int-handler.S,v 1.3 1997/12/01 16:39:24 ralf Exp $
  */
 #include <asm/asm.h>
 #include <linux/config.h>
@@ -18,7 +17,6 @@
 		.align	5
 		NESTED(sni_rm200_pci_handle_int, PT_SIZE, sp)
 		SAVE_ALL
-		REG_S	sp,PT_OR2(sp)
 		CLI
 		.set	at
 

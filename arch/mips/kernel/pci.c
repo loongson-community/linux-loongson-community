@@ -1,9 +1,12 @@
-/*
+/* $Id$
+ *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
  * MIPS implementation of PCI BIOS services for PCI support.
+ *
+ * Copyright (C) 1997, 1998 Ralf Baechle
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -19,10 +22,8 @@ struct pci_ops *pci_ops;
 /*
  * BIOS32 replacement.
  */
-__initfunc(unsigned long pcibios_init(unsigned long memory_start,
-                                      unsigned long memory_end))
+__initfunc(void pcibios_init(void))
 {
-	return memory_start;
 }
 
 /*
@@ -39,10 +40,9 @@ int pcibios_present (void)
  * each PCI chipset configuration.  We just run the hook to the machine
  * specific implementation.
  */
-unsigned long pcibios_fixup (unsigned long memory_start,
-                             unsigned long memory_end)
+void pcibios_fixup (void)
 {
-	return pci_ops->pcibios_fixup(memory_start, memory_end);
+	return pci_ops->pcibios_fixup();
 }
 
 int pcibios_read_config_byte (unsigned char bus, unsigned char dev_fn,
