@@ -23,6 +23,7 @@
  * Motorola MC146818A-compatible Real Time Clock.
  *
  */
+#include <linux/spinlock.h>
 #include <linux/mc146818rtc.h>
 #include <asm/mips-boards/malta.h>
 
