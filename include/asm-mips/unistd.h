@@ -769,27 +769,27 @@
 #define __NR_statfs64			(__NR_Linux + 217)
 #define __NR_fstatfs64			(__NR_Linux + 218)
 #define __NR_sendfile64			(__NR_Linux + 219)
-#define __NR_timer_create		(__NR_Linux + 221)
-#define __NR_timer_settime		(__NR_Linux + 222)
-#define __NR_timer_gettime		(__NR_Linux + 223)
-#define __NR_timer_getoverrun		(__NR_Linux + 224)
-#define __NR_timer_delete		(__NR_Linux + 225)
-#define __NR_clock_settime		(__NR_Linux + 226)
-#define __NR_clock_gettime		(__NR_Linux + 227)
-#define __NR_clock_getres		(__NR_Linux + 228)
-#define __NR_clock_nanosleep		(__NR_Linux + 229)
-#define __NR_tgkill			(__NR_Linux + 230)
-#define __NR_utimes			(__NR_Linux + 231)
+#define __NR_timer_create		(__NR_Linux + 220)
+#define __NR_timer_settime		(__NR_Linux + 221)
+#define __NR_timer_gettime		(__NR_Linux + 222)
+#define __NR_timer_getoverrun		(__NR_Linux + 223)
+#define __NR_timer_delete		(__NR_Linux + 224)
+#define __NR_clock_settime		(__NR_Linux + 225)
+#define __NR_clock_gettime		(__NR_Linux + 226)
+#define __NR_clock_getres		(__NR_Linux + 227)
+#define __NR_clock_nanosleep		(__NR_Linux + 228)
+#define __NR_tgkill			(__NR_Linux + 229)
+#define __NR_utimes			(__NR_Linux + 230)
 
 /*
  * Offset of the last N32 flavoured syscall
  */
-#define __NR_Linux_syscalls		231
+#define __NR_Linux_syscalls		230
 
 #endif /* _MIPS_SIM == _MIPS_SIM_NABI32 */
 
 #define __NR_N32_Linux			6000
-#define __NR_N32_Linux_syscalls		231
+#define __NR_N32_Linux_syscalls		230
 
 #ifndef __ASSEMBLY__
 
