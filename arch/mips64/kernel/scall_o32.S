@@ -1,4 +1,4 @@
-/* $Id: scall_o32.S,v 1.9 2000/02/29 22:13:07 kanoj Exp $
+/* $Id: scall_o32.S,v 1.11 2000/03/17 22:42:13 kanoj Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -35,7 +35,7 @@ NESTED(handle_sys, PT_SIZE, sp)
 	SAVE_SOME
 	STI
 	.set	at
-#if 0
+#if 1
  SAVE_ALL
  ld	a1, PT_R2(sp)
  PRINT("Got syscall %d\n")
@@ -267,8 +267,8 @@ illegal_syscall:
 	sys	sys32_sigsuspend	0
 	sys	sys32_sigpending	1
 	sys	sys_sethostname	2
-	sys	sys_setrlimit	2			/* 4075 */
-	sys	sys_old_getrlimit	2
+	sys	sys32_setrlimit	2			/* 4075 */
+	sys	sys32_getrlimit	2
 	sys	sys_getrusage	2
 	sys	sys_gettimeofday 2
 	sys	sys_settimeofday 2
