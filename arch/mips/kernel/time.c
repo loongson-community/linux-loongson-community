@@ -5,6 +5,8 @@
  *
  * This file contains the time handling details for PC-style clocks as
  * found in some MIPS systems.
+ *
+ * $Id: time.c,v 1.2 1997/06/28 23:26:25 ralf Exp $
  */
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -134,8 +136,7 @@ void do_gettimeofday(struct timeval *tv)
 {
 	unsigned long flags;
 
-	save_flags(flags);
-	cli();
+	save_and_cli(flags);
 	*tv = xtime;
 	tv->tv_usec += do_gettimeoffset();
 

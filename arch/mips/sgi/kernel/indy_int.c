@@ -1,8 +1,10 @@
-/* $Id: indy_int.c,v 1.12 1996/08/07 02:54:11 dm Exp $
+/*
  * indy_int.c: Routines for generic manipulation of the INT[23] ASIC
  *             found on INDY workstations..
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
+ *
+ * $Id: indy_int.c,v 1.2 1997/06/28 23:27:29 ralf Exp $
  */
 #include <linux/config.h>
 
@@ -67,8 +69,7 @@ void disable_local_irq(unsigned int irq_nr)
 {
 	unsigned long flags;
 
-	save_flags(flags);
-	cli();
+	save_and_cli(flags);
 	switch(irq_nr) {
 	case 0: case 1: case 2: case 3: case 4: case 5: case 6: case 7:
 		ioc_icontrol->imask0 &= ~(1 << irq_nr);
@@ -95,8 +96,7 @@ void disable_local_irq(unsigned int irq_nr)
 void enable_local_irq(unsigned int irq_nr)
 {
 	unsigned long flags;
-	save_flags(flags);
-	cli();
+	save_and_cli(flags);
 	switch(irq_nr) {
 	case 0: case 1: case 2: case 3: case 4: case 5: case 6: case 7:
 		ioc_icontrol->imask0 |= (1 << irq_nr);
@@ -408,8 +408,7 @@ void free_irq(unsigned int irq, void *dev_id)
 			continue;
 
 		/* Found it - now free it */
-		save_flags(flags);
-		cli();
+		save_and_cli(flags);
 		*p = action->next;
 		restore_flags(flags);
 		kfree(action);
