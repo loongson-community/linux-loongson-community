@@ -86,9 +86,6 @@
 #define PRID_REV_TX3912 	0x0010
 #define PRID_REV_TX3922 	0x0030
 #define PRID_REV_TX3927 	0x0040
-#define PRID_REV_TX3927B 	0x0041
-#define PRID_REV_TX3927C 	0x0042
-#define PRID_REV_TX39H3TEG 	0x0050
 
 /*
  * FPU implementation/revision register (CP1 control register 0).
