@@ -1224,6 +1224,17 @@ CONFIG_ALGOR_P4032
   board uses the R4300 and a R5230 CPUs. For more information about
   this board see http://www.algor.co.uk.
 
+Support for BAGET MIPS series
+CONFIG_BAGET_MIPS
+  This enables support for the Baget, a Russian embedded system.  For 
+  more details about the Baget see the Linux/MIPS FAQ on 
+  http://www.linux.sgi.com.
+
+Support for DECstations
+CONFIG_DECSTATION
+  This enables support for DEC's MIPS based workstations.  For details
+  see the Linux/MIPS FAQ on http://www.linux.sgi.com.
+
 IDE card support
 CONFIG_BLK_DEV_IDE_CARDS
   On Acorn systems, enable this if you wish to use an IDE interface
@@ -1257,6 +1268,16 @@ CONFIG_OLIVETTI_M700
   the MIPS architecture, check out the Linux/MIPS FAQ on the WWW at
   http://lena.fnet.fr/ (To browse the WWW, you need to have access to
   a machine on the Internet that has a program like lynx or netscape).
+
+MIPS JAZZ onboard SONIC Ethernet support
+CONFIG_MIPS_JAZZ_SONIC
+  This is the driver for the onboard card of of MIPS Magnum 4000,
+  Acer PICA, Olivetti M700-10 and a few other identical OEM systems.
+
+MIPS JAZZ FAS216 SCSI support
+CONFIG_JAZZ_ESP
+  This is the driver for the onboard SCSI hostadapter of MIPS Magnum 4000,
+  Acer PICA, Olivetti M700-10 and a few other identical OEM systems.
 
 CPU type
 CONFIG_CPU_R3000
@@ -1522,6 +1543,15 @@ CONFIG_SERIAL_MULTIPORT
   servicing. Say Y here to enable the serial driver to take advantage
   of those special I/O ports.
 
+Support for SGI Indy
+CONFIG_SGI
+  Enable this if you want to compile a kernel for an Silicon Graphics 
+  Indy workstation.
+
+SGI PROM Console Support
+CONFIG_SGI_PROM_CONSOLE
+  Enable this if you want to use the PROMs for console I/O.
+
 SGI Zilog85C30 serial support
 CONFIG_SGI_SERIAL
   If you want to use your SGI's built-in serial ports under Linux,
@@ -1533,6 +1563,25 @@ CONFIG_SGI_NEWPORT_GFX
   drivers, say Y here. This will include the code for the
   /dev/graphics and /dev/gfx drivers into the kernel for supporting
   virtualized access to your graphics hardware.
+
+SGI Newport Console support
+CONFIG_SGI_NEWPORT_CONSOLE
+  Enable this if you want the console on the Newport aka XL graphics
+  card of your Indy.  Most people say Y here.
+
+SGI DS1286 RTC support
+CONFIG_SGI_DS1286
+  If you say Y here and create a character special file /dev/rtc with
+  major number 10 and minor number 135 using mknod ("man mknod"), you
+  will get access to the real time clock built into your computer.
+  Every SGI has such a clock built in.  It reports status information 
+  via the file /proc/rtc and its behaviour is set by various ioctls on 
+  /dev/rtc.
+
+SGI Vino Video For Linux (EXPERIMENTAL)
+CONFIG_SGI_VIDEO_VINO
+  Support for the SGI Vino Video hardware which is part of the Newport
+  aka XL graphics card.  Most people will say N here.
 
 Support the Bell Technologies HUB6 card
 CONFIG_HUB6

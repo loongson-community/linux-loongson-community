@@ -32,6 +32,7 @@
 #define fd_set_dma_mode(mode)	set_dma_mode(FLOPPY_DMA, (mode))
 #define fd_set_dma_addr(addr)	set_dma_addr(FLOPPY_DMA, virt_to_bus((addr)))
 #define fd_set_dma_count(len)	set_dma_count(FLOPPY_DMA, (len))
+#define fd_cacheflush(addr,sz)
 
 /* need to clean up dma.h */
 #define DMA_FLOPPYDISK		DMA_FLOPPY

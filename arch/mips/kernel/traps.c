@@ -1,4 +1,4 @@
-/* $Id: traps.c,v 1.19 1999/05/01 22:40:38 ralf Exp $
+/* $Id: traps.c,v 1.20 1999/06/13 16:30:34 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -340,7 +340,7 @@ void do_tr(struct pt_regs *regs)
 	/*
 	 * (A short test says that IRIX 5.3 sends SIGTRAP for all break
 	 * insns, even for break codes that indicate arithmetic failures.
-	 * Wiered ...)
+	 * Weird ...)
 	 */
 	force_sig(SIGTRAP, current);
 }

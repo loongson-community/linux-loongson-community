@@ -28,7 +28,7 @@ AR	=$(CROSS_COMPILE)ar
 NM	=$(CROSS_COMPILE)nm
 STRIP	=$(CROSS_COMPILE)strip
 OBJCOPY	=$(CROSS_COMPILE)objcopy
-OBJDUMP =$(CROSS_COMPILE)objdump
+OBJDUMP	=$(CROSS_COMPILE)objdump
 MAKE	=make
 GENKSYMS=/sbin/genksyms
 
@@ -193,10 +193,6 @@ endif
 
 ifeq ($(CONFIG_IRDA),y)
 DRIVERS := $(DRIVERS) drivers/net/irda/irda_drivers.a
-endif
-
-ifeq ($(CONFIG_TC),y)
-DRIVERS := $(DRIVERS) drivers/tc/tc.a
 endif
 
 include arch/$(ARCH)/Makefile
