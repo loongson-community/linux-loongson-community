@@ -7,6 +7,7 @@
 #define _ASM_PCI_H
 
 #include <linux/config.h>
+#include <linux/mm.h>
 
 #ifdef __KERNEL__
 
@@ -126,7 +127,7 @@ static inline dma_addr_t pci_map_single(struct pci_dev *hwdev, void *ptr,
 
 	dma_cache_wback_inv(addr, size);
 
-	return virt_to_bus(ptr);
+	return bus_to_baddr(hwdev->bus->number, __pa(ptr));
 }
 
 /*
@@ -146,8 +147,8 @@ static inline void pci_unmap_single(struct pci_dev *hwdev, dma_addr_t dma_addr,
 	if (direction != PCI_DMA_TODEVICE) {
 		unsigned long addr;
 
-		addr = bus_to_virt(baddr_to_bus(hwdev, dma_address));
-		dma_cache_back_inv(addr, size);
+		addr = baddr_to_bus(hwdev, dma_addr) + PAGE_OFFSET;
+		dma_cache_wback_inv(addr, size);
 	}
 }
 
@@ -175,7 +176,7 @@ static inline dma_addr_t pci_map_page(struct pci_dev *hwdev, struct page *page,
 	addr = (unsigned long) page_address(page) + offset;
 	dma_cache_wback_inv(addr, size);
 
-	return page_to_bus(page) + offset;
+	return bus_to_baddr(hwdev, page_to_phys(page) + offset);
 }
 
 static inline void pci_unmap_page(struct pci_dev *hwdev, dma_addr_t dma_address,
@@ -187,8 +188,8 @@ static inline void pci_unmap_page(struct pci_dev *hwdev, dma_addr_t dma_address,
 	if (direction != PCI_DMA_TODEVICE) {
 		unsigned long addr;
 
-		addr = bus_to_virt(baddr_to_bus(hwdev, dma_address));
-		dma_cache_back_inv(addr, size);
+		addr = baddr_to_bus(hwdev, dma_address) + PAGE_OFFSET;
+		dma_cache_wback_inv(addr, size);
 	}
 }
 
@@ -217,10 +218,13 @@ static inline int pci_map_sg(struct pci_dev *hwdev, struct scatterlist *sg,
 		BUG();
 
 	for (i = 0; i < nents; i++, sg++) {
-		dma_cache_wback_inv((unsigned long)page_address(sg->page),
-		                    sg->length);
-		sg->address = bus_to_baddr(hwdev->bus->number) +
-		              page_to_bus(sg->page) + sg->offset;
+		unsigned long addr;
+
+		addr = (unsigned long) page_address(sg->page);
+		if (addr)
+			dma_cache_wback_inv(addr, sg->length);
+		sg->dma_address = (dma_addr_t) bus_to_baddr(hwdev,
+			page_to_phys(sg->page) + sg->offset);
 	}
 
 	return nents;
@@ -243,14 +247,14 @@ static inline void pci_unmap_sg(struct pci_dev *hwdev, struct scatterlist *sg,
 		return;
 
 	for (i = 0; i < nents; i++, sg++) {
-		if (sg->address && sg->page)
-			out_of_line_bug();
-		else if (!sg->address && !sg->page)
-			out_of_line_bug();
+		unsigned long addr;
 
-		if (!sg->address)
-			continue;
-		dma_cache_wback_inv((unsigned long)sg->address, sg->length);
+		if (!sg->page)
+			BUG();
+
+		addr = (unsigned long) page_address(sg->page);
+		if (addr)
+			dma_cache_wback_inv(addr + sg->offset, sg->length);
 	}
 }
 
@@ -273,7 +277,7 @@ static inline void pci_dma_sync_single(struct pci_dev *hwdev,
 	if (direction == PCI_DMA_NONE)
 		BUG();
 
-	addr = dma_handle - bus_to_baddr(hwdev->bus->number) + PAGE_OFFSET;
+	addr = baddr_to_bus(hwdev, dma_handle) + PAGE_OFFSET;
 	dma_cache_wback_inv(addr, size);
 }
 
@@ -326,20 +330,20 @@ static inline int pci_dma_supported(struct pci_dev *hwdev, u64 mask)
 }
 
 /* This is always fine. */
-/* Well ...  this actually needs more thought ...  */
-#define pci_dac_dma_supported(pci_dev, mask)	(0)
+#define pci_dac_dma_supported(pci_dev, mask)	(1)
 
-#if 0
 static inline dma64_addr_t pci_dac_page_to_dma(struct pci_dev *pdev,
 	struct page *page, unsigned long offset, int direction)
 {
-	return ((dma64_addr_t) page_to_bus(page) + (dma64_addr_t) offset);
+	dma64_addr_t addr = page_to_phys(page) + offset;
+
+	return (dma64_addr_t) bus_to_baddr(hwdev->bus->number, addr);
 }
 
 static inline struct page *pci_dac_dma_to_page(struct pci_dev *pdev,
 	dma64_addr_t dma_addr)
 {
-	unsigned long poff = (dma_addr >> PAGE_SHIFT);
+	unsigned long poff = baddr_to_bus(hwdev, dma_addr) >> PAGE_SHIFT;
 
 	return mem_map + poff;
 }
@@ -353,9 +357,14 @@ static inline unsigned long pci_dac_dma_to_offset(struct pci_dev *pdev,
 static inline void pci_dac_dma_sync_single(struct pci_dev *pdev,
 	dma64_addr_t dma_addr, size_t len, int direction)
 {
-	/* Nothing to do. */
+	unsigned long addr;
+
+	if (direction == PCI_DMA_NONE)
+		BUG();
+
+	addr = baddr_to_bus(hwdev->bus->number, dma_addr) + PAGE_OFFSET;
+	dma_cache_wback_inv(addr, len);
 }
-#endif
 
 /*
  * Return the index of the PCI controller for device.

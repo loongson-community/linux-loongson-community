@@ -306,7 +306,7 @@ fi
 if [ "$CONFIG_SGI_IP27" = "y" ]; then
    define_bool CONFIG_BOOT_ELF64 y
    define_bool CONFIG_ARC64 y
-   define_bool CONFIG_MAPPED_PCI_IO y
+   #define_bool CONFIG_MAPPED_PCI_IO y
    define_bool CONFIG_PCI y
    define_bool CONFIG_QL_ISP_A64 y
    define_int CONFIG_L1_CACHE_SHIFT 7
@@ -317,7 +317,6 @@ if [ "$CONFIG_SGI_IP32" = "y" ]; then
    #define_bool CONFIG_BOARD_SCACHE y
    define_bool CONFIG_BOOT_ELF32 y
    define_int CONFIG_L1_CACHE_SHIFT 5
-   define_bool CONFIG_MAPPED_PCI_IO n
    define_bool CONFIG_NONCOHERENT_IO y
    define_bool CONFIG_PC_KEYB y
    define_bool CONFIG_PCI y
