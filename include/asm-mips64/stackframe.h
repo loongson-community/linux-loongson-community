@@ -11,6 +11,7 @@
 #define __ASM_STACKFRAME_H
 
 #include <linux/config.h>
+#include <linux/threads.h>
 
 #include <asm/asm.h>
 #include <asm/offset.h>
@@ -76,33 +77,23 @@
 		.endm
 
 #ifdef CONFIG_SMP
-		.macro	get_saved_sp	/* R10000 variation */
-#ifdef CONFIG_CPU_SB1
-		dmfc0	k1, CP0_WATCHLO
-#else
-		mfc0	k0, CP0_WATCHLO
-		mfc0	k1, CP0_WATCHHI
-		dsll32	k0, k0, 0	/* Get rid of sign extension */
-		dsrl32	k0, k0, 0	/* Get rid of sign extension */
-		dsll32	k1, k1, 0
-		or	k1, k1, k0
-		li	k0, K0BASE
-		or	k1, k1, k0
-#endif
+		.macro	get_saved_sp	/* SMP variation */
+		dmfc0	k1, CP0_CONTEXT
+		dsra	k1, 23
+		lui	k0, %hi(pgd_current)
+		daddiu	k0, %lo(pgd_current)
+		dsubu	k1, k0
+		lui	k0, %hi(kernelsp)
+		daddu	k1, k0
+		ld	k1, %lo(kernelsp)(k1)
 		.endm
 
-		.macro	set_saved_sp	stackp temp
-#ifdef CONFIG_CPU_SB1
-		dmtc0	\stackp, CP0_WATCHLO
-#else
-		mtc0	\stackp, CP0_WATCHLO
-		dsrl32	\temp, \stackp, 0
-		mtc0	\temp, CP0_WATCHHI
-#endif
-		.endm
-
-		.macro	declare_saved_sp
-		# empty, stackpointer stored in a register
+		.macro	set_saved_sp	stackp temp temp2
+		lw	\temp, TASK_PROCESSOR(gp)
+		dsll	\temp, 3
+		lui	\temp2, %hi(kernelsp)
+		daddu	\temp, \temp2
+		sd	\stackp, %lo(kernelsp)(\temp)
 		.endm
 #else
 		.macro	get_saved_sp	/* Uniprocessor variation */
@@ -110,14 +101,13 @@
 		ld	k1, %lo(kernelsp)(k1)
 		.endm
 
-		.macro	set_saved_sp	stackp temp
+		.macro	set_saved_sp	stackp temp temp2
 		sd	\stackp, kernelsp
 		.endm
-
-		.macro	declare_saved_sp
-		.comm	kernelsp, 8, 8			# current stackpointer
-		.endm
 #endif
+		.macro	declare_saved_sp
+		.comm	kernelsp, NR_CPUS * 8, 8
+		.endm
 
 		.macro	SAVE_SOME
 		.set	push
