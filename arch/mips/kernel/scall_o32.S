@@ -52,8 +52,7 @@ NESTED(handle_sys, PT_SIZE, sp)
 	subu	t0, s1, 5		# 5 or more arguments?
 	bgezal	t0, stackargs
 
-	GET_CURRENT(s3)			# syscall tracing enabled?
-	lw	s3, TASK_FLAGS(s3)
+	lw	s3, TASK_FLAGS($28)	# syscall tracing enabled?
 	andi	s3, PF_TRACESYS
 	bnez	s3, trace_a_syscall
 
@@ -150,7 +149,7 @@ sigill_and_out:
 	li	t0, -1				# not a sys call
 	REG_S	t0, PT_OR2(sp)
 	li	a0, SIGILL
-	GET_CURRENT(a2)
+	move	a2, $28
 	jal	force_sig
 	j	ret_from_sys_call
 	END(handle_sys)

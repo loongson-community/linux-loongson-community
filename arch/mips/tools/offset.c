@@ -4,7 +4,7 @@
  * Copyright (C) 1996 David S. Miller
  * Made portable by Ralf Baechle
  *
- * $Id: offset.c,v 1.3 1997/12/01 17:57:41 ralf Exp $
+ * $Id: offset.c,v 1.4 1997/12/16 05:34:45 ralf Exp $
  */
 
 #include <linux/types.h>
@@ -98,7 +98,6 @@ void output_thread_defines(void)
 	offset("#define THREAD_REG21   ", struct task_struct, tss.reg21);
 	offset("#define THREAD_REG22   ", struct task_struct, tss.reg22);
 	offset("#define THREAD_REG23   ", struct task_struct, tss.reg23);
-	offset("#define THREAD_REG28   ", struct task_struct, tss.reg28);
 	offset("#define THREAD_REG29   ", struct task_struct, tss.reg29);
 	offset("#define THREAD_REG30   ", struct task_struct, tss.reg30);
 	offset("#define THREAD_REG31   ", struct task_struct, tss.reg31);

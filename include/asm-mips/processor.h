@@ -5,7 +5,7 @@
  * written by Ralf Baechle
  * Modified further for R[236]000 compatibility by Paul M. Antoine
  *
- * $Id: processor.h,v 1.5 1998/03/17 22:16:15 ralf Exp $
+ * $Id: processor.h,v 1.6 1998/03/22 23:27:19 ralf Exp $
  */
 #ifndef __ASM_MIPS_PROCESSOR_H
 #define __ASM_MIPS_PROCESSOR_H
@@ -92,7 +92,7 @@ struct thread_struct {
         /* Saved main processor registers. */
         unsigned long reg16 __attribute__ ((aligned (8)));
 	unsigned long reg17, reg18, reg19, reg20, reg21, reg22, reg23;
-        unsigned long reg28, reg29, reg30, reg31;
+        unsigned long reg29, reg30, reg31;
 
 	/* Saved cp0 stuff. */
 	unsigned long cp0_status;
@@ -124,7 +124,7 @@ struct thread_struct {
          * saved main processor registers \
          */ \
 	0, 0, 0, 0, 0, 0, 0, 0, \
-	            0, 0, 0, 0, \
+	               0, 0, 0, \
 	/* \
 	 * saved cp0 stuff \
 	 */ \

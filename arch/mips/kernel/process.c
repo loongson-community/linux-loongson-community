@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1994 - 1998 by Ralf Baechle and others.
  *
- * $Id: process.c,v 1.6 1998/03/21 22:37:05 ralf Exp $
+ * $Id: process.c,v 1.5 1998/03/22 23:27:13 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/errno.h>
@@ -84,6 +84,7 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 		regs->regs[3] = 0;
 	}
 	if (childregs->cp0_status & ST0_CU0) {
+		childregs->regs[28] = p;
 		childregs->regs[29] = childksp;
 		p->tss.current_ds = KERNEL_DS;
 	} else {

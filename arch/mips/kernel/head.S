@@ -8,7 +8,7 @@
  *
  *  Head.S contains the MIPS exception handler and startup code.
  *
- * $Id: head.S,v 1.10 1997/11/13 12:55:29 ralf Exp $
+ * $Id: head.S,v 1.5 1997/12/01 17:57:27 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/tasks.h>
@@ -441,9 +441,10 @@ probe_done:
 	 nop	
 
 	/*
-	 * Stack for kernel and init
+	 * Stack for kernel and init, current variable
 	 */
-9:	la	t0, init_task_union+KERNEL_STACK_SIZE-32
+9:	la	$28, init_task_union
+	addiu	t0, $28, KERNEL_STACK_SIZE-32
 	sw	t0, kernelsp
 	subu	sp, t0, 4*SZREG
 

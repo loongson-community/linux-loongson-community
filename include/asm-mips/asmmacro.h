@@ -1,4 +1,4 @@
-/* $Id: asmmacro.h,v 1.4 1996/06/29 12:41:13 dm Exp $
+/* $Id: asmmacro.h,v 1.1.1.1 1997/06/01 03:17:13 ralf Exp $
  * asmmacro.h: Assembler macros to make things easier to read.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
@@ -94,7 +94,6 @@
 	sw	s5, THREAD_REG21(thread); \
 	sw	s6, THREAD_REG22(thread); \
 	sw	s7, THREAD_REG23(thread); \
-	sw	gp, THREAD_REG28(thread); \
 	sw	sp, THREAD_REG29(thread); \
 	sw	fp, THREAD_REG30(thread);
 
@@ -107,7 +106,6 @@
 	lw	s5, THREAD_REG21(thread); \
 	lw	s6, THREAD_REG22(thread); \
 	lw	s7, THREAD_REG23(thread); \
-	lw	gp, THREAD_REG28(thread); \
 	lw	sp, THREAD_REG29(thread); \
 	lw	fp, THREAD_REG30(thread); \
 	lw	ra, THREAD_REG31(thread);

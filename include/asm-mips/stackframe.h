@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 1994, 1995, 1996 by Ralf Baechle and Paul M. Antoine.
  *
- * $Id: stackframe.h,v 1.4 1998/03/21 08:01:09 ralf Exp $
+ * $Id: stackframe.h,v 1.4 1998/03/22 23:27:19 ralf Exp $
  */
 #ifndef __ASM_MIPS_STACKFRAME_H
 #define __ASM_MIPS_STACKFRAME_H
@@ -68,6 +68,8 @@
 		sw	$28, PT_R28(sp);                 \
 		sw	$30, PT_R30(sp);                 \
 		sw	$31, PT_R31(sp);                 \
+		ori	$28, sp, 0x1fff;                 \
+		xori	$28, 0x1fff;                     \
 		.set	pop
 
 /*
