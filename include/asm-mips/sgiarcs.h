@@ -464,7 +464,7 @@ struct linux_smonblock {
 	long __vec = (long) romvec->dest;				\
 	__asm__ __volatile__(						\
 	"dsubu\t$29, 32\n\t"						\
-	"sw\t%6, 16($29)\n\t"						\
+	"sw\t%7, 16($29)\n\t"						\
 	"jalr\t%1\n\t"							\
 	"daddu\t$29, 32\n\t"						\
 	"move\t%0, $2"							\

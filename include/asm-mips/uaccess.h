@@ -509,8 +509,7 @@ extern size_t __copy_user(void *__to, const void *__from, size_t __n);
 	".set\tnoat\n\t"						\
 	__UA_ADDU "\t$1, %1, %2\n\t"					\
 	".set\tat\n\t"							\
-	".set\treorder\n\t"						\
-	"move\t%0, $6"		/* XXX */				\
+	".set\treorder"							\
 	: "+r" (__cu_to_r), "+r" (__cu_from_r), "+r" (__cu_len_r)	\
 	:								\
 	: "$8", "$9", "$10", "$11", "$12", "$15", "$24", "$31",		\
