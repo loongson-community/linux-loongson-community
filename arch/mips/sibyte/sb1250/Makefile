@@ -1,0 +1,10 @@
+
+#all: sb1250.a
+O_TARGET := sb1250.o
+
+obj-y := setup.o irq.o irq_handler.o time.o pci.o lib_hssubr.o
+
+obj-$(CONFIG_SMP) += smp.o
+obj-$(CONFIG_BCM1250_TBPROF) += bcm1250_tbprof.o
+
+include $(TOPDIR)/Rules.make
