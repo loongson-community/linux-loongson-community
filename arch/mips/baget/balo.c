@@ -40,27 +40,29 @@ static volatile enum balo_state_enum {
 
 static __inline__ void reset_and_jump(int start, int mem_upper)
 {
+	unsigned long tmp;
+
 	__asm__ __volatile__(
                 ".set\tnoreorder\n\t"
                 ".set\tnoat\n\t"
-                "mfc0\t$1,$12\n\t"
+                "mfc0\t$1, $12\n\t"
                 "nop\n\t"
                 "nop\n\t"
                 "nop\n\t"
-                "ori\t$1,$1,0xff00\n\t"
-                "xori\t$1,$1,0xff00\n\t"
-                "mtc0\t$1,$12\n\t"
+                "ori\t$1, $1, 0xff00\n\t"
+                "xori\t$1, $1, 0xff00\n\t"
+                "mtc0\t$1, $12\n\t"
                 "nop\n\t"
                 "nop\n\t"
                 "nop\n\t"
-		"move\t$4,%1\n\t"
-		"jr\t%0\n\t"
+		"move\t%0, %2\n\t"
+		"jr\t%1\n\t"
 		"nop\n\t"
                 ".set\tat\n\t"
                 ".set\treorder"           
-                : /* no outputs */
-                :"Ir" (start), "Ir" (mem_upper)
-                :"$1", "$4", "memory");
+                : "=&r" (tmp)
+                : "Ir" (start), "Ir" (mem_upper)
+                : "memory");
 }
 
 static void start_kernel(void)
