@@ -1,4 +1,4 @@
-/* $Id: tpqic02.c,v 1.10 1997/01/26 07:13:20 davem Exp $
+/* $Id: tpqic02.c,v 1.1.1.1 1997/06/01 03:17:28 ralf Exp $
  *
  * Driver for tape drive support for Linux-i386
  *
@@ -134,8 +134,8 @@ static volatile struct mtget ioctl_status;	/* current generic status */
 
 static volatile struct tpstatus tperror;	/* last drive status */
 
-static char rcs_revision[] = "$Revision: 1.10 $";
-static char rcs_date[] = "$Date: 1997/01/26 07:13:20 $";
+static char rcs_revision[] = "$Revision: 1.1.1.1 $";
+static char rcs_date[] = "$Date: 1997/06/01 03:17:28 $";
 
 /* Flag bits for status and outstanding requests.
  * (Could all be put in one bit-field-struct.)
@@ -1712,8 +1712,7 @@ static void qic02_tape_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 } /* qic02_tape_interrupt */
 
 
-static long long qic02_tape_lseek(struct inode * inode, struct file * file,
-				  long long offset, int origin)
+static long long qic02_tape_lseek(struct file * file, long long offset, int origin)
 {
 	return -EINVAL;	/* not supported */
 } /* qic02_tape_lseek */

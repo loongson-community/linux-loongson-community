@@ -797,10 +797,11 @@ static struct arp_table * arp_alloc(int how)
 
 	entry = (struct arp_table *)neigh_alloc(sizeof(struct arp_table),
 						&arp_neigh_ops);
-	atomic_set(&entry->u.neigh.refcnt, 1);
 
 	if (entry != NULL)
 	{
+		atomic_set(&entry->u.neigh.refcnt, 1);
+
 		if (how)
 			atomic_inc(&arp_size);
 
@@ -1265,7 +1266,7 @@ void arp_send(int type, int ptype, u32 dest_ip,
 	arp = (struct arphdr *) skb_put(skb,sizeof(struct arphdr) + 2*(dev->addr_len+4));
 	skb->arp = 1;
 	skb->dev = dev;
-	skb->protocol = htons (ETH_P_IP);
+	skb->protocol = htons (ETH_P_ARP);
 
 	/*
 	 *	Fill the device header for the ARP frame

@@ -93,7 +93,7 @@ extern int max_files, nr_files;
 /*
  * Flags that can be altered by MS_REMOUNT
  */
-#define MS_RMT_MASK (MS_RDONLY|MS_MANDLOCK|MS_NOATIME)
+#define MS_RMT_MASK (MS_RDONLY|MS_NOSUID|MS_NODEV|MS_NOEXEC|MS_SYNCHRONOUS|MS_MANDLOCK|MS_NOATIME)
 
 /*
  * Magic mount flag number. Has to be or-ed to the flag values.
@@ -369,6 +369,11 @@ static inline void mark_inode_dirty(struct inode *inode)
 		__mark_inode_dirty(inode);
 }
 
+struct fown_struct {
+	int pid;		/* pid or -pgrp where SIGIO should be sent */
+	uid_t uid, euid;	/* uid/euid of process setting the owner */
+};
+
 struct file {
 	struct file		*f_next, **f_pprev;
 	struct dentry		*f_dentry;
@@ -377,9 +382,7 @@ struct file {
 	loff_t			f_pos;
 	unsigned short 		f_count, f_flags;
 	unsigned long 		f_reada, f_ramax, f_raend, f_ralen, f_rawin;
-
-	/* pid or -pgrp where SIGIO should be sent */
-	int 			f_owner;
+	struct fown_struct	f_owner;
 
 	unsigned long		f_version;
 
@@ -471,7 +474,7 @@ struct fasync_struct {
 
 #define FASYNC_MAGIC 0x4601
 
-extern int fasync_helper(struct inode *, struct file *, int, struct fasync_struct **);
+extern int fasync_helper(struct file *, int, struct fasync_struct **);
 
 #include <linux/minix_fs_sb.h>
 #include <linux/ext2_fs_sb.h>
@@ -533,20 +536,20 @@ struct super_block {
 typedef int (*filldir_t)(void *, const char *, int, off_t, ino_t);
 	
 struct file_operations {
-	long long (*llseek) (struct inode *, struct file *, long long, int);
+	long long (*llseek) (struct file *, long long, int);
 	long (*read) (struct inode *, struct file *, char *, unsigned long);
 	long (*write) (struct inode *, struct file *, const char *, unsigned long);
 	int (*readdir) (struct file *, void *, filldir_t);
 	unsigned int (*poll) (struct file *, poll_table *);
 	int (*ioctl) (struct inode *, struct file *, unsigned int, unsigned long);
-	int (*mmap) (struct inode *, struct file *, struct vm_area_struct *);
+	int (*mmap) (struct file *, struct vm_area_struct *);
 	int (*open) (struct inode *, struct file *);
 	int (*release) (struct inode *, struct file *);
-	int (*fsync) (struct inode *, struct file *);
-	int (*fasync) (struct inode *, struct file *, int);
+	int (*fsync) (struct file *, struct dentry *);
+	int (*fasync) (struct file *, int);
 	int (*check_media_change) (kdev_t dev);
 	int (*revalidate) (kdev_t dev);
-	int (*lock) (struct inode *, struct file *, int, struct file_lock *);
+	int (*lock) (struct file *, int, struct file_lock *);
 };
 
 struct inode_operations {
@@ -787,7 +790,7 @@ extern struct buffer_head * breada(kdev_t dev,int block, int size,
 extern int brw_page(int, struct page *, kdev_t, int [], int, int);
 
 extern int generic_readpage(struct inode *, struct page *);
-extern int generic_file_mmap(struct inode *, struct file *, struct vm_area_struct *);
+extern int generic_file_mmap(struct file *, struct vm_area_struct *);
 extern long generic_file_read(struct inode *, struct file *, char *, unsigned long);
 extern long generic_file_write(struct inode *, struct file *, const char *, unsigned long);
 
@@ -812,8 +815,8 @@ extern int read_ahead[];
 extern long char_write(struct inode *, struct file *, const char *, unsigned long);
 extern long block_write(struct inode *, struct file *, const char *, unsigned long);
 
-extern int block_fsync(struct inode *, struct file *);
-extern int file_fsync(struct inode *, struct file *);
+extern int block_fsync(struct file *, struct dentry *dir);
+extern int file_fsync(struct file *, struct dentry *dir);
 
 extern void dcache_add(struct inode *, const char *, int, unsigned long);
 extern int dcache_lookup(struct inode *, const char *, int, unsigned long *);

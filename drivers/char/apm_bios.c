@@ -13,7 +13,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  *
- * $Id: apm_bios.c,v 1.1.1.1 1997/06/01 03:17:29 ralf Exp $
+ * $Id: apm_bios.c,v 1.2 1997/09/12 01:31:41 ralf Exp $
  *
  * October 1995, Rik Faith (faith@cs.unc.edu):
  *    Minor enhancements and updates (to the patch set) for 1.3.x
@@ -958,7 +958,7 @@ static int do_open(struct inode * inode, struct file * filp)
 
 	as = (struct apm_bios_struct *)kmalloc(sizeof(*as), GFP_KERNEL);
 	if (as == NULL) {
-		printk(KERN_ERR "apm_bios: cannot allocate struct of size %d bytes",
+		printk(KERN_ER "apm_bios: cannot allocate struct of size %d bytes",
 		       sizeof(*as));
 		return -ENOMEM;
 	}

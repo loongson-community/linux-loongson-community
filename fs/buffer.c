@@ -107,7 +107,7 @@ union bdflush_param{
 		int dummy3;    /* unused */
 	} b_un;
 	unsigned int data[N_PARAM];
-} bdf_prm = {{60, 500, 64, 256, 15, 30*HZ, 5*HZ, 1884, 2}};
+} bdf_prm = {{40, 500, 64, 256, 15, 30*HZ, 5*HZ, 1884, 2}};
 
 /* These are the min and max parameter values that we will allow to be assigned */
 int bdflush_min[N_PARAM] = {  0,  10,    5,   25,  0,   100,   100, 1, 1};
@@ -282,9 +282,13 @@ asmlinkage int sys_sync(void)
 	return 0;
 }
 
-int file_fsync (struct inode *inode, struct file *filp)
+/*
+ *	filp may be NULL if called via the msync of a vma.
+ */
+ 
+int file_fsync(struct file *filp, struct dentry *dentry)
 {
-	return fsync_dev(inode->i_dev);
+	return fsync_dev(dentry->d_inode->i_dev);
 }
 
 asmlinkage int sys_fsync(unsigned int fd)
@@ -316,7 +320,10 @@ asmlinkage int sys_fsync(unsigned int fd)
 	if (!file->f_op || !file->f_op->fsync)
 		goto out;
 
-	err = file->f_op->fsync(inode,file);
+	/* We need to protect against concurrent writers.. */
+	down(&inode->i_sem);
+	err = file->f_op->fsync(file, file->f_dentry);
+	up(&inode->i_sem);
 
 out:
 	unlock_kernel();
@@ -353,7 +360,7 @@ asmlinkage int sys_fdatasync(unsigned int fd)
 		goto out;
 
 	/* this needs further work, at the moment it is identical to fsync() */
-	err = file->f_op->fsync(inode,file);
+	err = file->f_op->fsync(file, file->f_dentry);
 
 out:
 	unlock_kernel();

@@ -50,6 +50,7 @@ struct dentry {
 	struct qstr d_name;
 	unsigned long d_time;		/* used by d_revalidate */
 	struct dentry_operations  *d_op;
+	struct super_block * d_sb;	/* The root of the dentry tree */
 };
 
 struct dentry_operations {
@@ -102,8 +103,10 @@ extern void d_delete(struct dentry *);
 
 /* allocate/de-allocate */
 extern struct dentry * d_alloc(struct dentry * parent, const struct qstr *name);
-extern void shrink_dcache(void);
+extern void prune_dcache(int);
 extern int d_invalidate(struct dentry *);
+
+#define shrink_dcache() prune_dcache(0)
 
 /* only used at mount-time */
 extern struct dentry * d_alloc_root(struct inode * root_inode, struct dentry * old_root);

@@ -1,4 +1,4 @@
-/* $Id: isdn_common.c,v 1.2 1997/06/03 09:24:18 ralf Exp $
+/* $Id: isdn_common.c,v 1.3 1997/09/12 01:31:49 ralf Exp $
 
  * Linux ISDN subsystem, common used functions (linklevel).
  *
@@ -21,6 +21,10 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  * $Log: isdn_common.c,v $
+ * Revision 1.3  1997/09/12 01:31:49  ralf
+ * Merge with Linux 2.1.55.  More bugfixes and goodies from my private
+ * CVS archive.
+ *
  * Revision 1.2  1997/06/03 09:24:18  ralf
  * Sync with Linux 2.1.42.
  *
@@ -221,7 +225,7 @@
 
 isdn_dev *dev = (isdn_dev *) 0;
 
-static char *isdn_revision = "$Revision: 1.2 $";
+static char *isdn_revision = "$Revision: 1.3 $";
 
 extern char *isdn_net_revision;
 extern char *isdn_tty_revision;
@@ -925,8 +929,7 @@ isdn_read(struct inode *inode, struct file *file, char *buf, RWARG count)
 	return -ENODEV;
 }
 
-static LSTYPE
-isdn_lseek(struct inode *inode, struct file *file, LSARG offset, int orig)
+static LSTYPE isdn_lseek(struct file *file, LSARG offset, int orig)
 {
 	return -ESPIPE;
 }

@@ -3502,7 +3502,7 @@ static int floppy_release(struct inode * inode, struct file * filp)
 	if (!filp || (filp->f_mode & (2 | OPEN_WRITE_BIT)))
 		/* if the file is mounted OR (writable now AND writable at
 		 * open time) Linus: Does this cover all cases? */
-		block_fsync(inode,filp);
+		block_fsync(filp, filp->f_dentry);
 
 	if (UDRS->fd_ref < 0)
 		UDRS->fd_ref=0;
@@ -3864,6 +3864,9 @@ static struct param_table {
 	{ "allowed_drive_mask", 0, &allowed_drive_mask, 0xff, 0}, /* obsolete */
 	{ "all_drives", 0, &allowed_drive_mask, 0xff, 0 }, /* obsolete */
 	{ "asus_pci", 0, &allowed_drive_mask, 0x33, 0},
+
+	{ "irq", 0, &FLOPPY_IRQ, 6, 0 },
+	{ "dma", 0, &FLOPPY_DMA, 2, 0 },
 
 	{ "daring", daring, 0, 1, 0},
 

@@ -5,7 +5,7 @@
  *	Authors:
  *	Pedro Roque		<roque@di.fc.ul.pt>	
  *
- *	$Id: route.c,v 1.1.1.1 1997/06/01 03:16:27 ralf Exp $
+ *	$Id: route.c,v 1.2 1997/08/06 19:16:57 miguel Exp $
  *
  *	This program is free software; you can redistribute it and/or
  *      modify it under the terms of the GNU General Public License
@@ -733,6 +733,25 @@ int ip6_del_rt(struct rt6_info *rt)
 
 int ip6_route_del(struct in6_rtmsg *rtmsg)
 {
+	struct rt6_info *rt;
+	struct device *dev=NULL;
+
+	/*
+	 *	Find device
+	 */
+	if(rtmsg->rtmsg_ifindex)
+		dev=dev_get_by_index(rtmsg->rtmsg_ifindex);
+	/*
+	 *	Find route
+	 */
+	rt=rt6_lookup(&rtmsg->rtmsg_dst, &rtmsg->rtmsg_src, dev, rtmsg->rtmsg_flags);
+	
+	/*
+	 *	Blow it away
+	 */
+	if(rt)
+		ip6_del_rt(rt);
+
 	return 0;
 }
 
