@@ -12,13 +12,6 @@
 #define _ASM_PROCESSOR_H
 
 #include <linux/config.h>
-
-/*
- * Return current * instruction pointer ("program counter").
- */
-#define current_text_addr() ({ __label__ _l; _l: &&_l;})
-
-#ifndef __ASSEMBLY__
 #include <linux/cache.h>
 #include <linux/threads.h>
 
@@ -26,7 +19,7 @@
 #include <asm/mipsregs.h>
 #include <asm/system.h>
 
-#if defined(CONFIG_SGI_IP27)
+#ifdef CONFIG_SGI_IP27
 #include <asm/sn/types.h>
 #include <asm/sn/intr_public.h>
 #endif
@@ -124,6 +117,11 @@ extern struct cpuinfo_mips cpu_data[];
 
 extern void cpu_probe(void);
 extern void cpu_report(void);
+
+/*
+ * Return current * instruction pointer ("program counter").
+ */
+#define current_text_addr() ({ __label__ _l; _l: &&_l;})
 
 /*
  * System setup and hardware flags..
@@ -250,8 +248,6 @@ struct thread_struct {
 #define MF_N32		MF_32BIT_ADDR
 #define MF_N64		0
 
-#endif /* !__ASSEMBLY__ */
-
 #define INIT_THREAD  { \
         /* \
          * saved main processor registers \
@@ -277,7 +273,6 @@ struct thread_struct {
 }
 
 #ifdef __KERNEL__
-#ifndef __ASSEMBLY__
 
 struct task_struct;
 
@@ -306,7 +301,6 @@ unsigned long get_wchan(struct task_struct *p);
 
 #define cpu_relax()	barrier()
 
-#endif /* !__ASSEMBLY__ */
 #endif /* __KERNEL__ */
 
 /*
