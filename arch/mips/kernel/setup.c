@@ -479,7 +479,6 @@ void __init setup_arch(char **cmdline_p)
 	void ikos_setup(void);
 	void momenco_ocelot_setup(void);
 	void momenco_ocelot_g_setup(void);
-	void nino_setup(void);
 	void nec_osprey_setup(void);
 	void nec_eagle_setup(void);
 	void zao_capcella_setup(void);
@@ -633,11 +632,6 @@ void __init setup_arch(char **cmdline_p)
 	case  MACH_GROUP_ITE:
 	case  MACH_GROUP_GLOBESPAN:
 		it8172_setup();
-		break;
-#endif
-#ifdef CONFIG_NINO
-	case MACH_GROUP_PHILIPS:
-		nino_setup();
 		break;
 #endif
 #ifdef CONFIG_LASAT

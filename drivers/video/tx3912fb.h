@@ -14,9 +14,6 @@
 /*
  * Begin platform specific configurations
  */
-#if defined(CONFIG_NINO_4MB) || defined(CONFIG_NINO_8MB)
-#define FB_X_RES       240
-#define FB_Y_RES       320
 #if defined(CONFIG_FBCON_CFB4)
 #define FB_BPP         4
 #else
@@ -28,15 +25,6 @@
 #endif
 #define FB_IS_GREY     1
 #define FB_IS_INVERSE  0
-#endif
-
-#ifdef CONFIG_NINO_16MB
-#define FB_X_RES       240
-#define FB_Y_RES       320
-#define FB_BPP         8
-#define FB_IS_GREY     0
-#define FB_IS_INVERSE  0
-#endif
 
 /*
  * Define virtual resolutions if necessary

@@ -277,12 +277,6 @@ core-$(CONFIG_TANBAC_TB0229)	+= arch/mips/vr41xx/tanbac-tb0229/
 load-$(CONFIG_TANBAC_TB0229)	+= 0x80000000
 
 #
-# Philips Nino
-#
-core-$(CONFIG_NINO)		+= arch/mips/philips/nino/
-load-$(CONFIG_NINO)		+= 0x80000000
-
-#
 # SGI IP22 (Indy/Indigo2)
 #
 # Set the load address to >= 0x88069000 if you want to leave space for symmon,
