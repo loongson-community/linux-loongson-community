@@ -41,7 +41,7 @@
 /* Ze Big Kernel Lock! */
 spinlock_t kernel_flag = SPIN_LOCK_UNLOCKED;
 int smp_threads_ready;
-int smp_num_cpus;    			/* Number that came online.  */
+int smp_num_cpus = 1;			/* Number that came online.  */
 cpumask_t cpu_online_map;		/* Bitmask of currently online CPUs */
 int global_irq_holder = NO_PROC_ID;
 spinlock_t global_irq_lock = SPIN_LOCK_UNLOCKED;
