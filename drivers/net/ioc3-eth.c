@@ -33,7 +33,6 @@
  *
  * To do:
  *
- *  - ioc3_set_multicast_list() should use the hash filter when possible.
  *  - ioc3_close() should attempt to shutdown the adapter somewhat more
  *    gracefully. 
  *  - Free rings and buffers when closing or before re-initializing rings.
@@ -80,6 +79,7 @@ static void ioc3_set_multicast_list(struct net_device *dev);
 static int ioc3_open(struct net_device *dev);
 static int ioc3_start_xmit(struct sk_buff *skb, struct net_device *dev);
 static int ioc3_close(struct net_device *dev);
+static inline unsigned int ioc3_hash(const unsigned char *addr);
 
 static const char ioc3_str[] = "IOC3 Ethernet";
 
@@ -780,6 +780,7 @@ ioc3_init(struct ioc3_private *p, struct pci_dev *dev)
 #endif
 	panic(__FUNCTION__" has been called.\n");
 }
+#endif
 
 /*
  * Given a multicast ethernet address, this routine calculates the
@@ -787,14 +788,15 @@ ioc3_init(struct ioc3_private *p, struct pci_dev *dev)
  */
 #define CRC_MASK        0xEDB88320
 
-static int
-ioc3_lafhash(u_char *addr, int len)
+static inline unsigned int
+ioc3_hash(const unsigned char *addr)
 {
-	unsigned int crc;
-	unsigned char byte;
-	int bits;
 	unsigned int temp = 0;
+	unsigned char byte;
+	unsigned int crc;
+	int bits, len;
 
+	len = ETH_ALEN;
 	for (crc = ~0; --len >= 0; addr++) {
 		byte = *addr;
 		for (bits = 8; --bits >= 0; ) {
@@ -815,36 +817,46 @@ ioc3_lafhash(u_char *addr, int len)
 
 	return temp;
 }
-#endif
 
 static void ioc3_set_multicast_list(struct net_device *dev)
 {
+	struct dev_mc_list *dmi = dev->mc_list;
+	char *addr = dmi->dmi_addr;
 	struct ioc3_private *p;
 	struct ioc3 *ioc3;
-	u32 emcr;
+	u64 ehar = 0;
+	int i;
 
 	p = dev->priv;
 	ioc3 = p->regs;
 
-	emcr = ioc3->emcr & ~EMCR_PROMISC;
 	if (dev->flags & IFF_PROMISC) {			/* Set promiscuous.  */
 		/* Unconditionally log net taps.  */
 		printk(KERN_INFO "%s: Promiscuous mode enabled.\n", dev->name);
-		emcr |= EMCR_PROMISC;
-		ioc3->emcr = emcr;
-	} else if ((dev->mc_count > 128) || (dev->flags & IFF_ALLMULTI)) {
-		/* Too many for hashing to make sense, skip computing all the
-		   hashes and just accept all packets.  */
-		ioc3->ehar_h = ioc3->ehar_l = 0xffffffff;
+		ioc3->emcr |= EMCR_PROMISC;
+		ioc3->emcr;
 	} else {
-		/* This is cheating but at least it works for now ...  */
-		if (dev->mc_count) {
-			printk(KERN_DEBUG "%s: Yikes, implement "
-			       "ioc3_set_multicast_list for real.\n",
-			       dev->name);
-			ioc3->ehar_h = ioc3->ehar_l = 0xffffffff;
-		} else
-			ioc3->ehar_h = ioc3->ehar_l = 0;
+		ioc3->emcr &= ~EMCR_PROMISC;		/* Clear promiscuous. */
+		ioc3->emcr;
+
+		if ((dev->flags & IFF_ALLMULTI) || (dev->mc_count > 64)) {
+			/* Too many for hashing to make sense or we want all
+			   multicast packets anyway,  so skip computing all the
+			   hashes and just accept all packets.  */
+			ioc3->ehar_h = 0xffffffff;
+			ioc3->ehar_l = 0xffffffff;
+		} else {
+			for (i = 0; i < dev->mc_count; i++) {
+				dmi = dmi->next;
+
+				if (!(*addr & 1))
+					continue;
+
+				ehar |= (1 << ioc3_hash(addr));
+			}
+			ioc3->ehar_h = ehar >> 32;
+			ioc3->ehar_l = ehar & 0xffffffff;
+		}
 	}
 }
 
