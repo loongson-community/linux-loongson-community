@@ -1,4 +1,4 @@
-/* $Id: fault.c,v 1.6 2000/02/18 00:24:31 ralf Exp $
+/* $Id: fault.c,v 1.7 2000/03/13 22:43:25 kanoj Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -59,7 +59,7 @@ do_page_fault(struct pt_regs *regs, unsigned long write, unsigned long address)
 	 */
 	if (in_interrupt() || mm == &init_mm)
 		goto no_context;
-#if 0
+#if DEBUG_MIPS64
 	printk("[%s:%d:%08lx:%ld:%08lx]\n", current->comm, current->pid,
 	       address, write, regs->cp0_epc);
 #endif

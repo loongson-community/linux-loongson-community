@@ -35,7 +35,7 @@ NESTED(handle_sys, PT_SIZE, sp)
 	SAVE_SOME
 	STI
 	.set	at
-#if 0
+#if DEBUG_MIPS64
  SAVE_ALL
  ld	a1, PT_R2(sp)
  PRINT("Got syscall %d\n")

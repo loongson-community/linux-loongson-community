@@ -236,7 +236,10 @@ sys32_sigreturn(abi64_no_regargs, struct pt_regs regs)
 {
 	struct sigframe *frame;
 	sigset_t blocked;
+
+#if DEBUG_MIPS64
 printk("%s called.\n", __FUNCTION__);
+#endif
 
 	frame = (struct sigframe *) regs.regs[29];
 	if (!access_ok(VERIFY_READ, frame, sizeof(*frame)))
@@ -554,7 +557,10 @@ asmlinkage int do_signal32(sigset_t *oldset, struct pt_regs *regs)
 {
 	struct k_sigaction *ka;
 	siginfo_t info;
+
+#if DEBUG_MIPS64
 printk("%s: delivering signal.\n", current->comm);
+#endif
 
 	if (!oldset)
 		oldset = &current->blocked;
@@ -655,7 +661,9 @@ printk("%s: delivering signal.\n", current->comm);
 		if (regs->regs[0])
 			syscall_restart(regs, ka);
 		/* Whee!  Actually deliver the signal.  */
+#if DEBUG_MIPS64
 printk("%s: delivering signal.\n", __FUNCTION__);
+#endif
 		handle_signal(signr, ka, &info, oldset, regs);
 		return 1;
 	}
