@@ -65,7 +65,24 @@ static inline void spin_unlock(spinlock_t *lock)
 	: "memory");
 }
 
-#define spin_trylock(lock) (!test_and_set_bit(0,(lock)))
+static inline unsigned int spin_trylock(spinlock_t *lock)
+{
+	unsigned int temp, res;
+
+	__asm__ __volatile__(
+	".set\tnoreorder\t\t\t# spin_trylock\n\t"
+	"1:\tll\t%0, %1\n\t"
+	"or\t%2, %0, %3\n\t"
+	"sc\t%2, %1\n\t"
+	"beqz\t%2, 1b\n\t"
+	" and\t%2, %0, %3\n\t"
+	".set\treorder"
+	:"=&r" (temp), "=m" (*lock), "=&r" (res)
+	:"r" (1), "m" (*lock)
+	: "memory");
+
+	return res == 0;
+}
 
 /*
  * Read-write spinlocks, allowing multiple readers but only one writer.
