@@ -126,9 +126,6 @@ else
 64bit-bfd = elf64-bigmips
 endif
 
-$(TOPDIR)/include/asm/offset.h:
-	$(MAKE) -C arch/$(ARCH)/tools
-
 vmlinux.64: vmlinux
 	$(OBJCOPY) -O $(64bit-bfd) --change-addresses=0xa7ffffff80000000 $< $@
 

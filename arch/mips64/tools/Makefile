@@ -13,7 +13,7 @@ TARGET	:= $(TOPDIR)/include/asm-$(ARCH)/offset.h
 .S.o:
 	$(CC) $(CFLAGS) -c $< -o $*.o
 
-all: $(TARGET)
+fastdep: $(TARGET)
 
 $(TARGET): offset.h
 	cmp -s $^ $@ || (cp $^ $(TARGET).new && mv $(TARGET).new $(TARGET))
@@ -25,5 +25,7 @@ offset.s: offset.c
 
 clean:
 	rm -f offset.[hs] $(TARGET).new
+	rm $(TARGET)
+	touch $(TARGET)
 
 include $(TOPDIR)/Rules.make
