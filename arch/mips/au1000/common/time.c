@@ -202,11 +202,11 @@ void __init au1x_time_init(void)
 {
         unsigned int est_freq;
 
-	printk("calculating r4koff... ");
+	printk("au1x calculating r4koff... ");
+	printk("HZ %d\n", HZ);
 	r4k_offset = cal_r4koff();
 	printk("%08lx(%d)\n", r4k_offset, (int) r4k_offset);
 
-	//est_freq = 2*r4k_offset*HZ;
 	est_freq = r4k_offset*HZ;
 	est_freq += 5000;    /* round */
 	est_freq -= est_freq%10000;

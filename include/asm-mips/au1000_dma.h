@@ -229,7 +229,7 @@ static __inline__ void init_dma(unsigned int dmanr)
 	disable_dma(dmanr);
 
 	// set device FIFO address
-	au_writel(PHYSADDR(chan->fifo_addr),
+	au_writel(CPHYSADDR(chan->fifo_addr),
 		  chan->io + DMA_PERIPHERAL_ADDR);
 
 	mode = chan->mode | (chan->dev_id << DMA_DID_BIT);
@@ -290,7 +290,7 @@ static __inline__ void set_dma_fifo_addr(unsigned int dmanr,
 	if (chan->dev_id != DMA_ID_GP04 && chan->dev_id != DMA_ID_GP05)
 		return;
 
-	au_writel(PHYSADDR(a), chan->io + DMA_PERIPHERAL_ADDR);
+	au_writel(CPHYSADDR(a), chan->io + DMA_PERIPHERAL_ADDR);
 }
 
 /*

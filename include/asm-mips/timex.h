@@ -34,6 +34,8 @@
 #define CLOCK_TICK_RATE		1000000
 #elif defined(CONFIG_SNI_RM200_PCI)
 #define CLOCK_TICK_RATE		1193182
+#elif defined(CONFIG_SOC_AU1X00)
+#define CLOCK_TICK_RATE         ((HZ * 100000UL) / 2)
 #endif
 
 /*

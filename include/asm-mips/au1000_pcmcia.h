@@ -104,6 +104,8 @@ struct pcmcia_low_level {
 extern struct pcmcia_low_level pb1x00_pcmcia_ops;
 #elif defined(CONFIG_MIPS_DB1000) || defined(CONFIG_MIPS_DB1100) || defined(CONFIG_MIPS_DB1500)
 extern struct pcmcia_low_level db1x00_pcmcia_ops;
+#elif defined(CONFIG_MIPS_XXS1500)
+extern struct pcmcia_low_level xxs1500_pcmcia_ops;
 #else
 error unknown Au1000 board
 #endif

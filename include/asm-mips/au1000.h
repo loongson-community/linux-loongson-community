@@ -35,6 +35,8 @@
 #ifndef _AU1000_H_
 #define _AU1000_H_
 
+#ifndef _LANGUAGE_ASSEMBLY
+
 #include <linux/delay.h>
 #include <asm/io.h>
 
@@ -86,6 +88,47 @@ static inline u32 au_readl(unsigned long port)
 	return (*(volatile u32 *)port);
 }
 
+/* These next three functions should be a generic part of the MIPS
+ * kernel (with the 'au_' removed from the name) and selected for
+ * processors that support the instructions.
+ * Taken from PPC tree.  -- Dan
+ */
+/* Return the bit position of the most significant 1 bit in a word */
+static __inline__ int __ilog2(unsigned int x)
+{
+	int lz;
+
+	asm volatile (
+		".set\tnoreorder\n\t"
+		".set\tnoat\n\t"
+		".set\tmips32\n\t"
+		"clz\t%0,%1\n\t"
+		".set\tmips0\n\t"
+		".set\tat\n\t"
+		".set\treorder"
+		: "=r" (lz)
+		: "r" (x));
+
+	return 31 - lz;
+}
+
+static __inline__ int au_ffz(unsigned int x)
+{
+	if ((x = ~x) == 0)
+		return 32;
+	return __ilog2(x & -x);
+}
+
+/*
+ * ffs: find first bit set. This is defined the same way as
+ * the libc and compiler builtin ffs routines, therefore
+ * differs in spirit from the above ffz (man ffs).
+ */
+static __inline__ int au_ffs(int x)
+{
+	return __ilog2(x & -x) + 1;
+}
+
 /* arch/mips/au1000/common/clocks.c */
 extern void set_au1x00_speed(unsigned int new_freq);
 extern unsigned int get_au1x00_speed(void);
@@ -93,6 +136,22 @@ extern void set_au1x00_uart_baud_base(unsigned long new_baud_base);
 extern unsigned long get_au1x00_uart_baud_base(void);
 extern void set_au1x00_lcd_clock(void);
 extern unsigned int get_au1x00_lcd_clock(void);
+
+/*
+ * Every board describes its IRQ mapping with this table.
+ */
+typedef struct au1xxx_irqmap {
+	int	im_irq;
+	int	im_type;
+	int	im_request;
+} au1xxx_irq_map_t;
+
+/*
+ * init_IRQ looks for a table with this name.
+ */
+extern au1xxx_irq_map_t au1xxx_irq_map[];
+
+#endif /* !defined (_LANGUAGE_ASSEMBLY) */
 
 #ifdef CONFIG_PM
 /* no CP0 timer irq */
@@ -319,8 +378,6 @@ extern unsigned int get_au1x00_lcd_clock(void);
 #define AU1100_SD		2
 #define	AU1100_GPIO_208_215	29
 // REDEFINE SECONDARY GPIO BLOCK INTO IC1 CONTROLLER HERE
-
-
 
 /* Programmable Counters 0 and 1 */
 #define SYS_BASE                   0xB1900000
@@ -840,9 +897,9 @@ extern unsigned int get_au1x00_lcd_clock(void);
 /* GPIO2, Au1500 only */
 #define GPIO2_BASE                0xB1700000
 #define GPIO2_DIR                 (GPIO2_BASE + 0)
-#define GPIO2_DATA_EN             (GPIO2_BASE + 8)
-#define GPIO2_PIN_STATE           (GPIO2_BASE + 0xC)
-#define GPIO2_INT_ENABLE          (GPIO2_BASE + 0x10)
+#define GPIO2_OUTPUT              (GPIO2_BASE + 8)
+#define GPIO2_PINSTATE            (GPIO2_BASE + 0xC)
+#define GPIO2_INTENABLE           (GPIO2_BASE + 0x10)
 #define GPIO2_ENABLE              (GPIO2_BASE + 0x14)
 
 /* Power Management */
@@ -983,7 +1040,7 @@ extern unsigned int get_au1x00_lcd_clock(void);
 #define Au1500_PCI_IO_START       0x500000000
 #define Au1500_PCI_IO_END         0x5000FFFFF
 #define Au1500_PCI_MEM_START      0x440000000
-#define Au1500_PCI_MEM_END        0x443FFFFFF
+#define Au1500_PCI_MEM_END        0x44FFFFFFF
 
 #define PCI_IO_START    (Au1500_PCI_IO_START + 0x300)
 #define PCI_IO_END      (Au1500_PCI_IO_END)
@@ -992,9 +1049,27 @@ extern unsigned int get_au1x00_lcd_clock(void);
 #define PCI_FIRST_DEVFN (0<<3)
 #define PCI_LAST_DEVFN  (19<<3)
 
-#endif
+#define IOPORT_RESOURCE_START 0x00000000
+#define IOPORT_RESOURCE_END   0xffffffff
+#define IOMEM_RESOURCE_START  0x10000000
+#define IOMEM_RESOURCE_END    0xffffffff
 
-#if defined(CONFIG_SOC_AU1100) || (defined(CONFIG_SOC_AU1000) && !defined(CONFIG_MIPS_PB1000))
+#else /* Au1000 and Au1100 */
+
+/* don't allow any legacy ports probing */
+#define IOPORT_RESOURCE_START 0x10000000;
+#define IOPORT_RESOURCE_END   0xffffffff
+#define IOMEM_RESOURCE_START  0x10000000
+#define IOMEM_RESOURCE_END    0xffffffff
+
+#ifdef CONFIG_MIPS_PB1000
+#define PCI_IO_START      0x10000000
+#define PCI_IO_END        0x1000ffff
+#define PCI_MEM_START     0x18000000
+#define PCI_MEM_END       0x18ffffff
+#define PCI_FIRST_DEVFN   0
+#define PCI_LAST_DEVFN    1
+#else
 /* no PCI bus controller */
 #define PCI_IO_START    0
 #define PCI_IO_END      0
@@ -1002,6 +1077,14 @@ extern unsigned int get_au1x00_lcd_clock(void);
 #define PCI_MEM_END     0 
 #define PCI_FIRST_DEVFN 0
 #define PCI_LAST_DEVFN  0
+#endif
+
+#endif
+
+#if defined(CONFIG_SOC_AU1000) || defined(CONFIG_SOC_AU1500)
+#define NUM_ETH_INTERFACES 2
+#elif defined(CONFIG_SOC_AU1100)
+#define NUM_ETH_INTERFACES 1
 #endif
 
 #endif

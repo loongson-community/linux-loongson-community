@@ -1,9 +1,9 @@
 /*
  *
  * BRIEF MODULE DESCRIPTION
- *	PB1000 board setup
+ *	XXS1500 board setup
  *
- * Copyright 2001 MontaVista Software Inc.
+ * Copyright 2003 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
  *         	ppopov@mvista.com or source@mvista.com
  *
@@ -46,11 +46,7 @@ extern char *prom_getenv(char *envname);
 
 const char *get_system_type(void)
 {
-#ifdef CONFIG_MIPS_BOSPORUS
-	return "Alchemy Bosporus Gateway Reference";
-#else
-	return "Alchemy Db1x00";
-#endif
+	return "XXS1500";
 }
 
 int __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
@@ -63,7 +59,7 @@ int __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
 	prom_envp = envp;
 
 	mips_machgroup = MACH_GROUP_ALCHEMY;
-	mips_machtype = MACH_DB1000;	/* set the platform # */   
+	mips_machtype = MACH_XXS1500;	/* set the platform # */   
 	prom_init_cmdline();
 
 	memsize_str = prom_getenv("memsize");

@@ -1,7 +1,7 @@
 /*
  *
  * BRIEF MODULE DESCRIPTION
- *	Alchemy Pb1000 board setup.
+ *	Alchemy Au1x00 board setup.
  *
  * Copyright 2000 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
@@ -35,24 +35,19 @@
 #include <linux/console.h>
 #include <linux/mc146818rtc.h>
 #include <linux/delay.h>
-#include <linux/major.h>
-#include <linux/kdev_t.h>
-#include <linux/root_dev.h>
 
 #include <asm/cpu.h>
-#include <asm/time.h>
 #include <asm/bootinfo.h>
 #include <asm/irq.h>
+#include <asm/keyboard.h>
 #include <asm/mipsregs.h>
 #include <asm/reboot.h>
 #include <asm/pgtable.h>
 #include <asm/au1000.h>
-#include <asm/pb1500.h>
 
-#ifdef CONFIG_USB_OHCI
-// Enable the workaround for the OHCI DoneHead
-// register corruption problem.
-#define CONFIG_AU1000_OHCI_FIX
+#if defined(CONFIG_AU1X00_SERIAL_CONSOLE)
+extern void console_setup(char *, int *);
+char serial_console[20];
 #endif
 
 #ifdef CONFIG_BLK_DEV_INITRD
@@ -65,76 +60,90 @@ extern struct ide_ops std_ide_ops;
 extern struct ide_ops *ide_ops;
 #endif
 
-#ifdef CONFIG_RTC
-extern struct rtc_ops pb1500_rtc_ops;
-#endif
-
+extern struct rtc_ops no_rtc_ops;
 extern char * __init prom_getcmdline(void);
-extern void __init au1x_time_init(void);
-extern void __init au1x_timer_setup(struct irqaction *irq);
+extern void __init board_setup(void);
 extern void au1000_restart(char *);
 extern void au1000_halt(void);
 extern void au1000_power_off(void);
 extern struct resource ioport_resource;
 extern struct resource iomem_resource;
-#ifdef CONFIG_64BIT_PHYS_ADDR
+extern void (*board_time_init)(void);
+extern void au1x_time_init(void);
+extern void (*board_timer_setup)(struct irqaction *irq);
+extern void au1x_timer_setup(struct irqaction *irq);
+#if defined(CONFIG_64BIT_PHYS_ADDR) && defined(CONFIG_SOC_AU1500)
 extern phys_t (*fixup_bigphys_addr)(phys_t phys_addr, phys_t size);
-static phys_t pb1500_fixup_bigphys_addr(phys_t phys_addr, phys_t size);
+static phys_t au1500_fixup_bigphys_addr(phys_t phys_addr, phys_t size);
 #endif
-
 
 void __init au1x00_setup(void)
 {
 	char *argptr;
-	u32 pin_func, static_cfg0;
-	u32 sys_freqctrl, sys_clksrc;
+
+	/* Various early Au1000 Errata corrected by this */
+	set_c0_config(1<<19); /* Config[OD] */
+
+	board_setup();  /* board specific setup */
 
 	argptr = prom_getcmdline();
 
-	/* NOTE: The memory map is established by YAMON 2.08+ */
-
-	/* Various early Au1500 Errata corrected by this */
-	set_c0_config(1<<19); /* Config[OD] */
-
-	board_time_init = au1x_time_init;
-	board_timer_setup = au1x_timer_setup;
-
-#ifdef CONFIG_SERIAL_AU1X00_CONSOLE
+#ifdef CONFIG_AU1X00_SERIAL_CONSOLE
 	if ((argptr = strstr(argptr, "console=")) == NULL) {
 		argptr = prom_getcmdline();
 		strcat(argptr, " console=ttyS0,115200");
 	}
+#endif	  
+
+#ifdef CONFIG_FB_AU1100
+    if ((argptr = strstr(argptr, "video=")) == NULL) {
+        argptr = prom_getcmdline();
+        /* default panel */
+        //strcat(argptr, " video=au1100fb:panel:Sharp_320x240_16");
+        strcat(argptr, " video=au1100fb:panel:s10,nohwcursor");
+    }
 #endif
 
-#ifdef CONFIG_SOUND_AU1X00
+#ifdef CONFIG_FB_E1356
+	if ((argptr = strstr(argptr, "video=")) == NULL) {
+		argptr = prom_getcmdline();
+		strcat(argptr, " video=e1356fb:system:pb1500");
+	}
+#endif
+
+#ifdef CONFIG_FB_XPERT98
+	if ((argptr = strstr(argptr, "video=")) == NULL) {
+		argptr = prom_getcmdline();
+		strcat(argptr, " video=atyfb:1024x768-8@70");
+	}
+#endif
+
+#if defined(CONFIG_SOUND_AU1X00) && !defined(CONFIG_SOC_AU1000)
+	// au1000 does not support vra, au1500 and au1100 do
 	strcat(argptr, " au1000_audio=vra");
 	argptr = prom_getcmdline();
 #endif
-
 	_machine_restart = au1000_restart;
 	_machine_halt = au1000_halt;
 	_machine_power_off = au1000_power_off;
-#ifdef CONFIG_64BIT_PHYS_ADDR
-	fixup_bigphys_addr = pb1500_fixup_bigphys_addr;
+	board_time_init = au1x_time_init;
+	board_timer_setup = au1x_timer_setup;
+#if defined(CONFIG_64BIT_PHYS_ADDR) && defined(CONFIG_SOC_AU1500)
+	fixup_bigphys_addr = au1500_fixup_bigphys_addr;
 #endif
 
-	// IO/MEM resources.
+	// IO/MEM resources. 
 	set_io_port_base(0);
-	ioport_resource.start = 0x00000000;
-	ioport_resource.end = 0xffffffff;
-	iomem_resource.start = 0x10000000;
-	iomem_resource.end = 0xffffffff;
+	ioport_resource.start = IOPORT_RESOURCE_START;
+	ioport_resource.end = IOPORT_RESOURCE_END;
+	iomem_resource.start = IOMEM_RESOURCE_START;
+	iomem_resource.end = IOMEM_RESOURCE_END;
 
 #ifdef CONFIG_BLK_DEV_INITRD
-	ROOT_DEV = Root_RAM0;
+	ROOT_DEV = MKDEV(RAMDISK_MAJOR, 0);
 	initrd_start = (unsigned long)&__rd_start;
 	initrd_end = (unsigned long)&__rd_end;
 #endif
-
-	// set AUX clock to 12MHz * 8 = 96 MHz
-	au_writel(8, SYS_AUXPLL);
-	au_writel(0, SYS_PINSTATERD);
-	udelay(100);
 
 #if defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1X00_USB_DEVICE)
 #ifdef CONFIG_USB_OHCI
@@ -148,104 +157,25 @@ void __init au1x00_setup(void)
 	}
 #endif
 
-	/* GPIO201 is input for PCMCIA card detect */
-	/* GPIO203 is input for PCMCIA interrupt request */
-	au_writel(au_readl(GPIO2_DIR) & (u32)(~((1<<1)|(1<<3))), GPIO2_DIR);
-
-	/* zero and disable FREQ2 */
-	sys_freqctrl = au_readl(SYS_FREQCTRL0);
-	sys_freqctrl &= ~0xFFF00000;
-	au_writel(sys_freqctrl, SYS_FREQCTRL0);
-
-	/* zero and disable USBH/USBD clocks */
-	sys_clksrc = au_readl(SYS_CLKSRC);
-	sys_clksrc &= ~0x00007FE0;
-	au_writel(sys_clksrc, SYS_CLKSRC);
-
-	sys_freqctrl = au_readl(SYS_FREQCTRL0);
-	sys_freqctrl &= ~0xFFF00000;
-
-	sys_clksrc = au_readl(SYS_CLKSRC);
-	sys_clksrc &= ~0x00007FE0;
-
-	// FREQ2 = aux/2 = 48 MHz
-	sys_freqctrl |= ((0<<22) | (1<<21) | (1<<20));
-	au_writel(sys_freqctrl, SYS_FREQCTRL0);
-
-	/*
-	 * Route 48MHz FREQ2 into USB Host and/or Device
-	 */
-#ifdef CONFIG_USB_OHCI
-	sys_clksrc |= ((4<<12) | (0<<11) | (0<<10));
-#endif
-#ifdef CONFIG_AU1X00_USB_DEVICE
-	sys_clksrc |= ((4<<7) | (0<<6) | (0<<5));
-#endif
-	au_writel(sys_clksrc, SYS_CLKSRC);
-
-
-	pin_func = au_readl(SYS_PINFUNC) & (u32)(~0x8000);
-#ifndef CONFIG_AU1X00_USB_DEVICE
-	// 2nd USB port is USB host
-	pin_func |= 0x8000;
-#endif
-	au_writel(pin_func, SYS_PINFUNC);
-#endif // defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1X00_USB_DEVICE)
-
-
 #ifdef CONFIG_USB_OHCI
 	// enable host controller and wait for reset done
 	au_writel(0x08, USB_HOST_CONFIG);
 	udelay(1000);
-	au_writel(0x0c, USB_HOST_CONFIG);
+	au_writel(0x0E, USB_HOST_CONFIG);
 	udelay(1000);
-	au_readl(USB_HOST_CONFIG);
+	au_readl(USB_HOST_CONFIG); // throw away first read
 	while (!(au_readl(USB_HOST_CONFIG) & 0x10))
-	    ;
-	au_readl(USB_HOST_CONFIG);
+		au_readl(USB_HOST_CONFIG);
 #endif
+#endif // defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1X00_USB_DEVICE)
 
 #ifdef CONFIG_FB
+	// Needed if PCI video card in use
 	conswitchp = &dummy_con;
 #endif
 
-#ifdef CONFIG_FB_E1356
-	if ((argptr = strstr(argptr, "video=")) == NULL) {
-		argptr = prom_getcmdline();
-		strcat(argptr, " video=e1356fb:system:pb1500");
-	}
-#elif defined (CONFIG_FB_XPERT98)
-	if ((argptr = strstr(argptr, "video=")) == NULL) {
-		argptr = prom_getcmdline();
-		strcat(argptr, " video=atyfb:1024x768-8@70");
-	}
-#endif // CONFIG_FB_E1356
-
-#ifndef CONFIG_SERIAL_AU1X00_CONSOLE
-	/* don't touch the default serial console */
-	au_writel(0, UART0_ADDR + UART_CLK);
-#endif
-	au_writel(0, UART3_ADDR + UART_CLK);
-
 #ifdef CONFIG_BLK_DEV_IDE
 	ide_ops = &std_ide_ops;
-#endif
-
-#ifdef CONFIG_PCI
-	// Setup PCI bus controller
-	au_writel(0, Au1500_PCI_CMEM);
-	au_writel(0x00003fff, Au1500_CFG_BASE);
-#if defined(__MIPSEB__)
-	au_writel(0xf | (2<<6) | (1<<4), Au1500_PCI_CFG);
-#else
-	au_writel(0xf, Au1500_PCI_CFG);
-#endif
-	au_writel(0xf0000000, Au1500_PCI_MWMASK_DEV);
-	au_writel(0, Au1500_PCI_MWBASE_REV_CCL);
-	au_writel(0x02a00356, Au1500_PCI_STATCMD);
-	au_writel(0x00003c04, Au1500_PCI_HDRTYPE);
-	au_writel(0x00000008, Au1500_PCI_MBAR);
-	au_sync();
 #endif
 
 	while (au_readl(SYS_COUNTER_CNTRL) & SYS_CNTRL_E0S);
@@ -253,28 +183,11 @@ void __init au1x00_setup(void)
 	au_sync();
 	while (au_readl(SYS_COUNTER_CNTRL) & SYS_CNTRL_T0S);
 	au_writel(0, SYS_TOYTRIM);
-
-	/* Enable BCLK switching */
-	au_writel(0x00000060, 0xb190003c);
-
-#ifdef CONFIG_RTC
-	rtc_ops = &pb1500_rtc_ops;
-	// Enable the RTC if not already enabled
-	if (!(au_readl(0xac000028) & 0x20)) {
-		printk("enabling clock ...\n");
-		au_writel((au_readl(0xac000028) | 0x20), 0xac000028);
-	}
-	// Put the clock in BCD mode
-	if (readl(0xac00002C) & 0x4) { /* reg B */
-		au_writel(au_readl(0xac00002c) & ~0x4, 0xac00002c);
-		au_sync();
-	}
-#endif
 }
 
-#ifdef CONFIG_64BIT_PHYS_ADDR
-static phys_t pb1500_fixup_bigphys_addr(phys_t phys_addr,
-					phys_t size)
+#if defined(CONFIG_64BIT_PHYS_ADDR) && defined(CONFIG_SOC_AU1500)
+/* This routine should be valid for all Au1500 based boards */
+static phys_t au1500_fixup_bigphys_addr(phys_t phys_addr, phys_t size)
 {
 	u32 pci_start = (u32)Au1500_PCI_MEM_START;
 	u32 pci_end = (u32)Au1500_PCI_MEM_END;

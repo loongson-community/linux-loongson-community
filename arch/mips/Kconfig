@@ -349,7 +349,7 @@ config SOC_AU1500
 endchoice
 
 choice  
-        prompt "AMD/Alchemy Pb1x and Db1x board support"
+        prompt "AMD/Alchemy Au1x00 board support"
         depends on SOC_AU1X00
 	help
 	  These are evaluation boards built by AMD/Alchemy to
@@ -381,6 +381,22 @@ config MIPS_DB1100
 
 config MIPS_DB1500
 	bool "DB1500 board"
+	depends on SOC_AU1500
+
+config MIPS_BOSPORUS
+	bool "Bosporus board"
+	depends on SOC_AU1500
+
+config MIPS_MIRAGE
+	bool "Mirage board"
+	depends on SOC_AU1500
+
+config MIPS_XXS1500
+	bool "MyCable XXS1500 board"
+	depends on SOC_AU1500
+
+config MIPS_MTX1
+	bool "4G Systems MTX-1 board"
 	depends on SOC_AU1500
 
 endchoice

@@ -158,11 +158,74 @@ load-$(CONFIG_MIPS_JAZZ)	+= 0x80080000
 
 
 #
-# Au1500 (Alchemy Semi PB1500) eval board
+# AMD Alchemy Pb1000 eval board
+#
+core-$(CONFIG_MIPS_PB1000)	+= arch/mips/au1000/common/
+libs-$(CONFIG_MIPS_PB1000)	+= arch/mips/au1000/pb1000/
+load-$(CONFIG_MIPS_PB1000)	+= 0x80100000
+
+#
+# AMD Alchemy Pb1100 eval board
+#
+core-$(CONFIG_MIPS_PB1100)	+= arch/mips/au1000/common/
+libs-$(CONFIG_MIPS_PB1100)	+= arch/mips/au1000/pb1100/
+load-$(CONFIG_MIPS_PB1100)	+= 0x80100000
+
+#
+# AMD Alchemy Pb1500 eval board
 #
 core-$(CONFIG_MIPS_PB1500)	+= arch/mips/au1000/common/
 libs-$(CONFIG_MIPS_PB1500)	+= arch/mips/au1000/pb1500/
 load-$(CONFIG_MIPS_PB1500)	+= 0x80100000
+
+#
+# AMD Alchemy Db1000 eval board
+#
+core-$(CONFIG_MIPS_DB1000)	+= arch/mips/au1000/common/
+libs-$(CONFIG_MIPS_DB1000)	+= arch/mips/au1000/db1x00/
+load-$(CONFIG_MIPS_DB1000)	+= 0x80100000
+
+#
+# AMD Alchemy Db1100 eval board
+#
+core-$(CONFIG_MIPS_DB1100)	+= arch/mips/au1000/common/
+libs-$(CONFIG_MIPS_DB1100)	+= arch/mips/au1000/db1x00/
+load-$(CONFIG_MIPS_DB1100)	+= 0x80100000
+
+#
+# AMD Alchemy Db1500 eval board
+#
+core-$(CONFIG_MIPS_DB1500)	+= arch/mips/au1000/common/
+libs-$(CONFIG_MIPS_DB1500)	+= arch/mips/au1000/db1x00/
+load-$(CONFIG_MIPS_DB1500)	+= 0x80100000
+
+#
+# AMD Alchemy Bosporus eval board
+#
+core-$(CONFIG_MIPS_BOSPORUS)	+= arch/mips/au1000/common/
+libs-$(CONFIG_MIPS_BOSPORUS)	+= arch/mips/au1000/db1x00/
+load-$(CONFIG_MIPS_BOSPORUS)	+= 0x80100000
+
+#
+# AMD Alchemy Mirage eval board
+#
+core-$(CONFIG_MIPS_MIRAGE)	+= arch/mips/au1000/common/
+libs-$(CONFIG_MIPS_MIRAGE)	+= arch/mips/au1000/db1x00/
+load-$(CONFIG_MIPS_MIRAGE)	+= 0x80100000
+
+#
+# 4G-Systems eval board
+#
+core-$(CONFIG_MIPS_MTX1)	+= arch/mips/au1000/common/
+libs-$(CONFIG_MIPS_MTX1)	+= arch/mips/au1000/mtx-1/
+load-$(CONFIG_MIPS_MTX1)	+= 0x80100000
+
+#
+# MyCable eval board
+#
+core-$(CONFIG_MIPS_XXS1500)	+= arch/mips/au1000/common/
+libs-$(CONFIG_MIPS_XXS1500)	+= arch/mips/au1000/xxs1500/
+load-$(CONFIG_MIPS_XXS1500)	+= 0x80100000
 
 #
 # Baget/MIPS
