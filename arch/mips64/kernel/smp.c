@@ -85,3 +85,9 @@ smp_call_function (void (*func) (void *info), void *info, int retry, int wait)
 	/* XXX - kinda important ;-)  */
 	panic("smp_call_function\n");
 }
+
+void flush_tlb_others (unsigned long cpumask, struct mm_struct *mm, 
+						unsigned long va)
+{
+	panic("flush_tlb_others\n");
+}

@@ -89,6 +89,8 @@ static int set_rtc_mmss(unsigned long nowtime)
 
 void rt_timer_interrupt(struct pt_regs *regs)
 {
+	int cpu = smp_processor_id();
+	int user = user_mode(regs);
 	int irq = 7;				/* XXX Assign number */
 
 	write_lock(&xtime_lock);
@@ -101,8 +103,35 @@ again:
 	if (LOCAL_HUB_L(PI_RT_COUNT) >= ct_cur)
 		goto again;
 
-	kstat.irqs[0][irq]++;
+	kstat.irqs[cpu][irq]++;		/* kstat+do_timer only for bootcpu? */
 	do_timer(regs);
+
+#ifdef CONFIG_SMP
+	if (current->pid) {
+		unsigned int *inc, *inc2;
+
+		update_one_process(current, 1, user, !user, cpu);
+		if (--current->counter <= 0) {
+			current->counter = 0;
+			current->need_resched = 1;
+		}
+
+		if (user) {
+			if (current->priority < DEF_PRIORITY) {
+				inc = &kstat.cpu_nice;
+				inc2 = &kstat.per_cpu_nice[cpu];
+			} else {
+				inc = &kstat.cpu_user;
+				inc2 = &kstat.per_cpu_user[cpu];
+			}
+		} else {
+			inc = &kstat.cpu_system;
+			inc2 = &kstat.per_cpu_system[cpu];
+		}
+		atomic_inc((atomic_t *)inc);
+		atomic_inc((atomic_t *)inc2);
+	}
+#endif /* CONFIG_SMP */
 	
         /*
          * If we have an externally synchronized Linux clock, then update
