@@ -76,7 +76,6 @@ static void print_summary(uint32_t status, uint32_t l2_err,
 void check_bus_watcher(void)
 {
 	u32 status, l2_err, memio_err;
-	unsigned long flags;
 
 #ifdef CONFIG_SB1_PASS_1_WORKAROUNDS
 	/* Destructive read, clears register and interrupt */
