@@ -93,7 +93,3 @@ void __init ddb_pci_reset_bus(void)
 	ddb_out32(DDB_PCICTRL + 4, temp);
 
 }
-
-void __init pcibios_fixup_resources(struct pci_dev *dev)
-{
-}

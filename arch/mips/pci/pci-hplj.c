@@ -201,7 +201,6 @@ void __init pci_setup(void)
 	pci_config_data_reg = (u32 *) (((u32) mips_io_port_base) | 0xcfc);
 	pci_config_address_reg =
 	    (u32 *) (((u32) pci_regs_base_offset) | 0xcf8);
-
 }
 
 
@@ -239,5 +238,4 @@ void __init pcibios_fixup_resources(struct pci_dev *dev)
 			res->end += IO_PORT_VIRTUAL_OFFSET;
 		}
 	}
-
 }

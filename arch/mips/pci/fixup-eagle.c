@@ -36,10 +36,6 @@
 #include <asm/vr41xx/eagle.h>
 #include <asm/vr41xx/vrc4173.h>
 
-void __init pcibios_fixup_resources(struct pci_dev *dev)
-{
-}
-
 void __init pcibios_fixup_irqs(void)
 {
 	struct pci_dev *dev = NULL;

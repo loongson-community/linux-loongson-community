@@ -36,10 +36,6 @@
 #include <asm/it8172/it8172_pci.h>
 #include <asm/it8172/it8172_int.h>
 
-void __init pcibios_fixup_resources(struct pci_dev *dev)
-{
-}
-
 void __init pcibios_fixup_irqs(void)
 {
 	unsigned int slot, func;

@@ -18,10 +18,6 @@
 
 #include <asm/vr41xx/tb0226.h>
 
-void __init pcibios_fixup_resources(struct pci_dev *dev)
-{
-}
-
 void __init pcibios_fixup_irqs(void)
 {
 	struct pci_dev *dev = NULL;

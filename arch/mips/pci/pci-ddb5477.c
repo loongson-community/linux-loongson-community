@@ -214,7 +214,3 @@ void ddb_pci_reset_bus(void)
 	temp &= ~0xc0000000;
 	ddb_out32(DDB_PCICTL1_H, temp);
 }
-
-void __init pcibios_fixup_resources(struct pci_dev *dev)
-{
-}
