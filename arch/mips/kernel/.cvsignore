@@ -1,2 +1,3 @@
 .*.cmd
 *.s
+vmlinux.lds
