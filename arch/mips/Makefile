@@ -5,7 +5,7 @@
 #
 # Copyright (C) 1994, 95, 96, 2003 by Ralf Baechle
 # DECStation modifications by Paul M. Antoine, 1996
-# Copyright (C) 2002  Maciej W. Rozycki
+# Copyright (C) 2002, 2003  Maciej W. Rozycki
 #
 # This file is included by the global makefile so that you can add your own
 # architecture-specific flags and dependencies. Remember to do have actions
@@ -28,10 +28,14 @@ else
 endif
 
 ifdef CONFIG_MIPS32
+gcc-abi			= 32
+gas-abi			= 32
 tool-prefix		= $(32bit-tool-prefix)
 UTS_MACHINE		:= mips
 endif
 ifdef CONFIG_MIPS64
+gcc-abi			= 64
+gas-abi			= 32
 tool-prefix		= $(64bit-tool-prefix)
 UTS_MACHINE		:= mips64
 endif
@@ -52,8 +56,6 @@ endif
 #
 cflags-y			:= -I $(TOPDIR)/include/asm/gcc
 cflags-y			+= -G 0 -mno-abicalls -fno-pic -pipe
-cflags-$(CONFIG_MIPS32)		+= $(call check_gcc, -mabi=32,)
-cflags-$(CONFIG_MIPS64)		+= -mabi=64
 cflags-y			+= $(call check_gcc, -finline-limit=100000,)
 LDFLAGS_vmlinux			+= -G 0 -static # -N
 MODFLAGS			+= -mlong-calls
@@ -63,75 +65,118 @@ cflags-$(CONFIG_SB1XXX_CORELIS)	+= -mno-sched-prolog -fno-omit-frame-pointer
 check_warning = $(shell if $(CC) $(1) -c -o /dev/null -xc /dev/null > /dev/null 2>&1; then echo "$(1)"; else echo "$(2)"; fi)
 
 #
+# Use: $(call set_gccflags,<cpu0>,<isa0>,<cpu1>,<isa1>,<isa2>)
+#
+# <cpu0>,<isa0> -- preferred CPU and ISA designations (may require
+#                  recent tools)
+# <cpu1>,<isa1> -- fallback CPU and ISA designations (have to work
+#                  with up to the oldest supported tools)
+# <isa2>        -- an ISA designation used as an ABI selector for
+#                  gcc versions that do not support "-mabi=32"
+#                  (depending on the CPU type, either "mips1" or
+#                  "mips2")
+#
+set_gccflags = $(shell \
+while :; do \
+	cpu=$(1); isa=-$(2); \
+	for gcc_opt in -march= -mcpu=; do \
+		$(CC) $$gcc_opt$$cpu $$isa -S -o /dev/null \
+			-xc /dev/null > /dev/null 2>&1 && \
+			break 2; \
+	done; \
+	cpu=$(3); isa=-$(4); \
+	for gcc_opt in -march= -mcpu=; do \
+		$(CC) $$gcc_opt$$cpu $$isa -S -o /dev/null \
+			-xc /dev/null > /dev/null 2>&1 && \
+			break 2; \
+	done; \
+	break; \
+done; \
+gcc_abi=-mabi=$(gcc-abi); gcc_cpu=$$cpu; \
+if $(CC) $$gcc_abi -S -o /dev/null -xc /dev/null > /dev/null 2>&1; then \
+	gcc_isa=$$isa; \
+else \
+	gcc_abi=; gcc_isa=-$(5); \
+fi; \
+gas_abi=-Wa,-$(gcc-abi); gas_cpu=$$cpu; gas_isa=-Wa,$$isa; \
+while :; do \
+	for gas_opt in -Wa,-march= -Wa,-mcpu=; do \
+		$(CC) $$gas_abi $$gas_opt$$cpu $$gas_isa -Wa,-Z -c \
+			-o /dev/null -xassembler /dev/null > /dev/null 2>&1 && \
+			break 2; \
+	done; \
+	gas_abi=; gas_opt=; gas_cpu=; gas_isa=; \
+	break; \
+done; \
+if test x$(gcc-abi) != x$(gas-abi); then \
+	gas_abi="-Wa,-$(gas-abi) -Wa,-mgp$(gcc-abi)"; \
+fi; \
+echo $$gcc_abi $$gcc_opt$$gcc_cpu $$gcc_isa $$gas_abi $$gas_opt$$gas_cpu $$gas_isa)
+
+#
 # CPU-dependent compiler/assembler options for optimization.
-# This is done in several steps:
 #
-#  - cflags-y    contains the options which select for which processor to
-#                optimize the code for.  The options should not contain any
-#                options that change the ISA level but only compiler flags to
-#                tune performance of the generated code.
-#  - 32bit-isa-y contains the options which select the ISA for 32-bit kernels.
-#                A kernel built those options will only work on hardware which
-#                actually supports this ISA.
-#  - 64bit-isa-y contains the options which select the ISA for 64-bit kernels.
-#                A kernel built those options will only work on hardware which
-#                actually supports this ISA.
-#
-cflags-$(CONFIG_CPU_R3000)	+= -mcpu=r3000
-32bit-isa-$(CONFIG_CPU_R3000)	+= -mips1
-64bit-isa-$(CONFIG_CPU_R3000)	+= -mboom
-cflags-$(CONFIG_CPU_TX39XX)	+= -mcpu=r3000
-32bit-isa-$(CONFIG_CPU_TX39XX)	+= -mips1
-64bit-isa-$(CONFIG_CPU_TX39XX)	+= -mboom
-cflags-$(CONFIG_CPU_R6000)	+= -mcpu=r6000
-32bit-isa-$(CONFIG_CPU_R6000)	+= -mips2 -Wa,--trap
-64bit-isa-$(CONFIG_CPU_R6000)	+= -mboom -Wa,--trap
-cflags-$(CONFIG_CPU_R4300)	+= -mcpu=r4300
-32bit-isa-$(CONFIG_CPU_R4300)	+= -mips2 -Wa,--trap
-64bit-isa-$(CONFIG_CPU_R4300)	+= -mips3 -Wa,--trap
-cflags-$(CONFIG_CPU_VR41XX)	+= -mcpu=r4600
-32bit-isa-$(CONFIG_CPU_VR41XX)	+= -mips2 -Wa,--trap
-64bit-isa-$(CONFIG_CPU_VR41XX)	+= -mips3 -Wa,--trap
-cflags-$(CONFIG_CPU_R4X00)	+= -mcpu=r4600
-32bit-isa-$(CONFIG_CPU_R4X00)	+= -mips2 -Wa,--trap
-64bit-isa-$(CONFIG_CPU_R4X00)	+= -mips3 -Wa,--trap
-cflags-$(CONFIG_CPU_MIPS32)	+= $(call check_gcc, -mtune=mips32, -mcpu=r4600)
-32bit-isa-$(CONFIG_CPU_MIPS32)	+= $(call check_gcc, -mips32 -mabi=32, -mips2) -Wa,--trap
-64bit-isa-$(CONFIG_CPU_MIPS32)	+= -mboom
-cflags-$(CONFIG_CPU_MIPS64)	+= 
-32bit-isa-$(CONFIG_CPU_MIPS64)	+= $(call check_gcc, -mips32, -mips2) -Wa,--trap
-64bit-isa-$(CONFIG_CPU_MIPS64)	+= $(call check_gcc, -mips64, -mips4) -Wa,--trap
-cflags-$(CONFIG_CPU_R5000)	+= -mcpu=r8000
-32bit-isa-$(CONFIG_CPU_R5000)	+= -mips2 -Wa,--trap
-64bit-isa-$(CONFIG_CPU_R5000)	+= -mips4 -Wa,--trap
-cflags-$(CONFIG_CPU_R5432)	+= -mcpu=r5000
-32bit-isa-$(CONFIG_CPU_R5432)	+= -mips1 -Wa,--trap
-64bit-isa-$(CONFIG_CPU_R5432)	+= -mips3 -Wa,--trap
-cflags-$(CONFIG_CPU_NEVADA)	+= -mcpu=r8000 #-mmad
-32bit-isa-$(CONFIG_CPU_NEVADA)	+= -mips2 -Wa,--trap
-64bit-isa-$(CONFIG_CPU_NEVADA)	+= -mips3 -Wa,--trap
-cflags-$(CONFIG_CPU_RM7000)	+= $(call check_gcc, -march=rm7000, -mcpu=r5000)
-32bit-isa-$(CONFIG_CPU_RM7000)	+= -mips2 -Wa,--trap
-64bit-isa-$(CONFIG_CPU_RM7000)	+= -mips4 -Wa,--trap
-cflags-$(CONFIG_CPU_RM9000)	+= $(call check_gcc, -march=rm9000, -mcpu=r5000)
-32bit-isa-$(CONFIG_CPU_RM9000)	+= -mips2 -Wa,--trap
-64bit-isa-$(CONFIG_CPU_RM9000)	+= -mips4 -Wa,--trap
-cflags-$(CONFIG_CPU_SB1)	+= -Wa,--trap
-32bit-isa-$(CONFIG_CPU_SB1)	+= $(call check_gcc, \
-					$(call check_gcc, -mcpu=sb1 -mips2, \
-						-march=mips32 -mtune=sb1), \
-					-mcpu=r5000 -mips2)
-64bit-isa-$(CONFIG_CPU_SB1)	+= $(call check_gcc, \
-					$(call check_gcc, -mcpu=sb1 -mips4, \
-						-march=sb1 -mtune=sb1), \
-					-mcpu=r5000 -mips4) \
-					-mgp64
-cflags-$(CONFIG_CPU_R8000)	+= -mcpu=r8000
-32bit-isa-$(CONFIG_CPU_R8000)	+= -mips2 -Wa,--trap
-64bit-isa-$(CONFIG_CPU_R8000)	+= -mips4 -Wa,--trap
-cflags-$(CONFIG_CPU_R10000)	+= -mcpu=r8000
-32bit-isa-$(CONFIG_CPU_R10000)	+= -mips2 -Wa,--trap
-64bit-isa-$(CONFIG_CPU_R10000)	+= -mips4 -Wa,--trap
+cflags-$(CONFIG_CPU_R3000)	+= \
+			$(call set_gccflags,r3000,mips1,r3000,mips1,mips1)
+
+cflags-$(CONFIG_CPU_TX39XX)	+= \
+			$(call set_gccflags,r3000,mips1,r3000,mips1,mips1)
+
+cflags-$(CONFIG_CPU_R6000)	+= \
+			$(call set_gccflags,r6000,mips2,r6000,mips2,mips2) \
+			-Wa,--trap
+
+cflags-$(CONFIG_CPU_R4300)	+= \
+			$(call set_gccflags,r4300,mips3,r4300,mips3,mips2) \
+			-Wa,--trap
+
+cflags-$(CONFIG_CPU_VR41XX)	+= \
+			$(call set_gccflags,r4100,mips3,r4600,mips3,mips2) \
+			-Wa,--trap
+
+cflags-$(CONFIG_CPU_R4X00)	+= \
+			$(call set_gccflags,r4600,mips3,r4600,mips3,mips2) \
+			-Wa,--trap
+
+cflags-$(CONFIG_CPU_MIPS32)	+= \
+			$(call set_gccflags,mips32,mips32,r4600,mips3,mips2) \
+			-Wa,--trap
+
+cflags-$(CONFIG_CPU_MIPS64)	+= \
+			$(call set_gccflags,mips64,mips64,r4600,mips3,mips2) \
+			-Wa,--trap
+
+cflags-$(CONFIG_CPU_R5000)	+= \
+			$(call set_gccflags,r5000,mips4,r5000,mips4,mips2) \
+			-Wa,--trap 
+
+cflags-$(CONFIG_CPU_R5432)	+= \
+			$(call set_gccflags,r5400,mips4,r5000,mips4,mips2) \
+			-Wa,--trap
+
+cflags-$(CONFIG_CPU_NEVADA)	+= \
+			$(call set_gccflags,rm5200,mips4,r5000,mips4,mips2) \
+			$(call check_gcc,-mmad,) -Wa,--trap
+
+cflags-$(CONFIG_CPU_RM7000)	+= \
+			$(call set_gccflags,rm7000,mips4,r5000,mips4,mips2) \
+			-Wa,--trap
+
+cflags-$(CONFIG_CPU_RM9000)	+= \
+			$(call set_gccflags,rm9000,mips4,r5000,mips4,mips2) \
+			-Wa,--trap
+
+cflags-$(CONFIG_CPU_SB1)	+= \
+			$(call set_gccflags,sb1,mips64,r5000,mips4,mips2) \
+			-Wa,--trap
+
+cflags-$(CONFIG_CPU_R8000)	+= \
+			$(call set_gccflags,r8000,mips4,r8000,mips4,mips2) \
+			-Wa,--trap
+
+cflags-$(CONFIG_CPU_R10000)	+= \
+			$(call set_gccflags,r10000,mips4,r8000,mips4,mips2) \
+			-Wa,--trap
 
 ifdef CONFIG_CPU_SB1
 ifdef CONFIG_SB1_PASS_1_WORKAROUNDS
@@ -568,11 +613,6 @@ endif
 #
 #AS += -64
 #LDFLAGS += -m elf64bmip
-
-ifdef CONFIG_MIPS64
-cflags-$(CONFIG_BOOT_ELF32)	+= -Wa,-32 -Wa,-mgp64
-cflags-$(CONFIG_BOOT_ELF64)	+= -Wa,-32 -Wa,-mgp64
-endif
 
 #
 # Choosing incompatible machines durings configuration will result in
