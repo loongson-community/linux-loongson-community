@@ -1311,7 +1311,6 @@ static int titan_ge_rx(struct net_device *netdev, int port_num,
 
 	packet->skb = titan_ge_port->rx_skb[rx_curr_desc];
 	packet->len = (rx_desc->cmd_sts & 0x7fff);
-printk("titan_ge_rx: packet len = %d\n", packet->len);
 
 	/*
 	 * At this point, we dont know if the checksumming
@@ -1410,14 +1409,6 @@ static int titan_ge_receive_queue(struct net_device *netdev, unsigned int max)
 		 */
 		skb_reserve(skb, 2);
 		skb->protocol = eth_type_trans(skb, netdev);
-{ int i; u16 *p = eth_hdr(skb); static int pnr =0;
- printk("packet # %d\n", pnr++);
- for (i=0; i < 32; i++) {
-  printk("%04x ", p[i]);
-  if ((i + 1) % 16 == 0)
-   printk("\n");
- }
-}
 		netif_receive_skb(skb);
 
 		if (titan_ge_eth->rx_threshold > RX_THRESHOLD) {
