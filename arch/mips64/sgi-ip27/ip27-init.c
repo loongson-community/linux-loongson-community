@@ -154,9 +154,11 @@ void alloc_cpupda(int i)
 	node = get_cpu_cnode(i);
 	nasid = COMPACT_TO_NASID_NODEID(node);
 
+#ifdef CONFIG_SMP
 	cputonasid(i) = nasid;
 	cputocnode(i) = node;
 	cputoslice(i) = get_cpu_slice(i);
+#endif
 }
 
 int cpu_enabled(cpuid_t cpu)
@@ -279,6 +281,7 @@ void per_cpu_init(void)
 #endif
 }
 
+
 static atomic_t numstarted = ATOMIC_INIT(0);
 void cboot(void)
 {
@@ -286,6 +289,8 @@ void cboot(void)
 	/* printk("Child!\n"); */
 	while(1);
 }
+
+#ifdef CONFIG_SMP
 
 static long bootstacks[MAXCPUS][128];
 
@@ -347,3 +352,5 @@ void allowboot(void)
 	init_mfhi_war();
 #endif
 }
+
+#endif
