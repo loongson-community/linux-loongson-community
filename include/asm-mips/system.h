@@ -13,7 +13,6 @@
 #define _ASM_SYSTEM_H
 
 #include <linux/config.h>
-#include <asm/sgidefs.h>
 
 #include <linux/kernel.h>
 
