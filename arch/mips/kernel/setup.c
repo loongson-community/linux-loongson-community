@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.25 2000/03/06 14:39:33 raiko Exp $
+/* $Id: setup.c,v 1.26 2000/03/08 21:00:55 harald Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -47,11 +47,13 @@
 struct mips_cpuinfo boot_cpu_data = { NULL, NULL, 0 };
 
 /*
- * Not all of the MIPS CPUs have the "wait" instruction available.  This
- * is set to true if it is available.  The wait instruction stops the
- * pipeline and reduces the power consumption of the CPU very much.
+ * Not all of the MIPS CPUs have the "wait" instruction available. Moreover,
+ * the implementation of the "wait" feature differs between CPU families. This
+ * points to the function that implements CPU specific wait. 
+ * The wait instruction stops the pipeline and reduces the power consumption of
+ * the CPU very much.
  */
-char wait_available;
+void (*cpu_wait)(void) = NULL;
 
 /*
  * Do we have a cyclecounter available?
@@ -125,6 +127,24 @@ extern void SetUpBootInfo(void);
 extern void loadmmu(void);
 extern asmlinkage void start_kernel(void);
 
+/*
+ * Probe whether cpu has config register by trying to play with
+ * alternate cache bit and see whether it matters.
+ * It's used by cpu_probe to distinguish between R3000A and R3081.
+ */
+static inline int cpu_has_confreg(void)
+{
+	extern unsigned long r3k_cache_size(unsigned long);
+	unsigned long size1, size2; 
+	unsigned long cfg = read_32bit_cp0_register(CP0_CONF);
+
+	size1 = r3k_cache_size(ST0_DE);
+	write_32bit_cp0_register(CP0_CONF, cfg^CONF_AC);
+	size2 = r3k_cache_size(ST0_DE);
+	write_32bit_cp0_register(CP0_CONF, cfg);
+	return size1 != size2;
+}
+
 static inline void cpu_probe(void)
 {
 	unsigned int prid = read_32bit_cp0_register(CP0_PRID);
@@ -134,7 +154,10 @@ static inline void cpu_probe(void)
 		break;
 	case PRID_IMP_R3000:
 		if((prid & 0xff) == PRID_REV_R3000A)
-			mips_cputype = CPU_R3000A;
+			if(cpu_has_confreg())
+				mips_cputype = CPU_R3081E;
+			else
+				mips_cputype = CPU_R3000A;
 		else
 			 mips_cputype = CPU_R3000;
 		break;
@@ -330,4 +353,17 @@ void __init setup_arch(char **cmdline_p)
 #endif
 
 	paging_init();
+}
+
+void r3081_wait(void) 
+{
+	unsigned long cfg = read_32bit_cp0_register(CP0_CONF);
+	write_32bit_cp0_register(CP0_CONF, cfg|CONF_HALT);
+}
+
+void r4k_wait(void)
+{
+	__asm__(".set\tmips3\n\t"
+		"wait\n\t"
+		".set\tmips0");
 }

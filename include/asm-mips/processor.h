@@ -1,4 +1,4 @@
-/* $Id: processor.h,v 1.24 2000/01/29 01:42:28 ralf Exp $
+/* $Id: processor.h,v 1.25 2000/02/05 06:47:37 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -37,7 +37,9 @@ struct mips_cpuinfo {
  * System setup and hardware flags..
  * XXX: Should go into mips_cpuinfo.
  */
-extern char wait_available;		/* only available on R4[26]00 */
+extern void (*cpu_wait)(void);	/* only available on R4[26]00 and R3081 */
+extern void r3081_wait(void);
+extern void r4k_wait(void);
 extern char cyclecounter_available;	/* only available from R4000 upwards. */
 extern char dedicated_iv_available;	/* some embedded MIPS like Nevada */
 extern char vce_available;		/* Supports VCED / VCEI exceptions */

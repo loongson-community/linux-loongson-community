@@ -1,4 +1,4 @@
-/* $Id: traps.c,v 1.26 1999/12/04 03:59:00 ralf Exp $
+/* $Id: traps.c,v 1.27 2000/01/16 01:29:05 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -718,14 +718,14 @@ void __init trap_init(void)
 	case CPU_R2000:
 	case CPU_R3000:
 	case CPU_R3000A:
-		memcpy((void *)KSEG0, &except_vec0_r2300, 0x80);
-		memcpy((void *)(KSEG0 + 0x80), &except_vec3_generic, 0x80);
-		break;
 	case CPU_R3041:
 	case CPU_R3051:
 	case CPU_R3052:
 	case CPU_R3081:
 	case CPU_R3081E:
+		memcpy((void *)KSEG0, &except_vec0_r2300, 0x80);
+		memcpy((void *)(KSEG0 + 0x80), &except_vec3_generic, 0x80);
+		break;
 	case CPU_R8000:
 		printk("Detected unsupported CPU type %s.\n",
 			cpu_names[mips_cputype]);

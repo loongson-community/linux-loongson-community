@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: loadmmu.c,v 1.15 2000/02/24 00:12:40 ralf Exp $
+ * $Id: loadmmu.c,v 1.16 2000/03/07 15:45:28 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -59,6 +59,7 @@ void __init loadmmu(void)
 	case CPU_R2000:
 	case CPU_R3000:
 	case CPU_R3000A:
+	case CPU_R3081E:
 		printk("Loading R[23]00 MMU routines.\n");
 		ld_mmu_r2300();
 		break;
