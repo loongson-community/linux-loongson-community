@@ -17,11 +17,8 @@ struct vm_struct * get_vm_area(unsigned long size);
 void vfree(void * addr);
 void * vmalloc_prot(unsigned long size, pgprot_t prot);
 void * vmalloc_uncached(unsigned long size);
+extern void * vmalloc(unsigned long size);
 
-extern inline void * vmalloc(unsigned long size)
-{
-	return vmalloc_prot (size, PAGE_KERNEL);
-}
 
 int vread(char *buf, char *addr, int count);
 void vmfree_area_pages(unsigned long address, unsigned long size);

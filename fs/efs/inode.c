@@ -408,7 +408,7 @@ void efs_read_inode(struct inode *in)
 		   The address of the extends-block is stored in the inode */
 		if(numext>EFS_MAX_EXTENTS) { 
 			struct buffer_head *bh2;
-			printk("EFS: inode %#Xl has > EFS_MAX_EXTENTS (%ld)\n",
+			printk("EFS: inode #%lx has > EFS_MAX_EXTENTS (%d)\n",
 			       in->i_ino, numext);
 
 			/* Store the discblock and offset of extend-list in Inode info */

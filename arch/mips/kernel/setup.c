@@ -5,7 +5,7 @@
  *  Copyright (C) 1995, 1996  Ralf Baechle
  *  Copyright (C) 1996  Stoned Elipot
  *
- * $Id: setup.c,v 1.4 1997/09/07 04:55:42 ralf Exp $
+ * $Id: setup.c,v 1.4 1997/12/01 17:57:31 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/errno.h>
@@ -59,6 +59,11 @@ void (*fd_cacheflush)(const void *addr, size_t size);
  * pipeline and reduces the power consumption of the CPU very much.
  */
 char wait_available;
+
+/*
+ * Do we have a cyclecounter available?
+ */
+char cyclecounter_available;
 
 /*
  * There are several bus types available for MIPS machines.  "RISC PC"
