@@ -11,6 +11,7 @@
 #include <linux/sys.h>
 
 #include <asm/asm.h>
+#include <asm/errno.h>
 #include <asm/mipsregs.h>
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
@@ -314,3 +315,36 @@
 		.set	at
 		.set	reorder
 		END(trap_low)
+
+LEAF(kgdb_read_byte)
+		.set push
+		.set noreorder
+		.set nomacro
+4:		lb	t0, (a0)
+		.set pop
+		sb	t0, (a1)
+		li	v0, 0
+		jr	ra
+		.section __ex_table,"a"
+		PTR	4b, kgdbfault
+		.previous
+		END(kgdb_read_byte)
+
+LEAF(kgdb_write_byte)
+		.set push
+		.set noreorder
+		.set nomacro
+5:		sb	a0, (a1)
+		.set pop
+		li	v0, 0
+		jr	ra
+		.section __ex_table,"a"
+		PTR	5b, kgdbfault
+		.previous
+		END(kgdb_write_byte)
+
+		.type	kgdbfault@function
+		.ent	kgdbfault
+kgdbfault:	li	v0, -EFAULT
+		jr	ra
+		.end	kgdbfault
