@@ -119,9 +119,7 @@ extern int sisfb_setup(char*);
 extern int stifb_init(void);
 extern int stifb_setup(char*);
 extern int pmagbafb_init(void);
-extern int pmagbafb_setup(char *);
 extern int pmagbbfb_init(void);
-extern int pmagbbfb_setup(char *options, int *ints);
 extern void maxinefb_init(void);
 extern int tx3912fb_init(void);
 extern int radeonfb_init(void);
@@ -286,6 +284,16 @@ static struct {
 #ifdef CONFIG_FB_PVR2
 	{ "pvr2", pvr2fb_init, pvr2fb_setup },
 #endif
+#ifdef CONFIG_FB_PMAG_BA
+	{ "pmagbafb", pmagbafb_init, NULL },
+#endif
+#ifdef CONFIG_FB_PMAGB_B
+	{ "pmagbbfb", pmagbbfb_init, NULL },
+#endif
+#ifdef CONFIG_FB_MAXINE
+	{ "maxinefb", maxinefb_init, NULL },
+#endif
+
 
 	/*
 	 * Generic drivers that don't use resource management (yet)
@@ -302,30 +310,6 @@ static struct {
 	/* Not a real frame buffer device... */
 	{ "resolver", NULL, resolver_video_setup },
 #endif
-
-#ifdef CONFIG_FB_PMAG_BA
-	{ "pmagbafb", pmagbafb_init, NULL },
-#endif
-#ifdef CONFIG_FB_PMAGB_B
-	{ "pmagbbfb", pmagbbfb_init, NULL },
-#endif
-
-#ifdef CONFIG_FB_MAXINE
-	{ "maxinefb", maxinefb_init, NULL },
-#endif
-
-
-#ifdef CONFIG_FB_PMAG_BA
-       { "pmagbafb", pmagbafb_init, pmagbafb_setup },
-#endif
-#ifdef CONFIG_FB_PMAGB_B
-        { "pmagbbfb", pmagbbfb_init, pmagbbfb_setup },
-#endif
-
-#ifdef CONFIG_FB_MAXINE
-        { "maxinefb", maxinefb_init, maxinefb_setup },
-#endif
-
 
 #ifdef CONFIG_FB_VIRTUAL
 	/*
