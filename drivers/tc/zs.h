@@ -11,6 +11,8 @@
 #ifndef _DECSERIAL_H
 #define _DECSERIAL_H
 
+#include <asm/dec/serial.h>
+
 #define NUM_ZSREGS    16
 
 struct serial_struct {
@@ -91,25 +93,13 @@ struct dec_zschannel {
 	unsigned char curregs[NUM_ZSREGS];
 };
 
-struct dec_serial;
-
-struct zs_hook {
-	int (*init_channel)(struct dec_serial* info);
-	void (*init_info)(struct dec_serial* info);
-	void (*rx_char)(unsigned char ch, unsigned char stat);
-	int  (*poll_rx_char)(struct dec_serial* info);
-	int  (*poll_tx_char)(struct dec_serial* info,
-			     unsigned char ch);
-	unsigned cflags;
-};
-
 struct dec_serial {
 	struct dec_serial	*zs_next;	/* For IRQ servicing chain.  */
 	struct dec_zschannel	*zs_channel;	/* Channel registers.  */
 	struct dec_zschannel	*zs_chan_a;	/* A side registers.  */
 	unsigned char		read_reg_zero;
 
-	struct zs_hook		*hook;		/* Hook on this channel.  */
+	struct dec_serial_hook	*hook;		/* Hook on this channel.  */
 	int			tty_break;	/* Set on BREAK condition.  */
 	int			is_cons;	/* Is this our console.  */
 	int			tx_active;	/* Char is being xmitted.  */

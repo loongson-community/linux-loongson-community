@@ -66,6 +66,8 @@
 #include <asm/bitops.h>
 #include <asm/uaccess.h>
 #include <asm/bootinfo.h>
+#include <asm/dec/serial.h>
+
 #ifdef CONFIG_MACH_DECSTATION
 #include <asm/dec/interrupts.h>
 #include <asm/dec/machtype.h>
@@ -1902,8 +1904,9 @@ int __init zs_init(void)
  * polling I/O routines
  */
 static int
-zs_poll_tx_char(struct dec_serial *info, unsigned char ch)
+zs_poll_tx_char(void *handle, unsigned char ch)
 {
+	struct dec_serial *info = handle;
 	struct dec_zschannel *chan = info->zs_channel;
 	int    ret;
 
@@ -1925,8 +1928,9 @@ zs_poll_tx_char(struct dec_serial *info, unsigned char ch)
 }
 
 static int
-zs_poll_rx_char(struct dec_serial *info)
+zs_poll_rx_char(void *handle)
 {
+	struct dec_serial *info = handle;
         struct dec_zschannel *chan = info->zs_channel;
         int    ret;
 
@@ -1946,7 +1950,7 @@ zs_poll_rx_char(struct dec_serial *info)
 		return -ENODEV;
 }
 
-unsigned int register_zs_hook(unsigned int channel, struct zs_hook *hook)
+int register_zs_hook(unsigned int channel, struct dec_serial_hook *hook)
 {
 	struct dec_serial *info = &zs_soft[channel];
 
@@ -1964,7 +1968,7 @@ unsigned int register_zs_hook(unsigned int channel, struct zs_hook *hook)
 	}
 }
 
-unsigned int unregister_zs_hook(unsigned int channel)
+int unregister_zs_hook(unsigned int channel)
 {
 	struct dec_serial *info = &zs_soft[channel];
 
@@ -2229,22 +2233,23 @@ void kgdb_interruptible(int yes)
 	write_zsreg(chan, 9, nine);
 }
 
-static int kgdbhook_init_channel(struct dec_serial* info)
+static int kgdbhook_init_channel(void *handle)
 {
 	return 0;
 }
 
-static void kgdbhook_init_info(struct dec_serial* info)
+static void kgdbhook_init_info(void *handle)
 {
 }
 
-static void kgdbhook_rx_char(struct dec_serial* info,
-			     unsigned char ch, unsigned char stat)
+static void kgdbhook_rx_char(void *handle, unsigned char ch, unsigned char fl)
 {
+	struct dec_serial *info = handle;
+
+	if (fl != TTY_NORMAL)
+		return;
 	if (ch == 0x03 || ch == '$')
 		breakpoint();
-	if (stat & (Rx_OVR|FRM_ERR|PAR_ERR))
-		write_zsreg(info->zs_channel, 0, ERR_RES);
 }
 
 /* This sets up the serial port we're using, and turns on
@@ -2270,11 +2275,11 @@ static inline void kgdb_chaninit(struct dec_zschannel *ms, int intson, int bps)
  * for /dev/ttyb which is determined in setup_arch() from the
  * boot command line flags.
  */
-struct zs_hook zs_kgdbhook = {
-	init_channel : kgdbhook_init_channel,
-	init_info    : kgdbhook_init_info,
-	cflags       : B38400|CS8|CLOCAL,
-	rx_char      : kgdbhook_rx_char,
+struct dec_serial_hook zs_kgdbhook = {
+	.init_channel	= kgdbhook_init_channel,
+	.init_info	= kgdbhook_init_info,
+	.rx_char	= kgdbhook_rx_char,
+	.cflags		= B38400 | CS8 | CLOCAL,
 }
 
 void __init zs_kgdb_hook(int tty_num)
