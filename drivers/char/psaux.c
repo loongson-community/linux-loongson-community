@@ -52,12 +52,11 @@
 #include <asm/io.h>
 #include <asm/uaccess.h>
 #include <asm/system.h>
+
 #ifdef CONFIG_SGI
 #include <asm/segment.h>
 #include <asm/sgihpc.h>
 #endif
-
-#include <linux/config.h>
 
 #define PSMOUSE_MINOR      1            /* minor device # for this mouse */
 
@@ -101,7 +100,7 @@
 #define AUX_BUF_SIZE	2048
 
 #ifdef CONFIG_SGI
-extern volatile struct hpc_keyb *kh; /* see keyboard.c */
+extern volatile struct hpc_keyb *sgi_kh; /* see keyboard.c */
 
 extern __inline__ int
 ps2_inb_p(unsigned short port)
@@ -109,9 +108,9 @@ ps2_inb_p(unsigned short port)
 	int result;
 
 	if(port == AUX_INPUT_PORT)
-		result = kh->data;
+		result = sgi_kh->data;
 	else if(port == AUX_STATUS)
-		result = kh->command;
+		result = sgi_kh->command;
 	return result;
 }
 
@@ -121,9 +120,9 @@ ps2_inb(unsigned short port)
 	int result;
 
 	if(port == AUX_INPUT_PORT)
-		result = kh->data;
+		result = sgi_kh->data;
 	else if(port == AUX_STATUS)
-		result = kh->command;
+		result = sgi_kh->command;
 
 	return result;
 }
@@ -132,18 +131,18 @@ extern __inline__ void
 ps2_outb_p(unsigned char data, unsigned short port)
 {
 	if(port == AUX_OUTPUT_PORT)
-		kh->data = data;
+		sgi_kh->data = data;
 	else if(port == AUX_COMMAND)
-		kh->command = data;
+		sgi_kh->command = data;
 }
 
 extern __inline__ void
 ps2_outb(unsigned char data, unsigned short port)
 {
 	if(port == AUX_OUTPUT_PORT)
-		kh->data = data;
+		sgi_kh->data = data;
 	else if(port == AUX_COMMAND)
-		kh->command = data;
+		sgi_kh->command = data;
 }
 #else
 #define ps2_inb_p inb_p
@@ -217,7 +216,7 @@ static void aux_write_dev(int val)
 static int aux_write_ack(int val)
 {
 	int retries = 0;
- 
+
 	poll_aux_status_nosleep();
 	ps2_outb_p(AUX_MAGIC_WRITE,AUX_COMMAND);
 	poll_aux_status_nosleep();
@@ -244,6 +243,7 @@ static void aux_write_cmd(int val)
 	ps2_outb_p(val,AUX_OUTPUT_PORT);
 }
 
+
 static unsigned int get_from_queue(void)
 {
 	unsigned int result;
@@ -269,27 +269,8 @@ static inline int queue_empty(void)
  * Interrupt from the auxiliary device: a character
  * is waiting in the keyboard/aux controller.
  */
-#ifndef CONFIG_SGI
-static void aux_interrupt(int cpl, void *dev_id, struct pt_regs * regs)
-{
-	int head = queue->head;
-	int maxhead = (queue->tail-1) & (AUX_BUF_SIZE-1);
 
-	if ((ps2_inb(AUX_STATUS) & AUX_OBUF_FULL) != AUX_OBUF_FULL)
-		return;
-
-	add_mouse_randomness(queue->buf[head] = ps2_inb(AUX_INPUT_PORT));
-	if (head != maxhead) {
-		head++;
-		head &= AUX_BUF_SIZE-1;
-	}
-	queue->head = head;
-	aux_ready = 1;
-	if (queue->fasync)
-		kill_fasync(queue->fasync, SIGIO);
-	wake_up_interruptible(&queue->proc_list);
-}
-#else
+#ifdef CONFIG_SGI
 /* On the SGI we export this routine because the keyboard chirps at
  * the same interrupt level.  The status and data bytes are passed
  * directly to us if the keyboard interrupt service routine detects
@@ -315,7 +296,29 @@ void aux_interrupt(unsigned char status, unsigned char data)
 		kill_fasync(queue->fasync, SIGIO);
 	wake_up_interruptible(&queue->proc_list);
 }
-#endif
+
+
+#else /* !defined(CONFIG_SGI) */
+static void aux_interrupt(int cpl, void *dev_id, struct pt_regs * regs)
+{
+	int head = queue->head;
+	int maxhead = (queue->tail-1) & (AUX_BUF_SIZE-1);
+
+	if ((ps2_inb(AUX_STATUS) & AUX_OBUF_FULL) != AUX_OBUF_FULL)
+		return;
+
+	add_mouse_randomness(queue->buf[head] = ps2_inb(AUX_INPUT_PORT));
+	if (head != maxhead) {
+		head++;
+		head &= AUX_BUF_SIZE-1;
+	}
+	queue->head = head;
+	aux_ready = 1;
+	if (queue->fasync)
+		kill_fasync(queue->fasync, SIGIO);
+	wake_up_interruptible(&queue->proc_list);
+}
+#endif /* !defined(CONFIG_SGI) */
 
 /*
  * Interrupt handler for the 82C710 mouse port. A character
@@ -328,7 +331,7 @@ static void qp_interrupt(int cpl, void *dev_id, struct pt_regs * regs)
 	int head = queue->head;
 	int maxhead = (queue->tail-1) & (AUX_BUF_SIZE-1);
 
-	add_mouse_randomness(queue->buf[head] = inb(qp_data));
+	add_mouse_randomness(queue->buf[head] = ps2_inb(qp_data));
 	if (head != maxhead) {
 		head++;
 		head &= AUX_BUF_SIZE-1;
@@ -352,7 +355,7 @@ static int release_aux(struct inode * inode, struct file * file)
 	aux_write_cmd(AUX_INTS_OFF);		/* disable controller ints */
 	poll_aux_status();
 	ps2_outb_p(AUX_DISABLE,AUX_COMMAND);      	/* Disable Aux device */
- 	poll_aux_status();
+	poll_aux_status();
 	/* reenable kbd bh */
 	enable_bh(KEYBOARD_BH);
 #ifdef CONFIG_MCA
@@ -375,8 +378,8 @@ static int release_qp(struct inode * inode, struct file * file)
 	if (!--qp_count) {
 		if (!poll_qp_status())
 			printk("Warning: Mouse device busy in release_qp()\n");
-		status = inb_p(qp_status);
-		outb_p(status & ~(QP_ENABLE|QP_INTS_ON), qp_status);
+		status = ps2_inb_p(qp_status);
+		ps2_outb_p(status & ~(QP_ENABLE|QP_INTS_ON), qp_status);
 		if (!poll_qp_status())
 			printk("Warning: Mouse device busy in release_qp()\n");
 		free_irq(QP_IRQ, NULL);
@@ -413,25 +416,28 @@ static int open_aux(struct inode * inode, struct file * file)
 	}
 	queue->head = queue->tail = 0;		/* Flush input queue */
 #ifdef CONFIG_MCA
-	if (request_irq(AUX_IRQ, aux_interrupt, MCA_bus ? SA_SHIRQ : 0, "PS/2 Mouse", inode)) {
+	if (request_irq(AUX_IRQ, aux_interrupt, MCA_bus ? SA_SHIRQ : 0, "PS/2 Mouse", inode))
 #else
 #ifndef CONFIG_SGI
-	if (request_irq(AUX_IRQ, aux_interrupt, 0, "PS/2 Mouse", NULL)) {
+	if (request_irq(AUX_IRQ, aux_interrupt, 0, "PS/2 Mouse", NULL))
+#endif
+#endif
+	{
 		aux_count--;
 		return -EBUSY;
 	}
-#endif
-#endif
 	MOD_INC_USE_COUNT;
 	/* disable kbd bh to avoid mixing of cmd bytes */
 	disable_bh(KEYBOARD_BH);
 	poll_aux_status();
-	ps2_outb_p(AUX_ENABLE,AUX_COMMAND);	/* Enable Aux */
+	ps2_outb_p(AUX_ENABLE,AUX_COMMAND);		/* Enable Aux */
 	aux_write_dev(AUX_ENABLE_DEV);		/* enable aux device */
 	aux_write_cmd(AUX_INTS_ON);		/* enable controller ints */
 	poll_aux_status();
+	/* reenable kbd bh */
+	enable_bh(KEYBOARD_BH);
+
 	aux_ready = 0;
-	MOD_INC_USE_COUNT;
 	return 0;
 }
 
@@ -456,26 +462,26 @@ static int open_qp(struct inode * inode, struct file * file)
 		return -EBUSY;
 	}
 
-	status = inb_p(qp_status);
+	status = ps2_inb_p(qp_status);
 	status |= (QP_ENABLE|QP_RESET);
-	outb_p(status, qp_status);
+	ps2_outb_p(status, qp_status);
 	status &= ~(QP_RESET);
-	outb_p(status, qp_status);
+	ps2_outb_p(status, qp_status);
 
 	queue->head = queue->tail = 0;          /* Flush input queue */
 	status |= QP_INTS_ON;
-	outb_p(status, qp_status);              /* Enable interrupts */
+	ps2_outb_p(status, qp_status);              /* Enable interrupts */
 
 	while (!poll_qp_status()) {
 		printk("Error: Mouse device busy in open_qp()\n");
 		qp_count--;
 		status &= ~(QP_ENABLE|QP_INTS_ON);
-		outb_p(status, qp_status);
+		ps2_outb_p(status, qp_status);
 		free_irq(QP_IRQ, NULL);
 		return -EBUSY;
 	}
 
-	outb_p(AUX_ENABLE_DEV, qp_data);	/* Wake up mouse */
+	ps2_outb_p(AUX_ENABLE_DEV, qp_data);	/* Wake up mouse */
 	MOD_INC_USE_COUNT;
 	return 0;
 }
@@ -504,7 +510,7 @@ static long write_aux(struct inode * inode, struct file * file,
 			if (!poll_aux_status())
 				break;
 			get_user(c, buffer++);
-			outb_p(c, AUX_OUTPUT_PORT);
+			ps2_outb_p(c, AUX_OUTPUT_PORT);
 			written++;
 		} while (--count);
 		/* reenable kbd bh */
@@ -535,7 +541,7 @@ static long write_qp(struct inode * inode, struct file * file,
 		if (!poll_qp_status())
 			return -EIO;
 		get_user(c, buffer++);
-		outb_p(c, qp_data);
+		ps2_outb_p(c, qp_data);
 	}
 	inode->i_mtime = CURRENT_TIME;
 	return count;
@@ -630,7 +636,7 @@ __initfunc(int psaux_init(void))
 	} else
 #endif
 #if defined(CONFIG_SGI) && defined(CONFIG_PSMOUSE)
-	if(1) {
+	if (1) {
 #else
 	if (aux_device_present == 0xaa) {
 #endif
@@ -649,7 +655,7 @@ __initfunc(int psaux_init(void))
 	queue->proc_list = NULL;
 	if (!qp_found) {
 #if defined INITIALIZE_DEVICE
-		ps2_outb_p(AUX_ENABLE,AUX_COMMAND);	/* Enable Aux */
+		ps2_outb_p(AUX_ENABLE,AUX_COMMAND);		/* Enable Aux */
 		aux_write_ack(AUX_SET_SAMPLE);
 		aux_write_ack(100);			/* 100 samples/sec */
 		aux_write_ack(AUX_SET_RES);
@@ -657,10 +663,10 @@ __initfunc(int psaux_init(void))
 		aux_write_ack(AUX_SET_SCALE21);		/* 2:1 scaling */
 		poll_aux_status_nosleep();
 #endif /* INITIALIZE_DEVICE */
-		ps2_outb_p(AUX_DISABLE,AUX_COMMAND);       /* Disable Aux device */
+		ps2_outb_p(AUX_DISABLE,AUX_COMMAND);   /* Disable Aux device */
 		poll_aux_status_nosleep();
 		ps2_outb_p(AUX_CMD_WRITE,AUX_COMMAND);
-		poll_aux_status_nosleep();                 /* Disable interrupts */
+		poll_aux_status_nosleep();             /* Disable interrupts */
 		ps2_outb_p(AUX_INTS_OFF, AUX_OUTPUT_PORT); /*  on the controller */
 	}
 	return 0;
@@ -715,12 +721,12 @@ static int poll_qp_status(void)
 {
 	int retries=0;
 
-	while ((inb(qp_status)&(QP_RX_FULL|QP_TX_IDLE|QP_DEV_IDLE))
+	while ((ps2_inb(qp_status)&(QP_RX_FULL|QP_TX_IDLE|QP_DEV_IDLE))
 		       != (QP_DEV_IDLE|QP_TX_IDLE)
 		       && retries < MAX_RETRIES) {
 
-		if (inb_p(qp_status)&(QP_RX_FULL))
-			inb_p(qp_data);
+		if (ps2_inb_p(qp_status)&(QP_RX_FULL))
+			ps2_inb_p(qp_data);
 		current->state = TASK_INTERRUPTIBLE;
 		current->timeout = jiffies + (5*HZ + 99) / 100;
 		schedule();
@@ -735,8 +741,8 @@ static int poll_qp_status(void)
 
 static inline unsigned char read_710(unsigned char index)
 {
-	outb_p(index, 0x390);			/* Write index */
-	return inb_p(0x391);			/* Read the data */
+	ps2_outb_p(index, 0x390);			/* Write index */
+	return ps2_inb_p(0x391);			/* Read the data */
 }
 
 /*
@@ -745,17 +751,17 @@ static inline unsigned char read_710(unsigned char index)
 
 __initfunc(static int probe_qp(void))
 {
-	outb_p(0x55, 0x2fa);			/* Any value except 9, ff or 36 */
-	outb_p(0xaa, 0x3fa);			/* Inverse of 55 */
-	outb_p(0x36, 0x3fa);			/* Address the chip */
-	outb_p(0xe4, 0x3fa);			/* 390/4; 390 = config address */
-	outb_p(0x1b, 0x2fa);			/* Inverse of e4 */
+	ps2_outb_p(0x55, 0x2fa);			/* Any value except 9, ff or 36 */
+	ps2_outb_p(0xaa, 0x3fa);			/* Inverse of 55 */
+	ps2_outb_p(0x36, 0x3fa);			/* Address the chip */
+	ps2_outb_p(0xe4, 0x3fa);			/* 390/4; 390 = config address */
+	ps2_outb_p(0x1b, 0x2fa);			/* Inverse of e4 */
 	if (read_710(0x0f) != 0xe4)		/* Config address found? */
 	  return 0;				/* No: no 82C710 here */
 	qp_data = read_710(0x0d)*4;		/* Get mouse I/O address */
 	qp_status = qp_data+1;
-	outb_p(0x0f, 0x390);
-	outb_p(0x0f, 0x391);			/* Close config mode */
+	ps2_outb_p(0x0f, 0x390);
+	ps2_outb_p(0x0f, 0x391);			/* Close config mode */
 	return 1;
 }
 #endif

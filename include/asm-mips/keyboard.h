@@ -48,9 +48,9 @@ extern void pckbd_init_hw(void);
 /*
  * keyboard controller registers
  */
-#define KBD_STATUS_REG      (unsigned int) 0x64
-#define KBD_CNTL_REG        (unsigned int) 0x64
-#define KBD_DATA_REG        (unsigned int) 0x60
+#define M_KBD_STATUS_REG      (unsigned int) 0x64
+#define M_KBD_CNTL_REG        (unsigned int) 0x64
+#define M_KBD_DATA_REG        (unsigned int) 0x60
 
 #ifdef CONFIG_SGI
 #include <asm/segment.h>
@@ -72,12 +72,6 @@ extern void pckbd_init_hw(void);
 #define DISABLE_KBD_DURING_INTERRUPTS 0
 #endif
 
-#ifndef CONFIG_SGI
-#define KBD_REPORT_ERR
-#endif
-#define KBD_REPORT_UNKN
-/* #define KBD_IS_FOCUS_9000 */
-
 int (*kbd_inb_p)(unsigned short port);
 int (*kbd_inb)(unsigned short port);
 void (*kbd_outb_p)(unsigned char data, unsigned short port);
@@ -93,9 +87,9 @@ jazz_kbd_inb_p(unsigned short port)
 {
 	int result;
 
-	if(port == KBD_DATA_REG)
+	if(port == M_KBD_DATA_REG)
 		result = jazz_kh->data;
-	else /* Must be KBD_STATUS_REG */
+	else /* Must be M_KBD_STATUS_REG */
 		result = jazz_kh->command;
 	inb(0x80);
 
@@ -107,9 +101,9 @@ jazz_kbd_inb(unsigned short port)
 {
 	int result;
 
-	if(port == KBD_DATA_REG)
+	if(port == M_KBD_DATA_REG)
 		result = jazz_kh->data;
-	else /* Must be KBD_STATUS_REG */
+	else /* Must be M_KBD_STATUS_REG */
 		result = jazz_kh->command;
 
 	return result;
@@ -118,9 +112,9 @@ jazz_kbd_inb(unsigned short port)
 static void
 jazz_kbd_outb_p(unsigned char data, unsigned short port)
 {
-	if(port == KBD_DATA_REG)
+	if(port == M_KBD_DATA_REG)
 		jazz_kh->data = data;
-	else if(port == KBD_CNTL_REG)
+	else if(port == M_KBD_CNTL_REG)
 		jazz_kh->command = data;
 	inb(0x80);
 }
@@ -128,9 +122,9 @@ jazz_kbd_outb_p(unsigned char data, unsigned short port)
 static void
 jazz_kbd_outb(unsigned char data, unsigned short port)
 {
-	if(port == KBD_DATA_REG)
+	if(port == M_KBD_DATA_REG)
 		jazz_kh->data = data;
-	else if(port == KBD_CNTL_REG)
+	else if(port == M_KBD_CNTL_REG)
 		jazz_kh->command = data;
 }
 #endif /* CONFIG_MIPS_JAZZ */
@@ -138,16 +132,19 @@ jazz_kbd_outb(unsigned char data, unsigned short port)
 #ifdef CONFIG_SGI
 #define INIT_KBD	/* full initialization for the keyboard controller. */
 
-static volatile struct hpc_keyb *sgi_kh;
+/*
+ * Global because the PS/2 MOUSE driver accesses it also.
+ */
+volatile struct hpc_keyb *sgi_kh;
 
 static int
 sgi_kbd_inb(unsigned short port)
 {
 	int result;
 
-	if(port == KBD_DATA_REG)
+	if(port == M_KBD_DATA_REG)
 		result = sgi_kh->data;
-	else /* Must be KBD_STATUS_REG */
+	else /* Must be M_KBD_STATUS_REG */
 		result = sgi_kh->command;
 
 	return result;
@@ -156,9 +153,9 @@ sgi_kbd_inb(unsigned short port)
 static void
 sgi_kbd_outb(unsigned char data, unsigned short port)
 {
-	if(port == KBD_DATA_REG)
+	if(port == M_KBD_DATA_REG)
 		sgi_kh->data = data;
-	else if(port == KBD_CNTL_REG)
+	else if(port == M_KBD_CNTL_REG)
 		sgi_kh->command = data;
 }
 #endif /* CONFIG_SGI */
