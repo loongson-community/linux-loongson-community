@@ -32,6 +32,8 @@ extern void except_vec0_generic(void);
 extern void except_vec1_sb1(void);
 #endif
 
+#define UNIQUE_ENTRYHI(idx) (KSEG0 + ((idx) << (PAGE_SHIFT + 1)))
+
 /* Dump the current entry* and pagemask registers */
 static inline void dump_cur_tlb_regs(void)
 {
@@ -175,7 +177,7 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 				idx = read_c0_index();
 				write_c0_entrylo0(0);
 				write_c0_entrylo1(0);
-				write_c0_entryhi(KSEG0 + (idx << (PAGE_SHIFT+1)));
+				write_c0_entryhi(UNIQUE_ENTRYHI(idx));
 				if (idx < 0)
 					continue;
 				tlb_write_indexed();
@@ -213,7 +215,7 @@ void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
 			idx = read_c0_index();
 			write_c0_entrylo0(0);
 			write_c0_entrylo1(0);
-			write_c0_entryhi(KSEG0 + (idx << (PAGE_SHIFT+1)));
+			write_c0_entryhi(UNIQUE_ENTRYHI(idx));
 			if (idx < 0)
 				continue;
 			tlb_write_indexed();
@@ -241,10 +243,10 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 		idx = read_c0_index();
 		write_c0_entrylo0(0);
 		write_c0_entrylo1(0);
-		if(idx < 0)
+		if (idx < 0)
 			goto finish;
 		/* Make sure all entries differ. */
-		write_c0_entryhi(KSEG0+(idx<<(PAGE_SHIFT+1)));
+		write_c0_entryhi(UNIQUE_ENTRYHI(idx));
 		tlb_write_indexed();
 	finish:
 		write_c0_entryhi(oldpid);
@@ -253,29 +255,30 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 }
 
 /*
- * This one is only used for pages with the global bit set so we don't care
- * much about the ASID.
+ * Remove one kernel space TLB entry.  This entry is assumed to be marked
+ * global so we don't do the ASID thing.
  */
 void local_flush_tlb_one(unsigned long page)
 {
 	unsigned long flags;
 	int oldpid, idx;
 
-	local_irq_save(flags);
 	page &= (PAGE_MASK << 1);
 	oldpid = read_c0_entryhi() & ASID_MASK;
+
+	local_irq_save(flags);
 	write_c0_entryhi(page);
 	tlb_probe();
 	idx = read_c0_index();
-	write_c0_entrylo0(0);
-	write_c0_entrylo1(0);
 	if (idx >= 0) {
 		/* Make sure all entries differ. */
-		write_c0_entryhi(KSEG0+(idx<<(PAGE_SHIFT+1)));
+		write_c0_entryhi(KSEG0 + (idx<<(PAGE_SHIFT+1)));
+		write_c0_entrylo0(0);
+		write_c0_entrylo1(0);
 		tlb_write_indexed();
 	}
-	write_c0_entryhi(oldpid);
 
+	write_c0_entryhi(oldpid);
 	local_irq_restore(flags);
 }
 
