@@ -88,7 +88,6 @@ FEXPORT(o32_ret_from_sys_call)
 
 restore_all:	RESTORE_SOME
 		RESTORE_SP
-		sync
 		.set	mips3
 		eret
 		.set	mips0
