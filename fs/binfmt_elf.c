@@ -293,7 +293,7 @@ static unsigned long load_elf_interp(struct elfhdr * interp_elf_ex,
 		goto out_close;
 
 	    if (!load_addr_set && interp_elf_ex->e_type == ET_DYN) {
-		load_addr = map_addr - + ELF_PAGESTART(vaddr);
+		load_addr = map_addr - ELF_PAGESTART(vaddr);
 		load_addr_set = 1;
 	    }
 
