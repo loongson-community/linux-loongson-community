@@ -745,8 +745,8 @@ void __init trap_init(void)
 	extern char except_vec0_r4600, except_vec0_r2300;
 	extern char except_vec1_generic, except_vec2_generic;
 	extern char except_vec3_generic, except_vec3_r4000;
-	extern char except_vec_ejtag_debug;
 	extern char except_vec4;
+	extern char except_vec_ejtag_debug;
 	unsigned long i;
 
 	/* Some firmware leaves the BEV flag set, clear it.  */
@@ -780,7 +780,7 @@ void __init trap_init(void)
 	 * interrupt processing overhead.  Use it where available.
 	 */
 	if (mips_cpu.options & MIPS_CPU_DIVEC) {
-		memcpy((void *)(KSEG0 + 0x200), except_vec4, 8);
+		memcpy((void *)(KSEG0 + 0x200), &except_vec4, 8);
 		set_cp0_cause(CAUSEF_IV);
 	}
 
