@@ -44,7 +44,6 @@
 #define CNODEMASK_TSTB(p, bit)	((p) & (1ULL << (bit)))
 #define CNODEMASK_SETB(p, bit)	((p) |= 1ULL << (bit))
 
-cpumask_t	boot_cpumask;
 hubreg_t	region_mask;
 static int	fine_mode;
 int		maxcpus;
@@ -100,11 +99,7 @@ nasid_t get_actual_nasid(lboard_t *brd)
 		return brd->brd_nasid;
 }
 
-/* Tweak this for maximum number of CPUs to activate */
-static int max_cpus = NR_CPUS;
-
-int do_cpumask(cnodeid_t cnode, nasid_t nasid, cpumask_t *boot_cpumask,
-							int *highest)
+int do_cpumask(cnodeid_t cnode, nasid_t nasid, int *highest)
 {
 	static int tot_cpus_found = 0;
 	lboard_t *brd;
@@ -126,7 +121,7 @@ int do_cpumask(cnodeid_t cnode, nasid_t nasid, cpumask_t *boot_cpumask,
 			/* Only let it join in if it's marked enabled */
 			if ((acpu->cpu_info.flags & KLINFO_ENABLE) &&
 						(tot_cpus_found != max_cpus)) {
-				cpu_set(cpuid, *boot_cpumask);
+				cpu_set(cpuid, cpus_found);
 				cpus_found++;
 				tot_cpus_found++;
 			}
@@ -143,7 +138,7 @@ int do_cpumask(cnodeid_t cnode, nasid_t nasid, cpumask_t *boot_cpumask,
 	return cpus_found;
 }
 
-static cpuid_t cpu_node_probe(cpumask_t *boot_cpumask)
+static cpuid_t cpu_node_probe(void)
 {
 	int i, highest = 0;
 	gda_t *gdap = GDA;
@@ -166,7 +161,7 @@ static cpuid_t cpu_node_probe(cpumask_t *boot_cpumask)
 		compact_to_nasid_node[i] = nasid;
 		nasid_to_compact_node[nasid] = i;
 		numnodes++;
-		do_cpumask(i, nasid, boot_cpumask, &highest);
+		do_cpumask(i, nasid, &highest);
 	}
 
 	/*
@@ -181,7 +176,7 @@ int cpu_enabled(cpuid_t cpu)
 {
 	if (cpu == CPU_NONE)
 		return 0;
-	return cpu_isset(cpu, boot_cpumask);
+	return cpu_isset(cpu, phys_cpu_present_map);
 }
 
 void mlreset(void)
@@ -198,8 +193,7 @@ void mlreset(void)
 	 * Probe for all CPUs - this creates the cpumask and
 	 * sets up the mapping tables.
 	 */
-	cpus_clear(boot_cpumask);
-	maxcpus = cpu_node_probe(&boot_cpumask);
+	maxcpus = cpu_node_probe();
 	printk("Discovered %d cpus on %d nodes\n", maxcpus, numnodes);
 
 	init_topology_matrix();
@@ -415,8 +409,7 @@ static void alloc_cpupda(cpuid_t cpu, int cpunum)
 
 void __init prom_build_cpu_map(void)
 {
-	/* Work was already done; just expose it */
-	phys_cpu_present_map = boot_cpumask;
+	/* Work was already done in mlreset */
 }
 
 void __init prom_prepare_cpus(unsigned int max_cpus)
