@@ -57,6 +57,7 @@
 #define MII_LSI_CONFIG 0x0011
 #define MII_LSI_STAT   0x0012
 #define MII_AUX_CNTRL  0x0018
+#define MII_INT        0x001A
 
 /* mii registers specific to AMD 79C901 */
 #define	MII_STATUS_SUMMARY = 0x0018
@@ -130,6 +131,7 @@
 #define MII_AUX_100      0x0002
 #define MII_AUX_F100     0x0004
 #define MII_AUX_ANEG     0x0008
+#define MII_FDX_LED	 0x8000
 
 typedef struct mii_phy {
 	struct mii_phy * next;

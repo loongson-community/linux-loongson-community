@@ -172,6 +172,11 @@ int bcm_5201_init(struct net_device *dev, int phy_addr)
 	data |= MII_CNTL_RST_AUTO | MII_CNTL_AUTO;
 	mdio_write(dev, phy_addr, MII_CONTROL, data);
 
+	/* Enable TX LED instead of FDX */
+	data = mdio_read(dev, phy_addr, MII_INT);
+	data &= ~MII_FDX_LED;
+	mdio_write(dev, phy_addr, MII_INT, data);
+
 	if (au1000_debug > 4) dump_mii(dev, phy_addr);
 	return 0;
 }
