@@ -175,7 +175,7 @@ config SOUND_CS4281
 
 config SOUND_BCM_CS4297A
 	tristate "Crystal Sound CS4297a (for Swarm)"
-	depends on SOUND_PRIME!=n && SIBYTE_SWARM && !KGDB && SOUND
+	depends on SOUND_PRIME!=n && SIBYTE_SWARM && SOUND
 	help
 	  The BCM91250A has a Crystal CS4297a on synchronous serial
 	  port B (in addition to the DB-9 serial port).  Say Y or M
