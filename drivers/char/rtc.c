@@ -784,7 +784,7 @@ static int __init rtc_init(void)
 #endif
 #endif
 #ifndef __sparc__
-	int r;
+	void *r;
 #endif
 
 #ifdef __sparc__
@@ -837,7 +837,8 @@ no_irq:
 	else
 		r = request_mem_region(RTC_PORT(0), RTC_IO_EXTENT);
 	if (!r) {
-		printk(KERN_ERR "rtc: I/O resource %d is not free.\n", RTC_PORT (0));
+		printk(KERN_ERR "rtc: I/O resource %lx is not free.\n",
+		       (long)(RTC_PORT(0)));
 		return -EIO;
 	}
 
