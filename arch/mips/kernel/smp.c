@@ -104,6 +104,7 @@ asmlinkage void start_secondary(void)
 	unsigned int cpu = smp_processor_id();
 
 	cpu_probe();
+	cpu_report();
 	per_cpu_trap_init();
 	prom_init_secondary();
 
