@@ -62,23 +62,23 @@ static void sgi_machine_halt(void)
 
 static void sgi_machine_power_off(void)
 {
-	unsigned char val;
+	unsigned int tmp;
 
 	local_irq_disable();
 
 	/* Disable watchdog */
-	val = CMOS_READ(RTC_CMD);
-	CMOS_WRITE(val | RTC_WAM, RTC_CMD);
-	CMOS_WRITE(0, RTC_WSEC);
-	CMOS_WRITE(0, RTC_WHSEC);
+	tmp = hpc3c0->rtcregs[RTC_CMD] & 0xff;
+	hpc3c0->rtcregs[RTC_CMD] = tmp | RTC_WAM;
+	hpc3c0->rtcregs[RTC_WSEC] = 0;
+	hpc3c0->rtcregs[RTC_WHSEC] = 0;
 
-	while(1) {
+	while (1) {
 		sgioc->panel = ~SGIOC_PANEL_POWERON;
 		/* Good bye cruel world ...  */
 
 		/* If we're still running, we probably got sent an alarm
 		   interrupt.  Read the flag to clear it.  */
-		val = CMOS_READ(RTC_HOURS_ALARM);
+		tmp = hpc3c0->rtcregs[RTC_HOURS_ALARM];
 	}
 }
 
@@ -182,12 +182,10 @@ static irqreturn_t panel_int(int irq, void *dev_id, struct pt_regs *regs)
 	}
 
 	/* Power button was pressed 
-	 *
 	 * ioc.ps page 22: "The Panel Register is called Power Control by Full
 	 * House. Only lowest 2 bits are used. Guiness uses upper four bits
 	 * for volume control". This is not true, all bits are pulled high
-	 * on fullhouse
-	 */
+	 * on fullhouse */
 	if (ip22_is_fullhouse() || !(buttons & SGIOC_PANEL_POWERINTR)) {
 		power_button();
 		return IRQ_HANDLED;
