@@ -1,14 +1,12 @@
 /*
- * Definitions for the statfs(2) call.
- *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1995 by Ralf Baechle
+ * Copyright (C) 1995, 1999 by Ralf Baechle
  */
-#ifndef __ASM_MIPS_STATFS_H
-#define __ASM_MIPS_STATFS_H
+#ifndef _ASM_STATFS_H
+#define _ASM_STATFS_H
 
 #include <linux/posix_types.h>
 
@@ -37,4 +35,4 @@ struct statfs {
 	long		f_spare[6];
 };
 
-#endif /* __ASM_MIPS_STATFS_H */
+#endif /* _ASM_STATFS_H */
