@@ -742,9 +742,6 @@ void __init setup_arch(char **cmdline_p)
 #ifdef CONFIG_SGI_IP32
 	ip32_setup();
 #endif
-#ifdef CONFIG_SGI_IP32
-	ip32_setup();
-#endif
 #ifdef CONFIG_SIBYTE_SWARM
 	swarm_setup();
 #endif
