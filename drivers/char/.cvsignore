@@ -4,4 +4,5 @@ conmakehash
 consolemap_deftbl.c
 defkeymap.c
 qtronixmap.c
+ibm_workpad_keymap.c
 uni_hash.tbl
