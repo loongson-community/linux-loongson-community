@@ -18,6 +18,7 @@
 #include <asm/cachectl.h>
 #include <asm/cpu.h>
 #include <asm/mipsregs.h>
+#include <asm/prefetch.h>
 #include <asm/system.h>
 
 #ifdef CONFIG_SGI_IP27
@@ -285,5 +286,21 @@ static inline unsigned long long sched_clock(void)
 {
 	return 0ULL;
 }
+
+#ifdef CONFIG_CPU_HAS_PREFETCH
+
+#define ARCH_HAS_PREFETCH
+
+extern inline void prefetch(const void *addr)
+{
+	__asm__ __volatile__(
+	"	.set	mips4		\n"
+	"	pref	%0, (%1)	\n"
+	"	.set	mips0		\n"
+	:
+	: "i" (Pref_Load), "r" (addr));
+}
+
+#endif
 
 #endif /* _ASM_PROCESSOR_H */
