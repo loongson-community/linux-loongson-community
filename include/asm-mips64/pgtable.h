@@ -601,9 +601,9 @@ extern inline void set_pagemask(unsigned long val)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
-		"mtc0 %0, $5\n\t"
+		"mtc0 %z0, $5\n\t"
 		".set reorder"
-		: : "r" (val));
+		: : "Jr" (val));
 }
 
 /* CP0_ENTRYLO0 and CP0_ENTRYLO1 registers */
@@ -623,9 +623,9 @@ extern inline void set_entrylo0(unsigned long val)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
-		"dmtc0 %0, $2\n\t"
+		"dmtc0 %z0, $2\n\t"
 		".set reorder"
-		: : "r" (val));
+		: : "Jr" (val));
 }
 
 extern inline unsigned long get_entrylo1(void)
@@ -644,9 +644,9 @@ extern inline void set_entrylo1(unsigned long val)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
-		"dmtc0 %0, $3\n\t"
+		"dmtc0 %z0, $3\n\t"
 		".set reorder"
-		: : "r" (val));
+		: : "Jr" (val));
 }
 
 /* CP0_ENTRYHI register */
@@ -667,9 +667,9 @@ extern inline void set_entryhi(unsigned long val)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
-		"dmtc0 %0, $10\n\t"
+		"dmtc0 %z0, $10\n\t"
 		".set reorder"
-		: : "r" (val));
+		: : "Jr" (val));
 }
 
 /* CP0_INDEX register */
@@ -689,9 +689,9 @@ extern inline void set_index(unsigned int val)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
-		"mtc0 %0, $0\n\t"
+		"mtc0 %z0, $0\n\t"
 		".set reorder\n\t"
-		: : "r" (val));
+		: : "Jr" (val));
 }
 
 /* CP0_WIRED register */
@@ -711,9 +711,9 @@ extern inline void set_wired(unsigned long val)
 {
 	__asm__ __volatile__(
 		"\n\t.set noreorder\n\t"
-		"mtc0 %0, $6\n\t"
+		"mtc0 %z0, $6\n\t"
 		".set reorder"
-		: : "r" (val));
+		: : "Jr" (val));
 }
 
 extern inline unsigned long get_info(void)
@@ -746,9 +746,9 @@ extern inline void set_taglo(unsigned long val)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
-		"mtc0 %0, $28\n\t"
+		"mtc0 %z0, $28\n\t"
 		".set reorder"
-		: : "r" (val));
+		: : "Jr" (val));
 }
 
 extern inline unsigned long get_taghi(void)
@@ -767,9 +767,9 @@ extern inline void set_taghi(unsigned long val)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
-		"mtc0 %0, $29\n\t"
+		"mtc0 %z0, $29\n\t"
 		".set reorder"
-		: : "r" (val));
+		: : "Jr" (val));
 }
 
 /* CP0_CONTEXT register */
@@ -790,9 +790,9 @@ extern inline void set_context(unsigned long val)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
-		"dmtc0 %0, $4\n\t"
+		"dmtc0 %z0, $4\n\t"
 		".set reorder"
-		: : "r" (val));
+		: : "Jr" (val));
 }
 
 #include <asm-generic/pgtable.h>
