@@ -52,7 +52,7 @@
 		.endm
 
 #ifdef CONFIG_SMP
-		.macro	GET_SAVED_SP
+		.macro	get_saved_sp
                 mfc0    k0, CP0_CONTEXT
                 lui     k1, %hi(kernelsp)
                 srl     k0, k0, 23
@@ -62,7 +62,7 @@
 		.endm
 
 #else
-		.macro	GET_SAVED_SP
+		.macro	get_saved_sp
 		lui	k1, %hi(kernelsp)
 		lw	k1, %lo(kernelsp)(k1)
 		.endm
@@ -89,7 +89,7 @@
 		 move	k1, sp
 		.set	reorder
 		/* Called from user mode, new stack. */
-                GET_SAVED_SP
+                get_saved_sp
 8:
 		move	k0, sp
 		subu	sp, k1, PT_SIZE

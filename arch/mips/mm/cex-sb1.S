@@ -75,7 +75,7 @@ leave_cerr:
 	mfc0	k0, CP0_STATUS
 	sll	k0, k0, 3			# check CU0 (kernel?)
 	bltz	k0, 2f
-	GET_SAVED_SP
+	get_saved_sp
 	move	sp, k0				# want Kseg SP (so uncached)
 2:
 	j	sb1_cache_error
