@@ -820,6 +820,25 @@ static __init void build_tlb_write_random_entry(u32 **p, struct label **l,
 		i_ssnop(p);
 		break;
 
+	case CPU_VR4111:
+	case CPU_VR4121:
+	case CPU_VR4122:
+	case CPU_VR4181:
+	case CPU_VR4181A:
+		i_nop(p);
+		i_nop(p);
+		i_tlbwr(p);
+		i_nop(p);
+		i_nop(p);
+		break;
+
+	case CPU_VR4131:
+	case CPU_VR4133:
+		i_nop(p);
+		i_nop(p);
+		i_tlbwr(p);
+		break;
+
 	default:
 		panic("No TLB refill handler yet (CPU type: %d)",
 		      current_cpu_data.cputype);
