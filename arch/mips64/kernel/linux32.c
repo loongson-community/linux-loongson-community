@@ -1,4 +1,4 @@
-/* $Id: linux32.c,v 1.7 2000/03/06 23:24:34 ulfc Exp $
+/* $Id: linux32.c,v 1.8 2000/03/14 19:28:12 ulfc Exp $
  * 
  * Conversion between 32-bit and 64-bit native system calls.
  *
@@ -386,6 +386,7 @@ sys32_execve(abi64_no_regargs, struct pt_regs regs)
 	unsigned int envp = (unsigned int)regs.regs[6];
 	char **av, **ae;
 	int na, ne, r, len;
+	char * filename;
 
 	na = nargs(argv, NULL);
 	ne = nargs(envp, NULL);
@@ -414,9 +415,13 @@ sys32_execve(abi64_no_regargs, struct pt_regs regs)
 	ae[ne] = (char *)0;
 	(void)nargs(argv, av);
 	(void)nargs(envp, ae);
-	regs.regs[5] = av;
-	regs.regs[6] = ae;
-	r = sys_execve(__dummy0,__dummy0,__dummy0,__dummy0,__dummy0,__dummy0,__dummy0,__dummy0, regs);
+	filename = getname((char *) (long)regs.regs[4]);
+	r = PTR_ERR(filename);
+	if (IS_ERR(filename))
+		return(r);
+
+	r = do_execve(filename, av, ae, &regs);
+	putname(filename);
 	if (IS_ERR(r))
 		sys_munmap(av, len);
 	return(r);
