@@ -61,7 +61,6 @@ static void get_rtc_time(struct rtc_time *rtc_tm);
 #define RTC_TIMER_ON		0x02	/* missed irq timer active	*/
 
 static unsigned char rtc_status;	/* bitmapped status byte.	*/
-static spinlock_t rtc_status_lock = SPIN_LOCK_UNLOCKED;
 static unsigned long rtc_freq;	/* Current periodic IRQ rate	*/
 static struct m48t35_rtc *rtc;
 
@@ -125,9 +124,7 @@ static int rtc_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		if ((yrs -= epoch) > 255)    /* They are unsigned */
 			return -EINVAL;
 
-		local_irq_save(flags);
 		if (yrs > 169) {
-			local_irq_restore(flags);
 			return -EINVAL;
 		}
 		if (yrs >= 100)
@@ -140,6 +137,7 @@ static int rtc_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		BIN_TO_BCD(mon);
 		BIN_TO_BCD(yrs);
 
+		spin_lock_irq(&rtc_lock);
 		rtc->control &= ~M48T35_RTC_SET;
 		rtc->year = yrs;
 		rtc->month = mon;
@@ -148,8 +146,8 @@ static int rtc_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		rtc->min = min;
 		rtc->sec = sec;
 		rtc->control &= ~M48T35_RTC_SET;
+		spin_unlock_irq(&rtc_lock);
 
-		local_irq_restore(flags);
 		return 0;
 	}
 	default:
@@ -166,15 +164,15 @@ static int rtc_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 
 static int rtc_open(struct inode *inode, struct file *file)
 {
-	spin_lock(rtc_status_lock);
+	spin_lock_irq(rtc_lock);
 
 	if (rtc_status & RTC_IS_OPEN) {
-		spin_unlock(rtc_status_lock);
+		spin_unlock_irq(rtc_status_lock);
 		return -EBUSY;
 	}
 
 	rtc_status |= RTC_IS_OPEN;
-	spin_unlock(rtc_status_lock);
+	spin_unlock_irq(rtc_lock);
 
 	return 0;
 }
@@ -186,9 +184,9 @@ static int rtc_release(struct inode *inode, struct file *file)
 	 * in use, and clear the data.
 	 */
 
-	spin_lock(rtc_status_lock);
+	spin_lock_irq(rtc_lock);
 	rtc_status &= ~RTC_IS_OPEN;
-	spin_unlock(rtc_status_lock);
+	spin_unlock_irq(rtc_lock);
 
 	return 0;
 }
@@ -299,8 +297,8 @@ static void get_rtc_time(struct rtc_time *rtc_tm)
 	 * RTC has RTC_DAY_OF_WEEK, we ignore it, as it is only updated
 	 * by the RTC when initially set to a non-zero value.
 	 */
-	local_irq_save(flags);
-        rtc->control |= M48T35_RTC_READ;
+	spin_lock_irq(&rtc_lock);
+	rtc->control |= M48T35_RTC_READ;
 	rtc_tm->tm_sec = rtc->sec;
 	rtc_tm->tm_min = rtc->min;
 	rtc_tm->tm_hour = rtc->hour;
@@ -308,7 +306,7 @@ static void get_rtc_time(struct rtc_time *rtc_tm)
 	rtc_tm->tm_mon = rtc->month;
 	rtc_tm->tm_year = rtc->year;
 	rtc->control &= ~M48T35_RTC_READ;
-	local_irq_restore(flags);
+	spin_unlock_irq(&rtc_lock);
 
 	BCD_TO_BIN(rtc_tm->tm_sec);
 	BCD_TO_BIN(rtc_tm->tm_min);
