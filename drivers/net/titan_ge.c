@@ -91,7 +91,7 @@ static int titan_ge_return_tx_desc(titan_ge_port_info *,
 int titan_ge_receive_queue(struct net_device *, unsigned int);
 
 /* MAC Address XXX For testing purposes, use any value */
-unsigned char titan_ge_mac_addr_base[6] = {
+static unsigned char titan_ge_mac_addr_base[6] = {
 	0x00, 0x11, 0x22, 0x33, 0x44, 0x55
 };
 
@@ -1421,7 +1421,7 @@ static int titan_ge_free_tx_queue(struct net_device *netdev,
 /*
  * Receive the packets and send it to the kernel. No support for Rx NAPI yet.
  */
-int titan_ge_receive_queue(struct net_device *netdev, unsigned int max)
+static int titan_ge_receive_queue(struct net_device *netdev, unsigned int max)
 {
 	titan_ge_port_info *titan_ge_eth;
 	struct titan_ge *port_private;
