@@ -323,13 +323,13 @@ static inline __u64 __xchg_u64(volatile __u64 * m, __u64 val)
 
 		__asm__ __volatile__(
 		"	.set	push		# xchg_u64		\n"
-		"	.set\tnoreorder					\n"
-		"	.set\tnomacro					\n"
-		"	lld\t%0, %3					\n"
-		"1:	move\t%2, %z4					\n"
-		"	scd\t%2, %1					\n"
-		"	beqzl\t%2, 1b					\n"
-		"	 lld\t%0, %3					\n"
+		"	.set	noreorder				\n"
+		"	.set	nomacro					\n"
+		"	lld	%0, %3					\n"
+		"1:	move	%2, %z4					\n"
+		"	scd	%2, %1					\n"
+		"	beqzl	%2, 1b					\n"
+		"	 lld	%0, %3					\n"
 #ifdef CONFIG_SMP
 		"	sync						\n"
 #endif
