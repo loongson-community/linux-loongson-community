@@ -669,7 +669,7 @@ void __init arch_init_irq(void)
 {
 	extern void tx4927_irq_init(void);
 
-	cli();
+	local_irq_disable();
 
 	tx4927_irq_init();
 	toshiba_rbtx4927_irq_ioc_init();
