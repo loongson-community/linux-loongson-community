@@ -1200,7 +1200,7 @@ static int block_til_ready (struct tty_struct *tty, struct file *filp, struct dz
   info->count--;
   info->blocked_open++;
   while (1) {
-    current->state = TASK_INTERRUPTIBLE;
+    set_current_state(TASK_INTERRUPTIBLE);
     if (tty_hung_up_p (filp) || !(info->is_initialized)) {
       retval = -EAGAIN;
       break;
@@ -1287,7 +1287,7 @@ static void show_serial_version (void)
 }
 
 
-__initfunc(int dz_init(void))
+int __init dz_init(void)
 {
   int i, flags;
   struct dz_serial *info;
@@ -1461,7 +1461,7 @@ static kdev_t dz_console_device(struct console *c)
 	return MKDEV(TTY_MAJOR, 64 + c->index);
 }
 
-__initfunc(static int dz_console_setup(struct console *co, char *options))
+static int __init dz_console_setup(struct console *co, char *options)
 {
   	int	baud = 9600;
 	int	bits = 8;
@@ -1565,7 +1565,7 @@ static struct console dz_sercons = {
 	NULL
 };
 
-__initfunc (long dz_serial_console_init(long kmem_start, long kmem_end))
+long __init dz_serial_console_init(long kmem_start, long kmem_end)
 {
 	register_console(&dz_sercons);
 

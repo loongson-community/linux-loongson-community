@@ -228,14 +228,6 @@ ifdef CONFIG_HAMRADIO
 DRIVERS := $(DRIVERS) drivers/net/hamradio/hamradio.o
 endif
 
-ifeq ($(CONFIG_I2C),y)
-DRIVERS := $(DRIVERS) drivers/i2c/i2c.a
-endif
-
-ifeq ($(CONFIG_PHONE),y)
-DRIVERS := $(DRIVERS) drivers/telephony/telephony.a
-endif
-
 ifeq ($(CONFIG_TC),y)
 DRIVERS := $(DRIVERS) drivers/tc/tc.a
 endif
@@ -250,6 +242,14 @@ endif
 
 ifeq ($(CONFIG_IRDA),y)
 DRIVERS := $(DRIVERS) drivers/net/irda/irda_drivers.a
+endif
+
+ifeq ($(CONFIG_I2C),y)
+DRIVERS := $(DRIVERS) drivers/i2c/i2c.a
+endif
+
+ifeq ($(CONFIG_PHONE),y)
+DRIVERS := $(DRIVERS) drivers/telephony/telephony.a
 endif
 
 include arch/$(ARCH)/Makefile

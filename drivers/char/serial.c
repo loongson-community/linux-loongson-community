@@ -13,8 +13,6 @@
  *  set_serial_info fixed to set the flags, custom divisor, and uart
  * 	type fields.  Fix suggested by Michael K. Johnson 12/12/92.
  *
- *  Mips JAZZ support by Andreas Busse (andy@ivm.net)
- *
  *  11/95: TIOCMIWAIT, TIOCGICOUNT by Angelo Haritsis <ah@doc.ic.ac.uk>
  *
  *  03/96: Modularised by Angelo Haritsis <ah@doc.ic.ac.uk>
