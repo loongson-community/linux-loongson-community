@@ -95,6 +95,7 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 			__enable_fpu();
 			save_fp(p);
 		}
+
 	/* set up new TSS. */
 	childregs = (struct pt_regs *) childksp - 1;
 	*childregs = *regs;
