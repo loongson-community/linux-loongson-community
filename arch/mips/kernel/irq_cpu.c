@@ -29,6 +29,7 @@
 #include <linux/kernel.h>
 
 #include <asm/mipsregs.h>
+#include <asm/system.h>
 
 static int mips_cpu_irq_base;
 
@@ -48,7 +49,7 @@ static inline void mips_cpu_irq_enable(unsigned int irq)
 	unsigned long flags;
 
 	local_irq_save(flags);
-	unmask_mips_irq(irq)
+	unmask_mips_irq(irq);
 	local_irq_restore(flags);
 }
 
@@ -57,7 +58,7 @@ static void mips_cpu_irq_disable(unsigned int irq)
 	unsigned long flags;
 
 	local_irq_save(flags);
-	mask_mips_irq(irq)
+	mask_mips_irq(irq);
 	local_irq_restore(flags);
 }
 
@@ -79,13 +80,13 @@ static void mips_cpu_irq_ack(unsigned int irq)
 	/* Only necessary for soft interrupts */
 	clear_cp0_cause(1 << (irq - mips_cpu_irq_base + 8));
 
-	mask_mips_irq(irq)
+	mask_mips_irq(irq);
 }
 
 static void mips_cpu_irq_end(unsigned int irq)
 {
 	if (!(irq_desc[irq].status & (IRQ_DISABLED | IRQ_INPROGRESS)))
-		unmask_mips_irq(irq)
+		unmask_mips_irq(irq);
 }
 
 static hw_irq_controller mips_cpu_irq_controller = {

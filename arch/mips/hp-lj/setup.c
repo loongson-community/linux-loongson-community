@@ -123,6 +123,9 @@ static void hplj_halt(void)
    while(1);
 }
 
+void __init bus_error_init(void)
+{
+}
 
 void __init hp_setup(void)
 {
@@ -158,4 +161,3 @@ int __init page_is_ram(unsigned long pagenr)
 {
 	return 1;
 }
-

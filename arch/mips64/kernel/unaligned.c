@@ -363,15 +363,15 @@ fault:
 		return;
 	}
 
-	die_if_kernel ("Unhandled kernel unaligned access", regs);
+	die_if_kernel("Unhandled kernel unaligned access", regs);
 	send_sig(SIGSEGV, current, 1);
 	return;
 sigbus:
-	die_if_kernel ("Unhandled kernel unaligned access", regs);
+	die_if_kernel("Unhandled kernel unaligned access", regs);
 	send_sig(SIGBUS, current, 1);
 	return;
 sigill:
-	die_if_kernel ("Unhandled kernel unaligned access or invalid instruction", regs);
+	die_if_kernel("Unhandled kernel unaligned access or invalid instruction", regs);
 	send_sig(SIGILL, current, 1);
 	return;
 }

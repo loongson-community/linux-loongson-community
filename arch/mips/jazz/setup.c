@@ -80,6 +80,10 @@ static void __init jazz_irq_setup(void)
 	i8259_setup_irq(2, &irq2);
 }
 
+void __init bus_error_init(void)
+{
+}
+
 void __init jazz_setup(void)
 {
 	/* Map 0xe0000000 -> 0x0:800005C0, 0xe0010000 -> 0x1:30000580 */

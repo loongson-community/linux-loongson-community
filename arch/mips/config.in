@@ -3,6 +3,7 @@
 # see Documentation/kbuild/config-language.txt.
 #
 define_bool CONFIG_MIPS y
+define_bool CONFIG_MIPS32 y
 
 mainmenu_name "Linux Kernel Configuration"
 
@@ -135,6 +136,7 @@ if [ "$CONFIG_ACER_PICA_61" = "y" ]; then
    define_bool CONFIG_OLD_TIME_C y
 fi
 if [ "$CONFIG_MIPS_ATLAS" = "y" ]; then
+   define_bool CONFIG_NEW_TIME_C y
    define_bool CONFIG_NONCOHERENT_IO y
    define_bool CONFIG_PCI y
    define_bool CONFIG_SWAP_IO_SPACE y
@@ -144,6 +146,7 @@ if [ "$CONFIG_MIPS_MALTA" = "y" ]; then
    define_bool CONFIG_PCI y
    define_bool CONFIG_HAVE_STD_PC_SERIAL_PORT y
    define_bool CONFIG_NONCOHERENT_IO y
+   define_bool CONFIG_NEW_TIME_C y
    define_bool CONFIG_SWAP_IO_SPACE y
 fi
 if [ "$CONFIG_MOMENCO_OCELOT" = "y" ]; then

@@ -193,12 +193,15 @@ ddb_setup(void)
 	ddb5476_board_init();
 }
 
+void __init bus_error_init(void)
+{
+}
+
 /*
  * We don't trust bios.  We essentially does hardware re-initialization
  * as complete as possible, as far as we know we can safely do.
  */
-static void 
-ddb5476_board_init(void)
+static void ddb5476_board_init(void)
 {
 	/* ----------- setup PDARs ------------ */
 	/* check SDRAM0, whether we are on MEM bus does not matter */

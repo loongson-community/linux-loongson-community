@@ -23,17 +23,15 @@
 #include <asm/bootinfo.h>
 #include <asm/branch.h>
 #include <asm/cpu.h>
-#include <asm/cachectl.h>
 #include <asm/inst.h>
-#include <asm/jazz.h>
 #include <asm/module.h>
 #include <asm/pgtable.h>
-#include <asm/io.h>
 #include <asm/siginfo.h>
-#include <asm/watch.h>
+#include <asm/paccess.h>
 #include <asm/system.h>
 #include <asm/uaccess.h>
 #include <asm/mmu_context.h>
+#include <asm/watch.h>
 
 /*
  * Machine specific interrupt handlers
@@ -65,9 +63,6 @@ extern asmlinkage void handle_reserved(void);
 extern int fpu_emulator_cop1Handler(struct pt_regs *);
 
 char watch_available = 0;
-
-void (*ibe_board_handler)(struct pt_regs *regs);
-void (*dbe_board_handler)(struct pt_regs *regs);
 
 int kstack_depth_to_print = 24;
 
@@ -380,8 +375,7 @@ search_one_table(const struct exception_table_entry *first,
 
 extern spinlock_t modlist_lock;
 
-static inline unsigned long
-search_dbe_table(unsigned long addr)
+unsigned long search_dbe_table(unsigned long addr)
 {
 	unsigned long ret = 0;
 
@@ -417,40 +411,26 @@ search_dbe_table(unsigned long addr)
 #endif
 }
 
-static void default_be_board_handler(struct pt_regs *regs)
+/* Default data and instruction bus error handlers.  */
+void do_ibe(struct pt_regs *regs)
 {
-	unsigned long new_epc;
-	unsigned long fixup;
-	int data = regs->cp0_cause & 4;
+	die("Got ibe\n", regs);
+}
 
-	if (data && !user_mode(regs)) {
-		fixup = search_dbe_table(regs->cp0_epc);
-		if (fixup) {
-			new_epc = fixup_exception(dpf_reg, fixup,
-						  regs->cp0_epc);
-			regs->cp0_epc = new_epc;
-			return;
-		}
+void do_dbe(struct pt_regs *regs)
+{
+	unsigned long fixup;
+
+	fixup = search_dbe_table(regs->cp0_epc);
+	if (fixup) {
+		long new_epc;
+
+		new_epc = fixup_exception(dpf_reg, fixup, regs->cp0_epc);
+		regs->cp0_epc = new_epc;
+		return;
 	}
 
-	/*
-	 * Assume it would be too dangerous to continue ...
-	 */
-	printk(KERN_ALERT "%s bus error, epc == %08lx, ra == %08lx\n",
-	       data ? "Data" : "Instruction",
-	       regs->cp0_epc, regs->regs[31]);
-	die_if_kernel("Oops", regs);
-	force_sig(SIGBUS, current);
-}
-
-asmlinkage void do_ibe(struct pt_regs *regs)
-{
-	ibe_board_handler(regs);
-}
-
-asmlinkage void do_dbe(struct pt_regs *regs)
-{
-	dbe_board_handler(regs);
+	die("Got DBE\n", regs);
 }
 
 asmlinkage void do_ov(struct pt_regs *regs)
@@ -830,6 +810,7 @@ void __init trap_init(void)
 	extern char except_vec4;
 	extern char except_vec_ejtag_debug;
 	unsigned long i;
+	int dummy;
 
 	/* Some firmware leaves the BEV flag set, clear it.  */
 	clear_cp0_status(ST0_BEV);
@@ -879,15 +860,17 @@ void __init trap_init(void)
 	set_except_vector(4, handle_adel);
 	set_except_vector(5, handle_ades);
 
-	/*
-	 * The Data Bus Error/ Instruction Bus Errors are signaled
-	 * by external hardware.  Therefore these two expection have
-	 * board specific handlers.
-	 */
 	set_except_vector(6, handle_ibe);
 	set_except_vector(7, handle_dbe);
-	ibe_board_handler = default_be_board_handler;
-	dbe_board_handler = default_be_board_handler;
+
+	/*
+	 * If nothing uses the DBE protection mechanism this is necessary to
+	 * get the kernel to link.
+	 */
+        get_dbe(dummy, (int *)KSEG0);
+
+	/* DBE / IBE handlers may be overridden by system specific handlers.  */
+	bus_error_init();
 
 	set_except_vector(8, handle_sys);
 	set_except_vector(9, handle_bp);

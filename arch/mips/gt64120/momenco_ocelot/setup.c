@@ -82,6 +82,10 @@ static char reset_reason;
 
 static void __init setup_l3cache(unsigned long size);
 
+void __init bus_error_init(void)
+{
+}
+
 void __init momenco_ocelot_setup(void)
 {
 	void (*l3func)(unsigned long)=KSEG1ADDR(&setup_l3cache);

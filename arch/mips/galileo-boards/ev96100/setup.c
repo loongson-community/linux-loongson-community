@@ -70,6 +70,10 @@ static void rm7000_wbflush(void)
 	 __asm__ __volatile__ ("sync");
 }
 
+void __init bus_error_init(void)
+{
+}
+
 unsigned char mac_0_1[12];
 
 

@@ -2,6 +2,7 @@
 # Automatically generated make config: don't edit
 #
 CONFIG_MIPS=y
+CONFIG_MIPS32=y
 
 #
 # Code maturity level options

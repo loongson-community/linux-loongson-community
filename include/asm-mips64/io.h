@@ -98,7 +98,10 @@ static inline void iounmap(void *addr)
  * instruction, so the lower 16 bits must be zero.  Should be true on
  * on any sane architecture; generic code does not use this assumption.
  */
-extern unsigned long mips_io_port_base;
+extern const unsigned long mips_io_port_base;
+
+#define set_io_port_base(base)  \
+	do { * (unsigned long *) &mips_io_port_base = (base); } while (0)
 
 #define __SLOW_DOWN_IO \
 	__asm__ __volatile__( \

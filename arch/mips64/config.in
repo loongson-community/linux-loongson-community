@@ -2,6 +2,9 @@
 # For a description of the syntax of this configuration file,
 # see Documentation/kbuild/config-language.txt.
 #
+define_bool CONFIG_MIPS y
+define_bool CONFIG_MIPS64 y
+
 mainmenu_name "Linux Kernel Configuration"
 
 mainmenu_option next_comment

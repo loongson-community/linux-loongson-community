@@ -78,6 +78,7 @@ static void ddb_machine_power_off(void)
 }
 
 extern void rtc_ds1386_init(unsigned long base);
+
 static void __init ddb_time_init(void)
 {
 #if defined(USE_CPU_COUNTER_TIMER)
@@ -89,6 +90,7 @@ static void __init ddb_time_init(void)
 }
 
 extern int setup_irq(unsigned int irq, struct irqaction *irqaction);
+
 static void __init ddb_timer_setup(struct irqaction *irq)
 {
 #if defined(USE_CPU_COUNTER_TIMER)
@@ -150,7 +152,11 @@ void __init ddb_setup(void)
 
 }
 
-static void __init ddb5477_board_init()
+void __init bus_error_init(void)
+{
+}
+
+static void __init ddb5477_board_init(void)
 {
 	/* ----------- setup PDARs ------------ */
 

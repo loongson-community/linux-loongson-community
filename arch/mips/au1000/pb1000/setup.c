@@ -82,6 +82,10 @@ void au1000_wbflush(void)
 	__asm__ volatile ("sync");
 }
 
+void __init bus_error_init(void)
+{
+}
+
 void __init au1000_setup(void)
 {
 	char *argptr;

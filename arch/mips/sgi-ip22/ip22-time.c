@@ -188,11 +188,13 @@ void indy_8254timer_irq(struct pt_regs *regs)
 {
 	int cpu = smp_processor_id();
 	int irq = SGI_8254_0_IRQ;
+	long cnt;
+	char c;
 
 	irq_enter(cpu, irq);
 	kstat.irqs[cpu][irq]++;
 	printk("indy_8254timer_irq: Whoops, should not have gotten this IRQ\n");
-	prom_getchar();
+	ArcRead(0, &c, 1, &cnt);
 	ArcEnterInteractiveMode();
 	irq_exit(cpu, irq);
 }

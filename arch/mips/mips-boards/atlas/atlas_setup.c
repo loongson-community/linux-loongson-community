@@ -28,8 +28,9 @@
 #include <asm/irq.h>
 #include <asm/mips-boards/generic.h>
 #include <asm/mips-boards/prom.h>
-#include <asm/gt64120.h>
 #include <asm/mips-boards/atlasint.h>
+#include <asm/gt64120.h>
+#include <asm/time.h>
 
 #if defined(CONFIG_SERIAL_CONSOLE) || defined(CONFIG_PROM_CONSOLE)
 extern void console_setup(char *, int *);
@@ -51,6 +52,12 @@ const char *get_system_type(void)
 {
 	return "MIPS Atlas";
 }
+
+void __init bus_error_init(void)
+{
+}
+
+extern void mips_time_init(void);
 
 void __init atlas_setup(void)
 {
@@ -115,6 +122,7 @@ void __init atlas_setup(void)
 		mips_cpu.options &= ~MIPS_CPU_FPU;
 
 	rtc_ops = &atlas_rtc_ops;
+	board_time_init = mips_time_init;
 
 	mips_reboot_setup();
 }

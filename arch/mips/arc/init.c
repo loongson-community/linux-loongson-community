@@ -16,7 +16,7 @@
 
 /* Master romvec interface. */
 struct linux_romvec *romvec;
-struct linux_promblock *sgi_pblock;
+PSYSTEM_PARAMETER_BLOCK sgi_pblock;
 int prom_argc;
 char **prom_argv, **prom_envp;
 unsigned short prom_vers, prom_rev;
@@ -25,7 +25,7 @@ extern void prom_testtree(void);
 
 void __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
 {
-	struct linux_promblock *pb;
+	PSYSTEM_PARAMETER_BLOCK pb;
 
 	romvec = ROMVECTOR;
 	pb = sgi_pblock = PROMBLOCK;

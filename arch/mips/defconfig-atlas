@@ -2,6 +2,7 @@
 # Automatically generated make config: don't edit
 #
 CONFIG_MIPS=y
+CONFIG_MIPS32=y
 
 #
 # Code maturity level options
@@ -39,6 +40,7 @@ CONFIG_RWSEM_GENERIC_SPINLOCK=y
 # CONFIG_RWSEM_XCHGADD_ALGORITHM is not set
 # CONFIG_MCA is not set
 # CONFIG_SBUS is not set
+CONFIG_NEW_TIME_C=y
 CONFIG_NONCOHERENT_IO=y
 CONFIG_PCI=y
 CONFIG_SWAP_IO_SPACE=y

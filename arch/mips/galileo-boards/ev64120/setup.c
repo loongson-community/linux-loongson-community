@@ -1,6 +1,4 @@
 /*
- * setup.c
- *
  * BRIEF MODULE DESCRIPTION
  * Galileo Evaluation Boards - board dependent boot routines
  *
@@ -29,8 +27,8 @@
  *  675 Mass Ave, Cambridge, MA 02139, USA.
  *
  */
-
 #include <linux/config.h>
+#include <linux/bootmem.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
@@ -41,6 +39,8 @@
 #include <linux/interrupt.h>
 #include <linux/pci.h>
 #include <linux/timex.h>
+#include <linux/version.h>
+
 #include <asm/bootinfo.h>
 #include <asm/page.h>
 #include <asm/bootinfo.h>
@@ -51,8 +51,6 @@
 #include <asm/ptrace.h>
 #include <asm/reboot.h>
 #include <asm/mc146818rtc.h>
-#include <linux/version.h>
-#include <linux/bootmem.h>
 
 extern struct rtc_ops no_rtc_ops;
 
@@ -105,6 +103,10 @@ struct rtc_ops galileo_rtc_ops = {
 	&galileo_rtc_bcd_mode
 };
 
+void __init bus_error_init(void)
+{
+}
+
 /********************************************************************
  *ev64120_setup -
  *
@@ -118,7 +120,8 @@ struct rtc_ops galileo_rtc_ops = {
  *
  *********************************************************************/
 extern void galileo_time_init();
-void ev64120_setup(void)
+
+void __init ev64120_setup(void)
 {
 	unsigned int i, j;
 

@@ -73,6 +73,10 @@ static inline void sni_pcimt_detect(void)
 	printk("%s.\n", boardtype);
 }
 
+void __init bus_error_init(void)
+{
+}
+
 void __init sni_rm200_pci_setup(void)
 {
 	sni_pcimt_detect();

@@ -23,74 +23,81 @@
 extern void *sgiwd93_host;
 extern void reset_wd33c93(void *instance);
 
-VOID ArcHalt(VOID)
+VOID
+ArcHalt(VOID)
 {
 	bc_disable();
 	cli();
 #if CONFIG_SCSI_SGIWD93
 	reset_wd33c93(sgiwd93_host);
 #endif
-	romvec->halt();
+	ARC_CALL0(halt);
 never:	goto never;
 }
 
-VOID ArcPowerDown(VOID)
+VOID
+ArcPowerDown(VOID)
 {
 	bc_disable();
 	cli();
 #if CONFIG_SCSI_SGIWD93
 	reset_wd33c93(sgiwd93_host);
 #endif
-	romvec->pdown();
+	ARC_CALL0(pdown);
 never:	goto never;
 }
 
 /* XXX is this a soft reset basically? XXX */
-VOID ArcRestart(VOID)
+VOID
+ArcRestart(VOID)
 {
 	bc_disable();
 	cli();
 #if CONFIG_SCSI_SGIWD93
 	reset_wd33c93(sgiwd93_host);
 #endif
-	romvec->restart();
+	ARC_CALL0(restart);
 never:	goto never;
 }
 
-VOID ArcReboot(VOID)
+VOID
+ArcReboot(VOID)
 {
 	bc_disable();
 	cli();
 #if CONFIG_SCSI_SGIWD93
 	reset_wd33c93(sgiwd93_host);
 #endif
-	romvec->reboot();
+	ARC_CALL0(reboot);
 never:	goto never;
 }
 
-VOID ArcEnterInteractiveMode(VOID)
+VOID
+ArcEnterInteractiveMode(VOID)
 {
 	bc_disable();
 	cli();
 #if CONFIG_SCSI_SGIWD93
 	reset_wd33c93(sgiwd93_host);
 #endif
-	romvec->imode();
+	ARC_CALL0(imode);
 never:	goto never;
 }
 
-LONG ArcSaveConfiguration(VOID)
+LONG
+ArcSaveConfiguration(VOID)
 {
-	return romvec->cfg_save();
+	return ARC_CALL0(cfg_save);
 }
 
 struct linux_sysid *
 ArcGetSystemId(VOID)
 {
-	return romvec->get_sysid();
+	return (struct linux_sysid *) ARC_CALL0(get_sysid);
 }
 
-VOID __init ArcFlushAllCaches(VOID)
+VOID __init
+ArcFlushAllCaches(VOID)
 {
-	romvec->cache_flush();
+	ARC_CALL0(cache_flush);
 }

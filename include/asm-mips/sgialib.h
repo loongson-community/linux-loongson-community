@@ -8,7 +8,6 @@
 
 #include <asm/sgiarcs.h>
 
-extern struct linux_promblock *sgi_pblock;
 extern struct linux_romvec *romvec;
 extern int prom_argc;
 extern char **prom_argv, **prom_envp;
@@ -43,7 +42,7 @@ extern void prom_meminit(void);
 extern pcomponent *prom_getsibling(pcomponent *this);
 
 /* Get child component of THIS. */
-extern pcomponent *prom_getchild(pcomponent *this);
+extern pcomponent *ArcGetChild(pcomponent *this);
 
 /* Get parent component of CHILD. */
 extern pcomponent *prom_getparent(pcomponent *child);

@@ -22,7 +22,7 @@
 struct linux_mdesc * __init
 ArcGetMemoryDescriptor(struct linux_mdesc *Current)
 {
-	return romvec->get_mdesc(Current);
+	return (struct linux_mdesc *) ARC_CALL1(get_mdesc, Current);
 }
 
 #ifdef DEBUG /* convenient for debugging */

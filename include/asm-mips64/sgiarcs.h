@@ -6,7 +6,7 @@
  * ARC firmware interface defines.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
- * Copyright (C) 1999 Ralf Baechle (ralf@gnu.org)
+ * Copyright (C) 1999, 2001 Ralf Baechle (ralf@gnu.org)
  * Copyright (C) 1999 Silicon Graphics, Inc.
  */
 #ifndef _ASM_SGIARCS_H
@@ -364,7 +364,8 @@ struct linux_smonblock {
  * Macros for calling a 32-bit ARC implementation from 64-bit code
  */
 
-#ifdef CONFIG_ARC32
+#if defined(CONFIG_MIPS64) && defined(CONFIG_ARC32)
+
 #define __arc_clobbers							\
 	"$2","$3","$4","$5","$6","$7","$8","$9","$10","$11",		\
 	"$12","$13","$14","$15","$16","$24","25","$31"
@@ -471,9 +472,11 @@ struct linux_smonblock {
 	: __arc_clobbers);						\
 	__res;								\
 })
-#endif /* CONFIG_ARC32 */
 
-#ifdef CONFIG_ARC64
+#endif /* defined(CONFIG_MIPS64) && defined(CONFIG_ARC32) */
+
+#if (defined(CONFIG_MIPS32) && defined(CONFIG_ARC32)) ||		\
+    (defined(CONFIG_MIPS64) && defined(CONFIG_ARC64))
 
 #define ARC_CALL0(dest)							\
 ({	long __res;							\
@@ -538,6 +541,6 @@ struct linux_smonblock {
 	__res = __vec(__a1, __a2, __a3, __a4, __a5);			\
 	__res;								\
 })
-#endif /* CONFIG_ARC64 */
+#endif /* both kernel and ARC either 32-bit or 64-bit */
 
 #endif /* _ASM_SGIARCS_H */

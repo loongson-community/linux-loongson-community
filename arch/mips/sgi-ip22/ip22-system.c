@@ -35,6 +35,8 @@ static struct smatch sgi_cputable[] = {
 
 static int __init string_to_cpu(char *s)
 {
+	long cnt;
+	char c;
 	int i;
 
 	for(i = 0; i < NUM_CPUS; i++) {
@@ -43,8 +45,8 @@ static int __init string_to_cpu(char *s)
 	}
 	prom_printf("\nYeee, could not determine MIPS cpu type <%s>\n", s);
 	prom_printf("press a key to reboot\n");
-	prom_getchar();
-	romvec->imode();
+	ArcRead(0, &c, 1, &cnt);
+	ArcEnterInteractiveMode();
 	return 0;
 }
 
@@ -56,15 +58,17 @@ void __init sgi_sysinit(void)
 {
 	pcomponent *p, *toplev, *cpup = 0;
 	int cputype = -1;
+	long cnt;
+	char c;
 
 
 	/* The root component tells us what machine architecture we
 	 * have here.
 	 */
-	p = prom_getchild(PROM_NULL_COMPONENT);
+	p = ArcGetChild(PROM_NULL_COMPONENT);
 
 	/* Now scan for cpu(s). */
-	toplev = p = prom_getchild(p);
+	toplev = p = ArcGetChild(p);
 	while(p) {
 		int ncpus = 0;
 
@@ -72,22 +76,22 @@ void __init sgi_sysinit(void)
 			if(++ncpus > 1) {
 				prom_printf("\nYeee, SGI MP not ready yet\n");
 				prom_printf("press a key to reboot\n");
-				prom_getchar();
-				romvec->imode();
+				ArcRead(0, &c, 1, &cnt);
+				ArcEnterInteractiveMode();
 			}
 			printk("CPU: %s ", p->iname);
 			cpup = p;
 			cputype = string_to_cpu(cpup->iname);
 		}
-		p = prom_getsibling(p);
+		p = ArcGetPeer(p);
 	}
-	if(cputype == -1) {
+	if (cputype == -1) {
 		prom_printf("\nYeee, could not find cpu ARCS component\n");
 		prom_printf("press a key to reboot\n");
-		prom_getchar();
-		romvec->imode();
+		ArcRead(0, &c, 1, &cnt);
+		ArcEnterInteractiveMode();
 	}
-	p = prom_getchild(cpup);
+	p = ArcGetChild(cpup);
 	while(p) {
 		switch(p->class) {
 		case processor:
@@ -124,7 +128,7 @@ void __init sgi_sysinit(void)
 		default:
 			break;
 		};
-		p = prom_getsibling(p);
+		p = ArcGetPeer(p);
 	}
 	printk("\n");
 }

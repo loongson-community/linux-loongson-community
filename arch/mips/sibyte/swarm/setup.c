@@ -181,6 +181,10 @@ static void swarm_linux_exit(void)
 	}
 }
 
+void __init bus_error_init(void)
+{
+}
+
 void __init swarm_setup(void)
 {
 	extern int panic_timeout;

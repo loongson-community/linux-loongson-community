@@ -29,8 +29,7 @@
 #include <asm/mips-boards/malta.h>
 
 /* Environment variable */
-typedef struct
-{
+typedef struct {
 	char *name;
 	char *val;
 } t_env_var;

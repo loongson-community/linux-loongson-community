@@ -408,6 +408,10 @@ void __init dec_init_kn02ca(void)
     dec_halt_init(&haltirq);
 }				/* dec_init_kn02ca */
 
+void __init bus_error_init(void)
+{
+}
+
 /*
  * Machine-specific initialisation for kn03, aka 3max+, aka DS5000/240.
  */

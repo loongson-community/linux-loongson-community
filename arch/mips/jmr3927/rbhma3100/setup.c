@@ -141,6 +141,7 @@ static void __init jmr3927_time_init(void)
 
 unsigned long jmr3927_do_gettimeoffset(void);
 extern int setup_irq(unsigned int irq, struct irqaction *irqaction);
+
 static void __init jmr3927_timer_setup(struct irqaction *irq)
 {
 	do_gettimeoffset = jmr3927_do_gettimeoffset;
@@ -155,6 +156,7 @@ static void __init jmr3927_timer_setup(struct irqaction *irq)
 }
 
 #define USECS_PER_JIFFY (1000000/HZ)
+
 unsigned long jmr3927_do_gettimeoffset(void)
 {
        unsigned long count;
@@ -195,6 +197,11 @@ static void jmr3927_board_init(void);
 extern void jmr3927_irq_setup(void);
 extern struct resource pci_io_resource;
 extern struct resource pci_mem_resource;
+
+void __init bus_error_init(void)
+{
+}
+
 void __init jmr3927_setup(void)
 {
 	extern int panic_timeout;
@@ -291,9 +298,11 @@ unsigned long mips_pci_mem_size;
 /* for legacy I/O, PCI I/O PCI Bus address must be 0 */
 unsigned long mips_pci_io_pciaddr = 0;
 #endif
+
 extern struct rtc_ops *rtc_ops;
 extern struct rtc_ops jmr3927_rtc_ops;
-static void jmr3927_board_init()
+
+static void __init jmr3927_board_init(void)
 {
 	char *argptr;
 
@@ -352,7 +361,8 @@ static void jmr3927_board_init()
 		       jmr3927_isac_reg_in(JMR3927_ISAC_REV_ADDR) & JMR3927_REV_MASK,
 		       jmr3927_io_dipsw());
 }
-static void tx3927_setup(void)
+
+static void __init tx3927_setup(void)
 {
 	int i;
 

@@ -31,7 +31,7 @@ void prom_putchar(char c)
 	char it = c;
 
 	bc_disable();
-	romvec->write(1, &it, 1, &cnt);
+	ArcWrite(1, &it, 1, &cnt);
 	bc_enable();
 }
 
@@ -41,7 +41,7 @@ char __init prom_getchar(void)
 	char c;
 
 	bc_disable();
-	romvec->read(0, &c, 1, &cnt);
+	ArcRead(0, &c, 1, &cnt);
 	bc_enable();
 
 	return c;

@@ -11,22 +11,25 @@
 #include <linux/config.h>
 #include <linux/init.h>
 #include <linux/mm.h>
+#include <linux/module.h>
 #include <linux/sched.h>
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
 #include <linux/spinlock.h>
 
+#include <asm/bootinfo.h>
 #include <asm/branch.h>
-#include <asm/cachectl.h>
 #include <asm/cpu.h>
+#include <asm/module.h>
 #include <asm/pgtable.h>
 #include <asm/io.h>
-#include <asm/bootinfo.h>
+#include <asm/paccess.h>
 #include <asm/ptrace.h>
 #include <asm/watch.h>
 #include <asm/system.h>
 #include <asm/uaccess.h>
 #include <asm/mmu_context.h>
+#include <asm/cachectl.h>
 
 extern asmlinkage void __xtlb_mod(void);
 extern asmlinkage void __xtlb_tlbl(void);
@@ -167,14 +170,14 @@ void show_code(unsigned int *pc)
 
 spinlock_t die_lock;
 
-void die(const char * str, struct pt_regs * regs, unsigned long err)
+void die(const char * str, struct pt_regs * regs)
 {
 	if (user_mode(regs))	/* Just return if in user mode.  */
 		return;
 
 	console_verbose();
 	spin_lock_irq(&die_lock);
-	printk("%s: %04lx\n", str, err & 0xffff);
+	printk("%s\n", str);
 	show_regs(regs);
 	printk("Process %s (pid: %d, stackpage=%08lx)\n",
 		current->comm, current->pid, (unsigned long) current);
@@ -186,10 +189,100 @@ void die(const char * str, struct pt_regs * regs, unsigned long err)
 	do_exit(SIGSEGV);
 }
 
-void die_if_kernel(const char * str, struct pt_regs * regs, unsigned long err)
+void die_if_kernel(const char * str, struct pt_regs * regs)
 {
 	if (!user_mode(regs))
-		die(str, regs, err);
+		die(str, regs);
+}
+
+extern const struct exception_table_entry __start___dbe_table[];
+extern const struct exception_table_entry __stop___dbe_table[];
+
+void __declare_dbe_table(void)
+{
+	__asm__ __volatile__(
+	".section\t__dbe_table,\"a\"\n\t"
+	".previous"
+	);
+}
+
+static inline unsigned long
+search_one_table(const struct exception_table_entry *first,
+		 const struct exception_table_entry *last,
+		 unsigned long value)
+{
+	const struct exception_table_entry *mid;
+	long diff;
+
+	while (first < last) {
+		mid = (last - first) / 2 + first;
+		diff = mid->insn - value;
+		if (diff < 0)
+			first = mid + 1;
+		else
+			last = mid;
+	}
+	return (first == last && first->insn == value) ? first->nextinsn : 0;
+}
+
+extern spinlock_t modlist_lock;
+
+unsigned long search_dbe_table(unsigned long addr)
+{
+	unsigned long ret = 0;
+
+#ifndef CONFIG_MODULES
+	/* There is only the kernel to search.  */
+	ret = search_one_table(__start___dbe_table, __stop___dbe_table-1, addr);
+	return ret;
+#else
+	unsigned long flags;
+
+	/* The kernel is the last "module" -- no need to treat it special.  */
+	struct module *mp;
+	struct archdata *ap;
+
+	spin_lock_irqsave(&modlist_lock, flags);
+	for (mp = module_list; mp != NULL; mp = mp->next) {
+		if (!mod_member_present(mp, archdata_end) ||
+        	    !mod_archdata_member_present(mp, struct archdata,
+						 dbe_table_end))
+			continue;
+		ap = (struct archdata *)(mp->archdata_start);
+
+		if (ap->dbe_table_start == NULL ||
+		    !(mp->flags & (MOD_RUNNING | MOD_INITIALIZING)))
+			continue;
+		ret = search_one_table(ap->dbe_table_start,
+				       ap->dbe_table_end - 1, addr);
+		if (ret)
+			break;
+	}
+	spin_unlock_irqrestore(&modlist_lock, flags);
+	return ret;
+#endif
+}
+
+/* Default data and instruction bus error handlers.  */
+void do_ibe(struct pt_regs *regs)
+{
+	die("Got ibe\n", regs);
+}
+
+void do_dbe(struct pt_regs *regs)
+{
+	unsigned long fixup;
+
+	fixup = search_dbe_table(regs->cp0_epc);
+	if (fixup) {
+		long new_epc;
+
+		new_epc = fixup_exception(dpf_reg, fixup, regs->cp0_epc);
+		regs->cp0_epc = new_epc;
+		return;
+	}
+
+	die("Got dbe\n", regs);
 }
 
 void do_ov(struct pt_regs *regs)
@@ -478,6 +571,7 @@ void __init trap_init(void)
 	extern char except_vec4;
 	extern void bus_error_init(void);
 	unsigned long i;
+	int dummy;
 
 	/* Some firmware leaves the BEV flag set, clear it.  */
 	clear_cp0_status(ST0_BEV);
@@ -557,8 +651,21 @@ r4k:
 		set_except_vector(4, handle_adel);
 		set_except_vector(5, handle_ades);
 
-		/* DBE / IBE exception handler are system specific.  */
+		set_except_vector(6, handle_ibe);
+		set_except_vector(7, handle_dbe);
+
+		/*
+		 * If nothing uses the DBE protection mechanism this is
+		 * necessary to get the kernel to link.
+		 */
+		get_dbe(dummy, (int *)KSEG0);
+
+		/*
+		 * DBE / IBE handlers may be overridden by system specific
+		 * handlers.
+		 */
 		bus_error_init();
+
 
 		set_except_vector(8, handle_sys);
 		set_except_vector(9, handle_bp);

@@ -12,10 +12,11 @@
 #define _ASM_IO_H
 
 #include <linux/config.h>
-#include <linux/pagemap.h>
 #include <linux/types.h>
+
 #include <asm/addrspace.h>
 #include <asm/byteorder.h>
+#include <asm/mipsregs.h>
 
 /*
  * Slowdown I/O port space accesses for antique hardware.
@@ -142,12 +143,12 @@ extern void * __ioremap(phys_t offset, phys_t size, unsigned long flags);
 
 static inline void *ioremap(unsigned long offset, unsigned long size)
 {
-	return __ioremap(offset, size, _CACHE_UNCACHED);
+	return __ioremap(offset, size, CONF_CM_UNCACHED << 9);
 }
 
 static inline void *ioremap_nocache(unsigned long offset, unsigned long size)
 {
-	return __ioremap(offset, size, _CACHE_UNCACHED);
+	return __ioremap(offset, size, CONF_CM_UNCACHED << 9);
 }
 
 extern void iounmap(void *addr);
