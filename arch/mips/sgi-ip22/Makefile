@@ -15,11 +15,11 @@
 
 O_TARGET := ip22-kern.o
 
-all: ip22-kern.o indyIRQ.o
+all: ip22-kern.o ip22-irq.o
 
-obj-y	+= indy_mc.o indy_sc.o indy_hpc.o indy_int.o indy_time.o indy_rtc.o \
-	   system.o indyIRQ.o reset.o setup.o
+obj-y	+= ip22-mc.o ip22-sc.o ip22-hpc.o ip22-int.o ip22-time.o ip22-rtc.o \
+	   ip22-irq.o system.o reset.o setup.o
 
-indyIRQ.o: indyIRQ.S
+ip22-irq.o: ip22-irq.S
 
 include $(TOPDIR)/Rules.make

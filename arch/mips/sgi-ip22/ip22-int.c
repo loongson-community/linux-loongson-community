@@ -1,6 +1,6 @@
 /*
- * indy_int.c: Routines for generic manipulation of the INT[23] ASIC
- *             found on INDY workstations..
+ * ip22-int.c: Routines for generic manipulation of the INT[23] ASIC
+ *             found on INDY and Indigo2 workstations..
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  * Copyright (C) 1997, 1998 Ralf Baechle (ralf@gnu.org)
@@ -193,7 +193,7 @@ static void enable_local3_irq(unsigned int irq)
 	ioc_icontrol->cmeimask1 |= (1 << (irq - SGINT_LOCAL3));
 	restore_flags(flags);
 #else
-	panic("Who need local 3 irq? see indy_int.c\n");
+	panic("Who need local 3 irq? see ip22-int.c\n");
 #endif
 }
 

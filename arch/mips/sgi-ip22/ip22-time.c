@@ -23,10 +23,9 @@
 #include <asm/sgialib.h>
 #include <asm/sgi/sgint23.h>
 
-
 /*
  * note that mktime uses month from 1 to 12 while to_tm
- * uses 0 to 11. ask Jun Sun why!
+ * uses 0 to 11.
  */
 static unsigned long indy_rtc_get_time(void)
 {	
@@ -226,10 +225,7 @@ static void indy_timer_setup(struct irqaction *irq)
 
 void sgitime_init(void)
 {
-	/* 
-	 * setup hookup function only when Indy Dallas chip driver
-	 * is included.
-	 */
+	/* setup hookup functions */
 	rtc_get_time = indy_rtc_get_time;
 	rtc_set_time = indy_rtc_set_time;
 

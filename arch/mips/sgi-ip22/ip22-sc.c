@@ -1,5 +1,5 @@
 /*
- * indy_sc.c: Indy cache management functions.
+ * ip22-sc.c: Indy cache management functions.
  *
  * Copyright (C) 1997, 2001 Ralf Baechle (ralf@gnu.org),
  * derived from r4xx0.c by David S. Miller (dm@engr.sgi.com).

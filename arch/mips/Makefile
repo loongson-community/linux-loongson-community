@@ -165,9 +165,9 @@ LOADADDR      += 0x80080000
 endif
 
 ifdef CONFIG_SGI_IP22
-CORE_FILES    += arch/mips/sgi/kernel/ip22-kern.o
+CORE_FILES    += arch/mips/sgi-ip22/ip22-kern.o
 LIBS          += arch/mips/arc/arclib.a
-SUBDIRS       += arch/mips/sgi/kernel arch/mips/arc
+SUBDIRS       += arch/mips/sgi-ip22 arch/mips/arc
 #
 # Set LOADADDR to >= 0x88069000 if you want to leave space for symmon,
 # 0x88002000 for production kernels.  Note that the value must be

@@ -1,5 +1,5 @@
 /*
- * indy_hpc.c: Routines for generic manipulation of the HPC controllers.
+ * ip22-hpc.c: Routines for generic manipulation of the HPC controllers.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  * Copyright (C) 1998 Ralf Baechle

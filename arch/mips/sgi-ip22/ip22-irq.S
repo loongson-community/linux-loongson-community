@@ -1,6 +1,6 @@
 /*
- * indyIRQ.S: Interrupt exception dispatch code for FullHouse and
- *            Guiness.
+ * ip22-irq.S: Interrupt exception dispatch code for FullHouse and
+ *             Guiness.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  */
@@ -109,9 +109,9 @@
 	 nop
 
 1:
-	/* Here by mistake?  This is possible, what can happen
-	 * is that by the time we take the exception the IRQ
-	 * pin goes low, so just leave if this is the case.
+	/* Here by mistake? It is possible, that by the time we take
+	 * the exception the IRQ pin goes low, so just leave if this 
+	 * is the case.
 	 */
 	andi	a0, s0, (CAUSEF_IP4 | CAUSEF_IP5)
 	beq	a0, zero, 1f
