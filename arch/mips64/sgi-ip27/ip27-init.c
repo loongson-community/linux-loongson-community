@@ -1,4 +1,5 @@
 #include <linux/kernel.h>
+#include <linux/init.h>
 #include <linux/sched.h>
 #include <linux/mmzone.h>	/* for numnodes */
 #include <asm/sn/types.h>
@@ -281,18 +282,52 @@ void per_cpu_init(void)
 #endif
 }
 
+/*
+ * This is similar to hard_smp_processor_id().
+ */
+cpuid_t getcpuid(void)
+{
+	klcpu_t *klcpu;
+
+	klcpu = nasid_slice_to_cpuinfo(get_nasid(),LOCAL_HUB_L(PI_CPU_NUM));
+	return klcpu->cpu_info.virtid;
+}
+
+#ifdef CONFIG_SMP
+
+void __init smp_callin(void)
+{
+#if 0
+	calibrate_delay();
+	smp_store_cpu_info(cpuid);
+#endif
+}
+
+int __init start_secondary(void)
+{
+	extern int cpu_idle(void);
+	extern atomic_t smp_commenced;
+
+	smp_callin();
+	while (!atomic_read(&smp_commenced));
+	return cpu_idle();
+}
 
 static atomic_t numstarted = ATOMIC_INIT(0);
 void cboot(void)
 {
 	atomic_inc(&numstarted);
-	/* printk("Child!\n"); */
-	while(1);
+	CPUMASK_CLRB(boot_barrier, getcpuid());	/* needs atomicity */
+#if 0
+	per_cpu_init();
+	ecc_init();
+	bte_lateinit();
+	init_mfhi_war();
+	flush_tlb();
+	flush_cache();
+#endif
+	start_secondary();
 }
-
-#ifdef CONFIG_SMP
-
-static long bootstacks[MAXCPUS][128];
 
 void allowboot(void)
 {
@@ -320,15 +355,44 @@ void allowboot(void)
 
 		/* Skip holes in CPU space */
 		if (CPUMASK_TSTB(boot_cpumask, cpu)) {
-			num_cpus++;
+			struct task_struct *p;
 
 			/*
+			 * The following code is purely to make sure
+			 * Linux can schedule processes on this slave.
+			 */
+			kernel_thread(0, NULL, CLONE_PID);
+			p = init_task.prev_task;
+			init_tasks[num_cpus] = p;
+			p->processor = num_cpus;
+			p->has_cpu = 1; /* we schedule the first task manually */
+			del_from_runqueue(p);
+			unhash_process(p);
+			/* Attach to the address space of init_task. */
+			atomic_inc(&init_mm.mm_count);
+			p->active_mm = &init_mm;
+			
+			/*
 		 	 * Launch a slave into bootstrap().
-		 	 * It doesn't take an argument, and we'll
-		 	 * take care of sp and gp when we get there.
+		 	 * It doesn't take an argument, and we
+			 * set sp to the kernel stack of the newly 
+			 * created idle process, gp to the proc struct
+			 * (so that current-> works).
 		 	 */
 			LAUNCH_SLAVE(cputonasid(cpu), cputoslice(cpu), 
-				(launch_proc_t)bootstrap, 0, bootstacks[cpu], 0);
+				(launch_proc_t)bootstrap, 0, 
+				(void *)((unsigned long)p+KERNEL_STACK_SIZE - 32),
+				(void *)p);
+
+			/*
+			 * Now optimistically set the mapping arrays. We
+			 * need to wait here, verify the cpu booted up, then
+			 * fire up the next cpu.
+			 */
+			__cpu_number_map[cpu] = num_cpus;
+			__cpu_logical_map[num_cpus] = cpu;
+			num_cpus++;
+			/* smp_num_cpus++; Do after smp_send_reschedule works */
 		}
 	}
 
@@ -353,4 +417,6 @@ void allowboot(void)
 #endif
 }
 
-#endif
+#else /* CONFIG_SMP */
+void cboot(void) {}
+#endif /* CONFIG_SMP */

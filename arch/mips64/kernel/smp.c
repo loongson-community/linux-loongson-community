@@ -50,7 +50,7 @@ static void sendintr(int destid, unsigned char status)
 /* The 'big kernel lock' */
 spinlock_t kernel_flag = SPIN_LOCK_UNLOCKED;
 int smp_threads_ready = 0;	/* Not used */
-static atomic_t smp_commenced = ATOMIC_INIT(0);
+atomic_t smp_commenced = ATOMIC_INIT(0);
 struct cpuinfo_mips cpu_data[NR_CPUS];
 int smp_num_cpus;		/* Number that came online.  */
 int __cpu_number_map[NR_CPUS];
