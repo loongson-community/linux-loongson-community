@@ -210,7 +210,7 @@ static int __init sb1250_pcibios_init(void)
 	pci_probe_only = 1;
 
 	/* set resource limit to avoid errors */
-	ioport_resource.end = 0x0000ffff;	/* 32MB reserved by sb1250 */
+	ioport_resource.end = 0x01ffffff;	/* 32MB reserved by sb1250 */
 	iomem_resource.end = 0xffffffff;	/* no HT support yet */
 
 	cfg_space =
