@@ -655,7 +655,7 @@ static void lance_tx(struct net_device *dev)
 
 			if (status & LE_T3_CLOS) {
 				lp->stats.tx_carrier_errors++;
-				printk("%s: Carrier Lost", dev->name);
+				printk("%s: Carrier Lost\n", dev->name);
 				/* Stop the lance */
 				writereg(&ll->rap, LE_CSR0);
 				writereg(&ll->rdp, LE_C0_STOP);
@@ -740,7 +740,7 @@ static void lance_interrupt(const int irq, void *dev_id, struct pt_regs *regs)
 	if (csr0 & LE_C0_MERR) {
 		volatile unsigned long int_stat = *(unsigned long *) (system_base + IOCTL + SIR);
 
-		printk("%s: Memory error, status %04x", dev->name, csr0);
+		printk("%s: Memory error, status %04x\n", dev->name, csr0);
 
 		if (int_stat & LANCE_DMA_MEMRDERR) {
 			printk("%s: DMA error\n", dev->name);
