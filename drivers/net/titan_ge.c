@@ -1273,20 +1273,12 @@ int titan_ge_start_xmit(struct sk_buff *skb, struct net_device *netdev)
 	titan_ge_eth = netdev->priv;
 
 	stats = &titan_ge_eth->stats;
-#ifdef CONFIG_SMP
 	spin_lock_irqsave(&titan_ge_eth->lock, flags);
-#else
-	local_irq_save(flags);
-#endif
 
 	if ((TITAN_GE_TX_QUEUE - titan_ge_eth->tx_ring_skbs) <=
 	    (skb_shinfo(skb)->nr_frags + 1)) {
 		netif_stop_queue(netdev);
-#ifdef CONFIG_SMP
 		spin_unlock_irqrestore(&titan_ge_eth->lock, flags);
-#else
-		local_irq_restore(flags);
-#endif
 		printk(KERN_ERR "Tx OOD \n");
 		return 1;
 	}
@@ -1295,27 +1287,15 @@ int titan_ge_start_xmit(struct sk_buff *skb, struct net_device *netdev)
 	titan_ge_eth->tx_ring_skbs++;
 
 	if (TITAN_GE_TX_QUEUE <= (titan_ge_eth->tx_ring_skbs + 4)) {
-#ifdef CONFIG_SMP
 		spin_unlock_irqrestore(&titan_ge_eth->lock, flags);
-#else
-		local_irq_restore(flags);
-#endif
 		titan_ge_free_tx_queue(titan_ge_eth);
-#ifdef CONFIG_SMP
 		spin_lock_irqsave(&titan_ge_eth->lock, flags);
-#else
-		local_irq_save(flags);
-#endif
 	}
 
 	stats->tx_bytes += skb->len;
 	stats->tx_packets++;
 
-#ifdef CONFIG_SMP
 	spin_unlock_irqrestore(&titan_ge_eth->lock, flags);
-#else
-	local_irq_restore(flags);
-#endif
 
 	netdev->trans_start = jiffies;
 
@@ -1436,21 +1416,13 @@ static int titan_ge_free_tx_queue(titan_ge_port_info *titan_ge_eth)
 	unsigned long flags;
 
 	/* Take the lock */
-#ifdef CONFIG_SMP
 	spin_lock_irqsave(&(titan_ge_eth->lock), flags);
-#else
-	local_irq_save(flags);
-#endif
 
 	while (titan_ge_return_tx_desc(titan_ge_eth, titan_ge_eth->port_num) == 0) 
 		if (titan_ge_eth->tx_ring_skbs != 1)
 			titan_ge_eth->tx_ring_skbs--;
 
-#ifdef CONFIG_SMP
 	spin_unlock_irqrestore(&titan_ge_eth->lock, flags);
-#else
-	local_irq_restore(flags);
-#endif
 
 	return TITAN_OK;
 }
@@ -1696,11 +1668,7 @@ done:
 	*budget -= work_done;
         netdev->quota -= work_done;
 
-#ifdef CONFIG_SMP
 	spin_lock_irqsave(&titan_ge_eth->lock, flags);
-#else
-	local_irq_save(flags);
-#endif
 
 	/* Remove us from the poll list */
 	netif_rx_complete(netdev);
@@ -1708,11 +1676,7 @@ done:
 	/* Re-enable interrupts */
 	titan_ge_enable_int(port_num, titan_ge_eth, netdev);
 
-#ifdef CONFIG_SMP
 	spin_unlock_irqrestore(&titan_ge_eth->lock, flags);
-#else
-	local_irq_restore(flags);
-#endif
 
 	return 0;
 }
