@@ -40,6 +40,7 @@ typedef struct siginfo {
 	int si_signo;
 	int si_code;
 	int si_errno;
+	int __pad0[SI_MAX_SIZE / sizeof(int) - SI_PAD_SIZE - 3];
 
 	union {
 		int _pad[SI_PAD_SIZE];
