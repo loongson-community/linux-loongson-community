@@ -31,6 +31,7 @@
 #include <linux/major.h>
 #include <linux/kdev_t.h>
 #include <linux/root_dev.h>
+#include <linux/highmem.h>
 
 #include <asm/addrspace.h>
 #include <asm/bootinfo.h>
