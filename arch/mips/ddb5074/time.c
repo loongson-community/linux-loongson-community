@@ -1,5 +1,5 @@
 /*
- *  arch.mips/ddb5074/time.c -- Timer routines
+ *  arch/mips/ddb5074/time.c -- Timer routines
  *
  *  Copyright (C) 2000 Geert Uytterhoeven <geert@sonycom.com>
  *                     Sony Suprastructure Center Europe (SUPC-E), Brussels
