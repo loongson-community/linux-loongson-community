@@ -4,15 +4,11 @@
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
- */
-
-/*
- * 'traps.c' handles hardware traps and faults after we have saved some
- * state in 'asm.s'. Currently mostly a debugging-aid, will be extended
- * to mainly kill the offending process (probably by giving it a signal,
- * but possibly by killing it outright if necessary).
  *
+ * Copyright 1994, 1995, 1996, 1997 by Ralf Baechle
  * Modified for R3000 by Paul M. Antoine, 1995, 1996
+ *
+ * $Id: traps.c,v 1.3 1997/09/17 07:22:12 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -76,7 +72,6 @@ extern asmlinkage void handle_reserved(void);
 
 static char *cpu_names[] = CPU_NAMES;
 
-unsigned long page_colour_mask;
 unsigned int watch_available = 0;
 
 void (*ibe_board_handler)(struct pt_regs *regs);
@@ -492,11 +487,6 @@ __initfunc(void trap_init(void))
 		write_32bit_cp0_register(CP0_FRAMEMASK, 0);
 		set_cp0_status(ST0_XX, ST0_XX);
 		/*
-		 * Actually this mask stands for only 16k cache.  This is
-		 * correct since the R10000 has multiple ways in it's cache.
-		 */
-		page_colour_mask = 0x3000;
-		/*
 		 * The R10k might even work for Linux/MIPS - but we're paranoid
 		 * and refuse to run until this is tested on real silicon
 		 */
@@ -518,6 +508,7 @@ __initfunc(void trap_init(void))
      /* case CPU_R4640: */
 	case CPU_R4600:
         case CPU_R5000:
+        case CPU_NEVADA:
 		if(mips_cputype != CPU_R4600)
 			memcpy((void *)KSEG0, &except_vec0_r4000, 0x80);
 		else
@@ -556,15 +547,8 @@ __initfunc(void trap_init(void))
 		set_except_vector(12, handle_ov);
 		set_except_vector(13, handle_tr);
 		set_except_vector(15, handle_fpe);
-
-		/*
-		 * Compute mask for page_colour().  This is based on the
-		 * size of the data cache.
-		 */
-		i = read_32bit_cp0_register(CP0_CONFIG);
-		i = (i >> 26) & 7;
-		page_colour_mask = 1 << (12 + i);
 		break;
+
 	case CPU_R6000:
 	case CPU_R6000A:
 		save_fp_context = r6000_save_fp_context;
@@ -576,6 +560,7 @@ __initfunc(void trap_init(void))
 		 * unaligned ldc1/sdc1 exception.  The handlers have not been
 		 * written yet.  Well, anyway there is no R6000 machine on the
 		 * current list of targets for Linux/MIPS.
+		 * (Duh, crap, there is someone with a tripple R6k machine)
 		 */
 		set_except_vector(14, handle_mc);
 		set_except_vector(15, handle_ndc);
@@ -583,9 +568,6 @@ __initfunc(void trap_init(void))
 	case CPU_R2000:
 	case CPU_R3000:
 	case CPU_R3000A:
-		/*
-		 * Actually don't know about these, but let's guess - PMA
-		 */
 		memcpy((void *)KSEG0, &except_vec0_r2300, 0x80);
 		do_syscalls = r2300_do_syscalls;
 		save_fp_context = r2300_save_fp_context;
@@ -613,20 +595,6 @@ __initfunc(void trap_init(void))
 		set_except_vector(12, handle_ov);
 		set_except_vector(13, handle_tr);
 		set_except_vector(15, handle_fpe);
-
-		/*
-		 * Compute mask for page_colour().  This is based on the
-		 * size of the data cache.  Does the size of the icache
-		 * need to be accounted for?
-		 *
-		 * FIXME: is any of this necessary for the R3000, which
-		 *        doesn't have a config register?
-		 *        (No, the R2000, R3000 family has a physical indexed
-		 *        cache and doesn't need this braindamage.)
-		i = read_32bit_cp0_register(CP0_CONFIG);
-		i = (i >> 26) & 7;
-		page_colour_mask = 1 << (12 + i);
-		 */
 		break;
 	case CPU_R3041:
 	case CPU_R3051:
