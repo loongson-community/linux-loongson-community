@@ -280,7 +280,7 @@ static inline unsigned long get_phys_page (unsigned long addr,
 	pte = pte_offset(pmd, addr);
 
 	if((physpage = pte_val(*pte)) & _PAGE_VALID)
-		return KSEG1ADDR(physpage & PAGE_MASK);
+		return KSEG0ADDR(physpage & PAGE_MASK);
 	else
 		return 0;
 }
