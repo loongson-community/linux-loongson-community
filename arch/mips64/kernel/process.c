@@ -53,7 +53,7 @@ void exit_thread(void)
 {
 	/* Forget lazy fpu state */
 	if (IS_FPU_OWNER()) {
-		set_cp0_status(ST0_CU1);
+		__enable_fpu();
 		__asm__ __volatile__("cfc1\t$0,$31");
 		CLEAR_FPU_OWNER();
 	}
@@ -63,7 +63,7 @@ void flush_thread(void)
 {
 	/* Forget lazy fpu state */
 	if (IS_FPU_OWNER()) {
-		set_cp0_status(ST0_CU1);
+		__enable_fpu();
 		__asm__ __volatile__("cfc1\t$0,$31");
 		CLEAR_FPU_OWNER();
 	}
@@ -123,10 +123,11 @@ int dump_fpu(struct pt_regs *regs, elf_fpregset_t *r)
 	/* We actually store the FPU info in the task->thread
 	 * area.
 	 */
-	if(regs->cp0_status & ST0_CU1) {
+	if (regs->cp0_status & ST0_CU1) {
 		memcpy(r, &current->thread.fpu, sizeof(current->thread.fpu));
 		return 1;
 	}
+
 	return 0; /* Task didn't use the fpu at all. */
 }
 

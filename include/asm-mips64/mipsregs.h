@@ -85,37 +85,6 @@
 #define PL_16M  24
 
 /*
- * Macros to access the system control coprocessor
- */
-#define read_32bit_cp0_register(source)                         \
-({ int __res;                                                   \
-        __asm__ __volatile__(                                   \
-        "mfc0\t%0,"STR(source)                                  \
-        : "=r" (__res));                                        \
-        __res;})
-
-#define read_64bit_cp0_register(source)                         \
-({ int __res;                                                   \
-        __asm__ __volatile__(                                   \
-        ".set\tmips3\n\t"                                       \
-        "dmfc0\t%0,"STR(source)"\n\t"                           \
-        ".set\tmips0"                                           \
-        : "=r" (__res));                                        \
-        __res;})
-
-#define write_32bit_cp0_register(register,value)                \
-        __asm__ __volatile__(                                   \
-        "mtc0\t%0,"STR(register)                                \
-        : : "r" (value));
-
-#define write_64bit_cp0_register(register,value)                \
-        __asm__ __volatile__(                                   \
-        ".set\tmips3\n\t"                                       \
-        "dmtc0\t%0,"STR(register)"\n\t"                         \
-        ".set\tmips0"                                           \
-        : : "r" (value))
-
-/*
  * R4x00 interrupt enable / cause bits
  */
 #define IE_SW0          (1<< 8)
@@ -138,56 +107,6 @@
 #define C_IRQ3          (1<<13)
 #define C_IRQ4          (1<<14)
 #define C_IRQ5          (1<<15)
-
-#ifndef _LANGUAGE_ASSEMBLY
-/*
- * Manipulate the status register.
- * Mostly used to access the interrupt bits.
- */
-#define __BUILD_SET_CP0(name,register)				\
-extern inline unsigned int					\
-set_cp0_##name(unsigned int set)				\
-{								\
-	unsigned int res;					\
-								\
-	res = read_32bit_cp0_register(register);		\
-	res |= set;						\
-	write_32bit_cp0_register(register, res);		\
-								\
-	return res;						\
-}								\
-								\
-extern inline unsigned int					\
-clear_cp0_##name(unsigned int clear)				\
-{								\
-	unsigned int res;					\
-								\
-	res = read_32bit_cp0_register(register);		\
-	res &= ~clear;						\
-	write_32bit_cp0_register(register, res);		\
-								\
-	return res;						\
-}								\
-								\
-extern inline unsigned int					\
-change_cp0_##name(unsigned int change, unsigned int new)	\
-{								\
-	unsigned int res;					\
-								\
-	res = read_32bit_cp0_register(register);		\
-	res &= ~change;						\
-	res |= (new & change);					\
-	if (change)						\
-		write_32bit_cp0_register(register, res);	\
-								\
-	return res;						\
-}
-
-__BUILD_SET_CP0(status,CP0_STATUS)
-__BUILD_SET_CP0(cause,CP0_CAUSE)
-__BUILD_SET_CP0(config,CP0_CONFIG)
-
-#endif /* defined (_LANGUAGE_ASSEMBLY) */
 
 /*
  * Bitfields in the R4xx0 cp0 status register
@@ -350,6 +269,375 @@ extern asmlinkage unsigned int read_perf_cntr(unsigned int counter);
 extern asmlinkage void write_perf_cntr(unsigned int counter, unsigned int val);
 extern asmlinkage unsigned int read_perf_cntl(unsigned int counter);
 extern asmlinkage void write_perf_cntl(unsigned int counter, unsigned int val);
-#endif
+
+/*
+ * Macros to access the system control coprocessor
+ */
+#define read_32bit_cp0_register(source)                         \
+({ int __res;                                                   \
+        __asm__ __volatile__(                                   \
+        "mfc0\t%0,"STR(source)                                  \
+        : "=r" (__res));                                        \
+        __res;})
+
+#define read_64bit_cp0_register(source)                         \
+({ int __res;                                                   \
+        __asm__ __volatile__(                                   \
+        ".set\tmips3\n\t"                                       \
+        "dmfc0\t%0,"STR(source)"\n\t"                           \
+        ".set\tmips0"                                           \
+        : "=r" (__res));                                        \
+        __res;})
+
+#define write_32bit_cp0_register(register,value)                \
+        __asm__ __volatile__(                                   \
+        "mtc0\t%0,"STR(register)                                \
+        : : "r" (value));
+
+#define write_64bit_cp0_register(register,value)                \
+        __asm__ __volatile__(                                   \
+        ".set\tmips3\n\t"                                       \
+        "dmtc0\t%0,"STR(register)"\n\t"                         \
+        ".set\tmips0"                                           \
+        : : "r" (value))
+
+/* TLB operations. */
+static inline void tlb_probe(void)
+{
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		"tlbp\n\t"
+		".set reorder");
+}
+
+static inline void tlb_read(void)
+{
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		"tlbr\n\t"
+		".set reorder");
+}
+
+static inline void tlb_write_indexed(void)
+{
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		"tlbwi\n\t"
+		".set reorder");
+}
+
+static inline void tlb_write_random(void)
+{
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		"tlbwr\n\t"
+		".set reorder");
+}
+
+/* Dealing with various CP0 mmu/cache related registers. */
+
+/* CP0_PAGEMASK register */
+static inline unsigned long get_pagemask(void)
+{
+	unsigned long val;
+
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		"mfc0 %0, $5\n\t"
+		".set reorder"
+		: "=r" (val));
+	return val;
+}
+
+static inline void set_pagemask(unsigned long val)
+{
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		"mtc0 %z0, $5\n\t"
+		".set reorder"
+		: : "Jr" (val));
+}
+
+/* CP0_ENTRYLO0 and CP0_ENTRYLO1 registers */
+static inline unsigned long get_entrylo0(void)
+{
+	unsigned long val;
+
+	__asm__ __volatile__(	
+		".set noreorder\n\t"
+		"dmfc0 %0, $2\n\t"
+		".set reorder"
+		: "=r" (val));
+	return val;
+}
+
+static inline void set_entrylo0(unsigned long val)
+{
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		"dmtc0 %z0, $2\n\t"
+		".set reorder"
+		: : "Jr" (val));
+}
+
+static inline unsigned long get_entrylo1(void)
+{
+	unsigned long val;
+
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		"dmfc0 %0, $3\n\t"
+		".set reorder" : "=r" (val));
+
+	return val;
+}
+
+static inline void set_entrylo1(unsigned long val)
+{
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		"dmtc0 %z0, $3\n\t"
+		".set reorder"
+		: : "Jr" (val));
+}
+
+/* CP0_ENTRYHI register */
+static inline unsigned long get_entryhi(void)
+{
+	unsigned long val;
+
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		"dmfc0 %0, $10\n\t"
+		".set reorder"
+		: "=r" (val));
+
+	return val;
+}
+
+static inline void set_entryhi(unsigned long val)
+{
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		"dmtc0 %z0, $10\n\t"
+		".set reorder"
+		: : "Jr" (val));
+}
+
+/* CP0_INDEX register */
+static inline unsigned int get_index(void)
+{
+	unsigned long val;
+
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		"mfc0 %0, $0\n\t"
+		".set reorder"
+		: "=r" (val));
+	return val;
+}
+
+static inline void set_index(unsigned int val)
+{
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		"mtc0 %z0, $0\n\t"
+		".set reorder\n\t"
+		: : "Jr" (val));
+}
+
+/* CP0_WIRED register */
+static inline unsigned long get_wired(void)
+{
+	unsigned long val;
+
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		"mfc0 %0, $6\n\t"
+		".set reorder\n\t"
+		: "=r" (val));
+	return val;
+}
+
+static inline void set_wired(unsigned long val)
+{
+	__asm__ __volatile__(
+		"\n\t.set noreorder\n\t"
+		"mtc0 %z0, $6\n\t"
+		".set reorder"
+		: : "Jr" (val));
+}
+
+static inline unsigned long get_info(void)
+{
+	unsigned long val;
+
+	__asm__(".set push\n\t"
+		".set reorder\n\t"
+		"mfc0 %0, $7\n\t"
+		".set pop"
+		: "=r" (val));
+	return val;
+}
+
+/* CP0_STATUS registers */
+static inline unsigned long get_status(void)
+{
+	unsigned long val;
+
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		"mfc0 %0, $12\n\t"
+		".set reorder"
+		: "=r" (val));
+	return val;
+}
+
+static inline void set_status(unsigned long val)
+{
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		"mtc0 %z0, $12\n\t"
+		".set reorder"
+		: : "Jr" (val));
+}
+
+/* CP0_TAGLO and CP0_TAGHI registers */
+static inline unsigned long get_taglo(void)
+{
+	unsigned long val;
+
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		"mfc0 %0, $28\n\t"
+		".set reorder"
+		: "=r" (val));
+	return val;
+}
+
+static inline void set_taglo(unsigned long val)
+{
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		"mtc0 %z0, $28\n\t"
+		".set reorder"
+		: : "Jr" (val));
+}
+
+static inline unsigned long get_taghi(void)
+{
+	unsigned long val;
+
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		"mfc0 %0, $29\n\t"
+		".set reorder"
+		: "=r" (val));
+	return val;
+}
+
+static inline void set_taghi(unsigned long val)
+{
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		"mtc0 %z0, $29\n\t"
+		".set reorder"
+		: : "Jr" (val));
+}
+
+/* CP0_CONTEXT register */
+static inline unsigned long get_context(void)
+{
+	unsigned long val;
+
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		"dmfc0 %0, $4\n\t"
+		".set reorder"
+		: "=r" (val));
+
+	return val;
+}
+
+static inline void set_context(unsigned long val)
+{
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		"dmtc0 %z0, $4\n\t"
+		".set reorder"
+		: : "Jr" (val));
+}
+
+/*
+ * Manipulate the status register.
+ * Mostly used to access the interrupt bits.
+ */
+#define __BUILD_SET_CP0(name,register)				\
+extern inline unsigned int					\
+set_cp0_##name(unsigned int set)				\
+{								\
+	unsigned int res;					\
+								\
+	res = read_32bit_cp0_register(register);		\
+	res |= set;						\
+	write_32bit_cp0_register(register, res);		\
+								\
+	return res;						\
+}								\
+								\
+extern inline unsigned int					\
+clear_cp0_##name(unsigned int clear)				\
+{								\
+	unsigned int res;					\
+								\
+	res = read_32bit_cp0_register(register);		\
+	res &= ~clear;						\
+	write_32bit_cp0_register(register, res);		\
+								\
+	return res;						\
+}								\
+								\
+extern inline unsigned int					\
+change_cp0_##name(unsigned int change, unsigned int new)	\
+{								\
+	unsigned int res;					\
+								\
+	res = read_32bit_cp0_register(register);		\
+	res &= ~change;						\
+	res |= (new & change);					\
+	if (change)						\
+		write_32bit_cp0_register(register, res);	\
+								\
+	return res;						\
+}
+
+__BUILD_SET_CP0(status,CP0_STATUS)
+__BUILD_SET_CP0(cause,CP0_CAUSE)
+__BUILD_SET_CP0(config,CP0_CONFIG)
+
+#define __enable_fpu()							\
+do {									\
+	set_cp0_status(ST0_CU1);					\
+	asm("nop;nop;nop;nop");		/* max. hazard */		\
+} while (0)
+
+#define __disable_fpu()							\
+do {									\
+	clear_cp0_status(ST0_CU1);					\
+	/* We don't care about the cp0 hazard here  */			\
+} while (0)
+
+#define enable_fpu()							\
+do {									\
+	if (mips_cpu.options & MIPS_CPU_FPU)				\
+		__enable_fpu();						\
+} while (0)
+
+#define disable_fpu()							\
+do {									\
+	if (mips_cpu.options & MIPS_CPU_FPU)				\
+		__disable_fpu();					\
+} while (0)
+#endif /* defined (_LANGUAGE_ASSEMBLY) */
 
 #endif /* _ASM_MIPSREGS_H */

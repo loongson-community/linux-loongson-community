@@ -20,7 +20,6 @@
 #include <linux/smp_lock.h>
 #include <linux/user.h>
 
-#include <asm/fp.h>
 #include <asm/mipsregs.h>
 #include <asm/pgtable.h>
 #include <asm/page.h>
@@ -126,9 +125,9 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 						child->thread.fpu.soft.regs;
 				} else 
 					if (last_task_used_math == child) {
-						enable_cp1();
+						__enable_fpu();
 						save_fp(child);
-						disable_cp1();
+						__disable_fpu();
 						last_task_used_math = NULL;
 						regs->cp0_status &= ~ST0_CU1;
 					}
@@ -174,8 +173,13 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 		case FPC_EIR: {	/* implementation / version register */
 			unsigned int flags;
 
+			if (!(mips_cpu.options & MIPS_CPU_FPU)) {
+				res = -EIO;
+				goto out;
+			}
+
 			__save_flags(flags);
-			enable_cp1();
+			__enable_fpu();
 			__asm__ __volatile__("cfc1\t%0,$0": "=r" (tmp));
 			__restore_flags(flags);
 			break;
@@ -217,9 +221,9 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 						fregs = (unsigned long long *)
 						child->thread.fpu.soft.regs;
 					} else {
-						enable_cp1();
+						__enable_fpu();
 						save_fp(child);
-						disable_cp1();
+						__disable_fpu();
 						last_task_used_math = NULL;
 						regs->cp0_status &= ~ST0_CU1;
 					}

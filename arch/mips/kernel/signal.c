@@ -22,6 +22,7 @@
 
 #include <asm/asm.h>
 #include <asm/bitops.h>
+#include <asm/cpu.h>
 #include <asm/pgalloc.h>
 #include <asm/stackframe.h>
 #include <asm/uaccess.h>
@@ -355,7 +356,7 @@ setup_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 	err |= __put_user(owned_fp, &sc->sc_ownedfp);
 
 	if (current->used_math) {	/* fp is active.  */
-		set_cp0_status(ST0_CU1);
+		enable_fpu();
 		err |= save_fp_context(sc);
 		last_task_used_math = NULL;
 		regs->cp0_status &= ~ST0_CU1;

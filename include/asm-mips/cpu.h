@@ -111,6 +111,8 @@ struct mips_cpu {
 	struct cache_desc tcache;	/* Tertiary/split secondary cache */
 };
 
+extern struct mips_cpu mips_cpu;
+
 #endif
 
 /*
