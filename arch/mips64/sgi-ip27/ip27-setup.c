@@ -62,6 +62,23 @@ static inline void ioc3_eth_init(void)
 	ioc3->eier = 0;
 }
 
+/* Try to catch kernel missconfigurations and give user an indication what
+   option to select.  */
+static void __init verify_mode(void)
+{
+	int n_mode;
+
+	n_mode = LOCAL_HUB_L(NI_STATUS_REV_ID) & NSRI_MORENODES_MASK;
+	printk("Machine is in %c mode.\n", n_mode ? 'N' : 'M');
+#ifdef CONFIG_SGI_SN0_N_MODE
+	if (!n_mode)
+		panic("Kernel compiled for M mode.");
+#else
+	if (n_mode)
+		panic("Kernel compiled for N mode.");
+#endif
+}
+
 void __init ip27_setup(void)
 {
 	nasid_t nid;
@@ -83,6 +100,7 @@ void __init ip27_setup(void)
 	       p ? "a" : "no",
 	       e ? ", CPU is running" : "");
 
+	verify_mode();
 	ioc3_sio_init();
 	ioc3_eth_init();
 }

@@ -1,4 +1,4 @@
-# $Id: config.in,v 1.5 1999/12/04 03:59:00 ralf Exp $
+# $Id: config.in,v 1.6 2000/01/17 23:32:46 ralf Exp $
 #
 # For a description of the syntax of this configuration file,
 # see the Configure script.
@@ -20,6 +20,10 @@ if [ "$CONFIG_SGI_IP27" = "y" ]; then
 fi
 endmenu
 
+if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+   bool 'Symmetric Multi-Processing support' CONFIG_SMP
+fi
+
 #
 # Select some configuration options automatically based on user selections
 #
@@ -30,6 +34,7 @@ unset CONFIG_ARC64
 unset CONFIG_BOARD_SCACHE
 unset CONFIG_COHERENT_IO
 unset CONFIG_BINFMT_ELF32
+unset CONFIG_PCI
 
 if [ "$CONFIG_SGI_IP22" = "y" ]; then
    define_bool CONFIG_BOOT_ELF32 y
@@ -42,6 +47,7 @@ if [ "$CONFIG_SGI_IP27" = "y" ]; then
    define_bool CONFIG_BOOT_ELF64 y
    define_bool CONFIG_ARC64 y
    define_bool CONFIG_COHERENT_IO y
+   define_bool CONFIG_PCI y
 fi
 
 mainmenu_option next_comment

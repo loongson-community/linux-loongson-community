@@ -64,9 +64,6 @@ char dedicated_iv_available = 0;
 char vce_available = 0;
 char mips4_available = 0;
 
-void (*ibe_board_handler)(struct pt_regs *regs);
-void (*dbe_board_handler)(struct pt_regs *regs);
-
 int kstack_depth_to_print = 24;
 
 /*
@@ -196,26 +193,6 @@ void die_if_kernel(const char * str, struct pt_regs * regs, unsigned long err)
 {
 	if (!user_mode(regs))
 		die(str, regs, err);
-}
-
-static void default_be_board_handler(struct pt_regs *regs)
-{
-	/*
-	 * Assume it would be too dangerous to continue ...
-	 */
-	force_sig(SIGBUS, current);
-}
-
-void do_ibe(struct pt_regs *regs)
-{
-show_regs(regs); while(1);
-	ibe_board_handler(regs);
-}
-
-void do_dbe(struct pt_regs *regs)
-{
-show_regs(regs); while(1);
-	dbe_board_handler(regs);
 }
 
 void do_ov(struct pt_regs *regs)
@@ -396,11 +373,12 @@ void do_watch(struct pt_regs *regs)
 void do_reserved(struct pt_regs *regs)
 {
 	/*
-	 * Game over - no way to handle this if it ever occurs.
-	 * Most probably caused by a new unknown cpu type or
-	 * after another deadly hard/software error.
+	 * Game over - no way to handle this if it ever occurs.  Most probably
+	 * caused by a new unknown cpu type or after another deadly
+	 * hard/software error.
 	 */
-	panic("Caught reserved exception - should not happen.");
+	panic("Caught reserved exception %d - should not happen.",
+	      (regs->cp0_cause & 0x1f) >> 2);
 }
 
 static inline void watch_init(unsigned long cputype)
@@ -485,6 +463,7 @@ void __init trap_init(void)
 	extern char __xtlb_refill_debug_tramp;
 	extern char except_vec2_generic;
 	extern char except_vec3_generic, except_vec3_r4000;
+	extern void bus_error_init(void);
 	unsigned long i;
 
 	/* Some firmware leaves the BEV flag set, clear it.  */
@@ -557,13 +536,8 @@ r4k:
 		set_except_vector(4, handle_adel);
 		set_except_vector(5, handle_ades);
 
-		/*
-		 * The following two are signaled by onboard hardware and
-		 * should get board specific handlers to get maximum
-		 * available information.
-		 */
-		set_except_vector(6, handle_ibe);
-		set_except_vector(7, handle_dbe);
+		/* DBE / IBE exception handler are system specific.  */
+		bus_error_init();
 
 		set_except_vector(8, handle_sys);
 		set_except_vector(9, handle_bp);
