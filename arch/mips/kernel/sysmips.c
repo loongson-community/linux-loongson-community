@@ -7,6 +7,7 @@
  *
  * Copyright (C) 1995, 1996, 1997, 2000 by Ralf Baechle
  */
+#include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/linkage.h>
 #include <linux/mm.h>
@@ -20,6 +21,8 @@
 #include <asm/pgalloc.h>
 #include <asm/sysmips.h>
 #include <asm/uaccess.h>
+
+extern asmlinkage void syscall_trace(void);
 
 /*
  * How long a hostname can we get from user space?
@@ -81,21 +84,19 @@ sys_sysmips(int cmd, int arg1, int arg2, int arg3)
 		errno = 0;
 
 		__asm__(".set\tpush\t\t\t# sysmips(MIPS_ATOMIC, ...)\n\t"
-			".set\tnoreorder\n\t"
+			".set\tmips2\n\t"
 			".set\tnoat\n\t"
 			"1:\tll\t%0, %4\n\t"
-			"2:\tmove\t$1, %3\n\t"
-			"3:\tsc\t$1, %1\n\t"
-			"beqzl\t$1, 2b\n\t"
-			"4:\t ll\t%0, %4\n\t"
+			"move\t$1, %3\n\t"
+			"2:\tsc\t$1, %1\n\t"
+			"beqz\t$1, 1b\n\t"
 			".set\tpop\n\t"
 			".section\t.fixup,\"ax\"\n"
-			"5:\tli\t%2, 1\t\t\t# error\n\t"
+			"3:\tli\t%2, 1\t\t\t# error\n\t"
 			".previous\n\t"
 			".section\t__ex_table,\"a\"\n\t"
-			".dword\t1b, 5b\n\t"
-			".dword\t3b, 5b\n\t"
-			".dword\t4b, 5b\n\t"
+			".word\t1b, 3b\n\t"
+			".word\t2b, 3b\n\t"
 			".previous\n\t"
 			: "=&r" (tmp), "=o" (* (u32 *) p), "=r" (errno)
 			: "r" (arg2), "o" (* (u32 *) p), "2" (errno)
