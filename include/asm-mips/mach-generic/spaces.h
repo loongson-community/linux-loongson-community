@@ -28,7 +28,9 @@
 /*
  * Memory above this physical address will be considered highmem.
  */
+#ifndef HIGHMEM_START
 #define HIGHMEM_START		0x20000000UL
+#endif
 
 #endif /* CONFIG_MIPS32 */
 
@@ -48,7 +50,9 @@
  * Fixme: 59 bits is a fictive number and makes assumptions about processors
  * in the distant future.  Nobody will care for a few years :-)
  */
+#ifndef HIGHMEM_START
 #define HIGHMEM_START		(1UL << 59UL)
+#endif
 
 #ifdef CONFIG_DMA_NONCOHERENT
 #define CAC_BASE		0x9800000000000000
