@@ -1,4 +1,4 @@
-/* $Id: irixioctl.c,v 1.3 1997/12/16 05:34:35 ralf Exp $
+/* $Id: irixioctl.c,v 1.4 1998/03/04 09:51:21 ralf Exp $
  * irixioctl.c: A fucking mess...
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
@@ -33,7 +33,7 @@ static struct tty_struct *get_tty(int fd)
 {
 	struct file *filp;
 
-	if(fd >= NR_OPEN || !(filp = current->files->fd[fd]))
+	if(!(filp = fcheck(fd)))
 		return ((struct tty_struct *) 0);
 	if(filp->private_data) {
 		struct tty_struct *ttyp = (struct tty_struct *) filp->private_data;
