@@ -1,4 +1,3 @@
-
 .S.s:
 	$(CPP) $(AFLAGS) $< -o $@
 .S.o:
