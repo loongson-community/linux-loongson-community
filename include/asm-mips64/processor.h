@@ -134,7 +134,7 @@ extern struct task_struct *last_task_used_math;
  * is limited to 1TB by the R4000 architecture; R10000 and better can
  * support 16TB.
  */
-#define TASK_SIZE32	   0x80000000UL
+#define TASK_SIZE32	   0x7fff8000UL
 #define TASK_SIZE	0x10000000000UL
 
 /* This decides where the kernel will search for a free chunk of vm
