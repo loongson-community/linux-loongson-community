@@ -948,11 +948,7 @@ static int zilog_irq = -1;
 static struct uart_driver ip22zilog_reg = {
 	.owner		=	THIS_MODULE,
 	.driver_name	=	"ttyS",
-#ifdef CONFIG_DEVFS_FS
 	.dev_name	=	"tty/",
-#else
-	.dev_name	=	"tty/",
-#endif
 	.major		=	TTY_MAJOR,
 };
 
@@ -1181,7 +1177,7 @@ static void __init ip22zilog_prepare(void)
 		}
 
 		/* Channel A */
-		up[(chip * 2) + 0].port.iotype = SERIAL_IO_MEM;
+		up[(chip * 2) + 0].port.iotype = UPIO_MEM;
 		up[(chip * 2) + 0].port.irq = zilog_irq;
 		up[(chip * 2) + 0].port.uartclk = ZS_CLOCK;
 		up[(chip * 2) + 0].port.fifosize = 1;
@@ -1192,7 +1188,7 @@ static void __init ip22zilog_prepare(void)
 		up[(chip * 2) + 0].flags |= IP22ZILOG_FLAG_IS_CHANNEL_A;
 
 		/* Channel B */
-		up[(chip * 2) + 1].port.iotype = SERIAL_IO_MEM;
+		up[(chip * 2) + 1].port.iotype = UPIO_MEM;
 		up[(chip * 2) + 1].port.irq = zilog_irq;
 		up[(chip * 2) + 1].port.uartclk = ZS_CLOCK;
 		up[(chip * 2) + 1].port.fifosize = 1;
