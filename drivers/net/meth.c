@@ -18,7 +18,6 @@
 #include <linux/errno.h>  /* error codes */
 #include <linux/types.h>  /* size_t */
 #include <linux/interrupt.h> /* mark_bh */
-#include <linux/dma-mapping.h>
 
 #include <linux/in.h>
 #include <linux/netdevice.h>   /* struct device, and other headers */
@@ -31,6 +30,12 @@
 #include <asm/ip32/crime.h>
 #include <asm/ip32/mace.h>
 #include <asm/ip32/ip32_ints.h>
+
+#include <linux/slab.h>
+#include <asm/io.h>
+#include <asm/scatterlist.h>
+#include <linux/device.h> /* struct device, et al */
+#include <linux/dma-mapping.h>
 
 #include "meth.h"
 
@@ -229,7 +234,7 @@ static int meth_init_rx_ring(meth_private *priv)
 	int i;
 	for(i=0;i<RX_RING_ENTRIES;i++){
 		priv->rx_ring[i] = dma_alloc_coherent(NULL, METH_RX_BUFF_SIZE,
-		                                      priv->rx_ring_dmas[i]);
+		                                      &priv->rx_ring_dmas[i],0);
 		/* I'll need to re-sync it after each RX */
 		priv->regs->rx_fifo=priv->rx_ring_dmas[i];
 	}
@@ -565,7 +570,7 @@ static void meth_tx_1page_prepare(meth_private* priv, struct sk_buff* skb)
 
 	/* first page */
 	catbuf = dma_map_single(NULL, buffer_data, buffer_len,
-				PCI_DMA_TODEVICE);
+				DMA_TO_DEVICE);
 	desc->data.cat_buf[0].form.start_addr = catbuf >> 3;
 	desc->data.cat_buf[0].form.len = buffer_len-1;
 }
@@ -590,12 +595,12 @@ static void meth_tx_2page_prepare(meth_private* priv, struct sk_buff* skb)
 
 	/* first page */
 	catbuf1 = dma_map_single(NULL, buffer1_data, buffer1_len,
-				 PCI_DMA_TODEVICE);
+				 DMA_TO_DEVICE);
 	desc->data.cat_buf[0].form.start_addr = catbuf1 >> 3;
 	desc->data.cat_buf[0].form.len = buffer1_len-1;
 	/* second page */
 	catbuf2 = dma_map_single(NULL, buffer2_data, buffer2_len,
-				 PCI_DMA_TODEVICE);
+				 DMA_TO_DEVICE);
 	desc->data.cat_buf[1].form.start_addr = catbuf2 >> 3;
 	desc->data.cat_buf[1].form.len = buffer2_len-1;
 }
