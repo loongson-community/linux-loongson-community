@@ -220,6 +220,7 @@ static unsigned int bridge_startup(unsigned int irq)
         bridge_t *bridge;
         int pin, swlevel;
         int real_irq = IRQ_FROM_IRQ(irq);
+	cpuid_t cpu = 0;
 
         bridge = (bridge_t *) NODE_SWIN_BASE(NASID_FROM_PCI_IRQ(irq), 
 							WID_FROM_PCI_IRQ(irq));
@@ -235,7 +236,7 @@ static unsigned int bridge_startup(unsigned int irq)
          * of INT_PEND0 are taken
          */
         swlevel = IRQ_TO_SWLEVEL(real_irq);
-        intr_connect_level(smp_processor_id(), swlevel);
+        intr_connect_level(cpu, swlevel);
 
         bridge->b_int_addr[pin].addr = 0x20000 | swlevel;
         bridge->b_int_enable |= (1 << pin);

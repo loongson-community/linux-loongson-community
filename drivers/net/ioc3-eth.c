@@ -664,7 +664,11 @@ ioc3_probe(struct net_device *dev)
 		return 0;
 	initialized++;
 
-	nid = get_nasid();
+#if 0
+	nid = get_nasid();		/* Never assume we are on master cpu */
+#else
+	nid = 0;
+#endif
 	ioc3 = (struct ioc3 *) KL_CONFIG_CH_CONS_INFO(nid)->memory_base;
 	ioc3_probe1(dev, ioc3);
 
