@@ -463,6 +463,29 @@ static void ioc3_get_eaddr(struct ioc3_private *ip)
 	printk(".\n");
 }
 
+static void __ioc3_set_mac_address(struct net_device *dev)
+{
+	struct ioc3_private *ip = netdev_priv(dev);
+	struct ioc3 *ioc3 = ip->regs;
+
+	ioc3_w_emar_h((dev->dev_addr[5] <<  8) | dev->dev_addr[4]);
+	ioc3_w_emar_l((dev->dev_addr[3] << 24) | (dev->dev_addr[2] << 16) |
+	              (dev->dev_addr[1] <<  8) | dev->dev_addr[0]);
+}
+
+static int ioc3_set_mac_address(struct net_device *dev, void *addr)
+{
+	struct ioc3_private *ip = netdev_priv(dev);
+	struct sockaddr *sa = addr;
+
+	memcpy(dev->dev_addr, sa->sa_data, dev->addr_len);
+
+	spin_lock_irq(&ip->ioc3_lock);
+	__ioc3_set_mac_address(dev);
+	spin_unlock_irq(&ip->ioc3_lock);
+
+	return 0;
+}
 
 /*
  * Caller must hold the ioc3_lock ever for MII readers.  This is also
@@ -1014,9 +1037,7 @@ static void ioc3_init(struct net_device *dev)
 	(void) ioc3_r_etcdc();			/* Clear on read */
 	ioc3_w_ercsr(15);			/* RX low watermark  */
 	ioc3_w_ertr(0);				/* Interrupt immediately */
-	ioc3_w_emar_h((dev->dev_addr[5] <<  8) | dev->dev_addr[4]);
-	ioc3_w_emar_l((dev->dev_addr[3] << 24) | (dev->dev_addr[2] << 16) |
-	              (dev->dev_addr[1] <<  8) | dev->dev_addr[0]);
+	__ioc3_set_mac_address(dev);
 	ioc3_w_ehar_h(ip->ehar_h);
 	ioc3_w_ehar_l(ip->ehar_l);
 	ioc3_w_ersr(42);			/* XXX should be random */
@@ -1264,6 +1285,7 @@ static int ioc3_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	dev->get_stats		= ioc3_get_stats;
 	dev->do_ioctl		= ioc3_ioctl;
 	dev->set_multicast_list	= ioc3_set_multicast_list;
+	dev->set_mac_address	= ioc3_set_mac_address;
 	dev->ethtool_ops	= &ioc3_ethtool_ops;
 #ifdef CONFIG_SGI_IOC3_ETH_HW_TX_CSUM
 	dev->features		= NETIF_F_IP_CSUM;
