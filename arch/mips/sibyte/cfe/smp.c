@@ -43,16 +43,12 @@ int prom_boot_secondary(int cpu, unsigned long sp, unsigned long gp)
 
 void prom_init_secondary(void)
 {
-	extern void load_mmu(void);
 	unsigned int imask = STATUSF_IP4 | STATUSF_IP3 | STATUSF_IP2 |
 		STATUSF_IP1 | STATUSF_IP0;
 
 	/* Enable basic interrupts */
 	change_c0_status(ST0_IM, imask);
 	set_c0_status(ST0_IE);
-
-	/* cache setup */
-	load_mmu();
 }
 
 /*

@@ -97,7 +97,6 @@ unsigned long isa_slot_offset;
 EXPORT_SYMBOL(isa_slot_offset);
 
 extern void SetUpBootInfo(void);
-extern void load_mmu(void);
 extern ATTRIB_NORET asmlinkage void start_kernel(void);
 extern void prom_init(int, char **, char **, int *);
 
@@ -113,13 +112,6 @@ asmlinkage void __init init_arch(int argc, char **argv, char **envp,
 	prom_init(argc, argv, envp, prom_vec);
 
 	cpu_report();
-
-	/*
-	 * Determine the mmu/cache attached to this machine, then flush the
-	 * tlb and caches.  On the r4xx0 variants this also sets CP0_WIRED to
-	 * zero.
-	 */
-	load_mmu();
 
 #ifdef CONFIG_MIPS32
 	/* Disable coprocessors and set FPU for 16/32 FPR register model */

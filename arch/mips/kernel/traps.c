@@ -848,6 +848,9 @@ static inline void signal32_init(void)
 }
 #endif
 
+extern void load_mmu(void);
+extern void tlb_init(void);
+
 void __init per_cpu_trap_init(void)
 {
 	unsigned int cpu = smp_processor_id();
@@ -872,6 +875,7 @@ void __init per_cpu_trap_init(void)
 #ifdef CONFIG_MIPS64
 	write_c0_context(((long)(&pgd_current[cpu])) << 23);
 #endif
+	load_mmu();
 	tlb_init();
 }
 

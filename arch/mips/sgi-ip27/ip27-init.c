@@ -355,7 +355,6 @@ cpuid_t getcpuid(void)
 void per_cpu_init(void)
 {
 	extern void install_cpu_nmi_handler(int slice);
-	extern void load_mmu(void);
 	static int is_slave = 0;
 	int cpu = smp_processor_id();
 	cnodeid_t cnode = get_compact_nodeid();
@@ -380,7 +379,6 @@ void per_cpu_init(void)
 			set_c0_status(ST0_XX);
 		set_c0_status(ST0_KX|ST0_SX|ST0_UX);
 		local_irq_enable();
-		load_mmu();
 		atomic_inc(&numstarted);
 	} else {
 		is_slave = 1;
