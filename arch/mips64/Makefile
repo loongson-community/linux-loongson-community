@@ -16,10 +16,12 @@
 #
 ifdef CONFIG_CPU_LITTLE_ENDIAN
 tool-prefix	= mips64el-linux-
-LDFLAGS_BLOB   := --format binary --oformat elf64-tradlittlemips
+32bit-bfd	= elf32-tradlittlemips
+64bit-bfd	= elf64-tradlittlemips
 else
 tool-prefix	= mips64-linux-
-LDFLAGS_BLOB   := --format binary --oformat elf64-tradbigmips
+32bit-bfd	= elf32-tradbigmips
+64bit-bfd	= elf64-tradbigmips
 endif
 
 ifdef CONFIG_CROSSCOMPILE
@@ -227,18 +229,15 @@ AFLAGS_vmlinux.lds.o := -imacros $(srctree)/include/asm-mips64/sn/mapped_kernel.
 AFLAGS		+= $(cflags-y)
 CFLAGS		+= $(cflags-y)
 
+LDFLAGS		+= --oformat $(32bit-bfd)
+LDFLAGS_BLOB	:= --format binary --oformat $(64bit-bfd)
+
 HEAD := arch/mips64/kernel/head.o arch/mips64/kernel/init_task.o
 
 libs-y		+= arch/mips64/lib/
 core-y		+= arch/mips64/kernel/ arch/mips64/mm/ arch/mips/math-emu/
 
 MAKEBOOT = $(MAKE) -C arch/$(ARCH)/boot
-
-ifdef CONFIG_CPU_LITTLE_ENDIAN
-64bit-bfd = elf64-littlemips
-else
-64bit-bfd = elf64-bigmips
-endif
 
 ifdef CONFIG_MAPPED_KERNEL
 vmlinux.64: vmlinux
