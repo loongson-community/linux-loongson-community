@@ -22,13 +22,12 @@
 
 #include <asm/io.h>
 #include <asm/reboot.h>
-#include <asm/vr41xx/tb0229.h>
 
 #define TB0219_RESET_REGS	KSEG1ADDR(0x0a00000e)
 
 #define tb0219_hard_reset()	writew(0, TB0219_RESET_REGS)
 
-void tanbac_tb0219_restart(char *command)
+static void tanbac_tb0219_restart(char *command)
 {
 	local_irq_disable();
 	tb0219_hard_reset();
