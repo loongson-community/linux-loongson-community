@@ -29,9 +29,17 @@
 	.set	mips4
 
         __INIT
-        
-	/* Cache Error handler for SB1 */
+
+	/*
+	 * Cache Error handler for SB1.  Stash k0/k1 at the top of the
+	 * handler (using the fact that Kuseg is direct mapped during a
+	 * cache error).  If multiple CPUs take cache errors at the
+	 * same time, they will step on each others' saved
+	 * registers.
+	 */
 	LEAF(except_vec2_sb1)
+	sd	k0, 0x170($0)
+	sd	k1, 0x178($0)
 	mfc0	k1, $26
 	# check if error was recoverable
 	bltz	k1, leave_cerr
@@ -54,6 +62,8 @@ leave_cerr:
 	mtc0	zero, $27
 	.word	0x4080d801			# mtc0	zero, $27, 1
 	.word	0x4080d803			# mtc0	zero, $27, 3
+	ld	k0, 0x170($0)
+	ld	k1, 0x178($0)
 	eret
 	END(except_vec2_sb1)
 
@@ -76,6 +86,7 @@ leave_cerr:
 	sll	k0, k0, 3			# check CU0 (kernel?)
 	bltz	k0, 2f
 	get_saved_sp
+	move	sp, k1
 2:	j	sb1_cache_error
 
 	END(handle_vec2_sb1)
