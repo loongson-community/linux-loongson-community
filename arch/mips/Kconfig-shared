@@ -1547,7 +1547,7 @@ config DEBUG_KERNEL
 
 config REMOTE_DEBUG
 	bool "Remote GDB kernel debugging"
-	depends on DEBUG_KERNEL && (AU1000_UART || ZS=y)
+	depends on DEBUG_KERNEL
 	help
 	  If you say Y here, it will be possible to remotely debug the MIPS
 	  kernel using gdb. This enlarges your kernel image disk size by
@@ -1566,6 +1566,12 @@ config GDB_CONSOLE
 config DEBUG
 	bool "Enable run-time debugging"
 	depends on DEBUG_KERNEL
+	help
+	  If you say Y here, some debugging macros will do run-time checking.
+	  If you say N here, those macros will mostly turn to no-ops.  For
+	  MIPS boards only.  See include/asm-mips/debug.h for debuging macros.
+	  If unsure, say N.
+
 
 config MAGIC_SYSRQ
 	bool "Magic SysRq key"
