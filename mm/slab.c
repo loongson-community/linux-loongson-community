@@ -1649,7 +1649,6 @@ kfree(const void *objp)
 	}
 null_ptr:
 	printk(KERN_ERR "kfree: Bad obj %p\n", objp);
-while(1);
 	return;
 }
 

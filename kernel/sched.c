@@ -476,7 +476,6 @@ asmlinkage void schedule(void)
 			timer.function = process_timeout;
 			add_timer(&timer);
 		}
-
 		get_mmu_context(next);
 		switch_to(prev,next);
 

@@ -3,10 +3,6 @@
 
 #include <linux/ipc.h>
 
-/* ipcs ctl commands */
-#define MSG_STAT 11
-#define MSG_INFO 12
-
 /* msgrcv options */
 #define MSG_NOERROR     010000  /* no error if message is too big */
 #define MSG_EXCEPT      020000  /* recv any msg except of specified type.*/

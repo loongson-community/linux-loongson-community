@@ -810,9 +810,10 @@ static void do_no_page(struct task_struct * tsk, struct vm_area_struct * vma,
 anonymous_page:
 	entry = pte_wrprotect(mk_pte(ZERO_PAGE, vma->vm_page_prot));
 	if (write_access) {
-		unsigned long page = get_free_page(GFP_KERNEL);
+		unsigned long page = __get_free_page(GFP_KERNEL);
 		if (!page)
 			goto sigbus;
+		clear_page(page);
 		entry = pte_mkwrite(pte_mkdirty(mk_pte(page, vma->vm_page_prot)));
 		vma->vm_mm->rss++;
 		tsk->min_flt++;

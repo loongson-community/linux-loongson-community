@@ -13,7 +13,7 @@ extern "C" {
 
 extern char * ___strtok;
 extern char * strcpy(char *,const char *);
-extern char * strncpy(char *,const char *,__kernel_size_t);
+extern char * strncpy(char *,const char *, __kernel_size_t);
 extern char * strcat(char *, const char *);
 extern char * strncat(char *, const char *, __kernel_size_t);
 extern char * strchr(const char *,int);

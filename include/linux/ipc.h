@@ -3,7 +3,7 @@
 
 #include <linux/types.h>
 
-#define IPC_PRIVATE ((key_t) 0)  
+#define IPC_PRIVATE ((__kernel_key_t) 0)  
 
 struct ipc_perm
 {
