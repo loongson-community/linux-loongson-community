@@ -706,16 +706,18 @@ void do_watch(struct pt_regs *regs)
 void do_mcheck(struct pt_regs *regs)
 {
 	show_regs(regs);
-	panic("Caught Machine Check exception - probably caused by multiple matching entries in the TLB.");
+	panic("Caught Machine Check exception - probably caused by multiple "
+	      "matching entries in the TLB.");
 }
 
 void do_reserved(struct pt_regs *regs)
 {
 	/*
-	 * Game over - no way to handle this if it ever occurs.
-	 * Most probably caused by a new unknown cpu type or
-	 * after another deadly hard/software error.
+	 * Game over - no way to handle this if it ever occurs.  Most probably
+	 * caused by a new unknown cpu type or after another deadly
+	 * hard/software error.
 	 */
+	show_regs(regs);
 	panic("Caught reserved exception - should not happen.");
 }
 
