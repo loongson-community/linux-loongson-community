@@ -457,6 +457,11 @@ config SIBYTE_SWARM
 	bool "Support for SWARM board"
 	depends on SIBYTE_SB1250
 
+config SIBYTE_BOARD
+	bool
+	depends on SIBYTE_SWARM
+	default y
+
 config SNI_RM200_PCI
 	bool "Support for SNI RM200 PCI"
 	help
