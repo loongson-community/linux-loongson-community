@@ -1183,9 +1183,9 @@ config CPU_R6000
 	  processors are extremly rare and the support for them is incomplete.
 
 config CPU_NEVADA
-	bool "R52xx"
+	bool "RM52xx"
 	help
-	  MIPS Technologies R52x0-series ("Nevada") processors.
+	  QED / PMC-Sierra RM52xx-series ("Nevada") processors.
 
 config CPU_R8000
 	bool "R8000"
