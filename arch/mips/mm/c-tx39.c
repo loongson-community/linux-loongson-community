@@ -28,8 +28,6 @@ static unsigned long icache_size, dcache_size;		/* Size in bytes */
 
 #include <asm/r4kcache.h>
 
-extern void r3k_copy_page(void * to, void * from);
-
 extern int r3k_have_wired_reg;	/* in r3k-tlb.c */
 
 /* This sequence is required to ensure icache is disabled immediately */
@@ -410,8 +408,6 @@ static __init void tx39_probe_cache(void)
 void __init ld_mmu_tx39(void)
 {
 	unsigned long config;
-
-	_copy_page = r3k_copy_page;
 
 	config = read_c0_conf();
 	config &= ~TX39_CONF_WBON;

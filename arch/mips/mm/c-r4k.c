@@ -29,16 +29,6 @@
 
 static unsigned long icache_size, dcache_size, scache_size;
 
-extern void andes_copy_page(void * to, void * from);
-extern void r4k_copy_page_d16(void * to, void * from);
-extern void r4k_copy_page_d32(void * to, void * from);
-extern void r4k_copy_page_r4600_v1(void * to, void * from);
-extern void r4k_copy_page_r4600_v2(void * to, void * from);
-extern void r4k_copy_page_s16(void * to, void * from);
-extern void r4k_copy_page_s32(void * to, void * from);
-extern void r4k_copy_page_s64(void * to, void * from);
-extern void r4k_copy_page_s128(void * to, void * from);
-
 /*
  * Dummy cache handling routines for machines without boardcaches
  */
@@ -1061,55 +1051,6 @@ static int __init probe_scache(void)
 	return 1;
 }
 
-static void __init setup_noscache_funcs(void)
-{
-	unsigned int prid;
-
-	switch (current_cpu_data.dcache.linesz) {
-	case 16:
-		_copy_page = r4k_copy_page_d16;
-
-		break;
-	case 32:
-		prid = read_c0_prid() & 0xfff0;
-		if (prid == 0x2010)			/* R4600 V1.7 */
-			_copy_page = r4k_copy_page_r4600_v1;
-		else if (prid == 0x2020)		/* R4600 V2.0 */
-			_copy_page = r4k_copy_page_r4600_v2;
-		else
-			_copy_page = r4k_copy_page_d32;
-		break;
-	}
-}
-
-static void __init setup_scache_funcs(void)
-{
-	struct cpuinfo_mips *c = &current_cpu_data;
-
-	if (c->dcache.linesz > c->scache.linesz)
-		panic("Invalid primary cache configuration detected");
-
-	if (c->cputype == CPU_R10000 || c->cputype == CPU_R12000) {
-		_copy_page = andes_copy_page;
-		return;
-	}
-
-	switch (c->scache.linesz) {
-	case 16:
-		_copy_page = r4k_copy_page_s16;
-		break;
-	case 32:
-		_copy_page = r4k_copy_page_s32;
-		break;
-	case 64:
-		_copy_page = r4k_copy_page_s64;
-		break;
-	case 128:
-		_copy_page = r4k_copy_page_s128;
-		break;
-	}
-}
-
 typedef int (*probe_func_t)(unsigned long);
 extern int r5k_sc_init(void);
 extern int rm7k_sc_init(void);
@@ -1148,7 +1089,6 @@ static void __init setup_scache(void)
 
 	case CPU_R5000:
 	case CPU_NEVADA:
-		setup_noscache_funcs();
 #ifdef CONFIG_R5000_CPU_SCACHE
 		r5k_sc_init();
 #endif
@@ -1156,7 +1096,6 @@ static void __init setup_scache(void)
 
 	case CPU_RM7000:
 	case CPU_RM9000:
-		setup_noscache_funcs();
 #ifdef CONFIG_RM7000_CPU_SCACHE
 		rm7k_sc_init();
 #endif
@@ -1166,10 +1105,8 @@ static void __init setup_scache(void)
 		sc_present = 0;
 	}
 
-	if (!sc_present) {
-		setup_noscache_funcs();
+	if (!sc_present)
 		return;
-	}
 
 	if ((c->isa_level == MIPS_CPU_ISA_M32 ||
 	     c->isa_level == MIPS_CPU_ISA_M64) &&
@@ -1185,7 +1122,6 @@ static void __init setup_scache(void)
 	       scache_size >> 10, way_string[c->scache.ways], c->scache.linesz);
 
 	c->options |= MIPS_CPU_SUBSET_CACHES;
-        setup_scache_funcs();
 }
 
 static inline void coherency_setup(void)

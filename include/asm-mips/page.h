@@ -38,9 +38,7 @@
 #ifndef __ASSEMBLY__
 
 extern void clear_page(void * page);
-extern void (*_copy_page)(void * to, void * from);
-
-#define copy_page(to, from)		_copy_page((void *)(to), (void *)(from))
+extern void copy_page(void * to, void * from);
 
 extern unsigned long shm_align_mask;
 

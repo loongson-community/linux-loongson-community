@@ -23,8 +23,6 @@
 #include <asm/bootinfo.h>
 #include <asm/cpu.h>
 
-void r3k_copy_page(void * to, void * from);
-
 static unsigned long icache_size, dcache_size;		/* Size in bytes */
 static unsigned long icache_lsize, dcache_lsize;	/* Size in bytes */
 
@@ -319,8 +317,6 @@ static void r3k_dma_cache_wback_inv(unsigned long start, unsigned long size)
 
 void __init ld_mmu_r23000(void)
 {
-	_copy_page = r3k_copy_page;
-
 	r3k_probe_cache();
 
 	flush_cache_all = r3k_flush_cache_all;
