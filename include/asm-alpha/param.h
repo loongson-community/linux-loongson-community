@@ -13,7 +13,9 @@
 # else
 #  define HZ	1200
 # endif
+#ifdef __KERNEL__
 # define HZ_TO_STD(a) (a)
+#endif
 #endif
 
 #define EXEC_PAGESIZE	8192

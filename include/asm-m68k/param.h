@@ -5,7 +5,9 @@
 
 #ifndef HZ
 #define HZ 100
+#ifdef __KERNEL__
 #define HZ_TO_STD(a) (a)
+#endif
 #endif
 
 #ifndef CONFIG_SUN3

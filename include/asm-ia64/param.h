@@ -30,6 +30,10 @@
 # define HZ	1024
 #endif
 
+#ifdef __KERNEL__
+#define HZ_TO_STD(a) (a)
+#endif
+
 #define EXEC_PAGESIZE	65536
 
 #ifndef NGROUPS
