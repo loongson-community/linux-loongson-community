@@ -679,6 +679,8 @@ libs-$(CONFIG_MIPS64)	+= arch/mips/lib-64/
 
 core-y			+= arch/mips/kernel/ arch/mips/mm/ arch/mips/math-emu/
 
+drivers-$(CONFIG_OPROFILE)	+= arch/mips/oprofile/
+
 ifdef CONFIG_LASAT
 rom.bin rom.sw: vmlinux
 	$(call descend,arch/mips/lasat/image,$@)
