@@ -47,10 +47,11 @@ unset CONFIG_PCI
 
 if [ "$CONFIG_SGI_IP22" = "y" ]; then
    define_bool CONFIG_ARC32 y
+   define_bool CONFIG_ARC_CONSOLE y
+   define_bool CONFIG_ARC_MEMORY y
    define_bool CONFIG_BOARD_SCACHE y
    define_bool CONFIG_PC_KEYB y
    define_bool CONFIG_BOOT_ELF32 y
-   define_bool CONFIG_ARC_MEMORY y
    define_bool CONFIG_SGI y
    define_int CONFIG_L1_CACHE_SHIFT 5
 fi
