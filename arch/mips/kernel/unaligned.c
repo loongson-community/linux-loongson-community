@@ -5,7 +5,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1996, 1998, 2002 by Ralf Baechle
+ * Copyright (C) 1996, 1998, 1999, 2002 by Ralf Baechle
  * Copyright (C) 1999 Silicon Graphics, Inc.
  *
  * This file contains exception handler for address error exception with the
@@ -231,7 +231,82 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 		return 0;
 
 	case lwu_op:
+#ifdef CONFIG_MIPS64
+		/*
+		 * A 32-bit kernel might be running on a 64-bit processor.  But
+		 * if we're on a 32-bit processor and an i-cache incoherency
+		 * or race makes us see a 64-bit instruction here the sdl/sdr
+		 * would blow up, so for now we don't handle unaligned 64-bit
+		 * instructions on 32-bit kernels.
+		 */
+		check_axs(pc, addr, 4);
+		__asm__(
+#ifdef __BIG_ENDIAN
+			"1:\tlwl\t%0, (%2)\n"
+			"2:\tlwr\t%0, 3(%2)\n\t"
+#endif
+#ifdef __LITTLE_ENDIAN
+			"1:\tlwl\t%0, 3(%2)\n"
+			"2:\tlwr\t%0, (%2)\n\t"
+#endif
+			"dsll\t%0, %0, 32\n\t"
+			"dsrl\t%0, %0, 32\n\t"
+			"li\t%1, 0\n"
+			"3:\t.section\t.fixup,\"ax\"\n\t"
+			"4:\tli\t%1, %3\n\t"
+			"j\t3b\n\t"
+			".previous\n\t"
+			".section\t__ex_table,\"a\"\n\t"
+			STR(PTR)"\t1b, 4b\n\t"
+			STR(PTR)"\t2b, 4b\n\t"
+			".previous"
+			: "=&r" (value), "=r" (res)
+			: "r" (addr), "i" (-EFAULT));
+		if (res)
+			goto fault;
+		regs->regs[insn.i_format.rt] = value;
+		return 0;
+#endif /* CONFIG_MIPS64 */
+
+		/* Cannot handle 64-bit instructions in 32-bit kernel */
+		goto sigill;
+
 	case ld_op:
+#ifdef CONFIG_MIPS64
+		/*
+		 * A 32-bit kernel might be running on a 64-bit processor.  But
+		 * if we're on a 32-bit processor and an i-cache incoherency
+		 * or race makes us see a 64-bit instruction here the sdl/sdr
+		 * would blow up, so for now we don't handle unaligned 64-bit
+		 * instructions on 32-bit kernels.
+		 */
+		check_axs(pc, addr, 8);
+		__asm__(
+#ifdef __BIG_ENDIAN
+			"1:\tldl\t%0, (%2)\n"
+			"2:\tldr\t%0, 7(%2)\n\t"
+#endif
+#ifdef __LITTLE_ENDIAN
+			"1:\tldl\t%0, 7(%2)\n"
+			"2:\tldr\t%0, (%2)\n\t"
+#endif
+			"li\t%1, 0\n"
+			"3:\t.section\t.fixup,\"ax\"\n\t"
+			"4:\tli\t%1, %3\n\t"
+			"j\t3b\n\t"
+			".previous\n\t"
+			".section\t__ex_table,\"a\"\n\t"
+			STR(PTR)"\t1b, 4b\n\t"
+			STR(PTR)"\t2b, 4b\n\t"
+			".previous"
+			: "=&r" (value), "=r" (res)
+			: "r" (addr), "i" (-EFAULT));
+		if (res)
+			goto fault;
+		regs->regs[insn.i_format.rt] = value;
+		return 0;
+#endif /* CONFIG_MIPS64 */
+
 		/* Cannot handle 64-bit instructions in 32-bit kernel */
 		goto sigill;
 
@@ -298,6 +373,42 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 		return 0;
 
 	case sd_op:
+#ifdef CONFIG_MIPS64
+		/*
+		 * A 32-bit kernel might be running on a 64-bit processor.  But
+		 * if we're on a 32-bit processor and an i-cache incoherency
+		 * or race makes us see a 64-bit instruction here the sdl/sdr
+		 * would blow up, so for now we don't handle unaligned 64-bit
+		 * instructions on 32-bit kernels.
+		 */
+		check_axs(pc, addr, 8);
+		value = regs->regs[insn.i_format.rt];
+		__asm__(
+#ifdef __BIG_ENDIAN
+			"1:\tsdl\t%1,(%2)\n"
+			"2:\tsdr\t%1, 7(%2)\n\t"
+#endif
+#ifdef __LITTLE_ENDIAN
+			"1:\tsdl\t%1, 7(%2)\n"
+			"2:\tsdr\t%1, (%2)\n\t"
+#endif
+			"li\t%0, 0\n"
+			"3:\n\t"
+			".section\t.fixup,\"ax\"\n\t"
+			"4:\tli\t%0, %3\n\t"
+			"j\t3b\n\t"
+			".previous\n\t"
+			".section\t__ex_table,\"a\"\n\t"
+			STR(PTR)"\t1b, 4b\n\t"
+			STR(PTR)"\t2b, 4b\n\t"
+			".previous"
+		: "=r" (res)
+		: "r" (value), "r" (addr), "i" (-EFAULT));
+		if (res)
+			goto fault;
+		return 0;
+#endif /* CONFIG_MIPS64 */
+
 		/* Cannot handle 64-bit instructions in 32-bit kernel */
 		goto sigill;
 
@@ -356,6 +467,7 @@ sigbus:
 sigill:
 	die_if_kernel("Unhandled kernel unaligned access or invalid instruction", regs);
 	send_sig(SIGILL, current, 1);
+
 	return 0;
 }
 
@@ -412,6 +524,4 @@ sigbus:
 	/*
 	 * XXX On return from the signal handler we should advance the epc
 	 */
-
-	return;
 }

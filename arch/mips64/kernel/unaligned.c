@@ -101,6 +101,7 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 {
 	union mips_instruction insn;
 	unsigned long value, fixup;
+	unsigned int res;
 
 	regs->regs[0] = 0;
 	/*
@@ -143,25 +144,31 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 	 */
 	case lh_op:
 		check_axs(pc, addr, 2);
-		__asm__(
-			".set\tnoat\n"
+		__asm__(".set\tnoat\n"
 #ifdef __BIG_ENDIAN
-			"1:\tlb\t%0,0(%1)\n"
-			"2:\tlbu\t$1,1(%1)\n\t"
+			"1:\tlb\t%0, 0(%2)\n"
+			"2:\tlbu\t$1, 1(%2)\n\t"
 #endif
 #ifdef __LITTLE_ENDIAN
-			"1:\tlb\t%0,1(%1)\n"
-			"2:\tlbu\t$1,0(%1)\n\t"
+			"1:\tlb\t%0, 1(%2)\n"
+			"2:\tlbu\t$1, 0(%2)\n\t"
 #endif
-			"sll\t%0,0x8\n\t"
-			"or\t%0,$1\n\t"
-			".set\tat\n\t"
+			"sll\t%0, 0x8\n\t"
+			"or\t%0, $1\n\t"
+			"li\t%1, 0\n"
+			"3:\t.set\tat\n\t"
+			".section\t.fixup,\"ax\"\n\t"
+			"4:\tli\t%1, %3\n\t"
+			"j\t3b\n\t"
+			".previous\n\t"
 			".section\t__ex_table,\"a\"\n\t"
-			STR(PTR)"\t1b,%2\n\t"
-			STR(PTR)"\t2b,%2\n\t"
+			STR(PTR)"\t1b, 4b\n\t"
+			STR(PTR)"\t2b, 4b\n\t"
 			".previous"
-			:"=&r" (value)
-			:"r" (addr), "i" (&&fault));
+			: "=&r" (value), "=r" (res)
+			: "r" (addr), "i" (-EFAULT));
+		if (res)
+			goto fault;
 		regs->regs[insn.i_format.rt] = value;
 		return 0;
 
@@ -169,88 +176,139 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 		check_axs(pc, addr, 4);
 		__asm__(
 #ifdef __BIG_ENDIAN
-			"1:\tlwl\t%0,(%1)\n"
-			"2:\tlwr\t%0,3(%1)\n\t"
+			"1:\tlwl\t%0, (%2)\n"
+			"2:\tlwr\t%0, 3(%2)\n\t"
 #endif
 #ifdef __LITTLE_ENDIAN
-			"1:\tlwl\t%0,3(%1)\n"
-			"2:\tlwr\t%0,(%1)\n\t"
+			"1:\tlwl\t%0, 3(%2)\n"
+			"2:\tlwr\t%0, (%2)\n\t"
 #endif
+			"li\t%1, 0\n"
+			"3:\t.section\t.fixup,\"ax\"\n\t"
+			"4:\tli\t%1, %3\n\t"
+			"j\t3b\n\t"
+			".previous\n\t"
 			".section\t__ex_table,\"a\"\n\t"
-			STR(PTR)"\t1b,%2\n\t"
-			STR(PTR)"\t2b,%2\n\t"
+			STR(PTR)"\t1b, 4b\n\t"
+			STR(PTR)"\t2b, 4b\n\t"
 			".previous"
-			:"=&r" (value)
-			:"r" (addr), "i" (&&fault));
-			regs->regs[insn.i_format.rt] = value;
-			return 0;
+			: "=&r" (value), "=r" (res)
+			: "r" (addr), "i" (-EFAULT));
+		if (res)
+			goto fault;
+		regs->regs[insn.i_format.rt] = value;
+		return 0;
 
 	case lhu_op:
 		check_axs(pc, addr, 2);
 		__asm__(
 			".set\tnoat\n"
 #ifdef __BIG_ENDIAN
-			"1:\tlbu\t%0,0(%1)\n"
-			"2:\tlbu\t$1,1(%1)\n\t"
+			"1:\tlbu\t%0, 0(%2)\n"
+			"2:\tlbu\t$1, 1(%2)\n\t"
 #endif
 #ifdef __LITTLE_ENDIAN
-			"1:\tlbu\t%0,1(%1)\n"
-			"2:\tlbu\t$1,0(%1)\n\t"
+			"1:\tlbu\t%0, 1(%2)\n"
+			"2:\tlbu\t$1, 0(%2)\n\t"
 #endif
-			"sll\t%0,0x8\n\t"
-			"or\t%0,$1\n\t"
-			".set\tat\n\t"
+			"sll\t%0, 0x8\n\t"
+			"or\t%0, $1\n\t"
+			"li\t%1, 0\n"
+			"3:\t.set\tat\n\t"
+			".section\t.fixup,\"ax\"\n\t"
+			"4:\tli\t%1, %3\n\t"
+			"j\t3b\n\t"
+			".previous\n\t"
 			".section\t__ex_table,\"a\"\n\t"
-			STR(PTR)"\t1b,%2\n\t"
-			STR(PTR)"\t2b,%2\n\t"
+			STR(PTR)"\t1b, 4b\n\t"
+			STR(PTR)"\t2b, 4b\n\t"
 			".previous"
-			:"=&r" (value)
-			:"r" (addr), "i" (&&fault));
+			: "=&r" (value), "=r" (res)
+			: "r" (addr), "i" (-EFAULT));
+		if (res)
+			goto fault;
 		regs->regs[insn.i_format.rt] = value;
 		return 0;
 
 	case lwu_op:
+#ifdef CONFIG_MIPS64
+		/*
+		 * A 32-bit kernel might be running on a 64-bit processor.  But
+		 * if we're on a 32-bit processor and an i-cache incoherency
+		 * or race makes us see a 64-bit instruction here the sdl/sdr
+		 * would blow up, so for now we don't handle unaligned 64-bit
+		 * instructions on 32-bit kernels.
+		 */
 		check_axs(pc, addr, 4);
 		__asm__(
 #ifdef __BIG_ENDIAN
-			"1:\tlwl\t%0,(%1)\n"
-			"2:\tlwr\t%0,3(%1)\n\t"
+			"1:\tlwl\t%0, (%2)\n"
+			"2:\tlwr\t%0, 3(%2)\n\t"
 #endif
 #ifdef __LITTLE_ENDIAN
-			"1:\tlwl\t%0,3(%1)\n"
-			"2:\tlwr\t%0,(%1)\n\t"
+			"1:\tlwl\t%0, 3(%2)\n"
+			"2:\tlwr\t%0, (%2)\n\t"
 #endif
+			"dsll\t%0, %0, 32\n\t"
+			"dsrl\t%0, %0, 32\n\t"
+			"li\t%1, 0\n"
+			"3:\t.section\t.fixup,\"ax\"\n\t"
+			"4:\tli\t%1, %3\n\t"
+			"j\t3b\n\t"
+			".previous\n\t"
 			".section\t__ex_table,\"a\"\n\t"
-			STR(PTR)"\t1b,%2\n\t"
-			STR(PTR)"\t2b,%2\n\t"
+			STR(PTR)"\t1b, 4b\n\t"
+			STR(PTR)"\t2b, 4b\n\t"
 			".previous"
-			:"=&r" (value)
-			:"r" (addr), "i" (&&fault));
-		value &= 0xffffffff;
+			: "=&r" (value), "=r" (res)
+			: "r" (addr), "i" (-EFAULT));
+		if (res)
+			goto fault;
 		regs->regs[insn.i_format.rt] = value;
 		return 0;
+#endif /* CONFIG_MIPS64 */
+
+		/* Cannot handle 64-bit instructions in 32-bit kernel */
+		goto sigill;
 
 	case ld_op:
+#ifdef CONFIG_MIPS64
+		/*
+		 * A 32-bit kernel might be running on a 64-bit processor.  But
+		 * if we're on a 32-bit processor and an i-cache incoherency
+		 * or race makes us see a 64-bit instruction here the sdl/sdr
+		 * would blow up, so for now we don't handle unaligned 64-bit
+		 * instructions on 32-bit kernels.
+		 */
 		check_axs(pc, addr, 8);
 		__asm__(
-			".set\tmips3\n"
 #ifdef __BIG_ENDIAN
-			"1:\tldl\t%0,(%1)\n"
-			"2:\tldr\t%0,7(%1)\n\t"
+			"1:\tldl\t%0, (%2)\n"
+			"2:\tldr\t%0, 7(%2)\n\t"
 #endif
 #ifdef __LITTLE_ENDIAN
-			"1:\tldl\t%0,7(%1)\n"
-			"2:\tldr\t%0,(%1)\n\t"
+			"1:\tldl\t%0, 7(%2)\n"
+			"2:\tldr\t%0, (%2)\n\t"
 #endif
-			".set\tmips0\n\t"
+			"li\t%1, 0\n"
+			"3:\t.section\t.fixup,\"ax\"\n\t"
+			"4:\tli\t%1, %3\n\t"
+			"j\t3b\n\t"
+			".previous\n\t"
 			".section\t__ex_table,\"a\"\n\t"
-			STR(PTR)"\t1b,%2\n\t"
-			STR(PTR)"\t2b,%2\n\t"
+			STR(PTR)"\t1b, 4b\n\t"
+			STR(PTR)"\t2b, 4b\n\t"
 			".previous"
-			:"=&r" (value)
-			:"r" (addr), "i" (&&fault));
+			: "=&r" (value), "=r" (res)
+			: "r" (addr), "i" (-EFAULT));
+		if (res)
+			goto fault;
 		regs->regs[insn.i_format.rt] = value;
 		return 0;
+#endif /* CONFIG_MIPS64 */
+
+		/* Cannot handle 64-bit instructions in 32-bit kernel */
+		goto sigill;
 
 	case sh_op:
 		check_axs(pc, addr, 2);
@@ -258,24 +316,32 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 		__asm__(
 #ifdef __BIG_ENDIAN
 			".set\tnoat\n"
-			"1:\tsb\t%0,1(%1)\n\t"
-			"srl\t$1,%0,0x8\n"
-			"2:\tsb\t$1,0(%1)\n\t"
+			"1:\tsb\t%1, 1(%2)\n\t"
+			"srl\t$1, %1, 0x8\n"
+			"2:\tsb\t$1, 0(%2)\n\t"
 			".set\tat\n\t"
 #endif
 #ifdef __LITTLE_ENDIAN
 			".set\tnoat\n"
-			"1:\tsb\t%0,0(%1)\n\t"
-			"srl\t$1,%0,0x8\n"
-			"2:\tsb\t$1,1(%1)\n\t"
+			"1:\tsb\t%1, 0(%2)\n\t"
+			"srl\t$1,%1, 0x8\n"
+			"2:\tsb\t$1, 1(%2)\n\t"
 			".set\tat\n\t"
 #endif
+			"li\t%0, 0\n"
+			"3:\n\t"
+			".section\t.fixup,\"ax\"\n\t"
+			"4:\tli\t%0, %3\n\t"
+			"j\t3b\n\t"
+			".previous\n\t"
 			".section\t__ex_table,\"a\"\n\t"
-			STR(PTR)"\t1b,%2\n\t"
-			STR(PTR)"\t2b,%2\n\t"
+			STR(PTR)"\t1b, 4b\n\t"
+			STR(PTR)"\t2b, 4b\n\t"
 			".previous"
-			: /* no outputs */
-			:"r" (value), "r" (addr), "i" (&&fault));
+			: "=r" (res)
+			: "r" (value), "r" (addr), "i" (-EFAULT));
+		if (res)
+			goto fault;
 		return 0;
 
 	case sw_op:
@@ -283,42 +349,68 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 		value = regs->regs[insn.i_format.rt];
 		__asm__(
 #ifdef __BIG_ENDIAN
-			"1:\tswl\t%0,(%1)\n"
-			"2:\tswr\t%0,3(%1)\n\t"
+			"1:\tswl\t%1,(%2)\n"
+			"2:\tswr\t%1, 3(%2)\n\t"
 #endif
 #ifdef __LITTLE_ENDIAN
-			"1:\tswl\t%0,3(%1)\n"
-			"2:\tswr\t%0,(%1)\n\t"
+			"1:\tswl\t%1, 3(%2)\n"
+			"2:\tswr\t%1, (%2)\n\t"
 #endif
+			"li\t%0, 0\n"
+			"3:\n\t"
+			".section\t.fixup,\"ax\"\n\t"
+			"4:\tli\t%0, %3\n\t"
+			"j\t3b\n\t"
+			".previous\n\t"
 			".section\t__ex_table,\"a\"\n\t"
-			STR(PTR)"\t1b,%2\n\t"
-			STR(PTR)"\t2b,%2\n\t"
+			STR(PTR)"\t1b, 4b\n\t"
+			STR(PTR)"\t2b, 4b\n\t"
 			".previous"
-			: /* no outputs */
-			:"r" (value), "r" (addr), "i" (&&fault));
+		: "=r" (res)
+		: "r" (value), "r" (addr), "i" (-EFAULT));
+		if (res)
+			goto fault;
 		return 0;
 
 	case sd_op:
+#ifdef CONFIG_MIPS64
+		/*
+		 * A 32-bit kernel might be running on a 64-bit processor.  But
+		 * if we're on a 32-bit processor and an i-cache incoherency
+		 * or race makes us see a 64-bit instruction here the sdl/sdr
+		 * would blow up, so for now we don't handle unaligned 64-bit
+		 * instructions on 32-bit kernels.
+		 */
 		check_axs(pc, addr, 8);
 		value = regs->regs[insn.i_format.rt];
 		__asm__(
-			".set\tmips3\n"
 #ifdef __BIG_ENDIAN
-			"1:\tsdl\t%0,(%1)\n"
-			"2:\tsdr\t%0,7(%1)\n\t"
+			"1:\tsdl\t%1,(%2)\n"
+			"2:\tsdr\t%1, 7(%2)\n\t"
 #endif
 #ifdef __LITTLE_ENDIAN
-			"1:\tsdl\t%0,7(%1)\n"
-			"2:\tsdr\t%0,(%1)\n\t"
+			"1:\tsdl\t%1, 7(%2)\n"
+			"2:\tsdr\t%1, (%2)\n\t"
 #endif
-			".set\tmips0\n\t"
+			"li\t%0, 0\n"
+			"3:\n\t"
+			".section\t.fixup,\"ax\"\n\t"
+			"4:\tli\t%0, %3\n\t"
+			"j\t3b\n\t"
+			".previous\n\t"
 			".section\t__ex_table,\"a\"\n\t"
-			STR(PTR)"\t1b,%2\n\t"
-			STR(PTR)"\t2b,%2\n\t"
+			STR(PTR)"\t1b, 4b\n\t"
+			STR(PTR)"\t2b, 4b\n\t"
 			".previous"
-			: /* no outputs */
-			:"r" (value), "r" (addr), "i" (&&fault));
+		: "=r" (res)
+		: "r" (value), "r" (addr), "i" (-EFAULT));
+		if (res)
+			goto fault;
 		return 0;
+#endif /* CONFIG_MIPS64 */
+
+		/* Cannot handle 64-bit instructions in 32-bit kernel */
+		goto sigill;
 
 	case lwc1_op:
 	case ldc1_op:
@@ -361,16 +453,21 @@ fault:
 		return 1;
 	}
 
-	die_if_kernel("Unhandled kernel unaligned access", regs);
+	die_if_kernel ("Unhandled kernel unaligned access", regs);
 	send_sig(SIGSEGV, current, 1);
+
 	return 0;
+
 sigbus:
 	die_if_kernel("Unhandled kernel unaligned access", regs);
 	send_sig(SIGBUS, current, 1);
+
 	return 0;
+
 sigill:
 	die_if_kernel("Unhandled kernel unaligned access or invalid instruction", regs);
 	send_sig(SIGILL, current, 1);
+
 	return 0;
 }
 
@@ -383,11 +480,6 @@ asmlinkage void do_ade(struct pt_regs *regs)
 	unsigned long pc;
 	extern int do_dsemulret(struct pt_regs *);
 
-#if 0
-        printk("ade: Cpu%d[%s:%d:%0lx:%0lx]\n", smp_processor_id(),
-                current->comm, current->pid, regs->cp0_badvaddr, regs->cp0_epc);
-#endif
-
 	/*
 	 * Address errors may be deliberately induced
 	 * by the FPU emulator to take retake control
@@ -398,7 +490,7 @@ asmlinkage void do_ade(struct pt_regs *regs)
 	if (do_dsemulret(regs))
 		return;
 
-        /* Otherwise handle as normal */
+	/* Otherwise handle as normal */
 
 	/*
 	 * Did we catch a fault trying to load an instruction?
@@ -428,4 +520,8 @@ asmlinkage void do_ade(struct pt_regs *regs)
 sigbus:
 	die_if_kernel("Kernel unaligned instruction access", regs);
 	force_sig(SIGBUS, current);
+
+	/*
+	 * XXX On return from the signal handler we should advance the epc
+	 */
 }
