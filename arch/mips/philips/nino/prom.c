@@ -20,26 +20,19 @@
 char arcs_cmdline[COMMAND_LINE_SIZE];
 
 #ifdef CONFIG_FB_TX3912
-extern u_long tx3912fb_paddr;
-extern u_long tx3912fb_vaddr;
-extern u_long tx3912fb_size;
+extern unsigned long tx3912fb_paddr;
+extern unsigned long tx3912fb_vaddr;
+extern unsigned long tx3912fb_size;
 #endif
 
 /* Do basic initialization */
 void __init prom_init(int argc, char **argv,
 		unsigned long magic, int *prom_vec)
 {
-	u_long free_end, mem_size;
-	u_int i;
+	unsigned long mem_size;
+	unsigned int i;
 
-	/*
-	 * collect args and prepare cmd_line
-	 */
-	for (i = 1; i < argc; i++) {
-		strcat(arcs_cmdline, argv[i]);
-		if (i < (argc - 1))
-			strcat(arcs_cmdline, " ");
-	}
+	strcpy(arcs_cmdline, "console=tty0 console=ttyS0,115200");
 
 	mips_machgroup = MACH_GROUP_PHILIPS;
 	mips_machtype = MACH_PHILIPS_NINO;
@@ -53,6 +46,9 @@ void __init prom_init(int argc, char **argv,
 #endif
 
 #ifdef CONFIG_FB_TX3912
+{
+	unsigned long free_end;
+
 	/*
 	 * The LCD controller requires that the framebuffer
 	 * start address fall within a 1MB segment and is
@@ -70,6 +66,7 @@ void __init prom_init(int argc, char **argv,
 	 */
 	tx3912fb_paddr = PHYSADDR(free_end);
 	tx3912fb_vaddr = KSEG1ADDR(free_end);
+}
 #else
 	add_memory_region(0, mem_size, BOOT_MEM_RAM); 
 #endif

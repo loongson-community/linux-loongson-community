@@ -10,6 +10,7 @@
  *  Interrupt and exception initialization for Philips Nino.
  */
 #include <linux/init.h>
+#include <linux/interrupt.h>
 #include <linux/sched.h>
 #include <asm/addrspace.h>
 #include <asm/io.h>
@@ -18,7 +19,7 @@
 #include <asm/time.h>
 #include <asm/tx3912.h>
 
-void nino_machine_restart(char *command)
+static void nino_machine_restart(char *command)
 {
 	static void (*back_to_prom)(void) = (void (*)(void)) 0xbfc00000;
 
@@ -26,13 +27,13 @@ void nino_machine_restart(char *command)
 	back_to_prom();
 }
 
-void nino_machine_halt(void)
+static void nino_machine_halt(void)
 {
 	printk("Nino halted.\n");
 	while(1);
 }
 
-void nino_machine_power_off(void)
+static void nino_machine_power_off(void)
 {
 	printk("Nino halted. Please turn off power.\n");
 	while(1);
@@ -56,35 +57,26 @@ static __init void nino_time_init(void)
 	outl(scratch, TX3912_CLK_CTRL_BASE);
 }
 
-extern int setup_irq(unsigned int irq, struct irqaction *irqaction);
-
 static __init void nino_timer_setup(struct irqaction *irq)
 {
+	irq->dev_id = (void *) irq;
 	setup_irq(0, irq);
-
-	/* Enable all hardware interrupts */
-	set_cp0_status(IE_IRQ5 | IE_IRQ4 | IE_IRQ3 |
-		IE_IRQ2 | IE_IRQ1 | IE_IRQ0);
-
-	/* Enable all the high priority interrupts */
-	IntEnable6 = (INT6_GLOBALEN | 0xffff);
-
 }
-
-extern void nino_irq_setup(void);
-extern void nino_wait(void);
 
 void __init nino_setup(void)
 {
+	extern void nino_irq_setup(void);
+	extern void nino_wait(void);
+
 	irq_setup = nino_irq_setup;
-	mips_io_port_base = KSEG1ADDR(0xb0c00000);
+	mips_io_port_base = KSEG1ADDR(0x10c00000);
+
+	_machine_restart = nino_machine_restart;
+	_machine_halt = nino_machine_halt;
+	_machine_power_off = nino_machine_power_off;
 
 	board_time_init = nino_time_init;
 	board_timer_setup = nino_timer_setup;
-
-        _machine_restart = nino_machine_restart;
-        _machine_halt = nino_machine_halt;
-        _machine_power_off = nino_machine_power_off;
 
 	cpu_wait = nino_wait;
 
