@@ -1002,10 +1002,28 @@ __BUILD_SET_CP0(status,CP0_STATUS)
 __BUILD_SET_CP0(cause,CP0_CAUSE)
 __BUILD_SET_CP0(config,CP0_CONFIG)
 
+#if defined(CONFIG_CPU_SB1)
+#define __enable_fpu_hazard()						\
+do {									\
+	asm(".set push		\n\t"					\
+	    ".set mips64	\n\t"					\
+	    ".set noreorder	\n\t"					\
+	    "ssnop		\n\t"					\
+	    "bnezl $0, .+4	\n\t"					\
+	    "ssnop		\n\t"					\
+	    ".set pop");						\
+} while (0)
+#else
+#define __enable_fpu_hazard()						\
+do {									\
+	asm("nop;nop;nop;nop");		/* max. hazard */		\
+} while (0)
+#endif
+
 #define __enable_fpu()							\
 do {									\
 	set_cp0_status(ST0_CU1);					\
-	asm("nop;nop;nop;nop");		/* max. hazard */		\
+	__enable_fpu_hazard();						\
 } while (0)
 
 #define __disable_fpu()							\
