@@ -1,4 +1,4 @@
-/* $Id: linux32.c,v 1.9 2000/03/15 02:36:21 kanoj Exp $
+/* $Id: linux32.c,v 1.10 2000/03/15 18:05:43 kanoj Exp $
  * 
  * Conversion between 32-bit and 64-bit native system calls.
  *
@@ -535,12 +535,19 @@ extern asmlinkage int sys_wait4(pid_t pid,unsigned int * stat_addr,
 				int options, struct rusage * ru);
 
 asmlinkage int
-sys32_wait4(__kernel_pid_t32 pid, unsigned int *stat_addr, int options,
-	    struct rusage32 *ru)
+sys32_wait4(abi64_no_regargs, struct pt_regs regs)
 {
-	if (!ru)
-		return sys_wait4(pid, stat_addr, options, NULL);
-	else {
+	__kernel_pid_t32 pid = (long)regs.regs[4];
+	unsigned int *stat_addr = (long)regs.regs[5];
+	int options = (long)regs.regs[6];
+	struct rusage32 *ru = (long)regs.regs[7];
+
+	if (!ru) {
+unsigned long saved = regs.cp0_status;
+		options = sys_wait4(pid, stat_addr, options, NULL);
+regs.cp0_status = saved;
+		return(options);
+	} else {
 		struct rusage r;
 		int ret;
 		unsigned int status;
@@ -559,6 +566,8 @@ sys32_wait4(__kernel_pid_t32 pid, unsigned int *stat_addr, int options,
 asmlinkage int
 sys32_waitpid(__kernel_pid_t32 pid, unsigned int *stat_addr, int options)
 {
-	return sys32_wait4(pid, stat_addr, options, NULL);
+printk("WAITPID\n");
+while(0);
+	/* return sys32_wait4(pid, stat_addr, options, NULL); */
 }
 
