@@ -62,11 +62,11 @@ LEAF(_save_fp_context)
 	EX(swc1	$f29,(SC_FPREGS+232)(a0))
 	EX(swc1	$f30,(SC_FPREGS+240)(a0))
 	EX(swc1	$f31,(SC_FPREGS+248)(a0))
-	EX(sw	t1,SC_FPC_CSR(a0))
+	EX(sw	t1,(SC_FPC_CSR)(a0))
 	cfc1	t0,$0				# implementation/version
 	jr	ra
 	.set	nomacro
-	 EX(sw	t0,SC_FPC_EIR(a0))
+	 EX(sw	t0,(SC_FPC_EIR)(a0))
 	.set	macro
 	END(_save_fp_context)
 
@@ -81,7 +81,7 @@ LEAF(_save_fp_context)
  */
 LEAF(_restore_fp_context)
 	li	v0, 0					# assume success
-	EX(lw t0,SC_FPC_CSR(a0))
+	EX(lw t0,(SC_FPC_CSR)(a0))
 	EX(lwc1	$f0,(SC_FPREGS+0)(a0))
 	EX(lwc1	$f1,(SC_FPREGS+8)(a0))
 	EX(lwc1	$f2,(SC_FPREGS+16)(a0))

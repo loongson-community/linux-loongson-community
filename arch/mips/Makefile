@@ -51,6 +51,9 @@ endif
 ifdef CONFIG_CPU_R3000
 GCCFLAGS	+= -mcpu=r3000 -mips1
 endif
+ifdef CONFIG_CPU_R3912
+GCCFLAGS	+= -mcpu=r3000 -mips1
+endif
 ifdef CONFIG_CPU_R6000
 GCCFLAGS	+= -mcpu=r6000 -mips2 -Wa,--trap
 endif
@@ -215,6 +218,16 @@ ifdef CONFIG_MOMENCO_OCELOT
 LIBS          += arch/mips/gt64120/common/gt64120.o arch/mips/gt64120/momenco_ocelot/momenco_ocelot.o
 SUBDIRS       += arch/mips/gt64120/common arch/mips/gt64120/momenco_ocelot
 LOADADDR      += 0x80100000
+endif
+
+#
+# Philips Nino
+#
+ifdef CONFIG_NINO
+CORE_FILES    += arch/mips/philips/nino/nino.o \
+		 arch/mips/philips/drivers/drivers.o
+SUBDIRS       += arch/mips/philips/nino arch/mips/philips/drivers
+LOADADDR      += 0x80000000
 endif
 
 #

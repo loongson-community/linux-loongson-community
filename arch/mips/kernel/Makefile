@@ -26,11 +26,15 @@ obj-$(CONFIG_MODULES)		+= mips_ksyms.o
 ifdef CONFIG_CPU_R3000
 obj-y	+= r2300_misc.o r2300_fpu.o r2300_switch.o
 else
+ifdef CONFIG_CPU_R3912
+obj-y	+= r2300_misc.o r2300_fpu.o r2300_switch.o
+else
 obj-y	+= r4k_misc.o r4k_switch.o 
 ifdef CONFIG_CPU_R6000
 obj-y	+= r6000_fpu.o
 else
 obj-y	+= r4k_fpu.o
+endif
 endif
 endif
 
@@ -49,7 +53,9 @@ ifndef CONFIG_DECSTATION
       ifndef CONFIG_MIPS_MALTA
         ifndef CONFIG_MIPS_EV96100
 	  ifndef CONFIG_MIPS_ITE8172
-	    obj-y += time.o
+            ifndef CONFIG_NINO
+	      obj-y += time.o
+            endif
 	  endif
         endif
       endif

@@ -25,10 +25,12 @@
 #define MACH_GROUP_COSINE      10 /* CoSine Orion                             */
 #define MACH_GROUP_GALILEO     11 /* Galileo Eval Boards                      */
 #define MACH_GROUP_MOMENCO     12 /* Momentum Boards                          */
-#define MACH_GROUP_ITE         13 /* ITE Semi Eval Boards*/
+#define MACH_GROUP_ITE         13 /* ITE Semi Eval Boards                     */
+#define MACH_GROUP_PHILLIPS    14
 
 #define GROUP_NAMES { "unknown", "Jazz", "Digital", "ARC", "SNI", "ACN",      \
-	"SGI", "Cobalt", "NEC DDB", "Baget", "Cosine", "Galileo", "Momentum", "ITE" }
+	"SGI", "Cobalt", "NEC DDB", "Baget", "Cosine", "Galileo", "Momentum", \
+	"ITE", "Phillips" }
 
 /*
  * Valid machtype values for group unknown (low order halfword of mips_machtype)
@@ -150,6 +152,14 @@
 #define GROUP_ITE_NAMES { "QED-4N-S01B" } /* the actual board name */
 
 /*
+ * Valid machtype for group PHILIPS
+ */
+#define MACH_PHILIPS_NINO	0	/* Nino */
+#define MACH_PHILIPS_VELO	1	/* Velo */
+
+#define GROUP_PHILIPS_NAMES { "Nino" , "Velo" }
+
+/*
  * Valid cputype values
  */
 #define CPU_UNKNOWN		0
@@ -185,14 +195,15 @@
 #define CPU_4KC                 30
 #define CPU_5KC                 31
 #define CPU_R4310               32
-#define CPU_LAST		32
+#define CPU_R3912               33
+#define CPU_LAST		33
 
 #define CPU_NAMES { "unknown", "R2000", "R3000", "R3000A", "R3041", "R3051", \
         "R3052", "R3081", "R3081E", "R4000PC", "R4000SC", "R4000MC",         \
         "R4200", "R4400PC", "R4400SC", "R4400MC", "R4600", "R6000",          \
         "R6000A", "R8000", "R10000", "R4300", "R4650", "R4700", "R5000",     \
         "R5000A", "R4640", "Nevada", "RM7000", "R5432", "MIPS 4Kc",          \
-        "MIPS 5Kc", "R4310" }
+        "MIPS 5Kc", "R4310", "R3912" }
 
 #define COMMAND_LINE_SIZE	256
 

@@ -74,6 +74,12 @@ void __init loadmmu(void)
 		ld_mmu_r2300();
 		break;
 #endif
+#ifdef CONFIG_CPU_R3912
+	case CPU_R3912:
+		printk("Loading R[23]00 MMU routines.\n");
+		ld_mmu_r2300();
+		break;
+#endif
 
 #if defined(CONFIG_CPU_R5432)
 	case CPU_R5432:

@@ -87,6 +87,11 @@ ifeq ($(CONFIG_BAGET_MIPS),y)
   SERIAL   =
 endif
 
+ifeq ($(CONFIG_NINO),y)
+  KEYBD    =
+  SERIAL   =
+endif
+
 ifneq ($(CONFIG_SUN_SERIAL),)
   SERIAL   =
 endif

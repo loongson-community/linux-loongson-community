@@ -209,11 +209,22 @@ static inline void cpu_probe(void)
 		mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU;
 		mips_cpu.tlbsize = 48;
 		break;
+/*
+ * This processor doesn't have an MMU, so it's not "real easy" to
+ * run Linux on it. It is left purely for documentation.
+ *
 	case PRID_IMP_R4650:
 		mips_cpu.cputype = CPU_R4650;
 		mips_cpu.isa_level = MIPS_CPU_ISA_III;
 		mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU;
 		mips_cpu.tlbsize = 48;
+		break;
+ */
+	case PRID_IMP_R3912:
+		mips_cpu.cputype = CPU_R3912;
+		mips_cpu.isa_level = MIPS_CPU_ISA_I;
+		mips_cpu.options = MIPS_CPU_TLB;
+		mips_cpu.tlbsize = 32;
 		break;
 	case PRID_IMP_R4700:
 		mips_cpu.cputype = CPU_R4700;
@@ -450,7 +461,11 @@ void __init setup_arch(char **cmdline_p)
         void ev96100_setup(void);
 	void malta_setup(void);
 	void momenco_ocelot_setup(void);
+	void nino_setup(void);
 
+#ifdef CONFIG_BLK_DEV_INITRD
+	extern void * __rd_start, * __rd_end;
+#endif
 	unsigned long bootmap_size;
 	unsigned long start_pfn, max_pfn;
 	int i;
@@ -540,6 +555,11 @@ void __init setup_arch(char **cmdline_p)
 		it8172_setup();
 		break;
 #endif
+#ifdef CONFIG_NINO
+	case MACH_GROUP_PHILIPS:
+		nino_setup();
+		break;
+#endif
 	default:
 		panic("Unsupported architecture");
 	}
@@ -626,6 +646,13 @@ void __init setup_arch(char **cmdline_p)
 	/* Reserve the bootmap memory.  */
 	reserve_bootmem(PFN_PHYS(start_pfn), bootmap_size);
 
+#ifdef CONFIG_NINO
+	ROOT_DEV = MKDEV(RAMDISK_MAJOR, 0);
+	initrd_start = (unsigned long)&__rd_start;
+	initrd_end = (unsigned long)&__rd_end;
+	initrd_below_start_ok = 1;
+#endif
+
 #if 0
 #ifdef CONFIG_BLK_DEV_INITRD
 #error "Fixme, I'm broken."
@@ -698,4 +725,3 @@ void r4k_wait(void)
 		"wait\n\t"
 		".set\tmips0");
 }
-

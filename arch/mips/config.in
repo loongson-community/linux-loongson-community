@@ -31,6 +31,13 @@ if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
    fi
    bool 'Support for MIPS Atlas board' CONFIG_MIPS_ATLAS
    bool 'Support for MIPS Malta board' CONFIG_MIPS_MALTA
+   bool 'Support for Philips Nino (EXPERIMENTAL)' CONFIG_NINO
+   if [ "$CONFIG_NINO" = "y" ]; then
+      choice 'Nino Model Number' \
+        "Model-300/301/302/319 CONFIG_NINO_4MB \
+         Model-200/210/312/320/325/350/390 CONFIG_NINO_8MB \
+         Model-500/510 CONFIG_NINO_16MB" CONFIG_NINO_8MB
+   fi
 fi
 bool 'Support for Mips Magnum 4000' CONFIG_MIPS_MAGNUM_4000
 bool 'Support for Momentum Ocelot board' CONFIG_MOMENCO_OCELOT
@@ -185,6 +192,7 @@ comment 'CPU selection'
 
 choice 'CPU type' \
 	"R3000 CONFIG_CPU_R3000	\
+	 R3912 CONFIG_CPU_R3912	\
 	 R6000 CONFIG_CPU_R6000	\
 	 R4300 CONFIG_CPU_R4300	\
 	 R4x00 CONFIG_CPU_R4X00	\
@@ -211,15 +219,23 @@ else
 	 define_bool CONFIG_CPU_HAS_WB n
       fi
    else
-      define_bool CONFIG_CPU_HAS_LLSC y
-      define_bool CONFIG_CPU_HAS_WB n
+      if [ "$CONFIG_CPU_R3912" = "y" ]; then
+	 define_bool CONFIG_CPU_HAS_LLSC n
+	 define_bool CONFIG_CPU_HAS_WB n
+      else
+	 define_bool CONFIG_CPU_HAS_LLSC y
+	 define_bool CONFIG_CPU_HAS_WB n
+      fi
    fi
 fi
 endmenu
 
 mainmenu_option next_comment
 comment 'General setup'
-if [ "$CONFIG_DECSTATION" = "y" -o "$CONFIG_DDB5074" = "y" -o "$CONFIG_DDB5476" = "y" ]; then
+if [ "$CONFIG_DECSTATION" = "y" -o \
+     "$CONFIG_DDB5074" = "y" -o    \
+     "$CONFIG_DDB5476" = "y" -o    \
+     "$CONFIG_NINO" = "y" ]; then
    define_bool CONFIG_CPU_LITTLE_ENDIAN y
 else
    bool 'Generate little endian code' CONFIG_CPU_LITTLE_ENDIAN
@@ -483,6 +499,9 @@ if [ "$CONFIG_MODULES" = "y" ]; then
 fi
 if [ "$CONFIG_SERIAL" = "y" ]; then
   bool 'Remote GDB kernel debugging' CONFIG_REMOTE_DEBUG
+fi
+if [ "$CONFIG_SERIAL" = "y" ]; then
+  bool 'Low-level debugging' CONFIG_LL_DEBUG
 fi
 bool 'Magic SysRq key' CONFIG_MAGIC_SYSRQ
 if [ "$CONFIG_SMP" != "y" ]; then

@@ -12,7 +12,7 @@
 #ifndef __ASM_MIPS_ISADEP_H
 #define __ASM_MIPS_ISADEP_H
 
-#if defined(CONFIG_CPU_R3000)
+#if defined(CONFIG_CPU_R3000) || defined(CONFIG_CPU_R3912)
 /*
  * R2000 or R3000
  */

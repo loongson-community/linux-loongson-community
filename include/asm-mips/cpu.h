@@ -25,6 +25,7 @@
 #define PRID_IMP_R8000		0x1000
 #define PRID_IMP_R4600		0x2000
 #define PRID_IMP_R4700		0x2100
+#define PRID_IMP_R3912		0x2200
 #define PRID_IMP_R4640		0x2200
 #define PRID_IMP_R4650		0x2200		/* Same as R4640 */
 #define PRID_IMP_R5000		0x2300
@@ -43,6 +44,7 @@
 #define PRID_REV_R3000A		0x0030
 #define PRID_REV_R3000		0x0020
 #define PRID_REV_R2000A		0x0010
+#define PRID_REV_R3912 		0x0010
 
 #ifndef  _LANGUAGE_ASSEMBLY
 /*
