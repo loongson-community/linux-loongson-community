@@ -124,30 +124,6 @@ typedef double elf_fpreg_t;
 typedef elf_fpreg_t elf_fpregset_t[ELF_NFPREG];
 
 #ifdef CONFIG_MIPS32
-/*
- * This is used to ensure we don't load something for the wrong architecture.
- */
-#define elf_check_arch(hdr)						\
-({									\
-	int __res = 1;							\
-	struct elfhdr *__h = (hdr);					\
-									\
-	if (__h->e_machine != EM_MIPS)					\
-		__res = 0;						\
-	if (__h->e_ident[EI_CLASS] != ELFCLASS64) 			\
-		__res = 0;						\
-									\
-	__res;								\
-})
-
-/*
- * These are used to set parameters in the core dumps.
- */
-#define ELF_CLASS	ELFCLASS32
-
-#endif /* CONFIG_MIPS32 */
-
-#ifdef CONFIG_MIPS64
 
 /*
  * This is used to ensure we don't load something for the wrong architecture.
@@ -165,6 +141,30 @@ typedef elf_fpreg_t elf_fpregset_t[ELF_NFPREG];
 		__res = 0;						\
 	if (((__h->e_flags & EF_MIPS_ABI) != 0) &&			\
 	    ((__h->e_flags & EF_MIPS_ABI) != EF_MIPS_ABI_O32))		\
+		__res = 0;						\
+									\
+	__res;								\
+})
+
+/*
+ * These are used to set parameters in the core dumps.
+ */
+#define ELF_CLASS	ELFCLASS32
+
+#endif /* CONFIG_MIPS32 */
+
+#ifdef CONFIG_MIPS64
+/*
+ * This is used to ensure we don't load something for the wrong architecture.
+ */
+#define elf_check_arch(hdr)						\
+({									\
+	int __res = 1;							\
+	struct elfhdr *__h = (hdr);					\
+									\
+	if (__h->e_machine != EM_MIPS)					\
+		__res = 0;						\
+	if (__h->e_ident[EI_CLASS] != ELFCLASS64) 			\
 		__res = 0;						\
 									\
 	__res;								\
