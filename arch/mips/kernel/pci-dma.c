@@ -1,6 +1,7 @@
 /*
- *
- * Dynamic DMA mapping support.
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
  *
  * Copyright (C) 2000   Ani Joshi <ajoshi@unixbox.com>
  * swiped from i386, and cloned for MIPS by Geert, polished by Ralf.
@@ -23,11 +24,13 @@ void *pci_alloc_consistent(struct pci_dev *hwdev, size_t size,
 	ret = (void *) __get_free_pages(gfp, get_order(size));
 
 	if (ret != NULL) {
+		memset(ret, 0, size);
 		dma_cache_inv((unsigned long) ret, size);
 		*dma_handle = virt_to_bus(ret);
+		ret = KSEG1ADDR(ret);
 	}
 
-	return KSEG1ADDR(ret);
+	return ret;
 }
 
 void pci_free_consistent(struct pci_dev *hwdev, size_t size,
