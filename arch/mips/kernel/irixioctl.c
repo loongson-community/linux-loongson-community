@@ -1,4 +1,4 @@
-/* $Id: irixioctl.c,v 1.3 1997/12/15 10:37:27 ralf Exp $
+/* $Id: irixioctl.c,v 1.3 1997/12/16 05:34:35 ralf Exp $
  * irixioctl.c: A fucking mess...
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
@@ -17,6 +17,7 @@
 #include <asm/ioctls.h>
 
 #undef DEBUG_IOCTLS
+#undef DEBUG_MISSING_IOCTL
 
 struct irix_termios {
 	tcflag_t c_iflag, c_oflag, c_cflag, c_lflag;
@@ -236,7 +237,7 @@ asmlinkage int irix_ioctl(int fd, unsigned long cmd, unsigned long arg)
 
 	default: {
 #ifdef DEBUG_MISSING_IOCTL
-		char *msg = "Unimplemented IOCTL cmd tell dm@engr.sgi.com\n";
+		char *msg = "Unimplemented IOCTL cmd tell linux@engr.sgi.com\n";
 
 #ifdef DEBUG_IOCTLS
 		printk("UNIMP_IOCTL, %08lx)\n", arg);
