@@ -8,8 +8,8 @@
  *
  * Definitions for the address spaces of the MIPS CPUs.
  */
-#ifndef __ASM_MIPS_ADDRSPACE_H
-#define __ASM_MIPS_ADDRSPACE_H
+#ifndef __ASM_ADDRSPACE_H
+#define __ASM_ADDRSPACE_H
 
 /*
  *  Configure language
@@ -56,9 +56,7 @@
  */
 #define CPHYSADDR(a)		((_ACAST32_ (a)) & 0x1fffffff)
 
-#ifndef __ASSEMBLY__
 #define PHYSADDR(a)		CPHYSADDR(a)
-#endif
 
 /*
  * Map an address to a certain kernel segment
@@ -102,4 +100,4 @@
 #define XKPHYS_TO_PHYS(p)		((p) & TO_PHYS_MASK)
 #define PHYS_TO_XKPHYS(cm,a)		(0x8000000000000000 | ((cm)<<59) | (a))
 
-#endif /* __ASM_MIPS_ADDRSPACE_H */
+#endif /* __ASM_ADDRSPACE_H */

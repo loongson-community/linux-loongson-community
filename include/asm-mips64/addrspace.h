@@ -7,8 +7,8 @@
  * Copyright (C) 1990, 1999 by Silicon Graphics, Inc.
  * Copyright (C) 2002  Maciej W. Rozycki
  */
-#ifndef __ASM_MIPS64_ADDRSPACE_H
-#define __ASM_MIPS64_ADDRSPACE_H
+#ifndef __ASM_ADDRSPACE_H
+#define __ASM_ADDRSPACE_H
 
 #include <linux/config.h>
 
@@ -56,11 +56,9 @@
 #define XPHYSADDR(a)		((_ACAST64_ (a)) & 0x000000ffffffffff)
 #define CPHYSADDR(a)		((_ACAST64_ (a)) & 0x000000001fffffff)
 
-#ifndef __ASSEMBLY__
 #define PHYSADDR(a) ({						\
 	const _ATYPE64_ _a = _ACAST64_ (a);			\
 	_a == _ACAST32_ _a ? CPHYSADDR(_a) : XPHYSADDR(_a); })
-#endif
 
 /*
  * Map an address to a certain kernel segment
@@ -145,4 +143,4 @@
 #define KDM_TO_PHYS(x)		(_ACAST64_ (x) & TO_PHYS_MASK)
 #define PHYS_TO_K0(x)		(_ACAST64_ (x) | K0BASE)
 
-#endif /* __ASM_MIPS64_ADDRSPACE_H */
+#endif /* __ASM_ADDRSPACE_H */
