@@ -35,6 +35,27 @@ extern void dma_sync_sg(struct device *dev, struct scatterlist *sg, int nelems,
 
 #else
 
+static inline void __dma_sync(unsigned long addr, size_t size,
+	enum dma_data_direction direction)
+{
+	switch (direction) {
+	case DMA_TO_DEVICE:
+		dma_cache_wback(addr, size);
+		break;
+
+	case DMA_FROM_DEVICE:
+		dma_cache_inv(addr, size);
+		break;
+
+	case DMA_BIDIRECTIONAL:
+		dma_cache_wback_inv(addr, size);
+		break;
+
+	default:
+		BUG();
+	}
+}
+
 static inline dma_addr_t
 dma_map_single(struct device *dev, void *ptr, size_t size,
 	       enum dma_data_direction direction)
@@ -43,7 +64,7 @@ dma_map_single(struct device *dev, void *ptr, size_t size,
 
 	BUG_ON(direction == DMA_NONE);
 
-	dma_cache_wback_inv(addr, size);
+	__dma_sync(addr, size, direction);
 
 	return bus_to_baddr(hwdev->bus, __pa(ptr));
 }
@@ -53,13 +74,6 @@ dma_unmap_single(struct device *dev, dma_addr_t dma_addr, size_t size,
 		 enum dma_data_direction direction)
 {
 	BUG_ON(direction == DMA_NONE);
-
-	if (direction != DMA_TO_DEVICE) {
-		unsigned long addr;
-
-		addr = baddr_to_bus(hwdev->bus, dma_addr) + PAGE_OFFSET;
-		dma_cache_wback_inv(addr, size);
-	}
 }
 
 static inline int
@@ -75,7 +89,7 @@ dma_map_sg(struct device *dev, struct scatterlist *sg, int nents,
  
 		addr = (unsigned long) page_address(sg->page);
 		if (addr)
-		        dma_cache_wback_inv(addr + sg->offset, sg->length);
+		        __dma_sync(addr + sg->offset, sg->length, direction);
 		sg->dma_address = (dma_addr_t) bus_to_baddr(hwdev->bus,
 			page_to_phys(sg->page) + sg->offset);
 	}
@@ -114,23 +128,7 @@ static inline void
 dma_unmap_sg(struct device *dev, struct scatterlist *sg, int nhwentries,
 	     enum dma_data_direction direction)
 {
-	int i;
-
 	BUG_ON(direction == DMA_NONE);
-
-	if (direction == DMA_TO_DEVICE)
-		return;
-
-	for (i = 0; i < nhwentries; i++, sg++) {
-		unsigned long addr;
-
-		if (!sg->page)
-			BUG();
-
-		addr = (unsigned long) page_address(sg->page);
-		if (addr)
-			dma_cache_wback_inv(addr + sg->offset, sg->length);
-	}
 }
 
 static inline void
@@ -139,11 +137,10 @@ dma_sync_single(struct device *dev, dma_addr_t dma_handle, size_t size,
 {
 	unsigned long addr;
  
-	if (direction == DMA_NONE)
-		BUG();
+	BUG_ON(direction == DMA_NONE);
  
 	addr = baddr_to_bus(hwdev->bus, dma_handle) + PAGE_OFFSET;
-	dma_cache_wback_inv(addr, size);
+	__dma_sync(addr, size, direction);
 }
 
 static inline void
@@ -153,11 +150,10 @@ dma_sync_single_range(struct device *dev, dma_addr_t dma_handle,
 {
 	unsigned long addr;
 
-	if (direction == DMA_NONE)
-		BUG();
+	BUG_ON(direction == DMA_NONE);
 
 	addr = baddr_to_bus(hwdev->bus, dma_handle) + PAGE_OFFSET;
-	dma_cache_wback_inv(addr, size);
+	__dma_sync(addr, size, direction);
 }
 
 static inline void
@@ -168,14 +164,13 @@ dma_sync_sg(struct device *dev, struct scatterlist *sg, int nelems,
 	int i;
 #endif
  
-	if (direction == DMA_NONE)
-		BUG();
+	BUG_ON(direction == DMA_NONE);
  
 	/* Make sure that gcc doesn't leave the empty loop body.  */
 #ifdef CONFIG_NONCOHERENT_IO
 	for (i = 0; i < nelems; i++, sg++)
-		dma_cache_wback_inv((unsigned long)page_address(sg->page),
-		                    sg->length);
+		__dma_sync((unsigned long)page_address(sg->page),
+		           sg->length, direction);
 #endif
 }
 #endif /* CONFIG_MAPPED_DMA_IO  */
