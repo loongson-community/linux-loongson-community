@@ -487,6 +487,13 @@ CONFIG_CPU_R3000
   it suffices to give a unique prefix of the option you want to
   choose. 
 
+SGI graphics support
+CONFIG_SGI_GRAPHICS
+  If you have an SGI machine and you want to compile the graphic drivers
+  select this option.  This will include the code for the /dev/graphics 
+  and /dev/gfx drivers into the kernel for supporting the virtualized
+  access to your graphics hardware.
+
 Networking support
 CONFIG_NET
   Unless you really know what you are doing, you should say Y

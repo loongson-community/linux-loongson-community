@@ -210,6 +210,10 @@ else
   endif
 endif
 
+ifdef CONFIG_SGI_GRAPHICS
+M = y
+endif
+
 ifdef CONFIG_SUN_MOUSE
 M = y
 endif

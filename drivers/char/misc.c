@@ -69,6 +69,8 @@ extern int atixl_busmouse_init(void);
 extern int amiga_mouse_init(void);
 extern int atari_mouse_init(void);
 extern int sun_mouse_init(void);
+extern void gfx_register(void);
+extern void streamable_init(void);
 extern void watchdog_init(void);
 extern void wdt_init(void);
 extern void pcwatchdog_init(void);
@@ -238,6 +240,10 @@ __initfunc(int misc_init(void))
 #endif
 #ifdef CONFIG_ATARI_DSP56K
 	dsp56k_init();
+#endif
+#ifdef CONFIG_SGI_GRAPHICS
+	gfx_register ();
+	streamable_init ();
 #endif
 #endif /* !MODULE */
 	if (register_chrdev(MISC_MAJOR,"misc",&misc_fops)) {

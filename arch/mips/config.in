@@ -27,6 +27,9 @@ if [ "$CONFIG_MIPS_MAGNUM_4000" = "y" -o \
 fi
 if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
   bool 'Support for SGI workstations' CONFIG_SGI
+  if [ "$CONFIG_SGI" = "y" ]; then
+     bool 'Support for SGI graphic devices' CONFIG_SGI_GRAPHICS
+  fi
 fi
 bool 'Support for SNI RM200 PCI' CONFIG_SNI_RM200_PCI
 if [ "$CONFIG_DESKSTATION_RPC44" = "y" -o \

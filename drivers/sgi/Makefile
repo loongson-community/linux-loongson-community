@@ -17,6 +17,6 @@ L_TARGET := sgi.a
 # Character devices for SGI machines.
 #
 SUB_DIRS += char
-L_OBJS += char/sgichar.o
+L_OBJS += char/sgichar.o 
 
 include $(TOPDIR)/Rules.make

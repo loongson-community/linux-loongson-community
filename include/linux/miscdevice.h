@@ -12,6 +12,10 @@
 #define SUN_OPENPROM_MINOR 139
 #define MISC_DYNAMIC_MINOR 255
 
+#define SGI_GRAPHICS_MINOR 20
+#define SGI_OPENGL_MINOR   21
+#define SGI_GFX_MINOR      22
+
 extern int misc_init(void);
 
 struct miscdevice 

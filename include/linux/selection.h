@@ -113,7 +113,7 @@ static inline unsigned short scr_readw(unsigned short * addr)
 
 #include <linux/vt_kern.h>
 #include <linux/kd.h>
-extern void newport_blitc(unsigned short, unsigned long);
+extern void blitc(unsigned short, unsigned long);
 extern void memsetw(void * s, unsigned short c, unsigned int count);
 extern void memcpyw(unsigned short *to, unsigned short *from, unsigned int count);
 extern unsigned long video_mem_term;
@@ -128,7 +128,7 @@ static inline void scr_writew(unsigned short val, unsigned short * addr)
 		if ((unsigned long)addr < video_mem_term &&
 		    (unsigned long)addr >= video_mem_base &&
 		    vt_cons [fg_console]->vc_mode == KD_TEXT)
-	                newport_blitc(val, (unsigned long) addr);
+	                blitc(val, (unsigned long) addr);
         }
 }
 
