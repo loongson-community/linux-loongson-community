@@ -996,12 +996,6 @@ void __init trap_init(void)
 		//set_except_vector(15, handle_ndc);
 	}
 
-	if (mips_cpu.cputype == CPU_SB1) {
-		/* Enable timer interrupt and scd mapped interrupt */
-		clear_c0_status(0xf000);
-		set_c0_status(0xc00);
-	}
-
 	if (mips_cpu.options & MIPS_CPU_FPU) {
 	        save_fp_context = _save_fp_context;
 		restore_fp_context = _restore_fp_context;
