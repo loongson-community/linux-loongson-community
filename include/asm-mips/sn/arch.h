@@ -63,19 +63,4 @@ extern cnodeid_t cpuid_to_compact_node[MAXCPUS];
 #define COMPACT_TO_NASID_NODEID(cnode)	(compact_to_nasid_node[cnode])
 #define CPUID_TO_COMPACT_NODEID(cpu)	(cpuid_to_compact_node[(cpu)])
 
-#define SLOT_BITMASK    	(MAX_MEM_SLOTS - 1)
-#define SLOT_SIZE		(1LL<<SLOT_SHIFT)
-
-#define node_getnumslots(node)	(MAX_MEM_SLOTS)
-#define NODE_MAX_MEM_SIZE	SLOT_SIZE * MAX_MEM_SLOTS
-
-/*
- * New stuff in here from Irix sys/pfdat.h.
- */
-#define	SLOT_PFNSHIFT		(SLOT_SHIFT - PAGE_SHIFT)
-#define	PFN_NASIDSHFT		(NASID_SHFT - PAGE_SHIFT)
-#define mkpfn(nasid, off)	(((pfn_t)(nasid) << PFN_NASIDSHFT) | (off))
-#define slot_getbasepfn(node,slot) \
-		(mkpfn(COMPACT_TO_NASID_NODEID(node), slot<<SLOT_PFNSHIFT))
-
 #endif /* _ASM_SN_ARCH_H */
