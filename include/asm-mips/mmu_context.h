@@ -5,7 +5,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1996, 1997, 1998, 1999, 2002 by Ralf Baechle
+ * Copyright (C) 1996, 1997, 1998, 1999 by Ralf Baechle
  * Copyright (C) 1999 Silicon Graphics, Inc.
  */
 #ifndef _ASM_MMU_CONTEXT_H
@@ -14,8 +14,7 @@
 #include <linux/config.h>
 #include <linux/slab.h>
 #include <asm/pgalloc.h>
-#include <asm/cacheflush.h>
-#include <asm/tlbflush.h>
+#include <asm/pgtable.h>
 
 /*
  * For the fast tlb miss handlers, we currently keep a per cpu array
@@ -84,15 +83,14 @@ static inline int
 init_new_context(struct task_struct *tsk, struct mm_struct *mm)
 {
 #ifdef CONFIG_SMP
-	mm->context = (unsigned long)kmalloc(smp_num_cpus *
-				sizeof(unsigned long), GFP_KERNEL);
+	mm->context = malloc(smp_num_cpus * sizeof(unsigned long), GFP_KERNEL);
 	/*
  	 * Init the "context" values so that a tlbpid allocation
 	 * happens on the first switch.
  	 */
 	if (mm->context == 0)
 		return -ENOMEM;
-	memset((void *)mm->context, 0, smp_num_cpus * sizeof(unsigned long));
+	memset(mm->context, 0, smp_num_cpus * sizeof(unsigned long));
 #else
 	mm->context = 0;
 #endif
@@ -118,7 +116,7 @@ static inline void destroy_context(struct mm_struct *mm)
 {
 #ifdef CONFIG_SMP
 	if (mm->context)
-		kfree((void *)mm->context);
+		kfree(mm->context);
 #endif
 }
 
