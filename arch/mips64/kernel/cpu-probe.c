@@ -735,21 +735,21 @@ __init void cpu_probe(void)
 #endif
 			break;
 		default:
-			mips_cpu.cputype = CPU_UNKNOWN;
+			c->cputype = CPU_UNKNOWN;
 			break;
 		}
 		break;
 
 	case PRID_COMP_SANDCRAFT:
-		switch (mips_cpu.processor_id & 0xff00) {
+		switch (c->processor_id & 0xff00) {
 		case PRID_IMP_SR71000:
-			mips_cpu.cputype = CPU_SR71000;
-			mips_cpu.isa_level = MIPS_CPU_ISA_M64;
-			mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX |
+			c->cputype = CPU_SR71000;
+			c->isa_level = MIPS_CPU_ISA_M64;
+			c->options = MIPS_CPU_TLB | MIPS_CPU_4KEX |
                                            MIPS_CPU_4KTLB | MIPS_CPU_FPU |
 			                   MIPS_CPU_COUNTER | MIPS_CPU_MCHECK;
-			mips_cpu.scache.ways = 8;
-			mips_cpu.tlbsize = 64;
+			c->scache.ways = 8;
+			c->tlbsize = 64;
 			break;
 		default:
 			c->cputype = CPU_UNKNOWN;
