@@ -228,7 +228,7 @@ void use_config(const char * name, int len)
 
 	for (i = 0; i < len; i++) {
 	    char c = name[i];
-	    if (isupper(c)) c = tolower(c);
+	    if (isupper((int)c)) c = tolower((int)c);
 	    if (c == '_')   c = '/';
 	    pc[i] = c;
 	}
@@ -446,7 +446,7 @@ pound_define_undef_CONFIG_word:
 
 /* \<CONFIG_(\w*) */
 cee:
-	if (next >= map+2 && (isalnum(next[-2]) || next[-2] == '_'))
+	if (next >= map+2 && (isalnum((int)next[-2]) || next[-2] == '_'))
 		goto start;
 	GETNEXT NOTCASE('O', __start);
 	GETNEXT NOTCASE('N', __start);
