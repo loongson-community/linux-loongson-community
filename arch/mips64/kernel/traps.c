@@ -463,11 +463,11 @@ asmlinkage void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 
 static inline int get_insn_opcode(struct pt_regs *regs, unsigned int *opcode)
 {
-	unsigned long *epc;
+	unsigned int *epc;
 
-	epc = (unsigned long *) regs->cp0_epc +
+	epc = (unsigned int *) regs->cp0_epc +
 	      ((regs->cp0_cause & CAUSEF_BD) != 0);
-	if (!get_user(opcode, epc))
+	if (!get_user(*opcode, epc))
 		return 0;
 
 	force_sig(SIGSEGV, current);
