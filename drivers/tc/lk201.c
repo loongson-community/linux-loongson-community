@@ -4,6 +4,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
+ * Copyright (C) 1999-2002 Harald Koerfgen <hkoerfg@web.de>
  * Copyright (C) 2001 Maciej W. Rozycki <macro@ds2.pg.gda.pl>
  */
 
@@ -88,11 +89,12 @@ static int __init lk201_reset(struct dec_serial *info)
 {
 	int i;
 
-	for (i = 0; i < sizeof(lk201_reset_string); i++)
-		if (info->hook->poll_tx_char(info, lk201_reset_string[i])) {
-			printk(__FUNCTION__" transmit timeout\n");
+	for (i = 0; i < sizeof(lk201_reset_string); i++) {
+		if (info->hook->poll_tx_char(info, lk201_reset_string[i]) < 0) {
 			return -EIO;
 		}
+	}
+
 	return 0;
 }
 
@@ -290,23 +292,36 @@ static void __init lk201_info(struct dec_serial *info)
 
 static int __init lk201_init(struct dec_serial *info)
 {
-	unsigned int ch, id = 0;
-	int result;
+	int ch, id = 0;
 
 	printk("DECstation LK keyboard driver v0.04... ");
 
-	result = lk201_reset(info);
-	if (result)
-		return result;
+
+	if (lk201_reset(info) < 0) {
+		printk("reset failed!\n");
+		return -ENODEV;
+	}
+
 	mdelay(10);
 
 	/*
 	 * Detect whether there is an LK201 or an LK401
 	 * The LK401 has ALT keys...
 	 */
-	info->hook->poll_tx_char(info, LK_CMD_REQ_ID);
+	if (info->hook->poll_tx_char(info, LK_CMD_REQ_ID) < 0) {
+		printk("tx request ID timeout!\n");
+		return -ENODEV;
+	}
+
+	mdelay(10);
+
 	while ((ch = info->hook->poll_rx_char(info)) > 0)
 		id = ch;
+
+	if (ch < 0) {
+		printk("rx request ID timeout!\n");
+		return -ENODEV;
+	}
 
 	switch (id) {
 	case 1:
@@ -318,6 +333,7 @@ static int __init lk201_init(struct dec_serial *info)
 	default:
 		printk("unknown keyboard, ID %d,\n", id);
 		printk("... please report to <linux-mips@oss.sgi.com>\n");
+		break;
 	}
 
 	/*
