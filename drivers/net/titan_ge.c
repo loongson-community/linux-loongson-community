@@ -88,7 +88,7 @@
 
 /* Static Function Declarations	 */
 static int titan_ge_eth_open(struct net_device *);
-static int titan_ge_eth_stop(struct net_device *);
+static void titan_ge_eth_stop(struct net_device *);
 static struct net_device_stats *titan_ge_get_stats(struct net_device *);
 static int titan_ge_init_rx_desc_ring(titan_ge_port_info *, int, int,
 				      unsigned long, unsigned long,
@@ -356,13 +356,7 @@ static int titan_ge_change_mtu(struct net_device *netdev, int new_mtu)
 	 * size will be allocated */
 
 	if (netif_running(netdev)) {
-		if (titan_ge_eth_stop(netdev) != TITAN_OK) {
-			printk(KERN_ERR
-			       "%s: Fatal error on stopping device\n",
-			       netdev->name);
-			spin_unlock_irqrestore(&titan_ge_eth->lock, flags);
-			return -1;
-		}
+		titan_ge_eth_stop(netdev);
 
 		if (titan_ge_eth_open(netdev) != TITAN_OK) {
 			printk(KERN_ERR
@@ -1658,7 +1652,7 @@ static void titan_ge_free_rx_rings(struct net_device *netdev)
 /*
  * Actually does the stop of the Ethernet device
  */
-static int titan_ge_eth_stop(struct net_device *netdev)
+static void titan_ge_eth_stop(struct net_device *netdev)
 {
 	titan_ge_port_info *titan_ge_eth = netdev_priv(netdev);
 
@@ -1671,8 +1665,6 @@ static int titan_ge_eth_stop(struct net_device *netdev)
 
 	/* Disable the Tx and Rx Interrupts for all channels */
 	TITAN_GE_WRITE(TITAN_GE_INTR_XDMA_IE, 0x0);
-
-	return TITAN_OK;
 }
 
 /*
