@@ -695,6 +695,14 @@ fp_emul:
 	return;
 
 bad_cid:
+#ifndef CONFIG_CPU_HAS_LLSC
+	switch (mips_cpu.cputype) {
+	case CPU_TX3927:
+	case CPU_TX39XX:
+		do_ri(regs);
+		return;
+	}
+#endif
 	compute_return_epc(regs);
 	force_sig(SIGILL, current);
 }
@@ -956,6 +964,7 @@ void __init trap_init(void)
 	case CPU_TX3912:
 	case CPU_TX3922:
 	case CPU_TX3927:
+	case CPU_TX39XX:
 	        save_fp_context = _save_fp_context;
 		restore_fp_context = _restore_fp_context;
 		memcpy((void *)(KSEG0 + 0x80), &except_vec3_generic, 0x80);
@@ -964,6 +973,10 @@ void __init trap_init(void)
 	case CPU_UNKNOWN:
 	default:
 		panic("Unknown CPU type");
+	}
+	if (!(mips_cpu.options & MIPS_CPU_FPU)) {
+		save_fp_context = fpu_emulator_save_context;
+		restore_fp_context = fpu_emulator_restore_context;
 	}
 	flush_icache_range(KSEG0, KSEG0 + 0x200);
 

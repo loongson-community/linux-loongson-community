@@ -50,6 +50,9 @@ endif
 ifdef CONFIG_CPU_R3000
 GCCFLAGS	+= -mcpu=r3000 -mips1
 endif
+ifdef CONFIG_CPU_TX39XX
+GCCFLAGS	+= -mcpu=r3000 -mips1
+endif
 ifdef CONFIG_CPU_R6000
 GCCFLAGS	+= -mcpu=r6000 -mips2 -Wa,--trap
 endif
@@ -60,6 +63,9 @@ ifdef CONFIG_CPU_VR41XX
 GCCFLAGS	+= -mcpu=r4600 -mips2 -Wa,--trap
 endif
 ifdef CONFIG_CPU_R4X00
+GCCFLAGS	+= -mcpu=r4600 -mips2 -Wa,--trap
+endif
+ifdef CONFIG_CPU_TX49XX
 GCCFLAGS	+= -mcpu=r4600 -mips2 -Wa,--trap
 endif
 ifdef CONFIG_CPU_MIPS32

@@ -187,6 +187,20 @@ extern inline void blast_dcache16(void)
 	}
 }
 
+extern inline void blast_dcache16_wayLSB(void)
+{
+	unsigned long start = KSEG0;
+	unsigned long end = (start + mips_cpu.dcache.sets * mips_cpu.dcache.linesz);
+	int way;
+
+	while(start < end) {
+		/* LSB of VA select the way */
+		for (way = 0; way < mips_cpu.dcache.ways; way++)
+			cache16_unroll32(start|way,Index_Writeback_Inv_D);
+		start += 0x200;
+	}
+}
+
 extern inline void blast_dcache16_page(unsigned long page)
 {
 	unsigned long start = page;
@@ -209,6 +223,20 @@ extern inline void blast_dcache16_page_indexed(unsigned long page)
 	}
 }
 
+extern inline void blast_dcache16_page_indexed_wayLSB(unsigned long page)
+{
+	unsigned long start = page;
+	unsigned long end = (start + PAGE_SIZE);
+	int way;
+
+	while(start < end) {
+		/* LSB of VA select the way */
+		for (way = 0; way < mips_cpu.dcache.ways; way++)
+			cache16_unroll32(start|way,Index_Writeback_Inv_D);
+		start += 0x200;
+	}
+}
+
 extern inline void blast_icache16(void)
 {
 	unsigned long start = KSEG0;
@@ -216,6 +244,20 @@ extern inline void blast_icache16(void)
 
 	while(start < end) {
 		cache16_unroll32(start,Index_Invalidate_I);
+		start += 0x200;
+	}
+}
+
+extern inline void blast_icache16_wayLSB(void)
+{
+	unsigned long start = KSEG0;
+	unsigned long end = (start + mips_cpu.icache.sets * mips_cpu.icache.linesz);
+	int way;
+
+	while(start < end) {
+		/* LSB of VA select the way */
+		for (way = 0; way < mips_cpu.icache.ways; way++)
+			cache16_unroll32(start|way,Index_Invalidate_I);
 		start += 0x200;
 	}
 }
@@ -312,6 +354,20 @@ extern inline void blast_dcache32(void)
 	}
 }
 
+extern inline void blast_dcache32_wayLSB(void)
+{
+	unsigned long start = KSEG0;
+	unsigned long end = (start + mips_cpu.dcache.sets * mips_cpu.dcache.linesz);
+	int way;
+
+	while(start < end) {
+		/* LSB of VA select the way */
+		for (way = 0; way < mips_cpu.dcache.ways; way++)
+			cache32_unroll32(start|way,Index_Writeback_Inv_D);
+		start += 0x400;
+	}
+}
+
 /*
  * Call this function only with interrupts disabled or R4600 V2.0 may blow
  * up on you.
@@ -352,6 +408,20 @@ extern inline void blast_dcache32_page_indexed(unsigned long page)
 	}
 }
 
+extern inline void blast_dcache32_page_indexed_wayLSB(unsigned long page)
+{
+	unsigned long start = page;
+	unsigned long end = (start + PAGE_SIZE);
+	int way;
+
+	while(start < end) {
+		/* LSB of VA select the way */
+		for (way = 0; way < mips_cpu.dcache.ways; way++)
+			cache32_unroll32(start|way,Index_Writeback_Inv_D);
+		start += 0x400;
+	}
+}
+
 extern inline void blast_icache32(void)
 {
 	unsigned long start = KSEG0;
@@ -359,6 +429,20 @@ extern inline void blast_icache32(void)
 
 	while(start < end) {
 		cache32_unroll32(start,Index_Invalidate_I);
+		start += 0x400;
+	}
+}
+
+extern inline void blast_icache32_wayLSB(void)
+{
+	unsigned long start = KSEG0;
+	unsigned long end = (start + mips_cpu.icache.sets * mips_cpu.icache.linesz);
+	int way;
+
+	while(start < end) {
+		/* LSB of VA select the way */
+		for (way = 0; way < mips_cpu.icache.ways; way++)
+			cache32_unroll32(start|way,Index_Invalidate_I);
 		start += 0x400;
 	}
 }

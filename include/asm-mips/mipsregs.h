@@ -79,6 +79,12 @@
 #define CP0_S1_DERRADDR0  $26
 #define CP0_S1_DERRADDR1  $27
 #define CP0_S1_INTCONTROL $20
+
+/*
+ *  TX39 Series
+ */
+#define CP0_TX39_CACHE	$7
+
 /*
  * Coprocessor 1 (FPU) register names
  */
@@ -478,6 +484,14 @@ __BUILD_SET_CP0(config,CP0_CONFIG)
 #define CONF_SC				(1 << 17)
 #define CONF_AC                         (1 << 23)
 #define CONF_HALT                       (1 << 25)
+
+/*
+ * Bits in the TX49 coprozessor 0 config register.
+ */
+#define TX49_CONF_DC			(1 << 16)
+#define TX49_CONF_IC			(1 << 17)  /* conflict with CONF_SC */
+#define TX49_CONF_HALT			(1 << 18)
+#define TX49_CONF_CWFON			(1 << 27)
 
 /*
  * R10000 performance counter definitions.

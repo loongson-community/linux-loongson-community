@@ -22,8 +22,13 @@ static inline void check_wait(void)
 		cpu_wait = r3081_wait;
 		printk(" available.\n");
 		break;
+	case CPU_TX3927:
+	case CPU_TX39XX:
+		cpu_wait = r39xx_wait;
+		printk(" available.\n");
+		break;
 	case CPU_R4200: 
-	case CPU_R4300: 
+/*	case CPU_R4300: */
 	case CPU_R4600: 
 	case CPU_R4640: 
 	case CPU_R4650: 
@@ -31,6 +36,7 @@ static inline void check_wait(void)
 	case CPU_R5000: 
 	case CPU_NEVADA:
 	case CPU_RM7000:
+	case CPU_TX49XX:
 		cpu_wait = r4k_wait;
 		printk(" available.\n");
 		break;

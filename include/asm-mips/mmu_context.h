@@ -37,7 +37,7 @@ extern unsigned long pgd_current[];
 #endif
 #define ASID_CACHE(cpu)		cpu_data[cpu].asid_cache
 
-#if defined(CONFIG_CPU_R3000)
+#if defined(CONFIG_CPU_R3000) || defined(CONFIG_CPU_TX39XX)
 
 #define ASID_INC	0x40
 #define ASID_MASK	0xfc0

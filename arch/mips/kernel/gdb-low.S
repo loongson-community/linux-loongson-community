@@ -304,7 +304,7 @@
 		lw	v1,GDB_FR_REG3(sp)
 		lw	v0,GDB_FR_REG2(sp)
 		lw	$1,GDB_FR_REG1(sp)
-#ifdef CONFIG_CPU_R3000
+#if defined(CONFIG_CPU_R3000) || defined(CONFIG_CPU_TX39XX)
 		lw	k0, GDB_FR_EPC(sp)
 		lw	sp, GDB_FR_REG29(sp)		/* Deallocate stack */
 		jr	k0

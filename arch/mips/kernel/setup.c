@@ -199,6 +199,12 @@ static inline void cpu_probe(void)
                         mips_cpu.options = R4K_OPTS;
                         mips_cpu.tlbsize = 32;
                         break;
+		case PRID_IMP_R4300:
+			mips_cpu.cputype = CPU_R4300;
+			mips_cpu.isa_level = MIPS_CPU_ISA_III;
+			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU | MIPS_CPU_32FPR;
+			mips_cpu.tlbsize = 32;
+			break;
 		case PRID_IMP_R4600:
 			mips_cpu.cputype = CPU_R4600;
 			mips_cpu.isa_level = MIPS_CPU_ISA_III;
@@ -233,8 +239,22 @@ static inline void cpu_probe(void)
 				mips_cpu.tlbsize = 64;
 				break;
 			case PRID_REV_TX3927:
-				mips_cpu.cputype = CPU_TX3927;
+			case PRID_REV_TX3927B:
+				/* check core-mode */
+				if ((*(volatile u32 *)0xfffee004 >> 16) == 0x3927)
+					mips_cpu.cputype = CPU_TX3927;
+				else
+					mips_cpu.cputype = CPU_TX39XX;
 				mips_cpu.tlbsize = 64;
+				mips_cpu.icache.ways = 2;
+				mips_cpu.dcache.ways = 2;
+				break;
+			case PRID_REV_TX39H3TEG:
+				/* support core-mode only */
+				mips_cpu.cputype = CPU_TX39XX;
+				mips_cpu.tlbsize = 32;
+				mips_cpu.icache.ways = 2;
+				mips_cpu.dcache.ways = 2;
 				break;
 			default:
 				mips_cpu.cputype = CPU_UNKNOWN;
@@ -247,6 +267,15 @@ static inline void cpu_probe(void)
 			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU |
 			                   MIPS_CPU_32FPR;
 			mips_cpu.tlbsize = 48;
+			break;
+		case PRID_IMP_TX49:
+			mips_cpu.cputype = CPU_TX49XX;
+			mips_cpu.isa_level = MIPS_CPU_ISA_III;
+			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU |
+			                   MIPS_CPU_32FPR;
+			mips_cpu.tlbsize = 48;
+			mips_cpu.icache.ways = 4;
+			mips_cpu.dcache.ways = 4;
 			break;
 		case PRID_IMP_R5000:
 			mips_cpu.cputype = CPU_R5000;
@@ -835,6 +864,12 @@ void r3081_wait(void)
 {
 	unsigned long cfg = read_32bit_cp0_register(CP0_CONF);
 	write_32bit_cp0_register(CP0_CONF, cfg|CONF_HALT);
+}
+
+void r39xx_wait(void)
+{
+	unsigned long cfg = read_32bit_cp0_register(CP0_CONF);
+	write_32bit_cp0_register(CP0_CONF, cfg|TX39_CONF_HALT);
 }
 
 void r4k_wait(void)

@@ -27,6 +27,10 @@ extern char except_vec0_r2300;
 
 #undef DEBUG_TLB
 
+#ifdef CONFIG_CPU_TX39XX
+int r3k_have_wired_reg = 0;	/* should be in mips_cpu? */
+#endif
+
 /* TLB operations. */
 void local_flush_tlb_all(void)
 {
@@ -41,7 +45,12 @@ void local_flush_tlb_all(void)
 	save_and_cli(flags);
 	old_ctx = (get_entryhi() & 0xfc0);
 	write_32bit_cp0_register(CP0_ENTRYLO0, 0);
-	for (entry = 8; entry < mips_cpu.tlbsize; entry++) {
+#ifdef CONFIG_CPU_TX39XX
+	entry = r3k_have_wired_reg ? get_wired() : 8;
+#else
+	entry = 8;
+#endif
+	for (; entry < mips_cpu.tlbsize; entry++) {
 		write_32bit_cp0_register(CP0_INDEX, entry << 8);
 		write_32bit_cp0_register(CP0_ENTRYHI, ((entry | 0x80000) << 12));
 		__asm__ __volatile__("tlbwi");
@@ -193,6 +202,40 @@ void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 	unsigned long old_ctx;
 	static unsigned long wired = 0;
 	
+#ifdef CONFIG_CPU_TX39XX
+	if (r3k_have_wired_reg) {
+		unsigned long old_pagemask;
+		unsigned long w;
+	
+#ifdef DEBUG_TLB
+		printk("[tlbwired]");
+		printk("ently lo0 %8x, hi %8x\n, pagemask %8x\n",
+		       entrylo0, entryhi, pagemask);
+#endif
+		save_and_cli(flags);
+		/* Save old context and create impossible VPN2 value */
+		old_ctx = (get_entryhi() & 0xff);
+		old_pagemask = get_pagemask();
+		w = get_wired();
+		set_wired (w + 1);
+		if (get_wired() != w + 1) {
+			printk("[tlbwired] No WIRED reg?\n");
+			return;
+		}
+		set_index (w << 8);
+		set_pagemask (pagemask);
+		set_entryhi(entryhi);
+		set_entrylo0(entrylo0);
+		tlb_write_indexed();
+    
+		set_entryhi(old_ctx);
+		set_pagemask (old_pagemask);
+		local_flush_tlb_all();
+		restore_flags(flags);
+		return;
+	}
+#endif
+
 	if (wired < 8) {
 		__save_and_cli(flags);
 		old_ctx = get_entryhi() & 0xfc0;
