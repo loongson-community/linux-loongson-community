@@ -162,6 +162,9 @@ int __compute_return_epc(struct pt_regs *regs)
 
 	/*
 	 * And now the FPA/cp1 branch instructions.
+	 *
+	 * FIXME: This will silently fail for MIPS IV cop1 branches with
+	 *        the cc field != 0.
 	 */
 	case cop1_op:
 		asm ("cfc1\t%0,$31":"=r" (fcr31));
