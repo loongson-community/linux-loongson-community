@@ -15,8 +15,6 @@
 #include <asm/page.h>
 #include <asm/pgtable.h>
 
-#define mips_tlb_entries 64
-
 void
 dump_tlb(int first, int last)
 {
@@ -76,7 +74,7 @@ dump_tlb(int first, int last)
 void
 dump_tlb_all(void)
 {
-	dump_tlb(0, mips_tlb_entries - 1);
+	dump_tlb(0, mips_cpu.tlbsize - 1);
 }
 
 void
@@ -124,7 +122,7 @@ dump_tlb_addr(unsigned long addr)
 void
 dump_tlb_nonwired(void)
 {
-	dump_tlb(read_32bit_cp0_register(CP0_WIRED), mips_tlb_entries - 1);
+	dump_tlb(read_32bit_cp0_register(CP0_WIRED), mips_cpu.tlbsize - 1);
 }
 
 void

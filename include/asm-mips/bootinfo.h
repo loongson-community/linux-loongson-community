@@ -300,7 +300,6 @@ typedef struct mips_arc_DisplayInfo {	/* video adapter information */
  */
 extern unsigned long mips_machtype;
 extern unsigned long mips_machgroup;
-extern unsigned long mips_tlb_entries;
 
 /*
  * A memory map that's built upon what was determined

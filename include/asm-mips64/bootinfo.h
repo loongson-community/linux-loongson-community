@@ -178,10 +178,8 @@ struct drive_info_struct {
 	char dummy[32];
 };
 
-extern unsigned long mips_memory_upper;
 extern unsigned long mips_machtype;
 extern unsigned long mips_machgroup;
-extern unsigned long mips_tlb_entries;
 
 /*
  * A memory map that's built upon what was determined

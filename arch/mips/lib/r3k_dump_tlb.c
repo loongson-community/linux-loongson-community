@@ -17,8 +17,6 @@
 #include <asm/page.h>
 #include <asm/pgtable.h>
 
-#define mips_tlb_entries mips_cpu.tlbsize
-
 extern int r3k_have_wired_reg;	/* defined in tlb-r3k.c */
 
 void
@@ -68,7 +66,7 @@ dump_tlb(int first, int last)
 void
 dump_tlb_all(void)
 {
-	dump_tlb(0, mips_tlb_entries - 1);
+	dump_tlb(0, mips_cpu.tlbsize - 1);
 }
 
 void
@@ -107,7 +105,7 @@ void
 dump_tlb_nonwired(void)
 {
 	int wired = r3k_have_wired_reg ? get_wired() : 8;
-	dump_tlb(wired, mips_tlb_entries - 1);
+	dump_tlb(wired, mips_cpu.tlbsize - 1);
 }
 
 void
