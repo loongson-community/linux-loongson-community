@@ -26,14 +26,14 @@
 #define MACH_GROUP_GALILEO     11 /* Galileo Eval Boards                      */
 #define MACH_GROUP_MOMENCO     12 /* Momentum Boards                          */
 #define MACH_GROUP_ITE         13 /* ITE Semi Eval Boards                     */
-#define MACH_GROUP_PHILLIPS    14
+#define MACH_GROUP_PHILIPS     14
 #define MACH_GROUP_GLOBESPAN   15 /* Globespan PVR Referrence Board           */
 #define MACH_GROUP_SIBYTE      16 /* Sibyte Eval Boards                       */
 #define MACH_GROUP_TOSHIBA     17 /* Toshiba Reference Systems TSBREF         */
 
 #define GROUP_NAMES { "unknown", "Jazz", "Digital", "ARC", "SNI", "ACN",      \
 	"SGI", "Cobalt", "NEC DDB", "Baget", "Cosine", "Galileo", "Momentum", \
-	"ITE", "Phillips", "Globepspan", "SiByte", "Toshiba" }
+	"ITE", "Philips", "Globepspan", "SiByte", "Toshiba" }
 
 /*
  * Valid machtype values for group unknown (low order halfword of mips_machtype)
@@ -217,25 +217,22 @@
 #define CPU_R4640		26
 #define CPU_NEVADA		27	/* RM5230, RM5260 */
 #define CPU_RM7000		28
-#define CPU_R5432               29
-#define CPU_4KC                 30
-#define CPU_5KC                 31
-#define CPU_R4310               32
-#define CPU_R3912               33
-#define CPU_SB1                 34
-#define CPU_TX3912		35
-#define CPU_TX3922		36
-#define CPU_TX3927		37
-
-#define CPU_LAST		37
+#define CPU_R5432		29
+#define CPU_4KC			30
+#define CPU_5KC			31
+#define CPU_R4310		32
+#define CPU_SB1			33
+#define CPU_TX3912		34
+#define CPU_TX3922		35
+#define CPU_TX3927		36
+#define CPU_LAST		36
 
 #define CPU_NAMES { "unknown", "R2000", "R3000", "R3000A", "R3041", "R3051", \
         "R3052", "R3081", "R3081E", "R4000PC", "R4000SC", "R4000MC",         \
         "R4200", "R4400PC", "R4400SC", "R4400MC", "R4600", "R6000",          \
         "R6000A", "R8000", "R10000", "R4300", "R4650", "R4700", "R5000",     \
         "R5000A", "R4640", "Nevada", "RM7000", "R5432", "MIPS 4Kc",          \
-        "MIPS 5Kc", "R4310", "R3912", "SiByte SB1", "TX3912", "TX3922",      \
-	"TX3927" }
+        "MIPS 5Kc", "R4310", "SiByte SB1", "TX3912", "TX3922", "TX3927" }
 
 #define COMMAND_LINE_SIZE	256
 

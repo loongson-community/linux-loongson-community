@@ -1,19 +1,26 @@
 /*
- *  linux/include/asm-mips/philips/pr31700.h
+ *  linux/include/asm-mips/tx3912.h
  *
- *  Copyright (C) 2000 Pavel Machek (pavel@suse.cz)
  *  Copyright (C) 2001 Steven J. Hill (sjhill@realitydiluted.com)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
- *  Defines for the PR31700 processor used in the Philips Nino and Velo.
+ *  Register includes for TMPR3912/05 and PR31700 processors
  */
-#ifndef __PR31700_H__
-#define __PR31700_H__
+#ifndef __TX3912_H__
+#define __TX3912_H__
 
 #include <asm/addrspace.h>
+
+#define inb(addr)	(*(volatile unsigned char *)(addr))
+#define inw(addr)	(*(volatile unsigned short *)(addr))
+#define inl(addr)	(*(volatile unsigned int *)(addr))
+#define outb(b,addr)	(*(volatile unsigned char *)(addr)) = (b)
+#define outw(b,addr)	(*(volatile unsigned short *)(addr)) = (b)
+#define outl(b,addr)	(*(volatile unsigned int *)(addr)) = (b)
+
  
 /******************************************************************************
 *
@@ -68,37 +75,42 @@
 #define MEM4_WATCHTIMEVAL_SHIFT (20)
 #define MEM4_WATCHTIME_VALUE    (0xf)
 
-/******************************************************************************
-*
-*	06  Clock module
-*
-******************************************************************************/
+/*
+ ***********************************************************************
+ *								       *
+ * 06  Clock Module						       *
+ *								       *
+ ***********************************************************************
+ */
+#define TX3912_CLK_CTRL_BASE			(REGISTER_BASE + 0x1c0)
 
-#define ClockControl  	REG_AT(0x1C0)
+#define TX3912_CLK_CTRL_CHICLKDIV_MASK		0xff000000
+#define TX3912_CLK_CTRL_CHICLKDIV_SHIFT		24
+#define TX3912_CLK_CTRL_ENCLKTEST		0x00800000
+#define TX3912_CLK_CTRL_CLKTESTSELSIB		0x00400000
+#define TX3912_CLK_CTRL_CHIMCLKSEL		0x00200000
+#define TX3912_CLK_CTRL_CHICLKDIR		0x00100000
+#define TX3912_CLK_CTRL_ENCHIMCLK		0x00080000
+#define TX3912_CLK_CTRL_ENVIDCLK		0x00040000
+#define TX3912_CLK_CTRL_ENMBUSCLK		0x00020000
+#define TX3912_CLK_CTRL_ENSPICLK		0x00010000
+#define TX3912_CLK_CTRL_ENTIMERCLK		0x00008000
+#define TX3912_CLK_CTRL_ENFASTTIMERCLK		0x00004000
+#define TX3912_CLK_CTRL_SIBMCLKDIR		0x00002000
+#define TX3912_CLK_CTRL_RESERVED		0x00001000
+#define TX3912_CLK_CTRL_ENSIBMCLK		0x00000800
+#define TX3912_CLK_CTRL_SIBMCLKDIV_MASK		0x00000700
+#define TX3912_CLK_CTRL_SIBMCLKDIV_SHIFT	8
+#define TX3912_CLK_CTRL_CSERSEL			0x00000080
+#define TX3912_CLK_CTRL_CSERDIV_MASK		0x00000070
+#define TX3912_CLK_CTRL_CSERDIV_SHIFT		4
+#define TX3912_CLK_CTRL_ENCSERCLK		0x00000008
+#define TX3912_CLK_CTRL_ENIRCLK			0x00000004
+#define TX3912_CLK_CTRL_ENUARTACLK		0x00000002
+#define TX3912_CLK_CTRL_ENUARTBCLK		0x00000001
 
-#define CLK_CHICLKDIV_MASK    0xff000000
-#define CLK_CHICLKDIV_SHIFT   24
-#define CLK_ENCLKTEST         BIT(23)
-#define CLK_CLKTESTSELSIB     BIT(22)
-#define CLK_CHIMCLKSEL        BIT(21)
-#define CLK_CHICLKDIR	      BIT(20)
-#define CLK_ENCHIMCLK	      BIT(19)
-#define CLK_ENVIDCLK	      BIT(18)
-#define CLK_ENMBUSCLK         BIT(17)
-#define CLK_ENSPICLK	      BIT(16)
-#define CLK_ENTIMERCLK	      BIT(15)
-#define CLK_ENFASTTIMERCLK    BIT(14)
-#define CLK_SIBMCLKDIR	      BIT(13)
-#define CLK_ENSIBMCLK	      BIT(11)
-#define CLK_SIBMCLKDIV_MASK   (BIT(10) | BIT(9) | BIT(8))
-#define CLK_SIBMCLKDIV_SHIFT  8
-#define CLK_CSERSEL	      BIT(7)
-#define CLK_CSERDIV_MASK      (BIT(6) | BIT(5) | BIT(4))
-#define CLK_CSERDIV_SHIFT     4
-#define CLK_ENCSERCLK	      BIT(3)
-#define CLK_ENIRCLK           BIT(2)
-#define CLK_EN_UART_A	      BIT(1)
-#define CLK_EN_UART_B	      BIT(0)
+
+
 
 /******************************************************************************
 *
@@ -492,118 +504,73 @@
  */
 #define PER_TIMER_COUNT (1152000/HZ)
 
-/******************************************************************************
-*
-*	16  UART module
-*
-******************************************************************************/
+/*
+ ***********************************************************************
+ *								       *
+ * 15  UART Module						       *
+ *								       *
+ ***********************************************************************
+ */
+#define TX3912_UARTA_BASE       (REGISTER_BASE + 0x0b0)
+#define TX3912_UARTB_BASE       (REGISTER_BASE + 0x0c8)
+
+/*
+ * TX3912 UART register offsets
+ */
+#define TX3912_UART_CTRL1       0x00
+#define TX3912_UART_CTRL2       0x04
+#define TX3912_UART_DMA_CTRL1   0x08
+#define TX3912_UART_DMA_CTRL2   0x0c
+#define TX3912_UART_DMA_CNT     0x10
+#define TX3912_UART_DATA        0x14
 
 #define UartA_Ctrl1   REG_AT(0x0b0)
-#define UartA_Ctrl2   REG_AT(0x0b4)
-#define UartA_DMActl1 REG_AT(0x0b8)
-#define UartA_DMActl2 REG_AT(0x0bc)
-#define UartA_DMAcnt  REG_AT(0x0c0)
 #define UartA_Data    REG_AT(0x0c4)
-#define UartB_Ctrl1   REG_AT(0x0c8)
-#define UartB_Ctrl2   REG_AT(0x0cc)
-#define UartB_DMActl1 REG_AT(0x0d0)
-#define UartB_DMActl2 REG_AT(0x0d4)
-#define UartB_DMAcnt  REG_AT(0x0d8)
-#define UartB_Data    REG_AT(0x0dc)
 
-/* bit allocations within UART control register 1 */
-#define UART_ON			BIT(31)	/* indicates status of UART */
-#define UART_TX_EMPTY		BIT(30)	/* tx holding and shift registers empty */
-#define UART_PRX_HOLD_FULL	BIT(29)	/* pre-rx holding register full */
-#define UART_RX_HOLD_FULL	BIT(28)	/* rx holding register is full */
-#define UART_EN_DMA_RX 		BIT(15)	/* enable rx DMA */
-#define UART_EN_DMA_TX 		BIT(14)	/* enable tx DMA */
-#define UART_BREAK_HALT 	BIT(12)	/* enable halt after receiving break */
-#define UART_DMA_LOOP		BIT(10)	/* enable DMA loop-roud */
-#define UART_PULSE_THREE	BIT(9)	/* tx data is 3 low pulses */
-#define UART_PULSE_SIX		BIT(8)	/* tx data is 6 low pulses */
-#define UART_DT_INVERT		BIT(7)	/* invert txd and rxd */
-#define UART_DIS_TXD		BIT(6)	/* set txd low */
-#define UART_LOOPBACK		BIT(4)	/* enable loopback mode */
-#define UART_ENABLE		BIT(0)	/* enable UART */
+/*
+ * Defines for UART Control Register 1
+ */
+#define TX3912_UART_CTRL1_UARTON	0x80000000
+#define UART_TX_EMPTY		BIT(30)
+#define UART_PRX_HOLD_FULL	BIT(29)
+#define UART_RX_HOLD_FULL	BIT(28)
+#define UART_EN_DMA_RX 		BIT(15)
+#define UART_EN_DMA_TX 		BIT(14)
+#define UART_BREAK_HALT 	BIT(12)
+#define UART_DMA_LOOP		BIT(10)
+#define UART_PULSE_THREE	BIT(9)
+#define UART_PULSE_SIX		BIT(8)
+#define UART_DT_INVERT		BIT(7)
+#define UART_DIS_TXD		BIT(6)
+#define UART_LOOPBACK		BIT(4)
+#define TX3912_UART_CTRL1_ENUART	0x00000001
 		 
-#define SER_SEVEN_BIT		BIT(3)	/* use 7-bit data */
-#define SER_EIGHT_BIT		    0	/* use 8-bit data */
-#define SER_EVEN_PARITY 	(BIT(2) | BIT(1))	/* use even parity */
-#define SER_ODD_PARITY  	BIT(1)	/* use odd parity */
-#define SER_NO_PARITY		    0	/* enable parity checking */
-#define SER_TWO_STOP		BIT(5)	/* transmit 2 stop bits */
-#define SER_ONE_STOP		    0	/* transmit 1 stop bits */
+#define SER_SEVEN_BIT		BIT(3)
+#define SER_EIGHT_BIT		    0
+#define SER_EVEN_PARITY 	(BIT(2) | BIT(1))
+#define SER_ODD_PARITY  	BIT(1)
+#define SER_NO_PARITY		    0
+#define SER_TWO_STOP		BIT(5)
+#define SER_ONE_STOP		    0
 
-/* Baud rate definitions for UART control register 2 */
-#define SER_BAUD_230400	   ( 0)
-#define SER_BAUD_115200	   ( 1)
-#define SER_BAUD_76800	   ( 2)
-#define SER_BAUD_57600	   ( 3)
-#define SER_BAUD_38400     ( 5)		/* divisors are  3.6864MHz      */
-#define SER_BAUD_19200     (11)		/*		----------- - 1 */
-#ifdef CONFIG_VTECH_HELIO_EMULATOR
-#define SER_BAUD_9600      (23)
-#else  
-#define SER_BAUD_9600      (22)		/*		(baud * 16)     */
-#endif
-#define SER_BAUD_4800      (47)
-#define SER_BAUD_2400      (95)
-#define SER_BAUD_1200      (191)
-#define SER_BAUD_600       (383)
-#define SER_BAUD_300	   (767)
+/*
+ * Defines for UART Control Register 2
+ *
+ *              3.6864MHz
+ * divisors =  ----------- - 1
+ *             (baud * 16)
+ */
+#define TX3912_UART_CTRL2_B230400	0x000	/*   0 */
+#define TX3912_UART_CTRL2_B115200	0x001	/*   1 */
+#define TX3912_UART_CTRL2_B76800	0x002	/*   2 */
+#define TX3912_UART_CTRL2_B57600	0x003	/*   3 */
+#define TX3912_UART_CTRL2_B38400	0x005	/*   5 */
+#define TX3912_UART_CTRL2_B19200	0x00b	/*  11 */
+#define TX3912_UART_CTRL2_B9600		0x016	/*  22 */
+#define TX3912_UART_CTRL2_B4800		0x02f	/*  47 */
+#define TX3912_UART_CTRL2_B2400		0x05f	/*  95 */
+#define TX3912_UART_CTRL2_B1200		0x0bf	/* 191 */
+#define TX3912_UART_CTRL2_B600		0x17f	/* 383 */
+#define TX3912_UART_CTRL2_B300		0x2ff	/* 767 */
 
-/******************************************************************************
-*
-*	17  Video module
-*
-******************************************************************************/
-
-#define VidCtrl1	REG_AT(0x028)
-#define VidCtrl2	REG_AT(0x02C)
-#define VidCtrl3	REG_AT(0x030)
-#define VidCtrl4	REG_AT(0x034)
-#define VidCtrl5	REG_AT(0x038)
-#define VidCtrl6	REG_AT(0x03C)
-#define VidCtrl7	REG_AT(0x040)
-#define VidCtrl8	REG_AT(0x044)
-#define VidCtrl9	REG_AT(0x048)
-#define VidCtrl10	REG_AT(0x04C)
-#define VidCtrl11	REG_AT(0x050)
-#define VidCtrl12	REG_AT(0x054)
-#define VidCtrl13	REG_AT(0x058)
-#define VidCtrl14	REG_AT(0x05C)
-
-/* VidCtrl1 */
-#define LINECNT         0xffc00000
-#define LINECNT_SHIFT   22
-#define LOADDLY         BIT(21)
-#define BAUDVAL         (BIT(20) | BIT(19) | BIT(18) | BIT(17) | BIT(16))
-#define BAUDVAL_SHIFT   16
-#define VIDDONEVAL      (BIT(15) | BIT(14) | BIT(13) | BIT(12) | BIT(11) | BIT(10) | BIT(9))
-#define VIDDONEVAL_SHIFT  9
-#define ENFREEZEFRAME 	BIT(8)
-#define BITSEL_MASK	0xc0
-#define BITSEL_SHIFT	6
-#define DISPSPLIT       BIT(5)
-#define DISP8           BIT(4)
-#define DFMODE          BIT(3)
-#define INVVID          BIT(2)
-#define DISPON		BIT(1)
-#define ENVID		BIT(0)
-
-/* VidCtrl2 */
-#define VIDRATE_MASK    0xffc00000
-#define VIDRATE_SHIFT   22
-#define HORZVAL_MASK	0x001ff000
-#define HORZVAL_SHIFT	12
-#define LINEVAL_MASK	0x000001ff
-
-/* VidCtrl3 */
-#define VIDBANK_MASK	0xfff00000
-#define VIDBASEHI_MASK	0x000ffff0
-
-/* VidCtrl4 */
-#define VIDBASELO_MASK	0x000ffff0
-
-#endif	/* __PR31700_H__ */
+#endif	/* __TX3912_H__ */

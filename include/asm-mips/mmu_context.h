@@ -19,7 +19,7 @@
 extern unsigned long asid_cache;
 extern pgd_t *current_pgd[];
 
-#if defined(CONFIG_CPU_R3000) || defined(CONFIG_CPU_R3912)
+#if defined(CONFIG_CPU_R3000)
 
 #define ASID_INC	0x40
 #define ASID_MASK	0xfc0

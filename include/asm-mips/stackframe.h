@@ -162,7 +162,7 @@ __asm__ (                                                               \
 		lw	$23, PT_R23(sp);                 \
 		lw	$30, PT_R30(sp)
 
-#if defined(CONFIG_CPU_R3000) || defined(CONFIG_CPU_R3912)
+#if defined(CONFIG_CPU_R3000)
 
 #define RESTORE_SOME                                     \
 		.set	push;                            \

@@ -28,8 +28,7 @@ struct cache_desc {
  */
 #define MIPS_CACHE_NOT_PRESENT 0x00000001
 
-#if defined(CONFIG_CPU_R3000) || defined(CONFIG_CPU_R6000) ||		\
-    defined(CONFIG_CPU_R3912)
+#if defined(CONFIG_CPU_R3000) || defined(CONFIG_CPU_R6000)
 #define L1_CACHE_BYTES		16
 #else
 #define L1_CACHE_BYTES 		32	/* A guess */
