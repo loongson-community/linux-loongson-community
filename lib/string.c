@@ -477,7 +477,7 @@ void * memscan(void * addr, int c, size_t size)
 	unsigned char * e = p + size;
 
 	while (p != e) {
-		if (*p == c)
+		if (*p == (unsigned char)c)
 			return (void *) p;
 		p++;
 	}
