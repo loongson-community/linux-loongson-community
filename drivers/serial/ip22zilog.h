@@ -18,8 +18,8 @@ struct zilog_channel {
 };
 
 struct zilog_layout {
-	struct zilog_channel channelB;
 	struct zilog_channel channelA;
+	struct zilog_channel channelB;
 };
 
 #define NUM_ZSREGS    16
