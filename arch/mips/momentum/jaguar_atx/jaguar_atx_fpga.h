@@ -1,5 +1,5 @@
 /*
- * Ocelot-C Board Register Definitions
+ * Jaguar-ATX Board Register Definitions
  *
  * (C) 2002 Momentum Computer Inc.
  *
@@ -22,37 +22,33 @@
  *  You should have received a copy of the  GNU General Public License along
  *  with this program; if not, write  to the Free Software Foundation, Inc.,
  *  675 Mass Ave, Cambridge, MA 02139, USA.
- *
- *  Louis Hamilton, Red Hat, Inc.
- *    hamilton@redhat.com  [MIPS64 modifications]
  */
-
-#ifndef __OCELOT_C_FPGA_H__
-#define __OCELOT_C_FPGA_H__
+#ifndef __JAGUAR_ATX_FPGA_H__
+#define __JAGUAR_ATX_FPGA_H__
 
 #ifdef CONFIG_MIPS64
-#define OCELOT_C_CS0_ADDR       (0xfffffffffc000000)
+#define JAGUAR_ATX_CS0_ADDR (0xfffffffffc000000)
 #else
-#define OCELOT_C_CS0_ADDR               (0xfc000000)
+#define JAGUAR_ATX_CS0_ADDR (0xfc000000)
 #endif
 
-#define OCELOT_C_REG_BOARDREV		0x0
-#define OCELOT_C_REG_FPGA_REV		0x1
-#define OCELOT_C_REG_FPGA_TYPE		0x2
-#define OCELOT_C_REG_RESET_STATUS	0x3
-#define OCELOT_C_REG_BOARD_STATUS	0x4
-#define OCELOT_C_REG_CPCI_ID		0x5
-#define OCELOT_C_REG_SET		0x6
-#define OCELOT_C_REG_CLR		0x7
-#define OCELOT_C_REG_EEPROM_MODE	0x9
-#define OCELOT_C_REG_INTMASK		0xa
-#define OCELOT_C_REG_INTSTAT		0xb
-#define OCELOT_C_REG_UART_INTMASK	0xc
-#define OCELOT_C_REG_UART_INTSTAT	0xd
-#define OCELOT_C_REG_INTSET		0xe
-#define OCELOT_C_REG_INTCLR		0xf
+#define JAGUAR_ATX_REG_BOARDREV		0x0
+#define JAGUAR_ATX_REG_FPGA_REV		0x1
+#define JAGUAR_ATX_REG_FPGA_TYPE	0x2
+#define JAGUAR_ATX_REG_RESET_STATUS	0x3
+#define JAGUAR_ATX_REG_BOARD_STATUS	0x4
+#define JAGUAR_ATX_REG_RESERVED1	0x5
+#define JAGUAR_ATX_REG_SET		0x6
+#define JAGUAR_ATX_REG_CLR		0x7
+#define JAGUAR_ATX_REG_EEPROM_MODE	0x9
+#define JAGUAR_ATX_REG_RESERVED2	0xa
+#define JAGUAR_ATX_REG_RESERVED3	0xb
+#define JAGUAR_ATX_REG_RESERVED4	0xc
+#define JAGUAR_ATX_REG_PHY_INTSTAT	0xd
+#define JAGUAR_ATX_REG_RESERVED5	0xe
+#define JAGUAR_ATX_REG_RESERVED6	0xf
 
-#define OCELOT_FPGA_WRITE(x, y) writeb(x, OCELOT_C_CS0_ADDR + OCELOT_C_REG_##y)
-#define OCELOT_FPGA_READ(x) readb(OCELOT_C_CS0_ADDR + OCELOT_C_REG_##x)
+#define JAGUAR_FPGA_WRITE(x,y) writeb(x,JAGUAR_ATX_CS0_ADDR+JAGUAR_ATX_REG_##y)
+#define JAGUAR_FPGA_READ(x) readb(JAGUAR_ATX_CS0_ADDR + JAGUAR_ATX_REG_##x)
 
 #endif

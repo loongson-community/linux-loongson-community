@@ -3,7 +3,7 @@
  * Author: Matthew Dharm <mdharm@momenco.com>
  *
  * Louis Hamilton, Red Hat, Inc.
- *   hamilton@redhat.com  [MIPS64 modifications]
+ * hamilton@redhat.com  [MIPS64 modifications]
  *
  * Based on Ocelot Linux port, which is
  * Copyright 2001 MontaVista Software Inc.
@@ -24,7 +24,8 @@
 #include <asm/bootinfo.h>
 #include <asm/mv64340.h>
 
-#include "ocelot_c_fpga.h"
+#include "jaguar_atx_fpga.h"
+
 
 struct callvectors {
 	int	(*open) (char*, int, int);
@@ -49,11 +50,7 @@ extern unsigned char prom_mac_addr_base[6];
 
 const char *get_system_type(void)
 {
-#ifdef CONFIG_CPU_SR71000
-	return "Momentum Ocelot-CS";
-#else
-	return "Momentum Ocelot-C";
-#endif
+	return "Momentum Jaguar-ATX";
 }
 
 #ifdef CONFIG_MV64340_ETH
@@ -69,18 +66,18 @@ static void burn_clocks(void)
 static u8 exchange_bit(u8 val, u8 cs)
 {
 	/* place the data */
-	OCELOT_FPGA_WRITE((val << 2) | cs, EEPROM_MODE);
+	JAGUAR_FPGA_WRITE((val << 2) | cs, EEPROM_MODE);
 	burn_clocks();
 
 	/* turn the clock on */
-	OCELOT_FPGA_WRITE((val << 2) | cs | 0x2, EEPROM_MODE);
+	JAGUAR_FPGA_WRITE((val << 2) | cs | 0x2, EEPROM_MODE);
 	burn_clocks();
 
 	/* turn the clock off and read-strobe */
-	OCELOT_FPGA_WRITE((val << 2) | cs | 0x10, EEPROM_MODE);
+	JAGUAR_FPGA_WRITE((val << 2) | cs | 0x10, EEPROM_MODE);
 	
 	/* return the data */
-	return ((OCELOT_FPGA_READ(EEPROM_MODE) >> 3) & 0x1);
+	return ((JAGUAR_FPGA_READ(EEPROM_MODE) >> 3) & 0x1);
 }
 
 void get_mac(char dest[6])
@@ -133,7 +130,7 @@ void *get_arg(unsigned long args, int arc)
   ul |= (((unsigned long)uc) << 16);
   uc = *puc++;
   ul |= (((unsigned long)uc) << 24);
-#else  /* CONFIG_CPU_LITTLE_ENDIAN */
+#else
   uc = *puc++;
   ul = ((unsigned long)uc) << 24;
   uc = *puc++;
@@ -142,7 +139,7 @@ void *get_arg(unsigned long args, int arc)
   ul |= (((unsigned long)uc) << 8);
   uc = *puc++;
   ul |= ((unsigned long)uc);
-#endif  /* CONFIG_CPU_LITTLE_ENDIAN */
+#endif
   ul = signext(ul);
   return (void *)ul;
 }
@@ -157,15 +154,14 @@ char *arg64(unsigned long addrin, int arg_index)
 }
 #endif  /* CONFIG_MIPS64 */
 
-
-/* [jsun@junsun.net] PMON passes arguments in C main() style */
-void __init prom_init(int argc, char **arg, char** env, struct callvectors *cv)
+/* PMON passes arguments in C main() style */
+void __init prom_init(int argc, char **arg, char **env, struct callvectors *cv)
 {
 	int i;
 #ifdef CONFIG_MIPS64
 	char *ptr;
 
-	printk("prom_init - MIPS64\n");
+	printk("Mips64 Jaguar-ATX\n");
 	/* save the PROM vectors for debugging use */
 	debug_vectors = (struct callvectors *)signext((unsigned long)cv);
 
@@ -180,6 +176,7 @@ void __init prom_init(int argc, char **arg, char** env, struct callvectors *cv)
 		strcat(arcs_cmdline, ptr);
 		strcat(arcs_cmdline, " ");
 	}
+
 	i = 0;
 	while (1) {
 		ptr = (char *)arg64((unsigned long)env, i);
@@ -230,9 +227,8 @@ void __init prom_init(int argc, char **arg, char** env, struct callvectors *cv)
 		env++;
 	}
 #endif /* CONFIG_MIPS64 */
-
 	mips_machgroup = MACH_GROUP_MOMENCO;
-	mips_machtype = MACH_MOMENCO_OCELOT_C;
+	mips_machtype = MACH_MOMENCO_JAGUAR_ATX;
 
 #ifdef CONFIG_MV64340_ETH
 	/* get the base MAC address for on-board ethernet ports */

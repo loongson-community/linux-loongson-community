@@ -23,16 +23,14 @@
 #include <asm/system.h>
 #include <linux/delay.h>
 
-void momenco_ocelot_restart(char *command)
+void momenco_jaguar_restart(char *command)
 {
 	/* base address of timekeeper portion of part */
-	void *nvram = (void *)
 #ifdef CONFIG_MIPS64
-		0xfffffffffc807000;
+	void *nvram = (void*) 0xfffffffffc807000;
 #else
-		0xfc807000;
+	void *nvram = (void*) 0xfc807000;
 #endif
-
  	/* Ask the NVRAM/RTC/watchdog chip to assert reset in 1/16 second */
 	writeb(0x84, nvram + 0xff7);
 
@@ -43,7 +41,7 @@ void momenco_ocelot_restart(char *command)
 	printk(KERN_NOTICE "Watchdog reset failed\n");
 }
 
-void momenco_ocelot_halt(void)
+void momenco_jaguar_halt(void)
 {
 	printk(KERN_NOTICE "\n** You can safely turn off the power\n");
 	while (1)
@@ -52,7 +50,7 @@ void momenco_ocelot_halt(void)
 			".set\tmips0");
 }
 
-void momenco_ocelot_power_off(void)
+void momenco_jaguar_power_off(void)
 {
-	momenco_ocelot_halt();
+	momenco_jaguar_halt();
 }

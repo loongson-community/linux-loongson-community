@@ -1,6 +1,8 @@
 /*
+ * setup.c
+ *
  * BRIEF MODULE DESCRIPTION
- * Momentum Computer Ocelot-C and -CS board dependent boot routines
+ * Momentum Computer Jaguar-ATX board dependent boot routines
  *
  * Copyright (C) 1996, 1997, 2001  Ralf Baechle
  * Copyright (C) 2000 RidgeRun, Inc.
@@ -40,7 +42,6 @@
  *  675 Mass Ave, Cambridge, MA 02139, USA.
  *
  */
-#include <linux/bcd.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
@@ -64,25 +65,28 @@
 #include <asm/ptrace.h>
 #include <asm/reboot.h>
 #include <asm/mc146818rtc.h>
+#include <linux/version.h>
 #include <linux/bootmem.h>
-#include <linux/blkdev.h>
+#include <linux/blk.h>
 #include <asm/mv64340.h>
-#include "ocelot_c_fpga.h"
+#include "jaguar_atx_fpga.h"
+
 
 unsigned long mv64340_base;
 unsigned long cpu_clock;
 
 /* These functions are used for rebooting or halting the machine*/
-extern void momenco_ocelot_restart(char *command);
-extern void momenco_ocelot_halt(void);
-extern void momenco_ocelot_power_off(void);
+extern void momenco_jaguar_restart(char *command);
+extern void momenco_jaguar_halt(void);
+extern void momenco_jaguar_power_off(void);
 
 void momenco_time_init(void);
 
 static char reset_reason;
 
-void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1, unsigned long entryhi, unsigned long pagemask);
 #define ENTRYLO(x) ((pte_val(mk_pte_phys((x), PAGE_KERNEL_UNCACHED)) >> 6)|1)
+
+void __init bus_error_init(void) { /* nothing */ }
 
 /* setup code for a handoff from a version 2 PMON 2000 PROM */
 void PMON_v2_setup(void)
@@ -125,28 +129,31 @@ void PMON_v2_setup(void)
 #endif
 }
 
+#define CONV_BCD_TO_BIN(val)	(((val) & 0xf) + (((val) >> 4) * 10))
+#define CONV_BIN_TO_BCD(val)	(((val) % 10) + (((val) / 10) << 4))
+
 unsigned long m48t37y_get_time(void)
 {
 #ifdef CONFIG_MIPS64
 	unsigned char *rtc_base = (unsigned char*)0xfffffffffc800000;
 #else
-	unsigned char* rtc_base = (unsigned char*)0xfc800000;
+	unsigned char *rtc_base = (unsigned char*)0xfc800000;
 #endif
 	unsigned int year, month, day, hour, min, sec;
 
 	/* stop the update */
 	rtc_base[0x7ff8] = 0x40;
 
-	year = BCD2BIN(rtc_base[0x7fff]);
-	year += BCD2BIN(rtc_base[0x7ff1]) * 100;
+	year = CONV_BCD_TO_BIN(rtc_base[0x7fff]);
+	year += CONV_BCD_TO_BIN(rtc_base[0x7ff1]) * 100;
 
-	month = BCD2BIN(rtc_base[0x7ffe]);
+	month = CONV_BCD_TO_BIN(rtc_base[0x7ffe]);
 
-	day = BCD2BIN(rtc_base[0x7ffd]);
+	day = CONV_BCD_TO_BIN(rtc_base[0x7ffd]);
 
-	hour = BCD2BIN(rtc_base[0x7ffb]);
-	min = BCD2BIN(rtc_base[0x7ffa]);
-	sec = BCD2BIN(rtc_base[0x7ff9]);
+	hour = CONV_BCD_TO_BIN(rtc_base[0x7ffb]);
+	min = CONV_BCD_TO_BIN(rtc_base[0x7ffa]);
+	sec = CONV_BCD_TO_BIN(rtc_base[0x7ff9]);
 
 	/* start the update */
 	rtc_base[0x7ff8] = 0x00;
@@ -157,9 +164,9 @@ unsigned long m48t37y_get_time(void)
 int m48t37y_set_time(unsigned long sec)
 {
 #ifdef CONFIG_MIPS64
-	unsigned char* rtc_base = (unsigned char*)0xfffffffffc800000;
+	unsigned char *rtc_base = (unsigned char*)0xfffffffffc800000;
 #else
-	unsigned char* rtc_base = (unsigned char*)0xfc800000;
+	unsigned char *rtc_base = (unsigned char*)0xfc800000;
 #endif
 	struct rtc_time tm;
 
@@ -171,22 +178,22 @@ int m48t37y_set_time(unsigned long sec)
 	rtc_base[0x7ff8] = 0x80;
 
 	/* year */
-	rtc_base[0x7fff] = BIN2BCD(tm.tm_year % 100);
-	rtc_base[0x7ff1] = BIN2BCD(tm.tm_year / 100);
+	rtc_base[0x7fff] = CONV_BIN_TO_BCD(tm.tm_year % 100);
+	rtc_base[0x7ff1] = CONV_BIN_TO_BCD(tm.tm_year / 100);
 
 	/* month */
-	rtc_base[0x7ffe] = BIN2BCD(tm.tm_mon);
+	rtc_base[0x7ffe] = CONV_BIN_TO_BCD(tm.tm_mon);
 
 	/* day */
-	rtc_base[0x7ffd] = BIN2BCD(tm.tm_mday);
+	rtc_base[0x7ffd] = CONV_BIN_TO_BCD(tm.tm_mday);
 
 	/* hour/min/sec */
-	rtc_base[0x7ffb] = BIN2BCD(tm.tm_hour);
-	rtc_base[0x7ffa] = BIN2BCD(tm.tm_min);
-	rtc_base[0x7ff9] = BIN2BCD(tm.tm_sec);
+	rtc_base[0x7ffb] = CONV_BIN_TO_BCD(tm.tm_hour);
+	rtc_base[0x7ffa] = CONV_BIN_TO_BCD(tm.tm_min);
+	rtc_base[0x7ff9] = CONV_BIN_TO_BCD(tm.tm_sec);
 
 	/* day of week -- not really used, but let's keep it up-to-date */
-	rtc_base[0x7ffc] = CONV_BIN2BCD(tm.tm_wday + 1);
+	rtc_base[0x7ffc] = CONV_BIN_TO_BCD(tm.tm_wday + 1);
 
 	/* disable writing */
 	rtc_base[0x7ff8] = 0x00;
@@ -196,38 +203,31 @@ int m48t37y_set_time(unsigned long sec)
 
 void momenco_timer_setup(struct irqaction *irq)
 {
-	setup_irq(7, irq);
+	setup_irq(8, irq);
 }
 
 void momenco_time_init(void)
 {
-#ifdef CONFIG_CPU_SR71000
-	mips_hpt_frequency = cpu_clock;
-#elif defined(CONFIG_CPU_RM7000)
 	mips_hpt_frequency = cpu_clock / 2;
-#else
-#error Unknown CPU for this board
-#endif
-	printk("momenco_time_init cpu_clock=%d\n", cpu_clock);
 	board_timer_setup = momenco_timer_setup;
 
 	rtc_get_time = m48t37y_get_time;
 	rtc_set_time = m48t37y_set_time;
 }
 
-void __init momenco_ocelot_c_setup(void)
+void __init momenco_jaguar_atx_setup(void)
 {
 	unsigned int tmpword;
 
 	board_time_init = momenco_time_init;
 
-	_machine_restart = momenco_ocelot_restart;
-	_machine_halt = momenco_ocelot_halt;
-	_machine_power_off = momenco_ocelot_power_off;
+	_machine_restart = momenco_jaguar_restart;
+	_machine_halt = momenco_jaguar_halt;
+	_machine_power_off = momenco_jaguar_power_off;
 
 	/*
-	 * initrd_start = (ulong)ocelot_initrd_start;
-	 * initrd_end = (ulong)ocelot_initrd_start + (ulong)ocelot_initrd_size;
+	 * initrd_start = (ulong)jaguar_initrd_start;
+	 * initrd_end = (ulong)jaguar_initrd_start + (ulong)jaguar_initrd_size;
 	 * initrd_below_start_ok = 1;
 	 */
 
@@ -239,42 +239,40 @@ void __init momenco_ocelot_c_setup(void)
 	 */
 	MV_WRITE(MV64340_ETH_TRANSMIT_QUEUE_COMMAND_REG(0), 0xff << 8);
 	MV_WRITE(MV64340_ETH_TRANSMIT_QUEUE_COMMAND_REG(1), 0xff << 8);
+	MV_WRITE(MV64340_ETH_TRANSMIT_QUEUE_COMMAND_REG(2), 0xff << 8);
 	MV_WRITE(MV64340_ETH_RECEIVE_QUEUE_COMMAND_REG(0), 0xff << 8);
 	MV_WRITE(MV64340_ETH_RECEIVE_QUEUE_COMMAND_REG(1), 0xff << 8);
+	MV_WRITE(MV64340_ETH_RECEIVE_QUEUE_COMMAND_REG(2), 0xff << 8);
 	do {}
 	  while (MV_READ_DATA(MV64340_ETH_RECEIVE_QUEUE_COMMAND_REG(0)) & 0xff);
 	do {}
 	  while (MV_READ_DATA(MV64340_ETH_RECEIVE_QUEUE_COMMAND_REG(1)) & 0xff);
 	do {}
+	  while (MV_READ_DATA(MV64340_ETH_RECEIVE_QUEUE_COMMAND_REG(2)) & 0xff);
+	do {}
 	  while (MV_READ_DATA(MV64340_ETH_TRANSMIT_QUEUE_COMMAND_REG(0)) & 0xff);
 	do {}
 	  while (MV_READ_DATA(MV64340_ETH_TRANSMIT_QUEUE_COMMAND_REG(1)) & 0xff);
+	do {}
+	  while (MV_READ_DATA(MV64340_ETH_TRANSMIT_QUEUE_COMMAND_REG(2)) & 0xff);
 	MV_WRITE(MV64340_ETH_PORT_SERIAL_CONTROL_REG(0), MV_READ_DATA(MV64340_ETH_PORT_SERIAL_CONTROL_REG(0)) & ~1);
 	MV_WRITE(MV64340_ETH_PORT_SERIAL_CONTROL_REG(1), MV_READ_DATA(MV64340_ETH_PORT_SERIAL_CONTROL_REG(1)) & ~1);
+	MV_WRITE(MV64340_ETH_PORT_SERIAL_CONTROL_REG(2), MV_READ_DATA(MV64340_ETH_PORT_SERIAL_CONTROL_REG(2)) & ~1);
 
 	/* Turn off the Bit-Error LED */
-	OCELOT_FPGA_WRITE(0x80, CLR);
+	JAGUAR_FPGA_WRITE(0x80, CLR);
 
-	tmpword = OCELOT_FPGA_READ(BOARDREV);
-#ifdef CONFIG_CPU_SR71000
+	tmpword = JAGUAR_FPGA_READ(BOARDREV);
 	if (tmpword < 26)
-		printk("Momenco Ocelot-CS: Board Assembly Rev. %c\n",
+		printk("Momentum Jaguar-ATX: Board Assembly Rev. %c\n",
 			'A'+tmpword);
 	else
-		printk("Momenco Ocelot-CS: Board Assembly Revision #0x%x\n",
+		printk("Momentum Jaguar-ATX: Board Assembly Revision #0x%x\n",
 			tmpword);
-#else
-	if (tmpword < 26)
-		printk("Momenco Ocelot-C: Board Assembly Rev. %c\n",
-			'A'+tmpword);
-	else
-		printk("Momenco Ocelot-C: Board Assembly Revision #0x%x\n",
-			tmpword);
-#endif
 
-	tmpword = OCELOT_FPGA_READ(FPGA_REV);
+	tmpword = JAGUAR_FPGA_READ(FPGA_REV);
 	printk("FPGA Rev: %d.%d\n", tmpword>>4, tmpword&15);
-	tmpword = OCELOT_FPGA_READ(RESET_STATUS);
+	tmpword = JAGUAR_FPGA_READ(RESET_STATUS);
 	printk("Reset reason: 0x%x\n", tmpword);
 	switch (tmpword) {
 		case 0x1:
@@ -283,53 +281,61 @@ void __init momenco_ocelot_c_setup(void)
 		case 0x2:
 			printk("  - Push-button reset\n");
 			break;
-		case 0x4:
-			printk("  - cPCI bus reset\n");
-			break;
 		case 0x8:
 			printk("  - Watchdog reset\n");
 			break;
 		case 0x10:
-			printk("  - Software reset\n");
+			printk("  - JTAG reset\n");
 			break;
 		default:
 			printk("  - Unknown reset cause\n");
 	}
 	reset_reason = tmpword;
-	OCELOT_FPGA_WRITE(0xff, RESET_STATUS);
+	JAGUAR_FPGA_WRITE(0xff, RESET_STATUS);
 
-	tmpword = OCELOT_FPGA_READ(CPCI_ID);
-	printk("cPCI ID register: 0x%02x\n", tmpword);
-	printk("  - Slot number: %d\n", tmpword & 0x1f);
-	printk("  - PCI bus present: %s\n", tmpword & 0x40 ? "yes" : "no");
-	printk("  - System Slot: %s\n", tmpword & 0x20 ? "yes" : "no");
-
-	tmpword = OCELOT_FPGA_READ(BOARD_STATUS);
+	tmpword = JAGUAR_FPGA_READ(BOARD_STATUS);
 	printk("Board Status register: 0x%02x\n", tmpword);
 	printk("  - User jumper: %s\n", (tmpword & 0x80)?"installed":"absent");
 	printk("  - Boot flash write jumper: %s\n", (tmpword&0x40)?"installed":"absent");
-	printk("  - L3 Cache size: %d MiB\n", (1<<((tmpword&12) >> 2))&~1);
-	printk("  - SDRAM size: %d MiB\n", 1<<(6+(tmpword&3)));
 
-	switch(tmpword &3) {
-	case 3:
-		/* 512MiB */
-		add_memory_region(0x0, 0x200<<20, BOOT_MEM_RAM);
-		break;
-	case 2:
-		/* 256MiB */
-		add_memory_region(0x0, 0x100<<20, BOOT_MEM_RAM);
-		break;
-	case 1:
-		/* 128MiB */
-		add_memory_region(0x0,  0x80<<20, BOOT_MEM_RAM);
-		break;
-	case 0:
-		/* 1GiB -- needs CONFIG_HIGHMEM */
-		add_memory_region(0x0, 0x400<<20, BOOT_MEM_RAM);
-		break;
+	/* 256MiB of RM9000x2 DDR */
+//	add_memory_region(0x0, 0x100<<20, BOOT_MEM_RAM);
+
+	/* 128MiB of MV-64340 DDR */
+//	add_memory_region(0x100<<20, 0x80<<20, BOOT_MEM_RAM);
+
+	/* XXX Memory configuration should be picked up from PMON2k */
+#ifdef CONFIG_JAGUAR_DMALOW
+	printk("Jaguar ATX DMA-low mode set\n");
+	add_memory_region(0x00000000, 0x08000000, BOOT_MEM_RAM);
+	add_memory_region(0x08000000, 0x10000000, BOOT_MEM_RAM);
+#else
+	/* 128MiB of MV-64340 DDR RAM */
+	printk("Jaguar ATX DMA-low mode is not set\n");
+	add_memory_region(0x100<<20, 0x80<<20, BOOT_MEM_RAM);
+#endif
+
+#ifdef GEMDEBUG_TRACEBUFFER
+	{
+	  unsigned int tbControl;
+	  tbControl = 
+	    0 << 26 |  /* post trigger delay 0 */
+	    	    0x2 << 16 |		/* sequential trace mode */
+	    //	    0x0 << 16 |		/* non-sequential trace mode */
+	    //	    0xf << 4 |		/* watchpoints disabled */
+	    2 << 2 |		/* armed */
+	    2 ;			/* interrupt disabled  */
+	  printk ("setting     tbControl = %08lx\n", tbControl);
+	  write_32bit_cp0_set1_register($22, tbControl);
+	  __asm__ __volatile__(".set noreorder\n\t" \
+			       "nop; nop; nop; nop; nop; nop;\n\t" \
+			       "nop; nop; nop; nop; nop; nop;\n\t" \
+			       ".set reorder\n\t");
+
 	}
+#endif
 }
+
 
 #ifndef CONFIG_MIPS64
 /* This needs to be one of the first initcalls, because no I/O port access
@@ -339,6 +345,7 @@ static int io_base_ioremap(void)
 	/* we're mapping PCI accesses from 0xc0000000 to 0xf0000000 */
 	void *io_remap_range = ioremap(0xc0000000, 0x30000000);
 
+	printk("*** io_base_ioremap\n");
 	if (!io_remap_range) {
 		panic("Could not ioremap I/O port range");
 	}
