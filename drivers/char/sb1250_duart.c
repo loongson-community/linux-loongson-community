@@ -135,7 +135,7 @@ static inline unsigned long get_status_reg(unsigned int line)
 /* Derive which uart a call is for from the passed tty line.  */
 static inline unsigned int get_line(struct tty_struct *tty) 
 {
-	unsigned int line = MINOR(tty->device) - 64;
+	unsigned int line = minor(tty->device) - 64;
 	if (line > 1)
 		printk(KERN_CRIT "Invalid line\n");
 
@@ -803,12 +803,7 @@ static void ser_console_write(struct console *cons, const char *str,
 
 static kdev_t ser_console_device(struct console *c)
 {
-	return MKDEV(TTY_MAJOR, 64 + c->index);
-}
-
-static int ser_console_wait_key(struct console *cons)
-{
-	panic("ser_console_wait_key called");
+	return mk_kdev(TTY_MAJOR, 64 + c->index);
 }
 
 static int ser_console_setup(struct console *cons, char *str)
@@ -823,7 +818,6 @@ static struct console sb1250_ser_cons = {
 	name:		"ttyS",
 	write:		ser_console_write,
 	device:		ser_console_device,
-	wait_key:	ser_console_wait_key,
 	setup:		ser_console_setup,
 	flags:		CON_PRINTBUFFER,
 	index:		-1,
