@@ -184,10 +184,6 @@ unsigned long jmr3927_do_gettimeoffset(void)
 }
 
 
-#if defined(CONFIG_BLK_DEV_INITRD)
-extern unsigned long __rd_start, __rd_end, initrd_start, initrd_end;
-#endif
-
 //#undef DO_WRITE_THROUGH
 #define DO_WRITE_THROUGH
 #define DO_ENABLE_CACHE

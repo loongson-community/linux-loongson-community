@@ -42,11 +42,6 @@
 #include <asm/mach-au1x00/au1000.h>
 #include <asm/time.h>
 
-#ifdef CONFIG_BLK_DEV_INITRD
-extern unsigned long initrd_start, initrd_end;
-extern void * __rd_start, * __rd_end;
-#endif
-
 extern char * __init prom_getcmdline(void);
 extern void __init board_setup(void);
 extern void au1000_restart(char *);
@@ -152,12 +147,6 @@ static int __init au1x00_setup(void)
 	ioport_resource.end = IOPORT_RESOURCE_END;
 	iomem_resource.start = IOMEM_RESOURCE_START;
 	iomem_resource.end = IOMEM_RESOURCE_END;
-
-#ifdef CONFIG_BLK_DEV_INITRD
-	ROOT_DEV = MKDEV(RAMDISK_MAJOR, 0);
-	initrd_start = (unsigned long)&__rd_start;
-	initrd_end = (unsigned long)&__rd_end;
-#endif
 
 	while (au_readl(SYS_COUNTER_CNTRL) & SYS_CNTRL_E0S);
 	au_writel(SYS_CNTRL_E0 | SYS_CNTRL_EN0, SYS_COUNTER_CNTRL);

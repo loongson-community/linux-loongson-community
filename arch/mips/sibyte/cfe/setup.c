@@ -56,7 +56,6 @@ int cfe_cons_handle;
 
 #ifdef CONFIG_BLK_DEV_INITRD
 extern unsigned long initrd_start, initrd_end;
-extern void * __rd_start, * __rd_end;
 #endif
 
 #ifdef CONFIG_KGDB

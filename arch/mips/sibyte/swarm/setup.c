@@ -52,10 +52,6 @@ extern int m41t81_probe(void);
 extern int m41t81_set_time(unsigned long);
 extern unsigned long m41t81_get_time(void);
 
-#ifdef CONFIG_BLK_DEV_INITRD
-extern void * __rd_start, * __rd_end;
-#endif
-
 const char *get_system_type(void)
 {
 	return "SiByte " SIBYTE_BOARD_NAME;
