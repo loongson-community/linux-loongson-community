@@ -28,7 +28,6 @@
 
 #include <asm/addrspace.h>
 #include <asm/bootinfo.h>
-#include <asm/mv64340.h>
 #include <asm/pmon.h>
 #include "ocelot_3_fpga.h"
 
@@ -36,7 +35,7 @@ struct callvectors* debug_vectors;
 extern unsigned long marvell_base;
 extern unsigned long cpu_clock;
 
-#ifdef CONFIG_MV64340_ETH
+#ifdef CONFIG_MV643XX_ETH
 extern unsigned char prom_mac_addr_base[6];
 #endif
 
@@ -45,7 +44,7 @@ const char *get_system_type(void)
 	return "Momentum Ocelot-3";
 }
 
-#ifdef CONFIG_MV64340_ETH
+#ifdef CONFIG_MV643XX_ETH
 void burn_clocks(void)
 {
 	int i;
@@ -230,7 +229,7 @@ void __init prom_init(void)
 	mips_machgroup = MACH_GROUP_MOMENCO;
 	mips_machtype = MACH_MOMENCO_OCELOT_3;
 
-#ifdef CONFIG_MV64340_ETH
+#ifdef CONFIG_MV643XX_ETH
 	/* get the base MAC address for on-board ethernet ports */
 	get_mac(prom_mac_addr_base);
 #endif
