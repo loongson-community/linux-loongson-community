@@ -177,6 +177,17 @@ LOADADDR      += 0x80080000
 endif
 
 #
+#
+# NEC DDB Vrc-5477
+#
+ifdef CONFIG_DDB5477
+SUBDIRS       += arch/mips/ddb5xxx/common arch/mips/ddb5xxx/ddb5477
+LIBS          += arch/mips/ddb5xxx/common/ddb5xxx.o \
+                 arch/mips/ddb5xxx/ddb5477/ddb5477.o
+LOADADDR      += 0x80080000
+endif
+
+#
 # Galileo EV64120 Board
 #
 ifdef CONFIG_MIPS_EV64120

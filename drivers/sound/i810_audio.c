@@ -457,14 +457,14 @@ static unsigned int i810_set_adc_rate(struct i810_state * state, unsigned int ra
 	 
 	rate = ( rate * clocking)/48000;
 	
-	if(rate != i810_ac97_get(codec, AC97_PCM_LR_DAC_RATE))
+	if(rate != i810_ac97_get(codec, AC97_PCM_LR_ADC_RATE))
 	{
 		/* Power down the ADC */
 		dacp=i810_ac97_get(codec, AC97_POWER_CONTROL);
 		i810_ac97_set(codec, AC97_POWER_CONTROL, dacp|0x0100);
 		/* Load the rate and read the effective rate */
-		i810_ac97_set(codec, AC97_PCM_LR_DAC_RATE, rate);
-		new_rate=i810_ac97_get(codec, AC97_PCM_LR_DAC_RATE);
+		i810_ac97_set(codec, AC97_PCM_LR_ADC_RATE, rate);
+		new_rate=i810_ac97_get(codec, AC97_PCM_LR_ADC_RATE);
 		/* Power it back up */
 		i810_ac97_set(codec, AC97_POWER_CONTROL, dacp);
 		if(new_rate != rate) {

@@ -246,6 +246,18 @@
 #define MOMENCO_OCELOT_SERIAL_PORT_DEFNS
 #endif
 
+#ifdef CONFIG_DDB5477
+#define DDB5477_SERIAL_PORT_DEFNS                                       \
+        { baud_base: BASE_BAUD, irq: 12, flags: STD_COM_FLAGS,          \
+          iomem_base: (u8*)0xbfa04200, iomem_reg_shift: 3,              \
+          io_type: SERIAL_IO_MEM},\
+        { baud_base: BASE_BAUD, irq: 28, flags: STD_COM_FLAGS,          \
+          iomem_base: (u8*)0xbfa04240, iomem_reg_shift: 3,              \
+          io_type: SERIAL_IO_MEM},
+#else
+#define DDB5477_SERIAL_PORT_DEFNS
+#endif
+
 #define SERIAL_PORT_DFNS		\
 	IVR_SERIAL_PORT_DEFNS           \
 	ITE_SERIAL_PORT_DEFNS           \
@@ -256,4 +268,5 @@
 	EXTRA_SERIAL_PORT_DEFNS		\
 	HUB6_SERIAL_PORT_DFNS		\
 	MOMENCO_OCELOT_SERIAL_PORT_DEFNS\
-	AU1000_SERIAL_PORT_DEFNS
+	AU1000_SERIAL_PORT_DEFNS	\
+	DDB5477_SERIAL_PORT_DEFNS

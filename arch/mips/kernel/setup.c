@@ -592,6 +592,11 @@ void __init setup_arch(char **cmdline_p)
                ddb_setup();
                break;
 #endif
+#ifdef CONFIG_DDB5477
+       case MACH_GROUP_NEC_DDB:
+               ddb_setup();
+               break;
+#endif
 #ifdef CONFIG_MIPS_EV96100
 	case MACH_GROUP_GALILEO:
 		ev96100_setup();

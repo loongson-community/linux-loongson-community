@@ -114,8 +114,9 @@
  */
 #define MACH_NEC_DDB5074	 0	/* NEC DDB Vrc-5074 */
 #define MACH_NEC_DDB5476         1      /* NEC DDB Vrc-5476 */
+#define MACH_NEC_DDB5477         2      /* NEC DDB Vrc-5477 */
 
-#define GROUP_NEC_DDB_NAMES { "Vrc-5074", "Vrc-5476"}
+#define GROUP_NEC_DDB_NAMES { "Vrc-5074", "Vrc-5476", "Vrc-5477"}
 
 /*
  * Valid machtype for group BAGET

@@ -25,6 +25,7 @@ CONFIG_MIPS_ATLAS=y
 # CONFIG_MIPS_MAGNUM_4000 is not set
 # CONFIG_MOMENCO_OCELOT is not set
 # CONFIG_DDB5476 is not set
+# CONFIG_DDB5477 is not set
 # CONFIG_OLIVETTI_M700 is not set
 # CONFIG_SGI_IP22 is not set
 # CONFIG_SNI_RM200_PCI is not set

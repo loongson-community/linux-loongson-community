@@ -42,6 +42,7 @@ fi
 bool 'Support for Mips Magnum 4000' CONFIG_MIPS_MAGNUM_4000
 bool 'Support for Momentum Ocelot board' CONFIG_MOMENCO_OCELOT
 bool 'Support for NEC DDB Vrc-5476' CONFIG_DDB5476
+bool 'Support for NEC DDB Vrc-5477' CONFIG_DDB5477
 bool 'Support for Olivetti M700-10' CONFIG_OLIVETTI_M700
 bool 'Support for SGI IP22' CONFIG_SGI_IP22
 bool 'Support for SNI RM200 PCI' CONFIG_SNI_RM200_PCI
@@ -170,6 +171,12 @@ if [ "$CONFIG_DDB5476"  = "y" ]; then
    define_bool CONFIG_ROTTEN_IRQ y
    define_bool CONFIG_HAVE_STD_PC_SERIAL_PORT y
    define_bool CONFIG_NEW_TIME_C y
+fi
+if [ "$CONFIG_DDB5477" = "y" ]; then
+   define_bool CONFIG_CPU_LITTLE_ENDIAN y
+   define_bool CONFIG_PCI y
+   define_bool CONFIG_NEW_TIME_C y
+   define_bool CONFIG_NEW_IRQ y
 fi
 if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
    define_bool CONFIG_PCI y

@@ -15,6 +15,9 @@
 #ifndef _ASM_TIME_H
 #define _ASM_TIME_H
 
+#include <linux/ptrace.h>               /* for struct pt_regs */
+#include <linux/linkage.h>              /* for asmlinkage */
+
 /* 
  * RTC ops.  By default, they point a no-RTC functions.
  *	rtc_get_time - mktime(year, mon, day, hour, min, sec) in seconds.
