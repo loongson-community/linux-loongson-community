@@ -71,7 +71,7 @@ if [ "$CONFIG_BLK_DEV_IDE" != "n" ]; then
 	    dep_mbool '      IT8172 IDE Tuning support' CONFIG_IT8172_TUNING $CONFIG_BLK_DEV_IT8172 $CONFIG_IDEDMA_PCI_AUTO
 	 fi
 	 if [ "$CONFIG_SIBYTE_SWARM" = "y" ]; then
-	    bool '  SWARM onboard IDE support' CONFIG_BLK_DEV_IDE_SWARM
+	    bool '  Broadcom SiByte onboard IDE support' CONFIG_BLK_DEV_IDE_SIBYTE
 	 fi
 	 dep_bool '    NS87415 chipset support (EXPERIMENTAL)' CONFIG_BLK_DEV_NS87415 $CONFIG_BLK_DEV_IDEDMA_PCI
 	 dep_bool '    OPTi 82C621 chipset enhanced support (EXPERIMENTAL)' CONFIG_BLK_DEV_OPTI621 $CONFIG_EXPERIMENTAL

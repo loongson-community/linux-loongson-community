@@ -169,6 +169,9 @@ extern int ide_probe_for_pdc4030(void);
 #ifdef CONFIG_BLK_DEV_IDE_PMAC
 extern void pmac_ide_probe(void);
 #endif
+#ifdef CONFIG_BLK_DEV_IDE_SIBYTE
+extern void sibyte_ide_probe(void);
+#endif
 #ifdef CONFIG_BLK_DEV_IDE_ICSIDE
 extern void icside_init(void);
 #endif
@@ -3611,6 +3614,9 @@ static int __init ata_module_init(void)
 #endif
 #ifdef CONFIG_BLK_DEV_IDE_PMAC
 	pmac_ide_probe();
+#endif
+#ifdef CONFIG_BLK_DEV_IDE_SIBYTE
+	sibyte_ide_probe();
 #endif
 #ifdef CONFIG_BLK_DEV_IDE_ICSIDE
 	icside_init();
