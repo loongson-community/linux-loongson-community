@@ -407,6 +407,11 @@ static inline int serial_paranoia_check(struct async_struct *info,
 
 static inline unsigned int serial_in(struct async_struct *info, int offset)
 {
+#ifdef CONFIG_SGI_IP27
+    if (info->flags & ASYNC_IOC3) {
+	 return *((volatile u8 *)info->port + offset);
+    } else
+#endif
 #ifdef CONFIG_HUB6
     if (info->hub6) {
 	outb(info->hub6 - 1 + offset, info->port);
@@ -423,6 +428,11 @@ static inline unsigned int serial_in(struct async_struct *info, int offset)
 
 static inline unsigned int serial_inp(struct async_struct *info, int offset)
 {
+#ifdef CONFIG_SGI_IP27
+    if (info->flags & ASYNC_IOC3) {
+	 return *((volatile u8 *)info->port + offset);
+    } else
+#endif
 #ifdef CONFIG_HUB6
     if (info->hub6) {
 	outb(info->hub6 - 1 + offset, info->port);
@@ -443,6 +453,11 @@ static inline unsigned int serial_inp(struct async_struct *info, int offset)
 
 static inline void serial_out(struct async_struct *info, int offset, int value)
 {
+#ifdef CONFIG_SGI_IP27
+    if (info->flags & ASYNC_IOC3) {
+	 *((volatile u8 *)info->port + offset) = value;
+    } else
+#endif
 #ifdef CONFIG_HUB6
     if (info->hub6) {
 	outb(info->hub6 - 1 + offset, info->port);
@@ -460,6 +475,11 @@ static inline void serial_out(struct async_struct *info, int offset, int value)
 static inline void serial_outp(struct async_struct *info, int offset,
 			       int value)
 {
+#ifdef CONFIG_SGI_IP27
+    if (info->flags & ASYNC_IOC3) {
+	 *((volatile u8 *)info->port + offset) = value;
+    } else
+#endif
 #ifdef CONFIG_HUB6
     if (info->hub6) {
 	outb(info->hub6 - 1 + offset, info->port);
@@ -3053,7 +3073,7 @@ static inline int line_info(char *buf, struct serial_state *state)
 	int	ret;
 	unsigned long flags;
 
-	ret = sprintf(buf, "%d: uart:%s port:%X irq:%d",
+	ret = sprintf(buf, "%d: uart:%s port:%lx irq:%d",
 		      state->line, uart_config[state->type].name, 
 		      state->port, state->irq);
 
@@ -3368,7 +3388,7 @@ static void autoconfig_startech_uarts(struct async_struct *info,
  */
 static void autoconfig(struct serial_state * state)
 {
-	unsigned char status1, status2, scratch, scratch2, scratch3;
+	unsigned char lcr, status1, status2, scratch, scratch2, scratch3;
 	struct async_struct *info, scr_info;
 	unsigned long flags;
 
@@ -3406,7 +3426,9 @@ static void autoconfig(struct serial_state * state)
 		 */
 		scratch = serial_inp(info, UART_IER);
 		serial_outp(info, UART_IER, 0);
-		outb(0xff, 0x080);
+		/* inb / outb don't work properly yet on IP27.  */
+		if (!(state->flags & ASYNC_IOC3))
+			outb(0xff, 0x080);
 		scratch2 = serial_inp(info, UART_IER);
 		serial_outp(info, UART_IER, scratch);
 		if (scratch2) {
@@ -3436,7 +3458,7 @@ static void autoconfig(struct serial_state * state)
 		}
 	} 
 
-	scratch2 = serial_in(info, UART_LCR);
+	lcr = serial_in(info, UART_LCR);
 	serial_outp(info, UART_LCR, 0xBF); /* set up for StarTech test */
 	serial_outp(info, UART_EFR, 0);	/* EFR is the same as FCR */
 	serial_outp(info, UART_LCR, 0);
@@ -3482,7 +3504,7 @@ static void autoconfig(struct serial_state * state)
 	}
 	if (state->type == PORT_16550A) {
 		/* Check for TI 16750 */
-		serial_outp(info, UART_LCR, scratch2 | UART_LCR_DLAB);
+		serial_outp(info, UART_LCR, lcr | UART_LCR_DLAB);
 		serial_outp(info, UART_FCR,
 			    UART_FCR_ENABLE_FIFO | UART_FCR7_64BYTE);
 		scratch = serial_in(info, UART_IIR) >> 5;
@@ -3503,7 +3525,7 @@ static void autoconfig(struct serial_state * state)
 		}
 		serial_outp(info, UART_FCR, UART_FCR_ENABLE_FIFO);
 	}
-	serial_outp(info, UART_LCR, scratch2);
+	serial_outp(info, UART_LCR, lcr);
 	if (state->type == PORT_16450) {
 		scratch = serial_in(info, UART_SCR);
 		serial_outp(info, UART_SCR, 0xa5);
@@ -3973,7 +3995,8 @@ int __init rs_init(void)
 		state->icount.frame = state->icount.parity = 0;
 		state->icount.overrun = state->icount.brk = 0;
 		state->irq = irq_cannonicalize(state->irq);
-		if (state->port && check_region(state->port,8))
+		if (state->port && check_region(state->port,8)
+		    && !(state->flags & ASYNC_IOC3))
 			continue;
 		if (state->flags & ASYNC_BOOT_AUTOCONF)
 			autoconfig(state);
@@ -3985,7 +4008,7 @@ int __init rs_init(void)
 		    && (state->flags & ASYNC_AUTO_IRQ)
 		    && (state->port != 0))
 			state->irq = detect_uart_irq(state);
-		printk(KERN_INFO "ttyS%02d%s at 0x%04x (irq = %d) is a %s\n",
+		printk(KERN_INFO "ttyS%02d%s at 0x%04lx (irq = %d) is a %s\n",
 		       state->line + SERIAL_DEV_OFFSET,
 		       (state->flags & ASYNC_FOURPORT) ? " FourPort" : "",
 		       state->port, state->irq,
@@ -4383,7 +4406,7 @@ static struct console sercons = {
 /*
  *	Register console.
  */
-__initfunc (long serial_console_init(long kmem_start, long kmem_end))
+long __init serial_console_init(long kmem_start, long kmem_end)
 {
 	register_console(&sercons);
 	return kmem_start;
