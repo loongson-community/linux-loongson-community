@@ -72,6 +72,12 @@
 #define CP0_IWATCH $18
 #define CP0_DWATCH $19
 
+/* 
+ * Coprocessor 0 Set 1 register names
+ */
+#define CP0_S1_DERRADDR0  $26
+#define CP0_S1_DERRADDR1  $27
+
 /*
  * Coprocessor 1 (FPU) register names
  */
@@ -161,6 +167,16 @@
 	".set\tpush\n\t"					\
 	".set\treorder\n\t"					\
         "mfc0\t%0,"STR(source)"\n\t"                            \
+	".set\tpop"						\
+        : "=r" (__res));                                        \
+        __res;})
+
+#define read_32bit_cp0_set1_register(source)                    \
+({ int __res;                                                   \
+        __asm__ __volatile__(                                   \
+	".set\tpush\n\t"					\
+	".set\treorder\n\t"					\
+        "cfc0\t%0,"STR(source)"\n\t"                            \
 	".set\tpop"						\
         : "=r" (__res));                                        \
         __res;})

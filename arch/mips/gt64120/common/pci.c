@@ -1113,15 +1113,15 @@ void __init pcibios_init(void)
 	pci0WriteConfigReg(PCI_COMMAND, &controller, tmp);
 
 	/*  This scans the PCI bus and sets up initial values.  */
-	// scan_and_initialize_pci();
+	scan_and_initialize_pci();
 
 	/*
 	 *  Reset PCI I/O and PCI MEM values to ones supported by EVM.
 	 */
-	ioport_resource.start = 0x10000000;
-	ioport_resource.end   = 0x11ffffff;	/*  32 MB */
-	iomem_resource.start  = 0x12000000;
-	iomem_resource.end    = 0x13ffffff;	/* 32 MB */
+	ioport_resource.start = GT_PCI_IO_BASE;
+	ioport_resource.end   = GT_PCI_IO_BASE + GT_PCI_IO_SIZE - 1;
+	iomem_resource.start  = GT_PCI_MEM_BASE;
+	iomem_resource.end    = GT_PCI_MEM_BASE + GT_PCI_MEM_BASE - 1;
 
 	pci_scan_bus(0, &galileo_pci_ops, NULL);
 }

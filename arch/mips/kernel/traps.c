@@ -771,7 +771,27 @@ void cache_parity_error(void)
 	printk("Cache error exception:\n");
 	printk("cp0_errorepc == %08x\n", reg_val);
 	reg_val = read_32bit_cp0_register(CP0_CACHEERR);
-	printk("c0_cacheerr == %08x\n", reg_val);
+	printk("cp0_cacheerr == %08x\n", reg_val);
+
+	printk("Decoded CP0_CACHEERR: %s cache fault in %s reference.\n",
+	       reg_val&(1<<30)?"secondary":"primary",
+	       reg_val&(1<<31)?"data":"insn");
+	printk("Error bits: %s%s%s%s%s%s%s\n",
+	       reg_val&(1<<29)?"ED ":"",
+	       reg_val&(1<<28)?"ET ":"",
+	       reg_val&(1<<26)?"EE ":"",
+	       reg_val&(1<<25)?"EB ":"",
+	       reg_val&(1<<24)?"EI ":"",
+	       reg_val&(1<<23)?"E1 ":"",
+	       reg_val&(1<<22)?"E0 ":"");
+	printk("IDX: 0x%08x\n", reg_val&((1<<22)-1));
+
+	if (reg_val&(1<<22))
+		printk("DErrAddr0: 0x%08x\n", read_32bit_cp0_set1_register(CP0_S1_DERRADDR0));
+
+	if (reg_val&(1<<23))
+		printk("DErrAddr1: 0x%08x\n", read_32bit_cp0_set1_register(CP0_S1_DERRADDR1));
+
 
 	panic("Can't handle the cache error - panic!");
 }

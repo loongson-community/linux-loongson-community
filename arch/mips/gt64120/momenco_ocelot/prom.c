@@ -36,8 +36,9 @@ void __init prom_init(int argc, const char **arg)
 	mips_machgroup = MACH_GROUP_MOMENCO;
 	mips_machtype = MACH_MOMENCO_OCELOT;
 
-	/* 128MB - we should detect this through ocelot board status register */
-	add_memory_region(0, 128 << 20, BOOT_MEM_RAM);
+	/* All the boards have at least 64MiB. If there's more, we
+	   detect and register it later */
+	add_memory_region(0, 64 << 20, BOOT_MEM_RAM);
 }
 
 void __init prom_free_prom_memory(void)

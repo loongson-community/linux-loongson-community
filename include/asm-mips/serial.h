@@ -234,7 +234,7 @@
 #define OCELOT_BASE_BAUD ( 20000000 / 16 )
 
 #define OCELOT_SERIAL1_IRQ	4
-#define OCELOT_SERIAL1_BASE	0xbd000020
+#define OCELOT_SERIAL1_BASE	0xe0001020
 
 #define _OCELOT_SERIAL_INIT(int, base)					\
 	{ baud_base: OCELOT_BASE_BAUD, irq: int, flags: STD_COM_FLAGS,	\

@@ -198,7 +198,9 @@ endif
 # Momentum Ocelot board
 #
 ifdef CONFIG_MOMENCO_OCELOT
-LIBS          += arch/mips/gt64120/common/gt64120.o arch/mips/gt64120/momenco_ocelot/momenco_ocelot.o
+# The Ocelot setup.o must be linked early - it does the ioremap() for the
+# mips_io_port_base.
+CORE_FILES    += arch/mips/gt64120/common/gt64120.o arch/mips/gt64120/momenco_ocelot/momenco_ocelot.o
 SUBDIRS       += arch/mips/gt64120/common arch/mips/gt64120/momenco_ocelot
 LOADADDR      += 0x80100000
 endif

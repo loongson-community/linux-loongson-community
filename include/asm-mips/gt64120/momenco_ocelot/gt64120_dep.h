@@ -19,14 +19,16 @@
 #include <asm/byteorder.h>		/* for cpu_to_le32() */
 
 /*
- * PCI address allocatoin 
+ * PCI address allocation 
  */
-#define GT_PCI_MEM_BASE    GT_DEF_PCI0_MEM0_BASE
+#define GT_PCI_MEM_BASE    (0x22000000)
 #define GT_PCI_MEM_SIZE    GT_DEF_PCI0_MEM0_SIZE
-#define GT_PCI_IO_BASE     GT_DEF_PCI0_IO_BASE
+#define GT_PCI_IO_BASE     (0x20000000)
 #define GT_PCI_IO_SIZE     GT_DEF_PCI0_IO_SIZE
 
-#define GT64120_BASE       (KSEG1ADDR(GT_DEF_BASE))
+extern unsigned long gt64120_base;
+
+#define GT64120_BASE       (gt64120_base)
 
 /*
  * Because of an error/peculiarity in the Galileo chip, we need to swap the

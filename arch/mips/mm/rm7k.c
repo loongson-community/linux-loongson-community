@@ -37,12 +37,33 @@ static int icache_size, dcache_size; /* Size in bytes */
 #define ic_lsize	32		/* Fixed to 32 byte on RM7000  */
 #define dc_lsize	32		/* Fixed to 32 byte on RM7000  */
 #define sc_lsize	32		/* Fixed to 32 byte on RM7000  */
+#define tc_pagesize	(32*128)
 
 /* Secondary cache parameters. */
-#define scache_size	(256*1024)	/* Fixed to 256kb on RM7000 */
+#define scache_size	(256*1024)	/* Fixed to 256KiB on RM7000 */
 
 #include <asm/cacheops.h>
 #include <asm/r4kcache.h>
+
+int rm7k_tcache_enabled = 0;
+
+/*
+ * Not added to asm/r4kcache.h because it seems to be RM7000-specific.
+ */
+#define Page_Invalidate_T 0x16
+
+static inline void invalidate_tcache_page(unsigned long addr)
+{
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		".set mips3\n\t"
+		"cache %1, (%0)\n\t"
+		".set mips0\n\t"
+		".set reorder"
+		:
+		: "r" (addr),
+		  "i" (Page_Invalidate_T));
+}
 
 /*
  * Zero an entire page.  Note that while the RM7000 has a second level cache
@@ -202,36 +223,52 @@ rm7k_dma_cache_wback_inv(unsigned long addr, unsigned long size)
 {
 	unsigned long end, a;
 
-	if (size >= scache_size) {
-		blast_dcache32();
-		return;
-	}
-
 	a = addr & ~(sc_lsize - 1);
 	end = (addr + size) & ~(sc_lsize - 1);
 	while (1) {
+		flush_dcache_line(a);	/* Hit_Writeback_Inv_D */
+		flush_icache_line(a);	/* Hit_Invalidate_I */
 		flush_scache_line(a);	/* Hit_Writeback_Inv_SD */
 		if (a == end) break;
 		a += sc_lsize;
 	}
-}
 
+	if (!rm7k_tcache_enabled) 
+		return;
+
+	a = addr & ~(tc_pagesize - 1);
+	end = (addr + size) & ~(tc_pagesize - 1);
+	while(1) {
+		invalidate_tcache_page(a);	/* Page_Invalidate_T */
+		if (a == end) break;
+		a += tc_pagesize;
+	}
+}
+	       
 static void
 rm7k_dma_cache_inv(unsigned long addr, unsigned long size)
 {
 	unsigned long end, a;
 
-	if (size >= scache_size) {
-		blast_dcache32();
-		return;
-	}
-
 	a = addr & ~(sc_lsize - 1);
 	end = (addr + size) & ~(sc_lsize - 1);
 	while (1) {
-		flush_scache_line(a); /* Hit_Writeback_Inv_SD */
+		invalidate_dcache_line(a);	/* Hit_Invalidate_D */
+		flush_icache_line(a);		/* Hit_Invalidate_I */
+		invalidate_scache_line(a);	/* Hit_Invalidate_SD */
 		if (a == end) break;
 		a += sc_lsize;
+	}
+
+	if (!rm7k_tcache_enabled) 
+		return;
+
+	a = addr & ~(tc_pagesize - 1);
+	end = (addr + size) & ~(tc_pagesize - 1);
+	while(1) {
+		invalidate_tcache_page(a);	/* Page_Invalidate_T */
+		if (a == end) break;
+		a += tc_pagesize;
 	}
 }
 
@@ -505,28 +542,144 @@ void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
         __restore_flags(flags);
 }
 
+/* Used for loading TLB entries before trap_init() has started, when we
+   don't actually want to add a wired entry which remains throughout the
+   lifetime of the system */
+
+static int temp_tlb_entry __initdata;
+
+__init int add_temporary_entry(unsigned long entrylo0, unsigned long entrylo1,
+                               unsigned long entryhi, unsigned long pagemask)
+{
+	int ret = 0;
+        unsigned long flags;
+        unsigned long wired;
+        unsigned long old_pagemask;
+        unsigned long old_ctx;
+
+        __save_and_cli(flags);
+        /* Save old context and create impossible VPN2 value */
+        old_ctx = (get_entryhi() & 0xff);
+        old_pagemask = get_pagemask();
+        wired = get_wired();
+        if (--temp_tlb_entry < wired) {
+		printk(KERN_WARNING "No TLB space left for add_temporary_entry\n");
+		ret = -ENOSPC;
+		goto out;
+	}
+
+        set_index (temp_tlb_entry);
+        BARRIER;    
+        set_pagemask (pagemask);
+        set_entryhi(entryhi);
+        set_entrylo0(entrylo0);
+        set_entrylo1(entrylo1);
+        BARRIER;    
+        tlb_write_indexed();
+        BARRIER;    
+    
+        set_entryhi(old_ctx);
+        BARRIER;    
+        set_pagemask (old_pagemask);
+ out:
+        __restore_flags(flags);
+	return ret;
+}
+
+
+
 /* Detect and size the caches. */
 static inline void probe_icache(unsigned long config)
 {
 	icache_size = 1 << (12 + ((config >> 9) & 7));
 
-	printk("Primary instruction cache %dkb.\n", icache_size >> 10);
+	printk("Primary instruction cache %dKiB.\n", icache_size >> 10);
 }
 
 static inline void probe_dcache(unsigned long config)
 {
 	dcache_size = 1 << (12 + ((config >> 6) & 7));
 
-	printk("Primary data cache %dkb.\n", dcache_size >> 10);
+	printk("Primary data cache %dKiB.\n", dcache_size >> 10);
+}
+
+
+/* 
+ * This function is executed in the uncached segment KSEG1.
+ * It must not touch the stack, because the stack pointer still points
+ * into KSEG0. 
+ *
+ * Three options:
+ *	- Write it in assembly and guarantee that we don't use the stack.
+ *	- Disable caching for KSEG0 before calling it.
+ *	- Pray that GCC doesn't randomly start using the stack.
+ *
+ * This being Linux, we obviously take the least sane of those options -
+ * following DaveM's lead in r4xx0.c
+ *
+ * It seems we get our kicks from relying on unguaranteed behaviour in GCC
+ *
+ */
+
+static void setup_scache(void)
+{
+	int register i;
+	
+	set_cp0_config(1<<3 /* CONF_SE */);
+
+	set_taglo(0);
+	set_taghi(0);
+	
+	for (i=0; i<scache_size; i+=sc_lsize) {
+		__asm__ __volatile__ (
+		      ".set noreorder\n\t"
+		      ".set mips3\n\t"
+		      "cache %1, (%0)\n\t"
+		      ".set mips0\n\t"
+		      ".set reorder"
+		      :
+		      : "r" (KSEG0ADDR(i)),
+		        "i" (Index_Store_Tag_SD));
+	}
+
 }
 
 static inline void probe_scache(unsigned long config)
 {
+	int (*func)(void)=KSEG1ADDR(&setup_scache);
+
 	if ((config >> 31) & 1)
 		return;
 
-	printk("Secondary cache %dkb, linesize %d bytes.\n",
+	printk("Secondary cache %dKiB, linesize %d bytes.\n",
 	       (scache_size >> 10), sc_lsize);
+
+	if ((config >> 3) & 1)
+		return;
+
+	printk("Enabling secondary cache...");
+	func();
+	printk("Done\n");
+}
+ 
+static inline void probe_tcache(unsigned long config)
+{
+	if ((config >> 17) & 1)
+		return;
+
+	/* We can't enable the L3 cache yet. There may be board-specific
+	 * magic necessary to turn it on, and blindly asking the CPU to
+	 * start using it would may give cache errors.
+	 *
+	 * Also, board-specific knowledge may allow us to use the 
+	 * CACHE Flash_Invalidate_T instruction if the tag RAM supports
+	 * it, and may specify the size of the L3 cache so we don't have
+	 * to probe it. 
+	 */
+	printk("Tertiary cache present, %s enabled\n", config&(1<<12)?"already":"not (yet)");
+
+	if ((config >> 12) & 1)
+		rm7k_tcache_enabled = 1;
 }
 
 void __init ld_mmu_rm7k(void)
@@ -540,6 +693,7 @@ void __init ld_mmu_rm7k(void)
 	probe_icache(config);
 	probe_dcache(config);
 	probe_scache(config);
+	probe_tcache(config);
 
 	printk("TLB has %d entries.\n", ntlb_entries());
 
@@ -562,7 +716,7 @@ void __init ld_mmu_rm7k(void)
 
 	__flush_cache_all_d32i32();
 	write_32bit_cp0_register(CP0_WIRED, 0);
-
+	temp_tlb_entry = ntlb_entries() - 1;
 	write_32bit_cp0_register(CP0_PAGEMASK, PM_4K);
 	flush_tlb_all();
 }

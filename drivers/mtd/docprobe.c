@@ -86,6 +86,8 @@ static unsigned long __initdata doc_locations[] = {
 #endif /*  CONFIG_MTD_DOCPROBE_HIGH */
 #elif defined(__ppc__)
 	0xe4000000,
+#elif defined(CONFIG_MOMENCO_OCELOT)
+	0x2f000000,
 #else 
 #warning Unknown architecture for DiskOnChip. No default probe locations defined
 #endif
