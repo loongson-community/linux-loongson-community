@@ -259,7 +259,7 @@ typedef struct _eth_port_ctrl {
 } titan_ge_port_info;
 
 /* Titan specific constants */
-#define	TITAN_ETH_PORT_IRQ		4
+#define	TITAN_ETH_PORT_IRQ		3
 
 /* Max Rx buffer */
 #define	TITAN_GE_MAX_RX_BUFFER		65536
