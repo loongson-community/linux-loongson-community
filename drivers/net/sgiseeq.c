@@ -607,33 +607,33 @@ int sgiseeq_init(struct hpc3_regs* regs, int irq)
 	struct sgiseeq_private *sp;
 	int err, i;
 
-	dev = alloc_etherdev(sizeof(struct sgiseeq_private));
+	dev = alloc_etherdev(0);
 	if (!dev) {
 		printk(KERN_ERR "Sgiseeq: Etherdev alloc failed, aborting.\n");
 		err = -ENOMEM;
 		goto err_out;
 	}
-
-	sp = dev->priv;
+	/* Make private data page aligned */
+	sp = (struct sgiseeq_private *) get_zeroed_page(GFP_KERNEL); 	 
+	if (!sp) {
+		printk(KERN_ERR "Sgiseeq: Page alloc failed, aborting.\n");
+		err = -ENOMEM;
+		goto err_out_free_dev;
+	}
 
 	if (request_irq(irq, sgiseeq_interrupt, 0, sgiseeqstr, dev)) {
 		printk(KERN_ERR "Seeq8003: Can't get irq %d\n", dev->irq);
 		err = -EAGAIN;
-		goto err_out_free_dev;
+		goto err_out_free_page;
 	}
-
-	printk(KERN_INFO "%s: SGI Seeq8003 ", dev->name);
 
 #define EADDR_NVOFS     250
 	for (i = 0; i < 3; i++) {
 		unsigned short tmp = ip22_nvram_read(EADDR_NVOFS / 2 + i);
 
-		printk("%2.2x:%2.2x%c",
-			dev->dev_addr[2 * i]     = tmp >> 8,
-			dev->dev_addr[2 * i + 1] = tmp & 0xff,
-			i == 2 ? ' ' : ':');
+		dev->dev_addr[2 * i]     = tmp >> 8;
+		dev->dev_addr[2 * i + 1] = tmp & 0xff;
 	}
-	printk("\n");
 
 #ifdef DEBUG
 	gpriv = sp;
@@ -665,15 +665,16 @@ int sgiseeq_init(struct hpc3_regs* regs, int irq)
 			       SEEQ_CTRL_SFLAG | SEEQ_CTRL_ESHORT |
 			       SEEQ_CTRL_ENCARR);
 
-	dev->open                 = sgiseeq_open;
-	dev->stop                 = sgiseeq_close;
-	dev->hard_start_xmit      = sgiseeq_start_xmit;
-	dev->tx_timeout           = timeout;
-	dev->watchdog_timeo       = (200 * HZ) / 1000;
-	dev->get_stats            = sgiseeq_get_stats;
-	dev->set_multicast_list   = sgiseeq_set_multicast;
-	dev->irq                  = irq;
-	dev->dma                  = 0;
+	dev->open		= sgiseeq_open;
+	dev->stop		= sgiseeq_close;
+	dev->hard_start_xmit	= sgiseeq_start_xmit;
+	dev->tx_timeout		= timeout;
+	dev->watchdog_timeo	= (200 * HZ) / 1000;
+	dev->get_stats		= sgiseeq_get_stats;
+	dev->set_multicast_list	= sgiseeq_set_multicast;
+	dev->irq		= irq;
+	dev->dma		= 0;
+	dev->priv		= sp;
 
 	if (register_netdev(dev)) {
 		printk(KERN_ERR "Sgiseeq: Cannot register net device, "
@@ -682,6 +683,10 @@ int sgiseeq_init(struct hpc3_regs* regs, int irq)
 		goto err_out_free_irq;
 	}
 
+	printk(KERN_INFO "%s: SGI Seeq8003 ", dev->name);
+	for (i = 0; i < 6; i++)
+		printk("%2.2x%c", dev->dev_addr[i], i == 5 ? '\n' : ':');
+
 	sp->next_module = root_sgiseeq_dev;
 	root_sgiseeq_dev = dev;
 
@@ -689,7 +694,8 @@ int sgiseeq_init(struct hpc3_regs* regs, int irq)
 
 err_out_free_irq:
 	free_irq(irq, dev);
-
+err_out_free_page:
+	free_page((unsigned long) sp);
 err_out_free_dev:
 	kfree(dev);
 
@@ -717,6 +723,7 @@ static void __exit sgiseeq_exit(void)
 		irq = dev->irq;
 		unregister_netdev(dev);
 		free_irq(irq, dev);
+		free_page((unsigned long) dev->priv);
 		kfree(dev);
 	}
 }
