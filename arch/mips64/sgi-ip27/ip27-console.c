@@ -5,6 +5,8 @@
  */
 #include <linux/init.h>
 #include <linux/console.h>
+#include <linux/kdev_t.h>
+#include <linux/major.h>
 #include <asm/sn/addrs.h>
 #include <asm/sn/sn0/hub.h>
 #include <asm/sn/klconfig.h>
@@ -35,11 +37,17 @@ ip27prom_console_write(struct console *con, const char *s, unsigned n)
 	prom_printf("%s", s);
 }
 
+static kdev_t 
+ip27prom_console_dev(struct console *c)
+{
+	return MKDEV(TTY_MAJOR, 64 + c->index);
+}
+
 static struct console ip27_prom_console = {
 	"prom",
 	ip27prom_console_write,
 	NULL,
-	NULL,
+	ip27prom_console_dev,
 	NULL,
 	NULL,
 	NULL,

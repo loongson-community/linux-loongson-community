@@ -34,6 +34,12 @@
  * port 0. So, we just use one serial port from each ioc3 (since the
  * serial driver adds addresses to get to higher ports).
  *
+ * The first one to do a register_console becomes the preferred console
+ * (if there is no kernel command line console= directive). /dev/console
+ * (ie 5, 1) is then "aliased" into the device number returned by the 
+ * "device" routine referred to in this console structure 
+ * (ip27prom_console_dev).
+ *
  * Also look in ip27-pci.c:pci_fixuop_ioc3() for some comments on working
  * around ioc3 oddities in this respect.
  *
