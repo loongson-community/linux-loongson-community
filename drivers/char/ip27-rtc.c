@@ -139,7 +139,7 @@ static int rtc_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		yrs = BIN2BCD(yrs);
 
 		spin_lock_irq(&rtc_lock);
-		rtc->control &= ~M48T35_RTC_SET;
+		rtc->control |= M48T35_RTC_SET;
 		rtc->year = yrs;
 		rtc->month = mon;
 		rtc->date = day;
