@@ -178,6 +178,30 @@ nic_reset(struct ioc3 *ioc3)
         return presence;
 }
 
+static inline int
+nic_read_bit(struct ioc3 *ioc3)
+{
+	int result;
+
+	ioc3_w(mcr, mcr_pack(6, 13));
+	result = nic_wait(ioc3);
+	ioc3_w(mcr, mcr_pack(0, 100));
+	nic_wait(ioc3);
+
+	return result;
+}
+
+static inline void
+nic_write_bit(struct ioc3 *ioc3, int bit)
+{
+	if (bit)
+		ioc3_w(mcr, mcr_pack(6, 110));
+	else
+		ioc3_w(mcr, mcr_pack(80, 30));
+
+	nic_wait(ioc3);
+}
+
 /*
  * Read a byte from an iButton device
  */
@@ -187,13 +211,8 @@ nic_read_byte(struct ioc3 *ioc3)
 	u32 result = 0;
 	int i;
 
-	for (i = 0; i < 8; i++) {
-		ioc3_w(mcr, mcr_pack(6, 13));
-		result = (result >> 1) | (nic_wait(ioc3) << 7);
-
-		ioc3_w(mcr, mcr_pack(0, 100));
-		nic_wait(ioc3);
-	}
+	for (i = 0; i < 8; i++)
+		result = (result >> 1) | (nic_read_bit(ioc3) << 7);
 
 	return result;
 }
@@ -210,34 +229,103 @@ nic_write_byte(struct ioc3 *ioc3, int byte)
 		bit = byte & 1;
 		byte >>= 1;
 
-		if (bit)
-			ioc3_w(mcr, mcr_pack(6, 110));
-		else
-			ioc3_w(mcr, mcr_pack(80, 30));
-		nic_wait(ioc3);
+		nic_write_bit(ioc3, bit);
 	}
 }
 
-static void nic_show_regnr(struct ioc3 *ioc3)
+static u64
+nic_find(struct ioc3 *ioc3, int *last)
 {
-	const char *type;
-	u8 regnr[8];
-	int i;
+	int a, b, index, disc;
+	u64 address = 0;
 
-	nic_write_byte(ioc3, 0x33);
-	for (i = 0; i < 8; i++)
-		regnr[i] = nic_read_byte(ioc3);
+	nic_reset(ioc3);
+	/* Search ROM.  */
+	nic_write_byte(ioc3, 0xf0);
 
-	switch (regnr[0]) {
-	case 0x01:	type = "DS1990A"; break;
-	case 0x91:	type = "DS1981U"; break;
-	default:	type = "unknown"; break;
+	/* Algorithm from ``Book of iButton Standards''.  */
+	for (index = 0, disc = 0; index < 64; index++) {
+		a = nic_read_bit(ioc3);
+		b = nic_read_bit(ioc3);
+
+		if (a && b) {
+			printk("NIC search failed.\n");
+			*last = 0;
+			return 0;
+		}
+
+		if (!a && !b) {
+			if (index == *last) {
+				address |= 1UL << index;
+			} else if (index > *last) {
+				address &= ~(1UL << index);
+				disc = index;
+			} else if ((address & (1UL << index)) == 0)
+				disc = index;
+			nic_write_bit(ioc3, address & (1UL << index));
+			continue;
+		} else {
+			if (a)
+				address |= 1UL << index;
+			else
+				address &= ~(1UL << index);
+			nic_write_bit(ioc3, a);
+			continue;
+		}
 	}
 
-	printk("Found %s NIC, registration number "
-	       "%02x:%02x:%02x:%02x:%02x:%02x, CRC %02x.\n", type,
-	       regnr[1], regnr[2], regnr[3], regnr[4], regnr[5], regnr[6],
-	       regnr[7]);
+	*last = disc;
+
+	return address;
+}
+
+static void nic_init(struct ioc3 *ioc3)
+{
+	const char *type;
+	u8 crc;
+	u8 serial[6];
+	int save = 0, i;
+
+	type = "unknown";
+
+	do {
+		u64 reg;
+		reg = nic_find(ioc3, &save);
+
+		switch (reg & 0xff) {
+		case 0x91:
+			type = "DS1981U";
+			break;
+		default:
+			if (save == 0) {
+				printk("No NIC connected.\n");
+				return;
+			}
+			continue;
+		}
+
+		nic_reset(ioc3);
+
+		/* Match ROM.  */
+		nic_write_byte(ioc3, 0x55);
+		for (i = 0; i < 8; i++)
+			nic_write_byte(ioc3, (reg >> (i << 3)) & 0xff);
+
+		reg >>= 8; /* Shift out type.  */
+		for (i = 0; i < 6; i++) {
+			serial[i] = reg & 0xff;
+			reg >>= 8;
+		}
+		crc = reg & 0xff;
+	} while (0);
+
+	printk("Found %s NIC", type);
+	if (type != "unknown") {
+		printk (" registration number %02x:%02x:%02x:%02x:%02x:%02x,"
+			" CRC %02x", serial[0], serial[1], serial[2],
+			serial[3], serial[4], serial[5], crc);
+	}
+	printk(".\n");
 }
 
 /*
@@ -250,11 +338,9 @@ static void ioc3_get_eaddr(struct net_device *dev, struct ioc3 *ioc3)
 
 	ioc3_w(gpcr_s, (1 << 21));
 
-	nic_reset(ioc3);
-	nic_show_regnr(ioc3);
+	nic_init(ioc3);
 
-	nic_reset(ioc3);
-	nic_write_byte(ioc3, 0xcc);
+	/* Read Memory.  */
 	nic_write_byte(ioc3, 0xf0);
 	nic_write_byte(ioc3, 0x00);
 	nic_write_byte(ioc3, 0x00);
