@@ -100,6 +100,17 @@ LOADADDR      += 0x8001c000
 endif
 endif
 
+ifdef CONFIG_SGI_IP32
+LIBS		+= arch/mips64/sgi-ip32/ip32-kern.a arch/mips64/arc/arclib.a
+SUBDIRS		+= arch/mips64/sgi-ip32 arch/mips64/arc
+#
+# Set LOADADDR to >= 0x????????? if you want to leave space for symmon,
+# 0x80002000 for production kernels.  Note that the value must be
+# 16kb aligned or the handling of the current variable will break.
+#
+LOADADDR	+= 0x80002000
+endif
+
 #
 # Some machines like the Indy need 32-bit ELF binaries for booting purposes.
 # Other need ECOFF, so we build a 32-bit ELF binary for them which we then
