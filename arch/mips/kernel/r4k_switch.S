@@ -25,7 +25,8 @@
 #include <asm/asmmacro.h>
 
 /*
- * task_struct *r4xx0_resume(task_struct *prev, task_struct *next)
+ * task_struct *r4xx0_resume(task_struct *prev, task_struct *next,
+ *                           struct thread_info *next_ti)
  */
 	.set	noreorder
 	.align	5
@@ -42,9 +43,10 @@
 	 * The order of restoring the registers takes care of the race
 	 * updating $28, $29 and kernelsp without disabling ints.
 	 */
-	move	$28, a1
-	CPU_RESTORE_NONSCRATCH($28)
-	addiu	t0, $28, KERNEL_STACK_SIZE-32
+	move	$28, a2
+	CPU_RESTORE_NONSCRATCH(a1)
+
+	addiu	t0, a1, KERNEL_STACK_SIZE-32
 #ifdef CONFIG_SMP	 
 	mfc0	a3, CP0_CONTEXT
 	la	t1, kernelsp
@@ -55,10 +57,11 @@
 #else
 	sw	t0, kernelsp
 #endif 
+
 	mfc0	t1, CP0_STATUS		/* Do we really need this? */
 	li	a3, 0xff00
 	and	t1, a3
-	lw	a2, THREAD_STATUS($28)
+	lw	a2, THREAD_STATUS(a1)
 	nor	a3, $0, a3
 	and	a2, a3
 	or	a2, t1
@@ -93,7 +96,7 @@ LEAF(lazy_fpu_switch)
 2:
 
 	.set	reorder
-	FPU_RESTORE_DOUBLE($28, t0)		# clobbers t0
+	FPU_RESTORE_DOUBLE(a1, t0)		# clobbers t0
 	jr	ra
 	END(lazy_fpu_switch)
 
@@ -156,4 +159,3 @@ LEAF(init_fpu)
 	 dmtc1	t0, $f30
 	.set	reorder
 	END(init_fpu)
-

@@ -659,7 +659,7 @@ asmlinkage void do_cpu(struct pt_regs *regs)
 		return;
 
 	if (current->used_math) {		/* Using the FPU again.  */
-		lazy_fpu_switch(last_task_used_math);
+		lazy_fpu_switch(last_task_used_math, current);
 	} else {				/* First time FPU user.  */
 		if (last_task_used_math != NULL)
 			save_fp(last_task_used_math);

@@ -43,14 +43,16 @@ LEAF(resume)
 	 * The order of restoring the registers takes care of the race
 	 * updating $28, $29 and kernelsp without disabling ints.
 	 */
-	move	$28, a1
-	CPU_RESTORE_NONSCRATCH($28)
-	addiu	t0, $28, KERNEL_STACK_SIZE-32
-	sw	t0, kernelsp
+	move	$28, a2
+	CPU_RESTORE_NONSCRATCH(a1)
+
+	addiu	t1, a1, KERNEL_STACK_SIZE-32
+	sw	t1, kernelsp
+
 	mfc0	t1, CP0_STATUS		/* Do we really need this? */
 	li	a3, 0xff00
 	and	t1, a3
-	lw	a2, THREAD_STATUS($28)
+	lw	a2, THREAD_STATUS(a1)
 	nor	a3, $0, a3
 	and	a2, a3
 	or	a2, t1
@@ -84,7 +86,7 @@ LEAF(lazy_fpu_switch)
 	FPU_SAVE_SINGLE(a0, t1)			# clobbers t1
 
 2:
-	FPU_RESTORE_SINGLE($28, t0)		# clobbers t0
+	FPU_RESTORE_SINGLE(a1, t0)		# clobbers t0
 	jr	ra
 	END(lazy_fpu_switch)
 

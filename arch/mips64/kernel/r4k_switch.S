@@ -38,16 +38,16 @@
 	 * The order of restoring the registers takes care of the race
 	 * updating $28, $29 and kernelsp without disabling ints.
 	 */
-	move	$28, a1
-	cpu_restore_nonscratch $28
+	move	$28, a2
+	cpu_restore_nonscratch a1
 
-	daddiu	a1, $28, KERNEL_STACK_SIZE-32
-	set_saved_sp	a1 t0
+	daddiu	t1, a1, KERNEL_STACK_SIZE-32
+	set_saved_sp	t1 t0
 
 	mfc0	t1, CP0_STATUS		/* Do we really need this? */
 	li	a3, 0xff00
 	and	t1, a3
-	ld	a2, THREAD_STATUS($28)
+	ld	a2, THREAD_STATUS(a1)
 	nor	a3, $0, a3
 	and	a2, a3
 	or	a2, t1
@@ -88,11 +88,11 @@ LEAF(lazy_fpu_switch)
 
 	sll	t0, t0, 5			# load new fp state
 	bgez	t0, 1f
-	 ldc1	$f0, (THREAD_FPU + 0x00)($28)
-	fpu_restore_16odd $28
+	 ldc1	$f0, (THREAD_FPU + 0x00)(a1)
+	fpu_restore_16odd a1
 1:
 	.set	reorder
-	fpu_restore_16even $28, t0		# clobbers t0
+	fpu_restore_16even a1, t0		# clobbers t0
 3:
 	jr	ra
 	END(lazy_fpu_switch)
@@ -122,10 +122,10 @@ LEAF(restore_fp)
 	bgez	t0, 1f				# 16 register mode?
 	 nop
 
-	fpu_restore_16odd $28
+	fpu_restore_16odd a0
 1:
 	.set	reorder
-	fpu_restore_16even $28, t0		# clobbers t0
+	fpu_restore_16even a0, t0		# clobbers t0
 
 	jr	ra
 	END(restore_fp)
