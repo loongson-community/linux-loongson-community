@@ -50,8 +50,7 @@ extern inline void __cpu_raise_softirq(int cpu, int nr)
 		"sc\t%0, %1\n\t"
 		"beqz\t%0, 1b"
 		: "=&r" (temp), "=m" (*m)
-		: "ir" (1UL << nr), "m" (*m)
-		: "memory");
+		: "ir" (1UL << nr), "m" (*m));
 }
 
 #endif /* _ASM_SOFTIRQ_H */
