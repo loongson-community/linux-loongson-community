@@ -141,11 +141,14 @@ void __init prom_meminit(void)
 	}
 }
 
-void __init prom_free_prom_memory (void)
+void __init prom_free_prom_memory(void)
 {
 	unsigned long freed = 0;
 	unsigned long addr;
 	int i;
+
+	if (prom_flags & PROM_FLAG_DONT_FREE_TEMP)
+		return 0;
 
 	for (i = 0; i < boot_mem_map.nr_map; i++) {
 		if (boot_mem_map.map[i].type != BOOT_MEM_ROM_DATA)
