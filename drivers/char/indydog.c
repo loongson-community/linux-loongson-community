@@ -26,7 +26,7 @@
 
 static int indydog_alive;
 
-static void indydog_ping()
+static inline void indydog_ping(void)
 {
 	mcmisc_regs->watchdogt = 0;
 }
