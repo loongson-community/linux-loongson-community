@@ -116,7 +116,7 @@ unsigned long arch_get_unmapped_area(struct file *filp, unsigned long addr,
 }
 
 /* common code for old and new mmaps */
-static inline long
+static inline unsigned long
 do_mmap2(unsigned long addr, unsigned long len, unsigned long prot,
         unsigned long flags, unsigned long fd, unsigned long pgoff)
 {
@@ -140,8 +140,9 @@ out:
 	return error;
 }
 
-asmlinkage unsigned long old_mmap(unsigned long addr, size_t len, int prot,
-                                  int flags, int fd, off_t offset)
+asmlinkage unsigned long
+old_mmap(unsigned long addr, unsigned long len, int prot,
+	int flags, int fd, off_t offset)
 {
 	unsigned long result;
 
@@ -155,7 +156,7 @@ out:
 	return result;
 }
 
-asmlinkage long
+asmlinkage unsigned long
 sys_mmap2(unsigned long addr, unsigned long len, unsigned long prot,
           unsigned long flags, unsigned long fd, unsigned long pgoff)
 {
