@@ -125,5 +125,6 @@ extern VOID ArcEnterInteractiveMode(VOID) __attribute__((noreturn));
 extern long prom_cfgsave(VOID);
 extern struct linux_sysid *prom_getsysid(VOID);
 extern VOID ArcFlushAllCaches(VOID);
+extern DISPLAY_STATUS *ArcGetDisplayStatus(ULONG FileID);
 
 #endif /* _ASM_SGIALIB_H */
