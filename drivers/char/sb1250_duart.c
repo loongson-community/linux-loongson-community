@@ -24,6 +24,7 @@
 #include <linux/config.h>
 #include <linux/types.h>
 #include <linux/serial.h>
+#include <linux/interrupt.h>
 #include <linux/module.h>
 #include <linux/console.h>
 #include <linux/kdev_t.h>
@@ -221,7 +222,7 @@ static inline void transmit_char_pio(uart_state_t *us)
  * which port interrupted 
  */
 
-static void duart_int(int irq, void *dev_id, struct pt_regs *regs)
+static irqreturn_t duart_int(int irq, void *dev_id, struct pt_regs *regs)
 {
 	uart_state_t *us = (uart_state_t *)dev_id;
 	struct tty_struct *tty = us->tty;
@@ -261,6 +262,8 @@ static void duart_int(int irq, void *dev_id, struct pt_regs *regs)
 	if (status & M_DUART_TX_RDY) {
 		transmit_char_pio(us);
 	}
+
+	return IRQ_HANDLED;
 }
 
 /*
@@ -658,12 +661,12 @@ static void duart_hangup(struct tty_struct *tty)
 static int duart_open(struct tty_struct *tty, struct file *filp)
 {
 	uart_state_t *us;
-	unsigned int line = MINOR(tty->device) - tty->driver.minor_start;
+	unsigned int line = tty->index;
 	unsigned long flags;
 
 	MOD_INC_USE_COUNT;
 
-	if ((line < 0) || (line >= DUART_MAX_LINE)) {
+	if (line >= tty->driver->num) {
 		MOD_DEC_USE_COUNT;
 		return -ENODEV;
 	}
@@ -734,8 +737,8 @@ static void duart_close(struct tty_struct *tty, struct file *filp)
 	while (!(READ_SERCSR(us->status, us->line) & M_DUART_TX_EMT))
 		;
 
-	if (tty->driver.flush_buffer)
-		tty->driver.flush_buffer(tty);
+	if (tty->driver->flush_buffer)
+		tty->driver->flush_buffer(tty);
 	if (tty->ldisc.flush_buffer)
 		tty->ldisc.flush_buffer(tty);
 	tty->closing = 0;
@@ -882,9 +885,10 @@ static void ser_console_write(struct console *cons, const char *s,
 	WRITE_SERCSR(imr, port->imr, line);
 }
 
-static kdev_t ser_console_device(struct console *c)
+struct tty_driver * ser_console_device(struct console *co, int *index)
 {
-	return MKDEV(TTY_MAJOR, SB1250_DUART_MINOR_BASE + c->index);
+	*index = co->index;
+	return &sb1250_duart_driver;
 }
 
 static int ser_console_setup(struct console *cons, char *str)
