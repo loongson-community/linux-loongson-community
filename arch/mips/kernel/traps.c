@@ -191,8 +191,7 @@ void show_regs(struct pt_regs *regs)
 	 * Saved cp0 registers
 	 */
 	printk("epc   : %0*lx    %s\n", field, regs->cp0_epc, print_tainted());
-	printk("Status: %0*lx\n", field, regs->cp0_status);
-	printk("Cause : %0*lx\n", field, regs->cp0_cause);
+	printk("Status: %08lx    ", regs->cp0_status);
 
 	if (regs->cp0_status & ST0_KX)
 		printk("KX ");
@@ -220,15 +219,16 @@ void show_regs(struct pt_regs *regs)
 		printk("EXL ");
 	if (regs->cp0_status & ST0_IE)
 		printk("IE ");
+	printk("\n");
+
+	printk("Cause : %08lx\n", regs->cp0_cause);
 }
 
 void show_registers(struct pt_regs *regs)
 {
-	const int field = 2 * sizeof(unsigned long);
-
 	show_regs(regs);
-	printk("Process %s (pid: %d, stackpage=%0*lx)\n",
-		current->comm, current->pid, field, (unsigned long) current);
+	printk("Process %s (pid: %d, threadinfo=%p, task=%p)\n",
+	        current->comm, current->pid, current_thread_info(), current);
 	show_stack(current, (long *) regs->regs[29]);
 	show_trace(current, (long *) regs->regs[29]);
 	show_code((unsigned int *) regs->cp0_epc);
@@ -237,8 +237,8 @@ void show_registers(struct pt_regs *regs)
 
 static spinlock_t die_lock = SPIN_LOCK_UNLOCKED;
 
-void __die(const char * str, struct pt_regs * regs, const char * file,
-	   const char * func, unsigned long line)
+NORET_TYPE void __die(const char * str, struct pt_regs * regs,
+	const char * file, const char * func, unsigned long line)
 {
 	static int die_counter;
 
