@@ -18,6 +18,7 @@
 #include <asm/sgihpc.h>
 #include <asm/sgint23.h>
 #include <asm/irq.h>
+#include <asm/io.h>
 
 #include "scsi.h"
 #include "hosts.h"
@@ -91,7 +92,8 @@ static int dma_setup(Scsi_Cmnd *cmd, int datainp)
 #ifdef DEBUG_DMA
 			printk("[%p,%d]", slp[i].address, slp[i].length);
 #endif
-			flush_page_to_ram((unsigned long)slp[i].address);
+			dma_cache_wback_inv((unsigned long)slp[i].address,
+			                    PAGE_SIZE);
 			hcp->desc.pbuf = PHYSADDR(slp[i].address);
 			hcp->desc.cntinfo = (slp[i].length & HPCDMA_BCNT);
 			totlen += slp[i].length;
@@ -106,7 +108,7 @@ static int dma_setup(Scsi_Cmnd *cmd, int datainp)
 #ifdef DEBUG_DMA
 		printk("ONEBUF<%p,%d>", cmd->SCp.ptr, cmd->SCp.this_residual);
 #endif
-		flush_page_to_ram((unsigned long)cmd->SCp.ptr);
+		dma_cache_wback_inv((unsigned long)cmd->SCp.ptr, PAGE_SIZE);
 		hcp->desc.pbuf = PHYSADDR(cmd->SCp.ptr);
 		hcp->desc.cntinfo = (cmd->SCp.this_residual & HPCDMA_BCNT);
 		hcp++;
@@ -229,7 +231,7 @@ int sgiwd93_detect(Scsi_Host_Template *HPsUX)
 
 	buf = (uchar *) get_free_page(GFP_KERNEL);
 	init_hpc_chain(buf);
-	flush_page_to_ram((unsigned long) buf);
+	dma_cache_wback_inv((unsigned long) buf, PAGE_SIZE);
 
 	wd33c93_init(sgiwd93_host, (wd33c93_regs *) 0xbfbc0003,
 		     dma_setup, dma_stop, WD33C93_FS_16_20);
@@ -237,7 +239,7 @@ int sgiwd93_detect(Scsi_Host_Template *HPsUX)
 	hdata = INSTHOSTDATA(sgiwd93_host);
 	hdata->no_sync = 0;
 	hdata->dma_bounce_buffer = (uchar *) (KSEG1ADDR(buf));
-	flush_page_to_ram((unsigned long) buf);
+	dma_cache_wback_inv((unsigned long) buf, PAGE_SIZE);
 
 	request_irq(1, sgiwd93_intr, 0, "SGI WD93", (void *) sgiwd93_host);
 	called = 1;
