@@ -158,8 +158,8 @@ u8 nile4_i8259_iack(void)
 	// ddb_set_pmr(DDB_PCIINIT0, DDB_PCICMD_IO, 0, DDB_PCI_ACCESS_32);
 	ddb_out32(DDB_PCIINIT0, reg);
 
-	/* i8269.c set the base vector to be 0x20, as it does for i386 */
-	return irq - 0x20;
+	/* i8269.c set the base vector to be 0x0 */
+	return irq + I8259_IRQ_BASE;
 }
 
 #if defined(CONFIG_LL_DEBUG)
