@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.10-rc1
-# Tue Nov  9 04:55:08 2004
+# Sun Nov 14 03:29:56 2004
 #
 CONFIG_MIPS=y
 CONFIG_MIPS64=y
@@ -78,7 +78,7 @@ CONFIG_STOP_MACHINE=y
 CONFIG_SGI_IP27=y
 # CONFIG_SGI_SN0_N_MODE is not set
 CONFIG_DISCONTIGMEM=y
-# CONFIG_NUMA is not set
+CONFIG_NUMA=y
 # CONFIG_MAPPED_KERNEL is not set
 # CONFIG_REPLICATE_KTEXT is not set
 # CONFIG_REPLICATE_EXHANDLERS is not set
