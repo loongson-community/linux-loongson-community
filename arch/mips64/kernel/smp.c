@@ -12,8 +12,13 @@
 
 /* The 'big kernel lock' */
 spinlock_t kernel_flag = SPIN_LOCK_UNLOCKED;
-
-int smp_threads_ready = 0;
+int smp_threads_ready = 0;	/* Not used */
+static atomic_t smp_commenced = ATOMIC_INIT(0);
+struct cpuinfo_mips cpu_data[NR_CPUS];
+int smp_num_cpus;		/* Number that came online.  */
+int __cpu_number_map[NR_CPUS];
+int __cpu_logical_map[NR_CPUS];
+cycles_t cacheflush_time;
 
 static void smp_tune_scheduling (void)
 {
@@ -25,13 +30,8 @@ void __init smp_boot_cpus(void)
 	current->processor = 0;
 	init_idle();
 	smp_tune_scheduling();
+	smp_num_cpus = 1;		/* for now */
 }
-
-static atomic_t smp_commenced = ATOMIC_INIT(0);
-
-struct cpuinfo_mips cpu_data[NR_CPUS];
-
-int smp_num_cpus = 1;		/* Number that came online.  */
 
 void __init smp_commence(void)
 {
@@ -60,12 +60,8 @@ void smp_send_stop(void)
  */
 void smp_send_reschedule(int cpu)
 {
+	panic("smp_send_reschedule\n");
 }
-
-int __cpu_number_map[NR_CPUS];
-int __cpu_logical_map[NR_CPUS];
-
-cycles_t cacheflush_time;
 
 /* Not really SMP stuff ... */
 int setup_profiling_timer(unsigned int multiplier)
@@ -87,4 +83,5 @@ int
 smp_call_function (void (*func) (void *info), void *info, int retry, int wait)
 {
 	/* XXX - kinda important ;-)  */
+	panic("smp_call_function\n");
 }
