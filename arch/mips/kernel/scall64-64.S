@@ -205,17 +205,6 @@ bad_alignment:
 	j	_sys_sysmips
 	END(sys_sysmips)
 
-	LEAF(sys_syscall)			/* Quick'n'dirty ... */
-	move	v0, a0
-	move	a0, a1
-	move	a1, a2
-	move	a2, a3
-	move	a3, a4
-	move	a4, a5
-	move	a5, a6
-	j	__handle_sys64
-	END(sys_syscall)
-
 	.align	3
 sys_call_table:
 	PTR	sys_read			/* 5000 */
