@@ -28,15 +28,19 @@
 #ifdef CONFIG_64BIT_PHYS_ADDR
 #define PTE_L		ld
 #define PTE_S		sd
+#define P_MTC0		dmtc0
 #define PTE_SIZE	8
 #define PTEP_INDX_MSK	0xff0
 #define PTE_INDX_MSK	0xff8
+#define PTE_INDX_SHIFT	9
 #else
 #define PTE_L		lw
 #define PTE_S		sw
+#define P_MTC0		mtc0
 #define PTE_SIZE	4
 #define PTEP_INDX_MSK	0xff8
 #define PTE_INDX_MSK	0xffc
+#define PTE_INDX_SHIFT	10
 #endif
 
 	__INIT
@@ -83,9 +87,9 @@
 	PTE_L	k0, 0(k1)			# get even pte
 	PTE_L	k1, PTE_SIZE(k1)		# get odd pte
 	srl	k0, k0, 6			# convert to entrylo0
-	mtc0	k0, CP0_ENTRYLO0		# load it
+	P_MTC0	k0, CP0_ENTRYLO0		# load it
 	srl	k1, k1, 6			# convert to entrylo1
-	mtc0	k1, CP0_ENTRYLO1		# load it
+	P_MTC0	k1, CP0_ENTRYLO1		# load it
 	b	1f
 	tlbwr					# write random tlb entry
 1:
@@ -111,9 +115,9 @@
 	PTE_L	k0, 0(k1)
 	PTE_L	k1, PTE_SIZE(k1)
 	srl	k0, k0, 6
-	mtc0	k0, CP0_ENTRYLO0
+	P_MTC0	k0, CP0_ENTRYLO0
 	srl	k1, k1, 6
-	mtc0	k1, CP0_ENTRYLO1
+	P_MTC0	k1, CP0_ENTRYLO1
 	nop
 	tlbwr
 	nop
@@ -149,9 +153,9 @@
 	PTE_L	k0, 0(k1)			# get even pte
 	PTE_L	k1, PTE_SIZE(k1)		# get odd pte
 	srl	k0, k0, 6			# convert to entrylo0
-	mtc0	k0, CP0_ENTRYLO0		# load it
+	P_MTC0	k0, CP0_ENTRYLO0		# load it
 	srl	k1, k1, 6			# convert to entrylo1
-	mtc0	k1, CP0_ENTRYLO1		# load it
+	P_MTC0	k1, CP0_ENTRYLO1		# load it
 	nop					# QED specified nops
 	nop
 	tlbwr					# write random tlb entry
@@ -179,10 +183,10 @@
 	nop				/* XXX */
 	tlbp
 	srl	k0, k0, 6
-	mtc0	k0, CP0_ENTRYLO0
+	P_MTC0	k0, CP0_ENTRYLO0
 	srl	k1, k1, 6
 	mfc0	k0, CP0_INDEX
-	mtc0	k1, CP0_ENTRYLO1
+	P_MTC0	k1, CP0_ENTRYLO1
 	bltzl	k0, 1f
 	tlbwr
 1:
@@ -211,10 +215,10 @@
 	nop				/* XXX */
 	tlbp
 	srl	k0, k0, 6
-	mtc0	k0, CP0_ENTRYLO0
+	P_MTC0	k0, CP0_ENTRYLO0
 	srl	k1, k1, 6
 	mfc0	k0, CP0_INDEX
-	mtc0	k1, CP0_ENTRYLO1
+	P_MTC0	k1, CP0_ENTRYLO1
 	bltzl	k0, 1f
 	tlbwr
 1:
@@ -241,11 +245,11 @@
 	PTE_L	k0, 0(k1)
 	PTE_L	k1, PTE_SIZE(k1)
 	srl	k0, k0, 6
-	mtc0	zero, CP0_ENTRYLO0
-	mtc0	k0, CP0_ENTRYLO0
+	P_MTC0	zero, CP0_ENTRYLO0
+	P_MTC0	k0, CP0_ENTRYLO0
 	srl	k1, k1, 6
-	mtc0	zero, CP0_ENTRYLO1
-	mtc0	k1, CP0_ENTRYLO1
+	P_MTC0	zero, CP0_ENTRYLO1
+	P_MTC0	k1, CP0_ENTRYLO1
 	b	1f
 	tlbwr
 1:
@@ -274,12 +278,12 @@
 	nop				/* XXX */
 	tlbp
 	srl	k0, k0, 6
-	mtc0	zero, CP0_ENTRYLO0
-	mtc0	k0, CP0_ENTRYLO0
-	mfc0	k0, CP0_INDEX
+	P_MTC0  zero, CP0_ENTRYLO0
+	P_MTC0  k0, CP0_ENTRYLO0
+	mfc0    k0, CP0_INDEX
 	srl	k1, k1, 6
-	mtc0	zero, CP0_ENTRYLO1
-	mtc0	k1, CP0_ENTRYLO1
+	P_MTC0	zero, CP0_ENTRYLO1
+	P_MTC0	k1, CP0_ENTRYLO1
 	bltzl	k0, 1f
 	tlbwr
 1:
@@ -344,7 +348,7 @@
 	addu	ptr, ptr, pte; \
 	mfc0	pte, CP0_BADVADDR; \
 	lw	ptr, (ptr); \
-	srl	pte, pte, 10; \
+	srl	pte, pte, PTE_INDX_SHIFT; \
 	and	pte, pte, PTE_INDX_MSK; \
 	addu	ptr, ptr, pte; \
 	PTE_L	pte, (ptr);
@@ -359,9 +363,9 @@
 	PTE_L	tmp, PTE_SIZE(ptr); \
 	PTE_L	ptr, 0(ptr); \
 	srl	tmp, tmp, 6; \
-	mtc0	tmp, CP0_ENTRYLO1; \
+	P_MTC0	tmp, CP0_ENTRYLO1; \
 	srl	ptr, ptr, 6; \
-	mtc0	ptr, CP0_ENTRYLO0;
+	P_MTC0	ptr, CP0_ENTRYLO0;
 
 #define DO_FAULT(write) \
 	.set	noat; \
@@ -467,6 +471,8 @@ nopage_tlbl:
 	NESTED(handle_tlbs, PT_SIZE, sp)
 	.set	noat
 #ifdef TLB_OPTIMIZE
+	.set	mips3
+        li      k0,0
 	LOAD_PTE(k0, k1)
 	R5K_HAZARD
 	tlbp				# find faulting entry
@@ -478,7 +484,7 @@ nopage_tlbl:
 	 tlbwi
 1:
 	nop
-	.set	mips3	
+	.set	mips3
 	eret
 	.set	mips0
 #endif
@@ -491,6 +497,7 @@ nopage_tlbs:
 	NESTED(handle_mod, PT_SIZE, sp)
 	.set	noat
 #ifdef TLB_OPTIMIZE
+	.set	mips3
 	LOAD_PTE(k0, k1)
 	R5K_HAZARD
 	tlbp					# find faulting entry
@@ -613,7 +620,7 @@ END(get_real_pte)
 1:
 	srl	k0, k0, 6
 2:
-	mtc0	k0, CP0_ENTRYLO0		# load it
+	P_MTC0	k0, CP0_ENTRYLO0		# load it
 
 	lui	k1, %hi(__saved_pte)
 	lw	k1, %lo(__saved_pte)(k1)	# recover pte pointer
@@ -630,7 +637,7 @@ END(get_real_pte)
 1:
 	srl	k0, k0, 6			# convert to entrylo0
 2:
-	mtc0	k0, CP0_ENTRYLO1		# load it
+	P_MTC0	k0, CP0_ENTRYLO1		# load it
 	nop
 	b	1f
 	tlbwr					# write random tlb entry
