@@ -5,87 +5,82 @@
  *
  * SNI specific PCI support for RM200/RM300.
  *
- * Copyright (C) 1997 - 2000 Ralf Baechle
+ * Copyright (C) 1997 - 2000, 2003 Ralf Baechle <ralf@linux-mips.org>
  */
 #include <linux/kernel.h>
-#include <linux/init.h>
 #include <linux/pci.h>
 #include <linux/types.h>
-#include <asm/byteorder.h>
 #include <asm/sni.h>
 
-#define mkaddr(bus, devfn, where)					\
-do {									\
-	if (bus->number == 0)						\
-		return -1;						\
-	*(volatile u32 *)PCIMT_CONFIG_ADDRESS =				\
-		 ((bus->number    & 0xff) << 0x10) |			\
-	         ((devfn & 0xff) << 0x08) |				\
-	         (where  & 0xfc);					\
-} while(0)
-
 /*
- * We can't address 8 and 16 bit words directly.  Instead we have to
- * read/write a 32bit word and mask/modify the data we actually want.
+ * It seems that on the RM200 only lower 3 bits of the 5 bit PCI device
+ * address are decoded.  We therefore manually have to reject attempts at
+ * reading outside this range.  Being on the paranoid side we only do this
+ * test for bus 0 and hope forwarding and decoding work properly for any
+ * subordinated busses.
+ *
+ * ASIC PCI only supports type 1 config cycles.
  */
-static int pcimt_read(struct pci_bus *bus, unsigned int devfn, int where,
-		      int size, u32 * val)
+static int set_config_address(unsigned char busno, unsigned int devfn, int reg)
 {
-	u32 res;
+	if ((busno > 255) || (devfn > 255) || (reg > 255))
+		return PCIBIOS_BAD_REGISTER_NUMBER;
 
-	switch (size) {
-	case 1:
-		mkaddr(bus, devfn, where);
-		res = *(volatile u32 *) PCIMT_CONFIG_DATA;
-		res = (le32_to_cpu(res) >> ((where & 3) << 3)) & 0xff;
-		*val = (u8) res;
-		break;
-	case 2:
-		if (where & 1)
-			return PCIBIOS_BAD_REGISTER_NUMBER;
-		mkaddr(bus, devfn, where);
-		res = *(volatile u32 *) PCIMT_CONFIG_DATA;
-		res = (le32_to_cpu(res) >> ((where & 3) << 3)) & 0xffff;
-		*val = (u16) res;
-		break;
-	case 4:
-		if (where & 3)
-			return PCIBIOS_BAD_REGISTER_NUMBER;
-		mkaddr(bus, devfn, where);
-		res = *(volatile u32 *) PCIMT_CONFIG_DATA;
-		res = le32_to_cpu(res);
-		*val = res;
-		break;
-	}
+	if (busno == 0 && devfn >= PCI_DEVFN(8, 0))
+		return PCIBIOS_DEVICE_NOT_FOUND;
+
+	*(volatile u32 *)PCIMT_CONFIG_ADDRESS =
+		 ((busno    & 0xff) << 16) |
+	         ((devfn    & 0xff) <<  8) |
+	          (reg      & 0xfc);
 
 	return PCIBIOS_SUCCESSFUL;
 }
 
-static int pcimt_write(struct pci_bus *bus, unsigned int devfn, int where,
-		       int size, u32 val)
+static int pcimt_read(struct pci_bus *bus, unsigned int devfn, int reg,
+		      int size, u32 * val)
 {
+	int res;
+
+	if ((res = set_config_address(bus->number, devfn, reg)))
+		return res;
+
 	switch (size) {
 	case 1:
-		mkaddr(bus, devfn, where);
-		*(volatile u8 *) (PCIMT_CONFIG_DATA + (where & 3)) =
-		    (u8) le32_to_cpu(val);
+		*val = *(volatile  u8 *) (PCIMT_CONFIG_DATA + (reg & 3));
 		break;
 	case 2:
-		if (where & 1)
-			return PCIBIOS_BAD_REGISTER_NUMBER;
-		mkaddr(bus, devfn, where);
-		*(volatile u16 *) (PCIMT_CONFIG_DATA + (where & 3)) =
-		    (u16) le32_to_cpu(val);
+		*val = *(volatile u16 *) (PCIMT_CONFIG_DATA + (reg & 2));
 		break;
 	case 4:
-		if (where & 3)
-			return PCIBIOS_BAD_REGISTER_NUMBER;
-		mkaddr(bus, devfn, where);
-		*(volatile u32 *) PCIMT_CONFIG_DATA = le32_to_cpu(val);
+		*val = *(volatile u32 *) PCIMT_CONFIG_DATA;
 		break;
 	}
 
-	return PCIBIOS_SUCCESSFUL;
+	return 0;
+}
+
+static int pcimt_write(struct pci_bus *bus, unsigned int devfn, int reg,
+		       int size, u32 val)
+{
+	int res;
+
+	if ((res = set_config_address(bus->number, devfn, reg)))
+		return res;
+
+	switch (size) {
+	case 1:
+		*(volatile  u8 *) (PCIMT_CONFIG_DATA + (reg & 3)) = val;
+		break;
+	case 2:
+		*(volatile u16 *) (PCIMT_CONFIG_DATA + (reg & 2)) = val;
+		break;
+	case 4:
+		*(volatile u32 *) PCIMT_CONFIG_DATA = val;
+		break;
+	}
+
+	return 0;
 }
 
 struct pci_ops sni_pci_ops = {
