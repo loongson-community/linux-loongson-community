@@ -29,7 +29,6 @@
 #include <asm/reboot.h>
 #include <asm/sibyte/board.h>
 
-#include "cfe_xiocb.h"
 #include "cfe_api.h"
 #include "cfe_error.h"
 
@@ -50,6 +49,8 @@
 
 #define SB1250_DUART_MINOR_BASE		192 /* XXXKW put this somewhere sane */
 #define SB1250_PROMICE_MINOR_BASE	191 /* XXXKW put this somewhere sane */
+
+static int cfe_cons_handle;
 kdev_t cfe_consdev;
 
 #define SIBYTE_MAX_MEM_REGIONS 8
@@ -95,8 +96,8 @@ static void cfe_linux_exit(void)
 
 static __init void prom_meminit(void)
 {
-	u64 addr, size; /* regardless of 64BIT_PHYS_ADDR */
-	long type;
+	u64 addr, size, type; /* regardless of 64BIT_PHYS_ADDR */
+	int mem_flags = 0;
 	unsigned int idx;
 	int rd_flag;
 #ifdef CONFIG_BLK_DEV_INITRD
@@ -114,8 +115,8 @@ static __init void prom_meminit(void)
 	}
 #endif
 
-	initrd_pstart = __pa(initrd_start);
-	initrd_pend = __pa(initrd_end);
+	initrd_pstart = CPHYSADDR(initrd_start);
+	initrd_pend = CPHYSADDR(initrd_end);
 	if (initrd_start &&
 	    ((initrd_pstart > MAX_RAM_SIZE)
 	     || (initrd_pend > MAX_RAM_SIZE))) {
@@ -124,7 +125,7 @@ static __init void prom_meminit(void)
 
 #endif /* INITRD */
 
-	for (idx = 0; cfe_enummem(idx, &addr, &size, &type) != CFE_ERR_NOMORE;
+	for (idx = 0; cfe_enummem(idx, mem_flags, &addr, &size, &type) != CFE_ERR_NOMORE;
 	     idx++) {
 		rd_flag = 0;
 		if (type == CFE_MI_AVAILABLE) {
@@ -232,21 +233,47 @@ static int __init initrd_setup(char *str)
  */
 __init int prom_init(int argc, char **argv, char **envp, int *prom_vec)
 {
+	uint64_t cfe_ept, cfe_handle;
+	unsigned int cfe_eptseal;
+
 	_machine_restart   = (void (*)(char *))cfe_linux_exit;
 	_machine_halt      = cfe_linux_exit;
 	_machine_power_off = cfe_linux_exit;
 
 	/*
-	 * This should go away.  Detect if we're booting
-	 * straight from cfe without a loader.  If we
-	 * are, then we've got a prom vector in a0.  Otherwise,
-	 * argc (and argv and envp, for that matter) will be 0)
+	 * Check if a loader was used; if NOT, the 4 arguments are
+	 * what CFE gives us (handle, 0, EPT and EPTSEAL)
 	 */
 	if (argc < 0) {
-		prom_vec = (int *)argc;
+		cfe_handle = (uint64_t)(long)argc;
+		cfe_ept = (long)envp;
+		cfe_eptseal = (uint32_t)(unsigned long)prom_vec;
+	} else {
+		if ((int32_t)(long)prom_vec < 0) {
+			/*
+			 * Old loader; all it gives us is the handle,
+			 * so use the "known" entrypoint and assume
+			 * the seal.
+			 */
+			cfe_handle = (uint64_t)(long)prom_vec;
+			cfe_ept = (uint64_t)((int32_t)0x9fc00500);
+			cfe_eptseal = CFE_EPTSEAL;
+		} else {
+			/*
+			 * Newer loaders bundle the handle/ept/eptseal
+			 * Note: prom_vec is in the loader's useg
+			 * which is still alive in the TLB.
+			 */
+			cfe_handle = (uint64_t)((int32_t *)prom_vec)[0];
+			cfe_ept = (uint64_t)((int32_t *)prom_vec)[2];
+			cfe_eptseal = (unsigned int)((uint32_t *)prom_vec)[3];
+		}
 	}
-	cfe_init((long)prom_vec);
-	cfe_open_console();
+	if (cfe_eptseal != CFE_EPTSEAL) {
+		/* XXXKW what?  way too early to panic... */
+	}
+	cfe_init(cfe_handle, cfe_ept);
+	cfe_cons_handle = cfe_getstdhandle(CFE_STDHANDLE_CONSOLE);
 	if (cfe_getenv("LINUX_CMDLINE", arcs_cmdline, CL_SIZE) < 0) {
 		if (argc < 0) {
 			/*
@@ -314,22 +341,34 @@ int page_is_ram(unsigned long pagenr)
 #ifdef CONFIG_SIBYTE_CFE_CONSOLE
 
 static void cfe_console_write(struct console *cons, const char *str,
-                              unsigned int count)
+		       unsigned int count)
 {
-	int i, last;
+	int i, last, written;
 
 	for (i=0,last=0; i<count; i++) {
 		if (!str[i])
 			/* XXXKW can/should this ever happen? */
-			panic("cfe_console_write with NULL");
+			return;
 		if (str[i] == '\n') {
-			cfe_console_print(&str[last], i-last);
-			cfe_console_print("\r", 1);
-			last = i;
+			do {
+				written = cfe_write(cfe_cons_handle, &str[last], i-last);
+				if (written < 0)
+					;
+				last += written;
+			} while (last < i);
+			while (cfe_write(cfe_cons_handle, "\r", 1) <= 0)
+				;
 		}
 	}
-	if (last != count)
-		cfe_console_print(&str[last], count-last);
+	if (last != count) {
+		do {
+			written = cfe_write(cfe_cons_handle, &str[last], count-last);
+			if (written < 0)
+				;
+			last += written;
+		} while (last < count);
+	}
+			
 }
 
 static kdev_t cfe_console_device(struct console *c)
@@ -340,7 +379,6 @@ static kdev_t cfe_console_device(struct console *c)
 static int cfe_console_setup(struct console *cons, char *str)
 {
 	char consdev[32];
-	cfe_open_console();
 	/* XXXKW think about interaction with 'console=' cmdline arg */
 	/* If none of the console options are configured, the build will break. */
 	if (cfe_getenv("BOOT_CONSOLE", consdev, 32) >= 0) {

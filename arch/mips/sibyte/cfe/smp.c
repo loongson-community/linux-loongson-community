@@ -21,7 +21,6 @@
 
 #include <asm/mipsregs.h>
 
-#include "cfe_xiocb.h"
 #include "cfe_api.h"
 #include "cfe_error.h"
 
@@ -32,8 +31,8 @@ extern void asmlinkage smp_bootstrap(void);
 int prom_boot_secondary(int cpu, unsigned long sp, unsigned long gp)
 {
 	int retval;
-
-	retval = cfe_start_cpu(cpu, &smp_bootstrap, sp, gp, 0);
+	
+	retval = cfe_cpu_start(cpu, &smp_bootstrap, sp, gp, 0);
 	if (retval != 0) {
 		printk("cfe_start_cpu(%i) returned %i\n" , cpu, retval);
 		return 0;
@@ -64,7 +63,7 @@ int prom_setup_smp(void)
 
 	/* Use CFE to find out how many CPUs are available */
 	for (i=1; i<NR_CPUS; i++) {
-		if (cfe_stop_cpu(i) == 0) {
+		if (cfe_cpu_stop(i) == 0) {
 			num_cpus++;
 		}
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2000, 2001 Broadcom Corporation
+ * Copyright (C) 2000, 2001, 2002 Broadcom Corporation
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -17,17 +17,16 @@
  */
 
 /*  *********************************************************************
+    *  
     *  Broadcom Common Firmware Environment (CFE)
-    *
+    *  
     *  Error codes				File: cfe_error.h
-    *
+    *  
     *  CFE's global error code list is here.
-    *
-    *  Author:  Mitch Lichtenberg (mpl@broadcom.com)
-    *
+    *  
+    *  Author:  Mitch Lichtenberg
+    *  
     ********************************************************************* */
-
-
 
 
 #define CFE_OK			 0
@@ -74,3 +73,13 @@
 #define CFE_ERR_WRONGDEVTYPE	-32
 #define CFE_ERR_BBCHECKSUM	-33
 #define CFE_ERR_BOOTPROGCHKSUM	-34
+
+#define CFE_ERR_LDRNOTAVAIL	-35
+
+#define CFE_ERR_NOTREADY	-36
+
+#define CFE_ERR_GETMEM          -37
+#define CFE_ERR_SETMEM          -38
+
+#define CFE_ERR_NOTCONN		-39
+#define CFE_ERR_ADDRINUSE	-40
