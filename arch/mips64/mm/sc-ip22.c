@@ -59,7 +59,7 @@ static inline void indy_sc_wipe(unsigned long first, unsigned long last)
 static void indy_sc_wback_invalidate(unsigned long addr, unsigned long size)
 {
 	unsigned long first_line, last_line;
-	unsigned int flags;
+	unsigned long flags;
 
 #ifdef DEBUG_CACHE
 	printk("indy_sc_wback_invalidate[%08lx,%08lx]", addr, size);
