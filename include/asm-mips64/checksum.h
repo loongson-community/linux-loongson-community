@@ -197,7 +197,8 @@ static __inline__ unsigned short int csum_ipv6_magic(struct in6_addr *saddr,
 						     unsigned int sum)
 {
 	__asm__(
-	".set\tnoreorder\t\t\t# csum_ipv6_magic\n\t"
+	".set\tpush\t\t\t# csum_ipv6_magic\n\t"
+	".set\tnoreorder\n\t"
 	".set\tnoat\n\t"
 	"addu\t%0, %5\t\t\t# proto (long in network byte order)\n\t"
 	"sltu\t$1, %0, %5\n\t"
@@ -246,8 +247,7 @@ static __inline__ unsigned short int csum_ipv6_magic(struct in6_addr *saddr,
 	"sltu\t$1, %0, %1\n\t"
 
 	"addu\t%0, $1\t\t\t# Add final carry\n\t"
-	".set\tnoat\n\t"
-	".set\tnoreorder"
+	".set\tpop"
 	: "=&r" (sum), "=&r" (proto)
 	: "r" (saddr), "r" (daddr),
 	  "0" (htonl(len)), "1" (htonl(proto)), "r" (sum));
