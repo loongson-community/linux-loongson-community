@@ -113,7 +113,7 @@ static struct net_device *root_sgiseeq_dev;
 
 static inline void hpc3_eth_reset(struct hpc3_ethregs *hregs)
 {
-	hregs->rx_reset = (HPC3_ERXRST_CRESET | HPC3_ERXRST_CLRIRQ);
+	hregs->rx_reset = HPC3_ERXRST_CRESET | HPC3_ERXRST_CLRIRQ;
 	udelay(20);
 	hregs->rx_reset = 0;
 }
@@ -179,7 +179,7 @@ static int seeq_init_ring(struct net_device *dev)
 			ib->tx_desc[i].buf_vaddr = KSEG1ADDR(buffer);
 			ib->tx_desc[i].tdma.pbuf = virt_to_bus(buffer);
 		}
-		ib->tx_desc[i].tdma.cntinfo = (TCNTINFO_INIT);
+		ib->tx_desc[i].tdma.cntinfo = TCNTINFO_INIT;
 	}
 
 	/* And now the rx ring. */
@@ -193,9 +193,9 @@ static int seeq_init_ring(struct net_device *dev)
 			ib->rx_desc[i].buf_vaddr = KSEG1ADDR(buffer);
 			ib->rx_desc[i].rdma.pbuf = virt_to_bus(buffer);
 		}
-		ib->rx_desc[i].rdma.cntinfo = (RCNTINFO_INIT);
+		ib->rx_desc[i].rdma.cntinfo = RCNTINFO_INIT;
 	}
-	ib->rx_desc[i - 1].rdma.cntinfo |= (HPCDMA_EOR);
+	ib->rx_desc[i - 1].rdma.cntinfo |= HPCDMA_EOR;
 	return 0;
 }
 
@@ -259,11 +259,11 @@ static int init_seeq(struct net_device *dev, struct sgiseeq_private *sp,
 
 	/* Setup to field the proper interrupt types. */
 	if (sp->is_edlc) {
-		sregs->tstat = (TSTAT_INIT_EDLC);
+		sregs->tstat = TSTAT_INIT_EDLC;
 		sregs->rw.wregs.control = sp->control;
 		sregs->rw.wregs.frame_gap = 0;
 	} else {
-		sregs->tstat = (TSTAT_INIT_SEEQ);
+		sregs->tstat = TSTAT_INIT_SEEQ;
 	}
 
 	hregs->rx_dconfig |= RDMACFG_INIT;
@@ -316,7 +316,7 @@ static inline void sgiseeq_rx(struct net_device *dev, struct sgiseeq_private *sp
 
 	/* Service every received packet. */
 	for_each_rx(rd, sp) {
-		len = (PKT_BUF_SZ - (rd->rdma.cntinfo & HPCDMA_BCNT) - 3);
+		len = PKT_BUF_SZ - (rd->rdma.cntinfo & HPCDMA_BCNT) - 3;
 		pkt_pointer = (unsigned char *)(long)rd->buf_vaddr;
 		pkt_status = pkt_pointer[len + 2];
 
@@ -346,7 +346,7 @@ static inline void sgiseeq_rx(struct net_device *dev, struct sgiseeq_private *sp
 		}
 
 		/* Return the entry to the ring pool. */
-		rd->rdma.cntinfo = (RCNTINFO_INIT);
+		rd->rdma.cntinfo = RCNTINFO_INIT;
 		sp->rx_new = NEXT_RX(sp->rx_new);
 	}
 	sp->srings.rx_desc[orig_end].rdma.cntinfo &= ~(HPCDMA_EOR);
@@ -531,7 +531,7 @@ static int sgiseeq_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	if (len != skblen)
 		memset((char *)(long)td->buf_vaddr + skb->len, 0, len-skblen);
 	td->tdma.cntinfo = (len & HPCDMA_BCNT) |
-	                   (HPCDMA_XIU | HPCDMA_EOXP | HPCDMA_XIE | HPCDMA_EOX);
+	                   HPCDMA_XIU | HPCDMA_EOXP | HPCDMA_XIE | HPCDMA_EOX;
 	if (sp->tx_old != sp->tx_new) {
 		struct sgiseeq_tx_desc *backend;
 
@@ -644,11 +644,11 @@ int sgiseeq_init(struct hpc3_regs* regs, int irq)
 	sp->name = sgiseeqstr;
 
 	sp->srings.rx_desc = (struct sgiseeq_rx_desc *)
-	                     (KSEG1ADDR(ALIGNED(&sp->srings.rxvector[0])));
+	                     KSEG1ADDR(ALIGNED(&sp->srings.rxvector[0]));
 	dma_cache_wback_inv((unsigned long)&sp->srings.rxvector,
 	                    sizeof(sp->srings.rxvector));
 	sp->srings.tx_desc = (struct sgiseeq_tx_desc *)
-	                     (KSEG1ADDR(ALIGNED(&sp->srings.txvector[0])));
+	                     KSEG1ADDR(ALIGNED(&sp->srings.txvector[0]));
 	dma_cache_wback_inv((unsigned long)&sp->srings.txvector,
 	                    sizeof(sp->srings.txvector));
 
@@ -661,9 +661,9 @@ int sgiseeq_init(struct hpc3_regs* regs, int irq)
 
 	sp->is_edlc = !(sp->sregs->rw.rregs.collision_tx[0] & 0xff);
 	if (sp->is_edlc)
-		sp->control = (SEEQ_CTRL_XCNT | SEEQ_CTRL_ACCNT |
-			       SEEQ_CTRL_SFLAG | SEEQ_CTRL_ESHORT |
-			       SEEQ_CTRL_ENCARR);
+		sp->control = SEEQ_CTRL_XCNT | SEEQ_CTRL_ACCNT |
+			      SEEQ_CTRL_SFLAG | SEEQ_CTRL_ESHORT |
+			      SEEQ_CTRL_ENCARR;
 
 	dev->open		= sgiseeq_open;
 	dev->stop		= sgiseeq_close;
