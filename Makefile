@@ -187,6 +187,10 @@ ifdef CONFIG_HAMRADIO
 DRIVERS := $(DRIVERS) drivers/net/hamradio/hamradio.a
 endif
 
+ifeq ($(CONFIG_TC),y)
+DRIVERS := $(DRIVERS) drivers/tc/tc.a
+endif
+
 include arch/$(ARCH)/Makefile
 
 .S.s:

@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.12 1998/08/25 09:14:34 ralf Exp $
+# $Id: Makefile,v 1.13 1998/10/18 13:37:31 tsbogend Exp $
 #
 # This file is subject to the terms and conditions of the GNU General Public
 # License.  See the file "COPYING" in the main directory of this archive
@@ -97,6 +97,17 @@ CORE_FILES    += arch/mips/algor/algor.o
 SUBDIRS       += arch/mips/algor
 #LOADADDR      += 0x80000000
 endif
+
+#
+# DECstation family
+#
+ifdef CONFIG_DECSTATION
+CORE_FILES    += arch/mips/dec/dec.o
+SUBDIRS       += arch/mips/dec arch/mips/dec/prom
+LIBS          += arch/mips/dec/prom/rexlib.a
+LOADADDR      += 0x80040000
+endif
+
 #
 # Acer PICA 61, Mips Magnum 4000 and Olivetti M700.
 #
@@ -106,12 +117,14 @@ SUBDIRS       += arch/mips/jazz arch/mips/arc
 LIBS          += arch/mips/arc/arclib.a
 LOADADDR      += 0x80080000
 endif
+
 ifdef CONFIG_SNI_RM200_PCI
 CORE_FILES    += arch/mips/sni/sni.o
 SUBDIRS       += arch/mips/sni arch/mips/arc
 LIBS          += arch/mips/arc/arclib.a
 LOADADDR      += 0x80080000
 endif
+
 ifdef CONFIG_SGI
 LIBS          += arch/mips/sgi/kernel/sgikern.a arch/mips/arc/arclib.a
 SUBDIRS       += arch/mips/sgi/kernel arch/mips/arc
@@ -122,6 +135,14 @@ SUBDIRS       += arch/mips/sgi/kernel arch/mips/arc
 #
 LOADADDR      += 0x88002000
 HOSTCC        = cc
+endif
+
+#
+# Baget/MIPS
+#
+ifdef CONFIG_BAGET_MIPS
+SUBDIRS       += arch/mips/baget arch/mips/baget/prom
+LIBS          += arch/mips/baget/baget.a arch/mips/baget/prom/bagetlib.a
 endif
 
 #
