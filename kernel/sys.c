@@ -738,14 +738,14 @@ asmlinkage long sys_times(struct tms * tbuf)
 	 *	as if the syscall took an instant longer to occur.
 	 */
 	if (tbuf) {
-		temp.tms_utime = HZ_TO_STD(current->times.tms_utime);
-		temp.tms_stime = HZ_TO_STD(current->times.tms_stime);
-		temp.tms_cutime = HZ_TO_STD(current->times.tms_cutime);
-		temp.tms_cstime = HZ_TO_STD(current->times.tms_cstime);
+		temp.tms_utime = hz_to_std(current->times.tms_utime);
+		temp.tms_stime = hz_to_std(current->times.tms_stime);
+		temp.tms_cutime = hz_to_std(current->times.tms_cutime);
+		temp.tms_cstime = hz_to_std(current->times.tms_cstime);
 		if (copy_to_user(tbuf, &temp, sizeof(struct tms)))
 			return -EFAULT;
 	}
-	return HZ_TO_STD(jiffies);
+	return hz_to_std(jiffies);
 }
 
 /*

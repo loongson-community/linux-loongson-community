@@ -13,7 +13,7 @@
 #define HZ 100
 #endif
 #if defined(__KERNEL__) && (HZ == 100)
-#define HZ_TO_STD(a) (a)
+#define hz_to_std(a) (a)
 #endif
 
 #ifndef NGROUPS

@@ -14,7 +14,7 @@
 #  define HZ	1200
 # endif
 #ifdef __KERNEL__
-# define HZ_TO_STD(a) (a)
+# define hz_to_std(a) (a)
 #endif
 #endif
 

@@ -11,12 +11,12 @@
 #ifdef __KERNEL__
 /* Conceptually
 
-     #define HZ_TO_STD(a) ((a) * 100 / HZ)
+     #define hz_to_std(a) ((a) * 100 / HZ)
 
    is what has to be done, it just has overflow problems with the
    intermediate result of the multiply after a bit more than 7 days.
    See include/asm-mips/param.h for a optized sample implementation
    used on DECstations.
  */
-#error Provide a definiton for HZ_TO_STD
+#error Provide a definiton for hz_to_std
 #endif
