@@ -333,8 +333,6 @@ extern struct hpc3_miscregs *hpc3mregs;
 /* We need software copies of these because they are write only. */
 extern unsigned int sgi_hpc_write1, sgi_hpc_write2;
 
-#define SGI_KEYBOARD_IRQ 20
-
 struct hpc_keyb {
 #ifdef __MIPSEB__
 	unsigned char _unused0[3];

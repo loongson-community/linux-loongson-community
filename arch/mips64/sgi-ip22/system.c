@@ -17,8 +17,6 @@
 #include <asm/sgialib.h>
 #include <asm/bootinfo.h>
 
-enum sgi_mach sgimach;
-
 struct smatch {
 	char *name;
 	int type;
