@@ -245,7 +245,6 @@ extern unsigned long thread_saved_pc(struct task_struct *tsk);
  */
 extern void start_thread(struct pt_regs * regs, unsigned long pc, unsigned long sp);
 
-struct task_struct;
 unsigned long get_wchan(struct task_struct *p);
 
 #define __PT_REG(reg) ((long)&((struct pt_regs *)0)->reg - sizeof(struct pt_regs))
