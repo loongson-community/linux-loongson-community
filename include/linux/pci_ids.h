@@ -2207,8 +2207,3 @@
 
 #define PCI_VENDOR_ID_HINT		0x3388
 #define PCI_DEVICE_ID_HINT_VXPROII_IDE	0x8013
-
-#define PCI_VENDOR_ID_SIS               0x1039
-#define PCI_DEVICE_ID_SIS_300           0x0300
-#define PCI_DEVICE_ID_SIS_540           0x5300
-#define PCI_DEVICE_ID_SIS_630           0x6300
