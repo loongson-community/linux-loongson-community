@@ -83,7 +83,7 @@ static void _sb1_flush_cache_all(void)
 	 * $1 - moving cache index
 	 * $2 - set count
 	 */
-	if (icache_sets) { 
+	if (icache_sets) {
 		if (dcache_sets) {
 			__asm__ __volatile__ (
 				".set push                  \n"
@@ -96,10 +96,12 @@ static void _sb1_flush_cache_all(void)
 				"     bnez   %1, 1b         \n" /* loop test */
 				"      addu   $1, $1, %0    \n" /* Next address */
 				".set pop                   \n"
-				::"r" (dcache_line_size),
-				"r" (dcache_sets * dcache_assoc),
-				"r" (KSEG0)
-				:"$1");
+				:
+				: "r" (dcache_line_size),
+				  "r" (dcache_sets * dcache_assoc),
+				  "r" (KSEG0)
+				  "i" (Index_Writeback_Inv_D));
+
 			__asm__ __volatile__ (
 				".set push                  \n"
 				".set noreorder             \n"
@@ -116,24 +118,19 @@ static void _sb1_flush_cache_all(void)
 			".set noat                  \n"
 			".set mips4                 \n"
 			"     move   $1, %2         \n" /* Start at index 0 */
-			"1:   cache  0, 0($1)       \n" /* Invalidate this index */
+			"1:   cache  %3, 0($1)       \n" /* Invalidate this index */
 			"     addiu  %1, %1, -1     \n" /* Decrement loop count */
 			"     bnez   %1, 1b         \n" /* loop test */
 			"      addu   $1, $1, %0    \n" /* Next address */
 			".set pop                   \n"
-			::"r" (icache_line_size),
-			"r" (icache_sets * icache_assoc),
-			"r" (KSEG0)
+			:
+			: "r" (icache_line_size),
+			  "r" (icache_sets * icache_assoc),
+			  "r" (KSEG0),
+			  "i" (Index_Invalidate_I)
 			:"$1");
 	}
 }
-
-#ifdef CONFIG_SMP
-static void sb1_flush_cache_all_ipi(void *ignored)
-{
-	_sb1_flush_cache_all();
-}
-#endif
 
 static void sb1_flush_cache_all(void)
 {
@@ -235,14 +232,6 @@ static void _sb1_flush_icache_range(unsigned long start, unsigned long end)
 /* XXXKW how should I pass these instead? */
 unsigned long flush_range_start;
 unsigned long flush_range_end;
-
-#if defined(CONFIG_SMP) && !defined(SB1_CACHE_CONSERVATIVE)
-
-static void sb1_flush_icache_range_ipi(void *ignored)
-{
-	_sb1_flush_icache_range(flush_range_start, flush_range_end);
-}
-#endif
 
 static void sb1_flush_icache_range(unsigned long start, unsigned long end)
 {
