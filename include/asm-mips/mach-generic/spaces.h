@@ -69,4 +69,4 @@
 
 #endif /* CONFIG_MIPS64 */
 
-#endif __ASM_MACH_GENERIC_SPACES_H
+#endif /* __ASM_MACH_GENERIC_SPACES_H */
