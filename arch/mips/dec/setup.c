@@ -28,15 +28,15 @@
 #include <asm/wbflush.h>
 
 #include <asm/dec/interrupts.h>
+#include <asm/dec/ioasic.h>
+#include <asm/dec/ioasic_addrs.h>
+#include <asm/dec/ioasic_ints.h>
 #include <asm/dec/kn01.h>
 #include <asm/dec/kn02.h>
 #include <asm/dec/kn02ba.h>
 #include <asm/dec/kn02ca.h>
 #include <asm/dec/kn03.h>
 #include <asm/dec/kn230.h>
-#include <asm/dec/ioasic.h>
-#include <asm/dec/ioasic_addrs.h>
-#include <asm/dec/ioasic_ints.h>
 
 
 extern void dec_machine_restart(char *command);
@@ -202,10 +202,6 @@ static int_ptr kn01_cpu_mask_nr_tbl[][2] __initdata = {
 
 void __init dec_init_kn01(void)
 {
-	/* Setup some memory addresses. */
-	dec_rtc_base = (void *)KN01_RTC_BASE;
-	dec_kn_slot_size = KN01_SLOT_SIZE;
-
 	/* IRQ routing. */
 	memcpy(&dec_interrupt, &kn01_interrupt,
 		sizeof(kn01_interrupt));
@@ -281,10 +277,6 @@ static int_ptr kn230_cpu_mask_nr_tbl[][2] __initdata = {
 
 void __init dec_init_kn230(void)
 {
-	/* Setup some memory addresses. */
-	dec_rtc_base = (void *)KN01_RTC_BASE;
-	dec_kn_slot_size = KN01_SLOT_SIZE;
-
 	/* IRQ routing. */
 	memcpy(&dec_interrupt, &kn230_interrupt,
 		sizeof(kn230_interrupt));
@@ -375,10 +367,6 @@ static int_ptr kn02_asic_mask_nr_tbl[][2] __initdata = {
 
 void __init dec_init_kn02(void)
 {
-	/* Setup some memory addresses. */
-	dec_rtc_base = (void *)KN02_RTC_BASE;
-	dec_kn_slot_size = KN02_SLOT_SIZE;
-
 	/* IRQ routing. */
 	memcpy(&dec_interrupt, &kn02_interrupt,
 		sizeof(kn02_interrupt));
@@ -480,11 +468,6 @@ static int_ptr kn02ba_asic_mask_nr_tbl[][2] __initdata = {
 
 void __init dec_init_kn02ba(void)
 {
-	/* Setup some memory addresses. */
-	ioasic_base = (void *)KN02BA_IOASIC_BASE;
-	dec_rtc_base = (void *)KN02BA_RTC_BASE;
-	dec_kn_slot_size = IOASIC_SLOT_SIZE;
-
 	/* IRQ routing. */
 	memcpy(&dec_interrupt, &kn02ba_interrupt,
 		sizeof(kn02ba_interrupt));
@@ -582,11 +565,6 @@ static int_ptr kn02ca_asic_mask_nr_tbl[][2] __initdata = {
 
 void __init dec_init_kn02ca(void)
 {
-	/* Setup some memory addresses. */
-	ioasic_base = (void *)KN02CA_IOASIC_BASE;
-	dec_rtc_base = (void *)KN02CA_RTC_BASE;
-	dec_kn_slot_size = IOASIC_SLOT_SIZE;
-
 	/* IRQ routing. */
 	memcpy(&dec_interrupt, &kn02ca_interrupt,
 		sizeof(kn02ca_interrupt));
@@ -688,11 +666,6 @@ static int_ptr kn03_asic_mask_nr_tbl[][2] __initdata = {
 
 void __init dec_init_kn03(void)
 {
-	/* Setup some memory addresses.  */
-	ioasic_base = (void *)KN03_IOASIC_BASE;
-	dec_rtc_base = (void *)KN03_RTC_BASE;
-	dec_kn_slot_size = IOASIC_SLOT_SIZE;
-
 	/* IRQ routing. */
 	memcpy(&dec_interrupt, &kn03_interrupt,
 		sizeof(kn03_interrupt));
