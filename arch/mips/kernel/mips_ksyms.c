@@ -1,4 +1,4 @@
-/* $Id: mips_ksyms.c,v 1.19 1999/04/11 18:37:55 harald Exp $
+/* $Id: mips_ksyms.c,v 1.20 1999/08/20 21:59:02 ralf Exp $
  *
  * Export MIPS-specific functions needed for loadable modules.
  *
@@ -23,7 +23,7 @@
 #include <asm/io.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
-#include <asm/sgihpc.h>
+#include <asm/sgi/sgihpc.h>
 #include <asm/softirq.h>
 #include <asm/uaccess.h>
 

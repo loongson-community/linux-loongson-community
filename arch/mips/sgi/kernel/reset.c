@@ -1,4 +1,4 @@
-/* $Id: reset.c,v 1.6 1999/04/10 12:21:30 ulfc Exp $
+/* $Id: reset.c,v 1.7 1999/08/11 20:26:51 andrewb Exp $
  *
  * Reset a SGI.
  *
@@ -17,8 +17,8 @@
 #include <asm/system.h>
 #include <asm/reboot.h>
 #include <asm/sgialib.h>
-#include <asm/sgihpc.h>
-#include <asm/sgint23.h>
+#include <asm/sgi/sgihpc.h>
+#include <asm/sgi/sgint23.h>
 
 /*
  * Just powerdown if init hasn't done after POWERDOWN_TIMEOUT seconds.

@@ -1,4 +1,4 @@
-/* $Id: r4xx0.c,v 1.2 1999/08/21 22:19:16 ralf Exp $
+/* $Id: r4xx0.c,v 1.3 1999/09/28 22:25:52 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -17,13 +17,10 @@
 
 #include <asm/bcache.h>
 #include <asm/io.h>
-//#include <asm/sgi.h>
-//#include <asm/sgimc.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
 #include <asm/system.h>
 #include <asm/bootinfo.h>
-#include <asm/sgialib.h>
 #include <asm/mmu_context.h>
 
 /* CP0 hazard avoidance. */

@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.25 1999/08/21 22:19:12 ralf Exp $
+/* $Id: setup.c,v 1.26 1999/10/09 00:00:59 ralf Exp $
  *
  * setup.c: SGI specific setup, including init of the feature struct.
  *
@@ -22,10 +22,9 @@
 #include <asm/irq.h>
 #include <asm/reboot.h>
 #include <asm/sgialib.h>
-#include <asm/sgi.h>
-#include <asm/sgimc.h>
-#include <asm/sgihpc.h>
-#include <asm/sgint23.h>
+#include <asm/sgi/sgimc.h>
+#include <asm/sgi/sgihpc.h>
+#include <asm/sgi/sgint23.h>
 #include <asm/gdb-stub.h>
 
 #ifdef CONFIG_REMOTE_DEBUG

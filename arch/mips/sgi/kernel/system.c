@@ -3,14 +3,14 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: system.c,v 1.7 1998/10/18 22:55:34 tsbogend Exp $
+ * $Id: system.c,v 1.8 1999/10/09 00:00:59 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
 #include <linux/string.h>
 
-#include <asm/sgi.h>
+#include <asm/sgi/sgi.h>
 #include <asm/sgialib.h>
 #include <asm/bootinfo.h>
 

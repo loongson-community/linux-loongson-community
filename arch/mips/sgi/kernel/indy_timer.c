@@ -1,4 +1,4 @@
-/* $Id: indy_timer.c,v 1.13 1999/08/20 21:59:03 ralf Exp $
+/* $Id: indy_timer.c,v 1.14 1999/10/09 00:00:59 ralf Exp $
  *
  * indy_timer.c: Setting up the clock on the INDY 8254 controller.
  *
@@ -21,10 +21,10 @@
 #include <asm/irq.h>
 #include <asm/ptrace.h>
 #include <asm/system.h>
-#include <asm/sgi.h>
 #include <asm/sgialib.h>
-#include <asm/sgihpc.h>
-#include <asm/sgint23.h>
+#include <asm/sgi/sgi.h>
+#include <asm/sgi/sgihpc.h>
+#include <asm/sgi/sgint23.h>
 
 
 /* Because of a bug in the i8254 timer we need to use the onchip r4k

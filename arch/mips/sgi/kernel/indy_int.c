@@ -1,4 +1,4 @@
-/* $Id: indy_int.c,v 1.13 1999/06/12 17:26:15 ulfc Exp $
+/* $Id: indy_int.c,v 1.14 1999/10/09 00:00:59 ralf Exp $
  *
  * indy_int.c: Routines for generic manipulation of the INT[23] ASIC
  *             found on INDY workstations..
@@ -34,9 +34,9 @@
 
 #include <asm/ptrace.h>
 #include <asm/processor.h>
-#include <asm/sgi.h>
-#include <asm/sgihpc.h>
-#include <asm/sgint23.h>
+#include <asm/sgi/sgi.h>
+#include <asm/sgi/sgihpc.h>
+#include <asm/sgi/sgint23.h>
 #include <asm/sgialib.h>
 #include <asm/gdb-stub.h>
 

@@ -1,4 +1,4 @@
-/* $Id: semaphore-helper.h,v 1.5 1999/08/13 17:07:27 harald Exp $
+/* $Id: semaphore-helper.h,v 1.6 1999/10/20 21:10:58 ralf Exp $
  *
  * SMP- and interrupt-safe semaphores helper functions.
  *
@@ -78,7 +78,7 @@ static inline int waking_non_zero_trylock(struct semaphore *sem)
 	return ret;
 }
 
-#else
+#else /* CONFIG_CPU_HAS_LLSC */
 
 static inline int
 waking_non_zero(struct semaphore *sem)
@@ -217,5 +217,7 @@ waking_non_zero_trylock(struct semaphore *sem)
 
 	return 0;
 }
+
+#endif /* CONFIG_CPU_HAS_LLSC */
 
 #endif /* _ASM_SEMAPHORE_HELPER_H */

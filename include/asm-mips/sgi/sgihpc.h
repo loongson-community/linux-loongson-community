@@ -1,4 +1,4 @@
-/* $Id: sgihpc.h,v 1.6 1999/04/01 23:24:00 ulfc Exp $
+/* $Id: sgihpc.h,v 1.7 1999/08/11 20:26:49 andrewb Exp $
  *
  * sgihpc.h: Various HPC I/O controller defines.  The HPC is basically
  *           the approximate functional equivalent of the Sun SYSIO

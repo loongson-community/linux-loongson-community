@@ -7,14 +7,14 @@
  * 
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: identify.c,v 1.1 1998/10/18 13:32:09 tsbogend Exp $
+ * $Id: identify.c,v 1.2 1999/02/25 21:04:13 tsbogend Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
 #include <linux/string.h>
 
-#include <asm/sgi.h>
+#include <asm/sgi/sgi.h>
 #include <asm/sgialib.h>
 #include <asm/bootinfo.h>
 

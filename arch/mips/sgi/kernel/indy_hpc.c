@@ -1,4 +1,4 @@
-/* $Id: indy_hpc.c,v 1.6 1999/05/07 22:34:31 ulfc Exp $
+/* $Id: indy_hpc.c,v 1.7 1999/10/09 00:00:59 ralf Exp $
  *
  * indy_hpc.c: Routines for generic manipulation of the HPC controllers.
  *
@@ -8,8 +8,8 @@
 #include <linux/init.h>
 
 #include <asm/addrspace.h>
-#include <asm/sgihpc.h>
-#include <asm/sgint23.h>
+#include <asm/sgi/sgihpc.h>
+#include <asm/sgi/sgint23.h>
 #include <asm/sgialib.h>
 
 /* #define DEBUG_SGIHPC */

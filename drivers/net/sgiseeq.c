@@ -1,4 +1,4 @@
-/* $Id: sgiseeq.c,v 1.10 1999/08/11 20:26:50 andrewb Exp $
+/* $Id: sgiseeq.c,v 1.11 1999/10/09 00:01:24 ralf Exp $
  *
  * sgiseeq.c: Seeq8003 ethernet driver for SGI machines.
  *
@@ -31,8 +31,8 @@
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
 
-#include <asm/sgihpc.h>
-#include <asm/sgint23.h>
+#include <asm/sgi/sgihpc.h>
+#include <asm/sgi/sgint23.h>
 #include <asm/sgialib.h>
 
 #include "sgiseeq.h"

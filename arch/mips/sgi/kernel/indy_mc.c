@@ -4,15 +4,15 @@
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  * Copyright (C) 1999 Andrew R. Baker (andrewb@uab.edu) - Indigo2 changes
  *
- * $Id: indy_mc.c,v 1.4 1999/05/07 22:34:32 ulfc Exp $
+ * $Id: indy_mc.c,v 1.5 1999/10/09 00:00:59 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
 
 #include <asm/addrspace.h>
 #include <asm/ptrace.h>
-#include <asm/sgimc.h>
-#include <asm/sgihpc.h>
+#include <asm/sgi/sgimc.h>
+#include <asm/sgi/sgihpc.h>
 #include <asm/sgialib.h>
 
 /* #define DEBUG_SGIMC */

@@ -37,8 +37,8 @@
 #include <asm/sgialib.h>
 #include <asm/system.h>
 #include <asm/bitops.h>
-#include <asm/sgihpc.h>
-#include <asm/sgint23.h>
+#include <asm/sgi/sgihpc.h>
+#include <asm/sgi/sgint23.h>
 #include <asm/uaccess.h>
 
 #include "sgiserial.h"

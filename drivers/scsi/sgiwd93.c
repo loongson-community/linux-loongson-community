@@ -7,7 +7,7 @@
  * 
  * (In all truth, Jed Schimmel wrote all this code.)
  *
- * $Id: sgiwd93.c,v 1.15 1999/08/11 20:26:51 andrewb Exp $
+ * $Id: sgiwd93.c,v 1.16 1999/10/09 00:01:31 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/types.h>
@@ -19,11 +19,11 @@
 
 #include <asm/page.h>
 #include <asm/pgtable.h>
-#include <asm/sgi.h>
 #include <asm/sgialib.h>
-#include <asm/sgimc.h>
-#include <asm/sgihpc.h>
-#include <asm/sgint23.h>
+#include <asm/sgi/sgi.h>
+#include <asm/sgi/sgimc.h>
+#include <asm/sgi/sgihpc.h>
+#include <asm/sgi/sgint23.h>
 #include <asm/irq.h>
 #include <asm/io.h>
 

@@ -1,4 +1,4 @@
-/* $Id: indy_sc.c,v 1.10 1999/09/28 22:25:49 ralf Exp $
+/* $Id: indy_sc.c,v 1.11 1999/10/09 00:00:59 ralf Exp $
  *
  * indy_sc.c: Indy cache managment functions.
  *
@@ -11,8 +11,8 @@
 #include <linux/mm.h>
 
 #include <asm/bcache.h>
-#include <asm/sgi.h>
-#include <asm/sgimc.h>
+#include <asm/sgi/sgi.h>
+#include <asm/sgi/sgimc.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
 #include <asm/system.h>
