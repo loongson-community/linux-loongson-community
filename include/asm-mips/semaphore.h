@@ -1,4 +1,4 @@
-/* $Id: semaphore.h,v 1.7 1999/06/11 14:30:15 ralf Exp $
+/* $Id: semaphore.h,v 1.6 1999/06/17 13:30:38 ralf Exp $
  *
  * SMP- and interrupt-safe semaphores..
  *
@@ -133,7 +133,30 @@ extern inline int down_trylock(struct semaphore * sem)
 #endif
 
 #ifdef __MIPSEL__
-#error "FIXME: down_trylock doesn't support little endian machines yet."
+	__asm__ __volatile__("
+			.set	mips3
+		0:	lld	%1, %4
+			dli	%3, 0x0000000100000000
+			sltu	%0, %1, $0
+
+			bltz	%1, 1f
+			move	%3, $0
+		1:
+
+			sltu	%2, %1, $0
+			and	%0, %0, %2
+			bnez	%0, 2f
+
+			subu	%0, %3
+			scd	%1, %4
+
+			beqz	%1, 0b
+		2:
+
+			.set	mips0"
+		: "=&r"(ret), "=&r"(tmp), "=&r"(tmp2), "=&r"(sub)
+		: "m"(*sem)
+		: "memory");
 #endif
 
 	return ret;

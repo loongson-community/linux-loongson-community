@@ -92,7 +92,35 @@ waking_non_zero_interruptible(struct semaphore *sem, struct task_struct *tsk)
 #endif
 
 #ifdef __MIPSEL__
-#error "FIXME: waking_non_zero_interruptible doesn't support little endian machines yet."
+        __asm__ __volatile__("
+	.set	mips3
+	.set	push
+	.set	noat
+0:	lld	%1,%2
+	li	%0,0
+
+	bltz	%1, 1f
+	dli	$1, 0xffffffff00000000
+	daddu	%1, $1
+	li	%0, 1
+	b	2f
+1:
+
+	beqz	%3, 1f
+	addiu	$1, %1, 1
+	dsrl32	%1, %1, 0
+	dsll32	%1, %1, 0
+	or	%1, $1
+	li	%0, %4
+	b	2f
+1:
+	scd	%1, %2
+2:
+	beqz	%1,0b
+	.set	pop
+	.set	mips0"
+	: "=&r"(ret), "=&r"(tmp), "=m"(*sem)
+	: "r"(signal_pending(tsk)), "i"(-EINTR));
 #endif
 
 	return ret;
