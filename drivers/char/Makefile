@@ -80,10 +80,6 @@ ifeq ($(CONFIG_DECSTATION),y)
   SERIAL   =
 endif
 
-ifeq ($(CONFIG_SGI_IP22),y)
-  SERIAL   =
-endif
-
 ifeq ($(CONFIG_BAGET_MIPS),y)
   KEYBD    =
   SERIAL   =
