@@ -29,6 +29,7 @@
 #include <asm/smp.h>
 #include <asm/processor.h>
 #include <asm/mmu_context.h>
+#include <asm/thread_info.h>
 #include <asm/sn/launch.h>
 #include <asm/sn/sn_private.h>
 #include <asm/sn/sn0/ip27.h>
@@ -492,7 +493,7 @@ void allowboot(void)
 		 	 */
 			LAUNCH_SLAVE(cputonasid(num_cpus),cputoslice(num_cpus),
 				(launch_proc_t)MAPPED_KERN_RW_TO_K0(bootstrap),
-				0, (void *)((unsigned long)p +
+				0, (void *)((unsigned long)p->thread_info +
 				KERNEL_STACK_SIZE - 32), (void *)p);
 
 			/*

@@ -78,7 +78,7 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 	struct pt_regs *childregs;
 	long childksp;
 
-	childksp = (unsigned long)p + KERNEL_STACK_SIZE - 32;
+	childksp = (unsigned long)ti + KERNEL_STACK_SIZE - 32;
 
 	if (IS_FPU_OWNER()) {
 		if (mips_cpu.options & MIPS_CPU_FPU)
@@ -92,7 +92,7 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 	regs->regs[2] = p->pid;
 
 	if (childregs->cp0_status & ST0_CU0) {
-		childregs->regs[28] = (unsigned long) p;
+		childregs->regs[28] = (unsigned long) ti;
 		childregs->regs[29] = childksp;
 		ti->addr_limit = KERNEL_DS;
 	} else {

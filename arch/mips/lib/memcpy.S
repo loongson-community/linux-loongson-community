@@ -385,7 +385,8 @@ l_exc_copy:
 	 *
 	 * Assumes src < THREAD_BUADDR($28)
 	 */
-	lw	t0, THREAD_BUADDR($28)
+	lw	t0, TI_TASK($28)
+	lw	t0, THREAD_BUADDR(t0)
 1:
 EXC(	lb	t1, 0(src),	l_exc)
 	ADD	src, src, 1
@@ -393,7 +394,8 @@ EXC(	lb	t1, 0(src),	l_exc)
 	bne	src, t0, 1b
 	 ADD	dst, dst, 1
 l_exc:
-	lw	t0, THREAD_BUADDR($28)	# t0 is just past last good address
+	lw	t0, TI_TASK($28)
+	lw	t0, THREAD_BUADDR(t0)	# t0 is just past last good address
 	 nop
 	subu	len, AT, t0		# len number of uncopied bytes
 	/*

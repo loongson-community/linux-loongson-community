@@ -46,7 +46,7 @@ LEAF(resume)
 	move	$28, a2
 	CPU_RESTORE_NONSCRATCH(a1)
 
-	addiu	t1, a1, KERNEL_STACK_SIZE-32
+	addiu	t1, $28, KERNEL_STACK_SIZE-32
 	sw	t1, kernelsp
 
 	mfc0	t1, CP0_STATUS		/* Do we really need this? */

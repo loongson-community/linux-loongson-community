@@ -45,7 +45,7 @@
 	move	$28, a2
 	CPU_RESTORE_NONSCRATCH(a1)
 
-	addiu	t0, a1, KERNEL_STACK_SIZE-32
+	addiu	t0, $28, KERNEL_STACK_SIZE-32
 #ifdef CONFIG_SMP
 	mfc0	a3, CP0_CONTEXT
 	la	t1, kernelsp

@@ -104,7 +104,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 		struct pt_regs *regs;
 		unsigned long tmp;
 
-		regs = (struct pt_regs *) ((unsigned long) child +
+		regs = (struct pt_regs *) ((unsigned long) child->thread_info +
 		       KERNEL_STACK_SIZE - 32 - sizeof(struct pt_regs));
 		tmp = 0;  /* Default return value. */
 
@@ -196,7 +196,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 	case PTRACE_POKEUSR: {
 		struct pt_regs *regs;
 		ret = 0;
-		regs = (struct pt_regs *) ((unsigned long) child +
+		regs = (struct pt_regs *) ((unsigned long) child->thread_info +
 		       KERNEL_STACK_SIZE - 32 - sizeof(struct pt_regs));
 
 		switch (addr) {

@@ -757,7 +757,8 @@ ru_end_bytes:
 	END(__rmemcpy)
 
 l_fixup:					# clear the rest of the buffer
-	ld	ta0, THREAD_BUADDR($28)
+	ld	a2, TI_TASK($28)
+	ld	ta0, THREAD_BUADDR(a2)
 	 nop
 	dsubu	a2, AT, ta0			# a2 bytes to go
 	daddu	a0, ta0				# compute start address in a1

@@ -123,14 +123,16 @@ first_fixup:
 	 nop
 
 fwd_fixup:
-	lw	t0, THREAD_BUADDR($28)
+	lw	t0, TI_TASK($28)
+	lw	t0, THREAD_BUADDR(t0)
 	andi	a2, 0x3f
 	addu	a2, t1
 	jr	ra
 	 subu	a2, t0
 
 partial_fixup:
-	lw	t0, THREAD_BUADDR($28)
+	lw	t0, TI_TASK($28)
+	lw	t0, THREAD_BUADDR(t0)
 	andi	a2, 3
 	addu	a2, t1
 	jr	ra
