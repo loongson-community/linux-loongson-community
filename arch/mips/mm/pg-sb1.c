@@ -219,7 +219,7 @@ void sb1_dma_init(void)
 	for (i = 0; i < DM_NUM_CHANNELS; i++) {
 		const u64 base_val = CPHYSADDR(&page_descr[i]) |
 				     V_DM_DSCR_BASE_RINGSZ(1);
-		const volatile void *base_reg =
+		volatile void *base_reg =
 			IOADDR(A_DM_REGISTER(i, R_DM_DSCR_BASE));
 
 		__raw_writeq(base_val, base_reg);
