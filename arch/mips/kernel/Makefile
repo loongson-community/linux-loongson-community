@@ -11,8 +11,6 @@
 .S.o:
 	$(CC) $(AFLAGS) -c $< -o $@
 
-EXTRA_AFLAGS = -mips3 -mcpu=r4000
-
 all:	kernel.o head.o init_task.o
 
 O_TARGET := kernel.o

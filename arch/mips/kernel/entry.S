@@ -118,7 +118,6 @@ LEAF(spurious_interrupt)
 		END(except_vec1_generic)
 
 		NESTED(except_vec3_generic, 0, sp)
-		.set	mips0
 		mfc0	k1, CP0_CAUSE
 		la	k0, exception_handlers
 		andi	k1, k1, 0x7c
@@ -130,6 +129,7 @@ LEAF(spurious_interrupt)
 
 		/* General exception vector R4000 version. */
 		NESTED(except_vec3_r4000, 0, sp)
+		.set    mips3
 		.set	noat
 		mfc0	k1, CP0_CAUSE
 		andi	k1, k1, 0x7c
@@ -150,7 +150,6 @@ LEAF(spurious_interrupt)
 		 * line pointed to by c0_badvaddr because after return from
 		 * this exception handler the load / store will be re-executed.
 		 */
-		.set    mips3
 handle_vced:
 		mfc0	k0, CP0_BADVADDR
 		li	k1, -4
@@ -176,7 +175,7 @@ handle_vcei:
 		sw	k1, %lo(vcei_count)(k0)
 #endif
 		eret
-
+		.set    mips0
 		END(except_vec3_r4000)
 
 		__FINIT
