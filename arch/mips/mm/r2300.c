@@ -360,6 +360,26 @@ static void r3k_flush_page_to_ram(struct page * page)
 	 */
 }
 
+static void r3k_flush_icache_page(struct vm_area_struct *vma,
+				   unsigned long page, unsigned long address)
+{
+	struct mm_struct *mm = vma->vm_mm;
+	unsigned long physpage;
+
+	if (mm->context == 0)
+		return;
+
+	if (!(vma->vm_flags & VM_EXEC))
+		return;
+
+#ifdef DEBUG_CACHE
+	printk("cpage[%d,%08lx]", (int)mm->context, page);
+#endif
+
+	if ((physpage = get_phys_page(page, vma->vm_mm)))
+		r3k_flush_icache_range(physpage, PAGE_SIZE);
+}
+
 static void r3k_flush_cache_sigtramp(unsigned long addr)
 {
 	unsigned long flags;
@@ -651,6 +671,7 @@ void __init ld_mmu_r2300(void)
 	_flush_cache_page = r3k_flush_cache_page;
 	_flush_cache_sigtramp = r3k_flush_cache_sigtramp;
 	_flush_page_to_ram = r3k_flush_page_to_ram;
+	_flush_icache_page = r3k_flush_icache_page;
 
         _dma_cache_wback_inv = r3k_dma_cache_wback_inv;
 

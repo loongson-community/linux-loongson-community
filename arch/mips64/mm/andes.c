@@ -119,7 +119,7 @@ andes_flush_cache_l2(void)
 }
 
 void
-andes_flush_icache_page(unsigned long page)
+andes_flush_icache_page(unsigned long page, unsigned long addr)
 {
 	if (scache_lsz64)
 		blast_scache64_page(page);
