@@ -135,6 +135,7 @@ static inline void cpu_probe(void)
 		mips_cputype = CPU_R8000;
 		break;
 	case PRID_IMP_R10000:
+	case PRID_IMP_R12000:
 		mips_cputype = CPU_R10000;
 		break;
 	default:
