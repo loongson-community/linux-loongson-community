@@ -75,9 +75,9 @@ static atomic_t cpus_booted = ATOMIC_INIT(0);
 void core_call_function(int cpu);
 
 /*
-   Clear all undefined state in the cpu, set up sp and gp to the passed
-   values, and kick the cpu into smp_bootstrap(); 
-*/
+ * Clear all undefined state in the cpu, set up sp and gp to the passed
+ * values, and kick the cpu into smp_bootstrap(); 
+ */
 void prom_boot_secondary(int cpu, unsigned long sp, unsigned long gp);
 
 /*
@@ -108,6 +108,7 @@ int start_secondary(void *unused)
 void __init smp_boot_cpus(void)
 {
 	int i;
+
 	smp_num_cpus = prom_setup_smp();
 	init_new_context(current, &init_mm);
 	current->processor = 0;
@@ -124,7 +125,6 @@ void __init smp_boot_cpus(void)
 		p = init_task.prev_task;
 
 		/* Schedule the first task manually */
-
 		p->processor = i;
 		p->has_cpu = 1;
 
@@ -132,7 +132,7 @@ void __init smp_boot_cpus(void)
 		atomic_inc(&init_mm.mm_count);
 		p->active_mm = &init_mm;
 		init_tasks[i] = p;
-		
+
 		del_from_runqueue(p);
 		unhash_process(p);
 
@@ -143,9 +143,9 @@ void __init smp_boot_cpus(void)
 #if 0
 
 		/* This is copied from the ip-27 code in the mips64 tree */
-		
+
 		struct task_struct *p;
-		
+
 		/*
 		 * The following code is purely to make sure
 		 * Linux can schedule processes on this slave.
@@ -166,8 +166,9 @@ void __init smp_boot_cpus(void)
 				    (unsigned long)p);
 #endif
 	}
+
 	/* Wait for everyone to come up */
-	while (atomic_read(&cpus_booted) != smp_num_cpus) {}		
+	while (atomic_read(&cpus_booted) != smp_num_cpus);
 }
 
 void __init smp_commence(void)
@@ -186,16 +187,16 @@ void FASTCALL(smp_send_reschedule(int cpu))
 }
 
 
-/* The caller of this wants the passed function to run on every cpu.  If
-   wait is set, wait until all cpus have finished the function before
-   returning.  The lock is here to protect the call structure.  */
+/*
+ * The caller of this wants the passed function to run on every cpu.  If wait
+ * is set, wait until all cpus have finished the function before returning.
+ * The lock is here to protect the call structure.
+ */
 int smp_call_function (void (*func) (void *info), void *info, int retry, 
 								int wait)
 {
-	int i;
 	int cpus = smp_num_cpus - 1;
-
-//	unsigned long flags;
+	int i;
 
 	if (smp_num_cpus < 2) {
 		return 0;
@@ -246,14 +247,14 @@ int setup_profiling_timer(unsigned int multiplier)
 }
 
 
-/* Most of this code is take from the mips64 tree (ip27-irq.c).  It's virtually identical
-   to the i386 implentation in arh/i386/irq.c, with translations for the interrupt enable bit */
-
+/*
+ * Most of this code is take from the mips64 tree (ip27-irq.c).  It's virtually
+ * identical to the i386 implentation in arh/i386/irq.c, with translations for
+ * the interrupt enable bit
+ */
 
 #define MAXCOUNT 		100000000
 #define SYNC_OTHER_CORES(x)	udelay(x+1)
-
-
 
 static inline void wait_on_irq(int cpu)
 {
@@ -376,6 +377,7 @@ unsigned long __global_save_flags(void)
 		if (global_irq_holder == cpu)
 			retval = 0;
 	}
+
 	return retval;
 }
 
@@ -398,6 +400,3 @@ void __global_restore_flags(unsigned long flags)
 			printk("global_restore_flags: %08lx\n", flags);
 	}
 }
-
-
-
