@@ -52,6 +52,7 @@ if [ "$CONFIG_MIPS" = "y" ]; then
       int '    Bus width in octets' CONFIG_MTD_CSTM_MIPS_IXX_BUSWIDTH 2
    fi
    dep_tristate '  Momenco Ocelot boot flash device' CONFIG_MTD_OCELOT $CONFIG_MOMENCO_OCELOT
+   dep_tristate '  LASAT flash device' CONFIG_MTD_LASAT $CONFIG_MTD_CFI $CONFIG_LASAT
 fi
 
 if [ "$CONFIG_SH" = "y" ]; then

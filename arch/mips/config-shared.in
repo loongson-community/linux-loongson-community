@@ -26,7 +26,15 @@ if [ "$CONFIG_MIPS_EV64120" = "y" ]; then
 fi
 dep_bool 'Support for Galileo EV96100 Evaluation board (EXPERIMENTAL)' CONFIG_MIPS_EV96100 $CONFIG_EXPERIMENTAL
 bool 'Support for Globespan IVR board' CONFIG_MIPS_IVR
-bool 'Support for Hewlett Packard LaserJet board' CONFIG_HP_LASERJET
+bool 'Support for LASAT Networks platforms' CONFIG_LASAT
+if [ "$CONFIG_LASAT" = "y" ]; then
+   bool '  Support for LASAT Networks 100 series' CONFIG_LASAT_100
+   bool '  Support for LASAT Networks 200 series' CONFIG_LASAT_200
+   tristate '  PICVUE LCD display driver' CONFIG_PICVUE
+   dep_tristate '   PICVUE LCD display driver /proc interface' CONFIG_PICVUE_PROC $CONFIG_PICVUE
+   bool '  DS1603 RTC driver' CONFIG_DS1603
+   bool '  LASAT sysctl interface' CONFIG_LASAT_SYSCTL
+fi
 bool 'Support for IBM WorkPad z50' CONFIG_IBM_WORKPAD
 bool 'Support for ITE 8172G board' CONFIG_MIPS_ITE8172
 if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
@@ -230,6 +238,12 @@ if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
    define_bool CONFIG_IT8172_CIR y
    define_bool CONFIG_NEW_TIME_C y
 fi
+if [ "$CONFIG_LASAT" = "y" ]; then
+   define_bool CONFIG_PCI y
+   define_bool CONFIG_NONCOHERENT_IO y
+   define_bool CONFIG_NEW_TIME_C y
+fi
+bool 'Support for Hewlett Packard LaserJet board' CONFIG_HP_LASERJET
 if [ "$CONFIG_MIPS_ATLAS" = "y" ]; then
    define_bool CONFIG_BOOT_ELF32 y
    define_int CONFIG_L1_CACHE_SHIFT 5

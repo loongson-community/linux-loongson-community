@@ -470,6 +470,7 @@ void __init setup_arch(char **cmdline_p)
 	void atlas_setup(void);
 	void baget_setup(void);
 	void cobalt_setup(void);
+	void lasat_setup(void);
 	void ddb_setup(void);
 	void decstation_setup(void);
 	void deskstation_setup(void);
@@ -640,6 +641,11 @@ void __init setup_arch(char **cmdline_p)
 	case MACH_GROUP_PHILIPS:
 		nino_setup();
 		break;
+#endif
+#ifdef CONFIG_LASAT
+        case MACH_GROUP_LASAT:
+                lasat_setup();
+                break;
 #endif
 #ifdef CONFIG_MIPS_PB1000
 	case MACH_GROUP_ALCHEMY:

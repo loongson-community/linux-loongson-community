@@ -35,6 +35,7 @@
 #define MACH_GROUP_ALCHEMY     18 /* Alchemy Semi Eval Boards               */
 #define MACH_GROUP_NEC_VR41XX  19 /* NEC Vr41xx based boards/gadgets        */
 #define MACH_GROUP_HP_LJ       20 /* Hewlett Packard LaserJet               */
+#define MACH_GROUP_LASAT       21
 
 /*
  * Valid machtype values for group unknown (low order halfword of mips_machtype)
@@ -153,6 +154,12 @@
 #define MACH_TOPAS		1
 #define MACH_JMR		2
 #define MACH_TOSHIBA_JMR3927	3	/* JMR-TX3927 CPU/IO board */
+
+/*
+ * Valid machtype for group LASAT
+ */
+#define MACH_LASAT_100		0	/* Masquerade II/SP100/SP50/SP25 */
+#define MACH_LASAT_200		1	/* Masquerade PRO/SP200 */
 
 /*
  * Valid machtype for group Alchemy
