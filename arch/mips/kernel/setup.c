@@ -158,11 +158,12 @@ void __init add_memory_region(phys_t start, phys_t size,
 static void __init print_memory_map(void)
 {
 	int i;
+	const int field = 2 * sizeof(unsigned long);
 
 	for (i = 0; i < boot_mem_map.nr_map; i++) {
 		printk(" memory: %0*Lx @ %0*Lx ",
-		       sizeof(long) * 2, (u64) boot_mem_map.map[i].size,
-		       sizeof(long) * 2, (u64) boot_mem_map.map[i].addr);
+		       field, (u64) boot_mem_map.map[i].size,
+		       field, (u64) boot_mem_map.map[i].addr);
 
 		switch (boot_mem_map.map[i].type) {
 		case BOOT_MEM_RAM:

@@ -40,13 +40,13 @@ asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long write,
 	struct vm_area_struct * vma;
 	struct task_struct *tsk = current;
 	struct mm_struct *mm = tsk->mm;
-	const int szlong = sizeof(unsigned long);
+	const int field = sizeof(unsigned long) * 2;
 	siginfo_t info;
 
 #if 0
 	printk("Cpu%d[%s:%d:%0*lx:%ld:%0*lx]\n", smp_processor_id(),
-	       current->comm, current->pid, szlong, address, write,
-	       szlong, regs->cp0_epc);
+	       current->comm, current->pid, field, address, write,
+	       field, regs->cp0_epc);
 #endif
 
 	/*
@@ -134,9 +134,9 @@ bad_area:
 		       "invalid %s\n%0*lx (epc == %0*lx, ra == %0*lx)\n",
 		       tsk->comm,
 		       write ? "write access to" : "read access from",
-		       szlong, address,
-		       szlong, (unsigned long) regs->cp0_epc,
-		       szlong, (unsigned long) regs->regs[31]);
+		       field, address,
+		       field, (unsigned long) regs->cp0_epc,
+		       field, (unsigned long) regs->regs[31]);
 #endif
 		info.si_signo = SIGSEGV;
 		info.si_errno = 0;
@@ -162,8 +162,8 @@ no_context:
 
 	printk(KERN_ALERT "CPU %d Unable to handle kernel paging request at "
 	       "virtual address %0*lx, epc == %0*lx, ra == %0*lx\n",
-	       smp_processor_id(), szlong, address, szlong, regs->cp0_epc,
-	       szlong,  regs->regs[31]);
+	       smp_processor_id(), field, address, field, regs->cp0_epc,
+	       field,  regs->regs[31]);
 	die("Oops", regs);
 
 /*

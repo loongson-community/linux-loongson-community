@@ -86,7 +86,7 @@ void show_stack(struct task_struct *task, unsigned long *sp)
 	printk("Stack: ");
 	i = 1;
 	while ((unsigned long) sp & (PAGE_SIZE - 1)) {
-		if (i && ((i % (64 / sizeof(unsigned long))) == 0))
+		if (i && ((i % (64 / field)) == 0))
 			printk("\n       ");
 		if (i > 40) {
 			printk(" ...");
@@ -182,8 +182,8 @@ void show_regs(struct pt_regs *regs)
 			printk("\n");
 	}
 
-	printk("Hi      : %0*lx\n", field, regs->hi);
-	printk("Lo      : %0*lx\n", field, regs->lo);
+	printk("Hi    : %0*lx\n", field, regs->hi);
+	printk("Lo    : %0*lx\n", field, regs->lo);
 
 	/*
 	 * Saved cp0 registers
