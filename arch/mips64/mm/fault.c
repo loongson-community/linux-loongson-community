@@ -106,6 +106,11 @@ do_page_fault(struct pt_regs *regs, unsigned long write, unsigned long address)
 	unsigned long fixup;
 	siginfo_t info;
 
+#if 0
+	printk("Cpu%d[%s:%d:%08lx:%ld:%08lx]\n", smp_processor_id(),
+		current->comm, current->pid, address, write, regs->cp0_epc);
+#endif
+
 	/*
 	 * We fault-in kernel-space virtual memory on-demand. The
 	 * 'reference' page table is init_mm.pgd.
@@ -125,10 +130,7 @@ do_page_fault(struct pt_regs *regs, unsigned long write, unsigned long address)
 	 */
 	if (in_interrupt() || mm == &init_mm)
 		goto no_context;
-#if DEBUG_MIPS64
-	printk("Cpu%d[%s:%d:%08lx:%ld:%08lx]\n", smp_processor_id(), current->comm,
-		current->pid, address, write, regs->cp0_epc);
-#endif
+
 	down_read(&mm->mmap_sem);
 	vma = find_vma(mm, address);
 	if (!vma)
