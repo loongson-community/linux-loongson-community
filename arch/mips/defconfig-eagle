@@ -97,6 +97,7 @@ CONFIG_CPU_VR41XX=y
 # CONFIG_CPU_HAS_LLSC is not set
 # CONFIG_CPU_HAS_LLDSCD is not set
 # CONFIG_CPU_HAS_WB is not set
+CONFIG_CPU_HAS_SYNC=y
 
 #
 # General setup

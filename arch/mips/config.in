@@ -441,6 +441,15 @@ if [ "$CONFIG_ARC32" = "y" ]; then
    bool 'ARC console support' CONFIG_ARC_CONSOLE
 fi
 
+if [ "$CONFIG_SGI_IP22" = "y" ]; then
+   dep_bool 'Indigo-2 (IP22) EISA bus support' CONFIG_IP22_EISA $CONFIG_EXPERIMENTAL
+fi
+
+if [ "$CONFIG_IP22_EISA" = "y" ]; then
+   define_bool CONFIG_EISA y
+   bool '    ISA bus support' CONFIG_ISA
+fi
+
 if [ "$CONFIG_PCI" != "y" ]; then
    define_bool CONFIG_PCI n
 fi

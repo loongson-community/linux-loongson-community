@@ -28,6 +28,7 @@
 #include <asm/sgi/sgint23.h>
 #include <asm/time.h>
 #include <asm/gdb-stub.h>
+#include <asm/io.h>
 #include <asm/traps.h>
 
 #ifdef CONFIG_REMOTE_DEBUG
@@ -152,6 +153,9 @@ void __init ip22_setup(void)
 	indy_sc_init();
 #endif
 	conswitchp = NULL;
+
+	/* Set the IO space to some sane value */
+	set_io_port_base (KSEG1ADDR (0x00080000));
 
 	/* ARCS console environment variable is set to "g?" for
 	 * graphics console, it is set to "d" for the first serial

@@ -21,12 +21,13 @@
  * HAL2 driver). This will prevent many complications, trust me ;-) 
  *	--ladis
  */
-#define SGINT_CPU	 0	/* MIPS CPU define 8 interrupt sources */
-#define SGINT_LOCAL0	 8	/* INDY has 8 local0 irq levels */
-#define SGINT_LOCAL1	16	/* INDY has 8 local1 irq levels */
-#define SGINT_LOCAL2	24	/* INDY has 8 local2 vectored irq levels */
-#define SGINT_LOCAL3	32	/* INDY has 8 local3 vectored irq levels */
-#define SGINT_END	40	/* End of 'spaces' */
+#define SGINT_EISA	0	/* INDIGO 2 has 16 EISA irq levels */
+#define SGINT_CPU	16	/* MIPS CPU define 8 interrupt sources */
+#define SGINT_LOCAL0	24	/* INDY has 8 local0 irq levels */
+#define SGINT_LOCAL1	32	/* INDY has 8 local1 irq levels */
+#define SGINT_LOCAL2	40	/* INDY has 8 local2 vectored irq levels */
+#define SGINT_LOCAL3	48	/* INDY has 8 local3 vectored irq levels */
+#define SGINT_END	56	/* End of 'spaces' */
 
 /*
  * Individual interrupt definitions for the INDY and Indigo2

@@ -40,6 +40,7 @@ static char lc3msk_to_irqnr[256];
 
 extern asmlinkage void indyIRQ(void);
 extern void do_IRQ(int irq, struct pt_regs *regs);
+extern int ip22_eisa_init (void);
 
 static void enable_local0_irq(unsigned int irq)
 {
@@ -413,5 +414,9 @@ void __init init_IRQ(void)
 	setup_irq(SGI_MAP_0_IRQ, &map0_cascade);
 #ifdef I_REALLY_NEED_THIS_IRQ
 	setup_irq(SGI_MAP_1_IRQ, &map1_cascade);
+#endif
+#ifdef CONFIG_IP22_EISA
+	if (!sgi_guiness)	/* Only Indigo-2 have EISA stuff */
+	        ip22_eisa_init ();
 #endif
 }

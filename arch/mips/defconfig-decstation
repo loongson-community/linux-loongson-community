@@ -87,6 +87,7 @@ CONFIG_CPU_R3000=y
 # CONFIG_CPU_HAS_LLSC is not set
 # CONFIG_CPU_HAS_LLDSCD is not set
 CONFIG_CPU_HAS_WB=y
+# CONFIG_CPU_HAS_SYNC is not set
 
 #
 # General setup
