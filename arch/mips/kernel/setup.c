@@ -102,7 +102,6 @@ EXPORT_SYMBOL(mips_io_port_base);
 unsigned long isa_slot_offset;
 EXPORT_SYMBOL(isa_slot_offset);
 
-extern void sgi_sysinit(void);
 extern void SetUpBootInfo(void);
 extern void load_mmu(void);
 extern asmlinkage void start_kernel(void);
@@ -118,10 +117,6 @@ init_arch(int argc, char **argv, char **envp, int *prom_vec)
 	cpu_probe();
 
 	prom_init(argc, argv, envp, prom_vec);
-
-#ifdef CONFIG_SGI_IP22
-	sgi_sysinit();
-#endif
 
 	cpu_report();
 
