@@ -389,7 +389,7 @@ static void r3k_flush_cache_sigtramp(unsigned long addr)
 	printk("csigtramp[%08lx]", addr);
 #endif
 
-	save_and_cli(flags);
+	flags = read_32bit_cp0_register(CP0_STATUS);
 
 	write_32bit_cp0_register(CP0_STATUS, (ST0_ISC|ST0_SWC|flags)&~ST0_IEC);
 
@@ -398,7 +398,7 @@ static void r3k_flush_cache_sigtramp(unsigned long addr)
 		"sb\t$0,0x008(%0)\n\t"
 		: : "r" (addr) );
 
-	restore_flags(flags);
+	write_32bit_cp0_register(CP0_STATUS, flags);
 }
 
 static void r3k_dma_cache_wback_inv(unsigned long start, unsigned long size)
