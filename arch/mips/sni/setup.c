@@ -171,7 +171,7 @@ static struct pci_controller sni_controller = {
 	.mem_resource	= &sni_mem_resource,
 	.mem_offset	= 0x10000000UL,
 	.io_resource	= &sni_io_resource,
-	.io_offset	= 0x1000
+	.io_offset	= 0x00000000UL
 };
 
 void __init sni_rm200_pci_setup(void)
@@ -205,5 +205,7 @@ void __init sni_rm200_pci_setup(void)
 
 	rtc_ops = &std_rtc_ops;
 
+#ifdef CONFIG_PCI
 	register_pci_controller(&sni_controller);
+#endif
 }
