@@ -136,10 +136,10 @@ asmlinkage void do_IRQ(int irq, struct pt_regs *regs)
 	} while (action);
 	if (do_random & SA_SAMPLE_RANDOM)
 	    add_interrupt_randomness(irq);
-	unmask_irq(irq, irq);
+	unmask_irq(irq);
 	__cli();
     }
-    irq_exit(cpu);
+    irq_exit(cpu, irq);
 
     /* unmasking and bottom half handling is done magically for us. */
 }
