@@ -629,8 +629,6 @@ source drivers/char/Config.in
 
 #source drivers/misc/Config.in
 
-source drivers/media/Config.in
-
 if [ "$CONFIG_DECSTATION" = "y" ]; then
    mainmenu_option next_comment
    comment 'DECStation Character devices'
@@ -658,6 +656,8 @@ if [ "$CONFIG_SGI_IP22" = "y" ]; then
 fi
 
 source fs/Config.in
+
+source drivers/media/Config.in
 
 if [ "$CONFIG_VT" = "y" ]; then
    mainmenu_option next_comment
