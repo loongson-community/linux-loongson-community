@@ -14,6 +14,7 @@
  */
 
 #include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/types.h>
 #include <linux/fcntl.h>
 #include <linux/interrupt.h>
@@ -82,7 +83,7 @@ static unsigned short known_revisions[] =
 
 /* Index to functions, as function prototypes. */
 
-static int sonic_probe1(struct net_device *dev, unsigned int base_addr,
+static int sonic_probe1(struct net_device *dev, unsigned long base_addr,
                         unsigned int irq);
 
 
@@ -94,7 +95,7 @@ struct net_device * __init sonic_probe(int unit)
 {
 	struct net_device *dev;
 	struct sonic_local *lp;
-	unsigned int base_addr;
+	unsigned long base_addr;
 	int err = 0;
 	int i;
 
@@ -143,7 +144,7 @@ out:
 	return ERR_PTR(err);
 }
 
-static int __init sonic_probe1(struct net_device *dev, unsigned int base_addr,
+static int __init sonic_probe1(struct net_device *dev, unsigned long base_addr,
                                unsigned int irq)
 {
 	static unsigned version_printed;
