@@ -79,7 +79,7 @@ static int do_cpumask(cnodeid_t cnode, nasid_t nasid, int highest)
 			if ((acpu->cpu_info.flags & KLINFO_ENABLE) &&
 			    (tot_cpus_found != NR_CPUS)) {
 				cpu_set(cpuid, phys_cpu_present_map);
-				alloc_cpupda(cpuid, cpus_found);
+				alloc_cpupda(cpuid, tot_cpus_found);
 				cpus_found++;
 				tot_cpus_found++;
 			}
