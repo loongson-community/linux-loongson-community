@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.21 1999/04/05 01:41:18 ulfc Exp $
+/* $Id: setup.c,v 1.22 1999/04/10 12:21:30 ulfc Exp $
  *
  * setup.c: SGI specific setup, including init of the feature struct.
  *
@@ -143,6 +143,9 @@ __initfunc(void sgi_setup(void))
 		else
 			console_setup ("ttyS0");
 	}
+#endif
+#ifdef CONFIG_SGI_PROM_CONSOLE
+	console_setup("ttyS0");
 #endif
 	  
 	sgi_volume_set(simple_strtoul(prom_getenv("volume"), NULL, 10));
