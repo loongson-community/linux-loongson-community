@@ -112,7 +112,6 @@ static unsigned long get_int_status_200(void)
 
 void lasat_hw0_irqdispatch(struct pt_regs *regs)
 {
-	struct irqaction *action;
 	unsigned long int_status;
 	int irq;
 
