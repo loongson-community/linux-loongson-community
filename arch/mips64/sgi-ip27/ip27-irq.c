@@ -65,8 +65,8 @@ irq_cpustat_t irq_stat [NR_CPUS];
 extern asmlinkage void ip27_irq(void);
 extern int irq_to_bus[], irq_to_slot[], bus_to_cpu[];
 int (*irq_cannonicalize)(int irq);
-int intr_connect_level(cpuid_t cpu, int bit);
-int intr_disconnect_level(cpuid_t cpu, int bit);
+int intr_connect_level(int cpu, int bit);
+int intr_disconnect_level(int cpu, int bit);
 
 unsigned int local_bh_count[NR_CPUS];
 unsigned int local_irq_count[NR_CPUS];
@@ -615,7 +615,7 @@ static hub_intmasks_t *intr_get_ptrs(cpuid_t cpu, int bit, int *new_bit,
 	return hub_intmasks;
 }
 
-int intr_connect_level(cpuid_t cpu, int bit)
+int intr_connect_level(int cpu, int bit)
 {
 	int ip;
 	int slice = cputoslice(cpu);
@@ -641,7 +641,7 @@ int intr_connect_level(cpuid_t cpu, int bit)
 	return(0);
 }
 
-int intr_disconnect_level(cpuid_t cpu, int bit)
+int intr_disconnect_level(int cpu, int bit)
 {
 	int ip;
 	int slice = cputoslice(cpu);
@@ -668,7 +668,7 @@ void handle_resched_intr(int irq, void *dev_id, struct pt_regs *regs)
 	/* Nothing, the return from intr will work for us */
 }
 
-void install_cpuintr(cpuid_t cpu)
+void install_cpuintr(int cpu)
 {
 	int irq;
 	extern void smp_call_function_interrupt(void);
@@ -711,7 +711,7 @@ void install_cpuintr(cpuid_t cpu)
 #endif /* CONFIG_SMP */
 }
 
-void install_tlbintr(cpuid_t cpu)
+void install_tlbintr(int cpu)
 {
 	int intr_bit = N_INTPEND_BITS + TLB_INTR_A + cputoslice(cpu);
 

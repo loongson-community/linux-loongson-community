@@ -160,17 +160,22 @@ cpuid_t cpu_node_probe(cpumask_t *boot_cpumask, int *numnodes)
 	return(highest + 1);
 }
 
-void alloc_cpupda(int i)
+/*
+ * Takes as first input the PROM assigned cpu id, and the kernel
+ * assigned cpu id as the second.
+ */
+static void alloc_cpupda(cpuid_t cpu, int cpunum)
 {
 	cnodeid_t	node;
 	nasid_t		nasid;
 
-	node = get_cpu_cnode(i);
+	node = get_cpu_cnode(cpu);
 	nasid = COMPACT_TO_NASID_NODEID(node);
 
-	cputonasid(i) = nasid;
-	cputocnode(i) = node;
-	cputoslice(i) = get_cpu_slice(i);
+	cputonasid(cpunum) = nasid;
+	cputocnode(cpunum) = node;
+	cputoslice(cpunum) = get_cpu_slice(cpu);
+	cpu_data[cpunum].p_cpuid = cpu;
 }
 
 int cpu_enabled(cpuid_t cpu)
@@ -178,15 +183,6 @@ int cpu_enabled(cpuid_t cpu)
 	if (cpu == CPU_NONE)
 		return 0;
 	return (CPUMASK_TSTB(boot_cpumask, cpu) != 0);
-}
-
-void initpdas(void)
-{
-	cpuid_t i;
-
-	for (i = 0; i < maxcpus; i++)
-		if (cpu_enabled(i))
-			alloc_cpupda(i);
 }
 
 void mlreset (void)
@@ -202,7 +198,6 @@ void mlreset (void)
 	CPUMASK_CLRALL(boot_cpumask);
 	maxcpus = cpu_node_probe(&boot_cpumask, &numnodes);
 	printk("Discovered %d cpus on %d nodes\n", maxcpus, numnodes);
-	initpdas();
 
 	gen_region_mask(&region_mask, numnodes);
 	CNODEMASK_CLRALL(hub_init_mask);
@@ -320,7 +315,7 @@ void per_cpu_init(void)
 	extern void install_cpu_nmi_handler(int slice);
 	extern void load_mmu(void);
 	static int is_slave = 0;
-	cpuid_t cpu = getcpuid();
+	int cpu = smp_processor_id();
 	cnodeid_t cnode = get_compact_nodeid();
 
 	current_cpu_data.asid_cache = ASID_FIRST_VERSION;
@@ -333,7 +328,7 @@ void per_cpu_init(void)
 	if (smp_processor_id())	/* master can't do this early, no kmalloc */
 		install_cpuintr(cpu);
 	/* Install our NMI handler if symmon hasn't installed one. */
-	install_cpu_nmi_handler(cputoslice(smp_processor_id()));
+	install_cpu_nmi_handler(cputoslice(cpu));
 #if 0
 	install_tlbintr(cpu);
 #endif
@@ -400,13 +395,13 @@ void cboot(void)
 void allowboot(void)
 {
 	int		num_cpus = 0;
-	cpuid_t		cpu;
+	cpuid_t		cpu, mycpuid = getcpuid();
 	cnodeid_t	cnode;
 	extern void	bootstrap(void);
 
 	sn_mp_setup();
 	/* Master has already done per_cpu_init() */
-	install_cpuintr(getcpuid());
+	install_cpuintr(smp_processor_id());
 #if 0
 	bte_lateinit();
 	ecc_init();
@@ -415,7 +410,8 @@ void allowboot(void)
 	boot_barrier = boot_cpumask;
 	/* Launch slaves. */
 	for (cpu = 0; cpu < maxcpus; cpu++) {
-		if (cpu == smp_processor_id()) {
+		if (cpu == mycpuid) {
+			alloc_cpupda(cpu, num_cpus);
 			num_cpus++;
 			/* We're already started, clear our bit */
 			CPUMASK_CLRB(boot_barrier, cpu);
@@ -434,6 +430,7 @@ void allowboot(void)
 			p = init_task.prev_task;
 			sprintf(p->comm, "%s%d", "Idle", num_cpus);
 			init_tasks[num_cpus] = p;
+			alloc_cpupda(cpu, num_cpus);
 			p->processor = num_cpus;
 			p->has_cpu = 1; /* we schedule the first task manually */
 			del_from_runqueue(p);
@@ -449,7 +446,7 @@ void allowboot(void)
 			 * created idle process, gp to the proc struct
 			 * (so that current-> works).
 		 	 */
-			LAUNCH_SLAVE(cputonasid(cpu), cputoslice(cpu), 
+			LAUNCH_SLAVE(cputonasid(num_cpus),cputoslice(num_cpus), 
 				(launch_proc_t)bootstrap, 0, 
 				(void *)((unsigned long)p+KERNEL_STACK_SIZE - 32),
 				(void *)p);

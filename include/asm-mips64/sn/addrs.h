@@ -145,7 +145,7 @@
 #define UALIAS_FLIP_BASE	UALIAS_BASE
 #define UALIAS_FLIP_SIZE	0x20000
 #define UALIAS_FLIP_BIT		0x10000
-#define UALIAS_FLIP_ADDR(_x)	(cputoslice(getcpuid()) ? \
+#define UALIAS_FLIP_ADDR(_x)	(cputoslice(smp_processor_id()) ? \
 				 (_x) ^ UALIAS_FLIP_BIT : (_x))
 
 #define LBOOT_BASE		(HSPEC_BASE + 0x10000000)
