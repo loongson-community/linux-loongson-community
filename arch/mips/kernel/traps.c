@@ -772,9 +772,8 @@ asmlinkage void cache_parity_error(void)
 	unsigned int reg_val;
 
 	/* For the moment, report the problem and hang. */
-	reg_val = read_c0_errorepc();
 	printk("Cache error exception:\n");
-	printk("cp0_errorepc == %08x\n", read_c0_errorepc());
+	printk("cp0_errorepc == %08lx\n", read_c0_errorepc());
 	reg_val = read_c0_cacheerr();
 	printk("c0_cacheerr == %08x\n", reg_val);
 
