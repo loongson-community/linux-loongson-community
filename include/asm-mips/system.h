@@ -319,11 +319,10 @@ extern __inline__ unsigned long xchg_u32(volatile int * m, unsigned long val)
 #else
 	unsigned long flags, retval;
 
-	save_flags(flags);
-	cli();
+	local_irq_save(flags);
 	retval = *m;
 	*m = val;
-	restore_flags(flags);	/* implies memory barrier  */
+	local_irq_restore(flags);	/* implies memory barrier  */
 	return retval;
 #endif /* Processor-dependent optimization */
 }
