@@ -93,9 +93,9 @@ volatile unsigned char pmaz_cmd_buffer[16];
 				 * via PIO.
 				 */
 
-static void scsi_dma_merr_int(int, void *, struct pt_regs *);
-static void scsi_dma_err_int(int, void *, struct pt_regs *);
-static void scsi_dma_int(int, void *, struct pt_regs *);
+static irqreturn_t scsi_dma_merr_int(int, void *, struct pt_regs *);
+static irqreturn_t scsi_dma_err_int(int, void *, struct pt_regs *);
+static irqreturn_t scsi_dma_int(int, void *, struct pt_regs *);
 
 int dec_esp_detect(Scsi_Host_Template * tpnt);
 
@@ -292,19 +292,23 @@ err_dealloc:
 }
 
 /************************************************************* DMA Functions */
-static void scsi_dma_merr_int(int irq, void *dev_id, struct pt_regs *regs)
+static irqreturn_t scsi_dma_merr_int(int irq, void *dev_id, struct pt_regs *regs)
 {
 	printk("Got unexpected SCSI DMA Interrupt! < ");
 	printk("SCSI_DMA_MEMRDERR ");
 	printk(">\n");
+
+	return IRQ_HANDLED;
 }
 
-static void scsi_dma_err_int(int irq, void *dev_id, struct pt_regs *regs)
+static irqreturn_t scsi_dma_err_int(int irq, void *dev_id, struct pt_regs *regs)
 {
 	/* empty */
+
+	return IRQ_HANDLED;
 }
 
-static void scsi_dma_int(int irq, void *dev_id, struct pt_regs *regs)
+static irqreturn_t scsi_dma_int(int irq, void *dev_id, struct pt_regs *regs)
 {
 	u32 scsi_next_ptr;
 
@@ -314,6 +318,8 @@ static void scsi_dma_int(int irq, void *dev_id, struct pt_regs *regs)
 	scsi_next_ptr = (((scsi_next_ptr >> 3) + PAGE_SIZE) & PAGE_MASK) << 3;
 	ioasic_write(IO_REG_SCSI_DMA_BP, scsi_next_ptr);
 	fast_iob();
+
+	return IRQ_HANDLED;
 }
 
 static int dma_bytes_sent(struct NCR_ESP *esp, int fifo_count)
@@ -481,7 +487,7 @@ static void dma_mmu_get_scsi_sgl(struct NCR_ESP *esp, Scsi_Cmnd * sp)
 	struct scatterlist *sg = sp->SCp.buffer;
 
 	while (sz >= 0) {
-		sg[sz].dma_address = virt_to_phys(sg[sz].address);
+		sg[sz].dma_address = page_to_phys(sg[sz].page) + sg[sz].offset;
 		sz--;
 	}
 	sp->SCp.ptr = (char *)(sp->SCp.buffer->dma_address);
