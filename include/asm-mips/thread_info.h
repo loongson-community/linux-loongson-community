@@ -64,12 +64,19 @@ register struct thread_info *__current_thread_info __asm__("$28");
 #define current_thread_info()  __current_thread_info
 
 /* thread information allocation */
-#ifdef CONFIG_MIPS32
+#if defined(CONFIG_PAGE_SIZE_4KB) && defined(CONFIG_MIPS32)
 #define THREAD_SIZE_ORDER (1)
 #endif
-#ifdef CONFIG_MIPS64
+#if defined(CONFIG_PAGE_SIZE_4KB) && defined(CONFIG_MIPS64)
 #define THREAD_SIZE_ORDER (2)
 #endif
+#ifdef CONFIG_PAGE_SIZE_16KB
+#define THREAD_SIZE_ORDER (0)
+#endif
+#ifdef CONFIG_PAGE_SIZE_64KB
+#define THREAD_SIZE_ORDER (0)
+#endif
+
 #define THREAD_SIZE (PAGE_SIZE << THREAD_SIZE_ORDER)
 #define THREAD_MASK (THREAD_SIZE - 1UL)
 #define alloc_thread_info(task) \
