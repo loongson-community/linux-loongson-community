@@ -11,19 +11,9 @@
 
 #include <linux/config.h>
 
-#if !defined(CONFIG_SGI_IO)
-#include <asm/sn/sn0/addrs.h>
+#ifdef CONFIG_SGI_IO
 
-#define IO_SPACE_BASE IO_BASE
-
-/* Because we only have PCI I/O ports.  */
-#define IO_SPACE_LIMIT 0xffffffff
-
-/* No isa_* versions, the Origin doesn't have ISA / EISA bridges.  */
-
-#else	/* CONFIG_SGI_IO */
-
-#define IIO_ITTE_BASE	0x400160	/* base of translation table entries */
+#define IIO_ITTE_BASE		0x400160 /* base of translation table entries */
 #define IIO_ITTE(bigwin)	(IIO_ITTE_BASE + 8*(bigwin))
 
 #define IIO_ITTE_OFFSET_BITS	5	/* size of offset field */
@@ -68,6 +58,17 @@
 #if defined (CONFIG_SGI_IP27)
 #include <asm/sn/sn0/hubio.h>
 #endif
+
+#else /* CONFIG_SGI_IO */
+
+#include <asm/sn/sn0/addrs.h>
+
+#define IO_SPACE_BASE IO_BASE
+
+/* Because we only have PCI I/O ports.  */
+#define IO_SPACE_LIMIT 0xffffffff
+
+/* No isa_* versions, the Origin doesn't have ISA / EISA bridges.  */
 
 #endif	/* CONFIG_SGI_IO */
 

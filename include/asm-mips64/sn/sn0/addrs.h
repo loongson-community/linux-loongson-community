@@ -100,6 +100,7 @@
 					NASID_SHFT) & NASID_BITMASK)
 
 #if !defined(__ASSEMBLY__) && !defined(_STANDALONE)
+
 #define NODE_SWIN_BASE(nasid, widget)					\
 	((widget == 0) ? NODE_BWIN_BASE((nasid), SWIN0_BIGWIN)		\
 	: RAW_NODE_SWIN_BASE(nasid, widget))
@@ -273,6 +274,7 @@
 #define KL_I2C_REG	MD_UREG0_0			/* I2C reg */
 
 #ifndef __ASSEMBLY__
+
 /* Address 0x400 to 0x1000 ualias points to cache error eframe + misc
  * CACHE_ERR_SP_PTR could either contain an address to the stack, or
  * the stack could start at CACHE_ERR_SP_PTR

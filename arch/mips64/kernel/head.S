@@ -134,7 +134,7 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
  */
 NESTED(smp_bootstrap, 16, sp)
 #ifdef CONFIG_SGI_IP27
-	GET_NASID_AS	t1
+	GET_NASID_ASM	t1
 	li	t0, KLDIR_OFFSET + (KLI_KERN_VARS * KLDIR_ENT_SIZE) + \
 		    KLDIR_OFF_POINTER + K0BASE
 	dsll	t1, NASID_SHFT

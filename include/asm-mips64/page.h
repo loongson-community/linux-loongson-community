@@ -100,25 +100,15 @@ extern __inline__ int get_order(unsigned long size)
 
 /*
  * This handles the memory map.
- * We handle pages at KSEG0 for kernels with upto 512mb of memory,
- * at XKPHYS with a suitable caching mode for kernels with more than that.
  */
-#if defined(CONFIG_SGI_IP22) || defined(CONFIG_MIPS_ATLAS) || \
-    defined(CONFIG_MIPS_MALTA) || defined(CONFIG_MIPS_SEAD)
-#define PAGE_OFFSET	0xffffffff80000000UL
-#define UNCAC_BASE	0xffffffffa0000000UL
-#endif
-#if defined(CONFIG_SGI_IP32)
+#ifdef CONFIG_NONCOHERENT_IO
 #define PAGE_OFFSET	0x9800000000000000UL
-#define UNCAC_BASE	0x9000000000000000UL
-#endif
-#if defined(CONFIG_SGI_IP27) || defined(CONFIG_SIBYTE_SB1250)
+#else
 #define PAGE_OFFSET	0xa800000000000000UL
-#define UNCAC_BASE	0x9000000000000000UL
 #endif
 
-#define __pa(x)		((unsigned long) (x) - PAGE_OFFSET)
-#define __va(x)		((void *)((unsigned long) (x) + PAGE_OFFSET))
+#define __pa(x)			((unsigned long) (x) - PAGE_OFFSET)
+#define __va(x)			((void *)((unsigned long) (x) + PAGE_OFFSET))
 #ifndef CONFIG_DISCONTIGMEM
 #define pfn_to_page(pfn)	(mem_map + (pfn))
 #define page_to_pfn(page)	((unsigned long)((page) - mem_map))

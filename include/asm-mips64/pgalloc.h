@@ -10,7 +10,9 @@
 #define _ASM_PGALLOC_H
 
 #include <linux/config.h>
-#include <asm/pgtable.h>
+#include <linux/highmem.h>
+#include <linux/mm.h>
+#include <asm/page.h>
 
 #define check_pgt_cache()	do { } while (0)
 

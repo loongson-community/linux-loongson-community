@@ -178,17 +178,17 @@ cpuid_t cpu_node_probe(cpumask_t *boot_cpumask, int *numnodes)
 	 * cpus are not numbered.
 	 */
 
-	return(highest + 1);
+	return highest + 1;
 }
 
 int cpu_enabled(cpuid_t cpu)
 {
 	if (cpu == CPU_NONE)
 		return 0;
-	return (CPUMASK_TSTB(boot_cpumask, cpu) != 0);
+	return CPUMASK_TSTB(boot_cpumask, cpu) != 0;
 }
 
-void mlreset (void)
+void mlreset(void)
 {
 	int i;
 	void init_topology_matrix(void);
@@ -571,8 +571,7 @@ void __init start_secondary(void)
 
 #define	rou_rflag	rou_flags
 
-void
-router_recurse(klrou_t *router_a, klrou_t *router_b, int depth)
+void router_recurse(klrou_t *router_a, klrou_t *router_b, int depth)
 {
 	klrou_t *router;
 	lboard_t *brd;
@@ -608,8 +607,7 @@ router_recurse(klrou_t *router_a, klrou_t *router_b, int depth)
 	router_a->rou_rflag = 0;
 }
 
-int
-node_distance(nasid_t nasid_a, nasid_t nasid_b)
+int node_distance(nasid_t nasid_a, nasid_t nasid_b)
 {
 	nasid_t nasid;
 	cnodeid_t cnode;
@@ -676,8 +674,7 @@ node_distance(nasid_t nasid_a, nasid_t nasid_b)
 	return router_distance;
 }
 
-void
-init_topology_matrix(void)
+void init_topology_matrix(void)
 {
 	nasid_t nasid, nasid2;
 	cnodeid_t row, col;
@@ -695,8 +692,7 @@ init_topology_matrix(void)
 	}
 }
 
-void
-dump_topology(void)
+void dump_topology(void)
 {
 	nasid_t nasid;
 	cnodeid_t cnode;

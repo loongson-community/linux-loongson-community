@@ -27,12 +27,12 @@ extern int __cpu_number_map[NR_CPUS];
 extern int __cpu_logical_map[NR_CPUS];
 #define cpu_logical_map(cpu)  __cpu_logical_map[cpu]
 
-#endif
-
 #define NO_PROC_ID	(-1)
 
 #define SMP_RESCHEDULE_YOURSELF	0x1	/* XXX braindead */
 #define SMP_CALL_FUNCTION	0x2
+
+#endif /* CONFIG_SMP */
 
 #if (NR_CPUS <= _MIPS_SZLONG)
 
@@ -68,6 +68,8 @@ typedef struct {
 #error cpumask macros only defined for 128p kernels
 #endif
 
+#ifdef CONFIG_SMP
+
 struct call_data_struct {
 	void		(*func)(void *);
 	void		*info;
@@ -79,5 +81,7 @@ struct call_data_struct {
 extern struct call_data_struct *call_data;
 
 extern cpumask_t cpu_online_map;
+
+#endif /* CONFIG_SMP */
 
 #endif /* __ASM_SMP_H */
