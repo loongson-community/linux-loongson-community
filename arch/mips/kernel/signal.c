@@ -4,7 +4,7 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  *  Copyright (C) 1994, 1995, 1996  Ralf Baechle
  *
- * $Id: signal.c,v 1.11 1998/03/27 04:47:55 ralf Exp $
+ * $Id: signal.c,v 1.12 1998/04/05 11:23:53 ralf Exp $
  *
  * XXX Handle lazy fp context switches correctly.
  */
@@ -43,6 +43,7 @@ sys_sigsuspend(struct pt_regs regs)
 {
 	sigset_t *uset, saveset, newset;
 
+	save_static(&regs);
 	uset = (sigset_t *) regs.regs[4];
 	if (copy_from_user(&newset, uset, sizeof(sigset_t)))
 		return -EFAULT;
@@ -67,6 +68,7 @@ sys_rt_sigsuspend(struct pt_regs regs)
 {
 	sigset_t *uset, saveset, newset;
 
+	save_static(&regs);
 	uset = (sigset_t *) regs.regs[4];
 	if (copy_from_user(&newset, uset, sizeof(sigset_t)))
 		return -EFAULT;
