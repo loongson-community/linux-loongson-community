@@ -161,7 +161,7 @@ init:
 
 static inline void tx49_blast_icache32(void)
 {
-	unsigned long start = KSEG0;
+	unsigned long start = INDEX_BASE;
 	unsigned long end = start + current_cpu_data.icache.waysize;
 	unsigned long ws_inc = 1UL << current_cpu_data.icache.waybit;
 	unsigned long ws_end = current_cpu_data.icache.ways <<
@@ -476,7 +476,7 @@ static void r4k_flush_cache_page(struct vm_area_struct *vma,
 	 * Do indexed flush, too much work to get the (possible) TLB refills
 	 * to work correctly.
 	 */
-	page = KSEG0 + (page & (dcache_size - 1));
+	page = INDEX_BASE + (page & (dcache_size - 1));
 	if (cpu_has_dc_aliases || (exec && !cpu_has_ic_fills_f_dc))
 		r4k_blast_dcache_page_indexed(page);
 	if (exec) {
@@ -724,7 +724,7 @@ static inline void rm7k_erratum31(void)
 	write_c0_taglo(0);
 	write_c0_taghi(0);
 
-	for (addr = KSEG0; addr <= KSEG0 + 4096; addr += ic_lsize) {
+	for (addr = INDEX_BASE; addr <= INDEX_BASE + 4096; addr += ic_lsize) {
 		__asm__ __volatile__ (
 			".set noreorder\n\t"
 			".set mips3\n\t"
