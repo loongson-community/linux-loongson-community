@@ -1708,9 +1708,11 @@ static void titan_ge_free_tx_rings(struct net_device *netdev)
 		     " descriptors\n", netdev->name,
 		     titan_ge_eth->tx_ring_skbs);
 
+#ifndef TITAN_RX_RING_IN_SRAM
 	pci_free_consistent(0, titan_ge_eth->tx_desc_area_size,
 			    (void *) titan_ge_eth->tx_desc_area,
 			    titan_ge_eth->tx_dma);
+#endif
 }
 
 /*
@@ -1752,9 +1754,11 @@ static void titan_ge_free_rx_rings(struct net_device *netdev)
 		       " stuck in RX Ring - ignoring them\n", netdev->name,
 		       titan_ge_eth->rx_ring_skbs);
 
+#ifndef TITAN_RX_RING_IN_SRAM
 	pci_free_consistent(0, titan_ge_eth->rx_desc_area_size,
 			    (void *) titan_ge_eth->rx_desc_area,
 			    titan_ge_eth->rx_dma);
+#endif
 }
 
 /*
@@ -1862,12 +1866,14 @@ static int __init titan_ge_init_module(void)
 
 	printk(KERN_NOTICE "Device Id : %x,  Version : %x \n", device, version);
 
+#ifdef TITAN_RX_RING_IN_SRAM
 	titan_ge_sram = (unsigned long) ioremap(TITAN_SRAM_BASE,
 	                                        TITAN_SRAM_SIZE);
 	if (!titan_ge_sram) {
 		printk("Mapping Titan SRAM failed\n");
 		goto out_unmap_ge;
 	}
+#endif
 
 	/* Register only one port */ 
 	if (titan_ge_init(0)) 

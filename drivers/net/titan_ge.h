@@ -123,6 +123,9 @@ static int titan_accept_fastpath(struct net_device *dev, struct dst_entry *dst)
 /* Support for Rx side NAPI */
 #define TITAN_RX_NAPI
 
+/* Keep the rings in the Titan's SSRAM */
+#define TITAN_RX_RING_IN_SRAM
+
 #ifdef CONFIG_MIPS64
 #define	TITAN_GE_IE_MASK	0xfffffffffb001b64
 #define	TITAN_GE_IE_STATUS	0xfffffffffb001b60
