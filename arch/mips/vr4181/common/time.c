@@ -141,8 +141,5 @@ vr4181_init_time(void)
 	rtc_set_time = vr4181_rtc_set_time;
 
 	board_timer_setup = vr4181_timer_setup;
-
-	/* let us setup some reasonable start up time */
-	vr4181_rtc_set_time(mktime(2001, 10, 1, 12, 0, 0));
 }
 
