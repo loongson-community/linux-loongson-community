@@ -1,4 +1,4 @@
-/* $Id: mips64_ksyms.c,v 1.7 2000/02/04 07:40:24 ralf Exp $
+/* $Id: mips64_ksyms.c,v 1.8 2000/02/24 00:12:41 ralf Exp $
  *
  * Export MIPS64-specific functions needed for loadable modules.
  *
@@ -56,8 +56,6 @@ EXPORT_SYMBOL_NOVERS(strtok);
 EXPORT_SYMBOL_NOVERS(strpbrk);
 
 EXPORT_SYMBOL(_clear_page);
-EXPORT_SYMBOL(local_bh_count);
-EXPORT_SYMBOL(local_irq_count);
 EXPORT_SYMBOL(enable_irq);
 EXPORT_SYMBOL(disable_irq);
 EXPORT_SYMBOL(kernel_thread);
@@ -83,8 +81,10 @@ EXPORT_SYMBOL(csum_partial_copy);
  */
 EXPORT_SYMBOL(_flush_page_to_ram);
 EXPORT_SYMBOL(_flush_cache_all);
+#ifndef CONFIG_COHERENT_IO
 EXPORT_SYMBOL(_dma_cache_wback_inv);
 EXPORT_SYMBOL(_dma_cache_inv);
+#endif
 
 EXPORT_SYMBOL(invalid_pte_table);
 

@@ -124,7 +124,7 @@ static void bfs_write_inode(struct inode * inode)
 	di->i_eblock = inode->iu_eblock;
 	di->i_eoffset = di->i_sblock * BFS_BSIZE + inode->i_size - 1;
 
-	mark_buffer_dirty(bh, 1);
+	mark_buffer_dirty(bh, 0);
 	brelse(bh);
 }
 
@@ -165,7 +165,7 @@ static void bfs_delete_inode(struct inode * inode)
 	}
 	di->i_ino = 0;
 	di->i_sblock = 0;
-	mark_buffer_dirty(bh, 1);
+	mark_buffer_dirty(bh, 0);
 	brelse(bh);
 
 	/* if this was the last file, make the previous 
@@ -182,22 +182,19 @@ static void bfs_put_super(struct super_block *s)
 {
 	brelse(s->su_sbh);
 	kfree(s->su_imap);
-	MOD_DEC_USE_COUNT;
 }
 
-static int bfs_statfs(struct super_block *s, struct statfs *buf, int bufsiz)
+static int bfs_statfs(struct super_block *s, struct statfs *buf)
 {
-	struct statfs tmp;
-
-	tmp.f_type = BFS_MAGIC;
-	tmp.f_bsize = s->s_blocksize;
-	tmp.f_blocks = s->su_blocks;
-	tmp.f_bfree = tmp.f_bavail = s->su_freeb;
-	tmp.f_files = s->su_lasti + 1 - BFS_ROOT_INO;
-	tmp.f_ffree = s->su_freei;
-	tmp.f_fsid.val[0] = s->s_dev;
-	tmp.f_namelen = BFS_NAMELEN;
-	return copy_to_user(buf, &tmp, bufsiz) ? -EFAULT : 0;
+	buf->f_type = BFS_MAGIC;
+	buf->f_bsize = s->s_blocksize;
+	buf->f_blocks = s->su_blocks;
+	buf->f_bfree = buf->f_bavail = s->su_freeb;
+	buf->f_files = s->su_lasti + 1 - BFS_ROOT_INO;
+	buf->f_ffree = s->su_freei;
+	buf->f_fsid.val[0] = s->s_dev;
+	buf->f_namelen = BFS_NAMELEN;
+	return 0;
 }
 
 static void bfs_write_super(struct super_block *s)
@@ -245,8 +242,6 @@ static struct super_block * bfs_read_super(struct super_block * s,
 	struct inode * inode;
 	int i, imap_len;
 
-	MOD_INC_USE_COUNT;
-	lock_super(s);
 	dev = s->s_dev;
 	set_blocksize(dev, BFS_BSIZE);
 	s->s_blocksize = BFS_BSIZE;
@@ -318,22 +313,14 @@ static struct super_block * bfs_read_super(struct super_block * s,
 		s->s_dirt = 1;
 	} 
 	dump_imap("read_super", s);
-	unlock_super(s);
 	return s;
 
 out:
 	brelse(bh);
-	s->s_dev = 0;
-	unlock_super(s);
-	MOD_DEC_USE_COUNT;
 	return NULL;
 }
 
-static struct file_system_type bfs_fs_type = {
-	name:		"bfs",
-	fs_flags:	FS_REQUIRES_DEV,
-	read_super:	bfs_read_super,
-};
+static DECLARE_FSTYPE_DEV( bfs_fs_type, "bfs", bfs_read_super);
 
 #ifdef MODULE
 #define init_bfs_fs init_module

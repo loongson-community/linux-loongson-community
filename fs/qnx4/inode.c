@@ -117,7 +117,7 @@ static struct super_block *qnx4_read_super(struct super_block *, void *, int);
 static void qnx4_put_super(struct super_block *sb);
 static void qnx4_read_inode(struct inode *);
 static int qnx4_remount(struct super_block *sb, int *flags, char *data);
-static int qnx4_statfs(struct super_block *, struct statfs *, int);
+static int qnx4_statfs(struct super_block *, struct statfs *);
 
 static struct super_operations qnx4_sops =
 {
@@ -269,22 +269,16 @@ unsigned long qnx4_block_map( struct inode *inode, long iblock )
 	return block;
 }
 
-static int qnx4_statfs(struct super_block *sb,
-		       struct statfs *buf, int bufsize)
+static int qnx4_statfs(struct super_block *sb, struct statfs *buf)
 {
-	struct statfs tmp;
+	buf->f_type    = sb->s_magic;
+	buf->f_bsize   = sb->s_blocksize;
+	buf->f_blocks  = le32_to_cpu(sb->u.qnx4_sb.BitMap->di_size) * 8;
+	buf->f_bfree   = qnx4_count_free_blocks(sb);
+	buf->f_bavail  = buf->f_bfree;
+	buf->f_namelen = QNX4_NAME_MAX;
 
-	memset(&tmp, 0, sizeof tmp);
-	tmp.f_type    = sb->s_magic;
-	tmp.f_bsize   = sb->s_blocksize;
-	tmp.f_blocks  = le32_to_cpu(sb->u.qnx4_sb.BitMap->di_size) * 8;
-	tmp.f_bfree   = qnx4_count_free_blocks(sb);
-	tmp.f_bavail  = tmp.f_bfree;
-	tmp.f_files   = -1;	/* we don't count files */
-	tmp.f_ffree   = -1;	/* inodes are allocated dynamically */
-	tmp.f_namelen = QNX4_NAME_MAX;
-
-	return copy_to_user(buf, &tmp, bufsize) ? -EFAULT : 0;
+	return 0;
 }
 
 /*
@@ -343,8 +337,6 @@ static struct super_block *qnx4_read_super(struct super_block *s,
 	struct inode *root;
 	const char *errmsg;
 
-	MOD_INC_USE_COUNT;
-	lock_super(s);
 	set_blocksize(dev, QNX4_BLOCK_SIZE);
 	s->s_blocksize = QNX4_BLOCK_SIZE;
 	s->s_blocksize_bits = QNX4_BLOCK_SIZE_BITS;
@@ -399,7 +391,6 @@ static struct super_block *qnx4_read_super(struct super_block *s,
  		goto outi;
 
 	brelse(bh);
-	unlock_super(s);
 	s->s_dirt = 1;
 
 	return s;
@@ -409,9 +400,6 @@ static struct super_block *qnx4_read_super(struct super_block *s,
       out:
 	brelse(bh);
       outnobh:
-	s->s_dev = 0;
-	unlock_super(s);
-	MOD_DEC_USE_COUNT;
 
 	return NULL;
 }
@@ -419,7 +407,6 @@ static struct super_block *qnx4_read_super(struct super_block *s,
 static void qnx4_put_super(struct super_block *sb)
 {
 	kfree_s( sb->u.qnx4_sb.BitMap, sizeof( struct qnx4_inode_entry ) );
-	MOD_DEC_USE_COUNT;
 	return;
 }
 
@@ -502,13 +489,7 @@ static void qnx4_read_inode(struct inode *inode)
 	brelse(bh);
 }
 
-static struct file_system_type qnx4_fs_type =
-{
-	"qnx4",
-	FS_REQUIRES_DEV,
-	qnx4_read_super,
-	NULL
-};
+static DECLARE_FSTYPE_DEV(qnx4_fs_type, "qnx4", qnx4_read_super);
 
 int __init init_qnx4_fs(void)
 {

@@ -746,13 +746,11 @@ static void ntfs_put_super(struct super_block *sb)
 	ntfs_free(vol);
 #endif
 	ntfs_debug(DEBUG_OTHER, "ntfs_put_super: done\n");
-	MOD_DEC_USE_COUNT;
 }
 
 /* Called by the kernel when asking for stats */
-static int ntfs_statfs(struct super_block *sb, struct statfs *sf, int bufsize)
+static int ntfs_statfs(struct super_block *sb, struct statfs *sf)
 {
-	struct statfs fs;
 	struct inode *mft;
 	ntfs_volume *vol;
 	ntfs_u64 size;
@@ -760,30 +758,26 @@ static int ntfs_statfs(struct super_block *sb, struct statfs *sf, int bufsize)
 
 	ntfs_debug(DEBUG_OTHER, "ntfs_statfs\n");
 	vol=NTFS_SB2VOL(sb);
-	memset(&fs,0,sizeof(fs));
-	fs.f_type=NTFS_SUPER_MAGIC;
-	fs.f_bsize=vol->clustersize;
+	sf->f_type=NTFS_SUPER_MAGIC;
+	sf->f_bsize=vol->clustersize;
 
 	error = ntfs_get_volumesize( NTFS_SB2VOL( sb ), &size );
 	if( error )
 		return -error;
-	fs.f_blocks = size;	/* volumesize is in clusters */
-	fs.f_bfree=ntfs_get_free_cluster_count(vol->bitmap);
-	fs.f_bavail=fs.f_bfree;
+	sf->f_blocks = size;	/* volumesize is in clusters */
+	sf->f_bfree=ntfs_get_free_cluster_count(vol->bitmap);
+	sf->f_bavail=sf->f_bfree;
 
-	/* Number of files is limited by free space only, so we lie here */
-	fs.f_ffree=0;
 	mft=iget(sb,FILE_MFT);
 	if (!mft)
 		return -EIO;
 	/* So ... we lie... thus this following cast of loff_t value
 	   is ok here.. */
-	fs.f_files = (unsigned long)mft->i_size / vol->mft_recordsize;
+	sf->f_files = (unsigned long)mft->i_size / vol->mft_recordsize;
 	iput(mft);
 
 	/* should be read from volume */
-	fs.f_namelen=255;
-	copy_to_user(sf,&fs,bufsize);
+	sf->f_namelen=255;
 	return 0;
 }
 
@@ -823,14 +817,6 @@ struct super_block * ntfs_read_super(struct super_block *sb,
 	struct buffer_head *bh;
 	int i;
 
-	/* When the driver is compiled as a module, kmod must know when it
-	 * can safely remove it from memory. To do this, each module owns a
-	 * reference counter.
-	 */
-	MOD_INC_USE_COUNT;
-	/* Don't put ntfs_debug() before MOD_INC_USE_COUNT, printk() can block
-	 * so this could lead to a race condition with kmod.
-	 */
 	ntfs_debug(DEBUG_OTHER, "ntfs_read_super\n");
 
 #ifdef NTFS_IN_LINUX_KERNEL
@@ -844,9 +830,6 @@ struct super_block * ntfs_read_super(struct super_block *sb,
 	if(!parse_options(vol,(char*)options))
 		goto ntfs_read_super_vol;
 
-	/* Ensure that the super block won't be used until it is completed */
-	lock_super(sb);
-	ntfs_debug(DEBUG_OTHER, "lock_super\n");
 #if 0
 	/* Set to read only, user option might reset it */
 	sb->s_flags |= MS_RDONLY;
@@ -919,48 +902,24 @@ struct super_block * ntfs_read_super(struct super_block *sb,
 		ntfs_error("Could not get root dir inode\n");
 		goto ntfs_read_super_mft;
 	}
-	unlock_super(sb);
-	ntfs_debug(DEBUG_OTHER, "unlock_super\n");
 	ntfs_debug(DEBUG_OTHER, "read_super: done\n");
 	return sb;
 
 ntfs_read_super_mft:
 	ntfs_free(vol->mft);
 ntfs_read_super_unl:
-	sb->s_dev = 0;
-	unlock_super(sb);
-	ntfs_debug(DEBUG_OTHER, "unlock_super\n");
 ntfs_read_super_vol:
 	#ifndef NTFS_IN_LINUX_KERNEL
 	ntfs_free(vol);
 ntfs_read_super_dec:
 	#endif
 	ntfs_debug(DEBUG_OTHER, "read_super: done\n");
-	MOD_DEC_USE_COUNT;
 	return NULL;
 }
 
 /* Define the filesystem
- *
- * Define SECOND if you cannot unload ntfs, and want to avoid rebooting
- * for just one more test
  */
-static struct file_system_type ntfs_fs_type = {
-/* Filesystem name, as used after mount -t */
-#ifndef SECOND
-	"ntfs",
-#else
-	"ntfs2",
-#endif
-/* This filesystem requires a device (a hard disk)
- * May want to add FS_IBASKET when it works
- */
-	FS_REQUIRES_DEV,
-/* Entry point of the filesystem */
-	ntfs_read_super,
-/* Will point to the next filesystem in the kernel table */
-	NULL
-};
+static DECLARE_FSTYPE_DEV(ntfs_fs_type, "ntfs", ntfs_read_super);
 
 /* When this code is not compiled as a module, this is the main entry point,
  * called by do_sys_setup() in fs/filesystems.c

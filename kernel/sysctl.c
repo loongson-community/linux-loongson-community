@@ -57,8 +57,7 @@ extern int sg_big_buff;
 #endif
 #ifdef CONFIG_SYSVIPC
 extern size_t shm_ctlmax;
-extern int shm_ctlall;
-extern int shm_ctlmni;
+extern char shm_path[];
 extern int msg_ctlmax;
 extern int msg_ctlmnb;
 extern int msg_ctlmni;
@@ -200,12 +199,10 @@ static ctl_table kern_table[] = {
 	{KERN_RTSIGMAX, "rtsig-max", &max_queued_signals, sizeof(int),
 	 0644, NULL, &proc_dointvec},
 #ifdef CONFIG_SYSVIPC
+	{KERN_SHMPATH, "shmpath", &shm_path, 256,
+	 0644, NULL, &proc_dostring, &sysctl_string },
 	{KERN_SHMMAX, "shmmax", &shm_ctlmax, sizeof (size_t),
 	 0644, NULL, &proc_doulongvec_minmax},
-	{KERN_SHMALL, "shmall", &shm_ctlall, sizeof (int),
-	 0644, NULL, &proc_dointvec},
-	{KERN_SHMMNI, "shmmni", &shm_ctlmni, sizeof (int),
-	 0644, NULL, &proc_dointvec},
 	{KERN_MSGMAX, "msgmax", &msg_ctlmax, sizeof (int),
 	 0644, NULL, &proc_dointvec},
 	{KERN_MSGMNI, "msgmni", &msg_ctlmni, sizeof (int),
@@ -351,25 +348,6 @@ extern asmlinkage long sys_sysctl(struct __sysctl_args *args)
 	return error;
 }
 
-/* Like in_group_p, but testing against egid, not fsgid */
-int in_egroup_p(gid_t grp)
-{
-	if (grp != current->egid) {
-		int i = current->ngroups;
-		if (i) {
-			gid_t *groups = current->groups;
-			do {
-				if (*groups == grp)
-					goto out;
-				groups++;
-				i--;
-			} while (i);
-		}
-		return 0;
-	}
-out:
-	return 1;
-}
 
 /* ctl_perm does NOT grant the superuser all rights automatically, because
    some sysctl variables are readonly even to root. */

@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 3
-SUBLEVEL = 50
+SUBLEVEL = 51
 EXTRAVERSION =
 
 ARCH = mips
@@ -134,6 +134,10 @@ endif
 
 ifdef CONFIG_NET_FC
 DRIVERS := $(DRIVERS) drivers/net/fc/fc.a
+endif
+
+ifdef CONFIG_ATALK
+DRIVERS := $(DRIVERS) drivers/net/appletalk/appletalk.a
 endif
 
 ifdef CONFIG_TR

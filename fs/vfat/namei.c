@@ -78,11 +78,6 @@ static struct dentry_operations vfat_dentry_ops[4] = {
 	}
 };
 
-static void vfat_put_super_callback(struct super_block *sb)
-{
-	MOD_DEC_USE_COUNT;
-}
-
 static int vfat_revalidate(struct dentry *dentry, int flags)
 {
 	PRINTK1(("vfat_revalidate: %s\n", dentry->d_name.name));
@@ -978,7 +973,7 @@ static struct dentry *find_alias(struct inode *inode)
 		tmp = next;
 		next = tmp->next;
 		alias = list_entry(tmp, struct dentry, d_alias);
-		if (!list_empty(&alias->d_hash))
+		if (!d_unhashed(alias))
 			return dget(alias);
 	}
 	return NULL;
@@ -1085,7 +1080,7 @@ int vfat_rmdir(struct inode *dir,struct dentry* dentry)
 	struct buffer_head *bh = NULL;
 	struct msdos_dir_entry *de;
 
-	if (!list_empty(&dentry->d_hash))
+	if (!d_unhashed(dentry))
 		return -EBUSY;
 
 	res = fat_dir_empty(dentry->d_inode);
@@ -1207,6 +1202,9 @@ int vfat_rename(struct inode *old_dir,struct dentry *old_dentry,
 		}
 
 		if (is_dir) {
+			res =-EBUSY;
+			if (!d_unhashed(new_dentry))
+				goto rename_done;
 			res = fat_dir_empty(new_inode);
 			if (res)
 				goto rename_done;
@@ -1274,21 +1272,13 @@ struct super_block *vfat_read_super(struct super_block *sb,void *data,
 {
 	struct super_block *res;
   
-	MOD_INC_USE_COUNT;
-	
 	MSDOS_SB(sb)->options.isvfat = 1;
 
 	res = fat_read_super(sb, data, silent, &vfat_dir_inode_operations);
-	if (res == NULL) {
-		sb->s_dev = 0;
-		MOD_DEC_USE_COUNT;
+	if (res == NULL)
 		return NULL;
-	}
 
-	if (!parse_options((char *) data, &(MSDOS_SB(sb)->options))) {
-		MOD_DEC_USE_COUNT;
-	} else {
-		MSDOS_SB(sb)->put_super_callback=vfat_put_super_callback;
+	if (parse_options((char *) data, &(MSDOS_SB(sb)->options))) {
 		MSDOS_SB(sb)->options.dotsOK = 0;
 		if (MSDOS_SB(sb)->options.posixfs) {
 			MSDOS_SB(sb)->options.name_check = 's';

@@ -1,4 +1,4 @@
-/* $Id: ide.h,v 1.5 1999/06/17 13:30:36 ralf Exp $
+/* $Id: ide.h,v 1.6 1999/10/09 00:01:42 ralf Exp $
  *
  *  linux/include/asm-mips/ide.h
  *
@@ -17,7 +17,11 @@
 #include <linux/config.h>
 
 #ifndef MAX_HWIFS
+# ifdef CONFIG_BLK_DEV_IDEPCI
+#define MAX_HWIFS	10
+# else
 #define MAX_HWIFS	6
+# endif
 #endif
 
 #define ide__sti()	__sti()

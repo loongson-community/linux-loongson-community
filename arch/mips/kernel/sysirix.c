@@ -1,4 +1,4 @@
-/* $Id: sysirix.c,v 1.25 2000/03/07 15:45:28 ralf Exp $
+/* $Id: sysirix.c,v 1.26 2000/03/12 23:15:33 ralf Exp $
  *
  * sysirix.c: IRIX system call emulation.
  *
@@ -725,8 +725,6 @@ asmlinkage int irix_statfs(const char *path, struct irix_statfs *buf,
 			   int len, int fs_type)
 {
 	struct dentry *dentry;
-	struct inode *inode;
-	mm_segment_t old_fs;
 	struct statfs kbuf;
 	int error, i;
 
@@ -745,11 +743,7 @@ asmlinkage int irix_statfs(const char *path, struct irix_statfs *buf,
 	if (IS_ERR(dentry))
 		goto out;
 
-	inode = dentry->d_inode;
-	old_fs = get_fs(); set_fs(get_ds());
-	error = inode->i_sb->s_op->statfs(inode->i_sb, &kbuf,
-	                                  sizeof(struct statfs));
-	set_fs(old_fs);
+	error = vfs_statfs(dentry->d_inode->i_sb, &kbuf);
 	if (error)
 		goto dput_and_out;
 
@@ -775,9 +769,7 @@ out:
 
 asmlinkage int irix_fstatfs(unsigned int fd, struct irix_statfs *buf)
 {
-	struct inode *inode;
 	struct statfs kbuf;
-	mm_segment_t old_fs;
 	struct file *file;
 	int error, i;
 
@@ -790,23 +782,7 @@ asmlinkage int irix_fstatfs(unsigned int fd, struct irix_statfs *buf)
 		goto out;
 	}
 
-	if (!(inode = file->f_dentry->d_inode)) {
-		error = -ENOENT;
-		goto out_f;
-	}
-	if (!inode->i_sb) {
-		error = -ENODEV;
-		goto out_f;
-	}
-	if (!inode->i_sb->s_op->statfs) {
-		error = -ENOSYS;
-		goto out_f;
-	}
-
-	old_fs = get_fs(); set_fs(get_ds());
-	error = inode->i_sb->s_op->statfs(inode->i_sb, &kbuf,
-	                                  sizeof(struct statfs));
-	set_fs(old_fs);
+	error = vfs_statfs(file->f_dentry->d_inode->i_sb, &kbuf);
 	if (error)
 		goto out_f;
 
@@ -1507,8 +1483,6 @@ struct irix_statvfs {
 asmlinkage int irix_statvfs(char *fname, struct irix_statvfs *buf)
 {
 	struct dentry *dentry;
-	struct inode *inode;
-	mm_segment_t old_fs;
 	struct statfs kbuf;
 	int error, i;
 
@@ -1522,16 +1496,7 @@ asmlinkage int irix_statvfs(char *fname, struct irix_statvfs *buf)
 	error = PTR_ERR(dentry);
 	if(!IS_ERR(dentry))
 		goto out;
-	inode = dentry->d_inode;
-
-	error = -ENOSYS;
-	if(!inode->i_sb->s_op->statfs)
-		goto dput_and_out;
-
-	old_fs = get_fs(); set_fs(get_ds());
-	error = inode->i_sb->s_op->statfs(inode->i_sb, &kbuf,
-	                                  sizeof(struct statfs));
-	set_fs(old_fs);
+	error = vfs_statfs(dentry->d_inode->i_sb, &kbuf);
 	if (error)
 		goto dput_and_out;
 
@@ -1566,8 +1531,6 @@ out:
 
 asmlinkage int irix_fstatvfs(int fd, struct irix_statvfs *buf)
 {
-	struct inode *inode;
-	mm_segment_t old_fs;
 	struct statfs kbuf;
 	struct file *file;
 	int error, i;
@@ -1583,23 +1546,7 @@ asmlinkage int irix_fstatvfs(int fd, struct irix_statvfs *buf)
 		error = -EBADF;
 		goto out;
 	}
-	if (!(inode = file->f_dentry->d_inode)) {
-		error = -ENOENT;
-		goto out_f;
-	}
-	if (!inode->i_sb) {
-		error = -ENODEV;
-		goto out_f;
-	}
-	if (!inode->i_sb->s_op->statfs) {
-		error = -ENOSYS;
-		goto out_f;
-	}
-
-	old_fs = get_fs(); set_fs(get_ds());
-	error = inode->i_sb->s_op->statfs(inode->i_sb, &kbuf,
-	                                  sizeof(struct statfs));
-	set_fs(old_fs);
+	error = vfs_statfs(file->f_dentry->d_inode->i_sb, &kbuf);
 	if (error)
 		goto out_f;
 
@@ -1811,8 +1758,6 @@ struct irix_statvfs64 {
 asmlinkage int irix_statvfs64(char *fname, struct irix_statvfs64 *buf)
 {
 	struct dentry *dentry;
-	struct inode *inode;
-	mm_segment_t old_fs;
 	struct statfs kbuf;
 	int error, i;
 
@@ -1826,15 +1771,7 @@ asmlinkage int irix_statvfs64(char *fname, struct irix_statvfs64 *buf)
 	error = PTR_ERR(dentry);
 	if(IS_ERR(dentry))
 		goto out;
-	error = -ENOSYS;
-	inode = dentry->d_inode;
-	if(!inode->i_sb->s_op->statfs)
-		goto dput_and_out;
-
-	old_fs = get_fs(); set_fs(get_ds());
-	error = inode->i_sb->s_op->statfs(inode->i_sb, &kbuf,
-	                                  sizeof(struct statfs));
-	set_fs(old_fs);
+	error = vfs_statfs(dentry->d_inode->i_sb, &kbuf);
 	if (error)
 		goto dput_and_out;
 
@@ -1869,8 +1806,6 @@ out:
 
 asmlinkage int irix_fstatvfs64(int fd, struct irix_statvfs *buf)
 {
-	struct inode *inode;
-	mm_segment_t old_fs;
 	struct statfs kbuf;
 	struct file *file;
 	int error, i;
@@ -1886,23 +1821,7 @@ asmlinkage int irix_fstatvfs64(int fd, struct irix_statvfs *buf)
 		error = -EBADF;
 		goto out;
 	}
-	if (!(inode = file->f_dentry->d_inode)) {
-		error = -ENOENT;
-		goto out_f;
-	}
-	if (!inode->i_sb) {
-		error = -ENODEV;
-		goto out_f;
-	}
-	if (!inode->i_sb->s_op->statfs) {
-		error = -ENOSYS;
-		goto out_f;
-	}
-
-	old_fs = get_fs(); set_fs(get_ds());
-	error = inode->i_sb->s_op->statfs(inode->i_sb, &kbuf,
-	                                  sizeof(struct statfs));
-	set_fs(old_fs);
+	error = vfs_statfs(file->f_dentry->d_inode->i_sb, &kbuf);
 	if (error)
 		goto out_f;
 

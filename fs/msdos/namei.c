@@ -326,7 +326,7 @@ int msdos_rmdir(struct inode *dir, struct dentry *dentry)
 	 * whether it is empty.
 	 */
 	res = -EBUSY;
-	if (!list_empty(&dentry->d_hash))
+	if (!d_unhashed(dentry))
 		goto rmdir_done;
 	res = fat_dir_empty(inode);
 	if (res)
@@ -463,6 +463,9 @@ static int do_msdos_rename(struct inode *old_dir, char *old_name,
 		goto degenerate_case;
 	if (is_dir) {
 		if (new_inode) {
+			error = -EBUSY;
+			if (!d_unhashed(new_dentry))
+				goto out;
 			error = fat_dir_empty(new_inode);
 			if (error)
 				goto out;
@@ -590,28 +593,18 @@ struct inode_operations msdos_dir_inode_operations = {
 	setattr:	fat_notify_change,
 };
 
-static void msdos_put_super_callback(struct super_block *sb)
-{
-	MOD_DEC_USE_COUNT;
-}
-
 struct super_block *msdos_read_super(struct super_block *sb,void *data, int silent)
 {
 	struct super_block *res;
-
-	MOD_INC_USE_COUNT;
 
 	MSDOS_SB(sb)->options.isvfat = 0;
 	res = fat_read_super(sb, data, silent, &msdos_dir_inode_operations);
 	if (res == NULL)
 		goto out_fail;
-	MSDOS_SB(sb)->put_super_callback=msdos_put_super_callback;
 	sb->s_root->d_op = &msdos_dentry_operations;
 	return res;
 
 out_fail:
-	sb->s_dev = 0;
-	MOD_DEC_USE_COUNT;
 	return NULL;
 }
 

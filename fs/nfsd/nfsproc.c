@@ -30,7 +30,6 @@ typedef struct svc_buf	svc_buf;
 
 #define NFSDDBG_FACILITY		NFSDDBG_PROC
 
-#define RETURN(st)	return st
 
 static void
 svcbuf_reserve(struct svc_buf *buf, u32 **ptr, int *len, int nr)
@@ -42,7 +41,7 @@ svcbuf_reserve(struct svc_buf *buf, u32 **ptr, int *len, int nr)
 static int
 nfsd_proc_null(struct svc_rqst *rqstp, void *argp, void *resp)
 {
-	RETURN(nfs_ok);
+	return nfs_ok;
 }
 
 /*
@@ -53,11 +52,10 @@ static int
 nfsd_proc_getattr(struct svc_rqst *rqstp, struct nfsd_fhandle  *argp,
 					  struct nfsd_attrstat *resp)
 {
-	dprintk("nfsd: GETATTR  %d/%d\n",
-		SVCFH_DEV(&argp->fh), SVCFH_INO(&argp->fh));
+	dprintk("nfsd: GETATTR  %s\n", SVCFH_fmt(&argp->fh));
 
 	fh_copy(&resp->fh, &argp->fh);
-	RETURN(fh_verify(rqstp, &resp->fh, 0, MAY_NOP));
+	return fh_verify(rqstp, &resp->fh, 0, MAY_NOP);
 }
 
 /*
@@ -68,12 +66,12 @@ static int
 nfsd_proc_setattr(struct svc_rqst *rqstp, struct nfsd_sattrargs *argp,
 					  struct nfsd_attrstat  *resp)
 {
-	dprintk("nfsd: SETATTR  %d/%d, valid=%x, size=%ld\n",
-		SVCFH_DEV(&argp->fh), SVCFH_INO(&argp->fh),
+	dprintk("nfsd: SETATTR  %s, valid=%x, size=%ld\n",
+		SVCFH_fmt(&argp->fh),
 		argp->attrs.ia_valid, (long) argp->attrs.ia_size);
 
 	fh_copy(&resp->fh, &argp->fh);
-	RETURN(nfsd_setattr(rqstp, &resp->fh, &argp->attrs));
+	return nfsd_setattr(rqstp, &resp->fh, &argp->attrs);
 }
 
 /*
@@ -88,14 +86,15 @@ nfsd_proc_lookup(struct svc_rqst *rqstp, struct nfsd_diropargs *argp,
 {
 	int	nfserr;
 
-	dprintk("nfsd: LOOKUP   %d/%d %s\n",
-		SVCFH_DEV(&argp->fh), SVCFH_INO(&argp->fh), argp->name);
+	dprintk("nfsd: LOOKUP   %s %s\n",
+		SVCFH_fmt(&argp->fh), argp->name);
 
+	fh_init(&resp->fh, NFS_FHSIZE);
 	nfserr = nfsd_lookup(rqstp, &argp->fh, argp->name, argp->len,
 				 &resp->fh);
 
 	fh_put(&argp->fh);
-	RETURN(nfserr);
+	return nfserr;
 }
 
 /*
@@ -108,7 +107,7 @@ nfsd_proc_readlink(struct svc_rqst *rqstp, struct nfsd_fhandle     *argp,
 	u32		*path;
 	int		dummy, nfserr;
 
-	dprintk("nfsd: READLINK %p\n", SVCFH_DENTRY(&argp->fh));
+	dprintk("nfsd: READLINK %s\n", SVCFH_fmt(&argp->fh));
 
 	/* Reserve room for status and path length */
 	svcbuf_reserve(&rqstp->rq_resbuf, &path, &dummy, 2);
@@ -118,7 +117,7 @@ nfsd_proc_readlink(struct svc_rqst *rqstp, struct nfsd_fhandle     *argp,
 	nfserr = nfsd_readlink(rqstp, &argp->fh, (char *) path, &resp->len);
 
 	fh_put(&argp->fh);
-	RETURN(nfserr);
+	return nfserr;
 }
 
 /*
@@ -132,8 +131,8 @@ nfsd_proc_read(struct svc_rqst *rqstp, struct nfsd_readargs *argp,
 	u32 *	buffer;
 	int	nfserr, avail;
 
-	dprintk("nfsd: READ    %d/%d %d bytes at %d\n",
-		SVCFH_DEV(&argp->fh), SVCFH_INO(&argp->fh),
+	dprintk("nfsd: READ    %s %d bytes at %d\n",
+		SVCFH_fmt(&argp->fh),
 		argp->count, argp->offset);
 
 	/* Obtain buffer pointer for payload. 19 is 1 word for
@@ -156,7 +155,7 @@ nfsd_proc_read(struct svc_rqst *rqstp, struct nfsd_readargs *argp,
 				  (char *) buffer,
 				  &resp->count);
 
-	RETURN(nfserr);
+	return nfserr;
 }
 
 /*
@@ -168,17 +167,18 @@ nfsd_proc_write(struct svc_rqst *rqstp, struct nfsd_writeargs *argp,
 					struct nfsd_attrstat  *resp)
 {
 	int	nfserr;
+	int	stable = 1;
 
-	dprintk("nfsd: WRITE    %d/%d %d bytes at %d\n",
-		SVCFH_DEV(&argp->fh), SVCFH_INO(&argp->fh),
+	dprintk("nfsd: WRITE    %s %d bytes at %d\n",
+		SVCFH_fmt(&argp->fh),
 		argp->len, argp->offset);
 
 	nfserr = nfsd_write(rqstp, fh_copy(&resp->fh, &argp->fh),
 				   argp->offset,
 				   argp->data,
 				   argp->len,
-				   0);
-	RETURN(nfserr);
+				   &stable);
+	return nfserr;
 }
 
 /*
@@ -198,8 +198,8 @@ nfsd_proc_create(struct svc_rqst *rqstp, struct nfsd_createargs *argp,
 	int		nfserr, type, mode, rdonly = 0;
 	dev_t		rdev = NODEV;
 
-	dprintk("nfsd: CREATE   %d/%d %s\n",
-		SVCFH_DEV(dirfhp), SVCFH_INO(dirfhp), argp->name);
+	dprintk("nfsd: CREATE   %s %s\n",
+		SVCFH_fmt(dirfhp), argp->name);
 
 	/* First verify the parent file handle */
 	nfserr = fh_verify(rqstp, dirfhp, S_IFDIR, MAY_EXEC);
@@ -217,6 +217,7 @@ nfsd_proc_create(struct svc_rqst *rqstp, struct nfsd_createargs *argp,
 	/*
 	 * Do a lookup to verify the new file handle.
 	 */
+	fh_init(newfhp, NFS_FHSIZE);
 	nfserr = nfsd_lookup(rqstp, dirfhp, argp->name, argp->len, newfhp);
 	if (nfserr) {
 		if (nfserr != nfserr_noent)
@@ -240,9 +241,11 @@ nfsd_proc_create(struct svc_rqst *rqstp, struct nfsd_createargs *argp,
 	if (nfserr)
 		goto done;
 	inode = newfhp->fh_dentry->d_inode;
-	if (inode && newfhp->fh_handle.fh_ino == 0)
+	if (inode && newfhp->fh_handle.fh_fileid_type == 0)
 		 /* inode might have been instantiated while we slept */
-		 fh_update(newfhp);
+		nfserr = fh_update(newfhp);
+	if (nfserr)
+		goto done;
 
 	/* Unfudge the mode bits */
 	if (attr->ia_valid & ATTR_MODE) { 
@@ -321,7 +324,7 @@ out_unlock:
 
 done:
 	fh_put(dirfhp);
-	RETURN(nfserr);
+	return nfserr;
 }
 
 static int
@@ -330,12 +333,12 @@ nfsd_proc_remove(struct svc_rqst *rqstp, struct nfsd_diropargs *argp,
 {
 	int	nfserr;
 
-	dprintk("nfsd: REMOVE   %p %s\n", SVCFH_DENTRY(&argp->fh), argp->name);
+	dprintk("nfsd: REMOVE   %s %s\n", SVCFH_fmt(&argp->fh), argp->name);
 
 	/* Unlink. -SIFDIR means file must not be a directory */
 	nfserr = nfsd_unlink(rqstp, &argp->fh, -S_IFDIR, argp->name, argp->len);
 	fh_put(&argp->fh);
-	RETURN(nfserr);
+	return nfserr;
 }
 
 static int
@@ -344,15 +347,16 @@ nfsd_proc_rename(struct svc_rqst *rqstp, struct nfsd_renameargs *argp,
 {
 	int	nfserr;
 
-	dprintk("nfsd: RENAME   %p %s -> %p %s\n",
-		SVCFH_DENTRY(&argp->ffh), argp->fname,
-		SVCFH_DENTRY(&argp->tfh), argp->tname);
+	dprintk("nfsd: RENAME   %s %s -> \n",
+		SVCFH_fmt(&argp->ffh), argp->fname);
+	dprintk("nfsd:        ->  %s %s\n",
+		SVCFH_fmt(&argp->tfh), argp->tname);
 
 	nfserr = nfsd_rename(rqstp, &argp->ffh, argp->fname, argp->flen,
 				    &argp->tfh, argp->tname, argp->tlen);
 	fh_put(&argp->ffh);
 	fh_put(&argp->tfh);
-	RETURN(nfserr);
+	return nfserr;
 }
 
 static int
@@ -361,16 +365,17 @@ nfsd_proc_link(struct svc_rqst *rqstp, struct nfsd_linkargs *argp,
 {
 	int	nfserr;
 
-	dprintk("nfsd: LINK     %p -> %p %s\n",
-		SVCFH_DENTRY(&argp->ffh),
-		SVCFH_DENTRY(&argp->tfh),
+	dprintk("nfsd: LINK     %s ->\n",
+		SVCFH_fmt(&argp->ffh));
+	dprintk("nfsd:    %s %s\n",
+		SVCFH_fmt(&argp->tfh),
 		argp->tname);
 
 	nfserr = nfsd_link(rqstp, &argp->tfh, argp->tname, argp->tlen,
 				  &argp->ffh);
 	fh_put(&argp->ffh);
 	fh_put(&argp->tfh);
-	RETURN(nfserr);
+	return nfserr;
 }
 
 static int
@@ -380,10 +385,10 @@ nfsd_proc_symlink(struct svc_rqst *rqstp, struct nfsd_symlinkargs *argp,
 	struct svc_fh	newfh;
 	int		nfserr;
 
-	dprintk("nfsd: SYMLINK  %p %s -> %s\n",
-		SVCFH_DENTRY(&argp->ffh), argp->fname, argp->tname);
+	dprintk("nfsd: SYMLINK  %s %s -> %s\n",
+		SVCFH_fmt(&argp->ffh), argp->fname, argp->tname);
 
-	memset(&newfh, 0, sizeof(struct svc_fh));
+	fh_init(&newfh, NFS_FHSIZE);
 	/*
 	 * Create the link, look up new file and set attrs.
 	 */
@@ -394,7 +399,7 @@ nfsd_proc_symlink(struct svc_rqst *rqstp, struct nfsd_symlinkargs *argp,
 
 	fh_put(&argp->ffh);
 	fh_put(&newfh);
-	RETURN(nfserr);
+	return nfserr;
 }
 
 /*
@@ -407,7 +412,7 @@ nfsd_proc_mkdir(struct svc_rqst *rqstp, struct nfsd_createargs *argp,
 {
 	int	nfserr;
 
-	dprintk("nfsd: MKDIR    %p %s\n", SVCFH_DENTRY(&argp->fh), argp->name);
+	dprintk("nfsd: MKDIR    %s %s\n", SVCFH_fmt(&argp->fh), argp->name);
 
 	if (resp->fh.fh_dverified) {
 		printk(KERN_WARNING
@@ -415,10 +420,11 @@ nfsd_proc_mkdir(struct svc_rqst *rqstp, struct nfsd_createargs *argp,
 	}
 
 	argp->attrs.ia_valid &= ~ATTR_SIZE;
+	fh_init(&resp->fh, NFS_FHSIZE);
 	nfserr = nfsd_create(rqstp, &argp->fh, argp->name, argp->len,
 				    &argp->attrs, S_IFDIR, 0, &resp->fh);
 	fh_put(&argp->fh);
-	RETURN(nfserr);
+	return nfserr;
 }
 
 /*
@@ -430,11 +436,11 @@ nfsd_proc_rmdir(struct svc_rqst *rqstp, struct nfsd_diropargs *argp,
 {
 	int	nfserr;
 
-	dprintk("nfsd: RMDIR    %p %s\n", SVCFH_DENTRY(&argp->fh), argp->name);
+	dprintk("nfsd: RMDIR    %s %s\n", SVCFH_fmt(&argp->fh), argp->name);
 
 	nfserr = nfsd_unlink(rqstp, &argp->fh, S_IFDIR, argp->name, argp->len);
 	fh_put(&argp->fh);
-	RETURN(nfserr);
+	return nfserr;
 }
 
 /*
@@ -447,8 +453,8 @@ nfsd_proc_readdir(struct svc_rqst *rqstp, struct nfsd_readdirargs *argp,
 	u32 *		buffer;
 	int		nfserr, count;
 
-	dprintk("nfsd: READDIR  %d/%d %d bytes at %d\n",
-		SVCFH_DEV(&argp->fh), SVCFH_INO(&argp->fh),
+	dprintk("nfsd: READDIR  %s %d bytes at %d\n",
+		SVCFH_fmt(&argp->fh),		
 		argp->count, argp->cookie);
 
 	/* Reserve buffer space for status */
@@ -470,7 +476,7 @@ nfsd_proc_readdir(struct svc_rqst *rqstp, struct nfsd_readdirargs *argp,
 	resp->count = count;
 
 	fh_put(&argp->fh);
-	RETURN(nfserr);
+	return nfserr;
 }
 
 /*
@@ -482,11 +488,11 @@ nfsd_proc_statfs(struct svc_rqst * rqstp, struct nfsd_fhandle   *argp,
 {
 	int	nfserr;
 
-	dprintk("nfsd: STATFS   %p\n", SVCFH_DENTRY(&argp->fh));
+	dprintk("nfsd: STATFS   %s\n", SVCFH_fmt(&argp->fh));
 
 	nfserr = nfsd_statfs(rqstp, &argp->fh, &resp->stats);
 	fh_put(&argp->fh);
-	RETURN(nfserr);
+	return nfserr;
 }
 
 /*
@@ -539,36 +545,36 @@ nfserrno (int errno)
 		int	nfserr;
 		int	syserr;
 	} nfs_errtbl[] = {
-		{ NFS_OK, 0 },
-		{ NFSERR_PERM, EPERM },
-		{ NFSERR_NOENT, ENOENT },
-		{ NFSERR_IO, EIO },
-		{ NFSERR_NXIO, ENXIO },
-		{ NFSERR_ACCES, EACCES },
-		{ NFSERR_EXIST, EEXIST },
-		{ NFSERR_XDEV, EXDEV },
-		{ NFSERR_MLINK, EMLINK },
-		{ NFSERR_NODEV, ENODEV },
-		{ NFSERR_NOTDIR, ENOTDIR },
-		{ NFSERR_ISDIR, EISDIR },
-		{ NFSERR_INVAL, EINVAL },
-		{ NFSERR_FBIG, EFBIG },
-		{ NFSERR_NOSPC, ENOSPC },
-		{ NFSERR_ROFS, EROFS },
-		{ NFSERR_MLINK, EMLINK },
-		{ NFSERR_NAMETOOLONG, ENAMETOOLONG },
-		{ NFSERR_NOTEMPTY, ENOTEMPTY },
+		{ nfs_ok, 0 },
+		{ nfserr_perm, -EPERM },
+		{ nfserr_noent, -ENOENT },
+		{ nfserr_io, -EIO },
+		{ nfserr_nxio, -ENXIO },
+		{ nfserr_acces, -EACCES },
+		{ nfserr_exist, -EEXIST },
+		{ nfserr_xdev, -EXDEV },
+		{ nfserr_mlink, -EMLINK },
+		{ nfserr_nodev, -ENODEV },
+		{ nfserr_notdir, -ENOTDIR },
+		{ nfserr_isdir, -EISDIR },
+		{ nfserr_inval, -EINVAL },
+		{ nfserr_fbig, -EFBIG },
+		{ nfserr_nospc, -ENOSPC },
+		{ nfserr_rofs, -EROFS },
+		{ nfserr_mlink, -EMLINK },
+		{ nfserr_nametoolong, -ENAMETOOLONG },
+		{ nfserr_notempty, -ENOTEMPTY },
 #ifdef EDQUOT
-		{ NFSERR_DQUOT, EDQUOT },
+		{ nfserr_dquot, -EDQUOT },
 #endif
-		{ NFSERR_STALE, ESTALE },
-		{ -1, EIO }
+		{ nfserr_stale, -ESTALE },
+		{ -1, -EIO }
 	};
 	int	i;
 
 	for (i = 0; nfs_errtbl[i].nfserr != -1; i++) {
 		if (nfs_errtbl[i].syserr == errno)
-			return htonl(nfs_errtbl[i].nfserr);
+			return nfs_errtbl[i].nfserr;
 	}
 	printk (KERN_INFO "nfsd: non-standard errno: %d\n", errno);
 	return nfserr_io;

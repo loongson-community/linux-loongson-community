@@ -451,9 +451,6 @@ struct super_block * ufs_read_super (struct super_block * sb, void * data,
 	
 	UFSD(("ENTER\n"))
 		
-	MOD_INC_USE_COUNT;
-	lock_super (sb);
-
 	UFSD(("flag %u\n", (int)(sb->s_flags & MS_RDONLY)))
 	
 #ifndef CONFIG_UFS_FS_WRITE
@@ -790,16 +787,12 @@ magic_found:
 		if (!ufs_read_cylinder_structures(sb))
 			goto failed;
 
-	unlock_super(sb);
 	UFSD(("EXIT\n"))
 	return(sb);
 
 failed:
 	if (ubh) ubh_brelse_uspi (uspi);
 	if (uspi) kfree (uspi);
-	sb->s_dev = 0;
-	unlock_super (sb);
-	MOD_DEC_USE_COUNT;
 	UFSD(("EXIT (FAILED)\n"))
 	return(NULL);
 }
@@ -843,8 +836,6 @@ void ufs_put_super (struct super_block * sb)
 	
 	ubh_brelse_uspi (uspi);
 	kfree (sb->u.ufs_sb.s_uspi);
-	sb->s_dev = 0;
-	MOD_DEC_USE_COUNT;
 	return;
 }
 
@@ -924,28 +915,27 @@ int ufs_remount (struct super_block * sb, int * mount_flags, char * data)
 	return 0;
 }
 
-int ufs_statfs (struct super_block * sb, struct statfs * buf, int bufsiz)
+int ufs_statfs (struct super_block * sb, struct statfs * buf)
 {
 	struct ufs_sb_private_info * uspi;
 	struct ufs_super_block_first * usb1;
-	struct statfs tmp;
 	unsigned swab;
 
 	swab = sb->u.ufs_sb.s_swab;
 	uspi = sb->u.ufs_sb.s_uspi;
 	usb1 = ubh_get_usb_first (USPI_UBH);
 	
-	tmp.f_type = UFS_MAGIC;
-	tmp.f_bsize = sb->s_blocksize;
-	tmp.f_blocks = uspi->s_dsize;
-	tmp.f_bfree = ufs_blkstofrags(SWAB32(usb1->fs_cstotal.cs_nbfree)) +
+	buf->f_type = UFS_MAGIC;
+	buf->f_bsize = sb->s_blocksize;
+	buf->f_blocks = uspi->s_dsize;
+	buf->f_bfree = ufs_blkstofrags(SWAB32(usb1->fs_cstotal.cs_nbfree)) +
 		SWAB32(usb1->fs_cstotal.cs_nffree);
-	tmp.f_bavail = (tmp.f_bfree > ((tmp.f_blocks / 100) * uspi->s_minfree))
-		? (tmp.f_bfree - ((tmp.f_blocks / 100) * uspi->s_minfree)) : 0;
-	tmp.f_files = uspi->s_ncg * uspi->s_ipg;
-	tmp.f_ffree = SWAB32(usb1->fs_cstotal.cs_nifree);
-	tmp.f_namelen = UFS_MAXNAMLEN;
-	return copy_to_user(buf, &tmp, bufsiz) ? -EFAULT : 0;
+	buf->f_bavail = (buf->f_bfree > ((buf->f_blocks / 100) * uspi->s_minfree))
+		? (buf->f_bfree - ((buf->f_blocks / 100) * uspi->s_minfree)) : 0;
+	buf->f_files = uspi->s_ncg * uspi->s_ipg;
+	buf->f_ffree = SWAB32(usb1->fs_cstotal.cs_nifree);
+	buf->f_namelen = UFS_MAXNAMLEN;
+	return 0;
 }
 
 static struct super_operations ufs_super_ops = {
@@ -959,12 +949,7 @@ static struct super_operations ufs_super_ops = {
 	remount_fs:	ufs_remount,
 };
 
-static struct file_system_type ufs_fs_type = {
-	"ufs", 
-	FS_REQUIRES_DEV,
-	ufs_read_super,
-	NULL
-};
+static DECLARE_FSTYPE_DEV(ufs_fs_type, "ufs", ufs_read_super);
 
 int __init init_ufs_fs(void)
 {

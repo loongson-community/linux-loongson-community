@@ -68,7 +68,7 @@ static void sysv_delete_inode(struct inode *inode)
 static void sysv_put_super(struct super_block *);
 static void sysv_write_super(struct super_block *);
 static void sysv_read_inode(struct inode *);
-static int sysv_statfs(struct super_block *, struct statfs *, int);
+static int sysv_statfs(struct super_block *, struct statfs *);
 
 static struct super_operations sysv_sops = {
 	read_inode:	sysv_read_inode,
@@ -360,8 +360,6 @@ static struct super_block *sysv_read_super(struct super_block *sb,
 		panic("Coherent FS: bad super-block size");
 	if (64 != sizeof (struct sysv_inode))
 		panic("sysv fs: bad i-node size");
-	MOD_INC_USE_COUNT;
-	lock_super(sb);
 	set_blocksize(dev,BLOCK_SIZE);
 	sb->sv_block_base = 0;
 
@@ -407,13 +405,10 @@ static struct super_block *sysv_read_super(struct super_block *sb,
 			}
 	}
 	bad_shift:
-	sb->s_dev = 0;
-	unlock_super(sb);
 	if (!silent)
 		printk("VFS: unable to read Xenix/SystemV/Coherent superblock on device "
 		       "%s\n", kdevname(dev));
 	failed:
-	MOD_DEC_USE_COUNT;
 	return NULL;
 
 	ok:
@@ -442,8 +437,6 @@ static struct super_block *sysv_read_super(struct super_block *sb,
 		goto superblock_ok;
 		bad_superblock:
 			brelse(bh);
-			sb->s_dev = 0;
-			unlock_super(sb);
 			printk("SysV FS: cannot read superblock in %d byte mode\n", sb->sv_block_size);
 			goto failed;
 		superblock_ok:
@@ -489,8 +482,6 @@ static struct super_block *sysv_read_super(struct super_block *sb,
 				brelse(bh1);
 				brelse(bh2);
 				set_blocksize(sb->s_dev,BLOCK_SIZE);
-				sb->s_dev = 0;
-				unlock_super(sb);
 				printk("SysV FS: cannot read superblock in 512 byte mode\n");
 				goto failed;
 		}
@@ -511,14 +502,11 @@ static struct super_block *sysv_read_super(struct super_block *sb,
 	if (!sb->s_root) {
 		printk("SysV FS: get root inode failed\n");
 		sysv_put_super(sb);
-		sb->s_dev = 0;
-		unlock_super(sb);
 		return NULL;
 	}
 #ifndef CONFIG_SYSV_FS_WRITE
 	sb->s_flags |= MS_RDONLY;
 #endif
-	unlock_super(sb);
 	sb->s_dirt = 1;
 	/* brelse(bh);  resp.  brelse(bh1); brelse(bh2);
 	   occurs when the disk is unmounted. */
@@ -558,24 +546,20 @@ static void sysv_put_super(struct super_block *sb)
 	/* switch back to default block size */
 	if (sb->s_blocksize != BLOCK_SIZE)
 		set_blocksize(sb->s_dev,BLOCK_SIZE);
-
-	MOD_DEC_USE_COUNT;
 }
 
-static int sysv_statfs(struct super_block *sb, struct statfs *buf, int bufsiz)
+static int sysv_statfs(struct super_block *sb, struct statfs *buf)
 {
-	struct statfs tmp;
-
-	tmp.f_type = sb->s_magic;			/* type of filesystem */
-	tmp.f_bsize = sb->sv_block_size;		/* block size */
-	tmp.f_blocks = sb->sv_ndatazones;		/* total data blocks in file system */
-	tmp.f_bfree = sysv_count_free_blocks(sb);	/* free blocks in fs */
-	tmp.f_bavail = tmp.f_bfree;			/* free blocks available to non-superuser */
-	tmp.f_files = sb->sv_ninodes;			/* total file nodes in file system */
-	tmp.f_ffree = sysv_count_free_inodes(sb);	/* free file nodes in fs */
-	tmp.f_namelen = SYSV_NAMELEN;
-	/* Don't know what value to put in tmp.f_fsid */ /* file system id */
-	return copy_to_user(buf, &tmp, bufsiz) ? -EFAULT : 0;
+	buf->f_type = sb->s_magic;			/* type of filesystem */
+	buf->f_bsize = sb->sv_block_size;		/* block size */
+	buf->f_blocks = sb->sv_ndatazones;		/* total data blocks in file system */
+	buf->f_bfree = sysv_count_free_blocks(sb);	/* free blocks in fs */
+	buf->f_bavail = buf->f_bfree;			/* free blocks available to non-superuser */
+	buf->f_files = sb->sv_ninodes;			/* total file nodes in file system */
+	buf->f_ffree = sysv_count_free_inodes(sb);	/* free file nodes in fs */
+	buf->f_namelen = SYSV_NAMELEN;
+	/* Don't know what value to put in buf->f_fsid */ /* file system id */
+	return 0;
 }
 
 
@@ -1202,20 +1186,11 @@ int sysv_sync_inode(struct inode * inode)
 
 /* Every kernel module contains stuff like this. */
 
-static struct file_system_type sysv_fs_type[] = {
-	{"sysv",     FS_REQUIRES_DEV, sysv_read_super, NULL}
-};
+static DECLARE_FSTYPE_DEV(sysv_fs_type, "sysv", sysv_read_super);
 
 int __init init_sysv_fs(void)
 {
-	int i;
-	int ouch = 0;
-
-	for (i = 0; i < sizeof(sysv_fs_type)/sizeof(sysv_fs_type[0]); i++) {
-		if ((ouch = register_filesystem(&sysv_fs_type[i])) != 0)
-			break;
-	}
-        return ouch;
+	return register_filesystem(&sysv_fs_type);
 }
 
 #ifdef MODULE
@@ -1228,11 +1203,7 @@ int init_module(void)
 
 void cleanup_module(void)
 {
-	int i;
-
-	for (i = 0; i < sizeof(sysv_fs_type)/sizeof(sysv_fs_type[0]); i++)
-		/* No error message if this breaks... that's OK... */
-		unregister_filesystem(&sysv_fs_type[i]);
+	unregister_filesystem(&sysv_fs_type);
 }
 
 #endif

@@ -17,15 +17,6 @@
 
 #define NFSDDBG_FACILITY		NFSDDBG_XDR
 
-u32	nfs_ok, nfserr_perm, nfserr_noent, nfserr_io, nfserr_nxio,
-	nfserr_acces, nfserr_exist, nfserr_xdev, nfserr_nodev,
-	nfserr_notdir, nfserr_isdir, nfserr_inval, nfserr_fbig,
-	nfserr_nospc, nfserr_rofs, nfserr_mlink,
-	nfserr_nametoolong, nfserr_notempty, nfserr_dquot, nfserr_stale,
-	nfserr_remote, nfserr_badhandle, nfserr_notsync,
-	nfserr_badcookie, nfserr_notsupp, nfserr_toosmall,
-	nfserr_serverfault, nfserr_badtype, nfserr_jukebox;
-
 
 #ifdef NFSD_OPTIMIZE_SPACE
 # define inline
@@ -41,51 +32,6 @@ static u32	nfs_ftypes[] = {
 	NFSOCK, NFBAD,  NFLNK, NFBAD,
 };
 
-/*
- * Initialization of NFS status variables
- */
-void
-nfsd_xdr_init(void)
-{
-	static int	inited = 0;
-
-	if (inited)
-		return;
-
-	nfs_ok		= htonl(NFS_OK);
-	nfserr_perm	= htonl(NFSERR_PERM);
-	nfserr_noent	= htonl(NFSERR_NOENT);
-	nfserr_io	= htonl(NFSERR_IO);
-	nfserr_inval	= htonl(NFSERR_INVAL);
-	nfserr_nxio	= htonl(NFSERR_NXIO);
-	nfserr_acces	= htonl(NFSERR_ACCES);
-	nfserr_exist	= htonl(NFSERR_EXIST);
-	nfserr_xdev	= htonl(NFSERR_XDEV);
-	nfserr_nodev	= htonl(NFSERR_NODEV);
-	nfserr_notdir	= htonl(NFSERR_NOTDIR);
-	nfserr_isdir	= htonl(NFSERR_ISDIR);
-	nfserr_inval	= htonl(NFSERR_INVAL);
-	nfserr_fbig	= htonl(NFSERR_FBIG);
-	nfserr_nospc	= htonl(NFSERR_NOSPC);
-	nfserr_rofs	= htonl(NFSERR_ROFS);
-	nfserr_mlink	= htonl(NFSERR_MLINK);
-	nfserr_nametoolong = htonl(NFSERR_NAMETOOLONG);
-	nfserr_notempty	= htonl(NFSERR_NOTEMPTY);
-	nfserr_dquot	= htonl(NFSERR_DQUOT);
-	nfserr_stale	= htonl(NFSERR_STALE);
-	nfserr_remote	= htonl(NFSERR_REMOTE);
-	nfserr_badhandle = htonl(NFSERR_BADHANDLE);
-	nfserr_notsync	= htonl(NFSERR_NOT_SYNC);
-	nfserr_badcookie = htonl(NFSERR_BAD_COOKIE);
-	nfserr_notsupp	= htonl(NFSERR_NOTSUPP);
-	nfserr_toosmall	= htonl(NFSERR_TOOSMALL);
-	nfserr_serverfault = htonl(NFSERR_SERVERFAULT);
-	nfserr_badtype	= htonl(NFSERR_BADTYPE);
-	nfserr_jukebox	= htonl(NFSERR_JUKEBOX);
-
-
-	inited = 1;
-}
 
 /*
  * XDR functions for basic NFS types
@@ -93,19 +39,20 @@ nfsd_xdr_init(void)
 static inline u32 *
 decode_fh(u32 *p, struct svc_fh *fhp)
 {
-	fh_init(fhp);
-	memcpy(&fhp->fh_handle, p, sizeof(struct knfs_fh));
+	fh_init(fhp, NFS_FHSIZE);
+	memcpy(&fhp->fh_handle.fh_base, p, NFS_FHSIZE);
+	fhp->fh_handle.fh_size = NFS_FHSIZE;
 
 	/* FIXME: Look up export pointer here and verify
 	 * Sun Secure RPC if requested */
-	return p + (sizeof(struct knfs_fh) >> 2);
+	return p + (NFS_FHSIZE >> 2);
 }
 
 static inline u32 *
 encode_fh(u32 *p, struct svc_fh *fhp)
 {
-	memcpy(p, &fhp->fh_handle, sizeof(struct knfs_fh));
-	return p + (sizeof(struct knfs_fh) >> 2);
+	memcpy(p, &fhp->fh_handle.fh_base, NFS_FHSIZE);
+	return p + (NFS_FHSIZE>> 2);
 }
 
 /*

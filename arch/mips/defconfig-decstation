@@ -177,6 +177,8 @@ CONFIG_SCSI_CONSTANTS=y
 #
 CONFIG_SCSI_DECNCR=y
 # CONFIG_SCSI_DECSII is not set
+CONFIG_SCSI_DECNCR=y
+# CONFIG_SCSI_DECSII is not set
 # CONFIG_SCSI_7000FASST is not set
 # CONFIG_SCSI_ACARD is not set
 # CONFIG_SCSI_AHA152X is not set
@@ -211,7 +213,6 @@ CONFIG_SCSI_DECNCR=y
 # CONFIG_SCSI_U14_34F is not set
 # CONFIG_SCSI_ULTRASTOR is not set
 # CONFIG_SCSI_DEBUG is not set
-# CONFIG_BLK_DEV_3W_XXXX_RAID is not set
 
 #
 # I2O device support
@@ -243,15 +244,12 @@ CONFIG_SERIAL_CONSOLE=y
 # CONFIG_UNIX98_PTYS is not set
 # CONFIG_KEYBOARD is not set
 # CONFIG_MOUSE is not set
+# CONFIG_RTC is not set
 
 #
 # USB support
 #
 # CONFIG_USB is not set
-
-#
-# Misc devices
-#
 
 #
 # File systems

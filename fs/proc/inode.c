@@ -100,19 +100,15 @@ static void proc_read_inode(struct inode * inode)
 	inode->i_mtime = inode->i_atime = inode->i_ctime = CURRENT_TIME;
 }
 
-static int proc_statfs(struct super_block *sb, struct statfs *buf, int bufsiz)
+static int proc_statfs(struct super_block *sb, struct statfs *buf)
 {
-	struct statfs tmp;
-
-	tmp.f_type = PROC_SUPER_MAGIC;
-	tmp.f_bsize = PAGE_SIZE/sizeof(long);
-	tmp.f_blocks = 0;
-	tmp.f_bfree = 0;
-	tmp.f_bavail = 0;
-	tmp.f_files = 0;
-	tmp.f_ffree = 0;
-	tmp.f_namelen = NAME_MAX;
-	return copy_to_user(buf, &tmp, bufsiz) ? -EFAULT : 0;
+	buf->f_type = PROC_SUPER_MAGIC;
+	buf->f_bsize = PAGE_SIZE/sizeof(long);
+	buf->f_bfree = 0;
+	buf->f_bavail = 0;
+	buf->f_ffree = 0;
+	buf->f_namelen = NAME_MAX;
+	return 0;
 }
 
 static struct super_operations proc_sops = { 
@@ -209,7 +205,6 @@ struct super_block *proc_read_super(struct super_block *s,void *data,
 	struct inode * root_inode;
 	struct task_struct *p;
 
-	lock_super(s);
 	s->s_blocksize = 1024;
 	s->s_blocksize_bits = 10;
 	s->s_magic = PROC_SUPER_MAGIC;
@@ -229,13 +224,10 @@ struct super_block *proc_read_super(struct super_block *s,void *data,
 	parse_options(data, &root_inode->i_uid, &root_inode->i_gid);
 	s->u.generic_sbp = (void*) proc_super_blocks;
 	proc_super_blocks = s;
-	unlock_super(s);
 	return s;
 
 out_no_root:
 	printk("proc_read_super: get root inode failed\n");
 	iput(root_inode);
-	s->s_dev = 0;
-	unlock_super(s);
 	return NULL;
 }

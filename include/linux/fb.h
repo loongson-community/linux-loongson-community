@@ -283,15 +283,19 @@ struct fb_ops {
     int (*fb_rasterimg)(struct fb_info *info, int start);
 };
 
+/* fb_info flags */
+#define FBINFO_FLAG_MODULE      1       /* Low-level driver is a module */
+#define FBINFO_FLAG_OPEN        2       /* Has this been open already ? */ 
+
 struct fb_info {
    char modename[40];			/* default video mode */
    kdev_t node;
    int flags;
-   int open;                            /* Has this been open already ? */
-#define FBINFO_FLAG_MODULE	1	/* Low-level driver is a module */
+   int count;                           /* How many using the hardware */
    struct fb_var_screeninfo var;        /* Current var */
    struct fb_fix_screeninfo fix;        /* Current fix */
    struct fb_monspecs monspecs;         /* Current Monitor specs */
+   struct fb_cmap cmap;                 /* Current cmap */
    struct fb_ops *fbops;
    char *screen_base;                   /* Virtual address */
    struct display *disp;		/* initial display variable */

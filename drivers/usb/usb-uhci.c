@@ -28,6 +28,9 @@
 #include <linux/unistd.h>
 #include <linux/interrupt.h>	/* for in_interrupt() */
 #include <linux/init.h>
+/* This enables debug printks */
+#define DEBUG
+#include <linux/usb.h>
 
 #include <asm/uaccess.h>
 #include <asm/io.h>
@@ -37,16 +40,12 @@
 /* This enables more detailed sanity checks in submit_iso */
 //#define ISO_SANITY_CHECK
 
-/* This enables debug printks */
-#define DEBUG
-
 /* This enables all symbols to be exported, to ease debugging oopses */
 //#define DEBUG_SYMBOLS
 
 /* This enables an extra UHCI slab for memory debugging */
 #define DEBUG_SLAB
 
-#include "usb.h"
 #include "usb-uhci.h"
 #include "usb-uhci-debug.h"
 
@@ -2408,7 +2407,7 @@ _static int __init start_uhci (struct pci_dev *dev)
 		unsigned int io_addr = dev->resource[i].start;
 		unsigned int io_size =
 		dev->resource[i].end - dev->resource[i].start + 1;
-		if (!(dev->resource[i].flags & 1))
+		if (!(dev->resource[i].flags & IORESOURCE_IO))
 			continue;
 #else
 		unsigned int io_addr = dev->base_address[i];
@@ -2464,7 +2463,8 @@ int __init uhci_init (void)
 			continue;
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2,3,8)
-		pci_enable_device (dev);
+		if (pci_enable_device (dev) < 0)
+			continue;
 #endif
 		if(!dev->irq)
 		{

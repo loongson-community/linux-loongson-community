@@ -648,7 +648,7 @@ CONFIG_IDEDMA_PCI_WIP
 
   It is SAFEST to say N to this question.
 
-3ware Hardware ATA-RAID support (EXPERIMENTAL)
+3ware Hardware ATA-RAID support
 CONFIG_BLK_DEV_3W_XXXX_RAID
   3ware is the only hardware ATA-Raid product in Linux to date.
   This card is 2,4, or 8 channel master mode support only.
@@ -745,9 +745,13 @@ CONFIG_BLK_DEV_HPT366
   This is an Ultra DMA chipset for ATA-66.
   
   This driver adds up to 4 more EIDE devices sharing a single
-  interrupt. The HPT366 chipset in its current form is a non-bootable.
-  This driver requires dynamic tuning of the chipset during the
-  ide-probe at boot. It is reported to support DVD II drives, by the
+  interrupt. The HPT366 chipset in its current form is a non-bootable,
+  without special LILO commands for redirecting the reference to device 0x80.
+  The other solution is to include "CONFIG_BLK_DEV_OFFBOARD" unless your
+  mainboard has the chipset native mounted.  Regardless one should use the
+  fore mentioned option and call at LILO or include in your append-line:
+  "ide=reverse".  This driver requires dynamic tuning of the chipset during
+  the ide-probe at boot. It is reported to support DVD II drives, by the
   manufacturer.
 
   Please read the comments at the top of drivers/block/hpt366.c
@@ -2353,6 +2357,11 @@ CONFIG_FB_AMIGA
   This is the frame buffer device driver for the builtin graphics
   chipset found in Amigas.
 
+  The driver is also available as a module ( = code which can be
+  inserted and removed from the running kernel whenever you want). The
+  module will be called amifb.o. If you want to compile it as a
+  module, say M here and read Documentation/modules.txt.
+
 Amiga OCS chipset support
 CONFIG_FB_AMIGA_OCS
   This enables support for the original Agnus and Denise video chips,
@@ -3480,15 +3489,13 @@ CONFIG_DECNET_ROUTER
    Add support for turning your DECnet Endnode into a level 1 or 2
    router. This is an unfinished option for developers only. If you do
    turn it on, then make sure that you also say Y to "Kernel/User
-   network link driver" and "Routing messages", since rtnetlink is the
-   only current method of configuration.
+   network link driver", "Routing messages" and "Network packet 
+   filtering". The first two are required to allow configuration via
+   rtnetlink (currently you need Alexey Kuznetsov's iproute2 package
+   from ftp.inr.ac.ru). The "Network packet filtering" option will
+   be required for the forthcoming routing daemon to work.
 
-DECnet Raw Socket Support
-CONFIG_DECNET_RAW
-   Add support for the SOCK_RAW type under DECnet. Used by userland
-   routing programs to receive routing messages from the kernel and
-   also as a general debugging aid to see what's going on "under the
-   hood".
+   See Documentation/networking/decnet.txt for more information.
 
 AppleTalk DDP
 CONFIG_ATALK
@@ -11144,10 +11151,8 @@ CONFIG_MICROCODE
   Intel processors in P6 family, e.g.  Pentium Pro, Pentium II, 
   Pentium III, Xeon etc. You will obviously need the actual microcode
   binary data itself which is not shipped with the Linux kernel. 
-  With this support compiled you can use dd(1) to write microcode,
-  for example:
-
-     # dd if=/etc/microcode of=/dev/cpu/microcode bs=98304 count=1
+  You also need to say Y to "/dev file system support" in 'File systems'
+  section of the kernel configuration menu.
 
   You need to be superuser to do that. For latest news and information
   on obtaining all the required ingredients for this driver, check:
@@ -11439,11 +11444,15 @@ CONFIG_SOUND_SGALAXY
   This module initializes the older non Plug and Play sound galaxy
   cards from Aztech. It supports the Waverider Pro 32 - 3D and the
   Galaxy Washington 16.
+  If you compile the driver into the kernel, you have to add
+  "sgalaxy=<io>,<irq>,<dma>,<dma2>,<sgbase>" to the kernel command line.
 
 Support for AD1816(A) based cards (EXPERIMENTAL)
 CONFIG_SOUND_AD1816
   Say M here if you have a sound card based on the Analog Devices 
   AD1816(A) chip.
+  If you compile the driver into the kernel, you have to add
+  "ad1816=<io>,<irq>,<dma>,<dma2>" to the kernel command line.
 
   NOTE: This driver is still EXPERIMENTAL. 
         See Documentation/sound/AD1816 for further information.
@@ -11453,6 +11462,9 @@ CONFIG_SOUND_OPL3SA1
   Say Y or M if you have a Yamaha OPL3-SA1 sound chip, which is
   usually built into motherboards. Read Documentation/sound/OPL3-SA
   for details.
+  If you compile the driver into the kernel, you have to add
+  "opl3sa=<io>,<irq>,<dma>,<dma2>,<mpuio>,<mpuirq>" to the kernel
+  command line.
 
 ProAudioSpectrum 16 support
 CONFIG_SOUND_PAS
@@ -11460,6 +11472,9 @@ CONFIG_SOUND_PAS
   16 or Logitech SoundMan 16 sound card. Don't answer Y if you have
   some other card made by Media Vision or Logitech since they are not
   PAS16 compatible.
+  If you compile the driver into the kernel, you have to add
+  "pas2=<io>,<irq>,<dma>,<dma2>,<sbio>,<sbirq>,<sbdma>,<sbdma2>
+  to the kernel command line.
 
 100% Sound Blaster compatibles (SB16/32/64, ESS, Jazz16) support
 CONFIG_SOUND_SB
@@ -11477,6 +11492,8 @@ CONFIG_SOUND_SB
   Y here and also to "Additional lowlevel drivers" and to "SB32/AWE
   support" below and read Documentation/sound/INSTALL.awe. If you have
   an IBM Mwave card, say Y here and read Documentation/sound/mwave.
+  If you compile the driver into the kernel and don't want to use isapnp,
+  you have to add "sb=<io>,<irq>,<dma>,<dma2>" to the kernel command line.
   
   You can say M here to compile this driver as a module; the module is
   called sb.o.
@@ -11492,6 +11509,8 @@ CONFIG_SOUND_GUS
   Say Y here for any type of Gravis Ultrasound card, including
   the GUS or GUS MAX. See also Documentation/sound/ultrasound for
   more information on configuring this card with modules.
+  If you compile the driver into the kernel, you have to add
+  "gus=<io>,<irq>,<dma>,<dma2>" to the kernel command line.
 
 MPU-401 support (NOT for SB16)
 CONFIG_SOUND_MPU401
@@ -11503,12 +11522,16 @@ CONFIG_SOUND_MPU401
   was in the list of supported cards, look at the card specific
   instructions in the drivers/sound/Readme.cards file. It's safe to
   answer Y if you have a true MPU401 MIDI interface card.
+  If you compile the driver into the kernel, you have to add
+  "mpu401=<io>,<irq>" to the kernel command line.
 
 6850 UART support
 CONFIG_SOUND_UART6850
   This option enables support for MIDI interfaces based on the 6850
   UART chip. This interface is rarely found on sound cards. It's safe
   to answer N to this question.
+  If you compile the driver into the kernel, you have to add
+  "uart6850=<io>,<irq>" to the kernel command line.
 
 VIDC Sound
 CONFIG_VIDC_SOUND
@@ -11522,6 +11545,9 @@ CONFIG_SOUND_PSS
   ADSP-2115 DSP chip + Echo ESC614 ASIC CHIP). For more information on
   how to compile it into the kernel or as a module see the file
   Documentation/sound/PSS.
+  If you compile the driver into the kernel, you have to add
+  "pss=<io>,<mssio>,<mssirq>,<mssdma>,<mpuio>,<mpuirq>" to the kernel
+  command line.
 
 Enable PSS mixer (Beethoven ADSP-16 and other compatible)
 CONFIG_PSS_MIXER
@@ -11580,6 +11606,8 @@ CONFIG_SOUND_MSS
   specific instructions in drivers/sound/Readme.cards. Some drivers
   have their own MSS support and saying Y to this option will cause a
   conflict.
+  If you compile the driver into the kernel, you have to add
+  "ad1848=<io>,<irq>,<dma>,<dma2>[,<type>]" to the kernel command line.
 
 SGI Visual Workstation on-board audio
 CONFIG_SOUND_VWSND
@@ -11592,11 +11620,16 @@ CONFIG_SOUND_SSCAPE
   Answer Y if you have a sound card based on the Ensoniq SoundScape
   chipset. Such cards are being manufactured at least by Ensoniq, Spea
   and Reveal (Reveal makes also other cards).
+  If you compile the driver into the kernel, you have to add
+  "sscape=<io>,<irq>,<dma>,<mpuio>,<mpuirq>" to the kernel command line.
 
 MediaTriX AudioTriX Pro support
 CONFIG_SOUND_TRIX
   Answer Y if you have the AudioTriX Pro sound card manufactured
   by MediaTrix.
+  If you compile the driver into the kernel, you have to add
+  "trix=<io>,<irq>,<dma>,<dma2>,<sbio>,<sbirq>,<sbdma>,<mpuio>,<mpuirq>"
+  to the kernel command line.
 
 Have TRXPRO.HEX firmware file
 CONFIG_TRIX_HAVE_BOOT
@@ -11621,6 +11654,9 @@ CONFIG_SOUND_MAD16
   and Diamond (latest ones). Note however that the Tropez sound cards
   have their own driver; if you have one of those, say N here and Y or
   M to "Full support for Turtle Beach WaveFront", below. 
+  If you compile the driver into the kernel, you have to add
+  "mad16=<io>,<irq>,<dma>,<dma2>,<mpuio>,<mpuirq>" to the
+  kernel command line.
 
   See also Documentation/sound/Opti and Documentation/sound/MAD16 for
   more information on setting these cards up as modules.
@@ -11640,7 +11676,10 @@ CONFIG_MAD16_OLDCARD
 Support for Crystal CS4232 based (PnP) cards
 CONFIG_SOUND_CS4232
   Say Y here if you have a card based on the Crystal CS4232 chip set,
-  which uses its own Plug and Play protocol. 
+  which uses its own Plug and Play protocol.
+  If you compile the driver into the kernel, you have to add
+  "cs4232=<io>,<irq>,<dma>,<dma2>,<mpuio>,<mpuirq>" to the kernel
+  command line.
 
   See Documentation/sound/CS4232 for more information on configuring
   this card.
@@ -11650,11 +11689,16 @@ CONFIG_SOUND_OPL3SA2
   Say Y or M if you have a card based on one of these Yamaha
   sound chipsets. Read Documentation/sound/OPL3-SA2 for more
   information on configuring these cards.
+  If you compile the driver into the kernel, you have to add
+  "opl3sa2=<io>,<irq>,<dma>,<dma2>,<mssio>,<mpuio>" to the kernel
+  command line.
 
 Support for Turtle Beach Wave Front (Maui, Tropez) synthesizers
 CONFIG_SOUND_MAUI
   Say Y here if you have a Turtle Beach Wave Front, Maui, or Tropez
   sound card.
+  If you compile the driver into the kernel, you have to add
+  "maui=<io>,<irq>" to the kernel command line.
 
 Have OSWF.MOT firmware file
 CONFIG_MAUI_HAVE_BOOT
@@ -11742,18 +11786,6 @@ CONFIG_MSND_FIFOSIZE
   and Pinnacle). Larger values reduce the chance of data overruns at
   the expense of overall latency. If unsure, use the default.
 
-/dev/dsp and /dev/audio support
-CONFIG_SOUND_AUDIO
-  If you say Y here, you will get the /dev/dsp and /dev/audio devices;
-  these are the analog-digital and digital-analog converter devices
-  and are very useful, so say Y.
-
-MIDI interface support
-CONFIG_SOUND_MIDI
-  Answering N disables /dev/midixx devices and access to any MIDI
-  ports using /dev/sequencer and /dev/music. This option also affects
-  any MPU401 and/or General MIDI compatible devices. Answer Y.
-
 FM synthesizer (YM3812/OPL-3) support
 CONFIG_SOUND_YM3812
   Answer Y if your card has a FM chip made by Yamaha (OPL2/OPL3/OPL4).
@@ -11763,6 +11795,8 @@ CONFIG_SOUND_YM3812
   cards, however).
   Please read the file Documentation/sound/OPL3 if your card has an
   OPL3 chip.
+  If you compile the driver into the kernel, you have to add
+  "opl3=<io>" to the kernel command line.
 
   If unsure, say Y.
  
@@ -11771,15 +11805,8 @@ CONFIG_SUN_AUDIO
   This is support for the sound cards on Sun workstations. The code
   does not exist yet, so you might as well say N here.
 
-Additional low level drivers
-CONFIG_LOWLEVEL_SOUND
-  If you need additional low level sound drivers which have not yet
-  appeared, say Y. The answer to this question does not directly
-  affect the kernel; saying Y will simply cause this configure script
-  to present you with more options. If unsure, say Y.
-
 ACI mixer (miroPCM12/PCM20)
-CONFIG_ACI_MIXER
+CONFIG_SOUND_ACI_MIXER
   ACI (Audio Command Interface) is a protocol used to communicate with
   the microcontroller on some sound cards produced by miro, e.g. the
   miroSOUND PCM12 and PCM20. The main function of the ACI is to
@@ -11791,7 +11818,7 @@ CONFIG_ACI_MIXER
   radio-miropcm20 driver.
 
 SB32/AWE support
-CONFIG_AWE32_SYNTH
+CONFIG_SOUND_AWE32_SYNTH
   Say Y here if you have a Sound Blaster SB32, AWE32-PnP, SB AWE64 or
   similar sound card. See Documentation/sound/README.awe,
   Documentation/sound/AWE32 and the Soundblaster-AWE mini-HOWTO,
@@ -11799,7 +11826,7 @@ CONFIG_AWE32_SYNTH
   info.
 
 Gallant's Audio Excel DSP 16 support (SC-6000 and SC-6600)
-CONFIG_AEDSP16
+CONFIG_SOUND_AEDSP16
   Answer Y if you have a Gallant's Audio Excel DSP 16 card. This
   driver supports Audio Excel DSP 16 but not the III nor PnP versions
   of this card.
@@ -11817,48 +11844,21 @@ CONFIG_AEDSP16
   Documentation/sound/AudioExcelDSP16 to get more information about
   this driver and its configuration.
 
-I/O base for Audio Excel DSP 16
-CONFIG_AEDSP16_BASE
-  This is the base I/O address of the Audio Excel DSP 16 card. It must
-  be 220 or 240. If you compiled aedsp16.o as a module you can specify
-  this parameter as 'io=0xNNN'.
-
 Audio Excel DSP 16 (SBPro emulation)
 CONFIG_AEDSP16_SBPRO
   Answer Y if you want your audio card to emulate Sound Blaster Pro.
   You should then say Y to "100% Sound Blaster compatibles
   (SB16/32/64, ESS, Jazz16) support" and N to "Audio Excel DSP 16 (MSS
   emulation)".
-
-Audio Excel DSP 16 IRQ
-CONFIG_AEDSP16_SB_IRQ
-  This is the IRQ of the Audio Excel DSP 16 card. It must be 5, 7, 9,
-  10 or 11. If you compiled aedsp16.o as a module you can specify
-  this parameter as 'irq=NN'.
-
-Audio Excel DSP 16 DMA
-CONFIG_AEDSP16_SB_DMA
-  This is the IRQ of the Audio Excel DSP 16 card. It must be 0, 1 or
-  3. If you compiled aedsp16.o as a module you can specify this
-  parameter as 'dma=NN'.
+  If you compile the driver into the kernel, you have to add
+  "aedsp16=<io>,<irq>,<dma>,<mssio>,<mpuio>,<mouirq>" to the kernel
+  command line.
 
 Audio Excel DSP 16 (MSS emulation)
 CONFIG_AEDSP16_MSS
   Answer Y if you want your audio card to emulate Microsoft Sound
   System. You should then say Y to "Microsoft Sound System support"
   and say N to "Audio Excel DSP 16 (SBPro emulation)".
-
-Audio Excel DSP 16 IRQ
-CONFIG_AEDSP16_MSS_IRQ
-  This is the IRQ of the Audio Excel DSP 16 card. It must be 5, 7, 9,
-  10 or 11. If you compiled aedsp16.o as a module you can specify
-  this parameter as 'irq=NN'.
-
-Audio Excel DSP 16 DMA
-CONFIG_AEDSP16_MSS_DMA
-  This is the IRQ of the Audio Excel DSP 16 card. It must be 0, 1 
-  or 3. If you compiled aedsp16.o as a module you can specify this
-  parameter as 'dma=NN'.
 
 SC-6600 based audio cards (new Audio Excel DSP 16)
 CONFIG_SC6600
@@ -11886,13 +11886,6 @@ CONFIG_AEDSP16_MPU401
   you have selected for "MPU-401 support". If you are using this
   driver as a module you have to specify the MPU I/O base address with
   the parameter 'mpu_base=0xNNN'.
-
-MPU401 IRQ for Audio Excel DSP 16
-CONFIG_AEDSP16_MPU_IRQ
-  This is the IRQ of the MPU-401 emulation of your Audio Excel DSP 16
-  card. It must be 5, 7, 9, 10 or 0 (to disable MPU-401 interface). If
-  you compiled aedsp16.o as a module you can specify this parameter as
-  'mpu_irq=NN'.
 
 Ensoniq ES1370 based PCI sound cards
 CONFIG_SOUND_ES1370

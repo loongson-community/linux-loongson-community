@@ -20,6 +20,7 @@
 #include <linux/stat.h>
 #include <linux/cache.h>
 #include <linux/stddef.h>
+#include <linux/string.h>
 
 #include <asm/atomic.h>
 #include <asm/bitops.h>
@@ -180,8 +181,6 @@ extern void buffer_init(unsigned long);
 extern void inode_init(void);
 extern void file_table_init(void);
 extern void dcache_init(void);
-
-typedef char buffer_block[BLOCK_SIZE];
 
 /* bh state bits */
 #define BH_Uptodate	0	/* 1 if the buffer contains valid data */
@@ -384,6 +383,7 @@ struct inode {
 	unsigned long		i_blocks;
 	unsigned long		i_version;
 	struct semaphore	i_sem;
+	struct semaphore	i_zombie;
 	struct inode_operations	*i_op;
 	struct file_operations	*i_fop;	/* former ->i_op->default_file_ops */
 	struct super_block	*i_sb;
@@ -704,7 +704,7 @@ struct super_operations {
 	void (*delete_inode) (struct inode *);
 	void (*put_super) (struct super_block *);
 	void (*write_super) (struct super_block *);
-	int (*statfs) (struct super_block *, struct statfs *, int);
+	int (*statfs) (struct super_block *, struct statfs *);
 	int (*remount_fs) (struct super_block *, int *, char *);
 	void (*clear_inode) (struct inode *);
 	void (*umount_begin) (struct super_block *);
@@ -724,11 +724,42 @@ struct file_system_type {
 	const char *name;
 	int fs_flags;
 	struct super_block *(*read_super) (struct super_block *, void *, int);
+	struct module *owner;
 	struct file_system_type * next;
 };
 
+#ifdef MODULE
+#define DECLARE_FSTYPE(var,type,read,flags) \
+struct file_system_type var = { \
+	name:		type, \
+	read_super:	read, \
+	fs_flags:	flags, \
+	owner:		THIS_MODULE, \
+}
+#else
+#define DECLARE_FSTYPE(var,type,read,flags) \
+struct file_system_type var = { \
+	name:		type, \
+	read_super:	read, \
+	fs_flags:	flags, \
+}
+#endif
+
+#define DECLARE_FSTYPE_DEV(var,type,read) \
+	DECLARE_FSTYPE(var,type,read,FS_REQUIRES_DEV)
+
 extern int register_filesystem(struct file_system_type *);
 extern int unregister_filesystem(struct file_system_type *);
+
+static inline int vfs_statfs(struct super_block *sb, struct statfs *buf)
+{
+	if (!sb)
+		return -ENODEV;
+	if (!sb->s_op || !sb->s_op->statfs)
+		return -ENOSYS;
+	memset(buf, 0xff, sizeof(struct statfs));
+	return sb->s_op->statfs(sb, buf);
+}
 
 /* Return value for VFS lock functions - tells locks.c to lock conventionally
  * REALLY kosha for root NFS and nfs_lock
@@ -830,8 +861,6 @@ extern struct file_operations read_pipe_fops;
 extern struct file_operations write_pipe_fops;
 extern struct file_operations rdwr_pipe_fops;
 
-extern struct file_system_type *get_fs_type(const char *);
-
 extern int fs_may_remount_ro(struct super_block *);
 extern int fs_may_mount(kdev_t);
 
@@ -907,6 +936,7 @@ extern void put_write_access(struct inode *);
 extern struct dentry * open_namei(const char *, int, int);
 extern struct dentry * do_mknod(const char *, int, dev_t);
 extern int do_pipe(int *);
+extern int do_unlink(const char * name);
 
 /* fs/dcache.c -- generic fs support functions */
 extern int is_subdir(struct dentry *, struct dentry *);
@@ -1085,7 +1115,7 @@ extern void inode_setattr(struct inode *, struct iattr *);
  * other process will be too late..
  */
 #define check_parent(dir, dentry) \
-	((dir) == (dentry)->d_parent && !list_empty(&dentry->d_hash))
+	((dir) == (dentry)->d_parent && !d_unhashed(dentry))
 
 /*
  * Locking the parent is needed to:
@@ -1122,11 +1152,8 @@ static inline void unlock_dir(struct dentry *dir)
  * Whee.. Deadlock country. Happily there are only two VFS
  * operations that does this..
  */
-static inline void double_lock(struct dentry *d1, struct dentry *d2)
+static inline void double_down(struct semaphore *s1, struct semaphore *s2)
 {
-	struct semaphore *s1 = &d1->d_inode->i_sem;
-	struct semaphore *s2 = &d2->d_inode->i_sem;
-
 	if (s1 != s2) {
 		if ((unsigned long) s1 < (unsigned long) s2) {
 			struct semaphore *tmp = s2;
@@ -1137,19 +1164,76 @@ static inline void double_lock(struct dentry *d1, struct dentry *d2)
 	down(s2);
 }
 
-static inline void double_unlock(struct dentry *d1, struct dentry *d2)
-{
-	struct semaphore *s1 = &d1->d_inode->i_sem;
-	struct semaphore *s2 = &d2->d_inode->i_sem;
+/*
+ * Ewwwwwwww... _triple_ lock. We are guaranteed that the 3rd argument is
+ * not equal to 1st and not equal to 2nd - the first case (target is parent of
+ * source) would be already caught, the second is plain impossible (target is
+ * its own parent and that case would be caught even earlier). Very messy.
+ * I _think_ that it works, but no warranties - please, look it through.
+ * Pox on bloody lusers who mandated overwriting rename() for directories...
+ */
 
+static inline void triple_down(struct semaphore *s1,
+			       struct semaphore *s2,
+			       struct semaphore *s3)
+{
+	if (s1 != s2) {
+		if ((unsigned long) s1 < (unsigned long) s2) {
+			if ((unsigned long) s1 < (unsigned long) s3) {
+				struct semaphore *tmp = s3;
+				s3 = s1; s1 = tmp;
+			}
+			if ((unsigned long) s1 < (unsigned long) s2) {
+				struct semaphore *tmp = s2;
+				s2 = s1; s1 = tmp;
+			}
+		} else {
+			if ((unsigned long) s1 < (unsigned long) s3) {
+				struct semaphore *tmp = s3;
+				s3 = s1; s1 = tmp;
+			}
+			if ((unsigned long) s2 < (unsigned long) s3) {
+				struct semaphore *tmp = s3;
+				s3 = s2; s2 = tmp;
+			}
+		}
+		down(s1);
+	} else if ((unsigned long) s2 < (unsigned long) s3) {
+		struct semaphore *tmp = s3;
+		s3 = s2; s2 = tmp;
+	}
+	down(s2);
+	down(s3);
+}
+
+static inline void double_up(struct semaphore *s1, struct semaphore *s2)
+{
 	up(s1);
 	if (s1 != s2)
 		up(s2);
+}
+
+static inline void triple_up(struct semaphore *s1,
+			     struct semaphore *s2,
+			     struct semaphore *s3)
+{
+	up(s1);
+	if (s1 != s2)
+		up(s2);
+	up(s3);
+}
+
+static inline void double_lock(struct dentry *d1, struct dentry *d2)
+{
+	double_down(&d1->d_inode->i_sem, &d2->d_inode->i_sem);
+}
+
+static inline void double_unlock(struct dentry *d1, struct dentry *d2)
+{
+	double_up(&d1->d_inode->i_sem,&d2->d_inode->i_sem);
 	dput(d1);
 	dput(d2);
 }
-
-
 
 #endif /* __KERNEL__ */
 

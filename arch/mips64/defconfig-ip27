@@ -54,7 +54,9 @@ CONFIG_BINFMT_ELF32=y
 #
 # Loadable module support
 #
-# CONFIG_MODULES is not set
+CONFIG_MODULES=y
+# CONFIG_MODVERSIONS is not set
+CONFIG_KMOD=y
 CONFIG_PCI_NAMES=y
 
 #
@@ -112,6 +114,7 @@ CONFIG_SKB_LARGE=y
 #
 # CONFIG_IPX is not set
 # CONFIG_ATALK is not set
+# CONFIG_DECNET is not set
 
 #
 # Telephony Support
@@ -144,6 +147,7 @@ CONFIG_SD_EXTRA_DEVS=40
 #
 # SCSI low-level drivers
 #
+# CONFIG_BLK_DEV_3W_XXXX_RAID is not set
 # CONFIG_SCSI_7000FASST is not set
 # CONFIG_SCSI_ACARD is not set
 # CONFIG_SCSI_AHA152X is not set
@@ -306,7 +310,6 @@ CONFIG_SERIAL_CONSOLE=y
 # CONFIG_WATCHDOG is not set
 # CONFIG_NVRAM is not set
 # CONFIG_RTC is not set
-# CONFIG_EFI_RTC is not set
 
 #
 # Video For Linux
@@ -389,5 +392,6 @@ CONFIG_KCORE_ELF=y
 # Kernel hacking
 #
 CONFIG_CROSSCOMPILE=y
+# CONFIG_MIPS_FPE_MODULE is not set
 # CONFIG_REMOTE_DEBUG is not set
 CONFIG_MAGIC_SYSRQ=y

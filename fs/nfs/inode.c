@@ -46,7 +46,7 @@ static void nfs_put_inode(struct inode *);
 static void nfs_delete_inode(struct inode *);
 static void nfs_put_super(struct super_block *);
 static void nfs_umount_begin(struct super_block *);
-static int  nfs_statfs(struct super_block *, struct statfs *, int);
+static int  nfs_statfs(struct super_block *, struct statfs *);
 
 static struct super_operations nfs_sops = { 
 	read_inode:	nfs_read_inode,
@@ -143,8 +143,6 @@ nfs_put_super(struct super_block *sb)
 	rpciod_down();		/* release rpciod */
 
 	kfree(server->hostname);
-
-	MOD_DEC_USE_COUNT;
 }
 
 void
@@ -209,7 +207,6 @@ nfs_read_super(struct super_block *sb, void *raw_data, int silent)
 	struct rpc_timeout	timeparms;
 	struct nfs_fattr	fattr;
 
-	MOD_INC_USE_COUNT;
 	if (!data)
 		goto out_miss_args;
 
@@ -226,8 +223,6 @@ nfs_read_super(struct super_block *sb, void *raw_data, int silent)
 	memcpy(&srvaddr, &data->addr, sizeof(srvaddr));
 	if (srvaddr.sin_addr.s_addr == INADDR_ANY)
 		goto out_no_remote;
-
-	lock_super(sb);
 
 	sb->s_flags |= MS_ODD_RENAME; /* This should go away */
 
@@ -312,7 +307,6 @@ nfs_read_super(struct super_block *sb, void *raw_data, int silent)
 	sb->s_root->d_fsdata = root_fh;
 
 	/* We're airborne */
-	unlock_super(sb);
 
 	/* Check whether to start the lockd process */
 	if (!(server->flags & NFS_MOUNT_NONLM))
@@ -350,7 +344,6 @@ out_no_xprt:
 out_free_host:
 	kfree(server->hostname);
 out_unlock:
-	unlock_super(sb);
 	goto out_fail;
 
 out_no_remote:
@@ -361,33 +354,28 @@ out_miss_args:
 	printk("nfs_read_super: missing data argument\n");
 
 out_fail:
-	sb->s_dev = 0;
-	MOD_DEC_USE_COUNT;
 	return NULL;
 }
 
 static int
-nfs_statfs(struct super_block *sb, struct statfs *buf, int bufsiz)
+nfs_statfs(struct super_block *sb, struct statfs *buf)
 {
 	int error;
 	struct nfs_fsinfo res;
-	struct statfs tmp;
 
 	error = nfs_proc_statfs(&sb->u.nfs_sb.s_server, &sb->u.nfs_sb.s_root,
 		&res);
 	if (error) {
 		printk("nfs_statfs: statfs error = %d\n", -error);
-		res.bsize = res.blocks = res.bfree = res.bavail = 0;
+		res.bsize = res.blocks = res.bfree = res.bavail = -1;
 	}
-	tmp.f_type = NFS_SUPER_MAGIC;
-	tmp.f_bsize = res.bsize;
-	tmp.f_blocks = res.blocks;
-	tmp.f_bfree = res.bfree;
-	tmp.f_bavail = res.bavail;
-	tmp.f_files = 0;
-	tmp.f_ffree = 0;
-	tmp.f_namelen = NAME_MAX;
-	return copy_to_user(buf, &tmp, bufsiz) ? -EFAULT : 0;
+	buf->f_type = NFS_SUPER_MAGIC;
+	buf->f_bsize = res.bsize;
+	buf->f_blocks = res.blocks;
+	buf->f_bfree = res.bfree;
+	buf->f_bavail = res.bavail;
+	buf->f_namelen = NAME_MAX;
+	return 0;
 }
 
 /*
@@ -413,7 +401,7 @@ restart:
 		struct dentry *dentry = list_entry(tmp, struct dentry, d_alias);
 		dprintk("nfs_free_dentries: found %s/%s, d_count=%d, hashed=%d\n",
 			dentry->d_parent->d_name.name, dentry->d_name.name,
-			dentry->d_count, !list_empty(&dentry->d_hash));
+			dentry->d_count, !d_unhashed(dentry));
 		if (!list_empty(&dentry->d_subdirs))
 			shrink_dcache_parent(dentry);
 		if (!dentry->d_count) {
@@ -422,7 +410,7 @@ restart:
 			dput(dentry);
 			goto restart;
 		}
-		if (list_empty(&dentry->d_hash))
+		if (d_unhashed(dentry))
 			unhashed++;
 	}
 	return unhashed;
@@ -934,12 +922,7 @@ printk("nfs_refresh_inode: invalidating %ld pages\n", inode->i_nrpages);
 /*
  * File system information
  */
-static struct file_system_type nfs_fs_type = {
-	"nfs",
-	0 /* FS_NO_DCACHE - this doesn't work right now*/,
-	nfs_read_super,
-	NULL
-};
+static DECLARE_FSTYPE(nfs_fs_type, "nfs", nfs_read_super, 0);
 
 extern int nfs_init_fhcache(void);
 extern int nfs_init_wreqcache(void);

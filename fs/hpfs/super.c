@@ -102,8 +102,6 @@ void hpfs_put_super(struct super_block *s)
 	if (s->s_hpfs_cp_table) kfree(s->s_hpfs_cp_table);
 	if (s->s_hpfs_bmp_dir) kfree(s->s_hpfs_bmp_dir);
 	unmark_dirty(s);
-	s->s_dev = 0;
-	MOD_DEC_USE_COUNT;
 }
 
 unsigned hpfs_count_one_bitmap(struct super_block *s, secno secno)
@@ -132,22 +130,21 @@ static unsigned count_bitmaps(struct super_block *s)
 	return count;
 }
 
-int hpfs_statfs(struct super_block *s, struct statfs *buf, int bufsiz)
+int hpfs_statfs(struct super_block *s, struct statfs *buf)
 {
-	struct statfs tmp;
 	/*if (s->s_hpfs_n_free == -1) {*/
 		s->s_hpfs_n_free = count_bitmaps(s);
 		s->s_hpfs_n_free_dnodes = hpfs_count_one_bitmap(s, s->s_hpfs_dmap);
 	/*}*/
-	tmp.f_type = s->s_magic;
-	tmp.f_bsize = 512;
-	tmp.f_blocks = s->s_hpfs_fs_size;
-	tmp.f_bfree = s->s_hpfs_n_free;
-	tmp.f_bavail = s->s_hpfs_n_free;
-	tmp.f_files = s->s_hpfs_dirband_size / 4;
-	tmp.f_ffree = s->s_hpfs_n_free_dnodes;
-	tmp.f_namelen = 254;
-	return copy_to_user(buf, &tmp, bufsiz) ? -EFAULT : 0;
+	buf->f_type = s->s_magic;
+	buf->f_bsize = 512;
+	buf->f_blocks = s->s_hpfs_fs_size;
+	buf->f_bfree = s->s_hpfs_n_free;
+	buf->f_bavail = s->s_hpfs_n_free;
+	buf->f_files = s->s_hpfs_dirband_size / 4;
+	buf->f_ffree = s->s_hpfs_n_free_dnodes;
+	buf->f_namelen = 254;
+	return 0;
 }
 
 /* Super operations */
@@ -369,8 +366,6 @@ struct super_block *hpfs_read_super(struct super_block *s, void *options,
 
 	int o;
 
-	MOD_INC_USE_COUNT;
-
 	s->s_hpfs_bmp_dir = NULL;
 	s->s_hpfs_cp_table = NULL;
 
@@ -400,7 +395,6 @@ struct super_block *hpfs_read_super(struct super_block *s, void *options,
 	}
 
 	/*s->s_hpfs_mounting = 1;*/
-	lock_super(s);
 	dev = s->s_dev;
 	set_blocksize(dev, 512);
 	s->s_hpfs_fs_size = -1;
@@ -524,7 +518,6 @@ struct super_block *hpfs_read_super(struct super_block *s, void *options,
 	hpfs_lock_iget(s, 1);
 	s->s_root = d_alloc_root(iget(s, s->s_hpfs_root));
 	hpfs_unlock_iget(s);
-	unlock_super(s);
 	if (!s->s_root || !s->s_root->d_inode) {
 		printk("HPFS: iget failed. Why???\n");
 		goto bail0;
@@ -555,17 +548,14 @@ struct super_block *hpfs_read_super(struct super_block *s, void *options,
 bail4:	brelse(bh2);
 bail3:	brelse(bh1);
 bail2:	brelse(bh0);
-bail1:	unlock_super(s);
-bail0:	s->s_dev = 0;
+bail1:
+bail0:
 	if (s->s_hpfs_bmp_dir) kfree(s->s_hpfs_bmp_dir);
 	if (s->s_hpfs_cp_table) kfree(s->s_hpfs_cp_table);
-	MOD_DEC_USE_COUNT;
 	return NULL;
 }
 
-struct file_system_type hpfs_fs_type = {
-	"hpfs", FS_REQUIRES_DEV, hpfs_read_super, NULL
-};
+DECLARE_FSTYPE_DEV(hpfs_fs_type, "hpfs", hpfs_read_super);
 
 int init_hpfs_fs(void)
 {

@@ -69,12 +69,11 @@ static void isofs_put_super(struct super_block *sb)
 	       check_malloc, check_bread);
 #endif
 
-	MOD_DEC_USE_COUNT;
 	return;
 }
 
 static void isofs_read_inode(struct inode *);
-static int isofs_statfs (struct super_block *, struct statfs *, int);
+static int isofs_statfs (struct super_block *, struct statfs *);
 
 static struct super_operations isofs_sops = {
 	read_inode:	isofs_read_inode,
@@ -487,10 +486,6 @@ static struct super_block *isofs_read_super(struct super_block *s, void *data,
 	struct inode		      * inode;
 	struct iso9660_options		opt;
 
-	MOD_INC_USE_COUNT;
-	/* lock before any blocking operations */
-	lock_super(s);
-
 	if (!parse_options((char *) data, &opt))
 		goto out_unlock;
 
@@ -825,7 +820,6 @@ root_found:
 	if (opt.check == 'r') table++;
 	s->s_root->d_op = &isofs_dentry_ops[table];
 
-	unlock_super(s);
 	return s;
 
 	/*
@@ -868,26 +862,21 @@ out_unknown_format:
 out_freebh:
 	brelse(bh);
 out_unlock:
-	s->s_dev = 0;
-	unlock_super(s);
-	MOD_DEC_USE_COUNT;
 	return NULL;
 }
 
-static int isofs_statfs (struct super_block *sb, struct statfs *buf, int bufsiz)
+static int isofs_statfs (struct super_block *sb, struct statfs *buf)
 {
-	struct statfs tmp;
-
-	tmp.f_type = ISOFS_SUPER_MAGIC;
-	tmp.f_bsize = sb->s_blocksize;
-	tmp.f_blocks = (sb->u.isofs_sb.s_nzones
+	buf->f_type = ISOFS_SUPER_MAGIC;
+	buf->f_bsize = sb->s_blocksize;
+	buf->f_blocks = (sb->u.isofs_sb.s_nzones
                   << (sb->u.isofs_sb.s_log_zone_size - sb->s_blocksize_bits));
-	tmp.f_bfree = 0;
-	tmp.f_bavail = 0;
-	tmp.f_files = sb->u.isofs_sb.s_ninodes;
-	tmp.f_ffree = 0;
-	tmp.f_namelen = NAME_MAX;
-	return copy_to_user(buf, &tmp, bufsiz) ? -EFAULT : 0;
+	buf->f_bfree = 0;
+	buf->f_bavail = 0;
+	buf->f_files = sb->u.isofs_sb.s_ninodes;
+	buf->f_ffree = 0;
+	buf->f_namelen = NAME_MAX;
+	return 0;
 }
 
 /* Life is simpler than for other filesystem since we never
@@ -1440,12 +1429,7 @@ void leak_check_brelse(struct buffer_head * bh){
 
 #endif
 
-static struct file_system_type iso9660_fs_type = {
-	"iso9660",
-	FS_REQUIRES_DEV,
-	isofs_read_super, 
-	NULL
-};
+static DECLARE_FSTYPE_DEV(iso9660_fs_type, "iso9660", isofs_read_super);
 
 int __init init_iso9660_fs(void)
 {

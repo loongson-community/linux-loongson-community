@@ -49,13 +49,9 @@ static void autofs_put_super(struct super_block *sb)
 	kfree(sb->u.generic_sbp);
 
 	DPRINTK(("autofs: shutting down\n"));
-	
-#ifdef MODULE
-	MOD_DEC_USE_COUNT;
-#endif
 }
 
-static int autofs_statfs(struct super_block *sb, struct statfs *buf, int bufsiz);
+static int autofs_statfs(struct super_block *sb, struct statfs *buf);
 static void autofs_read_inode(struct inode *inode);
 static void autofs_write_inode(struct inode *inode);
 
@@ -141,9 +137,6 @@ struct super_block *autofs_read_super(struct super_block *s, void *data,
 	struct autofs_sb_info *sbi;
 	int minproto, maxproto;
 
-	MOD_INC_USE_COUNT;
-
-	lock_super(s);
 	/* Super block already completed? */
 	if (s->s_root)
 		goto out_unlock;
@@ -167,7 +160,6 @@ struct super_block *autofs_read_super(struct super_block *s, void *data,
 	s->s_magic = AUTOFS_SUPER_MAGIC;
 	s->s_op = &autofs_sops;
 	s->s_root = NULL;
-	unlock_super(s); /* shouldn't we keep it locked a while longer? */
 
 	/*
 	 * Get the root inode and dentry, but defer checking for errors.
@@ -224,7 +216,6 @@ struct super_block *autofs_read_super(struct super_block *s, void *data,
 	 * Success ... somebody else completed the super block for us. 
 	 */ 
 out_unlock:
-	unlock_super(s);
 	goto out_dec;
 out_fput:
 	if (pipe)
@@ -235,7 +226,6 @@ out_dput:
 	else
 		iput(root_inode);
 out_dec:
-	MOD_DEC_USE_COUNT;
 	return s;
 	
 	/*
@@ -246,14 +236,12 @@ fail_fput:
 	/*
 	 * fput() can block, so we clear the super block first.
 	 */
-	s->s_dev = 0;
 	fput(pipe);
 	/* fall through */
 fail_dput:
 	/*
 	 * dput() can block, so we clear the super block first.
 	 */
-	s->s_dev = 0;
 	dput(root);
 	goto fail_free;
 fail_iput:
@@ -261,32 +249,23 @@ fail_iput:
 	/*
 	 * iput() can block, so we clear the super block first.
 	 */
-	s->s_dev = 0;
 	iput(root_inode);
 fail_free:
 	kfree(sbi);
-	goto fail_dec;
 fail_unlock:
-	unlock_super(s);
 fail_dec:
-	s->s_dev = 0;
-	MOD_DEC_USE_COUNT;
 	return NULL;
 }
 
-static int autofs_statfs(struct super_block *sb, struct statfs *buf, int bufsiz)
+static int autofs_statfs(struct super_block *sb, struct statfs *buf)
 {
-	struct statfs tmp;
-
-	tmp.f_type = AUTOFS_SUPER_MAGIC;
-	tmp.f_bsize = 1024;
-	tmp.f_blocks = 0;
-	tmp.f_bfree = 0;
-	tmp.f_bavail = 0;
-	tmp.f_files = 0;
-	tmp.f_ffree = 0;
-	tmp.f_namelen = NAME_MAX;
-	return copy_to_user(buf, &tmp, bufsiz) ? -EFAULT : 0;
+	buf->f_type = AUTOFS_SUPER_MAGIC;
+	buf->f_bsize = 1024;
+	buf->f_bfree = 0;
+	buf->f_bavail = 0;
+	buf->f_ffree = 0;
+	buf->f_namelen = NAME_MAX;
+	return 0;
 }
 
 static void autofs_read_inode(struct inode *inode)
