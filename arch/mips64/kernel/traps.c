@@ -494,6 +494,8 @@ asmlinkage void do_bp(struct pt_regs *regs)
 	unsigned int opcode, bcode;
 	siginfo_t info;
 
+	die_if_kernel("Break instruction in kernel code", regs);
+
 	if (get_insn_opcode(regs, &opcode))
 		return;
 
@@ -531,6 +533,8 @@ asmlinkage void do_tr(struct pt_regs *regs)
 {
 	unsigned int opcode, tcode = 0;
 	siginfo_t info;
+
+	die_if_kernel("Trap instruction in kernel code", regs);
 
 	if (get_insn_opcode(regs, &opcode))
 		return;
