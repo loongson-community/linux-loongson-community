@@ -201,7 +201,11 @@ END(handle_vec1_r10k)
 	.align	5
 LEAF(invalid_vmalloc_address)
 	.set	noat
+	SAVE_ALL
+	CLI
+	dmfc0	t0, CP0_BADVADDR
+	sd	t0, PT_BVADDR(sp)
+	move	a0, sp
+	jal	show_regs
 	PANIC("Invalid kernel address")
-1:	b	1b
-	 nop
 END(invalid_vmalloc_address)
