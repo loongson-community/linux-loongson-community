@@ -107,10 +107,7 @@ static u8 get_command(ide_drive_t *drive, int cmd)
 	 * 48-bit commands are pretty sanely laid out
 	 */
 	if (lba48bit) {
-		if (cmd == READ)
-			command = WIN_READ_EXT;
-		else
-			command = WIN_WRITE_EXT;
+		command = cmd == READ ? WIN_READ_EXT : WIN_WRITE_EXT;
 
 		if (drive->using_dma) {
 			command++;		/* WIN_*DMA_EXT */
@@ -118,31 +115,33 @@ static u8 get_command(ide_drive_t *drive, int cmd)
 				command++;	/* WIN_*DMA_QUEUED_EXT */
 		} else if (drive->mult_count)
 			command += 5;		/* WIN_MULT*_EXT */
+
+		return command;
+	}
+
+	/*
+	 * 28-bit commands seem not to be, though...
+	 */
+	if (cmd == READ) {
+		if (drive->using_dma) {
+			if (drive->using_tcq)
+				command = WIN_READDMA_QUEUED;
+			else
+				command = WIN_READDMA;
+		} else if (drive->mult_count)
+			command = WIN_MULTREAD;
+		else
+			command = WIN_READ;
 	} else {
-		/*
-		 * 28-bit commands seem not to be, though...
-		 */
-		if (cmd == READ) {
-			if (drive->using_dma) {
-				if (drive->using_tcq)
-					command = WIN_READDMA_QUEUED;
-				else
-					command = WIN_READDMA;
-			} else if (drive->mult_count)
-				command = WIN_MULTREAD;
+		if (drive->using_dma) {
+			if (drive->using_tcq)
+				command = WIN_WRITEDMA_QUEUED;
 			else
-				command = WIN_READ;
-		} else {
-			if (drive->using_dma) {
-				if (drive->using_tcq)
-					command = WIN_WRITEDMA_QUEUED;
-				else
-					command = WIN_WRITEDMA;
-			} else if (drive->mult_count)
-				command = WIN_MULTWRITE;
-			else
-				command = WIN_WRITE;
-		}
+				command = WIN_WRITEDMA;
+		} else if (drive->mult_count)
+			command = WIN_MULTWRITE;
+		else
+			command = WIN_WRITE;
 	}
 
 	return command;
@@ -756,8 +755,6 @@ static void idedisk_pre_reset (ide_drive_t *drive)
 	drive->special.b.recalibrate  = legacy;
 	if (OK_TO_RESET_CONTROLLER)
 		drive->mult_count = 0;
-	if (!drive->keep_settings && !drive->using_dma)
-		drive->mult_req = 0;
 	if (drive->mult_req != drive->mult_count)
 		drive->special.b.set_multmode = 1;
 }
@@ -895,24 +892,24 @@ static int proc_idedisk_read_tcq
 
 		__set_bit(i, &tag_mask);
 		len += sprintf(out+len, "%d, ", i);
-		if (ar->ar_time > max_jif)
-			max_jif = ar->ar_time;
+		if (cur_jif - ar->ar_time > max_jif)
+			max_jif = cur_jif - ar->ar_time;
 		cmds++;
 	}
 	len += sprintf(out+len, "]\n");
 
+	len += sprintf(out+len, "Queue:\t\t\treleased [ %d ] - started [ %d ]\n", drive->tcq->immed_rel, drive->tcq->immed_comp);
+
 	if (drive->tcq->queued != cmds)
-		len += sprintf(out+len, "pending request and queue count mismatch (%d)\n", cmds);
+		len += sprintf(out+len, "pending request and queue count mismatch (counted: %d)\n", cmds);
 
 	if (tag_mask != drive->tcq->tag_mask)
 		len += sprintf(out+len, "tag masks differ (counted %lx != %lx\n", tag_mask, drive->tcq->tag_mask);
 
 	len += sprintf(out+len, "DMA status:\t\t%srunning\n", test_bit(IDE_DMA, &HWGROUP(drive)->flags) ? "" : "not ");
 
-	if (max_jif)
-		len += sprintf(out+len, "Oldest command:\t\t%lu\n", cur_jif - max_jif);
-
-	len += sprintf(out+len, "immed rel %d, immed comp %d\n", drive->tcq->immed_rel, drive->tcq->immed_comp);
+	len += sprintf(out+len, "Oldest command:\t\t%lu jiffies\n", max_jif);
+	len += sprintf(out+len, "Oldest command ever:\t%lu\n", drive->tcq->oldest_command);
 
 	drive->tcq->max_last_depth = 0;
 
@@ -1017,8 +1014,10 @@ static int set_using_tcq(ide_drive_t *drive, int arg)
 		return -EPERM;
 	if (!drive->channel->dmaproc)
 		return -EPERM;
+	if (arg == drive->queue_depth && drive->using_tcq)
+		return 0;
 
-	drive->using_tcq = arg;
+	drive->queue_depth = arg ? arg : 1;
 	if (drive->channel->dmaproc(arg ? ide_dma_queued_on : ide_dma_queued_off, drive))
 		return -EIO;
 
@@ -1050,7 +1049,6 @@ static void idedisk_add_settings(ide_drive_t *drive)
 	ide_add_setting(drive,	"bios_head",		SETTING_RW,					-1,			-1,			TYPE_BYTE,	0,	255,				1,	1,	&drive->bios_head,		NULL);
 	ide_add_setting(drive,	"bios_sect",		SETTING_RW,					-1,			-1,			TYPE_BYTE,	0,	63,				1,	1,	&drive->bios_sect,		NULL);
 	ide_add_setting(drive,	"address",		SETTING_RW,					HDIO_GET_ADDRESS,	HDIO_SET_ADDRESS,	TYPE_INTA,	0,	2,				1,	1,	&drive->addressing,	set_lba_addressing);
-	ide_add_setting(drive,	"bswap",		SETTING_READ,					-1,			-1,			TYPE_BYTE,	0,	1,				1,	1,	&drive->bswap,			NULL);
 	ide_add_setting(drive,	"multcount",		id ? SETTING_RW : SETTING_READ,			HDIO_GET_MULTCOUNT,	HDIO_SET_MULTCOUNT,	TYPE_BYTE,	0,	id ? id->max_multsect : 0,	1,	1,	&drive->mult_count,		set_multcount);
 	ide_add_setting(drive,	"nowerr",		SETTING_RW,					HDIO_GET_NOWERR,	HDIO_SET_NOWERR,	TYPE_BYTE,	0,	1,				1,	1,	&drive->nowerr,			set_nowerr);
 	ide_add_setting(drive,	"lun",			SETTING_RW,					-1,			-1,			TYPE_INT,	0,	7,				1,	1,	&drive->lun,			NULL);
@@ -1197,11 +1195,11 @@ static void idedisk_setup(ide_drive_t *drive)
 	if ((capacity >= (drive->bios_cyl * drive->bios_sect * drive->bios_head)) &&
 	    (!drive->forced_geom) && drive->bios_sect && drive->bios_head)
 		drive->bios_cyl = (capacity / drive->bios_sect) / drive->bios_head;
-	printk (KERN_INFO "%s: %ld sectors", drive->name, capacity);
+	printk(KERN_INFO "%s: %ld sectors", drive->name, capacity);
 
 	/* Give size in megabytes (MB), not mebibytes (MiB). */
 	/* We compute the exact rounded value, avoiding overflow. */
-	printk (" (%ld MB)", (capacity - capacity/625 + 974)/1950);
+	printk(" (%ld MB)", (capacity - capacity/625 + 974)/1950);
 
 	/* Only print cache size when it was specified */
 	if (id->buf_size)
@@ -1212,7 +1210,7 @@ static void idedisk_setup(ide_drive_t *drive)
 #ifdef CONFIG_BLK_DEV_IDEDMA
 	if (drive->using_dma)
 		(void) drive->channel->dmaproc(ide_dma_verbose, drive);
-#endif /* CONFIG_BLK_DEV_IDEDMA */
+#endif
 	printk("\n");
 
 	drive->mult_count = 0;
@@ -1222,15 +1220,24 @@ static void idedisk_setup(ide_drive_t *drive)
 		id->multsect_valid = id->multsect ? 1 : 0;
 		drive->mult_req = id->multsect_valid ? id->max_multsect : INITIAL_MULT_COUNT;
 		drive->special.b.set_multmode = drive->mult_req ? 1 : 0;
-#else	/* original, pre IDE-NFG, per request of AC */
+#else
+		/* original, pre IDE-NFG, per request of AC */
 		drive->mult_req = INITIAL_MULT_COUNT;
 		if (drive->mult_req > id->max_multsect)
 			drive->mult_req = id->max_multsect;
 		if (drive->mult_req || ((id->multsect_valid & 1) && id->multsect))
 			drive->special.b.set_multmode = 1;
-#endif	/* CONFIG_IDEDISK_MULTI_MODE */
+#endif
 	}
-	drive->no_io_32bit = id->dword_io ? 1 : 0;
+
+	/* FIXME: Nowadays there are many chipsets out there which *require* 32
+	 * bit IO. Those will most propably not work properly with drives not
+	 * supporting this. But right now we don't do anything about this. We
+	 * dont' even *warn* the user!
+	 */
+
+	drive->channel->no_io_32bit = id->dword_io ? 1 : 0;
+
 	if (drive->id->cfs_enable_2 & 0x3000)
 		write_cache(drive, (id->cfs_enable_2 & 0x3000));
 	probe_lba_addressing(drive, 1);

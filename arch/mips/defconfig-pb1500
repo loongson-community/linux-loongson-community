@@ -482,7 +482,7 @@ CONFIG_PCMCIA_3C589=m
 #
 # ISDN subsystem
 #
-# CONFIG_ISDN is not set
+# CONFIG_ISDN_BOOL is not set
 
 #
 # Input device support
@@ -659,6 +659,7 @@ CONFIG_NFSD=m
 # CONFIG_NFSD_TCP is not set
 CONFIG_SUNRPC=y
 CONFIG_LOCKD=y
+CONFIG_EXPORTFS=m
 CONFIG_SMB_FS=m
 # CONFIG_SMB_NLS_DEFAULT is not set
 # CONFIG_NCP_FS is not set
@@ -868,7 +869,6 @@ CONFIG_USB_INPUT=y
 #
 # USB Imaging devices
 #
-# CONFIG_USB_DC2XX is not set
 # CONFIG_USB_MDC800 is not set
 # CONFIG_USB_SCANNER is not set
 # CONFIG_USB_MICROTEK is not set

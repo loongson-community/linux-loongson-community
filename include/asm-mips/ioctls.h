@@ -12,7 +12,7 @@
 #include <asm/ioctl.h>
 
 #define TCGETA		0x5401
-#define TCSETA		0x5402
+#define TCSETA		0x5402	/* Clashes with SNDCTL_TMR_START sound ioctl */
 #define TCSETAW		0x5403
 #define TCSETAF		0x5404
 

@@ -63,6 +63,11 @@ static void it8172_tune_drive (ide_drive_t *drive, byte pio)
     u16 drive_enables;
     u32 drive_timing;
     int is_slave	= (&HWIF(drive)->drives[1] == drive);
+
+    if (pio == 255)
+        pio = ata_timing_mode(drive, XFER_PIO | XFER_EPIO) - XFER_PIO_0;
+    else
+        pio = min_t(byte, pio, 4);
     
     pio = ide_get_best_pio_mode(drive, pio, 4, NULL);
     pci_read_config_word(HWIF(drive)->pci_dev, 0x40, &drive_enables);

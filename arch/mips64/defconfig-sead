@@ -191,6 +191,10 @@ CONFIG_BLK_DEV_INITRD=y
 # CONFIG_HAMRADIO is not set
 
 #
+# ISDN subsystem
+#
+
+#
 # Input device support
 #
 # CONFIG_INPUT is not set

@@ -30,6 +30,7 @@
 #include <linux/nfsd/cache.h>
 #include <linux/nfsd/xdr.h>
 #include <linux/nfsd/syscall.h>
+#include <linux/nfsd/interface.h>
 
 #include <asm/uaccess.h>
 
@@ -98,13 +99,13 @@ static ssize_t TA_read(struct file *file, char *buf, size_t size, loff_t *pos)
 	return size;
 }
 
-static ssize_t TA_open(struct inode *inode, struct file *file)
+static int TA_open(struct inode *inode, struct file *file)
 {
 	file->private_data = NULL;
 	return 0;
 }
 
-static ssize_t TA_release(struct inode *inode, struct file *file)
+static int TA_release(struct inode *inode, struct file *file)
 {
 	void *p = file->private_data;
 	file->private_data = NULL;
@@ -379,6 +380,7 @@ static struct file_system_type nfsd_fs_type = {
 static int __init init_nfsd(void)
 {
 	printk(KERN_INFO "Installing knfsd (copyright (C) 1996 okir@monad.swb.de).\n");
+
 	nfsd_stat_init();	/* Statistics */
 	nfsd_cache_init();	/* RPC reply cache */
 	nfsd_export_init();	/* Exports table */

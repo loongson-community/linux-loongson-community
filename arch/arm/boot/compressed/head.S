@@ -132,10 +132,28 @@ not_angel:
 		 */
 
 		.text
-1:		adr	r2, LC0
-		ldmia	r2, {r2, r3, r4, r5, sp}
+		adr	r0, LC0
+		ldmia	r0, {r1, r2, r3, r4, r5, r6, ip, sp}
+		subs	r0, r0, r1		@ calculate the delta offset
 
-		mov	r0, #0
+		teq	r0, #0			@ if delta is zero, we're
+		beq	not_relocated		@ running at the address we
+						@ were linked at.
+
+		add	r2, r2, r0		@ different address, so we
+		add	r3, r3, r0		@ need to fix up various
+		add	r5, r5, r0		@ pointers.
+		add	r6, r6, r0
+		add	ip, ip, r0
+		add	sp, sp, r0
+
+1:		ldr	r1, [r6, #0]		@ relocate entries in the GOT
+		add	r1, r1, r0		@ table.  This fixes up the
+		str	r1, [r6], #4		@ C references.
+		cmp	r6, ip
+		blt	1b
+
+not_relocated:	mov	r0, #0
 1:		str	r0, [r2], #4		@ clear bss
 		str	r0, [r2], #4
 		str	r0, [r2], #4
@@ -149,16 +167,25 @@ not_angel:
 		mov	r1, sp			@ malloc space above stack
 		add	r2, sp, #0x10000	@ 64k max
 
-		teq	r4, r5			@ will we overwrite ourselves?
-		moveq	r5, r2			@ decompress after image
-		movne	r5, r4			@ decompress to final location
+/*
+ * Check to see if we will overwrite ourselves.
+ *   r4 = final kernel address
+ *   r5 = start of this image
+ *   r2 = end of malloc space (and therefore this image)
+ * We basically want:
+ *   r4 >= r2 -> OK
+ *   r4 + image length <= r5 -> OK
+ */
+		cmp	r4, r2
+		bhs	wont_overwrite
+		add	r0, r4, #4096*1024	@ 4MB largest kernel size
+		cmp	r0, r5
+		bls	wont_overwrite
 
+		mov	r5, r2			@ decompress after malloc space
 		mov	r0, r5
 		mov	r3, r7
 		bl	SYMBOL_NAME(decompress_kernel)
-
-		teq	r4, r5			@ do we need to relocate
-		beq	call_kernel		@ the kernel?
 
 		add	r0, r0, #127
 		bic	r0, r0, #127		@ align the kernel length
@@ -184,12 +211,26 @@ not_angel:
 		bl	cache_clean_flush
 		add	pc, r5, r0		@ call relocation code
 
+/*
+ * We're not in danger of overwriting ourselves.  Do this the simple way.
+ *
+ * r4     = kernel execution address
+ * r7     = architecture ID
+ */
+wont_overwrite:	mov	r0, r4
+		mov	r3, r7
+		bl	SYMBOL_NAME(decompress_kernel)
+		b	call_kernel
+
 		.type	LC0, #object
-LC0:		.word	__bss_start
-		.word	_end
-		.word	_load_addr
-		.word	_start
-		.word	user_stack+4096
+LC0:		.word	LC0			@ r1
+		.word	__bss_start		@ r2
+		.word	_end			@ r3
+		.word	_load_addr		@ r4
+		.word	_start			@ r5
+		.word	_got_start		@ r6
+		.word	_got_end		@ r7
+		.word	user_stack+4096		@ r8
 		.size	LC0, . - LC0
 
 /*
@@ -206,26 +247,15 @@ LC0:		.word	__bss_start
  *  r7 = architecture number
  *  r8 = run-time address of "start"
  * On exit,
- *  r0, r1, r2, r3, r8, r9 corrupted
+ *  r1, r2, r3, r8, r9, r12 corrupted
  * This routine must preserve:
  *  r4, r5, r6, r7
  */
 		.align	5
-cache_on:	ldr	r1, proc_sa110_type
-		eor	r1, r1, r6
-		movs	r1, r1, lsr #5		@ catch SA110 and SA1100
-		beq	1f
-		ldr     r1, proc_sa1110_type
-		eor	r1, r1, r6
-		movs	r1, r1, lsr #4
-		beq	1f
-		ldr	r1, proc_xscale_type
-		eor	r1, r1, r6
-		movs	r1, r1, lsr #16
-@		movne	pc, lr
-		bne	cache_off
-1:
-		sub	r3, r4, #16384		@ Page directory size
+cache_on:	mov	r3, #8			@ cache_on function
+		b	call_cache_fn
+
+__cache_on:	sub	r3, r4, #16384		@ Page directory size
 		bic	r3, r3, #0xff		@ Align the pointer
 		bic	r3, r3, #0x3f00
 /*
@@ -277,8 +307,9 @@ cache_on:	ldr	r1, proc_sa110_type
 		mov	pc, lr
 
 /*
- * This code is relocatable.  It is relocated by the above code to the end
- * of the kernel and executed there.  During this time, we have no stacks.
+ * All code following this line is relocatable.  It is relocated by
+ * the above code to the end of the decompressed kernel image and
+ * executed there.  During this time, we have no stacks.
  *
  * r0     = decompressed kernel length
  * r1-r3  = unused
@@ -309,47 +340,101 @@ call_kernel:	bl	cache_clean_flush
 		mov	pc, r4			@ call kernel
 
 /*
- * Here follow the relocatable cache support functions for
- * the various processors.
+ * Here follow the relocatable cache support functions for the
+ * various processors.  This is a generic hook for locating an
+ * entry and jumping to an instruction at the specified offset
+ * from the start of the block.  Please note this is all position
+ * independent code.
+ *
+ *  r1  = corrupted
+ *  r2  = corrupted
+ *  r3  = block offset
+ *  r6  = CPU ID
+ *  r12 = corrupted
  */
 
-		.type	proc_sa110_type,#object
-proc_sa110_type:
-		.word	0x4401a100
-		.size	proc_sa110_type, . - proc_sa110_type
+call_cache_fn:	adr	r12, proc_types
+1:		ldr	r1, [r12, #0]		@ get value
+		ldr	r2, [r12, #4]		@ get mask
+		eor	r1, r1, r6		@ (real ^ match)
+		tst	r1, r2			@       & mask
+		addeq	pc, r12, r3		@ call cache function
+		add	r12, r12, #4*5
+		b	1b
 
-		.type	proc_sa1110_type,#object
-proc_sa1110_type:
-		.word	0x6901b110
-		.size	proc_sa1110_type, . - proc_sa1110_type
+/*
+ * Table for cache operations.  This is basically:
+ *   - CPU ID match
+ *   - CPU ID mask
+ *   - 'cache on' method instruction
+ *   - 'cache off' method instruction
+ *   - 'cache flush' method instruction
+ *
+ * We match an entry using: ((real_id ^ match) & mask) == 0
+ *
+ * Writethrough caches generally only need 'on' and 'off'
+ * methods.  Writeback caches _must_ have the flush method
+ * defined.
+ */
+		.type	proc_types,#object
+proc_types:
+		.word	0x41560600		@ ARM6/610
+		.word	0xffffffe0
+		b	__arm6_cache_off
+		b	__arm6_cache_off
+		mov	pc, lr
+
+		.word	0x41007000		@ ARM7/710
+		.word	0xfff8fe00
+		b	__arm7_cache_off
+		b	__arm7_cache_off
+		mov	pc, lr
+
+		.word	0x41807200		@ ARM720T (writethrough)
+		.word	0xffffff00
+		b	__cache_on
+		b	__armv4_cache_off
+		mov	pc, lr
+
+		.word	0x4401a100		@ sa110 / sa1100
+		.word	0xffffffe0
+		b	__cache_on
+		b	__armv4_cache_off
+		b	__armv4_cache_flush
+
+		.word	0x6901b110		@ sa1110
+		.word	0xfffffff0
+		b	__cache_on
+		b	__armv4_cache_off
+		b	__armv4_cache_flush
+
+		.word	0x69050000		@ xscale
+		.word	0xffff0000
+		b	__cache_on
+		b	__armv4_cache_off
+		b	__armv4_cache_flush
+
+		.word	0			@ unrecognised type
+		.word	0
+		mov	pc, lr
+		mov	pc, lr
+		mov	pc, lr
+
+		.size	proc_types, . - proc_types
 
 /*
  * Turn off the Cache and MMU.  ARMv3 does not support
  * reading the control register, but ARMv4 does.
  *
  * On entry,  r6 = processor ID
- * On exit,   r0, r1 corrupted
+ * On exit,   r0, r1, r2, r3, r12 corrupted
  * This routine must preserve: r4, r6, r7
  */
 		.align	5
-cache_off:
-#ifdef CONFIG_CPU_ARM610
-		eor	r1, r6, #0x41000000
-		eor	r1, r1, #0x00560000
-		bic	r1, r1, #0x0000001f
-		teq	r1, #0x00000600
-		mov	r0, #0x00000060		@ ARM6 control reg.
-		beq	__armv3_cache_off
-#endif
-#ifdef CONFIG_CPU_ARM710
-		eor	r1, r6, #0x41000000
-		bic	r1, r1, #0x00070000
-		bic	r1, r1, #0x000000ff
-		teq	r1, #0x00007000		@ ARM7
-		teqne	r1, #0x00007100		@ ARM710
-		mov	r0, #0x00000070		@ ARM7 control reg.
-		beq	__armv3_cache_off
-#endif
+cache_off:	mov	r3, #12			@ cache_off function
+		b	call_cache_fn
+
+__armv4_cache_off:
 		mrc	p15, 0, r0, c1, c0
 		bic	r0, r0, #0x000d
 		mcr	p15, 0, r0, c1, c0	@ turn MMU and cache off
@@ -357,6 +442,14 @@ cache_off:
 		mcr	p15, 0, r0, c7, c7	@ invalidate whole cache v4
 		mcr	p15, 0, r0, c8, c7	@ invalidate whole TLB v4
 		mov	pc, lr
+
+__arm6_cache_off:
+		mov	r0, #0x00000060		@ ARM6 control reg.
+		b	__armv3_cache_off
+
+__arm7_cache_off:
+		mov	r0, #0x00000070		@ ARM7 control reg.
+		b	__armv3_cache_off
 
 __armv3_cache_off:
 		mcr	p15, 0, r0, c1, c0	@ turn MMU and cache off
@@ -371,25 +464,16 @@ __armv3_cache_off:
  * On entry,
  *  r6 = processor ID
  * On exit,
- *  r1, r2, r12 corrupted
+ *  r1, r2, r3, r12 corrupted
  * This routine must preserve:
- *  r4, r6, r7
+ *  r0, r4, r5, r6, r7
  */
 		.align	5
 cache_clean_flush:
-		ldr	r1, proc_sa110_type
-		eor	r1, r1, r6
-		movs	r1, r1, lsr #5		@ catch SA110 and SA1100
-		beq	1f
-		ldr	r1, proc_sa1110_type
-		eor	r1, r1, r6
-		movs	r1, r1, lsr #4
-		beq	1f
-		ldr	r1, proc_xscale_type
-		eor	r1, r1, r6
-		movs	r1, r1, lsr #16
-		movne	pc, lr
-1:
+		mov	r3, #16
+		b	call_cache_fn
+
+__armv4_cache_flush:
 		bic	r1, pc, #31
 		add	r2, r1, #65536		@ 2x the largest dcache size
 1:		ldr	r12, [r1], #32		@ s/w flush D cache
@@ -399,12 +483,6 @@ cache_clean_flush:
 		mcr	p15, 0, r1, c7, c7, 0	@ flush I cache
 		mcr	p15, 0, r1, c7, c10, 4	@ drain WB
 		mov	pc, lr
-
-		.type	proc_xscale_type,#object
-proc_xscale_type:
-		.word	0x69050000
-		.size	proc_xscale_type, . - proc_xscale_type
-
 
 /*
  * Various debugging routines for printing hex characters and
@@ -481,5 +559,5 @@ memdump:	mov	r12, r0
 reloc_end:
 
 		.align
-		.section	".stack"
+		.section ".stack", "aw"
 user_stack:	.space	4096

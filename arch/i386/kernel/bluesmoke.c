@@ -33,9 +33,9 @@ static void inline flush_all (void)
  *	P4/Xeon Thermal transition interrupt handler
  */
 
+#ifdef CONFIG_X86_LOCAL_APIC
 static void intel_thermal_interrupt(struct pt_regs *regs)
 {
-#ifdef CONFIG_X86_LOCAL_APIC
 	u32 l, h;
 	unsigned int cpu = smp_processor_id();
 
@@ -48,8 +48,8 @@ static void intel_thermal_interrupt(struct pt_regs *regs)
 	} else {
 		printk(KERN_INFO "CPU#%d: Temperature/speed normal\n", cpu);
 	}
-#endif
 }
+#endif
 
 static void unexpected_thermal_interrupt(struct pt_regs *regs)
 {	
@@ -76,11 +76,11 @@ static void __init intel_init_thermal(struct cpuinfo_x86 *c)
 	unsigned int cpu = smp_processor_id();
 
 	/* Thermal monitoring */
-	if (!test_bit(X86_FEATURE_ACPI, &c->x86_capability))
+	if (!test_bit(X86_FEATURE_ACPI, c->x86_capability))
 		return;	/* -ENODEV */
 	
 	/* Clock modulation */
-	if (!test_bit(X86_FEATURE_ACC, &c->x86_capability))
+	if (!test_bit(X86_FEATURE_ACC, c->x86_capability))
 		return;	/* -ENODEV */
 
 	rdmsr(MSR_IA32_MISC_ENABLE, l, h);

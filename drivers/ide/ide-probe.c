@@ -57,9 +57,18 @@ static inline void do_identify (ide_drive_t *drive, byte cmd)
 		printk(KERN_WARNING "(ide-probe::do_identify) Out of memory.\n");
 		goto err_kmalloc;
 	}
-	/* read 512 bytes of id info */
+
+	/* Read 512 bytes of id info.
+	 *
+	 * Please note that it is well known that some *very* old drives are
+	 * able to provide only 256 of them, since this was the amount read by
+	 * DOS.
+	 *
+	 * However let's try to get away with this...
+	 */
+
 #if 1
-	ata_input_data(drive, id, SECTOR_WORDS);		/* read 512 bytes of id info */
+	ata_read(drive, id, SECTOR_WORDS);
 #else
         {
                 unsigned long   *ptr = (unsigned long *)id ;
@@ -159,6 +168,9 @@ static inline void do_identify (ide_drive_t *drive, byte cmd)
 		}
 		printk (" drive\n");
 		drive->type = type;
+
+		goto init_queue;
+
 		return;
 	}
 
@@ -189,22 +201,20 @@ static inline void do_identify (ide_drive_t *drive, byte cmd)
 	if (drive->channel->quirkproc)
 		drive->quirk_list = drive->channel->quirkproc(drive);
 
+init_queue:
 	/*
 	 * it's an ata drive, build command list
 	 */
-#ifndef CONFIG_BLK_DEV_IDE_TCQ
 	drive->queue_depth = 1;
+#ifdef CONFIG_BLK_DEV_IDE_TCQ_DEPTH
+	drive->queue_depth = CONFIG_BLK_DEV_IDE_TCQ_DEPTH;
 #else
-# ifndef CONFIG_BLK_DEV_IDE_TCQ_DEPTH
-#  define CONFIG_BLK_DEV_IDE_TCQ_DEPTH 1
-# endif
 	drive->queue_depth = drive->id->queue_depth + 1;
-	if (drive->queue_depth > CONFIG_BLK_DEV_IDE_TCQ_DEPTH)
-		drive->queue_depth = CONFIG_BLK_DEV_IDE_TCQ_DEPTH;
+#endif
 	if (drive->queue_depth < 1 || drive->queue_depth > IDE_MAX_TAG)
 		drive->queue_depth = IDE_MAX_TAG;
-#endif
-	if (ide_build_commandlist(drive))
+
+	if (ide_init_commandlist(drive))
 		goto err_misc;
 
 	return;
@@ -583,10 +593,10 @@ static void probe_hwif(struct ata_channel *hwif)
 	__restore_flags(flags);	/* local CPU only */
 	for (unit = 0; unit < MAX_DRIVES; ++unit) {
 		ide_drive_t *drive = &hwif->drives[unit];
-		if (drive->present) {
-			ide_tuneproc_t *tuneproc = drive->channel->tuneproc;
-			if (tuneproc != NULL && drive->autotune == 1)
-				tuneproc(drive, 255);	/* auto-tune PIO mode */
+
+		if (drive->present && (drive->autotune == 1)) {
+			if (drive->channel->tuneproc != NULL)
+				drive->channel->tuneproc(drive, 255);	/* auto-tune PIO mode */
 		}
 	}
 }

@@ -526,7 +526,7 @@ CONFIG_AU1000_FIR=y
 #
 # ISDN subsystem
 #
-# CONFIG_ISDN is not set
+# CONFIG_ISDN_BOOL is not set
 
 #
 # Input device support
@@ -685,6 +685,7 @@ CONFIG_NFSD=m
 # CONFIG_NFSD_TCP is not set
 CONFIG_SUNRPC=y
 CONFIG_LOCKD=y
+CONFIG_EXPORTFS=m
 CONFIG_SMB_FS=m
 # CONFIG_SMB_NLS_DEFAULT is not set
 # CONFIG_NCP_FS is not set

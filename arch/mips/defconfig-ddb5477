@@ -353,7 +353,7 @@ CONFIG_NET_PCI=y
 #
 # ISDN subsystem
 #
-# CONFIG_ISDN is not set
+# CONFIG_ISDN_BOOL is not set
 
 #
 # Input device support
@@ -481,6 +481,7 @@ CONFIG_NFSD=y
 # CONFIG_NFSD_TCP is not set
 CONFIG_SUNRPC=y
 CONFIG_LOCKD=y
+CONFIG_EXPORTFS=y
 # CONFIG_SMB_FS is not set
 # CONFIG_NCP_FS is not set
 # CONFIG_NCPFS_PACKET_SIGNING is not set
