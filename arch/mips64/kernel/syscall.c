@@ -188,11 +188,10 @@ asmlinkage int sys_syscall(abi64_no_regargs, struct pt_regs regs)
 	return -ENOSYS;
 }
 
-asmlinkage int
-sys_sysmips(int cmd, long arg1, int arg2, int arg3)
+asmlinkage int sys_sysmips(int cmd, long arg1, int arg2, int arg3)
 {
-	char	*name;
 	int	tmp, len;
+	char	*name;
 
 	switch(cmd) {
 	case SETNAME: {
