@@ -320,12 +320,6 @@ libs-$(CONFIG_MIPS_XXS1500)	+= arch/mips/au1000/xxs1500/
 load-$(CONFIG_MIPS_XXS1500)	+= 0xffffffff80100000
 
 #
-# Baget/MIPS
-#
-libs-$(CONFIG_BAGET_MIPS)	+= arch/mips/baget/ arch/mips/baget/prom/
-load-$(CONFIG_BAGET_MIPS)	+= 0xffffffff80001000
-
-#
 # Cobalt Server
 #
 core-$(CONFIG_MIPS_COBALT)	+= arch/mips/cobalt/
@@ -678,15 +672,6 @@ libs-$(CONFIG_MIPS64)	+= arch/mips/lib-64/
 
 core-y			+= arch/mips/kernel/ arch/mips/mm/ arch/mips/math-emu/
 
-ifdef CONFIG_BAGET_MIPS
-
-BAGETBOOT = $(MAKE) -C arch/$(ARCH)/baget
-
-balo: vmlinux
-	$(BAGETBOOT) balo
-
-endif
-
 ifdef CONFIG_LASAT
 rom.bin rom.sw: vmlinux
 	$(call descend,arch/mips/lasat/image,$@)
@@ -734,7 +719,6 @@ CLEAN_FILES += vmlinux.ecoff \
 
 archclean:
 	@$(MAKE) $(clean)=arch/mips/boot
-	@$(MAKE) $(clean)=arch/mips/baget
 	@$(MAKE) $(clean)=arch/mips/lasat
 
 # Generate <asm/offset.h 

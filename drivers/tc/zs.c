@@ -73,10 +73,6 @@
 #include <asm/dec/tc.h>
 #include <asm/dec/ioasic_addrs.h>
 #endif
-#ifdef CONFIG_BAGET_MIPS
-#include <asm/baget/baget.h>
-unsigned long system_base;
-#endif
 #ifdef CONFIG_KGDB
 #include <asm/kgdb.h>
 #endif
@@ -123,17 +119,6 @@ static struct zs_parms ds_parms = {
 	clock : ZS_CLOCK
 };
 #endif
-#ifdef CONFIG_BAGET_MIPS
-static struct zs_parms baget_parms = {
-	scc0 : UNI_SCC0,
-	scc1 : UNI_SCC1,
-	channel_a_offset : 9,
-	channel_b_offset : 1,
-	irq0 : BAGET_SCC_IRQ,
-	irq1 : BAGET_SCC_IRQ,
-	clock : 14745000
-};
-#endif
 
 #ifdef CONFIG_MACH_DECSTATION
 #define DS_BUS_PRESENT (IOASIC)
@@ -141,13 +126,7 @@ static struct zs_parms baget_parms = {
 #define DS_BUS_PRESENT 0
 #endif
 
-#ifdef CONFIG_BAGET_MIPS
-#define BAGET_BUS_PRESENT (mips_machtype == MACH_BAGET202)
-#else
-#define BAGET_BUS_PRESENT 0
-#endif
-
-#define BUS_PRESENT (DS_BUS_PRESENT || BAGET_BUS_PRESENT)
+#define BUS_PRESENT (DS_BUS_PRESENT)
 
 struct dec_zschannel zs_channels[NUM_CHANNELS];
 struct dec_serial zs_soft[NUM_CHANNELS];
@@ -1682,14 +1661,6 @@ static void __init probe_sccs(void)
 		n_chips = 1;
 		zs_parms = &ds_parms;
 		zs_parms->irq0 = dec_interrupt[DEC_IRQ_SCC0];
-		break;
-#endif
-#ifdef CONFIG_BAGET_MIPS
-	case MACH_BAGET202:
-		system_base = UNI_IO_BASE;
-		n_chips = 2;
-		zs_parms = &baget_parms;
-		zs_init_regs[2] = 0x8;
 		break;
 #endif
 	default:

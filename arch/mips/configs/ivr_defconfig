@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.10-rc1
-# Mon Oct 25 20:05:55 2004
+# Tue Oct 26 04:34:49 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -54,7 +54,6 @@ CONFIG_KMOD=y
 # Machine selection
 #
 # CONFIG_MACH_JAZZ is not set
-# CONFIG_BAGET_MIPS is not set
 # CONFIG_MACH_VR41XX is not set
 # CONFIG_TOSHIBA_JMR3927 is not set
 # CONFIG_MIPS_COBALT is not set
