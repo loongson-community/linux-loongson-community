@@ -163,6 +163,7 @@ inline int vmalloc_area_pages (unsigned long address, unsigned long size,
 		ret = 0;
 	} while (address && (address < end));
 	spin_unlock(&init_mm.page_table_lock);
+	flush_cache_all();
 	return ret;
 }
 
