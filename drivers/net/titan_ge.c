@@ -78,6 +78,11 @@
 #include <asm/system.h>
 #include <asm/titan_dep.h>
 
+/*
+ * Sparse descriptors.  We will still need to benchmark this
+ */
+#define SPARSE_DESCRIPTORS
+
 #include "titan_ge.h"
 #include "titan_mdio.h"
 
@@ -145,9 +150,8 @@ static char titan_string[] = "titan";
  * Ethernet Header     : 14
  * Future Titan change for IP header alignment : 2
  *
- * Hence, we allocate (1518 + 14 + 2+ 64) = 1580 bytes. For the future
- * revisions of the chip that do support IP header alignment, we will use
- * skb_reserve().
+ * Hence, we allocate (1518 + 14 + 2+ 64) = 1580 bytes.  For IP header
+ * alignment, we use skb_reserve().
  */
 
 #define ALIGNED_RX_SKB_ADDR(addr) \
@@ -601,48 +605,19 @@ static int titan_ge_open(struct net_device *netdev)
 }
 
 /*
- * Return the Rx buffer back to the Rx ring
- */
-static int titan_ge_rx_return_buff(titan_ge_port_info * titan_ge_port,
-					struct sk_buff *skb)
-{
-	struct device *device = &titan_ge_device[titan_ge_port->port_num]->dev;
-	volatile titan_ge_rx_desc *rx_desc;
-	int rx_used_desc;
-
-	rx_used_desc = titan_ge_port->rx_used_desc_q;
-	rx_desc = &(titan_ge_port->rx_desc_area[rx_used_desc]);
-
-#ifdef TITAN_GE_JUMBO_FRAMES
-	rx_desc->buffer_addr =
-	       dma_map_single(device, skb->data, TITAN_GE_JUMBO_BUFSIZE - 2,
-			      DMA_FROM_DEVICE);
-#else
-	rx_desc->buffer_addr =
-		dma_map_single(device, skb->data, TITAN_GE_STD_BUFSIZE - 2,
-			       DMA_FROM_DEVICE);
-#endif
-
-	titan_ge_port->rx_skb[rx_used_desc] = skb;
-	rx_desc->cmd_sts = TITAN_GE_RX_BUFFER_OWNED;
-
-	titan_ge_port->rx_used_desc_q =
-	(rx_used_desc + 1) % TITAN_GE_RX_QUEUE;
-
-	return TITAN_OK;
-}
-
-/*
  * Allocate the SKBs for the Rx ring. Also used
  * for refilling the queue
  */
 static int titan_ge_rx_task(struct net_device *netdev,
-				titan_ge_port_info *titan_ge_eth)
+				titan_ge_port_info *titan_ge_port)
 {
+	struct device *device = &titan_ge_device[titan_ge_port->port_num]->dev;
+	volatile titan_ge_rx_desc *rx_desc;
 	struct sk_buff *skb;
+	int rx_used_desc;
 	int count = 0;
 
-	while (titan_ge_eth->rx_ring_skbs < titan_ge_eth->rx_ring_size) {
+	while (titan_ge_port->rx_ring_skbs < titan_ge_port->rx_ring_size) {
 
 	/* First try to get the skb from the recycler */
 #ifdef TITAN_GE_JUMBO_FRAMES
@@ -650,7 +625,7 @@ static int titan_ge_rx_task(struct net_device *netdev,
 #else
 		skb = titan_ge_alloc_skb(TITAN_GE_STD_BUFSIZE, GFP_ATOMIC);
 #endif
-		if (!skb) {
+		if (unlikely(!skb)) {
 			/* OOM, set the flag */
 			printk("OOM \n");
 			oom_flag = 1;
@@ -659,14 +634,25 @@ static int titan_ge_rx_task(struct net_device *netdev,
 		count++;
 		skb->dev = netdev;
 
-		titan_ge_eth->rx_ring_skbs++;
+		titan_ge_port->rx_ring_skbs++;
 
-		if (titan_ge_rx_return_buff(titan_ge_eth, skb) !=
-		    TITAN_OK) {
-			printk(KERN_ERR "%s: Error allocating RX Ring\n",
-				netdev->name);
-			break;
-		}
+		rx_used_desc = titan_ge_port->rx_used_desc_q;
+		rx_desc = &(titan_ge_port->rx_desc_area[rx_used_desc]);
+
+#ifdef TITAN_GE_JUMBO_FRAMES
+		rx_desc->buffer_addr = dma_map_single(device, skb->data,
+				TITAN_GE_JUMBO_BUFSIZE - 2, DMA_FROM_DEVICE);
+#else
+		rx_desc->buffer_addr = dma_map_single(device, skb->data,
+				TITAN_GE_STD_BUFSIZE - 2, DMA_FROM_DEVICE);
+#endif
+
+		titan_ge_port->rx_skb[rx_used_desc] = skb;
+		rx_desc->cmd_sts = TITAN_GE_RX_BUFFER_OWNED;
+
+		titan_ge_port->rx_used_desc_q =
+			(rx_used_desc + 1) % TITAN_GE_RX_QUEUE;
+
 	}
 
 	return count;
@@ -756,8 +742,10 @@ static int titan_ge_port_start(struct net_device *netdev,
 		/* Step 1:  XDMA config	*/
 		reg_data = TITAN_GE_READ(TITAN_GE_XDMA_CONFIG);
 		reg_data &= ~(0x80000000);      /* clear reset */
+#ifndef SPARSE_DESCRIPTORS
 		reg_data |= 0x1 << 29;	/* sparse tx descriptor spacing */
 		reg_data |= 0x1 << 28;	/* sparse rx descriptor spacing */
+#endif
 		reg_data |= (0x1 << 23) | (0x1 << 24);  /* Descriptor Coherency */
 		reg_data |= (0x1 << 21) | (0x1 << 22);  /* Data Coherency */
 		TITAN_GE_WRITE(TITAN_GE_XDMA_CONFIG, reg_data);
@@ -1170,26 +1158,9 @@ static int titan_ge_eth_open(struct net_device *netdev)
 	size = titan_ge_eth->tx_ring_size * sizeof(titan_ge_tx_desc);
 
 	/* Allocate space in the SRAM for the descriptors */
-	if (port_num == 0) {
-		titan_ge_eth->tx_desc_area =
-		    (titan_ge_tx_desc *) titan_ge_sram;
-
-		titan_ge_eth->tx_dma = TITAN_SRAM_BASE;
-	}
-
-	if (port_num == 1) {
-		titan_ge_eth->tx_desc_area =
-		    (titan_ge_tx_desc *) (titan_ge_sram + 0x100);
-
-		titan_ge_eth->tx_dma = TITAN_SRAM_BASE + 0x100;
-	}
-
-	if (port_num == 2) {
-		titan_ge_eth->tx_desc_area =
-		    (titan_ge_tx_desc *) (titan_ge_sram + 0x200);
-
-		titan_ge_eth->tx_dma = TITAN_SRAM_BASE + 0x200;
-	}
+	titan_ge_eth->tx_desc_area =
+		(titan_ge_tx_desc *) (titan_ge_sram + 0x100 * port_num);
+	titan_ge_eth->tx_dma = TITAN_SRAM_BASE + 0x100 * port_num;
 
 	if (!titan_ge_eth->tx_desc_area) {
 		printk(KERN_ERR
@@ -1212,24 +1183,10 @@ static int titan_ge_eth_open(struct net_device *netdev)
 	titan_ge_eth->rx_ring_skbs = 0;
 	size = titan_ge_eth->rx_ring_size * sizeof(titan_ge_rx_desc);
 
-	if (port_num == 0) {
-		titan_ge_eth->rx_desc_area =
-			(titan_ge_rx_desc *)(titan_ge_sram + 0x1000);
+	titan_ge_eth->rx_desc_area =
+		(titan_ge_rx_desc *)(titan_ge_sram + 0x1000 + 0x100 * port_num);
 
-		titan_ge_eth->rx_dma = TITAN_SRAM_BASE + 0x1000;
-	}
-
-	if (port_num == 1) {
-		titan_ge_eth->rx_desc_area =
-			(titan_ge_rx_desc *)(titan_ge_sram + 0x1100);
-		titan_ge_eth->rx_dma = TITAN_SRAM_BASE + 0x1100;
-	}
-
-	if (port_num == 2) {
-		titan_ge_eth->rx_desc_area =
-			(titan_ge_rx_desc *)(titan_ge_sram + 0x1200);
-		titan_ge_eth->rx_dma = TITAN_SRAM_BASE + 0x1200;
-	}
+	titan_ge_eth->rx_dma = TITAN_SRAM_BASE + 0x1000 + 0x100 * port_num;
 
 	if (!titan_ge_eth->rx_desc_area) {
 		printk(KERN_ERR
@@ -1279,9 +1236,7 @@ static int titan_ge_eth_open(struct net_device *netdev)
 		    titan_ge_tx_coal(TITAN_GE_TX_COAL, port_num);
 	}
 
-	err =
-	    titan_ge_mdio_read(port_num,
-			       TITAN_GE_MDIO_PHY_STATUS, &phy_reg);
+	err = titan_ge_mdio_read(port_num, TITAN_GE_MDIO_PHY_STATUS, &phy_reg);
 	if (err == TITAN_GE_MDIO_ERROR) {
 		printk(KERN_ERR
 		       "Could not read PHY control register 0x11 \n");
@@ -1310,6 +1265,7 @@ int titan_ge_start_xmit(struct sk_buff *skb, struct net_device *netdev)
 	titan_ge_port_info *titan_ge_eth = netdev_priv(netdev);
 	unsigned long flags;
 	struct net_device_stats *stats;
+//printk("titan_ge_start_xmit\n");
 
 	stats = &titan_ge_eth->stats;
 	spin_lock_irqsave(&titan_ge_eth->lock, flags);
@@ -1364,6 +1320,7 @@ static int titan_ge_rx(struct net_device *netdev, int port_num,
 
 	packet->skb = titan_ge_port->rx_skb[rx_curr_desc];
 	packet->len = (rx_desc->cmd_sts & 0x7fff);
+printk("titan_ge_rx: packet len = %d\n", packet->len);
 
 	/*
 	 * At this point, we dont know if the checksumming
@@ -1462,6 +1419,14 @@ static int titan_ge_receive_queue(struct net_device *netdev, unsigned int max)
 		 */
 		skb_reserve(skb, 2);
 		skb->protocol = eth_type_trans(skb, netdev);
+{ int i; u16 *p = eth_hdr(skb); static int pnr =0;
+ printk("packet # %d\n", pnr++);
+ for (i=0; i < 32; i++) {
+  printk("%04x ", p[i]);
+  if ((i + 1) % 16 == 0)
+   printk("\n");
+ }
+}
 		netif_receive_skb(skb);
 
 		if (titan_ge_eth->rx_threshold > RX_THRESHOLD) {
@@ -1490,8 +1455,7 @@ static void titan_ge_enable_int(unsigned int port_num,
 			titan_ge_port_info *titan_ge_eth,
 			struct net_device *netdev)
 {
-	unsigned long reg_data =
-		TITAN_GE_READ(TITAN_GE_INTR_XDMA_IE);
+	unsigned long reg_data = TITAN_GE_READ(TITAN_GE_INTR_XDMA_IE);
 
 	if (port_num == 0)
 		reg_data |= 0x3;
