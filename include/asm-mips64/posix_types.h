@@ -1,4 +1,4 @@
-/* $Id: posix_types.h,v 1.1 1999/08/18 23:37:51 ralf Exp $
+/* $Id: posix_types.h,v 1.2 1999/12/04 03:59:12 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -9,10 +9,6 @@
  */
 #ifndef _ASM_POSIX_TYPES_H
 #define _ASM_POSIX_TYPES_H
-
-#define __need_size_t
-#define __need_ptrdiff_t
-#include <stddef.h>
 
 /*
  * This file is generally used by user-level software, so you need to
@@ -29,9 +25,9 @@ typedef int		__kernel_pid_t;
 typedef int		__kernel_ipc_pid_t;
 typedef int		__kernel_uid_t;
 typedef int		__kernel_gid_t;
-typedef __SIZE_TYPE__	__kernel_size_t;
-typedef __SSIZE_TYPE__	__kernel_ssize_t;
-typedef __PTRDIFF_TYPE__ __kernel_ptrdiff_t;
+typedef unsigned long	__kernel_size_t;
+typedef long		__kernel_ssize_t;
+typedef long		 __kernel_ptrdiff_t;
 typedef int		__kernel_time_t;
 typedef long		__kernel_suseconds_t;
 typedef int		__kernel_clock_t;
