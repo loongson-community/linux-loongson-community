@@ -2,33 +2,26 @@
  * Carsten Langgaard, carstenl@mips.com
  * Copyright (C) 1999,2000 MIPS Technologies, Inc.  All rights reserved.
  *
- * ########################################################################
+ * This program is free software; you can distribute it and/or modify it
+ * under the terms of the GNU General Public License (Version 2) as
+ * published by the Free Software Foundation.
  *
- *  This program is free software; you can distribute it and/or modify it
- *  under the terms of the GNU General Public License (Version 2) as
- *  published by the Free Software Foundation.
+ * This program is distributed in the hope it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
  *
- *  This program is distributed in the hope it will be useful, but WITHOUT
- *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- *  for more details.
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
  *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
- *
- * ########################################################################
- * 
  * Kernel command line creation using the prom monitor (YAMON) argc/argv.
- *
  */
 #include <linux/config.h>
 #include <linux/init.h>
 #include <linux/string.h>
 
 #include <asm/bootinfo.h>
-
-/* #define DEBUG_CMDLINE */
 
 extern int prom_argc;
 extern char **prom_argv;
@@ -58,8 +51,4 @@ void  __init prom_init_cmdline(void)
 	if (cp != &(arcs_cmdline[0])) /* get rid of trailing space */
 		--cp;
 	*cp = '\0';
-
-#ifdef DEBUG_CMDLINE
-	prom_printf("prom_init_cmdline: %s\n", &(arcs_cmdline[0]));
-#endif
 }

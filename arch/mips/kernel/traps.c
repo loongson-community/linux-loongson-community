@@ -694,14 +694,15 @@ static inline void setup_dedicated_int(void)
  */
 static inline void parity_protection_init(void)
 {
-        switch(mips_cpu.cputype)
-	{
+	switch(mips_cpu.cputype) {
 	case CPU_5KC:
-	    /* Set the PE bit (bit 31) in the CP0_ECC register. */
-	    printk("Enable the cache parity protection for MIPS 5KC CPUs.\n");
-	    write_32bit_cp0_register(CP0_ECC, read_32bit_cp0_register(CP0_ECC)
-				     | 0x80000000); 
-	    break;
+		/* Set the PE bit (bit 31) in the CP0_ECC register. */
+		printk(KERN_INFO "Enable the cache parity protection for "
+		       "MIPS 5KC CPUs.\n");
+		write_32bit_cp0_register(CP0_ECC,
+		                         read_32bit_cp0_register(CP0_ECC)
+		                         | 0x80000000); 
+		break;
 	default:
 	}
 }
@@ -815,8 +816,8 @@ void __init trap_init(void)
 	/*
 	 * Handling the following exceptions depends mostly of the cpu type
 	 */
-	if((mips_cpu.options & MIPS_CPU_4KEX)
-	&& (mips_cpu.options & MIPS_CPU_4KTLB)) {
+	if ((mips_cpu.options & MIPS_CPU_4KEX)
+	    && (mips_cpu.options & MIPS_CPU_4KTLB)) {
 		if(mips_cpu.cputype == CPU_NEVADA) {
 			memcpy((void *)KSEG0, &except_vec0_nevada, 0x80);
 		} else if (mips_cpu.cputype == CPU_R4600)
@@ -861,7 +862,6 @@ void __init trap_init(void)
 	case CPU_R6000A:
 	        save_fp_context = _save_fp_context;
 		restore_fp_context = _restore_fp_context;
-#if 0
 		/*
 		 * The R6000 is the only R-series CPU that features a machine
 		 * check exception (similar to the R4000 cache error) and
@@ -870,9 +870,8 @@ void __init trap_init(void)
 		 * current list of targets for Linux/MIPS.
 		 * (Duh, crap, there is someone with a tripple R6k machine)
 		 */
-		(void)set_except_vector(14, handle_mc);
-		(void)set_except_vector(15, handle_ndc);
-#endif
+		//set_except_vector(14, handle_mc);
+		//set_except_vector(15, handle_ndc);
 	case CPU_R2000:
 	case CPU_R3000:
 	case CPU_R3000A:

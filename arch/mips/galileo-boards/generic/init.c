@@ -1,8 +1,4 @@
 /*
- *
- * BRIEF MODULE DESCRIPTION
- *    Galileo PROM library initialisation code.
- *
  * Copyright 2000 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
  *         	ppopov@mvista.com or support@mvista.com
@@ -131,7 +127,7 @@ int get_ethernet_addr(char *ethernet_addr)
 }
 
 
-int __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
+void __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
 {
 	unsigned long mem_size, free_start, free_end, start_pfn,
 	    bootmap_size;
@@ -142,20 +138,9 @@ int __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
 	prom_argv = argv;
 	prom_envp = envp;
 
-	//init_serial();
-
 	mips_machgroup = MACH_GROUP_GALILEO;
-#if 0
-	prom_ops = &ev96100_prom_ops;
-	prom_ops->printf = prom_vec[5];
-#endif
-	puts("Linux running");
-	puts("");
 
 	prom_init_cmdline();
-
-	//prom_meminit();
-
 
 	/* 64 MB non-upgradable */
 	mem_size = 64 << 20;
@@ -171,6 +156,4 @@ int __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
 	/* Free the entire available memory after the _end symbol.  */
 	free_start += bootmap_size;
 	free_bootmem(free_start, free_end - free_start);
-
-	return 0;
 }

@@ -96,7 +96,6 @@ struct kbd_ops *kbd_ops;
  *
  * These are initialized so they are in the .data section
  */
-unsigned long mips_memory_upper = KSEG0; /* this is set by kernel_entry() */
 unsigned long mips_machtype = MACH_UNKNOWN;
 unsigned long mips_machgroup = MACH_GROUP_UNKNOWN;
 
@@ -131,7 +130,7 @@ extern void sgi_sysinit(void);
 extern void SetUpBootInfo(void);
 extern void loadmmu(void);
 extern asmlinkage void start_kernel(void);
-extern int prom_init(int, char **, char **, int *);
+extern void prom_init(int, char **, char **, int *);
 
 static struct resource code_resource = { "Kernel code" };
 static struct resource data_resource = { "Kernel data" };
@@ -254,9 +253,7 @@ static inline void cpu_probe(void)
 	case PRID_IMP_RM7000:
 		mips_cpu.cputype = CPU_RM7000;
 	        mips_cpu.isa_level = MIPS_CPU_ISA_IV;
-		mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX |
-		                   MIPS_CPU_FPU | MIPS_CPU_32FPR |
-		                   MIPS_CPU_COUNTER;
+		mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU | MIPS_CPU_32FPR;
 		break;
 	case PRID_IMP_R8000:
 		mips_cpu.cputype = CPU_R8000;
@@ -308,7 +305,8 @@ static inline void cpu_probe(void)
 	}
 }
 
-asmlinkage void __init init_arch(int argc, char **argv, char **envp, int *prom_vec)
+asmlinkage void __init
+init_arch(int argc, char **argv, char **envp, int *prom_vec)
 {
 	unsigned int s;
 
@@ -334,12 +332,7 @@ asmlinkage void __init init_arch(int argc, char **argv, char **envp, int *prom_v
 	s |= ST0_CU0;
 	write_32bit_cp0_register(CP0_STATUS, s);
 
-	/*
-	 * Main should never return here, but
-	 * just in case, we know what happens.
-	 */
-	for(;;)
-		start_kernel();
+	start_kernel();
 }
 
 static void __init default_irq_setup(void)
@@ -440,17 +433,17 @@ static inline void parse_mem_cmdline(void)
 
 void __init setup_arch(char **cmdline_p)
 {
+	void atlas_setup(void);
 	void baget_setup(void);
+	void ddb_setup(void);
 	void decstation_setup(void);
 	void deskstation_setup(void);
 	void jazz_setup(void);
 	void sni_rm200_pci_setup(void);
 	void sgi_setup(void);
-	void ddb_setup(void);
-	void orion_setup(void);
         void ev96100_setup(void);
-	void atlas_setup(void);
 	void malta_setup(void);
+	void cp7000_setup(void);
 
 	unsigned long bootmap_size;
 	unsigned long start_pfn, max_pfn;
@@ -498,6 +491,11 @@ void __init setup_arch(char **cmdline_p)
 #ifdef CONFIG_MIPS_MALTA
 	case MACH_GROUP_UNKNOWN:
 		malta_setup();
+		break;
+#endif
+#ifdef CONFIG_PMC_CP7000
+	case MACH_GROUP_PMC:
+		cp7000_setup();
 		break;
 #endif
 #ifdef CONFIG_SGI_IP22

@@ -18,15 +18,16 @@
 #define MACH_GROUP_ARC		3 /* Wreckstation Tyne, rPC44, possibly other */
 #define MACH_GROUP_SNI_RM	4 /* Siemens Nixdorf RM series                */
 #define MACH_GROUP_ACN		5
-#define MACH_GROUP_SGI          6 /* Silicon Graphics workstations and servers */
+#define MACH_GROUP_SGI          6 /* Silicon Graphics                         */
 #define MACH_GROUP_COBALT       7 /* Cobalt servers		 	      */
-#define MACH_GROUP_NEC_DDB	8 /* NEC DDB */
-#define MACH_GROUP_BAGET	9 /* Baget */
-#define MACH_GROUP_ORION       10 /* CoSine Orion */
-#define MACH_GROUP_GALILEO     11 /* Galileo Eval Boards*/
+#define MACH_GROUP_NEC_DDB	8 /* NEC DDB                                  */
+#define MACH_GROUP_BAGET	9 /* Baget                                    */
+#define MACH_GROUP_COSINE      10 /* CoSine Orion                             */
+#define MACH_GROUP_GALILEO     11 /* Galileo Eval Boards                      */
+#define MACH_GROUP_PMC         12 /* PMC Sierra Eval Boards                   */
 
-#define GROUP_NAMES { "unknown", "Jazz", "Digital", "ARC", \
-                      "SNI", "ACN", "SGI", "Cobalt", "NEC DDB", "Baget", "Orion", "Galileo" }
+#define GROUP_NAMES { "unknown", "Jazz", "Digital", "ARC", "SNI", "ACN",      \
+	"SGI", "Cobalt", "NEC DDB", "Baget", "Cosine", "Galileo", "PMC Sierra" }
 
 /*
  * Valid machtype values for group unknown (low order halfword of mips_machtype)
@@ -118,12 +119,26 @@
 #define GROUP_BAGET_NAMES { "BT23-201", "BT23-202" }
 
 /*
+ * Cosine boards.
+ */
+#define MACH_COSINE_ORION	0
+
+#define GROUP_COSINE_NAMES { "Orion" }
+
+/*
  * Valid machtype for group GALILEO
  */
 #define MACH_EV96100		0	/* EV96100 */
-#define MACH_EV64120A   1 /* EV64120A */
+#define MACH_EV64120A		1	/* EV64120A */
 
 #define GROUP_GALILEO_NAMES { "EV96100" , "EV64120A" }
+
+/*
+ * Valid machtype for group PMC
+ */
+#define MACH_PMC_CP7000		0
+
+#define GROUP_PMC_NAMES { "CP7000" }
 
 /*
  * Valid cputype values
@@ -205,7 +220,6 @@ typedef struct mips_arc_DisplayInfo {	/* video adapter information */
  * values in setup.c (or whereever suitable) so they are in
  * .data section
  */
-extern unsigned long mips_memory_upper;
 extern struct mips_cpu mips_cpu;
 extern unsigned long mips_machtype;
 extern unsigned long mips_machgroup;

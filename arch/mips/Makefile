@@ -28,10 +28,10 @@ CROSS_COMPILE  = $(tool-prefix)
 endif
 
 #
-# The ELF GCC uses -G0 -mabicalls -fpic as default.  We don't need PIC
-# code in the kernel since it only slows down the whole thing.  For the
-# old GCC these options are just the defaults.  At some point we might
-# make use of global pointer optimizations.
+# GCC uses -G0 -mabicalls -fpic as default.  We don't want PIC in the kernel
+# code since it only slows down the whole thing.  At some point we might make
+# use of global pointer optimizations but their use of $28 conflicts with
+# the current pointer optimization.
 #
 # The DECStation requires an ECOFF kernel for remote booting, other MIPS
 # machines may also.  Since BFD is incredibly buggy with respect to
@@ -205,6 +205,16 @@ LOADADDR      += 0x80100000
 endif
 
 #
+# PMC Sierra Momentum / Ocelot / CP7000 board
+# Whatever you want to call it today.
+#
+ifdef CONFIG_PMC_CP7000
+LIBS          += arch/mips/pmc/cp7000/cp7000.o
+SUBDIRS       += arch/mips/pmc/cp7000
+LOADADDR      += 0x80100000
+endif
+
+#
 # Choosing incompatible machines durings configuration will result in
 # error messages during linking.  Select a default linkscript if
 # none has been choosen above.
@@ -273,4 +283,3 @@ archdep:
 	 touch $(TOPDIR)/include/asm-$(ARCH)/offset.h; \
 	fi;
 	@$(MAKEBOOT) dep
-

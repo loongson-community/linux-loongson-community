@@ -2,8 +2,6 @@
  * Carsten Langgaard, carstenl@mips.com
  * Copyright (C) 1999,2000 MIPS Technologies, Inc.  All rights reserved.
  *
- * ########################################################################
- *
  *  This program is free software; you can distribute it and/or modify it
  *  under the terms of the GNU General Public License (Version 2) as
  *  published by the Free Software Foundation.
@@ -17,8 +15,6 @@
  *  with this program; if not, write to the Free Software Foundation, Inc.,
  *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
  *
- * ########################################################################
- *
  * PROM library initialisation code.
  */
 #include <linux/config.h>
@@ -31,9 +27,9 @@
 /* Environment variable */
 typedef struct
 {
-    char *name;
-    char *val;
-}t_env_var;
+	char *name;
+	char *val;
+} t_env_var;
 
 int prom_argc;
 char **prom_argv, **prom_envp;
@@ -95,8 +91,7 @@ int get_ethernet_addr(char *ethernet_addr)
 	}
 	str2eaddr(ethernet_addr, ethaddr_str);
 
-	if (init_debug > 1)
-	{
+	if (init_debug > 1) {
 	        int i;
 		printk("get_ethernet_addr: ");
 	        for (i=0; i<5; i++)

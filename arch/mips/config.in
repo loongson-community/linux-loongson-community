@@ -32,6 +32,7 @@ if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
 fi
 bool 'Support for Mips Magnum 4000' CONFIG_MIPS_MAGNUM_4000
 bool 'Support for Olivetti M700-10' CONFIG_OLIVETTI_M700
+bool 'Support for PMC Sierra CP7000' CONFIG_PMC_CP7000
 bool 'Support for SGI IP22' CONFIG_SGI_IP22
 bool 'Support for SNI RM200 PCI' CONFIG_SNI_RM200_PCI
 
@@ -40,6 +41,7 @@ bool 'Support for SNI RM200 PCI' CONFIG_SNI_RM200_PCI
 #
 unset CONFIG_ARC32
 unset CONFIG_BOARD_SCACHE
+unset CONFIG_HAVE_STD_PC_SERIAL_PORT
 unset CONFIG_ISA
 unset CONFIG_PCI
 unset CONFIG_MIPS_JAZZ
@@ -91,6 +93,10 @@ if [ "$CONFIG_MIPS_MALTA" = "y" ]; then
    define_bool CONFIG_I8259 y
    define_bool CONFIG_PCI y
    define_bool CONFIG_ISA n
+fi
+if [ "$CONFIG_PMC_CP7000" = "y" ]; then
+   define_bool CONFIG_PCI y
+   define_bool CONFIG_SYSCLK_100 y
 fi
 if [ "$CONFIG_SGI_IP22" = "y" ]; then
    define_bool CONFIG_ARC32 y

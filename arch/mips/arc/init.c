@@ -23,7 +23,7 @@ unsigned short prom_vers, prom_rev;
 
 extern void prom_testtree(void);
 
-int __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
+void __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
 {
 	struct linux_promblock *pb;
 
@@ -55,5 +55,4 @@ int __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
 		romvec->imode();
 	}
 #endif
-	return 0;
 }

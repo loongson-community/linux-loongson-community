@@ -27,7 +27,7 @@ static inline int irq_cannonicalize(int irq)
 struct irqaction;
 extern int i8259_setup_irq(int irq, struct irqaction * new);
 extern void disable_irq(unsigned int);
-extern void disable_irq_nosync(unsigned int);
+#define disable_irq_nosync	disable_irq
 extern void enable_irq(unsigned int);
 
 /* Machine specific interrupt initialization  */

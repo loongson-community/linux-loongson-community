@@ -2,8 +2,6 @@
  * Carsten Langgaard, carstenl@mips.com
  * Copyright (C) 1999,2000 MIPS Technologies, Inc.  All rights reserved.
  *
- * ########################################################################
- *
  *  This program is free software; you can distribute it and/or modify it
  *  under the terms of the GNU General Public License (Version 2) as
  *  published by the Free Software Foundation.
@@ -17,8 +15,6 @@
  *  with this program; if not, write to the Free Software Foundation, Inc.,
  *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
  *
- * ########################################################################
- * 
  * Kernel command line creation using the prom monitor (YAMON) argc/argv.
  *
  */
@@ -57,5 +53,4 @@ void  __init prom_init_cmdline(void)
 	if (cp != &(arcs_cmdline[0])) /* get rid of trailing space */
 		--cp;
 	*cp = '\0';
-
 }

@@ -1,20 +1,15 @@
-/* Core.h - Basic core logic functions and definitions */
-
-/* Copyright Galileo Technology. */
-
 /*
-DESCRIPTION
-This header file contains simple Read/Write macros for addressing
-the SDRAM, devices, GT`s internal registers and PCI (using the PCI`s address 
-space). */
-
+ * This header file contains simple Read/Write macros for addressing the SDRAM,
+ * devices, GT`s internal registers and PCI (using the PCI`s address space).
+ *
+ * Copyright Galileo Technology.
+ */
 #ifndef __INCcoreh 
 #define __INCcoreh
 
-/* includes */
-#include "gt64120A.h"
-
-/* defines */
+#include <linux/types.h>
+#include <asm/byteorder.h>
+#include <asm/gt64120.h>
 
 #define INTERNAL_REG_BASE_ADDR 0x14000000
 
@@ -81,129 +76,107 @@ space). */
 #define _16M            0x01000000
 
 typedef enum _bool{false,true} bool;
-                               
-/* Little to Big endian conversion macros */
-
-#ifdef LE /* Little Endian */          	
-#define SHORTSWAP(X) (X)
-#define WORDSWAP(X) (X)
-#define LONGSWAP(X) ((l64)(X))
-#else    /* Big Endian */
-#define SHORTSWAP(X) ((X <<8 ) | (X >> 8))
-
-#define WORDSWAP(X) (((X)&0xff)<<24)+                                       \
-                    (((X)&0xff00)<<8)+                                      \
-                    (((X)&0xff0000)>>8)+                                    \
-                    (((X)&0xff000000)>>24)
-
-#define LONGSWAP(X) ( (l64) (((X)&0xffULL)<<56)+                            \
-                            (((X)&0xff00ULL)<<40)+                          \
-                            (((X)&0xff0000ULL)<<24)+                        \
-                            (((X)&0xff000000ULL)<<8)+                       \
-                            (((X)&0xff00000000ULL)>>8)+                     \
-                            (((X)&0xff0000000000ULL)>>24)+                  \
-                            (((X)&0xff000000000000ULL)>>40)+                \
-                            (((X)&0xff00000000000000ULL)>>56))   
-#endif
 
 #ifndef NULL
 #define NULL 0                                  
 #endif
+
 /* The two following defines are according to MIPS architecture. */
-#define NONE_CACHEABLE		0xa0000000
+#define NONE_CACHEABLE			0xa0000000
 #define MIPS_CACHEABLE			0x80000000
 
 /* Read/Write to/from GT`s internal registers */
-#define GT_REG_READ(offset, pData)                                          \
-*pData = (*((unsigned int *)(NONE_CACHEABLE | INTERNAL_REG_BASE_ADDR |      \
-            offset)));                                                      \
-*pData = WORDSWAP(*pData)
+#define GT_REG_READ(offset, pData)					\
+do {									\
+	*pData = (*((u32 *)(NONE_CACHEABLE |				\
+		INTERNAL_REG_BASE_ADDR | (offset))));			\
+	*pData = cpu_to_le32(*pData);					\
+} while(0)
 
-#define GT_REG_WRITE(offset, data)                                          \
-*((unsigned int *)(NONE_CACHEABLE | INTERNAL_REG_BASE_ADDR | offset)) =     \
-    WORDSWAP(data)
-                
-#define VIRTUAL_TO_PHY(y)    ((unsigned int)y & (unsigned int)0x5fffffff)
-#define PHY_TO_VIRTUAL(y)    (((unsigned int)y) | NONE_CACHEABLE)
+#define GT_REG_WRITE(offset, data)					\
+	(*((u32 *)(NONE_CACHEABLE | INTERNAL_REG_BASE_ADDR |		\
+		(offset))) = cpu_to_le32(data))
+
+#define VIRTUAL_TO_PHY(y)	((u32)(y) & (u32)0x5fffffff)
+#define PHY_TO_VIRTUAL(y)	((u32)(y) | NONE_CACHEABLE)
 
 /* Write 32/16/8 bit Non-Cache-able */
-#define WRITE_CHAR(address, data)                                           \
-        *((unsigned char *)(address | NONE_CACHEABLE)) = data
-#define WRITE_SHORT(address, data)                                          \
-        *((unsigned short *)(address | NONE_CACHEABLE)) =                   \
-        (unsigned short)data
-#define WRITE_WORD(address, data)                                           \
-        *((unsigned int *)(address | NONE_CACHEABLE)) =                     \
-        (unsigned int)data
+#define WRITE_CHAR(address, data)					\
+	(*((u8 *)((address) | NONE_CACHEABLE)) = (data))
+#define WRITE_SHORT(address, data)					\
+	(*((u16 *)((address) | NONE_CACHEABLE)) = (u16) data)
+#define WRITE_WORD(address, data)					\
+	(*((u32 *)((address) | NONE_CACHEABLE)) = (u32) data)
 
 /* Write 32/16/8 bits Cacheable */
-#define WRITE_CHAR_CACHEABLE(address, data)                                 \
-        *((unsigned char *)(address | MIPS_CACHEABLE )) = data
+#define WRITE_CHAR_CACHEABLE(address, data)				\
+	(*((u8 *)((address) | MIPS_CACHEABLE)) = (data))
                 
-#define WRITE_SHORT_CACHEABLE(address, data)                                \
-        *((unsigned short *)(address | MIPS_CACHEABLE )) =                        \
-        (unsigned short)data
+#define WRITE_SHORT_CACHEABLE(address, data)				\
+	(*((u16 *)((address) | MIPS_CACHEABLE)) = (u16) data)
 
-#define WRITE_WORD_CACHEABLE(address, data)                                 \
-        *((unsigned int *)(address | MIPS_CACHEABLE )) =                          \
-        (unsigned int)data
-                
+#define WRITE_WORD_CACHEABLE(address, data)				\
+	(*((u32 *)((address) | MIPS_CACHEABLE )) = (u32) data)
+
 /* Read 32/16/8 bits NonCacheable - returns data in variable. */
-#define READ_CHAR(address,pData)                                            \
-        *pData = *((unsigned char *)(address | NONE_CACHEABLE))
-                
-#define READ_SHORT(address,pData)                                           \
-        *pData = *((unsigned short *)(address | NONE_CACHEABLE))
+#define READ_CHAR(address,pData)					\
+	(*(pData) = *((u8 *)((address) | NONE_CACHEABLE)))
 
-#define READ_WORD(address,pData)                                            \
-        *pData = *((unsigned int *)(address | NONE_CACHEABLE))
-                
+#define READ_SHORT(address,pData)					\
+	(*(pData) = *((u16 *)((address) | NONE_CACHEABLE)))
+
+#define READ_WORD(address,pData)					\
+	(*(pData) = *((u32 *)((address) | NONE_CACHEABLE)))
+
 /* Read 32/16/8 bit NonCacheable - returns data direct. */
-#define READCHAR(address)                                                   \
-        *((unsigned char *)(address | NONE_CACHEABLE))
-                
-#define READSHORT(address)                                                  \
-        *((unsigned short *)(address | NONE_CACHEABLE))
+#define READCHAR(address)						\
+	(*((u8 *)((address) | NONE_CACHEABLE)))
 
-#define READWORD(address)                                                   \
-        *((unsigned int *)(address | NONE_CACHEABLE))
-        
+#define READSHORT(address)						\
+	(*((u16 *)((address) | NONE_CACHEABLE)))
+
+#define READWORD(address)						\
+        (*((u32 *)((address) | NONE_CACHEABLE)))
+
 /* Read 32/16/8 bit Cacheable - returns data in variable. */
-#define READ_CHAR_CACHEABLE(address,pData)                                  \
-        *pData = *((unsigned char *)(address | MIPS_CACHEABLE ))
-                
-#define READ_SHORT_CACHEABLE(address,pData)                                 \
-        *pData = *((unsigned short *)(address | MIPS_CACHEABLE ))
+#define READ_CHAR_CACHEABLE(address,pData)				\
+        (*(pData) = *((u8 *)((address) | MIPS_CACHEABLE)))
 
-#define READ_WORD_CACHEABLE(address,pData)                                  \
-        *pData = *((unsigned int *)(address | MIPS_CACHEABLE ))
-        
+#define READ_SHORT_CACHEABLE(address,pData)				\
+        (*(pData) = *((u16 *)((address) | MIPS_CACHEABLE)))
+#define READ_WORD_CACHEABLE(address,pData)				\
+        (*(pData) = *((u32 *)((address) | MIPS_CACHEABLE)))
+
 /* Read 32/16/8 bit Cacheable - returns data direct. */
-#define READCHAR_CACHEABLE(address)                                         \
-        *((unsigned char *)(address | MIPS_CACHEABLE ))
-                
-#define READSHORT_CACHEABLE(address)                                        \
-        *((unsigned short *)(address | MIPS_CACHEABLE ))
+#define READCHAR_CACHEABLE(address)					\
+	(*((u8 *)((address) | MIPS_CACHEABLE)))
 
-#define READWORD_CACHEABLE(address)                                         \
-        *((unsigned int *)(address | MIPS_CACHEABLE ))
-        
-/*  SET_REG_BITS(regOffset,bits) - 
-   gets register offset and bits: a 32bit value. It set to logic '1' in the  
-   internal register the bits which given as an input example:
-   SET_REG_BITS(0x840,BIT3 | BIT24 | BIT30) - set bits: 3,24 and 30 to logic
-   '1' in register 0x840 while the other bits stays as is. */
-#define SET_REG_BITS(regOffset,bits)                                        \
-        *(unsigned int*)(NONE_CACHEABLE | INTERNAL_REG_BASE_ADDR |          \
-        regOffset) |= (unsigned int)WORDSWAP(bits)
-                                         
-/*  RESET_REG_BITS(regOffset,bits) - 
-   gets register offset and bits: a 32bit value. It set to logic '0' in the  
-   internal register the bits which given as an input example:
-   RESET_REG_BITS(0x840,BIT3 | BIT24 | BIT30) - set bits: 3,24 and 30 to logic
-   '0' in register 0x840 while the other bits stays as is. */
-#define RESET_REG_BITS(regOffset,bits)                                      \
-        *(unsigned int*)(NONE_CACHEABLE | INTERNAL_REG_BASE_ADDR |          \
-        regOffset) &= ~( (unsigned int)WORDSWAP(bits) )
-        
+#define READSHORT_CACHEABLE(address)					\
+	(*((u16 *)((address) | MIPS_CACHEABLE)))
+
+#define READWORD_CACHEABLE(address)					\
+	(*((u32 *)((address) | MIPS_CACHEABLE)))
+
+/*
+ * SET_REG_BITS(regOffset,bits) - 
+ * gets register offset and bits: a 32bit value. It set to logic '1' in the  
+ * internal register the bits which given as an input example:
+ * SET_REG_BITS(0x840,BIT3 | BIT24 | BIT30) - set bits: 3,24 and 30 to logic
+ * '1' in register 0x840 while the other bits stays as is.
+ */
+#define SET_REG_BITS(regOffset,bits)					\
+	(*(u32*)(NONE_CACHEABLE | INTERNAL_REG_BASE_ADDR |		\
+		(regOffset)) |= (u32)cpu_to_le32(bits))
+
+/*
+ * RESET_REG_BITS(regOffset,bits) -
+ * gets register offset and bits: a 32bit value. It set to logic '0' in the  
+ * internal register the bits which given as an input example:
+ * RESET_REG_BITS(0x840,BIT3 | BIT24 | BIT30) - set bits: 3,24 and 30 to logic
+ * '0' in register 0x840 while the other bits stays as is.
+ */
+#define RESET_REG_BITS(regOffset,bits)					\
+	(*(u32 *)(NONE_CACHEABLE | INTERNAL_REG_BASE_ADDR |		\
+		(regOffset)) &= ~((u32)cpu_to_le32(bits)))
+
 #endif /* __INCcoreh */

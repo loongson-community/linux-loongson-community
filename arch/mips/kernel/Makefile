@@ -46,7 +46,7 @@ ifndef CONFIG_DECSTATION
   ifndef CONFIG_BAGET_MIPS
     ifndef CONFIG_MIPS_ATLAS
       ifndef CONFIG_MIPS_MALTA
-	ifndef CONFIG_MIPS_EV96100
+        ifndef CONFIG_MIPS_EV96100
 	  O_OBJS += time.o
         endif
       endif

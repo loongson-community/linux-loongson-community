@@ -1,5 +1,4 @@
-/* $Id: serial.h,v 1.9 2000/02/16 01:45:55 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
@@ -94,13 +93,13 @@
 #endif
 
 
+#ifdef CONFIG_HAVE_STD_PC_SERIAL_PORTS
 #define STD_SERIAL_PORT_DEFNS			\
 	/* UART CLK   PORT IRQ     FLAGS        */			\
 	{ 0, BASE_BAUD, 0x3F8, 4, STD_COM_FLAGS },	/* ttyS0 */	\
 	{ 0, BASE_BAUD, 0x2F8, 3, STD_COM_FLAGS },	/* ttyS1 */	\
 	{ 0, BASE_BAUD, 0x3E8, 4, STD_COM_FLAGS },	/* ttyS2 */	\
 	{ 0, BASE_BAUD, 0x2E8, 3, STD_COM4_FLAGS },	/* ttyS3 */
-
 
 #ifdef CONFIG_SERIAL_MANY_PORTS
 #define EXTRA_SERIAL_PORT_DEFNS			\
@@ -114,8 +113,8 @@
 	{ 0, BASE_BAUD, 0x2B8, 5, FOURPORT_FLAGS },	/* ttyS11 */	\
 	{ 0, BASE_BAUD, 0x330, 4, ACCENT_FLAGS },	/* ttyS12 */	\
 	{ 0, BASE_BAUD, 0x338, 4, ACCENT_FLAGS },	/* ttyS13 */	\
-	{ 0, BASE_BAUD, 0x000, 0, 0 },	/* ttyS14 (spare) */		\
-	{ 0, BASE_BAUD, 0x000, 0, 0 },	/* ttyS15 (spare) */		\
+	{ 0, BASE_BAUD, 0x000, 0, 0 },			/* ttyS14 (spare) */ \
+	{ 0, BASE_BAUD, 0x000, 0, 0 },			/* ttyS15 (spare) */ \
 	{ 0, BASE_BAUD, 0x100, 12, BOCA_FLAGS },	/* ttyS16 */	\
 	{ 0, BASE_BAUD, 0x108, 12, BOCA_FLAGS },	/* ttyS17 */	\
 	{ 0, BASE_BAUD, 0x110, 12, BOCA_FLAGS },	/* ttyS18 */	\
@@ -132,9 +131,14 @@
 	{ 0, BASE_BAUD, 0x168, 12, BOCA_FLAGS },	/* ttyS29 */	\
 	{ 0, BASE_BAUD, 0x170, 12, BOCA_FLAGS },	/* ttyS30 */	\
 	{ 0, BASE_BAUD, 0x178, 12, BOCA_FLAGS },	/* ttyS31 */
-#else
+#else /* CONFIG_SERIAL_MANY_PORTS */
 #define EXTRA_SERIAL_PORT_DEFNS
-#endif
+#endif /* CONFIG_SERIAL_MANY_PORTS */
+
+#else /* CONFIG_HAVE_STD_PC_SERIAL_PORTS */
+#define STD_SERIAL_PORT_DEFNS
+#define EXTRA_SERIAL_PORT_DEFNS
+#endif /* CONFIG_HAVE_STD_PC_SERIAL_PORTS */
 
 /* You can have up to four HUB6's in the system, but I've only
  * included two cards here for a total of twelve ports.
@@ -169,9 +173,31 @@
 #define MCA_SERIAL_PORT_DFNS
 #endif
 
+#ifdef CONFIG_PMC_CP7000
+/* Ordinary NS16552 duart with a 20MHz crystal.  */
+#define CP7000_BASE_BAUD ( 20000000 / 16 )
+
+#define CP7000_SERIAL1_IRQ	2
+#define CP7000_SERIAL1_BASE	0xbd000020
+
+#define CP7000_SERIAL2_IRQ	9
+#define CP7000_SERIAL2_BASE	0xbd000000
+
+#define _CP7000_SERIAL_INIT(int, base)					\
+	{ baud_base: CP7000_BASE_BAUD, irq: int, flags: STD_COM_FLAGS,	\
+	  iomem_base: (u8 *) base, iomem_reg_shift: 2,			\
+	  io_type: SERIAL_IO_MEM }
+#define CP7000_SERIAL_PORT_DEFNS					\
+	_CP7000_SERIAL_INIT(CP7000_SERIAL1_IRQ, CP7000_SERIAL1_BASE),	\
+	_CP7000_SERIAL_INIT(CP7000_SERIAL2_IRQ, CP7000_SERIAL2_BASE),
+#else
+#define CP7000_SERIAL_PORT_DEFNS
+#endif
+
 #define SERIAL_PORT_DFNS		\
-        EV96100_SERIAL_PORT_DEFNS       \
+	EV96100_SERIAL_PORT_DEFNS	\
 	JAZZ_SERIAL_PORT_DEFNS		\
 	STD_SERIAL_PORT_DEFNS		\
 	EXTRA_SERIAL_PORT_DEFNS		\
-	HUB6_SERIAL_PORT_DFNS           
+	HUB6_SERIAL_PORT_DFNS		\
+	CP7000_SERIAL_PORT_DEFNS

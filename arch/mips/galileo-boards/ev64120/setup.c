@@ -189,7 +189,7 @@ void SetUpBootInfo(int argc, char **argv, char **envp)
 extern int _end;
 
 unsigned long mem_size;
-int __init prom_init(int a, char **b, char **c, int *d)
+void __init prom_init(int a, char **b, char **c, int *d)
 {
 	unsigned long free_start, free_end, start_pfn, bootmap_size;
 
@@ -209,7 +209,6 @@ int __init prom_init(int a, char **b, char **c, int *d)
 	/* Free the entire available memory after the _end symbol.  */
 	free_start += bootmap_size;
 	free_bootmem(free_start, free_end - free_start);
-	return 0;
 }
 
 #if 0

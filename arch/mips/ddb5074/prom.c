@@ -19,8 +19,6 @@ void __init prom_init(const char *s)
 {
 	int i = 0;
 
-//  _serinit();
-
 	if (s != (void *) -1)
 		while (*s && i < sizeof(arcs_cmdline) - 1)
 			arcs_cmdline[i++] = *s++;
