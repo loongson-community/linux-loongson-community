@@ -15,6 +15,22 @@
 #include <asm/addrspace.h>
 #include <asm/bootinfo.h>
 
+#define PLD_BASE	0xbc000000
+
+#define REV             0x0     /* Board Assembly Revision */
+#define PLD1ID          0x1     /* PLD 1 ID */
+#define PLD2ID          0x2     /* PLD 2 ID */
+#define RESET_STAT      0x3     /* Reset Status Register */
+#define BOARD_STAT      0x4     /* Board Status Register */
+#define CPCI_ID         0x5     /* Compact PCI ID Register */
+#define CONTROL         0x8     /* Control Register */
+#define CPU_EEPROM      0x9     /* CPU Configuration EEPROM Register */
+#define INTMASK         0xA     /* Interrupt Mask Register */
+#define INTSTAT         0xB     /* Interrupt Status Register */
+#define INTSET          0xC     /* Interrupt Set Register */
+#define INTCLR          0xD     /* Interrupt Clear Register */
+
+#define PLD_REG(x)	((uint8_t*)(PLD_BASE+(x)))
 
 char arcs_cmdline[COMMAND_LINE_SIZE];
 
@@ -35,6 +51,10 @@ void __init prom_init(int argc, const char **arg)
 
 	mips_machgroup = MACH_GROUP_MOMENCO;
 	mips_machtype = MACH_MOMENCO_OCELOT;
+
+	/* turn off the Bit Error LED, which comes on automatically
+	 * at power-up reset */
+	*PLD_REG(INTCLR) = 0x80;
 
 	/* All the boards have at least 64MiB. If there's more, we
 	   detect and register it later */
