@@ -72,12 +72,21 @@ typedef dma_addr_t dma64_addr_t;
 #define pci64_map_sg(d,s,n,dir) pci_map_sg((d),(s),(n),(dir))
 #define pci64_unmap_single(d,a,s,dir) pci_unmap_single((d),(a),(s),(dir))
 #define pci64_unmap_sg(d,s,n,dir) pci_unmap_sg((d),(s),(n),(dir))
+#if BITS_PER_LONG > 32
+#define pci64_dma_hi32(a) ((u32) (0xffffffff & (a>>32)))
+#define pci64_dma_lo32(a) ((u32) (0xffffffff & (a)))
+#else
 #define pci64_dma_hi32(a) 0
 #define pci64_dma_lo32(a) (a)
+#endif	/* BITS_PER_LONG */
 #define pci64_dma_build(hi,lo) (lo)
 #define sg_dma64_address(s) sg_dma_address(s)
 #define sg_dma64_len(s) sg_dma_len(s)
+#if BITS_PER_LONG > 32
+#define PCI64_DMA_BITS 64
+#else
 #define PCI64_DMA_BITS	32
+#endif 	/* BITS_PER_LONG */
 #endif
 
 #include "qlogicfc.h"
@@ -101,14 +110,14 @@ typedef dma_addr_t dma64_addr_t;
 #define ISP2x00_FABRIC          1
 
 /*  Macros used for debugging */
-/*
-#define DEBUG_ISP2x00		1
-#define DEBUG_ISP2x00_INT	1
-#define DEBUG_ISP2x00_INTR	1
-#define DEBUG_ISP2x00_SETUP	1
+/* */
+#define DEBUG_ISP2x00		0
+#define DEBUG_ISP2x00_INT	0
+#define DEBUG_ISP2x00_INTR	0
+#define DEBUG_ISP2x00_SETUP	0
 
-#define DEBUG_ISP2x00_FABRIC    1
-*/
+#define DEBUG_ISP2x00_FABRIC    0
+/* */
 /* #define TRACE_ISP             1 */
 
 
@@ -898,6 +907,7 @@ static int isp2x00_make_portdb(struct Scsi_Host *host)
 
 		isp2x00_mbox_command(host, param);
 
+/* XXX cpu_to_le16 ?? */
 		if (param[0] == MBOX_COMMAND_COMPLETE) {
 			temp[j].loop_id = i;
 			temp[j].wwn = ((u64) (param[2] & 0xff)) << 56;
@@ -1918,14 +1928,14 @@ static int isp2x00_reset_hardware(struct Scsi_Host *host)
 			      | ((val & 0x00ff00ff00ff00ffULL) << 8);
 	}
 #else
-	hostdata->wwn = (u64) (hostdata->control_block.node_name[0]) << 56;
-	hostdata->wwn |= (u64) (hostdata->control_block.node_name[0] & 0xff00) << 48;
-	hostdata->wwn |= (u64) (hostdata->control_block.node_name[1] & 0xff00) << 24;
-	hostdata->wwn |= (u64) (hostdata->control_block.node_name[1] & 0x00ff) << 48;
-	hostdata->wwn |= (u64) (hostdata->control_block.node_name[2] & 0x00ff) << 24;
-	hostdata->wwn |= (u64) (hostdata->control_block.node_name[2] & 0xff00) << 8;
-	hostdata->wwn |= (u64) (hostdata->control_block.node_name[3] & 0x00ff) << 8;
-	hostdata->wwn |= (u64) (hostdata->control_block.node_name[3] & 0xff00) >> 8;
+	hostdata->wwn = (u64) (cpu_to_le16(hostdata->control_block.node_name[0])) << 56;
+	hostdata->wwn |= (u64) (cpu_to_le16(hostdata->control_block.node_name[0]) & 0xff00) << 48;
+	hostdata->wwn |= (u64) (cpu_to_le16(hostdata->control_block.node_name[1]) & 0xff00) << 24;
+	hostdata->wwn |= (u64) (cpu_to_le16(hostdata->control_block.node_name[1]) & 0x00ff) << 48;
+	hostdata->wwn |= (u64) (cpu_to_le16(hostdata->control_block.node_name[2]) & 0x00ff) << 24;
+	hostdata->wwn |= (u64) (cpu_to_le16(hostdata->control_block.node_name[2]) & 0xff00) << 8;
+	hostdata->wwn |= (u64) (cpu_to_le16(hostdata->control_block.node_name[3]) & 0x00ff) << 8;
+	hostdata->wwn |= (u64) (cpu_to_le16(hostdata->control_block.node_name[3]) & 0xff00) >> 8;
 #endif
 
 	/* FIXME: If the DMA transfer goes one way only, this should use PCI_DMA_TODEVICE and below as well. */
