@@ -1,11 +1,11 @@
-/* $Id: umap.c,v 1.4 2000/01/29 01:41:59 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
  * Copyright (C) 1994 Linus Torvalds
  * Copyright (C) 1997 Miguel de Icaza
+ * Copyright (C) 2001 Ralf Baechle
  */
 #include <linux/stat.h>
 #include <linux/sched.h>
@@ -16,6 +16,7 @@
 #include <linux/shm.h>
 #include <linux/errno.h>
 #include <linux/mman.h>
+#include <linux/module.h>
 #include <linux/string.h>
 #include <linux/vmalloc.h>
 #include <linux/swap.h>
@@ -100,6 +101,8 @@ remove_mapping (struct task_struct *task, unsigned long start, unsigned long end
 	flush_tlb_range (task->mm, beg, end);
 	up (&task->mm->mmap_sem);
 }
+
+EXPORT_SYMBOL(remove_mapping);
 
 void *vmalloc_uncached (unsigned long size)
 {

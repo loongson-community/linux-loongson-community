@@ -1,6 +1,4 @@
 /*
- * arch/mips/mm/umap.c
- *
  * (C) Copyright 1994 Linus Torvalds
  *
  * Changes:
@@ -21,6 +19,7 @@
 #include <linux/shm.h>
 #include <linux/errno.h>
 #include <linux/mman.h>
+#include <linux/module.h>
 #include <linux/string.h>
 #include <linux/vmalloc.h>
 #include <linux/swap.h>
@@ -105,6 +104,8 @@ remove_mapping (struct task_struct *task, unsigned long start, unsigned long end
 	flush_tlb_range (task->mm, beg, end);
 	up (&task->mm->mmap_sem);
 }
+
+EXPORT_SYMBOL(remove_mapping);
 
 void *vmalloc_uncached (unsigned long size)
 {

@@ -9,11 +9,11 @@
 
 O_TARGET := sgichar.o
 
-export-objs	:= newport.o graphics_syms.o
-obj-y		:= newport.o sgicons.o usema.o shmiq.o streamable.o
+export-objs	:= newport.o shmiq.o sgicons.o usema.o
+obj-y		:= newport.o shmiq.o sgicons.o usema.o streamable.o
 
 obj-$(CONFIG_SGI_SERIAL)	+= sgiserial.o
 obj-$(CONFIG_SGI_DS1286)	+= ds1286.o
-obj-$(CONFIG_SGI_NEWPORT_GFX)	+= graphics_syms.o graphics.o rrm.o
+obj-$(CONFIG_SGI_NEWPORT_GFX)	+= graphics.o rrm.o
 
 include $(TOPDIR)/Rules.make

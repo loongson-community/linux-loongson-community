@@ -9,6 +9,7 @@
 
 O_TARGET := mm.o
 
+export-objs			+= umap.o
 obj-y				+= extable.o init.o fault.o loadmmu.o
 
 obj-$(CONFIG_CPU_R3000)		+= r2300.o
