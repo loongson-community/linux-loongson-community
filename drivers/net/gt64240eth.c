@@ -97,29 +97,20 @@ static int debug = -1;
 /********************************************************/
 
 // prototypes
-static void *dmaalloc(size_t size, dma_addr_t * dma_handle);
-static void dmafree(size_t size, void *vaddr);
 static void gt64240_delay(int msec);
 static int gt64240_add_hash_entry(struct net_device *dev,
 				  unsigned char *addr);
 static void read_mib_counters(struct gt64240_private *gp);
-static int read_MII(struct net_device *dev, u32 reg);
-static int write_MII(struct net_device *dev, u32 reg, u16 data);
-#if 1
-static void dump_tx_ring(struct net_device *dev);
-static void dump_rx_ring(struct net_device *dev);
-#endif
 static void dump_MII(struct net_device *dev);
 static void dump_tx_desc(struct net_device *dev, int i);
 static void dump_rx_desc(struct net_device *dev, int i);
-static void dump_skb(struct net_device *dev, struct sk_buff *skb);
 static void dump_hw_addr(unsigned char *addr_str);
 static void update_stats(struct gt64240_private *gp);
 static void abort(struct net_device *dev, u32 abort_bits);
 static void hard_stop(struct net_device *dev);
 static void enable_ether_irq(struct net_device *dev);
 static void disable_ether_irq(struct net_device *dev);
-static int __init gt64240_probe1(uint32_t ioaddr, int irq, int port_num);
+static int __init gt64240_probe1(unsigned long ioaddr, int irq, int port_num);
 static void reset_tx(struct net_device *dev);
 static void reset_rx(struct net_device *dev);
 static int gt64240_init(struct net_device *dev);
@@ -132,7 +123,6 @@ static int gt64240_rx(struct net_device *dev, u32 status, int budget);
 #else
 static int gt64240_rx(struct net_device *dev, u32 status);
 #endif
-static void gt64240_interrupt(int irq, void *dev_id, struct pt_regs *regs);
 static void gt64240_tx_timeout(struct net_device *dev);
 static void gt64240_set_rx_mode(struct net_device *dev);
 static struct net_device_stats *gt64240_get_stats(struct net_device *dev);
@@ -170,35 +160,6 @@ static struct {
 	GT64240_ETH2_BASE, 8}
 };
 
-/*
-  DMA memory allocation, derived from pci_alloc_consistent.
-*/
-static void *dmaalloc(size_t size, dma_addr_t * dma_handle)
-{
-	void *ret;
-
-	ret =
-	    (void *) __get_free_pages(GFP_ATOMIC | GFP_DMA,
-				      get_order(size));
-
-	if (ret != NULL) {
-		dma_cache_inv((unsigned long) ret, size);
-		if (dma_handle != NULL)
-			*dma_handle = virt_to_phys(ret);
-
-		/* bump virtual address up to non-cached area */
-		ret = (void *) KSEG1ADDR(ret);
-	}
-
-	return ret;
-}
-
-static void dmafree(size_t size, void *vaddr)
-{
-	vaddr = (void *) KSEG0ADDR(vaddr);
-	free_pages((unsigned long) vaddr, get_order(size));
-}
-
 static void gt64240_delay(int ms)
 {
 	if (in_interrupt())
@@ -228,11 +189,10 @@ void parse_mac_addr_options(void)
 	prom_get_mac_addrs(gt64240_station_addr);
 }
 
-static int read_MII(struct net_device *dev, u32 reg)
+static int read_MII(struct net_device *dev, int phy, int reg)
 {
-	struct gt64240_private *gp = (struct gt64240_private *) dev->priv;
 	int timedout = 20;
-	u32 smir = smirOpCode | (gp->phy_addr << smirPhyAdBit) |
+	u32 smir = smirOpCode | (phy << smirPhyAdBit) |
 	    (reg << smirRegAdBit);
 
 	// wait for last operation to complete
@@ -275,7 +235,7 @@ static void gp_get_drvinfo (struct net_device *dev,
 static int gp_get_settings(struct net_device *dev, 
 				struct ethtool_cmd *cmd)
 {
-	struct gt64240_private *gp = (struct gt64240_private *) dev->priv;
+	struct gt64240_private *gp = netdev_priv(dev);
 	int rc;
 
 	spin_lock_irq(&gp->lock);
@@ -286,7 +246,7 @@ static int gp_get_settings(struct net_device *dev,
 
 static int gp_set_settings(struct net_device *dev, struct ethtool_cmd *cmd)
 {
-	struct gt64240_private *gp = (struct gt64240_private *) dev->priv;
+	struct gt64240_private *gp = netdev_priv(dev);
 	int rc;
 
 	spin_lock_irq(&gp->lock);
@@ -297,25 +257,25 @@ static int gp_set_settings(struct net_device *dev, struct ethtool_cmd *cmd)
 
 static int gp_nway_reset(struct net_device *dev)
 {
-	struct gt64240_private *gp = (struct gt64240_private *) dev->priv;
+	struct gt64240_private *gp = netdev_priv(dev);
 	return mii_nway_restart(&gp->mii_if);
 }
 
 static u32 gp_get_link(struct net_device *dev)
 {
-	struct gt64240_private *gp = (struct gt64240_private *) dev->priv;
+	struct gt64240_private *gp = netdev_priv(dev);
 	return mii_link_ok(&gp->mii_if);
 }
 
 static u32 gp_get_msglevel(struct net_device *dev)
 {
-	struct gt64240_private *gp = (struct gt64240_private *) dev->priv;
+	struct gt64240_private *gp = netdev_priv(dev);
 	return gp->msg_enable;
 }
 
 static void gp_set_msglevel(struct net_device *dev, u32 value)
 {
-	struct gt64240_private *gp = (struct gt64240_private *) dev->priv;
+	struct gt64240_private *gp = netdev_priv(dev);
 	gp->msg_enable = value;
 }
 
@@ -331,7 +291,7 @@ static struct ethtool_ops gp_ethtool_ops = {
 
 static int gt64240_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
-	struct gt64240_private *gp = (struct gt64240_private *) dev->priv;
+	struct gt64240_private *gp = netdev_priv(dev);
 	struct mii_ioctl_data *data =
 	    (struct mii_ioctl_data *) &rq->ifr_data;
 	int retval;
@@ -348,33 +308,30 @@ static int gt64240_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 
 static void dump_tx_desc(struct net_device *dev, int i)
 {
-	struct gt64240_private *gp = (struct gt64240_private *) dev->priv;
+	struct gt64240_private *gp = netdev_priv(dev);
 	gt64240_td_t *td = &gp->tx_ring[i];
 
-	printk
-	    ("%s:tx[%d]: self=%08x cmd=%08x, cnt=%4d. bufp=%08x, next=%08x\n",
-	     dev->name, i, td, td->cmdstat, td->byte_cnt, td->buff_ptr,
-	     td->next);
+	printk("%s:tx[%d]: self=%p cmd=%08x, cnt=%4d. bufp=%08x, next=%08x\n",
+	       dev->name, i, td, td->cmdstat, td->byte_cnt, td->buff_ptr,
+	       td->next);
 }
 
 static void dump_rx_desc(struct net_device *dev, int i)
 {
-	struct gt64240_private *gp = (struct gt64240_private *) dev->priv;
+	struct gt64240_private *gp = netdev_priv(dev);
 	gt64240_rd_t *rd = &gp->rx_ring[i];
 
-	printk
-	    ("%s:rx_dsc[%d]: self=%08x cst=%08x,size=%4d. cnt=%4d. bufp=%08x, next=%08x\n",
-	     dev->name, i, rd, rd->cmdstat, rd->buff_sz, rd->byte_cnt,
-	     rd->buff_ptr, rd->next);
+	printk("%s:rx_dsc[%d]: self=%p cst=%08x,size=%4d. cnt=%4d. "
+	       "bufp=%08x, next=%08x\n",
+	       dev->name, i, rd, rd->cmdstat, rd->buff_sz, rd->byte_cnt,
+	       rd->buff_ptr, rd->next);
 }
 
 // These routines work, just disabled to avoid compile warnings
-static int write_MII(struct net_device *dev, u32 reg, u16 data)
+static void write_MII(struct net_device *dev, int phy, int reg, int data)
 {
-	struct gt64240_private *gp = (struct gt64240_private *) dev->priv;
+	u32 smir = (phy << smirPhyAdBit) | (reg << smirRegAdBit) | data;
 	int timedout = 20;
-	u32 smir =
-	    (gp->phy_addr << smirPhyAdBit) | (reg << smirRegAdBit) | data;
 
 	// wait for last operation to complete
 	while (GT64240_READ(GT64240_ETH_SMI_REG) & smirBusy) {
@@ -384,47 +341,24 @@ static int write_MII(struct net_device *dev, u32 reg, u16 data)
 		if (--timedout == 0) {
 			printk("%s: write_MII busy timeout!!\n",
 			       dev->name);
-			return -1;
+			return;
 		}
 	}
 
 	GT64240_WRITE(GT64240_ETH_SMI_REG, smir);
-	return 0;
-}
-
-static void dump_tx_ring(struct net_device *dev)
-{
-	struct gt64240_private *gp = (struct gt64240_private *) dev->priv;
-	int i;
-
-	printk("%s: dump_tx_ring: txno/txni/cnt=%d/%d/%d\n",
-	       dev->name, gp->tx_next_out, gp->tx_next_in, gp->tx_count);
-
-	for (i = 0; i < TX_RING_SIZE; i++)
-		dump_tx_desc(dev, i);
-}
-
-static void dump_rx_ring(struct net_device *dev)
-{
-	struct gt64240_private *gp = (struct gt64240_private *) dev->priv;
-	int i;
-
-	printk("%s: dump_rx_ring: rxno=%d\n", dev->name, gp->rx_next_out);
-
-	for (i = 0; i < RX_RING_SIZE; i++)
-		dump_rx_desc(dev, i);
 }
 
 static void dump_MII(struct net_device *dev)
 {
+	struct gt64240_private *gp = netdev_priv(dev);
 	int i, val;
 
 	for (i = 0; i < 7; i++) {
-		if ((val = read_MII(dev, i)) >= 0)
+		if ((val = read_MII(dev, gp->phy_addr, i)) >= 0)
 			printk("%s: MII Reg %d=%x\n", dev->name, i, val);
 	}
 	for (i = 16; i < 21; i++) {
-		if ((val = read_MII(dev, i)) >= 0)
+		if ((val = read_MII(dev, gp->phy_addr, i)) >= 0)
 			printk("%s: MII Reg %d=%x\n", dev->name, i, val);
 	}
 }
@@ -439,59 +373,16 @@ static void dump_hw_addr(unsigned char *addr_str)
 	}
 }
 
-
-static void dump_skb(struct net_device *dev, struct sk_buff *skb)
-{
-	int i;
-	unsigned char *skbdata;
-
-	printk("%s: dump_skb: skb=%p, skb->data=%p, skb->len=%d.",
-	       dev->name, skb, skb->data, skb->len);
-
-	skbdata = (unsigned char *) KSEG1ADDR(skb->data);
-
-	for (i = 0; i < skb->len; i++) {
-		if (!(i % 16))
-			printk("\r\n   %3.3x: %2.2x,", i, skbdata[i]);
-		else
-			printk("%2.2x,", skbdata[i]);
-	}
-	printk("\r\n");
-}
-
-
-static void dump_data(struct net_device *dev, char *ptr, int len)
-{
-	int i;
-	unsigned char *data;
-
-	printk("%s: dump_data: ptr=%p, len=%d.", dev->name, ptr, len);
-
-	data = (unsigned char *) KSEG1ADDR(ptr);
-
-	for (i = 0; i < len; i++) {
-		if (!(i % 16))
-			printk("\n   %3.3x: %2.2x,", i, data[i]);
-		else
-			printk("%2.2x,", data[i]);
-	}
-	printk("\n");
-}
-
-
-/*--------------------------------------------------------------*/
-/*	A D D    H A S H    E N T R Y				*/
-/*--------------------------------------------------------------*/
 static int gt64240_add_hash_entry(struct net_device *dev,
 				  unsigned char *addr)
 {
+	static unsigned char swapped[256];
 	struct gt64240_private *gp;
-	int i;
 	u32 value1, value0, *entry;
-	u16 hashResult;
 	unsigned char hash_ea[6];
 	static int flag = 0;
-	static unsigned char swapped[256];
+	u16 hashResult;
+	int i;
 
 	if (flag == 0) {	/* Create table to swap bits in a byte  */
 		flag = 1;
@@ -511,7 +402,7 @@ static int gt64240_add_hash_entry(struct net_device *dev,
 		hash_ea[i] = swapped[addr[i]];
 	}
 
-	gp = (struct gt64240_private *) dev->priv;
+	gp = netdev_priv(dev);
 
 	/* create hash entry address    */
 	hashResult = (((hash_ea[5] >> 2) & 0x3F) << 9) & 0x7E00;
@@ -595,7 +486,7 @@ static void update_stats(struct gt64240_private *gp)
 
 static void abort(struct net_device *dev, u32 abort_bits)
 {
-	struct gt64240_private *gp = (struct gt64240_private *) dev->priv;
+	struct gt64240_private *gp = netdev_priv(dev);
 	int timedout = 100;	// wait up to 100 msec for hard stop to complete
 
 	if (gt64240_debug > 3)
@@ -635,7 +526,7 @@ static void abort(struct net_device *dev, u32 abort_bits)
 
 static void hard_stop(struct net_device *dev)
 {
-	struct gt64240_private *gp = (struct gt64240_private *) dev->priv;
+	struct gt64240_private *gp = netdev_priv(dev);
 
 	if (gt64240_debug > 3)
 		printk("%s: hard stop\n", dev->name);
@@ -653,10 +544,233 @@ static void hard_stop(struct net_device *dev)
 
 }
 
+static void gt64240_tx_complete(struct net_device *dev, u32 status)
+{
+	struct gt64240_private *gp = netdev_priv(dev);
+	int nextOut, cdp;
+	gt64240_td_t *td;
+	u32 cmdstat;
+
+	cdp = (GT64240ETH_READ(gp, GT64240_ETH_CURR_TX_DESC_PTR0)
+	       - gp->tx_ring_dma) / sizeof(gt64240_td_t);
+
+	if (gt64240_debug > 3) {	/*+prk17aug01 */
+		nextOut = gp->tx_next_out;
+		printk
+		    ("%s: tx_complete: TX_PTR0=0x%08x, cdp=%d. nextOut=%d.\n",
+		     dev->name, GT64240ETH_READ(gp,
+						GT64240_ETH_CURR_TX_DESC_PTR0),
+		     cdp, nextOut);
+		td = &gp->tx_ring[nextOut];
+	}
+
+/*** NEED to check and CLEAR these errors every time thru here: ***/
+	if (gt64240_debug > 2) {
+		if (GT64240_READ(COMM_UNIT_INTERRUPT_CAUSE))
+			printk
+			    ("%s: gt64240_tx_complete: CIU Cause=%08x, Mask=%08x, EAddr=%08x\n",
+			     dev->name,
+			     GT64240_READ(COMM_UNIT_INTERRUPT_CAUSE),
+			     GT64240_READ(COMM_UNIT_INTERRUPT_MASK),
+			     GT64240_READ(COMM_UNIT_ERROR_ADDRESS));
+		GT64240_WRITE(COMM_UNIT_INTERRUPT_CAUSE, 0);
+	}
+	// Continue until we reach the current descriptor pointer
+	for (nextOut = gp->tx_next_out; nextOut != cdp;
+	     nextOut = (nextOut + 1) % TX_RING_SIZE) {
+
+		if (--gp->intr_work_done == 0)
+			break;
+
+		td = &gp->tx_ring[nextOut];
+		cmdstat = td->cmdstat;
+
+		if (cmdstat & (u32) txOwn) {
+			// DMA is not finished writing descriptor???
+			// Leave and come back later to pick-up where we left off.
+			break;
+		}
+		// increment Tx error stats
+		if (cmdstat & (u32) txErrorSummary) {
+			if (gt64240_debug > 2)
+				printk
+				    ("%s: tx_complete: Tx error, cmdstat = %x\n",
+				     dev->name, cmdstat);
+			gp->stats.tx_errors++;
+			if (cmdstat & (u32) txReTxLimit)
+				gp->stats.tx_aborted_errors++;
+			if (cmdstat & (u32) txUnderrun)
+				gp->stats.tx_fifo_errors++;
+			if (cmdstat & (u32) txLateCollision)
+				gp->stats.tx_window_errors++;
+		}
+
+		if (cmdstat & (u32) txCollision)
+			gp->stats.collisions +=
+			    (unsigned long) ((cmdstat & txReTxCntMask) >>
+					     txReTxCntBit);
+
+		// Wake the queue if the ring was full
+		if (gp->tx_full) {
+			gp->tx_full = 0;
+			if (gp->last_psr & psrLink) {
+				netif_wake_queue(dev);
+			}
+		}
+		// decrement tx ring buffer count
+		if (gp->tx_count)
+			gp->tx_count--;
+
+		// free the skb
+		if (gp->tx_skbuff[nextOut]) {
+			if (gt64240_debug > 3)
+				printk
+				    ("%s: tx_complete: good Tx, skb=%p\n",
+				     dev->name, gp->tx_skbuff[nextOut]);
+			dev_kfree_skb_irq(gp->tx_skbuff[nextOut]);
+			gp->tx_skbuff[nextOut] = NULL;
+		} else {
+			printk("%s: tx_complete: no skb!\n", dev->name);
+		}
+	}
+
+	gp->tx_next_out = nextOut;
+
+	if ((status & icrTxEndLow) && gp->tx_count != 0) {
+		// we must restart the DMA
+		GT64240ETH_WRITE(gp, GT64240_ETH_SDMA_COMM,
+				 sdcmrERD | sdcmrTXDL);
+	}
+}
+
+static irqreturn_t gt64240_interrupt(int irq, void *dev_id,
+	struct pt_regs *regs)
+{
+	struct net_device *dev = (struct net_device *) dev_id;
+	struct gt64240_private *gp = netdev_priv(dev);
+	u32 status;
+
+	if (dev == NULL) {
+		printk("%s: isr: null dev ptr\n", dev->name);
+		return IRQ_NONE;
+	}
+
+	spin_lock(&gp->lock);
+
+	if (gt64240_debug > 3)
+		printk("%s: isr: entry\n", dev->name);
+
+	gp->intr_work_done = max_interrupt_work;
+
+	while (gp->intr_work_done > 0) {
+
+		status = GT64240ETH_READ(gp, GT64240_ETH_INT_CAUSE);
+#ifdef GT64240_NAPI
+		/* dont ack Rx interrupts */
+		if (!(status & icrRxBuffer))
+			GT64240ETH_WRITE(gp, GT64240_ETH_INT_CAUSE, 0);
+#else
+		// ACK interrupts
+		GT64240ETH_WRITE(gp, GT64240_ETH_INT_CAUSE, 0);
+#endif
+
+		if (gt64240_debug > 3)
+			printk("%s: isr: work=%d., icr=%x\n", dev->name,
+			       gp->intr_work_done, status);
+
+		if ((status & icrEtherIntSum) == 0) {
+			if (!(status &
+			      (icrTxBufferLow | icrTxBufferHigh |
+			       icrRxBuffer))) {
+				/* exit from the while() loop */
+				break;
+			}
+		}
+
+		if (status & icrMIIPhySTC) {
+			u32 psr =
+			    GT64240ETH_READ(gp, GT64240_ETH_PORT_STATUS);
+			if (gp->last_psr != psr) {
+				printk("%s: port status: 0x%08x\n",
+				       dev->name, psr);
+				printk
+				    ("%s:    %s MBit/s, %s-duplex, flow-control %s, link is %s,\n",
+				     dev->name,
+				     psr & psrSpeed ? "100" : "10",
+				     psr & psrDuplex ? "full" : "half",
+				     psr & psrFctl ? "disabled" :
+				     "enabled",
+				     psr & psrLink ? "up" : "down");
+				printk
+				    ("%s:    TxLowQ is %s, TxHighQ is %s, Transmitter is %s\n",
+				     dev->name,
+				     psr & psrTxLow ? "running" :
+				     "stopped",
+				     psr & psrTxHigh ? "running" :
+				     "stopped",
+				     psr & psrTxInProg ? "on" : "off");
+
+				if ((psr & psrLink) && !gp->tx_full &&
+				    netif_queue_stopped(dev)) {
+					printk
+					    ("%s: isr: Link up, waking queue.\n",
+					     dev->name);
+					netif_wake_queue(dev);
+				} else if (!(psr & psrLink)
+					   && !netif_queue_stopped(dev)) {
+					printk
+					    ("%s: isr: Link down, stopping queue.\n",
+					     dev->name);
+					netif_stop_queue(dev);
+				}
+
+				gp->last_psr = psr;
+			}
+		}
+
+		if (status & (icrTxBufferLow | icrTxEndLow))
+			gt64240_tx_complete(dev, status);
+
+		if (status & icrRxBuffer) {
+#ifdef GT64240_NAPI
+			if (netif_rx_schedule_prep(dev)) {
+				disable_ether_irq(dev);
+				__netif_rx_schedule(dev);
+			}
+#else
+			gt64240_rx(dev, status);
+#endif
+		}
+		// Now check TX errors (RX errors were handled in gt64240_rx)
+		if (status & icrTxErrorLow) {
+			printk("%s: isr: Tx resource error\n", dev->name);
+		}
+
+		if (status & icrTxUdr) {
+			printk("%s: isr: Tx underrun error\n", dev->name);
+		}
+	}
+
+	if (gp->intr_work_done == 0) {
+		// ACK any remaining pending interrupts
+		GT64240ETH_WRITE(gp, GT64240_ETH_INT_CAUSE, 0);
+		if (gt64240_debug > 3)
+			printk("%s: isr: hit max work\n", dev->name);
+	}
+
+	if (gt64240_debug > 3)
+		printk("%s: isr: exit, icr=%x\n",
+		       dev->name, GT64240ETH_READ(gp,
+						  GT64240_ETH_INT_CAUSE));
+
+	spin_unlock(&gp->lock);
+
+	return IRQ_HANDLED;
+}
 
 static void enable_ether_irq(struct net_device *dev)
 {
-	struct gt64240_private *gp = (struct gt64240_private *) dev->priv;
+	struct gt64240_private *gp = netdev_priv(dev);
 	u32 intMask;
 
 	intMask =
@@ -672,17 +786,17 @@ static void enable_ether_irq(struct net_device *dev)
 
 	// now route ethernet interrupts to GT PCI1 (eth0 and eth1 will be
 	// sharing it).
-	GT_READ(PCI_1INTERRUPT_CAUSE_MASK_REGISTER_HIGH, &intMask);
+	intMask = GT_READ(PCI_1INTERRUPT_CAUSE_MASK_REGISTER_HIGH);
 	intMask |= 1 << gp->port_num;
 	GT_WRITE(PCI_1INTERRUPT_CAUSE_MASK_REGISTER_HIGH, intMask);
 }
 
 static void disable_ether_irq(struct net_device *dev)
 {
-	struct gt64240_private *gp = (struct gt64240_private *) dev->priv;
+	struct gt64240_private *gp = netdev_priv(dev);
 	u32 intMask;
 
-	GT_READ(PCI_1INTERRUPT_CAUSE_MASK_REGISTER_HIGH, &intMask);
+	intMask = GT_READ(PCI_1INTERRUPT_CAUSE_MASK_REGISTER_HIGH);
 	intMask &= ~(1 << gp->port_num);
 	GT_WRITE(PCI_1INTERRUPT_CAUSE_MASK_REGISTER_HIGH, intMask);
 
@@ -695,17 +809,13 @@ static void disable_ether_irq(struct net_device *dev)
  */
 static int __init gt64240_probe(void)
 {
-	unsigned int base_addr = 0;
-	int i;
 	int found = 0;
-
-	if (gt64240_debug > 2)
-		printk("gt64240_probe at 0x%08x\n", base_addr);
+	int i;
 
 	parse_mac_addr_options();
 
 	for (i = 0; i < NUM_INTERFACES; i++) {
-		int base_addr = gt64240_iflist[i].port;
+		unsigned long base_addr = gt64240_iflist[i].port;
 
 		if (check_region(base_addr, GT64240_ETH_IO_SIZE)) {
 			printk("gt64240_probe: ioaddr 0x%lx taken?\n",
@@ -713,30 +823,34 @@ static int __init gt64240_probe(void)
 			continue;
 		}
 
-		if (gt64240_probe1(base_addr, gt64240_iflist[i].irq, i) ==
-		    0) {
-			/* Does not seem to be the "traditional" way folks do this, */
-			/* but I want to init both eth ports if at all possible!    */
-			/* So, until I find out the "correct" way to do this:       */
-			if (++found == NUM_INTERFACES)	/* That's all of them! */
+		if (gt64240_probe1(base_addr, gt64240_iflist[i].irq, i) == 0) {
+			/*
+			 * Does not seem to be the "traditional" way folks do
+			 * this, but I want to init both eth ports if at all
+			 * possible!
+			 *
+			 * So, until I find out the "correct" way to do this:
+			 */
+			if (++found == NUM_INTERFACES)	/* That's all of them */
 				return 0;
 		}
 	}
+
 	if (found)
 		return 0;	/* as long as we found at least one! */
+
 	return -ENODEV;
 }
 
 module_init(gt64240_probe);
 
-static int __init gt64240_probe1(uint32_t ioaddr, int irq, int port_num)
+static int __init gt64240_probe1(unsigned long ioaddr, int irq, int port_num)
 {
 	struct net_device *dev = NULL;
 	static unsigned version_printed = 0;
 	struct gt64240_private *gp = NULL;
 	int retval;
 	u32 cpuConfig;
-	unsigned char chip_rev;
 
 	dev = alloc_etherdev(sizeof(struct gt64240_private));
 	if (!dev)
@@ -756,9 +870,8 @@ static int __init gt64240_probe1(uint32_t ioaddr, int irq, int port_num)
 	printk("gt64240_probe1: cpu in %s-endian mode\n",
 	       (cpuConfig & (1 << 12)) ? "little" : "big");
 
-	printk
-	    ("%s: GT64240 found at ioaddr 0x%lx, irq %d.\n",
-	     dev->name, ioaddr, irq);
+	printk("%s: GT64240 found at ioaddr 0x%lx, irq %d.\n",
+	       dev->name, ioaddr, irq);
 
 	if (gt64240_debug && version_printed++ == 0)
 		printk("%s: %s", dev->name, version);
@@ -781,10 +894,6 @@ static int __init gt64240_probe1(uint32_t ioaddr, int irq, int port_num)
 	gp->port_offset = port_num * GT64240_ETH_IO_SIZE;
 	gp->phy_addr = gt64240_phy_addr[port_num];
 
-	pcibios_read_config_byte(0, 0, PCI_REVISION_ID, &chip_rev);
-	gp->chip_rev = chip_rev;
-	printk("%s: GT64240 chip revision=%d\n", dev->name, gp->chip_rev);
-
 	printk("%s: GT64240 ethernet port %d\n", dev->name, gp->port_num);
 
 #ifdef GT64240_NAPI
@@ -796,33 +905,34 @@ static int __init gt64240_probe1(uint32_t ioaddr, int irq, int port_num)
 	gp->mii_if.phy_id = dev->base_addr;
 	gp->mii_if.mdio_read = read_MII;
 	gp->mii_if.mdio_write = write_MII;
-	gp->mii_if.advertising = read_MII(dev, MII_ADVERTISE);
+	gp->mii_if.advertising = read_MII(dev, gp->phy_addr, MII_ADVERTISE);
 
 	// Allocate Rx and Tx descriptor rings
 	if (gp->rx_ring == NULL) {
 		// All descriptors in ring must be 16-byte aligned
-		gp->rx_ring = dmaalloc(sizeof(gt64240_rd_t) * RX_RING_SIZE
-				       +
-				       sizeof(gt64240_td_t) * TX_RING_SIZE,
-				       &gp->rx_ring_dma);
+		gp->rx_ring = dma_alloc_noncoherent(NULL,
+					sizeof(gt64240_rd_t) * RX_RING_SIZE +
+					sizeof(gt64240_td_t) * TX_RING_SIZE,
+					&gp->rx_ring_dma, GFP_KERNEL);
 		if (gp->rx_ring == NULL) {
 			retval = -ENOMEM;
 			goto free_region;
 		}
 
-		gp->tx_ring =
-		    (gt64240_td_t *) (gp->rx_ring + RX_RING_SIZE);
+		gp->tx_ring = (gt64240_td_t *) (gp->rx_ring + RX_RING_SIZE);
 		gp->tx_ring_dma =
-		    gp->rx_ring_dma + sizeof(gt64240_rd_t) * RX_RING_SIZE;
+			gp->rx_ring_dma + sizeof(gt64240_rd_t) * RX_RING_SIZE;
 	}
 	// Allocate the Rx Data Buffers
 	if (gp->rx_buff == NULL) {
-		gp->rx_buff =
-		    dmaalloc(PKT_BUF_SZ * RX_RING_SIZE, &gp->rx_buff_dma);
+		gp->rx_buff = dma_alloc_coherent(NULL,
+				PKT_BUF_SZ * RX_RING_SIZE, &gp->rx_buff_dma,
+				GFP_KERNEL);
 		if (gp->rx_buff == NULL) {
-			dmafree(sizeof(gt64240_rd_t) * RX_RING_SIZE
-				+ sizeof(gt64240_td_t) * TX_RING_SIZE,
-				gp->rx_ring);
+			dma_free_noncoherent(NULL,
+				sizeof(gt64240_rd_t) * RX_RING_SIZE +
+				sizeof(gt64240_td_t) * TX_RING_SIZE,
+				gp->rx_ring, gp->rx_ring_dma);
 			retval = -ENOMEM;
 			goto free_region;
 		}
@@ -834,13 +944,16 @@ static int __init gt64240_probe1(uint32_t ioaddr, int irq, int port_num)
 
 	// Allocate Rx Hash Table
 	if (gp->hash_table == NULL) {
-		gp->hash_table = (char *) dmaalloc(RX_HASH_TABLE_SIZE,
-						   &gp->hash_table_dma);
+		gp->hash_table = dma_alloc_coherent(NULL,
+				RX_HASH_TABLE_SIZE, &gp->hash_table_dma,
+				GFP_KERNEL);
 		if (gp->hash_table == NULL) {
-			dmafree(sizeof(gt64240_rd_t) * RX_RING_SIZE
-				+ sizeof(gt64240_td_t) * TX_RING_SIZE,
-				gp->rx_ring);
-			dmafree(PKT_BUF_SZ * RX_RING_SIZE, gp->rx_buff);
+			dma_free_noncoherent(NULL,
+				sizeof(gt64240_rd_t) * RX_RING_SIZE +
+				sizeof(gt64240_td_t) * TX_RING_SIZE,
+				gp->rx_ring, gp->rx_ring_dma);
+			dma_free_noncoherent(NULL, PKT_BUF_SZ * RX_RING_SIZE,
+				gp->rx_buff, gp->rx_buff_dma);
 			retval = -ENOMEM;
 			goto free_region;
 		}
@@ -873,9 +986,7 @@ static int __init gt64240_probe1(uint32_t ioaddr, int irq, int port_num)
 free_region:
 	release_region(ioaddr, gp->io_size);
 	unregister_netdev(dev);
-	if (dev->priv != NULL)
-		kfree(dev->priv);
-	kfree(dev);
+	free_netdev(dev);
 	printk("%s: gt64240_probe1 failed.  Returns %d\n",
 	       dev->name, retval);
 	return retval;
@@ -884,7 +995,7 @@ free_region:
 
 static void reset_tx(struct net_device *dev)
 {
-	struct gt64240_private *gp = (struct gt64240_private *) dev->priv;
+	struct gt64240_private *gp = netdev_priv(dev);
 	int i;
 
 	abort(dev, sdcmrAT);
@@ -927,7 +1038,7 @@ static void reset_tx(struct net_device *dev)
 
 static void reset_rx(struct net_device *dev)
 {
-	struct gt64240_private *gp = (struct gt64240_private *) dev->priv;
+	struct gt64240_private *gp = netdev_priv(dev);
 	int i;
 
 	abort(dev, sdcmrAR);
@@ -973,7 +1084,7 @@ static void reset_rx(struct net_device *dev)
 
 static int gt64240_init(struct net_device *dev)
 {
-	struct gt64240_private *gp = (struct gt64240_private *) dev->priv;
+	struct gt64240_private *gp = netdev_priv(dev);
 
 	if (gt64240_debug > 3) {
 		printk("%s: gt64240_init: dev=%p\n", dev->name, dev);
@@ -1031,7 +1142,9 @@ static int gt64240_init(struct net_device *dev)
 
 	if (gt64240_debug > 3)
 		dump_MII(dev);
-	write_MII(dev, 0, 0x8000);	/* force a PHY reset -- self-clearing! */
+
+	/* force a PHY reset -- self-clearing! */
+	write_MII(dev, gp->phy_addr, 0, 0x8000);
 
 	if (gt64240_debug > 3)
 		printk("%s: gt64240_init: PhyAD=%x\n", dev->name,
@@ -1173,10 +1286,9 @@ static int gt64240_close(struct net_device *dev)
 /*
  * Function will release Tx skbs which are now complete
  */
-static void gt64240_tx_fill(struct net_device *netdev, u32 status)
+static void gt64240_tx_fill(struct net_device *dev, u32 status)
 {
-	struct gt64240_private *gp =
-	    (struct gt64240_private *) netdev->priv;
+	struct gt64240_private *gp = netdev_priv(dev);
 	int nextOut, cdp;
 	gt64240_td_t *td;
 	u32 cmdstat;
@@ -1198,7 +1310,7 @@ static void gt64240_tx_fill(struct net_device *netdev, u32 status)
 		if (gp->tx_full) {
 			gp->tx_full = 0;
 			if (gp->last_psr & psrLink) {
-				netif_wake_queue(netdev);
+				netif_wake_queue(dev);
 			}
 		}
 		// decrement tx ring buffer count
@@ -1223,31 +1335,30 @@ static void gt64240_tx_fill(struct net_device *netdev, u32 status)
 /*
  * Main function for NAPI
  */
-static int gt64240_poll(struct net_device *netdev, int *budget)
+static int gt64240_poll(struct net_device *dev, int *budget)
 {
-	struct gt64240_private *gp =
-	    (struct gt64240_private *) netdev->priv;
+	struct gt64240_private *gp = netdev_priv(dev);
 	unsigned long flags;
 	int done = 1, orig_budget, work_done;
 	u32 status = GT64240ETH_READ(gp, GT64240_ETH_INT_CAUSE);
 
 	spin_lock_irqsave(&gp->lock, flags);
-	gt64240_tx_fill(netdev, status);
+	gt64240_tx_fill(dev, status);
 
 	if (GT64240ETH_READ(gp, GT64240_ETH_CURR_RX_DESC_PTR0) !=
 	    gp->rx_next_out) {
 		orig_budget = *budget;
-		if (orig_budget > netdev->quota)
-			orig_budget = netdev->quota;
+		if (orig_budget > dev->quota)
+			orig_budget = dev->quota;
 
-		work_done = gt64240_rx(netdev, status, orig_budget);
+		work_done = gt64240_rx(dev, status, orig_budget);
 		*budget -= work_done;
-		netdev->quota -= work_done;
+		dev->quota -= work_done;
 		if (work_done >= orig_budget)
 			done = 0;
 		if (done) {
-			__netif_rx_complete(netdev);
-			enable_ether_irq(netdev);
+			__netif_rx_complete(dev);
+			enable_ether_irq(dev);
 		}
 	}
 
@@ -1259,7 +1370,7 @@ static int gt64240_poll(struct net_device *netdev, int *budget)
 
 static int gt64240_tx(struct sk_buff *skb, struct net_device *dev)
 {
-	struct gt64240_private *gp = (struct gt64240_private *) dev->priv;
+	struct gt64240_private *gp = netdev_priv(dev);
 	unsigned long flags;
 	int nextIn;
 
@@ -1313,7 +1424,6 @@ static int gt64240_tx(struct sk_buff *skb, struct net_device *dev)
 
 	if (gt64240_debug > 5) {
 		dump_tx_desc(dev, nextIn);
-		dump_skb(dev, skb);
 	}
 	// increment tx_next_in with wrap
 	gp->tx_next_in = (nextIn + 1) % TX_RING_SIZE;
@@ -1364,7 +1474,7 @@ gt64240_rx(struct net_device *dev, u32 status, int budget)
 gt64240_rx(struct net_device *dev, u32 status)
 #endif
 {
-	struct gt64240_private *gp = (struct gt64240_private *) dev->priv;
+	struct gt64240_private *gp = netdev_priv(dev);
 	struct sk_buff *skb;
 	int pkt_len, nextOut, cdp;
 	gt64240_rd_t *rd;
@@ -1450,11 +1560,6 @@ gt64240_rx(struct net_device *dev, u32 status)
 		memcpy(skb_put(skb, pkt_len),
 		       &gp->rx_buff[nextOut * PKT_BUF_SZ], pkt_len);
 		skb->protocol = eth_type_trans(skb, dev);
-		if (gt64240_debug > 4)	/* will probably Oops! */
-			dump_data(dev, &gp->rx_buff[nextOut * PKT_BUF_SZ],
-				  pkt_len);
-		if (gt64240_debug > 4)
-			dump_skb(dev, skb);
 
 		/* NIC performed some checksum computation */
 		skb->ip_summed = CHECKSUM_UNNECESSARY;
@@ -1480,235 +1585,9 @@ gt64240_rx(struct net_device *dev, u32 status)
 }
 
 
-static void gt64240_tx_complete(struct net_device *dev, u32 status)
-{
-	struct gt64240_private *gp = (struct gt64240_private *) dev->priv;
-	int nextOut, cdp;
-	gt64240_td_t *td;
-	u32 cmdstat;
-
-	cdp = (GT64240ETH_READ(gp, GT64240_ETH_CURR_TX_DESC_PTR0)
-	       - gp->tx_ring_dma) / sizeof(gt64240_td_t);
-
-	if (gt64240_debug > 3) {	/*+prk17aug01 */
-		nextOut = gp->tx_next_out;
-		printk
-		    ("%s: tx_complete: TX_PTR0=0x%08x, cdp=%d. nextOut=%d.\n",
-		     dev->name, GT64240ETH_READ(gp,
-						GT64240_ETH_CURR_TX_DESC_PTR0),
-		     cdp, nextOut);
-		td = &gp->tx_ring[nextOut];
-	}
-
-/*** NEED to check and CLEAR these errors every time thru here: ***/
-	if (gt64240_debug > 2) {
-		if (GT64240_READ(COMM_UNIT_INTERRUPT_CAUSE))
-			printk
-			    ("%s: gt64240_tx_complete: CIU Cause=%08x, Mask=%08x, EAddr=%08x\n",
-			     dev->name,
-			     GT64240_READ(COMM_UNIT_INTERRUPT_CAUSE),
-			     GT64240_READ(COMM_UNIT_INTERRUPT_MASK),
-			     GT64240_READ(COMM_UNIT_ERROR_ADDRESS));
-		GT64240_WRITE(COMM_UNIT_INTERRUPT_CAUSE, 0);
-	}
-	// Continue until we reach the current descriptor pointer
-	for (nextOut = gp->tx_next_out; nextOut != cdp;
-	     nextOut = (nextOut + 1) % TX_RING_SIZE) {
-
-		if (--gp->intr_work_done == 0)
-			break;
-
-		td = &gp->tx_ring[nextOut];
-		cmdstat = td->cmdstat;
-
-		if (cmdstat & (u32) txOwn) {
-			// DMA is not finished writing descriptor???
-			// Leave and come back later to pick-up where we left off.
-			break;
-		}
-		// increment Tx error stats
-		if (cmdstat & (u32) txErrorSummary) {
-			if (gt64240_debug > 2)
-				printk
-				    ("%s: tx_complete: Tx error, cmdstat = %x\n",
-				     dev->name, cmdstat);
-			gp->stats.tx_errors++;
-			if (cmdstat & (u32) txReTxLimit)
-				gp->stats.tx_aborted_errors++;
-			if (cmdstat & (u32) txUnderrun)
-				gp->stats.tx_fifo_errors++;
-			if (cmdstat & (u32) txLateCollision)
-				gp->stats.tx_window_errors++;
-		}
-
-		if (cmdstat & (u32) txCollision)
-			gp->stats.collisions +=
-			    (unsigned long) ((cmdstat & txReTxCntMask) >>
-					     txReTxCntBit);
-
-		// Wake the queue if the ring was full
-		if (gp->tx_full) {
-			gp->tx_full = 0;
-			if (gp->last_psr & psrLink) {
-				netif_wake_queue(dev);
-			}
-		}
-		// decrement tx ring buffer count
-		if (gp->tx_count)
-			gp->tx_count--;
-
-		// free the skb
-		if (gp->tx_skbuff[nextOut]) {
-			if (gt64240_debug > 3)
-				printk
-				    ("%s: tx_complete: good Tx, skb=%p\n",
-				     dev->name, gp->tx_skbuff[nextOut]);
-			dev_kfree_skb_irq(gp->tx_skbuff[nextOut]);
-			gp->tx_skbuff[nextOut] = NULL;
-		} else {
-			printk("%s: tx_complete: no skb!\n", dev->name);
-		}
-	}
-
-	gp->tx_next_out = nextOut;
-
-	if ((status & icrTxEndLow) && gp->tx_count != 0) {
-		// we must restart the DMA
-		GT64240ETH_WRITE(gp, GT64240_ETH_SDMA_COMM,
-				 sdcmrERD | sdcmrTXDL);
-	}
-}
-
-
-static irqreturn_t gt64240_interrupt(int irq, void *dev_id,
-	struct pt_regs *regs)
-{
-	struct net_device *dev = (struct net_device *) dev_id;
-	struct gt64240_private *gp = (struct gt64240_private *) dev->priv;
-	u32 status;
-
-	if (dev == NULL) {
-		printk("%s: isr: null dev ptr\n", dev->name);
-		return IRQ_NONE;
-	}
-
-	spin_lock(&gp->lock);
-
-	if (gt64240_debug > 3)
-		printk("%s: isr: entry\n", dev->name);
-
-	gp->intr_work_done = max_interrupt_work;
-
-	while (gp->intr_work_done > 0) {
-
-		status = GT64240ETH_READ(gp, GT64240_ETH_INT_CAUSE);
-#ifdef GT64240_NAPI
-		/* dont ack Rx interrupts */
-		if (!(status & icrRxBuffer))
-			GT64240ETH_WRITE(gp, GT64240_ETH_INT_CAUSE, 0);
-#else
-		// ACK interrupts
-		GT64240ETH_WRITE(gp, GT64240_ETH_INT_CAUSE, 0);
-#endif
-
-		if (gt64240_debug > 3)
-			printk("%s: isr: work=%d., icr=%x\n", dev->name,
-			       gp->intr_work_done, status);
-
-		if ((status & icrEtherIntSum) == 0) {
-			if (!(status &
-			      (icrTxBufferLow | icrTxBufferHigh |
-			       icrRxBuffer))) {
-				/* exit from the while() loop */
-				break;
-			}
-		}
-
-		if (status & icrMIIPhySTC) {
-			u32 psr =
-			    GT64240ETH_READ(gp, GT64240_ETH_PORT_STATUS);
-			if (gp->last_psr != psr) {
-				printk("%s: port status: 0x%08x\n",
-				       dev->name, psr);
-				printk
-				    ("%s:    %s MBit/s, %s-duplex, flow-control %s, link is %s,\n",
-				     dev->name,
-				     psr & psrSpeed ? "100" : "10",
-				     psr & psrDuplex ? "full" : "half",
-				     psr & psrFctl ? "disabled" :
-				     "enabled",
-				     psr & psrLink ? "up" : "down");
-				printk
-				    ("%s:    TxLowQ is %s, TxHighQ is %s, Transmitter is %s\n",
-				     dev->name,
-				     psr & psrTxLow ? "running" :
-				     "stopped",
-				     psr & psrTxHigh ? "running" :
-				     "stopped",
-				     psr & psrTxInProg ? "on" : "off");
-
-				if ((psr & psrLink) && !gp->tx_full &&
-				    netif_queue_stopped(dev)) {
-					printk
-					    ("%s: isr: Link up, waking queue.\n",
-					     dev->name);
-					netif_wake_queue(dev);
-				} else if (!(psr & psrLink)
-					   && !netif_queue_stopped(dev)) {
-					printk
-					    ("%s: isr: Link down, stopping queue.\n",
-					     dev->name);
-					netif_stop_queue(dev);
-				}
-
-				gp->last_psr = psr;
-			}
-		}
-
-		if (status & (icrTxBufferLow | icrTxEndLow))
-			gt64240_tx_complete(dev, status);
-
-		if (status & icrRxBuffer) {
-#ifdef GT64240_NAPI
-			if (netif_rx_schedule_prep(dev)) {
-				disable_ether_irq(dev);
-				__netif_rx_schedule(dev);
-			}
-#else
-			gt64240_rx(dev, status);
-#endif
-		}
-		// Now check TX errors (RX errors were handled in gt64240_rx)
-		if (status & icrTxErrorLow) {
-			printk("%s: isr: Tx resource error\n", dev->name);
-		}
-
-		if (status & icrTxUdr) {
-			printk("%s: isr: Tx underrun error\n", dev->name);
-		}
-	}
-
-	if (gp->intr_work_done == 0) {
-		// ACK any remaining pending interrupts
-		GT64240ETH_WRITE(gp, GT64240_ETH_INT_CAUSE, 0);
-		if (gt64240_debug > 3)
-			printk("%s: isr: hit max work\n", dev->name);
-	}
-
-	if (gt64240_debug > 3)
-		printk("%s: isr: exit, icr=%x\n",
-		       dev->name, GT64240ETH_READ(gp,
-						  GT64240_ETH_INT_CAUSE));
-
-	spin_unlock(&gp->lock);
-
-	return IRQ_HANDLED;
-}
-
-
 static void gt64240_tx_timeout(struct net_device *dev)
 {
-	struct gt64240_private *gp = (struct gt64240_private *) dev->priv;
+	struct gt64240_private *gp = netdev_priv(dev);
 	unsigned long flags;
 
 	spin_lock_irqsave(&gp->lock, flags);
@@ -1732,7 +1611,7 @@ static void gt64240_tx_timeout(struct net_device *dev)
 
 static void gt64240_set_rx_mode(struct net_device *dev)
 {
-	struct gt64240_private *gp = (struct gt64240_private *) dev->priv;
+	struct gt64240_private *gp = netdev_priv(dev);
 	unsigned long flags;
 	struct dev_mc_list *mcptr;
 
@@ -1780,7 +1659,7 @@ static void gt64240_set_rx_mode(struct net_device *dev)
 
 static struct net_device_stats *gt64240_get_stats(struct net_device *dev)
 {
-	struct gt64240_private *gp = (struct gt64240_private *) dev->priv;
+	struct gt64240_private *gp = netdev_priv(dev);
 	unsigned long flags;
 
 	if (gt64240_debug > 3)

@@ -1,5 +1,4 @@
-/* $Id: gt64240eth.h.rca 1.1 Tue Mar 11 10:39:26 2003 doucett1 Experimental $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
@@ -10,8 +9,6 @@
  * Copyright 2000 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
  *         	stevel@mvista.com or support@mvista.com
- *
- * ########################################################################
  *
  *  This program is free software; you can distribute it and/or modify it
  *  under the terms of the GNU General Public License (Version 2) as
@@ -26,18 +23,15 @@
  *  with this program; if not, write to the Free Software Foundation, Inc.,
  *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
  *
- * ########################################################################
- *
  * Ethernet driver definitions for the MIPS GT96100 Advanced
  * Communication Controller.
  * 
  * Modified for the Marvellous GT64240 Retarded Communication Controller.
- *
  */
 #ifndef _GT64240ETH_H
 #define _GT64240ETH_H
 
-#include "../../arch/mips/momentum/ocelot_g/gt64240.h"
+#include <asm/gt64240.h>
 
 #define ETHERNET_PORTS_DIFFERENCE_OFFSETS	0x400
 
@@ -113,21 +107,22 @@
 #define REV_GT64240  0x1
 #define REV_GT64240A 0x10
 
-#define GT64240ETH_READ(gp, offset) \
-    GT_READ_DATA((gp)->port_offset + (offset))
+#define GT64240ETH_READ(gp, offset)					\
+	GT_READ((gp)->port_offset + (offset))
 
-#define GT64240ETH_WRITE(gp, offset, data) \
-    GT_WRITE((gp)->port_offset + (offset), (data))
+#define GT64240ETH_WRITE(gp, offset, data)				\
+	GT_WRITE((gp)->port_offset + (offset), (data))
 
-#define GT64240ETH_SETBIT(gp, offset, bits) \
-    GT64240ETH_WRITE((gp), (offset), GT64240ETH_READ((gp), (offset)) | (bits))
+#define GT64240ETH_SETBIT(gp, offset, bits)				\
+	GT64240ETH_WRITE((gp), (offset),				\
+	                 GT64240ETH_READ((gp), (offset)) | (bits))
 
-#define GT64240ETH_CLRBIT(gp, offset, bits) \
-    GT64240ETH_WRITE((gp), (offset), GT64240ETH_READ((gp), (offset)) & ~(bits))
+#define GT64240ETH_CLRBIT(gp, offset, bits)				\
+	GT64240ETH_WRITE((gp), (offset),				\
+	                 GT64240ETH_READ((gp), (offset)) & ~(bits))
 
+#define GT64240_READ(ofs)		GT_READ(ofs)
 #define GT64240_WRITE(ofs, data)	GT_WRITE((ofs), (data))
-
-#define GT64240_READ(ofs)		GT_READ_DATA((ofs))
 
 /* Bit definitions of the SMI Reg */
 enum {
@@ -391,7 +386,6 @@ struct gt64240_private {
 
 	int io_size;
 	int port_num;		// 0 or 1
-	int chip_rev;
 	u32 port_offset;
 
 	int phy_addr;		// PHY address
@@ -405,4 +399,4 @@ struct gt64240_private {
 	u32 msg_enable;
 };
 
-#endif				/* _GT64240ETH_H */
+#endif /* _GT64240ETH_H */

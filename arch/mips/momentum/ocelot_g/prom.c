@@ -20,8 +20,8 @@
 #include <asm/addrspace.h>
 #include <asm/bootinfo.h>
 #include <asm/pmon.h>
+#include <asm/gt64240.h>
 
-#include "gt64240.h"
 #include "ocelot_pld.h"
 
 struct callvectors* debug_vectors;
