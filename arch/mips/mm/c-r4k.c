@@ -28,8 +28,6 @@
 #include <asm/system.h>
 #include <asm/mmu_context.h>
 
-extern void r4k_tlb_init(void);
-
 /* Primary cache parameters. */
 static int icache_size, dcache_size; /* Size in bytes */
 static int ic_lsize, dc_lsize;       /* LineSize in bytes */
@@ -1276,48 +1274,6 @@ static void r4600v20k_flush_cache_sigtramp(unsigned long addr)
 	__restore_flags(flags);
 }
 
-void pgd_init(unsigned long page)
-{
-	unsigned long *p = (unsigned long *) page;
-	int i;
-
-	for(i = 0; i < USER_PTRS_PER_PGD; i+=8) {
-		p[i + 0] = (unsigned long) invalid_pte_table;
-		p[i + 1] = (unsigned long) invalid_pte_table;
-		p[i + 2] = (unsigned long) invalid_pte_table;
-		p[i + 3] = (unsigned long) invalid_pte_table;
-		p[i + 4] = (unsigned long) invalid_pte_table;
-		p[i + 5] = (unsigned long) invalid_pte_table;
-		p[i + 6] = (unsigned long) invalid_pte_table;
-		p[i + 7] = (unsigned long) invalid_pte_table;
-	}
-}
-
-void show_regs(struct pt_regs * regs)
-{
-	/* Saved main processor registers. */
-	printk("$0 : %08lx %08lx %08lx %08lx\n",
-	       0UL, regs->regs[1], regs->regs[2], regs->regs[3]);
-	printk("$4 : %08lx %08lx %08lx %08lx\n",
-               regs->regs[4], regs->regs[5], regs->regs[6], regs->regs[7]);
-	printk("$8 : %08lx %08lx %08lx %08lx\n",
-	       regs->regs[8], regs->regs[9], regs->regs[10], regs->regs[11]);
-	printk("$12: %08lx %08lx %08lx %08lx\n",
-               regs->regs[12], regs->regs[13], regs->regs[14], regs->regs[15]);
-	printk("$16: %08lx %08lx %08lx %08lx\n",
-	       regs->regs[16], regs->regs[17], regs->regs[18], regs->regs[19]);
-	printk("$20: %08lx %08lx %08lx %08lx\n",
-               regs->regs[20], regs->regs[21], regs->regs[22], regs->regs[23]);
-	printk("$24: %08lx %08lx\n",
-	       regs->regs[24], regs->regs[25]);
-	printk("$28: %08lx %08lx %08lx %08lx\n",
-	       regs->regs[28], regs->regs[29], regs->regs[30], regs->regs[31]);
-
-	/* Saved cp0 registers. */
-	printk("epc   : %08lx\nStatus: %08lx\nCause : %08lx\n",
-	       regs->cp0_epc, regs->cp0_status, regs->cp0_cause);
-}
-
 /* Detect and size the various r4k caches. */
 static void __init probe_icache(unsigned long config)
 {
@@ -1618,5 +1574,4 @@ void __init ld_mmu_r4xx0(void)
 	}
 
 	__flush_cache_all();
-	r4k_tlb_init();
 }

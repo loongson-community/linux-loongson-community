@@ -17,10 +17,12 @@
  *
  * MIPS32 CPU variant specific MMU/Cache routines.
  */
+#include <linux/sched.h>
+#include <linux/mm.h>
+
 #include <asm/bootinfo.h>
 #include <asm/cacheops.h>
 #include <asm/cpu.h>
-#include <asm/page.h>
 
 extern int dc_lsize, ic_lsize, sc_lsize;
 
@@ -118,4 +120,21 @@ void mips32_copy_page_sc(unsigned long to, unsigned long from)
 	}
 	for (i=0; i<PAGE_SIZE; i+=4)
 	        *(unsigned long *)(to+i) = *(unsigned long *)(from+i);
+}
+
+void pgd_init(unsigned long page)
+{
+	unsigned long *p = (unsigned long *) page;
+	int i;
+
+	for(i = 0; i < USER_PTRS_PER_PGD; i+=8) {
+		p[i + 0] = (unsigned long) invalid_pte_table;
+		p[i + 1] = (unsigned long) invalid_pte_table;
+		p[i + 2] = (unsigned long) invalid_pte_table;
+		p[i + 3] = (unsigned long) invalid_pte_table;
+		p[i + 4] = (unsigned long) invalid_pte_table;
+		p[i + 5] = (unsigned long) invalid_pte_table;
+		p[i + 6] = (unsigned long) invalid_pte_table;
+		p[i + 7] = (unsigned long) invalid_pte_table;
+	}
 }

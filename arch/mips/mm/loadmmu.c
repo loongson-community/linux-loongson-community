@@ -47,53 +47,57 @@ extern void ld_mmu_tfp(void);
 extern void ld_mmu_andes(void);
 extern void ld_mmu_sb1(void);
 extern void ld_mmu_mips32(void);
+extern void r3k_tlb_init(void);
+extern void r4k_tlb_init(void);
 
 void __init loadmmu(void)
 {
-
 	if (mips_cpu.options & MIPS_CPU_4KTLB) {
 #if defined(CONFIG_CPU_R4X00) || defined(CONFIG_CPU_VR41XX) || \
     defined(CONFIG_CPU_R4300) || defined(CONFIG_CPU_R5000) || \
     defined(CONFIG_CPU_NEVADA)
-		printk("Loading R4000 MMU routines.\n");
 		ld_mmu_r4xx0();
+		r4k_tlb_init();
 #endif
 #if defined(CONFIG_CPU_RM7000)
-               printk("Loading RM7000 MMU routines.\n");
-               ld_mmu_rm7k();
+		ld_mmu_rm7k();
+		r4k_tlb_init();
 #endif
 #if defined(CONFIG_CPU_R5432) || defined(CONFIG_CPU_R5500)
-		printk("Loading R5432/R5500 MMU routines.\n");
 		ld_mmu_r5432();
+		r4k_tlb_init();
 #endif
 
 #if defined(CONFIG_CPU_MIPS32) || defined(CONFIG_CPU_MIPS64)
-		printk("Loading MIPS32 MMU routines.\n");
 		ld_mmu_mips32();
+		r4k_tlb_init();
 #endif
 	} else switch(mips_cpu.cputype) {
 #ifdef CONFIG_CPU_R3000
 	case CPU_R2000:
 	case CPU_R3000:
 	case CPU_R3000A:
+	case CPU_R3081E:
+		ld_mmu_r23000();
+		r3k_tlb_init();
+
 	case CPU_TX3912:
 	case CPU_TX3922:
 	case CPU_TX3927:
-	case CPU_R3081E:
-		printk("Loading R[23]000 MMU routines.\n");
-		ld_mmu_r23000();
+		ld_mmu_tx39();
+		r3k_tlb_init();
 		break;
 #endif
 #ifdef CONFIG_CPU_R10000
 	case CPU_R10000:
-		printk("Loading R10000 MMU routines.\n");
 		ld_mmu_andes();
+		r4k_tlb_init();
 		break;
 #endif
 #ifdef CONFIG_CPU_SB1
 	case CPU_SB1:
-		printk("Loading SB1 MMU routines.\n");
 		ld_mmu_sb1();
+		r4k_tlb_init();
 		break;
 #endif
 	default:

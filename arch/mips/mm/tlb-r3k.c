@@ -23,6 +23,8 @@
 #include <asm/bootinfo.h>
 #include <asm/cpu.h>
 
+extern char except_vec0_r2300;
+
 #undef DEBUG_TLB
 
 /* TLB operations. */
@@ -203,4 +205,11 @@ void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 	        local_flush_tlb_all();    
 		__restore_flags(flags);
 	}
+}
+
+void __init r3k_tlb_init(void)
+{
+	local_flush_tlb_all();
+	memcpy((void *)KSEG0, &except_vec0_r2300, 0x80);
+	flush_icache_range(KSEG0, KSEG0 + 0x80);
 }

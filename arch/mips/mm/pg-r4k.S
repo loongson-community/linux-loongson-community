@@ -18,8 +18,6 @@
 
 	.text
 	.set	mips3
-	.set	noreorder
-	.set	nomacro
 	.set	noat
 
 /*
@@ -49,8 +47,8 @@ LEAF(r4k_clear_page_d16)
 	sd	zero, -24(a0)
 	cache	Create_Dirty_Excl_D, -16(a0)
 	sd	zero, -16(a0)
+	sd	zero, -8(a0)
 	bne	AT, a0, 1b
-	 sd	zero, -8(a0)
 	jr	ra
 	END(r4k_clear_page_d16)
 
@@ -66,8 +64,8 @@ LEAF(r4k_clear_page_d32)
 	sd	zero, -32(a0)
 	sd	zero, -24(a0)
 	sd	zero, -16(a0)
+	sd	zero, -8(a0)
 	bne	AT, a0, 1b
-	 sd	zero, -8(a0)
 	jr	ra
 	END(r4k_clear_page_d32)
 
@@ -118,8 +116,8 @@ LEAF(r4k_clear_page_r4600_v1)
 	sd	zero, -32(a0)
 	sd	zero, -24(a0)
 	sd	zero, -16(a0)
+	sd	zero, -8(a0)
 	bne	AT, a0, 1b
-	 sd	zero, -8(a0)
 	jr	ra
 	END(r4k_clear_page_r4600_v1)
 
@@ -148,8 +146,9 @@ LEAF(r4k_clear_page_r4600_v2)
 	sd	zero, -32(a0)
 	sd	zero, -24(a0)
 	sd	zero, -16(a0)
+	sd	zero, -8(a0)
 	bne	AT, a0, 1b
-	 sd	zero, -8(a0)
+
 	mfc0	AT, CP0_STATUS			# __restore_flags
 	andi	a1, 1
 	ori	AT, 1
@@ -159,6 +158,7 @@ LEAF(r4k_clear_page_r4600_v2)
 	nop
 	nop
 	nop
+
 	jr	ra
 	END(r4k_clear_page_r4600_v2)
 
@@ -186,8 +186,8 @@ LEAF(r4k_clear_page_s16)
 	sd	zero, -24(a0)
 	cache	Create_Dirty_Excl_SD, -16(a0)
 	sd	zero, -16(a0)
+	sd	zero, -8(a0)
 	bne	AT, a0, 1b
-	 sd	zero, -8(a0)
 	jr	ra
 	END(r4k_clear_page_s16)
 
@@ -203,8 +203,8 @@ LEAF(r4k_clear_page_s32)
 	sd	zero, -32(a0)
 	sd	zero, -24(a0)
 	sd	zero, -16(a0)
+	sd	zero, -8(a0)
 	bne	AT, a0, 1b
-	 sd	zero, -8(a0)
 	jr	ra
 	END(r4k_clear_page_s32)
 
@@ -219,8 +219,8 @@ LEAF(r4k_clear_page_s64)
 	sd	zero, -32(a0)
 	sd	zero, -24(a0)
 	sd	zero, -16(a0)
+	sd	zero, -8(a0)
 	bne	AT, a0, 1b
-	 sd	zero, -8(a0)
 	jr	ra
 	END(r4k_clear_page_s64)
 
@@ -243,8 +243,8 @@ LEAF(r4k_clear_page_s128)
 	sd	zero, -32(a0)
 	sd	zero, -24(a0)
 	sd	zero, -16(a0)
+	sd	zero, -8(a0)
 	bne	AT, a0, 1b
-	 sd	zero, -8(a0)
 	jr	ra
 	END(r4k_clear_page_s128)
 
@@ -292,8 +292,8 @@ LEAF(r4k_copy_page_d16)
 	sw	a3, -16(a0)
 	sw	a2, -12(a0)
 	sw	v1, -8(a0)
+	sw	v0, -4(a0)
 	bne	AT, a0, 1b
-	 sw	v0, -4(a0)
 	jr	ra
 	END(r4k_copy_page_d16)
 
@@ -334,8 +334,8 @@ LEAF(r4k_copy_page_d32)
 	sw	a3, -16(a0)
 	sw	a2, -12(a0)
 	sw	v1, -8(a0)
+	sw	v0, -4(a0)
 	bne	AT, a0, 1b
-	 sw	v0, -4(a0)
 	jr	ra
 	END(r4k_copy_page_d32)
 
@@ -388,8 +388,8 @@ LEAF(r4k_copy_page_r4600_v1)
 	sw	a3, -16(a0)
 	sw	a2, -12(a0)
 	sw	v1, -8(a0)
+	sw	v0, -4(a0)
 	bne	AT, a0, 1b
-	 sw	v0, -4(a0)
 	jr	ra
 	END(r4k_copy_page_r4600_v1)
 
@@ -447,8 +447,9 @@ LEAF(r4k_copy_page_r4600_v2)
 	sw	t1, -16(a0)
 	sw	t0, -12(a0)
 	sw	a3, -8(a0)
+	sw	a2, -4(a0)
 	bne	AT, a0, 1b
-	 sw	a2, -4(a0)
+
 	mfc0	AT, CP0_STATUS			# __restore_flags
 	andi	v1, 1
 	ori	AT, 1
@@ -504,8 +505,8 @@ LEAF(r4k_copy_page_s16)
 	sw	a3, -16(a0)
 	sw	a2, -12(a0)
 	sw	v1, -8(a0)
+	sw	v0, -4(a0)
 	bne	AT, a0, 1b
-	 sw	v0, -4(a0)
 	jr	ra
 	END(r4k_copy_page_s16)
 
@@ -546,8 +547,8 @@ LEAF(r4k_copy_page_s32)
 	sw	a3, -16(a0)
 	sw	a2, -12(a0)
 	sw	v1, -8(a0)
+	sw	v0, -4(a0)
 	bne	AT, a0, 1b
-	 sw	v0, -4(a0)
 	jr	ra
 	END(r4k_copy_page_s32)
 
@@ -587,8 +588,8 @@ LEAF(r4k_copy_page_s64)
 	sw	a3, -16(a0)
 	sw	a2, -12(a0)
 	sw	v1, -8(a0)
+	sw	v0, -4(a0)
 	bne	AT, a0, 1b
-	 sw	v0, -4(a0)
 	jr	ra
 	END(r4k_copy_page_s64)
 
@@ -660,7 +661,24 @@ LEAF(r4k_copy_page_s128)
 	sw	a3, -16(a0)
 	sw	a2, -12(a0)
 	sw	v1, -8(a0)
+	sw	v0, -4(a0)
 	bne	AT, a0, 1b
-	 sw	v0, -4(a0)
 	jr	ra
 	END(r4k_copy_page_s128)
+
+/* This one still needs to receive cache optimizations  */
+LEAF(pgd_init)
+	addiu	AT, a0, PAGE_SIZE
+	la	v0, invalid_pte_table
+1:	sw	v0, (a0)
+	sw	v0, 4(a0)
+	sw	v0, 8(a0)
+	sw	v0, 12(a0)
+	addiu	a0, 32
+	sw	v0, -16(a0)
+	sw	v0, -12(a0)
+	sw	v0, -8(a0)
+	sw	v0, -4(a0)
+	bne	AT, a0, 1b
+	jr	ra
+	END(pgd_init)
