@@ -293,30 +293,12 @@ static inline void pgd_clear(pgd_t *pgdp)
  * The following only work if pte_present() is true.
  * Undefined behaviour if not..
  */
-static inline int pte_read(pte_t pte)
-{
-	return pte_val(pte) & _PAGE_READ;
-}
-
-static inline int pte_write(pte_t pte)
-{
-	return pte_val(pte) & _PAGE_WRITE;
-}
-
-static inline int pte_dirty(pte_t pte)
-{
-	return pte_val(pte) & _PAGE_MODIFIED;
-}
-
-static inline int pte_young(pte_t pte)
-{
-	return pte_val(pte) & _PAGE_ACCESSED;
-}
-
-static inline int pte_file(pte_t pte)
-{
-	return pte_val(pte) & _PAGE_FILE;
-}
+static inline int pte_user(pte_t pte)	{ BUG(); return 0; }
+static inline int pte_read(pte_t pte)	{ return pte_val(pte) & _PAGE_READ; }
+static inline int pte_write(pte_t pte)	{ return pte_val(pte) & _PAGE_WRITE; }
+static inline int pte_dirty(pte_t pte)	{ return pte_val(pte) & _PAGE_MODIFIED; }
+static inline int pte_young(pte_t pte)	{ return pte_val(pte) & _PAGE_ACCESSED; }
+static inline int pte_file(pte_t pte)	{ return pte_val(pte) & _PAGE_FILE; }
 
 static inline pte_t pte_wrprotect(pte_t pte)
 {
