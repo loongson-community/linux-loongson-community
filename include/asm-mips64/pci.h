@@ -211,7 +211,7 @@ static inline int pci_map_sg(struct pci_dev *hwdev, struct scatterlist *sg,
 	for (i = 0; i < nents; i++, sg++) {
 		dma_cache_wback_inv((unsigned long)page_address(sg->page),
 		                    sg->length);
-		sg->address = bus_to_baddr[hwdev->bus->number] +
+		sg->address = bus_to_baddr(hwdev->bus->number) +
 		               page_to_bus(sg->page) + sg->offset;
 	}
 
@@ -248,9 +248,8 @@ static inline void pci_dma_sync_single(struct pci_dev *hwdev,
 {
 	if (direction == PCI_DMA_NONE)
 		BUG();
-#ifdef CONFIG_NONCOHERENT_IO
-	dma_cache_wback_inv((unsigned long)__va(dma_handle - bus_to_baddr[hwdev->bus->number]), size);
-#endif
+
+	dma_cache_wback_inv((unsigned long)__va(dma_handle - bus_to_baddr(hwdev->bus->number)), size);
 }
 
 /*

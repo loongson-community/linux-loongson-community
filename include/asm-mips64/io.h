@@ -35,7 +35,16 @@
 #include <asm/ip32/io.h>
 #endif
 
+#ifdef CONFIG_SGI_IP27
 extern unsigned long bus_to_baddr[256];
+#define bus_to_baddr(hwdev, addr) (bus_to_baddr[(hwdev)->bus->number] | (addr))
+#define baddr_to_bus(hwdev, addr) ((addr) - bus_to_baddr[(hwdev)->bus->number])
+
+extern unsigned long bus_to_baddr[256];
+#else
+#define bus_to_baddr(hwdev, addr) (addr)
+#define baddr_to_bus(hwdev, addr) (addr)
+#endif
 
 /*
  * Slowdown I/O port space accesses for antique hardware.
