@@ -80,7 +80,7 @@ __asm__ (
 	".set\tpop\n\t"
 	".endm");
 
-#define local_save_flags(x)							\
+#define local_save_flags(x)						\
 __asm__ __volatile__(							\
 	"local_save_flags %0"						\
 	: "=r" (x))
@@ -108,7 +108,8 @@ __asm__ __volatile__(							\
 	: /* no inputs */						\
 	: "memory")
 
-__asm__(".macro\tlocal_irq_restore flags\n\t"
+__asm__ (
+	".macro\tlocal_irq_restore flags\n\t"
 	".set\tnoreorder\n\t"
 	".set\tnoat\n\t"
 	"mfc0\t$1, $12\n\t"
@@ -124,7 +125,7 @@ __asm__(".macro\tlocal_irq_restore flags\n\t"
 	".set\treorder\n\t"
 	".endm");
 
-#define local_irq_restore(flags)						\
+#define local_irq_restore(flags)					\
 do {									\
 	unsigned long __tmp1;						\
 									\
