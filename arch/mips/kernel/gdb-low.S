@@ -30,10 +30,14 @@
 		move	k1,sp
 
 		/*
-		 * Called from user mode, new stack
+		 * Called from user mode, go somewhere else.
 		 */
-		lui	k1,%hi(kernelsp)
-		lw	k1,%lo(kernelsp)(k1)
+		lui	k1,%hi(saved_vectors)
+		mfc0	k0,CP0_CAUSE
+		andi	k0,k0,0x7c
+		add	k1,k1,k0
+		lw	k0,%lo(saved_vectors)(k1)
+		jr	k0
 1:
 		move	k0,sp
 		subu	sp,k1,GDB_FR_SIZE
