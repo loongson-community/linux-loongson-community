@@ -205,7 +205,7 @@ __init void cpu_probe(void)
 			mips_cpu.tlbsize = 64;
 			break;
 		case PRID_IMP_R4000:
-			if ((mips_cpu.processor_id & 0xff) == PRID_REV_R4400)
+			if ((mips_cpu.processor_id & 0xff) >= PRID_REV_R4400)
 				mips_cpu.cputype = CPU_R4400SC;
 			else
 				mips_cpu.cputype = CPU_R4000SC;
