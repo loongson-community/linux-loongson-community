@@ -118,9 +118,6 @@ EXPORT_SYMBOL(hpc3c0);
 #include <asm/branch.h>
 #include <linux/sched.h>
 
-int register_fpe(void (*handler)(struct pt_regs *regs, unsigned int fcr31));
-int unregister_fpe(void (*handler)(struct pt_regs *regs, unsigned int fcr31));
-
 #ifdef CONFIG_VT
 EXPORT_SYMBOL(screen_info);
 #endif
