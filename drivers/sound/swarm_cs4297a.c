@@ -88,7 +88,6 @@
 #include <asm/sibyte/sb1250_mac.h>
 #include <asm/sibyte/sb1250.h>
 #include <asm/sibyte/64bit.h>
-#include <asm/sibyte/sbmips.h>
 
 struct cs4297a_state;
 EXPORT_NO_SYMBOLS;
@@ -625,7 +624,8 @@ static int init_serdma(serdma_t *dma)
         }
         memset(dma->descrtab, 0, dma->ringsz * sizeof(serdma_descr_t));
         dma->descrtab_end = dma->descrtab + dma->ringsz;
-        dma->descrtab_phys = K0_TO_PHYS((int)dma->descrtab);
+	/* XXX bloddy mess, use proper DMA API here ...  */
+	dma->descrtab_phys = PHYSADDR((int)dma->descrtab);
         dma->descr_add = dma->descr_rem = dma->descrtab;
 
         /* Frame buffer area */
@@ -636,7 +636,7 @@ static int init_serdma(serdma_t *dma)
                 return -1;
         }
         memset(dma->dma_buf, 0, DMA_BUF_SIZE);
-        dma->dma_buf_phys = K0_TO_PHYS((int)dma->dma_buf);
+        dma->dma_buf_phys = PHYSADDR((int)dma->dma_buf);
 
         /* Samples buffer area */
         dma->sbufsz = SAMPLE_BUF_SIZE;
@@ -954,7 +954,7 @@ static void cs4297a_update_ptr(struct cs4297a_state *s, int intflag)
                                 u16 left, right;
                                 descr_a = descr->descr_a;
                                 descr->descr_a &= ~M_DMA_SERRX_SOP;
-                                if ((descr_a & M_DMA_DSCRA_A_ADDR) != K0_TO_PHYS((int)s_ptr)) {
+                                if ((descr_a & M_DMA_DSCRA_A_ADDR) != PHYSADDR((int)s_ptr)) {
                                         printk(KERN_ERR "cs4297a: RX Bad address (read)\n");
                                 }
                                 if (((data & 0x9800000000000000) != 0x9800000000000000) ||
@@ -1025,10 +1025,10 @@ static void cs4297a_update_ptr(struct cs4297a_state *s, int intflag)
                            be a buffer to process. */
                         do {
                                 data = *data_p;
-                                if ((descr->descr_a & M_DMA_DSCRA_A_ADDR) != K0_TO_PHYS((int)data_p)) {
+                                if ((descr->descr_a & M_DMA_DSCRA_A_ADDR) != PHYSADDR((int)data_p)) {
                                         printk(KERN_ERR "cs4297a: RX Bad address %d (%x %x)\n", d->swptr,
                                                (int)(descr->descr_a & M_DMA_DSCRA_A_ADDR),
-                                               (int)K0_TO_PHYS((int)data_p));
+                                               (int)PHYSADDR((int)data_p));
                                 }
                                 if (!(data & (1LL << 63)) ||
                                     !(descr->descr_a & M_DMA_SERRX_SOP) ||
