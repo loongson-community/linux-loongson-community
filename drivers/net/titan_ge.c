@@ -478,7 +478,7 @@ static irqreturn_t titan_ge_int_handler(int irq, void *dev_id,
 	}
 #else
 	titan_ge_free_tx_queue(titan_ge_eth);
-	count = titan_ge_receive_queue(netdev, 0);
+	titan_ge_receive_queue(netdev, 0);
 
 #endif
 	/* Handle error interrupts */
