@@ -558,8 +558,10 @@ config MIPS_PB1500
 config MIPS_PB1550
 	bool "PB1550 board"
 	depends on SOC_AU1550
-	select DMA_NONCOHERENT
+	select DMA_COHERENT
 	select HW_HAS_PCI
+	select DMA_COHERENT
+	select MIPS_DISABLE_OBSOLETE_IDE
 
 config MIPS_DB1000
 	bool "DB1000 board"
@@ -575,13 +577,17 @@ config MIPS_DB1100
 config MIPS_DB1500
 	bool "DB1500 board"
 	depends on SOC_AU1500
-	select DMA_NONCOHERENT
+	select DMA_COHERENT
 	select HW_HAS_PCI
+	select DMA_COHERENT
+	select MIPS_DISABLE_OBSOLETE_IDE
 
 config MIPS_DB1550
 	bool "DB1550 board"
 	depends on SOC_AU1550
 	select HW_HAS_PCI
+	select DMA_NONCOHERENT
+	select MIPS_DISABLE_OBSOLETE_IDE
 
 config MIPS_BOSPORUS
 	bool "Bosporus board"
@@ -895,6 +901,9 @@ config MIPS_NILE4
 	bool
 	depends on LASAT
 	default y
+
+config MIPS_DISABLE_OBSOLETE_IDE
+	bool
 
 config CPU_LITTLE_ENDIAN
 	bool "Generate little endian code"

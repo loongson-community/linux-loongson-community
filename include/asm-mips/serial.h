@@ -212,7 +212,7 @@
       .iomem_reg_shift = 2 },                          \
     { .baud_base = 0, .port = UART3_ADDR,              \
       .iomem_base = (unsigned char *)UART3_ADDR,       \
-      .irq = AU1550_UART3_INT,  .flags = STD_COM_FLAGS \
+      .irq = AU1550_UART3_INT,  .flags = STD_COM_FLAGS,\
       .iomem_reg_shift = 2 },
 #endif
 
