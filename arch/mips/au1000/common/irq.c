@@ -26,7 +26,6 @@
  *  with this program; if not, write  to the Free Software Foundation, Inc.,
  *  675 Mass Ave, Cambridge, MA 02139, USA.
  */
-#include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/init.h>
 #include <linux/kernel_stat.h>
@@ -391,10 +390,6 @@ void __init init_IRQ(void)
 
 	init_generic_irq();
 
-	/* override the generic vec0 handler */
-	memcpy((void *)KSEG0, &except_vec0_au1000, 0x80);
-	flush_icache_range(KSEG0, KSEG0 + 0x200);
-	
 	for (i = 0; i <= AU1000_MAX_INTR; i++) {
 		switch (i) {
 			case AU1000_UART0_INT:
@@ -420,9 +415,14 @@ void __init init_IRQ(void)
 			case AU1000_IRDA_RX_INT:
 
 			case AU1000_MAC0_DMA_INT:
+#ifdef CONFIG_MIPS_PB1000
 			case AU1000_MAC1_DMA_INT:
-
+#endif
+#ifdef CONFIG_MIPS_PB1500
+			case AU1000_MAC1_DMA_INT:
+#endif
 			case AU1500_GPIO_204:
+
 				setup_local_irq(i, INTC_INT_HIGH_LEVEL, 0);
 				irq_desc[i].handler = &level_irq_type;
 				break;
@@ -447,11 +447,11 @@ void __init init_IRQ(void)
                                 break;
 			case AU1000_ACSYNC_INT:
 			case AU1000_AC97C_INT:
-		        case AU1000_USB_DEV_REQ_INT:
-		        case AU1000_USB_DEV_SUS_INT:
 			case AU1000_TOY_INT:
 			case AU1000_TOY_MATCH0_INT:
 			case AU1000_TOY_MATCH1_INT:
+		        case AU1000_USB_DEV_SUS_INT:
+		        case AU1000_USB_DEV_REQ_INT:
 			case AU1000_RTC_INT:
 			case AU1000_RTC_MATCH0_INT:
 			case AU1000_RTC_MATCH1_INT:
@@ -499,6 +499,17 @@ void intc0_req0_irqdispatch(struct pt_regs *regs)
 
 	if (!intc0_req0) return;
 
+	/*
+	 * Because of the tight timing of SETUP token to reply
+	 * transactions, the USB devices-side packet complete
+	 * interrupt needs the highest priority.
+	 */
+	if ((intc0_req0 & (1<<AU1000_USB_DEV_REQ_INT))) {
+		intc0_req0 &= ~(1<<AU1000_USB_DEV_REQ_INT);
+		do_IRQ(AU1000_USB_DEV_REQ_INT, regs);
+		return;
+	}
+	
 	for (i=0; i<32; i++) {
 		if ((intc0_req0 & (1<<i))) {
 			intc0_req0 &= ~(1<<i);
@@ -555,13 +566,13 @@ void intc1_req0_irqdispatch(struct pt_regs *regs)
 
 	if (!intc1_req0) return;
 
-#ifdef CONFIG_MIPS_PB1000
+#if defined(CONFIG_MIPS_PB1000) && defined(DEBUG_IRQ)
 	au_writel(1, CPLD_AUX0); /* debug led 0 */
 #endif
 	for (i=0; i<32; i++) {
 		if ((intc1_req0 & (1<<i))) {
 			intc1_req0 &= ~(1<<i);
-#ifdef CONFIG_MIPS_PB1000
+#if defined(CONFIG_MIPS_PB1000) && defined(DEBUG_IRQ)
 			au_writel(2, CPLD_AUX0); /* turn on debug led 1  */
 			do_IRQ(irq+32, regs);
 			au_writel(0, CPLD_AUX0); /* turn off debug led 1 */
@@ -572,7 +583,7 @@ void intc1_req0_irqdispatch(struct pt_regs *regs)
 		}
 		irq++;
 	}
-#ifdef CONFIG_MIPS_PB1000
+#if defined(CONFIG_MIPS_PB1000) && defined(DEBUG_IRQ)
 	au_writel(0, CPLD_AUX0);
 #endif
 }
