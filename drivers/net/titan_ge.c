@@ -1699,11 +1699,12 @@ static int titan_ge_init(int port)
         titan_ge_port_info      *titan_ge_eth;
         struct titan_ge         *port_private;
         struct net_device       *netdev = 0;
+	int err;
 
-        netdev = init_etherdev(netdev, sizeof(titan_ge_port_info));
+        netdev = alloc_etherdev(sizeof(titan_ge_port_info));
         if (!netdev) {
-		printk(KERN_ERR "No Titan Ethernet Device \n");
-                return -ENODEV;
+                err = -ENODEV;
+		goto out;
 	}
 
         netdev->open = titan_ge_open;
@@ -1729,10 +1730,10 @@ static int titan_ge_init(int port)
             kmalloc(sizeof(struct titan_ge), GFP_KERNEL);
 
         if (!titan_ge_eth->port_private) {
-                kfree(titan_ge_eth);
-                kfree(netdev);
-                return -ENOMEM;
-       }
+		err = -ENOMEM;
+		goto out_free_netdev;
+	}
+
         titan_ge_eth->port_num = 0;
         port_private = (struct titan_ge *)titan_ge_eth->port_private;
         port_private->port_num = port;
@@ -1743,7 +1744,6 @@ static int titan_ge_init(int port)
 	INIT_TQUEUE(&titan_ge_eth->tx_timeout_task,
                         (void (*)(void *))titan_ge_tx_timeout_task, netdev);
 
-        /* Init spinlock */
         spin_lock_init(&port_private->lock);
 
         /* set MAC addresses */
@@ -1757,7 +1757,20 @@ static int titan_ge_init(int port)
 
 	/* GMII stuff goes here */
 
+	err = register_netdev(dev);
+	if (err)
+		goto out_free_private;
+
         return 0;
+
+out_free_private:
+	kfree(titan_ge_eth->port_private);
+
+out_free_netdev:
+	free_netdev(netdev);
+
+out:
+	return err;
 }
 
 /*
