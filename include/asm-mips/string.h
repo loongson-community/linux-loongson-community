@@ -28,7 +28,7 @@ extern __inline__ char *strcpy(char *__dest, __const__ char *__src)
 	".set\treorder"
 	: "=r" (__dest), "=r" (__src)
         : "0" (__dest), "1" (__src)
-	: "$1","memory");
+	: "memory");
 
   return __xdest;
 }
@@ -56,7 +56,7 @@ extern __inline__ char *strncpy(char *__dest, __const__ char *__src, size_t __n)
 	".set\treorder"
         : "=r" (__dest), "=r" (__src), "=r" (__n)
         : "0" (__dest), "1" (__src), "2" (__n)
-        : "$1","memory");
+        : "memory");
 
   return __dest;
 }
@@ -84,8 +84,7 @@ extern __inline__ int strcmp(__const__ char *__cs, __const__ char *__ct)
 	"3:\t.set\tat\n\t"
 	".set\treorder"
 	: "=r" (__cs), "=r" (__ct), "=r" (__res)
-	: "0" (__cs), "1" (__ct)
-	: "$1");
+	: "0" (__cs), "1" (__ct));
 
   return __res;
 }
@@ -116,8 +115,7 @@ strncmp(__const__ char *__cs, __const__ char *__ct, size_t __count)
 	".set\tat\n\t"
 	".set\treorder"
 	: "=r" (__cs), "=r" (__ct), "=r" (__count), "=r" (__res)
-	: "0" (__cs), "1" (__ct), "2" (__count)
-	: "$1");
+	: "0" (__cs), "1" (__ct), "2" (__count));
 
 	return __res;
 }
@@ -148,8 +146,7 @@ extern __inline__ void *memscan(void *__addr, int __c, size_t __size)
 		"bne\t$1,%z4,1b\n"
 		"2:\t.set\tpop"
 		: "=r" (__addr), "=r" (__end)
-		: "0" (__addr), "1" (__end), "Jr" (__c)
-		: "$1");
+		: "0" (__addr), "1" (__end), "Jr" (__c));
 
 	return __addr;
 }
