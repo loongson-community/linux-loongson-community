@@ -144,7 +144,6 @@ CONFIG_PCMCIA=m
 # CONFIG_YENTA is not set
 # CONFIG_I82092 is not set
 # CONFIG_TCIC is not set
-# CONFIG_PCMCIA_AU1000 is not set
 
 #
 # PCI Hotplug Support
