@@ -74,8 +74,6 @@ static_unused int _sys_rt_sigsuspend(nabi_no_regargs struct pt_regs regs)
 	sigset_t *unewset, saveset, newset;
 	size_t sigsetsize;
 
-	save_static(&regs);
-
 	/* XXX Don't preclude handling different sized sigset_t's.  */
 	sigsetsize = regs.regs[5];
 	if (sigsetsize != sizeof(sigset_t))

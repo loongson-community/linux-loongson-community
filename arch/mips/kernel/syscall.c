@@ -156,7 +156,6 @@ sys_mmap2(unsigned long addr, unsigned long len, unsigned long prot,
 save_static_function(sys_fork);
 static_unused int _sys_fork(nabi_no_regargs struct pt_regs regs)
 {
-	save_static(&regs);
 	return do_fork(SIGCHLD, regs.regs[29], &regs, 0, NULL, NULL);
 }
 
@@ -167,7 +166,6 @@ static_unused int _sys_clone(nabi_no_regargs struct pt_regs regs)
 	unsigned long newsp;
 	int *parent_tidptr, *child_tidptr;
 
-	save_static(&regs);
 	clone_flags = regs.regs[4];
 	newsp = regs.regs[5];
 	if (!newsp)
