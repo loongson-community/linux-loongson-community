@@ -39,6 +39,8 @@ CONFIG_CPU_R5000=y
 # CONFIG_CPU_R8000 is not set
 # CONFIG_CPU_R10000 is not set
 # CONFIG_CPU_SB1 is not set
+CONFIG_CPU_HAS_LLSC=y
+CONFIG_CPU_HAS_LLDSCD=y
 
 #
 # General setup
