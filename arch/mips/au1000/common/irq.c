@@ -80,10 +80,12 @@ static void end_irq(unsigned int irq_nr);
 static inline void mask_and_ack_level_irq(unsigned int irq_nr);
 static inline void mask_and_ack_rise_edge_irq(unsigned int irq_nr);
 static inline void mask_and_ack_fall_edge_irq(unsigned int irq_nr);
+static inline void mask_and_ack_either_edge_irq(unsigned int irq_nr);
 inline void local_enable_irq(unsigned int irq_nr);
 inline void local_disable_irq(unsigned int irq_nr);
 
 extern void __init init_generic_irq(void);
+void	(*board_init_irq)(void);
 
 #ifdef CONFIG_PM
 extern void counter0_irq(int irq, void *dev_id, struct pt_regs *regs);
@@ -106,6 +108,11 @@ static void setup_local_irq(unsigned int irq_nr, int type, int int_req)
 				au_writel(1<<(irq_nr-32), IC1_CFG2CLR);
 				au_writel(1<<(irq_nr-32), IC1_CFG1SET);
 				au_writel(1<<(irq_nr-32), IC1_CFG0CLR);
+				break;
+			case INTC_INT_RISE_AND_FALL_EDGE: /* 0:1:1 */
+				au_writel(1<<(irq_nr-32), IC1_CFG2CLR);
+				au_writel(1<<(irq_nr-32), IC1_CFG1SET);
+				au_writel(1<<(irq_nr-32), IC1_CFG0SET);
 				break;
 			case INTC_INT_HIGH_LEVEL: /* 1:0:1 */
 				au_writel(1<<(irq_nr-32), IC1_CFG2SET);
@@ -148,6 +155,11 @@ static void setup_local_irq(unsigned int irq_nr, int type, int int_req)
 				au_writel(1<<irq_nr, IC0_CFG2CLR);
 				au_writel(1<<irq_nr, IC0_CFG1SET);
 				au_writel(1<<irq_nr, IC0_CFG0CLR);
+				break;
+			case INTC_INT_RISE_AND_FALL_EDGE: /* 0:1:1 */
+				au_writel(1<<irq_nr, IC0_CFG2CLR);
+				au_writel(1<<irq_nr, IC0_CFG1SET);
+				au_writel(1<<irq_nr, IC0_CFG0SET);
 				break;
 			case INTC_INT_HIGH_LEVEL: /* 1:0:1 */
 				au_writel(1<<irq_nr, IC0_CFG2SET);
@@ -253,6 +265,25 @@ static inline void mask_and_ack_fall_edge_irq(unsigned int irq_nr)
 }
 
 
+static inline void mask_and_ack_either_edge_irq(unsigned int irq_nr)
+{
+	/* This may assume that we don't get interrupts from
+	 * both edges at once, or if we do, that we don't care.
+	 */
+	if (irq_nr > AU1000_LAST_INTC0_INT) {
+		au_writel(1<<(irq_nr-32), IC1_FALLINGCLR);
+		au_writel(1<<(irq_nr-32), IC1_RISINGCLR);
+		au_writel(1<<(irq_nr-32), IC1_MASKCLR);
+	}
+	else {
+		au_writel(1<<irq_nr, IC0_FALLINGCLR);
+		au_writel(1<<irq_nr, IC0_RISINGCLR);
+		au_writel(1<<irq_nr, IC0_MASKCLR);
+	}
+	au_sync();
+}
+
+
 static inline void mask_and_ack_level_irq(unsigned int irq_nr)
 {
 
@@ -338,7 +369,6 @@ static struct hw_interrupt_type rise_edge_irq_type = {
 	NULL
 };
 
-/*
 static struct hw_interrupt_type fall_edge_irq_type = {
 	"Au1000 Fall Edge",
 	startup_irq,
@@ -349,7 +379,17 @@ static struct hw_interrupt_type fall_edge_irq_type = {
 	end_irq,
 	NULL
 };
-*/
+
+static struct hw_interrupt_type either_edge_irq_type = {
+	"Au1000 Rise or Fall Edge",
+	startup_irq,
+	shutdown_irq,
+	local_enable_irq,
+	local_disable_irq,
+	mask_and_ack_either_edge_irq,
+	end_irq,
+	NULL
+};
 
 static struct hw_interrupt_type level_irq_type = {
 	"Au1000 Level",
@@ -411,6 +451,14 @@ void __init init_IRQ(void)
 			irq_desc[imp->im_irq].handler = &rise_edge_irq_type;
 			break;
 
+		case INTC_INT_FALL_EDGE:
+			irq_desc[imp->im_irq].handler = &fall_edge_irq_type;
+			break;
+
+		case INTC_INT_RISE_AND_FALL_EDGE:
+			irq_desc[imp->im_irq].handler = &either_edge_irq_type;
+			break;
+
 		default:
 			panic("Unknown au1xxx irq map");
 			break;
@@ -419,6 +467,12 @@ void __init init_IRQ(void)
 	}
 
 	set_c0_status(ALLINTS);
+
+	/* Board specific IRQ initialization.
+	*/
+	if (board_init_irq)
+		(*board_init_irq)();
+
 #ifdef CONFIG_KGDB
 	/* If local serial I/O used for debug port, enter kgdb at once */
 	puts("Waiting for kgdb to connect...");
@@ -519,3 +573,86 @@ void intc1_req1_irqdispatch(struct pt_regs *regs)
 	irq += 32;
 	do_IRQ(irq, regs);
 }
+
+#ifdef CONFIG_PM
+
+/* Save/restore the interrupt controller state.
+ * Called from the save/restore core registers as part of the
+ * au_sleep function in power.c.....maybe I should just pm_register()
+ * them instead?
+ */
+static uint	sleep_intctl_config0[2];
+static uint	sleep_intctl_config1[2];
+static uint	sleep_intctl_config2[2];
+static uint	sleep_intctl_src[2];
+static uint	sleep_intctl_assign[2];
+static uint	sleep_intctl_wake[2];
+static uint	sleep_intctl_mask[2];
+
+void
+save_au1xxx_intctl(void)
+{
+	sleep_intctl_config0[0] = au_readl(IC0_CFG0RD);
+	sleep_intctl_config1[0] = au_readl(IC0_CFG1RD);
+	sleep_intctl_config2[0] = au_readl(IC0_CFG2RD);
+	sleep_intctl_src[0] = au_readl(IC0_SRCRD);
+	sleep_intctl_assign[0] = au_readl(IC0_ASSIGNRD);
+	sleep_intctl_wake[0] = au_readl(IC0_WAKERD);
+	sleep_intctl_mask[0] = au_readl(IC0_MASKRD);
+
+	sleep_intctl_config0[1] = au_readl(IC1_CFG0RD);
+	sleep_intctl_config1[1] = au_readl(IC1_CFG1RD);
+	sleep_intctl_config2[1] = au_readl(IC1_CFG2RD);
+	sleep_intctl_src[1] = au_readl(IC1_SRCRD);
+	sleep_intctl_assign[1] = au_readl(IC1_ASSIGNRD);
+	sleep_intctl_wake[1] = au_readl(IC1_WAKERD);
+	sleep_intctl_mask[1] = au_readl(IC1_MASKRD);
+}
+
+/* For most restore operations, we clear the entire register and
+ * then set the bits we found during the save.
+ */
+void
+restore_au1xxx_intctl(void)
+{
+	au_writel(0xffffffff, IC0_MASKCLR); au_sync();
+
+	au_writel(0xffffffff, IC0_CFG0CLR); au_sync();
+	au_writel(sleep_intctl_config0[0], IC0_CFG0SET); au_sync();
+	au_writel(0xffffffff, IC0_CFG1CLR); au_sync();
+	au_writel(sleep_intctl_config1[0], IC0_CFG1SET); au_sync();
+	au_writel(0xffffffff, IC0_CFG2CLR); au_sync();
+	au_writel(sleep_intctl_config2[0], IC0_CFG2SET); au_sync();
+	au_writel(0xffffffff, IC0_SRCCLR); au_sync();
+	au_writel(sleep_intctl_src[0], IC0_SRCSET); au_sync();
+	au_writel(0xffffffff, IC0_ASSIGNCLR); au_sync();
+	au_writel(sleep_intctl_assign[0], IC0_ASSIGNSET); au_sync();
+	au_writel(0xffffffff, IC0_WAKECLR); au_sync();
+	au_writel(sleep_intctl_wake[0], IC0_WAKESET); au_sync();
+	au_writel(0xffffffff, IC0_RISINGCLR); au_sync();
+	au_writel(0xffffffff, IC0_FALLINGCLR); au_sync();
+	au_writel(0x00000000, IC0_TESTBIT); au_sync();
+
+	au_writel(0xffffffff, IC1_MASKCLR); au_sync();
+
+	au_writel(0xffffffff, IC1_CFG0CLR); au_sync();
+	au_writel(sleep_intctl_config0[1], IC1_CFG0SET); au_sync();
+	au_writel(0xffffffff, IC1_CFG1CLR); au_sync();
+	au_writel(sleep_intctl_config1[1], IC1_CFG1SET); au_sync();
+	au_writel(0xffffffff, IC1_CFG2CLR); au_sync();
+	au_writel(sleep_intctl_config2[1], IC1_CFG2SET); au_sync();
+	au_writel(0xffffffff, IC1_SRCCLR); au_sync();
+	au_writel(sleep_intctl_src[1], IC1_SRCSET); au_sync();
+	au_writel(0xffffffff, IC1_ASSIGNCLR); au_sync();
+	au_writel(sleep_intctl_assign[1], IC1_ASSIGNSET); au_sync();
+	au_writel(0xffffffff, IC1_WAKECLR); au_sync();
+	au_writel(sleep_intctl_wake[1], IC1_WAKESET); au_sync();
+	au_writel(0xffffffff, IC1_RISINGCLR); au_sync();
+	au_writel(0xffffffff, IC1_FALLINGCLR); au_sync();
+	au_writel(0x00000000, IC1_TESTBIT); au_sync();
+
+	au_writel(sleep_intctl_mask[1], IC1_MASKSET); au_sync();
+
+	au_writel(sleep_intctl_mask[0], IC0_MASKSET); au_sync();
+}
+#endif /* CONFIG_PM */

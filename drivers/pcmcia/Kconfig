@@ -83,11 +83,19 @@ config HD64465_PCMCIA
 
 config PCMCIA_AU1000
 	tristate "Au1x00 pcmcia support"
-	depends on MIPS_AU1000 && PCMCIA
+	depends on SOC_AU1X00 && PCMCIA
 
 config PCMCIA_PB1X00
 	tristate "Pb1x00 board support"
-	depends on MIPS_AU1000 && PCMCIA_AU1000!=n && PCMCIA
+	depends on SOC_AU1X00 && PCMCIA_AU1000!=n && PCMCIA
+
+config PCMCIA_DB1X00
+	tristate "Db1x00 board support"
+	depends on SOC_AU1X00 && PCMCIA_AU1000!=n && PCMCIA
+
+config PCMCIA_XXS1500
+	tristate "XXS1500 board support"
+	depends on SOC_AU1X00 && PCMCIA_AU1000!=n && PCMCIA
 
 config PCMCIA_SA1100
 	tristate "SA1100 support"

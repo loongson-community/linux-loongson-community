@@ -123,8 +123,8 @@ void __init board_setup(void)
 	au_sync();
 #endif
 
-	/* Enable BCLK switching */
-	au_writel(0x00000060, 0xb190003c);
+	/* Enable sys bus clock divider when IDLE state or no bus activity. */
+	au_writel(au_readl(SYS_POWERCTRL) | (0x3 << 5), SYS_POWERCTRL);
 
 	/* Enable the RTC if not already enabled */
 	if (!(au_readl(0xac000028) & 0x20)) {

@@ -39,6 +39,7 @@
 #include <asm/reboot.h>
 #include <asm/pgtable.h>
 #include <asm/mach-au1x00/au1000.h>
+#include <asm/time.h>
 
 #ifdef CONFIG_BLK_DEV_INITRD
 extern unsigned long initrd_start, initrd_end;
@@ -60,8 +61,10 @@ extern void au1x_timer_setup(struct irqaction *irq);
 extern phys_t (*fixup_bigphys_addr)(phys_t phys_addr, phys_t size);
 static phys_t au1500_fixup_bigphys_addr(phys_t phys_addr, phys_t size);
 #endif
+extern void au1xxx_time_init(void);
+extern void au1xxx_timer_setup(void);
 
-static void __init au1x00_setup(void)
+static void au1x00_setup(void)
 {
 	char *argptr;
 
@@ -84,14 +87,22 @@ static void __init au1x00_setup(void)
         argptr = prom_getcmdline();
         /* default panel */
         /*strcat(argptr, " video=au1100fb:panel:Sharp_320x240_16");*/
+#ifdef CONFIG_MIPS_HYDROGEN3
+         strcat(argptr, " video=au1100fb:panel:Hydrogen_3_NEC_panel_320x240,nohwcursor");
+#else
         strcat(argptr, " video=au1100fb:panel:s10,nohwcursor");
+#endif
     }
 #endif
 
 #ifdef CONFIG_FB_E1356
 	if ((argptr = strstr(argptr, "video=")) == NULL) {
 		argptr = prom_getcmdline();
+#ifdef CONFIG_MIPS_PB1000
+		strcat(argptr, " video=e1356fb:system:pb1000,mmunalign:1");
+#else
 		strcat(argptr, " video=e1356fb:system:pb1500");
+#endif
 	}
 #endif
 
@@ -110,8 +121,8 @@ static void __init au1x00_setup(void)
 	_machine_restart = au1000_restart;
 	_machine_halt = au1000_halt;
 	_machine_power_off = au1000_power_off;
-	board_time_init = au1x_time_init;
-	board_timer_setup = au1x_timer_setup;
+	board_time_init = au1xxx_time_init;
+	board_timer_setup = au1xxx_timer_setup;
 #if defined(CONFIG_64BIT_PHYS_ADDR) && defined(CONFIG_SOC_AU1500)
 	fixup_bigphys_addr = au1500_fixup_bigphys_addr;
 #endif

@@ -32,23 +32,31 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 
-#include <asm/au1000.h>
+#include <asm/mach-au1x00/au1000.h>
 //#include <asm/pb1500.h>
 #ifdef CONFIG_MIPS_PB1000
-#include <asm/pb1000.h>
+#include <asm/mach-pb1x00/pb1000.h>
 #endif
 
 /*
  * Shortcut
  */
 #define INTA	AU1000_PCI_INTA
+#define INTB	AU1000_PCI_INTB
 
 static char irq_tab_alchemy[][5] __initdata = {
  [11] = { -1, INTA, INTA, INTA, INTA },
  [12] = { -1, INTA, INTA, INTA, INTA }
+#if defined( CONFIG_SOC_AU1550 )
+ [13] = { -1, INTB, INTB, INTB, INTB }
+#endif
 };
 
 int __init pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 {
 	return irq_tab_alchemy[slot][pin];
 }
+
+struct pci_fixup pcibios_fixups[] __initdata = {
+	{ 0 }
+};

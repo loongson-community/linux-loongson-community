@@ -59,16 +59,6 @@ void __init board_setup(void)
 	udelay(100);
 
 #if defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1X00_USB_DEVICE)
-#ifdef CONFIG_USB_OHCI
-	if ((argptr = strstr(argptr, "usb_ohci=")) == NULL) {
-	        char usb_args[80];
-		argptr = prom_getcmdline();
-		memset(usb_args, 0, sizeof(usb_args));
-		sprintf(usb_args, " usb_ohci=base:0x%x,len:0x%x,irq:%d",
-			USB_OHCI_BASE, USB_OHCI_LEN, AU1000_USB_HOST_INT);
-		strcat(argptr, usb_args);
-	}
-#endif
 	// configure pins GPIO[14:9] as GPIO
 	pin_func = au_readl(SYS_PINFUNC) & (u32)(~0x80);
 
@@ -112,7 +102,8 @@ void __init board_setup(void)
 	au_writel(pin_func, SYS_PINFUNC);
 #endif // defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1X00_USB_DEVICE)
 
-	au_writel(0x00000060, 0xb190003c);
+	/* Enable sys bus clock divider when IDLE state or no bus activity. */
+	au_writel(au_readl(SYS_POWERCTRL) | (0x3 << 5), SYS_POWERCTRL);
 
 	// Enable the RTC if not already enabled
 	if (!(readb(0xac000028) & 0x20)) {

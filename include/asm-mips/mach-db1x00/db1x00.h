@@ -5,6 +5,8 @@
  * Author: MontaVista Software, Inc.
  *         	ppopov@mvista.com or source@mvista.com
  *
+ * ########################################################################
+ *
  *  This program is free software; you can distribute it and/or modify it
  *  under the terms of the GNU General Public License (Version 2) as
  *  published by the Free Software Foundation.
@@ -17,11 +19,14 @@
  *  You should have received a copy of the GNU General Public License along
  *  with this program; if not, write to the Free Software Foundation, Inc.,
  *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+ *
+ * ########################################################################
+ *
+ * 
  */
 #ifndef __ASM_DB1X00_H
 #define __ASM_DB1X00_H
 
-#include <linux/config.h>
 
 /*
  * Overlay data structure of the Db1x00 board registers.
@@ -39,6 +44,7 @@ typedef volatile struct
 	/*1C*/	unsigned long swreset;
 
 } BCSR;
+
 
 /*
  * Register/mask bit definitions for the BCSRs
@@ -70,6 +76,12 @@ typedef volatile struct
 #define BCSR_RESETS_PHY0		0x0001
 #define BCSR_RESETS_PHY1		0x0002
 #define BCSR_RESETS_DC			0x0004
+#define BCSR_RESETS_FIR_SEL		0x2000
+#define BCSR_RESETS_IRDA_MODE_MASK	0xC000
+#define BCSR_RESETS_IRDA_MODE_FULL	0x0000
+#define BCSR_RESETS_IRDA_MODE_OFF	0x4000
+#define BCSR_RESETS_IRDA_MODE_2_3	0x8000
+#define BCSR_RESETS_IRDA_MODE_1_3	0xC000
 
 #define BCSR_PCMCIA_PC0VPP		0x0003
 #define BCSR_PCMCIA_PC0VCC		0x000C

@@ -11,18 +11,19 @@
 #define __ASM_MACH_AU1XX_MC146818RTC_H
 
 #include <asm/io.h>
-#include <asm/au1000.h>
+#include <asm/mach-au1x00/au1000.h>
 
-#define RTC_PORT(x)	(0x70 + (x))
+#define RTC_PORT(x)	(0x0c000000 + (x))
 #define RTC_IRQ		8
+#define PB1500_RTC_ADDR 0x0c000000
 
-static inline unsigned char CMOS_READ(unsigned long addr)
+static inline unsigned char CMOS_READ(unsigned long offset)
 {
 	offset <<= 2;
 	return (u8)(au_readl(offset + PB1500_RTC_ADDR) & 0xff);
 }
 
-static inline void CMOS_WRITE(unsigned char data, unsigned long addr)
+static inline void CMOS_WRITE(unsigned char data, unsigned long offset)
 {
 	offset <<= 2;
 	au_writel(data, offset + PB1500_RTC_ADDR);

@@ -1,8 +1,12 @@
 /*
+ *
+ * BRIEF MODULE DESCRIPTION
+ *	4G Systems MTX-1 board setup.
+ *
  * Copyright 2003 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
  *         	ppopov@mvista.com or source@mvista.com
- *         Bruno Randolf <bruno.randolf@4g-systems.de>
+ *         Bruno Randolf <bruno.randolf@4g-systems.biz>
  *
  *  This program is free software; you can redistribute  it and/or modify it
  *  under  the terms of  the GNU General  Public License as published by the
@@ -30,6 +34,7 @@
 #include <linux/ioport.h>
 #include <linux/mm.h>
 #include <linux/console.h>
+#include <linux/mc146818rtc.h>
 #include <linux/delay.h>
 
 #include <asm/cpu.h>
@@ -41,12 +46,13 @@
 #include <asm/pgtable.h>
 #include <asm/au1000.h>
 
+extern struct rtc_ops no_rtc_ops;
+
 void __init board_setup(void)
 {
-	u32 pin_func;
+	rtc_ops = &no_rtc_ops;
 
 #if defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1X00_USB_DEVICE)
-
 #ifdef CONFIG_AU1X00_USB_DEVICE
 	// 2nd USB port is USB device
 	au_writel(au_readl(SYS_PINFUNC) & (u32)(~0x8000), SYS_PINFUNC);
@@ -54,9 +60,7 @@ void __init board_setup(void)
 	// enable USB power switch
 	au_writel( au_readl(GPIO2_DIR) | 0x10, GPIO2_DIR );
 	au_writel( 0x100000, GPIO2_OUTPUT );
-
 #endif // defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1000_USB_DEVICE)
-
 
 #ifdef CONFIG_PCI
 #if defined(__MIPSEB__)
@@ -71,8 +75,11 @@ void __init board_setup(void)
 	// set U3/GPIO23 to GPIO23 (SYS_PF_U3)
 	au_writel( SYS_PF_NI2 | SYS_PF_U3, SYS_PINFUNC );
 
-	// initialize GPIO: none used ATM
+	// initialize GPIO
 	au_writel( 0xFFFFFFFF, SYS_TRIOUTCLR );
+	au_writel( 0x00000001, SYS_OUTPUTCLR ); // set M66EN (PCI 66MHz) to OFF
+	au_writel( 0x00000008, SYS_OUTPUTSET ); // set PCI CLKRUN# to OFF
+	au_writel( 0x00000020, SYS_OUTPUTCLR ); // set eth PHY TX_ER to OFF
 
 	// enable LED and set it to green
 	au_writel( au_readl(GPIO2_DIR) | 0x1800, GPIO2_DIR );

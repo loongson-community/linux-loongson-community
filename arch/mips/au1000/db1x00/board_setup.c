@@ -1,4 +1,8 @@
 /*
+ *
+ * BRIEF MODULE DESCRIPTION
+ *	Alchemy Db1x00 board setup.
+ *
  * Copyright 2000 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
  *         	ppopov@mvista.com or source@mvista.com
@@ -29,6 +33,7 @@
 #include <linux/ioport.h>
 #include <linux/mm.h>
 #include <linux/console.h>
+#include <linux/mc146818rtc.h>
 #include <linux/delay.h>
 
 #include <asm/cpu.h>
@@ -37,8 +42,8 @@
 #include <asm/mipsregs.h>
 #include <asm/reboot.h>
 #include <asm/pgtable.h>
-#include <asm/au1000.h>
-#include <asm/db1x00.h>
+#include <asm/mach-au1x00/au1000.h>
+#include <asm/mach-db1x00/db1x00.h>
 
 static BCSR * const bcsr = (BCSR *)0xAE000000;
 

@@ -156,7 +156,6 @@ serial_out(struct uart_8250_port *up, int offset, int value)
  */
 static void autoconfig(struct uart_8250_port *up, unsigned int probeflags)
 {
-	unsigned char status1, scratch, scratch2, scratch3;
 	unsigned char save_lcr, save_mcr;
 	unsigned long flags;
 

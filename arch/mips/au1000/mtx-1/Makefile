@@ -2,7 +2,7 @@
 #  Copyright 2003 MontaVista Software Inc.
 #  Author: MontaVista Software, Inc.
 #     	ppopov@mvista.com or source@mvista.com
-#       Bruno Randolf <bruno.randolf@4g-systems.de>
+#       Bruno Randolf <bruno.randolf@4g-systems.biz>
 #
 # Makefile for 4G Systems MTX-1 board.
 #

@@ -31,6 +31,8 @@ sa1111_cs-objs					:= $(sa1111_cs-objs-y)
 obj-$(CONFIG_PCMCIA_AU1000)			+= au1x00_ss.o
 au1000_ss-objs-y				:= au1000_generic.o
 au1000_ss-objs-$(CONFIG_PCMCIA_PB1X00)		+= au1000_pb1x00.o
+au1000_ss-objs-$(CONFIG_PCMCIA_DB1X00)		+= au1000_db1x00.o
+au1000_ss-objs-$(CONFIG_PCMCIA_XXS1500) 	+= au1000_xxs1500.o
 
 sa1100_cs-objs-y				:= sa1100_generic.o
 sa1100_cs-objs-$(CONFIG_SA1100_ASSABET)		+= sa1100_assabet.o

@@ -61,7 +61,8 @@
  * Sanity check. If this is a new Au1100 based board, search for
  * the PB1100 ifdefs to make sure you modify the code accordingly.
  */
-#ifndef CONFIG_MIPS_PB1100
+#if defined(CONFIG_MIPS_PB1100) || defined(CONFIG_MIPS_DB1100) || defined(CONFIG_MIPS_HYDROGEN3)
+#else
 error Unknown Au1100 board
 #endif
 
@@ -318,8 +319,14 @@ static int  au1100_blank(int blank_mode, struct fb_info_gen *_info)
 		p_lcd_reg->lcd_control |= LCD_CONTROL_GO;
 		au_writew(au_readw(PB1100_G_CONTROL) | p_lcd->mode_backlight, 
 			PB1100_G_CONTROL);
-		au_sync();
 #endif
+#ifdef CONFIG_MIPS_HYDROGEN3
+		/*  Turn controller & power supply on,  GPIO213 */
+		au_writel(0x20002000, 0xB1700008);
+		au_writel(0x00040000, 0xB1900108);
+		au_writel(0x01000100, 0xB1700008);
+#endif
+		au_sync();
 		break;
 
 	case VESA_VSYNC_SUSPEND:
@@ -328,11 +335,11 @@ static int  au1100_blank(int blank_mode, struct fb_info_gen *_info)
 		/* turn off panel */
 		//printk("turn off panel\n");
 #ifdef CONFIG_MIPS_PB1100
-		p_lcd_reg->lcd_control &= ~LCD_CONTROL_GO;
 		au_writew(au_readw(PB1100_G_CONTROL) & ~p_lcd->mode_backlight, 
 			PB1100_G_CONTROL);
-		au_sync();
+		p_lcd_reg->lcd_control &= ~LCD_CONTROL_GO;
 #endif
+		au_sync();
 		break;
 	default: 
 		break;
@@ -395,7 +402,8 @@ au1100fb_mmap(struct fb_info *_fb,
 	vma->vm_pgoff = off >> PAGE_SHIFT;
 
 	pgprot_val(vma->vm_page_prot) &= ~_CACHE_MASK;
-	pgprot_val(vma->vm_page_prot) |= _CACHE_CACHABLE_NONCOHERENT;
+	//pgprot_val(vma->vm_page_prot) |= _CACHE_CACHABLE_NONCOHERENT;
+	pgprot_val(vma->vm_page_prot) |= (6 << 9); //CCA=6
 
 	/* This is an IO map - tell maydump to skip this VMA */
 	vma->vm_flags |= VM_IO;
@@ -472,12 +480,19 @@ int au1100_setmode(void)
 	p_lcd_reg->lcd_words = words - 1;
 	p_lcd_reg->lcd_dmaaddr0 = fb_info.fb_phys;
 
-#ifdef CONFIG_MIPS_PB1100
 	/* turn on panel */
+#ifdef CONFIG_MIPS_PB1100
 	au_writew(au_readw(PB1100_G_CONTROL) | p_lcd->mode_backlight, 
 			PB1100_G_CONTROL);
-	p_lcd_reg->lcd_control |= LCD_CONTROL_GO;
 #endif
+#ifdef CONFIG_MIPS_HYDROGEN3
+	/*  Turn controller & power supply on,  GPIO213 */
+	au_writel(0x20002000, 0xB1700008);
+	au_writel(0x00040000, 0xB1900108);
+	au_writel(0x01000100, 0xB1700008);
+#endif
+
+	p_lcd_reg->lcd_control |= LCD_CONTROL_GO;
 
 	return 0;
 }
@@ -612,6 +627,19 @@ void au1100fb_setup(char *options, int *ints)
 	for(this_opt=strtok(options, ","); this_opt;
 	    this_opt=strtok(NULL, ",")) {
 		if (!strncmp(this_opt, "panel:", 6)) {
+#if defined(CONFIG_MIPS_PB1100) || defined(CONFIG_MIPS_DB1100)
+			/* Read Pb1100 Switch S10 ? */
+			if (!strncmp(this_opt+6, "s10", 3))
+			{
+				int panel;
+				panel = *(volatile int *)0xAE000008; /* BCSR SWITCHES */
+				panel >>= 8;
+				panel &= 0x0F;
+				if (panel >= num_panels) panel = 0;
+				my_lcd_index = panel;
+			}
+			else
+#endif
 			/* Get the panel name, everything else if fixed */
 			for (i=0; i<num_panels; i++) {
 				if (!strncmp(this_opt+6, panels[i].panel_name, 
@@ -626,6 +654,9 @@ void au1100fb_setup(char *options, int *ints)
 			fb_info.nohwcursor = 1;
 		}
 	} 
+
+	printk("au1100fb: Panel %d %s\n", my_lcd_index,
+		panels[my_lcd_index].panel_name);
 }
 
 
