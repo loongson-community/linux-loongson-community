@@ -3,7 +3,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1996, 1997, 1998, 1999, 2000, 03 by Ralf Baechle
+ * Copyright (C) 1996, 1997, 1998, 1999, 2000, 03, 04 by Ralf Baechle
  * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  */
 #ifndef _ASM_UACCESS_H
@@ -45,19 +45,19 @@
 
 #endif /* CONFIG_MIPS64 */
 
+/*
+ * USER_DS is a bitmask that has the bits set that may not be set in a valid
+ * userspace address.  Note that we limit 32-bit userspace to 0x7fff8000 but
+ * the arithmetic we're doing only works if the limit is a power of two, so
+ * we use 0x80000000 here on 32-bit kernels.  If a process passes an invalid
+ * address in this range it's the process's problem, not ours :-)
+ */
+
 #define KERNEL_DS	((mm_segment_t) { 0UL })
 #define USER_DS		((mm_segment_t) { __UA_LIMIT })
 
 #define VERIFY_READ    0
 #define VERIFY_WRITE   1
-
-#define __access_ok(addr, size, mask)					\
-	(((signed long)((mask) & ((addr) | ((addr) + (size)) | __ua_size(size)))) == 0)
-
-#define __access_mask get_fs().seg
-
-#define access_ok(type, addr, size)					\
-	likely(__access_ok((unsigned long)(addr), (size),__access_mask))
 
 #define get_ds()	(KERNEL_DS)
 #define get_fs()	(current_thread_info()->addr_limit)
@@ -81,6 +81,34 @@
  */
 #define __ua_size(size)							\
 	((__builtin_constant_p(size) && (signed long) (size) > 0) ? 0 : (size))
+
+/*
+ * access_ok: - Checks if a user space pointer is valid
+ * @type: Type of access: %VERIFY_READ or %VERIFY_WRITE.  Note that
+ *        %VERIFY_WRITE is a superset of %VERIFY_READ - if it is safe
+ *        to write to a block, it is always safe to read from it.
+ * @addr: User space pointer to start of block to check
+ * @size: Size of block to check
+ *
+ * Context: User context only.  This function may sleep.
+ *
+ * Checks if a pointer to a block of memory in user space is valid.
+ *
+ * Returns true (nonzero) if the memory block may be valid, false (zero)
+ * if it is definitely invalid.
+ *
+ * Note that, depending on architecture, this function probably just
+ * checks that the pointer is in the user space range - after calling
+ * this function, memory access functions may still return -EFAULT.
+ */
+
+#define __access_mask get_fs().seg
+
+#define __access_ok(addr, size, mask)					\
+	(((signed long)((mask) & ((addr) | ((addr) + (size)) | __ua_size(size)))) == 0)
+
+#define access_ok(type, addr, size)					\
+	likely(__access_ok((unsigned long)(addr), (size),__access_mask))
 
 /*
  * verify_area: - Obsolete, use access_ok()
