@@ -19,7 +19,7 @@
 
 /*
  * Just powerdown if init hasn't done after POWERDOWN_TIMEOUT seconds.
- * I'm not shure if this feature is a good idea, for now it's here just to
+ * I'm not sure if this feature is a good idea, for now it's here just to
  * make the power button make behave just like under IRIX.
  */
 #define POWERDOWN_TIMEOUT	120
