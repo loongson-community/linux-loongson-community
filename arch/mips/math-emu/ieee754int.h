@@ -61,7 +61,10 @@
   (ieee754_csr.cx = 0)
 
 #define SETCX(x) \
-  (ieee754_csr.cx |= (x),ieee754_csr.sx |= (x),ieee754_csr.mx & (x))
+  (ieee754_csr.cx |= (x),ieee754_csr.sx |= (x))
+
+#define SETANDTESTCX(x) \
+  (SETCX(x),ieee754_csr.mx & (x))
 
 #define TSTX()	\
 	(ieee754_csr.cx & ieee754_csr.mx)

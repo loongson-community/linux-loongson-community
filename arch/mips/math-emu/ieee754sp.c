@@ -70,7 +70,7 @@ ieee754sp ieee754sp_nanxcpt(ieee754sp r, const char *op, ...)
 	if (!ieee754sp_issnan(r))	/* QNAN does not cause invalid op !! */
 		return r;
 
-	if (!SETCX(IEEE754_INVALID_OPERATION)) {
+	if (!SETANDTESTCX(IEEE754_INVALID_OPERATION)) {
 		/* not enabled convert to a quiet NaN */
 		SPMANT(r) &= (~SP_MBIT(SP_MBITS-1));
 		if (ieee754sp_isnan(r))
