@@ -274,7 +274,7 @@ void indy_buserror_irq(struct pt_regs *regs)
 
 	irq_enter();
 	kstat_cpu(cpu).irqs[irq]++;
-	be_ip22_interrupt(irq, regs);
+	ip22_be_interrupt(irq, regs);
 	irq_exit();
 }
 
