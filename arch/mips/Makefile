@@ -26,11 +26,15 @@ ifdef CONFIG_CPU_LITTLE_ENDIAN
 64bit-tool-prefix	= mips64el-linux-
 32bit-bfd		= elf32-tradlittlemips
 64bit-bfd		= elf64-tradlittlemips
+32bit-emul		= elf32ltsmip
+64bit-emul		= elf64ltsmip
 else
 32bit-tool-prefix	= mips-linux-
 64bit-tool-prefix	= mips64-linux-
 32bit-bfd		= elf32-tradbigmips
 64bit-bfd		= elf64-tradbigmips
+32bit-emul		= elf32btsmip
+64bit-emul		= elf64btsmip
 endif
 
 ifdef CONFIG_MIPS32
@@ -50,12 +54,12 @@ endif
 
 ifdef CONFIG_BUILD_ELF64
 gas-abi			= 64
-build-bfd		= $(64bit-bfd)
+ld-emul			= $(64bit-emul)
 vmlinux-32		= vmlinux.32
 vmlinux-64		= vmlinux
 else
 gas-abi			= 32
-build-bfd		= $(32bit-bfd)
+ld-emul			= $(32bit-emul)
 vmlinux-32		= vmlinux
 vmlinux-64		= vmlinux.64
 
@@ -653,7 +657,7 @@ endif
 AFLAGS		+= $(cflags-y)
 CFLAGS		+= $(cflags-y)
 
-LDFLAGS			+= --oformat $(build-bfd)
+LDFLAGS			+= -m $(ld-emul)
 
 OBJCOPYFLAGS		+= --remove-section=.reginfo
 
