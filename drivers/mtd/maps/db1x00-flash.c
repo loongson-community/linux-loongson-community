@@ -1,7 +1,9 @@
 /*
  * Flash memory access on Alchemy Db1xxx boards
  * 
- * (C) 2003 Pete Popov <ppopov@pacbell.net>
+ * $Id: db1x00-flash.c,v 1.3 2004/07/14 17:45:40 dwmw2 Exp $
+ *
+ * (C) 2003 Pete Popov <ppopov@embeddedalley.com>
  * 
  */
 
@@ -16,8 +18,6 @@
 #include <linux/mtd/partitions.h>
 
 #include <asm/io.h>
-#include <asm/mach-au1x00/au1000.h>
-#include <asm/mach-db1x00/db1x00.h>
 
 #ifdef 	DEBUG_RW
 #define	DBG(x...)	printk(x)
@@ -25,12 +25,21 @@
 #define	DBG(x...)	
 #endif
 
+/* MTD CONFIG OPTIONS */
+#if defined(CONFIG_MTD_DB1X00_BOOT) && defined(CONFIG_MTD_DB1X00_USER)
+#define DB1X00_BOTH_BANKS
+#elif defined(CONFIG_MTD_DB1X00_BOOT) && !defined(CONFIG_MTD_DB1X00_USER)
+#define DB1X00_BOOT_ONLY
+#elif !defined(CONFIG_MTD_DB1X00_BOOT) && defined(CONFIG_MTD_DB1X00_USER)
+#define DB1X00_USER_ONLY
+#endif
+
 static unsigned long window_addr;
 static unsigned long window_size;
 static unsigned long flash_size;
 
-static BCSR * const bcsr = (BCSR *)0xAE000000;
-static unsigned char flash_buswidth = 4;
+static unsigned short *bcsr = (unsigned short *)0xAE000000;
+static unsigned char flash_bankwidth = 4;
 
 /* 
  * The Db1x boards support different flash densities. We setup
@@ -111,7 +120,7 @@ static struct mtd_info *db1xxx_mtd;
  */
 int setup_flash_params(void)
 {
-	switch ((bcsr->status >> 14) & 0x3) {
+	switch ((bcsr[2] >> 14) & 0x3) {
 		case 0: /* 64Mbit devices */
 			flash_size = 0x800000; /* 8MB per part */
 #if defined(DB1X00_BOTH_BANKS)
@@ -164,9 +173,9 @@ int setup_flash_params(void)
 			return 1;
 	}
 	db1xxx_mtd_map.size = window_size;
-	db1xxx_mtd_map.buswidth = flash_buswidth;
+	db1xxx_mtd_map.bankwidth = flash_bankwidth;
 	db1xxx_mtd_map.phys = window_addr;
-	db1xxx_mtd_map.buswidth = flash_buswidth;
+	db1xxx_mtd_map.bankwidth = flash_bankwidth;
 	return 0;
 }
 
@@ -189,7 +198,7 @@ int __init db1x00_mtd_init(void)
 	 * specific machine settings might have been set above.
 	 */
 	printk(KERN_NOTICE "Db1xxx flash: probing %d-bit flash bus\n", 
-			db1xxx_mtd_map.buswidth*8);
+			db1xxx_mtd_map.bankwidth*8);
 	db1xxx_mtd_map.virt = (unsigned long)ioremap(window_addr, window_size);
 	db1xxx_mtd = do_map_probe("cfi_probe", &db1xxx_mtd_map);
 	if (!db1xxx_mtd) return -ENXIO;
