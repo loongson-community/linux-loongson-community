@@ -200,6 +200,8 @@ extern asmlinkage void *resume(void *last, void *next);
 
 #define prepare_to_switch()	do { } while(0)
 
+struct task_struct;
+
 extern asmlinkage void lazy_fpu_switch(void *, void *);
 extern asmlinkage void init_fpu(void);
 extern asmlinkage void save_fp(struct task_struct *);

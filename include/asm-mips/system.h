@@ -218,6 +218,14 @@ extern asmlinkage void *resume(void *last, void *next);
 #endif /* !__ASSEMBLY__ */
 
 #define prepare_to_switch()	do { } while(0)
+
+struct task_struct;
+
+extern asmlinkage void lazy_fpu_switch(void *);
+extern asmlinkage void init_fpu(void);
+extern asmlinkage void save_fp(struct task_struct *);
+extern asmlinkage void restore_fp(struct task_struct *);
+
 #define switch_to(prev,next,last) \
 do { \
 	(last) = resume(prev, next); \

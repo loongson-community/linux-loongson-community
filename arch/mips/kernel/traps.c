@@ -33,6 +33,7 @@
 #include <asm/uaccess.h>
 #include <asm/mmu_context.h>
 #include <asm/watch.h>
+#include <asm/types.h>
 
 /*
  * Machine specific interrupt handlers
@@ -470,19 +471,17 @@ asmlinkage void do_ov(struct pt_regs *regs)
 asmlinkage void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 {
 	if (fcr31 & FPU_CSR_UNI_X) {
-		extern void save_fp(struct task_struct *);
-		extern void restore_fp(struct task_struct *);
 		int sig;
+
 		/*
-	 	 * Unimplemented operation exception.  If we've got the
-	 	 * full software emulator on-board, let's use it...
+	 	 * Unimplemented operation exception.  If we've got the full
+		 * software emulator on-board, let's use it...
 		 *
-		 * Force FPU to dump state into task/thread context.
-		 * We're moving a lot of data here for what is probably
-		 * a single instruction, but the alternative is to 
-		 * pre-decode the FP register operands before invoking
-		 * the emulator, which seems a bit extreme for what
-		 * should be an infrequent event.
+		 * Force FPU to dump state into task/thread context.  We're
+		 * moving a lot of data here for what is probably a single
+		 * instruction, but the alternative is to pre-decode the FP
+		 * register operands before invoking the emulator, which seems
+		 * a bit extreme for what should be an infrequent event.
 		 */
 		save_fp(current);
 	
@@ -519,9 +518,9 @@ asmlinkage void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 
 static inline int get_insn_opcode(struct pt_regs *regs, unsigned int *opcode)
 {
-	unsigned int *epc;
+	unsigned long *epc;
 
-	epc = (unsigned int *) regs->cp0_epc +
+	epc = (unsigned long *) regs->cp0_epc +
 	      ((regs->cp0_cause & CAUSEF_BD) != 0);
 	if (!get_user(*opcode, epc))
 		return 0;
@@ -532,14 +531,11 @@ static inline int get_insn_opcode(struct pt_regs *regs, unsigned int *opcode)
 
 asmlinkage void do_bp(struct pt_regs *regs)
 {
-	siginfo_t info;
 	unsigned int opcode, bcode;
-	unsigned int *epc;
+	siginfo_t info;
 
-	epc = (unsigned int *) regs->cp0_epc +
-	      ((regs->cp0_cause & CAUSEF_BD) != 0);
-	if (get_user(opcode, epc))
-		goto sigsegv;
+	if (get_insn_opcode(regs, &opcode))
+		return;
 
 	/*
 	 * There is the ancient bug in the MIPS assemblers that the break
@@ -569,22 +565,15 @@ asmlinkage void do_bp(struct pt_regs *regs)
 	default:
 		force_sig(SIGTRAP, current);
 	}
-	return;
-
-sigsegv:
-	force_sig(SIGSEGV, current);
 }
 
 asmlinkage void do_tr(struct pt_regs *regs)
 {
 	siginfo_t info;
 	unsigned int opcode, bcode;
-	unsigned *epc;
 
-	epc = (unsigned int *) regs->cp0_epc +
-	      ((regs->cp0_cause & CAUSEF_BD) != 0);
-	if (get_user(opcode, epc))
-		goto sigsegv;
+	if (get_insn_opcode(regs, &opcode))
+		return;
 
 	bcode = ((opcode >> 6) & ((1 << 20) - 1));
 
@@ -609,10 +598,6 @@ asmlinkage void do_tr(struct pt_regs *regs)
 	default:
 		force_sig(SIGTRAP, current);
 	}
-	return;
-
-sigsegv:
-	force_sig(SIGSEGV, current);
 }
 
 /*
@@ -657,9 +642,6 @@ asmlinkage void do_ri(struct pt_regs *regs)
 asmlinkage void do_cpu(struct pt_regs *regs)
 {
 	unsigned int cpid;
-	extern void lazy_fpu_switch(void *);
-	extern void save_fp(struct task_struct *);
-	extern void init_fpu(void);
 	void fpu_emulator_init_fpu(void);
 	int sig;
 
@@ -695,8 +677,7 @@ fp_emul:
 	}
 	sig = fpu_emulator_cop1Handler(regs);
 	last_task_used_math = current;
-	if (sig)
-	{
+	if (sig) {
 		/* 
 		 * Return EPC is not calculated in the FPU emulator, if 
 		 * a signal is being send. So we calculate it here.

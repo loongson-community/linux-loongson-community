@@ -31,6 +31,7 @@
 #include <asm/uaccess.h>
 #include <asm/mmu_context.h>
 #include <asm/cachectl.h>
+#include <asm/types.h>
 
 extern asmlinkage void __xtlb_mod(void);
 extern asmlinkage void __xtlb_tlbl(void);
@@ -360,7 +361,7 @@ asmlinkage void do_be(struct pt_regs *regs)
 	force_sig(SIGBUS, current);
 }
 
-void do_ov(struct pt_regs *regs)
+asmlinkage void do_ov(struct pt_regs *regs)
 {
 	if (compute_return_epc(regs))
 		return;
@@ -418,16 +419,26 @@ asmlinkage void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 	force_sig(SIGFPE, current);
 }
 
-void do_bp(struct pt_regs *regs)
+static inline int get_insn_opcode(struct pt_regs *regs, unsigned int *opcode)
+{
+	unsigned long *epc;
+
+	epc = (unsigned long *) regs->cp0_epc +
+	      ((regs->cp0_cause & CAUSEF_BD) != 0);
+	if (!get_user(opcode, epc))
+		return 0;
+
+	force_sig(SIGSEGV, current);
+	return 1;
+}
+
+asmlinkage void do_bp(struct pt_regs *regs)
 {
 	unsigned int opcode, bcode;
-	unsigned int *epc;
 	siginfo_t info;
 
-	epc = (unsigned int *) regs->cp0_epc +
-	      ((regs->cp0_cause & CAUSEF_BD) != 0);
-	if (get_user(opcode, epc))
-		goto sigsegv;
+	if (get_insn_opcode(regs, &opcode))
+		return;
 
 	/*
 	 * There is the ancient bug in the MIPS assemblers that the break
@@ -457,24 +468,15 @@ void do_bp(struct pt_regs *regs)
 	default:
 		force_sig(SIGTRAP, current);
 	}
-
-	force_sig(SIGTRAP, current);
-	return;
-
-sigsegv:
-	force_sig(SIGSEGV, current);
 }
 
-void do_tr(struct pt_regs *regs)
+asmlinkage void do_tr(struct pt_regs *regs)
 {
 	unsigned int opcode, bcode;
-	unsigned int *epc;
 	siginfo_t info;
 
-	epc = (unsigned int *) regs->cp0_epc +
-	      ((regs->cp0_cause & CAUSEF_BD) != 0);
-	if (get_user(opcode, epc))
-		goto sigsegv;
+	if (get_insn_opcode(regs, &opcode))
+		return;
 
 	bcode = ((opcode >> 6) & ((1 << 20) - 1));
 
@@ -499,23 +501,23 @@ void do_tr(struct pt_regs *regs)
 	default:
 		force_sig(SIGTRAP, current);
 	}
-	return;
-
-sigsegv:
-	force_sig(SIGSEGV, current);
 }
 
-void do_ri(struct pt_regs *regs)
+asmlinkage void do_ri(struct pt_regs *regs)
 {
+	if (!user_mode(regs))
+		BUG();
+
 	if (compute_return_epc(regs))
 		return;
 
 	force_sig(SIGILL, current);
 }
 
-void do_cpu(struct pt_regs *regs)
+asmlinkage void do_cpu(struct pt_regs *regs)
 {
-	u32 cpid;
+	unsigned int cpid;
+	void fpu_emulator_init_fpu(void);
 	int sig;
 
 	cpid = (regs->cp0_cause >> CAUSEB_CE) & 3;
@@ -551,13 +553,15 @@ void do_cpu(struct pt_regs *regs)
 	return;
 
 fp_emul:
-	if (!current->used_math) {
-		fpu_emulator_init_fpu();
-		current->used_math = 1;
+	if (last_task_used_math != current) {
+		if (!current->used_math) {
+			fpu_emulator_init_fpu();
+			current->used_math = 1;
+		}
 	}
 	sig = fpu_emulator_cop1Handler(regs);
-	if (sig)
-	{
+	last_task_used_math = current;
+	if (sig) {
 		/* 
 		 * Return EPC is not calculated in the FPU emulator, if 
 		 * a signal is being send. So we calculate it here.
@@ -572,12 +576,15 @@ bad_cid:
 	force_sig(SIGILL, current);
 }
 
-void do_watch(struct pt_regs *regs)
+asmlinkage void do_watch(struct pt_regs *regs)
 {
+	extern void dump_tlb_all(void);
+
 	/*
 	 * We use the watch exception where available to detect stack
 	 * overflows.
 	 */
+	dump_tlb_all();
 	show_regs(regs);
 	panic("Caught WATCH exception - probably caused by stack overflow.");
 }
@@ -595,7 +602,7 @@ asmlinkage void do_mcheck(struct pt_regs *regs)
 	      (regs->cp0_status & ST0_TS) ? "" : "not ");
 }
 
-void do_reserved(struct pt_regs *regs)
+asmlinkage void do_reserved(struct pt_regs *regs)
 {
 	/*
 	 * Game over - no way to handle this if it ever occurs.  Most probably
