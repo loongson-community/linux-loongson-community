@@ -172,13 +172,6 @@ static cpuid_t cpu_node_probe(void)
 	return highest + 1;
 }
 
-static int cpu_enabled(cpuid_t cpu)
-{
-	if (cpu == CPU_NONE)
-		return 0;
-	return cpu_isset(cpu, phys_cpu_present_map);
-}
-
 void mlreset(void)
 {
 	int i;
@@ -321,17 +314,6 @@ static void per_hub_init(cnodeid_t cnode)
 #endif
 	}
 	spin_unlock(&hub_mask_lock);
-}
-
-/*
- * This is similar to hard_smp_processor_id().
- */
-static cpuid_t getcpuid(void)
-{
-	klcpu_t *klcpu;
-
-	klcpu = nasid_slice_to_cpuinfo(get_nasid(),LOCAL_HUB_L(PI_CPU_NUM));
-	return klcpu->cpu_info.virtid;
 }
 
 void prom_init_secondary(void)
