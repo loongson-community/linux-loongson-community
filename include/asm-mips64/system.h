@@ -216,9 +216,12 @@ do { var = value; wmb(); } while (0)
  * switch_to(n) should switch tasks to task nr n, first
  * checking that n isn't the current task, in which case it does nothing.
  */
-extern asmlinkage void resume(void *last, void *next, void *next_ti);
+extern asmlinkage void *resume(void *last, void *next, void *next_ti);
 
-#define prepare_to_switch()	do { } while(0)
+#define prepare_arch_schedule(prev)		do { } while(0)
+#define finish_arch_schedule(prev)		do { } while(0)
+#define prepare_arch_switch(rq)			do { } while(0)
+#define finish_arch_switch(rq)			spin_unlock_irq(&(rq)->lock)
 
 struct task_struct;
 
@@ -227,9 +230,9 @@ extern asmlinkage void init_fpu(void);
 extern asmlinkage void save_fp(struct task_struct *);
 extern asmlinkage void restore_fp(struct task_struct *);
 
-#define switch_to(prev,next) \
+#define switch_to(prev,next,last) \
 do { \
-	resume(prev, next, next->thread_info); \
+	(last) = resume(prev, next, next->thread_info); \
 } while(0)
 
 extern __inline__ unsigned long xchg_u32(volatile int * m, unsigned long val)

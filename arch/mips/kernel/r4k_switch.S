@@ -65,6 +65,7 @@
 	and	a2, a3
 	or	a2, t1
 	mtc0	a2, CP0_STATUS
+	move	v0, a0
 	jr	ra
 	END(resume)
 

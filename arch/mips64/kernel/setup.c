@@ -31,6 +31,9 @@
 #ifdef CONFIG_BLK_DEV_RAM
 #include <linux/blk.h>
 #endif
+#include <linux/major.h>
+#include <linux/kdev_t.h>
+#include <linux/root_dev.h>
 
 #include <asm/addrspace.h>
 #include <asm/bootinfo.h>
@@ -345,7 +348,7 @@ static inline void bootmem_init(void)
 
 #ifdef CONFIG_BLK_DEV_INITRD
 	/* Board specific code should have set up initrd_start and initrd_end */
-	ROOT_DEV = MKDEV(RAMDISK_MAJOR, 0);
+	ROOT_DEV = Root_RAM0;
 	if (&__rd_start != &__rd_end) {
 		initrd_start = (unsigned long)&__rd_start;
 		initrd_end = (unsigned long)&__rd_end;

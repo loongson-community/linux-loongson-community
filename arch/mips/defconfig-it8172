@@ -365,17 +365,7 @@ CONFIG_IT8172_TUNING=y
 # CONFIG_BLK_DEV_TRM290 is not set
 # CONFIG_BLK_DEV_VIA82CXXX is not set
 # CONFIG_BLK_DEV_SL82C105 is not set
-CONFIG_IDE_CHIPSETS=y
-
-#
-# Note: most of these also require special kernel boot parameters
-#
-# CONFIG_BLK_DEV_ALI14XX is not set
-# CONFIG_BLK_DEV_DTC2278 is not set
-# CONFIG_BLK_DEV_HT6560B is not set
-# CONFIG_BLK_DEV_PDC4030 is not set
-# CONFIG_BLK_DEV_QD65XX is not set
-# CONFIG_BLK_DEV_UMC8672 is not set
+# CONFIG_IDE_CHIPSETS is not set
 # CONFIG_IDEDMA_IVB is not set
 CONFIG_ATAPI=y
 CONFIG_IDEDMA_AUTO=y

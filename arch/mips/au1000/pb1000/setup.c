@@ -1,5 +1,4 @@
 /*
- *
  * BRIEF MODULE DESCRIPTION
  *	Alchemy Pb1000 board setup.
  *
@@ -34,6 +33,9 @@
 #include <linux/mm.h>
 #include <linux/console.h>
 #include <linux/mc146818rtc.h>
+#include <linux/major.h>
+#include <linux/kdev_t.h>
+#include <linux/root_dev.h>
 #include <linux/delay.h>
 
 #include <asm/cpu.h>
@@ -109,7 +111,7 @@ void __init au1000_setup(void)
 	iomem_resource.end = 0xffffffff;
 
 #ifdef CONFIG_BLK_DEV_INITRD
-	ROOT_DEV = MKDEV(RAMDISK_MAJOR, 0);
+	ROOT_DEV = Root_RAM0;
 	initrd_start = (unsigned long)&__rd_start;
 	initrd_end = (unsigned long)&__rd_end;
 #endif

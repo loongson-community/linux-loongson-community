@@ -42,7 +42,6 @@
 #include <linux/sched.h>
 #include <linux/pci.h>
 #include <linux/ide.h>
-#include <linux/fs.h>		/* for ROOT_DEV */
 #include <linux/ioport.h>
 #include <linux/param.h>	/* for HZ */
 #include <linux/delay.h>

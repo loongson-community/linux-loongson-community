@@ -27,8 +27,8 @@
 	.align	5
 
 /*
- * task_struct *resume(task_struct *prev,
- *                     task_struct *next)
+ * task_struct *resume(task_struct *prev, task_struct *next,
+ *                     struct thread_info *next_ti) )
  */
 LEAF(resume)
 #ifndef CONFIG_CPU_HAS_LLSC
@@ -57,6 +57,7 @@ LEAF(resume)
 	and	a2, a3
 	or	a2, t1
 	mtc0	a2, CP0_STATUS
+	move	v0, a0
 	jr	ra
 	END(resume)
 

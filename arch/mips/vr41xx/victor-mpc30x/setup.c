@@ -18,6 +18,9 @@
 #include <linux/console.h>
 #include <linux/ide.h>
 #include <linux/ioport.h>
+#include <linux/major.h>
+#include <linux/kdev_t.h>
+#include <linux/root_dev.h>
 
 #include <asm/pci_channel.h>
 #include <asm/reboot.h>
@@ -89,7 +92,7 @@ void __init victor_mpc30x_setup(void)
 	iomem_resource.end = IO_MEM2_RESOURCE_END;
 
 #ifdef CONFIG_BLK_DEV_INITRD
-	ROOT_DEV = MKDEV(RAMDISK_MAJOR, 0);
+	ROOT_DEV = Root_RAM0;
 	initrd_start = (unsigned long)&__rd_start;
 	initrd_end = (unsigned long)&__rd_end;
 #endif

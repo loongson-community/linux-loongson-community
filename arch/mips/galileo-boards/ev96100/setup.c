@@ -1,5 +1,4 @@
 /*
- *
  * BRIEF MODULE DESCRIPTION
  *	Galileo EV96100 setup.
  *
@@ -41,6 +40,9 @@
 #include <linux/string.h>
 #include <linux/ctype.h>
 #include <linux/pci.h>
+#include <linux/major.h>
+#include <linux/kdev_t.h>
+#include <linux/root_dev.h>
 
 #include <asm/cpu.h>
 #include <asm/bootinfo.h>
@@ -148,7 +150,7 @@ void __init ev96100_setup(void)
 	ioport_resource.end   = GT_PCI_IO_BASE + 0x01ffffff;
 
 #ifdef CONFIG_BLK_DEV_INITRD
-	ROOT_DEV = MKDEV(RAMDISK_MAJOR, 0);
+	ROOT_DEV = Root_RAM0;
 #endif
 
 
