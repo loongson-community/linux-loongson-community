@@ -93,7 +93,7 @@
 		sw	fp,GDB_FR_REG30(sp)
 		sw	ra,GDB_FR_REG31(sp)
 
-		STI				/* disable interrupts */
+		CLI				/* disable interrupts */
 		
 /*
  * Followed by the floating point registers
@@ -166,6 +166,8 @@
 		sw	v0,GDB_FR_CP0_ENTRYLO0(sp)
 		mfc0	v0,CP0_ENTRYLO1
 		sw	v0,GDB_FR_CP0_ENTRYLO1(sp)
+		mfc0	v0,CP0_CONTEXT
+		sw	v0,GDB_FR_CP0_CONTEXT(sp)
 		mfc0	v0,CP0_PAGEMASK
 		sw	v0,GDB_FR_CP0_PAGEMASK(sp)
 		mfc0	v0,CP0_WIRED
@@ -203,7 +205,10 @@
 		lw	v0,GDB_FR_CP0_ENTRYLO0(sp)
 		lw	v1,GDB_FR_CP0_INDEX(sp)
 		mtc0	v0,CP0_ENTRYLO0
+		lw	v0,GDB_FR_CP0_CONTEXT(sp)
 		mtc0	v1,CP0_INDEX
+		mtc0	v0,CP0_CONTEXT
+		
 
 /*
  * Next, the floating point registers
