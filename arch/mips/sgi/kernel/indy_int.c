@@ -465,6 +465,7 @@ no_handler:
 	printk("No handler for local0 irq: %i\n", irq);
 
 end:	
+	return;
 }
 
 void indy_local1_irqdispatch(struct pt_regs *regs)
@@ -475,7 +476,7 @@ void indy_local1_irqdispatch(struct pt_regs *regs)
 	int irq, cpu = smp_processor_id();;
 
 	mask &= ioc_icontrol->imask1;
-	if(mask & ISTAT1_LIO3) {
+	if (mask & ISTAT1_LIO3) {
 		printk("WHee: Got an LIO3 irq, winging it...\n");
 		mask2 = ioc_icontrol->vmeistat;
 		mask2 &= ioc_icontrol->cmeimask1;
