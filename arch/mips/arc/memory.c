@@ -4,7 +4,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: memory.c,v 1.1 1998/10/18 13:32:09 tsbogend Exp $
+ * $Id: memory.c,v 1.2 1999/02/25 21:04:13 tsbogend Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -69,6 +69,10 @@ static int __init prom_memtype_classify (union linux_memtypes type)
 	 case arcs_free:
 	 case arcs_fcontig:
 	    return MEMTYPE_FREE;
+	 case arcs_atmp:
+	 case arcs_aperm:
+	 case arcs_prog:
+	    return MEMTYPE_PROM;
 	 default:
 	    return MEMTYPE_DONTUSE;
 	}
