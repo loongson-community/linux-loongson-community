@@ -80,6 +80,8 @@ extern void unregister_cpu_notifier(struct notifier_block *nb);
 int cpu_up(unsigned int cpu);
 #else /* !SMP */
 
+#include <asm/page.h>
+
 /*
  *	These macros fold the SMP functionality into a single CPU system
  */
