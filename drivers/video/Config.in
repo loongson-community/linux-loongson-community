@@ -273,9 +273,8 @@ if [ "$CONFIG_FB" = "y" ]; then
 	      "$CONFIG_FB_P9100" = "m" -o "$CONFIG_FB_ATY128" = "m" -o \
 	      "$CONFIG_FB_RIVA" = "m" -o "$CONFIG_FB_3DFX" = "m" -o \
 	      "$CONFIG_FB_SGIVW" = "m" -o "$CONFIG_FB_CYBER2000" = "m" -o \
-	      "$CONFIG_FB_PMAG_BA" = "m" -o "CONFIG_FB_PMAGB_B" = "m" -o \
-	      "$CONFIG_FB_MAXINE" = "m" -o \
-	      "$CONFIG_FB_TX3912" = "m" -o \
+	      "$CONFIG_FB_PMAG_BA" = "m" -o "$CONFIG_FB_PMAGB_B" = "m" -o \
+	      "$CONFIG_FB_MAXINE" = "m" -o "$CONFIG_FB_TX3912" = "m" -o \
 	      "$CONFIG_FB_SA1100" = "m" -o "$CONFIG_FB_SIS" = "m" ]; then
 	    define_tristate CONFIG_FBCON_CFB8 m
 	 fi
