@@ -38,6 +38,12 @@
 
 #include <linux/stat.h>
 
+#if 0
+#define DPRINTK(args...)	printk(args)
+#else
+#define DPRINTK(args...)
+#endif
+
 struct hpc_chunk {
 	struct hpc_dma_desc desc;
 	u32 _padding;	/* align to quadword boundary */
@@ -83,8 +89,6 @@ static irqreturn_t sgiwd93_intr(int irq, void *dev_id, struct pt_regs *regs)
 	return IRQ_HANDLED;
 }
 
-#undef DEBUG_DMA
-
 static inline
 void fill_hpc_entries (struct hpc_chunk **hcp, char *addr, unsigned long len)
 {
@@ -114,10 +118,7 @@ static int dma_setup(Scsi_Cmnd *cmd, int datainp)
 		(struct hpc3_scsiregs *) cmd->device->host->base;
 	struct hpc_chunk *hcp = (struct hpc_chunk *) hdata->dma_bounce_buffer;
 
-#ifdef DEBUG_DMA
-	printk("dma_setup: datainp<%d> hcp<%p> ",
-	       datainp, hcp);
-#endif
+	DPRINTK("dma_setup: datainp<%d> hcp<%p> ", datainp, hcp);
 
 	hdata->dma_dir = datainp;
 
@@ -140,9 +141,7 @@ static int dma_setup(Scsi_Cmnd *cmd, int datainp)
 	hcp->desc.pbuf = 0;
 	hcp->desc.cntinfo = (HPCDMA_EOX);
 
-#ifdef DEBUG_DMA
-	printk(" HPCGO\n");
-#endif
+	DPRINTK(" HPCGO\n");
 
 	/* Start up the HPC. */
 	hregs->ndptr = virt_to_bus(hdata->dma_bounce_buffer);
@@ -169,9 +168,7 @@ static void dma_stop(struct Scsi_Host *instance, Scsi_Cmnd *SCpnt,
 
 	hregs = (struct hpc3_scsiregs *) SCpnt->device->host->base;
 
-#ifdef DEBUG_DMA
-	printk("dma_stop: status<%d> ", status);
-#endif
+	DPRINTK("dma_stop: status<%d> ", status);
 
 	/* First stop the HPC and flush it's FIFO. */
 	if(hdata->dma_dir) {
@@ -181,9 +178,7 @@ static void dma_stop(struct Scsi_Host *instance, Scsi_Cmnd *SCpnt,
 	}
 	hregs->ctrl = 0;
 
-#ifdef DEBUG_DMA
-	printk("\n");
-#endif
+	DPRINTK("\n");
 }
 
 void sgiwd93_reset(unsigned long base)
