@@ -1787,9 +1787,10 @@ static void ioc3_set_multicast_list(struct net_device *dev)
 	struct dev_mc_list *dmi = dev->mc_list;
 	struct ioc3_private *ip = dev->priv;
 	struct ioc3 *ioc3 = ip->regs;
-	char *addr = dmi->dmi_addr;
 	u64 ehar = 0;
 	int i;
+
+	netif_stop_queue(dev);				/* Lock out others. */
 
 	if (dev->flags & IFF_PROMISC) {			/* Set promiscuous.  */
 		/* Unconditionally log net taps.  */
@@ -1810,6 +1811,7 @@ static void ioc3_set_multicast_list(struct net_device *dev)
 			ip->ehar_l = 0xffffffff;
 		} else {
 			for (i = 0; i < dev->mc_count; i++) {
+				char *addr = dmi->dmi_addr;
 				dmi = dmi->next;
 
 				if (!(*addr & 1))
@@ -1823,6 +1825,8 @@ static void ioc3_set_multicast_list(struct net_device *dev)
 		ioc3->ehar_h = ip->ehar_h;
 		ioc3->ehar_l = ip->ehar_l;
 	}
+
+	netif_wake_queue(dev);			/* Let us get going again. */
 }
 
 MODULE_AUTHOR("Ralf Baechle <ralf@oss.sgi.com>");
