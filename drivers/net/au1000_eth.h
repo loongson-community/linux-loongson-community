@@ -229,6 +229,7 @@ struct au1000_private {
 	int phy_addr;          /* phy address */
 	u32 options;           /* User-settable misc. driver options. */
 	u32 drv_flags;
+	int want_autoneg;
 	struct net_device_stats stats;
 	struct timer_list timer;
 	spinlock_t lock;       /* Serialise access to device */

@@ -4,6 +4,8 @@
  *
  * Copyright 2001,2002,2003 MontaVista Software Inc.
  * Copyright 2002 TimeSys Corp.
+ * Added ethtool/mii-tool support,
+ * Copyright 2004 Matt Porter <mporter@kernel.crashing.org>
  * Author: MontaVista Software, Inc.
  *         	ppopov@mvista.com or source@mvista.com
  *
@@ -41,6 +43,8 @@
 #include <linux/init.h>
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
+#include <linux/ethtool.h>
+#include <linux/mii.h>
 #include <linux/skbuff.h>
 #include <linux/delay.h>
 #include <asm/mipsregs.h>
@@ -53,13 +57,19 @@
 #include <asm/cpu.h>
 #include "au1000_eth.h"
 
-
 #ifdef AU1000_ETH_DEBUG
 static int au1000_debug = 5;
 #else
 static int au1000_debug = 3;
 #endif
 
+#define DRV_NAME	"au1000eth"
+#define DRV_VERSION	"1.4"
+#define DRV_AUTHOR	"Pete Popov <ppopov@embeddedalley.com>"
+#define DRV_DESC	"Au1xxx on-chip Ethernet driver"
+
+MODULE_AUTHOR(DRV_AUTHOR);
+MODULE_DESCRIPTION(DRV_DESC);
 MODULE_LICENSE("GPL");
 
 // prototypes
@@ -108,10 +118,6 @@ extern char * __init prom_getcmdline(void);
  * complete immediately.
  */
 
-
-static char version[] __devinitdata =
-    "au1000eth.c:1.4 ppopov@mvista.com\n";
-
 /* These addresses are only used if yamon doesn't tell us what
  * the mac address is, and the mac address is not passed on the
  * command line.
@@ -134,12 +140,23 @@ struct au1000_private *au_macs[NUM_ETH_INTERFACES];
  * code.
  */
 
+/* Default advertise */
+#define GENMII_DEFAULT_ADVERTISE \
+	ADVERTISED_10baseT_Half | ADVERTISED_10baseT_Full | \
+	ADVERTISED_100baseT_Half | ADVERTISED_100baseT_Full | \
+	ADVERTISED_Autoneg
+
+#define GENMII_DEFAULT_FEATURES \
+	SUPPORTED_10baseT_Half | SUPPORTED_10baseT_Full | \
+	SUPPORTED_100baseT_Half | SUPPORTED_100baseT_Full | \
+	SUPPORTED_Autoneg
+
 static char *phy_link[] = 
-	{"unknown", 
+{	"unknown", 
 	"10Base2", "10BaseT", 
 	"AUI",
 	"100BaseT", "100BaseTX", "100BaseFX"
-	};
+};
 
 int bcm_5201_init(struct net_device *dev, int phy_addr)
 {
@@ -841,6 +858,7 @@ static int mii_probe (struct net_device * dev)
 #endif
 				mii_phy->chip_info = mii_chip_table+i;
 				aup->phy_addr = phy_addr;
+				aup->want_autoneg = 1;
 				aup->phy_ops = mii_chip_table[i].phy_ops;
 				aup->phy_ops->phy_init(dev,phy_addr);
 
@@ -1154,6 +1172,205 @@ static int __init au1000_init_module(void)
 	return 0;
 }
 
+static int au1000_setup_aneg(struct net_device *dev, u32 advertise)
+{
+	struct au1000_private *aup = (struct au1000_private *)dev->priv;
+	u16 ctl, adv;
+
+	/* Setup standard advertise */
+	adv = mdio_read(dev, aup->phy_addr, MII_ADVERTISE);
+	adv &= ~(ADVERTISE_ALL | ADVERTISE_100BASE4);
+	if (advertise & ADVERTISED_10baseT_Half)
+		adv |= ADVERTISE_10HALF;
+	if (advertise & ADVERTISED_10baseT_Full)
+		adv |= ADVERTISE_10FULL;
+	if (advertise & ADVERTISED_100baseT_Half)
+		adv |= ADVERTISE_100HALF;
+	if (advertise & ADVERTISED_100baseT_Full)
+		adv |= ADVERTISE_100FULL;
+	mdio_write(dev, aup->phy_addr, MII_ADVERTISE, adv);
+
+	/* Start/Restart aneg */
+	ctl = mdio_read(dev, aup->phy_addr, MII_BMCR);
+	ctl |= (BMCR_ANENABLE | BMCR_ANRESTART);
+	mdio_write(dev, aup->phy_addr, MII_BMCR, ctl);
+
+	return 0;
+}
+
+static int au1000_setup_forced(struct net_device *dev, int speed, int fd)
+{
+	struct au1000_private *aup = (struct au1000_private *)dev->priv;
+	u16 ctl;
+
+	ctl = mdio_read(dev, aup->phy_addr, MII_BMCR);
+	ctl &= ~(BMCR_FULLDPLX | BMCR_SPEED100 | BMCR_ANENABLE);
+
+	/* First reset the PHY */
+	mdio_write(dev, aup->phy_addr, MII_BMCR, ctl | BMCR_RESET);
+
+	/* Select speed & duplex */
+	switch (speed) {
+		case SPEED_10:
+			break;
+		case SPEED_100:
+			ctl |= BMCR_SPEED100;
+			break;
+		case SPEED_1000:
+		default:
+			return -EINVAL;
+	}
+	if (fd == DUPLEX_FULL)
+		ctl |= BMCR_FULLDPLX;
+	mdio_write(dev, aup->phy_addr, MII_BMCR, ctl);
+
+	return 0;
+}
+
+
+static void
+au1000_start_link(struct net_device *dev, struct ethtool_cmd *cmd)
+{
+	struct au1000_private *aup = (struct au1000_private *)dev->priv;
+	u32 advertise;
+	int autoneg;
+	int forced_speed;
+	int forced_duplex;
+
+	/* Default advertise */
+	advertise = GENMII_DEFAULT_ADVERTISE;
+	autoneg = aup->want_autoneg;
+	forced_speed = SPEED_100;
+	forced_duplex = DUPLEX_FULL;
+
+	/* Setup link parameters */
+	if (cmd) {
+		if (cmd->autoneg == AUTONEG_ENABLE) {
+			advertise = cmd->advertising;
+			autoneg = 1;
+		} else {
+			autoneg = 0;
+
+			forced_speed = cmd->speed;
+			forced_duplex = cmd->duplex;
+		}
+	}
+
+	/* Configure PHY & start aneg */
+	aup->want_autoneg = autoneg;
+	if (autoneg)
+		au1000_setup_aneg(dev, advertise);
+	else
+		au1000_setup_forced(dev, forced_speed, forced_duplex);
+	mod_timer(&aup->timer, jiffies + HZ);
+}
+
+static int au1000_get_settings(struct net_device *dev, struct ethtool_cmd *cmd)
+{
+	struct au1000_private *aup = (struct au1000_private *)dev->priv;
+	u16 link, speed;
+
+	cmd->supported = GENMII_DEFAULT_FEATURES;
+	cmd->advertising = GENMII_DEFAULT_ADVERTISE;
+	cmd->port = PORT_MII;
+	cmd->transceiver = XCVR_EXTERNAL;
+	cmd->phy_address = aup->phy_addr;
+	spin_lock_irq(&aup->lock);
+	cmd->autoneg = aup->want_autoneg;
+	aup->phy_ops->phy_status(dev, aup->phy_addr, &link, &speed);
+	if ((speed == IF_PORT_100BASETX) || (speed == IF_PORT_100BASEFX))
+		cmd->speed = SPEED_100;
+	else if (speed == IF_PORT_10BASET)
+		cmd->speed = SPEED_10;
+	if (link && (dev->if_port == IF_PORT_100BASEFX))
+		cmd->duplex = DUPLEX_FULL;
+	else
+		cmd->duplex = DUPLEX_HALF;
+	spin_unlock_irq(&aup->lock);
+	return 0;
+}
+
+static int au1000_set_settings(struct net_device *dev, struct ethtool_cmd *cmd)
+{
+	 struct au1000_private *aup = (struct au1000_private *)dev->priv;
+	  unsigned long features = GENMII_DEFAULT_FEATURES;
+
+	 if (!capable(CAP_NET_ADMIN))
+		 return -EPERM;
+
+	 if (cmd->autoneg != AUTONEG_ENABLE && cmd->autoneg != AUTONEG_DISABLE)
+		 return -EINVAL;
+	 if (cmd->autoneg == AUTONEG_ENABLE && cmd->advertising == 0)
+		 return -EINVAL;
+	 if (cmd->duplex != DUPLEX_HALF && cmd->duplex != DUPLEX_FULL)
+		 return -EINVAL;
+	 if (cmd->autoneg == AUTONEG_DISABLE)
+		 switch (cmd->speed) {
+		 case SPEED_10:
+			 if (cmd->duplex == DUPLEX_HALF &&
+				 (features & SUPPORTED_10baseT_Half) == 0)
+				 return -EINVAL;
+			 if (cmd->duplex == DUPLEX_FULL &&
+				 (features & SUPPORTED_10baseT_Full) == 0)
+				 return -EINVAL;
+			 break;
+		 case SPEED_100:
+			 if (cmd->duplex == DUPLEX_HALF &&
+				 (features & SUPPORTED_100baseT_Half) == 0)
+				 return -EINVAL;
+			 if (cmd->duplex == DUPLEX_FULL &&
+				 (features & SUPPORTED_100baseT_Full) == 0)
+				 return -EINVAL;
+			 break;
+		 default:
+			 return -EINVAL;
+		 }
+	 else if ((features & SUPPORTED_Autoneg) == 0)
+		 return -EINVAL;
+
+	 spin_lock_irq(&aup->lock);
+	 au1000_start_link(dev, cmd);
+	 spin_unlock_irq(&aup->lock);
+	 return 0;
+}
+
+static int au1000_nway_reset(struct net_device *dev)
+{
+	struct au1000_private *aup = (struct au1000_private *)dev->priv;
+
+	if (!aup->want_autoneg)
+		return -EINVAL;
+	spin_lock_irq(&aup->lock);
+	au1000_start_link(dev, NULL);
+	spin_unlock_irq(&aup->lock);
+	return 0;
+}
+
+static void
+au1000_get_drvinfo(struct net_device *dev, struct ethtool_drvinfo *info)
+{
+	struct au1000_private *aup = (struct au1000_private *)dev->priv;
+
+	strcpy(info->driver, DRV_NAME);
+	strcpy(info->version, DRV_VERSION);
+	info->fw_version[0] = '\0';
+	sprintf(info->bus_info, "%s %d", DRV_NAME, aup->mac_id);
+	info->regdump_len = 0;
+}
+
+static u32 au1000_get_link(struct net_device *dev)
+{
+	return netif_carrier_ok(dev);
+}
+
+static struct ethtool_ops au1000_ethtool_ops = {
+	.get_settings = au1000_get_settings,
+	.set_settings = au1000_set_settings,
+	.get_drvinfo = au1000_get_drvinfo,
+	.nway_reset = au1000_nway_reset,
+	.get_link = au1000_get_link
+};
+
 static struct net_device *
 au1000_probe(u32 ioaddr, int irq, int port_num)
 {
@@ -1169,7 +1386,7 @@ au1000_probe(u32 ioaddr, int irq, int port_num)
 		return NULL;
 
 	if (version_printed++ == 0) 
-		printk(version);
+		printk("%s version %s %s\n", DRV_NAME, DRV_VERSION, DRV_AUTHOR);
 
 	dev = alloc_etherdev(sizeof(struct au1000_private));
 	if (!dev) {
@@ -1301,6 +1518,7 @@ au1000_probe(u32 ioaddr, int irq, int port_num)
 	dev->get_stats = au1000_get_stats;
 	dev->set_multicast_list = &set_rx_mode;
 	dev->do_ioctl = &au1000_ioctl;
+	SET_ETHTOOL_OPS(dev, &au1000_ethtool_ops);
 	dev->set_config = &au1000_set_config;
 	dev->tx_timeout = au1000_tx_timeout;
 	dev->watchdog_timeo = ETH_TX_TIMEOUT;
@@ -1835,19 +2053,22 @@ static void set_rx_mode(struct net_device *dev)
 
 static int au1000_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
-	//u16 *data = (u16 *)&rq->ifr_ifru;
+	struct au1000_private *aup = (struct au1000_private *)dev->priv;
+	u16 *data = (u16 *)&rq->ifr_ifru;
 
-	/* fixme */
 	switch(cmd) { 
-		case SIOCDEVPRIVATE:	/* Get the address of the PHY in use. */
-		//data[0] = PHY_ADDRESS;
-		case SIOCDEVPRIVATE+1:	/* Read the specified MII register. */
-		//data[3] = mdio_read(ioaddr, data[0], data[1]); 
+	case SIOCGMIIPHY:
+		data[0] = aup->phy_addr;
+		/* Fall through */
+	case SIOCGMIIREG:
+		data[3] = mdio_read(dev, aup->phy_addr, data[1]);
 		return 0;
-		case SIOCDEVPRIVATE+2:	/* Write the specified MII register */
-		//mdio_write(ioaddr, data[0], data[1], data[2]);
+	case SIOCSMIIREG:
+		if (!capable(CAP_NET_ADMIN))
+			return -EPERM;
+		mdio_write(dev, aup->phy_addr, data[1], data[2]);
 		return 0;
-		default:
+	default:
 		return -EOPNOTSUPP;
 	}
 }
