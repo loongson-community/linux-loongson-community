@@ -62,7 +62,7 @@ void ip22_do_break(void);
 #define NUM_IP22ZILOG	1
 #define NUM_CHANNELS	(NUM_IP22ZILOG * 2)
 
-#define ZS_CLOCK		4915200 /* Zilog input clock rate. */
+#define ZS_CLOCK		3672000	/* Zilog input clock rate. */
 #define ZS_CLOCK_DIVISOR	16      /* Divisor this driver uses. */
 
 /*
@@ -954,6 +954,7 @@ static struct uart_driver ip22zilog_reg = {
 	.owner		=	THIS_MODULE,
 	.driver_name	=	"ttyS",
 	.devfs_name	=	"tty/",
+	.dev_name	=	"ttyS",
 	.major		=	TTY_MAJOR,
 };
 
@@ -1169,8 +1170,14 @@ static void __init ip22zilog_prepare(void)
 		if (!ip22zilog_chip_regs[chip]) {
 			ip22zilog_chip_regs[chip] = rp = get_zs(chip);
 
-			up[(chip * 2) + 0].port.membase = (char *) &rp->channelA;
-			up[(chip * 2) + 1].port.membase = (char *) &rp->channelB;
+			up[(chip * 2) + 0].port.membase = (char *) &rp->channelB;
+			up[(chip * 2) + 1].port.membase = (char *) &rp->channelA;
+
+			/* In theory mapbase is the physical address ...  */
+			up[(chip * 2) + 0].port.mapbase =
+				(unsigned long) ioremap((unsigned long) &rp->channelB, 8);
+			up[(chip * 2) + 1].port.mapbase =
+				(unsigned long) ioremap((unsigned long) &rp->channelA, 8);
 		}
 
 		/* Channel A */
