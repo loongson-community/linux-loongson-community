@@ -52,7 +52,6 @@ struct swap_info_struct {
 	kdev_t swap_device;
 	struct dentry * swap_file;
 	unsigned short * swap_map;
-	unsigned char * swap_lockmap;
 	unsigned int lowest_bit;
 	unsigned int highest_bit;
 	unsigned int cluster_next;
@@ -85,7 +84,7 @@ extern void swap_setup (void);
 extern int try_to_free_pages(unsigned int gfp_mask);
 
 /* linux/mm/page_io.c */
-extern void rw_swap_page(int, unsigned long, char *, int);
+extern void rw_swap_page(int, struct page *, int);
 extern void rw_swap_page_nocache(int, unsigned long, char *);
 extern void rw_swap_page_nolock(int, unsigned long, char *, int);
 extern void swap_after_unlock_page (unsigned long entry);
@@ -97,7 +96,7 @@ extern void swap_in(struct task_struct *, struct vm_area_struct *,
 
 /* linux/mm/swap_state.c */
 extern void show_swap_cache_info(void);
-extern int add_to_swap_cache(struct page *, unsigned long);
+extern void add_to_swap_cache(struct page *, unsigned long);
 extern int swap_duplicate(unsigned long);
 extern int swap_check_entry(unsigned long);
 struct page * lookup_swap_cache(unsigned long);
@@ -145,13 +144,6 @@ extern unsigned long swap_cache_del_total;
 extern unsigned long swap_cache_find_total;
 extern unsigned long swap_cache_find_success;
 #endif
-
-extern inline unsigned long in_swap_cache(struct page *page)
-{
-	if (PageSwapCache(page))
-		return page->offset;
-	return 0;
-}
 
 /*
  * Work out if there are any other processes sharing this page, ignoring

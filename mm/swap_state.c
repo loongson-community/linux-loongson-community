@@ -66,7 +66,7 @@ void show_swap_cache_info(void)
 }
 #endif
 
-int add_to_swap_cache(struct page *page, unsigned long entry)
+void add_to_swap_cache(struct page *page, unsigned long entry)
 {
 #ifdef SWAP_CACHE_INFO
 	swap_cache_add_total++;
@@ -79,19 +79,12 @@ int add_to_swap_cache(struct page *page, unsigned long entry)
 		printk(KERN_ERR "swap_cache: replacing non-empty entry %08lx "
 			   "on page %08lx\n",
 			   page->offset, page_address(page));
-		return 0;
 	}
 	if (page->inode) {
 		printk(KERN_ERR "swap_cache: replacing page-cached entry "
 			   "on page %08lx\n", page_address(page));
-		return 0;
 	}
-	get_page(page);
-	page->inode = &swapper_inode;
-	page->offset = entry;
-	add_page_to_hash_queue(page, &swapper_inode, entry);
-	add_page_to_inode_queue(&swapper_inode, page);
-	return 1;
+	add_to_page_cache(page, &swapper_inode, entry);
 }
 
 /*
@@ -202,21 +195,27 @@ bad_unused:
 
 static inline void remove_from_swap_cache(struct page *page)
 {
-	if (!page->inode) {
+	struct inode *inode = page->inode;
+
+	if (!inode) {
 		printk ("VM: Removing swap cache page with zero inode hash "
 			"on page %08lx\n", page_address(page));
 		return;
 	}
-	if (page->inode != &swapper_inode) {
+	if (inode != &swapper_inode) {
 		printk ("VM: Removing swap cache page with wrong inode hash "
 			"on page %08lx\n", page_address(page));
 	}
+	if (!PageSwapCache(page))
+		PAGE_BUG(page);
 
 #ifdef DEBUG_SWAP
 	printk("DebugVM: remove_from_swap_cache(%08lx count %d)\n",
 		   page_address(page), page_count(page));
 #endif
 	PageClearSwapCache(page);
+	if (inode->i_op->flushpage)
+		inode->i_op->flushpage(inode, page, 0);
 	remove_inode_page(page);
 }
 
@@ -266,8 +265,14 @@ void free_page_and_swap_cache(unsigned long addr)
 	/* 
 	 * If we are the only user, then free up the swap cache. 
 	 */
-	if (PageSwapCache(page) && !is_page_shared(page))
-		delete_from_swap_cache(page);
+	lock_page(page);
+	if (PageSwapCache(page) && !is_page_shared(page)) {
+		long entry = page->offset;
+		remove_from_swap_cache(page);
+		swap_free(entry);
+		page_cache_release(page);
+	}
+	UnlockPage(page);
 	
 	__free_page(page);
 }
@@ -351,11 +356,8 @@ struct page * read_swap_cache_async(unsigned long entry, int wait)
 	/* 
 	 * Add it to the swap cache and read its contents.
 	 */
-	if (!add_to_swap_cache(new_page, entry))
-		goto out_free_page;
-
-	LockPage(new_page);
-	rw_swap_page(READ, entry, (char *) new_page_addr, wait);
+	add_to_swap_cache(new_page, entry);
+	rw_swap_page(READ, new_page, wait);
 #ifdef DEBUG_SWAP
 	printk("DebugVM: read_swap_cache_async created "
 		   "entry %08lx at %p\n",
@@ -370,4 +372,3 @@ out_free_swap:
 out:
 	return found_page;
 }
-

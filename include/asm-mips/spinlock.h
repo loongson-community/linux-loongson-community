@@ -1,4 +1,4 @@
-/* $Id: spinlock.h,v 1.4 1998/08/25 16:45:46 tsbogend Exp $
+/* $Id: spinlock.h,v 1.5 1999/06/17 13:30:39 ralf Exp $
  */
 #ifndef __ASM_MIPS_SPINLOCK_H
 #define __ASM_MIPS_SPINLOCK_H
@@ -46,10 +46,10 @@
 #endif
 
 #define spin_lock_init(lock)	do { } while(0)
-#define spin_lock(lock)		do { } while(0)
+#define spin_lock(lock)		(void)(lock) /* Not "unused variable". */
 #define spin_trylock(lock)	(1)
 #define spin_unlock_wait(lock)	do { } while(0)
-#define spin_unlock(lock)	do { } while(0)
+#define spin_unlock(lock)	(void)(lock) /* Not "unused variable". */
 
 /*
  * Read-write spinlocks, allowing multiple readers
@@ -64,9 +64,9 @@
 typedef struct { } rwlock_t;
 #define RW_LOCK_UNLOCKED (rwlock_t) { }
 
-#define read_lock(lock)		do { } while(0)
+#define read_lock(lock)		(void)(lock) /* Not "unused variable". */
 #define read_unlock(lock)	do { } while(0)
-#define write_lock(lock)	do { } while(0)
+#define write_lock(lock)	(void)(lock) /* Not "unused variable". */
 #define write_unlock(lock)	do { } while(0)
 
 #else

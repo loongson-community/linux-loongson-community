@@ -35,7 +35,7 @@ static DECLARE_WAIT_QUEUE_HEAD(lock_queue);
  * that shared pages stay shared while being swapped.
  */
 
-static void rw_swap_page_base(int rw, unsigned long entry, struct page *page, int wait)
+static void rw_swap_page_base(int rw, unsigned long entry, struct page *page, int wait, int dolock)
 {
 	unsigned long type, offset;
 	struct swap_info_struct * p;
@@ -84,26 +84,6 @@ static void rw_swap_page_base(int rw, unsigned long entry, struct page *page, in
 		return;
 	}
 
-	if (PageSwapCache(page)) {
-		/* Make sure we are the only process doing I/O with this swap page. */
-		while (test_and_set_bit(offset,p->swap_lockmap)) {
-			run_task_queue(&tq_disk);
-			sleep_on(&lock_queue);
-		}
-
-		/* 
-		 * Make sure that we have a swap cache association for this
-		 * page.  We need this to find which swap page to unlock once
-		 * the swap IO has completed to the physical page.  If the page
-		 * is not already in the cache, just overload the offset entry
-		 * as if it were: we are not allowed to manipulate the inode
-		 * hashing for locked pages.
-		 */
-		if (page->offset != entry) {
-			printk ("swap entry mismatch");
-			return;
-		}
-	}
 	if (rw == READ) {
 		ClearPageUptodate(page);
 		kstat.pswpin++;
@@ -159,14 +139,6 @@ static void rw_swap_page_base(int rw, unsigned long entry, struct page *page, in
 		}
 	} else {
 		printk(KERN_ERR "rw_swap_page: no swap file or device\n");
-		/* Do some cleaning up so if this ever happens we can hopefully
-		 * trigger controlled shutdown.
-		 */
-		if (PageSwapCache(page)) {
-			if (!test_and_clear_bit(offset,p->swap_lockmap))
-				printk("swap_after_unlock_page: lock already cleared\n");
-			wake_up(&lock_queue);
-		}
 		put_page(page);
 		return;
 	}
@@ -174,9 +146,10 @@ static void rw_swap_page_base(int rw, unsigned long entry, struct page *page, in
  		set_bit(PG_decr_after, &page->flags);
  		atomic_inc(&nr_async_pages);
  	}
- 	if (PageSwapCache(page)) {
+ 	if (dolock) {
  		/* only lock/unlock swap cache pages! */
  		set_bit(PG_swap_unlock_after, &page->flags);
+		p->swap_map[offset]++;
  	}
  	set_bit(PG_free_after, &page->flags);
 
@@ -203,93 +176,51 @@ static void rw_swap_page_base(int rw, unsigned long entry, struct page *page, in
 #endif
 }
 
-/* Note: We could remove this totally asynchronous function,
- * and improve swap performance, and remove the need for the swap lock map,
- * by not removing pages from the swap cache until after I/O has been
- * processed and letting remove_from_page_cache decrement the swap count
- * just before it removes the page from the page cache.
+/*
+ * This is run when asynchronous page I/O has completed.
+ * It decrements the swap bitmap counter
  */
-/* This is run when asynchronous page I/O has completed. */
-void swap_after_unlock_page (unsigned long entry)
+void swap_after_unlock_page(unsigned long entry)
 {
-	unsigned long type, offset;
-	struct swap_info_struct * p;
-
-	type = SWP_TYPE(entry);
-	if (type >= nr_swapfiles) {
-		printk("swap_after_unlock_page: bad swap-device\n");
-		return;
-	}
-	p = &swap_info[type];
-	offset = SWP_OFFSET(entry);
-	if (offset >= p->max) {
-		printk("swap_after_unlock_page: weirdness\n");
-		return;
-	}
-	if (!test_and_clear_bit(offset,p->swap_lockmap))
-		printk("swap_after_unlock_page: lock already cleared\n");
-	wake_up(&lock_queue);
+	swap_free(entry);
 }
 
-/* A simple wrapper so the base function doesn't need to enforce
- * that all swap pages go through the swap cache!
+/*
+ * A simple wrapper so the base function doesn't need to enforce
+ * that all swap pages go through the swap cache! We verify that:
+ *  - the page is locked
+ *  - it's marked as being swap-cache
+ *  - it's associated with the swap inode
  */
-void rw_swap_page(int rw, unsigned long entry, char *buf, int wait)
+void rw_swap_page(int rw, struct page *page, int wait)
 {
-	struct page *page = mem_map + MAP_NR(buf);
+	unsigned long entry = page->offset;
 
-	if (page->inode && page->inode != &swapper_inode)
+	if (!PageLocked(page))
 		PAGE_BUG(page);
-
-	/*
-	 * Make sure that we have a swap cache association for this
-	 * page.  We need this to find which swap page to unlock once
-	 * the swap IO has completed to the physical page.  If the page
-	 * is not already in the cache, just overload the offset entry
-	 * as if it were: we are not allowed to manipulate the inode
-	 * hashing for locked pages.
-	 */
-	if (!PageSwapCache(page)) {
-		printk("VM: swap page is not in swap cache\n");
-		return;
-	}
-	if (page->offset != entry) {
-		printk ("swap entry mismatch");
-		return;
-	}
-	rw_swap_page_base(rw, entry, page, wait);
+	if (!PageSwapCache(page))
+		PAGE_BUG(page);
+	if (page->inode != &swapper_inode)
+		PAGE_BUG(page);
+	rw_swap_page_base(rw, entry, page, wait, 1);
 }
 
 /*
  * Setting up a new swap file needs a simple wrapper just to read the 
  * swap signature.  SysV shared memory also needs a simple wrapper.
  */
-void rw_swap_page_nocache(int rw, unsigned long entry, char *buffer)
+void rw_swap_page_nocache(int rw, unsigned long entry, char *buf)
 {
-	struct page *page;
+	struct page *page = mem_map + MAP_NR(buf);
 	
-	page = mem_map + MAP_NR((unsigned long) buffer);
-
 	if (TryLockPage(page))
 		PAGE_BUG(page);
-	if (test_and_set_bit(PG_swap_cache, &page->flags))
+	if (PageSwapCache(page))
 		PAGE_BUG(page);
 	if (page->inode)
 		PAGE_BUG(page);
-	get_page(page);		/* Protect from shrink_mmap() */
-	page->inode = &swapper_inode;
 	page->offset = entry;
-	rw_swap_page(rw, entry, buffer, 1);
-
-	/*
-	 * and now remove it from the pagecache ...
-	 */
-	if (TryLockPage(page))
-		PAGE_BUG(page);
-	PageClearSwapCache(page);
-	remove_inode_page(page);
-	page_cache_release(page);
-	UnlockPage(page);
+	rw_swap_page_base(rw, entry, page, 1, 1);
 }
 
 /*
@@ -298,17 +229,13 @@ void rw_swap_page_nocache(int rw, unsigned long entry, char *buffer)
  * Therefore we can't use it.  Later when we can remove the need for the
  * lock map and we can reduce the number of functions exported.
  */
-void rw_swap_page_nolock(int rw, unsigned long entry, char *buffer, int wait)
+void rw_swap_page_nolock(int rw, unsigned long entry, char *buf, int wait)
 {
-	struct page *page = mem_map + MAP_NR((unsigned long) buffer);
+	struct page *page = mem_map + MAP_NR(buf);
 	
-	if (!PageLocked(page)) {
-		printk("VM: rw_swap_page_nolock: page not locked!\n");
-		return;
-	}
-	if (PageSwapCache(page)) {
-		printk ("VM: rw_swap_page_nolock: page in swap cache!\n");
-		return;
-	}
-	rw_swap_page_base(rw, entry, page, wait);
+	if (!PageLocked(page))
+		PAGE_BUG(page);
+	if (PageSwapCache(page))
+		PAGE_BUG(page);
+	rw_swap_page_base(rw, entry, page, wait, 0);
 }
