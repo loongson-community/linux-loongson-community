@@ -919,7 +919,7 @@ void __init setup_arch(char **cmdline_p)
 		last_pfn = PFN_DOWN(boot_mem_map.map[i].addr
 				    + boot_mem_map.map[i].size);
 
-		if (last_pfn > max_pfn)
+		if (last_pfn > max_low_pfn)
 			last_pfn = max_low_pfn;
 
 		/*
