@@ -1,16 +1,13 @@
-/* $Id: bootinfo.h,v 1.11 2000/03/06 11:14:32 raiko Exp $
- *
- * bootinfo.h -- Definition of the Linux/MIPS boot information structure
- *
- * Copyright (C) 1995, 1996 by Ralf Baechle, Andreas Busse,
- *                             Stoned Elipot and Paul M. Antoine.
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file COPYING in the main directory of this archive
  * for more details.
+ *
+ * Copyright (C) 1995, 1996 by Ralf Baechle, Andreas Busse,
+ *                             Stoned Elipot and Paul M. Antoine.
  */
-#ifndef __ASM_MIPS_BOOTINFO_H
-#define __ASM_MIPS_BOOTINFO_H
+#ifndef _ASM_BOOTINFO_H
+#define _ASM_BOOTINFO_H
 
 /*
  * Values for machgroup
@@ -147,13 +144,14 @@
 #define CPU_R5000A		25
 #define CPU_R4640		26
 #define CPU_NEVADA		27	/* RM5230, RM5260 */
-#define CPU_LAST		27
+#define CPU_RM7000		28
+#define CPU_LAST		28
 
 #define CPU_NAMES { "unknown", "R2000", "R3000", "R3000A", "R3041", "R3051", \
         "R3052", "R3081", "R3081E", "R4000PC", "R4000SC", "R4000MC",         \
         "R4200", "R4400PC", "R4400SC", "R4400MC", "R4600", "R6000",          \
         "R6000A", "R8000", "R10000", "R4300", "R4650", "R4700", "R5000",     \
-        "R5000A", "R4640", "Nevada" }
+        "R5000A", "R4640", "Nevada", "RM7000" }
 
 #define CL_SIZE      (80)
 
@@ -193,4 +191,4 @@ extern unsigned long mips_tlb_entries;
 
 #endif /* _LANGUAGE_ASSEMBLY */
 
-#endif /* __ASM_MIPS_BOOTINFO_H */
+#endif /* _ASM_BOOTINFO_H */
