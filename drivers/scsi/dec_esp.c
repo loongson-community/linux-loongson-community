@@ -15,6 +15,8 @@
  *            Dont try to put multiple cards in one machine - They are
  *            both detected but it may crash under high load garbling your
  *            data.
+ * 20001005	- Initialization fixes for 2.4.0-test9
+ * 			  Florian Lohoff <flo@rfc822.org>
  */
 
 #include <linux/kernel.h>
@@ -100,6 +102,10 @@ volatile unsigned long *scsi_sdr0;
 volatile unsigned long *scsi_sdr1;
 
 static void scsi_dma_int(int, void *, struct pt_regs *);
+
+static Scsi_Host_Template driver_template = SCSI_DEC_ESP;
+
+#include "scsi_module.c"
 
 /***************************************************************** Detection */
 int dec_esp_detect(Scsi_Host_Template * tpnt)
