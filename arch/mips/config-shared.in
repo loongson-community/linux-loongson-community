@@ -400,6 +400,7 @@ if [ "$CONFIG_SIBYTE_SB1250" = "y" ]; then
 fi
 if [ "$CONFIG_SNI_RM200_PCI" = "y" ]; then
    define_bool CONFIG_ARC32 y
+   define_bool CONFIG_ARC_MEMORY y
    define_bool CONFIG_I8259 y
    define_bool CONFIG_ISA y
    define_bool CONFIG_NONCOHERENT_IO y
