@@ -61,7 +61,7 @@ static inline void enter_lazy_tlb(struct mm_struct *mm, struct task_struct *tsk,
 #define ASID_FIRST_VERSION ((unsigned long)(~ASID_VERSION_MASK) + 1)
 
 static inline void
-get_new_cpu_mmu_context(struct mm_struct *mm, unsigned long cpu)
+get_new_mmu_context(struct mm_struct *mm, unsigned long cpu)
 {
 	unsigned long asid = ASID_CACHE(cpu);
 
@@ -101,7 +101,7 @@ static inline void switch_mm(struct mm_struct *prev, struct mm_struct *next,
 {
 	/* Check if our ASID is of an older version and thus invalid */
 	if ((CPU_CONTEXT(cpu, next) ^ ASID_CACHE(cpu)) & ASID_VERSION_MASK)
-		get_new_cpu_mmu_context(next, cpu);
+		get_new_mmu_context(next, cpu);
 
 	set_entryhi(CPU_CONTEXT(cpu, next));
 	TLBMISS_HANDLER_SETUP_PGD(next->pgd);
@@ -127,7 +127,7 @@ static inline void
 activate_mm(struct mm_struct *prev, struct mm_struct *next)
 {
 	/* Unconditionally get a new ASID.  */
-	get_new_cpu_mmu_context(next, smp_processor_id());
+	get_new_mmu_context(next, smp_processor_id());
 
 	set_entryhi(CPU_CONTEXT(smp_processor_id(), next));
 	TLBMISS_HANDLER_SETUP_PGD(next->pgd);

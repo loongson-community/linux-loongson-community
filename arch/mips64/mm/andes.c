@@ -170,7 +170,7 @@ void local_flush_tlb_mm(struct mm_struct *mm)
 		printk("[tlbmm<%d>]", mm->context);
 #endif
 		__save_and_cli(flags);
-		get_new_cpu_mmu_context(mm, smp_processor_id());
+		get_new_mmu_context(mm, smp_processor_id());
 		if(mm == current->mm)
 			set_entryhi(CPU_CONTEXT(smp_processor_id(), mm) & 0xff);
 		__restore_flags(flags);
@@ -214,7 +214,7 @@ void local_flush_tlb_range(struct mm_struct *mm, unsigned long start,
 			}
 			set_entryhi(oldpid);
 		} else {
-			get_new_cpu_mmu_context(mm, smp_processor_id());
+			get_new_mmu_context(mm, smp_processor_id());
 			if(mm == current->mm)
 				set_entryhi(CPU_CONTEXT(smp_processor_id(), mm) & 
 									0xff);
