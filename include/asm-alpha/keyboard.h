@@ -2,6 +2,8 @@
  *  linux/include/asm-alpha/keyboard.h
  *
  *  Created 3 Nov 1996 by Geert Uytterhoeven
+ *
+ * $Id: keyboard.h,v 1.3 1997/07/22 23:18:14 ralf Exp $
  */
 
 /*
@@ -13,6 +15,7 @@
 
 #ifdef __KERNEL__
 
+#include <linux/config.h>
 #include <linux/ioport.h>
 #include <asm/io.h>
 
@@ -45,15 +48,32 @@ extern void pckbd_init_hw(void);
 #define KBD_CNTL_REG        (unsigned int) 0x64
 #define KBD_DATA_REG        (unsigned int) 0x60
 
-#define kbd_inb_p(port) inb_p(port)
-#define kbd_inb(port) inb(port)
-#define kbd_outb_p(data,port) outb_p(data,port)
-#define kbd_outb(data,port) outb(data,port)
+/* How to access the keyboard macros on this platform.  */
+#define kbd_read_input() inb(KBD_DATA_REG)
+#define kbd_read_status() inb(KBD_STATUS_REG)
+#define kbd_write_output(val) outb(val, KBD_DATA_REG)
+#define kbd_write_command(val) outb(val, KBD_CNTL_REG)
 
-extern __inline__ void keyboard_setup()
-{
-        request_region(0x60,16,"keyboard");
-}
+/* Some stoneage hardware needs delays after some operations.  */
+#define kbd_pause() do { } while(0)
+
+#define keyboard_setup()						\
+        request_region(0x60, 16, "keyboard")
+
+/*
+ * Machine specific bits for the PS/2 driver
+ */
+
+#if defined(CONFIG_PCI)
+#define AUX_IRQ 12
+#else
+#define AUX_IRQ 9			/* Jensen is odd indeed */
+#endif
+
+#define ps2_request_irq()						\
+	request_irq(AUX_IRQ, aux_interrupt, 0, "PS/2 Mouse", NULL)
+
+#define ps2_free_irq(inode) free_irq(AUX_IRQ, NULL)
 
 #endif /* __KERNEL__ */
 #endif /* __ASM_ALPHA_KEYBOARD_H */

@@ -12,6 +12,7 @@
 #include <linux/sched.h>
 #include <linux/interrupt.h>
 #include <asm/bootinfo.h>
+#include <asm/keyboard.h>
 #include <asm/irq.h>
 #include <asm/jazz.h>
 #include <asm/ptrace.h>
@@ -32,6 +33,7 @@ static struct irqaction irq2  = { no_action, 0, 0, "cascade", NULL, NULL};
 extern asmlinkage void jazz_handle_int(void);
 extern asmlinkage void jazz_fd_cacheflush(const void *addr, size_t size);
 extern struct feature jazz_feature;
+extern void jazz_keyboard_setup(void);
 
 extern void jazz_machine_restart(char *command);
 extern void jazz_machine_halt(void);
@@ -96,6 +98,7 @@ __initfunc(void jazz_setup(void))
 
 	irq_setup = jazz_irq_setup;
 	fd_cacheflush = jazz_fd_cacheflush;
+	keyboard_setup = jazz_keyboard_setup;
 	feature = &jazz_feature;			// Will go away
 	port_base = JAZZ_PORT_BASE;
 	isa_slot_offset = 0xe3000000;

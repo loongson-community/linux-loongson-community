@@ -16,14 +16,14 @@
 #include <linux/init.h>
 #include <linux/kbd_ll.h>
 
-/* Some configuration switches are present in the include file... */
-
-#include "pc_keyb.h"
-
 #include <asm/keyboard.h>
 #include <asm/bitops.h>
 #include <asm/io.h>
 #include <asm/system.h>
+
+/* Some configuration switches are present in the include file... */
+
+#include "pc_keyb.h"
 
 /*
  * In case we run on a non-x86 hardware we need to initialize both the keyboard
@@ -40,7 +40,7 @@ __initfunc(static int kbd_wait_for_input(void))
 
         n = KBD_TIMEOUT;
         do {
-                status = kbd_inb(KBD_STATUS_REG);
+                status = kbd_read_status();
                 /*
                  * Wait for input data to become available.  This bit will
                  * then be cleared by the following read of the DATA
@@ -50,7 +50,7 @@ __initfunc(static int kbd_wait_for_input(void))
                 if (!(status & KBD_STAT_OBF))
 			continue;
 
-		data = kbd_inb(KBD_DATA_REG);
+		data = kbd_read_input();
 
                 /*
                  * Check to see if a timeout error has occurred.  This means
@@ -66,14 +66,24 @@ __initfunc(static int kbd_wait_for_input(void))
         return -1;	/* timed-out if fell through to here... */
 }
 
-__initfunc(static void kbd_write(int address, int data))
+__initfunc(static void init_write_command(int data))
 {
 	int status;
 
 	do {
-		status = kbd_inb(KBD_STATUS_REG);
+		status = kbd_read_status();
 	} while (status & KBD_STAT_IBF);
-	kbd_outb(data, address);
+	kbd_write_command(data);
+}
+
+__initfunc(static void init_write_output(int data))
+{
+	int status;
+
+	do {
+		status = kbd_read_status();
+	} while (status & KBD_STAT_IBF);
+	kbd_write_output(data);
 }
 
 __initfunc(static char *initialize_kbd2(void))
@@ -89,7 +99,7 @@ __initfunc(static char *initialize_kbd2(void))
 	 * If the test is successful a x55 is placed in the input buffer.
 	 */
 
-	kbd_write(KBD_CNTL_REG, KBD_CCMD_SELF_TEST);
+	init_write_command(KBD_CCMD_SELF_TEST);
 	if (kbd_wait_for_input() != 0x55)
 		return "Keyboard failed self test";
 
@@ -99,13 +109,13 @@ __initfunc(static char *initialize_kbd2(void))
 	 * test are placed in the input buffer.
 	 */
 
-	kbd_write(KBD_CNTL_REG, KBD_CCMD_KBD_TEST);
+	init_write_command(KBD_CCMD_KBD_TEST);
 	if (kbd_wait_for_input() != 0x00)
 		return "Keyboard interface failed self test";
 
 	/* Enable the keyboard by allowing the keyboard clock to run. */
 
-	kbd_write(KBD_CNTL_REG, KBD_CCMD_KBD_ENABLE);
+	init_write_command(KBD_CCMD_KBD_ENABLE);
 
 	/*
 	 * Reset keyboard. If the read times out
@@ -114,7 +124,7 @@ __initfunc(static char *initialize_kbd2(void))
 	 * This defaults the keyboard to scan-code set 2.
 	 */
 
-	kbd_write(KBD_DATA_REG, KBD_CMD_RESET);
+	init_write_output(KBD_CMD_RESET);
 	if (kbd_wait_for_input() != KBD_REPLY_ACK)
 		return "Keyboard reset failed, no ACK";
 	if (kbd_wait_for_input() != KBD_REPLY_POR)
@@ -125,17 +135,17 @@ __initfunc(static char *initialize_kbd2(void))
 	 * in the disabled state.
 	 */
 
-	kbd_write(KBD_DATA_REG, KBD_CMD_DISABLE);
+	init_write_output(KBD_CMD_DISABLE);
 	if (kbd_wait_for_input() != KBD_REPLY_ACK)
 		return "Disable keyboard: no ACK";
 
-	kbd_write(KBD_CNTL_REG, KBD_CCMD_WRITE_MODE);
-	kbd_write(KBD_DATA_REG, KBD_MODE_KBD_INT
+	init_write_command(KBD_CCMD_WRITE_MODE);
+	init_write_output(KBD_MODE_KBD_INT
 		              | KBD_MODE_SYS
 		              | KBD_MODE_DISABLE_MOUSE
 		              | KBD_MODE_KCC);
 
-	kbd_write(KBD_DATA_REG, KBD_CMD_ENABLE);
+	init_write_output(KBD_CMD_ENABLE);
 	if (kbd_wait_for_input() != KBD_REPLY_ACK)
 		return "Enable keyboard: no ACK";
 
@@ -143,10 +153,10 @@ __initfunc(static char *initialize_kbd2(void))
 	 * Finally, set the typematic rate to maximum.
 	 */
 
-	kbd_write(KBD_DATA_REG, KBD_CMD_SET_RATE);
+	init_write_output(KBD_CMD_SET_RATE);
 	if (kbd_wait_for_input() != KBD_REPLY_ACK)
 		return "Set rate: no ACK";
-	kbd_write(KBD_DATA_REG, 0x00);
+	init_write_output(0x00);
 	if (kbd_wait_for_input() != KBD_REPLY_ACK)
 		return "Set rate: no ACK";
 
@@ -184,7 +194,7 @@ static inline void kb_wait(void)
 	int i;
 
 	for (i=0; i<KBD_TIMEOUT; i++)
-		if (! (kbd_inb_p(KBD_STATUS_REG) & KBD_STAT_IBF))
+		if (! (kbd_read_status() & KBD_STAT_IBF))
 			return;
 	printk(KERN_WARNING "Keyboard timed out\n");
 }
@@ -329,7 +339,7 @@ int pckbd_getkeycode(unsigned int scancode)
 static inline void send_cmd(unsigned char c)
 {
 	kb_wait();
-	kbd_outb(c, KBD_CNTL_REG);
+	kbd_write_command(c);
 }
 
 #define disable_keyboard()	do { send_cmd(KBD_CCMD_KBD_DISABLE); kb_wait(); } while (0)
@@ -490,7 +500,7 @@ static void keyboard_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	kbd_pt_regs = regs;
 	disable_keyboard();
 
-	status = kbd_inb_p(KBD_STATUS_REG);
+	status = kbd_read_status();
 	do {
 		unsigned char scancode;
 
@@ -498,11 +508,11 @@ static void keyboard_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		if (status & kbd_read_mask & KBD_STAT_MOUSE_OBF)
 			break;
 
-		scancode = kbd_inb(KBD_DATA_REG);
+		scancode = kbd_read_input();
 		if ((status & KBD_STAT_OBF) && do_acknowledge(scancode))
 			handle_scancode(scancode);
 
-		status = kbd_inb(KBD_STATUS_REG);
+		status = kbd_read_status();
 	} while (status & (KBD_STAT_OBF | KBD_STAT_MOUSE_OBF));
 
 	mark_bh(KEYBOARD_BH);
@@ -524,9 +534,10 @@ static int send_data(unsigned char data)
 		acknowledge = 0;
 		resend = 0;
 		reply_expected = 1;
-		kbd_outb_p(data, KBD_DATA_REG);
+		kbd_write_output(data);
+		kbd_pause();
 		for(i=0; i<0x200000; i++) {
-			kbd_inb_p(KBD_STATUS_REG); /* just as a delay */
+			kbd_read_status(); /* just as a delay */
 			if (acknowledge)
 				return 1;
 			if (resend)

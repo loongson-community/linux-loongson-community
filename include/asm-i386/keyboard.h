@@ -2,6 +2,8 @@
  *  linux/include/asm-i386/keyboard.h
  *
  *  Created 3 Nov 1996 by Geert Uytterhoeven
+ *
+ * $Id: keyboard.h,v 1.4 1997/07/23 06:06:09 ralf Exp $
  */
 
 /*
@@ -13,6 +15,8 @@
 
 #ifdef __KERNEL__
 
+#include <linux/config.h>
+#include <linux/kernel.h>
 #include <asm/io.h>
 
 #define KEYBOARD_IRQ			1
@@ -35,16 +39,42 @@ extern void pckbd_init_hw(void);
 #define kbd_leds		pckbd_leds
 #define kbd_init_hw		pckbd_init_hw
 
-#define kbd_inb_p(port) inb_p(port)
-#define kbd_inb(port) inb(port)
-#define kbd_outb_p(data,port) outb_p(data,port)
-#define kbd_outb(data,port) outb(data,port)
+/* How to access the keyboard macros on this platform.  */
+#define kbd_read_input() inb(KBD_DATA_REG)
+#define kbd_read_status() inb(KBD_STATUS_REG)
+#define kbd_write_output(val) outb(val, KBD_DATA_REG)
+#define kbd_write_command(val) outb(val, KBD_CNTL_REG)
 
-extern __inline__ void
-keyboard_setup()
-{
-	request_region(0x60,16,"keyboard");
-}
+/* Some stoneage hardware needs delays after some operations.  */
+#define kbd_pause() do { SLOW_DOWN_IO; } while(0)
+
+#define keyboard_setup()						\
+	request_region(0x60, 16, "keyboard")
+
+/*
+ * Machine specific bits for the PS/2 driver
+ */
+
+#define AUX_IRQ 12
+
+#ifdef CONFIG_MCA
+
+#define ps2_request_irq()						\
+	request_irq(AUX_IRQ, aux_interrupt, MCA_bus ? SA_SHIRQ : 0,	\
+	                    "PS/2 Mouse", inode)
+
+#else /* !defined(CONFIG_MCA) */
+
+#define ps2_request_irq()						\
+	request_irq(AUX_IRQ, aux_interrupt, 0, "PS/2 Mouse", NULL)
+
+#endif /* !defined(CONFIG_MCA) */
+
+#ifdef CONFIG_MCA
+#define ps2_free_irq(inode) free_irq(AUX_IRQ, inode)
+#else
+#define ps2_free_irq(inode) free_irq(AUX_IRQ, NULL)
+#endif
 
 #endif /* __KERNEL__ */
 #endif /* __ASM_i386_KEYBOARD_H */
