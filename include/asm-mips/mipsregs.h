@@ -598,8 +598,10 @@ do {								\
 })
 
 #define __read_64bit_c0_register(source, sel)				\
-({ unsigned long __res;							\
-	if (sel == 0)							\
+({ unsigned long long __res;						\
+	if (sizeof(unsigned long) == 4)					\
+		__res = __read_64bit_c0_split(source, sel);		\
+	else if (sel == 0)						\
 		__asm__ __volatile__(					\
 			".set\tmips3\n\t"				\
 			"dmfc0\t%0, " #source "\n\t"			\
@@ -630,7 +632,9 @@ do {									\
 
 #define __write_64bit_c0_register(register, sel, value)			\
 do {									\
-	if (sel == 0)							\
+	if (sizeof(unsigned long) == 4)					\
+		__write_64bit_c0_split(register, sel, value);		\
+	else if (sel == 0)						\
 		__asm__ __volatile__(					\
 			".set\tmips3\n\t"				\
 			"dmtc0\t%z0, " #register "\n\t"			\
