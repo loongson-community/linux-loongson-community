@@ -127,17 +127,18 @@ extern struct mips_cpu mips_cpu;
 /*
  * CPU Option encodings
  */
-#define MIPS_CPU_TLB		0x00000001  /* CPU has TLB */
+#define MIPS_CPU_TLB		0x00000001 /* CPU has TLB */
 /* Leave a spare bit for variant MMU types... */
-#define MIPS_CPU_4KEX		0x00000004  /* "R4K" exception model */
-#define MIPS_CPU_4KTLB		0x00000008  /* "R4K" TLB handler */
-#define MIPS_CPU_FPU		0x00000010  /* CPU has FPU */
-#define MIPS_CPU_32FPR		0x00000020  /* 32 dbl. prec. FP registers */
-#define MIPS_CPU_COUNTER	0x00000040  /* Cycle count/compare */
-#define MIPS_CPU_WATCH		0x00000080  /* watchpoint registers */
-#define MIPS_CPU_MIPS16		0x00000100  /* code compression */
-#define MIPS_CPU_DIVEC		0x00000200  /* dedicated interrupt vector */
-#define MIPS_CPU_VCE		0x00000400  /* virt. coherence conflict possible */
+#define MIPS_CPU_4KEX		0x00000004 /* "R4K" exception model */
+#define MIPS_CPU_4KTLB		0x00000008 /* "R4K" TLB handler */
+#define MIPS_CPU_FPU		0x00000010 /* CPU has FPU */
+#define MIPS_CPU_32FPR		0x00000020 /* 32 dbl. prec. FP registers */
+#define MIPS_CPU_COUNTER	0x00000040 /* Cycle count/compare */
+#define MIPS_CPU_WATCH		0x00000080 /* watchpoint registers */
+#define MIPS_CPU_MIPS16		0x00000100 /* code compression */
+#define MIPS_CPU_DIVEC		0x00000200 /* dedicated interrupt vector */
+#define MIPS_CPU_VCE		0x00000400 /* virt. coherence conflict possible */
 #define MIPS_CPU_CACHE_CDEX	0x00000800 /* Create_Dirty_Exclusive CACHE op */
+#define MIPS_CPU_MCHECK		0x00001000 /* Machine check exception */
 
 #endif /* _ASM_CPU_H */
