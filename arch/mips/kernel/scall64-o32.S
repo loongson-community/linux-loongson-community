@@ -87,7 +87,7 @@ NESTED(handle_sys, PT_SIZE, sp)
 	sd	t0, PT_R7(sp)		# set error flag
 	beqz	t0, 1f
 
-	negu	v0			# error
+	dnegu	v0			# error
 	sd	v0, PT_R0(sp)		# flag for syscall restarting
 1:	sd	v0, PT_R2(sp)		# result
 
@@ -134,7 +134,7 @@ trace_a_syscall:
 	sd	t0, PT_R7(sp)		# set error flag
 	beqz	t0, 1f
 
-	negu	v0			# error
+	dnegu	v0			# error
 	sd	v0, PT_R0(sp)		# set flag for syscall restarting
 1:	sd	v0, PT_R2(sp)		# result
 
@@ -146,7 +146,7 @@ trace_a_syscall:
 	 * The stackpointer for a call with more than 4 arguments is bad.
 	 */
 bad_stack:
-	negu	v0			# error
+	dnegu	v0			# error
 	sd	v0, PT_R0(sp)
 	sd	v0, PT_R2(sp)
 	li	t0, 1			# set error flag
