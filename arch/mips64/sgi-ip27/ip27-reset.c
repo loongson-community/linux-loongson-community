@@ -1,13 +1,12 @@
-/* $Id$
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
  * Reset an IP27.
  *
- * Copyright (C) 1997, 1998, 1999 by Ralf Baechle
- * Copyright (C) 1999 Silicon Graphics, Inc.
+ * Copyright (C) 1997, 1998, 1999, 2000 by Ralf Baechle
+ * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  */
 #include <linux/config.h>
 #include <linux/kernel.h>
@@ -42,7 +41,7 @@ void machine_restart(char *command)
 #if 0
 	for (i = 0; i < numnodes; i++)
 		REMOTE_HUB_S(COMPACT_TO_NASID_NODEID(i), PROMOP_REG, 
-							PROMOP_RESTART);
+							PROMOP_REBOOT);
 #else
 	LOCAL_HUB_S(NI_PORT_RESET, NPR_PORTRESET | NPR_LOCALRESET);
 #endif
@@ -50,7 +49,15 @@ void machine_restart(char *command)
 
 void machine_halt(void)
 {
-	ArcEnterInteractiveMode();
+	int i;
+
+#ifdef CONFIG_SMP
+	smp_send_stop();
+#endif
+	for (i = 0; i < numnodes; i++)
+		REMOTE_HUB_S(COMPACT_TO_NASID_NODEID(i), PROMOP_REG, 
+							PROMOP_RESTART);
+	LOCAL_HUB_S(NI_PORT_RESET, NPR_PORTRESET | NPR_LOCALRESET);
 }
 
 void machine_power_off(void)
