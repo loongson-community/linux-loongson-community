@@ -51,6 +51,10 @@ static void disable_sb1250_irq(unsigned int irq);
 static unsigned int startup_sb1250_irq(unsigned int irq);
 static void ack_sb1250_irq(unsigned int irq);
 
+#ifdef CONFIG_SIBYTE_HAS_LDT
+extern unsigned long ldt_eoi_space;
+#endif
+
 #ifdef CONFIG_REMOTE_DEBUG
 extern void breakpoint(void);
 extern void set_debug_traps(void);
@@ -129,6 +133,7 @@ static void enable_sb1250_irq(unsigned int irq)
 
 static void ack_sb1250_irq(unsigned int irq)
 {
+#ifdef CONFIG_SIBYTE_HAS_LDT
 	u64 pending;
 
 	/*
@@ -137,9 +142,18 @@ static void ack_sb1250_irq(unsigned int irq)
 	 */
 	pending = in64(KSEG1 + A_IMR_REGISTER(0,R_IMR_LDT_INTERRUPT));
 	pending &= ((u64)1 << (irq));
-	if (pending)
+	if (pending) {
 		out64(pending, KSEG1+A_IMR_REGISTER(0,R_IMR_LDT_INTERRUPT_CLR));
 
+		/*
+		 * Generate EOI.  For Pass 1 parts, EOI is a nop.  For
+		 * Pass 2, the LDT world may be edge-triggered, but
+		 * this EOI shouldn't hurt.  If they are
+		 * level-sensitive, the EOI is required.
+		 */
+		*(uint32_t *)(ldt_eoi_space+(irq<<16)+(7<<2)) = 0;
+	}
+#endif
 	sb1250_mask_irq(0, irq);
 }
 

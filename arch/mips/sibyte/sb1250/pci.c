@@ -59,6 +59,14 @@ static int sb1250_bus_status = 0;
 #define PCI_BRIDGE_DEVICE  0
 #define LDT_BRIDGE_DEVICE  1
 
+#ifdef CONFIG_SIBYTE_HAS_LDT
+/*
+ * HT's level-sensitive interrupts require EOI, which is generated
+ * through a 4MB memory-mapped region
+ */
+unsigned long ldt_eoi_space;
+#endif
+
 /*
  * Read/write 32-bit values in config space.
  */
@@ -270,6 +278,14 @@ void __init pcibios_init(void)
 				     PCI_COMMAND));
 	if (cmdreg & PCI_COMMAND_MASTER) {
 		sb1250_bus_status |= LDT_BUS_ENABLED;
+
+		/*
+		 * Need bits 23:16 to convey vector number.  Note that
+		 * this consumes 4MB of kernel-mapped memory
+		 * (Kseg2/Kseg3) for 32-bit kernel.
+		 */
+		ldt_eoi_space = (unsigned long)
+			ioremap(A_PHYS_LDT_SPECIAL_MATCH_BYTES, 4*1024*1024);
 	}
 #endif
 
