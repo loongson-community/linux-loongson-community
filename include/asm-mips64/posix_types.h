@@ -1,4 +1,4 @@
-/* $Id: posix_types.h,v 1.4 2000/02/16 01:07:49 ralf Exp $
+/* $Id: posix_types.h,v 1.5 2000/02/29 20:49:16 ulfc Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -45,6 +45,10 @@ typedef __kernel_gid_t	__kernel_old_gid_t;
 typedef long long      __kernel_loff_t;
 #endif
 
+typedef struct {
+        int    val[2];
+} __kernel_fsid_t;
+
 /* Now 32bit compatibility types */
 typedef unsigned int	__kernel_dev_t32;
 typedef unsigned int	__kernel_ino_t32;
@@ -63,10 +67,7 @@ typedef int		__kernel_suseconds_t32;
 typedef int		__kernel_clock_t32;
 typedef int		__kernel_daddr_t32;
 typedef char *		__kernel_caddr_t32;
-
-typedef struct {
-        int    val[2];
-} __kernel_fsid_t;
+typedef __kernel_fsid_t	__kernel_fsid_t32;
 
 #if defined(__KERNEL__) || !defined(__GLIBC__) || (__GLIBC__ < 2)
 
