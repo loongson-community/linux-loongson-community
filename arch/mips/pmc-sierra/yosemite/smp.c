@@ -47,23 +47,31 @@ void __init prom_grab_secondary(void)
  * We don't want to start the secondary CPU yet nor do we have a nice probing
  * feature in PMON so we just assume presence of the secondary core.
  */
-void prom_prepare_cpus(unsigned int max_cpus)
+static char maxcpus_string[] __initdata =
+	KERN_WARNING "max_cpus set to 0; using 1 instead\n";
+
+void __init prom_prepare_cpus(unsigned int max_cpus)
 {
+	int i;
+
+	if (max_cpus == 0) {
+		printk(maxcpus_string);
+		max_cpus = 1;
+	}
+
 	cpus_clear(phys_cpu_present_map);
 
-	/*
-	 * The boot CPU
-	 */
-	cpu_set(0, phys_cpu_present_map);
-	__cpu_number_map[0]	= 0;
-	__cpu_logical_map[0]	= 0;
+	for (i = 0; i < 2; i++) {
+		if (i == max_cpus)
+			break;
 
-	/*
-	 * The secondary core
-	 */
-	cpu_set(1, phys_cpu_present_map);
-	__cpu_number_map[1]	= 1;
-	__cpu_logical_map[1]	= 1;
+		/*
+		 * The boot CPU
+		 */
+		cpu_set(i, phys_cpu_present_map);
+		__cpu_number_map[i]	= i;
+		__cpu_logical_map[i]	= i;
+	}
 }
 
 /*
