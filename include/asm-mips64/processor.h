@@ -15,35 +15,19 @@
 
 /*
  * Return current * instruction pointer ("program counter").
- *
- * Two implementations.  The ``la'' version results in shorter code for
- * the kernel which we assume to reside in the 32-bit compat address space.
- * The  ``jal'' version is for use by modules which live in outer space.
- * This is just a single instruction unlike the long dla macro expansion.
  */
-#ifdef MODULE
 #define current_text_addr()						\
 ({									\
 	void *_a;							\
 									\
-	__asm__ ("jal\t1f, %0\n\t"					\
-		"1:"							\
-		: "=r" (_a));						\
+	__asm__ ("bal\t1f\t\t\t# current_text_addr\n"			\
+		"1:\tmove\t%0, $31"					\
+		: "=r" (_a)						\
+		:							\
+		: "$31");						\
 									\
 	_a;								\
 })
-#else
-#define current_text_addr()						\
-({									\
-	void *_a;							\
-									\
-	__asm__ ("dla\t%0, 1f\n\t"					\
-		"1:"							\
-		: "=r" (_a));						\
-									\
-	_a;								\
-})
-#endif
 
 #if !defined (_LANGUAGE_ASSEMBLY)
 #include <asm/cachectl.h>
