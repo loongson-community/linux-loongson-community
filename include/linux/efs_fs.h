@@ -1,12 +1,11 @@
 /*
  *   linux/include/linux/efs_fs.h
  *
- * Copyright (C) 1997
- * Mike Shaver (shaver@neon.ingenia.ca)
+ * Copyright (C) 1997, 1998 Mike Shaver (shaver@netscape.com)
  *
  * Based on work Copyright (C) 1995, 1996 Christian Vogelgsang.
  *
- * $Id: efs_fs.h,v 1.1 1997/12/02 02:28:29 ralf Exp $
+ * $Id: efs_fs.h,v 1.4 1998/08/25 09:22:46 ralf Exp $
  */
 
 #ifndef __LINUX_EFS_FS_H
@@ -16,11 +15,11 @@
 #include <linux/kernel.h>
 #include <linux/time.h>
 #include <linux/stat.h>
-#include <linux/fs.h>
 
 /* SuperMagic: need a unique Identifier for EFS */
 #define EFS_SUPER_MAGIC	    0x280273
 #define EFS_ROOT_INODE	    2
+#define EFS_BLK_VOLDESC     0
 #define EFS_BLK_SUPER	    1
 
 #define EFS_BLOCK_SIZE	    512
@@ -45,7 +44,7 @@
 #define EFS_SB_TOGRP	    18	   /* Number of Groups in Filesystem */
 #define EFS_SB_MAGIC	    28
 
-struct efs_super_block {
+struct efs_disk_sb {
 	__u32	s_size;
 	__u32	s_firstcg;
 	__u32	s_cgfsize;
@@ -67,6 +66,11 @@ struct efs_super_block {
 	char	s_spare[20];	/* Must be zero */
 	__u32	s_checksum;
 };
+
+#define EFS_CLEAN		0x0000	/* clean, not mounted */
+#define EFS_ACTIVE		0x7777  /* clean, mounted */
+#define EFS_ACTIVEDIRT		0x0BAD	/* dirty when mounted */
+#define EFS_DIRTY		0x1234  /* mounted, then made dirty */
 
 #ifdef DEBUG
 void efs_dump_super(struct efs_super_block *);
@@ -91,6 +95,8 @@ union efs_extent {
 	} ex_ex;
 	__u32	ex_bytes[2];
 };
+
+#define EFS_INODES_PER_BLOCK	4
 
 struct efs_disk_inode {
 	__u16	di_mode;
@@ -129,7 +135,7 @@ struct efs_dirblk {
 #define EFS_DI_NAMELEN      4
 #define EFS_DI_NAME         5
 
-struct efs_dent {
+struct efs_dir_entry {
 	union {
 		__u32	l;
 		__u16	s[2];
@@ -142,19 +148,47 @@ struct efs_dent {
 #define EFS_EXT_PER_BLK_MASK     63
 #define EFS_EXT_SIZE_BITS        3
 
-/* define a few convenient types */
-#if 0
-typedef unsigned char	    BYTE;  /* 8 bit */
-typedef unsigned short	    SHORT; /* 16 bit */
-typedef unsigned long	    LONG;  /* 32 bit */
-#endif
+#define EFS_SLOT2OFF(dirblk, slot) \
+    (((dirblk)->db_space[(slot)]) << 1)
 
+#define EFS_DENT4OFF(dirblk, offset) \
+    ((struct efs_dir_entry *)((char *)(dirblk) + (offset)))
+
+/* define a few convenient types */
 #ifdef __KERNEL__
 
-struct efs_dir_entry {
-  __u16 inode;
-  char name[0];
-};
+#include <linux/fs.h>
+
+#ifdef DEBUG_EFS
+#define DB(x)	printk##x
+#else
+#define DB(x)   do { } while(0);
+#endif
+
+extern int
+efs_lookup(struct inode *dir, struct dentry *dentry);
+
+extern int
+efs_bmap(struct inode *inode, int block);
+
+extern struct buffer_head *
+efs_bread(struct inode * inode, int block, int create);
+
+extern void
+efs_put_super(struct super_block *sb);
+
+extern struct super_block *
+efs_read_super(struct super_block *sb, void *data, int silent);
+
+extern void
+efs_read_inode(struct inode *inode);
+
+extern int
+efs_remount(struct super_block *sb, int *flags, char *data);
+
+extern int
+efs_statfs(struct super_block *sb, struct statfs *buf, int bufsiz);
+
 
 /* Byte swapping 32/16-bit quantities into little endian format. */
 #define efs_need_swab 0
@@ -177,14 +211,10 @@ extern __inline__ __u16 efs_swab16(__u16 value)
 int init_efs_fs(void);
 
 /* Inode Method structures for Dirs, Files and Symlinks */
-extern struct inode_operations efs_dir_in_ops;
-extern struct inode_operations efs_file_in_ops;
-extern struct inode_operations efs_symlink_in_ops;
-
-/* exported Prototypes */
-extern int efs_bmap(struct inode *,int);
-extern __u32 ConvertLong(__u8 *buf,int off);
-extern __u16 ConvertShort(__u8 *buf,int off);
+extern struct inode_operations efs_dir_inode_operations;
+extern struct inode_operations efs_file_inode_operations;
+extern struct inode_operations efs_symlink_inode_operations;
+extern struct dentry_operations efs_dentry_operations;
 
 #endif /* __KERNEL__ */
 

@@ -1,25 +1,64 @@
-/* symlink.c
+/*
+ * linux/fs/efs/symlink.c
  *
- * Symbolic link handling for EFS
+ * Copyright (C) 1998  Mike Shaver
  *
- * (C)1995,96 Christian Vogelgsang
- *
- * Based on the symlink.c from minix-fs by Linus
+ * Portions derived from work (C) 1995,1996 Christian Vogelgsang.
+ * ``Inspired by'' fs/ext2/symlink.c.
  */
 
-#include <linux/string.h>
-#include <linux/errno.h>
-#include <linux/fs.h>
 #include <linux/efs_fs.h>
-#include <linux/stat.h>
-#include <linux/mm.h>
-#include <linux/slab.h>
 #include <asm/uaccess.h>
 
-static int efs_readlink(struct inode *, char *, int);
-static struct dentry * efs_follow_link(struct inode *, struct dentry *);
+static struct dentry *
+efs_follow_link(struct dentry *dentry, struct dentry *base)
+{
+    struct inode *in = dentry->d_inode;
+    struct buffer_head *bh;
 
-struct inode_operations efs_symlink_in_ops = {
+    bh = bread(in->i_dev, efs_bmap(in, 0), EFS_BLOCK_SIZE);
+    if (!bh) {
+	dput(base);
+	return ERR_PTR(-EIO);
+    }
+    UPDATE_ATIME(in);
+    base = lookup_dentry(bh->b_data, base, 1);
+    brelse(bh);
+    return base;
+}
+
+static int
+efs_readlink(struct dentry *dentry, char * buffer, int buflen)
+{
+    int i;
+    struct buffer_head *bh;
+    struct inode *in = dentry->d_inode;
+    
+    if (buflen > 1023)
+	buflen = 1023;
+
+    if (in->i_size < buflen)
+	buflen = in->i_size;
+
+    bh = bread(in->i_dev, efs_bmap(in, 0), EFS_BLOCK_SIZE);
+    if (!bh)
+	return 0;
+    i = 0;
+
+    /* XXX need strncpy_to_user */
+    while (i < buflen && bh->b_data[i])
+	i++;
+
+    if (copy_to_user(buffer, bh->b_data, i))
+	i = -EFAULT;
+
+    UPDATE_ATIME(in);
+
+    brelse(bh);
+    return i;
+}
+
+struct inode_operations efs_symlink_inode_operations = {
 	NULL,			/* no file-operations */
 	NULL,			/* create */
 	NULL,			/* lookup */
@@ -30,111 +69,12 @@ struct inode_operations efs_symlink_in_ops = {
 	NULL,			/* rmdir */
 	NULL,			/* mknod */
 	NULL,			/* rename */
-	efs_readlink,		/* readlink */
-	efs_follow_link,	/* follow_link */
-	NULL,
-	NULL,
+	efs_readlink,
+	efs_follow_link,
+	NULL,			/* readpage */
+	NULL,			/* writepage */
 	NULL,			/* bmap */
 	NULL,			/* truncate */
-	NULL			/* permission */
+	NULL,			/* permission */
+	NULL			/* smap */
 };
-
-
-/* ----- efs_getlinktarget -----
-   read the target of the link from the data zone of the file
-*/
-static char *efs_getlinktarget(struct inode *in)
-{
-	struct buffer_head * bh;
-	char *name;
-	__u32 size = in->i_size;
-	__u32 block;
-  
-	/* link data longer than 1024 not supported */
-	if(size>2*EFS_BLOCK_SIZE) {
-		printk("efs_getlinktarget: name too long: %lu\n",in->i_size);
-		return NULL;
-	}
-  
-	/* get some memory from the kernel to store the name */
-	name = kmalloc(size+1,GFP_KERNEL);
-	if(!name) return NULL;
-  
-	/* read first 512 bytes of target */
-	block = efs_bmap(in,0);
-	bh = bread(in->i_dev,block,EFS_BLOCK_SIZE);
-	if(!bh) {
-		kfree(name);
-		return NULL;
-	}
-	memcpy(name,bh->b_data,(size>EFS_BLOCK_SIZE)?EFS_BLOCK_SIZE:size);
-	brelse(bh);
-  
-	/* if the linktarget is long, read the next block */
-	if(size>EFS_BLOCK_SIZE) {
-		bh = bread(in->i_dev,block+1,EFS_BLOCK_SIZE);
-		if(!bh) {
-			kfree(name);
-			return NULL;
-		}
-		memcpy(name+EFS_BLOCK_SIZE,bh->b_data,size-EFS_BLOCK_SIZE);
-		brelse(bh);
-	}
-  
-	/* terminate string and return it */
-	name[size]=0;
-	return name;
-}
-
-
-/* ----- efs_follow_link -----
-   get the inode of the link target
-*/
-static struct dentry * efs_follow_link(struct inode * dir, struct dentry *base)
-{
-	char * name;
-	UPDATE_ATIME(dir);
-	name = efs_getlinktarget(dir);
-#ifdef DEBUG_EFS
-	printk("EFS: efs_getlinktarget(%d) returned \"%s\"\n",
-	       dir->i_ino, name);
-#endif
-	base = lookup_dentry(name, base, 1);
-	kfree(name);
-	return base;
-}
-
-/* ----- efs_readlink -----
-   read the target of a link and return the name
-*/
-static int efs_readlink(struct inode * dir, char * buffer, int buflen)
-{
-	int i;
-	struct buffer_head * bh;
-
-	if (buflen > 1023)
-		buflen = 1023;
-	bh = bread(dir->i_dev,efs_bmap(dir,0),EFS_BLOCK_SIZE);
-	if (!bh)
-		return 0;
-	/* copy the link target to the given buffer */
-	i = 0;
-#ifdef DEBUG_EFS
-	printk("EFS: efs_readlink returning ");
-#endif
-	while (i<buflen && bh->b_data[i] && i < dir->i_size) {
-#ifdef DEBUG_EFS
-		printk("%c", bh->b_data[i]);
-#endif
-		i++;
-	}
-#ifdef DEBUG_EFS
-	printk("\n");
-#endif
-	if (copy_to_user(buffer, bh->b_data, i))
-		i = -EFAULT;
-	
-	brelse(bh);
-	return i;
-}
-
