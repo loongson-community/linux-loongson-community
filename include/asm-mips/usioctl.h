@@ -12,9 +12,8 @@
 #define UIOCATTACHSEMA	(UIOC|2)	/* attach to sema */
 #define UIOCBLOCK	(UIOC|3)	/* block sync "intr"? */
 #define UIOCABLOCK	(UIOC|4)	/* block async */
-#define UIOCNOIBLOCK	(UIOC|5)	/* block sync "intr"?
-					   How is this different from
-					   UIOCNOIBLOCK? */
+#define UIOCNOIBLOCK	(UIOC|5)	/* IRIX: block sync intr
+					   Linux: block sync nointr */
 #define UIOCUNBLOCK	(UIOC|6)	/* unblock sync */
 #define UIOCAUNBLOCK	(UIOC|7)	/* unblock async */
 #define UIOCINIT	(UIOC|8)	/* init sema (async) */

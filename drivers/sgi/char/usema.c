@@ -41,11 +41,19 @@
 
 static struct irix_usema{
 	int used;
+	struct file *filp;
 	struct wait_queue *proc_list;
 } usema_list[NUM_USEMAS];
 
 /*
  * Generate and return a descriptor for a new semaphore.
+ *
+ * We want to find a usema that's not in use, and then allocate it to
+ * this descriptor.  The minor number in the returned fd's st_rdev is used
+ * to identify the usema, and should correspond to the index in usema_list.
+ *
+ * What I do right now is pretty ugly, and likely dangerous.
+ * Maybe we need generic clone-device support in Linux?
  */
 
 static int
@@ -64,21 +72,46 @@ sgi_usemaclone_open(struct inode *inode, struct file *filp)
 		return -EBUSY;
 	}
 	/* XXX is this the right way to do it? */
-	inode->i_dev = MKDEV(USEMA_MAJOR, semanum);
+	filp->f_dentry->d_inode->i_rdev = MKDEV(USEMA_MAJOR,semanum);
 	usema_list[semanum].used = 1;
+	usema_list[semanum].filp = filp;
+	printk("[%s:%d] got usema %d",
+	       current->comm, current->pid, semanum);
 	return 0;
 }	
 
+static int
+sgi_usemaclone_release(struct inode *inode, struct file *filp)
+{
+	int semanum = MINOR(filp->f_dentry->d_inode->i_rdev);
+	printk("[%s:%d] released usema %d",
+	       current->comm, current->pid, semanum);
+	/* There shouldn't be anything waiting on proc_list, right? */
+	usema_list[semanum].used = 0;
+	return 0;
+}
+
 /*
  * Generate another descriptor for an existing semaphore.
+ * 
+ * The minor number is used to identify usemas, so we have to create
+ * a new descriptor in the current process with the appropriate minor number.
+ *
+ * Can I share the same fd between all the processes, a la clone()?  I can't
+ * see how that'd cause any problems, and it'd mean I don't have to do my
+ * own reference counting.
  */
 
 static int
 sgi_usema_attach(usattach_t * attach, int semanum) {
 	int newfd;
-	/* create a new fd for this process with major/minor
-	   correct, I guess. */
-	newfd = -ENOSYS;
+	newfd = get_unused_fd();
+	if (newfd < 0)
+		return newfd;
+	current->files->fd[newfd] = usema_list[semanum].filp;
+	usema_list[semanum].filp->f_count++;
+	/* Is that it? */
+	printk("UIOCATTACHSEMA: new usema fd is %d", newfd);
 	return newfd;
 }
 
@@ -100,7 +133,7 @@ sgi_usema_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		int semanum;
 		retval = verify_area(VERIFY_READ, attach, sizeof(usattach_t));
 		if (retval) {
-			printk("[%s:%d] sgi_usema_ioctl(UIOATTACHSEMA): "
+			printk("[%s:%d] sgi_usema_ioctl(UIOCATTACHSEMA): "
 			       "verify_area failure",
 			       current->comm, current->pid);
 			return retval;
@@ -109,24 +142,56 @@ sgi_usema_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		if (semanum == 0) {
 			/* This shouldn't happen (tm).
 			   A minor of zero indicates that there's no
-			   semaphore created for the given descriptor...
+			   semaphore allocated for the given descriptor...
 			   in which case there's nothing to which to attach.
 			   */
 			return -EINVAL;
 		}
-		printk("UIOATTACHSEMA: attaching usema %d to process %d\n",
+		printk("UIOCATTACHSEMA: attaching usema %d to process %d\n",
 		       semanum, current->pid);
+		/* XXX what is attach->us_handle for? */
 		return sgi_usema_attach(attach, semanum);
 		break;
 	}
+	case UIOCABLOCK:	/* XXX make `async' */
+	case UIOCNOIBLOCK:	/* XXX maybe? */
 	case UIOCBLOCK: {
 		/* Block this process on the semaphore */
-		/* I'll probably just pretend they're polling */
-		printk("UIOCBLOCK: (not) putting process %d to sleep",
-		       current->pid);
+		us_attach *attach = (us_attach *)arg;
+		int semanum;
+		retval = verify_area(VERIFY_READ, attach, sizeof(usattach_t));
+		if (retval) {
+			printk("[%s:%d] sgi_usema_ioctl(UIOC*BLOCK): "
+			       "verify_area failure",
+			       current->comm, current->pid);
+			return retval;
+		}
+		semanum = MINOR(attach->us_dev);
+		printk("UIOC*BLOCK: putting process %d to sleep on usema %d",
+		       current->pid, semanum);
+		if (cmd == UIOCNOIBLOCK)
+			sleep_on_interruptible(&usema_list[semanum].proc_list);
+		else
+			sleep_on(&usema_list[semanum].proc_list);
+		return 0;
 	}
+	case UIOCAUNBLOCK:	/* XXX make `async' */
 	case UIOCUNBLOCK: {
 		/* Wake up all process waiting on this semaphore */
+		us_attach *attach = (us_attach *)arg;
+		int semanum;
+		retval = verify_area(VERIFY_READ, attach, sizeof(usattach_t));
+		if (retval) {
+			printk("[%s:%d] sgi_usema_ioctl(UIOC*BLOCK): "
+			       "verify_area failure",
+			       current->comm, current->pid);
+			return retval;
+		}
+		semanum = MINOR(attach->us_dev);
+		printk("[%s:%d] releasing usema %d",
+		       current->comm, current->pid, semanum);
+		wake_up(&usema_list[semanum].proc_list);
+		return 0;
 	}
 	return -ENOSYS;
 }
@@ -140,7 +205,7 @@ sgi_usema_poll(struct file *filp, poll_table *wait)
 	/* I have to figure out what the behaviour is when:
 	   - polling and the lock is free
 	   - the lock becomes free and there's a process polling it
-	   And I have to figure out the poll() semantics. =)
+	   And I have to figure out poll()'s semantics. =)
 	   */
 	return -ENOSYS;
 }
@@ -170,7 +235,7 @@ struct file_operations sgi_usemaclone_fops = {
 	NULL,			/* ioctl */
 	NULL,			/* mmap */
 	sgi_usemaclone_open,	/* open */
-	NULL,			/* release */
+	sgi_usemaclone_release,	/* release */
 	NULL,			/* fsync */
 	NULL,			/* check_media_change */
 	NULL,			/* revalidate */
