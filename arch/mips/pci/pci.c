@@ -185,11 +185,6 @@ void pcibios_set_master(struct pci_dev *dev)
 	pci_write_config_byte(dev, PCI_LATENCY_TIMER, lat);
 }
 
-static int pcibios_enable_irq(struct pci_dev *dev)
-{
-	return 0;
-}
-
 unsigned int pcibios_assign_all_busses(void)
 {
 	return (pci_probe & PCI_ASSIGN_ALL_BUSSES) ? 1 : 0;
@@ -202,7 +197,7 @@ int pcibios_enable_device(struct pci_dev *dev, int mask)
 	if ((err = pcibios_enable_resources(dev, mask)) < 0)
 		return err;
 
-	return pcibios_enable_irq(dev);
+	return 0;
 }
 
 static void __init pcibios_fixup_resource(struct pci_dev *dev,
