@@ -84,10 +84,6 @@ static char reset_reason;
 
 static void __init setup_l3cache(unsigned long size);
 
-void __init bus_error_init(void)
-{
-}
-
 
 void __init bus_error_init(void) { /* nothing */ }
 
