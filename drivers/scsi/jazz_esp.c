@@ -161,7 +161,7 @@ static void dma_dump_state(struct NCR_ESP *esp)
 {
     
     ESPLOG(("esp%d: dma -- enable <%08x> residue <%08x\n",
-	    esp->esp_id, vdma_get_enable((int)esp->dregs), vdma_get_resdiue((int)esp->dregs)));
+	    esp->esp_id, vdma_get_enable((int)esp->dregs), vdma_get_residue((int)esp->dregs)));
 }
 
 static void dma_init_read(struct NCR_ESP *esp, __u32 vaddress, int length)
