@@ -102,21 +102,6 @@ typedef struct launch_s {
 #define LAUNCH_FLASH	(*(void (*)(void)) \
 			 IP27PROM_FLASHLEDS)
 
-#ifdef _STANDALONE
-
-launch_t       *launch_get(int nasid, int cpu);
-launch_t       *launch_get_current(void);
-void		launch_loop(void);
-void		launch_slave(int nasid, int cpu,
-			     launch_proc_t call_addr,
-			     __int64_t call_parm,
-			     void *stack_addr,
-			     void *gp_addr);
-int		launch_wait(int nasid, int cpu, int timeout_msec);
-launch_state_t	launch_poll(int nasid, int cpu);
-
-#endif /* _STANDALONE */
-
 #endif /* !__ASSEMBLY__ */
 
 #endif /* _ASM_SN_LAUNCH_H */
