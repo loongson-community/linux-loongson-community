@@ -93,6 +93,7 @@ void rt_timer_interrupt(struct pt_regs *regs)
 	int cpu = smp_processor_id();
 	int cpuA = ((cputoslice(cpu)) == 0);
 	int irq = 7;				/* XXX Assign number */
+	int user = user_mode(regs);
 
 	write_lock(&xtime_lock);
 
@@ -110,31 +111,15 @@ again:
 		do_timer(regs);
 
 #ifdef CONFIG_SMP
-	if (current->pid) {
-		unsigned int *inc, *inc2;
-		int user = user_mode(regs);
-
-		update_one_process(current, 1, user, !user, cpu);
-		if (--current->counter <= 0) {
-			current->counter = 0;
-			current->need_resched = 1;
-		}
-
-		if (user) {
-			if (current->nice > 0) {
-				inc = &kstat.cpu_nice;
-				inc2 = &kstat.per_cpu_nice[cpu];
-			} else {
-				inc = &kstat.cpu_user;
-				inc2 = &kstat.per_cpu_user[cpu];
-			}
-		} else {
-			inc = &kstat.cpu_system;
-			inc2 = &kstat.per_cpu_system[cpu];
-		}
-		atomic_inc((atomic_t *)inc);
-		atomic_inc((atomic_t *)inc2);
-	}
+	/*
+	 * update_process_times() expects us to have done irq_enter().
+	 * Besides, if we don't timer interrupts ignore the global
+	 * interrupt lock, which is the WrongThing (tm) to do.
+	 * Picked from i386 code.
+	 */
+	irq_enter(cpu, 0);
+	update_process_times(user);
+	irq_exit(cpu, 0);
 #endif /* CONFIG_SMP */
 	
         /*
