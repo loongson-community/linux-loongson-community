@@ -596,7 +596,7 @@ static int __init kbd_wait_for_input(void)
 		int retval = kbd_read_data();
 		if (retval >= 0)
 			return retval;
-		mdelay(10);
+		mdelay(1);
 	} while (--timeout);
 	return -1;
 }
