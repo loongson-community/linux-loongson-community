@@ -436,18 +436,19 @@ void __init prom_prepare_cpus(unsigned int max_cpus)
 	alloc_cpupda(cpu, 0);
 }
 
+/*
+ * Launch a slave into smp_bootstrap().  It doesn't take an argument, and we
+ * set sp to the kernel stack of the newly created idle process, gp to the proc
+ * struct so that current_thread_info() will work.
+ */
 void __init prom_boot_secondary(int cpu, struct task_struct *idle)
 {
-	/*
- 	 * Launch a slave into smp_bootstrap().  It doesn't take an
-	 * argument, and we set sp to the kernel stack of the newly
-	 * created idle process, gp to the proc struct so that
-	 * current_thread_info() will work.
- 	 */
+	unsigned long gp = (unsigned long) idle->thread_info;
+	unsigned long sp = gp + THREAD_SIZE - 32;
+
 	LAUNCH_SLAVE(cputonasid(cpu),cputoslice(cpu),
 		(launch_proc_t)MAPPED_KERN_RW_TO_K0(smp_bootstrap),
-		0, (void *)((unsigned long)idle->thread_info +
-		THREAD_SIZE - 32), (void *)idle);
+		0, (void *) sp, (void *) gp);
 }
 
 /* XXXKW implement prom_init_secondary() and prom_smp_finish to share
