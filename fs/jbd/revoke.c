@@ -137,8 +137,7 @@ oom:
 	if (!journal_oom_retry)
 		return -ENOMEM;
 	jbd_debug(1, "ENOMEM in " __FUNCTION__ ", retrying.\n");
-	current->policy |= SCHED_YIELD;
-	schedule();
+	yield();
 	goto repeat;
 }
 
@@ -279,7 +278,7 @@ int journal_revoke(handle_t *handle, unsigned long blocknr,
 {
 	struct buffer_head *bh = NULL;
 	journal_t *journal;
-	kdev_t dev;
+	struct block_device *bdev;
 	int err;
 
 	if (bh_in)
@@ -291,11 +290,11 @@ int journal_revoke(handle_t *handle, unsigned long blocknr,
 		return -EINVAL;
 	}
 
-	dev = journal->j_fs_dev;
+	bdev = journal->j_fs_dev;
 	bh = bh_in;
 
 	if (!bh) {
-		bh = get_hash_table(dev, blocknr, journal->j_blocksize);
+		bh = __get_hash_table(bdev, blocknr, journal->j_blocksize);
 		if (bh)
 			BUFFER_TRACE(bh, "found on hash");
 	}
@@ -305,7 +304,7 @@ int journal_revoke(handle_t *handle, unsigned long blocknr,
 
 		/* If there is a different buffer_head lying around in
 		 * memory anywhere... */
-		bh2 = get_hash_table(dev, blocknr, journal->j_blocksize);
+		bh2 = __get_hash_table(bdev, blocknr, journal->j_blocksize);
 		if (bh2) {
 			/* ... and it has RevokeValid status... */
 			if ((bh2 != bh) &&
@@ -409,7 +408,7 @@ int journal_cancel_revoke(handle_t *handle, struct journal_head *jh)
 	 * state machine will get very upset later on. */
 	if (need_cancel && !bh->b_pprev) {
 		struct buffer_head *bh2;
-		bh2 = get_hash_table(bh->b_dev, bh->b_blocknr, bh->b_size);
+		bh2 = __get_hash_table(bh->b_bdev, bh->b_blocknr, bh->b_size);
 		if (bh2) {
 			clear_bit(BH_Revoked, &bh2->b_state);
 			__brelse(bh2);
@@ -495,6 +494,8 @@ static void write_one_revoke_record(journal_t *journal,
 	
 	if (!descriptor) {
 		descriptor = journal_get_descriptor_buffer(journal);
+		if (!descriptor)
+			return;
 		header = (journal_header_t *) &jh2bh(descriptor)->b_data[0];
 		header->h_magic     = htonl(JFS_MAGIC_NUMBER);
 		header->h_blocktype = htonl(JFS_REVOKE_BLOCK);

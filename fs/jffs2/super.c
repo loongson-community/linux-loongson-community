@@ -197,9 +197,9 @@ static struct super_block *jffs2_read_super(struct super_block *sb, void *data, 
 	struct inode *root_i;
 	int i;
 
-	D1(printk(KERN_DEBUG "jffs2: read_super for device %s\n", kdevname(sb->s_dev)));
+	D1(printk(KERN_DEBUG "jffs2: read_super for device %s\n", sb->s_id));
 
-	if (MAJOR(sb->s_dev) != MTD_BLOCK_MAJOR) {
+	if (major(sb->s_dev) != MTD_BLOCK_MAJOR) {
 		if (!silent)
 			printk(KERN_DEBUG "jffs2: attempt to mount non-MTD device %s\n", kdevname(sb->s_dev));
 		return NULL;

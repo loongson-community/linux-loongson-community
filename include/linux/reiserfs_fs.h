@@ -15,10 +15,10 @@
 #include <linux/types.h>
 #ifdef __KERNEL__
 #include <linux/slab.h>
+#include <linux/interrupt.h>
 #include <linux/tqueue.h>
 #include <asm/unaligned.h>
 #include <linux/bitops.h>
-#include <asm/hardirq.h>
 #include <linux/proc_fs.h>
 #endif
 
@@ -1651,7 +1651,7 @@ extern wait_queue_head_t reiserfs_commit_thread_wait ;
 #define _jhashfn(dev,block)	\
 	((((dev)<<(JBH_HASH_SHIFT - 6)) ^ ((dev)<<(JBH_HASH_SHIFT - 9))) ^ \
 	 (((block)<<(JBH_HASH_SHIFT - 6)) ^ ((block) >> 13) ^ ((block) << (JBH_HASH_SHIFT - 12))))
-#define journal_hash(t,dev,block) ((t)[_jhashfn((dev),(block)) & JBH_HASH_MASK])
+#define journal_hash(t,sb,block) ((t)[_jhashfn((kdev_t_to_nr(sb->s_dev)),(block)) & JBH_HASH_MASK])
 
 /* finds n'th buffer with 0 being the start of this commit.  Needs to go away, j_ap_blocks has changed
 ** since I created this.  One chunk of code in journal.c needs changing before deleting it
@@ -1678,14 +1678,13 @@ int pop_journal_writer(int windex) ;
 int journal_lock_dobalance(struct super_block *p_s_sb) ;
 int journal_unlock_dobalance(struct super_block *p_s_sb) ;
 int journal_transaction_should_end(struct reiserfs_transaction_handle *, int) ;
-int reiserfs_in_journal(struct super_block *p_s_sb, kdev_t dev, unsigned long bl, int size, int searchall, unsigned long *next) ;
+int reiserfs_in_journal(struct super_block *p_s_sb, unsigned long bl, int searchall, unsigned long *next) ;
 int journal_begin(struct reiserfs_transaction_handle *, struct super_block *p_s_sb, unsigned long) ;
 int journal_join(struct reiserfs_transaction_handle *, struct super_block *p_s_sb, unsigned long) ;
 struct super_block *reiserfs_get_super(kdev_t dev) ;
 void flush_async_commits(struct super_block *p_s_sb) ;
 
 int remove_from_transaction(struct super_block *p_s_sb, unsigned long blocknr, int already_cleaned) ;
-int remove_from_journal_list(struct super_block *s, struct reiserfs_journal_list *jl, struct buffer_head *bh, int remove_freed) ;
 
 int buffer_journaled(const struct buffer_head *bh) ;
 int mark_buffer_journal_new(struct buffer_head *bh) ;
@@ -1827,12 +1826,12 @@ void reiserfs_do_truncate (struct reiserfs_transaction_handle *th,
 //void decrement_i_read_sync_counter (struct inode * p_s_inode);
 
 
-#define block_size(inode) ((inode)->i_sb->s_blocksize)
+#define i_block_size(inode) ((inode)->i_sb->s_blocksize)
 #define file_size(inode) ((inode)->i_size)
-#define tail_size(inode) (file_size (inode) & (block_size (inode) - 1))
+#define tail_size(inode) (file_size (inode) & (i_block_size (inode) - 1))
 
 #define tail_has_to_be_packed(inode) (!dont_have_tails ((inode)->i_sb) &&\
-!STORE_TAIL_IN_UNFM(file_size (inode), tail_size(inode), block_size (inode)))
+!STORE_TAIL_IN_UNFM(file_size (inode), tail_size(inode), i_block_size (inode)))
 
 /*
 int get_buffer_by_range (struct super_block * p_s_sb, struct key * p_s_range_begin, struct key * p_s_range_end, 
@@ -1989,10 +1988,9 @@ int get_new_buffer (struct reiserfs_transaction_handle *th, struct buffer_head *
 
 
 /* buffer2.c */
-struct buffer_head * reiserfs_getblk (kdev_t n_dev, int n_block, int n_size);
+struct buffer_head * reiserfs_getblk (struct super_block *super, int n_block);
 void wait_buffer_until_released (const struct buffer_head * bh);
-struct buffer_head * reiserfs_bread (struct super_block *super, int n_block, 
-				     int n_size);
+struct buffer_head * reiserfs_bread (struct super_block *super, int n_block);
 
 /* fix_nodes.c */
 void * reiserfs_kmalloc (size_t size, int flags, struct super_block * s);

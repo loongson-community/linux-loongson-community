@@ -32,7 +32,6 @@
 #include <linux/quotaops.h>
 #include <linux/module.h>
 
-
 /*
  * SEARCH_FROM_ZERO forces each block allocation to search from the start
  * of the filesystem.  This is to force rapid reallocation of recently-freed
@@ -715,6 +714,8 @@ err_out:
  * reachable from inode.
  *
  * akpm: `handle' can be NULL if create == 0.
+ *
+ * The BKL may not be held on entry here.  Be sure to take it early.
  */
 
 static int ext3_get_block_handle(handle_t *handle, struct inode *inode, 
@@ -743,9 +744,7 @@ reread:
 	if (!partial) {
 		bh_result->b_state &= ~(1UL << BH_New);
 got_it:
-		bh_result->b_dev = inode->i_dev;
-		bh_result->b_blocknr = le32_to_cpu(chain[depth-1].key);
-		bh_result->b_state |= (1UL << BH_Mapped);
+		map_bh(bh_result, inode->i_sb, le32_to_cpu(chain[depth-1].key));
 		/* Clean up and exit */
 		partial = chain+depth-1; /* the whole chain */
 		goto cleanup;
@@ -1020,13 +1019,26 @@ static int ext3_prepare_write(struct file *file, struct page *page,
 		ret = PTR_ERR(handle);
 		goto out;
 	}
+	unlock_kernel();
 	ret = block_prepare_write(page, from, to, ext3_get_block);
+	lock_kernel();
 	if (ret != 0)
 		goto prepare_write_failed;
 
-	if (ext3_should_journal_data(inode))
+	if (ext3_should_journal_data(inode)) {
 		ret = walk_page_buffers(handle, page->buffers,
 				from, to, NULL, do_journal_get_write_access);
+		if (ret) {
+			/*
+			 * We're going to fail this prepare_write(),
+			 * so commit_write() will not be called.
+			 * We need to undo block_prepare_write()'s kmap().
+			 * AKPM: Do we need to clear PageUptodate?  I don't
+			 * think so.
+			 */
+			kunmap(page);
+		}
+	}
 prepare_write_failed:
 	if (ret)
 		ext3_journal_stop(handle, inode);
@@ -1094,7 +1106,7 @@ static int ext3_commit_write(struct file *file, struct page *page,
 		kunmap(page);
 		if (pos > inode->i_size)
 			inode->i_size = pos;
-		set_bit(EXT3_STATE_JDATA, &inode->u.ext3_i.i_state);
+		EXT3_I(inode)->i_state |= EXT3_STATE_JDATA;
 	} else {
 		if (ext3_should_order_data(inode)) {
 			ret = walk_page_buffers(handle, page->buffers,
@@ -1102,8 +1114,17 @@ static int ext3_commit_write(struct file *file, struct page *page,
 		}
 		/* Be careful here if generic_commit_write becomes a
 		 * required invocation after block_prepare_write. */
-		if (ret == 0)
+		if (ret == 0) {
 			ret = generic_commit_write(file, page, from, to);
+		} else {
+			/*
+			 * block_prepare_write() was called, but we're not
+			 * going to call generic_commit_write().  So we
+			 * need to perform generic_commit_write()'s kunmap
+			 * by hand.
+			 */
+			kunmap(page);
+		}
 	}
 	if (inode->i_size > inode->u.ext3_i.i_disksize) {
 		inode->u.ext3_i.i_disksize = inode->i_size;
@@ -1138,7 +1159,7 @@ static int ext3_bmap(struct address_space *mapping, long block)
 	journal_t *journal;
 	int err;
 	
-	if (test_and_clear_bit(EXT3_STATE_JDATA, &inode->u.ext3_i.i_state)) {
+	if (EXT3_I(inode)->i_state & EXT3_STATE_JDATA) {
 		/* 
 		 * This is a REALLY heavyweight approach, but the use of
 		 * bmap on dirty files is expected to be extremely rare:
@@ -1157,6 +1178,7 @@ static int ext3_bmap(struct address_space *mapping, long block)
 		 * everything they get.
 		 */
 		
+		EXT3_I(inode)->i_state &= ~EXT3_STATE_JDATA;
 		journal = EXT3_JOURNAL(inode);
 		journal_lock_updates(journal);
 		err = journal_flush(journal);
@@ -1265,8 +1287,7 @@ static int ext3_writepage(struct page *page)
 	/* bget() all the buffers */
 	if (order_data) {
 		if (!page->buffers)
-			create_empty_buffers(page,
-				inode->i_dev, inode->i_sb->s_blocksize);
+			create_empty_buffers(page, inode->i_sb->s_blocksize);
 		page_buffers = page->buffers;
 		walk_page_buffers(handle, page_buffers, 0,
 				PAGE_CACHE_SIZE, NULL, bget_one);
@@ -1369,7 +1390,7 @@ static int ext3_block_truncate_page(handle_t *handle,
 		goto out;
 
 	if (!page->buffers)
-		create_empty_buffers(page, inode->i_dev, blocksize);
+		create_empty_buffers(page, blocksize);
 
 	/* Find the buffer that contains "offset" */
 	bh = page->buffers;
@@ -2198,7 +2219,7 @@ static int ext3_do_update_inode(handle_t *handle,
 	/* If we are not tracking these fields in the in-memory inode,
 	 * then preserve them on disk, but still initialise them to zero
 	 * for new inodes. */
-	if (inode->u.ext3_i.i_state & EXT3_STATE_NEW) {
+	if (EXT3_I(inode)->i_state & EXT3_STATE_NEW) {
 		raw_inode->i_faddr = 0;
 		raw_inode->i_frag = 0;
 		raw_inode->i_fsize = 0;
@@ -2244,7 +2265,7 @@ static int ext3_do_update_inode(handle_t *handle,
 	rc = ext3_journal_dirty_metadata(handle, bh);
 	if (!err)
 		err = rc;
-	inode->u.ext3_i.i_state &= ~EXT3_STATE_NEW;
+	EXT3_I(inode)->i_state &= ~EXT3_STATE_NEW;
 
 out_brelse:
 	brelse (bh);
@@ -2328,12 +2349,20 @@ void ext3_write_inode(struct inode *inode, int wait)
 int ext3_setattr(struct dentry *dentry, struct iattr *attr)
 {
 	struct inode *inode = dentry->d_inode;
-	int error, rc;
+	int error, rc = 0;
+	const unsigned int ia_valid = attr->ia_valid;
 
 	error = inode_change_ok(inode, attr);
 	if (error)
 		return error;
-	
+
+	if ((ia_valid & ATTR_UID && attr->ia_uid != inode->i_uid) ||
+		(ia_valid & ATTR_GID && attr->ia_gid != inode->i_gid)) {
+		error = DQUOT_TRANSFER(inode, attr) ? -EDQUOT : 0;
+		if (error)
+			return error;
+	}
+
 	if (attr->ia_valid & ATTR_SIZE && attr->ia_size < inode->i_size) {
 		handle_t *handle;
 
@@ -2351,7 +2380,7 @@ int ext3_setattr(struct dentry *dentry, struct iattr *attr)
 		ext3_journal_stop(handle, inode);
 	}
 	
-	inode_setattr(inode, attr);
+	rc = inode_setattr(inode, attr);
 
 	/* If inode_setattr's call to ext3_truncate failed to get a
 	 * transaction handle at all, we need to clean up the in-core
@@ -2361,7 +2390,9 @@ int ext3_setattr(struct dentry *dentry, struct iattr *attr)
 
 err_out:
 	ext3_std_error(inode->i_sb, error);
-	return 0;
+	if (!error)
+		error = rc;
+	return error;
 }
 
 
@@ -2662,6 +2693,3 @@ int ext3_change_inode_journal_flag(struct inode *inode, int val)
  * here, in ext3_aops_journal_start() to ensure that the forthcoming "see if we
  * need to extend" test in ext3_prepare_write() succeeds.  
  */
-
-
-MODULE_LICENSE("GPL");

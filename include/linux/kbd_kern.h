@@ -1,6 +1,7 @@
 #ifndef _KBD_KERN_H
 #define _KBD_KERN_H
 
+#include <linux/tty.h>
 #include <linux/interrupt.h>
 #include <linux/keyboard.h>
 
@@ -140,7 +141,6 @@ struct console;
 int getkeycode(unsigned int scancode);
 int setkeycode(unsigned int scancode, unsigned int keycode);
 void compute_shiftstate(void);
-int keyboard_wait_for_keypress(struct console *);
 
 /* defkeymap.c */
 

@@ -1571,13 +1571,13 @@ static int usbnet_start_xmit (struct sk_buff *skb, struct net_device *net)
 	struct urb		*urb = 0;
 	struct skb_data		*entry;
 	struct driver_info	*info = dev->driver_info;
-	int			flags;
+	unsigned long		flags;
 #ifdef	CONFIG_USB_NET1080
 	struct nc_header	*header = 0;
 	struct nc_trailer	*trailer = 0;
 #endif	/* CONFIG_USB_NET1080 */
 
-	flags = in_interrupt () ? GFP_ATOMIC : GFP_KERNEL;
+	flags = in_interrupt () ? GFP_ATOMIC : GFP_NOIO; /* might be used for nfs */
 
 	// some devices want funky USB-level framing, for
 	// win32 driver (usually) and/or hardware quirks

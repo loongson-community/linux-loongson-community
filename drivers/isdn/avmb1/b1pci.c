@@ -1,4 +1,4 @@
-/* $Id: b1pci.c,v 1.29.6.5 2001/09/23 22:24:33 kai Exp $
+/* $Id: b1pci.c,v 1.1.4.1.2.1 2001/12/21 15:00:17 kai Exp $
  * 
  * Module for AVM B1 PCI-card.
  * 
@@ -26,11 +26,11 @@
 #include "capilli.h"
 #include "avmcard.h"
 
-static char *revision = "$Revision: 1.29.6.5 $";
+static char *revision = "$Revision: 1.1.4.1.2.1 $";
 
 /* ------------------------------------------------------------- */
 
-static struct pci_device_id b1pci_pci_tbl[] __initdata = {
+static struct pci_device_id b1pci_pci_tbl[] __devinitdata = {
 	{ PCI_VENDOR_ID_AVM, PCI_DEVICE_ID_AVM_B1, PCI_ANY_ID, PCI_ANY_ID },
 	{ }				/* Terminating entry */
 };
@@ -108,7 +108,9 @@ static char *b1pci_procinfo(struct capi_ctr *ctrl)
 
 /* ------------------------------------------------------------- */
 
-static int b1pci_add_card(struct capi_driver *driver, struct capicardparams *p)
+static int b1pci_add_card(struct capi_driver *driver,
+                          struct capicardparams *p,
+			  struct pci_dev *dev)
 {
 	avmcard *card;
 	avmctrl_info *cinfo;
@@ -237,7 +239,7 @@ static void b1pciv4_remove_ctr(struct capi_ctr *ctrl)
 	release_region(card->port, AVMB1_PORTLEN);
 	ctrl->driverdata = 0;
 	kfree(card->ctrlinfo);
-	kfree(card->dma);
+        avmcard_dma_free(card->dma);
 	kfree(card);
 
 	MOD_DEC_USE_COUNT;
@@ -262,7 +264,9 @@ static char *b1pciv4_procinfo(struct capi_ctr *ctrl)
 
 /* ------------------------------------------------------------- */
 
-static int b1pciv4_add_card(struct capi_driver *driver, struct capicardparams *p)
+static int b1pciv4_add_card(struct capi_driver *driver,
+                            struct capicardparams *p,
+			    struct pci_dev *dev)
 {
 	avmcard *card;
 	avmctrl_info *cinfo;
@@ -278,18 +282,17 @@ static int b1pciv4_add_card(struct capi_driver *driver, struct capicardparams *p
 		return -ENOMEM;
 	}
 	memset(card, 0, sizeof(avmcard));
-	card->dma = (avmcard_dmainfo *) kmalloc(sizeof(avmcard_dmainfo), GFP_ATOMIC);
+        card->dma = avmcard_dma_alloc(driver->name, dev, 2048+128, 2048+128);
 	if (!card->dma) {
-		printk(KERN_WARNING "%s: no memory.\n", driver->name);
+		printk(KERN_WARNING "%s: dma alloc.\n", driver->name);
 		kfree(card);
 	        MOD_DEC_USE_COUNT;
 		return -ENOMEM;
 	}
-	memset(card->dma, 0, sizeof(avmcard_dmainfo));
         cinfo = (avmctrl_info *) kmalloc(sizeof(avmctrl_info), GFP_ATOMIC);
 	if (!cinfo) {
 		printk(KERN_WARNING "%s: no memory.\n", driver->name);
-		kfree(card->dma);
+                avmcard_dma_free(card->dma);
 		kfree(card);
 	        MOD_DEC_USE_COUNT;
 		return -ENOMEM;
@@ -308,7 +311,7 @@ static int b1pciv4_add_card(struct capi_driver *driver, struct capicardparams *p
 		       "%s: ports 0x%03x-0x%03x in use.\n",
 		       driver->name, card->port, card->port + AVMB1_PORTLEN);
 	        kfree(card->ctrlinfo);
-		kfree(card->dma);
+                avmcard_dma_free(card->dma);
 		kfree(card);
 	        MOD_DEC_USE_COUNT;
 		return -EBUSY;
@@ -319,7 +322,7 @@ static int b1pciv4_add_card(struct capi_driver *driver, struct capicardparams *p
 		printk(KERN_NOTICE "%s: can't remap memory at 0x%lx\n",
 					driver->name, card->membase);
 	        kfree(card->ctrlinfo);
-		kfree(card->dma);
+                avmcard_dma_free(card->dma);
 		kfree(card);
 	        MOD_DEC_USE_COUNT;
 		return -EIO;
@@ -332,7 +335,7 @@ static int b1pciv4_add_card(struct capi_driver *driver, struct capicardparams *p
 					driver->name, card->port, retval);
                 iounmap(card->mbase);
 	        kfree(card->ctrlinfo);
-		kfree(card->dma);
+                avmcard_dma_free(card->dma);
 		kfree(card);
 	        MOD_DEC_USE_COUNT;
 		return -EIO;
@@ -349,7 +352,7 @@ static int b1pciv4_add_card(struct capi_driver *driver, struct capicardparams *p
                 iounmap(card->mbase);
 		release_region(card->port, AVMB1_PORTLEN);
 	        kfree(card->ctrlinfo);
-		kfree(card->dma);
+                avmcard_dma_free(card->dma);
 		kfree(card);
 	        MOD_DEC_USE_COUNT;
 		return -EBUSY;
@@ -362,14 +365,12 @@ static int b1pciv4_add_card(struct capi_driver *driver, struct capicardparams *p
 		free_irq(card->irq, card);
 		release_region(card->port, AVMB1_PORTLEN);
 	        kfree(card->ctrlinfo);
-		kfree(card->dma);
+                avmcard_dma_free(card->dma);
 		kfree(card);
 	        MOD_DEC_USE_COUNT;
 		return -EBUSY;
 	}
 	card->cardnr = cinfo->capi_ctrl->cnr;
-
-	skb_queue_head_init(&card->dma->send_queue);
 
 	printk(KERN_INFO
 		"%s: AVM B1 PCI V4 at i/o %#x, irq %d, mem %#lx, revision %d (dma)\n",
@@ -403,7 +404,8 @@ static struct capi_driver b1pciv4_driver = {
 
 static int ncards = 0;
 
-static int add_card(struct pci_dev *dev)
+static int __devinit b1pci_probe(struct pci_dev *dev,
+				 const struct pci_device_id *ent)
 {
 	struct capi_driver *driver = &b1pci_driver;
 	struct capicardparams param;
@@ -429,9 +431,9 @@ static int add_card(struct pci_dev *dev)
 		"%s: PCI BIOS reports AVM-B1 V4 at i/o %#x, irq %d, mem %#x\n",
 		driver->name, param.port, param.irq, param.membase);
 #ifdef CONFIG_ISDN_DRV_AVMB1_B1PCIV4
-		retval = b1pciv4_add_card(driver, &param);
+		retval = b1pciv4_add_card(driver, &param, dev);
 #else
-		retval = b1pci_add_card(driver, &param);
+		retval = b1pci_add_card(driver, &param, dev);
 #endif
 		if (retval != 0) {
 		        printk(KERN_ERR
@@ -445,7 +447,7 @@ static int add_card(struct pci_dev *dev)
 		printk(KERN_INFO
 		"%s: PCI BIOS reports AVM-B1 at i/o %#x, irq %d\n",
 		driver->name, param.port, param.irq);
-		retval = b1pci_add_card(driver, &param);
+		retval = b1pci_add_card(driver, &param, dev);
 		if (retval != 0) {
 		        printk(KERN_ERR
 			"%s: no AVM-B1 at i/o %#x, irq %d detected\n",
@@ -455,13 +457,18 @@ static int add_card(struct pci_dev *dev)
 	return retval;
 }
 
+static struct pci_driver b1pci_pci_driver = {
+	name:		"b1pci",
+	id_table:	b1pci_pci_tbl,
+	probe:		b1pci_probe,
+};
+
 static int __init b1pci_init(void)
 {
 	struct capi_driver *driver = &b1pci_driver;
 #ifdef CONFIG_ISDN_DRV_AVMB1_B1PCIV4
 	struct capi_driver *driverv4 = &b1pciv4_driver;
 #endif
-	struct pci_dev *dev = NULL;
 	char *p;
 
 	MOD_INC_USE_COUNT;
@@ -504,10 +511,7 @@ static int __init b1pci_init(void)
 	}
 #endif
 
-	while ((dev = pci_find_device(PCI_VENDOR_ID_AVM, PCI_DEVICE_ID_AVM_B1, dev))) {
-		if (add_card(dev) == 0)
-			ncards++;
-	}
+	ncards = pci_register_driver(&b1pci_pci_driver);
 	if (ncards) {
 		printk(KERN_INFO "%s: %d B1-PCI card(s) detected\n",
 				driver->name, ncards);
@@ -515,6 +519,7 @@ static int __init b1pci_init(void)
 		return 0;
 	}
 	printk(KERN_ERR "%s: NO B1-PCI card detected\n", driver->name);
+	pci_unregister_driver(&b1pci_pci_driver);
 	detach_capi_driver(driver);
 #ifdef CONFIG_ISDN_DRV_AVMB1_B1PCIV4
 	detach_capi_driver(driverv4);
@@ -525,9 +530,10 @@ static int __init b1pci_init(void)
 
 static void __exit b1pci_exit(void)
 {
-    detach_capi_driver(&b1pci_driver);
+	pci_unregister_driver(&b1pci_pci_driver);
+	detach_capi_driver(&b1pci_driver);
 #ifdef CONFIG_ISDN_DRV_AVMB1_B1PCIV4
-    detach_capi_driver(&b1pciv4_driver);
+	detach_capi_driver(&b1pciv4_driver);
 #endif
 }
 

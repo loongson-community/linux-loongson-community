@@ -105,6 +105,7 @@ static volatile unsigned char sjcd_completion_status = 0;
 static volatile unsigned char sjcd_completion_error = 0;
 static unsigned short sjcd_command_is_in_progress = 0;
 static unsigned short sjcd_error_reported = 0;
+static spinlock_t sjcd_lock = SPIN_LOCK_UNLOCKED;
 
 static int sjcd_open_count;
 
@@ -458,7 +459,7 @@ static int sjcd_disk_change(kdev_t full_dev)
 #if 0
 	printk("SJCD: sjcd_disk_change( 0x%x )\n", full_dev);
 #endif
-	if (MINOR(full_dev) > 0) {
+	if (minor(full_dev) > 0) {
 		printk("SJCD: request error: invalid device minor.\n");
 		return 0;
 	}
@@ -1074,7 +1075,7 @@ static void sjcd_invalidate_buffers(void)
  */
 
 #define CURRENT_IS_VALID                                      \
-    ( !QUEUE_EMPTY && MAJOR( CURRENT->rq_dev ) == MAJOR_NR && \
+    ( !QUEUE_EMPTY && major( CURRENT->rq_dev ) == MAJOR_NR && \
       CURRENT->cmd == READ && CURRENT->sector != -1 )
 
 static void sjcd_transfer(void)
@@ -1497,12 +1498,6 @@ static void do_sjcd_request(request_queue_t * q)
 #endif
 	sjcd_transfer_is_active = 1;
 	while (CURRENT_IS_VALID) {
-		/*
-		 * Who of us are paranoiac?
-		 */
-		if (CURRENT->bh && !buffer_locked(CURRENT->bh))
-			panic(DEVICE_NAME ": block not locked");
-
 		sjcd_transfer();
 		if (CURRENT->nr_sectors == 0)
 			end_request(1);
@@ -1664,7 +1659,6 @@ static struct block_device_operations sjcd_fops = {
 };
 
 static int blksize = 2048;
-static int secsize = 2048;
 
 /*
  * Following stuff is intended for initialization of the cdrom. It
@@ -1692,7 +1686,6 @@ int __init sjcd_init(void)
 	printk("SJCD: sjcd=0x%x: ", sjcd_base);
 #endif
 
-	hardsect_size[MAJOR_NR] = &secsize;
 	blksize_size[MAJOR_NR] = &blksize;
 
 	if (devfs_register_blkdev(MAJOR_NR, "sjcd", &sjcd_fops) != 0) {
@@ -1701,9 +1694,9 @@ int __init sjcd_init(void)
 		return (-EIO);
 	}
 
-	blk_init_queue(BLK_DEFAULT_QUEUE(MAJOR_NR), DEVICE_REQUEST);
+	blk_init_queue(BLK_DEFAULT_QUEUE(MAJOR_NR), DEVICE_REQUEST,&sjcd_lock);
 	read_ahead[MAJOR_NR] = 4;
-	register_disk(NULL, MKDEV(MAJOR_NR, 0), 1, &sjcd_fops, 0);
+	register_disk(NULL, mk_kdev(MAJOR_NR, 0), 1, &sjcd_fops, 0);
 
 	if (check_region(sjcd_base, 4)) {
 		printk

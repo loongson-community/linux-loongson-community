@@ -21,6 +21,7 @@
 
 #include <linux/module.h>
 #include <linux/slab.h>
+#include <linux/spinlock.h>
 #include <linux/raid/multipath.h>
 #include <asm/atomic.h>
 
@@ -273,6 +274,7 @@ static int multipath_make_request (mddev_t *mddev, int rw,
 	memcpy(bh_req, bh, sizeof(*bh));
 	bh_req->b_blocknr = bh->b_rsector;
 	bh_req->b_dev = multipath->dev;
+	/* FIXME - later we will need bdev here */
 	bh_req->b_rdev = multipath->dev;
 /*	bh_req->b_rsector = bh->n_rsector; */
 	bh_req->b_end_io = multipath_end_request;
@@ -353,7 +355,7 @@ static int multipath_error (mddev_t *mddev, kdev_t dev)
 		 * which has just failed.
 		 */
 		for (i = 0; i < disks; i++) {
-			if (multipaths[i].dev==dev && !multipaths[i].operational)
+			if (kdev_same(multipaths[i].dev, dev) && !multipaths[i].operational)
 				return 0;
 		}
 		printk (LAST_DISK);
@@ -362,7 +364,7 @@ static int multipath_error (mddev_t *mddev, kdev_t dev)
 		 * Mark disk as unusable
 		 */
 		for (i = 0; i < disks; i++) {
-			if (multipaths[i].dev==dev && multipaths[i].operational) {
+			if (kdev_same(multipaths[i].dev,dev) && multipaths[i].operational) {
 				mark_disk_bad(mddev, i);
 				break;
 			}
@@ -605,7 +607,7 @@ static int multipath_diskop(mddev_t *mddev, mdp_disk_t **d, int state)
 
 		*d = failed_desc;
 
-		if (sdisk->dev == MKDEV(0,0))
+		if (kdev_none(sdisk->dev))
 			sdisk->used_slot = 0;
 		/*
 		 * this really activates the spare.
@@ -630,7 +632,7 @@ static int multipath_diskop(mddev_t *mddev, mdp_disk_t **d, int state)
 			err = 1;
 			goto abort;
 		}
-		rdisk->dev = MKDEV(0,0);
+		rdisk->dev = NODEV;
 		rdisk->used_slot = 0;
 		conf->nr_disks--;
 		break;
@@ -647,7 +649,7 @@ static int multipath_diskop(mddev_t *mddev, mdp_disk_t **d, int state)
 
 		adisk->number = added_desc->number;
 		adisk->raid_disk = added_desc->raid_disk;
-		adisk->dev = MKDEV(added_desc->major,added_desc->minor);
+		adisk->dev = mk_kdev(added_desc->major,added_desc->minor);
 
 		adisk->operational = 0;
 		adisk->spare = 1;
@@ -710,7 +712,7 @@ static void multipathd (void *data)
 		dev = bh->b_dev;
 		
 		multipath_map (mddev, &bh->b_dev);
-		if (bh->b_dev == dev) {
+		if (kdev_same(bh->b_dev, dev)) {
 			printk (IO_ERROR, partition_name(bh->b_dev), bh->b_blocknr);
 			multipath_end_bh_io(mp_bh, 0);
 		} else {

@@ -5,7 +5,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1996, 1997, 1998, 1999 by Ralf Baechle
+ * Copyright (C) 1996, 1997, 1998, 1999, 2002 by Ralf Baechle
  * Copyright (C) 1999 Silicon Graphics, Inc.
  */
 #ifndef _ASM_MMU_CONTEXT_H
@@ -15,6 +15,17 @@
 #include <linux/slab.h>
 #include <asm/pgalloc.h>
 #include <asm/pgtable.h>
+
+static inline int sched_find_first_zero_bit(unsigned long *b)
+{
+	unsigned long rt;
+
+	rt = b[0] & b[1];
+	if (unlikely(rt != 0xffffffffffffffff))
+		return find_first_zero_bit(b, MAX_RT_PRIO);
+
+	return ffz(b[2]) + MAX_RT_PRIO;
+}
 
 /*
  * For the fast tlb miss handlers, we currently keep a per cpu array

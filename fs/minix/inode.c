@@ -126,9 +126,7 @@ static struct super_block *minix_read_super(struct super_block *s, void *data,
 	struct buffer_head **map;
 	struct minix_super_block *ms;
 	int i, block;
-	kdev_t dev = s->s_dev;
 	struct inode *root_inode;
-	unsigned int hblock;
 	struct minix_sb_info *sbi = &s->u.minix_sb;
 
 	/* N.B. These should be compile-time tests.
@@ -138,13 +136,9 @@ static struct super_block *minix_read_super(struct super_block *s, void *data,
 	if (64 != sizeof(struct minix2_inode))
 		panic("bad V2 i-node size");
 
-	hblock = get_hardsect_size(dev);
-	if (hblock > BLOCK_SIZE)
+	if (!sb_set_blocksize(s, BLOCK_SIZE))
 		goto out_bad_hblock;
 
-	set_blocksize(dev, BLOCK_SIZE);
-	s->s_blocksize = BLOCK_SIZE;
-	s->s_blocksize_bits = BLOCK_SIZE_BITS;
 	if (!(bh = sb_bread(s, 1)))
 		goto out_bad_sb;
 
@@ -214,7 +208,7 @@ static struct super_block *minix_read_super(struct super_block *s, void *data,
 	/* set up enough so that it can read an inode */
 	s->s_op = &minix_sops;
 	root_inode = iget(s, MINIX_ROOT_INO);
-	if (!root_inode)
+	if (!root_inode || is_bad_inode(root_inode))
 		goto out_no_root;
 
 	s->s_root = d_alloc_root(root_inode);
@@ -264,7 +258,7 @@ out_no_map:
 out_no_fs:
 	if (!silent)
 		printk("VFS: Can't find a Minix or Minix V2 filesystem on device "
-		       "%s.\n", kdevname(dev));
+		       "%s.\n", s->s_id);
     out_release:
 	brelse(bh);
 	goto out;
@@ -353,8 +347,10 @@ static void V1_minix_read_inode(struct inode * inode)
 	int i;
 
 	raw_inode = minix_V1_raw_inode(inode->i_sb, inode->i_ino, &bh);
-	if (!raw_inode)
+	if (!raw_inode) {
+		make_bad_inode(inode);
 		return;
+	}
 	inode->i_mode = raw_inode->i_mode;
 	inode->i_uid = (uid_t)raw_inode->i_uid;
 	inode->i_gid = (gid_t)raw_inode->i_gid;
@@ -378,8 +374,10 @@ static void V2_minix_read_inode(struct inode * inode)
 	int i;
 
 	raw_inode = minix_V2_raw_inode(inode->i_sb, inode->i_ino, &bh);
-	if (!raw_inode)
+	if (!raw_inode) {
+		make_bad_inode(inode);
 		return;
+	}
 	inode->i_mode = raw_inode->i_mode;
 	inode->i_uid = (uid_t)raw_inode->i_uid;
 	inode->i_gid = (gid_t)raw_inode->i_gid;
@@ -490,9 +488,8 @@ int minix_sync_inode(struct inode * inode)
 		wait_on_buffer(bh);
 		if (buffer_req(bh) && !buffer_uptodate(bh))
 		{
-			printk ("IO error syncing minix inode ["
-				"%s:%08lx]\n",
-				kdevname(inode->i_dev), inode->i_ino);
+			printk ("IO error syncing minix inode [%s:%08lx]\n",
+				inode->i_sb->s_id, inode->i_ino);
 			err = -1;
 		}
 	}

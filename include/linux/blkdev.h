@@ -6,7 +6,7 @@
 #include <linux/genhd.h>
 #include <linux/tqueue.h>
 #include <linux/list.h>
-#include <linux/mm.h>
+#include <linux/pagemap.h>
 
 #include <asm/scatterlist.h>
 
@@ -25,7 +25,7 @@ struct request {
 	struct list_head queuelist; /* looking for ->queue? you must _not_
 				     * access it directly, use
 				     * blkdev_dequeue_request! */
-	int elevator_sequence;
+	void *elevator_private;
 
 	unsigned char cmd[16];
 
@@ -130,15 +130,16 @@ enum blk_queue_state {
 struct request_queue
 {
 	/*
-	 * the queue request freelist, one for reads and one for writes
-	 */
-	struct request_list	rq[2];
-
-	/*
 	 * Together with queue_head for cacheline sharing
 	 */
 	struct list_head	queue_head;
+	struct list_head	*last_merge;
 	elevator_t		elevator;
+
+	/*
+	 * the queue request freelist, one for reads and one for writes
+	 */
+	struct request_list	rq[2];
 
 	request_fn_proc		*request_fn;
 	merge_request_fn	*back_merge_fn;
@@ -195,8 +196,7 @@ struct request_queue
 #define RQ_SCSI_DISCONNECTING	0xffe0
 
 #define QUEUE_FLAG_PLUGGED	0	/* queue is plugged */
-#define QUEUE_FLAG_NOSPLIT	1	/* can process bio over several goes */
-#define QUEUE_FLAG_CLUSTER	2	/* cluster several segments into 1 */
+#define QUEUE_FLAG_CLUSTER	1	/* cluster several segments into 1 */
 
 #define blk_queue_plugged(q)	test_bit(QUEUE_FLAG_PLUGGED, &(q)->queue_flags)
 #define blk_mark_plugged(q)	set_bit(QUEUE_FLAG_PLUGGED, &(q)->queue_flags)
@@ -206,6 +206,14 @@ struct request_queue
 #define rq_data_dir(rq)		((rq)->flags & 1)
 
 /*
+ * mergeable request must not have _NOMERGE or _BARRIER bit set, nor may
+ * it already be started by driver.
+ */
+#define rq_mergeable(rq)	\
+	(!((rq)->flags & (REQ_NOMERGE | REQ_STARTED | REQ_BARRIER))	\
+	&& ((rq)->flags & REQ_CMD))
+
+/*
  * noop, requests are automagically marked as active/inactive by I/O
  * scheduler -- see elv_next_request
  */
@@ -213,26 +221,24 @@ struct request_queue
 
 extern unsigned long blk_max_low_pfn, blk_max_pfn;
 
-#define BLK_BOUNCE_HIGH	(blk_max_low_pfn << PAGE_SHIFT)
-#define BLK_BOUNCE_ANY	(blk_max_pfn << PAGE_SHIFT)
-#define BLK_BOUNCE_ISA	(ISA_DMA_THRESHOLD)
+/*
+ * standard bounce addresses:
+ *
+ * BLK_BOUNCE_HIGH	: bounce all highmem pages
+ * BLK_BOUNCE_ANY	: don't bounce anything
+ * BLK_BOUNCE_ISA	: bounce pages above ISA DMA boundary
+ */
+#define BLK_BOUNCE_HIGH		(blk_max_low_pfn << PAGE_SHIFT)
+#define BLK_BOUNCE_ANY		(blk_max_pfn << PAGE_SHIFT)
+#define BLK_BOUNCE_ISA		(ISA_DMA_THRESHOLD)
 
-#ifdef CONFIG_HIGHMEM
-
+extern int init_emergency_isa_pool(void);
 extern void create_bounce(unsigned long pfn, int gfp, struct bio **bio_orig);
-extern void init_emergency_isa_pool(void);
 
 extern inline void blk_queue_bounce(request_queue_t *q, struct bio **bio)
 {
 	create_bounce(q->bounce_pfn, q->bounce_gfp, bio);
 }
-
-#else /* CONFIG_HIGHMEM */
-
-#define blk_queue_bounce(q, bio)	do { } while (0)
-#define init_emergency_isa_pool()	do { } while (0)
-
-#endif /* CONFIG_HIGHMEM */
 
 #define rq_for_each_bio(bio, rq)	\
 	if ((rq->bio))			\
@@ -275,9 +281,13 @@ extern void blk_plug_device(request_queue_t *);
 extern void blk_recount_segments(request_queue_t *, struct bio *);
 extern inline int blk_phys_contig_segment(request_queue_t *q, struct bio *, struct bio *);
 extern inline int blk_hw_contig_segment(request_queue_t *q, struct bio *, struct bio *);
-extern void blk_queue_assign_lock(request_queue_t *q, spinlock_t *);
-
 extern int block_ioctl(kdev_t, unsigned int, unsigned long);
+extern int ll_10byte_cmd_build(request_queue_t *, struct request *);
+
+/*
+ * get ready for proper ref counting
+ */
+#define blk_put_queue(q)	do { } while (0)
 
 /*
  * Access functions for manipulating queue properties
@@ -292,6 +302,9 @@ extern void blk_queue_max_hw_segments(request_queue_t *q, unsigned short);
 extern void blk_queue_max_segment_size(request_queue_t *q, unsigned int);
 extern void blk_queue_hardsect_size(request_queue_t *q, unsigned short);
 extern void blk_queue_segment_boundary(request_queue_t *q, unsigned long);
+extern void blk_queue_assign_lock(request_queue_t *q, spinlock_t *);
+extern void blk_queue_prep_rq(request_queue_t *q, prep_rq_fn *pfn);
+
 extern int blk_rq_map_sg(request_queue_t *, struct request *, struct scatterlist *);
 extern void blk_dump_rq_flags(struct request *, char *);
 extern void generic_unplug_device(void *);
@@ -313,10 +326,6 @@ extern int * max_readahead[MAX_BLKDEV];
 #define MIN_READAHEAD	3
 
 #define blkdev_entry_to_request(entry) list_entry((entry), struct request, queuelist)
-#define blkdev_entry_next_request(entry) blkdev_entry_to_request((entry)->next)
-#define blkdev_entry_prev_request(entry) blkdev_entry_to_request((entry)->prev)
-#define blkdev_next_request(req) blkdev_entry_to_request((req)->queuelist.next)
-#define blkdev_prev_request(req) blkdev_entry_to_request((req)->queuelist.prev)
 
 extern void drive_stat_acct(struct request *, int, int);
 
@@ -358,14 +367,23 @@ extern inline unsigned int blksize_bits(unsigned int size)
 extern inline unsigned int block_size(kdev_t dev)
 {
 	int retval = BLOCK_SIZE;
-	int major = MAJOR(dev);
+	int major = major(dev);
 
 	if (blksize_size[major]) {
-		int minor = MINOR(dev);
+		int minor = minor(dev);
 		if (blksize_size[major][minor])
 			retval = blksize_size[major][minor];
 	}
 	return retval;
+}
+
+typedef struct {struct page *v;} Sector;
+
+unsigned char *read_dev_sector(struct block_device *, unsigned long, Sector *);
+
+static inline void put_dev_sector(Sector p)
+{
+	page_cache_release(p.v);
 }
 
 #endif

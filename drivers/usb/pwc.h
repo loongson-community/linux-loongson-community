@@ -60,8 +60,8 @@
 
 /* Version block */
 #define PWC_MAJOR	8
-#define PWC_MINOR	4
-#define PWC_VERSION 	"8.4"
+#define PWC_MINOR	5
+#define PWC_VERSION 	"8.5"
 #define PWC_NAME 	"pwc"
 
 /* Turn certain features on/off */
@@ -96,7 +96,7 @@ struct pwc_iso_buf
 	void *data;
 	int  length;
 	int  read;
-	purb_t urb;
+	struct urb *urb;
 };
 
 /* intermediate buffers with raw data from the USB cam */

@@ -5,6 +5,7 @@
  */
 
 #include <linux/config.h>
+#include <linux/mm.h>
 #include <linux/slab.h>
 #include <linux/interrupt.h>
 #include <linux/smp_lock.h>
@@ -12,6 +13,7 @@
 #include <linux/completion.h>
 #include <linux/personality.h>
 #include <linux/tty.h>
+#include <linux/namespace.h>
 #ifdef CONFIG_BSD_PROCESS_ACCT
 #include <linux/acct.h>
 #endif
@@ -27,49 +29,39 @@ int getrusage(struct task_struct *, int, struct rusage *);
 
 void release_task(struct task_struct * p)
 {
-	if (p != current) {
-#ifdef CONFIG_SMP
-		/*
-		 * Wait to make sure the process isn't on the
-		 * runqueue (active on some other CPU still)
-		 */
-		for (;;) {
-			task_lock(p);
-			if (!task_has_cpu(p))
-				break;
-			task_unlock(p);
-			do {
-				cpu_relax();
-				barrier();
-			} while (task_has_cpu(p));
-		}
-		task_unlock(p);
-#endif
-		atomic_dec(&p->user->processes);
-		free_uid(p->user);
-		unhash_process(p);
+	unsigned long flags;
 
-		release_thread(p);
-		current->cmin_flt += p->min_flt + p->cmin_flt;
-		current->cmaj_flt += p->maj_flt + p->cmaj_flt;
-		current->cnswap += p->nswap + p->cnswap;
-		/*
-		 * Potentially available timeslices are retrieved
-		 * here - this way the parent does not get penalized
-		 * for creating too many processes.
-		 *
-		 * (this cannot be used to artificially 'generate'
-		 * timeslices, because any timeslice recovered here
-		 * was given away by the parent in the first place.)
-		 */
-		current->counter += p->counter;
-		if (current->counter >= MAX_COUNTER)
-			current->counter = MAX_COUNTER;
-		p->pid = 0;
-		free_task_struct(p);
-	} else {
-		printk("task releasing itself\n");
-	}
+	if (p == current)
+		BUG();
+#ifdef CONFIG_SMP
+	wait_task_inactive(p);
+#endif
+	atomic_dec(&p->user->processes);
+	free_uid(p->user);
+	unhash_process(p);
+
+	release_thread(p);
+	current->cmin_flt += p->min_flt + p->cmin_flt;
+	current->cmaj_flt += p->maj_flt + p->cmaj_flt;
+	current->cnswap += p->nswap + p->cnswap;
+	/*
+	 * Potentially available timeslices are retrieved
+	 * here - this way the parent does not get penalized
+	 * for creating too many processes.
+	 *
+	 * (this cannot be used to artificially 'generate'
+	 * timeslices, because any timeslice recovered here
+	 * was given away by the parent in the first place.)
+	 */
+	__save_flags(flags);
+	__cli();
+	current->time_slice += p->time_slice;
+	if (current->time_slice > MAX_TIMESLICE)
+		current->time_slice = MAX_TIMESLICE;
+	__restore_flags(flags);
+
+	p->pid = 0;
+	free_task_struct(p);
 }
 
 /*
@@ -147,6 +139,80 @@ static inline int has_stopped_jobs(int pgrp)
 	}
 	read_unlock(&tasklist_lock);
 	return retval;
+}
+
+/**
+ * reparent_to_init() - Reparent the calling kernel thread to the init task.
+ *
+ * If a kernel thread is launched as a result of a system call, or if
+ * it ever exits, it should generally reparent itself to init so that
+ * it is correctly cleaned up on exit.
+ *
+ * The various task state such as scheduling policy and priority may have
+ * been inherited from a user process, so we reset them to sane values here.
+ *
+ * NOTE that reparent_to_init() gives the caller full capabilities.
+ */
+void reparent_to_init(void)
+{
+	write_lock_irq(&tasklist_lock);
+
+	/* Reparent to init */
+	REMOVE_LINKS(current);
+	current->p_pptr = child_reaper;
+	current->p_opptr = child_reaper;
+	SET_LINKS(current);
+
+	/* Set the exit signal to SIGCHLD so we signal init on exit */
+	current->exit_signal = SIGCHLD;
+
+	current->ptrace = 0;
+	if ((current->policy == SCHED_OTHER) &&
+			(current->__nice < DEF_USER_NICE))
+		set_user_nice(current, DEF_USER_NICE);
+	/* cpus_allowed? */
+	/* rt_priority? */
+	/* signals? */
+	current->cap_effective = CAP_INIT_EFF_SET;
+	current->cap_inheritable = CAP_INIT_INH_SET;
+	current->cap_permitted = CAP_FULL_SET;
+	current->keep_capabilities = 0;
+	memcpy(current->rlim, init_task.rlim, sizeof(*(current->rlim)));
+	current->user = INIT_USER;
+
+	write_unlock_irq(&tasklist_lock);
+}
+
+/*
+ *	Put all the gunge required to become a kernel thread without
+ *	attached user resources in one place where it belongs.
+ */
+
+void daemonize(void)
+{
+	struct fs_struct *fs;
+
+
+	/*
+	 * If we were started as result of loading a module, close all of the
+	 * user space pages.  We don't need them, and if we didn't close them
+	 * they would be locked into memory.
+	 */
+	exit_mm(current);
+
+	current->session = 1;
+	current->pgrp = 1;
+	current->tty = NULL;
+
+	/* Become as one with the init task */
+
+	exit_fs(current);	/* current->fs->count--; */
+	fs = init_task.fs;
+	current->fs = fs;
+	atomic_inc(&fs->count);
+ 	exit_files(current);
+	current->files = init_task.files;
+	atomic_inc(&current->files->count);
 }
 
 /*
@@ -452,6 +518,7 @@ fake_volatile:
 	sem_exit();
 	__exit_files(tsk);
 	__exit_fs(tsk);
+	exit_namespace(tsk);
 	exit_sighand(tsk);
 	exit_thread();
 

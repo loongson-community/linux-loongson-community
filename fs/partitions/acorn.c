@@ -28,7 +28,7 @@ adfspart_setgeometry(kdev_t dev, unsigned int secspertrack, unsigned int heads)
 	extern void xd_set_geometry(kdev_t dev, unsigned char, unsigned char,
 				    unsigned long, unsigned int);
 
-	if (MAJOR(dev) == MFM_ACORN_MAJOR) {
+	if (major(dev) == MFM_ACORN_MAJOR) {
 		unsigned long totalblocks = hd->part[MINOR(dev)].nr_sects;
 		xd_set_geometry(dev, secspertrack, heads, totalblocks, 1);
 	}
@@ -261,7 +261,7 @@ adfspart_check_ADFS(struct gendisk *hd, struct block_device *bdev,
 	/*
 	 * Work out start of non-adfs partition.
 	 */
-	nr_sects = hd->part[MINOR(to_kdev_t(bdev->bd_dev))].nr_sects - start_sect;
+	nr_sects = hd->part[minor(to_kdev_t(bdev->bd_dev))].nr_sects - start_sect;
 
 	if (start_sect) {
 		first_sector += start_sect;

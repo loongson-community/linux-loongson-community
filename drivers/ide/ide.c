@@ -580,7 +580,7 @@ inline int __ide_end_request(ide_hwgroup_t *hwgroup, int uptodate, int nr_secs)
 	}
 
 	if (!end_that_request_first(rq, uptodate, nr_secs)) {
-		add_blkdev_randomness(MAJOR(rq->rq_dev));
+		add_blkdev_randomness(major(rq->rq_dev));
 		blkdev_dequeue_request(rq);
         	hwgroup->rq = NULL;
 		end_that_request_last(rq);
@@ -653,7 +653,7 @@ void ide_geninit (ide_hwif_t *hwif)
 			continue;
 		if (drive->media!=ide_disk && drive->media!=ide_floppy)
 			continue;
-		register_disk(gd,MKDEV(hwif->major,unit<<PARTN_BITS),
+		register_disk(gd,mk_kdev(hwif->major,unit<<PARTN_BITS),
 #ifdef CONFIG_BLK_DEV_ISAPNP
 			(drive->forced_geom && drive->noprobe) ? 1 :
 #endif /* CONFIG_BLK_DEV_ISAPNP */
@@ -1223,7 +1223,7 @@ static ide_startstop_t start_request (ide_drive_t *drive, struct request *rq)
 {
 	ide_startstop_t startstop;
 	unsigned long block;
-	unsigned int minor = MINOR(rq->rq_dev), unit = minor >> PARTN_BITS;
+	unsigned int minor = minor(rq->rq_dev), unit = minor >> PARTN_BITS;
 	ide_hwif_t *hwif = HWIF(drive);
 
 	BUG_ON(!(rq->flags & REQ_STARTED));
@@ -1241,12 +1241,6 @@ static ide_startstop_t start_request (ide_drive_t *drive, struct request *rq)
 		printk("%s: bad device number: %s\n", hwif->name, kdevname(rq->rq_dev));
 		goto kill_rq;
 	}
-#ifdef DEBUG
-	if (rq->bh && !buffer_locked(rq->bh)) {
-		printk("%s: block not locked\n", drive->name);
-		goto kill_rq;
-	}
-#endif
 	block    = rq->sector;
 
 	/* Strange disk manager remap */
@@ -1478,7 +1472,7 @@ static void ide_do_request(ide_hwgroup_t *hwgroup, int masked_irq)
  */
 request_queue_t *ide_get_queue (kdev_t dev)
 {
-	ide_hwif_t *hwif = (ide_hwif_t *)blk_dev[MAJOR(dev)].data;
+	ide_hwif_t *hwif = (ide_hwif_t *)blk_dev[major(dev)].data;
 
 	return &hwif->drives[DEVICE_NR(dev) & 1].queue;
 }
@@ -1784,7 +1778,7 @@ out_lock:
  */
 ide_drive_t *get_info_ptr (kdev_t i_rdev)
 {
-	int		major = MAJOR(i_rdev);
+	int		major = major(i_rdev);
 	unsigned int	h;
 
 	for (h = 0; h < MAX_HWIFS; ++h) {
@@ -1851,7 +1845,7 @@ int ide_do_drive_cmd (ide_drive_t *drive, struct request *rq, ide_action_t actio
 #endif
 	rq->errors = 0;
 	rq->rq_status = RQ_ACTIVE;
-	rq->rq_dev = MKDEV(major,(drive->select.b.unit)<<PARTN_BITS);
+	rq->rq_dev = mk_kdev(major,(drive->select.b.unit)<<PARTN_BITS);
 	if (action == ide_wait)
 		rq->waiting = &wait;
 	spin_lock_irqsave(&ide_lock, flags);
@@ -1880,7 +1874,7 @@ void ide_revalidate_drive (ide_drive_t *drive)
 {
         struct gendisk *g = HWIF(drive)->gd;
         int minor = (drive->select.b.unit << g->minor_shift);
-        kdev_t dev = MKDEV(g->major, minor);
+        kdev_t dev = mk_kdev(g->major, minor);
 
         grok_partitions(dev, current_capacity(drive));
 }
@@ -1939,7 +1933,7 @@ static void revalidate_drives (void)
 			if (drive->revalidate) {
 				drive->revalidate = 0;
 				if (!initializing)
-					(void) ide_revalidate_disk(MKDEV(hwif->major, unit<<PARTN_BITS));
+					(void) ide_revalidate_disk(mk_kdev(hwif->major, unit<<PARTN_BITS));
 			}
 		}
 	}
@@ -2119,7 +2113,7 @@ void ide_unregister (unsigned int index)
 		minor = drive->select.b.unit << PARTN_BITS;
 		for (p = 0; p < (1<<PARTN_BITS); ++p) {
 			if (drive->part[p].nr_sects > 0) {
-				kdev_t devp = MKDEV(hwif->major, minor+p);
+				kdev_t devp = mk_kdev(hwif->major, minor+p);
 				invalidate_device(devp, 0);
 			}
 		}
@@ -2624,9 +2618,8 @@ static int ide_ioctl (struct inode *inode, struct file *file,
 	kdev_t dev;
 	ide_settings_t *setting;
 
-	if (!inode || !(dev = inode->i_rdev))
-		return -EINVAL;
-	major = MAJOR(dev); minor = MINOR(dev);
+	dev = inode->i_rdev;
+	major = major(dev); minor = minor(dev);
 	if ((drive = get_info_ptr(inode->i_rdev)) == NULL)
 		return -ENODEV;
 
@@ -2635,7 +2628,7 @@ static int ide_ioctl (struct inode *inode, struct file *file,
 			err = ide_read_setting(drive, setting);
 			return err >= 0 ? put_user(err, (long *) arg) : err;
 		} else {
-			if ((MINOR(inode->i_rdev) & PARTN_MASK))
+			if ((minor(inode->i_rdev) & PARTN_MASK))
 				return -EINVAL;
 			return ide_write_setting(drive, setting, arg);
 		}
@@ -2651,7 +2644,7 @@ static int ide_ioctl (struct inode *inode, struct file *file,
 			if (put_user(drive->bios_head, (byte *) &loc->heads)) return -EFAULT;
 			if (put_user(drive->bios_sect, (byte *) &loc->sectors)) return -EFAULT;
 			if (put_user(bios_cyl, (unsigned short *) &loc->cylinders)) return -EFAULT;
-			if (put_user((unsigned)drive->part[MINOR(inode->i_rdev)&PARTN_MASK].start_sect,
+			if (put_user((unsigned)drive->part[minor(inode->i_rdev)&PARTN_MASK].start_sect,
 				(unsigned long *) &loc->start)) return -EFAULT;
 			return 0;
 		}
@@ -2664,7 +2657,7 @@ static int ide_ioctl (struct inode *inode, struct file *file,
 			if (put_user(drive->bios_head, (byte *) &loc->heads)) return -EFAULT;
 			if (put_user(drive->bios_sect, (byte *) &loc->sectors)) return -EFAULT;
 			if (put_user(drive->bios_cyl, (unsigned int *) &loc->cylinders)) return -EFAULT;
-			if (put_user((unsigned)drive->part[MINOR(inode->i_rdev)&PARTN_MASK].start_sect,
+			if (put_user((unsigned)drive->part[minor(inode->i_rdev)&PARTN_MASK].start_sect,
 				(unsigned long *) &loc->start)) return -EFAULT;
 			return 0;
 		}
@@ -2676,7 +2669,7 @@ static int ide_ioctl (struct inode *inode, struct file *file,
 			if (put_user(drive->head, (byte *) &loc->heads)) return -EFAULT;
 			if (put_user(drive->sect, (byte *) &loc->sectors)) return -EFAULT;
 			if (put_user(drive->cyl, (unsigned int *) &loc->cylinders)) return -EFAULT;
-			if (put_user((unsigned)drive->part[MINOR(inode->i_rdev)&PARTN_MASK].start_sect,
+			if (put_user((unsigned)drive->part[minor(inode->i_rdev)&PARTN_MASK].start_sect,
 				(unsigned long *) &loc->start)) return -EFAULT;
 			return 0;
 		}
@@ -2687,7 +2680,7 @@ static int ide_ioctl (struct inode *inode, struct file *file,
 
 		case HDIO_OBSOLETE_IDENTITY:
 		case HDIO_GET_IDENTITY:
-			if (MINOR(inode->i_rdev) & PARTN_MASK)
+			if (minor(inode->i_rdev) & PARTN_MASK)
 				return -EINVAL;
 			if (drive->id == NULL)
 				return -ENOMSG;

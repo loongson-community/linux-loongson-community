@@ -479,12 +479,9 @@ static inline void signal_wake_up(struct task_struct *t)
 	 * process of changing - but no harm is done by that
 	 * other than doing an extra (lightweight) IPI interrupt.
 	 */
-	spin_lock(&runqueue_lock);
-	if (task_has_cpu(t) && t->processor != smp_processor_id())
-		smp_send_reschedule(t->processor);
-	spin_unlock(&runqueue_lock);
-#endif /* CONFIG_SMP */
-
+	if ((t->state == TASK_RUNNING) && (t->cpu != smp_processor_id()))
+		kick_if_running(t);
+#endif
 	if (t->state & TASK_INTERRUPTIBLE) {
 		wake_up_process(t);
 		return;
@@ -650,10 +647,8 @@ kill_proc_info(int sig, struct siginfo *info, pid_t pid)
 /*
  * kill_something_info() interprets pid in interesting ways just like kill(2).
  *
- * POSIX (2001) specifies "If pid is -1, sig shall be sent to all processes
- * (excluding an unspecified set of system processes) for which the process
- * has permission to send that signal."
- * So, probably the process should also signal itself.
+ * POSIX specifies that kill(-1,sig) is unspecified, but what we have
+ * is probably wrong.  Should make it like BSD or SYSV.
  */
 
 static int kill_something_info(int sig, struct siginfo *info, int pid)
@@ -666,7 +661,7 @@ static int kill_something_info(int sig, struct siginfo *info, int pid)
 
 		read_lock(&tasklist_lock);
 		for_each_task(p) {
-			if (p->pid > 1) {
+			if (p->pid > 1 && p != current) {
 				int err = send_sig_info(sig, info, p);
 				++count;
 				if (err != -EPERM)

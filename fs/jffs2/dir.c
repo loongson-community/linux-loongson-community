@@ -38,11 +38,11 @@
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include <linux/fs.h>
+#include <linux/crc32.h>
 #include <linux/jffs2.h>
 #include <linux/jffs2_fs_i.h>
 #include <linux/jffs2_fs_sb.h>
 #include "nodelist.h"
-#include "crc32.h"
 
 static int jffs2_readdir (struct file *, void *, filldir_t);
 
@@ -795,7 +795,7 @@ static int jffs2_mknod (struct inode *dir_i, struct dentry *dentry, int mode, in
 	
 	if ((mode & S_IFMT) == S_IFBLK ||
 	    (mode & S_IFMT) == S_IFCHR) {
-		dev = (MAJOR(to_kdev_t(rdev)) << 8) | MINOR(to_kdev_t(rdev));
+		dev = (MAJOR(rdev) << 8) | MINOR(rdev);
 		devlen = sizeof(dev);
 	}
 	

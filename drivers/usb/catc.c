@@ -38,7 +38,10 @@
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
 #include <linux/spinlock.h>
+#include <linux/ethtool.h>
+#include <linux/crc32.h>
 #include <asm/bitops.h>
+#include <asm/uaccess.h>
 
 #undef DEBUG
 
@@ -48,9 +51,10 @@
  * Version information.
  */
 
-#define DRIVER_VERSION "v2.7"
+#define DRIVER_VERSION "v2.8"
 #define DRIVER_AUTHOR "Vojtech Pavlik <vojtech@suse.cz>"
 #define DRIVER_DESC "CATC EL1210A NetMate USB Ethernet driver"
+#define SHORT_DRIVER_DESC "EL1210A NetMate USB Ethernet"
 
 MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);
@@ -156,7 +160,7 @@ struct catc {
 	u8 rx_buf[RX_MAX_BURST * (PKT_SZ + 2)];
 	u8 irq_buf[2];
 	u8 ctrl_buf[64];
-	devrequest ctrl_dr;
+	struct usb_ctrlrequest ctrl_dr;
 
 	struct timer_list timer;
 	u8 stats_buf[8];
@@ -259,11 +263,15 @@ static void catc_irq_done(struct urb *urb)
 		} 
 	}
 
-	if (data[1] & 0x40)
+	if (data[1] & 0x40) {
+		netif_carrier_on(catc->netdev);
 		dbg("link ok");
+	}
 
-	if (data[1] & 0x20) 
+	if (data[1] & 0x20) {
+		netif_carrier_off(catc->netdev);
 		dbg("link bad");
+	}
 }
 
 /*
@@ -376,14 +384,14 @@ static void catc_ctrl_run(struct catc *catc)
 	struct ctrl_queue *q = catc->ctrl_queue + catc->ctrl_tail;
 	struct usb_device *usbdev = catc->usbdev;
 	struct urb *urb = &catc->ctrl_urb;
-	devrequest *dr = &catc->ctrl_dr;
+	struct usb_ctrlrequest *dr = &catc->ctrl_dr;
 	int status;
 
-	dr->request = q->request;
-	dr->requesttype = 0x40 | q->dir;
-	dr->value = cpu_to_le16(q->value);
-	dr->index = cpu_to_le16(q->index);
-	dr->length = cpu_to_le16(q->len);
+	dr->bRequest = q->request;
+	dr->bRequestType = 0x40 | q->dir;
+	dr->wValue = cpu_to_le16(q->value);
+	dr->wIndex = cpu_to_le16(q->index);
+	dr->wLength = cpu_to_le16(q->len);
 
         urb->pipe = q->dir ? usb_rcvctrlpipe(usbdev, 0) : usb_sndctrlpipe(usbdev, 0);
 	urb->transfer_buffer_length = q->len;
@@ -524,13 +532,9 @@ static struct net_device_stats *catc_get_stats(struct net_device *netdev)
 
 static void catc_multicast(unsigned char *addr, u8 *multicast)
 {
-	unsigned int crc = 0xffffffff;
-	u8 byte, idx, bit;
+	u32 crc;
 
-        for (idx = 0; idx < 6; idx++)
-                for (byte = *addr++, bit = 0; bit < 8; bit++, byte >>= 1)
-                        crc = (crc >> 1) ^ (((crc ^ byte) & 1) ? 0xedb88320U : 0);
-
+	crc = ether_crc_le(6, addr);
 	multicast[(crc >> 3) & 0x3f] |= 1 << (crc & 7);
 }
 
@@ -562,6 +566,54 @@ static void catc_set_multicast_list(struct net_device *netdev)
 	catc_set_reg_async(catc, RxUnit, rx);
 	catc_write_mem_async(catc, 0xfa80, catc->multicast, 64);
 }
+
+/*
+ * ioctl's
+ */
+static int netdev_ethtool_ioctl(struct net_device *dev, void *useraddr)
+{
+        struct catc *catc = dev->priv;
+        u32 cmd;
+	char tmp[40];
+        
+        if (get_user(cmd, (u32 *)useraddr))
+                return -EFAULT;
+
+        switch (cmd) {
+        /* get driver info */
+        case ETHTOOL_GDRVINFO: {
+                struct ethtool_drvinfo info = {ETHTOOL_GDRVINFO};
+                strncpy(info.driver, SHORT_DRIVER_DESC, ETHTOOL_BUSINFO_LEN);
+                strncpy(info.version, DRIVER_VERSION, ETHTOOL_BUSINFO_LEN);
+		sprintf(tmp, "usb%d:%d", catc->usbdev->bus->busnum, catc->usbdev->devnum);
+                strncpy(info.bus_info, tmp,ETHTOOL_BUSINFO_LEN);
+                if (copy_to_user(useraddr, &info, sizeof(info)))
+                        return -EFAULT;
+                return 0;
+        }
+        /* get link status */
+        case ETHTOOL_GLINK: {
+                struct ethtool_value edata = {ETHTOOL_GLINK};
+                edata.data = netif_carrier_ok(dev);
+                if (copy_to_user(useraddr, &edata, sizeof(edata)))
+                        return -EFAULT;
+                return 0;
+        }
+	}
+        
+        return -EOPNOTSUPP;
+}
+
+static int catc_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
+{
+        switch(cmd) {
+        case SIOCETHTOOL:
+                return netdev_ethtool_ioctl(dev, (void *) rq->ifr_data);
+        default:
+                return -EOPNOTSUPP;
+        }
+}
+
 
 /*
  * Open, close.
@@ -629,6 +681,7 @@ static void *catc_probe(struct usb_device *usbdev, unsigned int ifnum, const str
 	netdev->tx_timeout = catc_tx_timeout;
 	netdev->watchdog_timeo = TX_TIMEOUT;
 	netdev->set_multicast_list = catc_set_multicast_list;
+	netdev->do_ioctl = catc_ioctl;
 	netdev->priv = catc;
 
 	catc->usbdev = usbdev;

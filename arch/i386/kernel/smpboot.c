@@ -56,6 +56,10 @@ static int max_cpus = -1;
 /* Total count of live CPUs */
 int smp_num_cpus = 1;
 
+/* Number of siblings per CPU package */
+int smp_num_siblings = 1;
+int __initdata phys_proc_id[NR_CPUS]; /* Package ID of each logical CPU */
+
 /* Bitmask of currently online CPUs */
 unsigned long cpu_online_map;
 
@@ -304,14 +308,14 @@ static void __init synchronize_tsc_bp (void)
 			if (tsc_values[i] < avg)
 				realdelta = -realdelta;
 
-			printk("BIOS BUG: CPU#%d improperly initialized, has %ld usecs TSC skew! FIXED.\n",
-				i, realdelta);
+			printk("BIOS BUG: CPU#%d improperly initialized, has %ld usecs TSC skew! FIXED.\n", i, realdelta);
 		}
 
 		sum += delta;
 	}
 	if (!buggy)
 		printk("passed.\n");
+		;
 }
 
 static void __init synchronize_tsc_ap (void)
@@ -361,7 +365,7 @@ void __init smp_callin(void)
 	 * (This works even if the APIC is not enabled.)
 	 */
 	phys_id = GET_APIC_ID(apic_read(APIC_ID));
-	cpuid = current->processor;
+	cpuid = smp_processor_id();
 	if (test_and_set_bit(cpuid, &cpu_online_map)) {
 		printk("huh, phys CPU#%d, CPU#%d already present??\n",
 					phys_id, cpuid);
@@ -467,6 +471,7 @@ int __init start_secondary(void *unused)
 	 */
 	local_flush_tlb();
 
+	init_idle();
 	return cpu_idle();
 }
 
@@ -799,16 +804,13 @@ static void __init do_boot_cpu (int apicid)
 	if (!idle)
 		panic("No idle process for CPU %d", cpu);
 
-	idle->processor = cpu;
-	idle->cpus_runnable = 1 << cpu; /* we schedule the first task manually */
+	idle->cpu = cpu;
 
 	map_cpu_to_boot_apicid(cpu, apicid);
 
 	idle->thread.eip = (unsigned long) start_secondary;
 
-	del_from_runqueue(idle);
 	unhash_process(idle);
-	init_tasks[cpu] = idle;
 
 	/* start_eip had better be page-aligned! */
 	start_eip = setup_trampoline();
@@ -971,6 +973,8 @@ static int boot_cpu_logical_apicid;
 /* Where the IO area was mapped on multiquad, always 0 otherwise */
 void *xquad_portio = NULL;
 
+int cpu_sibling_map[NR_CPUS] __cacheline_aligned;
+
 void __init smp_boot_cpus(void)
 {
 	int apicid, cpu, bit;
@@ -1014,8 +1018,7 @@ void __init smp_boot_cpus(void)
 	map_cpu_to_boot_apicid(0, boot_cpu_apicid);
 
 	global_irq_holder = 0;
-	current->processor = 0;
-	init_idle();
+	current->cpu = 0;
 	smp_tune_scheduling();
 
 	/*
@@ -1162,6 +1165,34 @@ void __init smp_boot_cpus(void)
 		printk(KERN_WARNING "WARNING: SMP operation may be unreliable with B stepping processors.\n");
 	Dprintk("Boot done.\n");
 
+	/*
+	 * If Hyper-Threading is avaialble, construct cpu_sibling_map[], so
+	 * that we can tell the sibling CPU efficiently.
+	 */
+	if (test_bit(X86_FEATURE_HT, boot_cpu_data.x86_capability)
+	    && smp_num_siblings > 1) {
+		for (cpu = 0; cpu < NR_CPUS; cpu++)
+			cpu_sibling_map[cpu] = NO_PROC_ID;
+		
+		for (cpu = 0; cpu < smp_num_cpus; cpu++) {
+			int 	i;
+			
+			for (i = 0; i < smp_num_cpus; i++) {
+				if (i == cpu)
+					continue;
+				if (phys_proc_id[cpu] == phys_proc_id[i]) {
+					cpu_sibling_map[cpu] = i;
+					printk("cpu_sibling_map[%d] = %d\n", cpu, cpu_sibling_map[cpu]);
+					break;
+				}
+			}
+			if (cpu_sibling_map[cpu] == NO_PROC_ID) {
+				smp_num_siblings = 1;
+				printk(KERN_WARNING "WARNING: No sibling found for CPU %d.\n", cpu);
+			}
+		}
+	}
+	     
 #ifndef CONFIG_VISWS
 	/*
 	 * Here we can be sure that there is an IO-APIC in the system. Let's

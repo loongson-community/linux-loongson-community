@@ -15,7 +15,6 @@
  * be handled all at once by a host adapter.
  */
 
-#define __NO_VERSION__
 #include <linux/config.h>
 #include <linux/module.h>
 
@@ -59,11 +58,9 @@
  */
 int scsi_init_io(Scsi_Cmnd *SCpnt)
 {
-	struct request     *req;
+	struct request     *req = &SCpnt->request;
 	struct scatterlist *sgpnt;
 	int count, gfp_mask;
-
-	req = &SCpnt->request;
 
 	/*
 	 * First we need to know how many scatter gather segments are needed.
@@ -85,14 +82,13 @@ int scsi_init_io(Scsi_Cmnd *SCpnt)
 	BUG_ON(!sgpnt);
 
 	SCpnt->request_buffer = (char *) sgpnt;
-	SCpnt->request_bufflen = 0;
+	SCpnt->request_bufflen = req->nr_sectors << 9;
 	req->buffer = NULL;
 
 	/* 
 	 * Next, walk the list, and fill in the addresses and sizes of
 	 * each segment.
 	 */
-	SCpnt->request_bufflen = req->nr_sectors << 9;
 	count = blk_rq_map_sg(req->q, req, SCpnt->request_buffer);
 
 	/*
@@ -142,8 +138,7 @@ void scsi_initialize_merge_fn(Scsi_Device * SDpnt)
 			bounce_limit = BLK_BOUNCE_ANY;
 		else
 			bounce_limit = SHpnt->pci_dev->dma_mask;
-	}
-	if (SHpnt->unchecked_isa_dma)
+	} else if (SHpnt->unchecked_isa_dma)
 		bounce_limit = BLK_BOUNCE_ISA;
 
 	blk_queue_bounce_limit(q, bounce_limit);

@@ -10,7 +10,6 @@
  * For more information, please consult the SCSI-CAM draft.
  */
 
-#define __NO_VERSION__
 #include <linux/module.h>
 
 #include <linux/fs.h>
@@ -26,6 +25,36 @@
 static int setsize(unsigned long capacity, unsigned int *cyls, unsigned int *hds,
 		   unsigned int *secs);
 
+unsigned char *scsi_bios_ptable(kdev_t dev)
+{
+	struct block_device *bdev;
+	unsigned char *res = kmalloc(66, GFP_KERNEL);
+	kdev_t rdev = mk_kdev(major(dev), minor(dev) & ~0x0f);
+
+	if (res) {
+		struct buffer_head *bh;
+		int err;
+
+		bdev = bdget(kdev_t_to_nr(rdev));
+		if (!bdev)
+			goto fail;
+		err = blkdev_get(bdev, FMODE_READ, 0, BDEV_FILE);
+		if (err)
+			goto fail;
+		bh = __bread(bdev, 0, block_size(rdev));
+		if (!bh)
+			goto fail2;
+		memcpy(res, bh->b_data + 0x1be, 66);
+		brelse(bh);
+		blkdev_put(bdev, BDEV_FILE);
+	}
+	return res;
+fail2:
+	blkdev_put(bdev, BDEV_FILE);
+fail:
+	kfree(res);
+	return NULL;
+}
 
 /*
  * Function : int scsicam_bios_param (Disk *disk, int dev, int *ip)
@@ -42,26 +71,18 @@ int scsicam_bios_param(Disk * disk,	/* SCSI disk */
 		       kdev_t dev,	/* Device major, minor */
 		  int *ip /* Heads, sectors, cylinders in that order */ )
 {
-	struct buffer_head *bh;
 	int ret_code;
 	int size = disk->capacity;
 	unsigned long temp_cyl;
+	unsigned char *p = scsi_bios_ptable(dev);
 
-	int ma = MAJOR(dev);
-	int mi = (MINOR(dev) & ~0xf);
-
-	int block = 1024; 
-
-	if(blksize_size[ma])
-		block = blksize_size[ma][mi];
-		
-	if (!(bh = bread(MKDEV(ma,mi), 0, block)))
+	if (!p)
 		return -1;
 
 	/* try to infer mapping from partition table */
-	ret_code = scsi_partsize(bh, (unsigned long) size, (unsigned int *) ip + 2,
+	ret_code = scsi_partsize(p, (unsigned long) size, (unsigned int *) ip + 2,
 		       (unsigned int *) ip + 0, (unsigned int *) ip + 1);
-	brelse(bh);
+	kfree(p);
 
 	if (ret_code == -1) {
 		/* pick some standard mapping with at most 1024 cylinders,
@@ -86,7 +107,7 @@ int scsicam_bios_param(Disk * disk,	/* SCSI disk */
 }
 
 /*
- * Function : static int scsi_partsize(struct buffer_head *bh, unsigned long 
+ * Function : static int scsi_partsize(unsigned char *buf, unsigned long 
  *     capacity,unsigned int *cyls, unsigned int *hds, unsigned int *secs);
  *
  * Purpose : to determine the BIOS mapping used to create the partition
@@ -96,18 +117,17 @@ int scsicam_bios_param(Disk * disk,	/* SCSI disk */
  *
  */
 
-int scsi_partsize(struct buffer_head *bh, unsigned long capacity,
+int scsi_partsize(unsigned char *buf, unsigned long capacity,
 	       unsigned int *cyls, unsigned int *hds, unsigned int *secs)
 {
-	struct partition *p, *largest = NULL;
+	struct partition *p = (struct partition *)buf, *largest = NULL;
 	int i, largest_cyl;
 	int cyl, ext_cyl, end_head, end_cyl, end_sector;
 	unsigned int logical_end, physical_end, ext_physical_end;
 
 
-	if (*(unsigned short *) (bh->b_data + 510) == 0xAA55) {
-		for (largest_cyl = -1, p = (struct partition *)
-		     (0x1BE + bh->b_data), i = 0; i < 4; ++i, ++p) {
+	if (*(unsigned short *) (buf + 66) == 0xAA55) {
+		for (largest_cyl = -1, i = 0; i < 4; ++i, ++p) {
 			if (!p->sys_ind)
 				continue;
 #ifdef DEBUG

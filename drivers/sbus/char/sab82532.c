@@ -1,4 +1,4 @@
-/* $Id: sab82532.c,v 1.65 2001/10/13 08:27:50 davem Exp $
+/* $Id: sab82532.c,v 1.66 2002/01/08 16:00:16 davem Exp $
  * sab82532.c: ASYNC Driver for the SIEMENS SAB82532 DUSCC.
  *
  * Copyright (C) 1997  Eddie C. Dost  (ecd@skynet.be)
@@ -361,10 +361,6 @@ static void receive_chars(struct sab82532 *info,
 		writeb(SAB82532_CMDR_RMC, &info->regs->w.cmdr);
 	}
 
-#ifdef CONFIG_SERIAL_CONSOLE
-	if (info->is_console)
-		wake_up(&keypress_wait);
-#endif
 	if (!tty)
 		return;
 
@@ -1917,7 +1913,7 @@ static int sab82532_open(struct tty_struct *tty, struct file * filp)
 	printk("sab82532_open: count = %d\n", info->count);
 #endif
 
-	line = MINOR(tty->device) - tty->driver.minor_start;
+	line = minor(tty->device) - tty->driver.minor_start;
 	if ((line < 0) || (line >= NR_PORTS))
 		return -ENODEV;
 
@@ -2204,7 +2200,7 @@ static void __init sab82532_kgdb_hook(int line)
 
 static inline void __init show_serial_version(void)
 {
-	char *revision = "$Revision: 1.65 $";
+	char *revision = "$Revision: 1.66 $";
 	char *version, *p;
 
 	version = strchr(revision, ' ');
@@ -2541,17 +2537,10 @@ sab82532_console_write(struct console *con, const char *s, unsigned n)
 	sab82532_tec_wait(info);
 }
 
-static int
-sab82532_console_wait_key(struct console *con)
-{
-	sleep_on(&keypress_wait);
-	return 0;
-}
-
 static kdev_t
 sab82532_console_device(struct console *con)
 {
-	return MKDEV(TTY_MAJOR, 64 + con->index);
+	return mk_kdev(TTY_MAJOR, 64 + con->index);
 }
 
 static int
@@ -2622,7 +2611,6 @@ static struct console sab82532_console = {
 	name:		"ttyS",
 	write:		sab82532_console_write,
 	device:		sab82532_console_device,
-	wait_key:	sab82532_console_wait_key,
 	setup:		sab82532_console_setup,
 	flags:		CON_PRINTBUFFER,
 	index:		-1,

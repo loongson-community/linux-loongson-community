@@ -30,6 +30,7 @@
  *    04/10/2001 - corrected devfs_register() call in lvm_init_fs()
  *    11/04/2001 - don't devfs_register("lvm") as user-space always does it
  *    10/05/2001 - show more of PV name in /proc/lvm/global
+ *    16/12/2001 - fix devfs unregister order and prevent duplicate unreg (REG)
  *
  */
 
@@ -64,9 +65,7 @@ static int _pv_info(pv_t *pv_ptr, char *buf);
 
 static void _show_uuid(const char *src, char *b, char *e);
 
-#if 0
 static devfs_handle_t lvm_devfs_handle;
-#endif
 static devfs_handle_t vg_devfs_handle[MAX_VG];
 static devfs_handle_t ch_devfs_handle[MAX_VG];
 static devfs_handle_t lv_devfs_handle[MAX_LV];
@@ -80,13 +79,11 @@ static struct proc_dir_entry *lvm_proc_vg_subdir = NULL;
 void __init lvm_init_fs() {
 	struct proc_dir_entry *pde;
 
-/* User-space has already registered this */
-#if 0
+	/*  Must create device node. Think about "devfs=only" situation  */
 	lvm_devfs_handle = devfs_register(
 		0 , "lvm", 0, LVM_CHAR_MAJOR, 0,
 		S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP,
 		&lvm_chr_fops, NULL);
-#endif
 
 	lvm_proc_dir = create_proc_entry(LVM_DIR, S_IFDIR, &proc_root);
 	if (lvm_proc_dir) {
@@ -98,9 +95,7 @@ void __init lvm_init_fs() {
 }
 
 void lvm_fin_fs() {
-#if 0
 	devfs_unregister (lvm_devfs_handle);
-#endif
 
 	remove_proc_entry(LVM_GLOBAL, lvm_proc_dir);
 	remove_proc_entry(LVM_VG_SUBDIR, lvm_proc_dir);
@@ -138,7 +133,7 @@ void lvm_fs_remove_vg(vg_t *vg_ptr) {
 	int i;
 
 	devfs_unregister(ch_devfs_handle[vg_ptr->vg_number]);
-	devfs_unregister(vg_devfs_handle[vg_ptr->vg_number]);
+	ch_devfs_handle[vg_ptr->vg_number] = NULL;
 
 	/* remove lv's */
 	for(i = 0; i < vg_ptr->lv_max; i++)
@@ -147,6 +142,10 @@ void lvm_fs_remove_vg(vg_t *vg_ptr) {
 	/* remove pv's */
 	for(i = 0; i < vg_ptr->pv_max; i++)
 		if(vg_ptr->pv[i]) lvm_fs_remove_pv(vg_ptr, vg_ptr->pv[i]);
+
+	/* must not remove directory before leaf nodes */
+	devfs_unregister(vg_devfs_handle[vg_ptr->vg_number]);
+	vg_devfs_handle[vg_ptr->vg_number] = NULL;
 
 	if(vg_ptr->vg_dir_pde) {
 		remove_proc_entry(LVM_LV_SUBDIR, vg_ptr->vg_dir_pde);
@@ -173,9 +172,9 @@ devfs_handle_t lvm_fs_create_lv(vg_t *vg_ptr, lv_t *lv) {
 	struct proc_dir_entry *pde;
 	const char *name = _basename(lv->lv_name);
 
-	lv_devfs_handle[MINOR(lv->lv_dev)] = devfs_register(
+	lv_devfs_handle[minor(lv->lv_dev)] = devfs_register(
 		vg_devfs_handle[vg_ptr->vg_number], name,
-		DEVFS_FL_DEFAULT, LVM_BLK_MAJOR, MINOR(lv->lv_dev),
+		DEVFS_FL_DEFAULT, LVM_BLK_MAJOR, minor(lv->lv_dev),
 		S_IFBLK | S_IRUSR | S_IWUSR | S_IRGRP,
 		&lvm_blk_dops, NULL);
 
@@ -184,11 +183,12 @@ devfs_handle_t lvm_fs_create_lv(vg_t *vg_ptr, lv_t *lv) {
 		pde->read_proc = _proc_read_lv;
 		pde->data = lv;
 	}
-	return lv_devfs_handle[MINOR(lv->lv_dev)];
+	return lv_devfs_handle[minor(lv->lv_dev)];
 }
 
 void lvm_fs_remove_lv(vg_t *vg_ptr, lv_t *lv) {
-	devfs_unregister(lv_devfs_handle[MINOR(lv->lv_dev)]);
+	devfs_unregister(lv_devfs_handle[minor(lv->lv_dev)]);
+	lv_devfs_handle[minor(lv->lv_dev)] = NULL;
 
 	if(vg_ptr->lv_subdir_pde) {
 		const char *name = _basename(lv->lv_name);
@@ -283,7 +283,7 @@ static int _proc_read_lv(char *page, char **start, off_t off,
                              lv->lv_stripesize);
        }
 	sz += sprintf(page + sz, "device:       %02u:%02u\n",
-		      MAJOR(lv->lv_dev), MINOR(lv->lv_dev));
+		      major(lv->lv_dev), minor(lv->lv_dev));
 
 	return sz;
 }
@@ -304,7 +304,7 @@ static int _proc_read_pv(char *page, char **start, off_t off,
 	sz += sprintf(page + sz, "PE total:     %u\n", pv->pe_total);
 	sz += sprintf(page + sz, "PE allocated: %u\n", pv->pe_allocated);
 	sz += sprintf(page + sz, "device:       %02u:%02u\n",
-                      MAJOR(pv->pv_dev), MINOR(pv->pv_dev));
+                      major(pv->pv_dev), minor(pv->pv_dev));
 
 	_show_uuid(pv->pv_uuid, uuid, uuid + sizeof(uuid));
 	sz += sprintf(page + sz, "uuid:         %s\n", uuid);

@@ -146,6 +146,7 @@ struct inode *fat_build_inode(struct super_block *sb,
 		goto out;
 	*res = 0;
 	inode->i_ino = iunique(sb, MSDOS_ROOT_INO);
+	inode->i_version = 0;
 	fat_fill_inode(inode, de);
 	fat_attach(inode, ino);
 	insert_inode_hash(inode);
@@ -185,7 +186,7 @@ void fat_put_super(struct super_block *sb)
 	if (MSDOS_SB(sb)->fat_bits == 32) {
 		fat_clusters_flush(sb);
 	}
-	fat_cache_inval_dev(sb->s_dev);
+	fat_cache_inval_dev(sb);
 	set_blocksize (sb->s_dev,BLOCK_SIZE);
 	if (MSDOS_SB(sb)->nls_disk) {
 		unload_nls(MSDOS_SB(sb)->nls_disk);
@@ -383,7 +384,7 @@ static void fat_read_root(struct inode *inode)
 	MSDOS_I(inode)->i_fat_inode = inode;
 	inode->i_uid = sbi->options.fs_uid;
 	inode->i_gid = sbi->options.fs_gid;
-	inode->i_version = ++event;
+	inode->i_version++;
 	inode->i_generation = 0;
 	inode->i_mode = (S_IRWXUGO & ~sbi->options.fs_umask) | S_IFDIR;
 	inode->i_op = sbi->dir_ops;
@@ -406,7 +407,7 @@ static void fat_read_root(struct inode *inode)
 	}
 	inode->i_blksize = 1 << sbi->cluster_bits;
 	inode->i_blocks = ((inode->i_size + inode->i_blksize - 1)
-			   & ~(inode->i_blksize - 1)) / 512;
+			   & ~(inode->i_blksize - 1)) >> 9;
 	MSDOS_I(inode)->i_logstart = 0;
 	MSDOS_I(inode)->mmu_private = inode->i_size;
 
@@ -569,10 +570,6 @@ fat_read_super(struct super_block *sb, void *data, int silent,
 	sb->s_maxbytes = MAX_NON_LFS;
 	sb->s_op = &fat_sops;
 
-	hard_blksize = get_hardsect_size(sb->s_dev);
-	if (!hard_blksize)
-		hard_blksize = 512;
-
 	opts.isvfat = sbi->options.isvfat;
 	if (!parse_options((char *) data, &fat, &debug, &opts,
 			   cvf_format, cvf_options))
@@ -582,8 +579,7 @@ fat_read_super(struct super_block *sb, void *data, int silent,
 
 	fat_cache_init();
 
-	sb->s_blocksize = hard_blksize;
-	set_blocksize(sb->s_dev, hard_blksize);
+	sb_min_blocksize(sb, 512);
 	bh = sb_bread(sb, 0);
 	if (bh == NULL) {
 		printk("FAT: unable to read boot sector\n");
@@ -625,12 +621,14 @@ fat_read_super(struct super_block *sb, void *data, int silent,
 		goto out_invalid;
 	}
 
-	if (logical_sector_size < hard_blksize) {
+	if (logical_sector_size < sb->s_blocksize) {
 		printk("FAT: logical sector size too small for device"
 		       " (logical sector size = %d)\n", logical_sector_size);
 		brelse(bh);
 		goto out_invalid;
 	}
+
+	hard_blksize = sb->s_blocksize;
 
 	sbi->cluster_bits = ffs(logical_sector_size * sbi->cluster_size) - 1;
 	sbi->fats = b->fats;
@@ -716,9 +714,7 @@ fat_read_super(struct super_block *sb, void *data, int silent,
 	if (error)
 		goto out_invalid;
 
-	sb->s_blocksize = logical_sector_size;
-	sb->s_blocksize_bits = ffs(logical_sector_size) - 1;
-	set_blocksize(sb->s_dev, sb->s_blocksize);
+	sb_set_blocksize(sb, logical_sector_size);
 	sbi->cvf_format = &default_cvf;
 	if (!strcmp(cvf_format, "none"))
 		i = -1;
@@ -781,6 +777,7 @@ fat_read_super(struct super_block *sb, void *data, int silent,
 	if (!root_inode)
 		goto out_unload_nls;
 	root_inode->i_ino = MSDOS_ROOT_INO;
+	root_inode->i_version = 0;
 	fat_read_root(root_inode);
 	insert_inode_hash(root_inode);
 	sb->s_root = d_alloc_root(root_inode);
@@ -802,7 +799,7 @@ out_unload_nls:
 out_invalid:
 	if (!silent) {
 		printk("VFS: Can't find a valid FAT filesystem on dev %s.\n",
-			kdevname(sb->s_dev));
+			sb->s_id);
 	}
 out_fail:
 	if (opts.iocharset) {
@@ -892,7 +889,7 @@ static void fat_fill_inode(struct inode *inode, struct msdos_dir_entry *de)
 	MSDOS_I(inode)->i_fat_inode = inode;
 	inode->i_uid = sbi->options.fs_uid;
 	inode->i_gid = sbi->options.fs_gid;
-	inode->i_version = ++event;
+	inode->i_version++;
 	inode->i_generation = CURRENT_TIME;
 	
 	if ((de->attr & ATTR_DIR) && !IS_FREE(de->name)) {
@@ -952,7 +949,7 @@ static void fat_fill_inode(struct inode *inode, struct msdos_dir_entry *de)
 	/* this is as close to the truth as we can get ... */
 	inode->i_blksize = 1 << sbi->cluster_bits;
 	inode->i_blocks = ((inode->i_size + inode->i_blksize - 1)
-			   & ~(inode->i_blksize - 1)) / 512;
+			   & ~(inode->i_blksize - 1)) >> 9;
 	inode->i_mtime = inode->i_atime =
 		date_dos2unix(CF_LE_W(de->time),CF_LE_W(de->date));
 	inode->i_ctime =
@@ -976,7 +973,7 @@ retry:
 	}
 	lock_kernel();
 	if (!(bh = fat_bread(sb, i_pos >> MSDOS_SB(sb)->dir_per_block_bits))) {
-		printk("dev = %s, ino = %d\n", kdevname(inode->i_dev), i_pos);
+		printk("dev = %s, ino = %d\n", sb->s_id, i_pos);
 		fat_fs_panic(sb, "msdos_write_inode: unable to read i-node block");
 		unlock_kernel();
 		return;

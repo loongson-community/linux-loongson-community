@@ -134,6 +134,7 @@ CONFIG_BINFMT_ELF=y
 # CONFIG_PARIDE is not set
 # CONFIG_BLK_CPQ_DA is not set
 # CONFIG_BLK_CPQ_CISS_DA is not set
+# CONFIG_CISS_SCSI_TAPE is not set
 # CONFIG_BLK_DEV_DAC960 is not set
 # CONFIG_BLK_DEV_LOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
@@ -497,8 +498,9 @@ CONFIG_MSDOS_PARTITION=y
 # CONFIG_USB is not set
 
 #
-# USB Controllers
+# USB Host Controller Drivers
 #
+# CONFIG_USB_EHCI_HCD is not set
 # CONFIG_USB_UHCI is not set
 # CONFIG_USB_UHCI_ALT is not set
 # CONFIG_USB_OHCI is not set
@@ -508,6 +510,10 @@ CONFIG_MSDOS_PARTITION=y
 #
 # CONFIG_USB_AUDIO is not set
 # CONFIG_USB_BLUETOOTH is not set
+
+#
+#   SCSI support is needed for USB Storage
+#
 # CONFIG_USB_STORAGE is not set
 # CONFIG_USB_STORAGE_DEBUG is not set
 # CONFIG_USB_STORAGE_DATAFAB is not set
@@ -570,6 +576,7 @@ CONFIG_MSDOS_PARTITION=y
 # CONFIG_USB_SERIAL_EMPEG is not set
 # CONFIG_USB_SERIAL_FTDI_SIO is not set
 # CONFIG_USB_SERIAL_VISOR is not set
+# CONFIG_USB_SERIAL_IPAQ is not set
 # CONFIG_USB_SERIAL_IR is not set
 # CONFIG_USB_SERIAL_EDGEPORT is not set
 # CONFIG_USB_SERIAL_KEYSPAN_PDA is not set
@@ -583,6 +590,7 @@ CONFIG_MSDOS_PARTITION=y
 # CONFIG_USB_SERIAL_KEYSPAN_USA19W is not set
 # CONFIG_USB_SERIAL_KEYSPAN_USA49W is not set
 # CONFIG_USB_SERIAL_MCT_U232 is not set
+# CONFIG_USB_SERIAL_KLSI is not set
 # CONFIG_USB_SERIAL_PL2303 is not set
 # CONFIG_USB_SERIAL_CYBERJACK is not set
 # CONFIG_USB_SERIAL_XIRCOM is not set
@@ -592,6 +600,7 @@ CONFIG_MSDOS_PARTITION=y
 # USB Miscellaneous drivers
 #
 # CONFIG_USB_RIO500 is not set
+# CONFIG_USB_AUERSWALD is not set
 
 #
 # Input core support
@@ -611,3 +620,8 @@ CONFIG_CROSSCOMPILE=y
 # CONFIG_DEBUG is not set
 # CONFIG_MAGIC_SYSRQ is not set
 # CONFIG_MIPS_UNCACHED is not set
+
+#
+# Library routines
+#
+# CONFIG_CRC32 is not set

@@ -849,7 +849,7 @@ P:	Vojtech Pavlik
 M:	vojtech@suse.cz
 L:	linux-joystick@atrey.karlin.mff.cuni.cz
 W:	http://www.suse.cz/development/joystick/
-S:	Supported
+S:	Maintained
 
 KERNEL AUTOMOUNTER (AUTOFS)
 P:	H. Peter Anvin
@@ -1335,8 +1335,10 @@ W:	http://www.torque.net/sg
 S:	Maintained
 
 SCSI SUBSYSTEM
+P:	Jens Axboe
+M:	axboe@suse.de
 L:	linux-scsi@vger.kernel.org
-S:	Unmaintained
+S:	Maintained
 
 SCSI TAPE DRIVER
 P:	Kai Mäkisara
@@ -1551,7 +1553,7 @@ P:	Vojtech Pavlik
 M:	vojtech@suse.cz
 L:	linux-usb-users@lists.sourceforge.net
 L:	linux-usb-devel@lists.sourceforge.net
-S:	Supported
+S:	Maintained
 
 USB BLUETOOTH DRIVER
 P:	Greg Kroah-Hartman
@@ -1574,7 +1576,7 @@ M:	vojtech@suse.cz
 L:	linux-usb-users@lists.sourceforge.net
 L:	linux-usb-devel@lists.sourceforge.net
 W:	http://www.suse.cz/development/input/
-S:	Supported
+S:	Maintained
 
 USB HUB
 P:	Johannes Erdfelt
@@ -1607,7 +1609,7 @@ S:	Maintained
 
 USB OV511 DRIVER
 P:     Mark McClelland
-M:     mwm@i.am
+M:     mmcclell@bigfoot.com
 L:     linux-usb-users@lists.sourceforge.net
 L:     linux-usb-devel@lists.sourceforge.net
 W:     http://alpha.dyndns.org/ov511/
@@ -1625,7 +1627,7 @@ P:	Vojtech Pavlik
 M:	vojtech@suse.cz
 L:	linux-usb-users@lists.sourceforge.net
 L:	linux-usb-devel@lists.sourceforge.net
-S:	Supported
+S:	Maintained
 
 USB SE401 DRIVER
 P:	Jeroen Vreeken
@@ -1664,6 +1666,13 @@ M:	linux-usb@sii.li
 L:	linux-usb-users@lists.sourceforge.net
 L:	linux-usb-devel@lists.sourceforge.net
 S:	Supported
+
+USB AUERSWALD DRIVER
+P:	Wolfgang Muees
+M:	wmues@nexgo.de
+L:	linux-usb-users@lists.sourceforge.net
+L:	linux-usb-devel@lists.sourceforge.net
+S:	Maintained
 
 USB SERIAL EMPEG EMPEG-CAR MARK I/II DRIVER
 P:	Gary Brubaker

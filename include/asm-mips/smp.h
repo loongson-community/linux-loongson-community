@@ -28,9 +28,7 @@
 #include <asm/atomic.h>
 #include <asm/current.h>
 
-#define smp_processor_id()  (current->processor)
-
-#define PROC_CHANGE_PENALTY	20
+#define smp_processor_id()  (current->cpu)
 
 /* Map from cpu id to sequential logical cpu number.  This will only
    not be idempotent when cpus failed to come on-line.  */

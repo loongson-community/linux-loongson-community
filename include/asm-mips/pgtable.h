@@ -253,7 +253,7 @@ static inline int pmd_none(pmd_t pmd)
 
 static inline int pmd_bad(pmd_t pmd)
 {
-	return ((pmd_page(pmd) > (unsigned long) high_memory) ||
+	return ((pmd_page(pmd) >= (unsigned long) KSEG1) ||
 	        (pmd_page(pmd) < PAGE_OFFSET));
 }
 

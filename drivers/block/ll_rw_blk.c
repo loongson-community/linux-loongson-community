@@ -109,12 +109,17 @@ int blk_nohighio = 0;
  **/
 inline request_queue_t *blk_get_queue(kdev_t dev)
 {
-	struct blk_dev_struct *bdev = blk_dev + MAJOR(dev);
+	struct blk_dev_struct *bdev = blk_dev + major(dev);
 
 	if (bdev->queue)
 		return bdev->queue(dev);
 	else
-		return &blk_dev[MAJOR(dev)].request_queue;
+		return &blk_dev[major(dev)].request_queue;
+}
+
+void blk_queue_prep_rq(request_queue_t *q, prep_rq_fn *pfn)
+{
+	q->prep_rq_fn = pfn;
 }
 
 /**
@@ -150,6 +155,11 @@ void blk_queue_make_request(request_queue_t * q, make_request_fn * mfn)
 	blk_queue_max_sectors(q, MAX_SECTORS);
 	blk_queue_hardsect_size(q, 512);
 
+	/*
+	 * by default assume old behaviour and bounce for any highmem page
+	 */
+	blk_queue_bounce_limit(q, BLK_BOUNCE_HIGH);
+
 	init_waitqueue_head(&q->queue_wait);
 }
 
@@ -179,7 +189,6 @@ void blk_queue_bounce_limit(request_queue_t *q, u64 dma_addr)
 	if (dma_addr == BLK_BOUNCE_ISA) {
 		init_emergency_isa_pool();
 		q->bounce_gfp = GFP_NOIO | GFP_DMA;
-		printk("isa pfn %lu, max low %lu, max %lu\n", bounce_pfn, blk_max_low_pfn, blk_max_pfn);
 	} else
 		q->bounce_gfp = GFP_NOHIGHIO;
 
@@ -300,7 +309,7 @@ void blk_dump_rq_flags(struct request *rq, char *msg)
 {
 	int bit;
 
-	printk("%s: dev %x: ", msg, rq->rq_dev);
+	printk("%s: dev %02x:%02x: ", msg, major(rq->rq_dev), minor(rq->rq_dev));
 	bit = 0;
 	do {
 		if (rq->flags & (1 << bit))
@@ -319,7 +328,7 @@ void blk_dump_rq_flags(struct request *rq, char *msg)
 /*
  * standard prep_rq_fn that builds 10 byte cmds
  */
-static int ll_10byte_cmd_build(request_queue_t *q, struct request *rq)
+int ll_10byte_cmd_build(request_queue_t *q, struct request *rq)
 {
 	int hard_sect = get_hardsect_size(rq->rq_dev);
 	sector_t block = rq->hard_sector / (hard_sect >> 9);
@@ -477,7 +486,7 @@ int blk_rq_map_sg(request_queue_t *q, struct request *rq, struct scatterlist *sg
 				sg[nsegs - 1].length += nbytes;
 			} else {
 new_segment:
-				sg[nsegs].address = NULL;
+				memset(&sg[nsegs],0,sizeof(struct scatterlist));
 				sg[nsegs].page = bvec->bv_page;
 				sg[nsegs].length = nbytes;
 				sg[nsegs].offset = bvec->bv_offset;
@@ -504,6 +513,7 @@ static inline int ll_new_mergeable(request_queue_t *q,
 
 	if (req->nr_phys_segments + nr_phys_segs > q->max_phys_segments) {
 		req->flags |= REQ_NOMERGE;
+		q->last_merge = NULL;
 		return 0;
 	}
 
@@ -520,9 +530,12 @@ static inline int ll_new_hw_segment(request_queue_t *q,
 				    struct bio *bio)
 {
 	int nr_hw_segs = bio_hw_segments(q, bio);
+	int nr_phys_segs = bio_phys_segments(q, bio);
 
-	if (req->nr_hw_segments + nr_hw_segs > q->max_hw_segments) {
+	if (req->nr_hw_segments + nr_hw_segs > q->max_hw_segments
+	    || req->nr_phys_segments + nr_phys_segs > q->max_phys_segments) {
 		req->flags |= REQ_NOMERGE;
+		q->last_merge = NULL;
 		return 0;
 	}
 
@@ -531,7 +544,7 @@ static inline int ll_new_hw_segment(request_queue_t *q,
 	 * counters.
 	 */
 	req->nr_hw_segments += nr_hw_segs;
-	req->nr_phys_segments += bio_phys_segments(q, bio);
+	req->nr_phys_segments += nr_phys_segs;
 	return 1;
 }
 
@@ -540,11 +553,11 @@ static int ll_back_merge_fn(request_queue_t *q, struct request *req,
 {
 	if (req->nr_sectors + bio_sectors(bio) > q->max_sectors) {
 		req->flags |= REQ_NOMERGE;
+		q->last_merge = NULL;
 		return 0;
 	}
 
-	if (BIOVEC_VIRT_MERGEABLE(__BVEC_END(req->biotail),
-				  __BVEC_START(bio)))
+	if (BIOVEC_VIRT_MERGEABLE(__BVEC_END(req->biotail), __BVEC_START(bio)))
 		return ll_new_mergeable(q, req, bio);
 
 	return ll_new_hw_segment(q, req, bio);
@@ -555,11 +568,11 @@ static int ll_front_merge_fn(request_queue_t *q, struct request *req,
 {
 	if (req->nr_sectors + bio_sectors(bio) > q->max_sectors) {
 		req->flags |= REQ_NOMERGE;
+		q->last_merge = NULL;
 		return 0;
 	}
 
-	if (BIOVEC_VIRT_MERGEABLE(__BVEC_END(bio),
-				  __BVEC_START(req->bio)))
+	if (BIOVEC_VIRT_MERGEABLE(__BVEC_END(bio), __BVEC_START(req->bio)))
 		return ll_new_mergeable(q, req, bio);
 
 	return ll_new_hw_segment(q, req, bio);
@@ -568,7 +581,7 @@ static int ll_front_merge_fn(request_queue_t *q, struct request *req,
 static int ll_merge_requests_fn(request_queue_t *q, struct request *req,
 				struct request *next)
 {
-	int total_phys_segments = req->nr_phys_segments + next->nr_phys_segments;
+	int total_phys_segments = req->nr_phys_segments +next->nr_phys_segments;
 	int total_hw_segments = req->nr_hw_segments + next->nr_hw_segments;
 
 	/*
@@ -790,7 +803,7 @@ int blk_init_queue(request_queue_t *q, request_fn_proc *rfn, spinlock_t *lock)
 	if (blk_init_free_list(q))
 		return -ENOMEM;
 
-	if ((ret = elevator_init(q, &q->elevator, ELEVATOR_LINUS))) {
+	if ((ret = elevator_init(q, &q->elevator, elevator_linus))) {
 		blk_cleanup_queue(q);
 		return ret;
 	}
@@ -799,22 +812,20 @@ int blk_init_queue(request_queue_t *q, request_fn_proc *rfn, spinlock_t *lock)
 	q->back_merge_fn       	= ll_back_merge_fn;
 	q->front_merge_fn      	= ll_front_merge_fn;
 	q->merge_requests_fn	= ll_merge_requests_fn;
-	q->prep_rq_fn		= ll_10byte_cmd_build;
+	q->prep_rq_fn		= NULL;
 	q->plug_tq.sync		= 0;
 	q->plug_tq.routine	= &generic_unplug_device;
 	q->plug_tq.data		= q;
 	q->queue_flags		= (1 << QUEUE_FLAG_CLUSTER);
 	q->queue_lock		= lock;
 	
-	/*
-	 * by default assume old behaviour and bounce for any highmem page
-	 */
-	blk_queue_bounce_limit(q, BLK_BOUNCE_HIGH);
-
 	blk_queue_segment_boundary(q, 0xffffffff);
 
 	blk_queue_make_request(q, __make_request);
 	blk_queue_max_segment_size(q, MAX_SEGMENT_SIZE);
+
+	blk_queue_max_hw_segments(q, MAX_HW_SEGMENTS);
+	blk_queue_max_phys_segments(q, MAX_PHYS_SEGMENTS);
 	return 0;
 }
 
@@ -874,11 +885,19 @@ struct request *blk_get_request(request_queue_t *q, int rw, int gfp_mask)
 
 	BUG_ON(rw != READ && rw != WRITE);
 
+	spin_lock_irq(q->queue_lock);
 	rq = get_request(q, rw);
+	spin_unlock_irq(q->queue_lock);
 
 	if (!rq && (gfp_mask & __GFP_WAIT))
 		rq = get_request_wait(q, rw);
 
+	if (rq) {
+		rq->flags = 0;
+		rq->buffer = NULL;
+		rq->bio = rq->biotail = NULL;
+		rq->waiting = NULL;
+	}
 	return rq;
 }
 
@@ -895,8 +914,8 @@ int is_read_only(kdev_t dev)
 {
 	int minor,major;
 
-	major = MAJOR(dev);
-	minor = MINOR(dev);
+	major = major(dev);
+	minor = minor(dev);
 	if (major < 0 || major >= MAX_BLKDEV) return 0;
 	return ro_bits[major][minor >> 5] & (1 << (minor & 31));
 }
@@ -905,8 +924,8 @@ void set_device_ro(kdev_t dev,int flag)
 {
 	int minor,major;
 
-	major = MAJOR(dev);
-	minor = MINOR(dev);
+	major = major(dev);
+	minor = minor(dev);
 	if (major < 0 || major >= MAX_BLKDEV) return;
 	if (flag) ro_bits[major][minor >> 5] |= 1 << (minor & 31);
 	else ro_bits[major][minor >> 5] &= ~(1 << (minor & 31));
@@ -914,7 +933,7 @@ void set_device_ro(kdev_t dev,int flag)
 
 void drive_stat_acct(struct request *rq, int nr_sectors, int new_io)
 {
-	unsigned int major = MAJOR(rq->rq_dev);
+	unsigned int major = major(rq->rq_dev);
 	int rw = rq_data_dir(rq);
 	unsigned int index;
 
@@ -944,19 +963,10 @@ static inline void add_request(request_queue_t * q, struct request * req,
 	drive_stat_acct(req, req->nr_sectors, 1);
 
 	/*
-	 * debug stuff...
-	 */
-	if (insert_here == &q->queue_head) {
-		struct request *__rq = __elv_next_request(q);
-
-		BUG_ON(__rq && (__rq->flags & REQ_STARTED));
-	}
-
-	/*
 	 * elevator indicated where it wants this request to be
 	 * inserted at elevator_merge time
 	 */
-	q->elevator.elevator_add_req_fn(q, req, insert_here);
+	__elv_add_request(q, req, insert_here);
 }
 
 /*
@@ -965,10 +975,16 @@ static inline void add_request(request_queue_t * q, struct request * req,
 void blkdev_release_request(struct request *req)
 {
 	struct request_list *rl = req->rl;
+	request_queue_t *q = req->q;
 
 	req->rq_status = RQ_INACTIVE;
 	req->q = NULL;
 	req->rl = NULL;
+
+	if (q) {
+		if (q->last_merge == &req->queuelist)
+			q->last_merge = NULL;
+	}
 
 	/*
 	 * Request may not have originated from ll_rw_blk. if not,
@@ -985,14 +1001,10 @@ void blkdev_release_request(struct request *req)
 /*
  * Has to be called with the request spinlock acquired
  */
-static void attempt_merge(request_queue_t *q, struct request *req)
+static void attempt_merge(request_queue_t *q, struct request *req,
+			  struct request *next)
 {
-	struct request *next = blkdev_next_request(req);
-
-	/*
-	 * not a rw command
-	 */
-	if (!(next->flags & REQ_CMD))
+	if (!rq_mergeable(req) || !rq_mergeable(next))
 		return;
 
 	/*
@@ -1001,26 +1013,20 @@ static void attempt_merge(request_queue_t *q, struct request *req)
 	if (req->sector + req->nr_sectors != next->sector)
 		return;
 
-	/*
-	 * don't touch NOMERGE rq, or one that has been started by driver
-	 */
-	if (next->flags & (REQ_NOMERGE | REQ_STARTED))
-		return;
-
 	if (rq_data_dir(req) != rq_data_dir(next)
-	    || req->rq_dev != next->rq_dev
+	    || !kdev_same(req->rq_dev, next->rq_dev)
 	    || req->nr_sectors + next->nr_sectors > q->max_sectors
 	    || next->waiting || next->special)
 		return;
 
 	/*
-	 * If we are not allowed to merge these requests, then
-	 * return.  If we are allowed to merge, then the count
-	 * will have been updated to the appropriate number,
-	 * and we shouldn't do it here too.
+	 * If we are allowed to merge, then append bio list
+	 * from next to rq and release next. merge_requests_fn
+	 * will have updated segment counts, update sector
+	 * counts here.
 	 */
 	if (q->merge_requests_fn(q, req, next)) {
-		q->elevator.elevator_merge_req_fn(req, next);
+		elv_merge_requests(q, req, next);
 
 		blkdev_dequeue_request(next);
 
@@ -1035,24 +1041,18 @@ static void attempt_merge(request_queue_t *q, struct request *req)
 
 static inline void attempt_back_merge(request_queue_t *q, struct request *rq)
 {
-	if (&rq->queuelist != q->queue_head.prev)
-		attempt_merge(q, rq);
+	struct list_head *next = rq->queuelist.next;
+
+	if (next != &q->queue_head)
+		attempt_merge(q, rq, list_entry_rq(next));
 }
 
-static inline void attempt_front_merge(request_queue_t *q,
-				       struct list_head *head,
-				       struct request *rq)
+static inline void attempt_front_merge(request_queue_t *q, struct request *rq)
 {
 	struct list_head *prev = rq->queuelist.prev;
 
-	if (prev != head)
-		attempt_merge(q, blkdev_entry_to_request(prev));
-}
-
-static inline void __blk_attempt_remerge(request_queue_t *q, struct request *rq)
-{
-	if (rq->queuelist.next != &q->queue_head)
-		attempt_merge(q, rq);
+	if (prev != &q->queue_head)
+		attempt_merge(q, list_entry_rq(prev), rq);
 }
 
 /**
@@ -1073,16 +1073,15 @@ void blk_attempt_remerge(request_queue_t *q, struct request *rq)
 	unsigned long flags;
 
 	spin_lock_irqsave(q->queue_lock, flags);
-	__blk_attempt_remerge(q, rq);
+	attempt_back_merge(q, rq);
 	spin_unlock_irqrestore(q->queue_lock, flags);
 }
 
 static int __make_request(request_queue_t *q, struct bio *bio)
 {
 	struct request *req, *freereq = NULL;
-	int el_ret, latency = 0, rw, nr_sectors, cur_nr_sectors, barrier;
-	struct list_head *head, *insert_here;
-	elevator_t *elevator = &q->elevator;
+	int el_ret, rw, nr_sectors, cur_nr_sectors, barrier;
+	struct list_head *insert_here;
 	sector_t sector;
 
 	sector = bio->bi_sector;
@@ -1099,35 +1098,28 @@ static int __make_request(request_queue_t *q, struct bio *bio)
 
 	spin_lock_prefetch(q->queue_lock);
 
-	latency = elevator_request_latency(elevator, rw);
 	barrier = test_bit(BIO_RW_BARRIER, &bio->bi_rw);
 
+	spin_lock_irq(q->queue_lock);
 again:
 	req = NULL;
-	head = &q->queue_head;
+	insert_here = q->queue_head.prev;
 
-	spin_lock_irq(q->queue_lock);
-
-	insert_here = head->prev;
 	if (blk_queue_empty(q) || barrier) {
 		blk_plug_device(q);
 		goto get_rq;
-	} else if ((req = __elv_next_request(q))) {
-		if (req->flags & REQ_STARTED)
-			head = head->next;
-
-		req = NULL;
 	}
 
-	el_ret = elevator->elevator_merge_fn(q, &req, head, bio);
+	el_ret = elv_merge(q, &req, bio);
 	switch (el_ret) {
 		case ELEVATOR_BACK_MERGE:
-			BUG_ON(req->flags & REQ_STARTED);
-			BUG_ON(req->flags & REQ_NOMERGE);
-			if (!q->back_merge_fn(q, req, bio))
+			BUG_ON(!rq_mergeable(req));
+			if (!q->back_merge_fn(q, req, bio)) {
+				insert_here = &req->queuelist;
 				break;
+			}
 
-			elevator->elevator_merge_cleanup_fn(q, req, nr_sectors);
+			elv_merge_cleanup(q, req, nr_sectors);
 
 			req->biotail->bi_next = bio;
 			req->biotail = bio;
@@ -1137,12 +1129,13 @@ again:
 			goto out;
 
 		case ELEVATOR_FRONT_MERGE:
-			BUG_ON(req->flags & REQ_STARTED);
-			BUG_ON(req->flags & REQ_NOMERGE);
-			if (!q->front_merge_fn(q, req, bio))
+			BUG_ON(!rq_mergeable(req));
+			if (!q->front_merge_fn(q, req, bio)) {
+				insert_here = req->queuelist.prev;
 				break;
+			}
 
-			elevator->elevator_merge_cleanup_fn(q, req, nr_sectors);
+			elv_merge_cleanup(q, req, nr_sectors);
 
 			bio->bi_next = req->bio;
 			req->bio = bio;
@@ -1157,7 +1150,7 @@ again:
 			req->sector = req->hard_sector = sector;
 			req->nr_sectors = req->hard_nr_sectors += nr_sectors;
 			drive_stat_acct(req, nr_sectors, 0);
-			attempt_front_merge(q, head, req);
+			attempt_front_merge(q, req);
 			goto out;
 
 		/*
@@ -1188,7 +1181,6 @@ get_rq:
 		req = freereq;
 		freereq = NULL;
 	} else if ((req = get_request(q, rw)) == NULL) {
-
 		spin_unlock_irq(q->queue_lock);
 
 		/*
@@ -1200,13 +1192,9 @@ get_rq:
 		}
 
 		freereq = get_request_wait(q, rw);
+		spin_lock_irq(q->queue_lock);
 		goto again;
 	}
-
-	/*
-	 * fill up the request-info, and add it to the queue
-	 */
-	req->elevator_sequence = latency;
 
 	/*
 	 * first three bits are identical in rq->flags and bio->bi_rw,
@@ -1252,14 +1240,14 @@ static inline void blk_partition_remap(struct bio *bio)
 	struct gendisk *g;
 	kdev_t dev0;
 
-	major = MAJOR(bio->bi_dev);
+	major = major(bio->bi_dev);
 	if ((g = get_gendisk(bio->bi_dev))) {
-		minor = MINOR(bio->bi_dev);
+		minor = minor(bio->bi_dev);
 		drive = (minor >> g->minor_shift);
 		minor0 = (drive << g->minor_shift); /* whole disk device */
 		/* that is, minor0 = (minor & ~((1<<g->minor_shift)-1)); */
-		dev0 = MKDEV(major, minor0);
-		if (dev0 != bio->bi_dev) {
+		dev0 = mk_kdev(major, minor0);
+		if (!kdev_same(dev0, bio->bi_dev)) {
 			bio->bi_dev = dev0;
 			bio->bi_sector += g->part[minor].start_sect;
 		}
@@ -1294,11 +1282,11 @@ static inline void blk_partition_remap(struct bio *bio)
  * */
 void generic_make_request(struct bio *bio)
 {
-	int major = MAJOR(bio->bi_dev);
-	int minor = MINOR(bio->bi_dev);
+	int major = major(bio->bi_dev);
+	int minor = minor(bio->bi_dev);
 	request_queue_t *q;
 	sector_t minorsize = 0;
-	int nr_sectors = bio_sectors(bio);
+	int ret, nr_sectors = bio_sectors(bio);
 
 	/* Test device or partition size, when known. */
 	if (blk_size[major])
@@ -1352,7 +1340,10 @@ end_io:
 		 */
 		blk_partition_remap(bio);
 
-	} while (q->make_request_fn(q, bio));
+		ret = q->make_request_fn(q, bio);
+		blk_put_queue(q);
+
+	} while (ret);
 }
 
 /*
@@ -1481,7 +1472,7 @@ void ll_rw_block(int rw, int nr, struct buffer_head * bhs[])
 	if (!nr)
 		return;
 
-	major = MAJOR(bhs[0]->b_dev);
+	major = major(bhs[0]->b_dev);
 
 	/* Determine correct block size for this device. */
 	correct_size = get_hardsect_size(bhs[0]->b_dev);
@@ -1572,21 +1563,23 @@ inline void blk_recalc_rq_segments(struct request *rq)
 
 inline void blk_recalc_rq_sectors(struct request *rq, int nsect)
 {
-	rq->hard_sector += nsect;
-	rq->hard_nr_sectors -= nsect;
-	rq->sector = rq->hard_sector;
-	rq->nr_sectors = rq->hard_nr_sectors;
+	if (rq->flags & REQ_CMD) {
+		rq->hard_sector += nsect;
+		rq->hard_nr_sectors -= nsect;
+		rq->sector = rq->hard_sector;
+		rq->nr_sectors = rq->hard_nr_sectors;
 
-	rq->current_nr_sectors = bio_iovec(rq->bio)->bv_len >> 9;
-	rq->hard_cur_sectors = rq->current_nr_sectors;
+		rq->current_nr_sectors = bio_iovec(rq->bio)->bv_len >> 9;
+		rq->hard_cur_sectors = rq->current_nr_sectors;
 
-	/*
-	 * if total number of sectors is less than the first segment
-	 * size, something has gone terribly wrong
-	 */
-	if (rq->nr_sectors < rq->current_nr_sectors) {
-		printk("blk: request botched\n");
-		rq->nr_sectors = rq->current_nr_sectors;
+		/*
+		 * if total number of sectors is less than the first segment
+		 * size, something has gone terribly wrong
+		 */
+		if (rq->nr_sectors < rq->current_nr_sectors) {
+			printk("blk: request botched\n");
+			rq->nr_sectors = rq->current_nr_sectors;
+		}
 	}
 }
 
@@ -1755,3 +1748,6 @@ EXPORT_SYMBOL(submit_bio);
 EXPORT_SYMBOL(blk_queue_assign_lock);
 EXPORT_SYMBOL(blk_phys_contig_segment);
 EXPORT_SYMBOL(blk_hw_contig_segment);
+
+EXPORT_SYMBOL(ll_10byte_cmd_build);
+EXPORT_SYMBOL(blk_queue_prep_rq);

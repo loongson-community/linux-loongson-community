@@ -142,6 +142,7 @@ struct bio *bio_alloc(int gfp_mask, int nr_iovecs)
 		bio->bi_io_vec = bvl;
 		return bio;
 	}
+
 	mempool_free(bio, bio_pool);
 	return NULL;
 }
@@ -311,28 +312,6 @@ oom:
 	return NULL;
 }
 
-#ifdef BIO_PAGEIO
-static int bio_end_io_page(struct bio *bio)
-{
-	struct page *page = bio_page(bio);
-
-	if (!test_bit(BIO_UPTODATE, &bio->bi_flags))
-		SetPageError(page);
-	if (!PageError(page))
-		SetPageUptodate(page);
-
-	/*
-	 * Run the hooks that have to be done when a page I/O has completed.
-	 */
-	if (PageTestandClearDecrAfter(page))
-		atomic_dec(&nr_async_pages);
-
-	UnlockPage(page);
-	bio_put(bio);
-	return 1;
-}
-#endif
-
 static int bio_end_io_kio(struct bio *bio, int nr_sectors)
 {
 	struct kiobuf *kio = (struct kiobuf *) bio->bi_private;
@@ -465,7 +444,10 @@ int bio_endio(struct bio *bio, int uptodate, int nr_sectors)
 	else
 		clear_bit(BIO_UPTODATE, &bio->bi_flags);
 
-	return bio->bi_end_io(bio, nr_sectors);
+	if (bio->bi_end_io)
+		return bio->bi_end_io(bio, nr_sectors);
+
+	return 0;
 }
 
 static void __init biovec_init_pool(void)

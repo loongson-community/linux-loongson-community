@@ -97,7 +97,6 @@ static int serial_console_setup(struct console *co, char *options);
 static void serial_console_write(struct console *c, const char *s,
 				unsigned count);
 static kdev_t serial_console_device(struct console *c);
-static int serial_console_wait_key(struct console *co);
 
 #if defined(CONFIG_SERIAL_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ)
 static unsigned long break_pressed; /* break, really ... */
@@ -218,7 +217,6 @@ static struct console sercons = {
 	name:		"ttyS",
 	write:		serial_console_write,
 	device:		serial_console_device,
-	wait_key:	serial_console_wait_key,
 	setup:		serial_console_setup,
 	flags:		CON_PRINTBUFFER,
 	index:		CONFIG_SERIAL_CONSOLE_PORT,
@@ -1798,7 +1796,7 @@ static void rs_8xx_wait_until_sent(struct tty_struct *tty, int timeout)
 		printk("lsr = %d (jiff=%lu)...", lsr, jiffies);
 #endif
 		current->state = TASK_INTERRUPTIBLE;
-/*		current->counter = 0;	 make us low-priority */
+/*		current->dyn_prio = 0;	 make us low-priority */
 		schedule_timeout(char_time);
 		if (signal_pending(current))
 			break;
@@ -2400,11 +2398,6 @@ static int my_console_wait_key(int idx, int xmon, char *obuf)
 	}
 
 	return((int)c);
-}
-
-static int serial_console_wait_key(struct console *co)
-{
-	return(my_console_wait_key(co->index, 0, NULL));
 }
 
 #ifdef CONFIG_XMON

@@ -83,7 +83,7 @@ static int nr_unused_buffer_heads;
 static spinlock_t unused_list_lock = SPIN_LOCK_UNLOCKED;
 static DECLARE_WAIT_QUEUE_HEAD(buffer_wait);
 
-static int grow_buffers(kdev_t dev, unsigned long block, int size);
+static int grow_buffers(struct block_device *bdev, unsigned long block, int size);
 static void __refile_buffer(struct buffer_head *);
 
 /* This is used by some architectures to estimate available memory. */
@@ -203,7 +203,7 @@ static int write_some_buffers(kdev_t dev)
 		struct buffer_head * bh = next;
 		next = bh->b_next_free;
 
-		if (dev && bh->b_dev != dev)
+		if (!kdev_none(dev) && !kdev_same(bh->b_dev, dev))
 			continue;
 		if (test_and_set_bit(BH_Lock, &bh->b_state))
 			continue;
@@ -261,7 +261,7 @@ static int wait_for_buffers(kdev_t dev, int index, int refile)
 				__refile_buffer(bh);
 			continue;
 		}
-		if (dev && bh->b_dev != dev)
+		if (!kdev_none(dev) && !kdev_same(bh->b_dev, dev))
 			continue;
 
 		get_bh(bh);
@@ -324,7 +324,7 @@ int fsync_super(struct super_block *sb)
 
 	lock_kernel();
 	sync_inodes_sb(sb);
-	DQUOT_SYNC(dev);
+	DQUOT_SYNC(sb);
 	lock_super(sb);
 	if (sb->s_dirt && sb->s_op && sb->s_op->write_super)
 		sb->s_op->write_super(sb);
@@ -334,8 +334,9 @@ int fsync_super(struct super_block *sb)
 	return sync_buffers(dev, 1);
 }
 
-int fsync_no_super(kdev_t dev)
+int fsync_no_super(struct block_device *bdev)
 {
+	kdev_t dev = to_kdev_t(bdev->bd_dev);
 	sync_buffers(dev, 0);
 	return sync_buffers(dev, 1);
 }
@@ -346,7 +347,14 @@ int fsync_dev(kdev_t dev)
 
 	lock_kernel();
 	sync_inodes(dev);
-	DQUOT_SYNC(dev);
+	if (!kdev_none(dev)) {
+		struct super_block *sb = get_super(dev);
+		if (sb) {
+			DQUOT_SYNC(sb);
+			drop_super(sb);
+		}
+	} else
+			DQUOT_SYNC(NULL);
 	sync_supers(dev);
 	unlock_kernel();
 
@@ -364,7 +372,7 @@ void sync_dev(kdev_t dev)
 
 asmlinkage long sys_sync(void)
 {
-	fsync_dev(0);
+	fsync_dev(NODEV);
 	return 0;
 }
 
@@ -549,9 +557,9 @@ static void remove_from_queues(struct buffer_head *bh)
 	spin_unlock(&lru_list_lock);
 }
 
-struct buffer_head * get_hash_table(kdev_t dev, sector_t block, int size)
+struct buffer_head * __get_hash_table(struct block_device *bdev, sector_t block, int size)
 {
-	struct buffer_head *bh, **p = &hash(dev, block);
+	struct buffer_head *bh, **p = &hash(to_kdev_t(bdev->bd_dev), block);
 
 	read_lock(&hash_table_lock);
 
@@ -564,7 +572,7 @@ struct buffer_head * get_hash_table(kdev_t dev, sector_t block, int size)
 			continue;
 		if (bh->b_size != size)
 			continue;
-		if (bh->b_dev != dev)
+		if (bh->b_bdev != bdev)
 			continue;
 		get_bh(bh);
 		break;
@@ -668,7 +676,7 @@ void invalidate_bdev(struct block_device *bdev, int destroy_dirty_buffers)
 			bh_next = bh->b_next_free;
 
 			/* Another device? */
-			if (bh->b_dev != dev)
+			if (!kdev_same(bh->b_dev, dev))
 				continue;
 			/* Not hashed? */
 			if (!bh->b_pprev)
@@ -711,7 +719,7 @@ out:
 
 void __invalidate_buffers(kdev_t dev, int destroy_dirty_buffers)
 {
-	struct block_device *bdev = bdget(dev);
+	struct block_device *bdev = bdget(kdev_t_to_nr(dev));
 	if (bdev) {
 		invalidate_bdev(bdev, destroy_dirty_buffers);
 		bdput(bdev);
@@ -726,9 +734,7 @@ static void free_more_memory(void)
 	wakeup_bdflush();
 	try_to_free_pages(zone, GFP_NOFS, 0);
 	run_task_queue(&tq_disk);
-	current->policy |= SCHED_YIELD;
-	__set_current_state(TASK_RUNNING);
-	schedule();
+	yield();
 }
 
 void init_buffer(struct buffer_head *bh, bh_end_io_t *handler, void *private)
@@ -1016,16 +1022,16 @@ void invalidate_inode_buffers(struct inode *inode)
  * 14.02.92: changed it to sync dirty buffers a bit: better performance
  * when the filesystem starts to get full of dirty blocks (I hope).
  */
-struct buffer_head * getblk(kdev_t dev, sector_t block, int size)
+struct buffer_head * __getblk(struct block_device *bdev, sector_t block, int size)
 {
 	for (;;) {
 		struct buffer_head * bh;
 
-		bh = get_hash_table(dev, block, size);
+		bh = __get_hash_table(bdev, block, size);
 		if (bh)
 			return bh;
 
-		if (!grow_buffers(dev, block, size))
+		if (!grow_buffers(bdev, block, size))
 			free_more_memory();
 	}
 }
@@ -1169,11 +1175,10 @@ void __bforget(struct buffer_head * buf)
  *	Reads a specified block, and returns buffer head that
  *	contains it. It returns NULL if the block was unreadable.
  */
-struct buffer_head * bread(kdev_t dev, int block, int size)
+struct buffer_head * __bread(struct block_device *bdev, int block, int size)
 {
-	struct buffer_head * bh;
+	struct buffer_head * bh = __getblk(bdev, block, size);
 
-	bh = getblk(dev, block, size);
 	touch_buffer(bh);
 	if (buffer_uptodate(bh))
 		return bh;
@@ -1196,6 +1201,7 @@ static void __put_unused_buffer_head(struct buffer_head * bh)
 		kmem_cache_free(bh_cachep, bh);
 	} else {
 		bh->b_dev = B_FREE;
+		bh->b_bdev = NULL;
 		bh->b_blocknr = -1;
 		bh->b_this_page = NULL;
 
@@ -1299,6 +1305,7 @@ try_again:
 			goto no_grow;
 
 		bh->b_dev = NODEV;
+		bh->b_bdev = NULL;
 		bh->b_this_page = head;
 		head = bh;
 
@@ -1360,6 +1367,7 @@ static void discard_buffer(struct buffer_head * bh)
 	if (buffer_mapped(bh)) {
 		mark_buffer_clean(bh);
 		lock_buffer(bh);
+		bh->b_bdev = NULL;
 		clear_bit(BH_Uptodate, &bh->b_state);
 		clear_bit(BH_Mapped, &bh->b_state);
 		clear_bit(BH_Req, &bh->b_state);
@@ -1444,7 +1452,7 @@ int discard_bh_page(struct page *page, unsigned long offset, int drop_pagecache)
 	return 1;
 }
 
-void create_empty_buffers(struct page *page, kdev_t dev, unsigned long blocksize)
+void create_empty_buffers(struct page *page, unsigned long blocksize)
 {
 	struct buffer_head *bh, *head, *tail;
 
@@ -1455,8 +1463,6 @@ void create_empty_buffers(struct page *page, kdev_t dev, unsigned long blocksize
 
 	bh = head;
 	do {
-		bh->b_dev = dev;
-		bh->b_blocknr = 0;
 		bh->b_end_io = NULL;
 		tail = bh;
 		bh = bh->b_this_page;
@@ -1483,7 +1489,7 @@ static void unmap_underlying_metadata(struct buffer_head * bh)
 {
 	struct buffer_head *old_bh;
 
-	old_bh = get_hash_table(bh->b_dev, bh->b_blocknr, bh->b_size);
+	old_bh = __get_hash_table(bh->b_bdev, bh->b_blocknr, bh->b_size);
 	if (old_bh) {
 		mark_buffer_clean(old_bh);
 		wait_on_buffer(old_bh);
@@ -1518,7 +1524,7 @@ static int __block_write_full_page(struct inode *inode, struct page *page, get_b
 		BUG();
 
 	if (!page->buffers)
-		create_empty_buffers(page, inode->i_dev, 1 << inode->i_blkbits);
+		create_empty_buffers(page, 1 << inode->i_blkbits);
 	head = page->buffers;
 
 	block = page->index << (PAGE_CACHE_SHIFT - inode->i_blkbits);
@@ -1585,7 +1591,7 @@ static int __block_prepare_write(struct inode *inode, struct page *page,
 
 	blocksize = 1 << inode->i_blkbits;
 	if (!page->buffers)
-		create_empty_buffers(page, inode->i_dev, blocksize);
+		create_empty_buffers(page, blocksize);
 	head = page->buffers;
 
 	bbits = inode->i_blkbits;
@@ -1702,7 +1708,7 @@ int block_read_full_page(struct page *page, get_block_t *get_block)
 		PAGE_BUG(page);
 	blocksize = 1 << inode->i_blkbits;
 	if (!page->buffers)
-		create_empty_buffers(page, inode->i_dev, blocksize);
+		create_empty_buffers(page, blocksize);
 	head = page->buffers;
 
 	blocks = PAGE_CACHE_SIZE >> inode->i_blkbits;
@@ -1907,7 +1913,7 @@ int block_truncate_page(struct address_space *mapping, loff_t from, get_block_t 
 		goto out;
 
 	if (!page->buffers)
-		create_empty_buffers(page, inode->i_dev, blocksize);
+		create_empty_buffers(page, blocksize);
 
 	/* Find the buffer that contains "offset" */
 	bh = page->buffers;
@@ -2115,7 +2121,7 @@ int brw_kiovec(int rw, int nr, struct kiobuf *iovec[], kdev_t dev, sector_t b[],
  * FIXME: we need a swapper_inode->get_block function to remove
  *        some of the bmap kludges and interface ugliness here.
  */
-int brw_page(int rw, struct page *page, kdev_t dev, sector_t b[], int size)
+int brw_page(int rw, struct page *page, struct block_device *bdev, sector_t b[], int size)
 {
 	struct buffer_head *head, *bh;
 
@@ -2123,13 +2129,15 @@ int brw_page(int rw, struct page *page, kdev_t dev, sector_t b[], int size)
 		panic("brw_page: page not locked for I/O");
 
 	if (!page->buffers)
-		create_empty_buffers(page, dev, size);
+		create_empty_buffers(page, size);
 	head = bh = page->buffers;
 
 	/* Stage 1: lock all the buffers */
 	do {
 		lock_buffer(bh);
 		bh->b_blocknr = *(b++);
+		bh->b_bdev = bdev;
+		bh->b_dev = to_kdev_t(bdev->bd_dev);
 		set_bit(BH_Mapped, &bh->b_state);
 		set_buffer_async_io(bh);
 		bh = bh->b_this_page;
@@ -2229,7 +2237,7 @@ failed:
 	return NULL;
 }
 
-static void hash_page_buffers(struct page *page, kdev_t dev, int block, int size)
+static void hash_page_buffers(struct page *page, struct block_device *bdev, int block, int size)
 {
 	struct buffer_head *head = page->buffers;
 	struct buffer_head *bh = head;
@@ -2243,7 +2251,8 @@ static void hash_page_buffers(struct page *page, kdev_t dev, int block, int size
 	do {
 		if (!(bh->b_state & (1 << BH_Mapped))) {
 			init_buffer(bh, NULL, NULL);
-			bh->b_dev = dev;
+			bh->b_bdev = bdev;
+			bh->b_dev = to_kdev_t(bdev->bd_dev);
 			bh->b_blocknr = block;
 			bh->b_state = uptodate;
 		}
@@ -2262,15 +2271,14 @@ static void hash_page_buffers(struct page *page, kdev_t dev, int block, int size
  * Try to increase the number of buffers available: the size argument
  * is used to determine what kind of buffers we want.
  */
-static int grow_buffers(kdev_t dev, unsigned long block, int size)
+static int grow_buffers(struct block_device *bdev, unsigned long block, int size)
 {
 	struct page * page;
-	struct block_device *bdev;
 	unsigned long index;
 	int sizebits;
 
 	/* Size must be multiple of hard sectorsize */
-	if (size & (get_hardsect_size(dev)-1))
+	if (size & (get_hardsect_size(to_kdev_t(bdev->bd_dev))-1))
 		BUG();
 	/* Size must be within 512 bytes and PAGE_SIZE */
 	if (size < 512 || size > PAGE_SIZE)
@@ -2284,22 +2292,14 @@ static int grow_buffers(kdev_t dev, unsigned long block, int size)
 	index = block >> sizebits;
 	block = index << sizebits;
 
-	bdev = bdget(kdev_t_to_nr(dev));
-	if (!bdev) {
-		printk("No block device for %s\n", kdevname(dev));
-		BUG();
-	}
-
 	/* Create a page with the proper size buffers.. */
 	page = grow_dev_page(bdev, index, size);
 
-	/* This is "wrong" - talk to Al Viro */
-	atomic_dec(&bdev->bd_count);
 	if (!page)
 		return 0;
 
 	/* Hash in the buffers on the hash list */
-	hash_page_buffers(page, dev, block, size);
+	hash_page_buffers(page, bdev, block, size);
 	UnlockPage(page);
 	page_cache_release(page);
 
@@ -2390,7 +2390,7 @@ cleaned_buffers_try_again:
 		struct buffer_head * p = tmp;
 		tmp = tmp->b_this_page;
 
-		if (p->b_dev == B_FREE) BUG();
+		if (kdev_same(p->b_dev, B_FREE)) BUG();
 
 		remove_inode_queue(p);
 		__remove_from_queues(p);
@@ -2556,7 +2556,7 @@ static int sync_old_buffers(void)
 {
 	lock_kernel();
 	sync_unlocked_inodes();
-	sync_supers(0);
+	sync_supers(NODEV);
 	unlock_kernel();
 
 	for (;;) {

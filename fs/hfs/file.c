@@ -112,11 +112,9 @@ int hfs_get_block(struct inode *inode, sector_t iblock, struct buffer_head *bh_r
 
 	phys = hfs_extent_map(HFS_I(inode)->fork, iblock, create);
 	if (phys) {
-		bh_result->b_dev = inode->i_dev;
-		bh_result->b_blocknr = phys;
-		bh_result->b_state |= (1UL << BH_Mapped);
 		if (create)
 			bh_result->b_state |= (1UL << BH_New);
+		map_bh(bh_result, inode->i_sb, phys);
 		return 0;
 	}
 
@@ -312,8 +310,8 @@ hfs_s32 hfs_do_read(struct inode *inode, struct hfs_fork * fork, hfs_u32 pos,
 
 	bhb = bhe = buflist;
 	if (reada) {
-		if (blocks < read_ahead[MAJOR(dev)] / (HFS_SECTOR_SIZE>>9)) {
-			blocks = read_ahead[MAJOR(dev)] / (HFS_SECTOR_SIZE>>9);
+		if (blocks < read_ahead[major(dev)] / (HFS_SECTOR_SIZE>>9)) {
+			blocks = read_ahead[major(dev)] / (HFS_SECTOR_SIZE>>9);
 		}
 		if (block + blocks > size) {
 			blocks = size - block;

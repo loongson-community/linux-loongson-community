@@ -32,7 +32,6 @@
 #include <linux/if_arp.h>
 #include <linux/rtnetlink.h>
 
-#include <asm/segment.h>
 #include <asm/uaccess.h>
 
 #include <net/irda/irda.h>
@@ -173,7 +172,7 @@ static int irtty_open(struct tty_struct *tty)
 
 	/* Give self a name */
 	sprintf(name, "%s%d", tty->driver.name,
-		MINOR(tty->device) - tty->driver.minor_start +
+		minor(tty->device) - tty->driver.minor_start +
 		tty->driver.name_base);
 
 	hashbin_insert(irtty, (irda_queue_t *) self, (int) self, NULL);
@@ -911,7 +910,7 @@ static int irtty_net_open(struct net_device *dev)
 
 	/* Give self a hardware name */
 	sprintf(hwname, "%s%d", tty->driver.name,
-		MINOR(tty->device) - tty->driver.minor_start +
+		minor(tty->device) - tty->driver.minor_start +
 		tty->driver.name_base);
 
 	/* 

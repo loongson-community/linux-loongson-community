@@ -1,4 +1,4 @@
-/* $Id: keyboard.h,v 1.5 2001/08/18 09:40:46 davem Exp $
+/* $Id: keyboard.h,v 1.6 2002/01/08 16:00:20 davem Exp $
  * linux/include/asm-sparc64/keyboard.h
  *
  * Created Aug 29 1997 by Eddie C. Dost (ecd@skynet.be)
@@ -38,7 +38,6 @@ extern unsigned char pcikbd_sysrq_xlate[128];
 #define kbd_init			pcikbd_init
 
 #define compute_shiftstate		pci_compute_shiftstate
-#define keyboard_wait_for_keypress	pci_wait_for_keypress
 #define getkeycode			pci_getkeycode
 #define setkeycode			pci_setkeycode
 #define getledstate			pci_getledstate

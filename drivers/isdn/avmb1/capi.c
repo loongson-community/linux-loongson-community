@@ -1,4 +1,4 @@
-/* $Id: capi.c,v 1.44.6.15 2001/09/28 08:05:29 kai Exp $
+/* $Id: capi.c,v 1.1.4.1.2.2 2001/12/21 15:00:17 kai Exp $
  *
  * CAPI 2.0 Interface for Linux
  *
@@ -29,7 +29,6 @@
 #include <linux/netdevice.h>
 #include <linux/ppp_defs.h>
 #include <linux/if_ppp.h>
-#undef CAPI_PPP_ON_RAW_DEVICE
 #endif /* CONFIG_PPP */
 #endif /* CONFIG_ISDN_CAPI_MIDDLEWARE */
 #include <linux/skbuff.h>
@@ -45,7 +44,7 @@
 #include "capifs.h"
 #endif
 
-static char *revision = "$Revision: 1.44.6.15 $";
+static char *revision = "$Revision: 1.1.4.1.2.2 $";
 
 MODULE_DESCRIPTION("CAPI4Linux: Userspace /dev/capi20 interface");
 MODULE_AUTHOR("Carsten Paeth");
@@ -59,13 +58,11 @@ MODULE_LICENSE("GPL");
 
 int capi_major = 68;		/* allocated */
 #ifdef CONFIG_ISDN_CAPI_MIDDLEWARE
-int capi_rawmajor = 190;
 int capi_ttymajor = 191;
 #endif /* CONFIG_ISDN_CAPI_MIDDLEWARE */
 
 MODULE_PARM(capi_major, "i");
 #ifdef CONFIG_ISDN_CAPI_MIDDLEWARE
-MODULE_PARM(capi_rawmajor, "i");
 MODULE_PARM(capi_ttymajor, "i");
 #endif /* CONFIG_ISDN_CAPI_MIDDLEWARE */
 
@@ -83,7 +80,7 @@ struct capincci;
 struct capiminor;
 
 struct capiminor {
-	struct capiminor *next;
+	struct list_head list;
 	struct capincci  *nccip;
 	unsigned int      minor;
 
@@ -92,7 +89,6 @@ struct capiminor {
 	u16		 datahandle;
 	u16		 msgid;
 
-	struct file      *file;
 	struct tty_struct *tty;
 	int                ttyinstop;
 	int                ttyoutstop;
@@ -104,15 +100,10 @@ struct capiminor {
 	struct sk_buff_head outqueue;
 	int                 outbytes;
 
-	/* for raw device */
-	struct sk_buff_head recvqueue;
-	wait_queue_head_t recvwait;
-	wait_queue_head_t sendwait;
-	
 	/* transmit path */
 	struct datahandle_queue {
 		    struct datahandle_queue *next;
-		    u16                      datahandle;
+		    u16                    datahandle;
 	} *ackqueue;
 	int nack;
 
@@ -129,11 +120,9 @@ struct capincci {
 };
 
 struct capidev {
-	struct capidev *next;
-	struct file    *file;
+	struct list_head list;
 	u16		applid;
 	u16		errcode;
-	unsigned int    minor;
 	unsigned        userflags;
 
 	struct sk_buff_head recvqueue;
@@ -150,17 +139,21 @@ struct capidev {
 
 /* -------- global variables ---------------------------------------- */
 
-static struct capi_interface *capifuncs = 0;
-static struct capidev *capidev_openlist = 0;
+static struct capi_interface *capifuncs;
+
+static rwlock_t capidev_list_lock = RW_LOCK_UNLOCKED;
+static LIST_HEAD(capidev_list);
+
 #ifdef CONFIG_ISDN_CAPI_MIDDLEWARE
-static struct capiminor *minors = 0;
+static rwlock_t capiminor_list_lock = RW_LOCK_UNLOCKED;
+static LIST_HEAD(capiminor_list);
 #endif /* CONFIG_ISDN_CAPI_MIDDLEWARE */
 
-static kmem_cache_t *capidev_cachep = 0;
-static kmem_cache_t *capincci_cachep = 0;
+static kmem_cache_t *capidev_cachep;
+static kmem_cache_t *capincci_cachep;
 #ifdef CONFIG_ISDN_CAPI_MIDDLEWARE
-static kmem_cache_t *capiminor_cachep = 0;
-static kmem_cache_t *capidh_cachep = 0;
+static kmem_cache_t *capiminor_cachep;
+static kmem_cache_t *capidh_cachep;
 #endif /* CONFIG_ISDN_CAPI_MIDDLEWARE */
 
 #ifdef CONFIG_ISDN_CAPI_MIDDLEWARE
@@ -218,14 +211,16 @@ static void capiminor_del_all_ack(struct capiminor *mp)
 
 static struct capiminor *capiminor_alloc(u16 applid, u32 ncci)
 {
-	struct capiminor *mp, **pp;
-        unsigned int minor = 0;
-
-	MOD_INC_USE_COUNT;
-	mp = (struct capiminor *)kmem_cache_alloc(capiminor_cachep, GFP_ATOMIC);
-	if (!mp) {
-		MOD_DEC_USE_COUNT;
-		printk(KERN_ERR "capi: can't alloc capiminor\n");
+	struct capiminor *mp, *p;
+	struct list_head *l;
+	unsigned int minor = 0;
+	unsigned long flags;
+  
+  	MOD_INC_USE_COUNT;
+	mp = kmem_cache_alloc(capiminor_cachep, GFP_ATOMIC);
+  	if (!mp) {
+  		MOD_DEC_USE_COUNT;
+  		printk(KERN_ERR "capi: can't alloc capiminor\n");
 		return 0;
 	}
 #ifdef _DEBUG_REFCOUNT
@@ -240,54 +235,59 @@ static struct capiminor *capiminor_alloc(u16 applid, u32 ncci)
 	skb_queue_head_init(&mp->inqueue);
 	skb_queue_head_init(&mp->outqueue);
 
-	skb_queue_head_init(&mp->recvqueue);
-	init_waitqueue_head(&mp->recvwait);
-	init_waitqueue_head(&mp->sendwait);
-
-	for (pp = &minors; *pp; pp = &(*pp)->next) {
-		if ((*pp)->minor < minor)
-			continue;
-		if ((*pp)->minor > minor)
+	write_lock_irqsave(&capiminor_list_lock, flags);
+	list_for_each(l, &capiminor_list) {
+		p = list_entry(l, struct capiminor, list);
+		if (p->minor > minor) {
+			mp->minor = minor;
+			list_add_tail(&mp->list, &p->list);
 			break;
+		}
 		minor++;
 	}
-	mp->minor = minor;
-	mp->next = *pp;
-	*pp = mp;
+	write_unlock_irqrestore(&capiminor_list_lock, flags);
+	if (l == &capiminor_list) {
+		kfree(mp);
+		return NULL;
+	}
 	return mp;
 }
 
 static void capiminor_free(struct capiminor *mp)
 {
-	struct capiminor **pp;
+	unsigned long flags;
 
-	pp = &minors;
-	while (*pp) {
-		if (*pp == mp) {
-			*pp = (*pp)->next;
-			if (mp->ttyskb) kfree_skb(mp->ttyskb);
-			mp->ttyskb = 0;
-			skb_queue_purge(&mp->recvqueue);
-			skb_queue_purge(&mp->inqueue);
-			skb_queue_purge(&mp->outqueue);
-			capiminor_del_all_ack(mp);
-			kmem_cache_free(capiminor_cachep, mp);
-			MOD_DEC_USE_COUNT;
+	write_lock_irqsave(&capiminor_list_lock, flags);
+	list_del(&mp->list);
+	write_unlock_irqrestore(&capiminor_list_lock, flags);
+
+	if (mp->ttyskb) kfree_skb(mp->ttyskb);
+	mp->ttyskb = 0;
+	skb_queue_purge(&mp->inqueue);
+	skb_queue_purge(&mp->outqueue);
+	capiminor_del_all_ack(mp);
+	kmem_cache_free(capiminor_cachep, mp);
+	MOD_DEC_USE_COUNT;
 #ifdef _DEBUG_REFCOUNT
-			printk(KERN_DEBUG "capiminor_free %d\n", GET_USE_COUNT(THIS_MODULE));
+	printk(KERN_DEBUG "capiminor_free %d\n", GET_USE_COUNT(THIS_MODULE));
 #endif
-			return;
-		} else {
-			pp = &(*pp)->next;
-		}
-	}
 }
 
-static struct capiminor *capiminor_find(unsigned int minor)
+struct capiminor *capiminor_find(unsigned int minor)
 {
-	struct capiminor *p;
-	for (p = minors; p && p->minor != minor; p = p->next)
-		;
+	struct list_head *l;
+	struct capiminor *p = NULL;
+
+	read_lock(&capiminor_list_lock);
+	list_for_each(l, &capiminor_list) {
+		p = list_entry(l, struct capiminor, list);
+		if (p->minor == minor)
+			break;
+	}
+	read_unlock(&capiminor_list_lock);
+	if (l == &capiminor_list)
+		return NULL;
+
 	return p;
 }
 #endif /* CONFIG_ISDN_CAPI_MIDDLEWARE */
@@ -318,9 +318,7 @@ static struct capincci *capincci_alloc(struct capidev *cdev, u32 ncci)
 		printk(KERN_DEBUG "set mp->nccip\n");
 #endif
 #if defined(CONFIG_ISDN_CAPI_CAPIFS) || defined(CONFIG_ISDN_CAPI_CAPIFS_MODULE)
-		kdev = MKDEV(capi_rawmajor, mp->minor);
-		capifs_new_ncci('r', mp->minor, kdev);
-		kdev = MKDEV(capi_ttymajor, mp->minor);
+		kdev = mk_kdev(capi_ttymajor, mp->minor);
 		capifs_new_ncci(0, mp->minor, kdev);
 #endif
 	}
@@ -355,13 +353,6 @@ static void capincci_free(struct capidev *cdev, u32 ncci)
 					printk(KERN_DEBUG "reset mp->nccip\n");
 #endif
 					tty_hangup(mp->tty);
-				} else if (mp->file) {
-					mp->nccip = 0;
-#ifdef _DEBUG_REFCOUNT
-					printk(KERN_DEBUG "reset mp->nccip\n");
-#endif
-					wake_up_interruptible(&mp->recvwait);
-					wake_up_interruptible(&mp->sendwait);
 				} else {
 					capiminor_free(mp);
 				}
@@ -388,51 +379,57 @@ static struct capincci *capincci_find(struct capidev *cdev, u32 ncci)
 
 /* -------- struct capidev ------------------------------------------ */
 
-static struct capidev *capidev_alloc(struct file *file)
+static struct capidev *capidev_alloc(void)
 {
 	struct capidev *cdev;
-	struct capidev **pp;
+	unsigned long flags;
 
-	cdev = (struct capidev *)kmem_cache_alloc(capidev_cachep, GFP_KERNEL);
+	cdev = kmem_cache_alloc(capidev_cachep, GFP_KERNEL);
 	if (!cdev)
 		return 0;
 	memset(cdev, 0, sizeof(struct capidev));
-	cdev->file = file;
-	cdev->minor = MINOR(file->f_dentry->d_inode->i_rdev);
 
 	skb_queue_head_init(&cdev->recvqueue);
 	init_waitqueue_head(&cdev->recvwait);
-	pp=&capidev_openlist;
-	while (*pp) pp = &(*pp)->next;
-	*pp = cdev;
+	write_lock_irqsave(&capidev_list_lock, flags);
+	list_add_tail(&cdev->list, &capidev_list);
+	write_unlock_irqrestore(&capidev_list_lock, flags);
         return cdev;
 }
 
 static void capidev_free(struct capidev *cdev)
 {
-	struct capidev **pp;
+	unsigned long flags;
 
 	if (cdev->applid)
 		(*capifuncs->capi_release) (cdev->applid);
 	cdev->applid = 0;
 
 	skb_queue_purge(&cdev->recvqueue);
-	
-	pp=&capidev_openlist;
-	while (*pp && *pp != cdev) pp = &(*pp)->next;
-	if (*pp)
-		*pp = cdev->next;
 
+	write_lock_irqsave(&capidev_list_lock, flags);
+	list_del(&cdev->list);
+	write_unlock_irqrestore(&capidev_list_lock, flags);
 	kmem_cache_free(capidev_cachep, cdev);
 }
 
 static struct capidev *capidev_find(u16 applid)
 {
-	struct capidev *p;
-	for (p=capidev_openlist; p; p = p->next) {
+	// FIXME this doesn't guarantee that the device won't go away shortly
+	struct list_head *l;
+	struct capidev *p = NULL;
+
+	read_lock(&capidev_list_lock);
+	list_for_each(l, &capidev_list) {
+		p = list_entry(l, struct capidev, list);
 		if (p->applid == applid)
 			break;
 	}
+	read_unlock(&capidev_list_lock);
+	
+	if (l == &capidev_list)
+		return NULL;
+	
 	return p;
 }
 
@@ -504,33 +501,6 @@ static int handle_recv_skb(struct capiminor *mp, struct sk_buff *skb)
 		kfree_skb(skb);
 		return 0;
 
-	} else if (mp->file) {
-		if (skb_queue_len(&mp->recvqueue) > CAPINC_MAX_RECVQUEUE) {
-#if defined(_DEBUG_DATAFLOW) || defined(_DEBUG_TTYFUNCS)
-			printk(KERN_DEBUG "capi: no room in raw queue\n");
-#endif
-			return -1;
-		}
-		if ((nskb = gen_data_b3_resp_for(mp, skb)) == 0) {
-			printk(KERN_ERR "capi: gen_data_b3_resp failed\n");
-			return -1;
-		}
-		datahandle = CAPIMSG_U16(skb->data,CAPIMSG_BASELEN+4);
-		errcode = (*capifuncs->capi_put_message)(mp->applid, nskb);
-		if (errcode != CAPI_NOERROR) {
-			printk(KERN_ERR "capi: send DATA_B3_RESP failed=%x\n",
-					errcode);
-			kfree_skb(nskb);
-			return -1;
-		}
-		(void)skb_pull(skb, CAPIMSG_LEN(skb->data));
-#ifdef _DEBUG_DATAFLOW
-		printk(KERN_DEBUG "capi: DATA_B3_RESP %u len=%d => raw\n",
-					datahandle, skb->len);
-#endif
-		skb_queue_tail(&mp->recvqueue, skb);
-		wake_up_interruptible(&mp->recvwait);
-		return 0;
 	}
 #ifdef _DEBUG_DATAFLOW
 	printk(KERN_DEBUG "capi: currently no receiver\n");
@@ -612,8 +582,6 @@ static int handle_minor_send(struct capiminor *mp)
 		mp->outbytes -= len;
 		kfree_skb(skb);
 	}
-	if (count)
-		wake_up_interruptible(&mp->sendwait);
 	return count;
 }
 
@@ -686,8 +654,6 @@ static void capi_signal(u16 applid, void *param)
 		if (mp->tty) {
 			if (mp->tty->ldisc.write_wakeup)
 				mp->tty->ldisc.write_wakeup(mp->tty);
-		} else {
-			wake_up_interruptible(&mp->sendwait);
 		}
 		(void)handle_minor_send(mp);
 
@@ -1004,8 +970,6 @@ capi_ioctl(struct inode *inode, struct file *file,
 #ifdef CONFIG_ISDN_CAPI_MIDDLEWARE
 			if ((mp = nccip->minorp) != 0) {
 				count += atomic_read(&mp->ttyopencount);
-				if (mp->file)
-					count++;
 			}
 #endif /* CONFIG_ISDN_CAPI_MIDDLEWARE */
 			return count;
@@ -1040,13 +1004,9 @@ capi_open(struct inode *inode, struct file *file)
 	if (file->private_data)
 		return -EEXIST;
 
-	if ((file->private_data = capidev_alloc(file)) == 0)
+	if ((file->private_data = capidev_alloc()) == 0)
 		return -ENOMEM;
 
-	MOD_INC_USE_COUNT;
-#ifdef _DEBUG_REFCOUNT
-	printk(KERN_DEBUG "capi_open %d\n", GET_USE_COUNT(THIS_MODULE));
-#endif
 	return 0;
 }
 
@@ -1059,10 +1019,6 @@ capi_release(struct inode *inode, struct file *file)
 	capidev_free(cdev);
 	file->private_data = NULL;
 	
-	MOD_DEC_USE_COUNT;
-#ifdef _DEBUG_REFCOUNT
-	printk(KERN_DEBUG "capi_release %d\n", GET_USE_COUNT(THIS_MODULE));
-#endif
 	return 0;
 }
 
@@ -1079,209 +1035,17 @@ static struct file_operations capi_fops =
 };
 
 #ifdef CONFIG_ISDN_CAPI_MIDDLEWARE
-/* -------- file_operations for capincci ---------------------------- */
-
-static int
-capinc_raw_open(struct inode *inode, struct file *file)
-{
-	struct capiminor *mp;
-
-	if (file->private_data)
-		return -EEXIST;
-	if ((mp = capiminor_find(MINOR(file->f_dentry->d_inode->i_rdev))) == 0)
-		return -ENXIO;
-	if (mp->nccip == 0)
-		return -ENXIO;
-	if (mp->file)
-		return -EBUSY;
-
-#ifdef _DEBUG_REFCOUNT
-	printk(KERN_DEBUG "capi_raw_open %d\n", GET_USE_COUNT(THIS_MODULE));
-#endif
-
-	mp->datahandle = 0;
-	mp->file = file;
-	file->private_data = (void *)mp;
-	handle_minor_recv(mp);
-	return 0;
-}
-
-static ssize_t
-capinc_raw_read(struct file *file, char *buf, size_t count, loff_t *ppos)
-{
-	struct capiminor *mp = (struct capiminor *)file->private_data;
-	struct sk_buff *skb;
-	int retval;
-	size_t copied = 0;
-
-        if (ppos != &file->f_pos)
-		return -ESPIPE;
-
-	if (!mp || !mp->nccip)
-		return -EINVAL;
-
-	if ((skb = skb_dequeue(&mp->recvqueue)) == 0) {
-
-		if (file->f_flags & O_NONBLOCK)
-			return -EAGAIN;
-
-		for (;;) {
-			interruptible_sleep_on(&mp->recvwait);
-			if (mp->nccip == 0)
-				return 0;
-			if ((skb = skb_dequeue(&mp->recvqueue)) != 0)
-				break;
-			if (signal_pending(current))
-				break;
-		}
-		if (skb == 0)
-			return -ERESTARTNOHAND;
-	}
-	do {
-		if (count < skb->len) {
-			retval = copy_to_user(buf, skb->data, count);
-			if (retval) {
-				skb_queue_head(&mp->recvqueue, skb);
-				return retval;
-			}
-			skb_pull(skb, count);
-			skb_queue_head(&mp->recvqueue, skb);
-			copied += count;
-			return copied;
-		} else {
-			retval = copy_to_user(buf, skb->data, skb->len);
-			if (retval) {
-				skb_queue_head(&mp->recvqueue, skb);
-				return copied;
-			}
-			copied += skb->len;
-			count -= skb->len;
-			buf += skb->len;
-			kfree_skb(skb);
-		}
-	} while ((skb = skb_dequeue(&mp->recvqueue)) != 0);
-
-	return copied;
-}
-
-static ssize_t
-capinc_raw_write(struct file *file, const char *buf, size_t count, loff_t *ppos)
-{
-	struct capiminor *mp = (struct capiminor *)file->private_data;
-	struct sk_buff *skb;
-	int retval;
-
-        if (ppos != &file->f_pos)
-		return -ESPIPE;
-
-	if (!mp || !mp->nccip)
-		return -EINVAL;
-
-	skb = alloc_skb(CAPI_DATA_B3_REQ_LEN+count, GFP_USER);
-	if (!skb)
-		return -ENOMEM;
-
-	skb_reserve(skb, CAPI_DATA_B3_REQ_LEN);
-	if ((retval = copy_from_user(skb_put(skb, count), buf, count))) {
-		kfree_skb(skb);
-		return -EFAULT;
-	}
-
-	while (skb_queue_len(&mp->outqueue) > CAPINC_MAX_SENDQUEUE) {
-		if (file->f_flags & O_NONBLOCK)
-			return -EAGAIN;
-		interruptible_sleep_on(&mp->sendwait);
-		if (mp->nccip == 0) {
-			kfree_skb(skb);
-			return -EIO;
-		}
-		if (signal_pending(current))
-			return -ERESTARTNOHAND;
-	}
-	skb_queue_tail(&mp->outqueue, skb);
-	mp->outbytes += skb->len;
-	(void)handle_minor_send(mp);
-	return count;
-}
-
-static unsigned int
-capinc_raw_poll(struct file *file, poll_table * wait)
-{
-	struct capiminor *mp = (struct capiminor *)file->private_data;
-	unsigned int mask = 0;
-
-	if (!mp || !mp->nccip)
-		return POLLERR|POLLHUP;
-
-	poll_wait(file, &(mp->recvwait), wait);
-	if (!skb_queue_empty(&mp->recvqueue))
-		mask |= POLLIN | POLLRDNORM;
-	poll_wait(file, &(mp->sendwait), wait);
-	if (skb_queue_len(&mp->outqueue) > CAPINC_MAX_SENDQUEUE)
-		mask = POLLOUT | POLLWRNORM;
-	return mask;
-}
-
-static int
-capinc_raw_ioctl(struct inode *inode, struct file *file,
-		      unsigned int cmd, unsigned long arg)
-{
-	struct capiminor *mp = (struct capiminor *)file->private_data;
-	if (!mp || !mp->nccip)
-		return -EINVAL;
-
-	switch (cmd) {
-	}
-	return -EINVAL;
-}
-
-static int
-capinc_raw_release(struct inode *inode, struct file *file)
-{
-	struct capiminor *mp = (struct capiminor *)file->private_data;
-
-	if (mp) {
-		mp->file = 0;
-		if (mp->nccip == 0) {
-			capiminor_free(mp);
-			file->private_data = NULL;
-		}
-	}
-
-#ifdef _DEBUG_REFCOUNT
-	printk(KERN_DEBUG "capinc_raw_release %d\n", GET_USE_COUNT(THIS_MODULE));
-#endif
-	return 0;
-}
-
-static struct file_operations capinc_raw_fops =
-{
-	owner:		THIS_MODULE,
-	llseek:		no_llseek,
-	read:		capinc_raw_read,
-	write:		capinc_raw_write,
-	poll:		capinc_raw_poll,
-	ioctl:		capinc_raw_ioctl,
-	open:		capinc_raw_open,
-	release:	capinc_raw_release,
-};
-
 /* -------- tty_operations for capincci ----------------------------- */
 
 static int capinc_tty_open(struct tty_struct * tty, struct file * file)
 {
 	struct capiminor *mp;
 
-	if ((mp = capiminor_find(MINOR(file->f_dentry->d_inode->i_rdev))) == 0)
+	if ((mp = capiminor_find(minor(file->f_dentry->d_inode->i_rdev))) == 0)
 		return -ENXIO;
 	if (mp->nccip == 0)
 		return -ENXIO;
-	if (mp->file)
-		return -EBUSY;
 
-	skb_queue_head_init(&mp->recvqueue);
-	init_waitqueue_head(&mp->recvwait);
-	init_waitqueue_head(&mp->sendwait);
 	tty->driver_data = (void *)mp;
 #ifdef _DEBUG_REFCOUNT
 	printk(KERN_DEBUG "capi_tty_open %d\n", GET_USE_COUNT(THIS_MODULE));
@@ -1454,7 +1218,7 @@ static int capinc_tty_write_room(struct tty_struct *tty)
 	return room;
 }
 
-static int capinc_tty_chars_in_buffer(struct tty_struct *tty)
+int capinc_tty_chars_in_buffer(struct tty_struct *tty)
 {
 	struct capiminor *mp = (struct capiminor *)tty->driver_data;
 	if (!mp || !mp->nccip) {
@@ -1662,11 +1426,13 @@ static int proc_capidev_read_proc(char *page, char **start, off_t off,
                                        int count, int *eof, void *data)
 {
         struct capidev *cdev;
+	struct list_head *l;
 	int len = 0;
 
-	for (cdev=capidev_openlist; cdev; cdev = cdev->next) {
-		len += sprintf(page+len, "%d %d %lu %lu %lu %lu\n",
-			cdev->minor,
+	read_lock(&capidev_list_lock);
+	list_for_each(l, &capidev_list) {
+		cdev = list_entry(l, struct capidev, list);
+		len += sprintf(page+len, "0 %d %lu %lu %lu %lu\n",
 			cdev->applid,
 			cdev->nrecvctlpkt,
 			cdev->nrecvdatapkt,
@@ -1680,11 +1446,13 @@ static int proc_capidev_read_proc(char *page, char **start, off_t off,
 				goto endloop;
 		}
 	}
+
 endloop:
+	read_unlock(&capidev_list_lock);
 	if (len < count)
 		*eof = 1;
-	if (len>count) len = count;
-	if (len<0) len = 0;
+	if (len > count) len = count;
+	if (len < 0) len = 0;
 	return len;
 }
 
@@ -1697,18 +1465,16 @@ static int proc_capincci_read_proc(char *page, char **start, off_t off,
 {
         struct capidev *cdev;
         struct capincci *np;
+	struct list_head *l;
 	int len = 0;
 
-	for (cdev=capidev_openlist; cdev; cdev = cdev->next) {
+	read_lock(&capidev_list_lock);
+	list_for_each(l, &capidev_list) {
+		cdev = list_entry(l, struct capidev, list);
 		for (np=cdev->nccis; np; np = np->next) {
-			len += sprintf(page+len, "%d 0x%x%s\n",
-				cdev->applid,
-				np->ncci,
-#ifndef CONFIG_ISDN_CAPI_MIDDLEWARE
-				"");
-#else /* CONFIG_ISDN_CAPI_MIDDLEWARE */
-				np->minorp && np->minorp->file ? " open" : "");
-#endif /* CONFIG_ISDN_CAPI_MIDDLEWARE */
+			len += sprintf(page+len, "%d 0x%x\n",
+				       cdev->applid,
+				       np->ncci);
 			if (len <= off) {
 				off -= len;
 				len = 0;
@@ -1719,6 +1485,7 @@ static int proc_capincci_read_proc(char *page, char **start, off_t off,
 		}
 	}
 endloop:
+	read_unlock(&capidev_list_lock);
 	*start = page+off;
 	if (len < count)
 		*eof = 1;
@@ -1889,19 +1656,6 @@ static int __init capi_init(void)
 		return -EIO;
 	}
 
-#ifdef CONFIG_ISDN_CAPI_MIDDLEWARE
-	if (devfs_register_chrdev(capi_rawmajor, "capi/r%d", &capinc_raw_fops)) {
-		devfs_unregister_chrdev(capi_major, "capi20");
-		printk(KERN_ERR "capi20: unable to get major %d\n", capi_rawmajor);
-		MOD_DEC_USE_COUNT;
-		return -EIO;
-	}
-        devfs_register_series (NULL, "capi/r%u", CAPINC_NR_PORTS,
-			      DEVFS_FL_DEFAULT,
-                              capi_rawmajor, 0,
-                              S_IFCHR | S_IRUSR | S_IWUSR,
-                              &capinc_raw_fops, NULL);
-#endif /* CONFIG_ISDN_CAPI_MIDDLEWARE */
 	devfs_register (NULL, "isdn/capi20", DEVFS_FL_DEFAULT,
 			capi_major, 0, S_IFCHR | S_IRUSR | S_IWUSR,
 			&capi_fops, NULL);
@@ -1911,9 +1665,6 @@ static int __init capi_init(void)
 
 		MOD_DEC_USE_COUNT;
 		devfs_unregister_chrdev(capi_major, "capi20");
-#ifdef CONFIG_ISDN_CAPI_MIDDLEWARE
-		devfs_unregister_chrdev(capi_rawmajor, "capi/r%d");
-#endif /* CONFIG_ISDN_CAPI_MIDDLEWARE */
 		devfs_unregister(devfs_find_handle(NULL, "capi20",
 						   capi_major, 0,
 						   DEVFS_SPECIAL_CHR, 0));
@@ -1924,7 +1675,6 @@ static int __init capi_init(void)
 	if (capinc_tty_init() < 0) {
 		(void) detach_capi_interface(&cuser);
 		devfs_unregister_chrdev(capi_major, "capi20");
-		devfs_unregister_chrdev(capi_rawmajor, "capi/r%d");
 		MOD_DEC_USE_COUNT;
 		return -ENOMEM;
 	}
@@ -1932,13 +1682,6 @@ static int __init capi_init(void)
 
 	if (alloc_init() < 0) {
 #ifdef CONFIG_ISDN_CAPI_MIDDLEWARE
-		unsigned int j;
-		devfs_unregister_chrdev(capi_rawmajor, "capi/r%d");
-		for (j = 0; j < CAPINC_NR_PORTS; j++) {
-			char devname[32];
-			sprintf(devname, "capi/r%u", j);
-			devfs_unregister(devfs_find_handle(NULL, devname, capi_rawmajor, j, DEVFS_SPECIAL_CHR, 0));
-		}
 		capinc_tty_exit();
 #endif /* CONFIG_ISDN_CAPI_MIDDLEWARE */
 		(void) detach_capi_interface(&cuser);
@@ -1970,9 +1713,6 @@ static int __init capi_init(void)
 
 static void __exit capi_exit(void)
 {
-#ifdef CONFIG_ISDN_CAPI_MIDDLEWARE
-	unsigned int j;
-#endif
 	alloc_exit();
 	(void)proc_exit();
 
@@ -1981,12 +1721,6 @@ static void __exit capi_exit(void)
 
 #ifdef CONFIG_ISDN_CAPI_MIDDLEWARE
 	capinc_tty_exit();
-	devfs_unregister_chrdev(capi_rawmajor, "capi/r%d");
-	for (j = 0; j < CAPINC_NR_PORTS; j++) {
-		char devname[32];
-		sprintf(devname, "capi/r%u", j);
-		devfs_unregister(devfs_find_handle(NULL, devname, capi_rawmajor, j, DEVFS_SPECIAL_CHR, 0));
-	}
 #endif
 	(void) detach_capi_interface(&cuser);
 	printk(KERN_NOTICE "capi: Rev %s: unloaded\n", rev);

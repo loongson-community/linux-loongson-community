@@ -14,7 +14,6 @@
 #include <linux/time.h>
 #include <linux/errno.h>
 #include <linux/locks.h>
-#include <asm/segment.h>
 #include <asm/uaccess.h>
 #include <linux/string.h>
 #include <linux/smp_lock.h>
@@ -1077,7 +1076,7 @@ int presto_clear_lml_close(struct presto_file_set *fset,
                 return 0;
         }
 
-        CDEBUG(D_JOURNAL, "reading prefix: off %ld, size %d\n", 
+        CDEBUG(D_JOURNAL, "reading prefix: off %ld, size %Zd\n", 
                (long)lml_offset, sizeof(record));
         rc = presto_fread(fset->fset_lml.fd_file, (char *)&record,
                           sizeof(record), &offset);

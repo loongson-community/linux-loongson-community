@@ -126,6 +126,8 @@ static struct block_device_operations cciss_fops  = {
 	revalidate:		frevalidate_logvol,
 };
 
+#include "cciss_scsi.c"		/* For SCSI tape support */
+
 /*
  * Report information about this controller.
  */
@@ -160,6 +162,7 @@ static int cciss_proc_get_info(char *buffer, char **start, off_t offset,
                 h->Qdepth, h->maxQsinceinit, h->max_outstanding, h->maxSG);
 
         pos += size; len += size;
+	cciss_proc_tape_report(ctlr, buffer, &pos, &len);
 	for(i=0; i<h->num_luns; i++) {
                 drv = &h->drv[i];
                 size = sprintf(buffer+len, "cciss/c%dd%d: blksz=%d nr_blocks=%d\n",
@@ -179,20 +182,53 @@ static int cciss_proc_get_info(char *buffer, char **start, off_t offset,
         return len;
 }
 
+static int 
+cciss_proc_write(struct file *file, const char *buffer, 
+			unsigned long count, void *data)
+{
+	unsigned char cmd[80];
+	int len;
+#ifdef CONFIG_CISS_SCSI_TAPE
+	ctlr_info_t *h = (ctlr_info_t *) data;
+	int rc;
+#endif
+
+	if (count > sizeof(cmd)-1) return -EINVAL;
+	if (copy_from_user(cmd, buffer, count)) return -EFAULT;
+	cmd[count] = '\0';
+	len = strlen(cmd);	// above 3 lines ensure safety
+	if (cmd[len-1] == '\n') 
+		cmd[--len] = '\0';
+#	ifdef CONFIG_CISS_SCSI_TAPE
+		if (strcmp("engage scsi", cmd)==0) {
+			rc = cciss_engage_scsi(h->ctlr);
+			if (rc != 0) return -rc;
+			return count;
+		}
+		/* might be nice to have "disengage" too, but it's not 
+		   safely possible. (only 1 module use count, lock issues.) */
+#	endif
+	return -EINVAL;
+}
+
 /*
  * Get us a file in /proc/cciss that says something about each controller.
  * Create /proc/cciss if it doesn't exist yet.
  */
 static void __init cciss_procinit(int i)
 {
+	struct proc_dir_entry *pde;
+
         if (proc_cciss == NULL) {
                 proc_cciss = proc_mkdir("cciss", proc_root_driver);
                 if (!proc_cciss) 
 			return;
         }
 
-        create_proc_read_entry(hba[i]->devname, 0, proc_cciss,
-        		cciss_proc_get_info, hba[i]);
+	pde = create_proc_read_entry(hba[i]->devname, 
+		S_IWUSR | S_IRUSR | S_IRGRP | S_IROTH, 
+		proc_cciss, cciss_proc_get_info, hba[i]);
+	pde->write_proc = cciss_proc_write;
 }
 #endif /* CONFIG_PROC_FS */
 
@@ -317,8 +353,8 @@ static void cciss_geninit( int ctlr)
  */
 static int cciss_open(struct inode *inode, struct file *filep)
 {
-	int ctlr = MAJOR(inode->i_rdev) - MAJOR_NR;
-	int dsk  = MINOR(inode->i_rdev) >> NWD_SHIFT;
+	int ctlr = major(inode->i_rdev) - MAJOR_NR;
+	int dsk  = minor(inode->i_rdev) >> NWD_SHIFT;
 
 #ifdef CCISS_DEBUG
 	printk(KERN_DEBUG "cciss_open %x (%x:%x)\n", inode->i_rdev, ctlr, dsk);
@@ -327,7 +363,7 @@ static int cciss_open(struct inode *inode, struct file *filep)
 	if (ctlr > MAX_CTLR || hba[ctlr] == NULL)
 		return -ENXIO;
 
-	if (!suser() && hba[ctlr]->sizes[ MINOR(inode->i_rdev)] == 0)
+	if (!suser() && hba[ctlr]->sizes[minor(inode->i_rdev)] == 0)
 		return -ENXIO;
 
 	/*
@@ -337,8 +373,8 @@ static int cciss_open(struct inode *inode, struct file *filep)
 	 * for "raw controller".
 	 */
 	if (suser()
-		&& (hba[ctlr]->sizes[MINOR(inode->i_rdev)] == 0) 
-		&& (MINOR(inode->i_rdev)!= 0))
+		&& (hba[ctlr]->sizes[minor(inode->i_rdev)] == 0) 
+		&& (minor(inode->i_rdev)!= 0))
 		return -ENXIO;
 
 	hba[ctlr]->drv[dsk].usage_count++;
@@ -350,8 +386,8 @@ static int cciss_open(struct inode *inode, struct file *filep)
  */
 static int cciss_release(struct inode *inode, struct file *filep)
 {
-	int ctlr = MAJOR(inode->i_rdev) - MAJOR_NR;
-	int dsk  = MINOR(inode->i_rdev) >> NWD_SHIFT;
+	int ctlr = major(inode->i_rdev) - MAJOR_NR;
+	int dsk  = minor(inode->i_rdev) >> NWD_SHIFT;
 
 #ifdef CCISS_DEBUG
 	printk(KERN_DEBUG "cciss_release %x (%x:%x)\n", inode->i_rdev, ctlr, dsk);
@@ -370,8 +406,8 @@ static int cciss_release(struct inode *inode, struct file *filep)
 static int cciss_ioctl(struct inode *inode, struct file *filep, 
 		unsigned int cmd, unsigned long arg)
 {
-	int ctlr = MAJOR(inode->i_rdev) - MAJOR_NR;
-	int dsk  = MINOR(inode->i_rdev) >> NWD_SHIFT;
+	int ctlr = major(inode->i_rdev) - MAJOR_NR;
+	int dsk  = minor(inode->i_rdev) >> NWD_SHIFT;
 
 #ifdef CCISS_DEBUG
 	printk(KERN_DEBUG "cciss_ioctl: Called with cmd=%x %lx\n", cmd, arg);
@@ -696,8 +732,8 @@ static int revalidate_logvol(kdev_t dev, int maxusage)
         unsigned long flags;
         int res;
 
-        target = MINOR(dev) >> NWD_SHIFT;
-        ctlr = MAJOR(dev) - MAJOR_NR;
+        target = minor(dev) >> NWD_SHIFT;
+        ctlr = major(dev) - MAJOR_NR;
         gdev = &(hba[ctlr]->gendisk);
 
         spin_lock_irqsave(CCISS_LOCK(ctlr), flags);
@@ -746,8 +782,8 @@ static int revalidate_allvol(kdev_t dev)
 	int ctlr, i;
 	unsigned long flags;
 
-	ctlr = MAJOR(dev) - MAJOR_NR;
-        if (MINOR(dev) != 0)
+	ctlr = major(dev) - MAJOR_NR;
+        if (minor(dev) != 0)
                 return -ENXIO;
 
         spin_lock_irqsave(CCISS_LOCK(ctlr), flags);
@@ -781,9 +817,11 @@ static int revalidate_allvol(kdev_t dev)
         hba[ctlr]->access.set_intr_mask(hba[ctlr], CCISS_INTR_ON);
 
         cciss_geninit(ctlr);
-        for(i=0; i<NWD; i++)
+        for(i=0; i<NWD; i++) {
+		kdev_t kdev = mk_kdev(major(dev), i << NWD_SHIFT);
                 if (hba[ctlr]->sizes[ i<<NWD_SHIFT ])
-                        revalidate_logvol(dev+(i<<NWD_SHIFT), 2);
+                        revalidate_logvol(kdev, 2);
+	}
 
         hba[ctlr]->usage_count--;
         return 0;
@@ -822,9 +860,12 @@ static int sendcmd(
 	int	ctlr,
 	void	*buff,
 	size_t	size,
-	unsigned int use_unit_num,
+	unsigned int use_unit_num, /* 0: address the controller,
+				      1: address logical volume log_unit, 
+				      2: periph device address is scsi3addr */
 	unsigned int log_unit,
-	__u8	page_code )
+	__u8	page_code,
+	unsigned char *scsi3addr)
 {
 	CommandList_struct *c;
 	int i;
@@ -858,15 +899,23 @@ static int sendcmd(
 				to controller so It's a physical command
 				mode = 0 target = 0.
 				So we have nothing to write. 
-				Otherwise 
-				mode = 1  target = LUNID
+				otherwise, if use_unit_num == 1, 
+				mode = 1(volume set addressing) target = LUNID
+				otherwise, if use_unit_num == 2,
+				mode = 0(periph dev addr) target = scsi3addr 
 			*/
-			if(use_unit_num != 0)
+			if(use_unit_num == 1)
 			{
 				c->Header.LUN.LogDev.VolId=
                                 	hba[ctlr]->drv[log_unit].LunID;
                         	c->Header.LUN.LogDev.Mode = 1;
 			}
+			else if (use_unit_num == 2)
+			{
+				memcpy(c->Header.LUN.LunAddrBytes,scsi3addr,8);
+                        	c->Header.LUN.LogDev.Mode = 0; // phys dev addr 
+			}
+
 			/* are we trying to read a vital product page */
 			if(page_code != 0)
 			{
@@ -882,6 +931,7 @@ static int sendcmd(
 			c->Request.CDB[4] = size  & 0xFF;  
 		break;
 		case CISS_REPORT_LOG:
+		case CISS_REPORT_PHYS:
                         /* Talking to controller so It's a physical command
                                 mode = 00 target = 0.
                                 So we have nothing to write.
@@ -891,7 +941,7 @@ static int sendcmd(
                         c->Request.Type.Attribute = ATTR_SIMPLE; 
                         c->Request.Type.Direction = XFER_READ; // Read
                         c->Request.Timeout = 0; // Don't time out
-                        c->Request.CDB[0] = CISS_REPORT_LOG;
+                        c->Request.CDB[0] = cmd;
                         c->Request.CDB[6] = (size >> 24) & 0xFF;  //MSB
                         c->Request.CDB[7] = (size >> 16) & 0xFF;
                         c->Request.CDB[8] = (size >> 8) & 0xFF;
@@ -969,6 +1019,7 @@ static int sendcmd(
 				ignore it 
 			*/
 			if (((c->Request.CDB[0] == CISS_REPORT_LOG) ||
+			     (c->Request.CDB[0] == CISS_REPORT_PHYS) ||
 			     (c->Request.CDB[0] == CISS_INQUIRY)) &&
 				((c->err_info->CommandStatus == 
 					CMD_DATA_OVERRUN) || 
@@ -1205,7 +1256,6 @@ static void do_cciss_request(request_queue_t *q)
 	ctlr_info_t *h= q->queuedata; 
 	CommandList_struct *c;
 	int log_unit, start_blk, seg;
-	struct list_head *queue_head = &q->queue_head;
 	struct request *creq;
 	u64bit temp64;
 	struct scatterlist tmp_sg[MAXSGENTRIES];
@@ -1215,17 +1265,17 @@ static void do_cciss_request(request_queue_t *q)
 		goto startio;
 
 queue:
-	if (list_empty(queue_head))
+	if (blk_queue_empty(q))
 		goto startio;
 
 	creq = elv_next_request(q);
 	if (creq->nr_phys_segments > MAXSGENTRIES)
                 BUG();
 
-        if (h->ctlr != MAJOR(creq->rq_dev)-MAJOR_NR )
+        if (h->ctlr != major(creq->rq_dev)-MAJOR_NR )
         {
                 printk(KERN_WARNING "doreq cmd for %d, %x at %p\n",
-                                h->ctlr, creq->rq_dev, creq);
+                                h->ctlr, major(creq->rq_dev), creq);
                 blkdev_dequeue_request(creq);
                 complete_buffers(creq->bio, 0);
 		end_that_request_last(creq);
@@ -1243,7 +1293,7 @@ queue:
 	c->rq = creq;
 	
 	/* fill in the request */ 
-	log_unit = MINOR(creq->rq_dev) >> NWD_SHIFT; 
+	log_unit = minor(creq->rq_dev) >> NWD_SHIFT; 
 	c->Header.ReplyQueue = 0;  // unused in simple mode
 	c->Header.Tag.lower = c->busaddr;  // use the physical address the cmd block for tag
 	c->Header.LUN.LogDev.VolId= hba[h->ctlr]->drv[log_unit].LunID;
@@ -1355,6 +1405,10 @@ static void do_cciss_intr(int irq, void *dev_id, struct pt_regs *regs)
 				} else if (c->cmd_type == CMD_IOCTL_PEND) {
 					c->cmd_type = CMD_IOCTL_DONE;
 				}
+#				ifdef CONFIG_CISS_SCSI_TAPE
+				else if (c->cmd_type == CMD_SCSI)
+					complete_scsi_command(c, 0, a1);
+#				endif
 				continue;
 			}
 		}
@@ -1591,7 +1645,7 @@ static void cciss_getgeometry(int cntl_num)
         }
 	/* Get the firmware version */ 
 	return_code = sendcmd(CISS_INQUIRY, cntl_num, inq_buff, 
-		sizeof(InquiryData_struct), 0, 0 ,0 );
+		sizeof(InquiryData_struct), 0, 0 ,0, NULL );
 	if (return_code == IO_OK)
 	{
 		hba[cntl_num]->firm_ver[0] = inq_buff->data_byte[32];
@@ -1605,7 +1659,7 @@ static void cciss_getgeometry(int cntl_num)
 	}
 	/* Get the number of logical volumes */ 
 	return_code = sendcmd(CISS_REPORT_LOG, cntl_num, ld_buff, 
-			sizeof(ReportLunData_struct), 0, 0, 0 );
+			sizeof(ReportLunData_struct), 0, 0, 0, NULL );
 
 	if( return_code == IO_OK)
 	{
@@ -1651,7 +1705,7 @@ static void cciss_getgeometry(int cntl_num)
 
 	  	memset(size_buff, 0, sizeof(ReadCapdata_struct));
 	  	return_code = sendcmd(CCISS_READ_CAPACITY, cntl_num, size_buff, 
-				sizeof( ReadCapdata_struct), 1, i, 0 );
+				sizeof( ReadCapdata_struct), 1, i, 0, NULL );
 	  	if (return_code == IO_OK)
 		{
 			total_size = (0xff & 
@@ -1683,7 +1737,7 @@ static void cciss_getgeometry(int cntl_num)
 		/* Execute the command to read the disk geometry */
 		memset(inq_buff, 0, sizeof(InquiryData_struct));
 		return_code = sendcmd(CISS_INQUIRY, cntl_num, inq_buff,
-                	sizeof(InquiryData_struct), 1, i ,0xC1 );
+                	sizeof(InquiryData_struct), 1, i ,0xC1, NULL );
 	  	if (return_code == IO_OK)
 		{
 			if(inq_buff->data_byte[8] == 0xFF)
@@ -1859,6 +1913,8 @@ static int __init cciss_init_one(struct pci_dev *pdev,
 
 	cciss_getgeometry(i);
 
+	cciss_find_non_disk_devices(i);	/* find our tape drives, if any */
+
 	/* Turn the interrupts on so we can service requests */
 	hba[i]->access.set_intr_mask(hba[i], CCISS_INTR_ON);
 
@@ -1886,7 +1942,6 @@ static int __init cciss_init_one(struct pci_dev *pdev,
 	hba[i]->gendisk.major = MAJOR_NR + i;
 	hba[i]->gendisk.major_name = "cciss";
 	hba[i]->gendisk.minor_shift = NWD_SHIFT;
-	hba[i]->gendisk.max_p = MAX_PART;
 	hba[i]->gendisk.part = hba[i]->hd;
 	hba[i]->gendisk.sizes = hba[i]->sizes;
 	hba[i]->gendisk.nr_real = hba[i]->num_luns;
@@ -1897,9 +1952,11 @@ static int __init cciss_init_one(struct pci_dev *pdev,
 	cciss_geninit(i);
 	for(j=0; j<NWD; j++)
 		register_disk(&(hba[i]->gendisk),
-			MKDEV(MAJOR_NR+i, j <<4), 
+			mk_kdev(MAJOR_NR+i, j <<4), 
 			MAX_PART, &cciss_fops, 
 			hba[i]->drv[j].nr_blocks);
+
+	cciss_register_scsi(i, 1);  /* hook ourself into SCSI subsystem */
 
 	return(1);
 }
@@ -1927,6 +1984,7 @@ static void __devexit cciss_remove_one (struct pci_dev *pdev)
 	free_irq(hba[i]->intr, hba[i]);
 	pci_set_drvdata(pdev, NULL);
 	iounmap((void*)hba[i]->vaddr);
+	cciss_unregister_scsi(i);  /* unhook from SCSI subsystem */
 	unregister_blkdev(MAJOR_NR+i, hba[i]->devname);
 	remove_proc_entry(hba[i]->devname, proc_cciss);	
 	

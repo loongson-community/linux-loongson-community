@@ -49,7 +49,7 @@
 #include <linux/config.h>
 #include <linux/types.h>
 #include <linux/slab.h>
-#include <linux/swap.h>
+#include <linux/mm.h>
 #include <linux/pagemap.h>
 #include <linux/file.h>
 
@@ -159,8 +159,9 @@ nfs_writepage_sync(struct file *file, struct inode *inode, struct page *page,
 	if (!cred)
 		cred = get_rpccred(NFS_I(inode)->mm_cred);
 
-	dprintk("NFS:      nfs_writepage_sync(%x/%Ld %d@%Ld)\n",
-		inode->i_dev, (long long)NFS_FILEID(inode),
+	dprintk("NFS:      nfs_writepage_sync(%s/%Ld %d@%Ld)\n",
+		inode->i_sb->s_id,
+		(long long)NFS_FILEID(inode),
 		count, (long long)(page_offset(page) + offset));
 
 	buffer = kmap(page) + offset;
@@ -213,6 +214,7 @@ nfs_writepage_async(struct file *file, struct inode *inode, struct page *page,
 		    unsigned int offset, unsigned int count)
 {
 	struct nfs_page	*req;
+	loff_t		end;
 	int		status;
 
 	req = nfs_update_request(file, inode, page, offset, count);
@@ -223,6 +225,10 @@ nfs_writepage_async(struct file *file, struct inode *inode, struct page *page,
 		req->wb_cred = get_rpccred(NFS_I(inode)->mm_cred);
 	nfs_unlock_request(req);
 	nfs_strategy(inode);
+	end = ((loff_t)page->index<<PAGE_CACHE_SHIFT) + (loff_t)(offset + count);
+	if (inode->i_size < end)
+		inode->i_size = end;
+
  out:
 	return status;
 }
@@ -781,6 +787,7 @@ nfs_updatepage(struct file *file, struct page *page, unsigned int offset, unsign
 	struct dentry	*dentry = file->f_dentry;
 	struct inode	*inode = dentry->d_inode;
 	struct nfs_page	*req;
+	loff_t		end;
 	int		status = 0;
 
 	dprintk("NFS:      nfs_updatepage(%s/%s %d@%Ld)\n",
@@ -812,6 +819,10 @@ nfs_updatepage(struct file *file, struct page *page, unsigned int offset, unsign
 		goto done;
 
 	status = 0;
+	end = ((loff_t)page->index<<PAGE_CACHE_SHIFT) + (loff_t)(offset + count);
+	if (inode->i_size < end)
+		inode->i_size = end;
+
 	/* If we wrote past the end of the page.
 	 * Call the strategy routine so it can send out a bunch
 	 * of requests.
@@ -924,9 +935,9 @@ nfs_flush_one(struct list_head *head, struct inode *inode, int how)
 	msg.rpc_resp = &data->res;
 	msg.rpc_cred = data->cred;
 
-	dprintk("NFS: %4d initiated write call (req %x/%Ld count %d nriov %d)\n",
+	dprintk("NFS: %4d initiated write call (req %s/%Ld count %d nriov %d)\n",
 		task->tk_pid, 
-		inode->i_dev,
+		inode->i_sb->s_id,
 		(long long)NFS_FILEID(inode),
 		data->args.count, data->args.nriov);
 
@@ -1039,8 +1050,8 @@ nfs_writeback_done(struct rpc_task *task)
 
 		kunmap(page);
 
-		dprintk("NFS: write (%x/%Ld %d@%Ld)",
-			req->wb_inode->i_dev,
+		dprintk("NFS: write (%s/%Ld %d@%Ld)",
+			req->wb_inode->i_sb->s_id,
 			(long long)NFS_FILEID(req->wb_inode),
 			req->wb_bytes,
 			(long long)(page_offset(page) + req->wb_offset));
@@ -1189,8 +1200,8 @@ nfs_commit_done(struct rpc_task *task)
 		req = nfs_list_entry(data->pages.next);
 		nfs_list_remove_request(req);
 
-		dprintk("NFS: commit (%x/%Ld %d@%Ld)",
-			req->wb_inode->i_dev,
+		dprintk("NFS: commit (%s/%Ld %d@%Ld)",
+			req->wb_inode->i_sb->s_id,
 			(long long)NFS_FILEID(req->wb_inode),
 			req->wb_bytes,
 			(long long)(page_offset(req->wb_page) + req->wb_offset));

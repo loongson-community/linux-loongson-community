@@ -114,7 +114,6 @@
 #endif
 #endif
 
-#include <asm/segment.h>
 #define GET_USER(error,value,addr) error = get_user(value,addr)
 #define COPY_FROM_USER(error,dest,src,size) error = copy_from_user(dest,src,size) ? -EFAULT : 0
 #define PUT_USER(error,value,addr) error = put_user(value,addr)
@@ -3601,7 +3600,7 @@ static int mgsl_open(struct tty_struct *tty, struct file * filp)
 	unsigned long flags;
 
 	/* verify range of specified line number */	
-	line = MINOR(tty->device) - tty->driver.minor_start;
+	line = minor(tty->device) - tty->driver.minor_start;
 	if ((line < 0) || (line >= mgsl_device_count)) {
 		printk("%s(%d):mgsl_open with illegal line #%d.\n",
 			__FILE__,__LINE__,line);

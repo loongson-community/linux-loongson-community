@@ -54,12 +54,12 @@ int journal_no_write[2];
  * amount of time.  This is for crash/recovery testing.
  */
 
-static void make_rdonly(kdev_t dev, int *no_write)
+static void make_rdonly(struct block_device *bdev, int *no_write)
 {
-	if (dev) {
+	if (bdev) {
 		printk(KERN_WARNING "Turning device %s read-only\n", 
-		       bdevname(dev));
-		*no_write = 0xdead0000 + dev;
+		       bdevname(to_kdev_t(bdev->bd_dev)));
+		*no_write = 0xdead0000 + bdev->bd_dev;
 	}
 }
 
@@ -67,7 +67,7 @@ static void turn_fs_readonly(unsigned long arg)
 {
 	struct super_block *sb = (struct super_block *)arg;
 
-	make_rdonly(sb->s_dev, &journal_no_write[0]);
+	make_rdonly(sb->s_bdev, &journal_no_write[0]);
 	make_rdonly(EXT3_SB(sb)->s_journal->j_dev, &journal_no_write[1]);
 	wake_up(&EXT3_SB(sb)->ro_wait_queue);
 }
@@ -163,7 +163,7 @@ static void ext3_handle_error(struct super_block *sb)
 
 	if (ext3_error_behaviour(sb) == EXT3_ERRORS_PANIC) 
 		panic ("EXT3-fs (device %s): panic forced after error\n",
-		       bdevname(sb->s_dev));
+		       sb->s_id);
 
 	if (ext3_error_behaviour(sb) == EXT3_ERRORS_RO) {
 		printk (KERN_CRIT "Remounting filesystem read-only\n");
@@ -183,7 +183,7 @@ void ext3_error (struct super_block * sb, const char * function,
 	va_end (args);
 
 	printk (KERN_CRIT "EXT3-fs error (device %s): %s: %s\n",
-		bdevname(sb->s_dev), function, error_buf);
+		sb->s_id, function, error_buf);
 
 	ext3_handle_error(sb);
 }
@@ -231,7 +231,7 @@ void __ext3_std_error (struct super_block * sb, const char * function,
 	const char *errstr = ext3_decode_error(sb, errno, nbuf);
 
 	printk (KERN_CRIT "EXT3-fs error (device %s) in %s: %s\n",
-		bdevname(sb->s_dev), function, errstr);
+		sb->s_id, function, errstr);
 	
 	ext3_handle_error(sb);
 }
@@ -259,10 +259,10 @@ void ext3_abort (struct super_block * sb, const char * function,
 
 	if (ext3_error_behaviour(sb) == EXT3_ERRORS_PANIC)
 		panic ("EXT3-fs panic (device %s): %s: %s\n",
-		       bdevname(sb->s_dev), function, error_buf);
+		       sb->s_id, function, error_buf);
 
 	printk (KERN_CRIT "EXT3-fs abort (device %s): %s: %s\n",
-		bdevname(sb->s_dev), function, error_buf);
+		sb->s_id, function, error_buf);
 
 	if (sb->s_flags & MS_RDONLY)
 		return;
@@ -293,7 +293,7 @@ NORET_TYPE void ext3_panic (struct super_block * sb, const char * function,
 	/* AKPM: is this sufficient? */
 	sb->s_flags |= MS_RDONLY;
 	panic ("EXT3-fs panic (device %s): %s: %s\n",
-	       bdevname(sb->s_dev), function, error_buf);
+	       sb->s_id, function, error_buf);
 }
 
 void ext3_warning (struct super_block * sb, const char * function,
@@ -305,7 +305,7 @@ void ext3_warning (struct super_block * sb, const char * function,
 	vsprintf (error_buf, fmt, args);
 	va_end (args);
 	printk (KERN_WARNING "EXT3-fs warning (device %s): %s: %s\n",
-		bdevname(sb->s_dev), function, error_buf);
+		sb->s_id, function, error_buf);
 }
 
 void ext3_update_dynamic_rev(struct super_block *sb)
@@ -389,8 +389,8 @@ static void dump_orphan_list(struct super_block *sb, struct ext3_sb_info *sbi)
 	list_for_each(l, &sbi->s_orphan) {
 		struct inode *inode = orphan_list_entry(l);
 		printk(KERN_ERR "  "
-		       "inode 0x%04x:%ld at %p: mode %o, nlink %d, next %d\n",
-		       inode->i_dev, inode->i_ino, inode,
+		       "inode %s:%ld at %p: mode %o, nlink %d, next %d\n",
+		       inode->i_sb->s_id, inode->i_ino, inode,
 		       inode->i_mode, inode->i_nlink, 
 		       le32_to_cpu(NEXT_ORPHAN(inode)));
 	}
@@ -400,7 +400,6 @@ void ext3_put_super (struct super_block * sb)
 {
 	struct ext3_sb_info *sbi = EXT3_SB(sb);
 	struct ext3_super_block *es = sbi->s_es;
-	kdev_t j_dev = sbi->s_journal->j_dev;
 	int i;
 
 	journal_destroy(sbi->s_journal);
@@ -429,15 +428,15 @@ void ext3_put_super (struct super_block * sb)
 		dump_orphan_list(sb, sbi);
 	J_ASSERT(list_empty(&sbi->s_orphan));
 
-	invalidate_buffers(sb->s_dev);
-	if (j_dev != sb->s_dev) {
+	invalidate_bdev(sb->s_bdev, 0);
+	if (sbi->journal_bdev && sbi->journal_bdev != sb->s_bdev) {
 		/*
 		 * Invalidate the journal device's buffers.  We don't want them
 		 * floating about in memory - the physical journal device may
 		 * hotswapped, and it breaks the `ro-after' testing code.
 		 */
-		fsync_no_super(j_dev);
-		invalidate_buffers(j_dev);
+		fsync_no_super(sbi->journal_bdev);
+		invalidate_bdev(sbi->journal_bdev, 0);
 		ext3_blkdev_remove(sbi);
 	}
 	clear_ro_after(sb);
@@ -712,10 +711,10 @@ static int ext3_setup_super(struct super_block *sb, struct ext3_super_block *es,
 			EXT3_INODES_PER_GROUP(sb),
 			sbi->s_mount_opt);
 	printk(KERN_INFO "EXT3 FS " EXT3FS_VERSION ", " EXT3FS_DATE " on %s, ",
-				bdevname(sb->s_dev));
+				sb->s_id);
 	if (EXT3_SB(sb)->s_journal->j_inode == NULL) {
 		printk("external journal on %s\n",
-				bdevname(EXT3_SB(sb)->s_journal->j_dev));
+		    bdevname(to_kdev_t(EXT3_SB(sb)->s_journal->j_dev->bd_dev)));
 	} else {
 		printk("internal journal\n");
 	}
@@ -813,7 +812,7 @@ static void ext3_orphan_cleanup (struct super_block * sb,
 
 	if (s_flags & MS_RDONLY) {
 		printk(KERN_INFO "EXT3-fs: %s: orphan cleanup on readonly fs\n",
-		       bdevname(sb->s_dev));
+		       sb->s_id);
 		sb->s_flags &= ~MS_RDONLY;
 	}
 
@@ -859,10 +858,10 @@ static void ext3_orphan_cleanup (struct super_block * sb,
 
 	if (nr_orphans)
 		printk(KERN_INFO "EXT3-fs: %s: %d orphan inode%s deleted\n",
-		       bdevname(sb->s_dev), PLURAL(nr_orphans));
+		       sb->s_id, PLURAL(nr_orphans));
 	if (nr_truncates)
 		printk(KERN_INFO "EXT3-fs: %s: %d truncate%s cleaned up\n",
-		       bdevname(sb->s_dev), PLURAL(nr_truncates));
+		       sb->s_id, PLURAL(nr_truncates));
 	sb->s_flags = s_flags; /* Restore MS_RDONLY status */
 }
 
@@ -912,21 +911,14 @@ struct super_block * ext3_read_super (struct super_block * sb, void * data,
 	 * This is important for devices that have a hardware
 	 * sectorsize that is larger than the default.
 	 */
-	blocksize = EXT3_MIN_BLOCK_SIZE;
-	hblock = get_hardsect_size(dev);
-	if (blocksize < hblock)
-		blocksize = hblock;
 
 	sbi->s_mount_opt = 0;
 	sbi->s_resuid = EXT3_DEF_RESUID;
 	sbi->s_resgid = EXT3_DEF_RESGID;
-	if (!parse_options ((char *) data, &sb_block, sbi, &journal_inum, 0)) {
-		sb->s_dev = 0;
+	if (!parse_options ((char *) data, &sb_block, sbi, &journal_inum, 0))
 		goto out_fail;
-	}
 
-	sb->s_blocksize = blocksize;
-	set_blocksize (dev, blocksize);
+	blocksize = sb_min_blocksize(sb, EXT3_MIN_BLOCK_SIZE);
 
 	/*
 	 * The ext3 superblock will not be buffer aligned for other than 1kB
@@ -952,7 +944,7 @@ struct super_block * ext3_read_super (struct super_block * sb, void * data,
 		if (!silent)
 			printk(KERN_ERR 
 			       "VFS: Can't find ext3 filesystem on dev %s.\n",
-			       bdevname(dev));
+			       sb->s_id);
 		goto failed_mount;
 	}
 	if (le32_to_cpu(es->s_rev_level) == EXT3_GOOD_OLD_REV &&
@@ -970,44 +962,42 @@ struct super_block * ext3_read_super (struct super_block * sb, void * data,
 	if ((i = EXT3_HAS_INCOMPAT_FEATURE(sb, ~EXT3_FEATURE_INCOMPAT_SUPP))) {
 		printk(KERN_ERR "EXT3-fs: %s: couldn't mount because of "
 		       "unsupported optional features (%x).\n",
-		       bdevname(dev), i);
+		       sb->s_id, i);
 		goto failed_mount;
 	}
 	if (!(sb->s_flags & MS_RDONLY) &&
 	    (i = EXT3_HAS_RO_COMPAT_FEATURE(sb, ~EXT3_FEATURE_RO_COMPAT_SUPP))){
 		printk(KERN_ERR "EXT3-fs: %s: couldn't mount RDWR because of "
 		       "unsupported optional features (%x).\n",
-		       bdevname(dev), i);
+		       sb->s_id, i);
 		goto failed_mount;
 	}
-	sb->s_blocksize_bits = le32_to_cpu(es->s_log_block_size) + 10;
-	sb->s_blocksize = 1 << sb->s_blocksize_bits;
+	blocksize = BLOCK_SIZE << le32_to_cpu(es->s_log_block_size);
 
-	if (sb->s_blocksize < EXT3_MIN_BLOCK_SIZE ||
-	    sb->s_blocksize > EXT3_MAX_BLOCK_SIZE) {
+	if (blocksize < EXT3_MIN_BLOCK_SIZE ||
+	    blocksize > EXT3_MAX_BLOCK_SIZE) {
 		printk(KERN_ERR 
 		       "EXT3-fs: Unsupported filesystem blocksize %d on %s.\n",
-		       blocksize, bdevname(dev));
+		       blocksize, sb->s_id);
 		goto failed_mount;
 	}
 
 	sb->s_maxbytes = ext3_max_size(sb->s_blocksize_bits);
 
+	hblock = get_hardsect_size(dev);
 	if (sb->s_blocksize != blocksize) {
-		blocksize = sb->s_blocksize;
-
 		/*
 		 * Make sure the blocksize for the filesystem is larger
 		 * than the hardware sectorsize for the machine.
 		 */
-		if (sb->s_blocksize < hblock) {
+		if (blocksize < hblock) {
 			printk(KERN_ERR "EXT3-fs: blocksize %d too small for "
 			       "device blocksize %d.\n", blocksize, hblock);
 			goto failed_mount;
 		}
 
 		brelse (bh);
-		set_blocksize (dev, sb->s_blocksize);
+		sb_set_blocksize(sb, blocksize);
 		logic_sb_block = (sb_block * EXT3_MIN_BLOCK_SIZE) / blocksize;
 		offset = (sb_block * EXT3_MIN_BLOCK_SIZE) % blocksize;
 		bh = sb_bread(sb, logic_sb_block);
@@ -1142,7 +1132,7 @@ struct super_block * ext3_read_super (struct super_block * sb, void * data,
 		if (!silent)
 			printk (KERN_ERR
 				"ext3: No journal on filesystem on %s\n",
-				bdevname(dev));
+				sb->s_id);
 		goto failed_mount2;
 	}
 
@@ -1257,13 +1247,16 @@ static journal_t *ext3_get_journal(struct super_block *sb, int journal_inum)
 	}
 
 	journal = journal_init_inode(journal_inode);
-	if (!journal)
+	if (!journal) {
+		printk(KERN_ERR "EXT3-fs: Could not load journal inode\n");
 		iput(journal_inode);
+	}
+	
 	return journal;
 }
 
 static journal_t *ext3_get_dev_journal(struct super_block *sb,
-				       int dev)
+				       kdev_t j_dev)
 {
 	struct buffer_head * bh;
 	journal_t *journal;
@@ -1272,16 +1265,15 @@ static journal_t *ext3_get_dev_journal(struct super_block *sb,
 	int hblock, blocksize;
 	unsigned long sb_block;
 	unsigned long offset;
-	kdev_t journal_dev = to_kdev_t(dev);
 	struct ext3_super_block * es;
 	struct block_device *bdev;
 
-	bdev = ext3_blkdev_get(journal_dev);
+	bdev = ext3_blkdev_get(j_dev);
 	if (bdev == NULL)
 		return NULL;
 
 	blocksize = sb->s_blocksize;
-	hblock = get_hardsect_size(journal_dev);
+	hblock = get_hardsect_size(j_dev);
 	if (blocksize < hblock) {
 		printk(KERN_ERR
 			"EXT3-fs: blocksize too small for journal device.\n");
@@ -1290,8 +1282,8 @@ static journal_t *ext3_get_dev_journal(struct super_block *sb,
 	
 	sb_block = EXT3_MIN_BLOCK_SIZE / blocksize;
 	offset = EXT3_MIN_BLOCK_SIZE % blocksize;
-	set_blocksize(dev, blocksize);
-	if (!(bh = bread(dev, sb_block, blocksize))) {
+	set_blocksize(j_dev, blocksize);
+	if (!(bh = __bread(bdev, sb_block, blocksize))) {
 		printk(KERN_ERR "EXT3-fs: couldn't read superblock of "
 		       "external journal\n");
 		goto out_bdev;
@@ -1317,7 +1309,7 @@ static journal_t *ext3_get_dev_journal(struct super_block *sb,
 	start = sb_block + 1;
 	brelse(bh);	/* we're done with the superblock */
 
-	journal = journal_init_dev(journal_dev, sb->s_dev, 
+	journal = journal_init_dev(bdev, sb->s_bdev,
 					start, len, blocksize);
 	if (!journal) {
 		printk(KERN_ERR "EXT3-fs: failed to create device journal\n");
@@ -1349,8 +1341,8 @@ static int ext3_load_journal(struct super_block * sb,
 {
 	journal_t *journal;
 	int journal_inum = le32_to_cpu(es->s_journal_inum);
-	int journal_dev = le32_to_cpu(es->s_journal_dev);
-	int err;
+	kdev_t journal_dev = to_kdev_t(le32_to_cpu(es->s_journal_dev));
+	int err = 0;
 	int really_read_only;
 
 	really_read_only = is_read_only(sb->s_dev);
@@ -1375,7 +1367,7 @@ static int ext3_load_journal(struct super_block * sb,
 		}
 	}
 
-	if (journal_inum && journal_dev) {
+	if (journal_inum && !kdev_none(journal_dev)) {
 		printk(KERN_ERR "EXT3-fs: filesystem has both journal "
 		       "and inode journals!\n");
 		return -EINVAL;
@@ -1400,9 +1392,10 @@ static int ext3_load_journal(struct super_block * sb,
 	}
 
 	if (!EXT3_HAS_INCOMPAT_FEATURE(sb, EXT3_FEATURE_INCOMPAT_RECOVER))
-		journal_wipe(journal, !really_read_only);
+		err = journal_wipe(journal, !really_read_only);
+	if (!err)
+		err = journal_load(journal);
 
-	err = journal_load(journal);
 	if (err) {
 		printk(KERN_ERR "EXT3-fs: error loading journal.\n");
 		journal_destroy(journal);
@@ -1658,7 +1651,7 @@ int ext3_remount (struct super_block * sb, int * flags, char * data)
 				printk(KERN_WARNING "EXT3-fs: %s: couldn't "
 				       "remount RDWR because of unsupported "
 				       "optional features (%x).\n",
-				       bdevname(sb->s_dev), ret);
+				       sb->s_id, ret);
 				return -EROFS;
 			}
 			/*
@@ -1740,6 +1733,8 @@ static void __exit exit_ext3_fs(void)
 
 EXPORT_NO_SYMBOLS;
 
+MODULE_AUTHOR("Remy Card, Stephen Tweedie, Andrew Morton, Andreas Dilger, Theodore Ts'o and others");
+MODULE_DESCRIPTION("Second Extended Filesystem with journaling extensions");
 MODULE_LICENSE("GPL");
 module_init(init_ext3_fs)
 module_exit(exit_ext3_fs)

@@ -46,6 +46,7 @@
 #include <linux/tty.h>
 #include <linux/in6.h>
 #include <linux/completion.h>
+#include <linux/seq_file.h>
 #include <asm/checksum.h>
 
 #if defined(CONFIG_PROC_FS)
@@ -116,11 +117,11 @@ EXPORT_SYMBOL(vmtruncate);
 EXPORT_SYMBOL(find_vma);
 EXPORT_SYMBOL(get_unmapped_area);
 EXPORT_SYMBOL(init_mm);
+EXPORT_SYMBOL(create_bounce);
 #ifdef CONFIG_HIGHMEM
 EXPORT_SYMBOL(kmap_high);
 EXPORT_SYMBOL(kunmap_high);
 EXPORT_SYMBOL(highmem_start_page);
-EXPORT_SYMBOL(create_bounce);
 EXPORT_SYMBOL(kmap_prot);
 EXPORT_SYMBOL(kmap_pte);
 #endif
@@ -188,12 +189,14 @@ EXPORT_SYMBOL(inode_change_ok);
 EXPORT_SYMBOL(write_inode_now);
 EXPORT_SYMBOL(notify_change);
 EXPORT_SYMBOL(set_blocksize);
-EXPORT_SYMBOL(getblk);
+EXPORT_SYMBOL(sb_set_blocksize);
+EXPORT_SYMBOL(sb_min_blocksize);
+EXPORT_SYMBOL(__getblk);
 EXPORT_SYMBOL(cdget);
 EXPORT_SYMBOL(cdput);
 EXPORT_SYMBOL(bdget);
 EXPORT_SYMBOL(bdput);
-EXPORT_SYMBOL(bread);
+EXPORT_SYMBOL(__bread);
 EXPORT_SYMBOL(__brelse);
 EXPORT_SYMBOL(__bforget);
 EXPORT_SYMBOL(ll_rw_block);
@@ -305,6 +308,7 @@ EXPORT_SYMBOL(blkdev_put);
 EXPORT_SYMBOL(ioctl_by_bdev);
 EXPORT_SYMBOL(grok_partitions);
 EXPORT_SYMBOL(register_disk);
+EXPORT_SYMBOL(read_dev_sector);
 EXPORT_SYMBOL(tq_disk);
 EXPORT_SYMBOL(init_buffer);
 EXPORT_SYMBOL(refile_buffer);
@@ -437,6 +441,8 @@ EXPORT_SYMBOL(interruptible_sleep_on);
 EXPORT_SYMBOL(interruptible_sleep_on_timeout);
 EXPORT_SYMBOL(schedule);
 EXPORT_SYMBOL(schedule_timeout);
+EXPORT_SYMBOL(sys_sched_yield);
+EXPORT_SYMBOL(set_user_nice);
 EXPORT_SYMBOL(jiffies);
 EXPORT_SYMBOL(xtime);
 EXPORT_SYMBOL(do_gettimeofday);
@@ -448,6 +454,7 @@ EXPORT_SYMBOL(loops_per_jiffy);
 
 EXPORT_SYMBOL(kstat);
 EXPORT_SYMBOL(nr_running);
+EXPORT_SYMBOL(nr_context_switches);
 
 /* misc */
 EXPORT_SYMBOL(panic);
@@ -477,6 +484,12 @@ EXPORT_SYMBOL(cap_bset);
 EXPORT_SYMBOL(reparent_to_init);
 EXPORT_SYMBOL(daemonize);
 EXPORT_SYMBOL(csum_partial); /* for networking and md */
+EXPORT_SYMBOL(seq_escape);
+EXPORT_SYMBOL(seq_printf);
+EXPORT_SYMBOL(seq_open);
+EXPORT_SYMBOL(seq_release);
+EXPORT_SYMBOL(seq_read);
+EXPORT_SYMBOL(seq_lseek);
 
 /* Program loader interfaces */
 EXPORT_SYMBOL(setup_arg_pages);
@@ -498,7 +511,7 @@ EXPORT_SYMBOL(clear_inode);
 EXPORT_SYMBOL(___strtok);
 EXPORT_SYMBOL(init_special_inode);
 EXPORT_SYMBOL(read_ahead);
-EXPORT_SYMBOL(get_hash_table);
+EXPORT_SYMBOL(__get_hash_table);
 EXPORT_SYMBOL(get_empty_inode);
 EXPORT_SYMBOL(insert_inode_hash);
 EXPORT_SYMBOL(remove_inode_hash);

@@ -79,9 +79,9 @@ jffs_read_super(struct super_block *sb, void *data, int silent)
 	struct jffs_control *c;
 
 	D1(printk(KERN_NOTICE "JFFS: Trying to mount device %s.\n",
-		  kdevname(dev)));
+		  sb->s_id));
 
-	if (MAJOR(dev) != MTD_BLOCK_MAJOR) {
+	if (major(dev) != MTD_BLOCK_MAJOR) {
 		printk(KERN_WARNING "JFFS: Trying to mount a "
 		       "non-mtd device.\n");
 		return 0;
@@ -119,7 +119,7 @@ jffs_read_super(struct super_block *sb, void *data, int silent)
 	if (jffs_register_jffs_proc_dir(dev, c) < 0) {
 		printk(KERN_WARNING "JFFS: Failed to initialize the JFFS "
 			"proc file system for device %s.\n",
-			kdevname(dev));
+			sb->s_id);
 	}
 #endif
 
@@ -144,7 +144,7 @@ jffs_read_super(struct super_block *sb, void *data, int silent)
 	D1(printk(KERN_NOTICE "JFFS: GC thread pid=%d.\n", (int) c->thread_pid));
 
 	D1(printk(KERN_NOTICE "JFFS: Successfully mounted device %s.\n",
-	       kdevname(dev)));
+	       sb->s_id));
 	return sb;
 
 jffs_sb_err3:
@@ -153,7 +153,7 @@ jffs_sb_err2:
 	jffs_cleanup_control((struct jffs_control *)sb->u.generic_sbp);
 jffs_sb_err1:
 	printk(KERN_WARNING "JFFS: Failed to mount device %s.\n",
-	       kdevname(dev));
+	       sb->s_id);
 	return 0;
 }
 
@@ -163,7 +163,6 @@ static void
 jffs_put_super(struct super_block *sb)
 {
 	struct jffs_control *c = (struct jffs_control *) sb->u.generic_sbp;
-	D1(kdev_t dev = sb->s_dev);
 
 	D2(printk("jffs_put_super()\n"));
 
@@ -181,7 +180,7 @@ jffs_put_super(struct super_block *sb)
 
 	jffs_cleanup_control((struct jffs_control *)sb->u.generic_sbp);
 	D1(printk(KERN_NOTICE "JFFS: Successfully unmounted device %s.\n",
-	       kdevname(dev)));
+	       sb->s_id));
 }
 
 
@@ -365,7 +364,6 @@ jffs_new_inode(const struct inode * dir, struct jffs_raw_inode *raw_inode,
 	inode->i_ctime = raw_inode->ctime;
 	inode->i_blksize = PAGE_SIZE;
 	inode->i_blocks = (inode->i_size + 511) >> 9;
-	inode->i_version = 0;
 
 	f = jffs_find_file(c, raw_inode->ino);
 
@@ -1023,7 +1021,6 @@ jffs_remove(struct inode *dir, struct dentry *dentry, int type)
 	   from the in-memory file system structures.  */
 	jffs_insert_node(c, del_f, &raw_inode, 0, del_node);
 
-	dir->i_version = ++event;
 	dir->i_ctime = dir->i_mtime = CURRENT_TIME;
 	mark_inode_dirty(dir);
 	inode->i_nlink--;

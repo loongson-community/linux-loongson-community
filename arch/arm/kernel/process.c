@@ -85,7 +85,6 @@ void cpu_idle(void)
 	/* endless idle loop with no priority at all */
 	init_idle();
 	current->nice = 20;
-	current->counter = -100;
 
 	while (1) {
 		void (*idle)(void) = pm_idle;
@@ -173,10 +172,10 @@ void show_regs(struct pt_regs * regs)
 		regs->ARM_r3, regs->ARM_r2,
 		regs->ARM_r1, regs->ARM_r0);
 	printk("Flags: %c%c%c%c",
-		flags & CC_N_BIT ? 'N' : 'n',
-		flags & CC_Z_BIT ? 'Z' : 'z',
-		flags & CC_C_BIT ? 'C' : 'c',
-		flags & CC_V_BIT ? 'V' : 'v');
+		flags & PSR_N_BIT ? 'N' : 'n',
+		flags & PSR_Z_BIT ? 'Z' : 'z',
+		flags & PSR_C_BIT ? 'C' : 'c',
+		flags & PSR_V_BIT ? 'V' : 'v');
 	printk("  IRQs %s  FIQs %s  Mode %s%s  Segment %s\n",
 		interrupts_enabled(regs) ? "on" : "off",
 		fast_interrupts_enabled(regs) ? "on" : "off",

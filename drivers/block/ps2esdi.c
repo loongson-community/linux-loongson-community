@@ -51,7 +51,6 @@
 
 #include <asm/system.h>
 #include <asm/io.h>
-#include <asm/segment.h>
 #include <asm/dma.h>
 #include <asm/mca_dma.h>
 #include <asm/uaccess.h>
@@ -161,10 +160,8 @@ static struct gendisk ps2esdi_gendisk =
 	major:		MAJOR_NR,
 	major_name:	"ed",
 	minor_shift:	6,
-	max_p:		1 << 6,
 	part:		ps2esdi,
 	sizes:		ps2esdi_sizes,
-	real_devices:	(void *)ps2esdi_info,
 	fops:		&ps2esdi_fops,
 };
 
@@ -953,10 +950,10 @@ static void ps2esdi_normal_interrupt_handler(u_int int_ret_code)
 		break;
 	}
 	if(ending != -1) {
-		spin_lock_irqsave(ps2esdi_LOCK, flags);
+		spin_lock_irqsave(&ps2esdi_lock, flags);
 		end_request(ending);
 		do_ps2esdi_request(BLK_DEFAULT_QUEUE(MAJOR_NR));
-		spin_unlock_irqrestore(ps2esdi_LOCK, flags);
+		spin_unlock_irqrestore(&ps2esdi_lock, flags);
 	}
 }				/* handle interrupts */
 

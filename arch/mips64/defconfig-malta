@@ -19,8 +19,8 @@ CONFIG_EXPERIMENTAL=y
 #
 # CONFIG_MIPS_ATLAS is not set
 CONFIG_MIPS_MALTA=y
-# CONFIG_SGI_IP27 is not set
 # CONFIG_SGI_IP22 is not set
+# CONFIG_SGI_IP27 is not set
 # CONFIG_SGI_IP32 is not set
 # CONFIG_SIBYTE_SB1250 is not set
 CONFIG_RWSEM_GENERIC_SPINLOCK=y
@@ -62,6 +62,7 @@ CONFIG_SYSVIPC=y
 # CONFIG_BSD_PROCESS_ACCT is not set
 # CONFIG_SYSCTL is not set
 CONFIG_KCORE_ELF=y
+# CONFIG_KCORE_AOUT is not set
 CONFIG_BINFMT_ELF=y
 CONFIG_MIPS32_COMPAT=y
 CONFIG_BINFMT_ELF32=y
@@ -91,6 +92,7 @@ CONFIG_BLK_DEV_FD=y
 # CONFIG_PARIDE is not set
 # CONFIG_BLK_CPQ_DA is not set
 # CONFIG_BLK_CPQ_CISS_DA is not set
+# CONFIG_CISS_SCSI_TAPE is not set
 # CONFIG_BLK_DEV_DAC960 is not set
 # CONFIG_BLK_DEV_LOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
@@ -416,7 +418,7 @@ CONFIG_EFS_FS=y
 # CONFIG_JFFS2_FS is not set
 # CONFIG_CRAMFS is not set
 # CONFIG_TMPFS is not set
-# CONFIG_RAMFS is not set
+CONFIG_RAMFS=y
 # CONFIG_ISO9660_FS is not set
 # CONFIG_JOLIET is not set
 # CONFIG_ZISOFS is not set
@@ -484,8 +486,9 @@ CONFIG_MSDOS_PARTITION=y
 # CONFIG_USB is not set
 
 #
-# USB Controllers
+# USB Host Controller Drivers
 #
+# CONFIG_USB_EHCI_HCD is not set
 # CONFIG_USB_UHCI is not set
 # CONFIG_USB_UHCI_ALT is not set
 # CONFIG_USB_OHCI is not set
@@ -557,6 +560,7 @@ CONFIG_MSDOS_PARTITION=y
 # CONFIG_USB_SERIAL_EMPEG is not set
 # CONFIG_USB_SERIAL_FTDI_SIO is not set
 # CONFIG_USB_SERIAL_VISOR is not set
+# CONFIG_USB_SERIAL_IPAQ is not set
 # CONFIG_USB_SERIAL_IR is not set
 # CONFIG_USB_SERIAL_EDGEPORT is not set
 # CONFIG_USB_SERIAL_KEYSPAN_PDA is not set
@@ -570,6 +574,7 @@ CONFIG_MSDOS_PARTITION=y
 # CONFIG_USB_SERIAL_KEYSPAN_USA19W is not set
 # CONFIG_USB_SERIAL_KEYSPAN_USA49W is not set
 # CONFIG_USB_SERIAL_MCT_U232 is not set
+# CONFIG_USB_SERIAL_KLSI is not set
 # CONFIG_USB_SERIAL_PL2303 is not set
 # CONFIG_USB_SERIAL_CYBERJACK is not set
 # CONFIG_USB_SERIAL_XIRCOM is not set
@@ -579,6 +584,7 @@ CONFIG_MSDOS_PARTITION=y
 # USB Miscellaneous drivers
 #
 # CONFIG_USB_RIO500 is not set
+# CONFIG_USB_AUERSWALD is not set
 
 #
 # Input core support
@@ -596,3 +602,8 @@ CONFIG_CROSSCOMPILE=y
 # CONFIG_REMOTE_DEBUG is not set
 # CONFIG_MAGIC_SYSRQ is not set
 # CONFIG_MIPS_UNCACHED is not set
+
+#
+# Library routines
+#
+# CONFIG_CRC32 is not set

@@ -262,7 +262,7 @@ affs_read_super(struct super_block *sb, void *data, int silent)
 	 * blocks, we will have to change it.
 	 */
 
-	blocks = blk_size[MAJOR(dev)] ? blk_size[MAJOR(dev)][MINOR(dev)] : 0;
+	blocks = blk_size[major(dev)] ? blk_size[major(dev)][minor(dev)] : 0;
 	if (!blocks) {
 		printk(KERN_ERR "AFFS: Could not determine device size\n");
 		goto out_error;
@@ -300,7 +300,7 @@ affs_read_super(struct super_block *sb, void *data, int silent)
 		for (num_bm = 0; num_bm < 2; num_bm++) {
 			pr_debug("AFFS: Dev %s, trying root=%u, bs=%d, "
 				"size=%d, reserved=%d\n",
-				kdevname(dev),
+				sb->s_id,
 				AFFS_SB->s_root_block + num_bm,
 				blocksize, size, reserved);
 			root_bh = affs_bread(sb, AFFS_SB->s_root_block + num_bm);
@@ -320,16 +320,12 @@ affs_read_super(struct super_block *sb, void *data, int silent)
 	}
 	if (!silent)
 		printk(KERN_ERR "AFFS: No valid root block on device %s\n",
-			kdevname(dev));
+			sb->s_id);
 	goto out_error;
 
 	/* N.B. after this point bh must be released */
 got_root:
 	root_block = AFFS_SB->s_root_block;
-
-	sb->s_blocksize_bits = blocksize == 512 ? 9 :
-			       blocksize == 1024 ? 10 :
-			       blocksize == 2048 ? 11 : 12;
 
 	/* Find out which kind of FS we have */
 	boot_bh = sb_bread(sb, 0);
@@ -347,7 +343,7 @@ got_root:
 	if ((chksum == FS_DCFFS || chksum == MUFS_DCFFS || chksum == FS_DCOFS
 	     || chksum == MUFS_DCOFS) && !(sb->s_flags & MS_RDONLY)) {
 		printk(KERN_NOTICE "AFFS: Dircache FS - mounting %s read only\n",
-			kdevname(dev));
+			sb->s_id);
 		sb->s_flags |= MS_RDONLY;
 		AFFS_SB->s_flags |= SF_READONLY;
 	}
@@ -383,7 +379,7 @@ got_root:
 			break;
 		default:
 			printk(KERN_ERR "AFFS: Unknown filesystem on device %s: %08X\n",
-				kdevname(dev), chksum);
+				sb->s_id, chksum);
 			goto out_error;
 	}
 

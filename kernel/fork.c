@@ -19,6 +19,7 @@
 #include <linux/module.h>
 #include <linux/vmalloc.h>
 #include <linux/completion.h>
+#include <linux/namespace.h>
 #include <linux/personality.h>
 
 #include <asm/pgtable.h>
@@ -28,13 +29,14 @@
 
 /* The idle threads do not count.. */
 int nr_threads;
-int nr_running;
 
 int max_threads;
 unsigned long total_forks;	/* Handle normal Linux uptimes. */
 int last_pid;
 
 struct task_struct *pidhash[PIDHASH_SZ];
+
+rwlock_t tasklist_lock __cacheline_aligned = RW_LOCK_UNLOCKED;  /* outer */
 
 void add_wait_queue(wait_queue_head_t *q, wait_queue_t * wait)
 {
@@ -563,8 +565,12 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 	    struct pt_regs *regs, unsigned long stack_size)
 {
 	int retval;
+	unsigned long flags;
 	struct task_struct *p;
 	struct completion vfork;
+
+	if ((clone_flags & (CLONE_NEWNS|CLONE_FS)) == (CLONE_NEWNS|CLONE_FS))
+		return -EINVAL;
 
 	retval = -EPERM;
 
@@ -585,8 +591,10 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 	*p = *current;
 
 	retval = -EAGAIN;
-	if (atomic_read(&p->user->processes) >= p->rlim[RLIMIT_NPROC].rlim_cur)
-		goto bad_fork_free;
+	if (atomic_read(&p->user->processes) >= p->rlim[RLIMIT_NPROC].rlim_cur) {
+		if (!capable(CAP_SYS_ADMIN) && !capable(CAP_SYS_RESOURCE))
+			goto bad_fork_free;
+	}
 
 	atomic_inc(&p->user->__count);
 	atomic_inc(&p->user->processes);
@@ -611,8 +619,7 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 	copy_flags(clone_flags, p);
 	p->pid = get_pid(clone_flags);
 
-	p->run_list.next = NULL;
-	p->run_list.prev = NULL;
+	INIT_LIST_HEAD(&p->run_list);
 
 	p->p_cptr = NULL;
 	init_waitqueue_head(&p->wait_chldexit);
@@ -638,14 +645,16 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 #ifdef CONFIG_SMP
 	{
 		int i;
-		p->cpus_runnable = ~0UL;
-		p->processor = current->processor;
+
+		p->cpu = smp_processor_id();
+
 		/* ?? should we just memset this ?? */
 		for(i = 0; i < smp_num_cpus; i++)
 			p->per_cpu_utime[i] = p->per_cpu_stime[i] = 0;
 		spin_lock_init(&p->sigmask_lock);
 	}
 #endif
+	p->array = NULL;
 	p->lock_depth = -1;		/* -1 = no lock */
 	p->start_time = jiffies;
 
@@ -661,9 +670,11 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 		goto bad_fork_cleanup_fs;
 	if (copy_mm(clone_flags, p))
 		goto bad_fork_cleanup_sighand;
+	if (copy_namespace(clone_flags, p))
+		goto bad_fork_cleanup_mm;
 	retval = copy_thread(0, clone_flags, stack_start, stack_size, p, regs);
 	if (retval)
-		goto bad_fork_cleanup_mm;
+		goto bad_fork_cleanup_namespace;
 	p->semundo = NULL;
 	
 	/* Our parent execution domain becomes current domain
@@ -677,15 +688,24 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 	p->pdeath_signal = 0;
 
 	/*
-	 * "share" dynamic priority between parent and child, thus the
-	 * total amount of dynamic priorities in the system doesnt change,
-	 * more scheduling fairness. This is only important in the first
-	 * timeslice, on the long run the scheduling behaviour is unchanged.
+	 * Share the timeslice between parent and child, thus the
+	 * total amount of pending timeslices in the system doesnt change,
+	 * resulting in more scheduling fairness.
 	 */
-	p->counter = (current->counter + 1) >> 1;
-	current->counter >>= 1;
-	if (!current->counter)
-		current->need_resched = 1;
+	__save_flags(flags);
+	__cli();
+	p->time_slice = (current->time_slice + 1) >> 1;
+	current->time_slice >>= 1;
+	if (!current->time_slice) {
+		/*
+	 	 * This case is rare, it happens when the parent has only
+	 	 * a single jiffy left from its timeslice. Taking the
+		 * runqueue lock is not a problem.
+		 */
+		current->time_slice = 1;
+		expire_task(current);
+	}
+	__restore_flags(flags);
 
 	/*
 	 * Ok, add it to the run-queues and make it
@@ -722,14 +742,29 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 	if (p->ptrace & PT_PTRACED)
 		send_sig(SIGSTOP, p, 1);
 
-	wake_up_process(p);		/* do this last */
+#define RUN_CHILD_FIRST 1
+#if RUN_CHILD_FIRST
+	wake_up_forked_process(p);		/* do this last */
+#else
+	wake_up_process(p);			/* do this last */
+#endif
 	++total_forks;
 	if (clone_flags & CLONE_VFORK)
 		wait_for_completion(&vfork);
+#if RUN_CHILD_FIRST
+	else
+		/*
+		 * Let the child process run first, to avoid most of the
+		 * COW overhead when the child exec()s afterwards.
+		 */
+		current->need_resched = 1;
+#endif
 
 fork_out:
 	return retval;
 
+bad_fork_cleanup_namespace:
+	exit_namespace(p);
 bad_fork_cleanup_mm:
 	exit_mm(p);
 bad_fork_cleanup_sighand:

@@ -595,17 +595,18 @@ static void ide_init_queue(ide_drive_t *drive)
 {
 	request_queue_t *q = &drive->queue;
 	int max_sectors;
+#ifdef CONFIG_BLK_DEV_PDC4030
+	int is_pdc4030_chipset = (HWIF(drive)->chipset == ide_pdc4030);
+#else
+	const int is_pdc4030_chipset = 0;
+#endif
 
 	q->queuedata = HWGROUP(drive);
 	blk_init_queue(q, do_ide_request, &ide_lock);
 	blk_queue_segment_boundary(q, 0xffff);
 
 	/* IDE can do up to 128K per request, pdc4030 needs smaller limit */
-#ifdef CONFIG_BLK_DEV_PDC4030
-	max_sectors = 127;
-#else
-	max_sectors = 255;
-#endif
+	max_sectors = (is_pdc4030_chipset ? 127 : 255);
 	blk_queue_max_sectors(q, max_sectors);
 
 	/* IDE DMA can do PRD_ENTRIES number of segments. */
@@ -796,9 +797,7 @@ static void init_gendisk (ide_hwif_t *hwif)
 	gd->major	= hwif->major;		/* our major device number */
 	gd->major_name	= IDE_MAJOR_NAME;	/* treated special in genhd.c */
 	gd->minor_shift	= PARTN_BITS;		/* num bits for partitions */
-	gd->max_p	= 1<<PARTN_BITS;	/* 1 + max partitions / drive */
 	gd->nr_real	= units;		/* current num real drives */
-	gd->real_devices= hwif;			/* ptr to internal data */
 	gd->next	= NULL;			/* linked list of major devs */
 	gd->fops        = ide_fops;             /* file operations */
 	gd->de_arr	= kmalloc (sizeof *gd->de_arr * units, GFP_KERNEL);

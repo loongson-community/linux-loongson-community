@@ -40,6 +40,7 @@
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
 #include <linux/delay.h>
+#include <linux/crc32.h>
 #include <asm/mipsregs.h>
 #include <asm/irq.h>
 #include <asm/bitops.h>
@@ -1235,23 +1236,6 @@ static void au1000_tx_timeout(struct net_device *dev)
 	au1000_init(dev);
 }
 
-
-static unsigned const ethernet_polynomial = 0x04c11db7U;
-static inline u32 ether_crc(int length, unsigned char *data)
-{
-    int crc = -1;
-
-    while(--length >= 0) {
-		unsigned char current_octet = *data++;
-		int bit;
-		for (bit = 0; bit < 8; bit++, current_octet >>= 1)
-			crc = (crc << 1) ^
-				((crc < 0) ^ (current_octet & 1) ? 
-				 ethernet_polynomial : 0);
-    }
-    return crc;
-}
-
 static void set_rx_mode(struct net_device *dev)
 {
 	struct au1000_private *aup = (struct au1000_private *) dev->priv;
@@ -1275,7 +1259,7 @@ static void set_rx_mode(struct net_device *dev)
 		mc_filter[1] = mc_filter[0] = 0;
 		for (i = 0, mclist = dev->mc_list; mclist && i < dev->mc_count;
 			 i++, mclist = mclist->next) {
-			set_bit(ether_crc(ETH_ALEN, mclist->dmi_addr)>>26, 
+			set_bit(ether_crc_le(ETH_ALEN, mclist->dmi_addr)>>26, 
 					mc_filter);
 		}
 		aup->mac->multi_hash_high = mc_filter[1];

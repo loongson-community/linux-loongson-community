@@ -395,7 +395,7 @@ static  inline  int key_in_buffer (
 	  p_s_chk_path->path_length > MAX_HEIGHT,
 	  "PAP-5050: pointer to the key(%p) is NULL or illegal path length(%d)",
 	  p_s_key, p_s_chk_path->path_length);
-  RFALSE( PATH_PLAST_BUFFER(p_s_chk_path)->b_dev == NODEV,
+  RFALSE( kdev_same(PATH_PLAST_BUFFER(p_s_chk_path)->b_dev, NODEV),
 	  "PAP-5060: device must not be NODEV");
 
   if ( COMP_KEYS(get_lkey(p_s_chk_path, p_s_sb), p_s_key) == 1 )
@@ -604,7 +604,7 @@ static void search_by_key_reada (struct super_block * s, int blocknr)
     if (blocknr == 0)
 	return;
 
-    bh = reiserfs_getblk (s->s_dev, blocknr, s->s_blocksize);
+    bh = reiserfs_getblk (s, blocknr);
   
     if (!buffer_uptodate (bh)) {
 	ll_rw_block (READA, 1, &bh);
@@ -649,8 +649,7 @@ int search_by_key (struct super_block * p_s_sb,
                                        DISK_LEAF_NODE_LEVEL */
     ) {
     int  n_block_number = SB_ROOT_BLOCK (p_s_sb),
-      expected_level = SB_TREE_HEIGHT (p_s_sb),
-      n_block_size    = p_s_sb->s_blocksize;
+      expected_level = SB_TREE_HEIGHT (p_s_sb);
     struct buffer_head  *       p_s_bh;
     struct path_element *       p_s_last_element;
     int				n_node_level, n_retval;
@@ -697,7 +696,7 @@ int search_by_key (struct super_block * p_s_sb,
 	/* Read the next tree node, and set the last element in the path to
            have a pointer to it. */
 	if ( ! (p_s_bh = p_s_last_element->pe_buffer =
-		reiserfs_bread(p_s_sb, n_block_number, n_block_size)) ) {
+		reiserfs_bread(p_s_sb, n_block_number)) ) {
 	    p_s_search_path->path_length --;
 	    pathrelse(p_s_search_path);
 	    return IO_ERROR;
@@ -1201,8 +1200,7 @@ static char  prepare_for_delete_or_cut(
 #endif
 
 		run_task_queue(&tq_disk);
-		current->policy |= SCHED_YIELD;
-		schedule();
+		yield();
 	    }
 	    /* This loop can be optimized. */
 	} while ( (*p_n_removed < n_unfm_number || need_research) &&

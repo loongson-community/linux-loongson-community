@@ -317,7 +317,7 @@ static struct vm_operations_struct qcntl_mmap = {
 static int
 shmiq_qcntl_mmap (struct file *file, struct vm_area_struct *vma)
 {
-	int           minor = MINOR (file->f_dentry->d_inode->i_rdev), error;
+	int minor = minor(file->f_dentry->d_inode->i_rdev), error;
 	unsigned int  size;
 	unsigned long mem, start;
 	
@@ -355,7 +355,7 @@ shmiq_qcntl_mmap (struct file *file, struct vm_area_struct *vma)
 static int
 shmiq_qcntl_ioctl (struct inode *inode, struct file *filp, unsigned int cmd, unsigned long arg)
 {
-	int minor = MINOR (inode->i_rdev);
+	int minor = minor(inode->i_rdev);
 
 	if (minor-- == 0)
 		return shmiq_ioctl (inode, filp, cmd, arg);
@@ -367,7 +367,7 @@ static unsigned int
 shmiq_qcntl_poll (struct file *filp, poll_table *wait)
 {
 	struct sharedMemoryInputQueue *s;
-	int minor = MINOR (filp->f_dentry->d_inode->i_rdev);
+	int minor = minor(filp->f_dentry->d_inode->i_rdev);
 
 	if (minor-- == 0)
 		return 0;
@@ -385,7 +385,7 @@ shmiq_qcntl_poll (struct file *filp, poll_table *wait)
 static int
 shmiq_qcntl_open (struct inode *inode, struct file *filp)
 {
-	int minor = MINOR (inode->i_rdev);
+	int minor = minor(inode->i_rdev);
 
 	if (minor == 0)
 		return 0;
@@ -411,7 +411,7 @@ static int
 shmiq_qcntl_fasync (int fd, struct file *file, int on)
 {
 	int retval;
-	int minor = MINOR (file->f_dentry->d_inode->i_rdev);
+	int minor = minor(file->f_dentry->d_inode->i_rdev);
 
 	retval = fasync_helper (fd, file, on, &shmiqs [minor].fasync);
 	if (retval < 0)
@@ -422,7 +422,7 @@ shmiq_qcntl_fasync (int fd, struct file *file, int on)
 static int
 shmiq_qcntl_close (struct inode *inode, struct file *filp)
 {
-	int minor = MINOR (inode->i_rdev);
+	int minor = minor(inode->i_rdev);
 	int j;
 	
 	if (minor-- == 0){

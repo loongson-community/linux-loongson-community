@@ -86,10 +86,8 @@ void output_task_defines(void)
 	offset("#define TASK_SIGPENDING    ", struct task_struct, sigpending);
 	offset("#define TASK_NEED_RESCHED  ", struct task_struct, need_resched);
 	offset("#define TASK_PTRACE        ", struct task_struct, ptrace);
-	offset("#define TASK_COUNTER       ", struct task_struct, counter);
-	offset("#define TASK_NICE          ", struct task_struct, nice);
 	offset("#define TASK_MM            ", struct task_struct, mm);
-	offset("#define TASK_PROCESSOR     ", struct task_struct, processor);
+	offset("#define TASK_CPU           ", struct task_struct, cpu);
 	offset("#define TASK_PID           ", struct task_struct, pid);
 	size(  "#define TASK_STRUCT_SIZE   ", struct task_struct);
 	constant("#define PT_TRACESYS        ", PT_TRACESYS);

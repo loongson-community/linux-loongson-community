@@ -382,7 +382,7 @@ void sync_inodes(kdev_t dev)
 	/*
 	 * Search the super_blocks array for the device(s) to sync.
 	 */
-	if (dev) {
+	if (!kdev_none(dev)) {
 		if ((s = get_super(dev)) != NULL) {
 			sync_inodes_sb(s);
 			drop_super(s);
@@ -826,7 +826,7 @@ struct inode * get_empty_inode(void)
 		inodes_stat.nr_inodes++;
 		list_add(&inode->i_list, &inode_in_use);
 		inode->i_sb = NULL;
-		inode->i_dev = 0;
+		inode->i_dev = NODEV;
 		inode->i_blkbits = 0;
 		inode->i_ino = ++last_ino;
 		inode->i_flags = 0;
@@ -1082,7 +1082,7 @@ void iput(struct inode *inode)
 				}
 				inodes_stat.nr_unused++;
 				spin_unlock(&inode_lock);
-				if (!sb || sb->s_flags & MS_ACTIVE)
+				if (!sb || (sb->s_flags & MS_ACTIVE))
 					return;
 				write_inode_now(inode, 1);
 				spin_lock(&inode_lock);

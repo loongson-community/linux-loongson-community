@@ -14,7 +14,6 @@
 #include <linux/stat.h>
 #include <linux/errno.h>
 #include <linux/locks.h>
-#include <asm/segment.h>
 #include <linux/string.h>
 #define __NO_VERSION__
 #include <linux/module.h>
@@ -82,7 +81,7 @@ static int coda_pioctl(struct inode * inode, struct file * filp,
 	}
 	
 	CDEBUG(D_PIOCTL, "target ino: 0x%ld, dev: 0x%x\n",
-	       target_inode->i_ino, target_inode->i_dev);
+	       target_inode->i_ino, kdev_val(target_inode->i_dev));
 
 	/* return if it is not a Coda inode */
 	if ( target_inode->i_sb != inode->i_sb ) {

@@ -60,7 +60,6 @@
 
 #include <asm/system.h>
 #include <asm/io.h>
-#include <asm/segment.h>
 #include <asm/bitops.h>
 
 #include <asm/dma.h>
@@ -2355,7 +2354,7 @@ static int esp_open(struct tty_struct *tty, struct file * filp)
 	struct esp_struct	*info;
 	int 			retval, line;
 
-	line = MINOR(tty->device) - tty->driver.minor_start;
+	line = minor(tty->device) - tty->driver.minor_start;
 	if ((line < 0) || (line >= NR_PORTS))
 		return -ENODEV;
 

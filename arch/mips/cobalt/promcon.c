@@ -73,7 +73,7 @@ void putDebugChar(char kgdb_char)
 static kdev_t 
 ns16550_console_dev(struct console *c)
 {
-	return MKDEV(TTY_MAJOR, 64 + c->index);
+	return mk_kdev(TTY_MAJOR, 64 + c->index);
 }
 
 static struct console ns16550_console = {

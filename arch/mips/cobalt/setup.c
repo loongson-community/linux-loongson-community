@@ -77,10 +77,6 @@ static void __init cobalt_timer_setup(struct irqaction *irq)
 	*((volatile unsigned long *) GALILEO_CPU_MASK) = (unsigned long) 0x00000100; 
 }
 
-
-void __init bus_error_init(void) { /* nothing */ }
-
-
 int cobalt_serial_present;
 int cobalt_serial_type;
 int cobalt_is_raq;

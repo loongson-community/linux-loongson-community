@@ -25,7 +25,6 @@
 #include <linux/mm.h>		/* verify_area(), etc. */
 #include <linux/string.h>	/* inline mem*, str* functions */
 #include <linux/init.h>		/* __initfunc et al. */
-#include <asm/segment.h>	/* kernel <-> user copy */
 #include <asm/byteorder.h>	/* htons(), etc. */
 #include <asm/uaccess.h>	/* copy_to_user */
 #include <asm/io.h>
@@ -116,7 +115,7 @@ static char conf_hdr[] = "VLAN Dev name	 | VLAN ID\n";
  *	Clean up /proc/net/vlan entries
  */
 
-void __exit vlan_proc_cleanup(void)
+void vlan_proc_cleanup(void)
 {
 	if (proc_vlan_conf)
 		remove_proc_entry(name_conf, proc_vlan_dir);
@@ -462,7 +461,7 @@ int __init vlan_proc_init (void)
 	return 0;
 }
 
-void __exit vlan_proc_cleanup(void)
+void vlan_proc_cleanup(void)
 {
 	return;
 }

@@ -115,6 +115,22 @@ clear_bit(int nr, volatile void *addr)
 }
 
 /*
+ * __clear_bit - Set a bit in memory
+ * @nr: the bit to set
+ * @addr: the address to start counting from
+ *
+ * Unlike set_bit(), this function is non-atomic and may be reordered.
+ * If it's called on the same region of memory simultaneously, the effect
+ * may be that only one operation succeeds.
+ */
+extern __inline__ void __clear_bit(int nr, volatile void * addr)
+{
+	unsigned long * m = ((unsigned long *) addr) + (nr >> 5);
+
+	*m &= ~(1UL << (nr & 31));
+}
+
+/*
  * change_bit - Toggle a bit in memory
  * @nr: Bit to clear
  * @addr: Address to start counting from
@@ -382,6 +398,16 @@ extern __inline__ void clear_bit(int nr, volatile void * addr)
 	__bi_save_and_cli(flags);
 	*a &= ~mask;
 	__bi_restore_flags(flags);
+}
+
+extern __inline__ void __clear_bit(int nr, volatile void * addr)
+{
+	int	mask;
+	volatile int	*a = addr;
+
+	a += nr >> 5;
+	mask = 1 << (nr & 0x1f);
+	*a &= ~mask;
 }
 
 /*

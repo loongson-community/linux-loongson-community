@@ -17,6 +17,7 @@
 #include <linux/spinlock.h>
 #include <linux/fs.h>
 #include <linux/seq_file.h>
+#include <linux/cache.h>
 
 #include <asm/head.h>
 #include <asm/ptrace.h>
@@ -39,17 +40,17 @@ extern int linux_num_cpus;
 extern void calibrate_delay(void);
 extern unsigned prom_cpu_nodes[];
 
-struct cpuinfo_sparc cpu_data[NR_CPUS]  __attribute__ ((aligned (64)));
+cpuinfo_sparc cpu_data[NR_CPUS];
 
-volatile int __cpu_number_map[NR_CPUS]  __attribute__ ((aligned (64)));
-volatile int __cpu_logical_map[NR_CPUS] __attribute__ ((aligned (64)));
+volatile int __cpu_number_map[NR_CPUS]  __attribute__ ((aligned (SMP_CACHE_BYTES)));
+volatile int __cpu_logical_map[NR_CPUS] __attribute__ ((aligned (SMP_CACHE_BYTES)));
 
 /* Please don't make this stuff initdata!!!  --DaveM */
 static unsigned char boot_cpu_id = 0;
 static int smp_activated = 0;
 
 /* Kernel spinlock */
-spinlock_t kernel_flag = SPIN_LOCK_UNLOCKED;
+spinlock_t kernel_flag __cacheline_aligned_in_smp = SPIN_LOCK_UNLOCKED;
 
 volatile int smp_processors_ready = 0;
 unsigned long cpu_present_map = 0;
@@ -208,23 +209,10 @@ void __init smp_callin(void)
 	atomic_inc(&init_mm.mm_count);
 	current->active_mm = &init_mm;
 
-	while (!smp_processors_ready)
+	while (!smp_threads_ready)
 		membar("#LoadLoad");
-}
 
-extern int cpu_idle(void);
-extern void init_IRQ(void);
-
-void initialize_secondary(void)
-{
-}
-
-int start_secondary(void *unused)
-{
-	trap_init();
-	init_IRQ();
-	smp_callin();
-	return cpu_idle();
+	init_idle();
 }
 
 void cpu_panic(void)
@@ -250,7 +238,6 @@ void __init smp_boot_cpus(void)
 	printk("Entering UltraSMPenguin Mode...\n");
 	__sti();
 	smp_store_cpu_info(boot_cpu_id);
-	init_idle();
 
 	if (linux_num_cpus == 1)
 		return;
@@ -269,16 +256,13 @@ void __init smp_boot_cpus(void)
 			int no;
 
 			prom_printf("Starting CPU %d... ", i);
-			kernel_thread(start_secondary, NULL, CLONE_PID);
+			kernel_thread(NULL, NULL, CLONE_PID);
 			cpucount++;
 
 			p = init_task.prev_task;
-			init_tasks[cpucount] = p;
 
-			p->processor = i;
-			p->cpus_runnable = 1 << i; /* we schedule the first task manually */
+			p->cpu = i;
 
-			del_from_runqueue(p);
 			unhash_process(p);
 
 			callin_flag = 0;
@@ -482,7 +466,7 @@ retry:
 		__asm__ __volatile__("wrpr %0, 0x0, %%pstate"
 				     : : "r" (pstate));
 
-		if ((stuck & ~(0x5555555555555555UL)) == 0) {
+		if ((dispatch_stat & ~(0x5555555555555555UL)) == 0) {
 			/* Busy bits will not clear, continue instead
 			 * of freezing up on this cpu.
 			 */
@@ -542,6 +526,9 @@ struct call_data_struct {
 	int wait;
 };
 
+static spinlock_t call_lock = SPIN_LOCK_UNLOCKED;
+static struct call_data_struct *call_data;
+
 extern unsigned long xcall_call_function;
 
 int smp_call_function(void (*func)(void *info), void *info,
@@ -549,6 +536,7 @@ int smp_call_function(void (*func)(void *info), void *info,
 {
 	struct call_data_struct data;
 	int cpus = smp_num_cpus - 1;
+	long timeout;
 
 	if (!cpus)
 		return 0;
@@ -558,19 +546,36 @@ int smp_call_function(void (*func)(void *info), void *info,
 	atomic_set(&data.finished, 0);
 	data.wait = wait;
 
-	smp_cross_call(&xcall_call_function,
-		       0, (u64) &data, 0);
+	spin_lock_bh(&call_lock);
+
+	call_data = &data;
+
+	smp_cross_call(&xcall_call_function, 0, 0, 0);
+
 	/* 
 	 * Wait for other cpus to complete function or at
 	 * least snap the call data.
 	 */
-	while (atomic_read(&data.finished) != cpus)
+	timeout = 1000000;
+	while (atomic_read(&data.finished) != cpus) {
+		if (--timeout <= 0)
+			goto out_timeout;
 		barrier();
+		udelay(1);
+	}
 
+	spin_unlock_bh(&call_lock);
+
+	return 0;
+
+out_timeout:
+	spin_unlock_bh(&call_lock);
+	printk("XCALL: Remote cpus not responding, ncpus=%d finished=%d\n",
+	       smp_num_cpus - 1, atomic_read(&data.finished));
 	return 0;
 }
 
-void smp_call_function_client(struct call_data_struct *call_data)
+void smp_call_function_client(void)
 {
 	void (*func) (void *info) = call_data->func;
 	void *info = call_data->info;
@@ -597,7 +602,7 @@ extern unsigned long xcall_receive_signal;
 extern unsigned long xcall_flush_dcache_page_cheetah;
 extern unsigned long xcall_flush_dcache_page_spitfire;
 
-#ifdef DCFLUSH_DEBUG
+#ifdef CONFIG_DEBUG_DCFLUSH
 extern atomic_t dcpage_flushes;
 extern atomic_t dcpage_flushes_xcall;
 #endif
@@ -620,7 +625,7 @@ void smp_flush_dcache_page_impl(struct page *page, int cpu)
 	if (smp_processors_ready) {
 		unsigned long mask = 1UL << cpu;
 
-#ifdef DCFLUSH_DEBUG
+#ifdef CONFIG_DEBUG_DCFLUSH
 		atomic_inc(&dcpage_flushes);
 #endif
 		if (cpu == smp_processor_id()) {
@@ -642,10 +647,43 @@ void smp_flush_dcache_page_impl(struct page *page, int cpu)
 						      __pa(page->virtual),
 						      0, mask);
 			}
-#ifdef DCFLUSH_DEBUG
+#ifdef CONFIG_DEBUG_DCFLUSH
 			atomic_inc(&dcpage_flushes_xcall);
 #endif
 		}
+	}
+}
+
+void flush_dcache_page_all(struct mm_struct *mm, struct page *page)
+{
+	if (smp_processors_ready) {
+		unsigned long mask = cpu_present_map & ~(1UL << smp_processor_id());
+		u64 data0;
+
+#ifdef CONFIG_DEBUG_DCFLUSH
+		atomic_inc(&dcpage_flushes);
+#endif
+		if (mask == 0UL)
+			goto flush_self;
+		if (tlb_type == spitfire) {
+			data0 = ((u64)&xcall_flush_dcache_page_spitfire);
+			if (page->mapping != NULL)
+				data0 |= ((u64)1 << 32);
+			spitfire_xcall_deliver(data0,
+					       __pa(page->virtual),
+					       (u64) page->virtual,
+					       mask);
+		} else {
+			data0 = ((u64)&xcall_flush_dcache_page_cheetah);
+			cheetah_xcall_deliver(data0,
+					      __pa(page->virtual),
+					      0, mask);
+		}
+#ifdef CONFIG_DEBUG_DCFLUSH
+		atomic_inc(&dcpage_flushes_xcall);
+#endif
+	flush_self:
+		__local_flush_dcache_page(page);
 	}
 }
 
@@ -1074,7 +1112,6 @@ void __init smp_tick_init(void)
 	__cpu_number_map[boot_cpu_id] = 0;
 	prom_cpu_nodes[boot_cpu_id] = linux_cpus[0].prom_node;
 	__cpu_logical_map[0] = boot_cpu_id;
-	current->processor = boot_cpu_id;
 	prof_counter(boot_cpu_id) = prof_multiplier(boot_cpu_id) = 1;
 }
 

@@ -155,8 +155,8 @@ static unsigned long compute_loop_size(struct loop_device *lo, struct dentry * l
 {
 	if (S_ISREG(lo_dentry->d_inode->i_mode))
 		return (lo_dentry->d_inode->i_size - lo->lo_offset) >> BLOCK_SIZE_BITS;
-	if (blk_size[MAJOR(lodev)])
-		return blk_size[MAJOR(lodev)][MINOR(lodev)] -
+	if (blk_size[major(lodev)])
+		return blk_size[major(lodev)][minor(lodev)] -
                                 (lo->lo_offset >> BLOCK_SIZE_BITS);
 	return MAX_DISK_SIZE;
 }
@@ -284,14 +284,7 @@ static int lo_receive(struct loop_device *lo, struct bio *bio, int bsize, loff_t
 
 static inline int loop_get_bs(struct loop_device *lo)
 {
-	int bs = 0;
-
-	if (blksize_size[MAJOR(lo->lo_device)])
-		bs = blksize_size[MAJOR(lo->lo_device)][MINOR(lo->lo_device)];
-	if (!bs)
-		bs = BLOCK_SIZE;	
-
-	return bs;
+	return block_size(lo->lo_device);
 }
 
 static inline unsigned long loop_get_iv(struct loop_device *lo,
@@ -386,12 +379,11 @@ static struct bio *loop_get_bio(struct loop_device *lo)
  */
 static int loop_end_io_transfer(struct bio *bio, int nr_sectors)
 {
-	struct loop_device *lo = &loop_dev[MINOR(bio->bi_dev)];
+	struct bio *rbh = bio->bi_private;
+	struct loop_device *lo = &loop_dev[minor(rbh->bi_dev)];
 	int uptodate = test_bit(BIO_UPTODATE, &bio->bi_flags);
 
 	if (!uptodate || bio_rw(bio) == WRITE) {
-		struct bio *rbh = bio->bi_private;
-
 		bio_endio(rbh, uptodate, nr_sectors);
 		if (atomic_dec_and_test(&lo->lo_pending))
 			up(&lo->lo_bh_mutex);
@@ -436,10 +428,10 @@ static int loop_make_request(request_queue_t *q, struct bio *rbh)
 	unsigned long IV;
 	int rw = bio_rw(rbh);
 
-	if (MINOR(rbh->bi_dev) >= max_loop)
+	if (minor(rbh->bi_dev) >= max_loop)
 		goto out;
 
-	lo = &loop_dev[MINOR(rbh->bi_dev)];
+	lo = &loop_dev[minor(rbh->bi_dev)];
 	spin_lock_irq(&lo->lo_lock);
 	if (lo->lo_state != Lo_bound)
 		goto inactive;
@@ -525,7 +517,7 @@ static inline void loop_handle_bio(struct loop_device *lo, struct bio *bio)
 
 		ret = do_bio_blockbacked(lo, bio, rbh);
 
-		bio_endio(rbh, !ret, bio_sectors(bio));
+		bio_endio(rbh, !ret, bio_sectors(rbh));
 		loop_put_buffer(bio);
 	}
 }
@@ -551,13 +543,14 @@ static int loop_thread(void *data)
 	flush_signals(current);
 	spin_unlock_irq(&current->sigmask_lock);
 
-	current->policy = SCHED_OTHER;
-	current->nice = -20;
+	set_user_nice(current, -20);
 
 	spin_lock_irq(&lo->lo_lock);
 	lo->lo_state = Lo_bound;
 	atomic_inc(&lo->lo_pending);
 	spin_unlock_irq(&lo->lo_lock);
+
+	current->flags |= PF_NOIO;
 
 	/*
 	 * up sem, we are running
@@ -600,7 +593,6 @@ static int loop_set_fd(struct loop_device *lo, struct file *lo_file, kdev_t dev,
 	kdev_t		lo_device;
 	int		lo_flags = 0;
 	int		error;
-	int		bs;
 
 	MOD_INC_USE_COUNT;
 
@@ -621,6 +613,10 @@ static int loop_set_fd(struct loop_device *lo, struct file *lo_file, kdev_t dev,
 
 	if (S_ISBLK(inode->i_mode)) {
 		lo_device = inode->i_rdev;
+		if (kdev_same(lo_device, dev)) {
+			error = -EBUSY;
+			goto out;
+		}
 	} else if (S_ISREG(inode->i_mode)) {
 		struct address_space_operations *aops = inode->i_mapping->a_ops;
 		/*
@@ -656,13 +652,7 @@ static int loop_set_fd(struct loop_device *lo, struct file *lo_file, kdev_t dev,
 	lo->old_gfp_mask = inode->i_mapping->gfp_mask;
 	inode->i_mapping->gfp_mask = GFP_NOIO;
 
-	bs = 0;
-	if (blksize_size[MAJOR(lo_device)])
-		bs = blksize_size[MAJOR(lo_device)][MINOR(lo_device)];
-	if (!bs)
-		bs = BLOCK_SIZE;
-
-	set_blocksize(dev, bs);
+	set_blocksize(dev, block_size(lo_device));
 
 	lo->lo_bio = lo->lo_biotail = NULL;
 	kernel_thread(loop_thread, lo, CLONE_FS | CLONE_FILES | CLONE_SIGHAND);
@@ -733,7 +723,7 @@ static int loop_clr_fd(struct loop_device *lo, struct block_device *bdev)
 	loop_release_xfer(lo);
 	lo->transfer = NULL;
 	lo->ioctl = NULL;
-	lo->lo_device = 0;
+	lo->lo_device = NODEV;
 	lo->lo_encrypt_type = 0;
 	lo->lo_offset = 0;
 	lo->lo_encrypt_key_size = 0;
@@ -826,12 +816,12 @@ static int lo_ioctl(struct inode * inode, struct file * file,
 
 	if (!inode)
 		return -EINVAL;
-	if (MAJOR(inode->i_rdev) != MAJOR_NR) {
+	if (major(inode->i_rdev) != MAJOR_NR) {
 		printk(KERN_WARNING "lo_ioctl: pseudo-major != %d\n",
 		       MAJOR_NR);
 		return -ENODEV;
 	}
-	dev = MINOR(inode->i_rdev);
+	dev = minor(inode->i_rdev);
 	if (dev >= max_loop)
 		return -ENODEV;
 	lo = &loop_dev[dev];
@@ -881,11 +871,11 @@ static int lo_open(struct inode *inode, struct file *file)
 
 	if (!inode)
 		return -EINVAL;
-	if (MAJOR(inode->i_rdev) != MAJOR_NR) {
+	if (major(inode->i_rdev) != MAJOR_NR) {
 		printk(KERN_WARNING "lo_open: pseudo-major != %d\n", MAJOR_NR);
 		return -ENODEV;
 	}
-	dev = MINOR(inode->i_rdev);
+	dev = minor(inode->i_rdev);
 	if (dev >= max_loop)
 		return -ENODEV;
 
@@ -908,12 +898,12 @@ static int lo_release(struct inode *inode, struct file *file)
 
 	if (!inode)
 		return 0;
-	if (MAJOR(inode->i_rdev) != MAJOR_NR) {
+	if (major(inode->i_rdev) != MAJOR_NR) {
 		printk(KERN_WARNING "lo_release: pseudo-major != %d\n",
 		       MAJOR_NR);
 		return 0;
 	}
-	dev = MINOR(inode->i_rdev);
+	dev = minor(inode->i_rdev);
 	if (dev >= max_loop)
 		return 0;
 
@@ -1007,6 +997,7 @@ int __init loop_init(void)
 		goto out_mem;
 
 	blk_queue_make_request(BLK_DEFAULT_QUEUE(MAJOR_NR), loop_make_request);
+	blk_queue_bounce_limit(BLK_DEFAULT_QUEUE(MAJOR_NR), BLK_BOUNCE_HIGH);
 
 	for (i = 0; i < max_loop; i++) {
 		struct loop_device *lo = &loop_dev[i];
@@ -1023,7 +1014,7 @@ int __init loop_init(void)
 	blk_size[MAJOR_NR] = loop_sizes;
 	blksize_size[MAJOR_NR] = loop_blksizes;
 	for (i = 0; i < max_loop; i++)
-		register_disk(NULL, MKDEV(MAJOR_NR, i), 1, &lo_fops, 0);
+		register_disk(NULL, mk_kdev(MAJOR_NR, i), 1, &lo_fops, 0);
 
 	printk(KERN_INFO "loop: loaded (max %d devices)\n", max_loop);
 	return 0;

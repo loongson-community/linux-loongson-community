@@ -205,9 +205,7 @@ static inline int indirect_item_found (int retval, struct item_head * ih)
 static inline void set_block_dev_mapped (struct buffer_head * bh, 
 					 b_blocknr_t block, struct inode * inode)
 {
-  bh->b_dev = inode->i_dev;
-  bh->b_blocknr = block;
-  bh->b_state |= (1UL << BH_Mapped);
+	map_bh(bh, inode->i_sb, block);
 }
 
 
@@ -287,9 +285,7 @@ research:
 	blocknr = get_block_num(ind_item, path.pos_in_item) ;
 	ret = 0 ;
 	if (blocknr) {
-	    bh_result->b_dev = inode->i_dev;
-	    bh_result->b_blocknr = blocknr;
-	    bh_result->b_state |= (1UL << BH_Mapped);
+		map_bh(bh_result, inode->i_sb, blocknr);
 	} else if ((args & GET_BLOCK_NO_HOLE)) {
 	    ret = -ENOENT ;
 	}
@@ -380,10 +376,9 @@ research:
 
 finished:
     pathrelse (&path);
-    bh_result->b_blocknr = 0 ;
-    bh_result->b_dev = inode->i_dev;
+    /* I _really_ doubt that you want it.  Chris? */
+    map_bh(bh_result, inode->i_sb, 0);
     mark_buffer_uptodate (bh_result, 1);
-    bh_result->b_state |= (1UL << BH_Mapped);
     return 0;
 }
 
@@ -970,7 +965,7 @@ static void inode2sd (void * sd, struct inode * inode)
     set_sd_v2_ctime(sd_v2, inode->i_ctime );
     set_sd_v2_blocks(sd_v2, inode->i_blocks );
     if (S_ISCHR(inode->i_mode) || S_ISBLK(inode->i_mode)) {
-        set_sd_v2_rdev(sd_v2, inode->i_rdev );
+        set_sd_v2_rdev(sd_v2, kdev_t_to_nr(inode->i_rdev) );
 }
     else
     {
@@ -994,7 +989,7 @@ static void inode2sd_v1 (void * sd, struct inode * inode)
     set_sd_v1_mtime(sd_v1, inode->i_mtime );
 
     if (S_ISCHR(inode->i_mode) || S_ISBLK(inode->i_mode))
-        set_sd_v1_rdev(sd_v1, inode->i_rdev );
+        set_sd_v1_rdev(sd_v1, kdev_t_to_nr(inode->i_rdev) );
     else
         set_sd_v1_blocks(sd_v1, inode->i_blocks );
 
@@ -1520,7 +1515,6 @@ struct inode * reiserfs_new_inode (struct reiserfs_transaction_handle *th,
     // these do not go to on-disk stat data
     inode->i_ino = le32_to_cpu (ih.ih_key.k_objectid);
     inode->i_blksize = PAGE_SIZE;
-    inode->i_dev = sb->s_dev;
   
     // store in in-core inode the key of stat data and version all
     // object items will have (directory items will have old offset
@@ -1794,7 +1788,7 @@ research:
 	    goto research ;
 	}
     } else {
-        reiserfs_warning("clm-6003: bad item inode %lu, device %s\n", inode->i_ino, kdevname(inode->i_sb->s_dev)) ;
+        reiserfs_warning("clm-6003: bad item inode %lu, device %s\n", inode->i_ino, inode->i_sb->s_id) ;
         retval = -EIO ;
 	goto out ;
     }

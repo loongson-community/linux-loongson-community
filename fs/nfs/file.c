@@ -73,7 +73,7 @@ nfs_file_flush(struct file *file)
 	struct inode	*inode = file->f_dentry->d_inode;
 	int		status;
 
-	dfprintk(VFS, "nfs: flush(%x/%ld)\n", inode->i_dev, inode->i_ino);
+	dfprintk(VFS, "nfs: flush(%s/%ld)\n", inode->i_sb->s_id, inode->i_ino);
 
 	/* Make sure all async reads have been sent off. We don't bother
 	 * waiting on them though... */
@@ -132,7 +132,7 @@ nfs_fsync(struct file *file, struct dentry *dentry, int datasync)
 	struct inode *inode = dentry->d_inode;
 	int status;
 
-	dfprintk(VFS, "nfs: fsync(%x/%ld)\n", inode->i_dev, inode->i_ino);
+	dfprintk(VFS, "nfs: fsync(%s/%ld)\n", inode->i_sb->s_id, inode->i_ino);
 
 	lock_kernel();
 	status = nfs_wb_file(inode, file);
@@ -161,15 +161,10 @@ static int nfs_prepare_write(struct file *file, struct page *page, unsigned offs
 static int nfs_commit_write(struct file *file, struct page *page, unsigned offset, unsigned to)
 {
 	long status;
-	loff_t pos = ((loff_t)page->index<<PAGE_CACHE_SHIFT) + to;
-	struct inode *inode = page->mapping->host;
 
 	lock_kernel();
 	status = nfs_updatepage(file, page, offset, to-offset);
 	unlock_kernel();
-	/* most likely it's already done. CHECKME */
-	if (pos > inode->i_size)
-		inode->i_size = pos;
 	return status;
 }
 
@@ -250,8 +245,8 @@ nfs_lock(struct file *filp, int cmd, struct file_lock *fl)
 	struct inode * inode = filp->f_dentry->d_inode;
 	int	status = 0;
 
-	dprintk("NFS: nfs_lock(f=%4x/%ld, t=%x, fl=%x, r=%Ld:%Ld)\n",
-			inode->i_dev, inode->i_ino,
+	dprintk("NFS: nfs_lock(f=%s/%ld, t=%x, fl=%x, r=%Ld:%Ld)\n",
+			inode->i_sb->s_id, inode->i_ino,
 			fl->fl_type, fl->fl_flags,
 			(long long)fl->fl_start, (long long)fl->fl_end);
 

@@ -61,67 +61,6 @@
 /*  Private functions follow  */
 
 /**
- *	_devfs_convert_name - Convert from an old style location-based name to new style.
- *	@new: The new name will be written here.
- *	@old: The old name.
- *	@disc: If true, disc partitioning information should be processed.
- */
-
-static void __init _devfs_convert_name (char *new, const char *old, int disc)
-{
-    int host, bus, target, lun;
-    char *ptr;
-    char part[8];
-
-    /*  Decode "c#b#t#u#"  */
-    if (old[0] != 'c') return;
-    host = simple_strtol (old + 1, &ptr, 10);
-    if (ptr[0] != 'b') return;
-    bus = simple_strtol (ptr + 1, &ptr, 10);
-    if (ptr[0] != 't') return;
-    target = simple_strtol (ptr + 1, &ptr, 10);
-    if (ptr[0] != 'u') return;
-    lun = simple_strtol (ptr + 1, &ptr, 10);
-    if (disc)
-    {
-	/*  Decode "p#"  */
-	if (ptr[0] == 'p') sprintf (part, "part%s", ptr + 1);
-	else strcpy (part, "disc");
-    }
-    else part[0] = '\0';
-    sprintf (new, "/host%d/bus%d/target%d/lun%d/%s",
-	     host, bus, target, lun, part);
-}   /*  End Function _devfs_convert_name  */
-
-
-/*  Public functions follow  */
-
-/**
- *	devfs_make_root - Create the root FS device entry if required.
- *	@name: The name of the root FS device, as passed by "root=".
- */
-
-void __init devfs_make_root (const char *name)
-{
-    char dest[64];
-
-    if ( (strncmp (name, "sd/", 3) == 0) || (strncmp (name, "sr/", 3) == 0) )
-    {
-	strcpy (dest, "../scsi");
-	_devfs_convert_name (dest + 7, name + 3, (name[1] == 'd') ? 1 : 0);
-    }
-    else if ( (strncmp (name, "ide/hd/", 7) == 0) ||
-	      (strncmp (name, "ide/cd/", 7) == 0) )
-    {
-	strcpy (dest, "..");
-	_devfs_convert_name (dest + 2, name + 7, (name[4] == 'h') ? 1 : 0);
-    }
-    else return;
-    devfs_mk_symlink (NULL, name, DEVFS_FL_DEFAULT, dest, NULL, NULL);
-}   /*  End Function devfs_make_root  */
-
-
-/**
  *	devfs_register_tape - Register a tape device in the "/dev/tapes" hierarchy.
  *	@de: Any tape device entry in the device directory.
  */
@@ -328,7 +267,7 @@ kdev_t devfs_alloc_devnum (char type)
 	if (minor >= 256) continue;
 	__set_bit (minor, entry->bits);
 	up (semaphore);
-	return MKDEV (entry->major, minor);
+	return mk_kdev(entry->major, minor);
     }
     /*  Need to allocate a new major  */
     if ( ( entry = kmalloc (sizeof *entry, GFP_KERNEL) ) == NULL )
@@ -350,7 +289,7 @@ kdev_t devfs_alloc_devnum (char type)
     else list->last->next = entry;
     list->last = entry;
     up (semaphore);
-    return MKDEV (entry->major, 0);
+    return mk_kdev(entry->major, 0);
 }   /*  End Function devfs_alloc_devnum  */
 EXPORT_SYMBOL(devfs_alloc_devnum);
 
@@ -370,7 +309,7 @@ void devfs_dealloc_devnum (char type, kdev_t devnum)
     struct device_list *list;
     struct minor_list *entry;
 
-    if (devnum == NODEV) return;
+    if (kdev_none(devnum)) return;
     if (type == DEVFS_SPECIAL_CHR)
     {
 	semaphore = &char_semaphore;
@@ -381,8 +320,8 @@ void devfs_dealloc_devnum (char type, kdev_t devnum)
 	semaphore = &block_semaphore;
 	list = &block_list;
     }
-    major = MAJOR (devnum);
-    minor = MINOR (devnum);
+    major = major (devnum);
+    minor = minor (devnum);
     down (semaphore);
     for (entry = list->first; entry != NULL; entry = entry->next)
     {

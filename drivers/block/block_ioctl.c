@@ -35,7 +35,7 @@ int blk_do_rq(request_queue_t *q, struct request *rq)
 	DECLARE_COMPLETION(wait);
 	int err = 0;
 
-	rq->flags |= REQ_BARRIER;
+	rq->flags |= REQ_NOMERGE;
 	rq->waiting = &wait;
 	elv_add_request(q, rq, 1);
 	generic_unplug_device(q);
@@ -76,8 +76,8 @@ int block_ioctl(kdev_t dev, unsigned int cmd, unsigned long arg)
 			err = -ENOTTY;
 	}
 
-#if 0
 	blk_put_queue(q);
-#endif
 	return err;
 }
+
+EXPORT_SYMBOL(block_ioctl);

@@ -26,10 +26,6 @@
 #include <asm/unistd.h>
 #include <asm/isadep.h>
 
-/* This duplicates the definition from <linux/sched.h> */
-#define PT_TRACESYS	0x00000002		/* tracing system calls */
-
-
 		.text
 		.align 4
 		.set	push

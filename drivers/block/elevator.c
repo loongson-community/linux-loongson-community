@@ -53,12 +53,10 @@ inline int bio_rq_in_between(struct bio *bio, struct request *rq,
 	 * if .next is a valid request
 	 */
 	next = rq->queuelist.next;
-	if (next == head)
+	if (unlikely(next == head))
 		return 0;
 
 	next_rq = list_entry(next, struct request, queuelist);
-
-	BUG_ON(next_rq->flags & REQ_STARTED);
 
 	/*
 	 * not a sector based request
@@ -70,7 +68,7 @@ inline int bio_rq_in_between(struct bio *bio, struct request *rq,
 	 * if the device is different (not a normal case) just check if
 	 * bio is after rq
 	 */
-	if (next_rq->rq_dev != rq->rq_dev)
+	if (!kdev_same(next_rq->rq_dev, rq->rq_dev))
 		return bio->bi_sector > rq->sector;
 
 	/*
@@ -101,7 +99,7 @@ inline int bio_rq_in_between(struct bio *bio, struct request *rq,
  */
 inline int elv_rq_merge_ok(struct request *rq, struct bio *bio)
 {
-	if (!(rq->flags & REQ_CMD))
+	if (!rq_mergeable(rq))
 		return 0;
 
 	/*
@@ -109,61 +107,93 @@ inline int elv_rq_merge_ok(struct request *rq, struct bio *bio)
 	 */
 	if (bio_data_dir(bio) != rq_data_dir(rq))
 		return 0;
-	if (rq->flags & REQ_NOMERGE)
-		return 0;
 
 	/*
 	 * same device and no special stuff set, merge is ok
 	 */
-	if (rq->rq_dev == bio->bi_dev && !rq->waiting && !rq->special)
+	if (kdev_same(rq->rq_dev, bio->bi_dev) && !rq->waiting && !rq->special)
 		return 1;
 
 	return 0;
 }
 
-int elevator_linus_merge(request_queue_t *q, struct request **req,
-			 struct list_head *head, struct bio *bio)
+inline int elv_try_merge(struct request *__rq, struct bio *bio)
 {
-	unsigned int count = bio_sectors(bio);
-	struct list_head *entry = &q->queue_head;
 	int ret = ELEVATOR_NO_MERGE;
+
+	/*
+	 * we can merge and sequence is ok, check if it's possible
+	 */
+	if (elv_rq_merge_ok(__rq, bio)) {
+		if (__rq->sector + __rq->nr_sectors == bio->bi_sector)
+			ret = ELEVATOR_BACK_MERGE;
+		else if (__rq->sector - bio_sectors(bio) == bio->bi_sector)
+			ret = ELEVATOR_FRONT_MERGE;
+	}
+
+	return ret;
+}
+
+inline int elv_try_last_merge(request_queue_t *q, struct request **req,
+			      struct bio *bio)
+{
+	int ret = ELEVATOR_NO_MERGE;
+
+	/*
+	 * give a one-shot try to merging with the last touched
+	 * request
+	 */
+	if (q->last_merge) {
+		struct request *__rq = list_entry_rq(q->last_merge);
+
+		if (!rq_mergeable(__rq))
+			q->last_merge = NULL;
+		else if ((ret = elv_try_merge(__rq, bio)))
+			*req = __rq;
+	}
+
+	return ret;
+}
+
+/*
+ * elevator_linux starts here
+ */
+int elevator_linus_merge(request_queue_t *q, struct request **req,
+			 struct bio *bio)
+{
+	struct list_head *entry;
 	struct request *__rq;
+	int ret;
+
+	if ((ret = elv_try_last_merge(q, req, bio)))
+		return ret;
 
 	entry = &q->queue_head;
-	while ((entry = entry->prev) != head) {
+	ret = ELEVATOR_NO_MERGE;
+	while ((entry = entry->prev) != &q->queue_head) {
 		__rq = list_entry_rq(entry);
 
-		prefetch(list_entry_rq(entry->prev));
+		if (__rq->flags & (REQ_BARRIER | REQ_STARTED))
+			break;
 
 		/*
 		 * simply "aging" of requests in queue
 		 */
-		if (__rq->elevator_sequence-- <= 0)
-			break;
-		if (__rq->flags & (REQ_BARRIER | REQ_STARTED))
+		if (elv_linus_sequence(__rq)-- <= 0)
 			break;
 		if (!(__rq->flags & REQ_CMD))
 			continue;
+		if (elv_linus_sequence(__rq) < bio_sectors(bio))
+			break;
 
 		if (!*req && bio_rq_in_between(bio, __rq, &q->queue_head))
 			*req = __rq;
-		if (!elv_rq_merge_ok(__rq, bio))
-			continue;
 
-		if (__rq->elevator_sequence < count)
-			break;
-
-		/*
-		 * we can merge and sequence is ok, check if it's possible
-		 */
-		if (__rq->sector + __rq->nr_sectors == bio->bi_sector) {
-			ret = ELEVATOR_BACK_MERGE;
+		if ((ret = elv_try_merge(__rq, bio))) {
+			if (ret == ELEVATOR_FRONT_MERGE)
+				elv_linus_sequence(__rq) -= bio_sectors(bio);
 			*req = __rq;
-			break;
-		} else if (__rq->sector - count == bio->bi_sector) {
-			ret = ELEVATOR_FRONT_MERGE;
-			__rq->elevator_sequence -= count;
-			*req = __rq;
+			q->last_merge = &__rq->queuelist;
 			break;
 		}
 	}
@@ -183,56 +213,82 @@ void elevator_linus_merge_cleanup(request_queue_t *q, struct request *req, int c
 	entry = &req->queuelist;
 	while ((entry = entry->next) != &q->queue_head) {
 		struct request *tmp;
-		prefetch(list_entry_rq(entry->next));
 		tmp = list_entry_rq(entry);
-		tmp->elevator_sequence -= count;
+		elv_linus_sequence(tmp) -= count;
 	}
 }
 
 void elevator_linus_merge_req(struct request *req, struct request *next)
 {
-	if (next->elevator_sequence < req->elevator_sequence)
-		req->elevator_sequence = next->elevator_sequence;
+	if (elv_linus_sequence(next) < elv_linus_sequence(req))
+		elv_linus_sequence(req) = elv_linus_sequence(next);
 }
 
-void elv_add_request_fn(request_queue_t *q, struct request *rq,
-			       struct list_head *insert_here)
+void elevator_linus_add_request(request_queue_t *q, struct request *rq,
+				struct list_head *insert_here)
 {
+	elevator_t *e = &q->elevator;
+	int lat = 0, *latency = e->elevator_data;
+
+	/*
+	 * it's a bug to let this rq preempt an already started request
+	 */
+	if (insert_here->next != &q->queue_head)
+		BUG_ON(list_entry_rq(insert_here->next)->flags & REQ_STARTED);
+
+	if (!(rq->flags & REQ_BARRIER))
+		lat = latency[rq_data_dir(rq)];
+
+	elv_linus_sequence(rq) = lat;
+
 	list_add(&rq->queuelist, insert_here);
+
+	/*
+	 * new merges must not precede this barrier
+	 */
+	if (rq->flags & REQ_BARRIER)
+		q->last_merge = NULL;
+	else if (!q->last_merge)
+		q->last_merge = &rq->queuelist;
 }
 
-struct request *elv_next_request_fn(request_queue_t *q)
+int elevator_linus_init(request_queue_t *q, elevator_t *e)
 {
-	if (!blk_queue_empty(q))
-		return list_entry(q->queue_head.next, struct request, queuelist);
+	int *latency;
 
-	return NULL;
-}
+	latency = kmalloc(2 * sizeof(int), GFP_KERNEL);
+	if (!latency)
+		return -ENOMEM;
 
-int elv_linus_init(request_queue_t *q, elevator_t *e)
-{
+	latency[READ] = 8192;
+	latency[WRITE] = 16384;
+
+	e->elevator_data = latency;
 	return 0;
 }
 
-void elv_linus_exit(request_queue_t *q, elevator_t *e)
+void elevator_linus_exit(request_queue_t *q, elevator_t *e)
 {
+	kfree(e->elevator_data);
 }
 
 /*
+ * elevator noop
+ *
  * See if we can find a request that this buffer can be coalesced with.
  */
 int elevator_noop_merge(request_queue_t *q, struct request **req,
-			struct list_head *head, struct bio *bio)
+			struct bio *bio)
 {
-	unsigned int count = bio_sectors(bio);
 	struct list_head *entry = &q->queue_head;
 	struct request *__rq;
+	int ret;
 
-	entry = &q->queue_head;
-	while ((entry = entry->prev) != head) {
+	if ((ret = elv_try_last_merge(q, req, bio)))
+		return ret;
+
+	while ((entry = entry->prev) != &q->queue_head) {
 		__rq = list_entry_rq(entry);
-
-		prefetch(list_entry_rq(entry->prev));
 
 		if (__rq->flags & (REQ_BARRIER | REQ_STARTED))
 			break;
@@ -240,33 +296,47 @@ int elevator_noop_merge(request_queue_t *q, struct request **req,
 		if (!(__rq->flags & REQ_CMD))
 			continue;
 
-		if (!elv_rq_merge_ok(__rq, bio))
-			continue;
-
-		/*
-		 * we can merge and sequence is ok, check if it's possible
-		 */
-		if (__rq->sector + __rq->nr_sectors == bio->bi_sector) {
+		if ((ret = elv_try_merge(__rq, bio))) {
 			*req = __rq;
-			return ELEVATOR_BACK_MERGE;
-		} else if (__rq->sector - count == bio->bi_sector) {
-			*req = __rq;
-			return ELEVATOR_FRONT_MERGE;
+			q->last_merge = &__rq->queuelist;
+			return ret;
 		}
 	}
 
 	return ELEVATOR_NO_MERGE;
 }
 
-void elevator_noop_merge_cleanup(request_queue_t *q, struct request *req, int count) {}
+void elevator_noop_add_request(request_queue_t *q, struct request *rq,
+			       struct list_head *insert_here)
+{
+	list_add_tail(&rq->queuelist, &q->queue_head);
 
-void elevator_noop_merge_req(struct request *req, struct request *next) {}
+	/*
+	 * new merges must not precede this barrier
+	 */
+	if (rq->flags & REQ_BARRIER)
+		q->last_merge = NULL;
+	else if (!q->last_merge)
+		q->last_merge = &rq->queuelist;
+}
 
+struct request *elevator_noop_next_request(request_queue_t *q)
+{
+	if (!blk_queue_empty(q))
+		return list_entry_rq(q->queue_head.next);
+
+	return NULL;
+}
+
+/*
+ * general block -> elevator interface starts here
+ */
 int elevator_init(request_queue_t *q, elevator_t *e, elevator_t type)
 {
 	*e = type;
 
 	INIT_LIST_HEAD(&q->queue_head);
+	q->last_merge = NULL;
 
 	if (e->elevator_init_fn)
 		return e->elevator_init_fn(q, e);
@@ -285,4 +355,77 @@ int elevator_global_init(void)
 	return 0;
 }
 
+void elv_merge_cleanup(request_queue_t *q, struct request *rq,
+		       int nr_sectors)
+{
+	elevator_t *e = &q->elevator;
+
+	if (e->elevator_merge_cleanup_fn)
+		e->elevator_merge_cleanup_fn(q, rq, nr_sectors);
+}
+
+int elv_merge(request_queue_t *q, struct request **rq, struct bio *bio)
+{
+	elevator_t *e = &q->elevator;
+
+	if (e->elevator_merge_fn)
+		return e->elevator_merge_fn(q, rq, bio);
+
+	return ELEVATOR_NO_MERGE;
+}
+
+void elv_merge_requests(request_queue_t *q, struct request *rq,
+			     struct request *next)
+{
+	elevator_t *e = &q->elevator;
+
+	if (e->elevator_merge_req_fn)
+		e->elevator_merge_req_fn(rq, next);
+}
+
+/*
+ * add_request and next_request are required to be supported, naturally
+ */
+void __elv_add_request(request_queue_t *q, struct request *rq,
+			  struct list_head *insert_here)
+{
+	q->elevator.elevator_add_req_fn(q, rq, insert_here);
+}
+
+struct request *__elv_next_request(request_queue_t *q)
+{
+	return q->elevator.elevator_next_req_fn(q);
+}
+
+void elv_remove_request(request_queue_t *q, struct request *rq)
+{
+	elevator_t *e = &q->elevator;
+
+	if (e->elevator_remove_req_fn)
+		e->elevator_remove_req_fn(q, rq);
+}
+
+elevator_t elevator_linus = {
+	elevator_merge_fn:		elevator_linus_merge,
+	elevator_merge_cleanup_fn:	elevator_linus_merge_cleanup,
+	elevator_merge_req_fn:		elevator_linus_merge_req,
+	elevator_next_req_fn:		elevator_noop_next_request,
+	elevator_add_req_fn:		elevator_linus_add_request,
+	elevator_init_fn:		elevator_linus_init,
+	elevator_exit_fn:		elevator_linus_exit,
+};
+
+elevator_t elevator_noop = {
+	elevator_merge_fn:		elevator_noop_merge,
+	elevator_next_req_fn:		elevator_noop_next_request,
+	elevator_add_req_fn:		elevator_noop_add_request,
+};
+
 module_init(elevator_global_init);
+
+EXPORT_SYMBOL(elevator_linus);
+EXPORT_SYMBOL(elevator_noop);
+
+EXPORT_SYMBOL(__elv_add_request);
+EXPORT_SYMBOL(__elv_next_request);
+EXPORT_SYMBOL(elv_remove_request);

@@ -136,8 +136,40 @@ extern unsigned long isa_slot_offset;
 
 extern void * __ioremap(phys_t offset, phys_t size, unsigned long flags);
 
+/*
+ *     ioremap         -       map bus memory into CPU space
+ *     @offset:        bus address of the memory
+ *     @size:          size of the resource to map
+ *
+ *     ioremap performs a platform specific sequence of operations to
+ *     make bus memory CPU accessible via the readb/readw/readl/writeb/
+ *     writew/writel functions and the other mmio helpers. The returned
+ *     address is not guaranteed to be usable directly as a virtual
+ *     address. 
+ */
+
 #define ioremap(offset, size)						\
 	__ioremap((offset), (size), _CACHE_UNCACHED)
+
+/*
+ *     ioremap_nocache         -       map bus memory into CPU space
+ *     @offset:        bus address of the memory
+ *     @size:          size of the resource to map
+ *
+ *     ioremap_nocache performs a platform specific sequence of operations to
+ *     make bus memory CPU accessible via the readb/readw/readl/writeb/
+ *     writew/writel functions and the other mmio helpers. The returned
+ *     address is not guaranteed to be usable directly as a virtual
+ *     address. 
+ *
+ *     This version of ioremap ensures that the memory is marked uncachable
+ *     on the CPU as well as honouring existing caching rules from things like
+ *     the PCI bus. Note that there are other caches and buffers on many 
+ *     busses. In paticular driver authors should read up on PCI writes
+ *
+ *     It's useful if some control registers are in such an area and
+ *     write combining or read caching is not desirable:
+ */
 #define ioremap_nocache(offset, size)					\
 	__ioremap((offset), (size), _CACHE_UNCACHED)
 #define ioremap_cacheable_cow(offset, size)				\
@@ -380,9 +412,9 @@ extern void (*_dma_cache_wback_inv)(unsigned long start, unsigned long size);
 extern void (*_dma_cache_wback)(unsigned long start, unsigned long size);
 extern void (*_dma_cache_inv)(unsigned long start, unsigned long size);
 
-#define dma_cache_wback_inv(start,size)	_dma_cache_wback_inv(start,size)
-#define dma_cache_wback(start,size)	_dma_cache_wback(start,size)
-#define dma_cache_inv(start,size)	_dma_cache_inv(start,size)
+#define dma_cache_wback_inv(start, size)_dma_cache_wback_inv(start,size)
+#define dma_cache_wback(start, size)	_dma_cache_wback(start,size)
+#define dma_cache_inv(start, size)	_dma_cache_inv(start,size)
 
 #else /* Sane hardware */
 

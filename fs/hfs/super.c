@@ -401,9 +401,7 @@ struct super_block *hfs_read_super(struct super_block *s, void *data,
 	}
 
 	/* set the device driver to 512-byte blocks */
-	set_blocksize(dev, HFS_SECTOR_SIZE);
-	s->s_blocksize_bits = HFS_SECTOR_SIZE_BITS;
-	s->s_blocksize = HFS_SECTOR_SIZE;
+	sb_set_blocksize(s, HFS_SECTOR_SIZE);
 
 #ifdef CONFIG_MAC_PARTITION
 	/* check to see if we're in a partition */
@@ -427,7 +425,7 @@ struct super_block *hfs_read_super(struct super_block *s, void *data,
 	if (!mdb) {
 		if (!silent) {
 			hfs_warn("VFS: Can't find a HFS filesystem on dev %s.\n",
-			       kdevname(dev));
+			       s->s_id);
 		}
 		goto bail2;
 	}

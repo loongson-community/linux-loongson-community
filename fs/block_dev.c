@@ -27,10 +27,10 @@
 static unsigned long max_block(kdev_t dev)
 {
 	unsigned int retval = ~0U;
-	int major = MAJOR(dev);
+	int major = major(dev);
 
 	if (blk_size[major]) {
-		int minor = MINOR(dev);
+		int minor = minor(dev);
 		unsigned int blocks = blk_size[major][minor];
 		if (blocks) {
 			unsigned int size = block_size(dev);
@@ -47,10 +47,10 @@ static unsigned long max_block(kdev_t dev)
 static loff_t blkdev_size(kdev_t dev)
 {
 	unsigned int blocks = ~0U;
-	int major = MAJOR(dev);
+	int major = major(dev);
 
 	if (blk_size[major]) {
-		int minor = MINOR(dev);
+		int minor = minor(dev);
 		blocks = blk_size[major][minor];
 	}
 	return (loff_t) blocks << BLOCK_SIZE_BITS;
@@ -77,29 +77,49 @@ int set_blocksize(kdev_t dev, int size)
 		return -EINVAL;
 
 	/* No blocksize array? Implies hardcoded BLOCK_SIZE */
-	if (!blksize_size[MAJOR(dev)]) {
+	if (!blksize_size[major(dev)]) {
 		if (size == BLOCK_SIZE)
 			return 0;
 		return -EINVAL;
 	}
 
-	oldsize = blksize_size[MAJOR(dev)][MINOR(dev)];
+	oldsize = blksize_size[major(dev)][minor(dev)];
 	if (oldsize == size)
 		return 0;
 
 	if (!oldsize && size == BLOCK_SIZE) {
-		blksize_size[MAJOR(dev)][MINOR(dev)] = size;
+		blksize_size[major(dev)][minor(dev)] = size;
 		return 0;
 	}
 
 	/* Ok, we're actually changing the blocksize.. */
-	bdev = bdget(dev);
+	bdev = bdget(kdev_t_to_nr(dev));
 	sync_buffers(dev, 2);
-	blksize_size[MAJOR(dev)][MINOR(dev)] = size;
+	blksize_size[major(dev)][minor(dev)] = size;
 	bdev->bd_inode->i_blkbits = blksize_bits(size);
 	kill_bdev(bdev);
 	bdput(bdev);
 	return 0;
+}
+
+int sb_set_blocksize(struct super_block *sb, int size)
+{
+	int bits;
+	if (set_blocksize(sb->s_dev, size) < 0)
+		return 0;
+	sb->s_blocksize = size;
+	for (bits = 9, size >>= 9; size >>= 1; bits++)
+		;
+	sb->s_blocksize_bits = bits;
+	return sb->s_blocksize;
+}
+
+int sb_min_blocksize(struct super_block *sb, int size)
+{
+	int minsize = get_hardsect_size(sb->s_dev);
+	if (size < minsize)
+		size = minsize;
+	return sb_set_blocksize(sb, size);
 }
 
 static int blkdev_get_block(struct inode * inode, sector_t iblock, struct buffer_head * bh, int create)
@@ -108,6 +128,7 @@ static int blkdev_get_block(struct inode * inode, sector_t iblock, struct buffer
 		return -EIO;
 
 	bh->b_dev = inode->i_rdev;
+	bh->b_bdev = inode->i_bdev;
 	bh->b_blocknr = iblock;
 	bh->b_state |= 1UL << BH_Mapped;
 	return 0;
@@ -491,15 +512,18 @@ int check_disk_change(kdev_t dev)
 	int i;
 	const struct block_device_operations * bdops = NULL;
 
-	i = MAJOR(dev);
+	i = major(dev);
 	if (i < MAX_BLKDEV)
 		bdops = blkdevs[i].bdops;
 	if (bdops == NULL) {
 		devfs_handle_t de;
 
-		de = devfs_find_handle (NULL, NULL, i, MINOR (dev),
+		de = devfs_find_handle (NULL, NULL, i, minor(dev),
 					DEVFS_SPECIAL_BLK, 0);
-		if (de) bdops = devfs_get_ops (de);
+		if (de) {
+			bdops = devfs_get_ops (de);
+			devfs_put_ops (de); /* We're running in owner module */
+		}
 	}
 	if (bdops == NULL)
 		return 0;
@@ -540,7 +564,7 @@ static int do_open(struct block_device *bdev, struct inode *inode, struct file *
 	down(&bdev->bd_sem);
 	lock_kernel();
 	if (!bdev->bd_op)
-		bdev->bd_op = get_blkfops(MAJOR(dev));
+		bdev->bd_op = get_blkfops(major(dev));
 	if (bdev->bd_op) {
 		ret = 0;
 		if (bdev->bd_op->owner)
@@ -604,7 +628,6 @@ int blkdev_open(struct inode * inode, struct file * filp)
 int blkdev_put(struct block_device *bdev, int kind)
 {
 	int ret = 0;
-	kdev_t rdev = to_kdev_t(bdev->bd_dev); /* this should become bdev */
 	struct inode *bd_inode = bdev->bd_inode;
 
 	down(&bdev->bd_sem);
@@ -612,7 +635,7 @@ int blkdev_put(struct block_device *bdev, int kind)
 	if (kind == BDEV_FILE)
 		__block_fsync(bd_inode);
 	else if (kind == BDEV_FS)
-		fsync_no_super(rdev);
+		fsync_no_super(bdev);
 	if (!--bdev->bd_openers)
 		kill_bdev(bdev);
 	if (bdev->bd_op->release)
@@ -663,11 +686,11 @@ struct file_operations def_blk_fops = {
 const char * bdevname(kdev_t dev)
 {
 	static char buffer[32];
-	const char * name = blkdevs[MAJOR(dev)].name;
+	const char * name = blkdevs[major(dev)].name;
 
 	if (!name)
 		name = "unknown-block";
 
-	sprintf(buffer, "%s(%d,%d)", name, MAJOR(dev), MINOR(dev));
+	sprintf(buffer, "%s(%d,%d)", name, major(dev), minor(dev));
 	return buffer;
 }

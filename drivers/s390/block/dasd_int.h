@@ -88,7 +88,6 @@ do { \
 	major:D_MAJOR, \
 	major_name:D_NAME, \
 	minor_shift:D_PARTN_BITS, \
-	max_p:1 << D_PARTN_BITS, \
 	max_nr:D_PER_MAJOR, \
 	nr_real:D_PER_MAJOR,
 static inline struct request * 
@@ -111,13 +110,12 @@ do { \
 	major:D_MAJOR, \
 	major_name:D_NAME, \
 	minor_shift:D_PARTN_BITS, \
-	max_p:1 << D_PARTN_BITS, \
 	nr_real:D_PER_MAJOR, \
         fops:&dasd_device_operations, 
 static inline struct request * 
 dasd_next_request( request_queue_t *queue ) 
 {
-        return blkdev_entry_next_request(&queue->queue_head);
+        return elv_next_request(queue);
 }
 static inline void 
 dasd_dequeue_request( request_queue_t * q, struct request *req )

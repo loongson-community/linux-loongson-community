@@ -70,7 +70,8 @@ void journal_brelse_array(struct buffer_head *b[], int n)
 static int do_readahead(journal_t *journal, unsigned int start)
 {
 	int err;
-	unsigned int max, nbufs, next, blocknr;
+	unsigned int max, nbufs, next;
+	unsigned long blocknr;
 	struct buffer_head *bh;
 	
 	struct buffer_head * bufs[MAXBUF];
@@ -86,16 +87,15 @@ static int do_readahead(journal_t *journal, unsigned int start)
 	nbufs = 0;
 	
 	for (next = start; next < max; next++) {
-		blocknr = journal_bmap(journal, next);
+		err = journal_bmap(journal, next, &blocknr);
 
-		if (!blocknr) {
+		if (err) {
 			printk (KERN_ERR "JBD: bad block at offset %u\n",
 				next);
-			err = -EIO;
 			goto failed;
 		}
 
-		bh = getblk(journal->j_dev, blocknr, journal->j_blocksize);
+		bh = __getblk(journal->j_dev, blocknr, journal->j_blocksize);
 		if (!bh) {
 			err = -ENOMEM;
 			goto failed;
@@ -132,22 +132,23 @@ failed:
 static int jread(struct buffer_head **bhp, journal_t *journal, 
 		 unsigned int offset)
 {
-	unsigned int blocknr;
+	int err;
+	unsigned long blocknr;
 	struct buffer_head *bh;
 
 	*bhp = NULL;
 
 	J_ASSERT (offset < journal->j_maxlen);
 	
-	blocknr = journal_bmap(journal, offset);
+	err = journal_bmap(journal, offset, &blocknr);
 
-	if (!blocknr) {
+	if (err) {
 		printk (KERN_ERR "JBD: bad block at offset %u\n",
 			offset);
-		return -EIO;
+		return err;
 	}
 
-	bh = getblk(journal->j_dev, blocknr, journal->j_blocksize);
+	bh = __getblk(journal->j_dev, blocknr, journal->j_blocksize);
 	if (!bh)
 		return -ENOMEM;
 
@@ -459,8 +460,9 @@ static int do_one_pass(journal_t *journal,
 								
 					/* Find a buffer for the new
 					 * data being restored */
-					nbh = getblk(journal->j_fs_dev, blocknr,
-						     journal->j_blocksize);
+					nbh = __getblk(journal->j_fs_dev,
+							blocknr,
+							journal->j_blocksize);
 					if (nbh == NULL) {
 						printk(KERN_ERR 
 						       "JBD: Out of memory "
@@ -471,6 +473,7 @@ static int do_one_pass(journal_t *journal,
 						goto failed;
 					}
 
+					lock_buffer(nbh);
 					memcpy(nbh->b_data, obh->b_data,
 							journal->j_blocksize);
 					if (flags & JFS_FLAG_ESCAPE) {
@@ -484,6 +487,7 @@ static int do_one_pass(journal_t *journal,
 					mark_buffer_uptodate(nbh, 1);
 					++info->nr_replays;
 					/* ll_rw_block(WRITE, 1, &nbh); */
+					unlock_buffer(nbh);
 					brelse(obh);
 					brelse(nbh);
 				}

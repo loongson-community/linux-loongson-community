@@ -41,7 +41,7 @@ ip27prom_console_write(struct console *con, const char *s, unsigned n)
 static kdev_t 
 ip27prom_console_dev(struct console *c)
 {
-	return MKDEV(TTY_MAJOR, 64 + c->index);
+	return mk_kdev(TTY_MAJOR, 64 + c->index);
 }
 
 static struct console ip27_prom_console = {

@@ -15,6 +15,7 @@
 #include <linux/sunrpc/auth.h>
 #include <linux/sunrpc/stats.h>
 #include <linux/sunrpc/xdr.h>
+#include <asm/signal.h>
 
 /*
  * This defines an RPC port mapping
@@ -136,7 +137,6 @@ rpc_set_timeout(struct rpc_clnt *clnt, unsigned int retr, unsigned long incr)
 	xprt_set_timeout(&clnt->cl_timeout, retr, incr);
 }
 
-extern void rpciod_tcp_dispatcher(void);
 extern void rpciod_wake_up(void);
 
 /*

@@ -1058,21 +1058,6 @@ int journal_dirty_data (handle_t *handle, struct buffer_head *bh, int async)
 		JBUFFER_TRACE(jh, "not on a transaction");
 		__journal_file_buffer(jh, handle->h_transaction, wanted_jlist);
 	}
-	/*
-	 * We need to mark the buffer dirty and refile it inside the lock to
-	 * protect it from release by journal_try_to_free_buffer()
-	 *
-	 * We set ->b_flushtime to something small enough to typically keep
-	 * kupdate away from the buffer.
-	 *
-	 * We don't need to do a balance_dirty() - __block_commit_write()
-	 * does that.
-	 */
-	if (!async && !atomic_set_buffer_dirty(jh2bh(jh))) {
-		jh2bh(jh)->b_flushtime =
-			jiffies + journal->j_commit_interval + 1 * HZ;
-		refile_buffer(jh2bh(jh));
-	}
 no_journal:
 	spin_unlock(&journal_datalist_lock);
 	if (need_brelse) {
@@ -1391,9 +1376,7 @@ int journal_stop(handle_t *handle)
 	if (handle->h_sync) {
 		do {
 			old_handle_count = transaction->t_handle_count;
-			set_current_state(TASK_RUNNING);
-			current->policy |= SCHED_YIELD;
-			schedule();
+			yield();
 		} while (old_handle_count != transaction->t_handle_count);
 	}
 
@@ -1604,8 +1587,6 @@ static int __journal_try_to_free_buffer(struct buffer_head *bh,
 
 	assert_spin_locked(&journal_datalist_lock);
 
-	if (!buffer_jbd(bh))
-		return 1;
 	jh = bh2jh(bh);
 
 	if (buffer_locked(bh) || buffer_dirty(bh)) {
@@ -1883,6 +1864,7 @@ zap_buffer:
 	clear_bit(BH_Mapped, &bh->b_state);
 	clear_bit(BH_Req, &bh->b_state);
 	clear_bit(BH_New, &bh->b_state);
+	bh->b_bdev = NULL;
 	return may_free;
 }
 

@@ -112,7 +112,6 @@
 #include <linux/kerneld.h>
 #endif
 
-#include <asm/segment.h>
 #define GET_USER(error,value,addr) error = get_user(value,addr)
 #define COPY_FROM_USER(error,dest,src,size) error = copy_from_user(dest,src,size) ? -EFAULT : 0
 #define PUT_USER(error,value,addr) error = put_user(value,addr)
@@ -328,7 +327,7 @@ static int n_hdlc_tty_open (struct tty_struct *tty)
 	if (debuglevel >= DEBUG_LEVEL_INFO)	
 		printk("%s(%d)n_hdlc_tty_open() called (major=%u,minor=%u)\n",
 		__FILE__,__LINE__,
-		MAJOR(tty->device), MINOR(tty->device));
+		major(tty->device), minor(tty->device));
 		
 	/* There should not be an existing table for this slot. */
 	if (n_hdlc) {

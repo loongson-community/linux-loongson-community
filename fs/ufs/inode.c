@@ -310,22 +310,16 @@ out:
 
 static int ufs_getfrag_block (struct inode *inode, sector_t fragment, struct buffer_head *bh_result, int create)
 {
-	struct super_block * sb;
-	struct ufs_sb_private_info * uspi;
+	struct super_block * sb = inode->i_sb;
+	struct ufs_sb_private_info * uspi = sb->u.ufs_sb.s_uspi;
 	struct buffer_head * bh;
 	int ret, err, new;
 	unsigned long ptr, phys;
 	
-	sb = inode->i_sb;
-	uspi = sb->u.ufs_sb.s_uspi;
-
 	if (!create) {
 		phys = ufs_frag_map(inode, fragment);
-		if (phys) {
-			bh_result->b_dev = inode->i_dev;
-			bh_result->b_blocknr = phys;
-			bh_result->b_state |= (1UL << BH_Mapped);
-		}
+		if (phys)
+			map_bh(bh_result, sb, phys);
 		return 0;
 	}
 
@@ -392,11 +386,9 @@ get_indirect:
 out:
 	if (err)
 		goto abort;
-	bh_result->b_dev = inode->i_dev;
-	bh_result->b_blocknr = phys;
-	bh_result->b_state |= (1UL << BH_Mapped);
 	if (new)
 		bh_result->b_state |= (1UL << BH_New);
+	map_bh(bh_result, sb, phys);
 abort:
 	unlock_kernel();
 	return err;
@@ -494,13 +486,13 @@ void ufs_read_inode (struct inode * inode)
 	if (inode->i_ino < UFS_ROOTINO || 
 	    inode->i_ino > (uspi->s_ncg * uspi->s_ipg)) {
 		ufs_warning (sb, "ufs_read_inode", "bad inode number (%lu)\n", inode->i_ino);
-		return;
+		goto bad_inode;
 	}
 	
 	bh = sb_bread(sb, uspi->s_sbbase + ufs_inotofsba(inode->i_ino));
 	if (!bh) {
 		ufs_warning (sb, "ufs_read_inode", "unable to read inode %lu\n", inode->i_ino);
-		return;
+		goto bad_inode;
 	}
 	ufs_inode = (struct ufs_inode *) (bh->b_data + sizeof(struct ufs_inode) * ufs_inotofsbo(inode->i_ino));
 
@@ -565,6 +557,11 @@ void ufs_read_inode (struct inode * inode)
 	brelse (bh);
 
 	UFSD(("EXIT\n"))
+	return;
+
+bad_inode:
+	make_bad_inode(inode);
+	return;
 }
 
 static int ufs_update_inode(struct inode * inode, int do_sync)

@@ -397,16 +397,16 @@ static struct usb_serial	*serial_table[SERIAL_TTY_MINORS];	/* initially all NULL
 static LIST_HEAD(usb_serial_driver_list);
 
 
-static struct usb_serial *get_serial_by_minor (int minor)
+static struct usb_serial *get_serial_by_minor (unsigned int minor)
 {
 	return serial_table[minor];
 }
 
 
-static struct usb_serial *get_free_serial (int num_ports, int *minor)
+static struct usb_serial *get_free_serial (int num_ports, unsigned int *minor)
 {
 	struct usb_serial *serial = NULL;
-	int i, j;
+	unsigned int i, j;
 	int good_spot;
 
 	dbg(__FUNCTION__ " %d", num_ports);
@@ -505,7 +505,8 @@ static int serial_open (struct tty_struct *tty, struct file * filp)
 {
 	struct usb_serial *serial;
 	struct usb_serial_port *port;
-	int portNumber;
+	unsigned int portNumber;
+	int retval;
 	
 	dbg(__FUNCTION__);
 
@@ -513,24 +514,30 @@ static int serial_open (struct tty_struct *tty, struct file * filp)
 	tty->driver_data = NULL;
 
 	/* get the serial object associated with this tty pointer */
-	serial = get_serial_by_minor (MINOR(tty->device));
+	serial = get_serial_by_minor (minor(tty->device));
 
 	if (serial_paranoia_check (serial, __FUNCTION__)) {
 		return -ENODEV;
 	}
 
 	/* set up our port structure making the tty driver remember our port object, and us it */
-	portNumber = MINOR(tty->device) - serial->minor;
+	portNumber = minor(tty->device) - serial->minor;
 	port = &serial->port[portNumber];
 	tty->driver_data = port;
 	port->tty = tty;
 	 
 	/* pass on to the driver specific version of this function if it is available */
 	if (serial->type->open) {
-		return (serial->type->open(port, filp));
+		if (serial->type->owner)
+			__MOD_INC_USE_COUNT(serial->type->owner);
+		retval = serial->type->open(port, filp);
+		if (retval)
+			__MOD_DEC_USE_COUNT(serial->type->owner);
 	} else {
-		return (generic_open(port, filp));
+		retval = generic_open(port, filp);
 	}
+
+	return retval;
 }
 
 
@@ -553,6 +560,8 @@ static void serial_close(struct tty_struct *tty, struct file * filp)
 	/* pass on to the driver specific version of this function if it is available */
 	if (serial->type->close) {
 		serial->type->close(port, filp);
+		if (serial->type->owner)
+			__MOD_DEC_USE_COUNT(serial->type->owner);
 	} else {
 		generic_close(port, filp);
 	}
@@ -1059,6 +1068,7 @@ static void * usb_serial_probe(struct usb_device *dev, unsigned int ifnum,
 	struct usb_endpoint_descriptor *bulk_out_endpoint[MAX_NUM_PORTS];
 	struct usb_serial_device_type *type = NULL;
 	struct list_head *tmp;
+	int retval;
 	int found;
 	int minor;
 	int buffer_size;
@@ -1180,9 +1190,13 @@ static void * usb_serial_probe(struct usb_device *dev, unsigned int ifnum,
 
 	/* if this device type has a startup function, call it */
 	if (type->startup) {
-		if (type->startup (serial)) {
+		if (type->owner)
+			__MOD_INC_USE_COUNT(type->owner);
+		retval = type->startup (serial);
+		if (type->owner)
+			__MOD_DEC_USE_COUNT(type->owner);
+		if (retval)
 			goto probe_error;
-		}
 	}
 
 	/* set up the endpoint information */

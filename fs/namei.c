@@ -99,16 +99,17 @@
  * kernel data space before using them..
  *
  * POSIX.1 2.4: an empty pathname is invalid (ENOENT).
+ * PATH_MAX includes the nul terminator --RR.
  */
 static inline int do_getname(const char *filename, char *page)
 {
 	int retval;
-	unsigned long len = PATH_MAX + 1;
+	unsigned long len = PATH_MAX;
 
 	if ((unsigned long) filename >= TASK_SIZE) {
 		if (!segment_eq(get_fs(), KERNEL_DS))
 			return -EFAULT;
-	} else if (TASK_SIZE - (unsigned long) filename < PATH_MAX + 1)
+	} else if (TASK_SIZE - (unsigned long) filename < PATH_MAX)
 		len = TASK_SIZE - (unsigned long) filename;
 
 	retval = strncpy_from_user((char *)page, filename, len);
@@ -1589,7 +1590,7 @@ int vfs_link(struct dentry *old_dentry, struct inode *dir, struct dentry *new_de
 		goto exit_lock;
 
 	error = -EXDEV;
-	if (dir->i_dev != inode->i_dev)
+	if (dir->i_sb != inode->i_sb)
 		goto exit_lock;
 
 	/*
@@ -1707,7 +1708,7 @@ int vfs_rename_dir(struct inode *old_dir, struct dentry *old_dentry,
 	if (error)
 		return error;
 
-	if (new_dir->i_dev != old_dir->i_dev)
+	if (new_dir->i_sb != old_dir->i_sb)
 		return -EXDEV;
 
 	if (!new_dentry->d_inode)
@@ -1787,7 +1788,7 @@ int vfs_rename_other(struct inode *old_dir, struct dentry *old_dentry,
 	if (error)
 		return error;
 
-	if (new_dir->i_dev != old_dir->i_dev)
+	if (new_dir->i_sb != old_dir->i_sb)
 		return -EXDEV;
 
 	if (!new_dentry->d_inode)

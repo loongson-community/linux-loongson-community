@@ -14,6 +14,7 @@
 #include <linux/config.h>
 #include <linux/cache.h>
 #include <asm/isadep.h>
+#include <asm/page.h>
 
 /*
  * Default implementation of macro that returns current

@@ -203,13 +203,13 @@ void ufs_error (struct super_block * sb, const char * function,
 	switch (sb->u.ufs_sb.s_mount_opt & UFS_MOUNT_ONERROR) {
 	case UFS_MOUNT_ONERROR_PANIC:
 		panic ("UFS-fs panic (device %s): %s: %s\n", 
-			kdevname(sb->s_dev), function, error_buf);
+			sb->s_id, function, error_buf);
 
 	case UFS_MOUNT_ONERROR_LOCK:
 	case UFS_MOUNT_ONERROR_UMOUNT:
 	case UFS_MOUNT_ONERROR_REPAIR:
 		printk (KERN_CRIT "UFS-fs error (device %s): %s: %s\n",
-			kdevname(sb->s_dev), function, error_buf);
+			sb->s_id, function, error_buf);
 	}		
 }
 
@@ -233,7 +233,7 @@ void ufs_panic (struct super_block * sb, const char * function,
 	va_end (args);
 	sb->s_flags |= MS_RDONLY;
 	printk (KERN_CRIT "UFS-fs panic (device %s): %s: %s\n",
-		kdevname(sb->s_dev), function, error_buf);
+		sb->s_id, function, error_buf);
 }
 
 void ufs_warning (struct super_block * sb, const char * function,
@@ -245,7 +245,7 @@ void ufs_warning (struct super_block * sb, const char * function,
 	vsprintf (error_buf, fmt, args);
 	va_end (args);
 	printk (KERN_WARNING "UFS-fs warning (device %s): %s: %s\n",
-		kdevname(sb->s_dev), function, error_buf);
+		sb->s_id, function, error_buf);
 }
 
 static int ufs_parse_options (char * options, unsigned * mount_options)
@@ -442,6 +442,7 @@ struct super_block * ufs_read_super (struct super_block * sb, void * data,
 	struct ufs_super_block_second * usb2;
 	struct ufs_super_block_third * usb3;
 	struct ufs_buffer_head * ubh;	
+	struct inode *inode;
 	unsigned block_size, super_block_size;
 	unsigned flags;
 
@@ -596,8 +597,7 @@ struct super_block * ufs_read_super (struct super_block * sb, void * data,
 	}
 	
 again:	
-	set_blocksize (sb->s_dev, block_size);
-	sb->s_blocksize = block_size;
+	sb_set_blocksize(sb, block_size);
 
 	/*
 	 * read ufs super block from device
@@ -716,8 +716,6 @@ magic_found:
 	/*
 	 * Read ufs_super_block into internal data structures
 	 */
-	sb->s_blocksize = fs32_to_cpu(sb, usb1->fs_fsize);
-	sb->s_blocksize_bits = fs32_to_cpu(sb, usb1->fs_fshift);
 	sb->s_op = &ufs_super_ops;
 	sb->dq_op = NULL; /***/
 	sb->s_magic = fs32_to_cpu(sb, usb3->fs_magic);
@@ -790,7 +788,13 @@ magic_found:
 		    fs32_to_cpu(sb, usb3->fs_u2.fs_44.fs_maxsymlinklen);
 	
 	sb->u.ufs_sb.s_flags = flags;
-	sb->s_root = d_alloc_root(iget(sb, UFS_ROOTINO));
+
+	inode = iget(sb, UFS_ROOTINO);
+	if (!inode || is_bad_inode(inode))
+		goto failed;
+	sb->s_root = d_alloc_root(inode);
+	if (!sb->s_root)
+		goto dalloc_failed;
 
 
 	/*
@@ -803,6 +807,8 @@ magic_found:
 	UFSD(("EXIT\n"))
 	return(sb);
 
+dalloc_failed:
+	iput(inode);
 failed:
 	if (ubh) ubh_brelse_uspi (uspi);
 	if (uspi) kfree (uspi);

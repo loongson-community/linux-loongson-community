@@ -35,13 +35,12 @@ void dump_imap(const char *prefix, struct super_block * s);
 static void bfs_read_inode(struct inode * inode)
 {
 	unsigned long ino = inode->i_ino;
-	kdev_t dev = inode->i_dev;
 	struct bfs_inode * di;
 	struct buffer_head * bh;
 	int block, off;
 
 	if (ino < BFS_ROOT_INO || ino > inode->i_sb->su_lasti) {
-		printf("Bad inode number %s:%08lx\n", bdevname(dev), ino);
+		printf("Bad inode number %s:%08lx\n", inode->i_sb->s_id, ino);
 		make_bad_inode(inode);
 		return;
 	}
@@ -49,7 +48,7 @@ static void bfs_read_inode(struct inode * inode)
 	block = (ino - BFS_ROOT_INO)/BFS_INODES_PER_BLOCK + 1;
 	bh = sb_bread(inode->i_sb, block);
 	if (!bh) {
-		printf("Unable to read inode %s:%08lx\n", bdevname(dev), ino);
+		printf("Unable to read inode %s:%08lx\n", inode->i_sb->s_id, ino);
 		make_bad_inode(inode);
 		return;
 	}
@@ -88,13 +87,12 @@ static void bfs_read_inode(struct inode * inode)
 static void bfs_write_inode(struct inode * inode, int unused)
 {
 	unsigned long ino = inode->i_ino;
-	kdev_t dev = inode->i_dev;
 	struct bfs_inode * di;
 	struct buffer_head * bh;
 	int block, off;
 
 	if (ino < BFS_ROOT_INO || ino > inode->i_sb->su_lasti) {
-		printf("Bad inode number %s:%08lx\n", bdevname(dev), ino);
+		printf("Bad inode number %s:%08lx\n", inode->i_sb->s_id, ino);
 		return;
 	}
 
@@ -102,7 +100,7 @@ static void bfs_write_inode(struct inode * inode, int unused)
 	block = (ino - BFS_ROOT_INO)/BFS_INODES_PER_BLOCK + 1;
 	bh = sb_bread(inode->i_sb, block);
 	if (!bh) {
-		printf("Unable to read inode %s:%08lx\n", bdevname(dev), ino);
+		printf("Unable to read inode %s:%08lx\n", inode->i_sb->s_id, ino);
 		unlock_kernel();
 		return;
 	}
@@ -135,7 +133,6 @@ static void bfs_write_inode(struct inode * inode, int unused)
 static void bfs_delete_inode(struct inode * inode)
 {
 	unsigned long ino = inode->i_ino;
-	kdev_t dev = inode->i_dev;
 	struct bfs_inode * di;
 	struct buffer_head * bh;
 	int block, off;
@@ -155,7 +152,7 @@ static void bfs_delete_inode(struct inode * inode)
 	block = (ino - BFS_ROOT_INO)/BFS_INODES_PER_BLOCK + 1;
 	bh = sb_bread(s, block);
 	if (!bh) {
-		printf("Unable to read inode %s:%08lx\n", bdevname(dev), ino);
+		printf("Unable to read inode %s:%08lx\n", inode->i_sb->s_id, ino);
 		unlock_kernel();
 		return;
 	}
@@ -241,16 +238,12 @@ void dump_imap(const char *prefix, struct super_block * s)
 static struct super_block * bfs_read_super(struct super_block * s, 
 	void * data, int silent)
 {
-	kdev_t dev;
 	struct buffer_head * bh;
 	struct bfs_super_block * bfs_sb;
 	struct inode * inode;
 	int i, imap_len;
 
-	dev = s->s_dev;
-	set_blocksize(dev, BFS_BSIZE);
-	s->s_blocksize = BFS_BSIZE;
-	s->s_blocksize_bits = BFS_BSIZE_BITS;
+	sb_set_blocksize(s, BFS_BSIZE);
 
 	bh = sb_bread(s, 0);
 	if(!bh)
@@ -259,11 +252,11 @@ static struct super_block * bfs_read_super(struct super_block * s,
 	if (bfs_sb->s_magic != BFS_MAGIC) {
 		if (!silent)
 			printf("No BFS filesystem on %s (magic=%08x)\n", 
-				bdevname(dev), bfs_sb->s_magic);
+				s->s_id, bfs_sb->s_magic);
 		goto out;
 	}
 	if (BFS_UNCLEAN(bfs_sb, s) && !silent)
-		printf("%s is unclean, continuing\n", bdevname(dev));
+		printf("%s is unclean, continuing\n", s->s_id);
 
 	s->s_magic = BFS_MAGIC;
 	s->su_bfs_sb = bfs_sb;

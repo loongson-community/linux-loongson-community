@@ -469,7 +469,6 @@ static unsigned int isofs_get_last_session(struct super_block *sb,s32 session )
 static struct super_block *isofs_read_super(struct super_block *s, void *data,
 					    int silent)
 {
-	kdev_t				dev = s->s_dev;
 	struct buffer_head	      * bh = NULL, *pri_bh = NULL;
 	struct hs_primary_descriptor  * h_pri = NULL;
 	struct iso_primary_descriptor * pri = NULL;
@@ -480,7 +479,6 @@ static struct super_block *isofs_read_super(struct super_block *s, void *data,
 	int				iso_blknum, block;
 	int				orig_zonesize;
 	int				table;
-	unsigned int			blocksize, blocksize_bits;
 	unsigned int			vol_desc_start;
 	unsigned long			first_data_zone;
 	struct inode		      * inode;
@@ -508,26 +506,10 @@ static struct super_block *isofs_read_super(struct super_block *s, void *data,
 	 * larger than the blocksize the user specified, then use
 	 * that value.
 	 */
-	blocksize = get_hardsect_size(dev);
-	if(blocksize > opt.blocksize) {
-	    /*
-	     * Force the blocksize we are going to use to be the
-	     * hardware blocksize.
-	     */
-	    opt.blocksize = blocksize;
-	}
-
-	blocksize_bits = 0;
-	{
-	  int i = opt.blocksize;
-	  while (i != 1){
-	    blocksize_bits++;
-	    i >>=1;
-	  }
-	}
-
-	set_blocksize(dev, opt.blocksize);
-	s->s_blocksize = opt.blocksize;
+	/*
+	 * What if bugger tells us to go beyond page size?
+	 */
+	opt.blocksize = sb_min_blocksize(s, opt.blocksize);
 
 	s->u.isofs_sb.s_high_sierra = high_sierra = 0; /* default is iso9660 */
 
@@ -540,7 +522,7 @@ static struct super_block *isofs_read_super(struct super_block *s, void *data,
 	    struct hs_volume_descriptor   * hdp;
 	    struct iso_volume_descriptor  * vdp;
 
-	    block = iso_blknum << (ISOFS_BLOCK_BITS-blocksize_bits);
+	    block = iso_blknum << (ISOFS_BLOCK_BITS - s->s_blocksize_bits);
 	    if (!(bh = sb_bread(s, block)))
 		goto out_no_read;
 
@@ -651,7 +633,7 @@ root_found:
 	 * blocks that were 512 bytes (which should only very rarely
 	 * happen.)
 	 */
-	if(blocksize != 0 && orig_zonesize < blocksize)
+	if(orig_zonesize < opt.blocksize)
 		goto out_bad_size;
 
 	/* RDE: convert log zone size to bit shift */
@@ -734,15 +716,7 @@ root_found:
 	 * entries.  By forcing the blocksize in this way, we ensure
 	 * that we will never be required to do this.
 	 */
-	if ( orig_zonesize != opt.blocksize ) {
-		set_blocksize(dev, orig_zonesize);
-#ifndef BEQUIET
-		printk(KERN_DEBUG 
-			"ISOFS: Forcing new log zone size:%d\n", orig_zonesize);
-#endif
-	}
-	s->s_blocksize = orig_zonesize;
-	s->s_blocksize_bits = s -> u.isofs_sb.s_log_zone_size;
+	sb_set_blocksize(s, orig_zonesize);
 
 	s->u.isofs_sb.s_nls_iocharset = NULL;
 
@@ -845,7 +819,7 @@ out_iput:
 out_no_read:
 	printk(KERN_WARNING "isofs_read_super: "
 		"bread failed, dev=%s, iso_blknum=%d, block=%d\n",
-		kdevname(dev), iso_blknum, block);
+		s->s_id, iso_blknum, block);
 	goto out_unlock;
 out_bad_zone_size:
 	printk(KERN_WARNING "Bad logical zone size %ld\n",
@@ -853,7 +827,7 @@ out_bad_zone_size:
 	goto out_freebh;
 out_bad_size:
 	printk(KERN_WARNING "Logical zone size(%d) < hardware blocksize(%u)\n",
-		orig_zonesize, blocksize);
+		orig_zonesize, opt.blocksize);
 	goto out_freebh;
 #ifndef IGNORE_WRONG_MULTI_VOLUME_SPECS
 out_no_support:
@@ -890,7 +864,7 @@ static int isofs_statfs (struct super_block *sb, struct statfs *buf)
  * (0 == error.)
  */
 int isofs_get_blocks(struct inode *inode, sector_t iblock,
-		     struct buffer_head **bh_result, unsigned long nblocks)
+		     struct buffer_head **bh, unsigned long nblocks)
 {
 	unsigned long b_off;
 	unsigned offset, sect_size;
@@ -952,16 +926,14 @@ int isofs_get_blocks(struct inode *inode, sector_t iblock,
 			}
 		}
 		
-		if ( *bh_result ) {
-			(*bh_result)->b_dev      = inode->i_dev;
-			(*bh_result)->b_blocknr  = firstext + b_off - offset;
-			(*bh_result)->b_state   |= (1UL << BH_Mapped);
+		if ( *bh ) {
+			map_bh(*bh, inode->i_sb, firstext + b_off - offset);
 		} else {
-			*bh_result = sb_getblk(inode->i_sb, firstext+b_off-offset);
-			if ( !*bh_result )
+			*bh = sb_getblk(inode->i_sb, firstext+b_off-offset);
+			if ( !*bh )
 				goto abort;
 		}
-		bh_result++;	/* Next buffer head */
+		bh++;	/* Next buffer head */
 		b_off++;	/* Next buffer offset */
 		nblocks--;
 		rv++;

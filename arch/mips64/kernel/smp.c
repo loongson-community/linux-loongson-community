@@ -17,6 +17,7 @@
 #include <linux/time.h>
 #include <linux/timex.h>
 #include <linux/sched.h>
+#include <linux/cache.h>
 
 #include <asm/atomic.h>
 #include <asm/cpu.h>
@@ -28,7 +29,7 @@
 #include <asm/irq.h>
 
 /* The 'big kernel lock' */
-static spinlock_t kernel_flag = SPIN_LOCK_UNLOCKED;
+static spinlock_t kernel_flag __cacheline_aligned_in_smp = SPIN_LOCK_UNLOCKED;
 int smp_threads_ready;	/* Not used */
 atomic_t smp_commenced = ATOMIC_INIT(0);
 struct cpuinfo_mips cpu_data[NR_CPUS];
@@ -81,7 +82,6 @@ void __init smp_boot_cpus(void)
 
 	set_context(0);
 	init_new_context(current, &init_mm);
-	current->processor = 0;
 	init_idle();
 	smp_tune_scheduling();
 	allowboot();

@@ -335,9 +335,12 @@ int proc_pid_stat(struct task_struct *task, char * buffer)
 
 	/* scale priority and nice values from timeslices to -20..20 */
 	/* to make it look like a "normal" Unix priority/nice value  */
-	priority = task->counter;
-	priority = 20 - (priority * 10 + DEF_COUNTER / 2) / DEF_COUNTER;
-	nice = task->nice;
+	priority = task->prio;
+	if (priority >= MAX_RT_PRIO)
+		priority -= MAX_RT_PRIO;
+	else
+		priority = priority-100;
+	nice = task->__nice;
 
 	read_lock(&tasklist_lock);
 	ppid = task->pid ? task->p_opptr->pid : 0;
@@ -387,7 +390,7 @@ int proc_pid_stat(struct task_struct *task, char * buffer)
 		task->nswap,
 		task->cnswap,
 		task->exit_signal,
-		task->processor);
+		task->cpu);
 	if(mm)
 		mmput(mm);
 	return res;
@@ -556,7 +559,7 @@ static int proc_pid_maps_get_line (char *buf, struct vm_area_struct *map)
 	str[3] = flags & VM_MAYSHARE ? 's' : 'p';
 	str[4] = 0;
 
-	dev = 0;
+	dev = NODEV;
 	ino = 0;
 	if (map->vm_file != NULL) {
 		dev = map->vm_file->f_dentry->d_inode->i_dev;

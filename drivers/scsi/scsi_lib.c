@@ -17,7 +17,6 @@
  * go through and retrofit queueing functions into all 30 some-odd drivers.
  */
 
-#define __NO_VERSION__
 #include <linux/module.h>
 
 #include <linux/sched.h>
@@ -83,7 +82,6 @@ static void __scsi_insert_special(request_queue_t *q, struct request *rq,
 	rq->q = NULL;
 	rq->bio = rq->biotail = NULL;
 	rq->nr_phys_segments = 0;
-	rq->elevator_sequence = 0;
 
 	/*
 	 * We have the option of inserting the head or the tail of the queue.
@@ -92,7 +90,7 @@ static void __scsi_insert_special(request_queue_t *q, struct request *rq,
 	 * device, or a host that is unable to accept a particular command.
 	 */
 	spin_lock_irqsave(q->queue_lock, flags);
-	__elv_add_request(q, rq, !at_head, 0);
+	_elv_add_request(q, rq, !at_head, 0);
 	q->request_fn(q);
 	spin_unlock_irqrestore(q->queue_lock, flags);
 }
@@ -262,7 +260,7 @@ void scsi_queue_next_request(request_queue_t * q, Scsi_Cmnd * SCpnt)
 		 * the bad sector.
 		 */
 		SCpnt->request.special = (void *) SCpnt;
-		__elv_add_request(q, &SCpnt->request, 0, 0);
+		_elv_add_request(q, &SCpnt->request, 0, 0);
 	}
 
 	/*
@@ -366,7 +364,7 @@ static Scsi_Cmnd *__scsi_end_request(Scsi_Cmnd * SCpnt,
 	 * If there are blocks left over at the end, set up the command
 	 * to queue the remainder of them.
 	 */
-	if (end_that_request_first(req, 1, sectors)) {
+	if (end_that_request_first(req, uptodate, sectors)) {
 		if (!requeue)
 			return SCpnt;
 
@@ -385,7 +383,7 @@ static Scsi_Cmnd *__scsi_end_request(Scsi_Cmnd * SCpnt,
 	if (req->waiting)
 		complete(req->waiting);
 
-	add_blkdev_randomness(MAJOR(req->rq_dev));
+	add_blkdev_randomness(major(req->rq_dev));
 
 	/*
 	 * This will goose the queue request function at the end, so we don't
@@ -445,7 +443,7 @@ static void scsi_release_buffers(Scsi_Cmnd * SCpnt)
 {
 	struct request *req = &SCpnt->request;
 
-	ASSERT_LOCK(&SCpnt->host->host_lock, 0);
+	ASSERT_LOCK(SCpnt->host->host_lock, 0);
 
 	/*
 	 * Free up any indirection buffers we allocated for DMA purposes. 
@@ -744,7 +742,7 @@ struct Scsi_Device_Template *scsi_get_request_dev(struct request *req)
 {
 	struct Scsi_Device_Template *spnt;
 	kdev_t dev = req->rq_dev;
-	int major = MAJOR(dev);
+	int major = major(dev);
 
 	for (spnt = scsi_devicelist; spnt; spnt = spnt->next) {
 		/*

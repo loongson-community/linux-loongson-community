@@ -245,6 +245,7 @@ struct buffer_head {
 	unsigned short b_size;		/* block size */
 	unsigned short b_list;		/* List that this buffer appears */
 	kdev_t b_dev;			/* device (B_FREE = free) */
+	struct block_device *b_bdev;
 
 	atomic_t b_count;		/* users using this block */
 	unsigned long b_state;		/* buffer state bitmap (see above) */
@@ -311,7 +312,6 @@ extern void set_bh_page(struct buffer_head *bh, struct page *page, unsigned long
 #include <linux/udf_fs_i.h>
 #include <linux/ncp_fs_i.h>
 #include <linux/proc_fs_i.h>
-#include <linux/usbdev_fs_i.h>
 #include <linux/jffs2_fs_i.h>
 #include <linux/cramfs_fs_sb.h>
 
@@ -502,7 +502,6 @@ struct inode {
 		struct ncp_inode_info		ncpfs_i;
 		struct proc_inode_info		proc_i;
 		struct socket			socket_i;
-		struct usbdev_inode_info        usbdev_i;
 		struct jffs2_inode_info		jffs2_i;
 		void				*generic_ip;
 	} u;
@@ -686,7 +685,6 @@ struct quota_mount_options
 #include <linux/bfs_fs_sb.h>
 #include <linux/udf_fs_sb.h>
 #include <linux/ncp_fs_sb.h>
-#include <linux/usbdev_fs_sb.h>
 #include <linux/cramfs_fs_sb.h>
 #include <linux/jffs2_fs_sb.h>
 
@@ -721,6 +719,8 @@ struct super_block {
 	struct list_head	s_instances;
 	struct quota_mount_options s_dquot;	/* Diskquota specific options */
 
+	char s_id[32];				/* Informational name */
+
 	union {
 		struct minix_sb_info	minix_sb;
 		struct ext2_sb_info	ext2_sb;
@@ -744,7 +744,6 @@ struct super_block {
 		struct bfs_sb_info	bfs_sb;
 		struct udf_sb_info	udf_sb;
 		struct ncp_sb_info	ncpfs_sb;
-		struct usbdev_sb_info   usbdevfs_sb;
 		struct jffs2_sb_info	jffs2_sb;
 		struct cramfs_sb_info	cramfs_sb;
 		void			*generic_sbp;
@@ -982,6 +981,7 @@ extern int unregister_filesystem(struct file_system_type *);
 extern struct vfsmount *kern_mount(struct file_system_type *);
 extern int may_umount(struct vfsmount *);
 extern long do_mount(char *, char *, char *, unsigned long, void *);
+extern void umount_tree(struct vfsmount *);
 
 #define kern_umount mntput
 
@@ -1102,7 +1102,7 @@ extern int fs_may_remount_ro(struct super_block *);
 
 extern int try_to_free_buffers(struct page *, unsigned int);
 extern void refile_buffer(struct buffer_head * buf);
-extern void create_empty_buffers(struct page *, kdev_t, unsigned long);
+extern void create_empty_buffers(struct page *, unsigned long);
 extern void end_buffer_io_sync(struct buffer_head *bh, int uptodate);
 
 /* reiserfs_writepage needs this */
@@ -1217,7 +1217,7 @@ extern int sync_buffers(kdev_t, int);
 extern void sync_dev(kdev_t);
 extern int fsync_dev(kdev_t);
 extern int fsync_super(struct super_block *);
-extern int fsync_no_super(kdev_t);
+extern int fsync_no_super(struct block_device *);
 extern void sync_inodes_sb(struct super_block *);
 extern int osync_inode_buffers(struct inode *);
 extern int osync_inode_data_buffers(struct inode *);
@@ -1358,8 +1358,34 @@ extern void insert_inode_hash(struct inode *);
 extern void remove_inode_hash(struct inode *);
 extern struct file * get_empty_filp(void);
 extern void file_move(struct file *f, struct list_head *list);
-extern struct buffer_head * get_hash_table(kdev_t, sector_t, int);
-extern struct buffer_head * getblk(kdev_t, sector_t, int);
+extern struct buffer_head * __get_hash_table(struct block_device *, sector_t, int);
+static inline struct buffer_head * get_hash_table(kdev_t dev, sector_t block, int size)
+{
+	struct block_device *bdev;
+	struct buffer_head *bh;
+	bdev = bdget(kdev_t_to_nr(dev));
+	if (!bdev) {
+		printk("No block device for %s\n", bdevname(dev));
+		BUG();
+	}
+	bh = __get_hash_table(bdev, block, size);
+	atomic_dec(&bdev->bd_count);
+	return bh;
+}
+extern struct buffer_head * __getblk(struct block_device *, sector_t, int);
+static inline struct buffer_head * getblk(kdev_t dev, sector_t block, int size)
+{
+	struct block_device *bdev;
+	struct buffer_head *bh;
+	bdev = bdget(kdev_t_to_nr(dev));
+	if (!bdev) {
+		printk("No block device for %s\n", bdevname(dev));
+		BUG();
+	}
+	bh = __getblk(bdev, block, size);
+	atomic_dec(&bdev->bd_count);
+	return bh;
+}
 extern void ll_rw_block(int, int, struct buffer_head * bh[]);
 extern int submit_bh(int, struct buffer_head *);
 struct bio;
@@ -1378,24 +1404,46 @@ static inline void bforget(struct buffer_head *buf)
 		__bforget(buf);
 }
 extern int set_blocksize(kdev_t, int);
-extern struct buffer_head * bread(kdev_t, int, int);
+extern int sb_set_blocksize(struct super_block *, int);
+extern int sb_min_blocksize(struct super_block *, int);
+extern struct buffer_head * __bread(struct block_device *, int, int);
+static inline struct buffer_head * bread(kdev_t dev, int block, int size)
+{
+	struct block_device *bdev;
+	struct buffer_head *bh;
+	bdev = bdget(kdev_t_to_nr(dev));
+	if (!bdev) {
+		printk("No block device for %s\n", bdevname(dev));
+		BUG();
+	}
+	bh = __bread(bdev, block, size);
+	atomic_dec(&bdev->bd_count);
+	return bh;
+}
 static inline struct buffer_head * sb_bread(struct super_block *sb, int block)
 {
-	return bread(sb->s_dev, block, sb->s_blocksize);
+	return __bread(sb->s_bdev, block, sb->s_blocksize);
 }
 static inline struct buffer_head * sb_getblk(struct super_block *sb, int block)
 {
-	return getblk(sb->s_dev, block, sb->s_blocksize);
+	return __getblk(sb->s_bdev, block, sb->s_blocksize);
 }
 static inline struct buffer_head * sb_get_hash_table(struct super_block *sb, int block)
 {
-	return get_hash_table(sb->s_dev, block, sb->s_blocksize);
+	return __get_hash_table(sb->s_bdev, block, sb->s_blocksize);
+}
+static inline void map_bh(struct buffer_head *bh, struct super_block *sb, int block)
+{
+	bh->b_state |= 1 << BH_Mapped;
+	bh->b_bdev = sb->s_bdev;
+	bh->b_dev = sb->s_dev;
+	bh->b_blocknr = block;
 }
 extern void wakeup_bdflush(void);
 extern void put_unused_buffer_head(struct buffer_head * bh);
 extern struct buffer_head * get_unused_buffer_head(int async);
 
-extern int brw_page(int, struct page *, kdev_t, sector_t [], int);
+extern int brw_page(int, struct page *, struct block_device *, sector_t [], int);
 
 typedef int (get_block_t)(struct inode*,sector_t,struct buffer_head*,int);
 

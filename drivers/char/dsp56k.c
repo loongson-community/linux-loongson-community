@@ -37,7 +37,6 @@
 #include <linux/devfs_fs_kernel.h>
 #include <linux/smp_lock.h>
 
-#include <asm/segment.h>
 #include <asm/atarihw.h>
 #include <asm/traps.h>
 #include <asm/uaccess.h>	/* For put_user and get_user */
@@ -208,7 +207,7 @@ static ssize_t dsp56k_read(struct file *file, char *buf, size_t count,
 			   loff_t *ppos)
 {
 	struct inode *inode = file->f_dentry->d_inode;
-	int dev = MINOR(inode->i_rdev) & 0x0f;
+	int dev = minor(inode->i_rdev) & 0x0f;
 
 	switch(dev)
 	{
@@ -271,7 +270,7 @@ static ssize_t dsp56k_write(struct file *file, const char *buf, size_t count,
 			    loff_t *ppos)
 {
 	struct inode *inode = file->f_dentry->d_inode;
-	int dev = MINOR(inode->i_rdev) & 0x0f;
+	int dev = minor(inode->i_rdev) & 0x0f;
 
 	switch(dev)
 	{
@@ -332,7 +331,7 @@ static ssize_t dsp56k_write(struct file *file, const char *buf, size_t count,
 static int dsp56k_ioctl(struct inode *inode, struct file *file,
 			unsigned int cmd, unsigned long arg)
 {
-	int dev = MINOR(inode->i_rdev) & 0x0f;
+	int dev = minor(inode->i_rdev) & 0x0f;
 
 	switch(dev)
 	{
@@ -425,7 +424,7 @@ static int dsp56k_ioctl(struct inode *inode, struct file *file,
 #if 0
 static unsigned int dsp56k_poll(struct file *file, poll_table *wait)
 {
-	int dev = MINOR(file->f_dentry->d_inode->i_rdev) & 0x0f;
+	int dev = minor(file->f_dentry->d_inode->i_rdev) & 0x0f;
 
 	switch(dev)
 	{
@@ -442,7 +441,7 @@ static unsigned int dsp56k_poll(struct file *file, poll_table *wait)
 
 static int dsp56k_open(struct inode *inode, struct file *file)
 {
-	int dev = MINOR(inode->i_rdev) & 0x0f;
+	int dev = minor(inode->i_rdev) & 0x0f;
 
 	switch(dev)
 	{
@@ -473,7 +472,7 @@ static int dsp56k_open(struct inode *inode, struct file *file)
 
 static int dsp56k_release(struct inode *inode, struct file *file)
 {
-	int dev = MINOR(inode->i_rdev) & 0x0f;
+	int dev = minor(inode->i_rdev) & 0x0f;
 
 	switch(dev)
 	{

@@ -50,7 +50,6 @@
 #include "scsi.h"
 #include "hosts.h"
 #include "sd.h"
-#include "ide-scsi.h"
 #include <scsi/sg.h>
 
 #define IDESCSI_DEBUG_LOG		0
@@ -293,9 +292,9 @@ static void idescsi_end_request (byte uptodate, ide_hwgroup_t *hwgroup)
 		}
 	}
 	host = pc->scsi_cmd->host;
-	spin_lock_irqsave(&host->host_lock, flags);
+	spin_lock_irqsave(host->host_lock, flags);
 	pc->done(pc->scsi_cmd);
-	spin_unlock_irqrestore(&host->host_lock, flags);
+	spin_unlock_irqrestore(host->host_lock, flags);
 	idescsi_free_bio (rq->bio);
 	kfree(pc); kfree(rq);
 	scsi->pc = NULL;
@@ -748,7 +747,7 @@ static inline int should_transform(ide_drive_t *drive, Scsi_Cmnd *cmd)
 {
 	idescsi_scsi_t *scsi = drive->driver_data;
 
-	if (MAJOR(cmd->request.rq_dev) == SCSI_GENERIC_MAJOR)
+	if (major(cmd->request.rq_dev) == SCSI_GENERIC_MAJOR)
 		return test_bit(IDESCSI_SG_TRANSFORM, &scsi->transform);
 	return test_bit(IDESCSI_TRANSFORM, &scsi->transform);
 }
@@ -806,9 +805,9 @@ int idescsi_queue (Scsi_Cmnd *cmd, void (*done)(Scsi_Cmnd *))
 	rq->special = (char *) pc;
 	rq->bio = idescsi_dma_bio (drive, pc);
 	rq->flags = REQ_SPECIAL;
-	spin_unlock(&cmd->host->host_lock);
+	spin_unlock_irq(cmd->host->host_lock);
 	(void) ide_do_drive_cmd (drive, rq, ide_end);
-	spin_lock_irq(&cmd->host->host_lock);
+	spin_lock_irq(cmd->host->host_lock);
 	return 0;
 abort:
 	if (pc) kfree (pc);
@@ -840,13 +839,29 @@ int idescsi_bios (Disk *disk, kdev_t dev, int *parm)
 	return 0;
 }
 
-static Scsi_Host_Template idescsi_template = IDESCSI;
+static Scsi_Host_Template idescsi_template = {
+	module:		THIS_MODULE,
+	name:		"idescsi",
+	detect:		idescsi_detect,
+	release:	idescsi_release,
+	info:		idescsi_info,
+	ioctl:		idescsi_ioctl,
+	queuecommand:	idescsi_queue,
+	abort:		idescsi_abort,
+	reset:		idescsi_reset,
+	bios_param:	idescsi_bios,
+	can_queue:	10,
+	this_id:	-1,
+	sg_tablesize:	256,
+	cmd_per_lun:	5,
+	use_clustering:	DISABLE_CLUSTERING,
+	emulated:	1,
+};
 
 static int __init init_idescsi_module(void)
 {
 	idescsi_init();
-	idescsi_template.module = THIS_MODULE;
-	scsi_register_module (MODULE_SCSI_HA, &idescsi_template);
+	scsi_register_host(&idescsi_template);
 	return 0;
 }
 
@@ -856,7 +871,7 @@ static void __exit exit_idescsi_module(void)
 	byte media[] = {TYPE_DISK, TYPE_TAPE, TYPE_PROCESSOR, TYPE_WORM, TYPE_ROM, TYPE_SCANNER, TYPE_MOD, 255};
 	int i, failed;
 
-	scsi_unregister_module (MODULE_SCSI_HA, &idescsi_template);
+	scsi_unregister_host(&idescsi_template);
 	for (i = 0; media[i] != 255; i++) {
 		failed = 0;
 		while ((drive = ide_scan_devices (media[i], idescsi_driver.name, &idescsi_driver, failed)) != NULL)

@@ -264,7 +264,7 @@ static int rs285_open(struct tty_struct *tty, struct file *filp)
 	int line;
 
 	MOD_INC_USE_COUNT;
-	line = MINOR(tty->device) - tty->driver.minor_start;
+	line = minor(tty->device) - tty->driver.minor_start;
 	if (line) {
 		MOD_DEC_USE_COUNT;
 		return -ENODEV;
@@ -389,20 +389,9 @@ static void rs285_console_write(struct console *co, const char *s, u_int count)
 	enable_irq(IRQ_CONTX);
 }
 
-static int rs285_console_wait_key(struct console *co)
-{
-	int c;
-
-	disable_irq(IRQ_CONRX);
-	while (*CSR_UARTFLG & 0x10);
-	c = *CSR_UARTDR;
-	enable_irq(IRQ_CONRX);
-	return c;
-}
-
 static kdev_t rs285_console_device(struct console *c)
 {
-	return MKDEV(SERIAL_21285_MAJOR, SERIAL_21285_MINOR);
+	return mk_kdev(SERIAL_21285_MAJOR, SERIAL_21285_MINOR);
 }
 
 static int __init rs285_console_setup(struct console *co, char *options)
@@ -493,7 +482,6 @@ static struct console rs285_cons =
 	name:		SERIAL_21285_NAME,
 	write:		rs285_console_write,
 	device:		rs285_console_device,
-	wait_key:	rs285_console_wait_key,
 	setup:		rs285_console_setup,
 	flags:		CON_PRINTBUFFER,
 	index:		-1,

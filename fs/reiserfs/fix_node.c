@@ -806,7 +806,7 @@ static int  get_empty_nodes(
     RFALSE( ! *p_n_blocknr,
 	    "PAP-8135: reiserfs_new_blocknrs failed when got new blocks");
 
-    p_s_new_bh = reiserfs_getblk(p_s_sb->s_dev, *p_n_blocknr, p_s_sb->s_blocksize);
+    p_s_new_bh = reiserfs_getblk(p_s_sb, *p_n_blocknr);
     if (atomic_read (&(p_s_new_bh->b_count)) > 1) {
 /*&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&*/
 /*
@@ -1926,7 +1926,7 @@ static int  get_neighbors(
 
 	n_child_position = ( p_s_bh == p_s_tb->FL[n_h] ) ? p_s_tb->lkey[n_h] : B_NR_ITEMS (p_s_tb->FL[n_h]);
 	n_son_number = B_N_CHILD_NUM(p_s_tb->FL[n_h], n_child_position);
-	p_s_bh = reiserfs_bread(p_s_sb, n_son_number, p_s_sb->s_blocksize);
+	p_s_bh = reiserfs_bread(p_s_sb, n_son_number);
 	if (!p_s_bh)
 	    return IO_ERROR;
 	if ( FILESYSTEM_CHANGED_TB (p_s_tb) ) {
@@ -1959,7 +1959,7 @@ static int  get_neighbors(
 
 	n_child_position = ( p_s_bh == p_s_tb->FR[n_h] ) ? p_s_tb->rkey[n_h] + 1 : 0;
 	n_son_number = B_N_CHILD_NUM(p_s_tb->FR[n_h], n_child_position);
-	p_s_bh = reiserfs_bread(p_s_sb, n_son_number, p_s_sb->s_blocksize);
+	p_s_bh = reiserfs_bread(p_s_sb, n_son_number);
 	if (!p_s_bh)
 	    return IO_ERROR;
 	if ( FILESYSTEM_CHANGED_TB (p_s_tb) ) {
@@ -2115,7 +2115,7 @@ static void tb_buffer_sanity_check (struct super_block * p_s_sb,
       reiserfs_panic (p_s_sb, "tb_buffer_sanity_check(): buffer is not in tree %s[%d] (%b)\n", descr, level, p_s_bh);
     }
 
-    if (p_s_bh->b_dev != p_s_sb->s_dev || 
+    if (!kdev_same(p_s_bh->b_dev, p_s_sb->s_dev) || 
 	p_s_bh->b_size != p_s_sb->s_blocksize ||
 	p_s_bh->b_blocknr > SB_BLOCK_COUNT(p_s_sb)) {
       reiserfs_panic (p_s_sb, "tb_buffer_sanity_check(): check failed for buffer %s[%d] (%b)\n", descr, level, p_s_bh);

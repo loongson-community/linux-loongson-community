@@ -85,14 +85,16 @@ int add_partition(kdev_t dev, struct blkpg_partition *p)
 		return -ENXIO;
 
 	/* existing drive? */
-	drive = (MINOR(dev) >> g->minor_shift);
+	drive = (minor(dev) >> g->minor_shift);
 	first_minor = (drive << g->minor_shift);
-	end_minor   = first_minor + g->max_p;
+	end_minor   = first_minor + (1 << g->minor_shift);
 	if (drive >= g->nr_real)
 		return -ENXIO;
 
 	/* drive and partition number OK? */
-	if (first_minor != MINOR(dev) || p->pno <= 0 || p->pno >= g->max_p)
+	if (first_minor != minor(dev))
+		return -EINVAL;
+	if (p->pno <= 0 || p->pno >= (1 << g->minor_shift))
 		return -EINVAL;
 
 	/* partition number in use? */
@@ -136,10 +138,13 @@ int del_partition(kdev_t dev, struct blkpg_partition *p)
 		return -ENXIO;
 
 	/* drive and partition number OK? */
-	drive = (MINOR(dev) >> g->minor_shift);
+	drive = (minor(dev) >> g->minor_shift);
 	first_minor = (drive << g->minor_shift);
-	if (first_minor != MINOR(dev) || p->pno <= 0 || p->pno >= g->max_p)
+
+	if (first_minor != minor(dev))
 		return -EINVAL;
+	if (p->pno <= 0 || p->pno >= (1 << g->minor_shift))
+  		return -EINVAL;
 
 	/* existing drive and partition? */
 	minor = first_minor + p->pno;
@@ -147,7 +152,7 @@ int del_partition(kdev_t dev, struct blkpg_partition *p)
 		return -ENXIO;
 
 	/* partition in use? Incomplete check for now. */
-	devp = MKDEV(MAJOR(dev), minor);
+	devp = mk_kdev(major(dev), minor);
 	if (is_mounted(devp) || is_swap_partition(devp))
 		return -EBUSY;
 
@@ -201,8 +206,9 @@ int blk_ioctl(kdev_t dev, unsigned int cmd, unsigned long arg)
 	struct gendisk *g;
 	u64 ullval = 0;
 	int intval, *iptr;
+	unsigned short usval;
 
-	if (!dev)
+	if (kdev_none(dev))
 		return -EINVAL;
 
 	intval = block_ioctl(dev, cmd, arg);
@@ -226,30 +232,33 @@ int blk_ioctl(kdev_t dev, unsigned int cmd, unsigned long arg)
 				return -EACCES;
 			if(arg > 0xff)
 				return -EINVAL;
-			read_ahead[MAJOR(dev)] = arg;
+			read_ahead[major(dev)] = arg;
 			return 0;
 		case BLKRAGET:
 			if (!arg)
 				return -EINVAL;
-			return put_user(read_ahead[MAJOR(dev)], (long *) arg);
+			return put_user(read_ahead[major(dev)], (long *) arg);
 
 		case BLKFRASET:
 			if (!capable(CAP_SYS_ADMIN))
 				return -EACCES;
-			if (!(iptr = max_readahead[MAJOR(dev)]))
+			if (!(iptr = max_readahead[major(dev)]))
 				return -EINVAL;
-			iptr[MINOR(dev)] = arg;
+			iptr[minor(dev)] = arg;
 			return 0;
 
 		case BLKFRAGET:
-			if (!(iptr = max_readahead[MAJOR(dev)]))
+			if (!(iptr = max_readahead[major(dev)]))
 				return -EINVAL;
-			return put_user(iptr[MINOR(dev)], (long *) arg);
+			return put_user(iptr[minor(dev)], (long *) arg);
 
 		case BLKSECTGET:
-			if ((q = blk_get_queue(dev)))
-				return put_user(q->max_sectors, (unsigned short *)arg);
-			return -EINVAL;
+			if ((q = blk_get_queue(dev)) == NULL)
+				return -EINVAL;
+
+			usval = q->max_sectors;
+			blk_put_queue(q);
+			return put_user(usval, (unsigned short *)arg);
 
 		case BLKFLSBUF:
 			if (!capable(CAP_SYS_ADMIN))
@@ -267,7 +276,7 @@ int blk_ioctl(kdev_t dev, unsigned int cmd, unsigned long arg)
 		case BLKGETSIZE64:
 			g = get_gendisk(dev);
 			if (g)
-				ullval = g->part[MINOR(dev)].nr_sects;
+				ullval = g->part[minor(dev)].nr_sects;
 
 			if (cmd == BLKGETSIZE)
 				return put_user((unsigned long)ullval, (unsigned long *)arg);
@@ -291,9 +300,7 @@ int blk_ioctl(kdev_t dev, unsigned int cmd, unsigned long arg)
 
 		case BLKBSZGET:
 			/* get the logical block size (cf. BLKSSZGET) */
-			intval = BLOCK_SIZE;
-			if (blksize_size[MAJOR(dev)])
-				intval = blksize_size[MAJOR(dev)][MINOR(dev)];
+			intval = block_size(dev);
 			return put_user(intval, (int *) arg);
 
 		case BLKBSZSET:

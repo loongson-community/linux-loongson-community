@@ -32,6 +32,7 @@
 #include <linux/blkpg.h>
 #include <linux/timer.h>
 #include <linux/proc_fs.h>
+#include <linux/devfs_fs_kernel.h>
 #include <linux/init.h>
 #include <linux/hdreg.h>
 #include <linux/spinlock.h>
@@ -70,6 +71,7 @@ MODULE_LICENSE("GPL");
 
 static int nr_ctlr;
 static ctlr_info_t *hba[MAX_CTLR];
+static devfs_handle_t de_arr[MAX_CTLR][NWD];
 
 static int eisa[8];
 
@@ -336,6 +338,7 @@ void cleanup_module(void)
 
 		del_gendisk(&ida_gendisk[i]);
 	}
+	devfs_unregister(devfs_find_handle(NULL, "ida", 0, 0, 0, 0));
 	remove_proc_entry("cpqarray", proc_root_driver);
 	kfree(ida);
 	kfree(ida_sizes);
@@ -483,10 +486,11 @@ int __init cpqarray_init(void)
 		ida_gendisk[i].major = MAJOR_NR + i;
 		ida_gendisk[i].major_name = "ida";
 		ida_gendisk[i].minor_shift = NWD_SHIFT;
-		ida_gendisk[i].max_p = 16;
 		ida_gendisk[i].part = ida + (i*256);
 		ida_gendisk[i].sizes = ida_sizes + (i*256);
 		ida_gendisk[i].nr_real = 0; 
+		ida_gendisk[i].de_arr = de_arr[i]; 
+		ida_gendisk[i].fops = &ida_fops; 
 	
 		/* Get on the disk list */
 		add_gendisk(&ida_gendisk[i]);
@@ -500,7 +504,7 @@ int __init cpqarray_init(void)
 		ida_geninit(i);
 		for(j=0; j<NWD; j++)	
 			register_disk(&ida_gendisk[i], 
-				MKDEV(MAJOR_NR+i,j<<4),
+				mk_kdev(MAJOR_NR+i,j<<4),
 				16, &ida_fops, hba[i]->drv[j].nr_blks);
 
 	}
@@ -777,15 +781,15 @@ DBGINFO(
  */
 static int ida_open(struct inode *inode, struct file *filep)
 {
-	int ctlr = MAJOR(inode->i_rdev) - MAJOR_NR;
-	int dsk  = MINOR(inode->i_rdev) >> NWD_SHIFT;
+	int ctlr = major(inode->i_rdev) - MAJOR_NR;
+	int dsk  = minor(inode->i_rdev) >> NWD_SHIFT;
 
 	DBGINFO(printk("ida_open %x (%x:%x)\n", inode->i_rdev, ctlr, dsk) );
 	if (ctlr > MAX_CTLR || hba[ctlr] == NULL)
 		return -ENXIO;
 
 	if (!suser() && ida_sizes[(ctlr << CTLR_SHIFT) +
-						MINOR(inode->i_rdev)] == 0)
+						minor(inode->i_rdev)] == 0)
 		return -ENXIO;
 
 	/*
@@ -795,8 +799,8 @@ static int ida_open(struct inode *inode, struct file *filep)
 	 * for "raw controller".
 	 */
 	if (suser()
-		&& ida_sizes[(ctlr << CTLR_SHIFT) + MINOR(inode->i_rdev)] == 0 
-		&& MINOR(inode->i_rdev) != 0)
+		&& ida_sizes[(ctlr << CTLR_SHIFT) + minor(inode->i_rdev)] == 0 
+		&& minor(inode->i_rdev) != 0)
 		return -ENXIO;
 
 	hba[ctlr]->drv[dsk].usage_count++;
@@ -809,8 +813,8 @@ static int ida_open(struct inode *inode, struct file *filep)
  */
 static int ida_release(struct inode *inode, struct file *filep)
 {
-	int ctlr = MAJOR(inode->i_rdev) - MAJOR_NR;
-	int dsk  = MINOR(inode->i_rdev) >> NWD_SHIFT;
+	int ctlr = major(inode->i_rdev) - MAJOR_NR;
+	int dsk  = minor(inode->i_rdev) >> NWD_SHIFT;
 
 	DBGINFO(printk("ida_release %x (%x:%x)\n", inode->i_rdev, ctlr, dsk) );
 
@@ -858,7 +862,6 @@ static void do_ida_request(request_queue_t *q)
 {
 	ctlr_info_t *h = q->queuedata;
 	cmdlist_t *c;
-	struct list_head * queue_head = &q->queue_head;
 	struct request *creq;
 	struct scatterlist tmp_sg[SG_MAX];
 	int i, dir, seg;
@@ -867,17 +870,17 @@ static void do_ida_request(request_queue_t *q)
 		goto startio;
 
 queue_next:
-	if (list_empty(queue_head))
+	if (blk_queue_empty(q))
 		goto startio;
 
 	creq = elv_next_request(q);
 	if (creq->nr_phys_segments > SG_MAX)
 		BUG();
 
-	if (h->ctlr != MAJOR(creq->rq_dev)-MAJOR_NR || h->ctlr > nr_ctlr)
+	if (h->ctlr != major(creq->rq_dev)-MAJOR_NR || h->ctlr > nr_ctlr)
 	{
 		printk(KERN_WARNING "doreq cmd for %d, %x at %p\n",
-				h->ctlr, creq->rq_dev, creq);
+				h->ctlr, minor(creq->rq_dev), creq);
 		blkdev_dequeue_request(creq);
 		complete_buffers(creq->bio, 0);
 		end_that_request_last(creq);
@@ -892,7 +895,7 @@ queue_next:
 	spin_unlock_irq(q->queue_lock);
 
 	c->ctlr = h->ctlr;
-	c->hdr.unit = MINOR(creq->rq_dev) >> NWD_SHIFT;
+	c->hdr.unit = minor(creq->rq_dev) >> NWD_SHIFT;
 	c->hdr.size = sizeof(rblk_t) >> 2;
 	c->size += sizeof(rblk_t);
 
@@ -1110,8 +1113,8 @@ static void ida_timer(unsigned long tdata)
  */
 static int ida_ioctl(struct inode *inode, struct file *filep, unsigned int cmd, unsigned long arg)
 {
-	int ctlr = MAJOR(inode->i_rdev) - MAJOR_NR;
-	int dsk  = MINOR(inode->i_rdev) >> NWD_SHIFT;
+	int ctlr = major(inode->i_rdev) - MAJOR_NR;
+	int dsk  = minor(inode->i_rdev) >> NWD_SHIFT;
 	int error;
 	int diskinfo[4];
 	struct hd_geometry *geo = (struct hd_geometry *)arg;
@@ -1493,8 +1496,8 @@ static int revalidate_allvol(kdev_t dev)
 	int ctlr, i;
 	unsigned long flags;
 
-	ctlr = MAJOR(dev) - MAJOR_NR;
-	if (MINOR(dev) != 0)
+	ctlr = major(dev) - MAJOR_NR;
+	if (minor(dev) != 0)
 		return -ENXIO;
 
 	spin_lock_irqsave(IDA_LOCK(ctlr), flags);
@@ -1527,9 +1530,11 @@ static int revalidate_allvol(kdev_t dev)
 	hba[ctlr]->access.set_intr_mask(hba[ctlr], FIFO_NOT_EMPTY);
 
 	ida_geninit(ctlr);
-	for(i=0; i<NWD; i++)
+	for(i=0; i<NWD; i++) {
+		kdev_t kdev = mk_kdev(major(dev), i << NWD_SHIFT);
 		if (ida_sizes[(ctlr<<CTLR_SHIFT) + (i<<NWD_SHIFT)])
-			revalidate_logvol(dev+(i<<NWD_SHIFT), 2);
+			revalidate_logvol(kdev, 2);
+	}
 
 	hba[ctlr]->usage_count--;
 	return 0;
@@ -1544,7 +1549,7 @@ static int revalidate_logvol(kdev_t dev, int maxusage)
 	int res;
 
 	target = DEVICE_NR(dev);
-	ctlr = MAJOR(dev) - MAJOR_NR;
+	ctlr = major(dev) - MAJOR_NR;
 	gdev = &ida_gendisk[ctlr];
 	
 	spin_lock_irqsave(IDA_LOCK(ctlr), flags);
@@ -1794,6 +1799,14 @@ static void getgeometry(int ctlr)
                 			kfree(id_ldrive);
                 			return;
 
+				}
+				if (!de_arr[ctlr][log_unit]) {
+					char txt[16];
+
+					sprintf(txt, "ida/c%dd%d", ctlr,
+						log_unit);
+					de_arr[ctlr][log_unit] =
+						devfs_mk_dir(NULL, txt, NULL);
 				}
 				info_p->phys_drives =
 				    sense_config_buf->ctlr_phys_drv;

@@ -594,7 +594,7 @@ static int cdrom_decode_status (ide_startstop_t *startstop, ide_drive_t *drive,
 		cdrom_end_request (1, drive);
 		*startstop = ide_error (drive, "request sense failure", stat);
 		return 1;
-	} else if (rq->flags & REQ_PC) {
+	} else if (rq->flags & (REQ_PC | REQ_BLOCK_PC)) {
 		/* All other functions, except for READ. */
 		struct completion *wait = NULL;
 		pc = (struct packet_command *) rq->special;
@@ -2015,7 +2015,7 @@ static int cdrom_read_toc(ide_drive_t *drive, struct request_sense *sense)
 
 	/* Now try to get the total cdrom capacity. */
 	minor = (drive->select.b.unit) << PARTN_BITS;
-	dev = MKDEV(HWIF(drive)->major, minor);
+	dev = mk_kdev(HWIF(drive)->major, minor);
 	stat = cdrom_get_last_written(dev, &toc->capacity);
 	if (stat)
 		stat = cdrom_read_capacity(drive, &toc->capacity, sense);
@@ -2481,7 +2481,7 @@ static int ide_cdrom_register (ide_drive_t *drive, int nslots)
 	struct cdrom_device_info *devinfo = &info->devinfo;
 	int minor = (drive->select.b.unit) << PARTN_BITS;
 
-	devinfo->dev = MKDEV (HWIF(drive)->major, minor);
+	devinfo->dev = mk_kdev(HWIF(drive)->major, minor);
 	devinfo->ops = &ide_cdrom_dops;
 	devinfo->mask = 0;
 	*(int *)&devinfo->speed = CDROM_STATE_FLAGS (drive)->current_speed;
@@ -2588,6 +2588,13 @@ int ide_cdrom_probe_capabilities (ide_drive_t *drive)
 	if (cap.mechtype == mechtype_caddy || cap.mechtype == mechtype_popup)
 		CDROM_CONFIG_FLAGS (drive)->close_tray = 0;
 
+	/* Some drives used by Apple don't advertise audio play
+	 * but they do support reading TOC & audio datas
+	 */
+	if (strcmp (drive->id->model, "MATSHITADVD-ROM SR-8187") == 0 ||
+	    strcmp (drive->id->model, "MATSHITADVD-ROM SR-8186") == 0)
+		CDROM_CONFIG_FLAGS (drive)->audio_play = 1;
+
 #if ! STANDARD_ATAPI
 	if (cdi->sanyo_slot > 0) {
 		CDROM_CONFIG_FLAGS (drive)->is_changer = 1;
@@ -2671,9 +2678,11 @@ int ide_cdrom_setup (ide_drive_t *drive)
 	/*
 	 * default to read-only always and fix latter at the bottom
 	 */
-	set_device_ro(MKDEV(HWIF(drive)->major, minor), 1);
-	set_blocksize(MKDEV(HWIF(drive)->major, minor), CD_FRAMESIZE);
+	set_device_ro(mk_kdev(HWIF(drive)->major, minor), 1);
+	set_blocksize(mk_kdev(HWIF(drive)->major, minor), CD_FRAMESIZE);
 	blk_queue_hardsect_size(&drive->queue, CD_FRAMESIZE);
+
+	blk_queue_prep_rq(&drive->queue, ll_10byte_cmd_build);
 
 	drive->special.all	= 0;
 	drive->ready_stat	= 0;
@@ -2792,7 +2801,7 @@ int ide_cdrom_setup (ide_drive_t *drive)
 	nslots = ide_cdrom_probe_capabilities (drive);
 
 	if (CDROM_CONFIG_FLAGS(drive)->dvd_ram)
-		set_device_ro(MKDEV(HWIF(drive)->major, minor), 0);
+		set_device_ro(mk_kdev(HWIF(drive)->major, minor), 0);
 
 	if (ide_cdrom_register (drive, nslots)) {
 		printk ("%s: ide_cdrom_setup failed to register device with the cdrom driver.\n", drive->name);
@@ -2839,7 +2848,7 @@ void ide_cdrom_release (struct inode *inode, struct file *file,
 static
 int ide_cdrom_check_media_change (ide_drive_t *drive)
 {
-	return cdrom_media_changed(MKDEV (HWIF (drive)->major,
+	return cdrom_media_changed(mk_kdev (HWIF (drive)->major,
 			(drive->select.b.unit) << PARTN_BITS));
 }
 
@@ -2867,7 +2876,7 @@ void ide_cdrom_revalidate (ide_drive_t *drive)
 	 * 1024 even for CDROM's
 	 */
 	blk_size[HWIF(drive)->major] = HWIF(drive)->gd->sizes;
-	set_blocksize(MKDEV(HWIF(drive)->major, minor), CD_FRAMESIZE);
+	set_blocksize(mk_kdev(HWIF(drive)->major, minor), CD_FRAMESIZE);
 }
 
 static

@@ -1,4 +1,4 @@
-/* $Id: su.c,v 1.54 2001/11/07 14:52:30 davem Exp $
+/* $Id: su.c,v 1.55 2002/01/08 16:00:16 davem Exp $
  * su.c: Small serial driver for keyboard/mouse interface on sparc32/PCI
  *
  * Copyright (C) 1997  Eddie C. Dost  (ecd@skynet.be)
@@ -2061,7 +2061,7 @@ su_open(struct tty_struct *tty, struct file * filp)
 	int 			retval, line;
 	unsigned long		page;
 
-	line = MINOR(tty->device) - tty->driver.minor_start;
+	line = minor(tty->device) - tty->driver.minor_start;
 	if ((line < 0) || (line >= NR_PORTS))
 		return -ENODEV;
 	info = su_table + line;
@@ -2252,7 +2252,7 @@ done:
  */
 static __inline__ void __init show_su_version(void)
 {
-	char *revision = "$Revision: 1.54 $";
+	char *revision = "$Revision: 1.55 $";
 	char *version, *p;
 
 	version = strchr(revision, ' ');
@@ -2854,44 +2854,10 @@ serial_console_write(struct console *co, const char *s,
 	su_outb(info, UART_IER, ier);
 }
 
-/*
- *	Receive character from the serial port
- */
-static int
-serial_console_wait_key(struct console *co)
-{
-	struct su_struct *info;
-	int ier;
-	int lsr;
-	int c;
-
-	info = su_table + co->index;
-
-	/*
-	 *	First save the IER then disable the interrupts so
-	 *	that the real driver for the port does not get the
-	 *	character.
-	 */
-	ier = su_inb(info, UART_IER);
-	su_outb(info, UART_IER, 0x00);
-
-	do {
-		lsr = su_inb(info, UART_LSR);
-	} while (!(lsr & UART_LSR_DR));
-	c = su_inb(info, UART_RX);
-
-	/*
-	 *	Restore the interrupts
-	 */
-	su_outb(info, UART_IER, ier);
-
-	return c;
-}
-
 static kdev_t
 serial_console_device(struct console *c)
 {
-	return MKDEV(TTY_MAJOR, 64 + c->index);
+	return mk_kdev(TTY_MAJOR, 64 + c->index);
 }
 
 /*
@@ -3013,7 +2979,6 @@ static struct console sercons = {
 	name:		"ttyS",
 	write:		serial_console_write,
 	device:		serial_console_device,
-	wait_key:	serial_console_wait_key,
 	setup:		serial_console_setup,
 	flags:		CON_PRINTBUFFER,
 	index:		-1,

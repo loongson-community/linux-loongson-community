@@ -130,6 +130,7 @@ CONFIG_BLK_DEV_FD=y
 # CONFIG_PARIDE is not set
 # CONFIG_BLK_CPQ_DA is not set
 # CONFIG_BLK_CPQ_CISS_DA is not set
+# CONFIG_CISS_SCSI_TAPE is not set
 # CONFIG_BLK_DEV_DAC960 is not set
 # CONFIG_BLK_DEV_LOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
@@ -409,6 +410,7 @@ CONFIG_NET_PCI=y
 # CONFIG_AC3200 is not set
 # CONFIG_APRICOT is not set
 # CONFIG_CS89x0 is not set
+# CONFIG_DE2104X is not set
 # CONFIG_TULIP is not set
 # CONFIG_DE4X5 is not set
 # CONFIG_DGRS is not set
@@ -624,7 +626,7 @@ CONFIG_AUTOFS4_FS=y
 # CONFIG_JFFS2_FS is not set
 # CONFIG_CRAMFS is not set
 CONFIG_TMPFS=y
-# CONFIG_RAMFS is not set
+CONFIG_RAMFS=y
 CONFIG_ISO9660_FS=y
 # CONFIG_JOLIET is not set
 # CONFIG_ZISOFS is not set
@@ -727,8 +729,9 @@ CONFIG_USB=y
 # CONFIG_USB_LONG_TIMEOUT is not set
 
 #
-# USB Controllers
+# USB Host Controller Drivers
 #
+# CONFIG_USB_EHCI_HCD is not set
 CONFIG_USB_UHCI_ALT=y
 # CONFIG_USB_OHCI is not set
 
@@ -799,6 +802,7 @@ CONFIG_USB_STORAGE=y
 # CONFIG_USB_SERIAL_EMPEG is not set
 # CONFIG_USB_SERIAL_FTDI_SIO is not set
 # CONFIG_USB_SERIAL_VISOR is not set
+# CONFIG_USB_SERIAL_IPAQ is not set
 # CONFIG_USB_SERIAL_IR is not set
 # CONFIG_USB_SERIAL_EDGEPORT is not set
 # CONFIG_USB_SERIAL_KEYSPAN_PDA is not set
@@ -812,6 +816,7 @@ CONFIG_USB_STORAGE=y
 # CONFIG_USB_SERIAL_KEYSPAN_USA19W is not set
 # CONFIG_USB_SERIAL_KEYSPAN_USA49W is not set
 # CONFIG_USB_SERIAL_MCT_U232 is not set
+# CONFIG_USB_SERIAL_KLSI is not set
 # CONFIG_USB_SERIAL_PL2303 is not set
 # CONFIG_USB_SERIAL_CYBERJACK is not set
 # CONFIG_USB_SERIAL_XIRCOM is not set
@@ -821,8 +826,14 @@ CONFIG_USB_STORAGE=y
 # USB Miscellaneous drivers
 #
 # CONFIG_USB_RIO500 is not set
+# CONFIG_USB_AUERSWALD is not set
 
 #
 # Kernel hacking
 #
 # CONFIG_DEBUG_KERNEL is not set
+
+#
+# Library routines
+#
+# CONFIG_CRC32 is not set

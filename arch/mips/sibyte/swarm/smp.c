@@ -84,7 +84,7 @@ void __init smp_boot_cpus(void)
 
 	smp_num_cpus = prom_setup_smp();
 	init_new_context(current, &init_mm);
-	current->processor = 0;
+	current->cpu = 0;
 	cpu_data[0].udelay_val = loops_per_jiffy;
 	cpu_data[0].asid_cache = ASID_FIRST_VERSION;
 	CPUMASK_CLRALL(cpu_online_map);
@@ -104,8 +104,7 @@ void __init smp_boot_cpus(void)
 		p = init_task.prev_task;
 
 		/* Schedule the first task manually */
-		p->processor = i;
-		p->cpus_runnable = 1 << i; /* we schedule the first task manually */
+		p->cpu = i;
 
 		/* Attach to the address space of init_task. */
 		atomic_inc(&init_mm.mm_count);

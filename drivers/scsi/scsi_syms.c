@@ -2,7 +2,6 @@
  * We should not even be trying to compile this if we are not doing
  * a module.
  */
-#define __NO_VERSION__
 #include <linux/config.h>
 #include <linux/module.h>
 
@@ -31,12 +30,15 @@
  * This source file contains the symbol table used by scsi loadable
  * modules.
  */
-EXPORT_SYMBOL(scsi_register_module);
-EXPORT_SYMBOL(scsi_unregister_module);
+EXPORT_SYMBOL(scsi_register_device);
+EXPORT_SYMBOL(scsi_unregister_device);
+EXPORT_SYMBOL(scsi_register_host);
+EXPORT_SYMBOL(scsi_unregister_host);
 EXPORT_SYMBOL(scsi_register);
 EXPORT_SYMBOL(scsi_unregister);
 EXPORT_SYMBOL(scsicam_bios_param);
 EXPORT_SYMBOL(scsi_partsize);
+EXPORT_SYMBOL(scsi_bios_ptable);
 EXPORT_SYMBOL(scsi_allocate_device);
 EXPORT_SYMBOL(scsi_do_cmd);
 EXPORT_SYMBOL(scsi_command_size);

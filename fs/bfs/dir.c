@@ -28,13 +28,12 @@ static int bfs_readdir(struct file * f, void * dirent, filldir_t filldir)
 	struct inode * dir = f->f_dentry->d_inode;
 	struct buffer_head * bh;
 	struct bfs_dirent * de;
-	kdev_t dev = dir->i_dev;
 	unsigned int offset;
 	int block;
 
 	if (f->f_pos & (BFS_DIRENT_SIZE-1)) {
 		printf("Bad f_pos=%08lx for %s:%08lx\n", (unsigned long)f->f_pos, 
-			bdevname(dev), dir->i_ino);
+			dir->i_sb->s_id, dir->i_ino);
 		return -EBADF;
 	}
 
@@ -169,12 +168,11 @@ static int bfs_unlink(struct inode * dir, struct dentry * dentry)
 		goto out_brelse;
 
 	if (!inode->i_nlink) {
-		printf("unlinking non-existent file %s:%lu (nlink=%d)\n", bdevname(inode->i_dev), 
+		printf("unlinking non-existent file %s:%lu (nlink=%d)\n", inode->i_sb->s_id, 
 				inode->i_ino, inode->i_nlink);
 		inode->i_nlink = 1;
 	}
 	de->ino = 0;
-	dir->i_version = ++event;
 	mark_buffer_dirty(bh);
 	dir->i_ctime = dir->i_mtime = CURRENT_TIME;
 	mark_inode_dirty(dir);
@@ -227,7 +225,6 @@ static int bfs_rename(struct inode * old_dir, struct dentry * old_dentry,
 	}
 	old_de->ino = 0;
 	old_dir->i_ctime = old_dir->i_mtime = CURRENT_TIME;
-	old_dir->i_version = ++event;
 	mark_inode_dirty(old_dir);
 	if (new_inode) {
 		new_inode->i_nlink--;
@@ -256,7 +253,6 @@ static int bfs_add_entry(struct inode * dir, const char * name, int namelen, int
 	struct buffer_head * bh;
 	struct bfs_dirent * de;
 	int block, sblock, eblock, off;
-	kdev_t dev;
 	int i;
 
 	dprintf("name=%s, namelen=%d\n", name, namelen);
@@ -266,7 +262,6 @@ static int bfs_add_entry(struct inode * dir, const char * name, int namelen, int
 	if (namelen > BFS_NAMELEN)
 		return -ENAMETOOLONG;
 
-	dev = dir->i_dev;
 	sblock = dir->iu_sblock;
 	eblock = dir->iu_eblock;
 	for (block=sblock; block<=eblock; block++) {
@@ -282,7 +277,6 @@ static int bfs_add_entry(struct inode * dir, const char * name, int namelen, int
 				}
 				dir->i_mtime = CURRENT_TIME;
 				mark_inode_dirty(dir);
-				dir->i_version = ++event;
 				de->ino = ino;
 				for (i=0; i<BFS_NAMELEN; i++)
 					de->name[i] = (i < namelen) ? name[i] : 0;

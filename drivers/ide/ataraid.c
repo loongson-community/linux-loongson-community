@@ -121,11 +121,8 @@ struct buffer_head *ataraid_get_bhead(void)
 	void *ptr = NULL;
 	while (!ptr) {
 		ptr=kmalloc(sizeof(struct buffer_head),GFP_NOIO);
-		if (!ptr) {
-			__set_current_state(TASK_RUNNING);
-	                current->policy |= SCHED_YIELD;
-	                schedule();             
-		}
+		if (!ptr)
+			yield();
 	}
 	return ptr;
 }
@@ -137,11 +134,8 @@ struct ataraid_bh_private *ataraid_get_private(void)
 	void *ptr = NULL;
 	while (!ptr) {
 		ptr=kmalloc(sizeof(struct ataraid_bh_private),GFP_NOIO);
-		if (!ptr) {
-			__set_current_state(TASK_RUNNING);
-	                current->policy |= SCHED_YIELD;
-	                schedule();             
-		}
+		if (!ptr)
+			yield();
 	}
 	return ptr;
 }
@@ -269,7 +263,6 @@ static __init int ataraid_init(void)
 	ataraid_gendisk.major       = ATAMAJOR;
 	ataraid_gendisk.major_name  = "ataraid";
 	ataraid_gendisk.minor_shift = 4;
-	ataraid_gendisk.max_p	    = 15;
 	ataraid_gendisk.sizes	    = &ataraid_gendisk_sizes[0];
 	ataraid_gendisk.nr_real	    = 16;
 	ataraid_gendisk.fops        = &ataraid_fops;

@@ -31,7 +31,6 @@
 #include <linux/proc_fs.h>
 #include <linux/smp_lock.h>
 
-#include <asm/segment.h>
 
 #include <net/irda/irda.h>
 #include <net/irda/irmod.h>
@@ -198,7 +197,7 @@ int __init irda_init(void)
 	return 0;
 }
 
-static void __exit irda_cleanup(void)
+void __exit irda_cleanup(void)
 {
 #ifdef CONFIG_SYSCTL
 	irda_sysctl_unregister();
