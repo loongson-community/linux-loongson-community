@@ -149,6 +149,58 @@ init:
 	goto *l;
 }
 
+/* force code alignment (used for TX49XX_ICACHE_INDEX_INV_WAR) */
+#define JUMP_TO_ALIGN(order) \
+	__asm__ __volatile__( \
+		"b\t1f\n\t" \
+		".align\t" #order "\n\t" \
+		"1:\n\t" \
+		)
+#define CACHE32_UNROLL32_ALIGN	JUMP_TO_ALIGN(10) /* 32 * 32 = 1024 */
+#define CACHE32_UNROLL32_ALIGN2	JUMP_TO_ALIGN(11)
+
+static inline void tx49_blast_icache32(void)
+{
+	unsigned long start = KSEG0;
+	unsigned long end = start + current_cpu_data.icache.waysize;
+	unsigned long ws_inc = 1UL << current_cpu_data.icache.waybit;
+	unsigned long ws_end = current_cpu_data.icache.ways <<
+	                       current_cpu_data.icache.waybit;
+	unsigned long ws, addr;
+
+	CACHE32_UNROLL32_ALIGN2;
+	/* I'm in even chunk.  blast odd chunks */
+	for (ws = 0; ws < ws_end; ws += ws_inc) 
+		for (addr = start + 0x400; addr < end; addr += 0x400 * 2) 
+			cache32_unroll32(addr|ws,Index_Invalidate_I);
+	CACHE32_UNROLL32_ALIGN;
+	/* I'm in odd chunk.  blast even chunks */
+	for (ws = 0; ws < ws_end; ws += ws_inc) 
+		for (addr = start; addr < end; addr += 0x400 * 2) 
+			cache32_unroll32(addr|ws,Index_Invalidate_I);
+}
+
+static inline void tx49_blast_icache32_page_indexed(unsigned long page)
+{
+	unsigned long start = page;
+	unsigned long end = start + PAGE_SIZE;
+	unsigned long ws_inc = 1UL << current_cpu_data.icache.waybit;
+	unsigned long ws_end = current_cpu_data.icache.ways <<
+	                       current_cpu_data.icache.waybit;
+	unsigned long ws, addr;
+
+	CACHE32_UNROLL32_ALIGN2;
+	/* I'm in even chunk.  blast odd chunks */
+	for (ws = 0; ws < ws_end; ws += ws_inc) 
+		for (addr = start + 0x400; addr < end; addr += 0x400 * 2) 
+			cache32_unroll32(addr|ws,Index_Invalidate_I);
+	CACHE32_UNROLL32_ALIGN;
+	/* I'm in odd chunk.  blast even chunks */
+	for (ws = 0; ws < ws_end; ws += ws_inc) 
+		for (addr = start; addr < end; addr += 0x400 * 2) 
+			cache32_unroll32(addr|ws,Index_Invalidate_I);
+}
+
 static void r4k_blast_icache_page(unsigned long addr)
 {
 	unsigned long ic_lsize = current_cpu_data.icache.linesz;
@@ -197,11 +249,18 @@ ic_64:
 	blast_icache64_page_indexed(addr);
 	return;
 
+ic_32_tx49:
+	tx49_blast_icache32_page_indexed(addr);
+	return;
+
 init:
 	if (ic_lsize == 16)
 		l = &&ic_16;
 	else if (ic_lsize == 32)
-		l = &&ic_32;
+		if (TX49XX_ICACHE_INDEX_INV_WAR)
+			l = &&ic_32_tx49;
+		else
+			l = &&ic_32;
 	else if (ic_lsize == 64)
 		l = &&ic_64;
 	goto *l;
@@ -226,11 +285,18 @@ ic_64:
 	blast_icache64();
 	return;
 
+ic_32_tx49:
+	tx49_blast_icache32();
+	return;
+
 init:
 	if (ic_lsize == 16)
 		l = &&ic_16;
 	else if (ic_lsize == 32)
-		l = &&ic_32;
+		if (TX49XX_ICACHE_INDEX_INV_WAR)
+			l = &&ic_32_tx49;
+		else
+			l = &&ic_32;
 	else if (ic_lsize == 64)
 		l = &&ic_64;
 	goto *l;

@@ -148,6 +148,17 @@
 #endif
 
 /*
+ * From TX49/H2 manual: "If the instruction (i.e. CACHE) is issued for
+ * the line which this instruction itself exists, the following
+ * operation is not guaranteed."
+ *
+ * Workaround: do two phase flushing for Index_Invalidate_I
+ */
+#ifdef CONFIG_CPU_TX49XX
+#define TX49XX_ICACHE_INDEX_INV_WAR 1
+#endif
+
+/*
  * Workarounds default to off
  */
 #ifndef R4600_V1_HIT_CACHEOP_WAR
@@ -170,6 +181,9 @@
 #endif
 #ifndef MIPS_CACHE_SYNC_WAR
 #define MIPS_CACHE_SYNC_WAR		0
+#endif
+#ifndef TX49XX_ICACHE_INDEX_INV_WAR
+#define TX49XX_ICACHE_INDEX_INV_WAR	0
 #endif
 
 #endif /* _ASM_WAR_H */
