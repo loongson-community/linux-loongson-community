@@ -111,7 +111,6 @@ shmiq_push_event (struct shmqevent *e)
 	
 	e->un.time = jiffies;
 	s->events [s->tail] = *e;
-	flush_cache_all ();
 	printk ("KERNEL: dev=%d which=%d type=%d flags=%d\n",
 		e->data.device, e->data.which, e->data.type, e->data.flags);
 	s->tail = tail_next;

@@ -201,7 +201,7 @@ void * vmalloc_prot(unsigned long size, pgprot_t prot)
 	if (!area)
 		return NULL;
 	addr = area->addr;
-	if (vmalloc_area_pages(VMALLOC_VMADDR(addr), size, PAGE_KERNEL)) {
+	if (vmalloc_area_pages(VMALLOC_VMADDR(addr), size, prot)) {
 		vfree(addr);
 		return NULL;
 	}
