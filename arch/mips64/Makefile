@@ -54,9 +54,9 @@ cflags-$(CONFIG_CPU_R4X00)	+= -mcpu=r4600 -mips3
 cflags-$(CONFIG_CPU_R5000)	+= -mcpu=r8000 -mips4
 cflags-$(CONFIG_CPU_NEVADA)	+= -mcpu=r8000 -mips3 -mmad
 cflags-$(CONFIG_CPU_RM7000)	+= $(call check_gcc, -mcpu=r7000, -mcpu=r5000) \
-				   -mips4 -Wa,--trap
+				   -mips4
 cflags-$(CONFIG_CPU_SB1)	+= $(call check_gcc, -mcpu=sb1, -mcpu=r8000) \
-				   -mips2 -Wa,--trap
+				   $(call check_gcc, -mips64, -mips4)
 cflags-$(CONFIG_CPU_R8000)	+= -mcpu=r8000 -mips4
 cflags-$(CONFIG_CPU_R10000)	+= -mcpu=r8000 -mips4
 ifdef CONFIG_CPU_SB1
