@@ -136,7 +136,7 @@ extern void *memmove(void *__dest, __const__ void *__src, size_t __n);
 extern __inline__ void *memscan(void *__addr, int __c, size_t __size)
 {
 	char *__end = (char *)__addr + __size;
-	unsigned char * __uc = (unsigned char) __c;
+	unsigned char __uc = (unsigned char) __c;
 
 	__asm__(".set\tpush\n\t"
 		".set\tnoat\n\t"
