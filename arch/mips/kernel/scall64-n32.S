@@ -14,6 +14,7 @@
 #include <asm/mipsregs.h>
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
+#include <asm/thread_info.h>
 #include <asm/unistd.h>
 
 /* This duplicates the definition from <linux/sched.h> */
@@ -67,7 +68,9 @@ FEXPORT(n32_syscall_exit)
 					# signals dont change between
 					# sampling and return
 	LONG_L  a2, TI_FLAGS($28)	# current->work
-	bnez	a2, n32_syscall_exit_work
+	li	t0, _TIF_ALLWORK_MASK
+	and	t0, a2, t0
+	bnez	t0, n32_syscall_exit_work
 
 	RESTORE_SOME
 	RESTORE_SP_AND_RET
