@@ -1,7 +1,8 @@
-/* $Id: sysirix.c,v 1.6 1997/08/11 22:24:56 shaver Exp $
+/* $Id: sysirix.c,v 1.7 1997/09/13 23:49:30 shaver Exp $
  * sysirix.c: IRIX system call emulation.
  *
  * Copyright (C) 1996 David S. Miller
+ * Copyright (C) 1997 Miguel de Icaza
  */
 
 #include <linux/kernel.h>
@@ -26,8 +27,9 @@
 #include <asm/pgtable.h>
 #include <asm/uaccess.h>
 #include <asm/sgialib.h>
+#include <asm/inventory.h>
 
-/* 2,300 lines of complete and utter shit coming up... */
+/* 2,526 lines of complete and utter shit coming up... */
 
 /* The sysmp commands supported thus far. */
 #define MP_NPROCS       	1 /* # processor in complex */
@@ -49,9 +51,8 @@ asmlinkage int irix_sysmp(struct pt_regs *regs)
 		error = PAGE_SIZE;
 		break;
 	case MP_NPROCS:
-	  	error = NR_CPUS;
-		break;
 	case MP_NAPROCS:
+		error = 1;
 		error = NR_CPUS;
 		break;
 	default:
@@ -233,6 +234,8 @@ extern unsigned long irix_mapelf(int fd, struct elf_phdr *user_phdrp, int cnt);
 extern asmlinkage int sys_setpgid(pid_t pid, pid_t pgid);
 extern void sys_sync(void);
 extern asmlinkage int sys_getsid(pid_t pid);
+extern asmlinkage long sys_write (unsigned int fd, const char *buf, unsigned long count);
+extern asmlinkage long sys_lseek (unsigned int fd, off_t offset, unsigned int origin);
 extern asmlinkage int sys_getgroups(int gidsetsize, gid_t *grouplist);
 extern asmlinkage int sys_setgroups(int gidsetsize, gid_t *grouplist);
 extern int getrusage(struct task_struct *p, int who, struct rusage *ru);
@@ -241,6 +244,9 @@ extern long prom_setenv(char *name, char *value);
 
 /* The syssgi commands supported thus far. */
 #define SGI_SYSID         1       /* Return unique per-machine identifier. */
+#define SGI_INVENT        5       /* Fetch inventory  */
+#   define SGI_INV_SIZEOF 1
+#   define SGI_INV_READ   2
 #define SGI_RDNAME        6       /* Return string name of a process. */
 #define SGI_SETNVRAM	  8	  /* Set PROM variable. */
 #define SGI_GETNVRAM	  9	  /* Get PROM variable. */
@@ -275,7 +281,7 @@ asmlinkage int irix_syssgi(struct pt_regs *regs)
                 retval = clear_user(buf, 64);
                 break;
         }
-
+#if 0
         case SGI_RDNAME: {
                 int pid = (int) regs->regs[base + 5];
                 char *buf = (char *) regs->regs[base + 6];
@@ -325,11 +331,12 @@ asmlinkage int irix_syssgi(struct pt_regs *regs)
 		printk("[%s:%d] setnvram(\"%s\", \"%s\"): retval %d",
 		       current->comm, current->pid,
 		       name, value, retval);
-		if (retval == PROM_ENOENT)
-		  	retval = -ENOENT;
+/*		if (retval == PROM_ENOENT)
+		  	retval = -ENOENT; */
 		break;				   
 	}
-
+#endif
+	
 	case SGI_SETPGID: {
 #ifdef DEBUG_PROCGRPS
 		printk("[%s:%d] setpgid(%d, %d) ",
@@ -476,6 +483,24 @@ asmlinkage int irix_syssgi(struct pt_regs *regs)
 		break;
 	}
 
+	case SGI_INVENT: {
+		int  arg1    = (int)    regs->regs [base + 5];
+		void *buffer = (void *) regs->regs [base + 6];
+		int  count   = (int)    regs->regs [base + 7];
+
+		switch (arg1){
+		case SGI_INV_SIZEOF:
+			retval = sizeof (inventory_t);
+			break;
+		case SGI_INV_READ:
+			retval = dump_inventory_to_user (buffer, count);
+			break;
+		default:
+			retval = -EINVAL;
+		}
+		break;
+	}
+	
 	default:
 		printk("irix_syssgi: Unsupported command %d\n", (int)cmd);
 		retval = -EINVAL;
@@ -799,7 +824,6 @@ asmlinkage int irix_fstatfs(unsigned int fd, struct irix_statfs *buf)
 	}
 	error = 0;
 
-dput_and_out:
 	dput(dentry);
 out:
 	unlock_kernel();
@@ -1076,6 +1100,8 @@ asmlinkage int irix_gettimeofday(struct timeval *tv)
 	return retval;
 }
 
+#define IRIX_MAP_AUTOGROW 0x40
+
 asmlinkage unsigned long irix_mmap32(unsigned long addr, size_t len, int prot,
 				     int flags, int fd, off_t offset)
 {
@@ -1088,7 +1114,19 @@ asmlinkage unsigned long irix_mmap32(unsigned long addr, size_t len, int prot,
 			retval = -EBADF;
 			goto out;
 		}
+		/* Ok, bad taste hack follows, try to think in something else when reading this */
+		if (flags & IRIX_MAP_AUTOGROW){
+			unsigned long old_pos;
+			long max_size = offset + len;
+			
+			if (max_size > file->f_dentry->d_inode->i_size){
+				old_pos = sys_lseek (fd, max_size - 1, 0);
+				sys_write (fd, "", 1);
+				sys_lseek (fd, old_pos, 0);
+			}
+		}
 	}
+	
 	flags &= ~(MAP_EXECUTABLE | MAP_DENYWRITE);
 
 	retval = do_mmap(file, addr, len, prot, flags, offset);
@@ -1190,7 +1228,13 @@ out:
 
 #undef DEBUG_XSTAT
 
-static inline int irix_xstat32_xlate(struct stat *kb, struct stat *ubuf)
+static inline u32
+linux_to_irix_dev_t (dev_t t)
+{
+	return MAJOR (t) << 18 | MINOR (t);
+}
+
+static inline int irix_xstat32_xlate(struct stat *kb, void *ubuf)
 {
 	struct xstat32 {
 		u32 st_dev, st_pad1[3], st_ino, st_mode, st_nlink, st_uid, st_gid;
@@ -1201,9 +1245,27 @@ static inline int irix_xstat32_xlate(struct stat *kb, struct stat *ubuf)
 		u32 st_blksize, st_blocks;
 		char st_fstype[16];
 		u32 st_pad4[8];
-	} *ub = (struct xstat32 *) ubuf;
+	} ub;
 
-	return copy_to_user(ub, kb, sizeof(*ub)) ? -EFAULT : 0;
+	ub.st_dev     = linux_to_irix_dev_t (kb->st_dev);
+	ub.st_ino     = kb->st_ino;
+	ub.st_mode    = kb->st_mode;
+	ub.st_nlink   = kb->st_nlink;
+	ub.st_uid     = kb->st_uid;
+	ub.st_gid     = kb->st_gid;
+	ub.st_rdev    = linux_to_irix_dev_t (kb->st_rdev);
+	ub.st_size    = kb->st_size;
+	ub.st_atime0  = kb->st_atime;
+	ub.st_atime1  = 0;
+	ub.st_mtime0  = kb->st_mtime;
+	ub.st_mtime1  = 0;
+	ub.st_ctime0  = kb->st_ctime;
+	ub.st_ctime1  = 0;
+	ub.st_blksize = kb->st_blksize;
+	ub.st_blocks  = kb->st_blocks;
+	strcpy (ub.st_fstype, "efs");
+
+	return copy_to_user(ubuf, &ub, sizeof(ub)) ? -EFAULT : 0;
 }
 
 static inline void irix_xstat64_xlate(struct stat *sb)
@@ -1223,14 +1285,14 @@ static inline void irix_xstat64_xlate(struct stat *sb)
 		s32 st_pad4[8];
 	} ks;
 
-	ks.st_dev = (u32) sb->st_dev;
+	ks.st_dev = linux_to_irix_dev_t (sb->st_dev);
 	ks.st_pad1[0] = ks.st_pad1[1] = ks.st_pad1[2] = 0;
 	ks.st_ino = (unsigned long long) sb->st_ino;
 	ks.st_mode = (u32) sb->st_mode;
 	ks.st_nlink = (u32) sb->st_nlink;
 	ks.st_uid = (s32) sb->st_uid;
 	ks.st_gid = (s32) sb->st_gid;
-	ks.st_rdev = (u32) sb->st_rdev;
+	ks.st_rdev = linux_to_irix_dev_t (sb->st_rdev);
 	ks.st_pad2[0] = ks.st_pad2[1] = 0;
 	ks.st_size = (long long) sb->st_size;
 	ks.st_pad3 = 0;
@@ -1564,7 +1626,6 @@ asmlinkage int irix_fstatvfs(int fd, struct irix_statvfs *buf)
 
 	error = 0;
 
-dput_and_out:
 	dput(dentry);
 out:
 	unlock_kernel();
@@ -1719,10 +1780,10 @@ extern asmlinkage unsigned long sys_mmap(unsigned long addr, size_t len, int pro
 
 asmlinkage int irix_mmap64(struct pt_regs *regs)
 {
+	int len, prot, flags, fd, off1, off2, error, base = 0;
 	unsigned long addr, *sp;
-	int len, prot, flags, fd, off1, off2, base = 0;
-	int error;
-
+	struct file *file;
+	
 	lock_kernel();
 	if(regs->regs[2] == 1000)
 		base = 1;
@@ -1751,6 +1812,26 @@ asmlinkage int irix_mmap64(struct pt_regs *regs)
 		error = -EINVAL;
 		goto out;
 	}
+
+	if(!(flags & MAP_ANONYMOUS)) {
+		if(fd >= NR_OPEN || !(file = current->files->fd[fd])) {
+			error = -EBADF;
+			goto out;
+		}
+		
+		/* Ok, bad taste hack follows, try to think in something else when reading this */
+		if (flags & IRIX_MAP_AUTOGROW){
+			unsigned long old_pos;
+			long max_size = off2 + len;
+			
+			if (max_size > file->f_dentry->d_inode->i_size){
+				old_pos = sys_lseek (fd, max_size - 1, 0);
+				sys_write (fd, "", 1);
+				sys_lseek (fd, old_pos, 0);
+			}
+		}
+	}
+	
 	error = sys_mmap(addr, (size_t) len, prot, flags, fd, off2);
 
 out:
@@ -1929,7 +2010,6 @@ asmlinkage int irix_fstatvfs64(int fd, struct irix_statvfs *buf)
 
 	error = 0;
 
-dput_and_out:
 	dput(dentry);
 out:
 	unlock_kernel();
@@ -2360,6 +2440,8 @@ out:
 extern asmlinkage long sys_fcntl(unsigned int fd, unsigned int cmd,
 				 unsigned long arg);
 
+#define IRIX_F_ALLOCSP 10
+
 asmlinkage int irix_fcntl(int fd, int cmd, int arg)
 {
 	int retval;
@@ -2369,7 +2451,9 @@ asmlinkage int irix_fcntl(int fd, int cmd, int arg)
 	printk("[%s:%d] irix_fcntl(%d, %d, %d) ", current->comm,
 	       current->pid, fd, cmd, arg);
 #endif
-
+	if (cmd == IRIX_F_ALLOCSP){
+		return 0;
+	}
 	retval = sys_fcntl(fd, cmd, arg);
 #ifdef DEBUG_FCNTL
 	printk("%d\n", retval);
