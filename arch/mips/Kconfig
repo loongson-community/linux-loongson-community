@@ -195,6 +195,7 @@ config MIPS_EV64120
 	depends on EXPERIMENTAL
 	select DMA_NONCOHERENT
 	select HW_HAS_PCI
+	select MIPS_GT64120
 	help
 	  This is an evaluation board based on the Galileo GT-64120
 	  single-chip system controller that contains a MIPS R5000 compatible
@@ -236,6 +237,7 @@ config LASAT
 	bool "Support for LASAT Networks platforms"
 	select DMA_NONCOHERENT
 	select HW_HAS_PCI
+	select MIPS_GT64120
 	select R5000_CPU_SCACHE
 
 config PICVUE
@@ -278,6 +280,7 @@ config MIPS_ATLAS
 	bool "Support for MIPS Atlas board"
 	select DMA_NONCOHERENT
 	select HW_HAS_PCI
+	select MIPS_GT64120
 	select SWAP_IO_SPACE
 	help
 	  This enables support for the QED R5231-based MIPS Atlas evaluation
@@ -289,6 +292,7 @@ config MIPS_MALTA
 	select DMA_NONCOHERENT
 	select HW_HAS_PCI
 	select I8259
+	select MIPS_GT64120
 	select SWAP_IO_SPACE
 	help
 	  This enables support for the VR5000-based MIPS Malta evaluation
@@ -306,6 +310,7 @@ config MOMENCO_OCELOT
 	select HW_HAS_PCI
 	select IRQ_CPU
 	select IRQ_CPU_RM7K
+	select MIPS_GT64120
 	select RM7000_CPU_SCACHE
 	select SWAP_IO_SPACE
 	help
@@ -981,8 +986,6 @@ config MIPS_GT64111
 
 config MIPS_GT64120
 	bool
-	depends on MIPS_EV64120 || MIPS_EV96100 || LASAT || MIPS_ATLAS || MIPS_MALTA || MOMENCO_OCELOT
-	default y
 
 config MIPS_TX3927
 	bool
@@ -1030,10 +1033,7 @@ config AU1000_USB_DEVICE
 config MIPS_GT96100
 	bool
 	depends on MIPS_EV96100
-	default y
-	help
-	  Say Y here to support the Galileo Technology GT96100 communications
-	  controller card.  There is a web page at <http://www.galileot.com/>.
+	select MIPS_GT64120
 
 config IT8172_CIR
 	bool
