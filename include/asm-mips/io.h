@@ -34,39 +34,41 @@
 #undef CONF_SLOWDOWN_IO
 
 /*
+ * Raw operations are never swapped in software.  Otoh values that raw
+ * operations are working on may or may not have been swapped by the bus
+ * hardware.  An example use would be for flash memory that's used for
+ * execute in place.
+ */
+# define __raw_ioswabb(x)	(x)
+# define __raw_ioswabw(x)	(x)
+# define __raw_ioswabl(x)	(x)
+# define __raw_ioswabq(x)	(x)
+
+/*
  * Sane hardware offers swapping of PCI/ISA I/O space accesses in hardware;
  * less sane hardware forces software to fiddle with this...
  */
 #if defined(CONFIG_SWAP_IO_SPACE)
 
 # define ioswabb(x)		(x)
-# define __raw_ioswabb(x)	(x)
 # ifdef CONFIG_SGI_IP22
 /*
  * IP22 seems braindead enough to swap 16bits values in hardware, but
  * not 32bits.  Go figure... Can't tell without documentation.
  */
 #  define ioswabw(x)		(x)
-#  define __raw_ioswabw(x)	le16_to_cpu(x)
 # else
 #  define ioswabw(x)		le16_to_cpu(x)
-#  define __raw_ioswabw(x)	(x)
 # endif
 # define ioswabl(x)		le32_to_cpu(x)
-# define __raw_ioswabl(x)	(x)
 # define ioswabq(x)		le64_to_cpu(x)
-# define __raw_ioswabq(x)	(x)
 
 #else
 
 # define ioswabb(x)		(x)
-# define __raw_ioswabb(x)	(x)
 # define ioswabw(x)		(x)
-# define __raw_ioswabw(x)	cpu_to_le16(x)
 # define ioswabl(x)		(x)
-# define __raw_ioswabl(x)	cpu_to_le32(x)
 # define ioswabq(x)		(x)
-# define __raw_ioswabq(x)	cpu_to_le64(x)
 
 #endif
 
