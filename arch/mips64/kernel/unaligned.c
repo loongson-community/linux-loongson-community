@@ -145,7 +145,7 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 		if (verify_area(VERIFY_READ, addr, 2))
 			goto sigbus;
 
-		__asm__(".set\tnoat\n"
+		__asm__ __volatile__ (".set\tnoat\n"
 #ifdef __BIG_ENDIAN
 			"1:\tlb\t%0, 0(%2)\n"
 			"2:\tlbu\t$1, 1(%2)\n\t"
@@ -178,7 +178,7 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 		if (verify_area(VERIFY_READ, addr, 4))
 			goto sigbus;
 
-		__asm__(
+		__asm__ __volatile__ (
 #ifdef __BIG_ENDIAN
 			"1:\tlwl\t%0, (%2)\n"
 			"2:\tlwr\t%0, 3(%2)\n\t"
@@ -208,7 +208,7 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 		if (verify_area(VERIFY_READ, addr, 2))
 			goto sigbus;
 
-		__asm__(
+		__asm__ __volatile__ (
 			".set\tnoat\n"
 #ifdef __BIG_ENDIAN
 			"1:\tlbu\t%0, 0(%2)\n"
@@ -250,7 +250,7 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 		if (verify_area(VERIFY_READ, addr, 4))
 			goto sigbus;
 
-		__asm__(
+		__asm__ __volatile__ (
 #ifdef __BIG_ENDIAN
 			"1:\tlwl\t%0, (%2)\n"
 			"2:\tlwr\t%0, 3(%2)\n\t"
@@ -294,7 +294,7 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 		if (verify_area(VERIFY_READ, addr, 8))
 			goto sigbus;
 
-		__asm__(
+		__asm__ __volatile__ (
 #ifdef __BIG_ENDIAN
 			"1:\tldl\t%0, (%2)\n"
 			"2:\tldr\t%0, 7(%2)\n\t"
@@ -329,7 +329,7 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 			goto sigbus;
 
 		value = regs->regs[insn.i_format.rt];
-		__asm__(
+		__asm__ __volatile__ (
 #ifdef __BIG_ENDIAN
 			".set\tnoat\n"
 			"1:\tsb\t%1, 1(%2)\n\t"
@@ -365,7 +365,7 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 			goto sigbus;
 
 		value = regs->regs[insn.i_format.rt];
-		__asm__(
+		__asm__ __volatile__ (
 #ifdef __BIG_ENDIAN
 			"1:\tswl\t%1,(%2)\n"
 			"2:\tswr\t%1, 3(%2)\n\t"
@@ -403,7 +403,7 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 			goto sigbus;
 
 		value = regs->regs[insn.i_format.rt];
-		__asm__(
+		__asm__ __volatile__ (
 #ifdef __BIG_ENDIAN
 			"1:\tsdl\t%1,(%2)\n"
 			"2:\tsdr\t%1, 7(%2)\n\t"
