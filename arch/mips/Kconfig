@@ -30,6 +30,7 @@ menu "Machine selection"
 config MACH_JAZZ
 	bool "Support for the Jazz family of machines"
 	select ARC
+	select GENERIC_ISA_DMA
 	select I8259
 	select ISA
 	help
@@ -856,6 +857,7 @@ config SNI_RM200_PCI
 	bool "Support for SNI RM200 PCI"
 	select ARC
 	select DMA_NONCOHERENT
+	select GENERIC_ISA_DMA
 	select HAVE_STD_PC_SERIAL_PORT
 	select HW_HAS_PCI
 	select I8259
@@ -915,8 +917,6 @@ config EARLY_PRINTK
 
 config GENERIC_ISA_DMA
 	bool
-	depends on SNI_RM200_PCI || MIPS_MAGNUM_4000 || OLIVETTI_M700 || ACER_PICA_61 || MIPS_MALTA
-	default y
 
 config I8259
 	bool
