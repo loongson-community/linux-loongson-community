@@ -613,13 +613,14 @@ asmlinkage long sys_times(struct tms * tbuf)
 	 *	atomically safe type this is just fine. Conceptually its
 	 *	as if the syscall took an instant longer to occur.
 	 */
-	if (tbuf)
+	if (tbuf) {
 		temp.tms_utime = HZ_TO_STD(current->times.tms_utime);
 		temp.tms_stime = HZ_TO_STD(current->times.tms_stime);
 		temp.tms_cutime = HZ_TO_STD(current->times.tms_cutime);
 		temp.tms_cstime = HZ_TO_STD(current->times.tms_cstime);
 		if (copy_to_user(tbuf, &temp, sizeof(struct tms)))
 			return -EFAULT;
+	}
 	return HZ_TO_STD(jiffies);
 }
 
