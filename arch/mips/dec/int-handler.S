@@ -140,7 +140,7 @@
 		 */
 		mfc0	t0,CP0_CAUSE		# get pending interrupts
 		mfc0	t2,CP0_STATUS
-		la	t1,cpu_mask_tbl
+		andi	t0,ST0_IM		# CAUSE.CE may be non-zero!
 		and	t0,t2			# isolate allowed ones
 
 		beqz	t0,spurious
@@ -151,7 +151,8 @@
 		/*
 		 * Find irq with highest priority
 		 */
-1:		 lw	t2,(t1)
+		 la	t1,cpu_mask_tbl
+1:		lw	t2,(t1)
 		move	t3,t0
 		and	t3,t2
 		beq	t3,zero,1b
