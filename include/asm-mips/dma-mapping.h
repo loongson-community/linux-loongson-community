@@ -1,6 +1,8 @@
 #ifndef _ASM_DMA_MAPPING_H
 #define _ASM_DMA_MAPPING_H
 
+#include <linux/device.h>
+#include <asm/scatterlist.h>
 #include <asm/cache.h>
 
 void *dma_alloc_noncoherent(struct device *dev, size_t size,

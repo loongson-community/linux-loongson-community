@@ -11,7 +11,10 @@
 #include <linux/mm.h>
 #include <linux/module.h>
 #include <linux/string.h>
+#include <linux/dma-mapping.h>
+#ifdef CONFIG_PCI
 #include <linux/pci.h>
+#endif
 
 #include <asm/cache.h>
 #include <asm/io.h>

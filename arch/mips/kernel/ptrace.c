@@ -108,7 +108,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 	/* Read the word at location addr in the USER area. */
 	case PTRACE_PEEKUSR: {
 		struct pt_regs *regs;
-		unsigned long tmp;
+		unsigned long tmp = 0;
 
 		regs = (struct pt_regs *) ((unsigned long) child->thread_info +
 		       THREAD_SIZE - 32 - sizeof(struct pt_regs));

@@ -9,7 +9,7 @@
  * Copyright (C) 1999, 2000, 01 Silicon Graphics, Inc.
  */
 #include <linux/module.h>
-#include <linux/ide.h>
+#include <asm/pgtable.h>
 #include <asm/uaccess.h>
 
 extern void *__bzero(void *__s, size_t __count);

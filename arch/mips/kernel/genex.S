@@ -148,6 +148,7 @@ NESTED(ejtag_debug_handler, PT_SIZE, sp)
 
 	sll	k0, k0, 30	# Check for SDBBP.
 	bgez	k0, ejtag_return
+	nop
 
 	PTR_LA	k0, ejtag_debug_buffer
 	LONG_S	k1, 0(k0)
