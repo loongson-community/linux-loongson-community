@@ -6,7 +6,7 @@
  * Copyright (C) 1994, 1995 Waldorf GmbH
  * Copyright (C) 1994 - 2000 Ralf Baechle
  * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
- * Copyright (C) 2004  MIPS Technologies, Inc.  All rights reserved.
+ * Copyright (C) 2004, 2005  MIPS Technologies, Inc.  All rights reserved.
  *	Author:	Maciej W. Rozycki <macro@mips.com>
  */
 #ifndef _ASM_IO_H
@@ -271,7 +271,8 @@ static inline void iounmap(volatile void __iomem *addr)
 
 #define __BUILD_MEMORY_SINGLE(pfx, bwlq, type, irq)			\
 									\
-static inline void pfx##write##bwlq(type val, void *mem)		\
+static inline void pfx##write##bwlq(type val,				\
+				    volatile void __iomem *mem)		\
 {									\
 	volatile type *__mem;						\
 	type __val;							\
@@ -304,7 +305,7 @@ static inline void pfx##write##bwlq(type val, void *mem)		\
 		BUG();							\
 }									\
 									\
-static inline type pfx##read##bwlq(void *mem)				\
+static inline type pfx##read##bwlq(volatile void __iomem *mem)		\
 {									\
 	volatile type *__mem;						\
 	type __val;							\
@@ -413,7 +414,7 @@ __BUILDIO(q, u64)
 
 #define __BUILD_MEMORY_STRING(bwlq, type)				\
 									\
-static inline void writes##bwlq(void *mem, void *addr,			\
+static inline void writes##bwlq(volatile void __iomem *mem, void *addr,	\
 				unsigned int count)			\
 {									\
 	volatile type *__addr = addr;					\
@@ -424,7 +425,7 @@ static inline void writes##bwlq(void *mem, void *addr,			\
 	}								\
 }									\
 									\
-static inline void reads##bwlq(void *mem, void *addr,			\
+static inline void reads##bwlq(volatile void __iomem *mem, void *addr,	\
 			       unsigned int count)			\
 {									\
 	volatile type *__addr = addr;					\
