@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.13 1999/03/13 12:33:26 tsbogend Exp $
+/* $Id: setup.c,v 1.14 1999/05/01 12:23:45 harald Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -97,7 +97,7 @@ struct kbd_ops *kbd_ops;
 /*
  * Setup information
  *
- * These are intialized so they are in the .data section
+ * These are initialized so they are in the .data section
  */
 unsigned long mips_memory_upper = KSEG0; /* this is set by kernel_entry() */
 unsigned long mips_cputype = CPU_UNKNOWN;

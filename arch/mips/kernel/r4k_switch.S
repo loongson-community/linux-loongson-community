@@ -1,4 +1,4 @@
-/* $Id: r4k_switch.S,v 1.4 1998/07/16 19:10:02 ralf Exp $
+/* $Id: r4k_switch.S,v 1.5 1999/05/01 10:08:18 harald Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -110,8 +110,8 @@ LEAF(r4xx0_save_fp)
 
 /*
  * Load the FPU with signalling NANS.  This bit pattern we're using has
- * the property that no matter wether considered as single or as double
- * precission represents signaling NANS.
+ * the property that no matter whether considered as single or as double
+ * precision represents signaling NANS.
  *
  * We initialize fcr31 to rounding to nearest, no exceptions.
  */

@@ -1,4 +1,4 @@
-/* $Id: init.c,v 1.11 1999/02/15 02:16:54 ralf Exp $
+/* $Id: init.c,v 1.12 1999/02/25 21:06:44 tsbogend Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -309,7 +309,7 @@ __initfunc(void mem_init(unsigned long start_mem, unsigned long end_mem))
 	for (tmp = PAGE_OFFSET; tmp < end_mem; tmp += PAGE_SIZE) {
 		/*
 		 * This is only for PC-style DMA.  The onboard DMA
-		 * of Jazz and Tyne machines is completly different and
+		 * of Jazz and Tyne machines is completely different and
 		 * not handled via a flag in mem_map_t.
 		 */
 		if (tmp >= MAX_DMA_ADDRESS)

@@ -1,9 +1,9 @@
-/* $Id: r2300_misc.S,v 1.2 1996/06/29 12:41:08 dm Exp $
+/* $Id: r2300_misc.S,v 1.2 1999/04/11 17:13:55 harald Exp $
  * r2300_misc.S: Misc. exception handling code for R3000/R2000.
  *
  * Copyright (C) 1994, 1995, 1996 by Ralf Baechle and Andreas Busse
  *
- * Multi-cpu abstraction reworking:
+ * Multi-CPU abstraction reworking:
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
  * Further modifications to make this work:

@@ -12,7 +12,7 @@
  *
  *  Copyright (C) 1995 Andreas Busse
  *
- * $Id: gdb-stub.c,v 1.4 1997/09/01 21:00:01 marks Exp $
+ * $Id: gdb-stub.c,v 1.5 1997/09/16 14:59:54 marks Exp $
  */
 
 /*
@@ -326,7 +326,7 @@ static struct hard_trap_info
 	{ 7, SIGBUS },			/* data bus error */
 	{ 9, SIGTRAP },			/* break */
 	{ 10, SIGILL },			/* reserved instruction */
-/*	{ 11, SIGILL },		*/	/* cpu unusable */
+/*	{ 11, SIGILL },		*/	/* CPU unusable */
 	{ 12, SIGFPE },			/* overflow */
 	{ 13, SIGTRAP },		/* trap */
 	{ 14, SIGSEGV },		/* virtual instruction cache coherency */
@@ -379,7 +379,7 @@ extern void fltr_set_mem_err(void)
 }
 
 /*
- * Convert the MIPS hardware trap type code to a unix signal number.
+ * Convert the MIPS hardware trap type code to a Unix signal number.
  */
 static int computeSignal(int tt)
 {

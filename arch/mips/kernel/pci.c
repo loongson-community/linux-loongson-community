@@ -1,4 +1,4 @@
-/* $Id: pci.c,v 1.6 1998/08/25 09:14:40 ralf Exp $
+/* $Id: pci.c,v 1.7 1999/01/03 17:50:51 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -36,7 +36,7 @@ int pcibios_present (void)
 }
 
 /*
- * The functions below are machine specific and must be reimplented for
+ * The functions below are machine specific and must be reimplimented for
  * each PCI chipset configuration.  We just run the hook to the machine
  * specific implementation.
  */

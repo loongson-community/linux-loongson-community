@@ -10,7 +10,7 @@
  * Multi-arch abstraction and asm macros for easier reading:
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: r4k_fpu.S,v 1.3 1997/12/01 17:57:30 ralf Exp $
+ * $Id: r4k_fpu.S,v 1.4 1998/04/05 11:23:52 ralf Exp $
  */
 #include <asm/asm.h>
 #include <asm/fpregdef.h>
@@ -79,11 +79,11 @@ LEAF(r4k_save_fp_context)
 	END(r4k_save_fp_context)
 
 /*
- * Restore fpu state:
+ * Restore FPU state:
  *  - fp gp registers
  *  - cp1 status/control register
  *
- * We base the decission which registers to restore from the signal stack
+ * We base the decision which registers to restore from the signal stack
  * frame on the current content of c0_status, not on the content of the
  * stack frame which might have been changed by the user.
  */

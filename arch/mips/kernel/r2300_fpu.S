@@ -1,4 +1,4 @@
-/* $Id: $
+/* $Id: r2300_fpu.S,v 1.4 1999/04/11 17:13:55 harald Exp $
  * r2300_fpu.S: Save/restore floating point context for signal handlers.
  *
  * This file is subject to the terms and conditions of the GNU General Public
@@ -72,11 +72,11 @@ LEAF(r2300_save_fp_context)
 	END(r2300_save_fp_context)
 
 /*
- * Restore fpu state:
+ * Restore FPU state:
  *  - fp gp registers
  *  - cp1 status/control register
  *
- * We base the decission which registers to restore from the signal stack
+ * We base the decision which registers to restore from the signal stack
  * frame on the current content of c0_status, not on the content of the
  * stack frame which might have been changed by the user.
  */

@@ -1,4 +1,4 @@
-/* $Id: int-handler.S,v 1.12 1998/10/18 13:18:58 tsbogend Exp $
+/* $Id: int-handler.S,v 1.13 1999/02/25 21:56:30 tsbogend Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -101,7 +101,7 @@ ll_isa_irq:	lw	a0,JAZZ_EISA_IRQ_ACK
 /*
  * Hmm...  This is not just a plain PC clone so the question is
  * which devices on Jazz machines can generate an (E)ISA NMI?
- * (Writing to nonexistant memory?)
+ * (Writing to nonexistent memory?)
  */
 ll_isa_nmi:	li	s1,~IE_IRQ3
 		PANIC("Unimplemented isa_nmi handler")
@@ -109,7 +109,7 @@ ll_isa_nmi:	li	s1,~IE_IRQ3
 /*
  * Timer IRQ - remapped to be more similar to an IBM compatible.
  *
- * The timer interrupt is handled specially to insure that the jiffies
+ * The timer interrupt is handled specially to ensure that the jiffies
  * variable is updated at all times.  Specifically, the timer interrupt is
  * just like the complete handlers except that it is invoked with interrupts
  * disabled and should never re-enable them.  If other interrupts were

@@ -23,7 +23,7 @@ M_OBJS += fpe.o
 endif
 
 #
-# SGI's have very different interrupt/timer hardware.
+# SGIs have very different interrupt/timer hardware.
 #
 ifndef CONFIG_SGI
   ifndef CONFIG_DECSTATION

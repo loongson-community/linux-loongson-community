@@ -1,4 +1,4 @@
-/* $Id: sysirix.c,v 1.16 1999/02/15 02:16:52 ralf Exp $
+/* $Id: sysirix.c,v 1.17 1999/05/01 21:54:19 ralf Exp $
  *
  * sysirix.c: IRIX system call emulation.
  *
@@ -172,7 +172,7 @@ asmlinkage int irix_prctl(struct pt_regs *regs)
 	case PR_RESIDENT:
 		printk("irix_prctl[%s:%ld]: Wants PR_RESIDENT\n",
 		       current->comm, current->pid);
-		error = 0; /* Compatability indeed. */
+		error = 0; /* Compatibility indeed. */
 		break;
 
 	case PR_ATTACHADDR:
