@@ -238,7 +238,9 @@ arch_initcall(ip27_pcibios_init);
  */
 int __devinit pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 {
-	if ((dev->bus->number >= MAX_PCI_BUSSES)
+	int busno = dev->bus->number;
+
+	if ((busno >= MAX_PCI_BUSSES)
 	    || (pin != 1)
 	    || (slot >= MAX_DEVICES_PER_PCIBUS))
 		panic("Increase supported PCI busses %d,%d,%d",
@@ -247,12 +249,12 @@ int __devinit pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 	/*
 	 * Already assigned? Then return previously assigned value ...
 	 */
-	if (irqstore[dev->bus->number][slot])
-		return irqstore[dev->bus->number][slot];
+	if (irqstore[busno][slot])
+		return irqstore[busno][slot];
 
-	irq_to_bus[lastirq] = dev->bus->number;
+	irq_to_bus[lastirq] = busno;
 	irq_to_slot[lastirq] = slot;
-	irqstore[dev->bus->number][slot] = lastirq;
+	irqstore[busno][slot] = lastirq;
 	lastirq++;
 	return lastirq - 1;
 }
