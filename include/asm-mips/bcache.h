@@ -3,8 +3,8 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (c) 1997, 1999, 2000 by Ralf Baechle
- * Copyright (c) 2000 by Silicon Graphics, Inc.
+ * Copyright (c) 1997, 1999 by Ralf Baechle
+ * Copyright (c) 1999 Silicon Graphics, Inc.
  */
 #ifndef _ASM_BCACHE_H
 #define _ASM_BCACHE_H
@@ -12,7 +12,7 @@
 #include <linux/config.h>
 
 /* Some R4000 / R4400 / R4600 / R5000 machines may have a non-dma-coherent,
-   chipset implemented caches.  On machines with other CPUs the CPU does the
+   chipset implemented caches.  On machines with other CPUs the CPU does the 
    cache thing itself. */
 struct bcache_ops {
 	void (*bc_enable)(void);
