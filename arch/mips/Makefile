@@ -292,14 +292,6 @@ MAKEBOOT = $(MAKE) -C arch/$(ARCH)/boot
 vmlinux.ecoff: vmlinux
 	@$(MAKEBOOT) $@
 
-zImage: vmlinux
-	@$(MAKEBOOT) zImage
-
-compressed: zImage
-
-zdisk: vmlinux
-	@$(MAKEBOOT) zdisk
-
 archclean:
 	@$(MAKEBOOT) clean
 	rm -f arch/$(ARCH)/ld.script
