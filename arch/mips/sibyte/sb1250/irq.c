@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2000, 2001 Broadcom Corporation
+ * Copyright (C) 2000, 2001, 2002, 2003 Broadcom Corporation
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -23,6 +23,7 @@
 #include <linux/spinlock.h>
 #include <linux/mm.h>
 #include <linux/slab.h>
+#include <linux/kernel_stat.h>
 
 #include <asm/errno.h>
 #include <asm/signal.h>
@@ -61,12 +62,14 @@ extern unsigned long ldt_eoi_space;
 #ifdef CONFIG_KGDB
 extern void breakpoint(void);
 extern void set_debug_traps(void);
+static int kgdb_irq;
 
 /* kgdb is on when configured.  Pass "nokgdb" kernel arg to turn it off */
 static int kgdb_flag = 1;
 static int __init nokgdb(char *str)
 {
 	kgdb_flag = 0;
+	return 1;
 }
 __setup("nokgdb", nokgdb);
 #endif
@@ -379,15 +382,19 @@ void __init init_IRQ(void)
 
 #ifdef CONFIG_KGDB
 	if (kgdb_flag) {
+		kgdb_irq = K_INT_UART_1;
+
 		/* Setup uart 1 settings, mapper */
 		out64(M_DUART_IMR_BRK, KSEG1 + A_DUART + R_DUART_IMR_B);
 
+		sb1250_steal_irq(kgdb_irq);
 		out64(IMR_IP6_VAL,
-			KSEG1 + A_IMR_REGISTER(0, R_IMR_INTERRUPT_MAP_BASE) + (K_INT_UART_1<<3));
+			KSEG1 + A_IMR_REGISTER(0, R_IMR_INTERRUPT_MAP_BASE) + (kgdb_irq<<3));
 		tmp = in64(KSEG1 + A_IMR_REGISTER(0, R_IMR_INTERRUPT_MASK));
-		tmp &= ~(1<<K_INT_UART_1);
+		tmp &= ~(1LL<<kgdb_irq);
 		out64(tmp, KSEG1 + A_IMR_REGISTER(0, R_IMR_INTERRUPT_MASK));
 
+		prom_printf("Waiting for GDB on UART port 1\n");
 		set_debug_traps();
 		breakpoint();
 	}
@@ -398,10 +405,10 @@ void __init init_IRQ(void)
 
 #include <linux/delay.h>
 
-extern void set_async_breakpoint(unsigned int epc);
+extern void set_async_breakpoint(unsigned long *epc);
 
-#define duart_out(reg, val)     out64(val, KSEG1 + A_DUART_CHANREG(1,reg))
-#define duart_in(reg)           in64(KSEG1 + A_DUART_CHANREG(1,reg))
+#define duart_out(reg, val)     csr_out32(val, KSEG1 + A_DUART_CHANREG(1,reg))
+#define duart_in(reg)           csr_in32(KSEG1 + A_DUART_CHANREG(1,reg))
 
 void sb1250_kgdb_interrupt(struct pt_regs *regs)
 {
@@ -410,10 +417,11 @@ void sb1250_kgdb_interrupt(struct pt_regs *regs)
 	 * host to stop the break, since we would see another
 	 * interrupt on the end-of-break too)
 	 */
+	kstat.irqs[smp_processor_id()][K_INT_UART_1]++;
 	mdelay(500);
 	duart_out(R_DUART_CMD, V_DUART_MISC_CMD_RESET_BREAK_INT |
 				M_DUART_RX_EN | M_DUART_TX_EN);
-	if (!user_mode(regs))
-		set_async_breakpoint(regs->cp0_epc);
+	set_async_breakpoint(&regs->cp0_epc);
 }
+
 #endif 	/* CONFIG_KGDB */

@@ -11,6 +11,9 @@
  *  Send complaints, suggestions etc. to <andy@waldorf-gmbh.de>
  *
  *  Copyright (C) 1995 Andreas Busse
+ *
+ *  Copyright (C) 2003 MontaVista Software Inc.
+ *  Author: Jun Sun, jsun@mvista.com or jsun@junsun.net
  */
 
 /*
@@ -125,6 +128,8 @@
 #include <linux/mm.h>
 #include <linux/console.h>
 #include <linux/init.h>
+#include <linux/smp.h>
+#include <linux/spinlock.h>
 #include <linux/slab.h>
 #include <linux/reboot.h>
 
@@ -134,6 +139,8 @@
 #include <asm/system.h>
 #include <asm/gdb-stub.h>
 #include <asm/inst.h>
+
+#include <asm/debug.h>
 
 /*
  * external low-level support routines
@@ -148,6 +155,8 @@ extern void trap_low(void);
  */
 extern void breakpoint(void);
 extern void breakinst(void);
+extern void async_breakpoint(void);
+extern void async_breakinst(void);
 extern void adel(void);
 
 /*
@@ -163,6 +172,12 @@ static unsigned char *mem2hex(char *mem, char *buf, int count, int may_fault);
 void handle_exception(struct gdb_regs *regs);
 
 /*
+ * spin locks for smp case
+ */
+static spinlock_t kgdb_lock = SPIN_LOCK_UNLOCKED;
+static spinlock_t kgdb_cpulock[NR_CPUS] = { [0 ... NR_CPUS-1] = SPIN_LOCK_UNLOCKED};
+
+/*
  * BUFMAX defines the maximum number of characters in inbound/outbound buffers
  * at least NUMREGBYTES*2 are needed for register packets
  */
@@ -171,6 +186,7 @@ void handle_exception(struct gdb_regs *regs);
 static char input_buffer[BUFMAX];
 static char output_buffer[BUFMAX];
 static int initialized;	/* !0 means we've been initialized */
+static int kgdb_started;
 static const char hexchars[]="0123456789abcdef";
 
 /* Used to prevent crashes in memory access.  Note that they'll crash anyway if
@@ -394,6 +410,17 @@ void set_debug_traps(void)
 	local_irq_restore(flags);
 }
 
+void restore_debug_traps(void)
+{
+	struct hard_trap_info *ht;
+	unsigned long flags;
+
+	save_and_cli(flags);
+	for (ht = hard_trap_info; ht->tt && ht->signo; ht++)
+		set_except_vector(ht->tt, saved_vectors[ht->tt]);
+	restore_flags(flags);
+}
+
 /*
  * Convert the MIPS hardware trap type code to a Unix signal number.
  */
@@ -572,12 +599,39 @@ static void single_step(struct gdb_regs *regs)
  */
 static struct gdb_bp_save async_bp;
 
-void set_async_breakpoint(unsigned int epc)
+/*
+ * Swap the interrupted EPC with our asynchronous breakpoint routine.
+ * This is safer than stuffing the breakpoint in-place, since no cache
+ * flushes (or resulting smp_call_functions) are required.  The
+ * assumption is that only one CPU will be handling asynchronous bp's,
+ * and only one can be active at a time.
+ */
+extern spinlock_t smp_call_lock;
+void set_async_breakpoint(unsigned long *epc)
 {
-	async_bp.addr = epc;
-	async_bp.val  = *(unsigned *)epc;
-	*(unsigned *)epc = BP;
-	__flush_cache_all();
+	/* skip breaking into userland */
+	if ((*epc & 0x80000000) == 0)
+		return;
+
+	/* avoid deadlock if someone is make IPC */
+	if (spin_is_locked(&smp_call_lock))
+		return;
+
+	async_bp.addr = *epc;
+	*epc = (unsigned long)async_breakpoint;
+}
+
+void kgdb_wait(void *arg)
+{
+	unsigned flags;
+	int cpu = smp_processor_id();
+
+	local_irq_save(flags);
+
+	spin_lock(&kgdb_cpulock[cpu]);
+	spin_unlock(&kgdb_cpulock[cpu]);
+
+	local_irq_restore(flags);
 }
 
 
@@ -594,6 +648,40 @@ void handle_exception (struct gdb_regs *regs)
 	int length;
 	char *ptr;
 	unsigned long *stack;
+	int i;
+
+	kgdb_started = 1;
+
+	/*
+	 * acquire the big kgdb spinlock
+	 */
+	if (!spin_trylock(&kgdb_lock)) {
+		/* 
+		 * some other CPU has the lock, we should go back to 
+		 * receive the gdb_wait IPC
+		 */
+		return;
+	}
+
+	/*
+	 * If we're in async_breakpoint(), restore the real EPC from
+	 * the breakpoint.
+	 */
+	if (regs->cp0_epc == (unsigned long)async_breakinst) {
+		regs->cp0_epc = async_bp.addr;
+		async_bp.addr = 0;
+	}
+
+	/* 
+	 * acquire the CPU spinlocks
+	 */
+	for (i=0; i< smp_num_cpus; i++) 
+		db_verify(spin_trylock(&kgdb_cpulock[i]), != 0);
+
+	/*
+	 * force other cpus to enter kgdb
+	 */
+	smp_call_function(kgdb_wait, NULL, 0, 0);
 
 	/*
 	 * If we're in breakpoint() increment the PC
@@ -614,16 +702,6 @@ void handle_exception (struct gdb_regs *regs)
 			*(unsigned *)step_bp[1].addr = step_bp[1].val;
 			step_bp[1].addr = 0;
 		}
-	}
-
-	/*
-	 * If we were interrupted asynchronously by gdb, then a
-	 * breakpoint was set at the EPC of the interrupt so
-	 * that we'd wind up here with an interesting stack frame.
-	 */
-	if (async_bp.addr) {
-		*(unsigned *)async_bp.addr = async_bp.val;
-		async_bp.addr = 0;
 	}
 
 	stack = (long *)regs->reg29;			/* stack ptr */
@@ -687,10 +765,13 @@ void handle_exception (struct gdb_regs *regs)
 			output_buffer[3] = 0;
 			break;
 
+		/*
+		 * Detach debugger; let CPU run
+		 */
 		case 'D':
-			/* detach; let CPU run */
 			putpacket(output_buffer);
-			return;
+			goto finish_kgdb;
+			break;
 
 		case 'd':
 			/* toggle debug flag */
@@ -774,21 +855,9 @@ void handle_exception (struct gdb_regs *regs)
 			ptr = &input_buffer[1];
 			if (hexToInt(&ptr, &addr))
 				regs->cp0_epc = addr;
-
-			/*
-			 * Need to flush the instruction cache here, as we may
-			 * have deposited a breakpoint, and the icache probably
-			 * has no way of knowing that a data ref to some location
-			 * may have changed something that is in the instruction
-			 * cache.
-			 * NB: We flush both caches, just to be sure...
-			 */
-
-			__flush_cache_all();
-			return;
-			/* NOTREACHED */
+	  
+			goto exit_kgdb_exception;
 			break;
-
 
 		/*
 		 * kill the program; let us try to restart the machine
@@ -808,9 +877,9 @@ void handle_exception (struct gdb_regs *regs)
 			 * use breakpoints and continue, instead.
 			 */
 			single_step(regs);
-			__flush_cache_all();
-			return;
+			goto exit_kgdb_exception;
 			/* NOTREACHED */
+			break;
 
 		/*
 		 * Set baud rate (bBB)
@@ -865,6 +934,20 @@ void handle_exception (struct gdb_regs *regs)
 		putpacket(output_buffer);
 
 	} /* while */
+
+	return;
+
+finish_kgdb:
+	restore_debug_traps();
+
+exit_kgdb_exception:
+	/* release locks so other CPUs can go */
+	for (i=0; i < smp_num_cpus; i++) 
+		spin_unlock(&kgdb_cpulock[i]);
+	spin_unlock(&kgdb_lock);
+
+	__flush_cache_all();
+	return;
 }
 
 /*
@@ -883,6 +966,19 @@ void breakpoint(void)
 			".set\tnoreorder\n\t"
 			"nop\n\t"
 			"breakinst:\tbreak\n\t"
+			"nop\n\t"
+			".set\treorder"
+			);
+}
+
+/* Nothing but the break; don't pollute any registers */
+void async_breakpoint(void)
+{
+	__asm__ __volatile__(
+			".globl	async_breakinst\n\t" 
+			".set\tnoreorder\n\t"
+			"nop\n\t"
+			"async_breakinst:\tbreak\n\t"
 			"nop\n\t"
 			".set\treorder"
 			);
@@ -916,6 +1012,9 @@ static void free(void *where)
 void gdb_putsn(const char *str, int l)
 {
 	char outbuf[18];
+
+	if (!kgdb_started)
+		return;
 
 	outbuf[0]='O';
 

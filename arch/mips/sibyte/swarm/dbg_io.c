@@ -37,8 +37,8 @@ static int duart_initialized = 0;	/* 0: need to be init'ed by kgdb */
 /* -------------------- END OF CONFIG --------------------- */
 
 
-#define	duart_out(reg, val)	out64(val, KSEG1 + A_DUART_CHANREG(1,reg))
-#define duart_in(reg)		in64(KSEG1 + A_DUART_CHANREG(1,reg))
+#define	duart_out(reg, val)	csr_out32(val, KSEG1 + A_DUART_CHANREG(1,reg))
+#define duart_in(reg)		csr_in32(KSEG1 + A_DUART_CHANREG(1,reg))
 
 extern void set_async_breakpoint(unsigned int epc);
 
