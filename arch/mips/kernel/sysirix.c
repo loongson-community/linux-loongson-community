@@ -56,7 +56,7 @@ asmlinkage int irix_sysmp(struct pt_regs *regs)
 		break;
 	case MP_NPROCS:
 	case MP_NAPROCS:
-		error = num_online_cpus;
+		error = num_online_cpus();
 		break;
 	default:
 		printk("SYSMP[%s:%d]: Unsupported opcode %d\n",
@@ -822,10 +822,10 @@ asmlinkage int irix_times(struct tms * tbuf)
 		err = verify_area(VERIFY_WRITE,tbuf,sizeof *tbuf);
 		if (err)
 			return err;
-		err |= __put_user(current->times.tms_utime,&tbuf->tms_utime);
-		err |= __put_user(current->times.tms_stime,&tbuf->tms_stime);
-		err |= __put_user(current->times.tms_cutime,&tbuf->tms_cutime);
-		err |= __put_user(current->times.tms_cstime,&tbuf->tms_cstime);
+		err |= __put_user(current->utime, &tbuf->tms_utime);
+		err |= __put_user(current->stime, &tbuf->tms_stime);
+		err |= __put_user(current->cutime, &tbuf->tms_cutime);
+		err |= __put_user(current->cstime, &tbuf->tms_cstime);
 	}
 
 	return err;

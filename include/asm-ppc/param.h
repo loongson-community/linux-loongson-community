@@ -1,5 +1,5 @@
 /*
- * BK Id: SCCS/s.param.h 1.8 08/20/01 22:50:29 paulus
+ * BK Id: %F% %I% %G% %U% %#%
  */
 #ifndef _ASM_PPC_PARAM_H
 #define _ASM_PPC_PARAM_H
@@ -9,6 +9,12 @@
 #ifdef __KERNEL__
 #define hz_to_std(a) (a)
 #endif
+#endif
+
+#ifdef __KERNEL__
+#define HZ		100		/* internal timer frequency */
+#define USER_HZ		100		/* for user interfaces in "ticks" */
+#define CLOCKS_PER_SEC	(USER_HZ)	/* frequency at which times() counts */
 #endif
 
 #define EXEC_PAGESIZE	4096
@@ -22,9 +28,5 @@
 #endif
 
 #define MAXHOSTNAMELEN	64	/* max length of hostname */
-
-#ifdef __KERNEL__
-# define CLOCKS_PER_SEC	HZ	/* frequency at which times() counts */
-#endif
 
 #endif

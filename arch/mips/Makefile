@@ -40,7 +40,7 @@ endif
 #
 GCCFLAGS	:= -I $(TOPDIR)/include/asm/gcc
 GCCFLAGS	+= -G 0 -mno-abicalls -fno-pic -pipe
-LINKFLAGS	+= -G 0 -static # -N
+LDFLAGS_vmalinux += -G 0 -static # -N
 MODFLAGS	+= -mlong-calls
 
 ifdef CONFIG_REMOTE_DEBUG
@@ -483,7 +483,7 @@ vmlinux: arch/$(ARCH)/ld.script
 arch/$(ARCH)/ld.script: arch/$(ARCH)/ld.script.in arch/$(ARCH)/Makefile
 	sed -e 's/@@LOADADDR@@/$(LOADADDR)/'		\
 	    -e 's/@@JIFFIES32@@/$(JIFFIES32)/' <$< >$@
-LINKFLAGS	+= -T arch/$(ARCH)/ld.script
+LDFLAGS_vmlinux	+= -T arch/$(ARCH)/ld.script
 
 HEAD := arch/mips/kernel/head.o arch/mips/kernel/init_task.o
 

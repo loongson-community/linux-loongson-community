@@ -16,6 +16,7 @@
 #include <linux/fs.h>
 #include <linux/tty.h>
 #include <linux/binfmts.h>
+#include <linux/times.h>
 
 #include <asm/uaccess.h>
 #include <asm/siginfo.h>
@@ -779,8 +780,8 @@ void do_notify_parent(struct task_struct *tsk, int sig)
 	info.si_uid = tsk->uid;
 
 	/* FIXME: find out whether or not this is supposed to be c*time. */
-	info.si_utime = hz_to_std(tsk->times.tms_utime);
-	info.si_stime = hz_to_std(tsk->times.tms_stime);
+	info.si_utime = jiffies_to_clock_t(tsk->utime);
+	info.si_stime = jiffies_to_clock_t(tsk->stime);
 
 	status = tsk->exit_code & 0x7f;
 	why = SI_KERNEL;	/* shouldn't happen */
