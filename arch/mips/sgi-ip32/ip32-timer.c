@@ -102,78 +102,6 @@ void cc_timer_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 	}
 }
 
-/*
- * On MIPS only R4000 and better have a cycle counter.
- *
- * FIXME: Does playing with the RP bit in c0_status interfere with this code?
- */
-static unsigned long do_gettimeoffset(void)
-{
-	u32 count;
-	unsigned long res, tmp;
-
-	/* Last jiffy when do_fast_gettimeoffset() was called. */
-	static unsigned long last_jiffies;
-	u32 quotient;
-
-	/*
-	 * Cached "1/(clocks per usec)*2^32" value.
-	 * It has to be recalculated once each jiffy.
-	 */
-	static u32 cached_quotient;
-
-	tmp = jiffies;
-
-	quotient = cached_quotient;
-
-	if (tmp && last_jiffies != tmp) {
-		last_jiffies = tmp;
-		__asm__(".set\tnoreorder\n\t"
-			".set\tnoat\n\t"
-			".set\tmips3\n\t"
-			"lwu\t%0,%2\n\t"
-			"dsll32\t$1,%1,0\n\t"
-			"or\t$1,$1,%0\n\t"
-			"ddivu\t$0,$1,%3\n\t"
-			"mflo\t$1\n\t"
-			"dsll32\t%0,%4,0\n\t"
-			"nop\n\t"
-			"ddivu\t$0,%0,$1\n\t"
-			"mflo\t%0\n\t"
-			".set\tmips0\n\t"
-			".set\tat\n\t"
-			".set\treorder"
-			:"=&r" (quotient)
-			:"r" (timerhi),
-			 "m" (timerlo),
-			 "r" (tmp),
-			 "r" (USECS_PER_JIFFY)
-			:"$1");
-		cached_quotient = quotient;
-	}
-
-	/* Get last timer tick in absolute kernel time */
-	count = read_c0_count();
-
-	/* .. relative to previous jiffy (32 bits is enough) */
-	count -= timerlo;
-
-	__asm__("multu\t%1,%2\n\t"
-		"mfhi\t%0"
-		:"=r" (res)
-		:"r" (count),
-		 "r" (quotient));
-
-	/*
- 	 * Due to possible jiffies inconsistencies, we need to check
-	 * the result so that we'll get a timer that is monotonic.
-	 */
-	if (res >= USECS_PER_JIFFY)
-		res = USECS_PER_JIFFY-1;
-
-	return res;
-}
-
 void __init ip32_time_init(void)
 {
 	unsigned int epoch = 0, year, mon, day, hour, min, sec;
@@ -230,9 +158,7 @@ void __init ip32_time_init(void)
 
 #define ALLINTS (IE_IRQ0 | IE_IRQ1 | IE_IRQ2 | IE_IRQ3 | IE_IRQ4 | IE_IRQ5)
 	/* Set ourselves up for future interrupts */
-        write_c0_compare(
-				 read_c0_count()
-				 + cc_interval);
+	write_c0_compare(read_c0_count() + cc_interval);
         change_c0_status(ST0_IM, ALLINTS);
 	local_irq_enable();
 }
