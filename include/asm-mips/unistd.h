@@ -1,16 +1,15 @@
-/* $Id: unistd.h,v 1.20 2000/02/18 00:24:48 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1995, 1996, 1997, 1998 by Ralf Baechle
+ * Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000 by Ralf Baechle
  *
  * Changed system calls macros _syscall5 - _syscall7 to push args 5 to 7 onto
  * the stack. Robin Farine for ACN S.A, Copyright (C) 1996 by ACN S.A
  */
-#ifndef __ASM_MIPS_UNISTD_H
-#define __ASM_MIPS_UNISTD_H
+#ifndef _ASM_UNISTD_H
+#define _ASM_UNISTD_H
 
 /*
  * The syscalls 0 - 3999 are reserved for a down to the root syscall
@@ -1045,7 +1044,7 @@
 #define __NR_mpx			(__NR_Linux +  56)
 #define __NR_setpgid			(__NR_Linux +  57)
 #define __NR_ulimit			(__NR_Linux +  58)
-#define __NR_oldolduname		(__NR_Linux +  59)
+#define __NR_unused59			(__NR_Linux +  59)
 #define __NR_umask			(__NR_Linux +  60)
 #define __NR_chroot			(__NR_Linux +  61)
 #define __NR_ustat			(__NR_Linux +  62)
@@ -1095,7 +1094,7 @@
 #define __NR_stat			(__NR_Linux + 106)
 #define __NR_lstat			(__NR_Linux + 107)
 #define __NR_fstat			(__NR_Linux + 108)
-#define __NR_olduname			(__NR_Linux + 109)
+#define __NR_unused109			(__NR_Linux + 109)
 #define __NR_iopl			(__NR_Linux + 110)
 #define __NR_vhangup			(__NR_Linux + 111)
 #define __NR_idle			(__NR_Linux + 112)
@@ -1219,13 +1218,15 @@
 #define _syscall0(type,name) \
 type name(void) \
 { \
-register long __res __asm__ ("$2"); \
-register long __err __asm__ ("$7"); \
+long __res, __err; \
 __asm__ volatile ("li\t$2,%2\n\t" \
-		  "syscall" \
+		  "syscall\n\t" \
+		  "move\t%0, $2\n\t" \
+		  "move\t%1, $7" \
                   : "=r" (__res), "=r" (__err) \
                   : "i" (__NR_##name) \
-                  : "$8","$9","$10","$11","$12","$13","$14","$15","$24"); \
+                  : "$2","$7","$8","$9","$10","$11","$12","$13","$14","$15", \
+		    "$24"); \
 if (__err == 0) \
 	return (type) __res; \
 errno = __res; \
@@ -1239,14 +1240,15 @@ return -1; \
 #define _syscall1(type,name,atype,a) \
 type name(atype a) \
 { \
-register long __res __asm__ ("$2"); \
-register long __err __asm__ ("$7"); \
+long __res, __err; \
 __asm__ volatile ("move\t$4,%3\n\t" \
 		  "li\t$2,%2\n\t" \
-                  "syscall" \
-                  : "=r" (__res), "=r" (__err) \
-                  : "i" (__NR_##name),"r" ((long)(a)) \
-                  : "$4","$8","$9","$10","$11","$12","$13","$14","$15","$24"); \
+		  "syscall\n\t" \
+		  "move\t%0, $2\n\t" \
+		  "move\t%1, $7" \
+		  : "=r" (__res), "=r" (__err) \
+		  : "i" (__NR_##name),"r" ((long)(a)) \
+		  : "$2","$4","$7","$8","$9","$10","$11","$12","$13","$14","$15","$24"); \
 if (__err == 0) \
 	return (type) __res; \
 errno = __res; \
@@ -1256,17 +1258,18 @@ return -1; \
 #define _syscall2(type,name,atype,a,btype,b) \
 type name(atype a,btype b) \
 { \
-register long __res __asm__ ("$2"); \
-register long __err __asm__ ("$7"); \
+long __res, __err; \
 __asm__ volatile ("move\t$4,%3\n\t" \
                   "move\t$5,%4\n\t" \
 		  "li\t$2,%2\n\t" \
-                  "syscall" \
+		  "syscall\n\t" \
+		  "move\t%0, $2\n\t" \
+		  "move\t%1, $7" \
                   : "=r" (__res), "=r" (__err) \
                   : "i" (__NR_##name),"r" ((long)(a)), \
                                       "r" ((long)(b)) \
-                  : "$4","$5","$8","$9","$10","$11","$12","$13","$14","$15", \
-                    "$24"); \
+                  : "$2","$4","$5","$7","$8","$9","$10","$11","$12","$13", \
+		    "$14","$15", "$24"); \
 if (__err == 0) \
 	return (type) __res; \
 errno = __res; \
@@ -1276,19 +1279,20 @@ return -1; \
 #define _syscall3(type,name,atype,a,btype,b,ctype,c) \
 type name (atype a, btype b, ctype c) \
 { \
-register long __res __asm__ ("$2"); \
-register long __err __asm__ ("$7"); \
+long __res, __err; \
 __asm__ volatile ("move\t$4,%3\n\t" \
                   "move\t$5,%4\n\t" \
                   "move\t$6,%5\n\t" \
 		  "li\t$2,%2\n\t" \
-                  "syscall" \
+		  "syscall\n\t" \
+		  "move\t%0, $2\n\t" \
+		  "move\t%1, $7" \
                   : "=r" (__res), "=r" (__err) \
                   : "i" (__NR_##name),"r" ((long)(a)), \
                                       "r" ((long)(b)), \
                                       "r" ((long)(c)) \
-                  : "$4","$5","$6","$8","$9","$10","$11","$12","$13","$14", \
-                    "$15","$24"); \
+                  : "$2","$4","$5","$6","$7","$8","$9","$10","$11","$12", \
+		    "$13","$14","$15","$24"); \
 if (__err == 0) \
 	return (type) __res; \
 errno = __res; \
@@ -1298,21 +1302,22 @@ return -1; \
 #define _syscall4(type,name,atype,a,btype,b,ctype,c,dtype,d) \
 type name (atype a, btype b, ctype c, dtype d) \
 { \
-register long __res __asm__ ("$2"); \
-register long __err __asm__ ("$7"); \
+long __res, __err; \
 __asm__ volatile ("move\t$4,%3\n\t" \
                   "move\t$5,%4\n\t" \
                   "move\t$6,%5\n\t" \
                   "move\t$7,%6\n\t" \
 		  "li\t$2,%2\n\t" \
-                  "syscall" \
+		  "syscall\n\t" \
+		  "move\t%0, $2\n\t" \
+		  "move\t%1, $7" \
                   : "=r" (__res), "=r" (__err) \
                   : "i" (__NR_##name),"r" ((long)(a)), \
                                       "r" ((long)(b)), \
                                       "r" ((long)(c)), \
                                       "r" ((long)(d)) \
-                  : "$4","$5","$6","$8","$9","$10","$11","$12","$13","$14", \
-                    "$15","$24"); \
+                  : "$2","$4","$5","$6","$7","$8","$9","$10","$11","$12", \
+		    "$13","$14","$15","$24"); \
 if (__err == 0) \
 	return (type) __res; \
 errno = __res; \
@@ -1322,8 +1327,7 @@ return -1; \
 #define _syscall5(type,name,atype,a,btype,b,ctype,c,dtype,d,etype,e) \
 type name (atype a,btype b,ctype c,dtype d,etype e) \
 { \
-register long __res __asm__ ("$2"); \
-register long __err __asm__ ("$7"); \
+long __res, __err; \
 __asm__ volatile ("move\t$4,%3\n\t" \
                   "move\t$5,%4\n\t" \
                   "move\t$6,%5\n\t" \
@@ -1332,7 +1336,9 @@ __asm__ volatile ("move\t$4,%3\n\t" \
 		  "subu\t$29,24\n\t" \
 		  "sw\t$2,16($29)\n\t" \
 		  "li\t$2,%2\n\t" \
-                  "syscall\n\t" \
+		  "syscall\n\t" \
+		  "move\t%0, $2\n\t" \
+		  "move\t%1, $7\n\t" \
 		  "addiu\t$29,24" \
                   : "=r" (__res), "=r" (__err) \
                   : "i" (__NR_##name),"r" ((long)(a)), \
@@ -1351,8 +1357,7 @@ return -1; \
 #define _syscall6(type,name,atype,a,btype,b,ctype,c,dtype,d,etype,e,ftype,f) \
 type name (atype a,btype b,ctype c,dtype d,etype e,ftype f) \
 { \
-register long __res __asm__ ("$2"); \
-register long __err __asm__ ("$7"); \
+long __res, __err; \
 __asm__ volatile ("move\t$4,%3\n\t" \
                   "move\t$5,%4\n\t" \
                   "move\t$6,%5\n\t" \
@@ -1363,7 +1368,9 @@ __asm__ volatile ("move\t$4,%3\n\t" \
 		  "sw\t$2,16($29)\n\t" \
 		  "sw\t$3,20($29)\n\t" \
 		  "li\t$2,%2\n\t" \
-                  "syscall\n\t" \
+		  "syscall\n\t" \
+		  "move\t%0, $2\n\t" \
+		  "move\t%1, $7\n\t" \
 		  "addiu\t$29,24" \
                   : "=r" (__res), "=r" (__err) \
                   : "i" (__NR_##name),"r" ((long)(a)), \
@@ -1383,8 +1390,7 @@ return -1; \
 #define _syscall7(type,name,atype,a,btype,b,ctype,c,dtype,d,etype,e,ftype,f,gtype,g) \
 type name (atype a,btype b,ctype c,dtype d,etype e,ftype f,gtype g) \
 { \
-register long __res __asm__ ("$2"); \
-register long __err __asm__ ("$7"); \
+long __res, __err; \
 __asm__ volatile ("move\t$4,%3\n\t" \
                   "move\t$5,%4\n\t" \
                   "move\t$6,%5\n\t" \
@@ -1397,7 +1403,9 @@ __asm__ volatile ("move\t$4,%3\n\t" \
 		  "sw\t$3,20($29)\n\t" \
 		  "sw\t$2,24($29)\n\t" \
 		  "li\t$2,%2\n\t" \
-                  "syscall\n\t" \
+		  "syscall\n\t" \
+		  "move\t%0, $2\n\t" \
+		  "move\t%1, $7\n\t" \
 		  "addiu\t$29,32" \
                   : "=r" (__res), "=r" (__err) \
                   : "i" (__NR_##name),"r" ((long)(a)), \
@@ -1451,4 +1459,4 @@ static inline pid_t wait(int * wait_stat)
 #endif /* !defined (__KERNEL_SYSCALLS__) */
 #endif /* !defined (_LANGUAGE_ASSEMBLY) */
 
-#endif /* __ASM_MIPS_UNISTD_H */
+#endif /* _ASM_UNISTD_H */

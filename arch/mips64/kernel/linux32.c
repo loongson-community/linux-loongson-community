@@ -23,6 +23,7 @@
 #include <linux/sem.h>
 #include <linux/msg.h>
 #include <linux/sysctl.h>
+#include <linux/utsname.h>
 
 #include <asm/uaccess.h>
 #include <asm/mman.h>
@@ -1866,4 +1867,20 @@ out:
 	if (kargs.newval)
 		kfree(kargs.newval);
 	return ret; 
+}
+
+asmlinkage long sys32_newuname(struct new_utsname * name)
+{
+	int ret = 0;
+
+	down_read(&uts_sem);
+	if (copy_to_user(name,&system_utsname,sizeof *name))
+		ret = -EFAULT;
+	up_read(&uts_sem);
+
+	if (current->personality == PER_LINUX32 && !ret)
+		if (copy_to_user(name->machine, "mips\0\0\0", 8))
+			ret = -EFAULT;
+
+	return ret;
 }

@@ -260,7 +260,7 @@ illegal_syscall:
 	sys	sys_ni_syscall	2
 	sys	sys_setpgid	2
 	sys	sys_ni_syscall, 0
-	sys	sys_olduname	1
+	sys	sys_ni_syscall	0	/* was sys_olduname  */
 	sys	sys_umask	1			/* 4060 */
 	sys	sys_chroot	1
 	sys	sys_ustat	2
@@ -310,7 +310,7 @@ illegal_syscall:
 	sys	sys32_newstat	2
 	sys	sys32_newlstat	2
 	sys	sys32_newfstat	2
-	sys	sys_uname	1
+	sys	sys_ni_syscall	0	/* was sys_uname */
 	sys	sys_ni_syscall	0	/* sys_ioperm  *//* 4110 */
 	sys	sys_vhangup	0
 	sys	sys_ni_syscall	0	/* was sys_idle	 */
@@ -323,7 +323,7 @@ illegal_syscall:
 	sys	sys32_sigreturn	0
 	sys	sys_clone	0			/* 4120 */
 	sys	sys_setdomainname 2
-	sys	sys_newuname	1
+	sys	sys32_newuname	1
 	sys	sys_ni_syscall	0	/* sys_modify_ldt */
 	sys	sys_adjtimex	1
 	sys	sys_mprotect	3			/* 4125 */

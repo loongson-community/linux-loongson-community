@@ -190,7 +190,7 @@ sys_call_table:
 	PTR	sys_ni_syscall
 	PTR	sys_setpgid
 	PTR	sys_ni_syscall
-	PTR	sys_olduname
+	PTR	sys_ni_syscall
 	PTR	sys_umask				/* 4060 */
 	PTR	sys_chroot
 	PTR	sys_ustat
@@ -240,7 +240,7 @@ sys_call_table:
 	PTR	sys_newstat
 	PTR	sys_newlstat
 	PTR	sys_newfstat
-	PTR	sys_uname
+	PTR	sys_ni_syscall
 	PTR	sys_ni_syscall		/* sys_ioperm  *//* 4110 */
 	PTR	sys_vhangup
 	PTR	sys_ni_syscall		/* was sys_idle	 */
