@@ -171,11 +171,10 @@ long kernel_thread(int (*fn)(void *), void *arg, unsigned long flags)
 		"	move	$4, $2		\n"
 		"	li	$2, %2		\n"
 		"	syscall			\n"
-		"1:				\n"
 #ifdef CONFIG_MIPS32	/* On o32 the caller has to deallocate the stackframe */
 		"	addiu	$sp, 32		\n"
 #endif
-		"	move	%0, $2"
+		"1:	move	%0, $2"
 		: "=r" (retval)
 		: "i" (__NR_clone), "i" (__NR_exit), "r" (arg), "r" (fn),
 		  "r" (flags | CLONE_VM | CLONE_UNTRACED)
