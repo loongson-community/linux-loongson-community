@@ -468,7 +468,7 @@ endif
 
 # Newport Text Console
 
-ifeq (CONFIG_SGI_NEWPORT_CONSOLE,y)
+ifeq ($(CONFIG_SGI_NEWPORT_CONSOLE),y)
 L_OBJS += newport_con.o vga_font.o
 else
   ifeq ($(CONFIG_SGI_NEWPORT_CONSOLE),m)
