@@ -19,6 +19,7 @@
  * Copyright (C) 2000, 2001 Broadcom Corporation
  */ 
 #include <linux/config.h>
+#include <linux/cache.h>
 #include <linux/init.h>
 #include <linux/spinlock.h>
 #include <linux/threads.h>
@@ -40,7 +41,7 @@
 #include <asm/smp.h>
 
 /* Ze Big Kernel Lock! */
-spinlock_t kernel_flag = SPIN_LOCK_UNLOCKED;
+spinlock_t kernel_flag __cacheline_aligned_in_smp = SPIN_LOCK_UNLOCKED;
 int smp_threads_ready;
 int smp_num_cpus = 1;			/* Number that came online.  */
 cpumask_t cpu_online_map;		/* Bitmask of currently online CPUs */

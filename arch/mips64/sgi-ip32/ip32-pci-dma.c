@@ -29,20 +29,6 @@
 #define mips_wbflush()  __asm__ __volatile__ ("sync" : : : "memory")
 /*#define mace_inv_read_buffers mips_wbflush*/
 
-/* Pure 2^n version of get_order */
-extern __inline__ int get_order(unsigned long size)
-{
-	int order;
-
-	size = (size-1) >> (PAGE_SHIFT-1);
-	order = -1;
-	do {
-		size >>= 1;
-		order++;
-	} while (size);
-	return order;
-}
-
 void *pci_alloc_consistent(struct pci_dev *hwdev, size_t size,
 			   dma_addr_t * dma_handle)
 {

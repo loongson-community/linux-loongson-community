@@ -96,6 +96,7 @@
 #define MACH_NEC_DDB5074	 0	/* NEC DDB Vrc-5074 */
 #define MACH_NEC_DDB5476         1      /* NEC DDB Vrc-5476 */
 #define MACH_NEC_DDB5477         2      /* NEC DDB Vrc-5477 */
+#define MACH_NEC_ROCKHOPPER      3      /* Rockhopper base board */
 
 /*
  * Valid machtype for group BAGET

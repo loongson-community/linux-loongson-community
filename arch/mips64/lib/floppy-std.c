@@ -15,6 +15,7 @@
 #include <linux/linkage.h>
 #include <linux/types.h>
 #include <linux/mm.h>
+
 #include <asm/bootinfo.h>
 #include <asm/cachectl.h>
 #include <asm/dma.h>
@@ -100,23 +101,9 @@ static unsigned long std_fd_getfdaddr1(void)
 	return 0x3f0;
 }
 
-/* Pure 2^n version of get_order */
-static int __get_order(unsigned long size)
-{
-	int order;
-
-	size = (size-1) >> (PAGE_SHIFT-1);
-	order = -1;
-	do {
-		size >>= 1;
-		order++;
-	} while (size);
-	return order;
-}
-
 static unsigned long std_fd_dma_mem_alloc(unsigned long size)
 {
-	int order = __get_order(size);
+	int order = get_order(size);
 	unsigned long mem;
 
 	mem = __get_dma_pages(GFP_KERNEL,order);
@@ -126,7 +113,7 @@ static unsigned long std_fd_dma_mem_alloc(unsigned long size)
 
 static void std_fd_dma_mem_free(unsigned long addr, unsigned long size)
 {       
-	free_pages(addr, __get_order(size));	
+	free_pages(addr, get_order(size));	
 }
 
 static unsigned long std_fd_drive_type(unsigned long n)
