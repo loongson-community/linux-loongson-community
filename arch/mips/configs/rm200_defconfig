@@ -1,12 +1,9 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.11-rc2
-# Sun Jan 30 01:30:35 2005
+# Sun Jan 30 03:10:02 2005
 #
 CONFIG_MIPS=y
-CONFIG_MIPS32=y
-# CONFIG_MIPS64 is not set
-# CONFIG_64BIT is not set
 
 #
 # Code maturity level options
@@ -82,6 +79,8 @@ CONFIG_KMOD=y
 # CONFIG_DDB5477 is not set
 # CONFIG_NEC_OSPREY is not set
 # CONFIG_SGI_IP22 is not set
+# CONFIG_SGI_IP27 is not set
+# CONFIG_SGI_IP32 is not set
 # CONFIG_SOC_AU1X00 is not set
 # CONFIG_SIBYTE_SB1xxx_SOC is not set
 CONFIG_SNI_RM200_PCI=y
@@ -122,6 +121,12 @@ CONFIG_CPU_R4X00=y
 # CONFIG_CPU_RM7000 is not set
 # CONFIG_CPU_RM9000 is not set
 # CONFIG_CPU_SB1 is not set
+CONFIG_SYS_SUPPORTS_32BIT_KERNEL=y
+CONFIG_CPU_SUPPORTS_32BIT_KERNEL=y
+CONFIG_CPU_SUPPORTS_64BIT_KERNEL=y
+CONFIG_MIPS32=y
+# CONFIG_MIPS64 is not set
+# CONFIG_64BIT is not set
 CONFIG_PAGE_SIZE_4KB=y
 # CONFIG_PAGE_SIZE_8KB is not set
 # CONFIG_PAGE_SIZE_16KB is not set
