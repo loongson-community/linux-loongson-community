@@ -1211,25 +1211,21 @@ static void sbdma_rx_process(struct sbmac_softc *sc,sbmacdma_t *d)
 				/*
 				 * Buffer has been replaced on the
 				 * receive ring.  Pass the buffer to
-				 * the kernel */
+				 * the kernel
+				 */
 				sc->sbm_stats.rx_bytes += len;
 				sc->sbm_stats.rx_packets++;
 				sb->protocol = eth_type_trans(sb,d->sbdma_eth->sbm_dev);
+				/* Check hw IPv4/TCP checksum if supported */
 				if (sc->rx_hw_checksum == ENABLE) {
-					/* if the ip checksum is good
-					   indicate in skb.  else set
-					   CHECKSUM_NONE as device
-					   failed to checksum the
-					   packet */
-					
-					if (((dsc->dscr_b) |M_DMA_ETHRX_BADTCPCS) ||
-					    ((dsc->dscr_a)| M_DMA_ETHRX_BADIP4CS)) {
-						sb->ip_summed = CHECKSUM_NONE;
-					} else {
-						printk(KERN_DEBUG "hw checksum fail .\n");
+					if (!((dsc->dscr_a) & M_DMA_ETHRX_BADIP4CS) &&
+					    !((dsc->dscr_a) & M_DMA_ETHRX_BADTCPCS)) {
 						sb->ip_summed = CHECKSUM_UNNECESSARY;
+						/* don't need to set sb->csum */
+					} else {
+						sb->ip_summed = CHECKSUM_NONE;
 					}
-				} /* rx_hw_checksum */
+				}
 				
 				netif_rx(sb);
 			}
@@ -1294,35 +1290,9 @@ static void sbdma_tx_process(struct sbmac_softc *sc,sbmacdma_t *d)
 		 */
 		
 		curidx = d->sbdma_remptr - d->sbdma_dscrtable;
-		{
-			/* XXX This is gross, ugly, and only here
-			 * because justin hacked it in to fix a
-			 * problem without really understanding it.
-			 * 
-			 * It seems that, for whatever reason, this
-			 * routine is invoked immediately upon the
-			 * enabling of interrupts.  So then the Read
-			 * below returns zero, making hwidx a negative
-			 * number, and anti-hilarity ensues.
-			 * 
-			 * I'm guessing there's a proper fix involving
-			 * clearing out interrupt state from old
-			 * packets before enabling interrupts, but I'm
-			 * not sure.
-			 *
-			 * Anyways, this hack seems to work, and is
-			 * Good Enough for 11 PM.  :)
-			 * 
-			 * -Justin
-			 */
+		hwidx = (int) (((SBMAC_READCSR(d->sbdma_curdscr) & M_DMA_CURDSCR_ADDR) -
+				d->sbdma_dscrtable_phys) / sizeof(sbdmadscr_t));
 
-			uint64_t tmp = SBMAC_READCSR(d->sbdma_curdscr);
-			if (!tmp) {
-				break;
-			}
-			hwidx = (int) (((tmp & M_DMA_CURDSCR_ADDR) -
-					d->sbdma_dscrtable_phys) / sizeof(sbdmadscr_t));
-		}
 		/*
 		 * If they're the same, that means we've processed all
 		 * of the descriptors up to (but not including) the one that
@@ -2459,9 +2429,12 @@ static int sbmac_open(struct net_device *dev)
 	}
 	
 	/* 
-	 * map/route interrupt 
+	 * map/route interrupt (clear status first, in case something
+	 * weird is pending; we haven't initialized the mac registers
+	 * yet)
 	 */
-	
+
+	SBMAC_READCSR(sc->sbm_isr);
 	if (request_irq(dev->irq, &sbmac_intr, SA_SHIRQ, dev->name, dev)) {
 		MOD_DEC_USE_COUNT;
 		return -EBUSY;
