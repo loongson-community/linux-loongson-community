@@ -231,6 +231,7 @@ comment 'CPU selection'
 choice 'CPU type' \
 	"R3000 CONFIG_CPU_R3000	\
 	 R6000 CONFIG_CPU_R6000	\
+	 R41xx CONFIG_CPU_VR41XX \
 	 R4300 CONFIG_CPU_R4300	\
 	 R4x00 CONFIG_CPU_R4X00	\
 	 R5000 CONFIG_CPU_R5000	\
@@ -249,7 +250,8 @@ if [ "$CONFIG_CPU_ADVANCED" = "y" ]; then
    bool '  lld/scd Instructions available' CONFIG_CPU_HAS_LLDSCD
    bool '  Writeback Buffer available' CONFIG_CPU_HAS_WB
 else
-   if [ "$CONFIG_CPU_R3000" = "y" ]; then
+   if [ "$CONFIG_CPU_R3000" = "y" -o
+        "$CONFIG_CPU_VR41XX" = "y" ]; then
       if [ "$CONFIG_DECSTATION" = "y" ]; then
 	 define_bool CONFIG_CPU_HAS_LLSC n
 	 define_bool CONFIG_CPU_HAS_LLDSCD n

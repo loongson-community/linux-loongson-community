@@ -139,6 +139,14 @@
 /*
  * Values for PageMask register
  */
+#include <linux/config.h>
+#ifdef CONFIG_CPU_VR41XX
+#define PM_1K   0x00000000
+#define PM_4K   0x00001800
+#define PM_16K  0x00007800
+#define PM_64K  0x0001f800
+#define PM_256K 0x0007f800
+#else
 #define PM_4K   0x00000000
 #define PM_16K  0x00006000
 #define PM_64K  0x0001e000
@@ -146,6 +154,7 @@
 #define PM_1M   0x001fe000
 #define PM_4M   0x007fe000
 #define PM_16M  0x01ffe000
+#endif
 
 /*
  * Values used for computation of new tlb entries

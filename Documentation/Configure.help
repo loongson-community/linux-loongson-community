@@ -1746,6 +1746,13 @@ CONFIG_CPU_R3000
   similar) CPU, R4xx0 might be a safe bet.
   If the resulting Kernel does not work try to recompile with R3000.
 
+CPU type
+CONFIG_CPU_VR41XX
+  The options selects support for the NEC VR41xx series of processors.
+  Only choose this option if you have one of these processors as a
+  kernel built with this option will not run on any other type of
+  processor or vice versa.
+
 CPU feature configuration
 CONFIG_CPU_ADVANCED
   Saying yes here allows you to select support for various features your

@@ -55,6 +55,7 @@ CONFIG_OLD_TIME_C=y
 #
 # CONFIG_CPU_R3000 is not set
 # CONFIG_CPU_R6000 is not set
+# CONFIG_CPU_VR41XX is not set
 # CONFIG_CPU_R4300 is not set
 # CONFIG_CPU_R4X00 is not set
 # CONFIG_CPU_R5000 is not set

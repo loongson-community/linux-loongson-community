@@ -191,6 +191,12 @@ static inline void cpu_probe(void)
 				           MIPS_CPU_WATCH | MIPS_CPU_VCE;
 			mips_cpu.tlbsize = 48;
 			break;
+                case PRID_IMP_VR41XX:
+                        mips_cpu.cputype = CPU_VR41XX;
+                        mips_cpu.isa_level = MIPS_CPU_ISA_III;
+                        mips_cpu.options = R4K_OPTS;
+                        mips_cpu.tlbsize = 32;
+                        break;
 		case PRID_IMP_R4600:
 			mips_cpu.cputype = CPU_R4600;
 			mips_cpu.isa_level = MIPS_CPU_ISA_III;

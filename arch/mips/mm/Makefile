@@ -15,6 +15,7 @@ obj-y				+= extable.o init.o ioremap.o fault.o loadmmu.o
 obj-$(CONFIG_CPU_R3000)		+= r2300.o
 obj-$(CONFIG_CPU_R4300)		+= r4xx0.o
 obj-$(CONFIG_CPU_R4X00)		+= r4xx0.o
+obj-$(CONFIG_CPU_R41XX)		+= r4xx0.o
 obj-$(CONFIG_CPU_R5000)		+= r4xx0.o
 obj-$(CONFIG_CPU_NEVADA)	+= r4xx0.o
 obj-$(CONFIG_CPU_R5432)		+= r5432.o

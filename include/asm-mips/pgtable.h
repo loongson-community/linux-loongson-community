@@ -334,7 +334,11 @@ extern inline void pgd_clear(pgd_t *pgdp)	{ }
  * is simple.
  */
 #define page_address(page)	((page)->virtual)
+#ifdef CONFIG_CPU_VR41XX
+#define pte_page(x)             (mem_map+(unsigned long)((pte_val(x) >> (PAGE_SHIFT + 2))))
+#else
 #define pte_page(x)		(mem_map+(unsigned long)((pte_val(x) >> PAGE_SHIFT)))
+#endif
 
 /*
  * The following only work if pte_present() is true.
@@ -405,6 +409,17 @@ extern inline pte_t pte_mkyoung(pte_t pte)
  * Conversion functions: convert a page and protection to a page entry,
  * and a page entry and page directory to the page they refer to.
  */
+#ifdef CONFIG_CPU_VR41XX
+#define mk_pte(page, pgprot)                                            \
+({                                                                      \
+        pte_t   __pte;                                                  \
+                                                                        \
+        pte_val(__pte) = ((unsigned long)(page - mem_map) << (PAGE_SHIFT + 2)) | \
+                         pgprot_val(pgprot);                            \
+                                                                        \
+        __pte;                                                          \
+})
+#else
 #define mk_pte(page, pgprot)						\
 ({									\
 	pte_t   __pte;							\
@@ -414,10 +429,15 @@ extern inline pte_t pte_mkyoung(pte_t pte)
 									\
 	__pte;								\
 })
+#endif
 
 extern inline pte_t mk_pte_phys(unsigned long physpage, pgprot_t pgprot)
 {
+#ifdef CONFIG_CPU_VR41XX
+        return __pte((physpage << 2) | pgprot_val(pgprot));
+#else
 	return __pte(physpage | pgprot_val(pgprot));
+#endif
 }
 
 extern inline pte_t pte_modify(pte_t pte, pgprot_t newprot)

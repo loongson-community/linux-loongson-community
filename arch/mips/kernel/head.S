@@ -76,7 +76,11 @@
 	addu	k1, k1, k0			# add in pgd offset
 	mfc0	k0, CP0_CONTEXT			# get context reg
 	lw	k1, (k1)
+#if defined(CONFIG_CPU_VR41XX)
+	srl	k0, k0, 3			# get pte offset
+#else
 	srl	k0, k0, 1			# get pte offset
+#endif
 	and	k0, k0, 0xff8
 	addu	k1, k1, k0			# add in offset
 	lw	k0, 0(k1)			# get even pte
