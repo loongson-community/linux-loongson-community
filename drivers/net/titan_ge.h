@@ -42,8 +42,10 @@ extern unsigned long titan_ge_base;
 
 #define TITAN_GE_PORT_0
 
-#define	TITAN_GE_SRAM_BASE_VIRTUAL	0xf4000000
-#define	TITAN_GE_SRAM_BASE_PHYSICAL	0xf4000000
+#define	TITAN_SRAM_BASE		0xf4000000UL
+#define	TITAN_SRAM_SIZE		0x2000UL
+
+extern unsigned long titan_ge_sram;
 
 #ifdef CONFIG_NET_FASTROUTE
 

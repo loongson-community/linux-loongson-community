@@ -132,6 +132,7 @@ int titan_ge_receive_queue(struct net_device *, unsigned int);
 extern unsigned char titan_ge_mac_addr_base[6];
 
 unsigned long titan_ge_base;
+static unsigned long titan_ge_sram;
 
 /* 
  * The Titan GE has two alignment requirements:
@@ -1132,16 +1133,16 @@ static int titan_ge_eth_open(struct net_device *netdev)
 	/* Allocate space in the SRAM for the descriptors */
         if (port_num == 0) {
                 titan_ge_eth->tx_desc_area =
-                    (titan_ge_tx_desc *) (TITAN_GE_SRAM_BASE_VIRTUAL);
+                    (titan_ge_tx_desc *) titan_ge_sram;
 
-                titan_ge_eth->tx_dma = (TITAN_GE_SRAM_BASE_PHYSICAL);
+                titan_ge_eth->tx_dma = TITAN_SRAM_BASE;
         }
 
 	if (port_num == 1) {
 		titan_ge_eth->tx_desc_area =
-		    (titan_ge_tx_desc *) (TITAN_GE_SRAM_BASE_VIRTUAL + 0x100);
+		    (titan_ge_tx_desc *) (titan_ge_sram + 0x100);
 		
-		titan_ge_eth->tx_dma = (TITAN_GE_SRAM_BASE_PHYSICAL + 0x100);
+		titan_ge_eth->tx_dma = TITAN_SRAM_BASE + 0x100;
 	}
 
 	if (!titan_ge_eth->tx_desc_area) {
@@ -1157,8 +1158,7 @@ static int titan_ge_eth_open(struct net_device *netdev)
 	/* Now initialize the Tx descriptor ring */
 	titan_ge_init_tx_desc_ring(titan_ge_eth,
 				   titan_ge_eth->tx_ring_size,
-				   (unsigned long) titan_ge_eth->
-				   tx_desc_area,
+				   (unsigned long) titan_ge_eth->tx_desc_area,
 				   (unsigned long) titan_ge_eth->tx_dma);
 
 	/* Allocate the Rx ring now */
@@ -1168,15 +1168,15 @@ static int titan_ge_eth_open(struct net_device *netdev)
 
 	if (port_num == 0) {
 		titan_ge_eth->rx_desc_area =
-			(titan_ge_rx_desc *)(TITAN_GE_SRAM_BASE_VIRTUAL + 0x1000);
+			(titan_ge_rx_desc *)(titan_ge_sram + 0x1000);
 
-		titan_ge_eth->rx_dma = (TITAN_GE_SRAM_BASE_PHYSICAL + 0x1000);
+		titan_ge_eth->rx_dma = TITAN_SRAM_BASE + 0x1000;
 	}
 
 	if (port_num == 1) {
 		titan_ge_eth->rx_desc_area =
-			(titan_ge_rx_desc *)(TITAN_GE_SRAM_BASE_VIRTUAL + 0x1100);
-		titan_ge_eth->rx_dma = (TITAN_GE_SRAM_BASE_PHYSICAL + 0x1100);
+			(titan_ge_rx_desc *)(titan_ge_sram + 0x1100);
+		titan_ge_eth->rx_dma = TITAN_SRAM_BASE + 0x1100;
 	}
 
 	if (!titan_ge_eth->rx_desc_area) {
@@ -1929,20 +1929,27 @@ static int __init titan_ge_init_module(void)
 {
 	unsigned int version, device;
 
-	titan_ge_base = (unsigned long) ioremap(TITAN_GE_BASE, TITAN_GE_SIZE);
-	if (!titan_ge_base) {
-	printk("Mapping Titan GE failed\n");
-
-	return -ENOMEM;
-	}
-
 	printk(KERN_NOTICE
 	       "PMC-Sierra TITAN 10/100/1000 Ethernet Driver \n");
+
+	titan_ge_base = (unsigned long) ioremap(TITAN_GE_BASE, TITAN_GE_SIZE);
+	if (!titan_ge_base) {
+		printk("Mapping Titan GE failed\n");
+		goto out;
+	}
+
 	device = TITAN_GE_READ(TITAN_GE_DEVICE_ID);
 	version = (device & 0x000f0000) >> 16;
 	device &= 0x0000ffff;
 
 	printk(KERN_NOTICE "Device Id : %x,  Version : %x \n", device, version);
+
+	titan_ge_sram = (unsigned long) ioremap(TITAN_SRAM_BASE,
+	                                        TITAN_SRAM_SIZE);
+	if (!titan_ge_sram) {
+		printk("Mapping Titan SRAM failed\n");
+		goto out_unmap_ge;
+	}
 
 	/* Register only one port */ 
 	if (titan_ge_init(0)) 
@@ -1955,6 +1962,12 @@ static int __init titan_ge_init_module(void)
 				"driver for port 1\n");
 
 	return 0;
+
+out_unmap_ge:
+	iounmap((void *)titan_ge_base);
+
+out:
+	return -ENOMEM;
 }
 
 /*
@@ -1962,6 +1975,7 @@ static int __init titan_ge_init_module(void)
  */
 static void __init titan_ge_cleanup_module(void)
 {
+	iounmap((void *)titan_ge_sram);
 	iounmap((void *)titan_ge_base);
 }
 
