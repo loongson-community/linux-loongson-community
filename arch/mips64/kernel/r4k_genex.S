@@ -52,7 +52,7 @@
 	   start with an n and gas will believe \n is ok ...  */
 	.macro	__BUILD_verbose	nexception
 	ld	a1, PT_EPC(sp)
-	PRINT("Got \nexception at %016lx")
+	PRINT("Got \nexception at %016lx\012")
 	.endm
 
 	.macro	__BUILD_count exception
@@ -81,7 +81,7 @@
 
 	BUILD_HANDLER adel ade ade silent		/* #4  */
 	BUILD_HANDLER ades ade ade silent		/* #5  */
-	BUILD_HANDLER ibe ibe cli verbose		/* #6  */
+	BUILD_HANDLER ibe ibe cli silent		/* #6  */
 	BUILD_HANDLER dbe dbe cli silent		/* #7  */
 	BUILD_HANDLER bp bp sti silent			/* #9  */
 	BUILD_HANDLER ri ri sti silent			/* #10 */
@@ -94,8 +94,11 @@
 
 	__INIT
 
-	/* General exception handler for CPUs with virtual coherency
-	   exception. version. */
+/* General exception handler for CPUs with virtual coherency exception.
+ *
+ * Be careful when changing this, it has to be at most 128 bytes to fit
+ * into space reserved for the exception handler.
+ */
 	NESTED(except_vec3_r4000, 0, sp)
 	.set	noat
 	mfc0	k1, CP0_CAUSE
@@ -105,10 +108,8 @@
 	 li	k0, 14<<2
 	beq	k1, k0, handle_vcei
 	 dsll	k1, k1, 1
-	daddu	k0, k0, k1
-	ld	k0, exception_handlers(k0)
+	ld	k0, exception_handlers(k1)
 	jr	k0
-	 nop
 
 /*
  * Big shit, we now may have two dirty primary cache lines for the same
