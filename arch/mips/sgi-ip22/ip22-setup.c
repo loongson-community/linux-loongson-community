@@ -175,7 +175,4 @@ void __init ip22_setup(void)
 #endif
 #endif
 	rtc_ops = &ip22_rtc_ops;
-#ifdef CONFIG_PSMOUSE
-	aux_device_present = 0xaa;
-#endif
 }

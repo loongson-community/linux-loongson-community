@@ -98,8 +98,6 @@ void __init sni_rm200_pci_setup(void)
 	_machine_halt = sni_machine_halt;
 	_machine_power_off = sni_machine_power_off;
 
-	aux_device_present = 0xaa;
-
 	/*
 	 * Some cluefull person has placed the PCI config data directly in
 	 * the I/O port space ...
@@ -124,7 +122,4 @@ void __init sni_rm200_pci_setup(void)
 	};
 
 	rtc_ops = &std_rtc_ops;
-#ifdef CONFIG_PSMOUSE
-	aux_device_present = 0xaa;
-#endif
 }
