@@ -380,7 +380,7 @@ type name(atype a, btype b, ctype c, dtype d, etype e) \
 	"addiu\t$29, 32\n\t" \
 	".set\treorder" \
 	: "=&r" (__v0), "+r" (__a3) \
-	: "r" (__a0), "r" (__a1), "r" (__a2), "i" (__NR_##name) \
+	: "r" (__a0), "r" (__a1), "r" (__a2), "i" (__NR_##name), \
 	  "m" ((unsigned long)e) \
 	: "$8", "$9", "$10", "$11", "$12", "$13", "$14", "$15", "$24"); \
 	\
@@ -411,7 +411,7 @@ type name(atype a, btype b, ctype c, dtype d, etype e, ftype f) \
 	"addiu\t$29, 32\n\t" \
 	".set\treorder" \
 	: "=&r" (__v0), "+r" (__a3) \
-	: "r" (__a0), "r" (__a1), "r" (__a2), "i" (__NR_##name) \
+	: "r" (__a0), "r" (__a1), "r" (__a2), "i" (__NR_##name), \
 	  "m" ((unsigned long)e), "m" ((unsigned long)f) \
 	: "$8", "$9", "$10", "$11", "$12", "$13", "$14", "$15", "$24"); \
 	\
@@ -444,7 +444,7 @@ type name(atype a, btype b, ctype c, dtype d, etype e, ftype f, gtype g) \
 	"addiu\t$29, 32\n\t" \
 	".set\treorder" \
 	: "=&r" (__v0), "+r" (__a3) \
-	: "r" (__a0), "r" (__a1), "r" (__a2), "i" (__NR_##name) \
+	: "r" (__a0), "r" (__a1), "r" (__a2), "i" (__NR_##name), \
 	  "m" ((unsigned long)e), "m" ((unsigned long)f), \
 	  "m" ((unsigned long)g), \
 	: "$8", "$9", "$10", "$11", "$12", "$13", "$14", "$15", "$24"); \
