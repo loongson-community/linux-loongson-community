@@ -85,7 +85,7 @@ static void pmaz_dma_mmu_get_scsi_one(struct NCR_ESP *esp, Scsi_Cmnd * sp);
 #define TC_ESP_DMA_ADDR(x) ((unsigned)(x) & TC_ESP_DMAR_MASK)
 
 __u32 esp_virt_buffer;
-int scsi_current_length = 0;
+int scsi_current_length;
 
 volatile unsigned char cmd_buffer[16];
 volatile unsigned char pmaz_cmd_buffer[16];
@@ -188,10 +188,13 @@ int dec_esp_detect(Scsi_Host_Template * tpnt)
 
 		esp_initialize(esp);
 
-		request_irq(esp->irq, esp_intr, SA_INTERRUPT, "NCR 53C94 SCSI",
-			    NULL);
-		request_irq(SCSI_DMA_INT, scsi_dma_int, SA_INTERRUPT, "JUNKIO SCSI DMA",
-			    NULL);
+ 		if (request_irq(esp->irq, esp_intr, SA_INTERRUPT, 
+ 				"NCR 53C94 SCSI", NULL))
+ 			goto err_dealloc;
+ 		if (request_irq(SCSI_DMA_INT, scsi_dma_int, SA_INTERRUPT, 
+ 				"JUNKIO SCSI DMA", NULL))
+ 			goto err_free_irq;
+ 			
 	}
 
 	if (TURBOCHANNEL) {
@@ -249,7 +252,12 @@ int dec_esp_detect(Scsi_Host_Template * tpnt)
 			esp->dma_mmu_release_scsi_sgl = 0;
 			esp->dma_advance_sg = 0;
 
-			request_irq(esp->irq, esp_intr, SA_INTERRUPT, "PMAZ-AA", NULL);
+ 			if (request_irq(esp->irq, esp_intr, SA_INTERRUPT, 
+ 					 "PMAZ_AA", NULL)) {
+ 				esp_deallocate(esp);
+ 				release_tc_card(slot);
+ 				continue;
+ 			}
 			esp->scsi_id = 7;
 			esp->diff = 0;
 			esp_initialize(esp);
@@ -258,10 +266,16 @@ int dec_esp_detect(Scsi_Host_Template * tpnt)
 
 	if(nesps) {
 		printk("ESP: Total of %d ESP hosts found, %d actually in use.\n", nesps, esps_in_use);
-	esps_running = esps_in_use;
-	return esps_in_use;
-	} else
-    return 0;
+		esps_running = esps_in_use;
+		return esps_in_use;
+	}
+	return 0;
+
+ err_free_irq:
+	free_irq(esp->irq, esp_intr);
+ err_dealloc:
+	esp_deallocate(esp);
+	return 0;
 }
 
 /************************************************************* DMA Functions */
