@@ -114,11 +114,11 @@ trace_a_syscall:
 	sd	a6, PT_R10(sp)
 	sd	a7, PT_R11(sp)
 
-	sd	t2,PT_R1(sp)
+	sd	t2, PT_SCRATCH0(sp)
 	move	a0, sp
 	li	a1, 0
 	jal	do_syscall_trace
-	ld	t2,PT_R1(sp)
+	ld	t2, PT_SCRATCH0(sp)
 
 	ld	a0, PT_R4(sp)		# Restore argument registers
 	ld	a1, PT_R5(sp)
