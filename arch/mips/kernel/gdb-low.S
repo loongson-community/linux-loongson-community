@@ -90,7 +90,7 @@
 		LONG_S	$1, GDB_FR_REG1(sp)
 		/* v0 already saved */
 		LONG_S	$3, GDB_FR_REG3(sp)
-		LONG_S	$3, GDB_FR_REG4(sp)
+		LONG_S	$4, GDB_FR_REG4(sp)
 		LONG_S	$5, GDB_FR_REG5(sp)
 		LONG_S	$6, GDB_FR_REG6(sp)
 		LONG_S	$7, GDB_FR_REG7(sp)
