@@ -1032,7 +1032,6 @@ config AU1000_USB_DEVICE
 
 config MIPS_GT96100
 	bool
-	depends on MIPS_EV96100
 	select MIPS_GT64120
 
 config IT8172_CIR
