@@ -164,6 +164,7 @@ config MIPS_EV96100
 	depends on EXPERIMENTAL
 	select IRQ_CPU
 	select MIPS_GT96100
+	select RM7000_CPU_SCACHE
 	help
 	  This is an evaluation board based on the Galileo GT-96100 LAN/WAN
 	  communications controllers containing a MIPS R5000 compatible core
@@ -181,6 +182,7 @@ config MIPS_IVR
 
 config LASAT
 	bool "Support for LASAT Networks platforms"
+	select R5000_CPU_SCACHE
 
 config PICVUE
 	tristate "PICVUE LCD display driver"
@@ -243,6 +245,7 @@ config MOMENCO_OCELOT
 	bool "Support for Momentum Ocelot board"
 	select IRQ_CPU
 	select IRQ_CPU_RM7K
+	select RM7000_CPU_SCACHE
 	help
 	  The Ocelot is a MIPS-based Single Board Computer (SBC) made by
 	  Momentum Computer <http://www.momenco.com/>.
@@ -251,6 +254,7 @@ config MOMENCO_OCELOT_G
 	bool "Support for Momentum Ocelot-G board"
 	select IRQ_CPU
 	select IRQ_CPU_RM7K
+	select RM7000_CPU_SCACHE
 	help
 	  The Ocelot is a MIPS-based Single Board Computer (SBC) made by
 	  Momentum Computer <http://www.momenco.com/>.
@@ -258,6 +262,7 @@ config MOMENCO_OCELOT_G
 config MOMENCO_OCELOT_C
 	bool "Support for Momentum Ocelot-C board"
 	select IRQ_CPU
+	select RM7000_CPU_SCACHE
 	help
 	  The Ocelot is a MIPS-based Single Board Computer (SBC) made by
 	  Momentum Computer <http://www.momenco.com/>.
@@ -266,6 +271,7 @@ config MOMENCO_JAGUAR_ATX
 	bool "Support for Momentum Jaguar board"
 	select IRQ_CPU
 	select IRQ_CPU_RM7K
+	select RM7000_CPU_SCACHE
 	help
 	  The Jaguar ATX is a MIPS-based Single Board Computer (SBC) made by
 	  Momentum Computer <http://www.momenco.com/>.
@@ -331,7 +337,7 @@ config NEC_OSPREY
 
 config SGI_IP22
 	bool "Support for SGI IP22 (Indy/Indigo2)"
-	select BOARD_SCACHE
+	select IP22_CPU_SCACHE
 	select IRQ_CPU
 	help
 	  This are the SGI Indy, Challenge S and Indigo2, as well as certain
@@ -404,6 +410,8 @@ config REPLICATE_EXHANDLERS
 config SGI_IP32
 	bool "Support for SGI IP32 (O2) (EXPERIMENTAL)"
 	depends on EXPERIMENTAL
+	select R5000_CPU_SCACHE
+	select RM7000_CPU_SCACHE
 	help
 	  If you want this kernel to run on SGI O2 workstation, say Y here.
 
@@ -964,9 +972,6 @@ config ARC_PROMLIB
 	depends on MACH_JAZZ || SNI_RM200_PCI || SGI_IP22 || SGI_IP32
 	default y
 
-config BOARD_SCACHE
-	bool
-
 config ARC64
 	bool
 	depends on SGI_IP27
@@ -1082,11 +1087,9 @@ config CPU_R10000
 
 config CPU_RM7000
 	bool "RM7000"
-	select BOARD_SCACHE
 
 config CPU_RM9000
 	bool "RM9000"
-	select BOARD_SCACHE
 
 config CPU_SB1
 	bool "SB1"
@@ -1127,15 +1130,20 @@ config PAGE_SIZE_64KB
 
 endchoice
 
-config R5000_CPU_SCACHE
-	bool
-	depends on CPU_NEVADA || CPU_R5000
-	default y if SGI_IP22 || SGI_IP32 || LASAT
-
 config BOARD_SCACHE
 	bool
-	depends on CPU_NEVADA || CPU_R4X00 || CPU_R5000
-	default y if SGI_IP22 || (SGI_IP32 && CPU_R5000) || R5000_CPU_SCACHE
+
+config IP22_CPU_SCACHE
+	bool
+	select BOARD_SCACHE
+
+config R5000_CPU_SCACHE
+	bool
+	select BOARD_SCACHE
+
+config RM7000_CPU_SCACHE
+	bool
+	select BOARD_SCACHE
 
 config SIBYTE_DMA_PAGEOPS
 	bool "Use DMA to clear/copy pages"
