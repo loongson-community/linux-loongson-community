@@ -796,11 +796,12 @@ extern int find_first_zero_bit (void *addr, unsigned size);
 /* Now for the ext2 filesystem bit operations and helper routines. */
 
 #ifdef __MIPSEB__
-extern __inline__ int ext2_set_bit(int nr,void * addr)
+extern __inline__ int ext2_set_bit(int nr, void * addr)
 {
 	int		mask, retval, flags;
 	unsigned char	*ADDR = (unsigned char *) addr;
 
+	ADDR += nr >> 3;
 	mask = 1 << (nr & 0x07);
 	save_and_cli(flags);
 	retval = (mask & *ADDR) != 0;
