@@ -535,7 +535,8 @@ __initfunc(int chr_dev_init(void))
     defined (CONFIG_AMIGAMOUSE) || defined (CONFIG_ATARIMOUSE) || \
     defined (CONFIG_PCWATCHDOG) || \
     defined (CONFIG_APM) || defined (CONFIG_RTC) || \
-    defined (CONFIG_SUN_MOUSE) || defined (CONFIG_NVRAM)
+    defined (CONFIG_SGI_DS1286) || defined (CONFIG_SUN_MOUSE) || \
+    defined (CONFIG_NVRAM)
 	misc_init();
 #endif
 #ifdef CONFIG_SOUND

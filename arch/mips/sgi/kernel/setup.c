@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.9 1998/05/07 02:57:21 ralf Exp $
+/* $Id: setup.c,v 1.10 1998/06/30 00:21:58 ralf Exp $
  *
  * setup.c: SGI specific setup, including init of the feature struct.
  *
@@ -24,11 +24,8 @@
 
 extern int serial_console; /* in console.c, of course */
 
-extern void sgi_machine_restart(char *command);
-extern void sgi_machine_halt(void);
-extern void sgi_machine_power_off(void);
-
 extern struct rtc_ops indy_rtc_ops;
+void indy_reboot_setup(void);
 
 static volatile struct hpc_keyb *sgi_kh = (struct hpc_keyb *) (KSEG1 + 0x1fbd9800 + 64);
 
@@ -70,6 +67,13 @@ __initfunc(static void sgi_keyboard_setup(void))
 	kbd_write_output = sgi_write_output;
 	kbd_write_command = sgi_write_command;
 	kbd_read_status = sgi_read_status;
+
+	/* Dirty hack, this get's called as a callback from the keyboard
+	   driver.  We piggyback the initialization of the front panel
+	   button handling on it even though they're technically not
+	   related with the keyboard driver in any way.  Doing it from
+	   indy_setup wouldn't work since kmalloc isn't initialized yet.  */
+	indy_reboot_setup();
 }
 
 __initfunc(static void sgi_irq_setup(void))
@@ -83,10 +87,6 @@ __initfunc(void sgi_setup(void))
 
 	irq_setup = sgi_irq_setup;
 	keyboard_setup = sgi_keyboard_setup;
-
-	_machine_restart = sgi_machine_restart;
-	_machine_halt = sgi_machine_halt;
-	_machine_power_off = sgi_machine_power_off;
 
 	/* Init the INDY HPC I/O controller.  Need to call this before
 	 * fucking with the memory controller because it needs to know the

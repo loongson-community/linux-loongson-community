@@ -68,6 +68,7 @@ repeat:
 	 */
 	flush_cache_all();
 	retval = *(unsigned long *) page;
+	flush_cache_all();	/* VCED avoidance  */
 	return retval;
 }
 
@@ -122,10 +123,10 @@ repeat:
 	}
 	/* This is a hack for non-kernel-mapped video buffers and similar */
 	if (MAP_NR(page) < MAP_NR(high_memory))
-		flush_cache_page(vma, addr);
+		flush_cache_all();
 	*(unsigned long *) (page + (addr & ~PAGE_MASK)) = data;
 	if (MAP_NR(page) < MAP_NR(high_memory))
-		flush_page_to_ram(page);
+		flush_cache_all();
 	/*
 	 * We're bypassing pagetables, so we have to set the dirty bit
 	 * ourselves this should also re-instate whatever read-only mode

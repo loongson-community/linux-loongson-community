@@ -1,4 +1,4 @@
-/* $Id: sgihpc.h,v 1.2 1998/06/25 20:15:04 ralf Exp $
+/* $Id: sgihpc.h,v 1.2 1998/06/30 00:23:11 ralf Exp $
  *
  * sgihpc.h: Various HPC I/O controller defines.  The HPC is basically
  *           the approximate functional equivalent of the Sun SYSIO
@@ -322,6 +322,9 @@ struct hpc3_miscregs {
 };
 extern struct hpc3_miscregs *hpc3mregs;
 #define HPC3_MREGS_PBASE   0x1fbd9800 /* physical */
+
+/* We need software copies of these because they are write only. */
+extern unsigned long sgi_hpc_write1, sgi_hpc_write2;
 
 struct hpc_keyb {
 #ifdef __MIPSEB__

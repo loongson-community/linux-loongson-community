@@ -1302,6 +1302,10 @@ static long get_root_array(char * page, int type, char **start,
 		case PROC_RTC:
 			return get_rtc_status(page);
 #endif
+#ifdef CONFIG_SGI_DS1286
+		case PROC_RTC:
+			return get_ds1286_status(page);
+#endif
 		case PROC_LOCKS:
 			return get_locks_status(page, start, offset, length);
 #ifdef CONFIG_ZORRO

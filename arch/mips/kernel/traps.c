@@ -1,4 +1,4 @@
-/* $Id: traps.c,v 1.14 1998/05/28 03:17:56 ralf Exp $
+/* $Id: traps.c,v 1.12 1998/06/30 00:21:53 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -23,8 +23,6 @@
 #include <asm/watch.h>
 #include <asm/system.h>
 #include <asm/uaccess.h>
-
-#undef CONF_DEBUG_EXCEPTIONS
 
 static inline void console_verbose(void)
 {
@@ -196,9 +194,6 @@ show_regs(regs); while(1);
 void do_ov(struct pt_regs *regs)
 {
 	lock_kernel();
-#ifdef CONF_DEBUG_EXCEPTIONS
-	show_regs(regs);
-#endif
 	if (compute_return_epc(regs))
 		goto out;
 	force_sig(SIGFPE, current);
@@ -238,9 +233,6 @@ void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 	}
 #endif
 	lock_kernel();
-#ifdef CONF_DEBUG_EXCEPTIONS
-	show_regs(regs);
-#endif
 	if (fcr31 & 0x20000) {
 		/* Retry instruction with flush to zero ...  */
 		if (!(fcr31 & (1<<24))) {
@@ -282,41 +274,28 @@ static inline int get_insn_opcode(struct pt_regs *regs, unsigned int *opcode)
 	return 0;
 }
 
-static inline void
-do_bp_and_tr(struct pt_regs *regs, char *exc, unsigned int trapcode)
+
+void do_bp(struct pt_regs *regs)
 {
+	unsigned int opcode, bcode;
+
+	/*
+	 * There is the ancient bug in the MIPS assemblers that the break
+	 * code starts left to bit 16 instead to bit 6 in the opcode.
+	 * Gas is bug-compatible ...
+	 */
+	if (get_insn_opcode(regs, &opcode))
+		goto out;
+	bcode = ((opcode >> 16) & ((1 << 20) - 1));
+
+	lock_kernel();
 	/*
 	 * (A short test says that IRIX 5.3 sends SIGTRAP for all break
 	 * insns, even for break codes that indicate arithmetic failures.
 	 * Wiered ...)
 	 */
 	force_sig(SIGTRAP, current);
-#ifdef CONF_DEBUG_EXCEPTIONS
-	show_regs(regs);
-#endif
-}
 
-void do_bp(struct pt_regs *regs)
-{
-	unsigned int opcode, bcode;
-
-	lock_kernel();
-	/*
-	 * There is the ancient bug in the MIPS assemblers that the break
-	 * code starts left to bit 16 instead to bit 6 in the opcode.
-	 * Gas is bug-compatible ...
-	 */
-#ifdef CONF_DEBUG_EXCEPTIONS
-	printk("BREAKPOINT at %08lx\n", regs->cp0_epc);
-#endif
-	if (get_insn_opcode(regs, &opcode))
-		goto out;
-	bcode = ((opcode >> 16) & ((1 << 20) - 1));
-
-	do_bp_and_tr(regs, "bp", bcode);
-
-	if (compute_return_epc(regs))
-		goto out;
 out:
 	unlock_kernel();
 }
@@ -330,7 +309,12 @@ void do_tr(struct pt_regs *regs)
 		goto out;
 	bcode = ((opcode >> 6) & ((1 << 20) - 1));
 
-	do_bp_and_tr(regs, "tr", bcode);
+	/*
+	 * (A short test says that IRIX 5.3 sends SIGTRAP for all break
+	 * insns, even for break codes that indicate arithmetic failures.
+	 * Wiered ...)
+	 */
+	force_sig(SIGTRAP, current);
 out:
 	unlock_kernel();
 }
@@ -338,9 +322,6 @@ out:
 void do_ri(struct pt_regs *regs)
 {
 	lock_kernel();
-#ifdef CONF_DEBUG_EXCEPTIONS
-	show_regs(regs);
-#endif
 	printk("[%s:%ld] Illegal instruction at %08lx ra=%08lx\n",
 	       current->comm, current->pid, regs->cp0_epc, regs->regs[31]);
 	if (compute_return_epc(regs))

@@ -15,4 +15,8 @@ ifeq ($(CONFIG_SGI_SERIAL),y)
   O_OBJS += sgiserial.o
 endif
 
+ifeq ($(CONFIG_SGI_DS1286),y)
+  O_OBJS += ds1286.o
+endif
+
 include $(TOPDIR)/Rules.make

@@ -257,6 +257,9 @@ __initfunc(int misc_init(void))
 #ifdef CONFIG_RTC
 	rtc_init();
 #endif
+#ifdef CONFIG_SGI_DS1286
+	ds1286_init();
+#endif
 #ifdef CONFIG_ATARI_DSP56K
 	dsp56k_init();
 #endif

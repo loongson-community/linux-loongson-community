@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: indy_hpc.c,v 1.2 1998/03/27 08:53:43 ralf Exp $
+ * $Id: indy_hpc.c,v 1.2 1998/04/05 11:23:57 ralf Exp $
  */
 #include <linux/init.h>
 
@@ -20,26 +20,12 @@ struct hpc3_regs *hpc3c0, *hpc3c1;
 struct hpc3_miscregs *hpc3mregs;
 
 /* We need software copies of these because they are write only. */
-static unsigned long write1, write2;
+unsigned long sgi_hpc_write1, sgi_hpc_write2;
 
 /* Machine specific identifier knobs. */
 int sgi_has_ioc2 = 0;
 int sgi_guiness = 0;
 int sgi_boardid;
-
-void sgihpc_write1_modify(int set, int clear)
-{
-	write1 |= set;
-	write1 &= ~clear;
-	hpc3mregs->write1 = write1;
-}
-
-void sgihpc_write2_modify(int set, int clear)
-{
-	write2 |= set;
-	write2 &= ~clear;
-	hpc3mregs->write2 = write2;
-}
 
 __initfunc(void sgihpc_init(void))
 {
@@ -96,12 +82,12 @@ __initfunc(void sgihpc_init(void))
 	prom_printf("\n");
 #endif
 
-	write1 = (HPC3_WRITE1_PRESET |
+	sgi_hpc_write1 = (HPC3_WRITE1_PRESET |
 		  HPC3_WRITE1_KMRESET |
 		  HPC3_WRITE1_ERESET |
 		  HPC3_WRITE1_LC0OFF);
 
-	write2 = (HPC3_WRITE2_EASEL |
+	sgi_hpc_write2 = (HPC3_WRITE2_EASEL |
 		  HPC3_WRITE2_NTHRESH |
 		  HPC3_WRITE2_TPSPEED |
 		  HPC3_WRITE2_EPSEL |
@@ -109,9 +95,9 @@ __initfunc(void sgihpc_init(void))
 		  HPC3_WRITE2_U1AMODE);
 
 	if(!sgi_guiness)
-		write1 |= HPC3_WRITE1_GRESET;
-	hpc3mregs->write1 = write1;
-	hpc3mregs->write2 = write2;
+		sgi_hpc_write1 |= HPC3_WRITE1_GRESET;
+	hpc3mregs->write1 = sgi_hpc_write1;
+	hpc3mregs->write2 = sgi_hpc_write2;
 
 	hpc3c0->pbus_piocfgs[0][6] |= HPC3_PIOPCFG_HW;
 }

@@ -15,6 +15,7 @@
 #include <linux/delay.h>
 #include <linux/smp.h>
 #include <linux/reboot.h>
+#include <linux/notifier.h>
 #include <linux/init.h>
 #include <linux/sysrq.h>
 #include <linux/interrupt.h>
@@ -24,6 +25,8 @@ extern void unblank_console(void);
 extern int C_A_D;
 
 int panic_timeout = 0;
+
+struct notifier_block *panic_notifier_list = NULL;
 
 __initfunc(void panic_setup(char *str, int *ints))
 {
@@ -53,6 +56,8 @@ NORET_TYPE void panic(const char * fmt, ...)
 
 	unblank_console();
 
+	notifier_call_chain(&panic_notifier_list, 0, NULL);
+
 	if (panic_timeout > 0)
 	{
 		int i;
@@ -74,6 +79,7 @@ NORET_TYPE void panic(const char * fmt, ...)
 #ifdef __sparc__
 	printk("Press L1-A to return to the boot prom\n");
 #endif
+
 	sti();
 	for(;;) {
 		CHECK_EMERGENCY_SYNC

@@ -4,7 +4,7 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  *  Copyright (C) 1994, 1995, 1996  Ralf Baechle
  *
- * $Id: signal.c,v 1.13 1998/07/03 23:05:37 ralf Exp $
+ * $Id: signal.c,v 1.14 1998/07/04 00:49:51 ralf Exp $
  *
  * XXX Handle lazy fp context switches correctly.
  */
@@ -55,7 +55,8 @@ sys_sigsuspend(struct pt_regs regs)
 	current->blocked = newset;
 	spin_unlock_irq(&current->sigmask_lock);
 
-	regs.regs[2] = -EINTR;
+	regs.regs[2] = EINTR;
+	regs.regs[7] = 1;
 	while (1) {
 		current->state = TASK_INTERRUPTIBLE;
 		schedule();
@@ -80,7 +81,8 @@ sys_rt_sigsuspend(struct pt_regs regs)
 	current->blocked = newset;
 	spin_unlock_irq(&current->sigmask_lock);
 
-	regs.regs[2] = -EINTR;
+	regs.regs[2] = EINTR;
+	regs.regs[7] = 1;
 	while (1) {
 		current->state = TASK_INTERRUPTIBLE;
 		schedule();

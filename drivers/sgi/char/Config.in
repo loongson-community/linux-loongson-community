@@ -9,4 +9,6 @@ if [ "$CONFIG_SGI_SERIAL" != "n" ]; then
   define_bool CONFIG_SERIAL y
 fi
 
+bool 'SGI DS1286  RTC support' CONFIG_SGI_DS1286
+
 endmenu

@@ -54,6 +54,7 @@
 #include <linux/malloc.h>
 #include <linux/ioport.h>
 #include <linux/fcntl.h>
+#include <linux/rtc.h>
 #include <linux/mc146818rtc.h>
 #include <linux/init.h>
 #include <linux/poll.h>
