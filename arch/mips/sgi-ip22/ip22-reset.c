@@ -13,6 +13,7 @@
 #include <asm/irq.h>
 #include <asm/system.h>
 #include <asm/reboot.h>
+#include <asm/ds1286.h>
 #include <asm/sgialib.h>
 #include <asm/sgi/sgihpc.h>
 #include <asm/sgi/sgint23.h>
@@ -33,7 +34,7 @@
 static unsigned char sgi_volume;
 
 static struct timer_list power_timer, blink_timer, debounce_timer, volume_timer;
-static int shuting_down, has_paniced;
+static int shuting_down = 0, has_paniced = 0, setup_done = 0;
 
 static void sgi_machine_restart(char *command) __attribute__((noreturn));
 static void sgi_machine_halt(void) __attribute__((noreturn));
@@ -56,13 +57,15 @@ static void sgi_machine_halt(void)
 
 static void sgi_machine_power_off(void)
 {
-	struct indy_clock *clock = (struct indy_clock *)INDY_CLOCK_REGS;
-
+	unsigned char val;
+	
 	cli();
 
-	clock->cmd |= 0x08;	/* Disable watchdog */
-	clock->whsec = 0;
-	clock->wsec = 0;
+	/* Disable watchdog */
+	val = CMOS_READ(RTC_CMD);
+	CMOS_WRITE(val|RTC_WAM, RTC_CMD);
+	CMOS_WRITE(0, RTC_WSEC);
+	CMOS_WRITE(0, RTC_WHSEC);
 
 	while(1) {
 		hpc3mregs->panel=0xfe;
@@ -70,7 +73,7 @@ static void sgi_machine_power_off(void)
 
 		/* If we're still running, we probably got sent an alarm
 		   interrupt.  Read the flag to clear it.  */
-		clock->halarm;
+		val = CMOS_READ(RTC_HOURS_ALARM);
 	}
 }
 
@@ -224,8 +227,6 @@ static struct notifier_block panic_block = {
 
 void indy_reboot_setup(void)
 {
-	static int setup_done;
-
 	if (setup_done)
 		return;
 	setup_done = 1;

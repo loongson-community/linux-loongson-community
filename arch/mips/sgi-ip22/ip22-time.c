@@ -66,8 +66,8 @@ static int indy_rtc_set_time(unsigned long tim)
 
 	to_tm(tim, &tm);
 
-	tm.tm_year -= 1900;
 	tm.tm_mon += 1;
+	tm.tm_year -= 40;
 	if (tm.tm_year >= 100)
 		tm.tm_year -= 100;
 
@@ -215,12 +215,10 @@ extern int setup_irq(unsigned int irq, struct irqaction *irqaction);
 
 static void indy_timer_setup(struct irqaction *irq)
 {
-	/* over-write the handler. we use our own way */
+	/* over-write the handler, we use our own way */
 	irq->handler = no_action;
-
 	/* setup irqaction */
 	setup_irq(SGI_TIMER_IRQ, irq);
-
 }
 
 void sgitime_init(void)

@@ -1,5 +1,5 @@
 /*
- * system.c: Probe the system type using ARCS prom interface library.
+ * ip22-system.c: Probe the system type using ARCS prom interface library.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  */

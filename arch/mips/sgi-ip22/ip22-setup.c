@@ -1,5 +1,5 @@
 /*
- * setup.c: SGI specific setup, including init of the feature struct.
+ * ip22-setup.c: SGI specific setup, including init of the feature struct.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  * Copyright (C) 1997, 1998 Ralf Baechle (ralf@gnu.org)
@@ -40,8 +40,8 @@ extern void console_setup(char *);
 extern void sgitime_init(void);
 
 extern struct rtc_ops indy_rtc_ops;
-void indy_reboot_setup(void);
-void sgi_volume_set(unsigned char);
+extern void indy_reboot_setup(void);
+extern void sgi_volume_set(unsigned char);
 
 #define sgi_kh ((struct hpc_keyb *) (KSEG1 + 0x1fbd9800 + 64))
 
