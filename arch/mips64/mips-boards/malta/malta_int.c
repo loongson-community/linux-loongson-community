@@ -45,7 +45,6 @@ extern asmlinkage void mipsIRQ(void);
 
 unsigned int local_bh_count[NR_CPUS];
 unsigned int local_irq_count[NR_CPUS];
-volatile unsigned long irq_err_count;
 
 static struct irqaction *hw0_irq_action[MALTAINT_END] = {
 	NULL, NULL, NULL, NULL,
@@ -116,46 +115,6 @@ void enable_irq(unsigned int irq_nr)
 		outb(cached_int_mask & 0xff, PIIX4_ICTLR1_OCW1);
 	}	
 	restore_flags(flags);
-}
-
-
-int get_irq_list(char *buf)
-{
-	int i, len = 0;
-	int num = 0;
-	struct irqaction *action;
-
-	for (i = 0; i < 8; i++, num++) {
-		action = irq_action[i];
-		if (!action) 
-			continue;
-		len += sprintf(buf+len, "%2d: %8d %c %s",
-			num, kstat.irqs[0][num],
-			(action->flags & SA_INTERRUPT) ? '+' : ' ',
-			action->name);
-		for (action=action->next; action; action = action->next) {
-			len += sprintf(buf+len, ",%s %s",
-				(action->flags & SA_INTERRUPT) ? " +" : "",
-				action->name);
-		}
-		len += sprintf(buf+len, " [on-chip]\n");
-	}
-	for (i = 0; i < MALTAINT_END; i++, num++) {
-		action = hw0_irq_action[i];
-		if (!action) 
-			continue;
-		len += sprintf(buf+len, "%2d: %8d %c %s",
-			num, kstat.irqs[0][num],
-			(action->flags & SA_INTERRUPT) ? '+' : ' ',
-			action->name);
-		for (action=action->next; action; action = action->next) {
-			len += sprintf(buf+len, ",%s %s",
-				(action->flags & SA_INTERRUPT) ? " +" : "",
-				action->name);
-		}
-		len += sprintf(buf+len, " [hw0]\n");
-	}
-	return len;
 }
 
 int request_irq(unsigned int irq, 

@@ -43,7 +43,6 @@ struct atlas_ictrl_regs *atlas_hw0_icregs
 extern asmlinkage void mipsIRQ(void);
 extern void do_IRQ(int irq, struct pt_regs *regs);
 
-volatile unsigned long irq_err_count;
 irq_desc_t irq_desc[NR_IRQS];
 
 #if 0
@@ -88,30 +87,6 @@ static struct hw_interrupt_type atlas_irq_type = {
 	end_atlas_irq,
 	NULL
 };
-
-int get_irq_list(char *buf)
-{
-	int i, len = 0;
-	int num = 0;
-	struct irqaction *action;
-
-	for (i = 0; i < ATLASINT_END; i++, num++) {
-		action = irq_desc[i].action;
-		if (!action) 
-			continue;
-		len += sprintf(buf+len, "%2d: %8d %c %s",
-			num, kstat.irqs[0][num],
-			(action->flags & SA_INTERRUPT) ? '+' : ' ',
-			action->name);
-		for (action=action->next; action; action = action->next) {
-			len += sprintf(buf+len, ",%s %s",
-				(action->flags & SA_INTERRUPT) ? " +" : "",
-				action->name);
-		}
-		len += sprintf(buf+len, " [hw0]\n");
-	}
-	return len;
-}
 
 int request_irq(unsigned int irq, 
 		void (*handler)(int, void *, struct pt_regs *),
@@ -190,9 +165,9 @@ void atlas_hw0_irqdispatch(struct pt_regs *regs)
 	DEBUG_INT("atlas_hw0_irqdispatch: irq=%d\n", irq);
 
 	/* if action == NULL, then we don't have a handler for the irq */
-	if ( action == NULL ) {
+	if (action == NULL) {
 	        printk("No handler for hw0 irq: %i\n", irq);
-		irq_err_count++;
+		atomic_inc(&irq_err_count);
 		return;
 	}
 

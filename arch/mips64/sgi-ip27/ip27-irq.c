@@ -73,8 +73,6 @@ extern int irq_to_bus[], irq_to_slot[], bus_to_cpu[];
 int intr_connect_level(int cpu, int bit);
 int intr_disconnect_level(int cpu, int bit);
 
-volatile unsigned long irq_err_count;
-
 /*
  * There is a single intpend register per node, and we want to have
  * distinct levels for intercpu intrs for both cpus A and B on a node.
@@ -138,29 +136,6 @@ void enable_irq(unsigned int irq_nr)
 
 /* This is stupid for an Origin which can have thousands of IRQs ...  */
 static struct irqaction *irq_action[NR_IRQS];
-
-int get_irq_list(char *buf)
-{
-	int i, len = 0;
-	struct irqaction * action;
-
-	for (i = 0 ; i < NR_IRQS ; i++) {
-		action = irq_action[i];
-		if (!action) 
-			continue;
-		len += sprintf(buf+len, "%2d: %8d %c %s", i, kstat.irqs[0][i],
-		               (action->flags & SA_INTERRUPT) ? '+' : ' ',
-		               action->name);
-		for (action=action->next; action; action = action->next) {
-			len += sprintf(buf+len, ",%s %s",
-			               (action->flags & SA_INTERRUPT)
-			                ? " +" : "",
-			                action->name);
-		}
-		len += sprintf(buf+len, "\n");
-	}
-	return len;
-}
 
 /*
  * do_IRQ handles all normal device IRQ's (the special SMP cross-CPU interrupts

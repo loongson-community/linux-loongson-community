@@ -68,8 +68,6 @@ extern asmlinkage void indyIRQ(void);
 extern void rs_kgdb_hook(int);
 #endif
 
-volatile unsigned long irq_err_count;
-
 /* Local IRQ's are layed out logically like this:
  *
  * 0  --> 7   ==   local 0 interrupts
@@ -230,45 +228,6 @@ static struct irqaction *irq_action[16] = {
 	NULL, NULL, NULL, NULL,
 	NULL, NULL, NULL, NULL
 };
-
-int get_irq_list(char *buf)
-{
-	int i, len = 0;
-	int num = 0;
-	struct irqaction * action;
-
-	for (i = 0 ; i < 16 ; i++, num++) {
-		action = irq_action[i];
-		if (!action) 
-			continue;
-		len += sprintf(buf+len, "%2d: %8d %c %s",
-			num, kstat.irqs[0][num],
-			(action->flags & SA_INTERRUPT) ? '+' : ' ',
-			action->name);
-		for (action=action->next; action; action = action->next) {
-			len += sprintf(buf+len, ",%s %s",
-				(action->flags & SA_INTERRUPT) ? " +" : "",
-				action->name);
-		}
-		len += sprintf(buf+len, " [on-chip]\n");
-	}
-	for (i = 0 ; i < 24 ; i++, num++) {
-		action = local_irq_action[i];
-		if (!action) 
-			continue;
-		len += sprintf(buf+len, "%2d: %8d %c %s",
-			num, kstat.irqs[0][num],
-			(action->flags & SA_INTERRUPT) ? '+' : ' ',
-			action->name);
-		for (action=action->next; action; action = action->next) {
-			len += sprintf(buf+len, ",%s %s",
-				(action->flags & SA_INTERRUPT) ? " +" : "",
-				action->name);
-		}
-		len += sprintf(buf+len, " [local]\n");
-	}
-	return len;
-}
 
 /*
  * do_IRQ handles IRQ's that have been installed without the

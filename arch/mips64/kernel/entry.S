@@ -81,9 +81,10 @@ LEAF(spurious_interrupt)
 		 * Someone tried to fool us by sending an interrupt but we
 		 * couldn't find a cause for it.
 		 */
-		lui     t1,%hi(irq_err_count)
-		lw      t0,%lo(irq_err_count)(t1)
-		addiu   t0,1
-		sw      t0,%lo(irq_err_count)(t1)
+		lui     t1, %hi(irq_err_count)
+1:		ll      t0, %lo(irq_err_count)(t1)
+		addiu   t0, 1
+		sc      t0, %lo(irq_err_count)(t1)
+		beq	t0, 1b
 		j	ret_from_irq
 		END(spurious_interrupt)

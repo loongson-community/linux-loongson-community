@@ -116,7 +116,6 @@ struct irqaction cpuerr_irq = { crime_cpuerr_intr, SA_INTERRUPT,
 			       0, "CRIME CPU error", NULL,
 			       NULL };
 
-volatile unsigned long irq_err_count;
 extern void ip32_handle_int (void);
 asmlinkage unsigned int do_IRQ(int irq, struct pt_regs *regs);
 
@@ -605,39 +604,9 @@ void ip32_irq5(struct pt_regs *regs)
 	do_IRQ (CLOCK_IRQ, regs);
 }
 
-volatile unsigned long irq_err_count;
-
 /*
  * Generic, controller-independent functions:
  */
-
-int get_irq_list(char *buf)
-{
-	struct irqaction * action;
-	char *p = buf;
-	int i;
-
-	p += sprintf(p, "           ");
-	for (i=0; i < 1 /*smp_num_cpus*/; i++)
-		p += sprintf(p, "CPU%d       ", i);
-	*p++ = '\n';
-
-	for (i = 0 ; i < NR_IRQS ; i++) {
-		action = irq_desc[i].action;
-		if (!action) 
-			continue;
-		p += sprintf(p, "%3d: ",i);
-		p += sprintf(p, "%10u ", kstat_irqs(i));
-		p += sprintf(p, " %14s", irq_desc[i].handler->typename);
-		p += sprintf(p, "  %s", action->name);
-
-		for (action=action->next; action; action = action->next)
-			p += sprintf(p, ", %s", action->name);
-		*p++ = '\n';
-	}
-	p += sprintf(p, "ERR: %10lu\n", irq_err_count);
-	return p - buf;
-}
 
 /* this was setup_x86_irq but it seems pretty generic */
 int setup_irq(unsigned int irq, struct irqaction * new)

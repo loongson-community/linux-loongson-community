@@ -187,19 +187,11 @@ static irq_desc_t irq_desc[NR_IRQS] =
 
 /* Defined in arch/mips/sibyte/sb1250/irq_handler.S */
 extern void sb1250_irq_handler(void);
-/* 
- *  irq_err_count is used in arch/mips/kernel/entry.S to record the 
- *  number of spurious interrupts we see before the handler is installed. 
- *  It doesn't provide any particularly relevant information for us, so
- *  we basically ignore it.
- */ 
-volatile unsigned long irq_err_count;
 
 /*
  * The interrupt handler calls this once for every unmasked interrupt
  * that is pending.  vector is the IRQ number that was raised 
  */
-
 void sb1250_dispatch_irq(unsigned int vector, struct pt_regs *regs)
 {
 	struct irqaction *action;
@@ -415,17 +407,6 @@ void free_irq(unsigned int irq, void *dev_id)
 		spin_unlock_irqrestore(&desc->lock,flags);
 		return;
 	}
-}
-
-/*
- *  get_irq_list() pretty prints a list of who has requested which
- *  irqs.  This function is activated by a read of a file in /proc/
- *  Returns the length of the string generated
- *
- */
-int get_irq_list(char *buf)
-{
-	return 0;
 }
 
 /*
