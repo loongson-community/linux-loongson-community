@@ -116,7 +116,7 @@ static __init void per_slice_init(cnodeid_t cnode, int slice)
 
 extern void xtalk_probe_node(cnodeid_t nid);
 
-void __init per_hub_init(cnodeid_t cnode)
+static void __init per_hub_init(cnodeid_t cnode)
 {
 	struct hub_data *hub = HUB_DATA(cnode);
 	nasid_t nasid = COMPACT_TO_NASID_NODEID(cnode);
