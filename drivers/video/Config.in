@@ -166,7 +166,7 @@ if [ "$CONFIG_FB" = "y" ]; then
 	 "$CONFIG_FB_VIRGE" = "y" -o "$CONFIG_FB_CYBER" = "y" -o \
 	 "$CONFIG_FB_VALKYRIE" = "y" -o "$CONFIG_FB_PLATINUM" = "y" -o \
 	 "$CONFIG_FB_IGA" = "y" -o "$CONFIG_FB_MATROX" = "y" -o \
-	 "$CONFIG_FB_CT65550" = "y" -o "$CONFIG_FB_PM2" = "y" ]; then ]; then
+	 "$CONFIG_FB_CT65550" = "y" -o "$CONFIG_FB_PM2" = "y" ]; then
       define_bool CONFIG_FBCON_CFB8 y
     else
       if [ "$CONFIG_FB_ACORN" = "m" -o "$CONFIG_FB_ATARI" = "m" -o \
