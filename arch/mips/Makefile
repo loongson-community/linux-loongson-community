@@ -197,6 +197,16 @@ LOADADDR      += 0x80080000
 endif
 
 #
+# NEC Osprey (vr4181) board
+#
+ifdef CONFIG_NEC_OSPREY
+SUBDIRS       += arch/mips/vr4181/common arch/mips/vr4181/osprey
+LIBS          += arch/mips/vr4181/common/vr4181.o \
+                 arch/mips/vr4181/osprey/osprey.o
+LOADADDR      += 0x80002000
+endif
+
+#
 # Galileo EV64120 Board
 #
 ifdef CONFIG_MIPS_EV64120

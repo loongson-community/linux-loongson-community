@@ -526,6 +526,7 @@ void __init setup_arch(char **cmdline_p)
 	void malta_setup(void);
 	void momenco_ocelot_setup(void);
 	void nino_setup(void);
+	void nec_osprey_setup(void);
 
 	unsigned long bootmap_size;
 	unsigned long start_pfn, max_pfn, first_usable_pfn;
@@ -603,6 +604,11 @@ void __init setup_arch(char **cmdline_p)
        case MACH_GROUP_NEC_DDB:
                ddb_setup();
                break;
+#endif
+#ifdef CONFIG_NEC_OSPREY
+	case MACH_GROUP_NEC_VR41XX:
+		nec_osprey_setup();
+		break;
 #endif
 #ifdef CONFIG_MIPS_EV96100
 	case MACH_GROUP_GALILEO:

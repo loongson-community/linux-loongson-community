@@ -202,9 +202,12 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
    fi
    if [ "$CONFIG_DECSTATION" = "y" ]; then
       bool '  DEC LANCE ethernet controller support' CONFIG_DECLANCE
-   fi 
+   fi
    if [ "$CONFIG_BAGET_MIPS" = "y" ]; then
       tristate '  Baget AMD LANCE support' CONFIG_BAGETLANCE
+   fi
+   if [ "$CONFIG_NEC_OSPREY" = "y" ]; then
+      bool '  Memory-mapped onboard NE2000-compatible ethernet' CONFIG_NE2000
    fi
 fi
 

@@ -50,13 +50,15 @@ int get_cpuinfo(char *buffer)
 	const char *mach_sibyte_names[] = GROUP_SIBYTE_NAMES;
 	const char *mach_toshiba_names[] = GROUP_TOSHIBA_NAMES;
 	const char *mach_alchemy_names[] = GROUP_ALCHEMY_NAMES;
+	const char *mach_nec_vr41xx_names[] = GROUP_NEC_VR41XX_NAMES;
 	const char **mach_group_to_name[] = { mach_unknown_names,
 		mach_jazz_names, mach_dec_names, mach_arc_names,
 		mach_sni_rm_names, mach_acn_names, mach_sgi_names,
 		mach_cobalt_names, mach_nec_ddb_names, mach_baget_names,
 		mach_cosine_names, mach_galileo_names, mach_momenco_names, 
 		mach_ite_names, mach_philips_names, mach_globespan_names,
-		mach_sibyte_names, mach_toshiba_names, mach_alchemy_names};
+		mach_sibyte_names, mach_toshiba_names, mach_alchemy_names,
+		mach_nec_vr41xx_names};
 	unsigned int version = read_32bit_cp0_register(CP0_PRID);
 	int len;
 
