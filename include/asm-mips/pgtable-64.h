@@ -157,16 +157,6 @@ static inline void pgd_clear(pgd_t *pgdp)
 #define pfn_pte(pfn, prot)	__pte(((pfn) << PAGE_SHIFT) | pgprot_val(prot))
 #endif
 
-/*
- * Bits 0, 1, 2, 7 and 8 are taken, split up the 27 bits of offset
- * into this range:
- */
-#define pte_to_pgoff(_pte) \
-	((((_pte).pte >> 3) & 0x1f ) + (((_pte).pte >> 9) << 6 ))
-
-#define pgoff_to_pte(off) \
-	((pte_t) { (((off) & 0x1f) << 3) + (((off) >> 6) << 9) + _PAGE_FILE })
-
 #define __pgd_offset(address)	pgd_index(address)
 #define page_pte(page) page_pte_prot(page, __pgprot(0))
 
@@ -222,6 +212,18 @@ static inline pte_t mk_swap_pte(unsigned long type, unsigned long offset)
 #define __swp_entry(type,offset) ((swp_entry_t) { pte_val(mk_swap_pte((type),(offset))) })
 #define __pte_to_swp_entry(pte)	((swp_entry_t) { pte_val(pte) })
 #define __swp_entry_to_pte(x)	((pte_t) { (x).val })
+
+/*
+ * Bits 0, 1, 2, 7 and 8 are taken, split up the 32 bits of offset
+ * into this range:
+ */
+#define PTE_FILE_MAX_BITS	32
+
+#define pte_to_pgoff(_pte) \
+	((((_pte).pte >> 3) & 0x1f ) + (((_pte).pte >> 9) << 6 ))
+
+#define pgoff_to_pte(off) \
+	((pte_t) { (((off) & 0x1f) << 3) + (((off) >> 6) << 9) + _PAGE_FILE })
 
 /*
  * Used for the b0rked handling of kernel pagetables on the 64-bit kernel.
