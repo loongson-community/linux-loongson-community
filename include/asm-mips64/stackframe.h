@@ -77,6 +77,9 @@
 
 #ifdef CONFIG_SMP
 		.macro	get_saved_sp	/* R10000 variation */
+#ifdef CONFIG_CPU_SB1
+		dmfc0	k1, CP0_WATCHLO
+#else
 		mfc0	k0, CP0_WATCHLO
 		mfc0	k1, CP0_WATCHHI
 		dsll32	k0, k0, 0	/* Get rid of sign extension */
@@ -85,12 +88,17 @@
 		or	k1, k1, k0
 		li	k0, K0BASE
 		or	k1, k1, k0
+#endif
 		.endm
 
 		.macro	set_saved_sp	stackp temp
+#ifdef CONFIG_CPU_SB1
+		dmtc0	\stackp, CP0_WATCHLO
+#else
 		mtc0	\stackp, CP0_WATCHLO
 		dsrl32	\temp, \stackp, 0
 		mtc0	\temp, CP0_WATCHHI
+#endif
 		.endm
 
 		.macro	declare_saved_sp
