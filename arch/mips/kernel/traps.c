@@ -3,13 +3,13 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1994 - 1999 by Ralf Baechle
+ * Copyright (C) 1994 - 1999, 2000, 01 Ralf Baechle
  * Modified for R3000 by Paul M. Antoine, 1995, 1996
  * Complete output from die() by Ulf Carlsson, 1998
  * Copyright (C) 1999 Silicon Graphics, Inc.
  *
  * Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
- * Copyright (C) 2000 MIPS Technologies, Inc.
+ * Copyright (C) 2000, 01 MIPS Technologies, Inc.
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -204,7 +204,6 @@ extern void __die(const char * str, struct pt_regs * regs, const char *where,
 	show_trace((unsigned int *) regs->regs[29]);
 	show_code((unsigned int *) regs->cp0_epc);
 	printk("\n");
-while(1);
 	spin_unlock_irq(&die_lock);
 	do_exit(SIGSEGV);
 }
