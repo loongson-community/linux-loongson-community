@@ -314,9 +314,6 @@ pci_fixup_ioc3(struct pci_dev *d)
 		d->resource[i].end = 0UL;
 		d->resource[i].flags = 0UL;
 	}
-	d->subsystem_vendor = 0;
-	d->subsystem_device = 0;
-	d->irq = 1;
 
 	pci_disable_swapping(d);
 }
