@@ -14,6 +14,7 @@
 CONFIG_SGI_IP27=y
 # CONFIG_SGI_SN0_N_MODE is not set
 # CONFIG_DISCONTIGMEM is not set
+# CONFIG_SMP is not set
 CONFIG_BOOT_ELF64=y
 CONFIG_ARC64=y
 CONFIG_COHERENT_IO=y
@@ -129,7 +130,6 @@ CONFIG_SCSI=y
 CONFIG_BLK_DEV_SD=y
 CONFIG_SD_EXTRA_DEVS=40
 # CONFIG_CHR_DEV_ST is not set
-CONFIG_ST_EXTRA_DEVS=2
 # CONFIG_BLK_DEV_SR is not set
 # CONFIG_CHR_DEV_SG is not set
 
@@ -207,6 +207,7 @@ CONFIG_NETDEVICES=y
 #
 # CONFIG_ARCNET is not set
 # CONFIG_DUMMY is not set
+# CONFIG_BONDING is not set
 # CONFIG_EQUALIZER is not set
 # CONFIG_NET_SB1000 is not set
 
@@ -221,7 +222,7 @@ CONFIG_SGI_IOC3_ETH=y
 # CONFIG_NET_VENDOR_RACAL is not set
 # CONFIG_DEPCA is not set
 # CONFIG_NET_ISA is not set
-# CONFIG_NET_EISA is not set
+# CONFIG_NET_PCI is not set
 # CONFIG_NET_POCKET is not set
 
 #
@@ -240,7 +241,7 @@ CONFIG_SGI_IOC3_ETH=y
 # CONFIG_NET_RADIO is not set
 
 #
-# Token Ring driver support
+# Token Ring devices
 #
 # CONFIG_TR is not set
 # CONFIG_NET_FC is not set
@@ -328,7 +329,7 @@ CONFIG_SERIAL_CONSOLE=y
 # CONFIG_USB is not set
 
 #
-# Filesystems
+# File systems
 #
 # CONFIG_QUOTA is not set
 # CONFIG_AUTOFS_FS is not set
@@ -347,20 +348,17 @@ CONFIG_SERIAL_CONSOLE=y
 # CONFIG_JOLIET is not set
 # CONFIG_MINIX_FS is not set
 # CONFIG_NTFS_FS is not set
-# CONFIG_NTFS_RW is not set
 # CONFIG_HPFS_FS is not set
 CONFIG_PROC_FS=y
+# CONFIG_DEVFS_FS is not set
+# CONFIG_DEVFS_DEBUG is not set
 # CONFIG_DEVPTS_FS is not set
 # CONFIG_QNX4FS_FS is not set
-# CONFIG_QNX4FS_RW is not set
 # CONFIG_ROMFS_FS is not set
 CONFIG_EXT2_FS=y
 # CONFIG_SYSV_FS is not set
-# CONFIG_SYSV_FS_WRITE is not set
 # CONFIG_UDF_FS is not set
-# CONFIG_UDF_RW is not set
 # CONFIG_UFS_FS is not set
-# CONFIG_UFS_FS_WRITE is not set
 
 #
 # Network File Systems
@@ -369,7 +367,6 @@ CONFIG_EXT2_FS=y
 CONFIG_NFS_FS=y
 CONFIG_ROOT_NFS=y
 # CONFIG_NFSD is not set
-# CONFIG_NFSD_V3 is not set
 CONFIG_SUNRPC=y
 CONFIG_LOCKD=y
 # CONFIG_SMB_FS is not set

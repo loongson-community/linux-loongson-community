@@ -18,7 +18,7 @@ SUB_DIRS     :=
 MOD_SUB_DIRS :=
 MOD_IN_SUB_DIRS :=
 ALL_SUB_DIRS := $(SUB_DIRS) fc hamradio irda pcmcia tokenring wan sk98lin \
-		arcnet skfp tulip
+		arcnet skfp tulip appletalk
 
 O_TARGET := net.o
 MOD_LIST_NAME := NET_MODULES
@@ -104,6 +104,15 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_ATALK),y)
+SUB_DIRS += appletalk
+MOD_IN_SUB_DIRS += appletalk
+else
+  ifeq ($(CONFIG_ATALK),m)
+  MOD_IN_SUB_DIRS += appletalk
+  endif
+endif
+
 #
 # link order important here
 #
@@ -163,8 +172,10 @@ obj-$(CONFIG_ADAPTEC_STARFIRE) += starfire.o
 #
 
 obj-$(CONFIG_AIRONET4500) 	+= aironet4500_core.o
+obj-$(CONFIG_AIRONET4500_CS) 	+= aironet4500_core.o
 obj-$(CONFIG_AIRONET4500_NONCS)  += aironet4500_card.o
 obj-$(CONFIG_AIRONET4500_PROC)	+= aironet4500_proc.o
+obj-$(CONFIG_AIRONET4500_CS)	+= aironet4500_proc.o
 
 obj-$(CONFIG_NET) += Space.o setup.o net_init.o loopback.o
 obj-$(CONFIG_SEEQ8005) += seeq8005.o
@@ -280,9 +291,6 @@ obj-$(CONFIG_A2065) += a2065.o
 obj-$(CONFIG_HYDRA) += hydra.o
 obj-$(CONFIG_ARIADNE) += ariadne.o
 obj-$(CONFIG_CS89x0) += cs89x0.o
-obj-$(CONFIG_LTPC) += ltpc.o
-obj-$(CONFIG_COPS) += cops.o
-obj-$(CONFIG_IPDDP) += ipddp.o
 obj-$(CONFIG_MACSONIC) += macsonic.o
 obj-$(CONFIG_MACMACE) += macmace.o
 obj-$(CONFIG_MAC89x0) += mac89x0.o

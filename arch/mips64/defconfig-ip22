@@ -159,7 +159,7 @@ CONFIG_NETDEVICES=y
 # CONFIG_NET_RADIO is not set
 
 #
-# Token Ring driver support
+# Token Ring devices
 #
 # CONFIG_TR is not set
 # CONFIG_NET_FC is not set

@@ -1,4 +1,4 @@
-/* $Id: sysirix.c,v 1.24 2000/02/05 06:47:08 ralf Exp $
+/* $Id: sysirix.c,v 1.25 2000/03/07 15:45:28 ralf Exp $
  *
  * sysirix.c: IRIX system call emulation.
  *
@@ -2023,12 +2023,10 @@ static int irix_filldir32(void *__buf, const char *name, int namlen,
 asmlinkage int irix_ngetdents(unsigned int fd, void * dirent, unsigned int count, int *eob)
 {
 	struct file *file;
-	struct inode *inode;
 	struct irix_dirent32 *lastdirent;
 	struct irix_dirent32_callback buf;
 	int error;
 
-	lock_kernel();
 #ifdef DEBUG_GETDENTS
 	printk("[%s:%ld] ngetdents(%d, %p, %d, %p) ", current->comm,
 	       current->pid, fd, dirent, count, eob);
@@ -2038,26 +2036,14 @@ asmlinkage int irix_ngetdents(unsigned int fd, void * dirent, unsigned int count
 	if (!file)
 		goto out;
 
-	inode = file->f_dentry->d_inode;
-	if (!inode)
-		goto out_putf;
+	lock_kernel();
 
 	buf.current_dir = (struct irix_dirent32 *) dirent;
 	buf.previous = NULL;
 	buf.count = count;
 	buf.error = 0;
 
-	error = -ENOTDIR;
-	if (!file->f_op || !file->f_op->readdir)
-		goto out_putf;
-
-	/*
-	 * Get the inode's semaphore to prevent changes
-	 * to the directory while we read it.
-	 */
-	down(&inode->i_sem);
-	error = file->f_op->readdir(file, &buf, irix_filldir32);
-	up(&inode->i_sem);
+	error = vfs_readdir(file, irix_filldir32, &buf);
 	if (error < 0)
 		goto out_putf;
 	error = buf.error;
@@ -2079,9 +2065,9 @@ asmlinkage int irix_ngetdents(unsigned int fd, void * dirent, unsigned int count
 	error = count - buf.count;
 
 out_putf:
+	unlock_kernel();
 	fput(file);
 out:
-	unlock_kernel();
 	return error;
 }
 
@@ -2132,12 +2118,10 @@ static int irix_filldir64(void * __buf, const char * name, int namlen,
 asmlinkage int irix_getdents64(int fd, void *dirent, int cnt)
 {
 	struct file *file;
-	struct inode *inode;
 	struct irix_dirent64 *lastdirent;
 	struct irix_dirent64_callback buf;
 	int error;
 
-	lock_kernel();
 #ifdef DEBUG_GETDENTS
 	printk("[%s:%d] getdents64(%d, %p, %d) ", current->comm,
 	       current->pid, fd, dirent, cnt);
@@ -2146,13 +2130,7 @@ asmlinkage int irix_getdents64(int fd, void *dirent, int cnt)
 	if (!(file = fget(fd)))
 		goto out;
 
-	inode = file->f_dentry->d_inode;
-	if (!inode)
-		goto out_f;
-
-	error = -ENOTDIR;
-	if (!file->f_op || !file->f_op->readdir)
-		goto out_f;
+	lock_kernel();
 
 	error = -EFAULT;
 	if(!access_ok(VERIFY_WRITE, dirent, cnt))
@@ -2166,9 +2144,7 @@ asmlinkage int irix_getdents64(int fd, void *dirent, int cnt)
 	buf.previous = NULL;
 	buf.count = cnt;
 	buf.error = 0;
-	down(&inode->i_sem);
-	error = file->f_op->readdir(file, &buf, irix_filldir64);
-	up(&inode->i_sem);
+	error = vfs_readdir(file, irix_filldir64, &buf);
 	if (error < 0)
 		goto out_f;
 	lastdirent = buf.previous;
@@ -2183,21 +2159,19 @@ asmlinkage int irix_getdents64(int fd, void *dirent, int cnt)
 	error = cnt - buf.count;
 
 out_f:
+	unlock_kernel();
 	fput(file);
 out:
-	unlock_kernel();
 	return error;
 }
 
 asmlinkage int irix_ngetdents64(int fd, void *dirent, int cnt, int *eob)
 {
 	struct file *file;
-	struct inode *inode;
 	struct irix_dirent64 *lastdirent;
 	struct irix_dirent64_callback buf;
 	int error;
 
-	lock_kernel();
 #ifdef DEBUG_GETDENTS
 	printk("[%s:%d] ngetdents64(%d, %p, %d) ", current->comm,
 	       current->pid, fd, dirent, cnt);
@@ -2206,13 +2180,7 @@ asmlinkage int irix_ngetdents64(int fd, void *dirent, int cnt, int *eob)
 	if (!(file = fget(fd)))
 		goto out;
 
-	inode = file->f_dentry->d_inode;
-	if (!inode)
-		goto out_f;
-
-	error = -ENOTDIR;
-	if (!file->f_op || !file->f_op->readdir)
-		goto out_f;
+	lock_kernel();
 
 	error = -EFAULT;
 	if(!access_ok(VERIFY_WRITE, dirent, cnt) ||
@@ -2228,9 +2196,7 @@ asmlinkage int irix_ngetdents64(int fd, void *dirent, int cnt, int *eob)
 	buf.previous = NULL;
 	buf.count = cnt;
 	buf.error = 0;
-	down(&inode->i_sem);
-	error = file->f_op->readdir(file, &buf, irix_filldir64);
-	up(&inode->i_sem);
+	error = vfs_readdir(file, irix_filldir64, &buf);
 	if (error < 0)
 		goto out_f;
 	lastdirent = buf.previous;
@@ -2245,9 +2211,9 @@ asmlinkage int irix_ngetdents64(int fd, void *dirent, int cnt, int *eob)
 	error = cnt - buf.count;
 
 out_f:
+	unlock_kernel();
 	fput(file);
 out:
-	unlock_kernel();
 	return error;
 }
 
