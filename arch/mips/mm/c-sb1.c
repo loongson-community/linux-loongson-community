@@ -32,17 +32,17 @@ extern void sb1_dma_init(void);
 static unsigned long icache_size;
 static unsigned long dcache_size;
 
-static unsigned long icache_line_size;
-static unsigned long dcache_line_size;
+static unsigned short icache_line_size;
+static unsigned short dcache_line_size;
 
 static unsigned int icache_index_mask;
 static unsigned int dcache_index_mask;
 
-static unsigned long icache_assoc;
-static unsigned long dcache_assoc;
+static unsigned short icache_assoc;
+static unsigned short dcache_assoc;
 
-static unsigned int icache_sets;
-static unsigned int dcache_sets;
+static unsigned short icache_sets;
+static unsigned short dcache_sets;
 
 static unsigned int icache_range_cutoff;
 static unsigned int dcache_range_cutoff;
