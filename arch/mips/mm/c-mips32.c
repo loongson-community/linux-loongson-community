@@ -83,16 +83,16 @@ static void mips32_flush_cache_range_sc(struct vm_area_struct *vma,
 	struct mm_struct *mm = vma->vm_mm;
 	unsigned long flags;
 
-	if (mm->context == 0)
+	if (cpu_context(smp_processor_id(), mm) == 0)
 		return;
 
 	start &= PAGE_MASK;
 #ifdef DEBUG_CACHE
-	printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
+	printk("crange[%d,%08lx,%08lx]", cpu_context(smp_processor_id(), mm), start, end);
 #endif
 	vma = find_vma(mm, start);
 	if(vma) {
-		if(mm->context != current->mm->context) {
+		if (cpu_context(smp_processor_id(), mm) != cpu_context(smp_processor_id(), current->mm)) {
 			mips32_flush_cache_all_sc();
 		} else {
 			pgd_t *pgd;
@@ -119,11 +119,11 @@ static void mips32_flush_cache_range_pc(struct vm_area_struct *vma,
 {
 	struct mm_struct *mm = vma->vm_mm;
 
-	if (mm->context != 0) {
+	if (cpu_context(smp_processor_id(), mm) != 0) {
 		unsigned long flags;
 
 #ifdef DEBUG_CACHE
-		printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
+		printk("crange[%d,%08lx,%08lx]", cpu_context(smp_processor_id(), mm), start, end);
 #endif
 		local_irq_save(flags);
 		blast_dcache(); blast_icache();
@@ -138,9 +138,9 @@ static void mips32_flush_cache_range_pc(struct vm_area_struct *vma,
  */
 static void mips32_flush_cache_mm_sc(struct mm_struct *mm)
 {
-	if(mm->context != 0) {
+	if (cpu_context(smp_processor_id(), mm) != 0) {
 #ifdef DEBUG_CACHE
-		printk("cmm[%d]", (int)mm->context);
+		printk("cmm[%d]", cpu_context(smp_processor_id(), mm));
 #endif
 		mips32_flush_cache_all_sc();
 	}
@@ -148,9 +148,9 @@ static void mips32_flush_cache_mm_sc(struct mm_struct *mm)
 
 static void mips32_flush_cache_mm_pc(struct mm_struct *mm)
 {
-	if(mm->context != 0) {
+	if (cpu_context(smp_processor_id(), mm) != 0) {
 #ifdef DEBUG_CACHE
-		printk("cmm[%d]", (int)mm->context);
+		printk("cmm[%d]", cpu_context(smp_processor_id(), mm));
 #endif
 		mips32_flush_cache_all_pc();
 	}
@@ -168,11 +168,11 @@ static void mips32_flush_cache_page_sc(struct vm_area_struct *vma,
 	 * If ownes no valid ASID yet, cannot possibly have gotten
 	 * this page into the cache.
 	 */
-	if (mm->context == 0)
+	if (cpu_context(smp_processor_id(), mm) == 0)
 		return;
 
 #ifdef DEBUG_CACHE
-	printk("cpage[%d,%08lx]", (int)mm->context, page);
+	printk("cpage[%d,%08lx]", cpu_context(smp_processor_id(), mm), page);
 #endif
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
@@ -192,7 +192,7 @@ static void mips32_flush_cache_page_sc(struct vm_area_struct *vma,
 	 * for every cache flush operation.  So we do indexed flushes
 	 * in that case, which doesn't overly flush the cache too much.
 	 */
-	if (mm->context != current->active_mm->context) {
+	if (cpu_context(smp_processor_id(), mm) != cpu_context(smp_processor_id(), current->active_mm)) {
 		/*
 		 * Do indexed flush, too much work to get the (possible)
 		 * tlb refills to work correctly.
@@ -216,11 +216,11 @@ static void mips32_flush_cache_page_pc(struct vm_area_struct *vma,
 	 * If ownes no valid ASID yet, cannot possibly have gotten
 	 * this page into the cache.
 	 */
-	if (mm->context == 0)
+	if (cpu_context(smp_processor_id(), mm) == 0)
 		return;
 
 #ifdef DEBUG_CACHE
-	printk("cpage[%d,%08lx]", (int)mm->context, page);
+	printk("cpage[%d,%08lx]", cpu_context(smp_processor_id(), mm), page);
 #endif
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);

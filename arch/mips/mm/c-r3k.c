@@ -267,14 +267,14 @@ static void r3k_flush_icache_page(struct vm_area_struct *vma, struct page *page)
 	struct mm_struct *mm = vma->vm_mm;
 	unsigned long physpage;
 
-	if (mm->context == 0)
+	if (cpu_context(smp_processor_id(), mm) == 0)
 		return;
 
 	if (!(vma->vm_flags & VM_EXEC))
 		return;
 
 #ifdef DEBUG_CACHE
-	printk("cpage[%d,%08lx]", (int)mm->context, page);
+	printk("cpage[%d,%08lx]", cpu_context(smp_processor_id(), mm), page);
 #endif
 
 	physpage = (unsigned long) page_address(page);

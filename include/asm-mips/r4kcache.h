@@ -231,6 +231,20 @@ static inline void blast_icache16_page_indexed(unsigned long page)
 	}
 }
 
+static inline void blast_icache16_page_indexed_wayLSB(unsigned long page)
+{
+	unsigned long start = page;
+	unsigned long end = (start + PAGE_SIZE);
+	int way;
+
+	while (start < end) {
+		/* LSB of VA select the way */
+		for (way = 0; way < mips_cpu.icache.ways; way++)
+			cache16_unroll32(start|way,Index_Invalidate_I);
+		start += 0x200;
+	}
+}
+
 static inline void blast_scache16(void)
 {
 	unsigned long start = KSEG0;
@@ -412,6 +426,20 @@ static inline void blast_icache32_page_indexed(unsigned long page)
 
 	while (start < end) {
 		cache32_unroll32(start,Index_Invalidate_I);
+		start += 0x400;
+	}
+}
+
+static inline void blast_icache32_page_indexed_wayLSB(unsigned long page)
+{
+	unsigned long start = page;
+	unsigned long end = (start + PAGE_SIZE);
+	int way;
+
+	while (start < end) {
+		/* LSB of VA select the way */
+		for (way = 0; way < mips_cpu.icache.ways; way++)
+			cache32_unroll32(start|way,Index_Invalidate_I);
 		start += 0x400;
 	}
 }

@@ -40,94 +40,75 @@ static unsigned long scache_size;
 #include <asm/cacheops.h>
 #include <asm/r4kcache.h>
 
-#undef DEBUG_CACHE
+static inline void tx49_blast_dcache_page(unsigned long addr)
+{
+	if (dc_lsize == 16)
+		blast_dcache16_page(addr);
+	else
+		blast_dcache32_page(addr);
+}
+
+static inline void tx49_blast_dcache_page_indexed(unsigned long addr)
+{
+	if (dc_lsize == 16)
+		blast_dcache16_page_indexed_wayLSB(addr);
+	else
+		blast_dcache32_page_indexed_wayLSB(addr);
+}
+
+static inline void tx49_blast_dcache(void)
+{
+	if (dc_lsize == 16)
+		blast_dcache16_wayLSB();
+	else
+		blast_dcache32_wayLSB();
+}
+
+static inline void tx49_blast_icache_page(unsigned long addr)
+{
+	blast_icache32_page(addr);
+}
 
 /* TX49 does can not flush the line contains the CACHE insn itself... */
-/* r4k_xxx routines are completely same as those in r4xx0.c */
-
-/*
- * If you think for one second that this stuff coming up is a lot
- * of bulky code eating too many kernel cache lines.  Think _again_.
- *
- * Consider:
- * 1) Taken branches have a 3 cycle penalty on R4k
- * 2) The branch itself is a real dead cycle on even R4600/R5000.
- * 3) Only one of the following variants of each type is even used by
- *    the kernel based upon the cache parameters we detect at boot time.
- *
- * QED.
- */
-
-static inline void r49_flush_cache_all_d16i32(void)
+static inline void tx49_blast_icache_page_indexed(unsigned long addr)
 {
 	unsigned long flags, config;
-
-	local_irq_save(flags);
-	blast_dcache16_wayLSB();
 	/* disable icache (set ICE#) */
+	local_irq_save(flags);
 	config = read_c0_config();
-	write_c0_config(config|TX49_CONF_IC);
+	write_c0_config(config | TX49_CONF_IC);
+	blast_icache32_page_indexed_wayLSB(addr);
+	write_c0_config(config);
+	local_irq_restore(flags);
+}
+
+static inline void tx49_blast_icache(void)
+{
+	unsigned long flags, config;
+	/* disable icache (set ICE#) */
+	local_irq_save(flags);
+	config = read_c0_config();
+	write_c0_config(config | TX49_CONF_IC);
 	blast_icache32_wayLSB();
 	write_c0_config(config);
 	local_irq_restore(flags);
 }
 
-static inline void r49_flush_cache_all_d32i32(void)
+static inline void tx49_flush_cache_all(void)
 {
-	unsigned long flags, config;
-
-	local_irq_save(flags);
-	blast_dcache32_wayLSB();
-	/* disable icache (set ICE#) */
-	config = read_c0_config();
-	write_c0_config(config|TX49_CONF_IC);
-	blast_icache32_wayLSB();
-	write_c0_config(config);
-	local_irq_restore(flags);
+	tx49_blast_dcache();
+	tx49_blast_icache();
 }
 
-static void r49_flush_cache_range_d16i32(struct vm_area_struct *vma,
-	unsigned long start, unsigned long end)
+static void tx49_flush_cache_range(struct vm_area_struct *vma,
+				   unsigned long start,
+				   unsigned long end)
 {
 	struct mm_struct *mm = vma->vm_mm;
 
-	if (mm->context != 0) {
-		unsigned long flags, config;
-
-#ifdef DEBUG_CACHE
-		printk("crange[%d,%08lx,%08lx]", (int)mm->context, start,
-		       end);
-#endif
-		local_irq_save(flags);
-		blast_dcache16_wayLSB();
-		/* disable icache (set ICE#) */
-		config = read_c0_config();
-		write_c0_config(config|TX49_CONF_IC);
-		blast_icache32_wayLSB();
-		write_c0_config(config);
-		local_irq_restore(flags);
-	}
-}
-
-static void r49_flush_cache_range_d32i32(struct vm_area_struct *vma,
-	unsigned long start, unsigned long end)
-{
-	struct mm_struct *mm = vma->vm_mm;
-
-	if (mm->context != 0) {
-		unsigned long flags, config;
-
-#ifdef DEBUG_CACHE
-		printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
-#endif
-		local_irq_save(flags);
-		blast_dcache32_wayLSB();
-		/* disable icache (set ICE#) */
-		config = read_c0_config();
-		write_c0_config(config|TX49_CONF_IC);
-		blast_icache32_wayLSB();
-		write_c0_config(config);
-		local_irq_restore(flags);
+	if (cpu_context(smp_processor_id(), mm) != 0) {
+		tx49_blast_dcache();
+		tx49_blast_icache();
 	}
 }
 
@@ -136,29 +117,17 @@ static void r49_flush_cache_range_d32i32(struct vm_area_struct *vma,
  * the cache created only by a certain context, but on the MIPS
  * (and actually certain Sparc's) we cannot.
  */
-static void r49_flush_cache_mm_d16i32(struct mm_struct *mm)
+static void tx49_flush_cache_mm(struct mm_struct *mm)
 {
-	if (mm->context != 0) {
-#ifdef DEBUG_CACHE
-		printk("cmm[%d]", (int)mm->context);
-#endif
-		r49_flush_cache_all_d16i32();
+	if (cpu_context(smp_processor_id(), mm) != 0) {
+		tx49_flush_cache_all();
 	}
 }
 
-static void r49_flush_cache_mm_d32i32(struct mm_struct *mm)
+static void tx49_flush_cache_page(struct vm_area_struct *vma,
+				  unsigned long page)
 {
-	if (mm->context != 0) {
-#ifdef DEBUG_CACHE
-		printk("cmm[%d]", (int)mm->context);
-#endif
-		r49_flush_cache_all_d32i32();
-	}
-}
-
-static void r49_flush_cache_page_d16i32(struct vm_area_struct *vma,
-					unsigned long page)
-{
+	int exec = vma->vm_flags & VM_EXEC;
 	struct mm_struct *mm = vma->vm_mm;
 	pgd_t *pgdp;
 	pmd_t *pmdp;
@@ -168,12 +137,9 @@ static void r49_flush_cache_page_d16i32(struct vm_area_struct *vma,
 	 * If ownes no valid ASID yet, cannot possibly have gotten
 	 * this page into the cache.
 	 */
-	if (mm->context == 0)
+	if (cpu_context(smp_processor_id(), mm) == 0)
 		return;
 
-#ifdef DEBUG_CACHE
-	printk("cpage[%d,%08lx]", (int)mm->context, page);
-#endif
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -183,7 +149,7 @@ static void r49_flush_cache_page_d16i32(struct vm_area_struct *vma,
 	 * If the page isn't marked valid, the page cannot possibly be
 	 * in the cache.
 	 */
-	if (!(pte_val(*ptep) & _PAGE_PRESENT))
+	if (!(pte_val(*ptep) & _PAGE_VALID))
 		return;
 
 	/*
@@ -192,76 +158,29 @@ static void r49_flush_cache_page_d16i32(struct vm_area_struct *vma,
 	 * for every cache flush operation.  So we do indexed flushes
 	 * in that case, which doesn't overly flush the cache too much.
 	 */
-	if ((mm == current->active_mm) && (pte_val(*ptep) & _PAGE_VALID)) {
-		blast_dcache16_page(page);
-	} else {
-		/*
-		 * Do indexed flush, too much work to get the (possible)
-		 * tlb refills to work correctly.
-		 */
-		page = (KSEG0 + (page & (dcache_size - 1)));
-		blast_dcache16_page_indexed_wayLSB(page);
+	if (mm == current->active_mm) {
+		tx49_blast_dcache_page(page);
+		if (exec)
+			tx49_blast_icache_page(page);
+
+		return;
 	}
+
+	/*
+	 * Do indexed flush, too much work to get the (possible) TLB refills
+	 * to work correctly.
+	 */
+	page = (KSEG0 + (page & (dcache_size - 1)));
+	tx49_blast_dcache_page_indexed(page);
+	if (exec)
+		tx49_blast_icache_page_indexed(page);
 }
 
-static void r49_flush_cache_page_d32i32(struct vm_area_struct *vma,
-					      unsigned long page)
+static void tx49_flush_dcache_page_impl(struct page *page)
 {
-	struct mm_struct *mm = vma->vm_mm;
-	pgd_t *pgdp;
-	pmd_t *pmdp;
-	pte_t *ptep;
+	unsigned long addr = (unsigned long) page_address(page);
 
-	/*
-	 * If ownes no valid ASID yet, cannot possibly have gotten
-	 * this page into the cache.
-	 */
-	if (mm->context == 0)
-		return;
-
-#ifdef DEBUG_CACHE
-	printk("cpage[%d,%08lx]", (int)mm->context, page);
-#endif
-	page &= PAGE_MASK;
-	pgdp = pgd_offset(mm, page);
-	pmdp = pmd_offset(pgdp, page);
-	ptep = pte_offset(pmdp, page);
-
-	/*
-	 * If the page isn't marked valid, the page cannot possibly be
-	 * in the cache.
-	 */
-	if (!(pte_val(*ptep) & _PAGE_PRESENT))
-		return;
-
-	/*
-	 * Doing flushes for another ASID than the current one is
-	 * too difficult since stupid R4k caches do a TLB translation
-	 * for every cache flush operation.  So we do indexed flushes
-	 * in that case, which doesn't overly flush the cache too much.
-	 */
-	if ((mm == current->active_mm) && (pte_val(*ptep) & _PAGE_VALID)) {
-		blast_dcache32_page(page);
-	} else {
-		/*
-		 * Do indexed flush, too much work to get the (possible)
-		 * tlb refills to work correctly.
-		 */
-		page = (KSEG0 + (page & (dcache_size - 1)));
-		blast_dcache32_page_indexed_wayLSB(page);
-	}
-}
-
-static r49_flush_dcache_page_impl(struct page *page)
-{
-	unsigned long addr;
-
-	addr = (unsigned long)page_address(page);
-
-	if (dc_lsize == 16)
-		blast_dcache16_page(addr);
-	else
-		blast_dcache32_page(addr);
+	tx49_blast_dcache_page(addr);
 }
 
 static void tx49_flush_dcache_page(struct page *page)
@@ -279,11 +198,11 @@ static void tx49_flush_dcache_page(struct page *page)
 	 * case is for exec env/arg pages and those are %99 certainly going to
 	 * get faulted into the tlb (and thus flushed) anyways.
 	 */
-	r49_flush_dcache_page_impl(page);
+	tx49_flush_dcache_page_impl(page);
 }
 
 static void
-r4k_flush_icache_range(unsigned long start, unsigned long end)
+tx49_flush_icache_range(unsigned long start, unsigned long end)
 {
 	flush_cache_all();
 }
@@ -291,68 +210,66 @@ r4k_flush_icache_range(unsigned long start, unsigned long end)
 /*
  * Ok, this seriously sucks.  We use them to flush a user page but don't
  * know the virtual address, so we have to blast away the whole icache
- * which is significantly more expensive than the real thing.
+ * which is significantly more expensive than the real thing.  Otoh we at
+ * least know the kernel address of the page so we can flush it
+ * selectivly.
  */
 static void
-r4k_flush_icache_page(struct vm_area_struct *vma, struct page *page)
+tx49_flush_icache_page(struct vm_area_struct *vma, struct page *page)
 {
-	if (!(vma->vm_flags & VM_EXEC))
-		return;
+	if (vma->vm_flags & VM_EXEC) {
+		unsigned long addr = (unsigned long) page_address(page);
 
-	flush_cache_all();
+		tx49_blast_dcache_page(addr);
+		tx49_blast_icache();
+	}
 }
 
 /*
  * Writeback and invalidate the primary cache dcache before DMA.
  */
 static void
-r4k_dma_cache_wback_inv(unsigned long addr, unsigned long size)
+tx49_dma_cache_wback_inv(unsigned long addr, unsigned long size)
 {
 	unsigned long end, a;
-	unsigned int flags;
 
 	if (size >= dcache_size) {
-		flush_cache_all();
+		tx49_blast_dcache();
 	} else {
-		local_irq_save(flags);
-
-		a = addr & ~(dc_lsize - 1);
-		end = (addr + size - 1) & ~(dc_lsize - 1);
+		int lsize = dc_lsize;
+		a = addr & ~(lsize - 1);
+		end = (addr + size - 1) & ~(lsize - 1);
 		while (1) {
 			flush_dcache_line(a); /* Hit_Writeback_Inv_D */
 			if (a == end) break;
-			a += dc_lsize;
+			a += lsize;
 		}
-		local_irq_restore(flags);
 	}
 }
 
 static void
-r4k_dma_cache_inv(unsigned long addr, unsigned long size)
+tx49_dma_cache_inv(unsigned long addr, unsigned long size)
 {
 	unsigned long end, a;
-	unsigned int flags;
 
 	if (size >= dcache_size) {
-		flush_cache_all();
+		tx49_blast_dcache();
 	} else {
-		local_irq_save(flags);
-
-		a = addr & ~(dc_lsize - 1);
-		end = (addr + size - 1) & ~(dc_lsize - 1);
+		int lsize = dc_lsize;
+		a = addr & ~(lsize - 1);
+		end = (addr + size - 1) & ~(lsize - 1);
 		while (1) {
 			flush_dcache_line(a); /* Hit_Writeback_Inv_D */
 			if (a == end) break;
-			a += dc_lsize;
+			a += lsize;
 		}
-		local_irq_restore(flags);
 	}
 }
 
 static void
-r4k_dma_cache_wback(unsigned long addr, unsigned long size)
+tx49_dma_cache_wback(unsigned long addr, unsigned long size)
 {
-	panic("r4k_dma_cache called - should not happen.");
+	panic("tx49_dma_cache called - should not happen.");
 }
 
 /*
@@ -360,7 +277,7 @@ r4k_dma_cache_wback(unsigned long addr, unsigned long size)
  * very much about what happens in that case.  Usually a segmentation
  * fault will dump the process later on anyway ...
  */
-static void r4k_flush_cache_sigtramp(unsigned long addr)
+static void tx49_flush_cache_sigtramp(unsigned long addr)
 {
 	protected_writeback_dcache_line(addr & ~(dc_lsize - 1));
 	protected_flush_icache_line(addr & ~(ic_lsize - 1));
@@ -369,12 +286,13 @@ static void r4k_flush_cache_sigtramp(unsigned long addr)
 void __update_cache(struct vm_area_struct *vma, unsigned long address,
 	pte_t pte)
 {
-	struct page *page = pte_page(pte);
-	unsigned long pg_flags;
+	struct page *page;
+	unsigned long pfn;
 
-	if (VALID_PAGE(page) && page->mapping &&
-	    ((pg_flags = page->flags) & (1UL << PG_dcache_dirty))) {
-		r49_flush_dcache_page_impl(page);
+	pfn = pte_pfn(pte);
+	if (pfn_valid(pfn) && (page = pfn_to_page(pfn), page->mapping) &&
+	    Page_dcache_dirty(page)) {
+		tx49_flush_dcache_page_impl(page);
 
 		ClearPageDcacheDirty(page);
 	}
@@ -399,7 +317,7 @@ static void __init probe_dcache(unsigned long config)
 	       dcache_size >> 10, dc_lsize);
 }
 
-int mips_configk0 = -1;	/* board-specific setup routine can override this */
+int mips_configk0 __initdata = -1;	/* board-specific setup routine can override this */
 void __init ld_mmu_tx49(void)
 {
 	unsigned long config = read_c0_config();
@@ -430,31 +348,26 @@ void __init ld_mmu_tx49(void)
 	case 16:
 		_clear_page = r4k_clear_page_d16;
 		_copy_page = r4k_copy_page_d16;
-		_flush_cache_all = r49_flush_cache_all_d16i32;
-		_flush_cache_mm = r49_flush_cache_mm_d16i32;
-		_flush_cache_range = r49_flush_cache_range_d16i32;
-		_flush_cache_page = r49_flush_cache_page_d16i32;
 		break;
 	case 32:
 		_clear_page = r4k_clear_page_d32;
 		_copy_page = r4k_copy_page_d32;
-		_flush_cache_all = r49_flush_cache_all_d32i32;
-		_flush_cache_mm = r49_flush_cache_mm_d32i32;
-		_flush_cache_range = r49_flush_cache_range_d32i32;
-		_flush_cache_page = r49_flush_cache_page_d32i32;
 		break;
 	}
+	_flush_cache_all = tx49_flush_cache_all;
 	___flush_cache_all = _flush_cache_all;
+	_flush_cache_mm = tx49_flush_cache_mm;
+	_flush_cache_range = tx49_flush_cache_range;
+	_flush_cache_page = tx49_flush_cache_page;
+	_flush_icache_page = tx49_flush_icache_page;
+	_flush_dcache_page = tx49_flush_dcache_page;
 
-	_flush_icache_page = r4k_flush_icache_page;
-	_flush_dcache_page = r49_flush_dcache_page;
+	_dma_cache_wback_inv = tx49_dma_cache_wback_inv;
+	_dma_cache_wback = tx49_dma_cache_wback;
+	_dma_cache_inv = tx49_dma_cache_inv;
 
-	_dma_cache_wback_inv = r4k_dma_cache_wback_inv;
-	_dma_cache_wback = r4k_dma_cache_wback;
-	_dma_cache_inv = r4k_dma_cache_inv;
-
-	_flush_cache_sigtramp = r4k_flush_cache_sigtramp;
-	_flush_icache_range = r4k_flush_icache_range;	/* Ouch */
+	_flush_cache_sigtramp = tx49_flush_cache_sigtramp;
+	_flush_icache_range = tx49_flush_icache_range;	/* Ouch */
 
 	__flush_cache_all();
 }
