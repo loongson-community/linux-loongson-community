@@ -24,7 +24,7 @@
 
 	.macro	LOAD_PTE2, ptr, tmp
 #ifdef CONFIG_SMP
-	mfc0	\tmp, CP0_CONTEXT
+	dmfc0	\tmp, CP0_CONTEXT
 	dla	\ptr, pgd_current
 	dsrl	\tmp, 23
 	daddu	\ptr, \tmp
