@@ -124,12 +124,12 @@ void __init replicate_kernel_text(int maxnodes)
  */
 pfn_t node_getfirstfree(cnodeid_t cnode)
 {
-	unsigned long loadbase = CKSEG0;
+	unsigned long loadbase = REP_BASE;
 	nasid_t nasid = COMPACT_TO_NASID_NODEID(cnode);
 	unsigned long offset;
 
 #ifdef CONFIG_MAPPED_KERNEL
-	loadbase = CKSSEG + 16777216;
+	loadbase += 16777216;
 #endif
 	offset = PAGE_ALIGN((unsigned long)(&_end)) - loadbase;
 	if ((cnode == 0) || (cpu_isset(cnode, ktext_repmask)))
