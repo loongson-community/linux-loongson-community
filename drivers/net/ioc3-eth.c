@@ -1242,7 +1242,6 @@ static int __devinit ioc3_probe(struct pci_dev *pdev,
 	dev->features		= NETIF_F_IP_CSUM;
 #endif
 
-	mii_check_media(&ip->mii, 1, 1);
 	ioc3_setup_duplex(ip);
 	sw_physid1 = ioc3_mdio_read(dev, ip->mii.phy_id, MII_PHYSID1);
 	sw_physid2 = ioc3_mdio_read(dev, ip->mii.phy_id, MII_PHYSID2);
@@ -1250,6 +1249,8 @@ static int __devinit ioc3_probe(struct pci_dev *pdev,
 	err = register_netdev(dev);
 	if (err)
 		goto out_stop;
+
+	mii_check_media(&ip->mii, 1, 1);
 
 	vendor = (sw_physid1 << 12) | (sw_physid2 >> 4);
 	model  = (sw_physid2 >> 4) & 0x3f;
