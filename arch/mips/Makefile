@@ -625,6 +625,10 @@ endif
 
 makeboot =$(Q)$(MAKE) -f scripts/Makefile.build obj=arch/mips/boot $(1)
 
+ifdef CONFIG_SGI_IP27
+all:	vmlinux.64
+endif
+
 ifdef CONFIG_SNI_RM200_PCI
 all:	vmlinux.ecoff
 endif
