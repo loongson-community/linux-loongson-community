@@ -47,6 +47,7 @@ DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_VIA, PCI_DEVICE_ID_VIA_82C586_1,
 static void qube_raq_galileo_fixup(struct pci_dev *dev)
 {
 	unsigned short galileo_id;
+	int i;
 
 	/* Fix PCI latency-timer and cache-line-size values in Galileo
 	 * host bridge.
@@ -55,6 +56,13 @@ static void qube_raq_galileo_fixup(struct pci_dev *dev)
 	pci_write_config_byte(dev, PCI_CACHE_LINE_SIZE, 7);
 
 	/*
+	 * The code described by the comment below has been removed
+	 * as it causes bus mastering by the Ethernet controllers
+	 * to break under any kind of network load. We always set
+	 * the retry timeouts to their maximum.
+	 *
+	 * --x--x--x--x--x--x--x--x--x--x--x--x--x--x--x--x--x--x--x--x--
+	 *
 	 * On all machines prior to Q2, we had the STOP line disconnected
 	 * from Galileo to VIA on PCI.  The new Galileo does not function
 	 * correctly unless we have it connected.
@@ -64,19 +72,34 @@ static void qube_raq_galileo_fixup(struct pci_dev *dev)
 	 */
 	pci_read_config_word(dev, PCI_REVISION_ID, &galileo_id);
 	galileo_id &= 0xff;	/* mask off class info */
+
+ 	printk("Galileo ID: %u\n", galileo_id);
+
+#if 0
 	if (galileo_id >= 0x10) {
 		/* New Galileo, assumes PCI stop line to VIA is connected. */
 		GALILEO_OUTL(0x4020, GT_PCI0_TOR_OFS);
-	} else if (galileo_id == 0x1 || galileo_id == 0x2) {
+	} else if (galileo_id == 0x1 || galileo_id == 0x2)
+#endif
+	{
 		signed int timeo;
 		/* XXX WE MUST DO THIS ELSE GALILEO LOCKS UP! -DaveM */
 		timeo = GALILEO_INL(GT_PCI0_TOR_OFS);
 		/* Old Galileo, assumes PCI STOP line to VIA is disconnected. */
 		GALILEO_OUTL(0xffff, GT_PCI0_TOR_OFS);
 	}
+
+	/*
+	 * hide Galileo from the kernel's PCI resource assignment. The BARs
+	 * on Galileo will already have been set up by the boot loader to
+	 * match the DRAM configuration so we don't want them being monkeyed
+	 * around with.
+	 */
+	for (i = 0; i < DEVICE_COUNT_RESOURCE; ++i)
+		dev->resource[i].start = dev->resource[i].end = dev->resource[i].flags = 0;
 }
 
-DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_GALILEO, PCI_ANY_ID,
+DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_MARVELL, PCI_ANY_ID,
 	 qube_raq_galileo_fixup);
 
 static char irq_tab_cobalt[] __initdata = {
