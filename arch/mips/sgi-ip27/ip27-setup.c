@@ -276,6 +276,7 @@ void __init pcibr_setup(cnodeid_t nid)
 
 extern void ip27_setup_console(void);
 extern void ip27_time_init(void);
+extern void ip27_reboot_setup(void);
 
 void __init ip27_setup(void)
 {
@@ -283,6 +284,7 @@ void __init ip27_setup(void)
 	hubreg_t p, e;
 
 	ip27_setup_console();
+	ip27_reboot_setup();
 
 	num_bridges = 0;
 	/*
