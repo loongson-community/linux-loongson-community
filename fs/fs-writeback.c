@@ -133,10 +133,11 @@ out:
 
 EXPORT_SYMBOL(__mark_inode_dirty);
 
-static void write_inode(struct inode *inode, int sync)
+static int write_inode(struct inode *inode, int sync)
 {
 	if (inode->i_sb->s_op->write_inode && !is_bad_inode(inode))
-		inode->i_sb->s_op->write_inode(inode, sync);
+		return inode->i_sb->s_op->write_inode(inode, sync);
+	return 0;
 }
 
 /*
@@ -170,8 +171,11 @@ __sync_single_inode(struct inode *inode, struct writeback_control *wbc)
 	ret = do_writepages(mapping, wbc);
 
 	/* Don't write the inode if only I_DIRTY_PAGES was set */
-	if (dirty & (I_DIRTY_SYNC | I_DIRTY_DATASYNC))
-		write_inode(inode, wait);
+	if (dirty & (I_DIRTY_SYNC | I_DIRTY_DATASYNC)) {
+		int err = write_inode(inode, wait);
+		if (ret == 0)
+			ret = err;
+	}
 
 	if (wait) {
 		int err = filemap_fdatawait(mapping);
@@ -399,7 +403,6 @@ writeback_inodes(struct writeback_control *wbc)
 	struct super_block *sb;
 
 	might_sleep();
-	spin_lock(&inode_lock);
 	spin_lock(&sb_lock);
 restart:
 	sb = sb_entry(super_blocks.prev);
@@ -414,19 +417,21 @@ restart:
 			 * be unmounted by the time it is released.
 			 */
 			if (down_read_trylock(&sb->s_umount)) {
-				if (sb->s_root)
+				if (sb->s_root) {
+					spin_lock(&inode_lock);
 					sync_sb_inodes(sb, wbc);
+					spin_unlock(&inode_lock);
+				}
 				up_read(&sb->s_umount);
 			}
 			spin_lock(&sb_lock);
-			if (__put_super(sb))
+			if (__put_super_and_need_restart(sb))
 				goto restart;
 		}
 		if (wbc->nr_to_write <= 0)
 			break;
 	}
 	spin_unlock(&sb_lock);
-	spin_unlock(&inode_lock);
 }
 
 /*

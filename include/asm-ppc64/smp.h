@@ -26,6 +26,8 @@
 
 #include <asm/paca.h>
 
+extern int boot_cpuid;
+
 #ifdef CONFIG_SMP
 
 extern void smp_send_debugger_break(int cpu);
@@ -64,6 +66,8 @@ extern int query_cpu_stopped(unsigned int pcpu);
 #define get_hard_smp_processor_id(CPU) (paca[(CPU)].hw_cpu_id)
 #define set_hard_smp_processor_id(CPU, VAL) \
 	do { (paca[(CPU)].hw_cpu_id = (VAL)); } while (0)
+
+extern int smt_enabled_at_boot;
 
 #endif /* __ASSEMBLY__ */
 

@@ -1868,7 +1868,7 @@ static int radeon_set_backlight_level(int level, void *data)
 #undef SET_MC_FB_FROM_APERTURE
 static void fixup_memory_mappings(struct radeonfb_info *rinfo)
 {
-	u32 save_crtc_gen_cntl, save_crtc2_gen_cntl;
+	u32 save_crtc_gen_cntl, save_crtc2_gen_cntl = 0;
 	u32 save_crtc_ext_cntl;
 	u32 aper_base, aper_size;
 	u32 agp_base;
@@ -2373,7 +2373,11 @@ int __init radeonfb_setup (char *options);
 int __init radeonfb_init (void)
 {
 #ifndef MODULE
-	radeonfb_setup(fb_get_options("radeonfb"));
+	char *option = NULL;
+
+	if (fb_get_options("radeonfb", &option))
+		return -ENODEV;
+	radeonfb_setup(option);
 #endif
 	return pci_module_init (&radeonfb_driver);
 }

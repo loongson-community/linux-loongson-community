@@ -147,7 +147,21 @@ int main(int argc, char **argv, char **envp)
 
 	/* Reboot */
 	if(ret){
+		int err;
+
 		printf("\n");
+
+		/* Let any pending signals fire, then disable them.  This
+		 * ensures that they won't be delivered after the exec, when
+		 * they are definitely not expected.
+		 */
+		unblock_signals();
+		disable_timer();
+		err = deactivate_all_fds();
+		if(err)
+			printf("deactivate_all_fds failed, errno = %d\n",
+			       -err);
+
 		execvp(new_argv[0], new_argv);
 		perror("Failed to exec kernel");
 		ret = 1;
@@ -206,14 +220,19 @@ void __wrap_free(void *ptr)
 	 * If kmalloc is not yet possible, then the kernel memory regions
 	 * may not be set up yet, and the variables not initialized.  So,
 	 * free is called.
+	 *
+	 * CAN_KMALLOC is checked because it would be bad to free a buffer
+	 * with kmalloc/vmalloc after they have been turned off during
+	 * shutdown.
 	 */
-	if(CAN_KMALLOC()){
-		if((addr >= uml_physmem) && (addr <= high_physmem))
+
+	if((addr >= uml_physmem) && (addr < high_physmem)){
+		if(CAN_KMALLOC())
 			kfree(ptr);
-		else if((addr >= start_vm) && (addr <= end_vm))
+	}
+	else if((addr >= start_vm) && (addr < end_vm)){
+		if(CAN_KMALLOC())
 			vfree(ptr);
-		else
-			__real_free(ptr);
 	}
 	else __real_free(ptr);
 }

@@ -265,6 +265,11 @@ static void hvc_close(struct tty_struct *tty, struct file * filp)
 		 */
 		tty_wait_until_sent(tty, HVC_CLOSE_WAIT);
 
+		/*
+		 * Since the line disc doesn't block writes during tty close
+		 * operations we'll set driver_data to NULL and then make sure
+		 * to check tty->driver_data for NULL in hvc_write().
+		 */
 		tty->driver_data = NULL;
 
 		if (irq != NO_IRQ)
@@ -418,6 +423,10 @@ static int hvc_write(struct tty_struct *tty, int from_user,
 	struct hvc_struct *hp = tty->driver_data;
 	int written;
 
+	/* This write was probably executed during a tty close. */
+	if (!hp)
+		return -EPIPE;
+
 	if (from_user)
 		written = __hvc_write_user(hp, buf, count);
 	else
@@ -549,10 +558,7 @@ static int hvc_poll(struct hvc_struct *hp)
 	/* Wakeup write queue if necessary */
 	if (hp->do_wakeup) {
 		hp->do_wakeup = 0;
-		if ((tty->flags & (1 << TTY_DO_WRITE_WAKEUP))
-		    && tty->ldisc.write_wakeup)
-			(tty->ldisc.write_wakeup)(tty);
-		wake_up_interruptible(&tty->write_wait);
+		tty_wakeup(tty);
 	}
  bail:
 	spin_unlock_irqrestore(&hp->lock, flags);
@@ -801,7 +807,7 @@ int hvc_instantiate(uint32_t vtermno, int index)
 void hvc_console_print(struct console *co, const char *b, unsigned count)
 {
 	char c[16] __ALIGNED__;
-	unsigned i, n = 0;
+	unsigned i = 0, n = 0;
 	int r, donecr = 0;
 
 	/* Console access attempt outside of acceptable console range. */

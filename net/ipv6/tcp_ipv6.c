@@ -57,6 +57,7 @@
 #include <net/xfrm.h>
 #include <net/addrconf.h>
 #include <net/snmp.h>
+#include <net/dsfield.h>
 
 #include <asm/uaccess.h>
 
@@ -1002,11 +1003,12 @@ static void tcp_v6_send_reset(struct sk_buff *skb)
 	 * and then put it into the queue to be sent.
 	 */
 
-	buff = alloc_skb(MAX_HEADER + sizeof(struct ipv6hdr), GFP_ATOMIC);
+	buff = alloc_skb(MAX_HEADER + sizeof(struct ipv6hdr) + sizeof(struct tcphdr),
+			 GFP_ATOMIC);
 	if (buff == NULL) 
 	  	return;
 
-	skb_reserve(buff, MAX_HEADER + sizeof(struct ipv6hdr));
+	skb_reserve(buff, MAX_HEADER + sizeof(struct ipv6hdr) + sizeof(struct tcphdr));
 
 	t1 = (struct tcphdr *) skb_push(buff,sizeof(struct tcphdr));
 
@@ -1064,14 +1066,15 @@ static void tcp_v6_send_ack(struct sk_buff *skb, u32 seq, u32 ack, u32 win, u32 
 	struct flowi fl;
 	int tot_len = sizeof(struct tcphdr);
 
-	buff = alloc_skb(MAX_HEADER + sizeof(struct ipv6hdr), GFP_ATOMIC);
+	if (ts)
+		tot_len += 3*4;
+
+	buff = alloc_skb(MAX_HEADER + sizeof(struct ipv6hdr) + tot_len,
+			 GFP_ATOMIC);
 	if (buff == NULL)
 		return;
 
-	skb_reserve(buff, MAX_HEADER + sizeof(struct ipv6hdr));
-
-	if (ts)
-		tot_len += 3*4;
+	skb_reserve(buff, MAX_HEADER + sizeof(struct ipv6hdr) + tot_len);
 
 	t1 = (struct tcphdr *) skb_push(buff,tot_len);
 
@@ -1646,7 +1649,7 @@ static int tcp_v6_rcv(struct sk_buff **pskb, unsigned int *nhoffp)
 				    skb->len - th->doff*4);
 	TCP_SKB_CB(skb)->ack_seq = ntohl(th->ack_seq);
 	TCP_SKB_CB(skb)->when = 0;
-	TCP_SKB_CB(skb)->flags = ip6_get_dsfield(skb->nh.ipv6h);
+	TCP_SKB_CB(skb)->flags = ipv6_get_dsfield(skb->nh.ipv6h);
 	TCP_SKB_CB(skb)->sacked = 0;
 
 	sk = __tcp_v6_lookup(&skb->nh.ipv6h->saddr, th->source,
@@ -2145,6 +2148,7 @@ struct proto tcpv6_prot = {
 	.sysctl_wmem		= sysctl_tcp_wmem,
 	.sysctl_rmem		= sysctl_tcp_rmem,
 	.max_header		= MAX_TCP_HEADER,
+	.slab_obj_size		= sizeof(struct tcp6_sock),
 };
 
 static struct inet6_protocol tcpv6_protocol = {

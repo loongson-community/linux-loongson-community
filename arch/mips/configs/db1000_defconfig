@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.9-rc2
-# Tue Sep 14 18:47:35 2004
+# Linux kernel version: 2.6.9-rc3
+# Tue Oct 12 03:01:06 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -404,6 +404,7 @@ CONFIG_SERIO=y
 # CONFIG_SERIO_I8042 is not set
 CONFIG_SERIO_SERPORT=y
 # CONFIG_SERIO_CT82C710 is not set
+CONFIG_SERIO_RAW=m
 
 #
 # Input Device Drivers
@@ -507,6 +508,7 @@ CONFIG_DUMMY_CONSOLE=y
 #
 # USB support
 #
+# CONFIG_USB is not set
 
 #
 # USB Gadget Support
@@ -681,7 +683,7 @@ CONFIG_CRYPTO_NULL=y
 # CONFIG_CRYPTO_SHA1 is not set
 # CONFIG_CRYPTO_SHA256 is not set
 CONFIG_CRYPTO_SHA512=y
-CONFIG_CRYPTO_WHIRLPOOL=m
+CONFIG_CRYPTO_WP512=m
 # CONFIG_CRYPTO_DES is not set
 # CONFIG_CRYPTO_BLOWFISH is not set
 CONFIG_CRYPTO_TWOFISH=y

@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.9-rc2
-# Tue Sep 14 18:49:04 2004
+# Linux kernel version: 2.6.9-rc3
+# Tue Oct 12 03:03:46 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -133,7 +133,6 @@ CONFIG_MMU=y
 CONFIG_BINFMT_ELF=y
 # CONFIG_BINFMT_MISC is not set
 CONFIG_TRAD_SIGNALS=y
-# CONFIG_BINFMT_IRIX is not set
 
 #
 # Device Drivers

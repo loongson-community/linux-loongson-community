@@ -21,6 +21,76 @@ ToDo/Notes:
 	- Enable the code for setting the NT4 compatibility flag when we start
 	  making NTFS 1.2 specific modifications.
 
+2.1.19 - Many cleanups, improvements, and a minor bug fix.
+
+	- Update ->setattr (fs/ntfs/inode.c::ntfs_setattr()) to refuse to
+	  change the uid, gid, and mode of an inode as we do not support NTFS
+	  ACLs yet.
+	- Remove BKL use from ntfs_setattr() syncing up with the rest of the
+	  kernel.
+	- Get rid of the ugly transparent union in fs/ntfs/dir.c::ntfs_readdir()
+	  and ntfs_filldir() as per suggestion from Al Viro.
+	- Change '\0' and L'\0' to simply 0 as per advice from Linus Torvalds.
+	- Update ->truncate (fs/ntfs/inode.c::ntfs_truncate()) to check if the
+	  inode size has changed and to only output an error if so.
+	- Rename fs/ntfs/attrib.h::attribute_value_length() to ntfs_attr_size().
+	- Add le{16,32,64} as well as sle{16,32,64} data types to
+	  fs/ntfs/types.h.
+	- Change ntfschar to be le16 instead of u16 in fs/ntfs/types.h.
+	- Add le versions of VCN, LCN, and LSN called leVCN, leLCN, and leLSN,
+	  respectively, to fs/ntfs/types.h.
+	- Update endianness conversion macros in fs/ntfs/endian.h to use the
+	  new types as appropriate.
+	- Do proper type casting when using sle64_to_cpup() in fs/ntfs/dir.c
+	  and index.c.
+	- Add leMFT_REF data type to fs/ntfs/layout.h.
+	- Update all NTFS header files with the new little endian data types.
+	  Affected files are fs/ntfs/layout.h, logfile.h, and time.h.
+	- Do proper type casting when using ntfs_is_*_recordp() in
+	  fs/ntfs/logfile.c, mft.c, and super.c. 
+	- Fix all the sparse bitwise warnings.  Had to change all the typedef
+	  enums storing little endian values to simple enums plus a typedef for
+	  the datatype to make sparse happy.
+	- Fix a bug found by the new sparse bitwise warnings where the default
+	  upcase table was defined as a pointer to wchar_t rather than ntfschar
+	  in fs/ntfs/ntfs.h and super.c.
+	- Change {const_,}cpu_to_le{16,32}(0) to just 0 as suggested by Al Viro.
+
+2.1.18 - Fix scheduling latencies at mount time as well as an endianness bug.
+
+	- Remove vol->nr_mft_records as it was pretty meaningless and optimize
+	  the calculation of total/free inodes as used by statfs().
+	- Fix scheduling latencies in ntfs_fill_super() by dropping the BKL
+	  because the code itself is using the ntfs_lock semaphore which
+	  provides safe locking.  (Ingo Molnar)
+	- Fix a potential bug in fs/ntfs/mft.c::map_extent_mft_record() that
+	  could occur in the future for when we start closing/freeing extent
+	  inodes if we don't set base_ni->ext.extent_ntfs_inos to NULL after
+	  we free it.
+	- Rename {find,lookup}_attr() to ntfs_attr_{find,lookup}() as well as
+	  find_external_attr() to ntfs_external_attr_find() to cleanup the
+	  namespace a bit and to be more consistent with libntfs.
+	- Rename {{re,}init,get,put}_attr_search_ctx() to
+	  ntfs_attr_{{re,}init,get,put}_search_ctx() as well as the type
+	  attr_search_context to ntfs_attr_search_ctx.
+	- Force use of ntfs_attr_find() in ntfs_attr_lookup() when searching
+	  for the attribute list attribute itself.
+	- Fix endianness bug in ntfs_external_attr_find().
+	- Change ntfs_{external_,}attr_find() to return 0 on success, -ENOENT
+	  if the attribute is not found, and -EIO on real error.  In the case
+	  of -ENOENT, the search context is updated to describe the attribute
+	  before which the attribute being searched for would need to be
+	  inserted if such an action were to be desired and in the case of
+	  ntfs_external_attr_find() the search context is also updated to
+	  indicate the attribute list entry before which the attribute list
+	  entry of the attribute being searched for would need to be inserted
+	  if such an action were to be desired.  Also make ntfs_find_attr()
+	  static and remove its prototype from attrib.h as it is not used
+	  anywhere other than attrib.c.  Update ntfs_attr_lookup() and all
+	  callers of ntfs_{external,}attr_{find,lookup}() for the new return
+	  values.
+	- Minor cleanup of fs/ntfs/inode.c::ntfs_init_locked_inode().
+
 2.1.17 - Fix bugs in mount time error code paths and other updates.
 
 	- Implement bitmap modification code (fs/ntfs/bitmap.[hc]).  This

@@ -1184,6 +1184,7 @@ static int fib6_age(struct rt6_info *rt, void *arg)
 	if (rt->rt6i_flags&RTF_EXPIRES && rt->rt6i_expires) {
 		if (time_after(now, rt->rt6i_expires)) {
 			RT6_TRACE("expiring %p\n", rt);
+			rt6_reset_dflt_pointer(rt);
 			return -1;
 		}
 		gc_args.more++;
@@ -1191,6 +1192,11 @@ static int fib6_age(struct rt6_info *rt, void *arg)
 		if (atomic_read(&rt->u.dst.__refcnt) == 0 &&
 		    time_after_eq(now, rt->u.dst.lastuse + gc_args.timeout)) {
 			RT6_TRACE("aging clone %p\n", rt);
+			return -1;
+		} else if ((rt->rt6i_flags & RTF_GATEWAY) &&
+			   (!(rt->rt6i_nexthop->flags & NTF_ROUTER))) {
+			RT6_TRACE("purging route %p via non-router but gateway\n",
+				  rt);
 			return -1;
 		}
 		gc_args.more++;

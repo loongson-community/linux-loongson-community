@@ -960,7 +960,7 @@ struct super_operations {
 	void (*read_inode) (struct inode *);
   
    	void (*dirty_inode) (struct inode *);
-	void (*write_inode) (struct inode *, int);
+	int (*write_inode) (struct inode *, int);
 	void (*put_inode) (struct inode *);
 	void (*drop_inode) (struct inode *);
 	void (*delete_inode) (struct inode *);
@@ -1149,6 +1149,7 @@ struct super_block *sget(struct file_system_type *type,
 struct super_block *get_sb_pseudo(struct file_system_type *, char *,
 			struct super_operations *ops, unsigned long);
 int __put_super(struct super_block *sb);
+int __put_super_and_need_restart(struct super_block *sb);
 void unnamed_dev_init(void);
 
 /* Alas, no aliases. Too much hassle with bringing module.h everywhere */
@@ -1473,18 +1474,21 @@ static inline void do_generic_file_read(struct file * filp, loff_t *ppos,
 ssize_t __blockdev_direct_IO(int rw, struct kiocb *iocb, struct inode *inode,
 	struct block_device *bdev, const struct iovec *iov, loff_t offset,
 	unsigned long nr_segs, get_blocks_t get_blocks, dio_iodone_t end_io,
-	int needs_special_locking);
+	int lock_type);
 
-/*
- * For filesystems which need locking between buffered and direct access
- */
+enum {
+	DIO_LOCKING = 1, /* need locking between buffered and direct access */
+	DIO_NO_LOCKING,  /* bdev; no locking at all between buffered/direct */
+	DIO_OWN_LOCKING, /* filesystem locks buffered and direct internally */
+};
+
 static inline ssize_t blockdev_direct_IO(int rw, struct kiocb *iocb,
 	struct inode *inode, struct block_device *bdev, const struct iovec *iov,
 	loff_t offset, unsigned long nr_segs, get_blocks_t get_blocks,
 	dio_iodone_t end_io)
 {
 	return __blockdev_direct_IO(rw, iocb, inode, bdev, iov, offset,
-				nr_segs, get_blocks, end_io, 1);
+				nr_segs, get_blocks, end_io, DIO_LOCKING);
 }
 
 static inline ssize_t blockdev_direct_IO_no_locking(int rw, struct kiocb *iocb,
@@ -1493,7 +1497,16 @@ static inline ssize_t blockdev_direct_IO_no_locking(int rw, struct kiocb *iocb,
 	dio_iodone_t end_io)
 {
 	return __blockdev_direct_IO(rw, iocb, inode, bdev, iov, offset,
-				nr_segs, get_blocks, end_io, 0);
+				nr_segs, get_blocks, end_io, DIO_NO_LOCKING);
+}
+
+static inline ssize_t blockdev_direct_IO_own_locking(int rw, struct kiocb *iocb,
+	struct inode *inode, struct block_device *bdev, const struct iovec *iov,
+	loff_t offset, unsigned long nr_segs, get_blocks_t get_blocks,
+	dio_iodone_t end_io)
+{
+	return __blockdev_direct_IO(rw, iocb, inode, bdev, iov, offset,
+				nr_segs, get_blocks, end_io, DIO_OWN_LOCKING);
 }
 
 extern struct file_operations generic_ro_fops;

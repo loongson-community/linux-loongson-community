@@ -50,6 +50,7 @@ static struct pci_controller *u3_agp;
 #endif /* CONFIG_POWER4 */
 
 extern u8 pci_cache_line_size;
+extern int pcibios_assign_bus_offset;
 
 struct pci_dev *k2_skiplist[2];
 
@@ -565,6 +566,14 @@ pmac_find_bridges(void)
 
 	init_p2pbridge();
 	fixup_nec_usb2();
+	
+	/* We are still having some issues with the Xserve G4, enabling
+	 * some offset between bus number and domains for now when we
+	 * assign all busses should help for now
+	 */
+	if (pci_assign_all_busses)
+		pcibios_assign_bus_offset = 0x10;
+
 #ifdef CONFIG_POWER4 
 	/* There is something wrong with DMA on U3/HT. I haven't figured out
 	 * the details yet, but if I set the cache line size to 128 bytes like
@@ -707,7 +716,7 @@ setup_u3_ht(struct pci_controller* hose, struct reg_property *addr)
 	 * properties or figuring out the U3 address space decoding logic and
 	 * then read its configuration register (if any).
 	 */
-	hose->io_base_phys = 0xf4000000 + 0x00400000;
+	hose->io_base_phys = 0xf4000000;
 	hose->io_base_virt = ioremap(hose->io_base_phys, 0x00400000);
 	isa_io_base = (unsigned long) hose->io_base_virt;
 	hose->io_resource.name = np->full_name;

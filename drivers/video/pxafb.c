@@ -43,6 +43,7 @@
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/uaccess.h>
+#include <asm/arch/pxa-regs.h>
 #include <asm/arch/bitfield.h>
 #include <asm/arch/pxafb.h>
 
@@ -1377,7 +1378,11 @@ MODULE_PARM_DESC(options, "LCD parameters (see Documentation/fb/pxafb.txt)");
 int __devinit pxafb_init(void)
 {
 #ifndef MODULE
-	pxafb_setup(fb_get_options("pxafb"));
+	char *option = NULL;
+
+	if (fb_get_options("pxafb", &option))
+		return -ENODEV;
+	pxafb_setup(option);
 #endif
 	return driver_register(&pxafb_driver);
 }

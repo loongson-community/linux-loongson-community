@@ -59,7 +59,7 @@ config VT_CONSOLE
 
 config HW_CONSOLE
 	bool
-	depends on VT && !S390 && !UM
+	depends on VT && !S390 && !USERMODE
 	default y
 
 config SERIAL_NONSTANDARD
@@ -1016,6 +1016,14 @@ config HANGCHECK_TIMER
 	  The hangcheck-timer module detects when the system has gone
 	  out to lunch past a certain margin.  It can reboot the system
 	  or merely print a warning.
+
+config MMTIMER
+	tristate "MMTIMER Memory mapped RTC for SGI Altix"
+	depends on IA64_GENERIC || IA64_SGI_SN2
+	default y
+	help
+	  The mmtimer device allows direct userspace access to the
+	  Altix system timer.
 
 endmenu
 

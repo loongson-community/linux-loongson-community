@@ -15,6 +15,8 @@
  *      2 of the License, or (at your option) any later version.
  */
 
+#undef DEBUG
+
 #include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -52,6 +54,13 @@
 #include <asm/cputable.h>
 #include <asm/system.h>
 #include <asm/rtas.h>
+#include <asm/plpar_wrappers.h>
+
+#ifdef DEBUG
+#define DBG(fmt...) udbg_printf(fmt)
+#else
+#define DBG(fmt...)
+#endif
 
 int smp_threads_ready;
 unsigned long cache_decay_ticks;
@@ -74,8 +83,12 @@ void smp_call_function_interrupt(void);
 extern long register_vpa(unsigned long flags, unsigned long proc,
 			 unsigned long vpa);
 
+int smt_enabled_at_boot = 1;
+
 /* Low level assembly function used to backup CPU 0 state */
 extern void __save_cpu_setup(void);
+
+extern void pseries_secondary_smp_init(unsigned long); 
 
 #ifdef CONFIG_PPC_ISERIES
 static unsigned long iSeries_smp_message[NR_CPUS];
@@ -180,7 +193,7 @@ void __init smp_init_iSeries(void)
 }
 #endif
 
-#ifdef CONFIG_PPC_PSERIES
+#ifdef CONFIG_PPC_MULTIPLATFORM
 void smp_openpic_message_pass(int target, int msg)
 {
 	/* make sure we're sending something that translates to an IPI */
@@ -221,6 +234,10 @@ static void __devinit smp_openpic_setup_cpu(int cpu)
 	do_openpic_setup_cpu();
 }
 
+#endif /* CONFIG_PPC_MULTIPLATFORM */
+
+#ifdef CONFIG_PPC_PSERIES
+
 /* Get state of physical CPU.
  * Return codes:
  *	0	- The processor is in the RTAS stopped state
@@ -234,6 +251,7 @@ int query_cpu_stopped(unsigned int pcpu)
 	int cpu_status;
 	int status, qcss_tok;
 
+	DBG(" -> query_cpu_stopped(%d)\n", pcpu);
 	qcss_tok = rtas_token("query-cpu-stopped-state");
 	if (qcss_tok == RTAS_UNKNOWN_SERVICE)
 		return -1;
@@ -243,6 +261,8 @@ int query_cpu_stopped(unsigned int pcpu)
 		       "RTAS query-cpu-stopped-state failed: %i\n", status);
 		return status;
 	}
+
+	DBG(" <- query_cpu_stopped(), status: %d\n", cpu_status);
 
 	return cpu_status;
 }
@@ -273,8 +293,7 @@ void __cpu_die(unsigned int cpu)
 
 	for (tries = 0; tries < 25; tries++) {
 		cpu_status = query_cpu_stopped(pcpu);
-
-		if (cpu_status == 0)
+		if (cpu_status == 0 || cpu_status == -1)
 			break;
 		set_current_state(TASK_UNINTERRUPTIBLE);
 		schedule_timeout(HZ/5);
@@ -371,13 +390,12 @@ out:
 static inline int __devinit smp_startup_cpu(unsigned int lcpu)
 {
 	int status;
-	extern void (*pseries_secondary_smp_init)(unsigned int cpu);
 	unsigned long start_here = __pa(pseries_secondary_smp_init);
 	unsigned int pcpu;
 
 	/* At boot time the cpus are already spinning in hold
 	 * loops, so nothing to do. */
- 	if (system_state == SYSTEM_BOOTING)
+ 	if (system_state < SYSTEM_RUNNING)
 		return 1;
 
 	pcpu = find_physical_cpu_to_start(get_hard_smp_processor_id(lcpu));
@@ -439,7 +457,7 @@ static void __init smp_space_timers(unsigned int max_cpus)
 }
 
 #ifdef CONFIG_PPC_PSERIES
-void vpa_init(int cpu)
+static void vpa_init(int cpu)
 {
 	unsigned long flags, pcpu = get_hard_smp_processor_id(cpu);
 
@@ -530,19 +548,43 @@ static struct smp_ops_t pSeries_xics_smp_ops = {
 /* This is called very early */
 void __init smp_init_pSeries(void)
 {
+	int ret, i;
+
+	DBG(" -> smp_init_pSeries()\n");
 
 	if (naca->interrupt_controller == IC_OPEN_PIC)
 		smp_ops = &pSeries_openpic_smp_ops;
 	else
 		smp_ops = &pSeries_xics_smp_ops;
 
+	/* Start secondary threads on SMT systems; primary threads
+	 * are already in the running state.
+	 */
+	for_each_present_cpu(i) {
+		if (query_cpu_stopped(get_hard_smp_processor_id(i)) == 0) {
+			printk("%16.16x : starting thread\n", i);
+			DBG("%16.16x : starting thread\n", i);
+			rtas_call(rtas_token("start-cpu"), 3, 1, &ret,
+				  get_hard_smp_processor_id(i),
+				  __pa((u32)*((unsigned long *)
+					      pseries_secondary_smp_init)),
+				  i);
+		}
+	}
+
+	if (cur_cpu_spec->firmware_features & FW_FEATURE_SPLPAR)
+		vpa_init(boot_cpuid);
+
 	/* Non-lpar has additional take/give timebase */
 	if (systemcfg->platform == PLATFORM_PSERIES) {
 		smp_ops->give_timebase = pSeries_give_timebase;
 		smp_ops->take_timebase = pSeries_take_timebase;
 	}
+
+
+	DBG(" <- smp_init_pSeries()\n");
 }
-#endif
+#endif /* CONFIG_PPC_PSERIES */
 
 void smp_local_timer_interrupt(struct pt_regs * regs)
 {
@@ -747,7 +789,7 @@ DECLARE_PER_CPU(unsigned int, pvr);
 
 static void __devinit smp_store_cpu_info(int id)
 {
-	per_cpu(pvr, id) = _get_PVR();
+	per_cpu(pvr, id) = mfspr(SPRN_PVR);
 }
 
 static void __init smp_create_idle(unsigned int cpu)
@@ -815,7 +857,7 @@ int __devinit __cpu_up(unsigned int cpu)
 	int c;
 
 	/* At boot, don't bother with non-present cpus -JSCHOPP */
-	if (system_state == SYSTEM_BOOTING && !cpu_present(cpu))
+	if (system_state < SYSTEM_RUNNING && !cpu_present(cpu))
 		return -ENOENT;
 
 	paca[cpu].default_decr = tb_ticks_per_jiffy / decr_overclock;
@@ -847,7 +889,7 @@ int __devinit __cpu_up(unsigned int cpu)
 	 * use this value that I found through experimentation.
 	 * -- Cort
 	 */
-	if (system_state == SYSTEM_BOOTING)
+	if (system_state < SYSTEM_RUNNING)
 		for (c = 5000; c && !cpu_callin_map[cpu]; c--)
 			udelay(100);
 #ifdef CONFIG_HOTPLUG_CPU
@@ -942,4 +984,12 @@ void __init smp_cpus_done(unsigned int max_cpus)
 	smp_threads_ready = 1;
 
 	set_cpus_allowed(current, old_mask);
+
+	/*
+	 * We know at boot the maximum number of cpus we can add to
+	 * a partition and set cpu_possible_map accordingly. cpu_present_map
+	 * needs to match for the hotplug code to allow us to hot add
+	 * any offline cpus.
+	 */
+	cpu_present_map = cpu_possible_map;
 }

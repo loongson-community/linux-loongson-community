@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.9-rc2
-# Tue Sep 14 18:47:53 2004
+# Linux kernel version: 2.6.9-rc3
+# Tue Oct 12 03:03:08 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -140,7 +140,6 @@ CONFIG_MMU=y
 CONFIG_BINFMT_ELF=y
 # CONFIG_BINFMT_MISC is not set
 CONFIG_TRAD_SIGNALS=y
-# CONFIG_BINFMT_IRIX is not set
 
 #
 # Device Drivers
@@ -343,6 +342,7 @@ CONFIG_SERIO=y
 # CONFIG_SERIO_I8042 is not set
 CONFIG_SERIO_SERPORT=y
 # CONFIG_SERIO_CT82C710 is not set
+CONFIG_SERIO_RAW=m
 
 #
 # Input Device Drivers

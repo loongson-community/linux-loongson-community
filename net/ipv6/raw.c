@@ -989,6 +989,7 @@ struct proto rawv6_prot = {
 	.backlog_rcv =	rawv6_rcv_skb,
 	.hash =		raw_v6_hash,
 	.unhash =	raw_v6_unhash,
+	.slab_obj_size = sizeof(struct raw6_sock),
 };
 
 #ifdef CONFIG_PROC_FS

@@ -31,8 +31,8 @@
 
 #ifdef __KERNEL__
 
+#include <asm/interrupt.h>
 #include <asm/sgidefs.h>
-#include <asm/system.h>
 #include <asm/war.h>
 
 /*

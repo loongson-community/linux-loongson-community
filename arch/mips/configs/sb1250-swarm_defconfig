@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.9-rc2
-# Tue Sep 14 18:48:57 2004
+# Linux kernel version: 2.6.9-rc3
+# Tue Oct 12 03:03:43 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -168,7 +168,6 @@ CONFIG_MMU=y
 CONFIG_BINFMT_ELF=y
 # CONFIG_BINFMT_MISC is not set
 CONFIG_TRAD_SIGNALS=y
-# CONFIG_BINFMT_IRIX is not set
 
 #
 # MIPS initrd options
@@ -432,6 +431,7 @@ CONFIG_SERIO=y
 CONFIG_SERIO_SERPORT=y
 # CONFIG_SERIO_CT82C710 is not set
 # CONFIG_SERIO_PCIPS2 is not set
+CONFIG_SERIO_RAW=m
 
 #
 # Input Device Drivers
@@ -646,7 +646,7 @@ CONFIG_CRYPTO_MD5=y
 CONFIG_CRYPTO_SHA1=y
 CONFIG_CRYPTO_SHA256=y
 CONFIG_CRYPTO_SHA512=y
-CONFIG_CRYPTO_WHIRLPOOL=m
+CONFIG_CRYPTO_WP512=m
 CONFIG_CRYPTO_DES=y
 CONFIG_CRYPTO_BLOWFISH=y
 CONFIG_CRYPTO_TWOFISH=y

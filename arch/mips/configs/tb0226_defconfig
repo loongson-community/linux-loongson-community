@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.9-rc2
-# Tue Sep 14 18:48:59 2004
+# Linux kernel version: 2.6.9-rc3
+# Tue Oct 12 03:03:44 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -271,7 +271,6 @@ CONFIG_IP_MULTICAST=y
 CONFIG_IP_ADVANCED_ROUTER=y
 CONFIG_IP_MULTIPLE_TABLES=y
 CONFIG_IP_ROUTE_MULTIPATH=y
-CONFIG_IP_ROUTE_TOS=y
 CONFIG_IP_ROUTE_VERBOSE=y
 CONFIG_IP_PNP=y
 # CONFIG_IP_PNP_DHCP is not set
@@ -406,6 +405,7 @@ CONFIG_SERIO=y
 CONFIG_SERIO_I8042=y
 CONFIG_SERIO_SERPORT=y
 # CONFIG_SERIO_CT82C710 is not set
+CONFIG_SERIO_RAW=m
 
 #
 # Input Device Drivers

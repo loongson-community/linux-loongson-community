@@ -46,7 +46,6 @@
 #include <linux/security.h>
 #include <net/sock.h>
 #include <net/scm.h>
-#include <linux/workqueue.h>
 
 #define Nprintk(a...)
 
@@ -70,14 +69,6 @@ struct netlink_opt
 
 #define nlk_sk(__sk) ((struct netlink_opt *)(__sk)->sk_protinfo)
 
-struct netlink_work
-{
-	struct sock 		*sk;
-	int 			len;
-	struct work_struct 	work;
-};
-
-static struct workqueue_struct *netlink_wq;
 static struct hlist_head nl_table[MAX_LINKS];
 static DECLARE_WAIT_QUEUE_HEAD(nl_table_wait);
 static unsigned nl_nonroot[MAX_LINKS];
@@ -95,16 +86,6 @@ static rwlock_t nl_table_lock = RW_LOCK_UNLOCKED;
 static atomic_t nl_table_users = ATOMIC_INIT(0);
 
 static struct notifier_block *netlink_chain;
-
-/* netlink workqueue handler */
-static void netlink_wq_handler(void *data)
-{
-	struct netlink_work *work = data;
-	
-	work->sk->sk_data_ready(work->sk, work->len);
-	sock_put(work->sk);
-	kfree(work);
-}
 
 static void netlink_sock_destruct(struct sock *sk)
 {
@@ -497,27 +478,12 @@ int netlink_attachskb(struct sock *sk, struct sk_buff *skb, int nonblock, long t
 	if (atomic_read(&sk->sk_rmem_alloc) > sk->sk_rcvbuf ||
 	    test_bit(0, &nlk->state)) {
 		DECLARE_WAITQUEUE(wait, current);
-		task_t *client;
-
 		if (!timeo) {
 			if (!nlk->pid)
 				netlink_overrun(sk);
 			sock_put(sk);
 			kfree_skb(skb);
 			return -EAGAIN;
-		}
-
-		if (nlk->pid) {
-			/* Kernel is sending information to user space
-			 * and socket buffer is full: Wake up user
-			 * process */
-			client = find_task_by_pid(nlk->pid);
-			if (!client) {
-				sock_put(sk);
-				kfree_skb(skb);
-				return -EAGAIN;
-			}
-			wake_up_process(client);
 		}
 
 		__set_current_state(TASK_INTERRUPTIBLE);
@@ -559,24 +525,8 @@ int netlink_sendskb(struct sock *sk, struct sk_buff *skb, int protocol)
 #endif
 
 	skb_queue_tail(&sk->sk_receive_queue, skb);
-	if (!nlk->pid) {
-		struct netlink_work *nlwork = 
-			kmalloc(sizeof(struct netlink_work), GFP_KERNEL);
-
-		if (!nlwork) {
-			sock_put(sk);
-			return -EAGAIN;
-		}
-		
-		INIT_WORK(&nlwork->work, netlink_wq_handler, nlwork);
-		nlwork->sk = sk;
-		nlwork->len = len;
-		queue_work(netlink_wq, &nlwork->work);
-	} else {
-		sk->sk_data_ready(sk, len);
-		sock_put(sk);
-	}
-
+	sk->sk_data_ready(sk, len);
+	sock_put(sk);
 	return len;
 }
 
@@ -586,11 +536,30 @@ void netlink_detachskb(struct sock *sk, struct sk_buff *skb)
 	sock_put(sk);
 }
 
+static inline void netlink_trim(struct sk_buff *skb, int allocation)
+{
+	int delta = skb->end - skb->tail;
+
+	/* If the packet is charged to a socket, the modification
+	 * of truesize below is illegal and will corrupt socket
+	 * buffer accounting state.
+	 */
+	BUG_ON(skb->list != NULL);
+
+	if (delta * 2 < skb->truesize)
+		return;
+	if (pskb_expand_head(skb, 0, -delta, allocation))
+		return;
+	skb->truesize -= delta;
+}
+
 int netlink_unicast(struct sock *ssk, struct sk_buff *skb, u32 pid, int nonblock)
 {
 	struct sock *sk;
 	int err;
 	long timeo;
+
+	netlink_trim(skb, gfp_any());
 
 	timeo = sock_sndtimeo(ssk, nonblock);
 retry:
@@ -623,21 +592,7 @@ static __inline__ int netlink_broadcast_deliver(struct sock *sk, struct sk_buff 
                 skb_orphan(skb);
 		skb_set_owner_r(skb, sk);
 		skb_queue_tail(&sk->sk_receive_queue, skb);
-
-		if (!nlk->pid) {
-			struct netlink_work *nlwork = 
-				kmalloc(sizeof(struct netlink_work), GFP_KERNEL);
-
-			if (!nlwork)
-				return -1;
-		
-			INIT_WORK(&nlwork->work, netlink_wq_handler, nlwork);
-			nlwork->sk = sk;
-			nlwork->len = skb->len;
-			queue_work(netlink_wq, &nlwork->work);
-		} else 
-			sk->sk_data_ready(sk, skb->len);
-
+		sk->sk_data_ready(sk, skb->len);
 		return 0;
 	}
 	return -1;
@@ -651,6 +606,8 @@ int netlink_broadcast(struct sock *ssk, struct sk_buff *skb, u32 pid,
 	struct sk_buff *skb2 = NULL;
 	int protocol = ssk->sk_protocol;
 	int failure = 0, delivered = 0;
+
+	netlink_trim(skb, allocation);
 
 	/* While we sleep in clone, do not allow to change socket list */
 
@@ -683,14 +640,13 @@ int netlink_broadcast(struct sock *ssk, struct sk_buff *skb, u32 pid,
 			netlink_overrun(sk);
 			/* Clone failed. Notify ALL listeners. */
 			failure = 1;
-			sock_put(sk);
 		} else if (netlink_broadcast_deliver(sk, skb2)) {
 			netlink_overrun(sk);
-			sock_put(sk);
 		} else {
 			delivered = 1;
 			skb2 = NULL;
 		}
+		sock_put(sk);
 	}
 
 	netlink_unlock_table();
@@ -1267,9 +1223,6 @@ static int __init netlink_proto_init(void)
 #endif
 	/* The netlink device handler may be needed early. */ 
 	rtnetlink_init();
-	
-	/* Create a work queue to handle callbacks to modules */
-	netlink_wq = create_workqueue("netlink");
 	return 0;
 }
 
@@ -1277,7 +1230,6 @@ static void __exit netlink_proto_exit(void)
 {
        sock_unregister(PF_NETLINK);
        proc_net_remove("netlink");
-       destroy_workqueue(netlink_wq);
 }
 
 core_initcall(netlink_proto_init);
@@ -1289,7 +1241,6 @@ MODULE_ALIAS_NETPROTO(PF_NETLINK);
 
 EXPORT_SYMBOL(netlink_ack);
 EXPORT_SYMBOL(netlink_broadcast);
-EXPORT_SYMBOL(netlink_broadcast_deliver);
 EXPORT_SYMBOL(netlink_dump_start);
 EXPORT_SYMBOL(netlink_kernel_create);
 EXPORT_SYMBOL(netlink_register_notifier);

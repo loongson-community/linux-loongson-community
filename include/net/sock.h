@@ -142,7 +142,6 @@ struct sock_common {
   *	@sk_route_caps - route capabilities (e.g. %NETIF_F_TSO)
   *	@sk_lingertime - %SO_LINGER l_linger setting
   *	@sk_hashent - hash entry in several tables (e.g. tcp_ehash)
-  *	@sk_pair - socket pair (e.g. AF_UNIX/unix_peer)
   *	@sk_backlog - always used with the per-socket spinlock held
   *	@sk_callback_lock - used with the callbacks in the end of this struct
   *	@sk_error_queue - rarely used
@@ -219,7 +218,6 @@ struct sock {
 	int			sk_route_caps;
 	unsigned long	        sk_lingertime;
 	int			sk_hashent;
-	struct sock		*sk_pair;
 	/*
 	 * The backlog queue is special, it is always used with
 	 * the per-socket spinlock held and requires low latency
@@ -555,6 +553,9 @@ struct proto {
 	int			*sysctl_rmem;
 	int			max_header;
 
+	kmem_cache_t		*slab;
+	int			slab_obj_size;
+
 	char			name[32];
 
 	struct {
@@ -562,6 +563,14 @@ struct proto {
 		u8  __pad[SMP_CACHE_BYTES - sizeof(int)];
 	} stats[NR_CPUS];
 };
+
+extern int sk_alloc_slab(struct proto *prot, char *name);
+extern void sk_free_slab(struct proto *prot);
+
+static inline void sk_alloc_slab_error(struct proto *proto)
+{
+	printk(KERN_CRIT "%s: Can't create sock SLAB cache!\n", proto->name);
+}
 
 static __inline__ void sk_set_owner(struct sock *sk, struct module *owner)
 {

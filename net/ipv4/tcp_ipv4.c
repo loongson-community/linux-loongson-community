@@ -1033,11 +1033,7 @@ void tcp_v4_err(struct sk_buff *skb, u32 info)
 
 	switch (type) {
 	case ICMP_SOURCE_QUENCH:
-		/* This is deprecated, but if someone generated it,
-		 * we have no reasons to ignore it.
-		 */
-		if (!sock_owned_by_user(sk))
-			tcp_enter_cwr(tp);
+		/* Just silently ignore these. */
 		goto out;
 	case ICMP_PARAMETERPROB:
 		err = EPROTO;
@@ -2617,6 +2613,7 @@ struct proto tcp_prot = {
 	.sysctl_wmem		= sysctl_tcp_wmem,
 	.sysctl_rmem		= sysctl_tcp_rmem,
 	.max_header		= MAX_TCP_HEADER,
+	.slab_obj_size		= sizeof(struct tcp_sock),
 };
 
 

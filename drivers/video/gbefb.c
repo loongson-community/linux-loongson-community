@@ -1118,7 +1118,11 @@ static int __init gbefb_probe(struct device *dev)
 		return -ENOMEM;
 
 #ifndef MODULE
-	gbefb_setup(fb_get_options("gbefb"));
+	char *option = NULL;
+
+	if (fb_get_options("gbefb", &option))
+		return -ENODEV;
+	gbefb_setup(options);
 #endif
 
 	if (!request_mem_region(GBE_BASE, sizeof(struct sgi_gbe), "GBE")) {

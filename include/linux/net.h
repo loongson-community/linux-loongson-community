@@ -64,11 +64,11 @@ typedef enum {
 
 #ifndef ARCH_HAS_SOCKET_TYPES
 /** sock_type - Socket types
- *
+ * 
  * When adding some new socket type please
  * grep ARCH_HAS_SOCKET_TYPE include/asm-* /socket.h, at least MIPS
  * overrides this enum for binary compat reasons.
- *
+ * 
  * @SOCK_STREAM - stream (connection) socket
  * @SOCK_DGRAM - datagram (conn.less) socket
  * @SOCK_RAW - raw socket
@@ -85,9 +85,10 @@ enum sock_type {
 	SOCK_SEQPACKET	= 5,
 	SOCK_PACKET	= 10,
 };
-#endif /* ARCH_HAS_SOCKET_TYPES */
 
 #define SOCK_MAX (SOCK_PACKET + 1)
+
+#endif /* ARCH_HAS_SOCKET_TYPES */
 
 /**
  *  struct socket - general BSD socket

@@ -38,6 +38,10 @@ config EFI
 	bool
 	default y
 
+config GENERIC_IOMAP
+	bool
+	default y
+
 choice
 	prompt "System type"
 	default IA64_GENERIC
@@ -72,6 +76,12 @@ config IA64_HP_ZX1
 
 config IA64_SGI_SN2
 	bool "SGI-SN2"
+	help
+	  Selecting this option will optimize the kernel for use on sn2 based
+	  systems, but the resulting kernel binary will not run on other
+	  types of ia64 systems.  If you have an SGI Altix system, it's safe
+	  to select this option.  If in doubt, select ia64 generic support
+	  instead.
 
 config IA64_HP_SIM
 	bool "Ski-simulator"

@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.9-rc2
-# Tue Sep 14 18:47:50 2004
+# Linux kernel version: 2.6.9-rc3
+# Tue Oct 12 03:03:05 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -392,6 +392,7 @@ CONFIG_SERIO=y
 CONFIG_SERIO_SERPORT=y
 # CONFIG_SERIO_CT82C710 is not set
 # CONFIG_SERIO_PCIPS2 is not set
+CONFIG_SERIO_RAW=y
 
 #
 # Input Device Drivers

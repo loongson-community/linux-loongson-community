@@ -730,7 +730,7 @@ static inline int all_zeroes(__le32 *p, __le32 *q)
  *	of branch may require special attention - pageout below the truncation
  *	point might try to populate it.
  *
- *	We atom)cally detach the top of branch from the tree, store the block
+ *	We atomically detach the top of branch from the tree, store the block
  *	number of its root in *@top, pointers to buffer_heads of partially
  *	truncated blocks - in @chain[].bh and pointers to their last elements
  *	that should not be removed - in @chain[].p. Return value is the pointer
@@ -1248,9 +1248,9 @@ static int ext2_update_inode(struct inode * inode, int do_sync)
 	return err;
 }
 
-void ext2_write_inode(struct inode *inode, int wait)
+int ext2_write_inode(struct inode *inode, int wait)
 {
-	ext2_update_inode(inode, wait);
+	return ext2_update_inode(inode, wait);
 }
 
 int ext2_sync_inode(struct inode *inode)

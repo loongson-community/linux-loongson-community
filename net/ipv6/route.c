@@ -208,8 +208,18 @@ static __inline__ struct rt6_info *rt6_device_match(struct rt6_info *rt,
 /*
  *	pointer to the last default router chosen. BH is disabled locally.
  */
-static struct rt6_info *rt6_dflt_pointer;
-static spinlock_t rt6_dflt_lock = SPIN_LOCK_UNLOCKED;
+struct rt6_info *rt6_dflt_pointer;
+spinlock_t rt6_dflt_lock = SPIN_LOCK_UNLOCKED;
+
+void rt6_reset_dflt_pointer(struct rt6_info *rt)
+{
+	spin_lock_bh(&rt6_dflt_lock);
+	if (rt == NULL || rt == rt6_dflt_pointer) {
+		RT6_TRACE("reset default router: %p->NULL\n", rt6_dflt_pointer);
+		rt6_dflt_pointer = NULL;
+	}
+	spin_unlock_bh(&rt6_dflt_lock);
+}
 
 /* Default Router Selection (RFC 2461 6.3.6) */
 static struct rt6_info *rt6_best_dflt(struct rt6_info *rt, int oif)
@@ -226,6 +236,10 @@ static struct rt6_info *rt6_best_dflt(struct rt6_info *rt, int oif)
 		    (sprt->rt6i_dev &&
 		     sprt->rt6i_dev->ifindex == oif))
 			m += 8;
+
+		if ((sprt->rt6i_flags & RTF_EXPIRES) &&
+		    time_after(jiffies, sprt->rt6i_expires))
+			continue;
 
 		if (sprt == rt6_dflt_pointer)
 			m += 4;
@@ -956,9 +970,7 @@ int ip6_del_rt(struct rt6_info *rt, struct nlmsghdr *nlh, void *_rtattr)
 
 	write_lock_bh(&rt6_lock);
 
-	spin_lock_bh(&rt6_dflt_lock);
-	rt6_dflt_pointer = NULL;
-	spin_unlock_bh(&rt6_dflt_lock);
+	rt6_reset_dflt_pointer(NULL);
 
 	dst_release(&rt->u.dst);
 
@@ -1007,7 +1019,7 @@ static int ip6_route_del(struct in6_rtmsg *rtmsg, struct nlmsghdr *nlh, void *_r
  *	Handle redirects
  */
 void rt6_redirect(struct in6_addr *dest, struct in6_addr *saddr,
-		  struct neighbour *neigh, int on_link)
+		  struct neighbour *neigh, u8 *lladdr, int on_link)
 {
 	struct rt6_info *rt, *nrt;
 
@@ -1020,22 +1032,13 @@ void rt6_redirect(struct in6_addr *dest, struct in6_addr *saddr,
 	if (neigh->dev != rt->rt6i_dev)
 		goto out;
 
-	/* Redirect received -> path was valid.
-	   Look, redirects are sent only in response to data packets,
-	   so that this nexthop apparently is reachable. --ANK
-	 */
-	dst_confirm(&rt->u.dst);
-
-	/* Duplicate redirect: silently ignore. */
-	if (neigh == rt->u.dst.neighbour)
-		goto out;
-
-	/* Current route is on-link; redirect is always invalid.
-	   
-	   Seems, previous statement is not true. It could
-	   be node, which looks for us as on-link (f.e. proxy ndisc)
-	   But then router serving it might decide, that we should
-	   know truth 8)8) --ANK (980726).
+	/*
+	 * Current route is on-link; redirect is always invalid.
+	 * 
+	 * Seems, previous statement is not true. It could
+	 * be node, which looks for us as on-link (f.e. proxy ndisc)
+	 * But then router serving it might decide, that we should
+	 * know truth 8)8) --ANK (980726).
 	 */
 	if (!(rt->rt6i_flags&RTF_GATEWAY))
 		goto out;
@@ -1047,7 +1050,6 @@ void rt6_redirect(struct in6_addr *dest, struct in6_addr *saddr,
 	 *	is a bit fuzzy and one might need to check all default
 	 *	routers.
 	 */
-
 	if (ipv6_addr_cmp(saddr, &rt->rt6i_gateway)) {
 		if (rt->rt6i_flags & RTF_DEFAULT) {
 			struct rt6_info *rt1;
@@ -1075,6 +1077,24 @@ source_ok:
 	/*
 	 *	We have finally decided to accept it.
 	 */
+
+	neigh_update(neigh, lladdr, NUD_STALE, 
+		     NEIGH_UPDATE_F_WEAK_OVERRIDE|
+		     NEIGH_UPDATE_F_OVERRIDE|
+		     (on_link ? 0 : (NEIGH_UPDATE_F_OVERRIDE_ISROUTER|
+				     NEIGH_UPDATE_F_ISROUTER))
+		     );
+
+	/*
+	 * Redirect received -> path was valid.
+	 * Look, redirects are sent only in response to data packets,
+	 * so that this nexthop apparently is reachable. --ANK
+	 */
+	dst_confirm(&rt->u.dst);
+
+	/* Duplicate redirect: silently ignore. */
+	if (neigh == rt->u.dst.neighbour)
+		goto out;
 
 	nrt = ip6_rt_copy(rt);
 	if (nrt == NULL)
@@ -1253,7 +1273,7 @@ struct rt6_info *rt6_add_dflt_router(struct in6_addr *gwaddr,
 	rtmsg.rtmsg_type = RTMSG_NEWROUTE;
 	ipv6_addr_copy(&rtmsg.rtmsg_gateway, gwaddr);
 	rtmsg.rtmsg_metric = 1024;
-	rtmsg.rtmsg_flags = RTF_GATEWAY | RTF_ADDRCONF | RTF_DEFAULT | RTF_UP;
+	rtmsg.rtmsg_flags = RTF_GATEWAY | RTF_ADDRCONF | RTF_DEFAULT | RTF_UP | RTF_EXPIRES;
 
 	rtmsg.rtmsg_ifindex = dev->ifindex;
 
@@ -1277,9 +1297,7 @@ restart:
 		if (rt->rt6i_flags & flags) {
 			dst_hold(&rt->u.dst);
 
-			spin_lock_bh(&rt6_dflt_lock);
-			rt6_dflt_pointer = NULL;
-			spin_unlock_bh(&rt6_dflt_lock);
+			rt6_reset_dflt_pointer(NULL);
 
 			read_unlock_bh(&rt6_lock);
 

@@ -857,7 +857,7 @@ int fat_fill_super(struct super_block *sb, void *data, int silent,
 		brelse(bh);
 		goto out_invalid;
 	}
-	logical_sector_size = CF_LE_W(get_unaligned((u16 *)&b->sector_size));
+	logical_sector_size = CF_LE_W(get_unaligned((__le16 *)&b->sector_size));
 	if (!logical_sector_size
 	    || (logical_sector_size & (logical_sector_size - 1))
 	    || (logical_sector_size < 512)
@@ -957,7 +957,7 @@ int fat_fill_super(struct super_block *sb, void *data, int silent,
 	sbi->dir_per_block_bits = ffs(sbi->dir_per_block) - 1;
 
 	sbi->dir_start = sbi->fat_start + sbi->fats * sbi->fat_length;
-	sbi->dir_entries = CF_LE_W(get_unaligned((u16 *)&b->dir_entries));
+	sbi->dir_entries = CF_LE_W(get_unaligned((__le16 *)&b->dir_entries));
 	if (sbi->dir_entries & (sbi->dir_per_block - 1)) {
 		if (!silent)
 			printk(KERN_ERR "FAT: bogus directroy-entries per block"
@@ -969,7 +969,7 @@ int fat_fill_super(struct super_block *sb, void *data, int silent,
 	rootdir_sectors = sbi->dir_entries
 		* sizeof(struct msdos_dir_entry) / sb->s_blocksize;
 	sbi->data_start = sbi->dir_start + rootdir_sectors;
-	total_sectors = CF_LE_W(get_unaligned((u16 *)&b->sectors));
+	total_sectors = CF_LE_W(get_unaligned((__le16 *)&b->sectors));
 	if (total_sectors == 0)
 		total_sectors = CF_LE_L(b->total_sect);
 
@@ -1227,7 +1227,7 @@ static int fat_fill_inode(struct inode *inode, struct msdos_dir_entry *de)
 	return 0;
 }
 
-void fat_write_inode(struct inode *inode, int wait)
+int fat_write_inode(struct inode *inode, int wait)
 {
 	struct super_block *sb = inode->i_sb;
 	struct buffer_head *bh;
@@ -1237,14 +1237,14 @@ void fat_write_inode(struct inode *inode, int wait)
 retry:
 	i_pos = MSDOS_I(inode)->i_pos;
 	if (inode->i_ino == MSDOS_ROOT_INO || !i_pos) {
-		return;
+		return 0;
 	}
 	lock_kernel();
 	if (!(bh = sb_bread(sb, i_pos >> MSDOS_SB(sb)->dir_per_block_bits))) {
 		printk(KERN_ERR "FAT: unable to read inode block "
 		       "for updating (i_pos %lld)\n", i_pos);
 		unlock_kernel();
-		return /* -EIO */;
+		return -EIO;
 	}
 	spin_lock(&fat_inode_lock);
 	if (i_pos != MSDOS_I(inode)->i_pos) {
@@ -1277,6 +1277,7 @@ retry:
 	mark_buffer_dirty(bh);
 	brelse(bh);
 	unlock_kernel();
+	return 0;
 }
 
 

@@ -1046,6 +1046,7 @@ struct proto udpv6_prot = {
 	.hash =		udp_v6_hash,
 	.unhash =	udp_v6_unhash,
 	.get_port =	udp_v6_get_port,
+	.slab_obj_size = sizeof(struct udp6_sock),
 };
 
 extern struct proto_ops inet6_dgram_ops;
