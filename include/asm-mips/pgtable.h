@@ -1,4 +1,4 @@
-/* $Id: pgtable.h,v 1.14 1998/07/16 19:10:04 ralf Exp $
+/* $Id: pgtable.h,v 1.15 1998/08/25 09:21:59 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -356,7 +356,7 @@ extern inline pte_t mk_pte(unsigned long page, pgprot_t pgprot)
 
 extern inline pte_t mk_pte_phys(unsigned long physpage, pgprot_t pgprot)
 {
-	return __pte((physpage - PAGE_OFFSET) | pgprot_val(pgprot));
+	return __pte(physpage | pgprot_val(pgprot));
 }
 
 extern inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
