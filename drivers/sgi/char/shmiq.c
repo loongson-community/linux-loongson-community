@@ -237,8 +237,8 @@ shmiq_ioctl (struct inode *inode, struct file *f, unsigned int cmd, unsigned lon
 	}
 
 	return -EINVAL;
+
 bad_file:
-	unlock_kernel ();
 	return -EBADF;
 }
 
@@ -251,46 +251,58 @@ qcntl_ioctl (struct inode *inode, struct file *filp, unsigned int cmd, unsigned 
 	struct vm_area_struct *vma;
 	int v;
 	
-	switch (cmd){
+	switch (cmd) {
 		/*
 		 * The address space is already mapped as a /dev/zero
 		 * mapping.  FIXME: check that /dev/zero is what the user
 		 * had mapped before :-)
 		 */
-	case QIOCATTACH: {
-		unsigned long vaddr;
-		int s;
-		
-		v = verify_area (VERIFY_READ, (void *) arg, sizeof (struct shmiqreq));
-		if (v)
-			return v;
-		if (copy_from_user (&req, (void *) arg, sizeof (req)))
-			return -EFAULT;
-		/* Do not allow to attach to another region if it has been already attached */
-		if (shmiqs [minor].mapped){
-			printk ("SHMIQ:The thingie is already mapped\n");
-			return -EINVAL;
-		}
+		case QIOCATTACH: {
+			unsigned long vaddr;
+			int s;
+	
+			v = verify_area (VERIFY_READ, (void *) arg,
+			                 sizeof (struct shmiqreq));
+			if (v)
+				return v;
+			if (copy_from_user(&req, (void *) arg, sizeof (req)))
+				return -EFAULT;
+			/*
+			 * Do not allow to attach to another region if it has
+			 * already been attached
+			 */
+			if (shmiqs [minor].mapped) {
+				printk("SHMIQ:The thingie is already mapped\n");
+				return -EINVAL;
+			}
 
-		vaddr = (unsigned long) req.user_vaddr;
-		vma = find_vma (current->mm, vaddr);
-		if (!vma){
-			printk ("SHMIQ: could not find %lx the vma\n", vaddr);
-			return -EINVAL;
+			vaddr = (unsigned long) req.user_vaddr;
+			vma = find_vma (current->mm, vaddr);
+			if (!vma) {
+				printk ("SHMIQ: could not find %lx the vma\n",
+				        vaddr);
+				return -EINVAL;
+			}
+			s = req.arg * sizeof (struct shmqevent) +
+			    sizeof (struct sharedMemoryInputQueue);
+			v = sys_munmap (vaddr, s);
+			down(&current->mmap_sem);
+			do_mmap(filp, vaddr, s, PROT_READ | PROT_WRITE,
+			        MAP_PRIVATE|MAP_FIXED, 0);
+			up(&current->mmap_sem);
+			shmiqs[minor].events = req.arg;
+			shmiqs[minor].mapped = 1;
+
+			return 0;
 		}
-		s = req.arg * sizeof (struct shmqevent) + sizeof (struct sharedMemoryInputQueue);
-		v = sys_munmap (vaddr, s);
-		do_mmap (filp, vaddr, s, PROT_READ | PROT_WRITE, MAP_PRIVATE|MAP_FIXED, 0);
-		shmiqs [minor].events = req.arg;
-		shmiqs [minor].mapped = 1;
-		return 0;
 	}
-	}
+
 	return -EINVAL;
 }
 
 unsigned long
-shmiq_nopage (struct vm_area_struct *vma, unsigned long address, int write_access)
+shmiq_nopage (struct vm_area_struct *vma, unsigned long address,
+              int write_access)
 {
 	/* Do not allow for mremap to expand us */
 	return 0;
@@ -335,13 +347,11 @@ shmiq_qcntl_mmap (struct file *file, struct vm_area_struct *vma)
 	
 	return error;
 }
-		  
+
 static int
 shmiq_qcntl_ioctl (struct inode *inode, struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	int minor = MINOR (inode->i_rdev);
-
-	lock_kernel ();
 
 	if (minor-- == 0)
 		return shmiq_ioctl (inode, filp, cmd, arg);
@@ -386,6 +396,7 @@ shmiq_qcntl_open (struct inode *inode, struct file *filp)
 	shmiqs [minor].opened      = 1;
 	shmiqs [minor].shmiq_vaddr = 0;
 	unlock_kernel ();
+
 	return 0;
 }
 
@@ -426,6 +437,7 @@ shmiq_qcntl_close (struct inode *inode, struct file *filp)
 	vfree (shmiqs [minor].shmiq_vaddr);
 	shmiqs [minor].shmiq_vaddr = 0;
 	unlock_kernel ();
+
 	return 0;
 }
 
