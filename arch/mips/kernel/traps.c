@@ -222,6 +222,7 @@ void show_regs(struct pt_regs *regs)
 	printk("\n");
 
 	printk("Cause : %08lx\n", regs->cp0_cause);
+	printk("PrId  : %08x\n", read_c0_prid());
 }
 
 void show_registers(struct pt_regs *regs)
