@@ -50,8 +50,8 @@
 
 #define SONIC_WRITE(reg,val)						\
 do {									\
-	*((volatile unsigned int *)base_addr+reg) = val;		\
-}
+	*((volatile unsigned int *)base_addr+(reg)) = (val);		\
+} while (0)
 
 
 /* use 0 for production, 1 for verification, >2 for debug */
