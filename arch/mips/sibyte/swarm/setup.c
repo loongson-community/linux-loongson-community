@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2000, 2001 Broadcom Corporation
+ * Copyright (C) 2000, 2001, 2002, 2003 Broadcom Corporation
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -157,7 +157,7 @@ void __init swarm_setup(void)
 #endif
 
 #define setled(index, c) \
-  ((unsigned char *)(LEDS_PHYS|IO_SPACE_BASE|0x20))[(3-(index))<<3] = (c)
+  ((unsigned char *)(IOADDR(LEDS_PHYS)+0x20))[(3-(index))<<3] = (c)
 void setleds(char *str)
 {
 	int i;
