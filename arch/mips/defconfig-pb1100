@@ -599,8 +599,6 @@ CONFIG_RTC=y
 #
 # CONFIG_SYNCLINK_CS is not set
 # CONFIG_RAW_DRIVER is not set
-CONFIG_FONT_8x16=y
-CONFIG_DUMMY_CONSOLE=y
 
 #
 # Multimedia devices
@@ -731,6 +729,8 @@ CONFIG_NLS_DEFAULT="iso8859-1"
 # Console drivers
 #
 # CONFIG_VGA_CONSOLE is not set
+CONFIG_DUMMY_CONSOLE=y
+CONFIG_FONT_8x16=y
 # CONFIG_MDA_CONSOLE is not set
 
 #

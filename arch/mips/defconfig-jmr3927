@@ -425,8 +425,6 @@ CONFIG_TXX927_SERIAL_CONSOLE=y
 # CONFIG_AGP is not set
 # CONFIG_DRM is not set
 # CONFIG_RAW_DRIVER is not set
-CONFIG_FONT_8x16=y
-CONFIG_DUMMY_CONSOLE=y
 
 #
 # Multimedia devices
@@ -496,6 +494,8 @@ CONFIG_MSDOS_PARTITION=y
 # Console drivers
 #
 # CONFIG_VGA_CONSOLE is not set
+CONFIG_DUMMY_CONSOLE=y
+CONFIG_FONT_8x16=y
 # CONFIG_MDA_CONSOLE is not set
 
 #

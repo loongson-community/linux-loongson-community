@@ -443,13 +443,6 @@ CONFIG_SGI_DS1286=y
 # CONFIG_RAW_DRIVER is not set
 
 #
-# SGI Character devices
-#
-CONFIG_SGI_NEWPORT_CONSOLE=y
-CONFIG_FONT_8x16=y
-CONFIG_DUMMY_CONSOLE=y
-
-#
 # Multimedia devices
 #
 # CONFIG_VIDEO_DEV is not set
@@ -541,6 +534,9 @@ CONFIG_SGI_PARTITION=y
 # Console drivers
 #
 # CONFIG_VGA_CONSOLE is not set
+CONFIG_SGI_NEWPORT_CONSOLE=y
+CONFIG_DUMMY_CONSOLE=y
+CONFIG_FONT_8x16=y
 # CONFIG_MDA_CONSOLE is not set
 
 #
