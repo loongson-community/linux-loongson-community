@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.13 1998/08/25 09:14:37 ralf Exp $
+/* $Id: setup.c,v 1.14 1998/08/26 21:47:39 tsbogend Exp $
  *
  * Setup pointers to hardware-dependent routines.
  *
@@ -127,6 +127,6 @@ __initfunc(void jazz_setup(void))
 #ifdef CONFIG_BLK_DEV_IDE
 	ide_ops = &std_ide_ops;
 #endif
-	conswitchp = &fb_con;
+	conswitchp = &dummy_con;
 	rtc_ops = &jazz_rtc_ops;
 }
