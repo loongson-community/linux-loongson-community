@@ -630,6 +630,7 @@ asmlinkage void do_cpu(struct pt_regs *regs)
 {
 	unsigned int cpid;
 	extern void lazy_fpu_switch(void *);
+	extern void save_fp(struct task_struct *);
 	extern void init_fpu(void);
 	void fpu_emulator_init_fpu(void);
 	int sig;
@@ -648,6 +649,7 @@ asmlinkage void do_cpu(struct pt_regs *regs)
 	if (current->used_math) {		/* Using the FPU again.  */
 		lazy_fpu_switch(last_task_used_math);
 	} else {				/* First time FPU user.  */
+		if (last_task_used_math != NULL) save_fp(last_task_used_math);
 		init_fpu();
 		current->used_math = 1;
 	}

@@ -275,7 +275,10 @@ static int cop1Emulate(struct pt_regs *regs, struct mips_fpu_soft_struct *ctx)
 			fpuemuprivate.stats.errors++;
 			return SIGBUS;
 		}
+		/* __computer_return_epc() will have updated cp0_epc */
 		contpc = REG_TO_VA regs->cp0_epc;
+		/* In order not to confuse ptrace() et al, tweak context */
+		regs->cp0_epc = VA_TO_REG emulpc - 4;
 	} else {
 		emulpc = REG_TO_VA regs->cp0_epc;
 		contpc = REG_TO_VA regs->cp0_epc + 4;
@@ -763,29 +766,75 @@ emul:
  *  execution of delay-slot instruction execution.
  */
 
+/* Instruction inserted following delay slot instruction to force trap */
+#define AdELOAD 0x8c000001    /* lw $0,1($0) */
+
+/* Instruction inserted following the AdELOAD to further tag the sequence */
+#define BD_COOKIE 0x0000bd36 /* tne $0,$0 with baggage */
+
 int do_dsemulret(struct pt_regs *xcp)
 {
+	unsigned long *pinst;
+	unsigned long stackitem;
+	int err = 0;
+
+	/* See if this trap was deliberate. First check the instruction */
+
+	pinst = (unsigned long *) REG_TO_VA(xcp->cp0_epc);
+
+	/* 
+	 * If we can't even access the area, something is very wrong, but we'll
+	 * leave that to the default handling
+	 */
+	if (verify_area(VERIFY_READ, pinst, sizeof(unsigned long) * 3))
+		return 0;
+
+	/* Is the instruction pointed to by the EPC an AdELOAD? */
+	stackitem = mips_get_word(xcp, pinst, &err);
+	if (err || (stackitem != AdELOAD))
+		return 0;
+
+	/* Is the following memory word the BD_COOKIE? */
+
+	stackitem = mips_get_word(xcp, pinst+1, &err);
+	if (err || (stackitem != BD_COOKIE))
+		return 0;
+
+	/* 
+	 * At this point, we are satisfied that it's a BD emulation trap.  Yes,
+	 * a user might have deliberately put two malformed and useless
+	 * instructions in a row in his program, in which case he's in for a
+	 * nasty surprise - the next instruction will be treated as a
+	 * continuation address!  Alas, this seems to be the only way that we
+	 * can handle signals, recursion, and longjmps() in the context of
+	 * emulating the branch delay instruction.
+	 */
+
 #ifdef DSEMUL_TRACE
 	printk("desemulret\n");
 #endif
-	/* Set EPC to return to post-branch instruction */
-	xcp->cp0_epc = current->thread.dsemul_epc;
-	/*
-	 * Clear the state that got us here.
-	 */
-	current->thread.dsemul_aerpc = (unsigned long) 0;
+	/* Fetch the Saved EPC to Resume */
 
-	return 0;
+	stackitem = mips_get_word(xcp, pinst+2, &err);
+	if (err) {
+		/* This is not a good situation to be in */
+		fpuemuprivate.stats.errors++;
+		force_sig(SIGBUS, current);
+		return 1;
+	}
+
+	/* Set EPC to return to post-branch instruction */
+	xcp->cp0_epc = stackitem;
+
+	return 1;
 }
 
 
 #define AdELOAD 0x8c000001	/* lw $0,1($0) */
 
-static int
-mips_dsemul(struct pt_regs *regs, mips_instruction ir, vaddr_t cpc)
+static int mips_dsemul(struct pt_regs *regs, mips_instruction ir, vaddr_t cpc)
 {
 	mips_instruction *dsemul_insns;
-	mips_instruction forcetrap;
 	extern asmlinkage void handle_dsemulret(void);
 
 	if (ir == 0) {		/* a nop is easy */
@@ -802,21 +851,7 @@ mips_dsemul(struct pt_regs *regs, mips_instruction ir, vaddr_t cpc)
 	 * and put a trap after it which we can catch and jump to 
 	 * the required address any alternative apart from full 
 	 * instruction emulation!!.
-	 */
-	dsemul_insns = (void*) (regs->regs[29] - 4 * sizeof(mips_instruction));
-	dsemul_insns = (void *) ((unsigned long)dsemul_insns & ALMASK);
-
-	/* Verify that the stack pointer is not competely insane */
-	if (verify_area(VERIFY_WRITE, dsemul_insns,
-	                4* sizeof(mips_instruction)))
-		return SIGBUS;
-
-	if (mips_put_word(regs, &dsemul_insns[0], ir)) {
-		fpuemuprivate.stats.errors++;
-		return SIGBUS;
-	}
-
-	/* 
+	 *
 	 * Algorithmics used a system call instruction, and
 	 * borrowed that vector.  MIPS/Linux version is a bit
 	 * more heavyweight in the interests of portability and
@@ -825,25 +860,39 @@ mips_dsemul(struct pt_regs *regs, mips_instruction ir, vaddr_t cpc)
 	 * address error excpetion.
 	 */
 
-	/* If one is *really* paranoid, one tests for a bad stack pointer */
-	if ((regs->regs[29] & 0x3) == 0x3)
-		forcetrap = AdELOAD - 1;
-	else
-		forcetrap = AdELOAD;
+	/* Ensure that the two instructions are in the same cache line */
+	dsemul_insns = (mips_instruction *) (regs->regs[29] & ~0xf);
+	dsemul_insns -= 4;	/* Retain 16-byte alignment */
 
-	if (mips_put_word(regs, &dsemul_insns[1], forcetrap)) {
-		fpuemuprivate.stats.errors++;
+	/* Verify that the stack pointer is not competely insane */
+	if (verify_area
+	    (VERIFY_WRITE, dsemul_insns, sizeof(mips_instruction) * 4))
 		return SIGBUS;
+
+	if (mips_put_word(regs, &dsemul_insns[0], ir)) {
+		fpuemuprivate.stats.errors++;
+		return (SIGBUS);
 	}
 
-	/* Set thread state to catch and handle the exception */
-	current->thread.dsemul_epc = (unsigned long) cpc;
-	current->thread.dsemul_aerpc = (unsigned long) &dsemul_insns[1];
+	if (mips_put_word(regs, &dsemul_insns[1], (mips_instruction)AdELOAD)) {
+		fpuemuprivate.stats.errors++;
+		return (SIGBUS);
+	}
+	
+	if (mips_put_word(regs, &dsemul_insns[2], 
+			  (mips_instruction)BD_COOKIE)) {
+		fpuemuprivate.stats.errors++;
+		return (SIGBUS);
+	}
+
+	if (mips_put_word(regs, &dsemul_insns[3], (mips_instruction)cpc)) {
+		fpuemuprivate.stats.errors++;
+		return (SIGBUS);
+	}
+
 	regs->cp0_epc = VA_TO_REG & dsemul_insns[0];
 
-	/* Note this only flushes two instructions  */
-	flush_cache_sigtramp((unsigned long) dsemul_insns);
-
+	flush_cache_sigtramp((unsigned long)dsemul_insns);
 	return SIGILL;		/* force out of emulation loop */
 }
 
@@ -892,6 +941,22 @@ static const unsigned char cmptab[8] = {
  * Additional MIPS4 instructions
  */
 
+#define DEF3OP(name, p, f1, f2, f3) \
+static ieee754##p fpemu_##p##_##name (ieee754##p r, ieee754##p s, \
+    ieee754##p t) \
+{ \
+    struct ieee754_csr ieee754_csr_save; \
+    s = f1 (s, t); \
+    ieee754_csr_save = ieee754_csr; \
+    s = f2 (s, r); \
+    ieee754_csr_save.cx |= ieee754_csr.cx; \
+    ieee754_csr_save.sx |= ieee754_csr.sx; \
+    s = f3 (s); \
+    ieee754_csr.cx |= ieee754_csr_save.cx; \
+    ieee754_csr.sx |= ieee754_csr_save.sx; \
+    return s; \
+}    
+
 static ieee754dp fpemu_dp_recip(ieee754dp d)
 {
 	return ieee754dp_div(ieee754dp_one(0), d);
@@ -912,47 +977,14 @@ static ieee754sp fpemu_sp_rsqrt(ieee754sp s)
 	return ieee754sp_div(ieee754sp_one(0), ieee754sp_sqrt(s));
 }
 
-
-static ieee754dp fpemu_dp_madd(ieee754dp r, ieee754dp s, ieee754dp t)
-{
-	return ieee754dp_add(ieee754dp_mul(s, t), r);
-}
-
-static ieee754dp fpemu_dp_msub(ieee754dp r, ieee754dp s, ieee754dp t)
-{
-	return ieee754dp_sub(ieee754dp_mul(s, t), r);
-}
-
-static ieee754dp fpemu_dp_nmadd(ieee754dp r, ieee754dp s, ieee754dp t)
-{
-	return ieee754dp_neg(ieee754dp_add(ieee754dp_mul(s, t), r));
-}
-
-static ieee754dp fpemu_dp_nmsub(ieee754dp r, ieee754dp s, ieee754dp t)
-{
-	return ieee754dp_neg(ieee754dp_sub(ieee754dp_mul(s, t), r));
-}
-
-
-static ieee754sp fpemu_sp_madd(ieee754sp r, ieee754sp s, ieee754sp t)
-{
-	return ieee754sp_add(ieee754sp_mul(s, t), r);
-}
-
-static ieee754sp fpemu_sp_msub(ieee754sp r, ieee754sp s, ieee754sp t)
-{
-	return ieee754sp_sub(ieee754sp_mul(s, t), r);
-}
-
-static ieee754sp fpemu_sp_nmadd(ieee754sp r, ieee754sp s, ieee754sp t)
-{
-	return ieee754sp_neg(ieee754sp_add(ieee754sp_mul(s, t), r));
-}
-
-static ieee754sp fpemu_sp_nmsub(ieee754sp r, ieee754sp s, ieee754sp t)
-{
-	return ieee754sp_neg(ieee754sp_sub(ieee754sp_mul(s, t), r));
-}
+DEF3OP(madd, sp, ieee754sp_mul, ieee754sp_add, );
+DEF3OP(msub, sp, ieee754sp_mul, ieee754sp_sub, );
+DEF3OP(nmadd, sp, ieee754sp_mul, ieee754sp_add, ieee754sp_neg);
+DEF3OP(nmsub, sp, ieee754sp_mul, ieee754sp_sub, ieee754sp_neg);
+DEF3OP(madd, dp, ieee754dp_mul, ieee754dp_add, );
+DEF3OP(msub, dp, ieee754dp_mul, ieee754dp_sub, );
+DEF3OP(nmadd, dp, ieee754dp_mul, ieee754dp_add, ieee754dp_neg);
+DEF3OP(nmsub, dp, ieee754dp_mul, ieee754dp_sub, ieee754dp_neg);
 
 static int fpux_emu(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx,
                     mips_instruction ir)
@@ -1708,6 +1740,7 @@ int fpu_emulator_cop1Handler(struct pt_regs *xcp)
 			   h/w FPU */
 			ieee754_csr.nod = (ctx->sr & 0x1000000) != 0;
 			ieee754_csr.rm = ieee_rm[ctx->sr & 0x3];
+			ieee754_csr.cx = (ctx->sr >> 12) & 0x1f;
 			sig = cop1Emulate(xcp, ctx);
 		}
 		else

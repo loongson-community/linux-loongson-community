@@ -189,6 +189,47 @@ sys_sigaltstack(struct pt_regs regs)
 	return do_sigaltstack(uss, uoss, usp);
 }
 
+static void
+restore_thread_fp_context(struct sigcontext *sc)
+{
+	int i;
+	/* Note: This assumes that fpu.soft/fpu.hard union is isomorphic */	
+	u64 *pfreg = &current->thread.fpu.soft.regs[0];
+
+	/* 
+	 * Copy all 32 64-bit values, for two reasons.
+	 * First, the R3000 and R4000/MIPS32 kernels use
+	 * the thread FP register storage differently,
+	 * such that a full copy is essentially necessary
+	 * to support both.  Someone obsessed with performance 
+	 * could turn this into distinct routines in each
+	 * of the _fpu.S files.
+	 * 
+	 */
+
+	for (i = 0; i < 32; i++ ) {
+		__get_user(pfreg[i], &sc->sc_fpregs[i]);
+	}
+	__get_user(current->thread.fpu.soft.sr, &sc->sc_fpc_csr);
+}
+
+static void
+save_thread_fp_context(struct sigcontext *sc)
+{
+	int i;
+	/* Note: This assumes that fpu.soft/fpu.hard union is isomorphic */	
+	u64 *pfreg = &current->thread.fpu.soft.regs[0];
+
+	/* 
+	 * See comment in restore_thread_fp_context()
+	 */
+
+	for (i = 0; i < 32; i++ ) {
+		__put_user(pfreg[i], &sc->sc_fpregs[i]);
+	}
+	__put_user(current->thread.fpu.soft.sr, &sc->sc_fpc_csr);
+}
+
 asmlinkage int
 restore_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 {
@@ -221,9 +262,19 @@ restore_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 #undef restore_gp_reg
 
 	err |= __get_user(owned_fp, &sc->sc_ownedfp);
+	err |= __get_user(current->used_math, &sc->sc_used_math);
 	if (owned_fp) {
 		err |= restore_fp_context(sc);
-		last_task_used_math = current;
+	} else {
+		if (current == last_task_used_math) {
+			/* Signal handler acquired FPU - give it back */
+			last_task_used_math = NULL;
+			regs->cp0_status &= ~ST0_CU1;
+		}
+		if (current->used_math) {
+			/* Undo possible contamination of thread state */
+			restore_thread_fp_context(sc);
+		}
 	}
 
 	return err;
@@ -354,13 +405,20 @@ setup_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 
 	owned_fp = (current == last_task_used_math);
 	err |= __put_user(owned_fp, &sc->sc_ownedfp);
+	err |= __put_user(current->used_math, &sc->sc_used_math);
 
 	if (current->used_math) {	/* fp is active.  */
-		enable_fpu();
-		err |= save_fp_context(sc);
-		last_task_used_math = NULL;
-		regs->cp0_status &= ~ST0_CU1;
-		current->used_math = 0;
+		/* There exists FP thread state that may be trashed by signal */
+		if (owned_fp) {	
+			/* fp is active.  Save context from FPU */
+			err |= save_fp_context(sc);
+		} else {
+			/* 
+			 * Someone else has FPU. 
+			 * Copy Thread context into signal context 
+			 */
+			save_thread_fp_context(sc);
+		}
 	}
 
 	return err;
@@ -376,6 +434,13 @@ get_sigframe(struct k_sigaction *ka, struct pt_regs *regs, size_t frame_size)
 
 	/* Default to using normal stack */
 	sp = regs->regs[29];
+
+	/* 
+ 	 * FPU emulator may have it's own trampoline active just
+ 	 * above the user stack, 16-bytes before the next lowest
+ 	 * 16 byte boundary.  Try to avoid trashing it.
+ 	 */
+ 	sp -= 32;
 
 	/* This is the X/Open sanctioned signal stack switching.  */
 	if ((ka->sa.sa_flags & SA_ONSTACK) && ! on_sig_stack(sp))
@@ -437,7 +502,7 @@ setup_frame(struct k_sigaction * ka, struct pt_regs *regs,
 
 #if DEBUG_SIG
 	printk("SIG deliver (%s:%d): sp=0x%p pc=0x%p ra=0x%p\n", current->comm,
-	       current->pid, frame, regs->cp0_epc, frame->sf_code);
+	       current->pid, frame, regs->cp0_epc, frame->code);
 #endif
         return;
 

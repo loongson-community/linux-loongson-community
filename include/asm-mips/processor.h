@@ -149,21 +149,6 @@ struct thread_struct {
 	mm_segment_t current_ds;
 	unsigned long irix_trampoline;  /* Wheee... */
 	unsigned long irix_oldctx;
-
-	/*
-	 * These are really only needed if the full FPU emulator is configured.
-	 * Would be made conditional on MIPS_FPU_EMULATOR if it weren't for the
-	 * fact that having offset.h rebuilt differently for different config
-	 * options would be asking for trouble.
-	 *
-	 * Saved EPC during delay-slot emulation (see math-emu/cp1emu.c)
-	 */
-	unsigned long dsemul_epc;
-
-	/*
-	 * Pointer to instruction used to induce address error
-	 */
-	unsigned long dsemul_aerpc;
 };
 
 #endif /* !defined (_LANGUAGE_ASSEMBLY) */
@@ -189,12 +174,7 @@ struct thread_struct {
 	/* \
 	 * For now the default is to fix address errors \
 	 */ \
-	MF_FIXADE, { 0 }, 0, 0, \
-	/* \
-	 * dsemul_epc and dsemul_aerpc should never be used uninitialized, \
-	 * but... \
-	 */ \
-	0 ,0 \
+	MF_FIXADE, { 0 }, 0, 0 \
 }
 
 #ifdef __KERNEL__
@@ -230,8 +210,8 @@ static inline unsigned long thread_saved_pc(struct thread_struct *t)
  * Do necessary setup to start up a newly executed thread.
  */
 #define start_thread(regs, new_pc, new_sp) do {				\
-	/* New thread looses kernel privileges. */			\
-	regs->cp0_status = (regs->cp0_status & ~(ST0_CU0|ST0_KSU)) | KU_USER;\
+	/* New thread loses kernel and FPU privileges. */	       	\
+	regs->cp0_status = (regs->cp0_status & ~(ST0_CU0|ST0_KSU|ST0_CU1)) | KU_USER;\
 	regs->cp0_epc = new_pc;						\
 	regs->regs[29] = new_sp;					\
 	current->thread.current_ds = USER_DS;				\

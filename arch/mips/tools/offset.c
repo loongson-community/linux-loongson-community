@@ -121,10 +121,6 @@ void output_thread_defines(void)
 	       thread.irix_trampoline);
 	offset("#define THREAD_OLDCTX  ", struct task_struct, \
 	       thread.irix_oldctx);
-	offset("#define THREAD_DSEEPC  ", struct task_struct, \
-	       thread.dsemul_epc);
-	offset("#define THREAD_DSEAERPC ", struct task_struct, \
-	       thread.dsemul_aerpc);
 	linefeed;
 }
 
