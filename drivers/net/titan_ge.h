@@ -42,7 +42,7 @@ extern unsigned long titan_ge_base;
 
 #define TITAN_GE_PORT_0
 
-#define	TITAN_SRAM_BASE		0xf4000000UL
+#define	TITAN_SRAM_BASE		((OCD_READ(RM9000x2_OCD_LKB13) & ~1) << 4)
 #define	TITAN_SRAM_SIZE		0x2000UL
 
 extern unsigned long titan_ge_sram;

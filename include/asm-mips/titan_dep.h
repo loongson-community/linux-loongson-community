@@ -49,16 +49,36 @@
 #define RM9000x2_BASE_ADDR      0xbb000000
 
 #define OCD_BASE                0xfb000000UL
-#define OCD_SIZE                0x2000UL
+#define OCD_SIZE                0x3000UL
  
 extern unsigned long ocd_base;
 
 /*
  * OCD Registers
  */
+#define RM9000x2_OCD_LKB5		0x0128		/* Ethernet */
+#define RM9000x2_OCD_LKM5		0x012c
+#define RM9000x2_OCD_LKB9		0x0148		/* Local Bus */
+#define RM9000x2_OCD_LKM9		0x014c
+#define RM9000x2_OCD_LKB10		0x0150
+#define RM9000x2_OCD_LKM10		0x0154
+#define RM9000x2_OCD_LKB11		0x0158
+#define RM9000x2_OCD_LKM11		0x015c
+#define RM9000x2_OCD_LKB12		0x0160
+#define RM9000x2_OCD_LKM12		0x0164
+
+#define RM9000x2_OCD_LKB13		0x0168		/* Scratch RAM */
+#define RM9000x2_OCD_LKM13		0x016c
+
+#define RM9000x2_OCD_LPD0		0x0200		/* Local Bus */
+#define RM9000x2_OCD_LPD1		0x0210
+#define RM9000x2_OCD_LPD2		0x0220
+#define RM9000x2_OCD_LPD3		0x0230
+
 #define RM9000x2_OCD_HTCFGA		0x06f8
 #define RM9000x2_OCD_HTCFGD		0x06fc
-#define RM9000x2_OCD_NMICONFIG		0x0ac0
+
+#define RM9000x2_OCD_NMICONFIG		0x0ac0		/* Interrupts */
 #define RM9000x2_OCD_INTP0PRI		0x1a80
 #define RM9000x2_OCD_INTP1PRI		0x1a80
 #define RM9000x2_OCD_INTP0STATUS0	0x1b00
