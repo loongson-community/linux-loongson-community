@@ -6,6 +6,7 @@
  *
  * Based upon work which is:
  * Copyright 1993, 1994: Eric Youngdale (ericy@cais.com).
+ *
  */
 
 #include <linux/module.h>
@@ -30,6 +31,8 @@
 
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
+#include <asm/mipsregs.h>
+#include <asm/prctl.h>
 
 #include <linux/config.h>
 
@@ -575,6 +578,32 @@ static inline int map_interpreter(struct elf_phdr *epp, struct elfhdr *ihp,
 	return 0;
 }
 
+/*
+ * IRIX maps a page at 0x200000 that holds information about the 
+ * process and the system, here we map the page and fill the
+ * structure
+ */
+void irix_map_prda_page ()
+{
+	unsigned long v;
+	struct prda *pp;
+
+	v =  do_mmap (NULL, PRDA_ADDRESS, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC,
+		      MAP_FIXED | MAP_PRIVATE, 0);
+	
+	if (v < 0)
+		return;
+
+	pp = (struct prda *) v;
+	pp->prda_sys.t_pid  = current->pid;
+	pp->prda_sys.t_prid = read_32bit_cp0_register (CP0_PRID);
+	pp->prda_sys.t_rpid = current->pid;
+
+	/* We leave the rest set to zero */
+}
+	
+
+	
 /* These are the functions used to load ELF style executables and shared
  * libraries.  There is no binary dependent code anywhere else.
  */
@@ -760,6 +789,12 @@ static inline int do_load_irix_binary(struct linux_binprm * bprm,
 	 * bss and break sections.
 	 */
 	set_brk(elf_bss, elf_brk);
+
+	/*
+	 * IRIX maps a page at 0x200000 which holds some system
+	 * information.  Programs depend on this.
+	 */
+	irix_map_prda_page ();
 
 	padzero(elf_bss);
 
