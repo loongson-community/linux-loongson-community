@@ -30,3 +30,4 @@ $(obj)/initramfs_data.cpio.gz: $(obj)/initramfs_data.cpio FORCE
 	$(call if_changed,gzip)
 
 targets += initramfs_data.cpio.gz
+
