@@ -22,34 +22,24 @@
  * For historical reasons, these macros are grossly misnamed.
  */
 #ifdef CONFIG_MIPS32
+
 #define __UA_ADDR	".word"
 #define __UA_LA		"la"
 #define __UA_ADDU	"addu"
 #define __UA_t0		"$8"
 #define __UA_t1		"$9"
 
-#define KERNEL_DS	((mm_segment_t) { (unsigned long) 0L })
-#define USER_DS		((mm_segment_t) { (unsigned long) -1L })
-
-#define VERIFY_READ    0
-#define VERIFY_WRITE   1
-
-#define __access_ok(addr, size, mask)					\
-	(((signed long)((mask)&(addr | ((addr) + (size)) | __ua_size(size)))) >= 0)
- 
-#define __access_mask ((long)(get_fs().seg))
- 
-#define access_ok(type, addr, size)					\
-	likely(__access_ok(((unsigned long)(addr)),(size),__access_mask))
-
 #endif /* CONFIG_MIPS32 */
 
 #ifdef CONFIG_MIPS64
+
 #define __UA_ADDR	".dword"
 #define __UA_LA		"dla"
 #define __UA_ADDU	"daddu"
 #define __UA_t0		"$12"
 #define __UA_t1		"$13"
+
+#endif /* CONFIG_MIPS64 */
 
 #define KERNEL_DS	((mm_segment_t) { 0UL })
 #define USER_DS		((mm_segment_t) { -TASK_SIZE })
@@ -63,9 +53,7 @@
 #define __access_mask get_fs().seg
 
 #define access_ok(type, addr, size)					\
-	likely(__access_ok((unsigned long)(addr), (size), __access_mask))
-
-#endif /* CONFIG_MIPS64 */
+	likely(__access_ok((unsigned long)(addr), (size),__access_mask))
 
 #define get_ds()	(KERNEL_DS)
 #define get_fs()	(current_thread_info()->addr_limit)
