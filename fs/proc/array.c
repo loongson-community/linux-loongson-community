@@ -365,7 +365,7 @@ int proc_pid_stat(struct task_struct *task, char * buffer)
 		nice,
 		0UL /* removed */,
 		task->it_real_value,
-		task->start_time,
+		hz_to_std(task->start_time),
 		vsize,
 		mm ? mm->rss : 0, /* you might want to shift this left 3 */
 		task->rlim[RLIMIT_RSS].rlim_cur,
