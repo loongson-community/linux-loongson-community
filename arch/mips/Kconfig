@@ -652,19 +652,19 @@ config HAVE_DEC_LOCK
 config ARC
 	bool
 
-config	DMA_COHERENT
+config DMA_COHERENT
 	bool
 
-config	DMA_IP27
+config DMA_IP27
 	bool
 
-config	DMA_IP32
+config DMA_IP32
 	bool
 
-config	OWN_DMA
+config OWN_DMA
 	bool
 
-config	DMA_NONCOHERENT
+config DMA_NONCOHERENT
 	bool
 
 config EARLY_PRINTK
