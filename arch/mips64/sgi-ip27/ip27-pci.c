@@ -55,9 +55,6 @@ do {									\
 	bridge = (bridge_t *) NODE_SWIN_BASE(bus_to_nid[bus_id],        \
                                              bus_to_wid[bus_id]);       \
                                                                         \
-	/*if (dev->bus->number)			 */			\
-	/*	return PCIBIOS_DEVICE_NOT_FOUND; */			\
-									\
 	if (dev->vendor == PCI_VENDOR_ID_SGI				\
 	    && dev->device == PCI_DEVICE_ID_SGI_IOC3			\
 	    && ((where >= 0x14 && where < 0x40) || (where >= 0x48))) {	\
@@ -103,9 +100,6 @@ do {									\
 	bridge = (bridge_t *) NODE_SWIN_BASE(bus_to_nid[bus_id],        \
                                              bus_to_wid[bus_id]);       \
                                                                         \
-	/* if (dev->bus->number)		 */			\
-	/* 	return PCIBIOS_DEVICE_NOT_FOUND; */			\
-									\
 	if (dev->vendor == PCI_VENDOR_ID_SGI				\
 	    && dev->device == PCI_DEVICE_ID_SGI_IOC3			\
 	    && ((where >= 0x14 && where < 0x40) || (where >= 0x48)))	\
@@ -270,19 +264,23 @@ pcibios_setup(char *str)
 	return str;
 }
 
+/*
+ * Device might live on a subordinate PCI bus.  XXX Walk up the chain of buses
+ * to find the slot number in sense of the bridge device register.
+ * XXX This also means multiple devices might rely on conflicting bridge
+ * settings.
+ */
+
 static void __init
 pci_disable_swapping(struct pci_dev *dev)
 {
 	unsigned int bus_id = (unsigned) dev->bus->number;
 	bridge_t *bridge = (bridge_t *) NODE_SWIN_BASE(bus_to_nid[bus_id],
-				     bus_to_wid[bus_id]);
+	                                               bus_to_wid[bus_id]);
 	int		slot = PCI_SLOT(dev->devfn);
-	bridgereg_t 	devreg;
 
-	devreg = bridge->b_device[slot].reg;
-	devreg &= ~BRIDGE_DEV_SWAP_DIR;		/* turn off byte swapping */
-	bridge->b_device[slot].reg = devreg;
-
+	/* Turn off byte swapping */
+	bridge->b_device[slot].reg; devreg &= ~BRIDGE_DEV_SWAP_DIR;
 	bridge->b_widget.w_tflush;		/* Flush */
 }
 
@@ -291,14 +289,11 @@ pci_enable_swapping(struct pci_dev *dev)
 {
 	unsigned int bus_id = (unsigned) dev->bus->number;
 	bridge_t *bridge = (bridge_t *) NODE_SWIN_BASE(bus_to_nid[bus_id],
-				     bus_to_wid[bus_id]);
+	                                               bus_to_wid[bus_id]);
 	int		slot = PCI_SLOT(dev->devfn);
-	bridgereg_t 	devreg;
 
-	devreg = bridge->b_device[slot].reg;
-	devreg |= BRIDGE_DEV_SWAP_DIR;		/* turn on byte swapping */
-	bridge->b_device[slot].reg = devreg;
-
+	/* Turn on byte swapping */
+	bridge->b_device[slot].reg; devreg |= BRIDGE_DEV_SWAP_DIR;
 	bridge->b_widget.w_tflush;		/* Flush */
 }
 
