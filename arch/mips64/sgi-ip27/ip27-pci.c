@@ -57,8 +57,6 @@ pci_conf0_read_config_dword(struct pci_dev *dev, int where, u32 *value)
 	CF0_READ_PCI_CFG(dev,where,value,0,0xffffffff);
 }
 
-static int reallydo = 0;
-
 #define CF0_WRITE_PCI_CFG(dev,where,value,bm,mask)			\
 do {									\
 	bridge_t *bridge = (bridge_t *) 0x9200000008000000;		\
@@ -70,13 +68,17 @@ do {									\
 	if (dev->bus->number)						\
 		return PCIBIOS_DEVICE_NOT_FOUND;			\
 									\
+	if (dev->vendor == PCI_VENDOR_ID_SGI				\
+	    && dev->device == PCI_DEVICE_ID_SGI_IOC3)			\
+		return PCIBIOS_SUCCESSFUL;				\
+									\
 	__bit = (((where) & (bm)) << 3);				\
 	addr = &bridge->b_type0_cfg_dev[slot].f[fn].l[where >> 2];	\
 	if (get_dbe(cf, addr))						\
 		return PCIBIOS_DEVICE_NOT_FOUND;			\
 	cf &= (~mask);							\
 	cf |= (value);							\
-	if (reallydo) put_dbe(cf, addr);				\
+	put_dbe(cf, addr);						\
 	return PCIBIOS_SUCCESSFUL;					\
 } while (0)
 
@@ -149,11 +151,6 @@ pci_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 void __init
 pcibios_update_irq(struct pci_dev *dev, int irq)
 {
-	/* IOC3 is fucked ...  */
-	if (dev->vendor == PCI_VENDOR_ID_SGI
-	    && dev->device == PCI_DEVICE_ID_SGI_IOC3)
-		return;
-
 	pci_write_config_byte(dev, PCI_INTERRUPT_LINE, irq);
 }
 
@@ -163,12 +160,6 @@ pcibios_update_resource(struct pci_dev *dev, struct resource *root,
 {
 	unsigned long where, size;
 	u32 reg;
-
-	/* IOC3 is fucked ...  */
-	if (dev->vendor == PCI_VENDOR_ID_SGI
-	    && dev->device == PCI_DEVICE_ID_SGI_IOC3
-	    && resource > 0)
-		return;
 
 	where = PCI_BASE_ADDRESS_0 + (resource * 4);
 	size = res->end - res->start;
@@ -191,7 +182,6 @@ pcibios_fixup_bus(struct pci_bus *b)
 	 * stop working if we program the controllers as not having
 	 * PCI_COMMAND_MEMORY, so we have to fudge the mem_flags.
 	 */
-	reallydo = 1;
 	for (dev = b->devices; dev; dev = dev->sibling) {
 		if (PCI_FUNC(dev->devfn) == 0) {
 			if ((PCI_SLOT(dev->devfn) == 0) || 
@@ -206,7 +196,6 @@ pcibios_fixup_bus(struct pci_bus *b)
 			}
 		}
 	}
-	reallydo = 0;
 }
 
 char * __init

@@ -1,3 +1,4 @@
-1. Need to figure out why we need the "reallydo" hack in ip27-pci.c.
+1. Need to figure out why PCI writes to the IOC3 hang, and if it is okay
+not to write to the IOC3 ever.
 2. Need to figure out RRB allocation in bridge_startup().
 3. Need to figure out why free_initmem() is hanging system.
