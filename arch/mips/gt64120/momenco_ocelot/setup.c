@@ -83,30 +83,11 @@ static char reset_reason;
 #define ENTRYLO(x) ((pte_val(mk_pte_phys((x), PAGE_KERNEL_UNCACHED)) >> 6)|1)
 
 static void __init setup_l3cache(unsigned long size);
-
-
 void __init bus_error_init(void) { /* nothing */ }
 
-
-void __init momenco_ocelot_setup(void)
+/* setup code for a handoff from a version 1 PMON 2000 PROM */
+void PMON_v1_setup()
 {
-	void (*l3func)(unsigned long)=KSEG1ADDR(&setup_l3cache);
-	unsigned int tmpword;
-
-	board_time_init = gt64120_time_init;
-
-	_machine_restart = momenco_ocelot_restart;
-	_machine_halt = momenco_ocelot_halt;
-	_machine_power_off = momenco_ocelot_power_off;
-
-	/*
-	 * initrd_start = (ulong)ocelot_initrd_start;
-	 * initrd_end = (ulong)ocelot_initrd_start + (ulong)ocelot_initrd_size;
-	 * initrd_below_start_ok = 1;
-	 */
-	rtc_ops = &no_rtc_ops;
-
-
 	/* A wired TLB entry for the GT64120A and the serial port. The
 	   GT64120A is going to be hit on every IRQ anyway - there's
 	   absolutely no point in letting it be a random TLB entry, as
@@ -130,9 +111,8 @@ void __init momenco_ocelot_setup(void)
 
 	add_temporary_entry(ENTRYLO(0x2C000000), ENTRYLO(0x2d000000), 0xe0020000, PM_64K);
 
-
 	/* Relocate the CS3/BootCS region */
-  	GT_WRITE( GT_CS3BOOTLD_OFS, 0x2f000000 >> 21);
+  	GT_WRITE(GT_CS3BOOTLD_OFS, 0x2f000000 >> 21);
 
 	/* Relocate CS[012] */
  	GT_WRITE(GT_CS20LD_OFS, 0x2c000000 >> 21);
@@ -147,6 +127,67 @@ void __init momenco_ocelot_setup(void)
 	GT_WRITE(GT_PCI0_CFGDATA_OFS, 0x24000000);
 	GT_WRITE(GT_PCI0_CFGADDR_OFS, 0x80000024);
 	GT_WRITE(GT_PCI0_CFGDATA_OFS, 0x24000001);
+}
+
+/* setup code for a handoff from a version 2 PMON 2000 PROM */
+void PMON_v2_setup()
+{
+	/* A wired TLB entry for the GT64120A and the serial port. The
+	   GT64120A is going to be hit on every IRQ anyway - there's
+	   absolutely no point in letting it be a random TLB entry, as
+	   it'll just cause needless churning of the TLB. And we use
+	   the other half for the serial port, which is just a PITA
+	   otherwise :)
+
+		Device			Physical	Virtual
+		GT64120 Internal Regs	0xf4000000	0xe0000000
+		UARTs (CS2)		0xfd000000	0xe0001000
+	*/
+	add_wired_entry(ENTRYLO(0xf4000000), ENTRYLO(0xfD000000), 0xe0000000, PM_4K);
+
+	/* Also a temporary entry to let us talk to the Ocelot PLD and NVRAM
+	   in the CS[012] region. We can't use ioremap() yet. The NVRAM
+	   is a ST M48T37Y, which includes NVRAM, RTC, and Watchdog functions.
+
+		Ocelot PLD (CS0)	0xfc000000	0xe0020000
+		NVRAM			0xfc800000	0xe0030000
+	*/
+	add_temporary_entry(ENTRYLO(0xfC000000), ENTRYLO(0xfd000000), 0xe0020000, PM_64K);
+
+	gt64120_base = 0xe0000000;
+}
+
+void __init momenco_ocelot_setup(void)
+{
+	void (*l3func)(unsigned long)=KSEG1ADDR(&setup_l3cache);
+	unsigned int tmpword;
+
+	board_time_init = gt64120_time_init;
+
+	_machine_restart = momenco_ocelot_restart;
+	_machine_halt = momenco_ocelot_halt;
+	_machine_power_off = momenco_ocelot_power_off;
+
+	/*
+	 * initrd_start = (ulong)ocelot_initrd_start;
+	 * initrd_end = (ulong)ocelot_initrd_start + (ulong)ocelot_initrd_size;
+	 * initrd_below_start_ok = 1;
+	 */
+	rtc_ops = &no_rtc_ops;
+
+	/* do handoff reconfiguration */
+	if (gt64120_base == KSEG1ADDR(GT_DEF_BASE))
+		PMON_v1_setup();
+	else
+		PMON_v2_setup();
+
+	/* Turn off the Bit-Error LED */
+	OCELOT_PLD_WRITE(0x80, INTCLR);
+
+	/* Relocate all the PCI1 stuff, not that we use it */
+	GT_WRITE(GT_PCI1IOLD_OFS, 0x30000000 >> 21);
+	GT_WRITE(GT_PCI1M0LD_OFS, 0x32000000 >> 21);
+	GT_WRITE(GT_PCI1M1LD_OFS, 0x34000000 >> 21);
 
 	/* Relocate PCI0 I/O and Mem0 */
 	GT_WRITE(GT_PCI0IOLD_OFS, 0x20000000 >> 21);
@@ -154,11 +195,6 @@ void __init momenco_ocelot_setup(void)
 
 	/* Relocate PCI0 Mem1 */
 	GT_WRITE(GT_PCI0M1LD_OFS, 0x36000000 >> 21);
-
-	/* Relocate all the PCI1 stuff, not that we use it */
-	GT_WRITE(GT_PCI1IOLD_OFS, 0x30000000 >> 21);
-	GT_WRITE(GT_PCI1M0LD_OFS, 0x32000000 >> 21);
-	GT_WRITE(GT_PCI1M1LD_OFS, 0x34000000 >> 21);
 
 	/* For the initial programming, we assume 512MB configuration */
 	/* Relocate the CPU's view of the RAM... */
