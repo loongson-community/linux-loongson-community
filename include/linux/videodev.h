@@ -273,7 +273,7 @@ struct video_unit
 #define VID_HARDWARE_PLANB	16	/* PowerMac motherboard video-in */
 #define VID_HARDWARE_BROADWAY	17	/* Broadway project */
 #define VID_HARDWARE_GEMTEK	18
-#define VID_HARDWARE_VINO	19	/* SGI Indy Vino */
+#define VID_HARDWARE_VINO	20	/* SGI Indy Vino */
 
 /*
  *	Initialiser list
