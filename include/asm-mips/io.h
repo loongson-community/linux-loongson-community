@@ -111,9 +111,6 @@ extern inline void * phys_to_virt(unsigned long address)
 	return (void *)KSEG0ADDR(address);
 }
 
-extern void * ioremap(unsigned long phys_addr, unsigned long size);
-extern void iounmap(void *addr);
-
 /*
  * IO bus memory addresses are also 1:1 with the physical address
  */
@@ -133,38 +130,19 @@ extern inline void * bus_to_virt(unsigned long address)
  */
 extern unsigned long isa_slot_offset;
 
-/*
- * readX/writeX() are used to access memory mapped devices. On some
- * architectures the memory mapped IO stuff needs to be accessed
- * differently. On the x86 architecture, we just read/write the
- * memory location directly.
- *
- * On MIPS, we have the whole physical address space mapped at all
- * times, so "ioremap()" and "iounmap()" do not need to do anything.
- * (This isn't true for all machines but we still handle these cases
- * with wired TLB entries anyway ...)
- *
- * We cheat a bit and always return uncachable areas until we've fixed
- * the drivers to handle caching properly.
- */
-extern inline void * ioremap(unsigned long offset, unsigned long size)
+extern void * __ioremap(unsigned long offset, unsigned long size);
+
+extern inline void *ioremap(unsigned long offset, unsigned long size)
 {
-	return (void *) KSEG1ADDR(offset);
+	return __ioremap(offset, size);
 }
 
-/*
- * This one maps high address device memory and turns off caching for that area.
- * it's useful if some control registers are in such an area and write combining
- * or read caching is not desirable:
- */
-extern inline void * ioremap_nocache (unsigned long offset, unsigned long size)
+extern inline void *ioremap_nocache(unsigned long offset, unsigned long size)
 {
-	return (void *) KSEG1ADDR(offset);
+	return __ioremap(offset, size);
 }
 
-extern inline void iounmap(void *addr)
-{
-}
+extern void iounmap(void *addr);
 
 /*
  * XXX We need system specific versions of these to handle EISA address bits
