@@ -18,6 +18,7 @@
  */
 
 #include <linux/config.h>
+#include <linux/version.h>
 #include <linux/errno.h>
 #include <linux/signal.h>
 #include <linux/sched.h>
@@ -1720,7 +1721,11 @@ int __init zs_init(void)
 
 	memset(&serial_driver, 0, sizeof(struct tty_driver));
 	serial_driver.magic = TTY_DRIVER_MAGIC;
+#if (LINUX_VERSION_CODE > 0x2032D && defined(CONFIG_DEVFS_FS))
+	serial_driver.name = "tts/%d";
+#else
 	serial_driver.name = "ttyS";
+#endif
 	serial_driver.major = TTY_MAJOR;
 	serial_driver.minor_start = 64;
 	serial_driver.num = zs_channels_found;
@@ -1730,7 +1735,7 @@ int __init zs_init(void)
 
 	serial_driver.init_termios.c_cflag =
 		B9600 | CS8 | CREAD | HUPCL | CLOCAL;
-	serial_driver.flags = TTY_DRIVER_REAL_RAW;
+	serial_driver.flags = TTY_DRIVER_REAL_RAW | TTY_DRIVER_NO_DEVFS;
 	serial_driver.refcount = &serial_refcount;
 	serial_driver.table = serial_table;
 	serial_driver.termios = serial_termios;
@@ -1758,7 +1763,11 @@ int __init zs_init(void)
 	 * major number and the subtype code.
 	 */
 	callout_driver = serial_driver;
+#if (LINUX_VERSION_CODE > 0x2032D && defined(CONFIG_DEVFS_FS))
+	callout_driver.name = "cua/%d";
+#else
 	callout_driver.name = "cua";
+#endif
 	callout_driver.major = TTYAUX_MAJOR;
 	callout_driver.subtype = SERIAL_TYPE_CALLOUT;
 
@@ -1820,6 +1829,11 @@ int __init zs_init(void)
 		printk("ttyS%02d at 0x%08x (irq = %d)", info->line, 
 		       info->port, info->irq);
 		printk(" is a Z85C30 SCC\n");
+		tty_register_devfs(&serial_driver, 0,
+				   serial_driver.minor_start + info->line);
+		tty_register_devfs(&callout_driver, 0,
+				   callout_driver.minor_start + info->line);
+
 	}
 
 	restore_flags(flags);
