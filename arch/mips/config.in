@@ -87,7 +87,6 @@ if [ "$CONFIG_DECSTATION" = "y" ]; then
 fi
 
 if [ "$CONFIG_SIBYTE_SB1250" = "y" ]; then
-   define_bool CONFIG_PCI n
    define_bool CONFIG_SWAP_IO_SPACE y
 fi
 
