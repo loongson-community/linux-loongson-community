@@ -296,7 +296,9 @@ static inline unsigned long xchg_u32(volatile int * m, unsigned int val)
 		"sc\t%2, %1\n\t"
 		"beqzl\t%2, 1b\n\t"
 		" ll\t%0, %3\n\t"
+#ifdef CONFIG_SMP
 		"sync\n\t"
+#endif
 		".set\tpop"
 		: "=&r" (retval), "=m" (*m), "=&r" (dummy)
 		: "R" (*m), "Jr" (val)
@@ -330,7 +332,9 @@ static inline __u64 xchg_u64(volatile __u64 * m, __u64 val)
 		"scd\t%2, %1\n\t"
 		"beqzl\t%2, 1b\n\t"
 		" lld\t%0, %3\n\t"
+#ifdef CONFIG_SMP
 		"sync\n\t"
+#endif
 		".set\tpop"
 		: "=&r" (retval), "=m" (*m), "=&r" (dummy)
 		: "R" (*m), "Jr" (val)
