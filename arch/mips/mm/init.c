@@ -163,7 +163,7 @@ void __init paging_init(void)
 	if (cpu_has_dc_aliases) {
 		printk(KERN_WARNING "This processor doesn't support highmem.");
 		if (high - low)
-			printk(" %dk highmem ignored", high - low);
+			printk(" %ldk highmem ignored", high - low);
 		printk("\n");
 	} else
 		zones_size[ZONE_HIGHMEM] = high - low;
