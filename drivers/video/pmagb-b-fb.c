@@ -427,8 +427,3 @@ int __init pmagbbfb_init(void)
 		return -ENODEV;
 	}
 }
-
-int __init pmagbbfb_setup(char *options)
-{
-	return 0;
-}

@@ -301,14 +301,14 @@ static struct {
 #endif
 
 #ifdef CONFIG_FB_PMAG_BA
-       { "pmagbafb", pmagbafb_init, pmagbafb_setup },
+	{ "pmagbafb", pmagbafb_init, NULL },
 #endif
 #ifdef CONFIG_FB_PMAGB_B
-        { "pmagbbfb", pmagbbfb_init, pmagbbfb_setup },
+	{ "pmagbbfb", pmagbbfb_init, NULL },
 #endif
 
 #ifdef CONFIG_FB_MAXINE
-        { "maxinefb", maxinefb_init, NULL },
+	{ "maxinefb", maxinefb_init, NULL },
 #endif
 
 
