@@ -106,6 +106,6 @@ void __init load_mmu(void)
 		break;
 
 	default:
-		panic("Yeee, unsupported mmu/cache architecture.");
+		panic("Yeee, unsupported cache architecture.");
 	}
 }

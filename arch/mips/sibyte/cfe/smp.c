@@ -51,7 +51,7 @@ void prom_init_secondary(void)
 	change_c0_status(ST0_IM, imask);
 	set_c0_status(ST0_IE);
 
-	/* cache and TLB setup */
+	/* cache setup */
 	load_mmu();
 }
 
