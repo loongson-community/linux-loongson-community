@@ -10,6 +10,7 @@
 #include <linux/init.h>
 #include <linux/proc_fs.h>
 
+#include <asm/addrspace.h>
 #include <asm/sgi/sgimc.h>
 #include <asm/sgi/sgigio.h>
 
