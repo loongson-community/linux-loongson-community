@@ -1,9 +1,15 @@
 /*
- * newport.c: context switching the newport graphics card
+ * newport.c: context switching the newport graphics card and
+ *            newport graphics support.
  *
  * Author: Miguel de Icaza
  */
-
+#include <linux/errno.h>
+#include <linux/sched.h>
+#include <asm/types.h>
+#include <asm/gfx.h>
+#include <asm/ng1.h>
+#include <asm/uaccess.h>
 #include "newport.h"
 
 /* Kernel routines for supporting graphics context switching */
@@ -154,4 +160,58 @@ void newport_restore (void *y)
 	STOREC(config);
 
 	/* FIXME: restore dcb thingies */
+}
+
+int
+newport_ioctl (int card, int cmd, unsigned long arg)
+{
+	switch (cmd){
+	case NG1_SETDISPLAYMODE: {
+		int i;
+		struct ng1_setdisplaymode_args request;
+		
+		if (copy_from_user (&request, (void *) arg, sizeof (request)))
+			return -EFAULT;
+
+		newport_wait ();
+		newport_bfwait ();
+		npregs->set.dcbmode = DCB_XMAP0 | XM9_CRS_FIFO_AVAIL |
+			DCB_DATAWIDTH_1 | R_DCB_XMAP9_PROTOCOL;
+		xmap9FIFOWait (npregs);
+		
+		/* FIXME: timing is wrong, just be extracted from 
+		 * the per-board timing table.  I still have to figure
+		 * out where this comes from
+		 *
+		 * This is used to select the protocol used to talk to
+		 * the xmap9.  For now I am using 60, selecting the
+		 * WSLOW_DCB_XMAP9_PROTOCOL.
+		 *
+		 * Robert Tray comments on this issue:
+		 *
+		 * cfreq refers to the frequency of the monitor
+		 * (ie. the refresh rate).  Our monitors run typically
+		 * between 60 Hz and 76 Hz.  But it will be as low as
+		 * 50 Hz if you're displaying NTSC/PAL and as high as
+		 * 120 Hz if you are runining in stereo mode.  You
+		 * might want to try the WSLOW values.
+		 */
+		xmap9SetModeReg (npregs, request.wid, request.mode, 60);
+		return 0;
+	}
+	case NG1_SET_CURSOR_HOTSPOT: {
+		struct ng1_set_cursor_hotspot request;
+		
+		if (copy_from_user (&request, (void *) arg, sizeof (request)))
+			return -EFAULT;
+		/* FIXME: make request.xhot, request.yhot the hot spot */
+		return 0;
+	}
+	
+	case NG1_SETGAMMARAMP0:
+		/* FIXME: load the gamma ramps :-) */
+		return 0;
+
+	}
+	return -EINVAL;
 }

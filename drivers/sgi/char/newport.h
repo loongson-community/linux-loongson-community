@@ -1,4 +1,4 @@
-/* $Id: newport.h,v 1.3 1997/07/16 02:50:39 miguel Exp $
+/* $Id: newport.h,v 1.4 1997/08/28 01:45:17 miguel Exp $
  * newport.h: Defines and register layout for NEWPORT graphics
  *            hardware.
  *
@@ -470,9 +470,116 @@ static inline int newport_bfwait(void)
 	return 0;
 }
 
+/* newport.c and cons_newport.c routines */
 extern struct graphics_ops *newport_probe (int, const char **);
 
 void newport_save    (void *);
 void newport_restore (void *);
+void newport_reset   (void);
+int  newport_ioctl   (int card, int cmd, unsigned long arg);
+
+/*
+ * DCBMODE register defines:
+ */
+
+/* Widht of the data being transfered for each DCBDATA[01] word */
+#define DCB_DATAWIDTH_4 0x0
+#define DCB_DATAWIDTH_1 0x1
+#define DCB_DATAWIDTH_2 0x2
+#define DCB_DATAWIDTH_3 0x3
+
+/* If set, all of DCBDATA will be moved, otherwise only DATAWIDTH bytes */
+#define DCB_ENDATAPACK   (1 << 2)
+
+/* Enables DCBCRS auto increment after each DCB transfer */
+#define DCB_ENCRSINC     (1 << 3)
+
+/* shift for accessing the control register select address (DBCCRS, 3 bits) */
+#define DCB_CRS_SHIFT    4
+
+/* DCBADDR (4 bits): display bus slave address */
+#define DCB_ADDR_SHIFT   7
+#define DCB_VC2          (0 <<  DCB_ADDR_SHIFT)
+#define DCB_CMAP_ALL     (1 <<  DCB_ADDR_SHIFT)
+#define DCB_CMAP0        (2 <<  DCB_ADDR_SHIFT)
+#define DCB_CMAP1        (3 <<  DCB_ADDR_SHIFT)
+#define DCB_XMAP_ALL     (4 <<  DCB_ADDR_SHIFT)
+#define DCB_XMAP0        (5 <<  DCB_ADDR_SHIFT)
+#define DCB_XMAP1        (6 <<  DCB_ADDR_SHIFT)
+#define DCB_BT445        (7 <<  DCB_ADDR_SHIFT)
+#define DCB_VCC1         (8 <<  DCB_ADDR_SHIFT)
+#define DCB_VAB1         (9 <<  DCB_ADDR_SHIFT)
+#define DCB_LG3_BDVERS0  (10 << DCB_ADDR_SHIFT)
+#define DCB_LG3_ICS1562  (11 << DCB_ADDR_SHIFT)
+#define DCB_RESERVED     (15 << DCB_ADDR_SHIFT)
+
+/* DCB protocol ack types */
+#define DCB_ENSYNCACK    (1 << 11)
+#define DCB_ENASYNCACK   (1 << 12)
+
+#define DCB_CSWIDTH_SHIFT 13
+#define DCB_CSHOLD_SHIFT  18
+#define DCB_CSSETUP_SHIFT 23
+
+/* XMAP9 specific defines */
+/*   XMAP9 -- registers as seen on the DCBMODE register*/
+#   define XM9_CRS_CONFIG            (0 << DCB_CRS_SHIFT)
+#       define XM9_PUPMODE           (1 << 0)
+#       define XM9_ODD_PIXEL         (1 << 1)
+#       define XM9_8_BITPLANES       (1 << 2)
+#       define XM9_SLOW_DCB          (1 << 3)
+#       define XM9_VIDEO_RGBMAP_MASK (3 << 4)
+#       define XM9_EXPRESS_VIDEO     (1 << 6)
+#       define XM9_VIDEO_OPTION      (1 << 7)
+#   define XM9_CRS_REVISION          (1 << DCB_CRS_SHIFT)
+#   define XM9_CRS_FIFO_AVAIL        (2 << DCB_CRS_SHIFT)
+#       define XM9_FIFO_0_AVAIL      0
+#       define XM9_FIFO_1_AVAIL      1
+#       define XM9_FIFO_2_AVAIL      3
+#       define XM9_FIFO_3_AVAIL      2
+#       define XM9_FIFO_FULL         XM9_FIFO_0_AVAIL
+#       define XM9_FIFO_EMPTY        XM9_FIFO_3_AVAIL
+#   define XM9_CRS_CURS_CMAP_MSB     (3 << DCB_CRS_SHIFT)
+#   define XM9_CRS_PUP_CMAP_MSB      (4 << DCB_CRS_SHIFT)
+#   define XM9_CRS_MODE_REG_DATA     (5 << DCB_CRS_SHIFT)
+#   define XM9_CRS_MODE_REG_INDEX    (7 << DCB_CRS_SHIFT)
+
+
+#define DCB_CYCLES(setup,hold,width)                \
+                  ((hold << DCB_CSHOLD_SHIFT)  |    \
+		   (setup << DCB_CSSETUP_SHIFT)|    \
+		   (width << DCB_CSWIDTH_SHIFT))
+
+#define W_DCB_XMAP9_PROTOCOL       DCB_CYCLES (2, 1, 0)
+#define WSLOW_DCB_XMAP9_PROTOCOL   DCB_CYCLES (5, 5, 0)
+#define WAYSLOW_DCB_XMAP9_PROTOCOL DCB_CYCLES (12, 12, 0)
+#define R_DCB_XMAP9_PROTOCOL       DCB_CYCLES (2, 1, 3)
+
+static inline void
+xmap9FIFOWait (struct newport_regs *rex)
+{
+        rex->set.dcbmode = DCB_XMAP0 | XM9_CRS_FIFO_AVAIL |
+		DCB_DATAWIDTH_1 | R_DCB_XMAP9_PROTOCOL;
+        newport_bfwait ();
+	
+        while ((rex->set.dcbdata0.bytes.b3 & 3) != XM9_FIFO_EMPTY)
+		;
+}
+
+static inline void
+xmap9SetModeReg (struct newport_regs *rex, unsigned int modereg, unsigned int data24, int cfreq)
+{
+        if (cfreq > 119)
+            rex->set.dcbmode = DCB_XMAP_ALL | XM9_CRS_MODE_REG_DATA |
+                        DCB_DATAWIDTH_4 | W_DCB_XMAP9_PROTOCOL;
+        else if (cfreq > 59)
+            rex->set.dcbmode = DCB_XMAP_ALL | XM9_CRS_MODE_REG_DATA |
+		    DCB_DATAWIDTH_4 | WSLOW_DCB_XMAP9_PROTOCOL;    
+        else
+            rex->set.dcbmode = DCB_XMAP_ALL | XM9_CRS_MODE_REG_DATA |
+                        DCB_DATAWIDTH_4 | WAYSLOW_DCB_XMAP9_PROTOCOL; 
+        rex->set.dcbdata0.all = ((modereg) << 24) | (data24 & 0xffffff);
+}
 
 #endif /* !(_SGI_NEWPORT_H) */
+
