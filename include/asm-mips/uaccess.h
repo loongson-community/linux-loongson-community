@@ -23,6 +23,8 @@
 #define __UA_ADDR	".word"
 #define __UA_LA		"la"
 #define __UA_ADDU	"addu"
+#define __UA_t0		"$8"
+#define __UA_t1		"$9"
 
 #define KERNEL_DS	((mm_segment_t) { (unsigned long) 0L })
 #define USER_DS		((mm_segment_t) { (unsigned long) -1L })
@@ -44,6 +46,8 @@
 #define __UA_ADDR	".dword"
 #define __UA_LA		"dla"
 #define __UA_ADDU	"daddu"
+#define __UA_t0		"$12"
+#define __UA_t1		"$13"
 
 #define KERNEL_DS	((mm_segment_t) { 0UL })
 #define USER_DS		((mm_segment_t) { -TASK_SIZE })
@@ -425,7 +429,7 @@ __clear_user(void *addr, __kernel_size_t size)
 		"move\t%0, $6"
 		: "=r" (res)
 		: "r" (addr), "r" (size)
-		: "$4", "$5", "$6", "$8", "$9", "$31");
+		: "$4", "$5", "$6", __UA_t0, __UA_t1, "$31");
 
 	return res;
 }
@@ -457,7 +461,7 @@ __strncpy_from_user(char *__to, const char *__from, long __len)
 		"move\t%0, $2"
 		: "=r" (res)
 		: "r" (__to), "r" (__from), "r" (__len)
-		: "$2", "$3", "$4", "$5", "$6", "$8", "$31", "memory");
+		: "$2", "$3", "$4", "$5", "$6", __UA_t0, "$31", "memory");
 
 	return res;
 }
@@ -475,7 +479,7 @@ strncpy_from_user(char *__to, const char *__from, long __len)
 		"move\t%0, $2"
 		: "=r" (res)
 		: "r" (__to), "r" (__from), "r" (__len)
-		: "$2", "$3", "$4", "$5", "$6", "$8", "$31", "memory");
+		: "$2", "$3", "$4", "$5", "$6", __UA_t0, "$31", "memory");
 
 	return res;
 }
@@ -491,7 +495,7 @@ static inline long __strlen_user(const char *s)
 		"move\t%0, $2"
 		: "=r" (res)
 		: "r" (s)
-		: "$2", "$4", "$8", "$31");
+		: "$2", "$4", __UA_t0, "$31");
 
 	return res;
 }
@@ -506,7 +510,7 @@ static inline long strlen_user(const char *s)
 		"move\t%0, $2"
 		: "=r" (res)
 		: "r" (s)
-		: "$2", "$4", "$8", "$31");
+		: "$2", "$4", __UA_t0, "$31");
 
 	return res;
 }
@@ -523,7 +527,7 @@ static inline long __strnlen_user(const char *s, long n)
 		"move\t%0, $2"
 		: "=r" (res)
 		: "r" (s), "r" (n)
-		: "$2", "$4", "$5", "$8", "$31");
+		: "$2", "$4", "$5", __UA_t0, "$31");
 
 	return res;
 }
@@ -539,7 +543,7 @@ static inline long strnlen_user(const char *s, long n)
 		"move\t%0, $2"
 		: "=r" (res)
 		: "r" (s), "r" (n)
-		: "$2", "$4", "$5", "$8", "$31");
+		: "$2", "$4", "$5", __UA_t0, "$31");
 
 	return res;
 }
