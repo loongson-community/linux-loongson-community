@@ -368,7 +368,7 @@ struct linux_smonblock {
 #if defined(CONFIG_MIPS64) && defined(CONFIG_ARC32)
 
 #define __arc_clobbers							\
-	"$2","$3", /* ... */, "$8","$9","$10","$11",			\
+	"$2","$3" /* ... */, "$8","$9","$10","$11",			\
 	"$12","$13","$14","$15","$16","$24","25","$31"
 
 #define ARC_CALL0(dest)							\
