@@ -26,7 +26,9 @@
 #include <asm/sgi/ip22.h>
 
 /* #define DEBUG_SGINT */
-#undef I_REALLY_NEED_THIS_IRQ
+
+/* So far nothing hangs here */
+#undef USE_LIO3_IRQ 
 
 struct sgint_regs *sgint;
 
@@ -178,16 +180,12 @@ static struct hw_interrupt_type ip22_local2_irq_type = {
 
 static void enable_local3_irq(unsigned int irq)
 {
-#ifdef I_REALLY_NEED_THIS_IRQ
 	unsigned long flags;
 
 	local_irq_save(flags);
 	sgint->imask1 |= (1 << (SGI_MAP_1_IRQ - SGINT_LOCAL1));
 	sgint->cmeimask1 |= (1 << (irq - SGINT_LOCAL3));
 	local_irq_restore(flags);
-#else
-	panic("Local 3 interrupt requested. Should not happen.");
-#endif
 }
 
 static unsigned int startup_local3_irq(unsigned int irq)
@@ -251,9 +249,6 @@ void indy_local1_irqdispatch(struct pt_regs *regs)
 	int irq;
 
 	if (mask & SGINT_ISTAT1_LIO3) {
-#ifndef I_REALLY_NEED_THIS_IRQ
-		printk(KERN_ERR "Whee: Got an LIO3 irq, winging it...\n");
-#endif
 		mask2 = sgint->vmeistat & sgint->cmeimask1;
 		irq = lc3msk_to_irqnr[mask2];
 	} else
@@ -302,12 +297,15 @@ static struct irqaction map0_cascade = {
 	.name		= "mapable0 cascade",
 };
 
-#ifdef I_REALLY_NEED_THIS_IRQ
+#ifdef USE_LIO3_IRQ
 static struct irqaction map1_cascade = { 
 	.handler	= no_action,
 	.flags		= SA_INTERRUPT,
 	.name		= "mapable1 cascade",
 };
+#define SGI_INTERRUPTS	SGINT_END
+#else
+#define SGI_INTERRUPTS	SGINT_LOCAL3
 #endif
 
 extern void mips_cpu_irq_init(unsigned int irq_base);
@@ -378,7 +376,7 @@ void __init init_IRQ(void)
 	/* init CPU irqs */
 	mips_cpu_irq_init(SGINT_CPU);
 
-	for (i = SGINT_LOCAL0; i < SGINT_END; i++) {
+	for (i = SGINT_LOCAL0; i < SGI_INTERRUPTS; i++) {
 		hw_irq_controller *handler;
 
 		if (i < SGINT_LOCAL1)
@@ -403,9 +401,10 @@ void __init init_IRQ(void)
 
 	/* cascade in cascade. i love Indy ;-) */
 	setup_irq(SGI_MAP_0_IRQ, &map0_cascade);
-#ifdef I_REALLY_NEED_THIS_IRQ
+#ifdef USE_LIO3_IRQ
 	setup_irq(SGI_MAP_1_IRQ, &map1_cascade);
 #endif
+
 #ifdef CONFIG_IP22_EISA
 	if (ip22_is_fullhouse())	/* Only Indigo-2 have EISA stuff */
 	        ip22_eisa_init ();
