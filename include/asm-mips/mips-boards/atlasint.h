@@ -34,16 +34,16 @@
  * only word access are allowed.
  */
 struct atlas_ictrl_regs {
-        volatile unsigned long intraw;
-        long dummy1;
-        volatile unsigned long intseten;
-        long dummy2;
-        volatile unsigned long intrsten;
-        long dummy3;
-        volatile unsigned long intenable;
-        long dummy4;
-        volatile unsigned long intstatus;
-        long dummy5;
+        volatile unsigned int intraw;
+        int dummy1;
+        volatile unsigned int intseten;
+        int dummy2;
+        volatile unsigned int intrsten;
+        int dummy3;
+        volatile unsigned int intenable;
+        int dummy4;
+        volatile unsigned int intstatus;
+        int dummy5;
 };
 
 extern void atlasint_init(void);

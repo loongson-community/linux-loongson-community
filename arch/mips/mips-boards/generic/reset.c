@@ -24,6 +24,7 @@
  */
 #include <linux/config.h>
 
+#include <asm/io.h>
 #include <asm/reboot.h>
 #include <asm/mips-boards/generic.h>
 #if defined(CONFIG_MIPS_ATLAS)
@@ -38,14 +39,14 @@ static void atlas_machine_power_off(void);
 
 static void mips_machine_restart(char *command)
 {
-        volatile unsigned int *softres_reg = (void *)SOFTRES_REG;
+        volatile unsigned int *softres_reg = (unsigned int *)ioremap (SOFTRES_REG, sizeof(unsigned int));
 
 	*softres_reg = GORESET;
 }
 
 static void mips_machine_halt(void)
 {
-        volatile unsigned int *softres_reg = (void *)SOFTRES_REG;
+        volatile unsigned int *softres_reg = (unsigned int *)ioremap (SOFTRES_REG, sizeof(unsigned int));
 
 	*softres_reg = GORESET;
 }
@@ -53,7 +54,7 @@ static void mips_machine_halt(void)
 #if defined(CONFIG_MIPS_ATLAS)
 static void atlas_machine_power_off(void)
 {
-        volatile unsigned int *psustby_reg = (void *)ATLAS_PSUSTBY_REG;
+        volatile unsigned int *psustby_reg = (unsigned int *)ioremap(ATLAS_PSUSTBY_REG, sizeof(unsigned int));
 
 	*psustby_reg = ATLAS_GOSTBY;
 }

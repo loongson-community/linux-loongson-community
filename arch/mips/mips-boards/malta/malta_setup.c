@@ -43,24 +43,23 @@
 #include <linux/console.h>
 #endif
 
-#ifdef CONFIG_KGDB
-extern void rs_kgdb_hook(int);
-int remote_debug = 0;
-#endif
-
 extern struct ide_ops std_ide_ops;
 extern struct fd_ops std_fd_ops;
 extern struct rtc_ops malta_rtc_ops;
 
 extern void mips_reboot_setup(void);
-
 extern void mips_time_init(void);
 extern void mips_timer_setup(struct irqaction *irq);
 extern unsigned long mips_rtc_get_time(void);
 
+#ifdef CONFIG_KGDB
+extern void kgdb_config(void);
+#endif
+
 struct resource standard_io_resources[] = {
 	{ "dma1", 0x00, 0x1f, IORESOURCE_BUSY },
 	{ "timer", 0x40, 0x5f, IORESOURCE_BUSY },
+	{ "keyboard", 0x60, 0x6f, IORESOURCE_BUSY },
 	{ "dma page reg", 0x80, 0x8f, IORESOURCE_BUSY },
 	{ "dma2", 0xc0, 0xdf, IORESOURCE_BUSY },
 };
@@ -72,15 +71,30 @@ const char *get_system_type(void)
 	return "MIPS Malta";
 }
 
+#ifdef CONFIG_BLK_DEV_FD
+void __init fd_activate(void)
+{
+	/*
+	 * Activate Floppy Controller in the SMSC FDC37M817 Super I/O
+	 * Controller.
+	 * Done by YAMON 2.00 onwards
+	 */
+	/* Entering config state. */
+	SMSC_WRITE(SMSC_CONFIG_ENTER, SMSC_CONFIG_REG);
+
+	/* Activate floppy controller. */
+	SMSC_WRITE(SMSC_CONFIG_DEVNUM, SMSC_CONFIG_REG);
+	SMSC_WRITE(SMSC_CONFIG_DEVNUM_FLOPPY, SMSC_DATA_REG);
+	SMSC_WRITE(SMSC_CONFIG_ACTIVATE, SMSC_CONFIG_REG);
+	SMSC_WRITE(SMSC_CONFIG_ACTIVATE_ENABLE, SMSC_DATA_REG);
+
+	/* Exit config state. */
+	SMSC_WRITE(SMSC_CONFIG_EXIT, SMSC_CONFIG_REG);
+}
+#endif
+
 static void __init malta_setup(void)
 {
-#ifdef CONFIG_KGDB
-	int rs_putDebugChar(char);
-	char rs_getDebugChar(void);
-	extern int (*generic_putDebugChar)(char);
-	extern char (*generic_getDebugChar)(void);
-#endif
-	char *argptr;
 	unsigned int i;
 
 	/* Request I/O space for devices used on the Malta board. */
@@ -93,27 +107,7 @@ static void __init malta_setup(void)
 	enable_dma(4);
 
 #ifdef CONFIG_KGDB
-	argptr = prom_getcmdline();
-	if ((argptr = strstr(argptr, "kgdb=ttyS")) != NULL) {
-		int line;
-		argptr += strlen("kgdb=ttyS");
-		if (*argptr != '0' && *argptr != '1')
-			printk("KGDB: Unknown serial line /dev/ttyS%c, "
-			       "falling back to /dev/ttyS1\n", *argptr);
-		line = *argptr == '0' ? 0 : 1;
-		printk("KGDB: Using serial line /dev/ttyS%d for session\n",
-		       line ? 1 : 0);
-
-		rs_kgdb_hook(line);
-		generic_putDebugChar = rs_putDebugChar;
-		generic_getDebugChar = rs_getDebugChar;
-
-		prom_printf("KGDB: Using serial line /dev/ttyS%d for session, "
-			    "please connect your debugger\n", line ? 1 : 0);
-
-		remote_debug = 1;
-		/* Breakpoints are in init_IRQ() */
-	}
+	kgdb_config ();
 #endif
 
 	rtc_ops = &malta_rtc_ops;
@@ -123,6 +117,7 @@ static void __init malta_setup(void)
 #endif
 #ifdef CONFIG_BLK_DEV_FD
         fd_ops = &std_fd_ops;
+	fd_activate ();
 #endif
 #ifdef CONFIG_VT
 #if defined(CONFIG_VGA_CONSOLE)

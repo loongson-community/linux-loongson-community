@@ -25,24 +25,24 @@
 #include <linux/mc146818rtc.h>
 #include <asm/mips-boards/atlas.h>
 
-
 static unsigned char atlas_rtc_read_data(unsigned long addr)
 {
-	volatile unsigned int *rtc_adr_reg = (void *)ATLAS_RTC_ADR_REG;
-	volatile unsigned int *rtc_dat_reg = (void *)ATLAS_RTC_DAT_REG;
-
-	*rtc_adr_reg = addr;
-
-	return *rtc_dat_reg;
+	{
+		static int done = 0;
+		if (!done) {
+			prom_printf ("atlas_rtc_read_data, addr=%lx port=%lx\n", addr, RTC_PORT(0));
+			prom_printf ("mips_io_port_base=%lx\n", mips_io_port_base);
+			done = 1;
+		}
+	}
+	outb(addr, RTC_PORT(0));
+	return inb(RTC_PORT(1));
 }
 
 static void atlas_rtc_write_data(unsigned char data, unsigned long addr)
 {
-	volatile unsigned int *rtc_adr_reg = (void *)ATLAS_RTC_ADR_REG;
-	volatile unsigned int *rtc_dat_reg = (void *)ATLAS_RTC_DAT_REG;
-
-	*rtc_adr_reg = addr;
-	*rtc_dat_reg = data;
+	outb(addr, RTC_PORT(0));
+	outb(data, RTC_PORT(1));
 }
 
 static int atlas_rtc_bcd_mode(void)

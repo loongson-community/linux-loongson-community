@@ -46,7 +46,7 @@ static __inline__ void serial_out(struct async_struct *info, int offset,
 	outb(value, info->port+offset);
 }
 
-void rs_kgdb_hook(int tty_no) {
+int rs_kgdb_hook(int tty_no, int speed) {
 	int t;
 	struct serial_state *ser = &rs_table[tty_no];
 
@@ -81,17 +81,19 @@ void rs_kgdb_hook(int tty_no) {
 
 	/*
 	 * and set the speed of the serial port
-	 * (currently hardwired to 9600 8N1
 	 */
+	if (speed == 0)
+		speed = 9600;
 
-	/* baud rate is fixed to 9600 (is this sufficient?)*/
-	t = kdb_port_info.state->baud_base / 9600;
+	t = kdb_port_info.state->baud_base / speed;
 	/* set DLAB */
 	serial_out(&kdb_port_info, UART_LCR, UART_LCR_WLEN8 | UART_LCR_DLAB);
 	serial_out(&kdb_port_info, UART_DLL, t & 0xff);/* LS of divisor */
 	serial_out(&kdb_port_info, UART_DLM, t >> 8);  /* MS of divisor */
 	/* reset DLAB */
 	serial_out(&kdb_port_info, UART_LCR, UART_LCR_WLEN8);
+
+	return speed;
 }
 
 int putDebugChar(char c)
@@ -149,13 +151,18 @@ char rs_getDebugChar(void)
  * universal assumption about the way the bootloader (YAMON)
  * have located and set up the chip.
  */
-static t_uart_saa9730_regmap *kgdb_uart = (void *)(ATLAS_SAA9730_REG + SAA9730_UART_REGS_ADDR);
+static t_uart_saa9730_regmap *kgdb_uart;
 
 static int saa9730_kgdb_active = 0;
 
-void saa9730_kgdb_hook(void)
+#define SAA9730_BAUDCLOCK(baud) (((ATLAS_SAA9730_BAUDCLOCK/(baud))/16)-1)
+
+int saa9730_kgdb_hook(int speed)
 {
         volatile unsigned char t;
+	int baudclock;
+
+	kgdb_uart = (t_uart_saa9730_regmap *)(ATLAS_SAA9730_REG + SAA9730_UART_REGS_ADDR);
 
         /*
          * Clear all interrupts
@@ -171,13 +178,16 @@ void saa9730_kgdb_hook(void)
 	/* 8 data bits, one stop bit, no parity */
 	OUTB(SAA9730_LCR_DATA8, &kgdb_uart->Lcr);
 
-        /* baud rate is fixed to 9600 (is this sufficient?)*/
-	OUTB(0, &kgdb_uart->BaudDivMsb); /* HACK - Assumes standard crystal */
-	OUTB(23, &kgdb_uart->BaudDivLsb); /* HACK - known for MIPS Atlas */
+	baudclock = SAA9730_BAUDCLOCK(speed);
+
+	OUTB((baudclock >> 16) & 0xff, &kgdb_uart->BaudDivMsb);
+	OUTB( baudclock        & 0xff, &kgdb_uart->BaudDivLsb);
 
 	/* Set RTS/DTR active */
 	OUTB(SAA9730_MCR_DTR | SAA9730_MCR_RTS, &kgdb_uart->Mcr);
 	saa9730_kgdb_active = 1;
+
+	return speed;
 }
 
 int saa9730_putDebugChar(char c)

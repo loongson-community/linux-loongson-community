@@ -32,13 +32,13 @@
 #include <linux/kernel_stat.h>
 
 #include <asm/irq.h>
+#include <asm/io.h>
 #include <asm/mips-boards/atlas.h>
 #include <asm/mips-boards/atlasint.h>
 #include <asm/gdb-stub.h>
 
 
-struct atlas_ictrl_regs *atlas_hw0_icregs
-	= (struct atlas_ictrl_regs *)ATLAS_ICTRL_REGS_BASE;
+static struct atlas_ictrl_regs *atlas_hw0_icregs;
 
 extern asmlinkage void mipsIRQ(void);
 
@@ -56,6 +56,8 @@ void disable_atlas_irq(unsigned int irq_nr)
 
 void enable_atlas_irq(unsigned int irq_nr)
 {
+	if (irq_nr == 7)
+		return;		/* Reserved (internal interrupt) */
 	atlas_hw0_icregs->intseten = (1 << irq_nr);
 	iob();
 }
@@ -127,6 +129,8 @@ void __init init_IRQ(void)
 {
 	int i;
 
+	atlas_hw0_icregs = (struct atlas_ictrl_regs *)ioremap (ATLAS_ICTRL_REGS_BASE, sizeof(struct atlas_ictrl_regs *));
+	
 	/*
 	 * Mask out all interrupt by writing "1" to all bit position in
 	 * the interrupt reset reg.

@@ -17,12 +17,18 @@
  *
  * Display routines for display messages in MIPS boards ascii display.
  */
+
+#include <linux/compiler.h>
+#include <asm/io.h>
 #include <asm/mips-boards/generic.h>
 
 void mips_display_message(const char *str)
 {
-        volatile unsigned int *display = (void *)ASCII_DISPLAY_POS_BASE;
+	static volatile unsigned int *display = NULL;
 	int i;
+
+	if (unlikely(display == NULL))
+		display = (volatile unsigned int *)ioremap(ASCII_DISPLAY_POS_BASE, 16*sizeof(int));
 
 	for (i = 0; i <= 14; i=i+2) {
 	         if (*str)

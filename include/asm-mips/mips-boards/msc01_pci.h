@@ -206,7 +206,11 @@
  * FIXME - are these macros specific to Malta and co or to the MSC?  If the
  * latter, they should be moved elsewhere.
  */
-#define MSC01_PCI_REG_BASE	(KSEG1ADDR(0x1bd00000))
+#define MIPS_MSC01_PCI_REG_BASE	0x1bd00000
+
+extern unsigned long _pcictrl_msc;
+
+#define MSC01_PCI_REG_BASE	_pcictrl_msc
 
 #define MSC_WRITE(reg, data)	do { *(volatile u32 *)(reg) = data; } while (0)
 #define MSC_READ(reg, data)	do { data = *(volatile u32 *)(reg); } while (0)

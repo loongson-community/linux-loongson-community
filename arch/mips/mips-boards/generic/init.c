@@ -32,6 +32,17 @@
 #include <asm/mips-boards/malta.h>
 #endif
 
+#ifdef CONFIG_KGDB
+extern int rs_kgdb_hook(int, int);
+extern int rs_putDebugChar(char);
+extern char rs_getDebugChar(void);
+extern int saa9730_kgdb_hook(int);
+extern int saa9730_putDebugChar(char);
+extern char saa9730_getDebugChar(void);
+
+int remote_debug = 0;
+#endif
+
 /* Environment variable */
 typedef struct {
 	char *name;
@@ -45,16 +56,21 @@ int *_prom_argv, *_prom_envp;
  * YAMON (32-bit PROM) pass arguments and environment as 32-bit pointer.
  * This macro take care of sign extension, if running in 64-bit mode.
  */
-#define prom_envp(index) ((char *)(((int *)(int)_prom_envp)[(index)]))
+#define prom_envp(index) ((char *)(long)_prom_envp[(index)])
 
 int init_debug = 0;
 
 unsigned int mips_revision_corid;
 
-/*
- * Algorithmics Bonito64 system controller register base.
- */
-char * const _bonito = (char *)KSEG1ADDR(BONITO_REG_BASE);
+/* Bonito64 system controller register base. */
+unsigned long _pcictrl_bonito;
+unsigned long _pcictrl_bonito_pcicfg;
+
+/* GT64120 system controller register base */
+unsigned long _pcictrl_gt64120;
+
+/* MIPS System controller register base */
+unsigned long _pcictrl_msc;
 
 char *prom_getenv(char *envname)
 {
@@ -159,6 +175,53 @@ static void __init console_config(void)
 }
 #endif
 
+#ifdef CONFIG_KGDB
+void __init kgdb_config (void)
+{
+	extern int (*generic_putDebugChar)(char);
+	extern char (*generic_getDebugChar)(void);
+	char *argptr;
+	int line, speed;
+
+	argptr = prom_getcmdline();
+	if ((argptr = strstr(argptr, "kgdb=ttyS")) != NULL) {
+		argptr += strlen("kgdb=ttyS");
+		if (*argptr != '0' && *argptr != '1')
+			printk("KGDB: Unknown serial line /dev/ttyS%c, "
+			       "falling back to /dev/ttyS1\n", *argptr);
+		line = *argptr == '0' ? 0 : 1;
+		printk("KGDB: Using serial line /dev/ttyS%d for session\n", line);
+
+		speed = 0;
+		if (*++argptr == ',')
+		{
+			int c;
+			while ((c = *++argptr) && ('0' <= c && c <= '9'))
+				speed = speed * 10 + c - '0';
+		}
+#ifdef CONFIG_MIPS_ATLAS
+		if (line == 1) {
+			speed = saa9730_kgdb_hook(speed);
+			generic_putDebugChar = saa9730_putDebugChar;
+			generic_getDebugChar = saa9730_getDebugChar;
+		}
+		else 
+#endif
+		{
+			speed = rs_kgdb_hook(line, speed);
+			generic_putDebugChar = rs_putDebugChar;
+			generic_getDebugChar = rs_getDebugChar;
+		}
+
+		prom_printf("KGDB: Using serial line /dev/ttyS%d at %d for session, "
+			    "please connect your debugger\n", line ? 1 : 0, speed);
+
+		remote_debug = 1;
+		/* Breakpoint is invoked after interrupts are initialised */
+	}
+}
+#endif
+
 void __init prom_init(void)
 {
 	prom_argc = fw_arg0;
@@ -179,6 +242,8 @@ void __init prom_init(void)
 		 * Setup the North bridge to do Master byte-lane swapping
 		 * when running in bigendian.
 		 */
+		_pcictrl_gt64120 = (unsigned long)ioremap(MIPS_GT_BASE, 0x2000);
+
 #ifdef CONFIG_CPU_LITTLE_ENDIAN
 		GT_WRITE(GT_PCI0_CMD_OFS, GT_PCI0_CMD_MBYTESWAP_BIT |
 			 GT_PCI0_CMD_SBYTESWAP_BIT);
@@ -189,12 +254,15 @@ void __init prom_init(void)
 #ifdef CONFIG_MIPS_MALTA
 		set_io_port_base(MALTA_GT_PORT_BASE);
 #else
-		set_io_port_base(KSEG1);
+		set_io_port_base((unsigned long)ioremap(0, 0x20000000));
 #endif
-
 		break;
+
 	case MIPS_REVISION_CORID_BONITO64:
 	case MIPS_REVISION_CORID_CORE_20K:
+		_pcictrl_bonito = (unsigned long)ioremap(BONITO_REG_BASE, BONITO_REG_SIZE);
+		_pcictrl_bonito_pcicfg = (unsigned long)ioremap(BONITO_PCICFG_BASE, BONITO_PCICFG_SIZE);
+
 		/*
 		 * Disable Bonito IOBC.
 		 */
@@ -219,14 +287,13 @@ void __init prom_init(void)
 #ifdef CONFIG_MIPS_MALTA
 		set_io_port_base(MALTA_BONITO_PORT_BASE);
 #else
-		set_io_port_base(KSEG1);
+		set_io_port_base((unsigned long)ioremap(0, 0x20000000));
 #endif
 		break;
 
 	case MIPS_REVISION_CORID_CORE_MSC:
-#ifdef CONFIG_MIPS_MALTA
-		set_io_port_base(MALTA_MSC_PORT_BASE);
-#endif
+		_pcictrl_msc = (unsigned long)ioremap(MIPS_MSC01_PCI_REG_BASE, 0x2000); 
+
 #ifdef CONFIG_CPU_LITTLE_ENDIAN
 		MSC_WRITE(MSC01_PCI_SWAP, MSC01_PCI_SWAP_NOSWAP);
 #else
@@ -235,7 +302,14 @@ void __init prom_init(void)
 			  MSC01_PCI_SWAP_BYTESWAP << MSC01_PCI_SWAP_MEM_SHF |
 			  MSC01_PCI_SWAP_BYTESWAP << MSC01_PCI_SWAP_BAR0_SHF);
 #endif
+
+#ifdef CONFIG_MIPS_MALTA
+		set_io_port_base(MALTA_MSC_PORT_BASE);
+#else
+		set_io_port_base((unsigned long)ioremap(0, 0x20000000));
+#endif
 		break;
+
 	default:
 		/* Unknown Core card */
 		mips_display_message("CC Error");

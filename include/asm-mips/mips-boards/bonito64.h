@@ -33,15 +33,13 @@
 
 #else /* !__ASSEMBLY__ */
 
-/* offsets from base pointer, this construct allows optimisation */
-/* static char * const _bonito = PA_TO_KVA1(BONITO_BASE); */
-
 /*
  * Algorithmics Bonito64 system controller register base.
  */
-extern char * const _bonito;
+extern unsigned long _pcictrl_bonito;
+extern unsigned long _pcictrl_bonito_pcicfg;
 
-#define BONITO(x)		*(volatile u32 *)(_bonito + (x))
+#define BONITO(x)		*(volatile u32 *)(_pcictrl_bonito + (x))
 
 #endif /* __ASSEMBLY__ */
 

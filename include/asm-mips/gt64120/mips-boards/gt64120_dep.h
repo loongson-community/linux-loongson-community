@@ -8,10 +8,13 @@
 #ifndef _ASM_GT64120_MIPS_BOARDS_GT64120_DEP_H
 #define _ASM_GT64120_MIPS_BOARDS_GT64120_DEP_H
 
+#define MIPS_GT_BASE    0x1be00000
+
+extern unsigned long _pcictrl_gt64120;
 /*
  *   GT64120 config space base address
  */
-#define GT64120_BASE	(KSEG1ADDR(0x1be00000))
+#define GT64120_BASE	_pcictrl_gt64120
 
 /*
  *   PCI Bus allocation

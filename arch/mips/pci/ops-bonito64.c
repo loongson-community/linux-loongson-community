@@ -52,7 +52,8 @@ static int bonito64_pcibios_config_access(unsigned char access_type,
 
 	/* Algorithmics Bonito64 system controller. */
 
-	if ((busnum == 0) && (PCI_SLOT(devfn) == 0)) {
+	if ((busnum == 0) && (PCI_SLOT(devfn) > 21)) {
+		/* We number bus 0 devices from 0..21 */
 		return -1;
 	}
 
@@ -90,23 +91,20 @@ static int bonito64_pcibios_config_access(unsigned char access_type,
 		BONITO_PCIMAP_CFG = (pci_addr >> 16) | 0x10000;
 	}
 
+	pci_addr &= 0xffff;
+
 	/* Flush Bonito register block */
 	dummy = BONITO_PCIMAP_CFG;
 	iob();		/* sync */
 
 	/* Perform access */
 	if (access_type == PCI_ACCESS_WRITE) {
-		*(volatile u32 *) (KSEG1ADDR(BONITO_PCICFG_BASE +
-					     (pci_addr & 0xffff)))
-		    = *(u32 *) data;
+		*(volatile u32 *) (_pcictrl_bonito_pcicfg + (u32)pci_addr) = *(u32 *) data;
 
 		/* Wait till done */
 		while (BONITO_PCIMSTAT & 0xF);
 	} else {
-		*(u32 *) data =
-		    *(volatile u32
-		      *) (KSEG1ADDR(BONITO_PCICFG_BASE +
-				    (pci_addr & 0xffff)));
+		*(u32 *) data = *(volatile u32 *) (_pcictrl_bonito_pcicfg + (u32)pci_addr);
 	}
 
 	/* Detect Master/Target abort */

@@ -24,6 +24,7 @@
 #include <linux/init.h>
 
 #include <asm/mips-boards/generic.h>
+#include <asm/pci_channel.h>
 #include <asm/gt64120/gt64120.h>
 #include <asm/mips-boards/bonito64.h>
 #include <asm/mips-boards/msc01_pci.h>
@@ -31,66 +32,78 @@
 #include <asm/mips-boards/malta.h>
 #endif
 
+/* PCI addresses! */
+static struct resource bonito64_mem_resource = {
+	.name	= "Bonito PCI MEM",
+	.start	= 0x10000000UL,
+	.end	= 0x1bffffffUL,
+	.flags	= IORESOURCE_MEM,
+};
+
+static struct resource bonito64_io_resource = {
+	.name	= "Bonito IO MEM",
+	.start	= 0x00002000UL,	/* avoid conflicts with YAMON allocated I/O addresses */
+	.end	= 0x000fffffUL,
+	.flags	= IORESOURCE_IO,
+};
+
+static struct resource gt64120_mem_resource = {
+	.name	= "GT64120 PCI MEM",
+	.start	= 0x10000000UL,
+	.end	= 0x1fffffffUL,
+	.flags	= IORESOURCE_MEM,
+};
+
+static struct resource gt64120_io_resource = {
+	.name	= "GT64120 IO MEM",
+	.start	= 0x00002000UL,
+	.end	= 0x007fffffUL,
+	.flags	= IORESOURCE_IO,
+};
+
+static struct resource msc_mem_resource = {
+	.name	= "MSC PCI MEM",
+	.start	= 0x10000000UL,
+	.end	= 0x1fffffffUL,
+	.flags	= IORESOURCE_MEM,
+};
+
+static struct resource msc_io_resource = {
+	.name	= "MSC IO MEM",
+	.start	= 0x00002000UL,
+	.end	= 0x007fffffUL,
+	.flags	= IORESOURCE_IO,
+};
+
 extern struct pci_ops bonito64_pci_ops;
 extern struct pci_ops gt64120_pci_ops;
 extern struct pci_ops msc_pci_ops;
 
-static void __init malta_fixup(void)
-{
-#ifdef CONFIG_MIPS_MALTA
-	struct pci_dev *pdev;
-	unsigned char reg_val;
+static struct pci_controller bonito64_controller = {
+	.pci_ops	= &bonito64_pci_ops,
+	.io_resource	= &bonito64_io_resource,
+	.mem_resource	= &bonito64_mem_resource,
+	.mem_offset	= 0x10000000UL,
+};
 
-	pdev = NULL;
-	while ((pdev = pci_find_device(PCI_VENDOR_ID_INTEL,
-	                               PCI_DEVICE_ID_INTEL_82371AB, pdev))) {
-		if (PCI_SLOT(pdev->devfn) == 0x0a) {
-				/*
-				 * IDE Decode enable.
-				 */
-				pci_read_config_byte(pdev, 0x41, &reg_val);
-       		 		pci_write_config_byte(pdev, 0x41, reg_val|0x80);
-				pci_read_config_byte(pdev, 0x43, &reg_val);
-				pci_write_config_byte(pdev, 0x43, reg_val|0x80);
-		}
-	}
+static struct pci_controller gt64120_controller = {
+	.pci_ops	= &gt64120_pci_ops,
+	.io_resource	= &gt64120_io_resource,
+	.mem_resource	= &gt64120_mem_resource,
+	.mem_offset	= 0x10000000UL,
+};
 
-	pdev = NULL;
-	while ((pdev = pci_find_device(PCI_VENDOR_ID_INTEL,
-	                               PCI_DEVICE_ID_INTEL_82371AB_0, pdev))) {
-		if (PCI_SLOT(pdev->devfn) == 0x0a) {
-			/*
-			 * Set top of main memory accessible by ISA or DMA
-			 * devices to 16 Mb.
-			 */
-			pci_read_config_byte(pdev, 0x69, &reg_val);
-			pci_write_config_byte(pdev, 0x69, reg_val | 0xf0);
-		}
-	}
+static struct pci_controller  msc_controller = {
+	.pci_ops	= &msc_pci_ops,
+	.io_resource	= &msc_io_resource,
+	.mem_resource	= &msc_mem_resource,
+	.mem_offset	= 0x10000000UL,
+};
 
-	/*
-	 * Activate Floppy Controller in the SMSC FDC37M817 Super I/O
-	 * Controller.
-	 * This should be done in the bios/bootprom and will be fixed in
-         * a later revision of YAMON (the MIPS boards boot prom).
-	 */
-	/* Entering config state. */
-	SMSC_WRITE(SMSC_CONFIG_ENTER, SMSC_CONFIG_REG);
-
-	/* Activate floppy controller. */
-	SMSC_WRITE(SMSC_CONFIG_DEVNUM, SMSC_CONFIG_REG);
-	SMSC_WRITE(SMSC_CONFIG_DEVNUM_FLOPPY, SMSC_DATA_REG);
-	SMSC_WRITE(SMSC_CONFIG_ACTIVATE, SMSC_CONFIG_REG);
-	SMSC_WRITE(SMSC_CONFIG_ACTIVATE_ENABLE, SMSC_DATA_REG);
-
-	/* Exit config state. */
-	SMSC_WRITE(SMSC_CONFIG_EXIT, SMSC_CONFIG_REG);
-#endif
-}
 
 static int __init pcibios_init(void)
 {
-	printk("PCI: Probing PCI hardware on host bus 0.\n");
+	struct pci_controller *controller;
 
 	switch (mips_revision_corid) {
 	case MIPS_REVISION_CORID_QED_RM5261:
@@ -105,28 +118,31 @@ static int __init pcibios_init(void)
 		 */
 		GT_WRITE(GT_PCI0_CFGADDR_OFS,
 			 (0 << GT_PCI0_CFGADDR_BUSNUM_SHF) | /* Local bus */
-			 (0 << GT_PCI0_CFGADDR_DEVNUM_SHF) | /* GT64120 dev */
+			 (0 << GT_PCI0_CFGADDR_DEVNUM_SHF) | /*  GT64120 dev */
 			 (0 << GT_PCI0_CFGADDR_FUNCTNUM_SHF) | /* Function 0*/
 			 ((0x20/4) << GT_PCI0_CFGADDR_REGNUM_SHF) | /* BAR 4*/
 			 GT_PCI0_CFGADDR_CONFIGEN_BIT );
 
 		/* Perform the write */
-		GT_WRITE(GT_PCI0_CFGDATA_OFS, CPHYSADDR(GT64120_BASE));
+		GT_WRITE(GT_PCI0_CFGDATA_OFS, CPHYSADDR(MIPS_GT_BASE));
 
-		pci_scan_bus(0, &gt64120_pci_ops, NULL);
+		controller = &gt64120_controller;
 		break;
 
 	case MIPS_REVISION_CORID_BONITO64:
 	case MIPS_REVISION_CORID_CORE_20K:
-		pci_scan_bus(0, &bonito64_pci_ops, NULL);
+		controller = &bonito64_controller;
 		break;
 
 	case MIPS_REVISION_CORID_CORE_MSC:
-		pci_scan_bus(0, &msc_pci_ops, NULL);
+		controller = &msc_controller;
 		break;
+	default:
+		return 1;
 	}
 
-	malta_fixup();
+	ioport_resource.end = controller->io_resource->end;
+	register_pci_controller (controller);
 
 	return 0;
 }

@@ -29,34 +29,34 @@
  * Display register base.
  */
 #ifdef CONFIG_MIPS_SEAD
-#define ASCII_DISPLAY_POS_BASE     (KSEG1ADDR(0x1f0005c0))
+#define ASCII_DISPLAY_POS_BASE     0x1f0005c0
 #else
-#define ASCII_DISPLAY_WORD_BASE    (KSEG1ADDR(0x1f000410))
-#define ASCII_DISPLAY_POS_BASE     (KSEG1ADDR(0x1f000418))
+#define ASCII_DISPLAY_WORD_BASE    0x1f000410
+#define ASCII_DISPLAY_POS_BASE     0x1f000418
 #endif
 
 
 /*
  * Yamon Prom print address.
  */
-#define YAMON_PROM_PRINT_ADDR      (KSEG1ADDR(0x1fc00504))
+#define YAMON_PROM_PRINT_ADDR      0x1fc00504
 
 
 /*
  * Reset register.
  */
 #ifdef CONFIG_MIPS_SEAD
-#define SOFTRES_REG       (KSEG1ADDR(0x1e800050))
+#define SOFTRES_REG       0x1e800050
 #define GORESET           0x4d
 #else
-#define SOFTRES_REG       (KSEG1ADDR(0x1f000500))
+#define SOFTRES_REG       0x1f000500
 #define GORESET           0x42
 #endif
 
 /*
  * Revision register.
  */
-#define MIPS_REVISION_REG                  (KSEG1ADDR(0x1fc00010))
+#define MIPS_REVISION_REG                  0x1fc00010
 #define MIPS_REVISION_CORID_QED_RM5261     0
 #define MIPS_REVISION_CORID_CORE_LV        1
 #define MIPS_REVISION_CORID_BONITO64       2
@@ -64,7 +64,7 @@
 #define MIPS_REVISION_CORID_CORE_FPGA      4
 #define MIPS_REVISION_CORID_CORE_MSC       5
 
-#define MIPS_REVISION_CORID (((*(volatile u32 *)(MIPS_REVISION_REG)) >> 10) & 0x3f)
+#define MIPS_REVISION_CORID (((*(volatile unsigned int *)ioremap(MIPS_REVISION_REG, 4)) >> 10) & 0x3f)
 
 extern unsigned int mips_revision_corid;
 
