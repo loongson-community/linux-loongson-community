@@ -1,4 +1,4 @@
-/* $Id: checksum.h,v 1.4 2000/02/16 01:07:48 ralf Exp $
+/* $Id: checksum.h,v 1.5 2000/02/18 00:24:48 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -194,7 +194,7 @@ ip_compute_csum(unsigned char * buff, int len)
 
 #define _HAVE_ARCH_IPV6_CSUM
 static inline unsigned short int
-csum_ipv6_magic(struct in6_addr *saddr, struct in6_addr *daddr, __u16 len,
+csum_ipv6_magic(struct in6_addr *saddr, struct in6_addr *daddr, __u32 len,
                 unsigned short proto, unsigned int sum) 
 {
 	__asm__("
@@ -249,7 +249,7 @@ csum_ipv6_magic(struct in6_addr *saddr, struct in6_addr *daddr, __u16 len,
 		.set	noreorder"
 		: "=r" (sum), "=r" (proto)
 		: "r" (saddr), "r" (daddr),
-		  "0" (htonl((__u32) (len))), "1" (htonl(proto)), "r"(sum)
+		  "0" (htonl(len)), "1" (htonl(proto)), "r"(sum)
 		: "$1");
 
 	return csum_fold(sum);

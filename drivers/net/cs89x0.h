@@ -14,6 +14,8 @@
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
    */
 
+#include <linux/config.h>
+
 #define PP_ChipID 0x0000	/* offset   0h -> Corp -ID              */
 				/* offset   2h -> Model/Product Number  */
 				/* offset   3h -> Chip Revision Number  */
@@ -76,6 +78,12 @@
 #define LAST_IO 0x037C		/*  Last I/O port to check (+10h) */
 #define ADD_MASK 0x3000		/*  Mask it use of the ADD_PORT register */
 #define ADD_SIG 0x3000		/*  Expected ID signature */
+
+/* On Macs, we only need use the ISA I/O stuff until we do MEMORY_ON */
+#ifdef CONFIG_MAC
+#define LCSLOTBASE 0xfee00000
+#define MMIOBASE 0x40000
+#endif
 
 #define CHIP_EISA_ID_SIG 0x630E   /*  Product ID Code for Crystal Chip (CS8900 spec 4.3) */
 
