@@ -88,20 +88,6 @@ static int mv64340_poll(struct net_device *dev, int *budget);
 unsigned char prom_mac_addr_base[6];
 unsigned long mv64340_sram_base;
 
-/************************************************** 
- * Helper functions - used inside the driver only *
- **************************************************/
-
-static void *mv64340_eth_malloc_ring(unsigned int size)
-{
-	dma_addr_t dma_handle;
-	void *result;
-	/* Assumes allocated buffer is cache line alligned */
-	result = pci_alloc_consistent(NULL, size, &dma_handle);
-	memset(result, 0, size);
-	return result;
-}
-
 /*
  * Changes MTU (maximum transfer unit) of the gigabit ethenret port
  *
@@ -111,7 +97,7 @@ static void *mv64340_eth_malloc_ring(unsigned int size)
  */
 static int mv64340_eth_change_mtu(struct net_device *dev, int new_mtu)
 {
-	struct eth_port_info *mp = netdev_priv(dev);
+	struct mv64340_private *mp = netdev_priv(dev);
 	unsigned long flags;
 
 	spin_lock_irqsave(&mp->lock, flags);
@@ -154,8 +140,8 @@ static int mv64340_eth_change_mtu(struct net_device *dev, int new_mtu)
 static void mv64340_eth_rx_task(void *data)
 {
 	struct net_device *dev = (struct net_device *) data;
-	struct eth_port_info *mp = netdev_priv(dev);
-	PKT_INFO pkt_info;
+	struct mv64340_private *mp = netdev_priv(dev);
+	struct pkt_info pkt_info;
 	struct sk_buff *skb;
 
 	if (test_and_set_bit(0, &mp->rx_task_busy))
@@ -222,7 +208,7 @@ static void mv64340_eth_rx_task(void *data)
 static void mv64340_eth_rx_task_timer_wrapper(unsigned long data)
 {
 	struct net_device *dev = (struct net_device *) data;
-	struct eth_port_info *mp = netdev_priv(dev);
+	struct mv64340_private *mp = netdev_priv(dev);
 
 	mp->rx_timer_flag = 0;
 	mv64340_eth_rx_task((void *) data);
@@ -239,7 +225,7 @@ static void mv64340_eth_rx_task_timer_wrapper(unsigned long data)
  */
 static void mv64340_eth_update_mac_address(struct net_device *dev)
 {
-	struct eth_port_info *mp = netdev_priv(dev);
+	struct mv64340_private *mp = netdev_priv(dev);
 	unsigned int port_num = mp->port_num;
 
 	eth_port_init_mac_tables(port_num);
@@ -257,7 +243,7 @@ static void mv64340_eth_update_mac_address(struct net_device *dev)
  */
 static void mv64340_eth_set_rx_mode(struct net_device *dev)
 {
-	struct eth_port_info *mp = netdev_priv(dev);
+	struct mv64340_private *mp = netdev_priv(dev);
 
 	if (dev->flags & IFF_PROMISC) {
 		ethernet_set_config_reg
@@ -305,10 +291,9 @@ static int mv64340_eth_set_mac_address(struct net_device *dev, void *addr)
  */
 static void mv64340_eth_tx_timeout(struct net_device *dev)
 {
-	struct eth_port_info *mp = netdev_priv(dev);
+	struct mv64340_private *mp = netdev_priv(dev);
 
 	printk(KERN_INFO "%s: TX timeout  ", dev->name);
-	printk(KERN_INFO "Resetting card \n");
 
 	/* Do the reset outside of interrupt context */
 	schedule_work(&mp->tx_timeout_task);
@@ -321,7 +306,7 @@ static void mv64340_eth_tx_timeout(struct net_device *dev)
  */
 static void mv64340_eth_tx_timeout_task(struct net_device *dev)
 {
-        struct eth_port_info *mp = netdev_priv(dev);
+        struct mv64340_private *mp = netdev_priv(dev);
 
         netif_device_detach(dev);
         eth_port_reset(mp->port_num);
@@ -339,52 +324,51 @@ static void mv64340_eth_tx_timeout_task(struct net_device *dev)
 static int mv64340_eth_free_tx_queue(struct net_device *dev,
 			      unsigned int eth_int_cause_ext)
 {
-	struct eth_port_info *mp = netdev_priv(dev);
+	struct mv64340_private *mp = netdev_priv(dev);
 	struct net_device_stats *stats = &mp->stats;
-	PKT_INFO pkt_info;
+	struct pkt_info pkt_info;
 	int released = 1;
 
-	spin_lock(&mp->lock);
-	/* Check only queue 0 */
 	if (eth_int_cause_ext & (BIT0 | BIT8))
-		while (eth_tx_return_desc(mp, &pkt_info) ==
-		       ETH_OK) {
-			if (pkt_info.cmd_sts & BIT0) {
-				printk("%s: Error in TX\n", dev->name);
-				stats->tx_errors++;
-			}
-			/* 
-			 * If return_info is different than 0, release the skb.
-			 * The case where return_info is not 0 is only in case
-			 * when transmitted a scatter/gather packet, where only
-			 * last skb releases the whole chain.
-			 */
-			if (pkt_info.return_info) {
-				dev_kfree_skb_irq((struct sk_buff *)
-						  pkt_info.return_info);
-				released = 0;
-				if (skb_shinfo(pkt_info.return_info)->nr_frags)
-					pci_unmap_page(0, pkt_info.buf_ptr,
-						pkt_info.byte_cnt,
-						PCI_DMA_TODEVICE);
+		return released;
 
-				if (mp->tx_ring_skbs != 1)
-					mp->tx_ring_skbs--;
-			}
-			else 
-				pci_unmap_page(0, pkt_info.buf_ptr,
-						pkt_info.byte_cnt,
-						PCI_DMA_TODEVICE);
+	spin_lock(&mp->lock);
 
-			/* 
-			 * Decrement the number of outstanding skbs counter on the
-			 * TX queue.
-			 */
-			if (mp->tx_ring_skbs == 0)
-				panic
-				    ("ERROR - TX outstanding SKBs counter is corrupted\n");
-
+	/* Check only queue 0 */
+	while (eth_tx_return_desc(mp, &pkt_info) == ETH_OK) {
+		if (pkt_info.cmd_sts & BIT0) {
+			printk("%s: Error in TX\n", dev->name);
+			stats->tx_errors++;
 		}
+
+		/* 
+		 * If return_info is different than 0, release the skb.
+		 * The case where return_info is not 0 is only in case
+		 * when transmitted a scatter/gather packet, where only
+		 * last skb releases the whole chain.
+		 */
+		if (pkt_info.return_info) {
+			dev_kfree_skb_irq((struct sk_buff *)
+					  pkt_info.return_info);
+			released = 0;
+			if (skb_shinfo(pkt_info.return_info)->nr_frags)
+				pci_unmap_page(NULL, pkt_info.buf_ptr,
+					pkt_info.byte_cnt, PCI_DMA_TODEVICE);
+
+			if (mp->tx_ring_skbs != 1)
+				mp->tx_ring_skbs--;
+		} else 
+			pci_unmap_page(NULL, pkt_info.buf_ptr,
+					pkt_info.byte_cnt, PCI_DMA_TODEVICE);
+
+		/* 
+		 * Decrement the number of outstanding skbs counter on
+		 * the TX queue.
+		 */
+		if (mp->tx_ring_skbs == 0)
+			panic("ERROR - TX outstanding SKBs counter is corrupted");
+
+	}
 
 	spin_unlock(&mp->lock);
 
@@ -409,16 +393,16 @@ static int mv64340_eth_receive_queue(struct net_device *dev, unsigned int max,
 static int mv64340_eth_receive_queue(struct net_device *dev, unsigned int max)
 #endif
 {
-	struct eth_port_info *mp = netdev_priv(dev);
+	struct mv64340_private *mp = netdev_priv(dev);
 	struct net_device_stats *stats = &mp->stats;
 	unsigned int received_packets = 0;
 	struct sk_buff *skb;
-	PKT_INFO pkt_info;
+	struct pkt_info pkt_info;
 
 #ifdef MV64340_NAPI
-	while ((eth_port_receive(mp, &pkt_info) == ETH_OK) && budget > 0) {
+	while (eth_port_receive(mp, &pkt_info) == ETH_OK && budget > 0) {
 #else
-	while ((--max) && (eth_port_receive(mp, &pkt_info) == ETH_OK)) {
+	while ((--max) && eth_port_receive(mp, &pkt_info) == ETH_OK) {
 #endif
 		mp->rx_ring_skbs--;
 		received_packets++;
@@ -430,16 +414,15 @@ static int mv64340_eth_receive_queue(struct net_device *dev, unsigned int max)
 		stats->rx_bytes += pkt_info.byte_cnt;
 		skb = (struct sk_buff *) pkt_info.return_info;
 		/*
-		 * In case received a packet without first / last bits on OR the error
-		 * summary bit is on, the packets needs to be dropeed.
+		 * In case received a packet without first / last bits on OR
+		 * the error summary bit is on, the packets needs to be dropeed.
 		 */
 		if (((pkt_info.cmd_sts
 		      & (ETH_RX_FIRST_DESC | ETH_RX_LAST_DESC)) !=
 		     (ETH_RX_FIRST_DESC | ETH_RX_LAST_DESC))
 		    || (pkt_info.cmd_sts & ETH_ERROR_SUMMARY)) {
 			stats->rx_dropped++;
-			if (
-			    (pkt_info.cmd_sts & (ETH_RX_FIRST_DESC |
+			if ((pkt_info.cmd_sts & (ETH_RX_FIRST_DESC |
 						 ETH_RX_LAST_DESC)) !=
 			    (ETH_RX_FIRST_DESC | ETH_RX_LAST_DESC)) {
 				if (net_ratelimit())
@@ -448,14 +431,11 @@ static int mv64340_eth_receive_queue(struct net_device *dev, unsigned int max)
 					       " descriptors\n",
 					       dev->name);
 			}
-			if (pkt_info.cmd_sts & ETH_ERROR_SUMMARY) {
+			if (pkt_info.cmd_sts & ETH_ERROR_SUMMARY)
 				stats->rx_errors++;
-			}
+
 			dev_kfree_skb_irq(skb);
 		} else {
-			struct ethhdr *eth_h;
-			struct iphdr *ip_h;
-
 			/*
 			 * The -4 is for the CRC in the trailer of the
 			 * received packet
@@ -463,15 +443,11 @@ static int mv64340_eth_receive_queue(struct net_device *dev, unsigned int max)
 			skb_put(skb, pkt_info.byte_cnt - 4);
 			skb->dev = dev;
 
-			eth_h = (struct ethhdr *) skb->data;
-			ip_h = (struct iphdr *) (skb->data + ETH_HLEN);
 			if (pkt_info.cmd_sts & ETH_LAYER_4_CHECKSUM_OK) {
 				skb->ip_summed = CHECKSUM_UNNECESSARY;
 				skb->csum = htons((pkt_info.cmd_sts
 							& 0x0007fff8) >> 3);
 			}
-			else 
-				skb->ip_summed = CHECKSUM_NONE;
 			skb->protocol = eth_type_trans(skb, dev);
 #ifdef MV64340_NAPI
 			netif_receive_skb(skb);
@@ -499,19 +475,17 @@ static irqreturn_t mv64340_eth_int_handler(int irq, void *dev_id,
 	struct pt_regs *regs)
 {
 	struct net_device *dev = (struct net_device *) dev_id;
-	struct eth_port_info *mp = netdev_priv(dev);
+	struct mv64340_private *mp = netdev_priv(dev);
 	u32 eth_int_cause = 0, eth_int_cause_ext = 0;
 	unsigned int port_num = mp->port_num;
 
 	/* Read interrupt cause registers */
-	eth_int_cause =
-	    (MV_READ(MV64340_ETH_INTERRUPT_CAUSE_REG(port_num)) &
-			INT_CAUSE_UNMASK_ALL);
+	eth_int_cause = MV_READ(MV64340_ETH_INTERRUPT_CAUSE_REG(port_num)) &
+			INT_CAUSE_UNMASK_ALL;
 
 	if (eth_int_cause & BIT1)
-		eth_int_cause_ext =
-		    (MV_READ(MV64340_ETH_INTERRUPT_CAUSE_EXTEND_REG(port_num)) &
-				INT_CAUSE_UNMASK_ALL_EXT);
+		eth_int_cause_ext = MV_READ(MV64340_ETH_INTERRUPT_CAUSE_EXTEND_REG(port_num)) &
+				    INT_CAUSE_UNMASK_ALL_EXT;
 	else
 		eth_int_cause_ext = 0;
 
@@ -520,9 +494,9 @@ static irqreturn_t mv64340_eth_int_handler(int irq, void *dev_id,
 	/* Dont ack the Rx interrupt */
 #endif
 		/*
-	 	 * Clear specific ethernet port intrerrupt registers by acknowleding
-	 	 * relevant bits.
-   	 	 */
+	 	 * Clear specific ethernet port intrerrupt registers by
+		 * acknowleding relevant bits.
+		 */
 		MV_WRITE(MV64340_ETH_INTERRUPT_CAUSE_REG(port_num),
 			 ~eth_int_cause);
 		if (eth_int_cause_ext != 0x0)
@@ -530,15 +504,10 @@ static irqreturn_t mv64340_eth_int_handler(int irq, void *dev_id,
 				 ~eth_int_cause_ext);
 
 		/* UDP change : We may need this */
-                 if (eth_int_cause_ext & 0x0000ffff) {
-                        if (mv64340_eth_free_tx_queue(dev, eth_int_cause_ext) == 0) {
-                                if (netif_queue_stopped(dev) &&
-				    (dev->flags & IFF_RUNNING) &&
-				    (MV64340_TX_QUEUE_SIZE > mp->tx_ring_skbs + 1)) {
+		if ((eth_int_cause_ext & 0x0000ffff) &&
+		    (mv64340_eth_free_tx_queue(dev, eth_int_cause_ext) == 0) &&
+		    (MV64340_TX_QUEUE_SIZE > mp->tx_ring_skbs + 1))
                                          netif_wake_queue(dev);
-                                }
-                        }
-                 }
 #ifdef MV64340_NAPI
 	} else {
 		if (netif_rx_schedule_prep(dev)) {
@@ -548,24 +517,23 @@ static irqreturn_t mv64340_eth_int_handler(int irq, void *dev_id,
 			__netif_rx_schedule(dev);
 		}
 #else
-		unsigned int total_received = 0;
-		
+		{
 		if (eth_int_cause & (BIT2 | BIT11))
-			total_received += mv64340_eth_receive_queue(dev, 0);
+			mv64340_eth_receive_queue(dev, 0);
 
 		/*
-		 * After forwarded received packets to upper layer, add a task
+		 * After forwarded received packets to upper layer,  add a task
 		 * in an interrupts enabled context that refills the RX ring
 		 * with skb's.
 		 */
 #if MV64340_RX_QUEUE_FILL_ON_TASK
 		/* Unmask all interrupts on ethernet port */
 		MV_WRITE(MV64340_ETH_INTERRUPT_MASK_REG(port_num),
-			 INT_CAUSE_MASK_ALL);
+		         INT_CAUSE_MASK_ALL);
 		queue_task(&mp->rx_task, &tq_immediate);
 		mark_bh(IMMEDIATE_BH);
 #else
-		mp->rx_task.routine(dev);
+		mp->rx_task.func(dev);
 #endif
 #endif
 	}
@@ -577,10 +545,8 @@ static irqreturn_t mv64340_eth_int_handler(int irq, void *dev_id,
 		eth_port_read_smi_reg(port_num, 1, &phy_reg_data);
 		if (!(phy_reg_data & 0x20)) {
 			netif_stop_queue(dev);
-			dev->flags &= ~IFF_RUNNING;
 		} else {
 			netif_wake_queue(dev);
-			dev->flags |= IFF_RUNNING;
 
 			/*
 			 * Start all TX queues on ethernet port. This is good in
@@ -679,7 +645,7 @@ static unsigned int eth_port_set_tx_coal(unsigned int eth_port_num,
 	return coal;
 }
 
-/**********************************************************************
+/*
  * mv64340_eth_open
  *
  * This function is called when openning the network device. The function
@@ -690,43 +656,195 @@ static unsigned int eth_port_set_tx_coal(unsigned int eth_port_num,
  * Input : a pointer to the network device structure
  *
  * Output : zero of success , nonzero if fails.
- **********************************************************************/
+ */
 
 static int mv64340_eth_open(struct net_device *dev)
 {
-	struct eth_port_info *mp = netdev_priv(dev);
+	struct mv64340_private *mp = netdev_priv(dev);
 	unsigned int port_num = mp->port_num;
-	int retval;
+	int err = err;
 
-	spin_lock_irq(&(mp->lock));
+	spin_lock_irq(&mp->lock);
 
-	retval =
-	    request_irq(ETH_PORT0_IRQ_NUM + port_num, mv64340_eth_int_handler,
-			(SA_INTERRUPT | SA_SAMPLE_RANDOM), dev->name, dev);
+	err = request_irq(dev->irq, mv64340_eth_int_handler,
+	                  SA_INTERRUPT | SA_SAMPLE_RANDOM, dev->name, dev);
 
-	if (retval != 0) {
+	if (err) {
 		printk(KERN_ERR "Can not assign IRQ number to MV64340_eth%d\n",
 		       port_num);
-		return -1;
-	} else {
-		dev->irq = ETH_PORT0_IRQ_NUM + port_num;
+		err = -EAGAIN;
+		goto out;
 	}
 
 	if (mv64340_eth_real_open(dev)) {
 		printk("%s: Error opening interface\n", dev->name);
-		free_irq(dev->irq, dev);
-               spin_unlock_irq(&mp->lock);
-		return -EBUSY;
+		err = -EBUSY;
+		goto out_free;
 	}
-	MOD_INC_USE_COUNT;
-       spin_unlock_irq(&mp->lock);
+
+	spin_unlock_irq(&mp->lock);
+
 	return 0;
+
+out_free:
+	free_irq(dev->irq, dev);
+
+out:
+	spin_unlock_irq(&mp->lock);
+
+	return err;
+}
+
+/*
+ * ether_init_rx_desc_ring - Curve a Rx chain desc list and buffer in memory.
+ *
+ * DESCRIPTION:
+ *       This function prepares a Rx chained list of descriptors and packet 
+ *       buffers in a form of a ring. The routine must be called after port 
+ *       initialization routine and before port start routine. 
+ *       The Ethernet SDMA engine uses CPU bus addresses to access the various 
+ *       devices in the system (i.e. DRAM). This function uses the ethernet 
+ *       struct 'virtual to physical' routine (set by the user) to set the ring 
+ *       with physical addresses.
+ *
+ * INPUT:
+ *	struct mv64340_private   *mp   Ethernet Port Control srtuct. 
+ *      int 			rx_desc_num       Number of Rx descriptors
+ *      int 			rx_buff_size      Size of Rx buffer
+ *      unsigned int    rx_desc_base_addr  Rx descriptors memory area base addr.
+ *      unsigned int    rx_buff_base_addr  Rx buffer memory area base addr.
+ *
+ * OUTPUT:
+ *      The routine updates the Ethernet port control struct with information 
+ *      regarding the Rx descriptors and buffers.
+ *
+ * RETURN:
+ *      false if the given descriptors memory area is not aligned according to
+ *      Ethernet SDMA specifications.
+ *      true otherwise.
+ */
+static int ether_init_rx_desc_ring(struct mv64340_private * mp,
+	unsigned long rx_buff_base_addr)
+{
+	unsigned long buffer_addr = rx_buff_base_addr;
+	volatile struct eth_rx_desc *p_rx_desc;
+	int rx_desc_num = mp->rx_ring_size;
+	unsigned long rx_desc_base_addr = (unsigned long) mp->p_rx_desc_area;
+	int rx_buff_size = 1536;	/* Dummy, will be replaced later */
+	int i;
+
+	p_rx_desc = (struct eth_rx_desc *) rx_desc_base_addr;
+
+	/* Rx desc Must be 4LW aligned (i.e. Descriptor_Address[3:0]=0000). */
+	if (rx_buff_base_addr & 0xf)
+		return 0;
+
+	/* Rx buffers are limited to 64K bytes and Minimum size is 8 bytes  */
+	if ((rx_buff_size < 8) || (rx_buff_size > RX_BUFFER_MAX_SIZE))
+		return 0;
+
+	/* Rx buffers must be 64-bit aligned.       */
+	if ((rx_buff_base_addr + rx_buff_size) & 0x7)
+		return 0;
+
+	/* initialize the Rx descriptors ring */
+	for (i = 0; i < rx_desc_num; i++) {
+		p_rx_desc[i].buf_size = rx_buff_size;
+		p_rx_desc[i].byte_cnt = 0x0000;
+		p_rx_desc[i].cmd_sts =
+			ETH_BUFFER_OWNED_BY_DMA | ETH_RX_ENABLE_INTERRUPT;
+		p_rx_desc[i].next_desc_ptr =
+			(struct eth_rx_desc *) mp->rx_desc_dma +
+				(i + 1) % rx_desc_num;
+		p_rx_desc[i].buf_ptr = buffer_addr;
+
+		mp->rx_skb[i] = NULL;
+		buffer_addr += rx_buff_size;
+	}
+
+	/* Save Rx desc pointer to driver struct. */
+	mp->rx_curr_desc_q = 0;
+	mp->rx_used_desc_q = 0;
+
+	mp->rx_desc_area_size = rx_desc_num * sizeof(struct eth_rx_desc);
+
+	mp->port_rx_queue_command |= 1;
+
+	return 1;
+}
+
+/*
+ * ether_init_tx_desc_ring - Curve a Tx chain desc list and buffer in memory.
+ *
+ * DESCRIPTION:
+ *       This function prepares a Tx chained list of descriptors and packet 
+ *       buffers in a form of a ring. The routine must be called after port 
+ *       initialization routine and before port start routine. 
+ *       The Ethernet SDMA engine uses CPU bus addresses to access the various 
+ *       devices in the system (i.e. DRAM). This function uses the ethernet 
+ *       struct 'virtual to physical' routine (set by the user) to set the ring 
+ *       with physical addresses.
+ *
+ * INPUT:
+ *	struct mv64340_private   *mp   Ethernet Port Control srtuct. 
+ *      int 		tx_desc_num        Number of Tx descriptors
+ *      int 		tx_buff_size	   Size of Tx buffer
+ *      unsigned int    tx_desc_base_addr  Tx descriptors memory area base addr.
+ *
+ * OUTPUT:
+ *      The routine updates the Ethernet port control struct with information 
+ *      regarding the Tx descriptors and buffers.
+ *
+ * RETURN:
+ *      false if the given descriptors memory area is not aligned according to
+ *      Ethernet SDMA specifications.
+ *      true otherwise.
+ */
+static int ether_init_tx_desc_ring(struct mv64340_private *mp)
+{
+	unsigned long tx_desc_base_addr = (unsigned long) mp->p_tx_desc_area;
+	int tx_desc_num = mp->tx_ring_size;
+	struct eth_tx_desc *p_tx_desc;
+	int i;
+
+	/* Tx desc Must be 4LW aligned (i.e. Descriptor_Address[3:0]=0000). */
+	if (tx_desc_base_addr & 0xf)
+		return 0;
+
+	/* save the first desc pointer to link with the last descriptor */
+	p_tx_desc = (struct eth_tx_desc *) tx_desc_base_addr;
+
+	/* Initialize the Tx descriptors ring */
+	for (i = 0; i < tx_desc_num; i++) {
+		p_tx_desc[i].byte_cnt	= 0x0000;
+		p_tx_desc[i].l4i_chk	= 0x0000;
+		p_tx_desc[i].cmd_sts	= 0x00000000;
+		p_tx_desc[i].next_desc_ptr =
+			(struct eth_tx_desc *) mp->tx_desc_dma +
+			(i + 1) % tx_desc_num;
+		p_tx_desc[i].buf_ptr	= 0x00000000;
+		mp->tx_skb[i]		= NULL;
+	}
+
+	/* Set Tx desc pointer in driver struct. */
+	mp->tx_curr_desc_q = 0;
+	mp->tx_used_desc_q = 0;
+#ifdef MV64340_CHECKSUM_OFFLOAD_TX
+        mp->tx_first_desc_q = 0;
+#endif
+	/* Init Tx ring base and size parameters */
+	mp->tx_desc_area_size	= tx_desc_num * sizeof(struct eth_tx_desc);
+
+	/* Add the queue to the list of Tx queues of this port */
+	mp->port_tx_queue_command |= 1;
+
+	return 1;
 }
 
 /* Helper function for mv64340_eth_open */
 static int mv64340_eth_real_open(struct net_device *dev)
 {
-	struct eth_port_info *mp = netdev_priv(dev);
+	struct mv64340_private *mp = netdev_priv(dev);
 	unsigned int port_num = mp->port_num;
 	u32 phy_reg_data;
 	unsigned int size;
@@ -764,51 +882,46 @@ static int mv64340_eth_real_open(struct net_device *dev)
 	/* Allocate TX ring */
 	mp->tx_ring_skbs = 0;
 	mp->tx_ring_size = MV64340_TX_QUEUE_SIZE;
-	size = mp->tx_ring_size * sizeof(ETH_TX_DESC);
+	size = mp->tx_ring_size * sizeof(struct eth_tx_desc);
 	mp->tx_desc_area_size = size;
 
 	/* Assumes allocated ring is 16 bytes alligned */
-	mp->p_tx_desc_area = (ETH_TX_DESC *) mv64340_sram_base;
+	mp->p_tx_desc_area = pci_alloc_consistent(NULL, size, &mp->tx_desc_dma);
 	if (!mp->p_tx_desc_area) {
-		printk(KERN_ERR
-		       "%s: Cannot allocate Tx Ring (size %d bytes)\n",
+		printk(KERN_ERR "%s: Cannot allocate Tx Ring (size %d bytes)\n",
 		       dev->name, size);
 		return -ENOMEM;
 	}
 	memset((void *) mp->p_tx_desc_area, 0, mp->tx_desc_area_size);
 
 	/* Dummy will be replaced upon real tx */
-	ether_init_tx_desc_ring(mp, mp->tx_ring_size,
-				(unsigned long)mp->p_tx_desc_area);
+	ether_init_tx_desc_ring(mp);
 
 	/* Allocate RX ring */
 	/* Meantime RX Ring are fixed - but must be configurable by user */
 	mp->rx_ring_size = MV64340_RX_QUEUE_SIZE;
 	mp->rx_ring_skbs = 0;
-	size = mp->rx_ring_size * sizeof(ETH_RX_DESC);
+	size = mp->rx_ring_size * sizeof(struct eth_rx_desc);
 	mp->rx_desc_area_size = size;
 
-	/* Assumes allocated ring is 16 bytes alligned */
-	mp->p_rx_desc_area =
-	    (ETH_RX_DESC *) mv64340_eth_malloc_ring(size);
+	/* Assumes allocated ring is 16 bytes aligned */
+
+	mp->p_rx_desc_area = pci_alloc_consistent(NULL, size, &mp->rx_desc_dma);
+
 	if (!mp->p_rx_desc_area) {
-		printk(KERN_ERR
-		       "%s: Cannot allocate Rx ring (size %d bytes)\n",
+		printk(KERN_ERR "%s: Cannot allocate Rx ring (size %d bytes)\n",
 		       dev->name, size);
-		printk(KERN_ERR
-		       "%s: Freeing previously allocated TX queues...",
+		printk(KERN_ERR "%s: Freeing previously allocated TX queues...",
 		       dev->name);
 		pci_free_consistent(0, mp->tx_desc_area_size,
-				    (void *)
-				    mp->p_tx_desc_area,
-				    virt_to_bus(mp->p_tx_desc_area));
+				    (void *) mp->p_tx_desc_area,
+				    mp->tx_desc_dma);
 		return -ENOMEM;
 	}
-	memset((void *) mp->p_rx_desc_area, 0, mp->rx_desc_area_size);
-	if (!(ether_init_rx_desc_ring(mp, mp->rx_ring_size,
-	                              1536, /* Dummy, will be replaced later */
-				     (unsigned long) mp->p_rx_desc_area, 0)))
-		panic("%s: Error initializing RX Ring\n", dev->name);
+	memset(mp->p_rx_desc_area, 0, size);
+
+	if (!(ether_init_rx_desc_ring(mp, 0)))
+		panic("%s: Error initializing RX Ring", dev->name);
 
 	mv64340_eth_rx_task(dev);	/* Fill RX ring with skb's */
 
@@ -832,20 +945,17 @@ static int mv64340_eth_real_open(struct net_device *dev)
 
 	/* Check Link status on phy */
 	eth_port_read_smi_reg(port_num, 1, &phy_reg_data);
-	if (!(phy_reg_data & 0x20)) {
+	if (!(phy_reg_data & 0x20))
 		netif_stop_queue(dev);
-		dev->flags &= ~(IFF_RUNNING);
-	} else {
+	else
 		netif_start_queue(dev);
-		dev->flags |= (IFF_RUNNING);
-	}
 
 	return 0;
 }
 
 static void mv64340_eth_free_tx_rings(struct net_device *dev)
 {
-	struct eth_port_info *mp = netdev_priv(dev);
+	struct mv64340_private *mp = netdev_priv(dev);
 	unsigned int port_num = mp->port_num;
 	unsigned int curr;
 
@@ -864,18 +974,16 @@ static void mv64340_eth_free_tx_rings(struct net_device *dev)
 		}
 	}
 	if (mp->tx_ring_skbs != 0)
-		printk
-		    ("%s: Error on Tx descriptor free - could not free %d"
+		printk("%s: Error on Tx descriptor free - could not free %d"
 		     " descriptors\n", dev->name,
 		     mp->tx_ring_skbs);
 	pci_free_consistent(0, mp->tx_desc_area_size,
-			    (void *) mp->p_tx_desc_area,
-			    virt_to_bus(mp->p_tx_desc_area));
+			    (void *) mp->p_tx_desc_area, mp->tx_desc_dma);
 }
 
 static void mv64340_eth_free_rx_rings(struct net_device *dev)
 {
-	struct eth_port_info *mp = netdev_priv(dev);
+	struct mv64340_private *mp = netdev_priv(dev);
 	unsigned int port_num = mp->port_num;
 	int curr;
 
@@ -901,10 +1009,10 @@ static void mv64340_eth_free_rx_rings(struct net_device *dev)
 		       mp->rx_ring_skbs);
 	pci_free_consistent(0, mp->rx_desc_area_size,
 			    (void *) mp->p_rx_desc_area,
-			    virt_to_bus(mp->p_rx_desc_area));
+			    mp->rx_desc_dma);
 }
 
-/**********************************************************************
+/*
  * mv64340_eth_stop
  *
  * This function is used when closing the network device. 
@@ -912,28 +1020,13 @@ static void mv64340_eth_free_rx_rings(struct net_device *dev)
  * release all memory that holds buffers and descriptors and release the IRQ.
  * Input : a pointer to the device structure
  * Output : zero if success , nonzero if fails
- *********************************************************************/
-
-static int mv64340_eth_stop(struct net_device *dev)
-{
-	struct eth_port_info *mp = netdev_priv(dev);
-
-	spin_lock_irq(&(mp->lock));
-
-	mv64340_eth_real_stop(dev);
-
-	free_irq(dev->irq, dev);
-	MOD_DEC_USE_COUNT;
-	spin_unlock_irq(&mp->lock);
-
-	return 0;
-}
+ */
 
 /* Helper function for mv64340_eth_stop */
 
 static int mv64340_eth_real_stop(struct net_device *dev)
 {
-	struct eth_port_info *mp = netdev_priv(dev);
+	struct mv64340_private *mp = netdev_priv(dev);
 	unsigned int port_num = mp->port_num;
 
 	netif_stop_queue(dev);
@@ -956,34 +1049,45 @@ static int mv64340_eth_real_stop(struct net_device *dev)
 	return 0;
 }
 
+static int mv64340_eth_stop(struct net_device *dev)
+{
+	struct mv64340_private *mp = netdev_priv(dev);
+
+	spin_lock_irq(&mp->lock);
+
+	mv64340_eth_real_stop(dev);
+
+	free_irq(dev->irq, dev);
+	spin_unlock_irq(&mp->lock);
+
+	return 0;
+}
+
 #ifdef MV64340_NAPI
 static void mv64340_tx(struct net_device *dev)
 {
-	struct eth_port_info *mp = netdev_priv(dev);
-        PKT_INFO pkt_info;
+	struct mv64340_private *mp = netdev_priv(dev);
+        struct pkt_info pkt_info;
 
 	while (eth_tx_return_desc(mp, &pkt_info) == ETH_OK) {
 		if (pkt_info.return_info) {
 			dev_kfree_skb_irq((struct sk_buff *)
                                                   pkt_info.return_info);
 			if (skb_shinfo(pkt_info.return_info)->nr_frags) 
-                                 pci_unmap_page(0, pkt_info.buf_ptr,
+                                 pci_unmap_page(NULL, pkt_info.buf_ptr,
                                              pkt_info.byte_cnt,
                                              PCI_DMA_TODEVICE);
 
                          if (mp->tx_ring_skbs != 1)
                                   mp->tx_ring_skbs--;
                 } else 
-                       pci_unmap_page(0, pkt_info.buf_ptr,
-                             pkt_info.byte_cnt,
-                             PCI_DMA_TODEVICE);
+                       pci_unmap_page(NULL, pkt_info.buf_ptr, pkt_info.byte_cnt,
+                                      PCI_DMA_TODEVICE);
 	}
 
 	if (netif_queue_stopped(dev) &&
-		(dev->flags & IFF_RUNNING) &&
-                (MV64340_TX_QUEUE_SIZE > mp->tx_ring_skbs + 1)) {
+            MV64340_TX_QUEUE_SIZE > mp->tx_ring_skbs + 1)
                        netif_wake_queue(dev);
-	}
 }
 
 /*
@@ -993,7 +1097,7 @@ static void mv64340_tx(struct net_device *dev)
  */
 static int mv64340_poll(struct net_device *dev, int *budget)
 {
-	struct eth_port_info *mp = netdev_priv(dev);
+	struct mv64340_private *mp = netdev_priv(dev);
 	int	done = 1, orig_budget, work_done;
 	unsigned int port_num = mp->port_num;
 	unsigned long flags;
@@ -1047,11 +1151,11 @@ static int mv64340_poll(struct net_device *dev, int *budget)
  */
 static int mv64340_eth_start_xmit(struct sk_buff *skb, struct net_device *dev)
 {
-	struct eth_port_info *mp = netdev_priv(dev);
+	struct mv64340_private *mp = netdev_priv(dev);
 	struct net_device_stats *stats = &mp->stats;
 	ETH_FUNC_RET_STATUS status;
 	unsigned long flags;
-	PKT_INFO pkt_info;
+	struct pkt_info pkt_info;
 
 	if (netif_queue_stopped(dev)) {
 		printk(KERN_ERR
@@ -1083,11 +1187,12 @@ static int mv64340_eth_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	if (!skb_shinfo(skb)->nr_frags || (skb_shinfo(skb)->nr_frags > 3)) {
 #endif
 		pkt_info.cmd_sts = ETH_TX_ENABLE_INTERRUPT |
-	    				ETH_TX_FIRST_DESC | ETH_TX_LAST_DESC;
+	    	                   ETH_TX_FIRST_DESC | ETH_TX_LAST_DESC;
 
 		pkt_info.byte_cnt = skb->len;
-		pkt_info.buf_ptr = pci_map_single
-			    (0, skb->data, skb->len, PCI_DMA_TODEVICE);
+		pkt_info.buf_ptr = pci_map_single(0, skb->data, skb->len,
+		                                  PCI_DMA_TODEVICE);
+
 
 		pkt_info.return_info = skb;
 		status = eth_port_send(mp, &pkt_info);
@@ -1096,8 +1201,7 @@ static int mv64340_eth_start_xmit(struct sk_buff *skb, struct net_device *dev)
 				       dev->name);
 		mp->tx_ring_skbs++;
 #ifdef MV64340_CHECKSUM_OFFLOAD_TX
-	} 
-	else {
+	} else {
 		unsigned int    frag;
 		u32		ipheader;
 
@@ -1106,7 +1210,7 @@ static int mv64340_eth_start_xmit(struct sk_buff *skb, struct net_device *dev)
                 pkt_info.buf_ptr = pci_map_single(0, skb->data,
                                         skb_headlen(skb), PCI_DMA_TODEVICE);
                 pkt_info.return_info = 0;
-                ipheader =   (skb->nh.iph->ihl << 11);
+                ipheader = skb->nh.iph->ihl << 11;
                 pkt_info.cmd_sts = ETH_TX_FIRST_DESC | 
 					ETH_GEN_TCP_UDP_CHECKSUM |
 					ETH_GEN_IP_V_4_CHECKSUM |
@@ -1143,11 +1247,9 @@ static int mv64340_eth_start_xmit(struct sk_buff *skb, struct net_device *dev)
                         if (this_frag->size < 8)
                                 printk("%d : \n", skb_shinfo(skb)->nr_frags);
 
-                        pkt_info.buf_ptr = pci_map_page(0,
-                                        this_frag->page,
+                        pkt_info.buf_ptr = pci_map_page(NULL, this_frag->page,
                                         this_frag->page_offset,
-                                        this_frag->size,
-                                        PCI_DMA_TODEVICE);
+                                        this_frag->size, PCI_DMA_TODEVICE);
 
                         status = eth_port_send(mp, &pkt_info);
 
@@ -1187,7 +1289,7 @@ static int mv64340_eth_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	return 0;		/* success */
 }
 
-/**********************************************************************
+/*
  * mv64340_eth_get_stats
  *
  * Returns a pointer to the interface statistics.
@@ -1195,16 +1297,16 @@ static int mv64340_eth_start_xmit(struct sk_buff *skb, struct net_device *dev)
  * Input : dev - a pointer to the required interface
  *
  * Output : a pointer to the interface's statistics
- **********************************************************************/
+ */
 
 static struct net_device_stats *mv64340_eth_get_stats(struct net_device *dev)
 {
-	struct eth_port_info *mp = netdev_priv(dev);
+	struct mv64340_private *mp = netdev_priv(dev);
 
 	return &mp->stats;
 }
 
-/**********************************************************************
+/*/
  * mv64340_eth_init
  *								       
  * First function called after registering the network device. 
@@ -1214,18 +1316,20 @@ static struct net_device_stats *mv64340_eth_get_stats(struct net_device *dev)
  *
  * Input : number of port to initialize
  * Output : -ENONMEM if failed , 0 if success
- **********************************************************************/
+ */
 static int mv64340_eth_init(int port_num)
 {
-	struct eth_port_info *mp;
+	struct mv64340_private *mp;
 	struct net_device *dev;
 	int err;
 
-	dev = alloc_etherdev(sizeof(struct eth_port_info));
+	dev = alloc_etherdev(sizeof(struct mv64340_private));
 	if (!dev)
 		return -ENOMEM;
 
 	mp = netdev_priv(dev);
+
+	dev->irq = ETH_PORT0_IRQ_NUM + port_num;
 
 	dev->open = mv64340_eth_open;
 	dev->stop = mv64340_eth_stop;
@@ -1243,9 +1347,8 @@ static int mv64340_eth_init(int port_num)
 
 	dev->watchdog_timeo = 2 * HZ;
 	dev->tx_queue_len = MV64340_TX_QUEUE_SIZE;
-	dev->flags &= ~IFF_RUNNING;
 	dev->base_addr = 0;
-	dev->change_mtu = &mv64340_eth_change_mtu;
+	dev->change_mtu = mv64340_eth_change_mtu;
 
 #ifdef MV64340_CHECKSUM_OFFLOAD_TX
 #ifdef MAX_SKB_FRAGS
@@ -1301,7 +1404,7 @@ out_free_dev:
 	return err;
 }
 
-/**********************************************************************
+/*
  * mv64340_init_module
  *
  * Registers the network drivers into the Linux kernel
@@ -1309,7 +1412,7 @@ out_free_dev:
  * Input : N/A
  *
  * Output : N/A
- **********************************************************************/
+ */
 static int __init mv64340_init_module(void)
 {
 	printk(KERN_NOTICE "MV-64340 10/100/1000 Ethernet Driver\n");
@@ -1334,7 +1437,7 @@ static int __init mv64340_init_module(void)
 	return 0;
 }
 
-/**********************************************************************
+/*
  * mv64340_cleanup_module
  *
  * Registers the network drivers into the Linux kernel
@@ -1342,7 +1445,7 @@ static int __init mv64340_init_module(void)
  * Input : N/A
  *
  * Output : N/A
- **********************************************************************/
+ */
 static void __init mv64340_cleanup_module(void)
 {
 	/* Nothing to do here ! it's not a removable module */
@@ -1355,18 +1458,11 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Rabeeh Khoury, Assaf Hoffman, Matthew Dharm and Manish Lachwani");
 MODULE_DESCRIPTION("Ethernet driver for Marvell MV64340");
 
-/*************************************************************************
-**************************************************************************
-**************************************************************************
-*  The second part is the low level driver of the gigE ethernet ports.   *
-**************************************************************************
-**************************************************************************
-*************************************************************************/
+/*
+ *  The second part is the low level driver of the gigE ethernet ports.
+ */
 
-
-
-
-/********************************************************************************
+/*
  * Marvell's Gigabit Ethernet controller low level driver
  *
  * DESCRIPTION:
@@ -1375,7 +1471,7 @@ MODULE_DESCRIPTION("Ethernet driver for Marvell MV64340");
  *		1) Operations (i.e. port init, start, reset etc').
  *		2) Data flow (i.e. port send, receive etc').
  *		Each Gigabit Ethernet port is controlled via
- *              struct eth_port_info.
+ *              struct mv64340_private.
  *		This struct includes user configuration information as well as
  *		driver internal data needed for its operations.
  *
@@ -1400,7 +1496,7 @@ MODULE_DESCRIPTION("Ethernet driver for Marvell MV64340");
  *		Operation flow:
  *
  *		Initialization phase
- *		This phase complete the initialization of the the eth_port_info
+ *		This phase complete the initialization of the the mv64340_private
  *		struct. 
  *		User information regarding port configuration has to be set
  *		prior to calling the port initialization routine.
@@ -1418,17 +1514,17 @@ MODULE_DESCRIPTION("Ethernet driver for Marvell MV64340");
  *		of a ring.
  *		Note: Pay special attention to alignment issues when using
  *		cached descriptors/buffers. In this phase the driver store
- *		information in the eth_port_info struct regarding each queue
+ *		information in the mv64340_private struct regarding each queue
  *		ring.
  *
  *		Driver start 
  *		This phase prepares the Ethernet port for Rx and Tx activity.
- *		It uses the information stored in the eth_port_info struct to 
+ *		It uses the information stored in the mv64340_private struct to 
  *		initialize the various port registers.
  *
  *		Data flow:
- *		All packet references to/from the driver are done using PKT_INFO
- *		struct.
+ *		All packet references to/from the driver are done using
+ *              struct pkt_info.
  *		This struct is a unified struct used with Rx and Tx operations. 
  *		This way the user is not required to be familiar with neither
  *		Tx nor Rx descriptors structures.
@@ -1482,44 +1578,47 @@ MODULE_DESCRIPTION("Ethernet driver for Marvell MV64340");
  *		EXTERNAL INTERFACE
  *
  *       Prior to calling the initialization routine eth_port_init() the user
- *	 must set the following fields under eth_port_info struct:
+ *	 must set the following fields under mv64340_private struct:
  *       port_num             User Ethernet port number.
  *       port_mac_addr[6]	    User defined port MAC address.
  *       port_config          User port configuration value.
  *       port_config_extend    User port config extend value.
  *       port_sdma_config      User port SDMA config value.
  *       port_serial_control   User port serial control value.
- *		                                                                       
+ *
  *       This driver introduce a set of default values:
  *       PORT_CONFIG_VALUE           Default port configuration value
  *       PORT_CONFIG_EXTEND_VALUE    Default port extend configuration value
  *       PORT_SDMA_CONFIG_VALUE      Default sdma control value
  *       PORT_SERIAL_CONTROL_VALUE   Default port serial control value
  *
- *		This driver data flow is done using the PKT_INFO struct which is
- *		a unified struct for Rx and Tx operations:
+ *		This driver data flow is done using the struct pkt_info which
+ *              is a unified struct for Rx and Tx operations:
+ *
  *		byte_cnt	Tx/Rx descriptor buffer byte count.
- *		l4i_chk		CPU provided TCP Checksum. For Tx operation only.
+ *		l4i_chk		CPU provided TCP Checksum. For Tx operation
+ *                              only.
  *		cmd_sts		Tx/Rx descriptor command status.
  *		buf_ptr		Tx/Rx descriptor buffer pointer.
  *		return_info	Tx/Rx user resource return information.
- *
- *******************************************************************************/
-/* includes */
+ */
 
 /* defines */
 /* SDMA command macros */
 #define ETH_ENABLE_TX_QUEUE(eth_port) \
- MV_WRITE(MV64340_ETH_TRANSMIT_QUEUE_COMMAND_REG(eth_port), 1)
+	MV_WRITE(MV64340_ETH_TRANSMIT_QUEUE_COMMAND_REG(eth_port), 1)
 
 #define ETH_DISABLE_TX_QUEUE(eth_port) \
- MV_WRITE(MV64340_ETH_TRANSMIT_QUEUE_COMMAND_REG(eth_port), (1 << 8))
+	MV_WRITE(MV64340_ETH_TRANSMIT_QUEUE_COMMAND_REG(eth_port),	\
+	         (1 << 8))
 
 #define ETH_ENABLE_RX_QUEUE(rx_queue, eth_port) \
-MV_WRITE(MV64340_ETH_RECEIVE_QUEUE_COMMAND_REG(eth_port), (1 << rx_queue))
+	MV_WRITE(MV64340_ETH_RECEIVE_QUEUE_COMMAND_REG(eth_port),	\
+	         (1 << rx_queue))
 
 #define ETH_DISABLE_RX_QUEUE(rx_queue, eth_port) \
-MV_WRITE(MV64340_ETH_RECEIVE_QUEUE_COMMAND_REG(eth_port), (1 << (8 + rx_queue)))
+	MV_WRITE(MV64340_ETH_RECEIVE_QUEUE_COMMAND_REG(eth_port),	\
+	         (1 << (8 + rx_queue)))
 
 #define LINK_UP_TIMEOUT		100000
 #define PHY_BUSY_TIMEOUT	10000000
@@ -1541,127 +1640,124 @@ static void eth_b_copy(unsigned int src_addr, unsigned int dst_addr,
 	int byte_count);
 #endif
 
-/*******************************************************************************
-* eth_port_init - Initialize the Ethernet port driver
-*
-* DESCRIPTION:
-*       This function prepares the ethernet port to start its activity:
-*       1) Completes the ethernet port driver struct initialization toward port
-*           start routine.
-*       2) Resets the device to a quiescent state in case of warm reboot.
-*       3) Enable SDMA access to all four DRAM banks as well as internal SRAM.
-*       4) Clean MAC tables. The reset status of those tables is unknown.
-*       5) Set PHY address. 
-*       Note: Call this routine prior to eth_port_start routine and after setting
-*       user values in the user fields of Ethernet port control struct.
-*
-* INPUT:
-*       struct eth_port_info 	*p_eth_port_ctrl   Ethernet port control struct
-*
-* OUTPUT:
-*       See description.
-*
-* RETURN:
-*       None.
-*
-*******************************************************************************/
-static void eth_port_init(struct eth_port_info * p_eth_port_ctrl)
+/*
+ * eth_port_init - Initialize the Ethernet port driver
+ *
+ * DESCRIPTION:
+ *       This function prepares the ethernet port to start its activity:
+ *       1) Completes the ethernet port driver struct initialization toward port
+ *           start routine.
+ *       2) Resets the device to a quiescent state in case of warm reboot.
+ *       3) Enable SDMA access to all four DRAM banks as well as internal SRAM.
+ *       4) Clean MAC tables. The reset status of those tables is unknown.
+ *       5) Set PHY address. 
+ *       Note: Call this routine prior to eth_port_start routine and after
+ *       setting user values in the user fields of Ethernet port control
+ *       struct.
+ *
+ * INPUT:
+ *       struct mv64340_private *mp   Ethernet port control struct
+ *
+ * OUTPUT:
+ *       See description.
+ *
+ * RETURN:
+ *       None.
+ */
+static void eth_port_init(struct mv64340_private * mp)
 {
-	p_eth_port_ctrl->port_config = PORT_CONFIG_VALUE;
-	p_eth_port_ctrl->port_config_extend = PORT_CONFIG_EXTEND_VALUE;
+	mp->port_config = PORT_CONFIG_VALUE;
+	mp->port_config_extend = PORT_CONFIG_EXTEND_VALUE;
 #if defined(__BIG_ENDIAN)
-	p_eth_port_ctrl->port_sdma_config = PORT_SDMA_CONFIG_VALUE;
+	mp->port_sdma_config = PORT_SDMA_CONFIG_VALUE;
 #elif defined(__LITTLE_ENDIAN)
-	p_eth_port_ctrl->port_sdma_config = PORT_SDMA_CONFIG_VALUE |
+	mp->port_sdma_config = PORT_SDMA_CONFIG_VALUE |
 		ETH_BLM_RX_NO_SWAP | ETH_BLM_TX_NO_SWAP;
 #else
 #error One of __LITTLE_ENDIAN or __BIG_ENDIAN must be defined!
 #endif
-	p_eth_port_ctrl->port_serial_control = PORT_SERIAL_CONTROL_VALUE;
+	mp->port_serial_control = PORT_SERIAL_CONTROL_VALUE;
 
-	p_eth_port_ctrl->port_rx_queue_command = 0;
-	p_eth_port_ctrl->port_tx_queue_command = 0;
+	mp->port_rx_queue_command = 0;
+	mp->port_tx_queue_command = 0;
 
-	p_eth_port_ctrl->rx_resource_err = 0;
-	p_eth_port_ctrl->tx_resource_err = 0;
+	mp->rx_resource_err = 0;
+	mp->tx_resource_err = 0;
 
-	eth_port_reset(p_eth_port_ctrl->port_num);
+	eth_port_reset(mp->port_num);
 
-	eth_port_init_mac_tables(p_eth_port_ctrl->port_num);
+	eth_port_init_mac_tables(mp->port_num);
 
-	ethernet_phy_reset(p_eth_port_ctrl->port_num);
+	ethernet_phy_reset(mp->port_num);
 }
 
-/*******************************************************************************
-* eth_port_start - Start the Ethernet port activity.
-*
-* DESCRIPTION:
-*       This routine prepares the Ethernet port for Rx and Tx activity:
-*       1. Initialize Tx and Rx Current Descriptor Pointer for each queue that
-*           has been initialized a descriptor's ring (using ether_init_tx_desc_ring 
-*           for Tx and ether_init_rx_desc_ring for Rx)
-*       2. Initialize and enable the Ethernet configuration port by writing to 
-*           the port's configuration and command registers.
-*       3. Initialize and enable the SDMA by writing to the SDMA's 
-*    configuration and command registers.
-*       After completing these steps, the ethernet port SDMA can starts to 
-*       perform Rx and Tx activities.
-*
-*       Note: Each Rx and Tx queue descriptor's list must be initialized prior  
-*       to calling this function (use ether_init_tx_desc_ring for Tx queues and 
-*       ether_init_rx_desc_ring for Rx queues).
-*
-* INPUT:
-*       struct eth_port_info 	*p_eth_port_ctrl   Ethernet port control struct
-*
-* OUTPUT:
-*       Ethernet port is ready to receive and transmit.
-*
-* RETURN:
-*       false if the port PHY is not up.
-*       true otherwise.
-*
-*******************************************************************************/
-static int eth_port_start(struct eth_port_info * p_eth_port_ctrl)
+/*
+ * eth_port_start - Start the Ethernet port activity.
+ *
+ * DESCRIPTION:
+ *       This routine prepares the Ethernet port for Rx and Tx activity:
+ *       1. Initialize Tx and Rx Current Descriptor Pointer for each queue that
+ *          has been initialized a descriptor's ring (using
+ *          ether_init_tx_desc_ring for Tx and ether_init_rx_desc_ring for Rx)
+ *       2. Initialize and enable the Ethernet configuration port by writing to
+ *          the port's configuration and command registers.
+ *       3. Initialize and enable the SDMA by writing to the SDMA's 
+ *          configuration and command registers.  After completing these steps,
+ *          the ethernet port SDMA can starts to perform Rx and Tx activities.
+ *
+ *       Note: Each Rx and Tx queue descriptor's list must be initialized prior
+ *       to calling this function (use ether_init_tx_desc_ring for Tx queues
+ *       and ether_init_rx_desc_ring for Rx queues).
+ *
+ * INPUT:
+ *       struct mv64340_private 	*mp   Ethernet port control struct
+ *
+ * OUTPUT:
+ *       Ethernet port is ready to receive and transmit.
+ *
+ * RETURN:
+ *       false if the port PHY is not up.
+ *       true otherwise.
+ */
+static int eth_port_start(struct mv64340_private *mp)
 {
-	unsigned int eth_port_num = p_eth_port_ctrl->port_num;
+	unsigned int eth_port_num = mp->port_num;
 	int tx_curr_desc, rx_curr_desc;
 	unsigned int phy_reg_data;
 
 	/* Assignment of Tx CTRP of given queue */
-	tx_curr_desc = p_eth_port_ctrl->tx_curr_desc_q;
+	tx_curr_desc = mp->tx_curr_desc_q;
 	MV_WRITE(MV64340_ETH_TX_CURRENT_QUEUE_DESC_PTR_0(eth_port_num),
-		 (u32)&(p_eth_port_ctrl->p_tx_desc_area[tx_curr_desc]));
+	         (struct eth_tx_desc *) mp->tx_desc_dma + tx_curr_desc);
 
 	/* Assignment of Rx CRDP of given queue */
-	rx_curr_desc = p_eth_port_ctrl->rx_curr_desc_q;
+	rx_curr_desc = mp->rx_curr_desc_q;
 	MV_WRITE(MV64340_ETH_RX_CURRENT_QUEUE_DESC_PTR_0(eth_port_num),
-		 virt_to_bus(&(p_eth_port_ctrl->p_rx_desc_area[rx_curr_desc])));
+		 (struct eth_rx_desc *) mp->rx_desc_dma + rx_curr_desc);
 
 	/* Add the assigned Ethernet address to the port's address table */
-	eth_port_uc_addr_set(p_eth_port_ctrl->port_num,
-			     p_eth_port_ctrl->port_mac_addr);
+	eth_port_uc_addr_set(mp->port_num, mp->port_mac_addr);
 
 	/* Assign port configuration and command. */
 	MV_WRITE(MV64340_ETH_PORT_CONFIG_REG(eth_port_num),
-		 p_eth_port_ctrl->port_config);
+		 mp->port_config);
 
 	MV_WRITE(MV64340_ETH_PORT_CONFIG_EXTEND_REG(eth_port_num),
-		 p_eth_port_ctrl->port_config_extend);
+		 mp->port_config_extend);
 
 	MV_WRITE(MV64340_ETH_PORT_SERIAL_CONTROL_REG(eth_port_num),
-		 p_eth_port_ctrl->port_serial_control);
+		 mp->port_serial_control);
 
 	MV_SET_REG_BITS(MV64340_ETH_PORT_SERIAL_CONTROL_REG(eth_port_num),
 			ETH_SERIAL_PORT_ENABLE);
 
 	/* Assign port SDMA configuration */
 	MV_WRITE(MV64340_ETH_SDMA_CONFIG_REG(eth_port_num),
-		 p_eth_port_ctrl->port_sdma_config);
+		 mp->port_sdma_config);
 
 	/* Enable port Rx. */
 	MV_WRITE(MV64340_ETH_RECEIVE_QUEUE_COMMAND_REG(eth_port_num),
-		 p_eth_port_ctrl->port_rx_queue_command);
+		 mp->port_rx_queue_command);
 
 	/* Check if link is up */
 	eth_port_read_smi_reg(eth_port_num, 1, &phy_reg_data);
@@ -1709,28 +1805,28 @@ static void eth_port_uc_addr_set(unsigned int eth_port_num,
 	return;
 }
 
-/*******************************************************************************
-* eth_port_uc_addr - This function Set the port unicast address table
-*
-* DESCRIPTION:
-*	This function locates the proper entry in the Unicast table for the 
-*	specified MAC nibble and sets its properties according to function 
-*	parameters.
-*
-* INPUT:
-*	unsigned int 	eth_port_num      Port number.
-*	unsigned char uc_nibble		Unicast MAC Address last nibble. 
-*	int 			option      0 = Add, 1 = remove address.
-*
-* OUTPUT:
-*	This function add/removes MAC addresses from the port unicast address
-*	table. 
-*
-* RETURN:
-*	true is output succeeded.
-*	false if option parameter is invalid.
-*
-*******************************************************************************/
+/*
+ * eth_port_uc_addr - This function Set the port unicast address table
+ *
+ * DESCRIPTION:
+ *	This function locates the proper entry in the Unicast table for the 
+ *	specified MAC nibble and sets its properties according to function 
+ *	parameters.
+ *
+ * INPUT:
+ *	unsigned int 	eth_port_num      Port number.
+ *	unsigned char uc_nibble		Unicast MAC Address last nibble. 
+ *	int 			option      0 = Add, 1 = remove address.
+ *
+ * OUTPUT:
+ *	This function add/removes MAC addresses from the port unicast address
+ *	table. 
+ *
+ * RETURN:
+ *	true is output succeeded.
+ *	false if option parameter is invalid.
+ *
+ */
 static int eth_port_uc_addr(unsigned int eth_port_num,
 	unsigned char uc_nibble, int option)
 {
@@ -1778,23 +1874,22 @@ static int eth_port_uc_addr(unsigned int eth_port_num,
 	return 1;
 }
 
-/*******************************************************************************
-* eth_port_init_mac_tables - Clear all entrance in the UC, SMC and OMC tables
-*
-* DESCRIPTION:
-*       Go through all the DA filter tables (Unicast, Special Multicast & Other 
-*       Multicast) and set each entry to 0.
-*
-* INPUT:
-*	unsigned int    eth_port_num   Ethernet Port number.
-*
-* OUTPUT:
-*       Multicast and Unicast packets are rejected.
-*
-* RETURN:
-*       None.
-*
-*******************************************************************************/
+/*
+ * eth_port_init_mac_tables - Clear all entrance in the UC, SMC and OMC tables
+ *
+ * DESCRIPTION:
+ *       Go through all the DA filter tables (Unicast, Special Multicast &
+ *       Other Multicast) and set each entry to 0.
+ *
+ * INPUT:
+ *	unsigned int    eth_port_num   Ethernet Port number.
+ *
+ * OUTPUT:
+ *       Multicast and Unicast packets are rejected.
+ *
+ * RETURN:
+ *       None.
+ */
 static void eth_port_init_mac_tables(unsigned int eth_port_num)
 {
 	int table_index;
@@ -1816,23 +1911,23 @@ static void eth_port_init_mac_tables(unsigned int eth_port_num)
 	}
 }
 
-/*******************************************************************************
-* eth_clear_mib_counters - Clear all MIB counters
-*
-* DESCRIPTION:
-*       This function clears all MIB counters of a specific ethernet port.
-*       A read from the MIB counter will reset the counter.
-*
-* INPUT:
-*	unsigned int    eth_port_num   Ethernet Port number.
-*
-* OUTPUT:
-*       After reading all MIB counters, the counters resets.
-*
-* RETURN:
-*       MIB counter value.
-*
-*******************************************************************************/
+/*
+ * eth_clear_mib_counters - Clear all MIB counters
+ *
+ * DESCRIPTION:
+ *       This function clears all MIB counters of a specific ethernet port.
+ *       A read from the MIB counter will reset the counter.
+ *
+ * INPUT:
+ *	unsigned int    eth_port_num   Ethernet Port number.
+ *
+ * OUTPUT:
+ *       After reading all MIB counters, the counters resets.
+ *
+ * RETURN:
+ *       MIB counter value.
+ *
+ */
 static void eth_clear_mib_counters(unsigned int eth_port_num)
 {
 	int i;
@@ -1844,23 +1939,22 @@ static void eth_clear_mib_counters(unsigned int eth_port_num)
 
 
 #ifdef MDD_CUT
-/*******************************************************************************
-* ethernet_phy_set - Set the ethernet port PHY address.
-*
-* DESCRIPTION:
-*       This routine set the ethernet port PHY address according to given 
-*       parameter.
-*
-* INPUT:
-*		unsigned int   eth_port_num   Ethernet Port number.
-*
-* OUTPUT:
-*       Set PHY Address Register with given PHY address parameter.
-*
-* RETURN:
-*       None.
-*
-*******************************************************************************/
+/*
+ * ethernet_phy_set - Set the ethernet port PHY address.
+ *
+ * DESCRIPTION:
+ *       This routine set the ethernet port PHY address according to given 
+ *       parameter.
+ *
+ * INPUT:
+ *		unsigned int   eth_port_num   Ethernet Port number.
+ *
+ * OUTPUT:
+ *       Set PHY Address Register with given PHY address parameter.
+ *
+ * RETURN:
+ *       None.
+ */
 static void ethernet_phy_set(unsigned int eth_port_num, int phy_addr)
 {
 	unsigned int reg_data;
@@ -1876,7 +1970,7 @@ static void ethernet_phy_set(unsigned int eth_port_num, int phy_addr)
 }
 #endif
 
-/*******************************************************************************
+/*
  * ethernet_phy_get - Get the ethernet port PHY address.
  *
  * DESCRIPTION:
@@ -1891,7 +1985,7 @@ static void ethernet_phy_set(unsigned int eth_port_num, int phy_addr)
  * RETURN:
  *       PHY address.
  *
- *******************************************************************************/
+ */
 static int ethernet_phy_get(unsigned int eth_port_num)
 {
 	unsigned int reg_data;
@@ -1901,7 +1995,7 @@ static int ethernet_phy_get(unsigned int eth_port_num)
 	return ((reg_data >> (5 * eth_port_num)) & 0x1f);
 }
 
-/*******************************************************************************
+/*
  * ethernet_phy_reset - Reset Ethernet port PHY.
  *
  * DESCRIPTION:
@@ -1917,7 +2011,7 @@ static int ethernet_phy_get(unsigned int eth_port_num)
  * RETURN:
  *       None.
  *
-*******************************************************************************/
+ */
 static int ethernet_phy_reset(unsigned int eth_port_num)
 {
 	unsigned int time_out = 50;
@@ -1939,7 +2033,7 @@ static int ethernet_phy_reset(unsigned int eth_port_num)
 	return 1;
 }
 
-/*******************************************************************************
+/*
  * eth_port_reset - Reset Ethernet port
  *
  * DESCRIPTION:
@@ -1956,7 +2050,7 @@ static int ethernet_phy_reset(unsigned int eth_port_num)
  * RETURN:
  *       None.
  *
- *******************************************************************************/
+ */
 static void eth_port_reset(unsigned int eth_port_num)
 {
 	unsigned int reg_data;
@@ -2015,7 +2109,7 @@ static void eth_port_reset(unsigned int eth_port_num)
 	return;
 }
 
-/*******************************************************************************
+/*
  * ethernet_set_config_reg - Set specified bits in configuration register.
  *
  * DESCRIPTION:
@@ -2033,7 +2127,7 @@ static void eth_port_reset(unsigned int eth_port_num)
  * RETURN:
  *      None.
  *
- *******************************************************************************/
+ */
 static void ethernet_set_config_reg(unsigned int eth_port_num,
 				    unsigned int value)
 {
@@ -2046,7 +2140,7 @@ static void ethernet_set_config_reg(unsigned int eth_port_num,
 		 eth_config_reg);
 }
 
-/*******************************************************************************
+/*
  * ethernet_get_config_reg - Get the port configuration register
  *
  * DESCRIPTION:
@@ -2061,8 +2155,7 @@ static void ethernet_set_config_reg(unsigned int eth_port_num,
  *
  * RETURN:
  *       Port configuration register value.
- *
- *******************************************************************************/
+ */
 static unsigned int ethernet_get_config_reg(unsigned int eth_port_num)
 {
 	unsigned int eth_config_reg;
@@ -2073,7 +2166,7 @@ static unsigned int ethernet_get_config_reg(unsigned int eth_port_num)
 }
 
 
-/*******************************************************************************
+/*
  * eth_port_read_smi_reg - Read PHY registers
  *
  * DESCRIPTION:
@@ -2092,7 +2185,7 @@ static unsigned int ethernet_get_config_reg(unsigned int eth_port_num)
  *       false if the PHY is busy or read data is not in valid state.
  *       true otherwise.
  *
- *******************************************************************************/
+ */
 static int eth_port_read_smi_reg(unsigned int eth_port_num,
 	unsigned int phy_reg, unsigned int *value)
 {
@@ -2130,7 +2223,7 @@ static int eth_port_read_smi_reg(unsigned int eth_port_num,
 	return 1;
 }
 
-/*******************************************************************************
+/*
  * eth_port_write_smi_reg - Write to PHY registers
  *
  * DESCRIPTION:
@@ -2149,7 +2242,7 @@ static int eth_port_read_smi_reg(unsigned int eth_port_num,
  *      false if the PHY is busy.
  *      true otherwise.
  *
- *******************************************************************************/
+ */
 static int eth_port_write_smi_reg(unsigned int eth_port_num,
 	unsigned int phy_reg, unsigned int value)
 {
@@ -2173,162 +2266,7 @@ static int eth_port_write_smi_reg(unsigned int eth_port_num,
 	return 1;
 }
 
-/*******************************************************************************
- * ether_init_rx_desc_ring - Curve a Rx chain desc list and buffer in memory.
- *
- * DESCRIPTION:
- *       This function prepares a Rx chained list of descriptors and packet 
- *       buffers in a form of a ring. The routine must be called after port 
- *       initialization routine and before port start routine. 
- *       The Ethernet SDMA engine uses CPU bus addresses to access the various 
- *       devices in the system (i.e. DRAM). This function uses the ethernet 
- *       struct 'virtual to physical' routine (set by the user) to set the ring 
- *       with physical addresses.
- *
- * INPUT:
- *	struct eth_port_info   *p_eth_port_ctrl   Ethernet Port Control srtuct. 
- *      int 			rx_desc_num       Number of Rx descriptors
- *      int 			rx_buff_size      Size of Rx buffer
- *      unsigned int    rx_desc_base_addr  Rx descriptors memory area base addr.
- *      unsigned int    rx_buff_base_addr  Rx buffer memory area base addr.
- *
- * OUTPUT:
- *      The routine updates the Ethernet port control struct with information 
- *      regarding the Rx descriptors and buffers.
- *
- * RETURN:
- *      false if the given descriptors memory area is not aligned according to
- *      Ethernet SDMA specifications.
- *      true otherwise.
- *
- *******************************************************************************/
-static int ether_init_rx_desc_ring(struct eth_port_info * p_eth_port_ctrl,
-	int rx_desc_num, int rx_buff_size,
-	unsigned long rx_desc_base_addr, unsigned long rx_buff_base_addr)
-{
-	unsigned long buffer_addr = rx_buff_base_addr;
-	volatile ETH_RX_DESC *p_rx_desc;
-	int ix;
-
-	p_rx_desc = (ETH_RX_DESC *) rx_desc_base_addr;
-
-	/* Rx desc Must be 4LW aligned (i.e. Descriptor_Address[3:0]=0000). */
-	if (rx_buff_base_addr & 0xF)
-		return 0;
-
-	/* Rx buffers are limited to 64K bytes and Minimum size is 8 bytes  */
-	if ((rx_buff_size < 8) || (rx_buff_size > RX_BUFFER_MAX_SIZE))
-		return 0;
-
-	/* Rx buffers must be 64-bit aligned.       */
-	if ((rx_buff_base_addr + rx_buff_size) & 0x7)
-		return 0;
-
-	/* initialize the Rx descriptors ring */
-	for (ix = 0; ix < rx_desc_num; ix++) {
-		p_rx_desc[ix].buf_size = rx_buff_size;
-		p_rx_desc[ix].byte_cnt = 0x0000;
-		p_rx_desc[ix].cmd_sts =
-		    ETH_BUFFER_OWNED_BY_DMA | ETH_RX_ENABLE_INTERRUPT;
-		p_rx_desc[ix].next_desc_ptr = virt_to_bus(&(p_rx_desc[ix+1]));
-		p_rx_desc[ix].buf_ptr = buffer_addr;
-
-		dma_cache_wback_inv((unsigned long)p_rx_desc, sizeof(ETH_RX_DESC));
-		p_eth_port_ctrl->rx_skb[ix] = NULL;
-		buffer_addr += rx_buff_size;
-	}
-
-	/* Closing Rx descriptors ring */
-	p_rx_desc[rx_desc_num-1].next_desc_ptr = virt_to_bus(&(p_rx_desc[0]));
-	dma_cache_wback_inv((unsigned long)p_rx_desc, sizeof(ETH_RX_DESC));
-
-	/* Save Rx desc pointer to driver struct. */
-	p_eth_port_ctrl->rx_curr_desc_q = 0;
-	p_eth_port_ctrl->rx_used_desc_q = 0;
-
-	p_eth_port_ctrl->p_rx_desc_area = (ETH_RX_DESC *) rx_desc_base_addr;
-	p_eth_port_ctrl->rx_desc_area_size = rx_desc_num * sizeof(ETH_RX_DESC);
-
-	p_eth_port_ctrl->port_rx_queue_command |= 1;
-
-	return 1;
-}
-
-/*******************************************************************************
- * ether_init_tx_desc_ring - Curve a Tx chain desc list and buffer in memory.
- *
- * DESCRIPTION:
- *       This function prepares a Tx chained list of descriptors and packet 
- *       buffers in a form of a ring. The routine must be called after port 
- *       initialization routine and before port start routine. 
- *       The Ethernet SDMA engine uses CPU bus addresses to access the various 
- *       devices in the system (i.e. DRAM). This function uses the ethernet 
- *       struct 'virtual to physical' routine (set by the user) to set the ring 
- *       with physical addresses.
- *
- * INPUT:
- *	struct eth_port_info   *p_eth_port_ctrl   Ethernet Port Control srtuct. 
- *      int 		tx_desc_num        Number of Tx descriptors
- *      int 		tx_buff_size	   Size of Tx buffer
- *      unsigned int    tx_desc_base_addr  Tx descriptors memory area base addr.
- *
- * OUTPUT:
- *      The routine updates the Ethernet port control struct with information 
- *      regarding the Tx descriptors and buffers.
- *
- * RETURN:
- *      false if the given descriptors memory area is not aligned according to
- *      Ethernet SDMA specifications.
- *      true otherwise.
- *
- *******************************************************************************/
-static int ether_init_tx_desc_ring(struct eth_port_info * p_eth_port_ctrl,
-	int tx_desc_num, unsigned long tx_desc_base_addr)
-{
-
-	ETH_TX_DESC *p_tx_desc;
-	int ix;			/* a counter */
-
-	/* Tx desc Must be 4LW aligned (i.e. Descriptor_Address[3:0]=0000). */
-	if (tx_desc_base_addr & 0xF)
-		return 0;
-
-	/* save the first desc pointer to link with the last descriptor */
-	p_tx_desc = (ETH_TX_DESC *) tx_desc_base_addr;
-
-	/* Initialize the Tx descriptors ring */
-	for (ix = 0; ix < tx_desc_num; ix++) {
-		p_tx_desc[ix].byte_cnt = 0x0000;
-		p_tx_desc[ix].l4i_chk = 0x0000;
-		p_tx_desc[ix].cmd_sts = 0x00000000;
-		p_tx_desc[ix].next_desc_ptr = (u32)&(p_tx_desc[ix+1]);
-		p_tx_desc[ix].buf_ptr = 0x00000000;
-		dma_cache_wback_inv((unsigned long)&(p_tx_desc[ix]), sizeof(ETH_TX_DESC));
-		p_eth_port_ctrl->tx_skb[ix] = NULL;
-	}
-
-	/* Closing Tx descriptors ring */
-	p_tx_desc[tx_desc_num-1].next_desc_ptr = (u32)&(p_tx_desc[0]);
-	dma_cache_wback_inv((unsigned long)&(p_tx_desc[tx_desc_num-1]),
-			sizeof(ETH_TX_DESC));
-
-	/* Set Tx desc pointer in driver struct. */
-	p_eth_port_ctrl->tx_curr_desc_q = 0;
-	p_eth_port_ctrl->tx_used_desc_q = 0;
-#ifdef MV64340_CHECKSUM_OFFLOAD_TX
-        p_eth_port_ctrl->tx_first_desc_q = 0;
-#endif
-	/* Init Tx ring base and size parameters */
-	p_eth_port_ctrl->p_tx_desc_area = (ETH_TX_DESC*) tx_desc_base_addr;
-	p_eth_port_ctrl->tx_desc_area_size = tx_desc_num * sizeof(ETH_TX_DESC);
-
-	/* Add the queue to the list of Tx queues of this port */
-	p_eth_port_ctrl->port_tx_queue_command |= 1;
-
-	return 1;
-}
-
-/*******************************************************************************
+/*
  * eth_port_send - Send an Ethernet packet
  *
  * DESCRIPTION:
@@ -2342,8 +2280,8 @@ static int ether_init_tx_desc_ring(struct eth_port_info * p_eth_port_ctrl,
  *      descriptors per packet.
  *
  * INPUT:
- *	struct eth_port_info   *p_eth_port_ctrl   Ethernet Port Control srtuct. 
- *	PKT_INFO        *p_pkt_info       User packet buffer.
+ *	struct mv64340_private   *mp   Ethernet Port Control srtuct. 
+ *	struct pkt_info        *p_pkt_info       User packet buffer.
  *
  * OUTPUT:
  *	Tx ring 'curr' and 'first' indexes are updated. 
@@ -2354,51 +2292,50 @@ static int ether_init_tx_desc_ring(struct eth_port_info * p_eth_port_ctrl,
  *	ETH_QUEUE_LAST_RESOURCE if the routine uses the last Tx resource.
  *      ETH_OK otherwise.
  *
- *******************************************************************************/
+ */
 #ifdef  MV64340_CHECKSUM_OFFLOAD_TX
 /*
  * Modified to include the first descriptor pointer in case of SG
  */
-static ETH_FUNC_RET_STATUS eth_port_send(struct eth_port_info * p_eth_port_ctrl,
-                                         PKT_INFO * p_pkt_info)
+static ETH_FUNC_RET_STATUS eth_port_send(struct mv64340_private * mp,
+                                         struct pkt_info * p_pkt_info)
 {
-        int tx_desc_curr, tx_desc_used, tx_first_desc, tx_next_desc;
-        volatile ETH_TX_DESC* current_descriptor;
-        volatile ETH_TX_DESC* first_descriptor;
-        u32 command_status, first_chip_ptr;
+	int tx_desc_curr, tx_desc_used, tx_first_desc, tx_next_desc;
+	volatile struct eth_tx_desc *current_descriptor;
+	volatile struct eth_tx_desc *first_descriptor;
+	u32 command_status, first_chip_ptr;
 
-        /* Do not process Tx ring in case of Tx ring resource error */
-        if (p_eth_port_ctrl->tx_resource_err)
-                return ETH_QUEUE_FULL;
+	/* Do not process Tx ring in case of Tx ring resource error */
+	if (mp->tx_resource_err)
+		return ETH_QUEUE_FULL;
 
-        /* Get the Tx Desc ring indexes */
-        tx_desc_curr = p_eth_port_ctrl->tx_curr_desc_q;
-        tx_desc_used = p_eth_port_ctrl->tx_used_desc_q;
+	/* Get the Tx Desc ring indexes */
+	tx_desc_curr = mp->tx_curr_desc_q;
+	tx_desc_used = mp->tx_used_desc_q;
 
-        current_descriptor = &(p_eth_port_ctrl->p_tx_desc_area[tx_desc_curr]);
-        if (current_descriptor == NULL)
-                return ETH_ERROR;
+	current_descriptor = &mp->p_tx_desc_area[tx_desc_curr];
+	if (current_descriptor == NULL)
+		return ETH_ERROR;
 
-        tx_next_desc = (tx_desc_curr + 1) % MV64340_TX_QUEUE_SIZE;
-        command_status = p_pkt_info->cmd_sts | ETH_ZERO_PADDING | ETH_GEN_CRC;
+	tx_next_desc = (tx_desc_curr + 1) % MV64340_TX_QUEUE_SIZE;
+	command_status = p_pkt_info->cmd_sts | ETH_ZERO_PADDING | ETH_GEN_CRC;
 
-        if (command_status & ETH_TX_FIRST_DESC) {
-                tx_first_desc = tx_desc_curr;
-                p_eth_port_ctrl->tx_first_desc_q = tx_first_desc;
+	if (command_status & ETH_TX_FIRST_DESC) {
+		tx_first_desc = tx_desc_curr;
+		mp->tx_first_desc_q = tx_first_desc;
 
                 /* fill first descriptor */
-                first_descriptor = &(p_eth_port_ctrl->p_tx_desc_area[tx_desc_curr]);
+                first_descriptor = &mp->p_tx_desc_area[tx_desc_curr];
                 first_descriptor->l4i_chk = p_pkt_info->l4i_chk;
                 first_descriptor->cmd_sts = command_status;
                 first_descriptor->byte_cnt = p_pkt_info->byte_cnt;
                 first_descriptor->buf_ptr = p_pkt_info->buf_ptr;
-                first_descriptor->next_desc_ptr = (u32)&(p_eth_port_ctrl->p_tx_desc_area[tx_next_desc]);
-                dma_cache_wback_inv((unsigned long)first_descriptor, sizeof(ETH_TX_DESC));
+                first_descriptor->next_desc_ptr =
+			(struct eth_tx_desc *) mp->tx_desc_dma + tx_next_desc;
 		wmb();
-        }
-        else {
-                tx_first_desc = p_eth_port_ctrl->tx_first_desc_q;
-                first_descriptor = &(p_eth_port_ctrl->p_tx_desc_area[tx_first_desc]);
+        } else {
+                tx_first_desc = mp->tx_first_desc_q;
+                first_descriptor = &mp->p_tx_desc_area[tx_first_desc];
                 if (first_descriptor == NULL) {
                         printk("First desc is NULL !!\n");
                         return ETH_ERROR;
@@ -2407,7 +2344,8 @@ static ETH_FUNC_RET_STATUS eth_port_send(struct eth_port_info * p_eth_port_ctrl,
                         current_descriptor->next_desc_ptr = 0x00000000;
                 else {
                         command_status |= ETH_BUFFER_OWNED_BY_DMA;
-                        current_descriptor->next_desc_ptr = (u32)&(p_eth_port_ctrl->p_tx_desc_area[tx_next_desc]);
+                        current_descriptor->next_desc_ptr =
+			  (struct eth_tx_desc *) mp->tx_desc_dma + tx_next_desc;
                 }
         }
 
@@ -2420,12 +2358,9 @@ static ETH_FUNC_RET_STATUS eth_port_send(struct eth_port_info * p_eth_port_ctrl,
         current_descriptor->byte_cnt = p_pkt_info->byte_cnt;
         current_descriptor->l4i_chk = p_pkt_info->l4i_chk;
         current_descriptor->cmd_sts = command_status;
-        dma_cache_wback_inv((unsigned long)current_descriptor, sizeof(ETH_TX_DESC));
 
-        p_eth_port_ctrl->tx_skb[tx_desc_curr] =
-                (struct sk_buff*)p_pkt_info->return_info;
+        mp->tx_skb[tx_desc_curr] = (struct sk_buff*) p_pkt_info->return_info;
 
-	dma_cache_wback_inv((unsigned long)p_eth_port_ctrl, sizeof(struct eth_port_info));
         wmb();
 
         /* Set last desc with DMA ownership and interrupt enable. */
@@ -2434,64 +2369,60 @@ static ETH_FUNC_RET_STATUS eth_port_send(struct eth_port_info * p_eth_port_ctrl,
                                         ETH_TX_ENABLE_INTERRUPT |
                                         ETH_BUFFER_OWNED_BY_DMA;
 
-                if (!(command_status & ETH_TX_FIRST_DESC) ) {
-                        first_descriptor->cmd_sts |= ETH_BUFFER_OWNED_BY_DMA;
-                        dma_cache_wback_inv((unsigned long)first_descriptor, sizeof(ETH_TX_DESC));
-                }
-                dma_cache_wback_inv((unsigned long)current_descriptor, sizeof(ETH_TX_DESC));
-                wmb();
+		if (!(command_status & ETH_TX_FIRST_DESC))
+			first_descriptor->cmd_sts |= ETH_BUFFER_OWNED_BY_DMA;
+		wmb();
 
-                first_chip_ptr = MV_READ(MV64340_ETH_CURRENT_SERVED_TX_DESC_PTR(p_eth_port_ctrl->port_num));
+		first_chip_ptr = MV_READ(MV64340_ETH_CURRENT_SERVED_TX_DESC_PTR(mp->port_num));
 
-                /* Apply send command */
-                if (first_chip_ptr == 0x00000000) {
-                        MV_WRITE(MV64340_ETH_TX_CURRENT_QUEUE_DESC_PTR_0(p_eth_port_ctrl->port_num), (u32)&(p_eth_port_ctrl->p_tx_desc_area[tx_first_desc]));
-                }
+		/* Apply send command */
+		if (first_chip_ptr == 0x00000000)
+			MV_WRITE(MV64340_ETH_TX_CURRENT_QUEUE_DESC_PTR_0(mp->port_num), (struct eth_tx_desc *) mp->tx_desc_dma + tx_first_desc);
 
-                ETH_ENABLE_TX_QUEUE(p_eth_port_ctrl->port_num);
+                ETH_ENABLE_TX_QUEUE(mp->port_num);
 
-           /* Finish Tx packet. Update first desc in case of Tx resource error */
+		/*
+		 * Finish Tx packet. Update first desc in case of Tx resource
+		 * error */
                 tx_first_desc = tx_next_desc;
-                p_eth_port_ctrl->tx_first_desc_q = tx_first_desc;
-        }
-        else {
-                if (! (command_status & ETH_TX_FIRST_DESC) ) {
-                        current_descriptor->cmd_sts = command_status;
-                        dma_cache_wback_inv((unsigned long)current_descriptor,
-                                                        sizeof(ETH_TX_DESC));
-                        wmb();
-                }
-        }
+                mp->tx_first_desc_q = tx_first_desc;
+	} else {
+		if (! (command_status & ETH_TX_FIRST_DESC) ) {
+			current_descriptor->cmd_sts = command_status;
+			wmb();
+		}
+	}
 
         /* Check for ring index overlap in the Tx desc ring */
         if (tx_next_desc == tx_desc_used) {
-                p_eth_port_ctrl->tx_resource_err = 1;
-                p_eth_port_ctrl->tx_curr_desc_q = tx_first_desc;
-                return ETH_QUEUE_LAST_RESOURCE;
-        }
+                mp->tx_resource_err = 1;
+                mp->tx_curr_desc_q = tx_first_desc;
 
-        p_eth_port_ctrl->tx_curr_desc_q = tx_next_desc;
-        dma_cache_wback_inv((unsigned long) p_eth_port_ctrl, sizeof(struct eth_port_info));
+                return ETH_QUEUE_LAST_RESOURCE;
+	}
+
+        mp->tx_curr_desc_q = tx_next_desc;
         wmb();
+
         return ETH_OK;
 }
 #else
-static ETH_FUNC_RET_STATUS eth_port_send(struct eth_port_info * p_eth_port_ctrl,
-					 PKT_INFO * p_pkt_info)
+static ETH_FUNC_RET_STATUS eth_port_send(struct mv64340_private * mp,
+					 struct pkt_info * p_pkt_info)
 {
 	int tx_desc_curr;
 	int tx_desc_used;
-	volatile ETH_TX_DESC* current_descriptor;
+	volatile struct eth_tx_desc* current_descriptor;
 	unsigned int command_status;
 
 	/* Do not process Tx ring in case of Tx ring resource error */
-	if (p_eth_port_ctrl->tx_resource_err == true)
+	if (mp->tx_resource_err)
 		return ETH_QUEUE_FULL;
 
 	/* Get the Tx Desc ring indexes */
-	tx_desc_curr = p_eth_port_ctrl->tx_curr_desc_q;
-	tx_desc_used = p_eth_port_ctrl->tx_used_desc_q;
-	current_descriptor = &(p_eth_port_ctrl->p_tx_desc_area[tx_desc_curr]);
+	tx_desc_curr = mp->tx_curr_desc_q;
+	tx_desc_used = mp->tx_used_desc_q;
+	current_descriptor = &mp->p_tx_desc_area[tx_desc_curr];
 
 	if (current_descriptor == NULL)
 		return ETH_ERROR;
@@ -2510,33 +2441,26 @@ static ETH_FUNC_RET_STATUS eth_port_send(struct eth_port_info * p_eth_port_ctrl,
 	}
 	current_descriptor->buf_ptr = p_pkt_info->buf_ptr;
 	current_descriptor->byte_cnt = p_pkt_info->byte_cnt;
-	p_eth_port_ctrl->tx_skb[tx_desc_curr] =
-		(struct sk_buff*)p_pkt_info->return_info;
+	mp->tx_skb[tx_desc_curr] = (struct sk_buff *) p_pkt_info->return_info;
 
 	mb();
 
 	/* Set last desc with DMA ownership and interrupt enable. */
 	current_descriptor->cmd_sts = command_status |
-	    ETH_BUFFER_OWNED_BY_DMA | ETH_TX_ENABLE_INTERRUPT;
-
-#if 0
-	/* Flush CPU pipe */
-	dma_cache_wback_inv(current_descriptor, sizeof(ETH_TX_DESC));
-	mb();
-#endif
+			ETH_BUFFER_OWNED_BY_DMA | ETH_TX_ENABLE_INTERRUPT;
 
 	/* Apply send command */
-	ETH_ENABLE_TX_QUEUE(p_eth_port_ctrl->port_num);
+	ETH_ENABLE_TX_QUEUE(mp->port_num);
 
 	/* Finish Tx packet. Update first desc in case of Tx resource error */
 	tx_desc_curr = (tx_desc_curr + 1) % MV64340_TX_QUEUE_SIZE;
 
 	/* Update the current descriptor */
- 	p_eth_port_ctrl->tx_curr_desc_q = tx_desc_curr;
+ 	mp->tx_curr_desc_q = tx_desc_curr;
 
 	/* Check for ring index overlap in the Tx desc ring */
 	if (tx_desc_curr == tx_desc_used) {
-		p_eth_port_ctrl->tx_resource_err = true;
+		mp->tx_resource_err = 1;
 		return ETH_QUEUE_LAST_RESOURCE;
 	}
 
@@ -2544,7 +2468,7 @@ static ETH_FUNC_RET_STATUS eth_port_send(struct eth_port_info * p_eth_port_ctrl,
 }
 #endif
 
-/*******************************************************************************
+/*
  * eth_tx_return_desc - Free all used Tx descriptors
  *
  * DESCRIPTION:
@@ -2555,8 +2479,8 @@ static ETH_FUNC_RET_STATUS eth_port_send(struct eth_port_info * p_eth_port_ctrl,
  *      no available Tx resources, the function resets the resource error flag.
  *
  * INPUT:
- *	struct eth_port_info   *p_eth_port_ctrl   Ethernet Port Control srtuct. 
- *	PKT_INFO        *p_pkt_info       User packet buffer.
+ *	struct mv64340_private   *mp   Ethernet Port Control srtuct. 
+ *	struct pkt_info        *p_pkt_info       User packet buffer.
  *
  * OUTPUT:
  *	Tx ring 'first' and 'used' indexes are updated. 
@@ -2567,24 +2491,24 @@ static ETH_FUNC_RET_STATUS eth_port_send(struct eth_port_info * p_eth_port_ctrl,
  *	ETH_END_OF_JOB if the routine has nothing to release.
  *      ETH_OK otherwise.
  *
- *******************************************************************************/
-static ETH_FUNC_RET_STATUS eth_tx_return_desc(struct eth_port_info * p_eth_port_ctrl,
-					      PKT_INFO * p_pkt_info)
+ */
+static ETH_FUNC_RET_STATUS eth_tx_return_desc(struct mv64340_private * mp,
+					      struct pkt_info * p_pkt_info)
 {
 	int tx_desc_used, tx_desc_curr;
 #ifdef MV64340_CHECKSUM_OFFLOAD_TX
         int tx_first_desc;
 #endif
-	volatile ETH_TX_DESC *p_tx_desc_used;
+	volatile struct eth_tx_desc *p_tx_desc_used;
 	unsigned int command_status;
 
 	/* Get the Tx Desc ring indexes */
-	tx_desc_curr = p_eth_port_ctrl->tx_curr_desc_q;
-	tx_desc_used = p_eth_port_ctrl->tx_used_desc_q;
+	tx_desc_curr = mp->tx_curr_desc_q;
+	tx_desc_used = mp->tx_used_desc_q;
 #ifdef MV64340_CHECKSUM_OFFLOAD_TX
-        tx_first_desc = p_eth_port_ctrl->tx_first_desc_q;
+        tx_first_desc = mp->tx_first_desc_q;
 #endif
-	p_tx_desc_used = &(p_eth_port_ctrl->p_tx_desc_area[tx_desc_used]);
+	p_tx_desc_used = &mp->p_tx_desc_area[tx_desc_used];
 
 	/* XXX Sanity check */
 	if (p_tx_desc_used == NULL)
@@ -2594,42 +2518,33 @@ static ETH_FUNC_RET_STATUS eth_tx_return_desc(struct eth_port_info * p_eth_port_
 
 	/* Still transmitting... */
 #ifndef MV64340_CHECKSUM_OFFLOAD_TX
-	if (command_status & (ETH_BUFFER_OWNED_BY_DMA)) {
-	  dma_cache_wback_inv((unsigned long)p_tx_desc_used,
-				    sizeof(ETH_TX_DESC));
+	if (command_status & (ETH_BUFFER_OWNED_BY_DMA))
 		return ETH_RETRY;
-	}
 #endif
 	/* Stop release. About to overlap the current available Tx descriptor */
 #ifdef MV64340_CHECKSUM_OFFLOAD_TX
-	if (tx_desc_used == tx_first_desc &&
-#else
-	if (tx_desc_used == tx_desc_curr &&
-#endif
-	    !p_eth_port_ctrl->tx_resource_err) {
-	    dma_cache_wback_inv((unsigned long)p_tx_desc_used,
-				    sizeof(ETH_TX_DESC));
+	if (tx_desc_used == tx_first_desc && !mp->tx_resource_err)
 		return ETH_END_OF_JOB;
-	}
+#else
+	if (tx_desc_used == tx_desc_curr && !mp->tx_resource_err)
+		return ETH_END_OF_JOB;
+#endif
 
 	/* Pass the packet information to the caller */
 	p_pkt_info->cmd_sts = command_status;
-	p_pkt_info->return_info = p_eth_port_ctrl->tx_skb[tx_desc_used];
-	p_eth_port_ctrl->tx_skb[tx_desc_used] = NULL;
+	p_pkt_info->return_info = mp->tx_skb[tx_desc_used];
+	mp->tx_skb[tx_desc_used] = NULL;
 
 	/* Update the next descriptor to release. */
-	p_eth_port_ctrl->tx_used_desc_q =
-		(tx_desc_used + 1) % MV64340_TX_QUEUE_SIZE;
+	mp->tx_used_desc_q = (tx_desc_used + 1) % MV64340_TX_QUEUE_SIZE;
 
 	/* Any Tx return cancels the Tx resource error status */
-	p_eth_port_ctrl->tx_resource_err = 0;
-
-	dma_cache_wback_inv((unsigned long)p_tx_desc_used, sizeof(ETH_TX_DESC));
+	mp->tx_resource_err = 0;
 
 	return ETH_OK;
 }
 
-/*******************************************************************************
+/*
  * eth_port_receive - Get received information from Rx ring.
  *
  * DESCRIPTION:
@@ -2640,8 +2555,8 @@ static ETH_FUNC_RET_STATUS eth_tx_return_desc(struct eth_port_info * p_eth_port_
  *      is set.  
  *
  * INPUT:
- *	struct eth_port_info   *p_eth_port_ctrl   Ethernet Port Control srtuct. 
- *	PKT_INFO        *p_pkt_info       User packet buffer.
+ *	struct mv64340_private   *mp   Ethernet Port Control srtuct. 
+ *	struct pkt_info        *p_pkt_info       User packet buffer.
  *
  * OUTPUT:
  *	Rx ring current and used indexes are updated. 
@@ -2651,56 +2566,49 @@ static ETH_FUNC_RET_STATUS eth_tx_return_desc(struct eth_port_info * p_eth_port_
  *	ETH_QUEUE_FULL if Rx ring resources are exhausted.
  *	ETH_END_OF_JOB if there is no received data.
  *      ETH_OK otherwise.
- *
- *******************************************************************************/
-static ETH_FUNC_RET_STATUS eth_port_receive(struct eth_port_info *
-					    p_eth_port_ctrl,
-					    PKT_INFO * p_pkt_info)
+ */
+static ETH_FUNC_RET_STATUS eth_port_receive(struct mv64340_private * mp,
+					    struct pkt_info * p_pkt_info)
 {
-	int rx_curr_desc;
-	int rx_next_curr_desc;
-	int rx_used_desc;
+	int rx_next_curr_desc, rx_curr_desc, rx_used_desc;
+	volatile struct eth_rx_desc * p_rx_desc;
 	unsigned int command_status;
-	volatile ETH_RX_DESC*	p_rx_desc;
 
 	/* Do not process Rx ring in case of Rx ring resource error */
-	if (p_eth_port_ctrl->rx_resource_err)
+	if (mp->rx_resource_err)
 		return ETH_QUEUE_FULL;
 
 	/* Get the Rx Desc ring 'curr and 'used' indexes */
-	rx_curr_desc = p_eth_port_ctrl->rx_curr_desc_q;
-	rx_used_desc = p_eth_port_ctrl->rx_used_desc_q;
+	rx_curr_desc = mp->rx_curr_desc_q;
+	rx_used_desc = mp->rx_used_desc_q;
 
-	p_rx_desc = &(p_eth_port_ctrl->p_rx_desc_area[rx_curr_desc]);
+	p_rx_desc = &mp->p_rx_desc_area[rx_curr_desc];
 
 	/* The following parameters are used to save readings from memory */
 	command_status = p_rx_desc->cmd_sts;
 
 	/* Nothing to receive... */
-	if (command_status & (ETH_BUFFER_OWNED_BY_DMA)) {
-		dma_cache_wback_inv((unsigned long)p_rx_desc, sizeof(ETH_RX_DESC));
+	if (command_status & (ETH_BUFFER_OWNED_BY_DMA))
 		return ETH_END_OF_JOB;
-	}
 
 	p_pkt_info->byte_cnt = (p_rx_desc->byte_cnt) - RX_BUF_OFFSET;
 	p_pkt_info->cmd_sts = command_status;
 	p_pkt_info->buf_ptr = (p_rx_desc->buf_ptr) + RX_BUF_OFFSET;
-	p_pkt_info->return_info = p_eth_port_ctrl->rx_skb[rx_curr_desc];
+	p_pkt_info->return_info = mp->rx_skb[rx_curr_desc];
 	p_pkt_info->l4i_chk = p_rx_desc->buf_size;
 
 	/* Clean the return info field to indicate that the packet has been */
 	/* moved to the upper layers                                        */
-	p_eth_port_ctrl->rx_skb[rx_curr_desc] = NULL;
+	mp->rx_skb[rx_curr_desc] = NULL;
 
 	/* Update current index in data structure */
 	rx_next_curr_desc = (rx_curr_desc + 1) % MV64340_RX_QUEUE_SIZE;
-	p_eth_port_ctrl->rx_curr_desc_q = rx_next_curr_desc;
+	mp->rx_curr_desc_q = rx_next_curr_desc;
 
 	/* Rx descriptors exhausted. Set the Rx ring resource error flag */
 	if (rx_next_curr_desc == rx_used_desc)
-		p_eth_port_ctrl->rx_resource_err = 1;
+		mp->rx_resource_err = 1;
 
-	dma_cache_wback_inv((unsigned long)p_rx_desc, sizeof(ETH_RX_DESC));
 	mb();
 	return ETH_OK;
 }
@@ -2715,8 +2623,8 @@ static ETH_FUNC_RET_STATUS eth_port_receive(struct eth_port_info *
  *      no available Rx resources, the function resets the resource error flag.
  *
  * INPUT:
- *	struct eth_port_info   *p_eth_port_ctrl   Ethernet Port Control srtuct. 
- *      PKT_INFO        *p_pkt_info       Information on the returned buffer.
+ *	struct mv64340_private *mp   Ethernet Port Control srtuct. 
+ *      struct pkt_info        *p_pkt_info   Information on the returned buffer.
  *
  * OUTPUT:
  *	New available Rx resource in Rx descriptor ring.
@@ -2724,45 +2632,42 @@ static ETH_FUNC_RET_STATUS eth_port_receive(struct eth_port_info *
  * RETURN:
  *	ETH_ERROR in case the routine can not access Rx desc ring.
  *      ETH_OK otherwise.
- *
  */
-static ETH_FUNC_RET_STATUS eth_rx_return_buff(struct eth_port_info * p_eth_port_ctrl,
-					      PKT_INFO * p_pkt_info)
+static ETH_FUNC_RET_STATUS eth_rx_return_buff(struct mv64340_private * mp,
+	struct pkt_info * p_pkt_info)
 {
 	int used_rx_desc;	/* Where to return Rx resource */
-	volatile ETH_RX_DESC* p_used_rx_desc;
+	volatile struct eth_rx_desc* p_used_rx_desc;
 
 	/* Get 'used' Rx descriptor */
-	used_rx_desc = p_eth_port_ctrl->rx_used_desc_q;
-	p_used_rx_desc = &(p_eth_port_ctrl->p_rx_desc_area[used_rx_desc]);
+	used_rx_desc = mp->rx_used_desc_q;
+	p_used_rx_desc = &mp->p_rx_desc_area[used_rx_desc];
 
 	p_used_rx_desc->buf_ptr = p_pkt_info->buf_ptr;
 	p_used_rx_desc->buf_size = p_pkt_info->byte_cnt;
-	p_eth_port_ctrl->rx_skb[used_rx_desc] = p_pkt_info->return_info;
+	mp->rx_skb[used_rx_desc] = p_pkt_info->return_info;
 
 	/* Flush the write pipe */
 	mb();
 
 	/* Return the descriptor to DMA ownership */
 	p_used_rx_desc->cmd_sts =
-	    ETH_BUFFER_OWNED_BY_DMA | ETH_RX_ENABLE_INTERRUPT;
+		ETH_BUFFER_OWNED_BY_DMA | ETH_RX_ENABLE_INTERRUPT;
 
 	/* Flush descriptor and CPU pipe */
-	dma_cache_wback_inv((unsigned long)p_used_rx_desc, sizeof(ETH_RX_DESC));
 	mb();
 
 	/* Move the used descriptor pointer to the next descriptor */
-	p_eth_port_ctrl->rx_used_desc_q =
-		(used_rx_desc + 1) % MV64340_RX_QUEUE_SIZE;
+	mp->rx_used_desc_q = (used_rx_desc + 1) % MV64340_RX_QUEUE_SIZE;
 
 	/* Any Rx return cancels the Rx resource error status */
-	p_eth_port_ctrl->rx_resource_err = 0;
+	mp->rx_resource_err = 0;
 
 	return ETH_OK;
 }
 
 #ifdef MDD_CUT
-/*******************************************************************************
+/*
  * eth_b_copy - Copy bytes from source to destination
  *
  * DESCRIPTION:
@@ -2781,7 +2686,7 @@ static ETH_FUNC_RET_STATUS eth_rx_return_buff(struct eth_port_info * p_eth_port_
  * RETURN:
  *       None.
  *
- *******************************************************************************/
+ */
 static void eth_b_copy(unsigned int src_addr, unsigned int dst_addr,
 		       int byte_count)
 {

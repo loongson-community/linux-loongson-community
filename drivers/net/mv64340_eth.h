@@ -1,11 +1,9 @@
 #ifndef __MV64340_ETH_H__
 #define __MV64340_ETH_H__
 
-#include <linux/config.h>
 #include <linux/version.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
-#include <linux/config.h>
 #include <linux/spinlock.h>
 #include <linux/workqueue.h>
 
@@ -44,22 +42,18 @@
 #define	BIT30	0x40000000
 #define	BIT31	0x80000000
 
-/*************************************************************************
-**************************************************************************
-**************************************************************************
-*  The first part is the high level driver of the gigE ethernet ports.   *
-**************************************************************************
-**************************************************************************
-*************************************************************************/
+/*
+ *  The first part is the high level driver of the gigE ethernet ports.
+ */
 
 #define ETH_PORT0_IRQ_NUM 48			/* main high register, bit0 */
 #define ETH_PORT1_IRQ_NUM ETH_PORT0_IRQ_NUM+1	/* main high register, bit1 */
 #define ETH_PORT2_IRQ_NUM ETH_PORT0_IRQ_NUM+2	/* main high register, bit1 */
 
 /* Checksum offload for Tx works */
-#define  MV64340_CHECKSUM_OFFLOAD_TX	1
-#define	 MV64340_NAPI			1
-#define	 MV64340_TX_FAST_REFILL		1
+#define  MV64340_CHECKSUM_OFFLOAD_TX
+#undef	 MV64340_NAPI
+#define	 MV64340_TX_FAST_REFILL
 #undef	 MV64340_COAL
 
 /* 
@@ -446,57 +440,57 @@ typedef enum _eth_target {
  * definitions.
  */
 #if defined(__BIG_ENDIAN)
-typedef struct _eth_rx_desc {
+struct eth_rx_desc {
 	u16	byte_cnt;	/* Descriptor buffer byte count     */
 	u16	buf_size;	/* Buffer size                      */
 	u32	cmd_sts;	/* Descriptor command status        */
 	u32	next_desc_ptr;	/* Next descriptor pointer          */
 	u32	buf_ptr;	/* Descriptor buffer pointer        */
-} ETH_RX_DESC;
+};
 
-typedef struct _eth_tx_desc {
+struct eth_tx_desc {
 	u16	byte_cnt;	/* buffer byte count */
 	u16	l4i_chk;	/* CPU provided TCP checksum */
 	u32	cmd_sts;	/* Command/status field */
 	u32	next_desc_ptr;	/* Pointer to next descriptor */
 	u32	buf_ptr;	/* pointer to buffer for this descriptor */
-} ETH_TX_DESC;
+};
 
 #elif defined(__LITTLE_ENDIAN)
-typedef struct _eth_rx_desc {
+struct eth_rx_desc {
 	u32	cmd_sts;	/* Descriptor command status        */
 	u16	buf_size;	/* Buffer size                      */
 	u16	byte_cnt;	/* Descriptor buffer byte count     */
 	u32	buf_ptr;	/* Descriptor buffer pointer        */
 	u32	next_desc_ptr;	/* Next descriptor pointer          */
-} ETH_RX_DESC;
+};
 
-typedef struct _eth_tx_desc {
+struct eth_tx_desc {
 	u32	cmd_sts;	/* Command/status field */
 	u16	l4i_chk;	/* CPU provided TCP checksum */
 	u16	byte_cnt;	/* buffer byte count */
 	u32	buf_ptr;	/* pointer to buffer for this descriptor */
 	u32	next_desc_ptr;	/* Pointer to next descriptor */
-} ETH_TX_DESC;
+};
 #else
 #error One of __BIG_ENDIAN or __LITTLE_ENDIAN must be defined
 #endif
 
 /* Unified struct for Rx and Tx operations. The user is not required to */
 /* be familier with neither Tx nor Rx descriptors.                       */
-typedef struct _pkt_info {
-	unsigned short byte_cnt;	/* Descriptor buffer byte count     */
-	unsigned short l4i_chk;	/* Tx CPU provided TCP Checksum     */
-	unsigned int cmd_sts;	/* Descriptor command status        */
-	unsigned int buf_ptr;	/* Descriptor buffer pointer        */
-	struct sk_buff* return_info;	/* User resource return information */
-} PKT_INFO;
+struct pkt_info {
+	unsigned short	byte_cnt;	/* Descriptor buffer byte count     */
+	unsigned short	l4i_chk;	/* Tx CPU provided TCP Checksum     */
+	unsigned int	cmd_sts;	/* Descriptor command status        */
+	dma_addr_t	buf_ptr;	/* Descriptor buffer pointer        */
+	struct sk_buff	* return_info;	/* User resource return information */
+};
 
 
 /* Ethernet port specific infomation */
 
-struct eth_port_info {
-	int	 port_num;		/* User Ethernet port number */
+struct mv64340_private {
+	int	port_num;		/* User Ethernet port number */
 	u8	port_mac_addr[6];	/* User defined port MAC address. */
 	u32	port_config;		/* User port configuration value */
 	u32	port_config_extend;	/* User port config extend value */
@@ -523,15 +517,17 @@ struct eth_port_info {
 	u32	tx_clean_threshold;
 #endif
 
-	/* Tx/Rx rings size and base variables fields. For driver use */
-	volatile ETH_RX_DESC *p_rx_desc_area;
-	unsigned int rx_desc_area_size;
-	struct sk_buff* rx_skb[MV64340_RX_QUEUE_SIZE];
+	volatile struct eth_rx_desc	* p_rx_desc_area;
+	dma_addr_t			rx_desc_dma;
+	unsigned int			rx_desc_area_size;
+	struct sk_buff			* rx_skb[MV64340_RX_QUEUE_SIZE];
 
-	volatile ETH_TX_DESC *p_tx_desc_area;
-	unsigned int tx_desc_area_size;
-	struct sk_buff* tx_skb[MV64340_TX_QUEUE_SIZE];
-	struct work_struct tx_timeout_task;
+	volatile struct eth_tx_desc	* p_tx_desc_area;
+	dma_addr_t			tx_desc_dma;
+	unsigned int			tx_desc_area_size;
+	struct sk_buff			* tx_skb[MV64340_TX_QUEUE_SIZE];
+
+	struct work_struct		tx_timeout_task;
 
 	/*
 	 * Former struct mv64340_eth_priv members start here
@@ -567,9 +563,9 @@ struct eth_port_info {
 /* ethernet.h API list */
 
 /* Port operation control routines */
-static void eth_port_init(struct eth_port_info * p_eth_port_ctrl);
+static void eth_port_init(struct mv64340_private *mp);
 static void eth_port_reset(unsigned int eth_port_num);
-static int eth_port_start(struct eth_port_info * p_eth_port_ctrl);
+static int eth_port_start(struct mv64340_private *mp);
 
 static void ethernet_set_config_reg(unsigned int eth_port_num,
 				    unsigned int value);
@@ -593,27 +589,13 @@ static int eth_port_read_smi_reg(unsigned int eth_port_num,
 static void eth_clear_mib_counters(unsigned int eth_port_num);
 
 /* Port data flow control routines */
-static ETH_FUNC_RET_STATUS eth_port_send(struct eth_port_info * p_eth_port_ctrl,
-					 PKT_INFO * p_pkt_info);
-static ETH_FUNC_RET_STATUS eth_tx_return_desc(struct eth_port_info *
-					      p_eth_port_ctrl,
-					      PKT_INFO * p_pkt_info);
-static ETH_FUNC_RET_STATUS eth_port_receive(struct eth_port_info *
-					    p_eth_port_ctrl,
-					    PKT_INFO * p_pkt_info);
-static ETH_FUNC_RET_STATUS eth_rx_return_buff(struct eth_port_info *
-					      p_eth_port_ctrl,
-					      PKT_INFO * p_pkt_info);
+static ETH_FUNC_RET_STATUS eth_port_send(struct mv64340_private *mp,
+					 struct pkt_info * p_pkt_info);
+static ETH_FUNC_RET_STATUS eth_tx_return_desc(struct mv64340_private *mp,
+					      struct pkt_info * p_pkt_info);
+static ETH_FUNC_RET_STATUS eth_port_receive(struct mv64340_private *mp,
+					    struct pkt_info * p_pkt_info);
+static ETH_FUNC_RET_STATUS eth_rx_return_buff(struct mv64340_private *mp,
+					      struct pkt_info * p_pkt_info);
 
-
-static int ether_init_tx_desc_ring(struct eth_port_info * p_eth_port_ctrl,
-				    int tx_desc_num,
-				    unsigned long tx_desc_base_addr);
-
-static int ether_init_rx_desc_ring(struct eth_port_info * p_eth_port_ctrl,
-				    int rx_desc_num,
-				    int rx_buff_size,
-				    unsigned long rx_desc_base_addr,
-				    unsigned long rx_buff_base_addr);
-
-#endif				/* MV64340_ETH_ */
+#endif  /* __MV64340_ETH_H__ */
