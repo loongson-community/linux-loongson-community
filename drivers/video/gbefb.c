@@ -85,7 +85,6 @@ static struct {
 
 static int gbe_revision;
 
-static struct fb_info fb_info;
 static int ypan, ywrap;
 
 static uint32_t pseudo_palette[256];
@@ -1045,6 +1044,36 @@ static struct fb_ops gbefb_ops = {
 };
 
 /*
+ * sysfs
+ */
+
+static ssize_t gbefb_show_memsize(struct device *dev, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d\n", gbe_mem_size);
+}
+
+static DEVICE_ATTR(size, S_IRUGO, gbefb_show_memsize, NULL);
+
+static ssize_t gbefb_show_rev(struct device *device, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d\n", gbe_revision);
+}
+
+static DEVICE_ATTR(revision, S_IRUGO, gbefb_show_rev, NULL);
+
+static void gbefb_remove_sysfs(struct device *dev)
+{
+	device_remove_file(dev, &dev_attr_size);
+	device_remove_file(dev, &dev_attr_revision);
+}
+
+static void gbefb_create_sysfs(struct device *dev) 
+{
+	device_create_file(dev, &dev_attr_size);
+	device_create_file(dev, &dev_attr_revision);
+}
+
+/*
  * Initialization
  */
 
@@ -1079,13 +1108,20 @@ int __init gbefb_setup(char *options)
 	return 0;
 }
 
-int __init gbefb_init(void)
+static int __init gbefb_probe(struct device *dev)
 {
 	int i, ret = 0;
+	struct fb_info *info;
+	struct platform_device *p_dev = to_platform_device(dev);
+
+	info = framebuffer_alloc(sizeof(struct fb_info), &p_dev->dev);
+	if (!info)
+		return -ENOMEM;
 
 	if (!request_mem_region(GBE_BASE, sizeof(struct sgi_gbe), "GBE")) {
 		printk(KERN_ERR "gbefb: couldn't reserve mmio region\n");
-		return -EBUSY;
+		ret = -EBUSY;
+		goto out_release_framebuffer;
 	}
 
 	gbe = (struct sgi_gbe *) ioremap(GBE_BASE, sizeof(struct sgi_gbe));
@@ -1104,7 +1140,6 @@ int __init gbefb_init(void)
 		ret = -ENOMEM;
 		goto out_unmap;
 	}
-
 
 	if (gbe_mem_phys) {
 		/* memory was allocated at boot time */
@@ -1132,33 +1167,36 @@ int __init gbefb_init(void)
 	for (i = 0; i < (gbe_mem_size >> TILE_SHIFT); i++)
 		gbe_tiles.cpu[i] = (gbe_mem_phys >> TILE_SHIFT) + i;
 
-	fb_info.currcon = -1;
-	fb_info.fbops = &gbefb_ops;
-	fb_info.pseudo_palette = pseudo_palette;
-	fb_info.flags = FBINFO_FLAG_DEFAULT;
-	fb_info.screen_base = gbe_mem;
-	fb_alloc_cmap(&fb_info.cmap, 256, 0);
+	info->currcon = -1;
+	info->fbops = &gbefb_ops;
+	info->pseudo_palette = pseudo_palette;
+	info->flags = FBINFO_FLAG_DEFAULT;
+	info->screen_base = gbe_mem;
+	fb_alloc_cmap(&info->cmap, 256, 0);
 
 	/* reset GBE */
 	gbe_reset();
 
 	/* turn on default video mode */
-	if (fb_find_mode(&par_current.var, &fb_info, mode_option, NULL, 0,
+	if (fb_find_mode(&par_current.var, info, mode_option, NULL, 0,
 			 default_mode, 8) == 0)
 		par_current.var = *default_var;
-	fb_info.var = par_current.var;
-	gbefb_check_var(&par_current.var, &fb_info);
-	gbefb_encode_fix(&fb_info.fix, &fb_info.var);
-	fb_info.par = &par_current;
+	info->var = par_current.var;
+	gbefb_check_var(&par_current.var, info);
+	gbefb_encode_fix(&info->fix, &info->var);
+	info->par = &par_current;
 
-	if (register_framebuffer(&fb_info) < 0) {
-		ret = -ENXIO;
+	if (register_framebuffer(info) < 0) {
 		printk(KERN_ERR "gbefb: couldn't register framebuffer\n");
+		ret = -ENXIO;
 		goto out_gbe_unmap;
 	}
 
+	dev_set_drvdata(&p_dev->dev, info);
+	gbefb_create_sysfs(dev);
+
 	printk(KERN_INFO "fb%d: %s rev %d @ 0x%08x using %dkB memory\n",
-	       fb_info.node, fb_info.fix.id, gbe_revision, (unsigned) GBE_BASE,
+	       info->node, info->fix.id, gbe_revision, (unsigned) GBE_BASE,
 	       gbe_mem_size >> 10);
 
 	return 0;
@@ -1175,12 +1213,18 @@ out_unmap:
 	iounmap(gbe);
 out_release_mem_region:
 	release_mem_region(GBE_BASE, sizeof(struct sgi_gbe));
+out_release_framebuffer:
+	framebuffer_release(info);
+
 	return ret;
 }
 
-void __exit gbefb_exit(void)
+static int gbefb_remove(struct device* dev)
 {
-	unregister_framebuffer(&fb_info);
+	struct platform_device *p_dev = to_platform_device(dev);
+	struct fb_info *info = dev_get_drvdata(&p_dev->dev);
+
+	unregister_framebuffer(info);
 	gbe_turn_off();
 	if (gbe_dma_addr)
 		dma_free_coherent(NULL, gbe_mem_size, gbe_mem, gbe_mem_phys);
@@ -1190,6 +1234,37 @@ void __exit gbefb_exit(void)
 			  (void *)gbe_tiles.cpu, gbe_tiles.dma);
 	release_mem_region(GBE_BASE, sizeof(struct sgi_gbe));
 	iounmap(gbe);
+	gbefb_remove_sysfs(dev);
+	framebuffer_release(info);
+
+	return 0;
+}
+
+static struct device_driver gbefb_driver = {
+	.name = "gbefb",
+	.bus = &platform_bus_type,
+	.probe = gbefb_probe,
+	.remove = gbefb_remove,
+};
+
+static struct platform_device gbefb_device = {
+	.name = "gbefb",
+};
+
+void __exit gbefb_exit(void)
+{
+	 driver_unregister(&gbefb_driver);
+}
+
+int __init gbefb_init(void)
+{
+	int ret = driver_register(&gbefb_driver);
+	if (!ret) {
+		ret = platform_device_register(&gbefb_device);
+		if (ret)
+			driver_unregister(&gbefb_driver);
+	}
+	return ret;
 }
 
 #ifdef MODULE
