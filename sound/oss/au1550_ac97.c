@@ -1,5 +1,5 @@
 /*
- *      au1550.c  --  Sound driver for Alchemy Au1550 MIPS Internet Edge
+ * au1550_ac97.c  --  Sound driver for Alchemy Au1550 MIPS Internet Edge
  *                    Processor.
  *
  * Copyright 2004 Embedded Edge, LLC
@@ -8,6 +8,8 @@
  * Mostly copied from the au1000.c driver and some from the
  * PowerMac dbdma driver.
  * We assume the processor can do memory coherent DMA.
+ *
+ * Ported to 2.6 by Matt Porter <mporter@kernel.crashing.org>
  *
  *  This program is free software; you can redistribute  it and/or modify it
  *  under  the terms of  the GNU General  Public License as published by the
@@ -30,6 +32,9 @@
  *  675 Mass Ave, Cambridge, MA 02139, USA.
  *
  */
+
+#undef DEBUG
+
 #include <linux/version.h>
 #include <linux/module.h>
 #include <linux/string.h>
@@ -40,28 +45,24 @@
 #include <linux/slab.h>
 #include <linux/soundcard.h>
 #include <linux/init.h>
+#include <linux/interrupt.h>
+#include <linux/kernel.h>
 #include <linux/poll.h>
 #include <linux/pci.h>
 #include <linux/bitops.h>
-#include <linux/proc_fs.h>
 #include <linux/spinlock.h>
 #include <linux/smp_lock.h>
 #include <linux/ac97_codec.h>
-#include <linux/wrapper.h>
 #include <asm/io.h>
 #include <asm/uaccess.h>
 #include <asm/hardirq.h>
-#include <asm/au1000.h>
-#include <asm/au1xxx_psc.h>
-#include <asm/au1xxx_dbdma.h>
+#include <asm/mach-au1x00/au1000.h>
+#include <asm/mach-au1x00/au1xxx_psc.h>
+#include <asm/mach-au1x00/au1xxx_dbdma.h>
 
 #undef OSS_DOCUMENTED_MIXER_SEMANTICS
 
-#define AU1550_MODULE_NAME "Au1550 psc audio"
-#define PFX AU1550_MODULE_NAME
-
 /* misc stuff */
-/* #define POLL_COUNT   0x5000 */
 #define POLL_COUNT   0x50000
 #define AC97_EXT_DACS (AC97_EXTID_SDAC | AC97_EXTID_CDAC | AC97_EXTID_LDAC)
 
@@ -71,8 +72,7 @@
  */
 #define NUM_DBDMA_DESCRIPTORS 4
 
-#define err(format, arg...) printk(KERN_ERR PFX ": " format "\n" , ## arg)
-#define info(format, arg...) printk(KERN_INFO PFX ": " format "\n" , ## arg)
+#define err(format, arg...) printk(KERN_ERR format "\n" , ## arg)
 
 /* Boot options
  * 0 = no VRA, 1 = use VRA if codec supports it
@@ -81,15 +81,9 @@ static int      vra = 1;
 MODULE_PARM(vra, "i");
 MODULE_PARM_DESC(vra, "if 1 use VRA if codec supports it");
 
-struct au1550_state {
+static struct au1550_state {
 	/* soundcore stuff */
 	int             dev_audio;
-
-#ifdef AU1000_DEBUG
-	/* debug /proc entry */
-	struct proc_dir_entry *ps;
-	struct proc_dir_entry *ac97_ps;
-#endif				/* AU1000_DEBUG */
 
 	struct ac97_codec *codec;
 	unsigned        codec_base_caps; /* AC'97 reg 00h, "Reset Register" */
@@ -382,9 +376,7 @@ set_adc_rate(struct au1550_state *s, unsigned rate)
 	*/
 	adc_rate = rdcodec(s->codec, AC97_PCM_LR_ADC_RATE);
 
-#ifdef AU1000_VERBOSE_DEBUG
-	dbg(__FUNCTION__ ": set to %d Hz", adc_rate);
-#endif
+	pr_debug("set_adc_rate: set to %d Hz\n", adc_rate);
 
 	/* some codec's don't allow unequal DAC and ADC rates, in which case
 	 * writing one rate reg actually changes both.
@@ -442,9 +434,7 @@ set_dac_rate(struct au1550_state *s, unsigned rate)
 	*/
 	dac_rate = rdcodec(s->codec, AC97_PCM_FRONT_DAC_RATE);
 
-#ifdef AU1000_VERBOSE_DEBUG
-	dbg(__FUNCTION__ ": set to %d Hz", dac_rate);
-#endif
+	pr_debug("set_dac_rate: set to %d Hz\n", dac_rate);
 
 	/* some codec's don't allow unequal DAC and ADC rates, in which case
 	 * writing one rate reg actually changes both.
@@ -703,13 +693,11 @@ prog_dmabuf(struct au1550_state *s, struct dmabuf *db)
 	db->dmasize = db->dma_fragsize * db->numfrag;
 	memset(db->rawbuf, 0, bufs);
 
-#ifdef AU1000_VERBOSE_DEBUG
-	dbg("rate=%d, samplesize=%d, channels=%d",
+	pr_debug("prog_dmabuf: rate=%d, samplesize=%d, channels=%d\n",
 	    rate, db->sample_size, db->num_channels);
-	dbg("fragsize=%d, cnt_factor=%d, dma_fragsize=%d",
+	pr_debug("prog_dmabuf: fragsize=%d, cnt_factor=%d, dma_fragsize=%d\n",
 	    db->fragsize, db->cnt_factor, db->dma_fragsize);
-	dbg("numfrag=%d, dmasize=%d", db->numfrag, db->dmasize);
-#endif
+	pr_debug("prog_dmabuf: numfrag=%d, dmasize=%d\n", db->numfrag, db->dmasize);
 
 	db->ready = 1;
 	return 0;
@@ -740,10 +728,8 @@ dac_dma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	u32	ac97c_stat;
 
 	ac97c_stat = au_readl(PSC_AC97STAT);
-#ifdef AU1000_VERBOSE_DEBUG
 	if (ac97c_stat & (AC97C_XU | AC97C_XO | AC97C_TE))
-		dbg("AC97C status = 0x%08x", ac97c_stat);
-#endif
+		pr_debug("AC97C status = 0x%08x\n", ac97c_stat);
 	db->dma_qcount--;
 
 	if (db->count >= db->fragsize) {
@@ -1048,8 +1034,6 @@ au1550_read(struct file *file, char *buffer, size_t count, loff_t *ppos)
 	unsigned long   flags;
 	int             cnt, usercnt, avail;
 
-	if (ppos != &file->f_pos)
-		return -ESPIPE;
 	if (db->mapped)
 		return -ENXIO;
 	if (!access_ok(VERIFY_WRITE, buffer, count))
@@ -1130,12 +1114,8 @@ au1550_write(struct file *file, const char *buffer, size_t count, loff_t * ppos)
 	unsigned long   flags;
 	int             cnt, usercnt, avail;
 
-#ifdef AU1000_VERBOSE_DEBUG
-	dbg("write: count=%d", count);
-#endif
+	pr_debug("write: count=%d\n", count);
 
-	if (ppos != &file->f_pos)
-		return -ESPIPE;
 	if (db->mapped)
 		return -ENXIO;
 	if (!access_ok(VERIFY_READ, buffer, count))
@@ -1289,7 +1269,7 @@ au1550_mmap(struct file *file, struct vm_area_struct *vma)
 		ret = -EINVAL;
 		goto out;
 	}
-	if (remap_page_range(vma->vm_start, virt_to_phys(db->rawbuf),
+	if (remap_page_range(vma, vma->vm_start, virt_to_phys(db->rawbuf),
 			     size, vma->vm_page_prot)) {
 		ret = -EAGAIN;
 		goto out;
@@ -1302,8 +1282,7 @@ out:
 	return ret;
 }
 
-
-#ifdef AU1000_VERBOSE_DEBUG
+#ifdef DEBUG
 static struct ioctl_str_t {
 	unsigned int    cmd;
 	const char     *str;
@@ -1369,15 +1348,15 @@ au1550_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 	mapped = ((file->f_mode & FMODE_WRITE) && s->dma_dac.mapped) ||
 		((file->f_mode & FMODE_READ) && s->dma_adc.mapped);
 
-#ifdef AU1000_VERBOSE_DEBUG
+#ifdef DEBUG
 	for (count=0; count<sizeof(ioctl_str)/sizeof(ioctl_str[0]); count++) {
 		if (ioctl_str[count].cmd == cmd)
 			break;
 	}
 	if (count < sizeof(ioctl_str) / sizeof(ioctl_str[0]))
-		dbg("ioctl %s, arg=0x%lx", ioctl_str[count].str, arg);
+		pr_debug("ioctl %s, arg=0x%lxn", ioctl_str[count].str, arg);
 	else
-		dbg("ioctl 0x%x unknown, arg=0x%lx", cmd, arg);
+		pr_debug("ioctl 0x%x unknown, arg=0x%lx\n", cmd, arg);
 #endif
 
 	switch (cmd) {
@@ -1619,9 +1598,7 @@ au1550_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 			s->dma_dac.cnt_factor;
 		abinfo.fragstotal = s->dma_dac.numfrag;
 		abinfo.fragments = abinfo.bytes >> s->dma_dac.fragshift;
-#ifdef AU1000_VERBOSE_DEBUG
-		dbg("bytes=%d, fragments=%d", abinfo.bytes, abinfo.fragments);
-#endif
+		pr_debug("ioctl SNDCTL_DSP_GETOSPACE: bytes=%d, fragments=%d\n", abinfo.bytes, abinfo.fragments);
 		return copy_to_user((void *) arg, &abinfo,
 				    sizeof(abinfo)) ? -EFAULT : 0;
 
@@ -1798,11 +1775,11 @@ au1550_open(struct inode *inode, struct file *file)
 	struct au1550_state *s = &au1550_state;
 	int             ret;
 
-#ifdef AU1000_VERBOSE_DEBUG
+#ifdef DEBUG
 	if (file->f_flags & O_NONBLOCK)
-		dbg(__FUNCTION__ ": non-blocking");
+		pr_debug("open: non-blocking\n");
 	else
-		dbg(__FUNCTION__ ": blocking");
+		pr_debug("open: blocking\n");
 #endif
 	
 	file->private_data = s;
@@ -1906,16 +1883,13 @@ static /*const */ struct file_operations au1550_audio_fops = {
 };
 
 MODULE_AUTHOR("Advanced Micro Devices (AMD), dan@embeddededge.com");
-MODULE_DESCRIPTION("Au1550 Audio Driver");
+MODULE_DESCRIPTION("Au1550 AC97 Audio Driver");
 
 static int __devinit
 au1550_probe(void)
 {
 	struct au1550_state *s = &au1550_state;
 	int             val;
-#ifdef AU1550_DEBUG
-	char            proc_str[80];
-#endif
 
 	memset(s, 0, sizeof(struct au1550_state));
 
@@ -1936,8 +1910,8 @@ au1550_probe(void)
 	s->codec->codec_write = wrcodec;
 	s->codec->codec_wait = waitcodec;
 
-	if (!request_region(PHYSADDR(AC97_PSC_SEL),
-			    0x30, AU1550_MODULE_NAME)) {
+	if (!request_mem_region(CPHYSADDR(AC97_PSC_SEL),
+			    0x30, "Au1550 AC97")) {
 		err("AC'97 ports in use");
 	}
 
@@ -1967,7 +1941,7 @@ au1550_probe(void)
 		goto err_dma2;
 	}
 
-	info("DAC: DMA%d, ADC: DMA%d", DBDMA_AC97_TX_CHAN, DBDMA_AC97_RX_CHAN);
+	pr_info("DAC: DMA%d, ADC: DMA%d", DBDMA_AC97_TX_CHAN, DBDMA_AC97_RX_CHAN);
 
 	/* register devices */
 
@@ -1976,12 +1950,6 @@ au1550_probe(void)
 	if ((s->codec->dev_mixer =
 	     register_sound_mixer(&au1550_mixer_fops, -1)) < 0)
 		goto err_dev2;
-
-#ifdef AU1550_DEBUG
-	/* intialize the debug proc device */
-	s->ps = create_proc_read_entry(AU1000_MODULE_NAME, 0, NULL,
-				       proc_au1550_dump, NULL);
-#endif /* AU1550_DEBUG */
 
 	/* The GPIO for the appropriate PSC was configured by the
 	 * board specific start up.
@@ -2054,7 +2022,7 @@ au1550_probe(void)
 
 	s->codec_base_caps = rdcodec(s->codec, AC97_RESET);
 	s->codec_ext_caps = rdcodec(s->codec, AC97_EXTENDED_ID);
-	info("AC'97 Base/Extended ID = %04x/%04x",
+	pr_info("AC'97 Base/Extended ID = %04x/%04x",
 	     s->codec_base_caps, s->codec_ext_caps);
 
 	if (!(s->codec_ext_caps & AC97_EXTID_VRA)) {
@@ -2070,18 +2038,12 @@ au1550_probe(void)
 		s->no_vra = 1;
 	}
 	if (s->no_vra)
-		info("no VRA, interpolating and decimating");
+		pr_info("no VRA, interpolating and decimating");
 
 	/* set mic to be the recording source */
 	val = SOUND_MASK_MIC;
 	mixdev_ioctl(s->codec, SOUND_MIXER_WRITE_RECSRC,
 		     (unsigned long) &val);
-#ifdef AU1550_DEBUG
-	sprintf(proc_str, "driver/%s/%d/ac97", AU1550_MODULE_NAME,
-		s->codec->id);
-	s->ac97_ps = create_proc_read_entry (proc_str, 0, NULL,
-					     ac97_read_proc, &s->codec);
-#endif
 
 	return 0;
 
@@ -2094,7 +2056,7 @@ au1550_probe(void)
  err_dma2:
 	au1xxx_dbdma_chan_free(s->dma_dac.dmanr);
  err_dma1:
-	release_region(PHYSADDR(AC97_PSC_SEL), 0x30);
+	release_mem_region(CPHYSADDR(AC97_PSC_SEL), 0x30);
 
 	ac97_release_codec(s->codec);
 	return -1;
@@ -2107,14 +2069,10 @@ au1550_remove(void)
 
 	if (!s)
 		return;
-#ifdef AU1550_DEBUG
-	if (s->ps)
-		remove_proc_entry(AU1000_MODULE_NAME, NULL);
-#endif /* AU1000_DEBUG */
 	synchronize_irq();
 	au1xxx_dbdma_chan_free(s->dma_adc.dmanr);
 	au1xxx_dbdma_chan_free(s->dma_dac.dmanr);
-	release_region(PHYSADDR(AC97_PSC_SEL), 0x30);
+	release_mem_region(CPHYSADDR(AC97_PSC_SEL), 0x30);
 	unregister_sound_dsp(s->dev_audio);
 	unregister_sound_mixer(s->codec->dev_mixer);
 	ac97_release_codec(s->codec);
@@ -2145,8 +2103,9 @@ au1550_setup(char *options)
 	if (!options || !*options)
 		return 0;
 
-	for(this_opt=strtok(options, ",");
-	    this_opt; this_opt=strtok(NULL, ",")) {
+	while ((this_opt = strsep(&options, ","))) {
+		if (!*this_opt)
+			continue;
 		if (!strncmp(this_opt, "vra", 3)) {
 			vra = 1;
 		}

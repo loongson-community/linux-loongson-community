@@ -220,8 +220,8 @@ config SOUND_AU1000
 	tristate "Au1000 Sound"
 	depends on SOUND_PRIME!=n && (SOC_AU1000 || SOC_AU1100 || SOC_AU1500) && SOUND
 
-config SOUND_AU1550
-	tristate "Au1550 Sound"
+config SOUND_AU1550_AC97
+	tristate "Au1550 AC97 Sound"
 	depends on SOUND_PRIME!=n && SOC_AU1550 && SOUND
 
 config SOUND_TRIDENT
