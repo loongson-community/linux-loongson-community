@@ -16,6 +16,6 @@ else
 endif
 
 obj-$(CONFIG_BLK_DEV_FD)	+= floppy-no.o floppy-std.o
-obj-$(CONFIG_IDE)		+= ide-std.o ide-no.o
+obj-$(subst m,y,$(CONFIG_IDE))	+= ide-std.o ide-no.o   # needed for ide module
 
 EXTRA_AFLAGS := $(CFLAGS)

@@ -9,6 +9,6 @@ obj-y	+= csum_partial.o csum_partial_copy.o dump_tlb.o promlib.o rtc-std.o \
 	  strnlen_user.o watch.o
 
 obj-$(CONFIG_BLK_DEV_FD)	+= floppy-no.o floppy-std.o
-obj-$(CONFIG_IDE)		+= ide-std.o ide-no.o
+obj-$(subst m,y,$(CONFIG_IDE))	+= ide-std.o ide-no.o   # needed for ide module
 
 EXTRA_AFLAGS := $(CFLAGS)
