@@ -76,7 +76,7 @@ if [ "$CONFIG_SIBYTE_SB1250" = "y" ]; then
    fi
 fi
 bool 'Support for SNI RM200 PCI' CONFIG_SNI_RM200_PCI
-bool 'Support for Toshiba JMR-TX3927 board' CONFIG_TOSHIBA_JMR3927
+dep_bool 'Support for Toshiba JMR-TX3927 board' CONFIG_TOSHIBA_JMR3927 $CONFIG_MIPS32
 bool 'Support for ZAO Networks Capcella' CONFIG_ZAO_CAPCELLA
 
 dep_bool 'High Memory Support' CONFIG_HIGHMEM $CONFIG_MIPS32
