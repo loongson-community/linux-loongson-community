@@ -119,41 +119,6 @@ struct irqaction cpuerr_irq = { crime_cpuerr_intr, SA_INTERRUPT,
 extern void ip32_handle_int (void);
 asmlinkage unsigned int do_IRQ(int irq, struct pt_regs *regs);
 
-static void enable_none(unsigned int irq) { }
-static unsigned int startup_none(unsigned int irq) { return 0; }
-static void disable_none(unsigned int irq) { }
-static void ack_none(unsigned int irq)
-{
-	/*
-	 * 'what should we do if we get a hw irq event on an illegal vector'.
-	 * each architecture has to answer this themselves, it doesnt deserve
-	 * a generic callback i think.
-	 */
-	printk("unexpected interrupt %d\n", irq);
-}
-
-/* startup is the same as "enable", shutdown is same as "disable" */
-#define shutdown_none	disable_none
-#define end_none	enable_none
-
-struct hw_interrupt_type no_irq_type = {
-	"none",
-	startup_none,
-	shutdown_none,
-	enable_none,
-	disable_none,
-	ack_none,
-	end_none
-};
-
-/*
- * Controller mappings for all interrupt sources:
- */
-
-irq_desc_t irq_desc[NR_IRQS] __cacheline_aligned =
-	{ [0 ... NR_IRQS-1] = { 0, &no_irq_type, NULL, 0, SPIN_LOCK_UNLOCKED}};
-
-
 /* For interrupts wired from a single device to the CPU.  Only the clock
  * uses this it seems, which is IRQ 0 and IP7.
  */

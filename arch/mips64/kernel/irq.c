@@ -1,3 +1,13 @@
+/*
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
+ *
+ * Code to handle x86 style IRQs plus some generic interrupt stuff.
+ *
+ * Copyright (C) 1992 Linus Torvalds
+ * Copyright (C) 1994 - 2000 Ralf Baechle
+ */
 #include <linux/config.h>
 #include <linux/smp.h>
 #include <linux/kernel.h>
@@ -6,6 +16,51 @@
 #include <linux/interrupt.h>
 
 #include <asm/atomic.h>
+#include <asm/system.h>
+#include <asm/uaccess.h>
+
+/*
+ * Controller mappings for all interrupt sources:
+ */
+irq_desc_t irq_desc[NR_IRQS] __cacheline_aligned =
+	{ [0 ... NR_IRQS-1] = { 0, &no_irq_type, NULL, 0, SPIN_LOCK_UNLOCKED}};
+
+/*
+ * Special irq handlers.
+ */
+
+void no_action(int cpl, void *dev_id, struct pt_regs *regs) { }
+
+/*
+ * Generic no controller code
+ */
+
+static void enable_none(unsigned int irq) { }
+static unsigned int startup_none(unsigned int irq) { return 0; }
+static void disable_none(unsigned int irq) { }
+static void ack_none(unsigned int irq)
+{
+	/*
+	 * 'what should we do if we get a hw irq event on an illegal vector'.
+	 * each architecture has to answer this themselves, it doesnt deserve
+	 * a generic callback i think.
+	 */
+	printk("unexpected interrupt %d\n", irq);
+}
+
+/* startup is the same as "enable", shutdown is same as "disable" */
+#define shutdown_none	disable_none
+#define end_none	enable_none
+
+struct hw_interrupt_type no_irq_type = {
+	"none",
+	startup_none,
+	shutdown_none,
+	enable_none,
+	disable_none,
+	ack_none,
+	end_none
+};
 
 atomic_t irq_err_count;
 

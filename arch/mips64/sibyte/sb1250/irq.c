@@ -88,29 +88,6 @@ void sb1250_unmask_irq(int cpu, int irq)
 	spin_unlock_irqrestore(&irq_mask_lock, flags);
 }
 
-
-static unsigned int startup_none(unsigned int irq)
-{
-	/* Do nothing */
-	return 0;
-}
-
-static void shutdown_none(unsigned int irq)
-{
-	/* Do nothing */
-}
-
-#define enable_none shutdown_none
-#define disable_none shutdown_none
-#define ack_none shutdown_none
-#define end_none shutdown_none
-
-static void affinity_none(unsigned int irq, unsigned long mask)
-{
-	/* Do nothing */
-}
-
-
 /*
  *  If depth is 0, then unmask the interrupt.  Increment depth 
  */
@@ -159,31 +136,6 @@ void disable_irq(unsigned int irq)
 	}
 	spin_unlock_irqrestore(&desc->lock, flags);
 }
-
-
-
-
-
-
-
-static struct hw_interrupt_type no_irq_type = {
-	"none",
-	startup_none,
-	shutdown_none,
-	enable_none,
-	disable_none,
-	ack_none,
-	end_none,
-	affinity_none
-};
-
-/* 
- * irq_desc is the structure that keeps track of the state
- * and handlers for each of the IRQ lines
- */
-static irq_desc_t irq_desc[NR_IRQS] =
-{ [0 ... NR_IRQS-1] = { 0, &no_irq_type, NULL, 0, SPIN_LOCK_UNLOCKED}};
-
 
 /* Defined in arch/mips/sibyte/sb1250/irq_handler.S */
 extern void sb1250_irq_handler(void);
