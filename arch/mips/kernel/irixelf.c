@@ -1,5 +1,4 @@
-/* $Id: irixelf.c,v 1.28 2000/03/23 02:25:42 ralf Exp $
- *
+/*
  * irixelf.c: Code to load IRIX ELF executables which conform to
  *            the MIPS ABI.
  *
@@ -467,8 +466,9 @@ static inline int look_for_irix_interpreter(char **name,
 	return 0;
 
 dput_and_out:
-	allow_write_access(file);
+	lock_kernel();
 	fput(file);
+	unlock_kernel();
 out:
 	kfree(*name);
 	return retval;
@@ -778,8 +778,9 @@ out:
 	return retval;
 
 out_free_dentry:
-	allow_write_access(interpreter);
+	lock_kernel();
 	fput(interpreter);
+	unlock_kernel();
 out_free_interp:
 	if (elf_interpreter)
 		kfree(elf_interpreter);
