@@ -1,4 +1,4 @@
-/* $Id: cons_newport.c,v 1.1 1997/07/02 06:20:17 miguel Exp $
+/* $Id: cons_newport.c,v 1.2 1997/07/16 02:50:38 miguel Exp $
  * cons_newport.c: Newport graphics console code for the SGI.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
@@ -327,6 +327,8 @@ newport_set_cursor(int currcons)
 	npregs->set.xyei = ((xpos + 7) << 16);
 	newport_wait();
 	REVERSE_RENDER(npregs, p);
+	restore_flags (flags);
+	return;
 }
 
 void
