@@ -723,6 +723,7 @@ static inline void parity_protection_init(void)
 		                         | 0x80000000); 
 		break;
 	default:
+		break;
 	}
 }
 
