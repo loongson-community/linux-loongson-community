@@ -761,7 +761,19 @@ static __init void build_tlb_write_random_entry(u32 **p, struct label **l,
 
 	case CPU_R4600:
 	case CPU_R4700:
+	case CPU_R5000:
+	case CPU_5KC:
 		i_nop(p);
+		i_tlbwr(p);
+		break;
+
+	case CPU_R10000:
+	case CPU_R12000:
+	case CPU_4KC:
+	case CPU_SB1:
+	case CPU_4KSC:
+	case CPU_20KC:
+	case CPU_25KF:
 		i_tlbwr(p);
 		break;
 
@@ -774,6 +786,12 @@ static __init void build_tlb_write_random_entry(u32 **p, struct label **l,
 		il_bgezl(p, r, 0, label_tlbwr_hazard);
 		i_tlbwr(p);
 		l_tlbwr_hazard(l, *p);
+		break;
+
+	case CPU_4KEC:
+	case CPU_24K:
+		i_ehb(p);
+		i_tlbwr(p);
 		break;
 
 	case CPU_RM9000:
@@ -794,21 +812,9 @@ static __init void build_tlb_write_random_entry(u32 **p, struct label **l,
 		i_ssnop(p);
 		break;
 
-	case CPU_R10000:
-	case CPU_R12000:
-	case CPU_SB1:
-		i_tlbwr(p);
-		break;
-
 	default:
-		/*
-		 * Others are assumed to have one cycle mtc0 hazard,
-		 * and one cycle tlbwr hazard or to understand ehb.
-		 * XXX: This might be overly general.
-		 */
-		i_ehb(p);
-		i_tlbwr(p);
-		i_ehb(p);
+		panic("No TLB refill handler yet (CPU type: %d)",
+		      current_cpu_data.cputype);
 		break;
 	}
 }
