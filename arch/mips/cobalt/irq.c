@@ -10,6 +10,7 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/irq.h>
+#include <linux/interrupt.h>
 
 #include <asm/i8259.h>
 #include <asm/irq_cpu.h>
@@ -25,8 +26,8 @@ extern void cobalt_handle_int(void);
  * the CPU interrupt lines, and ones that come in on the via chip. The CPU
  * mappings are:
  *
- *    16,  - Software interrupt 0 (unused)	IE_SW0
- *    17   - Software interrupt 1 (unused)	IE_SW0
+ *    16   - Software interrupt 0 (unused)	IE_SW0
+ *    17   - Software interrupt 1 (unused)	IE_SW1
  *    18   - Galileo chip (timer)		IE_IRQ0
  *    19   - Tulip 0 + NCR SCSI			IE_IRQ1
  *    20   - Tulip 1				IE_IRQ2
@@ -82,11 +83,15 @@ asmlinkage void cobalt_irq(struct pt_regs *regs)
 	}
 
 	if (pending & CAUSEF_IP7) {			/* int 23 */
-		do_IRQ(COBALT_QUBE_SLOT_IRQ, regs);
+		do_IRQ(23, regs);
 		return;
 	}
 }
 
+static struct irqaction irq_via = {
+	no_action, 0, { { 0, } }, "cascade", NULL, NULL
+};
+ 
 void __init arch_init_irq(void)
 {
 	set_except_vector(0, cobalt_handle_int);
@@ -99,4 +104,6 @@ void __init arch_init_irq(void)
 	 *  (except IE4, we already masked those at VIA level)
 	 */
 	change_c0_status(ST0_IM, IE_IRQ4);
+
+	setup_irq(COBALT_VIA_IRQ, &irq_via);
 }
