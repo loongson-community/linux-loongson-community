@@ -25,12 +25,12 @@
 #include <linux/smp_lock.h>
 #include <linux/stddef.h>
 #include <linux/unistd.h>
-#include <linux/ptrace.h>
 #include <linux/slab.h>
 #include <linux/user.h>
 #include <linux/elf.h>
 #include <linux/init.h>
 #include <linux/init_task.h>
+#include <linux/prctl.h>
 
 #include <asm/pgtable.h>
 #include <asm/uaccess.h>
@@ -235,9 +235,6 @@ void start_thread(struct pt_regs *regs, unsigned long nip, unsigned long sp)
 	current->thread.fpscr = 0;
 }
 
-/* XXX temporary */
-#define PR_FP_EXC_PRECISE	3	/* precise exception mode */
-
 int set_fpexc_mode(struct task_struct *tsk, unsigned int val)
 {
 	struct pt_regs *regs = tsk->thread.regs;
@@ -259,19 +256,21 @@ int get_fpexc_mode(struct task_struct *tsk, unsigned long adr)
 	return put_user(val, (unsigned int *) adr);
 }
 
-int sys_clone(int p1, int p2, int p3, int p4, int p5, int p6,
-	      struct pt_regs *regs)
+int sys_clone(unsigned long clone_flags, u32 p2, u32 p3, u32 p4, u32 p5,
+	      u32 p6, struct pt_regs *regs)
 {
 	struct task_struct *p;
+	int *user_tid = (int *)p3;
 
 	if (regs->msr & MSR_FP)
 		giveup_fpu(current);
 
-	p = do_fork(p1 & ~CLONE_IDLETASK, regs->gpr[1], regs, 0);
+	p = do_fork(clone_flags & ~CLONE_IDLETASK, regs->gpr[1], regs, 0,
+		    user_tid);
 	return IS_ERR(p) ? PTR_ERR(p) : p->pid;
 }
 
-int sys_fork(int p1, int p2, int p3, int p4, int p5, int p6,
+int sys_fork(u32 p1, u32 p2, u32 p3, u32 p4, u32 p5, u32 p6,
 	     struct pt_regs *regs)
 {
 	struct task_struct *p;
@@ -279,19 +278,20 @@ int sys_fork(int p1, int p2, int p3, int p4, int p5, int p6,
 	if (regs->msr & MSR_FP)
 		giveup_fpu(current);
 
-	p = do_fork(SIGCHLD, regs->gpr[1], regs, 0);
+	p = do_fork(SIGCHLD, regs->gpr[1], regs, 0, NULL);
 	return IS_ERR(p) ? PTR_ERR(p) : p->pid;
 }
 
-int sys_vfork(int p1, int p2, int p3, int p4, int p5, int p6,
-			 struct pt_regs *regs)
+int sys_vfork(u32 p1, u32 p2, u32 p3, u32 p4, u32 p5, u32 p6,
+	      struct pt_regs *regs)
 {
 	struct task_struct *p;
 
 	if (regs->msr & MSR_FP)
 		giveup_fpu(current);
 
-	p = do_fork(CLONE_VFORK | CLONE_VM | SIGCHLD, regs->gpr[1], regs, 0);
+	p = do_fork(CLONE_VFORK | CLONE_VM | SIGCHLD, regs->gpr[1], regs, 0,
+	            NULL);
 	return IS_ERR(p) ? PTR_ERR(p) : p->pid;
 }
 

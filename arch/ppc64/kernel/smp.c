@@ -55,7 +55,6 @@ unsigned long cache_decay_ticks;
 
 /* initialised so it doesnt end up in bss */
 unsigned long cpu_online_map = 0;
-int boot_cpuid = 0;
 
 static struct smp_ops_t *smp_ops;
 
@@ -616,7 +615,7 @@ int __devinit __cpu_up(unsigned int cpu)
 	/* create a process for the processor */
 	/* only regs.msr is actually used, and 0 is OK for it */
 	memset(&regs, 0, sizeof(struct pt_regs));
-	p = do_fork(CLONE_VM|CLONE_IDLETASK, 0, &regs, 0);
+	p = do_fork(CLONE_VM|CLONE_IDLETASK, 0, &regs, 0, NULL);
 	if (IS_ERR(p))
 		panic("failed fork for CPU %u: %li", cpu, PTR_ERR(p));
 

@@ -51,7 +51,7 @@ void pcibios_update_resource(struct pci_dev *dev, struct resource *root,
 {
 }
 
-int __init pcibios_enable_device(struct pci_dev *dev)
+int __init pcibios_enable_device(struct pci_dev *dev, int mask)
 {
 	/* Not needed, since we enable all devices at startup.  */
 	return 0;

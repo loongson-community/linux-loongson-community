@@ -176,7 +176,7 @@ again:
 			lock.fl_type  = F_UNLCK;
 			lock.fl_start = 0;
 			lock.fl_end   = OFFSET_MAX;
-			if (posix_lock_file(&file->f_file, &lock, 0) < 0) {
+			if (posix_lock_file(&file->f_file, &lock) < 0) {
 				printk("lockd: unlock failure in %s:%d\n",
 						__FILE__, __LINE__);
 				return 1;
@@ -294,15 +294,13 @@ nlmsvc_free_host_resources(struct nlm_host *host)
 }
 
 /*
- * Delete a client when the nfsd entry is removed.
+ * delete all hosts structs for clients
  */
 void
-nlmsvc_invalidate_client(struct svc_client *clnt)
+nlmsvc_invalidate_all(void)
 {
-	struct nlm_host	*host;
-
-	if ((host = nlm_lookup_host(clnt, NULL, 0, 0)) != NULL) {
-		dprintk("lockd: invalidating client for %s\n", host->h_name);
+	struct nlm_host *host;
+	while ((host = nlm_find_client()) != NULL) {
 		nlmsvc_free_host_resources(host);
 		host->h_expires = 0;
 		host->h_killed = 1;

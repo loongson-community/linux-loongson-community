@@ -206,54 +206,57 @@ static unsigned long do_slow_gettimeoffset(void)
 static unsigned long (*do_gettimeoffset) (void) = do_slow_gettimeoffset;
 
 /*
- * This version of gettimeofday has near microsecond resolution.
+ * This version of gettimeofday has microsecond resolution
+ * and better than microsecond precision on fast x86 machines with TSC.
  */
 void do_gettimeofday(struct timeval *tv)
 {
 	unsigned long flags;
+	unsigned long usec, sec;
 
 	read_lock_irqsave(&xtime_lock, flags);
-	*tv = xtime;
-	tv->tv_usec += do_gettimeoffset();
-
-	/*
-	 * xtime is atomically updated in timer_bh. jiffies - wall_jiffies
-	 * is nonzero if the timer bottom half hasnt executed yet.
-	 */
-	if (jiffies - wall_jiffies)
-		tv->tv_usec += USECS_PER_JIFFY;
-
+	usec = do_gettimeoffset();
+	{
+		unsigned long lost = jiffies - wall_jiffies;
+		if (lost)
+			usec += lost * (1000000 / HZ);
+	}
+	sec = xtime.tv_sec;
+	usec += (xtime.tv_nsec / 1000);
 	read_unlock_irqrestore(&xtime_lock, flags);
 
-	if (tv->tv_usec >= 1000000) {
-		tv->tv_usec -= 1000000;
-		tv->tv_sec++;
+	while (usec >= 1000000) {
+		usec -= 1000000;
+		sec++;
 	}
+
+	tv->tv_sec = sec;
+	tv->tv_usec = usec;
 }
 
 void do_settimeofday(struct timeval *tv)
 {
 	write_lock_irq(&xtime_lock);
-
-	/* This is revolting. We need to set the xtime.tv_usec
-	 * correctly. However, the value in this location is
-	 * is value at the last tick.
-	 * Discover what correction gettimeofday
-	 * would have done, and then undo it!
+	/*
+	 * This is revolting. We need to set "xtime" correctly. However, the
+	 * value in this location is the value at the most recent update of
+	 * wall time.  Discover what correction gettimeofday() would have
+	 * made, and then undo it!
 	 */
 	tv->tv_usec -= do_gettimeoffset();
+	tv->tv_usec -= (jiffies - wall_jiffies) * (1000000 / HZ);
 
-	if (tv->tv_usec < 0) {
+	while (tv->tv_usec < 0) {
 		tv->tv_usec += 1000000;
 		tv->tv_sec--;
 	}
 
-	xtime = *tv;
+	xtime.tv_sec = tv->tv_sec;
+	xtime.tv_nsec = (tv->tv_usec * 1000);
 	time_adjust = 0;		/* stop active adjtime() */
 	time_status |= STA_UNSYNC;
 	time_maxerror = NTP_PHASE_LIMIT;
 	time_esterror = NTP_PHASE_LIMIT;
-
 	write_unlock_irq(&xtime_lock);
 }
 

@@ -1,7 +1,7 @@
 /*
  * pSeries_pci.c
  *
- * pSeries_pcibios_init(void)opyright (C) 2001 Dave Engebretsen, IBM Corporation
+ * Copyright (C) 2001 Dave Engebretsen, IBM Corporation
  *
  * pSeries specific routines for PCI.
  * 
@@ -63,89 +63,85 @@ static int ibm_write_pci_config;
 
 static int s7a_workaround;
 
-/******************************************************************************
- *
- * pSeries I/O Operations to access the PCI configuration space.
- *
- *****************************************************************************/
-#define RTAS_PCI_READ_OP(size, type, nbytes) \
-int \
-rtas_read_config_##size(struct device_node *dn, int offset, type val) {  \
-	unsigned long returnval = ~0L; \
-	unsigned long buid; \
-	unsigned int addr; \
-	int ret; \
-	 \
-	if (dn == NULL) { \
-		ret = -2; \
-	} else if (dn->status) { \
-		ret = -1; \
-	} else { \
-		addr = (dn->busno << 16) | (dn->devfn << 8) | offset; \
-		buid = dn->phb->buid; \
-		if (buid) { \
-			ret = rtas_call(ibm_read_pci_config, 4, 2, &returnval, addr, buid >> 32, buid & 0xffffffff, nbytes); \
-                        if (ret < 0) \
-                               ret = rtas_fake_read(dn, offset, nbytes, &returnval); \
-		} else { \
-			ret = rtas_call(read_pci_config, 2, 2, &returnval, addr, nbytes); \
-		} \
-	} \
-	*val = returnval; \
-	return ret; \
-} \
-int \
-rtas_pci_read_config_##size(struct pci_dev *dev, int offset, type val) {  \
-        struct device_node *dn = pci_device_to_OF_node(dev); \
-	int ret = rtas_read_config_##size(dn, offset, val); \
-        /* udbg_printf("read bus=%x, devfn=%x, ret=%d phb=%lx, dn=%lx\n", dev->bus->number, dev->devfn, ret, dn ? dn->phb : 0, dn); */ \
-        return ret ? PCIBIOS_DEVICE_NOT_FOUND : PCIBIOS_SUCCESSFUL; \
+static int rtas_read_config(struct device_node *dn, int where, int size, u32 *val)
+{
+	unsigned long returnval = ~0L;
+	unsigned long buid, addr;
+	int ret;
+
+	if (!dn)
+		return -2;
+
+	addr = (dn->busno << 16) | (dn->devfn << 8) | where;
+	buid = dn->phb->buid;
+	if (buid) {
+		ret = rtas_call(ibm_read_pci_config, 4, 2, &returnval, addr, buid >> 32, buid & 0xffffffff, size);
+		if (ret < 0|| (returnval == 0xffffffff))
+			ret = rtas_fake_read(dn, where, size, &returnval);
+	} else {
+		ret = rtas_call(read_pci_config, 2, 2, &returnval, addr, size);
+	}
+	*val = returnval;
+	return ret;
 }
 
-#define RTAS_PCI_WRITE_OP(size, type, nbytes) \
-int \
-rtas_write_config_##size(struct device_node *dn, int offset, type val) { \
-	unsigned long buid; \
-	unsigned int addr; \
-	int ret; \
-	 \
-	if (dn == NULL) { \
-		ret = -2; \
-	} else if (dn->status) { \
-		ret = -1; \
-	} else { \
-		buid = dn->phb->buid; \
-		addr = (dn->busno << 16) | (dn->devfn << 8) | offset; \
-		if (buid) { \
-			ret = rtas_call(ibm_write_pci_config, 5, 1, NULL, addr, buid >> 32, buid & 0xffffffff, nbytes, (ulong) val); \
-		} else { \
-			ret = rtas_call(write_pci_config, 3, 1, NULL, addr, nbytes, (ulong)val); \
-		} \
-	} \
-	return ret; \
-} \
-int \
-rtas_pci_write_config_##size(struct pci_dev *dev, int offset, type val) { \
-	struct device_node*  dn = pci_device_to_OF_node(dev); \
-	int  ret = rtas_write_config_##size(dn, offset, val); \
-	/* udbg_printf("write bus=%x, devfn=%x, ret=%d phb=%lx, dn=%lx\n", dev->bus->number, dev->devfn, ret, dn ? dn->phb : 0, dn); */ \
-	return ret ? PCIBIOS_DEVICE_NOT_FOUND : PCIBIOS_SUCCESSFUL; \
+static int rtas_pci_read_config(struct pci_bus *bus,
+				unsigned int devfn,
+				int where, int size, u32 *val)
+{
+	struct device_node *busdn, *dn;
+
+	if (bus->self)
+		busdn = pci_device_to_OF_node(bus->self);
+	else
+		busdn = bus->sysdata;	/* must be a phb */
+
+	/* Search only direct children of the bus */
+	for (dn = busdn->child; dn; dn = dn->sibling)
+		if (dn->devfn == devfn)
+			return rtas_read_config(dn, where, size, val);
+	return PCIBIOS_DEVICE_NOT_FOUND;
 }
 
-RTAS_PCI_READ_OP(byte, u8 *, 1)
-RTAS_PCI_READ_OP(word, u16 *, 2)
-RTAS_PCI_READ_OP(dword, u32 *, 4)
-RTAS_PCI_WRITE_OP(byte, u8, 1)
-RTAS_PCI_WRITE_OP(word, u16, 2)
-RTAS_PCI_WRITE_OP(dword, u32, 4)
+static int rtas_write_config(struct device_node *dn, int where, int size, u32 val)
+{
+	unsigned long buid, addr;
+	int ret;
+
+	if (!dn)
+		return -2;
+
+	addr = (dn->busno << 16) | (dn->devfn << 8) | where;
+	buid = dn->phb->buid;
+	if (buid) {
+		ret = rtas_call(ibm_write_pci_config, 5, 1, NULL, addr, buid >> 32, buid & 0xffffffff, size, (ulong) val);
+	} else {
+		ret = rtas_call(write_pci_config, 3, 1, NULL, addr, size, (ulong)val);
+	}
+	return ret;
+}
+
+static int rtas_pci_write_config(struct pci_bus *bus,
+				 unsigned int devfn,
+				 int where, int size, u32 val)
+{
+	struct device_node *busdn, *dn;
+
+	if (bus->self)
+		busdn = pci_device_to_OF_node(bus->self);
+	else
+		busdn = bus->sysdata;	/* must be a phb */
+
+	/* Search only direct children of the bus */
+	for (dn = busdn->child; dn; dn = dn->sibling)
+		if (dn->devfn == devfn)
+			return rtas_write_config(dn, where, size, val);
+	return PCIBIOS_DEVICE_NOT_FOUND;
+}
 
 struct pci_ops rtas_pci_ops = {
-	rtas_pci_read_config_byte,
-	rtas_pci_read_config_word,
-	rtas_pci_read_config_dword,
-	rtas_pci_write_config_byte,
- 	rtas_pci_write_config_word,
-	rtas_pci_write_config_dword,
+	rtas_pci_read_config,
+	rtas_pci_write_config
 };
 
 /*
@@ -569,8 +565,7 @@ alloc_phb(struct device_node *dev, char *model, unsigned int addr_size_words)
 	
   if (buid_vals == NULL) {
 		phb->buid = 0;
-	} 
-  else {
+	} else {
 		struct pci_bus check;
 		if (sizeof(check.number) == 1 || sizeof(check.primary) == 1 ||
 		    sizeof(check.secondary) == 1 || sizeof(check.subordinate) == 1) {
@@ -582,11 +577,11 @@ alloc_phb(struct device_node *dev, char *model, unsigned int addr_size_words)
 			      "number, primary, secondary and subordinate are ints.\n");
     }
     
-    if (len < 2 * sizeof(int))
-      phb->buid = (unsigned long)buid_vals[0];  // Support for new OF that only has 1 integer for buid.
-    else
-      phb->buid = (((unsigned long)buid_vals[0]) << 32UL) |
-                  (((unsigned long)buid_vals[1]) & 0xffffffff);
+	if (len < 2 * sizeof(int))
+		phb->buid = (unsigned long)buid_vals[0];  // Support for new OF that only has 1 integer for buid.
+	else
+		phb->buid = (((unsigned long)buid_vals[0]) << 32UL) |
+			(((unsigned long)buid_vals[1]) & 0xffffffff);
   	
 		phb->first_busno += (phb->global_number << 8);
 		phb->last_busno += (phb->global_number << 8);
@@ -654,6 +649,11 @@ fixup_resources(struct pci_dev *dev)
 			    dev->resource[i].end);
 
 		if ((dev->resource[i].start == 0) && (dev->resource[i].end == 0)) {
+			continue;
+		}
+		if (dev->resource[i].start > dev->resource[i].end) {
+			/* Bogus resource.  Just clear it out. */
+			dev->resource[i].start = dev->resource[i].end = 0;
 			continue;
 		}
 
@@ -781,12 +781,8 @@ pSeries_pcibios_init(void)
 void 
 pSeries_pcibios_init_early(void)
 {
-	ppc_md.pcibios_read_config_byte = rtas_read_config_byte;
-	ppc_md.pcibios_read_config_word = rtas_read_config_word;
-	ppc_md.pcibios_read_config_dword = rtas_read_config_dword;
-	ppc_md.pcibios_write_config_byte = rtas_write_config_byte;
-	ppc_md.pcibios_write_config_word = rtas_write_config_word;
-	ppc_md.pcibios_write_config_dword = rtas_write_config_dword;
+	ppc_md.pcibios_read_config = rtas_read_config;
+	ppc_md.pcibios_write_config = rtas_write_config;
 }
 /************************************************************************/
 /* Get a char* of the device physical location(U0.3-P1-I8)              */

@@ -82,14 +82,16 @@ void do_gettimeofday(struct timeval *tv)
 	unsigned long flags;
 
 	read_lock_irqsave (&xtime_lock, flags);
-	*tv = xtime;
+	tv->tv_sec = xtime.tv_sec;
+	tv->tv_usec = xtime.tv_nsec / 1000;
 	read_unlock_irqrestore (&xtime_lock, flags);
 }
 
 void do_settimeofday(struct timeval *tv)
 {
 	write_lock_irq (&xtime_lock);
-	xtime = *tv;
+	xtime.tv_usec = tv->tv_sec;
+	xtime.tv_nsec = tv->tv_usec;
 	time_adjust = 0;		/* stop active adjtime() */
 	time_status |= STA_UNSYNC;
 	time_maxerror = NTP_PHASE_LIMIT;

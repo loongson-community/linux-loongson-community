@@ -153,8 +153,9 @@ _GLOBAL(__secondary_hold)
  */
 
 /*
- * We make as much of the exception code common between native Pseries
- * and Iseries LPAR implementations as possible.
+ * We make as much of the exception code common between native
+ * exception handlers (including pSeries LPAR) and iSeries LPAR
+ * implementations as possible.
  */
 
 /*
@@ -1340,17 +1341,10 @@ _STATIC(__after_prom_start)
 					/* executed here.                 */
 
         LOADADDR(r0, 4f)                /* Jump to the copy of this code  */
-	mtctr	r0			/* that we just made              */
+	mtctr	r0			/* that we just made/relocated    */
 	bctr
 
-4:	LOADADDR(r9,rtas)
-	sub	r9,r9,r26
-	ld	r5,RTASBASE(r9)		/* get the value of rtas->base */
-	ld	r9,RTASSIZE(r9)		/* get the value of rtas->size */
-	bl	.copy_and_flush		/* copy upto rtas->base */
-	add     r6,r6,r9		/* then skip over rtas->size bytes */
-
-	LOADADDR(r5,klimit)
+4:	LOADADDR(r5,klimit)
 	sub	r5,r5,r26
 	ld	r5,0(r5)		/* get the value of klimit */
 	sub	r5,r5,r27
@@ -1571,7 +1565,6 @@ _GLOBAL(__secondary_start)
 	mtspr	SRR0,r3
 	mtspr	SRR1,r4
 	rfid
-#endif /* CONFIG_SMP */
 
 /* 
  * Running with relocation on at this point.  All we want to do is
@@ -1581,6 +1574,7 @@ _GLOBAL(start_secondary_prolog)
 	li	r3,0
 	std	r3,0(r1)                /* Zero the stack frame pointer     */
 	bl	.start_secondary
+#endif
 
 /*
  * This subroutine clobbers r11, r12 and the LR
@@ -1674,9 +1668,6 @@ _STATIC(start_here_pSeries)
 	addi    r2,r2,0x4000
 	addi    r2,r2,0x4000
 	sub	r2,r2,r26
-
-	/* Init naca->debug_switch so it can be used in stab & htab init.  */
-	bl	.ppcdbg_initialize
 
 	/* Get the pointer to the segment table which is used by           */
 	/* stab_initialize                                                 */

@@ -189,7 +189,7 @@ static __init unsigned long get_m48t35_time(void)
 void __init ip27_time_init(void)
 {
 	xtime.tv_sec = get_m48t35_time();
-	xtime.tv_usec = 0;
+	xtime.tv_nsec = 0;
 
 	do_gettimeoffset = ip27_do_gettimeoffset;
 }

@@ -19,16 +19,13 @@
 #include <linux/irq.h>
 #include <linux/pci.h>
 #include <linux/delay.h>
+#include <linux/smp_lock.h>
 
 #include <asm/page.h>
 #include <asm/semaphore.h>
 #include <asm/processor.h>
 #include <asm/uaccess.h>
 #include <asm/io.h>
-#if 0
-#include <linux/ide.h>
-#include <asm/ide.h>
-#endif
 #include <asm/atomic.h>
 #include <asm/bitops.h>
 #include <asm/checksum.h>
@@ -41,7 +38,6 @@
 #include <asm/machdep.h>
 #include <asm/hw_irq.h>
 #include <asm/abs_addr.h>
-#include <asm/smplock.h>
 #include <asm/cacheflush.h>
 #ifdef CONFIG_PPC_ISERIES
 #include <asm/iSeries/iSeries_pci.h>
@@ -54,6 +50,7 @@
 /* Tell string.h we don't want memcpy etc. as cpp defines */
 #define EXPORT_SYMTAB_STROPS
 
+extern int sys_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg);
 extern int sys_sigreturn(struct pt_regs *regs);
 extern int do_signal(sigset_t *, struct pt_regs *);
 extern int register_ioctl32_conversion(unsigned int cmd, int (*handler)(unsigned int, unsigned int, unsigned long, struct file *));
@@ -68,6 +65,7 @@ extern struct pci_dev * iSeries_veth_dev;
 extern struct pci_dev * iSeries_vio_dev;
 
 EXPORT_SYMBOL(do_signal);
+EXPORT_SYMBOL(sys_ioctl);
 EXPORT_SYMBOL(sys_sigreturn);
 EXPORT_SYMBOL(enable_irq);
 EXPORT_SYMBOL(disable_irq);
@@ -158,15 +156,17 @@ EXPORT_SYMBOL(pci_unmap_single);
 EXPORT_SYMBOL(pci_map_sg);
 EXPORT_SYMBOL(pci_unmap_sg);
 #ifdef CONFIG_PPC_ISERIES
-EXPORT_SYMBOL(iSeries_Write_Long);
 EXPORT_SYMBOL(iSeries_GetLocationData);
-EXPORT_SYMBOL(iSeries_Read_Long);
 EXPORT_SYMBOL(iSeries_Device_ToggleReset);
-EXPORT_SYMBOL(iSeries_Write_Word);
+EXPORT_SYMBOL(iSeries_memset_io);
+EXPORT_SYMBOL(iSeries_memcpy_toio);
 EXPORT_SYMBOL(iSeries_memcpy_fromio);
-EXPORT_SYMBOL(iSeries_Read_Word);
 EXPORT_SYMBOL(iSeries_Read_Byte);
+EXPORT_SYMBOL(iSeries_Read_Word);
+EXPORT_SYMBOL(iSeries_Read_Long);
 EXPORT_SYMBOL(iSeries_Write_Byte);
+EXPORT_SYMBOL(iSeries_Write_Word);
+EXPORT_SYMBOL(iSeries_Write_Long);
 #endif /* CONFIG_PPC_ISERIES */
 #ifndef CONFIG_PPC_ISERIES
 EXPORT_SYMBOL(eeh_check_failure);

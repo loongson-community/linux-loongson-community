@@ -255,11 +255,12 @@
 #define __NR_io_getevents		(__NR_Linux + 243)
 #define __NR_io_submit			(__NR_Linux + 244)
 #define __NR_io_cancel			(__NR_Linux + 245)
+#define __NR_exit_group			(__NR_Linux + 246)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		245
+#define __NR_Linux_syscalls		246
 
 #ifndef __ASSEMBLY__
 

@@ -32,6 +32,8 @@
 #define USECS_PER_JIFFY (1000000/HZ)
 #define USECS_PER_JIFFY_FRAC ((u32)((1000000ULL << 32) / HZ))
 
+#define TICK_SIZE	(tick_nsec / 1000)
+
 u64 jiffies_64;
 
 /*
@@ -63,54 +65,58 @@ int (*rtc_set_time)(unsigned long) = null_rtc_set_time;
 
 
 /*
- * timeofday services, for syscalls.
+ * This version of gettimeofday has microsecond resolution and better than
+ * microsecond precision on fast machines with cycle counter.
  */
 void do_gettimeofday(struct timeval *tv)
 {
 	unsigned long flags;
+	unsigned long usec, sec;
 
-	read_lock_irqsave (&xtime_lock, flags);
-	*tv = xtime;
-	tv->tv_usec += do_gettimeoffset();
-
-	/*
-	 * xtime is atomically updated in timer_bh. jiffies - wall_jiffies
-	 * is nonzero if the timer bottom half hasnt executed yet.
-	 */
-	if (jiffies - wall_jiffies)
-		tv->tv_usec += USECS_PER_JIFFY;
-
-	read_unlock_irqrestore (&xtime_lock, flags);
-
-	if (tv->tv_usec >= 1000000) {
-		tv->tv_usec -= 1000000;
-		tv->tv_sec++;
+	read_lock_irqsave(&xtime_lock, flags);
+	usec = do_gettimeoffset();
+	{
+		unsigned long lost = jiffies - wall_jiffies;
+		if (lost)
+			usec += lost * (1000000 / HZ);
 	}
+	sec = xtime.tv_sec;
+	usec += (xtime.tv_nsec / 1000);
+	read_unlock_irqrestore(&xtime_lock, flags);
+
+	while (usec >= 1000000) {
+		usec -= 1000000;
+		sec++;
+	}
+
+	tv->tv_sec = sec;
+	tv->tv_usec = usec;
 }
 
 void do_settimeofday(struct timeval *tv)
 {
-	write_lock_irq (&xtime_lock);
-
-	/* This is revolting. We need to set the xtime.tv_usec
-	 * correctly. However, the value in this location is
-	 * is value at the last tick.
-	 * Discover what correction gettimeofday
-	 * would have done, and then undo it!
+	write_lock_irq(&xtime_lock);
+	/*
+	 * This is revolting. We need to set "xtime" correctly. However, the
+	 * value in this location is the value at the most recent update of
+	 * wall time.  Discover what correction gettimeofday() would have
+	 * made, and then undo it!
 	 */
 	tv->tv_usec -= do_gettimeoffset();
+	tv->tv_usec -= (jiffies - wall_jiffies) * (1000000 / HZ);
 
-	if (tv->tv_usec < 0) {
+	while (tv->tv_usec < 0) {
 		tv->tv_usec += 1000000;
 		tv->tv_sec--;
 	}
-	xtime = *tv;
-	time_adjust = 0;			/* stop active adjtime() */
+
+	xtime.tv_sec = tv->tv_sec;
+	xtime.tv_nsec = (tv->tv_usec * 1000);
+	time_adjust = 0;		/* stop active adjtime() */
 	time_status |= STA_UNSYNC;
 	time_maxerror = NTP_PHASE_LIMIT;
 	time_esterror = NTP_PHASE_LIMIT;
-
-	write_unlock_irq (&xtime_lock);
+	write_unlock_irq(&xtime_lock);
 }
 
 
@@ -324,6 +330,7 @@ void local_timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	update_process_times(user_mode(regs));
 #endif
 }
+#define TICK_SIZE (tick_nsec / 1000)
 
 /*
  * high-level timer interrupt service routines.  This function
@@ -365,8 +372,8 @@ void timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	read_lock (&xtime_lock);
 	if ((time_status & STA_UNSYNC) == 0 &&
 	    xtime.tv_sec > last_rtc_update + 660 &&
-	    xtime.tv_usec >= 500000 - ((unsigned) tick) / 2 &&
-	    xtime.tv_usec <= 500000 + ((unsigned) tick) / 2) {
+	    (xtime.tv_nsec / 1000) >= 500000 - ((unsigned) TICK_SIZE) / 2 &&
+	    (xtime.tv_nsec / 1000) <= 500000 + ((unsigned) TICK_SIZE) / 2) {
 		if (rtc_set_time(xtime.tv_sec) == 0) {
 			last_rtc_update = xtime.tv_sec;
 		} else {
@@ -480,7 +487,7 @@ void __init time_init(void)
 		board_time_init();
 
 	xtime.tv_sec = rtc_get_time();
-	xtime.tv_usec = 0;
+	xtime.tv_nsec = 0;
 
 	/* choose appropriate gettimeoffset routine */
 	if (!(mips_cpu.options & MIPS_CPU_COUNTER)) {

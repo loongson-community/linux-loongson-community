@@ -328,7 +328,7 @@ static u8 __init macepci_swizzle(struct pci_dev *dev, u8 *pinp)
 }
 
 /* All devices are enabled during initialization. */
-int pcibios_enable_device(struct pci_dev *dev)
+int pcibios_enable_device(struct pci_dev *dev, int mask, int mask)
 {
 	return PCIBIOS_SUCCESSFUL;
 }

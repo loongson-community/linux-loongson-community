@@ -222,16 +222,14 @@ static int disable_periodic (struct ehci_hcd *ehci)
 
 // FIXME microframe periods not yet handled
 
-static void intr_deschedule (
+static unsigned long intr_deschedule (
 	struct ehci_hcd	*ehci,
 	struct ehci_qh	*qh,
-	int		wait
+	int		wait,
+	unsigned long	flags
 ) {
-	unsigned long	flags;
 	int		status;
 	unsigned	frame = qh->start;
-
-	spin_lock_irqsave (&ehci->lock, flags);
 
 	do {
 		periodic_unlink (ehci, frame, qh);
@@ -251,8 +249,6 @@ static void intr_deschedule (
 		vdbg ("periodic schedule still enabled");
 	}
 
-	spin_unlock_irqrestore (&ehci->lock, flags);
-
 	/*
 	 * If the hc may be looking at this qh, then delay a uframe
 	 * (yeech!) to be sure it's done.
@@ -260,8 +256,10 @@ static void intr_deschedule (
 	 */
 	if (((ehci_get_frame (&ehci->hcd) - frame) % qh->period) == 0) {
 		if (wait) {
+			spin_unlock_irqrestore (&ehci->lock, flags);
 			udelay (125);
 			qh->hw_next = EHCI_LIST_END;
+			spin_lock_irqsave (&ehci->lock, flags);
 		} else {
 			/* we may not be IDLE yet, but if the qh is empty
 			 * the race is very short.  then if qh also isn't
@@ -275,12 +273,13 @@ static void intr_deschedule (
 	qh->qh_state = QH_STATE_IDLE;
 
 	/* update per-qh bandwidth utilization (for usbfs) */
-	ehci->hcd.self.bandwidth_allocated -= 
+	hcd_to_bus (&ehci->hcd)->bandwidth_allocated -= 
 		(qh->usecs + qh->c_usecs) / qh->period;
 
 	vdbg ("descheduled qh %p, per = %d frame = %d count = %d, urbs = %d",
 		qh, qh->period, frame,
 		atomic_read (&qh->refcount), ehci->periodic_sched);
+	return flags;
 }
 
 static int check_period (
@@ -436,7 +435,7 @@ static int qh_schedule (struct ehci_hcd *ehci, struct ehci_qh *qh)
 	} while (frame < ehci->periodic_size);
 
 	/* update per-qh bandwidth for usbfs */
-	ehci->hcd.self.bandwidth_allocated += 
+	hcd_to_bus (&ehci->hcd)->bandwidth_allocated += 
 		(qh->usecs + qh->c_usecs) / qh->period;
 
 	/* maybe enable periodic schedule processing */
@@ -486,7 +485,7 @@ static int intr_submit (
 	BUG_ON (qh == 0);
 
 	/* ... update usbfs periodic stats */
-	ehci->hcd.self.bandwidth_int_reqs++;
+	hcd_to_bus (&ehci->hcd)->bandwidth_int_reqs++;
 
 done:
 	spin_unlock_irqrestore (&ehci->lock, flags);
@@ -513,12 +512,10 @@ intr_complete (
 	}
 	
 	/* handle any completions */
-	spin_unlock_irqrestore (&ehci->lock, flags);
-	qh_completions (ehci, qh);
-	spin_lock_irqsave (&ehci->lock, flags);
+	flags = qh_completions (ehci, qh, flags);
 
 	if (unlikely (list_empty (&qh->qtd_list)))
-		intr_deschedule (ehci, qh, 0);
+		flags = intr_deschedule (ehci, qh, 0, flags);
 
 	return flags;
 }
@@ -974,130 +971,20 @@ static int itd_submit (struct ehci_hcd *ehci, struct urb *urb, int mem_flags)
 /*
  * "Split ISO TDs" ... used for USB 1.1 devices going through
  * the TTs in USB 2.0 hubs.
+ *
+ * FIXME not yet implemented
  */
 
-static void
-sitd_free (struct ehci_hcd *ehci, struct ehci_sitd *sitd)
-{
-	pci_pool_free (ehci->sitd_pool, sitd, sitd->sitd_dma);
-}
-
-static struct ehci_sitd *
-sitd_make (
-	struct ehci_hcd	*ehci,
-	struct urb	*urb,
-	unsigned	index,		// urb->iso_frame_desc [index]
-	unsigned	uframe,		// scheduled start
-	dma_addr_t	dma,		// mapped transfer buffer
-	int		mem_flags
-) {
-	struct ehci_sitd	*sitd;
-	unsigned		length;
-
-	sitd = pci_pool_alloc (ehci->sitd_pool, mem_flags, &dma);
-	if (!sitd)
-		return sitd;
-	sitd->urb = urb;
-	length = urb->iso_frame_desc [index].length;
-	dma += urb->iso_frame_desc [index].offset;
-
-#if 0
-	// FIXME:  do the rest!
-#else
-	sitd_free (ehci, sitd);
-	return 0;
-#endif
-
-}
-
-static void
-sitd_link (struct ehci_hcd *ehci, unsigned frame, struct ehci_sitd *sitd)
-{
-	u32		ptr;
-
-	ptr = cpu_to_le32 (sitd->sitd_dma | 2);	// type 2 == sitd
-	if (ehci->pshadow [frame].ptr) {
-		if (!sitd->sitd_next.ptr) {
-			sitd->sitd_next = ehci->pshadow [frame];
-			sitd->hw_next = ehci->periodic [frame];
-		} else if (sitd->sitd_next.ptr != ehci->pshadow [frame].ptr) {
-			dbg ("frame %d sitd link goof", frame);
-			BUG ();
-		}
-	}
-	ehci->pshadow [frame].sitd = sitd;
-	ehci->periodic [frame] = ptr;
-}
-
-static unsigned long
-sitd_complete (
-	struct ehci_hcd *ehci,
-	struct ehci_sitd	*sitd,
-	unsigned long		flags
-) {
-	// FIXME -- implement!
-
-	dbg ("NYI -- sitd_complete");
-	return flags;
-}
-
-/*-------------------------------------------------------------------------*/
-
-static int sitd_submit (struct ehci_hcd *ehci, struct urb *urb, int mem_flags)
-{
-	// struct ehci_sitd	*first_sitd = 0;
-	unsigned		frame_index;
-	dma_addr_t		dma;
-
-	dbg ("NYI -- sitd_submit");
-
-	// FIXME -- implement!
-
-	// FIXME:  setup one big dma mapping
-	dma = 0;
-
-	for (frame_index = 0;
-			frame_index < urb->number_of_packets;
-			frame_index++) {
-		struct ehci_sitd	*sitd;
-		unsigned		uframe;
-
-		// FIXME:  use real arguments, schedule this!
-		uframe = -1;
-
-		sitd = sitd_make (ehci, urb, frame_index,
-				uframe, dma, mem_flags);
-
-		if (sitd) {
-    /*
-			if (first_sitd)
-				list_add_tail (&sitd->sitd_list,
-						&first_sitd->sitd_list);
-			else
-				first_sitd = sitd;
-    */
-		} else {
-			// FIXME:  clean everything up
-		}
-	}
-
-	// if we have a first sitd, then
-		// store them all into the periodic schedule!
-		// urb->hcpriv = first sitd in sitd_list
-
-	return -ENOSYS;
-}
 #endif /* have_split_iso */
 
 /*-------------------------------------------------------------------------*/
 
-static void scan_periodic (struct ehci_hcd *ehci)
+static unsigned long
+scan_periodic (struct ehci_hcd *ehci, unsigned long flags)
 {
 	unsigned	frame, clock, now_uframe, mod;
-	unsigned long	flags;
 
 	mod = ehci->periodic_size << 3;
-	spin_lock_irqsave (&ehci->lock, flags);
 
 	/*
 	 * When running, scan from last scan point up to "now"
@@ -1237,5 +1124,5 @@ restart:
 		} else
 			frame = (frame + 1) % ehci->periodic_size;
 	} 
-	spin_unlock_irqrestore (&ehci->lock, flags);
+	return flags;
 }

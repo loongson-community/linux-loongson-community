@@ -180,6 +180,8 @@ struct _of_tce_table of_tce_table[MAX_PHB + 1] = {{0, 0, 0}};
 char *bootpath = 0;
 char *bootdevice = 0;
 
+int boot_cpuid = 0;
+
 struct device_node *allnodes = 0;
 
 #define UNDEFINED_IRQ 0xffff
@@ -619,8 +621,8 @@ prom_initialize_lmb(unsigned long mem)
 }
 
 
-static unsigned long __init
-prom_instantiate_rtas(unsigned long mem)
+static void __init
+prom_instantiate_rtas(void)
 {
 	unsigned long offset = reloc_offset();
 	struct prom_t *_prom = PTRRELOC(&prom);
@@ -653,16 +655,18 @@ prom_instantiate_rtas(unsigned long mem)
 	        _rtas->size = getprop_rval;
 		prom_print(RELOC("instantiating rtas"));
 		if (_rtas->size != 0) {
-			/*
-			 * Ask OF for some space for RTAS.
-			 * Actually OF has bugs so we just arbitrarily
-			 * use memory at the 6MB point.
-			 */
-			// The new code...
-			mem = PAGE_ALIGN(mem);
-			_rtas->base = mem + offset - KERNELBASE;
+			unsigned long rtas_region = RTAS_INSTANTIATE_MAX;
 
-			mem += _rtas->size;
+			/* Grab some space within the first RTAS_INSTANTIATE_MAX bytes
+			 * of physical memory (or within the RMO region) because RTAS
+			 * runs in 32-bit mode and relocate off.
+			 */
+			if ( _naca->platform == PLATFORM_PSERIES_LPAR ) {
+				struct lmb *_lmb  = PTRRELOC(&lmb);
+				rtas_region = min(_lmb->rmo_size, RTAS_INSTANTIATE_MAX);
+			}
+			_rtas->base = lmb_alloc_base(_rtas->size, PAGE_SIZE, rtas_region);
+
 			prom_print(RELOC(" at 0x"));
 			prom_print_hex(_rtas->base);
 
@@ -699,8 +703,6 @@ prom_instantiate_rtas(unsigned long mem)
 #ifdef DEBUG_PROM
 	prom_print(RELOC("prom_instantiate_rtas: end...\n"));
 #endif
-
-	return mem;
 }
 
 unsigned long prom_strtoul(const char *cp)
@@ -940,7 +942,7 @@ prom_initialize_tce_table(void)
 		align = (minalign < minsize) ? minsize : minalign;
 
 		/* Carve out storage for the TCE table. */
-		base = lmb_alloc(minsize, align);
+		base = lmb_alloc(8UL << 20, 8UL << 20);
 
 		if ( !base ) {
 			prom_print(RELOC("ERROR, cannot find space for TCE table.\n"));
@@ -1350,7 +1352,9 @@ prom_init(unsigned long r3, unsigned long r4, unsigned long pp,
 		&getprop_rval, sizeof(getprop_rval));
 	_prom->cpu = (int)(unsigned long)getprop_rval;
 	_xPaca[_prom->cpu].active = 1;
+#ifdef CONFIG_SMP
 	RELOC(cpu_online_map) = 1 << _prom->cpu;
+#endif
 	RELOC(boot_cpuid) = _prom->cpu;
 
 #ifdef DEBUG_PROM
@@ -1378,7 +1382,7 @@ prom_init(unsigned long r3, unsigned long r4, unsigned long pp,
 
 	mem = prom_bi_rec_reserve(mem);
 
-	mem = prom_instantiate_rtas(mem);
+	prom_instantiate_rtas();
         
         /* Initialize some system info into the Naca early... */
         mem = prom_initialize_naca(mem);

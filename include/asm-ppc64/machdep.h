@@ -15,7 +15,6 @@
 struct pt_regs;
 struct pci_bus;	
 struct pci_dev;
-struct kbd_repeat;
 struct device_node;
 struct TceTable;
 struct rtc_time;
@@ -32,9 +31,6 @@ struct smp_ops_t {
 #endif
 
 struct machdep_calls {
-	/* High use functions in the first cachelines, low use functions
-	 * follow.  DRENG collect profile data.
-	 */
 	void            (*hpte_invalidate)(unsigned long slot,
 					   unsigned long va,
 					   int large,
@@ -99,32 +95,14 @@ struct machdep_calls {
 	unsigned char 	(*nvram_read_val)(int addr);
 	void		(*nvram_write_val)(int addr, unsigned char val);
 
-/* Tons of keyboard stuff. */
-	int		(*kbd_setkeycode)(unsigned int scancode,
-				unsigned int keycode);
-	int		(*kbd_getkeycode)(unsigned int scancode);
-	int		(*kbd_translate)(unsigned char scancode,
-				unsigned char *keycode,
-				char raw_mode);
-	char		(*kbd_unexpected_up)(unsigned char keycode);
-	void		(*kbd_leds)(unsigned char leds);
-	void		(*kbd_init_hw)(void);
-#ifdef CONFIG_MAGIC_SYSRQ
-	unsigned char 	*ppc_kbd_sysrq_xlate;
-#endif
-
 	/* Debug interface.  Low level I/O to some terminal device */
 	void		(*udbg_putc)(unsigned char c);
 	unsigned char	(*udbg_getc)(void);
 	int		(*udbg_getc_poll)(void);
 
 	/* PCI interfaces */
-	int (*pcibios_read_config_byte)(struct device_node *dn, int offset, u8 *val);
-	int (*pcibios_read_config_word)(struct device_node *dn, int offset, u16 *val);
-	int (*pcibios_read_config_dword)(struct device_node *dn, int offset, u32 *val);
-	int (*pcibios_write_config_byte)(struct device_node *dn, int offset, u8 val);
-	int (*pcibios_write_config_word)(struct device_node *dn, int offset, u16 val);
-	int (*pcibios_write_config_dword)(struct device_node *dn, int offset, u32 val);
+	int (*pcibios_read_config)(struct device_node *dn, int where, int size, u32 *val);
+	int (*pcibios_write_config)(struct device_node *dn, int where, int size, u32 val);
 
 	/* Called after scanning the bus, before allocating
 	 * resources

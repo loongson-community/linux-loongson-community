@@ -126,9 +126,9 @@ struct device_node {
 	struct	interrupt_info *intrs;
 	char	*full_name;
 	int	busno;			/* for pci devices */
+	int	bussubno;		/* for pci devices */
 	int	devfn;			/* for pci devices */
 	struct  pci_controller *phb;	/* for pci devices */
-	int	status;			/* current status of device */
 	struct	TceTable *tce_table;	/* for phb's or bridges */
 #define DN_STATUS_BIST_FAILED (1<<0)
 	struct	property *properties;
@@ -171,6 +171,8 @@ struct prom_t {
 };
 
 extern struct prom_t prom;
+
+extern int boot_cpuid;
 
 /* Prototypes */
 extern void abort(void);

@@ -27,7 +27,6 @@
 #include <linux/errno.h>
 #include <linux/string.h>
 #include <linux/types.h>
-#include <linux/ptrace.h>
 #include <linux/mman.h>
 #include <linux/mm.h>
 #include <linux/swap.h>
@@ -58,6 +57,7 @@
 #include <asm/naca.h>
 #include <asm/eeh.h>
 #include <asm/processor.h>
+#include <asm/mmzone.h>
 
 #include <asm/ppcdebug.h>
 
@@ -99,21 +99,23 @@ mmu_gather_t     mmu_gathers[NR_CPUS];
 
 void show_mem(void)
 {
-	int i,total = 0,reserved = 0;
+	int pfn, total = 0, reserved = 0;
 	int shared = 0, cached = 0;
+	struct page *page;
 
 	printk("Mem-info:\n");
 	show_free_areas();
 	printk("Free swap:       %6dkB\n",nr_swap_pages<<(PAGE_SHIFT-10));
-	i = max_mapnr;
-	while (i-- > 0) {
+	pfn = max_mapnr;
+	while (pfn-- > 0) {
+		page = pfn_to_page(pfn);
 		total++;
-		if (PageReserved(mem_map+i))
+		if (PageReserved(page))
 			reserved++;
-		else if (PageSwapCache(mem_map+i))
+		else if (PageSwapCache(page))
 			cached++;
-		else if (page_count(mem_map+i))
-			shared += page_count(mem_map+i) - 1;
+		else if (page_count(page))
+			shared += page_count(page) - 1;
 	}
 	printk("%d pages of RAM\n",total);
 	printk("%d reserved pages\n",reserved);
@@ -434,6 +436,7 @@ void __init mm_init_ppc64(void)
  * Initialize the bootmem system and give it all the memory we
  * have available.
  */
+#ifndef CONFIG_DISCONTIGMEM
 void __init do_init_bootmem(void)
 {
 	unsigned long i;
@@ -493,6 +496,7 @@ void __init paging_init(void)
 		zones_size[i] = 0;
 	free_area_init(zones_size);
 }
+#endif
 
 extern unsigned long prof_shift;
 extern unsigned long prof_len;
@@ -505,19 +509,39 @@ void initialize_paca_hardware_interrupt_stack(void);
 
 void __init mem_init(void)
 {
+#ifndef CONFIG_DISCONTIGMEM
 	extern char *sysmap; 
 	extern unsigned long sysmap_size;
 	unsigned long addr;
+#endif
 	int codepages = 0;
 	int datapages = 0;
 	int initpages = 0;
-	unsigned long va_rtas_base = (unsigned long)__va(rtas.base);
 
 	max_mapnr = max_low_pfn;
 	high_memory = (void *) __va(max_low_pfn * PAGE_SIZE);
 	num_physpages = max_mapnr;	/* RAM is assumed contiguous */
 	max_pfn = max_low_pfn;
 
+#ifdef CONFIG_DISCONTIGMEM
+{
+	int nid;
+
+        for (nid = 0; nid < MAX_NUMNODES; nid++) {
+		if (numa_node_exists[nid]) {
+			printk("freeing bootmem node %x\n", nid);
+			totalram_pages +=
+				free_all_bootmem_node(NODE_DATA(nid));
+		}
+	}
+
+	printk("Memory: %luk available (%dk kernel code, %dk data, %dk init) [%08lx,%08lx]\n",
+	       (unsigned long)nr_free_pages()<< (PAGE_SHIFT-10),
+	       codepages<< (PAGE_SHIFT-10), datapages<< (PAGE_SHIFT-10),
+	       initpages<< (PAGE_SHIFT-10),
+	       PAGE_OFFSET, (unsigned long)__va(lmb_end_of_DRAM()));
+}
+#else
 	totalram_pages += free_all_bootmem();
 
 	if ( sysmap_size )
@@ -545,6 +569,7 @@ void __init mem_init(void)
 	       codepages<< (PAGE_SHIFT-10), datapages<< (PAGE_SHIFT-10),
 	       initpages<< (PAGE_SHIFT-10),
 	       PAGE_OFFSET, (unsigned long)__va(lmb_end_of_DRAM()));
+#endif
 	mem_init_done = 1;
 
 	/* set the last page of each hardware interrupt stack to be protected */

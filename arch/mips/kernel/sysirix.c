@@ -626,9 +626,11 @@ asmlinkage int irix_stime(int value)
 
 	write_lock_irq(&xtime_lock);
 	xtime.tv_sec = value;
-	xtime.tv_usec = 0;
-	time_maxerror = MAXPHASE;
-	time_esterror = MAXPHASE;
+	xtime.tv_nsec = 0;
+	time_adjust = 0;			/* stop active adjtime() */
+	time_status |= STA_UNSYNC;
+	time_maxerror = NTP_PHASE_LIMIT;
+	time_esterror = NTP_PHASE_LIMIT;
 	write_unlock_irq(&xtime_lock);
 
 	return 0;
@@ -1051,7 +1053,22 @@ asmlinkage int irix_sgikopt(char *istring, char *ostring, int len)
 
 asmlinkage int irix_gettimeofday(struct timeval *tv)
 {
-	return copy_to_user(tv, &xtime, sizeof(*tv)) ? -EFAULT : 0;
+	time_t sec;
+	long nsec;
+	int err;
+
+	if (verify_area(VERIFY_WRITE, tv, sizeof(struct timeval)))
+		return -EFAULT;
+
+	read_lock_irq(&xtime_lock);
+	sec = xtime.tv_sec;
+	nsec = xtime.tv_nsec;
+	read_unlock_irq(&xtime_lock);
+
+	err = __put_user(sec, &tv->tv_sec);
+	err |= __put_user((nsec / 1000), &tv->tv_usec);
+
+	return err;
 }
 
 #define IRIX_MAP_AUTOGROW 0x40

@@ -262,11 +262,12 @@
 #define __NR_O32_io_getevents		(__NR_O32_Linux + 243)
 #define __NR_O32_io_submit		(__NR_O32_Linux + 244)
 #define __NR_O32_io_cancel		(__NR_O32_Linux + 245)
+#define __NR_O32_exit_group		(__NR_O32_Linux + 246)
 
 /*
  * Offset of the last Linux o32 flavoured syscall
  */
-#define __NR_O32_Linux_syscalls		240
+#define __NR_O32_Linux_syscalls		246
 
 
 /*
@@ -478,11 +479,12 @@
 #define __NR_io_getevents		(__NR_Linux + 202)
 #define __NR_io_submit			(__NR_Linux + 203)
 #define __NR_io_cancel			(__NR_Linux + 204)
+#define __NR_exit_group			(__NR_Linux + 205)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		204
+#define __NR_Linux_syscalls		205
 
 /*
  * Linux N32 syscalls are in the range from 6000 to 6999.
@@ -693,11 +695,12 @@
 #define __NR_N32_io_getevents		(__NR_N32_Linux + 202)
 #define __NR_N32_io_submit		(__NR_N32_Linux + 203)
 #define __NR_N32_io_cancel		(__NR_N32_Linux + 204)
+#define __NR_N32_exit_group		(__NR_N32_Linux + 205)
 
 /*
  * Offset of the last N32 flavoured syscall
  */
-#define __NR_N32_Linux_syscalls		204
+#define __NR_N32_Linux_syscalls		205
 
 #ifndef __ASSEMBLY__
 

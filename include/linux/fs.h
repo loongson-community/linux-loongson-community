@@ -307,8 +307,7 @@ struct address_space_operations {
 	int (*bmap)(struct address_space *, long);
 	int (*invalidatepage) (struct page *, unsigned long);
 	int (*releasepage) (struct page *, int);
-	int (*direct_IO)(int, struct inode *, char *buf,
-				loff_t offset, size_t count);
+	int (*direct_IO)(int, struct inode *, const struct iovec *iov, loff_t offset, unsigned long nr_segs);
 };
 
 struct backing_dev_info;
@@ -526,10 +525,10 @@ extern int init_private_file(struct file *, struct dentry *, int);
 
 #define FL_POSIX	1
 #define FL_FLOCK	2
-#define FL_BROKEN	4	/* broken flock() emulation */
-#define FL_ACCESS	8	/* for processes suspended by mandatory locking */
+#define FL_ACCESS	8	/* not trying to lock, just looking */
 #define FL_LOCKD	16	/* lock held by rpc.lockd */
 #define FL_LEASE	32	/* lease held on this file */
+#define FL_SLEEP	128	/* A blocking lock */
 
 /*
  * The POSIX file lock owner is determined by
@@ -591,9 +590,9 @@ extern void locks_copy_lock(struct file_lock *, struct file_lock *);
 extern void locks_remove_posix(struct file *, fl_owner_t);
 extern void locks_remove_flock(struct file *);
 extern struct file_lock *posix_test_lock(struct file *, struct file_lock *);
-extern int posix_lock_file(struct file *, struct file_lock *, unsigned int);
+extern int posix_lock_file(struct file *, struct file_lock *);
 extern void posix_block_lock(struct file_lock *, struct file_lock *);
-extern void posix_unblock_lock(struct file_lock *);
+extern void posix_unblock_lock(struct file *, struct file_lock *);
 extern int posix_locks_deadlock(struct file_lock *, struct file_lock *);
 extern int __get_lease(struct inode *inode, unsigned int flags);
 extern time_t lease_get_mtime(struct inode *);
@@ -660,7 +659,6 @@ struct super_block {
 
 	struct list_head	s_dirty;	/* dirty inodes */
 	struct list_head	s_io;		/* parked for writeback */
-	struct list_head	s_locked_inodes;/* inodes being synced */
 	struct list_head	s_anon;		/* anonymous dentries for (nfs) exporting */
 	struct list_head	s_files;
 
@@ -1246,14 +1244,18 @@ extern int generic_file_mmap(struct file *, struct vm_area_struct *);
 extern int file_read_actor(read_descriptor_t * desc, struct page *page, unsigned long offset, unsigned long size);
 extern ssize_t generic_file_read(struct file *, char *, size_t, loff_t *);
 extern ssize_t generic_file_write(struct file *, const char *, size_t, loff_t *);
-extern ssize_t generic_file_write_nolock(struct file *, const char *, size_t, loff_t *);
+ssize_t generic_file_write_nolock(struct file *file, const struct iovec *iov,
+				unsigned long nr_segs, loff_t *ppos);
 extern ssize_t generic_file_sendfile(struct file *, struct file *, loff_t *, size_t);
 extern void do_generic_file_read(struct file *, loff_t *, read_descriptor_t *, read_actor_t);
-ssize_t generic_file_direct_IO(int rw, struct inode *inode, char *buf,
-				loff_t offset, size_t count);
-int generic_direct_IO(int rw, struct inode *inode, char *buf,
-			loff_t offset, size_t count, get_blocks_t *get_blocks);
-
+extern ssize_t generic_file_direct_IO(int rw, struct inode *inode, 
+	const struct iovec *iov, loff_t offset, unsigned long nr_segs);
+extern int generic_direct_IO(int rw, struct inode *inode, const struct iovec 
+	*iov, loff_t offset, unsigned long nr_segs, get_blocks_t *get_blocks);
+extern ssize_t generic_file_readv(struct file *filp, const struct iovec *iov, 
+	unsigned long nr_segs, loff_t *ppos);
+ssize_t generic_file_writev(struct file *filp, const struct iovec *iov, 
+			unsigned long nr_segs, loff_t *ppos);
 extern loff_t no_llseek(struct file *file, loff_t offset, int origin);
 extern loff_t generic_file_llseek(struct file *file, loff_t offset, int origin);
 extern loff_t remote_llseek(struct file *file, loff_t offset, int origin);

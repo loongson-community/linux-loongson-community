@@ -222,7 +222,7 @@ void __init pcibios_fixup_pbus_ranges(struct pci_bus * bus,
 {
 }
 
-int pcibios_enable_device(struct pci_dev *dev)
+int pcibios_enable_device(struct pci_dev *dev, int mask)
 {
 	/* Not needed, since we enable all devices at startup.  */
 	return 0;

@@ -251,7 +251,7 @@ static void check_partition(struct gendisk *hd, struct block_device *bdev)
 			p[j-1].start_sect = state->parts[j].from;
 			p[j-1].nr_sects = state->parts[j].size;
 #if CONFIG_BLK_DEV_MD
-			if (!state->parts[j-1].flags)
+			if (!state->parts[j].flags)
 				continue;
 			md_autodetect_dev(bdev->bd_dev+j);
 #endif
@@ -327,7 +327,7 @@ static void devfs_create_partitions(struct gendisk *dev)
 	devfs_auto_unregister(dev->disk_de, slave);
 	if (!(dev->flags & GENHD_FL_DEVFS))
 		devfs_auto_unregister (slave, dir);
-	for (part = 1, p++; part < max_p; part++, p++)
+	for (part = 1; part < max_p; part++, p++)
 		if (p->nr_sects)
 			devfs_register_partition(dev, part);
 #endif

@@ -868,7 +868,7 @@ int pcibios_enable_resources(struct pci_dev *dev)
 	return 0;
 }
 
-int pcibios_enable_device(struct pci_dev *dev)
+int pcibios_enable_device(struct pci_dev *dev, int mask)
 {
 	DBG(KERN_INFO "rr: pcibios_enable_device\n");
 	return pcibios_enable_resources(dev);

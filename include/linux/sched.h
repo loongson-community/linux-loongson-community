@@ -27,6 +27,7 @@ extern unsigned long event;
 #include <linux/securebits.h>
 #include <linux/fs_struct.h>
 #include <linux/compiler.h>
+#include <linux/completion.h>
 
 struct exec_domain;
 
@@ -50,7 +51,11 @@ struct exec_domain;
 #define CLONE_CLEARTID	0x00200000	/* clear the userspace TID */
 #define CLONE_DETACHED	0x00400000	/* parent wants no child-exit signal */
 
-#define CLONE_SIGNAL	(CLONE_SIGHAND | CLONE_THREAD)
+/*
+ * List of flags we want to share for kernel threads,
+ * if only because they are not used by them anyway.
+ */
+#define CLONE_KERNEL	(CLONE_FS | CLONE_FILES | CLONE_SIGHAND)
 
 /*
  * These are the constant used to fake the fixed-point load-average
@@ -128,8 +133,6 @@ struct sched_param {
 	int sched_priority;
 };
 
-struct completion;
-
 #ifdef __KERNEL__
 
 #include <linux/spinlock.h>
@@ -170,7 +173,8 @@ struct namespace;
 /* Maximum number of active map areas.. This is a random (large) number */
 #define MAX_MAP_COUNT	(65536)
 
-struct kioctx;
+#include <linux/aio.h>
+
 struct mm_struct {
 	struct vm_area_struct * mmap;		/* list of VMAs */
 	rb_root_t mm_rb;
@@ -203,6 +207,8 @@ struct mm_struct {
 	/* aio bits */
 	rwlock_t		ioctx_list_lock;
 	struct kioctx		*ioctx_list;
+
+	struct kioctx		default_kioctx;
 };
 
 extern int mmlist_nr;
@@ -216,6 +222,12 @@ struct signal_struct {
         task_t                  *curr_target;
 
 	struct sigpending	shared_pending;
+
+	/* thread group exit support */
+	int			group_exit;
+	int			group_exit_code;
+
+	struct task_struct	*group_exit_task;
 };
 
 /*
@@ -311,6 +323,7 @@ struct task_struct {
 	struct task_struct *parent;	/* parent process */
 	struct list_head children;	/* list of my children */
 	struct list_head sibling;	/* linkage in my parent's children list */
+	struct task_struct *group_leader;
 	struct list_head thread_group;
 
 	/* PID hash table linkage. */
@@ -549,8 +562,10 @@ extern int dequeue_signal(struct sigpending *pending, sigset_t *mask, siginfo_t 
 extern void block_all_signals(int (*notifier)(void *priv), void *priv,
 			      sigset_t *mask);
 extern void unblock_all_signals(void);
+extern void release_task(struct task_struct * p);
 extern int send_sig_info(int, struct siginfo *, struct task_struct *);
 extern int force_sig_info(int, struct siginfo *, struct task_struct *);
+extern int __kill_pg_info(int sig, struct siginfo *info, pid_t pgrp);
 extern int kill_pg_info(int, struct siginfo *, pid_t);
 extern int kill_sl_info(int, struct siginfo *, pid_t);
 extern int kill_proc_info(int, struct siginfo *, pid_t);
@@ -558,6 +573,7 @@ extern void notify_parent(struct task_struct *, int);
 extern void do_notify_parent(struct task_struct *, int);
 extern void force_sig(int, struct task_struct *);
 extern int send_sig(int, struct task_struct *, int);
+extern int __broadcast_thread_group(struct task_struct *p, int sig);
 extern int kill_pg(pid_t, int, int);
 extern int kill_sl(pid_t, int, int);
 extern int kill_proc(pid_t, int, int);
@@ -664,6 +680,7 @@ extern void exit_thread(void);
 extern void exit_mm(struct task_struct *);
 extern void exit_files(struct task_struct *);
 extern void exit_sighand(struct task_struct *);
+extern void __exit_sighand(struct task_struct *);
 extern void remove_thread_group(struct task_struct *tsk, struct signal_struct *sig);
 
 extern void reparent_to_init(void);
@@ -754,14 +771,16 @@ static inline void remove_wait_queue_locked(wait_queue_head_t *q,
 #define remove_parent(p)	list_del_init(&(p)->sibling)
 #define add_parent(p, parent)	list_add_tail(&(p)->sibling,&(parent)->children)
 
-#define REMOVE_LINKS(p) do {				\
-	list_del_init(&(p)->tasks);			\
-	remove_parent(p);				\
+#define REMOVE_LINKS(p) do {					\
+	if (thread_group_leader(p))				\
+		list_del_init(&(p)->tasks);			\
+	remove_parent(p);					\
 	} while (0)
 
-#define SET_LINKS(p) do {				\
-	list_add_tail(&(p)->tasks,&init_task.tasks);	\
-	add_parent(p, (p)->parent);			\
+#define SET_LINKS(p) do {					\
+	if (thread_group_leader(p))				\
+		list_add_tail(&(p)->tasks,&init_task.tasks);	\
+	add_parent(p, (p)->parent);				\
 	} while (0)
 
 static inline struct task_struct *eldest_child(struct task_struct *p)
@@ -791,11 +810,18 @@ static inline struct task_struct *younger_sibling(struct task_struct *p)
 #define next_task(p)	list_entry((p)->tasks.next, struct task_struct, tasks)
 #define prev_task(p)	list_entry((p)->tasks.prev, struct task_struct, tasks)
 
-#define for_each_task(p) \
+#define for_each_process(p) \
 	for (p = &init_task ; (p = next_task(p)) != &init_task ; )
 
-#define for_each_thread(task) \
-	for (task = next_thread(current) ; task != current ; task = next_thread(task))
+/*
+ * Careful: do_each_thread/while_each_thread is a double loop so
+ *          'break' will not work as expected - use goto instead.
+ */
+#define do_each_thread(g, t) \
+	for (g = t = &init_task ; (g = t = next_task(g)) != &init_task ; ) do
+
+#define while_each_thread(g, t) \
+	while ((t = next_thread(t)) != g)
 
 static inline task_t *next_thread(task_t *p)
 {
@@ -822,6 +848,9 @@ static inline task_t *prev_thread(task_t *p)
 }
 
 #define thread_group_leader(p)	(p->pid == p->tgid)
+
+#define delay_group_leader(p) \
+	(p->tgid == p->pid && !list_empty(&p->thread_group))
 
 extern void unhash_process(struct task_struct *p);
 

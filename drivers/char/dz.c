@@ -39,7 +39,6 @@
 #include <linux/console.h>
 #include <linux/tty.h>
 #include <linux/tty_flip.h>
-#include <linux/serial.h>
 
 #include <linux/ptrace.h>
 #include <linux/fs.h>

@@ -115,7 +115,7 @@ SYS(sys_setpriority, 3)
 SYS(sys_ni_syscall, 0)
 SYS(sys_statfs, 2)
 SYS(sys_fstatfs, 2)				/* 4100 */
-SYS(sys_ioperm, 3)
+SYS(sys_ni_syscall, 0)				/* was ioperm(2) */
 SYS(sys_socketcall, 2)
 SYS(sys_syslog, 3)
 SYS(sys_setitimer, 3)
@@ -124,10 +124,10 @@ SYS(sys_newstat, 2)
 SYS(sys_newlstat, 2)
 SYS(sys_newfstat, 2)
 SYS(sys_uname, 1)
-SYS(sys_iopl, 0)	/* Well, actually 17 args ... */				/* 4110 */
+SYS(sys_iopl, 0)				/* 4110 was iopl(2) */
 SYS(sys_vhangup, 0)
-SYS(sys_ni_syscall, 0)	/* was sys_idle() */
-SYS(sys_vm86, 1)
+SYS(sys_ni_syscall, 0)				/* was sys_idle() */
+SYS(sys_ni_syscall, 0)				/* was sys_vm86 */
 SYS(sys_wait4, 4)
 SYS(sys_swapoff, 1)				/* 4115 */
 SYS(sys_sysinfo, 1)
@@ -260,4 +260,4 @@ SYS(sys_io_destroy, 1)
 SYS(sys_io_getevents, 5)
 SYS(sys_io_submit, 3)
 SYS(sys_io_cancel, 3)				/* 4245 */
-
+SYS(sys_exit_group, 1)

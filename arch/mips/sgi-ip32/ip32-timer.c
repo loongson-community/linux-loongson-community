@@ -220,7 +220,7 @@ void __init ip32_time_init(void)
 
 	write_lock_irq (&xtime_lock);
 	xtime.tv_sec = mktime(year, mon, day, hour, min, sec);
-	xtime.tv_usec = 0;
+	xtime.tv_nsec = 0;
 	write_unlock_irq (&xtime_lock);
 
 	write_32bit_cp0_register(CP0_COUNT, 0);

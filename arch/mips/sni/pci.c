@@ -172,7 +172,7 @@ void __init pcibios_init(void)
 
 subsys_initcall(pcibios_init);
 
-int __init pcibios_enable_device(struct pci_dev *dev)
+int __init pcibios_enable_device(struct pci_dev *dev, int mask)
 {
 	/* Not needed, since we enable all devices at startup.  */
 	return 0;

@@ -1,6 +1,4 @@
 /*
- * 
- *
  *    Copyright (c) 2000 Mike Corrigan <mikejc@us.ibm.com>
  *    Copyright (c) 1999-2000 Grant Erickson <grant@lcse.umn.edu>
  *
@@ -334,17 +332,6 @@ iSeries_init_early(void)
 	ppc_md.calibrate_decr	 	= iSeries_calibrate_decr;
 	ppc_md.progress			= iSeries_progress;
 
-	ppc_md.kbd_setkeycode    	= NULL;
-	ppc_md.kbd_getkeycode    	= NULL;
-	ppc_md.kbd_translate     	= NULL;
-	ppc_md.kbd_unexpected_up 	= NULL;
-	ppc_md.kbd_leds          	= NULL;
-	ppc_md.kbd_init_hw       	= NULL;
-
-#if defined(CONFIG_MAGIC_SYSRQ)
-	ppc_md.ppc_kbd_sysrq_xlate	= NULL;
-#endif
-	
 	hpte_init_iSeries();
 	tce_init_iSeries();
 

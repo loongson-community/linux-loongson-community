@@ -387,6 +387,8 @@ extern void update_mmu_cache(struct vm_area_struct *vma,
 
 #include <asm-generic/pgtable.h>
 
+typedef pte_t *pte_addr_t;
+
 /*
  * We provide our own get_unmapped area to cope with the virtual aliasing
  * constraints placed on us by the cache architecture.

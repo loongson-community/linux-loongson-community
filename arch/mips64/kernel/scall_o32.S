@@ -543,6 +543,7 @@ out:	jr	ra
 	sys	sys_io_getevents	5
 	sys	sys_io_submit		3
 	sys	sys_io_cancel		3		/* 4245 */
+	sys	sys_exit_group		1
 	.endm
 
 	.macro	sys function, nargs

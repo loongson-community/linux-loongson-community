@@ -215,7 +215,7 @@ LDFLAGS_vmlinux	+= -T arch/mips64/ld.script.elf32
 
 vmlinux:	arch/mips64/ld.script.elf32.s
 
-CPPFLAGS_arch/mips64/ld.script.elf32.s := -imacros $(srctree)/include/asm-mips64/sn/mapped_kernel.h
+AFLAGS_arch/mips64/ld.script.elf32.s := -imacros $(srctree)/include/asm-mips64/sn/mapped_kernel.h
 
 endif
 
@@ -229,7 +229,7 @@ LDFLAGS_vmlinux += -T arch/mips64/ld.script.elf32
 
 vmlinux:	arch/mips64/ld.script.elf32.s
 
-CPPFLAGS_arch/mips64/ld.script.elf32.s := -imacros $(srctree)/include/asm-mips64/sn/mapped_kernel.h
+AFLAGS_arch/mips64/ld.script.elf32.s := -imacros $(srctree)/include/asm-mips64/sn/mapped_kernel.h
 
 #AS += -64
 #LDFLAGS += -m elf64bmip
@@ -237,7 +237,7 @@ CPPFLAGS_arch/mips64/ld.script.elf32.s := -imacros $(srctree)/include/asm-mips64
 #
 #vmlinux:	arch/mips64/ld.script.elf64
 #
-#CPPFLAGS_arch/mips64/ld.script.elf64.s := -imacros $(srctree)/include/asm-mips64/sn/mapped_kernel.h
+#AFLAGS_arch/mips64/ld.script.elf64.s := -imacros $(srctree)/include/asm-mips64/sn/mapped_kernel.h
 
 endif
 

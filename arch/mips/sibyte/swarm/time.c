@@ -240,7 +240,7 @@ void __init swarm_time_init(void)
 			printk("x1241: battery failed -- time is probably wrong\n");
 		write_lock_irqsave (&xtime_lock, flags);
 		xtime.tv_sec = get_swarm_time();
-		xtime.tv_usec = 0;
+		xtime.tv_nsec = 0;
 		write_unlock_irqrestore(&xtime_lock, flags);
 	}
 }

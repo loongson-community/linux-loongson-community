@@ -45,7 +45,6 @@
 
 #include <linux/delay.h>
 #include <linux/mc146818rtc.h>
-#include <asm/mtrr.h>
 #include <asm/pgalloc.h>
 #include <asm/tlbflush.h>
 #include <asm/smpboot.h>
@@ -403,12 +402,6 @@ void __init smp_callin(void)
 
 	local_irq_enable();
 
-#ifdef CONFIG_MTRR
-	/*
-	 * Must be done before calibration delay is computed
-	 */
-	mtrr_init_secondary_cpu ();
-#endif
 	/*
 	 * Get our bogomips.
 	 */
@@ -452,6 +445,11 @@ int __init start_secondary(void *unused)
 	while (!test_bit(smp_processor_id(), &smp_commenced_mask))
 		rep_nop();
 	setup_secondary_APIC_clock();
+	if (nmi_watchdog == NMI_IO_APIC) {
+		disable_8259A_irq(0);
+		enable_NMI_through_LVT0(NULL);
+		enable_8259A_irq(0);
+	}
 	enable_APIC_timer();
 	/*
 	 * low-memory mappings have been cleared, flush them from
