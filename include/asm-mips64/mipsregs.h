@@ -301,6 +301,24 @@ extern asmlinkage void write_perf_cntl(unsigned int counter, unsigned int val);
         ".set\tmips0"                                           \
         : : "r" (value))
 
+/* 
+ * This should be changed when we get a compiler that support the MIPS32 ISA. 
+ */
+#define read_mips32_cp0_config1()                               \
+({ int __res;                                                   \
+        __asm__ __volatile__(                                   \
+	".set\tnoreorder\n\t"                                   \
+	".set\tnoat\n\t"                                        \
+	"#.set\tmips64\n\t"					\
+	"#mfc0\t$1, $16, 1\n\t"					\
+	"#.set\tmips0\n\t"					\
+     	".word\t0x40018001\n\t"                                 \
+	"move\t%0,$1\n\t"                                       \
+	".set\tat\n\t"                                          \
+	".set\treorder"                                         \
+	:"=r" (__res));                                         \
+        __res;})
+
 /* TLB operations. */
 static inline void tlb_probe(void)
 {
