@@ -269,6 +269,13 @@ cflags-$(CONFIG_MIPS_DB1500)	+= -Iinclude/asm-mips/mach-db1x00
 load-$(CONFIG_MIPS_DB1500)	+= 0x80100000
 
 #
+# AMD Alchemy Db1550 eval board
+#
+libs-$(CONFIG_MIPS_DB1550)	+= arch/mips/au1000/db1x00/
+cflags-$(CONFIG_MIPS_DB1550)	+= -Iinclude/asm-mips/mach-db1x00
+load-$(CONFIG_MIPS_DB1550)	+= 0x80100000
+
+#
 # AMD Alchemy Bosporus eval board
 #
 libs-$(CONFIG_MIPS_BOSPORUS)	+= arch/mips/au1000/db1x00/
