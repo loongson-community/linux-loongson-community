@@ -221,14 +221,32 @@ spurious_8259A_irq:
 	}
 }
 
-static struct device device_i8259A = {
-	.name		= "i8259A",
-	.bus_id		= "0020",
+static int i8259A_resume(struct device *dev, u32 level)
+{
+	if (level == RESUME_POWER_ON)
+		init_8259A(0);
+	return 0;
+}
+
+static struct device_driver i8259A_driver = {
+	.name		= "pic",
+	.bus		= &system_bus_type,
+	.resume		= i8259A_resume,
+};
+
+static struct sys_device device_i8259A = {
+	.name		= "pic",
+	.id		= 0,
+	.dev		= {
+		.name	= "i259A PIC",
+		.driver = &i8259A_driver,
+	},
 };
 
 static int __init init_8259A_devicefs(void)
 {
-	return register_sys_device(&device_i8259A);
+	driver_register(&i8259A_driver);
+	return sys_device_register(&device_i8259A);
 }
 
 __initcall(init_8259A_devicefs);
