@@ -38,6 +38,7 @@
 #include <linux/timex.h>
 #include <linux/malloc.h>
 #include <linux/random.h>
+#include <linux/delay.h>
 
 #include <asm/bitops.h>
 #include <asm/bootinfo.h>
@@ -71,20 +72,26 @@ extern void set_debug_traps(void);
 irq_cpustat_t irq_stat [NR_CPUS];
 unsigned int local_bh_count[NR_CPUS];
 unsigned int local_irq_count[NR_CPUS];
-unsigned long spurious_count = 0;
 irq_desc_t irq_desc[NR_IRQS];
 
-static void setup_au1000_irq(unsigned int irq, int type, int int_req);
-static unsigned int startup_au1000_irq(unsigned int irq);
-static void enable_au1000_irq(unsigned int irq_nr);
-static void disable_au1000_irq(unsigned int irq_nr);
-static void end_au1000_irq(unsigned int irq_nr);
+static void setup_local_irq(unsigned int irq, int type, int int_req);
+static unsigned int startup_irq(unsigned int irq);
+static void end_irq(unsigned int irq_nr);
+static inline void mask_and_ack_level_irq(unsigned int irq_nr);
+static inline void mask_and_ack_rise_edge_irq(unsigned int irq_nr);
+static inline void mask_and_ack_fall_edge_irq(unsigned int irq_nr);
+static inline void local_enable_irq(unsigned int irq_nr);
+static inline void local_disable_irq(unsigned int irq_nr);
 
-static void ack_level_irq(unsigned int irq_nr);
-static void ack_rise_edge_irq(unsigned int irq_nr);
-static void ack_fall_edge_irq(unsigned int irq_nr);
+extern unsigned long spurious_interrupts;
+extern unsigned int do_IRQ(int irq, struct pt_regs *regs);
+extern void __init init_generic_irq(void);
 
-void disable_ack_irq(int irq);
+static inline void sync(void)
+{
+	__asm volatile ("sync");
+}
+
 
 /* Function for careful CP0 interrupt mask access */
 static inline void modify_cp0_intmask(unsigned clr_mask, unsigned set_mask)
@@ -95,15 +102,18 @@ static inline void modify_cp0_intmask(unsigned clr_mask, unsigned set_mask)
 	write_32bit_cp0_register(CP0_STATUS, status);
 }
 
+
 static inline void mask_cpu_irq_input(unsigned int irq_nr)
 {
 	modify_cp0_intmask(irq_nr, 0);
 }
 
+
 static inline void unmask_cpu_irq_input(unsigned int irq_nr)
 {
 	modify_cp0_intmask(0, irq_nr);
 }
+
 
 static void disable_cpu_irq_input(unsigned int irq_nr)
 {
@@ -113,6 +123,7 @@ static void disable_cpu_irq_input(unsigned int irq_nr)
 	mask_cpu_irq_input(irq_nr);
 	restore_flags(flags);
 }
+
 
 static void enable_cpu_irq_input(unsigned int irq_nr)
 {
@@ -124,7 +135,7 @@ static void enable_cpu_irq_input(unsigned int irq_nr)
 }
 
 
-static void setup_au1000_irq(unsigned int irq_nr, int type, int int_req)
+static void setup_local_irq(unsigned int irq_nr, int type, int int_req)
 {
 	/* Config2[n], Config1[n], Config0[n] */
 	if (irq_nr > AU1000_LAST_INTC0_INT) {
@@ -171,7 +182,6 @@ static void setup_au1000_irq(unsigned int irq_nr, int type, int int_req)
 	else {
 		switch (type) {
 			case INTC_INT_RISE_EDGE: /* 0:0:1 */
-				printk("irq %d: rise edge\n", irq_nr);
 				outl(1<<irq_nr,INTC0_CONFIG2_CLEAR);
 				outl(1<<irq_nr, INTC0_CONFIG1_CLEAR);
 				outl(1<<irq_nr, INTC0_CONFIG0_SET);
@@ -210,22 +220,25 @@ static void setup_au1000_irq(unsigned int irq_nr, int type, int int_req)
 		outl(1<<irq_nr, INTC0_SOURCE_SET);
 		outl(1<<irq_nr, INTC0_MASK_CLEAR);
 	}
+	sync();
 }
 
-static unsigned int startup_au1000_irq(unsigned int irq_nr)
+
+static unsigned int startup_irq(unsigned int irq_nr)
 {
+	local_enable_irq(irq_nr);
 	return 0; 
 }
 
-static void shutdown_au1000_irq(unsigned int irq_nr)
+
+static void shutdown_irq(unsigned int irq_nr)
 {
-	/* *really* disable this interrupt */
-	disable_au1000_irq(irq_nr);
-	setup_au1000_irq(irq_nr, INTC_INT_DISABLED, 0);
+	local_disable_irq(irq_nr);
 	return;
 }
 
-static void enable_au1000_irq(unsigned int irq_nr)
+
+static inline void local_enable_irq(unsigned int irq_nr)
 {
 	if (irq_nr > AU1000_LAST_INTC0_INT) {
 		outl(1<<irq_nr, INTC1_MASK_SET);
@@ -233,19 +246,11 @@ static void enable_au1000_irq(unsigned int irq_nr)
 	else {
 		outl(1<<irq_nr, INTC0_MASK_SET);
 	}
+	sync();
 }
 
-void enable_irq(unsigned int irq_nr)
-{
-	if (irq_nr > AU1000_LAST_INTC0_INT) {
-		outl(1<<irq_nr, INTC1_MASK_SET);
-	}
-	else {
-		outl(1<<irq_nr, INTC0_MASK_SET);
-	}
-}
 
-static void disable_au1000_irq(unsigned int irq_nr)
+static inline void local_disable_irq(unsigned int irq_nr)
 {
 	if (irq_nr > AU1000_LAST_INTC0_INT) {
 		outl(1<<irq_nr, INTC1_MASK_CLEAR);
@@ -253,247 +258,93 @@ static void disable_au1000_irq(unsigned int irq_nr)
 	else {
 		outl(1<<irq_nr, INTC0_MASK_CLEAR);
 	}
+	sync();
 }
 
-void disable_irq(unsigned int irq_nr)
+
+static inline void mask_and_ack_rise_edge_irq(unsigned int irq_nr)
 {
 	if (irq_nr > AU1000_LAST_INTC0_INT) {
+		outl(1<<irq_nr, INTC1_R_EDGE_DETECT_CLEAR);
 		outl(1<<irq_nr, INTC1_MASK_CLEAR);
 	}
 	else {
+		outl(1<<irq_nr, INTC0_R_EDGE_DETECT_CLEAR);
+		outl(1<<irq_nr, INTC0_MASK_CLEAR);
+	}
+	sync();
+}
+
+
+static inline void mask_and_ack_fall_edge_irq(unsigned int irq_nr)
+{
+	if (irq_nr > AU1000_LAST_INTC0_INT) {
+		outl(1<<irq_nr, INTC1_F_EDGE_DETECT_CLEAR);
+		outl(1<<irq_nr, INTC1_MASK_CLEAR);
+	}
+	else {
+		outl(1<<irq_nr, INTC0_F_EDGE_DETECT_CLEAR);
 		outl(1<<irq_nr, INTC0_MASK_CLEAR);
 	}
 }
 
-void ack_rise_edge_irq(unsigned int irq_nr)
-{
-	if (irq_nr > AU1000_LAST_INTC0_INT) {
-		outl(1<<irq_nr, INTC1_R_EDGE_DETECT_CLEAR);
-	}
-	else {
-		outl(1<<irq_nr, INTC0_R_EDGE_DETECT_CLEAR);
-	}
-}
 
-static void ack_fall_edge_irq(unsigned int irq_nr)
+static inline void mask_and_ack_level_irq(unsigned int irq_nr)
 {
-	if (irq_nr > AU1000_LAST_INTC0_INT) {
-		outl(1<<irq_nr, INTC1_R_EDGE_DETECT_CLEAR);
-	}
-	else {
-		outl(1<<irq_nr, INTC0_R_EDGE_DETECT_CLEAR);
-	}
-}
-
-static void ack_level_irq(unsigned int irq_nr)
-{
+	local_disable_irq(irq_nr);
+	sync();
 	return;
 }
 
-static void end_au1000_irq(unsigned int irq_nr)
+
+static void end_irq(unsigned int irq_nr)
 {
 	if (!(irq_desc[irq_nr].status & (IRQ_DISABLED|IRQ_INPROGRESS)))
-		enable_au1000_irq(irq_nr);
+		local_enable_irq(irq_nr);
+	else
+		printk("warning: end_irq %d did not enable\n", irq_nr);
 }
 
 
 static struct hw_interrupt_type rise_edge_irq_type = {
 	"Au1000 Rise Edge",
-	startup_au1000_irq,
-	shutdown_au1000_irq,
-	enable_au1000_irq,
-	disable_au1000_irq,
-	ack_rise_edge_irq,
-	end_au1000_irq,
+	startup_irq,
+	shutdown_irq,
+	local_enable_irq,
+	local_disable_irq,
+	mask_and_ack_rise_edge_irq,
+	end_irq,
 	NULL
 };
 
+
 static struct hw_interrupt_type fall_edge_irq_type = {
-	"Au1000 Edge",
-	startup_au1000_irq,
-	shutdown_au1000_irq,
-	enable_au1000_irq,
-	disable_au1000_irq,
-	ack_fall_edge_irq,
-	end_au1000_irq,
+	"Au1000 Fall Edge",
+	startup_irq,
+	shutdown_irq,
+	local_enable_irq,
+	local_disable_irq,
+	mask_and_ack_fall_edge_irq,
+	end_irq,
 	NULL
 };
+
 
 static struct hw_interrupt_type level_irq_type = {
 	"Au1000 Level",
-	startup_au1000_irq,
-	shutdown_au1000_irq,
-	enable_au1000_irq,
-	disable_au1000_irq,
-	ack_level_irq,
-	end_au1000_irq,
+	startup_irq,
+	shutdown_irq,
+	local_enable_irq,
+	local_disable_irq,
+	mask_and_ack_level_irq,
+	end_irq,
 	NULL
 };
 
-
-int get_irq_list(char *buf)
-{
-	int i, len = 0, j;
-	struct irqaction * action;
-
-	len += sprintf(buf+len, "	    ");
-	for (j=0; j<smp_num_cpus; j++)
-		len += sprintf(buf+len, "CPU%d	     ",j);
-	*(char *)(buf+len++) = '\n';
-
-	for (i = 0 ; i < NR_IRQS ; i++) {
-		action = irq_desc[i].action;
-		if ( !action || !action->handler )
-			continue;
-		len += sprintf(buf+len, "%3d: ", i);		
-		len += sprintf(buf+len, "%10u ", kstat_irqs(i));
-		if ( irq_desc[i].handler )		
-			len += sprintf(buf+len, " %s ", irq_desc[i].handler->typename );
-		else
-			len += sprintf(buf+len, "  None	     ");
-		len += sprintf(buf+len, "    %s",action->name);
-		for (action=action->next; action; action = action->next) {
-			len += sprintf(buf+len, ", %s", action->name);
-		}
-		len += sprintf(buf+len, "\n");
-	}
-	len += sprintf(buf+len, "BAD: %10lu\n", spurious_count);
-	return len;
-}
-
-asmlinkage void do_IRQ(int irq, struct pt_regs *regs)
-{
-	struct irqaction *action;
-	irq_desc_t *desc = irq_desc + irq;
-	int cpu;
-
-	cpu = smp_processor_id();
-	irq_enter(cpu, irq);
-
-	kstat.irqs[cpu][irq]++;
-	desc->handler->ack(irq);
-
-	action = irq_desc[irq].action;
-
-	if (action && action->handler)
-	{
-		//desc->handler->disable(irq);
-		//if (!(action->flags & SA_INTERRUPT)) __sti(); /* reenable ints */
-		do { 
-			action->handler(irq, action->dev_id, regs);
-			action = action->next;
-		} while ( action );
-		//__cli(); /* disable ints */
-		//desc->handler->ack(irq);
-		//desc->handler->enable(irq);
-	}
-	else
-	{
-		spurious_count++;
-		printk("Unhandled interrupt %d, cause %x, disabled\n", 
-				(unsigned)irq, (unsigned)regs->cp0_cause);
-		desc->handler->disable(irq);
-	}
-	irq_exit(cpu, irq);
-#if 0
-	if (softirq_active(cpu) & softirq_mask(cpu))
-		do_softirq();
-#endif
-}
-
-int request_irq(unsigned int irq, void (*handler)(int, void *, struct pt_regs *),
-	unsigned long irqflags, const char * devname, void *dev_id)
-{
-	struct irqaction *old, **p, *action;
-	unsigned long flags, shared=0;
-	irq_desc_t *desc = irq_desc + irq;
-	unsigned long cp0_status;
-
-	cp0_status = read_32bit_cp0_register(CP0_STATUS);
-
-	if (irq >= NR_IRQS) 
-		return -EINVAL;
-
-	if (!handler)
-	{
-		/* Free */
-		for (p = &irq_desc[irq].action; (action = *p) != NULL; p = &action->next)
-		{
-			/* Found it - now free it */
-			save_flags(flags);
-			cli();
-			*p = action->next;
-			desc->handler->disable(irq);
-			desc->handler->ack(irq);
-			restore_flags(flags);
-			kfree(action);
-			return 0;
-		}
-		return -ENOENT;
-	}
-	
-	action = (struct irqaction *)
-		kmalloc(sizeof(struct irqaction), GFP_KERNEL);
-	if (!action)
-		return -ENOMEM;
-	memset(action, 0, sizeof(struct irqaction));
-	
-	action->handler = handler;
-	action->flags = irqflags;					
-	action->mask = 0;
-	action->name = devname;
-	action->dev_id = dev_id;
-	action->next = NULL;
-
-	p = &irq_desc[irq].action;
-	
-	spin_lock_irqsave(&desc->lock,flags);
-	if ((old = *p) != NULL) {
-		/* Can't share interrupts unless both agree to */
-		if (!(old->flags & action->flags & SA_SHIRQ)) {
-			spin_unlock_irqrestore(&desc->lock,flags);
-			return -EBUSY;
-		}
-		/* add new interrupt at end of irq queue */
-		do {
-			p = &old->next;
-			old = *p;
-		} while (old);
-		shared = 1;
-	}
-	*p = action;
-	if (!shared) {
-		desc->depth = 0;
-		desc->status &= ~(IRQ_DISABLED | IRQ_AUTODETECT | IRQ_WAITING);
-		desc->handler->startup(irq);
-		desc->handler->ack(irq);
-		desc->handler->enable(irq);
-	}
-	else {
-		printk("irq %d is shared\n", irq);
-	}
-	spin_unlock_irqrestore(&desc->lock,flags);
-	return 0;
-}
-		
-void free_irq(unsigned int irq, void *dev_id)
-{
-	request_irq(irq, NULL, 0, NULL, dev_id);
-}
 
 void enable_cpu_timer(void)
 {
 	enable_cpu_irq_input(1<<MIPS_TIMER_IP); /* timer interrupt */
-}
-
-unsigned long probe_irq_on (void)
-{
-	return 0;
-}
-
-int probe_irq_off (unsigned long irqs)
-{
-	return 0;
 }
 
 
@@ -506,20 +357,21 @@ void __init init_IRQ(void)
 	memset(irq_desc, 0, sizeof(irq_desc));
 	set_except_vector(0, au1000_IRQ);
 
+	init_generic_irq();
+	
+	/* 
+	 * Setup high priority interrupts on int_request0; low priority on
+	 * int_request1
+	 */
 	for (i = 0; i <= NR_IRQS; i++) {
-		irq_desc[i].status	= IRQ_DISABLED;
-		irq_desc[i].action	= 0;
-		irq_desc[i].depth	= 1;
 		switch (i) {
-#if 0
 			case AU1000_MAC0_DMA_INT:
-				setup_au1000_irq(i, INTC_INT_RISE_EDGE, 0);
-				irq_desc[i].handler = &rise_edge_irq_type;
+			case AU1000_MAC1_DMA_INT:
+				setup_local_irq(i, INTC_INT_HIGH_LEVEL, 0);
+				irq_desc[i].handler = &level_irq_type;
 				break;
-#endif
 			default: /* active high, level interrupt */
-				setup_au1000_irq(i, INTC_INT_HIGH_LEVEL, 0);
-				disable_au1000_irq(i);
+				setup_local_irq(i, INTC_INT_HIGH_LEVEL, 1);
 				irq_desc[i].handler = &level_irq_type;
 				break;
 		}
@@ -535,108 +387,83 @@ void __init init_IRQ(void)
 }
 
 
-/*
- * Ack an int, in case we missed an interrupt ack somewhere.
- * This can be used for edge interrupts, in an error recovery
- * routine.
- */
-void disable_ack_irq(int irq)
-{
-	irq_desc_t *desc = irq_desc + irq;
-
-	desc->handler->disable(irq);
-	desc->handler->ack(irq);
-}
-
 void mips_spurious_interrupt(struct pt_regs *regs)
 {
-#if 0
-	return;
-#else
-	unsigned cause;
-
-	cause = read_32bit_cp0_register(CP0_CAUSE);
-	printk("spurious int (epc %x) (cause %x) (badvaddr %x)\n",
-			(unsigned)regs->cp0_epc, cause, (unsigned)regs->cp0_badvaddr);
-#endif
+	spurious_interrupts++;
 }
+
 
 void intc0_req0_irqdispatch(struct pt_regs *regs)
 {
-	int irq = 0;
+	int irq = 0, i;
 	unsigned long int_request;
 
 	int_request = inl(INTC0_REQ0_INT);
 
 	if (!int_request) return;
 
-	for (;;) {
-		if (!(int_request & 0x1)) {
-			irq++;
-			int_request >>= 1;
+	for (i=0; i<32; i++) {
+		if ((int_request & 0x1)) {
+			do_IRQ(irq, regs);
 		}
-		else break;
+		irq++;
+		int_request >>= 1;
 	}
-	do_IRQ(irq, regs);
 }
+
 
 void intc0_req1_irqdispatch(struct pt_regs *regs)
 {
-	int irq = 0;
+	int irq = 0, i;
 	unsigned long int_request;
 
 	int_request = inl(INTC0_REQ1_INT);
 
 	if (!int_request) return;
 
-	for (;;) {
-		if (!(int_request & 0x1)) {
-			irq++;
-			int_request >>= 1;
+	for (i=0; i<32; i++) {
+		if ((int_request & 0x1)) {
+			do_IRQ(irq, regs);
 		}
-		else break;
+		irq++;
+		int_request >>= 1;
 	}
-	do_IRQ(irq, regs);
 }
+
 
 void intc1_req0_irqdispatch(struct pt_regs *regs)
 {
-	int irq = 0;
+	int irq = 0, i;
 	unsigned long int_request;
 
 	int_request = inl(INTC1_REQ0_INT);
 
 	if (!int_request) return;
 
-	for (;;) {
-		if (!(int_request & 0x1)) {
-			irq++;
-			int_request >>= 1;
+	for (i=0; i<32; i++) {
+		if ((int_request & 0x1)) {
+			do_IRQ(irq, regs);
 		}
-		else break;
+		irq++;
+		int_request >>= 1;
 	}
-	do_IRQ(irq, regs);
 }
+
 
 void intc1_req1_irqdispatch(struct pt_regs *regs)
 {
-	int irq = 0;
+	int irq = 0, i;
 	unsigned long int_request;
 
 	int_request = inl(INTC1_REQ1_INT);
 
 	if (!int_request) return;
 
-	for (;;) {
-		if (!(int_request & 0x1)) {
-			irq++;
-			int_request >>= 1;
+	for (i=0; i<32; i++) {
+		if ((int_request & 0x1)) {
+			do_IRQ(irq, regs);
 		}
-		else break;
+		irq++;
+		int_request >>= 1;
 	}
-	do_IRQ(irq, regs);
-}
-
-void show_pending_irqs(void)
-{
 }

@@ -34,6 +34,7 @@ CONFIG_MIPS_PB1000=y
 # CONFIG_MCA is not set
 # CONFIG_SBUS is not set
 CONFIG_MIPS_AU1000=y
+CONFIG_NEW_IRQ=y
 # CONFIG_ISA is not set
 # CONFIG_EISA is not set
 # CONFIG_PCI is not set

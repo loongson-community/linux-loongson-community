@@ -194,7 +194,7 @@ int bcm_5201_reset(struct net_device *dev, int phy_addr)
 }
 
 int 
-bcm_5201_status(struct net_device *dev, int phy_addr, int *link, int *speed)
+bcm_5201_status(struct net_device *dev, int phy_addr, u16 *link, u16 *speed)
 {
 	u16 mii_data;
 	struct au1000_private *aup;
@@ -246,7 +246,7 @@ int am79c901_reset(struct net_device *dev, int phy_addr)
 }
 
 int 
-am79c901_status(struct net_device *dev, int phy_addr, int *link, int *speed)
+am79c901_status(struct net_device *dev, int phy_addr, u16 *link, u16 *speed)
 {
 	return 0;
 }

@@ -140,7 +140,7 @@ typedef struct mii_phy {
 struct phy_ops {
 	int (*phy_init) (struct net_device *, int);
 	int (*phy_reset) (struct net_device *, int);
-	int (*phy_status) (struct net_device *, int, int *, int *);
+	int (*phy_status) (struct net_device *, int, u16 *, u16 *);
 };
 
 /* 
