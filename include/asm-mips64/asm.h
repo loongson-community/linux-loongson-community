@@ -159,7 +159,7 @@ symbol		=	value
 		.set	push;				\
 		.set	reorder;			\
 		bnez	rt,9f;                          \
-		move	rd,rt;                          \
+		move	rd,rs;                          \
 		.set	pop;				\
 9:
 #endif /* _MIPS_ISA == _MIPS_ISA_MIPS1 */
