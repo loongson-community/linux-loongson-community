@@ -36,7 +36,7 @@
 #include <linux/pci.h>
 #include <linux/crc32.h>
 
-#ifdef CONFIG_SERIAL
+#ifdef CONFIG_SERIAL_8250
 #include <linux/serial.h>
 #include <asm/serial.h>
 #define IOC3_BAUD (22000000 / (3*16))
@@ -1459,7 +1459,7 @@ static int __devinit ioc3_probe(struct pci_dev *pdev,
 	}
 	ip->regs = ioc3;
 
-#ifdef CONFIG_SERIAL
+#ifdef CONFIG_SERIAL_8250
 	ioc3_serial_probe(pdev, ioc3);
 #endif
 
