@@ -192,9 +192,9 @@ void do_settimeofday(struct timeval *tv)
 
 	xtime = *tv;
 	time_adjust = 0;		/* stop active adjtime() */
-	time_state = TIME_BAD;
-	time_maxerror = MAXPHASE;
-	time_esterror = MAXPHASE;
+	time_status |= STA_UNSYNC;
+	time_maxerror = NTP_PHASE_LIMIT;
+	time_esterror = NTP_PHASE_LIMIT;
 	write_unlock_irq(&xtime_lock);
 }
 

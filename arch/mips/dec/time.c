@@ -231,6 +231,7 @@ void do_gettimeofday(struct timeval *tv)
 void do_settimeofday(struct timeval *tv)
 {
 	write_lock_irq(&xtime_lock);
+
 	/* This is revolting. We need to set the xtime.tv_usec
 	 * correctly. However, the value in this location is
 	 * is value at the last tick.
@@ -243,10 +244,13 @@ void do_settimeofday(struct timeval *tv)
 		tv->tv_usec += 1000000;
 		tv->tv_sec--;
 	}
+
 	xtime = *tv;
-	time_state = TIME_BAD;
-	time_maxerror = MAXPHASE;
-	time_esterror = MAXPHASE;
+	time_adjust = 0;		/* stop active adjtime() */
+	time_status |= STA_UNSYNC;
+	time_maxerror = NTP_PHASE_LIMIT;
+	time_esterror = NTP_PHASE_LIMIT;
+
 	write_unlock_irq(&xtime_lock);
 }
 
@@ -351,13 +355,15 @@ timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	 * called as close as possible to 500 ms before the new second starts.
 	 */
 	read_lock(&xtime_lock);
-	if (time_state != TIME_BAD && xtime.tv_sec > last_rtc_update + 660 &&
-	    xtime.tv_usec > 500000 - (tick >> 1) &&
-	    xtime.tv_usec < 500000 + (tick >> 1)) {
+	if ((time_status & STA_UNSYNC) == 0
+	    && xtime.tv_sec > last_rtc_update + 660
+	    && xtime.tv_usec >= 500000 - tick / 2
+	    && xtime.tv_usec <= 500000 + tick / 2) {
 		if (set_rtc_mmss(xtime.tv_sec) == 0)
 			last_rtc_update = xtime.tv_sec;
 		else
-			last_rtc_update = xtime.tv_sec - 600;	/* do it again in 60 s */
+			/* do it again in 60 s */
+			last_rtc_update = xtime.tv_sec - 600;
 	}
 	/* As we return to user mode fire off the other CPU schedulers.. this is
 	   basically because we don't yet share IRQ's around. This message is
