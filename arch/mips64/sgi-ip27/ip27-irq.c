@@ -170,8 +170,18 @@ static int ms1bit(unsigned long x)
 
 	return b + (int) (x >> 1);
 }
-	
-/* For now ...  */
+
+/*
+ * This code is unnecessarily complex, because we do SA_INTERRUPT
+ * intr enabling. Basically, once we grab the set of intrs we need
+ * to service, we must mask _all_ these interrupts; firstly, to make
+ * sure the same intr does not intr again, causing recursion that 
+ * can lead to stack overflow. Secondly, we can not just mask the
+ * one intr we are do_IRQing, because the non-masked intrs in the
+ * first set might intr again, causing multiple servicings of the
+ * same intr. This effect is mostly seen for intercpu intrs.
+ * Kanoj 05.13.00
+ */
 void ip27_do_irq(struct pt_regs *regs)
 {
 	int irq, swlevel;
@@ -182,19 +192,23 @@ void ip27_do_irq(struct pt_regs *regs)
 	/* copied from Irix intpend0() */
 	while (((pend0 = LOCAL_HUB_L(PI_INT_PEND0)) & 
 				(mask0 = LOCAL_HUB_L(pi_int_mask0))) != 0) {
-		pend0 &= mask0;
-		do {
-			swlevel = ms1bit(pend0);
-			LOCAL_HUB_S(pi_int_mask0, mask0 & ~(1 << swlevel));
-			LOCAL_HUB_CLR_INTR(swlevel);
-			/* "map" swlevel to irq */
-			irq = SWLEVEL_TO_IRQ(swlevel);
-			do_IRQ(irq, regs);
-			/* reset INT_MASK0 register */
+		pend0 &= mask0;		/* Pick intrs we should look at */
+		if (pend0) {
+			/* Prevent any of the picked intrs from recursing */
+			LOCAL_HUB_S(pi_int_mask0, mask0 & ~(pend0));
+			do {
+				swlevel = ms1bit(pend0);
+				LOCAL_HUB_CLR_INTR(swlevel);
+				/* "map" swlevel to irq */
+				irq = SWLEVEL_TO_IRQ(swlevel);
+				do_IRQ(irq, regs);
+				/* clear bit in pend0 */
+				pend0 ^= 1ULL << swlevel;
+			} while(pend0);
+			/* Now allow the set of serviced intrs again */
 			LOCAL_HUB_S(pi_int_mask0, mask0);
-			/* clear bit in pend0 */
-			pend0 ^= 1ULL << swlevel;
-		} while (pend0);
+			LOCAL_HUB_L(PI_INT_PEND0);
+		}
 	}
 }
 
