@@ -69,7 +69,7 @@ FEXPORT(__handle_sys64)
 					# restarting
 1:	sd	v0, PT_R2(sp)		# result
 
-syscall_exit:
+n64_syscall_exit:
 	local_irq_disable		# make sure need_resched and
 					# signals dont change between
 					# sampling and return
@@ -116,7 +116,7 @@ illegal_syscall:
 	sd	v0, PT_R2(sp)
 	li	t0, 1				# set error flag
 	sd	t0, PT_R7(sp)
-	j	syscall_exit
+	j	n64_syscall_exit
 	END(handle_sys64)
 
 	LEAF(mips_atomic_set)
@@ -178,7 +178,7 @@ illegal_syscall:
 	and	t0, a2, t0
 	bnez	t0, 1f
 
-	b	syscall_exit
+	j	n64_syscall_exit
 
 1:	SAVE_STATIC
 	move	a0, sp
