@@ -309,7 +309,7 @@ void show_regs(struct pt_regs * regs)
 	/*
 	 * Saved cp0 registers
 	 */
-	printk("epc  : %08lx    %s\nStatus: %08x\nCause : %08x\n",
+	printk("epc  : %08lx    %s\nStatus: %08lx\nCause : %08lx\n",
 	       regs->cp0_epc, print_tainted(), regs->cp0_status,
 	       regs->cp0_cause);
 }
@@ -698,11 +698,13 @@ bad_cid:
 
 asmlinkage void do_watch(struct pt_regs *regs)
 {
+	extern void dump_tlb_all(void);
+
 	/*
 	 * We use the watch exception where available to detect stack
 	 * overflows.
 	 */
-	dump_tlb();
+	dump_tlb_all();
 	show_regs(regs);
 	panic("Caught WATCH exception - probably caused by stack overflow.");
 }
