@@ -467,7 +467,7 @@ void __init setup_arch(char **cmdline_p)
 
 int __init fpu_disable(char *s)
 {
-	mips_cpu.options &= ~MIPS_CPU_FPU;
+	current_cpu_data.options &= ~MIPS_CPU_FPU;
 	return 1;
 }
 __setup("nofpu", fpu_disable);

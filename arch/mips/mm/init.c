@@ -57,7 +57,7 @@ static inline unsigned long setup_zero_pages(void)
 	unsigned long order, size;
 	struct page *page;
 
-	if (mips_cpu.options & MIPS_CPU_VCE)
+	if (current_cpu_data.options & MIPS_CPU_VCE)
 		order = 3;
 	else
 		order = 0;

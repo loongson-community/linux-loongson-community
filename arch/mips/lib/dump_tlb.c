@@ -91,7 +91,7 @@ void dump_tlb(int first, int last)
 
 void dump_tlb_all(void)
 {
-	dump_tlb(0, mips_cpu.tlbsize - 1);
+	dump_tlb(0, current_cpu_data.tlbsize - 1);
 }
 
 void dump_tlb_wired(void)
@@ -138,7 +138,7 @@ dump_tlb_addr(unsigned long addr)
 void
 dump_tlb_nonwired(void)
 {
-	dump_tlb(read_c0_wired(), mips_cpu.tlbsize - 1);
+	dump_tlb(read_c0_wired(), current_cpu_data.tlbsize - 1);
 }
 
 void

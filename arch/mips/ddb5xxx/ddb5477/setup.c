@@ -143,7 +143,7 @@ static void __init ddb_time_init(void)
 
 	/* mips_counter_frequency is 1/2 of the cpu core freq */
 	i =  (read_32bit_cp0_register(CP0_CONFIG) >> 28 ) & 7;
-	if ((mips_cpu.cputype == CPU_R5432) && (i == 3)) 
+	if ((current_cpu_data.cputype == CPU_R5432) && (i == 3)) 
 		i = 4;
 	mips_counter_frequency = bus_frequency*(i+4)/4;
 }

@@ -94,8 +94,8 @@ int __init prom_init(s32 argc, s32 *argv, u32 magic, s32 *prom_vec)
 
 	/* Were we compiled with the right CPU option? */
 #if defined(CONFIG_CPU_R3000)
-	if ((mips_cpu.cputype == CPU_R4000SC) ||
-	    (mips_cpu.cputype == CPU_R4400SC)) {
+	if ((current_cpu_data.cputype == CPU_R4000SC) ||
+	    (current_cpu_data.cputype == CPU_R4400SC)) {
 		prom_printf("Sorry, this kernel is compiled for the wrong CPU type!\n");
 		prom_printf("Please recompile with \"CONFIG_CPU_R4x00 = y\"\n");
 		dec_machine_halt();
@@ -103,8 +103,8 @@ int __init prom_init(s32 argc, s32 *argv, u32 magic, s32 *prom_vec)
 #endif
 
 #if defined(CONFIG_CPU_R4X00)
-	if ((mips_cpu.cputype == CPU_R3000) ||
-	    (mips_cpu.cputype == CPU_R3000A)) {
+	if ((current_cpu_data.cputype == CPU_R3000) ||
+	    (current_cpu_data.cputype == CPU_R3000A)) {
 		prom_printf("Sorry, this kernel is compiled for the wrong CPU type!\n");
 		prom_printf("Please recompile with \"CONFIG_CPU_R3000 = y\"\n");
 		dec_machine_halt();

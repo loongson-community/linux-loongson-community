@@ -217,7 +217,7 @@ void __init vr41xx_pciu_init(struct vr41xx_pci_address_map *map)
 	/* Clear bus error */
 	n = readl(BUSERRADREG);
 
-	if (mips_cpu.cputype == CPU_VR4122) {
+	if (current_cpu_data.cputype == CPU_VR4122) {
 		writel(0UL, PCITRDYVREG);
 		pciu_write_config_dword(PCI_CACHE_LINE_SIZE, 0x0000f804);
 	} else {

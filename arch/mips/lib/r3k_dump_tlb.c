@@ -66,7 +66,7 @@ dump_tlb(int first, int last)
 void
 dump_tlb_all(void)
 {
-	dump_tlb(0, mips_cpu.tlbsize - 1);
+	dump_tlb(0, current_cpu_data.tlbsize - 1);
 }
 
 void
@@ -105,7 +105,7 @@ void
 dump_tlb_nonwired(void)
 {
 	int wired = r3k_have_wired_reg ? read_c0_wired() : 8;
-	dump_tlb(wired, mips_cpu.tlbsize - 1);
+	dump_tlb(wired, current_cpu_data.tlbsize - 1);
 }
 
 void

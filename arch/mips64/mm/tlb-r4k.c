@@ -61,7 +61,7 @@ void local_flush_tlb_all(void)
 	entry = read_c0_wired();
 
 	/* Blast 'em all away. */
-	while(entry < mips_cpu.tlbsize) {
+	while(entry < current_cpu_data.tlbsize) {
 	        /* Make sure all entries differ. */
 	        write_c0_entryhi(XKPHYS+entry*0x2000);
 		write_c0_index(entry);
@@ -104,7 +104,7 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 		local_irq_save(flags);
 		size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
 		size = (size + 1) >> 1;
-		if(size <= mips_cpu.tlbsize/2) {
+		if(size <= current_cpu_data.tlbsize/2) {
 			int oldpid = read_c0_entryhi() & ASID_MASK;
 			int newpid = cpu_asid(cpu, mm);
 
@@ -149,7 +149,7 @@ void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
 	local_irq_save(flags);
 	size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
 	size = (size + 1) >> 1;
-	if (size <= mips_cpu.tlbsize/2) {
+	if (size <= current_cpu_data.tlbsize/2) {
 		int pid = read_c0_entryhi();
 
 		start &= (PAGE_MASK << 1);
@@ -357,16 +357,16 @@ static void __init probe_tlb(unsigned long config)
 		 * Not a MIPS64 complainant CPU.
 		 * Config 1 register not supported, we assume R4k style.
 		 */
-	        mips_cpu.tlbsize = 48;
+	        current_cpu_data.tlbsize = 48;
 	} else {
 	        config1 = read_c0_config1();
 		if (!((config >> 7) & 3))
 		        panic("No MMU present");
 		else
-		        mips_cpu.tlbsize = ((config1 >> 25) & 0x3f) + 1;
+		        current_cpu_data.tlbsize = ((config1 >> 25) & 0x3f) + 1;
 	}
 
-	printk("Number of TLB entries %d.\n", mips_cpu.tlbsize);
+	printk("Number of TLB entries %d.\n", current_cpu_data.tlbsize);
 }
 
 void __init r4k_tlb_init(void)
@@ -376,7 +376,7 @@ void __init r4k_tlb_init(void)
 	probe_tlb(config);
 	write_c0_pagemask(PM_4K);
 	write_c0_wired(0);
-	temp_tlb_entry = mips_cpu.tlbsize - 1;
+	temp_tlb_entry = current_cpu_data.tlbsize - 1;
 	local_flush_tlb_all();
 
 	memcpy((void *)(KSEG0 + 0x80), except_vec1_r4k, 0x80);

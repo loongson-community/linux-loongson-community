@@ -27,8 +27,8 @@
 static unsigned long icache_size, dcache_size;		/* Size in bytes */
 extern long scache_size;
 
-#define icache_lsize	mips_cpu.icache.linesz
-#define dcache_lsize	mips_cpu.dcache.linesz
+#define icache_lsize	current_cpu_data.icache.linesz
+#define dcache_lsize	current_cpu_data.dcache.linesz
 
 #include <asm/r4kcache.h>
 
@@ -79,7 +79,7 @@ static void tx39h_dma_cache_wback_inv(unsigned long addr, unsigned long size)
 /* TX39H2,TX39H3 */
 static inline void tx39_blast_dcache_page(unsigned long addr)
 {
-	if (mips_cpu.cputype != CPU_TX3912)
+	if (current_cpu_data.cputype != CPU_TX3912)
 		blast_dcache16_page(addr);
 }
 
@@ -311,7 +311,7 @@ static __init void tx39_probe_cache(void)
 	dcache_size = 1 << (10 + ((config >> 16) & 3));
 
 	icache_lsize = 16;
-	switch (mips_cpu.cputype) {
+	switch (current_cpu_data.cputype) {
 	case CPU_TX3912:
 		dcache_lsize = 4;
 		break;
@@ -337,7 +337,7 @@ void __init ld_mmu_tx39(void)
 
 	tx39_probe_cache();
 
-	switch (mips_cpu.cputype) {
+	switch (current_cpu_data.cputype) {
 	case CPU_TX3912:
 		/* TX39/H core (writethru direct-map cache) */
 		flush_cache_all	= tx39h_flush_icache_all;
@@ -381,20 +381,20 @@ void __init ld_mmu_tx39(void)
 		_dma_cache_inv = tx39_dma_cache_inv;
 
 		shm_align_mask = max_t(unsigned long,
-		                       (dcache_size / mips_cpu.dcache.ways) - 1,
+		                       (dcache_size / current_cpu_data.dcache.ways) - 1,
 		                       PAGE_SIZE - 1);
 
 		break;
 	}
 
-	if (mips_cpu.icache.ways == 0)
-		mips_cpu.icache.ways = 1;
-	if (mips_cpu.dcache.ways == 0)
-		mips_cpu.dcache.ways = 1;
-	mips_cpu.icache.sets =
-		icache_size / mips_cpu.icache.ways / mips_cpu.icache.linesz;
-	mips_cpu.dcache.sets =
-		dcache_size / mips_cpu.dcache.ways / mips_cpu.dcache.linesz;
+	if (current_cpu_data.icache.ways == 0)
+		current_cpu_data.icache.ways = 1;
+	if (current_cpu_data.dcache.ways == 0)
+		current_cpu_data.dcache.ways = 1;
+	current_cpu_data.icache.sets =
+		icache_size / current_cpu_data.icache.ways / current_cpu_data.icache.linesz;
+	current_cpu_data.dcache.sets =
+		dcache_size / current_cpu_data.dcache.ways / current_cpu_data.dcache.linesz;
 
 	printk("Primary instruction cache %dkb, linesize %d bytes\n",
 		(int) (icache_size >> 10), (int) icache_lsize);

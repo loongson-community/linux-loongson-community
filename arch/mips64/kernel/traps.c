@@ -562,7 +562,7 @@ asmlinkage void do_cpu(struct pt_regs *regs)
 		current->used_math = 1;
 	}
 
-	if (!(mips_cpu.options & MIPS_CPU_FPU)) {
+	if (!(current_cpu_data.options & MIPS_CPU_FPU)) {
 		int sig = fpu_emulator_cop1Handler(0, regs, &current->thread.fpu.soft);
 		if (sig)
 			force_sig(sig, current);
@@ -616,7 +616,7 @@ asmlinkage void do_reserved(struct pt_regs *regs)
 
 static inline void watch_init(void)
 {
-	if (mips_cpu.options & MIPS_CPU_WATCH) {
+	if (current_cpu_data.options & MIPS_CPU_WATCH) {
 		set_except_vector(23, handle_watch);
 		watch_available = 1;
 	}
@@ -635,7 +635,7 @@ void *set_except_vector(int n, void *addr)
 	unsigned long old_handler = exception_handlers[n];
 
 	exception_handlers[n] = handler;
-	if (n == 0 && mips_cpu.options & MIPS_CPU_DIVEC) {
+	if (n == 0 && current_cpu_data.options & MIPS_CPU_DIVEC) {
 		*(volatile u32 *)(KSEG0+0x200) = 0x08000000 |
 		                                 (0x03ffffff & (handler >> 2));
 		flush_icache_range(KSEG0+0x200, KSEG0 + 0x204);
@@ -664,7 +664,7 @@ void __init per_cpu_trap_init(void)
 	 * Some MIPS CPUs have a dedicated interrupt vector which reduces the
 	 * interrupt processing overhead.  Use it where available.
 	 */
-	if (mips_cpu.options & MIPS_CPU_DIVEC)
+	if (current_cpu_data.options & MIPS_CPU_DIVEC)
 		set_c0_cause(CAUSEF_IV);
 
 	cpu_data[cpu].asid_cache = ASID_FIRST_VERSION;
@@ -701,7 +701,7 @@ void __init trap_init(void)
 	 * Some MIPS CPUs have a dedicated interrupt vector which reduces the
 	 * interrupt processing overhead.  Use it where available.
 	 */
-	if (mips_cpu.options & MIPS_CPU_DIVEC)
+	if (current_cpu_data.options & MIPS_CPU_DIVEC)
 		memcpy((void *)(KSEG0 + 0x200), &except_vec4, 0x80);
 
 	/*
@@ -728,24 +728,25 @@ void __init trap_init(void)
 	set_except_vector(13, handle_tr);
 	set_except_vector(22, handle_mdmx);
 
-	if ((mips_cpu.options & MIPS_CPU_FPU) &&
-	    !(mips_cpu.options & MIPS_CPU_NOFPUEX))
+	if ((current_cpu_data.options & MIPS_CPU_FPU) &&
+	    !(current_cpu_data.options & MIPS_CPU_NOFPUEX))
 		set_except_vector(15, handle_fpe);
 
-	if (mips_cpu.options & MIPS_CPU_MCHECK)
+	if (current_cpu_data.options & MIPS_CPU_MCHECK)
 		set_except_vector(24, handle_mcheck);
 
-	if (mips_cpu.options & MIPS_CPU_VCE) {
+	if (current_cpu_data.options & MIPS_CPU_VCE) {
 		/* VCE and DIVEC are mutually exclusive. */
-		if (mips_cpu.options & MIPS_CPU_DIVEC)
+		if (current_cpu_data.options & MIPS_CPU_DIVEC)
 			BUG();
 		memcpy((void *)(KSEG0 + 0x180), &except_vec3_r4000, 0x100);
-	} else if (mips_cpu.options & MIPS_CPU_4KEX)
+	} else if (current_cpu_data.options & MIPS_CPU_4KEX)
 		memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic, 0x80);
 	else
 		memcpy((void *)(KSEG0 + 0x080), &except_vec3_generic, 0x80);
 
-	if (mips_cpu.cputype == CPU_R6000 || mips_cpu.cputype == CPU_R6000A) {
+	if (current_cpu_data.cputype == CPU_R6000 ||
+	    current_cpu_data.cputype == CPU_R6000A) {
 		/*
 		 * The R6000 is the only R-series CPU that features a machine
 		 * check exception (similar to the R4000 cache error) and
@@ -758,7 +759,7 @@ void __init trap_init(void)
 		//set_except_vector(15, handle_ndc);
 	}
 
-	if (mips_cpu.options & MIPS_CPU_FPU) {
+	if (current_cpu_data.options & MIPS_CPU_FPU) {
 	        save_fp_context = _save_fp_context;
 		restore_fp_context = _restore_fp_context;
 	} else {
@@ -768,7 +769,7 @@ void __init trap_init(void)
 
 	flush_icache_range(KSEG0, KSEG0 + 0x400);
 
-	if (mips_cpu.isa_level == MIPS_CPU_ISA_IV)
+	if (current_cpu_data.isa_level == MIPS_CPU_ISA_IV)
 		set_c0_status(ST0_XX);
 
 	atomic_inc(&init_mm.mm_count);	/* XXX UP?  */

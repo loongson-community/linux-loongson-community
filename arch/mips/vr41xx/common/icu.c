@@ -283,7 +283,7 @@ static void __init vr41xx_icu_init(void)
 {
 	int i;
 
-	switch (mips_cpu.cputype) {
+	switch (current_cpu_data.cputype) {
 	case CPU_VR4111:
 	case CPU_VR4121:
 		vr41xx_icu1_base = VR4111_SYSINT1REG;

@@ -241,7 +241,7 @@ void __init vr41xx_giuint_init(void)
 {
 	int i;
 
-	switch (mips_cpu.cputype) {
+	switch (current_cpu_data.cputype) {
 	case CPU_VR4111:
 	case CPU_VR4121:
 		vr41xx_giu_base = VR4111_GIUIOSELL;

@@ -562,7 +562,7 @@ static void r4600v20k_flush_cache_sigtramp(unsigned long addr)
 
 static void __init probe_icache(unsigned long config)
 {
-	switch (mips_cpu.cputype) {
+	switch (current_cpu_data.cputype) {
 	case CPU_VR41XX:
 	case CPU_VR4111:
 	case CPU_VR4121:
@@ -595,7 +595,7 @@ static void __init probe_icache(unsigned long config)
 
 static void __init probe_dcache(unsigned long config)
 {
-	switch (mips_cpu.cputype) {
+	switch (current_cpu_data.cputype) {
 	case CPU_VR41XX:
 	case CPU_VR4111:
 	case CPU_VR4121:
@@ -766,7 +766,7 @@ static inline void __init setup_scache(unsigned int config)
 		return;
 	}
 
-	switch(mips_cpu.cputype) {
+	switch(current_cpu_data.cputype) {
 	case CPU_R5000:
 	case CPU_NEVADA:
 			setup_noscache_funcs();
@@ -796,7 +796,7 @@ void __init ld_mmu_r4xx0(void)
 	probe_dcache(config);
 	setup_scache(config);
 
-	switch(mips_cpu.cputype) {
+	switch(current_cpu_data.cputype) {
 	case CPU_R4600:			/* QED style two way caches? */
 	case CPU_R4700:
 	case CPU_R5000:

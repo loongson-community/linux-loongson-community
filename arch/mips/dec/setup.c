@@ -722,7 +722,7 @@ void __init init_IRQ(void)
 	set_except_vector(0, decstation_handle_int);
 
 	/* Free the FPU interrupt if the exception is present. */
-	if (!(mips_cpu.options & MIPS_CPU_NOFPUEX)) {
+	if (!(current_cpu_data.options & MIPS_CPU_NOFPUEX)) {
 		cpu_fpu_mask = 0;
 		dec_interrupt[DEC_IRQ_FPU] = -1;
 	}

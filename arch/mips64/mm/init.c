@@ -92,7 +92,7 @@ unsigned long setup_zero_pages(void)
 	unsigned long order, size;
 	struct page *page;
 
-	switch (mips_cpu.cputype) {
+	switch (current_cpu_data.cputype) {
 	case CPU_R4000SC:
 	case CPU_R4000MC:
 	case CPU_R4400SC:

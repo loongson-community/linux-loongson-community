@@ -98,7 +98,7 @@ void __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
 {
 	setup_prom_vectors();
 
-	if (mips_cpu.cputype == CPU_R5000)
+	if (current_cpu_data.cputype == CPU_R5000)
 		mips_machtype = MACH_LASAT_200;
 	else
 		mips_machtype = MACH_LASAT_100;

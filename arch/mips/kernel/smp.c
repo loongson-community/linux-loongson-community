@@ -77,7 +77,7 @@ unsigned long cache_decay_ticks;
 
 void smp_tune_scheduling (void)
 {
-	struct cache_desc *cd = &mips_cpu.scache;
+	struct cache_desc *cd = &current_cpu_data.scache;
 	unsigned long cachesize;       /* kB   */
 	unsigned long bandwidth = 350; /* MB/s */
 	unsigned long cpu_khz;
@@ -135,6 +135,7 @@ asmlinkage void start_secondary(void)
 {
 	unsigned int cpu = smp_processor_id();
 
+	cpu_probe();
 	prom_init_secondary();
 	per_cpu_trap_init();
 

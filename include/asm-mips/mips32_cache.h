@@ -1,10 +1,6 @@
 /*
- * mips32_cache.h
- *
  * Carsten Langgaard, carstenl@mips.com
  * Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
- *
- * ########################################################################
  *
  *  This program is free software; you can distribute it and/or modify it
  *  under the terms of the GNU General Public License (Version 2) as
@@ -19,8 +15,6 @@
  *  with this program; if not, write to the Free Software Foundation, Inc.,
  *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
  *
- * ########################################################################
- *
  * Inline assembly cache operations.
  *
  * This file is the original r4cache.c file with modification that makes the
@@ -29,18 +23,18 @@
  * FIXME: Handle split L2 caches.
  *
  */
-#ifndef _MIPS_R4KCACHE_H
-#define _MIPS_R4KCACHE_H
+#ifndef _ASM_R4KCACHE_H
+#define _ASM_R4KCACHE_H
 
 #include <asm/asm.h>
 #include <asm/cacheops.h>
 
 static inline void flush_icache_line_indexed(unsigned long addr)
 {
-	unsigned long waystep = icache_size/mips_cpu.icache.ways;
+	unsigned long waystep = icache_size / current_cpu_data.icache.ways;
 	unsigned int way;
 
-	for (way = 0; way < mips_cpu.icache.ways; way++)
+	for (way = 0; way < current_cpu_data.icache.ways; way++)
 	{
 		__asm__ __volatile__(
 			".set noreorder\n\t"
@@ -58,10 +52,10 @@ static inline void flush_icache_line_indexed(unsigned long addr)
 
 static inline void flush_dcache_line_indexed(unsigned long addr)
 {
-	unsigned long waystep = dcache_size/mips_cpu.dcache.ways;
+	unsigned long waystep = dcache_size / current_cpu_data.dcache.ways;
 	unsigned int way;
 
-	for (way = 0; way < mips_cpu.dcache.ways; way++)
+	for (way = 0; way < current_cpu_data.dcache.ways; way++)
 	{
 		__asm__ __volatile__(
 			".set noreorder\n\t"
@@ -79,10 +73,10 @@ static inline void flush_dcache_line_indexed(unsigned long addr)
 
 static inline void flush_scache_line_indexed(unsigned long addr)
 {
-	unsigned long waystep = scache_size/mips_cpu.scache.ways;
+	unsigned long waystep = scache_size / current_cpu_data.scache.ways;
 	unsigned int way;
 
-	for (way = 0; way < mips_cpu.scache.ways; way++)
+	for (way = 0; way < current_cpu_data.scache.ways; way++)
 	{
 		__asm__ __volatile__(
 			".set noreorder\n\t"
@@ -214,7 +208,7 @@ static inline void protected_writeback_dcache_line(unsigned long addr)
 static inline void blast_dcache(void)
 {
 	unsigned long start = KSEG0;
-	unsigned long end = (start + dcache_size);
+	unsigned long end = start + dcache_size;
 
 	while(start < end) {
 		cache_unroll(start,Index_Writeback_Inv_D);
@@ -225,7 +219,7 @@ static inline void blast_dcache(void)
 static inline void blast_dcache_page(unsigned long page)
 {
 	unsigned long start = page;
-	unsigned long end = (start + PAGE_SIZE);
+	unsigned long end = start + PAGE_SIZE;
 
 	while(start < end) {
 		cache_unroll(start,Hit_Writeback_Inv_D);
@@ -236,11 +230,11 @@ static inline void blast_dcache_page(unsigned long page)
 static inline void blast_dcache_page_indexed(unsigned long page)
 {
 	unsigned long start;
-	unsigned long end = (page + PAGE_SIZE);
-	unsigned long waystep = dcache_size/mips_cpu.dcache.ways;
+	unsigned long end = page + PAGE_SIZE;
+	unsigned long waystep = dcache_size / current_cpu_data.dcache.ways;
 	unsigned int way;
 
-	for (way = 0; way < mips_cpu.dcache.ways; way++) {
+	for (way = 0; way < current_cpu_data.dcache.ways; way++) {
 		start = page + way*waystep;
 		while(start < end) {
 			cache_unroll(start,Index_Writeback_Inv_D);
@@ -252,7 +246,7 @@ static inline void blast_dcache_page_indexed(unsigned long page)
 static inline void blast_icache(void)
 {
 	unsigned long start = KSEG0;
-	unsigned long end = (start + icache_size);
+	unsigned long end = start + icache_size;
 
 	while(start < end) {
 		cache_unroll(start,Index_Invalidate_I);
@@ -263,7 +257,7 @@ static inline void blast_icache(void)
 static inline void blast_icache_page(unsigned long page)
 {
 	unsigned long start = page;
-	unsigned long end = (start + PAGE_SIZE);
+	unsigned long end = start + PAGE_SIZE;
 
 	while(start < end) {
 		cache_unroll(start,Hit_Invalidate_I);
@@ -274,11 +268,11 @@ static inline void blast_icache_page(unsigned long page)
 static inline void blast_icache_page_indexed(unsigned long page)
 {
 	unsigned long start;
-	unsigned long end = (page + PAGE_SIZE);
-	unsigned long waystep = icache_size/mips_cpu.icache.ways;
+	unsigned long end = page + PAGE_SIZE;
+	unsigned long waystep = icache_size / current_cpu_data.icache.ways;
 	unsigned int way;
 
-	for (way = 0; way < mips_cpu.icache.ways; way++) {
+	for (way = 0; way < current_cpu_data.icache.ways; way++) {
 		start = page + way*waystep;
 		while(start < end) {
 			cache_unroll(start,Index_Invalidate_I);
@@ -312,11 +306,11 @@ static inline void blast_scache_page(unsigned long page)
 static inline void blast_scache_page_indexed(unsigned long page)
 {
 	unsigned long start;
-	unsigned long end = (page + PAGE_SIZE);
-	unsigned long waystep = scache_size/mips_cpu.scache.ways;
+	unsigned long end = page + PAGE_SIZE;
+	unsigned long waystep = scache_size/current_cpu_data.scache.ways;
 	unsigned int way;
 
-	for (way = 0; way < mips_cpu.scache.ways; way++) {
+	for (way = 0; way < current_cpu_data.scache.ways; way++) {
 		start = page + way*waystep;
 		while(start < end) {
 			cache_unroll(start,Index_Writeback_Inv_SD);
@@ -325,4 +319,4 @@ static inline void blast_scache_page_indexed(unsigned long page)
 	}
 }
 
-#endif /* !(_MIPS_R4KCACHE_H) */
+#endif /* _ASM_R4KCACHE_H */

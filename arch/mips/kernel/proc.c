@@ -79,8 +79,8 @@ static const char *cpu_name[] = {
 
 static int show_cpuinfo(struct seq_file *m, void *v)
 {
-	unsigned int version = mips_cpu.processor_id;
-	unsigned int fp_vers = mips_cpu.fpu_id;
+	unsigned int version = current_cpu_data.processor_id;
+	unsigned int fp_vers = current_cpu_data.fpu_id;
 	unsigned long n = (unsigned long) v - 1;
 	char fmt [64];
 
@@ -97,9 +97,9 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 
 	seq_printf(m, "processor\t\t: %ld\n", n);
 	sprintf(fmt, "cpu model\t\t: %%s V%%d.%%d%s\n",
-	        (mips_cpu.options & MIPS_CPU_FPU) ? "  FPU V%d.%d" : "");
-	seq_printf(m, fmt, cpu_name[mips_cpu.cputype <= CPU_LAST ?
-	                            mips_cpu.cputype : CPU_UNKNOWN],
+	        (current_cpu_data.options & MIPS_CPU_FPU) ? "  FPU V%d.%d" : "");
+	seq_printf(m, fmt, cpu_name[current_cpu_data.cputype <= CPU_LAST ?
+	                            current_cpu_data.cputype : CPU_UNKNOWN],
 	                           (version >> 4) & 0x0f, version & 0x0f,
 	                           (fp_vers >> 4) & 0x0f, fp_vers & 0x0f);
 	seq_printf(m, "BogoMIPS\t\t: %lu.%02lu\n",
@@ -107,15 +107,15 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 	              (loops_per_jiffy / (5000/HZ)) % 100);
 	seq_printf(m, "wait instruction\t: %s\n", cpu_wait ? "yes" : "no");
 	seq_printf(m, "microsecond timers\t: %s\n",
-	              (mips_cpu.options & MIPS_CPU_COUNTER) ? "yes" : "no");
-	seq_printf(m, "tlb_entries\t\t: %d\n", mips_cpu.tlbsize);
+	              (current_cpu_data.options & MIPS_CPU_COUNTER) ? "yes" : "no");
+	seq_printf(m, "tlb_entries\t\t: %d\n", current_cpu_data.tlbsize);
 	seq_printf(m, "extra interrupt vector\t: %s\n",
-	              (mips_cpu.options & MIPS_CPU_DIVEC) ? "yes" : "no");
+	              (current_cpu_data.options & MIPS_CPU_DIVEC) ? "yes" : "no");
 	seq_printf(m, "hardware watchpoint\t: %s\n",
 	              watch_available ? "yes" : "no");
 
 	sprintf(fmt, "VCE%%c exceptions\t\t: %s\n",
-	        (mips_cpu.options & MIPS_CPU_VCE) ? "%d" : "not available");
+	        (current_cpu_data.options & MIPS_CPU_VCE) ? "%d" : "not available");
 	seq_printf(m, fmt, 'D', vced_count);
 	seq_printf(m, fmt, 'I', vcei_count);
 

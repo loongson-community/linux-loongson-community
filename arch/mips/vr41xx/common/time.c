@@ -62,7 +62,7 @@ extern int vr41xx_rtc_set_time(unsigned long sec);
 
 void vr41xx_time_init(void)
 {
-	switch (mips_cpu.cputype) {
+	switch (current_cpu_data.cputype) {
 	case CPU_VR4111:
 	case CPU_VR4121:
 		vr41xx_rtc_base = VR4111_ETIMELREG;

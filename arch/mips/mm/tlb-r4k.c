@@ -54,7 +54,7 @@ void local_flush_tlb_all(void)
 	entry = read_c0_wired();
 
 	/* Blast 'em all away. */
-	while (entry < mips_cpu.tlbsize) {
+	while (entry < current_cpu_data.tlbsize) {
 		/*
 		 * Make sure all entries differ.  If they're not different
 		 * MIPS32 will take revenge ...
@@ -100,7 +100,7 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 		local_irq_save(flags);
 		size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
 		size = (size + 1) >> 1;
-		if (size <= mips_cpu.tlbsize/2) {
+		if (size <= current_cpu_data.tlbsize/2) {
 			int oldpid = read_c0_entryhi() & ASID_MASK;
 			int newpid = cpu_context(cpu, mm) & ASID_MASK;
 
@@ -145,7 +145,7 @@ void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
 	local_irq_save(flags);
 	size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
 	size = (size + 1) >> 1;
-	if (size <= mips_cpu.tlbsize / 2) {
+	if (size <= current_cpu_data.tlbsize / 2) {
 		int pid = read_c0_entryhi();
 
 		start &= (PAGE_MASK << 1);
@@ -394,7 +394,7 @@ static void __init probe_tlb(unsigned long config)
 	if (!((config >> 7) & 3))
 		panic("No MMU present");
 	else
-		mips_cpu.tlbsize = ((config1 >> 25) & 0x3f) + 1;
+		current_cpu_data.tlbsize = ((config1 >> 25) & 0x3f) + 1;
 #endif
 }
 
@@ -412,14 +412,14 @@ void __init r4k_tlb_init(void)
 	probe_tlb(config);
 	write_c0_pagemask(PM_4K);
 	write_c0_wired(0);
-	temp_tlb_entry = mips_cpu.tlbsize - 1;
+	temp_tlb_entry = current_cpu_data.tlbsize - 1;
 	local_flush_tlb_all();
 
-	if ((mips_cpu.options & MIPS_CPU_4KEX)
-	    && (mips_cpu.options & MIPS_CPU_4KTLB)) {
-		if (mips_cpu.cputype == CPU_NEVADA)
+	if ((current_cpu_data.options & MIPS_CPU_4KEX)
+	    && (current_cpu_data.options & MIPS_CPU_4KTLB)) {
+		if (current_cpu_data.cputype == CPU_NEVADA)
 			memcpy((void *)KSEG0, &except_vec0_nevada, 0x80);
-		else if (mips_cpu.cputype == CPU_R4600)
+		else if (current_cpu_data.cputype == CPU_R4600)
 			memcpy((void *)KSEG0, &except_vec0_r4600, 0x80);
 		else
 			memcpy((void *)KSEG0, &except_vec0_r4000, 0x80);

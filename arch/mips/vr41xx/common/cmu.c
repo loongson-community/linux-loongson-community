@@ -66,7 +66,7 @@ void vr41xx_clock_mask(u16 mask)
 
 void __init vr41xx_cmu_init(u16 mask)
 {
-	switch (mips_cpu.cputype) {
+	switch (current_cpu_data.cputype) {
         case CPU_VR4111:
         case CPU_VR4121:
                 vr41xx_cmu_base = VR4111_CMUCLKMSK;

@@ -377,7 +377,7 @@ void per_cpu_init(void)
 	set_c0_status(SRB_DEV0 | SRB_DEV1);
 	if (is_slave) {
 		clear_c0_status(ST0_BEV);
-		if (mips_cpu.isa_level == MIPS_CPU_ISA_IV)
+		if (current_cpu_data.isa_level == MIPS_CPU_ISA_IV)
 			set_c0_status(ST0_XX);
 		set_c0_status(ST0_KX|ST0_SX|ST0_UX);
 		sti();
@@ -425,6 +425,7 @@ static volatile cpumask_t boot_barrier;
 void __init start_secondary(void)
 {
 	CPUMASK_CLRB(boot_barrier, getcpuid());	/* needs atomicity */
+	cpu_probe();
 	per_cpu_init();
 	per_cpu_trap_init();
 #if 0

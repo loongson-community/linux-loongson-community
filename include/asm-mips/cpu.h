@@ -110,24 +110,6 @@
 extern void cpu_probe(void);
 extern void cpu_report(void);
 
-/*
- * Capability and feature descriptor structure for MIPS CPU
- */
-struct mips_cpu {
-	unsigned int processor_id;
-	unsigned int fpu_id;
-	unsigned int cputype;
-	int isa_level;
-	int options;
-	int tlbsize;
-	struct cache_desc icache;	/* Primary I-cache */
-	struct cache_desc dcache;	/* Primary D or combined I/D cache */
-	struct cache_desc scache;	/* Secondary cache */
-	struct cache_desc tcache;	/* Tertiary/split secondary cache */
-};
-
-extern struct mips_cpu mips_cpu;
-
 enum cputype {
 	CPU_UNKNOWN,
 	CPU_R2000, CPU_R3000, CPU_R3000A, CPU_R3041, CPU_R3051, CPU_R3052,

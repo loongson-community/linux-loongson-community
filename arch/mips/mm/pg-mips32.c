@@ -34,7 +34,7 @@ void mips32_clear_page_dc(unsigned long page)
 {
 	unsigned long i;
 
-        if (mips_cpu.options & MIPS_CPU_CACHE_CDEX) {
+        if (current_cpu_data.options & MIPS_CPU_CACHE_CDEX) {
 	        for (i=page; i<page+PAGE_SIZE; i+=dc_lsize) {
 		        __asm__ __volatile__(
 			        ".set\tnoreorder\n\t"
@@ -57,7 +57,7 @@ void mips32_clear_page_sc(unsigned long page)
 {
 	unsigned long i;
 
-        if (mips_cpu.options & MIPS_CPU_CACHE_CDEX) {
+        if (current_cpu_data.options & MIPS_CPU_CACHE_CDEX) {
 	        for (i=page; i<page+PAGE_SIZE; i+=sc_lsize) {
 		        __asm__ __volatile__(
 				".set\tnoreorder\n\t"
@@ -80,7 +80,7 @@ void mips32_copy_page_dc(unsigned long to, unsigned long from)
 {
 	unsigned long i;
 
-        if (mips_cpu.options & MIPS_CPU_CACHE_CDEX) {
+        if (current_cpu_data.options & MIPS_CPU_CACHE_CDEX) {
 	        for (i=to; i<to+PAGE_SIZE; i+=dc_lsize) {
 		        __asm__ __volatile__(
 			        ".set\tnoreorder\n\t"
@@ -103,7 +103,7 @@ void mips32_copy_page_sc(unsigned long to, unsigned long from)
 {
 	unsigned long i;
 
-        if (mips_cpu.options & MIPS_CPU_CACHE_CDEX) {
+        if (current_cpu_data.options & MIPS_CPU_CACHE_CDEX) {
 	        for (i=to; i<to+PAGE_SIZE; i+=sc_lsize) {
 		        __asm__ __volatile__(
 				".set\tnoreorder\n\t"

@@ -126,7 +126,7 @@ static inline void protected_writeback_dcache_line(unsigned long addr)
 static inline void blast_dcache16(void)
 {
 	unsigned long start = KSEG0;
-	unsigned long end = (start + dcache_size);
+	unsigned long end = start + dcache_size;
 
 	while (start < end) {
 		cache16_unroll32(start,Index_Writeback_Inv_D);
@@ -137,8 +137,9 @@ static inline void blast_dcache16(void)
 static inline void blast_dcache16_wayLSB(void)
 {
 	unsigned long start = KSEG0;
-	unsigned long end = (start + mips_cpu.dcache.sets * mips_cpu.dcache.linesz);
-	int way, ways = mips_cpu.dcache.ways;
+	unsigned long end = start + current_cpu_data.dcache.sets *
+	                            current_cpu_data.dcache.linesz;
+	int way, ways = current_cpu_data.dcache.ways;
 
 	while (start < end) {
 		/* LSB of VA select the way */
@@ -151,7 +152,7 @@ static inline void blast_dcache16_wayLSB(void)
 static inline void blast_dcache16_page(unsigned long page)
 {
 	unsigned long start = page;
-	unsigned long end = (start + PAGE_SIZE);
+	unsigned long end = start + PAGE_SIZE;
 
 	while (start < end) {
 		cache16_unroll32(start,Hit_Writeback_Inv_D);
@@ -162,7 +163,7 @@ static inline void blast_dcache16_page(unsigned long page)
 static inline void blast_dcache16_page_indexed(unsigned long page)
 {
 	unsigned long start = page;
-	unsigned long end = (start + PAGE_SIZE);
+	unsigned long end = start + PAGE_SIZE;
 
 	while (start < end) {
 		cache16_unroll32(start,Index_Writeback_Inv_D);
@@ -173,8 +174,8 @@ static inline void blast_dcache16_page_indexed(unsigned long page)
 static inline void blast_dcache16_page_indexed_wayLSB(unsigned long page)
 {
 	unsigned long start = page;
-	unsigned long end = (start + PAGE_SIZE);
-	int way, ways = mips_cpu.dcache.ways;
+	unsigned long end = start + PAGE_SIZE;
+	int way, ways = current_cpu_data.dcache.ways;
 
 	while (start < end) {
 		/* LSB of VA select the way */
@@ -187,7 +188,7 @@ static inline void blast_dcache16_page_indexed_wayLSB(unsigned long page)
 static inline void blast_icache16(void)
 {
 	unsigned long start = KSEG0;
-	unsigned long end = (start + icache_size);
+	unsigned long end = start + icache_size;
 
 	while (start < end) {
 		cache16_unroll32(start,Index_Invalidate_I);
@@ -198,8 +199,9 @@ static inline void blast_icache16(void)
 static inline void blast_icache16_wayLSB(void)
 {
 	unsigned long start = KSEG0;
-	unsigned long end = (start + mips_cpu.icache.sets * mips_cpu.icache.linesz);
-	int way, ways = mips_cpu.icache.ways;
+	unsigned long end = start + current_cpu_data.icache.sets *
+	                            current_cpu_data.icache.linesz;
+	int way, ways = current_cpu_data.icache.ways;
 
 	while (start < end) {
 		/* LSB of VA select the way */
@@ -212,7 +214,7 @@ static inline void blast_icache16_wayLSB(void)
 static inline void blast_icache16_page(unsigned long page)
 {
 	unsigned long start = page;
-	unsigned long end = (start + PAGE_SIZE);
+	unsigned long end = start + PAGE_SIZE;
 
 	while (start < end) {
 		cache16_unroll32(start,Hit_Invalidate_I);
@@ -223,7 +225,7 @@ static inline void blast_icache16_page(unsigned long page)
 static inline void blast_icache16_page_indexed(unsigned long page)
 {
 	unsigned long start = page;
-	unsigned long end = (start + PAGE_SIZE);
+	unsigned long end = start + PAGE_SIZE;
 
 	while (start < end) {
 		cache16_unroll32(start,Index_Invalidate_I);
@@ -234,8 +236,8 @@ static inline void blast_icache16_page_indexed(unsigned long page)
 static inline void blast_icache16_page_indexed_wayLSB(unsigned long page)
 {
 	unsigned long start = page;
-	unsigned long end = (start + PAGE_SIZE);
-	int way, ways = mips_cpu.icache.ways;
+	unsigned long end = start + PAGE_SIZE;
+	int way, ways = current_cpu_data.icache.ways;
 
 	while (start < end) {
 		/* LSB of VA select the way */
@@ -307,7 +309,7 @@ static inline void blast_scache16_page_indexed(unsigned long page)
 static inline void blast_dcache32(void)
 {
 	unsigned long start = KSEG0;
-	unsigned long end = (start + dcache_size);
+	unsigned long end = start + dcache_size;
 
 	while (start < end) {
 		cache32_unroll32(start,Index_Writeback_Inv_D);
@@ -318,8 +320,9 @@ static inline void blast_dcache32(void)
 static inline void blast_dcache32_wayLSB(void)
 {
 	unsigned long start = KSEG0;
-	unsigned long end = (start + mips_cpu.dcache.sets * mips_cpu.dcache.linesz);
-	int way, ways = mips_cpu.dcache.ways;
+	unsigned long end = start + current_cpu_data.dcache.sets *
+	                            current_cpu_data.dcache.linesz;
+	int way, ways = current_cpu_data.dcache.ways;
 
 	while (start < end) {
 		/* LSB of VA select the way */
@@ -344,7 +347,7 @@ static inline void blast_dcache32_wayLSB(void)
 static inline void blast_dcache32_page(unsigned long page)
 {
 	unsigned long start = page;
-	unsigned long end = (start + PAGE_SIZE);
+	unsigned long end = start + PAGE_SIZE;
 
 	/*
 	 * Sigh ... workaround for R4600 v1.7 bug.  Explanation see above.
@@ -361,7 +364,7 @@ static inline void blast_dcache32_page(unsigned long page)
 static inline void blast_dcache32_page_indexed(unsigned long page)
 {
 	unsigned long start = page;
-	unsigned long end = (start + PAGE_SIZE);
+	unsigned long end = start + PAGE_SIZE;
 
 	while (start < end) {
 		cache32_unroll32(start,Index_Writeback_Inv_D);
@@ -372,8 +375,8 @@ static inline void blast_dcache32_page_indexed(unsigned long page)
 static inline void blast_dcache32_page_indexed_wayLSB(unsigned long page)
 {
 	unsigned long start = page;
-	unsigned long end = (start + PAGE_SIZE);
-	int way, ways = mips_cpu.dcache.ways;
+	unsigned long end = start + PAGE_SIZE;
+	int way, ways = current_cpu_data.dcache.ways;
 
 	while (start < end) {
 		/* LSB of VA select the way */
@@ -386,7 +389,7 @@ static inline void blast_dcache32_page_indexed_wayLSB(unsigned long page)
 static inline void blast_icache32(void)
 {
 	unsigned long start = KSEG0;
-	unsigned long end = (start + icache_size);
+	unsigned long end = start + icache_size;
 
 	while (start < end) {
 		cache32_unroll32(start,Index_Invalidate_I);
@@ -397,8 +400,9 @@ static inline void blast_icache32(void)
 static inline void blast_icache32_wayLSB(void)
 {
 	unsigned long start = KSEG0;
-	unsigned long end = (start + mips_cpu.icache.sets * mips_cpu.icache.linesz);
-	int way, ways = mips_cpu.icache.ways;
+	unsigned long end = start + current_cpu_data.icache.sets *
+	                            current_cpu_data.icache.linesz;
+	int way, ways = current_cpu_data.icache.ways;
 
 	while (start < end) {
 		/* LSB of VA select the way */
@@ -411,7 +415,7 @@ static inline void blast_icache32_wayLSB(void)
 static inline void blast_icache32_page(unsigned long page)
 {
 	unsigned long start = page;
-	unsigned long end = (start + PAGE_SIZE);
+	unsigned long end = start + PAGE_SIZE;
 
 	while (start < end) {
 		cache32_unroll32(start,Hit_Invalidate_I);
@@ -422,7 +426,7 @@ static inline void blast_icache32_page(unsigned long page)
 static inline void blast_icache32_page_indexed(unsigned long page)
 {
 	unsigned long start = page;
-	unsigned long end = (start + PAGE_SIZE);
+	unsigned long end = start + PAGE_SIZE;
 
 	while (start < end) {
 		cache32_unroll32(start,Index_Invalidate_I);
@@ -433,8 +437,8 @@ static inline void blast_icache32_page_indexed(unsigned long page)
 static inline void blast_icache32_page_indexed_wayLSB(unsigned long page)
 {
 	unsigned long start = page;
-	unsigned long end = (start + PAGE_SIZE);
-	int way, ways = mips_cpu.icache.ways;
+	unsigned long end = start + PAGE_SIZE;
+	int way, ways = current_cpu_data.icache.ways;
 
 	while (start < end) {
 		/* LSB of VA select the way */

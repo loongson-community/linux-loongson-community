@@ -33,10 +33,10 @@
 
 /* Primary cache parameters. */
 static unsigned long icache_size, dcache_size; /* Size in bytes */
-#define ic_lsize	mips_cpu.icache.linesz
-#define dc_lsize	mips_cpu.dcache.linesz
-#define ic_ways		mips_cpu.icache.ways
-#define dc_ways		mips_cpu.dcache.ways
+#define ic_lsize	current_cpu_data.icache.linesz
+#define dc_lsize	current_cpu_data.dcache.linesz
+#define ic_ways		current_cpu_data.icache.ways
+#define dc_ways		current_cpu_data.dcache.ways
 static unsigned long scache_size;
 
 #include <asm/cacheops.h>
@@ -271,8 +271,8 @@ static void __init probe_icache(unsigned long config)
 	icache_size		= 1 << (12 + ((config >> 9) & 7));
 	ic_lsize		= 16 << ((config >> 5) & 1);
 	ic_ways			= 4;
-	mips_cpu.icache.sets	= icache_size /
-				   (ic_lsize * mips_cpu.icache.ways);
+	current_cpu_data.icache.sets	= icache_size /
+				   (ic_lsize * current_cpu_data.icache.ways);
 
 	printk("Primary instruction cache %dkb, linesize %d bytes (%d ways)\n",
 	       icache_size >> 10, ic_lsize, ic_ways);
@@ -283,8 +283,8 @@ static void __init probe_dcache(unsigned long config)
 	dcache_size		= 1 << (12 + ((config >> 6) & 7));
 	dc_lsize		= 16 << ((config >> 4) & 1);
 	dc_ways			= 4;
-	mips_cpu.dcache.sets	= dcache_size /
-				  (dc_lsize * mips_cpu.dcache.ways);
+	current_cpu_data.dcache.sets	= dcache_size /
+				  (dc_lsize * current_cpu_data.dcache.ways);
 
 	printk("Primary data cache %dkb, linesize %d bytes (%d ways)\n",
 	       dcache_size >> 10, dc_lsize, dc_ways);

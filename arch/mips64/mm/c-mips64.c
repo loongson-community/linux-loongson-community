@@ -433,7 +433,7 @@ static void mips64_flush_cache_sigtramp(unsigned long addr)
 static void
 mips64_flush_icache_all(void)
 {
-	if (mips_cpu.icache.flags | MIPS_CACHE_VTAG_CACHE) {
+	if (current_cpu_data.icache.flags | MIPS_CACHE_VTAG_CACHE) {
 		blast_icache();
 	}
 }
@@ -444,7 +444,7 @@ static void __init probe_icache(unsigned long config)
         unsigned long config1;
 	unsigned int lsize;
 
-	mips_cpu.icache.flags = 0;
+	current_cpu_data.icache.flags = 0;
         if (!(config & (1 << 31))) {
 	        /*
 		 * Not a MIPS64 complainant CPU.
@@ -452,41 +452,41 @@ static void __init probe_icache(unsigned long config)
 		 */
 	        icache_size = 1 << (12 + ((config >> 9) & 7));
 		ic_lsize = 16 << ((config >> 5) & 1);
-		mips_cpu.icache.linesz = ic_lsize;
+		current_cpu_data.icache.linesz = ic_lsize;
 
 		/*
 		 * We cannot infer associativity - assume direct map
 		 * unless probe template indicates otherwise
 		 */
-		if(!mips_cpu.icache.ways) mips_cpu.icache.ways = 1;
-		mips_cpu.icache.sets =
-			(icache_size / ic_lsize) / mips_cpu.icache.ways;
+		if (!current_cpu_data.icache.ways) current_cpu_data.icache.ways = 1;
+		current_cpu_data.icache.sets =
+			(icache_size / ic_lsize) / current_cpu_data.icache.ways;
 	} else {
 	       config1 = read_c0_config1();
 
 	       if ((lsize = ((config1 >> 19) & 7)))
-		       mips_cpu.icache.linesz = 2 << lsize;
+		       current_cpu_data.icache.linesz = 2 << lsize;
 	       else
-		       mips_cpu.icache.linesz = lsize;
-	       mips_cpu.icache.sets = 64 << ((config1 >> 22) & 7);
-	       mips_cpu.icache.ways = 1 + ((config1 >> 16) & 7);
+		       current_cpu_data.icache.linesz = lsize;
+	       current_cpu_data.icache.sets = 64 << ((config1 >> 22) & 7);
+	       current_cpu_data.icache.ways = 1 + ((config1 >> 16) & 7);
 
-	       ic_lsize = mips_cpu.icache.linesz;
-	       icache_size = mips_cpu.icache.sets * mips_cpu.icache.ways *
+	       ic_lsize = current_cpu_data.icache.linesz;
+	       icache_size = current_cpu_data.icache.sets * current_cpu_data.icache.ways *
 		             ic_lsize;
 
-	       if ((config & 0x8) || (mips_cpu.cputype == CPU_20KC)) {
+	       if ((config & 0x8) || (current_cpu_data.cputype == CPU_20KC)) {
 		       /* 
 			* The CPU has a virtually tagged I-cache.
 			* Some older 20Kc chips doesn't have the 'VI' bit in
 			* the config register, so we also check for 20Kc.
 			*/
-		       mips_cpu.icache.flags = MIPS_CACHE_VTAG_CACHE;
+		       current_cpu_data.icache.flags = MIPS_CACHE_VTAG_CACHE;
 		       printk("Virtually tagged I-cache detected\n");
 	       }
 	}
 	printk("Primary instruction cache %dkb, linesize %d bytes (%d ways)\n",
-	       icache_size >> 10, ic_lsize, mips_cpu.icache.ways);
+	       icache_size >> 10, ic_lsize, current_cpu_data.icache.ways);
 }
 
 static void __init probe_dcache(unsigned long config)
@@ -494,7 +494,7 @@ static void __init probe_dcache(unsigned long config)
         unsigned long config1;
 	unsigned int lsize;
 
-	mips_cpu.dcache.flags = 0;
+	current_cpu_data.dcache.flags = 0;
         if (!(config & (1 << 31))) {
 	        /*
 		 * Not a MIPS64 complainant CPU.
@@ -502,31 +502,31 @@ static void __init probe_dcache(unsigned long config)
 		 */
 		dcache_size = 1 << (12 + ((config >> 6) & 7));
 		dc_lsize = 16 << ((config >> 4) & 1);
-		mips_cpu.dcache.linesz = dc_lsize;
+		current_cpu_data.dcache.linesz = dc_lsize;
 		/*
 		 * We cannot infer associativity - assume direct map
 		 * unless probe template indicates otherwise
 		 */
-		if(!mips_cpu.dcache.ways) mips_cpu.dcache.ways = 1;
-		mips_cpu.dcache.sets =
-			(dcache_size / dc_lsize) / mips_cpu.dcache.ways;
+		if (!current_cpu_data.dcache.ways) current_cpu_data.dcache.ways = 1;
+		current_cpu_data.dcache.sets =
+			(dcache_size / dc_lsize) / current_cpu_data.dcache.ways;
 	} else {
 	        config1 = read_c0_config1();
 
 		if ((lsize = ((config1 >> 10) & 7)))
-		        mips_cpu.dcache.linesz = 2 << lsize;
+		        current_cpu_data.dcache.linesz = 2 << lsize;
 		else
-		        mips_cpu.dcache.linesz= lsize;
-		mips_cpu.dcache.sets = 64 << ((config1 >> 13) & 7);
-		mips_cpu.dcache.ways = 1 + ((config1 >> 7) & 7);
+		        current_cpu_data.dcache.linesz= lsize;
+		current_cpu_data.dcache.sets = 64 << ((config1 >> 13) & 7);
+		current_cpu_data.dcache.ways = 1 + ((config1 >> 7) & 7);
 
-		dc_lsize = mips_cpu.dcache.linesz;
+		dc_lsize = current_cpu_data.dcache.linesz;
 		dcache_size =
-			mips_cpu.dcache.sets * mips_cpu.dcache.ways
+			current_cpu_data.dcache.sets * current_cpu_data.dcache.ways
 			* dc_lsize;
 	}
 	printk("Primary data cache %dkb, linesize %d bytes (%d ways)\n",
-	       dcache_size >> 10, dc_lsize, mips_cpu.dcache.ways);
+	       dcache_size >> 10, dc_lsize, current_cpu_data.dcache.ways);
 }
 
 
@@ -541,7 +541,7 @@ static int __init probe_scache(unsigned long config)
 	unsigned long flags, addr, begin, end, pow2;
 	int tmp;
 
-	if (mips_cpu.scache.flags == MIPS_CACHE_NOT_PRESENT)
+	if (current_cpu_data.scache.flags == MIPS_CACHE_NOT_PRESENT)
 		return 0;
 
 	tmp = ((config >> 17) & 1);
@@ -660,14 +660,14 @@ static inline void __init setup_scache(unsigned int config)
 	sc_present = probe_scache_kseg1(config);
 
 	if (sc_present) {
-	  	mips_cpu.scache.linesz = sc_lsize;
+	  	current_cpu_data.scache.linesz = sc_lsize;
 		/*
 		 * We cannot infer associativity - assume direct map
 		 * unless probe template indicates otherwise
 		 */
-		if(!mips_cpu.scache.ways) mips_cpu.scache.ways = 1;
-		mips_cpu.scache.sets =
-		  (scache_size / sc_lsize) / mips_cpu.scache.ways;
+		if(!current_cpu_data.scache.ways) current_cpu_data.scache.ways = 1;
+		current_cpu_data.scache.sets =
+		  (scache_size / sc_lsize) / current_cpu_data.scache.ways;
 
 		setup_scache_funcs();
 		return;

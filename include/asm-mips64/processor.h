@@ -4,7 +4,7 @@
  * for more details.
  *
  * Copyright (C) 1994 Waldorf GMBH
- * Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000 Ralf Baechle
+ * Copyright (C) 1995, 1996, 1997, 1998, 1999, 2001, 2002, 2003 Ralf Baechle
  * Modified further for R[236]000 compatibility by Paul M. Antoine
  * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  */
@@ -42,9 +42,24 @@
 #include <asm/sn/intr_public.h>
 #endif
 
+/*
+ * Descriptor for a cache
+ */
+struct cache_desc {
+	int linesz;
+	int sets;
+	int ways;
+	int flags;	/* Details like write thru/back, coherent, etc. */
+};
+
+/*
+ * Flag definitions
+ */
+#define MIPS_CACHE_NOT_PRESENT 0x00000001
+#define MIPS_CACHE_VTAG_CACHE  0x00000002	/* Virtually tagged cache. */
+
 struct cpuinfo_mips {
 	unsigned long	udelay_val;
-	unsigned long	last_asn;
 	unsigned long	asid_cache;
 #if defined(CONFIG_SGI_IP27)
 	cpuid_t		p_cpuid;	/* PROM assigned cpuid */
@@ -61,6 +76,20 @@ struct cpuinfo_mips {
 	unsigned long prof_multiplier;
 	unsigned long prof_counter;
 #endif
+
+	/*
+	 * Capability and feature descriptor structure for MIPS CPU
+	 */
+	unsigned int processor_id;
+	unsigned int fpu_id;
+	unsigned int cputype;
+	int isa_level;
+	int options;
+	int tlbsize;
+	struct cache_desc icache;	/* Primary I-cache */
+	struct cache_desc dcache;	/* Primary D or combined I/D cache */
+	struct cache_desc scache;	/* Secondary cache */
+	struct cache_desc tcache;	/* Tertiary/split secondary cache */
 } __attribute__((aligned(128)));
 
 /*
@@ -89,12 +118,6 @@ extern int EISA_bus;
 
 #define MCA_bus 0
 #define MCA_bus__is_a_macro /* for versions in ksyms.c */
-
-/*
- * MIPS has no problems with write protection
- */
-#define wp_works_ok 1
-#define wp_works_ok__is_a_macro /* for versions in ksyms.c */
 
 /*
  * User space process size: 1TB. This is hardcoded into a few places,

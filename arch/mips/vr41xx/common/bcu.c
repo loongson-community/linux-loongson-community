@@ -69,7 +69,7 @@ unsigned long vr41xx_vtclock = 0;
 
 static inline u16 read_clkspeed(void)
 {
-	switch (mips_cpu.cputype) {
+	switch (current_cpu_data.cputype) {
 	case CPU_VR4111:
 	case CPU_VR4121: return readw(VR4111_CLKSPEEDREG);
 	case CPU_VR4122: return readw(VR4122_CLKSPEEDREG);
@@ -86,7 +86,7 @@ static inline unsigned long calculate_pclock(u16 clkspeed)
 {
 	unsigned long pclock = 0;
 
-	switch (mips_cpu.cputype) {
+	switch (current_cpu_data.cputype) {
 	case CPU_VR4111:
 	case CPU_VR4121:
 		pclock = 18432000 * 64;
@@ -110,7 +110,7 @@ static inline unsigned long calculate_pclock(u16 clkspeed)
 
 static inline unsigned long calculate_vtclock(u16 clkspeed, unsigned long pclock)
 {
-	switch (mips_cpu.cputype) {
+	switch (current_cpu_data.cputype) {
 	case CPU_VR4111:
 		/* The NEC VR4111 doesn't have the VTClock. */
 		break;
@@ -151,7 +151,7 @@ static inline unsigned long calculate_tclock(u16 clkspeed, unsigned long pclock,
 {
 	unsigned long tclock = 0;
 
-	switch (mips_cpu.cputype) {
+	switch (current_cpu_data.cputype) {
 	case CPU_VR4111:
 		if (!(clkspeed & DIV2B))
         		tclock = pclock / 2;
@@ -182,8 +182,8 @@ static inline unsigned long calculate_mips_counter_frequency(unsigned long tcloc
 	/*
 	 * VR4131 Revision 2.0 and 2.1 use a value of (tclock / 2).
 	 */
-	if ((mips_cpu.processor_id == PRID_VR4131_REV2_0) ||
-	    (mips_cpu.processor_id == PRID_VR4131_REV2_1))
+	if ((current_cpu_data.processor_id == PRID_VR4131_REV2_0) ||
+	    (current_cpu_data.processor_id == PRID_VR4131_REV2_1))
 		tclock /= 2;
 	else
 		tclock /= 4;

@@ -478,7 +478,7 @@ void __init time_init(void)
 	xtime.tv_usec = 0;
 	write_unlock_irq(&xtime_lock);
 
-	if (mips_cpu.options & MIPS_CPU_COUNTER) {
+	if (current_cpu_data.options & MIPS_CPU_COUNTER) {
 		write_c0_count(0);
 		do_gettimeoffset = do_fast_gettimeoffset;
 		irq0.handler = r4k_timer_interrupt;

@@ -340,7 +340,7 @@ void local_timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
  */
 void timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
-	if (mips_cpu.options & MIPS_CPU_COUNTER) {
+	if (current_cpu_data.options & MIPS_CPU_COUNTER) {
 		unsigned int count;
 
 		/*
@@ -492,15 +492,15 @@ void __init time_init(void)
 	xtime.tv_nsec = 0;
 
 	/* choose appropriate gettimeoffset routine */
-	if (!(mips_cpu.options & MIPS_CPU_COUNTER)) {
+	if (!(current_cpu_data.options & MIPS_CPU_COUNTER)) {
 		/* no cpu counter - sorry */
 		do_gettimeoffset = null_gettimeoffset;
 	} else if (mips_counter_frequency != 0) {
 		/* we have cpu counter and know counter frequency! */
 		do_gettimeoffset = fixed_rate_gettimeoffset;
-	} else if ((mips_cpu.isa_level == MIPS_CPU_ISA_M32) ||
-		   (mips_cpu.isa_level == MIPS_CPU_ISA_I) ||
-		   (mips_cpu.isa_level == MIPS_CPU_ISA_II) ) {
+	} else if ((current_cpu_data.isa_level == MIPS_CPU_ISA_M32) ||
+		   (current_cpu_data.isa_level == MIPS_CPU_ISA_I) ||
+		   (current_cpu_data.isa_level == MIPS_CPU_ISA_II) ) {
 		/* we need to calibrate the counter but we don't have
 		 * 64-bit division. */
 		do_gettimeoffset = calibrate_div32_gettimeoffset;

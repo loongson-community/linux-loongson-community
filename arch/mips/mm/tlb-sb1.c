@@ -73,7 +73,7 @@ void sb1_dump_tlb(void)
 	printk("\n\nFull TLB Dump:\n"
 	       "Idx      EntryHi       EntryLo0          EntryLo1     PageMask\n"
 	       "--------------------------------------------------------------\n");
-	for (entry = 0; entry < mips_cpu.tlbsize; entry++) {
+	for (entry = 0; entry < current_cpu_data.tlbsize; entry++) {
 		write_c0_index(entry);
 		printk("\n%02i ", entry);
 		tlb_read();
@@ -95,7 +95,7 @@ void local_flush_tlb_all(void)
 	old_ctx = read_c0_entryhi() & ASID_MASK;
 	write_c0_entrylo0(0);
 	write_c0_entrylo1(0);
-	for (entry = 0; entry < mips_cpu.tlbsize; entry++) {
+	for (entry = 0; entry < current_cpu_data.tlbsize; entry++) {
 		write_c0_entryhi(KSEG0 + (PAGE_SIZE << 1) * entry);
 		write_c0_index(entry);
 		tlb_write_indexed();
@@ -121,7 +121,7 @@ void sb1_sanitize_tlb(void)
 	/* Save old context and create impossible VPN2 value */
 	write_c0_entrylo0(0);
 	write_c0_entrylo1(0);
-	for (entry = 0; entry < mips_cpu.tlbsize; entry++) {
+	for (entry = 0; entry < current_cpu_data.tlbsize; entry++) {
 		do {
 			addr += inc;
 			write_c0_entryhi(addr);
@@ -148,7 +148,7 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 		int size;
 		size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
 		size = (size + 1) >> 1;
-		if (size <= (mips_cpu.tlbsize/2)) {
+		if (size <= (current_cpu_data.tlbsize/2)) {
 			int oldpid = read_c0_entryhi() & ASID_MASK;
 			int newpid = cpu_asid(cpu, mm);
 
@@ -186,7 +186,7 @@ void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
 	size = (size + 1) >> 1;
 
 	local_irq_save(flags);
-	if (size <= (mips_cpu.tlbsize/2)) {
+	if (size <= (current_cpu_data.tlbsize/2)) {
 		int pid = read_c0_entryhi();
 
 		start &= (PAGE_MASK << 1);
@@ -352,7 +352,7 @@ void sb1_tlb_init(void)
 
 	write_c0_pagemask(PM_4K);
 	config1 = read_c0_config1();
-	mips_cpu.tlbsize = ((config1 >> 25) & 0x3f) + 1;
+	current_cpu_data.tlbsize = ((config1 >> 25) & 0x3f) + 1;
 
 	/*
 	 * We don't know what state the firmware left the TLB's in, so this is

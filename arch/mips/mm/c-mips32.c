@@ -228,7 +228,7 @@ static void mips32_flush_cache_sigtramp(unsigned long addr)
 
 static void mips32_flush_icache_all(void)
 {
-	if (mips_cpu.icache.flags | MIPS_CACHE_VTAG_CACHE)
+	if (current_cpu_data.icache.flags | MIPS_CACHE_VTAG_CACHE)
 		blast_icache();
 }
 
@@ -238,31 +238,32 @@ static void __init probe_icache(unsigned long config)
         unsigned long config1;
 	unsigned int lsize;
 
-	mips_cpu.icache.flags = 0;
+	current_cpu_data.icache.flags = 0;
 	config1 = read_c0_config1();
 
 	if ((lsize = ((config1 >> 19) & 7)))
-		mips_cpu.icache.linesz = 2 << lsize;
+		current_cpu_data.icache.linesz = 2 << lsize;
 	else
-	       mips_cpu.icache.linesz = lsize;
-	mips_cpu.icache.sets = 64 << ((config1 >> 22) & 7);
-	mips_cpu.icache.ways = 1 + ((config1 >> 16) & 7);
+		current_cpu_data.icache.linesz = lsize;
+	current_cpu_data.icache.sets = 64 << ((config1 >> 22) & 7);
+	current_cpu_data.icache.ways = 1 + ((config1 >> 16) & 7);
 
-	ic_lsize = mips_cpu.icache.linesz;
-	icache_size = mips_cpu.icache.sets * mips_cpu.icache.ways * ic_lsize;
+	ic_lsize = current_cpu_data.icache.linesz;
+	icache_size = current_cpu_data.icache.sets *
+	              current_cpu_data.icache.ways * ic_lsize;
 
-	if ((config & 0x8) || (mips_cpu.cputype == CPU_20KC)) {
+	if ((config & 0x8) || (current_cpu_data.cputype == CPU_20KC)) {
 	       /* 
 		* The CPU has a virtually tagged I-cache.
 		* Some older 20Kc chips doesn't have the 'VI' bit in
 		* the config register, so we also check for 20Kc.
 		*/
-	       mips_cpu.icache.flags = MIPS_CACHE_VTAG_CACHE;
+	       current_cpu_data.icache.flags = MIPS_CACHE_VTAG_CACHE;
 	       printk("Virtually tagged I-cache detected\n");
 	}
 
 	printk("Primary instruction cache %dkb, linesize %d bytes (%d ways)\n",
-	       icache_size >> 10, ic_lsize, mips_cpu.icache.ways);
+	       icache_size >> 10, ic_lsize, current_cpu_data.icache.ways);
 }
 
 static void __init probe_dcache(unsigned long config)
@@ -270,21 +271,21 @@ static void __init probe_dcache(unsigned long config)
         unsigned long config1;
 	unsigned int lsize;
 
-	mips_cpu.dcache.flags = 0;
+	current_cpu_data.dcache.flags = 0;
 	config1 = read_c0_config1();
 
 	if ((lsize = ((config1 >> 10) & 7)))
-	        mips_cpu.dcache.linesz = 2 << lsize;
+	        current_cpu_data.dcache.linesz = 2 << lsize;
 	else
-	        mips_cpu.dcache.linesz= lsize;
-	mips_cpu.dcache.sets = 64 << ((config1 >> 13) & 7);
-	mips_cpu.dcache.ways = 1 + ((config1 >> 7) & 7);
+	        current_cpu_data.dcache.linesz= lsize;
+	current_cpu_data.dcache.sets = 64 << ((config1 >> 13) & 7);
+	current_cpu_data.dcache.ways = 1 + ((config1 >> 7) & 7);
 
-	dc_lsize = mips_cpu.dcache.linesz;
-	dcache_size = mips_cpu.dcache.sets * mips_cpu.dcache.ways * dc_lsize;
+	dc_lsize = current_cpu_data.dcache.linesz;
+	dcache_size = current_cpu_data.dcache.sets * current_cpu_data.dcache.ways * dc_lsize;
 
 	printk("Primary data cache %dkb, linesize %d bytes (%d ways)\n",
-	       dcache_size >> 10, dc_lsize, mips_cpu.dcache.ways);
+	       dcache_size >> 10, dc_lsize, current_cpu_data.dcache.ways);
 }
 
 void __init ld_mmu_mips32(void)
@@ -301,7 +302,7 @@ void __init ld_mmu_mips32(void)
 	probe_icache(config);
 	probe_dcache(config);
 
-	if (!(mips_cpu.scache.flags & MIPS_CACHE_NOT_PRESENT))
+	if (!(current_cpu_data.scache.flags & MIPS_CACHE_NOT_PRESENT))
 		panic("Dunno how to handle MIPS32 with second level cache");
 
 	/*
@@ -309,7 +310,7 @@ void __init ld_mmu_mips32(void)
 	 * code supports virtually indexed processors and will be unnecessarily
 	 * unefficient on physically indexed processors.
 	 */
-	shm_align_mask = max_t(unsigned long, mips_cpu.dcache.sets * dc_lsize,
+	shm_align_mask = max_t(unsigned long, current_cpu_data.dcache.sets * dc_lsize,
 	                       PAGE_SIZE) - 1;
 
 	_clear_page		= (void *)mips32_clear_page_dc;
