@@ -69,7 +69,6 @@ static char *cpu_names[] = CPU_NAMES;
 
 char watch_available = 0;
 char dedicated_iv_available = 0;
-char vce_available = 0;
 
 void (*ibe_board_handler)(struct pt_regs *regs);
 void (*dbe_board_handler)(struct pt_regs *regs);

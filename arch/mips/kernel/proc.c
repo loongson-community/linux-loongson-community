@@ -76,7 +76,7 @@ int get_cpuinfo(char *buffer)
 	               watch_available ? "yes" : "no");
 
 	sprintf(fmt, "VCE%%c exceptions\t\t: %s\n",
-	        vce_available ? "%d" : "not available");
+	        (mips_cpu.options & MIPS_CPU_VCE) ? "%d" : "not available");
 	len += sprintf(buffer + len, fmt, 'D', vced_count);
 	len += sprintf(buffer + len, fmt, 'I', vcei_count);
 
