@@ -44,6 +44,7 @@
 
 /* DMA Channel Register Offsets */
 #define DMA_MODE_SET		0x00000000
+#define DMA_MODE_READ		DMA_MODE_SET
 #define DMA_MODE_CLEAR		0x00000004
 /* DMA Mode register bits follow */
 #define DMA_DAH_MASK		(0x0f << 20)
@@ -101,15 +102,21 @@ enum {
 struct dma_chan {
 	int dev_id;		// this channel is allocated if >=0, free otherwise
 	unsigned int io;
-	int irq;
 	const char *dev_str;
+	int irq;
+	void *irq_dev;
 	unsigned int fifo_addr;
 	unsigned int mode;
 };
 
 /* These are in arch/mips/au1000/common/dma.c */
 extern struct dma_chan au1000_dma_table[];
-extern int request_au1000_dma(int dev_id, const char *dev_str);
+extern int request_au1000_dma(int dev_id,
+			      const char *dev_str,
+			      void (*irqhandler)(int, void *,
+						 struct pt_regs *),
+			      unsigned long irqflags,
+			      void *irq_dev_id);
 extern void free_au1000_dma(unsigned int dmanr);
 extern int au1000_dma_read_proc(char *buf, char **start, off_t fpos,
 				int length, int *eof, void *data);
@@ -162,45 +169,75 @@ static __inline__ void enable_dma_buffers(unsigned int dmanr)
 	au_writel(DMA_BE0 | DMA_BE1, chan->io + DMA_MODE_SET);
 }
 
-/* enable/disable a specific DMA channel */
-static __inline__ void enable_dma(unsigned int dmanr)
+static __inline__ void start_dma(unsigned int dmanr)
 {
 	struct dma_chan *chan = get_dma_chan(dmanr);
 	if (!chan)
 		return;
+
+	au_writel(DMA_GO, chan->io + DMA_MODE_SET);
+}
+
+#define DMA_HALT_POLL 0x5000
+
+static __inline__ void halt_dma(unsigned int dmanr)
+{
+	struct dma_chan *chan = get_dma_chan(dmanr);
+	int i;
+	if (!chan)
+		return;
+
+	au_writel(DMA_GO, chan->io + DMA_MODE_CLEAR);
+	// poll the halt bit
+	for (i = 0; i < DMA_HALT_POLL; i++)
+		if (au_readl(chan->io + DMA_MODE_READ) & DMA_HALT)
+			break;
+	if (i == DMA_HALT_POLL)
+		printk(KERN_INFO "halt_dma: HALT poll expired!\n");
+}
+
+
+static __inline__ void disable_dma(unsigned int dmanr)
+{
+	struct dma_chan *chan = get_dma_chan(dmanr);
+	if (!chan)
+		return;
+
+	halt_dma(dmanr);
+
+		// now we can disable the buffers
+		au_writel(~DMA_GO, chan->io + DMA_MODE_CLEAR);
+}
+
+static __inline__ int dma_halted(unsigned int dmanr)
+{
+	struct dma_chan *chan = get_dma_chan(dmanr);
+	if (!chan)
+		return 1;
+	return (au_readl(chan->io + DMA_MODE_READ) & DMA_HALT) ? 1 : 0;
+}
+
+/* initialize a DMA channel */
+static __inline__ void init_dma(unsigned int dmanr)
+{
+	struct dma_chan *chan = get_dma_chan(dmanr);
+	u32 mode;
+	if (!chan)
+		return;
+
+	disable_dma(dmanr);
 
 	// set device FIFO address
 	au_writel(virt_to_phys((void *) chan->fifo_addr),
 		  chan->io + DMA_PERIPHERAL_ADDR);
 
-	au_writel(chan->
-		  mode | (chan->dev_id << DMA_DID_BIT) | DMA_IE | DMA_GO,
-		  chan->io + DMA_MODE_SET);
+	mode = chan->mode | (chan->dev_id << DMA_DID_BIT);
+	if (chan->irq)
+		mode |= DMA_IE;
+	
+	au_writel(~mode, chan->io + DMA_MODE_CLEAR);
+	au_writel(mode, chan->io + DMA_MODE_SET);
 }
-
-#define DMA_HALT_POLL 0x5000
-
-static __inline__ void disable_dma(unsigned int dmanr)
-{
-	int i;
-	struct dma_chan *chan = get_dma_chan(dmanr);
-	if (!chan)
-		return;
-
-	au_writel(DMA_D1 | DMA_D0 | DMA_GO, chan->io + DMA_MODE_CLEAR);
-
-	// poll the halt bit
-	for (i = 0; i < DMA_HALT_POLL; i++)
-		if (au_readl(chan->io + DMA_MODE_SET) & DMA_HALT)
-			break;
-	if (i == DMA_HALT_POLL) {
-		printk(KERN_INFO "disable_dma: HALT poll expired!\n");
-	} else {
-		// now we can disable the buffers
-		au_writel(~DMA_GO, chan->io + DMA_MODE_CLEAR);
-	}
-}
-
 
 /*
  * set mode for a specific DMA channel
@@ -211,12 +248,21 @@ static __inline__ void set_dma_mode(unsigned int dmanr, unsigned int mode)
 	if (!chan)
 		return;
 	/*
-	 * chan->mode only holds endianess, direction, transfer size, device
-	 * FIFO width, and cacheability info for the channel. Make sure
-	 * anything else is masked off.
+	 * set_dma_mode is only allowed to change endianess, direction,
+	 * transfer size, device FIFO width, and coherency settings.
+	 * Make sure anything else is masked off.
 	 */
 	mode &= (DMA_BE | DMA_DR | DMA_TS8 | DMA_DW_MASK | DMA_NC);
-	chan->mode = mode;
+	chan->mode &= ~(DMA_BE | DMA_DR | DMA_TS8 | DMA_DW_MASK | DMA_NC);
+	chan->mode |= mode;
+}
+
+static __inline__ unsigned int get_dma_mode(unsigned int dmanr)
+{
+	struct dma_chan *chan = get_dma_chan(dmanr);
+	if (!chan)
+		return 0;
+	return chan->mode;
 }
 
 static __inline__ int get_dma_active_buffer(unsigned int dmanr)
@@ -224,7 +270,7 @@ static __inline__ int get_dma_active_buffer(unsigned int dmanr)
 	struct dma_chan *chan = get_dma_chan(dmanr);
 	if (!chan)
 		return -1;
-	return (au_readl(chan->io + DMA_MODE_SET) & DMA_AB) ? 1 : 0;
+	return (au_readl(chan->io + DMA_MODE_READ) & DMA_AB) ? 1 : 0;
 }
 
 
@@ -345,7 +391,7 @@ static __inline__ unsigned int get_dma_buffer_done(unsigned int dmanr)
 	if (!chan)
 		return 0;
 
-    return au_readl(chan->io + DMA_MODE_SET) & (DMA_D0 | DMA_D1);
+    return au_readl(chan->io + DMA_MODE_READ) & (DMA_D0 | DMA_D1);
 }
 
 
@@ -371,7 +417,7 @@ static __inline__ int get_dma_residue(unsigned int dmanr)
 	if (!chan)
 		return 0;
 
-	curBufCntReg = (au_readl(chan->io + DMA_MODE_SET) & DMA_AB) ?
+	curBufCntReg = (au_readl(chan->io + DMA_MODE_READ) & DMA_AB) ?
 	    DMA_BUFFER1_COUNT : DMA_BUFFER0_COUNT;
 
 	count = au_readl(chan->io + curBufCntReg) & DMA_COUNT_MASK;

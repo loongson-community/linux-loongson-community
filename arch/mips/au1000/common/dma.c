@@ -77,23 +77,22 @@ static const struct {
 	unsigned int fifo_addr;
 	unsigned int dma_mode;
 } dma_dev_table[DMA_NUM_DEV] = {
-	{
-	UART0_ADDR + UART_TX, 0}, {
-	UART0_ADDR + UART_RX, 0}, {
-	0, 0}, {
-	0, 0}, {
-	AC97C_DATA, DMA_DW16 | DMA_NC}, {
-	AC97C_DATA, DMA_DR | DMA_DW16 | DMA_NC}, {
-	UART3_ADDR + UART_TX, DMA_DW8 | DMA_NC}, {
-	UART3_ADDR + UART_RX, DMA_DR | DMA_DW8 | DMA_NC}, {
-	USBD_EP0RD, DMA_DR | DMA_DW8 | DMA_NC}, {
-	USBD_EP0WR, DMA_DW8 | DMA_NC}, {
-	USBD_EP2WR, DMA_DW8 | DMA_NC}, {
-	USBD_EP3WR, DMA_DW8 | DMA_NC}, {
-	USBD_EP4RD, DMA_DR | DMA_DW8 | DMA_NC}, {
-	USBD_EP5RD, DMA_DR | DMA_DW8 | DMA_NC}, {
-	I2S_DATA, DMA_DW32 | DMA_NC}, {
-	I2S_DATA, DMA_DR | DMA_DW32 | DMA_NC}
+	{UART0_ADDR + UART_TX, 0},
+	{UART0_ADDR + UART_RX, 0},
+	{0, 0},
+	{0, 0},
+	{AC97C_DATA, DMA_DW16 },          // coherent
+	{AC97C_DATA, DMA_DR | DMA_DW16 }, // coherent
+	{UART3_ADDR + UART_TX, DMA_DW8 | DMA_NC},
+	{UART3_ADDR + UART_RX, DMA_DR | DMA_DW8 | DMA_NC},
+	{USBD_EP0RD, DMA_DR | DMA_DW8 | DMA_NC},
+	{USBD_EP0WR, DMA_DW8 | DMA_NC},
+	{USBD_EP2WR, DMA_DW8 | DMA_NC},
+	{USBD_EP3WR, DMA_DW8 | DMA_NC},
+	{USBD_EP4RD, DMA_DR | DMA_DW8 | DMA_NC},
+	{USBD_EP5RD, DMA_DR | DMA_DW8 | DMA_NC},
+	{I2S_DATA, DMA_DW32 | DMA_NC},
+	{I2S_DATA, DMA_DR | DMA_DW32 | DMA_NC}
 };
 
 
@@ -105,9 +104,8 @@ int au1000_dma_read_proc(char *buf, char **start, off_t fpos,
 
 	for (i = 0; i < NUM_AU1000_DMA_CHANNELS; i++) {
 		if ((chan = get_dma_chan(i)) != NULL) {
-			len +=
-			    sprintf(buf + len, "%2d: %s\n", i,
-				    chan->dev_str);
+			len += sprintf(buf + len, "%2d: %s\n",
+				       i, chan->dev_str);
 		}
 	}
 
@@ -151,11 +149,15 @@ void dump_au1000_dma_channel(unsigned int dmanr)
 /*
  * Finds a free channel, and binds the requested device to it.
  * Returns the allocated channel number, or negative on error.
+ * Requests the DMA done IRQ if irqhandler != NULL.
  */
-int request_au1000_dma(int dev_id, const char *dev_str)
+int request_au1000_dma(int dev_id, const char *dev_str,
+		       void (*irqhandler)(int, void *, struct pt_regs *),
+		       unsigned long irqflags,
+		       void *irq_dev_id)
 {
 	struct dma_chan *chan;
-	int i;
+	int i, ret;
 
 	if (dev_id < 0 || dev_id >= DMA_NUM_DEV)
 		return -EINVAL;
@@ -169,14 +171,30 @@ int request_au1000_dma(int dev_id, const char *dev_str)
 
 	chan = &au1000_dma_table[i];
 
+	if (irqhandler) {
+		chan->irq = AU1000_DMA_INT_BASE + i;
+		chan->irq_dev = irq_dev_id;
+		if ((ret = request_irq(chan->irq, irqhandler, irqflags,
+				       dev_str, chan->irq_dev))) {
+			chan->irq = 0;
+			chan->irq_dev = NULL;
+			return ret;
+		}
+	} else {
+		chan->irq = 0;
+		chan->irq_dev = NULL;
+	}
+
 	// fill it in
 	chan->io = DMA_CHANNEL_BASE + i * DMA_CHANNEL_LEN;
-	chan->irq = AU1000_DMA_INT_BASE + i;
 	chan->dev_id = dev_id;
 	chan->dev_str = dev_str;
 	chan->fifo_addr = dma_dev_table[dev_id].fifo_addr;
 	chan->mode = dma_dev_table[dev_id].dma_mode;
 
+	/* initialize the channel before returning */
+	init_dma(i);
+	
 	return i;
 }
 
@@ -190,6 +208,10 @@ void free_au1000_dma(unsigned int dmanr)
 	}
 
 	disable_dma(dmanr);
+	if (chan->irq)
+		free_irq(chan->irq, chan->irq_dev);
 
+	chan->irq = 0;
+	chan->irq_dev = NULL;
 	chan->dev_id = -1;
-}				/* free_dma */
+}
