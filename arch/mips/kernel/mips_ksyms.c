@@ -1,4 +1,4 @@
-/* $Id: mips_ksyms.c,v 1.17 1999/04/01 23:35:16 ulfc Exp $
+/* $Id: mips_ksyms.c,v 1.18 1999/04/05 01:30:49 ulfc Exp $
  *
  * Export MIPS-specific functions needed for loadable modules.
  *
@@ -13,6 +13,7 @@
 #include <linux/string.h>
 #include <linux/mm.h>
 #include <linux/interrupt.h>
+#include <asm/irq.h>
 #include <linux/in6.h>
 #include <linux/pci.h>
 
@@ -56,8 +57,8 @@ EXPORT_SYMBOL(clear_page);
 EXPORT_SYMBOL(__mips_bh_counter);
 EXPORT_SYMBOL(local_bh_count);
 EXPORT_SYMBOL(local_irq_count);
-//EXPORT_SYMBOL(enable_irq);
-//EXPORT_SYMBOL(disable_irq);
+EXPORT_SYMBOL(enable_irq);
+EXPORT_SYMBOL(disable_irq);
 EXPORT_SYMBOL(kernel_thread);
 
 /*
