@@ -325,16 +325,14 @@ static inline void protected_writeback_dcache_line(unsigned long addr)
 /*
  * A signal trampoline must fit into a single cacheline.
  */
-static inline void local_sb1_flush_cache_sigtramp(unsigned long addr)
+static void local_sb1_flush_cache_sigtramp(unsigned long addr)
 {
 	unsigned long daddr, iaddr;
 
 	daddr = addr & ~(dcache_line_size - 1);
 	protected_writeback_dcache_line(daddr);
-	protected_writeback_dcache_line(daddr + dcache_line_size);
 	iaddr = addr & ~(icache_line_size - 1);
 	protected_flush_icache_line(iaddr);
-	protected_flush_icache_line(iaddr + icache_line_size);
 }
 
 #ifdef CONFIG_SMP
