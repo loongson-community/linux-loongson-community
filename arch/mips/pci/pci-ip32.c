@@ -13,7 +13,6 @@
 #include <linux/types.h>
 #include <asm/pci_channel.h>
 #include <asm/ip32/mace.h>
-#include <asm/ip32/crime.h>
 #include <asm/ip32/ip32_ints.h>
 
 #undef DEBUG_MACE_PCI
@@ -26,77 +25,59 @@
  */
 static irqreturn_t macepci_error(int irq, void *dev, struct pt_regs *regs)
 {
-	u32 flags, error_addr;
-	char space;
-
-	flags = mace_read_32(MACEPCI_ERROR_FLAGS);
-	error_addr = mace_read_32(MACEPCI_ERROR_ADDR);
+	char s;
+	uint32_t flags = mace_read_32(MACEPCI_ERROR_FLAGS);
+	uint32_t addr = mace_read_32(MACEPCI_ERROR_ADDR);
 
 	if (flags & MACEPCI_ERROR_MEMORY_ADDR)
-		space = 'M';
+		s = 'M';
 	else if (flags & MACEPCI_ERROR_CONFIG_ADDR)
-		space = 'C';
+		s = 'C';
 	else
-		space = 'X';
+		s = 'X';
 
 	if (flags & MACEPCI_ERROR_MASTER_ABORT) {
-		printk("MACEPCI: Master abort at 0x%08x (%c)\n",
-		       error_addr, space);
-		mace_write_32(flags & ~MACEPCI_ERROR_MASTER_ABORT,
-			      MACEPCI_ERROR_FLAGS);
+		printk("MACEPCI: Master abort at 0x%08x (%c)\n", addr, s);
+		flags &= ~MACEPCI_ERROR_MASTER_ABORT;
 	}
 	if (flags & MACEPCI_ERROR_TARGET_ABORT) {
-		printk("MACEPCI: Target abort at 0x%08x (%c)\n",
-		       error_addr, space);
-		mace_write_32(flags & ~MACEPCI_ERROR_TARGET_ABORT,
-			      MACEPCI_ERROR_FLAGS);
+		printk("MACEPCI: Target abort at 0x%08x (%c)\n", addr, s);
+		flags &= ~MACEPCI_ERROR_TARGET_ABORT;
 	}
 	if (flags & MACEPCI_ERROR_DATA_PARITY_ERR) {
-		printk("MACEPCI: Data parity error at 0x%08x (%c)\n",
-		       error_addr, space);
-		mace_write_32(flags & ~MACEPCI_ERROR_DATA_PARITY_ERR,
-			      MACEPCI_ERROR_FLAGS);
+		printk("MACEPCI: Data parity error at 0x%08x (%c)\n", addr, s);
+		flags &= ~MACEPCI_ERROR_DATA_PARITY_ERR;
 	}
 	if (flags & MACEPCI_ERROR_RETRY_ERR) {
-		printk("MACEPCI: Retry error at 0x%08x (%c)\n", error_addr,
-		       space);
-		mace_write_32(flags & ~MACEPCI_ERROR_RETRY_ERR,
-			      MACEPCI_ERROR_FLAGS);
+		printk("MACEPCI: Retry error at 0x%08x (%c)\n", addr, s);
+		flags &= ~MACEPCI_ERROR_RETRY_ERR;
 	}
 	if (flags & MACEPCI_ERROR_ILLEGAL_CMD) {
-		printk("MACEPCI: Illegal command at 0x%08x (%c)\n",
-		       error_addr, space);
-		mace_write_32(flags & ~MACEPCI_ERROR_ILLEGAL_CMD,
-			      MACEPCI_ERROR_FLAGS);
+		printk("MACEPCI: Illegal command at 0x%08x (%c)\n", addr, s);
+		flags &= ~MACEPCI_ERROR_ILLEGAL_CMD;
 	}
 	if (flags & MACEPCI_ERROR_SYSTEM_ERR) {
-		printk("MACEPCI: System error at 0x%08x (%c)\n",
-		       error_addr, space);
-		mace_write_32(flags & ~MACEPCI_ERROR_SYSTEM_ERR,
-			      MACEPCI_ERROR_FLAGS);
+		printk("MACEPCI: System error at 0x%08x (%c)\n", addr, s);
+		flags &= ~MACEPCI_ERROR_SYSTEM_ERR;
 	}
 	if (flags & MACEPCI_ERROR_PARITY_ERR) {
-		printk("MACEPCI: Parity error at 0x%08x (%c)\n",
-		       error_addr, space);
-		mace_write_32(flags & ~MACEPCI_ERROR_PARITY_ERR,
-			      MACEPCI_ERROR_FLAGS);
+		printk("MACEPCI: Parity error at 0x%08x (%c)\n", addr, s);
+		flags &= ~MACEPCI_ERROR_PARITY_ERR;
 	}
 	if (flags & MACEPCI_ERROR_OVERRUN) {
-		printk("MACEPCI: Overrun error at 0x%08x (%c)\n",
-		       error_addr, space);
-		mace_write_32(flags & ~MACEPCI_ERROR_OVERRUN,
-			      MACEPCI_ERROR_FLAGS);
+		printk("MACEPCI: Overrun error at 0x%08x (%c)\n", addr, s);
+		flags &= ~MACEPCI_ERROR_OVERRUN;
 	}
 	if (flags & MACEPCI_ERROR_SIG_TABORT) {
 		printk("MACEPCI: Signaled target abort (clearing)\n");
-		mace_write_32(flags & ~MACEPCI_ERROR_SIG_TABORT,
-			      MACEPCI_ERROR_FLAGS);
+		flags &= ~MACEPCI_ERROR_SIG_TABORT;
 	}
 	if (flags & MACEPCI_ERROR_INTERRUPT_TEST) {
 		printk("MACEPCI: Interrupt test triggered (clearing)\n");
-		mace_write_32(flags & ~MACEPCI_ERROR_INTERRUPT_TEST,
-			      MACEPCI_ERROR_FLAGS);
+		flags &= ~MACEPCI_ERROR_INTERRUPT_TEST;
 	}
+
+	mace_write_32(flags, MACEPCI_ERROR_FLAGS);
 
 	return IRQ_HANDLED;
 }
@@ -106,7 +87,7 @@ extern struct pci_ops mace_pci_ops;
 #ifdef CONFIG_MIPS64
 static struct resource mace_pci_mem_resource = {
 	.name	= "SGI O2 PCI MEM",
-	.start	= 0x280000000UL,
+	.start	= MACEPCI_HI_MEMORY,
 	.end	= 0x2FFFFFFFFUL,
 	.flags	= IORESOURCE_MEM,
 };
@@ -118,11 +99,10 @@ static struct resource mace_pci_io_resource = {
 };
 #define MACE_PCI_MEM_OFFSET 0x200000000
 #else
-
 static struct resource mace_pci_mem_resource = {
 	.name	= "SGI O2 PCI MEM",
 	.start	= MACEPCI_LOW_MEMORY,
-	.end	= MACEPCI_LOW_MEMORY+0x2000000-1,
+	.end	= MACEPCI_LOW_MEMORY + 0x2000000 - 1,
 	.flags	= IORESOURCE_MEM,
 };
 static struct resource mace_pci_io_resource = {
@@ -131,7 +111,7 @@ static struct resource mace_pci_io_resource = {
 	.end	= 0xFFFFFFFF,
 	.flags	= IORESOURCE_IO,
 };
-#define MACE_PCI_MEM_OFFSET (MACEPCI_LOW_MEMORY-0x80000000UL)
+#define MACE_PCI_MEM_OFFSET (MACEPCI_LOW_MEMORY - 0x80000000)
 #endif
 static struct pci_controller mace_pci_controller = {
 	.pci_ops	= &mace_pci_ops,
@@ -139,9 +119,8 @@ static struct pci_controller mace_pci_controller = {
 	.io_resource	= &mace_pci_io_resource,
 	.iommu		= 0,
 	.mem_offset	= MACE_PCI_MEM_OFFSET,
-	.io_offset	= 0x0,
+	.io_offset	= 0,
 };
-
 
 static int __init mace_init(void)
 {
@@ -149,18 +128,11 @@ static int __init mace_init(void)
 	mace_write_32(0, MACEPCI_ERROR_ADDR);
 	mace_write_32(0, MACEPCI_ERROR_FLAGS);
 	mace_write_32(0xff008500, MACEPCI_CONTROL);
-	/* FIXME: should be done in crime.c */
-	crime_write(0, CRIME_HARD_INT);
-	crime_write(0, CRIME_SOFT_INT);
-	crime_write(0x000000000000ff00UL, CRIME_INT_STAT);
 
-	if (request_irq(MACE_PCI_BRIDGE_IRQ, macepci_error, 0,
-			"MACE PCI error", NULL))
-		printk("PCI bridge can't get interrupt; can't happen.\n");
-	else
-		printk("PCI bridge interrupt registered\n");
+	BUG_ON(request_irq(MACE_PCI_BRIDGE_IRQ, macepci_error, 0,
+			   "MACE PCI error", NULL));
+
 	return 0;
-
 }
 subsys_initcall(mace_init);
 
