@@ -1,5 +1,4 @@
-/* $Id: keyboard.h,v 1.14 1999/08/19 22:56:33 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
@@ -38,19 +37,6 @@ extern void kbd_forward_char (int ch);
 #define kbd_init_hw		pckbd_init_hw
 #define kbd_sysrq_xlate         pckbd_sysrq_xlate
 
-#else
-
-extern int kbd_setkeycode(unsigned int scancode, unsigned int keycode);
-extern int kbd_getkeycode(unsigned int scancode);
-extern int kbd_translate(unsigned char scancode, unsigned char *keycode,
-	char raw_mode);
-extern char kbd_unexpected_up(unsigned char keycode);
-extern void kbd_leds(unsigned char leds);
-extern void kbd_init_hw(void);
-extern unsigned char *kbd_sysrq_xlate;
-
-#endif
-
 #define SYSRQ_KEY 0x54
 
 /* Some stoneage hardware needs delays after some operations.  */
@@ -85,6 +71,19 @@ extern struct kbd_ops *kbd_ops;
 #define kbd_write_output(val) kbd_ops->kbd_write_output(val)
 #define kbd_write_command(val) kbd_ops->kbd_write_command(val)
 #define kbd_read_status() kbd_ops->kbd_read_status()
+
+#else
+
+extern int kbd_setkeycode(unsigned int scancode, unsigned int keycode);
+extern int kbd_getkeycode(unsigned int scancode);
+extern int kbd_translate(unsigned char scancode, unsigned char *keycode,
+	char raw_mode);
+extern char kbd_unexpected_up(unsigned char keycode);
+extern void kbd_leds(unsigned char leds);
+extern void kbd_init_hw(void);
+extern unsigned char *kbd_sysrq_xlate;
+
+#endif
 
 #endif /* __KERNEL */
 
