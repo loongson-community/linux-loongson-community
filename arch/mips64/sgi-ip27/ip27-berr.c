@@ -64,9 +64,43 @@ void do_ibe(struct pt_regs *regs)
 	while(1);
 }
 
+static void dump_hub_information(unsigned long errst0, unsigned long errst1)
+{
+	static char *err_type[2][8] = {
+		{ NULL, "Uncached Partial Read PRERR", "DERR", "Read Timeout",
+		  NULL, NULL, NULL, NULL },
+		{ "WERR", "Uncached Partial Write", "PWERR", "Write Timeout",
+		  NULL, NULL, NULL, NULL }
+	};
+	int wrb = errst1 & PI_ERR_ST1_WRBRRB_MASK;
+
+	if (!(errst0 & PI_ERR_ST0_VALID_MASK)) {
+		printk("Hub does not contain valid error information\n");
+		return;
+	}
+
+	
+	printk("Hub has valid error information:\n");
+	if (errst0 & PI_ERR_ST0_OVERRUN_MASK)
+		printk("Overrun is set.  Error stack may contain additional "
+		       "information.\n");
+	printk("Hub error address is %08lx\n",
+	       (errst0 & PI_ERR_ST0_ADDR_MASK) >> (PI_ERR_ST0_ADDR_SHFT - 3));
+	printk("Incoming message command 0x%lx\n",
+	       (errst0 & PI_ERR_ST0_CMD_MASK) >> PI_ERR_ST0_CMD_SHFT);
+	printk("Supplemental field of incoming message is 0x%lx\n",
+	       (errst0 & PI_ERR_ST0_SUPPL_MASK) >> PI_ERR_ST0_SUPPL_SHFT);
+	printk("T5 Rn (for RRB only) is 0x%lx\n",
+	       (errst0 & PI_ERR_ST0_REQNUM_MASK) >> PI_ERR_ST0_REQNUM_SHFT);
+	printk("Error type is %s\n", err_type[wrb]
+	       [(errst0 & PI_ERR_ST0_TYPE_MASK) >> PI_ERR_ST0_TYPE_SHFT]
+		? : "invalid");
+}
+
 void do_dbe(struct pt_regs *regs)
 {
-	unsigned long fixup;
+	unsigned long fixup, errst0, errst1;
+	int cpu = LOCAL_HUB_L(PI_CPU_NUM);
 
 	fixup = search_dbe_table(regs->cp0_epc);
 	if (fixup) {
@@ -77,7 +111,12 @@ void do_dbe(struct pt_regs *regs)
 		return;
 	}
 
-	printk("Got dbe at 0x%lx\n", regs->cp0_epc);
+	printk("Slice %c got dbe at 0x%lx\n", 'A' + cpu, regs->cp0_epc);
+	printk("Hub information:\n");
+	printk("ERR_INT_PEND = 0x%06lx\n", LOCAL_HUB_L(PI_ERR_INT_PEND));
+	errst0 = LOCAL_HUB_L(cpu ? PI_ERR_STATUS0_B : PI_ERR_STATUS0_A);
+	errst1 = LOCAL_HUB_L(cpu ? PI_ERR_STATUS1_B : PI_ERR_STATUS1_A);
+	dump_hub_information(errst0, errst1);
 	show_regs(regs);
 	dump_tlb_all();
 	while(1);
