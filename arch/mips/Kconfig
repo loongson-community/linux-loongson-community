@@ -348,6 +348,7 @@ config JAGUAR_DMALOW
 config PMC_YOSEMITE
 	bool "Support for PMC-Sierra Yosemite eval board"
 	select DMA_COHERENT
+	select HW_HAS_PCI
 	select IRQ_CPU
 	select IRQ_CPU_RM7K
 	help
