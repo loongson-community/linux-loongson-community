@@ -123,10 +123,10 @@ static int dma_setup(Scsi_Cmnd *cmd, int datainp)
 	 * IMHO a better fix would be, not to do these
 	 * dma setups in the first place
 	 */
-	if (cmd->SCp.ptr == NULL)
+	if (cmd->SCp.ptr == NULL || cmd->SCp.this_residual == 0)
 		return 1;
 
-	fill_hpc_entries (&hcp, cmd->SCp.ptr,cmd->SCp.this_residual);
+	fill_hpc_entries (&hcp, cmd->SCp.ptr, cmd->SCp.this_residual);
 
 	/* To make sure, if we trip an HPC bug, that we transfer
 	 * every single byte, we tag on an extra zero length dma
