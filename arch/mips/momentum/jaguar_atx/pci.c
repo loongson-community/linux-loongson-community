@@ -335,57 +335,6 @@ static void galileo_pcibios_set_master(struct pci_dev *dev)
 	galileo_pcibios_write_config_word(dev, PCI_COMMAND, cmd);
 }
 
-/*  Externally-expected functions.  Do not change function names  */
-
-int pcibios_enable_resources(struct pci_dev *dev)
-{
-	u16 cmd, old_cmd;
-	u8 tmp1;
-	int idx;
-	struct resource *r;
-
-	galileo_pcibios_read_config_word(dev, PCI_COMMAND, &cmd);
-	old_cmd = cmd;
-	for (idx = 0; idx < 6; idx++) {
-		r = &dev->resource[idx];
-		if (!r->start && r->end) {
-			printk(KERN_ERR
-			       "PCI: Device %s not available because of "
-			       "resource collisions\n", dev->slot_name);
-			return -EINVAL;
-		}
-		if (r->flags & IORESOURCE_IO)
-			cmd |= PCI_COMMAND_IO;
-		if (r->flags & IORESOURCE_MEM)
-			cmd |= PCI_COMMAND_MEMORY;
-	}
-	if (cmd != old_cmd) {
-		galileo_pcibios_write_config_word(dev, PCI_COMMAND, cmd);
-	}
-
-	/*
-	 * Let's fix up the latency timer and cache line size here.  Cache
-	 * line size = 32 bytes / sizeof dword (4) = 8.
-	 * Latency timer must be > 8.  32 is random but appears to work.
-	 */
-	galileo_pcibios_read_config_byte(dev, PCI_CACHE_LINE_SIZE, &tmp1);
-	if (tmp1 != 8) {
-		printk(KERN_WARNING "PCI setting cache line size to 8 from "
-		       "%d\n", tmp1);
-		galileo_pcibios_write_config_byte(dev, PCI_CACHE_LINE_SIZE,
-						  8);
-	}
-	galileo_pcibios_read_config_byte(dev, PCI_LATENCY_TIMER, &tmp1);
-	if (tmp1 < 32) {
-		printk(KERN_WARNING "PCI setting latency timer to 32 from %d\n",
-		       tmp1);
-		galileo_pcibios_write_config_byte(dev, PCI_LATENCY_TIMER,
-						  32);
-	}
-
-	return 0;
-}
-
 struct pci_ops galileo_pci_ops = {
 	galileo_pcibios_read_config_byte,
 	galileo_pcibios_read_config_word,
