@@ -21,10 +21,10 @@
 /*
  * Each address space has 2 4K pages as its page directory, giving 1024
  * (== PTRS_PER_PGD) 8 byte pointers to pmd tables. Each pmd table is a
- * pair of 4K pages, giving 1024 (== PTRS_PER_PMD) 8 byte pointers to
- * page tables. Each page table is a single 4K page, giving 512 (==
- * PTRS_PER_PTE) 8 byte ptes. Each pgd entry is initialized to point to
- * invalid_pud_table, each pud entry is initialized to point to
+ * single 4K page, giving 512 (== PTRS_PER_PMD) 8 byte pointers to page
+ * tables. Each page table is also a single 4K page, giving 512 (==
+ * PTRS_PER_PTE) 8 byte ptes. Each pud entry is initialized to point to
+ * invalid_pmd_table, each pmd entry is initialized to point to
  * invalid_pte_table, each pte is initialized to 0. When memory is low,
  * and a pmd table or a page table allocation fails, empty_bad_pmd_table
  * and empty_bad_page_table is returned back to higher layer code, so
@@ -38,17 +38,17 @@
  */
 
 /* PMD_SHIFT determines the size of the area a second-level page table can map */
-#define PMD_SHIFT	(PAGE_SHIFT + (PAGE_SHIFT - 3))
+#define PMD_SHIFT	(PAGE_SHIFT + (PAGE_SHIFT + PTE_ORDER - 3))
 #define PMD_SIZE	(1UL << PMD_SHIFT)
 #define PMD_MASK	(~(PMD_SIZE-1))
 
 /* PGDIR_SHIFT determines what a third-level page table entry can map */
-#define PGDIR_SHIFT	(PMD_SHIFT + (PAGE_SHIFT + 1 - 3))
+#define PGDIR_SHIFT	(PMD_SHIFT + (PAGE_SHIFT + PMD_ORDER - 3))
 #define PGDIR_SIZE	(1UL << PGDIR_SHIFT)
 #define PGDIR_MASK	(~(PGDIR_SIZE-1))
 
 /*
- * For 4kB page size we use a 3 level page tree and a 8kB pmd and pgds which
+ * For 4kB page size we use a 3 level page tree and an 8kB pud, which
  * permits us mapping 40 bits of virtual address space.
  *
  * We used to implement 41 bits by having an order 1 pmd level but that seemed
@@ -185,7 +185,7 @@ static inline unsigned long pud_page(pud_t pud)
 static inline pmd_t *pmd_offset(pud_t * pud, unsigned long address)
 {
 	return (pmd_t *) pud_page(*pud) +
-	       ((address >> PUD_SHIFT) & (PTRS_PER_PUD - 1));
+	       ((address >> PMD_SHIFT) & (PTRS_PER_PMD - 1));
 }
 
 /* Find an entry in the third-level page table.. */
