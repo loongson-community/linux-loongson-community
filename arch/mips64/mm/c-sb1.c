@@ -41,6 +41,9 @@ static unsigned long dcache_assoc;
 static unsigned int icache_sets;
 static unsigned int dcache_sets;
 
+static unsigned int icache_range_cutoff;
+static unsigned int dcache_range_cutoff;
+
 /*
  * The dcache is fully coherent to the system, with one
  * big caveat:  the instruction stream.  In other words,
@@ -92,23 +95,26 @@ static inline void __sb1_writeback_inv_dcache_range(unsigned long start,
 	"	.set	noreorder	\n"
 	"	.set	noat		\n"
 	"	.set	mips4		\n"
-	"1:	cache	%3, (0<<13)(%0)	\n" /* Index-WB-inval this address */
-	"	cache	%3, (1<<13)(%0)	\n" /* Index-WB-inval this address */
-	"	cache	%3, (2<<13)(%0)	\n" /* Index-WB-inval this address */
-	"	cache	%3, (3<<13)(%0)	\n" /* Index-WB-inval this address */
-	"	xori	$1, %0, 1<<12 	\n"
-	"	cache	%3, (0<<13)($1)	\n" /* Index-WB-inval this address */
-	"	cache	%3, (1<<13)($1)	\n" /* Index-WB-inval this address */
-	"	cache	%3, (2<<13)($1)	\n" /* Index-WB-inval this address */
-	"	cache	%3, (3<<13)($1)	\n" /* Index-WB-inval this address */
+	"	and	$1, %0, %3	\n" /* mask non-index bits */
+	"1:	cache	%4, (0<<13)($1)	\n" /* Index-WB-inval this address */
+	"	cache	%4, (1<<13)($1)	\n" /* Index-WB-inval this address */
+	"	cache	%4, (2<<13)($1)	\n" /* Index-WB-inval this address */
+	"	cache	%4, (3<<13)($1)	\n" /* Index-WB-inval this address */
+	"	xori	$1, $1, 1<<12 	\n"
+	"	cache	%4, (0<<13)($1)	\n" /* Index-WB-inval this address */
+	"	cache	%4, (1<<13)($1)	\n" /* Index-WB-inval this address */
+	"	cache	%4, (2<<13)($1)	\n" /* Index-WB-inval this address */
+	"	cache	%4, (3<<13)($1)	\n" /* Index-WB-inval this address */
+	"	daddu	%0, %0, %2	\n" /* next line */
 	"	bne	%0, %1, 1b	\n" /* loop test */
-	"	 daddu	%0, %0, %2	\n" /* next line */
+	"	 and	$1, %0, %3	\n" /* mask non-index bits */
 	"	sync			\n"
 	"	.set pop		\n"
 	:
-	: "r" (start & dcache_index_mask),
-	  "r" ((end - 1) & dcache_index_mask),
+	: "r" (start & ~(dcache_line_size - 1)),
+	  "r" ((end + dcache_line_size - 1) & ~(dcache_line_size - 1)),
 	  "r" (dcache_line_size),
+	  "r" (dcache_index_mask),
 	  "i" (Index_Writeback_Inv_D));
 }
 
@@ -125,18 +131,21 @@ static inline void __sb1_writeback_inv_dcache_phys_range(unsigned long start,
 		"	.set	noreorder	\n"
 		"	.set	noat		\n"
 		"	.set	mips4		\n"
-		"1:	cache	%3, (0<<13)(%0)	\n" /* Index-WB-inval this address */
-		"	cache	%3, (1<<13)(%0)	\n" /* Index-WB-inval this address */
-		"	cache	%3, (2<<13)(%0)	\n" /* Index-WB-inval this address */
-		"	cache	%3, (3<<13)(%0)	\n" /* Index-WB-inval this address */
+		"	and	$1, %0, %3	\n" /* mask non-index bits */
+		"1:	cache	%4, (0<<13)($1)	\n" /* Index-WB-inval this address */
+		"	cache	%4, (1<<13)($1)	\n" /* Index-WB-inval this address */
+		"	cache	%4, (2<<13)($1)	\n" /* Index-WB-inval this address */
+		"	cache	%4, (3<<13)($1)	\n" /* Index-WB-inval this address */
+		"	daddu	%0, %0, %2	\n" /* next line */
 		"	bne	%0, %1, 1b	\n" /* loop test */
-		"	 daddu	%0, %0, %2	\n" /* next line */
+		"	 and	$1, %0, %3	\n" /* mask non-index bits */
 		"	sync			\n"
 		"	.set pop		\n"
 		:
-		: "r" (start  & dcache_index_mask),
-		  "r" ((end - 1) & dcache_index_mask),
+		: "r" (start  & ~(dcache_line_size - 1)),
+		  "r" ((end + dcache_line_size - 1) & ~(dcache_line_size - 1)),
 		  "r" (dcache_line_size),
+		  "r" (dcache_index_mask),
 		  "i" (Index_Writeback_Inv_D));
 }
 
@@ -161,7 +170,7 @@ static inline void __sb1_flush_icache_all(void)
 		"      daddu $1, $1, %0     \n" /* Next address */
 		"     bnezl  $0, 2f         \n" /* Force mispredict */
 		"      nop                  \n"
-		"2:                         \n"
+		"2:   sync                  \n"
 		".set pop                   \n"
 		:
 		: "r" (icache_line_size), "r" (icache_sets),
@@ -182,21 +191,23 @@ static inline void __sb1_flush_icache_range(unsigned long start,
 		".set noreorder             \n"
 		".set noat                  \n"
 		".set mips4                 \n"
-		"1:   cache  %3, (0<<13)(%0) \n" /* Index-inval this address */
-		"     cache  %3, (1<<13)(%0) \n" /* Index-inval this address */
-		"     cache  %3, (2<<13)(%0) \n" /* Index-inval this address */
-		"     cache  %3, (3<<13)(%0) \n" /* Index-inval this address */
+		"     and    $1, %0, %3     \n" /* mask non-index bits */
+		"1:   cache  %4, (0<<13)($1) \n" /* Index-inval this address */
+		"     cache  %4, (1<<13)($1) \n" /* Index-inval this address */
+		"     cache  %4, (2<<13)($1) \n" /* Index-inval this address */
+		"     cache  %4, (3<<13)($1) \n" /* Index-inval this address */
+		"     daddu  %0, %0, %2     \n" /* next line */
 		"     bne    %0, %1, 1b     \n" /* loop test */
-		"      daddu %0, %0, %2     \n" /* next line */
-		"     sync                  \n"
+		"      and   $1, %0, %3     \n" /* mask non-index bits */
 		"     bnezl  $0, 2f         \n" /* Force mispredict */
 		"      nop                  \n"
-		"2:                         \n"
+		"2:   sync                  \n"
 		".set pop                   \n"
 		:
-		: "r" (start & icache_index_mask),
-		  "r" ((end - 1) & icache_index_mask),
+		: "r" (start  & ~(icache_line_size - 1)),
+		  "r" ((end + icache_line_size - 1) & ~(icache_line_size - 1)),
 		  "r" (icache_line_size),
+		  "r" (icache_index_mask),
 		  "i" (Index_Invalidate_I));
 }
 
@@ -229,26 +240,23 @@ asm("sb1___flush_cache_all = local_sb1___flush_cache_all");
  * the dcache for the same range, so new ifetches will see any
  * data that was dirty in the dcache.
  *
- * The start/end arguments are expected to be Kseg addresses.
+ * The start/end arguments are Kseg addresses (possibly mapped Kseg).
  */
 
 static void local_sb1_flush_icache_range(unsigned long start,
 	unsigned long end)
 {
-	/*
-	 * Don't do ridiculously large flushes; if it's more than 2x the cache
-	 * size, it's probably going to be faster to just flush the whole thing.
-	 *
-	 * When time permits (Ha!) this x2 factor should be quantified more
-	 * formally.
-	 */
-	if ((end - start) > (icache_size * 2)) {
-		local_sb1___flush_cache_all();
-		return;
-	}
-
-	__sb1_writeback_inv_dcache_phys_range(PHYSADDR(start), PHYSADDR(end));
-	__sb1_flush_icache_range(start, end);
+	/* Just wb-inv the whole dcache if the range is big enough */
+	if ((end - start) > dcache_range_cutoff)
+		__sb1_writeback_inv_dcache_all();
+	else
+		__sb1_writeback_inv_dcache_range(start, end);
+	
+	/* Just flush the whole icache if the range is big enough */
+	if ((end - start) > icache_range_cutoff)
+		__sb1_flush_icache_all();
+	else
+		__sb1_flush_icache_range(start, end);
 }
 
 #ifdef CONFIG_SMP
@@ -463,8 +471,17 @@ static __init void probe_cache_sizes(void)
 	dcache_assoc = ((config1 >> 7) & 0x7) + 1;
 	icache_size = icache_line_size * icache_sets * icache_assoc;
 	dcache_size = dcache_line_size * dcache_sets * dcache_assoc;
+	/* Need to remove non-index bits for index ops */
 	icache_index_mask = (icache_sets - 1) * icache_line_size;
 	dcache_index_mask = (dcache_sets - 1) * dcache_line_size;
+	/*
+	 * These are for choosing range (index ops) versus all.
+	 * icache flushes all ways for each set, so drop icache_assoc.
+	 * dcache flushes all ways and each setting of bit 12 for each
+	 * index, so drop dcache_assoc and halve the dcache_sets.
+	 */
+	icache_range_cutoff = icache_sets * icache_line_size;
+	dcache_range_cutoff = (dcache_sets / 2) * icache_line_size;
 }
 
 /*
