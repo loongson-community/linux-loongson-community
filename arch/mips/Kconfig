@@ -1207,6 +1207,16 @@ config PAGE_SIZE_4KB
 	 4kB page size will minimize memory consumption and is therefore
 	 recommended for low memory systems. 
 
+config PAGE_SIZE_8KB
+	bool "8kB"
+	depends on EXPERIMENTAL && CPU_R8000
+	help
+	  Using 8kB page size will result in higher performance kernel at
+	  the price of higher memory consumption.  This option is available
+	  only on the R8000 processor.  Not that at the time of this writing
+	  this option is still high experimental; there are also issues with
+	  compatibility of user applications.
+
 config PAGE_SIZE_16KB
 	bool "16kB"
 	depends on EXPERIMENTAL && !CPU_R3000 && !CPU_TX39XX

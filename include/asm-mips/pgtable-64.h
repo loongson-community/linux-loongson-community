@@ -53,7 +53,11 @@
  * We used to implement 41 bits by having an order 1 pmd level but that seemed
  * rather pointless.
  *
- * For 16kB page size we use a 2 level page tree which permit a total of
+ * For 8kB page size we use a 3 level page tree which permits a total of
+ * 8TB of address space.  Alternatively a 33-bit / 8GB organization using
+ * two levels would be easy to implement.
+ *
+ * For 16kB page size we use a 2 level page tree which permits a total of
  * 36 bits of virtual address space.  We could add a third leve. but it seems
  * like at the moment there's no need for this.
  *
@@ -63,6 +67,11 @@
 #ifdef CONFIG_PAGE_SIZE_4KB
 #define PGD_ORDER		1
 #define PMD_ORDER		1
+#define PTE_ORDER		0
+#endif
+#ifdef CONFIG_PAGE_SIZE_8KB
+#define PGD_ORDER		0
+#define PMD_ORDER		0
 #define PTE_ORDER		0
 #endif
 #ifdef CONFIG_PAGE_SIZE_16KB
