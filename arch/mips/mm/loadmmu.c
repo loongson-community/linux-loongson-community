@@ -10,6 +10,7 @@
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
+#include <linux/module.h>
 
 #include <asm/bootinfo.h>
 #include <asm/cpu.h>
