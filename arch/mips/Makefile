@@ -180,8 +180,9 @@ endif
 # NEC DDB Vrc-5476
 #
 ifdef CONFIG_DDB5476
-SUBDIRS       += arch/mips/ddb5476
-LIBS          += arch/mips/ddb5476/ddb5476.a
+SUBDIRS       += arch/mips/ddb5xxx/common arch/mips/ddb5xxx/ddb5476
+LIBS          += arch/mips/ddb5xxx/common/ddb5xxx.o \
+		 arch/mips/ddb5xxx/ddb5476/ddb5476.o
 LOADADDR      += 0x80080000
 endif
 

@@ -27,7 +27,6 @@ obj-$(CONFIG_ALPHA) += setup-bus.o setup-irq.o
 obj-$(CONFIG_ARM) += setup-bus.o setup-irq.o
 obj-$(CONFIG_SUPERH) += setup-bus.o setup-irq.o
 obj-$(CONFIG_ALL_PPC) += setup-bus.o
-obj-$(CONFIG_DDB5476) += setup-bus.o
 obj-$(CONFIG_SGI_IP27) += setup-irq.o
 
 ifndef CONFIG_X86

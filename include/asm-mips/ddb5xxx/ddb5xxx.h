@@ -1,5 +1,4 @@
-/***********************************************************************
- *
+/*
  * Copyright 2001 MontaVista Software Inc.
  * Author: jsun@mvista.com or jsun@junsun.net
  *
@@ -14,7 +13,6 @@
  * Free Software Foundation;  either version 2 of the  License, or (at your
  * option) any later version.
  *
- ***********************************************************************
  */
 
 #ifndef __ASM_DDB5XXX_DDB5XXX_H
@@ -49,12 +47,13 @@
 
 #define DDB_SDRAM0	0x0000	/* SDRAM Bank 0 [R/W] */
 #define DDB_SDRAM1	0x0008	/* SDRAM Bank 1 [R/W] */
-#define DDB_LDCS0	0x0010	/* Device Chip-Select 0 [R/W] */
-#define DDB_LDCS1	0x0018	/* Device Chip-Select 1 [R/W] */
-#define DDB_LDCS2	0x0020	/* Device Chip-Select 2 [R/W] */
-#define DDB_LDCS3	0x0028	/* Device Chip-Select 3 [R/W] */
-#define DDB_LDCS4	0x0030	/* Device Chip-Select 4 [R/W] */
-#define DDB_LDCS5	0x0038	/* Device Chip-Select 5 [R/W] */
+#define DDB_DCS2	0x0010	/* Device Chip-Select 2 [R/W] */
+#define DDB_DCS3	0x0018	/* Device Chip-Select 3 [R/W] */
+#define DDB_DCS4	0x0020	/* Device Chip-Select 4 [R/W] */
+#define DDB_DCS5	0x0028	/* Device Chip-Select 5 [R/W] */
+#define DDB_DCS6	0x0030	/* Device Chip-Select 6 [R/W] */
+#define DDB_DCS7	0x0038	/* Device Chip-Select 7 [R/W] */
+#define DDB_DCS8	0x0040	/* Device Chip-Select 8 [R/W] */
 #define DDB_PCIW0	0x0060	/* PCI Address Window 0 [R/W] */
 #define DDB_PCIW1	0x0068	/* PCI Address Window 1 [R/W] */
 #define DDB_INTCS	0x0070	/* Controller Internal Registers and Devices */

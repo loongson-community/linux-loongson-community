@@ -18,7 +18,6 @@
 #define __ASM_DDB5XXX_DDB5477_H
 
 #include <linux/config.h>
-#include <asm/ddb5xxx/ddb5xxx.h>
 
 /*
  * This contains macros that are specific to DDB5477 or renamed from
@@ -28,9 +27,9 @@
 /*
  * renamed PADRs
  */
-#define	DDB_LCS0	DDB_LDCS0
-#define	DDB_LCS1	DDB_LDCS1
-#define	DDB_LCS2	DDB_LDCS2
+#define	DDB_LCS0	DDB_DCS2
+#define	DDB_LCS1	DDB_DCS3
+#define	DDB_LCS2	DDB_DCS4
 #define	DDB_VRC5477	DDB_INTCS
 
 /*
