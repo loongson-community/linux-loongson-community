@@ -19,6 +19,7 @@
 
 #include <asm/addrspace.h>
 #include <asm/ptrace.h>
+#include <asm/hazards.h>
 
 __asm__ (
 	".macro\tlocal_irq_enable\n\t"
@@ -29,6 +30,7 @@ __asm__ (
 	"ori\t$1,0x1f\n\t"
 	"xori\t$1,0x1e\n\t"
 	"mtc0\t$1,$12\n\t"
+	"irq_enable_hazard\n\t"
 	".set\tpop\n\t"
 	".endm");
 
@@ -57,9 +59,7 @@ __asm__ (
 	"xori\t$1,1\n\t"
 	".set\tnoreorder\n\t"
 	"mtc0\t$1,$12\n\t"
-	"ssnop\n\t"
-	"ssnop\n\t"
-	"ssnop\n\t"
+	"irq_disable_hazard\n\t"
 	".set\tpop\n\t"
 	".endm");
 
@@ -95,9 +95,7 @@ __asm__ (
 	"xori\t$1, 1\n\t"
 	".set\tnoreorder\n\t"
 	"mtc0\t$1, $12\n\t"
-	"ssnop\n\t"
-	"ssnop\n\t"
-	"ssnop\n\t"
+	"irq_disable_hazard\n\t"
 	".set\tpop\n\t"
 	".endm");
 
@@ -118,9 +116,7 @@ __asm__ (
 	"xori\t$1, 1\n\t"
 	"or\t\\flags, $1\n\t"
 	"mtc0\t\\flags, $12\n\t"
-	"ssnop\n\t"
-	"ssnop\n\t"
-	"ssnop\n\t"
+	"irq_disable_hazard\n\t"
 	".set\tat\n\t"
 	".set\treorder\n\t"
 	".endm");

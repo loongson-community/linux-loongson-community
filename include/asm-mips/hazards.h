@@ -21,13 +21,13 @@
 #define mtc0_tlbw_hazard						\
 	.set	push;							\
 	.set	mips32;							\
-	ssnop; ssnop; ssnop; ssnop;					\
+	_ssnop; _ssnop; _ssnop; _ssnop;					\
 	.set	pop
 
 #define tlbw_eret_hazard						\
 	.set	push;							\
 	.set	mips32;							\
-	ssnop; ssnop; ssnop; ssnop;					\
+	_ssnop; _ssnop; _ssnop; _ssnop;					\
 	.set	pop
 
 #else
@@ -43,6 +43,33 @@
 #define tlbw_eret_hazard
 #endif
 
+/*
+ * mtc0->mfc0 hazard
+ * The 24K has a 2 cycle mtc0/mfc0 execution hazard.
+ * It is a MIPS32R2 processor so ehb will clear the hazard.
+ */
+
+#ifdef CONFIG_CPU_MIPSR2
+/*
+ * Use a macro for ehb unless explicit support for MIPSR2 is enabled
+ */
+	.macro	ehb
+	sll	$0, $0, 3
+	.endm
+
+#define irq_enable_hazard						\
+	ehb		# irq_enable_hazard
+
+#define irq_disable_hazard						\
+	ehb		# irq_disable_hazard
+
+#else
+
+#define irq_enable_hazard
+#define irq_disable_hazard
+
+#endif
+
 #else /* __ASSEMBLY__ */
 
 /*
@@ -55,13 +82,13 @@
 #define mtc0_tlbw_hazard()						\
 	__asm__ __volatile__(						\
 		".set\tmips32\n\t"					\
-		"ssnop; ssnop; ssnop; ssnop\n\t"			\
+		"_ssnop; _ssnop; _ssnop; _ssnop\n\t"			\
 		".set\tmips0")
 
 #define tlbw_use_hazard()						\
 	__asm__ __volatile__(						\
 		".set\tmips32\n\t"					\
-		"ssnop; ssnop; ssnop; ssnop\n\t"			\
+		"_ssnop; _ssnop; _ssnop; _ssnop\n\t"			\
 		".set\tmips0")
 #else
 
@@ -79,6 +106,83 @@
 		".set noreorder\n\t"					\
 		"nop; nop; nop; nop; nop; nop;\n\t"			\
 		".set reorder\n\t")
+
+#endif
+
+/*
+ * mtc0->mfc0 hazard
+ * The 24K has a 2 cycle mtc0/mfc0 execution hazard.
+ * It is a MIPS32R2 processor so ehb will clear the hazard.
+ */
+
+#ifdef CONFIG_CPU_MIPSR2
+/*
+ * Use a macro for ehb unless explicit support for MIPSR2 is enabled
+ */
+__asm__(
+	"	.macro	ehb					\n\t"
+	"	sll	$0, $0, 3				\n\t"
+	"	.endm						\n\t"
+	"							\n\t"
+	"	.macro\tirq_enable_hazard			\n\t"
+	"	ehb						\n\t"
+	"	.endm						\n\t"
+	"							\n\t"
+	"	.macro\tirq_disable_hazard			\n\t"
+	"	ehb						\n\t"
+	"	.endm");
+
+#define irq_enable_hazard()						\
+	__asm__ __volatile__(						\
+	"ehb\t\t\t\t# irq_enable_hazard")
+
+#define irq_disable_hazard()						\
+	__asm__ __volatile__(						\
+	"ehb\t\t\t\t# irq_disable_hazard")
+
+#elif defined(CONFIG_CPU_R10000)
+
+/*
+ * R10000 rocks - all hazards handled in hardware, so this becomes a nobrainer.
+ */
+
+__asm__(
+	"	.macro\tirq_enable_hazard			\n\t"
+	"	.endm						\n\t"
+	"							\n\t"
+	"	.macro\tirq_disable_hazard			\n\t"
+	"	.endm");
+
+#define irq_enable_hazard()	do { } while (0)
+#define irq_disable_hazard()	do { } while (0)
+
+#else
+
+/*
+ * Default for classic MIPS processors.  Assume worst case hazards but don't
+ * care about the irq_enable_hazard - sooner or later the hardware will
+ * enable it and we don't care when exactly.
+ */
+
+__asm__(
+	"	.macro	_ssnop					\n\t"
+	"	sll	$0, $2, 1				\n\t"
+	"	.endm						\n\t"
+	"							\n\t"
+	"	#						\n\t"
+	"	# There is a hazard but we do not care		\n\t"
+	"	#						\n\t"
+	"	.macro\tirq_enable_hazard			\n\t"
+	"	.endm						\n\t"
+	"							\n\t"
+	"	.macro\tirq_disable_hazard			\n\t"
+	"	_ssnop; _ssnop; _ssnop				\n\t"
+	"	.endm");
+
+#define irq_enable_hazard()	do { } while (0)
+#define irq_disable_hazard()						\
+	__asm__ __volatile__(						\
+	"_ssnop; _ssnop; _ssnop;\t\t# irq_disable_hazard")
 
 #endif
 
