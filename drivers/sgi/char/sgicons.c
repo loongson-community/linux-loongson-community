@@ -14,8 +14,8 @@
 #include "gconsole.h"
 
 /* This is the system graphics console (the first adapter found) */
-struct console_ops *gconsole = 0;
-struct console_ops *real_gconsole = 0;
+struct console_ops *gconsole;
+struct console_ops *real_gconsole;
 
 void
 enable_gconsole (void)
