@@ -134,6 +134,7 @@ static void sb1___flush_cache_all(void)
 	local_sb1___flush_cache_all();
 }
 #else
+extern void sb1___flush_cache_all(void);
 asm("sb1___flush_cache_all = local_sb1___flush_cache_all");
 #endif
 
@@ -166,6 +167,7 @@ static void local_sb1_flush_icache_range(unsigned long start, unsigned long end)
 		"     move   $1, %0         \n" 
 		"1:                         \n"
 #ifdef CONFIG_SB1_PASS_1_WORKAROUNDS					
+		".align 3                   \n"
 		"     lw     $0,   0($1)    \n" /* Bug 1370, 1368            */
 		"     cache  0x15, 0($1)    \n" /* Hit-WB-inval this address */
 #else
@@ -175,8 +177,7 @@ static void local_sb1_flush_icache_range(unsigned long start, unsigned long end)
 		"      addu  $1, $1, %2     \n" /* next line */
 		".set pop                   \n"
 		:
-		: "r" (start), "r" (end),
-		  "r" (dcache_line_size));
+		: "r" (start), "r" (end), "r" (dcache_line_size));
 	__asm__ __volatile__ (
 		".set push                  \n"
 		".set noreorder             \n"
@@ -212,6 +213,7 @@ static void local_sb1_flush_icache_range(unsigned long start, unsigned long end)
 		".set noat                  \n"
 		".set mips4                 \n"
 		"     move   $1, %0         \n" 
+		".align 3                   \n"
 		"1:   cache  0, (0<<13)($1) \n" /* Index-inval this address */
 		"     cache  0, (1<<13)($1) \n" /* Index-inval this address */
 		"     cache  0, (2<<13)($1) \n" /* Index-inval this address */
@@ -219,9 +221,8 @@ static void local_sb1_flush_icache_range(unsigned long start, unsigned long end)
 		"     bne    $1, %1, 1b     \n" /* loop test */
 		"      addu  $1, $1, %2     \n" /* next line */
 		".set pop                   \n"
-		::"r" (start),
-		"r" (end),
-		"r" (icache_line_size));
+		:
+		: "r" (start), "r" (end), "r" (icache_line_size));
 }
 
 #ifdef CONFIG_SMP
@@ -247,6 +248,7 @@ void sb1_flush_icache_range(unsigned long start, unsigned long end)
 	local_sb1_flush_icache_range(start, end);
 }
 #else
+void sb1_flush_icache_range(unsigned long start, unsigned long end);
 asm("sb1_flush_icache_range = local_sb1_flush_icache_range");
 #endif
 
@@ -356,6 +358,7 @@ static void sb1_flush_cache_sigtramp(unsigned long addr)
 	local_sb1_flush_cache_sigtramp(addr);
 }
 #else
+void sb1_flush_cache_sigtramp(unsigned long addr);
 asm("sb1_flush_cache_sigtramp = local_sb1_flush_cache_sigtramp");
 #endif
 
