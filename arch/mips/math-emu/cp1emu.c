@@ -228,8 +228,7 @@ static int mips_put_dword(struct pt_regs *xcp, void *va, long long val)
  * Two instructions if the instruction is in a branch delay slot.
  */
 
-static int cop1Emulate(int xcptno, struct pt_regs *xcp,
-                       struct mips_fpu_soft_struct *ctx)
+static int cop1Emulate(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx)
 {
 	mips_instruction ir;
 	vaddr_t emulpc;
@@ -1663,7 +1662,7 @@ dcopuop:
  * hit a non-fp instruction, or a backward branch.  This cuts down dramatically
  * on the per instruction exception overhead.
  */
-int fpu_emulator_cop1Handler(int xcptno, struct pt_regs *xcp)
+int fpu_emulator_cop1Handler(struct pt_regs *xcp)
 {
 	struct mips_fpu_soft_struct *ctx = &current->thread.fpu.soft;
 	unsigned long oldepc, prevepc;
@@ -1680,7 +1679,7 @@ int fpu_emulator_cop1Handler(int xcptno, struct pt_regs *xcp)
 			return SIGBUS;
 		}
 		if (insn != 0)
-			sig = cop1Emulate(xcptno, xcp, ctx);
+			sig = cop1Emulate(xcp, ctx);
 		else
 			xcp->cp0_epc += 4;	/* skip nops */
 	} while (xcp->cp0_epc > prevepc && sig == 0);
@@ -1713,7 +1712,7 @@ static int cop1Patcher(int xcptno, struct pt_regs *xcp)
 
 	/* get current rounding mode for IEEE library, and emulate insn */
 	ieee754_csr.rm = ieee_rm[ctx->sr & 0x3];
-	sig = cop1Emulate(xcptno, xcp, ctx);
+	sig = cop1Emulate(xcp, ctx);
 
 	/* don't return with f.p. exceptions pending */
 	ctx->sr &= ~FPU_CSR_ALL_X;
