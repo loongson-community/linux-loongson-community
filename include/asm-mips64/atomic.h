@@ -88,6 +88,7 @@ extern __inline__ int atomic_add_return(int i, atomic_t * v)
 		"sc\t%0,%2\n\t"
 		"beqz\t%0,1b\n\t"
 		"addu\t%0,%1,%3\n\t"
+		"sync\n\t"
 		".set\treorder"
 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
 		: "Ir" (i), "m" (v->counter)
@@ -107,6 +108,7 @@ extern __inline__ int atomic_sub_return(int i, atomic_t * v)
 		"sc\t%0,%2\n\t"
 		"beqz\t%0,1b\n\t"
 		"subu\t%0,%1,%3\n\t"
+		"sync\n\t"
 		".set\treorder"
 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
 		: "Ir" (i), "m" (v->counter)
@@ -184,10 +186,10 @@ extern __inline__ int atomic_sub_return(int i, atomic_t * v)
  */
 
 /* Atomic operations are already serializing */
-#define smp_mb__before_atomic_dec()	barrier()
-#define smp_mb__after_atomic_dec()	barrier()
-#define smp_mb__before_atomic_inc()	barrier()
-#define smp_mb__after_atomic_inc()	barrier()
+#define smp_mb__before_atomic_dec()	smp_mb()
+#define smp_mb__after_atomic_dec()	smp_mb()
+#define smp_mb__before_atomic_inc()	smp_mb()
+#define smp_mb__after_atomic_inc()	smp_mb()
 
 #endif /* defined(__KERNEL__) */
 

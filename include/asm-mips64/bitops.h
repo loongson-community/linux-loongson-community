@@ -9,6 +9,7 @@
 #ifndef _ASM_BITOPS_H
 #define _ASM_BITOPS_H
 
+#include <linux/config.h>
 #include <linux/types.h>
 #include <linux/byteorder/swab.h>		/* sigh ... */
 
@@ -84,8 +85,8 @@ static inline void clear_bit(unsigned long nr, volatile void *addr)
 		: "ir" (~(1UL << (nr & 0x3f))), "m" (*m));
 }
 
-#define smp_mb__before_clear_bit()	barrier()
-#define smp_mb__after_clear_bit()	barrier()
+#define smp_mb__before_clear_bit()	smp_mb()
+#define smp_mb__after_clear_bit()	smp_mb()
 
 /*
  * change_bit - Toggle a bit in memory
@@ -147,6 +148,9 @@ static inline unsigned long test_and_set_bit(unsigned long nr,
 		"scd\t%2, %1\n\t"
 		"beqz\t%2, 1b\n\t"
 		" and\t%2, %0, %3\n\t"
+#ifdef CONFIG_SMP
+		"sync\n\t"
+#endif
 		".set\treorder"
 		: "=&r" (temp), "=m" (*m), "=&r" (res)
 		: "r" (1UL << (nr & 0x3f)), "m" (*m)
@@ -199,6 +203,9 @@ static inline unsigned long test_and_clear_bit(unsigned long nr,
 		"scd\t%2, %1\n\t"
 		"beqz\t%2, 1b\n\t"
 		" and\t%2, %0, %3\n\t"
+#ifdef CONFIG_SMP
+		"sync\n\t"
+#endif
 		".set\treorder"
 		: "=&r" (temp), "=m" (*m), "=&r" (res)
 		: "r" (1UL << (nr & 0x3f)), "m" (*m)
@@ -250,6 +257,9 @@ static inline unsigned long test_and_change_bit(unsigned long nr,
 		"scd\t%2, %1\n\t"
 		"beqz\t%2, 1b\n\t"
 		" and\t%2, %0, %3\n\t"
+#ifdef CONFIG_SMP
+		"sync\n\t"
+#endif
 		".set\treorder"
 		: "=&r" (temp), "=m" (*m), "=&r" (res)
 		: "r" (1UL << (nr & 0x3f)), "m" (*m)

@@ -9,6 +9,7 @@
 #ifndef _ASM_BITOPS_H
 #define _ASM_BITOPS_H
 
+#include <linux/config.h>
 #include <linux/types.h>
 #include <asm/byteorder.h>		/* sigh ... */
 
@@ -16,13 +17,12 @@
 
 #include <asm/sgidefs.h>
 #include <asm/system.h>
-#include <linux/config.h>
 
 /*
  * clear_bit() doesn't provide any barrier for the compiler.
  */
-#define smp_mb__before_clear_bit()	barrier()
-#define smp_mb__after_clear_bit()	barrier()
+#define smp_mb__before_clear_bit()	smp_mb()
+#define smp_mb__after_clear_bit()	smp_mb()
 
 /*
  * Only disable interrupt for kernel mode stuff to keep usermode stuff
@@ -175,6 +175,9 @@ test_and_set_bit(int nr, volatile void *addr)
 		"sc\t%2, %1\n\t"
 		"beqz\t%2, 1b\n\t"
 		" and\t%2, %0, %3\n\t"
+#ifdef CONFIG_SMP
+		"sync\n\t"
+#endif
 		".set\treorder"
 		: "=&r" (temp), "=m" (*m), "=&r" (res)
 		: "r" (1UL << (nr & 0x1f)), "m" (*m)
@@ -227,6 +230,9 @@ test_and_clear_bit(int nr, volatile void *addr)
 		"sc\t%2, %1\n\t"
 		"beqz\t%2, 1b\n\t"
 		" and\t%2, %0, %3\n\t"
+#ifdef CONFIG_SMP
+		"sync\n\t"
+#endif
 		".set\treorder"
 		: "=&r" (temp), "=m" (*m), "=&r" (res)
 		: "r" (1UL << (nr & 0x1f)), "m" (*m)
@@ -278,6 +284,9 @@ test_and_change_bit(int nr, volatile void *addr)
 		"sc\t%2, %1\n\t"
 		"beqz\t%2, 1b\n\t"
 		" and\t%2, %0, %3\n\t"
+#ifdef CONFIG_SMP
+		"sync\n\t"
+#endif
 		".set\treorder"
 		: "=&r" (temp), "=m" (*m), "=&r" (res)
 		: "r" (1UL << (nr & 0x1f)), "m" (*m)
