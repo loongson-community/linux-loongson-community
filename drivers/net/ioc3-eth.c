@@ -692,7 +692,6 @@ ioc3_free_rings(struct ioc3_private *ip)
 {
 	struct sk_buff *skb;
 	int i;
-	printk("ioc3_free_rings()\n");
 
 	ioc3_clean_tx_ring(ip);
 	free_pages((unsigned long)ip->txr, 2);
@@ -850,7 +849,7 @@ static void ioc3_pci_init(struct pci_dev *pdev)
 	dev->open		= ioc3_open;
 	dev->hard_start_xmit	= ioc3_start_xmit;
 	dev->tx_timeout		= ioc3_timeout;
-	dev->watchdog_timeo	= (400 * HZ) / 1000;
+	dev->watchdog_timeo	= 5 * HZ;
 	dev->stop		= ioc3_close;
 	dev->get_stats		= ioc3_get_stats;
 	dev->do_ioctl		= ioc3_ioctl;
@@ -945,7 +944,6 @@ ioc3_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		netif_stop_queue(dev);
 
 	spin_unlock_irq(&ip->ioc3_lock);
-mdelay(10);
 
 	return 0;
 }
