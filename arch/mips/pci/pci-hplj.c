@@ -219,7 +219,7 @@ void __init pcibios_fixup_resources(struct pci_dev *dev)
 	int pos;
 	int bases;
 
-	printk("adjusting pci device: %s\n", dev->name);
+	printk("adjusting pci device: %s\n", pci_name_device(dev));
 
 	switch (dev->hdr_type) {
 	case PCI_HEADER_TYPE_NORMAL:
