@@ -10,6 +10,8 @@
 #ifndef DZ_SERIAL_H
 #define DZ_SERIAL_H
 
+#define SERIAL_MAGIC 0x5301
+
 /*
  * Definitions for the Control and Status Received.
  */

@@ -1320,7 +1320,7 @@ static void show_serial_version(void)
 
 int __init dz_init(void)
 {
-	int i, flags, tmp;
+	int i, tmp;
 	long flags;
 	struct dz_serial *info;
 
