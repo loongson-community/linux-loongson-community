@@ -31,9 +31,12 @@
 
 	.align  5
 NESTED(handle_sys64, PT_SIZE, sp)
+/* When 32-bit compatibility is configured scall_o32.S already did this.  */
+#ifndef CONFIG_MIPS32_COMPAT
 	.set	noat
 	SAVE_SOME
 	.set	at
+#endif
 	ld	t1, PT_EPC(sp)		# skip syscall on return
 
 	sltiu	t0, v0, MAX_SYSCALL_NO + 1 # check syscall number
