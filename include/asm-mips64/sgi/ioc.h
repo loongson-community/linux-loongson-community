@@ -25,21 +25,21 @@ struct sgioc_pport_regs {
 	volatile u8 data;
 	u8 _ctrl[3];
 	volatile u8 ctrl;
-#define IOC_PCTRL_STROBE	0x01
-#define IOC_PCTRL_AFD		0x02
-#define IOC_PCTRL_INIT		0x04
-#define IOC_PCTRL_SLIN		0x08
-#define IOC_PCTRL_DIRECTION	0x20
-#define IOC_PCTRL_SEL		0x40
+#define SGIOC_PCTRL_STROBE	0x01
+#define SGIOC_PCTRL_AFD		0x02
+#define SGIOC_PCTRL_INIT	0x04
+#define SGIOC_PCTRL_SLIN	0x08
+#define SGIOC_PCTRL_DIRECTION	0x20
+#define SGIOC_PCTRL_SEL		0x40
 	u8 _status[3];
 	volatile u8 status;
-#define HPC3_PSTAT_DEVID	0x03
-#define HPC3_PSTAT_NOINK	0x04
-#define HPC3_PSTAT_ERROR	0x08
-#define HPC3_PSTAT_ONLINE	0x10
-#define HPC3_PSTAT_PE		0x20
-#define HPC3_PSTAT_ACK		0x40
-#define HPC3_PSTAT_BUSY		0x80
+#define SGIOC_PSTAT_DEVID	0x03
+#define SGIOC_PSTAT_NOINK	0x04
+#define SGIOC_PSTAT_ERROR	0x08
+#define SGIOC_PSTAT_ONLINE	0x10
+#define SGIOC_PSTAT_PE		0x20
+#define SGIOC_PSTAT_ACK		0x40
+#define SGIOC_PSTAT_BUSY	0x80
 	u8 _dmactrl[3];
 	volatile u8 dmactrl;
 	u8 _intrstat[3];
