@@ -47,7 +47,7 @@
 	# look for signature of spurious CErr
 	lui	k0, 0x4000
 	bne	k0, k1, 1f
-	.word	0x401Bd801			# mfc0	k1, $27, 1
+	mfc0	k1, $27, 1
 	lui	k0, 0xffe0
 	and	k1, k0, k1
 	lui	k0, 0x0200
@@ -60,8 +60,8 @@ leave_cerr:
 	# clear/unlock the registers
 	mtc0	zero, $26
 	mtc0	zero, $27
-	.word	0x4080d801			# mtc0	zero, $27, 1
-	.word	0x4080d803			# mtc0	zero, $27, 3
+	mtc0	zero, $27, 1
+	mtc0	zero, $27, 3
 	ld	k0, 0x170($0)
 	ld	k1, 0x178($0)
 	eret
