@@ -267,9 +267,6 @@ write_config_word(struct pci_bus *bus, unsigned int devfn, int where,
 {
 	u32 data = 0;
 
-	if (where & 1)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-
 	if (config_access(PCI_ACCESS_READ, bus, devfn, where, &data))
 		return -1;
 
@@ -287,9 +284,6 @@ static int
 write_config_dword(struct pci_bus *bus, unsigned int devfn, int where,
 		   u32 val)
 {
-	if (where & 3)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-
 	if (config_access(PCI_ACCESS_WRITE, bus, devfn, where, &val))
 		return -1;
 
