@@ -1,4 +1,4 @@
-# $Id: config.in,v 1.12 2000/02/05 06:47:09 ralf Exp $
+# $Id: config.in,v 1.13 2000/02/06 00:20:27 kanoj Exp $
 #
 # For a description of the syntax of this configuration file,
 # see the Configure script.
@@ -86,6 +86,8 @@ if [ "$CONFIG_MIPS32_COMPAT" = "y" ]; then
    define_bool CONFIG_BINFMT_ELF32 y
 fi
 tristate 'Kernel support for MISC binaries' CONFIG_BINFMT_MISC
+
+endmenu
 
 mainmenu_option next_comment
 comment 'Loadable module support'
