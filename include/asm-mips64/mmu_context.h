@@ -120,15 +120,20 @@ static inline void
 activate_mm(struct mm_struct *prev, struct mm_struct *next)
 {
 	unsigned long flags;
+	int cpu = smp_processor_id();
 
 	local_irq_save(flags);
 
 	/* Unconditionally get a new ASID.  */
-	get_new_mmu_context(next, smp_processor_id());
+	get_new_mmu_context(next, cpu);
 
-	write_c0_entryhi(cpu_context(smp_processor_id(), next));
+	write_c0_entryhi(cpu_context(cpu, next));
 	TLBMISS_HANDLER_SETUP_PGD(next->pgd);
-	
+
+	/* mark mmu ownership change */ 
+	clear_bit(cpu, &prev->cpu_vm_mask);
+	set_bit(cpu, &next->cpu_vm_mask);
+
 	local_irq_restore(flags);
 }
 
