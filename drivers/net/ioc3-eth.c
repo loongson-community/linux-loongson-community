@@ -1121,7 +1121,7 @@ static inline int ioc3_is_menet(struct pci_dev *pdev)
  * "device" routine referred to in this console structure
  * (ip27prom_console_dev).
  *
- * Also look in ip27-pci.c:pci_fixuop_ioc3() for some comments on working
+ * Also look in ip27-pci.c:pci_fixup_ioc3() for some comments on working
  * around ioc3 oddities in this respect.
  *
  * The IOC3 serials use a 22MHz clock rate with an additional divider by 3.
