@@ -793,6 +793,30 @@ static inline void set_xcontext(unsigned long val)
 		: : "Jr" (val));
 }
 
+static inline unsigned long get_errorepc(void)
+{
+	unsigned long val;
+
+	__asm__ __volatile__(
+		".set push\n\t"
+		".set reorder\n\t"
+		"dmfc0 %0, $30\n\t"
+		".set pop"
+		: "=r" (val));
+
+	return val;
+}
+
+static inline void set_errorepc(unsigned long val)
+{
+	__asm__ __volatile__(
+		".set push\n\t"
+		".set reorder\n\t"
+		"dmtc0 %z0, $30\n\t"
+		".set pop"
+		: : "Jr" (val));
+}
+
 /*
  * Manipulate the status register.
  * Mostly used to access the interrupt bits.
