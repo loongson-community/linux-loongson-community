@@ -1,6 +1,8 @@
 /* esp.c:  EnhancedScsiProcessor Sun SCSI driver code.
  *
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
+ *
+ * Ugly generalization hacks by Jesper Skov (jskov@cs.auc.dk)
  */
 
 /* TODO:
@@ -27,102 +29,20 @@
 #include "hosts.h"
 #include "esp.h"
 
+#ifdef CONFIG_SCSI_SUNESP
+#include "sparc_esp.h"
 #include <asm/sbus.h>
 #include <asm/dma.h>
-#include <asm/system.h>
 #include <asm/machines.h>
-#include <asm/ptrace.h>
-#include <asm/pgtable.h>
 #include <asm/oplib.h>
-#include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/idprom.h>
-
-#define DEBUG_ESP
-/* #define DEBUG_ESP_HME */
-/* #define DEBUG_ESP_DATA */
-/* #define DEBUG_ESP_QUEUE */
-/* #define DEBUG_ESP_DISCONNECT */
-/* #define DEBUG_ESP_STATUS */
-/* #define DEBUG_ESP_PHASES */
-/* #define DEBUG_ESP_WORKBUS */
-/* #define DEBUG_STATE_MACHINE */
-/* #define DEBUG_ESP_CMDS */
-/* #define DEBUG_ESP_IRQS */
-/* #define DEBUG_SDTR */
-/* #define DEBUG_ESP_SG */
-
-/* Use the following to sprinkle debugging messages in a way which
- * suits you if combinations of the above become too verbose when
- * trying to track down a specific problem.
- */
-/* #define DEBUG_ESP_MISC */
-
-#if defined(DEBUG_ESP)
-#define ESPLOG(foo)  printk foo
-#else
-#define ESPLOG(foo)
-#endif /* (DEBUG_ESP) */
-
-#if defined(DEBUG_ESP_HME)
-#define ESPHME(foo)  printk foo
-#else
-#define ESPHME(foo)
 #endif
 
-#if defined(DEBUG_ESP_DATA)
-#define ESPDATA(foo)  printk foo
-#else
-#define ESPDATA(foo)
-#endif
-
-#if defined(DEBUG_ESP_QUEUE)
-#define ESPQUEUE(foo)  printk foo
-#else
-#define ESPQUEUE(foo)
-#endif
-
-#if defined(DEBUG_ESP_DISCONNECT)
-#define ESPDISC(foo)  printk foo
-#else
-#define ESPDISC(foo)
-#endif
-
-#if defined(DEBUG_ESP_STATUS)
-#define ESPSTAT(foo)  printk foo
-#else
-#define ESPSTAT(foo)
-#endif
-
-#if defined(DEBUG_ESP_PHASES)
-#define ESPPHASE(foo)  printk foo
-#else
-#define ESPPHASE(foo)
-#endif
-
-#if defined(DEBUG_ESP_WORKBUS)
-#define ESPBUS(foo)  printk foo
-#else
-#define ESPBUS(foo)
-#endif
-
-#if defined(DEBUG_ESP_IRQS)
-#define ESPIRQ(foo)  printk foo
-#else
-#define ESPIRQ(foo)
-#endif
-
-#if defined(DEBUG_SDTR)
-#define ESPSDTR(foo)  printk foo
-#else
-#define ESPSDTR(foo)
-#endif
-
-#if defined(DEBUG_ESP_MISC)
-#define ESPMISC(foo)  printk foo
-#else
-#define ESPMISC(foo)
-#endif
+#include <asm/system.h>
+#include <asm/ptrace.h>
+#include <asm/pgtable.h>
+#include <asm/io.h>
 
 /* Command phase enumeration. */
 enum {
@@ -166,12 +86,10 @@ struct proc_dir_entry proc_scsi_esp = {
 	S_IFDIR | S_IRUGO | S_IXUGO, 2
 };
 
-/* The master ring of all esp hosts we are managing in this driver. */
-static struct Sparc_ESP *espchain;
-static int esps_running = 0;
+struct Sparc_ESP *espchain = 0;
+int nesps = 0, esps_in_use = 0, esps_running = 0;
 
-/* Forward declarations. */
-static void esp_intr(int irq, void *dev_id, struct pt_regs *pregs);
+void esp_intr(int irq, void *dev_id, struct pt_regs *pregs);
 
 /* Debugging routines */
 struct esp_cmdstrings {
@@ -293,7 +211,7 @@ static inline void esp_print_seqreg(unchar stepreg)
 		   (stepreg == ESP_STEP_FINI4 ? "CMD_SENT_OK" :
 		    "UNKNOWN"))))));
 }
-
+#if defined(DEBUG_STATE_MACHINE) || defined(DEBUG_ESP)
 static char *phase_string(int phase)
 {
 	switch(phase) {
@@ -349,6 +267,7 @@ static char *phase_string(int phase)
 		return "UNKNOWN";
 	};
 }
+#endif
 
 static inline void esp_advance_phase(Scsi_Cmnd *s, int newphase)
 {
@@ -359,7 +278,7 @@ static inline void esp_advance_phase(Scsi_Cmnd *s, int newphase)
 	s->SCp.phase = newphase;
 }
 
-extern inline void esp_cmd(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
+extern inline void esp_cmd(struct Sparc_ESP *esp, struct ESP_regs *eregs,
 			   unchar cmd)
 {
 #ifdef DEBUG_ESP_CMDS
@@ -451,78 +370,10 @@ static inline Scsi_Cmnd *remove_SC(Scsi_Cmnd **SC, int target, int lun)
 	return ptr;
 }
 
-/* Resetting various pieces of the ESP scsi driver chipset/buses. */
-static inline void esp_reset_dma(struct Sparc_ESP *esp)
-{
-	struct sparc_dma_registers *dregs = esp->dregs;
-	unsigned long tmp, flags;
-	int can_do_burst16, can_do_burst32;
-
-	can_do_burst16 = esp->bursts & DMA_BURST16;
-	can_do_burst32 = esp->bursts & DMA_BURST32;
-
-	/* Punt the DVMA into a known state. */
-	if(esp->dma->revision != dvmahme) {
-		dregs->cond_reg |= DMA_RST_SCSI;
-		dregs->cond_reg &= ~(DMA_RST_SCSI);
-	}
-	switch(esp->dma->revision) {
-	case dvmahme:
-		/* This is the HME DVMA gate array. */
-
-		save_flags(flags); cli(); /* I really hate this chip. */
-
-		dregs->cond_reg = 0x08000000;   /* Reset interface to FAS */
-		dregs->cond_reg = DMA_RST_SCSI; /* Reset DVMA itself */
-
-		tmp = (DMA_PARITY_OFF|DMA_2CLKS|DMA_SCSI_DISAB|DMA_INT_ENAB);
-		tmp &= ~(DMA_ENABLE|DMA_ST_WRITE|DMA_BRST_SZ);
-
-		if(can_do_burst32)
-			tmp |= DMA_BRST32;
-
-		/* This chip is horrible. */
-		while(dregs->cond_reg & DMA_PEND_READ)
-			udelay(1);
-
-		dregs->cond_reg = 0;
-
-		dregs->cond_reg = tmp;        /* bite me */
-		restore_flags(flags);         /* ugh...  */
-		break;
-	case dvmarev2:
-		/* This is the gate array found in the sun4m
-		 * NCR SBUS I/O subsystem.
-		 */
-		if(esp->erev != esp100)
-			dregs->cond_reg |= DMA_3CLKS;
-		break;
-	case dvmarev3:
-		dregs->cond_reg &= ~(DMA_3CLKS);
-		dregs->cond_reg |= DMA_2CLKS;
-		if(can_do_burst32) {
-			dregs->cond_reg &= ~(DMA_BRST_SZ);
-			dregs->cond_reg |= DMA_BRST32;
-		}
-		break;
-	case dvmaesc1:
-		/* This is the DMA unit found on SCSI/Ether cards. */
-		dregs->cond_reg |= DMA_ADD_ENABLE;
-		dregs->cond_reg &= ~DMA_BCNT_ENAB;
-		if(!can_do_burst32 && can_do_burst16) {
-			dregs->cond_reg |= DMA_ESC_BURST;
-		} else {
-			dregs->cond_reg &= ~(DMA_ESC_BURST);
-		}
-		break;
-	default:
-		break;
-	};
-	DMA_INTSON(dregs);
-}
+/* Resetting various pieces of the ESP scsi driver chipset */
 
 /* Reset the ESP chip, _not_ the SCSI bus. */
-static inline void esp_reset_esp(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs)
+static inline void esp_reset_esp(struct Sparc_ESP *esp, struct ESP_regs *eregs)
 {
 	int family_code, version, i;
 	volatile int trash;
@@ -531,36 +382,41 @@ static inline void esp_reset_esp(struct Sparc_ESP *esp, struct Sparc_ESP_regs *e
 	esp_cmd(esp, eregs, ESP_CMD_RC);
 	esp_cmd(esp, eregs, ESP_CMD_NULL | ESP_CMD_DMA);
 	esp_cmd(esp, eregs, ESP_CMD_NULL | ESP_CMD_DMA);
-
-	/* Reload the configuration registers */
-	eregs->esp_cfact = esp->cfact;
-	eregs->esp_stp   = 0;
-	eregs->esp_soff  = 0;
-	eregs->esp_timeo = esp->neg_defp;
-
+    
 	/* This is the only point at which it is reliable to read
-	 * the ID-code for a fast ESP chip variants.
+	 * the ID-code for a fast ESP chip variant.
 	 */
 	esp->max_period = ((35 * esp->ccycle) / 1000);
 	if(esp->erev == fast) {
-		version = eregs->esp_uid;
+	        version = eregs->esp_uid;
 		family_code = (version & 0xf8) >> 3;
 		if(family_code == 0x02)
-			esp->erev = fas236;
+		        if ((version & 7) == 2)
+			        esp->erev = fas216;
+	                else
+			        esp->erev = fas236;
 		else if(family_code == 0x0a)
 			esp->erev = fashme; /* Version is usually '5'. */
-		else
+	        else
 			esp->erev = fas100a;
+	    
 		printk("esp%d: FAST chip is %s (family=%d, version=%d)\n",
 		       esp->esp_id,
 		       (esp->erev == fas236) ? "fas236" :
-		       ((esp->erev == fas100a) ? "fas100a" :
-		       "fasHME"), family_code, (version & 7));
+		       ((esp->erev == fas216) ? "fas216" :
+		       (((esp->erev == fas100a) ? "fas100a" :			
+		       "fasHME"))), family_code, (version & 7));
 
 		esp->min_period = ((4 * esp->ccycle) / 1000);
 	} else {
 		esp->min_period = ((5 * esp->ccycle) / 1000);
 	}
+    
+    	/* Reload the configuration registers */
+	eregs->esp_cfact = esp->cfact;
+	eregs->esp_stp   = 0;
+	eregs->esp_soff  = 0;
+	eregs->esp_timeo = esp->neg_defp;
 	esp->max_period = (esp->max_period + 3)>>2;
 	esp->min_period = (esp->min_period + 3)>>2;
 
@@ -580,6 +436,7 @@ static inline void esp_reset_esp(struct Sparc_ESP *esp, struct Sparc_ESP_regs *e
 	case fashme:
 		esp->config2 |= (ESP_CONFIG2_HME32 | ESP_CONFIG2_HMEFENAB);
 		/* fallthrough... */
+        case fas216:
 	case fas236:
 		/* Fast 236 or HME */
 		eregs->esp_cfg2 = esp->config2;
@@ -619,12 +476,13 @@ static inline void esp_reset_esp(struct Sparc_ESP *esp, struct Sparc_ESP_regs *e
 }
 
 /* This places the ESP into a known state at boot time. */
-static inline void esp_bootup_reset(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs)
+inline void esp_bootup_reset(struct Sparc_ESP *esp, struct ESP_regs *eregs)
 {
 	volatile unchar trash;
 
 	/* Reset the DMA */
-	esp_reset_dma(esp);
+	if(esp->dma_reset)
+		esp->dma_reset(esp);
 
 	/* Reset the ESP */
 	esp_reset_esp(esp, eregs);
@@ -639,379 +497,197 @@ static inline void esp_bootup_reset(struct Sparc_ESP *esp, struct Sparc_ESP_regs
 	trash = eregs->esp_intrpt;
 }
 
-/* Detecting ESP chips on the machine.  This is the simple and easy
- * version.
+/* Allocate structure and insert basic data such as SCSI chip frequency
+ * data and a pointer to the device
  */
-__initfunc(int esp_detect(Scsi_Host_Template *tpnt))
+struct Sparc_ESP* esp_allocate(Scsi_Host_Template *tpnt, void *esp_dev)
 {
-#ifdef __sparc_v9__
-	struct devid_cookie dcookie;
-#endif
 	struct Sparc_ESP *esp, *elink;
 	struct Scsi_Host *esp_host;
-	struct linux_sbus *sbus;
-	struct linux_sbus_device *esp_dev, *sbdev_iter;
-	struct Sparc_ESP_regs *eregs;
-	struct sparc_dma_registers *dregs;
-	struct Linux_SBus_DMA *dma, *dlink;
-	unsigned int fmhz;
-	unchar ccf, bsizes, bsizes_more;
-	int nesps = 0, esps_in_use = 0;
-	int esp_node, i;
 
-	espchain = 0;
-	if(!SBus_chain) {
-#ifdef CONFIG_PCI
-		return 0;
-#else
-		panic("No SBUS in esp_detect()");
-#endif
+	esp_host = scsi_register(tpnt, sizeof(struct Sparc_ESP));
+	if(!esp_host)
+		panic("Cannot register ESP SCSI host");
+	esp = (struct Sparc_ESP *) esp_host->hostdata;
+	if(!esp)
+		panic("No esp in hostdata");
+	esp->ehost = esp_host;
+	esp->edev = esp_dev;
+	esp->esp_id = nesps++;
+
+	/* Put into the chain of esp chips detected */
+	if(espchain) {
+		elink = espchain;
+		while(elink->next) elink = elink->next;
+		elink->next = esp;
+	} else {
+		espchain = esp;
 	}
-	for_each_sbus(sbus) {
-		for_each_sbusdev(sbdev_iter, sbus) {
-			struct linux_sbus_device *espdma = 0;
-			int hme = 0;
+	esp->next = 0;
 
-			/* Is it an esp sbus device? */
-			esp_dev = sbdev_iter;
-			if(strcmp(esp_dev->prom_name, "esp") &&
-			   strcmp(esp_dev->prom_name, "SUNW,esp")) {
-				if(!strcmp(esp_dev->prom_name, "SUNW,fas")) {
-					hme = 1;
-					espdma = esp_dev;
-				} else {
-					if(!esp_dev->child ||
-					   (strcmp(esp_dev->prom_name, "espdma") &&
-					    strcmp(esp_dev->prom_name, "dma")))
-						continue; /* nope... */
-					espdma = esp_dev;
-					esp_dev = esp_dev->child;
-					if(strcmp(esp_dev->prom_name, "esp") &&
-					   strcmp(esp_dev->prom_name, "SUNW,esp"))
-						continue; /* how can this happen? */
-				}
-			}
-			esp_host = scsi_register(tpnt, sizeof(struct Sparc_ESP));
-			if(!esp_host)
-				panic("Cannot register ESP SCSI host");
-			if(hme)
-				esp_host->max_id = 16;
-			esp = (struct Sparc_ESP *) esp_host->hostdata;
-			if(!esp)
-				panic("No esp in hostdata");
-			esp->ehost = esp_host;
-			esp->edev = esp_dev;
-			esp->esp_id = nesps++;
+	return esp;
+}
 
-			/* Put into the chain of esp chips detected */
-			if(espchain) {
-				elink = espchain;
-				while(elink->next) elink = elink->next;
-				elink->next = esp;
-			} else {
-				espchain = esp;
-			}
-			esp->next = 0;
+/* Complete initialization of ESP structure and device
+ * Caller must have initialized appropriate parts of the ESP structure
+ * between the call to esp_allocate and this function.
+ */
+void esp_initialize(struct Sparc_ESP *esp)
+{
+	struct ESP_regs *eregs = esp->eregs;
+	unsigned int fmhz;
+	unchar ccf;
+	int i;
+	
+	/* Check out the clock properties of the chip. */
 
-			/* Get misc. prom information */
-#define ESP_IS_MY_DVMA(esp, dma)  \
-	((esp->edev->my_bus == dma->SBus_dev->my_bus) && \
-         (esp->edev->slot == dma->SBus_dev->slot) && \
-	 (!strcmp(dma->SBus_dev->prom_name, "dma") || \
-	  !strcmp(dma->SBus_dev->prom_name, "espdma")))
+	/* This is getting messy but it has to be done
+	 * correctly or else you get weird behavior all
+	 * over the place.  We are trying to basically
+	 * figure out three pieces of information.
+	 *
+	 * a) Clock Conversion Factor
+	 *
+	 *    This is a representation of the input
+	 *    crystal clock frequency going into the
+	 *    ESP on this machine.  Any operation whose
+	 *    timing is longer than 400ns depends on this
+	 *    value being correct.  For example, you'll
+	 *    get blips for arbitration/selection during
+	 *    high load or with multiple targets if this
+	 *    is not set correctly.
+	 *
+	 * b) Selection Time-Out
+	 *
+	 *    The ESP isn't very bright and will arbitrate
+	 *    for the bus and try to select a target
+	 *    forever if you let it.  This value tells
+	 *    the ESP when it has taken too long to
+	 *    negotiate and that it should interrupt
+	 *    the CPU so we can see what happened.
+	 *    The value is computed as follows (from
+	 *    NCR/Symbios chip docs).
+	 *
+	 *          (Time Out Period) *  (Input Clock)
+	 *    STO = ----------------------------------
+	 *          (8192) * (Clock Conversion Factor)
+	 *
+	 *    You usually want the time out period to be
+	 *    around 250ms, I think we'll set it a little
+	 *    bit higher to account for fully loaded SCSI
+	 *    bus's and slow devices that don't respond so
+	 *    quickly to selection attempts. (yeah, I know
+	 *    this is out of spec. but there is a lot of
+	 *    buggy pieces of firmware out there so bite me)
+	 *
+	 * c) Imperical constants for synchronous offset
+	 *    and transfer period register values
+	 *
+	 *    This entails the smallest and largest sync
+	 *    period we could ever handle on this ESP.
+	 */
+	
+	fmhz = esp->cfreq;
 
-			esp_node = esp_dev->prom_node;
-			prom_getstring(esp_node, "name", esp->prom_name,
-				       sizeof(esp->prom_name));
-			esp->prom_node = esp_node;
-			if(espdma) {
-				for_each_dvma(dlink) {
-					if(dlink->SBus_dev == espdma)
-						break;
-				}
-			} else {
-				for_each_dvma(dlink) {
-					if(ESP_IS_MY_DVMA(esp, dlink) &&
-					   !dlink->allocated)
-						break;
-				}
-			}
-#undef ESP_IS_MY_DVMA
-			/* If we don't know how to handle the dvma,
-			 * do not use this device.
-			 */
-			if(!dlink){
-				printk ("Cannot find dvma for ESP%d's SCSI\n",
-					esp->esp_id);
-				scsi_unregister (esp_host);
-				continue;
-			}
-			if (dlink->allocated){
-				printk ("esp%d: can't use my espdma\n",
-					esp->esp_id);
-				scsi_unregister (esp_host);
-				continue;
-			}
-			dlink->allocated = 1;
-			dma = dlink;
-			esp->dma = dma;
-			esp->dregs = dregs = dma->regs;
+	if(fmhz <= (5000000))
+		ccf = 0;
+	else
+		ccf = (((5000000 - 1) + (fmhz))/(5000000));
+	if(!ccf || ccf > 8) {
+		/* If we can't find anything reasonable,
+		 * just assume 20MHZ.  This is the clock
+		 * frequency of the older sun4c's where I've
+		 * been unable to find the clock-frequency
+		 * PROM property.  All other machines provide
+		 * useful values it seems.
+		 */
+		ccf = ESP_CCF_F4;
+		fmhz = (20000000);
+	}
+	if(ccf==(ESP_CCF_F7+1))
+		esp->cfact = ESP_CCF_F0;
+	else if(ccf == ESP_CCF_NEVER)
+		esp->cfact = ESP_CCF_F2;
+	else
+		esp->cfact = ccf;
+	esp->cfreq = fmhz;
+	esp->ccycle = ESP_MHZ_TO_CYCLE(fmhz);
+	esp->ctick = ESP_TICK(ccf, esp->ccycle);
+	esp->neg_defp = ESP_NEG_DEFP(fmhz, ccf);
+	esp->sync_defp = SYNC_DEFP_SLOW;
 
-			/* Map in the ESP registers from I/O space */
-			if(!hme) {
-				prom_apply_sbus_ranges(esp->edev->my_bus, 
-						       esp->edev->reg_addrs,
-						       1, esp->edev);
 
-				esp->eregs = eregs = (struct Sparc_ESP_regs *)
-				sparc_alloc_io(esp->edev->reg_addrs[0].phys_addr, 0,
-					       PAGE_SIZE, "ESP Registers",
-					       esp->edev->reg_addrs[0].which_io, 0x0);
-			} else {
-				/* On HME, two reg sets exist, first is DVMA,
-				 * second is ESP registers.
-				 */
-				esp->eregs = eregs = (struct Sparc_ESP_regs *)
-				sparc_alloc_io(esp->edev->reg_addrs[1].phys_addr, 0,
-					       PAGE_SIZE, "ESP Registers",
-					       esp->edev->reg_addrs[1].which_io, 0x0);
-			}
-			if(!eregs)
-				panic("ESP registers unmappable");
-			esp->esp_command =
-				sparc_dvma_malloc(16, "ESP DVMA Cmd Block",
-						  &esp->esp_command_dvma);
-			if(!esp->esp_command || !esp->esp_command_dvma)
-				panic("ESP DVMA transport area unmappable");
+	/* Fill in ehost data */
+	esp->ehost->base = (unsigned char *) eregs;
+	esp->ehost->io_port = (unsigned int) eregs;
+	esp->ehost->this_id = esp->scsi_id;
+	esp->ehost->irq = esp->irq;
 
-			/* Set up the irq's etc. */
-			esp->ehost->base = (unsigned char *) esp->eregs;
-			esp->ehost->io_port =
-				esp->edev->reg_addrs[0].phys_addr;
-			esp->ehost->n_io_port = (unsigned char)
-				esp->edev->reg_addrs[0].reg_size;
-			esp->ehost->irq = esp->irq = esp->edev->irqs[0].pri;
+	/* SCSI id mask */
+	esp->scsi_id_mask = (1 << esp->scsi_id);
 
-#ifndef __sparc_v9__
-			/* Allocate the irq only if necessary */
-			for_each_esp(elink) {
-				if((elink != esp) && (esp->irq == elink->irq)) {
-					goto esp_irq_acquired; /* BASIC rulez */
-				}
-			}
-			if(request_irq(esp->ehost->irq, esp_intr, SA_SHIRQ,
-				       "Sparc ESP SCSI", NULL))
-				panic("Cannot acquire ESP irq line");
-esp_irq_acquired:
-			printk("esp%d: IRQ %d ", esp->esp_id, esp->ehost->irq);
-#else
-			/* On Ultra we must always call request_irq for each
-			 * esp, so that imap registers get setup etc.
-			 */
-			dcookie.real_dev_id = esp;
-			dcookie.imap = dcookie.iclr = 0;
-			dcookie.pil = -1;
-			dcookie.bus_cookie = sbus;
-			if(request_irq(esp->ehost->irq, esp_intr,
-				       (SA_SHIRQ | SA_SBUS | SA_DCOOKIE),
-				       "Sparc ESP SCSI", &dcookie))
-				panic("Cannot acquire ESP irq line");
-			esp->ehost->irq = esp->irq = dcookie.ret_ino;
-			printk("esp%d: INO[%x] IRQ %d ",
-			       esp->esp_id, esp->ehost->irq, dcookie.ret_pil);
-#endif
-
-			/* Figure out our scsi ID on the bus */
-			esp->scsi_id = prom_getintdefault(esp->prom_node,
-							  "initiator-id",
-							  -1);
-			if(esp->scsi_id == -1)
-				esp->scsi_id = prom_getintdefault(esp->prom_node,
-								  "scsi-initiator-id",
-								  -1);
-			if(esp->scsi_id == -1)
-				esp->scsi_id =
-					prom_getintdefault(esp->edev->my_bus->prom_node,
-							   "scsi-initiator-id",
-							   7);
-			esp->ehost->this_id = esp->scsi_id;
-			esp->scsi_id_mask = (1 << esp->scsi_id);
-
-			/* Check for differential SCSI-bus */
-			esp->diff = prom_getbool(esp->prom_node, "differential");
-			if(esp->diff)
-				printk("Differential ");
-
-			/* Check out the clock properties of the chip. */
-
-			/* This is getting messy but it has to be done
-			 * correctly or else you get weird behavior all
-			 * over the place.  We are trying to basically
-			 * figure out three pieces of information.
-			 *
-			 * a) Clock Conversion Factor
-			 *
-			 *    This is a representation of the input
-			 *    crystal clock frequency going into the
-			 *    ESP on this machine.  Any operation whose
-			 *    timing is longer than 400ns depends on this
-			 *    value being correct.  For example, you'll
-			 *    get blips for arbitration/selection during
-			 *    high load or with multiple targets if this
-			 *    is not set correctly.
-			 *
-			 * b) Selection Time-Out
-			 *
-			 *    The ESP isn't very bright and will arbitrate
-			 *    for the bus and try to select a target
-			 *    forever if you let it.  This value tells
-			 *    the ESP when it has taken too long to
-			 *    negotiate and that it should interrupt
-			 *    the CPU so we can see what happened.
-			 *    The value is computed as follows (from
-			 *    NCR/Symbios chip docs).
-			 *
-			 *          (Time Out Period) *  (Input Clock)
-			 *    STO = ----------------------------------
-			 *          (8192) * (Clock Conversion Factor)
-			 *
-			 *    You usually want the time out period to be
-			 *    around 250ms, I think we'll set it a little
-			 *    bit higher to account for fully loaded SCSI
-			 *    bus's and slow devices that don't respond so
-			 *    quickly to selection attempts. (yeah, I know
-			 *    this is out of spec. but there is a lot of
-			 *    buggy pieces of firmware out there so bite me)
-			 *
-			 * c) Imperical constants for synchronous offset
-			 *    and transfer period register values
-			 *
-			 *    This entails the smallest and largest sync
-			 *    period we could ever handle on this ESP.
-			 */
-
-			fmhz = prom_getintdefault(esp->prom_node,
-						  "clock-frequency",
-						  -1);
-			if(fmhz==-1)
-				fmhz = prom_getintdefault(esp->edev->my_bus->prom_node,
-							  "clock-frequency",
-							  -1);
-			if(fmhz <= (5000000))
-				ccf = 0;
-			else
-				ccf = (((5000000 - 1) + (fmhz))/(5000000));
-			if(!ccf || ccf > 8) {
-				/* If we can't find anything reasonable,
-				 * just assume 20MHZ.  This is the clock
-				 * frequency of the older sun4c's where I've
-				 * been unable to find the clock-frequency
-				 * PROM property.  All other machines provide
-				 * useful values it seems.
-				 */
-				ccf = ESP_CCF_F4;
-				fmhz = (20000000);
-			}
-			if(ccf==(ESP_CCF_F7+1))
-				esp->cfact = ESP_CCF_F0;
-			else if(ccf == ESP_CCF_NEVER)
-				esp->cfact = ESP_CCF_F2;
-			else
-				esp->cfact = ccf;
-			esp->cfreq = fmhz;
-			esp->ccycle = ESP_MHZ_TO_CYCLE(fmhz);
-			esp->ctick = ESP_TICK(ccf, esp->ccycle);
-			esp->neg_defp = ESP_NEG_DEFP(fmhz, ccf);
-			esp->sync_defp = SYNC_DEFP_SLOW;
-			printk("SCSI ID %d  Clock %d MHz CCF=%d Time-Out %d ",
-			       esp->scsi_id, (fmhz / 1000000),
-			       ccf, (int) esp->neg_defp);
-
-			/* Find the burst sizes this dma/sbus/esp supports. */
-			bsizes = prom_getintdefault(esp->prom_node, "burst-sizes", 0xff);
-			bsizes &= 0xff;
-			if(espdma) {
-				bsizes_more = prom_getintdefault(
-						  espdma->prom_node,
-						  "burst-sizes", 0xff);
-				if(bsizes_more != 0xff)
-					bsizes &= bsizes_more;
-			}
-			bsizes_more = prom_getintdefault(esp->edev->my_bus->prom_node,
-							 "burst-sizes", 0xff);
-			if(bsizes_more != 0xff)
-				bsizes &= bsizes_more;
-
-			if(bsizes == 0xff || (bsizes & DMA_BURST16)==0 ||
-			   (bsizes & DMA_BURST32)==0)
-				bsizes = (DMA_BURST32 - 1);
-
-			esp->bursts = bsizes;
-
-			/* Probe the revision of this esp */
-			esp->config1 = (ESP_CONFIG1_PENABLE | (esp->scsi_id & 7));
-			esp->config2 = (ESP_CONFIG2_SCSI2ENAB | ESP_CONFIG2_REGPARITY);
-			eregs->esp_cfg2 = esp->config2;
-			if((eregs->esp_cfg2 & ~(ESP_CONFIG2_MAGIC)) !=
-			   (ESP_CONFIG2_SCSI2ENAB | ESP_CONFIG2_REGPARITY)) {
-				printk("NCR53C90(esp100) detected\n");
-				esp->erev = esp100;
-			} else {
+	/* Probe the revision of this esp */
+	esp->config1 = (ESP_CONFIG1_PENABLE | (esp->scsi_id & 7));
+	esp->config2 = (ESP_CONFIG2_SCSI2ENAB | ESP_CONFIG2_REGPARITY);
+	eregs->esp_cfg2 = esp->config2;
+	if((eregs->esp_cfg2 & ~(ESP_CONFIG2_MAGIC)) !=
+	   (ESP_CONFIG2_SCSI2ENAB | ESP_CONFIG2_REGPARITY)) {
+		printk("NCR53C90(esp100) detected\n");
+		esp->erev = esp100;
+	} else {
+		eregs->esp_cfg2 = esp->config2 = 0;
+		eregs->esp_cfg3 = 0;
+		eregs->esp_cfg3 = esp->config3[0] = 5;
+		if(eregs->esp_cfg3 != 5) {
+			printk("NCR53C90A(esp100a) detected\n");
+			esp->erev = esp100a;
+		} else {
+			int target;
+			
+			for(target=0; target<8; target++)
+				esp->config3[target] = 0;
+			eregs->esp_cfg3 = 0;
+			if(ccf > ESP_CCF_F5) {
+				printk("NCR53C9XF(espfast) detected\n");
+				esp->erev = fast;
 				eregs->esp_cfg2 = esp->config2 = 0;
-				eregs->esp_cfg3 = 0;
-				eregs->esp_cfg3 = esp->config3[0] = 5;
-				if(eregs->esp_cfg3 != 5) {
-					printk("NCR53C90A(esp100a) detected\n");
-					esp->erev = esp100a;
-				} else {
-					int target;
-
-					for(target=0; target<8; target++)
-						esp->config3[target] = 0;
-					eregs->esp_cfg3 = 0;
-					if(ccf > ESP_CCF_F5) {
-						printk("NCR53C9XF(espfast) detected\n");
-						esp->erev = fast;
-						eregs->esp_cfg2 = esp->config2 = 0;
-						esp->sync_defp = SYNC_DEFP_FAST;
-					} else {
-						printk("NCR53C9x(esp236) detected\n");
-						esp->erev = esp236;
-						eregs->esp_cfg2 = esp->config2 = 0;
-					}
-				}
-			}				
-
-			/* Initialize the command queues */
-			esp->current_SC = 0;
-			esp->disconnected_SC = 0;
-			esp->issue_SC = 0;
-
-			/* Clear the state machines. */
-			esp->targets_present = 0;
-			esp->resetting_bus = 0;
-			esp->snip = 0;
-			esp->targets_present = 0;
-			for(i = 0; i < 32; i++)
-				esp->espcmdlog[i] = 0;
-			esp->espcmdent = 0;
-			for(i = 0; i < 16; i++) {
-				esp->cur_msgout[i] = 0;
-				esp->cur_msgin[i] = 0;
+				esp->sync_defp = SYNC_DEFP_FAST;
+			} else {
+				printk("NCR53C9x(esp236) detected\n");
+				esp->erev = esp236;
+				eregs->esp_cfg2 = esp->config2 = 0;
 			}
-			esp->prevmsgout = esp->prevmsgin = 0;
-			esp->msgout_len = esp->msgin_len = 0;
+		}
+	}				
+	
+	/* Initialize the command queues */
+	esp->current_SC = 0;
+	esp->disconnected_SC = 0;
+	esp->issue_SC = 0;
+	
+	/* Clear the state machines. */
+	esp->targets_present = 0;
+	esp->resetting_bus = 0;
+	esp->snip = 0;
+	esp->targets_present = 0;
+	for(i = 0; i < 32; i++)
+		esp->espcmdlog[i] = 0;
+	esp->espcmdent = 0;
+	for(i = 0; i < 16; i++) {
+		esp->cur_msgout[i] = 0;
+		esp->cur_msgin[i] = 0;
+	}
+	esp->prevmsgout = esp->prevmsgin = 0;
+	esp->msgout_len = esp->msgin_len = 0;
 
-			/* Reset the thing before we try anything... */
-			esp_bootup_reset(esp, eregs);
+	/* Reset the thing before we try anything... */
+	esp_bootup_reset(esp, eregs);
+	
+	esps_in_use++;
 
-			esps_in_use++;
-		} /* for each sbusdev */
-	} /* for each sbus */
-	printk("ESP: Total of %d ESP hosts found, %d actually in use.\n", nesps,
-	       esps_in_use);
-	esps_running = esps_in_use;
-	return esps_in_use;
+	printk("SCSI ID %d  Clock %d MHz CCF=%d Time-Out %d ",
+	       esp->scsi_id, (esp->cfreq / 1000000),
+	       esp->ccf, (int) esp->neg_defp);
 }
 
 /* The info function will return whatever useful
@@ -1030,6 +706,8 @@ const char *esp_info(struct Scsi_Host *host)
 		return "Sparc ESP100A (NCR53C90A)";
 	case esp236:
 		return "Sparc ESP236";
+	case fas216:
+	        return "MIPS Jazz FAS216";
 	case fas236:
 		return "Sparc ESP236-FAST";
 	case fashme:
@@ -1108,6 +786,9 @@ static int esp_host_info(struct Sparc_ESP *esp, char *ptr, off_t offset, int len
 	case esp236:
 		copy_info(&info, "ESP236\n");
 		break;
+	case fas216:
+		copy_info(&info, "FAS216\n");
+		break;
 	case fas236:
 		copy_info(&info, "FAS236\n");
 		break;
@@ -1125,6 +806,7 @@ static int esp_host_info(struct Sparc_ESP *esp, char *ptr, off_t offset, int len
 		copy_info(&info, "Unknown!\n");
 		break;
 	};
+#ifdef CONFIG_SCSI_SUNESP
 	copy_info(&info, "\tDMA Revision\t\t");
 	switch(esp->dma->revision) {
 	case dvmarev0:
@@ -1152,6 +834,7 @@ static int esp_host_info(struct Sparc_ESP *esp, char *ptr, off_t offset, int len
 		copy_info(&info, "Unknown!\n");
 		break;
 	};
+#endif
 	copy_info(&info, "\tLive Targets\t\t[ ");
 	for(i = 0; i < 15; i++) {
 		if(esp->targets_present & (1 << i))
@@ -1276,8 +959,7 @@ static inline void build_wide_nego_msg(struct Sparc_ESP *esp, int size)
 
 static inline void esp_exec_cmd(struct Sparc_ESP *esp)
 {
-	struct sparc_dma_registers *dregs = esp->dregs;
-	struct Sparc_ESP_regs *eregs = esp->eregs;
+	struct ESP_regs *eregs = esp->eregs;
 	Scsi_Cmnd *SCptr;
 	Scsi_Device *SDptr;
 	volatile unchar *cmdp = esp->esp_command;
@@ -1286,7 +968,7 @@ static inline void esp_exec_cmd(struct Sparc_ESP *esp)
 	int i;
 
 	/* Hold off if we've been reselected or an IRQ is showing... */
-	if(esp->disconnected_SC || DMA_IRQ_P(dregs))
+	if(esp->disconnected_SC || esp->dma_irq_p(esp))
 		return;
 
 	/* Grab first member of the issue queue. */
@@ -1336,7 +1018,9 @@ static inline void esp_exec_cmd(struct Sparc_ESP *esp)
 
 	if(SDptr->sync) {
 		/* this targets sync is known */
+#ifdef CONFIG_SCSI_SUNESP
 do_sync_known:
+#endif
 		if(SDptr->disconnect)
 			*cmdp++ = IDENTIFY(1, lun);
 		else
@@ -1371,6 +1055,7 @@ do_sync_known:
 	} else {
 		int toshiba_cdrom_hwbug_wkaround = 0;
 
+#ifdef CONFIG_SCSI_SUNESP
 		/* Never allow disconnects or synchronous transfers on
 		 * SparcStation1 and SparcStation1+.  Allowing those
 		 * to be enabled seems to lockup the machine completely.
@@ -1388,7 +1073,7 @@ do_sync_known:
 			esp->snip = 0;
 			goto do_sync_known;
 		}
-
+#endif
 		/* We've talked to this guy before,
 		 * but never negotiated.. lets try,
 		 * need to attempt WIDE first, before
@@ -1492,38 +1177,36 @@ after_nego_msg_built:
 
 	i = (cmdp - esp->esp_command);
 
-	if(esp->erev == fashme) {
-		unsigned long tmp;
+	/* Set up the DMA and ESP counters */
+	if(esp->do_pio_cmds){
+		int j = 0;
 
-		esp_cmd(esp, eregs, ESP_CMD_FLUSH); /* Grrr! */
-
-		/* Set up the DMA and HME counters */
-		eregs->esp_tclow = i;
-		eregs->esp_tcmed = 0;
-		eregs->fas_rlo = 0;
-		eregs->fas_rhi = 0;
-		esp_cmd(esp, eregs, the_esp_command);
-
-		/* Talk about touchy hardware... */
-		tmp = dregs->cond_reg;
-		tmp |= (DMA_SCSI_DISAB | DMA_ENABLE);
-		tmp &= ~(DMA_ST_WRITE);
-		dregs->cnt = 16;
-		dregs->st_addr = esp->esp_command_dvma;
-		dregs->cond_reg = tmp;
-	} else {
-		/* Set up the DMA and ESP counters */
-		eregs->esp_tclow = i;
-		eregs->esp_tcmed = 0;
-		dregs->cond_reg = ((dregs->cond_reg & ~(DMA_ST_WRITE)) | DMA_ENABLE);
-		if(esp->dma->revision == dvmaesc1) {
-			if(i) /* Workaround ESC gate array SBUS rerun bug. */
-				dregs->cnt = (PAGE_SIZE);
-		}
-		dregs->st_addr = esp->esp_command_dvma;
+		for(;j<i;j++)
+			eregs->esp_fdata = esp->esp_command[j];
+		the_esp_command &= ~ESP_CMD_DMA;
 
 		/* Tell ESP to "go". */
 		esp_cmd(esp, eregs, the_esp_command);
+	} else {
+		if(esp->erev == fashme) {
+			esp_cmd(esp, eregs, ESP_CMD_FLUSH); /* Grrr! */
+
+			/* Set up the HME counters */
+			eregs->esp_tclow = i;
+			eregs->esp_tcmed = 0;
+			eregs->fas_rlo = 0;
+			eregs->fas_rhi = 0;
+			esp_cmd(esp, eregs, the_esp_command);
+			esp->dma_init_write(esp, (char *) esp->esp_command, 16);
+		} else {
+			/* Set up the ESP counters */
+			eregs->esp_tclow = i;
+			eregs->esp_tcmed = 0;
+			esp->dma_init_write(esp, (char *) esp->esp_command, i);
+
+			/* Tell ESP to "go". */
+			esp_cmd(esp, eregs, the_esp_command);
+		}
 	}
 }
 
@@ -1531,7 +1214,6 @@ after_nego_msg_built:
 int esp_queue(Scsi_Cmnd *SCpnt, void (*done)(Scsi_Cmnd *))
 {
 	struct Sparc_ESP *esp;
-	struct sparc_dma_registers *dregs;
 	unsigned long flags;
 
 	/* Set up func ptr and initial driver cmd-phase. */
@@ -1539,7 +1221,9 @@ int esp_queue(Scsi_Cmnd *SCpnt, void (*done)(Scsi_Cmnd *))
 	SCpnt->SCp.phase = not_issued;
 
 	esp = (struct Sparc_ESP *) SCpnt->host->hostdata;
-	dregs = esp->dregs;
+
+	if(esp->dma_led_on)
+		esp->dma_led_on(esp);
 
 	/* We use the scratch area. */
 	ESPQUEUE(("esp_queue: target=%d lun=%d ", SCpnt->target, SCpnt->lun));
@@ -1550,6 +1234,7 @@ int esp_queue(Scsi_Cmnd *SCpnt, void (*done)(Scsi_Cmnd *))
 		SCpnt->SCp.buffer           =
 			(struct scatterlist *) SCpnt->request_buffer;
 		SCpnt->SCp.buffers_residual = 0;
+#ifdef CONFIG_SCSI_SUNESP
 		/* Sneaky. */
 		SCpnt->SCp.have_data_in = mmu_get_scsi_one((char *)SCpnt->SCp.buffer,
 							   SCpnt->SCp.this_residual,
@@ -1558,6 +1243,14 @@ int esp_queue(Scsi_Cmnd *SCpnt, void (*done)(Scsi_Cmnd *))
 		 * XXX and 32-bit SBUS what am I to do? -DaveM
 		 */
 		SCpnt->SCp.ptr = (char *)((unsigned long)SCpnt->SCp.have_data_in);
+#else
+	        if (esp->dma_mmu_get_scsi_one)
+		    esp->dma_mmu_get_scsi_one (esp, SCpnt);
+	        else
+		    SCpnt->SCp.have_data_in = (int) SCpnt->SCp.ptr =
+			    (char *)SCpnt->request_buffer;
+#endif
+
 	} else {
 		ESPQUEUE(("use_sg "));
 #ifdef DEBUG_ESP_SG
@@ -1567,11 +1260,18 @@ int esp_queue(Scsi_Cmnd *SCpnt, void (*done)(Scsi_Cmnd *))
 		SCpnt->SCp.buffer           = (struct scatterlist *) SCpnt->buffer;
 		SCpnt->SCp.buffers_residual = SCpnt->use_sg - 1;
 		SCpnt->SCp.this_residual    = SCpnt->SCp.buffer->length;
+#ifdef CONFIG_SCSI_SUNESP
 		mmu_get_scsi_sgl((struct mmu_sglist *) SCpnt->SCp.buffer,
 				 SCpnt->SCp.buffers_residual,
-				 esp->edev->my_bus);
+				 ((struct linux_sbus_device *) (esp->edev))->my_bus);
 		/* XXX Again these casts are sick... -DaveM */
 		SCpnt->SCp.ptr=(char *)((unsigned long)SCpnt->SCp.buffer->dvma_address);
+#else
+	        if (esp->dma_mmu_get_scsi_sgl)
+		    esp->dma_mmu_get_scsi_sgl (esp, SCpnt);
+	        else
+	            SCpnt->SCp.ptr = SCpnt->SCp.buffer->address;
+#endif
 	}
 	SCpnt->SCp.Status           = CHECK_CONDITION;
 	SCpnt->SCp.Message          = 0xff;
@@ -1586,7 +1286,7 @@ int esp_queue(Scsi_Cmnd *SCpnt, void (*done)(Scsi_Cmnd *))
 		append_SC(&esp->issue_SC, SCpnt);
 	}
 
-	save_and_cli(flags);
+ 	save_and_cli(flags);
 
 	/* Run it now if we can. */
 	if(!esp->current_SC && !esp->resetting_bus)
@@ -1599,7 +1299,9 @@ int esp_queue(Scsi_Cmnd *SCpnt, void (*done)(Scsi_Cmnd *))
 /* Only queuing supported in this ESP driver. */
 int esp_command(Scsi_Cmnd *SCpnt)
 {
+#ifdef DEBUG_ESP
 	struct Sparc_ESP *esp = (struct Sparc_ESP *) SCpnt->host->hostdata;
+#endif
 
 	ESPLOG(("esp%d: esp_command() called...\n", esp->esp_id));
 	return -1;
@@ -1615,8 +1317,8 @@ static inline void esp_dump_cmd(Scsi_Cmnd *SCptr)
 		phase_string(SCptr->SCp.phase)));
 }
 
-static inline void esp_dump_state(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
-				  struct sparc_dma_registers *dregs)
+static inline void esp_dump_state(struct Sparc_ESP *esp, 
+				  struct ESP_regs *eregs)
 {
 	Scsi_Cmnd *SCptr = esp->current_SC;
 #ifdef DEBUG_ESP_CMDS
@@ -1624,8 +1326,10 @@ static inline void esp_dump_state(struct Sparc_ESP *esp, struct Sparc_ESP_regs *
 #endif
 
 	ESPLOG(("esp%d: dumping state\n", esp->esp_id));
-	ESPLOG(("esp%d: dma -- cond_reg<%08x> addr<%08x>\n",
-		esp->esp_id, dregs->cond_reg, dregs->st_addr));
+	
+	/* Print DMA status */
+	esp->dma_dump_state(esp);
+
 	ESPLOG(("esp%d: SW [sreg<%02x> sstep<%02x> ireg<%02x>]\n",
 		esp->esp_id, esp->sreg, esp->seqreg, esp->ireg));
 	ESPLOG(("esp%d: HW reread [sreg<%02x> sstep<%02x> ireg<%02x>]\n",
@@ -1669,13 +1373,12 @@ static inline void esp_dump_state(struct Sparc_ESP *esp, struct Sparc_ESP_regs *
 int esp_abort(Scsi_Cmnd *SCptr)
 {
 	struct Sparc_ESP *esp = (struct Sparc_ESP *) SCptr->host->hostdata;
-	struct Sparc_ESP_regs *eregs = esp->eregs;
-	struct sparc_dma_registers *dregs = esp->dregs;
-	unsigned long flags;
+	struct ESP_regs *eregs = esp->eregs;
 	int don;
+	unsigned long flags;
 
 	ESPLOG(("esp%d: Aborting command\n", esp->esp_id));
-	esp_dump_state(esp, eregs, dregs);
+	esp_dump_state(esp, eregs);
 
 	/* Wheee, if this is the current command on the bus, the
 	 * best we can do is assert ATN and wait for msgout phase.
@@ -1697,9 +1400,9 @@ int esp_abort(Scsi_Cmnd *SCptr)
 	/* If it is still in the issue queue then we can safely
 	 * call the completion routine and report abort success.
 	 */
-	don = (dregs->cond_reg & DMA_INT_ENAB);
+	don = esp->dma_ports_p(esp);
 	if(don) {
-		DMA_INTSOFF(dregs);
+		esp->dma_ints_off(esp);
 		synchronize_irq();
 	}
 	if(esp->issue_SC) {
@@ -1714,7 +1417,7 @@ int esp_abort(Scsi_Cmnd *SCptr)
 				this->result = DID_ABORT << 16;
 				this->done(this);
 				if(don)
-					DMA_INTSON(dregs);
+					esp->dma_ints_on(esp);
 				return SCSI_ABORT_SUCCESS;
 			}
 		}
@@ -1744,7 +1447,7 @@ int esp_abort(Scsi_Cmnd *SCptr)
 int esp_reset(Scsi_Cmnd *SCptr, unsigned int how)
 {
 	struct Sparc_ESP *esp = (struct Sparc_ESP *) SCptr->host->hostdata;
-	struct Sparc_ESP_regs *eregs = esp->eregs;
+	struct ESP_regs *eregs = esp->eregs;
 
 	ESPLOG(("esp%d: Resetting scsi bus\n", esp->esp_id));
 	esp->resetting_bus = 1;
@@ -1765,17 +1468,26 @@ static void esp_done(struct Sparc_ESP *esp, int error)
 
 		/* Free dvma entry. */
 		if(!done_SC->use_sg) {
+#ifdef CONFIG_SCSI_SUNESP
 			/* Sneaky. */
 			mmu_release_scsi_one(done_SC->SCp.have_data_in,
 					     done_SC->request_bufflen,
-					     esp->edev->my_bus);
+					     ((struct linux_sbus_device *) (esp->edev))->my_bus);
+#endif
+		        if (esp->dma_mmu_release_scsi_one)
+			    esp->dma_mmu_release_scsi_one (esp, done_SC);
 		} else {
 #ifdef DEBUG_ESP_SG
 			printk("esp%d: unmapping sg ", esp->esp_id);
 #endif
+#ifdef CONFIG_SCSI_SUNESP
 			mmu_release_scsi_sgl((struct mmu_sglist *) done_SC->buffer,
 					     done_SC->use_sg - 1,
-					     esp->edev->my_bus);
+					     ((struct linux_sbus_device *) (esp->edev))->my_bus);
+#endif
+		    	if (esp->dma_mmu_release_scsi_sgl)
+			    esp->dma_mmu_release_scsi_sgl (esp, done_SC);
+
 #ifdef DEBUG_ESP_SG
 			printk("done.\n");
 #endif
@@ -1808,22 +1520,15 @@ enum {
 };
 
 /* Forward declarations. */
-static int esp_do_phase_determine(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
-				  struct sparc_dma_registers *dregs);
-static int esp_do_data_finale(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
-			      struct sparc_dma_registers *dregs);
-static int esp_select_complete(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
-			       struct sparc_dma_registers *dregs);
-static int esp_do_status(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
-			 struct sparc_dma_registers *dregs);
-static int esp_do_msgin(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
-			struct sparc_dma_registers *dregs);
-static int esp_do_msgindone(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
-			    struct sparc_dma_registers *dregs);
-static int esp_do_msgout(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
-			 struct sparc_dma_registers *dregs);
-static int esp_do_cmdbegin(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
-			   struct sparc_dma_registers *dregs);
+static int esp_do_phase_determine(struct Sparc_ESP *esp, 
+				  struct ESP_regs *eregs);
+static int esp_do_data_finale(struct Sparc_ESP *esp, struct ESP_regs *eregs);
+static int esp_select_complete(struct Sparc_ESP *esp, struct ESP_regs *eregs);
+static int esp_do_status(struct Sparc_ESP *esp, struct ESP_regs *eregs);
+static int esp_do_msgin(struct Sparc_ESP *esp, struct ESP_regs *eregs);
+static int esp_do_msgindone(struct Sparc_ESP *esp, struct ESP_regs *eregs);
+static int esp_do_msgout(struct Sparc_ESP *esp, struct ESP_regs *eregs);
+static int esp_do_cmdbegin(struct Sparc_ESP *esp, struct ESP_regs *eregs);
 
 static inline int sreg_datainp(unchar sreg)
 {
@@ -1837,7 +1542,7 @@ static inline int sreg_dataoutp(unchar sreg)
 
 /* Did they drop these fabs on the floor or what?!?!! */
 static inline void hme_fifo_hwbug_workaround(struct Sparc_ESP *esp,
-					     struct Sparc_ESP_regs *eregs)
+					     struct ESP_regs *eregs)
 {
 	unchar status = esp->sreg;
 
@@ -1873,7 +1578,7 @@ static inline void hme_fifo_hwbug_workaround(struct Sparc_ESP *esp,
 	}
 }
 
-static inline void hme_fifo_push(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
+static inline void hme_fifo_push(struct Sparc_ESP *esp, struct ESP_regs *eregs,
 				 unchar *bytes, unchar count)
 {
 	esp_cmd(esp, eregs, ESP_CMD_FLUSH);
@@ -1887,13 +1592,13 @@ static inline void hme_fifo_push(struct Sparc_ESP *esp, struct Sparc_ESP_regs *e
 /* We try to avoid some interrupts by jumping ahead and see if the ESP
  * has gotten far enough yet.  Hence the following.
  */
-static inline int skipahead1(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
-			     struct sparc_dma_registers *dregs,
+static inline int skipahead1(struct Sparc_ESP *esp, struct ESP_regs *eregs,
 			     Scsi_Cmnd *scp, int prev_phase, int new_phase)
 {
 	if(scp->SCp.sent_command != prev_phase)
 		return 0;
-	if(DMA_IRQ_P(dregs)) {
+
+	if(esp->dma_irq_p(esp)) {
 		/* Yes, we are able to save an interrupt. */
 		esp->sreg = eregs->esp_status;
 		if(esp->erev == fashme) {
@@ -1919,15 +1624,15 @@ static inline int skipahead1(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs
 	return do_intr_end;
 }
 
-static inline int skipahead2(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
-			     struct sparc_dma_registers *dregs,
+static inline int skipahead2(struct Sparc_ESP *esp,
+			     struct ESP_regs *eregs,
 			     Scsi_Cmnd *scp, int prev_phase1, int prev_phase2,
 			     int new_phase)
 {
 	if(scp->SCp.sent_command != prev_phase1 &&
 	   scp->SCp.sent_command != prev_phase2)
 		return 0;
-	if(DMA_IRQ_P(dregs)) {
+	if(esp->dma_irq_p(esp)) {
 		/* Yes, we are able to save an interrupt. */
 		esp->sreg = eregs->esp_status;
 		if(esp->erev == fashme) {
@@ -1954,100 +1659,8 @@ static inline int skipahead2(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs
 	return do_intr_end;
 }
 
-/* Now some dma helpers. */
-static inline void dma_setup(struct sparc_dma_registers *dregs, enum dvma_rev drev,
-			     __u32 addr, int count, int write)
-{
-	unsigned long nreg = dregs->cond_reg;
-	if(write)
-		nreg |= DMA_ST_WRITE;
-	else
-		nreg &= ~(DMA_ST_WRITE);
-	nreg |= DMA_ENABLE;
-	dregs->cond_reg = nreg;
-	if(drev == dvmaesc1) {
-		/* This ESC gate array sucks! */
-		__u32 src = addr;
-		__u32 dest = src + count;
-
-		if(dest & (PAGE_SIZE - 1))
-			count = PAGE_ALIGN(count);
-		dregs->cnt = count;
-	}
-	dregs->st_addr = addr;
-}
-
-static inline void dma_drain(struct sparc_dma_registers *dregs, enum dvma_rev drev)
-{
-	if(drev == dvmahme)
-		return;
-	if(dregs->cond_reg & DMA_FIFO_ISDRAIN) {
-		switch(drev) {
-		default:
-			dregs->cond_reg |= DMA_FIFO_STDRAIN;
-
-		case dvmarev3:
-		case dvmaesc1:
-			while(dregs->cond_reg & DMA_FIFO_ISDRAIN)
-				udelay(1);
-		};
-	}
-}
-
-static inline void dma_invalidate(struct sparc_dma_registers *dregs, enum dvma_rev drev)
-{
-	unsigned int tmp;
-
-	if(drev == dvmahme) {
-		/* SMCC can bite me. */
-		tmp = dregs->cond_reg;
-		dregs->cond_reg = DMA_RST_SCSI;
-
-		/* This would explain a lot. */
-		tmp |= (DMA_PARITY_OFF|DMA_2CLKS|DMA_SCSI_DISAB);
-
-		tmp &= ~(DMA_ENABLE|DMA_ST_WRITE);
-		dregs->cond_reg = 0;
-		dregs->cond_reg = tmp;
-	} else {
-		while(dregs->cond_reg & DMA_PEND_READ)
-			udelay(1);
-
-		tmp = dregs->cond_reg;
-		tmp &= ~(DMA_ENABLE | DMA_ST_WRITE | DMA_BCNT_ENAB);
-		tmp |= DMA_FIFO_INV;
-		dregs->cond_reg = tmp;
-		dregs->cond_reg = (tmp & ~(DMA_FIFO_INV));
-	}
-}
-
-static inline void dma_flashclear(struct sparc_dma_registers *dregs, enum dvma_rev drev)
-{
-	dma_drain(dregs, drev);
-	dma_invalidate(dregs, drev);
-}
-
-static inline int dma_can_transfer(Scsi_Cmnd *sp, enum dvma_rev drev)
-{
-	__u32 base, end, sz;
-
-	if(drev == dvmarev3) {
-		sz = sp->SCp.this_residual;
-		if(sz > 0x1000000)
-			sz = 0x1000000;
-	} else {
-		base = ((__u32)((unsigned long)sp->SCp.ptr));
-		base &= (0x1000000 - 1);
-		end = (base + sp->SCp.this_residual);
-		if(end > 0x1000000)
-			end = 0x1000000;
-		sz = (end - base);
-	}
-	return sz;
-}
-
 /* Misc. esp helper routines. */
-static inline void esp_setcount(struct Sparc_ESP_regs *eregs, int cnt, int hme)
+static inline void esp_setcount(struct ESP_regs *eregs, int cnt, int hme)
 {
 	eregs->esp_tclow = (cnt & 0xff);
 	eregs->esp_tcmed = ((cnt >> 8) & 0xff);
@@ -2057,13 +1670,13 @@ static inline void esp_setcount(struct Sparc_ESP_regs *eregs, int cnt, int hme)
 	}
 }
 
-static inline int esp_getcount(struct Sparc_ESP_regs *eregs)
+static inline int esp_getcount(struct ESP_regs *eregs)
 {
 	return (((eregs->esp_tclow)&0xff) |
 		(((eregs->esp_tcmed)&0xff) << 8));
 }
 
-static inline int fcount(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs)
+static inline int fcount(struct Sparc_ESP *esp, struct ESP_regs *eregs)
 {
 	if(esp->erev == fashme)
 		return esp->hme_fifo_workaround_count;
@@ -2071,7 +1684,7 @@ static inline int fcount(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs)
 		return eregs->esp_fflags & ESP_FF_FBYTES;
 }
 
-static inline int fnzero(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs)
+static inline int fnzero(struct Sparc_ESP *esp, struct ESP_regs *eregs)
 {
 	if(esp->erev == fashme)
 		return 0;
@@ -2083,7 +1696,7 @@ static inline int fnzero(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs)
  * XXX even on esp100!!!  another case of flooding the bus with I/O reg
  * XXX writes...
  */
-static inline void esp_maybe_nop(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs)
+static inline void esp_maybe_nop(struct Sparc_ESP *esp, struct ESP_regs *eregs)
 {
 	if(esp->erev == esp100)
 		esp_cmd(esp, eregs, ESP_CMD_NULL);
@@ -2105,7 +1718,7 @@ static inline int sreg_to_dataphase(unchar sreg)
  * tell the ESP to eat the extraneous byte so that we can proceed
  * to the next phase.
  */
-static inline int esp100_sync_hwbug(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
+static inline int esp100_sync_hwbug(struct Sparc_ESP *esp, struct ESP_regs *eregs,
 				    Scsi_Cmnd *sp, int fifocnt)
 {
 	/* Do not touch this piece of code. */
@@ -2132,13 +1745,14 @@ static inline int esp100_sync_hwbug(struct Sparc_ESP *esp, struct Sparc_ESP_regs
  * ack the possible illegal cmd interrupt pending on the esp100.
  */
 static inline int esp100_reconnect_hwbug(struct Sparc_ESP *esp,
-					 struct Sparc_ESP_regs *eregs)
+					 struct ESP_regs *eregs)
 {
 	volatile unchar junk;
 
 	if(esp->erev != esp100)
 		return 0;
 	junk = eregs->esp_intrpt;
+
 	if(junk & ESP_INTR_SR)
 		return 1;
 	return 0;
@@ -2147,7 +1761,7 @@ static inline int esp100_reconnect_hwbug(struct Sparc_ESP *esp,
 /* This verifies the BUSID bits during a reselection so that we know which
  * target is talking to us.
  */
-static inline int reconnect_target(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs)
+static inline int reconnect_target(struct Sparc_ESP *esp, struct ESP_regs *eregs)
 {
 	int it, me = esp->scsi_id_mask, targ = 0;
 
@@ -2177,7 +1791,7 @@ static inline int reconnect_target(struct Sparc_ESP *esp, struct Sparc_ESP_regs 
 /* This verifies the identify from the target so that we know which lun is
  * being reconnected.
  */
-static inline int reconnect_lun(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs)
+static inline int reconnect_lun(struct Sparc_ESP *esp, struct ESP_regs *eregs)
 {
 	int lun;
 
@@ -2197,7 +1811,7 @@ static inline int reconnect_lun(struct Sparc_ESP *esp, struct Sparc_ESP_regs *er
 /* This puts the driver in a state where it can revitalize a command that
  * is being continued due to reselection.
  */
-static inline void esp_connect(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
+static inline void esp_connect(struct Sparc_ESP *esp, struct ESP_regs *eregs,
 			       Scsi_Cmnd *sp)
 {
 	Scsi_Device *dp = sp->device;
@@ -2226,8 +1840,7 @@ static inline void esp_reconnect(struct Sparc_ESP *esp, Scsi_Cmnd *sp)
 }
 
 /* Begin message in phase. */
-static inline int esp_do_msgin(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
-			       struct sparc_dma_registers *dregs)
+static inline int esp_do_msgin(struct Sparc_ESP *esp, struct ESP_regs *eregs)
 {
 	/* Must be very careful with the fifo on the HME */
 	if((esp->erev != fashme) || !(eregs->esp_status2 & ESP_STAT2_FEMPTY))
@@ -2240,26 +1853,19 @@ static inline int esp_do_msgin(struct Sparc_ESP *esp, struct Sparc_ESP_regs *ere
 	return do_work_bus;
 }
 
-/* This uses various DMA csr fields and the fifo flags count value to
- * determine how many bytes were successfully sent/received by the ESP.
- */
-static inline int esp_bytes_sent(struct Sparc_ESP *esp,
-				 struct sparc_dma_registers *dregs,
-				 int fifo_count)
-{
-	int rval = dregs->st_addr - esp->esp_command_dvma;
-
-	if(esp->dma->revision == dvmarev1)
-		rval -= (4 - ((dregs->cond_reg & DMA_READ_AHEAD)>>11));
-	return rval - fifo_count;
-}
-
-static inline void advance_sg(Scsi_Cmnd *sp)
+static inline void advance_sg(struct Sparc_ESP *esp, Scsi_Cmnd *sp)
 {
 	++sp->SCp.buffer;
 	--sp->SCp.buffers_residual;
 	sp->SCp.this_residual = sp->SCp.buffer->length;
+#ifdef CONFIG_SCSI_SUNESP
 	sp->SCp.ptr = (char *)((unsigned long)sp->SCp.buffer->dvma_address);
+#else
+        if (esp->dma_advance_sg)
+	    esp->dma_advance_sg(sp);
+        else
+	    sp->SCp.ptr = sp->SCp.buffer->address;	    
+#endif
 }
 
 /* Please note that the way I've coded these routines is that I _always_
@@ -2280,8 +1886,8 @@ static inline void advance_sg(Scsi_Cmnd *sp)
  * within a buffer or sub-buffer should not upset us at all no matter
  * how bad the target and/or ESP fucks things up.
  */
-static inline int esp_do_data(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
-			      struct sparc_dma_registers *dregs)
+
+static inline int esp_do_data(struct Sparc_ESP *esp, struct ESP_regs *eregs)
 {
 	Scsi_Cmnd *SCptr = esp->current_SC;
 	int thisphase, hmuch;
@@ -2291,28 +1897,21 @@ static inline int esp_do_data(struct Sparc_ESP *esp, struct Sparc_ESP_regs *ereg
 	thisphase = sreg_to_dataphase(esp->sreg);
 	esp_advance_phase(SCptr, thisphase);
 	ESPDATA(("newphase<%s> ", (thisphase == in_datain) ? "DATAIN" : "DATAOUT"));
-	hmuch = dma_can_transfer(SCptr, esp->dma->revision);
+	hmuch = esp->dma_can_transfer(esp, SCptr);
 	ESPDATA(("hmuch<%d> ", hmuch));
 	esp->current_transfer_size = hmuch;
 	if(esp->erev == fashme) {
-		unsigned long tmp = dregs->cond_reg;
-
 		/* Touchy chip, this stupid HME scsi adapter... */
 		esp_setcount(eregs, hmuch, 1);
 		esp_cmd(esp, eregs, ESP_CMD_DMA | ESP_CMD_TI);
-		dregs->cnt = hmuch;
-		tmp |= (DMA_SCSI_DISAB | DMA_ENABLE);
+
 		if(thisphase == in_datain)
-			tmp |= DMA_ST_WRITE;
+			esp->dma_init_read(esp, SCptr->SCp.ptr, hmuch);
 		else
-			tmp &= ~(DMA_ST_WRITE);
-		dregs->st_addr = ((__u32)((unsigned long)SCptr->SCp.ptr));
-		dregs->cond_reg = tmp;
+			esp->dma_init_write(esp, SCptr->SCp.ptr, hmuch);
 	} else {
 		esp_setcount(eregs, hmuch, 0);
-		dma_setup(dregs, esp->dma->revision,
-			  ((__u32)((unsigned long)SCptr->SCp.ptr)),
-			  hmuch, (thisphase == in_datain));
+		esp->dma_setup(esp, SCptr->SCp.ptr, hmuch, (thisphase == in_datain));
 		ESPDATA(("DMA|TI --> do_intr_end\n"));
 		esp_cmd(esp, eregs, ESP_CMD_DMA | ESP_CMD_TI);
 	}
@@ -2321,11 +1920,13 @@ static inline int esp_do_data(struct Sparc_ESP *esp, struct Sparc_ESP_regs *ereg
 
 /* See how successful the data transfer was. */
 static inline int esp_do_data_finale(struct Sparc_ESP *esp,
-				     struct Sparc_ESP_regs *eregs,
-				     struct sparc_dma_registers *dregs)
+				     struct ESP_regs *eregs)
 {
 	Scsi_Cmnd *SCptr = esp->current_SC;
 	int bogus_data = 0, bytes_sent = 0, fifocnt, ecount = 0;
+
+	if(esp->dma_led_off)
+		esp->dma_led_off(esp);
 
 	ESPDATA(("esp_do_data_finale: "));
 
@@ -2341,16 +1942,18 @@ static inline int esp_do_data_finale(struct Sparc_ESP *esp,
 			esp->cur_msgout[0] = INITIATOR_ERROR;
 			esp->msgout_len = 1;
 		}
-		dma_drain(dregs, esp->dma->revision);
+		if(esp->dma_drain)
+			esp->dma_drain(esp);
 	}
-	dma_invalidate(dregs, esp->dma->revision);
+	if(esp->dma_invalidate)
+		esp->dma_invalidate(esp);
 
 	/* This could happen for the above parity error case. */
 	if(!(esp->ireg == ESP_INTR_BSERV)) {
 		/* Please go to msgout phase, please please please... */
 		ESPLOG(("esp%d: !BSERV after data, probably to msgout\n",
 			esp->esp_id));
-		return esp_do_phase_determine(esp, eregs, dregs);
+		return esp_do_phase_determine(esp, eregs);
 	}	
 
 	/* Check for partial transfers and other horrible events.
@@ -2457,13 +2060,13 @@ static inline int esp_do_data_finale(struct Sparc_ESP *esp,
 		 * figure this out.
 		 */
 		if(SCptr->use_sg && !SCptr->SCp.this_residual)
-			advance_sg(SCptr);
+			advance_sg(esp, SCptr);
 		if(sreg_datainp(esp->sreg) || sreg_dataoutp(esp->sreg)) {
 			ESPDATA(("to more data\n"));
-			return esp_do_data(esp, eregs, dregs);
+			return esp_do_data(esp, eregs);
 		}
 		ESPDATA(("to new phase\n"));
-		return esp_do_phase_determine(esp, eregs, dregs);
+		return esp_do_phase_determine(esp, eregs);
 	}
 	/* Bogus data, just wait for next interrupt. */
 	ESPLOG(("esp%d: bogus_data during end of data phase\n",
@@ -2474,15 +2077,15 @@ static inline int esp_do_data_finale(struct Sparc_ESP *esp,
 /* Either a command is completing or a target is dropping off the bus
  * to continue the command in the background so we can do other work.
  */
-static inline int esp_do_freebus(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
-				 struct sparc_dma_registers *dregs)
+static inline int esp_do_freebus(struct Sparc_ESP *esp, struct ESP_regs *eregs)
 {
 	Scsi_Cmnd *SCptr = esp->current_SC;
 	int rval;
 
-	rval = skipahead2(esp, eregs, dregs, SCptr, in_status, in_msgindone, in_freeing);
+	rval = skipahead2(esp, eregs, SCptr, in_status, in_msgindone, in_freeing);
 	if(rval)
 		return rval;
+
 	if(esp->ireg != ESP_INTR_DC) {
 		ESPLOG(("esp%d: Target will not disconnect\n", esp->esp_id));
 		return do_reset_bus; /* target will not drop BSY... */
@@ -2549,8 +2152,8 @@ static inline int esp_do_freebus(struct Sparc_ESP *esp, struct Sparc_ESP_regs *e
 }
 
 /* Do the needy when a target tries to reconnect to us. */
-static inline int esp_do_reconnect(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
-				   struct sparc_dma_registers *dregs)
+static inline int esp_do_reconnect(struct Sparc_ESP *esp, 
+				   struct ESP_regs *eregs)
 {
 	int lun, target;
 	Scsi_Cmnd *SCptr;
@@ -2574,7 +2177,8 @@ static inline int esp_do_reconnect(struct Sparc_ESP *esp, struct Sparc_ESP_regs 
 	if(esp->erev == fashme) {
 		/* XXX this still doesn't fix the problem... */
 		esp_cmd(esp, eregs, ESP_CMD_FLUSH);
-		dma_invalidate(esp->dregs, dvmahme);
+		if(esp->dma_invalidate)
+			esp->dma_invalidate(esp);
 	} else {
 		esp_cmd(esp, eregs, ESP_CMD_FLUSH);
 		if(esp100_reconnect_hwbug(esp, eregs))
@@ -2624,15 +2228,15 @@ static inline int esp_do_reconnect(struct Sparc_ESP *esp, struct Sparc_ESP_regs 
 /* End of NEXUS (hopefully), pick up status + message byte then leave if
  * all goes well.
  */
-static int esp_do_status(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
-			 struct sparc_dma_registers *dregs)
+static int esp_do_status(struct Sparc_ESP *esp, struct ESP_regs *eregs)
 {
 	Scsi_Cmnd *SCptr = esp->current_SC;
 	int intr, rval;
 
-	rval = skipahead1(esp, eregs, dregs, SCptr, in_the_dark, in_status);
+	rval = skipahead1(esp, eregs, SCptr, in_the_dark, in_status);
 	if(rval)
 		return rval;
+
 	intr = esp->ireg;
 	ESPSTAT(("esp_do_status: "));
 	if(intr != ESP_INTR_DC) {
@@ -2642,16 +2246,8 @@ static int esp_do_status(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
 		ESPSTAT(("ack msg, "));
 		esp_cmd(esp, eregs, ESP_CMD_MOK);
 
-		if(esp->erev != fashme) {
-			dma_flashclear(dregs, esp->dma->revision);
-
-			/* Wait till the first bits settle. */
-			while(esp->esp_command[0] == 0xff)
-				udelay(1);
-		} else {
-			esp->esp_command[0] = esp->hme_fifo_workaround_buffer[0];
-			esp->esp_command[1] = esp->hme_fifo_workaround_buffer[1];
-		}
+		if(esp->dma_poll)
+			esp->dma_poll(esp, (unsigned char *) esp->esp_command);
 
 		ESPSTAT(("got something, "));
 		/* ESP chimes in with one of
@@ -2705,7 +2301,7 @@ static int esp_do_status(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
 			/* This shouldn't happen ever. */
 			ESPSTAT(("got bolixed\n"));
 			esp_advance_phase(SCptr, in_the_dark);
-			return esp_do_phase_determine(esp, eregs, dregs);
+			return esp_do_phase_determine(esp, eregs);
 		}
 
 		if(!message_out) {
@@ -2714,13 +2310,13 @@ static int esp_do_status(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
 			if(SCptr->SCp.Message == COMMAND_COMPLETE) {
 				ESPSTAT(("and was COMMAND_COMPLETE\n"));
 				esp_advance_phase(SCptr, in_freeing);
-				return esp_do_freebus(esp, eregs, dregs);
+				return esp_do_freebus(esp, eregs);
 			} else {
 				ESPLOG(("esp%d: and _not_ COMMAND_COMPLETE\n",
 					esp->esp_id));
 				esp->msgin_len = esp->msgin_ctr = 1;
 				esp_advance_phase(SCptr, in_msgindone);
-				return esp_do_msgindone(esp, eregs, dregs);
+				return esp_do_msgindone(esp, eregs);
 			}
 		} else {
 			/* With luck we'll be able to let the target
@@ -2735,13 +2331,13 @@ static int esp_do_status(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
 			esp->cur_msgout[0] = message_out;
 			esp->msgout_len = esp->msgout_ctr = 1;
 			esp_advance_phase(SCptr, in_the_dark);
-			return esp_do_phase_determine(esp, eregs, dregs);
+			return esp_do_phase_determine(esp, eregs);
 		}
 	} else {
 		/* If we disconnect now, all hell breaks loose. */
 		ESPLOG(("esp%d: whoops, disconnect\n", esp->esp_id));
 		esp_advance_phase(SCptr, in_the_dark);
-		return esp_do_phase_determine(esp, eregs, dregs);
+		return esp_do_phase_determine(esp, eregs);
 	}
 }
 
@@ -2749,8 +2345,7 @@ static int esp_do_status(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
  * taken us.
  */
 static int esp_do_phase_determine(struct Sparc_ESP *esp,
-				  struct Sparc_ESP_regs *eregs,
-				  struct sparc_dma_registers *dregs)
+				  struct ESP_regs *eregs)
 {
 	Scsi_Cmnd *SCptr = esp->current_SC;
 
@@ -2760,41 +2355,49 @@ static int esp_do_phase_determine(struct Sparc_ESP *esp,
 		case ESP_DOP:
 		case ESP_DIP:
 			ESPPHASE(("to data phase\n"));
-			return esp_do_data(esp, eregs, dregs);
+			return esp_do_data(esp, eregs);
 
 		case ESP_STATP:
 			/* Whee, status phase, finish up the command. */
 			ESPPHASE(("to status phase\n"));
+
 			esp_cmd(esp, eregs, ESP_CMD_FLUSH);
-			if(esp->erev != fashme) {
-				esp->esp_command[0] = 0xff;
-				esp->esp_command[1] = 0xff;
-				eregs->esp_tclow = 2;
-				eregs->esp_tcmed = 0;
-				dregs->cond_reg |= (DMA_ST_WRITE | DMA_ENABLE);
-				if(esp->dma->revision == dvmaesc1)
-					dregs->cnt = 0x1000;
-				dregs->st_addr = esp->esp_command_dvma;
-				esp_cmd(esp, eregs, ESP_CMD_DMA | ESP_CMD_ICCSEQ);
-			} else {
-				/* Using DVMA for status/message bytes is
-				 * unreliable on HME, nice job QLogic.
-				 * Happy Meal indeed....
-				 */
+
+			if(esp->do_pio_cmds){
+				esp_advance_phase(SCptr, in_status);
 				esp_cmd(esp, eregs, ESP_CMD_ICCSEQ);
+				while(!(esp->eregs->esp_status & ESP_STAT_INTR));
+				esp->esp_command[0] = eregs->esp_fdata;
+				while(!(esp->eregs->esp_status & ESP_STAT_INTR));
+				esp->esp_command[1] = eregs->esp_fdata;
+			} else {				
+				if(esp->erev != fashme) {
+					esp->esp_command[0] = 0xff;
+					esp->esp_command[1] = 0xff;
+					eregs->esp_tclow = 2;
+					eregs->esp_tcmed = 0;
+					esp->dma_init_read(esp, (char *) esp->esp_command, 2);
+					esp_cmd(esp, eregs, ESP_CMD_DMA | ESP_CMD_ICCSEQ);
+				} else {
+					/* Using DVMA for status/message bytes is
+					 * unreliable on HME, nice job QLogic.
+					 * Happy Meal indeed....
+					 */
+					esp_cmd(esp, eregs, ESP_CMD_ICCSEQ);
+				}
+				esp_advance_phase(SCptr, in_status);
 			}
-			esp_advance_phase(SCptr, in_status);
-			return esp_do_status(esp, eregs, dregs);
+			return esp_do_status(esp, eregs);
 
 		case ESP_MOP:
 			ESPPHASE(("to msgout phase\n"));
 			esp_advance_phase(SCptr, in_msgout);
-			return esp_do_msgout(esp, eregs, dregs);
+			return esp_do_msgout(esp, eregs);
 
 		case ESP_MIP:
 			ESPPHASE(("to msgin phase\n"));
 			esp_advance_phase(SCptr, in_msgin);
-			return esp_do_msgin(esp, eregs, dregs);
+			return esp_do_msgin(esp, eregs);
 
 		case ESP_CMDP:
 			/* Ugh, we're running a non-standard command the
@@ -2802,7 +2405,7 @@ static int esp_do_phase_determine(struct Sparc_ESP *esp,
 			 */
 			ESPPHASE(("to cmd phase\n"));
 			esp_advance_phase(SCptr, in_cmdbegin);
-			return esp_do_cmdbegin(esp, eregs, dregs);
+			return esp_do_cmdbegin(esp, eregs);
 		};
 	} else {
 		Scsi_Device *dp = SCptr->device;
@@ -2852,8 +2455,7 @@ static int esp_do_phase_determine(struct Sparc_ESP *esp,
 }
 
 /* First interrupt after exec'ing a cmd comes here. */
-static int esp_select_complete(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
-			       struct sparc_dma_registers *dregs)
+static int esp_select_complete(struct Sparc_ESP *esp, struct ESP_regs *eregs)
 {
 	Scsi_Cmnd *SCptr = esp->current_SC;
 	Scsi_Device *SDptr = SCptr->device;
@@ -2865,8 +2467,9 @@ static int esp_select_complete(struct Sparc_ESP *esp, struct Sparc_ESP_regs *ere
 		fcnt = esp->hme_fifo_workaround_count;
 	else
 		fcnt = (eregs->esp_fflags & ESP_FF_FBYTES);
-	cmd_bytes_sent = esp_bytes_sent(esp, dregs, fcnt);
-	dma_invalidate(dregs, esp->dma->revision);
+	cmd_bytes_sent = esp->dma_bytes_sent(esp, fcnt);
+	if(esp->dma_invalidate)
+		esp->dma_invalidate(esp);
 
 	/* Let's check to see if a reselect happened
 	 * while we we're trying to select.  This must
@@ -2874,7 +2477,7 @@ static int esp_select_complete(struct Sparc_ESP *esp, struct Sparc_ESP_regs *ere
 	 */
 	if(esp->ireg == (ESP_INTR_RSEL | ESP_INTR_FDONE)) {
 		esp_reconnect(esp, SCptr);
-		return esp_do_reconnect(esp, eregs, dregs);
+		return esp_do_reconnect(esp, eregs);
 	}
 
 	/* Looks like things worked, we should see a bus service &
@@ -3017,7 +2620,7 @@ static int esp_select_complete(struct Sparc_ESP *esp, struct Sparc_ESP_regs *ere
 
 		/* Now figure out where we went. */
 		esp_advance_phase(SCptr, in_the_dark);
-		return esp_do_phase_determine(esp, eregs, dregs);
+		return esp_do_phase_determine(esp, eregs);
 	}
 
 	/* Did the target even make it? */
@@ -3044,7 +2647,7 @@ static int esp_select_complete(struct Sparc_ESP *esp, struct Sparc_ESP_regs *ere
 			       esp->esp_id, SCptr->target, SCptr->lun);
 			SDptr->sync_max_offset = 0;
 			SDptr->sync_min_period = 0;
-			SDptr->sync = 1; /* so we dont negotiate again */
+			SDptr->sync = 1; /* so we don't negotiate again */
 
 			/* Run the command again, this time though we
 			 * won't try to negotiate for synchronous transfers.
@@ -3112,8 +2715,7 @@ static int esp_select_complete(struct Sparc_ESP *esp, struct Sparc_ESP_regs *ere
 }
 
 /* Continue reading bytes for msgin phase. */
-static int esp_do_msgincont(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
-			    struct sparc_dma_registers *dregs)
+static int esp_do_msgincont(struct Sparc_ESP *esp, struct ESP_regs *eregs)
 {
 	if(esp->ireg & ESP_INTR_BSERV) {
 		/* in the right phase too? */
@@ -3139,8 +2741,7 @@ static int esp_do_msgincont(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
 }
 
 static inline int check_singlebyte_msg(struct Sparc_ESP *esp,
-				       struct Sparc_ESP_regs *eregs,
-				       struct sparc_dma_registers *dregs)
+				       struct ESP_regs *eregs)
 {
 	esp->prevmsgin = esp->cur_msgin[0];
 	if(esp->cur_msgin[0] & 0x80) {
@@ -3159,7 +2760,7 @@ static inline int check_singlebyte_msg(struct Sparc_ESP *esp,
 	switch(esp->cur_msgin[0]) {
 	default:
 		/* We don't want to hear about it. */
-		ESPLOG(("esp%d: msg %02x which we dont know about\n", esp->esp_id,
+		ESPLOG(("esp%d: msg %02x which we don't know about\n", esp->esp_id,
 			esp->cur_msgin[0]));
 		return MESSAGE_REJECT;
 
@@ -3258,8 +2859,7 @@ static inline void sync_report(struct Sparc_ESP *esp)
 }
 
 static inline int check_multibyte_msg(struct Sparc_ESP *esp,
-				       struct Sparc_ESP_regs *eregs,
-				       struct sparc_dma_registers *dregs)
+				       struct ESP_regs *eregs)
 {
 	Scsi_Cmnd *SCptr = esp->current_SC;
 	Scsi_Device *SDptr = SCptr->device;
@@ -3315,7 +2915,8 @@ static inline int check_multibyte_msg(struct Sparc_ESP *esp,
 			tmp = esp->ccycle / 1000;
 			regval = (((period << 2) + tmp - 1) / tmp);
 			if(regval && ((esp->erev == fas100a ||
-				       esp->erev == fas236 ||
+				       esp->erev == fas216 ||
+				       esp->erev == fas236 ||				       
 				       esp->erev == fashme))) {
 				if(period >= 50)
 					regval--;
@@ -3327,7 +2928,7 @@ static inline int check_multibyte_msg(struct Sparc_ESP *esp,
 
 			SDptr->sync_min_period = (regval & 0x1f);
 			SDptr->sync_max_offset = (offset | esp->radelay);
-			if((esp->erev == fas100a || esp->erev == fas236 || esp->erev == fashme)) {
+			if((esp->erev == fas100a || esp->erev == fas216 || esp->erev == fas236 || esp->erev == fashme)) {
 				if((esp->erev == fas100a) || (esp->erev == fashme))
 					bit = ESP_CONFIG3_FAST;
 				else
@@ -3356,7 +2957,7 @@ static inline int check_multibyte_msg(struct Sparc_ESP *esp,
 			SDptr->sync_min_period = 0;
 			eregs->esp_soff = 0;
 			eregs->esp_stp = 0;
-			if((esp->erev == fas100a || esp->erev == fas236 || esp->erev == fashme)) {
+			if((esp->erev == fas100a || esp->erev == fas216 || esp->erev == fas236 || esp->erev == fashme)) {
 				if((esp->erev == fas100a) || (esp->erev == fashme))
 					bit = ESP_CONFIG3_FAST;
 				else
@@ -3429,13 +3030,12 @@ finish:
 	return message_out;
 }
 
-static int esp_do_msgindone(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
-			    struct sparc_dma_registers *dregs)
+static int esp_do_msgindone(struct Sparc_ESP *esp, struct ESP_regs *eregs)
 {
 	Scsi_Cmnd *SCptr = esp->current_SC;
 	int message_out = 0, it = 0, rval;
 
-	rval = skipahead1(esp, eregs, dregs, SCptr, in_msgin, in_msgindone);
+	rval = skipahead1(esp, eregs, SCptr, in_msgin, in_msgindone);
 	if(rval)
 		return rval;
 	if(SCptr->SCp.sent_command != in_status) {
@@ -3475,7 +3075,7 @@ static int esp_do_msgindone(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
 		if(esp->msgin_ctr < esp->msgin_len) {
 			esp_advance_phase(SCptr, in_msgincont);
 		} else if(esp->msgin_len == 1) {
-			message_out = check_singlebyte_msg(esp, eregs, dregs);
+			message_out = check_singlebyte_msg(esp, eregs);
 		} else if(esp->msgin_len == 2) {
 			if(esp->cur_msgin[0] == EXTENDED_MESSAGE) {
 				if((it+2) >= 15) {
@@ -3488,7 +3088,7 @@ static int esp_do_msgindone(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
 				message_out = MESSAGE_REJECT; /* foo on you */
 			}
 		} else {
-			message_out = check_multibyte_msg(esp, eregs, dregs);
+			message_out = check_multibyte_msg(esp, eregs);
 		}
 	}
 	if(message_out < 0) {
@@ -3508,18 +3108,16 @@ static int esp_do_msgindone(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
 		esp_cmd(esp, eregs, ESP_CMD_MOK);
 	if((SCptr->SCp.sent_command == in_msgindone) &&
 	    (SCptr->SCp.phase == in_freeing))
-		return esp_do_freebus(esp, eregs, dregs);
+		return esp_do_freebus(esp, eregs);
 	return do_intr_end;
 }
 
-static int esp_do_cmdbegin(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
-			   struct sparc_dma_registers *dregs)
+static int esp_do_cmdbegin(struct Sparc_ESP *esp, struct ESP_regs *eregs)
 {
 	Scsi_Cmnd *SCptr = esp->current_SC;
 
 	esp_advance_phase(SCptr, in_cmdend);
 	if(esp->erev == fashme) {
-		unsigned long tmp = dregs->cond_reg;
 		int i;
 
 		for(i = 0; i < esp->esp_scmdleft; i++)
@@ -3528,11 +3126,7 @@ static int esp_do_cmdbegin(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
 		esp_cmd(esp, eregs, ESP_CMD_FLUSH);
 		esp_setcount(eregs, i, 1);
 		esp_cmd(esp, eregs, (ESP_CMD_DMA | ESP_CMD_TI));
-		tmp |= (DMA_SCSI_DISAB | DMA_ENABLE);
-		tmp &= ~(DMA_ST_WRITE);
-		dregs->cnt = i;
-		dregs->st_addr = esp->esp_command_dvma;
-		dregs->cond_reg = tmp;
+		esp->dma_init_write(esp, (char *) esp->esp_command, i);
 	} else {
 		esp_cmd(esp, eregs, ESP_CMD_FLUSH);
 		eregs->esp_fdata = *esp->esp_scmdp++;
@@ -3542,24 +3136,23 @@ static int esp_do_cmdbegin(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
 	return do_intr_end;
 }
 
-static inline int esp_do_cmddone(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
-				 struct sparc_dma_registers *dregs)
+static inline int esp_do_cmddone(struct Sparc_ESP *esp, struct ESP_regs *eregs)
 {
-	if(esp->erev == fashme)
-		dma_invalidate(dregs, dvmahme);
-	else
+	if(esp->erev == fashme){
+		if(esp->dma_invalidate)
+			esp->dma_invalidate(esp);
+	} else
 		esp_cmd(esp, eregs, ESP_CMD_NULL);
 	if(esp->ireg & ESP_INTR_BSERV) {
 		esp_advance_phase(esp->current_SC, in_the_dark);
-		return esp_do_phase_determine(esp, eregs, dregs);
+		return esp_do_phase_determine(esp, eregs);
 	}
 	ESPLOG(("esp%d: in do_cmddone() but didn't get BSERV interrupt.\n",
 		esp->esp_id));
 	return do_reset_bus;
 }
 
-static int esp_do_msgout(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
-				struct sparc_dma_registers *dregs)
+static int esp_do_msgout(struct Sparc_ESP *esp, struct ESP_regs *eregs)
 {
 	esp_cmd(esp, eregs, ESP_CMD_FLUSH);
 	switch(esp->msgout_len) {
@@ -3572,51 +3165,71 @@ static int esp_do_msgout(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
 		break;
 
 	case 2:
-		esp->esp_command[0] = esp->cur_msgout[0];
-		esp->esp_command[1] = esp->cur_msgout[1];
-		if(esp->erev == fashme) {
-			hme_fifo_push(esp, eregs, &esp->cur_msgout[0], 2);
+		if(esp->do_pio_cmds){
+			eregs->esp_fdata = esp->cur_msgout[0];
+			eregs->esp_fdata = esp->cur_msgout[1];
 			esp_cmd(esp, eregs, ESP_CMD_TI);
 		} else {
-			dma_setup(dregs, esp->dma->revision,
-				  esp->esp_command_dvma, 2, 0);
-			esp_setcount(eregs, 2, 0);
-			esp_cmd(esp, eregs, ESP_CMD_DMA | ESP_CMD_TI);
+			esp->esp_command[0] = esp->cur_msgout[0];
+			esp->esp_command[1] = esp->cur_msgout[1];
+			if(esp->erev == fashme) {
+				hme_fifo_push(esp, eregs, &esp->cur_msgout[0], 2);
+				esp_cmd(esp, eregs, ESP_CMD_TI);
+			} else {
+				esp->dma_setup(esp, (char *) esp->esp_command, 2, 0);
+				esp_setcount(eregs, 2, 0);
+				esp_cmd(esp, eregs, ESP_CMD_DMA | ESP_CMD_TI);
+			}
 		}
 		break;
 
 	case 4:
-		esp->esp_command[0] = esp->cur_msgout[0];
-		esp->esp_command[1] = esp->cur_msgout[1];
-		esp->esp_command[2] = esp->cur_msgout[2];
-		esp->esp_command[3] = esp->cur_msgout[3];
 		esp->snip = 1;
-		if(esp->erev == fashme) {
-			hme_fifo_push(esp, eregs, &esp->cur_msgout[0], 4);
+		if(esp->do_pio_cmds){
+			eregs->esp_fdata = esp->cur_msgout[0];
+			eregs->esp_fdata = esp->cur_msgout[1];
+			eregs->esp_fdata = esp->cur_msgout[2];
+			eregs->esp_fdata = esp->cur_msgout[3];
 			esp_cmd(esp, eregs, ESP_CMD_TI);
 		} else {
-			dma_setup(dregs, esp->dma->revision,
-				  esp->esp_command_dvma, 4, 0);
-			esp_setcount(eregs, 4, 0);
-			esp_cmd(esp, eregs, ESP_CMD_DMA | ESP_CMD_TI);
+			esp->esp_command[0] = esp->cur_msgout[0];
+			esp->esp_command[1] = esp->cur_msgout[1];
+			esp->esp_command[2] = esp->cur_msgout[2];
+			esp->esp_command[3] = esp->cur_msgout[3];
+			if(esp->erev == fashme) {
+				hme_fifo_push(esp, eregs, &esp->cur_msgout[0], 4);
+				esp_cmd(esp, eregs, ESP_CMD_TI);
+			} else {
+				esp->dma_setup(esp, (char *) esp->esp_command, 4, 0);
+				esp_setcount(eregs, 4, 0);
+				esp_cmd(esp, eregs, ESP_CMD_DMA | ESP_CMD_TI);
+			}
 		}
 		break;
 
 	case 5:
-		esp->esp_command[0] = esp->cur_msgout[0];
-		esp->esp_command[1] = esp->cur_msgout[1];
-		esp->esp_command[2] = esp->cur_msgout[2];
-		esp->esp_command[3] = esp->cur_msgout[3];
-		esp->esp_command[4] = esp->cur_msgout[4];
 		esp->snip = 1;
-		if(esp->erev == fashme) {
-			hme_fifo_push(esp, eregs, &esp->cur_msgout[0], 5);
+		if(esp->do_pio_cmds){
+			eregs->esp_fdata = esp->cur_msgout[0];
+			eregs->esp_fdata = esp->cur_msgout[1];
+			eregs->esp_fdata = esp->cur_msgout[2];
+			eregs->esp_fdata = esp->cur_msgout[3];
+			eregs->esp_fdata = esp->cur_msgout[4];
 			esp_cmd(esp, eregs, ESP_CMD_TI);
 		} else {
-			dma_setup(dregs, esp->dma->revision,
-				  esp->esp_command_dvma, 5, 0);
-			esp_setcount(eregs, 5, 0);
-			esp_cmd(esp, eregs, ESP_CMD_DMA | ESP_CMD_TI);
+			esp->esp_command[0] = esp->cur_msgout[0];
+			esp->esp_command[1] = esp->cur_msgout[1];
+			esp->esp_command[2] = esp->cur_msgout[2];
+			esp->esp_command[3] = esp->cur_msgout[3];
+			esp->esp_command[4] = esp->cur_msgout[4];
+			if(esp->erev == fashme) {
+				hme_fifo_push(esp, eregs, &esp->cur_msgout[0], 5);
+				esp_cmd(esp, eregs, ESP_CMD_TI);
+			} else {
+				esp->dma_setup(esp, (char *) esp->esp_command, 5, 0);
+				esp_setcount(eregs, 5, 0);
+				esp_cmd(esp, eregs, ESP_CMD_DMA | ESP_CMD_TI);
+			}
 		}
 		break;
 
@@ -3637,23 +3250,12 @@ static int esp_do_msgout(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
 	return do_intr_end;
 }
 
-static inline int esp_do_msgoutdone(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
-				    struct sparc_dma_registers *dregs)
+static inline int esp_do_msgoutdone(struct Sparc_ESP *esp, 
+				    struct ESP_regs *eregs)
 {
-	if(esp->msgout_len > 1) {
-		/* XXX HME/FAS ATN deassert workaround required,
-		 * XXX no DMA flushing, only possible ESP_CMD_FLUSH
-		 * XXX to kill the fifo.
-		 */
-		if(esp->erev != fashme) {
-			while(dregs->cond_reg & DMA_PEND_READ)
-				udelay(1);
-			dregs->cond_reg &= ~(DMA_ENABLE);
-			dma_invalidate(dregs, esp->dma->revision);
-		} else {
-			esp_cmd(esp, eregs, ESP_CMD_FLUSH);
-		}
-	}
+	if((esp->msgout_len > 1) && esp->dma_barrier)
+		esp->dma_barrier(esp);
+
 	if(!(esp->ireg & ESP_INTR_DC)) {
 		if(esp->erev != fashme)
 			esp_cmd(esp, eregs, ESP_CMD_NULL);
@@ -3695,25 +3297,24 @@ static inline int esp_do_msgoutdone(struct Sparc_ESP *esp, struct Sparc_ESP_regs
 	esp->prevmsgout = esp->cur_msgout[0];
 	esp->msgout_len = 0;
 	esp_advance_phase(esp->current_SC, in_the_dark);
-	return esp_do_phase_determine(esp, eregs, dregs);
+	return esp_do_phase_determine(esp, eregs);
 }
 
 /* This is the second tier in our dual-level SCSI state machine. */
-static inline int esp_work_bus(struct Sparc_ESP *esp, struct Sparc_ESP_regs *eregs,
-			       struct sparc_dma_registers *dregs)
+static inline int esp_work_bus(struct Sparc_ESP *esp, struct ESP_regs *eregs)
 {
 	Scsi_Cmnd *SCptr = esp->current_SC;
 
 	ESPBUS(("esp_work_bus: "));
 	if(!SCptr) {
 		ESPBUS(("reconnect\n"));
-		return esp_do_reconnect(esp, eregs, dregs);
+		return esp_do_reconnect(esp, eregs);
 	}
 
 	switch(SCptr->SCp.phase) {
 	case in_the_dark:
 		ESPBUS(("in the dark\n"));
-		return esp_do_phase_determine(esp, eregs, dregs);
+		return esp_do_phase_determine(esp, eregs);
 
 	case in_slct_norm:
 	case in_slct_stop:
@@ -3721,48 +3322,48 @@ static inline int esp_work_bus(struct Sparc_ESP *esp, struct Sparc_ESP_regs *ere
 	case in_slct_tag:
 	case in_slct_sneg:
 		ESPBUS(("finish selection\n"));
-		return esp_select_complete(esp, eregs, dregs);
+		return esp_select_complete(esp, eregs);
 
 	case in_datain:
 	case in_dataout:
 		ESPBUS(("finish data\n"));
-		return esp_do_data_finale(esp, eregs, dregs);
+		return esp_do_data_finale(esp, eregs);
 
 	case in_msgout:
 		ESPBUS(("message out "));
-		return esp_do_msgout(esp, eregs, dregs);
+		return esp_do_msgout(esp, eregs);
 
 	case in_msgoutdone:
 		ESPBUS(("finish message out "));
-		return esp_do_msgoutdone(esp, eregs, dregs);
+		return esp_do_msgoutdone(esp, eregs);
 
 	case in_msgin:
 		ESPBUS(("message in "));
-		return esp_do_msgin(esp, eregs, dregs);
+		return esp_do_msgin(esp, eregs);
 
 	case in_msgincont:
 		ESPBUS(("continue message in "));
-		return esp_do_msgincont(esp, eregs, dregs);
+		return esp_do_msgincont(esp, eregs);
 
 	case in_msgindone:
 		ESPBUS(("finish message in "));
-		return esp_do_msgindone(esp, eregs, dregs);
+		return esp_do_msgindone(esp, eregs);
 
 	case in_status:
 		ESPBUS(("status phase "));
-		return esp_do_status(esp, eregs, dregs);
+		return esp_do_status(esp, eregs);
 
 	case in_freeing:
 		ESPBUS(("freeing the bus "));
-		return esp_do_freebus(esp, eregs, dregs);
+		return esp_do_freebus(esp, eregs);
 
 	case in_cmdbegin:
 		ESPBUS(("begin slow cmd "));
-		return esp_do_cmdbegin(esp, eregs, dregs);
+		return esp_do_cmdbegin(esp, eregs);
 
 	case in_cmdend:
 		ESPBUS(("end slow cmd "));
-		return esp_do_cmddone(esp, eregs, dregs);
+		return esp_do_cmddone(esp, eregs);
 
 	default:
 		printk("esp%d: command in weird state %2x\n",
@@ -3772,16 +3373,19 @@ static inline int esp_work_bus(struct Sparc_ESP *esp, struct Sparc_ESP_regs *ere
 }
 
 /* Main interrupt handler for an esp adapter. */
-static inline void esp_handle(struct Sparc_ESP *esp)
+inline void esp_handle(struct Sparc_ESP *esp)
 {
-	struct sparc_dma_registers *dregs;
-	struct Sparc_ESP_regs *eregs;
+	struct ESP_regs *eregs;
 	Scsi_Cmnd *SCptr;
 	int what_next = do_intr_end;
-
+#ifdef CONFIG_SCSI_SUNESP
+	struct dma_registers *dregs = esp->dregs;
+#endif
 	eregs = esp->eregs;
-	dregs = esp->dregs;
 	SCptr = esp->current_SC;
+
+	if(esp->dma_irq_entry)
+		esp->dma_irq_entry(esp);
 
 	/* Check for errors. */
 	esp->sreg = eregs->esp_status;
@@ -3821,6 +3425,7 @@ static inline void esp_handle(struct Sparc_ESP *esp)
 		}
 	}
 
+#ifdef CONFIG_SCSI_SUNESP
 	if(dregs->cond_reg & DMA_HNDL_ERROR) {
 		/* A DMA gate array error.  Here we must
 		 * be seeing one of two things.  Either the
@@ -3835,11 +3440,13 @@ static inline void esp_handle(struct Sparc_ESP *esp)
 		/* DMA gate array itself must be reset to clear the
 		 * error condition.
 		 */
-		esp_reset_dma(esp);
+		if(esp->dma_reset)
+			esp->dma_reset(esp);
 
 		what_next = do_reset_bus;
 		goto again;
 	}
+#endif /* CONFIG_SCSI_SUNESP */
 
 	if(esp->erev == fashme) {
 		/* This chip is really losing. */
@@ -3884,7 +3491,7 @@ static inline void esp_handle(struct Sparc_ESP *esp)
 		 */
 		ESPLOG(("esp%d: illegal command\n", esp->esp_id));
 
-		esp_dump_state(esp, eregs, dregs);
+		esp_dump_state(esp, eregs);
 
 		if(SCptr) {
 			/* Devices with very buggy firmware can drop BSY
@@ -3911,9 +3518,9 @@ static inline void esp_handle(struct Sparc_ESP *esp)
 		if(SCptr) {
 			phase = SCptr->SCp.phase;
 			if(phase & in_phases_mask) {
-				what_next = esp_work_bus(esp, eregs, dregs);
+				what_next = esp_work_bus(esp, eregs);
 			} else if(phase & in_slct_mask) {
-				what_next = esp_select_complete(esp, eregs, dregs);
+				what_next = esp_select_complete(esp, eregs);
 			} else {
 				ESPLOG(("esp%d: interrupt for no good reason...\n",
 					esp->esp_id));
@@ -3936,13 +3543,13 @@ static inline void esp_handle(struct Sparc_ESP *esp)
 	} else if(esp->ireg & ESP_INTR_RSEL) {
 		if(!SCptr) {
 			/* This is ok. */
-			what_next = esp_do_reconnect(esp, eregs, dregs);
+			what_next = esp_do_reconnect(esp, eregs);
 		} else if(SCptr->SCp.phase & in_slct_mask) {
 			/* Only selection code knows how to clean
 			 * up properly.
 			 */
 			ESPDISC(("Reselected during selection attempt\n"));
-			what_next = esp_select_complete(esp, eregs, dregs);
+			what_next = esp_select_complete(esp, eregs);
 		} else {
 			ESPLOG(("esp%d: Reselected while bus is busy\n",
 				esp->esp_id));
@@ -3961,11 +3568,11 @@ again:
 		goto esp_handle_done;
 
 	case do_work_bus:
-		what_next = esp_work_bus(esp, eregs, dregs);
+		what_next = esp_work_bus(esp, eregs);
 		break;
 
 	case do_phase_determine:
-		what_next = esp_do_phase_determine(esp, eregs, dregs);
+		what_next = esp_do_phase_determine(esp, eregs);
 		break;
 
 	case do_reset_bus:
@@ -3980,15 +3587,25 @@ again:
 		 */
 		if(esp->current_SC) {
 			Scsi_Cmnd *SCptr = esp->current_SC;
+
+#ifdef CONFIG_SCSI_SUNESP
 			if(!SCptr->use_sg)
 				mmu_release_scsi_one(SCptr->SCp.have_data_in,
 						     SCptr->request_bufflen,
-						     esp->edev->my_bus);
+						     ((struct linux_sbus_device *) (esp->edev))->my_bus);
 			else
 				mmu_release_scsi_sgl((struct mmu_sglist *)
 						     SCptr->buffer,
 						     SCptr->use_sg - 1,
-						     esp->edev->my_bus);
+						     ((struct linux_sbus_device *) (esp->edev))->my_bus);
+#endif
+		        if(!SCptr->use_sg) {
+			    if (esp->dma_mmu_release_scsi_one)
+				esp->dma_mmu_release_scsi_one (esp, SCptr);
+			} else {
+			    if (esp->dma_mmu_release_scsi_sgl)
+				esp->dma_mmu_release_scsi_sgl (esp, SCptr);
+			}
 			SCptr->result = (DID_RESET << 16);
 
 			SCptr->scsi_done(SCptr);
@@ -3997,15 +3614,24 @@ again:
 		if(esp->disconnected_SC) {
 			Scsi_Cmnd *SCptr;
 			while((SCptr = remove_first_SC(&esp->disconnected_SC))) {
+#ifdef CONFIG_SCSI_SUNESP			    
 				if(!SCptr->use_sg)
 					mmu_release_scsi_one(SCptr->SCp.have_data_in,
 							     SCptr->request_bufflen,
-							     esp->edev->my_bus);
+							     ((struct linux_sbus_device *) (esp->edev))->my_bus);
 				else
 					mmu_release_scsi_sgl((struct mmu_sglist *)
 							     SCptr->buffer,
 							     SCptr->use_sg - 1,
-							     esp->edev->my_bus);
+							     ((struct linux_sbus_device *) (esp->edev))->my_bus);
+#endif
+			    	if(!SCptr->use_sg) {
+				    if (esp->dma_mmu_release_scsi_one)
+					esp->dma_mmu_release_scsi_one (esp, SCptr);
+				} else {
+				    if (esp->dma_mmu_release_scsi_sgl)
+					esp->dma_mmu_release_scsi_sgl (esp, SCptr);
+				}
 				SCptr->result = (DID_RESET << 16);
 
 				SCptr->scsi_done(SCptr);
@@ -4035,13 +3661,15 @@ again:
 	goto again;
 
 esp_handle_done:
+	if(esp->dma_irq_exit)
+		esp->dma_irq_exit(esp);
 	return;
 }
 
 #ifndef __sparc_v9__
 
 #ifndef __SMP__
-static void esp_intr(int irq, void *dev_id, struct pt_regs *pregs)
+void esp_intr(int irq, void *dev_id, struct pt_regs *pregs)
 {
 	struct Sparc_ESP *esp;
 	int again;
@@ -4050,19 +3678,23 @@ static void esp_intr(int irq, void *dev_id, struct pt_regs *pregs)
 repeat:
 	again = 0;
 	for_each_esp(esp) {
+#ifndef __mips__
 		if((esp->irq & 0xf) == irq) {
-			if(DMA_IRQ_P(esp->dregs)) {
+#endif
+			if(esp->dma_irq_p(esp)) {
 				again = 1;
 
-				DMA_INTSOFF(esp->dregs);
+				esp->dma_ints_off(esp);
 
 				ESPIRQ(("I%d(", esp->esp_id));
 				esp_handle(esp);
 				ESPIRQ((")"));
 
-				DMA_INTSON(esp->dregs);
+				esp->dma_ints_on(esp);
 			}
+#ifndef __mips__
 		}
+#endif
 	}
 	if(again)
 		goto repeat;
@@ -4076,15 +3708,15 @@ static void esp_intr(int irq, void *dev_id, struct pt_regs *pregs)
 	/* Handle all ESP interrupts showing at this IRQ level. */
 	for_each_esp(esp) {
 		if(((esp)->irq & 0xf) == irq) {
-			if(DMA_IRQ_P(esp->dregs)) {
-				DMA_INTSOFF(esp->dregs);
+			if(esp->dma_irq_p(esp)) {
+				esp->dma_ints_off(esp);
 
 				ESPIRQ(("I[%d:%d](",
 					smp_processor_id(), esp->esp_id));
 				esp_handle(esp);
 				ESPIRQ((")"));
 
-				DMA_INTSON(esp->dregs);
+				esp->dma_ints_on(esp);
 				return;
 			}
 		}
@@ -4092,7 +3724,7 @@ static void esp_intr(int irq, void *dev_id, struct pt_regs *pregs)
 }
 #endif
 
-#else /* __sparc_v9__ */
+#else
 
 static void esp_intr(int irq, void *dev_id, struct pt_regs *pregs)
 {
@@ -4108,5 +3740,4 @@ static void esp_intr(int irq, void *dev_id, struct pt_regs *pregs)
 		DMA_INTSON(esp->dregs);
 	}
 }
-
 #endif

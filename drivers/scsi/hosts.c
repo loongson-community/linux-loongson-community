@@ -218,6 +218,10 @@
 #include "scsi_debug.h"
 #endif
 
+#ifdef CONFIG_JAZZ_ESP
+#include "jazz_esp.h"
+#endif
+
 
 /*
 static const char RCSid[] = "$Header: /vger/u4/cvs/linux/drivers/scsi/hosts.c,v 1.20 1996/12/12 19:18:32 davem Exp $";
@@ -390,6 +394,9 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
 #ifdef CONFIG_SCSI_SGIWD93
     SGIWD93_SCSI,
 #endif
+#ifdef CONFIG_JAZZ_ESP	
+    SCSI_JAZZ_ESP,
+#endif	
 #ifdef CONFIG_SCSI_DEBUG
     SCSI_DEBUG,
 #endif

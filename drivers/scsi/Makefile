@@ -463,6 +463,10 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_JAZZ_ESP),y)
+L_OBJS += esp.o jazz_esp.o
+endif
+
 include $(TOPDIR)/Rules.make
 
 BusLogic.o: BusLogic.c FlashPoint.c
