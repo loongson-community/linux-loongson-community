@@ -38,9 +38,6 @@ extern int __cpu_number_map[NR_CPUS];
 extern int __cpu_logical_map[NR_CPUS];
 #define cpu_logical_map(cpu)  __cpu_logical_map[cpu]
 
-/* Good enough for toy^Wupto 64 CPU Origins.  */
-extern unsigned long cpu_present_mask;
-
 #endif
 
 #define NO_PROC_ID	(-1)
