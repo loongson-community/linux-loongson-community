@@ -292,7 +292,7 @@ static asmlinkage int restore_sigcontext32(struct pt_regs *regs,
 		err |= restore_fp_context32(sc);
 	} else {
 		/* signal handler may have used FPU.  Give it up. */
-		loose_fpu();
+		lose_fpu();
 	}
 
 	return err;

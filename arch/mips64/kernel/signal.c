@@ -114,7 +114,7 @@ asmlinkage int restore_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 		err |= restore_fp_context(sc);
 	} else {
 		/* signal handler may have used FPU.  Give it up. */
-		loose_fpu();
+		lose_fpu();
 	}
 
 	return err;

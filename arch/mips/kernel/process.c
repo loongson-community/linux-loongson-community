@@ -67,7 +67,7 @@ void start_thread(struct pt_regs * regs, unsigned long pc, unsigned long sp)
 	regs->cp0_status &= ~(ST0_CU0|ST0_KSU|ST0_CU1);
        	regs->cp0_status |= KU_USER;
 	current->used_math = 0;
-	loose_fpu();
+	lose_fpu();
 	regs->cp0_epc = pc;
 	regs->regs[29] = sp;
 	current_thread_info()->addr_limit = USER_DS;

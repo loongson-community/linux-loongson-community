@@ -89,7 +89,7 @@ static inline void own_fpu(void)
 	}
 }
 
-static inline void loose_fpu(void)
+static inline void lose_fpu(void)
 {
 	if (cpu_has_fpu) {
 		KSTK_STATUS(current) &= ~ST0_CU1;
