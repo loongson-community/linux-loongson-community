@@ -326,7 +326,6 @@ HEAD := arch/mips/kernel/head.o arch/mips/kernel/init_task.o
 libs-y		+= arch/mips/lib/
 core-y		+= arch/mips/kernel/ arch/mips/mm/ arch/mips/math-emu/
 
-
 ifdef CONFIG_BAGET_MIPS
 
 BAGETBOOT = $(MAKE) -C arch/$(ARCH)/baget
@@ -348,18 +347,28 @@ rom.bin rom.sw: vmlinux
 	$(MAKE) -C arch/$(ARCH)/lasat/image $@
 endif
 
-MAKEBOOT = $(MAKE) -C arch/$(ARCH)/boot
+makeboot = $(call descend,arch/mips/boot,$(1))
 
-vmlinux.ecoff: vmlinux
-	@$(MAKEBOOT) $@
+#
+# SNI firmware is f*cked in interesting ways ...
+#
+ifdef CONFIG_SNI_RM200_PCI
+all:	vmlinux.rm200
+endif
+
+vmlinux.ecoff vmlinux.rm200: vmlinux
+	+@$(call makeboot,$@)
+
+CLEAN_FILES += vmlinux.ecoff \
+	       vmlinux.rm200.tmp \
+	       vmlinux.rm200
 
 archclean:
-	@$(MAKEBOOT) clean
-	$(MAKE) -C arch/mips/baget clean
-	$(MAKE) -C arch/mips/lasat clean
+	@$(MAKE) -f scripts/Makefile.clean obj=arch/mips/boot
+	@$(MAKE) -f scripts/Makefile.clean obj=arch/mips/baget
+	@$(MAKE) -f scripts/Makefile.clean obj=arch/mips/lasat
 
 archmrproper:
-	@$(MAKEBOOT) mrproper
 
 # Generate <asm/offset.h 
 #

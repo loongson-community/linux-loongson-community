@@ -151,6 +151,12 @@ libs-$(CONFIG_SIBYTE_SWARM)	+= arch/mips/sibyte/swarm/
 load-$(CONFIG_SIBYTE_SWARM)	+= 0x80100000
 
 #
+# SNI RM200 PCI
+#
+core-$(CONFIG_SNI_RM200_PCI)	+= arch/mips/sni/
+load-$(CONFIG_SNI_RM200_PCI)	+= 0x80080000
+
+#
 # Some machines like the Indy need 32-bit ELF binaries for booting purposes.
 # Other need ECOFF, so we build a 32-bit ELF binary for them which we then
 # convert to ECOFF using elf2ecoff.
@@ -191,18 +197,26 @@ vmlinux.64: vmlinux
 	$(OBJCOPY) -O $(64bit-bfd) --change-addresses=0xa7ffffff80000000 $< $@
 endif
 
-zImage: vmlinux
-	@$(MAKEBOOT) zImage
+makeboot = $(call descend,arch/mips/boot,$(1))
 
-compressed: zImage
+#
+# SNI firmware is f*cked in interesting ways ...
+#
+ifdef CONFIG_SNI_RM200_PCI
+all:	vmlinux.rm200
+endif
 
-zdisk: vmlinux
-	@$(MAKEBOOT) zdisk
+vmlinux.ecoff vmlinux.rm200: vmlinux
+	+@$(call makeboot,$@)
+
+CLEAN_FILES += vmlinux.ecoff \
+	       vmlinux.rm200.tmp \
+	       vmlinux.rm200
 
 archclean:
-	@$(MAKEBOOT) clean
-	$(MAKE) -C arch/mips/baget clean
-	$(MAKE) -C arch/mips/lasat clean
+	@$(MAKE) -f scripts/Makefile.clean obj=arch/mips/boot
+	@$(MAKE) -f scripts/Makefile.clean obj=arch/mips/baget
+	@$(MAKE) -f scripts/Makefile.clean obj=arch/mips/lasat
 
 archmrproper:
 	@$(MAKEBOOT) mrproper
