@@ -74,7 +74,7 @@ static int __init au1x00_setup(void)
 
 	argptr = prom_getcmdline();
 
-#ifdef CONFIG_AU1X00_SERIAL_CONSOLE
+#ifdef CONFIG_SERIAL_AU1X00_CONSOLE
 	if ((argptr = strstr(argptr, "console=")) == NULL) {
 		argptr = prom_getcmdline();
 		strcat(argptr, " console=ttyS0,115200");
