@@ -52,7 +52,7 @@
 
 /* Checksum offload for Tx works */
 #define  MV64340_CHECKSUM_OFFLOAD_TX
-#undef	 MV64340_NAPI
+#define	 MV64340_NAPI
 #define	 MV64340_TX_FAST_REFILL
 #undef	 MV64340_COAL
 
