@@ -33,13 +33,14 @@
 /*
  * Changes:
  *  MontaVista Software Inc. <yyuasa@mvista.com> or <source@mvista.com>
+ *  - New creation, NEC VR4122 and VR4131 are supported.
  *  - Added support for NEC VR4111 and VR4121.
  *
  *  Paul Mundt <lethal@chaoticdreams.org>
  *  - Calculate mips_hpt_frequency properly on VR4131.
  *
- *  MontaVista Software Inc. <yyuasa@mvista.com> or <source@mvista.com>
- *  - New creation, NEC VR4122 and VR4131 are supported.
+ *  Yoichi Yuasa <yuasa@hh.iij4u.or.jp>
+ *  - Added support for NEC VR4133.
  */
 #include <linux/init.h>
 #include <linux/types.h>
@@ -52,8 +53,8 @@
 
 #define VR4111_CLKSPEEDREG	KSEG1ADDR(0x0b000014)
 #define VR4122_CLKSPEEDREG	KSEG1ADDR(0x0f000014)
-#define VR4131_CLKSPEEDREG	VR4122_CLKSPEEDREG
  #define CLKSP(x)		((x) & 0x001f)
+ #define CLKSP_VR4133(x)	((x) & 0x0007)
 
  #define DIV2B			0x8000
  #define DIV3B			0x4000
@@ -72,8 +73,9 @@ static inline u16 read_clkspeed(void)
 	switch (current_cpu_data.cputype) {
 	case CPU_VR4111:
 	case CPU_VR4121: return readw(VR4111_CLKSPEEDREG);
-	case CPU_VR4122: return readw(VR4122_CLKSPEEDREG);
-	case CPU_VR4131: return readw(VR4131_CLKSPEEDREG);
+	case CPU_VR4122:
+	case CPU_VR4131:
+	case CPU_VR4133: return readw(VR4122_CLKSPEEDREG);
 	default:
 		printk(KERN_INFO "Unexpected CPU of NEC VR4100 series\n");
 		break;
@@ -90,19 +92,43 @@ static inline unsigned long calculate_pclock(u16 clkspeed)
 	case CPU_VR4111:
 	case CPU_VR4121:
 		pclock = 18432000 * 64;
+		pclock /= CLKSP(clkspeed);
 		break;
 	case CPU_VR4122:
 		pclock = 18432000 * 98;
+		pclock /= CLKSP(clkspeed);
 		break;
 	case CPU_VR4131:
 		pclock = 18432000 * 108;
+		pclock /= CLKSP(clkspeed);
+		break;
+	case CPU_VR4133:
+		switch (CLKSP_VR4133(clkspeed)) {
+		case 0:
+			pclock = 133000000;
+			break;
+		case 1:
+			pclock = 149000000;
+			break;
+		case 2:
+			pclock = 165900000;
+			break;
+		case 3:
+			pclock = 199100000;
+			break;
+		case 4:
+			pclock = 265900000;
+			break;
+		default:
+			printk(KERN_INFO "Unknown PClock speed for NEC VR4133\n");
+			break;
+		}
 		break;
 	default:
 		printk(KERN_INFO "Unexpected CPU of NEC VR4100 series\n");
 		break;
 	}
 
-	pclock /= CLKSP(clkspeed);
 	printk(KERN_INFO "PClock: %ldHz\n", pclock);
 
 	return pclock;
@@ -135,6 +161,7 @@ static inline unsigned long calculate_vtclock(u16 clkspeed, unsigned long pclock
 		printk(KERN_INFO "VTClock: %ldHz\n", vr41xx_vtclock);
 		break;
 	case CPU_VR4131:
+	case CPU_VR4133:
 		vr41xx_vtclock = pclock / VTDIVMODE(clkspeed);
 		printk(KERN_INFO "VTClock: %ldHz\n", vr41xx_vtclock);
 		break;
@@ -165,6 +192,7 @@ static inline unsigned long calculate_tclock(u16 clkspeed, unsigned long pclock,
 		break;
 	case CPU_VR4122:
 	case CPU_VR4131:
+	case CPU_VR4133:
 		tclock = vtclock / TDIVMODE(clkspeed);
 		break;
 	default:

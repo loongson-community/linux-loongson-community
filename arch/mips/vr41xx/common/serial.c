@@ -33,10 +33,11 @@
 /*
  * Changes:
  *  MontaVista Software Inc. <yyuasa@mvista.com> or <source@mvista.com>
+ *  - New creation, NEC VR4122 and VR4131 are supported.
  *  - Added support for NEC VR4111 and VR4121.
  *
- *  MontaVista Software Inc. <yyuasa@mvista.com> or <source@mvista.com>
- *  - New creation, NEC VR4122 and VR4131 are supported.
+ *  Yoichi Yuasa <yuasa@hh.iij4u.or.jp>
+ *  - Added support for NEC VR4133.
  */
 #include <linux/init.h>
 #include <linux/types.h>
@@ -66,7 +67,6 @@
  #define TMICMODE		0x20
 
 #define SIU_BASE_BAUD		1152000
-#define SIU_CLOCK		0x0102
 
 /* VR4122 and VR4131 DSIU Registers */
 #define DSIURB			KSEG1ADDR(0x0f000820)
@@ -75,7 +75,6 @@
  #define INTDSIU		0x0800
 
 #define DSIU_BASE_BAUD		1152000
-#define DSIU_CLOCK		0x0802
 
 int vr41xx_serial_ports = 0;
 
@@ -106,6 +105,7 @@ void vr41xx_siu_ifselect(int interface, int module)
 		break;
 	case CPU_VR4122:
 	case CPU_VR4131:
+	case CPU_VR4133:
 		writew(val, VR4122_SIUIRSEL);
 		break;
 	default:
@@ -133,6 +133,7 @@ void __init vr41xx_siu_init(int interface, int module)
 		break;
 	case CPU_VR4122:
 	case CPU_VR4131:
+	case CPU_VR4133:
 		s.iomem_base = (unsigned char *)VR4122_SIURB;
 		break;
 	default:
@@ -154,7 +155,8 @@ void __init vr41xx_dsiu_init(void)
 	struct serial_struct s;
 
 	if (current_cpu_data.cputype != CPU_VR4122 &&
-	    current_cpu_data.cputype != CPU_VR4131)
+	    current_cpu_data.cputype != CPU_VR4131 &&
+	    current_cpu_data.cputype != CPU_VR4133)
 		return;
 
 	memset(&s, 0, sizeof(s));

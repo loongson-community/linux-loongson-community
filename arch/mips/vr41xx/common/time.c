@@ -33,10 +33,11 @@
 /*
  * Changes:
  *  MontaVista Software Inc. <yyuasa@mvista.com> or <source@mvista.com>
+ *  - New creation, NEC VR4100 series are supported.
  *  - Added support for NEC VR4100 series RTC Unit.
  *
- *  MontaVista Software Inc. <yyuasa@mvista.com> or <source@mvista.com>
- *  - New creation, NEC VR4100 series are supported.
+ *  Yoichi Yuasa <yuasa@hh.iij4u.or.jp>
+ *  - Added support for NEC VR4133.
  */
 #include <linux/config.h>
 #include <linux/interrupt.h>
@@ -69,6 +70,7 @@ void vr41xx_time_init(void)
 		break;
 	case CPU_VR4122:
 	case CPU_VR4131:
+	case CPU_VR4133:
                 vr41xx_rtc_base = VR4122_ETIMELREG;
                 break;
         default:

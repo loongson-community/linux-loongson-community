@@ -101,7 +101,7 @@
 #define PRID_REV_VR4121		0x0060
 #define PRID_REV_VR4122		0x0070
 #define PRID_REV_VR4181A	0x0070	/* Same as VR4122 */
-#define PRID_REV_VR4131		0x0080
+#define PRID_REV_VR4130		0x0080
 
 /*
  * FPU implementation/revision register (CP1 control register 0).
@@ -170,7 +170,8 @@
 #define CPU_SR71000		53
 #define CPU_RM9000		54
 #define CPU_25KF		55
-#define CPU_LAST		55
+#define CPU_VR4133		56
+#define CPU_LAST		56
 
 /*
  * ISA Level encodings

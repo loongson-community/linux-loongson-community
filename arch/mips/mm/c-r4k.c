@@ -831,6 +831,8 @@ static void __init probe_pcache(void)
 		c->dcache.waybit = 0;
 		break;
 
+	case CPU_VR4133:
+		write_c0_config(config & ~CONF_EB);
 	case CPU_VR4131:
 		icache_size = 1 << (10 + ((config & CONF_IC) >> 9));
 		c->icache.linesz = 16 << ((config & CONF_IB) >> 5);

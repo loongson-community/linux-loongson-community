@@ -108,7 +108,7 @@ void __init tanbac_tb0229_setup(void)
 
 	vr41xx_bcu_init();
 
-	vr41xx_cmu_init(0);
+	vr41xx_cmu_init();
 
 	vr41xx_siu_init(SIU_RS232C, 0);
 	vr41xx_dsiu_init();

@@ -34,6 +34,9 @@
  * Changes:
  *  MontaVista Software Inc. <yyuasa@mvista.com> or <source@mvista.com>
  *  - New creation, NEC VR4111, VR4121, VR4122 and VR4131 are supported.
+ *
+ *  Yoichi Yuasa <yuasa@hh.iij4u.or.jp>
+ *  - Added support for NEC VR4133.
  */
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -246,6 +249,7 @@ void __init vr41xx_giuint_init(void)
 		break;
 	case CPU_VR4122:
 	case CPU_VR4131:
+	case CPU_VR4133:
 		vr41xx_giu_base = VR4122_GIUIOSELL;
 		break;
 	default:

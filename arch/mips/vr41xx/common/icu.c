@@ -33,13 +33,14 @@
 /*
  * Changes:
  *  MontaVista Software Inc. <yyuasa@mvista.com> or <source@mvista.com>
+ *  - New creation, NEC VR4122 and VR4131 are supported.
  *  - Added support for NEC VR4111 and VR4121.
  *
  *  Paul Mundt <lethal@chaoticdreams.org>
  *  - kgdb support.
  *
- *  MontaVista Software Inc. <yyuasa@mvista.com> or <source@mvista.com>
- *  - New creation, NEC VR4122 and VR4131 are supported.
+ *  Yoichi Yuasa <yuasa@hh.iij4u.or.jp>
+ *  - Added support for NEC VR4133.
  */
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -290,6 +291,7 @@ static void __init vr41xx_icu_init(void)
 		break;
 	case CPU_VR4122:
 	case CPU_VR4131:
+	case CPU_VR4133:
 		vr41xx_icu1_base = VR4122_SYSINT1REG;
 		vr41xx_icu2_base = VR4122_SYSINT2REG;
 		break;

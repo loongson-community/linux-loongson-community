@@ -32,11 +32,14 @@
 #define PRID_VR4181A_REV1_0	0x00000c73
 #define PRID_VR4181A_REV1_1	0x00000c74
 
-/* VR4131 0x00000c80-0x00000c8f */
+/* VR4131 0x00000c80-0x00000c83 */
 #define PRID_VR4131_REV1_2	0x00000c80
 #define PRID_VR4131_REV2_0	0x00000c81
 #define PRID_VR4131_REV2_1	0x00000c82
 #define PRID_VR4131_REV2_2	0x00000c83
+
+/* VR4131 0x00000c84- */
+#define PRID_VR4133		0x00000c84
 
 /*
  * Bus Control Uint
@@ -46,9 +49,25 @@ extern void vr41xx_bcu_init(void);
 /*
  * Clock Mask Unit
  */
-extern void vr41xx_cmu_init(u16 mask);
-extern void vr41xx_clock_supply(u16 mask);
-extern void vr41xx_clock_mask(u16 mask);
+extern void vr41xx_cmu_init(void);
+extern void vr41xx_clock_supply(unsigned int clock);
+extern void vr41xx_clock_mask(unsigned int clock);
+
+enum {
+	PIU_CLOCK,
+	SIU_CLOCK,
+	AIU_CLOCK,
+	KIU_CLOCK,
+	FIR_CLOCK,
+	DSIU_CLOCK,
+	CSI_CLOCK,
+	PCIU_CLOCK,
+	HSP_CLOCK,
+	PCI_CLOCK,
+	CEU_CLOCK,
+	ETHER0_CLOCK,
+	ETHER1_CLOCK
+};
 
 /*
  * Interrupt Control Unit
