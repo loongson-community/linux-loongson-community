@@ -103,7 +103,7 @@
 #define I2C_DRIVERID_SAA7114H	55     /* video decoder			*/
 #define I2C_DRIVERID_MAX1617	56     /* temp sensor			*/
 #define I2C_DRIVERID_SAA7191	57	/* video encoder                */
-#define I2C_DRIVERID_INDYCAM	50	/* SGI IndyCam                  */
+#define I2C_DRIVERID_INDYCAM	58	/* SGI IndyCam                  */
 
 
 #define I2C_DRIVERID_EXP0	0xF0	/* experimental use id's	*/
