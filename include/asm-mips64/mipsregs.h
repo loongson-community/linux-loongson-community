@@ -149,34 +149,40 @@
 #include <linux/config.h>
 #ifdef CONFIG_CPU_VR41XX
 
-#define PM_1K   0x00000000
-#define PM_4K   0x00001800
-#define PM_16K  0x00007800
-#define PM_64K  0x0001f800
-#define PM_256K 0x0007f800
+/* Why doesn't stupidity hurt ... */
+
+#define PM_1K		0x00000000
+#define PM_4K		0x00001800
+#define PM_16K		0x00007800
+#define PM_64K		0x0001f800
+#define PM_256K		0x0007f800
 
 #else
 
-#define PM_4K   0x00000000
-#define PM_16K  0x00006000
-#define PM_64K  0x0001e000
-#define PM_256K 0x0007e000
-#define PM_1M   0x001fe000
-#define PM_4M   0x007fe000
-#define PM_16M  0x01ffe000
+#define PM_4K		0x00000000
+#define PM_16K		0x00006000
+#define PM_64K		0x0001e000
+#define PM_256K		0x0007e000
+#define PM_1M		0x001fe000
+#define PM_4M		0x007fe000
+#define PM_16M		0x01ffe000
+#define PM_64M		0x07ffe000
+#define PM_256M		0x1fffe000
 
 #endif
 
 /*
  * Values used for computation of new tlb entries
  */
-#define PL_4K   12
-#define PL_16K  14
-#define PL_64K  16
-#define PL_256K 18
-#define PL_1M   20
-#define PL_4M   22
-#define PL_16M  24
+#define PL_4K		12
+#define PL_16K		14
+#define PL_64K		16
+#define PL_256K		18
+#define PL_1M		20
+#define PL_4M		22
+#define PL_16M		24
+#define PL_64M		26
+#define PL_256M		28
 
 /*
  * R4x00 interrupt enable / cause bits
