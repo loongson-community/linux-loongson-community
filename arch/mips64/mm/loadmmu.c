@@ -27,19 +27,19 @@ void (*_clear_page)(void * page);
 void (*_copy_page)(void * to, void * from);
 
 /* Cache operations. */
-void (*_flush_cache_all)(void);
-void (*___flush_cache_all)(void);
-void (*_flush_cache_mm)(struct mm_struct *mm);
-void (*_flush_cache_range)(struct vm_area_struct *vma, unsigned long start,
+void (*flush_cache_all)(void);
+void (*__flush_cache_all)(void);
+void (*flush_cache_mm)(struct mm_struct *mm);
+void (*flush_cache_range)(struct vm_area_struct *vma, unsigned long start,
 	unsigned long end);
-void (*_flush_cache_page)(struct vm_area_struct *vma, unsigned long page);
-void (*_flush_icache_range)(unsigned long start, unsigned long end);
-void (*_flush_icache_page)(struct vm_area_struct *vma, struct page *page);
+void (*flush_cache_page)(struct vm_area_struct *vma, unsigned long page);
+void (*flush_icache_range)(unsigned long start, unsigned long end);
+void (*flush_icache_page)(struct vm_area_struct *vma, struct page *page);
 
 /* MIPS specific cache operations */
-void (*_flush_cache_sigtramp)(unsigned long addr);
-void (*_flush_data_cache_page)(unsigned long addr);
-void (*_flush_icache_all)(void);
+void (*flush_cache_sigtramp)(unsigned long addr);
+void (*flush_data_cache_page)(unsigned long addr);
+void (*flush_icache_all)(void);
 
 #ifdef CONFIG_NONCOHERENT_IO
 
