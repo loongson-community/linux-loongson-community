@@ -190,6 +190,8 @@ static int __init initrd_setup(char *str)
 {
 	char rdarg[64];
 	int idx;
+	char *tmp, *endptr;
+	unsigned long initrd_size;
 
 	/* Make a copy of the initrd argument so we can smash it up here */
 	for (idx = 0; idx < sizeof(rdarg)-1; idx++) {
@@ -204,8 +206,6 @@ static int __init initrd_setup(char *str)
 	 *Initrd location comes in the form "<hex size of ramdisk in bytes>@<location in memory>"
 	 *  e.g. initrd=3abfd@80010000.  This is set up by the loader.
 	 */
-	char *tmp, *endptr;
-	unsigned long initrd_size;
 	for (tmp = str; *tmp != '@'; tmp++) {
 		if (!*tmp) {
 			goto fail;
