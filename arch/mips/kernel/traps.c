@@ -4,10 +4,9 @@
  * for more details.
  *
  * Copyright (C) 1994 - 1999, 2000, 01 Ralf Baechle
- * Modified for R3000 by Paul M. Antoine, 1995, 1996
- * Complete output from die() by Ulf Carlsson, 1998
+ * Copyright (C) 1995, 1996 Paul M. Antoine
+ * Copyright (C) 1998 Ulf Carlsson
  * Copyright (C) 1999 Silicon Graphics, Inc.
- *
  * Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
  * Copyright (C) 2000, 01 MIPS Technologies, Inc.
  * Copyright (C) 2002, 2003  Maciej W. Rozycki
@@ -67,123 +66,6 @@ int (*board_be_handler)(struct pt_regs *regs, int is_fixup);
  * MODULE_RANGE is a guess of how much space is likely to be vmalloced.
  */
 #define MODULE_RANGE (8*1024*1024)
-
-/*
- * This stuff is needed for the userland ll-sc emulation for R2300
- */
-
-#define OPCODE 0xfc000000
-#define BASE   0x03e00000
-#define RT     0x001f0000
-#define OFFSET 0x0000ffff
-#define LL     0xc0000000
-#define SC     0xe0000000
-
-/*
- * The ll_bit is cleared by r*_switch.S
- */
-
-unsigned long ll_bit;
-#ifdef CONFIG_PROC_FS
-extern unsigned long ll_ops;
-extern unsigned long sc_ops;
-#endif
-
-static struct task_struct *ll_task = NULL;
-
-static inline void simulate_ll(struct pt_regs *regs, unsigned int opcode)
-{
-	unsigned long value, *vaddr;
-	long offset;
-	int signal = 0;
-
-	/*
-	 * analyse the ll instruction that just caused a ri exception
-	 * and put the referenced address to addr.
-	 */
-
-	/* sign extend offset */
-	offset = opcode & OFFSET;
-	offset <<= 16;
-	offset >>= 16;
-
-	vaddr = (unsigned long *)((long)(regs->regs[(opcode & BASE) >> 21]) + offset);
-
-#ifdef CONFIG_PROC_FS
-	ll_ops++;
-#endif
-
-	if ((unsigned long)vaddr & 3) {
-		signal = SIGBUS;
-		goto sig;
-	}
-	if (get_user(value, vaddr)) {
-		signal = SIGSEGV;
-		goto sig;
-	}
-
-	if (ll_task == NULL || ll_task == current) {
-		ll_bit = 1;
-	} else {
-		ll_bit = 0;
-	}
-	ll_task = current;
-
-	regs->regs[(opcode & RT) >> 16] = value;
-
-	compute_return_epc(regs);
-	return;
-
-sig:
-	force_sig(signal, current);
-}
-
-static inline void simulate_sc(struct pt_regs *regs, unsigned int opcode)
-{
-	unsigned long *vaddr, reg;
-	long offset;
-	int signal = 0;
-
-	/*
-	 * analyse the sc instruction that just caused a ri exception
-	 * and put the referenced address to addr.
-	 */
-
-	/* sign extend offset */
-	offset = opcode & OFFSET;
-	offset <<= 16;
-	offset >>= 16;
-
-	vaddr = (unsigned long *)((long)(regs->regs[(opcode & BASE) >> 21]) + offset);
-	reg = (opcode & RT) >> 16;
-
-#ifdef CONFIG_PROC_FS
-	sc_ops++;
-#endif
-
-	if ((unsigned long)vaddr & 3) {
-		signal = SIGBUS;
-		goto sig;
-	}
-	if (ll_bit == 0 || ll_task != current) {
-		regs->regs[reg] = 0;
-		compute_return_epc(regs);
-		return;
-	}
-
-	if (put_user(regs->regs[reg], vaddr)) {
-		signal = SIGSEGV;
-		goto sig;
-	}
-
-	regs->regs[reg] = 1;
-
-	compute_return_epc(regs);
-	return;
-
-sig:
-	force_sig(signal, current);
-}
 
 /*
  * If the address is either in the .text section of the
@@ -334,10 +216,10 @@ void show_regs(struct pt_regs *regs)
 	       regs->regs[4], regs->regs[5], regs->regs[6], regs->regs[7]);
 	printk("$8 : %08lx %08lx %08lx %08lx %08lx %08lx %08lx %08lx\n",
 	       regs->regs[8],  regs->regs[9],  regs->regs[10], regs->regs[11],
-               regs->regs[12], regs->regs[13], regs->regs[14], regs->regs[15]);
+	       regs->regs[12], regs->regs[13], regs->regs[14], regs->regs[15]);
 	printk("$16: %08lx %08lx %08lx %08lx %08lx %08lx %08lx %08lx\n",
 	       regs->regs[16], regs->regs[17], regs->regs[18], regs->regs[19],
-               regs->regs[20], regs->regs[21], regs->regs[22], regs->regs[23]);
+	       regs->regs[20], regs->regs[21], regs->regs[22], regs->regs[23]);
 	printk("$24: %08lx %08lx                   %08lx %08lx %08lx %08lx\n",
 	       regs->regs[24], regs->regs[25],
 	       regs->regs[28], regs->regs[29], regs->regs[30], regs->regs[31]);
@@ -437,7 +319,7 @@ search_dbe_table(unsigned long addr)
 	spin_lock_irqsave(&modlist_lock, flags);
 	for (mp = module_list; mp != NULL; mp = mp->next) {
 		if (!mod_member_present(mp, archdata_end) ||
-        	    !mod_archdata_member_present(mp, struct archdata,
+		    !mod_archdata_member_present(mp, struct archdata,
 						 dbe_table_end))
 			continue;
 		ap = (struct archdata *)(mp->archdata_start);
@@ -494,6 +376,128 @@ asmlinkage void do_be(struct pt_regs *regs)
 	       regs->cp0_epc, regs->regs[31]);
 	die_if_kernel("Oops", regs);
 	force_sig(SIGBUS, current);
+}
+
+/*
+ * ll/sc emulation
+ */
+
+#define OPCODE 0xfc000000
+#define BASE   0x03e00000
+#define RT     0x001f0000
+#define OFFSET 0x0000ffff
+#define LL     0xc0000000
+#define SC     0xe0000000
+
+/*
+ * The ll_bit is cleared by r*_switch.S
+ */
+
+unsigned long ll_bit;
+
+#ifdef CONFIG_PROC_FS
+/*
+ * For now we don't have a mechanism to dump these variables to
+ * /procfs anymore ...
+ */
+static unsigned long ll_ops;
+static unsigned long sc_ops;
+#endif
+
+static struct task_struct *ll_task = NULL;
+
+static inline void simulate_ll(struct pt_regs *regs, unsigned int opcode)
+{
+	unsigned long value, *vaddr;
+	long offset;
+	int signal = 0;
+
+	/*
+	 * analyse the ll instruction that just caused a ri exception
+	 * and put the referenced address to addr.
+	 */
+
+	/* sign extend offset */
+	offset = opcode & OFFSET;
+	offset <<= 16;
+	offset >>= 16;
+
+	vaddr = (unsigned long *)((long)(regs->regs[(opcode & BASE) >> 21]) + offset);
+
+#ifdef CONFIG_PROC_FS
+	ll_ops++;
+#endif
+
+	if ((unsigned long)vaddr & 3) {
+		signal = SIGBUS;
+		goto sig;
+	}
+	if (get_user(value, vaddr)) {
+		signal = SIGSEGV;
+		goto sig;
+	}
+
+	if (ll_task == NULL || ll_task == current) {
+		ll_bit = 1;
+	} else {
+		ll_bit = 0;
+	}
+	ll_task = current;
+
+	regs->regs[(opcode & RT) >> 16] = value;
+
+	compute_return_epc(regs);
+	return;
+
+sig:
+	force_sig(signal, current);
+}
+
+static inline void simulate_sc(struct pt_regs *regs, unsigned int opcode)
+{
+	unsigned long *vaddr, reg;
+	long offset;
+	int signal = 0;
+
+	/*
+	 * analyse the sc instruction that just caused a ri exception
+	 * and put the referenced address to addr.
+	 */
+
+	/* sign extend offset */
+	offset = opcode & OFFSET;
+	offset <<= 16;
+	offset >>= 16;
+
+	vaddr = (unsigned long *)((long)(regs->regs[(opcode & BASE) >> 21]) + offset);
+	reg = (opcode & RT) >> 16;
+
+#ifdef CONFIG_PROC_FS
+	sc_ops++;
+#endif
+
+	if ((unsigned long)vaddr & 3) {
+		signal = SIGBUS;
+		goto sig;
+	}
+	if (ll_bit == 0 || ll_task != current) {
+		regs->regs[reg] = 0;
+		compute_return_epc(regs);
+		return;
+	}
+
+	if (put_user(regs->regs[reg], vaddr)) {
+		signal = SIGSEGV;
+		goto sig;
+	}
+
+	regs->regs[reg] = 1;
+
+	compute_return_epc(regs);
+	return;
+
+sig:
+	force_sig(signal, current);
 }
 
 asmlinkage void do_ov(struct pt_regs *regs)
@@ -636,76 +640,62 @@ asmlinkage void do_tr(struct pt_regs *regs)
 	}
 }
 
-/*
- * userland emulation for R2300 CPUs
- * needed for the multithreading part of glibc
- *
- * this implementation can handle only sychronization between 2 or more
- * user contexts and is not SMP safe.
- */
 asmlinkage void do_ri(struct pt_regs *regs)
 {
 	die_if_kernel("Reserved instruction in kernel code", regs);
-
-#ifndef CONFIG_CPU_HAS_LLSC
-
-#ifdef CONFIG_SMP
-#error "ll/sc emulation is not SMP safe"
-#endif
-
-	{
-	unsigned int opcode;
-
-	if (!get_insn_opcode(regs, &opcode)) {
-		if ((opcode & OPCODE) == LL) {
-			simulate_ll(regs, opcode);
-			return;
-		}
-		if ((opcode & OPCODE) == SC) {
-			simulate_sc(regs, opcode);
-			return;
-		}
-	}
-	}
-#endif /* CONFIG_CPU_HAS_LLSC */
 
 	force_sig(SIGILL, current);
 }
 
 asmlinkage void do_cpu(struct pt_regs *regs)
 {
-	unsigned int cpid;
-
-	cpid = (regs->cp0_cause >> CAUSEB_CE) & 3;
-	if (cpid != 1)
-		goto bad_cid;
+	unsigned int opcode, cpid;
 
 	die_if_kernel("do_cpu invoked from kernel context!", regs);
 
-	own_fpu();
-	if (current->used_math) {		/* Using the FPU again.  */
-		restore_fp(current);
-	} else {				/* First time FPU user.  */
-		init_fpu();
-		current->used_math = 1;
-	}
+	cpid = (regs->cp0_cause >> CAUSEB_CE) & 3;
 
-	if (!cpu_has_fpu) {
-		int sig = fpu_emulator_cop1Handler(0, regs, &current->thread.fpu.soft);
-		if (sig)
-			force_sig(sig, current);
-	}
+	switch (cpid) {
+	case 0:
+		if (cpu_has_llsc)
+			break;
 
-	return;
+		if (!get_insn_opcode(regs, &opcode)) {
+			if ((opcode & OPCODE) == LL) {
+				simulate_ll(regs, opcode);
+				return;
+			}
+			if ((opcode & OPCODE) == SC) {
+				simulate_sc(regs, opcode);
+				return;
+			}
+		}
 
-bad_cid:
-#ifndef CONFIG_CPU_HAS_LLSC
-	switch (current_cpu_data.cputype) {
-	case CPU_TX3927:
-		do_ri(regs);
+		break;
+
+	case 1:
+		own_fpu();
+		if (current->used_math) {	/* Using the FPU again.  */
+			restore_fp(current);
+		} else {			/* First time FPU user.  */
+			init_fpu();
+			current->used_math = 1;
+		}
+
+		if (!cpu_has_fpu) {
+			int sig = fpu_emulator_cop1Handler(0, regs,
+						&current->thread.fpu.soft);
+			if (sig)
+				force_sig(sig, current);
+		}
+
 		return;
+
+	case 2:
+	case 3:
+		break;
 	}
-#endif
+
 	force_sig(SIGILL, current);
 }
 
@@ -842,9 +832,9 @@ void ejtag_exception_handler(struct pt_regs *regs)
  */
 void nmi_exception_handler(struct pt_regs *regs)
 {
-        printk("NMI taken!!!!\n");
-        die("NMI", regs);
-        while(1) ;  /* We die here. */
+	printk("NMI taken!!!!\n");
+	die("NMI", regs);
+	while(1) ;
 }
 
 unsigned long exception_handlers[32];
@@ -979,7 +969,8 @@ void __init trap_init(void)
 	else
 		memcpy((void *)(KSEG0 + 0x080), &except_vec3_generic, 0x80);
 
-	if (current_cpu_data.cputype == CPU_R6000 || current_cpu_data.cputype == CPU_R6000A) {
+	if (current_cpu_data.cputype == CPU_R6000 ||
+	    current_cpu_data.cputype == CPU_R6000A) {
 		/*
 		 * The R6000 is the only R-series CPU that features a machine
 		 * check exception (similar to the R4000 cache error) and

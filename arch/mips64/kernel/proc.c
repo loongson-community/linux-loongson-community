@@ -17,10 +17,6 @@
 
 unsigned int vced_count, vcei_count;
 
-#ifndef CONFIG_CPU_HAS_LLSC
-unsigned long ll_ops, sc_ops;
-#endif
-
 static const char *cpu_name[] = {
 	[CPU_UNKNOWN]	"unknown",
 	[CPU_R2000]	"R2000",

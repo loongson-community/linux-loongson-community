@@ -395,7 +395,8 @@ __init void cpu_probe(void)
         if (config0 & (1 << 31)) {
 		/* MIPS32 or MIPS64 compliant CPU. Read Config 1 register. */
 		current_cpu_data.options = MIPS_CPU_TLB | MIPS_CPU_4KEX |
-			MIPS_CPU_4KTLB | MIPS_CPU_COUNTER | MIPS_CPU_DIVEC;
+			MIPS_CPU_4KTLB | MIPS_CPU_COUNTER | MIPS_CPU_DIVEC |
+			MIPS_CPU_LLSC;
 		config1 = read_c0_config1();
 		if (config1 & (1 << 3))
 			current_cpu_data.options |= MIPS_CPU_WATCH;
@@ -420,7 +421,8 @@ __init void cpu_probe(void)
 			current_cpu_data.cputype = CPU_R2000;
 			current_cpu_data.isa_level = MIPS_CPU_ISA_I;
 			current_cpu_data.options = MIPS_CPU_TLB |
-			                           MIPS_CPU_NOFPUEX;
+			                           MIPS_CPU_NOFPUEX |
+			                           MIPS_CPU_LLSC;
 			if (__cpu_has_fpu())
 				current_cpu_data.options |= MIPS_CPU_FPU;
 			current_cpu_data.tlbsize = 64;
@@ -434,7 +436,9 @@ __init void cpu_probe(void)
 			else
 				current_cpu_data.cputype = CPU_R3000;
 			current_cpu_data.isa_level = MIPS_CPU_ISA_I;
-			current_cpu_data.options = MIPS_CPU_TLB | MIPS_CPU_NOFPUEX;
+			current_cpu_data.options = MIPS_CPU_TLB |
+			                           MIPS_CPU_NOFPUEX |
+			                           MIPS_CPU_LLSC;
 			if (__cpu_has_fpu())
 				current_cpu_data.options |= MIPS_CPU_FPU;
 			current_cpu_data.tlbsize = 64;
@@ -447,7 +451,7 @@ __init void cpu_probe(void)
 			current_cpu_data.isa_level = MIPS_CPU_ISA_III;
 			current_cpu_data.options = R4K_OPTS | MIPS_CPU_FPU |
 			                   MIPS_CPU_32FPR | MIPS_CPU_WATCH |
-			                   MIPS_CPU_VCE;
+			                   MIPS_CPU_VCE | MIPS_CPU_LLSC;
 			current_cpu_data.tlbsize = 48;
 			break;
                 case PRID_IMP_VR41XX:
@@ -479,20 +483,21 @@ __init void cpu_probe(void)
 				break;
 			}
                         current_cpu_data.isa_level = MIPS_CPU_ISA_III;
-                        current_cpu_data.options = R4K_OPTS;
+                        current_cpu_data.options = R4K_OPTS | MIPS_CPU_LLSC;
                         current_cpu_data.tlbsize = 32;
                         break;
 		case PRID_IMP_R4300:
 			current_cpu_data.cputype = CPU_R4300;
 			current_cpu_data.isa_level = MIPS_CPU_ISA_III;
 			current_cpu_data.options = R4K_OPTS | MIPS_CPU_FPU |
-					   MIPS_CPU_32FPR;
+					   MIPS_CPU_32FPR | MIPS_CPU_LLSC;
 			current_cpu_data.tlbsize = 32;
 			break;
 		case PRID_IMP_R4600:
 			current_cpu_data.cputype = CPU_R4600;
 			current_cpu_data.isa_level = MIPS_CPU_ISA_III;
-			current_cpu_data.options = R4K_OPTS | MIPS_CPU_FPU;
+			current_cpu_data.options = R4K_OPTS | MIPS_CPU_FPU |
+			                           MIPS_CPU_LLSC;
 			current_cpu_data.tlbsize = 48;
 			break;
 		#if 0
@@ -505,13 +510,14 @@ __init void cpu_probe(void)
 			 */
 	 		current_cpu_data.cputype = CPU_R4650;
 		 	current_cpu_data.isa_level = MIPS_CPU_ISA_III;
-			current_cpu_data.options = R4K_OPTS | MIPS_CPU_FPU;
+			current_cpu_data.options = R4K_OPTS | MIPS_CPU_FPU |
+			                           MIPS_CPU_LLSC;
 		        current_cpu_data.tlbsize = 48;
 			break;
 		#endif
 		case PRID_IMP_TX39:
 			current_cpu_data.isa_level = MIPS_CPU_ISA_I;
-			current_cpu_data.options = MIPS_CPU_TLB;
+			current_cpu_data.options = MIPS_CPU_TLB | MIPS_CPU_LLSC;
 
 			if ((current_cpu_data.processor_id & 0xf0) ==
 			    (PRID_REV_TX3927 & 0xf0)) {
@@ -537,61 +543,75 @@ __init void cpu_probe(void)
 			current_cpu_data.cputype = CPU_R4700;
 			current_cpu_data.isa_level = MIPS_CPU_ISA_III;
 			current_cpu_data.options = R4K_OPTS | MIPS_CPU_FPU |
-			                   MIPS_CPU_32FPR;
+			                           MIPS_CPU_32FPR |
+			                           MIPS_CPU_LLSC;
 			current_cpu_data.tlbsize = 48;
 			break;
 		case PRID_IMP_TX49:
 			current_cpu_data.cputype = CPU_TX49XX;
 			current_cpu_data.isa_level = MIPS_CPU_ISA_III;
 			current_cpu_data.options = R4K_OPTS | MIPS_CPU_FPU |
-			                   MIPS_CPU_32FPR;
+			                           MIPS_CPU_32FPR |
+			                           MIPS_CPU_LLSC;
 			current_cpu_data.tlbsize = 48;
 			break;
 		case PRID_IMP_R5000:
 			current_cpu_data.cputype = CPU_R5000;
 			current_cpu_data.isa_level = MIPS_CPU_ISA_IV;
 			current_cpu_data.options = R4K_OPTS | MIPS_CPU_FPU |
-			                   MIPS_CPU_32FPR;
+			                           MIPS_CPU_32FPR |
+			                           MIPS_CPU_LLSC;
 			current_cpu_data.tlbsize = 48;
 			break;
 		case PRID_IMP_R5432:
 			current_cpu_data.cputype = CPU_R5432;
 			current_cpu_data.isa_level = MIPS_CPU_ISA_IV;
 			current_cpu_data.options = R4K_OPTS | MIPS_CPU_FPU |
-			                   MIPS_CPU_32FPR | MIPS_CPU_WATCH;
+			                           MIPS_CPU_32FPR |
+			                           MIPS_CPU_WATCH |
+			                           MIPS_CPU_LLSC;
 			current_cpu_data.tlbsize = 48;
 			break;
 		case PRID_IMP_R5500:
 			current_cpu_data.cputype = CPU_R5500;
 			current_cpu_data.isa_level = MIPS_CPU_ISA_IV;
 			current_cpu_data.options = R4K_OPTS | MIPS_CPU_FPU |
-			                   MIPS_CPU_32FPR | MIPS_CPU_WATCH;
+			                           MIPS_CPU_32FPR |
+			                           MIPS_CPU_WATCH |
+			                           MIPS_CPU_LLSC;
 			current_cpu_data.tlbsize = 48;
 			break;
 		case PRID_IMP_NEVADA:
 			current_cpu_data.cputype = CPU_NEVADA;
 			current_cpu_data.isa_level = MIPS_CPU_ISA_IV;
 			current_cpu_data.options = R4K_OPTS | MIPS_CPU_FPU |
-			                   MIPS_CPU_32FPR | MIPS_CPU_DIVEC;
+			                           MIPS_CPU_32FPR |
+			                           MIPS_CPU_DIVEC |
+			                           MIPS_CPU_LLSC;
 			current_cpu_data.tlbsize = 48;
 			break;
 		case PRID_IMP_R6000:
 			current_cpu_data.cputype = CPU_R6000;
 			current_cpu_data.isa_level = MIPS_CPU_ISA_II;
-			current_cpu_data.options = MIPS_CPU_TLB | MIPS_CPU_FPU;
+			current_cpu_data.options = MIPS_CPU_TLB |
+			                           MIPS_CPU_FPU |
+			                           MIPS_CPU_LLSC;
 			current_cpu_data.tlbsize = 32;
 			break;
 		case PRID_IMP_R6000A:
 			current_cpu_data.cputype = CPU_R6000A;
 			current_cpu_data.isa_level = MIPS_CPU_ISA_II;
-			current_cpu_data.options = MIPS_CPU_TLB | MIPS_CPU_FPU;
+			current_cpu_data.options = MIPS_CPU_TLB |
+			                           MIPS_CPU_FPU |
+			                           MIPS_CPU_LLSC;
 			current_cpu_data.tlbsize = 32;
 			break;
 		case PRID_IMP_RM7000:
 			current_cpu_data.cputype = CPU_RM7000;
 			current_cpu_data.isa_level = MIPS_CPU_ISA_IV;
 			current_cpu_data.options = R4K_OPTS | MIPS_CPU_FPU |
-			                   MIPS_CPU_32FPR;
+			                           MIPS_CPU_32FPR |
+			                           MIPS_CPU_LLSC;
 			/*
 			 * Undocumented RM7000:  Bit 29 in the info register of
 			 * the RM7000 v2.0 indicates if the TLB has 48 or 64
@@ -605,24 +625,35 @@ __init void cpu_probe(void)
 		case PRID_IMP_R8000:
 			current_cpu_data.cputype = CPU_R8000;
 			current_cpu_data.isa_level = MIPS_CPU_ISA_IV;
-			current_cpu_data.options = MIPS_CPU_TLB | MIPS_CPU_4KEX |
-				           MIPS_CPU_FPU | MIPS_CPU_32FPR;
+			current_cpu_data.options = MIPS_CPU_TLB |
+			                           MIPS_CPU_4KEX |
+				                   MIPS_CPU_FPU |
+			                           MIPS_CPU_32FPR |
+			                           MIPS_CPU_LLSC;
 			current_cpu_data.tlbsize = 384;      /* has weird TLB: 3-way x 128 */
 			break;
 		case PRID_IMP_R10000:
 			current_cpu_data.cputype = CPU_R10000;
 			current_cpu_data.isa_level = MIPS_CPU_ISA_IV;
-			current_cpu_data.options = MIPS_CPU_TLB | MIPS_CPU_4KEX |
-				           MIPS_CPU_FPU | MIPS_CPU_32FPR |
-				           MIPS_CPU_COUNTER | MIPS_CPU_WATCH;
+			current_cpu_data.options = MIPS_CPU_TLB |
+			                           MIPS_CPU_4KEX |
+				                   MIPS_CPU_FPU |
+			                           MIPS_CPU_32FPR |
+				                   MIPS_CPU_COUNTER |
+			                           MIPS_CPU_WATCH |
+			                           MIPS_CPU_LLSC;
 			current_cpu_data.tlbsize = 64;
 			break;
 		case PRID_IMP_R12000:
 			current_cpu_data.cputype = CPU_R12000;
 			current_cpu_data.isa_level = MIPS_CPU_ISA_IV;
-			current_cpu_data.options = MIPS_CPU_TLB | MIPS_CPU_4KEX |
-				           MIPS_CPU_FPU | MIPS_CPU_32FPR |
-				           MIPS_CPU_COUNTER | MIPS_CPU_WATCH;
+			current_cpu_data.options = MIPS_CPU_TLB |
+			                           MIPS_CPU_4KEX |
+				                   MIPS_CPU_FPU |
+			                           MIPS_CPU_32FPR |
+				                   MIPS_CPU_COUNTER |
+			                           MIPS_CPU_WATCH |
+			                           MIPS_CPU_LLSC;
 			current_cpu_data.tlbsize = 64;
 			break;
 		default:
@@ -689,10 +720,14 @@ __init void cpu_probe(void)
 		case PRID_IMP_SB1:
 			current_cpu_data.cputype = CPU_SB1;
 			current_cpu_data.isa_level = MIPS_CPU_ISA_M64;
-			current_cpu_data.options = MIPS_CPU_TLB | MIPS_CPU_4KEX |
-			                   MIPS_CPU_COUNTER | MIPS_CPU_DIVEC |
-			                   MIPS_CPU_MCHECK | MIPS_CPU_EJTAG |
-			                   MIPS_CPU_WATCH;
+			current_cpu_data.options = MIPS_CPU_TLB |
+			                           MIPS_CPU_4KEX |
+			                           MIPS_CPU_COUNTER |
+			                           MIPS_CPU_DIVEC |
+			                           MIPS_CPU_MCHECK |
+			                           MIPS_CPU_EJTAG |
+			                           MIPS_CPU_WATCH |
+			                           MIPS_CPU_LLSC;
 #ifndef CONFIG_SB1_PASS_1_WORKAROUNDS
 			/* FPU in pass1 is known to have issues. */
 			current_cpu_data.options |= MIPS_CPU_FPU | MIPS_CPU_32FPR;

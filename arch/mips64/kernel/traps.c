@@ -3,10 +3,12 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1994 - 1999 by Ralf Baechle
+ * Copyright (C) 1994 - 1999, 2000, 01 Ralf Baechle
  * Copyright (C) 1995, 1996 Paul M. Antoine
  * Copyright (C) 1998 Ulf Carlsson
  * Copyright (C) 1999 Silicon Graphics, Inc.
+ * Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
+ * Copyright (C) 2000, 01 MIPS Technologies, Inc.
  * Copyright (C) 2002, 2003  Maciej W. Rozycki
  */
 #include <linux/config.h>
@@ -57,8 +59,6 @@ extern asmlinkage void handle_reserved(void);
 extern int fpu_emulator_cop1Handler(int xcptno, struct pt_regs *xcp,
 	struct mips_fpu_soft_struct *ctx);
 
-void fpu_emulator_init_fpu(void);
-
 void (*board_be_init)(void);
 int (*board_be_handler)(struct pt_regs *regs, int is_fixup);
 
@@ -67,8 +67,6 @@ int (*board_be_handler)(struct pt_regs *regs, int is_fixup);
  * MODULE_RANGE is a guess of how much space is likely to be vmalloced.
  */
 #define MODULE_RANGE (8*1024*1024)
-
-#define OPCODE 0xfc000000
 
 /*
  * If the address is either in the .text section of the
@@ -214,15 +212,15 @@ void show_regs(struct pt_regs *regs)
 	printk("$0      : %016lx %016lx %016lx %016lx\n",
 	       0UL, regs->regs[1], regs->regs[2], regs->regs[3]);
 	printk("$4      : %016lx %016lx %016lx %016lx\n",
-               regs->regs[4], regs->regs[5], regs->regs[6], regs->regs[7]);
+	       regs->regs[4], regs->regs[5], regs->regs[6], regs->regs[7]);
 	printk("$8      : %016lx %016lx %016lx %016lx\n",
 	       regs->regs[8], regs->regs[9], regs->regs[10], regs->regs[11]);
 	printk("$12     : %016lx %016lx %016lx %016lx\n",
-               regs->regs[12], regs->regs[13], regs->regs[14], regs->regs[15]);
+	       regs->regs[12], regs->regs[13], regs->regs[14], regs->regs[15]);
 	printk("$16     : %016lx %016lx %016lx %016lx\n",
 	       regs->regs[16], regs->regs[17], regs->regs[18], regs->regs[19]);
 	printk("$20     : %016lx %016lx %016lx %016lx\n",
-               regs->regs[20], regs->regs[21], regs->regs[22], regs->regs[23]);
+	       regs->regs[20], regs->regs[21], regs->regs[22], regs->regs[23]);
 	printk("$24     : %016lx %016lx\n",
 	       regs->regs[24], regs->regs[25]);
 	printk("$28     : %016lx %016lx %016lx %016lx\n",
@@ -336,7 +334,7 @@ search_dbe_table(unsigned long addr)
 	spin_lock_irqsave(&modlist_lock, flags);
 	for (mp = module_list; mp != NULL; mp = mp->next) {
 		if (!mod_member_present(mp, archdata_end) ||
-        	    !mod_archdata_member_present(mp, struct archdata,
+		    !mod_archdata_member_present(mp, struct archdata,
 						 dbe_table_end))
 			continue;
 		ap = (struct archdata *)(mp->archdata_start);
@@ -393,6 +391,128 @@ asmlinkage void do_be(struct pt_regs *regs)
 	       regs->cp0_epc, regs->regs[31]);
 	die_if_kernel("Oops", regs);
 	force_sig(SIGBUS, current);
+}
+
+/*
+ * ll/sc emulation
+ */
+
+#define OPCODE 0xfc000000
+#define BASE   0x03e00000
+#define RT     0x001f0000
+#define OFFSET 0x0000ffff
+#define LL     0xc0000000
+#define SC     0xe0000000
+
+/*
+ * The ll_bit is cleared by r*_switch.S
+ */
+
+unsigned long ll_bit;
+
+#ifdef CONFIG_PROC_FS
+/*
+ * For now we don't have a mechanism to dump these variables to
+ * /procfs anymore ...
+ */
+static unsigned long ll_ops;
+static unsigned long sc_ops;
+#endif
+
+static struct task_struct *ll_task = NULL;
+
+static inline void simulate_ll(struct pt_regs *regs, unsigned int opcode)
+{
+	unsigned long value, *vaddr;
+	long offset;
+	int signal = 0;
+
+	/*
+	 * analyse the ll instruction that just caused a ri exception
+	 * and put the referenced address to addr.
+	 */
+
+	/* sign extend offset */
+	offset = opcode & OFFSET;
+	offset <<= 16;
+	offset >>= 16;
+
+	vaddr = (unsigned long *)((long)(regs->regs[(opcode & BASE) >> 21]) + offset);
+
+#ifdef CONFIG_PROC_FS
+	ll_ops++;
+#endif
+
+	if ((unsigned long)vaddr & 3) {
+		signal = SIGBUS;
+		goto sig;
+	}
+	if (get_user(value, vaddr)) {
+		signal = SIGSEGV;
+		goto sig;
+	}
+
+	if (ll_task == NULL || ll_task == current) {
+		ll_bit = 1;
+	} else {
+		ll_bit = 0;
+	}
+	ll_task = current;
+
+	regs->regs[(opcode & RT) >> 16] = value;
+
+	compute_return_epc(regs);
+	return;
+
+sig:
+	force_sig(signal, current);
+}
+
+static inline void simulate_sc(struct pt_regs *regs, unsigned int opcode)
+{
+	unsigned long *vaddr, reg;
+	long offset;
+	int signal = 0;
+
+	/*
+	 * analyse the sc instruction that just caused a ri exception
+	 * and put the referenced address to addr.
+	 */
+
+	/* sign extend offset */
+	offset = opcode & OFFSET;
+	offset <<= 16;
+	offset >>= 16;
+
+	vaddr = (unsigned long *)((long)(regs->regs[(opcode & BASE) >> 21]) + offset);
+	reg = (opcode & RT) >> 16;
+
+#ifdef CONFIG_PROC_FS
+	sc_ops++;
+#endif
+
+	if ((unsigned long)vaddr & 3) {
+		signal = SIGBUS;
+		goto sig;
+	}
+	if (ll_bit == 0 || ll_task != current) {
+		regs->regs[reg] = 0;
+		compute_return_epc(regs);
+		return;
+	}
+
+	if (put_user(regs->regs[reg], vaddr)) {
+		signal = SIGSEGV;
+		goto sig;
+	}
+
+	regs->regs[reg] = 1;
+
+	compute_return_epc(regs);
+	return;
+
+sig:
+	force_sig(signal, current);
 }
 
 asmlinkage void do_ov(struct pt_regs *regs)
@@ -508,7 +628,7 @@ asmlinkage void do_tr(struct pt_regs *regs)
 	if (get_insn_opcode(regs, &opcode))
 		return;
 
-        /* Immediate versions don't provide a code.  */
+	/* Immediate versions don't provide a code.  */
 	if (!(opcode & OPCODE))
 		tcode = ((opcode >> 6) & ((1 << 20) - 1));
 
@@ -544,31 +664,53 @@ asmlinkage void do_ri(struct pt_regs *regs)
 
 asmlinkage void do_cpu(struct pt_regs *regs)
 {
-	unsigned int cpid;
-
-	cpid = (regs->cp0_cause >> CAUSEB_CE) & 3;
-	if (cpid != 1)
-		goto bad_cid;
+	unsigned int opcode, cpid;
 
 	die_if_kernel("do_cpu invoked from kernel context!", regs);
 
-	own_fpu();
-	if (current->used_math) {               /* Using the FPU again.  */
-		restore_fp(current);
-	} else {
-		init_fpu();
-		current->used_math = 1;
+	cpid = (regs->cp0_cause >> CAUSEB_CE) & 3;
+
+	switch (cpid) {
+	case 0:
+		if (cpu_has_llsc)
+			break;
+
+		if (!get_insn_opcode(regs, &opcode)) {
+			if ((opcode & OPCODE) == LL) {
+				simulate_ll(regs, opcode);
+				return;
+			}
+			if ((opcode & OPCODE) == SC) {
+				simulate_sc(regs, opcode);
+				return;
+			}
+		}
+
+		break;
+
+	case 1:
+		own_fpu();
+		if (current->used_math) {	/* Using the FPU again.  */
+			restore_fp(current);
+		} else {			/* First time FPU user.  */
+			init_fpu();
+			current->used_math = 1;
+		}
+
+		if (!cpu_has_fpu) {
+			int sig = fpu_emulator_cop1Handler(0, regs,
+						&current->thread.fpu.soft);
+			if (sig)
+				force_sig(sig, current);
+		}
+
+		return;
+
+	case 2:
+	case 3:
+		break;
 	}
 
-	if (!cpu_has_fpu) {
-		int sig = fpu_emulator_cop1Handler(0, regs, &current->thread.fpu.soft);
-		if (sig)
-			force_sig(sig, current);
-	}
-
-	return;
-
-bad_cid:
 	force_sig(SIGILL, current);
 }
 
@@ -583,8 +725,8 @@ asmlinkage void do_watch(struct pt_regs *regs)
 	 * We use the watch exception where available to detect stack
 	 * overflows.
 	 */
-	show_regs(regs);
 	dump_tlb_all();
+	show_regs(regs);
 	panic("Caught WATCH exception - probably caused by stack overflow.");
 }
 
@@ -608,6 +750,7 @@ asmlinkage void do_reserved(struct pt_regs *regs)
 	 * caused by a new unknown cpu type or after another deadly
 	 * hard/software error.
 	 */
+	show_regs(regs);
 	panic("Caught reserved exception %ld - should not happen.",
 	      (regs->cp0_cause & 0x7f) >> 2);
 }

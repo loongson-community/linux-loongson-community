@@ -115,6 +115,7 @@ struct cpuinfo_mips {
 #define cpu_has_mcheck		(cpu_data[0].options & MIPS_CPU_MCHECK)
 #define cpu_has_ejtag		(cpu_data[0].options & MIPS_CPU_EJTAG)
 #define cpu_has_nofpuex		(cpu_data[0].options & MIPS_CPU_NOFPUEX)
+#define cpu_has_llsc		(cpu_data[0].options & MIPS_CPU_LLSC)
 #define cpu_has_vtag_icache	(cpu_data[0].icache.flags & MIPS_CACHE_VTAG)
 #define cpu_has_dc_aliases	(cpu_data[0].dcache.flags & MIPS_CACHE_ALIASES)
 #define cpu_has_ic_fills_f_dc	(cpu_data[0].dcache.flags & MIPS_CACHE_IC_F_DC)
