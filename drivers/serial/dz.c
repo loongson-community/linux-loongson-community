@@ -24,7 +24,7 @@
  * Converted to new serial core
  */
 
-#define DEBUG_DZ 1
+#undef DEBUG_DZ
 
 #include <linux/config.h>
 #include <linux/module.h>
@@ -244,13 +244,19 @@ static inline void dz_receive_chars(struct dz_port *dport)
 
 			if (tmp & DZ_PERR) {
 				*tty->flip.flag_buf_ptr = TTY_PARITY;
+#ifdef DEBUG_DZ
 				debug_console("PERR\n", 5);
+#endif
 			} else if (tmp & DZ_FERR) {
 				*tty->flip.flag_buf_ptr = TTY_FRAME;
+#ifdef DEBUG_DZ
 				debug_console("FERR\n", 5);
+#endif
 			}
 			if (tmp & DZ_OERR) {
+#ifdef DEBUG_DZ
 				debug_console("OERR\n", 5);
+#endif
 				if (tty->flip.count < TTY_FLIPBUF_SIZE) {
 					tty->flip.count++;
 					tty->flip.flag_buf_ptr++;
