@@ -160,7 +160,7 @@ illegal_syscall:
 	.previous
 #endif
 
-	sw	v0, PT_R2(sp)		# result
+	sd	v0, PT_R2(sp)		# result
 1:
 
 	/* Success, so skip usual error handling garbage.  */
