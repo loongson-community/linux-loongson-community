@@ -44,6 +44,7 @@ MODFLAGS			+= -mlong-calls
 cflags-$(CONFIG_REMOTE_DEBUG)	+= -g
 
 check_gcc = $(shell if $(AS) $(1) -o /dev/null -xc /dev/null > /dev/null 2>&1; then echo "$(1)"; else echo "$(2)"; fi)
+check_warning = $(shell if $(CC) $(1) -c -o /dev/null -xc /dev/null > /dev/null 2>&1; then echo "$(1)"; else echo "$(2)"; fi)
 
 #
 # CPU-dependent compiler/assembler options for optimization.
@@ -176,6 +177,10 @@ load-$(CONFIG_SNI_RM200_PCI)	+= 0x80080000
 #LDFLAGS += -m elf64bmip
 cflags-$(CONFIG_BOOT_ELF32)	+= -Wa,-32
 cflags-$(CONFIG_BOOT_ELF64)	+= -Wa,-32
+
+GRRR=-Wa,-mgp64
+cflags-$(CONFIG_BOOT_ELF32)    += -Wa,-32 $(call check_warning, $(GRRR),)
+cflags-$(CONFIG_BOOT_ELF64)    += -Wa,-32 $(call check_warning, $(GRRR),)
 
 AFLAGS_vmlinux.lds.o := -imacros $(srctree)/include/asm-mips64/sn/mapped_kernel.h \
 		-D"LOADADDR=$(load-y)"
