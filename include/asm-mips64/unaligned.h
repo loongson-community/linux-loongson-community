@@ -93,16 +93,16 @@ extern inline void __stw_u(unsigned long __val, unsigned short * __addr)
 									\
 	switch (sizeof(*(ptr))) {					\
 	case 1:								\
-		__val = *(const unsigned char *)ptr;			\
+		__val = *(const unsigned char *)(ptr);			\
 		break;							\
 	case 2:								\
-		__val = __ldw_u((const unsigned short *)ptr);		\
+		__val = __ldw_u((const unsigned short *)(ptr));		\
 		break;							\
 	case 4:								\
-		__val = __ldl_u((const unsigned int *)ptr);		\
+		__val = __ldl_u((const unsigned int *)(ptr));		\
 		break;							\
 	case 8:								\
-		__val = __ldq_u((const unsigned long long *)ptr);	\
+		__val = __ldq_u((const unsigned long long *)(ptr));	\
 		break;							\
 	default:							\
 		__get_unaligned_bad_length();				\
@@ -116,16 +116,16 @@ extern inline void __stw_u(unsigned long __val, unsigned short * __addr)
 do {									\
 	switch (sizeof(*(ptr))) {					\
 	case 1:								\
-		*(unsigned char *)ptr = (val);				\
+		*(unsigned char *)(ptr) = (val);			\
 		break;							\
 	case 2:								\
-		__stw_u(val, (unsigned short *)ptr);			\
+		__stw_u((val), (unsigned short *)(ptr));		\
 		break;							\
 	case 4:								\
-		__stl_u(val, (unsigned int *)ptr);			\
+		__stl_u((val), (unsigned int *)(ptr));			\
 		break;							\
 	case 8:								\
-		__stq_u(val, (unsigned long long *)ptr);		\
+		__stq_u((val), (unsigned long long *)(ptr));		\
 		break;							\
 	default:							\
 		__put_unaligned_bad_length();				\
