@@ -1858,7 +1858,7 @@ static int sbmac_start_tx(struct sk_buff *skb, struct net_device *dev)
 	struct sbmac_softc *sc = (struct sbmac_softc *)dev->priv;
 
 	/* lock eth irq */
-	spin_lock(&sc->sbm_lock);
+	spin_lock_irq(&sc->sbm_lock);
 
 	/*
 	 * Put the buffer on the transmit ring.  If we 
@@ -1873,7 +1873,7 @@ static int sbmac_start_tx(struct sk_buff *skb, struct net_device *dev)
 
 	dev->trans_start = jiffies;
 
-	spin_unlock(&sc->sbm_lock);
+	spin_unlock_irq(&sc->sbm_lock);
 
 	return 0;
 }
