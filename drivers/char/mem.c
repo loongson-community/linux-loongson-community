@@ -49,9 +49,6 @@ extern void fbmem_init(void);
 #ifdef CONFIG_PROM_CONSOLE
 extern void prom_con_init(void);
 #endif
-#ifdef CONFIG_SGI_PROM_CONSOLE
-extern void sgi_prom_console_init(void);
-#endif
 #ifdef CONFIG_MDA_CONSOLE
 extern void mda_console_init(void);
 #endif
@@ -635,9 +632,6 @@ int __init chr_dev_init(void)
 #endif
 #if defined (CONFIG_PROM_CONSOLE)
 	prom_con_init();
-#endif
-#if defined (CONFIG_SGI_PROM_CONSOLE)
-	sgi_prom_console_init();
 #endif
 #if defined (CONFIG_MDA_CONSOLE)
 	mda_console_init();

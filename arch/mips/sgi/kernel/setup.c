@@ -32,7 +32,7 @@ extern void breakpoint(void);
 static int remote_debug = 0;
 #endif
 
-#if defined(CONFIG_SERIAL_CONSOLE) || defined(CONFIG_SGI_PROM_CONSOLE)
+#if defined(CONFIG_SERIAL_CONSOLE) || defined(CONFIG_ARC_CONSOLE)
 extern void console_setup(char *);
 #endif
 
@@ -180,7 +180,7 @@ void sgi_time_init (struct irqaction *irq) {
 	 */
         struct sgi_ioc_timers *p;
         volatile unsigned char *tcwp, *tc2p;
-	unsigned long r4k_ticks[3] = { 0, 0, 0 };
+	unsigned long r4k_ticks[3];
 	unsigned long r4k_next;
 
         /* Figure out the r4k offset, the algorithm is very simple
@@ -201,10 +201,12 @@ void sgi_time_init (struct irqaction *irq) {
         dosample(tcwp, tc2p);                   /* Prime cache. */
         dosample(tcwp, tc2p);                   /* Prime cache. */
 	/* Zero is NOT an option. */
-	while (!r4k_ticks[0])
+	do {
 		r4k_ticks[0] = dosample (tcwp, tc2p);
-	while (!r4k_ticks[1])
+	} while (!r4k_ticks[0]);
+	do {
 		r4k_ticks[1] = dosample (tcwp, tc2p);
+	} while (!r4k_ticks[1]);
 
 	if (r4k_ticks[0] != r4k_ticks[1]) {
 		printk ("warning: timer counts differ, retrying...");
@@ -290,7 +292,7 @@ void __init sgi_setup(void)
 	}
 #endif
 
-#ifdef CONFIG_SGI_PROM_CONSOLE
+#ifdef CONFIG_ARC_CONSOLE
 	console_setup("ttyS0");
 #endif
  

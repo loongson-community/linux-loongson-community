@@ -15,9 +15,6 @@
 
 OBJS  = indy_mc.o indy_sc.o indy_hpc.o indy_int.o indy_rtc.o \
         system.o indyIRQ.o reset.o setup.o time.o
-ifdef CONFIG_SGI_PROM_CONSOLE
-OBJS += promcon.o
-endif
 
 all: sgikern.a
 

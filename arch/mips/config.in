@@ -151,6 +151,10 @@ if [ "$CONFIG_CPU_LITTLE_ENDIAN" = "n" ]; then
    bool 'Include forward keyboard' CONFIG_FORWARD_KEYBOARD 
 fi
 
+if [ "$CONFIG_ARC32" = "y" ]; then
+   bool 'ARC console support' CONFIG_ARC_CONSOLE
+fi
+
 define_bool CONFIG_BINFMT_AOUT n
 define_bool CONFIG_BINFMT_ELF y
 tristate 'Kernel support for MISC binaries' CONFIG_BINFMT_MISC
@@ -337,7 +341,6 @@ if [ "$CONFIG_SGI_IP22" = "y" ]; then
       else
 	 define_bool CONFIG_FONT_8x16 y
       fi
-      bool 'SGI PROM Console Support' CONFIG_SGI_PROM_CONSOLE
    fi
    bool 'PS/2 mouse support' CONFIG_PSMOUSE
    if [ "$CONFIG_PSMOUSE" != "n" ]; then

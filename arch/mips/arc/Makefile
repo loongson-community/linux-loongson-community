@@ -10,7 +10,11 @@
 # Note 2! The CFLAGS definitions are now in the main makefile...
 
 L_TARGET = arclib.a
-L_OBJS  = console.o init.o printf.o memory.o tree.o env.o cmdline.o misc.o \
-	  time.o file.o identify.o
+L_OBJS  = console.o init.o memory.o tree.o env.o cmdline.o misc.o time.o \
+	  file.o identify.o
+
+ifdef CONFIG_ARC_CONSOLE
+L_OBJS   += arc_con.o
+endif
 
 include $(TOPDIR)/Rules.make

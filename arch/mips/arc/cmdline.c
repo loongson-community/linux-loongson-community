@@ -12,7 +12,7 @@
 #include <asm/sgialib.h>
 #include <asm/bootinfo.h>
 
-/* #define DEBUG_CMDLINE */
+#undef DEBUG_CMDLINE
 
 char arcs_cmdline[CL_SIZE];
 

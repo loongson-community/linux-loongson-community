@@ -2211,7 +2211,7 @@ CONFIG_SERIAL_MULTIPORT
   of those special I/O ports.
 
 SGI PROM Console Support
-CONFIG_SGI_PROM_CONSOLE
+CONFIG_ARC_CONSOLE
   Say Y here if you want to use the PROMs for console I/O.
 
 SGI Zilog85C30 serial support
