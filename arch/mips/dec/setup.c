@@ -90,6 +90,7 @@ static struct irqaction haltirq = {dec_intr_halt, 0, 0, "halt", NULL, NULL};
 
 void (*board_time_init) (struct irqaction * irq);
 
+
 /*
  * enable the periodic interrupts
  */
@@ -110,8 +111,8 @@ static void __init dec_time_init(struct irqaction *irq)
 
 
 /*
- * Bus error (DBE/IBE exceptions and memory interrupts) handling setup.
- * Nothing for now.
+ * Bus error (DBE/IBE exceptions and memory interrupts) handling
+ * setup.  Nothing for now.
  */
 void __init bus_error_init(void)
 {
@@ -134,6 +135,7 @@ void __init decstation_setup(void)
 
 	rtc_ops = &dec_rtc_ops;
 }
+
 
 /*
  * Machine-specific initialisation for KN01, aka DS2100 (aka Pmin)
