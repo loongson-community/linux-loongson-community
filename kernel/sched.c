@@ -2179,10 +2179,6 @@ static void show_task(task_t * p)
 	else
 		printk(" (NOTLB)\n");
 
-/*
- * This is very useful, but only works on ARM, x86, MIPS and sparc64 right
- * now
- */
 	{
 		extern void show_trace_task(task_t *tsk);
 		show_trace_task(p);
