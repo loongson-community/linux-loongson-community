@@ -125,7 +125,5 @@ void __init ld_mmu_andes(void)
 			while(1);
 	}
     
-	update_mmu_cache = andes_update_mmu_cache;
-
         flush_cache_l1();
 }
