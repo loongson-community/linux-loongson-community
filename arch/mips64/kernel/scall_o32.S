@@ -226,8 +226,74 @@ LEAF(sys32_sysmips)
 		j	sys_sysmips
 		END(sys32_sysmips)
 
+	LEAF(sys32_syscall)
+	ld	t0, PT_R29(sp)		# user sp
+
+	sltu	v0, a0, __NR_Linux + __NR_Linux_syscalls + 1
+	beqz	v0, enosys
+
+	dsll	v0, a0, 3
+	dla	v1, sys32_syscall
+	ld	t2, (sys_call_table - (__NR_Linux32 * 8))(v0)	# function pointer
+	lbu	t3, (sys_narg_table - __NR_Linux32)(a0)	# number of arguments
+
+	li	v0, -EINVAL
+	beq	t2, v1, out		# do not recurse
+
+	beqz	t2, enosys		# null function pointer?
+
+	andi	v0, t0, 0x3		# unaligned stack pointer?
+	bnez	v0, sigsegv
+
+	daddiu	v0, t0, 16		# v0 = usp + 16
+	daddu	t1, v0, 12		# 3 32-bit arguments
+	ld	v1, THREAD_CURDS($28)
+	or	v0, v0, t1
+	and	v1, v1, v0
+	bltz	v1, efault
+
+	move	a0, a1			# shit argument registers
+	move	a1, a2
+	move	a2, a3
+
+1:	lw	a3, 16(t0)
+2:	lw	t3, 20(t0)
+3:	lw	t1, 24(t0)
+
+	.section __ex_table,"a"
+	PTR	1b, efault
+	PTR	2b, efault
+	PTR	3b, efault
+	.previous
+
+	sw	t3, 16(sp)		# put into new stackframe
+	sw	t1, 20(sp)
+
+	bnez	t1, 1f			# zero arguments?
+	daddu	a0, sp, 32		# then pass sp in a0
+1:
+
+	sw	t3, 16(sp)
+	sw	v1, 20(sp)
+	jr	t2
+	/* Unreached */
+
+enosys:	li	v0, -ENOSYS
+	b	out
+
+sigsegv:
+	li	a0, _SIGSEGV
+	move	a1, $28
+	jal	force_sig
+	/* Fall through */
+
+efault:	li	v0, -EFAULT
+
+out:	jr	ra
+	END(sys32_syscall)
+
 	.macro	syscalltable
-	sys	sys_syscall	0			/* 4000 */
+	sys	sys32_syscall	0			/* 4000 */
 	sys	sys_exit	1
 	sys	sys_fork	0
 	sys	sys_read	3
