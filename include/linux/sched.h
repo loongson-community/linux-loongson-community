@@ -802,8 +802,6 @@ extern void FASTCALL(sched_exit(task_t * p));
 extern int in_group_p(gid_t);
 extern int in_egroup_p(gid_t);
 
-extern void release_task(struct task_struct * p);
-
 extern void proc_caches_init(void);
 extern void flush_signals(struct task_struct *);
 extern void flush_signal_handlers(struct task_struct *, int force_default);
