@@ -11,6 +11,8 @@
 #define __ASM_SNI_H
 
 #define SNI_PORT_BASE		0xb4000000
+#define IO_SPACE_BASE		0x9000000000000000
+#define IO_SPACE_LIMIT		0xffffffff
 
 /*
  * ASIC PCI registers for little endian configuration.

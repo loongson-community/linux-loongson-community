@@ -43,6 +43,10 @@
 #include <asm/sibyte/io.h>
 #endif
 
+#ifdef CONFIG_SNI_RM200_PCI
+#include <asm/sni.h>
+#endif
+
 #ifdef CONFIG_SGI_IP27
 extern unsigned long bus_to_baddr[256];
 
