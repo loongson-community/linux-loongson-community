@@ -40,7 +40,6 @@
 #include <asm/mipsregs.h>
 
 extern asmlinkage void jaguar_handle_int(void);
-extern void mv64340_irq_init(void);
 
 static struct irqaction cascade_mv64340 = {
 	no_action, SA_INTERRUPT, 0, "MV64340-Cascade", NULL, NULL
@@ -63,7 +62,7 @@ void __init init_IRQ(void)
 	/* set up the cascading interrupts */
 	setup_irq(8, &cascade_mv64340);
 
-	mv64340_irq_init();
+	mv64340_irq_init(16);
 
 	set_c0_status(ST0_IM);
 }
