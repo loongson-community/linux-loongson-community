@@ -147,6 +147,10 @@ con_type_init(unsigned long kmem_start, const char **display_desc)
 	return kmem_start;
 }
 
+con_type_init_finish(void)
+{
+}
+
 void
 __set_origin(unsigned short offset)
 {

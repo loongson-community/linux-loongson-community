@@ -21,6 +21,10 @@ if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
 fi
 bool 'Support for Mips Magnum 4000' CONFIG_MIPS_MAGNUM_4000
 bool 'Support for Olivetti M700-10' CONFIG_OLIVETTI_M700
+if [ "$CONFIG_MIPS_MAGNUM_4000" = "y" -o \
+     "$CONFIG_OLIVETTI_M700" = "y" ]; then
+       define_bool CONFIG_VIDEO_G364 y
+fi
 if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
   bool 'Support for SGI workstations' CONFIG_SGI
 fi

@@ -122,6 +122,11 @@ CORE_FILES    += arch/mips/jazz/jazz.o
 SUBDIRS       += arch/mips/jazz
 LOADADDR      += 0x80000000
 endif
+ifdef CONFIG_OLIVETTI_M700
+CORE_FILES    += arch/mips/jazz/jazz.o
+SUBDIRS       += arch/mips/jazz
+LOADADDR      += 0x80000000
+endif
 ifdef CONFIG_SNI_RM200_PCI
 CORE_FILES    += arch/mips/sni/sni.o
 SUBDIRS       += arch/mips/sni
