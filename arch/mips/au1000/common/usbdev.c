@@ -1187,9 +1187,9 @@ dma_done_ctrl(struct usb_serial* serial)
 	if ((buff_done = get_dma_buffer_done(ep->indma)) != 0) {
 		// transmitted a DATAx packet on control endpoint 0
 		// clear DMA done bit
-		if (buff_done == DMA_D0)
+		if (buff_done & DMA_D0)
 			clear_dma_done0(ep->indma);
-		else
+		if (buff_done & DMA_D1)
 			clear_dma_done1(ep->indma);
 
 		send_packet_complete(ep);
@@ -1202,9 +1202,9 @@ dma_done_ctrl(struct usb_serial* serial)
 	 */
 	if ((buff_done = get_dma_buffer_done(ep->outdma)) != 0) {
 		// clear DMA done bit
-		if (buff_done == DMA_D0)
+		if (buff_done & DMA_D0)
 			clear_dma_done0(ep->outdma);
-		else
+		if (buff_done & DMA_D1)
 			clear_dma_done1(ep->outdma);
 	}
 
@@ -1223,9 +1223,9 @@ dma_done_port(struct usb_serial_port * port)
 	if ((buff_done = get_dma_buffer_done(ep->indma)) != 0) {
 		// transmitted a DATAx packet on the port's bulk IN endpoint
 		// clear DMA done bit
-		if (buff_done == DMA_D0)
+		if (buff_done & DMA_D0)
 			clear_dma_done0(ep->indma);
-		else
+		if (buff_done & DMA_D1)
 			clear_dma_done1(ep->indma);
 
 		send_packet_complete(ep);
@@ -1245,9 +1245,9 @@ dma_done_port(struct usb_serial_port * port)
 	if ((buff_done = get_dma_buffer_done(ep->outdma)) != 0) {
 		// received a DATAx packet on the port's bulk OUT endpoint
 		// clear DMA done bit
-		if (buff_done == DMA_D0)
+		if (buff_done & DMA_D0)
 			clear_dma_done0(ep->outdma);
-		else
+		if (buff_done & DMA_D1)
 			clear_dma_done1(ep->outdma);
 	}
 	spin_unlock(&ep->lock);
