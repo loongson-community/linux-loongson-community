@@ -73,7 +73,6 @@ CONFIG_ARC_CONSOLE=y
 CONFIG_ARC_MEMORY=y
 CONFIG_ARC_PROMLIB=y
 CONFIG_BOARD_SCACHE=y
-CONFIG_SGI=y
 
 #
 # CPU selection
@@ -426,6 +425,7 @@ CONFIG_INDYDOG=y
 # CONFIG_NVRAM is not set
 # CONFIG_RTC is not set
 # CONFIG_GEN_RTC is not set
+CONFIG_SGI_DS1286=y
 # CONFIG_DTLK is not set
 # CONFIG_R3964 is not set
 # CONFIG_APPLICOM is not set
@@ -547,12 +547,6 @@ CONFIG_SGI_PARTITION=y
 # Sound
 #
 # CONFIG_SOUND is not set
-
-#
-# SGI devices
-#
-CONFIG_SGI_DS1286=y
-# CONFIG_SGI_NEWPORT_GFX is not set
 
 #
 # USB support

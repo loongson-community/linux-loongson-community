@@ -27,7 +27,6 @@ obj-$(CONFIG_ZORRO)		+= zorro/
 obj-$(CONFIG_ALL_PPC)		+= macintosh/
 obj-$(CONFIG_MAC)		+= macintosh/
 obj-$(CONFIG_PNP)		+= pnp/
-obj-$(CONFIG_SGI)		+= sgi/
 obj-$(CONFIG_VT)		+= video/
 obj-$(CONFIG_PARIDE) 		+= block/paride/
 obj-$(CONFIG_TC)		+= tc/

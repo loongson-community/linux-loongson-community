@@ -48,7 +48,7 @@ extern unsigned long sgi_gfxaddr;
 
 static unsigned char *font_data[MAX_NR_CONSOLES];
 
-extern struct newport_regs *npregs;
+static struct newport_regs *npregs;
 
 static int logo_active;
 static int topscan;

@@ -2,7 +2,6 @@
 # Makefile for the Linux/MIPS-specific parts of the memory manager.
 #
 
-export-objs			+= umap.o
 obj-y				:= extable.o init.o fault.o loadmmu.o \
 				   pgtable.o tlbex-r4k.o
 
@@ -19,8 +18,6 @@ obj-$(CONFIG_CPU_MIPS64)	+= c-mips64.o pg-mips64.o tlb-r4k.o tlb-glue-r4k.o
 # Debug TLB exception handler, currently unused
 #
 #obj-y				+=  tlb-dbg-r4k.o
-
-obj-$(CONFIG_SGI_IP22)		+= umap.o
 
 AFLAGS_tlb-glue-r4k.o := -P
 

@@ -2,7 +2,7 @@
 # Makefile for the Linux/MIPS-specific parts of the memory manager.
 #
 
-export-objs			+= ioremap.o loadmmu.o umap.o
+export-objs			+= ioremap.o loadmmu.o
 obj-y				+= extable.o init.o ioremap.o fault.o \
 				   pgtable.o loadmmu.o
 
@@ -23,8 +23,5 @@ obj-$(CONFIG_CPU_MIPS32)	+= pg-mips32.o c-mips32.o tlb-r4k.o tlbex-r4k.o
 obj-$(CONFIG_CPU_MIPS64)	+= pg-mips32.o c-mips32.o tlb-r4k.o tlbex-r4k.o
 obj-$(CONFIG_CPU_SB1)		+= c-sb1.o cex-sb1.o cerr-sb1.o pg-sb1.o \
 				   tlb-sb1.o tlbex-r4k.o
-
-obj-$(CONFIG_SGI_IP22)		+= umap.o
-obj-$(CONFIG_BAGET_MIPS)	+= umap.o
 
 EXTRA_AFLAGS := $(CFLAGS)

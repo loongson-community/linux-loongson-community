@@ -682,11 +682,6 @@ config BOARD_SCACHE
 	depends on SGI_IP22
 	default y
 
-config SGI
-	bool
-	depends on SGI_IP22
-	default y
-
 config ARC64
 	bool
 	depends on SGI_IP27
@@ -1142,10 +1137,6 @@ config BINFMT_IRIX
 	bool "Include IRIX binary compatibility"
 	depends on !CPU_LITTLE_ENDIAN && MIPS32
 
-config FORWARD_KEYBOARD
-	bool "Include forward keyboard"
-	depends on BINFMT_IRIX
-
 config MIPS32_COMPAT
 	bool "Kernel support for Linux/MIPS 32-bit binary compatibility"
 	depends on MIPS64
@@ -1531,8 +1522,6 @@ config SOUND
 source "sound/Kconfig"
 
 endmenu
-
-source "drivers/sgi/Kconfig"
 
 source "drivers/usb/Kconfig"
 

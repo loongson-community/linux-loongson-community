@@ -299,23 +299,6 @@ int kbd_rate(struct kbd_repeat *rep)
 /*
  * Helper Functions.
  */
-#ifdef CONFIG_FORWARD_KEYBOARD
-extern int forward_chars;
-
-void put_queue(struct vc_data *vc, int ch)
-{
-        struct tty_struct *tty = vc->vc_tty;
-
-        if (forward_chars == fg_console+1){
-                kbd_forward_char (ch);
-        } else {
-                if (tty) {
-                        tty_insert_flip_char(tty, ch, 0);
-                        con_schedule_flip(tty);
-                }
-        }
-}
-#else
 static void put_queue(struct vc_data *vc, int ch)
 {
 	struct tty_struct *tty = vc->vc_tty;
@@ -325,7 +308,6 @@ static void put_queue(struct vc_data *vc, int ch)
 		con_schedule_flip(tty);
 	}
 }
-#endif
 
 static void puts_queue(struct vc_data *vc, char *cp)
 {
