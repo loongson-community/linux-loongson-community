@@ -62,24 +62,20 @@ asmlinkage void ret_from_fork(void);
 void exit_thread(void)
 {
 	/* Forget lazy fpu state */
-	if (IS_FPU_OWNER()) {
-		if (mips_cpu.options & MIPS_CPU_FPU) {
-			__enable_fpu();
-			__asm__ __volatile__("cfc1\t$0,$31");
-		}
-		CLEAR_FPU_OWNER();
+	if (last_task_used_math == current && mips_cpu.options & MIPS_CPU_FPU) {
+		__enable_fpu();
+		__asm__ __volatile__("cfc1\t$0,$31");
+		last_task_used_math = NULL;
 	}
 }
 
 void flush_thread(void)
 {
 	/* Forget lazy fpu state */
-	if (IS_FPU_OWNER()) {
-		if (mips_cpu.options & MIPS_CPU_FPU) {
-			__enable_fpu();
-			__asm__ __volatile__("cfc1\t$0,$31");
-		}
-		CLEAR_FPU_OWNER();
+	if (last_task_used_math == current && mips_cpu.options & MIPS_CPU_FPU) {
+		__enable_fpu();
+		__asm__ __volatile__("cfc1\t$0,$31");
+		last_task_used_math = NULL;
 	}
 }
 
@@ -93,10 +89,12 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 
 	childksp = (unsigned long)ti + KERNEL_STACK_SIZE - 32;
 
-	if (IS_FPU_OWNER()) {
-		if (mips_cpu.options & MIPS_CPU_FPU)
+	if (last_task_used_math == current)
+		if (mips_cpu.options & MIPS_CPU_FPU) {
+			__enable_fpu();
 			save_fp(p);
 	}
+
 	/* set up new TSS. */
 	childregs = (struct pt_regs *) childksp - 1;
 	*childregs = *regs;

@@ -54,6 +54,7 @@ extern void (*_flush_icache_all)(void);
 					_flush_icache_page((vma), (page))
 
 #define flush_cache_sigtramp(addr)	_flush_cache_sigtramp(addr)
+
 #ifdef CONFIG_VTAG_ICACHE
 #define flush_icache_all()		_flush_icache_all()
 #else

@@ -485,8 +485,9 @@ extern void pmd_init(unsigned long page, unsigned long pagetable);
 extern pgd_t swapper_pg_dir[1024];
 extern void paging_init(void);
 
-extern void (*update_mmu_cache)(struct vm_area_struct *vma,
-				unsigned long address, pte_t pte);
+extern void (*_update_mmu_cache)(struct vm_area_struct *vma,
+	unsigned long address, pte_t pte);
+#define update_mmu_cache(vma, address, pte) _update_mmu_cache(vma, address, pte)
 
 /*
  * Non-present pages:  high 24 bits are offset, next 8 bits type,

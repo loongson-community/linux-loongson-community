@@ -436,15 +436,97 @@ void __init start_secondary(void)
 	local_flush_tlb_all();
 	flush_cache_l1();
 	flush_cache_l2();
-	start_secondary();
+
+	return cpu_idle();
 }
 
-void allowboot(void)
+static struct task_struct * __init fork_by_hand(void)
+{
+	struct pt_regs regs;
+	/*
+	 * don't care about the eip and regs settings since
+	 * we'll never reschedule the forked task.
+	 */
+	return do_fork(CLONE_VM|CLONE_IDLETASK, 0, &regs, 0);
+}
+
+static int __init do_boot_cpu(int cpu, int num_cpus)
+{
+	extern void smp_bootstrap(void);
+	cpuid_t mycpuid = getcpuid();
+	struct task_struct *idle;
+
+	if (cpu == mycpuid) {
+		alloc_cpupda(cpu, num_cpus);
+		/* We're already started, clear our bit */
+		CPUMASK_CLRB(boot_barrier, cpu);
+		return 1;
+	}
+
+	/* Skip holes in CPU space */
+	if (!CPUMASK_TSTB(boot_cpumask, cpu))
+		return 0;
+
+	/*
+	 * The following code is purely to make sure
+	 * Linux can schedule processes on this slave.
+	 */
+	idle = fork_by_hand();
+	if (IS_ERR(idle))
+		panic("failed fork for CPU %d", cpu);
+
+	/*
+	 * We remove it from the pidhash and the runqueue
+	 * once we got the process:
+	 */
+	init_idle(idle, cpu);
+
+	alloc_cpupda(cpu, num_cpus);
+
+	unhash_process(idle);
+
+	/*
+ 	 * Launch a slave into smp_bootstrap().  It doesn't take an
+	 * argument, and we set sp to the kernel stack of the newly
+	 * created idle process, gp to the proc struct so that
+	 * current_thread_info() will work.
+ 	 */
+	LAUNCH_SLAVE(cputonasid(num_cpus),cputoslice(num_cpus),
+		(launch_proc_t)MAPPED_KERN_RW_TO_K0(smp_bootstrap),
+		0, (void *)((unsigned long)idle->thread_info +
+		KERNEL_STACK_SIZE - 32), (void *)idle);
+
+	/*
+	 * Now optimistically set the mapping arrays. We
+	 * need to wait here, verify the cpu booted up, then
+	 * fire up the next cpu.
+	 */
+	__cpu_number_map[cpu] = num_cpus;
+	__cpu_logical_map[num_cpus] = cpu;
+	CPUMASK_SETB(cpu_online_map, cpu);
+
+	/*
+	 * Wait this cpu to start up and initialize its hub,
+	 * and discover the io devices it will control.
+	 *
+	 * XXX: We really want to fire up launch all the CPUs
+	 * at once.  We have to preserve the order of the
+	 * devices on the bridges first though.
+	 */
+	while (atomic_read(&numstarted) != num_cpus);
+
+	return 1;
+}
+
+void __init smp_boot_cpus(void)
 {
 	int		num_cpus = 0;
-	cpuid_t		cpu, mycpuid = getcpuid();
+	cpuid_t		cpu;
 	cnodeid_t	cnode;
-	extern void	bootstrap(void);
+
+	init_new_context(current, &init_mm);
+	current_thread_info()->cpu = 0;
+	/* smp_tune_scheduling();  XXX */
 
 	sn_mp_setup();
 	/* Master has already done per_cpu_init() */
@@ -458,65 +540,8 @@ void allowboot(void)
 	boot_barrier = boot_cpumask;
 	/* Launch slaves. */
 	for (cpu = 0; cpu < maxcpus; cpu++) {
-		if (cpu == mycpuid) {
-			alloc_cpupda(cpu, num_cpus);
-			num_cpus++;
-			/* We're already started, clear our bit */
-			CPUMASK_CLRB(boot_barrier, cpu);
-			continue;
-		}
-
-		/* Skip holes in CPU space */
-		if (CPUMASK_TSTB(boot_cpumask, cpu)) {
-			struct task_struct *p;
-
-			/*
-			 * The following code is purely to make sure
-			 * Linux can schedule processes on this slave.
-			 */
-			kernel_thread(0, NULL, CLONE_IDLETASK);
-			p = prev_task(&init_task);
-			sprintf(p->comm, "%s%d", "Idle", num_cpus);
-			init_tasks[num_cpus] = p;
-			alloc_cpupda(cpu, num_cpus);
-			unhash_process(p);
-			/* Attach to the address space of init_task. */
-			atomic_inc(&init_mm.mm_count);
-			p->active_mm = &init_mm;
-
-			/*
-		 	 * Launch a slave into bootstrap().
-		 	 * It doesn't take an argument, and we
-			 * set sp to the kernel stack of the newly
-			 * created idle process, gp to the proc struct
-			 * (so that current-> works).
-		 	 */
-			LAUNCH_SLAVE(cputonasid(num_cpus),cputoslice(num_cpus),
-				(launch_proc_t)MAPPED_KERN_RW_TO_K0(bootstrap),
-				0, (void *)((unsigned long)p->thread_info +
-				KERNEL_STACK_SIZE - 32), (void *)p);
-
-			/*
-			 * Now optimistically set the mapping arrays. We
-			 * need to wait here, verify the cpu booted up, then
-			 * fire up the next cpu.
-			 */
-			__cpu_number_map[cpu] = num_cpus;
-			__cpu_logical_map[num_cpus] = cpu;
-			CPUMASK_SETB(cpu_online_map, cpu);
-			num_cpus++;
-			/*
-			 * Wait this cpu to start up and initialize its hub,
-			 * and discover the io devices it will control.
-			 *
-			 * XXX: We really want to fire up launch all the CPUs
-			 * at once.  We have to preserve the order of the
-			 * devices on the bridges first though.
-			 */
-			while(atomic_read(&numstarted) != num_cpus);
-		}
+		num_cpus += do_boot_cpu(cpu, num_cpus);
 	}
-
 
 #ifdef LATER
 	Wait logic goes here.
@@ -534,17 +559,6 @@ void allowboot(void)
 	init_mfhi_war();
 #endif
 	smp_num_cpus = num_cpus;
-}
-
-void __init smp_boot_cpus(void)
-{
-	extern void allowboot(void);
-
-	init_new_context(current, &init_mm);
-	current_thread_info()->cpu = 0;
-	init_idle();
-	/* smp_tune_scheduling();  XXX */
-	allowboot();
 }
 
 #else /* CONFIG_SMP */

@@ -227,20 +227,8 @@ extern asmlinkage void init_fpu(void);
 extern asmlinkage void save_fp(struct task_struct *);
 extern asmlinkage void restore_fp(struct task_struct *);
 
-#ifdef CONFIG_SMP
-#define SWITCH_DO_LAZY_FPU \
-	if (prev->flags & PF_USEDFPU) { \
-		lazy_fpu_switch(prev, 0); \
-		clear_cp0_status(ST0_CU1); \
-		prev->flags &= ~PF_USEDFPU; \
-	}
-#else /* CONFIG_SMP */
-#define SWITCH_DO_LAZY_FPU	do { } while(0)
-#endif /* CONFIG_SMP */
-
 #define switch_to(prev,next) \
 do { \
-	SWITCH_DO_LAZY_FPU; \
 	resume(prev, next, next->thread_info); \
 } while(0)
 

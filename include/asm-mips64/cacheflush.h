@@ -70,13 +70,14 @@ do {									\
 #define flush_icache_user_range(vma, page, addr, len)	\
 	 flush_icache_page((vma), (page))
 #define flush_icache_page(vma, page)	_flush_icache_page(vma, page)
+
+#endif /* !CONFIG_CPU_R10000 */
+
 #ifdef CONFIG_VTAG_ICACHE
 #define flush_icache_all()		_flush_icache_all()
 #else
 #define flush_icache_all()		do { } while(0)
 #endif
-
-#endif /* !CONFIG_CPU_R10000 */
 
 /*
  * The foll cache flushing routines are MIPS specific.

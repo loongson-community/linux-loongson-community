@@ -339,11 +339,12 @@ static asmlinkage int restore_sigcontext(struct pt_regs *regs,
 		goto out;
 	}
 
-	if (IS_FPU_OWNER()) {
+	if (current == last_task_used_math) {
 		/* Signal handler acquired FPU - give it back */
-		CLEAR_FPU_OWNER();
+		last_task_used_math = NULL;
 		regs->cp0_status &= ~ST0_CU1;
 	}
+
 	if (current->used_math) {
 		/* Undo possible contamination of thread state */
 		err |= restore_thread_fp_context(sc);
@@ -514,7 +515,7 @@ static int inline setup_sigcontext(struct pt_regs *regs,
 	err |= __put_user(regs->cp0_cause, &sc->sc_cause);
 	err |= __put_user(regs->cp0_badvaddr, &sc->sc_badvaddr);
 
-	owned_fp = IS_FPU_OWNER();
+	owned_fp = (current == last_task_used_math);
 	err |= __put_user(owned_fp, &sc->sc_ownedfp);
 	err |= __put_user(current->used_math, &sc->sc_used_math);
 

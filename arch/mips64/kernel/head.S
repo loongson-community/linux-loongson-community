@@ -159,7 +159,7 @@ NESTED(smp_bootstrap, 16, sp)
 
 	set_saved_sp	sp, t0
 
-	jal	start_secondary			# XXX: IP27: cboot
+	jal	start_secondary
 
 	END(smp_bootstrap)
 #endif /* CONFIG_SMP */

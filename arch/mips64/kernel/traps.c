@@ -191,7 +191,6 @@ void show_trace_task(struct task_struct *tsk)
 	show_trace((long *)tsk->thread.reg29);
 }
 
-
 void show_code(unsigned int *pc)
 {
 	long i;
@@ -572,28 +571,19 @@ asmlinkage void do_cpu(struct pt_regs *regs)
 		goto fp_emul;
 
 	regs->cp0_status |= ST0_CU1;
-
-#ifdef CONFIG_SMP
-	if (current->used_math) {
-		lazy_fpu_switch(0, current);
-	} else {
-		init_fpu();
-		current->used_math = 1;
-	}
-	current->flags |= PF_USEDFPU;
-#else
 	if (last_task_used_math == current)
 		return;
 
 	if (current->used_math) {		/* Using the FPU again.  */
 		lazy_fpu_switch(last_task_used_math, current);
 	} else {				/* First time FPU user.  */
-		lazy_fpu_switch(last_task_used_math, 0);
+		if (last_task_used_math != NULL)
+			save_fp(last_task_used_math);
 		init_fpu();
 		current->used_math = 1;
 	}
 	last_task_used_math = current;
-#endif
+
 	return;
 
 fp_emul:
@@ -655,21 +645,11 @@ asmlinkage void do_reserved(struct pt_regs *regs)
 	      (regs->cp0_cause & 0x1f) >> 2);
 }
 
-static inline void watch_init(unsigned long cputype)
+static inline void watch_init(void)
 {
-	switch(cputype) {
-	case CPU_R10000:
-	case CPU_R4000MC:
-	case CPU_R4400MC:
-	case CPU_R4000SC:
-	case CPU_R4400SC:
-	case CPU_R4000PC:
-	case CPU_R4400PC:
-	case CPU_R4200:
-	case CPU_R4300:
-		set_except_vector(23, handle_watch);
-		watch_available = 1;
-		break;
+	if (mips_cpu.options & MIPS_CPU_WATCH) {
+	set_except_vector(23, handle_watch);
+	watch_available = 1;
 	}
 }
 
@@ -724,41 +704,38 @@ void __init per_cpu_trap_init(void)
 
 void __init trap_init(void)
 {
-	extern char except_vec0;
-	extern char except_vec1_r4k;
-	extern char except_vec1_r10k;
-	extern char except_vec2_generic;
+	extern char except_vec0_generic, except_vec2_generic;
 	extern char except_vec3_generic, except_vec3_r4000;
 	extern char except_vec4;
 	unsigned long i;
-	int dummy;
 
 	per_cpu_trap_init();
 
 	/* Copy the generic exception handlers to their final destination. */
+	memcpy((void *) KSEG0         , &except_vec0_generic, 0x80);
 	memcpy((void *)(KSEG0 + 0x100), &except_vec2_generic, 0x80);
 	memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic, 0x80);
 
 	/*
 	 * Setup default vectors
 	 */
-	for(i = 0; i <= 31; i++)
+	for (i = 0; i <= 31; i++)
 		set_except_vector(i, handle_reserved);
 
 	/*
 	 * Only some CPUs have the watch exceptions or a dedicated
 	 * interrupt vector.
 	 */
-	watch_init(mips_cpu.cputype);
+	watch_init();
 
 	/*
 	 * Some MIPS CPUs have a dedicated interrupt vector which reduces the
 	 * interrupt processing overhead.  Use it where available.
 	 */
-	memcpy((void *)(KSEG0 + 0x200), &except_vec4, 8);
-
-	if (mips_cpu.options & MIPS_CPU_MCHECK)
-		set_except_vector(24, handle_mcheck);
+	if (mips_cpu.options & MIPS_CPU_DIVEC) {
+		memcpy((void *)(KSEG0 + 0x200), &except_vec4, 8);
+		set_cp0_cause(CAUSEF_IV);
+	}
 
 	/*
 	 * The Data Bus Errors / Instruction Bus Errors are signaled
@@ -767,82 +744,60 @@ void __init trap_init(void)
 	 */
 	bus_error_init();
 
+	set_except_vector(1, __xtlb_mod);
+	set_except_vector(2, __xtlb_tlbl);
+	set_except_vector(3, __xtlb_tlbs);
+	set_except_vector(4, handle_adel);
+	set_except_vector(5, handle_ades);
+
+	set_except_vector(6, handle_ibe);
+	set_except_vector(7, handle_dbe);
+
+	set_except_vector(8, handle_sys);
+	set_except_vector(9, handle_bp);
+	set_except_vector(10, handle_ri);
+	set_except_vector(11, handle_cpu);
+	set_except_vector(12, handle_ov);
+	set_except_vector(13, handle_tr);
+
+	if ((mips_cpu.options & MIPS_CPU_FPU) &&
+	    !(mips_cpu.options & MIPS_CPU_NOFPUEX))
+		set_except_vector(15, handle_fpe);
+
+	if (mips_cpu.options & MIPS_CPU_MCHECK)
+		set_except_vector(24, handle_mcheck);
+
 	/*
 	 * Handling the following exceptions depends mostly of the cpu type
 	 */
-	switch(mips_cpu.cputype) {
-        case CPU_SB1:
-#ifdef CONFIG_SB1_CACHE_ERROR
-		{
-		/* Special cache error handler for SB1 */
-		extern char except_vec2_sb1;
-		memcpy((void *)(KSEG0 + 0x100), &except_vec2_sb1, 0x80);
-		memcpy((void *)(KSEG1 + 0x100), &except_vec2_sb1, 0x80);
-		}
-#endif
-		/* Enable timer interrupt and scd mapped interrupt */
-		clear_cp0_status(0xf000);
-		set_cp0_status(0xc00);
+	if ((mips_cpu.options & MIPS_CPU_4KEX)
+	    && (mips_cpu.options & MIPS_CPU_4KTLB)) {
+		/* Cache error vector already set above.  */
 
-		/* Fall through. */
-	case CPU_R10000:
-	case CPU_R4000MC:
-	case CPU_R4400MC:
-	case CPU_R4000SC:
-	case CPU_R4400SC:
-	case CPU_R4000PC:
-	case CPU_R4400PC:
-	case CPU_R4200:
-	case CPU_R4300:
-	case CPU_R4600:
-	case CPU_R5000:
-	case CPU_NEVADA:
-	case CPU_5KC:
-	case CPU_20KC:
-	case CPU_RM7000:
-		/* Debug TLB refill handler.  */
-		memcpy((void *)KSEG0, &except_vec0, 0x80);
-		if ((mips_cpu.options & MIPS_CPU_4KEX)
-		    && (mips_cpu.options & MIPS_CPU_4KTLB)) {
-			memcpy((void *)KSEG0 + 0x080, &except_vec1_r4k, 0x80);
-		} else {
-			memcpy((void *)KSEG0 + 0x080, &except_vec1_r10k, 0x80);
-		}
 		if (mips_cpu.options & MIPS_CPU_VCE) {
 			memcpy((void *)(KSEG0 + 0x180), &except_vec3_r4000,
 			       0x80);
-		} else {
-			memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic,
-			       0x80);
 		}
-
-		set_except_vector(1, __xtlb_mod);
-		set_except_vector(2, __xtlb_tlbl);
-		set_except_vector(3, __xtlb_tlbs);
-		set_except_vector(4, handle_adel);
-		set_except_vector(5, handle_ades);
-
-		set_except_vector(6, handle_ibe);
-		set_except_vector(7, handle_dbe);
-
-		set_except_vector(8, handle_sys);
-		set_except_vector(9, handle_bp);
-		set_except_vector(10, handle_ri);
-		set_except_vector(11, handle_cpu);
-		set_except_vector(12, handle_ov);
-		set_except_vector(13, handle_tr);
-		set_except_vector(15, handle_fpe);
-		break;
-
-	case CPU_R8000:
-		panic("R8000 is unsupported");
-		break;
-
-	case CPU_UNKNOWN:
-	default:
-		panic("Unknown CPU type");
 	}
-	flush_icache_range(KSEG0, KSEG0 + 0x200);
+
+	if (mips_cpu.cputype == CPU_R6000 || mips_cpu.cputype == CPU_R6000A) {
+		/*
+		 * The R6000 is the only R-series CPU that features a machine
+		 * check exception (similar to the R4000 cache error) and
+		 * unaligned ldc1/sdc1 exception.  The handlers have not been
+		 * written yet.  Well, anyway there is no R6000 machine on the
+		 * current list of targets for Linux/MIPS.
+		 * (Duh, crap, there is someone with a tripple R6k machine)
+		 */
+		//set_except_vector(14, handle_mc);
+		//set_except_vector(15, handle_ndc);
+	}
+
+	if (mips_cpu.cputype == CPU_SB1) {
+		/* Enable timer interrupt and scd mapped interrupt */
+		clear_cp0_status(0xf000);
+		set_cp0_status(0xc00);
+	}
 
 	if (mips_cpu.options & MIPS_CPU_FPU) {
 	        save_fp_context = _save_fp_context;
@@ -851,6 +806,8 @@ void __init trap_init(void)
 		save_fp_context = fpu_emulator_save_context;
 		restore_fp_context = fpu_emulator_restore_context;
 	}
+
+	flush_icache_range(KSEG0, KSEG0 + 0x400);
 
 	if (mips_cpu.isa_level == MIPS_CPU_ISA_IV)
 		set_cp0_status(ST0_XX);

@@ -14,6 +14,7 @@
 #include <linux/config.h>
 #include <linux/slab.h>
 #include <asm/pgalloc.h>
+#include <asm/cacheflush.h>
 #include <asm/tlbflush.h>
 
 /*
