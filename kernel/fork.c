@@ -188,7 +188,7 @@ void __init fork_init(unsigned long mempages)
 	task_struct_cachep =
 		kmem_cache_create("task_struct",
 				  sizeof(struct task_struct),0,
-				  SLAB_HWCACHE_ALIGN, NULL, NULL);
+				  SLAB_MUST_HWCACHE_ALIGN, NULL, NULL);
 	if (!task_struct_cachep)
 		panic("fork_init(): cannot create task_struct SLAB cache");
 
@@ -213,6 +213,8 @@ static struct task_struct *dup_task_struct(struct task_struct *orig)
 	struct task_struct *tsk;
 	struct thread_info *ti;
 	int cpu = get_cpu();
+
+	prepare_to_copy(orig);
 
 	tsk = task_cache[cpu];
 	task_cache[cpu] = NULL;
@@ -916,7 +918,7 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 	 */
 	p->first_time_slice = 1;
 	current->time_slice >>= 1;
-	p->sleep_timestamp = jiffies;
+	p->last_run = jiffies;
 	if (!current->time_slice) {
 		/*
 	 	 * This case is rare, it happens when the parent has only

@@ -3,6 +3,7 @@
 
 #ifdef __KERNEL__
 
+#include <linux/stddef.h>
 #include <linux/prefetch.h>
 #include <asm/system.h>
 

@@ -146,7 +146,7 @@ void inet_sock_destruct(struct sock *sk)
 		       sk);
 		return;
 	}
-	if (!sk->dead) {
+	if (!test_bit(SOCK_DEAD, &sk->flags)) {
 		printk("Attempt to release alive inet socket %p\n", sk);
 		return;
 	}
@@ -454,7 +454,8 @@ int inet_release(struct socket *sock)
 		 * linger..
 		 */
 		timeout = 0;
-		if (sk->linger && !(current->flags & PF_EXITING))
+		if (test_bit(SOCK_LINGER, &sk->flags) &&
+				!(current->flags & PF_EXITING))
 			timeout = sk->lingertime;
 		sock->sk = NULL;
 		sk->prot->close(sk, timeout);
@@ -730,7 +731,7 @@ int inet_getname(struct socket *sock, struct sockaddr *uaddr,
 
 
 int inet_recvmsg(struct kiocb *iocb, struct socket *sock, struct msghdr *msg,
-		 int size, int flags, struct scm_cookie *scm)
+		 int size, int flags)
 {
 	struct sock *sk = sock->sk;
 	int addr_len = 0;
@@ -745,7 +746,7 @@ int inet_recvmsg(struct kiocb *iocb, struct socket *sock, struct msghdr *msg,
 
 
 int inet_sendmsg(struct kiocb *iocb, struct socket *sock, struct msghdr *msg,
-		 int size, struct scm_cookie *scm)
+		 int size)
 {
 	struct sock *sk = sock->sk;
 

@@ -286,9 +286,16 @@ skip_copy_pte_range:
 					goto cont_copy_pte_range_noset;
 				}
 				pfn = pte_pfn(pte);
+				/* the pte points outside of valid memory, the
+				 * mapping is assumed to be good, meaningful
+				 * and not mapped via rmap - duplicate the
+				 * mapping as is.
+				 */
+				if (!pfn_valid(pfn)) {
+					set_pte(dst_pte, pte);
+					goto cont_copy_pte_range_noset;
+				}
 				page = pfn_to_page(pfn);
-				if (!pfn_valid(pfn))
-					goto cont_copy_pte_range;
 				if (PageReserved(page))
 					goto cont_copy_pte_range;
 
@@ -537,7 +544,12 @@ int unmap_vmas(struct mmu_gather **tlbp, struct mm_struct *mm,
 
 		ret++;
 		while (start != end) {
-			unsigned long block = min(zap_bytes, end - start);
+			unsigned long block;
+
+			if (is_vm_hugetlb_page(vma))
+				block = end - start;
+			else
+				block = min(zap_bytes, end - start);
 
 			if (!tlb_start_valid) {
 				tlb_start = start;
@@ -547,7 +559,7 @@ int unmap_vmas(struct mmu_gather **tlbp, struct mm_struct *mm,
 			unmap_page_range(*tlbp, vma, start, start + block);
 			start += block;
 			zap_bytes -= block;
-			if (zap_bytes != 0)
+			if ((long)zap_bytes > 0)
 				continue;
 			if (need_resched()) {
 				tlb_finish_mmu(*tlbp, tlb_start, start);

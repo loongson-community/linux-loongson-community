@@ -13,6 +13,7 @@ CONFIG_EXPERIMENTAL=y
 #
 # General setup
 #
+CONFIG_SWAP=y
 # CONFIG_SYSVIPC is not set
 # CONFIG_BSD_PROCESS_ACCT is not set
 CONFIG_SYSCTL=y
@@ -60,7 +61,6 @@ CONFIG_KMOD=y
 # CONFIG_SGI_IP32 is not set
 # CONFIG_SOC_AU1X00 is not set
 # CONFIG_SIBYTE_SB1xxx_SOC is not set
-CONFIG_PCI=y
 CONFIG_SNI_RM200_PCI=y
 # CONFIG_TANBAC_TB0226 is not set
 # CONFIG_TANBAC_TB0229 is not set
@@ -72,7 +72,6 @@ CONFIG_RWSEM_GENERIC_SPINLOCK=y
 CONFIG_ARC=y
 CONFIG_GENERIC_ISA_DMA=y
 CONFIG_I8259=y
-CONFIG_ISA=y
 CONFIG_NONCOHERENT_IO=y
 CONFIG_CPU_LITTLE_ENDIAN=y
 CONFIG_BOOT_ELF32=y
@@ -113,12 +112,12 @@ CONFIG_CPU_HAS_SYNC=y
 #
 # Bus options (PCI, PCMCIA, EISA, ISA, TC)
 #
-CONFIG_EISA=y
+CONFIG_PCI=y
 CONFIG_PCI_LEGACY_PROC=y
 # CONFIG_PCI_NAMES is not set
+CONFIG_ISA=y
+# CONFIG_EISA is not set
 CONFIG_MMU=y
-CONFIG_SWAP=y
-CONFIG_EISA_NAMES=y
 # CONFIG_HOTPLUG is not set
 
 #
@@ -192,7 +191,6 @@ CONFIG_SCSI_CONSTANTS=y
 # CONFIG_SCSI_ACARD is not set
 # CONFIG_SCSI_AHA152X is not set
 # CONFIG_SCSI_AHA1542 is not set
-# CONFIG_SCSI_AHA1740 is not set
 # CONFIG_SCSI_AACRAID is not set
 # CONFIG_SCSI_AIC7XXX is not set
 # CONFIG_SCSI_AIC7XXX_OLD is not set
@@ -207,7 +205,6 @@ CONFIG_SCSI_CONSTANTS=y
 # CONFIG_SCSI_DMX3191D is not set
 # CONFIG_SCSI_DTC3280 is not set
 # CONFIG_SCSI_EATA is not set
-# CONFIG_SCSI_EATA_DMA is not set
 # CONFIG_SCSI_EATA_PIO is not set
 # CONFIG_SCSI_FUTURE_DOMAIN is not set
 # CONFIG_SCSI_GDTH is not set
@@ -230,7 +227,6 @@ CONFIG_SCSI_SYM53C8XX_MAX_TAGS=64
 # CONFIG_SCSI_QLOGIC_ISP is not set
 # CONFIG_SCSI_QLOGIC_FC is not set
 # CONFIG_SCSI_QLOGIC_1280 is not set
-# CONFIG_SCSI_SIM710 is not set
 # CONFIG_SCSI_SYM53C416 is not set
 # CONFIG_SCSI_DC390T is not set
 # CONFIG_SCSI_T128 is not set
@@ -364,12 +360,9 @@ CONFIG_PCNET32=y
 # CONFIG_DGRS is not set
 # CONFIG_EEPRO100 is not set
 # CONFIG_E100 is not set
-# CONFIG_LNE390 is not set
 # CONFIG_FEALNX is not set
 # CONFIG_NATSEMI is not set
 # CONFIG_NE2K_PCI is not set
-# CONFIG_NE3210 is not set
-# CONFIG_ES3210 is not set
 # CONFIG_8139CP is not set
 # CONFIG_8139TOO is not set
 # CONFIG_SIS900 is not set
@@ -544,56 +537,72 @@ CONFIG_RTC=y
 #
 # File systems
 #
-# CONFIG_QUOTA is not set
-# CONFIG_AUTOFS_FS is not set
-# CONFIG_AUTOFS4_FS is not set
-# CONFIG_REISERFS_FS is not set
-# CONFIG_ADFS_FS is not set
-# CONFIG_AFFS_FS is not set
-# CONFIG_HFS_FS is not set
-# CONFIG_BEFS_FS is not set
-# CONFIG_BFS_FS is not set
+# CONFIG_EXT2_FS is not set
 CONFIG_EXT3_FS=y
 CONFIG_EXT3_FS_XATTR=y
 CONFIG_EXT3_FS_POSIX_ACL=y
 CONFIG_JBD=y
 # CONFIG_JBD_DEBUG is not set
-# CONFIG_FAT_FS is not set
-# CONFIG_EFS_FS is not set
-# CONFIG_CRAMFS is not set
-# CONFIG_TMPFS is not set
-CONFIG_RAMFS=y
-# CONFIG_ISO9660_FS is not set
+CONFIG_FS_MBCACHE=y
+# CONFIG_REISERFS_FS is not set
 # CONFIG_JFS_FS is not set
+CONFIG_FS_POSIX_ACL=y
+# CONFIG_XFS_FS is not set
 # CONFIG_MINIX_FS is not set
-# CONFIG_VXFS_FS is not set
+# CONFIG_ROMFS_FS is not set
+# CONFIG_QUOTA is not set
+# CONFIG_AUTOFS_FS is not set
+# CONFIG_AUTOFS4_FS is not set
+
+#
+# CD-ROM/DVD Filesystems
+#
+# CONFIG_ISO9660_FS is not set
+# CONFIG_UDF_FS is not set
+
+#
+# DOS/FAT/NT Filesystems
+#
+# CONFIG_FAT_FS is not set
 # CONFIG_NTFS_FS is not set
-# CONFIG_HPFS_FS is not set
+
+#
+# Pseudo filesystems
+#
 CONFIG_PROC_FS=y
 # CONFIG_DEVFS_FS is not set
 CONFIG_DEVPTS_FS=y
+# CONFIG_TMPFS is not set
+CONFIG_RAMFS=y
+
+#
+# Miscellaneous filesystems
+#
+# CONFIG_ADFS_FS is not set
+# CONFIG_AFFS_FS is not set
+# CONFIG_HFS_FS is not set
+# CONFIG_BEFS_FS is not set
+# CONFIG_BFS_FS is not set
+# CONFIG_EFS_FS is not set
+# CONFIG_CRAMFS is not set
+# CONFIG_VXFS_FS is not set
+# CONFIG_HPFS_FS is not set
 # CONFIG_QNX4FS_FS is not set
-# CONFIG_ROMFS_FS is not set
-# CONFIG_EXT2_FS is not set
 # CONFIG_SYSV_FS is not set
-# CONFIG_UDF_FS is not set
 # CONFIG_UFS_FS is not set
-# CONFIG_XFS_FS is not set
 
 #
 # Network File Systems
 #
-# CONFIG_CODA_FS is not set
-# CONFIG_INTERMEZZO_FS is not set
 # CONFIG_NFS_FS is not set
 # CONFIG_NFSD is not set
 # CONFIG_EXPORTFS is not set
-# CONFIG_CIFS is not set
 # CONFIG_SMB_FS is not set
+# CONFIG_CIFS is not set
 # CONFIG_NCP_FS is not set
+# CONFIG_CODA_FS is not set
+# CONFIG_INTERMEZZO_FS is not set
 # CONFIG_AFS_FS is not set
-CONFIG_FS_MBCACHE=y
-CONFIG_FS_POSIX_ACL=y
 
 #
 # Partition Types

@@ -79,6 +79,8 @@ struct bus_type {
 extern int bus_register(struct bus_type * bus);
 extern void bus_unregister(struct bus_type * bus);
 
+extern int bus_rescan_devices(struct bus_type * bus);
+
 extern struct bus_type * get_bus(struct bus_type * bus);
 extern void put_bus(struct bus_type * bus);
 
@@ -364,6 +366,7 @@ extern int platform_device_register(struct platform_device *);
 extern void platform_device_unregister(struct platform_device *);
 
 extern struct bus_type platform_bus_type;
+extern struct device legacy_bus;
 
 /* drivers/base/power.c */
 extern int device_suspend(u32 state, u32 level);

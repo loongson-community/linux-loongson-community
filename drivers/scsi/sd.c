@@ -93,10 +93,12 @@ static void sd_rw_intr(struct scsi_cmnd * SCpnt);
 
 static int sd_attach(struct scsi_device *);
 static void sd_detach(struct scsi_device *);
+static void sd_rescan(struct scsi_device *);
 static int sd_init_command(struct scsi_cmnd *);
 static int sd_synchronize_cache(struct scsi_disk *, int);
 static int sd_notifier(struct notifier_block *, unsigned long, void *);
-
+static void sd_read_capacity(struct scsi_disk *sdkp, char *diskname,
+		 struct scsi_request *SRpnt, unsigned char *buffer);
 static struct notifier_block sd_notifier_block = {sd_notifier, NULL, 0}; 
 
 static struct Scsi_Device_Template sd_template = {
@@ -106,6 +108,7 @@ static struct Scsi_Device_Template sd_template = {
 	.scsi_type	= TYPE_DISK,
 	.attach		= sd_attach,
 	.detach		= sd_detach,
+	.rescan		= sd_rescan,
 	.init_command	= sd_init_command,
 	.scsi_driverfs_driver = {
 		.name   = "sd",
@@ -627,6 +630,38 @@ static int sd_media_changed(struct gendisk *disk)
 not_present:
 	set_media_not_present(sdkp);
 	return 1;
+}
+
+static void sd_rescan(struct scsi_device * sdp)
+{
+	unsigned char *buffer;
+	struct scsi_disk *sdkp = sd_find_by_sdev(sdp);
+	struct gendisk *gd;
+	struct scsi_request *SRpnt;
+
+	if (!sdkp || sdp->online == FALSE || !sdkp->media_present)
+		return;
+		
+	gd = sdkp->disk;
+	
+	SCSI_LOG_HLQUEUE(3, printk("sd_rescan: disk=%s\n", gd->disk_name));
+	
+	SRpnt = scsi_allocate_request(sdp);
+	if (!SRpnt) {
+		printk(KERN_WARNING "(sd_rescan:) Request allocation "
+		       "failure.\n");
+		return;
+	}
+
+	if (sdkp->device->host->unchecked_isa_dma)
+		buffer = kmalloc(512, GFP_DMA);
+	else
+		buffer = kmalloc(512, GFP_KERNEL);
+
+    	sd_read_capacity(sdkp, gd->disk_name, SRpnt, buffer);
+	set_capacity(gd, sdkp->capacity);	
+	scsi_release_request(SRpnt);
+	kfree(buffer);
 }
 
 static int sd_revalidate_disk(struct gendisk *disk)
@@ -1197,7 +1232,7 @@ sd_init_onedisk(struct scsi_disk * sdkp, struct gendisk *disk)
 		return;
 	}
 
-	buffer = kmalloc(512, GFP_DMA);
+	buffer = kmalloc(512, GFP_KERNEL | GFP_DMA);
 	if (!buffer) {
 		printk(KERN_WARNING "(sd_init_onedisk:) Memory allocation "
 		       "failure.\n");
@@ -1389,14 +1424,9 @@ static int __init init_sd(void)
 
 	SCSI_LOG_HLQUEUE(3, printk("init_sd: sd driver entry point\n"));
 
-	for (i = 0; i < SD_MAJORS; i++) {
-		if (register_blkdev(sd_major(i), "sd", &sd_fops))
-			printk(KERN_NOTICE
-			       "Unable to get major %d for SCSI disk\n",
-			       sd_major(i));
-		else
+	for (i = 0; i < SD_MAJORS; i++)
+		if (register_blkdev(sd_major(i), "sd") == 0)
 			majors++;
-	}
 
 	if (!majors)
 		return -ENODEV;
@@ -1409,7 +1439,7 @@ static int __init init_sd(void)
 }
 
 /**
- *	exit_sd - exit point for this driver (when it is	a module).
+ *	exit_sd - exit point for this driver (when it is a module).
  *
  *	Note: this function unregisters this driver from the scsi mid-level.
  **/

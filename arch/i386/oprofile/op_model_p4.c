@@ -389,7 +389,7 @@ static unsigned long reset_value[NUM_COUNTERS_NON_HT];
 
 static void p4_fill_in_addresses(struct op_msrs * const msrs)
 {
-	int i; 
+	unsigned int i; 
 	unsigned int addr, stag;
 
 	setup_num_counters();
@@ -608,13 +608,14 @@ static int p4_check_ctrs(unsigned int const cpu,
  			CTR_WRITE(reset_value[i], real);
 			/* P4 quirk: you have to re-unmask the apic vector */
 			apic_write(APIC_LVTPC, apic_read(APIC_LVTPC) & ~APIC_LVT_MASKED);
-			return 1;
 		}
 	}
 
 	/* P4 quirk: you have to re-unmask the apic vector */
 	apic_write(APIC_LVTPC, apic_read(APIC_LVTPC) & ~APIC_LVT_MASKED);
-	return 0;
+
+	/* See op_model_ppro.c */
+	return 1;
 }
 
 

@@ -444,13 +444,14 @@ static int cpufreq_gx_cpu_init(struct cpufreq_policy *policy)
 
 /* 
  * cpufreq_gx_init:
- *   MediaGX/Geode GX initilize cpufreq driver
+ *   MediaGX/Geode GX initialize cpufreq driver
  */
 static struct cpufreq_driver gx_suspmod_driver = {
 	.verify		= cpufreq_gx_verify,
 	.target		= cpufreq_gx_target,
 	.init		= cpufreq_gx_cpu_init,
 	.name		= "gx-suspmod",
+	.owner		= THIS_MODULE,
 };
 
 static int __init cpufreq_gx_init(void)

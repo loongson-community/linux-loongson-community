@@ -10,9 +10,14 @@ obj-$(CONFIG_PARISC)		+= parisc/
 obj-$(CONFIG_ACPI)		+= acpi/
 # PnP must come after ACPI since it will eventually need to check if acpi
 # was used and do nothing if so
+obj-$(CONFIG_PNP)		+= pnp/
+
+# char/ comes before serial/ etc so that the VT console is the boot-time
+# default.
+obj-y				+= char/
 obj-y				+= serial/
 obj-$(CONFIG_PARPORT)		+= parport/
-obj-y				+= base/ char/ block/ misc/ net/ media/
+obj-y				+= base/ block/ misc/ net/ media/
 obj-$(CONFIG_NUBUS)		+= nubus/
 obj-$(CONFIG_ATM)		+= atm/
 obj-$(CONFIG_IDE)		+= ide/
@@ -28,7 +33,6 @@ obj-$(CONFIG_SBUS)		+= sbus/
 obj-$(CONFIG_ZORRO)		+= zorro/
 obj-$(CONFIG_ALL_PPC)		+= macintosh/
 obj-$(CONFIG_MAC)		+= macintosh/
-obj-$(CONFIG_PNP)		+= pnp/
 obj-$(CONFIG_PARIDE) 		+= block/paride/
 obj-$(CONFIG_TC)		+= tc/
 obj-$(CONFIG_USB)		+= usb/

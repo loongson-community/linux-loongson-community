@@ -342,8 +342,18 @@ static struct dentry * real_lookup(struct dentry * parent, struct qstr * name, i
 	 *
 	 * FIXME! This could use version numbering or similar to
 	 * avoid unnecessary cache lookups.
+	 *
+	 * The "dcache_lock" is purely to protect the RCU list walker
+	 * from concurrent renames at this point (we mustn't get false
+	 * negatives from the RCU list walk here, unlike the optimistic
+	 * fast walk).
+	 *
+	 * We really should do a sequence number thing to avoid this
+	 * all.
 	 */
+	spin_lock(&dcache_lock);
 	result = d_lookup(parent, name);
+	spin_unlock(&dcache_lock);
 	if (!result) {
 		struct dentry * dentry = d_alloc(parent, name);
 		result = ERR_PTR(-ENOMEM);
@@ -351,10 +361,8 @@ static struct dentry * real_lookup(struct dentry * parent, struct qstr * name, i
 			result = dir->i_op->lookup(dir, dentry);
 			if (result)
 				dput(dentry);
-			else {
+			else
 				result = dentry;
-				security_inode_post_lookup(dir, result);
-			}
 		}
 		up(&dir->i_sem);
 		return result;
@@ -388,10 +396,7 @@ static inline int do_follow_link(struct dentry *dentry, struct nameidata *nd)
 		goto loop;
 	if (current->total_link_count >= 40)
 		goto loop;
-	if (need_resched()) {
-		current->state = TASK_RUNNING;
-		schedule();
-	}
+	cond_resched();
 	err = security_inode_follow_link(dentry, nd);
 	if (err)
 		goto loop;
@@ -887,10 +892,9 @@ struct dentry * lookup_hash(struct qstr *name, struct dentry * base)
 		if (!new)
 			goto out;
 		dentry = inode->i_op->lookup(inode, new);
-		if (!dentry) {
+		if (!dentry)
 			dentry = new;
-			security_inode_post_lookup(inode, dentry);
-		} else
+		else
 			dput(new);
 	}
 out:

@@ -144,6 +144,7 @@ extern kmem_cache_t *tcp_sk_cachep;
 extern kmem_cache_t *tcp_bucket_cachep;
 extern struct tcp_bind_bucket *tcp_bucket_create(struct tcp_bind_hashbucket *head,
 						 unsigned short snum);
+extern void tcp_bucket_destroy(struct tcp_bind_bucket *tb);
 extern void tcp_bucket_unlock(struct sock *sk);
 extern int tcp_port_rover;
 extern struct sock *tcp_v4_lookup_listener(u32 addr, unsigned short hnum, int dif);
@@ -1422,7 +1423,7 @@ static __inline__ void tcp_done(struct sock *sk)
 
 	sk->shutdown = SHUTDOWN_MASK;
 
-	if (!sk->dead)
+	if (!test_bit(SOCK_DEAD, &sk->flags))
 		sk->state_change(sk);
 	else
 		tcp_destroy_sock(sk);

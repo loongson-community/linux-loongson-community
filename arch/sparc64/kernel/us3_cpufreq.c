@@ -79,9 +79,9 @@ static int us3_cpufreq_notifier(struct notifier_block *nb, unsigned long val,
 				void *data)
 {
 	struct cpufreq_freqs *freq = data;
+#ifdef CONFIG_SMP
 	unsigned int cpu = freq->cpu;
 
-#ifdef CONFIG_SMP
 	if (!us3_freq_table[cpu].ref_freq) {
 		us3_freq_table[cpu].ref_freq = freq->old;
 		us3_freq_table[cpu].udelay_val_ref = cpu_data[cpu].udelay_val;
@@ -276,6 +276,7 @@ static int __init us3freq_init(void)
 		driver->target = us3freq_target;
 		driver->init = us3freq_cpu_init;
 		driver->exit = us3freq_cpu_exit;
+		driver->owner = THIS_MODULE,
 		strcpy(driver->name, "UltraSPARC-III");
 
 		cpufreq_us3_driver = driver;

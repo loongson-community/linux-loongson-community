@@ -456,7 +456,10 @@ extern spinlock_t files_lock;
 #define get_file(x)	atomic_inc(&(x)->f_count)
 #define file_count(x)	atomic_read(&(x)->f_count)
 
-extern int init_private_file(struct file *, struct dentry *, int);
+/* Initialize and open a private file and allocate its security structure. */
+extern int open_private_file(struct file *, struct dentry *, int);
+/* Release a private file and free its security structure. */
+extern void close_private_file(struct file *file);
 
 #define	MAX_NON_LFS	((1UL<<31) - 1)
 
@@ -526,8 +529,10 @@ extern struct list_head file_lock_list;
 extern int fcntl_getlk(struct file *, struct flock *);
 extern int fcntl_setlk(struct file *, unsigned int, struct flock *);
 
+#if BITS_PER_LONG == 32
 extern int fcntl_getlk64(struct file *, struct flock64 *);
 extern int fcntl_setlk64(struct file *, unsigned int, struct flock64 *);
+#endif
 
 /* fs/locks.c */
 extern void locks_init_lock(struct file_lock *);
@@ -1033,7 +1038,7 @@ extern void vfs_caches_init(unsigned long);
 #define putname(name)	kmem_cache_free(names_cachep, (void *)(name))
 
 enum {BDEV_FILE, BDEV_SWAP, BDEV_FS, BDEV_RAW};
-extern int register_blkdev(unsigned int, const char *, struct block_device_operations *);
+extern int register_blkdev(unsigned int, const char *);
 extern int unregister_blkdev(unsigned int, const char *);
 extern struct block_device *bdget(dev_t);
 extern int bd_acquire(struct inode *inode);

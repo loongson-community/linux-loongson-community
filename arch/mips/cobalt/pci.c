@@ -409,13 +409,6 @@ void pcibios_align_resource(void *data, struct resource *res,
 	panic("Uhhoh called pcibios_align_resource\n");
 }
 
-void pcibios_update_resource(struct pci_dev *dev, struct resource *root,
-	struct resource *res, int resource)
-{
-
-	panic("Uhhoh called pcibios_update_resource\n");
-}
-
 void __devinit pcibios_fixup_bus(struct pci_bus *bus)
 {
 	/* We don't have sub-busses to fixup here */

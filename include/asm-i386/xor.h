@@ -18,22 +18,6 @@
  * Copyright (C) 1998 Ingo Molnar.
  */
 
-#define FPU_SAVE							\
-  do {									\
-	preempt_disable();						\
-	if (!test_thread_flag(TIF_USEDFPU))				\
-		__asm__ __volatile__ (" clts;\n");			\
-	__asm__ __volatile__ ("fsave %0; fwait": "=m"(fpu_save[0]));	\
-  } while (0)
-
-#define FPU_RESTORE							\
-  do {									\
-	__asm__ __volatile__ ("frstor %0": : "m"(fpu_save[0]));		\
-	if (!test_thread_flag(TIF_USEDFPU))				\
-		stts();							\
-	preempt_enable();						\
-  } while (0)
-
 #define LD(x,y)		"       movq   8*("#x")(%1), %%mm"#y"   ;\n"
 #define ST(x,y)		"       movq %%mm"#y",   8*("#x")(%1)   ;\n"
 #define XO1(x,y)	"       pxor   8*("#x")(%2), %%mm"#y"   ;\n"
@@ -41,14 +25,14 @@
 #define XO3(x,y)	"       pxor   8*("#x")(%4), %%mm"#y"   ;\n"
 #define XO4(x,y)	"       pxor   8*("#x")(%5), %%mm"#y"   ;\n"
 
+#include <asm/i387.h>
 
 static void
 xor_pII_mmx_2(unsigned long bytes, unsigned long *p1, unsigned long *p2)
 {
 	unsigned long lines = bytes >> 7;
-	char fpu_save[108];
 
-	FPU_SAVE;
+	kernel_fpu_begin();
 
 	__asm__ __volatile__ (
 #undef BLOCK
@@ -83,7 +67,7 @@ xor_pII_mmx_2(unsigned long bytes, unsigned long *p1, unsigned long *p2)
 	:
 	: "memory");
 
-	FPU_RESTORE;
+	kernel_fpu_end();
 }
 
 static void
@@ -91,9 +75,8 @@ xor_pII_mmx_3(unsigned long bytes, unsigned long *p1, unsigned long *p2,
 	      unsigned long *p3)
 {
 	unsigned long lines = bytes >> 7;
-	char fpu_save[108];
 
-	FPU_SAVE;
+	kernel_fpu_begin();
 
 	__asm__ __volatile__ (
 #undef BLOCK
@@ -133,7 +116,7 @@ xor_pII_mmx_3(unsigned long bytes, unsigned long *p1, unsigned long *p2,
 	:
 	: "memory");
 
-	FPU_RESTORE;
+	kernel_fpu_end();
 }
 
 static void
@@ -141,9 +124,8 @@ xor_pII_mmx_4(unsigned long bytes, unsigned long *p1, unsigned long *p2,
 	      unsigned long *p3, unsigned long *p4)
 {
 	unsigned long lines = bytes >> 7;
-	char fpu_save[108];
 
-	FPU_SAVE;
+	kernel_fpu_begin();
 
 	__asm__ __volatile__ (
 #undef BLOCK
@@ -188,7 +170,7 @@ xor_pII_mmx_4(unsigned long bytes, unsigned long *p1, unsigned long *p2,
 	:
 	: "memory");
 
-	FPU_RESTORE;
+	kernel_fpu_end();
 }
 
 
@@ -197,9 +179,8 @@ xor_pII_mmx_5(unsigned long bytes, unsigned long *p1, unsigned long *p2,
 	      unsigned long *p3, unsigned long *p4, unsigned long *p5)
 {
 	unsigned long lines = bytes >> 7;
-	char fpu_save[108];
 
-	FPU_SAVE;
+	kernel_fpu_begin();
 
 	/* need to save/restore p4/p5 manually otherwise gcc's 10 argument
 	   limit gets exceeded (+ counts as two arguments) */
@@ -255,7 +236,7 @@ xor_pII_mmx_5(unsigned long bytes, unsigned long *p1, unsigned long *p2,
 	: "r" (p4), "r" (p5) 
 	: "memory");
 
-	FPU_RESTORE;
+	kernel_fpu_end();
 }
 
 #undef LD
@@ -270,9 +251,8 @@ static void
 xor_p5_mmx_2(unsigned long bytes, unsigned long *p1, unsigned long *p2)
 {
 	unsigned long lines = bytes >> 6;
-	char fpu_save[108];
 
-	FPU_SAVE;
+	kernel_fpu_begin();
 
 	__asm__ __volatile__ (
 	" .align 32	             ;\n"
@@ -311,7 +291,7 @@ xor_p5_mmx_2(unsigned long bytes, unsigned long *p1, unsigned long *p2)
 	:
 	: "memory");
 
-	FPU_RESTORE;
+	kernel_fpu_end();
 }
 
 static void
@@ -319,9 +299,8 @@ xor_p5_mmx_3(unsigned long bytes, unsigned long *p1, unsigned long *p2,
 	     unsigned long *p3)
 {
 	unsigned long lines = bytes >> 6;
-	char fpu_save[108];
 
-	FPU_SAVE;
+	kernel_fpu_begin();
 
 	__asm__ __volatile__ (
 	" .align 32,0x90             ;\n"
@@ -369,7 +348,7 @@ xor_p5_mmx_3(unsigned long bytes, unsigned long *p1, unsigned long *p2,
 	:
 	: "memory" );
 
-	FPU_RESTORE;
+	kernel_fpu_end();
 }
 
 static void
@@ -377,9 +356,8 @@ xor_p5_mmx_4(unsigned long bytes, unsigned long *p1, unsigned long *p2,
 	     unsigned long *p3, unsigned long *p4)
 {
 	unsigned long lines = bytes >> 6;
-	char fpu_save[108];
 
-	FPU_SAVE;
+	kernel_fpu_begin();
 
 	__asm__ __volatile__ (
 	" .align 32,0x90             ;\n"
@@ -436,7 +414,7 @@ xor_p5_mmx_4(unsigned long bytes, unsigned long *p1, unsigned long *p2,
 	:
 	: "memory");
 
-	FPU_RESTORE;
+	kernel_fpu_end();
 }
 
 static void
@@ -444,9 +422,8 @@ xor_p5_mmx_5(unsigned long bytes, unsigned long *p1, unsigned long *p2,
 	     unsigned long *p3, unsigned long *p4, unsigned long *p5)
 {
 	unsigned long lines = bytes >> 6;
-	char fpu_save[108];
 
-	FPU_SAVE;
+	kernel_fpu_begin();
 
 	/* need to save p4/p5 manually to not exceed gcc's 10 argument limit */
 	__asm__ __volatile__ (
@@ -517,7 +494,7 @@ xor_p5_mmx_5(unsigned long bytes, unsigned long *p1, unsigned long *p2,
 	: "r" (p4), "r" (p5)
 	: "memory");
 
-	FPU_RESTORE;
+	kernel_fpu_end();
 }
 
 static struct xor_block_template xor_block_pII_mmx = {
@@ -535,9 +512,6 @@ static struct xor_block_template xor_block_p5_mmx = {
 	.do_4 = xor_p5_mmx_4,
 	.do_5 = xor_p5_mmx_5,
 };
-
-#undef FPU_SAVE
-#undef FPU_RESTORE
 
 /*
  * Cache avoiding checksumming functions utilizing KNI instructions

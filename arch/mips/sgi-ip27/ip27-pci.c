@@ -201,27 +201,9 @@ void __init pcibios_update_irq(struct pci_dev *dev, int irq)
 	pci_write_config_byte(dev, PCI_INTERRUPT_LINE, irq);
 }
 
-void pcibios_update_resource(struct pci_dev *dev, struct resource *root,
-	struct resource *res, int resource)
-{
-	unsigned long where, size;
-	u32 reg;
-
-	where = PCI_BASE_ADDRESS_0 + (resource * 4);
-	size = res->end - res->start;
-	pci_read_config_dword(dev, where, &reg);
-	reg = (reg & size) | (((u32)(res->start - root->start)) & ~size);
-	pci_write_config_dword(dev, where, reg);
-}
-
 void __devinit pcibios_fixup_bus(struct pci_bus *b)
 {
 	pci_fixup_irqs(pci_swizzle, pci_map_irq);
-}
-
-void __devinit pcibios_fixup_pbus_ranges(struct pci_bus * bus,
-                          struct pbus_set_ranges_data * ranges)
-{
 }
 
 int pcibios_enable_device(struct pci_dev *dev, int mask)

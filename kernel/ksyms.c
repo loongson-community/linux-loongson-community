@@ -57,6 +57,7 @@
 #include <linux/mount.h>
 #include <linux/ptrace.h>
 #include <linux/time.h>
+#include <linux/backing-dev.h>
 #include <asm/checksum.h>
 
 #if defined(CONFIG_PROC_FS)
@@ -176,7 +177,8 @@ EXPORT_SYMBOL(mark_buffer_dirty);
 EXPORT_SYMBOL(end_buffer_io_sync);
 EXPORT_SYMBOL(__mark_inode_dirty);
 EXPORT_SYMBOL(get_empty_filp);
-EXPORT_SYMBOL(init_private_file);
+EXPORT_SYMBOL(open_private_file);
+EXPORT_SYMBOL(close_private_file);
 EXPORT_SYMBOL(filp_open);
 EXPORT_SYMBOL(filp_close);
 EXPORT_SYMBOL(put_filp);
@@ -234,15 +236,6 @@ EXPORT_SYMBOL(generic_file_write_nolock);
 EXPORT_SYMBOL(generic_file_mmap);
 EXPORT_SYMBOL(generic_file_readonly_mmap);
 EXPORT_SYMBOL(generic_ro_fops);
-EXPORT_SYMBOL(file_lock_list);
-EXPORT_SYMBOL(locks_init_lock);
-EXPORT_SYMBOL(locks_copy_lock);
-EXPORT_SYMBOL(posix_lock_file);
-EXPORT_SYMBOL(posix_test_lock);
-EXPORT_SYMBOL(posix_block_lock);
-EXPORT_SYMBOL(posix_unblock_lock);
-EXPORT_SYMBOL(posix_locks_deadlock);
-EXPORT_SYMBOL(locks_mandatory_area);
 EXPORT_SYMBOL(dput);
 EXPORT_SYMBOL(have_submounts);
 EXPORT_SYMBOL(d_find_alias);
@@ -367,6 +360,7 @@ EXPORT_SYMBOL_GPL(generic_file_direct_IO);
 EXPORT_SYMBOL(generic_file_readv);
 EXPORT_SYMBOL(generic_file_writev);
 EXPORT_SYMBOL(iov_shorten);
+EXPORT_SYMBOL_GPL(default_backing_dev_info);
 
 /* tty routines */
 EXPORT_SYMBOL(tty_wait_until_sent);

@@ -451,20 +451,6 @@ config SIBYTE_TBPROF
 	bool "Support for ZBbus profiling"
 	depends on SIBYTE_SB1xxx_SOC
 
-config PCI
-	bool "Support for PCI controller" if SIBYTE_SB1xxx_SOC && SIBYTE_SB1250
-	default y if ZAO_CAPCELLA || VICTOR_MPC30X || TOSHIBA_JMR3927 || TOSHIBA_RBTX4927 || SNI_RM200_PCI || SGI_IP32 || SGI_IP27 || NEC_EAGLE || DDB5477 || DDB5476 || DDB5074 || MOMENCO_OCELOT_G || MOMENCO_OCELOT || MIPS_MALTA || MIPS_ATLAS || LASAT || MIPS_ITE8172 || HP_LASERJET || MIPS_IVR || MIPS_EV96100 || MIPS_EV64120 || MIPS_COBALT || MIPS_PB1500 || MIPS_PB1100 || MIPS_PB1000 || TANBAC_TB0226 || TANBAC_TB0229
-	help
-	  Find out whether you have a PCI motherboard. PCI is the name of a
-	  bus system, i.e. the way the CPU talks to the other stuff inside
-	  your box. Other bus systems are ISA, EISA, or VESA. If you have PCI,
-	  say Y, otherwise N.
-
-	  The PCI-HOWTO, available from
-	  <http://www.linuxdoc.org/docs.html#howto>, contains valuable
-	  information about which PCI hardware does work under Linux and which
-	  doesn't.
-
 config SIBYTE_SWARM
 	bool "Support for SWARM board"
 	depends on SIBYTE_SB1250
@@ -527,17 +513,6 @@ config I8259
 	bool
 	depends on SNI_RM200_PCI || DDB5477 || DDB5476 || DDB5074 || MIPS_MALTA || MIPS_MAGNUM_4000 || OLIVETTI_M700 || MIPS_COBALT || ACER_PICA_61
 	default y
-
-config ISA
-	bool
-	depends on TOSHIBA_RBTX4927 || SNI_RM200_PCI || DDB5476 || DDB5074 || MIPS_MAGNUM_4000 || OLIVETTI_M700 || IBM_WORKPAD || CASIO_E55 || ACER_PICA_61
-	default y
-	help
-	  Find out whether you have ISA slots on your motherboard.  ISA is the
-	  name of a bus system, i.e. the way the CPU talks to the other stuff
-	  inside your box.  Other bus systems are PCI, EISA, or VESA.  ISA is
-	  an older system, now being displaced by PCI; newer boards don't
-	  support it.  If you have ISA, say Y, otherwise N.
 
 config MIPS_JAZZ
 	bool
@@ -1057,14 +1032,44 @@ endmenu
 
 menu "Bus options (PCI, PCMCIA, EISA, ISA, TC)"
 
+config PCI
+	bool "Support for PCI controller"
+	depends on SNI_RM200_PCI || (SIBYTE_SB1xxx_SOC && SIBYTE_SB1250)
+	default y if ZAO_CAPCELLA || VICTOR_MPC30X || TOSHIBA_JMR3927 || TOSHIBA_RBTX4927 || SNI_RM200_PCI || SGI_IP32 || SGI_IP27 || NEC_EAGLE || DDB5477 || DDB5476 || DDB5074 || MOMENCO_OCELOT_G || MOMENCO_OCELOT || MIPS_MALTA || MIPS_ATLAS || LASAT || MIPS_ITE8172 || HP_LASERJET || MIPS_IVR || MIPS_EV96100 || MIPS_EV64120 || MIPS_COBALT || MIPS_PB1500 || MIPS_PB1100 || MIPS_PB1000 || TANBAC_TB0226 || TANBAC_TB0229
+	help
+	  Find out whether you have a PCI motherboard. PCI is the name of a
+	  bus system, i.e. the way the CPU talks to the other stuff inside
+	  your box. Other bus systems are ISA, EISA, or VESA. If you have PCI,
+	  say Y, otherwise N.
+
+	  The PCI-HOWTO, available from
+	  <http://www.linuxdoc.org/docs.html#howto>, contains valuable
+	  information about which PCI hardware does work under Linux and which
+	  doesn't.
+
+source "drivers/pci/Kconfig"
+
 config ISA
 	bool "ISA bus support"
-	depends on IP22_EISA
+	depends on ACER_PICA_61 || SGI_IP22 || MIPS_MAGNUM_4000 || OLIVETTI_M700 || SNI_RM200_PCI
+	default y if TOSHIBA_RBTX4927 || DDB5476 || DDB5074 || IBM_WORKPAD || CASIO_E55
+	help
+	  Find out whether you have ISA slots on your motherboard.  ISA is the
+	  name of a bus system, i.e. the way the CPU talks to the other stuff
+	  inside your box.  Other bus systems are PCI, EISA, or VESA.  ISA is
+	  an older system, now being displaced by PCI; newer boards don't
+	  support it.  If you have ISA, say Y, otherwise N.
+
+#
+# The SCSI bits are needed to get the SCSI code to link ...
+#
+config GENERIC_ISA_DMA
+	bool
+	default y if ACER_PICA_61 || MIPS_MAGNUM_4000 || OLIVETTI_M700 || SNI_RM200_PCI || SCSI
 
 config EISA
-	bool
-	depends on ISA || IP22_EISA
-	default y
+	bool "EISA support"
+	depends on ISA && (SGI_IP22 || SNI_RM200_PCI)
 	---help---
 	  The Extended Industry Standard Architecture (EISA) bus was
 	  developed as an open alternative to the IBM MicroChannel bus.
@@ -1078,11 +1083,7 @@ config EISA
 
 	  Otherwise, say N.
 
-config IP22_EISA
-	bool "Indigo-2 (IP22) EISA bus support"
-	depends on SGI_IP22 && EXPERIMENTAL
-
-source "drivers/pci/Kconfig"
+source "drivers/eisa/Kconfig"
 
 config TC
 	bool "TURBOchannel support"
@@ -1101,24 +1102,11 @@ config MMU
 	bool
 	default y
 
-config SWAP
-	bool
-	default y
-
-source "drivers/eisa/Kconfig"
-
 config MCA
 	bool
 
 config SBUS
 	bool
-
-#
-# The SCSI bits are needed to get the SCSI code to link ...
-#
-config GENERIC_ISA_DMA
-	bool
-	default y if ACER_PICA_61 || MIPS_MAGNUM_4000 || OLIVETTI_M700 || SNI_RM200_PCI || SCSI
 
 config HOTPLUG
 	bool "Support for hot-pluggable devices"

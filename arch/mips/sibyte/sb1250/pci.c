@@ -321,19 +321,6 @@ struct pci_fixup pcibios_fixups[] = {
 	{0}
 };
 
-void pcibios_update_resource(struct pci_dev *dev, struct resource *root,
-	struct resource *res, int resource)
-{
-	unsigned long where, size;
-	u32 reg;
-
-	where = PCI_BASE_ADDRESS_0 + (resource * 4);
-	size = res->end - res->start;
-	pci_read_config_dword(dev, where, &reg);
-	reg = (reg & size) | (((u32) (res->start - root->start)) & ~size);
-	pci_write_config_dword(dev, where, reg);
-}
-
 /*
  *  Called after each bus is probed, but before its children
  *  are examined.

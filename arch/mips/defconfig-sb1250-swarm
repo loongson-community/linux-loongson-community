@@ -13,6 +13,7 @@ CONFIG_EXPERIMENTAL=y
 #
 # General setup
 #
+CONFIG_SWAP=y
 CONFIG_SYSVIPC=y
 # CONFIG_BSD_PROCESS_ACCT is not set
 CONFIG_SYSCTL=y
@@ -67,7 +68,6 @@ CONFIG_SIBYTE_CFE=y
 # CONFIG_SIBYTE_BUS_WATCHER is not set
 # CONFIG_SIBYTE_SB1250_PROF is not set
 # CONFIG_SIBYTE_TBPROF is not set
-# CONFIG_PCI is not set
 CONFIG_SIBYTE_SWARM=y
 # CONFIG_SNI_RM200_PCI is not set
 # CONFIG_TANBAC_TB0226 is not set
@@ -116,7 +116,7 @@ CONFIG_SB1_CERR_IGNORE_RECOVERABLE=y
 CONFIG_CPU_HAS_LLSC=y
 CONFIG_CPU_HAS_LLDSCD=y
 CONFIG_CPU_HAS_SYNC=y
-CONFIG_HIGHMEM=y
+# CONFIG_HIGHMEM is not set
 CONFIG_SMP=y
 CONFIG_NR_CPUS=2
 # CONFIG_PREEMPT is not set
@@ -126,8 +126,10 @@ CONFIG_NR_CPUS=2
 #
 # Bus options (PCI, PCMCIA, EISA, ISA, TC)
 #
+CONFIG_PCI=y
+CONFIG_PCI_LEGACY_PROC=y
+CONFIG_PCI_NAMES=y
 CONFIG_MMU=y
-CONFIG_SWAP=y
 # CONFIG_HOTPLUG is not set
 
 #
@@ -157,6 +159,10 @@ CONFIG_BINFMT_ELF=y
 # Block devices
 #
 # CONFIG_BLK_DEV_FD is not set
+# CONFIG_BLK_CPQ_DA is not set
+# CONFIG_BLK_CPQ_CISS_DA is not set
+# CONFIG_BLK_DEV_DAC960 is not set
+# CONFIG_BLK_DEV_UMEM is not set
 # CONFIG_BLK_DEV_LOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
 CONFIG_BLK_DEV_RAM=y
@@ -181,6 +187,11 @@ CONFIG_BLK_DEV_RAM_SIZE=9220
 #
 # Fusion MPT device support
 #
+
+#
+# IEEE 1394 (FireWire) support (EXPERIMENTAL)
+#
+# CONFIG_IEEE1394 is not set
 
 #
 # I2O device support
@@ -244,6 +255,11 @@ CONFIG_IPV6_SCTP__=y
 #
 # CONFIG_NET_PKTGEN is not set
 CONFIG_NETDEVICES=y
+
+#
+# ARCnet devices
+#
+# CONFIG_ARCNET is not set
 # CONFIG_DUMMY is not set
 # CONFIG_BONDING is not set
 # CONFIG_EQUALIZER is not set
@@ -256,10 +272,31 @@ CONFIG_NETDEVICES=y
 CONFIG_NET_ETHERNET=y
 # CONFIG_MII is not set
 CONFIG_NET_SB1250_MAC=y
+# CONFIG_HAPPYMEAL is not set
+# CONFIG_SUNGEM is not set
+# CONFIG_NET_VENDOR_3COM is not set
+
+#
+# Tulip family network device support
+#
+# CONFIG_NET_TULIP is not set
+# CONFIG_HP100 is not set
+# CONFIG_NET_PCI is not set
 
 #
 # Ethernet (1000 Mbit)
 #
+# CONFIG_ACENIC is not set
+# CONFIG_DL2K is not set
+# CONFIG_E1000 is not set
+# CONFIG_NS83820 is not set
+# CONFIG_HAMACHI is not set
+# CONFIG_YELLOWFIN is not set
+# CONFIG_R8169 is not set
+# CONFIG_SK98LIN is not set
+# CONFIG_TIGON3 is not set
+# CONFIG_FDDI is not set
+# CONFIG_HIPPI is not set
 # CONFIG_PPP is not set
 # CONFIG_SLIP is not set
 
@@ -271,6 +308,7 @@ CONFIG_NET_SB1250_MAC=y
 #
 # Token Ring devices (depends on LLC=y)
 #
+# CONFIG_RCPCI is not set
 # CONFIG_SHAPER is not set
 
 #
@@ -418,60 +456,76 @@ CONFIG_SERIAL_CONSOLE=y
 #
 # File systems
 #
+CONFIG_EXT2_FS=y
+CONFIG_EXT2_FS_XATTR=y
+CONFIG_EXT2_FS_POSIX_ACL=y
+# CONFIG_EXT3_FS is not set
+# CONFIG_JBD is not set
+CONFIG_FS_MBCACHE=y
+# CONFIG_REISERFS_FS is not set
+# CONFIG_JFS_FS is not set
+CONFIG_FS_POSIX_ACL=y
+# CONFIG_XFS_FS is not set
+# CONFIG_MINIX_FS is not set
+# CONFIG_ROMFS_FS is not set
 # CONFIG_QUOTA is not set
 # CONFIG_AUTOFS_FS is not set
 # CONFIG_AUTOFS4_FS is not set
-# CONFIG_REISERFS_FS is not set
+
+#
+# CD-ROM/DVD Filesystems
+#
+# CONFIG_ISO9660_FS is not set
+# CONFIG_UDF_FS is not set
+
+#
+# DOS/FAT/NT Filesystems
+#
+# CONFIG_FAT_FS is not set
+# CONFIG_NTFS_FS is not set
+
+#
+# Pseudo filesystems
+#
+CONFIG_PROC_FS=y
+# CONFIG_DEVFS_FS is not set
+# CONFIG_TMPFS is not set
+CONFIG_RAMFS=y
+
+#
+# Miscellaneous filesystems
+#
 # CONFIG_ADFS_FS is not set
 # CONFIG_AFFS_FS is not set
 # CONFIG_HFS_FS is not set
 # CONFIG_BEFS_FS is not set
 # CONFIG_BFS_FS is not set
-# CONFIG_EXT3_FS is not set
-# CONFIG_JBD is not set
-# CONFIG_FAT_FS is not set
 # CONFIG_EFS_FS is not set
 # CONFIG_CRAMFS is not set
-# CONFIG_TMPFS is not set
-CONFIG_RAMFS=y
-# CONFIG_ISO9660_FS is not set
-# CONFIG_JFS_FS is not set
-# CONFIG_MINIX_FS is not set
 # CONFIG_VXFS_FS is not set
-# CONFIG_NTFS_FS is not set
 # CONFIG_HPFS_FS is not set
-CONFIG_PROC_FS=y
-# CONFIG_DEVFS_FS is not set
 # CONFIG_QNX4FS_FS is not set
-# CONFIG_ROMFS_FS is not set
-CONFIG_EXT2_FS=y
-CONFIG_EXT2_FS_XATTR=y
-CONFIG_EXT2_FS_POSIX_ACL=y
 # CONFIG_SYSV_FS is not set
-# CONFIG_UDF_FS is not set
 # CONFIG_UFS_FS is not set
-# CONFIG_XFS_FS is not set
 
 #
 # Network File Systems
 #
-# CONFIG_CODA_FS is not set
-# CONFIG_INTERMEZZO_FS is not set
 CONFIG_NFS_FS=y
 CONFIG_NFS_V3=y
 # CONFIG_NFS_V4 is not set
 # CONFIG_NFSD is not set
-CONFIG_SUNRPC=y
-# CONFIG_SUNRPC_GSS is not set
 CONFIG_LOCKD=y
 CONFIG_LOCKD_V4=y
 # CONFIG_EXPORTFS is not set
-# CONFIG_CIFS is not set
 # CONFIG_SMB_FS is not set
+# CONFIG_CIFS is not set
 # CONFIG_NCP_FS is not set
+# CONFIG_CODA_FS is not set
+# CONFIG_INTERMEZZO_FS is not set
+CONFIG_SUNRPC=y
+# CONFIG_SUNRPC_GSS is not set
 # CONFIG_AFS_FS is not set
-CONFIG_FS_MBCACHE=y
-CONFIG_FS_POSIX_ACL=y
 
 #
 # Partition Types
@@ -498,6 +552,7 @@ CONFIG_DUMMY_CONSOLE=y
 #
 # USB support
 #
+# CONFIG_USB is not set
 
 #
 # Bluetooth support
@@ -529,7 +584,7 @@ CONFIG_CRYPTO_SHA512=y
 CONFIG_CRYPTO_DES=y
 CONFIG_CRYPTO_BLOWFISH=y
 CONFIG_CRYPTO_TWOFISH=y
-# CONFIG_CRYPTO_SERPENT is not set
+CONFIG_CRYPTO_SERPENT=y
 CONFIG_CRYPTO_AES=y
 # CONFIG_CRYPTO_TEST is not set
 

@@ -413,6 +413,7 @@ struct pci_dev {
 
 	/* These fields are used by common fixups */
 	unsigned int	transparent:1;	/* Transparent PCI bridge */
+	unsigned int	multifunction:1;/* Part of multi-function device */
 };
 
 #define pci_dev_g(n) list_entry(n, struct pci_dev, global_list)
@@ -484,11 +485,9 @@ struct pci_ops {
 	int (*write)(struct pci_bus *bus, unsigned int devfn, int where, int size, u32 val);
 };
 
-struct pbus_set_ranges_data
-{
-	unsigned long io_start, io_end;
-	unsigned long mem_start, mem_end;
-	unsigned long prefetch_start, prefetch_end;
+struct pci_bus_region {
+	unsigned long start;
+	unsigned long end;
 };
 
 struct pci_driver {
@@ -530,10 +529,7 @@ char *pcibios_setup (char *str);
 /* Used only when drivers/pci/setup.c is used */
 void pcibios_align_resource(void *, struct resource *,
 			    unsigned long, unsigned long);
-void pcibios_update_resource(struct pci_dev *, struct resource *,
-			     struct resource *, int);
 void pcibios_update_irq(struct pci_dev *, int irq);
-void pcibios_fixup_pbus_ranges(struct pci_bus *, struct pbus_set_ranges_data *);
 
 /* Generic PCI functions used internally */
 
@@ -548,7 +544,8 @@ static inline struct pci_bus *pci_alloc_primary_bus(int bus)
 {
 	return pci_alloc_primary_bus_parented(NULL, bus);
 }
-struct pci_dev *pci_scan_slot(struct pci_dev *temp);
+int pci_scan_slot(struct pci_bus *bus, int devfn);
+void pci_bus_add_devices(struct pci_bus *bus);
 int pci_proc_attach_device(struct pci_dev *dev);
 int pci_proc_detach_device(struct pci_dev *dev);
 int pci_proc_attach_bus(struct pci_bus *bus);
@@ -640,6 +637,16 @@ int pci_request_regions(struct pci_dev *, char *);
 void pci_release_regions(struct pci_dev *);
 int pci_request_region(struct pci_dev *, int, char *);
 void pci_release_region(struct pci_dev *, int);
+
+/* drivers/pci/bus.c */
+
+int pci_bus_alloc_resource(struct pci_bus *bus, struct resource *res,
+			   unsigned long size, unsigned long align,
+			   unsigned long min, unsigned int type_mask,
+			   void (*alignf)(void *, struct resource *,
+					  unsigned long, unsigned long),
+			   void *alignf_data);
+void pci_enable_bridges(struct pci_bus *bus);
 
 /* New-style probing supporting hot-pluggable devices */
 int pci_register_driver(struct pci_driver *);
@@ -844,7 +851,7 @@ extern int pci_pci_problems;
 #define PCIPCI_NATOMA		4
 #define PCIPCI_VIAETBF		8
 #define PCIPCI_VSFX		16
-
+#define PCIPCI_ALIMAGIK		32
 
 #endif /* __KERNEL__ */
 #endif /* LINUX_PCI_H */

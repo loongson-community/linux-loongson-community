@@ -1719,10 +1719,10 @@ static int ipx_release(struct socket *sock)
 	if (!sk)
 		goto out;
 
-	if (!sk->dead)
+	if (!test_bit(SOCK_DEAD, &sk->flags))
 		sk->state_change(sk);
 
-	sk->dead = 1;
+	__set_bit(SOCK_DEAD, &sk->flags);
 	sock->sk = NULL;
 	ipx_destroy_socket(sk);
 
@@ -2010,7 +2010,7 @@ out:	return ret;
 }
 
 static int ipx_sendmsg(struct kiocb *iocb, struct socket *sock,
-	struct msghdr *msg, int len, struct scm_cookie *scm)
+	struct msghdr *msg, int len)
 {
 	struct sock *sk = sock->sk;
 	struct ipx_opt *ipxs = ipx_sk(sk);
@@ -2070,7 +2070,7 @@ out:	return ret;
 
 
 static int ipx_recvmsg(struct kiocb *iocb, struct socket *sock,
-		struct msghdr *msg, int size, int flags, struct scm_cookie *scm)
+		struct msghdr *msg, int size, int flags)
 {
 	struct sock *sk = sock->sk;
 	struct ipx_opt *ipxs = ipx_sk(sk);

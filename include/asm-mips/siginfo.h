@@ -71,8 +71,11 @@ typedef struct siginfo {
 
 		/* POSIX.1b timers */
 		struct {
-			unsigned int _timer1;
-			unsigned int _timer2;
+			timer_t _tid;		/* timer id */
+			int _overrun;		/* overrun count */
+			char _pad[sizeof( __ARCH_SI_UID_T) - sizeof(int)];
+			sigval_t _sigval;	/* same as below */
+			int _sys_private;	/* not to be passed to user */
 		} _timer;
 
 		/* POSIX.1b signals */
@@ -114,15 +117,16 @@ typedef struct siginfo {
 
 /* XXX This one isn't yet IRIX / ABI compatible.  */
 typedef struct sigevent {
-	int sigev_notify;
-	sigval_t sigev_value;
-	int sigev_signo;
+	int	sigev_notify;
+	sigval_t	sigev_value;
+	int	sigev_signo;
 	union {
-		int _pad[SIGEV_PAD_SIZE];
+		int	_pad[SIGEV_PAD_SIZE];
+		int	_tid;
 
 		struct {
-			void (*_function)(sigval_t);
-			void *_attribute;	/* really pthread_attr_t */
+			void	(*_function)(sigval_t);
+			void	*_attribute;	/* really pthread_attr_t */
 		} _sigev_thread;
 	} _sigev_un;
 } sigevent_t;

@@ -2,7 +2,7 @@
 # Makefile for the Linux/MIPS kernel.
 #
 
-EXTRA_TARGETS	:= head.o init_task.o
+extra-y		:= head.o init_task.o
 
 obj-y		+= branch.o cpu-probe.o process.o signal.o entry.o traps.o \
 		   ptrace.o irq.o reset.o semaphore.o setup.o syscall.o \

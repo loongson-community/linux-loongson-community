@@ -32,6 +32,7 @@
 #include <linux/serial.h>
 #include <linux/console.h>
 #include <linux/sysrq.h>
+#include <linux/device.h>
 
 #include <asm/io.h>
 #include <asm/irq.h>
@@ -835,11 +836,12 @@ static struct console sa1100_console = {
 	.index		= -1,
 };
 
-void __init sa1100_rs_console_init(void)
+static void __init sa1100_rs_console_init(void)
 {
 	sa1100_init_ports();
 	register_console(&sa1100_console);
 }
+console_initcall(sa1100_rs_console_init);
 
 #define SA1100_CONSOLE	&sa1100_console
 #else
@@ -856,11 +858,53 @@ static struct uart_driver sa1100_reg = {
 	.cons			= SA1100_CONSOLE,
 };
 
+static int sa1100_serial_suspend(struct device *dev, u32 state, u32 level)
+{
+	int i;
+
+	for (i = 0; i < NR_PORTS; i++)
+		uart_suspend_port(&sa1100_reg, &sa1100_ports[i].port, level);
+
+	return 0;
+}
+
+static int sa1100_serial_resume(struct device *dev, u32 level)
+{
+	int i;
+
+	for (i = 0; i < NR_PORTS; i++)
+		uart_resume_port(&sa1100_reg, &sa1100_ports[i].port, level);
+
+	return 0;
+}
+
+static struct device_driver sa11x0_serial_driver = {
+	.name		= "sa11x0_serial",
+	.bus		= &system_bus_type,
+	.devclass	= &tty_devclass,
+	.suspend	= sa1100_serial_suspend,
+	.resume		= sa1100_serial_resume,
+};
+
+/*
+ * This "device" covers _all_ ISA 8250-compatible serial devices.
+ */
+static struct sys_device sa11x0_serial_devs = {
+	.name		= "sa11x0_serial",
+	.id		= 0,
+	.dev = {
+		.driver	= &sa11x0_serial_driver,
+	},
+};
+
 static int __init sa1100_serial_init(void)
 {
 	int ret;
 
 	printk(KERN_INFO "Serial: SA11x0 driver $Revision: 1.50 $\n");
+
+	driver_register(&sa11x0_serial_driver);
+	sys_device_register(&sa11x0_serial_devs);
 
 	sa1100_init_ports();
 	ret = uart_register_driver(&sa1100_reg);

@@ -358,7 +358,7 @@ out:	jr	ra
 	sys	sys_umount	2
 	sys	sys_ni_syscall	0
 	sys	sys32_ioctl	3
-	sys	sys32_fcntl	3			/* 4055 */
+	sys	compat_sys_fcntl	3		/* 4055 */
 	sys	sys_ni_syscall	2
 	sys	sys_setpgid	2
 	sys	sys_ni_syscall, 0
@@ -480,11 +480,11 @@ out:	jr	ra
 	sys	sys_listen	2
 	sys	sys_recv	4			/* 4175 */
 	sys	sys_recvfrom	6
-	sys	sys32_recvmsg	3
+	sys	compat_sys_recvmsg	3
 	sys	sys_send	4
-	sys	sys32_sendmsg	3
+	sys	compat_sys_sendmsg	3
 	sys	sys_sendto	6			/* 4180 */
-	sys	sys32_setsockopt	5
+	sys	compat_sys_setsockopt	5
 	sys	sys_shutdown	2
 	sys	sys_socket	3
 	sys	sys_socketpair	4
@@ -523,7 +523,7 @@ out:	jr	ra
 	sys	sys_mincore	3
 	sys	sys_madvise	3
 	sys	sys_getdents64	3
-	sys	sys32_fcntl64	3			/* 4220 */
+	sys	compat_sys_fcntl64	3		/* 4220 */
 	sys	sys_ni_syscall	0
 	sys	sys_gettid	0
 	sys	sys32_readahead	5

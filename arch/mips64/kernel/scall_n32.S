@@ -158,15 +158,15 @@ EXPORT(sysn32_call_table)
 	PTR	sys_accept
 	PTR	sys_sendto
 	PTR	sys_recvfrom
-	PTR	sys32_sendmsg			/* 6045 */
-	PTR	sys32_recvmsg
+	PTR	compat_sys_sendmsg		/* 6045 */
+	PTR	compat_sys_recvmsg
 	PTR	sys_shutdown
 	PTR	sys_bind
 	PTR	sys_listen
 	PTR	sys_getsockname			/* 6050 */
 	PTR	sys_getpeername
 	PTR	sys_socketpair
-	PTR	sys32_setsockopt
+	PTR	compat_sys_setsockopt
 	PTR	sys_getsockopt
 	PTR	sys_clone			/* 6055 */
 	PTR	sys_fork
@@ -183,7 +183,7 @@ EXPORT(sysn32_call_table)
 	PTR	sys_msgsnd
 	PTR	sys_msgrcv
 	PTR	sys_msgctl
-	PTR	sys32_fcntl			/* 6070 */
+	PTR	compat_sys_fcntl		/* 6070 */
 	PTR	sys_flock
 	PTR	sys_fsync
 	PTR	sys_fdatasync

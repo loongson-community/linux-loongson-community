@@ -235,11 +235,6 @@ void __init pcibios_fixup_bus(struct pci_bus *b)
 	Dprintk("pcibios_fixup_bus()\n");
 }
 
-void pcibios_update_resource(struct pci_dev *dev, struct resource *root,
-			     struct resource *res, int resource)
-{
-}
-
 int __init pcibios_enable_device(struct pci_dev *dev, int mask)
 {
 	/* Not needed, since we enable all devices at startup.  */

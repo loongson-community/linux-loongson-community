@@ -365,7 +365,7 @@ void rose_destroy_socket(struct sock *sk)
 
 	while ((skb = skb_dequeue(&sk->receive_queue)) != NULL) {
 		if (skb->sk != sk) {			/* A pending connection */
-			skb->sk->dead = 1;	/* Queue the unaccepted socket for death */
+			__set_bit(SOCK_DEAD, &skb->sk->flags);	/* Queue the unaccepted socket for death */
 			rose_start_heartbeat(skb->sk);
 			rose_sk(skb->sk)->state = ROSE_STATE_0;
 		}
@@ -646,8 +646,8 @@ static int rose_release(struct socket *sock)
 		sk->state    = TCP_CLOSE;
 		sk->shutdown |= SEND_SHUTDOWN;
 		sk->state_change(sk);
-		sk->dead     = 1;
-		sk->destroy  = 1;
+		__set_bit(SOCK_DEAD, &sk->flags);
+		__set_bit(SOCK_DESTROY, &sk->flags);
 		break;
 
 	default:
@@ -1019,14 +1019,14 @@ int rose_rx_call_request(struct sk_buff *skb, struct net_device *dev, struct ros
 
 	rose_start_heartbeat(make);
 
-	if (!sk->dead)
+	if (!test_bit(SOCK_DEAD, &sk->flags))
 		sk->data_ready(sk, skb->len);
 
 	return 1;
 }
 
 static int rose_sendmsg(struct kiocb *iocb, struct socket *sock,
-			struct msghdr *msg, int len, struct scm_cookie *scm)
+			struct msghdr *msg, int len)
 {
 	struct sock *sk = sock->sk;
 	rose_cb *rose = rose_sk(sk);
@@ -1190,8 +1190,7 @@ static int rose_sendmsg(struct kiocb *iocb, struct socket *sock,
 
 
 static int rose_recvmsg(struct kiocb *iocb, struct socket *sock,
-			struct msghdr *msg, int size, int flags,
-			struct scm_cookie *scm)
+			struct msghdr *msg, int size, int flags)
 {
 	struct sock *sk = sock->sk;
 	rose_cb *rose = rose_sk(sk);

@@ -2,7 +2,7 @@
 # Makefile for the Linux/MIPS kernel.
 #
 
-EXTRA_TARGETS	:= head.o init_task.o
+extra-y		:= head.o init_task.o
 
 obj-y		:= branch.o cpu-probe.o entry.o irq.o proc.o process.o \
 		   ptrace.o r4k_cache.o r4k_fpu.o r4k_genex.o r4k_switch.o \

@@ -160,6 +160,8 @@ extern int p9100_init(void);
 extern int p9100_setup(char*);
 extern int tcx_init(void);
 extern int tcx_setup(char*);
+extern int leo_init(void);
+extern int leo_setup(char*);
 
 static struct {
 	const char *name;
@@ -368,6 +370,9 @@ static struct {
 #endif
 #ifdef CONFIG_FB_TCX
 	{ "tcx", tcx_init, tcx_setup },
+#endif
+#ifdef CONFIG_FB_LEO
+	{ "leo", leo_init, leo_setup },
 #endif
 
 #ifdef CONFIG_GSP_RESOLVER

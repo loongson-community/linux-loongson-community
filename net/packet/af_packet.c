@@ -198,7 +198,7 @@ void packet_sock_destruct(struct sock *sk)
 	BUG_TRAP(atomic_read(&sk->rmem_alloc)==0);
 	BUG_TRAP(atomic_read(&sk->wmem_alloc)==0);
 
-	if (!sk->dead) {
+	if (!test_bit(SOCK_DEAD, &sk->flags)) {
 		printk("Attempt to release alive packet socket: %p\n", sk);
 		return;
 	}
@@ -280,8 +280,7 @@ oom:
  */
  
 static int packet_sendmsg_spkt(struct kiocb *iocb, struct socket *sock,
-			       struct msghdr *msg, int len,
-			       struct scm_cookie *scm)
+			       struct msghdr *msg, int len)
 {
 	struct sock *sk = sock->sk;
 	struct sockaddr_pkt *saddr=(struct sockaddr_pkt *)msg->msg_name;
@@ -658,7 +657,7 @@ ring_is_full:
 
 
 static int packet_sendmsg(struct kiocb *iocb, struct socket *sock,
-			  struct msghdr *msg, int len, struct scm_cookie *scm)
+			  struct msghdr *msg, int len)
 {
 	struct sock *sk = sock->sk;
 	struct sockaddr_ll *saddr=(struct sockaddr_ll *)msg->msg_name;
@@ -852,7 +851,7 @@ static int packet_do_bind(struct sock *sk, struct net_device *dev, int protocol)
 			po->running = 1;
 		} else {
 			sk->err = ENETDOWN;
-			if (!sk->dead)
+			if (!test_bit(SOCK_DEAD, &sk->flags))
 				sk->error_report(sk);
 		}
 	} else {
@@ -1013,8 +1012,7 @@ out:
  */
 
 static int packet_recvmsg(struct kiocb *iocb, struct socket *sock,
-			  struct msghdr *msg, int len,
-			  int flags, struct scm_cookie *scm)
+			  struct msghdr *msg, int len, int flags)
 {
 	struct sock *sk = sock->sk;
 	struct sk_buff *skb;
@@ -1392,7 +1390,7 @@ static int packet_notifier(struct notifier_block *this, unsigned long msg, void 
 					__sock_put(sk);
 					po->running = 0;
 					sk->err = ENETDOWN;
-					if (!sk->dead)
+					if (!test_bit(SOCK_DEAD, &sk->flags))
 						sk->error_report(sk);
 				}
 				if (msg == NETDEV_UNREGISTER) {

@@ -131,7 +131,10 @@ static inline int pci_dma_supported(struct pci_dev *hwdev, u64 mask)
 /*
  * Return the index of the PCI controller for device PDEV.
  */
-#define pci_controller_num(PDEV)	(0)
+static inline int pci_controller_num(struct pci_dev *dev)
+{
+	return 0;
+}
 
 
 #if defined(CONFIG_SA1111) && !defined(CONFIG_PCI)
@@ -171,6 +174,10 @@ void pci_pool_free (struct pci_pool *pool, void *vaddr, dma_addr_t addr);
 #define HAVE_PCI_MMAP
 extern int pci_mmap_page_range(struct pci_dev *dev, struct vm_area_struct *vma,
                                enum pci_mmap_state mmap_state, int write_combine);
+
+extern void
+pcibios_resource_to_bus(struct pci_dev *dev, struct pci_bus_region *region,
+			 struct resource *res);
 
 #endif /* __KERNEL__ */
  

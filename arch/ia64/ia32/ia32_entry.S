@@ -300,7 +300,7 @@ ia32_syscall_table:
 	data8 compat_sys_statfs
 	data8 compat_sys_fstatfs	  /* 100 */
 	data8 sys32_ioperm
-	data8 sys32_socketcall
+	data8 compat_sys_socketcall
 	data8 sys_syslog
 	data8 compat_sys_setitimer
 	data8 compat_sys_getitimer	  /* 105 */
@@ -424,6 +424,26 @@ ia32_syscall_table:
 	data8 sys_ni_syscall		/* reserved for Security */
 	data8 sys_gettid
 	data8 sys_readahead	  /* 225 */
+	data8 sys_ni_syscall
+	data8 sys_ni_syscall
+	data8 sys_ni_syscall
+	data8 sys_ni_syscall
+	data8 sys_ni_syscall	/* 230 */
+	data8 sys_ni_syscall
+	data8 sys_ni_syscall
+	data8 sys_ni_syscall
+	data8 sys_ni_syscall
+	data8 sys_ni_syscall	/* 235 */
+	data8 sys_ni_syscall
+	data8 sys_ni_syscall
+	data8 sys_ni_syscall
+	data8 sys_ni_syscall
+	data8 compat_sys_futex	/* 240 */
+	data8 sys_ni_syscall
+	data8 sys_ni_syscall
+	data8 sys_ni_syscall
+	data8 sys_ni_syscall
+	data8 sys_ni_syscall	/* 245 */
 	data8 sys_ni_syscall
 	data8 sys_ni_syscall
 	data8 sys_ni_syscall

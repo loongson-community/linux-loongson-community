@@ -405,8 +405,8 @@ void __init init_IRQ(void)
 	setup_irq(SGI_MAP_1_IRQ, &map1_cascade);
 #endif
 
-#ifdef CONFIG_IP22_EISA
-	if (ip22_is_fullhouse())	/* Only Indigo-2 have EISA stuff */
+#ifdef CONFIG_EISA
+	if (ip22_is_fullhouse())	/* Only Indigo-2 has EISA stuff */
 	        ip22_eisa_init ();
 #endif
 }

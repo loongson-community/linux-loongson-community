@@ -277,7 +277,7 @@ archmrproper:
 #
 # ---------------------------------------------------------------------------
 
-define generate-asm-offset.h
+define filechk_gen-asm-offset.h
 	(set -e; \
 	 echo "#ifndef __ASM_OFFSET_H"; \
 	 echo "#define __ASM_OFFSET_H"; \
@@ -297,12 +297,8 @@ prepare: include/asm-$(ARCH)/offset.h
 arch/$(ARCH)/kernel/offset.s: include/asm include/linux/version.h \
 				   include/config/MARKER
 
-include/asm-$(ARCH)/offset.h.tmp: arch/$(ARCH)/kernel/offset.s
-	@$(generate-asm-offset.h) < $< > $@
-
-include/asm-$(ARCH)/offset.h: include/asm-$(ARCH)/offset.h.tmp
-	@echo -n '  Generating $@'
-	@$(update-if-changed)
+include/asm-$(ARCH)/offset.h: arch/$(ARCH)/kernel/offset.s
+	$(call filechk,gen-asm-offset.h)
 
 CLEAN_FILES += include/asm-$(ARCH)/offset.h.tmp \
 	       include/asm-$(ARCH)/offset.h

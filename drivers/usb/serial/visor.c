@@ -12,6 +12,13 @@
  *
  * See Documentation/usb/usb-serial.txt for more information on using this driver
  *
+ * (03/09/2003) gkh
+ *	Added support for the Sony Clie NZ90V device.  Thanks to Martin Brachtl
+ *	<brachtl@redgrep.cz> for the information.
+ *
+ * (03/05/2003) gkh
+ *	Think Treo support is now working.
+ *
  * (04/03/2002) gkh
  *	Added support for the Sony OS 4.1 devices.  Thanks to Hiroyuki ARAKI
  *	<hiro@zob.ne.jp> for the information.
@@ -156,7 +163,7 @@
 /*
  * Version Information
  */
-#define DRIVER_VERSION "v2.0"
+#define DRIVER_VERSION "v2.1"
 #define DRIVER_AUTHOR "Greg Kroah-Hartman <greg@kroah.com>"
 #define DRIVER_DESC "USB HandSpring Visor, Palm m50x, Sony Clié driver"
 
@@ -177,6 +184,7 @@ static void visor_write_bulk_callback	(struct urb *urb, struct pt_regs *regs);
 static void visor_read_bulk_callback	(struct urb *urb, struct pt_regs *regs);
 static void visor_read_int_callback	(struct urb *urb, struct pt_regs *regs);
 static int  clie_3_5_startup	(struct usb_serial *serial);
+static int  treo_attach		(struct usb_serial *serial);
 static int palm_os_3_probe (struct usb_serial *serial, const struct usb_device_id *id);
 static int palm_os_4_probe (struct usb_serial *serial, const struct usb_device_id *id);
 
@@ -193,6 +201,8 @@ static struct usb_device_id id_table [] = {
 	{ USB_DEVICE(PALM_VENDOR_ID, PALM_M515_ID),
 		.driver_info = (kernel_ulong_t)&palm_os_4_probe },
 	{ USB_DEVICE(PALM_VENDOR_ID, PALM_I705_ID),
+		.driver_info = (kernel_ulong_t)&palm_os_4_probe },
+	{ USB_DEVICE(PALM_VENDOR_ID, PALM_M100_ID),
 		.driver_info = (kernel_ulong_t)&palm_os_4_probe },
 	{ USB_DEVICE(PALM_VENDOR_ID, PALM_M125_ID),
 		.driver_info = (kernel_ulong_t)&palm_os_4_probe },
@@ -211,6 +221,8 @@ static struct usb_device_id id_table [] = {
 	{ USB_DEVICE(SONY_VENDOR_ID, SONY_CLIE_4_1_ID) },
 	{ USB_DEVICE(SONY_VENDOR_ID, SONY_CLIE_NX60_ID),
 		.driver_info = (kernel_ulong_t)&palm_os_4_probe },
+	{ USB_DEVICE(SONY_VENDOR_ID, SONY_CLIE_NZ90V_ID),
+		.driver_info = (kernel_ulong_t)&palm_os_4_probe },
 	{ }					/* Terminating entry */
 };
 
@@ -226,6 +238,7 @@ static struct usb_device_id id_table_combined [] = {
 	{ USB_DEVICE(PALM_VENDOR_ID, PALM_M505_ID) },
 	{ USB_DEVICE(PALM_VENDOR_ID, PALM_M515_ID) },
 	{ USB_DEVICE(PALM_VENDOR_ID, PALM_I705_ID) },
+	{ USB_DEVICE(PALM_VENDOR_ID, PALM_M100_ID) },
 	{ USB_DEVICE(PALM_VENDOR_ID, PALM_M125_ID) },
 	{ USB_DEVICE(PALM_VENDOR_ID, PALM_M130_ID) },
 	{ USB_DEVICE(PALM_VENDOR_ID, PALM_TUNGSTEN_T_ID) },
@@ -236,6 +249,7 @@ static struct usb_device_id id_table_combined [] = {
 	{ USB_DEVICE(SONY_VENDOR_ID, SONY_CLIE_S360_ID) },
 	{ USB_DEVICE(SONY_VENDOR_ID, SONY_CLIE_4_1_ID) },
 	{ USB_DEVICE(SONY_VENDOR_ID, SONY_CLIE_NX60_ID) },
+	{ USB_DEVICE(SONY_VENDOR_ID, SONY_CLIE_NZ90V_ID) },
 	{ }					/* Terminating entry */
 };
 
@@ -262,6 +276,7 @@ static struct usb_serial_device_type handspring_device = {
 	.close =		visor_close,
 	.throttle =		visor_throttle,
 	.unthrottle =		visor_unthrottle,
+	.attach =		treo_attach,
 	.probe =		visor_probe,
 	.calc_num_ports =	visor_calc_num_ports,
 	.shutdown =		visor_shutdown,
@@ -797,6 +812,48 @@ static int clie_3_5_startup (struct usb_serial *serial)
 	if (result != 1) {
 		dev_err(dev, "%s: get interface number bad return length: %d\n", __FUNCTION__, result);
 		return -EIO;
+	}
+
+	return 0;
+}
+ 
+static int treo_attach (struct usb_serial *serial)
+{
+	struct usb_serial_port *port;
+	int i;
+
+	/* Only do this endpoint hack for the Handspring devices with
+	 * interrupt in endpoints, which for now are the Treo devices. */
+	if ((serial->dev->descriptor.idVendor != HANDSPRING_VENDOR_ID) ||
+	    (serial->num_interrupt_in == 0))
+		return 0;
+
+	dbg("%s", __FUNCTION__);
+
+	/* Ok, this is pretty ugly, but these devices want to use the
+	 * interrupt endpoint as paired up with a bulk endpoint for a
+	 * "virtual serial port".  So let's force the endpoints to be
+	 * where we want them to be. */
+	for (i = serial->num_bulk_in; i < serial->num_ports; ++i) {
+		port = &serial->port[i];
+		port->read_urb = serial->port[0].read_urb;
+		port->bulk_in_endpointAddress = serial->port[0].bulk_in_endpointAddress;
+		port->bulk_in_buffer = serial->port[0].bulk_in_buffer;
+	}
+
+	for (i = serial->num_bulk_out; i < serial->num_ports; ++i) {
+		port = &serial->port[i];
+		port->write_urb = serial->port[0].write_urb;
+		port->bulk_out_size = serial->port[0].bulk_out_size;
+		port->bulk_out_endpointAddress = serial->port[0].bulk_out_endpointAddress;
+		port->bulk_out_buffer = serial->port[0].bulk_out_buffer;
+	}
+
+	for (i = serial->num_interrupt_in; i < serial->num_ports; ++i) {
+		port = &serial->port[i];
+		port->interrupt_in_urb = serial->port[0].interrupt_in_urb;
+		port->interrupt_in_endpointAddress = serial->port[0].interrupt_in_endpointAddress;
+		port->interrupt_in_buffer = serial->port[0].interrupt_in_buffer;
 	}
 
 	return 0;

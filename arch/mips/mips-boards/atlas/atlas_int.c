@@ -139,6 +139,7 @@ void __init init_IRQ(void)
 		irq_desc[i].action	= 0;
 		irq_desc[i].depth	= 1;
 		irq_desc[i].handler	= &atlas_irq_type;
+		spin_lock_init(&irq_desc[i].lock);
 	}
 
 #ifdef CONFIG_KGDB

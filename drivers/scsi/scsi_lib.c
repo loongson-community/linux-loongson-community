@@ -125,7 +125,6 @@ int scsi_queue_insert(struct scsi_cmnd *cmd, int reason)
 	 */
 	cmd->state = SCSI_STATE_MLQUEUE;
 	cmd->owner = SCSI_OWNER_MIDLEVEL;
-	cmd->bh_next = NULL;
 
 	/*
 	 * Decrement the counters, since these commands are no longer
@@ -265,7 +264,6 @@ static int scsi_init_cmd_errh(struct scsi_cmnd *cmd)
 	cmd->serial_number = 0;
 	cmd->serial_number_at_timeout = 0;
 	cmd->flags = 0;
-	cmd->retries = 0;
 	cmd->abort_reason = 0;
 
 	memset(cmd->sense_buffer, 0, sizeof cmd->sense_buffer);

@@ -347,7 +347,7 @@ struct tss_struct {
 	unsigned long	esp0;
 	unsigned short	ss0,__ss0h;
 	unsigned long	esp1;
-	unsigned short	ss1,__ss1h;
+	unsigned short	ss1,__ss1h;	/* ss1 is used to cache MSR_IA32_SYSENTER_CS */
 	unsigned long	esp2;
 	unsigned short	ss2,__ss2h;
 	unsigned long	__cr3;
@@ -404,6 +404,8 @@ struct thread_struct {
 #define INIT_TSS  {							\
 	.esp0		= sizeof(init_stack) + (long)&init_stack,	\
 	.ss0		= __KERNEL_DS,					\
+	.esp1		= sizeof(init_tss[0]) + (long)&init_tss[0],	\
+	.ss1		= __KERNEL_CS,					\
 	.ldt		= GDT_ENTRY_LDT,				\
 	.bitmap		= INVALID_IO_BITMAP_OFFSET,			\
 	.io_bitmap	= { [ 0 ... IO_BITMAP_SIZE ] = ~0 },		\
@@ -412,16 +414,19 @@ struct thread_struct {
 static inline void load_esp0(struct tss_struct *tss, unsigned long esp0)
 {
 	tss->esp0 = esp0;
-	if (cpu_has_sep) {
+	/* This can only happen when SEP is enabled, no need to test "SEP"arately */
+	if (tss->ss1 != __KERNEL_CS) {
+		tss->ss1 = __KERNEL_CS;
 		wrmsr(MSR_IA32_SYSENTER_CS, __KERNEL_CS, 0);
-		wrmsr(MSR_IA32_SYSENTER_ESP, esp0, 0);
 	}
 }
 
-static inline void disable_sysenter(void)
+static inline void disable_sysenter(struct tss_struct *tss)
 {
-	if (cpu_has_sep)  
+	if (cpu_has_sep)  {
+		tss->ss1 = 0;
 		wrmsr(MSR_IA32_SYSENTER_CS, 0, 0);
+	}
 }
 
 #define start_thread(regs, new_eip, new_esp) do {		\
@@ -441,6 +446,10 @@ struct mm_struct;
 
 /* Free all resources held by a thread. */
 extern void release_thread(struct task_struct *);
+
+/* Prepare to copy thread state - unlazy all lazy status */
+extern void prepare_to_copy(struct task_struct *tsk);
+
 /*
  * create a kernel thread without removing it from tasklists
  */

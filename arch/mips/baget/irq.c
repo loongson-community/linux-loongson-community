@@ -145,11 +145,13 @@ int get_irq_list(char *buf)
 {
 	int i, len = 0;
 	struct irqaction * action;
+	unsigned long flags;
 
 	for (i = 0 ; i < BAGET_IRQ_NR ; i++) {
+		local_irq_save(flags);
 		action = irq_action[i];
 		if (!action)
-			continue;
+			gotos skip;
 		len += sprintf(buf+len, "%2d: %8d %c %s",
 			i, kstat_cpu(0).irqs[i],
 			(action->flags & SA_INTERRUPT) ? '+' : ' ',
@@ -160,6 +162,8 @@ int get_irq_list(char *buf)
 				action->name);
 		}
 		len += sprintf(buf+len, "\n");
+skip:
+		local_irq_restore(flags);
 	}
 	return len;
 }

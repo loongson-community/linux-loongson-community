@@ -917,9 +917,10 @@ static struct console sb1250_ser_cons = {
 	index:		-1,
 };
 
-void __init sb1250_serial_console_init(void)
+static void __init sb1250_serial_console_init(void)
 {
 	register_console(&sb1250_ser_cons);
 }
+console_initcall(sb1250_serial_console_init);
 
 #endif /* CONFIG_SIBYTE_SB1250_DUART_CONSOLE */

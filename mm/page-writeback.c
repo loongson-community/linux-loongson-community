@@ -139,6 +139,9 @@ void balance_dirty_pages(struct address_space *mapping)
 	struct page_state ps;
 	long background_thresh;
 	long dirty_thresh;
+	unsigned long pages_written = 0;
+	unsigned long write_chunk = sync_writeback_pages();
+
 	struct backing_dev_info *bdi = mapping->backing_dev_info;
 
 	get_dirty_limits(&ps, &background_thresh, &dirty_thresh);
@@ -147,7 +150,7 @@ void balance_dirty_pages(struct address_space *mapping)
 			.bdi		= bdi,
 			.sync_mode	= WB_SYNC_NONE,
 			.older_than_this = NULL,
-			.nr_to_write	= sync_writeback_pages(),
+			.nr_to_write	= write_chunk,
 		};
 
 		dirty_exceeded = 1;
@@ -158,10 +161,14 @@ void balance_dirty_pages(struct address_space *mapping)
 		get_dirty_limits(&ps, &background_thresh, &dirty_thresh);
 		if (ps.nr_dirty + ps.nr_writeback <= dirty_thresh)
 			break;
+		pages_written += write_chunk - wbc.nr_to_write;
+		if (pages_written >= write_chunk)
+			break;		/* We've done our duty */
 		blk_congestion_wait(WRITE, HZ/10);
 	}
 
-	dirty_exceeded = 0;
+	if (ps.nr_dirty + ps.nr_writeback <= dirty_thresh)
+		dirty_exceeded = 0;
 
 	if (!writeback_in_progress(bdi) && ps.nr_dirty > background_thresh)
 		pdflush_operation(background_writeout, 0);
@@ -362,7 +369,7 @@ static struct notifier_block ratelimit_nb = {
  * dirty memory thresholds: allowing too much dirty highmem pins an excessive
  * number of buffer_heads.
  */
-static int __init page_writeback_init(void)
+void __init page_writeback_init(void)
 {
 	long buffer_pages = nr_free_buffer_pages();
 	long correction;
@@ -385,9 +392,7 @@ static int __init page_writeback_init(void)
 	add_timer(&wb_timer);
 	set_ratelimit();
 	register_cpu_notifier(&ratelimit_nb);
-	return 0;
 }
-module_init(page_writeback_init);
 
 int do_writepages(struct address_space *mapping, struct writeback_control *wbc)
 {

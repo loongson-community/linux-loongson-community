@@ -1,5 +1,4 @@
 /*
- *
  * BRIEF MODULE DESCRIPTION
  *	ITE 8172G interrupt/setup routines.
  *
@@ -298,6 +297,7 @@ void __init init_IRQ(void)
 
 	for (i = 0; i <= IT8172_LAST_IRQ; i++) {
 		irq_desc[i].handler = &it8172_irq_type;
+		spin_lock_init(&irq_desc[i].lock);
 	}
 	irq_desc[MIPS_CPU_TIMER_IRQ].handler = &cp0_irq_type;
 	set_c0_status(ALLINTS_NOTIMER);

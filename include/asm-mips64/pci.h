@@ -383,4 +383,8 @@ static inline void pci_dac_dma_sync_single(struct pci_dev *pdev,
 
 #endif /* __KERNEL__ */
 
+/* generic pci stuff */
+#include <asm-generic/pci.h>
+
 #endif /* _ASM_PCI_H */
+

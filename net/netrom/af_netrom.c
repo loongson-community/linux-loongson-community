@@ -285,7 +285,7 @@ void nr_destroy_socket(struct sock *sk)
 
 	while ((skb = skb_dequeue(&sk->receive_queue)) != NULL) {
 		if (skb->sk != sk) {			/* A pending connection */
-			skb->sk->dead = 1;	/* Queue the unaccepted socket for death */
+			__set_bit(SOCK_DEAD, &skb->sk->flags);	/* Queue the unaccepted socket for death */
 			nr_start_heartbeat(skb->sk);
 			nr_sk(skb->sk)->state = NR_STATE_0;
 		}
@@ -545,8 +545,8 @@ static int nr_release(struct socket *sock)
 		sk->state    = TCP_CLOSE;
 		sk->shutdown |= SEND_SHUTDOWN;
 		sk->state_change(sk);
-		sk->dead     = 1;
-		sk->destroy  = 1;
+		__set_bit(SOCK_DEAD, &sk->flags);
+		__set_bit(SOCK_DESTROY, &sk->flags);
 		sk->socket   = NULL;
 		break;
 
@@ -960,14 +960,14 @@ int nr_rx_frame(struct sk_buff *skb, struct net_device *dev)
 	nr_start_heartbeat(make);
 	nr_start_idletimer(make);
 
-	if (!sk->dead)
+	if (!test_bit(SOCK_DEAD, &sk->flags))
 		sk->data_ready(sk, skb->len);
 
 	return 1;
 }
 
 static int nr_sendmsg(struct kiocb *iocb, struct socket *sock,
-		      struct msghdr *msg, int len, struct scm_cookie *scm)
+		      struct msghdr *msg, int len)
 {
 	struct sock *sk = sock->sk;
 	nr_cb *nr = nr_sk(sk);
@@ -1058,8 +1058,7 @@ static int nr_sendmsg(struct kiocb *iocb, struct socket *sock,
 }
 
 static int nr_recvmsg(struct kiocb *iocb, struct socket *sock,
-		      struct msghdr *msg, int size, int flags,
-		      struct scm_cookie *scm)
+		      struct msghdr *msg, int size, int flags)
 {
 	struct sock *sk = sock->sk;
 	struct sockaddr_ax25 *sax = (struct sockaddr_ax25 *)msg->msg_name;

@@ -20,6 +20,7 @@
 #include <linux/interrupt.h>
 #include <linux/fs_struct.h>
 #include <linux/mm.h>
+#include <linux/socket.h>
 
 #include <asm/oplib.h>
 #include <asm/delay.h>
@@ -136,6 +137,11 @@ extern void mcount(void);
 EXPORT_SYMBOL_NOVERS(mcount);
 #endif
 
+/* Uniprocessor clock frequency */
+#ifndef CONFIG_SMP
+EXPORT_SYMBOL(up_clock_tick);
+#endif
+
 /* Per-CPU information table */
 EXPORT_SYMBOL(cpu_data);
 
@@ -243,6 +249,7 @@ EXPORT_SYMBOL(io_remap_page_range);
 
 /* Solaris/SunOS binary compatibility */
 EXPORT_SYMBOL(_sigpause_common);
+EXPORT_SYMBOL(verify_compat_iovec);
 
 /* Should really be in linux/kernel/ksyms.c */
 EXPORT_SYMBOL(dump_thread);

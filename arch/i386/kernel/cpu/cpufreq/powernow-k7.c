@@ -151,7 +151,7 @@ static int check_powernow(void)
 	}
 
 	if (!(edx & (1 << 1 | 1 << 2))) {
-		printk (" nothing.\n");
+		printk ("nothing.\n");
 		return 0;
 	}
 
@@ -162,9 +162,8 @@ static int check_powernow(void)
 
 static int get_ranges (unsigned char *pst)
 {
-	int j;
+	unsigned int j, speed;
 	u8 fid, vid;
-	unsigned int speed;
 
 	powernow_table = kmalloc((sizeof(struct cpufreq_frequency_table) * (number_scales + 1)), GFP_KERNEL);
 	if (!powernow_table)
@@ -239,12 +238,17 @@ static void change_speed (unsigned int index)
 		__asm__("\tcli\n");
 	rdmsrl (MSR_K7_FID_VID_CTL, fidvidctl.val);
 	fidvidctl.bits.SGTC = latency;	/* Stop grant timeout counter */
+
 	fidvidctl.bits.FID = fid;
-	fidvidctl.bits.VID = vid;
-	/* Note, we could set these lazily. Ie, only do voltage transition
-	   if its changed since last time (Some speeds have the same voltage) */
 	fidvidctl.bits.FIDC = 1;
-	fidvidctl.bits.VIDC = 1;
+
+	/* Set the voltage lazily. Ie, only do voltage transition
+	   if its changed since last time (Some speeds have the same voltage) */
+	if (fidvidctl.bits.VID != vid) {
+		fidvidctl.bits.VID = vid;
+		fidvidctl.bits.VIDC = 1;
+	}
+
 	wrmsrl (MSR_K7_FID_VID_CTL, fidvidctl.val);
 	if (have_a0 == 1)
 		__asm__("\tsti\n");
@@ -253,7 +257,7 @@ static void change_speed (unsigned int index)
 }
 
 
-int powernow_decode_bios (int maxfid, int startvid)
+static int powernow_decode_bios (int maxfid, int startvid)
 {
 	struct psb_s *psb;
 	struct pst_s *pst;
@@ -377,6 +381,7 @@ static struct cpufreq_driver powernow_driver = {
 	.target 	= powernow_target,
 	.init		= powernow_cpu_init,
 	.name		= "powernow-k7",
+	.owner		= THIS_MODULE,
 };
 
 static int __init powernow_init (void)
