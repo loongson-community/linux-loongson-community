@@ -14,8 +14,8 @@
 #include <asm/regdef.h>
 #include <asm/cacheops.h>
 #include <asm/mipsregs.h>
+#include <asm/offset.h>
 
-#define PAGE_SIZE	0x1000
 #ifdef CONFIG_64BIT_PHYS_ADDR
 #define PGD_SIZE	0x2000
 #else
@@ -40,7 +40,7 @@
  */
 
 LEAF(r4k_clear_page_d16)
-	addiu	AT, a0, PAGE_SIZE
+	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_D, (a0)
 	sd	zero, (a0)
 	sd	zero, 8(a0)
@@ -59,7 +59,7 @@ LEAF(r4k_clear_page_d16)
 	END(r4k_clear_page_d16)
 
 LEAF(r4k_clear_page_d32)
-	addiu	AT, a0, PAGE_SIZE
+	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_D, (a0)
 	sd	zero, (a0)
 	sd	zero, 8(a0)
@@ -104,7 +104,7 @@ LEAF(r4k_clear_page_d32)
  */
 
 LEAF(r4k_clear_page_r4600_v1)
-	addiu	AT, a0, PAGE_SIZE
+	addiu	AT, a0, _PAGE_SIZE
 1:	nop
 	nop
 	nop
@@ -141,7 +141,7 @@ LEAF(r4k_clear_page_r4600_v2)
 	lw	zero, (AT)
 	.set	novolatile
 
-	addiu	AT, a0, PAGE_SIZE
+	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_D, (a0)
 	sd	zero, (a0)
 	sd	zero, 8(a0)
@@ -179,7 +179,7 @@ LEAF(r4k_clear_page_r4600_v2)
  */
 
 LEAF(r4k_clear_page_s16)
-	addiu	AT, a0, PAGE_SIZE
+	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_SD, (a0)
 	sd	zero, (a0)
 	sd	zero, 8(a0)
@@ -198,7 +198,7 @@ LEAF(r4k_clear_page_s16)
 	END(r4k_clear_page_s16)
 
 LEAF(r4k_clear_page_s32)
-	addiu	AT, a0, PAGE_SIZE
+	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_SD, (a0)
 	sd	zero, (a0)
 	sd	zero, 8(a0)
@@ -215,7 +215,7 @@ LEAF(r4k_clear_page_s32)
 	END(r4k_clear_page_s32)
 
 LEAF(r4k_clear_page_s64)
-	addiu	AT, a0, PAGE_SIZE
+	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_SD, (a0)
 	sd	zero, (a0)
 	sd	zero, 8(a0)
@@ -231,7 +231,7 @@ LEAF(r4k_clear_page_s64)
 	END(r4k_clear_page_s64)
 
 LEAF(r4k_clear_page_s128)
-	addiu	AT, a0, PAGE_SIZE
+	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_SD, (a0)
 	sd	zero, (a0)
 	sd	zero, 8(a0)
@@ -260,7 +260,7 @@ LEAF(r4k_clear_page_s128)
  */
 
 LEAF(r4k_copy_page_d16)
-	addiu	AT, a0, PAGE_SIZE
+	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_D, (a0)
 	lw	a3, (a1)
 	lw	a2, 4(a1)
@@ -304,7 +304,7 @@ LEAF(r4k_copy_page_d16)
 	END(r4k_copy_page_d16)
 
 LEAF(r4k_copy_page_d32)
-	addiu	AT, a0, PAGE_SIZE
+	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_D, (a0)
 	lw	a3, (a1)
 	lw	a2, 4(a1)
@@ -350,7 +350,7 @@ LEAF(r4k_copy_page_d32)
  */
 
 LEAF(r4k_copy_page_r4600_v1)
-	addiu	AT, a0, PAGE_SIZE
+	addiu	AT, a0, _PAGE_SIZE
 1:	nop
 	nop
 	nop
@@ -409,7 +409,7 @@ LEAF(r4k_copy_page_r4600_v2)
 	nop
 	nop
 
-	addiu	AT, a0, PAGE_SIZE
+	addiu	AT, a0, _PAGE_SIZE
 1:	nop
 	nop
 	nop
@@ -473,7 +473,7 @@ LEAF(r4k_copy_page_r4600_v2)
  */
 
 LEAF(r4k_copy_page_s16)
-	addiu	AT, a0, PAGE_SIZE
+	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_SD, (a0)
 	lw	a3, (a1)
 	lw	a2, 4(a1)
@@ -517,7 +517,7 @@ LEAF(r4k_copy_page_s16)
 	END(r4k_copy_page_s16)
 
 LEAF(r4k_copy_page_s32)
-	addiu	AT, a0, PAGE_SIZE
+	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_SD, (a0)
 	lw	a3, (a1)
 	lw	a2, 4(a1)
@@ -559,7 +559,7 @@ LEAF(r4k_copy_page_s32)
 	END(r4k_copy_page_s32)
 
 LEAF(r4k_copy_page_s64)
-	addiu	AT, a0, PAGE_SIZE
+	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_SD, (a0)
 	lw	a3, (a1)
 	lw	a2, 4(a1)
@@ -600,7 +600,7 @@ LEAF(r4k_copy_page_s64)
 	END(r4k_copy_page_s64)
 
 LEAF(r4k_copy_page_s128)
-	addiu	AT, a0, PAGE_SIZE
+	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_SD, (a0)
 	lw	a3, (a1)
 	lw	a2, 4(a1)

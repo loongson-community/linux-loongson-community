@@ -10,6 +10,7 @@
  */
 #include <linux/types.h>
 #include <linux/sched.h>
+#include <linux/mm.h>
 
 #include <asm/ptrace.h>
 #include <asm/processor.h>
@@ -19,6 +20,8 @@
 
 #define offset(string, ptr, member) \
 	__asm__("\n@@@" string "%0" : : "i" (_offset(ptr, member)))
+#define constant(string, member) \
+	__asm__("\n@@@" string "%x0" : : "i" (member))
 #define size(string, size) \
 	__asm__("\n@@@" string "%0" : : "i" (sizeof(size)))
 #define linefeed text("")
@@ -130,6 +133,10 @@ void output_mm_defines(void)
 	offset("#define MM_USERS      ", struct mm_struct, mm_users);
 	offset("#define MM_PGD        ", struct mm_struct, pgd);
 	offset("#define MM_CONTEXT    ", struct mm_struct, context);
+	linefeed;
+	constant("#define _PAGE_SIZE     ", PAGE_SIZE);
+	constant("#define _PGD_ORDER     ", PGD_ORDER);
+	constant("#define _PGDIR_SHIFT   ", PGDIR_SHIFT);
 	linefeed;
 }
 

@@ -18,7 +18,7 @@
 #include <asm/errno.h>
 #include <asm/mipsregs.h>
 #include <asm/page.h>
-#include <asm/pgtable.h>
+#include <asm/pgtable-bits.h>
 #include <asm/stackframe.h>
 #include <asm/processor.h>
 #include <asm/regdef.h>

@@ -21,7 +21,7 @@
 #include <asm/asm.h>
 #include <asm/current.h>
 #include <asm/offset.h>
-#include <asm/pgtable.h>
+#include <asm/pgtable-bits.h>
 #include <asm/processor.h>
 #include <asm/regdef.h>
 #include <asm/cachectl.h>
@@ -168,20 +168,17 @@ NESTED(kernel_entry, 16, sp)
 		.comm	kernelsp,    NR_CPUS * 8, 8
 		.comm	pgd_current, NR_CPUS * 8, 8
 
-#undef PAGE_SIZE
-#define PAGE_SIZE	0x1000
-
 	.macro	page name, order=0
 	.globl	\name
-\name:	.size	\name, (PAGE_SIZE << \order)
-	.org	. + (PAGE_SIZE << \order)
+\name:	.size	\name, (_PAGE_SIZE << \order)
+	.org	. + (_PAGE_SIZE << \order)
 	.type	\name, @object
 	.endm
 
 	.data
 	.align	12
 
-	page	swapper_pg_dir, PGD_ORDER
+	page	swapper_pg_dir, _PGD_ORDER
 	page	empty_bad_page, 0
 	page	empty_bad_page_table, 0
 	page	invalid_pte_table, 0

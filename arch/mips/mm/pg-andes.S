@@ -10,8 +10,7 @@
  */
 #include <asm/asm.h>
 #include <asm/regdef.h>
-
-#define PAGE_SIZE	0x1000
+#include <asm/offset.h>
 
 	.text
 	.set	mips4
@@ -24,7 +23,7 @@
  */
 
 LEAF(andes_clear_page)
-	LONG_ADDIU	AT, a0, PAGE_SIZE
+	LONG_ADDIU	AT, a0, _PAGE_SIZE
 1:	pref		7, 512(a0)
 	LONG_S		zero, 0*SZREG(a0)
 	LONG_S		zero, 1*SZREG(a0)
@@ -41,7 +40,7 @@ LEAF(andes_clear_page)
 	END(andes_clear_page)
 
 LEAF(andes_copy_page)
-	LONG_ADDIU	AT, a0, PAGE_SIZE
+	LONG_ADDIU	AT, a0, _PAGE_SIZE
 1:	pref		0, 2*128(a1)
 	pref		1, 2*128(a0)
 	LONG_L		a3, 0*SZREG(a1)

@@ -14,7 +14,6 @@
 #include <linux/stddef.h>
 #include <linux/unistd.h>
 #include <linux/personality.h>
-#include <linux/ptrace.h>
 #include <linux/slab.h>
 #include <linux/mman.h>
 #include <linux/sys.h>
@@ -27,7 +26,7 @@
 #include <asm/system.h>
 #include <asm/mipsregs.h>
 #include <asm/processor.h>
-#include <asm/stackframe.h>
+#include <asm/ptrace.h>
 #include <asm/uaccess.h>
 #include <asm/io.h>
 #include <asm/elf.h>

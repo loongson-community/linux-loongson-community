@@ -17,14 +17,14 @@
 #include <linux/signal.h>
 #include <linux/errno.h>
 #include <linux/wait.h>
-#include <linux/ptrace.h>
 #include <linux/unistd.h>
 
 #include <asm/asm.h>
 #include <asm/bitops.h>
 #include <asm/cpu.h>
+#include <asm/offset.h>
 #include <asm/pgalloc.h>
-#include <asm/stackframe.h>
+#include <asm/ptrace.h>
 #include <asm/uaccess.h>
 #include <asm/ucontext.h>
 

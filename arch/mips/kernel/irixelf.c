@@ -23,7 +23,6 @@
 #include <linux/string.h>
 #include <linux/file.h>
 #include <linux/fcntl.h>
-#include <linux/ptrace.h>
 #include <linux/slab.h>
 #include <linux/shm.h>
 #include <linux/personality.h>
@@ -32,6 +31,7 @@
 
 #include <asm/uaccess.h>
 #include <asm/pgalloc.h>
+#include <asm/ptrace.h>
 #include <asm/mipsregs.h>
 #include <asm/prctl.h>
 

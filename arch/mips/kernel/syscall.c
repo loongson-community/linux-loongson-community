@@ -28,7 +28,6 @@
 #include <asm/offset.h>
 #include <asm/ptrace.h>
 #include <asm/signal.h>
-#include <asm/stackframe.h>
 #include <asm/uaccess.h>
 
 extern asmlinkage void syscall_trace(void);

@@ -18,7 +18,7 @@
 #include <asm/fpregdef.h>
 #include <asm/mipsregs.h>
 #include <asm/page.h>
-#include <asm/pgtable.h>
+#include <asm/pgtable-bits.h>
 #include <asm/processor.h>
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
@@ -77,7 +77,7 @@
 	lw	k1, pgd_current			# get pgd pointer
 #endif	
 	mfc0	k0, CP0_BADVADDR		# Get faulting address
-	srl	k0, k0, PGDIR_SHIFT		# get pgd only bits
+	srl	k0, k0, _PGDIR_SHIFT		# get pgd only bits
 
 	sll	k0, k0, 2
 	addu	k1, k1, k0			# add in pgd offset
@@ -103,7 +103,7 @@
 	LEAF(except_vec0_r4600)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
-	srl	k0, k0, PGDIR_SHIFT
+	srl	k0, k0, _PGDIR_SHIFT
 	lw	k1, pgd_current			# get pgd pointer
 	sll	k0, k0, 2			# log2(sizeof(pgd_t)
 	addu	k1, k1, k0
@@ -141,7 +141,7 @@
 	LEAF(except_vec0_nevada)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR		# Get faulting address
-	srl	k0, k0, PGDIR_SHIFT		# get pgd only bits
+	srl	k0, k0, _PGDIR_SHIFT		# get pgd only bits
 	lw	k1, pgd_current			# get pgd pointer
 	sll	k0, k0, 2			# log2(sizeof(pgd_t)
 	addu	k1, k1, k0			# add in pgd offset
@@ -169,7 +169,7 @@
 	LEAF(except_vec0_r45k_bvahwbug)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
-	srl	k0, k0, PGDIR_SHIFT
+	srl	k0, k0, _PGDIR_SHIFT
 	lw	k1, pgd_current			# get pgd pointer
 	sll	k0, k0, 2			# log2(sizeof(pgd_t)
 	addu	k1, k1, k0
@@ -201,7 +201,7 @@
 	LEAF(except_vec0_r4k_mphwbug)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
-	srl	k0, k0, PGDIR_SHIFT
+	srl	k0, k0, _PGDIR_SHIFT
 	lw	k1, pgd_current			# get pgd pointer
 	sll	k0, k0, 2			# log2(sizeof(pgd_t)
 	addu	k1, k1, k0
@@ -233,7 +233,7 @@
 	LEAF(except_vec0_r4k_250MHZhwbug)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
-	srl	k0, k0, PGDIR_SHIFT
+	srl	k0, k0, _PGDIR_SHIFT
 	lw	k1, pgd_current			# get pgd pointer
 	sll	k0, k0, 2			# log2(sizeof(pgd_t)
 	addu	k1, k1, k0
@@ -264,7 +264,7 @@
 	LEAF(except_vec0_r4k_MP250MHZhwbug)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
-	srl	k0, k0, PGDIR_SHIFT
+	srl	k0, k0, _PGDIR_SHIFT
 	lw	k1, pgd_current			# get pgd pointer
 	sll	k0, k0, 2			# log2(sizeof(pgd_t)
 	addu	k1, k1, k0
@@ -302,7 +302,7 @@
 	LEAF(except_vec0_au1000)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR		# Get faulting address
-	srl	k0, k0, PGDIR_SHIFT		# get pgd only bits
+	srl	k0, k0, _PGDIR_SHIFT		# get pgd only bits
 	lw	k1, pgd_current			# get pgd pointer
 	sll	k0, k0, 2			# log2(sizeof(pgd_t)
 	addu	k1, k1, k0			# add in pgd offset
@@ -345,7 +345,7 @@
 #define LOAD_PTE(pte, ptr) \
 	GET_PGD(pte, ptr)          \
 	mfc0	pte, CP0_BADVADDR; \
-	srl	pte, pte, PGDIR_SHIFT; \
+	srl	pte, pte, _PGDIR_SHIFT; \
 	sll	pte, pte, 2; \
 	addu	ptr, ptr, pte; \
 	mfc0	pte, CP0_BADVADDR; \

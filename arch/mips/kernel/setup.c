@@ -21,7 +21,6 @@
 #include <linux/stddef.h>
 #include <linux/string.h>
 #include <linux/unistd.h>
-#include <linux/ptrace.h>
 #include <linux/slab.h>
 #include <linux/user.h>
 #include <linux/utsname.h>
@@ -37,11 +36,8 @@
 #include <asm/cachectl.h>
 #include <asm/cpu.h>
 #include <asm/io.h>
-#include <asm/stackframe.h>
+#include <asm/ptrace.h>
 #include <asm/system.h>
-#ifdef CONFIG_SGI_IP22
-#include <asm/sgialib.h>
-#endif
 
 #ifndef CONFIG_SMP
 struct cpuinfo_mips cpu_data[1];
@@ -580,7 +576,9 @@ static void __init print_memory_map(void)
 
 	for (i = 0; i < boot_mem_map.nr_map; i++) {
 		printk(" memory: %08Lx @ %08Lx ",
-			boot_mem_map.map[i].size, boot_mem_map.map[i].addr);
+			(u64) boot_mem_map.map[i].size,
+		        (u64) boot_mem_map.map[i].addr);
+
 		switch (boot_mem_map.map[i].type) {
 		case BOOT_MEM_RAM:
 			printk("(usable)\n");
