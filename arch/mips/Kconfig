@@ -117,6 +117,18 @@ config ZAO_CAPCELLA
 	depends on MACH_VR41XX
 	select IRQ_CPU
 
+config VRC4171
+	tristate "add NEC VRC4171 companion chip support"
+	depends on MACH_VR41XX && ISA
+	---help---
+	  The NEC VRC4171/4171A is a companion chip for NEC VR4111/VR4121.
+
+config VRC4173
+	tristate "add NEC VRC4173 companion chip support"
+	depends on MACH_VR41XX && PCI
+	---help---
+	  The NEC VRC4173 is a companion chip for NEC VR4122/VR4131.
+
 config TOSHIBA_JMR3927
 	bool "Support for Toshiba JMR-TX3927 board"
 	depends on MIPS32
@@ -810,14 +822,6 @@ config DUMMY_KEYB
 	bool
 	depends on ZAO_CAPCELLA || VICTOR_MPC30X || SIBYTE_SB1xxx_SOC || NEC_EAGLE || NEC_OSPREY || DDB5477 || CASIO_E55 || TANBAC_TB0226 || TANBAC_TB0229
 	default y
-
-config VRC4171
-	tristate "NEC VRC4171 Support"
-	depends on IBM_WORKPAD
-
-config VRC4173
-	tristate "NEC VRC4173 Support"
-	depends on NEC_EAGLE || VICTOR_MPC30X
 
 config DDB5XXX_COMMON
 	bool
