@@ -153,13 +153,12 @@ int *cpuoptions = &mips_cpu.options;
 
 __init void cpu_probe(void)
 {
-#ifdef CONFIG_CPU_MIPS32
+#if defined(CONFIG_CPU_MIPS32) || defined(CONFIG_CPU_MIPS64)
 	unsigned long config0 = read_32bit_cp0_register(CP0_CONFIG);
 	unsigned long config1;
 
         if (config0 & (1 << 31)) {
-		/* MIPS32 compliant CPU. Read Config 1 register. */
-		mips_cpu.isa_level = MIPS_CPU_ISA_M32;
+		/* MIPS32 or MIPS64 compliant CPU. Read Config 1 register. */
 		mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX | 
 			MIPS_CPU_4KTLB | MIPS_CPU_COUNTER | MIPS_CPU_DIVEC;
 		config1 = read_mips32_cp0_config1();
@@ -169,8 +168,12 @@ __init void cpu_probe(void)
 			mips_cpu.options |= MIPS_CPU_MIPS16;
 		if (config1 & (1 << 1))
 			mips_cpu.options |= MIPS_CPU_EJTAG;
-		if (config1 & 1)
+		if (config1 & 1) {
 			mips_cpu.options |= MIPS_CPU_FPU;
+#if defined(CONFIG_CPU_MIPS64)
+			mips_cpu.options |= MIPS_CPU_32FPR;
+#endif
+		}
 		mips_cpu.scache.flags = MIPS_CACHE_NOT_PRESENT;
 	}
 #endif
@@ -399,17 +402,20 @@ __init void cpu_probe(void)
 			break;
 		}
 		break;
-#ifdef CONFIG_CPU_MIPS32
+#if defined(CONFIG_CPU_MIPS32) || defined(CONFIG_CPU_MIPS64) 
 	case PRID_COMP_MIPS:
 		switch (mips_cpu.processor_id & 0xff00) {
 		case PRID_IMP_4KC:
 			mips_cpu.cputype = CPU_4KC;
+			mips_cpu.isa_level = MIPS_CPU_ISA_M32;
 			break;
 		case PRID_IMP_4KEC:
 			mips_cpu.cputype = CPU_4KEC;
+			mips_cpu.isa_level = MIPS_CPU_ISA_M32;
 			break;
 		case PRID_IMP_4KSC:
 			mips_cpu.cputype = CPU_4KSC;
+			mips_cpu.isa_level = MIPS_CPU_ISA_M32;
 			break;
 		case PRID_IMP_5KC:
 			mips_cpu.cputype = CPU_5KC;
