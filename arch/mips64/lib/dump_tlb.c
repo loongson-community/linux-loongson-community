@@ -4,6 +4,7 @@
  * Copyright (C) 1994, 1995 by Waldorf Electronics, written by Ralf Baechle.
  * Copyright (C) 1999 by Silicon Graphics, Inc.
  */
+#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/sched.h>
@@ -23,11 +24,13 @@ static inline const char *msk2str(unsigned int mask)
 	case PM_16K:	return "16kb";
 	case PM_64K:	return "64kb";
 	case PM_256K:	return "256kb";
+#ifndef CONFIG_CPU_VR41XX
 	case PM_1M:	return "1Mb";
 	case PM_4M:	return "4Mb";
 	case PM_16M:	return "16Mb";
 	case PM_64M:	return "64Mb";
 	case PM_256M:	return "256Mb";
+#endif
 	}
 }
 
@@ -42,12 +45,9 @@ void dump_tlb(int first, int last)
 
 	for (i = first; i <= last; i++) {
 		write_c0_index(i);
-		__asm__ __volatile__(
-			".set\tnoreorder\n\t"
-			"nop;nop;nop;nop\n\t"
-			"tlbr\n\t"
-			"nop;nop;nop;nop\n\t"
-			".set\treorder");
+		BARRIER();
+		tlb_read();
+		BARRIER();
 		pagemask = read_c0_pagemask();
 		entryhi  = read_c0_entryhi();
 		entrylo0 = read_c0_entrylo0();
@@ -140,8 +140,7 @@ void dump_list_process(struct task_struct *t, void *address)
 	pgd_t	*page_dir, *pgd;
 	pmd_t	*pmd;
 	pte_t	*pte, page;
-	unsigned long addr;
-	unsigned long val;
+	unsigned long addr, val;
 
 	addr = (unsigned long) address;
 
