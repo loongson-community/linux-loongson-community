@@ -39,7 +39,9 @@
 #include <asm/mips-boards/generic.h>
 #include <asm/mips-boards/prom.h>
 
-#ifdef CONFIG_MIPS_SEAD
+unsigned long cpu_khz;
+
+#if defined(CONFIG_MIPS_SEAD)
 #define ALLINTS (IE_IRQ0 | IE_IRQ1 | IE_IRQ5)
 #else
 #define ALLINTS (IE_IRQ0 | IE_IRQ1 | IE_IRQ2 | IE_IRQ3 | IE_IRQ4 | IE_IRQ5)
@@ -57,7 +59,7 @@ static char display_string[] = "        LINUX ON SEAD       ";
 static unsigned int display_count = 0;
 #define MAX_DISPLAY_COUNT (sizeof(display_string) - 8)
 
-#define MIPS_CPU_TIMER_IRQ 7
+#define MIPS_CPU_TIMER_IRQ (NR_IRQS-1)
 
 static unsigned int timer_tick_count=0;
 
@@ -174,8 +176,11 @@ void __init mips_time_init(void)
 #endif
 
 	est_freq = estimate_cpu_frequency ();
+
 	printk("CPU frequency %d.%02d MHz\n", est_freq/1000000,
 	       (est_freq%1000000)*100/1000000);
+
+        cpu_khz = est_freq / 1000;
 
 	local_irq_restore(flags);
 }

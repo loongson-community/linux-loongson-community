@@ -32,7 +32,6 @@
 #include <asm/mips-boards/malta.h>
 #endif
 
-/* PCI addresses! */
 static struct resource bonito64_mem_resource = {
 	.name	= "Bonito PCI MEM",
 	.start	= 0x10000000UL,
@@ -50,14 +49,20 @@ static struct resource bonito64_io_resource = {
 static struct resource gt64120_mem_resource = {
 	.name	= "GT64120 PCI MEM",
 	.start	= 0x10000000UL,
-	.end	= 0x1fffffffUL,
+	.end	= 0x1bdfffffUL,
 	.flags	= IORESOURCE_MEM,
 };
 
 static struct resource gt64120_io_resource = {
 	.name	= "GT64120 IO MEM",
+#ifdef CONFIG_MIPS_ATLAS
+	.start	= 0x18000000UL,
+	.end	= 0x181fffffUL,
+#endif
+#ifdef CONFIG_MIPS_MALTA
 	.start	= 0x00002000UL,
-	.end	= 0x007fffffUL,
+	.end	= 0x001fffffUL,
+#endif
 	.flags	= IORESOURCE_IO,
 };
 
@@ -84,13 +89,15 @@ static struct pci_controller bonito64_controller = {
 	.io_resource	= &bonito64_io_resource,
 	.mem_resource	= &bonito64_mem_resource,
 	.mem_offset	= 0x10000000UL,
+	.io_offset	= 0x00000000UL,
 };
 
 static struct pci_controller gt64120_controller = {
 	.pci_ops	= &gt64120_pci_ops,
 	.io_resource	= &gt64120_io_resource,
 	.mem_resource	= &gt64120_mem_resource,
-	.mem_offset	= 0x10000000UL,
+	.mem_offset	= 0x00000000UL,
+	.io_offset	= 0x00000000UL,
 };
 
 static struct pci_controller  msc_controller = {
@@ -98,8 +105,8 @@ static struct pci_controller  msc_controller = {
 	.io_resource	= &msc_io_resource,
 	.mem_resource	= &msc_mem_resource,
 	.mem_offset	= 0x10000000UL,
+	.io_offset	= 0x00000000UL,
 };
-
 
 static int __init pcibios_init(void)
 {
@@ -109,6 +116,7 @@ static int __init pcibios_init(void)
 	case MIPS_REVISION_CORID_QED_RM5261:
 	case MIPS_REVISION_CORID_CORE_LV:
 	case MIPS_REVISION_CORID_CORE_FPGA:
+	case MIPS_REVISION_CORID_CORE_FPGAR2:
 		/*
 		 * Due to a bug in the Galileo system controller, we need
 		 * to setup the PCI BAR for the Galileo internal registers.
@@ -118,7 +126,7 @@ static int __init pcibios_init(void)
 		 */
 		GT_WRITE(GT_PCI0_CFGADDR_OFS,
 			 (0 << GT_PCI0_CFGADDR_BUSNUM_SHF) | /* Local bus */
-			 (0 << GT_PCI0_CFGADDR_DEVNUM_SHF) | /*  GT64120 dev */
+			 (0 << GT_PCI0_CFGADDR_DEVNUM_SHF) | /* GT64120 dev */
 			 (0 << GT_PCI0_CFGADDR_FUNCTNUM_SHF) | /* Function 0*/
 			 ((0x20/4) << GT_PCI0_CFGADDR_REGNUM_SHF) | /* BAR 4*/
 			 GT_PCI0_CFGADDR_CONFIGEN_BIT );
@@ -131,10 +139,13 @@ static int __init pcibios_init(void)
 
 	case MIPS_REVISION_CORID_BONITO64:
 	case MIPS_REVISION_CORID_CORE_20K:
+	case MIPS_REVISION_CORID_CORE_EMUL_BON:
 		controller = &bonito64_controller;
 		break;
 
 	case MIPS_REVISION_CORID_CORE_MSC:
+	case MIPS_REVISION_CORID_CORE_FPGA2:
+	case MIPS_REVISION_CORID_CORE_EMUL_MSC:
 		controller = &msc_controller;
 		break;
 	default:
@@ -142,9 +153,10 @@ static int __init pcibios_init(void)
 	}
 
 	ioport_resource.end = controller->io_resource->end;
+
 	register_pci_controller (controller);
 
 	return 0;
 }
 
-subsys_initcall(pcibios_init);
+early_initcall(pcibios_init);

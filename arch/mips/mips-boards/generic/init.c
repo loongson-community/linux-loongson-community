@@ -145,7 +145,7 @@ static void __init console_config(void)
 	char parity = '\0', bits = '\0', flow = '\0';
 	char *s;
 
-	if ((strstr(prom_getcmdline(), "console=")) == NULL) {
+	if ((strstr(prom_getcmdline(), "console=ttyS")) == NULL) {
 		s = prom_getenv("modetty0");
 		if (s) {
 			while (*s >= '0' && *s <= '9')
@@ -213,6 +213,12 @@ void __init kgdb_config (void)
 		prom_printf("KGDB: Using serial line /dev/ttyS%d at %d for session, "
 			    "please connect your debugger\n", line ? 1 : 0, speed);
 
+		{
+			char *s;
+			for (s = "Please connect GDB to this port\r\n"; *s; )
+				generic_putDebugChar (*s++);
+		}
+
 		remote_debug = 1;
 		/* Breakpoint is invoked after interrupts are initialised */
 	}
@@ -230,11 +236,26 @@ void __init prom_init(void)
 #ifdef CONFIG_MIPS_SEAD
 	set_io_port_base(KSEG1);
 #else
+	/*
+	 * early setup of _pcictrl_bonito so that we can determine
+	 * the system controller on a CORE_EMUL board
+	 */
+	_pcictrl_bonito = (unsigned long)ioremap(BONITO_REG_BASE, BONITO_REG_SIZE);
+
 	mips_revision_corid = MIPS_REVISION_CORID;
+
+	if (mips_revision_corid == MIPS_REVISION_CORID_CORE_EMUL) {
+		if (BONITO_PCIDID == 0x0001df53 || 
+		    BONITO_PCIDID == 0x0003df53)
+			mips_revision_corid = MIPS_REVISION_CORID_CORE_EMUL_BON;
+		else
+			mips_revision_corid = MIPS_REVISION_CORID_CORE_EMUL_MSC;
+	}
 	switch(mips_revision_corid) {
 	case MIPS_REVISION_CORID_QED_RM5261:
 	case MIPS_REVISION_CORID_CORE_LV:
 	case MIPS_REVISION_CORID_CORE_FPGA:
+	case MIPS_REVISION_CORID_CORE_FPGAR2:
 		/*
 		 * Setup the North bridge to do Master byte-lane swapping
 		 * when running in bigendian.
@@ -255,9 +276,9 @@ void __init prom_init(void)
 #endif
 		break;
 
+	case MIPS_REVISION_CORID_CORE_EMUL_BON:
 	case MIPS_REVISION_CORID_BONITO64:
 	case MIPS_REVISION_CORID_CORE_20K:
-		_pcictrl_bonito = (unsigned long)ioremap(BONITO_REG_BASE, BONITO_REG_SIZE);
 		_pcictrl_bonito_pcicfg = (unsigned long)ioremap(BONITO_PCICFG_BASE, BONITO_PCICFG_SIZE);
 
 		/*
@@ -289,6 +310,8 @@ void __init prom_init(void)
 		break;
 
 	case MIPS_REVISION_CORID_CORE_MSC:
+	case MIPS_REVISION_CORID_CORE_FPGA2:
+	case MIPS_REVISION_CORID_CORE_EMUL_MSC:
 		_pcictrl_msc = (unsigned long)ioremap(MIPS_MSC01_PCI_REG_BASE, 0x2000); 
 
 #ifdef CONFIG_CPU_LITTLE_ENDIAN

@@ -63,8 +63,19 @@
 #define MIPS_REVISION_CORID_CORE_20K       3
 #define MIPS_REVISION_CORID_CORE_FPGA      4
 #define MIPS_REVISION_CORID_CORE_MSC       5
+#define MIPS_REVISION_CORID_CORE_EMUL      6
+#define MIPS_REVISION_CORID_CORE_FPGA2     7
+#define MIPS_REVISION_CORID_CORE_FPGAR2    8
 
-#define MIPS_REVISION_CORID (((*(volatile unsigned int *)ioremap(MIPS_REVISION_REG, 4)) >> 10) & 0x3f)
+/**** Artificial corid defines ****/
+/*
+ *  CoreEMUL with   Bonito   System Controller is treated like a Core20K
+ *  CoreEMUL with SOC-it 101 System Controller is treated like a CoreMSC
+ */
+#define MIPS_REVISION_CORID_CORE_EMUL_BON  0x63
+#define MIPS_REVISION_CORID_CORE_EMUL_MSC  0x65
+
+#define MIPS_REVISION_CORID (((*(volatile u32 *)ioremap(MIPS_REVISION_REG, 4)) >> 10) & 0x3f)
 
 extern unsigned int mips_revision_corid;
 
