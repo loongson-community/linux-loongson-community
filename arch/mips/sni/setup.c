@@ -5,9 +5,8 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1996, 1997, 1998, 2000 by Ralf Baechle
+ * Copyright (C) 1996, 1997, 1998, 2000, 2003 by Ralf Baechle
  */
-#include <asm/ptrace.h>
 #include <linux/config.h>
 #include <linux/hdreg.h>
 #include <linux/ioport.h>
@@ -26,6 +25,7 @@
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/processor.h>
+#include <asm/ptrace.h>
 #include <asm/reboot.h>
 #include <asm/sni.h>
 #include <asm/time.h>
@@ -84,7 +84,9 @@ void __init sni_rm200_pci_setup(void)
 	 */
 	isa_slot_offset = 0xb0000000;
 	// sni_map_isa_cache = 0;
+#ifdef CONFIG_EISA
 	EISA_bus = 1;
+#endif
 
 	request_region(0x00,0x20,"dma1");
 	request_region(0x40,0x20,"timer");

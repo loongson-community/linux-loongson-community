@@ -55,6 +55,8 @@ struct screen_info screen_info;
  */
 #ifdef CONFIG_EISA
 int EISA_bus = 0;
+
+EXPORT_SYMBOL(EISA_bus);
 #endif
 
 #ifdef CONFIG_BLK_DEV_FD

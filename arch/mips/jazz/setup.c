@@ -94,8 +94,10 @@ void __init jazz_setup(void)
 
 	irq_setup = jazz_irq_setup;
 	set_io_port_base(JAZZ_PORT_BASE);
+#ifdef CONFIG_EISA
 	if (mips_machtype == MACH_MIPS_MAGNUM_4000)
 		EISA_bus = 1;
+#endif
 	isa_slot_offset = 0xe3000000;
 	request_region(0x00,0x20,"dma1");
 	request_region(0x40,0x20,"timer");
