@@ -14,12 +14,12 @@
 #include <linux/sched.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
-#include <linux/timex.h>
 #include <linux/pci.h>
 #include <linux/mc146818rtc.h>
 #include <linux/console.h>
 #include <linux/fb.h>
 #include <linux/ide.h>
+#include <linux/tty.h>
 
 #include <asm/bcache.h>
 #include <asm/bootinfo.h>
@@ -74,6 +74,17 @@ static inline void sni_pcimt_detect(void)
 	printk("%s.\n", boardtype);
 }
 
+struct resource pcimt_io_resources[] = {
+	{ "dma1", 0x00, 0x1f, IORESOURCE_BUSY },
+	{ "timer", 0x40, 0x5f, IORESOURCE_BUSY },
+	{ "keyboard", 0x60, 0x6f, IORESOURCE_BUSY },
+	{ "dma page reg", 0x80, 0x8f, IORESOURCE_BUSY },
+	{ "dma2", 0xc0, 0xdf, IORESOURCE_BUSY },
+	{ "PCI config data", 0xcfc, 0xcff, IORESOURCE_BUSY }
+};
+
+#define PCIMT_IO_RESOURCES (sizeof(pcimt_io_resources)/sizeof(struct resource))
+
 static struct resource sni_mem_resource = {
 	.name	= "PCIMT PCI MEM",
 	.start	= 0x14000000UL,
@@ -98,6 +109,8 @@ static struct pci_controller sni_controller = {
 
 void __init sni_rm200_pci_setup(void)
 {
+	int i;
+
 	sni_pcimt_detect();
 	sni_pcimt_sc_init();
 
@@ -112,23 +125,15 @@ void __init sni_rm200_pci_setup(void)
 	EISA_bus = 1;
 #endif
 
-	request_region(0x00,0x20,"dma1");
-	request_region(0x40,0x20,"timer");
-	/* XXX FIXME: CONFIG_RTC */
-	request_region(0x70,0x10,"rtc");
-	request_region(0x80,0x10,"dma page reg");
-	request_region(0xc0,0x20,"dma2");
+	/* request I/O space for devices used on all i[345]86 PCs */
+	for (i = 0; i < PCIMT_IO_RESOURCES; i++)
+		request_resource(&ioport_resource, pcimt_io_resources + i);
+
 	board_timer_setup = sni_rm200_pci_timer_setup;
 
 	_machine_restart = sni_machine_restart;
 	_machine_halt = sni_machine_halt;
 	_machine_power_off = sni_machine_power_off;
-
-	/*
-	 * Some cluefull person has placed the PCI config data directly in
-	 * the I/O port space ...
-	 */
-	request_region(0xcfc,0x04,"PCI config data");
 
 #ifdef CONFIG_BLK_DEV_IDE
 	ide_ops = &std_ide_ops;
@@ -143,15 +148,18 @@ void __init sni_rm200_pci_setup(void)
 #endif
 
 	screen_info = (struct screen_info) {
-		0, 0,		/* orig-x, orig-y */
-		0,		/* unused */
-		52,		/* orig_video_page */
-		3,		/* orig_video_mode */
-		80,		/* orig_video_cols */
-		4626, 3, 9,	/* unused, ega_bx, unused */
-		50,		/* orig_video_lines */
-		0x22,		/* orig_video_isVGA */
-		16		/* orig_video_points */
+		.orig_x			= 0,		// XXX
+		.orig_y			= 0,		// XXX
+		.dontuse1		= 0,
+		.orig_video_page	= 52,
+		.orig_video_mode	= 3,
+		.orig_video_cols	= 80,		// XXX
+		.unused2		= 4626,
+		.orig_video_ega_bx	= 3,
+		.unused3		= 9,
+		.orig_video_lines	= 25,		// XXX
+		.orig_video_isVGA	= VIDEO_TYPE_VGAC,
+		.orig_video_points	= 16		// XXX
 	};
 
 	rtc_ops = &std_rtc_ops;
