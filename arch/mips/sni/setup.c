@@ -30,6 +30,7 @@
 #include <asm/processor.h>
 #include <asm/reboot.h>
 #include <asm/sni.h>
+#include <asm/time.h>
 
 extern void sni_machine_restart(char *command);
 extern void sni_machine_halt(void);
@@ -38,8 +39,6 @@ extern void sni_machine_power_off(void);
 extern struct ide_ops std_ide_ops;
 extern struct rtc_ops std_rtc_ops;
 extern struct kbd_ops std_kbd_ops;
-
-void (*board_time_init)(struct irqaction *irq);
 
 static void __init sni_rm200_pci_time_init(struct irqaction *irq)
 {
@@ -50,7 +49,6 @@ static void __init sni_rm200_pci_time_init(struct irqaction *irq)
 	setup_irq(0, irq);
 }
 
-unsigned char aux_device_present;
 extern unsigned char sni_map_isa_cache;
 
 /*

@@ -66,6 +66,7 @@ EXPORT(ret_from_sys_call)
 		lw	v1, TASK_SIGPENDING($28)
 		bnez	v0, reschedule
 		bnez	v1, signal_return
+		FEXPORT(restore_all)
 restore_all:	.set	noat
 		RESTORE_ALL_AND_RET
 		.set	at

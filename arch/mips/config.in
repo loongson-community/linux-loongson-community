@@ -142,9 +142,9 @@ if [ "$CONFIG_SNI_RM200_PCI" = "y" ]; then
    define_bool CONFIG_ARC32 y
    define_bool CONFIG_I8259 y
    define_bool CONFIG_ISA y
+   define_bool CONFIG_NEW_IRQ y
    define_bool CONFIG_PC_KEYB y
    define_bool CONFIG_PCI y
-   define_bool CONFIG_ROTTEN_IRQ y
    define_bool CONFIG_OLD_TIME_C y
 fi
 if [ "$CONFIG_DDB5074" = "y" ]; then

@@ -126,7 +126,7 @@ void pciasic_hwint134(struct pt_regs *regs)
 
 void __init init_pciasic(void)
 {
-	unsigned int flags;
+	unsigned long flags;
 
 	spin_lock_irqsave(&pciasic_lock, flags);
 	* (volatile u8 *) PCIMT_IRQSEL =
