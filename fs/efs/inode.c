@@ -415,16 +415,18 @@ void efs_read_inode(struct inode *in)
 			ini->extblk = sbi->fs_start + efs_swab32((__u32)(di->di_u.di_extents));
 
 			/* read INI_MAX_EXT extents from the indirect block */
+			printk("EFS: ");
 			bh2 = bread(in->i_dev,ini->extblk,EFS_BLOCK_SIZE);
 			if(bh2) {
-				union efs_extent *ptr = (union efs_extent *)bh2->b_data;
+			  union efs_extent *ptr = 
+			    (union efs_extent *)bh2->b_data;
 				for(i=0;i<EFS_MAX_EXTENTS;i++) {
 					ini->extents[i].ex_bytes[0] = efs_swab32(ptr[i].ex_bytes[0]);
 					ini->extents[i].ex_bytes[1] = efs_swab32(ptr[i].ex_bytes[1]);
 				}
 				brelse(bh2);
 			} else
-				printk("efs: failed reading indirect extends!\n");
+				printk("efs: failed reading indirect extents!\n");
 
 		} else {
 #ifdef DEBUG_EFS

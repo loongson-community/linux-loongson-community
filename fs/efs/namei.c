@@ -84,7 +84,7 @@ static struct buffer_head * efs_find_entry(struct inode *dir,
 			entry_inode = efs_swab32(de->ud_inum.l); 
 			namelen = de->d_namelen; 
 			name = de->d_name;
-#ifdef DEBUG_EFS
+#ifdef 0
 			printk("EFS: entry %d @ %#x has inode %#x, %s/%d\n",
 			       i, db_offset, entry_inode, name, namelen);
 #endif
@@ -99,13 +99,11 @@ static struct buffer_head * efs_find_entry(struct inode *dir,
 				return bh;
 			}
 		}
-#ifdef DEBUG_EFS
-		printk("EFS: efs_find_entry didn't find inode for \"%s\"!\n",
-		       oname);
-#endif
-		return NULL;
 	}
-	printk("EFS: Falling off the end of efs_find_entry!  Bogus!\n");
+#ifdef DEBUG_EFS
+	printk("EFS: efs_find_entry didn't find inode for \"%s\"/%d!\n",
+	       oname, onamelen);
+#endif
 	return NULL;
 	/* not reached */
 }

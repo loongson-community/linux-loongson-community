@@ -45,45 +45,45 @@ struct inode_operations efs_symlink_in_ops = {
 */
 static char *efs_getlinktarget(struct inode *in)
 {
-  struct buffer_head * bh;
-  char *name;
-  __u32 size = in->i_size;
-  __u32 block;
+	struct buffer_head * bh;
+	char *name;
+	__u32 size = in->i_size;
+	__u32 block;
   
-  /* link data longer than 1024 not supported */
-  if(size>2*EFS_BLOCK_SIZE) {
-    printk("efs_getlinktarget: name too long: %lu\n",in->i_size);
-    return NULL;
-  }
+	/* link data longer than 1024 not supported */
+	if(size>2*EFS_BLOCK_SIZE) {
+		printk("efs_getlinktarget: name too long: %lu\n",in->i_size);
+		return NULL;
+	}
   
-  /* get some memory from the kernel to store the name */
-  name = kmalloc(size+1,GFP_KERNEL);
-  if(!name) return NULL;
+	/* get some memory from the kernel to store the name */
+	name = kmalloc(size+1,GFP_KERNEL);
+	if(!name) return NULL;
   
-  /* read first 512 bytes of target */
-  block = efs_bmap(in,0);
-  bh = bread(in->i_dev,block,EFS_BLOCK_SIZE);
-  if(!bh) {
-    kfree(name);
-    return NULL;
-  }
-  memcpy(name,bh->b_data,(size>EFS_BLOCK_SIZE)?EFS_BLOCK_SIZE:size);
-  brelse(bh);
+	/* read first 512 bytes of target */
+	block = efs_bmap(in,0);
+	bh = bread(in->i_dev,block,EFS_BLOCK_SIZE);
+	if(!bh) {
+		kfree(name);
+		return NULL;
+	}
+	memcpy(name,bh->b_data,(size>EFS_BLOCK_SIZE)?EFS_BLOCK_SIZE:size);
+	brelse(bh);
   
-  /* if the linktarget is long, read the next block */
-  if(size>EFS_BLOCK_SIZE) {
-    bh = bread(in->i_dev,block+1,EFS_BLOCK_SIZE);
-    if(!bh) {
-      kfree(name);
-      return NULL;
-    }
-    memcpy(name+EFS_BLOCK_SIZE,bh->b_data,size-EFS_BLOCK_SIZE);
-    brelse(bh);
-  }
+	/* if the linktarget is long, read the next block */
+	if(size>EFS_BLOCK_SIZE) {
+		bh = bread(in->i_dev,block+1,EFS_BLOCK_SIZE);
+		if(!bh) {
+			kfree(name);
+			return NULL;
+		}
+		memcpy(name+EFS_BLOCK_SIZE,bh->b_data,size-EFS_BLOCK_SIZE);
+		brelse(bh);
+	}
   
-  /* terminate string and return it */
-  name[size]=0;
-  return name;
+	/* terminate string and return it */
+	name[size]=0;
+	return name;
 }
 
 
@@ -92,19 +92,16 @@ static char *efs_getlinktarget(struct inode *in)
 */
 static struct dentry * efs_follow_link(struct inode * dir, struct dentry *base)
 {
-  struct buffer_head * bh;
-  __u32 block;
-
-  block = efs_bmap(dir,0);
-  bh = bread(dir->i_dev,block,EFS_BLOCK_SIZE);
-  if (!bh) {
-    dput(base);
-    return ERR_PTR(-EIO);
-  }
-  UPDATE_ATIME(dir);
-  base = lookup_dentry(bh->b_data, base, 1);
-  brelse(bh);
-  return base;
+	char * name;
+	UPDATE_ATIME(dir);
+	name = efs_getlinktarget(dir);
+#ifdef DEBUG_EFS
+	printk("EFS: efs_getlinktarget(%d) returned \"%s\"\n",
+	       dir->i_ino, name);
+#endif
+	base = lookup_dentry(name, base, 1);
+	kfree(name);
+	return base;
 }
 
 /* ----- efs_readlink -----
@@ -112,25 +109,32 @@ static struct dentry * efs_follow_link(struct inode * dir, struct dentry *base)
 */
 static int efs_readlink(struct inode * dir, char * buffer, int buflen)
 {
-  int i;
-  char c;
-  struct buffer_head * bh;
-  __u32 block;
+	int i;
+	struct buffer_head * bh;
 
-  block = efs_bmap(dir,0);
-  if (buflen > 1023)
-    buflen = 1023;
-  bh = bread(dir->i_dev,block,EFS_BLOCK_SIZE);
-  if (!bh)
-    return 0;
-
-  /* copy the link target to the given buffer */
-  i = 0;
-  while (i<buflen && (c = bh->b_data[i])) {
-    i++;
-    put_user(c,buffer++);
-  }
-
-  brelse(bh);
-  return i;
+	if (buflen > 1023)
+		buflen = 1023;
+	bh = bread(dir->i_dev,efs_bmap(dir,0),EFS_BLOCK_SIZE);
+	if (!bh)
+		return 0;
+	/* copy the link target to the given buffer */
+	i = 0;
+#ifdef DEBUG_EFS
+	printk("EFS: efs_readlink returning ");
+#endif
+	while (i<buflen && bh->b_data[i] && i < dir->i_size) {
+#ifdef DEBUG_EFS
+		printk("%c", bh->b_data[i]);
+#endif
+		i++;
+	}
+#ifdef DEBUG_EFS
+	printk("\n");
+#endif
+	if (copy_to_user(buffer, bh->b_data, i))
+		i = -EFAULT;
+	
+	brelse(bh);
+	return i;
 }
+
