@@ -91,12 +91,6 @@ extern void prom_init_secondary(void);
 extern void prom_prepare_cpus(unsigned int max_cpus);
 
 /*
- * Do whatever setup needs to be done for SMP at the board level.  Return
- * the number of cpus in the system, including this one
- */
-extern int prom_setup_smp(void);
-
-/*
  * Last chance for the board code to finish SMP initialization before
  * the CPU is "online".
  */
