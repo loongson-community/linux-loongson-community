@@ -11,6 +11,10 @@ endmenu
 
 mainmenu_option next_comment
 comment 'Machine selection'
+if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+   bool 'Support for MIPS Atlas board' CONFIG_MIPS_ATLAS
+   bool 'Support for MIPS Malta board' CONFIG_MIPS_MALTA
+fi
 bool '  Support for SGI-IP27 (Origin200/2000)' CONFIG_SGI_IP27
 if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
    bool '  Support for SGI-IP22 (Indy/Indigo2)' CONFIG_SGI_IP22
