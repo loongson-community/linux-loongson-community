@@ -467,14 +467,17 @@ static void sbmac_mii_sync(struct sbmac_softc *s)
 {
 	int cnt;
 	uint64_t bits;
+	int mac_mdio_genc;
+
+	mac_mdio_genc = SBMAC_READCSR(s->sbm_mdio) & M_MAC_GENC;
 	
 	bits = M_MAC_MDIO_DIR_OUTPUT | M_MAC_MDIO_OUT;
 	
-	SBMAC_WRITECSR(s->sbm_mdio,bits);
+	SBMAC_WRITECSR(s->sbm_mdio,bits | mac_mdio_genc);
 	
 	for (cnt = 0; cnt < 32; cnt++) {
-		SBMAC_WRITECSR(s->sbm_mdio,bits | M_MAC_MDC);
-		SBMAC_WRITECSR(s->sbm_mdio,bits);
+		SBMAC_WRITECSR(s->sbm_mdio,bits | M_MAC_MDC | mac_mdio_genc);
+		SBMAC_WRITECSR(s->sbm_mdio,bits | mac_mdio_genc);
 	}
 }
 
@@ -495,9 +498,12 @@ static void sbmac_mii_senddata(struct sbmac_softc *s,unsigned int data, int bitc
 	int i;
 	uint64_t bits;
 	unsigned int curmask;
+	int mac_mdio_genc;
+
+	mac_mdio_genc = SBMAC_READCSR(s->sbm_mdio) & M_MAC_GENC;
 	
 	bits = M_MAC_MDIO_DIR_OUTPUT;
-	SBMAC_WRITECSR(s->sbm_mdio,bits);
+	SBMAC_WRITECSR(s->sbm_mdio,bits | mac_mdio_genc);
 	
 	curmask = 1 << (bitcnt - 1);
 	
@@ -505,9 +511,9 @@ static void sbmac_mii_senddata(struct sbmac_softc *s,unsigned int data, int bitc
 		if (data & curmask)
 			bits |= M_MAC_MDIO_OUT;
 		else bits &= ~M_MAC_MDIO_OUT;
-		SBMAC_WRITECSR(s->sbm_mdio,bits);
-		SBMAC_WRITECSR(s->sbm_mdio,bits | M_MAC_MDC);
-		SBMAC_WRITECSR(s->sbm_mdio,bits);
+		SBMAC_WRITECSR(s->sbm_mdio,bits | mac_mdio_genc);
+		SBMAC_WRITECSR(s->sbm_mdio,bits | M_MAC_MDC | mac_mdio_genc);
+		SBMAC_WRITECSR(s->sbm_mdio,bits | mac_mdio_genc);
 		curmask >>= 1;
 	}
 }
@@ -533,7 +539,8 @@ static unsigned int sbmac_mii_read(struct sbmac_softc *s,int phyaddr,int regidx)
 	int idx;
 	int error;
 	int regval;
-	
+	int mac_mdio_genc;
+
 	/*
 	 * Synchronize ourselves so that the PHY knows the next
 	 * thing coming down is a command
@@ -554,17 +561,20 @@ static unsigned int sbmac_mii_read(struct sbmac_softc *s,int phyaddr,int regidx)
 	sbmac_mii_senddata(s,phyaddr, 5);
 	sbmac_mii_senddata(s,regidx, 5);
 	
+	mac_mdio_genc = SBMAC_READCSR(s->sbm_mdio) & M_MAC_GENC;
+	
 	/* 
 	 * Switch the port around without a clock transition.
 	 */
-	SBMAC_WRITECSR(s->sbm_mdio,M_MAC_MDIO_DIR_INPUT);
+	SBMAC_WRITECSR(s->sbm_mdio,M_MAC_MDIO_DIR_INPUT | mac_mdio_genc);
 	
 	/*
 	 * Send out a clock pulse to signal we want the status
 	 */
 	
-	SBMAC_WRITECSR(s->sbm_mdio,M_MAC_MDIO_DIR_INPUT | M_MAC_MDC);
-	SBMAC_WRITECSR(s->sbm_mdio,M_MAC_MDIO_DIR_INPUT);
+	SBMAC_WRITECSR(s->sbm_mdio,
+		       M_MAC_MDIO_DIR_INPUT | M_MAC_MDC | mac_mdio_genc);
+	SBMAC_WRITECSR(s->sbm_mdio,M_MAC_MDIO_DIR_INPUT | mac_mdio_genc);
 	
 	/* 
 	 * If an error occurred, the PHY will signal '1' back
@@ -575,8 +585,9 @@ static unsigned int sbmac_mii_read(struct sbmac_softc *s,int phyaddr,int regidx)
 	 * Issue an 'idle' clock pulse, but keep the direction
 	 * the same.
 	 */
-	SBMAC_WRITECSR(s->sbm_mdio,M_MAC_MDIO_DIR_INPUT | M_MAC_MDC);
-	SBMAC_WRITECSR(s->sbm_mdio,M_MAC_MDIO_DIR_INPUT);
+	SBMAC_WRITECSR(s->sbm_mdio,
+		       M_MAC_MDIO_DIR_INPUT | M_MAC_MDC | mac_mdio_genc);
+	SBMAC_WRITECSR(s->sbm_mdio,M_MAC_MDIO_DIR_INPUT | mac_mdio_genc);
 	
 	regval = 0;
 	
@@ -588,12 +599,14 @@ static unsigned int sbmac_mii_read(struct sbmac_softc *s,int phyaddr,int regidx)
 				regval |= 1;
 		}
 		
-		SBMAC_WRITECSR(s->sbm_mdio,M_MAC_MDIO_DIR_INPUT | M_MAC_MDC);
-		SBMAC_WRITECSR(s->sbm_mdio,M_MAC_MDIO_DIR_INPUT);
+		SBMAC_WRITECSR(s->sbm_mdio,
+			       M_MAC_MDIO_DIR_INPUT|M_MAC_MDC | mac_mdio_genc);
+		SBMAC_WRITECSR(s->sbm_mdio,
+			       M_MAC_MDIO_DIR_INPUT | mac_mdio_genc);
 	}
 	
 	/* Switch back to output */
-	SBMAC_WRITECSR(s->sbm_mdio,M_MAC_MDIO_DIR_OUTPUT);
+	SBMAC_WRITECSR(s->sbm_mdio,M_MAC_MDIO_DIR_OUTPUT | mac_mdio_genc);
 	
 	if (error == 0)
 		return regval;
@@ -619,7 +632,8 @@ static unsigned int sbmac_mii_read(struct sbmac_softc *s,int phyaddr,int regidx)
 static void sbmac_mii_write(struct sbmac_softc *s,int phyaddr,int regidx,
 			    unsigned int regval)
 {
-	
+	int mac_mdio_genc;
+
 	sbmac_mii_sync(s);
 	
 	sbmac_mii_senddata(s,MII_COMMAND_START,2);
@@ -628,8 +642,10 @@ static void sbmac_mii_write(struct sbmac_softc *s,int phyaddr,int regidx,
 	sbmac_mii_senddata(s,regidx, 5);
 	sbmac_mii_senddata(s,MII_COMMAND_ACK,2);
 	sbmac_mii_senddata(s,regval,16);
-	
-	SBMAC_WRITECSR(s->sbm_mdio,M_MAC_MDIO_DIR_OUTPUT);
+
+	mac_mdio_genc = SBMAC_READCSR(s->sbm_mdio) & M_MAC_GENC;
+
+	SBMAC_WRITECSR(s->sbm_mdio,M_MAC_MDIO_DIR_OUTPUT | mac_mdio_genc);
 }
 
 
