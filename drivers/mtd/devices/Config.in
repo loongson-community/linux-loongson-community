@@ -10,6 +10,7 @@ if [ "$CONFIG_MTD_PMC551" = "y" -o  "$CONFIG_MTD_PMC551" = "m" ]; then
    bool '    PMC551 256M DRAM Bugfix' CONFIG_MTD_PMC551_BUGFIX
    bool '    PMC551 Debugging' CONFIG_MTD_PMC551_DEBUG
 fi
+dep_tristate '  DEC MS02-NV NVRAM module support' CONFIG_MTD_MS02NV $CONFIG_MTD $CONFIG_DECSTATION
 dep_tristate '  Uncached system RAM' CONFIG_MTD_SLRAM $CONFIG_MTD
 if [ "$CONFIG_SA1100_LART" = "y" ]; then
   dep_tristate '  28F160xx flash driver for LART' CONFIG_MTD_LART $CONFIG_MTD

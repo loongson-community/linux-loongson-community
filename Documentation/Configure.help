@@ -12355,6 +12355,18 @@ CONFIG_MTD_SLRAM
   you can still use it for storage or swap by using this driver to
   present it to the system as a Memory Technology Device.
 
+DEC MS02-NV NVRAM module support
+CONFIG_MTD_MS02NV
+  This is a MTD driver for the DEC's MS02-type battery backed-up NVRAM
+  module.  The module was originally meant as an NFS accelerator.  Say Y
+  here if you have a DECstation 5000/2x0 or a DECsystem 5900 equipped
+  with such a module.
+
+  If you want to compile this driver as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want),
+  say M here and read Documentation/modules.txt.  The module will be
+  called ms02-nv.o.
+
 Debugging RAM test driver
 CONFIG_MTD_MTDRAM
   This enables a test MTD device driver which uses vmalloc() to
