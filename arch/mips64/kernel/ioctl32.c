@@ -7,6 +7,7 @@
  *
  * Mostly stolen from the sparc64 ioctl32 implementation.
  */
+#include <linux/config.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/fs.h>
@@ -107,6 +108,8 @@ struct ifconf32 {
         int     ifc_len;                        /* size of buffer       */
         __kernel_caddr_t32  ifcbuf;
 };
+
+#ifdef CONFIG_NET
 
 static int dev_ifname32(unsigned int fd, unsigned int cmd, unsigned long arg)
 {
@@ -307,6 +310,8 @@ static inline int routing_ioctl(unsigned int fd, unsigned int cmd, unsigned long
 	set_fs (old_fs);
 	return ret;
 }
+
+#endif /* CONFIG_NET */
 
 static int do_ext2_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg)
 {
@@ -634,6 +639,7 @@ static struct ioctl32_list ioctl32_handler_table[] = {
 	IOCTL32_DEFAULT(VT_LOCKSWITCH),
 	IOCTL32_DEFAULT(VT_UNLOCKSWITCH),
 
+#ifdef CONFIG_NET
 	IOCTL32_HANDLER(SIOCGIFNAME, dev_ifname32),
 	IOCTL32_HANDLER(SIOCGIFCONF, dev_ifconf),
 	IOCTL32_HANDLER(SIOCGIFFLAGS, dev_ifsioc),
@@ -665,6 +671,8 @@ static struct ioctl32_list ioctl32_handler_table[] = {
 	IOCTL32_HANDLER(SIOCSIFTXQLEN, dev_ifsioc),
 	IOCTL32_HANDLER(SIOCADDRT, routing_ioctl),
 	IOCTL32_HANDLER(SIOCDELRT, routing_ioctl),
+
+#endif /* CONFIG_NET */
 
 	IOCTL32_HANDLER(EXT2_IOC32_GETFLAGS, do_ext2_ioctl),
 	IOCTL32_HANDLER(EXT2_IOC32_SETFLAGS, do_ext2_ioctl),
