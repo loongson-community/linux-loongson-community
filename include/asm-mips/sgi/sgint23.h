@@ -64,7 +64,7 @@
  * We map them to 0 */
 #define SGI_VERT_IRQ	SGINT_LOCAL2 + 0	/* INT3: newport vertical status */
 #define SGI_EISA_IRQ	SGINT_LOCAL2 + 3	/* EISA interrupts */
-#define SGI_KEYBOARD_IRQ	SGINT_LOCAL2 + 4	/* keyboard */
+#define SGI_KEYBD_IRQ	SGINT_LOCAL2 + 4	/* keyboard */
 #define SGI_SERIAL_IRQ	SGINT_LOCAL2 + 5	/* onboard serial */
 
 /* INT2 occupies HPC PBUS slot 4, INT3 uses slot 6. */
@@ -227,8 +227,5 @@ extern struct sgi_int3_regs *sgi_i3regs;
 extern struct sgi_ioc_ints *ioc_icontrol;
 extern struct sgi_ioc_timers *ioc_timers;
 extern volatile unsigned char *ioc_tclear;
-
-extern void sgint_init(void);
-extern void indy_timer_init(void);
 
 #endif /* _ASM_SGI_SGINT23_H */
