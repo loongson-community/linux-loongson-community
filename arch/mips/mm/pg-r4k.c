@@ -229,7 +229,7 @@ static void __init __build_store_reg(int reg)
 	union mips_instruction mi;
 	unsigned int width;
 
-	if (cpu_has_64bit_gp_regs ||
+	if (cpu_has_64bit_registers ||
 	    (cpu_has_64bit_zero_reg && reg == 0)) {
 		mi.i_format.opcode     = sd_op;
 		width = 8;
