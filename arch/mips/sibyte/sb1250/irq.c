@@ -64,7 +64,7 @@ static int __init nokgdb(char *str)
 __setup("nokgdb", nokgdb);
 #endif
 
-#define NR_IRQS 64
+#define SB1250_NR_IRQS 64
 
 static struct hw_interrupt_type sb1250_irq_type = {
 	"SB1250-IMR",
@@ -163,6 +163,10 @@ void __init init_sb1250_irqs(void)
 		irq_desc[i].action = 0;
 		irq_desc[i].depth = 1;
 		irq_desc[i].handler = &sb1250_irq_type;
+		if (i < SB1250_NR_IRQS)
+			irq_desc[i].handler = &sb1250_irq_type;
+		else
+			irq_desc[i].handler = &no_irq_type;
 	}
 }
 
@@ -198,6 +202,7 @@ int sb1250_steal_irq(int irq)
 		desc->depth = 0;
 	}
 	spin_unlock_irqrestore(&desc->lock,flags);
+	return 0;
 }
 
 /*
