@@ -7,8 +7,6 @@
 #define _ASM_PCI_H
 
 #include <linux/config.h>
-#include <linux/types.h>
-#include <asm/io.h>
 
 #ifdef __KERNEL__
 
@@ -40,12 +38,18 @@ static inline void pcibios_penalize_isa_irq(int irq)
  * MIPS has everything mapped statically.
  */
 
-#include <linux/config.h>
 #include <linux/types.h>
 #include <linux/slab.h>
 #include <asm/scatterlist.h>
 #include <linux/string.h>
 #include <asm/io.h>
+
+#if defined(CONFIG_DDB5074) || defined(CONFIG_DDB5476)
+#undef PCIBIOS_MIN_IO
+#undef PCIBIOS_MIN_MEM
+#define PCIBIOS_MIN_IO		0x0100000
+#define PCIBIOS_MIN_MEM		0x1000000
+#endif
 
 struct pci_dev;
 
@@ -96,18 +100,12 @@ extern void pci_dma_sync_sg(struct pci_dev *hwdev, struct scatterlist *sg,
                             int nelems, int direction);
 
 /* pci_unmap_{single,page} is not a nop, thus... */
-#define DECLARE_PCI_UNMAP_ADDR(ADDR_NAME)	\
-	dma_addr_t ADDR_NAME;
-#define DECLARE_PCI_UNMAP_LEN(LEN_NAME)		\
-	__u32 LEN_NAME;
-#define pci_unmap_addr(PTR, ADDR_NAME)			\
-	((PTR)->ADDR_NAME)
-#define pci_unmap_addr_set(PTR, ADDR_NAME, VAL)		\
-	(((PTR)->ADDR_NAME) = (VAL))
-#define pci_unmap_len(PTR, LEN_NAME)			\
-	((PTR)->LEN_NAME)
-#define pci_unmap_len_set(PTR, LEN_NAME, VAL)		\
-	(((PTR)->LEN_NAME) = (VAL))
+#define DECLARE_PCI_UNMAP_ADDR(ADDR_NAME)	dma_addr_t ADDR_NAME;
+#define DECLARE_PCI_UNMAP_LEN(LEN_NAME)		__u32 LEN_NAME;
+#define pci_unmap_addr(PTR, ADDR_NAME)		((PTR)->ADDR_NAME)
+#define pci_unmap_addr_set(PTR, ADDR_NAME, VAL)	(((PTR)->ADDR_NAME) = (VAL))
+#define pci_unmap_len(PTR, LEN_NAME)		((PTR)->LEN_NAME)
+#define pci_unmap_len_set(PTR, LEN_NAME, VAL)	(((PTR)->LEN_NAME) = (VAL))
 
 #else /* CONFIG_MAPPED_PCI_IO  */
 
@@ -121,10 +119,12 @@ extern void pci_dma_sync_sg(struct pci_dev *hwdev, struct scatterlist *sg,
 static inline dma_addr_t pci_map_single(struct pci_dev *hwdev, void *ptr,
 					size_t size, int direction)
 {
+	unsigned long addr = (unsigned long) ptr;
+
 	if (direction == PCI_DMA_NONE)
 		BUG();
 
-	dma_cache_wback_inv((unsigned long)ptr, size);
+	dma_cache_wback_inv(addr, size);
 
 	return virt_to_bus(ptr);
 }
@@ -143,7 +143,12 @@ static inline void pci_unmap_single(struct pci_dev *hwdev, dma_addr_t dma_addr,
 	if (direction == PCI_DMA_NONE)
 		BUG();
 
-	/* Nothing to do */
+	if (direction != PCI_DMA_TODEVICE) {
+		unsigned long addr;
+
+		addr = bus_to_virt(baddr_to_bus(hwdev, dma_address));
+		dma_cache_back_inv(addr, size);
+	}
 }
 
 /* pci_unmap_{page,single} is a nop so... */
@@ -178,7 +183,13 @@ static inline void pci_unmap_page(struct pci_dev *hwdev, dma_addr_t dma_address,
 {
 	if (direction == PCI_DMA_NONE)
 		BUG();
-	/* Nothing to do */
+
+	if (direction != PCI_DMA_TODEVICE) {
+		unsigned long addr;
+
+		addr = bus_to_virt(baddr_to_bus(hwdev, dma_address));
+		dma_cache_back_inv(addr, size);
+	}
 }
 
 /*
@@ -223,10 +234,24 @@ static inline int pci_map_sg(struct pci_dev *hwdev, struct scatterlist *sg,
 static inline void pci_unmap_sg(struct pci_dev *hwdev, struct scatterlist *sg,
 				int nents, int direction)
 {
+	int i;
+
 	if (direction == PCI_DMA_NONE)
 		BUG();
 
-	/* Nothing to do */
+	if (direction == PCI_DMA_TODEVICE)
+		return;
+
+	for (i = 0; i < nents; i++, sg++) {
+		if (sg->address && sg->page)
+			out_of_line_bug();
+		else if (!sg->address && !sg->page)
+			out_of_line_bug();
+
+		if (!sg->address)
+			continue;
+		dma_cache_wback_inv((unsigned long)sg->address, sg->length);
+	}
 }
 
 /*
@@ -305,30 +330,28 @@ static inline int pci_dma_supported(struct pci_dev *hwdev, u64 mask)
 #define pci_dac_dma_supported(pci_dev, mask)	(0)
 
 #if 0
-static __inline__ dma64_addr_t
-pci_dac_page_to_dma(struct pci_dev *pdev, struct page *page, unsigned long offset, int direction)
+static inline dma64_addr_t pci_dac_page_to_dma(struct pci_dev *pdev,
+	struct page *page, unsigned long offset, int direction)
 {
-	return ((dma64_addr_t) page_to_bus(page) +
-		(dma64_addr_t) offset);
+	return ((dma64_addr_t) page_to_bus(page) + (dma64_addr_t) offset);
 }
 
-static __inline__ struct page *
-pci_dac_dma_to_page(struct pci_dev *pdev, dma64_addr_t dma_addr)
+static inline struct page *pci_dac_dma_to_page(struct pci_dev *pdev,
+	dma64_addr_t dma_addr)
 {
 	unsigned long poff = (dma_addr >> PAGE_SHIFT);
 
 	return mem_map + poff;
 }
 
-static __inline__ unsigned long
-pci_dac_dma_to_offset(struct pci_dev *pdev, dma64_addr_t dma_addr)
+static inline unsigned long pci_dac_dma_to_offset(struct pci_dev *pdev,
+	dma64_addr_t dma_addr)
 {
-	return (dma_addr & ~PAGE_MASK);
+	return dma_addr & ~PAGE_MASK;
 }
 
-static __inline__ void
-pci_dac_dma_sync_single(struct pci_dev *pdev, dma64_addr_t dma_addr,
-                        size_t len, int direction)
+static inline void pci_dac_dma_sync_single(struct pci_dev *pdev,
+	dma64_addr_t dma_addr, size_t len, int direction)
 {
 	/* Nothing to do. */
 }
