@@ -28,7 +28,6 @@
 
 #include <asm/pci_channel.h>
 #include <asm/reboot.h>
-#include <asm/time.h>
 #include <asm/vr41xx/tb0229.h>
 
 #ifdef CONFIG_BLK_DEV_INITRD
@@ -97,14 +96,13 @@ static void __init tanbac_tb0229_setup(void)
 	initrd_end = (unsigned long)&__rd_end;
 #endif
 
-	board_time_init = vr41xx_time_init;
-	board_timer_setup = vr41xx_timer_setup;
-
 	vr41xx_bcu_init();
 
 	vr41xx_cmu_init();
 
 	vr41xx_pmu_init();
+
+	vr41xx_rtc_init();
 
 	vr41xx_siu_init(SIU_RS232C, 0);
 	vr41xx_dsiu_init();

@@ -151,6 +151,8 @@ extern uint32_t vr41xx_read_rtclong2_counter(void);
 extern void vr41xx_set_tclock_cycle(uint32_t cycles);
 extern uint32_t vr41xx_read_tclock_counter(void);
 
+extern void vr41xx_rtc_init(void);
+
 /*
  * General-Purpose I/O Unit
  */
@@ -226,11 +228,5 @@ struct vr41xx_pci_address_map {
 };
 
 extern void vr41xx_pciu_init(struct vr41xx_pci_address_map *map);
-
-/*
- * MISC
- */
-extern void vr41xx_time_init(void);
-extern void vr41xx_timer_setup(struct irqaction *irq);
 
 #endif /* __NEC_VR41XX_H */

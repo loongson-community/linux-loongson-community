@@ -25,7 +25,6 @@
 #include <linux/root_dev.h>
 
 #include <asm/pci_channel.h>
-#include <asm/time.h>
 #include <asm/vr41xx/capcella.h>
 
 #ifdef CONFIG_BLK_DEV_INITRD
@@ -95,14 +94,13 @@ static void __init zao_capcella_setup(void)
 	initrd_end = (unsigned long)&__rd_end;
 #endif
 
-	board_time_init = vr41xx_time_init;
-	board_timer_setup = vr41xx_timer_setup;
-
 	vr41xx_bcu_init();
 
 	vr41xx_cmu_init();
 
 	vr41xx_pmu_init();
+
+	vr41xx_rtc_init();
 
 #ifdef CONFIG_SERIAL_8250
 	vr41xx_siu_init(SIU_RS232C, 0);

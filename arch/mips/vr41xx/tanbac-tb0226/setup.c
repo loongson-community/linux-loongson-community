@@ -22,7 +22,6 @@
 #include <linux/ioport.h>
 
 #include <asm/pci_channel.h>
-#include <asm/time.h>
 #include <asm/vr41xx/tb0226.h>
 
 #ifdef CONFIG_BLK_DEV_INITRD
@@ -92,14 +91,13 @@ void __init tanbac_tb0226_setup(void)
 	initrd_end = (unsigned long)&__rd_end;
 #endif
 
-	board_time_init = vr41xx_time_init;
-	board_timer_setup = vr41xx_timer_setup;
-
 	vr41xx_bcu_init();
 
 	vr41xx_cmu_init();
 
 	vr41xx_pmu_init();
+
+	vr41xx_rtc_init();
 
 	vr41xx_siu_init(SIU_RS232C, 0);
 
