@@ -156,7 +156,12 @@
  */
 #ifdef CONFIG_MIPS32
 #define K0BASE			KSEG0
-#elif defined(CONFIG_NONCOHERENT_IO)
+#define K1BASE			KSEG1
+#define K2BASE			KSEG2
+#endif
+
+#ifdef CONFIG_MIPS64
+#ifdef CONFIG_NONCOHERENT_IO	/* 64-bit kernel */
 #define K0BASE			0x9800000000000000
 #else
 #define K0BASE			0xa800000000000000
@@ -173,7 +178,11 @@
 #else
 #define K1BASE			0x9000000000000000
 #endif
-#define K2BASE			0xc000000000000000
+
+#define K2BASE			XKSEG
+
+#endif
+
 
 #ifndef CONFIG_CPU_R8000
 
