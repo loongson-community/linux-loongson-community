@@ -31,6 +31,7 @@ obj-$(CONFIG_MIPS_EV96100)	+= fixup-ev96100.o pci-ev96100.o
 obj-$(CONFIG_MIPS_ITE8172)	+= fixup-ite8172g.o
 obj-$(CONFIG_MIPS_IVR)		+= fixup-ivr.o
 obj-$(CONFIG_SOC_AU1500)	+= fixup-au1000.o ops-au1000.o
+obj-$(CONFIG_SOC_AU1550)	+= fixup-au1000.o ops-au1000.o
 obj-$(CONFIG_MIPS_MALTA)	+= fixup-malta.o
 obj-$(CONFIG_MOMENCO_OCELOT)	+= fixup-ocelot.o pci-ocelot.o
 obj-$(CONFIG_MOMENCO_OCELOT_C)	+= pci-ocelot-c.o

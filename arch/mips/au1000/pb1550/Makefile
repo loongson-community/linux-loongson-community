@@ -6,4 +6,4 @@
 # Makefile for the Alchemy Semiconductor PB1000 board.
 #
 
-obj-y := init.o board_setup.o irqmap.o
+lib-y := init.o board_setup.o irqmap.o

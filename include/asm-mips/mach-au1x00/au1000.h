@@ -197,6 +197,11 @@ extern au1xxx_irq_map_t au1xxx_irq_map[];
 #define MEM_STTIME3                0xB4001034
 #define MEM_STADDR3                0xB4001038
 
+#ifdef CONFIG_SOC_AU1550
+#define MEM_STNDCTL                0xB4001100
+#define MEM_STSTAT                 0xB4001104
+#endif
+
 /* Interrupt Controller 0 */
 #define IC0_CFG0RD                 0xB0400040
 #define IC0_CFG0SET                0xB0400040
@@ -951,6 +956,23 @@ extern au1xxx_irq_map_t au1xxx_irq_map[];
   #define SYS_PF_CS			(1<<16)	/* EXTCLK0/32khz to gpio2 */
   #define SYS_PF_EX0			(1<<9)	/* gpio2/clock */
 
+/* Au1550 Only.  Redefines lots of pins */
+  #define SYS_PF_PSC2_MASK		(7 << 17)
+  #define SYS_PF_PSC2_AC97		(0)
+  #define SYS_PF_PSC2_SPI		(0)
+  #define SYS_PF_PSC2_I2S		(1 << 17)
+  #define SYS_PF_PSC2_SMBUS		(3 << 17)
+  #define SYS_PF_PSC2_GPIO		(7 << 17)
+  #define SYS_PF_PSC3_MASK		(7 << 20)
+  #define SYS_PF_PSC3_AC97		(0)
+  #define SYS_PF_PSC3_SPI		(0)
+  #define SYS_PF_PSC3_I2S		(1 << 20)
+  #define SYS_PF_PSC3_SMBUS		(3 << 20)
+  #define SYS_PF_PSC3_GPIO		(7 << 20)
+  #define SYS_PF_PSC1_S1		(1 << 1)
+  #define SYS_PF_MUST_BE_SET		((1 << 5) | (1 << 2))
+
+
 #define SYS_TRIOUTRD              0xB1900100
 #define SYS_TRIOUTCLR             0xB1900100
 #define SYS_OUTPUTRD              0xB1900108
@@ -959,7 +981,7 @@ extern au1xxx_irq_map_t au1xxx_irq_map[];
 #define SYS_PINSTATERD            0xB1900110
 #define SYS_PININPUTEN            0xB1900110
 
-/* GPIO2, Au1500 only */
+/* GPIO2, Au1500, Au1550 only */
 #define GPIO2_BASE                0xB1700000
 #define GPIO2_DIR                 (GPIO2_BASE + 0)
 #define GPIO2_OUTPUT              (GPIO2_BASE + 8)

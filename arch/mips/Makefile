@@ -238,6 +238,13 @@ cflags-$(CONFIG_MIPS_PB1500)	+= -Iinclude/asm-mips/mach-pb1x00
 load-$(CONFIG_MIPS_PB1500)	+= 0x80100000
 
 #
+# AMD Alchemy Pb1550 eval board
+#
+libs-$(CONFIG_MIPS_PB1550)	+= arch/mips/au1000/pb1550/
+cflags-$(CONFIG_MIPS_PB1550)	+= -Iinclude/asm-mips/mach-pb1x00
+load-$(CONFIG_MIPS_PB1550)	+= 0x80100000
+
+#
 # AMD Alchemy Db1000 eval board
 #
 libs-$(CONFIG_MIPS_DB1000)	+= arch/mips/au1000/db1x00/
