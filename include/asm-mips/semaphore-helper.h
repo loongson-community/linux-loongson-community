@@ -55,12 +55,13 @@ static inline int waking_non_zero(struct semaphore *sem)
 	unsigned long flags;
 	int ret = 0;
 
-	local_irq_save(flags);
+	spin_lock_irqsave(&semaphore_lock, flags);
 	if (sem_read(&sem->waking) > 0) {
 		sem_dec(&sem->waking);
 		ret = 1;
 	}
-	local_irq_restore(flags);
+	spin_lock_irqrestore(&semaphore_lock, flags);
+
 	return ret;
 }
 #endif /* !CONFIG_CPU_HAS_LLSC */
@@ -145,10 +146,10 @@ static inline int waking_non_zero_trylock(struct semaphore *sem)
 static inline int waking_non_zero_interruptible(struct semaphore *sem,
 						struct task_struct *tsk)
 {
-	int ret = 0;
 	unsigned long flags;
+	int ret = 0;
 
-	local_irq_save(flags);
+	spin_lock_irqsave(&semaphore_lock, flags);
 	if (sem_read(&sem->waking) > 0) {
 		sem_dec(&sem->waking);
 		ret = 1;
@@ -156,23 +157,24 @@ static inline int waking_non_zero_interruptible(struct semaphore *sem,
 		sem_inc(&sem->count);
 		ret = -EINTR;
 	}
-	local_irq_restore(flags);
+	spin_lock_irqrestore(&semaphore_lock, flags);
+
 	return ret;
 }
 
 static inline int waking_non_zero_trylock(struct semaphore *sem)
 {
-        int ret = 1;
 	unsigned long flags;
+	int ret = 1;
 
-	local_irq_save(flags);
+	spin_lock_irqsave(&semaphore_lock, flags);
 	if (sem_read(&sem->waking) <= 0)
 		sem_inc(&sem->count);
 	else {
 		sem_dec(&sem->waking);
 		ret = 0;
 	}
-	local_irq_restore(flags);
+	spin_lock_irqrestore(&semaphore_lock, flags);
 
 	return ret;
 }
