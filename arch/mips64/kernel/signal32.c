@@ -1,4 +1,4 @@
-/* $Id: signal32.c,v 1.3 2000/03/07 15:45:28 ralf Exp $
+/* $Id: signal32.c,v 1.4 2000/03/15 22:46:55 kanoj Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -389,10 +389,10 @@ setup_frame(struct k_sigaction * ka, struct pt_regs *regs,
 		/*
 		 * Set up the return code ...
 		 *
-		 *         li      v0, __NR_sigreturn
+		 *         li      v0, __NR_Linux32_sigreturn
 		 *         syscall
 		 */
-		err |= __put_user(0x24020000 + __NR_sigreturn,
+		err |= __put_user(0x24020000 + __NR_Linux32_sigreturn,
 		                  frame->sf_code + 0);
 		err |= __put_user(0x0000000c                 ,
 		                  frame->sf_code + 1);
@@ -452,10 +452,10 @@ setup_rt_frame(struct k_sigaction * ka, struct pt_regs *regs,
 		/*
 		 * Set up the return code ...
 		 *
-		 *         li      v0, __NR_sigreturn
+		 *         li      v0, __NR_Linux32_sigreturn
 		 *         syscall
 		 */
-		err |= __put_user(0x24020000 + __NR_sigreturn,
+		err |= __put_user(0x24020000 + __NR_Linux32_sigreturn,
 		                  frame->rs_code + 0);
 		err |= __put_user(0x0000000c                 ,
 		                  frame->rs_code + 1);
