@@ -193,7 +193,7 @@ void update_mmu_cache(struct vm_area_struct * vma, unsigned long address,
 	restore_flags(flags);
 }
 
-void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
+void __init add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
                      unsigned long entryhi, unsigned long pagemask)
 {
 	unsigned long flags;

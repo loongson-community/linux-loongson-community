@@ -256,7 +256,7 @@ static void r4k_update_mmu_cache_hwbug(struct vm_area_struct * vma,
 }
 #endif
 
-void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
+void __init add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 		     unsigned long entryhi, unsigned long pagemask)
 {
 	unsigned long flags;
