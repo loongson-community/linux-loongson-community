@@ -3,7 +3,7 @@
 /*
  *      es1370.c  --  Ensoniq ES1370/Asahi Kasei AK4531 audio driver.
  *
- *      Copyright (C) 1998  Thomas Sailer (sailer@ife.ee.ethz.ch)
+ *      Copyright (C) 1998-1999  Thomas Sailer (sailer@ife.ee.ethz.ch)
  *
  *      This program is free software; you can redistribute it and/or modify
  *      it under the terms of the GNU General Public License as published by
@@ -83,6 +83,15 @@
  *    16.12.98   0.16  Don't wake up app until there are fragsize bytes to read/write
  *    06.01.99   0.17  remove the silly SA_INTERRUPT flag.
  *                     hopefully killed the egcs section type conflict
+ *    12.03.99   0.18  cinfo.blocks should be reset after GETxPTR ioctl.
+ *                     reported by Johan Maes <joma@telindus.be>
+ *    22.03.99   0.19  return EAGAIN instead of EBUSY when O_NONBLOCK
+ *                     read/write cannot be executed
+ *    07.04.99   0.20  implemented the following ioctl's: SOUND_PCM_READ_RATE, 
+ *                     SOUND_PCM_READ_CHANNELS, SOUND_PCM_READ_BITS; 
+ *                     Alpha fixes reported by Peter Jones <pjones@redhat.com>
+ *                     Note: joystick address handling might still be wrong on archs
+ *                     other than i386
  *
  * some important things missing in Ensoniq documentation:
  *
@@ -127,6 +136,8 @@
 /* --------------------------------------------------------------------- */
 
 #undef OSS_DOCUMENTED_MIXER_SEMANTICS
+#define DBG(x) {}
+/*#define DBG(x) {x}*/
 
 /* --------------------------------------------------------------------- */
 
@@ -281,7 +292,8 @@ struct es1370_state {
 	int dev_midi;
 	
 	/* hardware resources */
-	unsigned int io, irq;
+	unsigned long io; /* long for SPARC */
+	unsigned int irq;
 
 	/* mixer registers; there is no HW readback */
 	struct {
@@ -1019,7 +1031,7 @@ static int drain_dac1(struct es1370_state *s, int nonblock)
 		tmo = (count * HZ) / dac1_samplerate[(s->ctrl & CTRL_WTSRSEL) >> CTRL_SH_WTSRSEL];
 		tmo >>= sample_shift[(s->sctrl & SCTRL_P1FMT) >> SCTRL_SH_P1FMT];
 		if (!schedule_timeout(tmo ? : 1) && tmo)
-			printk(KERN_DEBUG "es1370: dma timed out??\n");
+			DBG(printk(KERN_DEBUG "es1370: dma timed out??\n");)
         }
         remove_wait_queue(&s->dma_dac1.wait, &wait);
         current->state = TASK_RUNNING;
@@ -1054,7 +1066,7 @@ static int drain_dac2(struct es1370_state *s, int nonblock)
 		tmo = (count * HZ) / DAC2_DIVTOSR((s->ctrl & CTRL_PCLKDIV) >> CTRL_SH_PCLKDIV);
 		tmo >>= sample_shift[(s->sctrl & SCTRL_P2FMT) >> SCTRL_SH_P2FMT];
 		if (!schedule_timeout(tmo ? : 1) && tmo)
-			printk(KERN_DEBUG "es1370: dma timed out??\n");
+			DBG(printk(KERN_DEBUG "es1370: dma timed out??\n");)
         }
         remove_wait_queue(&s->dma_dac2.wait, &wait);
         current->state = TASK_RUNNING;
@@ -1095,7 +1107,7 @@ static ssize_t es1370_read(struct file *file, char *buffer, size_t count, loff_t
 		if (cnt <= 0) {
 			start_adc(s);
 			if (file->f_flags & O_NONBLOCK)
-				return ret ? ret : -EBUSY;
+				return ret ? ret : -EAGAIN;
 			interruptible_sleep_on(&s->dma_adc.wait);
 			if (signal_pending(current))
 				return ret ? ret : -ERESTARTSYS;
@@ -1150,7 +1162,7 @@ static ssize_t es1370_write(struct file *file, const char *buffer, size_t count,
 		if (cnt <= 0) {
 			start_dac2(s);
 			if (file->f_flags & O_NONBLOCK)
-				return ret ? ret : -EBUSY;
+				return ret ? ret : -EAGAIN;
 			interruptible_sleep_on(&s->dma_dac2.wait);
 			if (signal_pending(current))
 				return ret ? ret : -ERESTARTSYS;
@@ -1228,8 +1240,6 @@ static int es1370_mmap(struct file *file, struct vm_area_struct *vma)
 	if (remap_page_range(vma->vm_start, virt_to_phys(db->rawbuf), size, vma->vm_page_prot))
 		return -EAGAIN;
 	db->mapped = 1;
-	vma->vm_file = file;
-	file->f_count++;
 	return 0;
 }
 
@@ -1455,7 +1465,7 @@ static int es1370_ioctl(struct inode *inode, struct file *file, unsigned int cmd
 		spin_lock_irqsave(&s->lock, flags);
 		es1370_update_ptr(s);
                 cinfo.bytes = s->dma_adc.total_bytes;
-                cinfo.blocks = s->dma_adc.total_bytes >> s->dma_adc.fragshift;
+                cinfo.blocks = s->dma_adc.count >> s->dma_adc.fragshift;
                 cinfo.ptr = s->dma_adc.hwptr;
 		if (s->dma_adc.mapped)
 			s->dma_adc.count &= s->dma_adc.fragsize-1;
@@ -1468,7 +1478,7 @@ static int es1370_ioctl(struct inode *inode, struct file *file, unsigned int cmd
 		spin_lock_irqsave(&s->lock, flags);
 		es1370_update_ptr(s);
                 cinfo.bytes = s->dma_dac2.total_bytes;
-                cinfo.blocks = s->dma_dac2.total_bytes >> s->dma_dac2.fragshift;
+                cinfo.blocks = s->dma_dac2.count >> s->dma_dac2.fragshift;
                 cinfo.ptr = s->dma_dac2.hwptr;
 		if (s->dma_dac2.mapped)
 			s->dma_dac2.count &= s->dma_dac2.fragsize-1;
@@ -1522,11 +1532,19 @@ static int es1370_ioctl(struct inode *inode, struct file *file, unsigned int cmd
 			s->dma_dac2.subdivision = val;
 		return 0;
 
+        case SOUND_PCM_READ_RATE:
+		return put_user(DAC2_DIVTOSR((s->ctrl & CTRL_PCLKDIV) >> CTRL_SH_PCLKDIV), (int *)arg);
+
+        case SOUND_PCM_READ_CHANNELS:
+		return put_user((s->sctrl & ((file->f_mode & FMODE_READ) ? SCTRL_R1SMB : SCTRL_P2SMB)) ?
+				2 : 1, (int *)arg);
+
+        case SOUND_PCM_READ_BITS:
+		return put_user((s->sctrl & ((file->f_mode & FMODE_READ) ? SCTRL_R1SEB : SCTRL_P2SEB)) ? 
+				16 : 8, (int *)arg);
+
         case SOUND_PCM_WRITE_FILTER:
         case SNDCTL_DSP_SETSYNCRO:
-        case SOUND_PCM_READ_RATE:
-        case SOUND_PCM_READ_CHANNELS:
-        case SOUND_PCM_READ_BITS:
         case SOUND_PCM_READ_FILTER:
                 return -EINVAL;
 		
@@ -1597,6 +1615,7 @@ static int es1370_release(struct inode *inode, struct file *file)
 	down(&s->open_sem);
 	if (file->f_mode & FMODE_WRITE) {
 		stop_dac2(s);
+		synchronize_irq();
 		dealloc_dmabuf(&s->dma_dac2);
 	}
 	if (file->f_mode & FMODE_READ) {
@@ -1663,7 +1682,7 @@ static ssize_t es1370_write_dac(struct file *file, const char *buffer, size_t co
 		if (cnt <= 0) {
 			start_dac1(s);
 			if (file->f_flags & O_NONBLOCK)
-				return ret ? ret : -EBUSY;
+				return ret ? ret : -EAGAIN;
 			interruptible_sleep_on(&s->dma_dac1.wait);
 			if (signal_pending(current))
 				return ret ? ret : -ERESTARTSYS;
@@ -1725,8 +1744,6 @@ static int es1370_mmap_dac(struct file *file, struct vm_area_struct *vma)
 	if (remap_page_range(vma->vm_start, virt_to_phys(s->dma_dac1.rawbuf), size, vma->vm_page_prot))
 		return -EAGAIN;
 	s->dma_dac1.mapped = 1;
-	vma->vm_file = file;
-	file->f_count++;
 	return 0;
 }
 
@@ -1867,7 +1884,7 @@ static int es1370_ioctl_dac(struct inode *inode, struct file *file, unsigned int
 		spin_lock_irqsave(&s->lock, flags);
 		es1370_update_ptr(s);
                 cinfo.bytes = s->dma_dac1.total_bytes;
-                cinfo.blocks = s->dma_dac1.total_bytes >> s->dma_dac1.fragshift;
+                cinfo.blocks = s->dma_dac1.count >> s->dma_dac1.fragshift;
                 cinfo.ptr = s->dma_dac1.hwptr;
 		if (s->dma_dac1.mapped)
 			s->dma_dac1.count &= s->dma_dac1.fragsize-1;
@@ -1900,11 +1917,17 @@ static int es1370_ioctl_dac(struct inode *inode, struct file *file, unsigned int
 		s->dma_dac1.subdivision = val;
 		return 0;
 
+        case SOUND_PCM_READ_RATE:
+		return put_user(dac1_samplerate[(s->ctrl & CTRL_WTSRSEL) >> CTRL_SH_WTSRSEL], (int *)arg);
+
+        case SOUND_PCM_READ_CHANNELS:
+		return put_user((s->sctrl & SCTRL_P1SMB) ? 2 : 1, (int *)arg);
+
+        case SOUND_PCM_READ_BITS:
+		return put_user((s->sctrl & SCTRL_P1SEB) ? 16 : 8, (int *)arg);
+
         case SOUND_PCM_WRITE_FILTER:
         case SNDCTL_DSP_SETSYNCRO:
-        case SOUND_PCM_READ_RATE:
-        case SOUND_PCM_READ_CHANNELS:
-        case SOUND_PCM_READ_BITS:
         case SOUND_PCM_READ_FILTER:
                 return -EINVAL;
 		
@@ -2022,7 +2045,7 @@ static ssize_t es1370_midi_read(struct file *file, char *buffer, size_t count, l
 			cnt = count;
 		if (cnt <= 0) {
 			if (file->f_flags & O_NONBLOCK)
-				return ret ? ret : -EBUSY;
+				return ret ? ret : -EAGAIN;
 			interruptible_sleep_on(&s->midi.iwait);
 			if (signal_pending(current))
 				return ret ? ret : -ERESTARTSYS;
@@ -2069,7 +2092,7 @@ static ssize_t es1370_midi_write(struct file *file, const char *buffer, size_t c
 			cnt = count;
 		if (cnt <= 0) {
 			if (file->f_flags & O_NONBLOCK)
-				return ret ? ret : -EBUSY;
+				return ret ? ret : -EAGAIN;
 			interruptible_sleep_on(&s->midi.owait);
 			if (signal_pending(current))
 				return ret ? ret : -ERESTARTSYS;
@@ -2192,7 +2215,7 @@ static int es1370_midi_release(struct inode *inode, struct file *file)
 			}
 			tmo = (count * HZ) / 3100;
 			if (!schedule_timeout(tmo ? : 1) && tmo)
-				printk(KERN_DEBUG "es1370: midi timed out??\n");
+				DBG(printk(KERN_DEBUG "es1370: midi timed out??\n");)
 		}
 		remove_wait_queue(&s->midi.owait, &wait);
 		current->state = TASK_RUNNING;
@@ -2272,7 +2295,7 @@ __initfunc(int init_es1370(void))
 
 	if (!pci_present())   /* No PCI bus in this machine! */
 		return -ENODEV;
-	printk(KERN_INFO "es1370: version v0.17 time " __TIME__ " " __DATE__ "\n");
+	printk(KERN_INFO "es1370: version v0.20 time " __TIME__ " " __DATE__ "\n");
 	while (index < NR_DEVICE && 
 	       (pcidev = pci_find_device(PCI_VENDOR_ID_ENSONIQ, PCI_DEVICE_ID_ENSONIQ_ES1370, pcidev))) {
 		if (pcidev->base_address[0] == 0 || 
@@ -2296,7 +2319,7 @@ __initfunc(int init_es1370(void))
 		s->io = pcidev->base_address[0] & PCI_BASE_ADDRESS_IO_MASK;
 		s->irq = pcidev->irq;
 		if (check_region(s->io, ES1370_EXTENT)) {
-			printk(KERN_ERR "es1370: io ports %#x-%#x in use\n", s->io, s->io+ES1370_EXTENT-1);
+			printk(KERN_ERR "es1370: io ports %#lx-%#lx in use\n", s->io, s->io+ES1370_EXTENT-1);
 			goto err_region;
 		}
 		request_region(s->io, ES1370_EXTENT, "es1370");
@@ -2317,7 +2340,7 @@ __initfunc(int init_es1370(void))
 		if (micz[index])
 			s->ctrl |= CTRL_XCTL1;
 		s->sctrl = 0;
-		printk(KERN_INFO "es1370: found adapter at io %#06x irq %u\n"
+		printk(KERN_INFO "es1370: found adapter at io %#lx irq %u\n"
 		       KERN_INFO "es1370: features: joystick %s, line %s, mic impedance %s\n",
 		       s->io, s->irq, (s->ctrl & CTRL_JYSTK_EN) ? "on" : "off",
 		       (s->ctrl & CTRL_XCTL0) ? "out" : "in",

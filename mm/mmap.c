@@ -176,6 +176,9 @@ unsigned long do_mmap(struct file * file, unsigned long addr, unsigned long len,
 	struct vm_area_struct * vma;
 	int error;
 
+	if (file && (!file->f_op || !file->f_op->mmap))
+		return -ENODEV;
+
 	if ((len = PAGE_ALIGN(len)) == 0)
 		return addr;
 
@@ -244,9 +247,6 @@ unsigned long do_mmap(struct file * file, unsigned long addr, unsigned long len,
 	 * specific mapper. the address has already been validated, but
 	 * not unmapped, but the maps are removed from the list.
 	 */
-	if (file && (!file->f_op || !file->f_op->mmap))
-		return -ENODEV;
-
 	vma = kmem_cache_alloc(vm_area_cachep, SLAB_KERNEL);
 	if (!vma)
 		return -ENOMEM;
@@ -319,6 +319,8 @@ unsigned long do_mmap(struct file * file, unsigned long addr, unsigned long len,
 			file->f_dentry->d_inode->i_writecount++;
 		if (error)
 			goto unmap_and_free_vma;
+		vma->vm_file = file;
+		file->f_count++;
 	}
 
 	/*
@@ -488,8 +490,8 @@ struct vm_area_struct * find_vma_prev(struct mm_struct * mm, unsigned long addr,
  * allocate a new one, and the return indicates whether the old
  * area was reused.
  */
-static int unmap_fixup(struct vm_area_struct *area, unsigned long addr,
-			 size_t len, struct vm_area_struct **extra)
+static struct vm_area_struct * unmap_fixup(struct vm_area_struct *area,
+	unsigned long addr, size_t len, struct vm_area_struct *extra)
 {
 	struct vm_area_struct *mpnt;
 	unsigned long end = addr + len;
@@ -504,7 +506,8 @@ static int unmap_fixup(struct vm_area_struct *area, unsigned long addr,
 			area->vm_ops->close(area);
 		if (area->vm_file)
 			fput(area->vm_file);
-		return 0;
+		kmem_cache_free(vm_area_cachep, area);
+		return extra;
 	}
 
 	/* Work out to one of the ends. */
@@ -516,8 +519,8 @@ static int unmap_fixup(struct vm_area_struct *area, unsigned long addr,
 	} else {
 	/* Unmapping a hole: area->vm_start < addr <= end < area->vm_end */
 		/* Add end mapping -- leave beginning for below */
-		mpnt = *extra;
-		*extra = NULL;
+		mpnt = extra;
+		extra = NULL;
 
 		mpnt->vm_mm = area->vm_mm;
 		mpnt->vm_start = end;
@@ -537,7 +540,7 @@ static int unmap_fixup(struct vm_area_struct *area, unsigned long addr,
 	}
 
 	insert_vm_struct(current->mm, area);
-	return 1;
+	return extra;
 }
 
 /*
@@ -564,8 +567,8 @@ static void free_pgtables(struct mm_struct * mm, struct vm_area_struct *prev,
 		if (!prev)
 			goto no_mmaps;
 		if (prev->vm_end > start) {
-			if (last > prev->vm_end)
-				last = prev->vm_end;
+			if (last > prev->vm_start)
+				last = prev->vm_start;
 			goto no_mmaps;
 		}
 	}
@@ -605,7 +608,7 @@ int do_munmap(unsigned long addr, size_t len)
 		return -EINVAL;
 
 	if ((len = PAGE_ALIGN(len)) == 0)
-		return 0;
+		return -EINVAL;
 
 	/* Check if this memory area is ok - put it on the temporary
 	 * list if so..  The checks here are pretty simple --
@@ -672,8 +675,7 @@ int do_munmap(unsigned long addr, size_t len)
 		/*
 		 * Fix the mapping, and free the old area if it wasn't reused.
 		 */
-		if (!unmap_fixup(mpnt, st, size, &extra))
-			kmem_cache_free(vm_area_cachep, mpnt);
+		extra = unmap_fixup(mpnt, st, size, extra);
 	}
 
 	/* Release the extra vma struct if it wasn't used */

@@ -63,6 +63,8 @@ endif
 
 ifeq ($(CONFIG_IPX),y)
 SUB_DIRS += ipx
+# SPX can be still a module
+MOD_SUB_DIRS += ipx
 else
   ifeq ($(CONFIG_IPX),m)
   MOD_SUB_DIRS += ipx
@@ -127,6 +129,8 @@ endif
 
 ifeq ($(CONFIG_IRDA),y)
 SUB_DIRS += irda
+# There might be some irda features that are compiled as modules
+MOD_IN_SUB_DIRS += irda
 else
   ifeq ($(CONFIG_IRDA),m)
   MOD_SUB_DIRS += irda

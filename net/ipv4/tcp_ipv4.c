@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp_ipv4.c,v 1.164 1999/01/04 20:36:55 davem Exp $
+ * Version:	$Id: tcp_ipv4.c,v 1.175 1999/05/08 21:09:54 davem Exp $
  *
  *		IPv4 specific functions
  *
@@ -629,6 +629,7 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 
 	if (!tcp_v4_unique_address(sk)) {
 		kfree_skb(buff);
+		sk->daddr = 0;
 		return -EADDRNOTAVAIL;
 	}
 
@@ -657,7 +658,6 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 
 static int tcp_v4_sendmsg(struct sock *sk, struct msghdr *msg, int len)
 {
-	struct tcp_opt *tp;
 	int retval = -EINVAL;
 
 	/* Do sanity checking for sendmsg/sendto/send. */
@@ -679,15 +679,7 @@ static int tcp_v4_sendmsg(struct sock *sk, struct msghdr *msg, int len)
 		if (addr->sin_addr.s_addr != sk->daddr)
 			goto out;
 	}
-
-	lock_sock(sk);
-	retval = tcp_do_sendmsg(sk, msg->msg_iovlen, msg->msg_iov,
-				msg->msg_flags);
-	/* Push out partial tail frames if needed. */
-	tp = &(sk->tp_pinfo.af_tcp);
-	if(tp->send_head && tcp_snd_test(sk, tp->send_head))
-		tcp_write_xmit(sk);
-	release_sock(sk);
+	retval = tcp_do_sendmsg(sk, msg);
 
 out:
 	return retval;
@@ -731,9 +723,12 @@ static struct open_request *tcp_v4_search_req(struct tcp_opt *tp,
 /* 
  * This routine does path mtu discovery as defined in RFC1191.
  */
-static inline void do_pmtu_discovery(struct sock *sk, struct iphdr *ip)
+static inline void do_pmtu_discovery(struct sock *sk, struct iphdr *ip, unsigned mtu)
 {
 	struct tcp_opt *tp = &sk->tp_pinfo.af_tcp;
+
+	if (atomic_read(&sk->sock_readers))
+		return;
 
 	/* Don't interested in TCP_LISTEN and open_requests (SYN-ACKs
 	 * send out by Linux are always <576bytes so they should go through
@@ -748,21 +743,20 @@ static inline void do_pmtu_discovery(struct sock *sk, struct iphdr *ip)
      	 * There is a small race when the user changes this flag in the
 	 * route, but I think that's acceptable.
 	 */
-	if (sk->ip_pmtudisc != IP_PMTUDISC_DONT && sk->dst_cache) {
-		if (tp->pmtu_cookie > sk->dst_cache->pmtu &&
-		    !atomic_read(&sk->sock_readers)) {
-			lock_sock(sk); 
-			tcp_sync_mss(sk, sk->dst_cache->pmtu);
+	if (sk->dst_cache == NULL)
+		return;
+	ip_rt_update_pmtu(sk->dst_cache, mtu);
+	if (sk->ip_pmtudisc != IP_PMTUDISC_DONT &&
+	    tp->pmtu_cookie > sk->dst_cache->pmtu) {
+		tcp_sync_mss(sk, sk->dst_cache->pmtu);
 
-			/* Resend the TCP packet because it's  
-			 * clear that the old packet has been
-			 * dropped. This is the new "fast" path mtu
-			 * discovery.
-			 */
-			tcp_simple_retransmit(sk);
-			release_sock(sk);
-		} /* else let the usual retransmit timer handle it */
-	}
+		/* Resend the TCP packet because it's  
+		 * clear that the old packet has been
+		 * dropped. This is the new "fast" path mtu
+		 * discovery.
+		 */
+		tcp_simple_retransmit(sk);
+	} /* else let the usual retransmit timer handle it */
 }
 
 /*
@@ -789,6 +783,11 @@ void tcp_v4_err(struct sk_buff *skb, unsigned char *dp, int len)
 	struct tcp_opt *tp;
 	int type = skb->h.icmph->type;
 	int code = skb->h.icmph->code;
+#if ICMP_MIN_LENGTH < 14
+	int no_flags = 0;
+#else
+#define no_flags 0
+#endif
 	struct sock *sk;
 	__u32 seq;
 	int err;
@@ -797,6 +796,10 @@ void tcp_v4_err(struct sk_buff *skb, unsigned char *dp, int len)
 		icmp_statistics.IcmpInErrors++; 
 		return;
 	}
+#if ICMP_MIN_LENGTH < 14
+	if (len < (iph->ihl << 2) + 14)
+		no_flags = 1;
+#endif
 
 	th = (struct tcphdr*)(dp+(iph->ihl<<2));
 
@@ -816,7 +819,7 @@ void tcp_v4_err(struct sk_buff *skb, unsigned char *dp, int len)
 	switch (type) {
 	case ICMP_SOURCE_QUENCH:
 #ifndef OLD_SOURCE_QUENCH /* This is deprecated */
-		tp->snd_ssthresh = max(tp->snd_cwnd >> 1, 2);
+		tp->snd_ssthresh = tcp_recalc_ssthresh(tp);
 		tp->snd_cwnd = tp->snd_ssthresh;
 		tp->snd_cwnd_cnt = 0;
 		tp->high_seq = tp->snd_nxt;
@@ -830,7 +833,7 @@ void tcp_v4_err(struct sk_buff *skb, unsigned char *dp, int len)
 			return;
 
 		if (code == ICMP_FRAG_NEEDED) { /* PMTU discovery (RFC1191) */
-			do_pmtu_discovery(sk, iph); 
+			do_pmtu_discovery(sk, iph, ntohs(skb->h.icmph->un.frag.mtu));
 			return;
 		}
 
@@ -863,7 +866,7 @@ void tcp_v4_err(struct sk_buff *skb, unsigned char *dp, int len)
 		 * ACK should set the opening flag, but that is too
 		 * complicated right now. 
 		 */ 
-		if (!th->syn && !th->ack)
+		if (!no_flags && !th->syn && !th->ack)
 			return;
 
 		req = tcp_v4_search_req(tp, iph, th, &prev); 
@@ -898,7 +901,7 @@ void tcp_v4_err(struct sk_buff *skb, unsigned char *dp, int len)
 		break;
 	case TCP_SYN_SENT:
 	case TCP_SYN_RECV:  /* Cannot happen */ 
-		if (!th->syn)
+		if (!no_flags && !th->syn)
 			return;
 		tcp_statistics.TcpAttemptFails++;
 		sk->err = err;
@@ -1305,6 +1308,9 @@ struct sock *tcp_create_openreq_child(struct sock *sk, struct open_request *req,
 
 	if(newsk != NULL) {
 		struct tcp_opt *newtp;
+#ifdef CONFIG_FILTER
+		struct sk_filter *filter;
+#endif
 
 		memcpy(newsk, sk, sizeof(*newsk));
 		newsk->sklist_next = NULL;
@@ -1325,6 +1331,10 @@ struct sock *tcp_create_openreq_child(struct sock *sk, struct open_request *req,
 		newsk->pair = NULL;
 		skb_queue_head_init(&newsk->back_log);
 		skb_queue_head_init(&newsk->error_queue);
+#ifdef CONFIG_FILTER
+		if ((filter = newsk->filter) != NULL)
+			sk_filter_charge(newsk, filter);
+#endif
 
 		/* Now setup tcp_opt */
 		newtp = &(newsk->tp_pinfo.af_tcp);
@@ -1348,7 +1358,14 @@ struct sock *tcp_create_openreq_child(struct sock *sk, struct open_request *req,
 		newtp->last_ack_sent = req->rcv_isn + 1;
 		newtp->backoff = 0;
 		newtp->mdev = TCP_TIMEOUT_INIT;
-		newtp->snd_cwnd = 1;
+
+		/* So many TCP implementations out there (incorrectly) count the
+		 * initial SYN frame in their delayed-ACK and congestion control
+		 * algorithms that we must have the following bandaid to talk
+		 * efficiently to them.  -DaveM
+		 */
+		newtp->snd_cwnd = 2;
+
 		newtp->rto = TCP_TIMEOUT_INIT;
 		newtp->packets_out = 0;
 		newtp->fackets_out = 0;
@@ -1413,7 +1430,7 @@ struct sock *tcp_create_openreq_child(struct sock *sk, struct open_request *req,
 		}
 		if (newtp->tstamp_ok) {
 			newtp->ts_recent = req->ts_recent;
-			newtp->ts_recent_stamp = jiffies;
+			newtp->ts_recent_stamp = tcp_time_stamp;
 			newtp->tcp_header_len = sizeof(struct tcphdr) + TCPOLEN_TSTAMP_ALIGNED;
 		} else {
 			newtp->tcp_header_len = sizeof(struct tcphdr);
@@ -1556,18 +1573,10 @@ static inline struct sock *tcp_v4_hnd_req(struct sock *sk,struct sk_buff *skb)
 int tcp_v4_do_rcv(struct sock *sk, struct sk_buff *skb)
 {
 #ifdef CONFIG_FILTER
-	if (sk->filter)
-	{
-		if (sk_filter(skb, sk->filter_data, sk->filter))
-			goto discard;
-	}
+	struct sk_filter *filter = sk->filter;
+	if (filter && sk_filter(skb, filter))
+		goto discard;
 #endif /* CONFIG_FILTER */
-
-	/*
-	 *	socket locking is here for SMP purposes as backlog rcv
-	 *	is currently called with bh processing disabled.
-	 */
-	lock_sock(sk); 
 
 	/* 
 	 * This doesn't check if the socket has enough room for the packet.
@@ -1579,7 +1588,6 @@ int tcp_v4_do_rcv(struct sock *sk, struct sk_buff *skb)
 	if (sk->state == TCP_ESTABLISHED) { /* Fast path */
 		if (tcp_rcv_established(sk, skb, skb->h.th, skb->len))
 			goto reset;
-		release_sock(sk);
 		return 0; 
 	} 
 
@@ -1590,14 +1598,22 @@ int tcp_v4_do_rcv(struct sock *sk, struct sk_buff *skb)
 		nsk = tcp_v4_hnd_req(sk, skb);
 		if (!nsk) 
 			goto discard;
-		lock_sock(nsk);
-		release_sock(sk);
+
+		/*
+		 * Queue it on the new socket if the new socket is active,
+		 * otherwise we just shortcircuit this and continue with
+		 * the new socket..
+		 */
+		if (atomic_read(&nsk->sock_readers)) {
+			skb_orphan(skb);
+			__skb_queue_tail(&nsk->back_log, skb);
+			return 0;
+		}
 		sk = nsk;
 	}
 	
 	if (tcp_rcv_state_process(sk, skb, skb->h.th, skb->len))
 		goto reset;
-	release_sock(sk); 
 	return 0;
 
 reset:
@@ -1609,7 +1625,6 @@ discard:
 	 * might be destroyed here. This current version compiles correctly,
 	 * but you have been warned.
 	 */
-	release_sock(sk);  
 	return 0;
 }
 
@@ -1831,10 +1846,16 @@ static int tcp_v4_init_sock(struct sock *sk)
 	tp->mdev = TCP_TIMEOUT_INIT;
 	tp->mss_clamp = ~0;
       
+	/* So many TCP implementations out there (incorrectly) count the
+	 * initial SYN frame in their delayed-ACK and congestion control
+	 * algorithms that we must have the following bandaid to talk
+	 * efficiently to them.  -DaveM
+	 */
+	tp->snd_cwnd = 2;
+
 	/* See draft-stevens-tcpca-spec-01 for discussion of the
 	 * initialization of these values.
 	 */
-	tp->snd_cwnd = 1;
 	tp->snd_cwnd_cnt = 0;
 	tp->snd_ssthresh = 0x7fffffff;	/* Infinity */
 

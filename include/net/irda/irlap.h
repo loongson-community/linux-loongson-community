@@ -1,12 +1,12 @@
 /*********************************************************************
  *                
  * Filename:      irlap.h
- * Version:       0.3
+ * Version:       0.8
  * Description:   An IrDA LAP driver for Linux
  * Status:        Experimental.
  * Author:        Dag Brattli <dagb@cs.uit.no>
  * Created at:    Mon Aug  4 20:40:53 1997
- * Modified at:   Sat Dec 12 12:25:33 1998
+ * Modified at:   Fri Apr 23 09:51:15 1999
  * Modified by:   Dag Brattli <dagb@cs.uit.no>
  * 
  *     Copyright (c) 1998 Dag Brattli <dagb@cs.uit.no>, All Rights Reserved.
@@ -105,6 +105,7 @@ struct irlap_cb {
 	struct timer_list backoff_timer;
 
 	/* Timeouts which will be different with different turn time */
+	int slot_timeout;
 	int poll_timeout;
 	int final_timeout;
 	int wd_timeout;
@@ -118,14 +119,15 @@ struct irlap_cb {
 	int     retry_count;  /* Times tried to establish connection */
 	int     add_wait;     /* True if we are waiting for frame */
 
+	__u8    connect_pending;
+	__u8    disconnect_pending;
+
+	/*  To send a faster RR if tx queue empty */
 #ifdef CONFIG_IRDA_FAST_RR
-	/* 
-	 *  To send a faster RR if tx queue empty 
-	 */
 	int     fast_RR_timeout;
 	int     fast_RR;      
 #endif
-
+	
 	int N1; /* N1 * F-timer = Negitiated link disconnect warning threshold */
 	int N2; /* N2 * F-timer = Negitiated link disconnect time */
 	int N3; /* Connection retry count */
@@ -155,22 +157,18 @@ struct irlap_cb {
 
 	int discovery_count;
 	hashbin_t *discovery_log;
- 	DISCOVERY *discovery_cmd;
+ 	discovery_t *discovery_cmd;
 
 	struct qos_info qos_tx;    /* QoS requested by peer */
 	struct qos_info qos_rx;    /* QoS requested by self */
 
 	struct notify_t notify; /* Callbacks to IrLMP */
 
-	int     mtt_required;  /* Minumum turnaround time required */
-	int     xbofs_delay;   /* Nr of XBOF's used to MTT */
-	int     bofs_count;    /* Negotiated extra BOFs */
+	int    mtt_required;  /* Minumum turnaround time required */
+	int    xbofs_delay;   /* Nr of XBOF's used to MTT */
+	int    bofs_count;    /* Negotiated extra BOFs */
 
  	struct irda_statistics stats;
-
-#ifdef CONFIG_IRDA_RECYCLE_RR
-	struct sk_buff *recycle_rr_skb;
-#endif
 
 #ifdef CONFIG_IRDA_COMPRESSION
 	struct irda_compressor compressor;
@@ -208,9 +206,9 @@ void irlap_status_indication( int quality_of_link);
 
 void irlap_test_request( __u8 *info, int len);
 
-void irlap_discovery_request( struct irlap_cb *, DISCOVERY *discovery);
-void irlap_discovery_confirm( struct irlap_cb *, hashbin_t *discovery_log);
-void irlap_discovery_indication( struct irlap_cb *, DISCOVERY *discovery);
+void irlap_discovery_request(struct irlap_cb *, discovery_t *discovery);
+void irlap_discovery_confirm(struct irlap_cb *, hashbin_t *discovery_log);
+void irlap_discovery_indication(struct irlap_cb *, discovery_t *discovery);
 
 void irlap_reset_indication( struct irlap_cb *self);
 void irlap_reset_confirm(void);
@@ -221,12 +219,12 @@ int irlap_validate_ns_received( struct irlap_cb *, int ns);
 
 int  irlap_generate_rand_time_slot( int S, int s);
 void irlap_initiate_connection_state( struct irlap_cb *);
-void irlap_flush_all_queues( struct irlap_cb *);
-void irlap_change_speed( struct irlap_cb *, int);
-void irlap_wait_min_turn_around( struct irlap_cb *, struct qos_info *);
+void irlap_flush_all_queues(struct irlap_cb *);
+void irlap_change_speed(struct irlap_cb *, int);
+void irlap_wait_min_turn_around(struct irlap_cb *, struct qos_info *);
 
-void irlap_init_qos_capabilities( struct irlap_cb *, struct qos_info *);
-void irlap_apply_default_connection_parameters( struct irlap_cb *self);
-void irlap_apply_connection_parameters( struct irlap_cb *, struct qos_info *);
+void irlap_init_qos_capabilities(struct irlap_cb *, struct qos_info *);
+void irlap_apply_default_connection_parameters(struct irlap_cb *self);
+void irlap_apply_connection_parameters(struct irlap_cb *, struct qos_info *);
 
 #endif

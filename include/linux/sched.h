@@ -112,9 +112,10 @@ struct sched_param {
  * a separate lock).
  */
 extern rwlock_t tasklist_lock;
-extern spinlock_t scheduler_lock;
+extern spinlock_t runqueue_lock;
 
 extern void sched_init(void);
+extern void init_idle(void);
 extern void show_state(void);
 extern void trap_init(void);
 
@@ -174,6 +175,8 @@ struct mm_struct {
 	unsigned long rss, total_vm, locked_vm;
 	unsigned long def_flags;
 	unsigned long cpu_vm_mask;
+	unsigned long swap_cnt;	/* number of pages to swap on next pass */
+	unsigned long swap_address;
 	/*
 	 * This is an architecture-specific pointer: the portable
 	 * part of Linux does not know about any segments.
@@ -191,7 +194,7 @@ struct mm_struct {
 		0, 0, 0, 				\
 		0, 0, 0, 0,				\
 		0, 0, 0,				\
-		0, 0, NULL }
+		0, 0, 0, 0, NULL }
 
 struct signal_struct {
 	atomic_t		count;
@@ -276,8 +279,6 @@ struct task_struct {
 /* mm fault and swap info: this can arguably be seen as either mm-specific or thread-specific */
 	unsigned long min_flt, maj_flt, nswap, cmin_flt, cmaj_flt, cnswap;
 	int swappable:1;
-	unsigned long swap_address;
-	unsigned long swap_cnt;		/* number of pages to swap on next pass */
 /* process credentials */
 	uid_t uid,euid,suid,fsuid;
 	gid_t gid,egid,sgid,fsgid;
@@ -361,7 +362,7 @@ struct task_struct {
 /* utime */	{0,0,0,0},0, \
 /* per CPU times */ {0, }, {0, }, \
 /* flt */	0,0,0,0,0,0, \
-/* swp */	0,0,0, \
+/* swp */	0, \
 /* process credentials */					\
 /* uid etc */	0,0,0,0,0,0,0,0,				\
 /* suppl grps*/ 0, {0,},					\
@@ -672,6 +673,58 @@ extern inline void remove_wait_queue(struct wait_queue ** p, struct wait_queue *
 	__remove_wait_queue(p, wait);
 	write_unlock_irqrestore(&waitqueue_lock, flags); 
 }
+
+#define __wait_event(wq, condition) 					\
+do {									\
+	struct wait_queue __wait;					\
+									\
+	__wait.task = current;						\
+	add_wait_queue(&wq, &__wait);					\
+	for (;;) {							\
+		current->state = TASK_UNINTERRUPTIBLE;			\
+		if (condition)						\
+			break;						\
+		schedule();						\
+	}								\
+	current->state = TASK_RUNNING;					\
+	remove_wait_queue(&wq, &__wait);				\
+} while (0)
+
+#define wait_event(wq, condition) 					\
+do {									\
+	if (condition)	 						\
+		break;							\
+	__wait_event(wq, condition);					\
+} while (0)
+
+#define __wait_event_interruptible(wq, condition, ret)			\
+do {									\
+	struct wait_queue __wait;					\
+									\
+	__wait.task = current;						\
+	add_wait_queue(&wq, &__wait);					\
+	for (;;) {							\
+		current->state = TASK_INTERRUPTIBLE;			\
+		if (condition)						\
+			break;						\
+		if (!signal_pending(current)) {				\
+			schedule();					\
+			continue;					\
+		}							\
+		ret = -ERESTARTSYS;					\
+		break;							\
+	}								\
+	current->state = TASK_RUNNING;					\
+	remove_wait_queue(&wq, &__wait);				\
+} while (0)
+	
+#define wait_event_interruptible(wq, condition)				\
+({									\
+	int __ret = 0;							\
+	if (!(condition))						\
+		__wait_event_interruptible(wq, condition, __ret);	\
+	__ret;								\
+})
 
 #define REMOVE_LINKS(p) do { \
 	(p)->next_task->prev_task = (p)->prev_task; \

@@ -57,6 +57,9 @@ struct rt_key
 	__u32			src;
 	int			iif;
 	int			oif;
+#ifdef CONFIG_IP_ROUTE_FWMARK
+	__u32			fwmark;
+#endif
 	__u8			tos;
 	__u8			scope;
 };
@@ -93,6 +96,16 @@ struct rtable
 
 extern struct rtable 	*rt_hash_table[RT_HASH_DIVISOR];
 
+struct ip_rt_acct
+{
+	__u32 	o_bytes;
+	__u32 	o_packets;
+	__u32 	i_bytes;
+	__u32 	i_packets;
+};
+
+extern struct ip_rt_acct ip_rt_acct[256];
+
 extern void		ip_rt_init(void);
 extern void		ip_rt_redirect(u32 old_gw, u32 dst, u32 new_gw,
 				       u32 src, u8 tos, struct device *dev);
@@ -101,6 +114,7 @@ extern void		rt_cache_flush(int how);
 extern int		ip_route_output(struct rtable **, u32 dst, u32 src, u32 tos, int oif);
 extern int		ip_route_input(struct sk_buff*, u32 dst, u32 src, u8 tos, struct device *devin);
 extern unsigned short	ip_rt_frag_needed(struct iphdr *iph, unsigned short new_mtu);
+extern void		ip_rt_update_pmtu(struct dst_entry *dst, unsigned mtu);
 extern void		ip_rt_send_redirect(struct sk_buff *skb);
 
 extern unsigned		inet_addr_type(u32 addr);

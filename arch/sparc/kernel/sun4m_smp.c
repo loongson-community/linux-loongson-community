@@ -161,6 +161,7 @@ __initfunc(void smp4m_boot_cpus(void))
 	smp_store_cpu_info(boot_cpu_id);
 	set_irq_udt(mid_xlate[boot_cpu_id]);
 	smp_setup_percpu_timer();
+	init_idle();
 	local_flush_cache_all();
 	if(linux_num_cpus == 1)
 		return;  /* Not an MP box. */
@@ -180,6 +181,7 @@ __initfunc(void smp4m_boot_cpus(void))
 			p = task[++cpucount];
 
 			p->processor = i;
+			p->has_cpu = 1; /* we schedule the first task manually */
 			current_set[i] = p;
 
 			/* See trampoline.S for details... */
@@ -448,6 +450,7 @@ void smp4m_percpu_timer_interrupt(struct pt_regs *regs)
 	if(!--prof_counter[cpu]) {
 		int user = user_mode(regs);
 
+		irq_enter(cpu, 0);
 		if(current->pid) {
 			update_one_process(current, 1, user, !user, cpu);
 
@@ -456,7 +459,6 @@ void smp4m_percpu_timer_interrupt(struct pt_regs *regs)
 				current->need_resched = 1;
 			}
 
-			spin_lock(&ticker_lock);
 			if(user) {
 				if(current->priority < DEF_PRIORITY) {
 					kstat.cpu_nice++;
@@ -469,9 +471,9 @@ void smp4m_percpu_timer_interrupt(struct pt_regs *regs)
 				kstat.cpu_system++;
 				kstat.per_cpu_system[cpu]++;
 			}
-			spin_unlock(&ticker_lock);
 		}
 		prof_counter[cpu] = prof_multiplier[cpu];
+		irq_exit(cpu, 0);
 	}
 }
 

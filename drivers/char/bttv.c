@@ -120,6 +120,7 @@ static struct bttv bttvs[BTTV_MAX];
 
 #define I2C_TIMING (0x7<<4)
 #define I2C_DELAY   10
+
 #define I2C_SET(CTRL,DATA) \
     { btwrite((CTRL<<1)|(DATA), BT848_I2C); udelay(I2C_DELAY); }
 #define I2C_GET()   (btread(BT848_I2C)&1)
@@ -244,6 +245,7 @@ static void i2c_setlines(struct i2c_bus *bus,int ctrl,int data)
 {
         struct bttv *btv = (struct bttv*)bus->data;
 	btwrite((ctrl<<1)|data, BT848_I2C);
+	btread(BT848_I2C); /* flush buffers */
 	udelay(I2C_DELAY);
 }
 
@@ -537,6 +539,10 @@ static struct tvcard tvcards[] =
 	{ 3, 4, 0, 2, 15, { 2, 3, 1, 1}, { 13, 14, 11, 7, 0, 0}, 0},
         /* Aimslab VHX */
         { 3, 1, 0, 2, 7, { 2, 3, 1, 1}, { 0, 1, 2, 3, 4}},
+        /* Zoltrix TV-Max */
+        { 3, 1, 0, 2,15, { 2, 3, 1, 1}, { 0, 0, 0, 0, 0}},
+        /* Pixelview PlayTV (bt878) */
+        { 3, 4, 0, 2, 0x01e000, { 2, 0, 1, 1}, {0x01c000, 0, 0x018000, 0x014000, 0x002000, 0 }},
 };
 #define TVCARDS (sizeof(tvcards)/sizeof(tvcard))
 
@@ -1554,12 +1560,33 @@ static int bttv_open(struct video_device *dev, int flags)
 static void bttv_close(struct video_device *dev)
 {
 	struct bttv *btv=(struct bttv *)dev;
-  
+	
 	btv->user--;
 	audio(btv, AUDIO_INTERN);
 	btv->cap&=~3;
 	bt848_set_risc_jmps(btv);
 
+	/*
+	 *	A word of warning. At this point the chip
+	 *	is still capturing because its FIFO hasn't emptied
+	 *	and the DMA control operations are posted PCI 
+	 *	operations.
+	 */
+
+	btread(BT848_I2C); 	/* This fixes the PCI posting delay */
+	
+	/*
+	 *	This is sucky but right now I can't find a good way to
+	 *	be sure its safe to free the buffer. We wait 5-6 fields
+	 *	which is more than sufficient to be sure.
+	 */
+	 
+	current->state = TASK_UNINTERRUPTIBLE;
+	schedule_timeout(HZ/10);	/* Wait 1/10th of a second */
+	
+	/*
+	 *	We have allowed it to drain.
+	 */
 	if(btv->fbuffer)
 		rvfree((void *) btv->fbuffer, 2*BTTV_MAX_FBUF);
 	btv->fbuffer=0;
@@ -2363,7 +2390,7 @@ static void radio_close(struct video_device *dev)
   
 	btv->user--;
 	btv->radio = 0;
-	audio(btv, AUDIO_MUTE);
+	/*audio(btv, AUDIO_MUTE);*/
 	MOD_DEC_USE_COUNT;  
 }
 
@@ -2826,6 +2853,16 @@ static void handle_chipset(void)
 }
 #endif
 
+static void init_tea6300(struct i2c_bus *bus) 
+{
+        I2CWrite(bus, I2C_TEA6300, TEA6300_VL, 0x35, 1); /* volume left 0dB  */
+        I2CWrite(bus, I2C_TEA6300, TEA6300_VR, 0x35, 1); /* volume right 0dB */
+        I2CWrite(bus, I2C_TEA6300, TEA6300_BA, 0x07, 1); /* bass 0dB         */
+        I2CWrite(bus, I2C_TEA6300, TEA6300_TR, 0x07, 1); /* treble 0dB       */
+        I2CWrite(bus, I2C_TEA6300, TEA6300_FA, 0x0f, 1); /* fader off        */
+        I2CWrite(bus, I2C_TEA6300, TEA6300_SW, 0x01, 1); /* mute off input A */
+}
+
 static void init_tda8425(struct i2c_bus *bus) 
 {
         I2CWrite(bus, I2C_TDA8425, TDA8425_VL, 0xFC, 1); /* volume left 0dB  */
@@ -2880,9 +2917,6 @@ static void idcard(int i)
 
 		} else if (I2CRead(&(btv->i2c), I2C_STBEE)>=0) {
 			btv->type=BTTV_STB;
-		} else 
-		        if (I2CRead(&(btv->i2c), I2C_VHX)>=0) {
-			        btv->type=BTTV_VHX;
 		} else {
 			if (I2CRead(&(btv->i2c), 0x80)>=0) /* check for msp34xx */
 				btv->type = BTTV_MIROPRO;
@@ -2905,10 +2939,16 @@ static void idcard(int i)
 			btv->pll.pll_crystal=BT848_IFORM_XT0;
 		}
         }
+
+        if (btv->type == BTTV_PIXVIEWPLAYTV) {
+		btv->pll.pll_ifreq=28636363;
+		btv->pll.pll_crystal=BT848_IFORM_XT0;
+        }
+
         if(btv->type==BTTV_AVERMEDIA98)
         {
-          btv->pll.pll_ifreq=28636363;
-          btv->pll.pll_crystal=BT848_IFORM_XT0;
+        	btv->pll.pll_ifreq=28636363;
+        	btv->pll.pll_crystal=BT848_IFORM_XT0;
         }
           
 	if (btv->have_tuner && btv->tuner_type != -1) 
@@ -2948,6 +2988,14 @@ static void idcard(int i)
                         break;
         }
         
+        if (I2CRead(&(btv->i2c), I2C_TEA6300) >=0)
+        {
+		printk(KERN_INFO "bttv%d: fader chip: TEA6300\n",btv->nr);
+		btv->audio_chip = TEA6300;
+		init_tea6300(&(btv->i2c));
+        } else
+		printk(KERN_INFO "bttv%d: NO fader chip: TEA6300\n",btv->nr);
+
 	printk(KERN_INFO "bttv%d: model: ",btv->nr);
 
 	sprintf(btv->video_dev.name,"BT%d",btv->id);
@@ -3036,7 +3084,7 @@ static void bt848_set_risc_jmps(struct bttv *btv)
 	btv->risc_jmp[12]=BT848_RISC_JUMP;
 	btv->risc_jmp[13]=virt_to_bus(btv->risc_jmp);
 
-	/* enable cpaturing and DMA */
+	/* enable capturing */
 	btaor(flags, ~0x0f, BT848_CAP_CTL);
 	if (flags&0x0f)
 		bt848_dma(btv, 3);
@@ -3241,7 +3289,7 @@ static void bttv_irq(int irq, void *dev_id, struct pt_regs * regs)
 		if (astat&BT848_INT_SCERR) {
 			IDEBUG(printk ("bttv%d: IRQ_SCERR\n", btv->nr));
 			bt848_dma(btv, 0);
-			bt848_dma(btv, 1);
+			bt848_dma(btv, 3);
 			wake_up_interruptible(&btv->vbiq);
 			wake_up_interruptible(&btv->capq);
 
@@ -3728,6 +3776,8 @@ static void release_bttv(void)
 }
 
 #ifdef MODULE
+
+EXPORT_NO_SYMBOLS;
 
 int init_module(void)
 {

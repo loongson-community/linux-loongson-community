@@ -77,6 +77,7 @@ extern void streamable_init(void);
 extern void watchdog_init(void);
 extern void wdt_init(void);
 extern void acq_init(void);
+extern void dtlk_init(void);
 extern void pcwatchdog_init(void);
 extern int rtc_init(void);
 extern int ds1286_init(void);
@@ -233,6 +234,9 @@ int __init misc_init(void)
 #endif
 #ifdef CONFIG_SOFT_WATCHDOG
 	watchdog_init();
+#endif
+#ifdef CONFIG_DTLK
+	dtlk_init();
 #endif
 #ifdef CONFIG_APM
 	apm_bios_init();

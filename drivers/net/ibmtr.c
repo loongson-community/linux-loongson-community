@@ -70,6 +70,15 @@
  *      Changes by Joel Sloan (jjs@c-me.com) :
  *      + disable verbose debug messages by default - to enable verbose
  *	  debugging, edit the IBMTR_DEBUG_MESSAGES define below 
+ *	
+ *	Changes by Mike Phillips <phillim@amtrak.com> :
+ *	+ Added extra #ifdef's to work with new PCMCIA Token Ring Code.
+ *	  The PCMCIA code now just sets up the card so it can be recognized
+ *        by ibmtr_probe. Also checks allocated memory vs. on-board memory
+ *	  for correct figure to use.
+ *
+ *	Changes by Tim Hockin (thockin@isunix.it.ilstu.edu) :
+ *	+ added spinlocks for SMP sanity (10 March 1999)
  */
 
 /* change the define of IBMTR_DEBUG_MESSAGES to a nonzero value 
@@ -90,6 +99,7 @@ in the event that chatty debug messages are desired - jjs 12/30/98 */
 #define NO_AUTODETECT 1
 #undef NO_AUTODETECT
 #undef ENABLE_PAGING
+
 
 #define FALSE 0
 #define TRUE (!FALSE)
@@ -144,6 +154,7 @@ static char mcchannelid[] = {
 #include <net/checksum.h>
 
 #include <asm/io.h>
+#include <asm/spinlock.h>
 #include <asm/system.h>
 #include <asm/bitops.h>
 
@@ -187,6 +198,9 @@ unsigned char ibmtr_debug_trace=0;
 int		ibmtr_probe(struct device *dev);
 static int	ibmtr_probe1(struct device *dev, int ioaddr);
 static unsigned char	get_sram_size(struct tok_info *adapt_info);
+#ifdef PCMCIA
+extern unsigned char 	pcmcia_reality_check(unsigned char gss);
+#endif
 static int	tok_init_card(struct device *dev);
 void		tok_interrupt(int irq, void *dev_id, struct pt_regs *regs);
 static int	trdev_init(struct device *dev);
@@ -252,7 +266,9 @@ __initfunc(int ibmtr_probe(struct device *dev))
 	        if (ibmtr_probe1(dev, base_addr)) 
 	        {
 #ifndef MODULE
+#ifndef PCMCIA
 		       tr_freedev(dev);
+#endif
 #endif
 		       return -ENODEV;
 		} else
@@ -268,7 +284,9 @@ __initfunc(int ibmtr_probe(struct device *dev))
 		        continue;
                 if (ibmtr_probe1(dev, ioaddr)) {
 #ifndef MODULE
+#ifndef PCMCIA
 		        tr_freedev(dev);
+#endif
 #endif
 		} else
 			return 0;
@@ -287,7 +305,9 @@ __initfunc(static int ibmtr_probe1(struct device *dev, int PIOaddr))
 	unsigned long timeout;
 
 #ifndef MODULE
+#ifndef PCMCIA
 	dev = init_trdev(dev,0);
+#endif
 #endif
 
 	/*	Query the adapter PIO base port which will return
@@ -296,7 +316,7 @@ __initfunc(static int ibmtr_probe1(struct device *dev, int PIOaddr))
 	 */
 
        	segment = inb(PIOaddr);
-	
+
 	/*
 	 *	Out of range values so we'll assume non-existent IO device 
 	 */
@@ -369,12 +389,19 @@ __initfunc(static int ibmtr_probe1(struct device *dev, int PIOaddr))
 	}
 
 	/* Now, allocate some of the pl0 buffers for this driver.. */
+
+	/* If called from PCMCIA, ti is already set up, so no need to 
+	   waste the memory, just use the existing structure */
+
+#ifndef PCMCIA
 	ti = (struct tok_info *)kmalloc(sizeof(struct tok_info), GFP_KERNEL);
 	if (ti == NULL) 
 		return -ENOMEM;
 
 	memset(ti, 0, sizeof(struct tok_info));
-
+#else
+	ti = dev->priv ; 
+#endif
 	ti->mmio= t_mmio;
 	ti->readlog_pending = 0;
 
@@ -384,6 +411,10 @@ __initfunc(static int ibmtr_probe1(struct device *dev, int PIOaddr))
                          should fit with out future hope of multiple
                          adapter support as well /dwm   */
 
+	/* if PCMCIA, then the card is recognized as TR_ISAPNP 
+	 * and there is no need to set up the interrupt, it is already done. */
+        
+#ifndef PCMCIA
 	switch (cardpresent) 
 	{
 		case TR_ISA:
@@ -424,7 +455,6 @@ __initfunc(static int ibmtr_probe1(struct device *dev, int PIOaddr))
 				irq=10;
 			if (intr==3)
 				irq=11;
-
 			timeout = jiffies + TR_SPIN_INTERVAL;
 			while(!readb(ti->mmio + ACA_OFFSET + ACA_RW + RRR_EVEN))
 				if (time_after(jiffies, timeout)) {
@@ -432,11 +462,13 @@ __initfunc(static int ibmtr_probe1(struct device *dev, int PIOaddr))
 					kfree_s(ti, sizeof(struct tok_info));
 					return -ENODEV;
 			        }
+
 			ti->sram=((__u32)readb(ti->mmio + ACA_OFFSET + ACA_RW + RRR_EVEN)<<12);
 			ti->global_int_enable=PIOaddr+ADAPTINTREL;
 			ti->adapter_int_enable=PIOaddr+ADAPTINTREL;
 			break;
 	}
+#endif
 
 	if (ibmtr_debug_trace & TRC_INIT) { /* just report int */
 		DPRINTK("irq=%d",irq);
@@ -479,8 +511,12 @@ __initfunc(static int ibmtr_probe1(struct device *dev, int PIOaddr))
 	ti->token_release = readb(ti->mmio + AIPEARLYTOKEN);
 
 	/* How much shared RAM is on adapter ? */
+#ifdef PCMCIA
+	ti->avail_shared_ram = pcmcia_reality_check(get_sram_size(ti));
+	ibmtr_mem_base = ti->sram_base ; 
+#else
 	ti->avail_shared_ram = get_sram_size(ti);
-
+#endif
 	/* We need to set or do a bunch of work here based on previous results.. */
 	/* Support paging?  What sizes?:  F=no, E=16k, D=32k, C=16 & 32k */
 	ti->shared_ram_paging = readb(ti->mmio + AIPSHRAMPAGE);
@@ -589,7 +625,6 @@ __initfunc(static int ibmtr_probe1(struct device *dev, int PIOaddr))
 		}
 #endif
 	}
-
 	/* finish figuring the shared RAM address */
 	if (cardpresent==TR_ISA) {
 		static __u32 ram_bndry_mask[]={0xffffe000, 0xffffc000, 0xffff8000, 0xffff0000};
@@ -615,15 +650,20 @@ __initfunc(static int ibmtr_probe1(struct device *dev, int PIOaddr))
 	DPRINTK("Using %dK shared RAM\n",ti->mapped_ram_size/2);
 #endif
 
+	/* The PCMCIA has already got the interrupt line and the io port, 
+	   so no chance of anybody else getting it - MLP */
+
+#ifndef PCMCIA
 	if (request_irq (dev->irq = irq, &tok_interrupt,0,"ibmtr", dev) != 0) {
 		DPRINTK("Could not grab irq %d.  Halting Token Ring driver.\n",irq);
 		kfree_s(ti, sizeof(struct tok_info));
 		return -ENODEV;
 	}
+ 
+	/*?? Now, allocate some of the PIO PORTs for this driver.. */
+	request_region(PIOaddr,IBMTR_IO_EXTENT,"ibmtr");  /* record PIOaddr range as busy */
+#endif
 
- /*?? Now, allocate some of the PIO PORTs for this driver.. */
-	request_region(PIOaddr,IBMTR_IO_EXTENT,"ibmtr");  /* record PIOaddr range
-								  as busy */
 #if !TR_NEWFORMAT
 	DPRINTK("%s",version); /* As we have passed card identification,
                                   let the world know we're here! */
@@ -713,7 +753,6 @@ __initfunc(static unsigned char get_sram_size(struct tok_info *adapt_info))
 
 	unsigned char avail_sram_code;
 	static unsigned char size_code[]={ 0,16,32,64,127,128 };
-
 	/* Adapter gives
 	   'F' -- use RRR bits 3,2
 	   'E' -- 8kb   'D' -- 16kb
@@ -743,7 +782,9 @@ __initfunc(static int trdev_init(struct device *dev))
 	dev->change_mtu         = ibmtr_change_mtu;
 
 #ifndef MODULE
+#ifndef PCMCIA
 	tr_setup(dev);
+#endif
 #endif
 	return 0;
 }
@@ -753,6 +794,9 @@ __initfunc(static int trdev_init(struct device *dev))
 static int tok_open(struct device *dev)
 {
 	struct tok_info *ti=(struct tok_info *)dev->priv;
+
+	/* init the spinlock */
+	ti->lock = (spinlock_t) SPIN_LOCK_UNLOCKED;
 
 	if (ti->open_status==CLOSED) tok_init_card(dev);
 
@@ -806,6 +850,7 @@ void tok_interrupt (int irq, void *dev_id, struct pt_regs *regs)
 	DPRINTK("Int from tok_driver, dev : %p\n",dev);
 #endif
 	ti  = (struct tok_info *) dev->priv;
+	spin_lock(&(ti->lock));
 
       	/* Disable interrupts till processing is finished */
 	dev->interrupt=1;
@@ -832,14 +877,16 @@ void tok_interrupt (int irq, void *dev_id, struct pt_regs *regs)
     		if (status == 0xFF)
        		{
 		          DPRINTK("PCMCIA card removed.\n");
+			  spin_unlock(&(ti->lock));
         		  dev->interrupt = 0;
-          		  return;
+         		  return;
        		}
 
     	        /* Check ISRP EVEN too. */
       	        if ( readb (ti->mmio + ACA_OFFSET + ACA_RW + ISRP_EVEN) == 0xFF)
     	        {
          		 DPRINTK("PCMCIA card removed.\n");
+			 spin_unlock(&(ti->lock));
          		 dev->interrupt = 0;
          		 return;
       		 }
@@ -1167,6 +1214,7 @@ void tok_interrupt (int irq, void *dev_id, struct pt_regs *regs)
 		DPRINTK("Unexpected interrupt from tr adapter\n");
 
 	}
+	spin_unlock(&(ti->lock));
 }
 
 static void initial_tok_int(struct device *dev)
@@ -1175,7 +1223,6 @@ static void initial_tok_int(struct device *dev)
 	__u32 encoded_addr;
 	__u32 hw_encoded_addr;
 	struct tok_info *ti;
-
 	ti=(struct tok_info *) dev->priv;
 
 	ti->do_tok_int=NOT_FIRST;
@@ -1452,6 +1499,7 @@ static void tr_rx(struct device *dev)
 	       ti->asb + offsetof(struct asb_rec, rec_buf_addr));
 
 	lan_hdr_len=readb(ti->arb + offsetof(struct arb_rec_req, lan_hdr_len));
+	hdr_len = lan_hdr_len + sizeof(struct trllc) + sizeof(struct iphdr);
 	
 	llc=(rbuffer + offsetof(struct rec_buf, data) + lan_hdr_len);
 
@@ -1478,8 +1526,10 @@ static void tr_rx(struct device *dev)
 		return;
 	}
 
+	length = ntohs(readw(ti->arb+offsetof(struct arb_rec_req, frame_len)));
        	if ((readb(llc + offsetof(struct trllc, dsap))==EXTENDED_SAP) &&
-       	    (readb(llc + offsetof(struct trllc, ssap))==EXTENDED_SAP)) {
+       	    (readb(llc + offsetof(struct trllc, ssap))==EXTENDED_SAP) &&
+		(length>=hdr_len)) {
        		IPv4_p = 1;
        	}
 
@@ -1510,7 +1560,6 @@ static void tr_rx(struct device *dev)
        	}
 #endif
 
-       	length = ntohs(readw(ti->arb+offsetof(struct arb_rec_req, frame_len)));
        	skb_size = length-lan_hdr_len+sizeof(struct trh_hdr)+sizeof(struct trllc);
  
        	if (!(skb=dev_alloc_skb(skb_size))) {
@@ -1530,7 +1579,6 @@ static void tr_rx(struct device *dev)
 
 	if (IPv4_p) {
                 /* Copy the headers without checksumming */
-		hdr_len = lan_hdr_len + sizeof(struct trllc) + sizeof(struct iphdr);
 		memcpy_fromio(data, rbufdata, hdr_len);
 
 		/* Watch for padded packets and bogons */
@@ -1598,12 +1646,19 @@ static int tok_send_packet(struct sk_buff *skb, struct device *dev)
 	if (test_and_set_bit(0,(void *)&dev->tbusy)!=0)
 		DPRINTK("Transmitter access conflict\n");
 	else {
+		int flags;
+
+		/* lock against other CPUs */
+		spin_lock_irqsave(&(ti->lock), flags);
+
 		/* Save skb; we'll need it when the adapter asks for the data */
 		ti->current_skb=skb;
 		writeb(XMIT_UI_FRAME, ti->srb + offsetof(struct srb_xmit, command));
 		writew(ti->exsap_station_id, ti->srb
 		       +offsetof(struct srb_xmit, station_id));
 		writeb(CMD_IN_SRB, (ti->mmio + ACA_OFFSET + ACA_SET + ISRA_ODD));
+		spin_unlock_irqrestore(&(ti->lock), flags);
+
 		dev->trans_start=jiffies;
 	}
 

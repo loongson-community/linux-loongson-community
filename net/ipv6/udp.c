@@ -7,7 +7,7 @@
  *
  *	Based on linux/ipv4/udp.c
  *
- *	$Id: udp.c,v 1.37 1998/11/08 11:17:10 davem Exp $
+ *	$Id: udp.c,v 1.40 1999/05/08 20:00:32 davem Exp $
  *
  *	This program is free software; you can redistribute it and/or
  *      modify it under the terms of the GNU General Public License
@@ -201,9 +201,10 @@ int udpv6_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	struct sockaddr_in6	*usin = (struct sockaddr_in6 *) uaddr;
 	struct ipv6_pinfo      	*np = &sk->net_pinfo.af_inet6;
 	struct in6_addr		*daddr;
+	struct in6_addr		saddr;
 	struct dst_entry	*dst;
-	struct inet6_ifaddr	*ifa;
 	struct flowi		fl;
+	struct ip6_flowlabel	*flowlabel = NULL;
 	int			addr_type;
 	int			err;
 
@@ -217,6 +218,17 @@ int udpv6_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 
 	if (usin->sin6_family && usin->sin6_family != AF_INET6) 
 	  	return(-EAFNOSUPPORT);
+
+	fl.fl6_flowlabel = 0;
+	if (np->sndflow) {
+		fl.fl6_flowlabel = usin->sin6_flowinfo&IPV6_FLOWINFO_MASK;
+		if (fl.fl6_flowlabel&IPV6_FLOWLABEL_MASK) {
+			flowlabel = fl6_sock_lookup(sk, fl.fl6_flowlabel);
+			if (flowlabel == NULL)
+				return -EINVAL;
+			ipv6_addr_copy(&usin->sin6_addr, &flowlabel->dst);
+		}
+	}
 
 	addr_type = ipv6_addr_type(&usin->sin6_addr);
 
@@ -262,6 +274,7 @@ ipv4_connected:
 	}
 
 	ipv6_addr_copy(&np->daddr, daddr);
+	np->flow_label = fl.fl6_flowlabel;
 
 	sk->dport = usin->sin6_port;
 
@@ -271,41 +284,49 @@ ipv4_connected:
 	 */
 
 	fl.proto = IPPROTO_UDP;
-	fl.nl_u.ip6_u.daddr = &np->daddr;
-	fl.nl_u.ip6_u.saddr = NULL;
+	fl.fl6_dst = &np->daddr;
+	fl.fl6_src = &saddr;
 	fl.oif = sk->bound_dev_if;
 	fl.uli_u.ports.dport = sk->dport;
 	fl.uli_u.ports.sport = sk->sport;
 
-	if (np->opt && np->opt->srcrt) {
+	if (flowlabel) {
+		if (flowlabel->opt && flowlabel->opt->srcrt) {
+			struct rt0_hdr *rt0 = (struct rt0_hdr *) flowlabel->opt->srcrt;
+			fl.fl6_dst = rt0->addr;
+		}
+	} else if (np->opt && np->opt->srcrt) {
 		struct rt0_hdr *rt0 = (struct rt0_hdr *) np->opt->srcrt;
-		fl.nl_u.ip6_u.daddr = rt0->addr;
+		fl.fl6_dst = rt0->addr;
 	}
 
 	dst = ip6_route_output(sk, &fl);
 
-	if (dst->error) {
+	if ((err = dst->error) != 0) {
 		dst_release(dst);
-		return dst->error;
+		fl6_sock_release(flowlabel);
+		return err;
 	}
 
-	ip6_dst_store(sk, dst, fl.nl_u.ip6_u.daddr);
+	ip6_dst_store(sk, dst, fl.fl6_dst);
 
 	/* get the source adddress used in the apropriate device */
 
-	ifa = ipv6_get_saddr(dst, daddr);
+	err = ipv6_get_saddr(dst, daddr, &saddr);
 
-	if(ipv6_addr_any(&np->saddr))
-		ipv6_addr_copy(&np->saddr, &ifa->addr);
+	if (err == 0) {
+		if(ipv6_addr_any(&np->saddr))
+			ipv6_addr_copy(&np->saddr, &saddr);
 
-	if(ipv6_addr_any(&np->rcv_saddr)) {
-		ipv6_addr_copy(&np->rcv_saddr, &ifa->addr);
-		sk->rcv_saddr = 0xffffffff;
+		if(ipv6_addr_any(&np->rcv_saddr)) {
+			ipv6_addr_copy(&np->rcv_saddr, &saddr);
+			sk->rcv_saddr = 0xffffffff;
+		}
+		sk->state = TCP_ESTABLISHED;
 	}
+	fl6_sock_release(flowlabel);
 
-	sk->state = TCP_ESTABLISHED;
-
-	return(0);
+	return err;
 }
 
 static void udpv6_close(struct sock *sk, long timeout)
@@ -317,7 +338,7 @@ static void udpv6_close(struct sock *sk, long timeout)
 	destroy_sock(sk);
 }
 
-#if defined(CONFIG_FILTER) || !defined(HAVE_CSUM_COPY_USER)
+#ifndef HAVE_CSUM_COPY_USER
 #undef CONFIG_UDP_DELAY_CSUM
 #endif
 
@@ -352,15 +373,15 @@ int udpv6_recvmsg(struct sock *sk, struct msghdr *msg, int len,
 	err = skb_copy_datagram_iovec(skb, sizeof(struct udphdr), 
 				      msg->msg_iov, copied);
 #else
-	if (sk->no_check || skb->ip_summed==CHECKSUM_UNNECESSARY) {
+	if (skb->ip_summed==CHECKSUM_UNNECESSARY) {
 		err = skb_copy_datagram_iovec(skb, sizeof(struct udphdr), msg->msg_iov,
 					      copied);
 	} else if (copied > msg->msg_iov[0].iov_len || (msg->msg_flags&MSG_TRUNC)) {
-		if (csum_fold(csum_partial(skb->h.raw, ntohs(skb->h.uh->len), skb->csum))) {
+		if ((unsigned short)csum_fold(csum_partial(skb->h.raw, skb->len, skb->csum))) {
 			/* Error for blocking case is chosen to masquerade
 			   as some normal condition.
 			 */
-			err = (msg->msg_flags&MSG_DONTWAIT) ? -EAGAIN : -EHOSTUNREACH;
+			err = (flags&MSG_DONTWAIT) ? -EAGAIN : -EHOSTUNREACH;
 			udp_stats_in6.UdpInErrors++;
 			goto out_free;
 		}
@@ -373,11 +394,11 @@ int udpv6_recvmsg(struct sock *sk, struct msghdr *msg, int len,
 		csum = csum_and_copy_to_user((char*)&skb->h.uh[1], msg->msg_iov[0].iov_base, copied, csum, &err);
 		if (err)
 			goto out_free;
-		if (csum_fold(csum)) {
+		if ((unsigned short)csum_fold(csum)) {
 			/* Error for blocking case is chosen to masquerade
 			   as some normal condition.
 			 */
-			err = (msg->msg_flags&MSG_DONTWAIT) ? -EAGAIN : -EHOSTUNREACH;
+			err = (flags&MSG_DONTWAIT) ? -EAGAIN : -EHOSTUNREACH;
 			udp_stats_in6.UdpInErrors++;
 			goto out_free;
 		}
@@ -395,6 +416,7 @@ int udpv6_recvmsg(struct sock *sk, struct msghdr *msg, int len,
 		sin6 = (struct sockaddr_in6 *) msg->msg_name;
 		sin6->sin6_family = AF_INET6;
 		sin6->sin6_port = skb->h.uh->source;
+		sin6->sin6_flowinfo = 0;
 
 		if (skb->protocol == __constant_htons(ETH_P_IP)) {
 			ipv6_addr_set(&sin6->sin6_addr, 0, 0,
@@ -454,6 +476,17 @@ void udpv6_err(struct sk_buff *skb, struct ipv6hdr *hdr,
 
 static inline int udpv6_queue_rcv_skb(struct sock * sk, struct sk_buff *skb)
 {
+#if defined(CONFIG_FILTER) && defined(CONFIG_UDP_DELAY_CSUM)
+	if (sk->filter && skb->ip_summed != CHECKSUM_UNNECESSARY) {
+		if ((unsigned short)csum_fold(csum_partial(skb->h.raw, skb->len, skb->csum))) {
+			udp_stats_in6.UdpInErrors++;
+			ipv6_statistics.Ip6InDiscards++;
+			kfree_skb(skb);
+			return 0;
+		}
+		skb->ip_summed = CHECKSUM_UNNECESSARY;
+	}
+#endif
 	if (sock_queue_rcv_skb(sk,skb)<0) {
 		udp_stats_in6.UdpInErrors++;
 		ipv6_statistics.Ip6InDiscards++;
@@ -627,14 +660,13 @@ int udpv6_rcv(struct sk_buff *skb, unsigned long len)
 	if (sk == NULL) {
 #ifdef CONFIG_UDP_DELAY_CSUM
 		if (skb->ip_summed != CHECKSUM_UNNECESSARY &&
-		    csum_fold(csum_partial((char*)uh, len, skb->csum)))
+		    (unsigned short)csum_fold(csum_partial((char*)uh, len, skb->csum)))
 			goto discard;
 #endif
-		
 		udp_stats_in6.UdpNoPorts++;
 
 		icmpv6_send(skb, ICMPV6_DEST_UNREACH, ICMPV6_PORT_UNREACH, 0, dev);
-		
+
 		kfree_skb(skb);
 		return(0);
 	}
@@ -723,10 +755,10 @@ static int udpv6_sendmsg(struct sock *sk, struct msghdr *msg, int ulen)
 	struct ipv6_pinfo *np = &sk->net_pinfo.af_inet6;
 	struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *) msg->msg_name;
 	struct ipv6_txoptions *opt = NULL;
+	struct ip6_flowlabel *flowlabel = NULL;
 	struct flowi fl;
 	int addr_len = msg->msg_namelen;
 	struct in6_addr *daddr;
-	struct in6_addr *saddr = NULL;
 	int len = ulen + sizeof(struct udphdr);
 	int addr_type;
 	int hlimit = -1;
@@ -741,22 +773,34 @@ static int udpv6_sendmsg(struct sock *sk, struct msghdr *msg, int ulen)
 	
 	if (msg->msg_flags & ~(MSG_DONTROUTE|MSG_DONTWAIT))
 		return(-EINVAL);
-	
+
+	fl.fl6_flowlabel = 0;
+
 	if (sin6) {
 		if (sin6->sin6_family == AF_INET)
 			return udp_sendmsg(sk, msg, ulen);
 
 		if (addr_len < sizeof(*sin6))
 			return(-EINVAL);
-		
+
 		if (sin6->sin6_family && sin6->sin6_family != AF_INET6)
 			return(-EINVAL);
 
 		if (sin6->sin6_port == 0)
 			return(-EINVAL);
-	       
+
 		udh.uh.dest = sin6->sin6_port;
 		daddr = &sin6->sin6_addr;
+
+		if (np->sndflow) {
+			fl.fl6_flowlabel = sin6->sin6_flowinfo&IPV6_FLOWINFO_MASK;
+			if (fl.fl6_flowlabel&IPV6_FLOWLABEL_MASK) {
+				flowlabel = fl6_sock_lookup(sk, fl.fl6_flowlabel);
+				if (flowlabel == NULL)
+					return -EINVAL;
+				daddr = &flowlabel->dst;
+			}
+		}
 
 		/* Otherwise it will be difficult to maintain sk->dst_cache. */
 		if (sk->state == TCP_ESTABLISHED &&
@@ -765,38 +809,52 @@ static int udpv6_sendmsg(struct sock *sk, struct msghdr *msg, int ulen)
 	} else {
 		if (sk->state != TCP_ESTABLISHED)
 			return(-ENOTCONN);
-		
+
 		udh.uh.dest = sk->dport;
 		daddr = &sk->net_pinfo.af_inet6.daddr;
+		fl.fl6_flowlabel = np->flow_label;
 	}
-	
+
 	addr_type = ipv6_addr_type(daddr);
-	
+
 	if (addr_type == IPV6_ADDR_MAPPED) {
 		struct sockaddr_in sin;
-		
+
 		sin.sin_family = AF_INET;
 		sin.sin_addr.s_addr = daddr->s6_addr32[3];
 		sin.sin_port = udh.uh.dest;
 		msg->msg_name = (struct sockaddr *)(&sin);
 		msg->msg_namelen = sizeof(sin);
+		fl6_sock_release(flowlabel);
 
 		return udp_sendmsg(sk, msg, ulen);
 	}
-	
+
 	udh.daddr = NULL;
 	fl.oif = sk->bound_dev_if;
-	
+	fl.fl6_src = NULL;
+
 	if (msg->msg_controllen) {
 		opt = &opt_space;
 		memset(opt, 0, sizeof(struct ipv6_txoptions));
 
-		err = datagram_send_ctl(msg, &fl.oif, &saddr, opt, &hlimit);
-		if (err < 0)
+		err = datagram_send_ctl(msg, &fl, opt, &hlimit);
+		if (err < 0) {
+			fl6_sock_release(flowlabel);
 			return err;
+		}
+		if ((fl.fl6_flowlabel&IPV6_FLOWLABEL_MASK) && !flowlabel) {
+			flowlabel = fl6_sock_lookup(sk, fl.fl6_flowlabel);
+			if (flowlabel == NULL)
+				return -EINVAL;
+		}
+		if (!(opt->opt_nflen|opt->opt_flen))
+			opt = NULL;
 	}
-	if (opt == NULL || !(opt->opt_nflen|opt->opt_flen))
+	if (opt == NULL)
 		opt = np->opt;
+	if (flowlabel)
+		opt = fl6_merge_options(&opt_space, flowlabel, opt);
 	if (opt && opt->srcrt)
 		udh.daddr = daddr;
 
@@ -808,13 +866,14 @@ static int udpv6_sendmsg(struct sock *sk, struct msghdr *msg, int ulen)
 	udh.pl_len = len;
 
 	fl.proto = IPPROTO_UDP;
-	fl.nl_u.ip6_u.daddr = daddr;
-	fl.nl_u.ip6_u.saddr = saddr;
+	fl.fl6_dst = daddr;
 	fl.uli_u.ports.dport = udh.uh.dest;
 	fl.uli_u.ports.sport = udh.uh.source;
 
 	err = ip6_build_xmit(sk, udpv6_getfrag, &udh, &fl, len, opt, hlimit,
 			     msg->msg_flags);
+
+	fl6_sock_release(flowlabel);
 
 	if (err < 0)
 		return err;

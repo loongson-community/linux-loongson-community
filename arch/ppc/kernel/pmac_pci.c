@@ -21,6 +21,9 @@
 #include <asm/pgtable.h>
 #include <asm/prom.h>
 #include <asm/pci-bridge.h>
+#include <asm/machdep.h>
+
+#include "pci.h"
 
 struct bridge_data **bridges, *bridge_list;
 static int max_bus;
@@ -84,7 +87,12 @@ int pmac_pcibios_read_config_byte(unsigned char bus, unsigned char dev_fn,
 			 (1UL << (dev_fn >> 3)) + ((dev_fn & 7) << 8)
 			 + (offset & ~3));
 	} else {
-		out_le32(bp->cfg_addr, (dev_fn << 8) + (offset & ~3) + 1);
+		/* Bus number once again taken into consideration.
+		 * Change applied from 2.1.24. This makes devices located
+		 * behind PCI-PCI bridges visible.
+		 * -Ranjit Deshpande, 01/20/99
+		 */
+		out_le32(bp->cfg_addr, (bus << 16) + (dev_fn << 8) + (offset & ~3) + 1);
 	}
 	udelay(2);
 	*val = in_8(bp->cfg_data + (offset & 3));
@@ -109,7 +117,8 @@ int pmac_pcibios_read_config_word(unsigned char bus, unsigned char dev_fn,
 			 (1UL << (dev_fn >> 3)) + ((dev_fn & 7) << 8)
 			 + (offset & ~3));
 	} else {
-		out_le32(bp->cfg_addr, (dev_fn << 8) + (offset & ~3) + 1);
+		/* See pci_read_config_byte */
+		out_le32(bp->cfg_addr, (bus << 16) + (dev_fn << 8) + (offset & ~3) + 1);
 	}
 	udelay(2);
 	*val = in_le16((volatile unsigned short *)(bp->cfg_data + (offset & 3)));
@@ -134,7 +143,8 @@ int pmac_pcibios_read_config_dword(unsigned char bus, unsigned char dev_fn,
 			 (1UL << (dev_fn >> 3)) + ((dev_fn & 7) << 8)
 			 + offset);
 	} else {
-		out_le32(bp->cfg_addr, (dev_fn << 8) + offset + 1);
+		/* See pci_read_config_byte */
+		out_le32(bp->cfg_addr, (bus << 16) + (dev_fn << 8) + offset + 1);
 	}
 	udelay(2);
 	*val = in_le32((volatile unsigned int *)bp->cfg_data);
@@ -156,7 +166,8 @@ int pmac_pcibios_write_config_byte(unsigned char bus, unsigned char dev_fn,
 			 (1UL << (dev_fn >> 3)) + ((dev_fn & 7) << 8)
 			 + (offset & ~3));
 	} else {
-		out_le32(bp->cfg_addr, (dev_fn << 8) + (offset & ~3) + 1);
+		/* See pci_read_config_byte */
+		out_le32(bp->cfg_addr, (bus << 16) + (dev_fn << 8) + (offset & ~3) + 1);
 	}
 	udelay(2);
 	out_8(bp->cfg_data + (offset & 3), val);
@@ -180,7 +191,8 @@ int pmac_pcibios_write_config_word(unsigned char bus, unsigned char dev_fn,
 			 (1UL << (dev_fn >> 3)) + ((dev_fn & 7) << 8)
 			 + (offset & ~3));
 	} else {
-		out_le32(bp->cfg_addr, (dev_fn << 8) + (offset & ~3) + 1);
+		/* See pci_read_config_byte */
+		out_le32(bp->cfg_addr, (bus << 16) + (dev_fn << 8) + (offset & ~3) + 1);
 	}
 	udelay(2);
 	out_le16((volatile unsigned short *)(bp->cfg_data + (offset & 3)), val);
@@ -204,7 +216,8 @@ int pmac_pcibios_write_config_dword(unsigned char bus, unsigned char dev_fn,
 			 (1UL << (dev_fn >> 3)) + ((dev_fn & 7) << 8)
 			 + offset);
 	} else {
-		out_le32(bp->cfg_addr, (dev_fn << 8) + offset + 1);
+		/* See pci_read_config_byte */
+		out_le32(bp->cfg_addr, (bus << 16) + (dev_fn << 8) + (offset & ~3) + 1);
 	}
 	udelay(2);
 	out_le32((volatile unsigned int *)bp->cfg_data, val);
@@ -427,5 +440,49 @@ __initfunc(static void add_bridges(struct device_node *dev, unsigned long *mem_p
 		if (strcmp(dev->name, "bandit") == 0)
 			init_bandit(bp);
 	}
+}
+
+__initfunc(
+void
+pmac_pcibios_fixup(void))
+{
+	struct pci_dev *dev;
+	
+	/*
+	 * FIXME: This is broken: We should not assign IRQ's to IRQless
+	 *	  devices (look at PCI_INTERRUPT_PIN) and we also should
+	 *	  honor the existence of multi-function devices where
+	 *	  different functions have different interrupt pins. [mj]
+	 */
+	for(dev=pci_devices; dev; dev=dev->next)
+	{
+		/*
+		 * Open Firmware often doesn't initialize the,
+		 * PCI_INTERRUPT_LINE config register properly, so we
+		 * should find the device node and se if it has an
+		 * AAPL,interrupts property.
+		 */
+		struct bridge_data *bp = bridges[dev->bus->number];
+		unsigned char pin;
+			
+		if (pci_read_config_byte(dev, PCI_INTERRUPT_PIN, &pin) ||
+		    !pin)
+			continue; /* No interrupt generated -> no fixup */
+                fix_intr(bp->node->child, dev);
+	}
+}
+
+__initfunc(
+void
+pmac_setup_pci_ptrs(void))
+{
+	if (find_devices("pci") != 0) {
+		/* looks like a G3 powermac */
+		set_config_access_method(grackle);
+	} else {
+		set_config_access_method(pmac);
+	}
+
+	ppc_md.pcibios_fixup = pmac_pcibios_fixup;
 }
 

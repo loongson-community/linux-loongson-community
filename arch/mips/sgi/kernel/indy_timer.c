@@ -1,4 +1,4 @@
-/* $Id: indy_timer.c,v 1.10 1998/08/25 09:14:49 ralf Exp $
+/* $Id: indy_timer.c,v 1.11 1999/01/04 16:03:56 ralf Exp $
  *
  * indy_timer.c: Setting up the clock on the INDY 8254 controller.
  *
@@ -104,9 +104,10 @@ void indy_timer_interrupt(struct pt_regs *regs)
 	 * absolutely sure we do this update within 500ms before the
 	 * next second starts, thus the following code.
 	 */
-	if (time_state != TIME_BAD && xtime.tv_sec > last_rtc_update + 660 &&
-	    xtime.tv_usec > 500000 - (tick >> 1) &&
-	    xtime.tv_usec < 500000 + (tick >> 1))
+	if ((time_status & STA_UNSYNC) == 0 &&
+	    xtime.tv_sec > last_rtc_update + 660 &&
+	    xtime.tv_usec >= 500000 - (tick >> 1) &&
+	    xtime.tv_usec <= 500000 + (tick >> 1))
 	  if (set_rtc_mmss(xtime.tv_sec) == 0)
 	    last_rtc_update = xtime.tv_sec;
 	  else

@@ -70,7 +70,16 @@ The following cards are known to work with this driver:
 - Acer FX-3D
 - SY-1816 
 - Highscreen Sound-Boostar 32 Wave 3D
-- ...
+- Highscreen Sound-Boostar 16 
+- AVM Apex Pro card 
+- (Aztech SC-16 3D) 
+- (Newcom SC-16 3D) 
+- (Terratec EWS64S) 
+
+Cards listed in brackets are not supported reliable. If you have such a card 
+you should add the extra parameter:
+  options=1
+when loading the ad1816 module via modprobe. 
 
 
 Troubleshooting:
@@ -105,7 +114,7 @@ Updates, bugfixes and bugreports:
 
 As the driver is still experimental and under development, you should
 watch out for updates.  Updates of the driver are available on the
-internet from one of my home pages:
+Internet from one of my home pages:
   http://www.student.informatik.tu-darmstadt.de/~tek/projects/linux.html
 or:
   http://www.tu-darmstadt.de/~tek01/projects/linux.html
@@ -115,4 +124,4 @@ Bugreports, bugfixes and related questions should be sent via E-Mail to:
 
 
 Thorsten Knabe <tek@rbg.informatik.tu-darmstadt.de>
-          Last modified: 1998/11/06
+          Last modified: 1999/05/02

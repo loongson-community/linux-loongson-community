@@ -174,6 +174,7 @@ enum scsi_directory_inos {
 	PROC_SCSI_SEAGATE,
 	PROC_SCSI_T128,
 	PROC_SCSI_NCR53C7xx,
+	PROC_SCSI_SYM53C8XX,
 	PROC_SCSI_NCR53C8XX,
 	PROC_SCSI_ULTRASTOR,
 	PROC_SCSI_7000FASST,
@@ -184,6 +185,7 @@ enum scsi_directory_inos {
 	PROC_SCSI_AM53C974,
 	PROC_SCSI_SSC,
 	PROC_SCSI_NCR53C406A,
+	PROC_SCSI_SYM53C416,
 	PROC_SCSI_MEGARAID,
 	PROC_SCSI_PPA,
 	PROC_SCSI_ATP870U,
@@ -203,6 +205,8 @@ enum scsi_directory_inos {
 	PROC_SCSI_53C94,
 	PROC_SCSI_PLUTO,
 	PROC_SCSI_INI9100U,
+ 	PROC_SCSI_INIA100,
+	PROC_SCSI_FCAL,
 	PROC_SCSI_SCSI_DEBUG,	
 	PROC_SCSI_NOT_PRESENT,
 	PROC_SCSI_FILE,                        /* I'm assuming here that we */
@@ -379,7 +383,7 @@ extern int proc_match(int, const char *,struct proc_dir_entry *);
  * of the /proc/<pid> subdirectories.
  */
 extern int proc_readdir(struct file *, void *, filldir_t);
-extern int proc_lookup(struct inode *, struct dentry *);
+extern struct dentry *proc_lookup(struct inode *, struct dentry *);
 
 struct openpromfs_dev {
  	struct openpromfs_dev *next;
@@ -391,7 +395,7 @@ struct openpromfs_dev {
 };
 extern struct inode_operations *
 proc_openprom_register(int (*readdir)(struct file *, void *, filldir_t),
-		       int (*lookup)(struct inode *, struct dentry *),
+		       struct dentry * (*lookup)(struct inode *, struct dentry *),
 		       void (*use)(struct inode *, int),
 		       struct openpromfs_dev ***);
 extern void proc_openprom_deregister(void);

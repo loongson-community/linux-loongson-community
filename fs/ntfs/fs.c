@@ -2,7 +2,7 @@
  *  fs.c
  *  NTFS driver for Linux 2.1
  *
- *  Copyright (C) 1995-1997 Martin von Löwis
+ *  Copyright (C) 1995-1997, 1999 Martin von Löwis
  *  Copyright (C) 1996 Richard Russon
  *  Copyright (C) 1996-1997 Régis Duchesne
  */
@@ -215,7 +215,6 @@ static int ntfs_readdir(struct file* filp, void *dirent, filldir_t filldir)
 
 	ntfs_debug(DEBUG_OTHER, "ntfs_readdir ino %x mode %x\n",
 	       (unsigned)dir->i_ino,(unsigned int)dir->i_mode);
-	if(!dir || (dir->i_ino==0) || !S_ISDIR(dir->i_mode))return -EBADF;
 
 	ntfs_debug(DEBUG_OTHER, "readdir: Looking for file %x dircount %d\n",
 	       (unsigned)filp->f_pos,dir->i_count);
@@ -373,7 +372,7 @@ static int parse_options(ntfs_volume* vol,char *opt)
 	return 0;
 }
 			
-static int ntfs_lookup(struct inode *dir, struct dentry *d)
+static struct dentry *ntfs_lookup(struct inode *dir, struct dentry *d)
 {
 	struct inode *res=0;
 	char *item=0;
@@ -385,8 +384,10 @@ static int ntfs_lookup(struct inode *dir, struct dentry *d)
 	error=ntfs_decodeuni(NTFS_INO2VOL(dir),(char*)d->d_name.name,
 			     d->d_name.len,&walk.name,&walk.namelen);
 	if(error)
-		return error;
+		return ERR_PTR(-error);
 	item=ntfs_malloc(ITEM_SIZE);
+	if( !item )
+		return ERR_PTR(-ENOMEM);
 	/* ntfs_getdir will place the directory entry into item,
 	   and the first long long is the MFT record number */
 	walk.type=BY_NAME;
@@ -400,7 +401,7 @@ static int ntfs_lookup(struct inode *dir, struct dentry *d)
 	ntfs_free(item);
 	ntfs_free(walk.name);
 	/* Always return success, the dcache will handle negative entries. */
-	return 0;
+	return NULL;
 }
 
 static struct file_operations ntfs_file_operations_nommap = {
@@ -505,6 +506,7 @@ ntfs_create(struct inode* dir,struct dentry *d,int mode)
 #endif
 	r->i_mode &= ~vol->umask;
 
+	insert_inode_hash(r);
 	d_instantiate(d,r);
 	return 0;
  fail:
@@ -567,6 +569,7 @@ _linux_ntfs_mkdir(struct inode *dir, struct dentry* d, int mode)
 #endif
 	r->i_mode &= ~vol->umask;	
 	
+	insert_inode_hash(r);
 	d_instantiate(d, r);
 	error = 0;
  out:
@@ -581,8 +584,6 @@ ntfs_bmap(struct inode *ino,int block)
 	int ret=ntfs_vcn_to_lcn(NTFS_LINO2NINO(ino),block);
 	ntfs_debug(DEBUG_OTHER, "bmap of %lx,block %x is %x\n",
 	       ino->i_ino,block,ret);
-	ntfs_error("bmap of %lx,block %x is %x\n", ino->i_ino,block,ret);
-	ntfs_error("super %x\n", ino->i_sb->s_blocksize); 
 	return (ret==-1) ? 0:ret;
 }
 
@@ -707,6 +708,7 @@ static void ntfs_read_inode(struct inode* inode)
 		#ifdef NTFS_IN_LINUX_KERNEL
 		ino=&inode->u.ntfs_i;
 		#else
+		/* FIXME: check for ntfs_malloc failure */
 		ino=(ntfs_inode*)ntfs_malloc(sizeof(ntfs_inode));
 		inode->u.generic_ip=ino;
 		#endif
@@ -816,6 +818,7 @@ static int ntfs_statfs(struct super_block *sb, struct statfs *sf, int bufsize)
 	struct statfs fs;
 	struct inode *mft;
 	ntfs_volume *vol;
+	int error;
 
 	ntfs_debug(DEBUG_OTHER, "ntfs_statfs\n");
 	vol=NTFS_SB2VOL(sb);
@@ -823,7 +826,9 @@ static int ntfs_statfs(struct super_block *sb, struct statfs *sf, int bufsize)
 	fs.f_type=NTFS_SUPER_MAGIC;
 	fs.f_bsize=vol->clustersize;
 
-	fs.f_blocks=ntfs_get_volumesize(NTFS_SB2VOL(sb));
+	error = ntfs_get_volumesize( NTFS_SB2VOL( sb ), &fs.f_blocks );
+	if( error )
+		return -error;
 	fs.f_bfree=ntfs_get_free_cluster_count(vol->bitmap);
 	fs.f_bavail=fs.f_bfree;
 

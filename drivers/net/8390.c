@@ -165,8 +165,10 @@ int ei_open(struct device *dev)
       
       	spin_lock_irqsave(&ei_local->page_lock, flags);
 	NS8390_init(dev, 1);
-      	spin_unlock_irqrestore(&ei_local->page_lock, flags);
+	/* Set the flag before we drop the lock, That way the IRQ arrives
+	   after its set and we get no silly warnings */
 	dev->start = 1;
+      	spin_unlock_irqrestore(&ei_local->page_lock, flags);
 	ei_local->irqlock = 0;
 	return 0;
 }
@@ -255,8 +257,7 @@ static int ei_start_xmit(struct sk_buff *skb, struct device *dev)
 
 		/* Ugly but a reset can be slow, yet must be protected */
 		
-		disable_irq(dev->irq);
-		synchronize_irq();
+		disable_irq_nosync(dev->irq);
 		spin_lock(&ei_local->page_lock);
 		
 		/* Try to restart the card.  Perhaps the user has fixed something. */
@@ -284,8 +285,7 @@ static int ei_start_xmit(struct sk_buff *skb, struct device *dev)
 	 *	Slow phase with lock held.
 	 */
 	 
-	disable_irq(dev->irq);
-	synchronize_irq();
+	disable_irq_nosync(dev->irq);
 	
 	spin_lock(&ei_local->page_lock);
 	

@@ -1,4 +1,4 @@
-/* $Id: siginfo.h,v 1.3 1998/08/26 10:33:29 davem Exp $
+/* $Id: siginfo.h,v 1.4 1999/04/28 19:45:20 davem Exp $
  * siginfo.c:
  */
 
@@ -142,7 +142,7 @@ typedef struct siginfo {
  */
 #define TRAP_BRKPT	1	/* process breakpoint */
 #define TRAP_TRACE	2	/* process trace trap */
-#define NSIGTRAP
+#define NSIGTRAP	2
 
 /*
  * SIGCHLD si_codes

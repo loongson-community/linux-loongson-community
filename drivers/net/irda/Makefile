@@ -10,7 +10,7 @@ ALL_SUB_DIRS := $(SUB_DIRS)
 L_TARGET := irda_drivers.a
 L_OBJS   := 
 M_OBJS   :=
-MOD_LIST_NAME := IRDA_MODULES
+MOD_LIST_NAME := IRDA_DRIVERS_MODULES
 
 ifeq ($(CONFIG_IRTTY_SIR),y)
 L_OBJS += irtty.o
@@ -65,6 +65,14 @@ L_OBJS += actisys.o
 else
   ifeq ($(CONFIG_ACTISYS_DONGLE),m)
   M_OBJS += actisys.o
+  endif
+endif
+
+ifeq ($(CONFIG_GIRBIL_DONGLE),y)
+L_OBJS += girbil.o
+else
+  ifeq ($(CONFIG_GIRBIL_DONGLE),m)
+  M_OBJS += girbil.o
   endif
 endif
 

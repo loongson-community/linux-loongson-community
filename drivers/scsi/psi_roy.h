@@ -1,29 +1,23 @@
-/*+M*************************************************************************
- * Perceptive Solutions, Inc. PCI-2000 device driver proc support for Linux.
+/****************************************************************************
+ * Perceptive Solutions, Inc. PCI-2000 device driver for Linux.
  *
- * Copyright (c) 1997 Perceptive Solutions, Inc.
+ * psi_roy.h - Linux Host Driver for PCI-2000 IntelliCache SCSI Adapters
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * Copyright (c) 1997-1999 Perceptive Solutions, Inc.
+ * All Rights Reserved.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that redistributions of source
+ * code retain the above copyright notice and this comment without
+ * modification.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Technical updates and product information at:
+ *  http://www.psidisk.com
  *
+ * Please send questions, comments, bug reports to:
+ *  tech@psidisk.com Technical Support
  *
- *	File Name:	psi_roy.h
- *
- *	Description:	This file contains the host interface command and
- *					error codes.
- *
- *-M*************************************************************************/
+ ****************************************************************************/
 
 #ifndef	ROY_HOST
 #define	ROY_HOST
@@ -40,7 +34,7 @@
 #define MAXADAPTER			4			// Increase this and the sizes of the arrays below, if you need more.
 #define	MAX_BUS				2
 #define	MAX_UNITS			16
-#define	TIMEOUT_COMMAND		30 			// number of jiffies for command busy timeout
+#define	TIMEOUT_COMMAND		400			// number of milliSecondos for command busy timeout
 
 /************************************************/
 /*		I/O address offsets						*/
@@ -64,6 +58,8 @@
 #define	CMD_WRITE_CHS_SG	0x08		/* write sectors using scatter/gather list (CHS mode) */
 #define	CMD_VERIFY_CHS		0x09		/* verify data on sectors as specified (CHS mode) */
 #define	CMD_VERIFY			0x0A		/* verify data on sectors as specified (RBA mode) */
+#define	CMD_DASD_CDB		0x0B		/* process CDB for a DASD device */
+#define	CMD_DASD_CDB_SG		0x0C		/* process CDB for a DASD device with scatter/gather */
 
 #define	CMD_READ_ABS		0x10		/* read absolute disk */
 #define	CMD_WRITE_ABS		0x11		/* write absolute disk */
@@ -80,9 +76,14 @@
 #define	CMD_SCSI_THRU_SG	0x31		/* SCSI pass through CDB with scatter/gather */
 #define	CMD_SCSI_REQ_SENSE	0x32		/* SCSI pass through request sense after check condition */
 
-#define	CMD_DASD_SCSI_INQ	0x36		/* to DASD inquire for DASD info in SCSI inquiry format */
+#define	CMD_DASD_RAID_RQ	0x35		/* request DASD RAID drive data */
+#define	CMD_DASD_RAID_RQ0	0x31			/* byte 1 subcommand to query for RAID 0 informatation */
+#define	CMD_DASD_RAID_RQ1	0x32			/* byte 1 subcommand to query for RAID 1 informatation */
+#define	CMD_DASD_RAID_RQ5	0x33			/* byte 1 subcommand to query for RAID 5 informatation */
+
+#define	CMD_DASD_SCSI_INQ	0x36		/* do DASD inquire and return in SCSI format */
 #define	CMD_DASD_CAP		0x37		/* read DASD capacity */
-#define	CMD_DASD_INQ		0x38		/* do DASD inquire for type data */
+#define	CMD_DASD_INQ		0x38		/* do DASD inquire for type data and return SCSI/EIDE inquiry */
 #define	CMD_SCSI_INQ		0x39		/* do SCSI inquire */
 #define	CMD_READ_SETUP		0x3A		/* Get setup structures from controller */
 #define	CMD_WRITE_SETUP		0x3B		/* Put setup structures in controller and burn in flash */
@@ -121,6 +122,12 @@
 #define	CMD_RAID_STATUS		0x57		/* get status of RAID pair */
 #define	CMD_RAID_STOP		0x58		/* stop any reconstruct in progress */
 #define CMD_RAID_START		0x59		/* start reconstruct */
+#define	CMD_RAID0_READ		0x5A		/* read RAID 0 parameter block */
+#define	CMD_RAID0_WRITE		0x5B		/* write RAID 0 parameter block */
+#define	CMD_RAID5_READ		0x5C		/* read RAID 5 parameter block */
+#define	CMD_RAID5_WRITE		0x5D		/* write RAID 5 parameter block */
+
+#define	CMD_ERASE_TABLES	0x5F		/* erase partition table and RAID signatutures */
 
 #define	CMD_SCSI_GET		0x60		/* get SCSI pass through devices */
 #define	CMD_SCSI_TIMEOUT	0x61		/* set SCSI pass through timeout */
@@ -223,13 +230,13 @@
 /*	Host Operating System specification codes	*/
 /*												*/
 /************************************************/
-
 #define	SPEC_INTERRUPT		0x80		/* specification requires host interrupt */
 #define	SPEC_BACKWARD_SG	0x40		/* specification requires scatter/gather items reversed */
 #define	SPEC_DOS_BLOCK		0x01		/* DOS DASD blocking on pass through */
 #define	SPEC_OS2_V3			0x02		/* OS/2 Warp */
 #define	SPCE_SCO_3242		0x04		/* SCO 3.4.2.2 */
-
+#define	SPEC_QNX_4X			0x05		/* QNX 4.XX */
+#define	SPEC_NOVELL_NWPA	0x08		/* Novell NWPA scatter/gather support */
 
 /************************************************/
 /*												*/
@@ -309,6 +316,16 @@ typedef struct	_DASD_INQUIRE
 #define DEVC_MEDCHGR		0x08		/* Medium changer device */
 #define	DEVC_DASD_REMOVABLE	0x80		/* Direct-access storage device, Removable */
 #define	DEVC_NONE			0xFF		/* no device */
+
+// SCSI controls for RAID
+#define	SC_MY_RAID			0xBF			// our special CDB command byte for Win95... interface
+#define	MY_SCSI_QUERY0		0x31			// byte 1 subcommand to query driver for RAID 0 informatation
+#define	MY_SCSI_QUERY1		0x32			// byte 1 subcommand to query driver for RAID 1 informatation
+#define	MY_SCSI_QUERY5		0x33			// byte 1 subcommand to query driver for RAID 5 informatation
+#define	MY_SCSI_REBUILD		0x40			// byte 1 subcommand to reconstruct a mirrored pair
+#define MY_SCSI_DEMOFAIL	0x54			// byte 1 subcommand for RAID failure demonstration
+#define	MY_SCSI_ALARMMUTE	0x60			// byte 1 subcommand to mute any alarm currently on
+
 
 #endif
 

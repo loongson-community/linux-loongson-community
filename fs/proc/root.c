@@ -28,7 +28,7 @@
 #define FIRST_PROCESS_ENTRY 256
 
 static int proc_root_readdir(struct file *, void *, filldir_t);
-static int proc_root_lookup(struct inode *,struct dentry *);
+static struct dentry *proc_root_lookup(struct inode *,struct dentry *);
 static int proc_unlink(struct inode *, struct dentry *);
 
 static unsigned char proc_alloc_map[PROC_NDYNAMIC / 8] = {0};
@@ -181,14 +181,14 @@ struct proc_dir_entry proc_sys_root = {
 #if defined(CONFIG_SUN_OPENPROMFS) || defined(CONFIG_SUN_OPENPROMFS_MODULE)
 
 static int (*proc_openprom_defreaddir_ptr)(struct file *, void *, filldir_t);
-static int (*proc_openprom_deflookup_ptr)(struct inode *, struct dentry *);
+static struct dentry * (*proc_openprom_deflookup_ptr)(struct inode *, struct dentry *);
 void (*proc_openprom_use)(struct inode *, int) = 0;
 static struct openpromfs_dev *proc_openprom_devices = NULL;
 static ino_t proc_openpromdev_ino = PROC_OPENPROMD_FIRST;
 
 struct inode_operations *
 proc_openprom_register(int (*readdir)(struct file *, void *, filldir_t),
-		       int (*lookup)(struct inode *, struct dentry *),
+		       struct dentry * (*lookup)(struct inode *, struct dentry *),
 		       void (*use)(struct inode *, int),
 		       struct openpromfs_dev ***devices)
 {
@@ -250,7 +250,7 @@ proc_openprom_defreaddir(struct file * filp, void * dirent, filldir_t filldir)
 }
 #define OPENPROM_DEFREADDIR proc_openprom_defreaddir
 
-static int 
+static struct dentry *
 proc_openprom_deflookup(struct inode * dir, struct dentry *dentry)
 {
 	request_module("openpromfs");
@@ -258,7 +258,7 @@ proc_openprom_deflookup(struct inode * dir, struct dentry *dentry)
 	    proc_openprom_deflookup)
 		return proc_openprom_inode_operations.lookup 
 				(dir, dentry);
-	return -ENOENT;
+	return ERR_PTR(-ENOENT);
 }
 #define OPENPROM_DEFLOOKUP proc_openprom_deflookup
 #else
@@ -779,15 +779,11 @@ struct dentry_operations proc_dentry_operations =
  * Don't create negative dentries here, return -ENOENT by hand
  * instead.
  */
-int proc_lookup(struct inode * dir, struct dentry *dentry)
+struct dentry *proc_lookup(struct inode * dir, struct dentry *dentry)
 {
 	struct inode *inode;
 	struct proc_dir_entry * de;
 	int error;
-
-	error = -ENOTDIR;
-	if (!dir || !S_ISDIR(dir->i_mode))
-		goto out;
 
 	error = -ENOENT;
 	inode = NULL;
@@ -810,13 +806,12 @@ int proc_lookup(struct inode * dir, struct dentry *dentry)
 	if (inode) {
 		dentry->d_op = &proc_dentry_operations;
 		d_add(dentry, inode);
-		error = 0;
+		return NULL;
 	}
-out:
-	return error;
+	return ERR_PTR(error);
 }
 
-static int proc_root_lookup(struct inode * dir, struct dentry * dentry)
+static struct dentry *proc_root_lookup(struct inode * dir, struct dentry * dentry)
 {
 	unsigned int pid, c;
 	struct task_struct *p;
@@ -836,7 +831,7 @@ static int proc_root_lookup(struct inode * dir, struct dentry * dentry)
 	}
 
 	if (!proc_lookup(dir, dentry))
-		return 0;
+		return NULL;
 	
 	pid = 0;
 	name = dentry->d_name.name;
@@ -863,13 +858,13 @@ static int proc_root_lookup(struct inode * dir, struct dentry * dentry)
 		unsigned long ino = (pid << 16) + PROC_PID_INO;
 		inode = proc_get_inode(dir->i_sb, ino, &proc_pid);
 		if (!inode)
-			return -EINVAL;
+			return ERR_PTR(-EINVAL);
 		inode->i_flags|=S_IMMUTABLE;
 	}
 
 	dentry->d_op = &proc_dentry_operations;
 	d_add(dentry, inode);
-	return 0;
+	return NULL;
 }
 
 /*
@@ -889,8 +884,6 @@ int proc_readdir(struct file * filp,
 	int i;
 	struct inode *inode = filp->f_dentry->d_inode;
 
-	if (!inode || !S_ISDIR(inode->i_mode))
-		return -ENOTDIR;
 	ino = inode->i_ino;
 	de = (struct proc_dir_entry *) inode->u.generic_ip;
 	if (!de)

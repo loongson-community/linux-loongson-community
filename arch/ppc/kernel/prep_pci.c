@@ -1,5 +1,5 @@
 /*
- * $Id: prep_pci.c,v 1.24 1998/12/10 02:39:51 cort Exp $
+ * $Id: prep_pci.c,v 1.33 1999/05/09 20:15:54 cort Exp $
  * PReP pci functions.
  * Originally by Gary Thomas
  * rewritten and updated by Cort Dougan (cort@cs.nmt.edu)
@@ -11,11 +11,19 @@
 #include <linux/pci.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
+#include <linux/openpic.h>
 
 #include <asm/byteorder.h>
 #include <asm/io.h>
 #include <asm/ptrace.h>
+#include <asm/prom.h>
+#include <asm/pci-bridge.h>
+#include <asm/residual.h>
 #include <asm/processor.h>
+#include <asm/irq.h>
+#include <asm/machdep.h>
+
+#include "pci.h"
 
 #define MAX_DEVNR 22
 
@@ -27,6 +35,9 @@ unsigned char *Motherboard_map_name;
 /* How is the 82378 PIRQ mapping setup? */
 unsigned char *Motherboard_routes;
 
+/* Used for Motorola to store system config register */
+static unsigned long	*ProcInfo;
+
 /* Tables for known hardware */   
 
 /* Motorola PowerStackII - Utah */
@@ -34,38 +45,39 @@ static char Utah_pci_IRQ_map[23] __prepdata =
 {
         0,   /* Slot 0  - unused */
         0,   /* Slot 1  - unused */
-        4,   /* Slot 2  - SCSI - NCR825A  */
+        5,   /* Slot 2  - SCSI - NCR825A  */
         0,   /* Slot 3  - unused */
         1,   /* Slot 4  - Ethernet - DEC2114x */
         0,   /* Slot 5  - unused */
-        2,   /* Slot 6  - PCI Card slot #1 */
-        3,   /* Slot 7  - PCI Card slot #2 */
-        4,   /* Slot 8  - PCI Card slot #3 */
-        4,   /* Slot 9  - PCI Bridge */
+        3,   /* Slot 6  - PCI Card slot #1 */
+        4,   /* Slot 7  - PCI Card slot #2 */
+        5,   /* Slot 8  - PCI Card slot #3 */
+        5,   /* Slot 9  - PCI Bridge */
              /* added here in case we ever support PCI bridges */
              /* Secondary PCI bus cards are at slot-9,6 & slot-9,7 */
         0,   /* Slot 10 - unused */
         0,   /* Slot 11 - unused */
-        4,   /* Slot 12 - SCSI - NCR825A */
+        5,   /* Slot 12 - SCSI - NCR825A */
         0,   /* Slot 13 - unused */
-        2,   /* Slot 14 - enet */
+        3,   /* Slot 14 - enet */
         0,   /* Slot 15 - unused */
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
+        2,   /* Slot 16 - unused */
+        3,   /* Slot 17 - unused */
+        5,   /* Slot 18 - unused */
+        0,   /* Slot 19 - unused */
+        0,   /* Slot 20 - unused */
+        0,   /* Slot 21 - unused */
+        0,   /* Slot 22 - unused */
 };
 
 static char Utah_pci_IRQ_routes[] __prepdata =
 {
         0,   /* Line 0 - Unused */
         9,   /* Line 1 */
-        11,  /* Line 2 */
-        14,  /* Line 3 */
-        15,  /* Line 4 */
+	10,  /* Line 2 */
+        11,  /* Line 3 */
+        14,  /* Line 4 */
+        15,  /* Line 5 */
 };
 
 /* Motorola PowerStackII - Omaha */
@@ -125,9 +137,9 @@ static char Blackhawk_pci_IRQ_map[19] __prepdata =
   	0,	/* Slot 13 - unused */
   	1,	/* Slot 14 - Ethernet */
   	0,	/* Slot 15 - unused */
-  	1,	/* Slot P7 */
-  	2,	/* Slot P6 */
-  	3,	/* Slot P5 */
+ 	1,	/* Slot P7 */
+ 	2,	/* Slot P6 */
+ 	3,	/* Slot P5 */
 };
 
 static char Blackhawk_pci_IRQ_routes[] __prepdata =
@@ -137,6 +149,122 @@ static char Blackhawk_pci_IRQ_routes[] __prepdata =
    	11,	/* Line 2 */
    	15,	/* Line 3 */
    	15	/* Line 4 */
+};
+   
+/* Motorola Mesquite */
+static char Mesquite_pci_IRQ_map[23] __prepdata =
+{
+	0,	/* Slot 0  - unused */
+	0,	/* Slot 1  - unused */
+	0,	/* Slot 2  - unused */
+	0,	/* Slot 3  - unused */
+	0,	/* Slot 4  - unused */
+	0,	/* Slot 5  - unused */
+	0,	/* Slot 6  - unused */
+	0,	/* Slot 7  - unused */
+	0,	/* Slot 8  - unused */
+	0,	/* Slot 9  - unused */
+	0,	/* Slot 10 - unxued */
+	0,	/* Slot 11 - unused */
+	0,	/* Slot 12 - unused */
+	0,	/* Slot 13 - unused */
+	2,	/* Slot 14 - Ethernet */
+	0,	/* Slot 15 - unused */
+	3,	/* Slot 16 - PMC */
+	0,	/* Slot 17 - unused */
+	0,	/* Slot 18 - unused */
+	0,	/* Slot 19 - unused */
+	0,	/* Slot 20 - unused */
+	0,	/* Slot 21 - unused */
+	0,	/* Slot 22 - unused */
+};
+
+/* Motorola Sitka */
+static char Sitka_pci_IRQ_map[21] __prepdata =
+{
+	0,      /* Slot 0  - unused */
+	0,      /* Slot 1  - unused */
+	0,      /* Slot 2  - unused */
+	0,      /* Slot 3  - unused */
+	0,      /* Slot 4  - unused */
+	0,      /* Slot 5  - unused */
+	0,      /* Slot 6  - unused */
+	0,      /* Slot 7  - unused */
+	0,      /* Slot 8  - unused */
+	0,      /* Slot 9  - unused */
+	0,      /* Slot 10 - unxued */
+	0,      /* Slot 11 - unused */
+	0,      /* Slot 12 - unused */
+	0,      /* Slot 13 - unused */
+	2,      /* Slot 14 - Ethernet */
+	0,      /* Slot 15 - unused */
+	9,      /* Slot 16 - PMC 1  */
+	12,     /* Slot 17 - PMC 2  */
+	0,      /* Slot 18 - unused */
+	0,      /* Slot 19 - unused */
+	4,      /* Slot 20 - NT P2P bridge */
+};
+
+/* Motorola MTX */
+static char MTX_pci_IRQ_map[23] __prepdata =
+{
+	0,	/* Slot 0  - unused */
+	0,	/* Slot 1  - unused */
+	0,	/* Slot 2  - unused */
+	0,	/* Slot 3  - unused */
+	0,	/* Slot 4  - unused */
+	0,	/* Slot 5  - unused */
+	0,	/* Slot 6  - unused */
+	0,	/* Slot 7  - unused */
+	0,	/* Slot 8  - unused */
+	0,	/* Slot 9  - unused */
+	0,	/* Slot 10 - unused */
+	0,	/* Slot 11 - unused */
+	3,	/* Slot 12 - SCSI */
+	0,	/* Slot 13 - unused */
+	2,	/* Slot 14 - Ethernet */
+	0,	/* Slot 15 - unused */
+	9,      /* Slot 16 - PCI/PMC slot 1 */
+	10,     /* Slot 17 - PCI/PMC slot 2 */
+	11,     /* Slot 18 - PCI slot 3 */
+	0,	/* Slot 19 - unused */
+	0,	/* Slot 20 - unused */
+	0,	/* Slot 21 - unused */
+	0,	/* Slot 22 - unused */
+};
+
+/* Motorola MTX Plus */
+/* Secondary bus interrupt routing is not supported yet */
+static char MTXplus_pci_IRQ_map[23] __prepdata =
+{
+        0,      /* Slot 0  - unused */
+        0,      /* Slot 1  - unused */
+        0,      /* Slot 2  - unused */
+        0,      /* Slot 3  - unused */
+        0,      /* Slot 4  - unused */
+        0,      /* Slot 5  - unused */
+        0,      /* Slot 6  - unused */
+        0,      /* Slot 7  - unused */
+        0,      /* Slot 8  - unused */
+        0,      /* Slot 9  - unused */
+        0,      /* Slot 10 - unused */
+        0,      /* Slot 11 - unused */
+        3,      /* Slot 12 - SCSI */
+        0,      /* Slot 13 - unused */
+        2,      /* Slot 14 - Ethernet 1 */
+        0,      /* Slot 15 - unused */
+        9,      /* Slot 16 - PCI slot 1P */
+        10,     /* Slot 17 - PCI slot 2P */
+        11,     /* Slot 18 - PCI slot 3P */
+        10,     /* Slot 19 - Ethernet 2 */
+        0,      /* Slot 20 - P2P Bridge */
+        0,      /* Slot 21 - unused */
+        0,      /* Slot 22 - unused */
+};
+
+static char Raven_pci_IRQ_routes[] __prepdata =
+{
+   	0,	/* This is a dummy structure */
 };
    
 /* Motorola MVME16xx */
@@ -169,8 +297,35 @@ static char Genesis_pci_IRQ_routes[] __prepdata =
    	15	/* Line 4 */
 };
    
+static char Genesis2_pci_IRQ_map[23] __prepdata =
+{
+	0,	/* Slot 0  - unused */
+	0,	/* Slot 1  - unused */
+	0,	/* Slot 2  - unused */
+	0,	/* Slot 3  - unused */
+	0,	/* Slot 4  - unused */
+	0,	/* Slot 5  - unused */
+	0,	/* Slot 6  - unused */
+	0,	/* Slot 7  - unused */
+	0,	/* Slot 8  - unused */
+	0,	/* Slot 9  - unused */
+	0,	/* Slot 10 - Ethernet */
+	0,	/* Slot 11 - Universe PCI - VME Bridge */
+	3,	/* Slot 12 - unused */
+	0,	/* Slot 13 - unused */
+	2,	/* Slot 14 - SCSI */
+	0,	/* Slot 15 - graphics on 3600 */
+	9,	/* Slot 16 - PMC */
+	12,	/* Slot 17 - pci */
+	11,	/* Slot 18 - pci */
+	10,	/* Slot 19 - pci */
+	0,	/* Slot 20 - pci */
+	0,	/* Slot 21 - unused */
+	0,	/* Slot 22 - unused */
+};
+
 /* Motorola Series-E */
-static char Comet_pci_IRQ_map[16] __prepdata =
+static char Comet_pci_IRQ_map[23] __prepdata =
 {
   	0,	/* Slot 0  - unused */
   	0,	/* Slot 1  - unused */
@@ -188,6 +343,13 @@ static char Comet_pci_IRQ_map[16] __prepdata =
   	0,	/* Slot 13 - unused */
   	1,	/* Slot 14 - Ethernet */
   	0,	/* Slot 15 - unused */
+	1,	/* Slot 16 - PCI slot 1 */
+	2,	/* Slot 17 - PCI slot 2 */
+	3,	/* Slot 18 - PCI slot 3 */
+	4,	/* Slot 19 - PCI bridge */
+	0,
+	0,
+	0,
 };
 
 static char Comet_pci_IRQ_routes[] __prepdata =
@@ -197,6 +359,43 @@ static char Comet_pci_IRQ_routes[] __prepdata =
    	11,	/* Line 2 */
    	14,	/* Line 3 */
    	15	/* Line 4 */
+};
+
+/* Motorola Series-EX */
+static char Comet2_pci_IRQ_map[23] __prepdata =
+{
+	0,	/* Slot 0  - unused */
+	0,	/* Slot 1  - unused */
+	3,	/* Slot 2  - SCSI - NCR825A */
+	0,	/* Slot 3  - unused */
+	1,	/* Slot 4  - Ethernet - DEC2104X */
+	0,	/* Slot 5  - unused */
+	1,	/* Slot 6  - PCI slot 1 */
+	2,	/* Slot 7  - PCI slot 2 */
+	3,	/* Slot 8  - PCI slot 3 */
+	4,	/* Slot 9  - PCI bridge  */
+	0,	/* Slot 10 - unused */
+	0,	/* Slot 11 - unused */
+	3,	/* Slot 12 - SCSI - NCR825A */
+	0,	/* Slot 13 - unused */
+	1,	/* Slot 14 - Ethernet - DEC2104X */
+	0,	/* Slot 15 - unused */
+	1,	/* Slot 16 - PCI slot 1 */
+	2,	/* Slot 17 - PCI slot 2 */
+	3,	/* Slot 18 - PCI slot 3 */
+	4,	/* Slot 19 - PCI bridge */
+	0,
+	0,
+	0,
+};
+
+static char Comet2_pci_IRQ_routes[] __prepdata =
+{
+	0,	/* Line 0 - Unused */
+	10,	/* Line 1 */
+	11,	/* Line 2 */
+	14,	/* Line 3 */
+	15,	/* Line 4 */
 };
 
 /*
@@ -312,22 +511,40 @@ static char Nobis_pci_IRQ_routes[] __prepdata = {
 #define CAROLINA_IRQ_EDGE_MASK_LO   0x00  /* IRQ's 0-7  */
 #define CAROLINA_IRQ_EDGE_MASK_HI   0xA4  /* IRQ's 8-15 [10,13,15] */
 
+/*
+ * 8259 edge/level control definitions
+ */
+#define ISA8259_M_ELCR 0x4d0
+#define ISA8259_S_ELCR 0x4d1
+
+#define ELCRS_INT15_LVL         0x80
+#define ELCRS_INT14_LVL         0x40
+#define ELCRS_INT12_LVL         0x10
+#define ELCRS_INT11_LVL         0x08
+#define ELCRS_INT10_LVL         0x04
+#define ELCRS_INT9_LVL          0x02
+#define ELCRS_INT8_LVL          0x01
+#define ELCRM_INT7_LVL          0x80
+#define ELCRM_INT5_LVL          0x20
+
+#define CFGPTR(dev) (0x80800000 | (1<<(dev>>3)) | ((dev&7)<<8) | offset)
+#define DEVNO(dev)  (dev>>3)                                  
+
 __prep
 int
 prep_pcibios_read_config_dword (unsigned char bus,
 			   unsigned char dev, unsigned char offset, unsigned int *val)
 {
-	unsigned long _val;
+	unsigned long _val;                                          
 	unsigned long *ptr;
-	dev >>= 3;
-	
-	if ((bus != 0) || (dev > MAX_DEVNR))
-	{
+
+	if ((bus != 0) || (DEVNO(dev) > MAX_DEVNR))
+	{                   
 		*val = 0xFFFFFFFF;
-		return PCIBIOS_DEVICE_NOT_FOUND;
-	} else
+		return PCIBIOS_DEVICE_NOT_FOUND;    
+	} else                                                                
 	{
-		ptr = (unsigned long *)(0x80800000 | (1<<dev) | offset);
+		ptr = (unsigned long *)CFGPTR(dev);
 		_val = le32_to_cpu(*ptr);
 	}
 	*val = _val;
@@ -339,16 +556,16 @@ int
 prep_pcibios_read_config_word (unsigned char bus,
 			  unsigned char dev, unsigned char offset, unsigned short *val)
 {
-	unsigned short _val;
+	unsigned short _val;                                          
 	unsigned short *ptr;
-	dev >>= 3;
-	if ((bus != 0) || (dev > MAX_DEVNR))
+
+	if ((bus != 0) || (DEVNO(dev) > MAX_DEVNR))
+	{                   
+		*val = 0xFFFF;
+		return PCIBIOS_DEVICE_NOT_FOUND;    
+	} else                                                                
 	{
-		*val = (unsigned short)0xFFFFFFFF;
-		return PCIBIOS_DEVICE_NOT_FOUND;
-	} else
-	{
-		ptr = (unsigned short *)(0x80800000 | (1<<dev) | offset);
+		ptr = (unsigned short *)CFGPTR(dev);
 		_val = le16_to_cpu(*ptr);
 	}
 	*val = _val;
@@ -360,16 +577,16 @@ int
 prep_pcibios_read_config_byte (unsigned char bus,
 			  unsigned char dev, unsigned char offset, unsigned char *val)
 {
-	unsigned char _val;
-	volatile unsigned char *ptr;
-	dev >>= 3;
-	if ((bus != 0) || (dev > MAX_DEVNR))
+	unsigned char _val;                                          
+	unsigned char *ptr;
+
+	if ((bus != 0) || (DEVNO(dev) > MAX_DEVNR))
+	{                   
+		*val = 0xFF;
+		return PCIBIOS_DEVICE_NOT_FOUND;    
+	} else                                                                
 	{
-		*(unsigned long *)val = (unsigned long) 0xFFFFFFFF;
-		return PCIBIOS_DEVICE_NOT_FOUND;
-	} else
-	{
-		ptr = (unsigned char *)(0x80800000 | (1<<dev) | (offset ^ 1));
+		ptr = (unsigned char *)CFGPTR(dev);
 		_val = *ptr;
 	}
 	*val = _val;
@@ -383,14 +600,14 @@ prep_pcibios_write_config_dword (unsigned char bus,
 {
 	unsigned long _val;
 	unsigned long *ptr;
-	dev >>= 3;
+
 	_val = le32_to_cpu(val);
-	if ((bus != 0) || (dev > MAX_DEVNR))
+	if ((bus != 0) || (DEVNO(dev) > MAX_DEVNR))
 	{
 		return PCIBIOS_DEVICE_NOT_FOUND;
 	} else
 	{
-		ptr = (unsigned long *)(0x80800000 | (1<<dev) | offset);
+		ptr = (unsigned long *)CFGPTR(dev);
 		*ptr = _val;
 	}
 	return PCIBIOS_SUCCESSFUL;
@@ -403,14 +620,14 @@ prep_pcibios_write_config_word (unsigned char bus,
 {
 	unsigned short _val;
 	unsigned short *ptr;
-	dev >>= 3;
+
 	_val = le16_to_cpu(val);
-	if ((bus != 0) || (dev > MAX_DEVNR))
+	if ((bus != 0) || (DEVNO(dev) > MAX_DEVNR))
 	{
 		return PCIBIOS_DEVICE_NOT_FOUND;
 	} else
 	{
-		ptr = (unsigned short *)(0x80800000 | (1<<dev) | offset);
+		ptr = (unsigned short *)CFGPTR(dev);
 		*ptr = _val;
 	}
 	return PCIBIOS_SUCCESSFUL;
@@ -423,20 +640,151 @@ prep_pcibios_write_config_byte (unsigned char bus,
 {
 	unsigned char _val;
 	unsigned char *ptr;
-	dev >>= 3;
+
 	_val = val;
-	if ((bus != 0) || (dev > MAX_DEVNR))
+	if ((bus != 0) || (DEVNO(dev) > MAX_DEVNR))
 	{
 		return PCIBIOS_DEVICE_NOT_FOUND;
 	} else
 	{
-		ptr = (unsigned char *)(0x80800000 | (1<<dev) | (offset^1));
+		ptr = (unsigned char *)CFGPTR(dev);
 		*ptr = _val;
 	}
 	return PCIBIOS_SUCCESSFUL;
 }
 
-__initfunc(unsigned long route_pci_interrupts(void))
+#define MOTOROLA_CPUTYPE_REG	0x800
+#define MOTOROLA_BASETYPE_REG	0x803
+#define MPIC_RAVEN_ID		0x48010000
+#define	MPIC_HAWK_ID		0x48030000
+#define	MOT_PROC2_BIT		0x800
+
+static u_char mvme2600_openpic_initsenses[] __initdata = {
+    1,	/* MVME2600_INT_SIO */
+    0,	/* MVME2600_INT_FALCN_ECC_ERR */
+    1,	/* MVME2600_INT_PCI_ETHERNET */
+    1,	/* MVME2600_INT_PCI_SCSI */
+    1,	/* MVME2600_INT_PCI_GRAPHICS */
+    1,	/* MVME2600_INT_PCI_VME0 */
+    1,	/* MVME2600_INT_PCI_VME1 */
+    1,	/* MVME2600_INT_PCI_VME2 */
+    1,	/* MVME2600_INT_PCI_VME3 */
+    1,	/* MVME2600_INT_PCI_INTA */
+    1,	/* MVME2600_INT_PCI_INTB */
+    1,	/* MVME2600_INT_PCI_INTC */
+    1,	/* MVME2600_INT_PCI_INTD */
+    1,	/* MVME2600_INT_LM_SIG0 */
+    1,	/* MVME2600_INT_LM_SIG1 */
+};
+
+#define MOT_RAVEN_PRESENT	0x1
+#define MOT_HAWK_PRESENT	0x2
+
+int prep_keybd_present = 1;
+int MotMPIC = 0;
+
+__initfunc(int raven_init(void))
+{
+	unsigned int	devid;
+	unsigned int	pci_membase;
+	unsigned char	base_mod;
+
+	/* Check to see if the Raven chip exists. */
+	if ( _prep_type != _PREP_Motorola) {
+		OpenPIC = NULL;
+		return 0;
+	}
+
+	/* Check to see if this board is a type that might have a Raven. */
+	if ((inb(MOTOROLA_CPUTYPE_REG) & 0xF0) != 0xE0) {
+		OpenPIC = NULL;
+		return 0;
+	}
+
+	/* Check the first PCI device to see if it is a Raven. */
+	pcibios_read_config_dword(0, 0, PCI_VENDOR_ID, &devid);
+
+	switch (devid & 0xffff0000) {
+	case MPIC_RAVEN_ID:
+		MotMPIC = MOT_RAVEN_PRESENT;
+		break;
+	case MPIC_HAWK_ID:
+		MotMPIC = MOT_HAWK_PRESENT;
+		break;
+	default:
+		OpenPIC = NULL;
+		return 0;
+	}
+
+
+	/* Read the memory base register. */
+	pcibios_read_config_dword(0, 0, PCI_BASE_ADDRESS_1, &pci_membase);
+
+	if (pci_membase == 0) {
+		OpenPIC = NULL;
+		return 0;
+	}
+
+	/* Map the Raven MPIC registers to virtual memory. */
+	OpenPIC = (struct OpenPIC *)ioremap(pci_membase+0xC0000000, 0x22000);
+
+	OpenPIC_InitSenses = mvme2600_openpic_initsenses;
+	OpenPIC_NumInitSenses = sizeof(mvme2600_openpic_initsenses);
+
+	/* If raven is present on Motorola store the system config register
+	 * for later use.
+	 */
+	ProcInfo = (unsigned long *)ioremap(0xfef80400, 4);
+
+	/* This is a hack.  If this is a 2300 or 2400 mot board then there is
+	 * no keyboard controller and we have to indicate that.
+	 */
+	base_mod = inb(MOTOROLA_BASETYPE_REG);
+	if ((MotMPIC == MOT_HAWK_PRESENT) || (base_mod == 0xF9) ||
+	    (base_mod == 0xFA) || (base_mod == 0xE1))
+		prep_keybd_present = 0;
+
+	return 1;
+}
+
+struct mot_info {
+	int		cpu_type;	/* 0x100 mask assumes for Raven and Hawk boards that the level/edge are set */
+					/* 0x200 if this board has a Hawk chip. */
+	int		base_type;
+	int		max_cpu;	/* ored with 0x80 if this board should be checked for multi CPU */
+	const char	*name;
+	unsigned char	*map;
+	unsigned char	*routes;
+} mot_info[] = {
+	{0x300, 0x00, 0x00, "MVME 2400",			Genesis2_pci_IRQ_map,	Raven_pci_IRQ_routes},
+	{0x010, 0x00, 0x00, "Genesis",				Genesis_pci_IRQ_map,	Genesis_pci_IRQ_routes},
+	{0x020, 0x00, 0x00, "Powerstack (Series E)",		Comet_pci_IRQ_map,	Comet_pci_IRQ_routes},
+	{0x040, 0x00, 0x00, "Blackhawk (Powerstack)",		Blackhawk_pci_IRQ_map,	Blackhawk_pci_IRQ_routes},
+	{0x050, 0x00, 0x00, "Omaha (PowerStack II Pro3000)",	Omaha_pci_IRQ_map,	Omaha_pci_IRQ_routes},
+	{0x060, 0x00, 0x00, "Utah (Powerstack II Pro4000)",	Utah_pci_IRQ_map,	Utah_pci_IRQ_routes},
+	{0x0A0, 0x00, 0x00, "Powerstack (Series EX)",		Comet2_pci_IRQ_map,	Comet2_pci_IRQ_routes},
+	{0x1E0, 0xE0, 0x00, "Mesquite cPCI (MCP750)",		Mesquite_pci_IRQ_map,	Raven_pci_IRQ_routes},
+	{0x1E0, 0xE1, 0x00, "Sitka cPCI (MCPN750)",		Sitka_pci_IRQ_map,	Raven_pci_IRQ_routes},
+	{0x1E0, 0xE2, 0x00, "Mesquite cPCI (MCP750) w/ HAC",	Mesquite_pci_IRQ_map,	Raven_pci_IRQ_routes},
+	{0x1E0, 0xF6, 0x80, "MTX Plus",				MTXplus_pci_IRQ_map,	Raven_pci_IRQ_routes},
+	{0x1E0, 0xF6, 0x81, "Dual MTX Plus",			MTXplus_pci_IRQ_map,	Raven_pci_IRQ_routes},
+	{0x1E0, 0xF7, 0x80, "MTX wo/ Parallel Port",		MTX_pci_IRQ_map,	Raven_pci_IRQ_routes},
+	{0x1E0, 0xF7, 0x81, "Dual MTX wo/ Parallel Port",	MTX_pci_IRQ_map,	Raven_pci_IRQ_routes},
+	{0x1E0, 0xF8, 0x80, "MTX w/ Parallel Port",		MTX_pci_IRQ_map,	Raven_pci_IRQ_routes},
+	{0x1E0, 0xF8, 0x81, "Dual MTX w/ Parallel Port",	MTX_pci_IRQ_map,	Raven_pci_IRQ_routes},
+	{0x1E0, 0xF9, 0x00, "MVME 2300",			Genesis2_pci_IRQ_map,	Raven_pci_IRQ_routes},
+	{0x1E0, 0xFA, 0x00, "MVME 2300SC/2600",			Genesis2_pci_IRQ_map,	Raven_pci_IRQ_routes},
+	{0x1E0, 0xFB, 0x00, "MVME 2600 with MVME712M",		Genesis2_pci_IRQ_map,	Raven_pci_IRQ_routes},
+	{0x1E0, 0xFC, 0x00, "MVME 2600/2700 with MVME761",	Genesis2_pci_IRQ_map,	Raven_pci_IRQ_routes},
+	{0x1E0, 0xFD, 0x80, "MVME 3600 with MVME712M",		Genesis2_pci_IRQ_map,	Raven_pci_IRQ_routes},
+	{0x1E0, 0xFD, 0x81, "MVME 4600 with MVME712M",		Genesis2_pci_IRQ_map,	Raven_pci_IRQ_routes},
+	{0x1E0, 0xFE, 0x80, "MVME 3600 with MVME761",		Genesis2_pci_IRQ_map,	Raven_pci_IRQ_routes},
+	{0x1E0, 0xFE, 0x81, "MVME 4600 with MVME761",		Genesis2_pci_IRQ_map,	Raven_pci_IRQ_routes},
+	{0x1E0, 0xFF, 0x00, "MVME 1600-001 or 1600-011",	Genesis2_pci_IRQ_map,	Raven_pci_IRQ_routes},
+	{0x000, 0x00, 0x00, "",					NULL,			NULL}
+};
+
+__initfunc(unsigned long prep_route_pci_interrupts(void))
 {
 	unsigned char *ibc_pirq = (unsigned char *)0x80800860;
 	unsigned char *ibc_pcicon = (unsigned char *)0x80800840;
@@ -445,49 +793,66 @@ __initfunc(unsigned long route_pci_interrupts(void))
 	if ( _prep_type == _PREP_Motorola)
 	{
 		unsigned short irq_mode;
+		unsigned char  cpu_type;
+		unsigned char  base_mod;
+		int	       entry;
+		int	       mot_entry = -1;
 
-		switch (inb(0x800) & 0xF0)
-		{
-		case 0x10: /* MVME16xx */
-			Motherboard_map_name = "Genesis";
-			Motherboard_map = Genesis_pci_IRQ_map;
-			Motherboard_routes = Genesis_pci_IRQ_routes;
-			break;
-		case 0x20: /* Series E */
-			Motherboard_map_name = "Powerstack (Series E)";
-			Motherboard_map = Comet_pci_IRQ_map;
-			Motherboard_routes = Comet_pci_IRQ_routes;
-			break;
-		case 0x50: /* PowerStackII Pro3000 */
-			Motherboard_map_name = "Omaha (PowerStack II Pro3000)";
-			Motherboard_map = Omaha_pci_IRQ_map;
-			Motherboard_routes = Omaha_pci_IRQ_routes;
-			break;
-		case 0x60: /* PowerStackII Pro4000 */
-			Motherboard_map_name = "Utah (Powerstack II Pro4000)";
-			Motherboard_map = Utah_pci_IRQ_map;
-			Motherboard_routes = Utah_pci_IRQ_routes;
-			break;
-                case 0xE0: /* MTX -- close enough?? to Genesis, so reuse it */
-                        Motherboard_map_name = "Motorola MTX";
-                        Motherboard_map = Genesis_pci_IRQ_map;
-                        Motherboard_routes = Genesis_pci_IRQ_routes;
-                        break;
-		case 0x40: /* PowerStack */
-		default: /* Can't hurt, can it? */
-			Motherboard_map_name = "Blackhawk (Powerstack)";
-			Motherboard_map = Blackhawk_pci_IRQ_map;
-			Motherboard_routes = Blackhawk_pci_IRQ_routes;
-			break;
+		cpu_type = inb(MOTOROLA_CPUTYPE_REG) & 0xF0;
+		base_mod = inb(MOTOROLA_BASETYPE_REG);
+
+		for (entry = 0; mot_info[entry].cpu_type != 0; entry++) {
+			if (mot_info[entry].cpu_type & 0x200) {		 	/* Check for Hawk chip */
+				if (!(MotMPIC & MOT_HAWK_PRESENT))
+					continue;
+			} else {						/* Check non hawk boards */
+				if ((mot_info[entry].cpu_type & 0xff) != cpu_type)
+					continue;
+
+				if (mot_info[entry].base_type == 0) {
+					mot_entry = entry;
+					break;
+				}
+
+				if (mot_info[entry].base_type != base_mod)
+					continue;
+			}
+
+			if (!(mot_info[entry].max_cpu & 0x80)) {
+				mot_entry = entry;
+				break;
+			}
+
+			/* processor 1 not present and max processor zero indicated */
+			if ((*ProcInfo & MOT_PROC2_BIT) && !(mot_info[entry].max_cpu & 0x7f)) {
+				mot_entry = entry;
+				break;
+			}
+
+			/* processor 1 present and max processor zero indicated */
+			if (!(*ProcInfo & MOT_PROC2_BIT) && (mot_info[entry].max_cpu & 0x7f)) {
+				mot_entry = entry;
+				break;
+			}
 		}
-		/* AJF adjust level/edge control according to routes */
-		irq_mode = 0;
-		for (i = 1;  i <= 4;  i++)
-		{
-			irq_mode |= ( 1 << Motherboard_routes[i] );
+
+		if (mot_entry == -1) 	/* No particular cpu type found - assume Blackhawk */
+			mot_entry = 3;
+
+		Motherboard_map_name = (unsigned char *)mot_info[mot_entry].name;
+		Motherboard_map = mot_info[mot_entry].map;
+		Motherboard_routes = mot_info[mot_entry].routes;
+
+		if (!(mot_info[entry].cpu_type & 0x100)) {
+			/* AJF adjust level/edge control according to routes */
+			irq_mode = 0;
+			for (i = 1;  i <= 4;  i++)
+			{
+				irq_mode |= ( 1 << Motherboard_routes[i] );
+			}
+			outb( irq_mode & 0xff, 0x4d0 );
+			outb( (irq_mode >> 8) & 0xff, 0x4d1 );
 		}
-		outb( irq_mode & 0xff, 0x4d0 );
-		outb( (irq_mode >> 8) & 0xff, 0x4d1 );
 	} else if ( _prep_type == _PREP_IBM )
 	{
 		unsigned char pl_id;
@@ -526,6 +891,71 @@ __initfunc(unsigned long route_pci_interrupts(void))
 		outb(pl_id|CAROLINA_IRQ_EDGE_MASK_HI, 0x04d1);
 		pl_id=inb(0x04d1);
 		/*printk("Hi mask now %#0x\n", pl_id);*/
+	} else if ( _prep_type == _PREP_Radstone )
+	{
+		unsigned char ucElcrM, ucElcrS;
+
+		/*
+		 * Set up edge/level
+		 */
+		switch(ucSystemType)
+		{
+			case RS_SYS_TYPE_PPC1:
+			{
+				if(ucBoardRevMaj<5)
+				{
+					ucElcrS=ELCRS_INT15_LVL;
+				}
+				else
+				{
+					ucElcrS=ELCRS_INT9_LVL |
+					        ELCRS_INT11_LVL |
+					        ELCRS_INT14_LVL |
+					        ELCRS_INT15_LVL;
+				}
+				ucElcrM=ELCRM_INT5_LVL | ELCRM_INT7_LVL;
+				break;
+			}
+
+			case RS_SYS_TYPE_PPC1a:
+			{
+				ucElcrS=ELCRS_INT9_LVL |
+				        ELCRS_INT11_LVL |
+				        ELCRS_INT14_LVL |
+				        ELCRS_INT15_LVL;
+				ucElcrM=ELCRM_INT5_LVL;
+				break;
+			}
+
+			case RS_SYS_TYPE_PPC2:
+			case RS_SYS_TYPE_PPC2a:
+			case RS_SYS_TYPE_PPC2ep:
+			case RS_SYS_TYPE_PPC4:
+			case RS_SYS_TYPE_PPC4a:
+			default:
+			{
+				ucElcrS=ELCRS_INT9_LVL |
+				        ELCRS_INT10_LVL |
+				        ELCRS_INT11_LVL |
+				        ELCRS_INT14_LVL |
+				        ELCRS_INT15_LVL;
+				ucElcrM=ELCRM_INT5_LVL |
+				        ELCRM_INT7_LVL;
+				break;
+			}
+		}
+
+		/*
+		 * Write edge/level selection
+		 */
+		outb(ucElcrS, ISA8259_S_ELCR);
+		outb(ucElcrM, ISA8259_M_ELCR);
+
+		/*
+		 * Radstone boards have PCI interrupts all set up
+		 * so leave well alone
+		 */
+		return 0;
 	} else
 	{
 		printk("No known machine pci routing!\n");
@@ -540,5 +970,119 @@ __initfunc(unsigned long route_pci_interrupts(void))
 	/* Enable PCI interrupts */
 	*ibc_pcicon |= 0x20;
 	return 0;
+}
+
+__initfunc(
+void
+prep_pcibios_fixup(void))
+{
+        struct pci_dev *dev;
+        extern unsigned char *Motherboard_map;
+        extern unsigned char *Motherboard_routes;
+        unsigned char i;
+
+        if ( _prep_type == _PREP_Radstone )
+        {
+                printk("Radstone boards require no PCI fixups\n");
+		return;
+        }
+
+	prep_route_pci_interrupts();
+
+	printk("Setting PCI interrupts for a \"%s\"\n", Motherboard_map_name);
+	if (OpenPIC) {
+		/* PCI interrupts are controlled by the OpenPIC */
+		for(dev=pci_devices; dev; dev=dev->next) {
+			if (dev->bus->number == 0) {
+                       		dev->irq = openpic_to_irq(Motherboard_map[PCI_SLOT(dev->devfn)]);
+				pcibios_write_config_byte(dev->bus->number, dev->devfn, PCI_INTERRUPT_PIN, dev->irq);
+			}
+		}
+		return;
+	}
+
+	for(dev=pci_devices; dev; dev=dev->next)
+	{
+		/*
+		 * Use our old hard-coded kludge to figure out what
+		 * irq this device uses.  This is necessary on things
+		 * without residual data. -- Cort
+		 */
+		unsigned char d = PCI_SLOT(dev->devfn);
+		dev->irq = Motherboard_routes[Motherboard_map[d]];
+
+		for ( i = 0 ; i <= 5 ; i++ )
+		{
+		        if ( dev->base_address[i] > 0x10000000 )
+		        {
+		                printk("Relocating PCI address %lx -> %lx\n",
+		                       dev->base_address[i],
+		                       (dev->base_address[i] & 0x00FFFFFF)
+		                       | 0x01000000);
+		                dev->base_address[i] =
+		                  (dev->base_address[i] & 0x00FFFFFF) | 0x01000000;
+		                pci_write_config_dword(dev,
+		                        PCI_BASE_ADDRESS_0+(i*0x4),
+		                       dev->base_address[i] );
+		        }
+		}
+#if 0
+		/*
+		 * If we have residual data and if it knows about this
+		 * device ask it what the irq is.
+		 *  -- Cort
+		 */
+		ppcd = residual_find_device_id( ~0L, dev->device,
+		                                -1,-1,-1, 0);
+#endif
+	}
+}
+
+decl_config_access_method(indirect);
+
+__initfunc(
+void
+prep_setup_pci_ptrs(void))
+{
+	PPC_DEVICE *hostbridge;
+
+        printk("PReP architecture\n");
+        if ( _prep_type == _PREP_Radstone )
+        {
+		pci_config_address = (unsigned *)0x80000cf8;
+		pci_config_data = (char *)0x80000cfc;
+                set_config_access_method(indirect);		
+        }
+        else
+        {
+                hostbridge = residual_find_device(PROCESSORDEVICE, NULL,
+		       BridgeController, PCIBridge, -1, 0);
+                if (hostbridge &&
+                    hostbridge->DeviceId.Interface == PCIBridgeIndirect) {
+                        PnP_TAG_PACKET * pkt;
+                        set_config_access_method(indirect);
+                        pkt = PnP_find_large_vendor_packet(
+				res->DevicePnPHeap+hostbridge->AllocatedOffset,
+				3, 0);
+                        if(pkt)
+			{
+#define p pkt->L4_Pack.L4_Data.L4_PPCPack
+                                pci_config_address= (unsigned *)ld_le32((unsigned *) p.PPCData);
+				pci_config_data= (unsigned char *)ld_le32((unsigned *) (p.PPCData+8));
+                        }
+			else
+			{
+                                pci_config_address= (unsigned *) 0x80000cf8;
+                                pci_config_data= (unsigned char *) 0x80000cfc;
+                        }
+                }
+		else
+		{
+                        set_config_access_method(prep);
+                }
+
+        }
+
+	ppc_md.pcibios_fixup = prep_pcibios_fixup;
 }
 

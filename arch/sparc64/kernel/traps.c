@@ -1,8 +1,8 @@
-/* $Id: traps.c,v 1.55 1998/10/11 06:58:22 davem Exp $
+/* $Id: traps.c,v 1.58 1999/03/29 12:38:10 jj Exp $
  * arch/sparc64/kernel/traps.c
  *
  * Copyright (C) 1995,1997 David S. Miller (davem@caip.rutgers.edu)
- * Copyright (C) 1997 Jakub Jelinek (jj@sunsite.mff.cuni.cz)
+ * Copyright (C) 1997,1999 Jakub Jelinek (jj@sunsite.mff.cuni.cz)
  */
 
 /*
@@ -406,8 +406,6 @@ void do_fpe_common(struct pt_regs *regs)
 void do_fpieee(struct pt_regs *regs)
 {
 #ifdef DEBUG_FPU
-	save_and_clear_fpu();
-	
 	printk("fpieee %016lx\n", current->tss.xfsr[0]);
 #endif
 	do_fpe_common(regs);
@@ -420,7 +418,6 @@ void do_fpother(struct pt_regs *regs)
 	struct fpustate *f = FPUSTATE;
 	int ret = 0;
 
-	save_and_clear_fpu();
 	switch ((current->tss.xfsr[0] & 0x1c000)) {
 	case (2 << 14): /* unfinished_FPop */
 	case (3 << 14): /* unimplemented_FPop */
@@ -428,7 +425,7 @@ void do_fpother(struct pt_regs *regs)
 		break;
 	}
 	if (ret) return;
-#ifdef DEBUG_FPU	
+#ifdef DEBUG_FPU
 	printk("fpother %016lx\n", current->tss.xfsr[0]);
 #endif
 	do_fpe_common(regs);
@@ -462,6 +459,9 @@ void instruction_dump (unsigned int *pc)
 
 void die_if_kernel(char *str, struct pt_regs *regs)
 {
+	extern void __show_regs(struct pt_regs * regs);
+	extern void smp_report_regs(void);
+	
 	/* Amuse the user. */
 	printk(
 "              \\|/ ____ \\|/\n"
@@ -471,7 +471,7 @@ void die_if_kernel(char *str, struct pt_regs *regs)
 
 	printk("%s(%d): %s\n", current->comm, current->pid, str);
 	__asm__ __volatile__("flushw");
-	show_regs(regs);
+	__show_regs(regs);
 	{
 		struct reg_window *rw = (struct reg_window *)
 			(regs->u_regs[UREG_FP] + STACK_BIAS);
@@ -491,6 +491,10 @@ void die_if_kernel(char *str, struct pt_regs *regs)
 		printk("Instruction DUMP:");
 		instruction_dump ((unsigned int *) regs->tpc);
 	}
+#ifdef __SMP__
+	smp_report_regs();
+#endif
+                                                	
 	lock_kernel(); /* Or else! */
 	if(regs->tstate & TSTATE_PRIV)
 		do_exit(SIGKILL);
@@ -498,7 +502,7 @@ void die_if_kernel(char *str, struct pt_regs *regs)
 }
 
 extern int handle_popc(u32 insn, struct pt_regs *regs);
-extern int handle_ldq_stq(u32 insn, struct pt_regs *regs);
+extern int handle_ldf_stq(u32 insn, struct pt_regs *regs);
 
 void do_illegal_instruction(struct pt_regs *regs)
 {
@@ -515,7 +519,7 @@ void do_illegal_instruction(struct pt_regs *regs)
 			if (handle_popc(insn, regs))
 				return;
 		} else if ((insn & 0xc1580000) == 0xc1100000) /* LDQ/STQ */ {
-			if (handle_ldq_stq(insn, regs))
+			if (handle_ldf_stq(insn, regs))
 				return;
 		}
 	}

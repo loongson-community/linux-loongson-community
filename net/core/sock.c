@@ -7,7 +7,7 @@
  *		handler for protocols to use and generic option handler.
  *
  *
- * Version:	$Id: sock.c,v 1.75 1998/11/07 10:54:38 davem Exp $
+ * Version:	$Id: sock.c,v 1.80 1999/05/08 03:04:34 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -150,15 +150,14 @@ int sock_setsockopt(struct socket *sock, int level, int optname,
 		    char *optval, int optlen)
 {
 	struct sock *sk=sock->sk;
+#ifdef CONFIG_FILTER
+	struct sk_filter *filter;
+#endif
 	int val;
 	int valbool;
 	int err;
 	struct linger ling;
 	int ret = 0;
-
-#ifdef CONFIG_FILTER
-	struct sock_fprog fprog;
-#endif
 	
 	/*
 	 *	Options without arguments
@@ -255,12 +254,11 @@ int sock_setsockopt(struct socket *sock, int level, int optname,
 			break;
 
 		case SO_PRIORITY:
-			if (val >= 0 && val <= 7) 
+			if ((val >= 0 && val <= 6) || capable(CAP_NET_ADMIN)) 
 				sk->priority = val;
 			else
-				return(-EINVAL);
+				return(-EPERM);
 			break;
-
 
 		case SO_LINGER:
 			if(optlen<sizeof(ling))
@@ -310,10 +308,12 @@ int sock_setsockopt(struct socket *sock, int level, int optname,
 				if (optlen > IFNAMSIZ) 
 					optlen = IFNAMSIZ; 
 				if (copy_from_user(devname, optval, optlen))
-				    return -EFAULT;
-				    
+					return -EFAULT;
+
 				/* Remove any cached route for this socket. */
+				lock_sock(sk);
 				dst_release(xchg(&sk->dst_cache, NULL));
+				release_sock(sk);
 
 				if (devname[0] == '\0') {
 					sk->bound_dev_if = 0;
@@ -331,30 +331,27 @@ int sock_setsockopt(struct socket *sock, int level, int optname,
 
 #ifdef CONFIG_FILTER
 		case SO_ATTACH_FILTER:
-			if(optlen < sizeof(struct sock_fprog))
-				return -EINVAL;
+			ret = -EINVAL;
+			if (optlen == sizeof(struct sock_fprog)) {
+				struct sock_fprog fprog;
 
-			if(copy_from_user(&fprog, optval, sizeof(fprog)))
-			{
 				ret = -EFAULT;
-				break;
-			}
+				if (copy_from_user(&fprog, optval, sizeof(fprog)))
+					break;
 
-			ret = sk_attach_filter(&fprog, sk);
+				ret = sk_attach_filter(&fprog, sk);
+			}
 			break;
 
 		case SO_DETACH_FILTER:
-                        if(sk->filter)
-			{
-				fprog.filter = sk->filter_data;
-				kfree_s(fprog.filter, (sizeof(fprog.filter) * sk->filter));
-				sk->filter_data = NULL;
-				sk->filter = 0;
+			filter = sk->filter;
+                        if(filter) {
+				sk->filter = NULL;
+				synchronize_bh();
+				sk_filter_release(sk, filter);
 				return 0;
 			}
-			else
-				return -EINVAL;
-			break;
+			return -ENOENT;
 #endif
 		/* We implement the SO_SNDLOWAT etc to
 		   not be settable (1003.1g 5.3) */
@@ -501,8 +498,22 @@ struct sock *sk_alloc(int family, int priority, int zero_it)
 
 void sk_free(struct sock *sk)
 {
+#ifdef CONFIG_FILTER
+	struct sk_filter *filter;
+#endif
 	if (sk->destruct)
 		sk->destruct(sk);
+
+#ifdef CONFIG_FILTER
+	filter = sk->filter;
+	if (filter) {
+		sk_filter_release(sk, filter);
+		sk->filter = NULL;
+	}
+#endif
+
+	if (atomic_read(&sk->omem_alloc))
+		printk(KERN_DEBUG "sk_free: optmem leakage (%d bytes) detected.\n", atomic_read(&sk->omem_alloc));
 
 	kmem_cache_free(sk_cachep, sk);
 }
@@ -933,7 +944,7 @@ int sock_no_fcntl(struct socket *sock, unsigned int cmd, unsigned long arg)
 			 */
 			if (current->pgrp != -arg &&
 				current->pid != arg &&
-				!capable(CAP_NET_ADMIN)) return(-EPERM);
+				!capable(CAP_KILL)) return(-EPERM);
 			sk->proc = arg;
 			return(0);
 		case F_GETOWN:

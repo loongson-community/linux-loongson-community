@@ -62,6 +62,7 @@ asmlinkage void do_bottom_half(void)
 		if (hardirq_trylock(cpu)) {
 			__sti();
 			run_bottom_halves();
+			__cli();
 			hardirq_endlock(cpu);
 		}
 		softirq_endlock(cpu);

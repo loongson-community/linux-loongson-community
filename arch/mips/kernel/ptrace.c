@@ -1,4 +1,4 @@
-/* $Id: ptrace.c,v 1.10 1999/01/03 17:50:52 ralf Exp $
+/* $Id: ptrace.c,v 1.11 1999/02/15 02:16:51 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -259,6 +259,7 @@ static int write_long(struct task_struct * tsk, unsigned long addr,
 asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 {
 	struct task_struct *child;
+	unsigned int flags;
 	int res;
 
 	lock_kernel();
@@ -297,22 +298,26 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 		    (current->uid != child->uid) ||
 	 	    (current->gid != child->egid) ||
 		    (current->gid != child->sgid) ||
-	 	    (current->gid != child->gid)) && 
-		    !capable(CAP_SYS_PTRACE)) {
+	 	    (current->gid != child->gid) ||
+		    (!cap_issubset(child->cap_permitted,
+		                  current->cap_permitted)) ||
+                    (current->gid != child->gid)) && !capable(CAP_SYS_PTRACE)){
 			res = -EPERM;
 			goto out;
 		}
 		/* the same process cannot be attached many times */
-		if (child->flags & PF_PTRACED) {
-			res = -EPERM;
+		if (child->flags & PF_PTRACED)
 			goto out;
-		}
 		child->flags |= PF_PTRACED;
+
+		write_lock_irqsave(&tasklist_lock, flags);
 		if (child->p_pptr != current) {
 			REMOVE_LINKS(child);
 			child->p_pptr = current;
 			SET_LINKS(child);
 		}
+		write_unlock_irqrestore(&tasklist_lock, flags);
+
 		send_sig(SIGSTOP, child, 1);
 		res = 0;
 		goto out;

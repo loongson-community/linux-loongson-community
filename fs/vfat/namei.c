@@ -71,7 +71,7 @@ static int vfat_hashi(struct dentry *parent, struct qstr *qstr);
 static int vfat_hash(struct dentry *parent, struct qstr *qstr);
 static int vfat_cmpi(struct dentry *dentry, struct qstr *a, struct qstr *b);
 static int vfat_cmp(struct dentry *dentry, struct qstr *a, struct qstr *b);
-static int vfat_revalidate(struct dentry *dentry);
+static int vfat_revalidate(struct dentry *dentry, int);
 
 static struct dentry_operations vfat_dentry_ops[4] = {
 	{
@@ -106,7 +106,7 @@ void vfat_put_super(struct super_block *sb)
 	MOD_DEC_USE_COUNT;
 }
 
-static int vfat_revalidate(struct dentry *dentry)
+static int vfat_revalidate(struct dentry *dentry, int flags)
 {
 	PRINTK1(("vfat_revalidate: %s\n", dentry->d_name.name));
 	if (dentry->d_time == dentry->d_parent->d_inode->i_version) {
@@ -506,10 +506,10 @@ static int vfat_find_form(struct inode *dir,char *name)
 			continue;
 		if (memcmp(de->name,name,MSDOS_NAME))
 			continue;
-		brelse(bh);
+		fat_brelse(dir->i_sb,bh);
 		return 0;
 	}
-	brelse(bh);
+	fat_brelse(dir->i_sb,bh);
 	return -ENOENT;
 }
 
@@ -1140,11 +1140,30 @@ cleanup:
 	return res;
 }
 
-int vfat_lookup(struct inode *dir,struct dentry *dentry)
+/* Find a hashed dentry for inode; NULL if there are none */
+static struct dentry *find_alias(struct inode *inode)
+{
+	struct list_head *head, *next, *tmp;
+	struct dentry *alias;
+
+	head = &inode->i_dentry;
+	next = inode->i_dentry.next;
+	while (next != head) {
+		tmp = next;
+		next = tmp->next;
+		alias = list_entry(tmp, struct dentry, d_alias);
+		if (!list_empty(&alias->d_hash))
+			return dget(alias);
+	}
+	return NULL;
+}
+
+struct dentry *vfat_lookup(struct inode *dir,struct dentry *dentry)
 {
 	int res;
 	struct vfat_slot_info sinfo;
 	struct inode *result;
+	struct dentry *alias;
 	int table;
 	
 	PRINTK2(("vfat_lookup: name=%s, len=%d\n", 
@@ -1161,13 +1180,22 @@ int vfat_lookup(struct inode *dir,struct dentry *dentry)
 	}
 	PRINTK3(("vfat_lookup 4.5\n"));
 	if (!(result = iget(dir->i_sb,sinfo.ino)))
-		return -EACCES;
+		return ERR_PTR(-EACCES);
 	PRINTK3(("vfat_lookup 5\n"));
 	if (MSDOS_I(result)->i_busy) { /* mkdir in progress */
 		iput(result);
 		result = NULL;
 		table++;
 		goto error;
+	}
+	alias = find_alias(result);
+	if (alias) {
+		if (d_invalidate(alias)==0)
+			dput(alias);
+		else {
+			iput(result);
+			return alias;
+		}
 	}
 	PRINTK3(("vfat_lookup 6\n"));
 error:
@@ -1397,28 +1425,6 @@ static int vfat_remove_entry(struct inode *dir,struct vfat_slot_info *sinfo,
 	return 0;
 }
 
-/* Drop all aliases */
-static void drop_aliases(struct dentry *dentry)
-{
-	struct list_head *head, *next, *tmp;
-	struct dentry *alias;
-
-	PRINTK1(("drop_replace_inodes: dentry=%p, inode=%p\n", dentry, inode));
-	head = &dentry->d_inode->i_dentry;
-	if (dentry->d_inode) {
-		next = dentry->d_inode->i_dentry.next;
-		while (next != head) {
-			tmp = next;
-			next = tmp->next;
-			alias = list_entry(tmp, struct dentry, d_alias);
-			if (alias == dentry)
-				continue;
-
-			d_drop(alias);
-		}
-	}
-}
-
 static int vfat_rmdirx(struct inode *dir,struct dentry* dentry)
 {
 	int res;
@@ -1430,12 +1436,6 @@ static int vfat_rmdirx(struct inode *dir,struct dentry* dentry)
 	if (res >= 0 && sinfo.total_slots > 0) {
 		if (!list_empty(&dentry->d_hash))
 			return -EBUSY;
-		/* Take care of aliases */
-		if (dentry->d_inode->i_count > 1) {
-			shrink_dcache_parent(dentry->d_parent);
-			if (dentry->d_inode->i_count > 1)
-				return -EBUSY;
-		}
 		res = vfat_empty(dentry->d_inode);
 		if (res)
 			return res;
@@ -1535,10 +1535,8 @@ int vfat_unlink(struct inode *dir,struct dentry* dentry)
 
 	PRINTK1(("vfat_unlink: dentry=%p, inode=%p\n", dentry, dentry->d_inode));
 	res = vfat_unlinkx (dir,dentry,1);
-	if (res >= 0) {
-		drop_aliases(dentry);
+	if (res >= 0)
 		d_delete(dentry);
-	}
 	return res;
 }
 
@@ -1561,7 +1559,6 @@ int vfat_rename(struct inode *old_dir,struct dentry *old_dentry,
 	loff_t old_offset,new_offset,old_longname_offset;
 	int old_slots,old_ino,new_ino,dotdot_ino;
 	struct inode *old_inode, *new_inode, *dotdot_inode;
-	struct dentry *walk;
 	int res, is_dir, i;
 	int locked = 0;
 	struct vfat_slot_info sinfo;
@@ -1570,14 +1567,6 @@ int vfat_rename(struct inode *old_dir,struct dentry *old_dentry,
 		 old_dentry, old_dentry->d_inode, old_dentry->d_inode->i_ino,
 		 new_dentry, new_dentry->d_inode,
 		 new_dentry->d_inode ? new_dentry->d_inode->i_ino : 0));
-	/*
-	 * POSIX is braindead (surprise, surprise). It requires that rename()
-	 * should return 0 and do nothing if the target has the same inode as
-	 * the source. Somebody, get a time machine, return to '89 and tell
-	 * RMS & Co *not* to do that idiocy, FAST!
-	 */
-	if (old_dentry->d_inode == new_dentry->d_inode)
-		return 0;
 
 	old_bh = new_bh = NULL;
 	old_inode = new_inode = NULL;
@@ -1597,23 +1586,7 @@ int vfat_rename(struct inode *old_dir,struct dentry *old_dentry,
 	old_inode = old_dentry->d_inode;
 	is_dir = S_ISDIR(old_inode->i_mode);
 
-	/*
-	 * Race: we can be hit by another rename after this check.
-	 * For the time being use fat_lock_creation(), but it's
-	 * ugly. FIXME.
-	 */
-
 	fat_lock_creation(); locked = 1;
-
-	if (is_dir) {
-		/* We can't use d_subdir() here. Arrgh. */
-		for (walk=new_dentry;walk!=walk->d_parent;walk=walk->d_parent) {
-			if (walk->d_inode != old_dentry->d_inode)
-				continue;
-			res = -EINVAL;
-			goto rename_done;
-		}
-	}
 
 	if (new_dentry->d_inode) {
 		/*
@@ -1634,31 +1607,16 @@ int vfat_rename(struct inode *old_dir,struct dentry *old_dentry,
 		}
 
 		if (is_dir) {
-			/*
-			 * Target is a directory. No other owners will
-			 * be tolerated.
-			 */
-			res = -EBUSY;
-			if (d_invalidate(new_dentry) < 0)
-				goto rename_done;
-			/*
-			 * OK, let's try to get rid of other dentries.
-			 * No need to do it if i_count is 1.
-			 */
-			if (new_inode->i_count>1) {
-				shrink_dcache_parent(new_dentry->d_parent);
-				if (new_inode->i_count>1)
-					goto rename_done;
-			}
 			res = vfat_empty(new_inode);
 			if (res)
 				goto rename_done;
-		} else {
-			drop_aliases(new_dentry);
 		}
 		res = vfat_remove_entry(new_dir,&sinfo,new_inode);
 		if (res)
 			goto rename_done;
+
+		if (is_dir)
+			new_dir->i_nlink--;
 	}
 
 	/* Serious lossage here. FAT uses braindead inode numbers scheme,
@@ -1669,9 +1627,6 @@ int vfat_rename(struct inode *old_dir,struct dentry *old_dentry,
 	 * in icache and as a part of stat output. It would kill all the
 	 * 'busy' stuff on the spot. Later.
 	 */
-
-	if (is_dir)
-		new_dir->i_nlink--;
 
 	res = vfat_find(new_dir,&new_dentry->d_name,1,is_dir,&sinfo);
 
@@ -1726,12 +1681,8 @@ int vfat_rename(struct inode *old_dir,struct dentry *old_dentry,
 		fat_brelse(sb, dotdot_bh);
 	}
 
-	if (res >= 0) {
-		if (new_inode && is_dir)
-			d_rehash(new_dentry);
-		d_move(old_dentry, new_dentry);
+	if (res >= 0)
 		res = 0;
-	}
 
 rename_done:
 	if (locked)

@@ -105,10 +105,6 @@ fi
 endmenu
 fi
 
-if [ "$CONFIG_AFFS_FS" != "n" ]; then
-  define_bool CONFIG_AMIGA_PARTITION y
-fi
-
 mainmenu_option next_comment
 comment 'Partition Types'
 
@@ -123,6 +119,10 @@ if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
 fi
 
 endmenu
+
+if [ "$CONFIG_AFFS_FS" != "n" ]; then
+  define_bool CONFIG_AMIGA_PARTITION y
+fi
 
 source fs/nls/Config.in
 

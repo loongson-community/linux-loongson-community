@@ -36,6 +36,9 @@ dep_tristate 'AdvanSys SCSI support' CONFIG_SCSI_ADVANSYS $CONFIG_SCSI
 dep_tristate 'Always IN2000 SCSI support' CONFIG_SCSI_IN2000 $CONFIG_SCSI
 dep_tristate 'AM53/79C974 PCI SCSI support' CONFIG_SCSI_AM53C974 $CONFIG_SCSI
 dep_tristate 'AMI MegaRAID support' CONFIG_SCSI_MEGARAID $CONFIG_SCSI
+if [ "$CONFIG_SCSI_MEGARAID" != "n" ]; then
+    bool '   Concurrent IO commands on MegaRAID' CONFIG_MEGARAID_MULTI_IO
+fi
 
 dep_tristate 'BusLogic SCSI support' CONFIG_SCSI_BUSLOGIC $CONFIG_SCSI
 if [ "$CONFIG_SCSI_BUSLOGIC" != "n" ]; then
@@ -52,9 +55,7 @@ dep_tristate 'EATA-DMA [Obsolete] (DPT, NEC, AT&T, SNI, AST, Olivetti, Alphatron
 dep_tristate 'EATA-PIO (old DPT PM2001, PM2012A) support' CONFIG_SCSI_EATA_PIO $CONFIG_SCSI
 dep_tristate 'Future Domain 16xx SCSI/AHA-2920A support' CONFIG_SCSI_FUTURE_DOMAIN $CONFIG_SCSI
 if [ "$CONFIG_MCA" = "y" ]; then
-  if [ "$CONFIG_SCSI" = "y" ]; then
-    bool 'Future Domain MCS-600/700 SCSI support' CONFIG_SCSI_FD_MCS
-  fi
+    dep_tristate 'Future Domain MCS-600/700 SCSI support' CONFIG_SCSI_FD_MCS $CONFIG_SCSI
 fi
 dep_tristate 'GDT SCSI Disk Array Controller support' CONFIG_SCSI_GDTH $CONFIG_SCSI
 dep_tristate 'Generic NCR5380/53c400 SCSI support' CONFIG_SCSI_GENERIC_NCR5380 $CONFIG_SCSI
@@ -66,6 +67,7 @@ if [ "$CONFIG_SCSI_GENERIC_NCR5380" != "n" ]; then
 fi
 if [ "$CONFIG_PCI" = "y" ]; then
   dep_tristate 'Initio 9100U(W) support' CONFIG_SCSI_INITIO $CONFIG_SCSI
+  dep_tristate 'Initio INI-A100U2W support' CONFIG_SCSI_INIA100 $CONFIG_SCSI
 fi
 if [ "$CONFIG_PARPORT" != "n" ]; then
   dep_tristate 'IOMEGA parallel port (ppa - older drives)' CONFIG_SCSI_PPA $CONFIG_SCSI $CONFIG_PARPORT
@@ -76,6 +78,7 @@ if [ "$CONFIG_PARPORT" != "n" ]; then
   fi
 fi
 dep_tristate 'NCR53c406a SCSI support' CONFIG_SCSI_NCR53C406A $CONFIG_SCSI
+dep_tristate 'symbios 53c416 SCSI support' CONFIG_SCSI_SYM53C416 $CONFIG_SCSI
 if [ "$CONFIG_PCI" = "y" ]; then
   dep_tristate 'NCR53c7,8xx SCSI support'  CONFIG_SCSI_NCR53C7xx $CONFIG_SCSI
   if [ "$CONFIG_SCSI_NCR53C7xx" != "n" ]; then
@@ -86,12 +89,16 @@ if [ "$CONFIG_PCI" = "y" ]; then
 fi
 if [ "$CONFIG_PCI" = "y" -a "$CONFIG_SCSI_NCR53C7xx" != "y" ]; then
   dep_tristate 'NCR53C8XX SCSI support' CONFIG_SCSI_NCR53C8XX $CONFIG_SCSI
-  if [ "$CONFIG_SCSI_NCR53C8XX" != "n" ]; then
+  dep_tristate 'SYM53C8XX SCSI support' CONFIG_SCSI_SYM53C8XX $CONFIG_SCSI
+  if [ "$CONFIG_SCSI_NCR53C8XX" != "n" -o "$CONFIG_SCSI_SYM53C8XX" != "n" ]; then
     int  '  default tagged command queue depth' CONFIG_SCSI_NCR53C8XX_DEFAULT_TAGS 8
     int  '  maximum number of queued commands' CONFIG_SCSI_NCR53C8XX_MAX_TAGS 32
     int  '  synchronous transfers frequency in MHz' CONFIG_SCSI_NCR53C8XX_SYNC 20
     bool '  enable profiling' CONFIG_SCSI_NCR53C8XX_PROFILE
     bool '  use normal IO' CONFIG_SCSI_NCR53C8XX_IOMAPPED
+    if [ "$CONFIG_SCSI_SYM53C8XX" != "n" ]; then
+      bool '  include support for the NCR PQS/PDS SCSI card' CONFIG_SCSI_NCR53C8XX_PQS_PDS
+    fi
     if [ "$CONFIG_SCSI_NCR53C8XX_DEFAULT_TAGS" = "0" ]; then
       bool '  not allow targets to disconnect' CONFIG_SCSI_NCR53C8XX_NO_DISCONNECT
     fi
@@ -117,7 +124,7 @@ dep_tristate 'PSI240i support' CONFIG_SCSI_PSI240I $CONFIG_SCSI
 dep_tristate 'Qlogic FAS SCSI support' CONFIG_SCSI_QLOGIC_FAS $CONFIG_SCSI
 if [ "$CONFIG_PCI" = "y" ]; then
   dep_tristate 'Qlogic ISP SCSI support' CONFIG_SCSI_QLOGIC_ISP $CONFIG_SCSI
-# dep_tristate 'Qlogic ISP FC SCSI support' CONFIG_SCSI_QLOGIC_FC $CONFIG_SCSI
+  dep_tristate 'Qlogic ISP FC SCSI support' CONFIG_SCSI_QLOGIC_FC $CONFIG_SCSI
 fi
 dep_tristate 'Seagate ST-02 and Future Domain TMC-8xx SCSI support' CONFIG_SCSI_SEAGATE $CONFIG_SCSI
 if [ "$CONFIG_PCI" = "y" ]; then

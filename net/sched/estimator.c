@@ -171,8 +171,10 @@ void qdisc_kill_estimator(struct tc_stats *stats)
 				pest = &est->next;
 				continue;
 			}
-			/* ATOMIC_SET */
+
 			*pest = est->next;
+			synchronize_bh();
+
 			kfree(est);
 			killed++;
 		}

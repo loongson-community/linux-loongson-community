@@ -233,6 +233,7 @@ void dev_remove_pack(struct packet_type *pt)
 		if(pt==(*pt1))
 		{
 			*pt1=pt->next;
+			synchronize_bh();
 #ifdef CONFIG_NET_FASTROUTE
 			if (pt->data)
 				netdev_fastroute_obstacles--;
@@ -326,6 +327,12 @@ struct device *dev_alloc(const char *name, int *err)
 		return NULL;
 	}
 	return dev;
+}
+
+void netdev_state_change(struct device *dev)
+{
+	if (dev->flags&IFF_UP)
+		notifier_call_chain(&netdev_chain, NETDEV_CHANGE, dev);
 }
 
 
@@ -422,7 +429,7 @@ static __inline__ void dev_do_clear_fastroute(struct device *dev)
 		int i;
 
 		for (i=0; i<=NETDEV_FASTROUTE_HMASK; i++)
-			dst_release(xchg(dev->fastpath+i, NULL));
+			dst_release_irqwait(xchg(dev->fastpath+i, NULL));
 	}
 }
 
@@ -895,22 +902,6 @@ void net_bh(void)
 #endif
 
 		/*
-		 * 	Fetch the packet protocol ID. 
-		 */
-		
-		type = skb->protocol;
-
-		
-#ifdef CONFIG_BRIDGE
-		/*
-		 *	If we are bridging then pass the frame up to the
-		 *	bridging code (if this protocol is to be bridged).
-		 *      If it is bridged then move on
-		 */
-		handle_bridge(skb, type); 
-#endif
-		
-		/*
 	 	 *	Bump the pointer to the next structure.
 		 * 
 		 *	On entry to the protocol layer. skb->data and
@@ -927,11 +918,26 @@ void net_bh(void)
 		}
 
 		/*
+		 * 	Fetch the packet protocol ID. 
+		 */
+
+		type = skb->protocol;
+
+#ifdef CONFIG_BRIDGE
+		/*
+		 *	If we are bridging then pass the frame up to the
+		 *	bridging code (if this protocol is to be bridged).
+		 *      If it is bridged then move on
+		 */
+		handle_bridge(skb, type); 
+#endif
+
+		/*
 		 *	We got a packet ID.  Now loop over the "known protocols"
 		 * 	list. There are two lists. The ptype_all list of taps (normally empty)
 		 *	and the main protocol list which is hashed perfectly for normal protocols.
 		 */
-		
+
 		pt_prev = NULL;
 		for (ptype = ptype_all; ptype!=NULL; ptype=ptype->next)
 		{
@@ -1536,8 +1542,7 @@ static int dev_ifsioc(struct ifreq *ifr, unsigned int cmd)
 			return 0;
 
 		case SIOCSIFTXQLEN:
-			/* Why <2? 0 and 1 are valid values. --ANK (980807) */
-			if(/*ifr->ifr_qlen<2 ||*/ ifr->ifr_qlen>1024)
+			if(ifr->ifr_qlen<0)
 				return -EINVAL;
 			dev->tx_queue_len = ifr->ifr_qlen;
 			return 0;
@@ -1818,7 +1823,9 @@ int unregister_netdevice(struct device *dev)
 	for (dp = &dev_base; (d=*dp) != NULL; dp=&d->next) {
 		if (d == dev) {
 			*dp = d->next;
+			synchronize_bh();
 			d->next = NULL;
+
 			if (dev->destructor)
 				dev->destructor(dev);
 			return 0;
@@ -1978,6 +1985,7 @@ __initfunc(int net_dev_init(void))
 			 *	It failed to come up. Unhook it.
 			 */
 			*dp = dev->next;
+			synchronize_bh();
 		} 
 		else
 		{

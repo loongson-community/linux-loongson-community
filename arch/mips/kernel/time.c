@@ -1,4 +1,4 @@
-/* $Id: time.c,v 1.10 1999/02/01 01:26:32 ralf Exp $
+/* $Id: time.c,v 1.11 1999/02/15 02:16:53 ralf Exp $
  *
  *  Copyright (C) 1991, 1992, 1995  Linus Torvalds
  *  Copyright (C) 1996, 1997, 1998  Ralf Baechle
@@ -255,7 +255,6 @@ void do_settimeofday(struct timeval *tv)
 	xtime = *tv;
 	time_adjust = 0;		/* stop active adjtime() */
 	time_status |= STA_UNSYNC;
-	time_state = TIME_ERROR;	/* p. 24, (a) */
 	time_maxerror = NTP_PHASE_LIMIT;
 	time_esterror = NTP_PHASE_LIMIT;
 	sti();

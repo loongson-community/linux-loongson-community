@@ -22,7 +22,9 @@
 #include <asm/segment.h>
 #include <asm/io.h>
 #include <asm/processor.h>
-#include <asm/nvram.h>
+#include <asm/machdep.h>
+#include <asm/prep_nvram.h>
+#include <asm/mk48t59.h>
 
 #include "time.h"
 
@@ -41,73 +43,29 @@
  * is setup at boot time to use the correct addresses.
  * -- Cort
  */
-/*
- * translate from mc146818 to m48t18  addresses
- */
-unsigned int clock_transl[] __prepdata = { MOTO_RTC_SECONDS,0 /* alarm */,
-		       MOTO_RTC_MINUTES,0 /* alarm */,
-		       MOTO_RTC_HOURS,0 /* alarm */,                 /*  4,5 */
-		       MOTO_RTC_DAY_OF_WEEK,
-		       MOTO_RTC_DAY_OF_MONTH,
-		       MOTO_RTC_MONTH,
-		       MOTO_RTC_YEAR,                    /* 9 */
-		       MOTO_RTC_CONTROLA, MOTO_RTC_CONTROLB /* 10,11 */
-};
-
-__prep
-int prep_cmos_clock_read(int addr)
-{
-	if ( _prep_type == _PREP_IBM )
-		return CMOS_READ(addr);
-	else if ( _prep_type == _PREP_Motorola )
-	{
-		outb(clock_transl[addr]>>8, NVRAM_AS1);
-		outb(clock_transl[addr], NVRAM_AS0);
-		return (inb(NVRAM_DATA));
-	}
-
-	printk("Unknown machine in prep_cmos_clock_read()!\n");
-	return -1;
-}
-
-__prep
-void prep_cmos_clock_write(unsigned long val, int addr)
-{
-	if ( _prep_type == _PREP_IBM )
-	{
-		CMOS_WRITE(val,addr);
-		return;
-	}
-	else if ( _prep_type == _PREP_Motorola )
-	{
-		outb(clock_transl[addr]>>8, NVRAM_AS1);
-		outb(clock_transl[addr], NVRAM_AS0);
-		outb(val,NVRAM_DATA);
-		return;
-	}
-	printk("Unknown machine in prep_cmos_clock_write()!\n");
-}
 
 /*
  * Set the hardware clock. -- Cort
  */
 __prep
-int prep_set_rtc_time(unsigned long nowtime)
+int mc146818_set_rtc_time(unsigned long nowtime)
 {
 	unsigned char save_control, save_freq_select;
 	struct rtc_time tm;
 
 	to_tm(nowtime, &tm);
 
-	save_control = prep_cmos_clock_read(RTC_CONTROL); /* tell the clock it's being set */
-
-	prep_cmos_clock_write((save_control|RTC_SET), RTC_CONTROL);
-
-	save_freq_select = prep_cmos_clock_read(RTC_FREQ_SELECT); /* stop and reset prescaler */
+	/* tell the clock it's being set */
+	save_control = CMOS_READ(RTC_CONTROL);
 	
-	prep_cmos_clock_write((save_freq_select|RTC_DIV_RESET2), RTC_FREQ_SELECT);
-
-        tm.tm_year -= 1900;
+	CMOS_WRITE((save_control|RTC_SET), RTC_CONTROL);
+	
+	/* stop and reset prescaler */
+	save_freq_select = CMOS_READ(RTC_FREQ_SELECT);
+	
+	CMOS_WRITE((save_freq_select|RTC_DIV_RESET2), RTC_FREQ_SELECT);
+	
+        tm.tm_year = (tm.tm_year - 1900) % 100;
 	if (!(save_control & RTC_DM_BINARY) || RTC_ALWAYS_BCD) {
 		BIN_TO_BCD(tm.tm_sec);
 		BIN_TO_BCD(tm.tm_min);
@@ -116,12 +74,12 @@ int prep_set_rtc_time(unsigned long nowtime)
 		BIN_TO_BCD(tm.tm_mday);
 		BIN_TO_BCD(tm.tm_year);
 	}
-	prep_cmos_clock_write(tm.tm_sec,RTC_SECONDS);
-	prep_cmos_clock_write(tm.tm_min,RTC_MINUTES);
-	prep_cmos_clock_write(tm.tm_hour,RTC_HOURS);
-	prep_cmos_clock_write(tm.tm_mon,RTC_MONTH);
-	prep_cmos_clock_write(tm.tm_mday,RTC_DAY_OF_MONTH);
-	prep_cmos_clock_write(tm.tm_year,RTC_YEAR);
+	CMOS_WRITE(tm.tm_sec,  RTC_SECONDS);
+	CMOS_WRITE(tm.tm_min,  RTC_MINUTES);
+	CMOS_WRITE(tm.tm_hour, RTC_HOURS);
+	CMOS_WRITE(tm.tm_mon,  RTC_MONTH);
+	CMOS_WRITE(tm.tm_mday, RTC_DAY_OF_MONTH);
+	CMOS_WRITE(tm.tm_year, RTC_YEAR);
 	
 	/* The following flags have to be released exactly in this order,
 	 * otherwise the DS12887 (popular MC146818A clone with integrated
@@ -130,16 +88,14 @@ int prep_set_rtc_time(unsigned long nowtime)
 	 * the Dallas Semiconductor data sheets, but who believes data
 	 * sheets anyway ...                           -- Markus Kuhn
 	 */
-	prep_cmos_clock_write(save_control, RTC_CONTROL);
-	prep_cmos_clock_write(save_freq_select, RTC_FREQ_SELECT);
+	CMOS_WRITE(save_control,     RTC_CONTROL);
+	CMOS_WRITE(save_freq_select, RTC_FREQ_SELECT);
 
-	if ( (time_state == TIME_ERROR) || (time_state == TIME_BAD) )
-		time_state = TIME_OK;
 	return 0;
 }
 
 __prep
-unsigned long prep_get_rtc_time(void)
+unsigned long mc146818_get_rtc_time(void)
 {
 	unsigned int year, mon, day, hour, min, sec;
 	int i;
@@ -151,29 +107,123 @@ unsigned long prep_get_rtc_time(void)
 	 */
 	/* read RTC exactly on falling edge of update flag */
 	for (i = 0 ; i < 1000000 ; i++)	/* may take up to 1 second... */
-		if (prep_cmos_clock_read(RTC_FREQ_SELECT) & RTC_UIP)
+		if (CMOS_READ(RTC_FREQ_SELECT) & RTC_UIP)
 			break;
 	for (i = 0 ; i < 1000000 ; i++)	/* must try at least 2.228 ms */
-		if (!(prep_cmos_clock_read(RTC_FREQ_SELECT) & RTC_UIP))
+		if (!(CMOS_READ(RTC_FREQ_SELECT) & RTC_UIP))
 			break;
 	do { /* Isn't this overkill ? UIP above should guarantee consistency */
-		sec = prep_cmos_clock_read(RTC_SECONDS);
-		min = prep_cmos_clock_read(RTC_MINUTES);
-		hour = prep_cmos_clock_read(RTC_HOURS);
-		day = prep_cmos_clock_read(RTC_DAY_OF_MONTH);
-		mon = prep_cmos_clock_read(RTC_MONTH);
-		year = prep_cmos_clock_read(RTC_YEAR);
-	} while (sec != prep_cmos_clock_read(RTC_SECONDS));
-	if (!(prep_cmos_clock_read(RTC_CONTROL) & RTC_DM_BINARY) || RTC_ALWAYS_BCD)
-	  {
-	    BCD_TO_BIN(sec);
-	    BCD_TO_BIN(min);
-	    BCD_TO_BIN(hour);
-	    BCD_TO_BIN(day);
-	    BCD_TO_BIN(mon);
-	    BCD_TO_BIN(year);
-	  }
+		sec = CMOS_READ(RTC_SECONDS);
+		min = CMOS_READ(RTC_MINUTES);
+		hour = CMOS_READ(RTC_HOURS);
+		day = CMOS_READ(RTC_DAY_OF_MONTH);
+		mon = CMOS_READ(RTC_MONTH);
+		year = CMOS_READ(RTC_YEAR);
+	} while (sec != CMOS_READ(RTC_SECONDS));
+	if (!(CMOS_READ(RTC_CONTROL) & RTC_DM_BINARY)
+	    || RTC_ALWAYS_BCD)
+	{
+		BCD_TO_BIN(sec);
+		BCD_TO_BIN(min);
+		BCD_TO_BIN(hour);
+		BCD_TO_BIN(day);
+		BCD_TO_BIN(mon);
+		BCD_TO_BIN(year);
+	}
 	if ((year += 1900) < 1970)
 		year += 100;
+	return mktime(year, mon, day, hour, min, sec);
+}
+
+__prep
+int mk48t59_set_rtc_time(unsigned long nowtime)
+{
+	unsigned char save_control;
+	struct rtc_time tm;
+
+
+	to_tm(nowtime, &tm);
+
+	/* tell the clock it's being written */
+	save_control = ppc_md.nvram_read_val(MK48T59_RTC_CONTROLA);
+	
+	ppc_md.nvram_write_val(MK48T59_RTC_CONTROLA,
+			     (save_control | MK48T59_RTC_CA_WRITE));
+
+        tm.tm_year = (tm.tm_year - 1900) % 100;
+	BIN_TO_BCD(tm.tm_sec);
+	BIN_TO_BCD(tm.tm_min);
+	BIN_TO_BCD(tm.tm_hour);
+	BIN_TO_BCD(tm.tm_mon);
+	BIN_TO_BCD(tm.tm_mday);
+	BIN_TO_BCD(tm.tm_year);
+
+	ppc_md.nvram_write_val(MK48T59_RTC_SECONDS,      tm.tm_sec);
+	ppc_md.nvram_write_val(MK48T59_RTC_MINUTES,      tm.tm_min);
+	ppc_md.nvram_write_val(MK48T59_RTC_HOURS,        tm.tm_hour);
+	ppc_md.nvram_write_val(MK48T59_RTC_MONTH,        tm.tm_mon);
+	ppc_md.nvram_write_val(MK48T59_RTC_DAY_OF_MONTH, tm.tm_mday);
+	ppc_md.nvram_write_val(MK48T59_RTC_YEAR,         tm.tm_year);
+	
+	/* Turn off the write bit. */
+	ppc_md.nvram_write_val(MK48T59_RTC_CONTROLA, save_control);
+
+	return 0;
+}
+
+__prep
+unsigned long mk48t59_get_rtc_time(void)
+{
+	unsigned char save_control;
+	unsigned int year, mon, day, hour, min, sec;
+	int i;
+
+	/* Make sure the time is not stopped. */
+	save_control = ppc_md.nvram_read_val(MK48T59_RTC_CONTROLB);
+	
+	ppc_md.nvram_write_val(MK48T59_RTC_CONTROLA,
+			     (save_control & (~MK48T59_RTC_CB_STOP)));
+
+	/* Now make sure the read bit is off so the value will change. */
+	save_control = ppc_md.nvram_read_val(MK48T59_RTC_CONTROLA);
+	save_control &= ~MK48T59_RTC_CA_READ;
+	ppc_md.nvram_write_val(MK48T59_RTC_CONTROLA, save_control);
+
+	/* Read the seconds value to see when it changes. */
+	sec = ppc_md.nvram_read_val(MK48T59_RTC_SECONDS);
+		
+	/* Wait until the seconds value changes, then read the value. */
+	for (i = 0 ; i < 1000000 ; i++)	{ /* may take up to 1 second... */
+	   if (ppc_md.nvram_read_val(MK48T59_RTC_SECONDS) != sec) {
+	      break;
+	   }
+	}
+
+	/* Set the register to read the value. */
+	ppc_md.nvram_write_val(MK48T59_RTC_CONTROLA,
+			     (save_control | MK48T59_RTC_CA_READ));
+
+	sec = ppc_md.nvram_read_val(MK48T59_RTC_SECONDS);
+	min = ppc_md.nvram_read_val(MK48T59_RTC_MINUTES);
+	hour = ppc_md.nvram_read_val(MK48T59_RTC_HOURS);
+	day = ppc_md.nvram_read_val(MK48T59_RTC_DAY_OF_MONTH);
+	mon = ppc_md.nvram_read_val(MK48T59_RTC_MONTH);
+	year = ppc_md.nvram_read_val(MK48T59_RTC_YEAR);
+
+	/* Let the time values change again. */
+	ppc_md.nvram_write_val(MK48T59_RTC_CONTROLA, save_control);
+
+	BCD_TO_BIN(sec);
+	BCD_TO_BIN(min);
+	BCD_TO_BIN(hour);
+	BCD_TO_BIN(day);
+	BCD_TO_BIN(mon);
+	BCD_TO_BIN(year);
+
+	year = year + 1900;
+	if (year < 1970) {
+		year += 100;
+	}
+
 	return mktime(year, mon, day, hour, min, sec);
 }

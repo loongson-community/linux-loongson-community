@@ -229,8 +229,8 @@ S:	Maintained
 DIGI INTL. EPCA DRIVER
 P:      Daniel Taylor
 M:      support@dgii.com
-M:      digilnux@dgii.com
-L:      digiboard@list.fuller.edu
+M:      danielt@dgii.com
+L:      digilnux@dgii.com
 S:      Maintained
 
 DIGI RIGHTSWITCH NETWORK DRIVER
@@ -244,6 +244,12 @@ DISKQUOTA:
 P:	Marco van Wieringen
 M:	mvw@planets.elm.net
 L:	linux-kernel@vger.rutgers.edu
+S:	Maintained
+
+DOUBLETALK DRIVER
+P:	James R. Van Zandt
+M:	jrv@vanzandt.mv.com
+L:	blinux-list@redhat.com
 S:	Maintained
 
 EATA-DMA SCSI DRIVER
@@ -324,7 +330,7 @@ P:	Andrew J. Robinson
 M:	arobinso@nyx.net
 L:	linux-kernel@vger.rutgers.edu
 W:	http://www.nyx.net/~arobinso
-S:	Maintainted
+S:	Maintained
 
 HFS FILESYSTEM
 P:      Adrian Sun
@@ -389,7 +395,7 @@ IRDA SUBSYSTEM
 P:      Dag Brattli
 M:      Dag Brattli <dagb@cs.uit.no>
 L:      linux-irda@list.uit.no
-W:      http://www.cs.uit.no/~dagb/irda/
+W:      http://www.cs.uit.no/linux-irda/
 S:      Maintained
 
 ISDN SUBSYSTEM
@@ -522,13 +528,19 @@ S:	Maintained
 
 NETWORKING [IPv4/IPv6]
 P:	David S. Miller
-M:	davem@dm.cobaltmicro.com
+M:	davem@redhat.com
 P:	Andi Kleen
 M:	ak@muc.de
 P:	Alexey Kuznetsov
 M:	kuznet@ms2.inr.ac.ru
 L:	netdev@roxanne.nuclecu.unam.mx
 S:	Maintained
+
+NFS CLIENT
+P:      Trond Myklebust
+M:      trond.myklebust@fys.uio.no
+L:      linux-kernel@vger.rutgers.edu
+S:      Maintained
 
 NI5010 NETWORK DRIVER
 P:     Jan-Pascal van Best and Andreas Mohr
@@ -631,6 +643,18 @@ M:	emoenke@gwdg.de
 L:	linux-kernel@vger.rutgers.edu
 S:	Maintained
 
+SCSI SG DRIVER
+P:	Doug Gilbert
+M:	dgilbert@interlog.com
+L:	linux-scsi@vger.rutgers.edu
+W:	http://www.torque.net/sg
+S:	Maintained
+
+SCSI GENERIC
+L:	linux-scsi@vger.rutgers.edu
+M:	douglas.gilbert@rbcds.com
+S:	Maintained
+
 SCSI SUBSYSTEM
 L:	linux-scsi@vger.rutgers.edu
 S:	Unmaintained
@@ -672,9 +696,18 @@ M:	alan@redhat.com
 S:	Supported
 
 SPARC:
+P:	David S. Miller
+M:	davem@redhat.com
 P:	Eddie C. Dost
 M:	ecd@skynet.be
+P:	Jakub Jelinek
+M:	jj@sunsite.ms.mff.cuni.cz
+P:	Anton Blanchard
+M:	anton@progsoc.uts.edu.au
 L:	sparclinux@vger.rutgers.edu
+L:	ultralinux@vger.rutgers.edu
+W:	http://ultra.linux.cz
+W:	http://www.geog.ubc.ca/s_linux.html
 S:	Maintained
 
 SPECIALIX IO8+ MULTIPORT SERIAL CARD DRIVER
@@ -698,10 +731,8 @@ W:	http://www.stallion.com
 S:	Supported
 
 STARMODE RADIO IP (STRIP) PROTOCOL DRIVER
-P:	Stuart Cheshire
-M:	cheshire@cs.stanford.edu
 W:	http://mosquitonet.Stanford.EDU/strip.html
-S:	Maintained
+S:	Unsupported ?
 
 SVGA HANDLING
 P:	Martin Mares
@@ -745,6 +776,20 @@ M:	axboe@image.dk
 L:	linux-kernel@vger.rutgers.edu
 S:	Maintained
 
+USB HUB AND UHCI DRIVERS
+P:	Johannes Erdfelt
+M:	jerdfelt@sventech.com
+L:	linux-usb@suse.com
+S:	Maintained
+
+USB OHCI DRIVER
+P:	Gregory P. Smith
+M:	greg@electricrain.com
+M:	greg@suitenine.com
+L:	linux-usb@suse.com
+S:	Maintained (not yet usable)
+W:	http://suitenine.com/usb/
+
 VFAT FILESYSTEM:
 P:	Gordon Chaffee
 M:	chaffee@cs.berkeley.edu
@@ -758,9 +803,9 @@ M:	Alan.Cox@linux.org
 W:	http://roadrunner.swansea.linux.org.uk/v4l.shtml
 S:	Maintained
 
-WAN ROUTER AND SANGOMA WANPIPE DRIVERS (X.25, FRAME RELAY, PPP)
-P:     Gene Kozin
-M:     genek@compuserve.com
+WAN ROUTER & SANGOMA WANPIPE DRIVERS & API (X.25, FRAME RELAY, PPP, CISCO HDLC)
+P:     Jaspreet Singh
+M:     jaspreet@sangoma.com
 M:     dm@sangoma.com
 W:     http://www.sangoma.com
 S:     Supported
@@ -798,4 +843,4 @@ S:	Maintained
 
 THE REST
 P:	Linus Torvalds
-S:	Buried alive in diapers
+S:	Buried alive in reporters

@@ -25,7 +25,35 @@
 #endif
 #include <net/neighbour.h>
 #include <net/dst.h>
+#include <net/sock.h>
 #include <linux/rtnetlink.h>
+
+/*
+   NOTE. The most unpleasent question is serialization of
+   accesses to resolved addresses. The problem is that addresses
+   are modified by bh, but they are referenced from normal
+   kernel thread. Before today no locking was made.
+   My reasoning was that corrupted address token will be copied
+   to packet with cosmologically small probability
+   (it is even difficult to estimate such small number)
+   and it is very silly to waste cycles in fast path to lock them.
+
+   But now I changed my mind, but not because previous statement
+   is wrong. Actually, neigh->ha MAY BE not opaque byte array,
+   but reference to some private data. In this case even neglibible
+   corruption probability becomes bug.
+
+   - hh cache is protected by rwlock. It assumes that
+     hh cache update procedure is short and fast, and that
+     read_lock is cheaper than start_bh_atomic().
+   - ha tokens, saved in neighbour entries, are protected
+     by bh_atomic().
+   - no protection is made in /proc reading. It is OK, because
+     /proc is broken by design in any case, and
+     corrupted output is normal behaviour there.
+
+     --ANK (981025)
+ */
 
 #define NEIGH_DEBUG 1
 
@@ -48,6 +76,7 @@ static void neigh_timer_handler(unsigned long arg);
 #ifdef CONFIG_ARPD
 static void neigh_app_notify(struct neighbour *n);
 #endif
+static int pneigh_ifdown(struct neigh_table *tbl, struct device *dev);
 
 static int neigh_glbl_allocs;
 static struct neigh_table *neigh_tables;
@@ -83,8 +112,20 @@ static int neigh_forced_gc(struct neigh_table *tbl)
 
 		np = &tbl->hash_buckets[i];
 		while ((n = *np) != NULL) {
+			/* Neighbour record may be discarded if:
+			   - nobody refers to it.
+			   - it is not premanent
+			   - (NEW and probably wrong)
+			     INCOMPLETE entries are kept at least for
+			     n->parms->retrans_time, otherwise we could
+			     flood network with resolution requests.
+			     It is not clear, what is better table overflow
+			     or flooding.
+			 */
 			if (atomic_read(&n->refcnt) == 0 &&
-			    !(n->nud_state&NUD_PERMANENT)) {
+			    !(n->nud_state&NUD_PERMANENT) &&
+			    (n->nud_state != NUD_INCOMPLETE ||
+			     jiffies - n->used > n->parms->retrans_time)) {
 				*np = n->next;
 				n->tbl = NULL;
 				tbl->entries--;
@@ -149,6 +190,7 @@ int neigh_ifdown(struct neigh_table *tbl, struct device *dev)
 
 	del_timer(&tbl->proxy_timer);
 	skb_queue_purge(&tbl->proxy_queue);
+	pneigh_ifdown(tbl, dev);
 	end_bh_atomic();
 	return 0;
 }
@@ -296,6 +338,7 @@ int pneigh_delete(struct neigh_table *tbl, const void *pkey, struct device *dev)
 	for (np = &tbl->phash_buckets[hash_val]; (n=*np) != NULL; np = &n->next) {
 		if (memcmp(n->key, pkey, key_len) == 0 && n->dev == dev) {
 			*np = n->next;
+			synchronize_bh();
 			if (tbl->pdestructor)
 				tbl->pdestructor(n);
 			kfree(n);
@@ -304,6 +347,29 @@ int pneigh_delete(struct neigh_table *tbl, const void *pkey, struct device *dev)
 	}
 	return -ENOENT;
 }
+
+static int pneigh_ifdown(struct neigh_table *tbl, struct device *dev)
+{
+	struct pneigh_entry *n, **np;
+	u32 h;
+
+	for (h=0; h<=PNEIGH_HASHMASK; h++) {
+		np = &tbl->phash_buckets[h]; 
+		for (np = &tbl->phash_buckets[h]; (n=*np) != NULL; np = &n->next) {
+			if (n->dev == dev || dev == NULL) {
+				*np = n->next;
+				synchronize_bh();
+				if (tbl->pdestructor)
+					tbl->pdestructor(n);
+				kfree(n);
+				continue;
+			}
+			np = &n->next;
+		}
+	}
+	return -ENOENT;
+}
+
 
 /*
  *	neighbour must already be out of the table;
@@ -516,11 +582,11 @@ static void neigh_timer_handler(unsigned long arg)
 		return;
 	}
 
-	neigh->probes++;
 	neigh->timer.expires = now + neigh->parms->retrans_time;
 	add_timer(&neigh->timer);
 
 	neigh->ops->solicit(neigh, skb_peek(&neigh->arp_queue));
+	neigh->probes++;
 }
 
 int __neigh_event_send(struct neighbour *neigh, struct sk_buff *skb)
@@ -542,6 +608,7 @@ int __neigh_event_send(struct neighbour *neigh, struct sk_buff *skb)
 				add_timer(&neigh->timer);
 
 				neigh->ops->solicit(neigh, skb);
+				neigh->probes++;
 			} else {
 				neigh->nud_state = NUD_FAILED;
 				if (skb)
@@ -581,8 +648,11 @@ static __inline__ void neigh_update_hhs(struct neighbour *neigh)
 		neigh->dev->header_cache_update;
 
 	if (update) {
-		for (hh=neigh->hh; hh; hh=hh->hh_next)
+		for (hh=neigh->hh; hh; hh=hh->hh_next) {
+			write_lock_irq(&hh->hh_lock);
 			update(hh, neigh->dev, neigh->ha);
+			write_unlock_irq(&hh->hh_lock);
+		}
 	}
 }
 
@@ -655,7 +725,7 @@ int neigh_update(struct neighbour *neigh, u8 *lladdr, u8 new, int override, int 
 		del_timer(&neigh->timer);
 	neigh->nud_state = new;
 	if (lladdr != neigh->ha) {
-		memcpy(neigh->ha, lladdr, dev->addr_len);
+		memcpy(&neigh->ha, lladdr, dev->addr_len);
 		neigh_update_hhs(neigh);
 		neigh->confirmed = jiffies - (neigh->parms->base_reachable_time<<1);
 #ifdef CONFIG_ARPD
@@ -764,14 +834,20 @@ int neigh_resolve_output(struct sk_buff *skb)
 	__skb_pull(skb, skb->nh.raw - skb->data);
 
 	if (neigh_event_send(neigh, skb) == 0) {
+		int err;
 		struct device *dev = neigh->dev;
-		if (dev->hard_header_cache) {
+		if (dev->hard_header_cache && dst->hh == NULL) {
 			start_bh_atomic();
 			if (dst->hh == NULL)
 				neigh_hh_init(neigh, dst, dst->ops->protocol);
+			err = dev->hard_header(skb, dev, ntohs(skb->protocol), neigh->ha, NULL, skb->len);
+			end_bh_atomic();
+		} else {
+			start_bh_atomic();
+			err = dev->hard_header(skb, dev, ntohs(skb->protocol), neigh->ha, NULL, skb->len);
 			end_bh_atomic();
 		}
-		if (dev->hard_header(skb, dev, ntohs(skb->protocol), neigh->ha, NULL, skb->len) >= 0)
+		if (err >= 0)
 			return neigh->ops->queue_xmit(skb);
 		kfree_skb(skb);
 		return -EINVAL;
@@ -788,13 +864,17 @@ discard:
 
 int neigh_connected_output(struct sk_buff *skb)
 {
+	int err;
 	struct dst_entry *dst = skb->dst;
 	struct neighbour *neigh = dst->neighbour;
 	struct device *dev = neigh->dev;
 
 	__skb_pull(skb, skb->nh.raw - skb->data);
 
-	if (dev->hard_header(skb, dev, ntohs(skb->protocol), neigh->ha, NULL, skb->len) >= 0)
+	start_bh_atomic();
+	err = dev->hard_header(skb, dev, ntohs(skb->protocol), neigh->ha, NULL, skb->len);
+	end_bh_atomic();
+	if (err >= 0)
 		return neigh->ops->queue_xmit(skb);
 	kfree_skb(skb);
 	return -EINVAL;
@@ -868,7 +948,6 @@ struct neigh_parms *neigh_parms_alloc(struct device *dev, struct neigh_table *tb
 			}
 		}
 		p->next = tbl->parms.next;
-		/* ATOMIC_SET */
 		tbl->parms.next = p;
 	}
 	return p;
@@ -882,8 +961,8 @@ void neigh_parms_release(struct neigh_table *tbl, struct neigh_parms *parms)
 		return;
 	for (p = &tbl->parms.next; *p; p = &(*p)->next) {
 		if (*p == parms) {
-			/* ATOMIC_SET */
 			*p = parms->next;
+			synchronize_bh();
 #ifdef CONFIG_SYSCTL
 			neigh_sysctl_unregister(parms);
 #endif
@@ -926,14 +1005,14 @@ int neigh_table_clear(struct neigh_table *tbl)
 	del_timer(&tbl->gc_timer);
 	del_timer(&tbl->proxy_timer);
 	skb_queue_purge(&tbl->proxy_queue);
-	if (tbl->entries)
-		neigh_ifdown(tbl, NULL);
+	neigh_ifdown(tbl, NULL);
 	end_bh_atomic();
 	if (tbl->entries)
 		printk(KERN_CRIT "neighbour leakage\n");
 	for (tp = &neigh_tables; *tp; tp = &(*tp)->next) {
 		if (*tp == tbl) {
 			*tp = tbl->next;
+			synchronize_bh();
 			break;
 		}
 	}
@@ -976,7 +1055,7 @@ int neigh_delete(struct sk_buff *skb, struct nlmsghdr *nlh, void *arg)
 			return -EINVAL;
 
 		start_bh_atomic();
-		n = neigh_lookup(tbl, RTA_DATA(nda[NDA_DST-1]), dev);
+		n = __neigh_lookup(tbl, RTA_DATA(nda[NDA_DST-1]), dev, 0);
 		if (n) {
 			err = neigh_update(n, NULL, NUD_FAILED, 1, 0);
 			neigh_release(n);
@@ -1020,7 +1099,7 @@ int neigh_add(struct sk_buff *skb, struct nlmsghdr *nlh, void *arg)
 		    nda[NDA_LLADDR-1]->rta_len != RTA_LENGTH(dev->addr_len))
 			return -EINVAL;
 		start_bh_atomic();
-		n = neigh_lookup(tbl, RTA_DATA(nda[NDA_DST-1]), dev);
+		n = __neigh_lookup(tbl, RTA_DATA(nda[NDA_DST-1]), dev, 0);
 		if (n) {
 			if (nlh->nlmsg_flags&NLM_F_EXCL)
 				err = -EEXIST;
@@ -1091,7 +1170,7 @@ static int neigh_dump_table(struct neigh_table *tbl, struct sk_buff *skb, struct
 	for (h=0; h <= NEIGH_HASHMASK; h++) {
 		if (h < s_h) continue;
 		if (h > s_h)
-			memset(&cb->args[2], 0, sizeof(cb->args) - 2*sizeof(int));
+			s_idx = 0;
 		start_bh_atomic();
 		for (n = tbl->hash_buckets[h], idx = 0; n;
 		     n = n->next, idx++) {
@@ -1100,12 +1179,14 @@ static int neigh_dump_table(struct neigh_table *tbl, struct sk_buff *skb, struct
 			if (neigh_fill_info(skb, n, NETLINK_CB(cb->skb).pid,
 					    cb->nlh->nlmsg_seq, RTM_NEWNEIGH) <= 0) {
 				end_bh_atomic();
-				goto done;
+				cb->args[1] = h;
+				cb->args[2] = idx;
+				return -1;
 			}
 		}
 		end_bh_atomic();
 	}
-done:
+
 	cb->args[1] = h;
 	cb->args[2] = idx;
 	return skb->len;
@@ -1125,7 +1206,7 @@ int neigh_dump_info(struct sk_buff *skb, struct netlink_callback *cb)
 		if (family && tbl->family != family)
 			continue;
 		if (t > s_t)
-			memset(&cb->args[1], 0, sizeof(cb->args)-sizeof(int));
+			memset(&cb->args[1], 0, sizeof(cb->args)-sizeof(cb->args[0]));
 		if (neigh_dump_table(tbl, skb, cb) < 0) 
 			break;
 	}
@@ -1276,10 +1357,10 @@ int neigh_sysctl_register(struct device *dev, struct neigh_parms *p,
 		t->neigh_dev[0].ctl_name = dev->ifindex;
 		memset(&t->neigh_vars[12], 0, sizeof(ctl_table));
 	} else {
-		t->neigh_vars[12].data = (&p->locktime) + 1;
-		t->neigh_vars[13].data = (&p->locktime) + 2;
-		t->neigh_vars[14].data = (&p->locktime) + 3;
-		t->neigh_vars[15].data = (&p->locktime) + 4;
+		t->neigh_vars[12].data = (int*)(p+1);
+		t->neigh_vars[13].data = (int*)(p+1) + 1;
+		t->neigh_vars[14].data = (int*)(p+1) + 2;
+		t->neigh_vars[15].data = (int*)(p+1) + 3;
 	}
 	t->neigh_neigh_dir[0].ctl_name = pdev_id;
 

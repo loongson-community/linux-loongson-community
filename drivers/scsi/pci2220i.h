@@ -1,38 +1,33 @@
-/*+M*************************************************************************
- * Perceptive Solutions, Inc. PCI-2000 device driver proc support for Linux.
+/****************************************************************************
+ * Perceptive Solutions, Inc. PCI-2220I device driver for Linux.
  *
- * Copyright (c) 1997 Perceptive Solutions, Inc.
+ * pci2220i.h - Linux Host Driver for PCI-2220i EIDE Adapters
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * Copyright (c) 1997-1999 Perceptive Solutions, Inc.
+ * All Rights Reserved.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that redistributions of source
+ * code retain the above copyright notice and this comment without
+ * modification.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Technical updates and product information at:
+ *  http://www.psidisk.com
  *
+ * Please send questions, comments, bug reports to:
+ *  tech@psidisk.com Technical Support
  *
- *	File Name:		pci2220i.h
- *
- *	Description:	Header file for the SCSI driver for the PCI2220I
- *					EIDE interface card.
- *
- *-M*************************************************************************/
-
+ ****************************************************************************/
 #ifndef _PCI2220I_H
 #define _PCI2220I_H
 
-#include <linux/types.h>
-#include <linux/kdev_t.h>
-
 #ifndef	PSI_EIDE_SCSIOP
 #define	PSI_EIDE_SCSIOP	1
+
+#ifndef LINUX_VERSION_CODE
+#include <linux/version.h>
+#endif 
+#define	LINUXVERSION(v,p,s)    (((v)<<16) + ((p)<<8) + (s))
 
 /************************************************/
 /*		Some defines that we like 				*/
@@ -46,11 +41,14 @@
 #define	ULONG		unsigned long
 #define	VOID		void
 
+#include "psi_dale.h"
+
 /************************************************/
 /*		Timeout konstants		 				*/
 /************************************************/
-#define	TIMEOUT_READY				10		// 100 mSec
-#define	TIMEOUT_DRQ					40		// 400 mSec
+#define	TIMEOUT_READY				100			// 100 mSec
+#define	TIMEOUT_DRQ					300			// 300 mSec
+#define	TIMEOUT_DATA				(3 * HZ)	// 3 seconds
 
 /************************************************/
 /*		Misc. macros			 				*/
@@ -75,6 +73,9 @@
 + (((long)(((UCHAR *)up)[1])) << 16)	\
 + (((long)(((UCHAR *)up)[2])) <<  8)	\
 + ((long)(((UCHAR *)up)[3])) )
+
+#define	SelectSpigot(padapter,spigot)	outb_p (spigot, padapter->regStatSel)
+#define WriteCommand(padapter,cmd)		outb_p (cmd, padapter->regStatCmd)
 
 /************************************************/
 /*		SCSI CDB operation codes 				*/
@@ -163,8 +164,6 @@
 #define	IDE_CMD_READ_MULTIPLE		0xC4
 #define	IDE_CMD_WRITE_MULTIPLE		0xC5
 #define	IDE_CMD_SET_MULTIPLE		0xC6
-#define IDE_COMMAND_WRITE_DMA		0xCA
-#define IDE_COMMAND_READ_DMA		0xC8
 #define IDE_COMMAND_IDENTIFY		0xEC
 
 // IDE status definitions
@@ -186,23 +185,6 @@
 #define	IDE_ERROR_MC				0x20
 #define	IDE_ERROR_UNC				0x40
 #define	IDE_ERROR_BBK				0x80
-
-//	IDE interface structure
-typedef struct _IDE_STRUCT
-	{
-	union
-		{
-		UCHAR	ide[9];
-		struct
-			{
-			USHORT	data;
-			UCHAR	sectors;
-			UCHAR	lba[4];
-			UCHAR	cmd;
-			UCHAR	spigot;
-			}	ides;
-		} ide;
-	}	IDE_STRUCT;
 
 // SCSI read capacity structure
 typedef	struct _READ_CAPACITY_DATA
@@ -238,81 +220,73 @@ typedef struct _INQUIRYDATA
 	}	INQUIRYDATA, *PINQUIRYDATA;
 
 // IDE IDENTIFY data
+#pragma pack (1)
+#pragma align 1
 typedef struct _IDENTIFY_DATA
 	{
-    USHORT GeneralConfiguration;            // 00
-    USHORT NumberOfCylinders;               // 02
-    USHORT Reserved1;                       // 04
-    USHORT NumberOfHeads;                   // 06
-    USHORT UnformattedBytesPerTrack;        // 08
-    USHORT UnformattedBytesPerSector;       // 0A
-    USHORT SectorsPerTrack;                 // 0C
-    USHORT VendorUnique1[3];                // 0E
-    USHORT SerialNumber[10];                // 14
-    USHORT BufferType;                      // 28
-    USHORT BufferSectorSize;                // 2A
-    USHORT NumberOfEccBytes;                // 2C
-    USHORT FirmwareRevision[4];             // 2E
-    USHORT ModelNumber[20];                 // 36
-    UCHAR  MaximumBlockTransfer;            // 5E
-    UCHAR  VendorUnique2;                   // 5F
-    USHORT DoubleWordIo;                    // 60
-    USHORT Capabilities;                    // 62
-    USHORT Reserved2;                       // 64
-    UCHAR  VendorUnique3;                   // 66
-    UCHAR  PioCycleTimingMode;              // 67
-    UCHAR  VendorUnique4;                   // 68
-    UCHAR  DmaCycleTimingMode;              // 69
-    USHORT TranslationFieldsValid:1;        // 6A
-    USHORT Reserved3:15;
-    USHORT NumberOfCurrentCylinders;        // 6C
-    USHORT NumberOfCurrentHeads;            // 6E
-    USHORT CurrentSectorsPerTrack;          // 70
-    ULONG  CurrentSectorCapacity;           // 72
-    USHORT Reserved4[197];                  // 76
+    USHORT	GeneralConfiguration;		//  0
+    USHORT	NumberOfCylinders;			//  1
+    USHORT	Reserved1;					//  2
+    USHORT	NumberOfHeads;				//  3
+    USHORT	UnformattedBytesPerTrack;	//  4
+    USHORT	UnformattedBytesPerSector;	//  5
+    USHORT	SectorsPerTrack;			//  6
+	USHORT	NumBytesISG;				//  7 Byte Len - inter-sector gap
+	USHORT	NumBytesSync;				//  8          - sync field
+	USHORT	NumWordsVUS;				//  9 Len - Vendor Unique Info
+    USHORT	SerialNumber[10];			// 10
+    USHORT	BufferType;					// 20
+    USHORT	BufferSectorSize;			// 21
+    USHORT	NumberOfEccBytes;			// 22
+    USHORT	FirmwareRevision[4];		// 23
+    USHORT	ModelNumber[20];			// 27
+	USHORT	NumSectorsPerInt	:8;		// 47 Multiple Mode - Sec/Blk
+	USHORT	Reserved2			:8;		// 47
+	USHORT	DoubleWordMode;				// 48 flag for double word mode capable
+	USHORT	VendorUnique1		:8;		// 49
+	USHORT	SupportDMA			:1;		// 49 DMA supported
+	USHORT	SupportLBA			:1;		// 49 LBA supported
+	USHORT	SupportIORDYDisable	:1;		// 49 IORDY can be disabled
+	USHORT	SupportIORDY		:1;		// 49 IORDY supported
+	USHORT	ReservedPsuedoDMA	:1;		// 49 reserved for pseudo DMA mode support
+	USHORT	Reserved3			:3;		// 49
+	USHORT	Reserved4;					// 50
+	USHORT	Reserved5			:8;		// 51 Transfer Cycle Timing - PIO
+	USHORT	PIOCycleTime		:8;		// 51 Transfer Cycle Timing - PIO
+	USHORT	Reserved6			:8;		// 52                       - DMA
+	USHORT	DMACycleTime		:8;		// 52                       - DMA
+	USHORT	Valid_54_58			:1;		// 53 words 54 - 58 are vaild
+	USHORT	Valid_64_70			:1;		// 53 words 64 - 70 are valid
+	USHORT	Reserved7			:14;	// 53
+	USHORT	LogNumCyl;					// 54 Current Translation - Num Cyl
+	USHORT	LogNumHeads;				// 55                       Num Heads
+	USHORT	LogSectorsPerTrack;			// 56                       Sec/Trk
+	ULONG	LogTotalSectors;			// 57                       Total Sec
+	USHORT	CurrentNumSecPerInt	:8;		// 59 current setting for number of sectors per interrupt
+	USHORT	ValidNumSecPerInt	:1;		// 59 Current setting is valid for number of sectors per interrupt
+	USHORT	Reserved8			:7;		// 59
+	ULONG	LBATotalSectors;			// 60 LBA Mode - Sectors
+	USHORT	DMASWordFlags;				// 62
+	USHORT	DMAMWordFlags;				// 63
+	USHORT	AdvancedPIOSupport  :8;		// 64 Flow control PIO transfer modes supported
+	USHORT	Reserved9			:8;		// 64
+	USHORT	MinMultiDMACycle;			// 65 minimum multiword DMA transfer cycle time per word
+	USHORT	RecomendDMACycle;			// 66 Manufacturer's recommende multiword DMA transfer cycle time
+	USHORT	MinPIOCycleWithoutFlow;		// 67 Minimum PIO transfer cycle time without flow control
+	USHORT	MinPIOCylceWithFlow;		// 68 Minimum PIO transfer cycle time with IORDY flow control
+	USHORT	ReservedSpace[256-69];		// 69
 	}	IDENTIFY_DATA, *PIDENTIFY_DATA;
-
-// Identify data without the Reserved4.
-typedef struct _IDENTIFY_DATA2 {
-    USHORT GeneralConfiguration;            // 00
-    USHORT NumberOfCylinders;               // 02
-    USHORT Reserved1;                       // 04
-    USHORT NumberOfHeads;                   // 06
-    USHORT UnformattedBytesPerTrack;        // 08
-    USHORT UnformattedBytesPerSector;       // 0A
-    USHORT SectorsPerTrack;                 // 0C
-    USHORT VendorUnique1[3];                // 0E
-    USHORT SerialNumber[10];                // 14
-    USHORT BufferType;                      // 28
-    USHORT BufferSectorSize;                // 2A
-    USHORT NumberOfEccBytes;                // 2C
-    USHORT FirmwareRevision[4];             // 2E
-    USHORT ModelNumber[20];                 // 36
-    UCHAR  MaximumBlockTransfer;            // 5E
-    UCHAR  VendorUnique2;                   // 5F
-    USHORT DoubleWordIo;                    // 60
-    USHORT Capabilities;                    // 62
-    USHORT Reserved2;                       // 64
-    UCHAR  VendorUnique3;                   // 66
-    UCHAR  PioCycleTimingMode;              // 67
-    UCHAR  VendorUnique4;                   // 68
-    UCHAR  DmaCycleTimingMode;              // 69
-	USHORT TranslationFieldsValid:1;     	// 6A
-    USHORT Reserved3:15;
-    USHORT NumberOfCurrentCylinders;        // 6C
-    USHORT NumberOfCurrentHeads;            // 6E
-    USHORT CurrentSectorsPerTrack;          // 70
-    ULONG  CurrentSectorCapacity;           // 72
-	}	IDENTIFY_DATA2, *PIDENTIFY_DATA2;
-
+#pragma pack ()
+#pragma align 0
 #endif	// PSI_EIDE_SCSIOP
 
 // function prototypes
 int Pci2220i_Detect			(Scsi_Host_Template *tpnt);
-int Pci2220i_Command			(Scsi_Cmnd *SCpnt);
+int Pci2220i_Command		(Scsi_Cmnd *SCpnt);
 int Pci2220i_QueueCommand	(Scsi_Cmnd *SCpnt, void (*done)(Scsi_Cmnd *));
 int Pci2220i_Abort			(Scsi_Cmnd *SCpnt);
 int Pci2220i_Reset			(Scsi_Cmnd *SCpnt, unsigned int flags);
+int Pci2220i_Release		(struct Scsi_Host *pshost);
 int Pci2220i_BiosParam		(Disk *disk, kdev_t dev, int geom[]);
 
 #ifndef NULL
@@ -321,18 +295,57 @@ int Pci2220i_BiosParam		(Disk *disk, kdev_t dev, int geom[]);
 
 extern struct proc_dir_entry Proc_Scsi_Pci2220i;
 
-#define PCI2220I { proc_dir:       &Proc_Scsi_Pci2220i,/* proc_dir_entry */ \
-		  name:           "PCI-2220I EIDE Disk Controller",\
-		  detect:         Pci2220i_Detect,			\
-		  command:	  Pci2220i_Command,			\
-		  queuecommand:	  Pci2220i_QueueCommand,		\
-		  abort:	  Pci2220i_Abort,			\
-		  reset:	  Pci2220i_Reset,			\
-		  bios_param:	  Pci2220i_BiosParam,                 	\
-		  can_queue:	  1, 					\
-		  this_id:	  -1, 					\
-		  sg_tablesize:	  SG_NONE,		 		\
-		  cmd_per_lun:	  1, 					\
-		  use_clustering: DISABLE_CLUSTERING }
+#if LINUX_VERSION_CODE >= LINUXVERSION(2,1,75)
+#define PCI2220I {															\
+		next:						NULL,									\
+		module:						NULL,									\
+		proc_dir:					&Proc_Scsi_Pci2220i,					\
+		proc_info:					NULL,	/* let's not bloat the kernel */\
+		name:						"PCI-2220I EIDE Disk Controller",		\
+		detect:						Pci2220i_Detect,						\
+		release:					Pci2220i_Release,						\
+		info:						NULL,	/* let's not bloat the kernel */\
+		command:					Pci2220i_Command,						\
+		queuecommand:				Pci2220i_QueueCommand,					\
+		eh_strategy_handler:		NULL,									\
+		eh_abort_handler:			NULL,									\
+		eh_device_reset_handler:	NULL,									\
+		eh_bus_reset_handler:		NULL,									\
+		eh_host_reset_handler:		NULL,									\
+		abort:						Pci2220i_Abort,							\
+		reset:						Pci2220i_Reset,							\
+		slave_attach:				NULL,									\
+		bios_param:					Pci2220i_BiosParam,						\
+		can_queue:					1,										\
+		this_id:					-1,										\
+		sg_tablesize:				SG_NONE,								\
+		cmd_per_lun:				1,										\
+		present:					0,										\
+		unchecked_isa_dma:			0,										\
+		use_clustering:				DISABLE_CLUSTERING,						\
+		use_new_eh_code:			0										\
+		}
+#else
+#define PCI2220I { NULL, NULL,						\
+			&Proc_Scsi_Pci2220i,/* proc_dir_entry */\
+			NULL,		                			\
+			"PCI-2220I EIDE Disk Controller",		\
+			Pci2220i_Detect,						\
+			Pci2220i_Release,						\
+			NULL,	 								\
+			Pci2220i_Command,						\
+			Pci2220i_QueueCommand,					\
+			Pci2220i_Abort,							\
+			Pci2220i_Reset,							\
+			NULL,									\
+			Pci2220i_BiosParam,                 	\
+			1, 										\
+			-1, 									\
+			SG_NONE,		 						\
+			1, 										\
+			0, 										\
+			0, 										\
+			DISABLE_CLUSTERING }
+#endif
 
 #endif

@@ -4,7 +4,7 @@
  *	Authors:
  *	Pedro Roque		<roque@di.fc.ul.pt>
  *
- *	$Id: ipv6.h,v 1.14 1998/10/03 09:36:45 davem Exp $
+ *	$Id: ipv6.h,v 1.16 1999/04/22 10:07:27 davem Exp $
  *
  *	This program is free software; you can redistribute it and/or
  *      modify it under the terms of the GNU General Public License
@@ -124,6 +124,43 @@ struct ipv6_txoptions
 	/* Option buffer, as read by IPV6_PKTOPTIONS, starts here. */
 };
 
+struct ip6_flowlabel
+{
+	struct ip6_flowlabel	*next;
+	u32			label;
+	struct in6_addr		dst;
+	struct ipv6_txoptions	*opt;
+	atomic_t		users;
+	u32			linger;
+	u8			share;
+	u32			owner;
+	unsigned long		lastuse;
+	unsigned long		expires;
+};
+
+#define IPV6_FLOWINFO_MASK	__constant_htonl(0x0FFFFFFF)
+#define IPV6_FLOWLABEL_MASK	__constant_htonl(0x000FFFFF)
+
+struct ipv6_fl_socklist
+{
+	struct ipv6_fl_socklist	*next;
+	struct ip6_flowlabel	*fl;
+};
+
+extern struct ip6_flowlabel	*fl6_sock_lookup(struct sock *sk, u32 label);
+extern struct ipv6_txoptions	*fl6_merge_options(struct ipv6_txoptions * opt_space,
+						   struct ip6_flowlabel * fl,
+						   struct ipv6_txoptions * fopt);
+extern void			fl6_free_socklist(struct sock *sk);
+extern int			ipv6_flowlabel_opt(struct sock *sk, char *optval, int optlen);
+extern void			ip6_flowlabel_init(void);
+extern void			ip6_flowlabel_cleanup(void);
+
+extern __inline__ void fl6_sock_release(struct ip6_flowlabel *fl)
+{
+	if (fl)
+		atomic_dec(&fl->users);
+}
 
 extern int 			ip6_ra_control(struct sock *sk, int sel,
 					       void (*destructor)(struct sock *));
@@ -184,14 +221,6 @@ extern __inline__ int ipv6_addr_any(struct in6_addr *a)
 {
 	return ((a->s6_addr32[0] | a->s6_addr32[1] | 
 		 a->s6_addr32[2] | a->s6_addr32[3] ) == 0); 
-}
-
-extern __inline__ int gfp_any(void)
-{
-	int pri = GFP_KERNEL;
-	if (in_interrupt())
-		pri = GFP_ATOMIC;
-	return pri;
 }
 
 /*

@@ -1,4 +1,4 @@
-/* $Id: irixelf.c,v 1.16 1998/10/28 12:38:11 ralf Exp $
+/* $Id: irixelf.c,v 1.15 1999/01/04 16:03:48 ralf Exp $
  *
  * irixelf.c: Code to load IRIX ELF executables which conform to
  *            the MIPS ABI.
@@ -1123,7 +1123,7 @@ static int writenote(struct memelfnote *men, struct file *file)
 static int irix_core_dump(long signr, struct pt_regs * regs)
 {
 	int has_dumped = 0;
-	struct file file;
+	struct file *file;
 	struct dentry *dentry;
 	struct inode *inode;
 	mm_segment_t fs;
@@ -1192,30 +1192,28 @@ static int irix_core_dump(long signr, struct pt_regs * regs)
 	
 	fs = get_fs();
 	set_fs(KERNEL_DS);
+
 	memcpy(corefile,"core.", 5);
 #if 0
 	memcpy(corefile+5,current->comm,sizeof(current->comm));
 #else
 	corefile[4] = '\0';
 #endif
-	dentry = open_namei(corefile, O_CREAT | 2 | O_TRUNC | O_NOFOLLOW, 0600);
-	if (IS_ERR(dentry)) {
-		inode = NULL;
+	file = filp_open(corefile, O_CREAT | 2 | O_TRUNC | O_NOFOLLOW, 0600);
+	if (IS_ERR(file))
 		goto end_coredump;
-	}
+	dentry = file->f_dentry;
 	inode = dentry->d_inode;
-
-	if(inode->i_nlink > 1)
-		goto end_coredump;	/* multiple links - don't dump */
+	if (inode->i_nlink > 1)
+		goto close_coredump;	/* multiple links - don't dump */
 
 	if (!S_ISREG(inode->i_mode))
-		goto end_coredump;
-	if (!inode->i_op || !inode->i_op->default_file_ops)
-		goto end_coredump;
-	if (init_private_file(&file, dentry, 3))
-		goto end_coredump;
-	if (!file.f_op->write)
 		goto close_coredump;
+	if (!inode->i_op || !inode->i_op->default_file_ops)
+		goto close_coredump;
+	if (!file->f_op->write)
+		goto close_coredump;
+
 	has_dumped = 1;
 	current->flags |= PF_DUMPCORE;
 
@@ -1351,7 +1349,7 @@ static int irix_core_dump(long signr, struct pt_regs * regs)
 	}
 
 	for(i = 0; i < numnote; i++)
-		if (!writenote(&notes[i], &file))
+		if (!writenote(&notes[i], file))
 			goto close_coredump;
 	
 	set_fs(fs);
@@ -1373,19 +1371,17 @@ static int irix_core_dump(long signr, struct pt_regs * regs)
 		DUMP_WRITE((void *)addr, len);
 	}
 
-	if ((off_t) file.f_pos != offset) {
+	if ((off_t) file->f_pos != offset) {
 		/* Sanity check. */
-		printk("elf_core_dump: file.f_pos (%ld) != offset (%ld)\n",
-		       (off_t) file.f_pos, offset);
+		printk("elf_core_dump: file->f_pos (%ld) != offset (%ld)\n",
+		       (off_t) file->f_pos, offset);
 	}
 
  close_coredump:
-	if (file.f_op->release)
-		file.f_op->release(inode, &file);
+	filp_close(file, NULL);
 
  end_coredump:
 	set_fs(fs);
-	dput(dentry);
 #ifndef CONFIG_BINFMT_ELF
 	MOD_DEC_USE_COUNT;
 #endif

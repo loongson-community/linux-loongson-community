@@ -48,6 +48,7 @@
 #include <asm/spinlock.h>
 
 #include "z85230.h"
+#include "syncppp.h"
 
 
 static spinlock_t z8530_buffer_lock = SPIN_LOCK_UNLOCKED;
@@ -349,6 +350,7 @@ static void z8530_status(struct z8530_channel *chan)
 	if(status&TxEOM)
 	{
 /*		printk("%s: Tx underrun.\n", chan->dev->name); */
+		chan->stats.tx_fifo_errors++;
 		write_zsctrl(chan, ERR_RES);
 		z8530_tx_done(chan);
 	}
@@ -359,6 +361,8 @@ static void z8530_status(struct z8530_channel *chan)
 		{
 			printk(KERN_INFO "%s: DCD raised\n", chan->dev->name);
 			write_zsreg(chan, R3, chan->regs[3]|RxENABLE);
+			if(chan->netdevice)
+				sppp_reopen(chan->netdevice);
 		}
 		else
 		{
@@ -413,8 +417,9 @@ static void z8530_dma_rx(struct z8530_channel *chan)
 
 static void z8530_dma_tx(struct z8530_channel *chan)
 {
-	if(!chan->txdma_on)
+	if(!chan->dma_tx)
 	{
+		printk("Hey who turned the DMA off?\n");
 		z8530_tx(chan);
 		return;
 	}
@@ -431,7 +436,7 @@ static void z8530_dma_status(struct z8530_channel *chan)
 	
 	chan->status=status;
 
-	if(chan->txdma_on)
+	if(chan->dma_tx)
 	{
 		if(status&TxEOM)
 		{
@@ -450,6 +455,8 @@ static void z8530_dma_status(struct z8530_channel *chan)
 		{
 			printk(KERN_INFO "%s: DCD raised\n", chan->dev->name);
 			write_zsreg(chan, R3, chan->regs[3]|RxENABLE);
+			if(chan->netdevice)
+				sppp_reopen(chan->netdevice);
 		}
 		else
 		{
@@ -614,6 +621,9 @@ int z8530_sync_open(struct device *dev, struct z8530_channel *c)
 	z8530_rx_done(c);	/* Load the frame ring */
 	z8530_rx_done(c);	/* Load the backup frame */
 	z8530_rtsdtr(c,1);
+	c->dma_tx = 0;
+	c->regs[R1]|=TxINT_ENAB;
+	write_zsreg(c, R1, c->regs[R1]);
 	write_zsreg(c, R3, c->regs[R3]|RxENABLE);
 	return 0;
 }
@@ -701,6 +711,9 @@ int z8530_sync_dma_open(struct device *dev, struct z8530_channel *c)
 	c->regs[R14]|= DTRREQ;
 	write_zsreg(c, R14, c->regs[R14]);     
 
+	c->regs[R1]&= ~TxINT_ENAB;
+	write_zsreg(c, R1, c->regs[R1]);
+	
 	/*
 	 *	RX DMA via W/Req
 	 */	 
@@ -708,6 +721,7 @@ int z8530_sync_dma_open(struct device *dev, struct z8530_channel *c)
 	c->regs[R1]|= WT_FN_RDYFN;
 	c->regs[R1]|= WT_RDY_RT;
 	c->regs[R1]|= INT_ERR_Rx;
+	c->regs[R1]&= ~TxINT_ENAB;
 	write_zsreg(c, R1, c->regs[R1]);
 	c->regs[R1]|= WT_RDY_ENAB;
 	write_zsreg(c, R1, c->regs[R1]);            
@@ -967,7 +981,7 @@ void z8530_describe(struct z8530_dev *dev, char *mapping, int io)
 		dev->name, 
 		z8530_type_name[dev->type],
 		mapping,
-		io,
+		Z8530_PORT_OF(io),
 		dev->irq);
 }
 
@@ -986,7 +1000,7 @@ int z8530_init(struct z8530_dev *dev)
 	dev->chanB.irqs=&z8530_nop;
 	/* Reset the chip */
 	write_zsreg(&dev->chanA, R9, 0xC0);
-	udelay(100);
+	udelay(200);
 	/* Now check its valid */
 	write_zsreg(&dev->chanA, R12, 0xAA);
 	if(read_zsreg(&dev->chanA, R12)!=0xAA)
@@ -1103,17 +1117,24 @@ static void z8530_tx_begin(struct z8530_channel *c)
 	if(c->tx_skb==NULL)
 	{
 		/* Idle on */
-		if(c->txdma)
+		if(c->dma_tx)
 		{
 			flags=claim_dma_lock();
 			disable_dma(c->txdma);
+			/*
+			 *	Check if we crapped out.
+			 */
+			if(get_dma_residue(c->txdma))
+			{
+				c->stats.tx_dropped++;
+				c->stats.tx_fifo_errors++;
+			}
 			release_dma_lock(flags);
 		}
 		c->txcount=0;
 	}
 	else
 	{
-		c->tx_ptr=c->tx_next_ptr;
 		c->txcount=c->tx_skb->len;
 		
 		
@@ -1128,11 +1149,24 @@ static void z8530_tx_begin(struct z8530_channel *c)
 			 
 			flags=claim_dma_lock();
 			disable_dma(c->txdma);
+
+			/*
+			 *	These two are needed by the 8530/85C30
+			 *	and must be issued when idling.
+			 */
+			 
+			if(c->dev->type!=Z85230)
+			{
+				write_zsctrl(c, RES_Tx_CRC);
+				write_zsctrl(c, RES_EOM_L);
+			}	
+			write_zsreg(c, R10, c->regs[10]&~ABUNDER);
 			clear_dma_ff(c->txdma);
 			set_dma_addr(c->txdma, virt_to_bus(c->tx_ptr));
 			set_dma_count(c->txdma, c->txcount);
 			enable_dma(c->txdma);
 			release_dma_lock(flags);
+			write_zsctrl(c, RES_EOM_L);
 			write_zsreg(c, R5, c->regs[R5]|TxENAB);
 		}
 		else
@@ -1142,7 +1176,7 @@ static void z8530_tx_begin(struct z8530_channel *c)
 			/* ABUNDER off */
 			write_zsreg(c, R10, c->regs[10]);
 			write_zsctrl(c, RES_Tx_CRC);
-			write_zsctrl(c, RES_EOM_L);
+//???			write_zsctrl(c, RES_EOM_L);
 	
 			while(c->txcount && (read_zsreg(c,R0)&Tx_BUF_EMP))
 			{		
@@ -1162,17 +1196,18 @@ static void z8530_tx_done(struct z8530_channel *c)
 
 	spin_lock_irqsave(&z8530_buffer_lock, flags);
 	c->netdevice->tbusy=0;
-	/* Can't happen */
+	/* Actually this can happen.*/
 	if(c->tx_skb==NULL)
 	{
 		spin_unlock_irqrestore(&z8530_buffer_lock, flags);
-		printk(KERN_WARNING "%s: spurious tx done\n", c->dev->name);
 		return;
 	}
 	skb=c->tx_skb;
 	c->tx_skb=NULL;
 	z8530_tx_begin(c);
 	spin_unlock_irqrestore(&z8530_buffer_lock, flags);
+	c->stats.tx_packets++;
+	c->stats.tx_bytes+=skb->len;
 	dev_kfree_skb(skb);
 }
 
@@ -1255,11 +1290,16 @@ static void z8530_rx_done(struct z8530_channel *c)
 		 
 		skb=dev_alloc_skb(ct);
 		if(skb==NULL)
-			printk("%s: Memory squeeze.\n", c->netdevice->name);
+		{
+			c->stats.rx_dropped++;
+			printk(KERN_WARNING "%s: Memory squeeze.\n", c->netdevice->name);
+		}
 		else
 		{
 			skb_put(skb, ct);
 			memcpy(skb->data, rxb, ct);
+			c->stats.rx_packets++;
+			c->stats.rx_bytes+=ct;
 		}
 		c->dma_ready=1;
 	}
@@ -1305,6 +1345,9 @@ static void z8530_rx_done(struct z8530_channel *c)
 		{
 			skb_put(c->skb2,c->mtu);
 		}
+		c->stats.rx_packets++;
+		c->stats.rx_bytes+=ct;
+		
 	}
 	/*
 	 *	If we received a frame we must now process it.
@@ -1315,7 +1358,10 @@ static void z8530_rx_done(struct z8530_channel *c)
 		c->rx_function(c,skb);
 	}
 	else
-		printk("Lost a frame\n");
+	{
+		c->stats.rx_dropped++;
+		printk(KERN_ERR "%s: Lost a frame\n", c->netdevice->name);
+	}
 }
 
 /*

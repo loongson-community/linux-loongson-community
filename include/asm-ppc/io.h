@@ -5,18 +5,8 @@
 #include <asm/page.h>
 #include <asm/byteorder.h>
 
-#define KERNELBASE	0xc0000000
-
-/* from the Carolina Technical Spec -- Cort */
-#define IBM_ACORN 0x82A
 #define SIO_CONFIG_RA	0x398
 #define SIO_CONFIG_RD	0x399
-
-#define IBM_HDD_LED       0x808
-#define IBM_EQUIP_PRESENT 0x80c	
-#define IBM_L2_STATUS     0x80d
-#define IBM_L2_INVALIDATE 0x814
-#define IBM_SYS_CTL       0x81c
 
 #define SLOW_DOWN_IO
 
@@ -26,12 +16,11 @@
 #define CHRP_ISA_MEM_BASE 	0xf7000000
 #define CHRP_PCI_DRAM_OFFSET 	0
 #define PREP_ISA_IO_BASE 	0x80000000
-#define PREP_ISA_MEM_BASE 	0xd0000000
-/*#define PREP_ISA_MEM_BASE 	0xc0000000*/
+#define PREP_ISA_MEM_BASE 	0xc0000000
 #define PREP_PCI_DRAM_OFFSET 	0x80000000
 
 #ifdef CONFIG_MBX
-#define _IO_BASE        0
+#define _IO_BASE        0x80000000
 #define _ISA_MEM_BASE   0
 #define PCI_DRAM_OFFSET 0x80000000
 #else /* CONFIG_MBX8xx */
@@ -58,7 +47,7 @@ extern unsigned long pci_dram_offset;
 #define writel(b,addr) ((*(volatile unsigned int *) (addr)) = (b))
 #else
 #define readw(addr) in_le16((volatile unsigned short *)(addr))
-#define readl(addr) in_le32((volatile unsigned *)addr)
+#define readl(addr) in_le32((volatile unsigned *)(addr))
 #define writew(b,addr) out_le16((volatile unsigned short *)(addr),(b))
 #define writel(b,addr) out_le32((volatile unsigned *)(addr),(b))
 #endif

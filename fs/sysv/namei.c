@@ -67,8 +67,6 @@ static struct buffer_head * sysv_find_entry(struct inode * dir,
 	struct buffer_head * bh;
 
 	*res_dir = NULL;
-	if (!dir)
-		return NULL;
 	sb = dir->i_sb;
 	if (namelen > SYSV_NAMELEN) {
 		if (sb->sv_truncate)
@@ -103,17 +101,12 @@ static struct buffer_head * sysv_find_entry(struct inode * dir,
 	return NULL;
 }
 
-int sysv_lookup(struct inode * dir, struct dentry * dentry)
+struct dentry *sysv_lookup(struct inode * dir, struct dentry * dentry)
 {
 	struct inode * inode = NULL;
 	struct sysv_dir_entry * de;
 	struct buffer_head * bh;
 
-	if (!dir)
-		return -ENOENT;
-	if (!S_ISDIR(dir->i_mode)) {
-		return -ENOENT;
-	}
 	bh = sysv_find_entry(dir, dentry->d_name.name, dentry->d_name.len, &de);
 
 	if (bh) {
@@ -122,10 +115,10 @@ int sysv_lookup(struct inode * dir, struct dentry * dentry)
 		inode = iget(dir->i_sb, ino);
 	
 		if (!inode) 
-			return -EACCES;
+			return ERR_PTR(-EACCES);
 	}
 	d_add(dentry, inode);
-	return 0;
+	return NULL;
 }
 
 /*
@@ -209,8 +202,6 @@ int sysv_create(struct inode * dir, struct dentry * dentry, int mode)
 	struct buffer_head * bh;
 	struct sysv_dir_entry * de;
 
-	if (!dir)
-		return -ENOENT;
 	inode = sysv_new_inode(dir);
 	if (!inode) 
 		return -ENOSPC;
@@ -239,8 +230,6 @@ int sysv_mknod(struct inode * dir, struct dentry * dentry, int mode, int rdev)
 	struct buffer_head * bh;
 	struct sysv_dir_entry * de;
 
-	if (!dir)
-		return -ENOENT;
 	bh = sysv_find_entry(dir, dentry->d_name.name,
 			     dentry->d_name.len, &de);
 	if (bh) {
@@ -286,8 +275,6 @@ int sysv_mkdir(struct inode * dir, struct dentry *dentry, int mode)
 	struct buffer_head * bh, *dir_block;
 	struct sysv_dir_entry * de;
 
-	if (!dir)
-		return -EINVAL;
 	bh = sysv_find_entry(dir, dentry->d_name.name,
                               dentry->d_name.len, &de);
 	if (bh) {
@@ -576,6 +563,7 @@ int sysv_link(struct dentry * old_dentry, struct inode * dir,
 	oldinode->i_nlink++;
 	oldinode->i_ctime = CURRENT_TIME;
 	mark_inode_dirty(oldinode);
+	oldinode->i_count++;
         d_instantiate(dentry, oldinode);
 	return 0;
 }
@@ -593,8 +581,8 @@ int sysv_link(struct dentry * old_dentry, struct inode * dir,
  * Anybody can rename anything with this: the permission checks are left to the
  * higher-level routines.
  */
-static int do_sysv_rename(struct inode * old_dir, struct dentry * old_dentry,
-			  struct inode * new_dir, struct dentry * new_dentry)
+int sysv_rename(struct inode * old_dir, struct dentry * old_dentry,
+		  struct inode * new_dir, struct dentry * new_dentry)
 {
 	struct inode * old_inode, * new_inode;
 	struct buffer_head * old_bh, * new_bh, * dir_bh;
@@ -627,20 +615,8 @@ start_up:
 			new_bh = NULL;
 		}
 	}
-	if (new_inode == old_inode) {
-		retval = 0;
-		goto end_rename;
-	}
 	if (S_ISDIR(old_inode->i_mode)) {
-		retval = -EINVAL;
-		if (is_subdir(new_dentry, old_dentry))
-			goto end_rename;
 		if (new_inode) {
-			if (new_dentry->d_count > 1)
-				shrink_dcache_parent(new_dentry);
-			retval = -EBUSY;
-			if (new_dentry->d_count > 1)
-				goto end_rename;
 			retval = -ENOTEMPTY;
 			if (!empty_dir(new_inode))
 				goto end_rename;
@@ -695,37 +671,10 @@ start_up:
 			mark_inode_dirty(new_dir);
 		}
 	}
-	d_move(old_dentry, new_dentry);
 	retval = 0;
 end_rename:
 	brelse(dir_bh);
 	brelse(old_bh);
 	brelse(new_bh);
 	return retval;
-}
-
-/*
- * Ok, rename also locks out other renames, as they can change the parent of
- * a directory, and we don't want any races. Other races are checked for by
- * "do_rename()", which restarts if there are inconsistencies.
- *
- * Note that there is no race between different filesystems: it's only within
- * the same device that races occur: many renames can happen at once, as long
- * as they are on different partitions.
- */
-int sysv_rename(struct inode * old_dir, struct dentry * old_dentry,
-		struct inode * new_dir, struct dentry * new_dentry)
-{
-	static struct wait_queue * wait = NULL;
-	static int lock = 0;
-	int result;
-
-	while (lock)
-		sleep_on(&wait);
-	lock = 1;
-	result = do_sysv_rename(old_dir, old_dentry,
-				new_dir, new_dentry);
-	lock = 0;
-	wake_up(&wait);
-	return result;
 }

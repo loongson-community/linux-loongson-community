@@ -7,7 +7,7 @@
  *		PROC file system.  It is mainly used for debugging and
  *		statistics.
  *
- * Version:	$Id: proc.c,v 1.33 1998/10/21 05:44:35 davem Exp $
+ * Version:	$Id: proc.c,v 1.34 1999/02/08 11:20:34 davem Exp $
  *
  * Authors:	Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
  *		Gerald J. Heim, <heim@peanuts.informatik.uni-tuebingen.de>
@@ -184,6 +184,8 @@ get__netinfo(struct proto *pro, char *buffer, int format, char **start, off_t of
 
 			for (req = sp->tp_pinfo.af_tcp.syn_wait_queue; req;
 			     i++, req = req->dl_next) {
+				if (req->sk)
+					continue;
 				pos += 128;
 				if (pos < offset) 
 					continue;

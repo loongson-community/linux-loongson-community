@@ -1,5 +1,5 @@
 /*
- *  linux/drivers/block/ide-probe.c	Version 1.03  Dec  5, 1997
+ *  linux/drivers/block/ide-probe.c	Version 1.04  March 10, 1999
  *
  *  Copyright (C) 1994-1998  Linus Torvalds & authors (see below)
  */
@@ -17,6 +17,7 @@
  * Version 1.02		increase WAIT_PIDENTIFY to avoid CD-ROM locking at boot
  *			 by Andrea Arcangeli
  * Version 1.03		fix for (hwif->chipset == ide_4drives)
+ * Version 1.04		fixed buggy treatments of known flash memory cards
  */
 
 #undef REALLY_SLOW_IO		/* most systems can safely undef this */
@@ -84,16 +85,6 @@ static inline void do_identify (ide_drive_t *drive, byte cmd)
 	drive->present = 1;
 
 	/*
-	 * Prevent long system lockup probing later for non-existant
-	 * slave drive if the hwif is actually a Kodak CompactFlash card.
-	 */
-	if (!strcmp(id->model, "KODAK ATA_FLASH")) {
-		ide_drive_t *mate = &HWIF(drive)->drives[1^drive->select.b.unit];
-		mate->present = 0;
-		mate->noprobe = 1;
-	}
-
-	/*
 	 * Check for an ATAPI device
 	 */
 	if (cmd == WIN_PIDENTIFY) {
@@ -124,6 +115,10 @@ static inline void do_identify (ide_drive_t *drive, byte cmd)
 			case ide_tape:
 				printk ("TAPE");
 				break;
+			case ide_optical:
+				printk ("OPTICAL");
+				drive->removable = 1;
+				break;
 			default:
 				printk("UNKNOWN (type %d)", type);
 				break;
@@ -133,6 +128,20 @@ static inline void do_identify (ide_drive_t *drive, byte cmd)
 		return;
 	}
 
+	/*
+	 * Not an ATAPI device: looks like a "regular" hard disk
+	 */
+	if (id->config & (1<<7))
+		drive->removable = 1;
+	/*
+	 * Prevent long system lockup probing later for non-existant
+	 * slave drive if the hwif is actually a flash memory card of some variety:
+	 */
+	if (drive_is_flashcard(drive)) {
+		ide_drive_t *mate = &HWIF(drive)->drives[1^drive->select.b.unit];
+		mate->present = 0;
+		mate->noprobe = 1;
+	}
 	drive->media = ide_disk;
 	printk("ATA DISK drive\n");
 	return;
@@ -720,17 +729,39 @@ static int hwif_init (ide_hwif_t *hwif)
 	}
 	if (register_blkdev (hwif->major, hwif->name, ide_fops)) {
 		printk("%s: UNABLE TO GET MAJOR NUMBER %d\n", hwif->name, hwif->major);
-	} else if (init_irq (hwif)) {
-		printk("%s: UNABLE TO GET IRQ %d\n", hwif->name, hwif->irq);
-		(void) unregister_blkdev (hwif->major, hwif->name);
-	} else {
-		init_gendisk(hwif);
-		blk_dev[hwif->major].data = hwif;
-		blk_dev[hwif->major].request_fn = rfn;
-		blk_dev[hwif->major].queue = ide_get_queue;
-		read_ahead[hwif->major] = 8;	/* (4kB) */
-		hwif->present = 1;	/* success */
+		return (hwif->present = 0);
 	}
+	
+	if (init_irq (hwif)) {
+		int i = hwif->irq;
+		/*
+		 *	It failed to initialise. Find the default IRQ for 
+		 *	this port and try that.
+		 */
+		if (!(hwif->irq = ide_default_irq(hwif->io_ports[IDE_DATA_OFFSET]))) 
+		{
+			printk("%s: Disabled unable to get IRQ %d.\n", hwif->name, i);
+			(void) unregister_blkdev (hwif->major, hwif->name);
+			return (hwif->present = 0);
+		}
+		if(init_irq (hwif)) 
+		{
+			printk("%s: probed IRQ %d and default IRQ %d failed.\n",
+				hwif->name, i, hwif->irq);
+			(void) unregister_blkdev (hwif->major, hwif->name);
+			return (hwif->present = 0);
+		}
+		printk("%s: probed IRQ %d failed, using default.\n",
+			hwif->name, hwif->irq);
+	}
+	
+	init_gendisk(hwif);
+	blk_dev[hwif->major].data = hwif;
+	blk_dev[hwif->major].request_fn = rfn;
+	blk_dev[hwif->major].queue = ide_get_queue;
+	read_ahead[hwif->major] = 8;	/* (4kB) */
+	hwif->present = 1;	/* success */
+
 #if (DEBUG_SPINLOCK > 0)
 {
 	static int done = 0;

@@ -29,6 +29,7 @@
  *					from Jose Renau
  *		Alan Cox	:	Added EBDA scanning
  *		Ingo Molnar	:	various cleanups and rewrites
+ *		Tigran Aivazian	:	fixed "0.00 in /proc/uptime on SMP" bug.
  */
 
 #include <linux/config.h>
@@ -39,10 +40,12 @@
 #include <linux/smp_lock.h>
 #include <linux/init.h>
 #include <asm/mtrr.h>
+#include <asm/msr.h>
 
 #include "irq.h"
 
-extern unsigned long start_kernel, _etext;
+#define JIFFIE_TIMEOUT 100
+
 extern void update_one_process( struct task_struct *p,
 				unsigned long ticks, unsigned long user,
 				unsigned long system, int cpu);
@@ -145,6 +148,8 @@ int skip_ioapic_setup = 0;				/* 1 if "noapic" boot option passed */
  * IA s/w dev Vol 3, Section 7.4
  */
 #define APIC_DEFAULT_PHYS_BASE 0xfee00000
+
+#define CLEAR_TSC wrmsr(0x10, 0x00001000, 0x00001000)
 
 /*
  *	Setup routine for controlling SMP activation
@@ -308,8 +313,17 @@ static int __init smp_read_mpc(struct mp_config_table *mpc)
 						printk("Processor #%d unused. (Max %d processors).\n",m->mpc_apicid, NR_CPUS);
 					else
 					{
+						int ver = m->mpc_apicver;
+
 						cpu_present_map|=(1<<m->mpc_apicid);
-						apic_version[m->mpc_apicid]=m->mpc_apicver;
+						/*
+						 * Validate version
+						 */
+						if (ver == 0x0) {
+							printk("BIOS bug, APIC version is 0 for CPU#%d! fixing up to 0x10. (tell your hw vendor)\n", m->mpc_apicid);
+							ver = 0x10;
+						}
+						apic_version[m->mpc_apicid] = ver;
 					}
 				}
 				mpt+=sizeof(*m);
@@ -325,11 +339,13 @@ static int __init smp_read_mpc(struct mp_config_table *mpc)
 				SMP_PRINTK(("Bus #%d is %s\n",
 					m->mpc_busid,
 					str));
-				if ((strncmp(m->mpc_bustype,"ISA",3) == 0) ||
-					(strncmp(m->mpc_bustype,"EISA",4) == 0))
+				if (strncmp(m->mpc_bustype,"ISA",3) == 0)
 					mp_bus_id_to_type[m->mpc_busid] =
 						MP_BUS_ISA;
 				else
+				if (strncmp(m->mpc_bustype,"EISA",4) == 0)
+					mp_bus_id_to_type[m->mpc_busid] =
+						MP_BUS_EISA;
 				if (strncmp(m->mpc_bustype,"PCI",3) == 0) {
 					mp_bus_id_to_type[m->mpc_busid] =
 						MP_BUS_PCI;
@@ -454,7 +470,7 @@ static int __init smp_scan_config(unsigned long base, unsigned long length)
 					 */
 			
 					cfg=pg0[0];
-					pg0[0] = (mp_lapic_addr | 7);
+					pg0[0] = (mp_lapic_addr | _PAGE_RW | _PAGE_PRESENT);
 					local_flush_tlb();
 
 					boot_cpu_id = GET_APIC_ID(*((volatile unsigned long *) APIC_ID));
@@ -710,24 +726,19 @@ void __init enable_local_APIC(void)
 	value |= 0xff;			/* Set spurious IRQ vector to 0xff */
  	apic_write(APIC_SPIV,value);
 
+	/*
+	 * Set Task Priority to 'accept all'
+	 */
  	value = apic_read(APIC_TASKPRI);
- 	value &= ~APIC_TPRI_MASK;	/* Set Task Priority to 'accept all' */
+ 	value &= ~APIC_TPRI_MASK;
  	apic_write(APIC_TASKPRI,value);
 
 	/*
-	 * Set arbitrarion priority to 0
-	 */
- 	value = apic_read(APIC_ARBPRI);
- 	value &= ~APIC_ARBPRI_MASK;
- 	apic_write(APIC_ARBPRI, value);
-
-	/*
-	 * Set the logical destination ID to 'all', just to be safe.
+	 * Clear the logical destination ID, just to be safe.
 	 * also, put the APIC into flat delivery mode.
 	 */
  	value = apic_read(APIC_LDR);
 	value &= ~APIC_LDR_MASK;
-	value |= SET_APIC_LOGICAL_ID(0xff);
  	apic_write(APIC_LDR,value);
 
  	value = apic_read(APIC_DFR);
@@ -735,8 +746,6 @@ void __init enable_local_APIC(void)
  	apic_write(APIC_DFR, value);
 
 	udelay(100);			/* B safe */
-	ack_APIC_irq();
-	udelay(100);
 }
 
 unsigned long __init init_smp_mappings(unsigned long memory_start)
@@ -883,6 +892,7 @@ int __init start_secondary(void *unused)
  * Everything has been set up for the secondary
  * CPUs - they just need to reload everything
  * from the task structure
+ * This function must not return.
  */
 void __init initialize_secondary(void)
 {
@@ -924,7 +934,6 @@ static void __init do_boot_cpu(int i)
 	/*
 	 *	We need an idle process for each processor.
 	 */
-
 	kernel_thread(start_secondary, NULL, CLONE_PID);
 	cpucount++;
 
@@ -935,6 +944,8 @@ static void __init do_boot_cpu(int i)
 	idle->processor = i;
 	__cpu_logical_map[cpucount] = i;
 	cpu_number_map[i] = cpucount;
+	idle->has_cpu = 1; /* we schedule the first task manually */
+	idle->tss.eip = (unsigned long) start_secondary;
 
 	/* start_eip had better be page-aligned! */
 	start_eip = setup_trampoline();
@@ -1167,6 +1178,7 @@ void __init smp_boot_cpus(void)
 	/*  Must be done before other processors booted  */
 	mtrr_init_boot_cpu ();
 #endif
+	init_idle();
 	/*
 	 *	Initialize the logical to physical CPU number mapping
 	 *	and the per-CPU profiling counter/multiplier
@@ -1316,7 +1328,7 @@ void __init smp_boot_cpus(void)
 		 *	Install writable page 0 entry.
 		 */
 		cfg = pg0[0];
-		pg0[0] = 3;	/* writeable, present, addr 0 */
+		pg0[0] = _PAGE_RW | _PAGE_PRESENT;	/* writeable, present, addr 0 */
 		local_flush_tlb();
 	
 		/*
@@ -1641,15 +1653,84 @@ void smp_send_stop(void)
 	send_IPI_allbutself(STOP_CPU_VECTOR);
 }
 
+/* Structure and data for smp_call_function(). This is designed to minimise
+ * static memory requirements. It also looks cleaner.
+ */
+struct smp_call_function_struct {
+	void (*func) (void *info);
+	void *info;
+	atomic_t unstarted_count;
+	atomic_t unfinished_count;
+	int wait;
+};
+static volatile struct smp_call_function_struct *smp_call_function_data = NULL;
+
 /*
- * this function sends an 'reload MTRR state' IPI to all other CPUs
- * in the system. it goes straight through, completion processing
- * is done on the mttr.c level.
+ * this function sends a 'generic call function' IPI to all other CPUs
+ * in the system.
  */
 
-void smp_send_mtrr(void)
+int smp_call_function (void (*func) (void *info), void *info, int retry,
+		       int wait)
+/*  [SUMMARY] Run a function on all other CPUs.
+    <func> The function to run. This must be fast and non-blocking.
+    <info> An arbitrary pointer to pass to the function.
+    <retry> If true, keep retrying until ready.
+    <wait> If true, wait until function has completed on other CPUs.
+    [RETURNS] 0 on success, else a negative status code. Does not return until
+    remote CPUs are nearly ready to execute <<func>> or are or have executed.
+*/
 {
-	send_IPI_allbutself(MTRR_CHANGE_VECTOR);
+	unsigned long timeout;
+	struct smp_call_function_struct data;
+	static spinlock_t lock = SPIN_LOCK_UNLOCKED;
+
+	if (retry) {
+		while (1) {
+			if (smp_call_function_data) {
+				schedule ();  /*  Give a mate a go  */
+				continue;
+			}
+			spin_lock (&lock);
+			if (smp_call_function_data) {
+				spin_unlock (&lock);  /*  Bad luck  */
+				continue;
+			}
+			/*  Mine, all mine!  */
+			break;
+		}
+	}
+	else {
+		if (smp_call_function_data) return -EBUSY;
+		spin_lock (&lock);
+		if (smp_call_function_data) {
+			spin_unlock (&lock);
+			return -EBUSY;
+		}
+	}
+	smp_call_function_data = &data;
+	spin_unlock (&lock);
+	data.func = func;
+	data.info = info;
+	atomic_set (&data.unstarted_count, smp_num_cpus - 1);
+	data.wait = wait;
+	if (wait) atomic_set (&data.unfinished_count, smp_num_cpus - 1);
+	/*  Send a message to all other CPUs and wait for them to respond  */
+	send_IPI_allbutself (CALL_FUNCTION_VECTOR);
+	/*  Wait for response  */
+	timeout = jiffies + JIFFIE_TIMEOUT;
+	while ( (atomic_read (&data.unstarted_count) > 0) &&
+		time_before (jiffies, timeout) )
+		barrier ();
+	if (atomic_read (&data.unstarted_count) > 0) {
+		smp_call_function_data = NULL;
+		return -ETIMEDOUT;
+	}
+	if (wait)
+		while (atomic_read (&data.unfinished_count) > 0)
+			barrier ();
+	smp_call_function_data = NULL;
+	return 0;
 }
 
 /*
@@ -1692,9 +1773,8 @@ void smp_local_timer_interrupt(struct pt_regs * regs)
 			system=1;
 
  		irq_enter(cpu, 0);
+		update_one_process(p, 1, user, system, cpu);
 		if (p->pid) {
-			update_one_process(p, 1, user, system, cpu);
-
 			p->counter -= 1;
 			if (p->counter < 0) {
 				p->counter = 0;
@@ -1707,7 +1787,6 @@ void smp_local_timer_interrupt(struct pt_regs * regs)
 				kstat.cpu_user += user;
 				kstat.per_cpu_user[cpu] += user;
 			}
-
 			kstat.cpu_system += system;
 			kstat.per_cpu_system[cpu] += system;
 
@@ -1767,6 +1846,7 @@ asmlinkage void smp_invalidate_interrupt(void)
 		local_flush_tlb();
 
 	ack_APIC_irq();
+
 }
 
 static void stop_this_cpu (void)
@@ -1789,12 +1869,19 @@ asmlinkage void smp_stop_cpu_interrupt(void)
 	stop_this_cpu();
 }
 
-void (*mtrr_hook) (void) = NULL;
-
-asmlinkage void smp_mtrr_interrupt(void)
+asmlinkage void smp_call_function_interrupt(void)
 {
-	ack_APIC_irq();
-	if (mtrr_hook) (*mtrr_hook)();
+	void (*func) (void *info) = smp_call_function_data->func;
+	void *info = smp_call_function_data->info;
+	int wait = smp_call_function_data->wait;
+
+	ack_APIC_irq ();
+	/*  Notify initiating CPU that I've grabbed the data and am about to
+	    execute the function  */
+	atomic_dec (&smp_call_function_data->unstarted_count);
+	/*  At this point the structure may be out of scope unless wait==1  */
+	(*func) (info);
+	if (wait) atomic_dec (&smp_call_function_data->unfinished_count);
 }
 
 /*
@@ -1802,8 +1889,10 @@ asmlinkage void smp_mtrr_interrupt(void)
  */
 asmlinkage void smp_spurious_interrupt(void)
 {
-	/* ack_APIC_irq();   see sw-dev-man vol 3, chapter 7.4.13.5 */
-	printk("spurious APIC interrupt, ayiee, should never happen.\n");
+	ack_APIC_irq();
+	/* see sw-dev-man vol 3, chapter 7.4.13.5 */
+	printk("spurious APIC interrupt on CPU#%d, should never happen.\n",
+			smp_processor_id());
 }
 
 /*
@@ -1814,10 +1903,6 @@ asmlinkage void smp_spurious_interrupt(void)
  * The APIC timer is not exactly sync with the external timer chip, it
  * closely follows bus clocks.
  */
-
-#define RDTSC(x)	__asm__ __volatile__ (  "rdtsc" \
-				:"=a" (((unsigned long*)&x)[0]),  \
-				 "=d" (((unsigned long*)&x)[1]))
 
 /*
  * The timer chip is already set up at HZ interrupts per second here,
@@ -1937,7 +2022,7 @@ int __init calibrate_APIC_clock(void)
 	/*
 	 * We wrapped around just now. Let's start:
 	 */
-	RDTSC(t1);
+	rdtscll(t1);
 	tt1=apic_read(APIC_TMCCT);
 
 #define LOOPS (HZ/10)
@@ -1948,7 +2033,7 @@ int __init calibrate_APIC_clock(void)
 		wait_8254_wraparound ();
 
 	tt2=apic_read(APIC_TMCCT);
-	RDTSC(t2);
+	rdtscll(t2);
 
 	/*
 	 * The APIC bus clock counter is 32 bits only, it
@@ -2058,3 +2143,4 @@ int setup_profiling_timer(unsigned int multiplier)
 }
 
 #undef APIC_DIVISOR
+

@@ -12,6 +12,7 @@
 #include <linux/net.h>
 #include <linux/in.h>
 #include <linux/netdevice.h>
+#include <linux/inetdevice.h>
 #include <linux/fddidevice.h>
 #include <linux/trdevice.h>
 #include <linux/ioport.h>
@@ -20,6 +21,9 @@
 #include <net/dst.h>
 #include <net/checksum.h>
 #include <linux/etherdevice.h>
+#ifdef CONFIG_HIPPI
+#include <linux/hippidevice.h>
+#endif
 #include <net/pkt_sched.h>
 
 #ifdef CONFIG_BRIDGE
@@ -44,6 +48,8 @@
 #include <linux/igmp.h>
 
 extern struct net_proto_family inet_family_ops;
+extern __u32 sysctl_wmem_max;
+extern __u32 sysctl_rmem_max;
 
 #if defined(CONFIG_IPV6) || defined (CONFIG_IPV6_MODULE)
 #include <linux/in6.h>
@@ -239,6 +245,10 @@ EXPORT_SYMBOL(inet_dgram_ops);
 EXPORT_SYMBOL(ip_cmsg_recv);
 EXPORT_SYMBOL(__release_sock);
 
+/* Route manipulation */
+EXPORT_SYMBOL(ip_rt_ioctl);
+EXPORT_SYMBOL(devinet_ioctl);
+
 /* needed for ip_gre -cw */
 EXPORT_SYMBOL(ip_statistics);
 
@@ -382,6 +392,9 @@ EXPORT_SYMBOL(rtnl_unlock);
 EXPORT_SYMBOL(ipv4_config);
 EXPORT_SYMBOL(dev_open);
 
+/* Used by other modules */
+EXPORT_SYMBOL(in_ntoa);
+
 EXPORT_SYMBOL(ip_rcv);
 EXPORT_SYMBOL(arp_rcv);
 EXPORT_SYMBOL(arp_tbl);
@@ -425,12 +438,14 @@ EXPORT_SYMBOL(register_netdevice);
 EXPORT_SYMBOL(unregister_netdevice);
 EXPORT_SYMBOL(register_netdev);
 EXPORT_SYMBOL(unregister_netdev);
+EXPORT_SYMBOL(netdev_state_change);
 EXPORT_SYMBOL(ether_setup);
 EXPORT_SYMBOL(dev_new_index);
 EXPORT_SYMBOL(dev_get_by_index);
 EXPORT_SYMBOL(eth_type_trans);
 #ifdef CONFIG_FDDI
 EXPORT_SYMBOL(fddi_type_trans);
+EXPORT_SYMBOL(fddi_setup);
 #endif /* CONFIG_FDDI */
 EXPORT_SYMBOL(eth_copy_and_sum);
 EXPORT_SYMBOL(alloc_skb);
@@ -465,6 +480,15 @@ EXPORT_SYMBOL(kill_fasync);
 
 EXPORT_SYMBOL(if_port_text);
 
+#ifdef CONFIG_HIPPI
+EXPORT_SYMBOL(hippi_type_trans);
+EXPORT_SYMBOL(init_hippi_dev);
+EXPORT_SYMBOL(unregister_hipdev);
+#endif
+
+EXPORT_SYMBOL(sysctl_wmem_max);
+EXPORT_SYMBOL(sysctl_rmem_max);
+
 #if defined(CONFIG_ATALK) || defined(CONFIG_ATALK_MODULE) 
 #include<linux/if_ltalk.h>
 EXPORT_SYMBOL(ltalk_setup);
@@ -479,6 +503,7 @@ EXPORT_SYMBOL(qdisc_head);
 EXPORT_SYMBOL(qdisc_create_dflt);
 EXPORT_SYMBOL(noop_qdisc);
 #ifdef CONFIG_NET_SCHED
+PSCHED_EXPORTLIST;
 EXPORT_SYMBOL(pfifo_qdisc_ops);
 EXPORT_SYMBOL(register_qdisc);
 EXPORT_SYMBOL(unregister_qdisc);

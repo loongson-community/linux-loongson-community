@@ -111,6 +111,8 @@ static int cpu_idle(void *unused)
 	/* endless idle loop with no priority at all */
 	current->priority = 0;
 	current->counter = -100;
+	init_idle();
+
 	for (;;) {
 		if (work)
 			start_idle = jiffies;
@@ -139,6 +141,8 @@ int cpu_idle(void *unused)
 	/* endless idle loop with no priority at all */
 	current->priority = 0;
 	current->counter = -100;
+	init_idle();
+
 	while(1) {
 		if (current_cpu_data.hlt_works_ok && !hlt_counter &&
 				 !current->need_resched)
@@ -316,7 +320,7 @@ void machine_restart(char * __unused)
 	/* Make sure the first page is mapped to the start of physical memory.
 	   It is normally not mapped, to trap kernel NULL pointer dereferences. */
 
-	pg0[0] = 7;
+	pg0[0] = _PAGE_RW | _PAGE_PRESENT;
 
 	/*
 	 * Use `swapper_pg_dir' as our page directory.  We bother with

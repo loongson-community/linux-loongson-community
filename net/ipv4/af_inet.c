@@ -5,7 +5,7 @@
  *
  *		PF_INET protocol family socket handler.
  *
- * Version:	$Id: af_inet.c,v 1.82 1999/01/04 20:36:44 davem Exp $
+ * Version:	$Id: af_inet.c,v 1.87 1999/04/22 10:07:33 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -53,6 +53,7 @@
  *		David S. Miller	:	New socket lookup architecture.
  *					Some other random speedups.
  *		Cyrus Durgin	:	Cleaned up file for kmod hacks.
+ *		Andi Kleen	:	Fix inet_stream_connect TCP race.
  *
  *		This program is free software; you can redistribute it and/or
  *		modify it under the terms of the GNU General Public License
@@ -175,8 +176,6 @@ static __inline__ void kill_sk_now(struct sock *sk)
 	if(sk->opt)
 		kfree(sk->opt);
 	dst_release(sk->dst_cache);
-	if (atomic_read(&sk->omem_alloc))
-		printk(KERN_DEBUG "kill_sk_now: optmem leakage (%d bytes) detected.\n", atomic_read(&sk->omem_alloc));
 	sk_free(sk);
 }
 
@@ -514,17 +513,6 @@ static int inet_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 	    (sk->num != 0))
 		return -EINVAL;
 		
-	snum = ntohs(addr->sin_port);
-#ifdef CONFIG_IP_MASQUERADE
-	/* The kernel masquerader needs some ports. */
-	if((snum >= PORT_MASQ_BEGIN) && (snum <= PORT_MASQ_END))
-		return -EADDRINUSE;
-#endif		 
-	if (snum == 0) 
-		snum = sk->prot->good_socknum();
-	if (snum < PROT_SOCK && !capable(CAP_NET_BIND_SERVICE))
-		return(-EACCES);
-	
 	chk_addr_ret = inet_addr_type(addr->sin_addr.s_addr);
 	if (addr->sin_addr.s_addr != 0 && chk_addr_ret != RTN_LOCAL &&
 	    chk_addr_ret != RTN_MULTICAST && chk_addr_ret != RTN_BROADCAST) {
@@ -546,6 +534,17 @@ static int inet_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 	if(chk_addr_ret == RTN_MULTICAST || chk_addr_ret == RTN_BROADCAST)
 		sk->saddr = 0;  /* Use device */
 
+	snum = ntohs(addr->sin_port);
+#ifdef CONFIG_IP_MASQUERADE
+	/* The kernel masquerader needs some ports. */
+	if((snum >= PORT_MASQ_BEGIN) && (snum <= PORT_MASQ_END))
+		return -EADDRINUSE;
+#endif		 
+	if (snum == 0) 
+		snum = sk->prot->good_socknum();
+	if (snum < PROT_SOCK && !capable(CAP_NET_BIND_SERVICE))
+		return(-EACCES);
+	
 	/* Make sure we are allowed to bind here. */
 	if(sk->prot->verify_bind(sk, snum))
 		return -EADDRINUSE;
@@ -613,15 +612,16 @@ int inet_stream_connect(struct socket *sock, struct sockaddr * uaddr,
 	}
 
 	if(sock->state == SS_CONNECTING) {
+		/* Note: tcp_connected contains SYN_RECV, which may cause
+		   bogus results here. -AK */ 
 		if(tcp_connected(sk->state)) {
 			sock->state = SS_CONNECTED;
 			return 0;
 		}
-		if(sk->protocol == IPPROTO_TCP && (flags & O_NONBLOCK)) {
-			if(sk->err)
-				return sock_error(sk);
+		if (sk->zapped || sk->err)
+			goto sock_error;
+		if (flags & O_NONBLOCK)
 			return -EALREADY;
-		}
 	} else {
 		/* We may need to bind the socket. */
 		if (inet_autobind(sk) != 0)
@@ -629,15 +629,17 @@ int inet_stream_connect(struct socket *sock, struct sockaddr * uaddr,
 		if (sk->prot->connect == NULL) 
 			return(-EOPNOTSUPP);
 		err = sk->prot->connect(sk, uaddr, addr_len);
+		/* Note: there is a theoretical race here when an wake up
+		   occurred before inet_wait_for_connect is entered. In 2.3
+		   the wait queue setup should be moved before the low level
+		   connect call. -AK*/
 		if (err < 0)
 			return(err);
   		sock->state = SS_CONNECTING;
 	}
 	
-	if (sk->state > TCP_FIN_WAIT2 && sock->state == SS_CONNECTING) {
-		sock->state = SS_UNCONNECTED;
-		return sock_error(sk);
-	}
+	if (sk->state > TCP_FIN_WAIT2 && sock->state == SS_CONNECTING)
+		goto sock_error;
 
 	if (sk->state != TCP_ESTABLISHED && (flags & O_NONBLOCK)) 
 	  	return (-EINPROGRESS);
@@ -649,17 +651,20 @@ int inet_stream_connect(struct socket *sock, struct sockaddr * uaddr,
 	}
 
 	sock->state = SS_CONNECTED;
-	if ((sk->state != TCP_ESTABLISHED) && sk->err) {
-		/* This is ugly but needed to fix a race in the ICMP error handler */
-		if (sk->protocol == IPPROTO_TCP && sk->zapped) { 
-			lock_sock(sk);  
-			tcp_set_state(sk, TCP_CLOSE);
-			release_sock(sk); 
-		}
-		sock->state = SS_UNCONNECTED;
-		return sock_error(sk);
-	}
+	if ((sk->state != TCP_ESTABLISHED) && sk->err)
+		goto sock_error; 
 	return(0);
+
+sock_error:	
+	/* This is ugly but needed to fix a race in the ICMP error handler */
+	if (sk->zapped && sk->state != TCP_CLOSE) { 
+		lock_sock(sk);  
+		tcp_set_state(sk, TCP_CLOSE);
+		release_sock(sk); 
+		sk->zapped = 0;
+	}
+	sock->state = SS_UNCONNECTED;
+	return sock_error(sk);
 }
 
 /*
@@ -828,6 +833,8 @@ int inet_shutdown(struct socket *sock, int how)
 	sk->shutdown |= how;
 	if (sk->prot->shutdown)
 		sk->prot->shutdown(sk, how);
+	/* Wake up anyone sleeping in poll. */
+	sk->state_change(sk);
 	return(0);
 }
 

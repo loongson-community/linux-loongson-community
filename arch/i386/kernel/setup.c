@@ -5,6 +5,10 @@
  *
  *  Enhanced CPU type detection by Mike Jagdis, Patrick St. Jean
  *  and Martin Mares, November 1997.
+ *
+ *  Force Cyrix 6x86(MX) and M II processors to report MTRR capability
+ *  and fix against Cyrix "coma bug" by
+ *      Zoltan Boszormenyi <zboszor@mol.hu> February 1999.
  */
 
 /*
@@ -39,6 +43,7 @@
 #include <asm/io.h>
 #include <asm/smp.h>
 #include <asm/cobalt.h>
+#include <asm/msr.h>
 
 /*
  * Machine setup..
@@ -57,6 +62,7 @@ int MCA_bus = 0;
 unsigned int machine_id = 0;
 unsigned int machine_submodel_id = 0;
 unsigned int BIOS_revision = 0;
+unsigned int mca_pentium_flag = 0;
 
 /*
  * Setup options
@@ -244,11 +250,6 @@ __initfunc(void setup_arch(char **cmdline_p,
 	unsigned long memory_start, memory_end;
 	char c = ' ', *to = command_line, *from = COMMAND_LINE;
 	int len = 0;
-	static unsigned char smptrap=0;
-
-	if (smptrap)
-		return;
-	smptrap=1;
 
 #ifdef CONFIG_VISWS
 	visws_get_board_type_and_rev();
@@ -381,7 +382,7 @@ __initfunc(void setup_arch(char **cmdline_p,
 
 }
 
-__initfunc(static int amd_model(struct cpuinfo_x86 *c))
+__initfunc(static int get_model_name(struct cpuinfo_x86 *c))
 {
 	unsigned int n, dummy, *v;
 
@@ -398,8 +399,86 @@ __initfunc(static int amd_model(struct cpuinfo_x86 *c))
 	cpuid(0x80000003, &v[4], &v[5], &v[6], &v[7]);
 	cpuid(0x80000004, &v[8], &v[9], &v[10], &v[11]);
 	c->x86_model_id[48] = 0;
+	/*  Set MTRR capability flag if appropriate  */
+	if(boot_cpu_data.x86 !=5)
+		return 1;
+	if((boot_cpu_data.x86_model == 9) ||
+	   ((boot_cpu_data.x86_model == 8) && 
+	    (boot_cpu_data.x86_mask >= 8)))
+		c->x86_capability |= X86_FEATURE_MTRR;
+
 	return 1;
 }
+
+__initfunc(static int amd_model(struct cpuinfo_x86 *c))
+{
+	u32 l, h;
+	unsigned long flags;
+	int mbytes = max_mapnr >> (20-PAGE_SHIFT);
+	
+	int r=get_model_name(c);
+	
+	/*
+	 *	Now do the cache operations. 
+	 */
+	 
+	switch(c->x86)
+	{
+		case 5:
+			if( c->x86_model < 6 )
+			{
+				/* Anyone with a K5 want to fill this in */				
+				break;
+			}
+			
+			/* K6 with old style WHCR */
+			if( c->x86_model < 8 ||
+				(c->x86_model== 8 && c->x86_mask < 8))
+			{
+				/* We can only write allocate on the low 508Mb */
+				if(mbytes>508)
+					mbytes=508;
+					
+				rdmsr(0xC0000082, l, h);
+				if((l&0x0000FFFF)==0)
+				{		
+					l=(1<<0)|(mbytes/4);
+					save_flags(flags);
+					__cli();
+					__asm__ __volatile__ ("wbinvd": : :"memory");
+					wrmsr(0xC0000082, l, h);
+					restore_flags(flags);
+					printk(KERN_INFO "Enabling old style K6 write allocation for %d Mb\n",
+						mbytes);
+					
+				}
+				break;
+			}
+			if (c->x86_model == 8 || c->x86_model == 9)
+			{
+				/* The more serious chips .. */
+				
+				if(mbytes>4092)
+					mbytes=4092;
+				rdmsr(0xC0000082, l, h);
+				if((l&0xFFFF0000)==0)
+				{
+					l=((mbytes>>2)<<22)|(1<<16);
+					save_flags(flags);
+					__cli();
+					__asm__ __volatile__ ("wbinvd": : :"memory");
+					wrmsr(0xC0000082, l, h);
+					restore_flags(flags);
+					printk(KERN_INFO "Enabling new style K6 write allocation for %d Mb\n",
+						mbytes);
+				}
+				break;
+			}
+			break;
+	}
+	return r;
+}
+			
 
 /*
  * Read Cyrix DEVID registers (DIR) to get more detailed info. about the CPU
@@ -507,6 +586,10 @@ __initfunc(static void cyrix_model(struct cpuinfo_x86 *c))
 			(c->x86_model)++;
 		} else             /* 686 */
 			p = Cx86_cb+1;
+		/* Emulate MTRRs using Cyrix's ARRs. */
+		c->x86_capability |= X86_FEATURE_MTRR;
+		/* 6x86's contain this bug */
+		c->coma_bug = 1;
 		break;
 
 	case 4: /* MediaGX/GXm */
@@ -517,7 +600,7 @@ __initfunc(static void cyrix_model(struct cpuinfo_x86 *c))
 		
 		/* GXm supports extended cpuid levels 'ala' AMD */
 		if (c->cpuid_level == 2) {
-			amd_model(c);  /* get CPU marketing name */
+			get_model_name(c);  /* get CPU marketing name */
 			c->x86_capability&=~X86_FEATURE_TSC;
 			return;
 		}
@@ -531,11 +614,14 @@ __initfunc(static void cyrix_model(struct cpuinfo_x86 *c))
 
         case 5: /* 6x86MX/M II */
 		if (dir1 > 7) dir0_msn++;  /* M II */
+		else c->coma_bug = 1;      /* 6x86MX, it has the bug. */
 		tmp = (!(dir0_lsn & 7) || dir0_lsn & 1) ? 2 : 0;
 		Cx86_cb[tmp] = cyrix_model_mult2[dir0_lsn & 7];
 		p = Cx86_cb+tmp;
         	if (((dir1 & 0x0f) > 4) || ((dir1 & 0xf0) == 0x20))
 			(c->x86_model)++;
+		/* Emulate MTRRs using Cyrix's ARRs. */
+		c->x86_capability |= X86_FEATURE_MTRR;
 		break;
 
 	case 0xf:  /* Cyrix 486 without DEVID registers */
@@ -642,6 +728,20 @@ __initfunc(void identify_cpu(struct cpuinfo_x86 *c))
 
 	if (c->x86_vendor == X86_VENDOR_AMD && amd_model(c))
 		return;
+		
+	if (c->cpuid_level > 0 && c->x86_vendor == X86_VENDOR_INTEL)
+	{
+		if(c->x86_capability&(1<<18))
+		{
+			/* Disable processor serial number on Intel Pentium III 
+			   from code by Phil Karn */
+			unsigned long lo,hi;
+			rdmsr(0x119,lo,hi);
+			lo |= 0x200000;
+			wrmsr(0x119,lo,hi);
+			printk(KERN_INFO "Pentium-III serial number disabled.\n");
+		}
+	}
 
 	for (i = 0; i < sizeof(cpu_models)/sizeof(struct cpu_model_info); i++) {
 		if (c->cpuid_level > 1) {
@@ -726,15 +826,6 @@ __initfunc(void dodgy_tsc(void))
 }
 	
 	
-#define rdmsr(msr,val1,val2) \
-       __asm__ __volatile__("rdmsr" \
-			    : "=a" (val1), "=d" (val2) \
-			    : "c" (msr))
-
-#define wrmsr(msr,val1,val2) \
-     __asm__ __volatile__("wrmsr" \
-			  : /* no outputs */ \
-			  : "c" (msr), "a" (val1), "d" (val2))
 
 static char *cpu_vendor_names[] __initdata = {
 	"Intel", "Cyrix", "AMD", "UMC", "NexGen", "Centaur" };
@@ -784,9 +875,9 @@ int get_cpuinfo(char * buffer)
 	int sep_bug;
 	static char *x86_cap_flags[] = {
 	        "fpu", "vme", "de", "pse", "tsc", "msr", "6", "mce",
-	        "cx8", "9", "10", "sep", "12", "pge", "14", "cmov",
-	        "16", "17", "18", "19", "20", "21", "22", "mmx",
-	        "24", "25", "26", "27", "28", "29", "30", "31"
+	        "cx8", "9", "10", "sep", "mtrr", "pge", "14", "cmov",
+	        "16", "17", "psn", "19", "20", "21", "22", "mmx",
+	        "24", "kni", "26", "27", "28", "29", "30", "31"
 	};
 	struct cpuinfo_x86 *c = cpu_data;
 	int i, n;
@@ -807,7 +898,7 @@ int get_cpuinfo(char * buffer)
 			       c->x86_model,
 			       c->x86_model_id[0] ? c->x86_model_id : "unknown");
 		
-		if (c->x86_mask)
+		if (c->x86_mask || c->cpuid_level >= 0)
 			p += sprintf(p, "stepping\t: %d\n", c->x86_mask);
 		else
 			p += sprintf(p, "stepping\t: unknown\n");
@@ -832,10 +923,10 @@ int get_cpuinfo(char * buffer)
 		} else if (c->x86_vendor == X86_VENDOR_INTEL) {
 			x86_cap_flags[6] = "pae";
 			x86_cap_flags[9] = "apic";
-			x86_cap_flags[12] = "mtrr";
 			x86_cap_flags[14] = "mca";
 			x86_cap_flags[16] = "pat";
 			x86_cap_flags[17] = "pse36";
+			x86_cap_flags[18] = "psn";
 			x86_cap_flags[24] = "osfxsr";
 		}
 
@@ -850,6 +941,7 @@ int get_cpuinfo(char * buffer)
 			        "hlt_bug\t\t: %s\n"
 			        "sep_bug\t\t: %s\n"
 			        "f00f_bug\t: %s\n"
+			        "coma_bug\t: %s\n"
 			        "fpu\t\t: %s\n"
 			        "fpu_exception\t: %s\n"
 			        "cpuid level\t: %d\n"
@@ -859,6 +951,7 @@ int get_cpuinfo(char * buffer)
 			     c->hlt_works_ok ? "no" : "yes",
 			     sep_bug ? "yes" : "no",
 			     c->f00f_bug ? "yes" : "no",
+			     c->coma_bug ? "yes" : "no",
 			     c->hard_math ? "yes" : "no",
 			     (c->hard_math && ignore_irq13) ? "yes" : "no",
 			     c->cpuid_level,

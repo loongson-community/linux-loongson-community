@@ -1,5 +1,5 @@
 /*
- * $Id: process.c,v 1.70 1999/01/07 16:28:59 cort Exp $
+ * $Id: process.c,v 1.83 1999/05/10 04:43:43 cort Exp $
  *
  *  linux/arch/ppc/kernel/process.c
  *
@@ -43,12 +43,18 @@
 #include <asm/prom.h>
 
 int dump_fpu(struct pt_regs *regs, elf_fpregset_t *fpregs);
-void switch_to(struct task_struct *, struct task_struct *);
-
 extern unsigned long _get_SP(void);
-extern spinlock_t scheduler_lock;
 
 struct task_struct *last_task_used_math = NULL;
+static struct vm_area_struct init_mmap = INIT_MMAP;
+static struct fs_struct init_fs = INIT_FS;
+static struct file * init_fd_array[NR_OPEN] = { NULL, };
+static struct files_struct init_files = INIT_FILES;
+static struct signal_struct init_signals = INIT_SIGNALS;
+struct mm_struct init_mm = INIT_MM;
+union task_union init_task_union = { INIT_TASK };
+/* only used to get secondary processor up */
+struct task_struct *current_set[NR_CPUS] = {&init_task, };
 
 #undef SHOW_TASK_SWITCHES 1
 #undef CHECK_STACK 1
@@ -65,30 +71,26 @@ task_top(struct task_struct *tsk)
 	return ((unsigned long)tsk) + sizeof(struct task_struct);
 }
 
-static struct vm_area_struct init_mmap = INIT_MMAP;
-static struct fs_struct init_fs = INIT_FS;
-static struct file * init_fd_array[NR_OPEN] = { NULL, };
-static struct files_struct init_files = INIT_FILES;
-static struct signal_struct init_signals = INIT_SIGNALS;
-
-struct mm_struct init_mm = INIT_MM;
-union task_union init_task_union = { INIT_TASK };
-
-/* only used to get secondary processor up */
-struct task_struct *current_set[NR_CPUS] = {&init_task, };
-
 int
 dump_fpu(struct pt_regs *regs, elf_fpregset_t *fpregs)
 {
-#ifdef __SMP__
-	if ( regs->msr & MSR_FP )
-		smp_giveup_fpu(current);
-#else
-	if (last_task_used_math == current)
-		giveup_fpu();
-#endif	
+	if (regs->msr & MSR_FP)
+		giveup_fpu(current);
 	memcpy(fpregs, &current->tss.fpr[0], sizeof(*fpregs));
 	return 1;
+}
+
+void
+enable_kernel_fp(void)
+{
+#ifdef __SMP__
+	if (current->tss.regs && (current->tss.regs->msr & MSR_FP))
+		giveup_fpu(current);
+	else
+		giveup_fpu(NULL);	/* just enables FP for kernel */
+#else
+	giveup_fpu(last_task_used_math);
+#endif /* __SMP__ */
 }
 
 /* check to make sure the kernel stack is healthy */
@@ -155,7 +157,8 @@ int check_stack(struct task_struct *tsk)
 }
 
 void
-switch_to(struct task_struct *prev, struct task_struct *new)
+_switch_to(struct task_struct *prev, struct task_struct *new,
+	  struct task_struct **last)
 {
 	struct thread_struct *new_tss, *old_tss;
 	int s = _disable_interrupts();
@@ -165,10 +168,10 @@ switch_to(struct task_struct *prev, struct task_struct *new)
 #endif
 
 #ifdef SHOW_TASK_SWITCHES
-	printk("%s/%d -> %s/%d NIP %08lx cpu %d lock %x root %x/%x\n",
+	printk("%s/%d -> %s/%d NIP %08lx cpu %d root %x/%x\n",
 	       prev->comm,prev->pid,
 	       new->comm,new->pid,new->tss.regs->nip,new->processor,
-	       scheduler_lock.lock,new->fs->root,prev->fs->root);
+	       new->fs->root,prev->fs->root);
 #endif
 #ifdef __SMP__
 	/* avoid complexity of lazy save/restore of fpu
@@ -176,18 +179,19 @@ switch_to(struct task_struct *prev, struct task_struct *new)
 	 * this task used the fpu during the last quantum.
 	 * 
 	 * If it tries to use the fpu again, it'll trap and
-	 * reload its fp regs.
+	 * reload its fp regs.  So we don't have to do a restore
+	 * every switch, just a save.
 	 *  -- Cort
 	 */
-	if ( prev->tss.regs->msr & MSR_FP )
-		smp_giveup_fpu(prev);
+	if (prev->tss.regs && (prev->tss.regs->msr & MSR_FP))
+		giveup_fpu(prev);
 
 	prev->last_processor = prev->processor;
 	current_set[smp_processor_id()] = new;
 #endif /* __SMP__ */
 	new_tss = &new->tss;
 	old_tss = &current->tss;
-	_switch(old_tss, new_tss, new->mm->context);
+	*last = _switch(old_tss, new_tss, new->mm->context);
 	_enable_interrupts(s);
 }
 
@@ -240,7 +244,12 @@ void instruction_dump (unsigned long *pc)
 
 	printk("Instruction DUMP:");
 	for(i = -3; i < 6; i++)
-		printk("%c%08lx%c",i?' ':'<',pc[i],i?' ':'>');
+	{
+		unsigned long p;
+		if (__get_user( p, &pc[i] ))
+			break;
+		printk("%c%08lx%c",i?' ':'<',p,i?' ':'>');
+	}
 	printk("\n");
 }
 
@@ -268,8 +277,12 @@ int
 copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 	    struct task_struct * p, struct pt_regs * regs)
 {
-	struct pt_regs * childregs;
-	
+	struct pt_regs * childregs, *kregs;
+#ifdef __SMP__
+	extern void ret_from_smpfork(void);
+#else
+	extern void ret_from_syscall(void);
+#endif
 	/* Copy registers */
 	childregs = ((struct pt_regs *)
 		     ((unsigned long)p + sizeof(union task_union)
@@ -278,8 +291,19 @@ copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 	if ((childregs->msr & MSR_PR) == 0)
 		childregs->gpr[2] = (unsigned long) p;	/* `current' in new task */
 	childregs->gpr[3] = 0;  /* Result from fork() */
+	p->tss.regs = childregs;
 	p->tss.ksp = (unsigned long) childregs - STACK_FRAME_OVERHEAD;
-	p->tss.regs = childregs;	
+	p->tss.ksp -= sizeof(struct pt_regs ) + STACK_FRAME_OVERHEAD;
+	kregs = (struct pt_regs *)(p->tss.ksp + STACK_FRAME_OVERHEAD);
+#ifdef __SMP__
+	kregs->nip = (unsigned long)ret_from_smpfork;
+#else	
+	kregs->nip = (unsigned long)ret_from_syscall;
+#endif	
+	kregs->msr = MSR_KERNEL;
+	kregs->gpr[1] = (unsigned long)childregs - STACK_FRAME_OVERHEAD;
+	kregs->gpr[2] = (unsigned long)p;
+	
 	if (usp >= (unsigned long) regs) {
 		/* Stack is in kernel space - must adjust */
 		childregs->gpr[1] = (unsigned long)(childregs + 1);
@@ -293,21 +317,14 @@ copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 	 * copy fpu info - assume lazy fpu switch now always
 	 *  -- Cort
 	 */
-#ifdef __SMP__
-	if ( regs->msr & MSR_FP )
-		smp_giveup_fpu(current);
-#else	
-	if ( last_task_used_math == current )
-		giveup_fpu();
-#endif	  
+	if (regs->msr & MSR_FP)
+		giveup_fpu(current);
 
 	memcpy(&p->tss.fpr, &current->tss.fpr, sizeof(p->tss.fpr));
 	p->tss.fpscr = current->tss.fpscr;
 	childregs->msr &= ~MSR_FP;
 
 #ifdef __SMP__
-	if ( (p->pid != 0) || !(clone_flags & CLONE_PID) )
-		p->tss.smp_fork_ret = 1;
 	p->last_processor = NO_PROC_ID;
 #endif /* __SMP__ */
 	return 0;
@@ -374,11 +391,6 @@ asmlinkage int sys_clone(int p1, int p2, int p3, int p4, int p5, int p6,
 	int res;
 	lock_kernel();
 	res = do_fork(clone_flags, regs->gpr[1], regs);
-	/*
-	 * only parent returns here, child returns to either
-	 * syscall_ret_1() or kernel_thread()
-	 * -- Cort
-	 */
 #ifdef __SMP__
 	/* When we clone the idle task we keep the same pid but
 	 * the return value of 0 for both causes problems.
@@ -397,9 +409,7 @@ asmlinkage int sys_fork(int p1, int p2, int p3, int p4, int p5, int p6,
 
 	int res;
 	
-	lock_kernel();
 	res = do_fork(SIGCHLD, regs->gpr[1], regs);
-	/* only parent returns here */
 #ifdef __SMP__
 	/* When we clone the idle task we keep the same pid but
 	 * the return value of 0 for both causes problems.
@@ -408,8 +418,13 @@ asmlinkage int sys_fork(int p1, int p2, int p3, int p4, int p5, int p6,
 	if ((current->pid == 0) && (current == &init_task))
 		res = 1;
 #endif /* __SMP__ */
-	unlock_kernel();
 	return res;
+}
+
+asmlinkage int sys_vfork(int p1, int p2, int p3, int p4, int p5, int p6,
+			 struct pt_regs *regs)
+{
+	return do_fork(CLONE_VFORK | CLONE_VM | SIGCHLD, regs->gpr[1], regs);
 }
 
 asmlinkage int sys_execve(unsigned long a0, unsigned long a1, unsigned long a2,
@@ -423,13 +438,8 @@ asmlinkage int sys_execve(unsigned long a0, unsigned long a1, unsigned long a2,
 	error = PTR_ERR(filename);
 	if (IS_ERR(filename))
 		goto out;
-#ifdef __SMP__	  
-	if ( regs->msr & MSR_FP )
-		smp_giveup_fpu(current);
-#else	  
-	if ( last_task_used_math == current )
-		giveup_fpu();
-#endif	
+	if (regs->msr & MSR_FP)
+		giveup_fpu(current);
 	error = do_execve(filename, (char **) a1, (char **) a2, regs);
 	putname(filename);
 out:

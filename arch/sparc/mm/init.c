@@ -1,4 +1,4 @@
-/*  $Id: init.c,v 1.60 1998/09/13 04:30:31 davem Exp $
+/*  $Id: init.c,v 1.65 1999/04/09 16:28:03 davem Exp $
  *  linux/arch/sparc/mm/init.c
  *
  *  Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
@@ -36,6 +36,8 @@
 #define FREE_UNUSED_MEM_MAP
 
 extern void show_net_buffers(void);
+
+unsigned long *sparc_valid_addr_bitmap;
 
 struct sparc_phys_banks sp_banks[SPARC_PHYS_BANKS];
 unsigned long sparc_unmapped_base;
@@ -215,16 +217,20 @@ __initfunc(static void taint_real_pages(unsigned long start_mem, unsigned long e
 				unsigned long limit = base + sp_banks[tmp2].num_bytes;
 
 				if((phys_addr >= base) && (phys_addr < limit) &&
-				   ((phys_addr + PAGE_SIZE) < limit))
+				   ((phys_addr + PAGE_SIZE) < limit)) {
 					mem_map[MAP_NR(addr)].flags &= ~(1<<PG_reserved);
+					set_bit(MAP_NR(addr) >> 8, sparc_valid_addr_bitmap);
+				}
 			}
 		}
 	} else {
 		if((sparc_cpu_model == sun4m) || (sparc_cpu_model == sun4d)) {
 			srmmu_frob_mem_map(start_mem);
 		} else {
-			for(addr = start_mem; addr < end_mem; addr += PAGE_SIZE)
+			for(addr = start_mem; addr < end_mem; addr += PAGE_SIZE) {
 				mem_map[MAP_NR(addr)].flags &= ~(1<<PG_reserved);
+				set_bit(MAP_NR(addr) >> 8, sparc_valid_addr_bitmap);
+			}
 		}
 	}
 }
@@ -234,6 +240,7 @@ __initfunc(void mem_init(unsigned long start_mem, unsigned long end_mem))
 	int codepages = 0;
 	int datapages = 0;
 	int initpages = 0; 
+	int i;
 	unsigned long addr;
 	struct page *page, *end;
 
@@ -243,6 +250,12 @@ __initfunc(void mem_init(unsigned long start_mem, unsigned long end_mem))
 	end_mem &= PAGE_MASK;
 	max_mapnr = MAP_NR(end_mem);
 	high_memory = (void *) end_mem;
+	
+	sparc_valid_addr_bitmap = (unsigned long *)start_mem;
+	i = max_mapnr >> (8 + 5);
+	i += 1;
+	memset(sparc_valid_addr_bitmap, 0, i << 2);
+	start_mem += i << 2;
 
 	start_mem = PAGE_ALIGN(start_mem);
 	num_physpages = 0;
@@ -255,6 +268,7 @@ __initfunc(void mem_init(unsigned long start_mem, unsigned long end_mem))
 		else
 #endif	
 			mem_map[MAP_NR(addr)].flags |= (1<<PG_reserved);
+		set_bit(MAP_NR(addr) >> 8, sparc_valid_addr_bitmap);
 		addr += PAGE_SIZE;
 	}
 
@@ -265,6 +279,9 @@ __initfunc(void mem_init(unsigned long start_mem, unsigned long end_mem))
 	for (page = mem_map; page < end; page++) {
 		if (PageSkip(page)) {
 			unsigned long low, high;
+
+			/* See srmmu_frob_mem_map() for why this is done.  -DaveM */
+			page++;
 
 			low = PAGE_ALIGN((unsigned long)(page+1));
 			if (page->next_hash < page)
@@ -313,11 +330,18 @@ __initfunc(void mem_init(unsigned long start_mem, unsigned long end_mem))
 	       initpages << (PAGE_SHIFT-10),
 	       (unsigned long)PAGE_OFFSET, end_mem);
 
-	freepages.min = nr_free_pages >> 7;
-	if(freepages.min < 16)
-		freepages.min = 16;
-	freepages.low = freepages.min + (freepages.min >> 1);
-	freepages.high = freepages.min + freepages.min;
+	/* NOTE NOTE NOTE NOTE
+	 * Please keep track of things and make sure this
+	 * always matches the code in mm/page_alloc.c -DaveM
+	 */
+	i = nr_free_pages >> 7;
+	if (i < 48)
+		i = 48;
+	if (i > 256)
+		i = 256;
+	freepages.min = i;
+	freepages.low = i << 1;
+	freepages.high = freepages.low + i;
 }
 
 void free_initmem (void)

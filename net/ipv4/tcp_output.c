@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp_output.c,v 1.101 1999/01/20 07:20:14 davem Exp $
+ * Version:	$Id: tcp_output.c,v 1.108 1999/05/08 21:48:59 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -30,6 +30,7 @@
  *		David S. Miller	:	Charge memory using the right skb
  *					during syn/ack processing.
  *		David S. Miller :	Output engine completely rewritten.
+ *		Andrea Arcangeli:	SYNACK carry ts_recent in tsecr.
  *
  */
 
@@ -135,7 +136,8 @@ void tcp_transmit_skb(struct sock *sk, struct sk_buff *skb)
 					      (sysctl_flags & SYSCTL_FLAG_SACK),
 					      (sysctl_flags & SYSCTL_FLAG_WSCALE),
 					      tp->rcv_wscale,
-					      TCP_SKB_CB(skb)->when);
+					      TCP_SKB_CB(skb)->when,
+		      			      tp->ts_recent);
 		} else {
 			tcp_build_and_update_options((__u32 *)(th + 1),
 						     tp, TCP_SKB_CB(skb)->when);
@@ -165,7 +167,7 @@ void tcp_send_skb(struct sock *sk, struct sk_buff *skb, int force_queue)
 
 	if (!force_queue && tp->send_head == NULL && tcp_snd_test(sk, skb)) {
 		/* Send it out now. */
-		TCP_SKB_CB(skb)->when = jiffies;
+		TCP_SKB_CB(skb)->when = tcp_time_stamp;
 		tp->snd_nxt = TCP_SKB_CB(skb)->end_seq;
 		tp->packets_out++;
 		tcp_transmit_skb(sk, skb_clone(skb, GFP_KERNEL));
@@ -231,8 +233,9 @@ static int tcp_fragment(struct sock *sk, struct sk_buff *skb, u32 len)
 	buff->csum = csum_partial_copy(skb->data + len, skb_put(buff, nsize),
 				       nsize, 0);
 
-	TCP_SKB_CB(skb)->end_seq -= nsize;
-	skb_trim(skb, skb->len - nsize);
+	/* This takes care of the FIN sequence number too. */
+	TCP_SKB_CB(skb)->end_seq = TCP_SKB_CB(buff)->seq;
+	skb_trim(skb, len);
 
 	/* Rechecksum original buffer. */
 	skb->csum = csum_partial(skb->data, skb->len, 0);
@@ -341,7 +344,7 @@ void tcp_write_xmit(struct sock *sk)
 
 			/* Advance the send_head.  This one is going out. */
 			update_send_head(sk);
-			TCP_SKB_CB(skb)->when = jiffies;
+			TCP_SKB_CB(skb)->when = tcp_time_stamp;
 			tp->snd_nxt = TCP_SKB_CB(skb)->end_seq;
 			tp->packets_out++;
 			tcp_transmit_skb(sk, skb_clone(skb, GFP_ATOMIC));
@@ -518,24 +521,39 @@ static void tcp_retrans_try_collapse(struct sock *sk, struct sk_buff *skb, int m
 void tcp_simple_retransmit(struct sock *sk)
 {
 	struct tcp_opt *tp = &(sk->tp_pinfo.af_tcp);
-	struct sk_buff *skb; 
-	unsigned int mss = tcp_current_mss(sk); 
+	struct sk_buff *skb, *old_next_skb;
+	unsigned int mss = tcp_current_mss(sk);
 
  	/* Don't muck with the congestion window here. */
  	tp->dup_acks = 0;
  	tp->high_seq = tp->snd_nxt;
- 	tp->retrans_head = NULL; 
+ 	tp->retrans_head = NULL;
 
  	/* Input control flow will see that this was retransmitted
 	 * and not use it for RTT calculation in the absence of
 	 * the timestamp option.
 	 */
-	for (skb = skb_peek(&sk->write_queue);
+	for (old_next_skb = skb = skb_peek(&sk->write_queue);
 	     ((skb != tp->send_head) &&
 	      (skb != (struct sk_buff *)&sk->write_queue));
-	     skb = skb->next) 
-		if (skb->len > mss)
-			tcp_retransmit_skb(sk, skb); 
+	     skb = skb->next) {
+		int resend_skb = 0;
+
+		/* Our goal is to push out the packets which we
+		 * sent already, but are being chopped up now to
+		 * account for the PMTU information we have.
+		 *
+		 * As we resend the queue, packets are fragmented
+		 * into two pieces, and when we try to send the
+		 * second piece it may be collapsed together with
+		 * a subsequent packet, and so on.  -DaveM
+		 */
+		if (old_next_skb != skb || skb->len > mss)
+			resend_skb = 1;
+		old_next_skb = skb->next;
+		if (resend_skb != 0)
+			tcp_retransmit_skb(sk, skb);
+	}
 }
 
 static __inline__ void update_retrans_head(struct sock *sk)
@@ -578,6 +596,18 @@ int tcp_retransmit_skb(struct sock *sk, struct sk_buff *skb)
 	if(tp->af_specific->rebuild_header(sk))
 		return 1; /* Routing failure or similar. */
 
+	/* Some Solaris stacks overoptimize and ignore the FIN on a
+	 * retransmit when old data is attached.  So strip it off
+	 * since it is cheap to do so and saves bytes on the network.
+	 */
+	if(skb->len > 0 &&
+	   (TCP_SKB_CB(skb)->flags & TCPCB_FLAG_FIN) &&
+	   tp->snd_una == (TCP_SKB_CB(skb)->end_seq - 1)) {
+		TCP_SKB_CB(skb)->seq = TCP_SKB_CB(skb)->end_seq - 1;
+		skb_trim(skb, 0);
+		skb->csum = 0;
+	}
+
 	/* Ok, we're gonna send it out, update state. */
 	TCP_SKB_CB(skb)->sacked |= TCPCB_SACKED_RETRANS;
 	tp->retrans_out++;
@@ -585,11 +615,12 @@ int tcp_retransmit_skb(struct sock *sk, struct sk_buff *skb)
 	/* Make a copy, if the first transmission SKB clone we made
 	 * is still in somebody's hands, else make a clone.
 	 */
-	TCP_SKB_CB(skb)->when = jiffies;
+	TCP_SKB_CB(skb)->when = tcp_time_stamp;
 	if(skb_cloned(skb))
 		skb = skb_copy(skb, GFP_ATOMIC);
 	else
 		skb = skb_clone(skb, GFP_ATOMIC);
+
 	tcp_transmit_skb(sk, skb);
 
 	/* Update global TCP statistics and return success. */
@@ -707,7 +738,7 @@ void tcp_send_fin(struct sock *sk)
 		   tp->packets_out &&
 		   !(TCP_SKB_CB(skb)->flags & TCPCB_FLAG_URG)) {
 			update_send_head(sk);
-			TCP_SKB_CB(skb)->when = jiffies;
+			TCP_SKB_CB(skb)->when = tcp_time_stamp;
 			tp->snd_nxt = TCP_SKB_CB(skb)->end_seq;
 			tp->packets_out++;
 			tcp_transmit_skb(sk, skb_clone(skb, GFP_ATOMIC));
@@ -762,7 +793,7 @@ void tcp_send_active_reset(struct sock *sk)
 	/* Send it off. */
 	TCP_SKB_CB(skb)->seq = tp->write_seq;
 	TCP_SKB_CB(skb)->end_seq = TCP_SKB_CB(skb)->seq;
-	TCP_SKB_CB(skb)->when = jiffies;
+	TCP_SKB_CB(skb)->when = tcp_time_stamp;
 	tcp_transmit_skb(sk, skb);
 }
 
@@ -792,7 +823,7 @@ int tcp_send_synack(struct sock *sk)
 	TCP_SKB_CB(skb)->seq = tp->snd_una;
 	TCP_SKB_CB(skb)->end_seq = TCP_SKB_CB(skb)->seq + 1;
 	__skb_queue_tail(&sk->write_queue, skb);
-	TCP_SKB_CB(skb)->when = jiffies;
+	TCP_SKB_CB(skb)->when = tcp_time_stamp;
 	tp->packets_out++;
 	tcp_transmit_skb(sk, skb_clone(skb, GFP_ATOMIC));
 	return 0;
@@ -859,10 +890,11 @@ struct sk_buff * tcp_make_synack(struct sock *sk, struct dst_entry *dst,
 	/* RFC1323: The window in SYN & SYN/ACK segments is never scaled. */
 	th->window = htons(req->rcv_wnd);
 
-	TCP_SKB_CB(skb)->when = jiffies;
+	TCP_SKB_CB(skb)->when = tcp_time_stamp;
 	tcp_syn_build_options((__u32 *)(th + 1), req->mss, req->tstamp_ok,
 			      req->sack_ok, req->wscale_ok, req->rcv_wscale,
-			      TCP_SKB_CB(skb)->when);
+			      TCP_SKB_CB(skb)->when,
+			      req->ts_recent);
 
 	skb->csum = 0;
 	th->doff = (tcp_header_size >> 2);
@@ -946,7 +978,7 @@ void tcp_connect(struct sock *sk, struct sk_buff *buff, int mtu)
 
 	/* Send it off. */
 	__skb_queue_tail(&sk->write_queue, buff);
-	TCP_SKB_CB(buff)->when = jiffies;
+	TCP_SKB_CB(buff)->when = tcp_time_stamp;
 	tp->packets_out++;
 	tcp_transmit_skb(sk, skb_clone(buff, GFP_KERNEL));
 	tcp_statistics.TcpActiveOpens++;
@@ -977,7 +1009,7 @@ void tcp_send_delayed_ack(struct tcp_opt *tp, int max_timeout)
 		tp->delack_timer.expires = timeout;
 		add_timer(&tp->delack_timer);
         } else {
-		if (timeout < tp->delack_timer.expires)
+		if (time_before(timeout, tp->delack_timer.expires))
 			mod_timer(&tp->delack_timer, timeout);
 	}
 }
@@ -1020,7 +1052,7 @@ void tcp_send_ack(struct sock *sk)
 
 		/* Send it off, this clears delayed acks for us. */
 		TCP_SKB_CB(buff)->seq = TCP_SKB_CB(buff)->end_seq = tp->snd_nxt;
-		TCP_SKB_CB(buff)->when = jiffies;
+		TCP_SKB_CB(buff)->when = tcp_time_stamp;
 		tcp_transmit_skb(sk, buff);
 	}
 }
@@ -1058,7 +1090,7 @@ void tcp_write_wakeup(struct sock *sk)
 					return; /* Let a retransmit get it. */
 			}
 			update_send_head(sk);
-			TCP_SKB_CB(skb)->when = jiffies;
+			TCP_SKB_CB(skb)->when = tcp_time_stamp;
 			tp->snd_nxt = TCP_SKB_CB(skb)->end_seq;
 			tp->packets_out++;
 			tcp_transmit_skb(sk, skb_clone(skb, GFP_ATOMIC));
@@ -1084,7 +1116,7 @@ void tcp_write_wakeup(struct sock *sk)
 			 */
 			TCP_SKB_CB(skb)->seq = tp->snd_nxt - 1;
 			TCP_SKB_CB(skb)->end_seq = TCP_SKB_CB(skb)->seq;
-			TCP_SKB_CB(skb)->when = jiffies;
+			TCP_SKB_CB(skb)->when = tcp_time_stamp;
 			tcp_transmit_skb(sk, skb);
 		}
 	}

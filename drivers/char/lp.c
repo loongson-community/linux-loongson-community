@@ -202,9 +202,7 @@ struct lp_struct lp_table[LP_NO] =
 /* Test if the printer is not acking the strobe */
 #define	LP_NO_ACKING(status)	((status) & LP_PACK)
 /* Test if the printer has error conditions */
-#define LP_NO_ERROR(status)					\
-	 (((status) & (LP_POUTPA|LP_PSELECD|LP_PERRORP)) ==	\
-	 (LP_PSELECD|LP_PERRORP))
+#define LP_NO_ERROR(status)	((status) & LP_PERRORP)
 
 #undef LP_DEBUG
 #undef LP_READ_DEBUG
@@ -424,7 +422,10 @@ static int lp_check_status(int minor)
 {
 	unsigned int last = lp_table[minor].last_error;
 	unsigned char status = r_str(minor);
-	if ((status & LP_POUTPA)) {
+	if (status & LP_PERRORP)
+		/* No error. */
+		last = 0;
+	else if ((status & LP_POUTPA)) {
 		if (last != LP_POUTPA) {
 			last = LP_POUTPA;
 			printk(KERN_INFO "lp%d out of paper\n", minor);
@@ -434,13 +435,12 @@ static int lp_check_status(int minor)
 			last = LP_PSELECD;
 			printk(KERN_INFO "lp%d off-line\n", minor);
 		}
-	} else if (!(status & LP_PERRORP)) {
+	} else {
 		if (last != LP_PERRORP) {
 			last = LP_PERRORP;
-			printk(KERN_ERR "lp%d on fire!\n", minor);
+			printk(KERN_INFO "lp%d on fire\n", minor);
 		}
 	}
-	else last = 0;
 
 	lp_table[minor].last_error = last;
 
@@ -664,17 +664,15 @@ static ssize_t lp_read(struct file * file, char * buf,
 		}
 		if ((i & 1) != 0) {
 			Byte |= (z<<4);
-			if (temp) {
-				if (__put_user (Byte, temp))
-				{
-					count = -EFAULT;
-					temp = NULL;
-				} else {
-					temp++;
+			if (__put_user (Byte, temp))
+			{
+				count = -EFAULT;
+				break;
+			} else {
+				temp++;
 
-					if (++count == length)
-						temp = NULL;
-				}
+				if (++count == length)
+					break;
 			}
 			/* Does the error line indicate end of data? */
 			if ((parport_read_status(port) & LP_PERRORP) == 
@@ -952,16 +950,12 @@ int lp_init(void)
 
 	default:
 		for (i = 0; i < LP_NO; i++) {
-			if (parport_nr[i] >= 0) {
-				char buffer[16];
-				sprintf(buffer, "parport%d", parport_nr[i]);
-				for (port = parport_enumerate(); port; 
-				     port = port->next) {
-					if (!strcmp(port->name, buffer)) {
-						(void) lp_register(i, port);
+			for (port = parport_enumerate(); port; 
+			     port = port->next) {
+				if (port->number == parport_nr[i]) {
+					if (!lp_register(i, port))
 						count++;
-						break;
-					}
+					break;
 				}
 			}
 		}

@@ -7,6 +7,27 @@
  * (see that file for its authors and contributors).
  *
  * Copyright (C) 1996 Paul Mackerras.
+ *
+ * Adapted to ADB changes and support for more devices by
+ * Benjamin Herrenschmidt. Adapted from code in MkLinux
+ * and reworked.
+ *
+ * Supported devices:
+ *
+ * - Standard 1 button mouse
+ * - All standard Apple Extended protocol (handler ID 4)
+ *   mice & trackballs
+ * - PowerBook Trackpad (default setup: enable tapping)
+ * - MicroSpeed mouse & trackball (needs testing)
+ * - CH Products Trackball Pro (needs testing)
+ * - Contour Design (Contour Mouse)
+ * - Hunter digital (NoHandsMouse)
+ * - Kensignton TurboMouse 5 (needs testing)
+ *
+ * To do:
+ *
+ * Improve Kensignton support, add MacX support as a dynamic
+ * option (not a compile-time option).
  */
 
 #include <linux/sched.h>
@@ -22,6 +43,7 @@
 #include <asm/bitops.h>
 #include <asm/adb.h>
 #include <asm/cuda.h>
+#include <asm/pmu.h>
 #include <asm/init.h>
 
 #include <linux/kbd_kern.h>
@@ -30,6 +52,41 @@
 #define KEYB_KEYREG	0	/* register # for key up/down data */
 #define KEYB_LEDREG	2	/* register # for leds on ADB keyboard */
 #define MOUSE_DATAREG	0	/* reg# for movement/button codes from mouse */
+
+static int adb_message_handler(struct notifier_block *, unsigned long, void *);
+static struct notifier_block mackeyb_adb_notifier = {
+	adb_message_handler,
+	NULL,
+	0
+};
+
+/* this map indicates which keys shouldn't autorepeat. */
+static unsigned char dont_repeat[128] = {
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0,	/* esc...option */
+	0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, /* fn, num lock */
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, /* scroll lock */
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+};
+
+/* Simple translation table for the SysRq keys */
+
+#ifdef CONFIG_MAGIC_SYSRQ
+unsigned char mackbd_sysrq_xlate[128] =
+	"asdfhgzxcv\000bqwer"				/* 0x00 - 0x0f */
+	"yt123465=97-80o]"				/* 0x10 - 0x1f */
+	"u[ip\rlj'k;\\,/nm."				/* 0x20 - 0x2f */
+	"\t `\177\000\033\000\000\000\000\000\000\000\000\000\000"
+							/* 0x30 - 0x3f */
+	"\000\000\000*\000+\000\000\000\000\000/\r\000-\000"
+							/* 0x40 - 0x4f */
+	"\000\0000123456789\000\000\000"		/* 0x50 - 0x5f */
+	"\205\206\207\203\210\211\000\213\000\215\000\000\000\000\000\212\000\214";
+							/* 0x60 - 0x6f */
+#endif
 
 static u_short macplain_map[NR_KEYS] __initdata = {
 	0xfb61,	0xfb73,	0xfb64,	0xfb66,	0xfb68,	0xfb67,	0xfb7a,	0xfb78,
@@ -169,10 +226,19 @@ static void kbd_repeat(unsigned long);
 static struct timer_list repeat_timer = { NULL, NULL, 0, 0, kbd_repeat };
 static int last_keycode;
 
+static void mackeyb_probe(void);
+
 static void keyboard_input(unsigned char *, int, struct pt_regs *, int);
 static void input_keycode(int, int);
 static void leds_done(struct adb_request *);
 static void mac_put_queue(int);
+
+static void buttons_input(unsigned char *, int, struct pt_regs *, int);
+
+static void init_trackpad(int id);
+static void init_trackball(int id);
+static void init_turbomouse(int id);
+static void init_microspeed(int id);
 
 #ifdef CONFIG_ADBMOUSE
 /* XXX: Hook for mouse driver */
@@ -187,22 +253,23 @@ extern int console_loglevel;
 extern struct kbd_struct kbd_table[];
 extern struct wait_queue * keypress_wait;
 
-extern void handle_scancode(unsigned char);
+extern void handle_scancode(unsigned char, int);
 
 static struct adb_ids keyboard_ids;
 static struct adb_ids mouse_ids;
+static struct adb_ids buttons_ids;
 
-/* this map indicates which keys shouldn't autorepeat. */
-static unsigned char dont_repeat[128] = {
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0,	/* esc...option */
-	0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, /* num lock */
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, /* scroll lock */
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-};
+/* Kind of mouse  */
+#define ADBMOUSE_STANDARD_100	0	/* Standard 100cpi mouse (handler 1) */
+#define ADBMOUSE_STANDARD_200	1	/* Standard 200cpi mouse (handler 2) */
+#define ADBMOUSE_EXTENDED	2	/* Apple Extended mouse (handler 4) */
+#define ADBMOUSE_TRACKBALL	3	/* TrackBall (handler 4) */
+#define ADBMOUSE_TRACKPAD       4	/* Apple's PowerBook trackpad (handler 4) */
+#define ADBMOUSE_TURBOMOUSE5    5	/* Turbomouse 5 (previously req. mousehack) */
+#define ADBMOUSE_MICROSPEED	6	/* Microspeed mouse (&trackball ?), MacPoint */
+#define ADBMOUSE_TRACKBALLPRO	7	/* Trackball Pro (special buttons) */
+
+static int adb_mouse_kinds[16];
 
 __openfirmware
 
@@ -214,11 +281,6 @@ int mackbd_setkeycode(unsigned int scancode, unsigned int keycode)
 int mackbd_getkeycode(unsigned int scancode)
 {
 	return -EINVAL;
-}
-
-int mackbd_pretranslate(unsigned char scancode, char raw_mode)
-{
-	return 1;
 }
 
 int mackbd_translate(unsigned char keycode, unsigned char *keycodep,
@@ -268,6 +330,10 @@ input_keycode(int keycode, int repeat)
 	/* on the powerbook 3400, the power key gives code 0x7e */
 	if (keycode == 0x7e)
 		keycode = 0x7f;
+	/* remap the "Fn" key of the PowerBook G3 Series to 0x48
+	   to avoid conflict with button emulation */
+	if (keycode == 0x3f)
+		keycode = 0x48;
 
 	if (!repeat)
 		del_timer(&repeat_timer);
@@ -320,8 +386,8 @@ input_keycode(int keycode, int repeat)
 		 switch (keycode) {
 		 /*case 0xb9:*/
 		 case 0x39:
-			handle_scancode(0x39);
-			handle_scancode(0xb9);
+			handle_scancode(0x39, 1);
+			handle_scancode(0x39, 0);
 		 	mark_bh(KEYBOARD_BH);
 		 	return;
 		 case 0x47:
@@ -331,7 +397,7 @@ input_keycode(int keycode, int repeat)
 		 }
 	}
 
-	handle_scancode(keycode + up_flag);
+	handle_scancode(keycode, !up_flag);
 }
 
 static void
@@ -423,6 +489,31 @@ mouse_input(unsigned char *data, int nb, struct pt_regs *regs, int autopoll)
   */
 	struct kbd_struct *kbd;
 
+	/* If it's a trackpad, we alias the second button to the first.
+	   NOTE: Apple sends an ADB flush command to the trackpad when
+	         the first (the real) button is released. We could do
+		 this here using async flush requests.
+	*/
+	switch (adb_mouse_kinds[(data[0]>>4) & 0xf])
+	{
+	    case ADBMOUSE_TRACKPAD:
+		data[1] = (data[1] & 0x7f) | ((data[1] & data[2]) & 0x80);
+		data[2] = data[2] | 0x80;
+		break;
+	    case ADBMOUSE_MICROSPEED:
+		data[1] = (data[1] & 0x7f) | ((data[3] & 0x01) << 7);
+		data[2] = (data[2] & 0x7f) | ((data[3] & 0x02) << 6);
+		data[3] = (data[3] & 0x77) | ((data[3] & 0x04) << 5)
+			| (data[3] & 0x08);
+		break;
+	    case ADBMOUSE_TRACKBALLPRO:
+		data[1] = (data[1] & 0x7f) | (((data[3] & 0x04) << 5)
+			& ((data[3] & 0x08) << 4));
+		data[2] = (data[2] & 0x7f) | ((data[3] & 0x01) << 7);
+		data[3] = (data[3] & 0x77) | ((data[3] & 0x02) << 6);
+		break;
+	}
+
 	if (adb_mouse_interrupt_hook)
 		adb_mouse_interrupt_hook(data, nb);
 
@@ -450,7 +541,7 @@ mouse_input(unsigned char *data, int nb, struct pt_regs *regs, int autopoll)
 		}
 
 		/* Macintosh 3-button mouse (handler 4). */
-		if (nb == 4) {
+		if (nb >= 4) {
 			static unsigned char uch_ButtonStateThird = 0x80;
 			unsigned char uchButtonThird;
 
@@ -466,6 +557,64 @@ mouse_input(unsigned char *data, int nb, struct pt_regs *regs, int autopoll)
 	}
 }
 #endif /* CONFIG_ADBMOUSE */
+
+/* XXX Needs to get rid of this, see comments in pmu.c */
+extern int backlight_level;
+
+static void
+buttons_input(unsigned char *data, int nb, struct pt_regs *regs, int autopoll)
+{
+	/*
+	 * XXX: Where is the contrast control for the passive?
+	 *  -- Cort
+	 */
+	 
+	/* Ignore data from register other than 0 */
+	if ((adb_hardware != ADB_VIAPMU) || (data[0] & 0x3) || (nb < 2))
+		return;
+		
+	switch (data[1]&0xf )
+	{
+		/* mute */
+		case 0x8:
+			/* down event */
+			if ( data[1] == (data[1]&0xf) ) {
+			}
+			break;
+		/* contrast decrease */
+		case 0x7:
+			/* down event */
+			if ( data[1] == (data[1]&0xf) ) {
+			}
+			break;
+		/* contrast increase */
+		case 0x6:
+			/* down event */
+			if ( data[1] == (data[1]&0xf) ) {
+			}
+			break;
+		/* brightness decrease */
+		case 0xa:
+			/* down event */
+			if ( data[1] == (data[1]&0xf) ) {
+				if (backlight_level > 2)
+					pmu_set_brightness(backlight_level-2);
+				else
+					pmu_set_brightness(0);
+			}
+			break;
+		/* brightness increase */
+		case 0x9:
+			/* down event */
+			if ( data[1] == (data[1]&0xf) ) {
+				if (backlight_level < 0x1e)
+					pmu_set_brightness(backlight_level+2);
+				else 
+					pmu_set_brightness(0x1f);
+			}
+			break;
+	}
+}
 
 /* Map led flags as defined in kbd_kern.h to bits for Apple keyboard. */
 static unsigned char mac_ledmap[8] = {
@@ -527,9 +676,6 @@ static void leds_done(struct adb_request *req)
 
 __initfunc(void mackbd_init_hw(void))
 {
-	struct adb_request req;
-	int i;
-
 	if ( (_machine != _MACH_chrp) && (_machine != _MACH_Pmac) )
 	    return;
 
@@ -545,66 +691,290 @@ __initfunc(void mackbd_init_hw(void))
 #ifdef CONFIG_ADBMOUSE
 	/* initialize mouse interrupt hook */
 	adb_mouse_interrupt_hook = NULL;
-
-	adb_register(ADB_MOUSE, 1, &mouse_ids, mouse_input);
-#endif /* CONFIG_ADBMOUSE */
-
-	adb_register(ADB_KEYBOARD, 5, &keyboard_ids, keyboard_input);
-
-	for(i = 0; i < keyboard_ids.nids; i++) {
-	    /* turn off all leds */
-	    adb_request(&req, NULL, ADBREQ_SYNC, 3,
-	    ADB_WRITEREG(keyboard_ids.id[i], KEYB_LEDREG), 0xff, 0xff);
-	}
-
-	/* get the keyboard to send separate codes for
-	   left and right shift, control, option keys. */
-	for(i = 0;i < keyboard_ids.nids; i++) {
-	    /* get the keyboard to send separate codes for
-	    left and right shift, control, option keys. */
-	    adb_request(&req, NULL, ADBREQ_SYNC, 3,
-	    ADB_WRITEREG(keyboard_ids.id[i], 3), 0, 3);
-	}
+#endif
 
 	led_request.complete = 1;
 
-	/* Try to switch the mouse (id 3) to handler 4, for three-button
-	   mode. (0x20 is Service Request Enable, 0x03 is Device ID). */
-	for(i = 0; i < mouse_ids.nids; i++) {
-	    adb_request(&req, NULL, ADBREQ_SYNC | ADBREQ_REPLY, 1,
-			ADB_READREG(mouse_ids.id[i], 1));
-
-	    if ((req.reply_len) &&
-		(req.reply[1] == 0x9a) && (req.reply[2] == 0x21)) {
-
-		printk("aha, trackball found at %d\n", mouse_ids.id[i]);
-
-		adb_request(&req, NULL, ADBREQ_SYNC, 3,
-		ADB_WRITEREG(mouse_ids.id[i], 3), 0x63, 4 );
-
-		adb_request(&req, NULL, ADBREQ_SYNC, 3,
-		ADB_WRITEREG(mouse_ids.id[i],1), 00,0x81);
-
-		adb_request(&req, NULL, ADBREQ_SYNC, 3,
-		ADB_WRITEREG(mouse_ids.id[i],1), 01,0x81);
-
-		adb_request(&req, NULL, ADBREQ_SYNC, 3,
-		ADB_WRITEREG(mouse_ids.id[i],1), 02,0x81);
-
-		adb_request(&req, NULL, ADBREQ_SYNC, 3,
-		ADB_WRITEREG(mouse_ids.id[i],1), 03,0x38);
-
-		adb_request(&req, NULL, ADBREQ_SYNC, 3,
-		ADB_WRITEREG(mouse_ids.id[i],1), 00,0x81);
-
-		adb_request(&req, NULL, ADBREQ_SYNC, 3,
-		ADB_WRITEREG(mouse_ids.id[i],1), 01,0x81);
-
-		adb_request(&req, NULL, ADBREQ_SYNC, 3,
-		ADB_WRITEREG(mouse_ids.id[i],1), 02,0x81);
-
-		adb_request(&req, NULL, ADBREQ_SYNC, 3,
-		ADB_WRITEREG(mouse_ids.id[i],1), 03,0x38);
-	    }
-	}
+	mackeyb_probe();
+	
+	notifier_chain_register(&adb_client_list, &mackeyb_adb_notifier);
 }
+
+static int
+adb_message_handler(struct notifier_block *this, unsigned long code, void *x)
+{
+	switch (code) {
+	case ADB_MSG_PRE_RESET:
+	case ADB_MSG_POWERDOWN:
+		/* Add unregister_keyboard when merging with Paul Mackerras */
+		while(!led_request.complete)
+			adb_poll();
+		break;
+			
+	case ADB_MSG_POST_RESET:
+		mackeyb_probe();
+		break;
+	}
+	return NOTIFY_DONE;
+}
+
+static void
+mackeyb_probe(void)
+{
+	struct adb_request req;
+	int i;
+
+#ifdef CONFIG_ADBMOUSE
+	adb_register(ADB_MOUSE, 0, &mouse_ids, mouse_input);
+#endif /* CONFIG_ADBMOUSE */
+
+	adb_register(ADB_KEYBOARD, 0, &keyboard_ids, keyboard_input);
+	adb_register(0x07, 0x1F, &buttons_ids, buttons_input);
+
+	for (i = 0; i < keyboard_ids.nids; i++) {
+		int id = keyboard_ids.id[i];
+
+		/* turn off all leds */
+		adb_request(&req, NULL, ADBREQ_SYNC, 3,
+			    ADB_WRITEREG(id, KEYB_LEDREG), 0xff, 0xff);
+
+		/* Enable full feature set of the keyboard
+		   ->get it to send separate codes for left and right shift,
+		   control, option keys */
+		if (adb_try_handler_change(id, 5))
+			printk("ADB keyboard at %d, handler set to 5\n", id);
+		else if (adb_try_handler_change(id, 3))
+			printk("ADB keyboard at %d, handler set to 3\n", id);
+		else
+			printk("ADB keyboard at %d, handler 1\n", id);
+	}
+
+	/* Try to switch all mice to handler 4, or 2 for three-button
+	   mode and full resolution. */
+	for (i = 0; i < mouse_ids.nids; i++) {
+		int id = mouse_ids.id[i];
+		if (adb_try_handler_change(id, 4)) {
+			printk("ADB mouse at %d, handler set to 4", id);
+			adb_mouse_kinds[id] = ADBMOUSE_EXTENDED;
+		}
+		else if (adb_try_handler_change(id, 2)) {
+			printk("ADB mouse at %d, handler set to 2", id);
+			adb_mouse_kinds[id] = ADBMOUSE_STANDARD_200;
+		}
+		else if (adb_try_handler_change(id, 0x2F)) {
+			printk("ADB mouse at %d, handler set to 0x2F", id);
+			adb_mouse_kinds[id] = ADBMOUSE_MICROSPEED;
+		}
+		else if (adb_try_handler_change(id, 0x42)) {
+			printk("ADB mouse at %d, handler set to 0x42", id);
+			adb_mouse_kinds[id] = ADBMOUSE_TRACKBALLPRO;
+		}
+		else if (adb_try_handler_change(id, 0x66)) {
+			printk("ADB mouse at %d, handler set to 0x66", id);
+			adb_mouse_kinds[id] = ADBMOUSE_MICROSPEED;
+		}
+		else if (adb_try_handler_change(id, 0x5F)) {
+			printk("ADB mouse at %d, handler set to 0x5F", id);
+			adb_mouse_kinds[id] = ADBMOUSE_MICROSPEED;
+		}
+		else {
+			printk("ADB mouse at %d, handler 1", id);
+			adb_mouse_kinds[id] = ADBMOUSE_STANDARD_100;
+		}
+
+		if ((adb_mouse_kinds[id] == ADBMOUSE_TRACKBALLPRO)
+		    || (adb_mouse_kinds[id] == ADBMOUSE_MICROSPEED)) {
+			init_microspeed(id);
+		}  else if (adb_mouse_kinds[id] ==  ADBMOUSE_EXTENDED) {
+			/*
+			 * Register 1 is usually used for device
+			 * identification.  Here, we try to identify
+			 * a known device and call the appropriate
+			 * init function.
+			 */
+			adb_request(&req, NULL, ADBREQ_SYNC | ADBREQ_REPLY, 1,
+				    ADB_READREG(id, 1));
+
+			if ((req.reply_len) &&
+			    (req.reply[1] == 0x9a) && (req.reply[2] == 0x21))
+				init_trackball(id);
+			else if ((req.reply_len >= 4) &&
+			    (req.reply[1] == 0x74) && (req.reply[2] == 0x70) &&
+			    (req.reply[3] == 0x61) && (req.reply[4] == 0x64))
+				init_trackpad(id);
+			else if ((req.reply_len >= 4) &&
+			    (req.reply[1] == 0x4b) && (req.reply[2] == 0x4d) &&
+			    (req.reply[3] == 0x4c) && (req.reply[4] == 0x31))
+				init_turbomouse(id);
+		}
+		printk("\n");
+        }
+}
+
+static void 
+init_trackpad(int id)
+{
+	struct adb_request req;	
+	unsigned char r1_buffer[8];
+
+	printk(" (trackpad)");
+
+	adb_mouse_kinds[id] = ADBMOUSE_TRACKPAD;
+
+	adb_request(&req, NULL, ADBREQ_SYNC | ADBREQ_REPLY, 1,
+	ADB_READREG(id,1));
+	if (req.reply_len < 8)
+	    printk("bad length for reg. 1\n");
+	else
+	{
+	    memcpy(r1_buffer, &req.reply[1], 8);
+	    adb_request(&req, NULL, ADBREQ_SYNC, 9,
+	        ADB_WRITEREG(id,1),
+	            r1_buffer[0],
+	            r1_buffer[1],
+	            r1_buffer[2],
+	            r1_buffer[3],
+	            r1_buffer[4],
+	            r1_buffer[5],
+	            0x0d, /*r1_buffer[6],*/
+	            r1_buffer[7]);
+
+            adb_request(&req, NULL, ADBREQ_SYNC, 9,
+	        ADB_WRITEREG(id,2),
+	    	    0x99,
+	    	    0x94,
+	    	    0x19,
+	    	    0xff,
+	    	    0xb2,
+	    	    0x8a,
+	    	    0x1b,
+	    	    0x50);
+	    
+	    adb_request(&req, NULL, ADBREQ_SYNC, 9,
+	        ADB_WRITEREG(id,1),
+	            r1_buffer[0],
+	            r1_buffer[1],
+	            r1_buffer[2],
+	            r1_buffer[3],
+	            r1_buffer[4],
+	            r1_buffer[5],
+	            0x03, /*r1_buffer[6],*/
+	            r1_buffer[7]);
+        }
+}
+
+static void 
+init_trackball(int id)
+{
+	struct adb_request req;
+	
+	printk(" (trackball)");
+	
+	adb_mouse_kinds[id] = ADBMOUSE_TRACKBALL;
+
+	adb_request(&req, NULL, ADBREQ_SYNC, 3,
+	ADB_WRITEREG(id,1), 00,0x81);
+
+	adb_request(&req, NULL, ADBREQ_SYNC, 3,
+	ADB_WRITEREG(id,1), 01,0x81);
+
+	adb_request(&req, NULL, ADBREQ_SYNC, 3,
+	ADB_WRITEREG(id,1), 02,0x81);
+
+	adb_request(&req, NULL, ADBREQ_SYNC, 3,
+	ADB_WRITEREG(id,1), 03,0x38);
+
+	adb_request(&req, NULL, ADBREQ_SYNC, 3,
+	ADB_WRITEREG(id,1), 00,0x81);
+
+	adb_request(&req, NULL, ADBREQ_SYNC, 3,
+	ADB_WRITEREG(id,1), 01,0x81);
+
+	adb_request(&req, NULL, ADBREQ_SYNC, 3,
+	ADB_WRITEREG(id,1), 02,0x81);
+
+	adb_request(&req, NULL, ADBREQ_SYNC, 3,
+	ADB_WRITEREG(id,1), 03,0x38);
+}
+
+static void
+init_turbomouse(int id)
+{
+	struct adb_request req;
+
+        printk(" (TurboMouse 5)");
+
+	adb_mouse_kinds[id] = ADBMOUSE_TURBOMOUSE5;
+	
+	adb_request(&req, NULL, ADBREQ_SYNC, 1, ADB_FLUSH(id));
+
+	adb_request(&req, NULL, ADBREQ_SYNC, 3,
+		ADB_WRITEREG(id,3), 0x20 | id, 4);
+
+	adb_request(&req, NULL, ADBREQ_SYNC, 1, ADB_FLUSH(id));
+
+	adb_request(&req, NULL, ADBREQ_SYNC, 9,
+	ADB_WRITEREG(id,2),
+	    0xe7,
+	    0x8c,
+	    0,
+	    0,
+	    0,
+	    0xff,
+	    0xff,
+	    0x94);
+
+	adb_request(&req, NULL, ADBREQ_SYNC, 1, ADB_FLUSH(id));
+
+	adb_request(&req, NULL, ADBREQ_SYNC, 9,
+	ADB_WRITEREG(id,2),
+	    0xa5,
+	    0x14,
+	    0,
+	    0,
+	    0x69,
+	    0xff,
+	    0xff,
+	    0x27);
+}
+
+static void
+init_microspeed(int id)
+{
+	struct adb_request req;
+
+        printk(" (Microspeed/MacPoint or compatible)");
+
+	adb_request(&req, NULL, ADBREQ_SYNC, 1, ADB_FLUSH(id));
+
+	/* This will initialize mice using the Microspeed, MacPoint and
+	   other compatible firmware. Bit 12 enables extended protocol.
+	   
+	   Register 1 Listen (4 Bytes)
+            0 -  3     Button is mouse (set also for double clicking!!!)
+            4 -  7     Button is locking (affects change speed also)
+            8 - 11     Button changes speed
+           12          1 = Extended mouse mode, 0 = normal mouse mode
+           13 - 15     unused 0
+           16 - 23     normal speed
+           24 - 31     changed speed
+
+       Register 1 talk holds version and product identification information.
+       Register 1 Talk (4 Bytes):
+            0 -  7     Product code
+            8 - 23     undefined, reserved
+           24 - 31     Version number
+        
+       Speed 0 is max. 1 to 255 set speed in increments of 1/256 of max.
+ */
+	adb_request(&req, NULL, ADBREQ_SYNC, 5,
+	ADB_WRITEREG(id,1),
+	    0x20,	/* alt speed = 0x20 (rather slow) */
+	    0x00,	/* norm speed = 0x00 (fastest) */
+	    0x10,	/* extended protocol, no speed change */
+	    0x07);	/* all buttons enabled as mouse buttons, no locking */
+
+
+	adb_request(&req, NULL, ADBREQ_SYNC, 1, ADB_FLUSH(id));
+}
+

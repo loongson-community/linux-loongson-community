@@ -881,6 +881,7 @@ static void imm_interrupt(void *data)
 {
     imm_struct *tmp = (imm_struct *) data;
     Scsi_Cmnd *cmd = tmp->cur_cmd;
+    unsigned long flags;
 
     if (!cmd) {
 	printk("IMM: bug in imm_interrupt\n");
@@ -931,8 +932,10 @@ static void imm_interrupt(void *data)
     if (cmd->SCp.phase > 0)
 	imm_pb_release(cmd->host->unique_id);
 
+    spin_lock_irqsave(&io_request_lock, flags);
     tmp->cur_cmd = 0;
     cmd->scsi_done(cmd);
+    spin_unlock_irqrestore(&io_request_lock, flags);
     return;
 }
 
@@ -1204,19 +1207,16 @@ static int device_check(int host_no)
 	    status = imm_out(host_no, &cmd[l << 1], 2);
 
 	if (!status) {
-	    imm_disconnect(host_no);
-	    imm_connect(host_no, CONNECT_EPP_MAYBE);
-	    w_dtr(ppb, 0x40);
-	    w_ctr(ppb, 0x08);
-	    udelay(30);
-	    w_ctr(ppb, 0x0c);
-	    udelay(1000);
-	    imm_disconnect(host_no);
-	    udelay(1000);
-	    if (imm_hosts[host_no].mode == IMM_EPP_32) {
-		imm_hosts[host_no].mode = old_mode;
-		goto second_pass;
-	    }
+            imm_disconnect(host_no);
+            imm_connect(host_no, CONNECT_EPP_MAYBE);
+            imm_reset_pulse(IMM_BASE(host_no));
+            udelay(1000);
+            imm_disconnect(host_no);
+            udelay(1000);
+            if (imm_hosts[host_no].mode == IMM_EPP_32) {
+                imm_hosts[host_no].mode = old_mode;
+                goto second_pass;
+            }
 	    printk("imm: Unable to establish communication, aborting driver load.\n");
 	    return 1;
 	}

@@ -1,10 +1,10 @@
-/* $Id: r4k_switch.S,v 1.5 1999/05/01 10:08:18 harald Exp $
+/* $Id: r4k_switch.S,v 1.6 1999/05/01 22:40:37 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1994, 1995, 1996, 1998 by Ralf Baechle
+ * Copyright (C) 1994, 1995, 1996, 1998, 1999 by Ralf Baechle
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  * Copyright (C) 1994, 1995, 1996, by Andreas Busse
  */
@@ -24,20 +24,24 @@
 
 #include <asm/asmmacro.h>
 
+/*
+ * task_struct *r4xx0_resume(task_struct *prev,
+ *                           task_struct *next)
+ */
 	.set	noreorder
 	.set	mips3
 	.align	5
 	LEAF(r4xx0_resume)
 	mfc0	t1, CP0_STATUS
-	sw	t1, THREAD_STATUS($28)
-	CPU_SAVE_NONSCRATCH($28)
-	sw	ra, THREAD_REG31($28)
+	sw	t1, THREAD_STATUS(a0)
+	CPU_SAVE_NONSCRATCH(a0)
+	sw	ra, THREAD_REG31(a0)
 
 	/*
 	 * The order of restoring the registers takes care of the race
 	 * updating $28, $29 and kernelsp without disabling ints.
 	 */
-	move	$28, a0
+	move	$28, a1
 	CPU_RESTORE_NONSCRATCH($28)
 	addiu	t0, $28, KERNEL_STACK_SIZE-32
 	sw	t0, kernelsp
@@ -52,8 +56,9 @@
 	lw	a3, MM_CONTEXT(a3)
 	mtc0	a2, CP0_STATUS
 	andi	a3, a3, 0xff
+	mtc0	a3, CP0_ENTRYHI
 	jr	ra
-	 mtc0	a3, CP0_ENTRYHI
+	 move	v0, a0
 	END(r4xx0_resume)
 
 /*

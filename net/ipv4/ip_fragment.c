@@ -5,7 +5,7 @@
  *
  *		The IP fragmentation functionality.
  *		
- * Version:	$Id: ip_fragment.c,v 1.39 1998/08/26 10:35:26 davem Exp $
+ * Version:	$Id: ip_fragment.c,v 1.40 1999/03/20 23:58:34 davem Exp $
  *
  * Authors:	Fred N. van Kempen <waltje@uWalt.NL.Mugnet.ORG>
  *		Alan Cox <Alan.Cox@linux.org>
@@ -17,6 +17,7 @@
  *		xxxx		:	Overlapfrag bug.
  *		Ultima          :       ip_expire() kernel panic.
  *		Bill Hawes	:	Frag accounting and evictor fixes.
+ *		John McDonald	:	0 length frag bug.
  */
 
 #include <linux/types.h>
@@ -357,7 +358,7 @@ static struct sk_buff *ip_glue(struct ipq *qp)
 	fp = qp->fragments;
 	count = qp->ihlen;
 	while(fp) {
-		if ((fp->len < 0) || ((count + fp->len) > skb->len))
+		if ((fp->len <= 0) || ((count + fp->len) > skb->len))
 			goto out_invalid;
 		memcpy((ptr + fp->offset), fp->ptr, fp->len);
 		if (count == qp->ihlen) {

@@ -72,6 +72,12 @@ extern int pcm20_init(struct video_init *);
 #ifdef CONFIG_RADIO_GEMTEK
 extern int gemtek_init(struct video_init *);
 #endif
+#ifdef CONFIG_RADIO_TYPHOON
+extern int typhoon_init(struct video_init *);
+#endif
+#ifdef CONFIG_RADIO_CADET
+extern int cadet_init(struct video_init *);
+#endif
 #ifdef CONFIG_VIDEO_PMS
 extern int init_pms_cards(struct video_init *);
 #endif
@@ -101,15 +107,21 @@ static struct video_init video_init_list[]={
 #endif	
 #ifdef CONFIG_RADIO_RTRACK
 	{"RTrack", rtrack_init}, 
-#endif	
+#endif 
 #ifdef CONFIG_RADIO_SF16FMI
 	{"SF16FMI", fmi_init}, 
 #endif	
 #ifdef CONFIG_RADIO_MIROPCM20
 	{"PCM20", pcm20_init}, 
 #endif
+#ifdef CONFIG_RADIO_CADET
+	{"Cadet", cadet_init},
+#endif
 #ifdef CONFIG_RADIO_GEMTEK
 	{"GemTek", gemtek_init},
+#endif
+#ifdef CONFIG_RADIO_TYPHOON
+	{"radio-typhoon", typhoon_init},
 #endif
 	{"end", NULL}
 };
@@ -423,6 +435,12 @@ void cleanup_module(void)
 {
 	unregister_chrdev(VIDEO_MAJOR, "video_capture");
 }
+
+
+
+
+
+
 
 #endif
 

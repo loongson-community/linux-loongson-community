@@ -16,7 +16,7 @@
 #include "autofs_i.h"
 
 static int autofs_root_readdir(struct file *,void *,filldir_t);
-static int autofs_root_lookup(struct inode *,struct dentry *);
+static struct dentry *autofs_root_lookup(struct inode *,struct dentry *);
 static int autofs_root_symlink(struct inode *,struct dentry *,const char *);
 static int autofs_root_unlink(struct inode *,struct dentry *);
 static int autofs_root_rmdir(struct inode *,struct dentry *);
@@ -168,7 +168,7 @@ static int try_to_fill_dentry(struct dentry *dentry, struct super_block *sb, str
  * yet completely filled in, and revalidate has to delay such
  * lookups..
  */
-static int autofs_revalidate(struct dentry * dentry)
+static int autofs_revalidate(struct dentry * dentry, int flags)
 {
 	struct inode * dir = dentry->d_parent->d_inode;
 	struct autofs_sb_info *sbi = autofs_sbi(dir->i_sb);
@@ -209,7 +209,7 @@ static struct dentry_operations autofs_dentry_operations = {
 	NULL,			/* d_compare */
 };
 
-static int autofs_root_lookup(struct inode *dir, struct dentry * dentry)
+static struct dentry *autofs_root_lookup(struct inode *dir, struct dentry *dentry)
 {
 	struct autofs_sb_info *sbi;
 	int oz_mode;
@@ -217,8 +217,8 @@ static int autofs_root_lookup(struct inode *dir, struct dentry * dentry)
 	DPRINTK(("autofs_root_lookup: name = "));
 	autofs_say(dentry->d_name.name,dentry->d_name.len);
 
-	if (!S_ISDIR(dir->i_mode))
-		return -ENOTDIR;
+	if (dentry->d_name.len > NAME_MAX)
+		return ERR_PTR(-ENOENT);/* File name too long to exist */
 
 	sbi = autofs_sbi(dir->i_sb);
 
@@ -241,7 +241,7 @@ static int autofs_root_lookup(struct inode *dir, struct dentry * dentry)
 	d_add(dentry, NULL);
 
 	up(&dir->i_sem);
-	autofs_revalidate(dentry);
+	autofs_revalidate(dentry, 0);
 	down(&dir->i_sem);
 
 	/*
@@ -250,7 +250,7 @@ static int autofs_root_lookup(struct inode *dir, struct dentry * dentry)
 	 */
 	if (dentry->d_flags & DCACHE_AUTOFS_PENDING) {
 		if (signal_pending(current))
-			return -ERESTARTNOINTR;
+			return ERR_PTR(-ERESTARTNOINTR);
 	}
 
 	/*
@@ -260,9 +260,9 @@ static int autofs_root_lookup(struct inode *dir, struct dentry * dentry)
 	 * be OK for the operations we permit from an autofs.
 	 */
 	if ( dentry->d_inode && list_empty(&dentry->d_hash) )
-		return -ENOENT;
+		return ERR_PTR(-ENOENT);
 
-	return 0;
+	return NULL;
 }
 
 static int autofs_root_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
@@ -278,7 +278,10 @@ static int autofs_root_symlink(struct inode *dir, struct dentry *dentry, const c
 	autofs_say(dentry->d_name.name,dentry->d_name.len);
 
 	if ( !autofs_oz_mode(sbi) )
-		return -EPERM;
+		return -EACCES;
+
+	if ( dentry->d_name.len > NAME_MAX )
+		return -ENAMETOOLONG;
 
 	if ( autofs_hash_lookup(dh, &dentry->d_name) )
 		return -EEXIST;
@@ -343,17 +346,20 @@ static int autofs_root_unlink(struct inode *dir, struct dentry *dentry)
 	struct autofs_dir_ent *ent;
 	unsigned int n;
 
-	if ( !autofs_oz_mode(sbi) )
-		return -EPERM;
+	/* This allows root to remove symlinks */
+	if ( !autofs_oz_mode(sbi) && !capable(CAP_SYS_ADMIN) )
+		return -EACCES;
 
 	ent = autofs_hash_lookup(dh, &dentry->d_name);
 	if ( !ent )
 		return -ENOENT;
 
 	n = ent->ino - AUTOFS_FIRST_SYMLINK;
-	if ( n >= AUTOFS_MAX_SYMLINKS || !test_bit(n,sbi->symlink_bitmap) )
-		return -EINVAL;	/* Not a symlink inode, can't unlink */
-       
+	if ( n >= AUTOFS_MAX_SYMLINKS )
+		return -EISDIR;	/* It's a directory, dummy */
+	if ( !test_bit(n,sbi->symlink_bitmap) )
+		return -EINVAL;	/* Nonexistent symlink?  Shouldn't happen */
+	
 	dentry->d_time = (unsigned long)(struct autofs_dirhash *)NULL;
 	autofs_hash_delete(ent);
 	clear_bit(n,sbi->symlink_bitmap);
@@ -370,7 +376,7 @@ static int autofs_root_rmdir(struct inode *dir, struct dentry *dentry)
 	struct autofs_dir_ent *ent;
 
 	if ( !autofs_oz_mode(sbi) )
-		return -EPERM;
+		return -EACCES;
 
 	ent = autofs_hash_lookup(dh, &dentry->d_name);
 	if ( !ent )
@@ -399,7 +405,10 @@ static int autofs_root_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 	ino_t ino;
 
 	if ( !autofs_oz_mode(sbi) )
-		return -EPERM;
+		return -EACCES;
+
+	if ( dentry->d_name.len > NAME_MAX )
+		return -ENAMETOOLONG;
 
 	ent = autofs_hash_lookup(dh, &dentry->d_name);
 	if ( ent )

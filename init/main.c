@@ -46,6 +46,10 @@
 #include <linux/apm_bios.h>
 #endif
 
+#ifdef CONFIG_MAC
+extern void nubus_init(void);
+#endif
+
 /*
  * Versions of gcc older than that listed below may actually compile
  * and link okay, but the end product can have subtle run time bugs.
@@ -64,6 +68,7 @@ extern int console_loglevel;
 static int init(void *);
 extern int bdflush(void *);
 extern int kswapd(void *);
+extern int kpiod(void *);
 extern void kswapd_setup(void);
 
 extern void init_IRQ(void);
@@ -74,7 +79,7 @@ extern void sock_init(void);
 extern void uidcache_init(void);
 extern void mca_init(void);
 extern void sbus_init(void);
-extern void powermac_init(void);
+extern void ppc_init(void);
 extern void sysctl_init(void);
 extern void filescache_init(void);
 extern void signals_init(void);
@@ -183,12 +188,15 @@ extern void aic7xxx_setup(char *str, int *ints);
 extern void AM53C974_setup(char *str, int *ints);
 extern void BusLogic_Setup(char *str, int *ints);
 extern void ncr53c8xx_setup(char *str, int *ints);
+extern void sym53c8xx_setup(char *str, int *ints);
 extern void eata2x_setup(char *str, int *ints);
 extern void u14_34f_setup(char *str, int *ints);
 extern void fdomain_setup(char *str, int *ints);
 extern void ibmmca_scsi_setup(char *str, int *ints);
+extern void fd_mcs_setup(char *str, int *ints);
 extern void in2000_setup(char *str, int *ints);
 extern void NCR53c406a_setup(char *str, int *ints);
+extern void sym53c416_setup(char *str, int *ints);
 extern void wd7000_setup(char *str, int *ints);
 extern void dc390_setup(char* str, int *ints);
 extern void scsi_luns_setup(char *str, int *ints);
@@ -360,7 +368,7 @@ static unsigned long memory_end = 0;
 int rows, cols;
 
 #ifdef CONFIG_BLK_DEV_RAM
-extern int rd_doload;		/* 1 = load ramdisk, 0 = don't load */
+extern int rd_doload;		/* 1 = load ramdisk, 0 = don't load 2 = dual disk */
 extern int rd_prompt;		/* 1 = prompt for ramdisk, 0 = don't prompt */
 extern int rd_size;		/* Size of the ramdisk(s) */
 extern int rd_image_start;	/* starting block # of image */
@@ -587,6 +595,7 @@ static struct kernel_param cooked_params[] __initdata = {
 	{ "no-hlt", no_halt },
 	{ "no387", no_387 },
 	{ "reboot=", reboot_setup },
+	{ "mca-pentium", mca_pentium },
 #endif
 #ifdef CONFIG_INET
 	{ "ether=", eth_setup },
@@ -689,6 +698,9 @@ static struct kernel_param cooked_params[] __initdata = {
 #ifdef CONFIG_SCSI_NCR53C8XX
 	{ "ncr53c8xx=", ncr53c8xx_setup},
 #endif
+#ifdef CONFIG_SCSI_SYM53C8XX
+	{ "sym53c8xx=", sym53c8xx_setup},
+#endif
 #ifdef CONFIG_SCSI_EATA
 	{ "eata=", eata2x_setup},
 #endif
@@ -701,6 +713,9 @@ static struct kernel_param cooked_params[] __initdata = {
 #ifdef CONFIG_SCSI_NCR53C406A
 	{ "ncr53c406a=", NCR53c406a_setup},
 #endif
+#ifdef CONFIG_SCSI_SYM53C416
+	{ "sym53c416=", sym53c416_setup},
+#endif
 #ifdef CONFIG_SCSI_FUTURE_DOMAIN
 	{ "fdomain=", fdomain_setup},
 #endif
@@ -712,6 +727,9 @@ static struct kernel_param cooked_params[] __initdata = {
 #endif
 #ifdef CONFIG_SCSI_IBMMCA
         { "ibmmcascsi=", ibmmca_scsi_setup },
+#endif
+#ifdef CONFIG_SCSI_FD_MCS
+	{ "fd_mcs=", fd_mcs_setup },
 #endif
 #if defined(CONFIG_SCSI_DC390T) && ! defined(CONFIG_SCSI_DC390T_NOGENSUPP)
         { "tmscsim=", dc390_setup },
@@ -788,7 +806,8 @@ static struct kernel_param cooked_params[] __initdata = {
 #endif
 #if defined(CONFIG_A4000T_SCSI) || defined(CONFIG_WARPENGINE_SCSI) \
 	    || defined(CONFIG_A4091_SCSI) || defined(CONFIG_MVME16x_SCSI) \
-	    || defined(CONFIG_BVME6000_SCSI)
+	    || defined(CONFIG_BVME6000_SCSI) \
+	    || defined(CONFIG_BLZ603EPLUS_SCSI)
         { "53c7xx=", ncr53c7xx_setup },
 #endif
 #if defined(CONFIG_A3000_SCSI) || defined(CONFIG_A2091_SCSI) \
@@ -901,7 +920,7 @@ static void __init ramdisk_start_setup(char *str, int *ints)
 static void __init load_ramdisk(char *str, int *ints)
 {
    if (ints[0] > 0 && ints[1] >= 0)
-      rd_doload = ints[1] & 1;
+      rd_doload = ints[1] & 3;
 }
 
 static void __init prompt_ramdisk(char *str, int *ints)
@@ -973,7 +992,7 @@ void __init calibrate_delay(void)
 		ticks = jiffies - ticks;
 		if (ticks)
 			break;
-		}
+	}
 
 /* Do a binary approximation to get loops_per_second set to equal one clock
    (up to lps_precision bits) */
@@ -1173,7 +1192,7 @@ asmlinkage void __init start_kernel(void)
 	filescache_init();
 	dcache_init();
 	vma_init();
-	buffer_init();
+	buffer_init(memory_end-memory_start);
 	signals_init();
 	inode_init();
 	file_table_init();
@@ -1265,7 +1284,7 @@ static void __init do_basic_setup(void)
 	sbus_init();
 #endif
 #if defined(CONFIG_PPC)
-	powermac_init();
+	ppc_init();
 #endif
 #ifdef CONFIG_MCA
 	mca_init();
@@ -1279,6 +1298,9 @@ static void __init do_basic_setup(void)
 #ifdef CONFIG_DIO
 	dio_init();
 #endif
+#ifdef CONFIG_MAC
+	nubus_init();
+#endif
 #ifdef CONFIG_TC
 	tc_init();
 #endif
@@ -1290,6 +1312,7 @@ static void __init do_basic_setup(void)
 	kernel_thread(bdflush, NULL, CLONE_FS | CLONE_FILES | CLONE_SIGHAND);
 	/* Start the background pageout daemon. */
 	kswapd_setup();
+	kernel_thread(kpiod, NULL, CLONE_FS | CLONE_FILES | CLONE_SIGHAND);
 	kernel_thread(kswapd, NULL, CLONE_FS | CLONE_FILES | CLONE_SIGHAND);
 
 #if CONFIG_AP1000

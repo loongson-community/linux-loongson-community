@@ -85,6 +85,9 @@
 #define MECHANISM_STATUS        0xbd
 #define READ_CD                 0xbe
 
+/* DVD Opcodes */
+#define DVD_GET_PERFORMANCE	0xac
+
 
 /* Page codes for mode sense/set */
 
@@ -331,13 +334,13 @@ struct atapi_capabilities_page {
 
 #if defined(__BIG_ENDIAN_BITFIELD)
 	__u8 reserved3           : 2;
-	/* Drive can fake writes */
-	__u8 test_write          : 1;
-	__u8 reserved3a          : 1;
-	/* Drive can write DVD-R discs */
-	__u8 dvd_r_write         : 1;
 	/* Drive can write DVD-RAM discs */
 	__u8 dvd_ram_write       : 1;
+	/* Drive can write DVD-R discs */
+	__u8 dvd_r_write         : 1;
+	__u8 reserved3a          : 1;
+	/* Drive can fake writes */
+	__u8 test_write          : 1;
 	/* Drive can write to CD-R/W (CD-E) discs (orange book, part III) */
 	__u8 cd_rw_write	 : 1; /* reserved in 1.2 */
 	/* Drive supports write to CD-R discs (orange book, part II) */
@@ -347,20 +350,20 @@ struct atapi_capabilities_page {
 	__u8 cd_r_write          : 1; /* reserved in 1.2 */
 	/* Drive can write to CD-R/W (CD-E) discs (orange book, part III) */
 	__u8 cd_rw_write	 : 1; /* reserved in 1.2 */
-	/* Drive can write DVD-RAM discs */
-	__u8 dvd_ram_write       : 1;
-	/* Drive can write DVD-R discs */
-	__u8 dvd_r_write         : 1;
-	__u8 reserved3a          : 1;
 	/* Drive can fake writes */
 	__u8 test_write          : 1;
+	__u8 reserved3a          : 1;
+	/* Drive can write DVD-R discs */
+	__u8 dvd_r_write         : 1;
+	/* Drive can write DVD-RAM discs */
+	__u8 dvd_ram_write       : 1;
 	__u8 reserved3           : 2;
 #else
 #error "Please fix <asm/byteorder.h>"
 #endif
 
 #if defined(__BIG_ENDIAN_BITFIELD)
-	__u8 reserved4           : 4;
+	__u8 reserved4           : 1;
 	/* Drive can read multisession discs. */
 	__u8 multisession        : 1;
 	/* Drive can read mode 2, form 2 data. */
@@ -562,7 +565,7 @@ struct cdrom_info {
 
 	/* Sector buffer.  If a read request wants only the first part
 	   of a cdrom block, we cache the rest of the block here,
-	   in the expectation that that data is going to be wanted soon.
+	   in the expectation that the data is going to be wanted soon.
 	   SECTOR_BUFFERED is the number of the first buffered sector,
 	   and NSECTORS_BUFFERED is the number of sectors in the buffer.
 	   Before the buffer is allocated, we should have
@@ -656,6 +659,7 @@ const struct {
 	{ PLAY_CD, "Play CD" },
 	{ MECHANISM_STATUS, "Mechanism Status" },
 	{ READ_CD, "Read CD" },
+	{ DVD_GET_PERFORMANCE, "Get Performance" },
 };
 
 
@@ -776,7 +780,8 @@ const struct {
 
 	{ 0x6400, "Illegal mode for this track or incompatible medium" },
 
-	{ 0xb900, "Play operation oborted (sic)" },
+	/* Following error is misspelled in ATAPI 2.6 */
+	{ 0xb900, "Play operation oborted [sic]" },
 
 	{ 0xbf00, "Loss of streaming" },
 };

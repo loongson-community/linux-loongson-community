@@ -6,7 +6,7 @@
  * Status:        Experimental.
  * Author:        Dag Brattli <dagb@cs.uit.no>
  * Created at:    Sat Nov  7 21:43:15 1998
- * Modified at:   Mon Dec 28 08:46:16 1998
+ * Modified at:   Tue Apr 20 11:11:39 1999
  * Modified by:   Dag Brattli <dagb@cs.uit.no>
  * 
  *     Copyright (c) 1998 Dag Brattli <dagb@cs.uit.no>
@@ -50,7 +50,6 @@
 #include <linux/ioport.h>
 #include <linux/delay.h>
 #include <linux/malloc.h>
-#include <linux/delay.h>
 #include <linux/init.h>
 
 #include <asm/io.h>
@@ -100,7 +99,9 @@ static char *dongle_types[] = {
 /* Some prototypes */
 static int  pc87108_open( int i, unsigned int iobase, unsigned int board_addr, 
 			  unsigned int irq, unsigned int dma);
+#ifdef MODULE
 static int  pc87108_close( struct irda_device *idev);
+#endif /* MODULE */
 static int  pc87108_probe( int iobase, int board_addr, int irq, int dma);
 static void pc87108_pio_receive( struct irda_device *idev);
 static int  pc87108_dma_receive( struct irda_device *idev); 
@@ -131,7 +132,7 @@ __initfunc(int pc87108_init(void))
 
 	for ( i=0; (io[i] < 2000) && (i < 4); i++) {
 		int ioaddr = io[i];
-		if (check_region(ioaddr, CHIP_IO_EXTENT))
+		if (check_region(ioaddr, CHIP_IO_EXTENT) < 0)
 			continue;
 		if (pc87108_open( i, io[i], io2[i], irq[i], dma[i]) == 0)
 			return 0;
@@ -150,11 +151,11 @@ static void pc87108_cleanup(void)
 {
 	int i;
 
-        DEBUG( 4, __FUNCTION__ "()\n");
+        DEBUG(4, __FUNCTION__ "()\n");
 
-	for ( i=0; i < 4; i++) {
-		if ( dev_self[i])
-			pc87108_close( &(dev_self[i]->idev));
+	for (i=0; i < 4; i++) {
+		if (dev_self[i])
+			pc87108_close(&(dev_self[i]->idev));
 	}
 }
 #endif /* MODULE */
@@ -221,6 +222,8 @@ static int pc87108_open( int i, unsigned int iobase, unsigned int board_addr,
 	idev->qos.min_turn_time.bits = 0x07;
 	irda_qos_bits_to_value( &idev->qos);
 	
+	idev->flags = IFF_FIR|IFF_MIR|IFF_SIR|IFF_DMA|IFF_PIO|IFF_DONGLE;
+
 	/* Specify which buffer allocation policy we need */
 	idev->rx_buff.flags = GFP_KERNEL | GFP_DMA;
 	idev->tx_buff.flags = GFP_KERNEL | GFP_DMA;
@@ -230,7 +233,6 @@ static int pc87108_open( int i, unsigned int iobase, unsigned int board_addr,
 	idev->tx_buff.truesize = 4000;
 	
 	/* Initialize callbacks */
-	idev->hard_xmit       = pc87108_hard_xmit;
 	idev->change_speed    = pc87108_change_speed;
 	idev->wait_until_sent = pc87108_wait_until_sent;
 	idev->is_receiving    = pc87108_is_receiving;
@@ -250,6 +252,7 @@ static int pc87108_open( int i, unsigned int iobase, unsigned int board_addr,
 	return 0;
 }
 
+#ifdef MODULE
 /*
  * Function pc87108_close (idev)
  *
@@ -276,6 +279,7 @@ static int pc87108_close( struct irda_device *idev)
 
 	return 0;
 }
+#endif /* MODULE */
 
 /*
  * Function pc87108_probe (iobase, board_addr, irq, dma)
@@ -666,7 +670,7 @@ static void pc87108_change_speed( struct irda_device *idev, int speed)
 
 	/* Set appropriate speed mode */
 	switch_bank(iobase, BANK0);
-	outb( mcr|MCR_TX_DFR, iobase+MCR);
+	outb(mcr | MCR_TX_DFR, iobase+MCR);
 
 	/* Give some hits to the transceiver */
 	pc87108_change_dongle_speed( iobase, speed, idev->io.dongle_id);
@@ -720,12 +724,6 @@ static int pc87108_hard_xmit( struct sk_buff *skb, struct device *dev)
 	iobase = idev->io.iobase;
 
 	DEBUG(4, __FUNCTION__ "(%ld), skb->len=%d\n", jiffies, (int) skb->len);
-
-	if ( dev->tbusy) {
-		DEBUG( 4, __FUNCTION__ "(), tbusy==TRUE\n");
-			
-		return -EBUSY;
-	}
 	
 	/* Lock transmit buffer */
 	if ( irda_lock( (void *) &dev->tbusy) == FALSE)
@@ -736,10 +734,9 @@ static int pc87108_hard_xmit( struct sk_buff *skb, struct device *dev)
 
 	/* Decide if we should use PIO or DMA transfer */
 	if ( idev->io.baudrate > 115200) {
-		memcpy( idev->tx_buff.data, skb->data, skb->len);
+		idev->tx_buff.data = idev->tx_buff.head;
+		memcpy(idev->tx_buff.data, skb->data, skb->len);
 		idev->tx_buff.len = skb->len;
-		idev->tx_buff.head = idev->tx_buff.data;
-		idev->tx_buff.offset = 0;
 
 		mtt = irda_get_mtt( skb);
 	        if ( mtt > 50) {
@@ -769,11 +766,10 @@ static int pc87108_hard_xmit( struct sk_buff *skb, struct device *dev)
 	     		pc87108_dma_write( idev, iobase);
 		}
         } else {
-	        idev->tx_buff.len = async_wrap_skb( skb, idev->tx_buff.data, 
-						    idev->tx_buff.truesize);
+	        idev->tx_buff.len = async_wrap_skb(skb, idev->tx_buff.data, 
+						   idev->tx_buff.truesize);
 		
-		idev->tx_buff.offset = 0;
-		idev->tx_buff.head = idev->tx_buff.data;
+		idev->tx_buff.data = idev->tx_buff.head;
 		
 		/* Add interrupt on tx low level (will fire immediately) */
 		switch_bank( iobase, BANK0);
@@ -806,8 +802,8 @@ static void pc87108_dma_write( struct irda_device *idev, int iobase)
 	switch_bank(iobase, BANK0);
 	outb( inb( iobase+MCR) & ~MCR_DMA_EN, iobase+MCR);
 
-	setup_dma( idev->io.dma, idev->tx_buff.data, idev->tx_buff.len, 
-		   DMA_MODE_WRITE);
+	setup_dma(idev->io.dma, idev->tx_buff.data, idev->tx_buff.len, 
+		  DMA_MODE_WRITE);
 	
 	/* idev->media_busy = TRUE; */
 	idev->io.direction = IO_XMIT;
@@ -921,52 +917,51 @@ static void pc87108_dma_xmit_complete( struct irda_device *idev)
  *    if it starts to receive a frame.
  *
  */
-static int pc87108_dma_receive( struct irda_device *idev) 
+static int pc87108_dma_receive(struct irda_device *idev) 
 {
 	struct pc87108 *self;
 	int iobase;
 	__u8 bsr;
 
-	ASSERT( idev != NULL, return -1;);
-	ASSERT( idev->magic == IRDA_DEVICE_MAGIC, return -1;);
+	ASSERT(idev != NULL, return -1;);
+	ASSERT(idev->magic == IRDA_DEVICE_MAGIC, return -1;);
 
-	DEBUG( 4, __FUNCTION__ "\n");
+	DEBUG(4, __FUNCTION__ "\n");
 
 	self = idev->priv;
-	iobase= idev->io.iobase;
+	iobase = idev->io.iobase;
 
 	/* Save current bank */
-	bsr = inb( iobase+BSR);
+	bsr = inb(iobase+BSR);
 
 	/* Disable DMA */
-	switch_bank( iobase, BANK0);
-	outb( inb(iobase+MCR) & ~MCR_DMA_EN, iobase+MCR);
+	switch_bank(iobase, BANK0);
+	outb(inb(iobase+MCR) & ~MCR_DMA_EN, iobase+MCR);
 
-	setup_dma( idev->io.dma, idev->rx_buff.data, idev->rx_buff.truesize, 
-		   DMA_MODE_READ);
+	setup_dma(idev->io.dma, idev->rx_buff.data, 
+		  idev->rx_buff.truesize, DMA_MODE_READ);
 	
 	/* driver->media_busy = FALSE; */
 	idev->io.direction = IO_RECV;
-	idev->rx_buff.head = idev->rx_buff.data;
-	idev->rx_buff.offset = 0;
+	idev->rx_buff.data = idev->rx_buff.head;
 
 	/* Reset Rx FIFO. This will also flush the ST_FIFO */
-	outb( FCR_RXTH|FCR_TXTH|FCR_RXSR|FCR_FIFO_EN, iobase+FCR);
+	outb(FCR_RXTH|FCR_TXTH|FCR_RXSR|FCR_FIFO_EN, iobase+FCR);
 	self->st_fifo.len = self->st_fifo.tail = self->st_fifo.head = 0;
 
 	/* Choose DMA Rx, DMA Fairness, and Advanced mode */
 	switch_bank(iobase, BANK2);
-	outb(( inb( iobase+ECR1) & ~ECR1_DMASWP)|ECR1_DMANF|ECR1_EXT_SL, 
-	      iobase+ECR1);
+	outb((inb( iobase+ECR1) & ~ECR1_DMASWP)|ECR1_DMANF|ECR1_EXT_SL, 
+	     iobase+ECR1);
 	
 	/* enable DMA */
 	switch_bank(iobase, BANK0);
-	outb( inb( iobase+MCR)|MCR_DMA_EN, iobase+MCR);
+	outb(inb(iobase+MCR)|MCR_DMA_EN, iobase+MCR);
 
 	/* Restore bank register */
-	outb( bsr, iobase+BSR);
+	outb(bsr, iobase+BSR);
 	
-	DEBUG( 4, __FUNCTION__ "(), done!\n");	
+	DEBUG(4, __FUNCTION__ "(), done!\n");	
 	
 	return 0;
 }
@@ -1026,42 +1021,41 @@ static int pc87108_dma_receive_complete( struct irda_device *idev, int iobase)
 				/* Skip frame */
 				idev->stats.rx_errors++;
 				
-				idev->rx_buff.offset  += len;
-				idev->rx_buff.head += len;
+				idev->rx_buff.data += len;
 			
-				if ( status & FRM_ST_MAX_LEN)
+				if (status & FRM_ST_MAX_LEN)
 					idev->stats.rx_length_errors++;
 				
-				if ( status & FRM_ST_PHY_ERR) 
+				if (status & FRM_ST_PHY_ERR) 
 					idev->stats.rx_frame_errors++;
 				
-				if ( status & FRM_ST_BAD_CRC) 
+				if (status & FRM_ST_BAD_CRC) 
 					idev->stats.rx_crc_errors++;
 			}
 			/* The errors below can be reported in both cases */
-			if ( status & FRM_ST_OVR1)
+			if (status & FRM_ST_OVR1)
 				idev->stats.rx_fifo_errors++;
 			
-			if ( status & FRM_ST_OVR2)
+			if (status & FRM_ST_OVR2)
 				idev->stats.rx_fifo_errors++;
 			
 		} else {
 			/* Check if we have transfered all data to memory */
-			if ( inb( iobase+LSR) & LSR_RXDA) {
+			if (inb(iobase+LSR) & LSR_RXDA) {
 				/* Put this entry back in fifo */
 				st_fifo->head--;
 				st_fifo->len++;
 				st_fifo->entries[st_fifo->head].status = status;
-				st_fifo->entries[ st_fifo->head].len = len;
+				st_fifo->entries[st_fifo->head].len = len;
 
 				/* Restore bank register */
-				outb( bank, iobase+BSR);
+				outb(bank, iobase+BSR);
 			
 				return FALSE; 	/* I'll be back! */
 			}
 
 			/* Should be OK then */			
-			skb = dev_alloc_skb( len+1);
+			skb = dev_alloc_skb(len+1);
 			if (skb == NULL)  {
 				printk( KERN_INFO __FUNCTION__ 
 					"(), memory squeeze, dropping frame.\n");
@@ -1072,20 +1066,19 @@ static int pc87108_dma_receive_complete( struct irda_device *idev, int iobase)
 			}
 			
 			/* Make sure IP header gets aligned */
-			skb_reserve( skb, 1); 
+			skb_reserve(skb, 1); 
 
 			/* Copy frame without CRC */
-			if ( idev->io.baudrate < 4000000) {
-				skb_put( skb, len-2);
-				memcpy( skb->data, idev->rx_buff.head, len-2);
+			if (idev->io.baudrate < 4000000) {
+				skb_put(skb, len-2);
+				memcpy(skb->data, idev->rx_buff.data, len-2);
 			} else {
-				skb_put( skb, len-4);
-				memcpy( skb->data, idev->rx_buff.head, len-4);
+				skb_put(skb, len-4);
+				memcpy(skb->data, idev->rx_buff.data, len-4);
 			}
 
 			/* Move to next frame */
-			idev->rx_buff.offset += len;
-			idev->rx_buff.head += len;
+			idev->rx_buff.data += len;
 			idev->stats.rx_packets++;
 
 			skb->dev = &idev->netdev;
@@ -1095,7 +1088,7 @@ static int pc87108_dma_receive_complete( struct irda_device *idev, int iobase)
 		}
 	}
 	/* Restore bank register */
-	outb( bank, iobase+BSR);
+	outb(bank, iobase+BSR);
 
 	return TRUE;
 }
@@ -1111,23 +1104,19 @@ static void pc87108_pio_receive( struct irda_device *idev)
 	__u8 byte = 0x00;
 	int iobase;
 
-	DEBUG( 4, __FUNCTION__ "()\n");
+	DEBUG(4, __FUNCTION__ "()\n");
 
-	ASSERT( idev != NULL, return;);
-	ASSERT( idev->magic == IRDA_DEVICE_MAGIC, return;);
+	ASSERT(idev != NULL, return;);
+	ASSERT(idev->magic == IRDA_DEVICE_MAGIC, return;);
 	
 	iobase = idev->io.iobase;
 	
-	if ( idev->rx_buff.len == 0) {
-		idev->rx_buff.head = idev->rx_buff.data;
-	}
-
 	/*  Receive all characters in Rx FIFO */
 	do {
-		byte = inb( iobase+RXD);
-		async_unwrap_char( idev, byte);
+		byte = inb(iobase+RXD);
+		async_unwrap_char(idev, byte);
 
-	} while ( inb( iobase+LSR) & LSR_RXDA); /* Data available */	
+	} while (inb(iobase+LSR) & LSR_RXDA); /* Data available */	
 }
 
 /*
@@ -1136,38 +1125,35 @@ static void pc87108_pio_receive( struct irda_device *idev)
  *    Handle SIR interrupt
  *
  */
-static __u8 pc87108_sir_interrupt( struct irda_device *idev, int eir)
+static __u8 pc87108_sir_interrupt(struct irda_device *idev, int eir)
 {
-	int len;
 	int actual;
 	__u8 new_ier = 0;
 
 	/* Transmit FIFO low on data */
 	if ( eir & EIR_TXLDL_EV) {
 		/* Write data left in transmit buffer */
-		len = idev->tx_buff.len - idev->tx_buff.offset;
-
-		ASSERT( len > 0, return 0;);
-		actual = pc87108_pio_write( idev->io.iobase, 
-					    idev->tx_buff.head, 
-					    len, idev->io.fifo_size);
-		idev->tx_buff.offset += actual;
-		idev->tx_buff.head += actual;
+		actual = pc87108_pio_write(idev->io.iobase, 
+					   idev->tx_buff.data, 
+					   idev->tx_buff.len, 
+					   idev->io.fifo_size);
+		idev->tx_buff.data += actual;
+		idev->tx_buff.len  -= actual;
 		
 		idev->io.direction = IO_XMIT;
-		ASSERT( actual <= len, return 0;);
 
 		/* Check if finished */
-		if ( actual == len) { 
-			DEBUG( 4, __FUNCTION__ "(), finished with frame!\n");
+		if (idev->tx_buff.len > 0)
+			new_ier |= IER_TXLDL_IE;
+		else { 
 			idev->netdev.tbusy = 0; /* Unlock */
 			idev->stats.tx_packets++;
-
+			
 		        mark_bh(NET_BH);	
 
 			new_ier |= IER_TXEMP_IE;
-		} else
-			new_ier |= IER_TXLDL_IE;
+		}
+			
 	}
 	/* Check if transmission has completed */
 	if ( eir & EIR_TXEMP_EV) {
@@ -1482,9 +1468,7 @@ static int pc87108_net_close(struct device *dev)
  */
 int init_module(void)
 {
-	pc87108_init();
-
-	return(0);
+	return pc87108_init();
 }
 
 /*
@@ -1497,6 +1481,5 @@ void cleanup_module(void)
 {
 	pc87108_cleanup();
 }
-
-#endif
+#endif /* MODULE */
 

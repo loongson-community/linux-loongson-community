@@ -81,6 +81,10 @@
 #include <net/dn.h>
 #endif
 
+#if defined(CONFIG_IRDA) || defined(CONFIG_IRDA_MODULE)
+#include <net/irda/irda.h>
+#endif
+
 #ifdef CONFIG_FILTER
 #include <linux/filter.h>
 #endif
@@ -99,8 +103,7 @@ struct unix_opt {
 	struct semaphore	readsem;
 	struct sock *		other;
 	struct sock **		list;
-	int 			marksweep;
-#define MARKED			1
+	struct sock *		gc_tree;
 	int			inflight;
 };
 
@@ -143,12 +146,11 @@ struct ipv6_pinfo {
 	struct in6_addr		daddr;
 	struct in6_addr		*daddr_cache;
 
-	__u32			flow_lbl;
+	__u32			flow_label;
 	__u32			frag_size;
 	int			hop_limit;
 	int			mcast_hops;
 	int			mcast_oif;
-	__u8			priority;
 
 	/* pktoption flags */
 	union {
@@ -159,7 +161,7 @@ struct ipv6_pinfo {
 				hopopts:1,
 				dstopts:1,
                                 authhdr:1,
-                                unused:1;
+                                rxflow:1;
 		} bits;
 		__u8		all;
 	} rxopt;
@@ -167,9 +169,11 @@ struct ipv6_pinfo {
 	/* sockopt flags */
 	__u8			mc_loop:1,
 	                        recverr:1,
+	                        sndflow:1,
 	                        pmtudisc:2;
 
 	struct ipv6_mc_socklist	*ipv6_mc_list;
+	struct ipv6_fl_socklist *ipv6_fl_list;
 	__u32			dst_cookie;
 
 	struct ipv6_txoptions	*opt;
@@ -453,8 +457,7 @@ struct sock {
 
 #ifdef CONFIG_FILTER
 	/* Socket Filtering Instructions */
-	int			filter;
-	struct sock_filter      *filter_data;
+	struct sk_filter      	*filter;
 #endif /* CONFIG_FILTER */
 
 	/* This is where all the private (optional) areas that don't
@@ -492,6 +495,9 @@ struct sock {
 #endif
 #if defined(CONFIG_ECONET) || defined(CONFIG_ECONET_MODULE)
 		struct econet_opt	*af_econet;
+#endif
+#if defined(CONFIG_IRDA) || defined(CONFIG_IRDA_MODULE)
+		struct irda_sock        *irda;
 #endif
 	} protinfo;  		
 
@@ -790,11 +796,11 @@ extern void sklist_destroy_socket(struct sock **list, struct sock *sk);
  * sk_run_filter. If pkt_len is 0 we toss packet. If skb->len is smaller
  * than pkt_len we keep whole skb->data.
  */
-extern __inline__ int sk_filter(struct sk_buff *skb, struct sock_filter *filter, int flen)
+extern __inline__ int sk_filter(struct sk_buff *skb, struct sk_filter *filter)
 {
 	int pkt_len;
 
-        pkt_len = sk_run_filter(skb->data, skb->len, filter, flen);
+        pkt_len = sk_run_filter(skb, filter->insns, filter->len);
         if(!pkt_len)
                 return 1;	/* Toss Packet */
         else
@@ -802,6 +808,23 @@ extern __inline__ int sk_filter(struct sk_buff *skb, struct sock_filter *filter,
 
 	return 0;
 }
+
+extern __inline__ void sk_filter_release(struct sock *sk, struct sk_filter *fp)
+{
+	unsigned int size = sk_filter_len(fp);
+
+	atomic_sub(size, &sk->omem_alloc);
+
+	if (atomic_dec_and_test(&fp->refcnt))
+		kfree_s(fp, size);
+}
+
+extern __inline__ void sk_filter_charge(struct sock *sk, struct sk_filter *fp)
+{
+	atomic_inc(&fp->refcnt);
+	atomic_add(sk_filter_len(fp), &sk->omem_alloc);
+}
+
 #endif /* CONFIG_FILTER */
 
 /*
@@ -830,6 +853,9 @@ extern __inline__ void skb_set_owner_r(struct sk_buff *skb, struct sock *sk)
 
 extern __inline__ int sock_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
 {
+#ifdef CONFIG_FILTER
+	struct sk_filter *filter;
+#endif
 	/* Cast skb->rcvbuf to unsigned... It's pointless, but reduces
 	   number of warnings when compiling with -W --ANK
 	 */
@@ -837,11 +863,8 @@ extern __inline__ int sock_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
                 return -ENOMEM;
 
 #ifdef CONFIG_FILTER
-	if (sk->filter)
-	{
-		if (sk_filter(skb, sk->filter_data, sk->filter))
-			return -EPERM;	/* Toss packet */
-	}
+	if ((filter = sk->filter) != NULL && sk_filter(skb, filter))
+		return -EPERM;	/* Toss packet */
 #endif /* CONFIG_FILTER */
 
 	skb_set_owner_r(skb, sk);
@@ -906,6 +929,10 @@ extern void net_delete_timer (struct sock *);
 extern void net_reset_timer (struct sock *, int, unsigned long);
 extern void net_timer (unsigned long);
 
+extern __inline__ int gfp_any(void)
+{
+	return in_interrupt() ? GFP_ATOMIC : GFP_KERNEL;
+}
 
 /* 
  *	Enable debug/info messages 

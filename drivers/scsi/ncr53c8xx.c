@@ -73,7 +73,7 @@
 */
 
 /*
-**	January 16 1998, version 3.1f
+**	March 7 1999, version 3.2
 **
 **	Supported SCSI-II features:
 **	    Synchronous negotiation
@@ -97,6 +97,11 @@
 **		Module
 **		Shared IRQ (since linux-1.3.72)
 */
+
+/*
+**	Name and version of the driver
+*/
+#define SCSI_NCR_DRIVER_NAME	"ncr53c8xx - version 3.2"
 
 #define SCSI_NCR_DEBUG_FLAGS	(0)
 
@@ -724,12 +729,12 @@ static Scsi_Host_Template	*the_template	= NULL;
 **	/proc directory entry and proc_info function
 */
 
-struct proc_dir_entry proc_scsi_ncr53c8xx = {
+static struct proc_dir_entry proc_scsi_ncr53c8xx = {
     PROC_SCSI_NCR53C8XX, 9, "ncr53c8xx",
     S_IFDIR | S_IRUGO | S_IXUGO, 2
 };
 #ifdef SCSI_NCR_PROC_INFO_SUPPORT
-int ncr53c8xx_proc_info(char *buffer, char **start, off_t offset,
+static int ncr53c8xx_proc_info(char *buffer, char **start, off_t offset,
 			int length, int hostno, int func);
 #endif
 
@@ -739,6 +744,7 @@ int ncr53c8xx_proc_info(char *buffer, char **start, off_t offset,
 **	This structure is initialized from linux config options.
 **	It can be overridden at boot-up by the boot command line.
 */
+#define SCSI_NCR_MAX_EXCLUDES 8
 struct ncr_driver_setup {
 	u_char	master_parity;
 	u_char	scsi_parity;
@@ -760,6 +766,9 @@ struct ncr_driver_setup {
 	u_char	diff_support;
 	u_char	irqm;
 	u_char	bus_check;
+	u_char	optimize;
+	u_char	recovery;
+	u_int	excludes[SCSI_NCR_MAX_EXCLUDES];
 	char	tag_ctrl[100];
 };
 
@@ -2088,6 +2097,7 @@ struct scripth {
 	ncrcmd  msg_ext_3	[ 10];
 	ncrcmd	msg_sdtr	[ 14];
 	ncrcmd	send_sdtr	[  7];
+	ncrcmd	nego_bad_phase	[  4];
 	ncrcmd	msg_out_abort	[ 10];
 	ncrcmd  hdata_in	[MAX_SCATTERH * 4];
 	ncrcmd  hdata_in2	[  2];
@@ -3192,16 +3202,15 @@ static	struct scripth scripth0 __initdata = {
 	/*
 	**	If a negotiation was in progress,
 	**	negotiation failed.
+	**	Otherwise, let the C code print 
+	**	some message.
 	*/
 	SCR_FROM_REG (HS_REG),
 		0,
-	SCR_INT ^ IFTRUE (DATA (HS_NEGOTIATE)),
-		SIR_NEGO_FAILED,
-	/*
-	**	else make host log this message
-	*/
 	SCR_INT ^ IFFALSE (DATA (HS_NEGOTIATE)),
 		SIR_REJECT_RECEIVED,
+	SCR_INT ^ IFTRUE (DATA (HS_NEGOTIATE)),
+		SIR_NEGO_FAILED,
 	SCR_JUMP,
 		PADDR (clrack),
 
@@ -3311,10 +3320,9 @@ static	struct scripth scripth0 __initdata = {
 		0,
 	SCR_CLR (SCR_ACK),
 		0,
+	SCR_JUMP ^ IFFALSE (WHEN (SCR_MSG_OUT)),
+		PADDRH (nego_bad_phase),
 
-/* CHECK THE SOURCE FOR 'send_wdtr' IF YOU INTEND TO CHANGE SOMETHING HERE */
-	SCR_INT ^ IFFALSE (WHEN (SCR_MSG_OUT)),
-		SIR_NEGO_PROTO,
 }/*-------------------------< SEND_WDTR >----------------*/,{
 	/*
 	**	Send the M_X_WIDE_REQ
@@ -3367,10 +3375,9 @@ static	struct scripth scripth0 __initdata = {
 		0,
 	SCR_CLR (SCR_ACK),
 		0,
+	SCR_JUMP ^ IFFALSE (WHEN (SCR_MSG_OUT)),
+		PADDRH (nego_bad_phase),
 
-/* CHECK THE SOURCE FOR 'send_sdtr' IF YOU INTEND TO CHANGE SOMETHING HERE */
-	SCR_INT ^ IFFALSE (WHEN (SCR_MSG_OUT)),
-		SIR_NEGO_PROTO,
 }/*-------------------------< SEND_SDTR >-------------*/,{
 	/*
 	**	Send the M_X_SYNC_REQ
@@ -3382,6 +3389,12 @@ static	struct scripth scripth0 __initdata = {
 		NADDR (lastmsg),
 	SCR_JUMP,
 		PADDR (msg_out_done),
+
+}/*-------------------------< NEGO_BAD_PHASE >------------*/,{
+	SCR_INT,
+		SIR_NEGO_PROTO,
+	SCR_JUMP,
+		PADDR (dispatch),
 
 }/*-------------------------< MSG_OUT_ABORT >-------------*/,{
 	/*
@@ -4283,7 +4296,7 @@ static int ncr_prepare_setting(ncb_p np, ncr_nvram *nvram)
 	/*
 	**	Set irq mode.
 	*/
-	switch(driver_setup.irqm) {
+	switch(driver_setup.irqm & 3) {
 	case 2:
 		np->rv_dcntl	|= IRQM;
 		break;
@@ -4674,21 +4687,15 @@ printk(KERN_INFO "ncr53c%s-%d: rev=0x%02x, base=0x%lx, io_port=0x%lx, irq=%d\n",
 	/*
 	**	Install the interrupt handler.
 	*/
-#ifdef	SCSI_NCR_SHARE_IRQ
-#define	NCR_SA_INTERRUPT_FLAGS (SA_INTERRUPT | SA_SHIRQ)
-	if (bootverbose > 1)
-#ifdef __sparc__
-		printk(KERN_INFO "%s: requesting shared irq %s (dev_id=0x%lx)\n",
-		        ncr_name(np), __irq_itoa(device->slot.irq), (u_long) np);
-#else
-		printk(KERN_INFO "%s: requesting shared irq %d (dev_id=0x%lx)\n",
-		        ncr_name(np), device->slot.irq, (u_long) np);
-#endif
-#else
-#define	NCR_SA_INTERRUPT_FLAGS SA_INTERRUPT
-#endif
+
 	if (request_irq(device->slot.irq, ncr53c8xx_intr,
-			NCR_SA_INTERRUPT_FLAGS, "ncr53c8xx", np)) {
+			((driver_setup.irqm & 0x10) ? 0 : SA_SHIRQ) |
+#if LINUX_VERSION_CODE < LinuxVersionCode(2,2,0)
+			((driver_setup.irqm & 0x20) ? 0 : SA_INTERRUPT),
+#else
+			0,
+#endif
+			"ncr53c8xx", np)) {
 #ifdef __sparc__
 		printk(KERN_ERR "%s: request irq %s failure\n",
 			ncr_name(np), __irq_itoa(device->slot.irq));
@@ -4698,6 +4705,7 @@ printk(KERN_INFO "ncr53c%s-%d: rev=0x%02x, base=0x%lx, io_port=0x%lx, irq=%d\n",
 #endif
 		goto attach_error;
 	}
+
 	np->irq = device->slot.irq;
 
 	/*
@@ -4845,7 +4853,7 @@ static inline void ncr_flush_done_cmds(Scsi_Cmnd *lcmd)
 **
 **==========================================================
 */
-int ncr_queue_command (ncb_p np, Scsi_Cmnd *cmd)
+static int ncr_queue_command (ncb_p np, Scsi_Cmnd *cmd)
 {
 /*	Scsi_Device        *device    = cmd->device; */
 	tcb_p tp                      = &np->target[cmd->target];
@@ -4965,9 +4973,8 @@ int ncr_queue_command (ncb_p np, Scsi_Cmnd *cmd)
 				nego = NS_SYNC;
 			} else {
 				tp->period  =0xffff;
-				tp->sval = 0xe0;
 				PRINT_TARGET(np, cmd->target);
-				printk ("SYNC transfers not supported.\n");
+				printk ("device did not report SYNC.\n");
 			};
 		};
 
@@ -5416,7 +5423,7 @@ out:
 **
 **==========================================================
 */
-int ncr_reset_bus (ncb_p np, Scsi_Cmnd *cmd, int sync_reset)
+static int ncr_reset_bus (ncb_p np, Scsi_Cmnd *cmd, int sync_reset)
 {
 /*	Scsi_Device        *device    = cmd->device; */
 	ccb_p cp;
@@ -5839,7 +5846,7 @@ void ncr_complete (ncb_p np, ccb_p cp)
 		**	announced capabilities (we need the 1rst 7 bytes).
 		*/
 		if (cmd->cmnd[0] == 0x12 && !(cmd->cmnd[1] & 0x3) &&
-		    cmd->cmnd[4] >= 7) {
+		    cmd->cmnd[4] >= 7 && !cmd->use_sg) {
 			ncr_setup_lcb (np, cmd->target, cmd->lun,
 				       (char *) cmd->request_buffer);
 		}
@@ -5986,7 +5993,7 @@ void ncr_complete (ncb_p np, ccb_p cp)
 **	This CCB has been skipped by the NCR.
 **	Queue it in the correponding unit queue.
 */
-void ncr_ccb_skipped(ncb_p np, ccb_p cp)
+static void ncr_ccb_skipped(ncb_p np, ccb_p cp)
 {
 	tcb_p tp = &np->target[cp->target];
 	lcb_p lp = tp->lp[cp->lun];
@@ -7070,7 +7077,7 @@ flush_cache_all();
 	OUTONB (nc_ctest3, CLF);
 
 	if ((sist & (SGE)) ||
-		(dstat & (MDPE|BF|ABORT|IID))) {
+		(dstat & (MDPE|BF|ABRT|IID))) {
 		ncr_start_reset(np);
 		return;
 	};
@@ -7549,7 +7556,7 @@ unexpected_phase:
 		}
 		else if	(dsp == NCB_SCRIPTH_PHYS (np, send_wdtr) ||
 			 dsp == NCB_SCRIPTH_PHYS (np, send_sdtr)) {
-			nxtdsp = dsp - 8; /* Should raise SIR_NEGO_PROTO */
+			nxtdsp = NCB_SCRIPTH_PHYS (np, nego_bad_phase);
 		}
 		break;
 #if 0
@@ -7911,9 +7918,7 @@ flush_cache_all(); 	// ???
 		np->msgout[0] = M_NOOP;
 		cp->nego_status = 0;
 flush_cache_all();
-		OUTL (nc_dsp, NCB_SCRIPT_PHYS (np, dispatch));
-		return;
-/*		break;	*/
+		break;
 
 	case SIR_NEGO_SYNC:
 		/*
@@ -8692,10 +8697,15 @@ static lcb_p ncr_setup_lcb (ncb_p np, u_char tn, u_char ln, u_char *inq_data)
 	**	Evaluate trustable target/unit capabilities.
 	**	We only believe device version >= SCSI-2 that 
 	**	use appropriate response data format (2).
+	**	But it seems that some CCS devices also 
+	**	support SYNC and I donnot want to frustrate 
+	**	anybody. ;-)
 	*/
 	inq_byte7 = 0;
-	if ((inq_data[2] & 0x7) >= 2 && (inq_data[3] & 0xf) == 2)
+	if	((inq_data[2] & 0x7) >= 2 && (inq_data[3] & 0xf) == 2)
 		inq_byte7 = inq_data[7];
+	else if ((inq_data[2] & 0x7) == 1 && (inq_data[3] & 0xf) == 1)
+		inq_byte7 = INQ7_SYNC;
 
 	/*
 	**	Throw away announced LUN capabilities if we are told 
@@ -9284,6 +9294,7 @@ void ncr53c8xx_setup(char *str, int *ints)
 	int val;
 	int base;
 	int c;
+	int xi = 0;
 
 	while (cur != NULL && (pc = strchr(cur, ':')) != NULL) {
 		char *pe;
@@ -9355,6 +9366,10 @@ void ncr53c8xx_setup(char *str, int *ints)
 
 		else if	(!strncmp(cur, "safe:", 5) && val)
 			memcpy(&driver_setup, &driver_safe_setup, sizeof(driver_setup));
+		else if	(!strncmp(cur, "excl:", 5)) {
+			if (xi < SCSI_NCR_MAX_EXCLUDES)
+				driver_setup.excludes[xi++] = val;
+		}
 		else
 			printk("ncr53c8xx_setup: unexpected boot option '%.*s' ignored\n", (int)(pc-cur+1), cur);
 
@@ -9632,6 +9647,50 @@ if (ncr53c8xx)
 }
 
 /*
+**   Generically read a base address from the PCI configuration space.
+**   Return the offset immediately after the base address that has 
+**   been read. Btw, we blindly assume that the high 32 bits of 64 bit 
+**   base addresses are set to zero on 32 bit architectures.
+**
+*/
+#if LINUX_VERSION_CODE <= LinuxVersionCode(2,1,92)
+__initfunc(
+static int 
+pci_read_base_address(u_char bus, u_char device_fn, int offset, u_long *base)
+)
+{
+	u_int32 tmp;
+
+	pcibios_read_config_dword(bus, device_fn, offset, &tmp);
+	*base = tmp;
+	offset += sizeof(u_int32);
+	if ((tmp & 0x7) == 0x4) {
+#if BITS_PER_LONG > 32
+		pcibios_read_config_dword(bus, device_fn, offset, &tmp);
+		*base |= (((u_long)tmp) << 32);
+#endif
+		offset += sizeof(u_int32);
+	}
+	return offset;
+}
+#else	/* LINUX_VERSION_CODE > LinuxVersionCode(2,1,92) */
+__initfunc(
+static int 
+pci_get_base_address(struct pci_dev *pdev, int index, u_long *base)
+)
+{
+	*base = pdev->base_address[index++];
+	if ((*base & 0x7) == 0x4) {
+#if BITS_PER_LONG > 32
+		*base |= (((u_long)pdev->base_address[index]) << 32);
+#endif
+		++index;
+	}
+	return index;
+}
+#endif
+
+/*
 **   Read and check the PCI configuration for any detected NCR 
 **   boards and save data for attaching after all boards have 
 **   been detected.
@@ -9647,60 +9706,55 @@ static int ncr53c8xx_pci_init(Scsi_Host_Template *tpnt,
 	uchar revision;
 #if LINUX_VERSION_CODE > LinuxVersionCode(2,1,92)
 	struct pci_dev *pdev;
-	ulong base, base_2, io_port; 
 	uint irq;
 #else
 	uchar irq;
-	uint base, base_2, io_port; 
 #endif
+	ulong base, base_2, io_port; 
 	int i;
-
 #ifdef SCSI_NCR_NVRAM_SUPPORT
 	ncr_nvram *nvram = device->nvram;
 #endif
 	ncr_chip *chip;
 
 	/*
-	 * Read info from the PCI config space.
-	 * pcibios_read_config_xxx() functions are assumed to be used for 
-	 * successfully detected PCI devices.
-	 * Expecting error conditions from them is just paranoia,
-	 * thus void cast.
-	 */
-	(void) pcibios_read_config_word(bus, device_fn,
-					PCI_VENDOR_ID, &vendor_id);
-	(void) pcibios_read_config_word(bus, device_fn,
-					PCI_DEVICE_ID, &device_id);
-	(void) pcibios_read_config_word(bus, device_fn,
-					PCI_COMMAND, &command);
+	**    Read info from the PCI config space.
+	**    pcibios_read_config_xxx() functions are assumed to be used for 
+	**    successfully detected PCI devices.
+	*/
 #if LINUX_VERSION_CODE > LinuxVersionCode(2,1,92)
 	pdev = pci_find_slot(bus, device_fn);
-	io_port = pdev->base_address[0];
-	base = pdev->base_address[1];
-	base_2 = pdev->base_address[2];
+	vendor_id = pdev->vendor;
+	device_id = pdev->device;
 	irq = pdev->irq;
+	i =	0;
+	i =	pci_get_base_address(pdev, i, &io_port);
+	i =	pci_get_base_address(pdev, i, &base);
+	(void)	pci_get_base_address(pdev, i, &base_2);
 #else
-	(void) pcibios_read_config_dword(bus, device_fn,
-					PCI_BASE_ADDRESS_0, &io_port);	
-	(void) pcibios_read_config_dword(bus, device_fn,
-					PCI_BASE_ADDRESS_1, &base);
-	(void) pcibios_read_config_dword(bus, device_fn,
-					PCI_BASE_ADDRESS_2, &base_2);
-
-	/* Handle 64bit base addresses for 53C896. */
-	if ((base & PCI_BASE_ADDRESS_MEM_TYPE_MASK) == PCI_BASE_ADDRESS_MEM_TYPE_64)
-		(void) pcibios_read_config_dword(bus, device_fn,
-						 PCI_BASE_ADDRESS_3, &base_2);
-	(void) pcibios_read_config_byte(bus, device_fn,
-					PCI_INTERRUPT_LINE, &irq);
+	pcibios_read_config_word(bus, device_fn, PCI_VENDOR_ID, &vendor_id);
+	pcibios_read_config_word(bus, device_fn, PCI_DEVICE_ID, &device_id);
+	pcibios_read_config_byte(bus, device_fn, PCI_INTERRUPT_LINE, &irq);
+	i =	PCI_BASE_ADDRESS_0;
+	i =	pci_read_base_address(bus, device_fn, i, &io_port);
+	i =	pci_read_base_address(bus, device_fn, i, &base);
+	(void)	pci_read_base_address(bus, device_fn, i, &base_2);
 #endif
-	(void) pcibios_read_config_byte(bus, device_fn,
-					PCI_CLASS_REVISION,&revision);	
-	(void) pcibios_read_config_byte(bus, device_fn,
-					PCI_CACHE_LINE_SIZE, &cache_line_size);
-	(void) pcibios_read_config_byte(bus, device_fn,
-					PCI_LATENCY_TIMER, &latency_timer);
+	pcibios_read_config_word(bus, device_fn, PCI_COMMAND, &command);
+	pcibios_read_config_byte(bus, device_fn, PCI_CLASS_REVISION, &revision);
+	pcibios_read_config_byte(bus, device_fn, PCI_CACHE_LINE_SIZE,
+				 &cache_line_size);
+	pcibios_read_config_byte(bus, device_fn, PCI_LATENCY_TIMER,
+				 &latency_timer);
 
+	/*
+	**	If user excludes this chip, donnot initialize it.
+	*/
+	for (i = 0 ; i < SCSI_NCR_MAX_EXCLUDES ; i++) {
+		if (driver_setup.excludes[i] ==
+				(io_port & PCI_BASE_ADDRESS_IO_MASK))
+			return -1;
+	}
 	/*
 	 *	Check if the chip is supported
 	 */
@@ -10184,6 +10238,14 @@ printk("ncr53c8xx_select_queue_depth: host=%d, id=%d, lun=%d, depth=%d\n",
 	np->unit, device->id, device->lun, device->queue_depth);
 #endif
 	}
+}
+
+/*
+**   Linux entry point for info() function
+*/
+const char *ncr53c8xx_info (struct Scsi_Host *host)
+{
+	return SCSI_NCR_DRIVER_NAME;
 }
 
 /*
@@ -10813,7 +10875,7 @@ static int ncr_host_info(ncb_p np, char *ptr, off_t offset, int len)
 **	- func = 1 means write (parse user control command)
 */
 
-int ncr53c8xx_proc_info(char *buffer, char **start, off_t offset,
+static int ncr53c8xx_proc_info(char *buffer, char **start, off_t offset,
 			int length, int hostno, int func)
 {
 	struct Scsi_Host *host;

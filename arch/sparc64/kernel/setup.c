@@ -1,4 +1,4 @@
-/*  $Id: setup.c,v 1.37 1998/10/14 15:49:09 ecd Exp $
+/*  $Id: setup.c,v 1.43 1999/04/12 08:08:24 davem Exp $
  *  linux/arch/sparc64/kernel/setup.c
  *
  *  Copyright (C) 1995,1996  David S. Miller (davem@caip.rutgers.edu)
@@ -277,6 +277,22 @@ static int console_fb __initdata = 0;
 #endif
 static unsigned long memory_size = 0;
 
+#ifdef PROM_DEBUG_CONSOLE
+static struct console prom_debug_console = {
+	"debug",
+	prom_console_write,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	CON_PRINTBUFFER,
+	-1,
+	0,
+	NULL
+};
+#endif
+
 /* XXX Implement this at some point... */
 void kernel_enter_debugger(void)
 {
@@ -397,13 +413,12 @@ __initfunc(static void boot_flags_init(char *commands))
 extern int prom_probe_memory(void);
 extern unsigned long start, end;
 extern void panic_setup(char *, int *);
-extern unsigned long sun_serial_setup(unsigned long);
 
 extern unsigned short root_flags;
 extern unsigned short root_dev;
 extern unsigned short ram_flags;
-extern unsigned int ramdisk_image;
-extern unsigned int ramdisk_size;
+extern unsigned int sparc_ramdisk_image;
+extern unsigned int sparc_ramdisk_size;
 #define RAMDISK_IMAGE_START_MASK	0x07FF
 #define RAMDISK_PROMPT_FLAG		0x8000
 #define RAMDISK_LOAD_FLAG		0x4000
@@ -429,6 +444,10 @@ __initfunc(void setup_arch(char **cmdline_p,
 	/* Initialize PROM console and command line. */
 	*cmdline_p = prom_getbootargs();
 	strcpy(saved_command_line, *cmdline_p);
+
+#ifdef PROM_DEBUG_CONSOLE
+	register_console(&prom_debug_console);
+#endif
 
 	printk("ARCH: SUN4U\n");
 
@@ -489,13 +508,13 @@ __initfunc(void setup_arch(char **cmdline_p,
 	rd_doload = ((ram_flags & RAMDISK_LOAD_FLAG) != 0);	
 #endif
 #ifdef CONFIG_BLK_DEV_INITRD
-	if (ramdisk_image) {
+	if (sparc_ramdisk_image) {
 		unsigned long start = 0;
 		
-		if (ramdisk_image >= (unsigned long)&end - 2 * PAGE_SIZE)
-			ramdisk_image -= KERNBASE;
-		initrd_start = ramdisk_image + phys_base + PAGE_OFFSET;
-		initrd_end = initrd_start + ramdisk_size;
+		if (sparc_ramdisk_image >= (unsigned long)&end - 2 * PAGE_SIZE)
+			sparc_ramdisk_image -= KERNBASE;
+		initrd_start = sparc_ramdisk_image + phys_base + PAGE_OFFSET;
+		initrd_end = initrd_start + sparc_ramdisk_size;
 		if (initrd_end > *memory_end_p) {
 			printk(KERN_CRIT "initrd extends beyond end of memory "
 		                 	 "(0x%016lx > 0x%016lx)\ndisabling initrd\n",
@@ -503,10 +522,10 @@ __initfunc(void setup_arch(char **cmdline_p,
 			initrd_start = 0;
 		}
 		if (initrd_start)
-			start = ramdisk_image + KERNBASE;
+			start = sparc_ramdisk_image + KERNBASE;
 		if (start >= *memory_start_p && start < *memory_start_p + 2 * PAGE_SIZE) {
 			initrd_below_start_ok = 1;
-			*memory_start_p = PAGE_ALIGN (start + ramdisk_size);
+			*memory_start_p = PAGE_ALIGN (start + sparc_ramdisk_size);
 		}
 	}
 #endif	
@@ -531,7 +550,7 @@ __initfunc(void setup_arch(char **cmdline_p,
 			ic_servaddr = sv;
 			if (gw)
 				ic_gateway = gw;
-			ic_bootp_flag = ic_rarp_flag = 0;
+			ic_proto_enabled = 0;
 		}
 	}
 #endif
@@ -566,7 +585,6 @@ __initfunc(void setup_arch(char **cmdline_p,
 		serial_console = 2;
 		break;
 	}
-	*memory_start_p = sun_serial_setup(*memory_start_p); /* set this up ASAP */
 #else
 	serial_console = 0;
 #endif

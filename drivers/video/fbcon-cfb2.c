@@ -50,7 +50,7 @@ static u_char nibbletab_cfb2[]={
 
 void fbcon_cfb2_setup(struct display *p)
 {
-    p->next_line = p->var.xres_virtual>>2;
+    p->next_line = p->line_length ? p->line_length : p->var.xres_virtual>>2;
     p->next_plane = 0;
 }
 
@@ -156,15 +156,15 @@ void fbcon_cfb2_putcs(struct vc_data *conp, struct display *p, const unsigned sh
 	u32 eorx, fgx, bgx;
 
 	dest0 = p->screen_base + yy * fontheight(p) * bytes + xx * 2;
-	fgx=3/*attr_fgcol(p,*s)*/;
-	bgx=attr_bgcol(p,*s);
+	fgx=3/*attr_fgcol(p,scr_readw(s))*/;
+	bgx=attr_bgcol(p,scr_readw(s));
 	fgx |= (fgx << 2);
 	fgx |= (fgx << 4);
 	bgx |= (bgx << 2);
 	bgx |= (bgx << 4);
 	eorx = fgx ^ bgx;
 	while (count--) {
-		c = *s++ & p->charmask;
+		c = scr_readw(s++) & p->charmask;
 		cdat = p->fontdata + c * fontheight(p);
 
 		for (rows = fontheight(p), dest = dest0; rows-- ; dest += bytes) {

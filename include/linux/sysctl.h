@@ -56,9 +56,15 @@ enum
 	CTL_PROC=4,		/* Process info */
 	CTL_FS=5,		/* Filesystems */
 	CTL_DEBUG=6,		/* Debugging */
-	CTL_DEV=7		/* Devices */
+	CTL_DEV=7,		/* Devices */
+	CTL_BUS=8		/* Buses */
 };
 
+/* CTL_BUS names: */
+enum
+{
+	BUS_ISA=1		/* ISA */
+};
 
 /* CTL_KERN names: */
 enum
@@ -133,9 +139,17 @@ enum
 	NET_IPV6=12,
 	NET_X25=13,
 	NET_TR=14,
-	NET_DECNET=15
+	NET_DECNET=15,
+	NET_ECONET=16
 };
 
+/* /proc/sys/bus/isa */
+enum
+{
+	BUS_ISA_MEM_BASE=1,
+	BUS_ISA_PORT_BASE=2,
+	BUS_ISA_PORT_SHIFT=3
+};
 
 /* /proc/sys/net/core */
 enum
@@ -161,7 +175,8 @@ enum
 enum
 {
 	NET_UNIX_DESTROY_DELAY=1,
-	NET_UNIX_DELETE_DELAY=2
+	NET_UNIX_DELETE_DELAY=2,
+	NET_UNIX_MAX_DGRAM_QLEN=3,
 };
 
 /* /proc/sys/net/ipv4 */
@@ -225,7 +240,8 @@ enum {
 	NET_IPV4_ROUTE_REDIRECT_SILENCE=11,
 	NET_IPV4_ROUTE_ERROR_COST=12,
 	NET_IPV4_ROUTE_ERROR_BURST=13,
-	NET_IPV4_ROUTE_GC_ELASTICITY=14
+	NET_IPV4_ROUTE_GC_ELASTICITY=14,
+	NET_IPV4_ROUTE_MTU_EXPIRES=15
 };
 
 enum
@@ -265,7 +281,8 @@ enum {
 	NET_IPV6_ROUTE_GC_MIN_INTERVAL=4,
 	NET_IPV6_ROUTE_GC_TIMEOUT=5,
 	NET_IPV6_ROUTE_GC_INTERVAL=6,
-	NET_IPV6_ROUTE_GC_ELASTICITY=7
+	NET_IPV6_ROUTE_GC_ELASTICITY=7,
+	NET_IPV6_ROUTE_MTU_EXPIRES=8
 };
 
 enum {

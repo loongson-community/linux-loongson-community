@@ -1,4 +1,4 @@
-/*  $Id: atyfb.c,v 1.98 1999/01/14 08:50:53 geert Exp $
+/*  $Id: atyfb.c,v 1.106 1999/04/16 11:20:49 geert Exp $
  *  linux/drivers/video/atyfb.c -- Frame buffer device for ATI Mach64
  *
  *	Copyright (C) 1997-1998  Geert Uytterhoeven
@@ -66,6 +66,8 @@
 #include <asm/prom.h>
 #include <asm/pci-bridge.h>
 #include <video/macmodes.h>
+#include <asm/adb.h>
+#include <asm/pmu.h>
 #endif
 #ifdef __sparc__
 #include <asm/pbm.h>
@@ -383,7 +385,6 @@ void atyfb_of_init(struct device_node *dp);
 #endif
 void atyfb_setup(char *options, int *ints);
 
-
 static int currcon = 0;
 
 static struct fb_ops atyfb_ops = {
@@ -439,10 +440,10 @@ static struct aty_features {
 
     /* mach64CT family / mach64GT (3D RAGE) class */
     { 0x4c42, 0x4c42, "3D RAGE LT PRO (AGP)" },
-    { 0x4c42, 0x4c44, "3D RAGE LT PRO" },
-    { 0x4c42, 0x4c47, "3D RAGE LT PRO" },
-    { 0x4c42, 0x4c49, "3D RAGE LT PRO" },
-    { 0x4c42, 0x4c50, "3D RAGE LT PRO" },
+    { 0x4c44, 0x4c44, "3D RAGE LT PRO" },
+    { 0x4c47, 0x4c47, "3D RAGE LT PRO" },
+    { 0x4c49, 0x4c49, "3D RAGE LT PRO" },
+    { 0x4c50, 0x4c50, "3D RAGE LT PRO" },
     { 0x4c54, 0x4c54, "3D RAGE LT" },
     { 0x4754, 0x4754, "3D RAGE (GT)" },
     { 0x4755, 0x4755, "3D RAGE II+ (GTB)" },
@@ -777,7 +778,8 @@ aty_set_cursor_color(struct fb_info_aty *fb, u8 *pixel,
 		return;
 
 #ifdef __sparc__
-	if (fb->mmaped && currcon == fb->vtconsole)
+	if (fb->mmaped && (!fb->fb_info.display_fg
+	    || fb->fb_info.display_fg->vc_num == fb->vtconsole))
 		return;
 #endif
 
@@ -804,7 +806,8 @@ aty_set_cursor_shape(struct fb_info_aty *fb)
 		return;
 
 #ifdef __sparc__
-	if (fb->mmaped && currcon == fb->vtconsole)
+	if (fb->mmaped && (!fb->fb_info.display_fg
+	    || fb->fb_info.display_fg->vc_num == fb->vtconsole))
 		return;
 #endif
 
@@ -838,7 +841,8 @@ aty_set_cursor(struct fb_info_aty *fb, int on)
 		return;
 
 #ifdef __sparc__
-	if (fb->mmaped && currcon == fb->vtconsole)
+	if (fb->mmaped && (!fb->fb_info.display_fg
+	    || fb->fb_info.display_fg->vc_num == fb->vtconsole))
 		return;
 #endif
 
@@ -908,7 +912,8 @@ atyfb_cursor(struct display *p, int mode, int x, int y)
 		return;
 
 #ifdef __sparc__
-	if (fb->mmaped && currcon == fb->vtconsole)
+	if (fb->mmaped && (!fb->fb_info.display_fg
+	    || fb->fb_info.display_fg->vc_num == fb->vtconsole))
 		return;
 #endif
 
@@ -1282,7 +1287,7 @@ static int aty_crtc_to_var(const struct crtc *crtc,
 	    bpp = 16;
 	    var->red.offset = 11;
 	    var->red.length = 5;
-	    var->green.offset = 6;
+	    var->green.offset = 5;
 	    var->green.length = 6;
 	    var->blue.offset = 0;
 	    var->blue.length = 5;
@@ -1642,29 +1647,23 @@ static int aty_var_to_pll_ct(const struct fb_info_aty *info, u32 vclk_per,
     	pll_ext_cntl = mpostdiv;	/* xclk == mclk */
 
     switch (vclk_post_div) {
-	case 1:
-	    vpostdiv = 0;
-	    break;
 	case 2:
 	    vpostdiv = 1;
 	    break;
 	case 3:
-	    vpostdiv = 0;
 	    pll_ext_cntl |= 0x10;
+	case 1:
+	    vpostdiv = 0;
 	    break;
+	case 6:
+	    pll_ext_cntl |= 0x10;
 	case 4:
 	    vpostdiv = 2;
 	    break;
-	case 6:
-	    vpostdiv = 2;
+	case 12:
 	    pll_ext_cntl |= 0x10;
-	    break;
 	case 8:
 	    vpostdiv = 3;
-	    break;
-	case 12:
-	    vpostdiv = 3;
-	    pll_ext_cntl |= 0x10;
 	    break;
     }
     vclk_post_div = vpostdiv;
@@ -1688,7 +1687,7 @@ static int aty_pll_ct_to_var(const struct pll_ct *pll, u32 *vclk_per)
 	1, 2, 4, 8,
 	3, 0, 6, 12
     };
-    u8 vpostdiv = vclk_post_div_tab[((pll_ext_cntl & 0x10) >> 1) |
+    u8 vpostdiv = vclk_post_div_tab[((pll_ext_cntl & 0x10) >> 2) |
 				    (vclk_post_div & 3)];
     if (vpostdiv == 0)
 	return -EINVAL;
@@ -2112,7 +2111,8 @@ static int atyfb_set_var(struct fb_var_screeninfo *var, int con,
 	    if (info->fb_info.changevar)
 		(*info->fb_info.changevar)(con);
 	}
-	if (con == currcon)
+	if (!info->fb_info.display_fg ||
+	    info->fb_info.display_fg->vc_num == con)
 	    atyfb_set_par(&par, info);
 	if (oldbpp != var->bits_per_pixel) {
 	    if ((err = fb_alloc_cmap(&display->cmap, 0, 0)))
@@ -2157,7 +2157,7 @@ static int atyfb_pan_display(struct fb_var_screeninfo *var, int con,
 static int atyfb_get_cmap(struct fb_cmap *cmap, int kspc, int con,
 			  struct fb_info *info)
 {
-    if (con == currcon) /* current console? */
+    if (!info->display_fg || con == info->display_fg->vc_num) /* current console? */
 	return fb_get_cmap(cmap, kspc, atyfb_getcolreg, info);
     else if (fb_display[con].cmap.len) /* non default colormap? */
 	fb_copy_cmap(&fb_display[con].cmap, cmap, kspc ? 0 : 2);
@@ -2176,16 +2176,21 @@ static int atyfb_set_cmap(struct fb_cmap *cmap, int kspc, int con,
 			  struct fb_info *info)
 {
     int err;
+    struct display *disp;
 
-    if (!fb_display[con].cmap.len) {	/* no colormap allocated? */
-	int size = fb_display[con].var.bits_per_pixel == 16 ? 32 : 256;
-	if ((err = fb_alloc_cmap(&fb_display[con].cmap, size, 0)))
+    if (con >= 0)
+    	disp = &fb_display[con];
+    else
+        disp = info->disp;
+    if (!disp->cmap.len) {	/* no colormap allocated? */
+	int size = disp->var.bits_per_pixel == 16 ? 32 : 256;
+	if ((err = fb_alloc_cmap(&disp->cmap, size, 0)))
 	    return err;
     }
-    if (con == currcon)			/* current console? */
+    if (!info->display_fg || con == info->display_fg->vc_num)			/* current console? */
 	return fb_set_cmap(cmap, kspc, atyfb_setcolreg, info);
     else
-	fb_copy_cmap(cmap, &fb_display[con].cmap, kspc ? 0 : 1);
+	fb_copy_cmap(cmap, &disp->cmap, kspc ? 0 : 1);
     return 0;
 }
 
@@ -2196,6 +2201,12 @@ static int atyfb_ioctl(struct inode *inode, struct file *file, u_int cmd,
 #ifdef __sparc__
     struct fb_info_aty *fb = (struct fb_info_aty *)info;
     struct fbtype fbtyp;
+    struct display *disp;
+    
+    if (con >= 0)
+    	disp = &fb_display[con];
+    else
+        disp = info->disp;
 
     switch (cmd) {
     case FBIOGTYPE:
@@ -2203,7 +2214,7 @@ static int atyfb_ioctl(struct inode *inode, struct file *file, u_int cmd,
 	fbtyp.fb_width = fb->current_par.crtc.vxres;
 	fbtyp.fb_height = fb->current_par.crtc.vyres;
 	fbtyp.fb_depth = fb->current_par.crtc.bpp;
-	fbtyp.fb_cmsize = fb_display[con].cmap.len;
+	fbtyp.fb_cmsize = disp->cmap.len;
 	fbtyp.fb_size = fb->total_vram;
 	copy_to_user_ret((struct fbtype *)arg, &fbtyp, sizeof(fbtyp), -EFAULT);
 	break;
@@ -2321,8 +2332,6 @@ static int atyfb_mmap(struct fb_info *info, struct file *file,
 	if (!map_size)
 		return -EINVAL;
 
-	vma->vm_file = file;
-	file->f_count++;
 	vma->vm_flags |= VM_IO;
 
 	if (!fb->mmaped) {
@@ -2353,10 +2362,10 @@ static void atyfb_save_palette(struct fb_info *fb, int enter)
 
 	for (i = 0; i < 256; i++) {
 		tmp = aty_ld_8(DAC_CNTL, info) & 0xfc;
-		if ((Gx == GT_CHIP_ID) || (Gx == GU_CHIP_ID) ||
-		    (Gx == LG_CHIP_ID) || (Gx == GB_CHIP_ID) ||
-		    (Gx == GD_CHIP_ID) || (Gx == GI_CHIP_ID) ||
-		    (Gx == GP_CHIP_ID) || (Gx == GQ_CHIP_ID))
+		if (Gx == GT_CHIP_ID || Gx == GU_CHIP_ID || Gx == GV_CHIP_ID ||
+		    Gx == GW_CHIP_ID || Gx == GZ_CHIP_ID || Gx == LG_CHIP_ID ||
+		    Gx == GB_CHIP_ID || Gx == GD_CHIP_ID || Gx == GI_CHIP_ID ||
+		    Gx == GP_CHIP_ID || Gx == GQ_CHIP_ID)
 			tmp |= 0x2;
 		aty_st_8(DAC_CNTL, tmp, info);
 		aty_st_8(DAC_MASK, 0xff, info);
@@ -2785,7 +2794,7 @@ __initfunc(void atyfb_init(void))
 	     */
 	    for (i = 0; i < 6 && pdev->base_address[i]; i++)
 		/* nothing */;
-	    j = i + 3;
+	    j = i + 4;
 
 	    info->mmap_map = kmalloc(j * sizeof(*info->mmap_map), GFP_ATOMIC);
 	    if (!info->mmap_map) {
@@ -2813,15 +2822,33 @@ __initfunc(void atyfb_init(void))
 			size &= ~1;
 		size = ~(size) + 1;
 
+		/*
+		 * Map the framebuffer a second time, this time without
+		 * the braindead _PAGE_IE setting. This is used by the
+		 * fixed Xserver, but we need to maintain the old mapping
+		 * to stay compatible with older ones...
+		 */
 		if (base == addr) {
-			info->mmap_map[j].voff = (pbase + 0x800000) & PAGE_MASK;
-			info->mmap_map[j].poff = __pa((base + 0x800000)
-								& PAGE_MASK);
-			info->mmap_map[j].size = 0x800000;
-			info->mmap_map[j].prot_mask = _PAGE_CACHE;
-			info->mmap_map[j].prot_flag = _PAGE_E|_PAGE_IE;
-			size -= 0x800000;
-			j++;
+		    info->mmap_map[j].voff = (pbase + 0x10000000) & PAGE_MASK;
+		    info->mmap_map[j].poff = __pa(base & PAGE_MASK);
+		    info->mmap_map[j].size = (size + ~PAGE_MASK) & PAGE_MASK;
+		    info->mmap_map[j].prot_mask = _PAGE_CACHE;
+		    info->mmap_map[j].prot_flag = _PAGE_E;
+		    j++;
+		}
+
+		/*
+		 * Here comes the old framebuffer mapping with _PAGE_IE
+		 * set for the big endian half of the framebuffer...
+		 */
+		if (base == addr) {
+		    info->mmap_map[j].voff = (pbase + 0x800000) & PAGE_MASK;
+		    info->mmap_map[j].poff = __pa((base+0x800000) & PAGE_MASK);
+		    info->mmap_map[j].size = 0x800000;
+		    info->mmap_map[j].prot_mask = _PAGE_CACHE;
+		    info->mmap_map[j].prot_flag = _PAGE_E|_PAGE_IE;
+		    size -= 0x800000;
+		    j++;
 		}
 
 		info->mmap_map[j].voff = pbase & PAGE_MASK;
@@ -3296,6 +3323,11 @@ static void atyfbcon_blank(int blank, struct fb_info *fb)
     struct fb_info_aty *info = (struct fb_info_aty *)fb;
     u8 gen_cntl;
 
+#if defined(CONFIG_PPC)
+    if ((_machine == _MACH_Pmac) && blank)
+    	pmu_enable_backlight(0);
+#endif
+
     gen_cntl = aty_ld_8(CRTC_GEN_CNTL, info);
     if (blank > 0)
 	switch (blank-1) {
@@ -3315,6 +3347,11 @@ static void atyfbcon_blank(int blank, struct fb_info *fb)
     else
 	gen_cntl &= ~(0x4c);
     aty_st_8(CRTC_GEN_CNTL, gen_cntl, info);
+
+#if defined(CONFIG_PPC)
+    if ((_machine == _MACH_Pmac) && !blank)
+    	pmu_enable_backlight(1);
+#endif
 }
 
 
@@ -3359,9 +3396,10 @@ static int atyfb_setcolreg(u_int regno, u_int red, u_int green, u_int blue,
     info->palette[regno].green = green;
     info->palette[regno].blue = blue;
     i = aty_ld_8(DAC_CNTL, info) & 0xfc;
-    if ((Gx == GT_CHIP_ID) || (Gx == GU_CHIP_ID) || (Gx == LG_CHIP_ID) ||
-	(Gx == GB_CHIP_ID) || (Gx == GD_CHIP_ID) || (Gx == GI_CHIP_ID) ||
-	(Gx == GP_CHIP_ID) || (Gx == GQ_CHIP_ID))
+    if (Gx == GT_CHIP_ID || Gx == GU_CHIP_ID || Gx == GV_CHIP_ID ||
+	Gx == GW_CHIP_ID || Gx == GZ_CHIP_ID || Gx == LG_CHIP_ID ||
+	Gx == GB_CHIP_ID || Gx == GD_CHIP_ID || Gx == GI_CHIP_ID ||
+	Gx == GP_CHIP_ID || Gx == GQ_CHIP_ID)
 	i |= 0x2;	/*DAC_CNTL|0x2 turns off the extra brightness for gt*/
     aty_st_8(DAC_CNTL, i, info);
     aty_st_8(DAC_MASK, 0xff, info);
@@ -3545,7 +3583,8 @@ static void fbcon_aty_bmove(struct display *p, int sy, int sx, int dy, int dx,
 #ifdef __sparc__
     struct fb_info_aty *fb = (struct fb_info_aty *)(p->fb_info);
 
-    if (fb->mmaped && currcon == fb->vtconsole)
+    if (fb->mmaped && (!fb->fb_info.display_fg
+	|| fb->fb_info.display_fg->vc_num == fb->vtconsole))
 	return;
 #endif
 
@@ -3567,7 +3606,8 @@ static void fbcon_aty_clear(struct vc_data *conp, struct display *p, int sy,
 #ifdef __sparc__
     struct fb_info_aty *fb = (struct fb_info_aty *)(p->fb_info);
 
-    if (fb->mmaped && currcon == fb->vtconsole)
+    if (fb->mmaped && (!fb->fb_info.display_fg
+	|| fb->fb_info.display_fg->vc_num == fb->vtconsole))
 	return;
 #endif
 
@@ -3591,7 +3631,8 @@ static void fbcon_aty8_putc(struct vc_data *conp, struct display *p, int c,
     struct fb_info_aty *fb = (struct fb_info_aty *)(p->fb_info);
 
 #ifdef __sparc__
-    if (fb->mmaped && currcon == fb->vtconsole)
+    if (fb->mmaped && (!fb->fb_info.display_fg
+	|| fb->fb_info.display_fg->vc_num == fb->vtconsole))
 	return;
 #endif
 
@@ -3607,7 +3648,8 @@ static void fbcon_aty8_putcs(struct vc_data *conp, struct display *p,
     struct fb_info_aty *fb = (struct fb_info_aty *)(p->fb_info);
 
 #ifdef __sparc__
-    if (fb->mmaped && currcon == fb->vtconsole)
+    if (fb->mmaped && (!fb->fb_info.display_fg
+	|| fb->fb_info.display_fg->vc_num == fb->vtconsole))
 	return;
 #endif
 
@@ -3622,7 +3664,8 @@ static void fbcon_aty8_clear_margins(struct vc_data *conp, struct display *p,
     struct fb_info_aty *fb = (struct fb_info_aty *)(p->fb_info);
 
 #ifdef __sparc__
-    if (fb->mmaped && currcon == fb->vtconsole)
+    if (fb->mmaped && (!fb->fb_info.display_fg
+	|| fb->fb_info.display_fg->vc_num == fb->vtconsole))
 	return;
 #endif
 
@@ -3645,7 +3688,8 @@ static void fbcon_aty16_putc(struct vc_data *conp, struct display *p, int c,
     struct fb_info_aty *fb = (struct fb_info_aty *)(p->fb_info);
 
 #ifdef __sparc__
-    if (fb->mmaped && currcon == fb->vtconsole)
+    if (fb->mmaped && (!fb->fb_info.display_fg
+	|| fb->fb_info.display_fg->vc_num == fb->vtconsole))
 	return;
 #endif
 
@@ -3661,7 +3705,8 @@ static void fbcon_aty16_putcs(struct vc_data *conp, struct display *p,
     struct fb_info_aty *fb = (struct fb_info_aty *)(p->fb_info);
 
 #ifdef __sparc__
-    if (fb->mmaped && currcon == fb->vtconsole)
+    if (fb->mmaped && (!fb->fb_info.display_fg
+	|| fb->fb_info.display_fg->vc_num == fb->vtconsole))
 	return;
 #endif
 
@@ -3676,7 +3721,8 @@ static void fbcon_aty16_clear_margins(struct vc_data *conp, struct display *p,
     struct fb_info_aty *fb = (struct fb_info_aty *)(p->fb_info);
 
 #ifdef __sparc__
-    if (fb->mmaped && currcon == fb->vtconsole)
+    if (fb->mmaped && (!fb->fb_info.display_fg
+	|| fb->fb_info.display_fg->vc_num == fb->vtconsole))
 	return;
 #endif
 
@@ -3699,7 +3745,8 @@ static void fbcon_aty24_putc(struct vc_data *conp, struct display *p, int c,
     struct fb_info_aty *fb = (struct fb_info_aty *)(p->fb_info);
 
 #ifdef __sparc__
-    if (fb->mmaped && currcon == fb->vtconsole)
+    if (fb->mmaped && (!fb->fb_info.display_fg
+	|| fb->fb_info.display_fg->vc_num == fb->vtconsole))
 	return;
 #endif
 
@@ -3715,7 +3762,8 @@ static void fbcon_aty24_putcs(struct vc_data *conp, struct display *p,
     struct fb_info_aty *fb = (struct fb_info_aty *)(p->fb_info);
 
 #ifdef __sparc__
-    if (fb->mmaped && currcon == fb->vtconsole)
+    if (fb->mmaped && (!fb->fb_info.display_fg
+	|| fb->fb_info.display_fg->vc_num == fb->vtconsole))
 	return;
 #endif
 
@@ -3730,7 +3778,8 @@ static void fbcon_aty24_clear_margins(struct vc_data *conp, struct display *p,
     struct fb_info_aty *fb = (struct fb_info_aty *)(p->fb_info);
 
 #ifdef __sparc__
-    if (fb->mmaped && currcon == fb->vtconsole)
+    if (fb->mmaped && (!fb->fb_info.display_fg
+	|| fb->fb_info.display_fg->vc_num == fb->vtconsole))
 	return;
 #endif
 
@@ -3753,7 +3802,8 @@ static void fbcon_aty32_putc(struct vc_data *conp, struct display *p, int c,
     struct fb_info_aty *fb = (struct fb_info_aty *)(p->fb_info);
 
 #ifdef __sparc__
-    if (fb->mmaped && currcon == fb->vtconsole)
+    if (fb->mmaped && (!fb->fb_info.display_fg
+	|| fb->fb_info.display_fg->vc_num == fb->vtconsole))
 	return;
 #endif
 
@@ -3769,7 +3819,8 @@ static void fbcon_aty32_putcs(struct vc_data *conp, struct display *p,
     struct fb_info_aty *fb = (struct fb_info_aty *)(p->fb_info);
 
 #ifdef __sparc__
-    if (fb->mmaped && currcon == fb->vtconsole)
+    if (fb->mmaped && (!fb->fb_info.display_fg
+	|| fb->fb_info.display_fg->vc_num == fb->vtconsole))
 	return;
 #endif
 
@@ -3784,7 +3835,8 @@ static void fbcon_aty32_clear_margins(struct vc_data *conp, struct display *p,
     struct fb_info_aty *fb = (struct fb_info_aty *)(p->fb_info);
 
 #ifdef __sparc__
-    if (fb->mmaped && currcon == fb->vtconsole)
+    if (fb->mmaped && (!fb->fb_info.display_fg
+	|| fb->fb_info.display_fg->vc_num == fb->vtconsole))
 	return;
 #endif
 

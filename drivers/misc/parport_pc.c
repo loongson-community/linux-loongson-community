@@ -53,6 +53,8 @@
    than PARPORT_MAX (in <linux/parport.h>).  */
 #define PARPORT_PC_MAX_PORTS  8
 
+static int user_specified = 0;
+
 static void parport_pc_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	parport_generic_irq(irq, (struct parport *) dev_id, regs);
@@ -103,19 +105,24 @@ unsigned char parport_pc_read_data(struct parport *p)
 
 void parport_pc_write_control(struct parport *p, unsigned char d)
 {
+	struct parport_pc_private *priv = p->private_data;
+	priv->ctr = d;/* update soft copy */
 	outb(d, p->base+CONTROL);
 }
 
 unsigned char parport_pc_read_control(struct parport *p)
 {
-	return inb(p->base+CONTROL);
+	struct parport_pc_private *priv = p->private_data;
+	return priv->ctr;
 }
 
 unsigned char parport_pc_frob_control(struct parport *p, unsigned char mask,  unsigned char val)
 {
-	unsigned char old = inb(p->base+CONTROL);
-	outb(((old & ~mask) ^ val), p->base+CONTROL);
-	return old;
+	struct parport_pc_private *priv = p->private_data;
+	unsigned char ctr = priv->ctr;
+	ctr = (ctr & ~mask) ^ val;
+	outb (ctr, p->base+CONTROL);
+	return priv->ctr = ctr; /* update soft copy */
 }
 
 void parport_pc_write_status(struct parport *p, unsigned char d)
@@ -345,6 +352,8 @@ int parport_pc_epp_clear_timeout(struct parport *pb)
  */
 static int parport_SPP_supported(struct parport *pb)
 {
+	unsigned char r, w;
+
 	/*
 	 * first clear an eventually pending EPP timeout 
 	 * I (sailer@ife.ee.ethz.ch) have an SMSC chipset
@@ -354,14 +363,54 @@ static int parport_SPP_supported(struct parport *pb)
 	parport_pc_epp_clear_timeout(pb);
 
 	/* Do a simple read-write test to make sure the port exists. */
-	parport_pc_write_control(pb, 0xc);
-	parport_pc_write_data(pb, 0xaa);
-	if (parport_pc_read_data(pb) != 0xaa) return 0;
-	
-	parport_pc_write_data(pb, 0x55);
-	if (parport_pc_read_data(pb) != 0x55) return 0;
+	w = 0xc;
+	parport_pc_write_control(pb, w);
 
-	return PARPORT_MODE_PCSPP;
+	/* Can we read from the control register?  Some ports don't
+	 * allow reads, so read_control just returns a software
+	 * copy. Some ports _do_ allow reads, so bypass the software
+	 * copy here.  In addition, some bits aren't writable. */
+	r = inb (pb->base+CONTROL);
+	if ((r & 0x3f) == w) {
+		w = 0xe;
+		parport_pc_write_control (pb, w);
+		r = inb (pb->base+CONTROL);
+		parport_pc_write_control (pb, 0xc);
+		if ((r & 0x3f) == w)
+			return PARPORT_MODE_PCSPP;
+	}
+
+	if (user_specified)
+		/* That didn't work, but the user thinks there's a
+		 * port here. */
+		printk (KERN_DEBUG "0x%lx: CTR: wrote 0x%02x, read 0x%02x\n",
+			pb->base, w, r);
+
+	/* Try the data register.  The data lines aren't tri-stated at
+	 * this stage, so we expect back what we wrote. */
+	w = 0xaa;
+	parport_pc_write_data (pb, w);
+	r = parport_pc_read_data (pb);
+	if (r == w) {
+		w = 0x55;
+		parport_pc_write_data (pb, w);
+		r = parport_pc_read_data (pb);
+		if (r == w)
+			return PARPORT_MODE_PCSPP;
+	}
+
+	if (user_specified)
+		/* Didn't work with 0xaa, but the user is convinced
+		 * this is the place. */
+		printk (KERN_DEBUG "0x%lx: DATA: wrote 0x%02x, read 0x%02x\n",
+			pb->base, w, r);
+
+	/* It's possible that we can't read the control register or
+	   the data register.  In that case just believe the user. */
+	if (user_specified)
+		return PARPORT_MODE_PCSPP;
+
+	return 0;
 }
 
 /* Check for ECP
@@ -378,34 +427,35 @@ static int parport_SPP_supported(struct parport *pb)
  */
 static int parport_ECR_present(struct parport *pb)
 {
-	unsigned char r, octr = parport_pc_read_control(pb);
-	unsigned char oecr = parport_pc_read_econtrol(pb);
-	unsigned char tmp;
+	unsigned char r;
 
+	parport_pc_write_control (pb, 0xc);
 	r = parport_pc_read_control(pb);	
 	if ((parport_pc_read_econtrol(pb) & 0x3) == (r & 0x3)) {
 		parport_pc_write_control(pb, r ^ 0x2 ); /* Toggle bit 1 */
 
 		r = parport_pc_read_control(pb);	
-		if ((parport_pc_read_econtrol(pb) & 0x2) == (r & 0x2)) {
-			parport_pc_write_control(pb, octr);
-			return 0; /* Sure that no ECR register exists */
-		}
+		if ((parport_pc_read_econtrol(pb) & 0x2) == (r & 0x2))
+			goto no_reg; /* Sure that no ECR register exists */
 	}
 	
 	if ((parport_pc_read_econtrol(pb) & 0x3 ) != 0x1)
-		return 0;
+		goto no_reg;
 
 	parport_pc_write_econtrol(pb, 0x34);
-	tmp = parport_pc_read_econtrol(pb);
+	if (parport_pc_read_econtrol(pb) != 0x35)
+		goto no_reg;
 
-	parport_pc_write_econtrol(pb, oecr);
-	parport_pc_write_control(pb, octr);
+	parport_pc_write_control(pb, 0xc);
+
+	/* Go to mode 000; SPP, reset FIFO */
+	parport_pc_frob_econtrol (pb, 0xe0, 0x00);
 	
-	if (tmp != 0x35)
-		return 0;
-
 	return PARPORT_MODE_PCECR;
+
+ no_reg:
+	parport_pc_write_control (pb, 0xc);
+	return 0;
 }
 
 static int parport_ECP_supported(struct parport *pb)
@@ -706,14 +756,20 @@ out:
 
 static int probe_one_port(unsigned long int base, int irq, int dma)
 {
-	struct parport tmpport, *p;
+	struct parport *p;
 	int probedirq = PARPORT_IRQ_NONE;
 	if (check_region(base, 3)) return 0;
-	tmpport.base = base;
-	tmpport.ops = &parport_pc_ops;
-	if (!(parport_SPP_supported(&tmpport))) return 0;
-       	if (!(p = parport_register_port(base, irq, dma, &parport_pc_ops))) return 0;
-	p->modes = PARPORT_MODE_PCSPP | parport_PS2_supported(p);
+	if (!(p = parport_register_port(base, irq, dma, &parport_pc_ops)))
+		return 0;
+	p->private_data = kmalloc (sizeof (struct parport_pc_private),
+				   GFP_KERNEL);
+	if (!p->private_data) {
+		/* Not enough memory. */
+		printk (KERN_DEBUG "parport (0x%lx): no memory!\n", base);
+		parport_unregister_port (p);
+		return 0;
+	}
+	((struct parport_pc_private *) (p->private_data))->ctr = 0xc;
 	if (p->base != 0x3bc) {
 		if (!check_region(base+0x400,3)) {
 			p->modes |= parport_ECR_present(p);	
@@ -725,6 +781,13 @@ static int probe_one_port(unsigned long int base, int irq, int dma)
 			p->modes |= parport_ECPEPP_supported(p);
 		}
 	}
+	if (!parport_SPP_supported(p)) {
+		/* No port. */
+		kfree (p->private_data);
+		parport_unregister_port (p);
+		return 0;
+	}
+	p->modes |= PARPORT_MODE_PCSPP | parport_PS2_supported(p);
 	p->size = (p->modes & (PARPORT_MODE_PCEPP 
 			       | PARPORT_MODE_PCECPEPP))?8:3;
 	printk(KERN_INFO "%s: PC-style at 0x%lx", p->name, p->base);
@@ -783,6 +846,7 @@ int parport_pc_init(int *io, int *irq, int *dma)
 	int count = 0, i = 0;
 	if (io && *io) {
 		/* Only probe the ports we were given. */
+		user_specified = 1;
 		do {
 			count += probe_one_port(*(io++), *(irq++), *(dma++));
 		} while (*io && (++i < PARPORT_PC_MAX_PORTS));
@@ -825,6 +889,7 @@ void cleanup_module(void)
 			if (!(p->flags & PARPORT_FLAG_COMA)) 
 				parport_quiesce(p);
 			parport_proc_unregister(p);
+			kfree (p->private_data);
 			parport_unregister_port(p);
 		}
 		p = tmp;

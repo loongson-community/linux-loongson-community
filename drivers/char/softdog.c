@@ -132,7 +132,6 @@ static ssize_t softdog_write(struct file *file, const char *data, size_t len, lo
 static int softdog_ioctl(struct inode *inode, struct file *file,
 	unsigned int cmd, unsigned long arg)
 {
-	int i;
 	static struct watchdog_info ident=
 	{
 		0,
@@ -144,11 +143,9 @@ static int softdog_ioctl(struct inode *inode, struct file *file,
 		default:
 			return -ENOIOCTLCMD;
 		case WDIOC_GETSUPPORT:
-			i = verify_area(VERIFY_WRITE, (void*) arg, sizeof(struct watchdog_info));
-			if (i)
-				return i;
-			else
-				return copy_to_user((struct watchdog_info *)arg, &ident, sizeof(ident));
+			if(copy_to_user((struct watchdog_info *)arg, &ident, sizeof(ident)))
+				return -EFAULT;
+			return 0;
 		case WDIOC_GETSTATUS:
 		case WDIOC_GETBOOTSTATUS:
 			return put_user(0,(int *)arg);

@@ -111,7 +111,7 @@
 
 #include <asm/uaccess.h>
 
-#define OFFSET_MAX	((off_t)0x7fffffff)	/* FIXME: move elsewhere? */
+#define OFFSET_MAX	((off_t)LONG_MAX)	/* FIXME: move elsewhere? */
 
 static int flock_make_lock(struct file *filp, struct file_lock *fl,
 			       unsigned int cmd);
@@ -263,16 +263,18 @@ static void locks_wake_up_blocks(struct file_lock *blocker, unsigned int wait)
 		if (waiter->fl_notify)
 			waiter->fl_notify(waiter);
 		wake_up(&waiter->fl_wait);
-		if (wait)
+		if (wait) {
 			/* Let the blocked process remove waiter from the
 			 * block list when it gets scheduled.
 			 */
+			current->policy |= SCHED_YIELD;
 			schedule();
-		else
+		} else {
 			/* Remove waiter from the block list, because by the
 			 * time it wakes up blocker won't exist any more.
 			 */
 			locks_delete_block(blocker, waiter);
+		}
 	}
 	return;
 }
@@ -1170,7 +1172,7 @@ static void locks_delete_lock(struct file_lock **thisfl_p, unsigned int wait)
 
 static char *lock_get_status(struct file_lock *fl, int id, char *pfx)
 {
-	static char temp[129];
+	static char temp[155];
 	char *p = temp;
 	struct inode *inode;
 

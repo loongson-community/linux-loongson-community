@@ -1,4 +1,4 @@
-/* $Id: termios.h,v 1.27 1998/10/04 06:50:13 davem Exp $ */
+/* $Id: termios.h,v 1.29 1999/03/25 09:11:18 davem Exp $ */
 #ifndef _SPARC_TERMIOS_H
 #define _SPARC_TERMIOS_H
 
@@ -68,6 +68,7 @@ struct winsize {
 #define N_PROFIBUS_FDL	10	/* Reserved for Profibus <Dave@mvhi.com> */
 #define N_IRDA		11	/* Linux IrDa - http://www.cs.uit.no/~dagb/irda/irda.html */
 #define N_SMSBLOCK	12	/* SMS block mode - for talking to GSM data cards about SMS messages */
+#define N_HDLC		13	/* synchronous HDLC */
 
 #ifdef __KERNEL__
 

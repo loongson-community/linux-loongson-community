@@ -5,7 +5,7 @@
  *
  *		The IP to API glue.
  *		
- * Version:	$Id: ip_sockglue.c,v 1.39 1998/10/03 09:37:33 davem Exp $
+ * Version:	$Id: ip_sockglue.c,v 1.42 1999/04/22 10:07:34 davem Exp $
  *
  * Authors:	see ip.c
  *
@@ -150,7 +150,8 @@ int ip_cmsg_send(struct msghdr *msg, struct ipcm_cookie *ipc)
 	struct cmsghdr *cmsg;
 
 	for (cmsg = CMSG_FIRSTHDR(msg); cmsg; cmsg = CMSG_NXTHDR(msg, cmsg)) {
-		if ((unsigned long)(((char*)cmsg - (char*)msg->msg_control)
+		if (cmsg->cmsg_len < sizeof(struct cmsghdr) ||
+		    (unsigned long)(((char*)cmsg - (char*)msg->msg_control)
 				    + cmsg->cmsg_len) > msg->msg_controllen) {
 			return -EINVAL;
 		}
@@ -210,6 +211,8 @@ int ip_ra_control(struct sock *sk, unsigned char on, void (*destructor)(struct s
 				return -EADDRINUSE;
 			}
 			*rap = ra->next;
+			synchronize_bh();
+
 			if (ra->destructor)
 				ra->destructor(sk);
 			kfree(ra);
@@ -220,10 +223,11 @@ int ip_ra_control(struct sock *sk, unsigned char on, void (*destructor)(struct s
 		return -ENOBUFS;
 	new_ra->sk = sk;
 	new_ra->destructor = destructor;
-	start_bh_atomic();
+
 	new_ra->next = ra;
+	wmb();
 	*rap = new_ra;
-	end_bh_atomic();
+
 	return 0;
 }
 
@@ -404,7 +408,7 @@ int ip_setsockopt(struct sock *sk, int level, int optname, char *optval, int opt
 			err = ip_options_get(&opt, optval, optlen, 1);
 			if (err)
 				return err;
-			start_bh_atomic();
+			lock_sock(sk);
 			if (sk->type == SOCK_STREAM) {
 				struct tcp_opt *tp = &sk->tp_pinfo.af_tcp;
 #if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
@@ -420,7 +424,7 @@ int ip_setsockopt(struct sock *sk, int level, int optname, char *optval, int opt
 #endif
 			}
 			opt = xchg(&sk->opt, opt);
-			end_bh_atomic();
+			release_sock(sk);
 			if (opt)
 				kfree_s(opt, sizeof(struct ip_options) + opt->optlen);
 			return 0;
@@ -463,11 +467,12 @@ int ip_setsockopt(struct sock *sk, int level, int optname, char *optval, int opt
 			    !capable(CAP_NET_ADMIN))
 				return -EPERM;
 			if (sk->ip_tos != val) {
+				lock_sock(sk);
 				sk->ip_tos=val;
 				sk->priority = rt_tos2priority(val);
 				dst_release(xchg(&sk->dst_cache, NULL)); 
+				release_sock(sk);
 			}
-			sk->priority = rt_tos2priority(val);
 			return 0;
 		case IP_TTL:
 			if (optlen<1)
@@ -637,11 +642,11 @@ int ip_getsockopt(struct sock *sk, int level, int optname, char *optval, int *op
 			{
 				unsigned char optbuf[sizeof(struct ip_options)+40];
 				struct ip_options * opt = (struct ip_options*)optbuf;
-				start_bh_atomic();
+				lock_sock(sk);
 				opt->optlen = 0;
 				if (sk->opt)
 					memcpy(optbuf, sk->opt, sizeof(struct ip_options)+sk->opt->optlen);
-				end_bh_atomic();
+				release_sock(sk);
 				if (opt->optlen == 0) 
 					return put_user(0, optlen);
 

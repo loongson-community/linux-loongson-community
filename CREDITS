@@ -256,6 +256,10 @@ W: http://math-www.uni-paderborn.de/~axel/
 D: Configuration help text support
 D: Linux CD and Support Giveaway List
 
+N: Zoltan Boszormenyi
+E: zboszor@mol.hu
+D: MTRR emulation with Cyrix style ARR registers
+
 N: John Boyd
 E: boyd@cis.ohio-state.edu
 D: Co-author of wd7000 SCSI driver
@@ -791,6 +795,15 @@ S: 50 E. Middlefield #10
 S: Mountain View, California 94043
 S: USA
 
+N: Benjamin Herrenschmidt
+E: bh40@calva.net
+E: benh@mipsys.com
+D: PowerMac booter (BootX)
+D: Additional PowerBook support
+S: 22, rue des Marguettes
+S: 75012 Paris
+S: France
+
 N: Sebastian Hetze
 E: she@lunetix.de
 D: German Linux Documentation,
@@ -813,12 +826,13 @@ D: bug toaster (A1 sauce makes all the difference)
 D: Transmeta BOFH in my copius free time
 
 N: Dirk Hohndel
-E: hohndel@aib.com
+E: hohndel@suse.de
 D: The XFree86[tm] Project
-S: AIB Software Corporation
-S: 46030 Manekin Plaza, Suite 160
-S: Dulles, Virginia 20166
-S: USA
+D: USB mouse maintainer
+S: SuSE Rhein/Main AG
+S: Mergenthalerallee 45-47
+S: 65760 Eschborn
+S: Germany
 
 N: Kenji Tsutomu Hollis
 E: khollis@bitgate.com
@@ -1072,6 +1086,14 @@ S: 7170 Warden Avenue, Unit 2
 S: Markham, Ontario
 S: L3R 8B2
 S: Canada
+
+N: Russell Kroll
+E: rkroll@exploits.org
+W: http://www.exploits.org/
+D: V4L Aztech radio card driver, mods to Aimslab driver
+S: Post Office Box 49458
+S: Colorado Springs, Colorado 80949-9458
+S: USA
 
 N: Gero Kuhlmann
 E: gero@gkminix.han.de
@@ -1415,6 +1437,13 @@ S: Dragonvagen 1 A 13
 S: FIN-00330 Helsingfors
 S: Finland
 
+N: Trond Myklebust
+E: trond.myklebust@fys.uio.no
+D: current NFS client hacker.
+S: Dagaliveien 31e
+S: N-0391 Oslo
+S: Norway
+
 N: Matija Nalis
 E: mnalis@jagor.srce.hr
 E: mnalis@voyager.hr
@@ -1757,7 +1786,7 @@ S: USA
 N: Jaspreet Singh
 E: jaspreet@sangoma.com
 W: www.sangoma.com
-D: WANPIPE driver for Sangoma S508/FT1 cards 
+D: WANPIPE drivers & API Support for Sangoma S508/FT1 cards 
 S: Sangoma Technologies Inc.,
 S: 1001 Denison Street
 S: Suite 101
@@ -1862,7 +1891,7 @@ S: Spain
 
 N: Linus Torvalds
 E: torvalds@transmeta.com
-W: http://www.cs.helsinki.fi/~torvalds/
+W: http://www.cs.helsinki.fi/Linus.Torvalds
 P: 1024/A86B35C5 96 54 50 29 EC 11 44 7A  BE 67 3C 24 03 13 62 C8
 D: Original kernel hacker
 S: 1050 Woodduck Avenue
@@ -2008,6 +2037,14 @@ D: Small contributions to ncpfs
 S: Chudenicka 8
 S: 10200 Prague 10, Hostivar
 S: Czech Republic
+
+N: James R. Van Zandt
+E: jrv@vanzandt.mv.com
+P: 1024/E298966D F0 37 4F FD E5 7E C5 E6  F1 A0 1E 22 6F 46 DA 0C
+D: Author and maintainer of the Double Talk speech synthesizer driver
+S: 27 Spencer Drive
+S: Nashua, New Hampshire 03062
+S: USA
 
 N: Andrew Veliath
 E: andrewtv@usa.net
@@ -2196,6 +2233,12 @@ D: XFree86 and kernel development
 S: 1507 145th Place SE #B5
 S: Bellevue, Washington 98007
 S: USA
+
+N: Richard Zidlicky
+E: rdzidlic@geocities.com,rdzidlic@cip.informatik.uni-erlangen.de
+W: http://www.geocities.com/SiliconValley/Bay/2602/
+D: Q40 port - see arch/m68k/q40/README
+S: Germany
 
 N: Werner Zimmermann
 E: Werner.Zimmermann@fht-esslingen.de

@@ -5,7 +5,7 @@
  *
  *		TIMER - implementation of software timers for IP.
  *
- * Version:	$Id: timer.c,v 1.14 1998/11/07 11:55:43 davem Exp $
+ * Version:	$Id: timer.c,v 1.15 1999/02/22 13:54:29 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -75,8 +75,7 @@ void net_timer (unsigned long data)
 	/* Only process if socket is not in use. */
 	if (atomic_read(&sk->sock_readers)) {
 		/* Try again later. */ 
-		sk->timer.expires = jiffies+HZ/20;
-		add_timer(&sk->timer);
+		mod_timer(&sk->timer, jiffies+HZ/20);
 		return;
 	}
 

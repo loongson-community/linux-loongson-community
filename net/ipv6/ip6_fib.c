@@ -5,7 +5,7 @@
  *	Authors:
  *	Pedro Roque		<roque@di.fc.ul.pt>	
  *
- *	$Id: ip6_fib.c,v 1.15 1998/08/26 12:04:55 davem Exp $
+ *	$Id: ip6_fib.c,v 1.17 1999/04/22 10:07:41 davem Exp $
  *
  *	This program is free software; you can redistribute it and/or
  *      modify it under the terms of the GNU General Public License
@@ -103,8 +103,8 @@ static struct fib6_walker_t fib6_walker_list = {
 static __inline__ u32 fib6_new_sernum(void)
 {
 	u32 n = ++rt_sernum;
-	if (n == 0)
-		n = ++rt_sernum;
+	if ((__s32)n <= 0)
+		rt_sernum = n = 1;
 	return n;
 }
 
@@ -890,9 +890,6 @@ static void fib6_del_route(struct fib6_node *fn, struct rt6_info **rtp)
 
 	RT6_TRACE("fib6_del_route\n");
 
-	if (!(rt->rt6i_flags&RTF_CACHE))
-		fib6_prune_clones(fn, rt);
-
 	/* Unlink it */
 	*rtp = rt->u.next;
 	rt->rt6i_node = NULL;
@@ -938,6 +935,9 @@ int fib6_del(struct rt6_info *rt)
 		return -ENOENT;
 
 	BUG_TRAP(fn->fn_flags&RTN_RTINFO);
+
+	if (!(rt->rt6i_flags&RTF_CACHE))
+		fib6_prune_clones(fn, rt);
 
 	/*
 	 *	Walk the leaf entries looking for ourself
@@ -1157,7 +1157,6 @@ static int fib6_age(struct rt6_info *rt, void *arg)
 			return -1;
 		}
 		gc_args.more++;
-		return 0;
 	}
 
 	/*
@@ -1171,7 +1170,6 @@ static int fib6_age(struct rt6_info *rt, void *arg)
 			return -1;
 		}
 		gc_args.more++;
-		return 0;
 	}
 
 	return 0;

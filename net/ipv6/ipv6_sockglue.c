@@ -7,7 +7,7 @@
  *
  *	Based on linux/net/ipv4/ip_sockglue.c
  *
- *	$Id: ipv6_sockglue.c,v 1.24 1998/10/03 09:38:37 davem Exp $
+ *	$Id: ipv6_sockglue.c,v 1.27 1999/04/22 10:07:43 davem Exp $
  *
  *	This program is free software; you can redistribute it and/or
  *      modify it under the terms of the GNU General Public License
@@ -86,7 +86,10 @@ int ip6_ra_control(struct sock *sk, int sel, void (*destructor)(struct sock *))
 					kfree(new_ra);
 				return -EADDRINUSE;
 			}
+
 			*rap = ra->next;
+			synchronize_bh();
+
 			if (ra->destructor)
 				ra->destructor(sk);
 			kfree(ra);
@@ -136,16 +139,20 @@ int ipv6_setsockopt(struct sock *sk, int level, int optname, char *optval,
 			if (sk->protocol != IPPROTO_UDP &&
 			    sk->protocol != IPPROTO_TCP)
 				goto out;
-			
+
+			lock_sock(sk);
 			if (sk->state != TCP_ESTABLISHED) {
 				retv = ENOTCONN;
-				goto out;
+				goto addrform_done;
 			}
 
 			if (!(ipv6_addr_type(&np->daddr) & IPV6_ADDR_MAPPED)) {
 				retv = -EADDRNOTAVAIL;
-				goto out;
+				goto addrform_done;
 			}
+
+			fl6_free_socklist(sk);
+			ipv6_sock_mc_close(sk);
 
 			if (sk->protocol == IPPROTO_TCP) {
 				struct tcp_opt *tp = &(sk->tp_pinfo.af_tcp);
@@ -166,6 +173,9 @@ int ipv6_setsockopt(struct sock *sk, int level, int optname, char *optval,
 			if (pktopt)
 				kfree_skb(pktopt);
 			retv = 0;
+
+addrform_done:
+			release_sock(sk);
 		} else {
 			retv = -EINVAL;
 		}
@@ -204,12 +214,19 @@ int ipv6_setsockopt(struct sock *sk, int level, int optname, char *optval,
 		retv = 0;
 		break;
 
+	case IPV6_FLOWINFO:
+		np->rxopt.bits.rxflow = valbool;
+		return 0;
+
 	case IPV6_PKTOPTIONS:
 	{
 		struct ipv6_txoptions *opt = NULL;
 		struct msghdr msg;
+		struct flowi fl;
 		int junk;
-		struct in6_addr *saddr;
+
+		fl.fl6_flowlabel = 0;
+		fl.oif = sk->bound_dev_if;
 
 		if (optlen == 0)
 			goto update;
@@ -228,7 +245,7 @@ int ipv6_setsockopt(struct sock *sk, int level, int optname, char *optval,
 		msg.msg_controllen = optlen;
 		msg.msg_control = (void*)(opt+1);
 
-		retv = datagram_send_ctl(&msg, &junk, &saddr, opt, &junk);
+		retv = datagram_send_ctl(&msg, &fl, opt, &junk);
 		if (retv)
 			goto done;
 update:
@@ -314,10 +331,15 @@ done:
 		np->frag_size = val;
 		return 0;
 	case IPV6_RECVERR:
-		np->recverr = !!val;
+		np->recverr = valbool;
 		if (!val)
 			skb_queue_purge(&sk->error_queue);
 		return 0;
+	case IPV6_FLOWINFO_SEND:
+		np->sndflow = valbool;
+		return 0;
+	case IPV6_FLOWLABEL_MGR:
+		return ipv6_flowlabel_opt(sk, optval, optlen);
 	};
 
 out:

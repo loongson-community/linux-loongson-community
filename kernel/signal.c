@@ -265,7 +265,7 @@ printk("SIG queue (%s:%d): %d ", t->comm, t->pid, sig);
 	    && ((sig != SIGCONT) || (current->session != t->session))
 	    && (current->euid ^ t->suid) && (current->euid ^ t->uid)
 	    && (current->uid ^ t->suid) && (current->uid ^ t->uid)
-	    && !capable(CAP_SYS_ADMIN))
+	    && !capable(CAP_KILL))
 		goto out_nolock;
 
 	/* The null signal is a permissions and process existance probe.
@@ -363,8 +363,27 @@ printk("SIG queue (%s:%d): %d ", t->comm, t->pid, sig);
 	}
 
 	sigaddset(&t->signal, sig);
-	if (!sigismember(&t->blocked, sig))
+	if (!sigismember(&t->blocked, sig)) {
 		t->sigpending = 1;
+#ifdef __SMP__
+		/*
+		 * If the task is running on a different CPU 
+		 * force a reschedule on the other CPU - note that
+		 * the code below is a tad loose and might occasionally
+		 * kick the wrong CPU if we catch the process in the
+		 * process of changing - but no harm is done by that
+		 * other than doing an extra (lightweight) IPI interrupt.
+		 *
+		 * note that we rely on the previous spin_lock to
+		 * lock interrupts for us! No need to set need_resched
+		 * since signal event passing goes through ->blocked.
+		 */
+		spin_lock(&runqueue_lock);
+		if (t->has_cpu && t->processor != smp_processor_id())
+			smp_send_reschedule(t->processor);
+		spin_unlock(&runqueue_lock);
+#endif /* __SMP__ */
+	}
 
 out:
 	spin_unlock_irqrestore(&t->sigmask_lock, flags);

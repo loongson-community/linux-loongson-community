@@ -1,4 +1,4 @@
-/* $Id: siginfo.h,v 1.4 1998/08/28 16:23:06 ralf Exp $
+/* $Id: siginfo.h,v 1.3 1998/09/19 19:19:39 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -146,7 +146,7 @@ typedef struct siginfo {
  */
 #define TRAP_BRKPT	1	/* process breakpoint */
 #define TRAP_TRACE	2	/* process trace trap */
-#define NSIGTRAP
+#define NSIGTRAP	2
 
 /*
  * SIGCHLD si_codes

@@ -200,6 +200,7 @@ xprt_sendmsg(struct rpc_xprt *xprt)
 	msg.msg_name	= (struct sockaddr *) &xprt->addr;
 	msg.msg_namelen = sizeof(xprt->addr);
 	msg.msg_control = NULL;
+	msg.msg_controllen = 0;
 
 	/* Dont repeat bytes */
 	
@@ -256,6 +257,7 @@ xprt_recvmsg(struct rpc_xprt *xprt, struct iovec *iov, int nr, int len)
 	msg.msg_name	= &sin;
 	msg.msg_namelen = sizeof(sin);
 	msg.msg_control = NULL;
+	msg.msg_controllen = 0;
 
 	oldfs = get_fs(); set_fs(get_ds());
 	result = sock_recvmsg(sock, &msg, len, MSG_DONTWAIT);
@@ -268,6 +270,7 @@ xprt_recvmsg(struct rpc_xprt *xprt, struct iovec *iov, int nr, int len)
 	msg.msg_name	= &sin;
 	msg.msg_namelen = sizeof(sin);
 	msg.msg_control = NULL;
+	msg.msg_controllen = 0;
 
 	oldfs = get_fs(); set_fs(get_ds());
 	result = sock->ops->recvmsg(sock, &msg, len, 1, 0, &alen);
@@ -1197,7 +1200,7 @@ xprt_request_init(struct rpc_task *task, struct rpc_xprt *xprt)
 	static u32	xid = 0;
 
 	if (!xid)
-		xid = jiffies;
+		xid = CURRENT_TIME << 12;
 
 	dprintk("RPC: %4d reserved req %p xid %08x\n", task->tk_pid, req, xid);
 	task->tk_status = 0;
@@ -1206,6 +1209,8 @@ xprt_request_init(struct rpc_task *task, struct rpc_xprt *xprt)
 	req->rq_task	= task;
 	req->rq_xprt    = xprt;
 	req->rq_xid     = xid++;
+	if (!xid)
+		xid++;
 }
 
 /*

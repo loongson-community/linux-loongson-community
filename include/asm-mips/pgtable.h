@@ -1,4 +1,4 @@
-/* $Id: pgtable.h,v 1.17 1998/09/16 21:37:38 tsbogend Exp $
+/* $Id: pgtable.h,v 1.18 1999/02/15 02:22:11 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -589,6 +589,7 @@ extern void (*update_mmu_cache)(struct vm_area_struct *vma,
 
 /* Needs to be defined here and not in linux/mm.h, as it is arch dependent */
 #define PageSkip(page)		(0)
+#define kern_addr_valid(addr)	(1)
 
 /* TLB operations. */
 extern inline void tlb_probe(void)

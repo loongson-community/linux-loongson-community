@@ -1,4 +1,4 @@
-/* $Id: sysirix.c,v 1.17 1999/05/01 21:54:19 ralf Exp $
+/* $Id: sysirix.c,v 1.18 1999/05/01 22:40:38 ralf Exp $
  *
  * sysirix.c: IRIX system call emulation.
  *
@@ -628,7 +628,6 @@ asmlinkage int irix_stime(int value)
 	cli();
 	xtime.tv_sec = value;
 	xtime.tv_usec = 0;
-	time_state = TIME_ERROR;
 	time_maxerror = MAXPHASE;
 	time_esterror = MAXPHASE;
 	sti();

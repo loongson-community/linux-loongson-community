@@ -195,7 +195,7 @@ struct fat_cache {
 };
 
 /* misc.c */
-extern int is_binary(char conversion,char *extension);
+extern int fat_is_binary(char conversion,char *extension);
 extern void lock_fat(struct super_block *sb);
 extern void unlock_fat(struct super_block *sb);
 extern int fat_add_cluster(struct inode *inode);
@@ -271,7 +271,7 @@ extern struct super_block *msdos_read_super(struct super_block *sb,void *data, i
 
 /* msdos.c - these are for Umsdos */
 extern void msdos_read_inode(struct inode *inode);
-extern int msdos_lookup(struct inode *dir,struct dentry *);
+extern struct dentry *msdos_lookup(struct inode *dir,struct dentry *);
 extern int msdos_create(struct inode *dir,struct dentry *dentry,int mode);
 extern int msdos_rmdir(struct inode *dir,struct dentry *dentry);
 extern int msdos_mkdir(struct inode *dir,struct dentry *dentry,int mode);
@@ -312,7 +312,7 @@ extern void vfat_put_super(struct super_block *sb);
 extern struct super_block *vfat_read_super(struct super_block *sb,void *data,
 					   int silent);
 extern void vfat_read_inode(struct inode *inode);
-extern int vfat_lookup(struct inode *dir,struct dentry *);
+extern struct dentry *vfat_lookup(struct inode *dir,struct dentry *);
 
 /* vfat/vfatfs_syms.c */
 extern struct file_system_type vfat_fs_type;

@@ -3,7 +3,7 @@
  *	
  *		Alan Cox, <alan@cymru.net>
  *
- *	Version: $Id: icmp.c,v 1.48 1999/01/02 16:51:41 davem Exp $
+ *	Version: $Id: icmp.c,v 1.52 1999/03/21 12:04:11 davem Exp $
  *
  *	This program is free software; you can redistribute it and/or
  *	modify it under the terms of the GNU General Public License
@@ -279,6 +279,10 @@
 #include <asm/uaccess.h>
 #include <net/checksum.h>
 
+#ifdef CONFIG_IP_MASQUERADE
+#include <net/ip_masq.h>
+#endif
+
 #define min(a,b)	((a)<(b)?(a):(b))
 
 /*
@@ -369,6 +373,12 @@ struct socket *icmp_socket=&icmp_inode.u.socket_i;
  *	works for icmp destinations. This means the rate limiting information
  *	for one "ip object" is shared.
  *
+ *	Note that the same dst_entry fields are modified by functions in 
+ *	route.c too, but these work for packet destinations while xrlim_allow
+ *	works for icmp destinations. This means the rate limiting information
+ *	for one "ip object" is shared - and these ICMPs are twice limited:
+ *	by source and by destination.
+ *
  *	RFC 1812: 4.3.2.8 SHOULD be able to limit error message rate
  *			  SHOULD allow setting of rate limits 
  *
@@ -381,10 +391,10 @@ int xrlim_allow(struct dst_entry *dst, int timeout)
 
 	now = jiffies;
 	dst->rate_tokens += now - dst->rate_last;
+	dst->rate_last = now;
 	if (dst->rate_tokens > XRLIM_BURST_FACTOR*timeout)
 		dst->rate_tokens = XRLIM_BURST_FACTOR*timeout;
 	if (dst->rate_tokens >= timeout) {
-		dst->rate_last = now;
 		dst->rate_tokens -= timeout;
 		return 1;
 	}
@@ -401,6 +411,14 @@ static inline int icmpv4_xrlim_allow(struct rtable *rt, int type, int code)
 	/* Don't limit PMTU discovery. */
 	if (type == ICMP_DEST_UNREACH && code == ICMP_FRAG_NEEDED)
 		return 1;
+
+	/* Redirect has its own rate limit mechanism */
+	if (type == ICMP_REDIRECT)
+		return 1;
+
+	/* No rate limit on loopback */
+	if (dst->dev && (dst->dev->flags&IFF_LOOPBACK))
+ 		return 1;
 
 	return xrlim_allow(dst, *(icmp_pointers[type].timeout));
 }
@@ -518,8 +536,13 @@ void icmp_send(struct sk_buff *skb_in, int type, int code, unsigned long info)
 	/*
 	 *	Now check at the protocol level
 	 */
-	if (!rt)
+	if (!rt) {
+#ifndef CONFIG_IP_ALWAYS_DEFRAG
+		if (net_ratelimit())
+			printk(KERN_DEBUG "icmp_send: destinationless packet\n");
+#endif
 		return;
+	}
 	if (rt->rt_flags&(RTCF_BROADCAST|RTCF_MULTICAST))
 		return;
 	 
@@ -564,6 +587,11 @@ void icmp_send(struct sk_buff *skb_in, int type, int code, unsigned long info)
 	if (rt->rt_flags&RTCF_NAT && IPCB(skb_in)->flags&IPSKB_TRANSLATED) {
 		iph->daddr = rt->key.dst;
 		iph->saddr = rt->key.src;
+	}
+#endif
+#ifdef CONFIG_IP_MASQUERADE
+	if (type==ICMP_DEST_UNREACH && IPCB(skb_in)->flags&IPSKB_MASQUERADED) {
+			ip_fw_unmasq_icmp(skb_in);
 	}
 #endif
 

@@ -1,4 +1,4 @@
-/* $Id: system.h,v 1.8 1999/02/15 02:22:13 ralf Exp $
+/* $Id: system.h,v 1.9 1999/05/01 10:08:19 harald Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -134,12 +134,12 @@ __asm__ __volatile__(					\
  * switch_to(n) should switch tasks to task nr n, first
  * checking that n isn't the current task, in which case it does nothing.
  */
-extern asmlinkage void (*resume)(void *tsk);
+extern asmlinkage void *(*resume)(void *last, void *next);
 #endif /* !defined (_LANGUAGE_ASSEMBLY) */
 
-#define switch_to(prev,next) \
+#define switch_to(prev,next,last) \
 do { \
-	resume(next); \
+	(last) = resume(prev, next); \
 } while(0)
 
 /*

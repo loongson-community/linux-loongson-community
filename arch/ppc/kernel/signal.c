@@ -1,7 +1,7 @@
 /*
  *  linux/arch/ppc/kernel/signal.c
  *
- *  $Id: signal.c,v 1.21 1998/10/22 19:37:49 paulus Exp $
+ *  $Id: signal.c,v 1.24 1999/04/03 11:25:16 paulus Exp $
  *
  *  PowerPC version 
  *    Copyright (C) 1995-1996 Gary Thomas (gdt@linuxppc.org)
@@ -218,13 +218,8 @@ int sys_sigreturn(struct pt_regs *regs)
 	if (sc == (struct sigcontext_struct *)(sigctx.regs)) {
 		/* Last stacked signal - restore registers */
 		sr = (struct sigregs *) sigctx.regs;
-#ifdef __SMP__
-		if ( regs->msr & MSR_FP  )
-			smp_giveup_fpu(current);
-#else	
-		if (last_task_used_math == current)
-			giveup_fpu();
-#endif		
+		if (regs->msr & MSR_FP )
+			giveup_fpu(current);
 		if (copy_from_user(saved_regs, &sr->gp_regs,
 				   sizeof(sr->gp_regs)))
 			goto badframe;
@@ -271,13 +266,8 @@ setup_frame(struct pt_regs *regs, struct sigregs *frame,
 
 	if (verify_area(VERIFY_WRITE, frame, sizeof(*frame)))
 		goto badframe;
-#ifdef __SMP__
-		if ( regs->msr & MSR_FP  )
-			smp_giveup_fpu(current);
-#else	
-		if (last_task_used_math == current)
-			giveup_fpu();
-#endif		
+		if (regs->msr & MSR_FP)
+			giveup_fpu(current);
 	if (__copy_to_user(&frame->gp_regs, regs, GP_REGS_SIZE)
 	    || __copy_to_user(&frame->fp_regs, current->tss.fpr,
 			      ELF_NFPREG * sizeof(double))
@@ -374,7 +364,7 @@ int do_signal(sigset_t *oldset, struct pt_regs *regs)
 	if (!oldset)
 		oldset = &current->blocked;
 
-	newsp = frame = regs->gpr[1] - sizeof(struct sigregs);
+	newsp = frame = 0;
 
 	for (;;) {
 		unsigned long signr;
@@ -470,6 +460,13 @@ int do_signal(sigset_t *oldset, struct pt_regs *regs)
 				/* NOTREACHED */
 			}
 		}
+
+		if ( (ka->sa.sa_flags & SA_ONSTACK)
+		     && (! on_sig_stack(regs->gpr[1])))
+			newsp = (current->sas_ss_sp + current->sas_ss_size);
+		else
+			newsp = regs->gpr[1];
+		newsp = frame = newsp - sizeof(struct sigregs);
 
 		/* Whee!  Actually deliver the signal.  */
 		handle_signal(signr, ka, &info, oldset, regs, &newsp, frame);

@@ -23,8 +23,9 @@
  * Ver 0.6   Jan 27 98   Allow disabling of SCSI command translation layer
  *                        for access through /dev/sg.
  *                       Fix MODE_SENSE_6/MODE_SELECT_6/INQUIRY translation.
- * Ver 0.7   Dev 04 98   Ignore commands where lun != 0 to avoid multiple
+ * Ver 0.7   Dec 04 98   Ignore commands where lun != 0 to avoid multiple
  *                        detection of devices with CONFIG_SCSI_MULTI_LUN
+ * Ver 0.8   Feb 05 99   Optical media need translation too. 
  */
 
 #define IDESCSI_VERSION "0.6"
@@ -66,7 +67,7 @@ typedef struct idescsi_pc_s {
 	int b_count;				/* Bytes transferred from current entry */
 	Scsi_Cmnd *scsi_cmd;			/* SCSI command */
 	void (*done)(Scsi_Cmnd *);		/* Scsi completion routine */
-	unsigned int flags;			/* Status/Action flags */
+	unsigned long flags;			/* Status/Action flags */
 	unsigned long timeout;			/* Command timeout */
 } idescsi_pc_t;
 
@@ -91,9 +92,9 @@ typedef struct idescsi_pc_s {
 typedef struct {
 	ide_drive_t *drive;
 	idescsi_pc_t *pc;			/* Current packet command */
-	unsigned int flags;			/* Status/Action flags */
-	int transform;				/* SCSI cmd translation layer */
-	int log;				/* log flags */
+	unsigned long flags;			/* Status/Action flags */
+	unsigned long transform;		/* SCSI cmd translation layer */
+	unsigned long log;			/* log flags */
 } idescsi_scsi_t;
 
 /*
@@ -178,7 +179,7 @@ static inline void idescsi_transform_pc1 (ide_drive_t *drive, idescsi_pc_t *pc)
 
 	if (!test_bit(PC_TRANSFORM, &pc->flags))
 		return;
-	if (drive->media == ide_cdrom) {
+	if (drive->media == ide_cdrom || drive->media == ide_optical) {
 		if (c[0] == READ_6 || c[0] == WRITE_6) {
 			c[8] = c[4];		c[5] = c[3];		c[4] = c[2];
 			c[3] = c[1] & 0x1f;	c[2] = 0;		c[1] &= 0xe0;
@@ -217,7 +218,7 @@ static inline void idescsi_transform_pc2 (ide_drive_t *drive, idescsi_pc_t *pc)
 
 	if (!test_bit(PC_TRANSFORM, &pc->flags))
 		return;
-	if (drive->media == ide_cdrom) {
+	if (drive->media == ide_cdrom || drive->media == ide_optical) {
 		if (pc->c[0] == MODE_SENSE_10 && sc[0] == MODE_SENSE) {
 			scsi_buf[0] = atapi_buf[1];		/* Mode data length */
 			scsi_buf[1] = atapi_buf[2];		/* Medium type */
@@ -730,9 +731,6 @@ int idescsi_queue (Scsi_Cmnd *cmd, void (*done)(Scsi_Cmnd *))
 		printk (KERN_ERR "ide-scsi: drive id %d not present\n", cmd->target);
 		goto abort;
 	}
-	if (cmd->lun != 0) {		/* Only respond to LUN 0. Drop others */
-		goto abort;
-	}
 	scsi = drive->driver_data;
 	pc = kmalloc (sizeof (idescsi_pc_t), GFP_ATOMIC);
 	rq = kmalloc (sizeof (struct request), GFP_ATOMIC);
@@ -794,7 +792,7 @@ int idescsi_abort (Scsi_Cmnd *cmd)
 
 int idescsi_reset (Scsi_Cmnd *cmd, unsigned int resetflags)
 {
-	return SCSI_RESET_PUNT;
+	return SCSI_RESET_SUCCESS;
 }
 
 int idescsi_bios (Disk *disk, kdev_t dev, int *parm)

@@ -6,7 +6,10 @@
 /*
  * linux/include/linux/dcache.h
  *
- * Directory cache data structures
+ * Dirent cache data structures
+ *
+ * (C) Copyright 1997 Thomas Schoebel-Theuer,
+ * with heavy changes by Linus Torvalds
  */
 
 #define D_MAXLEN 1024
@@ -74,7 +77,7 @@ struct dentry {
 };
 
 struct dentry_operations {
-	int (*d_revalidate)(struct dentry *);
+	int (*d_revalidate)(struct dentry *, int);
 	int (*d_hash) (struct dentry *, struct qstr *);
 	int (*d_compare) (struct dentry *, struct qstr *, struct qstr *);
 	void (*d_delete)(struct dentry *);

@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp_input.c,v 1.153 1999/01/20 07:20:03 davem Exp $
+ * Version:	$Id: tcp_input.c,v 1.164 1999/05/08 21:09:52 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -97,7 +97,7 @@ static int prune_queue(struct sock *sk);
 static void tcp_delack_estimator(struct tcp_opt *tp)
 {
 	if(tp->ato == 0) {
-		tp->lrcvtime = jiffies;
+		tp->lrcvtime = tcp_time_stamp;
 
 		/* Help sender leave slow start quickly,
 		 * and also makes sure we do not take this
@@ -106,9 +106,9 @@ static void tcp_delack_estimator(struct tcp_opt *tp)
 		tp->ato = 1;
 		tcp_enter_quickack_mode(tp);
 	} else {
-		int m = jiffies - tp->lrcvtime;
+		int m = tcp_time_stamp - tp->lrcvtime;
 
-		tp->lrcvtime = jiffies;
+		tp->lrcvtime = tcp_time_stamp;
 		if(m <= 0)
 			m = 1;
 		if(m > tp->rto)
@@ -130,11 +130,15 @@ static __inline__ void tcp_remember_ack(struct tcp_opt *tp, struct tcphdr *th,
 {
 	tp->delayed_acks++; 
 
-	/* Tiny-grams with PSH set make us ACK quickly.
-	 * Note: This also clears the "quick ack mode" bit.
+	/* Tiny-grams with PSH set artifically deflate our
+	 * ato measurement, but with a lower bound.
 	 */
-	if(th->psh && (skb->len < (tp->mss_cache >> 1)))
-		tp->ato = HZ/50;
+	if(th->psh && (skb->len < (tp->mss_cache >> 1))) {
+		/* Preserve the quickack state. */
+		if((tp->ato & 0x7fffffff) > HZ/50)
+			tp->ato = ((tp->ato & 0x80000000) |
+				   (HZ/50));
+	}
 } 
 
 /* Called to compute a smoothed rtt estimate. The data fed to this
@@ -227,7 +231,7 @@ extern __inline__ void tcp_replace_ts_recent(struct sock *sk, struct tcp_opt *tp
 		 */
 		if((s32)(tp->rcv_tsval - tp->ts_recent) >= 0) {
 			tp->ts_recent = tp->rcv_tsval;
-			tp->ts_recent_stamp = jiffies;
+			tp->ts_recent_stamp = tcp_time_stamp;
 		}
 	}
 }
@@ -237,8 +241,8 @@ extern __inline__ void tcp_replace_ts_recent(struct sock *sk, struct tcp_opt *tp
 extern __inline__ int tcp_paws_discard(struct tcp_opt *tp, struct tcphdr *th, unsigned len)
 {
 	/* ts_recent must be younger than 24 days */
-	return (((jiffies - tp->ts_recent_stamp) >= PAWS_24DAYS) ||
-		(((s32)(tp->rcv_tsval-tp->ts_recent) < 0) &&
+	return (((s32)(tcp_time_stamp - tp->ts_recent_stamp) >= PAWS_24DAYS) ||
+		(((s32)(tp->rcv_tsval - tp->ts_recent) < 0) &&
 		 /* Sorry, PAWS as specified is broken wrt. pure-ACKs -DaveM */
 		 (len != (th->doff * 4))));
 }
@@ -341,6 +345,7 @@ void tcp_parse_options(struct sock *sk, struct tcphdr *th, struct tcp_opt *tp, i
 {
 	unsigned char *ptr;
 	int length=(th->doff*4)-sizeof(struct tcphdr);
+	int saw_mss = 0;
 
 	ptr = (unsigned char *)(th + 1);
 	tp->saw_tstamp = 0;
@@ -369,6 +374,7 @@ void tcp_parse_options(struct sock *sk, struct tcphdr *th, struct tcp_opt *tp, i
 							in_mss = 536;
 						if (tp->mss_clamp > in_mss)
 							tp->mss_clamp = in_mss;
+						saw_mss = 1;
 					}
 					break;
 				case TCPOPT_WINDOW:
@@ -422,6 +428,8 @@ void tcp_parse_options(struct sock *sk, struct tcphdr *th, struct tcp_opt *tp, i
 	  			length-=opsize;
 	  	};
 	}
+	if(th->syn && saw_mss == 0)
+		tp->mss_clamp = 536;
 }
 
 /* Fast parse options. This hopes to only see timestamps.
@@ -489,8 +497,7 @@ static void tcp_fast_retrans(struct sock *sk, u32 ack, int not_dup)
 		if (tp->high_seq == 0 || after(ack, tp->high_seq)) {
 			tp->dup_acks++;
 			if ((tp->fackets_out > 3) || (tp->dup_acks == 3)) {
-                                tp->snd_ssthresh =
-					max(min(tp->snd_wnd, tp->snd_cwnd) >> 1, 2);
+                                tp->snd_ssthresh = tcp_recalc_ssthresh(tp);
                                 tp->snd_cwnd = (tp->snd_ssthresh + 3);
 				tp->high_seq = tp->snd_nxt;
 				if(!tp->fackets_out)
@@ -601,7 +608,7 @@ static int tcp_clean_rtx_queue(struct sock *sk, __u32 ack,
 {
 	struct tcp_opt *tp = &(sk->tp_pinfo.af_tcp);
 	struct sk_buff *skb;
-	unsigned long now = jiffies;
+	__u32 now = tcp_time_stamp;
 	int acked = 0;
 
 	/* If we are retransmitting, and this ACK clears up to
@@ -658,7 +665,7 @@ static void tcp_ack_probe(struct sock *sk, __u32 ack)
 	tp->probes_out = 0;
 	
 	/* Was it a usable window open? */
-	
+
 	/* should always be non-null */
 	if (tp->send_head != NULL &&
 	    !before (ack + tp->snd_wnd, TCP_SKB_CB(tp->send_head)->end_seq)) {
@@ -717,7 +724,7 @@ static void tcp_ack_saw_tstamp(struct sock *sk, struct tcp_opt *tp,
 	if (!(flag & FLAG_DATA_ACKED))
 		return;
 
-	seq_rtt = jiffies-tp->rcv_tsecr;
+	seq_rtt = tcp_time_stamp - tp->rcv_tsecr;
 	tcp_rtt_estimator(tp, seq_rtt);
 	if (tp->retransmits) {
 		if (tp->packets_out == 0) {
@@ -741,7 +748,7 @@ static void tcp_ack_saw_tstamp(struct sock *sk, struct tcp_opt *tp,
 static __inline__ void tcp_ack_packets_out(struct sock *sk, struct tcp_opt *tp)
 {
 	struct sk_buff *skb = skb_peek(&sk->write_queue);
-	long when = tp->rto - (jiffies - TCP_SKB_CB(skb)->when);
+	__u32 when = tp->rto - (tcp_time_stamp - TCP_SKB_CB(skb)->when);
 
 	/* Some data was ACK'd, if still retransmitting (due to a
 	 * timeout), resend more of the retransmit queue.  The
@@ -770,7 +777,7 @@ static int tcp_ack(struct sock *sk, struct tcphdr *th,
 	if (tp->pending == TIME_KEEPOPEN)
 	  	tp->probes_out = 0;
 
-	tp->rcv_tstamp = jiffies;
+	tp->rcv_tstamp = tcp_time_stamp;
 
 	/* If the ack is newer than sent or older than previous acks
 	 * then we can probably ignore it.
@@ -945,7 +952,9 @@ int tcp_timewait_state_process(struct tcp_tw_bucket *tw, struct sk_buff *skb,
 		tcp_tw_deschedule(tw);
 		tcp_timewait_kill(tw);
 		sk = af_specific->get_sock(skb, th);
-		if(sk == NULL || !ipsec_sk_policy(sk,skb))
+		if(sk == NULL ||
+		   !ipsec_sk_policy(sk,skb) ||
+		   atomic_read(&sk->sock_readers) != 0)
 			return 0;
 		skb_set_owner_r(skb, sk);
 		af_specific = sk->tp_pinfo.af_tcp.af_specific;
@@ -2102,7 +2111,7 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 				tp->tcp_header_len = sizeof(struct tcphdr);
 			if (tp->saw_tstamp) {
 				tp->ts_recent = tp->rcv_tsval;
-				tp->ts_recent_stamp = jiffies;
+				tp->ts_recent_stamp = tcp_time_stamp;
 			}
 
 			/* Can't be earlier, doff would be wrong. */
@@ -2126,7 +2135,7 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 				tcp_parse_options(sk, th, tp, 0);
 				if (tp->saw_tstamp) {
 					tp->ts_recent = tp->rcv_tsval;
-					tp->ts_recent_stamp = jiffies;
+					tp->ts_recent_stamp = tcp_time_stamp;
 				}
 				
 				tp->rcv_nxt = TCP_SKB_CB(skb)->seq + 1;
@@ -2179,8 +2188,22 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 		}
 	}
 
+	/* The silly FIN test here is necessary to see an advancing ACK in
+	 * retransmitted FIN frames properly.  Consider the following sequence:
+	 *
+	 *	host1 --> host2		FIN XSEQ:XSEQ(0) ack YSEQ
+	 *	host2 --> host1		FIN YSEQ:YSEQ(0) ack XSEQ
+	 *	host1 --> host2		XSEQ:XSEQ(0) ack YSEQ+1
+	 *	host2 --> host1		FIN YSEQ:YSEQ(0) ack XSEQ+1	(fails tcp_sequence test)
+	 *
+	 * At this point the connection will deadlock with host1 believing
+	 * that his FIN is never ACK'd, and thus it will retransmit it's FIN
+	 * forever.  The following fix is from Taral (taral@taral.net).
+	 */
+
 	/* step 1: check sequence number */
-	if (!tcp_sequence(tp, TCP_SKB_CB(skb)->seq, TCP_SKB_CB(skb)->end_seq)) {
+	if (!tcp_sequence(tp, TCP_SKB_CB(skb)->seq, TCP_SKB_CB(skb)->end_seq) &&
+	    !(th->fin && TCP_SKB_CB(skb)->end_seq == tp->rcv_nxt)) {
 		if (!th->rst) {
 			tcp_send_ack(sk);
 			goto discard;

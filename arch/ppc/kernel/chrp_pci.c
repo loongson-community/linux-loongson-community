@@ -15,10 +15,14 @@
 #include <asm/hydra.h>
 #include <asm/prom.h>
 #include <asm/gg2.h>
+#include <asm/ide.h>
+#include <asm/machdep.h>
+
+#include "pci.h"
 
 /* LongTrail */
 #define pci_config_addr(bus, dev, offset) \
-	(GG2_PCI_CONFIG_BASE | ((bus)<<16) | ((dev)<<8) | (offset))
+(GG2_PCI_CONFIG_BASE | ((bus)<<16) | ((dev)<<8) | (offset))
 
 volatile struct Hydra *Hydra = NULL;
 
@@ -30,144 +34,136 @@ volatile struct Hydra *Hydra = NULL;
 int gg2_pcibios_read_config_byte(unsigned char bus, unsigned char dev_fn,
 				 unsigned char offset, unsigned char *val)
 {
-    if (bus > 7) {
-	*val = 0xff;
-	return PCIBIOS_DEVICE_NOT_FOUND;
-    }
-    *val = in_8((unsigned char *)pci_config_addr(bus, dev_fn, offset));
-    return PCIBIOS_SUCCESSFUL;
+	if (bus > 7) {
+		*val = 0xff;
+		return PCIBIOS_DEVICE_NOT_FOUND;
+	}
+	*val = in_8((unsigned char *)pci_config_addr(bus, dev_fn, offset));
+	return PCIBIOS_SUCCESSFUL;
 }
 
 int gg2_pcibios_read_config_word(unsigned char bus, unsigned char dev_fn,
 				 unsigned char offset, unsigned short *val)
 {
-    if (bus > 7) {
-	*val = 0xffff;
-	return PCIBIOS_DEVICE_NOT_FOUND;
-    }
-    *val = in_le16((unsigned short *)pci_config_addr(bus, dev_fn, offset));
-    return PCIBIOS_SUCCESSFUL;
+	if (bus > 7) {
+		*val = 0xffff;
+		return PCIBIOS_DEVICE_NOT_FOUND;
+	}
+	*val = in_le16((unsigned short *)pci_config_addr(bus, dev_fn, offset));
+	return PCIBIOS_SUCCESSFUL;
 }
 
 
 int gg2_pcibios_read_config_dword(unsigned char bus, unsigned char dev_fn,
 				  unsigned char offset, unsigned int *val)
 {
-    if (bus > 7) {
-	*val = 0xffffffff;
-	return PCIBIOS_DEVICE_NOT_FOUND;
-    }
-    *val = in_le32((unsigned int *)pci_config_addr(bus, dev_fn, offset));
-    return PCIBIOS_SUCCESSFUL;
+	if (bus > 7) {
+		*val = 0xffffffff;
+		return PCIBIOS_DEVICE_NOT_FOUND;
+	}
+	*val = in_le32((unsigned int *)pci_config_addr(bus, dev_fn, offset));
+	return PCIBIOS_SUCCESSFUL;
 }
 
 int gg2_pcibios_write_config_byte(unsigned char bus, unsigned char dev_fn,
 				  unsigned char offset, unsigned char val)
 {
-    if (bus > 7)
-	return PCIBIOS_DEVICE_NOT_FOUND;
-    out_8((unsigned char *)pci_config_addr(bus, dev_fn, offset), val);
-    return PCIBIOS_SUCCESSFUL;
+	if (bus > 7)
+		return PCIBIOS_DEVICE_NOT_FOUND;
+	out_8((unsigned char *)pci_config_addr(bus, dev_fn, offset), val);
+	return PCIBIOS_SUCCESSFUL;
 }
 
 int gg2_pcibios_write_config_word(unsigned char bus, unsigned char dev_fn,
 				  unsigned char offset, unsigned short val)
 {
-    if (bus > 7)
-	return PCIBIOS_DEVICE_NOT_FOUND;
-    out_le16((unsigned short *)pci_config_addr(bus, dev_fn, offset), val);
-    return PCIBIOS_SUCCESSFUL;
+	if (bus > 7)
+		return PCIBIOS_DEVICE_NOT_FOUND;
+	out_le16((unsigned short *)pci_config_addr(bus, dev_fn, offset), val);
+	return PCIBIOS_SUCCESSFUL;
 }
 
 int gg2_pcibios_write_config_dword(unsigned char bus, unsigned char dev_fn,
 				   unsigned char offset, unsigned int val)
 {
-   if (bus > 7)
-	return PCIBIOS_DEVICE_NOT_FOUND;
-    out_le32((unsigned int *)pci_config_addr(bus, dev_fn, offset), val);
-    return PCIBIOS_SUCCESSFUL;
+	if (bus > 7)
+		return PCIBIOS_DEVICE_NOT_FOUND;
+	out_le32((unsigned int *)pci_config_addr(bus, dev_fn, offset), val);
+	return PCIBIOS_SUCCESSFUL;
 }
 
-extern volatile unsigned int *pci_config_address;
-extern volatile unsigned char *pci_config_data;
+#define python_config_address(bus) (unsigned *)((0xfef00000+0xf8000)-(bus*0x100000))
+#define python_config_data(bus) ((0xfef00000+0xf8010)-(bus*0x100000))
+#define PYTHON_CFA(b, d, o)	(0x80 | ((b<<6) << 8) | ((d) << 16) \
+				 | (((o) & ~3) << 24))
+unsigned int python_busnr = 1;
 
-#define DEV_FN_MAX (31<<3)
-
-int raven_pcibios_read_config_byte(unsigned char bus, 
-                                      unsigned char dev_fn,
-                                      unsigned char offset, 
-                                      unsigned char *val)
+int python_pcibios_read_config_byte(unsigned char bus, unsigned char dev_fn,
+				    unsigned char offset, unsigned char *val)
 {
-        if (dev_fn >= DEV_FN_MAX) return PCIBIOS_DEVICE_NOT_FOUND;
-        out_be32(pci_config_address,
-                 0x80|(bus<<8)|(dev_fn<<16)|((offset&~3)<<24));
-        *val = in_8(pci_config_data+(offset&3));
-        return PCIBIOS_SUCCESSFUL;
+	if (bus > python_busnr) {
+		*val = 0xff;
+		return PCIBIOS_DEVICE_NOT_FOUND;
+	}
+	out_be32( python_config_address( bus ), PYTHON_CFA(bus,dev_fn,offset));
+	*val = in_8((unsigned char *)python_config_data(bus) + (offset&3));
+	return PCIBIOS_SUCCESSFUL;
 }
 
-int raven_pcibios_read_config_word(unsigned char bus, 
-                                      unsigned char dev_fn,
-                                      unsigned char offset, 
-                                      unsigned short *val)
+int python_pcibios_read_config_word(unsigned char bus, unsigned char dev_fn,
+				    unsigned char offset, unsigned short *val)
 {
-        if (dev_fn >= DEV_FN_MAX) return PCIBIOS_DEVICE_NOT_FOUND;
-        if (offset&1)return PCIBIOS_BAD_REGISTER_NUMBER;
-        out_be32(pci_config_address,
-                 0x80|(bus<<8)|(dev_fn<<16)|((offset&~3)<<24));
-        *val = in_le16((volatile unsigned short *)
-                       (pci_config_data+(offset&3)));
-        return PCIBIOS_SUCCESSFUL;
+	if (bus > python_busnr) {
+		*val = 0xffff;
+		return PCIBIOS_DEVICE_NOT_FOUND;
+	}
+	out_be32( python_config_address( bus ), PYTHON_CFA(bus,dev_fn,offset));
+	*val = in_le16((unsigned short *)(python_config_data(bus) + (offset&3)));
+	return PCIBIOS_SUCCESSFUL;
 }
 
-int raven_pcibios_read_config_dword(unsigned char bus, 
-                                       unsigned char dev_fn,
-                                       unsigned char offset, 
-                                       unsigned int *val)
+
+int python_pcibios_read_config_dword(unsigned char bus, unsigned char dev_fn,
+				     unsigned char offset, unsigned int *val)
 {
-        if (dev_fn >= DEV_FN_MAX) return PCIBIOS_DEVICE_NOT_FOUND;
-        if (offset&3)return PCIBIOS_BAD_REGISTER_NUMBER;
-        out_be32(pci_config_address,
-                 0x80|(bus<<8)|(dev_fn<<16)|(offset<<24));
-        *val = in_le32((volatile unsigned int *)(pci_config_data));
-        return PCIBIOS_SUCCESSFUL;
+	if (bus > python_busnr) {
+		*val = 0xffffffff;
+		return PCIBIOS_DEVICE_NOT_FOUND;
+	}
+	out_be32( python_config_address( bus ), PYTHON_CFA(bus,dev_fn,offset));
+	*val = in_le32((unsigned *)python_config_data(bus));
+	return PCIBIOS_SUCCESSFUL;
 }
 
-int raven_pcibios_write_config_byte(unsigned char bus, 
-                                       unsigned char dev_fn,
-                                       unsigned char offset, 
-                                       unsigned char val) 
+int python_pcibios_write_config_byte(unsigned char bus, unsigned char dev_fn,
+				     unsigned char offset, unsigned char val)
 {
-        if (dev_fn >= DEV_FN_MAX) return PCIBIOS_DEVICE_NOT_FOUND;
-        out_be32(pci_config_address,
-                 0x80|(bus<<8)|(dev_fn<<16)|((offset&~3)<<24));
-        out_8(pci_config_data+(offset&3),val);
-        return PCIBIOS_SUCCESSFUL;
+	if (bus > python_busnr)
+		return PCIBIOS_DEVICE_NOT_FOUND;
+	out_be32( python_config_address( bus ), PYTHON_CFA(bus,dev_fn,offset));
+	out_8((volatile unsigned char *)python_config_data(bus) + (offset&3), val);
+	return PCIBIOS_SUCCESSFUL;
 }
 
-int raven_pcibios_write_config_word(unsigned char bus, 
-                                       unsigned char dev_fn,
-                                       unsigned char offset, 
-                                       unsigned short val) 
+int python_pcibios_write_config_word(unsigned char bus, unsigned char dev_fn,
+				     unsigned char offset, unsigned short val)
 {
-        if (dev_fn >= DEV_FN_MAX) return PCIBIOS_DEVICE_NOT_FOUND;
-        if (offset&1)return PCIBIOS_BAD_REGISTER_NUMBER;
-        out_be32(pci_config_address,
-                 0x80|(bus<<8)|(dev_fn<<16)|((offset&~3)<<24));
-        out_le16((volatile unsigned short *)(pci_config_data+(offset&3)),val);
-        return PCIBIOS_SUCCESSFUL;
+	if (bus > python_busnr)
+		return PCIBIOS_DEVICE_NOT_FOUND;
+	out_be32( python_config_address( bus ), PYTHON_CFA(bus,dev_fn,offset));
+	out_le16((volatile unsigned short *)python_config_data(bus) + (offset&3),
+		 val);
+	return PCIBIOS_SUCCESSFUL;
 }
 
-int raven_pcibios_write_config_dword(unsigned char bus, 
-                                        unsigned char dev_fn,
-                                        unsigned char offset, 
-                                        unsigned int val) 
+int python_pcibios_write_config_dword(unsigned char bus, unsigned char dev_fn,
+				      unsigned char offset, unsigned int val)
 {
-        if (dev_fn >= DEV_FN_MAX) return PCIBIOS_DEVICE_NOT_FOUND;
-        if (offset&3)return PCIBIOS_BAD_REGISTER_NUMBER;
-        out_be32(pci_config_address,
-                 0x80|(bus<<8)|(dev_fn<<16)|(offset<<24));
-        out_le32((volatile unsigned int *)pci_config_data,val);
-        return PCIBIOS_SUCCESSFUL;
+	if (bus > python_busnr)
+		return PCIBIOS_DEVICE_NOT_FOUND;
+	out_be32( python_config_address( bus ), PYTHON_CFA(bus,dev_fn,offset));
+	out_le32((unsigned *)python_config_data(bus) + (offset&3), val);
+	return PCIBIOS_SUCCESSFUL;
 }
 
     /*
@@ -191,7 +187,8 @@ static u_char hydra_openpic_initsenses[] __initdata = {
     	/* all others are 1 (= default) */
 };
 
-__initfunc(int hydra_init(void))
+int __init
+hydra_init(void)
 {
 	struct device_node *np;
 
@@ -216,75 +213,95 @@ __initfunc(int hydra_init(void))
 	return 1;
 }
 
-
-extern int chrp_ide_irq;
-
-__initfunc(int w83c553f_init(void))
+void __init
+chrp_pcibios_fixup(void)
 {
-    u_char bus, dev;
-#if 0    
-    unsigned char t8;
-    unsigned short t16;
-#endif    
-    unsigned int t32;
-    struct pci_dev *pdev;
-    if ((pdev = pci_find_device(PCI_VENDOR_ID_WINBOND,
-				PCI_DEVICE_ID_WINBOND_83C553, NULL))) {
-	bus = pdev->bus->number;
-	dev = pdev->devfn + 1;
-	pcibios_read_config_dword(bus, dev, PCI_VENDOR_ID, &t32);
-	if (t32 == (PCI_DEVICE_ID_WINBOND_82C105<<16) + PCI_VENDOR_ID_WINBOND) {
-#if 0
-	    printk("Enabling SL82C105 IDE on W83C553F\n");
-	    /*
-	     *  FIXME: this doesn't help :-(
-	     */
-
-	    /* I/O mapping */
-	    pcibios_read_config_word(bus, dev, PCI_COMMAND, &t16);
-	    t16 |= PCI_COMMAND_IO;
-	    pcibios_write_config_word(bus, dev, PCI_COMMAND, t16);
-
-	    /* Standard IDE registers */
-	    pcibios_write_config_dword(bus, dev, PCI_BASE_ADDRESS_0,
-					    0xffffffff);
-	    pcibios_read_config_dword(bus, dev, PCI_BASE_ADDRESS_0, &t32);
-	    pcibios_write_config_dword(bus, dev, PCI_BASE_ADDRESS_0,
-					    0x000001f0 | 1);
-	    pcibios_write_config_dword(bus, dev, PCI_BASE_ADDRESS_1,
-					    0xffffffff);
-	    pcibios_read_config_dword(bus, dev, PCI_BASE_ADDRESS_1, &t32);
-	    pcibios_write_config_dword(bus, dev, PCI_BASE_ADDRESS_1,
-					    0x000003f4 | 1);
-	    pcibios_write_config_dword(bus, dev, PCI_BASE_ADDRESS_2,
-					    0xffffffff);
-	    pcibios_read_config_dword(bus, dev, PCI_BASE_ADDRESS_2, &t32);
-	    pcibios_write_config_dword(bus, dev, PCI_BASE_ADDRESS_2,
-					    0x00000170 | 1);
-	    pcibios_write_config_dword(bus, dev, PCI_BASE_ADDRESS_3,
-					    0xffffffff);
-	    pcibios_read_config_dword(bus, dev, PCI_BASE_ADDRESS_3, &t32);
-	    pcibios_write_config_dword(bus, dev, PCI_BASE_ADDRESS_3,
-					    0x00000374 | 1);
-
-	    /* IDE Bus Master Control */
-	    pcibios_write_config_dword(bus, dev, PCI_BASE_ADDRESS_4,
-					    0xffffffff);
-	    pcibios_read_config_dword(bus, dev, PCI_BASE_ADDRESS_4, &t32);
-	    pcibios_write_config_dword(bus, dev, PCI_BASE_ADDRESS_4,
-					    0x1000 | 1);
-	    pcibios_write_config_dword(bus, dev, PCI_BASE_ADDRESS_5,
-					    0xffffffff);
-	    pcibios_read_config_dword(bus, dev, PCI_BASE_ADDRESS_5, &t32);
-	    pcibios_write_config_dword(bus, dev, PCI_BASE_ADDRESS_5,
-					    0x1010 | 1);
-
-	    /* IDE Interrupt */
-	    pcibios_read_config_byte(bus, dev, PCI_INTERRUPT_LINE, &t8);
-	    chrp_ide_irq = t8;
-#endif
-	    return 1;
+	struct pci_dev *dev;
+	
+	/* some of IBM chrps have > 1 bus */
+	if ( !strncmp("IBM", get_property(find_path_device("/"),
+					 "name", NULL),3) )
+	{
+		pci_scan_peer_bridge(1);
+		pci_scan_peer_bridge(2);
 	}
-    }
-    return 0;
+	
+	/* PCI interrupts are controlled by the OpenPIC */
+	for( dev=pci_devices ; dev; dev=dev->next )
+	{
+		if ( dev->irq )
+			dev->irq = openpic_to_irq( dev->irq );
+		/* adjust the io_port for the NCR cards for busses other than 0 -- Cort */
+		if ( (dev->bus->number > 0) && (dev->vendor == PCI_VENDOR_ID_NCR) )
+			dev->base_address[0] += (dev->bus->number*0x08000000);
+		/* these need to be absolute addrs for OF and Matrox FB -- Cort */
+		if ( dev->vendor == PCI_VENDOR_ID_MATROX )
+		{
+			if ( dev->base_address[0] < isa_mem_base )
+				dev->base_address[0] += isa_mem_base;
+			if ( dev->base_address[1] < isa_mem_base )
+				dev->base_address[1] += isa_mem_base;
+		}
+		/* the F50 identifies the amd as a trident */
+		if ( (dev->vendor == PCI_VENDOR_ID_TRIDENT) &&
+		      (dev->class == PCI_CLASS_NETWORK_ETHERNET) )
+		{
+			dev->vendor = PCI_VENDOR_ID_AMD;
+			pcibios_write_config_word(dev->bus->number, dev->devfn,
+						   PCI_VENDOR_ID, PCI_VENDOR_ID_AMD);
+		}
+	}
+}
+
+decl_config_access_method(grackle);
+decl_config_access_method(indirect);
+
+void __init
+chrp_setup_pci_ptrs(void)
+{
+	struct device_node *py;
+	
+        if ( !strncmp("MOT",
+                      get_property(find_path_device("/"), "model", NULL),3) )
+        {
+                pci_dram_offset = 0;
+                isa_mem_base = 0xf7000000;
+                isa_io_base = 0xfe000000;
+                set_config_access_method(grackle);
+        }
+        else
+        {
+		if ( (py = find_compatible_devices( "pci", "IBM,python" )) )
+		{
+			/* find out how many pythons */
+			while ( (py = py->next) ) python_busnr++;
+                        set_config_access_method(python);
+			/*
+			 * We base these values on the machine type but should
+			 * try to read them from the python controller itself.
+			 * -- Cort
+			 */
+			if ( !strncmp("IBM,7025-F50", get_property(find_path_device("/"), "name", NULL),12) )
+			{
+				pci_dram_offset = 0x80000000;
+				isa_mem_base = 0xa0000000;
+				isa_io_base = 0x88000000;
+			} else if ( !strncmp("IBM,7043-260",
+			   get_property(find_path_device("/"), "name", NULL),12) )
+			{
+				pci_dram_offset = 0x80000000;
+				isa_mem_base = 0xc0000000;
+				isa_io_base = 0xf8000000;
+			}
+                }
+                else
+                {
+			pci_dram_offset = 0;
+			isa_mem_base = 0xf7000000;
+			isa_io_base = 0xf8000000;
+			set_config_access_method(gg2);
+                }
+        }
+	
+	ppc_md.pcibios_fixup = chrp_pcibios_fixup;
 }

@@ -298,6 +298,14 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_SCSI_INIA100),y)
+L_OBJS += a100u2w.o
+else
+  ifeq ($(CONFIG_SCSI_INIA100),m)
+  M_OBJS += a100u2w.o
+  endif
+endif
+
 ifeq ($(CONFIG_SCSI_QLOGIC_FC),y)
 L_OBJS += qlogicfc.o 
 else
@@ -474,6 +482,14 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_SCSI_SYM53C8XX),y)
+L_OBJS += sym53c8xx.o 
+else
+  ifeq ($(CONFIG_SCSI_SYM53C8XX),m)
+  M_OBJS += sym53c8xx.o 
+  endif
+endif
+
 ifeq ($(CONFIG_SCSI_PAS16),y)
 L_OBJS += pas16.o
 else
@@ -517,8 +533,11 @@ endif
 
 ifeq ($(CONFIG_SCSI_FD_MCS),y)
 L_OBJS += fd_mcs.o
+else
+  ifeq ($(CONFIG_SCSI_FD_MCS),m)
+  M_OBJS += fd_mcs.o
+  endif
 endif
-
 
 ifeq ($(CONFIG_SCSI_T128),y)
 L_OBJS += t128.o
@@ -552,6 +571,14 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_SCSI_FCAL),y)
+L_OBJS += fcal.o
+else
+  ifeq ($(CONFIG_SCSI_FCAL),m)
+  M_OBJS += fcal.o
+  endif
+endif
+
 ifeq ($(CONFIG_SCSI_EATA),y)
 L_OBJS += eata.o
 else
@@ -573,6 +600,14 @@ L_OBJS += megaraid.o
 else
   ifeq ($(CONFIG_SCSI_MEGARAID),m)
   M_OBJS += megaraid.o
+  endif
+endif
+
+ifeq ($(CONFIG_SCSI_SYM53C416),y)
+L_OBJS += sym53c416.o
+else
+  ifeq ($(CONFIG_SCSI_SYM53C416),m)
+  M_OBJS += sym53c416.o
   endif
 endif
 
@@ -620,6 +655,9 @@ initio.o: ini9100u.c i91uscsi.c
 	$(CC) $(CFLAGS) -c i91uscsi.c -o i91uscsi.o
 	$(LD) -r -o initio.o ini9100u.o i91uscsi.o
 	rm -f ini9100u.o i91uscsi.o
+
+a100u2w.o: inia100.o i60uscsi.o
+	$(LD) -r -o a100u2w.o inia100.o i60uscsi.o
 
 megaraid.o: megaraid.c
 	$(CC) $(CFLAGS) -c megaraid.c

@@ -217,7 +217,7 @@ if [ "$CONFIG_SGI" != "y" -a "$CONFIG_DECSTATION" != "y" -a "$CONFIG_BAGET_MIPS"
 
 
   mainmenu_option next_comment
-  comment 'CD-ROM drivers (not for SCSI or IDE/ATAPI drives)'
+  comment comment 'Old CD-ROM drivers (not SCSI, not IDE)'
 
   bool 'Support non-SCSI/IDE/ATAPI drives' CONFIG_CD_NO_IDESCSI
   if [ "$CONFIG_CD_NO_IDESCSI" != "n" ]; then
@@ -256,6 +256,8 @@ else
 #    bool 'Enhanced Real Time Clock Support' CONFIG_RTC
   endmenu
 fi
+
+# source drivers/usb/Config.in
 
 source fs/Config.in
 

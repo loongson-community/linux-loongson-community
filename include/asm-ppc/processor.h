@@ -60,21 +60,36 @@
 #define FPSCR_FEX       (1<<30)
 
 #define _MACH_prep     1
-#define _MACH_Pmac     2 /* pmac or pmac clone (non-chrp) */
-#define _MACH_chrp     4 /* chrp machine */
-#define _MACH_mbx      8 /* Motorola MBX board */
-#define _MACH_apus    16 /* amiga with phase5 powerup */
-#define _MACH_fads    32 /* Motorola FADS board */
+#define _MACH_Pmac     2  /* pmac or pmac clone (non-chrp) */
+#define _MACH_chrp     4  /* chrp machine */
+#define _MACH_mbx      8  /* Motorola MBX board */
+#define _MACH_apus    16  /* amiga with phase5 powerup */
+#define _MACH_fads    32  /* Motorola FADS board */
+#define _MACH_rpxlite 64  /* RPCG RPX-Lite 8xx board */
+#define _MACH_bseip   128 /* Bright Star Engineering ip-Engine */
+#define _MACH_yk      256 /* Motorola Yellowknife */
 
 /* see residual.h for these */
 #define _PREP_Motorola 0x01  /* motorola prep */
 #define _PREP_Firm     0x02  /* firmworks prep */
 #define _PREP_IBM      0x00  /* ibm prep */
 #define _PREP_Bull     0x03  /* bull prep */
+#define _PREP_Radstone 0x04  /* Radstone Technology PLC prep */
+
+/*
+ * Radstone board types
+ */
+#define RS_SYS_TYPE_PPC1   0
+#define RS_SYS_TYPE_PPC2   1
+#define RS_SYS_TYPE_PPC1a  2
+#define RS_SYS_TYPE_PPC2a  3
+#define RS_SYS_TYPE_PPC4   4
+#define RS_SYS_TYPE_PPC4a  5
+#define RS_SYS_TYPE_PPC2ep 6
 
 /* these are arbitrary */
 #define _CHRP_Motorola 0x04  /* motorola chrp, the cobra */
-#define _CHRP_IBM     0x05   /* IBM chrp, the longtrail and longtrail 2 */
+#define _CHRP_IBM      0x05  /* IBM chrp, the longtrail and longtrail 2 */
 
 #define _GLOBAL(n)\
 	.globl n;\
@@ -160,70 +175,23 @@ n:
 #define SR15	15
 
 #ifndef __ASSEMBLY__
-/*
- * If we've configured for a specific machine set things
- * up so the compiler can optimize away the other parts.
- * -- Cort
- */
-#ifdef CONFIG_MACH_SPECIFIC
-#ifdef CONFIG_PREP
-#define _machine (_MACH_prep)
-#define is_prep (1)
-#define is_chrp (0)
-#define have_of (0)
-#endif /* CONFIG_PREP */
-
-#ifdef CONFIG_CHRP
-#define _machine (_MACH_chrp)
-#define is_prep (0)
-#define is_chrp (1)
-#define have_of (1)
-#endif /* CONFIG_CHRP */
-
-#ifdef CONFIG_PMAC
-#define _machine (_MACH_Pmac)
-#define is_prep (0)
-#define is_chrp (0)
-#define have_of (1)
-#endif /* CONFIG_PMAC */
-
-#ifdef CONFIG_MBX
-#define _machine (_MACH_mbx)
-#define is_prep (0)
-#define is_chrp (0)
-#define have_of (0)
-#endif /* CONFIG_MBX */
-
-#ifdef CONFIG_FADS
-#define _machine (_MACH_fads)
-#define is_prep (0)
-#define is_chrp (0)
-#define have_of (0)
-#endif /* CONFIG_FADS */
-
-#ifdef CONFIG_APUS
-#define _machine (_MACH_apus)
-#define is_prep (0)
-#define is_chrp (0)
-#define have_of (0)
-#endif /* CONFIG_APUS */
-
-#else /* CONFIG_MACH_SPECIFIC */
-
 extern int _machine;
 
-/* if we're a prep machine */
-#define is_prep (_machine == _MACH_prep)
-
-/* if we're a chrp machine */
-#define is_chrp (_machine == _MACH_chrp)
-
-/* if we have openfirmware */
-extern unsigned long have_of;
-#endif /* CONFIG_MACH_SPECIFIC */
+/* Temporary hacks until we can clean things up better - Corey */
+extern int have_of;
+extern int is_prep;
+extern int is_chrp;
+extern int is_powerplus;
 
 /* what kind of prep workstation we are */
 extern int _prep_type;
+/*
+ * This is used to identify the board type from a given PReP board
+ * vendor. Board revision is also made available.
+ */
+extern unsigned char ucSystemType;
+extern unsigned char ucBoardRev;
+extern unsigned char ucBoardRevMaj, ucBoardRevMin;
 
 struct task_struct;
 void start_thread(struct pt_regs *regs, unsigned long nip, unsigned long sp);
@@ -267,7 +235,6 @@ struct thread_struct {
 	double		fpr[32];	/* Complete floating point set */
 	unsigned long	fpscr_pad;	/* fpr ... fpscr must be contiguous */
 	unsigned long	fpscr;		/* Floating point status */
-	unsigned long	smp_fork_ret;
 };
 
 #define INIT_SP		(sizeof(init_stack) + (unsigned long) &init_stack)
@@ -279,7 +246,7 @@ struct thread_struct {
 	(struct pt_regs *)INIT_SP - 1, /* regs */ \
 	KERNEL_DS, /*fs*/ \
 	0, /* last_syscall */ \
-	{0}, 0, 0, 0 \
+	{0}, 0, 0 \
 }
 
 /*
@@ -318,6 +285,9 @@ void ll_puts(const char *);
 #define init_task	(init_task_union.task)
 #define init_stack	(init_task_union.stack)
  
+/* In misc.c */
+void _nmask_and_or_msr(unsigned long nmask, unsigned long or_val);
+
 /*
  * Return_address is a replacement for __builtin_return_address(count)
  * which on certain architectures cannot reasonably be implemented in GCC

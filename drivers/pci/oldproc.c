@@ -101,6 +101,7 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( DEC,		DEC_21052,	"DC21052"),
 	DEVICE( DEC,		DEC_21150,	"DC21150"),
 	DEVICE( DEC,		DEC_21152,	"DC21152"),
+	DEVICE( DEC,		DEC_21153,	"DC21153"),
 	DEVICE( CIRRUS,		CIRRUS_7548,	"GD 7548"),
 	DEVICE( CIRRUS,		CIRRUS_5430,	"GD 5430"),
 	DEVICE( CIRRUS,		CIRRUS_5434_4,	"GD 5434"),
@@ -120,6 +121,7 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( IBM,		IBM_82G2675,	"82G2675"),
 	DEVICE( IBM,		IBM_MCA,	"MicroChannel"),
 	DEVICE( IBM,		IBM_82351,	"82351"),
+	DEVICE( IBM,		IBM_PYTHON,	"Python"),
 	DEVICE( IBM,		IBM_SERVERAID,	"ServeRAID"),
 	DEVICE( IBM,		IBM_TR_WAKE,	"Wake On LAN Token Ring"),
 	DEVICE( IBM,		IBM_MPIC,	"MPIC-2 Interrupt Controller"),
@@ -431,14 +433,19 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( RP,             RP8M,	        "RocketModem 8 J"),
 	DEVICE( CYCLADES,	CYCLOM_Y_Lo,	"Cyclom-Y below 1Mbyte"),
 	DEVICE( CYCLADES,	CYCLOM_Y_Hi,	"Cyclom-Y above 1Mbyte"),
-	DEVICE( CYCLADES,	CYCLOM_Z_Lo,	"Cyclom-Z below 1Mbyte"),
-	DEVICE( CYCLADES,	CYCLOM_Z_Hi,	"Cyclom-Z above 1Mbyte"),
+	DEVICE( CYCLADES,	CYCLOM_4Y_Lo,	"Cyclom-4Y below 1Mbyte"),
+	DEVICE( CYCLADES,	CYCLOM_4Y_Hi,	"Cyclom-4Y above 1Mbyte"),
+	DEVICE( CYCLADES,	CYCLOM_8Y_Lo,	"Cyclom-8Y below 1Mbyte"),
+	DEVICE( CYCLADES,	CYCLOM_8Y_Hi,	"Cyclom-8Y above 1Mbyte"),
+	DEVICE( CYCLADES,	CYCLOM_Z_Lo,	"Cyclades-Z below 1Mbyte"),
+	DEVICE( CYCLADES,	CYCLOM_Z_Hi,	"Cyclades-Z above 1Mbyte"),
 	DEVICE( ESSENTIAL,	ESSENTIAL_ROADRUNNER,"Roadrunner serial HIPPI"),
 	DEVICE( O2,		O2_6832,	"6832"),
 	DEVICE( 3DFX,		3DFX_VOODOO,	"Voodoo"),
 	DEVICE( 3DFX,		3DFX_VOODOO2,	"Voodoo2"),
 	DEVICE( 3DFX,           3DFX_BANSHEE,   "Banshee"),
 	DEVICE( SIGMADES,	SIGMADES_6425,	"REALmagic64/GX"),
+	DEVICE( AVM,		AVM_A1,		"A1 (Fritz)"),
 	DEVICE( STALLION,	STALLION_ECHPCI832,"EasyConnection 8/32"),
 	DEVICE( STALLION,	STALLION_ECHPCI864,"EasyConnection 8/64"),
 	DEVICE( STALLION,	STALLION_EIOPCI,"EasyIO"),
@@ -779,6 +786,7 @@ static const char *pci_strvendor(unsigned int vendor)
 	      case PCI_VENDOR_ID_O2:		return "O2 Micro";
 	      case PCI_VENDOR_ID_3DFX:		return "3Dfx";
 	      case PCI_VENDOR_ID_SIGMADES:	return "Sigma Designs";
+	      case PCI_VENDOR_ID_AVM:		return "AVM";
 	      case PCI_VENDOR_ID_CCUBE:		return "C-Cube";
 	      case PCI_VENDOR_ID_DIPIX:		return "Dipix";
 	      case PCI_VENDOR_ID_STALLION:	return "Stallion Technologies";

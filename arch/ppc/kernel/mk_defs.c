@@ -29,7 +29,7 @@
 int
 main(void)
 {
-	DEFINE(KERNELBASE, KERNELBASE);
+	/*DEFINE(KERNELBASE, KERNELBASE);*/
 	DEFINE(STATE, offsetof(struct task_struct, state));
 	DEFINE(NEXT_TASK, offsetof(struct task_struct, next_task));
 	DEFINE(COUNTER, offsetof(struct task_struct, counter));
@@ -48,7 +48,6 @@ main(void)
 	DEFINE(NEED_RESCHED, offsetof(struct task_struct, need_resched));
 	DEFINE(TSS_FPR0, offsetof(struct thread_struct, fpr[0]));
 	DEFINE(TSS_FPSCR, offsetof(struct thread_struct, fpscr));
-	DEFINE(TSS_SMP_FORK_RET, offsetof(struct thread_struct, smp_fork_ret));
 	/* Interrupt register frame */
 	DEFINE(TASK_UNION_SIZE, sizeof(union task_union));
 	DEFINE(STACK_FRAME_OVERHEAD, STACK_FRAME_OVERHEAD);

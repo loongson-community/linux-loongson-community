@@ -565,7 +565,23 @@ static unsigned long get_wchan(struct task_struct *p)
 	    } while (count++ < 16);
 	}
 #elif defined(__powerpc__)
-	return (p->tss.wchan);
+	{
+		unsigned long ip, sp;
+		unsigned long stack_page = (unsigned long) p;
+		int count = 0;
+
+		sp = p->tss.ksp;
+		do {
+			sp = *(unsigned long *)sp;
+			if (sp < stack_page || sp >= stack_page + 8188)
+				return 0;
+			if (count > 0) {
+				ip = *(unsigned long *)(sp + 4);
+				if (ip < first_sched || ip >= last_sched)
+					return ip;
+			}
+		} while (count++ < 16);
+	}
 #elif defined (CONFIG_ARM)
 	{
 		unsigned long fp, lr;
@@ -902,7 +918,7 @@ static int get_stat(int pid, char * buffer)
 
 	return sprintf(buffer,"%d (%s) %c %d %d %d %d %d %lu %lu \
 %lu %lu %lu %lu %lu %ld %ld %ld %ld %ld %ld %lu %lu %ld %lu %lu %lu %lu %lu \
-%lu %lu %lu %lu %lu %lu %lu %lu %d\n",
+%lu %lu %lu %lu %lu %lu %lu %lu %d %d\n",
 		pid,
 		tsk->comm,
 		state,
@@ -944,7 +960,8 @@ static int get_stat(int pid, char * buffer)
 		wchan,
 		tsk->nswap,
 		tsk->cnswap,
-		tsk->exit_signal);
+		tsk->exit_signal,
+		tsk->processor);
 }
 		
 static inline void statm_pte_range(pmd_t * pmd, unsigned long address, unsigned long size,
@@ -1369,6 +1386,7 @@ static int process_unauthorized(int type, int pid)
 {
 	struct task_struct *p;
 	uid_t euid=0;	/* Save the euid keep the lock short */
+	int ok = 0;
 		
 	read_lock(&tasklist_lock);
 	
@@ -1378,9 +1396,11 @@ static int process_unauthorized(int type, int pid)
 	 */
 	
 	p = find_task_by_pid(pid);
-	if(p)
-	{
+	if (p) {
 		euid=p->euid;
+		ok = p->dumpable;
+		if(!cap_issubset(p->cap_permitted, current->cap_permitted))
+			ok=0;			
 		if(!p->mm)	/* Scooby scooby doo where are you ? */
 			p=NULL;
 	}
@@ -1400,7 +1420,7 @@ static int process_unauthorized(int type, int pid)
 		case PROC_PID_CPU:
 			return 0;	
 	}
-	if(capable(CAP_DAC_OVERRIDE) || current->fsuid == euid)
+	if(capable(CAP_DAC_OVERRIDE) || (current->fsuid == euid && ok))
 		return 0;
 	return 1;
 }

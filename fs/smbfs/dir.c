@@ -22,7 +22,7 @@ static ssize_t smb_dir_read(struct file *, char *, size_t, loff_t *);
 static int smb_readdir(struct file *, void *, filldir_t);
 static int smb_dir_open(struct inode *, struct file *);
 
-static int smb_lookup(struct inode *, struct dentry *);
+static struct dentry *smb_lookup(struct inode *, struct dentry *);
 static int smb_create(struct inode *, struct dentry *, int);
 static int smb_mkdir(struct inode *, struct dentry *, int);
 static int smb_rmdir(struct inode *, struct dentry *);
@@ -191,14 +191,14 @@ file->f_dentry->d_name.name);
 /*
  * Dentry operations routines
  */
-static int smb_lookup_validate(struct dentry *);
+static int smb_lookup_validate(struct dentry *, int);
 static int smb_hash_dentry(struct dentry *, struct qstr *);
 static int smb_compare_dentry(struct dentry *, struct qstr *, struct qstr *);
 static void smb_delete_dentry(struct dentry *);
 
 static struct dentry_operations smbfs_dentry_operations =
 {
-	smb_lookup_validate,	/* d_validate(struct dentry *) */
+	smb_lookup_validate,	/* d_revalidate(struct dentry *) */
 	smb_hash_dentry,	/* d_hash */
 	smb_compare_dentry,	/* d_compare */
 	smb_delete_dentry	/* d_delete(struct dentry *) */
@@ -208,7 +208,7 @@ static struct dentry_operations smbfs_dentry_operations =
  * This is the callback when the dcache has a lookup hit.
  */
 static int
-smb_lookup_validate(struct dentry * dentry)
+smb_lookup_validate(struct dentry * dentry, int flags)
 {
 	struct inode * inode = dentry->d_inode;
 	unsigned long age = jiffies - dentry->d_time;
@@ -324,7 +324,7 @@ smb_renew_times(struct dentry * dentry)
 	}
 }
 
-static int
+static struct dentry *
 smb_lookup(struct inode *dir, struct dentry *dentry)
 {
 	struct smb_fattr finfo;
@@ -360,7 +360,7 @@ dentry->d_parent->d_name.name, dentry->d_name.name, error);
 		}
 	}
 out:
-	return error;
+	return ERR_PTR(error);
 }
 
 /*
@@ -423,9 +423,6 @@ smb_create(struct inode *dir, struct dentry *dentry, int mode)
 printk("smb_create: creating %s/%s, mode=%d\n",
 dentry->d_parent->d_name.name, dentry->d_name.name, mode);
 #endif
-	error = -ENAMETOOLONG;
-	if (dentry->d_name.len > SMB_MAXNAMELEN)
-		goto out;
 
 	smb_invalid_dir_cache(dir);
 	error = smb_proc_create(dentry, 0, CURRENT_TIME, &fileid);
@@ -439,7 +436,6 @@ printk("smb_create: %s/%s failed, error=%d\n",
 dentry->d_parent->d_name.name, dentry->d_name.name, error);
 #endif
 	}
-out:
 	return error;
 }
 
@@ -449,17 +445,12 @@ smb_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 {
 	int error;
 
-	error = -ENAMETOOLONG;
-	if (dentry->d_name.len > SMB_MAXNAMELEN)
-		goto out;
-
 	smb_invalid_dir_cache(dir);
 	error = smb_proc_mkdir(dentry);
 	if (!error)
 	{
 		error = smb_instantiate(dentry, 0, 0);
 	}
-out:
 	return error;
 }
 
@@ -514,11 +505,6 @@ smb_rename(struct inode *old_dir, struct dentry *old_dentry,
 {
 	int error;
 
-	error = -ENAMETOOLONG;
-	if (old_dentry->d_name.len > SMB_MAXNAMELEN ||
-	    new_dentry->d_name.len > SMB_MAXNAMELEN)
-		goto out;
-
 	/*
 	 * Close any open files, and check whether to delete the
 	 * target before attempting the rename.
@@ -537,6 +523,7 @@ new_dentry->d_parent->d_name.name, new_dentry->d_name.name, error);
 #endif
 			goto out;
 		}
+		/* FIXME */
 		d_delete(new_dentry);
 	}
 
@@ -547,7 +534,6 @@ new_dentry->d_parent->d_name.name, new_dentry->d_name.name, error);
 	{
 		smb_renew_times(old_dentry);
 		smb_renew_times(new_dentry);
-		d_move(old_dentry, new_dentry);
 	}
 out:
 	return error;

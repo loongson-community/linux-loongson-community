@@ -8,7 +8,6 @@
  * as published by the Free Software Foundation; either version
  * 2 of the License, or (at your option) any later version.
  */
-#include <linux/config.h>
 #include "../kernel/ppc_asm.tmpl"
 #include <asm/processor.h>
 #include <asm/errno.h>
@@ -321,8 +320,6 @@ __copy_tofrom_user:
 	.long	75b,76b
 .text
 
-#undef CLEAR_USE_DCBZ 1
-#undef CLEAR_NO_CACHE 1
 	.globl	__clear_user
 __clear_user:
 	addi	r6,r3,-4
@@ -333,15 +330,6 @@ __clear_user:
 	/* clear a single word */
 11:	stwu	r5,4(r6)
 	beqlr
-#if defined(CLEAR_NO_CACHE) && defined (CONFIG_6xx)
-	/* 
-	 * no reason to turn off the cache for a single word 
-	 * or a few bytes -- Cort 
-	 */
-	mfspr	r7,HID0
-	ori	r8,r7,HID0_DLOCK
-	mtspr	HID0,r8
-#endif /* CLEAR_NO_CACHE */
 	/* clear word sized chunks */
 	andi.	r0,r6,3
 	add	r4,r0,r4
@@ -353,10 +341,6 @@ __clear_user:
 1:	stwu	r5,4(r6)
 	bdnz	1b
 6:	andi.	r4,r4,3
-#if defined(CLEAR_NO_CACHE) && defined (CONFIG_6xx)
-	/* restore the original state of HID0 in case cache was off -- Cort */
-	mtspr	HID0,r7
-#endif /* CLEAR_NO_CACHE */	
 	/* clear byte sized chunks */
 7:	cmpwi	0,r4,0
 	beqlr
@@ -371,9 +355,6 @@ __clear_user:
 	.align	2
 	.long	11b,99b
 	.long	1b,99b
-#ifdef CLEAR_USE_DCBZ
-	/*.long	66b,99b*/
-#endif		
 	.long	8b,99b
 .text
 

@@ -21,7 +21,6 @@
 #include <linux/mm.h>
 #include <linux/string.h>
 #include <linux/locks.h>
-#include <linux/errno.h>
 #include <linux/genhd.h>
 #include <linux/amigaffs.h>
 #include <linux/major.h>
@@ -293,7 +292,7 @@ affs_new_inode(const struct inode *dir)
 
 	sb = dir->i_sb;
 	inode->i_sb    = sb;
-	inode->i_flags = sb->s_flags;
+	inode->i_flags = 0;
 
 	if (!(block = affs_new_header((struct inode *)dir))) {
 		iput(inode);

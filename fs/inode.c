@@ -62,9 +62,8 @@ spinlock_t inode_lock = SPIN_LOCK_UNLOCKED;
 struct {
 	int nr_inodes;
 	int nr_free_inodes;
-	int preshrink;		/* pre-shrink dcache? */
-	int dummy[4];
-} inodes_stat = {0, 0, 0,};
+	int dummy[5];
+} inodes_stat = {0, 0,};
 
 int max_inodes;
 
@@ -196,6 +195,19 @@ void sync_inodes(kdev_t dev)
 }
 
 /*
+ * Called with the spinlock already held..
+ */
+static void sync_all_inodes(void)
+{
+	struct super_block * sb = sb_entry(super_blocks.next);
+	for (; sb != sb_entry(&super_blocks); sb = sb_entry(sb->s_list.next)) {
+		if (!sb->s_dev)
+			continue;
+		sync_list(&sb->s_dirty);
+	}
+}
+
+/*
  * Needed by knfsd
  */
 void write_inode_now(struct inode *inode)
@@ -232,13 +244,15 @@ void clear_inode(struct inode *inode)
 
 /*
  * Dispose-list gets a local list, so it doesn't need to
- * worry about list corruption.
+ * worry about list corruption. It releases the inode lock
+ * while clearing the inodes.
  */
 static void dispose_list(struct list_head * head)
 {
 	struct list_head *next;
 	int count = 0;
 
+	spin_unlock(&inode_lock);
 	next = head->next;
 	for (;;) {
 		struct list_head * tmp = next;
@@ -256,7 +270,6 @@ static void dispose_list(struct list_head * head)
 	spin_lock(&inode_lock);
 	list_splice(head, &inode_unused);
 	inodes_stat.nr_free_inodes += count;
-	spin_unlock(&inode_lock);
 }
 
 /*
@@ -305,65 +318,51 @@ int invalidate_inodes(struct super_block * sb)
 	spin_lock(&inode_lock);
 	busy = invalidate_list(&inode_in_use, sb, &throw_away);
 	busy |= invalidate_list(&sb->s_dirty, sb, &throw_away);
-	spin_unlock(&inode_lock);
-
 	dispose_list(&throw_away);
+	spin_unlock(&inode_lock);
 
 	return busy;
 }
 
 /*
  * This is called with the inode lock held. It searches
- * the in-use for the specified number of freeable inodes.
- * Freeable inodes are moved to a temporary list and then
- * placed on the unused list by dispose_list.
+ * the in-use for freeable inodes, which are moved to a
+ * temporary list and then placed on the unused list by
+ * dispose_list. 
  *
- * Note that we do not expect to have to search very hard:
- * the freeable inodes will be at the old end of the list.
- * 
- * N.B. The spinlock is released to call dispose_list.
+ * We don't expect to have to call this very often.
+ *
+ * N.B. The spinlock is released during the call to
+ *      dispose_list.
  */
 #define CAN_UNUSE(inode) \
-	(((inode)->i_count == 0) && \
-	 (!(inode)->i_state))
+	(((inode)->i_count | (inode)->i_state) == 0)
+#define INODE(entry)	(list_entry(entry, struct inode, i_list))
 
-static int free_inodes(int goal)
+static int free_inodes(void)
 {
-	struct list_head *tmp, *head = &inode_in_use;
-	LIST_HEAD(freeable);
-	int found = 0, depth = goal << 1;
+	struct list_head list, *entry, *freeable = &list;
+	int found = 0;
 
-	while ((tmp = head->prev) != head && depth--) {
-		struct inode * inode = list_entry(tmp, struct inode, i_list);
+	INIT_LIST_HEAD(freeable);
+	entry = inode_in_use.next;
+	while (entry != &inode_in_use) {
+		struct list_head *tmp = entry;
+
+		entry = entry->next;
+		if (!CAN_UNUSE(INODE(tmp)))
+			continue;
 		list_del(tmp);
-		if (CAN_UNUSE(inode)) {
-			list_del(&inode->i_hash);
-			INIT_LIST_HEAD(&inode->i_hash);
-			list_add(tmp, &freeable);
-			if (++found < goal)
-				continue;
-			break;
-		}
-		list_add(tmp, head);
+		list_del(&INODE(tmp)->i_hash);
+		INIT_LIST_HEAD(&INODE(tmp)->i_hash);
+		list_add(tmp, freeable);
+		found = 1;
 	}
-	if (found) {
-		spin_unlock(&inode_lock);
-		dispose_list(&freeable);
-		spin_lock(&inode_lock);
-	}
+
+	if (found)
+		dispose_list(freeable);
+
 	return found;
-}
-
-static void shrink_dentry_inodes(int goal)
-{
-	int found;
-
-	spin_unlock(&inode_lock);
-	found = select_dcache(goal, 0);
-	if (found < goal)
-		found = goal;
-	prune_dcache(found);
-	spin_lock(&inode_lock);
 }
 
 /*
@@ -373,9 +372,23 @@ static void shrink_dentry_inodes(int goal)
  */
 static void try_to_free_inodes(int goal)
 {
-	shrink_dentry_inodes(goal);
-	if (!free_inodes(goal))
-		shrink_dentry_inodes(goal);
+	/*
+	 * First stry to just get rid of unused inodes.
+	 *
+	 * If we can't reach our goal that way, we'll have
+	 * to try to shrink the dcache and sync existing
+	 * inodes..
+	 */
+	free_inodes();
+	goal -= inodes_stat.nr_free_inodes;
+	if (goal > 0) {
+		spin_unlock(&inode_lock);
+		select_dcache(goal, 0);
+		prune_dcache(goal);
+		spin_lock(&inode_lock);
+		sync_all_inodes();
+		free_inodes();
+	}
 }
 
 /*
@@ -385,17 +398,24 @@ static void try_to_free_inodes(int goal)
 void free_inode_memory(int goal)
 {
 	spin_lock(&inode_lock);
-	free_inodes(goal);
+	free_inodes();
 	spin_unlock(&inode_lock);
 }
 
-#define INODES_PER_PAGE PAGE_SIZE/sizeof(struct inode)
+
 /*
  * This is called with the spinlock held, but releases
  * the lock when freeing or allocating inodes.
  * Look out! This returns with the inode lock held if
  * it got an inode..
+ *
+ * We do inode allocations two pages at a time to reduce
+ * fragmentation.
  */
+#define INODE_PAGE_ORDER	1
+#define INODE_ALLOCATION_SIZE	(PAGE_SIZE << INODE_PAGE_ORDER)
+#define INODES_PER_ALLOCATION	(INODE_ALLOCATION_SIZE/sizeof(struct inode))
+
 static struct inode * grow_inodes(void)
 {
 	struct inode * inode;
@@ -403,9 +423,9 @@ static struct inode * grow_inodes(void)
 	/*
 	 * Check whether to restock the unused list.
 	 */
-	if (inodes_stat.preshrink) {
+	if (inodes_stat.nr_inodes > max_inodes) {
 		struct list_head *tmp;
-		try_to_free_inodes(8);
+		try_to_free_inodes(inodes_stat.nr_inodes >> 2);
 		tmp = inode_unused.next;
 		if (tmp != &inode_unused) {
 			inodes_stat.nr_free_inodes--;
@@ -416,14 +436,14 @@ static struct inode * grow_inodes(void)
 	}
 		
 	spin_unlock(&inode_lock);
-	inode = (struct inode *)__get_free_page(GFP_KERNEL);
+	inode = (struct inode *)__get_free_pages(GFP_KERNEL,INODE_PAGE_ORDER);
 	if (inode) {
 		int size;
 		struct inode * tmp;
 
-		spin_lock(&inode_lock);
-		size = PAGE_SIZE - 2*sizeof(struct inode);
+		size = INODE_ALLOCATION_SIZE - 2*sizeof(struct inode);
 		tmp = inode;
+		spin_lock(&inode_lock);
 		do {
 			tmp++;
 			init_once(tmp);
@@ -434,11 +454,8 @@ static struct inode * grow_inodes(void)
 		/*
 		 * Update the inode statistics
 		 */
-		inodes_stat.nr_inodes += INODES_PER_PAGE;
-		inodes_stat.nr_free_inodes += INODES_PER_PAGE - 1;
-		inodes_stat.preshrink = 0;
-		if (inodes_stat.nr_inodes > max_inodes)
-			inodes_stat.preshrink = 1;
+		inodes_stat.nr_inodes += INODES_PER_ALLOCATION;
+		inodes_stat.nr_free_inodes += INODES_PER_ALLOCATION - 1;
 		return inode;
 	}
 
@@ -447,10 +464,9 @@ static struct inode * grow_inodes(void)
 	 * the dcache and then try again to free some inodes.
 	 */
 	prune_dcache(inodes_stat.nr_inodes >> 2);
-	inodes_stat.preshrink = 1;
 
 	spin_lock(&inode_lock);
-	free_inodes(inodes_stat.nr_inodes >> 2);
+	free_inodes();
 	{
 		struct list_head *tmp = inode_unused.next;
 		if (tmp != &inode_unused) {
@@ -506,17 +522,9 @@ void clean_inode(struct inode *inode)
 	inode->i_nlink = 1;
 	inode->i_writecount = 0;
 	inode->i_size = 0;
+	inode->i_generation = 0;
 	memset(&inode->i_dquot, 0, sizeof(inode->i_dquot));
 	sema_init(&inode->i_sem, 1);
-}
-
-/*
- * This gets called with I_LOCK held: it needs
- * to read the inode and then unlock it
- */
-static inline void read_inode(struct inode *inode, struct super_block *sb)
-{
-	sb->s_op->read_inode(inode);
 }
 
 /*
@@ -588,7 +596,7 @@ add_new_inode:
 		spin_unlock(&inode_lock);
 
 		clean_inode(inode);
-		read_inode(inode, sb);
+		sb->s_op->read_inode(inode);
 
 		/*
 		 * This is special!  We do not need the spinlock
@@ -741,7 +749,7 @@ int bmap(struct inode * inode, int block)
  * Initialize the hash tables and default
  * value for max inodes
  */
-#define MAX_INODE (8192)
+#define MAX_INODE (16384)
 
 void __init inode_init(void)
 {

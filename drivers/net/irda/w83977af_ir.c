@@ -6,7 +6,7 @@
  * Status:        Experimental.
  * Author:        Paul VanderSpek
  * Created at:    Wed Nov  4 11:46:16 1998
- * Modified at:   Mon Dec 14 21:51:53 1998
+ * Modified at:   Tue Apr 20 11:15:00 1999
  * Modified by:   Dag Brattli <dagb@cs.uit.no>
  * 
  *     Copyright (c) 1998 Corel Computer Corp.
@@ -22,7 +22,7 @@
  *     provided "AS-IS" and at no charge.
  *     
  *     If you find bugs in this file, its very likely that the same bug
- *     will also be in w83977af_ir.c since the implementations is quite
+ *     will also be in pc87108.c since the implementations is quite
  *     similar.
  *
  *     Notice that all functions that needs to access the chip in _any_
@@ -67,8 +67,8 @@ static char *driver_name = "w83977af_ir";
 
 #define CHIP_IO_EXTENT 8
 
-static unsigned int io[] = { 0x400, ~0, ~0, ~0 };
-static unsigned int irq[] = { 22, 0, 0, 0 };
+static unsigned int io[] = { 0x180, ~0, ~0, ~0 };
+static unsigned int irq[] = { 6, 0, 0, 0 };
 static unsigned int dma[] = { 0, 0, 0, 0 };
 
 static struct irda_device *dev_self[] = { NULL, NULL, NULL, NULL};
@@ -116,7 +116,7 @@ __initfunc(int w83977af_init(void))
 
 	for ( i=0; (io[i] < 2000) && (i < 4); i++) {
 		int ioaddr = io[i];
-		if (check_region(ioaddr, CHIP_IO_EXTENT))
+		if (check_region(ioaddr, CHIP_IO_EXTENT) < 0)
 			continue;
 		if (w83977af_open( i, io[i], irq[i], dma[i]) == 0)
 			return 0;
@@ -204,6 +204,8 @@ int w83977af_open( int i, unsigned int iobase, unsigned int irq,
 	/* The HP HDLS-1100 needs 1 ms according to the specs */
 	idev->qos.min_turn_time.bits = 0x03; /* 1ms and more */
 	irda_qos_bits_to_value( &idev->qos);
+	
+	idev->flags = IFF_FIR|IFF_MIR|IFF_SIR|IFF_DMA|IFF_PIO;
 
 	/* Specify which buffer allocation policy we need */
 	idev->rx_buff.flags = GFP_KERNEL | GFP_DMA;
@@ -214,7 +216,6 @@ int w83977af_open( int i, unsigned int iobase, unsigned int irq,
 	idev->tx_buff.truesize = 4000;
 	
 	/* Initialize callbacks */
-	idev->hard_xmit       = w83977af_hard_xmit;
 	idev->change_speed    = w83977af_change_speed;
 	idev->wait_until_sent = w83977af_wait_until_sent;
         idev->is_receiving    = w83977af_is_receiving;
@@ -288,9 +289,10 @@ int w83977af_probe( int iobase, int irq, int dma)
 	/* Configure PnP port, IRQ, and DMA channel */
 	w977_write_reg(0x60, (iobase >> 8) & 0xff);
 	w977_write_reg(0x61, (iobase) & 0xff);
-	w977_write_reg(0x70, 0x06);
+	/* w977_write_reg(0x70, 0x06); */
+	w977_write_reg(0x70, irq);
 #ifdef NETWINDER
-	w977_write_reg(0x74, dma+1); /* Netwinder uses 1 higher than Linux */
+	w977_write_reg(0x74, dma+1); /* Netwinder uses one higher than Linux */
 #else
 	w977_write_reg(0x74, dma);   
 #endif
@@ -431,7 +433,7 @@ void w83977af_change_speed( struct irda_device *idev, int speed)
 	
 	/* set FIFO threshold to TX17, RX16 */
 	switch_bank(iobase, SET0);
-	outb( UFR_RXTL|UFR_TXTL|UFR_TXF_RST|UFR_RXF_RST|UFR_EN_FIFO, iobase+UFR);
+	outb(UFR_RXTL|UFR_TXTL|UFR_TXF_RST|UFR_RXF_RST|UFR_EN_FIFO, iobase+UFR);
 	
 	idev->netdev.tbusy = 0;
 	
@@ -462,74 +464,65 @@ int w83977af_hard_xmit( struct sk_buff *skb, struct device *dev)
 	
 	idev = (struct irda_device *) dev->priv;
 
-	ASSERT( idev != NULL, return 0;);
-	ASSERT( idev->magic == IRDA_DEVICE_MAGIC, return 0;);
+	ASSERT(idev != NULL, return 0;);
+	ASSERT(idev->magic == IRDA_DEVICE_MAGIC, return 0;);
 
 	iobase = idev->io.iobase;
 
 	DEBUG(4, __FUNCTION__ "(%ld), skb->len=%d\n", jiffies, (int) skb->len);
-
-	if ( dev->tbusy) {
-		DEBUG( 4, __FUNCTION__ "(), tbusy==TRUE\n");
-
-		return -EBUSY;
-	}
 	
 	/* Lock transmit buffer */
-	if ( irda_lock( (void *) &dev->tbusy) == FALSE)
+	if (irda_lock((void *) &dev->tbusy) == FALSE)
 		return -EBUSY;
-
+	
 	/* Save current set */
-	set = inb( iobase+SSR);
+	set = inb(iobase+SSR);
 	
 	/* Decide if we should use PIO or DMA transfer */
-	if ( idev->io.baudrate > 115200) {
-		memcpy( idev->tx_buff.data, skb->data, skb->len);
+	if (idev->io.baudrate > 115200) {
+		memcpy(idev->tx_buff.data, skb->data, skb->len);
 		idev->tx_buff.len = skb->len;
-		idev->tx_buff.head = idev->tx_buff.data;
-		idev->tx_buff.offset = 0;
+		idev->tx_buff.data = idev->tx_buff.head;
 		
-		mtt = irda_get_mtt( skb);
-	        if ( mtt > 50) {
+		mtt = irda_get_mtt(skb);
+	        if (mtt > 50) {
 			/* Adjust for timer resolution */
-			mtt /= 1000+1;
+			mtt = mtt / 1000 + 1;
 
 			/* Setup timer */
-			switch_bank( iobase, SET4);
-			outb( mtt & 0xff, iobase+TMRL);
-			outb(( mtt >> 8) & 0x0f, iobase+TMRH);
+			switch_bank(iobase, SET4);
+			outb(mtt & 0xff, iobase+TMRL);
+			outb((mtt >> 8) & 0x0f, iobase+TMRH);
 			
 			/* Start timer */
-			outb( IR_MSL_EN_TMR, iobase+IR_MSL);
+			outb(IR_MSL_EN_TMR, iobase+IR_MSL);
 			idev->io.direction = IO_XMIT;
 			
 			/* Enable timer interrupt */
-			switch_bank( iobase, SET0);
-			outb( ICR_ETMRI, iobase+ICR);
+			switch_bank(iobase, SET0);
+			outb(ICR_ETMRI, iobase+ICR);
 		} else {
-			if ( mtt)
-				udelay( mtt);
+			if (mtt)
+				udelay(mtt);
 
 			/* Enable DMA interrupt */
-			switch_bank( iobase, SET0);
-	 		outb( ICR_EDMAI, iobase+ICR);
-	     		w83977af_dma_write( idev, iobase);
+			switch_bank(iobase, SET0);
+	 		outb(ICR_EDMAI, iobase+ICR);
+	     		w83977af_dma_write(idev, iobase);
 		}
 	} else {
-		idev->tx_buff.len = async_wrap_skb( skb, idev->tx_buff.data, 
-						    idev->tx_buff.truesize);
-		
-		idev->tx_buff.offset = 0;
-		idev->tx_buff.head = idev->tx_buff.data;
+		idev->tx_buff.data = idev->tx_buff.head;
+		idev->tx_buff.len = async_wrap_skb(skb, idev->tx_buff.data, 
+						   idev->tx_buff.truesize);
 		
 		/* Add interrupt on tx low level (will fire immediately) */
-		switch_bank( iobase, SET0);
-		outb( ICR_ETXTHI, iobase+ICR);
+		switch_bank(iobase, SET0);
+		outb(ICR_ETXTHI, iobase+ICR);
 	}
-	dev_kfree_skb( skb);
+	dev_kfree_skb(skb);
 
 	/* Restore set register */
-	outb( set, iobase+SSR);
+	outb(set, iobase+SSR);
 
 	return 0;
 }
@@ -554,23 +547,23 @@ static void w83977af_dma_write( struct irda_device *idev, int iobase)
 	switch_bank(iobase, SET0);
 	outb( inb( iobase+HCR) & ~HCR_EN_DMA, iobase+HCR);
 	
-	setup_dma( idev->io.dma, idev->tx_buff.data, idev->tx_buff.len, 
-		   DMA_MODE_WRITE);
+	setup_dma(idev->io.dma, idev->tx_buff.data, idev->tx_buff.len, 
+		  DMA_MODE_WRITE);
 	
 	/* idev->media_busy = TRUE; */
 	idev->io.direction = IO_XMIT;
 	
 	/* Choose transmit DMA channel  */ 
 	switch_bank(iobase, SET2);
-	outb( inb( iobase+ADCR1) | ADCR1_D_CHSW|ADCR1_DMA_F|ADCR1_ADV_SL, 
-	      iobase+ADCR1);
+	outb(inb(iobase+ADCR1) | ADCR1_D_CHSW|ADCR1_DMA_F|ADCR1_ADV_SL, 
+	     iobase+ADCR1);
 	
 	/* Enable DMA */
- 	switch_bank( iobase, SET0);
-	outb( inb( iobase+HCR) | HCR_EN_DMA, iobase+HCR);
+ 	switch_bank(iobase, SET0);
+	outb(inb(iobase+HCR) | HCR_EN_DMA, iobase+HCR);
 	
 	/* Restore set register */
-	outb( set, iobase+SSR);
+	outb(set, iobase+SSR);
 }
 
 /*
@@ -579,7 +572,7 @@ static void w83977af_dma_write( struct irda_device *idev, int iobase)
  *    
  *
  */
-static int w83977af_pio_write( int iobase, __u8 *buf, int len, int fifo_size)
+static int w83977af_pio_write(int iobase, __u8 *buf, int len, int fifo_size)
 {
 	int actual = 0;
 	__u8 set;
@@ -590,7 +583,7 @@ static int w83977af_pio_write( int iobase, __u8 *buf, int len, int fifo_size)
 	set = inb( iobase+SSR);
 
 	switch_bank( iobase, SET0);
-	if (!( inb_p( iobase+USR) & USR_TSRE)) {
+	if (!(inb_p(iobase+USR) & USR_TSRE)) {
 		DEBUG( 4, __FUNCTION__ "(), warning, FIFO not empty yet!\n");
 
 		fifo_size -= 17;
@@ -598,16 +591,16 @@ static int w83977af_pio_write( int iobase, __u8 *buf, int len, int fifo_size)
 	}
 
 	/* Fill FIFO with current frame */
-	while (( fifo_size-- > 0) && (actual < len)) {
+	while ((fifo_size-- > 0) && (actual < len)) {
 		/* Transmit next byte */
-		outb( buf[actual++], iobase+TBR);
+		outb(buf[actual++], iobase+TBR);
 	}
         
-	DEBUG( 4, __FUNCTION__ "(), fifo_size %d ; %d sent of %d\n", 
-	       fifo_size, actual, len);
+	DEBUG(4, __FUNCTION__ "(), fifo_size %d ; %d sent of %d\n", 
+	      fifo_size, actual, len);
 
 	/* Restore bank */
-	outb( set, iobase+SSR);
+	outb(set, iobase+SSR);
 
 	return actual;
 }
@@ -619,34 +612,34 @@ static int w83977af_pio_write( int iobase, __u8 *buf, int len, int fifo_size)
  *
  *    
  */
-void w83977af_dma_xmit_complete( struct irda_device *idev)
+void w83977af_dma_xmit_complete(struct irda_device *idev)
 {
 	int iobase;
 	__u8 set;
 
-	DEBUG( 4, __FUNCTION__ "()\n");
+	DEBUG(4, __FUNCTION__ "()\n");
 
-	ASSERT( idev != NULL, return;);
-	ASSERT( idev->magic == IRDA_DEVICE_MAGIC, return;);
+	ASSERT(idev != NULL, return;);
+	ASSERT(idev->magic == IRDA_DEVICE_MAGIC, return;);
 
 	iobase = idev->io.iobase;
 
 	/* Save current set */
-	set = inb( iobase+SSR);
+	set = inb(iobase+SSR);
 
 	/* Disable DMA */
 	switch_bank(iobase, SET0);
-	outb( inb(iobase+HCR) & ~HCR_EN_DMA, iobase+HCR);
+	outb(inb(iobase+HCR) & ~HCR_EN_DMA, iobase+HCR);
 	
 	/* Check for underrrun! */
-	if ( inb( iobase+AUDR) & AUDR_UNDR) {
-		DEBUG( 0, __FUNCTION__ "(), Transmit underrun!\n");
+	if (inb(iobase+AUDR) & AUDR_UNDR) {
+		DEBUG(0, __FUNCTION__ "(), Transmit underrun!\n");
 		
 		idev->stats.tx_errors++;
 		idev->stats.tx_fifo_errors++;
 
 		/* Clear bit, by writing 1 to it */
-		outb( AUDR_UNDR, iobase+AUDR);
+		outb(AUDR_UNDR, iobase+AUDR);
 	} else
 		idev->stats.tx_packets++;
 
@@ -655,10 +648,10 @@ void w83977af_dma_xmit_complete( struct irda_device *idev)
 	idev->media_busy = FALSE;
 	
 	/* Tell the network layer, that we want more frames */
-	mark_bh( NET_BH);
+	mark_bh(NET_BH);
 
 	/* Restore set */
-	outb( set, iobase+SSR);
+	outb(set, iobase+SSR);
 }
 
 /*
@@ -668,7 +661,7 @@ void w83977af_dma_xmit_complete( struct irda_device *idev)
  *    if it starts to receive a frame.
  *
  */
-int w83977af_dma_receive( struct irda_device *idev) 
+int w83977af_dma_receive(struct irda_device *idev) 
 {
 	int iobase;
 	__u8 set;
@@ -677,10 +670,10 @@ int w83977af_dma_receive( struct irda_device *idev)
 	__u8 hcr;
 #endif
 
-	ASSERT( idev != NULL, return -1;);
-	ASSERT( idev->magic == IRDA_DEVICE_MAGIC, return -1;);
+	ASSERT(idev != NULL, return -1;);
+	ASSERT(idev->magic == IRDA_DEVICE_MAGIC, return -1;);
 
-	DEBUG( 0, __FUNCTION__ "\n");
+	DEBUG(0, __FUNCTION__ "\n");
 
 	iobase= idev->io.iobase;
 
@@ -701,13 +694,12 @@ int w83977af_dma_receive( struct irda_device *idev)
 	set_dma_addr( idev->io.dma, virt_to_bus(idev->rx_buff.data));
 	set_dma_count( idev->io.dma, idev->rx_buff.truesize);
 #else
-	setup_dma( idev->io.dma, idev->rx_buff.data, idev->rx_buff.truesize, 
-		   DMA_MODE_READ);
+	setup_dma(idev->io.dma, idev->rx_buff.data, 
+		  idev->rx_buff.truesize, DMA_MODE_READ);
 #endif
 	/* driver->media_busy = FALSE; */
 	idev->io.direction = IO_RECV;
-	idev->rx_buff.head = idev->rx_buff.data;
-	idev->rx_buff.offset = 0;
+	idev->rx_buff.data = idev->rx_buff.head;
 
 	/* 
 	 * Reset Rx FIFO. This will also flush the ST_FIFO, it's very 
@@ -755,30 +747,30 @@ int w83977af_dma_receive_complete(struct irda_device *idev)
 	__u8 set;
 	__u8 status;
 
-	DEBUG( 0, __FUNCTION__ "\n");
+	DEBUG(0, __FUNCTION__ "\n");
 
 	iobase = idev->io.iobase;
 
 	/* Save current set */
-	set = inb( iobase+SSR);
+	set = inb(iobase+SSR);
 	
 	iobase = idev->io.iobase;
 
 	switch_bank(iobase, SET5);
-	if ( prev.status & FS_FO_FSFDR) {
+	if (prev.status & FS_FO_FSFDR) {
 		status = prev.status;
 		len = prev.len;
-
+		
 		prev.status = 0;
 	} else {
-		status = inb( iobase+FS_FO);
-		len = inb( iobase+RFLFL);
-		len |= inb( iobase+RFLFH) << 8;
+		status = inb(iobase+FS_FO);
+		len = inb(iobase+RFLFL);
+		len |= inb(iobase+RFLFH) << 8;
 	}
 
-	while ( status & FS_FO_FSFDR) {
+	while (status & FS_FO_FSFDR) {
 		/* Check for errors */
-		if ( status & FS_FO_ERR_MSK) {
+		if (status & FS_FO_ERR_MSK) {
 			if ( status & FS_FO_LST_FR) {
 				/* Add number of lost frames to stats */
 				idev->stats.rx_errors += len;	
@@ -786,29 +778,28 @@ int w83977af_dma_receive_complete(struct irda_device *idev)
 				/* Skip frame */
 				idev->stats.rx_errors++;
 				
-				idev->rx_buff.offset += len;
-				idev->rx_buff.head   += len;
+				idev->rx_buff.data += len;
 				
-				if ( status & FS_FO_MX_LEX)
+				if (status & FS_FO_MX_LEX)
 					idev->stats.rx_length_errors++;
 				
-				if ( status & FS_FO_PHY_ERR) 
+				if (status & FS_FO_PHY_ERR) 
 					idev->stats.rx_frame_errors++;
 				
-				if ( status & FS_FO_CRC_ERR) 
+				if (status & FS_FO_CRC_ERR) 
 					idev->stats.rx_crc_errors++;
 			}
 			/* The errors below can be reported in both cases */
-			if ( status & FS_FO_RX_OV)
+			if (status & FS_FO_RX_OV)
 				idev->stats.rx_fifo_errors++;
 			
-			if ( status & FS_FO_FSF_OV)
+			if (status & FS_FO_FSF_OV)
 				idev->stats.rx_fifo_errors++;
 			
 		} else {
 			/* Check if we have transfered all data to memory */
 			switch_bank(iobase, SET0);
-			if ( inb( iobase+USR) & USR_RDR) {
+			if (inb(iobase+USR) & USR_RDR) {
 				/* Put this entry back in fifo */
 				prev.status = status;
 				prev.len = len;
@@ -819,31 +810,30 @@ int w83977af_dma_receive_complete(struct irda_device *idev)
 				return FALSE; 	/* I'll be back! */
 			}
 						
-			skb = dev_alloc_skb( len+1);
+			skb = dev_alloc_skb(len+1);
 			if (skb == NULL)  {
-				printk( KERN_INFO __FUNCTION__ 
-					"(), memory squeeze, dropping frame.\n");
+				printk(KERN_INFO __FUNCTION__ 
+				       "(), memory squeeze, dropping frame.\n");
 				/* Restore set register */
-				outb( set, iobase+SSR);
+				outb(set, iobase+SSR);
 
 				return FALSE;
 			}
 			
 			/*  Align to 20 bytes */
-			skb_reserve( skb, 1); 
+			skb_reserve(skb, 1); 
 			
 			/* Copy frame without CRC */
 			if ( idev->io.baudrate < 4000000) {
 				skb_put( skb, len-2);
-				memcpy( skb->data, idev->rx_buff.head, len-2);
+				memcpy( skb->data, idev->rx_buff.data, len-2);
 			} else {
 				skb_put( skb, len-4);
-				memcpy( skb->data, idev->rx_buff.head, len-4);
+				memcpy( skb->data, idev->rx_buff.data, len-4);
 			}
 
 			/* Move to next frame */
-			idev->rx_buff.offset += len;
-			idev->rx_buff.head += len;
+			idev->rx_buff.data += len;
 			
 			skb->dev = &idev->netdev;
 			skb->mac.raw  = skb->data;
@@ -858,7 +848,7 @@ int w83977af_dma_receive_complete(struct irda_device *idev)
 		len |= inb( iobase+RFLFH) << 8;
 	}
 	/* Restore set register */
-	outb( set, iobase+SSR);
+	outb(set, iobase+SSR);
 
 	return TRUE;
 }
@@ -869,28 +859,24 @@ int w83977af_dma_receive_complete(struct irda_device *idev)
  *    Receive all data in receiver FIFO
  *
  */
-static void w83977af_pio_receive( struct irda_device *idev) 
+static void w83977af_pio_receive(struct irda_device *idev) 
 {
 	__u8 byte = 0x00;
 	int iobase;
 
-	DEBUG( 4, __FUNCTION__ "()\n");
+	DEBUG(4, __FUNCTION__ "()\n");
 
-	ASSERT( idev != NULL, return;);
-	ASSERT( idev->magic == IRDA_DEVICE_MAGIC, return;);
+	ASSERT(idev != NULL, return;);
+	ASSERT(idev->magic == IRDA_DEVICE_MAGIC, return;);
 	
 	iobase = idev->io.iobase;
 	
-	if ( idev->rx_buff.len == 0) {
-		idev->rx_buff.head = idev->rx_buff.data;
-	}
-
 	/*  Receive all characters in Rx FIFO */
 	do {
-		byte = inb( iobase+RBR);
-		async_unwrap_char( idev, byte);
+		byte = inb(iobase+RBR);
+		async_unwrap_char(idev, byte);
 
-	} while ( inb( iobase+USR) & USR_RDR); /* Data available */	
+	} while (inb(iobase+USR) & USR_RDR); /* Data available */	
 }
 
 /*
@@ -899,30 +885,29 @@ static void w83977af_pio_receive( struct irda_device *idev)
  *    Handle SIR interrupt
  *
  */
-static __u8 w83977af_sir_interrupt( struct irda_device *idev, int isr)
+static __u8 w83977af_sir_interrupt(struct irda_device *idev, int isr)
 {
-	int len;
 	int actual;
 	__u8 new_icr = 0;
 
-	DEBUG( 4, __FUNCTION__ "(), isr=%#x\n", isr);
+	DEBUG(4, __FUNCTION__ "(), isr=%#x\n", isr);
 	
 	/* Transmit FIFO low on data */
-	if ( isr & ISR_TXTH_I) {
+	if (isr & ISR_TXTH_I) {
 		/* Write data left in transmit buffer */
-		len = idev->tx_buff.len - idev->tx_buff.offset;
-
-		ASSERT( len > 0, return 0;);
-		actual = w83977af_pio_write( idev->io.iobase, 
-					     idev->tx_buff.head, 
-					     len, idev->io.fifo_size);
-		idev->tx_buff.offset += actual;
-		idev->tx_buff.head += actual;
+		actual = w83977af_pio_write(idev->io.iobase, 
+					    idev->tx_buff.data, 
+					    idev->tx_buff.len, 
+					    idev->io.fifo_size);
+		idev->tx_buff.data += actual;
+		idev->tx_buff.len  -= actual;
 		
 		idev->io.direction = IO_XMIT;
-		ASSERT( actual <= len, return 0;);
+
 		/* Check if finished */
-		if ( actual == len) { 
+		if (idev->tx_buff.len > 0)
+			new_icr |= ICR_ETXTHI;
+		else { 
 			DEBUG( 4, __FUNCTION__ "(), finished with frame!\n");
 			idev->netdev.tbusy = 0; /* Unlock */
 			idev->stats.tx_packets++;
@@ -931,11 +916,11 @@ static __u8 w83977af_sir_interrupt( struct irda_device *idev, int isr)
 		        mark_bh(NET_BH);	
 
 			new_icr |= ICR_ETBREI;
-		} else
-			new_icr |= ICR_ETXTHI;
+		}
+		
 	}
 	/* Check if transmission has completed */
-	if ( isr & ISR_TXEMP_I) {
+	if (isr & ISR_TXEMP_I) {
 		
 		/* Turn around and get ready to receive some data */
 		idev->io.direction = IO_RECV;
@@ -943,8 +928,8 @@ static __u8 w83977af_sir_interrupt( struct irda_device *idev, int isr)
 	}
 
 	/* Rx FIFO threshold or timeout */
-	if ( isr & ISR_RXTH_I) {
-		w83977af_pio_receive( idev);
+	if (isr & ISR_RXTH_I) {
+		w83977af_pio_receive(idev);
 
 		/* Keep receiving */
 		new_icr |= ICR_ERBRI;
@@ -968,64 +953,64 @@ static __u8 w83977af_fir_interrupt( struct irda_device *idev, int isr)
 
 	iobase = idev->io.iobase;
 
-	set = inb( iobase+SSR);
+	set = inb(iobase+SSR);
 	
 	/* End of frame detected in FIFO */
-	if ( isr & (ISR_FEND_I|ISR_FSF_I)) {
-		if ( w83977af_dma_receive_complete( idev)) {
+	if (isr & (ISR_FEND_I|ISR_FSF_I)) {
+		if (w83977af_dma_receive_complete(idev)) {
 			
 			new_icr |= ICR_EFSFI;
 		} else {
 			/* DMA not finished yet */
 
 			/* Set timer value, resolution 1 ms */
-			switch_bank( iobase, SET4);
-			outb( 0x01, iobase+TMRL); /* 1 ms */
-			outb( 0x00, iobase+TMRH);
+			switch_bank(iobase, SET4);
+			outb(0x01, iobase+TMRL); /* 1 ms */
+			outb(0x00, iobase+TMRH);
 
 			/* Start timer */
-			outb( IR_MSL_EN_TMR, iobase+IR_MSL);
+			outb(IR_MSL_EN_TMR, iobase+IR_MSL);
 
 			new_icr |= ICR_ETMRI;
 		}
 	}
 	/* Timer finished */
-	if ( isr & ISR_TMR_I) {
+	if (isr & ISR_TMR_I) {
 		/* Disable timer */
-		switch_bank( iobase, SET4);
-		outb( 0, iobase+IR_MSL);
+		switch_bank(iobase, SET4);
+		outb(0, iobase+IR_MSL);
 
 		/* Clear timer event */
 		/* switch_bank(iobase, SET0); */
 /* 		outb( ASCR_CTE, iobase+ASCR); */
 
 		/* Check if this is a TX timer interrupt */
-		if ( idev->io.direction == IO_XMIT) {
-			w83977af_dma_write( idev, iobase);
+		if (idev->io.direction == IO_XMIT) {
+			w83977af_dma_write(idev, iobase);
 
 			new_icr |= ICR_EDMAI;
 		} else {
 			/* Check if DMA has now finished */
-			w83977af_dma_receive_complete( idev);
+			w83977af_dma_receive_complete(idev);
 
 			new_icr |= ICR_EFSFI;
 		}
 	}	
 	/* Finished with DMA */
-	if ( isr & ISR_DMA_I) {
+	if (isr & ISR_DMA_I) {
 		w83977af_dma_xmit_complete( idev);
-
+		
 		/* Check if there are more frames to be transmitted */
-		if ( irda_device_txqueue_empty( idev)) {
+		if (irda_device_txqueue_empty( idev)) {
 		
 			/* Prepare for receive */
-			w83977af_dma_receive( idev);
+			w83977af_dma_receive(idev);
 			new_icr = ICR_EFSFI;
 		}
 	}
 	
 	/* Restore set */
-	outb( set, iobase+SSR);
+	outb(set, iobase+SSR);
 
 	return new_icr;
 }
@@ -1043,9 +1028,9 @@ static void w83977af_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 
 	struct irda_device *idev = (struct irda_device *) dev_id;
 
-	if ( idev == NULL) {
-		printk( KERN_WARNING "%s: irq %d for unknown device.\n", 
-			driver_name, irq);
+	if (idev == NULL) {
+		printk(KERN_WARNING "%s: irq %d for unknown device.\n", 
+		       driver_name, irq);
 		return;
 	}
 
@@ -1054,24 +1039,24 @@ static void w83977af_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	iobase = idev->io.iobase;
 
 	/* Save current bank */
-	set = inb( iobase+SSR);
-	switch_bank( iobase, SET0);
+	set = inb(iobase+SSR);
+	switch_bank(iobase, SET0);
 	
-	icr = inb( iobase+ICR); 
-	isr = inb( iobase+ISR) & icr; /* Mask out the interesting ones */ 
+	icr = inb(iobase+ICR); 
+	isr = inb(iobase+ISR) & icr; /* Mask out the interesting ones */ 
 
-	outb( 0, iobase+ICR); /* Disable interrupts */
+	outb(0, iobase+ICR); /* Disable interrupts */
 	
-	if ( isr) {
+	if (isr) {
 		/* Dispatch interrupt handler for the current speed */
 		if ( idev->io.baudrate > 115200)
-			icr = w83977af_fir_interrupt( idev, isr);
+			icr = w83977af_fir_interrupt(idev, isr);
 		else
-			icr = w83977af_sir_interrupt( idev, isr);
+			icr = w83977af_sir_interrupt(idev, isr);
 	}
 
-	outb( icr, iobase+ICR);    /* Restore (new) interrupts */
-	outb( set, iobase+SSR);    /* Restore bank register */
+	outb(icr, iobase+ICR);    /* Restore (new) interrupts */
+	outb(set, iobase+SSR);    /* Restore bank register */
 
 	idev->netdev.interrupt = 0;
 }
@@ -1082,7 +1067,7 @@ static void w83977af_interrupt(int irq, void *dev_id, struct pt_regs *regs)
  *    This function should put the current thread to sleep until all data 
  *    have been sent, so it is safe to f.eks. change the speed.
  */
-static void w83977af_wait_until_sent( struct irda_device *idev)
+static void w83977af_wait_until_sent(struct irda_device *idev)
 {
 	current->state = TASK_INTERRUPTIBLE;
 	schedule_timeout(6);
@@ -1094,7 +1079,7 @@ static void w83977af_wait_until_sent( struct irda_device *idev)
  *    Return TRUE is we are currently receiving a frame
  *
  */
-static int w83977af_is_receiving( struct irda_device *idev)
+static int w83977af_is_receiving(struct irda_device *idev)
 {
 	int status = FALSE;
 	int iobase;
@@ -1107,15 +1092,15 @@ static int w83977af_is_receiving( struct irda_device *idev)
 		iobase = idev->io.iobase;
 
 		/* Check if rx FIFO is not empty */
-		set = inb( iobase+SSR);
+		set = inb(iobase+SSR);
 		switch_bank( iobase, SET2);
 		if (( inb( iobase+RXFDTH) & 0x3f) != 0) {
 			/* We are receiving something */
 			status =  TRUE;
 		}
-		outb( set, iobase+SSR);
+		outb(set, iobase+SSR);
 	} else 
-		status = ( idev->rx_buff.state != OUTSIDE_FRAME);
+		status = (idev->rx_buff.state != OUTSIDE_FRAME);
 	
 	return status;
 }
@@ -1128,7 +1113,7 @@ static int w83977af_is_receiving( struct irda_device *idev)
  */
 static int w83977af_net_init( struct device *dev)
 {
-	DEBUG( 0, __FUNCTION__ "()\n");
+	DEBUG(0, __FUNCTION__ "()\n");
 
 	/* Set up to be a normal IrDA network device driver */
 	irda_device_setup( dev);
@@ -1151,18 +1136,18 @@ static int w83977af_net_open( struct device *dev)
 	int iobase;
 	__u8 set;
 	
-	DEBUG( 0, __FUNCTION__ "()\n");
+	DEBUG(0, __FUNCTION__ "()\n");
 	
-	ASSERT( dev != NULL, return -1;);
+	ASSERT(dev != NULL, return -1;);
 	idev = (struct irda_device *) dev->priv;
 	
-	ASSERT( idev != NULL, return 0;);
-	ASSERT( idev->magic == IRDA_DEVICE_MAGIC, return 0;);
+	ASSERT(idev != NULL, return 0;);
+	ASSERT(idev->magic == IRDA_DEVICE_MAGIC, return 0;);
 	
 	iobase = idev->io.iobase;
 
-	if (request_irq( idev->io.irq, w83977af_interrupt, 0, idev->name, 
-			 (void *) idev)) {
+	if (request_irq(idev->io.irq, w83977af_interrupt, 0, idev->name, 
+			(void *) idev)) {
 		return -EAGAIN;
 	}
 	/*
@@ -1170,7 +1155,7 @@ static int w83977af_net_open( struct device *dev)
 	 * and clean up on failure.
 	 */
 	if (request_dma(idev->io.dma, idev->name)) {
-		free_irq( idev->io.irq, idev);
+		free_irq(idev->io.irq, idev);
 		return -EAGAIN;
 	}
 		
@@ -1180,11 +1165,11 @@ static int w83977af_net_open( struct device *dev)
 	dev->start = 1;
 
 	/* Save current set */
-	set = inb( iobase+SSR);
+	set = inb(iobase+SSR);
 
  	/* Enable some interrupts so we can receive frames again */
  	switch_bank(iobase, SET0);
- 	if ( idev->io.baudrate > 115200) {
+ 	if (idev->io.baudrate > 115200) {
  		outb( ICR_EFSFI, iobase+ICR);
  		w83977af_dma_receive( idev);
  	} else
@@ -1254,9 +1239,7 @@ static int w83977af_net_close(struct device *dev)
  */
 int init_module(void)
 {
-	w83977af_init();
-
-	return(0);
+	return w83977af_init();
 }
 
 /*
@@ -1269,5 +1252,4 @@ void cleanup_module(void)
 {
 	w83977af_cleanup();
 }
-
-#endif
+#endif /* MODULE */

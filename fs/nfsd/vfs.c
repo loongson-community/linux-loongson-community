@@ -11,7 +11,7 @@
  * So if you notice code paths that apparently fail to dput() the
  * dentry, don't worry--they have been taken care of.
  *
- * Copyright (C) 1995, 1996, 1997 Olaf Kirch <okir@monad.swb.de>
+ * Copyright (C) 1995-1999 Olaf Kirch <okir@monad.swb.de>
  */
 
 #include <linux/config.h>
@@ -734,7 +734,7 @@ nfsd_create(struct svc_rqst *rqstp, struct svc_fh *fhp,
 	 * directories via NFS.
 	 */
 	err = 0;
-	if ((iap->ia_valid &= (ATTR_UID|ATTR_GID|ATTR_MODE)) != 0)
+	if ((iap->ia_valid &= ~(ATTR_UID|ATTR_GID|ATTR_MODE)) != 0)
 		err = nfsd_setattr(rqstp, resfhp, iap);
 out:
 	return err;
@@ -959,7 +959,7 @@ nfsd_link(struct svc_rqst *rqstp, struct svc_fh *ffhp,
 		goto out_unlock;
 
 	err = nfserr_perm;
-	if (IS_IMMUTABLE(dest) /* || IS_APPEND(dest) */ )
+	if (IS_IMMUTABLE(dest) || IS_APPEND(dest))
 		goto out_unlock;
 	if (!dirp->i_op || !dirp->i_op->link)
 		goto out_unlock;
@@ -1139,8 +1139,11 @@ nfsd_unlink(struct svc_rqst *rqstp, struct svc_fh *fhp, int type,
 		goto out;
 	}
 
+	expire_by_dentry(rdentry);
+
 	if (type != S_IFDIR) {
 		/* It's UNLINK */
+
 		err = fh_lock_parent(fhp, rdentry);
 		if (err)
 			goto out;
@@ -1155,6 +1158,7 @@ nfsd_unlink(struct svc_rqst *rqstp, struct svc_fh *fhp, int type,
 	} else {
 		/* It's RMDIR */
 		/* See comments in fs/namei.c:do_rmdir */
+
 		rdentry->d_count++;
 		nfsd_double_down(&dirp->i_sem, &rdentry->d_inode->i_sem);
 		if (!fhp->fh_pre_mtime)

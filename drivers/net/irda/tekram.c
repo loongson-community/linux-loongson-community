@@ -1,12 +1,12 @@
 /*********************************************************************
  *                
  * Filename:      tekram.c
- * Version:       0.4
+ * Version:       1.0
  * Description:   Implementation of the Tekram IrMate IR-210B dongle
  * Status:        Experimental.
  * Author:        Dag Brattli <dagb@cs.uit.no>
  * Created at:    Wed Oct 21 20:02:35 1998
- * Modified at:   Mon Jan 18 11:30:38 1999
+ * Modified at:   Tue Apr 13 16:33:54 1999
  * Modified by:   Dag Brattli <dagb@cs.uit.no>
  * 
  *     Copyright (c) 1998 Dag Brattli, All Rights Reserved.
@@ -33,16 +33,23 @@
 #include <asm/uaccess.h>
 
 #include <net/irda/irda.h>
-#include <net/irda/irmod.h>
 #include <net/irda/irda_device.h>
 #include <net/irda/irtty.h>
 #include <net/irda/dongle.h>
 
-static void tekram_reset( struct irda_device *dev, int unused);
-static void tekram_open( struct irda_device *dev, int type);
-static void tekram_close( struct irda_device *dev);
-static void tekram_change_speed( struct irda_device *dev, int baud);
-static void tekram_init_qos( struct irda_device *idev, struct qos_info *qos);
+static void tekram_reset(struct irda_device *dev, int unused);
+static void tekram_open(struct irda_device *dev, int type);
+static void tekram_close(struct irda_device *dev);
+static void tekram_change_speed(struct irda_device *dev, int baud);
+static void tekram_init_qos(struct irda_device *idev, struct qos_info *qos);
+
+#define TEKRAM_115200 0x00
+#define TEKRAM_57600  0x01
+#define TEKRAM_38400  0x02
+#define TEKRAM_19200  0x03
+#define TEKRAM_9600   0x04
+
+#define TEKRAM_PW 0x10 /* Pulse select bit */
 
 static struct dongle dongle = {
 	TEKRAM_DONGLE,
@@ -53,9 +60,9 @@ static struct dongle dongle = {
 	tekram_init_qos,
 };
 
-__initfunc(void tekram_init(void))
+__initfunc(int tekram_init(void))
 {
-	irtty_register_dongle( &dongle);
+	return irtty_register_dongle(&dongle);
 }
 
 void tekram_cleanup(void)
@@ -63,9 +70,12 @@ void tekram_cleanup(void)
 	irtty_unregister_dongle( &dongle);
 }
 
-static void tekram_open( struct irda_device *dev, int type)
+static void tekram_open( struct irda_device *idev, int type)
 {
-	strcat( dev->name, " <-> tekram");
+	strcat(idev->description, " <-> tekram");
+
+	idev->io.dongle_id = type;
+	idev->flags |= IFF_DONGLE;
 	
 	MOD_INC_USE_COUNT;
 }
@@ -96,23 +106,20 @@ static void tekram_change_speed( struct irda_device *dev, int baud)
 	struct irtty_cb *self;
 	struct tty_struct *tty;
 	struct termios old_termios;
-	int arg = 0;
 	int cflag;
 	__u8 byte;
-	int actual;
-	mm_segment_t fs;
 	
-	DEBUG( 4, __FUNCTION__ "()\n");
+	DEBUG(4, __FUNCTION__ "()\n");
 
-	ASSERT( dev != NULL, return;);
-	ASSERT( dev->magic == IRDA_DEVICE_MAGIC, return;);
+	ASSERT(dev != NULL, return;);
+	ASSERT(dev->magic == IRDA_DEVICE_MAGIC, return;);
 	
 	self = (struct irtty_cb *) dev->priv;
 	
-	ASSERT( self != NULL, return;);
-	ASSERT( self->magic == IRTTY_MAGIC, return;);
+	ASSERT(self != NULL, return;);
+	ASSERT(self->magic == IRTTY_MAGIC, return;);
 	
-	if ( !self->tty)
+	if (!self->tty)
 		return;
 
 	tty = self->tty;
@@ -123,71 +130,50 @@ static void tekram_change_speed( struct irda_device *dev, int baud)
 	cflag &= ~CBAUD;
 
 	switch (baud) {
-	case 9600:
 	default:
+		/* FALLTHROUGH */
+	case 9600:
 		cflag |= B9600;
-		byte = 4;
+		byte = TEKRAM_PW|TEKRAM_9600;
 		break;
 	case 19200:
 		cflag |= B19200;
-		byte = 3;
+		byte = TEKRAM_PW|TEKRAM_19200;
 		break;
 	case 34800:
 		cflag |= B38400;
-		byte = 2;
+		byte = TEKRAM_PW|TEKRAM_38400;
 		break;
 	case 57600:
 		cflag |= B57600;
-		byte = 1;
+		byte = TEKRAM_PW|TEKRAM_57600;
 		break;
 	case 115200:
 		cflag |= B115200;
-		byte = 0;
+		byte = TEKRAM_PW|TEKRAM_115200;
 		break;
 	}
 
 	/* Set DTR, Clear RTS */
-	DEBUG( 0, __FUNCTION__ "(), Setting DTR, Clearing RTS\n");
-	arg = TIOCM_DTR | TIOCM_OUT2;
-	
-	fs = get_fs();
-	set_fs( get_ds());
-	
-	if ( tty->driver.ioctl( tty, NULL, TIOCMSET, 
-                                (unsigned long) &arg)) { 
-		DEBUG( 0, "error setting Tekram speed!\n");
-	}
-	set_fs(fs);
+	irtty_set_dtr_rts(tty, TRUE, FALSE);
 	
 	/* Wait at least 7us */
-	udelay( 7);
+	udelay(7);
 
-	DEBUG( 0, __FUNCTION__ "(), Writing control byte\n");
 	/* Write control byte */
-	if ( tty->driver.write)
-		actual = tty->driver.write( self->tty, 0, &byte, 1);
+	if (tty->driver.write)
+		tty->driver.write(self->tty, 0, &byte, 1);
 	
 	/* Wait at least 100 ms */
 	current->state = TASK_INTERRUPTIBLE;
-	schedule_timeout( 10);
+	schedule_timeout(MSECS_TO_JIFFIES(100));
         
 	/* Set DTR, Set RTS */
-	DEBUG( 0, __FUNCTION__ "(), Setting DTR, Setting RTS\n");
-	arg = TIOCM_DTR | TIOCM_RTS | TIOCM_OUT2;
-	
-	fs = get_fs();
-	set_fs( get_ds());
-	
-	if ( tty->driver.ioctl( tty, NULL, TIOCMSET, 
-				(unsigned long) &arg)) { 
-		DEBUG( 0, "error setting Tekram speed!\n");
-	}
-	set_fs(fs);
+	irtty_set_dtr_rts(tty, TRUE, TRUE);
 
-	DEBUG( 0, __FUNCTION__ "(), Setting new speed on serial port\n");
 	/* Now change the speed of the serial port */
 	tty->termios->c_cflag = cflag;
-	tty->driver.set_termios( tty, &old_termios);	
+	tty->driver.set_termios(tty, &old_termios);	
 }
 
 /*
@@ -197,80 +183,50 @@ static void tekram_change_speed( struct irda_device *dev, int baud)
  *      must be called with a process context!! 
  *
  *      Algorithm:
- *    	  0. set RTS and DTR, and wait 50 ms 
- *           ( power off the IR-210 )
+ *    	  0. Clear RTS and DTR, and wait 50 ms (power off the IR-210 )
  *        1. clear RTS 
  *        2. set DTR, and wait at least 1 ms 
  *        3. clear DTR to SPACE state, wait at least 50 us for further 
  *         operation
  */
-void tekram_reset( struct irda_device *dev, int unused)
+void tekram_reset(struct irda_device *dev, int unused)
 {
 	struct irtty_cb *self;
 	struct tty_struct *tty;
-	int arg = 0;
-	mm_segment_t fs;
 
-	DEBUG( 4, __FUNCTION__ "()\n");
+	DEBUG(4, __FUNCTION__ "()\n");
 
-	ASSERT( dev != NULL, return;);
-	ASSERT( dev->magic == IRDA_DEVICE_MAGIC, return;);
+	ASSERT(dev != NULL, return;);
+	ASSERT(dev->magic == IRDA_DEVICE_MAGIC, return;);
 	
 	self = (struct irtty_cb *) dev->priv;
 	
-	ASSERT( self != NULL, return;);
-	ASSERT( self->magic == IRTTY_MAGIC, return;);
+	ASSERT(self != NULL, return;);
+	ASSERT(self->magic == IRTTY_MAGIC, return;);
 
 	tty = self->tty;
-	if ( !tty)
+	if (!tty)
 		return;
 
-	DEBUG( 0, __FUNCTION__ "(), Power off dongle\n");
-	arg = TIOCM_RTS | TIOCM_DTR | TIOCM_OUT2;
-	
-	fs = get_fs();
-	set_fs( get_ds());
-	
-	if ( tty->driver.ioctl( tty, NULL, TIOCMSET, 
-				(unsigned long) &arg)) 
-	{ 
-		DEBUG(0, "error setting ESI speed!\n");
-	}
-	set_fs(fs);
+	/* Power off dongle */
+	irtty_set_dtr_rts(tty, FALSE, FALSE);
 
 	/* Sleep 50 ms */
 	current->state = TASK_INTERRUPTIBLE;
-	schedule_timeout(5);
-	
-	DEBUG( 0, __FUNCTION__ "(), Set DTR, clear RTS\n");
-	/* Set DTR, clear RTS */
-	arg = TIOCM_DTR | TIOCM_OUT2;
-	
-	fs = get_fs();
-	set_fs( get_ds());
-	
-	if ( tty->driver.ioctl( tty, NULL, TIOCMSET, 
-				(unsigned long) &arg)) { 
-		DEBUG( 0, "Error setting Tekram speed!\n");
-	}
-	set_fs(fs);
+	schedule_timeout(MSECS_TO_JIFFIES(50));
+
+	/* Clear DTR, Set RTS */
+	irtty_set_dtr_rts(tty, FALSE, TRUE); 
 
 	/* Should sleep 1 ms, but 10-20 should not do any harm */
 	current->state = TASK_INTERRUPTIBLE;
-	schedule_timeout(2);
+	schedule_timeout(MSECS_TO_JIFFIES(20));
 
-	DEBUG( 0, __FUNCTION__ "(), STATE3\n");
-	/* Clear DTR, clear RTS */
-	arg = TIOCM_OUT2;
+	/* Set DTR, Set RTS */
+	irtty_set_dtr_rts(tty, TRUE, TRUE);
+	
+	udelay(50);
 
-	fs = get_fs();
-	set_fs( get_ds());
-	
-	if ( tty->driver.ioctl( tty, NULL, TIOCMSET, (unsigned long) &arg)) { 
-		DEBUG( 0, "error setting Tekram speed!\n");
-	}
-	set_fs(fs);
-	
 	/* Finished! */
 }
 
@@ -280,13 +236,17 @@ void tekram_reset( struct irda_device *dev, int unused)
  *    Initialize QoS capabilities
  *
  */
-static void tekram_init_qos( struct irda_device *idev, struct qos_info *qos)
+static void tekram_init_qos(struct irda_device *idev, struct qos_info *qos)
 {
 	qos->baud_rate.bits &= IR_9600|IR_19200|IR_38400|IR_57600|IR_115200;
-	qos->min_turn_time.bits &= 0xfe; /* All except 0 ms */
+	qos->min_turn_time.bits &= 0x01; /* Needs at least 10 ms */
+	irda_qos_bits_to_value(qos);
 }
 
 #ifdef MODULE
+
+MODULE_AUTHOR("Dag Brattli <dagb@cs.uit.no>");
+MODULE_DESCRIPTION("Tekram IrMate IR-210B dongle driver");
 		
 /*
  * Function init_module (void)
@@ -296,8 +256,7 @@ static void tekram_init_qos( struct irda_device *idev, struct qos_info *qos)
  */
 int init_module(void)
 {
-	tekram_init();
-	return(0);
+	return tekram_init();
 }
 
 /*
@@ -311,4 +270,4 @@ void cleanup_module(void)
         tekram_cleanup();
 }
 
-#endif
+#endif /* MODULE */

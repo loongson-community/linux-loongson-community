@@ -36,7 +36,6 @@ static int  nfs_file_mmap(struct file *, struct vm_area_struct *);
 static ssize_t nfs_file_read(struct file *, char *, size_t, loff_t *);
 static ssize_t nfs_file_write(struct file *, const char *, size_t, loff_t *);
 static int  nfs_file_flush(struct file *);
-static int  nfs_file_close(struct inode *, struct file *);
 static int  nfs_fsync(struct file *, struct dentry *dentry);
 
 static struct file_operations nfs_file_operations = {
@@ -47,9 +46,9 @@ static struct file_operations nfs_file_operations = {
 	NULL,			/* select - default */
 	NULL,			/* ioctl - default */
 	nfs_file_mmap,		/* mmap */
-	NULL,			/* no special open is needed */
+	nfs_open,		/* open */
 	nfs_file_flush,		/* flush */
-	nfs_file_close,		/* release */
+	nfs_release,		/* release */
 	nfs_fsync,		/* fsync */
 	NULL,			/* fasync */
 	NULL,			/* check_media_change */
@@ -86,35 +85,23 @@ struct inode_operations nfs_file_inode_operations = {
 #endif
 
 /*
- * Sync the file..
- */
-static int
-nfs_file_close(struct inode *inode, struct file *file)
-{
-	int	status;
-
-	dfprintk(VFS, "nfs: close(%x/%ld)\n", inode->i_dev, inode->i_ino);
-
-	status = nfs_wb_all(inode);
-	if (!status)
-		status = nfs_write_error(inode);
-	return status;
-}
-
-/*
  * Flush all dirty pages, and check for write errors.
  *
- * We should probably do this better - this does get called at every
- * close, so we should probably just flush the changes that "this"
- * file has done and report on only those.
- *
- * Right now we use the "flush everything" approach. Overkill, but
- * works.
  */
 static int
 nfs_file_flush(struct file *file)
 {
-	return nfs_file_close(file->f_dentry->d_inode, file);
+	struct inode	*inode = file->f_dentry->d_inode;
+	int		status;
+
+	dfprintk(VFS, "nfs: flush(%x/%ld)\n", inode->i_dev, inode->i_ino);
+
+	status = nfs_wb_file(inode, file);
+	if (!status) {
+		status = file->f_error;
+		file->f_error = 0;
+	}
+	return status;
 }
 
 static ssize_t
@@ -161,9 +148,11 @@ nfs_fsync(struct file *file, struct dentry *dentry)
 
 	dfprintk(VFS, "nfs: fsync(%x/%ld)\n", inode->i_dev, inode->i_ino);
 
-	status = nfs_wb_pid(inode, current->pid);
-	if (!status)
-		status = nfs_write_error(inode);
+	status = nfs_wb_file(inode, file);
+	if (!status) {
+		status = file->f_error;
+		file->f_error = 0;
+	}
 	return status;
 }
 
@@ -193,10 +182,7 @@ nfs_file_write(struct file *file, const char *buf, size_t count, loff_t *ppos)
 	if (!count)
 		goto out;
 
-	/* Check for an error from a previous async call */
-	result = nfs_write_error(inode);
-	if (!result)
-		result = generic_file_write(file, buf, count, ppos);
+	result = generic_file_write(file, buf, count, ppos);
 out:
 	return result;
 

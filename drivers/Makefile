@@ -10,7 +10,7 @@
 SUB_DIRS     := block char net misc sound
 MOD_SUB_DIRS := $(SUB_DIRS) sbus
 ALL_SUB_DIRS := $(SUB_DIRS) pci sgi scsi cdrom isdn misc pnp \
-				macintosh video dio zorro fc4
+				macintosh video dio zorro fc4 usb
 
 ifdef CONFIG_DIO
 SUB_DIRS += dio
@@ -47,6 +47,15 @@ ifdef CONFIG_PPC
 SUB_DIRS += macintosh
 MOD_SUB_DIRS += macintosh
 endif
+
+ifeq ($(CONFIG_USB),y)
+SUB_DIRS += usb
+MOD_SUB_DIRS += usb
+else
+  ifeq ($(CONFIG_USB),m)
+  MOD_SUB_DIRS += usb
+  endif
+endif 
 
 ifdef CONFIG_SGI
 SUB_DIRS += sgi

@@ -24,6 +24,7 @@
 #include <linux/fcntl.h>
 #include <linux/net.h>
 #include <linux/in.h>
+#include <linux/inet.h>
 #include <linux/udp.h>
 #include <linux/version.h>
 #include <linux/unistd.h>
@@ -248,7 +249,8 @@ svc_sendto(struct svc_rqst *rqstp, struct iovec *iov, int nr)
 	msg.msg_namelen = sizeof(rqstp->rq_addr);
 	msg.msg_iov     = iov;
 	msg.msg_iovlen  = nr;
-	msg.msg_control = 0;
+	msg.msg_control = NULL;
+	msg.msg_controllen = 0;
 
 #if LINUX_VERSION_CODE >= 0x020100
 	msg.msg_flags	= MSG_DONTWAIT;
@@ -307,7 +309,8 @@ svc_recvfrom(struct svc_rqst *rqstp, struct iovec *iov, int nr, int buflen)
 	msg.msg_namelen = sizeof(rqstp->rq_addr);
 	msg.msg_iov     = iov;
 	msg.msg_iovlen  = nr;
-	msg.msg_control = 0;
+	msg.msg_control = NULL;
+	msg.msg_controllen = 0;
 
 #if LINUX_VERSION_CODE >= 0x020100
 	msg.msg_flags	= MSG_DONTWAIT;
@@ -546,14 +549,14 @@ svc_tcp_accept(struct svc_sock *svsk)
 	 * we just punt connects from unprivileged ports. */
 	if (ntohs(sin.sin_port) >= 1024) {
 		printk(KERN_WARNING
-			"%s: connect from unprivileged port: %08lx:%d",
+			"%s: connect from unprivileged port: %s:%d",
 			serv->sv_name, 
-			ntohl(sin.sin_addr.s_addr), ntohs(sin.sin_port));
+			in_ntoa(sin.sin_addr.s_addr), ntohs(sin.sin_port));
 		goto failed;
 	}
 
-	dprintk("%s: connect from %08lx:%04x\n", serv->sv_name,
-			ntohl(sin.sin_addr.s_addr), ntohs(sin.sin_port));
+	dprintk("%s: connect from %s:%04x\n", serv->sv_name,
+			in_ntoa(sin.sin_addr.s_addr), ntohs(sin.sin_port));
 
 	if (!(newsvsk = svc_setup_socket(serv, newsock, &err, 0)))
 		goto failed;
@@ -610,7 +613,7 @@ svc_tcp_recvfrom(struct svc_rqst *rqstp)
 		unsigned long	want = 4 - svsk->sk_tcplen;
 		struct iovec	iov;
 
-		iov.iov_base = ((u32 *) &svsk->sk_reclen) + svsk->sk_tcplen;
+		iov.iov_base = ((char *) &svsk->sk_reclen) + svsk->sk_tcplen;
 		iov.iov_len  = want;
 		if ((len = svc_recvfrom(rqstp, &iov, 1, want)) < 0)
 			goto error;
@@ -620,11 +623,11 @@ svc_tcp_recvfrom(struct svc_rqst *rqstp)
 		if (!(svsk->sk_reclen & 0x80000000)) {
 			/* FIXME: shutdown socket */
 			printk(KERN_NOTICE "RPC: bad TCP reclen %08lx",
-					(unsigned long) svsk->sk_reclen);
+			       (unsigned long) svsk->sk_reclen);
 			return -EIO;
 		}
 		svsk->sk_reclen &= 0x7fffffff;
-		dprintk("svc: TCP record, %ld bytes\n", svsk->sk_reclen);
+		dprintk("svc: TCP record, %d bytes\n", svsk->sk_reclen);
 	}
 
 	/* Check whether enough data is available */
@@ -633,8 +636,8 @@ svc_tcp_recvfrom(struct svc_rqst *rqstp)
 		goto error;
 
 	if (len < svsk->sk_reclen) {
-		dprintk("svc: incomplete TCP record (%d of %ld)\n",
-				len, svsk->sk_reclen);
+		dprintk("svc: incomplete TCP record (%d of %d)\n",
+			len, svsk->sk_reclen);
 		svc_sock_received(svsk, ready);
 		len = -EAGAIN;	/* record not complete */
 	}

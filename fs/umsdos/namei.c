@@ -6,6 +6,10 @@
  *
  * Maintain and access the --linux alternate directory file.
  */
+ /*
+  * You are in the maze of twisted functions - half of them shouldn't
+  * be here...
+  */
 
 #include <linux/errno.h>
 #include <linux/kernel.h>
@@ -171,18 +175,6 @@ void umsdos_endlookup (struct inode *dir)
 
 #endif
 
-/*
- * Check whether we can delete from the directory.
- */
-static int is_sticky(struct inode *dir, int uid)
-{
-	return !((dir->i_mode & S_ISVTX) == 0 || 
-		current->fsuid == uid ||
-		current->fsuid == dir->i_uid ||
-		capable (CAP_FOWNER));
-}
-
-
 static int umsdos_nevercreat (struct inode *dir, struct dentry *dentry,
 				int errcod)
 {
@@ -258,15 +250,10 @@ static int umsdos_create_any (struct inode *dir, struct dentry *dentry,
 		goto out;
 
 	/* do a real lookup to get the short name dentry */
-	fake = umsdos_lookup_dentry(dentry->d_parent, info.fake.fname, 
-					info.fake.len, 1);
+	fake = umsdos_covered(dentry->d_parent, info.fake.fname, info.fake.len);
 	ret = PTR_ERR(fake);
 	if (IS_ERR(fake))
 		goto out_remove;
-
- 	/* keep the short name anonymous ... */
-	if (dentry != fake)
-		d_drop(fake);
 
 	/* should not exist yet ... */
 	ret = -EEXIST;
@@ -278,14 +265,8 @@ static int umsdos_create_any (struct inode *dir, struct dentry *dentry,
 		goto out_remove_dput;
 
 	inode = fake->d_inode;
-	/*
-	 * Note! The long and short name might be the same,
-	 * so check first before doing the instantiate ...
-	 */
-	if (dentry != fake) {
-		inode->i_count++;
-		d_instantiate (dentry, inode);
-	}
+	inode->i_count++;
+	d_instantiate (dentry, inode);
 	dput(fake);
 	if (inode->i_count > 1) {
 		printk(KERN_WARNING
@@ -363,7 +344,7 @@ static int umsdos_rename_f (struct inode *old_dir, struct dentry *old_dentry,
 {
 	struct inode *old_inode = old_dentry->d_inode;
 	struct dentry *old, *new, *old_emd;
-	int err, ret, rehash = 0;
+	int err, ret;
 	struct umsdos_info old_info;
 	struct umsdos_info new_info;
 
@@ -386,34 +367,11 @@ static int umsdos_rename_f (struct inode *old_dir, struct dentry *old_dentry,
 	umsdos_lockcreate2 (old_dir, new_dir);
 
 	ret = umsdos_findentry(old_emd->d_parent, &old_info, 0);
-	if (ret) {
-		printk(KERN_ERR
-			"umsdos_rename_f: old entry %s/%s not in EMD, ret=%d\n",
-			old_dentry->d_parent->d_name.name, old_info.entry.name,
-			ret);
+	if (ret)
 		goto out_unlock;
-	}
 
-	/* check sticky bit on old_dir */
-	ret = -EPERM;
-	if (is_sticky(old_dir, old_info.entry.uid)) {
-printk("umsdos_rename_f: %s/%s old sticky bit, fsuid=%d, uid=%d, dir=%d\n",
-old_dentry->d_parent->d_name.name, old_info.entry.name,
-current->fsuid, old_info.entry.uid, old_dir->i_uid);
-		goto out_unlock;
-	}
-
-	/*
-	 * Check whether the new_name already exists, and
-	 * if so whether we're allowed to replace it.
-	 */
 	err = umsdos_findentry(new_dentry->d_parent, &new_info, 0);
 	if (err == 0) {
-	 	/* Are we allowed to replace it? */
-		if (is_sticky(new_dir, new_info.entry.uid)) {
-Printk (("sticky set on new "));
-			goto out_unlock;
-		}
 		/* check whether it _really_ exists ... */
 		ret = -EEXIST;
 		if (new_dentry->d_inode)
@@ -427,108 +385,41 @@ Printk (("sticky set on new "));
 					S_ISDIR(new_info.entry.mode));
 	}
 
-Printk (("new newentry "));
-	/* create the new entry ... */
 	umsdos_ren_init (&new_info, &old_info);
 	if (flags)
 		new_info.entry.flags = flags;
 	ret = umsdos_newentry (new_dentry->d_parent, &new_info);
-	if (ret) {
-		printk(KERN_WARNING
-			"umsdos_rename_f: newentry %s/%s failed, ret=%d\n",
-			new_dentry->d_parent->d_name.name, new_info.entry.name,
-			ret);
+	if (ret)
 		goto out_unlock;
-	}
 
 	/* If we're moving a hardlink, drop it first */
 	if (old_info.entry.flags & UMSDOS_HLINK) {
-		rehash = !list_empty(&old_dentry->d_hash);
 		d_drop(old_dentry);
-printk("umsdos_rename_f: moving hardlink %s/%s, rehash=%d\n",
-old_dentry->d_parent->d_name.name, old_info.entry.name, rehash);
 	}
 
-	/* Do a real lookup to get the old short name dentry */
-	old = umsdos_lookup_dentry(old_dentry->d_parent, old_info.fake.fname, 
-					old_info.fake.len, 1);
+	old = umsdos_covered(old_dentry->d_parent, old_info.fake.fname, 
+					old_info.fake.len);
 	ret = PTR_ERR(old);
-	if (IS_ERR(old)) {
-		printk(KERN_WARNING
-			"umsdos_rename_f: lookup old dentry %s/%s, ret=%d\n",
-			old_dentry->d_parent->d_name.name, old_info.fake.fname,
-			ret);
+	if (IS_ERR(old))
 		goto out_unlock;
-	}
-	/* short and long name dentries match? */
-	if (old == old_dentry)
-		dput(old);
-	else {
-		/* make sure it's the same inode! */
-		ret = -ENOENT;
-		if (old->d_inode != old_inode)
-			goto out_dput;
-		/*
-		 * A cross-directory move with different short and long
-		 * names has nasty complications: msdos-fs will need to
-		 * change inodes, so we must check whether the original
-		 * dentry is busy, and if the rename succeeds the short
-		 * dentry will come back with a different inode.
-		 *
-		 * To handle this, we drop the dentry and free the inode,
-		 * and then pick up the new inode after the rename.
-		 */
-		if (old_dir != new_dir) {
-			ret = -EBUSY;
-			if (old_dentry->d_count > 1) {
-printk("umsdos_rename_f: old dentry %s/%s busy, d_count=%d\n",
-old_dentry->d_parent->d_name.name, old_dentry->d_name.name,old_dentry->d_count);
-				goto out_dput;
-			}
-			d_drop(old_dentry);
-			d_delete(old_dentry);
-printk("umsdos_rename_f: cross-dir move, %s/%s dropped\n",
-old_dentry->d_parent->d_name.name, old_dentry->d_name.name);
-		}
-	}
-
-	new = umsdos_lookup_dentry(new_dentry->d_parent, new_info.fake.fname, 
-					new_info.fake.len, 1);
-	ret = PTR_ERR(new);
-	if (IS_ERR(new)) {
-		printk(KERN_WARNING
-			"umsdos_rename_f: lookup new dentry %s/%s, ret=%d\n",
-			new_dentry->d_parent->d_name.name, new_info.fake.fname,
-			ret);
+	/* make sure it's the same inode! */
+	ret = -ENOENT;
+	if (old->d_inode != old_inode)
 		goto out_dput;
-	}
-#ifdef UMSDOS_PARANOIA
-if (new->d_inode != new_dentry->d_inode)
-printk("umsdos_rename_f: new %s/%s, inode %p!=%p??\n",
-new->d_parent->d_name.name, new->d_name.name, new->d_inode,new_dentry->d_inode);
-#endif
-	/* short and long name dentries match? */
-	if (new == new_dentry)
-		dput(new);
 
-#ifdef UMSDOS_DEBUG_VERBOSE
-printk("umsdos_rename_f: msdos_rename %s/%s(%ld) to %s/%s(%ld)\n",
-old->d_parent->d_name.name, old->d_name.name, old->d_inode->i_ino,
-new->d_parent->d_name.name, new->d_name.name, 
-new->d_inode ? new->d_inode->i_ino : 0);
-#endif
+	new = umsdos_covered(new_dentry->d_parent, new_info.fake.fname, 
+					new_info.fake.len);
+	ret = PTR_ERR(new);
+	if (IS_ERR(new))
+		goto out_dput;
+
 	/* Do the msdos-level rename */
 	ret = msdos_rename (old_dir, old, new_dir, new);
-Printk(("umsdos_rename_f: now %s/%s, ret=%d\n", 
-old->d_parent->d_name.name, old->d_name.name, ret));
 
-	if (new != new_dentry)
-		dput(new);
+	dput(new);
 
 	/* If the rename failed, remove the new EMD entry */
 	if (ret != 0) {
-Printk(("umsdos_rename_f: rename failed, ret=%d, removing %s/%s\n",
-ret, new_dentry->d_parent->d_name.name, new_info.entry.name));
 		umsdos_delentry (new_dentry->d_parent, &new_info,
 				 S_ISDIR (new_info.entry.mode));
 		goto out_dput;
@@ -550,33 +441,6 @@ ret, new_dentry->d_parent->d_name.name, new_info.entry.name));
 	}
 
 	/*
-	 * Check whether to update the dcache ... if both 
-	 * old and new dentries match, it's already correct.
-	 * If the targets were aliases, the old short-name
-	 * dentry has the original target name.
- 	 */
-	if (old_dentry != old) {
-		if (!old_dentry->d_inode) {
-			struct inode *inode = old->d_inode;
-			inode->i_count++;
-			d_instantiate(old_dentry, inode);
-printk("umsdos_rename_f: %s/%s gets new ino=%ld\n",
-old_dentry->d_parent->d_name.name, old_dentry->d_name.name, inode->i_ino);
-		}
-		if (new_dentry == new)
-			new_dentry = old;
-		goto move_it;
-	} else if (new_dentry != new) {
-	move_it:
-		/* this will rehash the dentry ... */
-		d_move(old_dentry, new_dentry);
-	}
-	/* Check whether the old inode changed ... */
-	if (old_dentry->d_inode != old_inode) {
-		umsdos_lookup_patch_new(old_dentry, &new_info);
-	}
-
-	/*
 	 * Update f_pos so notify_change will succeed
 	 * if the file was already in use.
 	 */
@@ -584,8 +448,7 @@ old_dentry->d_parent->d_name.name, old_dentry->d_name.name, inode->i_ino);
 
 	/* dput() the dentry if we haven't already */
 out_dput:
-	if (old_dentry != old)
-		dput(old);
+	dput(old);
 
 out_unlock:
 	dput(old_emd);
@@ -614,6 +477,9 @@ out:
 
 extern struct inode_operations umsdos_symlink_inode_operations;
 
+/*
+ * AV. Should be called with dir->i_sem down.
+ */
 static int umsdos_symlink_x (struct inode *dir, struct dentry *dentry,
 			const char *symname, int mode, char flags)
 {
@@ -745,8 +611,9 @@ dentry->d_parent->d_name.name, hid_info.entry.name, ret);
 			goto cleanup;
 		}
 		/* rename the link to the hidden location ... */
-		ret = umsdos_rename_f (olddir, olddentry, olddir, temp,
+		ret = umsdos_rename_f(olddir, olddentry, olddir, temp,
 					UMSDOS_HIDDEN);
+		d_move(olddentry, temp);
 		dput(temp);
 		if (ret) {
 printk("umsdos_link: rename to %s/%s failed, ret=%d\n",
@@ -817,9 +684,8 @@ Printk(("UMSDOS_link: hard link %s/%s, fake=%s\n",
 olddentry->d_parent->d_name.name, olddentry->d_name.name, old_info.fake.fname));
 
 	/* Do a real lookup to get the short name dentry */
-	temp = umsdos_lookup_dentry(olddentry->d_parent,
-					old_info.fake.fname, 
-					old_info.fake.len, 1);
+	temp = umsdos_covered(olddentry->d_parent, old_info.fake.fname, 
+					old_info.fake.len);
 	ret = PTR_ERR(temp);
 	if (IS_ERR(temp))
 		goto out_unlock;
@@ -905,15 +771,10 @@ int UMSDOS_mkdir (struct inode *dir, struct dentry *dentry, int mode)
 		goto out;
 
 	/* lookup the short name dentry */
-	temp = umsdos_lookup_dentry(dentry->d_parent, info.fake.fname, 
-					info.fake.len, 1);
+	temp = umsdos_covered(dentry->d_parent, info.fake.fname, info.fake.len);
 	ret = PTR_ERR(temp);
 	if (IS_ERR(temp))
 		goto out_remove;
-
-	/* Keep the short name dentry anonymous */ 
-	if (temp != dentry)
-		d_drop(temp);
 
 	/* Make sure the short name doesn't exist */
 	ret = -EEXIST;
@@ -933,16 +794,9 @@ dentry->d_parent->d_name.name, info.fake.fname);
 	inode = temp->d_inode;
 	down(&inode->i_sem);
 
-	/*
-	 * Note! The long and short name might be the same,
-	 * so check first before doing the instantiate ...
-	 */
-	if (dentry != temp) {
-if (dentry->d_inode)
-printk("umsdos_mkdir: dentry not negative!\n");
-		inode->i_count++;
-		d_instantiate(dentry, inode);
-	}
+	inode->i_count++;
+	d_instantiate(dentry, inode);
+
 	/* N.B. this should have an option to create the EMD ... */
 	umsdos_lookup_patch_new(dentry, &info);
 
@@ -1042,20 +896,10 @@ demd->d_parent->d_name.name, demd->d_name.name, err);
 	umsdos_parse (dentry->d_name.name, dentry->d_name.len, &info);
 	/* Call findentry to complete the mangling */
 	umsdos_findentry (dentry->d_parent, &info, 2);
-	temp = umsdos_lookup_dentry(dentry->d_parent, info.fake.fname, 
-					info.fake.len, 1);
+	temp = umsdos_covered(dentry->d_parent, info.fake.fname, info.fake.len);
 	ret = PTR_ERR(temp);
 	if (IS_ERR(temp))
 		goto out;
-	/*
-	 * If the short name is an alias, dput() it now;
-	 * otherwise d_drop() it to keep it anonymous.
-	 */
-	if (temp == dentry)
-		dput(temp);
-	else
-		d_drop(temp);
-
 	/*
 	 * Attempt to remove the msdos name.
 	 */
@@ -1072,8 +916,7 @@ printk("umsdos_rmdir: delentry %s failed, ret=%d\n", info.entry.name, ret);
 
 	/* dput() temp if we didn't do it above */
 out_dput:
-	if (temp != dentry)
-		dput(temp);
+	dput(temp);
 
 out:
 	Printk (("umsdos_rmdir %d\n", ret));
@@ -1096,7 +939,7 @@ int UMSDOS_unlink (struct inode *dir, struct dentry *dentry)
 {
 	struct dentry *temp, *link = NULL;
 	struct inode *inode;
-	int ret, rehash = 0;
+	int ret;
 	struct umsdos_info info;
 
 Printk(("UMSDOS_unlink: entering %s/%s\n",
@@ -1120,14 +963,6 @@ dentry->d_parent->d_name.name, dentry->d_name.name, ret);
 
 Printk (("UMSDOS_unlink %.*s ", info.fake.len, info.fake.fname));
 
-	ret = -EPERM;
-	/* check sticky bit */
-	if (is_sticky(dir, info.entry.uid)) {
-printk("umsdos_unlink: %s/%s is sticky\n",
-dentry->d_parent->d_name.name, dentry->d_name.name);
-		goto out_unlock;
-	}
-
 	/*
 	 * Note! If this is a hardlink and the names are aliased,
 	 * the short-name lookup will return the hardlink dentry.
@@ -1135,15 +970,11 @@ dentry->d_parent->d_name.name, dentry->d_name.name);
 	 * the original dentry.
 	 */ 
 	if (info.entry.flags & UMSDOS_HLINK) {
-		rehash = !list_empty(&dentry->d_hash);
 		d_drop(dentry);
-Printk(("UMSDOS_unlink: hard link %s/%s, fake=%s, rehash=%d\n",
-dentry->d_parent->d_name.name, dentry->d_name.name, info.fake.fname, rehash));
 	}
 
 	/* Do a real lookup to get the short name dentry */
-	temp = umsdos_lookup_dentry(dentry->d_parent, info.fake.fname, 
-					info.fake.len, 1);
+	temp = umsdos_covered(dentry->d_parent, info.fake.fname, info.fake.len);
 	ret = PTR_ERR(temp);
 	if (IS_ERR(temp))
 		goto out_unlock;
@@ -1155,13 +986,6 @@ dentry->d_parent->d_name.name, dentry->d_name.name, info.fake.fname, rehash));
 		link = umsdos_solve_hlink(dget(temp));
 	}
 
-	/*
-	 * If the short and long names are aliased,
-	 * dput() it now so the dentry isn't busy.
-	 */
-	if (temp == dentry)
-		dput(temp);
-
 	/* Delete the EMD entry */
 	ret = umsdos_delentry (dentry->d_parent, &info, 0);
 	if (ret && ret != -ENOENT) {
@@ -1170,7 +994,7 @@ dentry->d_parent->d_name.name, dentry->d_name.name, info.fake.fname, rehash));
 		goto out_dput;
 	}
 
-	ret = msdos_unlink_umsdos (dir, temp);
+	ret = msdos_unlink(dir, temp);
 #ifdef UMSDOS_PARANOIA
 if (ret)
 printk("umsdos_unlink: %s/%s unlink failed, ret=%d\n",
@@ -1179,12 +1003,9 @@ temp->d_parent->d_name.name, temp->d_name.name, ret);
 
 	/* dput() temp if we didn't do it above */
 out_dput:
-	if (temp != dentry) {
-		d_drop(temp);
-		dput(temp);
-		if (!ret)
-			d_delete (dentry);
-	}
+	dput(temp);
+	if (!ret)
+		d_delete (dentry);
 
 out_unlock:
 	umsdos_unlockcreate (dir);
@@ -1247,57 +1068,31 @@ out:
 	return ret;
 }
 
-
 /*
  * Rename (move) a file.
  */
 int UMSDOS_rename (struct inode *old_dir, struct dentry *old_dentry,
 		   struct inode *new_dir, struct dentry *new_dentry)
 {
-	struct dentry *new_target;
 	int ret;
 
-#ifdef UMSDOS_DEBUG_VERBOSE
-printk("umsdos_rename: enter, %s/%s(%ld) to %s/%s(%ld)\n",
-old_dentry->d_parent->d_name.name, old_dentry->d_name.name,
-old_dentry->d_inode->i_ino,
-new_dentry->d_parent->d_name.name, new_dentry->d_name.name, 
-new_dentry->d_inode ? new_dentry->d_inode->i_ino : 0);
-#endif
 	ret = umsdos_nevercreat (new_dir, new_dentry, -EEXIST);
 	if (ret)
-		goto out;
+		return ret;
 
-	/*
-	 * If the target already exists, delete it first.
-	 */
+		/*
+		 * If the target already exists, delete it first.
+		 */
 	if (new_dentry->d_inode) {
-		if (S_ISDIR(new_dentry->d_inode->i_mode))
+		new_dentry->d_count++;
+		if (S_ISDIR(old_dentry->d_inode->i_mode))
 			ret = UMSDOS_rmdir (new_dir, new_dentry);
 		else
 			ret = UMSDOS_unlink (new_dir, new_dentry);
+		dput(new_dentry);
 		if (ret)
-			goto out;
+			return ret;
 	}
-
-	/*
-	 * If we didn't get a negative dentry, make a copy and hash it.
-	 */
-	new_target = new_dentry;
-	if (new_dentry->d_inode) {
-printk("umsdos_rename: %s/%s not negative, hash=%d\n",
-new_dentry->d_parent->d_name.name, new_dentry->d_name.name,
-!list_empty(&new_dentry->d_hash));
-		ret = -ENOMEM;
-		new_target = d_alloc(new_dentry->d_parent, &new_dentry->d_name);
-		if (!new_target)
-			goto out;
-		d_add(new_target, NULL);
-	} 
-	ret = umsdos_rename_f(old_dir, old_dentry, new_dir, new_target, 0);
-	if (new_target != new_dentry)
-		dput(new_target);
-
-out:
+	ret = umsdos_rename_f(old_dir, old_dentry, new_dir, new_dentry, 0);
 	return ret;
 }

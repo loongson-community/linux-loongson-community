@@ -1,4 +1,4 @@
-/* $Id: traps.c,v 1.18 1999/04/12 19:13:21 harald Exp $
+/* $Id: traps.c,v 1.19 1999/05/01 22:40:38 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -464,8 +464,8 @@ extern asmlinkage void r4k_restore_fp_context(struct sigcontext *sc);
 extern asmlinkage void r2300_restore_fp_context(struct sigcontext *sc);
 extern asmlinkage void r6000_restore_fp_context(struct sigcontext *sc);
 
-extern asmlinkage void r4xx0_resume(void *tsk);
-extern asmlinkage void r2300_resume(void *tsk);
+extern asmlinkage void *r4xx0_resume(void *last, void *next);
+extern asmlinkage void *r2300_resume(void *last, void *next);
 
 __initfunc(void trap_init(void))
 {

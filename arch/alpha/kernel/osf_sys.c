@@ -37,6 +37,7 @@
 #include <asm/uaccess.h>
 #include <asm/system.h>
 #include <asm/sysinfo.h>
+#include <asm/hwrpb.h>
 
 extern int do_mount(kdev_t, const char *, const char *, char *, int, void *);
 extern int do_pipe(int *);
@@ -140,6 +141,7 @@ asmlinkage int osf_getdirentries(unsigned int fd, struct osf_dirent *dirent,
 	struct inode *inode;
 	struct osf_dirent_callback buf;
 
+	lock_kernel();
 	error = -EBADF;
 	file = fget(fd);
 	if (!file)
@@ -172,6 +174,7 @@ asmlinkage int osf_getdirentries(unsigned int fd, struct osf_dirent *dirent,
 out_putf:
 	fput(file);
 out:
+	unlock_kernel();
 	return error;
 }
 
@@ -317,8 +320,8 @@ static int do_osf_statfs(struct dentry * dentry, struct osf_statfs *buffer, unsi
 	struct super_block * sb = inode->i_sb;
 	int error;
 
-	error = -ENOSYS;
-	if (sb->s_op->statfs) {
+	error = -ENODEV;
+	if (sb && sb->s_op && sb->s_op->statfs) {
 		set_fs(KERNEL_DS);
 		error = sb->s_op->statfs(sb, &linux_stat, sizeof(linux_stat));
 		set_fs(USER_DS);
@@ -762,13 +765,9 @@ asmlinkage long osf_proplist_syscall(enum pl_code code, union pl_args *args)
 asmlinkage int osf_sigstack(struct sigstack *uss, struct sigstack *uoss)
 {
 	unsigned long usp = rdusp();
-	unsigned long oss_sp, oss_os;
+	unsigned long oss_sp = current->sas_ss_sp + current->sas_ss_size;
+	unsigned long oss_os = on_sig_stack(usp);
 	int error;
-
-	if (uoss) {
-		oss_sp = current->sas_ss_sp + current->sas_ss_size;
-		oss_os = on_sig_stack(usp);
-	}
 
 	if (uss) {
 		void *ss_sp;
@@ -880,11 +879,27 @@ asmlinkage unsigned long osf_getsysinfo(unsigned long op, void *buffer,
 					int *start, void *arg)
 {
 	unsigned long w;
+	struct percpu_struct *cpu;
 
 	switch (op) {
 	case GSI_IEEE_FP_CONTROL:
 		/* Return current software fp control & status bits.  */
-		w = current->tss.flags & IEEE_SW_MASK;
+		/* Note that DU doesn't verify available space here.  */
+
+		/* EV6 implements most of the bits in hardware.  If
+		   UNDZ is not set, UNFD is maintained in software.  */
+		if (implver() == IMPLVER_EV6) {
+			unsigned long fpcr = rdfpcr();
+			w = ieee_fpcr_to_swcr(fpcr);
+			if (!(fpcr & FPCR_UNDZ)) {
+				w &= ~IEEE_TRAP_ENABLE_UNF;
+				w |= current->tss.flags & IEEE_TRAP_ENABLE_UNF;
+			}
+		} else {
+			/* Otherwise we are forced to do everything in sw.  */
+			w = current->tss.flags & IEEE_SW_MASK;
+		}
+
 		if (put_user(w, (unsigned long *) buffer))
 			return -EFAULT;
 		return 0;
@@ -898,10 +913,28 @@ asmlinkage unsigned long osf_getsysinfo(unsigned long op, void *buffer,
 		break;
 
  	case GSI_UACPROC:
+		if (nbytes < sizeof(unsigned int))
+			return -EINVAL;
  		w = (current->tss.flags >> UAC_SHIFT) & UAC_BITMASK;
  		if (put_user(w, (unsigned int *)buffer))
  			return -EFAULT;
- 		return 0;
+ 		return 1;
+
+	case GSI_PROC_TYPE:
+		if (nbytes < sizeof(unsigned long))
+			return -EINVAL;
+		cpu = (struct percpu_struct*)
+		  ((char*)hwrpb + hwrpb->processor_offset);
+		if (put_user(w, (unsigned long *)buffer))
+			return -EFAULT;
+		return 1;
+
+	case GSI_GET_HWRPB:
+		if (nbytes < sizeof(*hwrpb))
+			return -EINVAL;
+		if (copy_to_user(buffer, hwrpb, nbytes) != 0)
+			return -EFAULT;
+		return 1;
 
 	default:
 		break;
@@ -916,7 +949,7 @@ asmlinkage unsigned long osf_setsysinfo(unsigned long op, void *buffer,
 {
 	switch (op) {
 	case SSI_IEEE_FP_CONTROL: {
-		unsigned long swcr, fpcr;
+		unsigned long swcr, fpcr, undz;
 
 		/* 
 		 * Alpha Architecture Handbook 4.7.7.3:
@@ -931,11 +964,12 @@ asmlinkage unsigned long osf_setsysinfo(unsigned long op, void *buffer,
 		current->tss.flags &= ~IEEE_SW_MASK;
 		current->tss.flags |= swcr & IEEE_SW_MASK;
 
-		/* Update the real fpcr.  For exceptions that are disabled in
-		   software but have not been seen, enable the exception in
-		   hardware so that we can update our software status mask.  */
-		fpcr = rdfpcr() & (~FPCR_MASK | FPCR_DYN_MASK);
-		fpcr |= ieee_swcr_to_fpcr(swcr | (~swcr & IEEE_STATUS_MASK)>>16);
+		/* Update the real fpcr.  Keep UNFD off if not UNDZ.  */
+		fpcr = rdfpcr();
+		undz = (fpcr & FPCR_UNDZ);
+		fpcr &= ~(FPCR_MASK | FPCR_DYN_MASK | FPCR_UNDZ);
+		fpcr |= ieee_swcr_to_fpcr(swcr);
+		fpcr &= ~(undz << 1);
 		wrfpcr(fpcr);
 		   
 		return 0;
@@ -1390,8 +1424,9 @@ asmlinkage int sys_old_adjtimex(struct timex32 *txc_p)
 	    copy_from_user(&txc.tick, &txc_p->tick, sizeof(struct timex32) - 
 			   offsetof(struct timex32, time)))
 	  return -EFAULT;
-	
-	if ((ret = do_adjtimex(&txc)))
+
+	ret = do_adjtimex(&txc);	
+	if (ret < 0)
 	  return ret;
 	
 	/* copy back to timex32 */
@@ -1401,5 +1436,5 @@ asmlinkage int sys_old_adjtimex(struct timex32 *txc_p)
 	    (put_tv32(&txc_p->time, &txc.time)))
 	  return -EFAULT;
 
-	return 0;
+	return ret;
 }

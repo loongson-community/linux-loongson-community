@@ -335,7 +335,7 @@ void ndisc_send_na(struct device *dev, struct neighbour *neigh,
         msg->icmph.icmp6_unused = 0;
         msg->icmph.icmp6_router    = router;
         msg->icmph.icmp6_solicited = solicited;
-        msg->icmph.icmp6_override  = override;
+        msg->icmph.icmp6_override  = !!override;
 
         /* Set the target address. */
 	ipv6_addr_copy(&msg->target, solicited_addr);
@@ -497,7 +497,7 @@ static void ndisc_error_report(struct neighbour *neigh, struct sk_buff *skb)
 	 *	"The sender MUST return an ICMP
 	 *	 destination unreachable"
 	 */
-	icmpv6_send(skb, ICMPV6_DEST_UNREACH, ICMPV6_ADDR_UNREACH, 0, skb->dev);
+	dst_link_failure(skb);
 	kfree_skb(skb);
 }
 
@@ -604,6 +604,13 @@ static void ndisc_router_discovery(struct sk_buff *skb)
 			return;
 		}
 		neigh->flags |= NTF_ROUTER;
+
+		/*
+		 *	If we where using an "all destinations on link" route
+		 *	delete it
+		 */
+
+		rt6_purge_dflt_routers(RTF_ALLONLINK);
 	}
 
 	if (rt)
@@ -806,7 +813,7 @@ void ndisc_send_redirect(struct sk_buff *skb, struct neighbour *neigh,
 		}
 	}
 
-	rd_len = min(IPV6_MIN_MTU-sizeof(struct ipv6hdr)-len, ntohs(skb->nh.ipv6h->payload_len) + 8);
+	rd_len = min(IPV6_MIN_MTU-sizeof(struct ipv6hdr)-len, skb->len + 8);
 	rd_len &= ~0x7;
 	len += rd_len;
 
@@ -866,7 +873,7 @@ void ndisc_send_redirect(struct sk_buff *skb, struct neighbour *neigh,
 	*(opt++) = (rd_len >> 3);
 	opt += 6;
 
-	memcpy(opt, &skb->nh.ipv6h, rd_len - 8);
+	memcpy(opt, skb->nh.ipv6h, rd_len - 8);
 
 	icmph->icmp6_cksum = csum_ipv6_magic(&ifp->addr, &skb->nh.ipv6h->saddr,
 					     len, IPPROTO_ICMPV6,
@@ -989,7 +996,7 @@ int ndisc_rcv(struct sk_buff *skb, unsigned long len)
 
 					if (neigh) {
 						ndisc_send_na(dev, neigh, saddr, &msg->target,
-							      0, 0, inc, inc);
+							      0, 1, 0, inc);
 						neigh_release(neigh);
 					}
 				} else {
@@ -1173,7 +1180,6 @@ __initfunc(int ndisc_init(struct net_proto_family *ops))
 	sk = ndisc_socket->sk;
 	sk->allocation = GFP_ATOMIC;
 	sk->net_pinfo.af_inet6.hop_limit = 255;
-	sk->net_pinfo.af_inet6.priority  = 15;
 	/* Do not loopback ndisc messages */
 	sk->net_pinfo.af_inet6.mc_loop = 0;
 	sk->num = 256;

@@ -1,10 +1,11 @@
-/* $Id: promcon.c,v 1.12 1998/08/23 20:19:01 mj Exp $
+/* $Id: promcon.c,v 1.15 1999/04/22 06:35:32 davem Exp $
  * Console driver utilizing PROM sun terminal emulation
  *
  * Copyright (C) 1998  Eddie C. Dost  (ecd@skynet.be)
  * Copyright (C) 1998  Jakub Jelinek  (jj@ultra.linux.cz)
  */
 
+#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
@@ -230,7 +231,7 @@ promcon_putcs(struct vc_data *conp, const unsigned short *s,
 	      int count, int y, int x)
 {
 	unsigned char buf[256], *b = buf;
-	unsigned short attr = *s;
+	unsigned short attr = scr_readw(s);
 	unsigned char save;
 	int i, last = 0;
 
@@ -256,9 +257,9 @@ promcon_putcs(struct vc_data *conp, const unsigned short *s,
 			}
 
 			if (inverted(attr))
-				b += sprintf(b, "\033[7m%c\033[m", *s++);
+				b += sprintf(b, "\033[7m%c\033[m", scr_readw(s++));
 			else
-				b += sprintf(b, "%c", *s++);
+				b += sprintf(b, "%c", scr_readw(s++));
 
 			strcpy(b, "\b\033[@");
 			b += 4;
@@ -295,14 +296,14 @@ promcon_putcs(struct vc_data *conp, const unsigned short *s,
 			promcon_puts(buf, b - buf);
 			b = buf;
 		}
-		*b++ = *s++;
+		*b++ = scr_readw(s++);
 	}
 
 	px += count;
 
 	if (last) {
-		save = *s++;
-		b += sprintf(b, "%c\b\033[@%c", *s++, save);
+		save = scr_readw(s++);
+		b += sprintf(b, "%c\b\033[@%c", scr_readw(s++), save);
 		px++;
 	}
 
@@ -318,11 +319,12 @@ promcon_putcs(struct vc_data *conp, const unsigned short *s,
 static void
 promcon_putc(struct vc_data *conp, int c, int y, int x)
 {
-	unsigned short s = c;
+	unsigned short s;
 
 	if (console_blanked)
 		return;
 	
+	scr_writew(c, &s);
 	promcon_putcs(conp, &s, 1, y, x);
 }
 
@@ -591,8 +593,11 @@ struct consw prom_con = {
 
 __initfunc(void prom_con_init(void))
 {
+#ifdef CONFIG_DUMMY_CONSOLE
 	if (conswitchp == &dummy_con)
 		take_over_console(&prom_con, 0, MAX_NR_CONSOLES-1, 1);
-	else if (conswitchp == &prom_con)
+	else
+#endif
+	if (conswitchp == &prom_con)
 		promcon_init_unimap(vc_cons[fg_console].d);
 }

@@ -1,10 +1,10 @@
-/* $Id: entry.S,v 1.153 1998/11/11 15:12:33 jj Exp $
+/* $Id: entry.S,v 1.159 1999/05/08 03:00:03 davem Exp $
  * arch/sparc/kernel/entry.S:  Sparc trap low-level entry points.
  *
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
  * Copyright (C) 1996 Eddie C. Dost   (ecd@skynet.be)
  * Copyright (C) 1996 Miguel de Icaza (miguel@nuclecu.unam.mx)
- * Copyright (C) 1996,1998 Jakub Jelinek   (jj@sunsite.mff.cuni.cz)
+ * Copyright (C) 1996-1999 Jakub Jelinek   (jj@sunsite.mff.cuni.cz)
  * Copyright (C) 1997 Anton Blanchard (anton@progsoc.uts.edu.au)
  */
 
@@ -874,7 +874,7 @@ C_LABEL(vac_hwflush_patch2_on):		sta	%g0, [%l3 + %l7] ASI_HWFLUSHSEG
 ! We want error in %l5, vaddr in %l6
 sun4c_fault:
 #ifdef CONFIG_SUN4
-	sethi	C_LABEL(sun4c_memerr_reg), %l4
+	sethi	%hi(C_LABEL(sun4c_memerr_reg)), %l4
 	ld	[%l4+%lo(C_LABEL(sun4c_memerr_reg))], %l4  ! memerr ctrl reg addr
 	ld	[%l4], %l6		! memerr ctrl reg
 	ld	[%l4 + 4], %l5		! memerr vaddr reg
@@ -956,7 +956,7 @@ sun4c_fault:
 	sll     %l6, 2, %l6
 	ld      [%l4 + %l6], %l4
 #ifdef CONFIG_SUN4
-	sethi	PAGE_MASK, %l6
+	sethi	%hi(PAGE_MASK), %l6
 	andcc	%l4, %l6, %g0
 #else
 	andcc   %l4, PAGE_MASK, %g0
@@ -1117,7 +1117,7 @@ C_LABEL(num_context_patch2):
 #ifndef CONFIG_SUN4
 	and	%l4, PAGE_MASK, %l4
 #else
-	sethi	PAGE_MASK, %l6
+	sethi	%hi(PAGE_MASK), %l6
 	and	%l4, %l6, %l4
 #endif
 
@@ -1380,11 +1380,13 @@ C_LABEL(sys_rt_sigreturn):
 
 	/* Now that we have a real sys_clone, sys_fork() is
 	 * implemented in terms of it.  Our _real_ implementation
-	 * of SunOS vfork() will use sys_clone() instead.
+	 * of SunOS vfork() will use sys_vfork().
+	 *
+	 * XXX These three should be consolidated into mostly shared
+	 * XXX code just like on sparc64... -DaveM
 	 */
 	.align	4
-	.globl	C_LABEL(sys_fork), C_LABEL(sys_vfork), flush_patch_two
-C_LABEL(sys_vfork):
+	.globl	C_LABEL(sys_fork), flush_patch_two
 C_LABEL(sys_fork):
 	mov	%o7, %l5
 flush_patch_two:
@@ -1422,6 +1424,23 @@ flush_patch_three:
 	call	C_LABEL(do_fork)
 	 mov	%l5, %o7
 
+	/* Whee, real vfork! */
+	.globl	C_LABEL(sys_vfork), flush_patch_four
+C_LABEL(sys_vfork):
+flush_patch_four:
+	FLUSH_ALL_KERNEL_WINDOWS;
+	rd	%psr, %g4
+	WRITE_PAUSE
+	rd	%wim, %g5
+	WRITE_PAUSE
+	std	%g4, [%curptr + AOFF_task_tss + AOFF_thread_fork_kpsr]
+	sethi	%hi(0x4000 | 0x0100 | SIGCHLD), %o0
+	mov	%fp, %o1
+	or	%o0, %lo(0x4000 | 0x0100 | SIGCHLD), %o0
+	sethi	%hi(C_LABEL(do_fork)), %l1
+	jmpl	%l1 + %lo(C_LABEL(do_fork)), %g0
+	 add	%sp, REGWIN_SZ, %o2
+
         .align  4
 linux_sparc_ni_syscall:
 	sethi   %hi(C_LABEL(sys_ni_syscall)), %l7
@@ -1454,11 +1473,10 @@ C_LABEL(ret_from_syscall):
 #ifdef __SMP__
 	.globl	C_LABEL(ret_from_smpfork)
 C_LABEL(ret_from_smpfork):
-	/* Nowadays all we need to do is drop the scheduler lock. */
-	sethi	%hi(C_LABEL(scheduler_lock)), %o4
-	stb	%g0, [%o4 + %lo(C_LABEL(scheduler_lock))]
 	wr	%l0, PSR_ET, %psr
 	WRITE_PAUSE
+	call	schedule_tail
+	 mov	%g3, %o0
 	b	C_LABEL(ret_sys_call)
 	 ld	[%sp + REGWIN_SZ + PT_I0], %o0
 #endif

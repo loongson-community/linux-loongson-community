@@ -1,6 +1,6 @@
 /* linux/net/inet/arp.c
  *
- * Version:	$Id: arp.c,v 1.75 1998/11/16 04:51:56 davem Exp $
+ * Version:	$Id: arp.c,v 1.77 1999/03/21 05:22:30 davem Exp $
  *
  * Copyright (C) 1994 by Florian  La Roche
  *
@@ -294,7 +294,7 @@ static int arp_constructor(struct neighbour *neigh)
 
 static void arp_error_report(struct neighbour *neigh, struct sk_buff *skb)
 {
-	icmp_send(skb, ICMP_DEST_UNREACH, ICMP_HOST_UNREACH, 0);
+	dst_link_failure(skb);
 	kfree_skb(skb);
 }
 
@@ -401,8 +401,12 @@ int arp_bind_neighbour(struct dst_entry *dst)
 
 	if (dev == NULL)
 		return 0;
-	if (dst->neighbour == NULL)
-		dst->neighbour = __neigh_lookup(&arp_tbl, &((struct rtable*)dst)->rt_gateway, dev, 1);
+	if (dst->neighbour == NULL) {
+		u32 nexthop = ((struct rtable*)dst)->rt_gateway;
+		if (dev->flags&(IFF_LOOPBACK|IFF_POINTOPOINT))
+			nexthop = 0;
+		dst->neighbour = __neigh_lookup(&arp_tbl, &nexthop, dev, 1);
+	}
 	return (dst->neighbour != NULL);
 }
 
@@ -557,6 +561,19 @@ int arp_rcv(struct sk_buff *skb, struct device *dev, struct packet_type *pt)
 		if (htons(dev_type) != arp->ar_hrd)
 			goto out;
 		break;
+#ifdef CONFIG_NET_ETHERNET
+	case ARPHRD_ETHER:
+		/*
+		 * ETHERNET devices will accept ARP hardware types of either
+		 * 1 (Ethernet) or 6 (IEEE 802.2).
+		 */
+		if (arp->ar_hrd != __constant_htons(ARPHRD_ETHER) &&
+		    arp->ar_hrd != __constant_htons(ARPHRD_IEEE802))
+			goto out;
+		if (arp->ar_pro != __constant_htons(ETH_P_IP))
+			goto out;
+		break;
+#endif
 #ifdef CONFIG_FDDI
 	case ARPHRD_FDDI:
 		/*

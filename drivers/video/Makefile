@@ -88,6 +88,10 @@ ifeq ($(CONFIG_FB_APOLLO),y)
 L_OBJS += dnfb.o
 endif
 
+ifeq ($(CONFIG_FB_Q40),y)
+L_OBJS += q40fb.o
+endif
+
 ifeq ($(CONFIG_FB_ATARI),y)
 L_OBJS += atafb.o
 else
@@ -125,6 +129,14 @@ L_OBJS += cyberfb.o
 else
   ifeq ($(CONFIG_FB_CYBER),m)
   M_OBJS += cyberfb.o
+  endif
+endif
+
+ifeq ($(CONFIG_FB_SGIVW),y)
+L_OBJS += sgivwfb.o
+else
+  ifeq ($(CONFIG_FB_SGIVW),m)
+  M_OBJS += sgivwfb.o
   endif
 endif
 
@@ -196,6 +208,10 @@ endif
 
 ifdef CONFIG_FB_G364
 L_OBJS := $(L_OBJS) g364fb.o
+endif
+
+ifdef CONFIG_FB_FM2
+L_OBJS := $(L_OBJS) fm2fb.o
 endif
 
 ifeq ($(CONFIG_FB_SBUS),y)

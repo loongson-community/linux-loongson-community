@@ -95,6 +95,8 @@ struct video_tuner
 #define VIDEO_TUNER_LOW		8	/* Uses KHz not MHz */
 #define VIDEO_TUNER_NORM	16	/* Tuner can set norm */
 #define VIDEO_TUNER_STEREO_ON	128	/* Tuner is seeing stereo */
+#define VIDEO_TUNER_RDS_ON      256     /* Tuner is seeing an RDS datastream */
+#define VIDEO_TUNER_MBS_ON      512     /* Tuner is seeing an MBS datastream */
 	__u16 mode;			/* PAL/NTSC/SECAM/OTHER */
 #define VIDEO_MODE_PAL		0
 #define VIDEO_MODE_NTSC		1
@@ -273,7 +275,9 @@ struct video_unit
 #define VID_HARDWARE_PLANB	16	/* PowerMac motherboard video-in */
 #define VID_HARDWARE_BROADWAY	17	/* Broadway project */
 #define VID_HARDWARE_GEMTEK	18
-#define VID_HARDWARE_VINO	20	/* SGI Indy Vino */
+#define VID_HARDWARE_TYPHOON	19
+#define VID_HARDWARE_VINO	20	/* Reserved for SGI Indy Vino */
+#define VID_HARDWARE_CADET	21	/* Cadet radio */
 
 /*
  *	Initialiser list

@@ -1,12 +1,12 @@
 /*********************************************************************
  *                
  * Filename:      iriap.c
- * Version:       0.1
+ * Version:       0.8
  * Description:   Information Access Protocol (IAP)
  * Status:        Experimental.
  * Author:        Dag Brattli <dagb@cs.uit.no>
  * Created at:    Thu Aug 21 00:02:07 1997
- * Modified at:   Tue Dec 15 16:00:35 1998
+ * Modified at:   Fri Apr 23 09:57:12 1999
  * Modified by:   Dag Brattli <dagb@cs.uit.no>
  * 
  *     Copyright (c) 1998 Dag Brattli <dagb@cs.uit.no>, 
@@ -28,23 +28,48 @@
 #include <linux/skbuff.h>
 #include <linux/string.h>
 #include <linux/init.h>
+#include <linux/irda.h>
 
 #include <asm/byteorder.h>
+#include <asm/unaligned.h>
 
 #include <net/irda/irda.h>
 #include <net/irda/irttp.h>
+#include <net/irda/irmod.h>
 #include <net/irda/irlmp.h>
 #include <net/irda/irias_object.h>
 #include <net/irda/iriap_event.h>
 #include <net/irda/iriap.h>
 
-hashbin_t *iriap = NULL;
+/* FIXME: This one should go in irlmp.c */
+static const char *ias_charset_types[] = {
+	"CS_ASCII",
+	"CS_ISO_8859_1",
+	"CS_ISO_8859_2",
+	"CS_ISO_8859_3",
+	"CS_ISO_8859_4",
+	"CS_ISO_8859_5",
+	"CS_ISO_8859_6",
+	"CS_ISO_8859_7",
+	"CS_ISO_8859_8",
+	"CS_ISO_8859_9",
+	"CS_UNICODE"
+};
+
+static hashbin_t *iriap = NULL;
+static __u32 service_handle; 
+
+extern char *lmp_reasons[];
 
 static struct iriap_cb *iriap_open( __u8 slsap, int mode);
 static void __iriap_close( struct iriap_cb *self);
-static void iriap_disconnect_indication( void *instance, void *sap, 
-					 LM_REASON reason, 
-					 struct sk_buff *skb);
+static void iriap_disconnect_indication(void *instance, void *sap, 
+					LM_REASON reason, struct sk_buff *skb);
+static void iriap_connect_indication(void *instance, void *sap, 
+				     struct qos_info *qos, __u32 max_sdu_size,
+				     struct sk_buff *skb);
+static int iriap_data_indication(void *instance, void *sap, 
+				 struct sk_buff *skb);
 
 /*
  * Function iriap_init (void)
@@ -54,16 +79,15 @@ static void iriap_disconnect_indication( void *instance, void *sap,
  */
 __initfunc(int iriap_init(void))
 {
+	__u16 hints;
 	struct ias_object *obj;
 
-	DEBUG( 4, "--> iriap_init\n");
+	DEBUG( 4, __FUNCTION__ "()\n");
 	
 	/* Allocate master array */
 	iriap = hashbin_new( HB_LOCAL);
-	if ( iriap == NULL) {
-		printk( KERN_WARNING "IrIAP: Can't allocate iriap hashbin!\n");
+	if ( iriap == NULL)
 		return -ENOMEM;
-	}
 
 	objects = hashbin_new( HB_LOCAL);
 	if ( objects == NULL) {
@@ -75,8 +99,9 @@ __initfunc(int iriap_init(void))
 	/* 
 	 *  Register some default services for IrLMP 
 	 */
-	irlmp_register_layer( S_COMPUTER, SERVER | CLIENT, FALSE, NULL);
-	irlmp_register_layer( S_PNP, SERVER, FALSE, NULL);
+	hints  = irlmp_service_to_hint(S_COMPUTER);
+	hints |= irlmp_service_to_hint(S_PNP);
+	service_handle = irlmp_register_service(hints);
 
 	/* 
 	 *  Register the Device object with LM-IAS
@@ -91,8 +116,6 @@ __initfunc(int iriap_init(void))
 	 */
 	iriap_open( LSAP_IAS, IAS_SERVER);
 	
-	DEBUG( 4, "iriap_init -->\n");
-	
 	return 0;
 }
 
@@ -104,11 +127,10 @@ __initfunc(int iriap_init(void))
  */
 void iriap_cleanup(void) 
 {
-	irlmp_unregister_layer( S_COMPUTER, SERVER | CLIENT);
-	irlmp_unregister_layer( S_PNP, SERVER);
+	irlmp_unregister_service(service_handle);
 	
-	hashbin_delete( iriap, (FREE_FUNC) __iriap_close);
-	hashbin_delete( objects, (FREE_FUNC) __irias_delete_object);	
+	hashbin_delete(iriap, (FREE_FUNC) __iriap_close);
+	hashbin_delete(objects, (FREE_FUNC) __irias_delete_object);	
 }
 
 /*
@@ -151,7 +173,8 @@ struct iriap_cb *iriap_open( __u8 slsap_sel, int mode)
 		DEBUG( 0, "iriap_open: Unable to allocated LSAP!\n");
 		return NULL;
 	}
-	DEBUG( 4, "iriap_register: source LSAP sel=%02x\n", slsap_sel);
+	slsap_sel = lsap->slsap_sel;
+	DEBUG( 4, __FUNCTION__ "(), source LSAP sel=%02x\n", slsap_sel);
 	
 	self->magic = IAS_MAGIC;
 	self->lsap = lsap;
@@ -178,6 +201,8 @@ struct iriap_cb *iriap_open( __u8 slsap_sel, int mode)
  */
 static void __iriap_close( struct iriap_cb *self)
 {
+	DEBUG( 4, __FUNCTION__ "()\n");
+
 	ASSERT( self != NULL, return;);
 	ASSERT( self->magic == IAS_MAGIC, return;);
 
@@ -195,7 +220,9 @@ static void __iriap_close( struct iriap_cb *self)
  */
 void iriap_close( struct iriap_cb *self)
 {
-	DEBUG( 4, "iriap_close()\n");
+	struct iriap_cb *entry;
+
+	DEBUG( 4, __FUNCTION__ "()\n");
 
 	ASSERT( self != NULL, return;);
 	ASSERT( self->magic == IAS_MAGIC, return;);
@@ -205,7 +232,9 @@ void iriap_close( struct iriap_cb *self)
 		self->lsap = NULL;
 	}
 
-	hashbin_remove( iriap, self->slsap_sel, NULL);
+	entry = (struct iriap_cb *) hashbin_remove( iriap, self->slsap_sel, 
+						    NULL);
+	ASSERT( entry == self, return;);
 
 	__iriap_close( self);
 }
@@ -216,12 +245,13 @@ void iriap_close( struct iriap_cb *self)
  *    Got disconnect, so clean up everything assosiated with this connection
  *
  */
-void iriap_disconnect_indication( void *instance, void *sap, LM_REASON reason, 
-				  struct sk_buff *userdata)
+static void iriap_disconnect_indication( void *instance, void *sap, 
+					 LM_REASON reason, 
+					 struct sk_buff *userdata)
 {
 	struct iriap_cb *self;
 
-	DEBUG( 4, __FUNCTION__ "()\n");
+	DEBUG(4, __FUNCTION__ "(), reason=%s\n", lmp_reasons[reason]);
 
 	self = (struct iriap_cb *) instance;
 
@@ -235,15 +265,19 @@ void iriap_disconnect_indication( void *instance, void *sap, LM_REASON reason,
 	if ( self->mode == IAS_CLIENT) {
 		DEBUG( 4, __FUNCTION__ "(), disconnect as client\n");
 
-		/* Inform service user */
-		if ( self->confirm)
-			self->confirm( 0, NULL, self->priv);
-
+		/* 
+		 * Inform service user that the request failed by sending 
+		 * it a NULL value.
+		 */
+		if (self->confirm)
+ 			self->confirm(IAS_DISCONNECT, 0, NULL, self->priv);
+		
+		
 		iriap_do_client_event( self, IAP_LM_DISCONNECT_INDICATION, 
 				       NULL);
 		/* Close instance only if client */
 		iriap_close( self);
-
+		
 	} else {
 		DEBUG( 4, __FUNCTION__ "(), disconnect as server\n");
 		iriap_do_server_event( self, IAP_LM_DISCONNECT_INDICATION, 
@@ -265,15 +299,15 @@ void iriap_disconnect_request( struct iriap_cb *self)
 {
 	struct sk_buff *skb;
 
-	DEBUG( 4, "iriap_disconnect_request()\n");
+	DEBUG( 4, __FUNCTION__ "()\n");
 
 	ASSERT( self != NULL, return;);
 	ASSERT( self->magic == IAS_MAGIC, return;);
 
 	skb = dev_alloc_skb( 64);
 	if (skb == NULL) {
-		DEBUG( 0,"iriap_getvaluebyclass: "
-		       "Could not allocate an sk_buff of length %d\n", 64);
+		DEBUG( 0, __FUNCTION__
+		       "(), Could not allocate an sk_buff of length %d\n", 64);
 		return;
 	}
 
@@ -316,9 +350,9 @@ void iriap_getvalue(void)
  *    Retreive all values from attribute in all objects with given class
  *    name
  */
-void iriap_getvaluebyclass_request( __u32 daddr, char *name, char *attr, 
-				    CONFIRM_CALLBACK callback,
-				    void *priv)
+void iriap_getvaluebyclass_request(char *name, char *attr, 
+				   __u32 saddr, __u32 daddr,
+				   CONFIRM_CALLBACK callback, void *priv)
 {
 	struct sk_buff *skb;
 	struct iriap_cb *self;
@@ -326,48 +360,47 @@ void iriap_getvaluebyclass_request( __u32 daddr, char *name, char *attr,
 	int name_len, attr_len;
 	__u8 slsap = LSAP_ANY;  /* Source LSAP to use */
 
-	DEBUG( 4, "iriap_getvaluebyclass_request()\n");
+	DEBUG(4, __FUNCTION__ "()\n");
 	
-	self = iriap_open( slsap, IAS_CLIENT);
-	if ( self == NULL)
+	self = iriap_open(slsap, IAS_CLIENT);
+	if (!self)
 		return;
 
 	self->mode = IAS_CLIENT;
 	self->confirm = callback;
 	self->priv = priv;
+
 	self->daddr = daddr;
+	self->saddr = saddr;
 
 	/* 
 	 *  Save operation, so we know what the later indication is about
 	 */
 	self->operation = GET_VALUE_BY_CLASS; 
 
-	/* Give ourselves 7 secs to finish this operation */
-	iriap_start_watchdog_timer( self, 700);
+	/* Give ourselves 10 secs to finish this operation */
+	iriap_start_watchdog_timer(self, 10*HZ);
 	
 	skb = dev_alloc_skb( 64);
-	if (skb == NULL) {
-		DEBUG( 0,"iriap_getvaluebyclass: "
-		       "Could not allocate an sk_buff of length %d\n", 64);
+	if (!skb)
 		return;
-	}
 
-	name_len = strlen( name);
-	attr_len = strlen( attr);
+	name_len = strlen(name);
+	attr_len = strlen(attr);
 
 	/* Reserve space for MUX and LAP header */
- 	skb_reserve( skb, LMP_CONTROL_HEADER+LAP_HEADER);
-	skb_put( skb, 3+name_len+attr_len);
+ 	skb_reserve(skb, LMP_CONTROL_HEADER+LAP_HEADER);
+	skb_put(skb, 3+name_len+attr_len);
 	frame = skb->data;
 
 	/* Build frame */
-	frame[0] = LST | GET_VALUE_BY_CLASS;
+	frame[0] = IAP_LST | GET_VALUE_BY_CLASS;
 	frame[1] = name_len;                       /* Insert length of name */
-	memcpy( frame+2, name, name_len);          /* Insert name */
+	memcpy(frame+2, name, name_len);           /* Insert name */
 	frame[2+name_len] = attr_len;              /* Insert length of attr */
-	memcpy( frame+3+name_len, attr, attr_len); /* Insert attr */
+	memcpy(frame+3+name_len, attr, attr_len);  /* Insert attr */
 
-	iriap_do_client_event( self, IAP_CALL_REQUEST_GVBC, skb);
+	iriap_do_client_event(self, IAP_CALL_REQUEST_GVBC, skb);
 }
 
 /*
@@ -377,161 +410,175 @@ void iriap_getvaluebyclass_request( __u32 daddr, char *name, char *attr,
  *    to service user.
  *
  */
-void iriap_getvaluebyclass_confirm( struct iriap_cb *self, 
-				    struct sk_buff *skb) 
+void iriap_getvaluebyclass_confirm(struct iriap_cb *self, struct sk_buff *skb) 
 {
 	struct ias_value *value;
-	__u16 obj_id;
-	int   len;
-	__u8  type;
-	int   value_len;
-	__u8 *fp;
 	int n;
+	int charset;
+	__u32 value_len;
+	__u32 tmp_cpu32;
+	__u16 obj_id;
+	__u16 len;
+	__u8  type;
+	__u8 *fp;
 
-	ASSERT( self != NULL, return;);
-	ASSERT( self->magic == IAS_MAGIC, return;);
-	ASSERT( skb != NULL, return;);
+	ASSERT(self != NULL, return;);
+	ASSERT(self->magic == IAS_MAGIC, return;);
+	ASSERT(skb != NULL, return;);
 
 	/* Initialize variables */
 	fp = skb->data;
 	n = 2;
 
 	/* Get length, MSB first */
-	len = ntohs( *(__u16 *)( fp+n)); n += 2;
+	len = be16_to_cpu(get_unaligned((__u16 *)(fp+n))); n += 2;
 
-	DEBUG( 4, "iriap_getvaluebyclass_confirm: len=%d\n", len);
+	DEBUG(4, __FUNCTION__ "(), len=%d\n", len);
 
 	/* Get object ID, MSB first */
-	obj_id = ntohs( *(__u16 *)( fp+n)); n += 2;
+	obj_id = be16_to_cpu(get_unaligned((__u16 *)(fp+n))); n += 2;
+/* 	memcpy(&obj_id, fp+n, 2); n += 2; */
+/* 	be16_to_cpus(&obj_id); */
 
 	type = fp[n++];
 	DEBUG( 4, __FUNCTION__ "(), Value type = %d\n", type);
 
-
 	switch( type) {
 	case IAS_INTEGER:
-		value = irias_new_integer_value( ntohl(*(__u32 *)(fp+n)));
-		/* 
-		 *  Legal values restricted to 0x01-0x6f, page 15 irttp 
-		 */
-		DEBUG( 4, "iriap_getvaluebyclass_confirm: lsap=%d\n", 
-		       value->t.integer); 
+		memcpy(&tmp_cpu32, fp+n, 4); n += 4;
+		be32_to_cpus(&tmp_cpu32);
+		value = irias_new_integer_value(tmp_cpu32);
+
+		/*  Legal values restricted to 0x01-0x6f, page 15 irttp */
+		DEBUG( 4, __FUNCTION__ "(), lsap=%d\n", value->t.integer); 
 		break;
 	case IAS_STRING:
-		/* FIXME: check len of string, and if string is/should be
-		 *  null terminated? */
-		ASSERT( fp[n++] == 0, return;); /* ASCII only! */
+		charset = fp[n++];
+
+		switch(charset) {
+		case CS_ASCII:
+			break;
+/* 		case CS_ISO_8859_1: */
+/* 		case CS_ISO_8859_2: */
+/* 		case CS_ISO_8859_3: */
+/* 		case CS_ISO_8859_4: */
+/* 		case CS_ISO_8859_5: */
+/* 		case CS_ISO_8859_6: */
+/* 		case CS_ISO_8859_7: */
+/* 		case CS_ISO_8859_8: */
+/* 		case CS_ISO_8859_9: */
+/* 		case CS_UNICODE: */
+		default:
+			DEBUG(0, __FUNCTION__"(), charset %s, not supported\n",
+			      ias_charset_types[charset]);
+			return;
+			/* break; */
+		}
 		value_len = fp[n++];
-		DEBUG( 0, __FUNCTION__ "(), strlen=%d\n", value_len);
+		DEBUG(4, __FUNCTION__ "(), strlen=%d\n", value_len);
 		ASSERT( value_len < 64, return;);
 		
-		DEBUG( 0, "Got string %s\n", fp+n);
-
-		value = irias_new_string_value( fp+n);
-
+		/* Make sure the string is null-terminated */
+		fp[n+value_len] = 0x00;
+		
+		DEBUG(4, "Got string %s\n", fp+n);
+		value = irias_new_string_value(fp+n);
 		break;
 	case IAS_OCT_SEQ:
-		value_len = ntohs( *(__u16 *)( fp+n)); n += 2;
+		value_len = be16_to_cpu(get_unaligned((__u16 *)(fp+n)));
+		n += 2;
 		
 		/* FIXME:should be 1024, but.... */
-		DEBUG( 0, __FUNCTION__ "():octet sequence:len=%d\n",
-		       value_len);
+		DEBUG(0, __FUNCTION__ "():octet sequence:len=%d\n", value_len);
 		ASSERT(value_len <= 55, return;);      
 		
-		value = irias_new_octseq_value( fp+n, value_len);
-		
+		value = irias_new_octseq_value(fp+n, value_len);
 		break;
 	default:
 		value = &missing;
 		break;
 	}
 	
-	if ( self->confirm)
-		self->confirm(obj_id, value, self->priv);
-	
-	/*
-	 * Finished, close connection!
-	 */
-	iriap_disconnect_request( self);
+	/* Finished, close connection! */
+	iriap_disconnect_request(self);
+
+	if (self->confirm)
+		self->confirm(IAS_SUCCESS, obj_id, value, self->priv);
 }
 
 /*
  * Function iriap_getvaluebyclass_response ()
  *
- *    Send answer to getvaluebyclass_indication back to peer LM-IAS
+ *    Send answer back to remote LM-IAS
  * 
  */
-void iriap_getvaluebyclass_response( struct iriap_cb *self,
-				     __u16 obj_id, 
-				     __u8 ret_code,
-				     struct ias_value *value)
+void iriap_getvaluebyclass_response(struct iriap_cb *self, __u16 obj_id, 
+				    __u8 ret_code, struct ias_value *value)
 {
 	struct sk_buff *skb;
-	__u8 *fp;
 	int n;
+	__u32 tmp_be32, tmp_be16;
+	__u8 *fp;
 
-	DEBUG( 4, "iriap_getvaluebyclass_response()\n");
+	DEBUG( 4, __FUNCTION__ "()\n");
 
 	ASSERT( self != NULL, return;);
 	ASSERT( self->magic == IAS_MAGIC, return;);
+	ASSERT( value != NULL, return;);
+	ASSERT( value->len <= 1024, return;);
 
 	/* Initialize variables */
 	n = 0;
 
 	/* 
-	 *  FIXME: adjust the size of the response after the length of the 
-	 *  value 
+	 *  We must adjust the size of the response after the length of the 
+	 *  value. We add 9 bytes because of the 6 bytes for the frame and
+	 *  max 3 bytes for the value coding.
 	 */
-	skb = dev_alloc_skb( 64);
-	if (skb == NULL) {
-		DEBUG( 0, __FUNCTION__ "(),"
-		       "Could not allocate an skb of length %d\n", 64);
+	skb = dev_alloc_skb(value->len + LMP_HEADER + LAP_HEADER + 9);
+	if (!skb)
 		return;
-	}
 
 	/* Reserve space for MUX and LAP header */
- 	skb_reserve( skb, LMP_CONTROL_HEADER+LAP_HEADER);
+ 	skb_reserve( skb, LMP_HEADER+LAP_HEADER);
 	skb_put( skb, 6);
 	
 	fp = skb->data;
 
 	/* Build frame */
-	fp[n++] = GET_VALUE_BY_CLASS | LST;
+	fp[n++] = GET_VALUE_BY_CLASS | IAP_LST;
 	fp[n++] = ret_code;
 
 	/* Insert list length (MSB first) */
-	*((__u16 *) (fp+n)) = __constant_htons( 0x0001); n += 2; 
+	tmp_be16 = __constant_htons(0x0001);
+	memcpy(fp+n, &tmp_be16, 2);  n += 2; 
 
 	/* Insert object identifier ( MSB first) */
-	*((__u16 *) (fp+n)) = htons( obj_id); n += 2;
+	tmp_be16 = cpu_to_be16(obj_id);
+	memcpy(fp+n, &tmp_be16, 2); n += 2;
 
-	switch( value->type) {
+	switch(value->type) {
 	case IAS_STRING:
-		skb_put( skb, 3 + value->len);
+		skb_put(skb, 3 + value->len);
 		fp[n++] = value->type;
 		fp[n++] = 0; /* ASCII */
 		fp[n++] = (__u8) value->len;
-		memcpy( fp+n, value->t.string, value->len); n+=value->len;
+		memcpy(fp+n, value->t.string, value->len); n+=value->len;
 		break;
 	case IAS_INTEGER:
-		skb_put( skb, 5);
+		skb_put(skb, 5);
 		fp[n++] = value->type;
 		
-		*((__u32 *)(fp+n)) = htonl(value->t.integer); n+=4;
+		tmp_be32 = cpu_to_be32(value->t.integer);
+		memcpy(fp+n, &tmp_be32, 4); n += 4;
 		break;
 	case IAS_OCT_SEQ:
-		
-		/* FIXME:
-		 * we can send only 55 octets at this time. 
-		 * we should be able to send 1024 octets.       TH
-		 */
-
-		ASSERT(value->len <= 55, return ;);
-		skb_put( skb, 3 + value->len);
+		skb_put(skb, 3 + value->len);
 		fp[n++] = value->type;
-		*((__u16 *)(fp+n)) = htons(value->len); n+=2;
+
+		tmp_be16 = cpu_to_be16(value->len);
+		memcpy(fp+n, &tmp_be16, 2); n += 2;
 		memcpy(fp+n, value->t.oct_seq, value->len); n+=value->len;
-		
 		break;
 	case IAS_MISSING:
 		DEBUG( 3, __FUNCTION__ ": sending IAS_MISSING\n");
@@ -540,11 +587,10 @@ void iriap_getvaluebyclass_response( struct iriap_cb *self,
 		break;
 
 	default:
-		DEBUG( 0, "iriap_getvaluebyclass_response: "
-		       "type not implemented!\n");
+		DEBUG(0, __FUNCTION__ "(), type not implemented!\n");
 		break;
 	}
-	iriap_do_r_connect_event( self, IAP_CALL_RESPONSE, skb);
+	iriap_do_r_connect_event(self, IAP_CALL_RESPONSE, skb);
 }
 
 /*
@@ -553,8 +599,8 @@ void iriap_getvaluebyclass_response( struct iriap_cb *self,
  *    getvaluebyclass is requested from peer LM-IAS
  *
  */
-void iriap_getvaluebyclass_indication( struct iriap_cb *self,
-				       struct sk_buff *skb)
+void iriap_getvaluebyclass_indication(struct iriap_cb *self, 
+				      struct sk_buff *skb)
 {
 	__u8 *fp;
 	int n;
@@ -562,11 +608,10 @@ void iriap_getvaluebyclass_indication( struct iriap_cb *self,
 	int attr_len;
 	char name[64];
 	char attr[64];
- 	char both[128];
  	struct ias_object *obj;
 	struct ias_attrib *attrib;
 
-	DEBUG( 4, "iriap_getvaluebyclass_indication()\n");
+	DEBUG( 4, __FUNCTION__ "()\n");
 
 	ASSERT( self != NULL, return;);
 	ASSERT( self->magic == IAS_MAGIC, return;);
@@ -588,30 +633,26 @@ void iriap_getvaluebyclass_indication( struct iriap_cb *self,
 	/* 
 	 *  Now, do some advanced parsing! :-) 
 	 */
-	DEBUG( 9, "LM-IAS: Looking up %s: %s\n", name, attr);
-
-	sprintf( both, "%s:%s", name, attr);
-	DEBUG( 0, "LM-IAS: looking for %s\n", both);
-
-	obj = irias_find_object( name);
-
+	DEBUG(4, "LM-IAS: Looking up %s: %s\n", name, attr);
+	obj = irias_find_object(name);
+	
 	if ( obj == NULL) {
 		DEBUG( 0, "LM-IAS: Object not found\n");
 		iriap_getvaluebyclass_response( self, 0x1235, 
 						IAS_CLASS_UNKNOWN, &missing);
 		return;
 	}
-	DEBUG( 0, "LM-IAS: found %s, id=%d\n", obj->name, obj->id);
+	DEBUG(4, "LM-IAS: found %s, id=%d\n", obj->name, obj->id);
 	
 	attrib = irias_find_attrib( obj, attr);
 	if ( attrib == NULL) {
 		DEBUG( 0, "LM-IAS: Attribute %s not found\n", attr);
-		iriap_getvaluebyclass_response( self, obj->id, 
-						IAS_ATTRIB_UNKNOWN, &missing);
+		iriap_getvaluebyclass_response(self, obj->id,
+					       IAS_ATTRIB_UNKNOWN, &missing);
 		return;
 	}
 	
-	DEBUG( 0, "LM-IAS: found %s\n", attrib->name);
+	DEBUG(4, "LM-IAS: found %s\n", attrib->name);
 	
 	/*
 	 * We have a match; send the value.
@@ -633,17 +674,14 @@ void iriap_send_ack( struct iriap_cb *self)
 	struct sk_buff *skb;
 	__u8 *frame;
 
-	DEBUG( 6, "iriap_send_ack()\n");
+	DEBUG( 6, __FUNCTION__ "()\n");
 
 	ASSERT( self != NULL, return;);
 	ASSERT( self->magic == IAS_MAGIC, return;);
 
-	skb =  dev_alloc_skb( 64);
-	if (skb == NULL) {
-		DEBUG( 0, "iriap_send_ack: "
-		       "Could not allocate an sk_buff of length %d\n", 64);
+	skb = dev_alloc_skb( 64);
+	if (!skb)
 		return;
-	}
 
 	/* Reserve space for MUX and LAP header */
  	skb_reserve( skb, 4);
@@ -651,7 +689,7 @@ void iriap_send_ack( struct iriap_cb *self)
 	frame = skb->data;
 
 	/* Build frame */
-	frame[0] = LST | self->operation;
+	frame[0] = IAP_LST | self->operation;
 }
 
 /*
@@ -660,22 +698,22 @@ void iriap_send_ack( struct iriap_cb *self)
  *    LSAP connection confirmed!
  *
  */
-void iriap_connect_confirm( void *instance, void *sap, struct qos_info *qos, 
-			    int max_sdu_size, struct sk_buff *userdata)
+void iriap_connect_confirm(void *instance, void *sap, struct qos_info *qos, 
+			   __u32 max_sdu_size, struct sk_buff *userdata)
 {
 	struct iriap_cb *self;
 	
-	self = ( struct iriap_cb *) instance;
+	self = (struct iriap_cb *) instance;
 
-	ASSERT( self != NULL, return;);
-	ASSERT( self->magic == IAS_MAGIC, return;);
-	ASSERT( userdata != NULL, return;);
+	ASSERT(self != NULL, return;);
+	ASSERT(self->magic == IAS_MAGIC, return;);
+	ASSERT(userdata != NULL, return;);
 	
-	DEBUG( 4, "iriap_connect_confirm()\n");
+	DEBUG(4, __FUNCTION__ "()\n");
 	
-	del_timer( &self->watchdog_timer);
+	/* del_timer( &self->watchdog_timer); */
 
-	iriap_do_client_event( self, IAP_LM_CONNECT_CONFIRM, userdata);
+	iriap_do_client_event(self, IAP_LM_CONNECT_CONFIRM, userdata);
 }
 
 /*
@@ -684,13 +722,13 @@ void iriap_connect_confirm( void *instance, void *sap, struct qos_info *qos,
  *    Remote LM-IAS is requesting connection
  *
  */
-void iriap_connect_indication( void *instance, void *sap, 
-			       struct qos_info *qos, int max_sdu_size,
-			       struct sk_buff *userdata)
+static void iriap_connect_indication(void *instance, void *sap, 
+				     struct qos_info *qos, __u32 max_sdu_size,
+				     struct sk_buff *userdata)
 {
 	struct iriap_cb *self;
 
-	DEBUG( 4, "iriap_connect_indication()\n");
+	DEBUG( 4, __FUNCTION__ "()\n");
 
 	self = ( struct iriap_cb *) instance;
 
@@ -707,58 +745,74 @@ void iriap_connect_indication( void *instance, void *sap,
  *    Receives data from connection identified by handle from IrLMP
  *
  */
-void iriap_data_indication( void *instance, void *sap, struct sk_buff *skb) 
+static int iriap_data_indication(void *instance, void *sap, 
+				 struct sk_buff *skb) 
 {
 	struct iriap_cb *self;
 	__u8  *frame;
 	__u8  opcode;
 	
-	DEBUG( 4, "iriap_data_indication()\n"); 
+	DEBUG( 4, __FUNCTION__ "()\n"); 
 	
-	self = ( struct iriap_cb *) instance;
+	self = (struct iriap_cb *) instance;
 
-	ASSERT( self != NULL, return;);
-	ASSERT( self->magic == IAS_MAGIC, return;);
+	ASSERT(self != NULL, return 0;);
+	ASSERT(self->magic == IAS_MAGIC, return 0;);
 
-	ASSERT( skb != NULL, return;);
+	ASSERT(skb != NULL, return 0;);
 
 	frame = skb->data;
 	
-	if ( self->mode == IAS_SERVER) {
+	if (self->mode == IAS_SERVER) {
 		/* Call server */
-		DEBUG( 4, __FUNCTION__ "(), Calling server!\n");
+		DEBUG(4, __FUNCTION__ "(), Calling server!\n");
 		iriap_do_r_connect_event( self, IAP_RECV_F_LST, skb);
 
-		return;
+		return 0;
 	}
 	opcode = frame[0];
 	if ( ~opcode & 0x80) {
 		printk( KERN_ERR "IrIAS multiframe commands or results is "
 			"not implemented yet!\n");
-		return;
+		return 0;
 	}
 
-	if ( ~opcode &0x40) {
-		DEBUG( 4, "Got ack frame!\n");
+	if (~opcode & IAP_ACK) {
+		DEBUG(2, __FUNCTION__ "() Got ack frame!\n");
 	/* 	return; */
 	}
 
-	opcode &= 0x7f; /* Mask away LST bit */
+	opcode &= ~IAP_LST; /* Mask away LST bit */
 	
-	switch( opcode) {
+	switch(opcode) {
 	case GET_INFO_BASE:
 		DEBUG( 0, "IrLMP GetInfoBaseDetails not implemented!\n");
 		break;
 	case GET_VALUE_BY_CLASS:
 		DEBUG( 4,"IrLMP GetValueByClass\n");
 		
-		if ( frame[1] == 0x01) {
-			printk( KERN_WARNING "IrIAP No such class!\n");
-		} else if ( frame[1] == 0x02) {
-			printk( KERN_WARNING 
-				"IrIAP No such attribute!\n");
-		} else {
-			iriap_getvaluebyclass_confirm( self, skb);
+		switch(frame[1]) {
+		case IAS_SUCCESS:
+			iriap_getvaluebyclass_confirm(self, skb);
+			break;
+		case IAS_CLASS_UNKNOWN:
+			printk(KERN_WARNING "IrIAP No such class!\n");
+			/* Finished, close connection! */
+			iriap_disconnect_request(self);
+
+			if (self->confirm)
+				self->confirm(IAS_CLASS_UNKNOWN, 0, NULL, 
+					      self->priv);
+			break;
+		case IAS_ATTRIB_UNKNOWN:
+			printk(KERN_WARNING "IrIAP No such attribute!\n");
+		       	/* Finished, close connection! */
+			iriap_disconnect_request(self);
+
+			if (self->confirm)
+				self->confirm(IAS_CLASS_UNKNOWN, 0, NULL, 
+					      self->priv);
+			break;
 		}
 		iriap_do_call_event( self, IAP_RECV_F_LST, skb);
 
@@ -769,10 +823,10 @@ void iriap_data_indication( void *instance, void *sap, struct sk_buff *skb)
 		iriap_close( self);
 		break;
 	default:
-		DEBUG( 0, "iriap_data_indication: Unknown op-code: %02x\n", 
-		       opcode);
+		DEBUG(0, __FUNCTION__ "(), Unknown op-code: %02x\n", opcode);
 		break;
 	}
+	return 0;
 }
 
 /*
@@ -786,7 +840,7 @@ void iriap_call_indication( struct iriap_cb *self, struct sk_buff *skb)
 	__u8 *fp;
 	__u8  opcode;
 
-	DEBUG( 4, "iriap_call_indication()\n");
+	DEBUG( 4, __FUNCTION__ "()\n");
 
 	ASSERT( self != NULL, return;);
 	ASSERT( self->magic == IAS_MAGIC, return;);
@@ -812,16 +866,20 @@ void iriap_call_indication( struct iriap_cb *self, struct sk_buff *skb)
 	}
 }
 
+/*
+ * Function iriap_watchdog_timer_expired (data)
+ *
+ *    
+ *
+ */
 void iriap_watchdog_timer_expired( unsigned long data)
 {
 	struct iriap_cb *self = ( struct iriap_cb *) data;
 	
-	DEBUG( 4, __FUNCTION__ "()\n");
+	ASSERT(self != NULL, return;);
+	ASSERT(self->magic == IAS_MAGIC, return;);
 
-	ASSERT( self != NULL, return;);
-	ASSERT( self->magic == IAS_MAGIC, return;);
-
-	DEBUG( 0, __FUNCTION__ "() Timeout! closing myself!\n");
+	DEBUG(0, __FUNCTION__ "() Timeout! closing myself!\n");
 	iriap_close( self);
 }
 
@@ -834,23 +892,7 @@ static char *ias_value_types[] = {
 	"IAS_STRING"
 };
 
-/* FIXME: This one should go in irlmp.c */
-static char *ias_charset_types[] = {
-	"CS_ASCII",
-	"CS_ISO_8859_1",
-	"CS_ISO_8859_2",
-	"CS_ISO_8859_3",
-	"CS_ISO_8859_4",
-	"CS_ISO_8859_5",
-	"CS_ISO_8859_6",
-	"CS_ISO_8859_7",
-	"CS_ISO_8859_8",
-	"CS_ISO_8859_9",
-	"CS_UNICODE"
-};
-
-int irias_proc_read( char *buf, char **start, off_t offset, int len, 
-		     int unused)
+int irias_proc_read(char *buf, char **start, off_t offset, int len, int unused)
 {
 	struct ias_object *obj;
 	struct ias_attrib *attrib;
@@ -907,8 +949,8 @@ int irias_proc_read( char *buf, char **start, off_t offset, int len,
 			}
 			len += sprintf( buf+len, "\n");
 			
-			attrib = ( struct ias_attrib *) 
-				hashbin_get_next( obj->attribs);
+			attrib = (struct ias_attrib *) 
+				hashbin_get_next(obj->attribs);
 		}
 	        obj = ( struct ias_object *) hashbin_get_next( objects);
  	} 

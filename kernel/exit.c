@@ -32,9 +32,9 @@ void release(struct task_struct * p)
 		 */
 		for (;;)  {
 			int has_cpu;
-			spin_lock(&scheduler_lock);
+			spin_lock_irq(&runqueue_lock);
 			has_cpu = p->has_cpu;
-			spin_unlock(&scheduler_lock);
+			spin_unlock_irq(&runqueue_lock);
 			if (!has_cpu)
 				break;
 			do {
@@ -169,7 +169,7 @@ static inline void close_files(struct files_struct * files)
 				struct file * file = files->fd[i];
 				if (file) {
 					files->fd[i] = NULL;
-					close_fp(file, files);
+					filp_close(file, files);
 				}
 			}
 			i++;

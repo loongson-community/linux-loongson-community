@@ -179,13 +179,25 @@ static void sb_intr (sb_devc *devc)
 		status = inb(DSP_DATA_AVL16);
 }
 
+static void pci_intr(sb_devc *devc)
+{
+	int src = inb(devc->pcibase+0x1A);
+	src&=3;
+	if(src)
+		sb_intr(devc);
+}
+
 static void sbintr(int irq, void *dev_id, struct pt_regs *dummy)
 {
-    sb_devc *devc = dev_id;
+	sb_devc *devc = dev_id;
 
 	devc->irq_ok = 1;
 
 	switch (devc->model) {
+	case MDL_ESSPCI:
+		pci_intr (devc);
+		break;
+		
 	case MDL_ESS:
 		ess_intr (devc);
 		break;
@@ -249,7 +261,7 @@ static void dsp_get_vers(sb_devc * devc)
 			}
 		}
 	}
-	DDB(printk("DSP version %d.%d\n", devc->major, devc->minor));
+	DDB(printk("DSP version %d.%02d\n", devc->major, devc->minor));
 	restore_flags(flags);
 }
 
@@ -478,7 +490,7 @@ static void relocate_ess1688(sb_devc * devc)
 #endif
 }
 
-int sb_dsp_detect(struct address_info *hw_config)
+int sb_dsp_detect(struct address_info *hw_config, int pci, int pciio)
 {
 	sb_devc sb_info;
 	sb_devc *devc = &sb_info;
@@ -508,7 +520,26 @@ int sb_dsp_detect(struct address_info *hw_config)
 	devc->dma8 = hw_config->dma;
 
 	devc->dma16 = -1;
-
+	devc->pcibase = pciio;
+	
+	if(pci == SB_PCI_ESSMAESTRO)
+	{
+		devc->model = MDL_ESSPCI;
+		devc->caps |= SB_PCI_IRQ;
+		hw_config->driver_use_1 |= SB_PCI_IRQ;
+		hw_config->card_subtype	= MDL_ESSPCI;
+	}
+	
+	if(pci == SB_PCI_YAMAHA)
+	{
+		devc->model = MDL_YMPCI;
+		devc->caps |= SB_PCI_IRQ;
+		hw_config->driver_use_1 |= SB_PCI_IRQ;
+		hw_config->card_subtype	= MDL_YMPCI;
+		
+		printk("Yamaha PCI mode.\n");
+	}
+	
 	if (acer)
 	{
 		cli();
@@ -569,6 +600,16 @@ int sb_dsp_detect(struct address_info *hw_config)
 				}
 		}
 	}
+	
+	if(devc->type == MDL_ESSPCI)
+		devc->model = MDL_ESSPCI;
+		
+	if(devc->type == MDL_YMPCI)
+	{
+		printk("YMPCI selected\n");
+		devc->model = MDL_YMPCI;
+	}
+		
 	/*
 	 * Save device information for sb_dsp_init()
 	 */
@@ -581,7 +622,7 @@ int sb_dsp_detect(struct address_info *hw_config)
 		return 0;
 	}
 	memcpy((char *) detected_devc, (char *) devc, sizeof(sb_devc));
-	MDB(printk(KERN_INFO "SB %d.%d detected OK (%x)\n", devc->major, devc->minor, hw_config->io_base));
+	MDB(printk(KERN_INFO "SB %d.%02d detected OK (%x)\n", devc->major, devc->minor, hw_config->io_base));
 	return 1;
 }
 
@@ -617,9 +658,17 @@ int sb_dsp_init(struct address_info *hw_config)
 
 	devc->caps = hw_config->driver_use_1;
 
-	if (!(devc->caps & SB_NO_AUDIO && devc->caps & SB_NO_MIDI) && hw_config->irq > 0)
+	if (!((devc->caps & SB_NO_AUDIO) && (devc->caps & SB_NO_MIDI)) && hw_config->irq > 0)
 	{			/* IRQ setup */
-		if (request_irq(hw_config->irq, sbintr, 0, "soundblaster", devc) < 0)
+		
+		/*
+		 *	ESS PCI cards do shared PCI IRQ stuff. Since they
+		 *	will get shared PCI irq lines we must cope.
+		 */
+		 
+		int i=(devc->caps&SB_PCI_IRQ)?SA_SHIRQ:0;
+		
+		if (request_irq(hw_config->irq, sbintr, i, "soundblaster", devc) < 0)
 		{
 			printk(KERN_ERR "SB: Can't allocate IRQ%d\n", hw_config->irq);
 			return 0;
@@ -768,7 +817,7 @@ int sb_dsp_init(struct address_info *hw_config)
 	if (hw_config->name == NULL)
 		hw_config->name = "Sound Blaster (8 BIT/MONO ONLY)";
 
-	sprintf(name, "%s (%d.%d)", hw_config->name, devc->major, devc->minor);
+	sprintf(name, "%s (%d.%02d)", hw_config->name, devc->major, devc->minor);
 	conf_printf(name, hw_config);
 
 	/*
@@ -789,7 +838,7 @@ int sb_dsp_init(struct address_info *hw_config)
 		}
 		else if (!sb_be_quiet && devc->model == MDL_SBPRO)
 		{
-			printk(KERN_INFO "SB DSP version is just %d.%d which means that your card is\n", devc->major, devc->minor);
+			printk(KERN_INFO "SB DSP version is just %d.%02d which means that your card is\n", devc->major, devc->minor);
 			printk(KERN_INFO "several years old (8 bit only device) or alternatively the sound driver\n");
 			printk(KERN_INFO "is incorrectly configured.\n");
 		}
@@ -1194,6 +1243,10 @@ int probe_sbmpu(struct address_info *hw_config)
 				return 0;
 			break;
 
+		case MDL_YMPCI:
+			hw_config->name = "Yamaha PCI Legacy";
+			printk("Yamaha PCI legacy UART401 check.\n");
+			break;
 		default:
 			return 0;
 	}

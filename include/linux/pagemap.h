@@ -17,10 +17,29 @@ static inline unsigned long page_address(struct page * page)
 	return PAGE_OFFSET + PAGE_SIZE * (page - mem_map);
 }
 
-#define PAGE_HASH_BITS 11
-#define PAGE_HASH_SIZE (1 << PAGE_HASH_BITS)
+/*
+ * The page cache can done in larger chunks than
+ * one page, because it allows for more efficient
+ * throughput (it can then be mapped into user
+ * space in smaller chunks for same flexibility).
+ *
+ * Or rather, it _will_ be done in larger chunks.
+ */
+#define PAGE_CACHE_SHIFT	PAGE_SHIFT
+#define PAGE_CACHE_SIZE		PAGE_SIZE
+#define PAGE_CACHE_MASK		PAGE_MASK
 
-#define PAGE_AGE_VALUE 16
+#define page_cache_alloc()	__get_free_page(GFP_USER)
+#define page_cache_free(x)	free_page(x)
+#define page_cache_release(x)	__free_page(x)
+
+/*
+ * From a kernel address, get the "struct page *"
+ */
+#define page_cache_entry(x)	(mem_map + MAP_NR(x))
+
+#define PAGE_HASH_BITS 12
+#define PAGE_HASH_SIZE (1 << PAGE_HASH_BITS)
 
 extern unsigned long page_cache_size; /* # of pages currently in the hash table */
 extern struct page * page_hash_table[PAGE_HASH_SIZE];

@@ -17,6 +17,8 @@
 #     ftp://ftp-pavia1.linux.it/pub/linux/Configure.help
 #   - Polish, by Cezar Cichocki (cezar@cs.net.pl), at
 #     http://www.cs.net.pl/~cezar/Kernel
+#   - German, by Jörg Strebel (jstrebel@suse.de) and Karl Eichwalder
+#     (ke@suse.de), at http://www.suse.de/~ke/kernel/Configure.de.help.gz
 #
 # Information about what a kernel is, what it does, how to patch and
 # compile it and much more is contained in the Kernel-HOWTO, available
@@ -51,7 +53,7 @@
 # All this was shamelessly stolen from several different sources. Many
 # thanks to all the contributors. Feel free to use these help texts in
 # your own kernel configuration tools. The texts are copyrighted (c)
-# 1995-1998 by Axel Boldt and many others and are governed by the GNU
+# 1995-1999 by Axel Boldt and many others and are governed by the GNU
 # General Public License.
 
 Prompt for development and/or incomplete code/drivers
@@ -69,7 +71,7 @@ CONFIG_EXPERIMENTAL
   in some special cases. Detailed bug reports from people familiar
   with the kernel internals are usually welcomed by the developers
   (before submitting bug reports, please read the documents README,
-  MAINTAINERS, Documentation/BUG-HUNTING, and
+  MAINTAINERS, REPORTING_BUGS, Documentation/BUG-HUNTING, and
   Documentation/oops-tracing.txt in the kernel source). 
 
   Unless you intend to help test and develop a feature or driver that
@@ -81,29 +83,32 @@ CONFIG_EXPERIMENTAL
 
 Symmetric Multi Processing
 CONFIG_SMP
-  This enables support for systems with more than one CPU.  If you have a
-  system with only one CPU, like most personal computers, say N.  If you
-  have a system with more than one CPU, say Y.
+  This enables support for systems with more than one CPU. If you have
+  a system with only one CPU, like most personal computers, say N. If
+  you have a system with more than one CPU, say Y.
 
-  A non-SMP kernel will run on any machine, but will use only one CPU of
-  a multi-CPU machine.  An SMP kernel will run on many, but not all,
-  single-CPU machines.  On a single-CPU machine, a non-SMP kernel
-  will run faster than an SMP kernel.
+  If you say N here, the kernel will run on single and multiprocessor
+  machines, but will use only one CPU of a multiprocessor machine. If
+  you say Y here, the kernel will run on many, but not all,
+  singleprocessor machines. On a singleprocessor machine, the kernel
+  will run faster if you say N here.
 
-  i486 based SMP boards don't boot CONFIG_M586/M686 kernels. CONFIG_M686
-  SMP kernels might not work on all Pentium based boards.
+  Note that if you say Y here and choose architecture "586" or
+  "Pentium" under "Processor family", the kernel will not work on 486
+  architectures. Similarly, multiprocessor kernels for the "PPro"
+  architecture may not work on all Pentium based boards.
 
-  People using multiprocessor machines should also say Y to "Enhanced
-  Real Time Clock Support", below.  The "Advanced Power Management"
-  code will be disabled in an SMP kernel.
+  People using multiprocessor machines who say Y here should also say
+  Y to "Enhanced Real Time Clock Support", below. The "Advanced Power
+  Management" code will be disabled if you say Y here.
 
-  If you don't know what to do here, say N.
-  
   See also: Documentation/SMP.txt, Documentation/smp.tex,
   Documentation/smp.txt, and Documentation/IO-APIC.txt.  Also see the
   SMP-FAQ on the WWW at http://www.irisa.fr/prive/mentre/smp-faq/ (to
   browse the WWW, you need to have access to a machine on the Internet
   that has a program like lynx or netscape).
+  
+  If you don't know what to do here, say N.
   
 Kernel math emulation
 CONFIG_MATH_EMULATION
@@ -124,19 +129,44 @@ CONFIG_MATH_EMULATION
   available via FTP (user: anonymous) in
   ftp://metalab.unc.edu/pub/Linux/docs/HOWTO.) This means that it is a
   good idea to say Y here if you intend to use this kernel on
-  different machines. More information about the internals of Linux
-  math coprocessor emulation can be found in
-  arch/i386/math-emu/README.
+  different machines. 
+
+  More information about the internals of the Linux math coprocessor
+  emulation can be found in arch/i386/math-emu/README.
 
   If you are not sure, say Y; apart from resulting in a 45 KB bigger
   kernel, it won't hurt.
+  
+Timer and CPU usage LEDs
+CONFIG_LEDS
+  If you define this option, the LEDs on your machine will be used
+  to provide useful information about your current system status.
+
+  If you are compiling a kernel for a NetWinder or EBSA-285, you
+  will be able to select which LEDs are active using the options
+  below. If you are compiling a kernel for the EBSA-110 however,
+  the red LED will simply flash regularly to indicate that the
+  system is still functional. It is still safe to say yes here if
+  you have a CATS system, but the driver will do nothing.
+
+Timer LED
+CONFIG_LEDS_TIMER
+  If you say yes here, one of the system LEDs (the green one on the
+  NetWinder or the amber one on the EBSA285) will flash regularly to
+  indicate that the system is still operational. This is mainly
+  useful to kernel hackers who are debugging unstable kernels.
+
+CPU usage LED
+CONFIG_LEDS_CPU
+  If you say yes here, the red LED will be used to give a good real
+  time indication of CPU usage, by lighting whenever the idle task
+  is not currently executing.
 
 Kernel FP software completion
 CONFIG_MATHEMU
   This option is required for IEEE compliant floating point arithmetic
-  on the Alpha.  The only time you would ever not say Y is to say M
-  in order to debug the code.  Do not say anything but Y unless you
-  know what you are doing.
+  on the Alpha. The only time you would ever not say Y is to say M in
+  order to debug the code. Say Y unless you know what you are doing.
 
 Normal PC floppy disk support
 CONFIG_BLK_DEV_FD
@@ -216,8 +246,8 @@ CONFIG_BLK_DEV_LOOP
 
   To use the loop device, you need the losetup utility and a recent
   version of the mount program, both contained in the util-linux
-  package (available via FTP (user: anonymous) from
-  ftp://ftp.win.tue.nl/pub/linux/util/).
+  package. The location and current version number of util-linux is
+  contained in the file Documentation/Changes.
 
   Note that this loop device has nothing to do with the loopback
   device used for network connections from the machine to itself.
@@ -274,12 +304,19 @@ CONFIG_BLK_DEV_IDE
 
   To fine-tune IDE drive/interface parameters for improved
   performance, look for the hdparm package at
-  ftp://metalab.unc.edu:/pub/Linux/kernel/patches/diskdrives/
+  ftp://metalab.unc.edu/pub/Linux/kernel/patches/diskdrives/
 
-  If you have one or more IDE drives, say Y here. If your system has
-  no IDE drives, or if memory requirements are really tight, you could
-  say N here, and select the "Old hard disk driver" instead to save
-  about 13 KB of memory in the kernel.
+  If you want to compile this driver as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want),
+  say M here and read Documentation/modules.txt and
+  Documentation/ide.txt. The module will be called ide.o. Do not
+  compile this driver as a module if your root filesystem (the one
+  containing the directory /) is located on an IDE device.
+
+  If you have one or more IDE drives, say Y or M here. If your system
+  has no IDE drives, or if memory requirements are really tight, you
+  could say N here, and select the "Old hard disk driver" below
+  instead to save about 13 KB of memory in the kernel.
 
 Old hard disk (MFM/RLL/IDE) driver
 CONFIG_BLK_DEV_HD_ONLY
@@ -382,10 +419,12 @@ Include IDE/ATAPI FLOPPY support
 CONFIG_BLK_DEV_IDEFLOPPY
   If you have an IDE floppy drive which uses the ATAPI protocol,
   answer Y. ATAPI is a newer protocol used by IDE CDROM/tape/floppy
-  drives, similar to the SCSI protocol. IDE floppy drives include the
-  LS-120 and the ATAPI ZIP (ATAPI PD-CD/CDR drives are not supported
-  by this driver; support for PD-CD/CDR drives is available if you
-  answer Y to "SCSI emulation support", below).
+  drives, similar to the SCSI protocol. 
+
+  The LS-120 and the IDE/ATAPI Iomega ZIP drive are also supported by
+  this driver. (ATAPI PD-CD/CDR drives are not supported by this
+  driver; support for PD-CD/CDR drives is available if you answer Y to
+  "SCSI emulation support", below).
 
   If you say Y here, the FLOPPY drive will be identified along with
   other IDE devices, as "hdb" or "hdc", or something similar (check
@@ -464,7 +503,7 @@ CONFIG_BLK_DEV_RZ1000
 
 Generic PCI IDE chipset support
 CONFIG_BLK_DEV_IDEPCI
-  Enable this for PCI systems which use IDE drive(s).
+  Say Y here for PCI systems which use IDE drive(s).
   This option helps the IDE driver to automatically detect and
   configure all PCI-based IDE interfaces in your system.
   
@@ -519,7 +558,8 @@ CONFIG_IDEDMA_AUTO
   If you suspect your hardware is at all flakey, say N here.
   Do NOT email the IDE kernel people regarding this issue!
 
-  It is nearly always safe to say Y to this question.
+  It is normally safe to answer Y to this question unless your
+  motherboard uses a VIA VP2 chipset, in which case you should say N.
 
 Other IDE chipset support
 CONFIG_IDE_CHIPSETS
@@ -548,15 +588,16 @@ CONFIG_BLK_DEV_DTC2278
   This driver is enabled at runtime using the "ide0=dtc2278" kernel
   boot parameter. It enables support for the secondary IDE interface
   of the DTC-2278 card, and permits faster I/O speeds to be set as
-  well. See the Documentation/ide.txt and dtc2278.c files for more
-  info.
+  well. See the Documentation/ide.txt and drivers/block/dtc2278.c
+  files for more info.
 
 Holtek HT6560B support
 CONFIG_BLK_DEV_HT6560B
   This driver is enabled at runtime using the "ide0=ht6560b" kernel
   boot parameter. It enables support for the secondary IDE interface
   of the Holtek card, and permits faster I/O speeds to be set as well.
-  See the Documentation/ide.txt and ht6560b.c files for more info.
+  See the Documentation/ide.txt and drivers/block/ht6560b.c files for
+  more info.
 
 PROMISE DC4030 support (EXPERIMENTAL)
 CONFIG_BLK_DEV_PDC4030
@@ -572,6 +613,11 @@ PS/2 ESDI hard disk support
 CONFIG_BLK_DEV_PS2
   Say Y here if you have a PS/2 machine with a MCA bus and an ESDI
   hard disk.
+  
+  If you want to compile the driver as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want),
+  say M here and read Documentation/modules.txt. The module will be
+  called ps2esdi.o.
 
 Tekram TRM290 chipset support (EXPERIMENTAL)
 CONFIG_BLK_DEV_TRM290
@@ -601,36 +647,26 @@ CONFIG_BLK_DEV_VIA82C586
   If you say Y here, you also need to say Y to "Use DMA by default
   when available", above.
 
-  Please read the comments at the top of drivers/block/via82C586.c
-
   If unsure, say N.
 
 CMD646 chipset support (EXPERIMENTAL)
 CONFIG_BLK_DEV_CMD646
   Say Y here if you have an IDE controller like this.
 
-HPT343 chipset support (EXPERIMENTAL)
-CONFIG_BLK_DEV_HPT343
-  This driver adds up to 4 more EIDE devices sharing a single
-  interrupt. The HPT343 chipset in its current form is a non-bootable
-  PCI UDMA controller. This driver requires dynamic tuning of the
-  chipset during the ide-probe at boot. It is reported to support DVD
-  II drives, by the manufacturer.
-
-  Please read the comments at the top of drivers/block/hpt343.c
-
 QDI QD6580 support
 CONFIG_BLK_DEV_QD6580
   This driver is enabled at runtime using the "ide0=qd6580" kernel
   boot parameter. It permits faster I/O speeds to be set. See the
-  files Documentation/ide.txt and qd6580.c for more info.
+  files Documentation/ide.txt and drivers/block/qd6580.c for more
+  info.
 
 UMC 8672 support
 CONFIG_BLK_DEV_UMC8672
   This driver is enabled at runtime using the "ide0=umc8672" kernel
   boot parameter. It enables support for the secondary IDE interface
   of the UMC-8672, and permits faster I/O speeds to be set as well.
-  See the files Documentation/ide.txt and umc8672.c for more info.
+  See the files Documentation/ide.txt and drivers/block/umc8672.c for
+  more info.
 
 ALI M14xx support
 CONFIG_BLK_DEV_ALI14XX
@@ -638,7 +674,7 @@ CONFIG_BLK_DEV_ALI14XX
   boot parameter. It enables support for the secondary IDE interface
   of the ALI M1439/1443/1445/1487/1489 chipsets, and permits faster
   I/O speeds to be set as well. See the files Documentation/ide.txt
-  and ali14xx.c for more info.
+  and drivers/block/ali14xx.c for more info.
 
 XT hard disk support
 CONFIG_BLK_DEV_XD
@@ -1017,6 +1053,24 @@ CONFIG_ALGOR_P4032
   board uses the R4300 and a R5230 CPUs. For more information about
   this board see http://www.algor.co.uk.
 
+IDE card support
+CONFIG_BLK_DEV_IDE_CARDS
+  On Acorn systems, enable this if you wish to use an IDE interface
+  expansion card. If you do not or are unsure, say N to this.
+
+ICS IDE interface
+CONFIG_BLK_DEV_IDE_ICS
+  On Acorn systems, enable this if you wish to use the ICS IDE
+  interface card.  This is not required for ICS partition support.
+  If you are unsure, say N to this.
+
+ADFS partition support
+CONFIG_BLK_DEV_PART
+  This allows Linux on Acorn systems to determine its partitions in
+  the 'non-ADFS' partition area of the hard disk - usually located
+  after the ADFS partition.  You are probably using this system, so
+  you should enable it.
+
 Support for Mips Magnum 4000
 CONFIG_MIPS_MAGNUM_4000
   This is a machine with a R4000 100 MHz CPU. To compile a Linux
@@ -1068,24 +1122,9 @@ CONFIG_NET
   contained in the package net-tools, the location and version number
   of which are given in Documentation/Changes.
 
-Network aliasing
-CONFIG_NET_ALIAS
-  If you say Y here, you will be able to set multiple network
-  addresses on the same low-level network device driver. This is
-  typically used for services that act differently based on the
-  address they listen on (e.g. "multihosting" or "virtual domains" or
-  "virtual hosting services" on the web server apache and the ftp
-  server wuftpd -- read the Virtual-Services-HOWTO, available via FTP
-  (user: anonymous) from ftp://metalab.unc.edu/pub/Linux/docs/HOWTO)
-  or for connecting to different logical networks through the same
-  physical interface (most commonly an Ethernet networking card). See
-  Documentation/networking/alias.txt for more info.
-
-  This is the generic part, later when configuring network protocol
-  options you will be asked for protocol-specific aliasing support,
-  and you will have to say Y to at least one of them, most likely to
-  "IP: aliasing support". If you need this feature (for any protocol,
-  like IP) say Y; if unsure, say N.
+  For a general introduction to Linux networking, it is highly
+  recommended to read the NET-3-HOWTO, available via FTP (user:
+  anonymous) from ftp://metalab.unc.edu/pub/Linux/docs/HOWTO.
 
 Socket filtering
 CONFIG_FILTER
@@ -1178,12 +1217,12 @@ CONFIG_BLK_DEV_SUNFD
 Alpha system type
 CONFIG_ALPHA_GENERIC
   This is the system type of your hardware.  A "generic" kernel will
-  run on any supported Alpha system.  Configuring a kernel for one
-  specific system can save about 200K and operate more efficiently.
+  run on any supported Alpha system. However, if you configure a
+  kernel for your specific system, it will be faster and smaller.
 
   To find out what type of Alpha system you have, you may want to
   check out the Linux/Alpha FAQ, accessible on the WWW from
-  http://www.azstarnet.com/~axplinux/ (To browse the WWW, you need to
+  http://www.alphalinux.org (To browse the WWW, you need to
   have access to a machine on the Internet that has a program like
   lynx or netscape).  In summary:
 
@@ -1197,7 +1236,8 @@ CONFIG_ALPHA_GENERIC
   EB64+               EB64+ 21064 evaluation board
   EB66                EB66 21066 evaluation board
   EB66+               EB66+ 21066 evaluation board
-  Jensen              DECpc 150, DEC 2000 model 300, DEC 2000 model 500
+  Jensen              DECpc 150, DEC 2000 model 300, 
+                      DEC 2000 model 500
   LX164               AlphaPC164-LX
   Miata               Personal Workstation 433a, 433au, 500a,
                       500au, 600a, or 600au
@@ -1227,7 +1267,7 @@ CONFIG_ALPHA_SRM
   which is command line driven, and ARC, which uses menus and arrow
   keys. Details about the Linux/Alpha booting process are contained in
   the Linux/Alpha FAQ, accessible on the WWW from
-  http://www.azstarnet.com/~axplinux/ (To browse the WWW, you need to
+  http://www.alphalinux.org (To browse the WWW, you need to
   have access to a machine on the Internet that has a program like
   lynx or netscape).
 
@@ -1333,34 +1373,26 @@ CONFIG_PCI
   Find out whether you have a PCI motherboard. PCI is the name of a
   bus system, i.e. the way the CPU talks to the other stuff inside
   your box. Other bus systems are ISA, EISA, Microchannel (MCA) or
-  VESA. If you have PCI, say Y, otherwise N. The PCI-HOWTO, available
-  via FTP (user: anonymous) in
+  VESA. If you have PCI, say Y, otherwise N. 
+
+  The PCI-HOWTO, available via FTP (user: anonymous) in
   ftp://metalab.unc.edu/pub/Linux/docs/HOWTO, contains valuable
   information about which PCI hardware does work under Linux and which
   doesn't.
 
-  If some of your PCI devices don't work and you get a warning during
-  boot time ("man dmesg"), please follow the instructions at the top
-  of include/linux/pci.h.
-
 PCI access mode
 CONFIG_PCI_GOBIOS
-  If you have enabled PCI bus support above, you probably want to
-  allow Linux to use your PCI BIOS to detect the PCI devices and
-  determine their configuration. Note: some old PCI motherboards have
-  BIOS bugs and may crash if you say Y here -- for such motherboards,
-  you should say N here and say Y to "PCI direct access support"
-  instead.
+  On PCI systems, the BIOS can be used to detect the PCI devices and
+  determine their configuration. However, some old PCI motherboards
+  have BIOS bugs and may crash if this is done. Also, some embedded
+  PCI-based systems don't have any BIOS at all. Linux can also try to
+  detect the PCI hardware directly without using the BIOS.
 
-  Except for some special cases (embedded systems with no BIOS), you
-  probably should say Y here.
-
-  If you don't want to use the PCI BIOS (e.g., because you run some
-  embedded system with no BIOS at all) or Linux says it cannot use
-  your PCI BIOS, you can enable direct PCI hardware here. It might
-  fail if your machine is based on some unusual chipset, but it
-  usually works. If both PCI BIOS and direct PCI access are enabled,
-  the use of BIOS is preferred. If unsure, say Y.
+  With this option, you can specify how Linux should detect the PCI
+  devices. If you choose "BIOS", the BIOS will be used, if you choose
+  "Direct", the BIOS won't be used, and if you choose "Any", the
+  kernel will try the direct access method and falls back to the BIOS
+  if that doesn't work. If unsure, go with the default.
 
 PCI quirks
 CONFIG_PCI_QUIRKS
@@ -1385,11 +1417,8 @@ CONFIG_PCI_OLD_PROC
   PCI (/proc/bus/pci) has been implemented and the old one is
   supported for compatibility reasons only; you'll get the old one (in
   addition to the new one) if you say Y here and to "/proc filesystem
-  support", below. If unsure, say Y.
-
-If you say Y here and to the "/proc filesystem support" below, you
-  will get a directory /proc/pci with information about your PCI
-  hardware. If unsure, say Y.
+  support", below. If unsure, say Y. If you say N, you'll only get the
+  new /proc/bus/pci interface.
 
 MCA support
 CONFIG_MCA
@@ -1398,7 +1427,7 @@ CONFIG_MCA
   Documentation/mca.txt (and especially the web page given there)
   before attempting to build an MCA bus kernel.
 
-SGI Visal Workstation support
+SGI Visual Workstation support
 CONFIG_VISWS
   The SGI Visual Workstation series is an IA32-based workstation
   based on SGI systems chips with some legacy PC hardware attached.
@@ -1406,6 +1435,10 @@ CONFIG_VISWS
   A kernel compiled for the Visual Workstation will not run on other
   PC boards and vice versa.
   See Documentation/sgi-visws.txt for more.
+
+SGI Visual Workstation framebuffer support
+CONFIG_FB_SGIVW
+  SGI Visual Workstation support for framebuffer graphics.
 
 System V IPC
 CONFIG_SYSVIPC
@@ -1593,19 +1626,21 @@ CONFIG_M386
   all x86 CPU types (albeit not optimally fast), you can specify
   "386" here.
 
-  If you specify one of "486" or "Pentium" or "PPro", then the kernel
-  will not necessarily run on earlier architectures (ie a Pentium
-  optimized kernel will run on a PPro, but not necessarily on a i486).
+  If you specify one of "486" or "586" or "Pentium" or "PPro", then
+  the kernel will not necessarily run on earlier architectures (e.g. a
+  Pentium optimized kernel will run on a PPro, but not necessarily on
+  a i486).
 
   Here are the settings recommended for greatest speed:
-   - "386" for the AMD/Cyrix/Intel 386DX/DXL/SL/SLC/SX and
-     Cyrix/TI 486DLC/DLC2. Only "386" kernels will run on a 386 class
-     machine.
+   - "386" for the AMD/Cyrix/Intel 386DX/DXL/SL/SLC/SX, Cyrix/TI
+     486DLC/DLC2 and UMC 486SX-S. Only "386" kernels will run on a 386
+     class machine.
    - "486" for the AMD/Cyrix/IBM/Intel DX4 or 486DX/DX2/SL/SX/SX2,
      AMD/Cyrix 5x86, NexGen Nx586 and UMC U5D or U5S.
-   - "586" for generic Pentium CPU's, possibly lacking the TSC register.
-   - "Pentium" for the Intel Pentium/Pentium MMX, AMD K5, K6 and K6-3D.
-     This option will assume that you have a time stamp counter.
+   - "586" for generic Pentium CPUs, possibly lacking the TSC 
+     (time stamp counter) register.
+   - "Pentium" for the Intel Pentium/Pentium MMX, AMD K5, K6 and 
+     K6-3D.
    - "PPro" for the Cyrix/IBM/National Semiconductor 6x86MX, MII and
      Intel Pentium II/Pentium Pro.
 
@@ -1667,9 +1702,9 @@ CONFIG_FB
 
   If you are compiling for the x86 architecture, you can say Y if you
   want to play with it, but it is not essential. Please note that
-  running graphical applications that directly touch the hardware (e.g.
-  and accelerated X server) and that are not frame buffer device-aware
-  may cause unexpected results. If unsure, say N.
+  running graphical applications that directly touch the hardware
+  (e.g. an accelerated X server) and that are not frame buffer
+  device-aware may cause unexpected results. If unsure, say N.
 
 Acorn VIDC support
 CONFIG_FB_ACORN
@@ -1807,65 +1842,72 @@ CONFIG_FB_VESA
   This is the frame buffer device driver for generic VESA 2.0
   compliant graphic cards. The older VESA 1.2 cards are not supported.
   You will get a boot time penguin logo at no additional cost. Please
-  read Documentation/fb/vesafb.txt and the . If unsure, say Y.
+  read Documentation/fb/vesafb.txt. If unsure, say Y.
 
 Backward compatibility mode for Xpmac
 CONFIG_FB_COMPAT_XPMAC
-  If you use the Xpmac X server (common with mklinux), you'll need
-  to enable this to use X. You should consider changing to XFree86
-  which includes a server that supports the frame buffer device
-  directly (XF68_FBDev).
+  If you use the Xpmac X server (common with mklinux), you'll need to
+  say Y here to use X. You should consider changing to XFree86 which
+  includes a server that supports the frame buffer device directly
+  (XF68_FBDev).
 
 Matrox unified accelerated driver
 CONFIG_FB_MATROX
-  Say Y here  if you have  Matrox Millennium,  Matrox Millennium  II, 
+  Say Y here if you have Matrox Millennium, Matrox Millennium II,
   Matrox Mystique, Matrox Mystique 220, Matrox Productiva G100, Matrox
-  Mystique G200, Matrox Millennium G200  or Matrox Marvel G200 in your 
-  box.  At this time, G100,  Mystique G200 and  Marvel G200 support is
-  untested.  If  you  want,  you  can  select M,  in this  case module
-  matroxfb.o will  be created.  You can pass parameters into driver if 
-  it is compiled  into kernel by  specifying "video=matrox:XXX", where 
-  meaning of XXX you can found at the end of main source file
-  (drivers/video/matroxfb.c)  at  boot time.  Same  parameters  can  be 
-  passed into insmod if driver is used as module.
+  Mystique G200, Matrox Millennium G200 or Matrox Marvel G200 video
+  card in your box. At this time, support for the G100, Mystique G200
+  and Marvel G200 is untested.
+
+  This driver is also available as a module ( = code which can be
+  inserted and removed from the running kernel whenever you want).
+  The module will be called matroxfb.o. If you want to compile it as
+  a module, say M here and read Documentation/modules.txt.
+
+  You can pass several parameters to the driver at boot time or at
+  module load time. The parameters look like "video=matrox:XXX", where
+  the meaning of XXX can be found at the end of the main source file
+  (drivers/video/matroxfb.c). Please see the file
+  Documentation/fb/matroxfb.txt. 
 
 Matrox Millennium support
 CONFIG_FB_MATROX_MILLENIUM
-  Say Y here if you  have Matrox Millennium  or Matrox Millennium II in 
-  the box. If you select "Advanced lowlevel driver options", you should 
-  check 4 bpp packed pixel, 8 bpp packed pixel, 16 bpp packed pixel, 24
-  bpp  packed pixel  and 32  bpp packed  pixel. You  can also  use font 
-  widths different from 8.
+  Say Y here if you have a Matrox Millennium or Matrox Millennium II
+  video card. If you select "Advanced lowlevel driver options" below,
+  you should check 4 bpp packed pixel, 8 bpp packed pixel, 16 bpp
+  packed pixel, 24 bpp packed pixel and 32 bpp packed pixel. You can
+  also use font widths different from 8.
 
 Matrox Mystique support
 CONFIG_FB_MATROX_MYSTIQUE
-  Say Y here if you have  Matrox Mystique or Matrox Mystique 220 in the 
-  box.  If you  select  "Advanced lowlevel driver options",  you should 
-  check  8 bpp packed pixel,  16 bpp packed pixel,  24 bpp packed pixel
-  and  32 bpp  packed pixel.  You can  also use  font widths  different 
-  from 8.
+  Say Y here if you have a Matrox Mystique or Matrox Mystique 220
+  video card. If you select "Advanced lowlevel driver options" below,
+  you should check 8 bpp packed pixel, 16 bpp packed pixel, 24 bpp
+  packed pixel and 32 bpp packed pixel. You can also use font widths
+  different from 8.
 
 Matrox G100/G200 support
 CONFIG_FB_MATROX_G100
-  Say Y  here if you have Matrox Productiva G100, Matrox Mystique G200,
-  Matrox  Marvel G200  or  Matrox  Millennium G200  in the box.  If you
-  select  "Advanced lowlevel  driver options",  you should  check 8 bpp
-  packed pixel,  16 bpp packed  pixel, 24 bpp  packed pixel  and 32 bpp
-  packed pixel. You can also use font widths different from 8.
+  Say Y here if you have a Matrox Productiva G100, Matrox Mystique
+  G200, Matrox Marvel G200 or Matrox Millennium G200 video card. If
+  you select "Advanced lowlevel driver options", you should check 8
+  bpp packed pixel, 16 bpp packed pixel, 24 bpp packed pixel and 32
+  bpp packed pixel. You can also use font widths different from 8.
 
 Matrox unified driver multihead support
 CONFIG_FB_MATROX_MULTIHEAD
-  Say Y  here if you  have more  than one (supported) Matrox  device in 
-  computer  and you  want to  use all  of them.  If you  have only  one 
-  device,  you should say N because of driver compiled with Y is larger 
-  and a bit slower, especially on ia32 (ix86).
-  If you compiled  driver as module,  you are VERY  interested in speed 
-  and  you can  use 40KB  of memory  per each  Matrox  device,  you can 
-  compile driver  without multihead  support and  instead of  it insmod 
-  more module instances. In this case, you MUST specify parameter dev=N 
-  to insmod, where N is sequential number of Matrox device  (0 = first, 
-  1 = second and so on).
-  
+  Say Y here if you have more than one (supported) Matrox device in
+  your computer and you want to use all of them. If you have only one
+  device, you should say N because the driver compiled with Y is
+  larger and a bit slower, especially on ia32 (ix86). 
+
+  If you said M to "Matrox unified accelerated driver" and N here, you
+  will still be able to use several Matrox devices simultaneously.
+  This is slightly faster but uses 40 KB of kernel memory per Matrox
+  card. You do this by inserting several instances of the module 
+  matroxfb.o into the kernel with insmod, supplying the parameter
+  "dev=N" where N is 0, 1, etc. for the different Matrox devices.
+
 MDA text console (dual-headed)
 CONFIG_MDA_CONSOLE
   Say Y here if you have an old MDA or monochrome Hercules graphics
@@ -2025,7 +2067,7 @@ CONFIG_FBCON_VGA
 Parallel-port support
 CONFIG_PARPORT
   If you want to use devices connected to your machine's parallel port
-  (the connector at the computer with 25 holes), e.g. printer, Zip
+  (the connector at the computer with 25 holes), e.g. printer, ZIP
   drive, PLIP link (Parallel Line Internet Protocol is mainly used to
   create a mini network by connecting the parallel ports of two local
   machines) etc., then you need to say Y here; please read
@@ -2052,10 +2094,13 @@ PC-style hardware
 CONFIG_PARPORT_PC
   You should say Y here if you have a PC-style parallel port. All IBM
   PC compatible computers and some Alphas have PC-style parallel
-  ports. This code is also available as a module. If you want to it as
-  a module ( = code which can be inserted in and removed from the
+  ports. 
+
+  This code is also available as a module. If you want to compile it
+  as a module ( = code which can be inserted in and removed from the
   running kernel whenever you want), say M here and read
   Documentation/modules.txt. The module will be called parport_pc.o.
+  
   If unsure, say Y.
 
 Support foreign hardware
@@ -2079,7 +2124,7 @@ Auto-probe for parallel devices
 CONFIG_PNP_PARPORT
   Some IEEE-1284 conforming parallel-port devices can identify
   themselves when requested. Say Y to enable this feature, or M to
-  compile it as a module (parport_ieee1284.o). If in doubt, say N.
+  compile it as a module (parport_probe.o). If in doubt, say N.
 
 Enable loadable module support
 CONFIG_MODULES
@@ -2145,15 +2190,20 @@ CONFIG_ARPD
 TCP/IP networking
 CONFIG_INET
   These are the protocols used on the Internet and on most local
-  Ethernets. The safest is to say Y here (which will enlarge your
-  kernel by about 35 kB), since some programs (e.g. the X window
+  Ethernets. It is highly recommended to say Y here (this will enlarge
+  your kernel by about 35 KB), since some programs (e.g. the X window
   system) use TCP/IP even if your machine is not connected to any
   other computer. You will get the so-called loopback device which
-  allows you to ping yourself (great fun, that!). This option is 
-  also necessary if you want to use the full power of term (term 
-  is a program which gives you almost full Internet connectivity 
-  if you have a regular dial up shell account on some Internet 
-  connected Unix computer; for more information, read
+  allows you to ping yourself (great fun, that!).
+
+  For an excellent introduction to Linux networking, please read the
+  NET-3-HOWTO, available via FTP (user: anonymous) from
+  ftp://metalab.unc.edu/pub/Linux/docs/HOWTO.
+
+  This option is also necessary if you want to use the full power of
+  term (term is a program which gives you almost full Internet
+  connectivity if you have a regular dial up shell account on some
+  Internet connected Unix computer; for more information, read
   http://www.bart.nl/~patrickr/term-howto/Term-HOWTO.html).
   
   If you say Y here and also to "/proc filesystem support" and "Sysctl
@@ -2221,8 +2271,18 @@ CONFIG_IP_MULTIPLE_TABLES
   the Linux router will also be able to take the packet's source
   address into account. Furthermore, if you also say Y to "IP: use TOS
   value as routing key" below, the TOS (Type-Of-Service) field of the
-  packet can be used for routing decisions as well.
+  packet can be used for routing decisions as well. In addition, if
+  you say Y here and to "IP: fast network address translation" below,
+  the router will also be able to modify source and destination
+  addresses of forwarded packets.
 
+  If you are interested in this, please see the preliminary
+  documentation at http://www.compendium.com.ar/policy-routing.txt and
+  ftp://post.tepkom.ru/pub/vol2/Linux/docs/advanced-routing.tex. You
+  will need supporting software from ftp://ftp.inr.ac.ru/ip-routing/
+  
+  If unsure, say N.
+  
 IP: equal cost multipath
 CONFIG_IP_ROUTE_MULTIPATH
   Normally, the routing tables specify a single action to be taken in
@@ -2240,6 +2300,12 @@ CONFIG_IP_ROUTE_TOS
   (for interactive traffic), high throughput, or high reliability. If
   you say Y here, you will be able to specify different routes for
   packets with different TOS values.
+
+IP: use FWMARK value as routing key
+CONFIG_IP_ROUTE_FWMARK
+  If you say Y here, you will be able to specify different routes for
+  packets with different FWMARK ("firewalling mark") values
+  (see ipchains(8), "-m" argument).
 
 IP: verbose route monitoring
 CONFIG_IP_ROUTE_VERBOSE
@@ -2259,7 +2325,9 @@ IP: fast network address translation
 CONFIG_IP_ROUTE_NAT
   If you say Y here, your router will be able to modify source and
   destination addresses of packets that pass through it, in a manner
-  you specify.
+  you specify. General information about Network Address Translation
+  can be gotten from the document
+  http://www.csn.tu-chemnitz.de/~mha/linux-ip-nat/diplom/nat.html
 
 IP: optimize as router not host
 CONFIG_IP_ROUTER
@@ -2293,7 +2361,7 @@ CONFIG_IP_FIREWALL
   http://www.rustcorp.com/linux/ipchains/) to allow selective blocking
   of Internet traffic based on type, origin and destination. 
   Note that the Linux firewall code has changed and the old program
-  called ipfwadm won't work anymore.
+  called ipfwadm won't work anymore. Please read the IPCHAINS-HOWTO.
 
   The type of firewall provided by ipchains and this kernel support is
   called a "packet filter". The other type of firewall, a
@@ -2330,18 +2398,15 @@ CONFIG_IP_FIREWALL
 
 IP: firewall packet netlink device
 CONFIG_IP_FIREWALL_NETLINK
-  If you say Y here, then the first 128 bytes of each packet that hit
-  your Linux firewall and was blocked are passed on to optional user
-  space monitoring software that can then look for attacks and take
-  actions such as paging the administrator of the site.
+  If you say Y here, you can use the ipchains tool to copy all or part
+  of any packet you specify that hits your Linux firewall to optional
+  user space monitoring software that can then look for attacks and
+  take actions such as paging the administrator of the site.
 
   To use this, you need to create a character special file under /dev
   with major number 36 and minor number 3 using mknod ("man mknod"),
   and you need (to write) a program that reads from that device and
   takes appropriate action.
-
-  With the ipchains tool you can specify which packets you want to go
-  to this device, as well as how many bytes from each packet.
 
 IP: kernel level autoconfiguration
 CONFIG_IP_PNP
@@ -2433,7 +2498,7 @@ CONFIG_IP_MASQUERADE
   host replies, the Linux firewall will silently forward the traffic
   to the corresponding local computer. This way, the computers on your
   local net are completely invisible to the outside world, even though
-  they can reach the outside and can be reached. This makes it
+  they can reach the outside and can receive replies. This makes it
   possible to have the computers on the local network participate on
   the Internet even if they don't have officially registered IP
   addresses. (This last problem can also be solved by connecting the
@@ -2480,8 +2545,8 @@ CONFIG_IP_MASQUERADE_ICMP
 IP: masquerading special modules support
 CONFIG_IP_MASQUERADE_MOD
   This provides support for special modules that can modify the
-  rewriting rules used when masquerading. Please note that this feature
-  adds a little overhead in the input packet processing chain.
+  rewriting rules used when masquerading. Please note that this
+  feature adds a little overhead in the input packet processing chain.
 
   Examples of such modules are ipautofw (allowing the masquerading of
   protocols which don't have their own protocol helpers) and port
@@ -2521,15 +2586,15 @@ CONFIG_IP_MASQUERADE_IPPORTFW
   forwarding of packets from outside to inside a firewall on given
   ports. This could be useful if, for example, you want to run a web
   server behind the firewall or masquerading host and that web server
-  should be visible to the outside world. An external client connects
-  to port 80 of the firewall, the firewall forwards requests to this
-  port to the web server, the web server handles the request and the
-  results are sent through the firewall to the original client. The
-  client thinks that the firewall machine itself is running the web
-  server. This can also be used for load balancing if you have a farm
-  of identical web servers behind the firewall.
+  should be accessible from the outside world. An external client
+  sends a request to port 80 of the firewall, the firewall forwards
+  this request to the web server, the web server handles the request
+  and the results are sent through the firewall to the original
+  client. The client thinks that the firewall machine itself is
+  running the web server. This can also be used for load balancing if
+  you have a farm of identical web servers behind the firewall.
 
-  Information about it is available from
+  Information about this feature is available from
   http://www.monmouth.demon.co.uk/ipsubs/portforwarding.html (to
   browse the WWW, you need to have access to a machine on the Internet
   that has a program like lynx or netscape). For general info, please
@@ -2548,12 +2613,14 @@ CONFIG_IP_MASQUERADE_IPPORTFW
 
 IP: ipmarkfw masquerade support
 CONFIG_IP_MASQUERADE_MFW
-  This provides functionality similar to port forwarding, the
-  difference is that Firewall Mark Forwarding uses "firewalling mark" 
-  to select which packets must forward (see ipchains(8), "-m" argument).
+  Firewall Mark Forwarding provides functionality similar to port
+  forwarding (see "IP: ipportfw masquerade support", above), the
+  difference being that Firewall Mark Forwarding uses "firewalling
+  mark" to select which packets must be forwarded (see ipchains(8),
+  "-m" argument).
 
-  The ip_masq_mfw code is still under development and so is currently
-  marked EXPERIMENTAL. If you want to try it, say Y.
+  This code is still under development and so is currently marked
+  EXPERIMENTAL. If you want to try it, say Y.
 
   This code is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
@@ -2584,12 +2651,12 @@ CONFIG_IP_ALIAS
   Sometimes it is useful to give several IP addresses to a single
   physical network interface (serial port or Ethernet card). The most
   common case is that you want to serve different WWW or ftp documents
-  to the outside according to which of your host names was used to
+  to the outside depending on which of your host names was used to
   connect to you. This is called "multihosting" or "virtual domains"
   or "virtual hosting services" and is explained in detail on the WWW
   at http://www.thesphere.com/~dlp/TwoServers/ (to browse the WWW, you
   need to have access to a machine on the Internet that has a program
-  like lynx or netscape) and also in the Virtual-Hosting-HOWTO,
+  like lynx or netscape) and also in the Virtual-Services-HOWTO,
   available via FTP (user: anonymous) from
   ftp://metalab.unc.edu/pub/Linux/docs/HOWTO.
 
@@ -2709,20 +2776,6 @@ CONFIG_TCP_NAGLE_OFF
   enabled. Those programs that would benefit from disabling this
   facility can do it on a per connection basis themselves.
 
-IP: Drop source routed frames
-CONFIG_IP_NOSR
-  Usually, the originator of an IP frame (packet) specifies only the
-  destination, and the hosts along the way do the routing, i.e. they
-  decide how to forward the frame. However, there is a feature of the
-  IP protocol that allows to specify the full route for a given frame
-  already at its origin. A frame with such a fully specified route is
-  called "source routed". The question now is whether we should honour
-  these route requests when such frames arrive, or if we should drop
-  all those frames instead. Honouring them can introduce security
-  problems (and is rarely a useful feature), and hence it is
-  recommended that you say Y here unless you really know what you're
-  doing.
-
 IP: Allow large windows (not recommended if <16 MB of memory)
 CONFIG_SKB_LARGE
   On high speed, long distance networks the performance limit on
@@ -2739,22 +2792,25 @@ CONFIG_SKB_LARGE
 
 Unix domain sockets
 CONFIG_UNIX
-  This includes Unix domain sockets, the standard Unix mechanism for
-  establishing and accessing network connections. Many commonly used
-  programs such as the X Window system and syslog use these sockets
-  even if your machine is not connected to any network. Unless you are
-  working on an embedded system or something similar, you therefore
-  definitely want to say Y here.
+  If you say Y here, you will include support for Unix domain sockets;
+  sockets are the standard Unix mechanism for establishing and
+  accessing network connections. Many commonly used programs such as
+  the X Window system and syslog use these sockets even if your
+  machine is not connected to any network. Unless you are working on
+  an embedded system or something similar, you therefore definitely
+  want to say Y here.
 
-  The socket support is also available as a module ( = code which can
-  be inserted in and removed from the running kernel whenever you
-  want). The module will be called unix.o. If you want to compile it
-  as a module, say M here and read Documentation/modules.txt. If you
-  try building this as a module and you have said Y to "Kernel module
-  loader support" above, be sure to add 'alias net-pf-1 unix' to your
-  /etc/conf.modules file.
+  However, the socket support is also available as a module ( = code
+  which can be inserted in and removed from the running kernel
+  whenever you want). If you want to compile it as a module, say M
+  here and read Documentation/modules.txt. The module will be called
+  unix.o. If you try building this as a module and you have said Y to
+  "Kernel module loader support" above, be sure to add 'alias net-pf-1
+  unix' to your /etc/conf.modules file. Note that several important
+  services won't work correctly if you say M here and then neglect to
+  load the module.
 
-  If unsure, say Y.
+  Say Y unless you know what you are doing.
 
 The IPv6 protocol
 CONFIG_IPV6
@@ -2894,14 +2950,14 @@ CONFIG_ATALK
   for details (to browse the WWW, you need to have access to a machine
   on the Internet that has a program like lynx or netscape). EtherTalk
   is the name used for AppleTalk over Ethernet and the cheaper and
-  slower LocalTalk is AppleTalk over a proprietary apple network using
+  slower LocalTalk is AppleTalk over a proprietary Apple network using
   serial links. EtherTalk and LocalTalk are fully supported by Linux.
-  The NET-2-HOWTO, available via FTP (user: anonymous) in
-  ftp://metalab.unc.edu/pub/Linux/docs/HOWTO contains valuable
-  information as well.
 
   General information about how to connect Linux, Windows machines and
   Macs is on the WWW at http://www.eats.com/linux_mac_win.html
+  The NET-3-HOWTO, available via FTP (user: anonymous) in
+  ftp://metalab.unc.edu/pub/Linux/docs/HOWTO contains valuable
+  information as well.
 
   This driver is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
@@ -2914,36 +2970,45 @@ AppleTalk-IP driver support
 CONFIG_IPDDP
   This allows IP networking for users who only have AppleTalk
   networking available. This feature is experimental. With this
-  driver, you can either encapsulate IP inside AppleTalk (e.g. if your
-  Linux box is stuck on an AppleTalk only network) or decapsulate
-  (e.g. if you want your Linux box to act as an Internet gateway for a
-  zoo of AppleTalk connected Macs). You decide which one of the two
-  you want in the following two questions; you can say Y to only one
-  of them. Please see Documentation/networking/ipddp.txt for more
-  information.
+  driver, you can encapsulate IP inside AppleTalk (e.g. if your Linux
+  box is stuck on an AppleTalk only network) or decapsulate (e.g. if
+  you want your Linux box to act as an Internet gateway for a zoo of
+  AppleTalk connected Macs). Please see the file
+  Documentation/networking/ipddp.txt for more information.
 
-  This driver is also available as a module ( = code which can be
-  inserted in and removed from the running kernel whenever you want).
-  The module is called ipddp.o. If you want to compile it as a module,
-  say M here and read Documentation/modules.txt.
+  If you say Y here, the AppleTalk-IP support will be compiled into
+  the kernel. In this case, you can either use encapsulation or
+  decapsulation, but not both. With the following two questions, you
+  decide which one you want.
+
+  If you say M here, the AppleTalk-IP support will be compiled as a
+  module ( = code which can be inserted in and removed from the
+  running kernel whenever you want, read Documentation/modules.txt).
+  The module is called ipddp.o. In this case, you will be able to use
+  both encapsulation and decapsulation simultaneously, by loading two
+  copies of the module and specifying different values for the module
+  option ipddp_mode. 
 
 IP to AppleTalk-IP Encapsulation support
 CONFIG_IPDDP_ENCAP
-  If you say Y here, the kernel will be able to encapsulate IP packets
-  inside AppleTalk frames; this is useful if your Linux box is stuck
-  on an AppleTalk network (which hopefully contains a decapsulator
-  somewhere). Please see Documentation/networking/ipddp.txt for more
-  information. If you say Y here, you cannot say Y to "AppleTalk-IP to
-  IP Decapsulation support", below.
+  If you say Y here, the AppleTalk-IP code will be able to encapsulate
+  IP packets inside AppleTalk frames; this is useful if your Linux box
+  is stuck on an AppleTalk network (which hopefully contains a
+  decapsulator somewhere). Please see
+  Documentation/networking/ipddp.txt for more information. If you said
+  Y to "AppleTalk-IP driver support" above and you say Y here, then
+  you cannot say Y to "AppleTalk-IP to IP Decapsulation support",
+  below.
 
 AppleTalk-IP to IP Decapsulation support
 CONFIG_IPDDP_DECAP
-  If you say Y here, the kernel will be able to decapsulate
+  If you say Y here, the AppleTalk-IP code will be able to decapsulate
   AppleTalk-IP frames to IP packets; this is useful if you want your
-  Linux box to act as an Internet gateway for an AppleTalk
-  network. Please see Documentation/networking/ipddp.txt for more
-  information. If you say Y here, you cannot say Y to "IP to
-  AppleTalk-IP Encapsulation support", above.
+  Linux box to act as an Internet gateway for an AppleTalk network.
+  Please see Documentation/networking/ipddp.txt for more information.
+  If you said Y to "AppleTalk-IP driver support" above and you say Y
+  here, then you cannot say Y to "IP to AppleTalk-IP Encapsulation
+  support", above.
 
 Apple/Farallon LocalTalk PC card support
 CONFIG_LTPC
@@ -3475,7 +3540,7 @@ CONFIG_SCSI
   ftp://metalab.unc.edu/pub/Linux/docs/HOWTO. The
   SCSI-Programming-HOWTO contains information about how to add or
   remove an SCSI device from a running Linux machine without
-  rebooting. 
+  rebooting.
 
   This driver is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
@@ -3520,7 +3585,7 @@ SCSI CDROM support
 CONFIG_BLK_DEV_SR
   If you want to use a SCSI CDROM under Linux, say Y and read the
   SCSI-HOWTO and the CDROM-HOWTO from
-  ftp://metalab.unc.edu:/pub/Linux/docs/HOWTO. Also make sure to say Y
+  ftp://metalab.unc.edu/pub/Linux/docs/HOWTO. Also make sure to say Y
   or M to "ISO 9660 CDROM filesystem support" later.
 
   This driver is also available as a module ( = code which can be
@@ -3548,7 +3613,8 @@ CONFIG_CHR_DEV_SG
   other devices, it's possible that you'll have to write the driver
   software yourself, so have a look at the SCSI-HOWTO and at the
   SCSI-Programming-HOWTO, both available via FTP (user: anonymous) in
-  ftp://metalab.unc.edu:/pub/Linux/docs/HOWTO.
+  ftp://metalab.unc.edu/pub/Linux/docs/HOWTO. Please read the file
+  Documentation/scsi-generic.txt for more information.
 
   If you want to compile this as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want),
@@ -3608,11 +3674,13 @@ CONFIG_SCSI_ADVANSYS
 
 Adaptec AHA152X/2825 support
 CONFIG_SCSI_AHA152X
-  This is support for the AVA-1505 (irq etc must be manually specified), 
-  AHA-1510, AHA-1520, AHA-1522, and AHA-2825 SCSI host adapters. It is 
-  explained in section 3.3 of the SCSI-HOWTO, available via FTP 
-  (user: anonymous) at ftp://metalab.unc.edu/pub/Linux/docs/HOWTO. You 
-  might also want to read the comments at the top of 
+  This is a driver for the AHA-1510, AHA-1520, AHA-1522, and AHA-2825
+  SCSI host adapters. It also works for the AVA-1505, but the IRQ etc.
+  must be manually specified in this case.
+
+  It is explained in section 3.3 of the SCSI-HOWTO, available via FTP
+  (user: anonymous) at ftp://metalab.unc.edu/pub/Linux/docs/HOWTO. You
+  might also want to read the comments at the top of
   drivers/scsi/aha152x.c.
 
   This driver is also available as a module ( = code which can be
@@ -3650,25 +3718,31 @@ CONFIG_SCSI_AHA1740
 Adaptec AIC7xxx chipset SCSI controller support
 CONFIG_SCSI_AIC7XXX
   This is support for the various aic7xxx based Adaptec SCSI
-  controllers. These include the 274x EISA cards; 284x VLB cards; 2902,
-  2910, 293x, 294x, 394x, 3985 and several other PCI and motherboard based
-  SCSI controllers from Adaptec.  It does not support the AAA-13x RAID
-  controllers from Adaptec, nor will it likely ever support them.  It
-  does not support the 2920 cards from Adaptec that use the Future Domain
-  SCSI controller chip.  For those cards, you need the "Future Domain
-  16xx SCSI support" driver.
+  controllers. These include the 274x EISA cards; 284x VLB cards;
+  2902, 2910, 293x, 294x, 394x, 3985 and several other PCI and
+  motherboard based SCSI controllers from Adaptec. It does not support
+  the AAA-13x RAID controllers from Adaptec, nor will it likely ever
+  support them. It does not support the 2920 cards from Adaptec that
+  use the Future Domain SCSI controller chip. For those cards, you
+  need the "Future Domain 16xx SCSI support" driver.
 
   In general, if the controller is based on an Adaptec SCSI controller
-  chip from the aic777x series or the aic78xx series, it should work.  The
-  only exception is the 7810 which is specifically not supported (that's the
-  RAID controller chip on the AAA-13x cards).
+  chip from the aic777x series or the aic78xx series, this driver
+  should work. The only exception is the 7810 which is specifically
+  not supported (that's the RAID controller chip on the AAA-13x
+  cards).
+
+  Note that the AHA2920 SCSI host adapter is *not* supported by this
+  driver; choose "Future Domain 16xx SCSI support" instead if you have
+  one of those.
 
   Information on the configuration options for this controller can be
   found by checking the help file for each of the available
   configuration options. You should read drivers/scsi/README.aic7xxx
   at a minimum before contacting the maintainer with any questions.  
   The SCSI-HOWTO, available via FTP (user: anonymous) at
-  ftp://metalab.unc.edu/pub/Linux/docs/HOWTO can also be of great help.
+  ftp://metalab.unc.edu/pub/Linux/docs/HOWTO can also be of great
+  help.
 
   If you want to compile this driver as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want),
@@ -3769,16 +3843,15 @@ CONFIG_SCSI_DTC3280
 
 EATA-DMA [Obsolete] (DPT, NEC, AT&T, SNI, AST, Olivetti, Alphatronix) support
 CONFIG_SCSI_EATA_DMA
-  This driver is obsolete. You should normally be using the generic EATA
-  driver for this hardware.
-
   This is support for the EATA-DMA protocol compliant SCSI Host
   Adapters like the SmartCache III/IV, SmartRAID controller families
-  and the DPT PM2011B and PM2012B controllers. Note that there is
-  also another driver for the same hardware: "EATA ISA/EISA/PCI
-  support". You should only say Y to one of them. Please read the
-  SCSI-HOWTO, available via FTP (user: anonymous) at
-  ftp://metalab.unc.edu/pub/Linux/docs/HOWTO. 
+  and the DPT PM2011B and PM2012B controllers. 
+
+  Note that this driver is obsolete; if you have one of the above SCSI
+  Host Adapters, you should normally say N here and Y to "EATA
+  ISA/EISA/PCI support", below. Please read the SCSI-HOWTO, available
+  via FTP (user: anonymous) at
+  ftp://metalab.unc.edu/pub/Linux/docs/HOWTO.
 
   This driver is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
@@ -3821,19 +3894,19 @@ enable elevator sorting
 CONFIG_SCSI_U14_34F_LINKED_COMMANDS
   This option enables elevator sorting for all probed SCSI disks and 
   CDROMs. It definitely reduces the average seek distance when doing
-  random seeks, but this does not necessarily results in a noticeable
+  random seeks, but this does not necessarily result in a noticeable
   performance improvement: your mileage may vary...
+  
   The safe answer is N.
 
 maximum number of queued commands
 CONFIG_SCSI_U14_34F_MAX_TAGS
-  This specifies how many SCSI commands can be maximally queued for each
-  probed SCSI device. You should reduce the default value of 8 only if
-  you have disks with buggy or limited tagged command support.
+  This specifies how many SCSI commands can be maximally queued for
+  each probed SCSI device. You should reduce the default value of 8
+  only if you have disks with buggy or limited tagged command support.
   Minimum is 2 and maximum is 14. This value is also the window size
-  used by the elevator sorting option above.
-  The effective value used by the driver for each probed SCSI device is 
-  reported at boot time.
+  used by the elevator sorting option above. The effective value used
+  by the driver for each probed SCSI device is reported at boot time.
 
 Future Domain 16xx SCSI/AHA-2920A support
 CONFIG_SCSI_FUTURE_DOMAIN
@@ -3844,10 +3917,10 @@ CONFIG_SCSI_FUTURE_DOMAIN
   It is explained in section 3.7 of the SCSI-HOWTO, available via FTP
   (user: anonymous) at ftp://metalab.unc.edu/pub/Linux/docs/HOWTO. 
 
-  NOTE: Newer Adaptec AHA-2920C boards use the Adaptec AIC-7850 chip and
-  should use the aic7xxx driver (CONFIG_SCSI_AIC7XXX).  The Future Domain
-  driver works with the older Adaptec AHA-2920A boards with a Future Domain
-  chip on them.
+  NOTE: Newer Adaptec AHA-2920C boards use the Adaptec AIC-7850 chip
+  and should use the aic7xxx driver ("Adaptec AIC7xxx chipset SCSI
+  controller support"). This Future Domain driver works with the older
+  Adaptec AHA-2920A boards with a Future Domain chip on them.
 
   This driver is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
@@ -3857,9 +3930,10 @@ CONFIG_SCSI_FUTURE_DOMAIN
 Future Domain MCS-600/700 SCSI support
 CONFIG_SCSI_FD_MCS
  This is support for Future Domain MCS 600/700 MCA SCSI adapters. Some
- PS/2s are also equipped with IBM Fast SCSI Adapter/A which is an OEM
- of the MCS 700. This driver also supports Reply SB16/SCSI card (the 
- SCSI part). It supports multiple adapters in the same system.
+ PS/2 computers are equipped with IBM Fast SCSI Adapter/A which is
+ identical to the MCS 700 and hence also supported by this driver.
+ This driver also supports the Reply SB16/SCSI card (the SCSI part).
+ It supports multiple adapters in the same system.
 
 Generic NCR5380/53c400 SCSI support
 CONFIG_SCSI_GENERIC_NCR5380
@@ -3892,16 +3966,17 @@ CONFIG_SCSI_G_NCR5380_PORT
 
 NCR53c7,8xx SCSI support
 CONFIG_SCSI_NCR53C7xx
-  This is the 53c7 and 8xx NCR family of SCSI controllers, not to be
-  confused with the NCR 5380 controllers. It is explained in section
-  3.8 of the SCSI-HOWTO, available via FTP (user: anonymous) at
-  ftp://metalab.unc.edu/pub/Linux/docs/HOWTO. If it doesn't work out
-  of the box, you may have to change some settings in
-  drivers/scsi/53c7,8xx.h.
+  This is a driver for the 53c7 and 8xx NCR family of SCSI
+  controllers, not to be confused with the NCR 5380 controllers. It is
+  explained in section 3.8 of the SCSI-HOWTO, available via FTP (user:
+  anonymous) at ftp://metalab.unc.edu/pub/Linux/docs/HOWTO. If it
+  doesn't work out of the box, you may have to change some settings in
+  drivers/scsi/53c7,8xx.h. Please read drivers/scsi/README.ncr53c7xx
+  for the available boot time command line options.
 
   Note: there is another driver for the 53c8xx family of controllers
-  ("NCR53C8XX SCSI support" below). You cannot say Y to both of them;
-  you can say M to both and build them as modules, but only one may be
+  ("NCR53C8XX SCSI support" below). If you want to use them both, you
+  need to say M to both and build them as modules, but only one may be
   active at a time. If you have a 53c8xx board, it's better to use the
   other driver.
 
@@ -3941,15 +4016,39 @@ CONFIG_SCSI_NCR53C8XX
   tagged command queuing and fast synchronous data transfers up to 80
   MB/s with wide FAST-40 LVD devices and controllers.
 
-  The NCR53C860 and NCR53C875 support FAST-20 transfers. The NCR53C895
-  supports FAST-40 transfers with Ultra2 LVD devices.
+  Recent versions of the 53C8XX chips are better supported by the
+  option "SYM53C8XX SCSI support", below.
 
-  Note: there is another driver for the 53c8xx family of controllers
-  ("NCR53c7,8xx SCSI support" above). You cannot say Y to both of
-  them; you can say M to both and build them as modules, but only one
-  may be active at a time. If you have a 53c8xx board, it's best to
-  use this driver.
+  Note: there is yet another driver for the 53c8xx family of controllers
+  ("NCR53c7,8xx SCSI support" above). If you want to use them both,
+  you need to say M to both and build them as modules, but only one
+  may be active at a time. If you have a 53c8xx board, you probably do
+  not want to use the "NCR53c7,8xx SCSI support".
 
+  Please read drivers/scsi/README.ncr53c8xx for more information.
+
+SYM53C8XX SCSI support
+CONFIG_SCSI_SYM53C8XX
+  This driver supports all the features of recent 53C8XX chips (used
+  in PCI SCSI controllers), notably the hardware phase mismatch
+  feature of the SYM53C896.
+
+  Older versions of the 53C8XX chips are not supported by this
+  driver. If your system uses either a 810 rev. < 16, a 815, or a 825
+  rev. < 16 PCI SCSI processor, you must use the generic NCR53C8XX
+  driver ("NCR53C8XX SCSI support" above) or configure both the
+  NCR53C8XX and this SYM53C8XX drivers either as module or linked to
+  the kernel image.
+
+  When both drivers are linked to the kernel, the SYM53C8XX driver is 
+  called first at initialization and you can use the 'excl=ioaddr' 
+  driver boot option to exclude attachment of adapters by the SYM53C8XX 
+  driver. For instance, entering 'sym53c8xx=excl:0xb400,excl=0xc000' at 
+  lilo prompt prevents adapters at io address 0xb400 and 0xc000 from 
+  being attached by the SYM53C8XX driver, thus allowing the NCR53C8XX 
+  driver to attach them. The 'excl' option is also supported by the 
+  NCR53C8XX driver.
+  
   Please read drivers/scsi/README.ncr53c8xx for more information.
 
 synchronous data transfers frequency
@@ -4064,6 +4163,16 @@ CONFIG_SCSI_NCR53C8XX_PROFILE
 
   The normal answer therefore is N.
 
+include support for the NCR PQS/PDS SCSI card
+CONFIG_SCSI_NCR53C8XX_PQS_PDS
+  Say Y here if you have a special SCSI adapter produced by NCR
+  corporation called a PCI Quad SCSI or PCI Dual SCSI. You do not need
+  this if you do not have one of these adapters. However, since this
+  device is detected as a specific PCI device, this option is quite
+  safe.
+
+  The common answer here is N, but answering Y is safe.
+
 IBMMCA SCSI support
 CONFIG_SCSI_IBMMCA
   This is support for the IBM SCSI adapter found in many of the PS/2
@@ -4137,10 +4246,10 @@ CONFIG_SCSI_MCA_53C9X
   controller based on the NCR 53C94.  This driver will allow use of
   the controller on the 3550, and very possibly others.   
 
-  If you want to compile this as a module (= code which can be inserted
-  and removed from the running kernel whenever you want),
-  say M here and read Documentation/modules.txt.  The module will be
-  called mca_53c9x.o.
+  If you want to compile this as a module (= code which can be
+  inserted and removed from the running kernel whenever you want), say
+  M here and read Documentation/modules.txt. The module will be called
+  mca_53c9x.o.
  
 Always IN2000 SCSI support
 CONFIG_SCSI_IN2000
@@ -4158,18 +4267,7 @@ Initio 91XXU(W) SCSI support
 CONFIG_SCSI_INITIO
   This is support for the Initio 91XXU(W) SCSI host adapter.
   Please read the SCSI-HOWTO, available via FTP (user: anonymous) at
-  ftp://sunsite.unc.edu/pub/Linux/docs/HOWTO.
-
-  If you want to compile this as a module ( = code which can be
-  inserted in and removed from the running kernel whenever you want),
-  say M here and read Documentation/modules.txt. The module will be
-  called initio.o
-
-Initio 91XXU(W) SCSI support
-CONFIG_SCSI_INITIO
-  This is support for the Initio 91XXU(W) SCSI host adapter.
-  Please read the SCSI-HOWTO, available via FTP (user: anonymous) at
-  ftp://sunsite.unc.edu/pub/Linux/docs/HOWTO.
+  ftp://metalab.unc.edu/pub/Linux/docs/HOWTO.
 
   If you want to compile this as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want),
@@ -4188,6 +4286,17 @@ CONFIG_SCSI_PAS16
   inserted in and removed from the running kernel whenever you want).
   The module will be called pas16.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt.
+
+Initio INI-A100U2W SCSI support
+CONFIG_SCSI_INIA100
+  This is support for the Initio INI-A100U2W SCSI host adapter.
+  Please read the SCSI-HOWTO, available via FTP (user: anonymous) at
+  ftp://metalab.unc.edu/pub/Linux/docs/HOWTO.
+
+  If you want to compile this as a module ( = code which can be 
+  inserted in and removed from the running kernel whenever you want),
+  say M here and read Documentation/modules.txt. The module will be
+  called a100u2w.o
 
 PCI2000 support
 CONFIG_SCSI_PCI2000
@@ -4224,14 +4333,18 @@ CONFIG_SCSI_PSI240I
 
 Qlogic FAS SCSI support
 CONFIG_SCSI_QLOGIC_FAS
-  This driver works only with the ISA, VLB, and PCMCIA versions of the
-  Qlogic FastSCSI! cards as well as any other card based on the FASXX
-  chip (including the Control Concepts SCSI/IDE/SIO/PIO/FDC cards); it
-  does NOT support the PCI version. The PCI versions are supported by
-  the Qlogic ISP driver though. Information about this driver is
-  contained in drivers/scsi/README.qlogicfas. You should also read
-  the SCSI-HOWTO, available via FTP (user: anonymous) at
-  ftp://metalab.unc.edu/pub/Linux/docs/HOWTO. 
+  This is a driver for the ISA, VLB, and PCMCIA versions of the Qlogic
+  FastSCSI! cards as well as any other card based on the FASXX chip
+  (including the Control Concepts SCSI/IDE/SIO/PIO/FDC cards).
+
+  This driver does NOT support the PCI versions of these cards. The
+  PCI versions are supported by the Qlogic ISP driver ("Qlogic ISP
+  SCSI support"), below.
+
+  Information about this driver is contained in
+  drivers/scsi/README.qlogicfas. You should also read the SCSI-HOWTO,
+  available via FTP (user: anonymous) at
+  ftp://metalab.unc.edu/pub/Linux/docs/HOWTO.
 
   This driver is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
@@ -4244,7 +4357,8 @@ CONFIG_SCSI_QLOGIC_ISP
   IQ-PCI-10, IQ_PCI-D) except for the PCI-basic card. (This latter
   card is supported by the "AM53/79C974 PCI SCSI" driver). 
 
-  If you say Y here, make sure to say Y to "PCI BIOS support" as well.
+  If you say Y here, make sure to choose "BIOS" at the question "PCI
+  access mode".
 
   Please read the file drivers/scsi/README.qlogicisp. You should also
   read the SCSI-HOWTO, available via FTP (user: anonymous) at
@@ -4253,6 +4367,15 @@ CONFIG_SCSI_QLOGIC_ISP
   This driver is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
   The module will be called qlogicisp.o. If you want to compile it as
+  a module, say M here and read Documentation/modules.txt.
+
+Qlogic ISP FC SCSI support
+CONFIG_SCSI_QLOGIC_FC
+  This is a driver for the QLogic ISP2100 SCSI-FCP host adapter.
+
+  This driver is also available as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want).
+  The module will be called qlogicfc.o. If you want to compile it as
   a module, say M here and read Documentation/modules.txt.
 
 Seagate ST-02 and Future Domain TMC-8xx SCSI support
@@ -4310,14 +4433,25 @@ CONFIG_SCSI_7000FASST
   want). The module will be called wd7000.o. If you want to compile it
   as a module, say M here and read Documentation/modules.txt.
 
+ACARD SCSI support
+CONFIG_SCSI_ACARD
+  This driver supports the ACARD 870U/W SCSI host adapter.
+
+  This driver is also available as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want).
+  The module will be called atp870u.o. If you want to compile it as a
+  module, say M here and read Documentation/modules.txt.
+
 EATA ISA/EISA/PCI (DPT and generic EATA/DMA-compliant boards) support
 CONFIG_SCSI_EATA
-  This driver supports all the EATA/DMA-compliant SCSI host adapters.
-  DPT ISA and all EISA i/o addresses are probed looking for the "EATA"
-  signature. If you said Y to "PCI support", the addresses of all the 
-  PCI SCSI controllers reported by the PCI subsystem are probed as well.
-  You want to read the start of drivers/scsi/eata.c and the SCSI-HOWTO,
-  available via FTP (user: anonymous) at 
+  This driver supports all EATA/DMA-compliant SCSI host adapters. DPT
+  ISA and all EISA i/o addresses are probed looking for the "EATA"
+  signature. If you chose "BIOS" at the question "PCI access mode",
+  the addresses of all the PCI SCSI controllers reported by the PCI
+  subsystem are probed as well.
+
+  You want to read the start of drivers/scsi/eata.c and the
+  SCSI-HOWTO, available via FTP (user: anonymous) at
   ftp://metalab.unc.edu/pub/Linux/docs/HOWTO.
 
   Note that there is also another driver for the same hardware
@@ -4333,26 +4467,25 @@ CONFIG_SCSI_EATA_TAGGED_QUEUE
   This is a feature of SCSI-2 which improves performance: the host
   adapter can send several SCSI commands to a device's queue even if
   previous commands haven't finished yet. Most EATA adapters negotiate
-  this feature automatically with the device, even if your answer is N.
-  The safe answer is N.
+  this feature automatically with the device, even if your answer is
+  N. The safe answer is N.
         
 enable elevator sorting
 CONFIG_SCSI_EATA_LINKED_COMMANDS
   This option enables elevator sorting for all probed SCSI disks and 
-  CDROMs. It definetly reduces the average seek distance when doing
+  CDROMs. It definitely reduces the average seek distance when doing
   random seeks, but this does not necessarily result in a noticeable
   performance improvement: your mileage may vary...
   The safe answer is N.
 
 maximum number of queued commands
 CONFIG_SCSI_EATA_MAX_TAGS
-  This specifies how many SCSI commands can be maximally queued for each
-  probed SCSI device. You should reduce the default value of 16 only if
-  you have disks with buggy or limited tagged command support.
+  This specifies how many SCSI commands can be maximally queued for
+  each probed SCSI device. You should reduce the default value of 16
+  only if you have disks with buggy or limited tagged command support.
   Minimum is 2 and maximum is 62. This value is also the window size
-  used by the elevator sorting option above.
-  The effective value used by the driver for each probed SCSI device is 
-  reported at boot time.
+  used by the elevator sorting option above. The effective value used
+  by the driver for each probed SCSI device is reported at boot time.
 
 NCR53c406a SCSI support
 CONFIG_SCSI_NCR53C406A
@@ -4366,6 +4499,25 @@ CONFIG_SCSI_NCR53C406A
   say M here and read Documentation/modules.txt. The module will be
   called NCR53c406.o.
 
+Symbios Logic sym53c416 support
+CONFIG_SCSI_SYM53C416
+  This is support for the sym53c416 SCSI host adapter, the SCSI
+  adapter that comes with some HP scanners. This driver requires that
+  the sym53c416 is configured first using some sort of pnp
+  configuration program (e.g. isapnp) or by a PnP aware BIOS. If you
+  are using isapnp then you need to compile this driver as a module
+  and then load it using insmod after isapnp has run. The parameters
+  of the configured card(s) should be passed to the driver. The format
+  is:
+
+    insmod sym53c416 sym53c416=<base>,<irq> [sym53c416_1=<base>,<irq>]
+
+  There is support for up to four adapters. If you want to compile
+  this driver as a module ( = code which can be inserted in and
+  removed from the running kernel whenever you want), say M here and
+  read Documentation/modules.txt. The module will be called
+  sym53c416.o. 
+
 Tekram DC390(T) and Am53/79C974 (PCscsi) SCSI support
 CONFIG_SCSI_DC390T
   This driver supports PCI SCSI host adapters based on the Am53C974A
@@ -4376,7 +4528,8 @@ CONFIG_SCSI_DC390T
   
   Note that this driver does NOT support Tekram DC390W/U/F, which are
   based on NCR/Symbios chips. Use "NCR53C8XX SCSI support" for those.
-  Also note that there is another generic Am53C974 driver.
+  Also note that there is another generic Am53C974 driver,
+  "AM53/79C974 PCI SCSI support" below. You can pick either one.
 
   If you want to compile this driver as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want),
@@ -4406,12 +4559,29 @@ CONFIG_SCSI_AM53C974
   ftp://metalab.unc.edu/pub/Linux/docs/HOWTO, is for you.
 
   Note that there is another driver for AM53C974 based adapters:
-  "Tekram DC390(T) and Am53/79C974 (PCscsi) SCSI support", above.
+  "Tekram DC390(T) and Am53/79C974 (PCscsi) SCSI support", above. You
+  can pick either one.
 
   If you want to compile this driver as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want),
   say M here and read Documentation/modules.txt. The module will be
   called AM53C974.o.
+
+AMI MegaRAID support
+CONFIG_SCSI_MEGARAID
+  This driver supports the AMI MegaRAID 428 and 438 (and maybe 466)
+  SCSI host adapters. 
+
+  If you want to compile this driver as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want),
+  say M here and read Documentation/modules.txt. The module will be
+  called megaraid.o.
+
+###
+### What is this?
+###
+#Concurrent IO commands on MegaRAID
+#CONFIG_MEGARAID_MULTI_IO
 
 GDT SCSI Disk Array Controller support
 CONFIG_SCSI_GDTH
@@ -4424,36 +4594,59 @@ CONFIG_SCSI_GDTH
   If you want to compile it as a module, say M here and read
   Documentation/modules.txt.
 
-IOMEGA Parallel Port ZIP drive SCSI support
+IOMEGA parallel port (ppa - older drives)
 CONFIG_SCSI_PPA
-  This driver supports the parallel port version of IOMEGA's ZIP drive
-  (a 100 MB removable media device). For more information about this
-  driver and how to use it you should read the file
-  drivers/scsi/README.ppa. You should also read the SCSI-HOWTO, which
-  is available via FTP (user: anonymous) from
-  ftp://metalab.unc.edu/pub/Linux/docs/HOWTO. If you use this driver,
-  you will still be able to use the parallel port for other tasks,
-  such as a printer; it is safe to compile both drivers into the
-  kernel.
+  This driver supports older versions of IOMEGA's parallel port ZIP
+  drive (a 100 MB removable media device).
 
   Note that you can say N here if you have the SCSI version of the ZIP
   drive: it will be supported automatically if you said Y to the
   generic "SCSI disk support", above.
 
-  The ZIP Plus drive is supported by the imm driver, also more recent
-  parallel port ZIP drives use an imm compatible interface. If the
-  supplied cable with the drive is labeled "AutoDetect" then you will
-  need the imm driver.
+  If you have the ZIP Plus drive or a more recent parallel port ZIP
+  drive (if the supplied cable with the drive is labeled "AutoDetect")
+  then you should say N here and Y to "IOMEGA parallel port (imm -
+  newer drives)", below.
+
+  For more information about this driver and how to use it you should
+  read the file drivers/scsi/README.ppa. You should also read the
+  SCSI-HOWTO, which is available via FTP (user: anonymous) from
+  ftp://metalab.unc.edu/pub/Linux/docs/HOWTO. If you use this driver,
+  you will still be able to use the parallel port for other tasks,
+  such as a printer; it is safe to compile both drivers into the
+  kernel.
 
   This driver is also available as a module which can be inserted in
   and removed from the running kernel whenever you want. To compile
   this driver as a module, say M here and read
   Documentation/modules.txt. The module will be called ppa.o. 
 
-IOMEGA Parallel Port ZIP drive SCSI support
+IOMEGA parallel port (imm - newer drives)
 CONFIG_SCSI_IMM
-  All "new and improved" parallel port to SCSI interface from Iomega.
-  Please read the comments for the ppa driver for further information
+  This driver supports newer versions of IOMEGA's parallel port ZIP
+  drive (a 100 MB removable media device).
+
+  Note that you can say N here if you have the SCSI version of the ZIP
+  drive: it will be supported automatically if you said Y to the
+  generic "SCSI disk support", above.
+
+  If you have the ZIP Plus drive or a more recent parallel port ZIP
+  drive (if the supplied cable with the drive is labeled "AutoDetect")
+  then you should say Y here; if you have an older ZIP drive, say N
+  here and Y to "IOMEGA Parallel Port (ppa - older drives)", above.
+
+  For more information about this driver and how to use it you should
+  read the file drivers/scsi/README.ppa. You should also read the
+  SCSI-HOWTO, which is available via FTP (user: anonymous) from
+  ftp://metalab.unc.edu/pub/Linux/docs/HOWTO. If you use this driver,
+  you will still be able to use the parallel port for other tasks,
+  such as a printer; it is safe to compile both drivers into the
+  kernel.
+
+  This driver is also available as a module which can be inserted in
+  and removed from the running kernel whenever you want. To compile
+  this driver as a module, say M here and read
+  Documentation/modules.txt. The module will be called imm.o. 
 
 Force the Iomega ZIP drivers to use EPP-16
 CONFIG_SCSI_IZIP_EPP16
@@ -4463,19 +4656,20 @@ CONFIG_SCSI_IZIP_EPP16
 
   Some parallel port chipsets are slower than their motherboard, and
   so we have to control the state of the chipset's FIFO queue every
-  now and then to avoid data loss. This will be done if you say Y here. 
+  now and then to avoid data loss. This will be done if you say Y
+  here.
   
   Generally, saying Y is the safe option and slows things down a bit.
 
 Assume slow parallel port control register
 CONFIG_SCSI_IZIP_SLOW_CTR
-  Some parallel ports are known to have excessive delays between changing
-  the parallel port control register and good data being available on
-  the parallel port data/status register. This option forces a small delay
-  (1.0 usec to be exact) after changing the control register to let things
-  settle out. Enabling this option may result in a big drop in performance
-  but some very old parallel ports (found in 386 vintage machines) will
-  not work properly.
+  Some parallel ports are known to have excessive delays between
+  changing the parallel port control register and good data being
+  available on the parallel port data/status register. This option
+  forces a small delay (1.0 usec to be exact) after changing the
+  control register to let things settle out. Enabling this option may
+  result in a big drop in performance but some very old parallel ports
+  (found in 386 vintage machines) will not work properly.
 
   Generally, saying N is fine.
 
@@ -4564,11 +4758,11 @@ CONFIG_SCSI_POWERTECSCSI
 
 Network device support?
 CONFIG_NETDEVICES
-  You can say N here if you don't intend to connect to any other
-  computer at all or if all your connections will be over a telephone
-  line with a modem either via UUCP (UUCP is a protocol to forward
-  mail and news between unix hosts over telephone lines; read the
-  UUCP-HOWTO, available via FTP (user: anonymous) in
+  You can say N here if you don't intend to connect your Linux box to
+  any other computer at all or if all your connections will be over a
+  telephone line with a modem either via UUCP (UUCP is a protocol to
+  forward mail and news between unix hosts over telephone lines; read
+  the UUCP-HOWTO, available via FTP (user: anonymous) in
   ftp://metalab.unc.edu/pub/Linux/docs/HOWTO) or dialing up a shell
   account or a BBS, even using term (term is a program which gives you
   almost full Internet connectivity if you have a regular dial up
@@ -4581,18 +4775,18 @@ CONFIG_NETDEVICES
   you want to use under Linux (make sure you know its name because you
   will be asked for it and read the Ethernet-HOWTO (especially if you
   plan to use more than one network card under Linux), available from
-  ftp://metalab.unc.edu:/pub/Linux/docs/HOWTO/mini) or if you want to
+  ftp://metalab.unc.edu/pub/Linux/docs/HOWTO/mini) or if you want to
   use SLIP (Serial Line Internet Protocol is the protocol used to send
   Internet traffic over telephone lines or null modem cables) or CSLIP
   (compressed SLIP) or PPP (Point to Point Protocol, a better and
   newer replacement for SLIP) or PLIP (Parallel Line Internet Protocol
   is mainly used to create a mini network by connecting the parallel
   ports of two local machines) or AX.25/KISS (protocol for sending
-  Internet traffic over radio links).
+  Internet traffic over amateur radio links).
 
-  Make sure to read the NET-2-HOWTO. Eventually, you will have to read
+  Make sure to read the NET-3-HOWTO. Eventually, you will have to read
   Olaf Kirch's excellent and free book "Network Administrator's
-  Guide", to be found in ftp://metalab.unc.edu:/pub/Linux/docs/LDP. If
+  Guide", to be found in ftp://metalab.unc.edu/pub/Linux/docs/LDP. If
   unsure, say Y.
 
 Dummy net driver support
@@ -4631,7 +4825,7 @@ CONFIG_SLIP
   ftp://metalab.unc.edu/pub/Linux/system/network/serial/ ) which
   allows you to use SLIP over a regular dial up shell connection. If
   you plan to use SLiRP, make sure to say Y to CSLIP, below. The
-  NET-2-HOWTO, available via FTP (user: anonymous) in
+  NET-3-HOWTO, available via FTP (user: anonymous) in
   ftp://metalab.unc.edu/pub/Linux/docs/HOWTO, explains how to
   configure SLIP. Note that you don't need this option if you just
   want to run term (term is a program which gives you almost full
@@ -4658,7 +4852,7 @@ CONFIG_SLIP_COMPRESSED
   anonymous) from
   ftp://metalab.unc.edu/pub/Linux/system/network/serial/) which allows
   you to use SLIP over a regular dial up shell connection, you
-  definitely want to say Y here. The NET-2-HOWTO, available via FTP
+  definitely want to say Y here. The NET-3-HOWTO, available via FTP
   (user: anonymous) in ftp://metalab.unc.edu/pub/Linux/docs/HOWTO,
   explains how to configure CSLIP. This won't enlarge your kernel.
 
@@ -4698,7 +4892,7 @@ CONFIG_PPP
 
   To use PPP, you need an additional program called pppd as described
   in Documentation/networking/ppp.txt and in the PPP-HOWTO, available
-  from ftp://metalab.unc.edu:/pub/Linux/docs/HOWTO. If you upgrade
+  from ftp://metalab.unc.edu/pub/Linux/docs/HOWTO. If you upgrade
   from an older kernel, you might need to upgrade pppd as well. The
   PPP option enlarges your kernel by about 16 KB.
 
@@ -4760,8 +4954,9 @@ CONFIG_WAVELAN
   radio frequencies 900 MHz and 2.4 GHz.
   
   This driver support the ISA version of the WaveLAN card. A separate
-  driver for the pcmcia hardware is available in David Hinds'
-  pcmcia-cs package (see the file Documentation/Changes for location).
+  driver for the PCMCIA (PC-card) hardware is available in David
+  Hinds' pcmcia-cs package (see the file Documentation/Changes for
+  location).
 
   If you want to use an ISA WaveLAN card under Linux, say Y and read
   the Ethernet-HOWTO, available via FTP (user: anonymous) in
@@ -4851,7 +5046,7 @@ CONFIG_PLIP
   If you want to use PLIP, say Y and read the PLIP mini-HOWTO,
   available via FTP (user: anonymous) in
   ftp://metalab.unc.edu/pub/Linux/docs/HOWTO/mini as well as the
-  NET-2-HOWTO in ftp://metalab.unc.edu/pub/Linux/docs/HOWTO. Note that
+  NET-3-HOWTO in ftp://metalab.unc.edu/pub/Linux/docs/HOWTO. Note that
   the PLIP protocol was changed and this PLIP driver won't work
   together with the PLIP support in Linux versions 1.0.x. This option
   enlarges your kernel by about 8 KB.
@@ -4867,11 +5062,15 @@ CONFIG_EQUALIZER
   If you have two serial connections to some other computer (this
   usually requires two modems and two telephone lines) and you use
   SLIP (the protocol for sending Internet traffic over telephone
-  lines) or PPP (a better SLIP) on them, you can make them behave
-  like one double speed connection using this driver. Naturally, this
-  has to be supported at the other end as well, either with a similar
-  EQL Linux driver or with a Livingston Portmaster 2e. Say Y if you
-  want this and read Documentation/networking/eql.txt. 
+  lines) or PPP (a better SLIP) on them, you can make them behave like
+  one double speed connection using this driver. Naturally, this has
+  to be supported at the other end as well, either with a similar EQL
+  Linux driver or with a Livingston Portmaster 2e. 
+
+  Say Y if you want this and read Documentation/networking/eql.txt.
+  You may also want to read section 6.2 of the NET-3-HOWTO, available
+  via FTP (user: anonymous) from
+  ftp://metalab.unc.edu/pub/Linux/docs/HOWTO.
 
   This driver is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
@@ -4988,16 +5187,18 @@ CONFIG_WAN_ROUTER
   With relatively inexpensive WAN interface cards available on the
   market, a perfectly usable router can be built for less than half
   the price of an external router. If you have one of those cards and
-  wish to use your Linux box as a WAN router, say Y here and to the
-  WAN driver for your card, below. You will also need a wan-tools
-  package available via FTP (user: anonymous) from
+  wish to use your Linux box as a WAN router, say Y here and also to
+  the WAN driver for your card, below. You will then need the
+  wan-tools package which is available via FTP (user: anonymous) from
   ftp://ftp.sangoma.com. Read Documentation/networking/wan-router.txt
   for more information.
 
-  WAN routing support is always built as a module ( = code which can
-  be inserted in and removed from the running kernel whenever you
-  want). The module is called wanrouter.o. For general information
-  about modules read Documentation/modules.txt.
+  The WAN routing support is also available as a module called
+  wanrouter.o ( = code which can be inserted in and removed from the
+  running kernel whenever you want). If you want to compile it as a
+  module, say M here and read Documentation/modules.txt.
+
+  If unsure, say N.
 
 Fast switching (read help!)
 CONFIG_NET_FASTROUTE
@@ -5006,11 +5207,13 @@ CONFIG_NET_FASTROUTE
 
     *** This option is NOT COMPATIBLE with several important ***
     *** networking options: especially CONFIG*FIREWALL.      ***
+    *** Say N here if you intend to use Linux as a firewall. ***
 
   However, it will work with all options in CONFIG_IP_ADVANCED_ROUTER
-  section (except for CONFIG_IP_ROUTE_TOS). At the moment, few devices
-  support fast switching (tulip is one of them, modified 8390 can be
-  found at ftp://ftp.inr.ac.ru/ip-routing/fastroute-8390.tar.gz). 
+  section (except for CONFIG_IP_ROUTE_TOS and CONFIG_IP_ROUTE_FWMARK).
+  At the moment, few devices support fast switching (tulip is one of
+  them, modified 8390 can be found at
+  ftp://ftp.inr.ac.ru/ip-routing/fastroute-8390.tar.gz).
 
   If unsure, say N.
 
@@ -5203,30 +5406,42 @@ CONFIG_NET_PROFILE
 Comtrol Hostess SV-11 support
 CONFIG_HOSTESS_SV11
   This is a network card for low speed synchronous serial links, at
-  up to 256Kbits. It supports both PPP and Cisco HDLC
+  up to 256Kbps. It supports both PPP and Cisco HDLC.
+  
   At this point, the driver can only be compiled as a module.
 
 COSA/SRP sync serial boards support
 CONFIG_COSA
-  This is a driver for COSA and SRP synchronous serial boards.
-  These boards enable to connect synchronous serial devices (for
-  example base-band modems, or any other device with the X.21, V.24,
-  V.35 or V.36 interface) to your Linux box. The cards can work
-  as the character device, synchronous PPP network device, or the Cisco
-  HDLC network device.
+  This is a driver for COSA and SRP synchronous serial boards. These
+  boards allow to connect synchronous serial devices (for example
+  base-band modems, or any other device with the X.21, V.24, V.35 or
+  V.36 interface) to your Linux box. The cards can work as the
+  character device, synchronous PPP network device, or the Cisco HDLC
+  network device.
 
   To actually use the COSA or SRP board, you will need user-space
-  utilities for downloading the firmware to the cards and to set 
-  them up. Look at the http://www.fi.muni.cz/~kas/cosa/ for more
+  utilities for downloading the firmware to the cards and to set them
+  up. Look at the http://www.fi.muni.cz/~kas/cosa/ for more
   information about the cards (including the pointer to the user-space
   utilities). You can also read the comment at the top of the
-  drivers/net/cosa.c for details about the cards and the driver itself.
+  drivers/net/cosa.c for details about the cards and the driver
+  itself.
 
   The driver will be compiled as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
   The module will be called cosa.o. For general information about
   modules read Documentation/modules.txt.
 
+Red Creek Hardware VPN (EXPERIMENTAL)
+CONFIG_RCPCI
+  This is a driver for hardware which provides a Virtual Private
+  Network (VPN). Say Y if you have it.
+
+  This code is also available as a module called rcpci.o ( = code
+  which can be inserted in and removed from the running kernel
+  whenever you want). If you want to compile it as a module, say M
+  here and read Documentation/modules.txt.
+  
 WAN Drivers
 CONFIG_WAN_DRIVERS
   Say Y to this option if your Linux box contains a WAN card and you
@@ -5517,13 +5732,17 @@ CONFIG_ACENIC
   say M here and read Documentation/modules.txt. This is recommended.
   The module will be called acenic.o.
 
-
 AMD LANCE and PCnet (AT1500 and NE2100) support
 CONFIG_LANCE
   If you have a network (Ethernet) card of this type, say Y and read
   the Ethernet-HOWTO, available via FTP (user: anonymous) in
   ftp://metalab.unc.edu/pub/Linux/docs/HOWTO. Some LinkSys cards are
   of this type.
+
+  If you want to compile this driver as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want),
+  say M here and read Documentation/modules.txt. This is recommended.
+  The module will be called lance.o.
 
 3COM cards
 CONFIG_NET_VENDOR_3COM
@@ -5597,6 +5816,18 @@ CONFIG_ELMC
   This driver is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
   The module will be called 3c523.o. If you want to compile it as a
+  module, say M here and read Documentation/modules.txt as well as
+  Documentation/networking/net-modules.txt.
+
+3c527 support
+CONFIG_ELMC_II
+  If you have a network (Ethernet) card of this type, say Y and read
+  the Ethernet-HOWTO, available via FTP (user: anonymous) in
+  ftp://metalab.unc.edu/pub/Linux/docs/HOWTO.
+
+  This driver is also available as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want).
+  The module will be called 3c527.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt as well as
   Documentation/networking/net-modules.txt.
 
@@ -6151,11 +6382,11 @@ CONFIG_NET_POCKET
   one of those, say Y and read the Ethernet-HOWTO, available via FTP
   (user: anonymous) from ftp://metalab.unc.edu/pub/Linux/docs/HOWTO.
 
-  If you want to plug a network card into the PCMCIA slot of your
-  laptop instead (PCMCIA is the standard for credit card size
-  extension cards used by all modern laptops), look on the FTP site
-  (user: anonymous) ftp://cb-iris.stanford.edu/pub/pcmcia and say N
-  here.
+  If you want to plug a network (or some other) card into the PCMCIA
+  (or PC-card) slot of your laptop instead (PCMCIA is the standard for
+  credit card size extension cards used by all modern laptops), you
+  need the pcmcia-cs package (location contained in the file
+  Documentation/Changes) and you can say N here.
 
   Laptop users should read the Linux Laptop home page at
   http://www.cs.utexas.edu/users/kharker/linux-laptop/ (to browse the
@@ -6286,6 +6517,16 @@ CONFIG_HIPPI
   under Linux, say Y here (you must also remember to enable the driver
   for your HIPPI card below). Most people will say N here.
   
+CERN HIPPI PCI adapter support
+CONFIG_CERN_HIPPI
+  Say Y here if this is your PCI HIPPI network card.
+
+  This driver is also available as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want).
+  The module will be called cern_hippi.o. If you want to compile it as
+  a module, say M here and read Documentation/modules.txt. If unsure,
+  say N.
+
 Essential RoadRunner HIPPI PCI adapter support
 CONFIG_ROADRUNNER
   Say Y here if this is your PCI HIPPI network card.
@@ -6397,6 +6638,20 @@ CONFIG_MCD
   inserted in and removed from the running kernel whenever you want).
   The module will be called mcd.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt.
+
+IRQ channel for Mitsumi CD-ROM
+CONFIG_MCD_IRQ
+  This allows you to specify the default value of the IRQ used by the
+  driver. This setting can be overridden by passing the "mcd="
+  parameter to the kernel at boot time (or at module load time if you
+  said M to "Standard Mitsumi CDROM support").
+
+I/O base address for Mitsumi CD-ROM
+CONFIG_MCD_BASE
+  This allows you to specify the default value of the I/O base address
+  used by the driver. This setting can be overridden by passing the
+  "mcd=" parameter to the kernel at boot time (or at module load time
+  if you said M to "Standard Mitsumi CDROM support").
 
 Mitsumi [XA/MultiSession] support
 CONFIG_MCDX
@@ -6588,6 +6843,13 @@ CONFIG_QUOTA
   ftp://metalab.unc.edu/pub/Linux/docs/HOWTO/mini. Probably the quota
   support is only useful for multi user systems. If unsure, say N.
 
+Acorn's ADFS filesystem support (read only) (EXPERIMENTAL)
+CONFIG_ADFS_FS
+  The Advanced Disk File System is the filesystem used on floppy and
+  hard disks by Acorn Systems.  Currently in development, as a read-
+  only driver for hard disks.  These should be the first partition
+  (eg. /dev/[sh]d?1) on each of your drives.  If unsure, say N.
+
 Minix fs support
 CONFIG_MINIX_FS
   Minix is a simple operating system used in many classes about OS's.
@@ -6748,7 +7010,7 @@ CONFIG_MSDOS_FS
 vfat fs support
 CONFIG_VFAT_FS
   This option provides support for normal Windows filesystems with
-  long filenames. That includes noncompressed FAT-based filesystems
+  long filenames. That includes non-compressed FAT-based filesystems
   used by Windows 95, Windows 98, Windows NT 4.0, and mtools. 
 
   You cannot use the VFAT filesystem for your Linux root partition
@@ -6795,21 +7057,24 @@ CONFIG_PROC_FS
   of the system. "Virtual" means that it doesn't take up any space on
   your hard disk: the files are created on the fly by the kernel when
   you try to access them. Also, you cannot read the files with older
-  version of the program less: you need to use more or cat. The
-  filesystem is explained in the Kernel Hacker's Guide at
-  http://www.redhat.com:8080/HyperNews/get/khg.html on the WWW (to
-  browse the WWW, you need to have access to a machine on the Internet
-  that has a program like lynx or netscape), and also on the proc(8)
-  manpage ("man 8 proc").
+  version of the program less: you need to use more or cat. 
 
   It's totally cool; for example, "cat /proc/interrupts" gives
   information about what the different IRQs are used for at the moment
   (there is a small number of Interrupt ReQuest lines in your computer
   that are used by the attached devices to gain the CPU's attention --
   often a source of trouble if two devices are mistakenly configured
-  to use the same IRQ). This option will enlarge your kernel by about
-  18 kB. Several programs depend on this, so everyone should say Y
-  here.
+  to use the same IRQ). 
+
+  The /proc filesystem is explained in the file
+  Documentation/proc.txt, in the Kernel Hacker's Guide at
+  http://www.redhat.com:8080/HyperNews/get/khg.html on the WWW (to
+  browse the WWW, you need to have access to a machine on the Internet
+  that has a program like lynx or netscape), and also on the proc(8)
+  manpage ("man 8 proc").
+
+  This option will enlarge your kernel by about 18 KB. Several
+  programs depend on this, so everyone should say Y here.
 
 NFS filesystem support
 CONFIG_NFS_FS
@@ -6837,11 +7102,11 @@ CONFIG_NFS_FS
   say M here and read Documentation/modules.txt. 
 
   If you are configuring a diskless machine which will mount its root
-  filesystem over NFS at boot time, say Y here and to "Root file
-  system on NFS" and to "IP: kernel level autoconfiguration". You
-  cannot compile this driver as a module in this case. There are two
-  packages designed for booting diskless machines over the net:
-  netboot and etherboot, both available via FTP (user: anonymous) from
+  filesystem over NFS at boot time, say Y here and to "IP: kernel
+  level autoconfiguration" above and to "Root file system on NFS"
+  below. You cannot compile this driver as a module in this case.
+  There are two packages designed for booting diskless machines over
+  the net: netboot and etherboot, both available via FTP from
   ftp://metalab.unc.edu/pub/Linux/system/boot/ethernet/ .
 
   If you don't know what all this is about, say N.
@@ -6867,10 +7132,13 @@ CONFIG_NFSD
   should say N here, or you can say Y and use this new experimental
   kernel based NFS server. The advantage of the kernel based solution
   is that it is faster; it might not be completely stable yet, though.
-  You will need the support software from the linux-nfs package
-  available at ftp://ftp.mathematik.th-darmstadt.de/pub/linux/okir/.
+
+  In either case, you will need support software; the respective
+  locations are given in the file Documentation/Changes in the NFS
+  section.
+
   Please read the NFS-HOWTO, available via FTP (user: anonymous) from
-  ftp://metalab.unc.edu:/pub/Linux/docs/HOWTO. 
+  ftp://metalab.unc.edu/pub/Linux/docs/HOWTO.
 
   The NFS server is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
@@ -6945,7 +7213,7 @@ CONFIG_SYSV_FS
   tar" or preferably "info tar"). Note also that this option has
   nothing whatsoever to do with the option "System V IPC". Read about
   the System V filesystem in Documentation/filesystems/sysv-fs.txt.
-  Saying Y here will enlarge your kernel by about 34 kB.
+  Saying Y here will enlarge your kernel by about 34 KB.
 
   If you want to compile this as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want),
@@ -7007,7 +7275,9 @@ CONFIG_ROMFS_FS
 QNX filesystem support (EXPERIMENTAL)
 CONFIG_QNX4FS_FS  
   This is the filesystem used by the operating system QNX 4. Say Y if
-  you intend to mount QNX hard disks or floppies.
+  you intend to mount QNX hard disks or floppies. Unless you say Y to
+  "QNXFS read-write support" below, you will only be able to read
+  these filesystems.
 
   This filesystem support is also available as a module ( = code which
   can be inserted in and removed from the running kernel whenever you
@@ -7015,6 +7285,10 @@ CONFIG_QNX4FS_FS
   module, say M here and read Documentation/modules.txt. 
 
   If unsure, say N.
+
+QNXFS read-write support (FOR TESTING ONLY)
+CONFIG_QNX4FS_RW
+  Say Y if you want to test write support for QNX filesystems.
 
 Kernel automounter support
 CONFIG_AUTOFS_FS
@@ -7041,7 +7315,9 @@ CONFIG_UFS_FS
   OpenBSD and NeXTstep) use a filesystem called UFS. Some System V
   Unixes can create and mount hard disk partitions and diskettes using
   this filesystem as well. Saying Y here will allow you to read from
-  these partitions and diskettes.
+  these partitions; if you also want to write to them, say Y to the
+  experimental "UFS filesystem write support", below. Please read the
+  file Documentation/filesystems/ufs.txt for more information.
 
   If you only intend to mount files from some other Unix over the
   network using NFS, you don't need the UFS filesystem support (but
@@ -7063,44 +7339,42 @@ CONFIG_UFS_FS
 
   If you haven't heard about all of this before, it's safe to say N.
 
-UFS filesystem write support
+UFS filesystem write support (experimental)
 CONFIG_UFS_FS_WRITE
-  You will be able to write to 4.4BSD (e.g. FreeBSD, NetBSD and
-  OpenBSD) and SunOS partitions and diskettes if you say Y to this
-  option in addition to "UFS filesystem support", above.
+  Say Y here if you want to try writing to UFS partitions. This is
+  experimental, so you should back up your UFS partitions beforehand.
 
 BSD disklabel (FreeBSD partition tables) support
 CONFIG_BSD_DISKLABEL
   FreeBSD uses its own hard disk partition scheme on your PC. It
   requires only one entry in the primary partition table of your disk
   and manages it similarly to DOS extended partitions, putting in its
-  first sector a new partition table in disklabel format. Saying Y
+  first sector a new partition table in BSD disklabel format. Saying Y
   here allows you to read these disklabels and further mount FreeBSD
-  partitions read-only from within Linux if you have also said Y to
-  "UFS filesystem support", above. If you don't know what all this
-  is about, say N.
+  partitions from within Linux if you have also said Y to "UFS
+  filesystem support", above. If you don't know what all this is
+  about, say N.
 
 SMD disklabel (Sun partition tables) support
 CONFIG_SMD_DISKLABEL
   Like most systems, SunOS uses its own hard disk partition table
   format, incompatible with all others. Saying Y here allows you to
-  read these partition tables and further mount SunOS disks read-only
-  from within Linux if you have also said Y to "UFS filesystem
-  support", above. This is mainly used to carry data from a SPARC
-  under SunOS to your Linux box via a removable medium like
-  magneto-optical or ZIP drives; note however that a good portable way
-  to transport files and directories between unixes (and even other
-  operating systems) is given by the tar program ("man tar" or
-  preferably "info tar"). If you don't know what all this is about,
-  say N.
+  read these partition tables and further mount SunOS disks from
+  within Linux if you have also said Y to "UFS filesystem support",
+  above. This is mainly used to carry data from a SPARC under SunOS to
+  your Linux box via a removable medium like magneto-optical or ZIP
+  drives; note however that a good portable way to transport files and
+  directories between unixes (and even other operating systems) is
+  given by the tar program ("man tar" or preferably "info tar"). If
+  you don't know what all this is about, say N.
 
 Solaris (x86) partition table support
 CONFIG_SOLARIS_X86_PARTITION
   Like most systems, Solaris x86 uses its own hard disk partition
   table format, incompatible with all others. Saying Y here allows you
   to read these partition tables and further mount Solaris x86 disks
-  read-only from within Linux if you have also said Y to "UFS
-  filesystem support", above.
+  from within Linux if you have also said Y to "UFS filesystem
+  support", above.
 
 ADFS filesystem support (read only) (EXPERIMENTAL)
 CONFIG_ADFS_FS
@@ -7130,27 +7404,29 @@ CONFIG_DEVPTS_FS
   to acquire a pseudo terminal, a process opens /dev/ptmx; the number
   of the pseudo terminal is then made available to the process and the
   pseudo terminal slave can be accessed as /dev/pts/<number>. What was
-  traditionally /dev/ttyp2 will then be /dev/pts/2, for example. The
-  GNU C library glibc 2.1 contains the requisite support for this mode
-  of operation; you also need clients that use the Unix98 API.
+  traditionally /dev/ttyp2 will then be /dev/pts/2, for example. 
 
-Unixware slices support (EXPERIMENTAL)
+  The GNU C library glibc 2.1 contains the requisite support for this
+  mode of operation; you also need client programs that use the Unix98
+  API.
+
+UnixWare slices support (EXPERIMENTAL)
 CONFIG_UNIXWARE_DISKLABEL
-  Like some systems, Unixware uses, except DOS-like partition table,
-  its own slice table inside a partition (VTOC - Virtual Table of
-  Contents). Its format is incompatible with all other OSes. Saying Y
-  here allows you to read VTOC and further mount Unixware partitions
-  read-only from within Linux if you have also said Y to "UFS 
-  filesystem support" or "System V and Coherent filesystem support", 
-  above.
+  Like some systems, UnixWare uses its own slice table inside a
+  partition (VTOC - Virtual Table of Contents). Its format is
+  incompatible with all other OSes. Saying Y here allows you to read
+  VTOC and further mount UnixWare partitions read-only from within
+  Linux if you have also said Y to "UFS filesystem support" or "System
+  V and Coherent filesystem support", above.
 
-  This is mainly used to carry data from a Unixware box to your
+  This is mainly used to carry data from a UnixWare box to your
   Linux box via a removable medium like magneto-optical, ZIP or
   removable IDE drives. Note, however, that a good portable way to
   transport files and directories between unixes (and even other
   operating systems) is given by the tar program ("man tar" or
-  preferably "info tar"). If you don't know what all this is about,
-  say N.
+  preferably "info tar"). 
+
+  If you don't know what all this is about, say N.
 
 Macintosh partition map support
 CONFIG_MAC_PARTITION
@@ -7161,7 +7437,7 @@ CONFIG_MAC_PARTITION
 SMB filesystem support (to mount Windows shares etc...)
 CONFIG_SMB_FS
   SMB (Server Message Block) is the protocol Windows for Workgroups
-  (WfW), Windows 95, Windows NT and OS/2 Lan Manager use to share
+  (WfW), Windows 95/98, Windows NT and OS/2 Lan Manager use to share
   files and printers over local networks. Saying Y here allows you to
   mount their filesystems (often called "shares" in this context) and
   access them just like any other Unix directory. Currently, this
@@ -7225,7 +7501,7 @@ CONFIG_NCP_FS
   mount NetWare file server volumes and to access them just like any
   other Unix directory. For details, please read the file
   Documentation/filesystems/ncpfs.txt in the kernel source and the
-  IPX-HOWTO on ftp://metalab.unc.edu:/pub/Linux/docs/howto.
+  IPX-HOWTO on ftp://metalab.unc.edu/pub/Linux/docs/howto.
 
   You do not have to say Y here if you want your Linux box to act as a
   file *server* for Novell NetWare clients.
@@ -7271,6 +7547,25 @@ CONFIG_NCPFS_OS2_NS
   case insensitive, and case in names is preserved. Say Y. You can
   disable it at mount time with the -N os2 parameter of ncpmount.
 
+Lowercase DOS filenames on LONG namespace volume
+CONFIG_NCPFS_SMALLDOS
+  If you say Y here, every filename on a NetWare server volume using
+  the OS2/LONG namespace will be converted to lowercase characters.
+  (For regular NetWare file server volumes with DOS namespace, this is
+  done automatically, even if you say N here.) Saying N here will give
+  you these filenames in uppercase.
+  
+  This is only a cosmetic option since the OS2/LONG namespace is case
+  insensitive. The only major reason for this option is backward
+  compatibility when moving from DOS to OS2/LONG namespace support.
+  Long filenames (created by Win95) will not be affected.
+
+  This option does not solve the problem that filenames appear
+  differently under Linux and under Windows, since Windows does an
+  additional conversions on the client side. You can achieve similar
+  effects by saying Y to "Allow using of Native Language Support"
+  below.
+
 Allow mounting of volume subdirectories
 CONFIG_NCPFS_MOUNT_SUBDIR
   Allows you to mount not only whole servers or whole volumes, but
@@ -7289,28 +7584,23 @@ CONFIG_NCPFS_NDS_DOMAINS
   servers. Do not say Y if security is primary for you because root
   can read your session key (from /proc/kcore).
 
-nls: Native language codepages and Unicode support
-CONFIG_NLS
-  This is required by the FAT and NTFS filesystems and by the ISO 9660
-  filesystem when it is compiled with Joliet support. Joliet is a
-  Microsoft extension for CDROMs that supports Unicode. This allows
-  translation between different character sets. 
+Allow using of Native Language Support
+CONFIG_NCPFS_NLS
+  Allows you to use codepages and I/O charsets for file name
+  translation between the server file system and input/output. This
+  may be useful, if you want to access the server with other operating
+  systems, e.g. Windows 95. See also NLS for more Information.
 
-  When dealing with the FAT based filesystems, there are two character
-  sets that are important. The first is the codepage. Codepages are
-  character sets that are used by DOS to allow filenames to have
-  native language characters when character sets were limited to 256
-  characters. The codepage is the character set that is used to store
-  native language characters on disk. The two most common codepages
-  are 437 in the United States and 850 in much of Europe.
+  To select codepages and I/O charsets use ncpfs-2.2.0.13 or newer.
 
-  The second important character set is the input/output character
-  set. This is the character set that is displayed on the screen. In
-  the United States, this will almost always be the ISO 8859-1
-  character set. This is the default.
+Symbolic links and mode permission bits
+CONFIG_NCPFS_EXTRAS
+  This enables the use of symbolic links and an execute permission
+  bit on NCPFS. The file server need not have long name space or NFS
+  name space loaded for these to work.
 
-  Linux will only translate the FAT filenames, not the contents of the
-  files.
+  To use the new attributes, it is recommended to use the flags
+  '-f 600 -d 755' on the ncpmount command line.
 
 nls codepage 437
 CONFIG_NLS_CODEPAGE_437
@@ -7499,8 +7789,7 @@ CONFIG_NLS_ISO8859_1
   set, which covers most West European languages such as Albanian,
   Catalan, Danish, Dutch, English, Faeroese, Finnish, French, German,
   Galician, Irish, Icelandic, Italian, Norwegian, Portuguese, Spanish,
-  Swedish, and Valencian. It is also the default for the US. If
-  unsure, say Y.
+  and Swedish. It is also the default for the US. If unsure, say Y.
 
 nls iso8859-2
 CONFIG_NLS_ISO8859_2
@@ -7592,7 +7881,7 @@ CONFIG_NLS_ISO8859_15
   set, which covers most West European languages such as Albanian,
   Catalan, Danish, Dutch, English, Estonian, Faeroese, Finnish,
   French, German, Galician, Irish, Icelandic, Italian, Norwegian,
-  Portuguese, Spanish, Swedish, and Valencian. Latin 9 is an update to
+  Portuguese, Spanish, and Swedish. Latin 9 is an update to
   Latin 1 (ISO 8859-1) that removes a handful of rarely used
   characters and instead adds support for Estonian, corrects the
   support for French and Finnish, and adds the new Euro character.  If
@@ -7843,6 +8132,29 @@ CONFIG_ISTALLION
   read Documentation/modules.txt. The module will be called
   istallion.o.
 
+Microgate SyncLink adapter support
+CONFIG_SYNCLINK
+  Provides support for the SyncLink ISA and PCI
+  multiprotocol serial adapters. These adapters
+  support asynchronous and HDLC bit synchronous
+  communication up to 10Mbps (PCI adapter).
+
+  This driver can only be built as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want).
+  The module will be called synclink.o. If you want to do that, say M
+  here.
+
+Synchronous HDLC line discipline support
+CONFIG_N_HDLC
+  Allows synchronous HDLC communications with
+  tty device drivers that support synchronous
+  HDLC such as the Microgate SyncLink adapter.
+
+  This driver can only be built as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want).
+  The module will be called n_hdlc.o. If you want to do that, say M
+  here.
+
 Hayes ESP serial port support
 CONFIG_ESPSERIAL
   This is a driver which supports Hayes ESP serial ports. Both single
@@ -7854,14 +8166,22 @@ CONFIG_ESPSERIAL
   and read Documentation/modules.txt. The module will be called esp.o.
   If unsure, say N.
 
+Multi-Tech multiport card support
+CONFIG_ISI
+  This is a driver for the Multi-Tech cards which provide several
+  serial ports. The driver is experimental and can currently only be
+  built as a module ( = code which can be inserted in and removed from
+  the running kernel whenever you want). Please read
+  Documentation/modules.txt. The module will be called isicom.o
+
 Unix98 PTY support
 CONFIG_UNIX98_PTYS
   A pseudo terminal (PTY) is a software device consisting of two
   halves: a master and a slave. The slave device behaves identical to
   a physical terminal; the master device is used by a process to
   read data from and write data to the slave, thereby emulating a
-  terminal. Typical programs for the master side are xterm and telnet
-  servers. 
+  terminal. Typical programs for the master side are telnet servers
+  and xterms.
   
   Linux has traditionally used the BSD-like names /dev/ptyxx for
   masters and /dev/ttyxx for slaves of pseudo terminals. This scheme
@@ -7876,9 +8196,10 @@ CONFIG_UNIX98_PTYS
   filesystem; therefore, if you say Y here you should say Y to
   "/dev/pts filesystem for Unix98 PTYs" as well.
 
-  You should say Y here only if your C library is glibc 2.1 or later
-  (equal to libc-6.1, check with "ls -l /lib/libc.so.*"). Read the
-  instructions in Documentation/Changes.
+  If you want to say Y here, you need to have the C library glibc 2.1
+  or later (equal to libc-6.1, check with "ls -l /lib/libc.so.*").
+  Read the instructions in Documentation/Changes pertaining to pseudo
+  terminals. It's safe to say N.
 
 Maximum number of Unix98 PTYs in use (0-2048)
 CONFIG_UNIX98_PTY_COUNT
@@ -7906,15 +8227,14 @@ CONFIG_PRINTER
   removed from the running kernel whenever you want), say M here and
   read Documentation/modules.txt. The module will be called lp.o. 
 
-  If you have several parallel ports, you should specify the base
-  address for the port to be used by the printer with the "lp" kernel
-  command line option. (Try "man bootparam" or see the documentation
-  of your boot loader (lilo or loadlin) about how to pass options to
-  the kernel at boot time. The lilo procedure is also explained in the
-  SCSI-HOWTO, available via FTP (user: anonymous) in
-  ftp://metalab.unc.edu/pub/Linux/docs/HOWTO.) The standard base
-  addresses as well as the syntax of the "lp" command line option can
-  be found in drivers/char/lp.c.
+  If you have several parallel ports, you can specify which ports to
+  use with the "lp" kernel command line option. (Try "man bootparam"
+  or see the documentation of your boot loader (lilo or loadlin)
+  about how to pass options to the kernel at boot time. The lilo
+  procedure is also explained in the SCSI-HOWTO, available via FTP
+  (user: anonymous) in ftp://metalab.unc.edu/pub/Linux/docs/HOWTO.)
+  The syntax of the "lp" command line option can be found in
+  drivers/char/lp.c.
 
   If you have more than 3 printers, you need to increase the LP_NO
   variable in lp.c.
@@ -7975,7 +8295,7 @@ CONFIG_PSMOUSE
   When using a PS/2 mouse, you can get problems if you want to use the
   mouse both on the Linux console and under X. Using the "-R" option
   of the Linux mouse managing program gpm (available from
-  ftp://metalab.unc.edu:/pub/Linux/system/Daemons) solves this
+  ftp://metalab.unc.edu/pub/Linux/system/Daemons) solves this
   problem, or you can get the "mconv" utility also from metalab.
 
 C&T 82C710 mouse port support (as on TI Travelmate)
@@ -8186,7 +8506,7 @@ CONFIG_FT_NORMAL_DEBUG
 
   Ftape can print lots of debugging messages to the system console
   resp. kernel log files. Reducing the amount of possible debugging
-  output reduces the size of the kernel module by some kb, so it might
+  output reduces the size of the kernel module by some KB, so it might
   be a good idea to use "None" for emergency boot floppies.
 
   If you want to save memory then the following strategy is
@@ -8346,17 +8666,24 @@ CONFIG_FT_FDC_MAX_RATE
 
 MTRR control and configuration
 CONFIG_MTRR
-  On Intel Pentium Pro and Pentium II systems the Memory Type Range
-  Registers (MTRRs) may be used to control processor access to memory
-  ranges. This is most useful when you have a video (VGA) card on a
-  PCI or AGP bus. Enabling write-combining allows bus write transfers
-  to be combined into a larger transfer before bursting over the
-  PCI/AGP bus. This can increase performance of image write operations
-  2.5 times or more. This option creates a /proc/mtrr file which may
-  be used to manipulate your MTRRs. Typically the X server should use
-  this. This should have a reasonably generic interface so that
-  similar control registers on other processors can be easily
-  supported.
+  On Intel P6 family processors (Pentium Pro, Pentium II and later)
+  the Memory Type Range Registers (MTRRs) may be used to control
+  processor access to memory ranges. This is most useful when you have
+  a video (VGA) card on a PCI or AGP bus. Enabling write-combining
+  allows bus write transfers to be combined into a larger transfer
+  before bursting over the PCI/AGP bus. This can increase performance
+  of image write operations 2.5 times or more. This option creates a
+  /proc/mtrr file which may be used to manipulate your
+  MTRRs. Typically the X server should use this. This should have a
+  reasonably generic interface so that similar control registers on
+  other processors can be easily supported.
+
+  The Cyrix 6x86, 6x86MX and M II processors have Address Range
+  Registers (ARRs) which provide a similar functionality to MTRRs. For
+  these, the ARRs are used to emulate the MTRRs.
+
+  The AMD K6-2 (stepping 8 and above) and K6-3 processors have two
+  MTRRs. These are supported.
 
   Saying Y here also fixes a problem with buggy SMP BIOSes which only
   set the MTRRs for the boot CPU and not the secondary CPUs. This can
@@ -8377,6 +8704,15 @@ Zilog serial support
 CONFIG_SUN_ZS
   This driver does not exist at this point, so you might as well 
   say N.
+
+Double Talk PC internal speech card support
+CONFIG_DTLK
+  This driver is for the DoubleTalk PC, a speech synthesizer
+  manufactured by RC Systems (http://www.rcsys.com/).  It is also
+  called the `internal DoubleTalk'.  If you want to compile this as a
+  module ( = code which can be inserted in and removed from the
+  running kernel whenever you want), say M here and read
+  Documentation/modules.txt. The module will be called dtlk.o.
 
 Advanced Power Management
 CONFIG_APM
@@ -8501,36 +8837,28 @@ Ignore multiple suspend/resume cycles
 CONFIG_APM_IGNORE_SUSPEND_BOUNCE
   This option is necessary on the Dell Inspiron 3200 and others, but
   should be safe for all other laptops. When enabled, a system suspend
-  event that occurs within three seconds of a resume is ignored. Without
-  this the Inspiron will shut itself off a few seconds after you open
-  the lid, requiring you to press the power button to resume it a
-  second time.
-  Say Y.
+  event that occurs within three seconds of a resume is ignored.
+  Without this the Inspiron will shut itself off a few seconds after
+  you open the lid, requiring you to press the power button to resume
+  it a second time. Say Y.
 
 RTC stores time in GMT
 CONFIG_APM_RTC_IS_GMT
-  This option can be used when your RTC (Real Time Clock aka. Hardware
-  Clock) stores the time in GMT (Greenwich Mean Time) rather than
-  localtime. When suspending/resuming, the kernel needs to know what
-  is stored in the RTC so it can update the system clock (which is
-  always GMT). Without this option the kernel attempts to measure
-  the offset between the RTC and the system clock. This means you
-  can loose one second on each suspend/resume cycle.
-  Also, on the Dell Inspiron 3200, the hardware slows down the system
-  even before the kernel can measure the RTC/system clock offset. It
-  can then take 15 seconds to do this measurement and it can be
-  incorrect by several seconds.
-  Say Y if GMT is stored in your RTC.
-  GMT is usually the best anyway, because you don't have to worry about
-  daylight savings time changes. The only reason to not use GMT in
-  your RTC is if you also run a broken OS that doesn't understand GMT.
+  Say Y here if your RTC (Real Time Clock a.k.a. hardware clock)
+  stores the time in GMT (Greenwich Mean Time). Say N if your RTC
+  stores localtime.
+
+  It is in fact recommended to store GMT in your RTC, because then you
+  don't have to worry about daylight savings time changes. The only
+  reason not to use GMT in your RTC is if you also run a broken OS
+  that doesn't understand GMT.
 
 Allow interrupts during APM BIOS calls
 CONFIG_APM_ALLOW_INTS
   Normally we disable external interrupts while we are making calls to
   the APM BIOS as a measure to lessen the effects of a badly behaving
-  BIOS implementation.  The BIOS should reeanble interrupts if it
-  needs to.  Unfortunately, some BIOS's do not - especially those in
+  BIOS implementation.  The BIOS should reenable interrupts if it
+  needs to.  Unfortunately, some BIOSes do not - especially those in
   many of the newer IBM Thinkpads.  If you experience hangs when you
   suspend, try setting this to Y.  Otherwise, say N.
 
@@ -8643,8 +8971,9 @@ CONFIG_RTC
   24 hour alarm. It reports status information via the file /proc/rtc
   and its behaviour is set by various ioctls on /dev/rtc.
 
-  If you enabled CONFIG_SMP, you should say Y here to read and set the
-  RTC clock in an SMP compatible fashion.
+  If you run Linux on a multiprocessor machine and said Y to
+  "Symmetric Multi Processing" above, you should say Y here to read
+  and set the RTC clock in an SMP compatible fashion.
 
   If you think you have a use for such a device (such as periodic data
   sampling), then say Y here, and read Documentation/rtc.txt for
@@ -8664,14 +8993,16 @@ CONFIG_NVRAM
   with major number 10 and minor number 144 using mknod ("man mknod"),
   you get read and write access to the 50 bytes of non-volatile memory
   in the real time clock (RTC), which is contained in every PC and
-  most Ataris. This memory is conventionally called "CMOS RAM" on PCs
-  and "NVRAM" on Ataris. /dev/nvram may be used to view settings
-  there, or to change them (with some utility). It could also be used
-  to frequently save a few bits of very important data that may not be
-  lost over power-off and for which writing to disk is too insecure. Note
-  however that most NVRAM space in a PC belongs to the BIOS and you should
-  NEVER idly tamper with it. See Ralf Browns interrupt list for a guide to 
-  the use of CMOS bytes by your BIOS.
+  most Ataris. 
+
+  This memory is conventionally called "CMOS RAM" on PCs and "NVRAM"
+  on Ataris. /dev/nvram may be used to view settings there, or to
+  change them (with some utility). It could also be used to frequently
+  save a few bits of very important data that may not be lost over
+  power-off and for which writing to disk is too insecure. Note
+  however that most NVRAM space in a PC belongs to the BIOS and you
+  should NEVER idly tamper with it. See Ralf Brown's interrupt list
+  for a guide to the use of CMOS bytes by your BIOS.
 
   On Atari machines, /dev/nvram is always configured and does not need
   to be selected.
@@ -8680,6 +9011,17 @@ CONFIG_NVRAM
   inserted in and removed from the running kernel whenever you want).
   The module will be called nvram.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt.
+
+Atomwide Serial Support
+CONFIG_ATOMWIDE_SERIAL
+  If you have an Atomwide Serial card for an Acorn system, say Y to
+  this option.  The driver can handle 1, 2, or 3 port cards.
+  If unsure, say N
+
+The Serial Port Dual Serial Port
+CONFIG_DUALSP_SERIAL
+  If you have the Serial Port's dual serial card for an Acorn system,
+  say Y to this option.  If unsure, say N
 
 Joystick support
 CONFIG_JOYSTICK
@@ -8764,7 +9106,7 @@ CONFIG_JOY_TURBOGRAFX
   Say Y here if you have the TurboGraFX interface by Steffen Schwenke,
   and want to use it with Multiststem -- Atari, Amiga, Commodore,
   Amstrad CPC joystick. For more information on how to use the driver
-  please read Documentation/joystick-parport.txt and
+  please read Documentation/joystick.txt and
   Documentation/joystick-parport.txt
 
 Amiga joysticks
@@ -8784,17 +9126,48 @@ CONFIG_DUALSP_SERIAL
   If you have the Serial Port's dual serial card for an Acorn system,
   say Y to this option. If unsure, say N
 
+NetWinder Button
+CONFIG_NWBUTTON
+  If you enable this driver and create a character device node
+  /dev/nwbutton with major and minor numbers 10 and 158 ("man mknod"),
+  then every time the orange button is pressed a number of times, the
+  number of times the button was pressed will be written to that device.
+  This is most useful for applications, as yet unwritten, which perform
+  actions based on how many times the button is pressed in a row.
+  Do not hold the button down for too long, as the driver does not alter
+  the behaviour of the hardware reset circuitry attached to the button;
+  it will still execute a hard reset if the button is held down for
+  longer than approximately five seconds.
+  This driver is also available as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want).
+  If you want to compile it as a module, say M here and read
+  Documentation/modules.txt. The module will be called nwbutton.o.
+  Most people will answer Y to this question and "Reboot Using Button"
+  below to be able to initiate a system shutdown from the button.
+
+Reboot Using Button
+CONFIG_NWBUTTON_REBOOT
+  If you enable this option, then you will be able to initiate a system
+  shutdown and reboot by pressing the orange button a number of times.
+  The number of presses to initiate the shutdown is two by default, but
+  this can be altered by modifying the value of NUM_PRESSES_REBOOT in
+  nwbutton.h and recompiling the driver or, if you compile the driver as
+  a module, you can specify the number of presses at load time with
+  "insmod button reboot_count=<something>".
+
 Sound card support
 CONFIG_SOUND
   If you have a sound card in your computer, i.e. if it can say more
   than an occasional beep, say Y. Be sure to have all the information
   about your sound card and its configuration down (I/O port,
-  interrupt and DMA channel), because you will be asked for it. You
-  want to read the Sound-HOWTO, available via FTP (user: anonymous)
-  from ftp://metalab.unc.edu/pub/Linux/docs/HOWTO. There is also some
-  information in various README files in drivers/sound, esp. in
-  Readme.cards which you should read first to find out whether your
-  card is supported by Linux, and, if yes, which driver to use.
+  interrupt and DMA channel), because you will be asked for it. 
+
+  You want to read the Sound-HOWTO, available via FTP (user:
+  anonymous) from ftp://metalab.unc.edu/pub/Linux/docs/HOWTO. General
+  information about the modular sound system is contained in the files
+  Documentation/sound/Introduction. The file
+  Documentation/sound/README.OSS contains some slightly outdated but
+  still useful information as well.
 
   If you have a PnP sound card and you want to configure it at boot
   time using the ISA PnP tools (read
@@ -8805,7 +9178,8 @@ CONFIG_SOUND
   from the running kernel whenever you want) and load that module
   after the PnP configuration is finished. To do this, say M here and
   read Documentation/modules.txt as well as
-  drivers/sound/Readme.modules; the module will be called sound.o.
+  Documentation/sound/README.modules; the module will be called
+  sound.o.
 
   I'm told that even without a sound card, you can make your computer
   say more than an occasional beep, by programming the PC speaker.
@@ -8819,7 +9193,22 @@ CONFIG_SOUND_OSS
   here (the module will be called sound.o) if you haven't found a
   driver for your sound card above, then pick your driver from the
   list below.
- 
+
+Persistent DMA buffers
+CONFIG_SOUND_DMAP
+  Linux can often have problems allocating DMA buffers for ISA sound
+  cards on machines with more than 16MB of RAM. This is because ISA
+  DMA buffers must exist below the 16MB boundary and it is quite
+  possible that a large enough free block in this region cannot be
+  found after the machine has been running for a while. If you say Y
+  here the DMA buffers (64Kb) will be allocated at boot time and kept
+  until the shutdown. This option is only useful if you said Y to
+  "OSS sound modules", above. If you said M to "OSS sound modules"
+  then you can get the persistent DMA buffer functionality by passing
+  the command-line argument "dmabuf=1" to the sound.o module.
+
+  Say Y unless you have 16MB or less RAM or a PCI sound card.
+
 Support for Aztech Sound Galaxy (non-PnP) cards
 CONFIG_SOUND_SGALAXY
   This module initializes the older non Plug and Play sound galaxy
@@ -8828,7 +9217,7 @@ CONFIG_SOUND_SGALAXY
 
 Support for AD1816(A) based cards (EXPERIMENTAL)
 CONFIG_SOUND_AD1816
-  Say M here if you have a soundcard based on the Analog Devices 
+  Say M here if you have a sound card based on the Analog Devices 
   AD1816(A) chip.
 
   NOTE: This driver is still EXPERIMENTAL. 
@@ -8849,25 +9238,23 @@ CONFIG_SOUND_PAS
 
 100% Sound Blaster compatibles (SB16/32/64, ESS, Jazz16) support
 CONFIG_SOUND_SB
-  Answer Y if you have an original Sound Blaster card made by
-  Creative Labs or a 100% hardware compatible clone (like the
-  Thunderboard or SM Games). If your card was in the list of supported
-  cards look at the card specific instructions in the
-  drivers/sound/Readme.cards file before answering this question. For
-  an unknown card you may answer Y if the card claims to be
-  Sound Blaster-compatible. 
+  Answer Y if you have an original Sound Blaster card made by Creative
+  Labs or a 100% hardware compatible clone (like the Thunderboard or
+  SM Games). For an unknown card you may answer Y if the card claims
+  to be Sound Blaster-compatible.
 
-  You can say M here to compile this driver as a module; the module is
-  called sb.o.
+  Please read the file Documentation/sound/Soundblaster.
 
   You should also say Y here for cards based on the Avance Logic
-  ALS-007 chip (read Documentation/sound/ALS007) and for ESS1688 and
-  ESS1868 cards (read Documentation/sound/ESS1868). If you have an SB
-  AWE 32 or SB AWE 64, say Y here and also to "Additional lowlevel
-  drivers" and to "SB32/AWE support" below. If you have an IBM Mwave
-  card, say Y here and read Documentation/sound/mwave.
+  ALS-007 chip (read Documentation/sound/ALS007) and for cards based
+  on ESS chips (read Documentation/sound/ESS1868 and
+  Documentation/sound/ESS). If you have an SB AWE 32 or SB AWE 64, say
+  Y here and also to "Additional lowlevel drivers" and to "SB32/AWE
+  support" below and read Documentation/sound/INSTALL.awe. If you have
+  an IBM Mwave card, say Y here and read Documentation/sound/mwave.
   
-  Please read Documentation/sound/Soundblaster.
+  You can say M here to compile this driver as a module; the module is
+  called sb.o.
 
 Generic OPL2/OPL3 FM synthesizer support
 CONFIG_SOUND_ADLIB
@@ -9168,19 +9555,20 @@ CONFIG_LOWLEVEL_SOUND
 
 ACI mixer (miroPCM12/PCM20)
 CONFIG_ACI_MIXER
-  Audio Command Interface (ACI) driver. ACI is a protocol used to
-  communicate with the microcontroller on some sound cards produced by
-  miro, e.g. the miroSOUND PCM12 and PCM20. The main function of the
-  ACI is to control the mixer and to get a product identification.
+  ACI (Audio Command Interface) is a protocol used to communicate with
+  the microcontroller on some sound cards produced by miro, e.g. the
+  miroSOUND PCM12 and PCM20. The main function of the ACI is to
+  control the mixer and to get a product identification. 
+
   This Voxware ACI driver currently only supports the ACI functions on
   the miroSOUND PCM12 and PCM20 cards. On the PCM20, ACI also controls
-  the radio tuner. This is supported in the video4linux radio-miropcm20
-  driver.
+  the radio tuner. This is supported in the video4linux
+  radio-miropcm20 driver.
 
 SB32/AWE support
 CONFIG_AWE32_SYNTH
   Say Y here if you have a Sound Blaster SB32, AWE32-PnP, SB AWE64 or
-  similar sound card. See drivers/sound/lowlevel/README.awe,
+  similar sound card. See Documentation/sound/README.awe,
   Documentation/sound/AWE32 and the Soundblaster-AWE mini-HOWTO,
   available via FTP (user: anonymous) from
   ftp://metalab.unc.edu/pub/Linux/docs/HOWTO/mini for more info.
@@ -9243,9 +9631,9 @@ CONFIG_AEDSP16_MSS_IRQ
 
 Audio Excel DSP 16 DMA
 CONFIG_AEDSP16_MSS_DMA
-  This is the IRQ of the Audio Excel DSP 16 card. It must be 0, 1 or 3.
-  If you compiled aedsp16.o as a module you can specify this parameter
-  as 'dma=NN'.
+  This is the IRQ of the Audio Excel DSP 16 card. It must be 0, 1 
+  or 3. If you compiled aedsp16.o as a module you can specify this
+  parameter as 'dma=NN'.
 
 SC-6600 based audio cards (new Audio Excel DSP 16)
 CONFIG_SC6600
@@ -9255,28 +9643,30 @@ CONFIG_SC6600
 
 SC-6600 Joystick Interface
 CONFIG_SC6600_JOY
-  This option activate the Joystick interface of Audio Excel DSP 16 card.
+  Say Y here in order to use the joystick interface of the Audio Excel
+  DSP 16 card.
 
 SC-6600 CDROM Interface
 CONFIG_SC6600_CDROM
-  This option activate the CDROM interface of Audio Excel DSP 16 card.
-  Required parameter can be: 0 for Sony, 1 for Panasonic, 2 for IDE, 4 for
-  no CDROM present.
+  This is used to activate the the CDROM interface of the Audio Excel
+  DSP 16 card. Enter: 0 for Sony, 1 for Panasonic, 2 for IDE, 4 for no
+  CDROM present.
 
 Audio Excel DSP 16 (MPU401 emulation)
 CONFIG_AEDSP16_MPU401
   Answer Y if you want your audio card to emulate the MPU-401 midi
-  interface. You should then say Y to "MPU-401 support".
-  You have to note that the I/O base for MPU-401 support of aedsp16 is
-  the same you have selected for "MPU-401 support". If you are using
-  this driver as a module you have to specify the MPU I/O base address
-  with the parameter 'mpu_base=0xNNN'.
+  interface. You should then also say Y to "MPU-401 support".
+  
+  Note that the I/O base for MPU-401 support of aedsp16 is the same
+  you have selected for "MPU-401 support". If you are using this
+  driver as a module you have to specify the MPU I/O base address with
+  the parameter 'mpu_base=0xNNN'.
 
 MPU401 IRQ for Audio Excel DSP 16
 CONFIG_AEDSP16_MPU_IRQ
-  This is the IRQ of the MPU-401 emulation of Audio Excel DSP 16 card.
-  It must be 5, 7, 9, 10 or 0 (to disable MPU-401 interface). If you
-  compiled aedsp16.o as a module you can specify this parameter as
+  This is the IRQ of the MPU-401 emulation of your Audio Excel DSP 16
+  card. It must be 5, 7, 9, 10 or 0 (to disable MPU-401 interface). If
+  you compiled aedsp16.o as a module you can specify this parameter as
   'mpu_irq=NN'.
 
 Ensoniq ES1370 based PCI sound cards
@@ -9304,14 +9694,18 @@ CONFIG_SOUND_ES1371
   models are either ES1370 or ES1371 based. This driver differs
   slightly from OSS/Free, so PLEASE READ Documentation/sound/es1371.
 
+Joystick support at boot time
+CONFIG_SOUND_ES1371_JOYPORT_BOOT
+  Say Y here to use the joystick port of your sound card.
+
 Gameport I/O-range selection
 CONFIG_SOUND_ES1371_GAMEPORT
-  Select the I/O-range of the gameport on a ES1371 based soundcard.
+  Select the I/O-range of the gameport on a ES1371 based sound card.
   The card uses 8 ioports and the gameport is available at all eight
   ioports. Legal hexadecimal values are 200, 208, 210 and 218.
   The joystick driver will by default use 0x201. 
   Leave the default 200 unless you have a joystick not attached
-  to your soundcard.
+  to your sound card.
 
 S3 SonicVibes based PCI sound cards
 CONFIG_SOUND_SONICVIBES
@@ -9321,6 +9715,11 @@ CONFIG_SOUND_SONICVIBES
   lspci -n and look for the PCI ID 5333:CA00. This driver 
   differs slightly from OSS/Free, so PLEASE READ
   Documentation/sound/sonicvibes.
+
+Rockwell WaveArtist
+CONFIG_SOUND_WAVEARTIST
+  Say Y here to include support for the Rockwell WaveArtist sound
+  system.  This driver is mainly for the NetWinder.
 
 Are you using a crosscompiler
 CONFIG_CROSSCOMPILE
@@ -9747,12 +10146,10 @@ CONFIG_MAC
 
 HP9000/300 support
 CONFIG_HP300
-  This option enables support for the HP9000/300 series of workstations.
-  Support for these machines is still very experimental.  If you plan to
-  try to use the kernel on such a machine say Y here.  Everybody else
-  says N.
-
-# CONFIG_APOLLO, etc. coming soon (?)
+  This option enables support for the HP9000/300 series of
+  workstations. Support for these machines is still very experimental.
+  If you plan to try to use the kernel on such a machine say Y here.
+  Everybody else says N.
 
 68020 support
 CONFIG_M68020
@@ -9773,26 +10170,10 @@ CONFIG_M68040
   MC68EC040 will not work, as it does not include an MMU (Memory
   Management Unit).
 
-Use -m68040 flag for 68040 specific optimizations
-CONFIG_OPTIMIZE_040
-  If you will only be running this kernel on a 68040-series processor,
-  this will make the kernel run somewhat faster. However, it will no
-  longer run on a 68020 or 68030, no matter whether you included 68020
-  and 68030 support or not. Say N unless the only processor you are
-  compiling support for is the 68040 (or 68LC040).
-
 68060 support
 CONFIG_M68060
   If you anticipate running this kernel on a computer with a MC68060
   processor, say Y. Otherwise, say N.
-
-Use -m68060 flag for 68060 specific optimizations
-CONFIG_OPTIMIZE_060
-  If you will only be running this kernel on a 68060-series processor,
-  this will make the kernel run somewhat faster. However, it will no
-  longer run on a 68020, 68030 or 68040, no matter whether you
-  included support for those processors or not. Say N unless the only
-  processor you are compiling support for is the 68060.
 
 Advanced processor options
 CONFIG_ADVANCED_CPU
@@ -9826,25 +10207,9 @@ CONFIG_ZORRO
   Note that even if you say N here, you can still use your expansion
   cards. If in doubt, say Y.
 
-Amiga OCS chipset support
-CONFIG_AMIFB_OCS
-  This enables support for the original Agnus and Denise video chips,
-  found in the Amiga 1000 and most A500's and A2000's. If you intend
-  to run Linux on any of these systems, say Y; otherwise say N.
-
-Amiga ECS chipset support
-CONFIG_AMIFB_ECS
-  This enables support for the Enhanced Chip Set, found in later
-  A500's, later A2000's, the A600, the A3000, the A3000T and CDTV. If
-  you intend to run Linux on any of these systems, say Y; otherwise
-  say N.
-
-Amiga AGA chipset support
-CONFIG_AMIFB_AGA
-  This enables support for the Advanced Graphics Architecture (also
-  known as the AGA or AA) Chip Set, found in the A1200, A4000, A4000T
-  and CD32. If you intend to run Linux on any of these systems, say Y;
-  otherwise say N.
+CONFIG_AMIGA_PCMCIA
+  Include support in the kernel for pcmcia on Amiga 1200 and Amiga 600.
+  If you intend to use pcmcia cards say Y; otherwise say N.
 
 Amiga GSP (TMS340x0) support
 CONFIG_AMIGA_GSP
@@ -10050,6 +10415,16 @@ CONFIG_HYDRA
   want). The module is called hydra.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt.
 
+Pcmcia NE2000 compatible support
+CONFIG_APNE
+  If you have a pcmcia ne2000 compatible adapter, say Y.  Otherwise,
+  say N.
+
+  This driver is also available as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you
+  want). The module is called apne.o. If you want to compile it as a
+  module, say M here and read Documentation/modules.txt.
+
 Atari Lance support
 CONFIG_ATARILANCE
   Say Y to include support for several Atari Ethernet adapters based
@@ -10202,13 +10577,14 @@ CONFIG_HPDCA
 
 HP on-board LANCE support
 CONFIG_HPLANCE
-  If you want to use the builtin "LANCE" Ethernet controller on an HP300
-  machine, say Y here.
+  If you want to use the builtin "LANCE" Ethernet controller on an
+  HP300 machine, say Y here.
 
 DIO bus support
 CONFIG_DIO
-  Say Y here to enable support for the "DIO" expansion bus used in HP300
-  machines. If you are using such a system you almost certainly want this.
+  Say Y here to enable support for the "DIO" expansion bus used in
+  HP300 machines. If you are using such a system you almost certainly
+  want this.
 
 MSDOS partition support
 CONFIG_MSDOS_PARTITION
@@ -10280,10 +10656,20 @@ CONFIG_MACE
   motherboard will usually use a MACE (Medium Access Control for
   Ethernet) interface. Say Y to include support for the MACE chip.
 
+  This driver is also available as a module called mace.o ( = code
+  which can be inserted in and removed from the running kernel
+  whenever you want). If you want to compile it as a module, say M
+  here and read Documentation/modules.txt.
+
 BMAC (G3 ethernet) support
 CONFIG_BMAC
   Say Y for support of BMAC Ethernet interfaces. These are used on G3
   computers. 
+
+  This driver is also available as a module called bmac.o ( = code
+  which can be inserted in and removed from the running kernel
+  whenever you want). If you want to compile it as a module, say M
+  here and read Documentation/modules.txt.
 
 Video For Linux
 CONFIG_VIDEO_DEV
@@ -10394,6 +10780,44 @@ SF16FMI I/O port (0x284 or 0x384)
 CONFIG_RADIO_SF16FMI_PORT
   Enter the I/O port of your SF16FMI radio card.
 
+Typhoon Radio
+CONFIG_RADIO_TYPHOON
+  Choose Y here if you have one of these FM radio cards, and then fill
+  in the port address and the frequency used for muting below.
+
+  In order to control your radio card, you will need to use programs
+  that are compatible with the Video for Linux API. Information on 
+  this API and pointers to "v4l" programs may be found on the WWW at
+  http://roadrunner.swansea.uk.linux.org/v4l.shtml; to browse the WWW,
+  you need to have access to a machine on the Internet that has a 
+  program like lynx or netscape.
+
+  If you want to compile this driver as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want),
+  say M here and read Documentation/modules.txt. The module will be
+  called radio-typhoon.o
+
+Support for /proc/radio-typhoon
+CONFIG_RADIO_TYPHOON_PROC_FS
+  Say Y here if you want the typhoon radio card driver to write
+  status information (frequency, volume, muted, mute frequency,
+  base address) to /proc/radio-typhoon. The file can be viewed with
+  your favorite pager (i.e. use "more /proc/radio-typhoon" or "less
+  /proc/radio-typhoon" or simply "cat /proc/radio-typhoon").
+
+Typhoon I/O port (0x316 or 0x336)
+CONFIG_RADIO_TYPHOON_PORT
+  Enter the I/O port of your Typhoon or EcoRadio radio card.
+
+Typhoon frequency set when muting the device (kHz)
+CONFIG_RADIO_TYPHOON_MUTEFREQ
+  Enter the frequency used for muting the radio. The device is never
+  completely silent. If the volume is just turned down, you can still
+  hear silent voices and music. For that reason, the frequency of the
+  radio device is set to the frequency you can enter here whenever
+  the device is muted. There should be no local radio station at that
+  frequency.
+
 Zoltrix Radio
 CONFIG_RADIO_ZOLTRIX
   Choose Y here if you have one of these FM radio cards, and then fill
@@ -10415,11 +10839,27 @@ ZOLTRIX I/O port (0x20c or 0x30c)
 CONFIG_RADIO_ZOLTRIX_PORT
   Enter the I/O port of your Zoltrix radio card.
 
+ADS Cadet AM/FM Tuner
+CONFIG_RADIO_CADET
+  Say Y here if this is your AM/FM radio card.
+
+  In order to control your radio card, you will need to use programs
+  that are compatible with the Video for Linux API. Information on 
+  this API and pointers to "v4l" programs may be found on the WWW at
+  http://roadrunner.swansea.uk.linux.org/v4l.shtml; to browse the WWW,
+  you need to have access to a machine on the Internet that has a 
+  program like lynx or netscape.
+
+  If you want to compile this driver as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want),
+  say M here and read Documentation/modules.txt. The module will be
+  called radio-cadet.o
+
 Miro PCM20 Radio
 CONFIG_RADIO_MIROPCM20
-  Choose Y here if you have this FM radio card. You also need the
-  PCM12/PCM20 ACI mixer in additional low level sound drivers for this
-  to work.
+  Choose Y here if you have this FM radio card. You also need to say Y
+  to "ACI mixer (miroPCM12/PCM20)" (in "additional low level sound
+  drivers") for this to work.
 
   In order to control your radio card, you will need to use programs
   that are compatible with the Video for Linux API. Information on 
@@ -10501,6 +10941,9 @@ CONFIG_VIDEO_PMS
   from the running kernel whenever you want). If you want to compile
   it as a module, say M here and read Documentation/modules.txt.
 
+#
+# ARM options
+#
 CPU Optimization
 CONFIG_CPU_ARM2
   This selects the processor type of your CPU. This is only used to
@@ -10517,57 +10960,177 @@ CONFIG_ARCH_ARC
   to set this option to, please consult any information supplied with
   your system.
 
-Include support for CATS boards
+Include support for Chalice CATS boards
 CONFIG_CATS
-  Say Y here if you wish to include support for the extra hardware found
-  in Chalice CATS machines. The resulting kernel will still run on an 
-  EBSA-285 but will be slightly larger. If in doubt say N.
+  Say Y here if you intend to run this kernel on a CATS system.
 
-Debug kernel errors
+Include support for Intel EBSA285
+CONFIG_ARCH_EBSA285
+  Say Y here if you intend to run this kernel on an EBSA-285 evaluation
+  board.
+
+Include support for the NetWinder
+CONFIG_ARCH_NETWINDER
+  Say Y here if you intend to run this kernel on the NetWinder.
+
+Math emulation
+CONFIG_NWFPE
+  Say Y to include the NWFPE floating point emulator in the kernel. This
+  is necessary to run most binaries. Linux does not currently support
+  floating point hardware so you need to say Y here even if your machine
+  has an FPA or floating point co-processor podule.
+
+  It is also possible to say M to build the emulator as a module
+  (nwfpe.o) or indeed to leave it out altogether. However, unless you
+  know what you are doing this can easily render your machine unbootable.
+  Saying Y is the safe option.
+
+  You may say N here if you are going to load the Acorn FPEmulator
+  early in the bootup.
+
+DS1620 Thermometer support
+CONFIG_DS1620
+  Say Y here to include support for the thermal management hardware
+  found in the NetWinder. This driver allows the user to control the
+  temperature set points and to read the current temperature.
+
+  It is also possible to say M here to build it as a module (ds1620.o)
+  It is recommended to be used on a NetWinder, but it is not a
+  necessity.
+
+Verbose kernel error messages
 CONFIG_DEBUG_ERRORS
-  This option controls verbose debugging information which can be printed
-  when the kernel detects an internal error.  Verbose debugging information
-  is useful when tracking down kernel problems, but it will be meaning less
-  for non-kernel hackers.  It's safe for everyone to say Y.
-
-Build Tools Selection
-CONFIG_BINUTILS_NEW
-  Say Y here if and only if you're using GCC 2.8.1/EGCS with a
-  binutils version >= 2.8.1 to compile the kernel (check with "gcc
-  --version" and "ld -v").
+  This option controls verbose debugging information which can be
+  printed when the kernel detects an internal error. This debugging
+  information is useful to kernel hackers when tracking down problems,
+  but mostly meaningless to other people. It's safe to say Y unless
+  you are concerned with the code size or don't want to see these
+  messages.
 
 Compile kernel with frame pointer
 CONFIG_FRAME_POINTER
-  If you say Y here, the resulting kernel will be slightly larger, but
-  it will give useful debugging/error results. If you don't debug the
-  kernel, you can say N.
+  If you say Y here, the resulting kernel will be slightly larger and
+  slower, but it will give useful debugging information. If you don't
+  debug the kernel, you can say N.
+
+User fault debugging
+CONFIG_DEBUG_USER
+  When a user program crashes due to an exception, the kernel can print
+  a brief message explaining what the problem was. This is sometimes
+  helpful for debugging but serves no purpose on a production system.
+  Most people should say N here.
+
+Include gdb debugging information in kernel binary
+CONFIG_DEBUG_INFO
+  Say Y here to include source-level debugging information in the
+  `vmlinux' binary image. This is handy if you want to use gdb or
+  addr2line to debug the kernel. It has no impact on the in-memory
+  footprint of the running kernel but it can increase the amount of
+  time and disk space needed for compilation. If in doubt say N.
+
+Split initialisation functions into discardable section
+CONFIG_TEXT_SECTIONS
+  Normally code that is only used during initialisation is collected
+  into a special area of the kernel so that it can be discarded and
+  the memory reclaimed when initialisation is complete. In addition,
+  if the kernel you wish to build is able to run on multiple
+  architectures, it allows the unused code to be discarded. Some
+  versions of binutils, however, have a bug that causes the kernel
+  to crash during startup when this option is enabled. Say Y unless
+  you experience problems that you suspect may be caused by this.
+
+Disable pgtable cache
+CONFIG_NO_PGT_CACHE
+  Normally the kernel maintains a `quicklist' of preallocated pagetable
+  structures in order to increase performance. On machines with very
+  few pages this may however be a loss. Say Y here to disable the pgtable
+  cache.
+
+RISC OS personality
+CONFIG_ARTHUR
+  Say Y here to include the kernel code necessary if you want to run
+  Acorn RISC OS/Arthur binaries under Linux. This code is still very 
+  experimental; if this sounds frightening, say N and sleep in peace.
+  You can also say M here to compile this support as a module (which
+  will be called arthur.o).
 
 Initial kernel command line
 CONFIG_CMDLINE
-  On some architectures (EBSA285, EBSA110 and Corel NetWinder), there is
-  currently no way for the boot loader to pass arguments to the kernel.
-  For these architectures, you should supply some command-line options
-  at build time by entering them here.  As a minimum, you should specify
-  the memory size and the root device (eg, mem=64M root=/dev/nfs)
+  On some architectures (EBSA110 and CATS), there is currently no way
+  for the boot loader to pass arguments to the kernel. For these
+  architectures, you should supply some command-line options at build
+  time by entering them here. As a minimum, you should specify the
+  memory size and the root device (eg, mem=64M root=/dev/nfs)
+
+Hardware alignment trap
+CONFIG_ALIGNMENT_TRAP
+  ARM processors can not fetch/store information which is not naturally
+  aligned on the bus, ie, a 4 byte fetch must start at an address divisable
+  by 4.  On 32-bit ARM processors, these instructions can be emulated in
+  software with a severe performance impact. This is necessary for correct
+  operation of some network protocols.  With an IP-only configuration
+  it is safe to say N, otherwise say Y.
+
+21285 serial port support
+CONFIG_SERIAL_21285
+  If you have a machine based on a 21285 (Footbridge) StrongARM/PCI
+  bridge you can enable its onboard serial port by enabling this
+  option. The device has major ID 4, minor 64.
+
+Console on 21285 serial port
+CONFIG_SERIAL_21285_CONSOLE
+  If you have enabled the serial port on the 21285 footbridge you can
+  make it the console by answering 'Y' to this option.
+
+Footbridge Mode
+CONFIG_HOST_FOOTBRIDGE
+  The 21285 Footbridge chip can operate in either `host mode' or
+  `add-in' mode.  Say Y if your 21285 is in host mode, and therefore
+  is the configuration master, otherwise say N.
+
+MFM harddisk support
+CONFIG_BLK_DEV_MFM
+  Support the MFM hard drives on the Acorn Archimedes both
+  on-board the A4x0 motherboards and via the Acorn MFM podules.
+  Drives upto 64MB are supported. If you haven't got one of these
+  machines or drives just say 'N'.
+
+Old Archimedes floppy (1772) support
+CONFIG_BLK_DEV_FD1772
+  Support the floppy drive on the Acorn Archimedes (A300, A4x0, A540,
+  R140 and R260) series of computers; it supports only 720K floppies
+  at the moment. If you don't have one of these machines just answer
+  'N'.
+
+Autodetect hard drive geometry
+CONFIG_BLK_DEV_MFM_AUTODETECT
+  If you answer 'Y' the MFM code will attempt to automatically detect
+  the cylinders/heads/sectors count on your hard drive. WARNING: This
+  sometimes doesn't work and it also does some dodgy stuff which
+  potentially might damage your drive.
 
 IrDA Protocols
 CONFIG_IRDA
-  Say Y here if you want to build support for the IrDA (TM)
-  protocols. The Infrared Data Associations (tm) specifies standards
-  for wireless infrared communication and is supported by most laptops
-  and PDA's If you want to compile it as a module, say M here and read
-  Documentation/modules.txt.
+  Say Y here if you want to build support for the IrDA (TM) protocols.
+  The Infrared Data Associations (tm) specifies standards for wireless
+  infrared communication and is supported by most laptops and PDA's.
 
   To use Linux support for the IrDA (tm) protocols, you will also need
   some user-space utilities like the irmanager and probably irattach
-  as well. For more information, visit
-  http://www.cs.uit.no/~dagb/irda/
+  as well. For more information, see the file
+  Documentation/networking/irda.txt. You also want to read the
+  IR-HOWTO, available from
+  ftp://metalab.unc.edu/pub/Linux/docs/HOWTO.
+
+  This support is also available as a module. If you want to compile
+  it as a module, say M here and read Documentation/modules.txt. The
+  module will be called 
 
 IrDA Cache last LSAP
 CONFIG_IRDA_CACHE_LAST_LSAP
   Say Y here if you want IrLMP to cache the last LSAP used. This makes
-  sense since most frames will be sent/received on the same connection.
-  Enabling this option will save a hash-lookup per frame.
+  sense since most frames will be sent/received on the same
+  connection. Enabling this option will save a hash-lookup per frame.
 
   If unsure, say Y.
 
@@ -10575,8 +11138,8 @@ IrDA Fast RR's
 CONFIG_IRDA_FAST_RR
   Say Y here is you want IrLAP to send fast RR (Receive Ready) frames
   when acting as a primary station. This will make IrLAP send out a RR
-  frame immediately when receiving a frame if its own transmit queue is
-  currently empty. This will give a lot of speed improvement when
+  frame immediately when receiving a frame if its own transmit queue
+  is currently empty. This will give a lot of speed improvement when
   receiving much data since the secondary station will not have to
   wait the max. turn around time before it is allowed to transmit the
   next time. If the transmit queue of the secondary is also empty the
@@ -10587,21 +11150,10 @@ CONFIG_IRDA_FAST_RR
 
   If unsure, say N.
 
-IrDA Recycle RR's
-CONFIG_IRDA_RECYCLE_RR
-  In the normal life of the IrLAP protocol, it sends a lot of small RR
-  (Receive Ready) frames over the link (at least when it has nothing
-  else to do). Saying Y to this option will make IrLAP recycle these
-  frames thus avoiding many alloc_skb's and kfree_skb's. To do this it
-  will only buffer one of these frame which is enough for the normal
-  case.
-
-  If unsure, say Y.
-
 IrDA Debug
 CONFIG_IRDA_DEBUG
-  Say Y here if you want the IrDA subsystem to write debug information to
-  your syslog. You can change the debug level in
+  Say Y here if you want the IrDA subsystem to write debug information
+  to your syslog. You can change the debug level in
   /proc/sys/net/irda/debug
 
   If unsure, say Y (since it makes it easier to find the bugs).
@@ -10611,54 +11163,32 @@ CONFIG_IRDA_COMPRESSION
   Compression is _not_ part of the IrDA(tm) protocol specification,
   but it's working great! Linux is the first to try out compression
   support at the IrLAP layer. This means that you will only benefit
-  from compression if you are running a Linux <-> Linux configuration
+  from compression if you are running a Linux <-> Linux configuration.
+  
+  If you say Y here, you also need to say Y or M to a compression
+  protocol below.
 
 IrLAP Deflate Compression Protocol
 CONFIG_IRDA_DEFLATE
   Say Y here if you want to build support for the Deflate compression
-  protocol. If you want to compile it as a module, say M here and read
-  Documentation/modules.txt. The deflate compression (GZIP) is exactly
-  the same as used by the PPP protocol. Enabling this option will
-  build a module called irda_deflate.o
+  protocol. The deflate compression (GZIP) is exactly
+  the same as the one used by the PPP protocol. 
+
+  If you want to compile this compression support as a module, say M
+  here and read Documentation/modules.txt. The module will be called
+  irda_deflate.o.
 
 IrLAN Protocol 
 CONFIG_IRLAN
   Say Y here if you want to build support for the IrLAN protocol. If
   you want to compile it as a module, say M here and read
   Documentation/modules.txt. IrLAN emulates an Ethernet and makes it
-  possible to put up an wireless LAN using infrared beams.
+  possible to put up a wireless LAN using infrared beams.
 
-IrLAN Client Protocol 
-CONFIG_IRLAN_CLIENT
-  Say Y here if you want to build support for the IrLAN client
-  protocol. If you want to compile it as a module, say M here and read
-  Documentation/modules.txt. The IrLAN client protocol can be used to
-  talk with infrared access points like the HP NetbeamIR, or the ESI
-  JetEye NET. You can also connect to another Linux machine running
-  the IrLAN server protocol for ac-hoc networking!
-
-IrLAN Server Protocol 
-CONFIG_IRLAN_SERVER
-  Say Y here if you want to build support for infrared LAN access. If
-  you want to compile it as a module, say M here and read
-  Documentation/modules.txt. The IrLAN server protocol makes it
-  possible to set up a wireless LAN with a machine running the IrLAN
-  client protocol. Notice that the IrLAN server protocol currently
-  only emulates an access point and does not implement the ad-hoc
-  specification of IrLAN, but this will not be noticeable for the
-  user.
-
-IrOBEX Protocol
-CONFIG_IROBEX
-  Say Y here if you want to build support for the IrOBEX protocol. If
-  you want to compile it as a module, say M here and read
-  Documentation/modules.txt. The module does not actually implement
-  the IrOBEX protocol since that protocol lives in userspace, but it 
-  contains the necessary functions to interface the user-space stuff
-  with the kernel. So you will need to have the user-space library and
-  programs that can use this library installed as well to be able to
-  use the IrOBEX protocol. This module will hopefully be replaced by
-  IrDA sockets in the future.
+  The IrLAN protocol can be used to talk with infrared access points 
+  like the HP NetbeamIR, or the ESI JetEye NET. You can also connect 
+  to another Linux machine running the IrLAN protocol for ad-hoc 
+  networking!
 
 IrCOMM Protocol
 CONFIG_IRCOMM
@@ -10710,11 +11240,11 @@ CONFIG_IRTTY_SIR
 
 Winbond W83977AF IrDA Device Driver
 CONFIG_WINBOND_FIR
-  Say Y here if you want to build IrDA support for the Winbond W83977AF
-  super-io chipset. If you want to compile it as a module, say M here
-  and read Documentation/modules.txt. This driver should be used for
-  the IrDA chipset in the Corel NetWinder. The driver supports SIR,
-  MIR and FIR (4Mbps) speeds.
+  Say Y here if you want to build IrDA support for the Winbond
+  W83977AF super-io chipset. If you want to compile it as a module,
+  say M here and read Documentation/modules.txt. This driver should be
+  used for the IrDA chipset in the Corel NetWinder. The driver
+  supports SIR, MIR and FIR (4Mbps) speeds.
 
 NSC PC87108 IrDA Device Driver
 CONFIG_NSC_FIR
@@ -10758,6 +11288,15 @@ CONFIG_TEKRAM_DONGLE
   the normal 9-pin serial port connector, and can currently only be
   used by IrTTY. To activate support for Tekram dongles you will have
   to insert "irattach -d tekram" in the /etc/irda/drivers script.
+
+Greenwich GIrBIL dongle
+CONFIG_GIRBIL_DONGLE
+  Say Y here if you want to build support for the Greenwich GIrBIL
+  dongle. If you want to compile it as a module, say M here and read
+  Documentation/modules.txt. The Greenwich dongle attaches to the
+  normal 9-pin serial port connector, and can currently only be used
+  by IrTTY. To activate support for Greenwich dongles you will have to
+  insert "irattach -d girbil" in the /etc/irda/drivers script.
 
 VME (Motorola and BVM) support
 CONFIG_VME
@@ -10839,10 +11378,12 @@ CONFIG_BVME6000_SCC
 
 #
 # A couple of things I keep forgetting:
-#   capitalize: AppleTalk, Ethernet, DMA, FTP, Internet, Intel, IRQ, 
-#               Linux, NetWare, NFS, PCI, SCSI, SPARC
+#   capitalize: AppleTalk, Ethernet, DOS, DMA, FAT, FTP, Internet, 
+#               Intel, IRQ, Linux, MSDOS, NetWare, NetWinder, NFS, 
+#               PCI, SCSI, SPARC
 #   two words:  hard drive, hard disk, sound card, home page
 #   other:      it's safe to save; daemon; use --, not - or ---
+#
 #
 # This is used by Emacs' spell checker ispell.el:
 #
@@ -10866,7 +11407,7 @@ CONFIG_BVME6000_SCC
 # LocalWords:  COM ELPLUS Com EtherLinkIII VLB Arcnet Cabletron DEPCA DE carlos
 # LocalWords:  depca EtherWorks EWRK ewrk SEEQ EtherExpress EEXPRESS NI xxx dia
 # LocalWords:  EtherExpress WaveLAN wavelan PCLAN HPLAN VG SK Ansel Xen de ZNET
-# LocalWords:  PCMCIA cb stanford pcmcia LAN TEC RealTek ATP atp DLINK NetTools
+# LocalWords:  PCMCIA cb stanford LAN TEC RealTek ATP atp DLINK NetTools VISWS
 # LocalWords:  TR Sony CDU caddyless cdu Mitsumi MCD cd mcd XA MultiSession CDA
 # LocalWords:  Matsushita Panasonic SBPCD Soundblaster Longshine sbpcd Aztech
 # LocalWords:  Okano Wearnes AZTCD CDD SE aztcd sonycd Goldstar GSCD Philips fs
@@ -10896,7 +11437,7 @@ CONFIG_BVME6000_SCC
 # LocalWords:  PMAX MILO Alphas Multia Tseng linuxelf endian mipsel mips drv HT
 # LocalWords:  kerneld callouts AdvanSys advansys Admin WDT DataStor EP verden
 # LocalWords:  wdt hdb hdc bugfix SiS vlb Acculogic CSA DTC dtc Holtek ht QDI
-# LocalWords:  QD qd UMC umc ALI ali lena fnet fr azstarnet axplinux cdr fb MDA
+# LocalWords:  QD qd UMC umc ALI ali lena fnet fr azstarnet cdr fb MDA ps esdi
 # LocalWords:  Avanti XL AlphaStations Jensen DECpc AXPpci UDB Cabriolet MCA RC
 # LocalWords:  AlphaPC mca AOUT OUTput PPro sipx gwdg lo nwe FourPort Boca unm
 # LocalWords:  Keepalive linefill RELCOM keepalive analogue CDR conf CDI INIT
@@ -11045,4 +11586,21 @@ CONFIG_BVME6000_SCC
 # LocalWords:  PowerMacs Winbond Algorithmics ALGOR algor ECOFF IRIX SGI SGI's
 # LocalWords:  gfx virtualized Xpmac mklinux XFree FBDev Woodhouse mvhi Seeq fp
 # LocalWords:  SGISEEQ HIgh ADB ADBMOUSE crosscompiler CROSSCOMPILE FPE GDB gdb
-# LocalWords:  JOYPORT rp spoofing DawiControl NOGENSUPP EEPROM HSSI
+# LocalWords:  JOYPORT rp spoofing DawiControl NOGENSUPP EEPROM HSSI Alessandro
+# LocalWords:  singleprocessor tex MATHEMU FRIQ Maxell friq Alcor XLT AlphaBook
+# LocalWords:  AlphaPCI DP LX Miata Mikasa Noritake RPX UX BX Takara EV PRIMO
+# LocalWords:  TSC Matrox Productiva matroxfb matrox multihead ia linuxhq MFW
+# LocalWords:  mfw AAA MCS Initio XXU initio imm AutoDetect IZIP CTR usec HDLC
+# LocalWords:  COSA SRP muni cz kas cosa Alteon AceNIC acenic VTOC OSes GMT SAx
+# LocalWords:  Inspiron localtime INTS Thinkpads Ralf Brown's Flightstick NNN
+# LocalWords:  Xterminator Blackhawk NN mpu ioports DCA HPDCA HPLANCE DIO Corel
+# LocalWords:  GemTek gemtek CMDLINE IrDA PDA's irmanager irattach RR AVA DN rg
+# LocalWords:  uit dagb irda LSAP IrLMP RR's IrLAP IR alloc skb's kfree skb's
+# LocalWords:  GZIP IrLAN NetbeamIR ESI JetEye IrOBEX IrCOMM TTY's minicom dti
+# LocalWords:  ircomm ircomm pluto thiguchi IrTTY Linux's bps NetWinder MIR NSC
+# LocalWords:  ACTiSYS Dongle dongle dongles esi actisys IrMate tekram BVM MVME
+# LocalWords:  BVME BVME WRITETHROUGH copyback writethrough fwmark syncookie tu
+# LocalWords:  alphalinux GOBIOS csn chemnitz nat ACARD AMI MegaRAID megaraid
+# LocalWords:  QNXFS ISI isicom xterms Apollos VPN RCPCI rcpci sgi visws pcmcia
+# LocalWords:  IrLPT UIRCC Tecra
+

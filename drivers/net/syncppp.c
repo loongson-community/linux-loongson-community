@@ -51,7 +51,7 @@
 #include <asm/byteorder.h>
 #include "syncppp.h"
 
-#define MAXALIVECNT     3               /* max. alive packets */
+#define MAXALIVECNT     6               /* max. alive packets */
 
 #define PPP_ALLSTATIONS 0xff            /* All-Stations broadcast address */
 #define PPP_UI          0x03            /* Unnumbered Information */
@@ -121,6 +121,7 @@ struct cisco_packet {
 	u16 time1;
 };
 #define CISCO_PACKET_LEN 18
+#define CISCO_BIG_PACKET_LEN 20
 
 static struct sppp *spppq;
 static struct timer_list sppp_keepalive_timer;
@@ -380,6 +381,7 @@ static void sppp_keepalive (unsigned long dummy)
 			if_down (dev);
 			if (! (sp->pp_flags & PP_CISCO)) {
 				/* Shut down the PPP link. */
+				sp->lcp.magic = jiffies;
 				sp->lcp.state = LCP_STATE_CLOSED;
 				sp->ipcp.state = IPCP_STATE_CLOSED;
 				sppp_clear_timeout (sp);
@@ -648,7 +650,7 @@ static void sppp_cisco_input (struct sppp *sp, struct sk_buff *skb)
 	struct cisco_packet *h;
 	struct device *dev = sp->pp_if;
 
-	if (skb->len != CISCO_PACKET_LEN) {
+	if (skb->len != CISCO_PACKET_LEN && skb->len != CISCO_BIG_PACKET_LEN) {
 		if (sp->pp_flags & PP_DEBUG)
 			printk (KERN_WARNING "%s: invalid cisco packet length: %d bytes\n",
 				dev->name,  skb->len);
@@ -841,6 +843,25 @@ int sppp_open (struct device *dev)
 }
 
 EXPORT_SYMBOL(sppp_open);
+
+int sppp_reopen (struct device *dev)
+{
+	struct sppp *sp = &((struct ppp_device *)dev)->sppp;
+	sppp_close(dev);
+	dev->flags |= IFF_RUNNING;
+	if (!(sp->pp_flags & PP_CISCO))
+	{
+		sp->lcp.magic = jiffies;
+		++sp->pp_seq;
+		sp->lcp.state = LCP_STATE_CLOSED;
+		sp->ipcp.state = IPCP_STATE_CLOSED;
+		/* Give it a moment for the line to settle then go */
+		sppp_set_timeout (sp, 1);
+	}
+	return 0;
+}
+
+EXPORT_SYMBOL(sppp_reopen);
 
 int sppp_change_mtu(struct device *dev, int new_mtu)
 {

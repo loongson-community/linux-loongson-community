@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp_timer.c,v 1.57 1999/01/20 07:20:21 davem Exp $
+ * Version:	$Id: tcp_timer.c,v 1.62 1999/05/08 21:09:55 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -224,7 +224,7 @@ static __inline__ int tcp_keepopen_proc(struct sock *sk)
 
 	if ((1<<sk->state) & (TCPF_ESTABLISHED|TCPF_CLOSE_WAIT|TCPF_FIN_WAIT2)) {
 		struct tcp_opt *tp = &sk->tp_pinfo.af_tcp;
-		__u32 elapsed = jiffies - tp->rcv_tstamp;
+		__u32 elapsed = tcp_time_stamp - tp->rcv_tstamp;
 
 		if (elapsed >= sysctl_tcp_keepalive_time) {
 			if (tp->probes_out > sysctl_tcp_keepalive_probes) {
@@ -317,48 +317,47 @@ static void tcp_twkill(unsigned long data)
 void tcp_tw_schedule(struct tcp_tw_bucket *tw)
 {
 	int slot = (tcp_tw_death_row_slot - 1) & (TCP_TWKILL_SLOTS - 1);
+	struct tcp_tw_bucket **tpp = &tcp_tw_death_row[slot];
+
+	if((tw->next_death = *tpp) != NULL)
+		(*tpp)->pprev_death = &tw->next_death;
+	*tpp = tw;
+	tw->pprev_death = tpp;
 
 	tw->death_slot = slot;
-	tw->next_death = tcp_tw_death_row[slot];
-	tcp_tw_death_row[slot] = tw;
+
 	tcp_inc_slow_timer(TCP_SLT_TWKILL);
 }
 
 /* Happens rarely if at all, no care about scalability here. */
 void tcp_tw_reschedule(struct tcp_tw_bucket *tw)
 {
-	struct tcp_tw_bucket *walk;
-	int slot = tw->death_slot;
+	struct tcp_tw_bucket **tpp;
+	int slot;
 
-	walk = tcp_tw_death_row[slot];
-	if(walk == tw) {
-		tcp_tw_death_row[slot] = tw->next_death;
-	} else {
-		while(walk->next_death != tw)
-			walk = walk->next_death;
-		walk->next_death = tw->next_death;
-	}
+	if(tw->next_death)
+		tw->next_death->pprev_death = tw->pprev_death;
+	*tw->pprev_death = tw->next_death;
+	tw->pprev_death = NULL;
+
 	slot = (tcp_tw_death_row_slot - 1) & (TCP_TWKILL_SLOTS - 1);
+	tpp = &tcp_tw_death_row[slot];
+	if((tw->next_death = *tpp) != NULL)
+		(*tpp)->pprev_death = &tw->next_death;
+	*tpp = tw;
+	tw->pprev_death = tpp;
+
 	tw->death_slot = slot;
-	tw->next_death = tcp_tw_death_row[slot];
-	tcp_tw_death_row[slot] = tw;
 	/* Timer was incremented when we first entered the table. */
 }
 
 /* This is for handling early-kills of TIME_WAIT sockets. */
 void tcp_tw_deschedule(struct tcp_tw_bucket *tw)
 {
-	struct tcp_tw_bucket *walk;
-	int slot = tw->death_slot;
-
-	walk = tcp_tw_death_row[slot];
-	if(walk == tw) {
-		tcp_tw_death_row[slot] = tw->next_death;
-	} else {
-		while(walk->next_death != tw)
-			walk = walk->next_death;
-		walk->next_death = tw->next_death;
-	}
+	if(tw->next_death)
+		tw->next_death->pprev_death = tw->pprev_death;
+	*tw->pprev_death = tw->next_death;
+	tw->pprev_death = NULL;
 	tcp_dec_slow_timer(TCP_SLT_TWKILL);
 }
 
@@ -403,7 +402,7 @@ static void tcp_keepalive(unsigned long data)
 	for(i = chain_start; i < (chain_start + ((TCP_HTABLE_SIZE/2) >> 2)); i++) {
 		struct sock *sk = tcp_established_hash[i];
 		while(sk) {
-			if(sk->keepopen) {
+			if(!atomic_read(&sk->sock_readers) && sk->keepopen) {
 				count += tcp_keepopen_proc(sk);
 				if(count == sysctl_tcp_max_ka_probes)
 					goto out;
@@ -445,7 +444,6 @@ void tcp_retransmit_timer(unsigned long data)
 		tcp_reset_xmit_timer(sk, TIME_RETRANS, HZ/20);
 		return;
 	}
-	lock_sock(sk);
 
 	/* Clear delay ack timer. */
 	tcp_clear_xmit_timer(sk, TIME_DACK);
@@ -479,7 +477,7 @@ void tcp_retransmit_timer(unsigned long data)
 		 * means it must be an accurate representation of our current
 		 * sending rate _and_ the snd_wnd.
 		 */
-		tp->snd_ssthresh = max(min(tp->snd_wnd, tp->snd_cwnd) >> 1, 2);
+		tp->snd_ssthresh = tcp_recalc_ssthresh(tp);
 		tp->snd_cwnd_cnt = 0;
 		tp->snd_cwnd = 1;
 	}
@@ -510,8 +508,6 @@ void tcp_retransmit_timer(unsigned long data)
 	tcp_reset_xmit_timer(sk, TIME_RETRANS, tp->rto);
 
 	tcp_write_timeout(sk);
-
-	release_sock(sk);
 }
 
 /*
@@ -564,7 +560,7 @@ static void tcp_syn_recv_timer(unsigned long data)
 						if (!tp->syn_wait_queue)
 							break;
 					} else {
-						__u32 timeo;
+						unsigned long timeo;
 						struct open_request *op; 
 
 						(*conn->class->rtx_syn_ack)(sk, conn);

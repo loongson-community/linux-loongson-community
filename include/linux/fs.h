@@ -96,6 +96,10 @@ extern int max_super_blocks, nr_super_blocks;
 #define MS_NOATIME	1024	/* Do not update access times. */
 #define MS_NODIRATIME   2048    /* Do not update directory access times */
 
+#define MS_ODD_RENAME   32768    /* Temporary stuff; will go away as soon
+				  * as nfs_rename() will be cleaned up
+				  */
+
 /*
  * Flags that can be altered by MS_REMOUNT
  */
@@ -150,6 +154,7 @@ extern int max_super_blocks, nr_super_blocks;
 #define BLKFRAGET  _IO(0x12,101)/* get filesystem (mm/filemap.c) read-ahead */
 #define BLKSECTSET _IO(0x12,102)/* set max sectors per request (ll_rw_blk.c) */
 #define BLKSECTGET _IO(0x12,103)/* get max sectors per request (ll_rw_blk.c) */
+#define BLKSSZGET  _IO(0x12,104)/* get block device sector size (reserved for) */
 
 #define BMAP_IOCTL 1		/* obsolete - kept for compatibility */
 #define FIBMAP	   _IO(0x00,1)	/* bmap access */
@@ -164,7 +169,7 @@ extern int max_super_blocks, nr_super_blocks;
 extern void update_atime (struct inode *inode);
 #define UPDATE_ATIME(inode) update_atime (inode)
 
-extern void buffer_init(void);
+extern void buffer_init(unsigned long);
 extern void inode_init(void);
 extern void file_table_init(void);
 extern void dcache_init(void);
@@ -249,18 +254,8 @@ static inline int buffer_protected(struct buffer_head * bh)
 	return test_bit(BH_Protected, &bh->b_state);
 }
 
-/*
- * Deprecated - we don't keep per-buffer reference flags
- * any more.
- *
- * We _could_ try to update the page reference, but that
- * doesn't seem to really be worth it either. If we did,
- * it would look something like this:
- *
- *	#define buffer_page(bh)		(mem_map + MAP_NR((bh)->b_data))
- *	#define touch_buffer(bh)	set_bit(PG_referenced, &buffer_page(bh)->flags)
- */
-#define touch_buffer(bh)	do { } while (0)
+#define buffer_page(bh)		(mem_map + MAP_NR((bh)->b_data))
+#define touch_buffer(bh)	set_bit(PG_referenced, &buffer_page(bh)->flags)
 
 #include <linux/pipe_fs_i.h>
 #include <linux/minix_fs_i.h>
@@ -373,6 +368,7 @@ struct inode {
 
 	int			i_writecount;
 	unsigned int		i_attr_flags;
+	__u32			i_generation;
 	union {
 		struct pipe_inode_info		pipe_i;
 		struct minix_inode_info		minix_i;
@@ -425,6 +421,8 @@ struct file {
 	unsigned int 		f_count, f_flags;
 	unsigned long 		f_reada, f_ramax, f_raend, f_ralen, f_rawin;
 	struct fown_struct	f_owner;
+	unsigned int		f_uid, f_gid;
+	int			f_error;
 
 	unsigned long		f_version;
 
@@ -560,6 +558,11 @@ struct super_block {
 		struct qnx4_sb_info	qnx4_sb;	   
 		void			*generic_sbp;
 	} u;
+	/*
+	 * The next field is for VFS *only*. No filesystems have any business
+	 * even looking at it. You had been warned.
+	 */
+	struct semaphore s_vfs_rename_sem;	/* Kludge */
 };
 
 /*
@@ -598,7 +601,7 @@ struct file_operations {
 struct inode_operations {
 	struct file_operations * default_file_ops;
 	int (*create) (struct inode *,struct dentry *,int);
-	int (*lookup) (struct inode *,struct dentry *);
+	struct dentry * (*lookup) (struct inode *,struct dentry *);
 	int (*link) (struct dentry *,struct inode *,struct dentry *);
 	int (*unlink) (struct inode *,struct dentry *);
 	int (*symlink) (struct inode *,struct dentry *,const char *);
@@ -695,8 +698,9 @@ asmlinkage int sys_close(unsigned int);		/* yes, it's really unsigned */
 extern int do_truncate(struct dentry *, unsigned long);
 extern int get_unused_fd(void);
 extern void put_unused_fd(unsigned int);
-extern int close_fp(struct file *, fl_owner_t id);
+
 extern struct file *filp_open(const char *, int, int);
+extern int filp_close(struct file *, fl_owner_t id);
 
 extern char * getname(const char * filename);
 #define __getname()	((char *) __get_free_page(GFP_KERNEL))
@@ -809,6 +813,18 @@ extern ino_t find_inode_number(struct dentry *, struct qstr *);
 #define ERR_PTR(err)	((void *)((long)(err)))
 #define PTR_ERR(ptr)	((long)(ptr))
 #define IS_ERR(ptr)	((unsigned long)(ptr) > (unsigned long)(-1000))
+
+/*
+ * The bitmask for a lookup event:
+ *  - follow links at the end
+ *  - require a directory
+ *  - ending slashes ok even for nonexistent files
+ *  - internal "there are more path compnents" flag
+ */
+#define LOOKUP_FOLLOW		(1)
+#define LOOKUP_DIRECTORY	(2)
+#define LOOKUP_SLASHOK		(4)
+#define LOOKUP_CONTINUE		(8)
 
 extern struct dentry * lookup_dentry(const char *, struct dentry *, unsigned int);
 extern struct dentry * __namei(const char *, unsigned int);

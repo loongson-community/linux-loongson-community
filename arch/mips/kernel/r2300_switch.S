@@ -1,7 +1,9 @@
-/* $Id: $
+/* $Id: r2300_switch.S,v 1.5 1999/04/11 17:13:56 harald Exp $
+ *
  * r2300_switch.S: R2300 specific task switching code.
  *
- * Copyright (C) 1994, 1995, 1996 by Ralf Baechle and Andreas Busse
+ * Copyright (C) 1994, 1995, 1996, 1999 by Ralf Baechle
+ * Copyright (C) 1994, 1995, 1996 by Andreas Busse
  *
  * Multi-cpu abstraction and macros for easier reading:
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
@@ -28,19 +30,23 @@
 	.set	mips1
 	.align	5
 
+/*
+ * task_struct *r4xx0_resume(task_struct *prev,
+ *                           task_struct *next)
+ */
 LEAF(r2300_resume)
 	.set	reorder
 	mfc0	t1, CP0_STATUS
 	.set	noreorder
-	sw	t1, THREAD_STATUS($28)
-	CPU_SAVE_NONSCRATCH($28)
-	sw	ra, THREAD_REG31($28)
+	sw	t1, THREAD_STATUS(a0)
+	CPU_SAVE_NONSCRATCH(a0)
+	sw	ra, THREAD_REG31(a0)
 
 	/*
 	 * The order of restoring the registers takes care of the race
 	 * updating $28, $29 and kernelsp without disabling ints.
 	 */
-	move	$28, a0
+	move	$28, a1
 	CPU_RESTORE_NONSCRATCH($28)
 	addiu	t0, $28, KERNEL_STACK_SIZE-32
 	sw	t0, kernelsp
@@ -55,8 +61,9 @@ LEAF(r2300_resume)
 	lw	a3, MM_CONTEXT(a3)
 	mtc0	a2, CP0_STATUS
 	andi	a3, 0xfc0
+	mtc0	a3, CP0_ENTRYHI
 	jr	ra
-	 mtc0	a3, CP0_ENTRYHI
+	 move	v0, a0
 	END(r2300_resume)
 
 /*

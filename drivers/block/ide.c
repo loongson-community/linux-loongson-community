@@ -254,6 +254,33 @@ static void init_ide_data (void)
 }
 
 /*
+ * CompactFlash cards and their brethern pretend to be removable hard disks, except:
+ *	(1) they never have a slave unit, and
+ *	(2) they don't have doorlock mechanisms.
+ * This test catches them, and is invoked elsewhere when setting appropriate config bits.
+ *
+ * FIXME: This treatment is probably applicable for *all* PCMCIA (PC CARD) devices,
+ * so in linux 2.3.x we should change this to just treat all PCMCIA drives this way,
+ * and get rid of the model-name tests below (too big of an interface change for 2.2.x).
+ * At that time, we might also consider parameterizing the timeouts and retries,
+ * since these are MUCH faster than mechanical drives.	-M.Lord
+ */
+int drive_is_flashcard (ide_drive_t *drive)
+{
+	struct hd_driveid *id = drive->id;
+
+	if (drive->removable && id != NULL) {
+		if (!strncmp(id->model, "KODAK ATA_FLASH", 15)	/* Kodak */
+		 || !strncmp(id->model, "Hitachi CV", 10)		/* Hitachi */
+		 || !strncmp(id->model, "SunDisk SDCFB", 13))	/* SunDisk */
+		{
+			return 1;	/* yes, it is a flash memory card */
+		}
+	}
+	return 0;	/* no, it is not a flash memory card */
+}
+
+/*
  * ide_system_bus_speed() returns what we think is the system VESA/PCI
  * bus speed (in MHz).  This is used for calculating interface PIO timings.
  * The default is 40 for known PCI systems, 50 otherwise.
@@ -786,7 +813,7 @@ void ide_error (ide_drive_t *drive, const char *msg, byte stat)
 		ide_end_drive_cmd(drive, stat, err);
 		return;
 	}
-	if (stat & BUSY_STAT) {		/* other bits are useless when BUSY */
+	if (stat & BUSY_STAT || ((stat & WRERR_STAT) && !drive->nowerr)) { /* other bits are useless when BUSY */
 		rq->errors |= ERROR_RESET;
 	} else {
 		if (drive->media == ide_disk && (stat & ERR_STAT)) {
@@ -2068,6 +2095,12 @@ static int ide_ioctl (struct inode *inode, struct file *file,
 				(unsigned long *) &loc->start)) return -EFAULT;
 			return 0;
 		}
+		case BLKSSZGET:
+			/* Block size of media */
+			return put_user(blksize_size[HWIF(drive)->major]
+						    [minor&PARTN_MASK],
+						    (int *)arg);
+		
 		case BLKFLSBUF:
 			if (!capable(CAP_SYS_ADMIN)) return -EACCES;
 			fsync_dev(inode->i_rdev);
@@ -2957,6 +2990,7 @@ EXPORT_SYMBOL(ide_spin_wait_hwgroup);
 /*
  * Probe module
  */
+EXPORT_SYMBOL(drive_is_flashcard);
 EXPORT_SYMBOL(ide_timer_expiry);
 EXPORT_SYMBOL(ide_intr);
 EXPORT_SYMBOL(ide_geninit);

@@ -37,7 +37,18 @@
 #define DBGS(args)
 #endif
 
-struct ipi_msg_flush_tb_struct ipi_msg_flush_tb __cacheline_aligned;
+struct ipi_msg_flush_tb_struct {
+	volatile unsigned int flush_tb_mask;
+	union {
+		struct mm_struct *	flush_mm;
+		struct vm_area_struct *	flush_vma;
+	} p;
+	unsigned long flush_addr;
+	unsigned long flush_end;
+};
+
+static struct ipi_msg_flush_tb_struct ipi_msg_flush_tb __cacheline_aligned;
+static spinlock_t flush_tb_lock = SPIN_LOCK_UNLOCKED;
 
 struct cpuinfo_alpha cpu_data[NR_CPUS];
 
@@ -499,6 +510,7 @@ secondary_cpu_start(int cpuid, struct task_struct *idle)
 			return;
 		}
 		mdelay(1);
+		barrier();
 	}
 	DBGS(("secondary_cpu_start: SUCCESS for CPU %d!!!\n", cpuid));
 }
@@ -541,6 +553,7 @@ delay1:
 		if (!(hwrpb->txrdy & cpumask))
 			goto ready1;
 		udelay(100);
+		barrier();
 	}
 	goto timeout;
 
@@ -549,6 +562,7 @@ delay2:
 		if (!(hwrpb->txrdy & cpumask))
 			goto ready2;
 		udelay(100);
+		barrier();
 	}
 	goto timeout;
 
@@ -783,7 +797,7 @@ flush_tlb_all(void)
 	unsigned long to_whom = cpu_present_map ^ (1 << smp_processor_id());
 	long timeout = 1000000;
 
-	spin_lock_own(&kernel_flag, "flush_tlb_all");
+	spin_lock(&flush_tb_lock);
 
 	ipi_msg_flush_tb.flush_tb_mask = to_whom;
 	send_ipi_message(to_whom, IPI_TLB_ALL);
@@ -800,6 +814,8 @@ flush_tlb_all(void)
 		       ipi_msg_flush_tb.flush_tb_mask);
 		ipi_msg_flush_tb.flush_tb_mask = 0;
 	}
+
+	spin_unlock(&flush_tb_lock);
 }
 
 void
@@ -808,7 +824,7 @@ flush_tlb_mm(struct mm_struct *mm)
 	unsigned long to_whom = cpu_present_map ^ (1 << smp_processor_id());
 	long timeout = 1000000;
 
-	spin_lock_own(&kernel_flag, "flush_tlb_mm");
+	spin_lock(&flush_tb_lock);
 
 	ipi_msg_flush_tb.flush_tb_mask = to_whom;
 	ipi_msg_flush_tb.p.flush_mm = mm;
@@ -830,6 +846,8 @@ flush_tlb_mm(struct mm_struct *mm)
 		       ipi_msg_flush_tb.flush_tb_mask);
 		ipi_msg_flush_tb.flush_tb_mask = 0;
 	}
+
+	spin_unlock(&flush_tb_lock);
 }
 
 void
@@ -840,7 +858,7 @@ flush_tlb_page(struct vm_area_struct *vma, unsigned long addr)
 	struct mm_struct * mm = vma->vm_mm;
 	int timeout = 1000000;
 
-	spin_lock_own(&kernel_flag, "flush_tlb_page");
+	spin_lock(&flush_tb_lock);
 
 	ipi_msg_flush_tb.flush_tb_mask = to_whom;
 	ipi_msg_flush_tb.p.flush_vma = vma;
@@ -863,6 +881,8 @@ flush_tlb_page(struct vm_area_struct *vma, unsigned long addr)
 		       ipi_msg_flush_tb.flush_tb_mask);
 		ipi_msg_flush_tb.flush_tb_mask = 0;
 	}
+
+	spin_unlock(&flush_tb_lock);
 }
 
 void

@@ -41,6 +41,7 @@
  *		Kevin Buhr	:	Fixed the dumb errors in the above.
  *		Andi Kleen	:	Some small cleanups, optimizations,
  *					and fixed a copy_from_user() bug.
+ *		Tigran Aivazian	:	sys_send(args) calls sys_sendto(args, NULL, 0)
  *
  *
  *		This program is free software; you can redistribute it and/or
@@ -278,8 +279,8 @@ struct socket *sock_alloc(void)
 
 	inode->i_mode = S_IFSOCK|S_IRWXUGO;
 	inode->i_sock = 1;
-	inode->i_uid = current->uid;
-	inode->i_gid = current->gid;
+	inode->i_uid = current->fsuid;
+	inode->i_gid = current->fsgid;
 
 	sock->inode = inode;
 	init_waitqueue(&sock->wait);
@@ -929,40 +930,6 @@ asmlinkage int sys_getpeername(int fd, struct sockaddr *usockaddr, int *usockadd
 }
 
 /*
- *	Send a datagram down a socket. The datagram as with write() is
- *	in user space. We check it can be read.
- */
-
-asmlinkage int sys_send(int fd, void * buff, size_t len, unsigned flags)
-{
-	struct socket *sock;
-	int err;
-	struct msghdr msg;
-	struct iovec iov;
-
-	lock_kernel();
-	sock = sockfd_lookup(fd, &err);
-	if (sock) {
-		iov.iov_base=buff;
-		iov.iov_len=len;
-		msg.msg_name=NULL;
-		msg.msg_namelen=0;
-		msg.msg_iov=&iov;
-		msg.msg_iovlen=1;
-		msg.msg_control=NULL;
-		msg.msg_controllen=0;
-		if (sock->file->f_flags & O_NONBLOCK)
-			flags |= MSG_DONTWAIT;
-		msg.msg_flags = flags;
-		err = sock_sendmsg(sock, &msg, len);
-
-		sockfd_put(sock);
-	}
-	unlock_kernel();
-	return err;
-}
-
-/*
  *	Send a datagram to a given address. We move the address into kernel
  *	space and check the user space data area is readable before invoking
  *	the protocol.
@@ -1008,6 +975,14 @@ out:
 	return err;
 }
 
+/*
+ *	Send a datagram down a socket. 
+ */
+
+asmlinkage int sys_send(int fd, void * buff, size_t len, unsigned flags)
+{
+	return sys_sendto(fd, buff, len, flags, NULL, 0);
+}
 
 /*
  *	Receive a frame from the socket and optionally record the address of the 
@@ -1059,7 +1034,7 @@ out:
 
 asmlinkage int sys_recv(int fd, void * ubuf, size_t size, unsigned flags)
 {
-	return sys_recvfrom(fd,ubuf,size,flags, NULL, NULL);
+	return sys_recvfrom(fd, ubuf, size, flags, NULL, NULL);
 }
 
 /*
@@ -1160,7 +1135,7 @@ asmlinkage int sys_sendmsg(int fd, struct msghdr *msg, unsigned flags)
 	/* Check whether to allocate the iovec area*/
 	err = -ENOMEM;
 	iov_size = msg_sys.msg_iovlen * sizeof(struct iovec);
-	if (msg_sys.msg_iovlen > 1 /* UIO_FASTIOV */) {
+	if (msg_sys.msg_iovlen > UIO_FASTIOV) {
 		iov = sock_kmalloc(sock->sk, iov_size, GFP_KERNEL);
 		if (!iov)
 			goto out_put;
@@ -1172,6 +1147,11 @@ asmlinkage int sys_sendmsg(int fd, struct msghdr *msg, unsigned flags)
 		goto out_freeiov;
 	total_len = err;
 
+	err = -ENOBUFS;
+
+	/* msg_controllen must fit to int */
+	if (msg_sys.msg_controllen > INT_MAX)
+		goto out_freeiov;
 	ctl_len = msg_sys.msg_controllen; 
 	if (ctl_len) 
 	{

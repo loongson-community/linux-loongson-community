@@ -1,4 +1,4 @@
-/* $Id: srmmu.c,v 1.175 1998/08/28 18:57:31 zaitcev Exp $
+/* $Id: srmmu.c,v 1.187 1999/04/28 17:00:45 davem Exp $
  * srmmu.c:  SRMMU specific routines for memory management.
  *
  * Copyright (C) 1995 David S. Miller  (davem@caip.rutgers.edu)
@@ -12,7 +12,9 @@
 #include <linux/mm.h>
 #include <linux/malloc.h>
 #include <linux/vmalloc.h>
+#include <linux/pagemap.h>
 #include <linux/init.h>
+#include <linux/blk.h>
 
 #include <asm/page.h>
 #include <asm/pgtable.h>
@@ -216,24 +218,36 @@ __initfunc(void srmmu_frob_mem_map(unsigned long start_mem))
 	mem_map[MAP_NR(pg1)].flags &= ~(1<<PG_reserved);
 	mem_map[MAP_NR(pg2)].flags &= ~(1<<PG_reserved);
 	mem_map[MAP_NR(pg3)].flags &= ~(1<<PG_reserved);
-
+	
 	start_mem = PAGE_ALIGN(start_mem);
 	for(i = 0; srmmu_map[i].size; i++) {
 		bank_start = srmmu_map[i].vbase;
 		
-		if (i && bank_start - bank_end > 2 * PAGE_SIZE) {
+		/* Making a one or two pages PG_skip holes
+		 * is not necessary.  We add one more because
+		 * we must set the PG_skip flag on the first
+		 * two mem_map[] entries for the hole.  Go and
+		 * see the mm/filemap.c:shrink_mmap() loop for
+		 * details. -DaveM
+		 */
+		if (i && bank_start - bank_end > 3 * PAGE_SIZE) {
 			mem_map[MAP_NR(bank_end)].flags |= (1<<PG_skip);
 			mem_map[MAP_NR(bank_end)].next_hash = mem_map + MAP_NR(bank_start);
+			mem_map[MAP_NR(bank_end)+1UL].flags |= (1<<PG_skip);
+			mem_map[MAP_NR(bank_end)+1UL].next_hash = mem_map + MAP_NR(bank_start);
 			PGSKIP_DEBUG(MAP_NR(bank_end), MAP_NR(bank_start));
 			if (bank_end > KERNBASE && bank_start < KERNBASE) {
 				mem_map[0].flags |= (1<<PG_skip);
 				mem_map[0].next_hash = mem_map + MAP_NR(bank_start);
+				mem_map[1].flags |= (1<<PG_skip);
+				mem_map[1].next_hash = mem_map + MAP_NR(bank_start);
 				PGSKIP_DEBUG(0, MAP_NR(bank_start));
 			}
 		}
 		
 		bank_end = bank_start + srmmu_map[i].size;
 		while(bank_start < bank_end) {
+			set_bit(MAP_NR(bank_start) >> 8, sparc_valid_addr_bitmap);
 			if((bank_start >= KERNBASE) &&
 			   (bank_start < start_mem)) {
 				bank_start += PAGE_SIZE;
@@ -250,14 +264,19 @@ __initfunc(void srmmu_frob_mem_map(unsigned long start_mem))
 	if (bank_end < KERNBASE) {
 		mem_map[MAP_NR(bank_end)].flags |= (1<<PG_skip);
 		mem_map[MAP_NR(bank_end)].next_hash = mem_map + MAP_NR(KERNBASE);
+		mem_map[MAP_NR(bank_end)+1UL].flags |= (1<<PG_skip);
+		mem_map[MAP_NR(bank_end)+1UL].next_hash = mem_map + MAP_NR(KERNBASE);
 		PGSKIP_DEBUG(MAP_NR(bank_end), MAP_NR(KERNBASE));
 	} else if (MAP_NR(bank_end) < max_mapnr) {
 		mem_map[MAP_NR(bank_end)].flags |= (1<<PG_skip);
+		mem_map[MAP_NR(bank_end)+1UL].flags |= (1<<PG_skip);
 		if (mem_map[0].flags & (1 << PG_skip)) {
 			mem_map[MAP_NR(bank_end)].next_hash = mem_map[0].next_hash;
+			mem_map[MAP_NR(bank_end)+1UL].next_hash = mem_map[0].next_hash;
 			PGSKIP_DEBUG(MAP_NR(bank_end), mem_map[0].next_hash - mem_map);
 		} else {
 			mem_map[MAP_NR(bank_end)].next_hash = mem_map;
+			mem_map[MAP_NR(bank_end)+1UL].next_hash = mem_map;
 			PGSKIP_DEBUG(MAP_NR(bank_end), 0);
 		}
 	}
@@ -447,7 +466,8 @@ static inline pte_t *srmmu_s_pte_offset(pmd_t * dir, unsigned long address)
 /* This must update the context table entry for this process. */
 static void srmmu_update_rootmmu_dir(struct task_struct *tsk, pgd_t *pgdp) 
 {
-	if(tsk->mm->context != NO_CONTEXT) {
+	if(tsk->mm->context != NO_CONTEXT &&
+	   tsk->mm->pgd != pgdp) {
 		flush_cache_mm(tsk->mm);
 		ctxd_set(&srmmu_context_table[tsk->mm->context], pgdp);
 		flush_tlb_mm(tsk->mm);
@@ -800,9 +820,7 @@ static void srmmu_switch_to_context(struct task_struct *tsk)
 {
 	if(tsk->mm->context == NO_CONTEXT) {
 		alloc_context(tsk->mm);
-		flush_cache_mm(tsk->mm);
 		ctxd_set(&srmmu_context_table[tsk->mm->context], tsk->mm->pgd);
-		flush_tlb_mm(tsk->mm);
 	}
 	srmmu_set_context(tsk->mm->context);
 }
@@ -1273,6 +1291,12 @@ extern void viking_flush_tlb_range(struct mm_struct *mm, unsigned long start,
 				   unsigned long end);
 extern void viking_flush_tlb_page(struct vm_area_struct *vma,
 				  unsigned long page);
+extern void sun4dsmp_flush_tlb_all(void);
+extern void sun4dsmp_flush_tlb_mm(struct mm_struct *mm);
+extern void sun4dsmp_flush_tlb_range(struct mm_struct *mm, unsigned long start,
+				   unsigned long end);
+extern void sun4dsmp_flush_tlb_page(struct vm_area_struct *vma,
+				  unsigned long page);
 
 /* hypersparc.S */
 extern void hypersparc_flush_cache_all(void);
@@ -1311,7 +1335,8 @@ static void hypersparc_update_rootmmu_dir(struct task_struct *tsk, pgd_t *pgdp)
 	if(pgdp != swapper_pg_dir)
 		hypersparc_flush_page_to_ram(page);
 
-	if(tsk->mm->context != NO_CONTEXT) {
+	if(tsk->mm->context != NO_CONTEXT &&
+	   tsk->mm->pgd != pgdp) {
 		flush_cache_mm(tsk->mm);
 		ctxd_set(&srmmu_context_table[tsk->mm->context], pgdp);
 		flush_tlb_mm(tsk->mm);
@@ -1320,11 +1345,13 @@ static void hypersparc_update_rootmmu_dir(struct task_struct *tsk, pgd_t *pgdp)
 
 static void viking_update_rootmmu_dir(struct task_struct *tsk, pgd_t *pgdp) 
 {
-	viking_flush_page((unsigned long)pgdp);
-	if(tsk->mm->context != NO_CONTEXT) {
-		flush_cache_mm(current->mm);
+	if(pgdp != swapper_pg_dir)
+		flush_chunk((unsigned long)pgdp);
+	if(tsk->mm->context != NO_CONTEXT &&
+	   tsk->mm->pgd != pgdp) {
+		flush_cache_mm(tsk->mm);
 		ctxd_set(&srmmu_context_table[tsk->mm->context], pgdp);
-		flush_tlb_mm(current->mm);
+		flush_tlb_mm(tsk->mm);
 	}
 }
 
@@ -1333,6 +1360,9 @@ static void cypress_update_rootmmu_dir(struct task_struct *tsk, pgd_t *pgdp)
 	register unsigned long a, b, c, d, e, f, g;
 	unsigned long page = ((unsigned long) pgdp) & PAGE_MASK;
 	unsigned long line;
+
+	if(pgdp == swapper_pg_dir)
+		goto skip_flush;
 
 	a = 0x20; b = 0x40; c = 0x60; d = 0x80; e = 0xa0; f = 0xc0; g = 0xe0;
 	page &= PAGE_MASK;
@@ -1354,11 +1384,12 @@ static void cypress_update_rootmmu_dir(struct task_struct *tsk, pgd_t *pgdp)
 				     "r" (a), "r" (b), "r" (c), "r" (d),
 				     "r" (e), "r" (f), "r" (g));
 	} while(line != page);
-
-	if(tsk->mm->context != NO_CONTEXT) {
-		flush_cache_mm(current->mm);
+skip_flush:
+	if(tsk->mm->context != NO_CONTEXT &&
+	   tsk->mm->pgd != pgdp) {
+		flush_cache_mm(tsk->mm);
 		ctxd_set(&srmmu_context_table[tsk->mm->context], pgdp);
-		flush_tlb_mm(current->mm);
+		flush_tlb_mm(tsk->mm);
 	}
 }
 
@@ -1386,9 +1417,10 @@ static void hypersparc_init_new_context(struct mm_struct *mm)
 	srmmu_set_entry((pte_t *)ctxp, __pte((SRMMU_ET_PTD | (srmmu_v2p((unsigned long) mm->pgd) >> 4))));
 	hypersparc_flush_page_to_ram((unsigned long)ctxp);
 
-	hyper_flush_whole_icache();
-	if(mm == current->mm)
+	if(mm == current->mm) {
+		hyper_flush_whole_icache();
 		srmmu_set_context(mm->context);
+	}
 }
 
 static unsigned long mempool;
@@ -1917,12 +1949,13 @@ __initfunc(unsigned long srmmu_paging_init(unsigned long start_mem, unsigned lon
 		/* Find the number of contexts on the srmmu. */
 		cpunode = prom_getchild(prom_root_node);
 		num_contexts = 0;
-		while((cpunode = prom_getsibling(cpunode)) != 0) {
+		while(cpunode != 0) {
 			prom_getstring(cpunode, "device_type", node_str, sizeof(node_str));
 			if(!strcmp(node_str, "cpu")) {
 				num_contexts = prom_getintdefault(cpunode, "mmu-nctx", 0x8);
 				break;
 			}
+			cpunode = prom_getsibling(cpunode);
 		}
 	}
 
@@ -1969,6 +2002,18 @@ __initfunc(unsigned long srmmu_paging_init(unsigned long start_mem, unsigned lon
 
 	start_mem = sparc_context_init(start_mem, num_contexts);
 	start_mem = free_area_init(start_mem, end_mem);
+	
+#ifdef CONFIG_BLK_DEV_INITRD
+	/* If initial ramdisk was specified with physical address,
+	   translate it here, as the p2v translation in srmmu
+	   is not straightforward. */
+	if (initrd_start && initrd_start < KERNBASE) {
+		initrd_start = srmmu_p2v(initrd_start);
+		initrd_end = srmmu_p2v(initrd_end);
+		if (initrd_end <= initrd_start)
+			initrd_start = 0;
+	}
+#endif
 
 	return PAGE_ALIGN(start_mem);
 }
@@ -1998,6 +2043,11 @@ static void srmmu_update_mmu_cache(struct vm_area_struct * vma, unsigned long ad
 static void srmmu_destroy_context(struct mm_struct *mm)
 {
 	if(mm->context != NO_CONTEXT && atomic_read(&mm->count) == 1) {
+		/* XXX This could be drastically improved.
+		 * XXX We are only called from __exit_mm and it just did
+		 * XXX cache/tlb mm flush and right after this will (re-)
+		 * XXX SET_PAGE_DIR to swapper_pg_dir.  -DaveM
+		 */
 		flush_cache_mm(mm);
 		ctxd_set(&srmmu_context_table[mm->context], swapper_pg_dir);
 		flush_tlb_mm(mm);
@@ -2028,8 +2078,11 @@ static void srmmu_vac_update_mmu_cache(struct vm_area_struct * vma,
 		offset = (address & PAGE_MASK) - vma->vm_start;
 		vmaring = inode->i_mmap; 
 		do {
-			vaddr = vmaring->vm_start + offset;
+			/* Do not mistake ourselves as another mapping. */
+			if(vmaring == vma)
+				continue;
 
+			vaddr = vmaring->vm_start + offset;
 			if ((vaddr ^ address) & vac_badbits) {
 				alias_found++;
 				start = vmaring->vm_start;
@@ -2042,7 +2095,7 @@ static void srmmu_vac_update_mmu_cache(struct vm_area_struct * vma,
 					if(!ptep) goto next;
 
 					if((pte_val(*ptep) & SRMMU_ET_MASK) == SRMMU_VALID) {
-#if 1
+#if 0
 						printk("Fixing USER/USER alias [%ld:%08lx]\n",
 						       vmaring->vm_mm->context, start);
 #endif
@@ -2057,11 +2110,12 @@ static void srmmu_vac_update_mmu_cache(struct vm_area_struct * vma,
 			}
 		} while ((vmaring = vmaring->vm_next_share) != NULL);
 
-		if(alias_found && !(pte_val(pte) & _SUN4C_PAGE_NOCACHE)) {
+		if(alias_found && ((pte_val(pte) & SRMMU_CACHE) != 0)) {
 			pgdp = srmmu_pgd_offset(vma->vm_mm, address);
-			ptep = srmmu_pte_offset((pmd_t *) pgdp, address);
+			pmdp = srmmu_pmd_offset(pgdp, address);
+			ptep = srmmu_pte_offset(pmdp, address);
 			flush_cache_page(vma, address);
-			*ptep = __pte(pte_val(*ptep) | _SUN4C_PAGE_NOCACHE);
+			set_pte(ptep, __pte((pte_val(*ptep) & ~SRMMU_CACHE)));
 			flush_tlb_page(vma, address);
 		}
 	done:
@@ -2652,15 +2706,8 @@ __initfunc(static void init_viking(void))
 
 	/* Ahhh, the viking.  SRMMU VLSI abortion number two... */
 	if(mreg & VIKING_MMODE) {
-		unsigned long bpreg;
-
 		srmmu_name = "TI Viking";
 		viking_mxcc_present = 0;
-
-		bpreg = viking_get_bpreg();
-		bpreg &= ~(VIKING_ACTION_MIX);
-		viking_set_bpreg(bpreg);
-
 		msi_set_sync();
 
 		BTFIXUPSET_CALL(set_pte, srmmu_set_pte_nocache_viking, BTFIXUPCALL_NORM);
@@ -2691,16 +2738,25 @@ __initfunc(static void init_viking(void))
 		BTFIXUPSET_CALL(flush_page_for_dma, viking_flush_page_for_dma, BTFIXUPCALL_NOP);
 	}
 
-	/* flush_cache_* are nops */
-	BTFIXUPSET_CALL(flush_cache_all, viking_flush_cache_all, BTFIXUPCALL_NOP);
-	BTFIXUPSET_CALL(flush_cache_mm, viking_flush_cache_mm, BTFIXUPCALL_NOP);
-	BTFIXUPSET_CALL(flush_cache_page, viking_flush_cache_page, BTFIXUPCALL_NOP);
-	BTFIXUPSET_CALL(flush_cache_range, viking_flush_cache_range, BTFIXUPCALL_NOP);
+	BTFIXUPSET_CALL(flush_cache_all, viking_flush_cache_all, BTFIXUPCALL_NORM);
+	BTFIXUPSET_CALL(flush_cache_mm, viking_flush_cache_mm, BTFIXUPCALL_NORM);
+	BTFIXUPSET_CALL(flush_cache_page, viking_flush_cache_page, BTFIXUPCALL_NORM);
+	BTFIXUPSET_CALL(flush_cache_range, viking_flush_cache_range, BTFIXUPCALL_NORM);
 
-	BTFIXUPSET_CALL(flush_tlb_all, viking_flush_tlb_all, BTFIXUPCALL_NORM);
-	BTFIXUPSET_CALL(flush_tlb_mm, viking_flush_tlb_mm, BTFIXUPCALL_NORM);
-	BTFIXUPSET_CALL(flush_tlb_page, viking_flush_tlb_page, BTFIXUPCALL_NORM);
-	BTFIXUPSET_CALL(flush_tlb_range, viking_flush_tlb_range, BTFIXUPCALL_NORM);
+#ifdef __SMP__
+	if (sparc_cpu_model == sun4d) {
+		BTFIXUPSET_CALL(flush_tlb_all, sun4dsmp_flush_tlb_all, BTFIXUPCALL_NORM);
+		BTFIXUPSET_CALL(flush_tlb_mm, sun4dsmp_flush_tlb_mm, BTFIXUPCALL_NORM);
+		BTFIXUPSET_CALL(flush_tlb_page, sun4dsmp_flush_tlb_page, BTFIXUPCALL_NORM);
+		BTFIXUPSET_CALL(flush_tlb_range, sun4dsmp_flush_tlb_range, BTFIXUPCALL_NORM);
+	} else
+#endif
+	{
+		BTFIXUPSET_CALL(flush_tlb_all, viking_flush_tlb_all, BTFIXUPCALL_NORM);
+		BTFIXUPSET_CALL(flush_tlb_mm, viking_flush_tlb_mm, BTFIXUPCALL_NORM);
+		BTFIXUPSET_CALL(flush_tlb_page, viking_flush_tlb_page, BTFIXUPCALL_NORM);
+		BTFIXUPSET_CALL(flush_tlb_range, viking_flush_tlb_range, BTFIXUPCALL_NORM);
+	}
 
 	BTFIXUPSET_CALL(flush_page_to_ram, viking_flush_page_to_ram, BTFIXUPCALL_NOP);
 	BTFIXUPSET_CALL(flush_sig_insns, viking_flush_sig_insns, BTFIXUPCALL_NOP);
@@ -3027,10 +3083,12 @@ __initfunc(void ld_mmu_srmmu(void))
 	BTFIXUPSET_CALL(flush_cache_mm, smp_flush_cache_mm, BTFIXUPCALL_NORM);
 	BTFIXUPSET_CALL(flush_cache_range, smp_flush_cache_range, BTFIXUPCALL_NORM);
 	BTFIXUPSET_CALL(flush_cache_page, smp_flush_cache_page, BTFIXUPCALL_NORM);
-	BTFIXUPSET_CALL(flush_tlb_all, smp_flush_tlb_all, BTFIXUPCALL_NORM);
-	BTFIXUPSET_CALL(flush_tlb_mm, smp_flush_tlb_mm, BTFIXUPCALL_NORM);
-	BTFIXUPSET_CALL(flush_tlb_range, smp_flush_tlb_range, BTFIXUPCALL_NORM);
-	BTFIXUPSET_CALL(flush_tlb_page, smp_flush_tlb_page, BTFIXUPCALL_NORM);
+	if (sparc_cpu_model != sun4d) {
+		BTFIXUPSET_CALL(flush_tlb_all, smp_flush_tlb_all, BTFIXUPCALL_NORM);
+		BTFIXUPSET_CALL(flush_tlb_mm, smp_flush_tlb_mm, BTFIXUPCALL_NORM);
+		BTFIXUPSET_CALL(flush_tlb_range, smp_flush_tlb_range, BTFIXUPCALL_NORM);
+		BTFIXUPSET_CALL(flush_tlb_page, smp_flush_tlb_page, BTFIXUPCALL_NORM);
+	}
 	BTFIXUPSET_CALL(flush_page_to_ram, smp_flush_page_to_ram, BTFIXUPCALL_NORM);
 	BTFIXUPSET_CALL(flush_sig_insns, smp_flush_sig_insns, BTFIXUPCALL_NORM);
 	BTFIXUPSET_CALL(flush_page_for_dma, smp_flush_page_for_dma, BTFIXUPCALL_NORM);

@@ -1,4 +1,4 @@
-/*  $Id: process.c,v 1.82 1998/10/19 21:52:23 davem Exp $
+/*  $Id: process.c,v 1.92 1999/05/08 23:04:48 davem Exp $
  *  arch/sparc64/kernel/process.c
  *
  *  Copyright (C) 1995, 1996 David S. Miller (davem@caip.rutgers.edu)
@@ -53,11 +53,19 @@ asmlinkage int sys_idle(void)
 
 	/* endless idle loop with no priority at all */
 	current->priority = 0;
-	current->counter = 0;
+	current->counter = -100;
+	init_idle();
+
 	for (;;) {
-		check_pgt_cache();
-		run_task_queue(&tq_scheduler);
+		/* If current->need_resched is zero we should really
+		 * setup for a system wakup event and execute a shutdown
+		 * instruction.
+		 *
+		 * But this requires writing back the contents of the
+		 * L2 cache etc. so implement this later. -DaveM
+		 */
 		schedule();
+		check_pgt_cache();
 	}
 	return 0;
 }
@@ -67,20 +75,27 @@ asmlinkage int sys_idle(void)
 /*
  * the idle loop on a UltraMultiPenguin...
  */
+#define idle_me_harder()	(cpu_data[current->processor].idle_volume += 1)
+#define unidle_me()		(cpu_data[current->processor].idle_volume = 0)
 asmlinkage int cpu_idle(void)
 {
 	current->priority = 0;
-	while(1) {
-		struct task_struct *p;
+	current->counter = -100;
+	init_idle();
 
-		check_pgt_cache();
-		run_task_queue(&tq_scheduler);
-		current->counter = 0;
-		if (current->need_resched != 0 ||
-		    ((p = init_task.next_run) != NULL &&
-		     (p->processor == smp_processor_id() ||
-		      (p->tss.flags & SPARC_FLAG_NEWCHILD) != 0)))
+	while(1) {
+		if (current->need_resched != 0) {
+			unidle_me();
 			schedule();
+			check_pgt_cache();
+		}
+		idle_me_harder();
+
+		/* The store ordering is so that IRQ handlers on
+		 * other cpus see our increasing idleness for the buddy
+		 * redistribution algorithm.  -DaveM
+		 */
+		membar("#StoreStore | #StoreLoad");
 	}
 }
 
@@ -158,12 +173,12 @@ static void show_regwindow32(struct pt_regs *regs)
 	}
 	rw = &r_w;
 	set_fs (old_fs);			
-	printk("l0: %016x l1: %016x l2: %016x l3: %016x\n"
-	       "l4: %016x l5: %016x l6: %016x l7: %016x\n",
+	printk("l0: %08x l1: %08x l2: %08x l3: %08x "
+	       "l4: %08x l5: %08x l6: %08x l7: %08x\n",
 	       rw->locals[0], rw->locals[1], rw->locals[2], rw->locals[3],
 	       rw->locals[4], rw->locals[5], rw->locals[6], rw->locals[7]);
-	printk("i0: %016x i1: %016x i2: %016x i3: %016x\n"
-	       "i4: %016x i5: %016x i6: %016x i7: %016x\n",
+	printk("i0: %08x i1: %08x i2: %08x i3: %08x "
+	       "i4: %08x i5: %08x i6: %08x i7: %08x\n",
 	       rw->ins[0], rw->ins[1], rw->ins[2], rw->ins[3],
 	       rw->ins[4], rw->ins[5], rw->ins[6], rw->ins[7]);
 }
@@ -340,13 +355,13 @@ void show_regs32(struct pt_regs32 *regs)
 {
 	printk("PSR: %08x PC: %08x NPC: %08x Y: %08x\n", regs->psr,
 	       regs->pc, regs->npc, regs->y);
-	printk("g0: %08x g1: %08x g2: %08x g3: %08x\n",
+	printk("g0: %08x g1: %08x g2: %08x g3: %08x ",
 	       regs->u_regs[0], regs->u_regs[1], regs->u_regs[2],
 	       regs->u_regs[3]);
 	printk("g4: %08x g5: %08x g6: %08x g7: %08x\n",
 	       regs->u_regs[4], regs->u_regs[5], regs->u_regs[6],
 	       regs->u_regs[7]);
-	printk("o0: %08x o1: %08x o2: %08x o3: %08x\n",
+	printk("o0: %08x o1: %08x o2: %08x o3: %08x ",
 	       regs->u_regs[8], regs->u_regs[9], regs->u_regs[10],
 	       regs->u_regs[11]);
 	printk("o4: %08x o5: %08x sp: %08x ret_pc: %08x\n",
@@ -427,9 +442,7 @@ void flush_thread(void)
 		/* exec_mmap() set context to NO_CONTEXT, here is
 		 * where we grab a new one.
 		 */
-		current->mm->cpu_vm_mask = 0;
 		activate_context(current);
-		current->mm->cpu_vm_mask = (1UL<<smp_processor_id());
 	}
 	if (current->tss.flags & SPARC_FLAG_32BIT)
 		__asm__ __volatile__("stxa %%g0, [%0] %1"
@@ -447,6 +460,11 @@ static unsigned long clone_stackframe(unsigned long csp, unsigned long psp)
 {
 	unsigned long fp, distance, rval;
 
+	/* do_fork() grabs the parent semaphore, we must release it
+	 * temporarily so we can build the child clone stack frame
+	 * without deadlocking.
+	 */
+	up(&current->mm->mmap_sem);
 	if(!(current->tss.flags & SPARC_FLAG_32BIT)) {
 		csp += STACK_BIAS;
 		psp += STACK_BIAS;
@@ -463,17 +481,20 @@ static unsigned long clone_stackframe(unsigned long csp, unsigned long psp)
 	distance = fp - psp;
 	rval = (csp - distance);
 	if(copy_in_user(rval, psp, distance))
-		return 0;
-	if(current->tss.flags & SPARC_FLAG_32BIT) {
+		rval = 0;
+	else if(current->tss.flags & SPARC_FLAG_32BIT) {
 		if(put_user(((u32)csp), &(((struct reg_window32 *)rval)->ins[6])))
-			return 0;
-		return rval;
+			rval = 0;
 	} else {
 		if(put_user(((u64)csp - STACK_BIAS),
 			    &(((struct reg_window *)rval)->ins[6])))
-			return 0;
-		return rval - STACK_BIAS;
+			rval = 0;
+		else
+			rval = rval - STACK_BIAS;
 	}
+	down(&current->mm->mmap_sem);
+
+	return rval;
 }
 
 /* Standard stuff. */
@@ -621,6 +642,37 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long sp,
 	/* Set the second return value for the parent. */
 	regs->u_regs[UREG_I1] = 0;
 	return 0;
+}
+
+/*
+ * This is the mechanism for creating a new kernel thread.
+ *
+ * NOTE! Only a kernel-only process(ie the swapper or direct descendants
+ * who haven't done an "execve()") should use this: it will work within
+ * a system call from a "real" process, but the process memory space will
+ * not be free'd until both the parent and the child have exited.
+ */
+pid_t kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
+{
+	long retval;
+
+	__asm__ __volatile("mov %1, %%g1\n\t"
+			   "mov %2, %%o0\n\t"	   /* Clone flags. */
+			   "mov 0, %%o1\n\t"	   /* usp arg == 0 */
+			   "t 0x6d\n\t"		   /* Linux/Sparc clone(). */
+			   "brz,a,pn %%o1, 1f\n\t" /* Parent, just return. */
+			   " mov %%o0, %0\n\t"
+			   "jmpl %4, %%o7\n\t"	   /* Call the function. */
+			   " mov %5, %%o0\n\t"	   /* Set arg in delay. */
+			   "mov %3, %%g1\n\t"
+			   "t 0x6d\n\t"		   /* Linux/Sparc exit(). */
+			   /* Notreached by child. */
+			   "1:" :
+			   "=r" (retval) :
+			   "i" (__NR_clone), "r" (flags | CLONE_VM),
+			   "i" (__NR_exit),  "r" (fn), "r" (arg) :
+			   "g1", "o0", "o1", "memory", "cc");
+	return retval;
 }
 
 /*

@@ -37,6 +37,7 @@
 #include <linux/file.h>
 #include <linux/console.h>
 #include <linux/poll.h>
+#include <linux/mm.h>
 
 #if defined(CONFIG_PROC_FS)
 #include <linux/proc_fs.h>
@@ -60,7 +61,7 @@ extern int request_dma(unsigned int dmanr, char * deviceID);
 extern void free_dma(unsigned int dmanr);
 extern spinlock_t dma_spin_lock;
 
-#ifdef MODVERSIONS
+#ifdef CONFIG_MODVERSIONS
 const struct module_symbol __export_Using_Versions
 __attribute__((section("__ksymtab"))) = {
 	1 /* Version version */, "Using_Versions"
@@ -105,6 +106,8 @@ EXPORT_SYMBOL(max_mapnr);
 EXPORT_SYMBOL(high_memory);
 EXPORT_SYMBOL(update_vm_cache);
 EXPORT_SYMBOL(vmtruncate);
+EXPORT_SYMBOL(find_vma);
+EXPORT_SYMBOL(get_unmapped_area);
 
 /* filesystem internal functions */
 EXPORT_SYMBOL(in_group_p);
@@ -133,6 +136,7 @@ EXPORT_SYMBOL(__mark_inode_dirty);
 EXPORT_SYMBOL(get_empty_filp);
 EXPORT_SYMBOL(init_private_file);
 EXPORT_SYMBOL(filp_open);
+EXPORT_SYMBOL(filp_close);
 EXPORT_SYMBOL(fput);
 EXPORT_SYMBOL(put_filp);
 EXPORT_SYMBOL(check_disk_change);
@@ -319,6 +323,8 @@ EXPORT_SYMBOL(printk);
 EXPORT_SYMBOL(sprintf);
 EXPORT_SYMBOL(vsprintf);
 EXPORT_SYMBOL(kdevname);
+EXPORT_SYMBOL(bdevname);
+EXPORT_SYMBOL(cdevname);
 EXPORT_SYMBOL(simple_strtoul);
 EXPORT_SYMBOL(system_utsname);	/* UTS data */
 EXPORT_SYMBOL(uts_sem);		/* UTS semaphore */
@@ -367,6 +373,7 @@ EXPORT_SYMBOL(is_bad_inode);
 EXPORT_SYMBOL(event);
 EXPORT_SYMBOL(__down);
 EXPORT_SYMBOL(__down_interruptible);
+EXPORT_SYMBOL(__down_trylock);
 EXPORT_SYMBOL(__up);
 EXPORT_SYMBOL(brw_page);
 

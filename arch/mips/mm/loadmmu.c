@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: loadmmu.c,v 1.7 1998/04/05 11:23:55 ralf Exp $
+ * $Id: loadmmu.c,v 1.8 1999/04/11 17:13:56 harald Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -53,7 +53,7 @@ void (*add_wired_entry)(unsigned long entrylo0, unsigned long entrylo1,
 
 int (*user_mode)(struct pt_regs *);
 
-asmlinkage void (*resume)(void *tsk);
+asmlinkage void *(*resume)(void *last, void *next);
 
 extern void ld_mmu_r2300(void);
 extern void ld_mmu_r4xx0(void);

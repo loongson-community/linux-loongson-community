@@ -9,16 +9,22 @@
 #ifdef __SMP__
 /* This is a temporary measure. -DaveM */
 typedef struct { volatile int counter; } atomic_t;
+#define ATOMIC_INIT(i)	{ (i << 8) }
 #else
 typedef struct { int counter; } atomic_t;
+#define ATOMIC_INIT(i)  { (i) }
 #endif
-
-#define ATOMIC_INIT(i)	{ (i << 8) }
 
 #ifdef __KERNEL__
 #include <asm/system.h>
 #include <asm/psr.h>
 
+#ifndef __SMP__
+
+#define atomic_read(v)          ((v)->counter)
+#define atomic_set(v, i)        (((v)->counter) = i)
+
+#else
 /* We do the bulk of the actual work out of line in two common
  * routines in assembler, see arch/sparc/lib/atomic.S for the
  * "fun" details.
@@ -35,14 +41,16 @@ typedef struct { int counter; } atomic_t;
 
 static __inline__ int atomic_read(atomic_t *v)
 {
-	int val;
+	int ret = v->counter;
 
-	__asm__ __volatile__("sra	%1, 0x8, %0"
-			     : "=r" (val)
-			     : "r" (v->counter));
-	return val;
+	while(ret & 0xff)
+		ret = v->counter;
+
+	return ret >> 8;
 }
+
 #define atomic_set(v, i)	(((v)->counter) = ((i) << 8))
+#endif
 
 /* Make sure gcc doesn't try to be clever and move things around
  * on us. We need to use _exactly_ the address the user gave us,

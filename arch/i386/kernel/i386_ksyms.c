@@ -39,10 +39,12 @@ EXPORT_SYMBOL(local_bh_count);
 EXPORT_SYMBOL(local_irq_count);
 EXPORT_SYMBOL(enable_irq);
 EXPORT_SYMBOL(disable_irq);
+EXPORT_SYMBOL(disable_irq_nosync);
 EXPORT_SYMBOL(kernel_thread);
 
 EXPORT_SYMBOL_NOVERS(__down_failed);
 EXPORT_SYMBOL_NOVERS(__down_failed_interruptible);
+EXPORT_SYMBOL_NOVERS(__down_failed_trylock);
 EXPORT_SYMBOL_NOVERS(__up_wakeup);
 /* Networking helper routines. */
 EXPORT_SYMBOL(csum_partial_copy);
@@ -74,8 +76,11 @@ EXPORT_SYMBOL(strlen_user);
 EXPORT_SYMBOL(cpu_data);
 EXPORT_SYMBOL(kernel_flag);
 EXPORT_SYMBOL(smp_invalidate_needed);
+EXPORT_SYMBOL(cpu_number_map);
 EXPORT_SYMBOL(__cpu_logical_map);
 EXPORT_SYMBOL(smp_num_cpus);
+EXPORT_SYMBOL(cpu_present_map);
+EXPORT_SYMBOL(cpu_online_map);
 
 /* Global SMP irq stuff */
 EXPORT_SYMBOL(synchronize_irq);
@@ -87,7 +92,7 @@ EXPORT_SYMBOL(__global_cli);
 EXPORT_SYMBOL(__global_sti);
 EXPORT_SYMBOL(__global_save_flags);
 EXPORT_SYMBOL(__global_restore_flags);
-EXPORT_SYMBOL(mtrr_hook);
+EXPORT_SYMBOL(smp_call_function);
 #endif
 
 #ifdef CONFIG_MCA

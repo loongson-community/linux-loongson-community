@@ -202,7 +202,7 @@ DO_ACTION( enable,  1, |= 0xff000000, )				/* destination = 0xff */
 DO_ACTION( mask,    0, |= 0x00010000, io_apic_sync())		/* mask = 1 */
 DO_ACTION( unmask,  0, &= 0xfffeffff, )				/* mask = 0 */
 
-static void __init clear_IO_APIC_pin(unsigned int pin)
+static void clear_IO_APIC_pin(unsigned int pin)
 {
 	struct IO_APIC_route_entry entry;
 
@@ -215,6 +215,13 @@ static void __init clear_IO_APIC_pin(unsigned int pin)
 	io_apic_write(0x11 + 2 * pin, *(((int *)&entry) + 1));
 }
 
+static void clear_IO_APIC (void)
+{
+	int pin;
+
+	for (pin = 0; pin < nr_ioapic_registers; pin++)
+		clear_IO_APIC_pin(pin);
+}
 
 /*
  * support for broken MP BIOSs, enables hand-redirection of PIRQ0-7 to
@@ -286,7 +293,8 @@ static int __init find_timer_pin(int type)
 	for (i = 0; i < mp_irq_entries; i++) {
 		int lbus = mp_irqs[i].mpc_srcbus;
 
-		if ((mp_bus_id_to_type[lbus] == MP_BUS_ISA) &&
+		if ((mp_bus_id_to_type[lbus] == MP_BUS_ISA ||
+		     mp_bus_id_to_type[lbus] == MP_BUS_EISA) &&
 		    (mp_irqs[i].mpc_irqtype == type) &&
 		    (mp_irqs[i].mpc_srcbusirq == 0x00))
 
@@ -319,20 +327,7 @@ int IO_APIC_get_PCI_irq_vector(int bus, int slot, int pci_pin)
 }
 
 /*
- * Unclear documentation on what a "conforming ISA interrupt" means.
- *
- * Should we, or should we not, take the ELCR register into account?
- * It's part of the EISA specification, but maybe it should only be
- * used if the interrupt is actually marked as EISA?
- *
- * Oh, well. Don't do it until somebody tells us what the right thing
- * to do is..
- */
-#undef USE_ELCR_TRIGGER_LEVEL
-#ifdef USE_ELCR_TRIGGER_LEVEL
-
-/*
- * ISA Edge/Level control register, ELCR
+ * EISA Edge/Level control register, ELCR
  */
 static int __init EISA_ELCR(unsigned int irq)
 {
@@ -342,17 +337,21 @@ static int __init EISA_ELCR(unsigned int irq)
 	}
 	printk("Broken MPtable reports ISA irq %d\n", irq);
 	return 0;
-}	
+}
 
-#define default_ISA_trigger(idx)	(EISA_ELCR(mp_irqs[idx].mpc_dstirq))
-#define default_ISA_polarity(idx)	(0)
+/* EISA interrupts are always polarity zero and can be edge or level
+ * trigger depending on the ELCR value.  If an interrupt is listed as
+ * EISA conforming in the MP table, that means its trigger type must
+ * be read in from the ELCR */
 
-#else
+#define default_EISA_trigger(idx)	(EISA_ELCR(mp_irqs[idx].mpc_dstirq))
+#define default_EISA_polarity(idx)	(0)
+
+/* ISA interrupts are always polarity zero edge triggered, even when
+ * listed as conforming in the MP table. */
 
 #define default_ISA_trigger(idx)	(0)
 #define default_ISA_polarity(idx)	(0)
-
-#endif
 
 static int __init MPBIOS_polarity(int idx)
 {
@@ -371,6 +370,11 @@ static int __init MPBIOS_polarity(int idx)
 				case MP_BUS_ISA: /* ISA pin */
 				{
 					polarity = default_ISA_polarity(idx);
+					break;
+				}
+				case MP_BUS_EISA:
+				{
+					polarity = default_EISA_polarity(idx);
 					break;
 				}
 				case MP_BUS_PCI: /* PCI pin */
@@ -430,6 +434,11 @@ static int __init MPBIOS_trigger(int idx)
 				case MP_BUS_ISA:
 				{
 					trigger = default_ISA_trigger(idx);
+					break;
+				}
+				case MP_BUS_EISA:
+				{
+					trigger = default_EISA_trigger(idx);
 					break;
 				}
 				case MP_BUS_PCI: /* PCI pin, level */
@@ -496,6 +505,7 @@ static int __init pin_2_irq(int idx, int pin)
 	switch (mp_bus_id_to_type[bus])
 	{
 		case MP_BUS_ISA: /* ISA pin */
+		case MP_BUS_EISA:
 		{
 			irq = mp_irqs[idx].mpc_srcbusirq;
 			break;
@@ -562,6 +572,9 @@ static int __init assign_irq_vector(int irq)
 		printk("WARNING: ASSIGN_IRQ_VECTOR wrapped back to %02X\n",
 		       current_vector);
 	}
+	if (current_vector == SYSCALL_VECTOR)
+		panic("ran out of interrupt sources!");
+
 	IO_APIC_VECTOR(irq) = current_vector;
 	return current_vector;
 }
@@ -625,7 +638,7 @@ void __init setup_IO_APIC_irqs(void)
 /*
  * Set up a certain pin as ExtINT delivered interrupt
  */
-void __init setup_ExtINT_pin(unsigned int pin)
+void __init setup_ExtINT_pin(unsigned int pin, int irq)
 {
 	struct IO_APIC_route_entry entry;
 
@@ -635,11 +648,16 @@ void __init setup_ExtINT_pin(unsigned int pin)
 	memset(&entry,0,sizeof(entry));
 
 	entry.delivery_mode = dest_ExtINT;
-	entry.dest_mode = 1;				/* logical delivery */
+	entry.dest_mode = 0;				/* physical delivery */
 	entry.mask = 0;					/* unmask IRQ now */
-	entry.dest.logical.logical_dest = 0x01;		/* logical CPU #0 */
+	/*
+	 * We use physical delivery to get the timer IRQ
+	 * to the boot CPU. 'boot_cpu_id' is the physical
+	 * APIC ID of the boot CPU.
+	 */
+	entry.dest.physical.physical_dest = boot_cpu_id;
 
-	entry.vector = 0;				/* it's ignored */
+	entry.vector = assign_irq_vector(irq);
 
 	entry.polarity = 0;
 	entry.trigger = 0;
@@ -681,9 +699,11 @@ void __init print_IO_APIC(void)
 
 	printk(".... register #01: %08X\n", *(int *)&reg_01);
 	printk(".......     : max redirection entries: %04X\n", reg_01.entries);
-	if (	(reg_01.entries != 0x0f) && /* ISA-only Neptune boards */
-		(reg_01.entries != 0x17) && /* ISA+PCI boards */
-		(reg_01.entries != 0x3F)    /* Xeon boards */
+	if (	(reg_01.entries != 0x0f) && /* older (Neptune) boards */
+		(reg_01.entries != 0x17) && /* typical ISA+PCI boards */
+		(reg_01.entries != 0x1b) && /* Compaq Proliant boards */
+		(reg_01.entries != 0x1f) && /* dual Xeon boards */
+		(reg_01.entries != 0x3F)    /* bigger Xeon boards */
 	)
 		UNEXPECTED_IO_APIC();
 	if (reg_01.entries == 0x0f)
@@ -754,7 +774,7 @@ void __init print_IO_APIC(void)
 
 static void __init init_sym_mode(void)
 {
-	int i, pin;
+	int i;
 
 	for (i = 0; i < PIN_MAP_SIZE; i++) {
 		irq_2_pin[i].pin = -1;
@@ -784,8 +804,7 @@ static void __init init_sym_mode(void)
 	/*
 	 * Do not trust the IO-APIC being empty at bootup
 	 */
-	for (pin = 0; pin < nr_ioapic_registers; pin++)
-		clear_IO_APIC_pin(pin);
+	clear_IO_APIC();
 }
 
 /*
@@ -793,6 +812,15 @@ static void __init init_sym_mode(void)
  */
 void init_pic_mode(void)
 {
+	/*
+	 * Clear the IO-APIC before rebooting:
+	 */
+	clear_IO_APIC();
+
+	/*
+	 * Put it back into PIC mode (has an effect only on
+	 * certain boards)
+	 */
 	printk("disabling symmetric IO mode... ");
 		outb_p(0x70, 0x22);
 		outb_p(0x00, 0x23);
@@ -885,6 +913,8 @@ static void __init setup_ioapic_id(void)
 static void __init construct_default_ISA_mptable(void)
 {
 	int i, pos = 0;
+	const int bus_type = (mpc_default_type == 2 || mpc_default_type == 3 ||
+			      mpc_default_type == 6) ? MP_BUS_EISA : MP_BUS_ISA;
 
 	for (i = 0; i < 16; i++) {
 		if (!IO_APIC_IRQ(i))
@@ -892,14 +922,14 @@ static void __init construct_default_ISA_mptable(void)
 
 		mp_irqs[pos].mpc_irqtype = mp_INT;
 		mp_irqs[pos].mpc_irqflag = 0;		/* default */
-		mp_irqs[pos].mpc_srcbus = MP_BUS_ISA;
+		mp_irqs[pos].mpc_srcbus = 0;
 		mp_irqs[pos].mpc_srcbusirq = i;
 		mp_irqs[pos].mpc_dstapic = 0;
 		mp_irqs[pos].mpc_dstirq = i;
 		pos++;
 	}
 	mp_irq_entries = pos;
-	mp_bus_id_to_type[0] = MP_BUS_ISA;
+	mp_bus_id_to_type[0] = bus_type;
 
 	/*
 	 * MP specification 1.4 defines some extra rules for default
@@ -1019,7 +1049,7 @@ static void do_edge_ioapic_IRQ(unsigned int irq, struct pt_regs * regs)
 	 * and do not need to be masked.
 	 */
 	ack_APIC_irq();
-	status = desc->status & ~IRQ_REPLAY;
+	status = desc->status & ~(IRQ_REPLAY | IRQ_WAITING);
 	status |= IRQ_PENDING;
 
 	/*
@@ -1030,8 +1060,9 @@ static void do_edge_ioapic_IRQ(unsigned int irq, struct pt_regs * regs)
 	if (!(status & (IRQ_DISABLED | IRQ_INPROGRESS))) {
 		action = desc->action;
 		status &= ~IRQ_PENDING;
+		status |= IRQ_INPROGRESS;
 	}
-	desc->status = status | IRQ_INPROGRESS;
+	desc->status = status;
 	spin_unlock(&irq_controller_lock);
 
 	/*
@@ -1073,7 +1104,7 @@ static void do_level_ioapic_IRQ(unsigned int irq, struct pt_regs * regs)
 	 * So this all has to be within the spinlock.
 	 */
 	mask_IO_APIC_irq(irq);
-	status = desc->status & ~IRQ_REPLAY;
+	status = desc->status & ~(IRQ_REPLAY | IRQ_WAITING);
 
 	/*
 	 * If the IRQ is disabled for whatever reason, we must
@@ -1082,8 +1113,9 @@ static void do_level_ioapic_IRQ(unsigned int irq, struct pt_regs * regs)
 	action = NULL;
 	if (!(status & (IRQ_DISABLED | IRQ_INPROGRESS))) {
 		action = desc->action;
+		status |= IRQ_INPROGRESS;
 	}
-	desc->status = status | IRQ_INPROGRESS;
+	desc->status = status;
 
 	ack_APIC_irq();
 	spin_unlock(&irq_controller_lock);
@@ -1143,7 +1175,7 @@ static inline void init_IO_APIC_traps(void)
 	 * 0x80, because int 0x80 is hm, kind of importantish. ;)
 	 */
 	for (i = 0; i < NR_IRQS ; i++) {
-		if (IO_APIC_IRQ(i)) {
+		if (IO_APIC_VECTOR(i) > 0) {
 			if (IO_APIC_irq_trigger(i))
 				irq_desc[i].handler = &ioapic_level_irq_type;
 			else
@@ -1153,8 +1185,25 @@ static inline void init_IO_APIC_traps(void)
 			 */
 			if (i < 16)
 				disable_8259A_irq(i);
+		} else {
+			if (!IO_APIC_IRQ(i))
+				continue;
+
+			/*
+			 * Hmm.. We don't have an entry for this,
+			 * so default to an old-fashioned 8259
+			 * interrupt if we can..
+			 */
+			if (i < 16) {
+				make_8259A_irq(i);
+				continue;
+			}
+
+			/* Strange. Oh, well.. */
+			irq_desc[i].handler = &no_irq_type;
 		}
 	}
+	init_IRQ_SMP();
 }
 
 /*
@@ -1178,7 +1227,7 @@ static inline void check_timer(void)
 
 		if (pin2 != -1) {
 			printk(".. (found pin %d) ...", pin2);
-			setup_ExtINT_pin(pin2);
+			setup_ExtINT_pin(pin2, 0);
 			make_8259A_irq(0);
 		}
 
@@ -1258,14 +1307,12 @@ void __init setup_IO_APIC(void)
 		construct_default_ISA_mptable();
 	}
 
-	init_IO_APIC_traps();
-
 	/*
 	 * Set up the IO-APIC IRQ routing table by parsing the MP-BIOS
 	 * mptable:
 	 */
 	setup_IO_APIC_irqs();
-	init_IRQ_SMP();
+	init_IO_APIC_traps();
 	check_timer();
 
 	print_IO_APIC();

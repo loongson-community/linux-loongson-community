@@ -22,10 +22,11 @@ asmlinkage int sys_statfs(const char * path, struct statfs * buf)
 	error = PTR_ERR(dentry);
 	if (!IS_ERR(dentry)) {
 		struct inode * inode = dentry->d_inode;
+		struct super_block * sb = inode->i_sb;
 
-		error = -ENOSYS;
-		if (inode->i_sb->s_op->statfs)
-			error = inode->i_sb->s_op->statfs(inode->i_sb, buf, sizeof(struct statfs));
+		error = -ENODEV;
+		if (sb && sb->s_op && sb->s_op->statfs)
+			error = sb->s_op->statfs(sb, buf, sizeof(struct statfs));
 
 		dput(dentry);
 	}
@@ -52,10 +53,8 @@ asmlinkage int sys_fstatfs(unsigned int fd, struct statfs * buf)
 	if (!(inode = dentry->d_inode))
 		goto out_putf;
 	error = -ENODEV;
-	if (!(sb = inode->i_sb))
-		goto out_putf;
-	error = -ENOSYS;
-	if (sb->s_op->statfs)
+	sb = inode->i_sb;
+	if (sb && sb->s_op && sb->s_op->statfs)
 		error = sb->s_op->statfs(sb, buf, sizeof(struct statfs));
 out_putf:
 	fput(file);
@@ -69,6 +68,10 @@ int do_truncate(struct dentry *dentry, unsigned long length)
 	struct inode *inode = dentry->d_inode;
 	int error;
 	struct iattr newattrs;
+
+	/* Not pretty: "inode->i_size" shouldn't really be "off_t". But it is. */
+	if ((off_t) length < 0)
+		return -EINVAL;
 
 	down(&inode->i_sem);
 	newattrs.ia_size = length;
@@ -295,11 +298,16 @@ asmlinkage int sys_access(const char * filename, int mode)
 	/* Clear the capabilities if we switch to a non-root user */
 	if (current->uid)
 		cap_clear(current->cap_effective);
-
+	else
+		current->cap_effective = current->cap_permitted;
+		
 	dentry = namei(filename);
 	res = PTR_ERR(dentry);
 	if (!IS_ERR(dentry)) {
 		res = permission(dentry->d_inode, mode);
+		/* SuS v2 requires we report a read only fs too */
+		if(!res && (mode & S_IWOTH) && IS_RDONLY(dentry->d_inode))
+			res = -EROFS;
 		dput(dentry);
 	}
 
@@ -752,12 +760,7 @@ out_error:
  */
 asmlinkage int sys_creat(const char * pathname, int mode)
 {
-	int ret;
-
-	lock_kernel();
-	ret = sys_open(pathname, O_CREAT | O_WRONLY | O_TRUNC, mode);
-	unlock_kernel();
-	return ret;
+	return sys_open(pathname, O_CREAT | O_WRONLY | O_TRUNC, mode);
 }
 
 #endif
@@ -782,7 +785,7 @@ void __fput(struct file *filp)
  * "id" is the POSIX thread ID. We use the
  * files pointer for this..
  */
-int close_fp(struct file *filp, fl_owner_t id)
+int filp_close(struct file *filp, fl_owner_t id)
 {
 	int retval;
 	struct dentry *dentry = filp->f_dentry;
@@ -818,7 +821,7 @@ asmlinkage int sys_close(unsigned int fd)
 		files->fd[fd] = NULL;
 		put_unused_fd(fd);
 		FD_CLR(fd, &files->close_on_exec);
-		error = close_fp(filp, files);
+		error = filp_close(filp, files);
 	}
 	unlock_kernel();
 	return error;

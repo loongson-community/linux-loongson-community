@@ -1,12 +1,12 @@
 /*********************************************************************
  *                
- * Filename:      irlpt_client.h
+ * Filename:      irlpt_cli.h
  * Version:       0.1
  * Description:   
  * Status:        Experimental.
  * Author:        Dag Brattli <dagb@cs.uit.no>
  * Created at:    Sat Feb 21 18:54:38 1998
- * Modified at:   Mon Jan 11 15:58:16 1999
+ * Modified at:   Wed Apr 21 16:46:26 1999
  * Modified by:   Dag Brattli <dagb@cs.uit.no>
  * 
  *     Copyright (c) 1998, Thomas Davis, <ratbert@radiks.net>
@@ -34,9 +34,11 @@
  * if it's static, it doesn't go in here.
  */
 
-void irlpt_client_get_value_confirm(__u16 obj_id, 
-				    struct ias_value *value, void *priv);
-void irlpt_client_connect_indication( void *instance, void *sap, 
+void irlpt_client_get_value_confirm(int result, __u16 obj_id, 
+				    struct ias_value *value, 
+				    void *priv);
+void irlpt_client_connect_indication( void *instance, 
+				      void *sap, 
 				      struct qos_info *qos, 
 				      int max_seg_size,
 				      struct sk_buff *skb);

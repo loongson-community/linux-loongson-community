@@ -165,7 +165,7 @@ extern unsigned long est_cycle_freq;
 extern void SMC93x_Init(void);
 
 /* smc37c669.c */
-extern void SMC669_Init(void);
+extern void SMC669_Init(int);
 
 /* es1888.c */
 extern void es1888_init(void);
@@ -187,6 +187,7 @@ extern void entInt(void);
 extern void entMM(void);
 extern void entSys(void);
 extern void entUna(void);
+extern void entDbg(void);
 
 /* process.c */
 extern void generic_kill_arch (int mode, char *reboot_cmd);

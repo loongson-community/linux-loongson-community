@@ -45,7 +45,7 @@ static struct buffer_head * minix_find_entry(struct inode * dir,
 	struct minix_dir_entry *de;
 
 	*res_dir = NULL;
-	if (!dir || !dir->i_sb)
+	if (!dir->i_sb)
 		return NULL;
 	info = &dir->i_sb->u.minix_sb;
 	if (namelen > info->s_namelen) {
@@ -116,7 +116,7 @@ struct dentry_operations minix_dentry_operations = {
 	0		/* compare */
 };
 
-int minix_lookup(struct inode * dir, struct dentry *dentry)
+struct dentry *minix_lookup(struct inode * dir, struct dentry *dentry)
 {
 	struct inode * inode = NULL;
 	struct minix_dir_entry * de;
@@ -132,10 +132,10 @@ int minix_lookup(struct inode * dir, struct dentry *dentry)
 		inode = iget(dir->i_sb, ino);
  
 		if (!inode)
-			return -EACCES;
+			return ERR_PTR(-EACCES);
 	}
 	d_add(dentry, inode);
-	return 0;
+	return NULL;
 }
 
 /*
@@ -221,8 +221,6 @@ int minix_create(struct inode * dir, struct dentry *dentry, int mode)
 	struct buffer_head * bh;
 	struct minix_dir_entry * de;
 
-	if (!dir)
-		return -ENOENT;
 	inode = minix_new_inode(dir);
 	if (!inode)
 		return -ENOSPC;
@@ -251,14 +249,6 @@ int minix_mknod(struct inode * dir, struct dentry *dentry, int mode, int rdev)
 	struct buffer_head * bh;
 	struct minix_dir_entry * de;
 
-	if (!dir)
-		return -ENOENT;
-	bh = minix_find_entry(dir, dentry->d_name.name,
-			      dentry->d_name.len, &de);
-	if (bh) {
-		brelse(bh);
-		return -EEXIST;
-	}
 	inode = minix_new_inode(dir);
 	if (!inode)
 		return -ENOSPC;
@@ -298,15 +288,7 @@ int minix_mkdir(struct inode * dir, struct dentry *dentry, int mode)
 	struct minix_dir_entry * de;
 	struct minix_sb_info * info;
 
-	if (!dir || !dir->i_sb)
-		return -EINVAL;
 	info = &dir->i_sb->u.minix_sb;
-	bh = minix_find_entry(dir, dentry->d_name.name,
-			      dentry->d_name.len, &de);
-	if (bh) {
-		brelse(bh);
-		return -EEXIST;
-	}
 	if (dir->i_nlink >= info->s_link_max)
 		return -EMLINK;
 	inode = minix_new_inode(dir);
@@ -530,15 +512,6 @@ int minix_symlink(struct inode * dir, struct dentry *dentry,
 	brelse(name_block);
 	inode->i_size = i;
 	mark_inode_dirty(inode);
-	bh = minix_find_entry(dir, dentry->d_name.name,
-			      dentry->d_name.len, &de);
-	if (bh) {
-		inode->i_nlink--;
-		mark_inode_dirty(inode);
-		iput(inode);
-		brelse(bh);
-		return -EEXIST;
-	}
 	i = minix_add_entry(dir, dentry->d_name.name,
 			    dentry->d_name.len, &bh, &de);
 	if (i) {
@@ -568,12 +541,6 @@ int minix_link(struct dentry * old_dentry, struct inode * dir,
 	if (inode->i_nlink >= inode->i_sb->u.minix_sb.s_link_max)
 		return -EMLINK;
 
-	bh = minix_find_entry(dir, dentry->d_name.name,
-			      dentry->d_name.len, &de);
-	if (bh) {
-		brelse(bh);
-		return -EEXIST;
-	}
 	error = minix_add_entry(dir, dentry->d_name.name,
 				dentry->d_name.len, &bh, &de);
 	if (error) {
@@ -604,7 +571,7 @@ int minix_link(struct dentry * old_dentry, struct inode * dir,
  * Anybody can rename anything with this: the permission checks are left to the
  * higher-level routines.
  */
-static int do_minix_rename(struct inode * old_dir, struct dentry *old_dentry,
+int minix_rename(struct inode * old_dir, struct dentry *old_dentry,
 			   struct inode * new_dir, struct dentry *new_dentry)
 {
 	struct inode * old_inode, * new_inode;
@@ -640,24 +607,11 @@ start_up:
 			new_bh = NULL;
 		}
 	}
-	if (new_inode == old_inode) {
-		retval = 0;
-		goto end_rename;
-	}
 	if (S_ISDIR(old_inode->i_mode)) {
-		retval = -EINVAL;
-		if (is_subdir(new_dentry, old_dentry))
-			goto end_rename;
 		if (new_inode) {
-			/* Prune any children before testing for busy */
-			if (new_dentry->d_count > 1)
-				shrink_dcache_parent(new_dentry);
-			retval = -EBUSY;
-			if (new_dentry->d_count > 1)
 			retval = -ENOTEMPTY;
 			if (!empty_dir(new_inode))
 				goto end_rename;
-			retval = -EBUSY;
 		}
 		retval = -EIO;
 		dir_bh = minix_bread(old_inode,0,0);
@@ -713,38 +667,10 @@ start_up:
 			mark_inode_dirty(new_dir);
 		}
 	}
-	/* Update the dcache */
-	d_move(old_dentry, new_dentry);
 	retval = 0;
 end_rename:
 	brelse(dir_bh);
 	brelse(old_bh);
 	brelse(new_bh);
 	return retval;
-}
-
-/*
- * Ok, rename also locks out other renames, as they can change the parent of
- * a directory, and we don't want any races. Other races are checked for by
- * "do_rename()", which restarts if there are inconsistencies.
- *
- * Note that there is no race between different filesystems: it's only within
- * the same device that races occur: many renames can happen at once, as long
- * as they are on different partitions.
- */
-int minix_rename(struct inode * old_dir, struct dentry *old_dentry,
-		 struct inode * new_dir, struct dentry *new_dentry)
-{
-	static struct wait_queue * wait = NULL;
-	static int lock = 0;
-	int result;
-
-	while (lock)
-		sleep_on(&wait);
-	lock = 1;
-	result = do_minix_rename(old_dir, old_dentry,
-				 new_dir, new_dentry);
-	lock = 0;
-	wake_up(&wait);
-	return result;
 }

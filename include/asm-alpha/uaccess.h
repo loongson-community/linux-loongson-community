@@ -160,7 +160,7 @@ struct __large_struct { unsigned long buf[100]; };
 		: "=r"(__gu_val), "=r"(__gu_err)	\
 		: "m"(__m(addr)), "1"(__gu_err))
 
-#ifdef __HAVE_CPU_BWX
+#ifdef __alpha_bwx__
 /* Those lucky bastards with ev56 and later CPUs can do byte/word moves.  */
 
 #define __get_user_16(addr)				\
@@ -274,7 +274,7 @@ __asm__ __volatile__("1: stl %r2,%1\n"				\
 		: "=r"(__pu_err)				\
 		: "m"(__m(addr)), "rJ"(x), "0"(__pu_err))
 
-#ifdef __HAVE_CPU_BWX
+#ifdef __alpha_bwx__
 /* Those lucky bastards with ev56 and later CPUs can do byte/word moves.  */
 
 #define __put_user_16(x,addr)					\
@@ -358,43 +358,64 @@ __asm__ __volatile__("1: stb %r2,%1\n"				\
  * Complex access routines
  */
 
+extern void __copy_user(void);
+
+extern inline long
+__copy_tofrom_user_nocheck(void *to, const void *from, long len)
+{
+	/* This little bit of silliness is to get the GP loaded for
+	   a function that ordinarily wouldn't.  Otherwise we could
+	   have it done by the macro directly, which can be optimized
+	   the linker.  */
+	register void * pv __asm__("$27") = __copy_user;
+
+	register void * __cu_to __asm__("$6") = to;
+	register const void * __cu_from __asm__("$7") = from;
+	register long __cu_len __asm__("$0") = len;
+
+	__asm__ __volatile__(
+		"jsr $28,(%3),__copy_user\n\tldgp $29,0($28)"
+		: "=r" (__cu_len), "=r" (__cu_from), "=r" (__cu_to), "=r"(pv)
+		: "0" (__cu_len), "1" (__cu_from), "2" (__cu_to), "3"(pv)
+		: "$1","$2","$3","$4","$5","$28","memory");
+
+	return __cu_len;
+}
+
+extern inline long
+__copy_tofrom_user(void *to, const void *from, long len, const void *validate)
+{
+	if (__access_ok((long)validate, len, get_fs())) {
+		register void * pv __asm__("$27") = __copy_user;
+		register void * __cu_to __asm__("$6") = to;
+		register const void * __cu_from __asm__("$7") = from;
+		register long __cu_len __asm__("$0") = len;
+		__asm__ __volatile__(
+			"jsr $28,(%3),__copy_user\n\tldgp $29,0($28)"
+			: "=r"(__cu_len), "=r"(__cu_from), "=r"(__cu_to),
+			  "=r" (pv)
+			: "0" (__cu_len), "1" (__cu_from), "2" (__cu_to), 
+			  "3" (pv)
+			: "$1","$2","$3","$4","$5","$28","memory");
+		len = __cu_len;
+	}
+	return len;
+}
+
 #define __copy_to_user(to,from,n)   __copy_tofrom_user_nocheck((to),(from),(n))
 #define __copy_from_user(to,from,n) __copy_tofrom_user_nocheck((to),(from),(n))
 
-#define copy_to_user(to,from,n)   __copy_tofrom_user((to),(from),(n),__cu_to)
-#define copy_from_user(to,from,n) __copy_tofrom_user((to),(from),(n),__cu_from)
+extern inline long
+copy_to_user(void *to, const void *from, long n)
+{
+	return __copy_tofrom_user(to, from, n, to);
+}
 
-extern void __copy_user(void);
-
-#define __copy_tofrom_user_nocheck(to,from,n)				\
-({									\
-	register void * __cu_to __asm__("$6") = (to);			\
-	register const void * __cu_from __asm__("$7") = (from);		\
-	register long __cu_len __asm__("$0") = (n);			\
-	__asm__ __volatile__(						\
-		"jsr $28,(%3),__copy_user"				\
-		: "=r" (__cu_len), "=r" (__cu_from), "=r" (__cu_to)	\
-		: "r" (__copy_user), "0" (__cu_len),			\
-		  "1" (__cu_from), "2" (__cu_to)			\
-		: "$1","$2","$3","$4","$5","$28","memory");		\
-	__cu_len;							\
-})
-
-#define __copy_tofrom_user(to,from,n,v)					    \
-({									    \
-	register void * __cu_to __asm__("$6") = (to);			    \
-	register const void * __cu_from __asm__("$7") = (from);		    \
-	register long __cu_len __asm__("$0") = (n);			    \
-	if (__access_ok(((long)(v)),__cu_len,get_fs())) {		    \
-		__asm__ __volatile__(					    \
-			"jsr $28,(%3),__copy_user"			    \
-			: "=r" (__cu_len), "=r" (__cu_from), "=r" (__cu_to) \
-			: "r" (__copy_user), "0" (__cu_len),		    \
-			  "1" (__cu_from), "2" (__cu_to)   		    \
-			: "$1","$2","$3","$4","$5","$28","memory");	    \
-	}								    \
-	__cu_len;							    \
-})
+extern inline long
+copy_from_user(void *to, const void *from, long n)
+{
+	return __copy_tofrom_user(to, from, n, from);
+}
 
 #define copy_to_user_ret(to,from,n,retval) ({ \
 if (copy_to_user(to,from,n)) \
@@ -408,46 +429,55 @@ if (copy_from_user(to,from,n)) \
 
 extern void __do_clear_user(void);
 
-#define __clear_user(to,n)						\
-({									\
-	register void * __cl_to __asm__("$6") = (to);			\
-	register long __cl_len __asm__("$0") = (n);			\
-	__asm__ __volatile__(						\
-		"jsr $28,(%2),__do_clear_user"				\
-		: "=r"(__cl_len), "=r"(__cl_to)				\
-		: "r"(__do_clear_user), "0"(__cl_len), "1"(__cl_to)	\
-		: "$1","$2","$3","$4","$5","$28","memory");		\
-	__cl_len;							\
-})
+extern inline long
+__clear_user(void *to, long len)
+{
+	/* This little bit of silliness is to get the GP loaded for
+	   a function that ordinarily wouldn't.  Otherwise we could
+	   have it done by the macro directly, which can be optimized
+	   the linker.  */
+	register void * pv __asm__("$27") = __do_clear_user;
 
-#define clear_user(to,n)						\
-({									\
-	register void * __cl_to __asm__("$6") = (to);			\
-	register long __cl_len __asm__("$0") = (n);			\
-	if (__access_ok(((long)__cl_to),__cl_len,get_fs())) {		\
-		__asm__ __volatile__(					\
-			"jsr $28,(%2),__do_clear_user"			\
-			: "=r"(__cl_len), "=r"(__cl_to)			\
-			: "r"(__do_clear_user), "0"(__cl_len), "1"(__cl_to)\
-			: "$1","$2","$3","$4","$5","$28","memory");	\
-	}								\
-	__cl_len;							\
-})
+	register void * __cl_to __asm__("$6") = to;
+	register long __cl_len __asm__("$0") = len;
+	__asm__ __volatile__(
+		"jsr $28,(%2),__do_clear_user\n\tldgp $29,0($28)"
+		: "=r"(__cl_len), "=r"(__cl_to), "=r"(pv)
+		: "0"(__cl_len), "1"(__cl_to), "2"(pv)
+		: "$1","$2","$3","$4","$5","$28","memory");
+	return __cl_len;
+}
+
+extern inline long
+clear_user(void *to, long len)
+{
+	if (__access_ok((long)to, len, get_fs())) {
+		register void * pv __asm__("$27") = __do_clear_user;
+		register void * __cl_to __asm__("$6") = to;
+		register long __cl_len __asm__("$0") = len;
+		__asm__ __volatile__(
+			"jsr $28,(%2),__do_clear_user\n\tldgp $29,0($28)"
+			: "=r"(__cl_len), "=r"(__cl_to), "=r"(pv)
+			: "0"(__cl_len), "1"(__cl_to), "2"(pv)
+			: "$1","$2","$3","$4","$5","$28","memory");
+		len = __cl_len;
+	}
+	return len;
+}
 
 /* Returns: -EFAULT if exception before terminator, N if the entire
    buffer filled, else strlen.  */
 
 extern long __strncpy_from_user(char *__to, const char *__from, long __to_len);
 
-#define strncpy_from_user(to,from,n)					   \
-({									   \
-	char * __sfu_to = (to);						   \
-	const char * __sfu_from = (from);				   \
-	long __sfu_ret = -EFAULT;			      		   \
-	if (__access_ok(((long)__sfu_from),0,get_fs()))			   \
-		__sfu_ret = __strncpy_from_user(__sfu_to,__sfu_from,(n));  \
-	__sfu_ret;							   \
-})
+extern inline long
+strncpy_from_user(char *to, const char *from, long n)
+{
+	long ret = -EFAULT;
+	if (__access_ok((long)from, 0, get_fs()))
+		ret = __strncpy_from_user(to, from, n);
+	return ret;
+}
 
 /* Returns: 0 if bad, string length+1 (memory size) of string if ok */
 extern long __strlen_user(const char *);

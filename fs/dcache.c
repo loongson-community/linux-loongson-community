@@ -2,7 +2,8 @@
  * fs/dcache.c
  *
  * Complete reimplementation
- * (C) 1997 Thomas Schoebel-Theuer
+ * (C) 1997 Thomas Schoebel-Theuer,
+ * with heavy changes by Linus Torvalds
  */
 
 /*
@@ -470,7 +471,12 @@ void shrink_dcache_parent(struct dentry * parent)
  */
 void shrink_dcache_memory(int priority, unsigned int gfp_mask)
 {
-	prune_dcache(0);
+	if (gfp_mask & __GFP_IO) {
+		int count = 0;
+		if (priority)
+			count = dentry_stat.nr_unused / priority;
+		prune_dcache(count);
+	}
 }
 
 #define NAME_ALLOC_LEN(len)	((len+16) & ~15)

@@ -4,7 +4,7 @@
  *
  * (c) 1998,1999 Petr Vandrovec <vandrove@vc.cvut.cz>
  *
- * Version: 1.9 1999/01/04
+ * Version: 1.15 1999/04/19
  *
  * MTRR stuff: 1998 Tom Rini <tmrini@ntplx.net>
  *
@@ -23,6 +23,9 @@
  *
  *               "Daniel Haun" <haund@usa.net>
  *                     Testing, hardware cursor fixes
+ *
+ *               "Scott Wood" <sawst46+@pitt.edu>
+ *                     Fixes
  *
  *               "Gerd Knorr" <kraxel@goldbach.isdn.cs.tu-berlin.de>
  *                     Betatesting
@@ -53,6 +56,9 @@
  *
  *               "H. Peter Arvin" <hpa@transmeta.com>
  *                     Ideas
+ *
+ *               "Cort Dougan" <cort@cs.nmt.edu>
+ *                     CHRP fixes and PReP cleanup
  *
  * (following author is not in any relation with this code, but his code
  *  is included in this driver)
@@ -184,13 +190,7 @@
 #if defined(__m68k__)
 #define MAP_BUSTOVIRT
 #else
-#if defined(CONFIG_PPC) && defined(CONFIG_PREP) && defined(_ISA_MEM_BASE)
-/* do not tell me that PPC is not broken... if ioremap() oops with
-   invalid value written to msr... */
-#define MAP_ISAMEMBASE
-#else
 #define MAP_IOREMAP
-#endif
 #endif
 
 #ifdef DEBUG
@@ -351,11 +351,7 @@ static inline int mga_ioremap(unsigned long phys, unsigned long size, int flags,
 #ifdef MAP_BUSTOVIRT
 	virt->vaddr = bus_to_virt(phys);
 #else
-#ifdef MAP_ISAMEMBASE
-	virt->vaddr = (void*)(phys + _ISA_MEM_BASE);
-#else
 #error "Your architecture does not have neither ioremap nor bus_to_virt... Giving up"
-#endif
 #endif
 #endif
 	return (virt->vaddr == 0); /* 0, !0... 0, error_code in future */
@@ -452,7 +448,7 @@ struct matrox_accel_data {
 #define CPMINFO	const struct matrox_fb_info* minfo,
 #define PMINFO  minfo,
 
-static inline struct matrox_fb_info* mxinfo(struct display* p) {
+static inline struct matrox_fb_info* mxinfo(const struct display* p) {
 	return (struct matrox_fb_info*)p->fb_info;
 }
 
@@ -474,7 +470,7 @@ struct display global_disp;
 #define PMINFO
 
 #if 0
-static inline struct matrox_fb_info* mxinfo(struct display* p) {
+static inline struct matrox_fb_info* mxinfo(const struct display* p) {
 	return &global_mxinfo;
 }
 #endif
@@ -1473,7 +1469,7 @@ static void matrox_cfbX_fastputcs(u_int32_t fgx, u_int32_t bgx, struct display* 
 	mga_outl(M_FCOL, fgx);
 	mga_outl(M_BCOL, bgx);
 	while (count--) {
-		u_int32_t ar3 = ACCESS_FBINFO(fastfont.mgabase) + (*s++ & p->charmask)*charcell;
+		u_int32_t ar3 = ACCESS_FBINFO(fastfont.mgabase) + (scr_readw(s++) & p->charmask)*charcell;
 
 		mga_fifo(4);
 		mga_outl(M_FXBNDRY, ((xx + fontwidth(p) - 1) << 16) | xx);
@@ -1531,7 +1527,7 @@ static void matrox_cfbX_putcs(u_int32_t fgx, u_int32_t bgx, struct display* p, c
 	fxbndry = ((xx + fontwidth(p) - 1) << 16) | xx;
 	mmio = ACCESS_FBINFO(mmio.vbase);
 	while (count--) {
-		u_int8_t* chardata = p->fontdata + (*s++ & p->charmask)*charcell;
+		u_int8_t* chardata = p->fontdata + (scr_readw(s++) & p->charmask)*charcell;
 
 		mga_fifo(5);
 		mga_writel(mmio, M_FXBNDRY, fxbndry);
@@ -1586,8 +1582,8 @@ static void matrox_cfb8_putcs(struct vc_data* conp, struct display* p, const uns
 
 	DBG_HEAVY("matroxfb_cfb8_putcs");
 
-	fgx = attr_fgcol(p, *s);
-	bgx = attr_bgcol(p, *s);
+	fgx = attr_fgcol(p, scr_readw(s));
+	bgx = attr_bgcol(p, scr_readw(s));
 	fgx |= (fgx << 8);
 	fgx |= (fgx << 16);
 	bgx |= (bgx << 8);
@@ -1603,8 +1599,8 @@ static void matrox_cfb16_putcs(struct vc_data* conp, struct display* p, const un
 
 	DBG_HEAVY("matroxfb_cfb16_putcs");
 
-	fgx = ((u_int16_t*)p->dispsw_data)[attr_fgcol(p, *s)];
-	bgx = ((u_int16_t*)p->dispsw_data)[attr_bgcol(p, *s)];
+	fgx = ((u_int16_t*)p->dispsw_data)[attr_fgcol(p, scr_readw(s))];
+	bgx = ((u_int16_t*)p->dispsw_data)[attr_bgcol(p, scr_readw(s))];
 	fgx |= (fgx << 16);
 	bgx |= (bgx << 16);
 	ACCESS_FBINFO(curr.putcs)(fgx, bgx, p, s, count, yy, xx);
@@ -1618,8 +1614,8 @@ static void matrox_cfb32_putcs(struct vc_data* conp, struct display* p, const un
 
 	DBG_HEAVY("matroxfb_cfb32_putcs");
 
-	fgx = ((u_int32_t*)p->dispsw_data)[attr_fgcol(p, *s)];
-	bgx = ((u_int32_t*)p->dispsw_data)[attr_bgcol(p, *s)];
+	fgx = ((u_int32_t*)p->dispsw_data)[attr_fgcol(p, scr_readw(s))];
+	bgx = ((u_int32_t*)p->dispsw_data)[attr_bgcol(p, scr_readw(s))];
 	ACCESS_FBINFO(curr.putcs)(fgx, bgx, p, s, count, yy, xx);
 }
 #endif
@@ -2191,9 +2187,9 @@ static void matrox_text_putcs(struct vc_data* conp, struct display* p, const uns
 
 	step = ACCESS_FBINFO(devflags.textstep);
 	offs = yy * p->next_line + xx * step;
-	attr = attr_fgcol(p,*s) | (attr_bgcol(p,*s) << 4);
+	attr = attr_fgcol(p, scr_readw(s)) | (attr_bgcol(p, scr_readw(s)) << 4);
 	while (count-- > 0) {
-		unsigned int chr = ((*s++) & p->charmask) << 8;
+		unsigned int chr = ((scr_readw(s++)) & p->charmask) << 8;
 		if (chr & 0x10000) chr ^= 0x10008;
 		mga_writew(ACCESS_FBINFO(video.vbase), offs, ntohs(attr|chr));
 		offs += step;
@@ -2395,6 +2391,10 @@ static void initMatrox(WPMINFO struct display* p) {
 
 	DBG("initMatrox")
 	
+	if (ACCESS_FBINFO(currcon_display) != p)
+		return;
+	if (p->dispsw && p->conp)
+		fb_con.con_cursor(p->conp, CM_ERASE);
 	p->dispsw_data = NULL;
 	if ((p->var.accel_flags & FB_ACCELF_TEXT) != FB_ACCELF_TEXT) {
 		if (p->type == FB_TYPE_TEXT) {
@@ -4274,6 +4274,17 @@ static void Ti3026_restore(WPMINFO struct matrox_hw_state* hw, struct matrox_hw_
 	for (i = 0; i < 21; i++) {
 		outTi3026(PMINFO DACseq[i], hw->DACreg[i]);
 	}
+	if (oldhw) {
+		outTi3026(PMINFO TVP3026_XPLLADDR, 0x00);
+		oldhw->DACclk[0] = inTi3026(PMINFO TVP3026_XPIXPLLDATA);
+		oldhw->DACclk[3] = inTi3026(PMINFO TVP3026_XLOOPPLLDATA);
+		outTi3026(PMINFO TVP3026_XPLLADDR, 0x15);
+		oldhw->DACclk[1] = inTi3026(PMINFO TVP3026_XPIXPLLDATA);
+		oldhw->DACclk[4] = inTi3026(PMINFO TVP3026_XLOOPPLLDATA);
+		outTi3026(PMINFO TVP3026_XPLLADDR, 0x2A);
+		oldhw->DACclk[2] = inTi3026(PMINFO TVP3026_XPIXPLLDATA);
+		oldhw->DACclk[5] = inTi3026(PMINFO TVP3026_XLOOPPLLDATA);
+	}
 	if (!oldhw || memcmp(hw->DACclk, oldhw->DACclk, 6)) {
 		/* agrhh... setting up PLL is very slow on Millenium... */
 		/* Mystique PLL is locked in few ms, but Millenium PLL lock takes about 0.15 s... */
@@ -5296,7 +5307,7 @@ static struct board {
 		"MGA-G200 (AGP)"},
 	{PCI_VENDOR_ID_MATROX,	PCI_DEVICE_ID_MATROX_G200_AGP,	0xFF,
 		0,			0,
-		DEVF_VIDEO64BIT | DEVF_SWAPS,
+		DEVF_VIDEO64BIT | DEVF_SWAPS | DEVF_CROSS4MB,
 		230000,
 		&vbG200,
 		"unknown G200 (AGP)"},
@@ -5743,20 +5754,26 @@ leave:;
 }
 
 #ifndef MODULE
+static int __init initialized = 0;
+
 __initfunc(void matroxfb_init(void))
 {
 	DBG("matroxfb_init")
-#if defined(CONFIG_FB_OF)
-/* Nothing to do, must be called from offb */
-#else	
-	matrox_init();
-#endif
+	
+	if (!initialized) {
+		initialized = 1;
+		matrox_init();
+	}
 }
 
 #if defined(CONFIG_FB_OF)
 __initfunc(int matrox_of_init(struct device_node *dp)) {
 	DBG("matrox_of_init");
-	matrox_init();
+	
+	if (!initialized) {
+		initialized = 1;
+		matrox_init();
+	}
 	if (!fb_list) return -ENXIO;
 	return 0;
 }

@@ -195,6 +195,10 @@
 #include "53c7,8xx.h"
 #endif
 
+#ifdef CONFIG_SCSI_SYM53C8XX
+#include "sym53c8xx.h"
+#endif
+
 #ifdef CONFIG_SCSI_NCR53C8XX
 #include "ncr53c8xx.h"
 #endif
@@ -221,6 +225,10 @@
 
 #ifdef CONFIG_SCSI_NCR53C406A
 #include "NCR53c406a.h"
+#endif
+
+#ifdef CONFIG_SCSI_SYM53C416 
+#include "sym53c416.h" 
 #endif
 
 #ifdef CONFIG_SCSI_DC390T
@@ -285,6 +293,10 @@
 
 #ifdef CONFIG_SCSI_INITIO
 #include "ini9100u.h"
+#endif
+
+#ifdef CONFIG_SCSI_INIA100
+#include "inia100.h"
 #endif
 
 #ifdef CONFIG_SCSI_DEBUG
@@ -460,7 +472,7 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
 #ifdef CONFIG_SCSI_AIC7XXX
     AIC7XXX,
 #endif
-#ifdef CONFIG_FD_MCS
+#ifdef CONFIG_SCSI_FD_MCS
    FD_MCS,
 #endif
 #ifdef CONFIG_SCSI_FUTURE_DOMAIN
@@ -474,6 +486,9 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
 #endif
 #ifdef CONFIG_SCSI_NCR53C406A	/* 53C406A should come before QLOGIC */
     NCR53c406a,
+#endif
+#ifdef CONFIG_SCSI_SYM53C416 
+    SYM53C416, 
 #endif
 #ifdef CONFIG_SCSI_QLOGIC_FAS
     QLOGICFAS,
@@ -498,6 +513,9 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
 #endif
 #ifdef CONFIG_SCSI_NCR53C7xx
     NCR53c7xx,
+#endif
+#ifdef CONFIG_SCSI_SYM53C8XX
+    SYM53C8XX,
 #endif
 #ifdef CONFIG_SCSI_NCR53C8XX
     NCR53C8XX,
@@ -540,6 +558,9 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
 #endif
 #ifdef CONFIG_SCSI_INITIO
     INI9100U,
+#endif
+#ifdef CONFIG_SCSI_INIA100
+    INIA100,
 #endif
 #ifdef CONFIG_SCSI_QLOGICPTI
     QLOGICPTI,

@@ -1,4 +1,4 @@
-/*  $Id: process.c,v 1.126 1998/09/21 05:05:18 jj Exp $
+/*  $Id: process.c,v 1.137 1999/05/08 03:00:10 davem Exp $
  *  linux/arch/sparc/kernel/process.c
  *
  *  Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
@@ -62,7 +62,9 @@ asmlinkage int sys_idle(void)
 
 	/* endless idle loop with no priority at all */
 	current->priority = 0;
-	current->counter = 0;
+	current->counter = -100;
+	init_idle();
+
 	for (;;) {
 		if (ARCH_SUN4C_SUN4) {
 			static int count = HZ;
@@ -108,13 +110,17 @@ out:
 /* This is being executed in task 0 'user space'. */
 int cpu_idle(void *unused)
 {
+	/* endless idle loop with no priority at all */
 	current->priority = 0;
+	current->counter = -100;
+	init_idle();
+
 	while(1) {
-		check_pgt_cache();
- 		run_task_queue(&tq_scheduler);
- 		/* endless idle loop with no priority at all */
-		current->counter = 0;
-		schedule();
+		if(current->need_resched) {
+			schedule();
+			check_pgt_cache();
+		}
+		barrier(); /* or else gcc optimizes... */
 	}
 }
 
@@ -203,8 +209,10 @@ void __show_backtrace(unsigned long fp)
 	int cpu = smp_processor_id();
 
 	spin_lock_irqsave(&sparc_backtrace_lock, flags);
-	rw = (struct reg_window *) fp;
-	while(rw) {
+
+	rw = (struct reg_window *)fp;
+        while(rw && (((unsigned long) rw) >= PAGE_OFFSET) &&
+            !(((unsigned long) rw) & 0x7)) {
 		printk("CPU[%d]: ARGS[%08lx,%08lx,%08lx,%08lx,%08lx,%08lx] "
 		       "FP[%08lx] CALLER[%08lx]\n", cpu,
 		       rw->ins[0], rw->ins[1], rw->ins[2], rw->ins[3],
@@ -216,28 +224,21 @@ void __show_backtrace(unsigned long fp)
 	spin_unlock_irqrestore(&sparc_backtrace_lock, flags);
 }
 
+#define __SAVE __asm__ __volatile__("save %sp, -0x40, %sp\n\t")
+#define __RESTORE __asm__ __volatile__("restore %g0, %g0, %g0\n\t")
+#define __GET_FP(fp) __asm__ __volatile__("mov %%i6, %0" : "=r" (fp))
+
 void show_backtrace(void)
 {
 	unsigned long fp;
 
-	__asm__ __volatile__(
-		"save %%sp, -64, %%sp\n\t"
-		"save %%sp, -64, %%sp\n\t"
-		"save %%sp, -64, %%sp\n\t"
-		"save %%sp, -64, %%sp\n\t"
-		"save %%sp, -64, %%sp\n\t"
-		"save %%sp, -64, %%sp\n\t"
-		"save %%sp, -64, %%sp\n\t"
-		"save %%sp, -64, %%sp\n\t"
-		"restore\n\t"
-		"restore\n\t"
-		"restore\n\t"
-		"restore\n\t"
-		"restore\n\t"
-		"restore\n\t"
-		"restore\n\t"
-		"restore\n\t"
-		"mov %%i6, %0" : "=r" (fp));
+	__SAVE; __SAVE; __SAVE; __SAVE;
+	__SAVE; __SAVE; __SAVE; __SAVE;
+	__RESTORE; __RESTORE; __RESTORE; __RESTORE;
+	__RESTORE; __RESTORE; __RESTORE; __RESTORE;
+
+	__GET_FP(fp);
+
 	__show_backtrace(fp);
 }
 
@@ -379,8 +380,21 @@ void flush_thread(void)
 	current->tss.current_ds = USER_DS;
 	if (current->tss.flags & SPARC_FLAG_KTHREAD) {
 		current->tss.flags &= ~SPARC_FLAG_KTHREAD;
-		switch_to_context(current);
+
+		/* We must fixup kregs as well. */
+		current->tss.kregs = (struct pt_regs *)
+			(((unsigned long)current) +
+			 (TASK_UNION_SIZE - TRACEREG_SZ));
 	}
+
+	/* Exec'ing out of a vfork() shared address space is
+	 * tricky on sparc32.  exec_mmap will not set the mmu
+	 * context because it sets the new current->mm after
+	 * calling init_new_context and activate_context is
+	 * a nop on sparc32, so we gotta catch it here.  And
+	 * clone()'s had the same problem.  -DaveM
+	 */
+	switch_to_context(current);
 }
 
 static __inline__ void copy_regs(struct pt_regs *dst, struct pt_regs *src)
@@ -440,10 +454,17 @@ clone_stackframe(struct sparc_stackf *dst, struct sparc_stackf *src)
 	size = ((unsigned long)src->fp) - ((unsigned long)src);
 	sp = (struct sparc_stackf *)(((unsigned long)dst) - size); 
 
+	/* do_fork() grabs the parent semaphore, we must release it
+	 * temporarily so we can build the child clone stack frame
+	 * without deadlocking.
+	 */
+	up(&current->mm->mmap_sem);
 	if (copy_to_user(sp, src, size))
-		return 0;
-	if (put_user(dst, &sp->fp))
-		return 0;
+		sp = (struct sparc_stackf *) 0;
+	else if (put_user(dst, &sp->fp))
+		sp = (struct sparc_stackf *) 0;
+	down(&current->mm->mmap_sem);
+
 	return sp;
 }
 
@@ -505,14 +526,24 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long sp,
 	p->tss.kpsr = current->tss.fork_kpsr;
 #endif
 	p->tss.kwim = current->tss.fork_kwim;
-	p->tss.kregs = childregs;
 
 	if(regs->psr & PSR_PS) {
-		childregs->u_regs[UREG_FP] = p->tss.ksp;
+		extern struct pt_regs fake_swapper_regs;
+
+		p->tss.kregs = &fake_swapper_regs;
+		new_stack = (struct reg_window *)
+			((((unsigned long)p) +
+			  (TASK_UNION_SIZE)) -
+			 (REGWIN_SZ));
+		childregs->u_regs[UREG_FP] = (unsigned long) new_stack;
 		p->tss.flags |= SPARC_FLAG_KTHREAD;
 		p->tss.current_ds = KERNEL_DS;
+		memcpy((void *)new_stack,
+		       (void *)regs->u_regs[UREG_FP],
+		       sizeof(struct reg_window));
 		childregs->u_regs[UREG_G6] = (unsigned long) p;
 	} else {
+		p->tss.kregs = childregs;
 		childregs->u_regs[UREG_FP] = sp;
 		p->tss.flags &= ~SPARC_FLAG_KTHREAD;
 		p->tss.current_ds = USER_DS;
@@ -657,4 +688,38 @@ asmlinkage int sparc_execve(struct pt_regs *regs)
 out:
 	unlock_kernel();
 	return error;
+}
+
+/*
+ * This is the mechanism for creating a new kernel thread.
+ *
+ * NOTE! Only a kernel-only process(ie the swapper or direct descendants
+ * who haven't done an "execve()") should use this: it will work within
+ * a system call from a "real" process, but the process memory space will
+ * not be free'd until both the parent and the child have exited.
+ */
+pid_t kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
+{
+	long retval;
+
+	__asm__ __volatile("mov %4, %%g2\n\t"    /* Set aside fn ptr... */
+			   "mov %5, %%g3\n\t"    /* and arg. */
+			   "mov %1, %%g1\n\t"
+			   "mov %2, %%o0\n\t"    /* Clone flags. */
+			   "mov 0, %%o1\n\t"     /* usp arg == 0 */
+			   "t 0x10\n\t"          /* Linux/Sparc clone(). */
+			   "cmp %%o1, 0\n\t"
+			   "be 1f\n\t"           /* The parent, just return. */
+			   " nop\n\t"            /* Delay slot. */
+			   "jmpl %%g2, %%o7\n\t" /* Call the function. */
+			   " mov %%g3, %%o0\n\t" /* Get back the arg in delay. */
+			   "mov %3, %%g1\n\t"
+			   "t 0x10\n\t"          /* Linux/Sparc exit(). */
+			   /* Notreached by child. */
+			   "1: mov %%o0, %0\n\t" :
+			   "=r" (retval) :
+			   "i" (__NR_clone), "r" (flags | CLONE_VM),
+			   "i" (__NR_exit),  "r" (fn), "r" (arg) :
+			   "g1", "g2", "g3", "o0", "o1", "memory", "cc");
+	return retval;
 }

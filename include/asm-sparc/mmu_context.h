@@ -22,10 +22,8 @@ BTFIXUPDEF_CALL(void, destroy_context, struct mm_struct *)
 
 #define destroy_context(mm) BTFIXUP_CALL(destroy_context)(mm)
 
-/*
- * After we have set current->mm to a new value, this activates
- * the context for the new mm so we see the new mappings.
- * XXX this presumably needs a sensible implementation - paulus.
+/* This need not do anything on Sparc32.  The switch happens
+ * properly later as a side effect of calling flush_thread.
  */
 #define activate_context(tsk)	do { } while(0)
 
