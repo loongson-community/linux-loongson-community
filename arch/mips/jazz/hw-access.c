@@ -1,4 +1,4 @@
-/* $Id: hw-access.c,v 1.12 1998/08/26 21:45:45 tsbogend Exp $
+/* $Id: hw-access.c,v 1.13 1998/09/19 19:16:13 ralf Exp $
  *
  * Low-level hardware access stuff for Jazz family machines.
  *
@@ -13,6 +13,7 @@
 #include <linux/linkage.h>
 #include <linux/types.h>
 #include <linux/mm.h>
+#include <linux/kbd_ll.h>
 #include <asm/addrspace.h>
 #include <asm/jazz.h>
 #include <asm/jazzdma.h>

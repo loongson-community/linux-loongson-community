@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.15 1998/08/28 23:28:18 tsbogend Exp $
+/* $Id: setup.c,v 1.16 1998/09/19 19:16:14 ralf Exp $
  *
  * Setup pointers to hardware-dependent routines.
  *
@@ -12,7 +12,6 @@
 #include <linux/hdreg.h>
 #include <linux/init.h>
 #include <linux/ioport.h>
-#include <linux/kbd_ll.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>
 #include <linux/mm.h>
