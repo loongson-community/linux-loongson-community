@@ -153,7 +153,7 @@ static int __init sonic_probe1(struct net_device *dev, unsigned int base_addr,
 	int err = -ENODEV;
 	int i;
 
-	if (!request_region(base_addr, 0x100, DRV_NAME))
+	if (!request_mem_region(base_addr, 0x100, DRV_NAME))
 		return -EBUSY;
 	/*
 	 * get the Silicon Revision ID. If this is one of the known
@@ -233,7 +233,7 @@ static int __init sonic_probe1(struct net_device *dev, unsigned int base_addr,
 		memset(lp, 0, sizeof(struct sonic_local));
 
 		/* get the virtual dma address */
-		lp->cda_laddr = vdma_alloc(PHYSADDR(lp),sizeof(*lp));
+		lp->cda_laddr = vdma_alloc(CPHYSADDR(lp),sizeof(*lp));
 		if (lp->cda_laddr == ~0UL) {
 			printk("%s: couldn't get DMA page entry for "
 			       "descriptors\n", dev->name);
@@ -254,7 +254,7 @@ static int __init sonic_probe1(struct net_device *dev, unsigned int base_addr,
 		}
 
 		/* get virtual dma address */
-		lp->rba_laddr = vdma_alloc(PHYSADDR(lp->rba),
+		lp->rba_laddr = vdma_alloc(CPHYSADDR(lp->rba),
 		                           SONIC_NUM_RRS * SONIC_RBSIZE);
 		if (lp->rba_laddr == ~0UL) {
 			printk("%s: couldn't get DMA page entry for receive "

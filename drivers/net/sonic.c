@@ -116,7 +116,7 @@ static int sonic_send_packet(struct sk_buff *skb, struct net_device *dev)
 	/*
 	 * Map the packet data into the logical DMA address space
 	 */
-	if ((laddr = vdma_alloc(PHYSADDR(skb->data), skb->len)) == ~0UL) {
+	if ((laddr = vdma_alloc(CPHYSADDR(skb->data), skb->len)) == ~0UL) {
 		printk("%s: no VDMA entry for transmit available.\n",
 		       dev->name);
 		dev_kfree_skb(skb);
