@@ -303,6 +303,15 @@ static inline void r4k_flush_scache_all(void)
 
 static inline void r4k_flush_pcache_all(void)
 {
+	if (!cpu_has_dc_aliases)
+		return;
+
+	r4k_blast_dcache();
+	r4k_blast_icache();
+}
+
+static inline void r4k___flush_pcache_all(void)
+{
 	r4k_blast_dcache();
 	r4k_blast_icache();
 }
@@ -324,6 +333,9 @@ static void r4k_flush_cache_range(struct vm_area_struct *vma,
  */
 static void r4k_flush_scache_mm(struct mm_struct *mm)
 {
+	if (!cpu_has_dc_aliases)
+		return;
+
 	if (cpu_context(smp_processor_id(), mm) != 0) {
 		r4k_flush_scache_all();
 	}
@@ -331,6 +343,9 @@ static void r4k_flush_scache_mm(struct mm_struct *mm)
 
 static void r4k_flush_pcache_mm(struct mm_struct *mm)
 {
+	if (!cpu_has_dc_aliases)
+		return;
+
 	if (cpu_context(smp_processor_id(), mm) != 0) {
 		r4k_flush_pcache_all();
 	}
@@ -371,7 +386,8 @@ static void r4k_flush_cache_page(struct vm_area_struct *vma,
 	 * in that case, which doesn't overly flush the cache too much.
 	 */
 	if ((mm == current->active_mm) && (pte_val(*ptep) & _PAGE_VALID)) {
-		r4k_blast_dcache_page(page);
+		if (cpu_has_dc_aliases || exec)
+			r4k_blast_dcache_page(page);
 		if (exec)
 			r4k_blast_icache_page(page);
 
@@ -383,9 +399,17 @@ static void r4k_flush_cache_page(struct vm_area_struct *vma,
 	 * to work correctly.
 	 */
 	page = (KSEG0 + (page & (dcache_size - 1)));
-	r4k_blast_dcache_page_indexed(page);
-	if (exec)
-		r4k_blast_icache_page_indexed(page);
+	if (cpu_has_dc_aliases || exec)
+		r4k_blast_dcache_page_indexed(page);
+	if (exec) {
+		if (cpu_has_vtag_icache) {
+			int cpu = smp_processor_id();
+
+			if (cpu_context(cpu, vma->vm_mm) != 0)
+				drop_mmu_context(vma->vm_mm, cpu);
+		} else
+			r4k_blast_icache_page_indexed(page);
+	}
 }
 
 static void r4k_flush_data_cache_page(unsigned long addr)
@@ -438,12 +462,29 @@ static void r4k_flush_icache_range(unsigned long start, unsigned long end)
 static void r4k_flush_icache_page(struct vm_area_struct *vma,
 	struct page *page)
 {
-	if (vma->vm_flags & VM_EXEC) {
-		unsigned long addr = (unsigned long) page_address(page);
+	unsigned long addr;
 
-		r4k_blast_dcache_page(addr);
+	/*
+	 * If there's no context yet, or the page isn't executable, no icache
+	 * flush is needed.
+	 */
+	if (!(vma->vm_flags & VM_EXEC))
+		return;
+
+	/*
+	 * We're not sure of the virtual address(es) involved here, so
+	 * conservatively flush the entire caches.
+	 */
+	addr = (unsigned long) page_address(page);
+	r4k_blast_dcache_page(addr);
+
+	if (cpu_has_vtag_icache) {
+		int cpu = smp_processor_id();
+
+		if (cpu_context(cpu, vma->vm_mm) != 0)
+			drop_mmu_context(vma->vm_mm, cpu);
+	} else
 		r4k_blast_icache();
-	}
 }
 
 static void r4k_dma_cache_wback_inv_pc(unsigned long addr, unsigned long size)
@@ -593,27 +634,106 @@ static void r4600v20k_flush_cache_sigtramp(unsigned long addr)
 #endif
 }
 
+static void r4k_flush_icache_all(void)
+{
+	if (cpu_has_vtag_icache)
+		r4k_blast_icache();
+}
+
 static char *way_string[] = { NULL, "direct mapped", "2-way", "3-way", "4-way",
 	"5-way", "6-way", "7-way", "8-way"
 };
 
 static void __init probe_icache(unsigned long config)
 {
+	unsigned long config1;
+	unsigned int lsize;
+
 	switch (current_cpu_data.cputype) {
+	case CPU_R4600:			/* QED style two way caches? */
+	case CPU_R4700:
+	case CPU_R5000:
+	case CPU_NEVADA:
+		icache_size = 1 << (12 + ((config >> 9) & 7));
+		current_cpu_data.icache.linesz = 16 << ((config >> 5) & 1);
+		current_cpu_data.icache.ways = 2;
+		current_cpu_data.icache.waybit = ffs(icache_size/2) - 1;
+		break;
+
+	case CPU_R5432:
+	case CPU_R5500:
+		icache_size = 1 << (12 + ((config >> 9) & 7));
+		current_cpu_data.icache.linesz = 16 << ((config >> 5) & 1);
+		current_cpu_data.icache.ways = 2;
+		current_cpu_data.icache.waybit= 0;
+		break;
+
+	case CPU_TX49XX:
+		icache_size = 1 << (12 + ((config >> 9) & 7));
+		current_cpu_data.icache.linesz = 16 << ((config >> 5) & 1);
+		current_cpu_data.icache.ways = 4;
+		current_cpu_data.icache.waybit= 0;
+		break;
+
+	case CPU_R4000PC:
+	case CPU_R4000SC:
+	case CPU_R4000MC:
+	case CPU_R4400PC:
+	case CPU_R4400SC:
+	case CPU_R4400MC:
+		icache_size = 1 << (12 + ((config >> 9) & 7));
+		current_cpu_data.icache.linesz = 16 << ((config >> 5) & 1);
+		current_cpu_data.icache.ways = 1;
+		current_cpu_data.icache.waybit = 0; 	/* doesn't matter */
+		break;
+
+	case CPU_VR4131:
+		icache_size = 1 << (10 + ((config >> 9) & 7));
+		current_cpu_data.icache.linesz = 16 << ((config >> 5) & 1);
+		current_cpu_data.icache.ways = 2;
+		current_cpu_data.icache.waybit = ffs(icache_size/2) - 1;
+		break;
+
 	case CPU_VR41XX:
 	case CPU_VR4111:
 	case CPU_VR4121:
 	case CPU_VR4122:
-	case CPU_VR4131:
 	case CPU_VR4181:
 	case CPU_VR4181A:
 		icache_size = 1 << (10 + ((config >> 9) & 7));
+		current_cpu_data.icache.linesz = 16 << ((config >> 5) & 1);
+		current_cpu_data.icache.ways = 1;
+		current_cpu_data.icache.waybit = 0; 	/* doesn't matter */
 		break;
+
 	default:
-		icache_size = 1 << (12 + ((config >> 9) & 7));
+		if (!(config & 0x80000000))
+			panic("Don't know how to probe I-cache on this cpu.");
+
+		config1 = read_c0_config1();
+
+		if ((lsize = ((config1 >> 19) & 7)))
+			current_cpu_data.icache.linesz = 2 << lsize;
+		else
+			current_cpu_data.icache.linesz = lsize;
+		current_cpu_data.icache.sets = 64 << ((config1 >> 22) & 7);
+		current_cpu_data.icache.ways = 1 + ((config1 >> 16) & 7);
+
+		icache_size = current_cpu_data.icache.sets *
+		              current_cpu_data.icache.ways *
+		              current_cpu_data.icache.linesz;
+
+		if ((config & 0x8) || (current_cpu_data.cputype == CPU_20KC)) {
+			/*
+			 * The CPU has a virtually tagged I-cache.
+			 * Some older 20Kc chips doesn't have the 'VI' bit in
+			 * the config register, so we also check for 20Kc.
+			 */
+			current_cpu_data.icache.flags |= MIPS_CACHE_VTAG;
+		}
+		
 		break;
 	}
-	current_cpu_data.icache.linesz = 16 << ((config >> 5) & 1);
 
 	/*
 	 * Processor configuration sanity check for the R4000SC V2.2
@@ -627,85 +747,94 @@ static void __init probe_icache(unsigned long config)
 	     current_cpu_data.icache.linesz != 16)
 		panic("Impropper processor configuration detected");
 
-	switch (current_cpu_data.cputype) {
-	case CPU_VR4131:
-	case CPU_R4600:			/* QED style two way caches? */
-	case CPU_R4700:
-	case CPU_R5000:
-	case CPU_NEVADA:
-		current_cpu_data.icache.ways = 2;
-		current_cpu_data.icache.waybit = ffs(icache_size/2) - 1;
-		break;
-
-	case CPU_R5432:
-	case CPU_R5500:
-		current_cpu_data.icache.ways = 2;
-		current_cpu_data.icache.waybit= 0;
-		break;
-
-	case CPU_TX49XX:
-		current_cpu_data.icache.ways = 4;
-		current_cpu_data.icache.waybit= 0;
-		break;
-
-	default:
-		current_cpu_data.icache.ways = 1;
-		current_cpu_data.icache.waybit = 0; 	/* doesn't matter */
-		break;
-	}
-
 	/* compute a couple of other cache variables */
 	icache_way_size = icache_size / current_cpu_data.icache.ways;
 	current_cpu_data.icache.sets = icache_size /
 		(current_cpu_data.icache.linesz * current_cpu_data.icache.ways);
 
-	printk("Primary instruction cache %ldkb %s, linesize %d bytes\n",
-	       icache_size >> 10, way_string[current_cpu_data.icache.ways],
+	printk("Primary instruction cache %ldkb, %s, %s, linesize %d bytes\n",
+	       icache_size >> 10,
+	       cpu_has_vtag_icache ? "virtually tagged" : "physically tagged",
+	       way_string[current_cpu_data.icache.ways],
 	       current_cpu_data.icache.linesz);
 }
 
 static void __init probe_dcache(unsigned long config)
 {
-	switch (current_cpu_data.cputype) {
-	case CPU_VR41XX:
-	case CPU_VR4111:
-	case CPU_VR4121:
-	case CPU_VR4122:
-	case CPU_VR4131:
-	case CPU_VR4181:
-	case CPU_VR4181A:
-		dcache_size = 1 << (10 + ((config >> 6) & 7));
-		break;
-	default:
-		dcache_size = 1 << (12 + ((config >> 6) & 7));
-		break;
-	}
-	current_cpu_data.dcache.linesz = 16 << ((config >> 4) & 1);
+	unsigned long config1;
+	unsigned int lsize;
 
 	switch (current_cpu_data.cputype) {
-	case CPU_VR4131:
 	case CPU_R4600:			/* QED style two way caches? */
 	case CPU_R4700:
 	case CPU_R5000:
 	case CPU_NEVADA:
+		dcache_size = 1 << (12 + ((config >> 6) & 7));
+		current_cpu_data.dcache.linesz = 16 << ((config >> 4) & 1);
 		current_cpu_data.dcache.ways = 2;
 		current_cpu_data.dcache.waybit= ffs(dcache_size/2) - 1;
 		break;
 
 	case CPU_R5432:
 	case CPU_R5500:
+		dcache_size = 1 << (12 + ((config >> 6) & 7));
+		current_cpu_data.dcache.linesz = 16 << ((config >> 4) & 1);
 		current_cpu_data.dcache.ways = 2;
 		current_cpu_data.dcache.waybit = 0;
 		break;
 
 	case CPU_TX49XX:
+		dcache_size = 1 << (12 + ((config >> 6) & 7));
+		current_cpu_data.dcache.linesz = 16 << ((config >> 4) & 1);
 		current_cpu_data.dcache.ways = 4;
 		current_cpu_data.dcache.waybit = 0;
 		break;
 
-	default:
+	case CPU_VR4131:
+		dcache_size = 1 << (10 + ((config >> 6) & 7));
+		current_cpu_data.dcache.linesz = 16 << ((config >> 4) & 1);
+		current_cpu_data.dcache.ways = 2;
+		current_cpu_data.dcache.waybit = ffs(dcache_size/2) - 1;
+		break;
+
+	case CPU_VR41XX:
+	case CPU_VR4111:
+	case CPU_VR4121:
+	case CPU_VR4122:
+	case CPU_VR4181:
+	case CPU_VR4181A:
+		dcache_size = 1 << (10 + ((config >> 6) & 7));
+		current_cpu_data.dcache.linesz = 16 << ((config >> 4) & 1);
 		current_cpu_data.dcache.ways = 1;
 		current_cpu_data.dcache.waybit = 0;	/* does not matter */
+		break;
+
+	case CPU_R4000PC:
+	case CPU_R4000SC:
+	case CPU_R4000MC:
+	case CPU_R4400PC:
+	case CPU_R4400SC:
+	case CPU_R4400MC:
+		dcache_size = 1 << (12 + ((config >> 6) & 7));
+		current_cpu_data.dcache.linesz = 16 << ((config >> 4) & 1);
+		current_cpu_data.dcache.ways = 1;
+		current_cpu_data.dcache.waybit = 0;	/* does not matter */
+		break;
+
+	default:
+		current_cpu_data.dcache.flags = 0;
+		config1 = read_c0_config1();
+
+		if ((lsize = ((config1 >> 10) & 7)))
+			current_cpu_data.dcache.linesz = 2 << lsize;
+		else
+			current_cpu_data.dcache.linesz= lsize;
+		current_cpu_data.dcache.sets = 64 << ((config1 >> 13) & 7);
+		current_cpu_data.dcache.ways = 1 + ((config1 >> 7) & 7);
+
+		dcache_size = current_cpu_data.dcache.sets *
+		              current_cpu_data.dcache.ways *
+		              current_cpu_data.dcache.linesz;
 		break;
 	}
 
@@ -808,7 +937,7 @@ static void __init setup_noscache_funcs(void)
 		break;
 	}
 	flush_cache_all = r4k_flush_pcache_all;
-	__flush_cache_all = r4k_flush_pcache_all;
+	__flush_cache_all = r4k___flush_pcache_all;
 	flush_cache_mm = r4k_flush_pcache_mm;
 	flush_cache_page = r4k_flush_cache_page;
 	flush_icache_page = r4k_flush_icache_page;
@@ -888,6 +1017,11 @@ static inline void __init setup_scache(unsigned int config)
 		return;
 	}
 
+	if ((current_cpu_data.isa_level == MIPS_CPU_ISA_M32 ||
+	     current_cpu_data.isa_level == MIPS_CPU_ISA_M64) &&
+	    !(current_cpu_data.scache.flags & MIPS_CACHE_NOT_PRESENT))
+		panic("Dunno how to handle MIPS32 / MIPS64 second level cache");
+
 	switch (current_cpu_data.cputype) {
 	case CPU_R5000:
 	case CPU_NEVADA:
@@ -939,6 +1073,11 @@ void __init ld_mmu_r4xx0(void)
 	    current_cpu_data.dcache.ways > PAGE_SIZE)
 	        current_cpu_data.dcache.flags |= MIPS_CACHE_ALIASES;
 
+	/*
+	 * XXX Some MIPS32 and MIPS64 processors have physically indexed caches.
+	 * This code supports virtually indexed processors and will be
+	 * unnecessarily unefficient on physically indexed processors.
+	 */
 	shm_align_mask = max_t(unsigned long,
 	     current_cpu_data.dcache.sets * current_cpu_data.dcache.linesz - 1,
 	     PAGE_SIZE - 1);
@@ -947,6 +1086,7 @@ void __init ld_mmu_r4xx0(void)
 	if ((read_c0_prid() & 0xfff0) == 0x2020) {
 		flush_cache_sigtramp = r4600v20k_flush_cache_sigtramp;
 	}
+	_flush_icache_all = r4k_flush_icache_all;
 	flush_data_cache_page = r4k_flush_data_cache_page;
 	flush_icache_range = r4k_flush_icache_range;	/* Ouch */
 

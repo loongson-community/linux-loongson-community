@@ -64,7 +64,6 @@ extern void ld_mmu_tfp(void);
 extern void ld_mmu_andes(void);
 extern void ld_mmu_sb1(void);
 extern void sb1_tlb_init(void);
-extern void ld_mmu_mips3264(void);
 extern void r3k_tlb_init(void);
 extern void r4k_tlb_init(void);
 extern void sb1_tlb_init(void);
@@ -75,20 +74,13 @@ void __init load_mmu(void)
 #if defined(CONFIG_CPU_R4X00)  || defined(CONFIG_CPU_VR41XX) || \
     defined(CONFIG_CPU_R4300)  || defined(CONFIG_CPU_R5000)  || \
     defined(CONFIG_CPU_NEVADA) || defined(CONFIG_CPU_R5432)  || \
-    defined(CONFIG_CPU_R5500)
+    defined(CONFIG_CPU_R5500)  || defined(CONFIG_CPU_MIPS32) || \
+    defined(CONFIG_CPU_MIPS64) || defined(CONFIG_CPU_TX49XX)
 		ld_mmu_r4xx0();
 		r4k_tlb_init();
 #endif
 #if defined(CONFIG_CPU_RM7000)
 		ld_mmu_rm7k();
-		r4k_tlb_init();
-#endif
-#if defined(CONFIG_CPU_TX49XX)
-		ld_mmu_tx49();
-		r4k_tlb_init();
-#endif
-#if defined(CONFIG_CPU_MIPS32) || defined(CONFIG_CPU_MIPS64)
-		ld_mmu_mips3264();
 		r4k_tlb_init();
 #endif
 	} else switch (current_cpu_data.cputype) {
