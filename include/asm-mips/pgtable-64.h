@@ -47,11 +47,36 @@
 #define PGDIR_SIZE	(1UL << PGDIR_SHIFT)
 #define PGDIR_MASK	(~(PGDIR_SIZE-1))
 
-/* Entries per page directory level: we use two-level, so we don't really
-   have any PMD directory physically.  */
+/*
+ * For 4kB page size we use a 3 level page tree and a 8kB pmd and pgds which
+ * permits us mapping 40 bits of virtual address space.
+ *
+ * We used to implement 41 bits by having an order 1 pmd level but that seemed
+ * rather pointless.
+ *
+ * For 16kB page size we use a 2 level page tree which permit a total of
+ * 36 bits of virtual address space.  We could add a third leve. but it seems
+ * like at the moment there's no need for this.
+ *
+ * For 64kB page size we use a 2 level page table tree for a total of 42 bits
+ * of virtual address space.
+ */
+#ifdef CONFIG_PAGE_SIZE_4KB
 #define PGD_ORDER		1
 #define PMD_ORDER		1
 #define PTE_ORDER		0
+#endif
+#ifdef CONFIG_PAGE_SIZE_16KB
+#define PGD_ORDER		0
+#define PMD_ORDER		0
+#define PTE_ORDER		0
+#endif
+#ifdef CONFIG_PAGE_SIZE_64KB
+#define PGD_ORDER		0
+#define PMD_ORDER		0
+#define PTE_ORDER		0
+#endif
+
 #define PTRS_PER_PGD		((PAGE_SIZE << PGD_ORDER) / sizeof(pgd_t))
 #define PTRS_PER_PMD		((PAGE_SIZE << PMD_ORDER) / sizeof(pmd_t))
 #define PTRS_PER_PTE		((PAGE_SIZE << PTE_ORDER) / sizeof(pte_t))
