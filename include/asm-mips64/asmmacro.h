@@ -13,13 +13,13 @@
 
 #ifdef CONFIG_CPU_SB1
 #define FPU_ENABLE_HAZARD		\
-	.set    push;           	\
+	.set	push;			\
 	.set	noreorder;		\
-	.set    mips64;         	\
-	SSNOP;                  	\
-	bnezl   $0, .+4;        	\
-	 SSNOP;                 	\
-	.set    pop
+	.set	mips2;			\
+	SSNOP;				\
+	bnezl	$0, .+4;		\
+	 SSNOP;				\
+	.set	pop
 #else
 #define FPU_ENABLE_HAZARD
 #endif
