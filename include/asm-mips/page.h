@@ -137,7 +137,7 @@ extern __inline__ int get_order(unsigned long size)
 /*
  * Memory above this physical address will be considered highmem.
  */
-#define HIGHMEM_START		(0x20000000UL)
+#define HIGHMEM_START		0x20000000UL
 
 #endif /* defined (__KERNEL__) */
 
