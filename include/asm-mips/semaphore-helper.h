@@ -131,8 +131,7 @@ waking_non_zero_interruptible(struct semaphore *sem, struct task_struct *tsk)
  * down_trylock and let non-ll/sc hosts bounce around.
  */
 
-static inline int
-waking_non_zero_trylock(struct semaphore *sem)
+static inline int waking_non_zero_trylock(struct semaphore *sem)
 {
 #if WAITQUEUE_DEBUG
 	CHECK_MAGIC(sem->__magic);
