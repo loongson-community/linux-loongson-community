@@ -24,7 +24,7 @@
 #include <asm/bitops.h>
 #include <asm/cacheflush.h>
 #include <asm/fpu.h>
-#include <asm/offset.h>
+#include <asm/sim.h>
 #include <asm/uaccess.h>
 #include <asm/ucontext.h>
 

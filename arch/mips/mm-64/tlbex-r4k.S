@@ -13,9 +13,10 @@
 #include <asm/asm.h>
 #include <asm/regdef.h>
 #include <asm/mipsregs.h>
-#include <asm/pgtable.h>
 #include <asm/stackframe.h>
 #include <asm/war.h>
+
+#define _VMALLOC_START	0xc000000000000000
 
 	/*
 	 * After this macro runs we have a pointer to the pte of the address
@@ -32,13 +33,13 @@
 #endif
 	bltz	\tmp, \kaddr
 	 ld	\ptr, (\ptr)
-	dsrl	\tmp, (PGDIR_SHIFT-3)		# get pgd offset in bytes
-	andi	\tmp, ((PTRS_PER_PGD - 1)<<3)
+	dsrl	\tmp, (_PGDIR_SHIFT-3)		# get pgd offset in bytes
+	andi	\tmp, ((_PTRS_PER_PGD - 1)<<3)
 	daddu	\ptr, \tmp			# add in pgd offset
 	dmfc0	\tmp, CP0_BADVADDR
 	ld	\ptr, (\ptr)			# get pmd pointer
-	dsrl	\tmp, (PMD_SHIFT-3)		# get pmd offset in bytes
-	andi	\tmp, ((PTRS_PER_PMD - 1)<<3)
+	dsrl	\tmp, (_PMD_SHIFT-3)		# get pmd offset in bytes
+	andi	\tmp, ((_PTRS_PER_PMD - 1)<<3)
 	daddu	\ptr, \tmp			# add in pmd offset
 	dmfc0	\tmp, CP0_XCONTEXT
 	ld	\ptr, (\ptr)			# get pte pointer
@@ -55,14 +56,14 @@
 	 * First, determine that the address is in/above vmalloc range.
 	 */
 	dmfc0	\tmp, CP0_BADVADDR
-	dli	\ptr, VMALLOC_START
+	dli	\ptr, _VMALLOC_START
 
 	/*
 	 * Now find offset into kptbl.
 	 */
 	dsubu	\tmp, \tmp, \ptr
 	dla	\ptr, kptbl
-	dsrl	\tmp, (PAGE_SHIFT+1)		# get vpn2
+	dsrl	\tmp, (_PAGE_SHIFT+1)		# get vpn2
 	dsll	\tmp, 4				# byte offset of pte
 	daddu	\ptr, \ptr, \tmp
 
@@ -111,7 +112,7 @@ LEAF(except_vec1_sb1)
 	dmfc0	k0, CP0_BADVADDR
 	dmfc0	k1, CP0_ENTRYHI
 	xor	k0, k1
-	dsrl	k0, k0, PAGE_SHIFT+1
+	dsrl	k0, k0, _PAGE_SHIFT+1
 	bnez	k0, 1f
 #endif
 	.set    noat

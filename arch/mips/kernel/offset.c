@@ -96,6 +96,7 @@ void output_thread_info_defines(void)
 	offset("#define TI_RESTART_BLOCK   ", struct thread_info, restart_block);
 	constant("#define _THREAD_SIZE_ORDER ", THREAD_SIZE_ORDER);
 	constant("#define _THREAD_SIZE       ", THREAD_SIZE);
+	constant("#define _THREAD_MASK       ", THREAD_MASK);
 	linefeed;
 }
 
@@ -211,8 +212,14 @@ void output_mm_defines(void)
 	offset("#define MM_CONTEXT    ", struct mm_struct, context);
 	linefeed;
 	constant("#define _PAGE_SIZE     ", PAGE_SIZE);
+	constant("#define _PAGE_SHIFT    ", PAGE_SHIFT);
+	linefeed;
 	constant("#define _PGD_ORDER     ", PGD_ORDER);
 	constant("#define _PGDIR_SHIFT   ", PGDIR_SHIFT);
+	constant("#define _PMD_SHIFT     ", PMD_SHIFT);
+	linefeed;
+	constant("#define _PTRS_PER_PGD  ", PTRS_PER_PGD);
+	constant("#define _PTRS_PER_PMD  ", PTRS_PER_PMD);
 	linefeed;
 }
 

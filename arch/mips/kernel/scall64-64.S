@@ -39,14 +39,14 @@ NESTED(handle_sys64, PT_SIZE, sp)
 	ld	t1, PT_EPC(sp)		# skip syscall on return
 
 FEXPORT(__handle_sys64)
-	subu	t0, v0, __NR_Linux	# check syscall number
-	sltiu	t0, t0,	__NR_Linux_syscalls + 1
+	subu	t0, v0, __NR_64_Linux	# check syscall number
+	sltiu	t0, t0,	__NR_64_Linux_syscalls + 1
 	daddiu	t1, 4			# skip to next instruction
 	beqz	t0, illegal_syscall
 	sd	t1, PT_EPC(sp)
 
 	dsll	t0, v0, 3		# offset into table
-	ld	t2, (sys_call_table - (__NR_Linux * 8))(t0)
+	ld	t2, (sys_call_table - (__NR_64_Linux * 8))(t0)
 					# syscall routine
 
 	sd	a3, PT_R26(sp)		# save a3 for syscall restarting

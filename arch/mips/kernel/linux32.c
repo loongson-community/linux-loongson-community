@@ -40,6 +40,7 @@
 #include <net/scm.h>
 
 #include <asm/ipc.h>
+#include <asm/sim.h>
 #include <asm/uaccess.h>
 #include <asm/mmu_context.h>
 #include <asm/mman.h>
@@ -449,7 +450,7 @@ put_rusage (struct rusage32 *ru, struct rusage *r)
 }
 
 asmlinkage int
-sys32_wait4(__kernel_pid_t32 pid, unsigned int * stat_addr, int options,
+sys32_wait4(compat_pid_t pid, unsigned int * stat_addr, int options,
 	    struct rusage32 * ru)
 {
 	if (!ru)
@@ -471,7 +472,7 @@ sys32_wait4(__kernel_pid_t32 pid, unsigned int * stat_addr, int options,
 }
 
 asmlinkage int
-sys32_waitpid(__kernel_pid_t32 pid, unsigned int *stat_addr, int options)
+sys32_waitpid(compat_pid_t pid, unsigned int *stat_addr, int options)
 {
 	return sys32_wait4(pid, stat_addr, options, NULL);
 }
@@ -1017,7 +1018,7 @@ out_nofds:
 extern asmlinkage int sys_sched_rr_get_interval(pid_t pid,
 	struct timespec *interval);
 
-asmlinkage int sys32_sched_rr_get_interval(__kernel_pid_t32 pid,
+asmlinkage int sys32_sched_rr_get_interval(compat_pid_t pid,
 	struct compat_timespec *interval)
 {
 	struct timespec t;
@@ -1038,22 +1039,22 @@ struct msgbuf32 { s32 mtype; char mtext[1]; };
 struct ipc_perm32
 {
 	key_t    	  key;
-        __kernel_uid_t32  uid;
-        __kernel_gid_t32  gid;
-        __kernel_uid_t32  cuid;
-        __kernel_gid_t32  cgid;
-        __kernel_mode_t32 mode;
+        compat_uid_t  uid;
+        compat_gid_t  gid;
+        compat_uid_t  cuid;
+        compat_gid_t  cgid;
+        compat_mode_t	mode;
         unsigned short  seq;
 };
 
 struct ipc64_perm32 {
 	key_t key;
-	__kernel_uid_t32 uid;
-	__kernel_gid_t32 gid;
-	__kernel_uid_t32 cuid;
-	__kernel_gid_t32 cgid;
-	__kernel_mode_t32 mode; 
-	unsigned short seq;
+	compat_uid_t uid;
+	compat_gid_t gid;
+	compat_uid_t cuid;
+	compat_gid_t cgid;
+	compat_mode_t	mode; 
+	unsigned short	seq;
 	unsigned short __pad1;
 	unsigned int __unused1;
 	unsigned int __unused2;
@@ -1092,8 +1093,8 @@ struct msqid_ds32
         unsigned short msg_cbytes;
         unsigned short msg_qnum;
         unsigned short msg_qbytes;
-        __kernel_ipc_pid_t32 msg_lspid;
-        __kernel_ipc_pid_t32 msg_lrpid;
+        compat_ipc_pid_t msg_lspid;
+        compat_ipc_pid_t msg_lrpid;
 };
 
 struct msqid64_ds32 {
@@ -1107,8 +1108,8 @@ struct msqid64_ds32 {
 	unsigned int msg_cbytes;
 	unsigned int msg_qnum;
 	unsigned int msg_qbytes;
-	__kernel_pid_t32 msg_lspid;
-	__kernel_pid_t32 msg_lrpid;
+	compat_pid_t msg_lspid;
+	compat_pid_t msg_lrpid;
 	unsigned int __unused4;
 	unsigned int __unused5;
 };
@@ -1119,8 +1120,8 @@ struct shmid_ds32 {
         compat_time_t		shm_atime;
         compat_time_t		shm_dtime;
         compat_time_t		shm_ctime;
-        __kernel_ipc_pid_t32    shm_cpid;
-        __kernel_ipc_pid_t32    shm_lpid;
+        compat_ipc_pid_t    shm_cpid;
+        compat_ipc_pid_t    shm_lpid;
         unsigned short          shm_nattch;
 };
 
@@ -1130,8 +1131,8 @@ struct shmid64_ds32 {
 	compat_time_t		shm_atime;
 	compat_time_t		shm_dtime;
 	compat_time_t shm_ctime;
-	__kernel_pid_t32 shm_cpid;
-	__kernel_pid_t32 shm_lpid;
+	compat_pid_t shm_cpid;
+	compat_pid_t shm_lpid;
 	unsigned int shm_nattch;
 	unsigned int __unused1;
 	unsigned int __unused2;
@@ -1605,11 +1606,11 @@ sys32_ipc (u32 call, int first, int second, int third, u32 ptr, u32 fifth)
 
 struct sysctl_args32
 {
-	__kernel_caddr_t32 name;
+	compat_caddr_t name;
 	int nlen;
-	__kernel_caddr_t32 oldval;
-	__kernel_caddr_t32 oldlenp;
-	__kernel_caddr_t32 newval;
+	compat_caddr_t oldval;
+	compat_caddr_t oldlenp;
+	compat_caddr_t newval;
 	compat_size_t newlen;
 	unsigned int __unused[4];
 };
@@ -1666,7 +1667,7 @@ asmlinkage long sys32_sysctl(struct sysctl_args32 *args)
 extern asmlinkage int sys_sched_setaffinity(pid_t pid, unsigned int len,
 					    unsigned long *user_mask_ptr);
 
-asmlinkage int sys32_sched_setaffinity(__kernel_pid_t32 pid, unsigned int len,
+asmlinkage int sys32_sched_setaffinity(compat_pid_t pid, unsigned int len,
 				       u32 *user_mask_ptr)
 {
 	unsigned long kernel_mask;
@@ -1690,7 +1691,7 @@ asmlinkage int sys32_sched_setaffinity(__kernel_pid_t32 pid, unsigned int len,
 extern asmlinkage int sys_sched_getaffinity(pid_t pid, unsigned int len,
 					    unsigned long *user_mask_ptr);
 
-asmlinkage int sys32_sched_getaffinity(__kernel_pid_t32 pid, unsigned int len,
+asmlinkage int sys32_sched_getaffinity(compat_pid_t pid, unsigned int len,
 				       u32 *user_mask_ptr)
 {
 	unsigned long kernel_mask;
@@ -1817,7 +1818,8 @@ asmlinkage int sys32_adjtimex(struct timex32 *utp)
 
 extern asmlinkage ssize_t sys_sendfile(int out_fd, int in_fd, off_t *offset, size_t count);
 
-asmlinkage int sys32_sendfile(int out_fd, int in_fd, __kernel_off_t32 *offset, s32 count)
+asmlinkage int sys32_sendfile(int out_fd, int in_fd, compat_off_t *offset,
+	s32 count)
 {
 	mm_segment_t old_fs = get_fs();
 	int ret;

@@ -12,9 +12,6 @@
 #define _ASM_PROCESSOR_H
 
 #include <linux/config.h>
-#include <linux/threads.h>
-#include <asm/isadep.h>
-#include <asm/page.h>
 
 /*
  * Return current * instruction pointer ("program counter").
@@ -27,8 +24,12 @@
 
 #include <asm/cachectl.h>
 #include <asm/mipsregs.h>
-#include <asm/reg.h>
 #include <asm/system.h>
+
+#if defined(CONFIG_SGI_IP27)
+#include <asm/sn/types.h>
+#include <asm/sn/intr_public.h>
+#endif
 
 /*
  * Descriptor for a cache
@@ -51,21 +52,37 @@ struct cache_desc {
 #define MIPS_CACHE_IC_F_DC	0x00000008	/* Ic can refill from D-cache */
 
 struct cpuinfo_mips {
-	unsigned long udelay_val;
-	unsigned long asid_cache;
+	unsigned long		udelay_val;
+	unsigned long		asid_cache;
+#if defined(CONFIG_SGI_IP27)
+	cpuid_t		p_cpuid;	/* PROM assigned cpuid */
+	cnodeid_t	p_nodeid;	/* my node ID in compact-id-space */
+	nasid_t		p_nasid;	/* my node ID in numa-as-id-space */
+	unsigned char	p_slice;	/* Physical position on node board */
+	hub_intmasks_t	p_intmasks;	/* SN0 per-CPU interrupt masks */
+#endif
+#if 0
+	unsigned long		loops_per_sec;
+	unsigned long		ipi_count;
+	unsigned long		irq_attempt[NR_IRQS];
+	unsigned long		smp_local_irq_count;
+	unsigned long		prof_multiplier;
+	unsigned long		prof_counter;
+#endif
+
 	/*
 	 * Capability and feature descriptor structure for MIPS CPU
 	 */
-	unsigned long options;
-	unsigned int processor_id;
-	unsigned int fpu_id;
-	unsigned int cputype;
-	int isa_level;
-	int tlbsize;
-	struct cache_desc icache;	/* Primary I-cache */
-	struct cache_desc dcache;	/* Primary D or combined I/D cache */
-	struct cache_desc scache;	/* Secondary cache */
-	struct cache_desc tcache;	/* Tertiary/split secondary cache */
+	unsigned long		options;
+	unsigned int		processor_id;
+	unsigned int		fpu_id;
+	unsigned int		cputype;
+	int			isa_level;
+	int			tlbsize;
+	struct cache_desc	icache;	/* Primary I-cache */
+	struct cache_desc	dcache;	/* Primary D or combined I/D cache */
+	struct cache_desc	scache;	/* Secondary cache */
+	struct cache_desc	tcache;	/* Tertiary/split secondary cache */
 } __attribute__((aligned(SMP_CACHE_BYTES)));
 
 /*
@@ -85,12 +102,21 @@ struct cpuinfo_mips {
 #define cpu_has_cache_cdex	(cpu_data[0].options & MIPS_CPU_CACHE_CDEX)
 #define cpu_has_mcheck		(cpu_data[0].options & MIPS_CPU_MCHECK)
 #define cpu_has_ejtag		(cpu_data[0].options & MIPS_CPU_EJTAG)
+/* no FPU exception; never set on 64-bit */
+#ifdef CONFIG_MIPS64
+#define cpu_has_nofpuex		0
+#else
 #define cpu_has_nofpuex		(cpu_data[0].options & MIPS_CPU_NOFPUEX)
+#endif
 #define cpu_has_llsc		(cpu_data[0].options & MIPS_CPU_LLSC)
 #define cpu_has_vtag_icache	(cpu_data[0].icache.flags & MIPS_CACHE_VTAG)
 #define cpu_has_dc_aliases	(cpu_data[0].dcache.flags & MIPS_CACHE_ALIASES)
 #define cpu_has_ic_fills_f_dc	(cpu_data[0].dcache.flags & MIPS_CACHE_IC_F_DC)
+#ifdef CONFIG_MIPS64
+#define cpu_has_64bits		1
+#else
 #define cpu_has_64bits		(cpu_data[0].isa_level & MIPS_CPU_ISA_64BIT)
+#endif
 #define cpu_has_subset_pcaches	(cpu_data[0].options & MIPS_CPU_SUBSET_CACHES)
 
 extern struct cpuinfo_mips cpu_data[];
@@ -118,18 +144,38 @@ extern int EISA_bus;
 #define MCA_bus 0
 #define MCA_bus__is_a_macro /* for versions in ksyms.c */
 
+#ifdef CONFIG_MIPS32
 /*
  * User space process size: 2GB. This is hardcoded into a few places,
- * so don't change it unless you know what you are doing.  TASK_SIZE
- * for a 64 bit kernel expandable to 8192EB, of which the current MIPS
- * implementations will "only" be able to use 1TB ...
+ * so don't change it unless you know what you are doing.
  */
 #define TASK_SIZE	0x7fff8000UL
 
-/* This decides where the kernel will search for a free chunk of vm
+/*
+ * This decides where the kernel will search for a free chunk of vm
  * space during mmap's.
  */
 #define TASK_UNMAPPED_BASE	(PAGE_ALIGN(TASK_SIZE / 3))
+#endif
+
+#ifdef CONFIG_MIPS64
+/*
+ * User space process size: 1TB. This is hardcoded into a few places,
+ * so don't change it unless you know what you are doing.  TASK_SIZE
+ * is limited to 1TB by the R4000 architecture; R10000 and better can
+ * support 16TB; the architectural reserve for future expansion is
+ * 8192EB ...
+ */
+#define TASK_SIZE32	0x7fff8000UL
+#define TASK_SIZE	0x10000000000UL
+
+/*
+ * This decides where the kernel will search for a free chunk of vm
+ * space during mmap's.
+ */
+#define TASK_UNMAPPED_BASE	((current->thread.mflags & MF_32BIT_ADDR) ? \
+	PAGE_ALIGN(TASK_SIZE32 / 3) : PAGE_ALIGN(TASK_SIZE / 3))
+#endif
 
 /*
  * Size of io_bitmap in longwords: 32 is ports 0-0x3ff.
@@ -192,10 +238,17 @@ struct thread_struct {
 	unsigned long trap_no;
 #define MF_FIXADE	1		/* Fix address errors in software */
 #define MF_LOGADE	2		/* Log address errors to syslog */
+#define MF_32BIT_REGS	4		/* also implies 16/32 fprs */
+#define MF_32BIT_ADDR	8		/* 32-bit address space (o32/n32) */
 	unsigned long mflags;
 	unsigned long irix_trampoline;  /* Wheee... */
 	unsigned long irix_oldctx;
 };
+
+#define MF_ABI_MASK	(MF_32BIT_REGS | MF_32BIT_ADDR)
+#define MF_O32		(MF_32BIT_REGS | MF_32BIT_ADDR)
+#define MF_N32		MF_32BIT_ADDR
+#define MF_N64		0
 
 #endif /* !__ASSEMBLY__ */
 

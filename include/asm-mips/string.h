@@ -3,13 +3,20 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (c) 1994, 1995, 1996, 1997, 1998, 2001 Ralf Baechle
+ * Copyright (c) 1994, 95, 96, 97, 98, 2000, 01 Ralf Baechle
+ * Copyright (c) 2000 by Silicon Graphics, Inc.
  * Copyright (c) 2001 MIPS Technologies, Inc.
  */
-#ifndef __ASM_STRING_H
-#define __ASM_STRING_H
+#ifndef _ASM_STRING_H
+#define _ASM_STRING_H
 
 #include <linux/config.h>
+
+/*
+ * Most of the inline functions are rather naive implementations so I just
+ * didn't bother updating them for 64-bit ...
+ */
+#ifdef CONFIG_MIPS32
 
 #define __HAVE_ARCH_STRCPY
 static __inline__ char *strcpy(char *__dest, __const__ char *__src)
@@ -119,6 +126,7 @@ strncmp(__const__ char *__cs, __const__ char *__ct, size_t __count)
 
 	return __res;
 }
+#endif /* CONFIG_MIPS32 */
 
 #define __HAVE_ARCH_MEMSET
 extern void *memset(void *__s, int __c, size_t __count);
@@ -132,6 +140,7 @@ extern void *memmove(void *__dest, __const__ void *__src, size_t __n);
 /* Don't build bcopy at all ...  */
 #define __HAVE_ARCH_BCOPY
 
+#ifdef CONFIG_MIPS32
 #define __HAVE_ARCH_MEMSCAN
 static __inline__ void *memscan(void *__addr, int __c, size_t __size)
 {
@@ -151,5 +160,6 @@ static __inline__ void *memscan(void *__addr, int __c, size_t __size)
 
 	return __addr;
 }
+#endif /* CONFIG_MIPS32 */
 
-#endif /* __ASM_STRING_H */
+#endif /* _ASM_STRING_H */

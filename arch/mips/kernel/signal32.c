@@ -16,17 +16,23 @@
 #include <linux/errno.h>
 #include <linux/wait.h>
 #include <linux/ptrace.h>
-#include <linux/unistd.h>
 #include <linux/compat.h>
 
 #include <asm/asm.h>
 #include <asm/bitops.h>
 #include <asm/pgalloc.h>
-#include <asm/stackframe.h>
+#include <asm/sim.h>
 #include <asm/uaccess.h>
 #include <asm/ucontext.h>
 #include <asm/system.h>
 #include <asm/fpu.h>
+
+/*
+ * Including <asm/unistd.h would give use the 64-bit syscall numbers ...
+ */
+#define __NR_O32_sigreturn		4119
+#define __NR_O32_rt_sigreturn		4193
+#define __NR_O32_restart_syscall	4253
 
 #define DEBUG_SIG 0
 

@@ -177,7 +177,7 @@ static int seeq_init_ring(struct net_device *dev)
 			if (!buffer)
 				return -ENOMEM;
 			ib->tx_desc[i].buf_vaddr = KSEG1ADDR(buffer);
-			ib->tx_desc[i].tdma.pbuf = PHYSADDR(buffer);
+			ib->tx_desc[i].tdma.pbuf = virt_to_bus(buffer);
 		}
 		ib->tx_desc[i].tdma.cntinfo = (TCNTINFO_INIT);
 	}
@@ -191,7 +191,7 @@ static int seeq_init_ring(struct net_device *dev)
 			if (!buffer)
 				return -ENOMEM;
 			ib->rx_desc[i].buf_vaddr = KSEG1ADDR(buffer);
-			ib->rx_desc[i].rdma.pbuf = PHYSADDR(buffer);
+			ib->rx_desc[i].rdma.pbuf = virt_to_bus(buffer);
 		}
 		ib->rx_desc[i].rdma.cntinfo = (RCNTINFO_INIT);
 	}
@@ -268,8 +268,8 @@ static int init_seeq(struct net_device *dev, struct sgiseeq_private *sp,
 
 	hregs->rx_dconfig |= RDMACFG_INIT;
 
-	hregs->rx_ndptr = PHYSADDR(&sp->srings.rx_desc[0]);
-	hregs->tx_ndptr = PHYSADDR(&sp->srings.tx_desc[0]);
+	hregs->rx_ndptr = virt_to_bus(sp->srings.rx_desc);
+	hregs->tx_ndptr = virt_to_bus(sp->srings.tx_desc);
 
 	seeq_go(sp, hregs, sregs);
 	return 0;
@@ -294,7 +294,7 @@ static inline void rx_maybe_restart(struct sgiseeq_private *sp,
 				    struct sgiseeq_regs *sregs)
 {
 	if (!(hregs->rx_ctrl & HPC3_ERXCTRL_ACTIVE)) {
-		hregs->rx_ndptr = PHYSADDR(&sp->srings.rx_desc[sp->rx_new]);
+		hregs->rx_ndptr = virt_to_bus(sp->srings.rx_desc + sp->rx_new);
 		seeq_go(sp, hregs, sregs);
 	}
 }
@@ -376,7 +376,7 @@ static inline void kick_tx(struct sgiseeq_tx_desc *td,
 	      (HPCDMA_XIU | HPCDMA_ETXD))
 		td = (struct sgiseeq_tx_desc *)(long) KSEG1ADDR(td->tdma.pnext);
 	if (td->tdma.cntinfo & HPCDMA_XIU) {
-		hregs->tx_ndptr = PHYSADDR(td);
+		hregs->tx_ndptr = virt_to_bus(td);
 		hregs->tx_ctrl = HPC3_ETXCTRL_ACTIVE;
 	}
 }
@@ -409,7 +409,7 @@ static inline void sgiseeq_tx(struct net_device *dev, struct sgiseeq_private *sp
 			break;
 		if (!(td->tdma.cntinfo & (HPCDMA_ETXD))) {
 			if (!(status & HPC3_ETXCTRL_ACTIVE)) {
-				hregs->tx_ndptr = PHYSADDR(td);
+				hregs->tx_ndptr = virt_to_bus(td);
 				hregs->tx_ctrl = HPC3_ETXCTRL_ACTIVE;
 			}
 			break;
@@ -579,11 +579,11 @@ static inline void setup_tx_ring(struct sgiseeq_tx_desc *buf, int nbufs)
 	int i = 0;
 
 	while (i < (nbufs - 1)) {
-		buf[i].tdma.pnext = PHYSADDR(&buf[i + 1]);
+		buf[i].tdma.pnext = virt_to_bus(buf + i + 1);
 		buf[i].tdma.pbuf = 0;
 		i++;
 	}
-	buf[i].tdma.pnext = PHYSADDR(&buf[0]);
+	buf[i].tdma.pnext = virt_to_bus(buf);
 }
 
 static inline void setup_rx_ring(struct sgiseeq_rx_desc *buf, int nbufs)
@@ -591,12 +591,12 @@ static inline void setup_rx_ring(struct sgiseeq_rx_desc *buf, int nbufs)
 	int i = 0;
 
 	while (i < (nbufs - 1)) {
-		buf[i].rdma.pnext = PHYSADDR(&buf[i + 1]);
+		buf[i].rdma.pnext = virt_to_bus(buf + i + 1);
 		buf[i].rdma.pbuf = 0;
 		i++;
 	}
 	buf[i].rdma.pbuf = 0;
-	buf[i].rdma.pnext = PHYSADDR(&buf[0]);
+	buf[i].rdma.pnext = virt_to_bus(buf);
 }
 
 #define ALIGNED(x)  ((((unsigned long)(x)) + 0xf) & ~(0xf))

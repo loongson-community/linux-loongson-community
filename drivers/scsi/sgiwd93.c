@@ -91,7 +91,7 @@ void fill_hpc_entries (struct hpc_chunk **hcp, char *addr, unsigned long len)
 	unsigned long physaddr;
 	unsigned long count;
 	
-	physaddr = PHYSADDR(addr);
+	physaddr = virt_to_bus(addr);
 	while (len) {
 		/*
 		 * even cntinfo could be up to 16383, without
@@ -145,7 +145,7 @@ static int dma_setup(Scsi_Cmnd *cmd, int datainp)
 #endif
 
 	/* Start up the HPC. */
-	hregs->ndptr = PHYSADDR(hdata->dma_bounce_buffer);
+	hregs->ndptr = virt_to_bus(hdata->dma_bounce_buffer);
 	if(datainp) {
 		dma_cache_inv((unsigned long) cmd->SCp.ptr, cmd->SCp.this_residual);
 		hregs->ctrl = (HPC3_SCTRL_ACTIVE);
@@ -202,13 +202,13 @@ static inline void init_hpc_chain(uchar *buf)
 	start = (unsigned long) buf;
 	end = start + PAGE_SIZE;
 	while(start < end) {
-		hcp->desc.pnext = PHYSADDR((hcp + 1));
+		hcp->desc.pnext = virt_to_bus((hcp + 1));
 		hcp->desc.cntinfo = HPCDMA_EOX;
 		hcp++;
 		start += sizeof(struct hpc_chunk);
 	};
 	hcp--;
-	hcp->desc.pnext = PHYSADDR(buf);
+	hcp->desc.pnext = virt_to_bus(buf);
 
 	/* Force flush to memory */
 	dma_cache_wback_inv((unsigned long) buf, PAGE_SIZE);
