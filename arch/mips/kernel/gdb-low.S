@@ -145,9 +145,9 @@
  * FPU control registers
  */
 
-		mfc1	v0,CP1_STATUS
+		cfc1	v0,CP1_STATUS
 		sw	v0,GDB_FR_FSR(sp)
-		mfc1	v0,CP1_REVISION
+		cfc1	v0,CP1_REVISION
 		sw	v0,GDB_FR_FIR(sp)
 
 /*
