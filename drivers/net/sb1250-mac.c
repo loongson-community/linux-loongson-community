@@ -2886,12 +2886,12 @@ sbmac_init_module(void)
 		dev->mem_end = 0;
 		if (sbmac_init(dev, idx)) {
 			port = A_MAC_CHANNEL_BASE(idx);
-			SBMAC_WRITECSR(KSEG1ADDR(port+R_MAC_ETHERNET_ADDR),
-					sbmac_orig_hwaddr[idx] );
+			SBMAC_WRITECSR(IOADDR(port+R_MAC_ETHERNET_ADDR),
+				       sbmac_orig_hwaddr[idx]);
 			free_netdev(dev);
 			continue;
 		}
-		dev_sbmac[idx++] = dev;
+		dev_sbmac[idx] = dev;
 	}
 	return 0;
 }
