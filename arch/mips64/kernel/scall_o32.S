@@ -20,8 +20,6 @@
 #include <asm/stackframe.h>
 #include <asm/unistd.h>
 
-#define DEBUG_MIPS64 1
-
 /* This duplicates the definition from <linux/sched.h> */
 #define PF_TRACESYS	0x00000020	/* tracing system calls */
 
