@@ -15,8 +15,22 @@ image:	../../../vmlinux
 	cp -f $< $@
 
 O_TARGET := baget.a
-O_OBJS	 := baget.o print.o setup.o irq.o time.o \
-            bagetIRQ.o vacserial.o reset.o
+O_OBJS   := baget.o print.o setup.o time.o irq.o bagetIRQ.o reset.o wbflush.o
+
+ifeq ($(CONFIG_SERIAL),y)
+	OX_OBJS += vacserial.o
+else
+	ifeq ($(CONFIG_SERIAL),m)
+		MX_OBJS += vacserial.o
+	endif
+endif
+ifeq ($(CONFIG_VAC_RTC),y)
+	OX_OBJS += vacrtc.o
+else
+	ifeq ($(CONFIG_VAC_RTC),m)
+		MX_OBJS += vacrtc.o
+	endif
+endif
 
 bagetIRQ.o : bagetIRQ.S
 	$(CC) $(CFLAGS) -c -o $@ $<

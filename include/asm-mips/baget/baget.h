@@ -44,7 +44,7 @@ struct  baget_int_reg {
 
 #define BAGET_FPU_IRQ           0x26
 #define BAGET_VIC_TIMER_IRQ     0x32 
-#define BAGET_VAC_TIMER_IRQ     0x37 
+#define BAGET_VAC_TIMER_IRQ     0x36 
 #define BAGET_BSM_IRQ           0x3C
 
 #define BAGET_LANCE_MEM_BASE    0xfcf10000

@@ -28,7 +28,7 @@
  */
 #define FREQ_NOM  79125  /* Baget frequency ratio */
 #define FREQ_DEN  10000
-static inline int timer_intr_valid() 
+static inline int timer_intr_valid(void) 
 {
 	static unsigned long long ticks, valid_ticks;
 
@@ -50,16 +50,6 @@ void static timer_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 	sti();
 	do_timer(regs);
 	}
-}
-
-__initfunc(static void rtc_enable(void))
-{
-        short ic;
-
-        ic = vac_inw(VAC_INT_CTRL) ;
-        vac_outw(ic & 0xfffc, VAC_INT_CTRL);
-        vac_outw(ic, VAC_INT_CTRL);
-	vic_outb(0xb9 & 0x7f, VIC_LINT6); 
 }
 
 __initfunc(static void timer_enable(void))

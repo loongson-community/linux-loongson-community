@@ -89,6 +89,7 @@
 #define    VAC_INT_CTRL_TIMER_PIO10    (2<<0)
 #define    VAC_INT_CTRL_TIMER_PIO7     (1<<0)
 #define    VAC_INT_CTRL_TIMER_DISABLE  (0<<0)
+#define    VAC_INT_CTRL_TIMER_MASK     (3<<0)
 #define    VAC_INT_CTRL_UART_B_PIO11   (3<<2)
 #define    VAC_INT_CTRL_UART_B_PIO10   (2<<2)
 #define    VAC_INT_CTRL_UART_B_PIO7    (1<<2)

@@ -33,6 +33,8 @@ unsigned int local_bh_count[NR_CPUS];
 unsigned int local_irq_count[NR_CPUS];
 unsigned long spurious_count = 0;
 
+atomic_t __mips_bh_counter;
+
 /*
  * This table is a correspondence between IRQ numbers and CPU PILs
  */
@@ -41,7 +43,7 @@ static int irq_to_pil_map[BAGET_IRQ_NR] = {
 	7/*fixme: dma_err -1*/,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, /* 0x00 - 0x0f */
 	-1,-1,-1,-1, 3,-1,-1,-1, 2, 2, 2,-1, 3,-1,-1,3/*fixme: lance*/, /* 0x10 - 0x1f */
         -1,-1,-1,-1,-1,-1, 5,-1,-1,-1,-1,-1, 7,-1,-1,-1, /* 0x20 - 0x2f */
-	-1, 3, 2/*fixme systimer:3*/, 3, 3, 3, 2,-1, 3, 3, 3, 3, 3, 3, 3, 3  /* 0x30 - 0x3f */
+	-1, 3, 2/*fixme systimer:3*/, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3  /* 0x30 - 0x3f */
 };
 
 static inline int irq_to_pil(int irq_nr) 
@@ -61,7 +63,7 @@ static inline int irq_to_pil(int irq_nr)
 
 /* Function for careful CP0 interrupt mask access */
 
-static inline modify_cp0_intmask(unsigned clr_mask, unsigned set_mask)
+static inline void modify_cp0_intmask(unsigned clr_mask, unsigned set_mask)
 {
 	unsigned long status = read_32bit_cp0_register(CP0_STATUS);
 	status &= ~((clr_mask & 0xFF) << 8);
@@ -191,7 +193,7 @@ static void do_IRQ(int irq, struct pt_regs * regs)
 	int do_random, cpu;
 
 	cpu = smp_processor_id();
-	irq_enter(cpu, irq);
+	hardirq_enter(cpu);
 	kstat.irqs[cpu][irq]++;
 
 	mask_irq(irq);  
@@ -213,7 +215,7 @@ static void do_IRQ(int irq, struct pt_regs * regs)
 		printk("do_IRQ: Unregistered IRQ (0x%X) occured\n", irq);
 	}
 	unmask_irq(irq);
-	irq_exit(cpu, irq);
+	hardirq_exit(cpu);
 
 	/* unmasking and bottom half handling is done magically for us. */
 }
