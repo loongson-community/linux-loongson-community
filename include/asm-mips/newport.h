@@ -1,4 +1,4 @@
-/* $Id: newport.h,v 1.3 1999/07/04 01:10:23 ulfc Exp $
+/* $Id$
  *
  * newport.h: Defines and register layout for NEWPORT graphics
  *            hardware.
@@ -161,7 +161,7 @@ struct newport_rexregs {
 	npireg_t xsave;		/* copy of xstart integer value for BLOCk addressing MODE */
 	npireg_t xymove;	/* x.y offset from xstart, ystart for relative operations */
 	npfreg_t bresd;
-	npfreg_t bress1;;
+	npfreg_t bress1;
 	npireg_t bresoctinc1;
 	volatile int bresrndinc2;
 	npireg_t brese1;
@@ -384,7 +384,7 @@ typedef struct {
 #define VC2_IREG_CONTROL       0x10
 #define VC2_IREG_CONFIG        0x20
 
-extern inline void newport_vc2_set(struct newport_regs *regs, unsigned char vc2ireg,
+extern __inline__ void newport_vc2_set(struct newport_regs *regs, unsigned char vc2ireg,
 				   unsigned short val)
 {
 	regs->set.dcbmode = (NPORT_DMODE_AVC2 | VC2_REGADDR_INDEX | NPORT_DMODE_W3 |
@@ -392,7 +392,7 @@ extern inline void newport_vc2_set(struct newport_regs *regs, unsigned char vc2i
 	regs->set.dcbdata0.byword = (vc2ireg << 24) | (val << 8);
 }
 
-extern inline unsigned short newport_vc2_get(struct newport_regs *regs,
+extern __inline__ unsigned short newport_vc2_get(struct newport_regs *regs,
 					     unsigned char vc2ireg)
 {
 	regs->set.dcbmode = (NPORT_DMODE_AVC2 | VC2_REGADDR_INDEX | NPORT_DMODE_W1 |
@@ -426,7 +426,7 @@ extern inline unsigned short newport_vc2_get(struct newport_regs *regs,
 #define NCMAP_REGADDR_RREG   0x00000060
 #define NCMAP_PROTOCOL       (0x00008000 | 0x00040000 | 0x00800000)
 
-static inline void newport_cmap_setaddr(struct newport_regs *regs,
+static __inline__ void newport_cmap_setaddr(struct newport_regs *regs,
 					unsigned short addr)
 {
 	regs->set.dcbmode = (NPORT_DMODE_ACMALL | NCMAP_PROTOCOL |
@@ -437,7 +437,7 @@ static inline void newport_cmap_setaddr(struct newport_regs *regs,
 			   NCMAP_REGADDR_PBUF | NPORT_DMODE_W3);
 }
 
-static inline void newport_cmap_setrgb(struct newport_regs *regs,
+static __inline__ void newport_cmap_setrgb(struct newport_regs *regs,
 				       unsigned char red,
 				       unsigned char green,
 				       unsigned char blue)
@@ -450,7 +450,7 @@ static inline void newport_cmap_setrgb(struct newport_regs *regs,
 
 /* Miscellaneous NEWPORT routines. */
 #define BUSY_TIMEOUT 100000
-static inline int newport_wait(void)
+static __inline__ int newport_wait(void)
 {
 	int i = 0;
 
@@ -462,7 +462,7 @@ static inline int newport_wait(void)
 	return 0;
 }
 
-static inline int newport_bfwait(void)
+static __inline__ int newport_bfwait(void)
 {
 	int i = 0;
 
@@ -559,7 +559,7 @@ int  newport_ioctl   (int card, int cmd, unsigned long arg);
 #define WAYSLOW_DCB_XMAP9_PROTOCOL DCB_CYCLES (12, 12, 0)
 #define R_DCB_XMAP9_PROTOCOL       DCB_CYCLES (2, 1, 3)
 
-static inline void
+static __inline__ void
 xmap9FIFOWait (struct newport_regs *rex)
 {
         rex->set.dcbmode = DCB_XMAP0 | XM9_CRS_FIFO_AVAIL |
@@ -570,7 +570,7 @@ xmap9FIFOWait (struct newport_regs *rex)
 		;
 }
 
-static inline void
+static __inline__ void
 xmap9SetModeReg (struct newport_regs *rex, unsigned int modereg, unsigned int data24, int cfreq)
 {
         if (cfreq > 119)

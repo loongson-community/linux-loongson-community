@@ -1,4 +1,4 @@
-/* $Id: ng1hw.h,v 1.2 1999/07/04 01:10:23 ulfc Exp $
+/* $Id: ng1hw.h,v 1.3 1999/07/24 17:34:14 ulfc Exp $
  * 
  * ng1hw.h: Tweaks the newport.h structures and definations to be compatible
  * 	    with IRIX.  Quite ugly, but it works.
@@ -13,13 +13,11 @@
 #include <asm/newport.h>
 
 #define rex3regs	newport_rexregs
-#define rex3chip	newport_regs
 #define configregs	newport_cregs
 #define float_long	npfreg_t
 
-typedef struct rex3regs Rex3regs;
-typedef struct rex3chip Rex3chip;
-typedef struct configregs Configregs;
+typedef struct newport_rexregs Rex3regs;
+typedef struct newport_cregs Configregs;
 typedef union np_dcb DCB_reg;
 
 
