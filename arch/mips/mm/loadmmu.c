@@ -38,7 +38,7 @@ void (*_dma_cache_wback_inv)(unsigned long start, unsigned long size);
 void (*_dma_cache_wback)(unsigned long start, unsigned long size);
 void (*_dma_cache_inv)(unsigned long start, unsigned long size);
 
-extern void ld_mmu_r2300(void);
+extern void ld_mmu_r23000(void);
 extern void ld_mmu_r4xx0(void);
 extern void ld_mmu_r5432(void);
 extern void ld_mmu_r6000(void);
@@ -75,18 +75,14 @@ void __init loadmmu(void)
 	case CPU_R2000:
 	case CPU_R3000:
 	case CPU_R3000A:
+	case CPU_TX3912:
+	case CPU_TX3922:
+	case CPU_TX3927:
 	case CPU_R3081E:
-		printk("Loading R[23]00 MMU routines.\n");
-		ld_mmu_r2300();
+		printk("Loading R[23]000 MMU routines.\n");
+		ld_mmu_r23000();
 		break;
 #endif
-#ifdef CONFIG_CPU_R3912
-	case CPU_R3912:
-		printk("Loading R[23]00 MMU routines.\n");
-		ld_mmu_r2300();
-		break;
-#endif
-		
 #ifdef CONFIG_CPU_R10000
 	case CPU_R10000:
 		printk("Loading R10000 MMU routines.\n");

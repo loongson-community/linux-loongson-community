@@ -13,7 +13,6 @@ export-objs			+= umap.o
 obj-y				+= extable.o init.o fault.o loadmmu.o
 
 obj-$(CONFIG_CPU_R3000)		+= r2300.o
-obj-$(CONFIG_CPU_R3912)		+= r2300.o
 obj-$(CONFIG_CPU_R4300)		+= r4xx0.o
 obj-$(CONFIG_CPU_R4X00)		+= r4xx0.o
 obj-$(CONFIG_CPU_R5000)		+= r4xx0.o

@@ -79,7 +79,7 @@ ifdef CONFIG_CPU_RM7000
 GCCFLAGS	+= -mcpu=r5000 -mips2 -Wa,--trap
 endif
 ifdef CONFIG_CPU_SB1
-GCCFLAGS        += -mcpu=sb1 -mips2 -Wa,--trap
+GCCFLAGS	+= -mcpu=sb1 -mips2 -Wa,--trap
 endif
 
 ifdef CONFIG_MIPS_FPU_EMULATOR
@@ -212,9 +212,8 @@ endif
 # Philips Nino
 #
 ifdef CONFIG_NINO
-CORE_FILES    += arch/mips/philips/nino/nino.o \
-		 arch/mips/philips/drivers/drivers.o
-SUBDIRS       += arch/mips/philips/nino arch/mips/philips/drivers
+CORE_FILES    += arch/mips/philips/nino/nino.o
+SUBDIRS       += arch/mips/philips/nino
 LOADADDR      += 0x80000000
 endif
 
@@ -288,6 +287,7 @@ archclean:
 	rm -f arch/$(ARCH)/ld.script
 	$(MAKE) -C arch/$(ARCH)/tools clean
 	$(MAKE) -C arch/mips/baget clean
+	$(MAKE) -C arch/mips/philips/nino clean
 
 archmrproper:
 	@$(MAKEBOOT) mrproper

@@ -218,11 +218,27 @@ static inline void cpu_probe(void)
 		        mips_cpu.tlbsize = 48;
 			break;
 */
-		case PRID_IMP_R3912:
-			mips_cpu.cputype = CPU_R3912;
+		case PRID_IMP_TX39:
 			mips_cpu.isa_level = MIPS_CPU_ISA_I;
 			mips_cpu.options = MIPS_CPU_TLB;
-			mips_cpu.tlbsize = 32;
+
+			switch (mips_cpu.processor_id & 0xff) {
+			case PRID_REV_TX3912:
+				mips_cpu.cputype = CPU_TX3912;
+				mips_cpu.tlbsize = 32;
+				break;
+			case PRID_REV_TX3922:
+				mips_cpu.cputype = CPU_TX3922;
+				mips_cpu.tlbsize = 64;
+				break;
+			case PRID_REV_TX3927:
+				mips_cpu.cputype = CPU_TX3927;
+				mips_cpu.tlbsize = 64;
+				break;
+			default:
+				mips_cpu.cputype = CPU_UNKNOWN;
+				break;
+			}
 			break;
 		case PRID_IMP_R4700:
 			mips_cpu.cputype = CPU_R4700;

@@ -918,7 +918,9 @@ void __init trap_init(void)
 	case CPU_R3052:
 	case CPU_R3081:
 	case CPU_R3081E:
-	case CPU_R3912:
+	case CPU_TX3912:
+	case CPU_TX3922:
+	case CPU_TX3927:
 	        save_fp_context = _save_fp_context;
 		restore_fp_context = _restore_fp_context;
 		memcpy((void *)KSEG0, &except_vec0_r2300, 0x80);

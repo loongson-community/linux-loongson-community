@@ -50,7 +50,6 @@ CONFIG_MODULES=y
 # CPU selection
 #
 # CONFIG_CPU_R3000 is not set
-# CONFIG_CPU_R3912 is not set
 # CONFIG_CPU_R6000 is not set
 # CONFIG_CPU_R4300 is not set
 # CONFIG_CPU_R4X00 is not set

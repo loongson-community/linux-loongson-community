@@ -160,6 +160,9 @@ fi
 if [ "$CONFIG_MIPS_IVR" = "y" ]; then
    define_bool CONFIG_PCI y
 fi
+if [ "$CONFIG_NINO" = "y" ]; then
+   define_bool CONFIG_PC_KEYB y
+fi
 
 if [ "$CONFIG_ISA" != "y" ]; then
    define_bool CONFIG_ISA n
@@ -191,7 +194,6 @@ comment 'CPU selection'
 
 choice 'CPU type' \
 	"R3000 CONFIG_CPU_R3000	\
-	 R3912 CONFIG_CPU_R3912	\
 	 R6000 CONFIG_CPU_R6000	\
 	 R4300 CONFIG_CPU_R4300	\
 	 R4x00 CONFIG_CPU_R4X00	\
@@ -218,13 +220,8 @@ else
 	 define_bool CONFIG_CPU_HAS_WB n
       fi
    else
-      if [ "$CONFIG_CPU_R3912" = "y" ]; then
-	 define_bool CONFIG_CPU_HAS_LLSC n
-	 define_bool CONFIG_CPU_HAS_WB n
-      else
 	 define_bool CONFIG_CPU_HAS_LLSC y
 	 define_bool CONFIG_CPU_HAS_WB n
-      fi
    fi
 fi
 endmenu

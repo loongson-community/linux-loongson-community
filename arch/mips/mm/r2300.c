@@ -4,7 +4,8 @@
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
  * with a lot of changes to make this thing work for R3000s
- * Copyright (C) 1998, 2000 Harald Koerfgen
+ * Tx39XX R4k style caches added. HK
+ * Copyright (C) 1998, 1999, 2000 Harald Koerfgen
  * Copyright (C) 1998 Gleb Raiko & Vladimir Roganov
  */
 #include <linux/init.h>
@@ -19,15 +20,26 @@
 #include <asm/isadep.h>
 #include <asm/io.h>
 #include <asm/wbflush.h>
+#include <asm/bootinfo.h>
+#include <asm/cpu.h>
 
-/* Primary cache parameters. */
-static unsigned long icache_size, dcache_size; /* Size in bytes */
-/* the linesizes are usually fixed on R3000s */
+/*
+ * According to the paper written by D. Miller about Linux cache & TLB
+ * flush implementation, DMA/Driver coherence should be done at the 
+ * driver layer.  Thus, normally, we don't need flush dcache for R3000.
+ * Define this if driver does not handle cache consistency during DMA ops.
+ */
+
+/* For R3000 cores with R4000 style caches */
+static unsigned long icache_size, dcache_size;		/* Size in bytes */
+static unsigned long icache_lsize, dcache_lsize;	/* Size in bytes */
+static unsigned long scache_size = 0;
+
+#include <asm/cacheops.h>
+#include <asm/r4kcache.h>
 
 #undef DEBUG_TLB
 #undef DEBUG_CACHE
-
-#define NTLB_ENTRIES       64  /* Fixed on all R23000 variants... */
 
 /* page functions */
 void r3k_clear_page(void * page)
@@ -113,7 +125,7 @@ unsigned long __init r3k_cache_size(unsigned long ca_flags)
 
 	p = (volatile unsigned long *) KSEG0;
 
-	flags = read_32bit_cp0_register(CP0_STATUS);
+	save_and_cli(flags);
 
 	/* isolate cache space */
 	write_32bit_cp0_register(CP0_STATUS, (ca_flags|flags)&~ST0_IEC);
@@ -135,24 +147,18 @@ unsigned long __init r3k_cache_size(unsigned long ca_flags)
 		if (size > 0x40000)
 			size = 0;
 	}
-
-	write_32bit_cp0_register(CP0_STATUS, flags);
+	restore_flags(flags);
 
 	return size * sizeof(*p);
 }
 
-static void __init probe_dcache(void)
+static void __init r3k_probe_cache(void)
 {
 	dcache_size = r3k_cache_size(ST0_ISC);
-	printk("Primary data cache %lukb, linesize 4 bytes\n",
-		dcache_size >> 10);
-}
+	dcache_lsize = 4;
 
-static void __init probe_icache(void)
-{
 	icache_size = r3k_cache_size(ST0_ISC|ST0_SWC);
-	printk("Primary instruction cache %lukb, linesize 4 bytes\n",
-		icache_size >> 10);
+	icache_lsize = 4;
 }
 
 static void r3k_flush_icache_range(unsigned long start, unsigned long end)
@@ -164,7 +170,7 @@ static void r3k_flush_icache_range(unsigned long start, unsigned long end)
 	if (size > icache_size)
 		size = icache_size;
 
-	flags = read_32bit_cp0_register(CP0_STATUS);
+	save_and_cli(flags);
 
 	/* isolate cache space */
 	write_32bit_cp0_register(CP0_STATUS, (ST0_ISC|ST0_SWC|flags)&~ST0_IEC);
@@ -206,7 +212,7 @@ static void r3k_flush_icache_range(unsigned long start, unsigned long end)
 		p += 0x080;
 	}
 
-	write_32bit_cp0_register(CP0_STATUS, flags);
+	restore_flags(flags);
 }
 
 static void r3k_flush_dcache_range(unsigned long start, unsigned long end)
@@ -218,7 +224,7 @@ static void r3k_flush_dcache_range(unsigned long start, unsigned long end)
 	if (size > dcache_size)
 		size = dcache_size;
 
-	flags = read_32bit_cp0_register(CP0_STATUS);
+	save_and_cli(flags);
 
 	/* isolate cache space */
 	write_32bit_cp0_register(CP0_STATUS, (ST0_ISC|flags)&~ST0_IEC);
@@ -260,7 +266,7 @@ static void r3k_flush_dcache_range(unsigned long start, unsigned long end)
 		p += 0x080;
 	}
 
-	write_32bit_cp0_register(CP0_STATUS, flags);
+	restore_flags(flags);
 }
 
 static inline unsigned long get_phys_page (unsigned long addr,
@@ -275,10 +281,10 @@ static inline unsigned long get_phys_page (unsigned long addr,
 	pmd = pmd_offset(pgd, addr);
 	pte = pte_offset(pmd, addr);
 
-	if((physpage = pte_val(*pte)) & _PAGE_VALID)
+	if ((physpage = pte_val(*pte)) & _PAGE_VALID)
 		return KSEG0ADDR(physpage & PAGE_MASK);
-	else
-		return 0;
+
+	return 0;
 }
 
 static inline void r3k_flush_cache_all(void)
@@ -297,9 +303,8 @@ static void r3k_flush_cache_mm(struct mm_struct *mm)
 	}
 }
 
-static void r3k_flush_cache_range(struct mm_struct *mm,
-				    unsigned long start,
-				    unsigned long end)
+static void r3k_flush_cache_range(struct mm_struct *mm, unsigned long start,
+				  unsigned long end)
 {
 	struct vm_area_struct *vma;
 
@@ -356,8 +361,7 @@ static void r3k_flush_page_to_ram(struct page * page)
 	 */
 }
 
-static void r3k_flush_icache_page(struct vm_area_struct *vma,
-				  struct page *page)
+static void r3k_flush_icache_page(struct vm_area_struct *vma, struct page *page)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	unsigned long physpage;
@@ -385,7 +389,7 @@ static void r3k_flush_cache_sigtramp(unsigned long addr)
 	printk("csigtramp[%08lx]", addr);
 #endif
 
-	flags = read_32bit_cp0_register(CP0_STATUS);
+	save_and_cli(flags);
 
 	write_32bit_cp0_register(CP0_STATUS, (ST0_ISC|ST0_SWC|flags)&~ST0_IEC);
 
@@ -394,7 +398,7 @@ static void r3k_flush_cache_sigtramp(unsigned long addr)
 		"sb\t$0,0x008(%0)\n\t"
 		: : "r" (addr) );
 
-	write_32bit_cp0_register(CP0_STATUS, flags);
+	restore_flags(flags);
 }
 
 static void r3k_dma_cache_wback_inv(unsigned long start, unsigned long size)
@@ -417,7 +421,7 @@ void flush_tlb_all(void)
 	save_and_cli(flags);
 	old_ctx = (get_entryhi() & 0xfc0);
 	write_32bit_cp0_register(CP0_ENTRYLO0, 0);
-	for(entry = 0; entry < NTLB_ENTRIES; entry++) {
+	for (entry = 8; entry < mips_cpu.tlbsize; entry++) {
 		write_32bit_cp0_register(CP0_INDEX, entry << 8);
 		write_32bit_cp0_register(CP0_ENTRYHI, ((entry | 0x80000) << 12));
 		__asm__ __volatile__("tlbwi");
@@ -432,7 +436,7 @@ void flush_tlb_mm(struct mm_struct *mm)
 		unsigned long flags;
 
 #ifdef DEBUG_TLB
-		printk("[tlbmm<%d>]", mm->context);
+		printk("[tlbmm<%lu>]", (unsigned long) mm->context);
 #endif
 		save_and_cli(flags);
 		get_new_mmu_context(mm, asid_cache);
@@ -443,19 +447,19 @@ void flush_tlb_mm(struct mm_struct *mm)
 }
 
 void flush_tlb_range(struct mm_struct *mm, unsigned long start,
-				  unsigned long end)
+                     unsigned long end)
 {
 	if (mm->context != 0) {
 		unsigned long flags;
 		int size;
 
 #ifdef DEBUG_TLB
-		printk("[tlbrange<%02x,%08lx,%08lx>]", (mm->context & 0xfc0),
-		       start, end);
+		printk("[tlbrange<%lu,0x%08lx,0x%08lx>]",
+			(mm->context & 0xfc0), start, end);
 #endif
 		save_and_cli(flags);
 		size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
-		if(size <= NTLB_ENTRIES) {
+		if(size <= mips_cpu.tlbsize) {
 			int oldpid = (get_entryhi() & 0xfc0);
 			int newpid = (mm->context & 0xfc0);
 
@@ -492,7 +496,7 @@ void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 		int oldpid, newpid, idx;
 
 #ifdef DEBUG_TLB
-		printk("[tlbpage<%d,%08lx>]", vma->vm_mm->context, page);
+		printk("[tlbpage<%lu,0x%08lx>]", vma->vm_mm->context, page);
 #endif
 		newpid = (vma->vm_mm->context & 0xfc0);
 		page &= PAGE_MASK;
@@ -545,8 +549,8 @@ void pgd_init(unsigned long page)
 		 "1" (PAGE_SIZE/(sizeof(pmd_t)*8)));
 }
 
-void update_mmu_cache(struct vm_area_struct * vma,
-				   unsigned long address, pte_t pte)
+void update_mmu_cache(struct vm_area_struct * vma, unsigned long address,
+                      pte_t pte)
 {
 	unsigned long flags;
 	pgd_t *pgdp;
@@ -564,8 +568,8 @@ void update_mmu_cache(struct vm_area_struct * vma,
 
 #ifdef DEBUG_TLB
 	if((pid != (vma->vm_mm->context & 0xfc0)) || (vma->vm_mm->context == 0)) {
-		printk("update_mmu_cache: Wheee, bogus tlbpid mmpid=%d tlbpid=%d\n",
-		       (int) (vma->vm_mm->context & 0xfc0), pid);
+		printk("update_mmu_cache: Wheee, bogus tlbpid mmpid=%lu tlbpid=%d\n",
+		       (vma->vm_mm->context & 0xfc0), pid);
 	}
 #endif
 
@@ -590,19 +594,6 @@ void update_mmu_cache(struct vm_area_struct * vma,
 		printk("[HIT]");
 #endif
 	}
-#if 0
-	if(!strcmp(current->comm, "args")) {
-		printk("<");
-		for(idx = 0; idx < NTLB_ENTRIES; idx++) {
-			set_index(idx);
-			tlb_read();
-			address = get_entryhi();
-			if((address & 0xfc0) != 0)
-				printk("[%08lx]", address);
-		}
-		printk(">\n");
-	}
-#endif
 	set_entryhi(pid);
 	restore_flags(flags);
 }
@@ -640,36 +631,134 @@ void show_regs(struct pt_regs * regs)
 	       (unsigned int) regs->cp0_cause);
 }
 
+/* Todo: handle r4k-style TX39 TLB */
 void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
-				  unsigned long entryhi, unsigned long pagemask)
+                     unsigned long entryhi, unsigned long pagemask)
 {
-printk("r3k_add_wired_entry");
-        /*
-	 * FIXME, to be done
-	 */
+	unsigned long flags;
+	unsigned long old_ctx;
+	static unsigned long wired = 0;
+	
+	if (wired < 8) {
+		save_and_cli(flags);
+		old_ctx = get_entryhi() & 0xfc0;
+		set_entrylo0(entrylo0);
+		set_entryhi(entryhi);
+		set_index(wired);
+		wired++;
+		tlb_write_indexed();
+		set_entryhi(old_ctx);
+	        flush_tlb_all();    
+		restore_flags(flags);
+	}
 }
 
-void __init ld_mmu_r2300(void)
+static void tx39_flush_icache_all(void )
 {
+
+	unsigned long start = KSEG0;
+	unsigned long end = (start + icache_size);
+	unsigned long dummy = 0;
+
+	/* disable icache and stop streaming */
+	__asm__ __volatile__(
+	".set\tnoreorder\n\t"
+	"mfc0\t%0,$3\n\t"
+	"xori\t%0,32\n\t"
+	"mtc0\t%0,$3\n\t"
+	"j\t1f\n\t"
+	"nop\n\t"
+	"1:\t.set\treorder\n\t"
+	: : "r"(dummy));
+
+	/* invalidate icache */
+	while (start < end) {
+		cache16_unroll32(start,Index_Invalidate_I);
+		start += 0x200;
+	}
+
+	/* enable icache */
+	__asm__ __volatile__(
+	".set\tnoreorder\n\t"
+	"mfc0\t%0,$3\n\t"
+	"xori\t%0,32\n\t"
+	"mtc0\t%0,$3\n\t"
+	".set\treorder\n\t"
+	: : "r"(dummy));
+}
+
+static __init void tx39_probe_cache(void)
+{
+	unsigned long	config;
+
+	config = read_32bit_cp0_register(CP0_CONF);
+
+	icache_size = 1 << (10 + ((config >> 19) & 3));
+	icache_lsize = 16;
+
+	dcache_size = 1 << (10 + ((config >> 16) & 3));
+	dcache_lsize = 4;
+}
+
+void __init ld_mmu_r23000(void)
+{
+	unsigned long config;
+
 	printk("CPU revision is: %08x\n", read_32bit_cp0_register(CP0_PRID));
 
 	_clear_page = r3k_clear_page;
 	_copy_page = r3k_copy_page;
 
-	probe_icache();
-	probe_dcache();
+	switch (mips_cpu.cputype) {
+		case CPU_R2000:
+		case CPU_R3000:
+		case CPU_R3000A:
+		case CPU_R3081:
 
-	_flush_cache_all = r3k_flush_cache_all;
-	___flush_cache_all = r3k_flush_cache_all;
-	_flush_cache_mm = r3k_flush_cache_mm;
-	_flush_cache_range = r3k_flush_cache_range;
-	_flush_cache_page = r3k_flush_cache_page;
-	_flush_cache_sigtramp = r3k_flush_cache_sigtramp;
-	_flush_page_to_ram = r3k_flush_page_to_ram;
-	_flush_icache_page = r3k_flush_icache_page;
-	_flush_icache_range = r3k_flush_icache_range;
+			r3k_probe_cache();
 
-        _dma_cache_wback_inv = r3k_dma_cache_wback_inv;
+			_flush_cache_all = r3k_flush_cache_all;
+			___flush_cache_all = r3k_flush_cache_all;
+			_flush_cache_mm = r3k_flush_cache_mm;
+			_flush_cache_range = r3k_flush_cache_range;
+			_flush_cache_page = r3k_flush_cache_page;
+			_flush_cache_sigtramp = r3k_flush_cache_sigtramp;
+			_flush_page_to_ram = r3k_flush_page_to_ram;
+			_flush_icache_page = r3k_flush_icache_page;
+			_flush_icache_range = r3k_flush_icache_range;
+
+			_dma_cache_wback_inv = r3k_dma_cache_wback_inv;
+			break;
+
+		case CPU_TX3912:
+		case CPU_TX3922:
+		case CPU_TX3927:
+
+			config=read_32bit_cp0_register(CP0_CONF);
+			config &= (~TX39_CONF_WBON);
+			write_32bit_cp0_register(CP0_CONF, config);
+
+			tx39_probe_cache();
+
+			_flush_cache_all = tx39_flush_icache_all;
+			___flush_cache_all = tx39_flush_icache_all;
+			_flush_cache_mm = tx39_flush_icache_all;
+			_flush_cache_range = tx39_flush_icache_all;
+			_flush_cache_page = tx39_flush_icache_all;
+			_flush_cache_sigtramp = tx39_flush_icache_all;
+			_flush_page_to_ram = r3k_flush_page_to_ram;
+			_flush_icache_page = tx39_flush_icache_all;
+			_flush_icache_range = tx39_flush_icache_all;
+
+			_dma_cache_wback_inv = r3k_dma_cache_wback_inv;
+
+			break;
+	}
+
+	printk("Primary instruction cache %dkb, linesize %d bytes\n",
+		(int) (icache_size >> 10), (int) icache_lsize);
+	printk("Primary data cache %dkb, linesize %d bytes\n",
+		(int) (dcache_size >> 10), (int) dcache_lsize);
 
 	flush_tlb_all();
 }
