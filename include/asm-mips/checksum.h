@@ -80,7 +80,7 @@ static inline unsigned short int csum_fold(unsigned int sum)
 	"xori\t%0,0xffff\n\t"
 	".set\tat"
 	: "=r" (sum)
-	: "r" (sum));
+	: "0" (sum));
 
 	return sum;
 }
