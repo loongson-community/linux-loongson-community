@@ -762,6 +762,7 @@ static int sun_partition(struct gendisk *hd, kdev_t dev, unsigned long first_sec
 #endif /* CONFIG_SUN_PARTITION */
 
 #ifdef CONFIG_SGI_PARTITION
+#include <asm/byteorder.h>
 
 static int sgi_partition(struct gendisk *hd, kdev_t dev, unsigned long first_sector)
 {
