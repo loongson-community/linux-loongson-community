@@ -23,8 +23,7 @@ offset.s: offset.c $(TOPDIR)/include/linux/autoconf.h
 clean:
 	rm -f offset.[hs] $(TARGET).new
 	
-mrproper:	
-	rm -f offset.[hs] $(TARGET).new
+mrproper: clean
 	rm -f $(TARGET)
 
 include $(TOPDIR)/Rules.make
