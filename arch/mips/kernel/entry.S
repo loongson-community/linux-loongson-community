@@ -9,10 +9,12 @@
  * Copyright (C) 2001 MIPS Technologies, Inc.
  */
 #include <linux/config.h>
+#include <linux/init.h>
 #include <linux/sys.h>
 
 #include <asm/addrspace.h>
 #include <asm/asm.h>
+#include <asm/cacheops.h>
 #include <asm/current.h>
 #include <asm/errno.h>
 #include <asm/mipsregs.h>
@@ -102,6 +104,82 @@ LEAF(spurious_interrupt)
 		sw      t0,%lo(spurious_count)(t1)
 		j	ret_from_irq
 		END(spurious_interrupt)
+
+		__INIT
+
+		/*
+		 * General exception vector.  Used for all CPUs except R4000
+		 * and R4400 SC and MC versions.
+		 */
+		.set	reorder
+
+		NESTED(except_vec1_generic, 0, sp)
+		PANIC("Exception vector 1 called")
+		END(except_vec1_generic)
+
+		NESTED(except_vec3_generic, 0, sp)
+		.set	mips0
+		mfc0	k1, CP0_CAUSE
+		la	k0, exception_handlers
+		andi	k1, k1, 0x7c
+		addu	k0, k0, k1
+		lw	k0, (k0)
+		jr	k0
+		END(except_vec3_generic)
+		.set	at
+
+		/* General exception vector R4000 version. */
+		NESTED(except_vec3_r4000, 0, sp)
+		.set	noat
+		mfc0	k1, CP0_CAUSE
+		andi	k1, k1, 0x7c
+		li	k0, 31<<2
+		beq	k1, k0, handle_vced
+		 li	k0, 14<<2
+		beq	k1, k0, handle_vcei
+		 la	k0, exception_handlers
+		addu	k0, k0, k1
+		lw	k0, (k0)
+		nop
+		jr	k0
+		 nop
+
+		/*
+		 * Big shit, we now may have two dirty primary cache lines for
+		 * the same physical address.  We can savely invalidate the
+		 * line pointed to by c0_badvaddr because after return from
+		 * this exception handler the load / store will be re-executed.
+		 */
+		.set    mips3
+handle_vced:
+		mfc0	k0, CP0_BADVADDR
+		li	k1, -4
+		and	k0, k1
+		mtc0	zero, CP0_TAGLO
+		cache	Index_Store_Tag_D,(k0)
+		cache	Hit_Writeback_Inv_SD,(k0)
+#ifdef CONFIG_PROC_FS
+		lui	k0, %hi(vced_count)
+		lw	k1, %lo(vced_count)(k0)
+		addiu	k1, 1
+		sw	k1, %lo(vced_count)(k0)
+#endif
+		eret
+
+handle_vcei:
+		mfc0	k0, CP0_BADVADDR
+		cache	Hit_Writeback_Inv_SD, (k0)	# also cleans pi
+#ifdef CONFIG_PROC_FS
+		lui	k0, %hi(vcei_count)
+		lw	k1, %lo(vcei_count)(k0)
+		addiu	k1, 1
+		sw	k1, %lo(vcei_count)(k0)
+#endif
+		eret
+
+		END(except_vec3_r4000)
+
+		__FINIT
 
 /*
  * Build a default exception handler for the exceptions that don't need

@@ -23,6 +23,8 @@
 #include <asm/bootinfo.h>
 #include <asm/cpu.h>
 
+extern char except_vec0_r2300;
+
 /*
  * According to the paper written by D. Miller about Linux cache & TLB
  * flush implementation, DMA/Driver coherence should be done at the 
@@ -38,7 +40,6 @@ static unsigned long scache_size;
 #include <asm/cacheops.h>
 #include <asm/r4kcache.h>
 
-#undef DEBUG_TLB
 #undef DEBUG_CACHE
 
 unsigned long __init r3k_cache_size(unsigned long ca_flags)
@@ -369,116 +370,6 @@ static void r3k_dma_cache_wback_inv(unsigned long start, unsigned long size)
 	r3k_flush_dcache_range(start, start + size);
 }
 
-/* TLB operations. */
-void local_flush_tlb_all(void)
-{
-	unsigned long flags;
-	unsigned long old_ctx;
-	int entry;
-
-#ifdef DEBUG_TLB
-	printk("[tlball]");
-#endif
-
-	save_and_cli(flags);
-	old_ctx = (get_entryhi() & 0xfc0);
-	write_32bit_cp0_register(CP0_ENTRYLO0, 0);
-	for (entry = 8; entry < mips_cpu.tlbsize; entry++) {
-		write_32bit_cp0_register(CP0_INDEX, entry << 8);
-		write_32bit_cp0_register(CP0_ENTRYHI, ((entry | 0x80000) << 12));
-		__asm__ __volatile__("tlbwi");
-	}
-	set_entryhi(old_ctx);
-	restore_flags(flags);
-}
-
-void local_flush_tlb_mm(struct mm_struct *mm)
-{
-	if (mm->context != 0) {
-		unsigned long flags;
-
-#ifdef DEBUG_TLB
-		printk("[tlbmm<%lu>]", (unsigned long) mm->context);
-#endif
-		save_and_cli(flags);
-		get_new_cpu_mmu_context(mm, smp_processor_id());
-		if (mm == current->active_mm)
-			set_entryhi(mm->context & 0xfc0);
-		restore_flags(flags);
-	}
-}
-
-void local_flush_tlb_range(struct mm_struct *mm, unsigned long start,
-                     unsigned long end)
-{
-	if (mm->context != 0) {
-		unsigned long flags;
-		int size;
-
-#ifdef DEBUG_TLB
-		printk("[tlbrange<%lu,0x%08lx,0x%08lx>]",
-			(mm->context & 0xfc0), start, end);
-#endif
-		save_and_cli(flags);
-		size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
-		if(size <= mips_cpu.tlbsize) {
-			int oldpid = (get_entryhi() & 0xfc0);
-			int newpid = (mm->context & 0xfc0);
-
-			start &= PAGE_MASK;
-			end += (PAGE_SIZE - 1);
-			end &= PAGE_MASK;
-			while(start < end) {
-				int idx;
-
-				set_entryhi(start | newpid);
-				start += PAGE_SIZE;
-				tlb_probe();
-				idx = get_index();
-				set_entrylo0(0);
-				set_entryhi(KSEG0);
-				if(idx < 0)
-					continue;
-				tlb_write_indexed();
-			}
-			set_entryhi(oldpid);
-		} else {
-			get_new_cpu_mmu_context(mm, smp_processor_id());
-			if (mm == current->active_mm)
-				set_entryhi(mm->context & 0xfc0);
-		}
-		restore_flags(flags);
-	}
-}
-
-void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
-{
-	if(vma->vm_mm->context != 0) {
-		unsigned long flags;
-		int oldpid, newpid, idx;
-
-#ifdef DEBUG_TLB
-		printk("[tlbpage<%lu,0x%08lx>]", vma->vm_mm->context, page);
-#endif
-		newpid = (vma->vm_mm->context & 0xfc0);
-		page &= PAGE_MASK;
-		save_and_cli(flags);
-		oldpid = (get_entryhi() & 0xfc0);
-		set_entryhi(page | newpid);
-		tlb_probe();
-		idx = get_index();
-		set_entrylo0(0);
-		set_entryhi(KSEG0);
-		if(idx < 0)
-			goto finish;
-		tlb_write_indexed();
-
-finish:
-		set_entryhi(oldpid);
-		restore_flags(flags);
-	}
-}
-
 /*
  * Initialize new page directory with pointers to invalid ptes
  */
@@ -509,55 +400,6 @@ void pgd_init(unsigned long page)
 		:"r" ((unsigned long) invalid_pte_table),
 		 "0" (page),
 		 "1" (PAGE_SIZE/(sizeof(pmd_t)*8)));
-}
-
-void update_mmu_cache(struct vm_area_struct * vma, unsigned long address,
-                      pte_t pte)
-{
-	unsigned long flags;
-	pgd_t *pgdp;
-	pmd_t *pmdp;
-	pte_t *ptep;
-	int idx, pid;
-
-	/*
-	 * Handle debugger faulting in for debugee.
-	 */
-	if (current->active_mm != vma->vm_mm)
-		return;
-
-	pid = get_entryhi() & 0xfc0;
-
-#ifdef DEBUG_TLB
-	if((pid != (vma->vm_mm->context & 0xfc0)) || (vma->vm_mm->context == 0)) {
-		printk("update_mmu_cache: Wheee, bogus tlbpid mmpid=%lu tlbpid=%d\n",
-		       (vma->vm_mm->context & 0xfc0), pid);
-	}
-#endif
-
-	save_and_cli(flags);
-	address &= PAGE_MASK;
-	set_entryhi(address | (pid));
-	pgdp = pgd_offset(vma->vm_mm, address);
-	tlb_probe();
-	pmdp = pmd_offset(pgdp, address);
-	idx = get_index();
-	ptep = pte_offset(pmdp, address);
-	set_entrylo0(pte_val(*ptep));
-	set_entryhi(address | (pid));
-	if(idx < 0) {
-		tlb_write_random();
-#if 0
-		printk("[MISS]");
-#endif
-	} else {
-		tlb_write_indexed();
-#if 0
-		printk("[HIT]");
-#endif
-	}
-	set_entryhi(pid);
-	restore_flags(flags);
 }
 
 void show_regs(struct pt_regs * regs)
@@ -591,28 +433,6 @@ void show_regs(struct pt_regs * regs)
 	printk("epc  : %08lx\nStatus: %08x\nCause : %08x\n",
 	       (unsigned long) regs->cp0_epc, (unsigned int) regs->cp0_status,
 	       (unsigned int) regs->cp0_cause);
-}
-
-/* Todo: handle r4k-style TX39 TLB */
-void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
-                     unsigned long entryhi, unsigned long pagemask)
-{
-	unsigned long flags;
-	unsigned long old_ctx;
-	static unsigned long wired = 0;
-	
-	if (wired < 8) {
-		save_and_cli(flags);
-		old_ctx = get_entryhi() & 0xfc0;
-		set_entrylo0(entrylo0);
-		set_entryhi(entryhi);
-		set_index(wired);
-		wired++;
-		tlb_write_indexed();
-		set_entryhi(old_ctx);
-	        local_flush_tlb_all();    
-		restore_flags(flags);
-	}
 }
 
 static void tx39_flush_icache_all(void )
@@ -724,4 +544,6 @@ void __init ld_mmu_r23000(void)
 		(int) (dcache_size >> 10), (int) dcache_lsize);
 
 	local_flush_tlb_all();
+	memcpy((void *)KSEG0, &except_vec0_r2300, 0x80);
+	flush_icache_range(KSEG0, KSEG0 + 0x80);
 }

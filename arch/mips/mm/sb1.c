@@ -26,6 +26,8 @@
 
 #include <asm/mmu_context.h>
 
+extern void r4k_tlb_init(void);
+
 /* These are probed at ld_mmu time */
 static unsigned int icache_size;
 static unsigned int dcache_size;
@@ -416,7 +418,7 @@ void ld_mmu_sb1(void)
 	 * at this level instead of as common code in loadmmu()?
 	 */
 	flush_cache_all();
-	local_flush_tlb_all();
+	r4k_tlb_init();
 
 	/* Turn on caching in kseg0 */
 	set_cp0_config(CONF_CM_CMASK, 0);

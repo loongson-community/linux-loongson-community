@@ -794,8 +794,6 @@ extern asmlinkage int fpu_emulator_restore_context(struct sigcontext *sc);
 
 void __init trap_init(void)
 {
-	extern char except_vec0_nevada, except_vec0_r4000;
-	extern char except_vec0_r4600, except_vec0_r2300;
 	extern char except_vec1_generic, except_vec2_generic;
 	extern char except_vec3_generic, except_vec3_r4000;
 	extern char except_vec4;
@@ -874,13 +872,6 @@ void __init trap_init(void)
 	 */
 	if ((mips_cpu.options & MIPS_CPU_4KEX)
 	    && (mips_cpu.options & MIPS_CPU_4KTLB)) {
-		if (mips_cpu.cputype == CPU_NEVADA) {
-			memcpy((void *)KSEG0, &except_vec0_nevada, 0x80);
-		} else if (mips_cpu.cputype == CPU_R4600)
-			memcpy((void *)KSEG0, &except_vec0_r4600, 0x80);
-		else
-			memcpy((void *)KSEG0, &except_vec0_r4000, 0x80);
-
 		/* Cache error vector already set above.  */
 
 		if (mips_cpu.options & MIPS_CPU_VCE) {
@@ -904,7 +895,6 @@ void __init trap_init(void)
 		 * XXX - This should be folded in to the "cleaner" handling,
 		 * above
 		 */
-		memcpy((void *)KSEG0, &except_vec0_r4000, 0x80);
 		memcpy((void *)(KSEG0 + 0x180), &except_vec3_r4000, 0x80);
 		save_fp_context = _save_fp_context;
 		restore_fp_context = _restore_fp_context;
@@ -941,7 +931,6 @@ void __init trap_init(void)
 	case CPU_TX3927:
 	        save_fp_context = _save_fp_context;
 		restore_fp_context = _restore_fp_context;
-		memcpy((void *)KSEG0, &except_vec0_r2300, 0x80);
 		memcpy((void *)(KSEG0 + 0x80), &except_vec3_generic, 0x80);
 		break;
 

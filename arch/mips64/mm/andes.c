@@ -152,7 +152,7 @@ void local_flush_tlb_all(void)
 	entry = get_wired();
 
 	/* Blast 'em all away. */
-	while(entry < NTLB_ENTRIES) {
+	while (entry < NTLB_ENTRIES) {
 		set_index(entry);
 		tlb_write_indexed();
 		entry++;
@@ -191,7 +191,7 @@ void local_flush_tlb_range(struct mm_struct *mm, unsigned long start,
 		__save_and_cli(flags);
 		size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
 		size = (size + 1) >> 1;
-		if(size <= NTLB_ENTRIES_HALF) {
+		if (size <= NTLB_ENTRIES_HALF) {
 			int oldpid = (get_entryhi() & 0xff);
 			int newpid = (CPU_CONTEXT(smp_processor_id(), mm) & 0xff);
 
@@ -242,7 +242,7 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 		set_entrylo0(0);
 		set_entrylo1(0);
 		set_entryhi(KSEG0);
-		if(idx < 0)
+		if (idx < 0)
 			goto finish;
 		tlb_write_indexed();
 
@@ -270,16 +270,16 @@ static void andes_update_mmu_cache(struct vm_area_struct * vma,
 	if (current->active_mm != vma->vm_mm)
 		return;
 
-	__save_and_cli(flags);
 	pid = get_entryhi() & 0xff;
 
-	if((pid != (CPU_CONTEXT(smp_processor_id(), vma->vm_mm) & 0xff)) ||
+	if ((pid != (CPU_CONTEXT(smp_processor_id(), vma->vm_mm) & 0xff)) ||
 	   (CPU_CONTEXT(smp_processor_id(), vma->vm_mm) == 0)) {
 		printk("update_mmu_cache: Wheee, bogus tlbpid mmpid=%d "
 			"tlbpid=%d\n", (int) (CPU_CONTEXT(smp_processor_id(),
 			vma->vm_mm) & 0xff), pid);
 	}
 
+	__save_and_cli(flags);
 	address &= (PAGE_MASK << 1);
 	set_entryhi(address | (pid));
 	pgdp = pgd_offset(vma->vm_mm, address);
@@ -290,7 +290,7 @@ static void andes_update_mmu_cache(struct vm_area_struct * vma,
 	set_entrylo0(pte_val(*ptep++) >> 6);
 	set_entrylo1(pte_val(*ptep) >> 6);
 	set_entryhi(address | (pid));
-	if(idx < 0) {
+	if (idx < 0) {
 		tlb_write_random();
 	} else {
 		tlb_write_indexed();

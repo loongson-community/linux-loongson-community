@@ -13,6 +13,8 @@
 #include <asm/sgialib.h>
 #include <asm/mmu_context.h>
 
+extern void r4k_tlb_init(void);
+
 /* Cache operations. XXX Write these dave... */
 static inline void andes_flush_cache_all(void)
 {
@@ -59,36 +61,8 @@ static void andes_flush_cache_sigtramp(unsigned long page)
 	protected_flush_icache_line(addr & ~(ic_lsize - 1));
 }
 
-/* TLB operations. XXX Write these dave... */
-void local_flush_tlb_all(void)
-{
-	/* XXX */
-}
-
-void local_flush_tlb_mm(struct mm_struct *mm)
-{
-	/* XXX */
-}
-
-void local_flush_tlb_range(struct mm_struct *mm, unsigned long start,
-				  unsigned long end)
-{
-	/* XXX */
-}
-
-void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
-{
-	/* XXX */
-}
-
 void pgd_init(unsigned long page)
 {
-}
-
-void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
-				  unsigned long entryhi, unsigned long pagemask)
-{
-        /* XXX */
 }
 
 void __init ld_mmu_andes(void)
@@ -106,14 +80,6 @@ void __init ld_mmu_andes(void)
 	_flush_icache_page = andes_flush_icache_page;
 	_flush_icache_range = andes_flush_icache_range;
 
-	write_32bit_cp0_register(CP0_FRAMEMASK, 0);
-
 	flush_cache_all();
-	local_flush_tlb_all();
-
-	/*
-	 * The R10k might even work for Linux/MIPS - but we're paranoid
-	 * and refuse to run until this is tested on real silicon
-	 */
-	panic("CPU too expensive - making holiday in the ANDES!");
+	r4k_tlb_init();
 }

@@ -1,5 +1,5 @@
 /*
- * misc.S: Misc. exception handling code for R3000/R2000.
+ * TLB exception handling code for R2000/R3000.
  *
  * Copyright (C) 1994, 1995, 1996 by Ralf Baechle and Andreas Busse
  *
@@ -12,6 +12,7 @@
  * Copyright (c) 2001 Ralf Baechle
  * Copyright (c) 2001 MIPS Technologies, Inc.
  */
+#include <linux/init.h>
 #include <asm/asm.h>
 #include <asm/current.h>
 #include <asm/bootinfo.h>
@@ -25,11 +26,37 @@
 #include <asm/segment.h>
 #include <asm/stackframe.h>
 
+#define TLB_OPTIMIZE /* If you are paranoid, disable this. */
+
 	.text
 	.set	mips1
 	.set	noreorder
 
-#undef NOTLB_OPTIMIZE /* If you are paranoid, define this. */
+	__INIT
+
+	/* TLB refill, R[23]00 version */
+	LEAF(except_vec0_r2300)
+	.set	noat
+	.set	mips1
+	mfc0	k0, CP0_BADVADDR
+	lw	k1, pgd_current			# get pgd pointer
+	srl	k0, k0, 22
+	sll	k0, k0, 2
+	addu	k1, k1, k0
+	mfc0	k0, CP0_CONTEXT
+	lw	k1, (k1)
+	and	k0, k0, 0xffc
+	addu	k1, k1, k0
+	lw	k0, (k1)
+	nop
+	mtc0	k0, CP0_ENTRYLO0
+	mfc0	k1, CP0_EPC
+	tlbwr
+	jr	k1
+	rfe
+	END(except_vec0_r2300)
+
+	__FINIT
 
 	/* ABUSE of CPP macros 101. */
 
@@ -142,7 +169,7 @@
 NESTED(handle_tlbl, PT_SIZE, sp)
 	.set	noat
 
-#ifndef NOTLB_OPTIMIZE
+#ifdef TLB_OPTIMIZE
 	/* Test present bit in entry. */
 	LOAD_PTE(k0, k1)
         tlbp
@@ -160,7 +187,7 @@ END(handle_tlbl)
 NESTED(handle_tlbs, PT_SIZE, sp)
 	.set	noat
 
-#ifndef NOTLB_OPTIMIZE
+#ifdef TLB_OPTIMIZE
 	LOAD_PTE(k0, k1)
 	tlbp                            # find faulting entry
 	PTE_WRITABLE(k0, k1, nopage_tlbs)
@@ -177,7 +204,7 @@ END(handle_tlbs)
 	.align	5
 NESTED(handle_mod, PT_SIZE, sp)
 	.set	noat
-#ifndef NOTLB_OPTIMIZE
+#ifdef TLB_OPTIMIZE
 	LOAD_PTE(k0, k1)
 	tlbp					# find faulting entry
 	andi	k0, k0, _PAGE_WRITE

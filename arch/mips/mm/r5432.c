@@ -34,6 +34,8 @@
 #include <asm/bootinfo.h>
 #include <asm/mmu_context.h>
 
+extern void r4k_tlb_init(void);
+
 /* CP0 hazard avoidance. */
 #define BARRIER __asm__ __volatile__(".set noreorder\n\t" \
 				     "nop; nop; nop; nop; nop; nop;\n\t" \
@@ -441,144 +443,6 @@ static void r5432_flush_cache_sigtramp(unsigned long addr)
 	protected_flush_icache_line(addr & ~(ic_lsize - 1));
 }
 
-#undef DEBUG_TLB
-#undef DEBUG_TLBUPDATE
-
-#define NTLB_ENTRIES       48  /* Fixed on all R4XX0 variants... */
-
-#define NTLB_ENTRIES_HALF  24  /* Fixed on all R4XX0 variants... */
-
-void local_flush_tlb_all(void)
-{
-	unsigned long old_ctx;
-	int entry;
-	unsigned long flags;
-
-#ifdef DEBUG_TLB
-	printk("[tlball]");
-#endif
-
-	__save_and_cli(flags);
-	/* Save old context and create impossible VPN2 value */
-	old_ctx = (get_entryhi() & 0xff);
-	set_entryhi(KSEG0);
-	set_entrylo0(0);
-	set_entrylo1(0);
-	BARRIER;
-
-	entry = get_wired();
-
-	/* Blast 'em all away. */
-	while(entry < NTLB_ENTRIES) {
-		set_index(entry);
-		BARRIER;
-		tlb_write_indexed();
-		BARRIER;
-		entry++;
-	}
-	BARRIER;
-	set_entryhi(old_ctx);
-	__restore_flags(flags);
-}
-
-void local_flush_tlb_mm(struct mm_struct *mm)
-{
-	if (mm->context != 0) {
-		unsigned long flags;
-
-#ifdef DEBUG_TLB
-		printk("[tlbmm<%d>]", mm->context);
-#endif
-		__save_and_cli(flags);
-		get_new_cpu_mmu_context(mm, smp_processor_id());
-		if (mm == current->active_mm)
-			set_entryhi(mm->context & 0xff);
-		__restore_flags(flags);
-	}
-}
-
-void local_flush_tlb_range(struct mm_struct *mm, unsigned long start,
-			   unsigned long end)
-{
-	if(mm->context != 0) {
-		unsigned long flags;
-		int size;
-
-#ifdef DEBUG_TLB
-		printk("[tlbrange<%02x,%08lx,%08lx>]", (mm->context & 0xff),
-		       start, end);
-#endif
-		__save_and_cli(flags);
-		size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
-		size = (size + 1) >> 1;
-		if(size <= NTLB_ENTRIES_HALF) {
-			int oldpid = (get_entryhi() & 0xff);
-			int newpid = (mm->context & 0xff);
-
-			start &= (PAGE_MASK << 1);
-			end += ((PAGE_SIZE << 1) - 1);
-			end &= (PAGE_MASK << 1);
-			while(start < end) {
-				int idx;
-
-				set_entryhi(start | newpid);
-				start += (PAGE_SIZE << 1);
-				BARRIER;
-				tlb_probe();
-				BARRIER;
-				idx = get_index();
-				set_entrylo0(0);
-				set_entrylo1(0);
-				set_entryhi(KSEG0);
-				BARRIER;
-				if(idx < 0)
-					continue;
-				tlb_write_indexed();
-				BARRIER;
-			}
-			set_entryhi(oldpid);
-		} else {
-			get_new_cpu_mmu_context(mm, smp_processor_id());
-			if (mm == current->active_mm)
-				set_entryhi(mm->context & 0xff);
-		}
-		__restore_flags(flags);
-	}
-}
-
-void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
-{
-	if (vma->vm_mm->context != 0) {
-		unsigned long flags;
-		int oldpid, newpid, idx;
-
-#ifdef DEBUG_TLB
-		printk("[tlbpage<%d,%08lx>]", vma->vm_mm->context, page);
-#endif
-		newpid = (vma->vm_mm->context & 0xff);
-		page &= (PAGE_MASK << 1);
-		__save_and_cli(flags);
-		oldpid = (get_entryhi() & 0xff);
-		set_entryhi(page | newpid);
-		BARRIER;
-		tlb_probe();
-		BARRIER;
-		idx = get_index();
-		set_entrylo0(0);
-		set_entrylo1(0);
-		set_entryhi(KSEG0);
-		if(idx < 0)
-			goto finish;
-		BARRIER;
-		tlb_write_indexed();
-
-	finish:
-		BARRIER;
-		set_entryhi(oldpid);
-		__restore_flags(flags);
-	}
-}
-
 void pgd_init(unsigned long page)
 {
 	unsigned long *p = (unsigned long *) page;
@@ -594,60 +458,6 @@ void pgd_init(unsigned long page)
 		p[i + 6] = (unsigned long) invalid_pte_table;
 		p[i + 7] = (unsigned long) invalid_pte_table;
 	}
-}
-
-/* We will need multiple versions of update_mmu_cache(), one that just
- * updates the TLB with the new pte(s), and another which also checks
- * for the R4k "end of page" hardware bug and does the needy.
- */
-void update_mmu_cache(struct vm_area_struct * vma,
-				 unsigned long address, pte_t pte)
-{
-	unsigned long flags;
-	pgd_t *pgdp;
-	pmd_t *pmdp;
-	pte_t *ptep;
-	int idx, pid;
-
-	/*
-	 * Handle debugger faulting in for debugee.
-	 */
-	if (current->active_mm != vma->vm_mm)
-		return;
-
-	pid = get_entryhi() & 0xff;
-
-#ifdef DEBUG_TLB
-	if((pid != (vma->vm_mm->context & 0xff)) || (vma->vm_mm->context == 0)) {
-		printk("update_mmu_cache: Wheee, bogus tlbpid mmpid=%d tlbpid=%d\n",
-		       (int) (vma->vm_mm->context & 0xff), pid);
-	}
-#endif
-
-	__save_and_cli(flags);
-	address &= (PAGE_MASK << 1);
-	set_entryhi(address | (pid));
-	pgdp = pgd_offset(vma->vm_mm, address);
-	BARRIER;
-	tlb_probe();
-	BARRIER;
-	pmdp = pmd_offset(pgdp, address);
-	idx = get_index();
-	ptep = pte_offset(pmdp, address);
-	BARRIER;
-	set_entrylo0(pte_val(*ptep++) >> 6);
-	set_entrylo1(pte_val(*ptep) >> 6);
-	set_entryhi(address | (pid));
-	BARRIER;
-	if(idx < 0) {
-		tlb_write_random();
-	} else {
-		tlb_write_indexed();
-	}
-	BARRIER;
-	set_entryhi(pid);
-	BARRIER;
-	__restore_flags(flags);
 }
 
 void show_regs(struct pt_regs * regs)
@@ -673,37 +483,6 @@ void show_regs(struct pt_regs * regs)
 	/* Saved cp0 registers. */
 	printk("epc   : %08lx\nStatus: %08lx\nCause : %08lx\n",
 	       regs->cp0_epc, regs->cp0_status, regs->cp0_cause);
-}
-			
-void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
-		     unsigned long entryhi, unsigned long pagemask)
-{
-        unsigned long flags;
-        unsigned long wired;
-        unsigned long old_pagemask;
-        unsigned long old_ctx;
-
-        __save_and_cli(flags);
-        /* Save old context and create impossible VPN2 value */
-        old_ctx = (get_entryhi() & 0xff);
-        old_pagemask = get_pagemask();
-        wired = get_wired();
-        set_wired (wired + 1);
-        set_index (wired);
-        BARRIER;    
-        set_pagemask (pagemask);
-        set_entryhi(entryhi);
-        set_entrylo0(entrylo0);
-        set_entrylo1(entrylo1);
-        BARRIER;    
-        tlb_write_indexed();
-        BARRIER;    
-    
-        set_entryhi(old_ctx);
-        BARRIER;    
-        set_pagemask (old_pagemask);
-        local_flush_tlb_all();    
-        __restore_flags(flags);
 }
 
 /* Detect and size the various r4k caches. */
@@ -754,15 +533,5 @@ void __init ld_mmu_r5432(void)
 	_flush_icache_range = r5432_flush_icache_range;	/* Ouch */
 
 	__flush_cache_all();
-	write_32bit_cp0_register(CP0_WIRED, 0);
-
-	/*
-	 * You should never change this register:
-	 *   - On R4600 1.7 the tlbp never hits for pages smaller than
-	 *     the value in the c0_pagemask register.
-	 *   - The entire mm handling assumes the c0_pagemask register to
-	 *     be set for 4kb pages.
-	 */
-	write_32bit_cp0_register(CP0_PAGEMASK, PM_4K);
-	local_flush_tlb_all();
+	r4k_tlb_init();
 }

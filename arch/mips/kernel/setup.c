@@ -188,8 +188,9 @@ static inline void cpu_probe(void)
 			else
 				mips_cpu.cputype = CPU_R4000SC;
 			mips_cpu.isa_level = MIPS_CPU_ISA_III;
-			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU | MIPS_CPU_32FPR |
-				           MIPS_CPU_WATCH | MIPS_CPU_VCE;
+			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU |
+			                   MIPS_CPU_32FPR | MIPS_CPU_WATCH |
+			                   MIPS_CPU_VCE;
 			mips_cpu.tlbsize = 48;
 			break;
                 case PRID_IMP_VR41XX:
@@ -204,16 +205,20 @@ static inline void cpu_probe(void)
 			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU;
 			mips_cpu.tlbsize = 48;
 			break;
-/*
- * This processor doesn't have an MMU, so it's not "real easy" to
- * run Linux on it. It is left purely for documentation.
- *		case PRID_IMP_R4650:
+		#if 0
+ 		case PRID_IMP_R4650:
+			/*
+			 * This processor doesn't have an MMU, so it's not
+			 * "real easy" to run Linux on it. It is left purely
+			 * for documentation.  Commented out because it shares
+			 * it's c0_prid id number with the TX3900.
+			 */
 	 		mips_cpu.cputype = CPU_R4650;
 		 	mips_cpu.isa_level = MIPS_CPU_ISA_III;
 			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU;
 		        mips_cpu.tlbsize = 48;
 			break;
-*/
+		#endif
 		case PRID_IMP_TX39:
 			mips_cpu.isa_level = MIPS_CPU_ISA_I;
 			mips_cpu.options = MIPS_CPU_TLB;
@@ -239,32 +244,36 @@ static inline void cpu_probe(void)
 		case PRID_IMP_R4700:
 			mips_cpu.cputype = CPU_R4700;
 			mips_cpu.isa_level = MIPS_CPU_ISA_III;
-			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU | MIPS_CPU_32FPR;
+			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU |
+			                   MIPS_CPU_32FPR;
 			mips_cpu.tlbsize = 48;
 			break;
 		case PRID_IMP_R5000:
 			mips_cpu.cputype = CPU_R5000;
 			mips_cpu.isa_level = MIPS_CPU_ISA_IV; 
-			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU | MIPS_CPU_32FPR;
+			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU |
+			                   MIPS_CPU_32FPR;
 			mips_cpu.tlbsize = 48;
 			break;
 		case PRID_IMP_R5432:
 			mips_cpu.cputype = CPU_R5432;
 			mips_cpu.isa_level = MIPS_CPU_ISA_IV; 
-			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU | MIPS_CPU_32FPR;
+			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU |
+			                   MIPS_CPU_32FPR;
 			mips_cpu.tlbsize = 48;
 			break;
 		case PRID_IMP_R5500:
 			mips_cpu.cputype = CPU_R5500;
 			mips_cpu.isa_level = MIPS_CPU_ISA_IV; 
-			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU | MIPS_CPU_32FPR;
+			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU |
+			                   MIPS_CPU_32FPR;
 			mips_cpu.tlbsize = 48;
 			break;
 		case PRID_IMP_NEVADA:
 			mips_cpu.cputype = CPU_NEVADA;
 			mips_cpu.isa_level = MIPS_CPU_ISA_IV; 
-			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU | MIPS_CPU_32FPR | 
-				           MIPS_CPU_DIVEC;
+			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU |
+			                   MIPS_CPU_32FPR | MIPS_CPU_DIVEC;
 			mips_cpu.tlbsize = 48;
 			mips_cpu.icache.ways = 2;
 			mips_cpu.dcache.ways = 2;
@@ -284,7 +293,17 @@ static inline void cpu_probe(void)
 		case PRID_IMP_RM7000:
 			mips_cpu.cputype = CPU_RM7000;
 			mips_cpu.isa_level = MIPS_CPU_ISA_IV;
-			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU | MIPS_CPU_32FPR;
+			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU |
+			                   MIPS_CPU_32FPR;
+			/*
+			 * Undocumented RM7000:  Bit 29 in the info register of
+			 * the RM7000 v2.0 indicates if the TLB has 48 or 64
+			 * entries.
+			 *
+			 * 29      1 =>    64 entry JTLB
+			 *         0 =>    48 entry JTLB
+			 */
+			mips_cpu.tlbsize = (get_info() & (1 << 29)) ? 64 : 48;
 			break;
 		case PRID_IMP_R8000:
 			mips_cpu.cputype = CPU_R8000;
