@@ -1746,6 +1746,29 @@ CONFIG_CPU_R3000
   similar) CPU, R4xx0 might be a safe bet.
   If the resulting Kernel does not work try to recompile with R3000.
 
+CPU feature configuration
+CONFIG_CPU_ADVANCED
+  Saying yes here allows you to select support for various features your
+  CPU may or may not have.  Most people should say N here.
+
+ll and sc instructions
+CONFIG_CPU_HAS_LLSC
+  Say Y here if your CPU has the ll and sc instructions.  Say Y here for
+  better performance, N if you don't know.  You must say Y here for
+  multiprocessor machines.
+
+lld and scd instructions
+CONFIG_CPU_HAS_LLDSCD
+  Say Y here if your CPU has the lld and scd instructions, the 64-bit
+  equivalents of ll and sc.  Say Y here for better performance, N if
+  you don't know.  You must say Y here for multiprocessor machines.
+
+Support for writebuffer flushing
+CONFIG_CPU_HAS_WB
+  Say N here for slightly better performance.  You must say Y here for
+  machines which require flushing of write buffers in software.  Saying
+  Y is the safe option; N may result in kernel malfunction and crashes.
+
 Support for large 64-bit configurations
 CONFIG_MIPS_INSANE_LARGE
   MIPS R10000 does support a 44 bit / 16TB address space as opposed to
