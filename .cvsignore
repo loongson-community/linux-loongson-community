@@ -1,12 +1,9 @@
 !core
 .config
-.config.cmd
+.*.cmd
 .hdepend
-.tmp_versions
-.tmpver.1
-.tmpver.2
+.tmp*
 .version
-.vmlinux.cmd
 System.map
 vmlinux
 vmlinux.64
