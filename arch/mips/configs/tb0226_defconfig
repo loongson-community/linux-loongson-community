@@ -125,6 +125,7 @@ CONFIG_CPU_HAS_SYNC=y
 #
 # Bus options (PCI, PCMCIA, EISA, ISA, TC)
 #
+CONFIG_HW_HAS_PCI=y
 # CONFIG_PCI is not set
 CONFIG_MMU=y
 
