@@ -168,7 +168,7 @@ int smp_call_function (void (*func) (void *info), void *info, int retry,
 	return 0;
 }
 
-void smp_call_function_interrupt(void)
+extern void smp_call_function_interrupt(int irq, void *d, struct pt_regs *r)
 {
 	void (*func) (void *info) = call_data->func;
 	void *info = call_data->info;
