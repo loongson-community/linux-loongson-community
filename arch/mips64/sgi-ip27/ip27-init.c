@@ -89,9 +89,13 @@ nasid_t get_actual_nasid(lboard_t *brd)
 		return brd->brd_nasid;
 }
 
+/* Tweak this for maximum number of CPUs to activate */
+static int max_cpus = NR_CPUS;
+
 int do_cpumask(cnodeid_t cnode, nasid_t nasid, cpumask_t *boot_cpumask, 
 							int *highest)
 {
+	static int tot_cpus_found = 0;
 	lboard_t *brd;
 	klcpu_t *acpu;
 	int cpus_found = 0;
@@ -109,9 +113,11 @@ int do_cpumask(cnodeid_t cnode, nasid_t nasid, cpumask_t *boot_cpumask,
 			if (cpuid > *highest)
 				*highest = cpuid;
 			/* Only let it join in if it's marked enabled */
-			if (acpu->cpu_info.flags & KLINFO_ENABLE) {
+			if ((acpu->cpu_info.flags & KLINFO_ENABLE) &&
+						(tot_cpus_found != max_cpus)) {
 				CPUMASK_SETB(*boot_cpumask, cpuid);
 				cpus_found++;
+				tot_cpus_found++;
 			}
 			acpu = (klcpu_t *)find_component(brd, (klinfo_t *)acpu, 
 								KLSTRUCT_CPU);
