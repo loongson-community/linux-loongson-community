@@ -13,6 +13,7 @@
 #include <linux/highuid.h>
 #include <linux/dirent.h>
 #include <linux/resource.h>
+#include <linux/filter.h>
 #include <linux/highmem.h>
 #include <linux/time.h>
 #include <linux/poll.h>
@@ -22,6 +23,7 @@
 #include <linux/shm.h>
 #include <linux/sem.h>
 #include <linux/msg.h>
+#include <linux/icmpv6.h>
 #include <linux/sysctl.h>
 #include <linux/utime.h>
 #include <linux/utsname.h>
@@ -1299,42 +1301,86 @@ asmlinkage long sys32_times(struct tms32 *tbuf)
 extern asmlinkage int sys_setsockopt(int fd, int level, int optname,
 				     char *optval, int optlen);
 
+static int do_set_attach_filter(int fd, int level, int optname,
+				char *optval, int optlen)
+{
+	struct sock_fprog32 {
+		__u16 len;
+		__u32 filter;
+	} *fprog32 = (struct sock_fprog32 *)optval;
+	struct sock_fprog kfprog;
+	struct sock_filter *kfilter;
+	unsigned int fsize;
+	mm_segment_t old_fs;
+	__u32 uptr;
+	int ret;
+
+	if (get_user(kfprog.len, &fprog32->len) ||
+	    __get_user(uptr, &fprog32->filter))
+		return -EFAULT;
+
+	kfprog.filter = (struct sock_filter *)A(uptr);
+	fsize = kfprog.len * sizeof(struct sock_filter);
+
+	kfilter = (struct sock_filter *)kmalloc(fsize, GFP_KERNEL);
+	if (kfilter == NULL)
+		return -ENOMEM;
+
+	if (copy_from_user(kfilter, kfprog.filter, fsize)) {
+		kfree(kfilter);
+		return -EFAULT;
+	}
+
+	kfprog.filter = kfilter;
+
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+	ret = sys_setsockopt(fd, level, optname,
+			     (char *)&kfprog, sizeof(kfprog));
+	set_fs(old_fs);
+
+	kfree(kfilter);
+
+	return ret;
+}
+
+static int do_set_icmpv6_filter(int fd, int level, int optname,
+				char *optval, int optlen)
+{
+	struct icmp6_filter kfilter;
+	mm_segment_t old_fs;
+	int ret, i;
+
+	if (copy_from_user(&kfilter, optval, sizeof(kfilter)))
+		return -EFAULT;
+
+
+	for (i = 0; i < 8; i += 2) {
+		u32 tmp = kfilter.data[i];
+
+		kfilter.data[i] = kfilter.data[i + 1];
+		kfilter.data[i + 1] = tmp;
+	}
+
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+	ret = sys_setsockopt(fd, level, optname,
+			     (char *) &kfilter, sizeof(kfilter));
+	set_fs(old_fs);
+
+	return ret;
+}
+
 asmlinkage int sys32_setsockopt(int fd, int level, int optname,
 				char *optval, int optlen)
 {
-	if (optname == SO_ATTACH_FILTER) {
-		struct sock_fprog32 {
-			__u16 len;
-			__u32 filter;
-		} *fprog32 = (struct sock_fprog32 *)optval;
-		struct sock_fprog kfprog;
-		struct sock_filter *kfilter;
-		unsigned int fsize;
-		mm_segment_t old_fs;
-		__u32 uptr;
-		int ret;
+	if (optname == SO_ATTACH_FILTER)
+		return do_set_attach_filter(fd, level, optname,
+					    optval, optlen);
+	if (level == SOL_ICMPV6 && optname == ICMPV6_FILTER)
+		return do_set_icmpv6_filter(fd, level, optname,
+					    optval, optlen);
 
-		if (get_user(kfprog.len, &fprog32->len) ||
-		    __get_user(uptr, &fprog32->filter))
-			return -EFAULT;
-		kfprog.filter = (struct sock_filter *)A(uptr);
-		fsize = kfprog.len * sizeof(struct sock_filter);
-		kfilter = (struct sock_filter *)kmalloc(fsize, GFP_KERNEL);
-		if (kfilter == NULL)
-			return -ENOMEM;
-		if (copy_from_user(kfilter, kfprog.filter, fsize)) {
-			kfree(kfilter);
-			return -EFAULT;
-		}
-		kfprog.filter = kfilter;
-		old_fs = get_fs();
-		set_fs(KERNEL_DS);
-		ret = sys_setsockopt(fd, level, optname,
-				     (char *)&kfprog, sizeof(kfprog));
-		set_fs(old_fs);
-		kfree(kfilter);
-		return ret;
-	}
 	return sys_setsockopt(fd, level, optname, optval, optlen);
 }
 
