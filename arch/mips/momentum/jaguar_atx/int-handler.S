@@ -18,7 +18,6 @@
 #include <asm/addrspace.h>
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
-#include "jaguar_atx_fpga.h"
 
 /*
  * First level interrupt dispatcher for Ocelot-CS board
