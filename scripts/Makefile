@@ -26,3 +26,6 @@ $(obj)/elfconfig.h: $(obj)/empty.o $(obj)/mk_elfconfig FORCE
 	$(call if_changed,elfconfig)
 
 targets += elfconfig.h
+
+clean-files += docproc fixdep split-include
+
