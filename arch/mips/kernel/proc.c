@@ -43,8 +43,8 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 	                           (version >> 4) & 0x0f, version & 0x0f,
 	                           (fp_vers >> 4) & 0x0f, fp_vers & 0x0f);
 	seq_printf(m, "BogoMIPS\t\t: %lu.%02lu\n",
-	              (loops_per_jiffy + 2500) / (500000/HZ),
-	              ((loops_per_jiffy + 2500) / (5000/HZ)) % 100);
+	              loops_per_jiffy / (500000/HZ),
+	              (loops_per_jiffy / (5000/HZ)) % 100);
 	seq_printf(m, "wait instruction\t: %s\n", cpu_wait ? "yes" : "no");
 	seq_printf(m, "microsecond timers\t: %s\n",
 	              (mips_cpu.options & MIPS_CPU_COUNTER) ? "yes" : "no");
