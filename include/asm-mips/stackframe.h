@@ -79,7 +79,7 @@
 		mfc0	\temp, CP0_CONTEXT
 		srl	\temp, 23
 		sll	\temp, 2
-		LONG_S	\stackp, kernelsp(temp)
+		LONG_S	\stackp, kernelsp(\temp)
 #endif
 #ifdef CONFIG_MIPS64
 		lw	\temp, TI_CPU(gp)
