@@ -18,6 +18,7 @@
 
 #include <linux/init.h>
 #include <linux/delay.h>
+#include <linux/interrupt.h>
 #include <linux/smp.h>
 #include <linux/kernel_stat.h>
 
@@ -27,7 +28,8 @@
 #include <asm/sibyte/sb1250_regs.h>
 #include <asm/sibyte/sb1250_int.h>
 
-extern void smp_call_function_interrupt(void);
+extern irqreturn_t smp_call_function_interrupt(int irq, void *dev,
+	struct pt_regs *regs);
 extern void smp_tune_scheduling(void);
 
 /*
@@ -87,7 +89,7 @@ void sb1250_mailbox_interrupt(struct pt_regs *regs)
 	 */
 
 	if (action & SMP_CALL_FUNCTION) {
-		smp_call_function_interrupt();
+		smp_call_function_interrupt(0, NULL, regs);
 	}
 }
 

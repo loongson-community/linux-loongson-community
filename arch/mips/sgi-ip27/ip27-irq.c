@@ -381,9 +381,10 @@ int intr_disconnect_level(int cpu, int bit)
 }
 
 
-void handle_resched_intr(int irq, void *dev_id, struct pt_regs *regs)
+irqreturn_t handle_resched_intr(int irq, void *dev_id, struct pt_regs *regs)
 {
 	/* Nothing, the return from intr will work for us */
+	return IRQ_NONE;
 }
 
 #ifdef CONFIG_SMP
@@ -419,7 +420,8 @@ void core_send_ipi(int destid, unsigned int action)
 
 #endif
 
-extern void smp_call_function_interrupt(void);
+extern irqreturn_t smp_call_function_interrupt(int irq, void *dev,
+	struct pt_regs *regs);
 
 void install_cpuintr(int cpu)
 {
