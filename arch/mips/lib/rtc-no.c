@@ -8,7 +8,6 @@
  *
  * Copyright (C) 1998, 2001 by Ralf Baechle
  */
-#include <linux/spinlock.h>
 #include <linux/kernel.h>
 #include <linux/mc146818rtc.h>
 

@@ -9,7 +9,6 @@
  *
  *  Functions to access the RTC on the PR31700 chip.
  */
-#include <linux/spinlock.h>
 #include <linux/mc146818rtc.h>
 
 static unsigned char nino_rtc_read_data(unsigned long addr)

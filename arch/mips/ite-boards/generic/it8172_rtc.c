@@ -26,7 +26,6 @@
  * RTC routines for ITE8172 MC146818-compatible rtc chip.
  *
  */
-#include <asm/spinlock.h>
 #include <linux/mc146818rtc.h>
 #include <asm/it8172/it8172.h>
 
