@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2001 Broadcom Corporation
+ * Copyright (C) 2001, 2002, 2003 Broadcom Corporation
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,12 +22,12 @@
 #include <linux/kernel.h>
 #include <linux/types.h>
 #include <linux/init.h>
+#include <linux/interrupt.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <linux/fs.h>
 #include <linux/errno.h>
 #include <linux/reboot.h>
-#include <linux/devfs_fs_kernel.h>
 #include <asm/uaccess.h>
 #include <asm/smplock.h>
 #include <asm/io.h>
@@ -35,6 +35,8 @@
 #include <asm/sibyte/sb1250_scd.h>
 #include <asm/sibyte/sb1250_int.h>
 #include <asm/sibyte/trace_prof.h>
+
+#define DEVNAME "bcm1250_tbprof"
 
 static struct sbprof_tb sbp;
 
@@ -60,6 +62,7 @@ static void arm_tb(void)
 {
         u_int64_t scdperfcnt;
 	u_int64_t next = (1ULL << 40) - tb_period;
+	u_int64_t tb_options = M_SCD_TRACE_CFG_FREEZE_FULL;
 	/* Generate an SCD_PERFCNT interrupt in TB_PERIOD Zclks to
 	   trigger start of trace.  XXX vary sampling period */
 	__raw_writeq(0, KSEG1 + A_SCD_PERF_CNT_1);
@@ -75,16 +78,15 @@ static void arm_tb(void)
 	__raw_writeq(next, KSEG1 + A_SCD_PERF_CNT_1);
 	/* Reset the trace buffer */
 	__raw_writeq(M_SCD_TRACE_CFG_RESET, KSEG1 + A_SCD_TRACE_CFG);
-	__raw_writeq(M_SCD_TRACE_CFG_FREEZE_FULL
 #if 0 && defined(M_SCD_TRACE_CFG_FORCECNT)
-	      /* XXXKW may want to expose control to the data-collector */
-	      | M_SCD_TRACE_CFG_FORCECNT
+	/* XXXKW may want to expose control to the data-collector */
+	tb_options |= M_SCD_TRACE_CFG_FORCECNT;
 #endif
-	      , KSEG1 + A_SCD_TRACE_CFG);
+	__raw_writeq(tb_options, KSEG1 + A_SCD_TRACE_CFG);
 	sbp.tb_armed = 1;
 }
 
-static void sbprof_tb_intr(int irq, void *dev_id, struct pt_regs *regs)
+static irqreturn_t sbprof_tb_intr(int irq, void *dev_id, struct pt_regs *regs)
 {
 	int i;
 	DBG(printk(DEVNAME ": tb_intr\n"));
@@ -123,11 +125,13 @@ static void sbprof_tb_intr(int irq, void *dev_id, struct pt_regs *regs)
 		}
 		wake_up(&sbp.tb_read);
 	}
+	return IRQ_HANDLED;
 }
 
-static void sbprof_pc_intr(int irq, void *dev_id, struct pt_regs *regs)
+static irqreturn_t sbprof_pc_intr(int irq, void *dev_id, struct pt_regs *regs)
 {
 	printk(DEVNAME ": unexpected pc_intr");
+	return IRQ_NONE;
 }
 
 static int sbprof_zbprof_start(struct file *filp)
@@ -249,7 +253,7 @@ static int sbprof_tb_open(struct inode *inode, struct file *filp)
 {
 	int minor;
 
-	minor = MINOR(inode->i_rdev);
+	minor = minor(inode->i_rdev);
 	if (minor != 0) {
 		return -ENODEV;
 	}
@@ -274,7 +278,7 @@ static int sbprof_tb_release(struct inode *inode, struct file *filp)
 {
 	int minor;
 
-	minor = MINOR(inode->i_rdev);
+	minor = minor(inode->i_rdev);
 	if (minor != 0 || !sbp.open) {
 		return -ENODEV;
 	}
@@ -306,7 +310,8 @@ static ssize_t sbprof_tb_read(struct file *filp, char *buf,
 		cur_count = size < sample_left ? size : sample_left;
 		src = (char *)(((long)sbp.sbprof_tbbuf[cur_sample])+sample_off);
 		copy_to_user(dest, src, cur_count);
-		DBG(printk(DEVNAME ": read from sample %d, %d bytes\n", cur_sample, cur_count));
+		DBG(printk(DEVNAME ": read from sample %d, %d bytes\n",
+			   cur_sample, cur_count));
 		size -= cur_count;
 		sample_left -= cur_count;
 		if (!sample_left) {
@@ -360,8 +365,6 @@ static struct file_operations sbprof_tb_fops = {
 	.mmap		= NULL,
 };
 
-static devfs_handle_t devfs_handle;
-
 #define UNDEF 0
 static unsigned long long pll_div_to_mhz[32] = {
   UNDEF,
@@ -402,15 +405,11 @@ static int __init sbprof_tb_init(void)
 {
 	unsigned int pll_div;
 
-	if (devfs_register_chrdev(SBPROF_TB_MAJOR, DEVNAME, &sbprof_tb_fops)) {
+	if (register_chrdev(SBPROF_TB_MAJOR, DEVNAME, &sbprof_tb_fops)) {
 		printk(KERN_WARNING DEVNAME ": initialization failed (dev %d)\n",
 		       SBPROF_TB_MAJOR);
 		return -EIO;
 	}
-	devfs_handle = devfs_register(NULL, DEVNAME,
-				      DEVFS_FL_DEFAULT, SBPROF_TB_MAJOR, 0,
-				      S_IFCHR | S_IRUGO | S_IWUGO,
-				      &sbprof_tb_fops, NULL);
 	sbp.open = 0;
 	pll_div = pll_div_to_mhz[G_SYS_PLL_DIV(__raw_readq(KSEG1 + A_SCD_SYSTEM_CFG))];
 	if (pll_div != UNDEF) {
@@ -424,8 +423,7 @@ static int __init sbprof_tb_init(void)
 
 static void __exit sbprof_tb_cleanup(void)
 {
-	devfs_unregister_chrdev(SBPROF_TB_MAJOR, DEVNAME);
-	devfs_unregister(devfs_handle);
+	unregister_chrdev(SBPROF_TB_MAJOR, DEVNAME);
 }
 
 module_init(sbprof_tb_init);
