@@ -28,6 +28,12 @@
 
 	.align  5
 NESTED(handle_sysn32, PT_SIZE, sp)
+#ifndef CONFIG_MIPS32_O32
+	.set	noat
+	SAVE_SOME
+	STI
+	.set	at
+#endif
 	ld	t1, PT_EPC(sp)		# skip syscall on return
 
 	subu	t0, v0, __NR_N32_Linux	# check syscall number
