@@ -233,6 +233,9 @@ void __init mem_init(void)
 			continue;
 		}
 		ClearPageReserved(page);
+#ifdef CONFIG_LIMITED_DMA
+		set_page_address(page, lowmem_page_address(page));
+#endif
 		set_bit(PG_highmem, &page->flags);
 		atomic_set(&page->count, 1);
 		__free_page(page);

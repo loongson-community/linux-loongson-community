@@ -271,6 +271,7 @@ config MOMENCO_JAGUAR_ATX
 	bool "Support for Momentum Jaguar board"
 	select IRQ_CPU
 	select IRQ_CPU_RM7K
+	select LIMITED_DMA
 	select RM7000_CPU_SCACHE
 	help
 	  The Jaguar ATX is a MIPS-based Single Board Computer (SBC) made by
@@ -770,6 +771,10 @@ config I8259
 	bool
 	depends on SNI_RM200_PCI || DDB5477 || DDB5476 || DDB5074 || MACH_JAZZ || MIPS_MALTA || MIPS_COBALT
 	default y
+
+config LIMITED_DMA
+	bool
+	select HIGHMEM
 
 config MIPS_BONITO64
 	bool
