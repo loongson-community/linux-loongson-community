@@ -46,8 +46,8 @@ void (*_dma_cache_wback)(unsigned long start, unsigned long size);
 void (*_dma_cache_inv)(unsigned long start, unsigned long size);
 
 /* Miscellaneous. */
-void (*update_mmu_cache)(struct vm_area_struct * vma,
-			 unsigned long address, pte_t pte);
+void (*_update_mmu_cache)(struct vm_area_struct * vma,
+	unsigned long address, pte_t pte);
 
 extern void ld_mmu_r4xx0(void);
 extern void ld_mmu_andes(void);
@@ -65,10 +65,11 @@ void __init load_mmu(void)
     || defined (CONFIG_CPU_NEVADA)
 		printk(KERN_INFO "Loading R4000 MMU routines.\n");
 		ld_mmu_r4xx0();
+		r4k_tlb_init();
 #endif
 #if defined(CONFIG_CPU_MIPS64)
 		printk(KERN_INFO "Loading MIPS64 MMU routines.\n");
-                ld_mmu_mips64();
+		ld_mmu_mips64();
 		r4k_tlb_init();
 #endif
 
@@ -78,6 +79,7 @@ void __init load_mmu(void)
 	case CPU_R12000:
 		printk(KERN_INFO "Loading R10000 MMU routines.\n");
 		ld_mmu_andes();
+		andes_tlb_init();
 		break;
 #endif
 #if defined CONFIG_CPU_SB1

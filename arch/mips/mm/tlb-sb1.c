@@ -21,8 +21,9 @@
 #include <asm/mmu_context.h>
 #include <asm/bootinfo.h>
 #include <asm/cpu.h>
+#include <asm/war.h>
 
-extern char except_vec0_r4000[];
+extern char except_vec0_r4000[], except_vec0_sb1_m3[];
 
 /* Dump the current entry* and pagemask registers */
 static inline void dump_cur_tlb_regs(void)
@@ -35,7 +36,6 @@ static inline void dump_cur_tlb_regs(void)
 		".set noreorder        \n"
 		".set mips64           \n"
 		".set noat             \n"
-		"     tlbr             \n"
 		"     dmfc0  $1, $10   \n"
 		"     dsrl32 %0, $1, 0 \n"
 		"     sll    %1, $1, 0 \n"
@@ -47,13 +47,11 @@ static inline void dump_cur_tlb_regs(void)
 		"     sll    %5, $1, 0 \n"
 		"     mfc0   %6, $5    \n"
 		".set pop              \n"
-		: "=r" (entryhihi),
-		"=r" (entryhilo),
-		"=r" (entrylo0hi),
-		"=r" (entrylo0lo),
-		"=r" (entrylo1hi),
-		"=r" (entrylo1lo),
-		"=r" (pagemask));
+		: "=r" (entryhihi), "=r" (entryhilo),
+		  "=r" (entrylo0hi), "=r" (entrylo0lo),
+		  "=r" (entrylo1hi), "=r" (entrylo1lo),
+		  "=r" (pagemask));
+
 	printk("%08X%08X %08X%08X %08X%08X %08X",
 	       entryhihi, entryhilo,
 	       entrylo0hi, entrylo0lo,
@@ -79,11 +77,7 @@ void sb1_dump_tlb(void)
 	for (entry = 0; entry < mips_cpu.tlbsize; entry++) {
 		set_index(entry);
 		printk("\n%02i ", entry);
-		__asm__ __volatile__ (
-			".set push             \n"
-			".set mips64           \n"
-			"     tlbr             \n"
-			".set pop              \n");
+		tlb_read();
 		dump_cur_tlb_regs();
 	}
 	printk("\n");

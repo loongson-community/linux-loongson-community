@@ -22,6 +22,8 @@
 #include <asm/bootinfo.h>
 #include <asm/cpu.h>
 
+extern void except_vec1_r4k(void);
+
 /* Dump the current entry* and pagemask registers */
 static inline void dump_cur_tlb_regs(void)
 {
@@ -346,4 +348,7 @@ void sb1_tlb_init(void)
 	 */
 	sb1_sanitize_tlb();
 	_update_mmu_cache = sb1_update_mmu_cache;
+
+	memcpy((void *)KSEG0 + 0x080, except_vec1_r4k, 0x80);
+	flush_icache_range(KSEG0, KSEG0 + 0x80);
 }

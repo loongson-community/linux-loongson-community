@@ -36,15 +36,6 @@
 #include <asm/watch.h>
 #include <asm/types.h>
 
-/*
- * Machine specific interrupt handlers
- */
-extern asmlinkage void acer_pica_61_handle_int(void);
-extern asmlinkage void decstation_handle_int(void);
-extern asmlinkage void deskstation_rpc44_handle_int(void);
-extern asmlinkage void deskstation_tyne_handle_int(void);
-extern asmlinkage void mips_magnum_4000_handle_int(void);
-
 extern asmlinkage void handle_mod(void);
 extern asmlinkage void handle_tlbl(void);
 extern asmlinkage void handle_tlbs(void);
@@ -318,7 +309,7 @@ void show_code(unsigned int *pc)
 	}
 }
 
-void show_regs(struct pt_regs * regs)
+void show_regs(struct pt_regs *regs)
 {
 	/*
 	 * Saved main processor registers
@@ -609,8 +600,8 @@ asmlinkage void do_bp(struct pt_regs *regs)
 
 asmlinkage void do_tr(struct pt_regs *regs)
 {
-	siginfo_t info;
 	unsigned int opcode, tcode = 0;
+	siginfo_t info;
 
 	if (get_insn_opcode(regs, &opcode))
 		return;
@@ -773,12 +764,13 @@ asmlinkage void do_reserved(struct pt_regs *regs)
 	 * hard/software error.
 	 */
 	show_regs(regs);
-	panic("Caught reserved exception - should not happen.");
+	panic("Caught reserved exception %ld - should not happen.",
+	      (regs->cp0_cause & 0x1f) >> 2);
 }
 
 static inline void watch_init(void)
 {
-	if (mips_cpu.options & MIPS_CPU_WATCH ) {
+	if (mips_cpu.options & MIPS_CPU_WATCH) {
 		set_except_vector(23, handle_watch);
  		watch_available = 1;
  	}
@@ -917,7 +909,7 @@ void __init per_cpu_trap_init(void)
 	unsigned int cpu = smp_processor_id();
 
 	/* Some firmware leaves the BEV flag set, clear it.  */
-	clear_cp0_status(ST0_BEV);
+	clear_cp0_status(ST0_CU1|ST0_CU2|ST0_CU3|ST0_BEV);
 
 	/*
 	 * Some MIPS CPUs have a dedicated interrupt vector which reduces the
@@ -934,8 +926,8 @@ void __init trap_init(void)
 {
 	extern char except_vec1_generic, except_vec2_generic;
 	extern char except_vec3_generic, except_vec3_r4000;
-	extern char except_vec4;
 	extern char except_vec_ejtag_debug;
+	extern char except_vec4;
 	unsigned long i;
 
 	per_cpu_trap_init();
@@ -1002,6 +994,7 @@ void __init trap_init(void)
 	if ((mips_cpu.options & MIPS_CPU_FPU) &&
 	    !(mips_cpu.options & MIPS_CPU_NOFPUEX))
 		set_except_vector(15, handle_fpe);
+
 	if (mips_cpu.options & MIPS_CPU_MCHECK)
 		set_except_vector(24, handle_mcheck);
 
@@ -1016,28 +1009,9 @@ void __init trap_init(void)
 			memcpy((void *)(KSEG0 + 0x180), &except_vec3_r4000,
 			       0x80);
 		}
-	} else switch (mips_cpu.cputype) {
-	case CPU_SB1:
-		/*
-		 * XXX - This should be folded in to the "cleaner" handling,
-		 * above
-		 */
-		memcpy((void *)(KSEG0 + 0x180), &except_vec3_r4000, 0x80);
-#ifdef CONFIG_SB1_CACHE_ERROR
-		{
-		/* Special cache error handler for SB1 */
-		extern char except_vec2_sb1;
-		memcpy((void *)(KSEG0 + 0x100), &except_vec2_sb1, 0x80);
-		memcpy((void *)(KSEG1 + 0x100), &except_vec2_sb1, 0x80);
-		}
-#endif
+	}
 
-		/* Enable timer interrupt and scd mapped interrupt */
-		clear_cp0_status(0xf000);
-		set_cp0_status(0xc00);
-		break;
-	case CPU_R6000:
-	case CPU_R6000A:
+	if (mips_cpu.cputype == CPU_R6000 || mips_cpu.cputype == CPU_R6000A) {
 		/*
 		 * The R6000 is the only R-series CPU that features a machine
 		 * check exception (similar to the R4000 cache error) and
@@ -1048,27 +1022,13 @@ void __init trap_init(void)
 		 */
 		//set_except_vector(14, handle_mc);
 		//set_except_vector(15, handle_ndc);
-	case CPU_R2000:
-	case CPU_R3000:
-	case CPU_R3000A:
-	case CPU_R3041:
-	case CPU_R3051:
-	case CPU_R3052:
-	case CPU_R3081:
-	case CPU_R3081E:
-	case CPU_TX3912:
-	case CPU_TX3922:
-	case CPU_TX3927:
-	case CPU_TX39XX:
-		memcpy((void *)(KSEG0 + 0x80), &except_vec3_generic, 0x80);
-		break;
-
-	case CPU_UNKNOWN:
-	default:
-		panic("Unknown CPU type");
 	}
 
-	flush_icache_range(KSEG0, KSEG0 + 0x400);
+	if (mips_cpu.cputype == CPU_SB1) {
+		/* Enable timer interrupt and scd mapped interrupt */
+		clear_cp0_status(0xf000);
+		set_cp0_status(0xc00);
+	}
 
 	if (mips_cpu.options & MIPS_CPU_FPU) {
 	        save_fp_context = _save_fp_context;
@@ -1078,10 +1038,12 @@ void __init trap_init(void)
 		restore_fp_context = fpu_emulator_restore_context;
 	}
 
+	flush_icache_range(KSEG0, KSEG0 + 0x400);
+
 	if (mips_cpu.isa_level == MIPS_CPU_ISA_IV)
 		set_cp0_status(ST0_XX);
 
-	atomic_inc(&init_mm.mm_count);	/* XXX  UP?  */
+	atomic_inc(&init_mm.mm_count);	/* XXX UP?  */
 	current->active_mm = &init_mm;
 
 	/* XXX Must be done for all CPUs  */

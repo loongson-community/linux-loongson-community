@@ -736,10 +736,11 @@ static inline void r4k_flush_cache_all_d32i32(void)
 	blast_dcache32(); blast_icache32();
 }
 
-static void r4k_flush_cache_range_s16d16i16(struct vm_area_struct *vma,
-	unsigned long start, unsigned long end)
+static void r4k_flush_cache_range_s16d16i16(struct mm_struct *mm,
+					    unsigned long start,
+					    unsigned long end)
 {
-	struct mm_struct *mm = vma->vm_mm;
+	struct vm_area_struct *vma;
 
 	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
 		return;
@@ -748,7 +749,8 @@ static void r4k_flush_cache_range_s16d16i16(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
 #endif
-	if (vma) {
+	vma = find_vma(mm, start);
+	if(vma) {
 		if (CPU_CONTEXT(smp_processor_id(), mm) !=
 				CPU_CONTEXT(smp_processor_id(), current->mm)) {
 			r4k_flush_cache_all_s16d16i16();
@@ -770,10 +772,11 @@ static void r4k_flush_cache_range_s16d16i16(struct vm_area_struct *vma,
 	}
 }
 
-static void r4k_flush_cache_range_s32d16i16(struct vm_area_struct *vma,
-	unsigned long start, unsigned long end)
+static void r4k_flush_cache_range_s32d16i16(struct mm_struct *mm,
+					    unsigned long start,
+					    unsigned long end)
 {
-	struct mm_struct *mm = vma->vm_mm;
+	struct vm_area_struct *vma;
 
 	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
 		return;
@@ -782,7 +785,8 @@ static void r4k_flush_cache_range_s32d16i16(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
 #endif
-	if (vma) {
+	vma = find_vma(mm, start);
+	if(vma) {
 		if (CPU_CONTEXT(smp_processor_id(), mm) !=
 				CPU_CONTEXT(smp_processor_id(), current->mm)) {
 			r4k_flush_cache_all_s32d16i16();
@@ -804,10 +808,11 @@ static void r4k_flush_cache_range_s32d16i16(struct vm_area_struct *vma,
 	}
 }
 
-static void r4k_flush_cache_range_s64d16i16(struct vm_area_struct *vma,
-	unsigned long start, unsigned long end)
+static void r4k_flush_cache_range_s64d16i16(struct mm_struct *mm,
+					    unsigned long start,
+					    unsigned long end)
 {
-	struct mm_struct *mm = vma->vm_mm;
+	struct vm_area_struct *vma;
 
 	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
 		return;
@@ -816,7 +821,8 @@ static void r4k_flush_cache_range_s64d16i16(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
 #endif
-	if (vma) {
+	vma = find_vma(mm, start);
+	if(vma) {
 		if (CPU_CONTEXT(smp_processor_id(), mm) !=
 				CPU_CONTEXT(smp_processor_id(), current->mm)) {
 			r4k_flush_cache_all_s64d16i16();
@@ -838,10 +844,11 @@ static void r4k_flush_cache_range_s64d16i16(struct vm_area_struct *vma,
 	}
 }
 
-static void r4k_flush_cache_range_s128d16i16(struct vm_area_struct *vma,
-	unsigned long start, unsigned long end)
+static void r4k_flush_cache_range_s128d16i16(struct mm_struct *mm,
+					     unsigned long start,
+					     unsigned long end)
 {
-	struct mm_struct *mm = vma->vm_mm;
+	struct vm_area_struct *vma;
 
 	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
 		return;
@@ -850,7 +857,8 @@ static void r4k_flush_cache_range_s128d16i16(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
 #endif
-	if (vma) {
+	vma = find_vma(mm, start);
+	if(vma) {
 		if (CPU_CONTEXT(smp_processor_id(), mm) !=
 				CPU_CONTEXT(smp_processor_id(), current->mm)) {
 			r4k_flush_cache_all_s128d16i16();
@@ -872,10 +880,11 @@ static void r4k_flush_cache_range_s128d16i16(struct vm_area_struct *vma,
 	}
 }
 
-static void r4k_flush_cache_range_s32d32i32(struct vm_area_struct *vma,
-	unsigned long start, unsigned long end)
+static void r4k_flush_cache_range_s32d32i32(struct mm_struct *mm,
+					    unsigned long start,
+					    unsigned long end)
 {
-	struct mm_struct *mm = vma->vm_mm;
+	struct vm_area_struct *vma;
 
 	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
 		return;
@@ -884,7 +893,8 @@ static void r4k_flush_cache_range_s32d32i32(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
 #endif
-	if (vma) {
+	vma = find_vma(mm, start);
+	if(vma) {
 		if (CPU_CONTEXT(smp_processor_id(), mm) !=
 				CPU_CONTEXT(smp_processor_id(), current->mm)) {
 			r4k_flush_cache_all_s32d32i32();
@@ -906,10 +916,11 @@ static void r4k_flush_cache_range_s32d32i32(struct vm_area_struct *vma,
 	}
 }
 
-static void r4k_flush_cache_range_s64d32i32(struct vm_area_struct *vma,
-	unsigned long start, unsigned long end)
+static void r4k_flush_cache_range_s64d32i32(struct mm_struct *mm,
+					    unsigned long start,
+					    unsigned long end)
 {
-	struct mm_struct *mm = vma->vm_mm;
+	struct vm_area_struct *vma;
 
 	if (CPU_CONTEXT(smp_processor_id(), mm) == 0)
 		return;
@@ -918,7 +929,8 @@ static void r4k_flush_cache_range_s64d32i32(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
 #endif
-	if (vma) {
+	vma = find_vma(mm, start);
+	if(vma) {
 		if (CPU_CONTEXT(smp_processor_id(), mm) !=
 				CPU_CONTEXT(smp_processor_id(), current->mm)) {
 			r4k_flush_cache_all_s64d32i32();
@@ -940,10 +952,11 @@ static void r4k_flush_cache_range_s64d32i32(struct vm_area_struct *vma,
 	}
 }
 
-static void r4k_flush_cache_range_s128d32i32(struct vm_area_struct *vma,
-	unsigned long start, unsigned long end)
+static void r4k_flush_cache_range_s128d32i32(struct mm_struct *mm,
+					     unsigned long start,
+					     unsigned long end)
 {
-	struct mm_struct *mm = vma->vm_mm;
+	struct vm_area_struct *vma;
 
 	if (CPU_CONTEXT(smp_processor_id(), mm) != 0)
 		return;
@@ -952,7 +965,8 @@ static void r4k_flush_cache_range_s128d32i32(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
 #endif
-	if (vma) {
+	vma = find_vma(mm, start);
+	if(vma) {
 		if (CPU_CONTEXT(smp_processor_id(), mm) !=
 				CPU_CONTEXT(smp_processor_id(), current->mm)) {
 			r4k_flush_cache_all_s128d32i32();
@@ -974,11 +988,10 @@ static void r4k_flush_cache_range_s128d32i32(struct vm_area_struct *vma,
 	}
 }
 
-static void r4k_flush_cache_range_d16i16(struct vm_area_struct *vma,
-	unsigned long start, unsigned long end)
+static void r4k_flush_cache_range_d16i16(struct mm_struct *mm,
+					 unsigned long start,
+					 unsigned long end)
 {
-	struct mm_struct *mm = vma->vm_mm;
-
 	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
 #ifdef DEBUG_CACHE
 		printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
@@ -987,11 +1000,10 @@ static void r4k_flush_cache_range_d16i16(struct vm_area_struct *vma,
 	}
 }
 
-static void r4k_flush_cache_range_d32i32(struct vm_area_struct *vma,
-	unsigned long start, unsigned long end)
+static void r4k_flush_cache_range_d32i32(struct mm_struct *mm,
+					 unsigned long start,
+					 unsigned long end)
 {
-	struct mm_struct *mm = vma->vm_mm;
-
 	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
 #ifdef DEBUG_CACHE
 		printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
@@ -1817,11 +1829,9 @@ void local_flush_tlb_mm(struct mm_struct *mm)
 	}
 }
 
-void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
+void local_flush_tlb_range(struct mm_struct *mm, unsigned long start,
 				unsigned long end)
 {
-	struct mm_struct *mm = vma->vm_mm;
-
 	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
 		unsigned long flags;
 		int size;
@@ -1867,49 +1877,6 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 		}
 		__restore_flags(flags);
 	}
-}
-
-void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
-{
-	unsigned long flags;
-	int size;
-
-#ifdef DEBUG_TLB
-	printk("[tlbkernelrange<%08lx,%08lx>]", start, end);
-#endif
-	__save_and_cli(flags);
-	size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
-	size = (size + 1) >> 1;
-	if (size <= NTLB_ENTRIES_HALF) {
-		int pid = get_entryhi();
-
-		start &= (PAGE_MASK << 1);
-		end += ((PAGE_SIZE << 1) - 1);
-		end &= (PAGE_MASK << 1);
-
-		while(start < end) {
-			int idx;
-
-			set_entryhi(start);
-			start += (PAGE_SIZE << 1);
-			BARRIER;
-			tlb_probe();
-			BARRIER;
-			idx = get_index();
-			set_entrylo0(0);
-			set_entrylo1(0);
-			set_entryhi(KSEG0);
-			BARRIER;
-			if (idx < 0)
-				continue;
-			tlb_write_indexed();
-			BARRIER;
-		}
-		set_entryhi(pid);
-	} else {
-		local_flush_tlb_all();
-	}
-	__restore_flags(flags);
 }
 
 void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
@@ -2330,10 +2297,13 @@ void __init ld_mmu_r4xx0(void)
 
 	_flush_cache_l2 = r4k_flush_cache_l2;
 
-	update_mmu_cache = r4k_update_mmu_cache;
+	_update_mmu_cache = r4k_update_mmu_cache;
 
 	flush_cache_l1();
+}
 
+void __init r4k_tlb_init(void)
+{
 	/*
 	 * You should never change this register:
 	 *   - On R4600 1.7 the tlbp never hits for pages smaller than
@@ -2342,5 +2312,6 @@ void __init ld_mmu_r4xx0(void)
 	 *     be set for 4kb pages.
 	 */
 	write_32bit_cp0_register(CP0_PAGEMASK, PM_4K);
+	write_32bit_cp0_register(CP0_WIRED, 0);
 	local_flush_tlb_all();
 }

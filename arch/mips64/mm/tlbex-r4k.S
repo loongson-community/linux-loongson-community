@@ -96,12 +96,12 @@
 	__INIT
 
 	.align	5
-LEAF(except_vec0)
+LEAF(except_vec0_generic)
 	.set	noat
 	PANIC("Unused vector called")
 1:	b	1b
 	 nop
-END(except_vec0)
+END(except_vec0_generic)
 
 
 	/*

@@ -33,7 +33,7 @@
 #undef DEBUG_TLB
 #undef DEBUG_TLBUPDATE
 
-extern char except_vec1_r4k;
+extern void except_vec1_r4k(void);
 
 /* CP0 hazard avoidance. */
 #define BARRIER __asm__ __volatile__(".set noreorder\n\t" \
@@ -92,7 +92,7 @@ void local_flush_tlb_mm(struct mm_struct *mm)
 	}
 }
 
-void local_flush_tlb_range(struct vma_struct *vma, unsigned long start,
+void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 				unsigned long end)
 {
 	struct mm_struct *mm = vma->vm_mm;
@@ -185,7 +185,7 @@ void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
 		}
 		set_entryhi(pid);
 	} else {
-		local_flush_tlb_all()
+		local_flush_tlb_all();
 	}
 	__restore_flags(flags);
 }
@@ -448,6 +448,6 @@ void __init r4k_tlb_init(void)
 	temp_tlb_entry = mips_cpu.tlbsize - 1;
 	local_flush_tlb_all();
 
-	memcpy((void *)(KSEG0 + 0x80), &except_vec1_r4k, 0x80);
+	memcpy((void *)(KSEG0 + 0x80), except_vec1_r4k, 0x80);
 	flush_icache_range(KSEG0, KSEG0 + 0x80);
 }
