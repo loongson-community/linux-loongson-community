@@ -295,7 +295,7 @@ extern inline int pmd_bad(pmd_t pmd)
 
 extern inline int pmd_present(pmd_t pmd)
 {
-	return pmd_val(pmd);
+	return (pmd_val(pmd) != (unsigned long) invalid_pte_table);
 }
 
 extern inline void pmd_clear(pmd_t *pmdp)
