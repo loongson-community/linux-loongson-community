@@ -1,5 +1,4 @@
-/* $Id: signal.h,v 1.6 1999/08/18 23:37:49 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.

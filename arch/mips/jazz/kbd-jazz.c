@@ -1,5 +1,4 @@
-/* $Id: kbd-jazz.c,v 1.1 1998/10/28 12:38:10 ralf Exp $
- *
+/*
  * Low-level hardware access stuff for Jazz family machines.
  *
  * This file is subject to the terms and conditions of the GNU General Public

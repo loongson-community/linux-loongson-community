@@ -1,9 +1,7 @@
-/* $Id: print.c,v 1.1 1999/01/17 03:49:38 ralf Exp $
- *
+/*
  * print.c: Simple print fascility
  *
  * Copyright (C) 1998 Gleb Raiko & Vladimir Roganov
- *
  */
 #include <stdarg.h>
 #include <linux/kernel.h>

@@ -1,13 +1,12 @@
-/* $Id: jazz.h,v 1.9 1998/09/19 19:19:37 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
  * Copyright (C) 1995 - 1998 by Andreas Busse and Ralf Baechle
  */
-#ifndef __ASM_MIPS_JAZZ_H 
-#define __ASM_MIPS_JAZZ_H 
+#ifndef __ASM_JAZZ_H 
+#define __ASM_JAZZ_H 
 
 /*
  * The addresses below are virtual address. The mappings are
@@ -318,4 +317,4 @@ extern inline void r4030_write_reg32(unsigned addr, unsigned val)
 
 #define JAZZ_EISA_BASE	0xe3000000
 
-#endif /* __ASM_MIPS_JAZZ_H */
+#endif /* __ASM_JAZZ_H */

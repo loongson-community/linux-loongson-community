@@ -2,8 +2,6 @@
  * identify.c: machine identification code.
  *
  * Copyright (C) 1998 Harald Koerfgen and Paul M. Antoine
- *
- * $Id: identify.c,v 1.2 1999/10/09 00:00:58 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>

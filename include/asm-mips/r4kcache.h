@@ -3,8 +3,6 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: r4kcache.h,v 1.7 1997/12/18 13:00:45 ralf Exp $
- *
  * FIXME: Handle split L2 caches.
  */
 #ifndef _MIPS_R4KCACHE_H

@@ -3,8 +3,6 @@
  *
  * Copyright (C) 1998 Harald Koerfgen, Frieder Streffer and Paul M. Antoine
  * Copyright (C) 2000 Maciej W. Rozycki
- *
- * $Id: memory.c,v 1.3 1999/10/09 00:00:58 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/config.h>

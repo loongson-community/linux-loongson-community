@@ -1,10 +1,10 @@
-/* $Id: sgi.h,v 1.1.1.1 1997/06/01 03:17:12 ralf Exp $
+/*
  * sgi.h: Definitions specific to SGI machines.
  *
  * Copyright (C) 1996 David S. Miller (dm@sgi.com)
  */
-#ifndef _MIPS_SGI_H
-#define _MIPS_SGI_H
+#ifndef __ASM_SGI_SGI_H
+#define __ASM_SGI_SGI_H
 
 /* UP=UniProcessor MP=MultiProcessor(capable) */
 enum sgi_mach {
@@ -39,4 +39,4 @@ extern void sgi_sysinit(void);
 #define SGI_MSB(regaddr)   ((regaddr) | 0x3)
 #endif
 
-#endif /* !(_MIPS_SGI_H) */
+#endif /* __ASM_SGI_SGI_H */

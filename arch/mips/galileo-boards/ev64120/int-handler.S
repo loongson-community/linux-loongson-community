@@ -1,11 +1,8 @@
 /*
  * int-handler.S
  *
- * $Id: int-handler.S,v 1.1 2000/11/21 00:48:25 stevej Exp $
- *   Based on the cobalt handler.
- *
+ * Based on the cobalt handler.
  */
-
 #include <linux/config.h>
 #include <asm/asm.h>
 #include <asm/mipsregs.h>
@@ -13,11 +10,11 @@
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
 
-/********************************************************************
- *galileo_handle_int -
-        We check for the timer first, then check PCI ints A and D.
-        Then check for serial IRQ and fall through.
-*********************************************************************/
+/*
+ * galileo_handle_int -
+ *      We check for the timer first, then check PCI ints A and D.
+ *      Then check for serial IRQ and fall through.
+ */
 		.align	5
 		.set	reorder
 		.set	noat

@@ -1,5 +1,4 @@
-/* $Id: sgihpc.h,v 1.2 1999/12/06 23:13:21 ralf Exp $
- *
+/*
  * sgihpc.h: Various HPC I/O controller defines.  The HPC is basically
  *           the approximate functional equivalent of the Sun SYSIO
  *           on SGI INDY machines.
@@ -7,8 +6,8 @@
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  * Copyright (C) 1998 Ralf Baechle (ralf@gnu.org)
  */
-#ifndef _MIPS_SGIHPC_H
-#define _MIPS_SGIHPC_H
+#ifndef __ASM_SGI_SGIHPC_H
+#define __ASM_SGI_SGIHPC_H
 
 #include <asm/page.h>
 
@@ -369,4 +368,4 @@ struct indy_clock {
 
 extern void sgihpc_init(void);
 
-#endif /* !(_MIPS_SGIHPC_H) */
+#endif /* __ASM_SGI_SGIHPC_H */

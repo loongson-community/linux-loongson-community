@@ -6,8 +6,6 @@
  * for more details.
  *
  * Copyright (c) 1998 Harald Koerfgen
- *
- * $Id: wbflush.h,v 1.2 1999/08/13 17:07:28 harald Exp $
  */
 #ifndef __ASM_MIPS_WBFLUSH_H
 #define __ASM_MIPS_WBFLUSH_H

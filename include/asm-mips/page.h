@@ -1,5 +1,4 @@
-/* $Id: page.h,v 1.9 2000/02/24 00:13:19 ralf Exp $
- *
+/*
  * Definitions for page handling
  *
  * This file is subject to the terms and conditions of the GNU General Public

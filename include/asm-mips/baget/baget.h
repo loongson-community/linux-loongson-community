@@ -1,4 +1,4 @@
-/* $Id$
+/*
  * baget.h: Definitions specific to Baget/MIPS machines.
  *
  * Copyright (C) 1998 Gleb Raiko & Vladimir Roganov

@@ -1,12 +1,11 @@
-/* $Id$
- *
+/*
  * vic.h: Various VIC controller defines.  The VIC is an interrupt controller
  *        used in Baget/MIPS series.
  *
  * Copyright (C) 1998 Gleb Raiko & Vladimir Roganov
  */
-#ifndef _MIPS_VIC_H
-#define _MIPS_VIC_H
+#ifndef _ASM_BAGET_VIC_H
+#define _ASM_BAGET_VIC_H
 
 #define VIC_VME_II       0x3
 #define VIC_VME_INT1     0x7
@@ -190,4 +189,4 @@
 
 #endif /* __LANGUAGE_ASSEMBLY__ */
 
-#endif /* !(_MIPS_VIC_H) */
+#endif /* _ASM_BAGET_VIC_H */

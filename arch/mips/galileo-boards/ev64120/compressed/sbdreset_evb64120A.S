@@ -1,14 +1,11 @@
-/* $Id: sbdreset_evb64120A.S,v 1.1 2000/11/21 00:48:25 stevej Exp $ */
 /*
-** Copyright 1997 Algorithmics Ltd
-**	All Rights Reserved
-**	
-** gal9/sbdreset.sx -- low level board dependent routines
-*/
+ * Copyright 1997 Algorithmics Ltd
+ *	All Rights Reserved
+ *	
+ * gal9/sbdreset.sx -- low level board dependent routines
+ */
 
 #ifdef EVB64120A
-//#include <mips.h>
-//#include <pmon.h>
 #include <linux/config.h>
 
 #include <asm/asm.h>

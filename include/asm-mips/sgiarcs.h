@@ -1,5 +1,4 @@
-/* $Id: sgiarcs.h,v 1.3 1999/02/25 20:55:08 tsbogend Exp $
- *
+/*
  * SGI ARCS firmware interface defines.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)

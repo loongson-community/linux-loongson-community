@@ -2,8 +2,6 @@
  * file.c: ARCS firmware interface to files.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
- *
- * $Id: file.c,v 1.1 1998/10/18 13:32:08 tsbogend Exp $
  */
 #include <linux/init.h>
 #include <asm/sgialib.h>

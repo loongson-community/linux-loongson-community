@@ -1,5 +1,4 @@
-/* $Id: sni.h,v 1.2 1998/09/19 19:19:39 ralf Exp $
- *
+/*
  * SNI specific definitions
  *
  * This file is subject to the terms and conditions of the GNU General Public

@@ -11,8 +11,6 @@
  *  Send complaints, suggestions etc. to <andy@waldorf-gmbh.de>
  *
  *  Copyright (C) 1995 Andreas Busse
- *
- * $Id: gdb-stub.c,v 1.6 1999/05/01 22:40:35 ralf Exp $
  */
 
 /*

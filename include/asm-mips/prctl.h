@@ -3,7 +3,6 @@
  *
  * The IRIX kernel maps a page at PRDA_ADDRESS with the
  * contents of prda and fills it the bits on prda_sys.
- * $Id$
  */
 
 #ifndef __PRCTL_H__

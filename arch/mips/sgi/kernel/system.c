@@ -2,8 +2,6 @@
  * system.c: Probe the system type using ARCS prom interface library.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
- *
- * $Id: system.c,v 1.8 1999/10/09 00:00:59 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>

@@ -1,8 +1,8 @@
 /*
- * $Id:$
+ * Miguel de Icaza
  */
-#ifndef __ASM_MIPS_INVENTORY_H
-#define __ASM_MIPS_INVENTORY_H
+#ifndef __ASM_INVENTORY_H
+#define __ASM_INVENTORY_H
 
 #include <linux/config.h>
 
@@ -25,4 +25,4 @@ void init_inventory (void);
 #define add_to_inventory(c,t,o,u,s)
 #define init_inventory()
 #endif
-#endif /* defined(CONFIG_BINFMT_IRIX) */
+#endif /* __ASM_INVENTORY_H */

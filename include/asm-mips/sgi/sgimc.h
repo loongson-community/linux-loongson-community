@@ -1,5 +1,4 @@
-/* $Id: sgimc.h,v 1.1.1.1 1997/06/01 03:17:13 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.

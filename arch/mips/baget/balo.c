@@ -1,9 +1,7 @@
-/* $Id$
- *
+/*
  * balo.c: BAget LOader
  *
  * Copyright (C) 1998 Gleb Raiko & Vladimir Roganov
- *
  */
 #include <linux/kernel.h>
 #include <asm/system.h>

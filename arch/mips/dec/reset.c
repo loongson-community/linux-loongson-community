@@ -1,8 +1,5 @@
 /*
- *  $Id: $
- *
- *  Reset a DECstation machine.
- *
+ * Reset a DECstation machine.
  */
 
 void (*back_to_prom)(void) = (void (*)(void))0xBFC00000;

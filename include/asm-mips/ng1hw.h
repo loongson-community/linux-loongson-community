@@ -1,12 +1,9 @@
-/* $Id: ng1hw.h,v 1.4 1999/08/04 06:01:51 ulfc Exp $
- * 
+/*
  * ng1hw.h: Tweaks the newport.h structures and definations to be compatible
  * 	    with IRIX.  Quite ugly, but it works.
  *
  * Copyright (C) 1999 Ulf Carlsson (ulfc@thepuffingroup.com)
- *
  */
-
 #ifndef _SGI_NG1HW_H
 #define _SGI_NG1HW_H
 
