@@ -84,10 +84,6 @@ CORE_FILES	+=arch/mips/math-emu/fpu_emulator.o
 SUBDIRS		+=arch/mips/math-emu
 endif
 
-#
-# The pipe options is bad for my low-mem machine
-# Uncomment this if you want this.
-#
 GCCFLAGS	+= -pipe
 
 CFLAGS		:= -I $(TOPDIR)/include/asm/gcc $(CFLAGS) $(GCCFLAGS)
