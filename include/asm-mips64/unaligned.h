@@ -3,8 +3,8 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1996, 1999, 2000 by Ralf Baechle
- * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
+ * Copyright (C) 1996, 1999, 2000, 2001 by Ralf Baechle
+ * Copyright (C) 1999, 2000, 2001 Silicon Graphics, Inc.
  */
 #ifndef _ASM_UNALIGNED_H
 #define _ASM_UNALIGNED_H
@@ -102,7 +102,7 @@ extern inline void __stw_u(unsigned long __val, unsigned short * __addr)
 		__val = __ldl_u((const unsigned int *)(ptr));		\
 		break;							\
 	case 8:								\
-		__val = __ldq_u((const unsigned long long *)(ptr));	\
+		__val = __ldq_u((const unsigned long *)(ptr));		\
 		break;							\
 	default:							\
 		__get_unaligned_bad_length();				\
