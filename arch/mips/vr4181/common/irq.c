@@ -86,14 +86,13 @@ sys_irq_end(unsigned int irq)
 }
 
 static hw_irq_controller sys_irq_controller = {
-	"vr4181_sys_irq",
-	sys_irq_startup,
-	sys_irq_shutdown,
-	sys_irq_enable,
-	sys_irq_disable,
-	sys_irq_ack,
-	sys_irq_end,
-	NULL			/* no affinity stuff for UP */
+	.typename = "vr4181_sys_irq",
+	.startup = sys_irq_startup,
+	.shutdown = sys_irq_shutdown,
+	.enable = sys_irq_enable,
+	.disable = sys_irq_disable,
+	.ack = sys_irq_ack,
+	.end = sys_irq_end,
 };
 
 /* ---------------------- gpio irq ------------------------ */
@@ -162,14 +161,13 @@ gpio_irq_end(unsigned int irq)
 }
 
 static hw_irq_controller gpio_irq_controller = {
-	"vr4181_gpio_irq",
-	gpio_irq_startup,
-	gpio_irq_shutdown,
-	gpio_irq_enable,
-	gpio_irq_disable,
-	gpio_irq_ack,
-	gpio_irq_end,
-	NULL			/* no affinity stuff for UP */
+	.typename = "vr4181_gpio_irq",
+	.startup = gpio_irq_startup,
+	.shutdown = gpio_irq_shutdown,
+	.enable = gpio_irq_enable,
+	.disable = gpio_irq_disable,
+	.ack = gpio_irq_ack,
+	.end = gpio_irq_end,
 };
 
 /* ---------------------  IRQ init stuff ---------------------- */
