@@ -96,9 +96,7 @@ void __init au1000_setup(void)
 	_machine_halt = au1000_halt;
 	_machine_power_off = au1000_power_off;
 
-	/*
-	 * IO/MEM resources. 
-	 */
+	// IO/MEM resources. 
 	mips_io_port_base = 0;
 	ioport_resource.start = 0;
 	ioport_resource.end = 0xffffffff;
@@ -160,9 +158,9 @@ void __init au1000_setup(void)
 	outl(0x0030, OUTPUT_STATE_CLEAR);
 #endif // defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1000_USB_DEVICE)
 
-	/* select gpio 15 (for interrupt line) */
+	// select gpio 15 (for interrupt line) 
 	pin_func = inl(PIN_FUNCTION) & (u32)(~0x100);
-	/* we don't need I2S, so make it available for GPIO[31:29] */
+	// we don't need I2S, so make it available for GPIO[31:29] 
 	pin_func |= (1<<5);
 	outl(pin_func, PIN_FUNCTION);
 
@@ -172,8 +170,7 @@ void __init au1000_setup(void)
 	conswitchp = &dummy_con;
 #endif
 
-#ifdef CONFIG_FB_E1356
-	static_cfg0 = inl(STATIC_CONFIG_0) & (u32)(~0x1c00);
+	static_cfg0 = inl(STATIC_CONFIG_0) & (u32)(~0xc00);
 	outl(static_cfg0, STATIC_CONFIG_0);
 
 	// configure RCE2* for LCD
@@ -185,18 +182,25 @@ void __init au1000_setup(void)
 	// Set 32-bit base address decoding for RCE2*
 	outl(0x10003ff0, STATIC_ADDRESS_2);
 
+	// PCI CPLD setup
+	// expand CE0 to cover PCI
+	outl(0x11803e40, STATIC_ADDRESS_1);
+
+	// burst visibility on 
+	outl(inl(STATIC_CONFIG_0) | 0x1000, STATIC_CONFIG_0);
+
+	outl(0x83, STATIC_CONFIG_1);         // ewait enabled, flash timing
+	outl(0x33030a10, STATIC_TIMING_1);   // slower timing for FPGA
+
+#ifdef CONFIG_FB_E1356
 	if ((argptr = strstr(argptr, "video=")) == NULL) {
 		argptr = prom_getcmdline();
 		strcat(argptr, " video=e1356fb:system:pb1000,mmunalign:1");
 	}
 #endif // CONFIG_FB_E1356
 
-#ifdef CONFIG_PCI
-	outl(0x11803e40, STATIC_ADDRESS_1);  // expand CE0 to cover PCI
-	outl(inl(STATIC_CONFIG_0) | 0x1000, STATIC_CONFIG_0);  // burst visibility on 
-	outl(0x83, STATIC_CONFIG_1);         // ewait enabled, flash timing
-	outl(0x33030a10, STATIC_TIMING_1);   // slower timing for FPGA
 
+#ifdef CONFIG_PCI
 	outl(0, PCI_BRIDGE_CONFIG); // set extend byte to 0
 	outl(0, SDRAM_MBAR);        // set mbar to 0
 	outl(0x2, SDRAM_CMD);       // enable memory accesses
@@ -218,6 +222,12 @@ void __init au1000_setup(void)
 	}
 	ide_ops = &std_ide_ops;
 #endif
+
+	// setup irda clocks
+	// aux clock, divide by 2, clock from 2/4 divider
+	writel(readl(CLOCK_SOURCE_CNTRL) | 0x7, CLOCK_SOURCE_CNTRL);
+	pin_func = inl(PIN_FUNCTION) & (u32)(~(1<<2)); // clear IRTXD
+	outl(pin_func, PIN_FUNCTION);
 
 	while (inl(PC_COUNTER_CNTRL) & PC_CNTRL_E0S);
 	outl(PC_CNTRL_E0 | PC_CNTRL_EN0, PC_COUNTER_CNTRL);
