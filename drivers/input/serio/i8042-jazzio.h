@@ -24,6 +24,10 @@
 #define I8042_KBD_IRQ JAZZ_KEYBOARD_IRQ
 #define I8042_AUX_IRQ JAZZ_MOUSE_IRQ
 
+#define I8042_COMMAND_REG	((unsigned long)&jazz_kh->command)
+#define I8042_STATUS_REG	((unsigned long)&jazz_kh->command)
+#define I8042_DATA_REG		((unsigned long)&jazz_kh->data)
+
 static inline int i8042_read_data(void)
 {
 	return jazz_kh->data;
@@ -36,21 +40,11 @@ static inline int i8042_read_status(void)
 
 static inline void i8042_write_data(int val)
 {
-	int status;
-
-	do {
-		status = jazz_kh->command;
-	} while (status & KBD_STAT_IBF);
 	jazz_kh->data = val;
 }
 
 static inline void i8042_write_command(int val)
 {
-	int status;
-
-	do {
-		status = jazz_kh->command;
-	} while (status & KBD_STAT_IBF);
 	jazz_kh->command = val;
 }
 
@@ -59,12 +53,10 @@ static inline int i8042_platform_init(void)
 #if 0
 	/* XXX JAZZ_KEYBOARD_ADDRESS is a virtual address */
 	if (!request_mem_region(JAZZ_KEYBOARD_ADDRESS, 2, "i8042"))
-		return 0;
-
-	return 1;
-#else
-	return 0;
+		return 1;
 #endif
+
+	return 0;
 }
 
 static inline void i8042_platform_exit(void)
