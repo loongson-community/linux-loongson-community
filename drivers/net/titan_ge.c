@@ -1113,10 +1113,7 @@ static void titan_ge_tx_queue(titan_ge_port_info * titan_ge_eth,
 	titan_ge_eth->tx_curr_desc_q = (curr_desc + 1) % TITAN_GE_TX_QUEUE;
 
 	/* Prefetch the next descriptor */
-#ifdef CONFIG_CPU_HAS_PREFETCH
-	rm9000_prefetch(&(titan_ge_eth->tx_desc_area[
-				titan_ge_eth->tx_curr_desc_q]));
-#endif
+	prefetch(&(titan_ge_eth->tx_desc_area[titan_ge_eth->tx_curr_desc_q]));
 }
 
 /*
@@ -1454,10 +1451,7 @@ static int titan_ge_rx(struct net_device *netdev, int port_num,
 	    (rx_curr_desc + 1) % TITAN_GE_RX_QUEUE;
 	
 	/* Prefetch the next descriptor */
-#ifdef CONFIG_CPU_HAS_PREFETCH
-	rm9000_prefetch(&(titan_ge_port->rx_desc_area[
-			titan_ge_port->rx_curr_desc_q + 1]));
-#endif
+	prefetch(&(titan_ge_port->rx_desc_area[titan_ge_port->rx_curr_desc_q + 1]));
 
 	return TITAN_OK;
 }
