@@ -142,13 +142,13 @@ void __init per_hub_init(cnodeid_t cnode)
 	 * copy over the caliased exception handlers.
 	 */
 	if (get_compact_nodeid() == cnode) {
-		extern char except_vec0, except_vec1_r10k;
+		extern char except_vec0, except_vec1_r4k;
 		extern char except_vec2_generic, except_vec3_generic;
 
 		memcpy((void *)(KSEG0 + 0x100), &except_vec2_generic, 0x80);
 		memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic, 0x80);
 		memcpy((void *)KSEG0, &except_vec0, 0x80);
-		memcpy((void *)KSEG0 + 0x080, &except_vec1_r10k, 0x80);
+		memcpy((void *)KSEG0 + 0x080, &except_vec1_r4k, 0x80);
 		memcpy((void *)(KSEG0 + 0x100), (void *) KSEG0, 0x80);
 		memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic, 0x100);
 		__flush_cache_all();

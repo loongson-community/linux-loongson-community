@@ -20,7 +20,7 @@
 extern void except_vec0_generic(void);
 extern void except_vec0_r4000(void);
 extern void except_vec1_generic(void);
-extern void except_vec1_r10k(void);
+extern void except_vec1_r4k(void);
 
 #define NTLB_ENTRIES       64
 #define NTLB_ENTRIES_HALF  32
@@ -264,7 +264,7 @@ void __init tlb_init(void)
 #endif
 #ifdef CONFIG_MIPS64
 	memcpy((void *)(CKSEG0 + 0x000), &except_vec0_generic, 0x80);
-	memcpy((void *)(CKSEG0 + 0x080), except_vec1_r10k, 0x80);
+	memcpy((void *)(CKSEG0 + 0x080), except_vec1_r4k, 0x80);
 	flush_icache_range(CKSEG0 + 0x80, CKSEG0 + 0x100);
 #endif
 }
