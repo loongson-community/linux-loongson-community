@@ -65,7 +65,8 @@ mips_cpu_irq_ack(unsigned int irq)
 static void
 mips_cpu_irq_end(unsigned int irq)
 {
-	mips_cpu_irq_enable(irq);
+	if(!(irq_desc[irq].status & (IRQ_DISABLED | IRQ_INPROGRESS)))
+		mips_cpu_irq_enable(irq);
 }
 
 static hw_irq_controller mips_cpu_irq_controller = {

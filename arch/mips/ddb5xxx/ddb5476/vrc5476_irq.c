@@ -45,7 +45,11 @@ static void vrc5476_irq_ack(uint irq)
 	nile4_disable_irq(irq - irq_base);
 }
 
-#define	vrc5476_irq_end		vrc5476_irq_enable
+static void vrc5476_irq_end(uint irq)
+{
+	if(!(irq_desc[irq].status & (IRQ_DISABLED | IRQ_INPROGRESS)))
+		vrc5476_irq_enable(irq);
+}
 
 static hw_irq_controller vrc5476_irq_controller = {
 	"vrc5476",

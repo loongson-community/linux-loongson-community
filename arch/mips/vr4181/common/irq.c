@@ -77,7 +77,13 @@ sys_irq_startup(unsigned int irq)
 
 #define sys_irq_shutdown	sys_irq_disable
 #define sys_irq_ack		sys_irq_disable
-#define sys_irq_end		sys_irq_enable
+
+static void
+sys_irq_end(unsigned int irq)
+{
+	if(!(irq_desc[irq].status & (IRQ_DISABLED | IRQ_INPROGRESS)))
+		sys_irq_enable();
+}
 
 static hw_irq_controller sys_irq_controller = {
 	"vr4181_sys_irq",
@@ -148,7 +154,12 @@ gpio_irq_ack(unsigned int irq)
 	}
 }
 
-#define gpio_irq_end		gpio_irq_enable
+static void
+gpio_irq_end(unsigned int irq)
+{
+	if(!(irq_desc[irq].status & (IRQ_DISABLED | IRQ_INPROGRESS)))
+		gpio_irq_enable(irq);
+}
 
 static hw_irq_controller gpio_irq_controller = {
 	"vr4181_gpio_irq",

@@ -85,7 +85,8 @@ vrc5477_irq_end(unsigned int irq)
 	db_assert(irq >= vrc5477_irq_base);
 	db_assert(irq < vrc5477_irq_base + NUM_5477_IRQ);
 
-	ll_vrc5477_irq_enable( irq - vrc5477_irq_base);
+	if(!(irq_desc[irq].status & (IRQ_DISABLED | IRQ_INPROGRESS)))
+		ll_vrc5477_irq_enable( irq - vrc5477_irq_base);
 }
 
 hw_irq_controller vrc5477_irq_controller = {
