@@ -221,7 +221,7 @@ SYS(sys_getcwd, 2)
 SYS(sys_capget, 2)
 SYS(sys_capset, 2)				/* 4205 */
 SYS(sys_sigaltstack, 0)
-SYS(sys_sendfile, 3)
+SYS(sys_sendfile, 4)
 SYS(sys_ni_syscall, 0)
 SYS(sys_ni_syscall, 0)
 SYS(sys_mmap2, 6)				/* 4210 */
