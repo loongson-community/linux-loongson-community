@@ -630,23 +630,6 @@ config VICTOR_MPC30X
 config ZAO_CAPCELLA
 	bool "Support for ZAO Networks Capcella"
 
-choice
-	prompt "Kernel page size"
-	default PAGE_SIZE_4KB
-
-config PAGE_SIZE_4KB
-	bool "4kB"
-
-config PAGE_SIZE_16KB
-	bool "16kB"
-	depends on EXPERIMENTAL
-
-config PAGE_SIZE_64KB
-	bool "64kB"
-	depends on EXPERIMENTAL
-
-endchoice
-
 config RWSEM_GENERIC_SPINLOCK
 	bool
 	default y
@@ -769,6 +752,8 @@ choice
 	prompt "Galileo Chip Clock"
 	#default SYSCLK_83 if MIPS_EV64120
 	depends on MIPS_EV64120 || MOMENCO_OCELOT || MOMENCO_OCELOT_G
+	default SYSCLK_83 if MIPS_EV64120
+	default SYSCLK_100 if MOMENCO_OCELOT || MOMENCO_OCELOT_G
 
 config SYSCLK_75
 	bool "75" if MIPS_EV64120
@@ -778,7 +763,6 @@ config SYSCLK_83
 
 config SYSCLK_100
 	bool "100" if MIPS_EV64120 || MOMENCO_OCELOT || MOMENCO_OCELOT_G
-	default y if MOMENCO_OCELOT || MOMENCO_OCELOT_G
 
 endchoice
 
@@ -1016,6 +1000,40 @@ config CPU_RM9000
 
 config CPU_SB1
 	bool "SB1"
+
+endchoice
+
+choice
+	prompt "Kernel page size"
+	default PAGE_SIZE_4KB
+
+config PAGE_SIZE_4KB
+	bool "4kB"
+	help
+	 This option select the standard 4kB Linux page size.  On some
+	 R3000-family processors this is the only available page size.  Using
+	 4kB page size will minimize memory consumption and is therefore
+	 recommended for low memory systems. 
+
+config PAGE_SIZE_16KB
+	bool "16kB"
+	depends on EXPERIMENTAL && !CPU_R3000 && !CPU_TX39XX
+	help
+	  Using 16kB page size will result in higher performance kernel at
+	  the price of higher memory consumption.  This option is available on
+	  all non-R3000 family processor.  Not that at the time of this
+	  writing this option is still high experimental; there are also
+	  issues with compatibility of user applications.
+
+config PAGE_SIZE_64KB
+	bool "64kB"
+	depends on EXPERIMENTAL && !CPU_R3000 && !CPU_TX39XX
+	help
+	  Using 64kB page size will result in higher performance kernel at
+	  the price of higher memory consumption.  This option is available on
+	  all non-R3000 family processor.  Not that at the time of this
+	  writing this option is still high experimental; there are also
+	  issues with compatibility of user applications.
 
 endchoice
 
