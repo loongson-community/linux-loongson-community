@@ -35,7 +35,7 @@
 #define CYCLES_PER_SEC		(NSEC_PER_SEC/NSEC_PER_CYCLE)
 #define CYCLES_PER_JIFFY	(CYCLES_PER_SEC/HZ)
 
-static unsigned long ct_cur;		/* What counter should be at next timer irq */
+static unsigned long ct_cur[NR_CPUS];	/* What counter should be at next timer irq */
 static long last_rtc_update = 0;	/* Last time the rtc clock got updated */
 
 extern rwlock_t xtime_lock;
@@ -91,7 +91,7 @@ static int set_rtc_mmss(unsigned long nowtime)
 void rt_timer_interrupt(struct pt_regs *regs)
 {
 	int cpu = smp_processor_id();
-	int cpuA = ((cputoslice(smp_processor_id())) == 0);
+	int cpuA = ((cputoslice(cpu)) == 0);
 	int user = user_mode(regs);
 	int irq = 7;				/* XXX Assign number */
 
@@ -99,14 +99,16 @@ void rt_timer_interrupt(struct pt_regs *regs)
 
 again:
 	LOCAL_HUB_S(cpuA ? PI_RT_PEND_A : PI_RT_PEND_B, 0);	/* Ack  */
-	ct_cur += CYCLES_PER_JIFFY;
-	LOCAL_HUB_S(cpuA ? PI_RT_COMPARE_A : PI_RT_COMPARE_B, ct_cur);
+	ct_cur[cpu] += CYCLES_PER_JIFFY;
+	LOCAL_HUB_S(cpuA ? PI_RT_COMPARE_A : PI_RT_COMPARE_B, ct_cur[cpu]);
 
-	if (LOCAL_HUB_L(PI_RT_COUNT) >= ct_cur)
+	if (LOCAL_HUB_L(PI_RT_COUNT) >= ct_cur[cpu])
 		goto again;
 
-	kstat.irqs[cpu][irq]++;		/* kstat+do_timer only for bootcpu? */
-	do_timer(regs);
+	kstat.irqs[cpu][irq]++;		/* kstat only for bootcpu? */
+
+	if (cpu == 0)
+		do_timer(regs);
 
 #ifdef CONFIG_SMP
 	if (current->pid) {
@@ -161,12 +163,9 @@ again:
 
 unsigned long inline do_gettimeoffset(void)
 {
-#if 0
-	unsigned long ct_cur1 = LOCAL_HUB_L(PI_RT_COUNT) + CYCLES_PER_JIFFY;
-	return (ct_cur1 - ct_cur) * NSEC_PER_CYCLE / 1000;
-#else
-	return 0;
-#endif
+	unsigned long ct_cur1;
+	ct_cur1 = REMOTE_HUB_L(cputonasid(0), PI_RT_COUNT) + CYCLES_PER_JIFFY;
+	return (ct_cur1 - ct_cur[0]) * NSEC_PER_CYCLE / 1000;
 }
 
 void do_gettimeofday(struct timeval *tv)
@@ -321,15 +320,16 @@ void __init hub_rtc_init(cnodeid_t cnode)
 	 * node and timeouts will not happen there.
 	 */
 	if (get_compact_nodeid() == cnode) {
+		int cpu = smp_processor_id();
 		LOCAL_HUB_S(PI_RT_EN_A, 1);
 		LOCAL_HUB_S(PI_RT_EN_B, 1);
 		LOCAL_HUB_S(PI_PROF_EN_A, 0);
 		LOCAL_HUB_S(PI_PROF_EN_B, 0);
-		ct_cur = CYCLES_PER_JIFFY;
-		LOCAL_HUB_S(PI_RT_COMPARE_A, ct_cur);
+		ct_cur[cpu] = CYCLES_PER_JIFFY;
+		LOCAL_HUB_S(PI_RT_COMPARE_A, ct_cur[cpu]);
 		LOCAL_HUB_S(PI_RT_COUNT, 0);
 		LOCAL_HUB_S(PI_RT_PEND_A, 0);
-		LOCAL_HUB_S(PI_RT_COMPARE_B, ct_cur);
+		LOCAL_HUB_S(PI_RT_COMPARE_B, ct_cur[cpu]);
 		LOCAL_HUB_S(PI_RT_COUNT, 0);
 		LOCAL_HUB_S(PI_RT_PEND_B, 0);
 	}
