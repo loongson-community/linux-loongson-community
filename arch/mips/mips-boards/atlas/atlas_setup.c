@@ -19,6 +19,7 @@
  */
 #include <linux/config.h>
 #include <linux/init.h>
+#include <linux/interrupt.h>
 #include <linux/sched.h>
 #include <linux/mc146818rtc.h>
 #include <linux/ioport.h>

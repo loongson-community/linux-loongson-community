@@ -18,8 +18,8 @@
  *  with this program; if not, write to the Free Software Foundation, Inc.,
  *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
  */
-#ifndef _ASM_GT64120_GT64120_H
-#define _ASM_GT64120_GT64120_H
+#ifndef __ASM_GT64120_GT64120_H
+#define __ASM_GT64120_GT64120_H
 
 #define MSK(n)                    ((1 << (n)) - 1)
 
@@ -416,6 +416,7 @@
 
 #include <linux/config.h>
 #include <linux/init.h>
+#include <linux/pci.h>
 
 #if defined(CONFIG_MOMENCO_OCELOT)
 #include <asm/gt64120/momenco_ocelot/gt64120_dep.h>
@@ -440,4 +441,4 @@
  */
 extern void __init gt64120_board_pcibios_fixup_bus(struct pci_bus *bus);
 
-#endif /* _ASM_GT64120_GT64120_H */
+#endif /* __ASM_GT64120_GT64120_H */
