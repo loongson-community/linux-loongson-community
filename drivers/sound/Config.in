@@ -34,7 +34,7 @@ dep_tristate '  Creative SBLive! (EMU10K1)' CONFIG_SOUND_EMU10K1 $CONFIG_SOUND $
 dep_mbool    '    Creative SBLive! MIDI' CONFIG_MIDI_EMU10K1 $CONFIG_SOUND_EMU10K1 $CONFIG_EXPERIMENTAL
 dep_tristate '  Crystal SoundFusion (CS4280/461x)' CONFIG_SOUND_FUSION $CONFIG_SOUND
 dep_tristate '  Crystal Sound CS4281' CONFIG_SOUND_CS4281 $CONFIG_SOUND
-if [ "$CONFIG_SIBYTE_SB1250" = "y" -a "$CONFIG_REMOTE_DEBUG" != 'y' ]; then
+if [ "$CONFIG_SIBYTE_SB1250" = "y" -a "$CONFIG_REMOTE_DEBUG" != "y" ]; then
     dep_tristate '  Crystal Sound CS4297a (for Swarm)' CONFIG_SOUND_BCM_CS4297A $CONFIG_SOUND
 fi
 dep_tristate '  Ensoniq AudioPCI (ES1370)' CONFIG_SOUND_ES1370 $CONFIG_SOUND $CONFIG_PCI
