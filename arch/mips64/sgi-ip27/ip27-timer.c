@@ -161,8 +161,12 @@ again:
 
 unsigned long inline do_gettimeoffset(void)
 {
+#if 0
 	unsigned long ct_cur1 = LOCAL_HUB_L(PI_RT_COUNT) + CYCLES_PER_JIFFY;
 	return (ct_cur1 - ct_cur) * NSEC_PER_CYCLE / 1000;
+#else
+	return 0;
+#endif
 }
 
 void do_gettimeofday(struct timeval *tv)
