@@ -376,7 +376,6 @@ __init int prom_init(int argc, char **argv, char **envp, int *prom_vec)
 			panic("LINUX_CMDLINE not defined in cfe.");
 		}
 	}
-strcpy(arcs_cmdline, "root=/dev/nfs ip=bootp");
 	
 #ifdef CONFIG_BLK_DEV_INITRD
 	{
