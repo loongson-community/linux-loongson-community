@@ -24,6 +24,7 @@
 #ifdef CONFIG_BLK_DEV_IDE
 #include <linux/ide.h>
 #endif
+#include <linux/tty.h>
 
 #include <asm/cpu.h>
 #include <asm/bootinfo.h>
@@ -40,11 +41,6 @@
 #include <asm/traps.h>
 #ifdef CONFIG_VT
 #include <linux/console.h>
-#endif
-
-#if defined(CONFIG_SERIAL_CONSOLE) || defined(CONFIG_PROM_CONSOLE)
-extern void console_setup(char *, int *);
-char serial_console[20];
 #endif
 
 #ifdef CONFIG_KGDB
@@ -97,11 +93,41 @@ void __init malta_setup(void)
 	 */
 	enable_dma(4);
 
-#ifdef CONFIG_SERIAL_CONSOLE
+#ifdef CONFIG_SERIAL_8250_CONSOLE
 	argptr = prom_getcmdline();
 	if ((argptr = strstr(argptr, "console=")) == NULL) {
+		char console_string[40];
+		int baud = 0;
+		char parity = '\0', bits = '\0', flow = '\0';
+		char *s = prom_getenv("modetty0");
+		if (s) {
+			while (*s >= '0' && *s <= '9')
+				baud = baud*10 + *s++ - '0';
+			if (*s == ',')
+				s++;
+			if (*s)
+				parity = *s++;
+			if (*s == ',')
+				s++;
+			if (*s)
+				bits = *s++;
+			if (*s == ',')
+				s++;
+			if (*s == 'h')
+				flow = 'r';
+		}
+		if (baud == 0)
+			baud = 38400;
+		if (parity != 'n' && parity != 'o' && parity != 'e')
+			parity = 'n';
+		if (bits != '7' && bits != '8')
+			bits = '8';
+		if (flow == '\0')
+			flow = 'r';
+		sprintf (console_string, " console=ttyS0,%d%c%c%c", baud, parity, bits, flow);
 		argptr = prom_getcmdline();
-		strcat(argptr, " console=ttyS0,38400");
+		strcat (argptr, console_string);
+		prom_printf("Config serial console:%s\n", console_string);
 	}
 #endif
 
@@ -128,10 +154,6 @@ void __init malta_setup(void)
 		/* Breakpoints are in init_IRQ() */
 	}
 #endif
-
-	argptr = prom_getcmdline();
-	if ((argptr = strstr(argptr, "nofpu")) != NULL)
-		cpu_data[0].options &= ~MIPS_CPU_FPU;
 
 	rtc_ops = &malta_rtc_ops;
 
