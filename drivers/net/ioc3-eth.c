@@ -606,6 +606,14 @@ static void ioc3_probe1(struct net_device *dev, struct ioc3 *ioc3)
 	struct ioc3_private *p;
 
 	dev = init_etherdev(dev, 0);
+
+	/*
+	 * This probably needs to be register_netdevice, or call
+	 * init_etherdev so that it calls register_netdevice. Quick
+	 * hack for now.
+	 */
+	netif_device_attach(dev);
+
 	p = (struct ioc3_private *) kmalloc(sizeof(*p), GFP_KERNEL);
 	memset(p, 0, sizeof(*p));
 	dev->priv = p;
