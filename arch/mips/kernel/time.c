@@ -1,7 +1,6 @@
-/* $Id: time.c,v 1.14 2000/01/26 00:07:44 ralf Exp $
- *
- *  Copyright (C) 1991, 1992, 1995  Linus Torvalds
- *  Copyright (C) 1996, 1997, 1998  Ralf Baechle
+/*
+ * Copyright (C) 1991, 1992, 1995  Linus Torvalds
+ * Copyright (C) 1996 - 2000  Ralf Baechle
  *
  * This file contains the time handling details for PC-style clocks as
  * found in some MIPS systems.
@@ -355,7 +354,6 @@ timer_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 	     dist = period / 4;
 	}
 #endif
-#ifdef CONFIG_PROFILE
 	if(!user_mode(regs)) {
 		if (prof_buffer && current->pid) {
 			extern int _stext;
@@ -373,7 +371,6 @@ timer_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 			atomic_inc((atomic_t *)&prof_buffer[pc]);
 		}
 	}
-#endif
 	do_timer(regs);
 
 	/*
