@@ -4,8 +4,6 @@
  * Thomas Horsten <thh@lasat.com>
  * Copyright (C) 2000 LASAT Networks A/S.
  *
- * ########################################################################
- *
  *  This program is free software; you can distribute it and/or modify it
  *  under the terms of the GNU General Public License (Version 2) as
  *  published by the Free Software Foundation.
@@ -19,10 +17,7 @@
  *  with this program; if not, write to the Free Software Foundation, Inc.,
  *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
  *
- * ########################################################################
- *
  * Configuration for LASAT boards, loads the appropriate include files.
- *
  */
 #ifndef _LASAT_H
 #define _LASAT_H
@@ -226,11 +221,6 @@ extern void lasat_write_eeprom_info(void);
 /* for calibration of delays */
 
 #include <asm/delay.h>
-#define NANOTH 1000000000L
-extern inline void ndelay(unsigned int ns) {
-	if (ns != 0)
-		__delay(lasat_board_info.li_cpu_hz / 2 / (NANOTH / ns) + 1);
-}
 
 extern void (* prom_printf)(const char *fmt, ...);
 
