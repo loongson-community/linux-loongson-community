@@ -175,7 +175,7 @@ sys_call_table:
 	PTR	sys_setuid
 	PTR	sys_getuid
 	PTR	sys_stime				/* 5025 */
-	PTR	sys_ni_syscall		/* ptrace */
+	PTR	sys_ptrace
 	PTR	sys_alarm
 	PTR	sys_fstat
 	PTR	sys_pause
