@@ -88,7 +88,7 @@ config MIPS_EV96100
 	depends on EXPERIMENTAL
 	select MIPS_GT96100
 	help
-	  This is an evaluation board based on the Galielo GT-96100 LAN/WAN
+	  This is an evaluation board based on the Galileo GT-96100 LAN/WAN
 	  communications controllers containing a MIPS R5000 compatible core
 	  running at 83MHz. Their website is <http://www.marvell.com/>. Say Y
 	  here if you wish to build a kernel for this platform.
