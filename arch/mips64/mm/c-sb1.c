@@ -98,8 +98,8 @@ static inline void __sb1_writeback_inv_dcache_range(unsigned long start,
 	"	cache	%3, (1<<13)($1)	\n" /* Index-WB-inval this address */
 	"	cache	%3, (2<<13)($1)	\n" /* Index-WB-inval this address */
 	"	cache	%3, (3<<13)($1)	\n" /* Index-WB-inval this address */
-	"	bne	$1, %1, 1b	\n" /* loop test */
-	"	 addu	$1, $1, %2	\n" /* next line */
+	"	bne	%0, %1, 1b	\n" /* loop test */
+	"	 addu	%0, %0, %2	\n" /* next line */
 	"	sync			\n"
 	"	.set pop		\n"
 	:

@@ -1190,7 +1190,7 @@ static int __init probe_scache(unsigned long config)
 	pow2 = (128 * 1024);
 	tmp = 0;
 	for (addr = begin + (128 * 1024); addr < end; addr = begin + pow2) {
-		cache_op(Index_Load_Tag_SD, begin);
+		cache_op(Index_Load_Tag_SD, addr);
 		__asm__ __volatile__("nop; nop; nop; nop;"); /* hazard... */
 		if (!get_taglo())
 			break;
