@@ -117,6 +117,10 @@ extern int stifb_init(void);
 extern int stifb_setup(char*);
 extern int pmagbafb_init(void);
 extern int pmagbafb_setup(char *);
+extern int pmagbbfb_init(void);
+extern int pmagbbfb_setup(char *options, int *ints);
+extern void maxinefb_init(void);
+extern void maxinefb_setup(char *options, int *ints);
 
 static struct {
 	const char *name;
@@ -274,9 +278,18 @@ static struct {
 	/* Not a real frame buffer device... */
 	{ "resolver", NULL, resolver_video_setup },
 #endif
-#ifdef CONFIG_FB_PMAGBA
-	{ "pmagbafb", pmagbafb_init, pmagbafb_setup },
+
+#ifdef CONFIG_FB_PMAG_BA
+       { "pmagbafb", pmagbafb_init, pmagbafb_setup },
 #endif
+#ifdef CONFIG_FB_PMAGB_B
+        { "pmagbbfb", pmagbbfb_init, pmagbbfb_setup },
+#endif
+
+#ifdef CONFIG_FB_MAXINE
+        { "maxinefb", maxinefb_init, maxinefb_setup },
+#endif
+
 
 #ifdef CONFIG_FB_VIRTUAL
 	/*

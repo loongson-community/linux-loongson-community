@@ -731,6 +731,11 @@ S: Grevgatan 11
 S: S-114 53 Stockholm
 S: Sweden
 
+N: Michael Engel
+E: engel@unix-ag.org
+D: DECstation framebuffer drivers
+S: Germany
+
 N: Paal-Kristian Engstad
 E: engstad@intermetrics.com
 D: Kernel smbfs (to mount WfW, NT and OS/2 network drives.)
@@ -1807,6 +1812,11 @@ S: Conectiva S.A.
 S: R. Tocantins, 89 - Cristo Rei
 S: 80050-430 - Curitiba - Paraná
 S: Brazil
+
+N: Karsten Merker
+E: merker@linuxtag.org
+D: DECstation framebuffer drivers
+S: Germany
 
 N: Michael Meskes
 E: meskes@debian.org
