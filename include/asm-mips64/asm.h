@@ -88,7 +88,7 @@ symbol		=	value
 #define	PANIC(msg)                                      \
 		.set	push;				\
 		.set	reorder;                        \
-		la	a0,8f;                          \
+		PTR_LA	a0,8f;                          \
 		jal	panic;                          \
 9:		b	9b;                             \
 		.set	pop;				\
@@ -100,7 +100,7 @@ symbol		=	value
 #define PRINT(string)                                   \
 		.set	push;				\
 		.set	reorder;                        \
-		la	a0,8f;                          \
+		PTR_LA	a0,8f;                          \
 		jal	printk;                         \
 		.set	pop;				\
 		TEXT(string)

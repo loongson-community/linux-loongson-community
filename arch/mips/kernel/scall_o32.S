@@ -122,7 +122,7 @@ stackargs:
 	bltz	t0, bad_stack		# -> sp is bad
 
 	lw	t0, PT_R29(sp)		# get old user stack pointer
-	la	t1, 3f			# copy 1 to 2 arguments
+	PTR_LA	t1, 3f			# copy 1 to 2 arguments
 	sll	t3, t3, 4
 	subu	t1, t3
 	jr	t1
@@ -136,6 +136,7 @@ stackargs:
 	 */
 	.set    push
 	.set    noreorder
+	.set	nomacro
 1:	lw	t1, 20(t0)		# argument #6 from usp
 	nop
 	sw	t1, 20(sp)
@@ -144,9 +145,9 @@ stackargs:
 	nop
 	sw	t1, 16(sp)
 	nop
-	.set	pop
+3:	.set	pop
 
-3:	j	stack_done		# go back
+	j	stack_done		# go back
 
 	.section __ex_table,"a"
 	PTR	1b,bad_stack

@@ -82,7 +82,7 @@ FEXPORT(__bzero)
 	.set	noreorder
 
 memset_partial:
-	la	t1, 2f				/* where to start */
+	PTR_LA	t1, 2f				/* where to start */
 	.set	noat
 	dsrl	AT, t0, 1
 	dsubu	t1, AT
@@ -90,8 +90,12 @@ memset_partial:
 	jr	t1
 	 daddu	a0, t0				/* dest ptr */
 
+	.set	push
+	.set	noreorder
+	.set	nomacro
 	F_FILL64(a0, -64, a1, partial_fixup)	/* ... but first do dwds ... */
-2:	andi	a2, 7				/* 0 <= n <= 7 to go */
+2:	.set	pop
+	andi	a2, 7				/* 0 <= n <= 7 to go */
 
 	beqz	a2, 1f
 	 daddu	a0, a2				/* What's left */

@@ -26,7 +26,7 @@
 #if defined(CONFIG_ARC64) || defined(CONFIG_MAPPED_KERNEL)
 	/* We get launched at a XKPHYS address but the kernel is linked to
 	   run at a KSEG0 address, so jump there.  */
-	la	t0, \@f
+	PTR_LA	t0, \@f
 	jr	t0
 \@:
 #endif
@@ -105,7 +105,7 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 
 	CLI					# disable interrupts
 
-	la	$28, init_thread_union		# init current pointer
+	PTR_LA	$28, init_thread_union		# init current pointer
 	daddiu	sp, $28, KERNEL_STACK_SIZE-32
 	set_saved_sp	sp, t0
 	
@@ -114,13 +114,13 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 	 * the romvec and other important info is stored there
 	 * by prom_init().
 	 */
-	la      t0, _edata
-	sd      zero, (t0)
-	la      t1, (_end - 8)
+	PTR_LA	t0, _edata
+	sd	zero, (t0)
+	PTR_LA	t1, (_end - 8)
 1:
-	daddiu  t0, 8
-	sd     zero, (t0)
-	bne     t0, t1, 1b
+	daddiu	t0, 8
+	sd	zero, (t0)
+	bne	t0, t1, 1b
  
 	dsubu	sp, 4*SZREG			# init stack pointer
 

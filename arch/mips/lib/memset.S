@@ -84,13 +84,17 @@ EXPORT(__bzero)
 	.set	noreorder
 
 memset_partial:
-	la	t1, 2f				/* where to start */
+	PTR_LA	t1, 2f				/* where to start */
 	subu	t1, t0
 	jr	t1
 	 addu	a0, t0				/* dest ptr */
 
+	.set	push
+	.set	noreorder
+	.set	nomacro
 	F_FILL64(a0, -64, a1, partial_fixup)	/* ... but first do wrds ... */
-2:	andi	a2, 3				/* 0 <= n <= 3 to go */
+2:	.set	pop
+	andi	a2, 3				/* 0 <= n <= 3 to go */
 
 	beqz	a2, 1f
 	 addu	a0, a2				/* What's left */

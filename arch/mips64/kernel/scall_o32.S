@@ -136,16 +136,20 @@ stackargs:
 	bltz	t0, bad_stack		# -> sp is bad
 
 	ld	t0, PT_R29(sp)		# get old user stack pointer
-	la	t1, 3f			# copy 1 to 2 arguments
+	PTR_LA	t1, 3f			# copy 1 to 2 arguments
 	sll	t3, t3, 2
 	subu	t1, t3
 	jr	t1
 
 	/* Ok, copy the args from the luser stack to the kernel stack */
+	.set	push
+	.set	noreorder
+	.set	nomacro
 1:	lw	a5, 20(t0)		# argument #6 from usp
 2:	lw	a4, 16(t0)		# argument #5 from usp
+3:	.set	pop
 
-3:	j	stack_done		# go back
+	j	stack_done		# go back
 
 	.section __ex_table,"a"
 	PTR	1b, bad_stack
