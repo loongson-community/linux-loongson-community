@@ -18,6 +18,8 @@
  */
 #define BASE_BAUD (1843200 / 16)
 
+#if defined(CONFIG_SGI_IP27)
+
 /*
  * Note about serial ports and consoles:
  * For console output, everyone uses the IOC3 UARTA (offset 0x178)
@@ -49,5 +51,40 @@
 #define RS_TABLE_SIZE	64
 
 #define SERIAL_PORT_DFNS
+
+#elif defined(CONFIG_SGI_IP32)
+
+#include <asm/ip32/ip32_ints.h>
+
+/*
+ * The IP32 (SGI O2) has standard serial ports (UART 16550A) mapped in memory
+ */
+
+#define RS_TABLE_SIZE
+
+/* Standard COM flags (except for COM4, because of the 8514 problem) */
+#ifdef CONFIG_SERIAL_DETECT_IRQ
+#define STD_COM_FLAGS (ASYNC_BOOT_AUTOCONF | ASYNC_SKIP_TEST | ASYNC_AUTO_IRQ)
+#define STD_COM4_FLAGS (ASYNC_BOOT_AUTOCONF | ASYNC_AUTO_IRQ)
+#else
+#define STD_COM_FLAGS (ASYNC_BOOT_AUTOCONF/* | ASYNC_SKIP_TEST*/)
+#define STD_COM4_FLAGS ASYNC_BOOT_AUTOCONF
+#endif
+
+#define SERIAL_PORT_DFNS				\
+        { baud_base: BASE_BAUD,				\
+	  irq: MACEISA_SERIAL1_IRQ,			\
+          flags: STD_COM_FLAGS,				\
+          iomem_base: (u8*)MACE_BASE+MACEISA_SER1_BASE,	\
+          iomem_reg_shift: 8,				\
+          io_type: SERIAL_IO_MEM},                      \
+        { baud_base: BASE_BAUD,				\
+	  irq: MACEISA_SERIAL2_IRQ,			\
+          flags: STD_COM_FLAGS,				\
+          iomem_base: (u8*)MACE_BASE+MACEISA_SER2_BASE,	\
+          iomem_reg_shift: 8,				\
+          io_type: SERIAL_IO_MEM},                      
+#endif
+
 
 #endif /* _ASM_SERIAL_H */
