@@ -28,7 +28,7 @@
 
 	.macro	__build_clear_fpe
 	cfc1	a1, fcr31
-	li	a2, ~(0x3f << 13)
+	li	a2, ~(0x3f << 12)
 	and	a2, a1
 	ctc1	a2, fcr31
 	STI
