@@ -1,10 +1,11 @@
-/* $Id: indy_int.c,v 1.10 1998/08/25 09:14:49 ralf Exp $
+/* $Id: indy_int.c,v 1.11 1999/01/04 16:03:56 ralf Exp $
  *
  * indy_int.c: Routines for generic manipulation of the INT[23] ASIC
  *             found on INDY workstations..
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  * Copyright (C) 1997, 1998 Ralf Baechle (ralf@gnu.org)
+ * Copyright (C) 1999 Andrew R. Baker (andrewb@uab.edu) - Indigo2 changes
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -563,9 +564,16 @@ __initfunc(void sgint_init(void))
 		}
 	}
 
-	ioc_icontrol = &sgi_i3regs->ints;
-	ioc_timers = &sgi_i3regs->timers;
-	ioc_tclear = &sgi_i3regs->tclear;
+	/* Indy uses an INT3, Indigo2 uses an INT2 */
+	if (sgi_guiness) {
+		ioc_icontrol = &sgi_i3regs->ints;
+		ioc_timers = &sgi_i3regs->timers;
+		ioc_tclear = &sgi_i3regs->tclear;
+	} else {
+		ioc_icontrol = &sgi_i2regs->ints;
+		ioc_timers = &sgi_i2regs->timers;
+		ioc_tclear = &sgi_i2regs->tclear;
+	}
 
 	/* Mask out all interrupts. */
 	ioc_icontrol->imask0 = 0;
