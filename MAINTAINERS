@@ -273,13 +273,6 @@ S:	Maintained
 
 MIPS:
 P:	Ralf Baechle
-M:	ralf@julia.de
-W:	http://lena.fnet.fr/
-L:	linux-mips@fnet.fr
-S:	Maintained
-
-MIPS:
-P:	Ralf Baechle
 M:	ralf@gnu.ai.mit.edu
 W:	http://lena.fnet.fr/
 L:	linux-mips@fnet.fr
