@@ -413,7 +413,7 @@ ioc3_rx(struct net_device *dev, struct ioc3_private *ip, struct ioc3 *ioc3)
 	while (w0 & ERXBUF_V) {
 		err = rxb->err;				/* It's valid ...  */
 		if (err & ERXBUF_GOODPKT) {
-			len = (w0 >> ERXBUF_BYTECNT_SHIFT) & 0x7ff;
+			len = ((w0 >> ERXBUF_BYTECNT_SHIFT) & 0x7ff) - 4;
 			skb_trim(skb, len);
 			skb->protocol = eth_type_trans(skb, dev);
 
