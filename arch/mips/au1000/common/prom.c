@@ -4,7 +4,7 @@
  *    PROM library initialisation code, assuming a version of
  *    pmon is the boot code.
  *
- * Copyright 2000 MontaVista Software Inc.
+ * Copyright 2000,2001 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
  *         	ppopov@mvista.com or source@mvista.com
  *
@@ -35,7 +35,7 @@
  *  675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-#include <linux/config.h>
+#include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/string.h>
@@ -55,12 +55,12 @@ typedef struct
 }t_env_var;
 
 
-char * __init prom_getcmdline(void)
+char * prom_getcmdline(void)
 {
 	return &(arcs_cmdline[0]);
 }
 
-void  __init prom_init_cmdline(void)
+void  prom_init_cmdline(void)
 {
 	char *cp;
 	int actr;
@@ -149,3 +149,5 @@ int get_ethernet_addr(char *ethernet_addr)
 }
 
 void prom_free_prom_memory (void) {}
+EXPORT_SYMBOL(prom_getcmdline);
+EXPORT_SYMBOL(get_ethernet_addr);

@@ -54,22 +54,29 @@ void static inline au_sync_delay(int ms)
 
 void static inline outb_sync(u8 val, int reg)
 {
-    outb(val, reg);
-    au_sync();
-}
-void static inline outw_sync(u16 val, int reg)
-{
-    outw(val, reg);
-    au_sync();
-}
-void static inline outl_sync(u32 val, int reg)
-{
-    outl(val, reg);
-    au_sync();
+	outb(val, reg);
+	au_sync();
 }
 
+void static inline outw_sync(u16 val, int reg)
+{
+	outw(val, reg);
+	au_sync();
+}
+
+void static inline outl_sync(u32 val, int reg)
+{
+	outl(val, reg);
+	au_sync();
+}
+
+/* arch/mips/au1000/common/clocks.c */
 extern void set_au1000_speed(unsigned int new_freq);
 extern unsigned int get_au1000_speed(void);
+extern void set_au1000_uart_baud_base(unsigned long new_baud_base);
+extern unsigned long get_au1000_uart_baud_base(void);
+extern void set_au1000_lcd_clock(void);
+extern unsigned int get_au1000_lcd_clock(void);
 
 #ifdef CONFIG_PM
 /* no CP0 timer irq */

@@ -52,8 +52,13 @@ char serial_console[20];
 #endif
 
 #ifdef CONFIG_BLK_DEV_INITRD
-unsigned long initrd_start, initrd_end;
+extern unsigned long initrd_start, initrd_end;
 extern void * __rd_start, * __rd_end;
+#endif
+
+#ifdef CONFIG_BLK_DEV_IDE
+extern struct ide_ops std_ide_ops;
+extern struct ide_ops *ide_ops;
 #endif
 
 void (*__wbflush) (void);
@@ -108,6 +113,7 @@ void __init au1000_setup(void)
 
 	// set AUX clock to 12MHz * 8 = 96 MHz
 	outl(8, AUX_PLL_CNTRL);
+	outl(0, PIN_STATE);
 	udelay(1000);
 
 #if defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1000_USB_DEVICE)
@@ -115,6 +121,7 @@ void __init au1000_setup(void)
 	if ((argptr = strstr(argptr, "usb_ohci=")) == NULL) {
 	        char usb_args[80];
 		argptr = prom_getcmdline();
+		memset(usb_args, 0, sizeof(usb_args));
 		sprintf(usb_args, " usb_ohci=base:0x%x,len:0x%x,irq:%d",
 			USB_OHCI_BASE, USB_OHCI_LEN, AU1000_USB_HOST_INT);
 		strcat(argptr, usb_args);
@@ -128,12 +135,10 @@ void __init au1000_setup(void)
 #ifdef CONFIG_USB_OHCI
 	usb_clocks |= 0x00004000; // CLK2 = FREQ2
 #endif
-
-#ifdef CONFIG_USB_OHCI
-
 	outl(usb_clocks, CLOCK_SOURCE_CNTRL);
 	udelay(1000);
 
+#ifdef CONFIG_USB_OHCI
 	// enable host controller and wait for reset done
 	outl(0x08, USB_HOST_CONFIG);
 	udelay(1000);
@@ -143,11 +148,9 @@ void __init au1000_setup(void)
 	    ;
 #endif
 	
-	// Eric D. says we need to do this.
-	outl(0, PIN_STATE);
-
 	// configure pins GPIO[14:9] as GPIO
 	pin_func = inl(PIN_FUNCTION) & (u32)(~0x8080);
+
 #ifndef CONFIG_AU1000_USB_DEVICE
 	// 2nd USB port is USB host
 	pin_func |= 0x8000;
@@ -155,10 +158,14 @@ void __init au1000_setup(void)
 	outl(pin_func, PIN_FUNCTION);
 	outl(0x2800, TSTATE_STATE_SET);
 	outl(0x0030, OUTPUT_STATE_CLEAR);
-#endif
+#endif // defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1000_USB_DEVICE)
 
-	/* make gpio 15 an input (interrupt line) */
+	/* select gpio 15 (for interrupt line) */
 	pin_func = inl(PIN_FUNCTION) & (u32)(~0x100);
+	/* we don't need I2S, so make it available for GPIO[31:29] */
+	pin_func |= (1<<5);
+	outl(pin_func, PIN_FUNCTION);
+
 	outl(0x8000, TSTATE_STATE_SET);
 	
 #ifdef CONFIG_FB
@@ -166,19 +173,6 @@ void __init au1000_setup(void)
 #endif
 
 #ifdef CONFIG_FB_E1356
-	if ((argptr = strstr(argptr, "video=")) == NULL) {
-	    argptr = prom_getcmdline();
-#ifdef CONFIG_PB1000_CRT
-	    strcat(argptr, " video=e1356fb:system:pb1000-crt,font:SUN8x16");
-#elif defined (CONFIG_PB1000_NTSC)
-	    strcat(argptr, " video=e1356fb:system:pb1000-ntsc,font:SUN8x16");
-#elif defined (CONFIG_PB1000_TFT)
-	    strcat(argptr, " video=e1356fb:system:pb1000-tft,font:SUN8x16");
-#else
-	    strcat(argptr, " video=e1356fb:system:pb1000-crt,font:SUN8x16");
-#endif
-	}
- 
 	static_cfg0 = inl(STATIC_CONFIG_0) & (u32)(~0x1c00);
 	outl(static_cfg0, STATIC_CONFIG_0);
 
@@ -190,7 +184,12 @@ void __init au1000_setup(void)
 
 	// Set 32-bit base address decoding for RCE2*
 	outl(0x10003ff0, STATIC_ADDRESS_2);
-#endif
+
+	if ((argptr = strstr(argptr, "video=")) == NULL) {
+		argptr = prom_getcmdline();
+		strcat(argptr, " video=e1356fb:system:pb1000,mmunalign:1");
+	}
+#endif // CONFIG_FB_E1356
 
 #ifdef CONFIG_PCI
 	outl(0x11803e40, STATIC_ADDRESS_1);  // expand CE0 to cover PCI
@@ -211,6 +210,14 @@ void __init au1000_setup(void)
 	outl(0, UART1_ADDR + UART_CLK);
 	outl(0, UART2_ADDR + UART_CLK);
 	outl(0, UART3_ADDR + UART_CLK);
+
+#ifdef CONFIG_BLK_DEV_IDE
+	{
+		argptr = prom_getcmdline();
+		strcat(argptr, " ide0=noprobe");
+	}
+	ide_ops = &std_ide_ops;
+#endif
 
 	while (inl(PC_COUNTER_CNTRL) & PC_CNTRL_E0S);
 	outl(PC_CNTRL_E0 | PC_CNTRL_EN0, PC_COUNTER_CNTRL);

@@ -1,4 +1,5 @@
 /*
+ *
  * Alchemy Semi PB1000 board specific pcmcia routines.
  *
  * Copyright 2001 MontaVista Software Inc.
@@ -61,15 +62,17 @@ static int pb1000_pcmcia_init(struct pcmcia_init *init)
 {
 	u32 pcr;
 	pcr = PCR_SLOT_0_RST | PCR_SLOT_1_RST;
-	//writel(readl(PIN_FUNCTION) & ~(1<<8), PIN_FUNCTION); /* pin15 is gpio */
-	writel(0, PIN_FUNCTION);	/* pin15 is gpio */
-	writel(readl(TSTATE_STATE_SET) | (1 << 15), TSTATE_STATE_SET);	/* tristate gpio15 */
+
+	writel(0x8000, AU1000_MDR); /* clear pcmcia interrupt */
+	au_sync_delay(100);
+	writel(0x4000, AU1000_MDR); /* enable pcmcia interrupt */
 	au_sync();
 
-	writel(0x8000, AU1000_MDR);	/* clear pcmcia interrupt */
-	writel(0x4000, AU1000_MDR);	/* enable pcmcia interrupt */
-	au_sync();
-
+	pcr |= SET_VCC_VPP(VCC_HIZ,VPP_HIZ,0);
+	pcr |= SET_VCC_VPP(VCC_HIZ,VPP_HIZ,1);
+	writew(pcr, AU1000_PCR);
+	au_sync_delay(20);
+	  
 	/* There's two sockets, but only the first one, 0, is used and tested */
 	return 1;
 }
@@ -77,13 +80,15 @@ static int pb1000_pcmcia_init(struct pcmcia_init *init)
 static int pb1000_pcmcia_shutdown(void)
 {
 	u16 pcr;
-	pcr = 0;
+	pcr = PCR_SLOT_0_RST | PCR_SLOT_1_RST;
+	pcr |= SET_VCC_VPP(VCC_HIZ,VPP_HIZ,0);
+	pcr |= SET_VCC_VPP(VCC_HIZ,VPP_HIZ,1);
 	writew(pcr, AU1000_PCR);
-	mdelay(20);
+	au_sync_delay(20);
 	return 0;
 }
 
-static int
+static int 
 pb1000_pcmcia_socket_state(unsigned sock, struct pcmcia_state *state)
 {
 	u16 levels, pcr;
@@ -98,57 +103,56 @@ pb1000_pcmcia_socket_state(unsigned sock, struct pcmcia_state *state)
 	state->detect = 0;
 
 	/* 
+	 * This is tricky. The READY pin is also the #IRQ pin.  We'll treat
+	 * READY as #IRQ and set state->ready to 1 whenever state->detect 
+	 * is true.
+	 */
+
+	/* 
 	 * CD1/2 are active low; so are the VSS pins; Ready is active high
 	 */
 	if (sock == 0) {
-		if ((levels & ACR1_SLOT_0_READY))
-			state->ready = 1;
 		if (!(levels & (ACR1_SLOT_0_CD1 | ACR1_SLOT_0_CD2))) {
 			state->detect = 1;
-			vs = (levels >> 4) & 0x3;
+			vs =  (levels >> 4) & 0x3;
 			switch (vs) {
-			case 0:
-			case 1:
-				DEBUG(1, "%d: vs_3v\n", sock);
-				state->vs_3v = 1;
-				break;
-			case 2:
-				state->vs_Xv = 1;
-				DEBUG(1, "%d: vs_Xv\n", sock);
-				break;
-			case 3:
-			default:
-				break;
+				case 0:
+				case 1:
+				case 2:
+					state->vs_3v=1;
+					break;
+				case 3:
+				default:
+					break;
 			}
 		}
-	} else if (sock == 1) {
-		if ((levels & ACR1_SLOT_1_READY))
-			state->ready = 1;
+	}
+	else if (sock == 1) {
 		if (!(levels & (ACR1_SLOT_1_CD1 | ACR1_SLOT_1_CD2))) {
 			state->detect = 1;
-			vs = (levels >> 12) & 0x3;
+			vs =  (levels >> 12) & 0x3;
 			switch (vs) {
-			case 0:
-			case 1:
-				state->vs_3v = 1;
-				DEBUG(1, "%d: vs_3v\n", sock);
-				break;
-			case 2:
-				state->vs_Xv = 1;
-				DEBUG(1, "%d: vs_Xv\n", sock);
-				break;
-			case 3:
-			default:
-				break;
+				case 0:
+				case 1:
+				case 2:
+					state->vs_3v=1;
+					break;
+				case 3:
+				default:
+					break;
 			}
 		}
-	} else {
+	}
+	else  {
 		printk(KERN_ERR "pb1000 socket_state bad sock %d\n", sock);
 	}
 
-	state->bvd1 = 1;
-	state->bvd2 = 1;
-	state->wrprot = 0;
+	if (state->detect)
+		state->ready = 1;
+
+	state->bvd1=1;
+	state->bvd2=1;
+	state->wrprot=0; 
 	return 1;
 }
 
@@ -156,142 +160,153 @@ pb1000_pcmcia_socket_state(unsigned sock, struct pcmcia_state *state)
 static int pb1000_pcmcia_get_irq_info(struct pcmcia_irq_info *info)
 {
 
-	if (info->sock > PCMCIA_MAX_SOCK)
-		return -1;
+	if(info->sock > PCMCIA_MAX_SOCK) return -1;
 
-	if (info->sock == 0)
+	if(info->sock == 0)
 		info->irq = AU1000_GPIO_15;
-	else
+	else 
 		info->irq = -1;
 
 	return 0;
 }
 
 
-static int
+static int 
 pb1000_pcmcia_configure_socket(const struct pcmcia_configure *configure)
 {
 	u16 pcr;
 
-	if (configure->sock > PCMCIA_MAX_SOCK)
-		return -1;
+	if(configure->sock > PCMCIA_MAX_SOCK) return -1;
 
 	pcr = readw(AU1000_PCR);
 
-	if (configure->sock == 0)
-		pcr &= ~(PCR_SLOT_0_VCC0 | PCR_SLOT_0_VCC1);
-	else
-		pcr &= ~(PCR_SLOT_1_VCC0 | PCR_SLOT_1_VCC1);
+	if (configure->sock == 0) {
+		pcr &= ~(PCR_SLOT_0_VCC0 | PCR_SLOT_0_VCC1 | 
+				PCR_SLOT_0_VPP0 | PCR_SLOT_0_VPP1);
+	}
+	else  {
+		pcr &= ~(PCR_SLOT_1_VCC0 | PCR_SLOT_1_VCC1 | 
+				PCR_SLOT_1_VPP0 | PCR_SLOT_1_VPP1);
+	}
 
 	pcr &= ~PCR_SLOT_0_RST;
 	writew(pcr, AU1000_PCR);
-	mdelay(20);
+	au_sync_delay(200);
 
-	switch (configure->vcc) {
-	case 0:		/* Vcc 0 */
-		switch (configure->vpp) {
-		case 0:
-			pcr |=
-			    SET_VCC_VPP(VCC_HIZ, VPP_GND, configure->sock);
-			DEBUG(3, "Vcc 0V Vpp 0V, pcr %x\n", pcr);
+	DEBUG(KERN_INFO "Vcc %dV Vpp %dV, pcr %x\n", 
+			configure->vcc, configure->vpp, pcr);
+	switch(configure->vcc){
+		case 0:  /* Vcc 0 */
+			switch(configure->vpp) {
+				case 0:
+					pcr |= SET_VCC_VPP(VCC_HIZ,VPP_GND,
+							configure->sock);
+					break;
+				case 12:
+					pcr |= SET_VCC_VPP(VCC_HIZ,VPP_12V,
+							configure->sock);
+					break;
+				case 50:
+					pcr |= SET_VCC_VPP(VCC_HIZ,VPP_5V,
+							configure->sock);
+					break;
+				case 33:
+					pcr |= SET_VCC_VPP(VCC_HIZ,VPP_3V,
+							configure->sock);
+					break;
+				default:
+					pcr |= SET_VCC_VPP(VCC_HIZ,VPP_HIZ,
+							configure->sock);
+					printk("%s: bad Vcc/Vpp (%d:%d)\n", 
+							__FUNCTION__, 
+							configure->vcc, 
+							configure->vpp);
+					break;
+			}
 			break;
-		case 12:
-			pcr |=
-			    SET_VCC_VPP(VCC_HIZ, VPP_12V, configure->sock);
-			DEBUG(3, "Vcc 0V Vpp 12V, pcr %x\n", pcr);
+		case 50: /* Vcc 5V */
+			switch(configure->vpp) {
+				case 0:
+					pcr |= SET_VCC_VPP(VCC_5V,VPP_GND,
+							configure->sock);
+					break;
+				case 50:
+					pcr |= SET_VCC_VPP(VCC_5V,VPP_5V,
+							configure->sock);
+					break;
+				case 12:
+					pcr |= SET_VCC_VPP(VCC_5V,VPP_12V,
+							configure->sock);
+					break;
+				case 33:
+					pcr |= SET_VCC_VPP(VCC_5V,VPP_3V,
+							configure->sock);
+					break;
+				default:
+					pcr |= SET_VCC_VPP(VCC_HIZ,VPP_HIZ,
+							configure->sock);
+					printk("%s: bad Vcc/Vpp (%d:%d)\n", 
+							__FUNCTION__, 
+							configure->vcc, 
+							configure->vpp);
+					break;
+			}
 			break;
-		case 50:
-			pcr |=
-			    SET_VCC_VPP(VCC_HIZ, VPP_5V, configure->sock);
-			DEBUG(3, "Vcc 0V Vpp 5V, pcr %x\n", pcr);
+		case 33: /* Vcc 3.3V */
+			switch(configure->vpp) {
+				case 0:
+					pcr |= SET_VCC_VPP(VCC_3V,VPP_GND,
+							configure->sock);
+					break;
+				case 50:
+					pcr |= SET_VCC_VPP(VCC_3V,VPP_5V,
+							configure->sock);
+					break;
+				case 12:
+					pcr |= SET_VCC_VPP(VCC_3V,VPP_12V,
+							configure->sock);
+					break;
+				case 33:
+					pcr |= SET_VCC_VPP(VCC_3V,VPP_3V,
+							configure->sock);
+					break;
+				default:
+					pcr |= SET_VCC_VPP(VCC_HIZ,VPP_HIZ,
+							configure->sock);
+					printk("%s: bad Vcc/Vpp (%d:%d)\n", 
+							__FUNCTION__, 
+							configure->vcc, 
+							configure->vpp);
+					break;
+			}
 			break;
-		case 33:
-		default:
-			pcr |=
-			    SET_VCC_VPP(VCC_HIZ, VPP_HIZ, configure->sock);
-			printk(KERN_ERR "%s: bad Vcc/Vpp combo (%d:%d)\n",
-			       __FUNCTION__, configure->vcc,
-			       configure->vpp);
+		default: /* what's this ? */
+			pcr |= SET_VCC_VPP(VCC_HIZ,VPP_HIZ,configure->sock);
+			printk(KERN_ERR "%s: bad Vcc %d\n", 
+					__FUNCTION__, configure->vcc);
 			break;
-		}
-		break;
-	case 50:		/* Vcc 5V */
-		switch (configure->vpp) {
-		case 0:
-			pcr |=
-			    SET_VCC_VPP(VCC_5V, VPP_GND, configure->sock);
-			DEBUG(3, "Vcc 5V Vpp 0V, pcr %x\n", pcr);
-			break;
-		case 50:
-			pcr |=
-			    SET_VCC_VPP(VCC_5V, VPP_5V, configure->sock);
-			DEBUG(3, "Vcc 5V Vpp 5V, pcr %x\n", pcr);
-			break;
-		case 12:
-			pcr |=
-			    SET_VCC_VPP(VCC_5V, VPP_12V, configure->sock);
-			DEBUG(3, "Vcc 5V Vpp 12V, pcr %x\n", pcr);
-			break;
-		case 33:
-		default:
-			pcr |=
-			    SET_VCC_VPP(VCC_HIZ, VPP_HIZ, configure->sock);
-			printk(KERN_ERR "%s: bad Vcc/Vpp combo (%d:%d)\n",
-			       __FUNCTION__, configure->vcc,
-			       configure->vpp);
-			break;
-		}
-		break;
-	case 33:		/* Vcc 3.3V */
-		switch (configure->vpp) {
-		case 0:
-			pcr |=
-			    SET_VCC_VPP(VCC_3V, VPP_GND, configure->sock);
-			DEBUG(3, "Vcc 3V Vpp 0V, pcr %x\n", pcr);
-			break;
-		case 50:
-			pcr |=
-			    SET_VCC_VPP(VCC_3V, VPP_5V, configure->sock);
-			DEBUG(3, "Vcc 3V Vpp 5V, pcr %x\n", pcr);
-			break;
-		case 12:
-			pcr |=
-			    SET_VCC_VPP(VCC_3V, VPP_12V, configure->sock);
-			DEBUG(3, "Vcc 3V Vpp 12V, pcr %x\n", pcr);
-			break;
-		case 33:
-		default:
-			pcr |=
-			    SET_VCC_VPP(VCC_HIZ, VPP_HIZ, configure->sock);
-			printk(KERN_ERR "%s: bad Vcc/Vpp combo (%d:%d)\n",
-			       __FUNCTION__, configure->vcc,
-			       configure->vpp);
-			break;
-		}
-		break;
-	default:		/* what's this ? */
-		pcr |= SET_VCC_VPP(VCC_HIZ, VPP_HIZ, configure->sock);
-		printk(KERN_ERR "%s: bad Vcc %d\n", __FUNCTION__,
-		       configure->vcc);
-		break;
 	}
 
 	writew(pcr, AU1000_PCR);
-	mdelay(400);
+	au_sync_delay(300);
 
-	pcr &= ~PCR_SLOT_0_RST;
+	writew(pcr | PCR_SLOT_0_RST, AU1000_PCR);
+	au_sync_delay(100);
+	
+	pcr &= ~(PCR_SLOT_0_RST);
 	if (configure->reset) {
 		pcr |= PCR_SLOT_0_RST;
 	}
 	writew(pcr, AU1000_PCR);
-	mdelay(200);
+	au_sync_delay(100);
 	return 0;
 }
 
-struct pcmcia_low_level pb1000_pcmcia_ops = {
+struct pcmcia_low_level pb1000_pcmcia_ops = { 
 	pb1000_pcmcia_init,
 	pb1000_pcmcia_shutdown,
 	pb1000_pcmcia_socket_state,
 	pb1000_pcmcia_get_irq_info,
 	pb1000_pcmcia_configure_socket
 };
+

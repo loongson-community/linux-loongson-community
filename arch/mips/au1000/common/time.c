@@ -42,8 +42,6 @@
 #include <linux/timex.h>
 
 extern void startup_match20_interrupt(void);
-extern void set_au1000_uart_baud_base(unsigned long new_baud_base);
-extern void set_au1000_speed(unsigned int new_freq);
 
 extern volatile unsigned long wall_jiffies;
 unsigned long missed_heart_beats = 0;
@@ -211,6 +209,9 @@ void __init time_init(void)
 	printk("CPU frequency %d.%02d MHz\n", est_freq/1000000, 
 	       (est_freq%1000000)*100/1000000);
 	set_au1000_speed(est_freq);
+#ifdef CONFIG_FB_E1356
+	set_au1000_lcd_clock(); // program the LCD clock
+#endif
 	r4k_cur = (read_32bit_cp0_register(CP0_COUNT) + r4k_offset);
 
 	write_32bit_cp0_register(CP0_COMPARE, r4k_cur);
@@ -245,6 +246,8 @@ void __init time_init(void)
 	while (readl(PC_COUNTER_CNTRL) & PC_CNTRL_M20);
 	startup_match20_interrupt();
 #endif
+
+	//set_cp0_status(ALLINTS);
 	au_sync();
 }
 
@@ -321,7 +324,8 @@ static unsigned long do_fast_gettimeoffset(void)
 		"mfhi\t%0"
 		:"=r" (res)
 		:"r" (count),
-		 "r" (quotient));
+		 "r" (quotient)
+		 :"$1");
 
 	/*
  	 * Due to possible jiffies inconsistencies, we need to check 

@@ -42,7 +42,7 @@
 #ifdef 	DEBUG
 #define	DBG(x...)	printk(x)
 #else
-#define	DBG(x...)
+#define	DBG(x...)	
 #endif
 
 void __init pcibios_fixup_resources(struct pci_dev *dev)
@@ -54,9 +54,9 @@ void __init pcibios_fixup(void)
 {
 	unsigned long pci_mem_start = (unsigned long) PCI_MEM_START;
 
-	writel(0, PCI_BRIDGE_CONFIG);	// set extend byte to 0
-	writel(0, SDRAM_MBAR);	// set mbar to 0
-	writel(0x2, SDRAM_CMD);	// enable memory accesses
+	writel(0, PCI_BRIDGE_CONFIG); // set extend byte to 0
+	writel(0, SDRAM_MBAR);        // set mbar to 0
+	writel(0x2, SDRAM_CMD);       // enable memory accesses
 	au_sync_delay(1);
 
 	// set extend byte to mbar of ext slot
@@ -73,7 +73,7 @@ void __init pcibios_fixup_irqs(void)
 
 	pci_for_each_dev(dev) {
 		if (dev->bus->number != 0)
-			return;
+		return;
 
 		pci_read_config_byte(dev, PCI_INTERRUPT_PIN, &pin);
 		slot = PCI_SLOT(dev->devfn);

@@ -27,7 +27,10 @@
  *  675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-static unsigned int au1000_clock;
+#include <asm/au1000.h>
+
+static unsigned int au1000_clock; // Hz
+static unsigned int lcd_clock;    // KHz
 static unsigned long uart_baud_base;
 
 /*
@@ -58,4 +61,40 @@ unsigned long get_au1000_uart_baud_base(void)
 void set_au1000_uart_baud_base(unsigned long new_baud_base)
 {
 	uart_baud_base = new_baud_base;
+}
+
+/*
+ * Calculate the Au1000's LCD clock based on the current
+ * cpu clock and the system bus clock, and try to keep it
+ * below 40 MHz (the Pb1000 board can lock-up if the LCD
+ * clock is over 40 MHz).
+ */
+void set_au1000_lcd_clock(void)
+{
+	unsigned int static_cfg0;
+	unsigned int sys_busclk =
+		(get_au1000_speed()/1000) /
+		((int)(inl(PM_POWERUP_CONTROL)&0x03) + 2);
+
+	static_cfg0 = inl(STATIC_CONFIG_0);
+	if (sys_busclk/4 > 40000) {
+		static_cfg0 |= (1<<11);
+		outl(static_cfg0, STATIC_CONFIG_0);
+		lcd_clock = sys_busclk / 5;
+		if (lcd_clock > 40000)
+			printk(__FUNCTION__
+			       ": warning: LCD clock too high (%d KHz)\n",
+			       lcd_clock);
+	} else {
+		static_cfg0 &= ~(1<<11);
+		outl(static_cfg0, STATIC_CONFIG_0);
+		lcd_clock = sys_busclk / 4;
+	}
+	// some time to allow LCD clock to settle
+	udelay(100);
+}
+
+unsigned int get_au1000_lcd_clock(void)
+{
+    return lcd_clock;
 }

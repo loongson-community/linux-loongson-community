@@ -1,4 +1,5 @@
 /*
+ *
  * Alchemy Semi Au1000 pcmcia driver include file
  *
  * Copyright 2001 MontaVista Software Inc.
@@ -24,11 +25,12 @@
  *
  * 
  */
+
 #ifndef __ASM_AU1000_PCMCIA_H
 #define __ASM_AU1000_PCMCIA_H
 
 
-#define AU1000_PCMCIA_POLL_PERIOD    (4*HZ)
+#define AU1000_PCMCIA_POLL_PERIOD    (2*HZ)
 #define AU1000_PCMCIA_IO_SPEED       (255)
 #define AU1000_PCMCIA_MEM_SPEED      (300)
 
