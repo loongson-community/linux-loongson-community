@@ -236,9 +236,10 @@ void __init frame_info_init(void)
 		!get_frame_info(&wait_for_completion_frame, wait_for_completion);
 }
 
-unsigned long thread_saved_pc(struct thread_struct *t)
+unsigned long thread_saved_pc(struct task_struct *tsk)
 {
 	extern void ret_from_fork(void);
+	struct thread_struct *t = &tsk->thread;
 
 	/* New born processes are a special case */
 	if (t->reg31 == (unsigned long) ret_from_fork)

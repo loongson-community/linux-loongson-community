@@ -265,6 +265,8 @@ struct thread_struct {
 
 #ifndef __ASSEMBLY__
 
+struct task_struct;
+
 /* Free all resources held by a thread. */
 #define release_thread(thread) do { } while(0)
 
@@ -273,7 +275,7 @@ struct thread_struct {
 
 extern int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags);
 
-extern unsigned long thread_saved_pc(struct thread_struct *t);
+extern unsigned long thread_saved_pc(struct task_struct *tsk);
 
 #define user_mode(regs)	(((regs)->cp0_status & ST0_KSU) == KSU_USER)
 
