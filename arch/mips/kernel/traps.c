@@ -191,8 +191,13 @@ void show_regs(struct pt_regs *regs)
 	/*
 	 * Saved cp0 registers
 	 */
-	printk("epc   : %0*lx    %s\n", field, regs->cp0_epc, print_tainted());
-	printk("Status: %08lx    ", regs->cp0_status);
+	printk("epc   : %0*lx ", field, regs->cp0_epc);
+	print_symbol("%s ", regs->cp0_epc);
+	printk("    %s\n", print_tainted());
+	printk("ra    : %0*lx ", field, regs->regs[31]);
+	print_symbol("%s\n", regs->regs[31]);
+
+	printk("Status: %08x    ", (uint32_t) regs->cp0_status);
 
 	if (regs->cp0_status & ST0_KX)
 		printk("KX ");
