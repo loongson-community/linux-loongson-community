@@ -39,7 +39,7 @@ CONFIG_NET=y
 # CONFIG_PCMCIA is not set
 CONFIG_SYSVIPC=y
 # CONFIG_BSD_PROCESS_ACCT is not set
-# CONFIG_SYSCTL is not set
+CONFIG_SYSCTL=y
 CONFIG_BINFMT_ELF=y
 # CONFIG_MIPS32_COMPAT is not set
 # CONFIG_BINFMT_MISC is not set
@@ -63,6 +63,7 @@ CONFIG_BINFMT_ELF=y
 #
 # CONFIG_BLK_DEV_LOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
+# CONFIG_BLK_DEV_LVM is not set
 # CONFIG_BLK_DEV_MD is not set
 # CONFIG_MD_LINEAR is not set
 # CONFIG_MD_STRIPED is not set
@@ -123,7 +124,6 @@ CONFIG_SKB_LARGE=y
 # I2O device support
 #
 # CONFIG_I2O is not set
-# CONFIG_I2O_PCI is not set
 # CONFIG_I2O_BLOCK is not set
 # CONFIG_I2O_LAN is not set
 # CONFIG_I2O_SCSI is not set
