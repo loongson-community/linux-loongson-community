@@ -341,6 +341,10 @@ static inline void handle_signal(unsigned long sig, siginfo_t *info,
 	}
 }
 
+
+extern int do_signal32(sigset_t *oldset, struct pt_regs *regs);
+extern int do_irix_signal(sigset_t *oldset, struct pt_regs *regs);
+
 asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 {
 	siginfo_t info;
@@ -377,8 +381,6 @@ asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 	return 0;
 }
 
-extern int do_irix_signal(sigset_t *oldset, struct pt_regs *regs);
-extern int do_signal32(sigset_t *oldset, struct pt_regs *regs);
 
 /*
  * notification of userspace execution resumption
