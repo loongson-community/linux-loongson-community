@@ -9,7 +9,6 @@
 #include <linux/efs_fs.h>
 
 static efs_ino_t efs_find_entry(struct inode *inode, const char *name, int len) {
-	struct efs_inode_info *in = INODE_INFO(inode);
 	struct buffer_head *bh;
 
 	int			slot, namelen;
@@ -19,15 +18,12 @@ static efs_ino_t efs_find_entry(struct inode *inode, const char *name, int len) 
 	efs_ino_t		inodenum;
 	efs_block_t		block;
  
-	if (in->numextents != 1)
-		printk("EFS: WARNING: find_entry(): more than one extent\n");
-
-	if (inode->i_size & (EFS_BLOCKSIZE-1))
-		printk("EFS: WARNING: find_entry(): directory size not a multiple of EFS_BLOCKSIZE\n");
+	if (inode->i_size & (EFS_DIRBSIZE-1))
+		printk("EFS: WARNING: find_entry(): directory size not a multiple of EFS_DIRBSIZE\n");
 
 	for(block = 0; block < inode->i_blocks; block++) {
 
-		bh = bread(inode->i_dev, efs_bmap(inode, block), EFS_BLOCKSIZE);
+		bh = bread(inode->i_dev, efs_bmap(inode, block), EFS_DIRBSIZE);
 		if (!bh) {
 			printk("EFS: find_entry(): failed to read dir block %d\n", block);
 			return 0;

@@ -10,7 +10,7 @@
 #define __EFS_FS_SB_H__
 
 /* statfs() magic number for EFS */
-#define EFS_SUPER_MAGIC	0x414A83
+#define EFS_SUPER_MAGIC	0x414A53
 
 /* EFS superblock magic numbers */
 #define EFS_MAGIC	0x072959

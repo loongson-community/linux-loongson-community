@@ -48,7 +48,6 @@ struct inode_operations efs_dir_inode_operations = {
 
 static int efs_readdir(struct file *filp, void *dirent, filldir_t filldir) {
 	struct inode *inode = filp->f_dentry->d_inode;
-	struct efs_inode_info *ini = INODE_INFO(inode);
 	struct buffer_head *bh;
 
 	struct efs_dir		*dirblock;
@@ -60,9 +59,6 @@ static int efs_readdir(struct file *filp, void *dirent, filldir_t filldir) {
 
 	if (!inode || !S_ISDIR(inode->i_mode))
 		return -EBADF;
-
-	if (ini->numextents != 1)
-		printk("EFS: WARNING: readdir(): more than one extent\n");
 
 	if (inode->i_size & (EFS_DIRBSIZE-1))
 		printk("EFS: WARNING: readdir(): directory size not a multiple of EFS_DIRBSIZE\n");
@@ -104,7 +100,7 @@ static int efs_readdir(struct file *filp, void *dirent, filldir_t filldir) {
 			nameptr  = dirslot->name;
 
 #ifdef DEBUG
-			printk("EFS: readdir(): block %d slot %d/%d: inode %u, name \"%s\", namelen %u\n", block, slot, dirblock->slots, inodenum, nameptr, namelen);
+			printk("EFS: readdir(): block %d slot %d/%d: inode %u, name \"%s\", namelen %u\n", block, slot, dirblock->slots-1, inodenum, nameptr, namelen);
 #endif
 			if (namelen > 0) {
 				/* found the next entry */
