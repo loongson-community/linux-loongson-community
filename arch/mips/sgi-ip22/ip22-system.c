@@ -28,10 +28,9 @@ static struct smatch sgi_cputable[] = {
 	{ "MIPS-R4600", CPU_R4600 },
 	{ "MIPS-R8000", CPU_R8000 },
 	{ "MIPS-R5000", CPU_R5000 },
-	{ "MIPS-R5000A", CPU_R5000A }
+	{ "MIPS-R5000A", CPU_R5000A },
+	{ "MIPS-R10000", CPU_R10000 }
 };
-
-#define NUM_CPUS 9 /* for now */
 
 static int __init string_to_cpu(char *s)
 {
@@ -39,7 +38,7 @@ static int __init string_to_cpu(char *s)
 	char c;
 	int i;
 
-	for(i = 0; i < NUM_CPUS; i++) {
+	for(i = 0; i < (sizeof(sgi_cputable) / sizeof(struct smatch)); i++) {
 		if(!strcmp(s, sgi_cputable[i].name))
 			return sgi_cputable[i].type;
 	}
