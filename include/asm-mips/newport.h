@@ -1,9 +1,11 @@
-/* $Id: newport.h,v 1.1 1998/08/25 09:21:58 ralf Exp $
+/* $Id: newport.h,v 1.1 1998/08/19 21:58:12 ralf Exp $
  *
  * newport.h: Defines and register layout for NEWPORT graphics
  *            hardware.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
+ * 
+ * Ulf Carlsson - Compability with the IRIX structures added
  */
 
 #ifndef _SGI_NEWPORT_H
@@ -13,16 +15,16 @@
 typedef volatile unsigned long npireg_t;
 
 union npfloat {
-	volatile float f;
-	npireg_t       i;
+	volatile float flt;
+	npireg_t       word;
 };
 
 typedef union npfloat npfreg_t;
 
 union np_dcb {
-	npireg_t all;
-	struct { volatile unsigned short s0, s1; } hwords;
-	struct { volatile unsigned char b0, b1, b2, b3; } bytes;
+	npireg_t byword;
+	struct { volatile unsigned short s0, s1; } byshort;
+	struct { volatile unsigned char b0, b1, b2, b3; } bybytes;
 };
 
 struct newport_rexregs {
@@ -252,19 +254,20 @@ struct newport_cregs {
 #define NPORT_CFG_BWIDTH  0x00000002
 #define NPORT_CFG_ERCVR   0x00000004
 #define NPORT_CFG_BDMSK   0x00000078
-#define NPORT_CFG_GDMSK   0x00000f80
-#define NPORT_CFG_GD0     0x00000080
-#define NPORT_CFG_GD1     0x00000100
-#define NPORT_CFG_GD2     0x00000200
-#define NPORT_CFG_GD3     0x00000400
-#define NPORT_CFG_GD4     0x00000800
-#define NPORT_CFG_GFAINT  0x00001000
-#define NPORT_CFG_TOMSK   0x0000e000
-#define NPORT_CFG_VRMSK   0x00070000
-#define NPORT_CFG_FBTYP   0x00080000
+#define NPORT_CFG_BFAINT  0x00000080
+#define NPORT_CFG_GDMSK   0x00001f80
+#define NPORT_CFG_GD0     0x00000100
+#define NPORT_CFG_GD1     0x00000200
+#define NPORT_CFG_GD2     0x00000400
+#define NPORT_CFG_GD3     0x00000800
+#define NPORT_CFG_GD4     0x00001000
+#define NPORT_CFG_GFAINT  0x00002000
+#define NPORT_CFG_TOMSK   0x0001c000
+#define NPORT_CFG_VRMSK   0x000e0000
+#define NPORT_CFG_FBTYP   0x00100000
 
 	npireg_t _unused1;
-	npireg_t stat;
+	npireg_t status;
 #define NPORT_STAT_VERS   0x00000007
 #define NPORT_STAT_GBUSY  0x00000008
 #define NPORT_STAT_BBUSY  0x00000010
@@ -275,8 +278,8 @@ struct newport_cregs {
 #define NPORT_STAT_BFIRQ  0x00080000
 #define NPORT_STAT_GFIRQ  0x00100000
 
-	npireg_t ustat;
-	npireg_t dreset;
+	npireg_t ustatus;
+	npireg_t dcbreset;
 };
 
 struct newport_regs {
