@@ -51,14 +51,14 @@
 	 * check if we need to save FPU registers
 	 */
 	ld	t3, TASK_THREAD_INFO(a0)
-	ld	t0, TI_FLAGS(a3)
+	ld	t0, TI_FLAGS(t3)
 	li	t1, TIF_USEDFPU
 	and	t2, t0, t1
 	beqz	t2, 1f
 	nor	t1, zero, t1
 
 	and	t0, t0, t1
-	sd	t0, TASK_FLAGS(a3)
+	sd	t0, TASK_FLAGS(t3)
 
 	/*
 	 * clear saved user stack CU1 bit

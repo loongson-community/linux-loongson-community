@@ -56,7 +56,7 @@ LEAF(resume)
 	 * check if we need to save FPU registers
 	 */
 	lw	t3, TASK_THREAD_INFO(a0)
-	lw	t0, TI_FLAGS(a3)
+	lw	t0, TI_FLAGS(t3)
 	li	t1, TIF_USEDFPU
 	and	t2, t0, t1
 	beqz	t2, 1f

@@ -77,7 +77,7 @@ do {									\
 static inline int is_fpu_owner(void)
 {
 	return (mips_cpu.options & MIPS_CPU_FPU) && 
-		test_and_set_thread_flag(TIF_USEDFPU); 
+		test_thread_flag(TIF_USEDFPU); 
 }
 
 static inline void own_fpu(void)
