@@ -34,10 +34,10 @@
  */
 not_even_the_same_alignment:
 		LONG_SUBU	v1,zero,a1
-		andi		v1,a1,3
+		andi		v1,3
 		sltu		t0,v0,v1
 		MOVN(v1,v0,t0)
-		beqz		v1,align4		# -> finished
+		beqz		v1,3f			# -> finished
 		LONG_ADDU	v1,a0			# delay slot
 1:		lb		$1,(a1)
 		EX(1b, fault)
@@ -47,7 +47,7 @@ not_even_the_same_alignment:
 		LONG_ADDIU	a0,1
 		bne		a0,v1,1b
 		LONG_SUBU	v0,1			# delay slot
-
+3:
 /*
  * Ok.  We've fixed the alignment of the copy src for this case.
  * Now let's copy in the usual BLOCK_SIZE byte blocks using unaligned
@@ -107,7 +107,7 @@ not_w_aligned:
 		andi		v1,3
 		sltu		t0,v0,v1
 		MOVN(v1,v0,t0)
-		beqz		v1,3f			# -> finished
+		beqz		v1,align4		# -> finished
 		LONG_ADDU	v1,a0			# delay slot
 1:		lb		$1,(a1)
 		EX(1b, fault)
@@ -119,7 +119,6 @@ not_w_aligned:
 		LONG_SUBU	v0,1			# delay slot
 		b		align4
 		nop					# delay slot
-3:
 
 /* ---------------------------------------------------------------------- */
 
