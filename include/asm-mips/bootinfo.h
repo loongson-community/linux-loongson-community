@@ -202,6 +202,12 @@
 #define  MACH_LASAT_100		1	/* Masquerade II/SP100/SP50/SP25 */
 #define  MACH_LASAT_200		2	/* Masquerade PRO/SP200 */
 
+/*
+ * Valid machtype for group TITAN
+ */
+#define MACH_GROUP_TITAN       22	/* PMC-Sierra Titan		*/
+#define  MACH_TITAN_YOSEMITE	1	/* PMC-Sierra Yosemite		*/
+
 #define CL_SIZE			(256)
 
 const char *get_system_type(void);

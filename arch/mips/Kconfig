@@ -246,6 +246,16 @@ config MOMENCO_JAGUAR_ATX
 	  The Jaguar ATX is a MIPS-based Single Board Computer (SBC) made by
 	  Momentum Computer <http://www.momenco.com/>.
 
+config PMC_YOSEMITE
+	bool "Support for PMC-Siera Yosemite eval board"
+	help
+	  Yosemite is an evaluation board for the RM9000x2 processor
+	  manufactured by PMC-Sierra
+
+config HYPERTRANSPORT
+	bool "Hypertransport Support for PMC-Sierra Yosemite"
+	depends on PMC_YOSEMITE
+
 config DDB5074
 	bool "Support for NEC DDB Vrc-5074 (EXPERIMENTAL)"
 	depends on EXPERIMENTAL
