@@ -23,14 +23,15 @@
 
 #include <asm/ptrace.h>
 #include <linux/kernel.h>
+#include <linux/module.h>
 
 #define TC_DEBUG
 
 slot_info tc_bus[MAX_SLOT];
-static int max_tcslot = 0;
-static tcinfo *info = (tcinfo *)0;
+static int max_tcslot;
+static tcinfo *info;
 
-unsigned long system_base = 0;
+unsigned long system_base;
 
 extern void (*dbe_board_handler)(struct pt_regs *regs);
 extern unsigned long *(*rex_slot_address)(int);
@@ -206,7 +207,7 @@ void __init tc_init(void)
 	if (TURBOCHANNEL && info->slot_size && slot0addr) {
 		printk("TURBOchannel rev. %1d at %2d.%1d MHz ", info->revision,
 			tc_clock / 10, tc_clock % 10);
-		printk("(%sparity)\n", info->parity ? "" : "no ");
+		printk("(with%s parity)\n", info->parity ? "" : "out");
 
 		slot_size = info->slot_size << 20;
 
@@ -235,3 +236,11 @@ void __init tc_init(void)
 		ioport_resource.end = KSEG2 - 1;
 	}
 }
+
+EXPORT_SYMBOL(search_tc_card);
+EXPORT_SYMBOL(claim_tc_card);
+EXPORT_SYMBOL(release_tc_card);
+EXPORT_SYMBOL(get_tc_base_addr);
+EXPORT_SYMBOL(get_tc_irq_nr);
+EXPORT_SYMBOL(get_tc_speed);
+
