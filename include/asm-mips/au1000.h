@@ -608,21 +608,43 @@ extern unsigned int get_au1000_lcd_clock(void);
 #define SSI1_CONTROL               0xB1680100
 
 /* IrDA Controller */
-#define IR_RING_PTR_STATUS        0xB1500000
-#define IR_RING_BASE_ADDR_H       0xB1500004
-#define IR_RING_BASE_ADDR_L       0xB1500008
-#define IR_RING_SIZE              0xB150000C
-#define IR_RING_PROMPT            0xB1500010
-#define IR_RING_ADDR_CMPR         0xB1500014
-#define IR_CONFIG_1               0xB1500020
-#define IR_SIR_FLAGS              0xB1500024
-#define IR_ENABLE                 0xB1500028
-#define IR_READ_PHY_CONFIG        0xB150002C
-#define IR_WRITE_PHY_CONFIG       0xB1500030
-#define IR_MAX_PKT_LEN            0xB1500034
-#define IR_RX_BYTE_CNT            0xB1500038
-#define IR_CONFIG_2               0xB150003C
-#define IR_INTERFACE_CONFIG       0xB1500040
+#define IRDA_BASE                 0xB0300000
+#define IR_RING_PTR_STATUS        (IRDA_BASE+0x00)
+#define IR_RING_BASE_ADDR_H       (IRDA_BASE+0x04)
+#define IR_RING_BASE_ADDR_L       (IRDA_BASE+0x08)
+#define IR_RING_SIZE              (IRDA_BASE+0x0C)
+#define IR_RING_PROMPT            (IRDA_BASE+0x10)
+#define IR_RING_ADDR_CMPR         (IRDA_BASE+0x14)
+#define IR_INT_CLEAR              (IRDA_BASE+0x18)
+#define IR_CONFIG_1               (IRDA_BASE+0x20)
+  #define IR_RX_INVERT_LED        (1<<0)
+  #define IR_TX_INVERT_LED        (1<<1)
+  #define IR_ST                   (1<<2)
+  #define IR_SF                   (1<<3)
+  #define IR_SIR                  (1<<4)
+  #define IR_MIR                  (1<<5)
+  #define IR_FIR                  (1<<6)
+  #define IR_16CRC                (1<<7)
+  #define IR_TD                   (1<<8)
+  #define IR_RX_ALL               (1<<9)
+  #define IR_DMA_ENABLE           (1<<10)
+  #define IR_RX_ENABLE            (1<<11)
+  #define IR_TX_ENABLE            (1<<12)
+  #define IR_LOOPBACK             (1<<14)
+  #define IR_SIR_MODE	          (IR_SIR | IR_DMA_ENABLE | \
+		                   IR_RX_ALL | IR_RX_ENABLE | IR_SF | IR_16CRC)
+#define IR_SIR_FLAGS              (IRDA_BASE+0x24)
+#define IR_ENABLE                 (IRDA_BASE+0x28)
+  #define IR_RX_STATUS            (1<<9)
+  #define IR_TX_STATUS            (1<<10)
+#define IR_READ_PHY_CONFIG        (IRDA_BASE+0x2C)
+#define IR_WRITE_PHY_CONFIG       (IRDA_BASE+0x30)
+#define IR_MAX_PKT_LEN            (IRDA_BASE+0x34)
+#define IR_RX_BYTE_CNT            (IRDA_BASE+0x38)
+#define IR_CONFIG_2               (IRDA_BASE+0x3C)
+  #define IR_MODE_INV             (1<<0)
+  #define IR_ONE_PIN              (1<<1)
+#define IR_INTERFACE_CONFIG       (IRDA_BASE+0x40)
 
 /* GPIO */
 #define PIN_FUNCTION              0xB190002C

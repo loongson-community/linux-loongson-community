@@ -25,5 +25,6 @@ obj-$(CONFIG_ACTISYS_DONGLE)	+= actisys.o
 obj-$(CONFIG_GIRBIL_DONGLE)	+= girbil.o
 obj-$(CONFIG_LITELINK_DONGLE)	+= litelink.o
 obj-$(CONFIG_OLD_BELKIN_DONGLE)	+= old_belkin.o
+obj-$(CONFIG_AU1000_FIR)	+= au1k_ir.o
 
 include $(TOPDIR)/Rules.make
