@@ -127,8 +127,6 @@ static void smp_tune_scheduling (void)
 		(cache_decay_ticks + 1) * 1000 / HZ);
 }
 
-#ifndef CONFIG_SGI_IP27
-
 extern void __init calibrate_delay(void);
 
 /*
@@ -159,7 +157,6 @@ asmlinkage void start_secondary(void)
 
 	cpu_idle();
 }
-#endif /* CONFIG_SGI_IP27 */
 
 /*
  * this function sends a 'reschedule' IPI to another CPU.
