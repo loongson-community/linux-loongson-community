@@ -1,11 +1,11 @@
-/*
+/* $Id: fault.c,v 1.10 1998/09/16 22:50:44 ralf Exp $
+ *
  *  arch/mips/mm/fault.c
  *
  *  Copyright (C) 1995, 1996, 1997 by Ralf Baechle
  */
 #include <linux/signal.h>
 #include <linux/sched.h>
-#include <linux/head.h>
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>

@@ -1,4 +1,4 @@
-/* $Id: hw-access.c,v 1.12 1998/08/26 21:39:02 tsbogend Exp $
+/* $Id: hw-access.c,v 1.12 1998/08/26 21:45:45 tsbogend Exp $
  *
  * Low-level hardware access stuff for Jazz family machines.
  *
@@ -60,10 +60,12 @@ __initfunc(void jazz_keyboard_setup(void))
 	kbd_write_output = jazz_write_output;
 	kbd_write_command = jazz_write_command;
 	kbd_read_status = jazz_read_status;
+	request_irq(JAZZ_KEYBOARD_IRQ, keyboard_interrupt,
+	            0, "keyboard", NULL);
 	request_region(0x60, 16, "keyboard");
 	r4030_write_reg16(JAZZ_IO_IRQ_ENABLE,
-	                  r4030_read_reg16(JAZZ_IO_IRQ_ENABLE) |
-	                                   JAZZ_IE_KEYBOARD);
+	                  r4030_read_reg16(JAZZ_IO_IRQ_ENABLE)
+	                  | JAZZ_IE_KEYBOARD);
 }
 
 int jazz_ps2_request_irq(void)

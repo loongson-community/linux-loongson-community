@@ -769,6 +769,7 @@ struct file_operations oss_sound_fops =
 	sound_ioctl,
 	sound_mmap,
 	sound_open,
+	NULL,			/* flush */
 	sound_release
 };
 
@@ -846,12 +847,16 @@ static int      sound[20] = {
 
 #ifdef MODULE
 
+int traceinit = 0;
+MODULE_PARM(traceinit, "i");
+
 int init_module(void)
 {
 	int             err;
 	int             ints[21];
 	int             i;
 
+	trace_init=traceinit;
 	/*
 	 * "sound=" command line handling by Harald Milz.
 	 */

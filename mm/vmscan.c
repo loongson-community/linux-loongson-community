@@ -12,7 +12,6 @@
 
 #include <linux/mm.h>
 #include <linux/sched.h>
-#include <linux/head.h>
 #include <linux/kernel.h>
 #include <linux/kernel_stat.h>
 #include <linux/errno.h>
@@ -24,6 +23,7 @@
 #include <linux/dcache.h>
 #include <linux/fs.h>
 #include <linux/pagemap.h>
+#include <linux/init.h>
 
 #include <asm/bitops.h>
 #include <asm/pgtable.h>
@@ -491,7 +491,7 @@ static int do_try_to_free_page(int gfp_mask)
  * may be printed in the middle of another driver's init 
  * message).  It looks very bad when that happens.
  */
-void kswapd_setup(void)
+void __init kswapd_setup(void)
 {
        int i;
        char *revision="$Revision: 1.5 $", *s, *e;
@@ -528,6 +528,20 @@ int kswapd(void *unused)
 	current->rt_priority = 32;  /* Fixme --- we need to standardise our
 				    namings for POSIX.4 realtime scheduling
 				    priorities.  */
+
+	/*
+	 * Tell the memory management that we're a "memory allocator",
+	 * and that if we need more memory we should get access to it
+	 * regardless (see "try_to_free_pages()"). "kswapd" should
+	 * never get caught in the normal page freeing logic.
+	 *
+	 * (Kswapd normally doesn't need memory anyway, but sometimes
+	 * you need a small amount of memory in order to be able to
+	 * page out something else, and this flag essentially protects
+	 * us from recursively trying to free more memory as we're
+	 * trying to free the first piece of memory in the first place).
+	 */
+	current->flags |= PF_MEMALLOC;
 
 	init_swap_timer();
 	add_wait_queue(&kswapd_wait, &wait);
@@ -592,7 +606,7 @@ int try_to_free_pages(unsigned int gfp_mask, int count)
 	int retval = 1;
 
 	lock_kernel();
-	if (current->flags & PF_MEMALLOC) {
+	if (!(current->flags & PF_MEMALLOC)) {
 		current->flags |= PF_MEMALLOC;
 		do {
 			retval = do_try_to_free_page(gfp_mask);
@@ -600,7 +614,7 @@ int try_to_free_pages(unsigned int gfp_mask, int count)
 				break;
 			count--;
 		} while (count > 0);
-		current->flags &= PF_MEMALLOC;
+		current->flags &= ~PF_MEMALLOC;
 	}
 	unlock_kernel();
 	return retval;

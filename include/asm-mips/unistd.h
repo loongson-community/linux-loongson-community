@@ -1,4 +1,4 @@
-/* $Id: unistd.h,v 1.18 1998/08/20 16:34:48 ralf Exp $
+/* $Id: unistd.h,v 1.11 1998/08/25 09:22:03 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -1008,7 +1008,7 @@
 #define __NR_lseek			(__NR_Linux +  19)
 #define __NR_getpid			(__NR_Linux +  20)
 #define __NR_mount			(__NR_Linux +  21)
-#define __NR_oldumount			(__NR_Linux +  22)
+#define __NR_umount			(__NR_Linux +  22)
 #define __NR_setuid			(__NR_Linux +  23)
 #define __NR_getuid			(__NR_Linux +  24)
 #define __NR_stime			(__NR_Linux +  25)
@@ -1038,7 +1038,7 @@
 #define __NR_geteuid			(__NR_Linux +  49)
 #define __NR_getegid			(__NR_Linux +  50)
 #define __NR_acct			(__NR_Linux +  51)
-#define __NR_umount			(__NR_Linux +  52)
+#define __NR_umount2			(__NR_Linux +  52)
 #define __NR_lock			(__NR_Linux +  53)
 #define __NR_ioctl			(__NR_Linux +  54)
 #define __NR_fcntl			(__NR_Linux +  55)
@@ -1136,7 +1136,7 @@
 #define __NR_cacheflush			(__NR_Linux + 147)
 #define __NR_cachectl			(__NR_Linux + 148)
 #define __NR_sysmips			(__NR_Linux + 149)
-#define __NR_setup			(__NR_Linux + 150)	/* used only by init, to get system going */
+#define __NR_unused150			(__NR_Linux + 150)
 #define __NR_getsid			(__NR_Linux + 151)
 #define __NR_fdatasync			(__NR_Linux + 152)
 #define __NR__sysctl			(__NR_Linux + 153)
@@ -1421,7 +1421,6 @@ return -1; \
 #define __NR__exit __NR_exit
 static inline _syscall0(int,idle)
 static inline _syscall0(int,pause)
-static inline _syscall1(int,setup,int,magic)
 static inline _syscall0(int,sync)
 static inline _syscall0(pid_t,setsid)
 static inline _syscall3(int,write,int,fd,const char *,buf,off_t,count)

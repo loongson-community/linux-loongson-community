@@ -61,13 +61,20 @@ static int requests_out;
 static int nbd_open(struct inode *inode, struct file *file)
 {
 	int dev;
+	struct nbd_device *nbdev;
 
 	if (!inode)
 		return -EINVAL;
 	dev = MINOR(inode->i_rdev);
 	if (dev >= MAX_NBD)
 		return -ENODEV;
+
+	nbdev = &nbd_dev[dev];
 	nbd_dev[dev].refcnt++;
+	if (!(nbdev->flags & NBD_INITIALISED)) {
+		nbdev->queue_lock = MUTEX;
+		nbdev->flags |= NBD_INITIALISED;
+	}
 	MOD_INC_USE_COUNT;
 	return 0;
 }
@@ -81,12 +88,20 @@ static int nbd_xmit(int send, struct socket *sock, char *buf, int size)
 	int result;
 	struct msghdr msg;
 	struct iovec iov;
+	unsigned long flags;
+	sigset_t oldset;
 
 	oldfs = get_fs();
 	set_fs(get_ds());
-	do {
-		sigset_t oldset;
 
+	spin_lock_irqsave(&current->sigmask_lock, flags);
+	oldset = current->blocked;
+	sigfillset(&current->blocked);
+	recalc_sigpending(current);
+	spin_unlock_irqrestore(&current->sigmask_lock, flags);
+
+
+	do {
 		iov.iov_base = buf;
 		iov.iov_len = size;
 		msg.msg_name = NULL;
@@ -98,21 +113,10 @@ static int nbd_xmit(int send, struct socket *sock, char *buf, int size)
 		msg.msg_namelen = 0;
 		msg.msg_flags = 0;
 
-		spin_lock_irq(&current->sigmask_lock);
-		oldset = current->blocked;
-		sigfillset(&current->blocked);
-		recalc_sigpending(current);
-		spin_unlock_irq(&current->sigmask_lock);
-
 		if (send)
 			result = sock_sendmsg(sock, &msg, size);
 		else
 			result = sock_recvmsg(sock, &msg, size, 0);
-
-		spin_lock_irq(&current->sigmask_lock);
-		current->blocked = oldset;
-		recalc_sigpending(current);
-		spin_unlock_irq(&current->sigmask_lock);
 
 		if (result <= 0) {
 #ifdef PARANOIA
@@ -124,6 +128,12 @@ static int nbd_xmit(int send, struct socket *sock, char *buf, int size)
 		size -= result;
 		buf += result;
 	} while (size > 0);
+
+	spin_lock_irqsave(&current->sigmask_lock, flags);
+	current->blocked = oldset;
+	recalc_sigpending(current);
+	spin_unlock_irqrestore(&current->sigmask_lock, flags);
+
 	set_fs(oldfs);
 	return result;
 }
@@ -205,16 +215,18 @@ void nbd_do_it(struct nbd_device *lo)
 		req = nbd_read_stat(lo);
 		if (!req)
 			return;
+		down (&lo->queue_lock);
 #ifdef PARANOIA
 		if (req != lo->tail) {
 			printk(KERN_ALERT "NBD: I have problem...\n");
 		}
 		if (lo != &nbd_dev[MINOR(req->rq_dev)]) {
 			printk(KERN_ALERT "NBD: request corrupted!\n");
-			continue;
+			goto next;
 		}
 		if (lo->magic != LO_MAGIC) {
 			printk(KERN_ALERT "NBD: nbd_dev[] corrupted: Not enough magic\n");
+			up (&lo->queue_lock);
 			return;
 		}
 #endif
@@ -227,6 +239,8 @@ void nbd_do_it(struct nbd_device *lo)
 			lo->head = NULL;
 		}
 		lo->tail = lo->tail->next;
+	next:
+		up (&lo->queue_lock);
 	}
 }
 
@@ -287,7 +301,7 @@ static void do_nbd_request(void)
 		lo = &nbd_dev[dev];
 		if (!lo->file)
 			FAIL("Request when not-ready.");
-		if ((req->cmd == WRITE) && (lo->flags && NBD_READ_ONLY))
+		if ((req->cmd == WRITE) && (lo->flags & NBD_READ_ONLY))
 			FAIL("Write on read-only");
 #ifdef PARANOIA
 		if (lo->magic != LO_MAGIC)
@@ -295,10 +309,11 @@ static void do_nbd_request(void)
 		requests_in++;
 #endif
 		req->errors = 0;
-
-		nbd_send_req(lo->sock, req);	/* Why does this block?         */
 		CURRENT = CURRENT->next;
 		req->next = NULL;
+
+		spin_unlock_irq(&io_request_lock);
+		down (&lo->queue_lock);
 		if (lo->head == NULL) {
 			lo->head = req;
 			lo->tail = req;
@@ -306,6 +321,10 @@ static void do_nbd_request(void)
 			lo->head->next = req;
 			lo->head = req;
 		}
+
+		nbd_send_req(lo->sock, req);	/* Why does this block?         */
+		up (&lo->queue_lock);
+		spin_lock_irq(&io_request_lock);
 		continue;
 
 	      error_out:
@@ -415,6 +434,7 @@ static struct file_operations nbd_fops =
 	nbd_ioctl,		/* ioctl */
 	NULL,			/* mmap */
 	nbd_open,		/* open */
+	NULL,			/* flush */
 	nbd_release		/* release */
 };
 

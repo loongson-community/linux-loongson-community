@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1994, 1995 by Ralf Baechle
  *
- * $Id: entry.S,v 1.10 1998/05/04 09:12:49 ralf Exp $
+ * $Id: entry.S,v 1.11 1998/08/25 09:14:38 ralf Exp $
  */
 
 /*
@@ -100,8 +100,6 @@ LEAF(spurious_interrupt)
 		STI
 #define __BUILD_clear_cli(exception)                                    \
 		CLI
-#define __BUILD_clear_kmode(exception)                                  \
-		KMODE
 #define __BUILD_clear_fpe(exception)                                    \
 		cfc1	a1,fcr31;                                       \
 		li	a2,~(0x3f<<12);                                 \
@@ -111,7 +109,7 @@ LEAF(spurious_interrupt)
 #define __BUILD_clear_ade(exception)                                    \
 		MFC0	t0,CP0_BADVADDR;                                \
 		REG_S	t0,PT_BVADDR(sp);                               \
-		STI
+		KMODE
 #define __BUILD_silent(exception)
 
 #define fmt "Got %s at %08lx.\n"
@@ -145,8 +143,8 @@ EXPORT(exception_count_##exception);                                    \
 		 nop;                                                   \
 		END(handle_##exception)
 
-		BUILD_HANDLER(adel,ade,kmode,silent)		/* #4  */
-		BUILD_HANDLER(ades,ade,kmode,silent)		/* #5  */
+		BUILD_HANDLER(adel,ade,ade,silent)		/* #4  */
+		BUILD_HANDLER(ades,ade,ade,silent)		/* #5  */
 		BUILD_HANDLER(ibe,ibe,cli,verbose)		/* #6  */
 		BUILD_HANDLER(dbe,dbe,cli,verbose)		/* #7  */
 		BUILD_HANDLER(bp,bp,sti,silent)			/* #9  */

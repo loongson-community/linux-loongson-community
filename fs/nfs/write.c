@@ -56,21 +56,12 @@
 #include <linux/nfs_fs.h>
 #include <asm/uaccess.h>
 
-/*
- * NOTE! We must NOT default to soft-mounting: that breaks too many
- * programs that depend on POSIX behaviour of uninterruptible reads
- * and writes.
- *
- * Until we have a per-mount soft/hard mount policy that we can honour
- * we must default to hard mounting!
- */
-#define IS_SOFT 0
-
 #define NFS_PARANOIA 1
 #define NFSDBG_FACILITY		NFSDBG_PAGECACHE
 
 static void			nfs_wback_lock(struct rpc_task *task);
 static void			nfs_wback_result(struct rpc_task *task);
+static void			nfs_cancel_request(struct nfs_wreq *req);
 
 /*
  * Cache parameters
@@ -258,7 +249,7 @@ nfs_find_dentry_request(struct inode *inode, struct dentry *dentry)
 
 	req = head = NFS_WRITEBACK(inode);
 	while (req != NULL) {
-		if (req->wb_dentry == dentry) {
+		if (req->wb_dentry == dentry && !WB_CANCELLED(req)) {
 			found = 1;
 			break;
 		}
@@ -442,11 +433,15 @@ schedule_write_request(struct nfs_wreq *req, int sync)
 		sync = 1;
 
 	if (sync) {
+		sigset_t	oldmask;
+		struct rpc_clnt *clnt = NFS_CLIENT(inode);
 		dprintk("NFS: %4d schedule_write_request (sync)\n",
 					task->tk_pid);
 		/* Page is already locked */
 		req->wb_flags |= NFS_WRITE_LOCKED;
+		rpc_clnt_sigmask(clnt, &oldmask);
 		rpc_execute(task);
+		rpc_clnt_sigunmask(clnt, &oldmask);
 	} else {
 		dprintk("NFS: %4d schedule_write_request (async)\n",
 					task->tk_pid);
@@ -467,17 +462,20 @@ wait_on_write_request(struct nfs_wreq *req)
 {
 	struct wait_queue	wait = { current, NULL };
 	struct page		*page = req->wb_page;
-	int			retval;
+	int retval;
+	sigset_t		oldmask;
+	struct rpc_clnt		*clnt = NFS_CLIENT(req->wb_inode);
 
+	rpc_clnt_sigmask(clnt, &oldmask);
 	add_wait_queue(&page->wait, &wait);
 	atomic_inc(&page->count);
 	for (;;) {
-		current->state = IS_SOFT ? TASK_INTERRUPTIBLE : TASK_UNINTERRUPTIBLE;
+		current->state = TASK_INTERRUPTIBLE;
 		retval = 0;
 		if (!PageLocked(page))
 			break;
 		retval = -ERESTARTSYS;
-		if (IS_SOFT && signalled())
+		if (signalled())
 			break;
 		schedule();
 	}
@@ -485,6 +483,7 @@ wait_on_write_request(struct nfs_wreq *req)
 	current->state = TASK_RUNNING;
 	/* N.B. page may have been unused, so we must use free_page() */
 	free_page(page_address(page));
+	rpc_clnt_sigunmask(clnt, &oldmask);
 	return retval;
 }
 
@@ -534,6 +533,10 @@ nfs_updatepage(struct file *file, struct page *page, const char *buffer,
 	if ((req = find_write_request(inode, page)) != NULL) {
 		if (update_write_request(req, offset, count)) {
 			/* N.B. check for a fault here and cancel the req */
+			/*
+			 *	SECURITY - copy_from_user must zero the
+			 *	rest of the data after a fault!
+			 */
 			copy_from_user(page_addr + offset, buffer, count);
 			goto updated;
 		}
@@ -583,8 +586,11 @@ done:
 			transfer_page_lock(req);
 			/* rpc_execute(&req->wb_task); */
 			if (sync) {
-				/* N.B. if signalled, result not ready? */
-				wait_on_write_request(req);
+				/* if signalled, ensure request is cancelled */
+				if ((count = wait_on_write_request(req)) != 0) {
+					nfs_cancel_request(req);
+					status = count;
+				}
 				if ((count = nfs_write_error(inode)) < 0)
 					status = count;
 			}
@@ -716,29 +722,21 @@ int
 nfs_flush_dirty_pages(struct inode *inode, pid_t pid, off_t offset, off_t len)
 {
 	struct nfs_wreq *last = NULL;
-	int result = 0, cancel = 0;
+	int result = 0;
 
 	dprintk("NFS:      flush_dirty_pages(%x/%ld for pid %d %ld/%ld)\n",
 		inode->i_dev, inode->i_ino, current->pid, offset, len);
 
-	if (IS_SOFT && signalled()) {
-		nfs_cancel_dirty(inode, pid);
-		cancel = 1;
-	}
-
 	for (;;) {
-		if (IS_SOFT && signalled()) {
-			if (!cancel)
-				nfs_cancel_dirty(inode, pid);
-			result = -ERESTARTSYS;
-			break;
-		}
-
 		/* Flush all pending writes for the pid and file region */
 		last = nfs_flush_pages(inode, pid, offset, len, 0);
 		if (last == NULL)
 			break;
-		wait_on_write_request(last);
+		result = wait_on_write_request(last);
+		if (result) {
+			nfs_cancel_dirty(inode,pid);
+			break;
+		}
 	}
 
 	return result;
@@ -889,6 +887,9 @@ nfs_wback_result(struct rpc_task *task)
 		/* Update attributes as result of writeback. 
 		 * Beware: when UDP replies arrive out of order, we
 		 * may end up overwriting a previous, bigger file size.
+		 *
+		 * When the file size shrinks we cancel all pending
+		 * writebacks. 
 		 */
 		if (fattr->mtime.seconds >= inode->i_mtime) {
 			if (fattr->size < inode->i_size)

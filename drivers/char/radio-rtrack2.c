@@ -113,6 +113,7 @@ static int rt_ioctl(struct video_device *dev, unsigned int cmd, void *arg)
 			v.maxheight=0;
 			v.minwidth=0;
 			v.minheight=0;
+			strcpy(v.name, "RadioTrack II");
 			if(copy_to_user(arg,&v,sizeof(v)))
 				return -EFAULT;
 			return 0;
@@ -158,6 +159,7 @@ static int rt_ioctl(struct video_device *dev, unsigned int cmd, void *arg)
 			memset(&v,0, sizeof(v));
 			v.flags|=VIDEO_AUDIO_MUTABLE;
 			v.volume=1;
+			v.step=65535;
 			strcpy(v.name, "Radio");
 			if(copy_to_user(arg,&v, sizeof(v)))
 				return -EFAULT;

@@ -32,6 +32,12 @@
 /*
  * $Log: NCR5380.c,v $
 
+ * Revision 1.10 1998/9/2	Alan Cox
+ *				(alan@redhat.com)
+ * Fixed up the timer lockups reported so far. Things still suck. Looking 
+ * forward to 2.3 and per device request queues. Then it'll be possible to
+ * SMP thread this beast and improve life no end.
+ 
  * Revision 1.9  1997/7/27	Ronald van Cuijlenborg
  *				(ronald.van.cuijlenborg@tip.nl or nutty@dds.nl)
  * (hopefully) fixed and enhanced USLEEP
@@ -1524,8 +1530,11 @@ static void NCR5380_intr(int irq, void *dev_id, struct pt_regs *regs) {
 							{
 								unsigned long timeout = jiffies + NCR_TIMEOUT;
 
+								spin_unlock_irq(&io_request_lock);
 								while (NCR5380_read(BUS_AND_STATUS_REG) & BASR_ACK
 								       && jiffies < timeout);
+								spin_lock_irq(&io_request_lock);
+								
 								if (jiffies >= timeout)
 									printk("scsi%d: timeout at NCR5380.c:%d\n",
 									       host->host_no, __LINE__);
@@ -1619,14 +1628,18 @@ static int NCR5380_select(struct Scsi_Host *instance, Scsi_Cmnd * cmd, int tag) 
 	NCR5380_local_declare();
 	struct NCR5380_hostdata *hostdata = (struct NCR5380_hostdata *) instance->hostdata;
 	unsigned char tmp[3], phase;
-	unsigned char *data, value;
+	unsigned char *data;
 	int len;
 	unsigned long timeout;
 	unsigned long flags;
+#ifdef USLEEP
+	unsigned char value;
+#endif
 
-	 NCR5380_setup(instance);
+	NCR5380_setup(instance);
 
 #ifdef USLEEP
+
 	if (hostdata->selecting) 
 	{
 		goto part2;	/* RvC: sorry prof. Dijkstra, but it keeps the
@@ -1665,8 +1678,13 @@ static int NCR5380_select(struct Scsi_Host *instance, Scsi_Cmnd * cmd, int tag) 
 	{
 		unsigned long timeout = jiffies + 2 * NCR_TIMEOUT;
 
+		spin_unlock_irq(&io_request_lock);
+
 		while (!(NCR5380_read(INITIATOR_COMMAND_REG) & ICR_ARBITRATION_PROGRESS)
 		       && jiffies < timeout);
+
+		spin_lock_irq(&io_request_lock);
+		       
 		if (jiffies >= timeout) {
 			printk("scsi: arbitration timeout at %d\n", __LINE__);
 			NCR5380_write(MODE_REG, MR_BASE);
@@ -1825,8 +1843,10 @@ part2:
 	hostdata->selecting = 0; /* clear this pointer, because we passed the
 				waiting period */
 #else
+	spin_unlock_irq(&io_request_lock);
 	while ((jiffies < timeout) && !(NCR5380_read(STATUS_REG) &
 					(SR_BSY | SR_IO)));
+	spin_lock_irq(&io_request_lock);
 #endif
 	if ((NCR5380_read(STATUS_REG) & (SR_SEL | SR_IO)) ==
 	    (SR_SEL | SR_IO)) {
@@ -1894,8 +1914,10 @@ part2:
 	{
 		unsigned long timeout = jiffies + NCR_TIMEOUT;
 
+		spin_unlock_irq(&io_request_lock);
 		while (!(NCR5380_read(STATUS_REG) & SR_REQ) && jiffies < timeout);
-
+		spin_lock_irq(&io_request_lock);
+		
 		if (jiffies >= timeout) {
 			printk("scsi%d: timeout at NCR5380.c:%d\n", __LINE__);
 			NCR5380_write(SELECT_ENABLE_REG, hostdata->id_mask);
@@ -2232,8 +2254,8 @@ static int NCR5380_transfer_dma(struct Scsi_Host *instance,
 	register unsigned char p = *phase;
 	register unsigned char *d = *data;
 	unsigned char tmp;
-	int foo;
 	unsigned long flags;
+	int foo;
 #if defined(REAL_DMA_POLL)
 	int cnt, toPIO;
 	unsigned char saved_data = 0, overrun = 0, residue;

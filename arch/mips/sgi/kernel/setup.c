@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.12 1998/07/16 20:32:30 tsbogend Exp $
+/* $Id: setup.c,v 1.13 1998/08/25 09:14:50 ralf Exp $
  *
  * setup.c: SGI specific setup, including init of the feature struct.
  *
@@ -6,6 +6,7 @@
  * Copyright (C) 1997, 1998 Ralf Baechle (ralf@gnu.org)
  */
 #include <linux/init.h>
+#include <linux/kbd_ll.h>
 #include <linux/kernel.h>
 #include <linux/kdev_t.h>
 #include <linux/types.h>
@@ -70,6 +71,9 @@ __initfunc(static void sgi_keyboard_setup(void))
 	kbd_write_command = sgi_write_command;
 	kbd_read_status = sgi_read_status;
 
+	request_irq(SGI_KEYBOARD_IRQ, keyboard_interrupt,
+	            0, "keyboard", NULL);
+
 	/* Dirty hack, this get's called as a callback from the keyboard
 	   driver.  We piggyback the initialization of the front panel
 	   button handling on it even though they're technically not
@@ -129,5 +133,4 @@ __initfunc(void sgi_setup(void))
 	conswitchp = &newport_con;
 #endif
 	rtc_ops = &indy_rtc_ops;
-
 }

@@ -427,18 +427,15 @@ static void dump_packet(const struct iphdr *ip,
 	printk("\n");
 }
 
-/* function for checking chain labels for user space.  Makes sure that
- * there are no special characters in the string */
+/* function for checking chain labels for user space. */
 static int check_label(ip_chainlabel label)
 {
 	unsigned int i;
-	
-	for (i = 0; i < IP_FW_MAX_LABEL_LENGTH + 1 && label[i]; i++)
-		if (label[i] <= ' ') 
-			return 0;
-	if (i == IP_FW_MAX_LABEL_LENGTH+1)
-		return 0;
-	return 1;
+	/* strlen must be < IP_FW_MAX_LABEL_LENGTH. */
+	for (i = 0; i < IP_FW_MAX_LABEL_LENGTH + 1; i++)
+		if (label[i] == '\0') return 1;
+
+	return 0;
 }	
 
 /*	This function returns a pointer to the first chain with a label
@@ -1098,6 +1095,9 @@ static int create_chain(ip_chainlabel label)
 {
 	struct ip_chain *tmp;
 
+	if (!check_label(label))
+		return EINVAL;
+
 	FWC_HAVE_LOCK(fwc_wlocks);
 	for (tmp = ip_fw_chains; tmp->next; tmp = tmp->next)
 		if (strcmp(tmp->label,label) == 0)
@@ -1512,14 +1512,14 @@ static int dump_rule(char *buffer,
 		    "%9s "			/* Chain name */
 		    "%08lX/%08lX->%08lX/%08lX "	/* Source & Destination IPs */
 		    "%.16s "			/* Interface */
-		    "%hX %hX "			/* fw_flg and fw_invflg fields */
-		    "%hu "			/* Protocol */
+		    "%X %X "			/* fw_flg and fw_invflg fields */
+		    "%u "			/* Protocol */
 		    "%-9u %-9u %-9u %-9u "	/* Packet & byte counters */
-		    "%hu-%hu %hu-%hu "		/* Source & Dest port ranges */
+		    "%u-%u %u-%u "		/* Source & Dest port ranges */
 		    "A%02X X%02X "		/* TOS and and xor masks */
 		    "%08X "			/* Redirection port */
 		    "%u "			/* fw_mark field */
-		    "%hu "			/* output size */
+		    "%u "			/* output size */
 		    "%9s\n",			/* Target */
 		    chainlabel,
 		    ntohl(rule->ipfw.fw_src.s_addr),

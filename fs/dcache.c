@@ -643,9 +643,10 @@ int d_validate(struct dentry *dentry, struct dentry *dparent,
 		 * Special case: local mount points don't live in
 		 * the hashes, so we search the super blocks.
 		 */
-		struct super_block *sb = super_blocks + 0;
+		struct super_block *sb = sb_entry(super_blocks.next);
 
-		for (; sb < super_blocks + NR_SUPER; sb++) {
+		for (; sb != sb_entry(&super_blocks); 
+		     sb = sb_entry(sb->s_list.next)) {
 			if (!sb->s_dev)
 				continue;
 			if (sb->s_root == dentry)
@@ -915,7 +916,7 @@ out:
 	return ino;
 }
 
-__initfunc(void dcache_init(void))
+void __init dcache_init(void)
 {
 	int i;
 	struct list_head *d = dentry_hashtable;

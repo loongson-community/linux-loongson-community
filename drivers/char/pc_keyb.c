@@ -30,176 +30,6 @@
 
 #include "pc_keyb.h"
 
-/*
- * In case we run on a non-x86 hardware we need to initialize both the keyboard
- * controller and the keyboard. On a x86, the BIOS will already have initialized
- * them.
- */
-
-/*
- * Some x86 BIOSes do not correctly initialize the keyboard, so the
- * "kbd-reset" command line options can be given to force a reset.
- * [Ranger]
- */
-#ifdef __i386__
-int kbd_startup_reset __initdata = 0;
-#else
-int kbd_startup_reset __initdata = 1;
-#endif
-
-static int kbd_wait_for_input(void)
-{
-	int	status, data;
-	unsigned long start = jiffies;
-
-        do {
-                status = kbd_read_status();
-
-                /*
-                 * Wait for input data to become available.  This bit will
-                 * then be cleared by the following read of the DATA
-                 * register.
-                 */
-                if (!(status & KBD_STAT_OBF))
-			continue;
-
-		data = kbd_read_input();
-
-                /*
-                 * Check to see if a timeout error has occurred.  This means
-                 * that transmission was started but did not complete in the
-                 * normal time cycle.  PERR is set when a parity error occurred
-                 * in the last transmission.
-                 */
-                if (status & (KBD_STAT_GTO | KBD_STAT_PERR)) {
-			continue;
-                }
-		return (data & 0xff);
-        } while (jiffies - start < KBD_INIT_TIMEOUT);
-        return -1;	/* timed-out if fell through to here... */
-}
-
-static char *initialize_kbd2(void)
-{
-	int status;
-
-	/* Flush any pending input. */
-
-	while (kbd_wait_for_input() != -1)
-		;
-
-	/*
-	 * Test the keyboard interface.
-	 * This seems to be the only way to get it going.
-	 * If the test is successful a x55 is placed in the input buffer.
-	 */
-
-	kbd_write_command(KBD_CCMD_SELF_TEST);
-	if (kbd_wait_for_input() != 0x55)
-		return "Keyboard failed self test";
-
-	/*
-	 * Perform a keyboard interface test.  This causes the controller
-	 * to test the keyboard clock and data lines.  The results of the
-	 * test are placed in the input buffer.
-	 */
-
-	kbd_write_command(KBD_CCMD_KBD_TEST);
-	if (kbd_wait_for_input() != 0x00)
-		return "Keyboard interface failed self test";
-
-	/* Enable the keyboard by allowing the keyboard clock to run. */
-
-	kbd_write_command(KBD_CCMD_KBD_ENABLE);
-
-	/*
-	 * Reset keyboard. If the read times out
-	 * then the assumption is that no keyboard is
-	 * plugged into the machine.
-	 * This defaults the keyboard to scan-code set 2.
-	 *
-	 * Set up to try again if the keyboard asks for RESEND.
-	 */
-
-        do {
-		kbd_write_output(KBD_CMD_RESET);
-		status = kbd_wait_for_input();
-		if (status == KBD_REPLY_ACK)
-			break;
-		else if (status != KBD_REPLY_RESEND)
-			return "Keyboard reset failed, no ACK";
-	} while (1);
-
-	if (kbd_wait_for_input() != KBD_REPLY_POR)
-		return "Keyboard reset failed, no POR";
-
-	/*
-	 * Set keyboard controller mode. During this, the keyboard should be
-	 * in the disabled state.
-	 *
-	 * Set up to try again if the keyboard asks for RESEND.
-	 */
-
-	do {
-		kbd_write_output(KBD_CMD_DISABLE);
-		status = kbd_wait_for_input();
-		if (status == KBD_REPLY_ACK)
-			break;
-		else if (status != KBD_REPLY_RESEND)
-			return "Disable keyboard: no ACK";
-	} while (1);
-
-	kbd_write_command(KBD_CCMD_WRITE_MODE);
-	kbd_write_output(KBD_MODE_KBD_INT
-		              | KBD_MODE_SYS
-		              | KBD_MODE_DISABLE_MOUSE
-		              | KBD_MODE_KCC);
-
-	/* ibm powerpc portables need this to use scan-code set 1 -- Cort */
-	kbd_write_command(KBD_CCMD_READ_MODE);
-	if (!(kbd_wait_for_input() & KBD_MODE_KCC)) {
-		/*
-		 * If the controller does not support conversion,
-		 * Set the keyboard to scan-code set 1.
-		 */
-		kbd_write_output(0xF0);
-		kbd_wait_for_input();
-		kbd_write_output(0x01);
-		kbd_wait_for_input();
-	}
-
-	kbd_write_output(KBD_CMD_ENABLE);
-	if (kbd_wait_for_input() != KBD_REPLY_ACK)
-		return "Enable keyboard: no ACK";
-
-	/*
-	 * Finally, set the typematic rate to maximum.
-	 */
-
-	kbd_write_output(KBD_CMD_SET_RATE);
-	if (kbd_wait_for_input() != KBD_REPLY_ACK)
-		return "Set rate: no ACK";
-	kbd_write_output(0x00);
-	if (kbd_wait_for_input() != KBD_REPLY_ACK)
-		return "Set rate: no ACK";
-
-	return NULL;
-}
-
-void initialize_kbd(void)
-{
-	char *msg;
-
-	disable_irq(KEYBOARD_IRQ);
-	msg = initialize_kbd2();
-	enable_irq(KEYBOARD_IRQ);
-
-	if (msg)
-		printk(KERN_WARNING "initialize_kbd: %s\n", msg);
-}
-
-
-
 unsigned char pckbd_read_mask = KBD_STAT_OBF; /* Modified by psaux.c */
 
 /* used only by send_data - set by keyboard_interrupt */
@@ -415,7 +245,7 @@ static int do_acknowledge(unsigned char scancode)
 int pckbd_pretranslate(unsigned char scancode, char raw_mode)
 {
 	if (scancode == 0xff) {
-	        /* in scancode mode 1, my ESC key generates 0xff */
+		/* in scancode mode 1, my ESC key generates 0xff */
 		/* the calculator keys on a FOCUS 9000 generate 0xff */
 #ifndef KBD_IS_FOCUS_9000
 #ifdef KBD_REPORT_ERR
@@ -523,7 +353,7 @@ char pckbd_unexpected_up(unsigned char keycode)
 	    return 0200;
 }
 
-static void keyboard_interrupt(int irq, void *dev_id, struct pt_regs *regs)
+void keyboard_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	unsigned char status;
 
@@ -600,15 +430,198 @@ void pckbd_leds(unsigned char leds)
 	    send_data(KBD_CMD_ENABLE);	/* re-enable kbd if any errors */
 }
 
-__initfunc(void pckbd_init_hw(void))
-{
-	request_irq(KEYBOARD_IRQ, keyboard_interrupt, 0, "keyboard", NULL);
-	keyboard_setup();
-	if (kbd_startup_reset) initialize_kbd();
-}
+/*
+ * In case we run on a non-x86 hardware we need to initialize both the
+ * keyboard controller and the keyboard.  On a x86, the BIOS will
+ * already have initialized them.
+ *
+ * Some x86 BIOSes do not correctly initialize the keyboard, so the
+ * "kbd-reset" command line options can be given to force a reset.
+ * [Ranger]
+ */
+#ifdef __i386__
+ int kbd_startup_reset __initdata = 0;
+#else
+ int kbd_startup_reset __initdata = 1;
+#endif
 
 /* for "kbd-reset" cmdline param */
-__initfunc(void kbd_reset_setup(char *str, int *ints))
+void __init kbd_reset_setup(char *str, int *ints)
 {
 	kbd_startup_reset = 1;
+}
+
+#define KBD_NO_DATA	(-1)	/* No data */
+#define KBD_BAD_DATA	(-2)	/* Parity or other error */
+
+static int __init kbd_read_data(void)
+{
+	int retval = KBD_NO_DATA;
+	unsigned char status;
+
+	status = kbd_read_status();
+	if (status & KBD_STAT_OBF) {
+		unsigned char data = kbd_read_input();
+
+		retval = data;
+		if (status & (KBD_STAT_GTO | KBD_STAT_PERR))
+			retval = KBD_BAD_DATA;
+	}
+	return retval;
+}
+
+static void __init kbd_clear_input(void)
+{
+	int maxread = 100;	/* Random number */
+
+	do {
+		if (kbd_read_data() == KBD_NO_DATA)
+			break;
+	} while (--maxread);
+}
+
+static int __init kbd_wait_for_input(void)
+{
+	long timeout = KBD_INIT_TIMEOUT;
+
+	do {
+		int retval = kbd_read_data();
+		if (retval >= 0)
+			return retval;
+		mdelay(1);
+	} while (--timeout);
+	return -1;
+}
+
+static void __init kbd_write_command_w(int data)
+{
+	int status;
+
+	do {
+		status = kbd_read_status();
+	} while (status & KBD_STAT_IBF);
+	kbd_write_command(data);
+}
+
+static void __init kbd_write_output_w(int data)
+{
+	int status;
+
+	do {
+		status = kbd_read_status();
+	} while (status & KBD_STAT_IBF);
+	kbd_write_output(data);
+}
+
+static char * __init initialize_kbd(void)
+{
+	int status;
+
+	/*
+	 * Test the keyboard interface.
+	 * This seems to be the only way to get it going.
+	 * If the test is successful a x55 is placed in the input buffer.
+	 */
+	kbd_write_command_w(KBD_CCMD_SELF_TEST);
+	if (kbd_wait_for_input() != 0x55)
+		return "Keyboard failed self test";
+
+	/*
+	 * Perform a keyboard interface test.  This causes the controller
+	 * to test the keyboard clock and data lines.  The results of the
+	 * test are placed in the input buffer.
+	 */
+	kbd_write_command_w(KBD_CCMD_KBD_TEST);
+	if (kbd_wait_for_input() != 0x00)
+		return "Keyboard interface failed self test";
+
+	/*
+	 * Enable the keyboard by allowing the keyboard clock to run.
+	 */
+	kbd_write_command_w(KBD_CCMD_KBD_ENABLE);
+
+	/*
+	 * Reset keyboard. If the read times out
+	 * then the assumption is that no keyboard is
+	 * plugged into the machine.
+	 * This defaults the keyboard to scan-code set 2.
+	 *
+	 * Set up to try again if the keyboard asks for RESEND.
+	 */
+	do {
+		kbd_write_output_w(KBD_CMD_RESET);
+		status = kbd_wait_for_input();
+		if (status == KBD_REPLY_ACK)
+			break;
+		if (status != KBD_REPLY_RESEND)
+			return "Keyboard reset failed, no ACK";
+	} while (1);
+
+	if (kbd_wait_for_input() != KBD_REPLY_POR)
+		return "Keyboard reset failed, no POR";
+
+	/*
+	 * Set keyboard controller mode. During this, the keyboard should be
+	 * in the disabled state.
+	 *
+	 * Set up to try again if the keyboard asks for RESEND.
+	 */
+	do {
+		kbd_write_output_w(KBD_CMD_DISABLE);
+		status = kbd_wait_for_input();
+		if (status == KBD_REPLY_ACK)
+			break;
+		if (status != KBD_REPLY_RESEND)
+			return "Disable keyboard: no ACK";
+	} while (1);
+
+	kbd_write_command_w(KBD_CCMD_WRITE_MODE);
+	kbd_write_output_w(KBD_MODE_KBD_INT
+			 | KBD_MODE_SYS
+			 | KBD_MODE_DISABLE_MOUSE
+			 | KBD_MODE_KCC);
+
+	/* ibm powerpc portables need this to use scan-code set 1 -- Cort */
+	kbd_write_command_w(KBD_CCMD_READ_MODE);
+	if (!(kbd_wait_for_input() & KBD_MODE_KCC)) {
+		/*
+		 * If the controller does not support conversion,
+		 * Set the keyboard to scan-code set 1.
+		 */
+		kbd_write_output_w(0xF0);
+		kbd_wait_for_input();
+		kbd_write_output_w(0x01);
+		kbd_wait_for_input();
+	}
+
+	
+	kbd_write_output_w(KBD_CMD_ENABLE);
+	if (kbd_wait_for_input() != KBD_REPLY_ACK)
+		return "Enable keyboard: no ACK";
+
+	/*
+	 * Finally, set the typematic rate to maximum.
+	 */
+	kbd_write_output_w(KBD_CMD_SET_RATE);
+	if (kbd_wait_for_input() != KBD_REPLY_ACK)
+		return "Set rate: no ACK";
+	kbd_write_output_w(0x00);
+	if (kbd_wait_for_input() != KBD_REPLY_ACK)
+		return "Set rate: no ACK";
+
+	return NULL;
+}
+
+void __init pckbd_init_hw(void)
+{
+	keyboard_setup();
+
+	/* Flush any pending input. */
+	kbd_clear_input();
+
+	if (kbd_startup_reset) {
+		char *msg = initialize_kbd();
+		if (msg)
+			printk(KERN_WARNING "initialize_kbd: %s\n", msg);
+	}
 }

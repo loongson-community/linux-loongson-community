@@ -105,7 +105,7 @@ static unsigned int sock_poll(struct file *file,
 			      struct poll_table_struct *wait);
 static int sock_ioctl(struct inode *inode, struct file *file,
 		      unsigned int cmd, unsigned long arg);
-static int sock_fasync(struct file *filp, int on);
+static int sock_fasync(int fd, struct file *filp, int on);
 
 
 /*
@@ -122,6 +122,7 @@ static struct file_operations socket_file_ops = {
 	sock_ioctl,
 	NULL,			/* mmap */
 	NULL,			/* no special open code... */
+	NULL,			/* flush */
 	sock_close,
 	NULL,			/* no fsync */
 	sock_fasync
@@ -483,7 +484,7 @@ int sock_close(struct inode *inode, struct file *filp)
 		printk(KERN_DEBUG "sock_close: NULL inode\n");
 		return 0;
 	}
-	sock_fasync(filp, 0);
+	sock_fasync(-1, filp, 0);
 	sock_release(socki_lookup(inode));
 	return 0;
 }
@@ -492,11 +493,10 @@ int sock_close(struct inode *inode, struct file *filp)
  *	Update the socket async list
  */
 
-static int sock_fasync(struct file *filp, int on)
+static int sock_fasync(int fd, struct file *filp, int on)
 {
 	struct fasync_struct *fa, *fna=NULL, **prev;
 	struct socket *sock;
-	unsigned long flags;
 	
 	if (on)
 	{
@@ -508,9 +508,8 @@ static int sock_fasync(struct file *filp, int on)
 	sock = socki_lookup(filp->f_dentry->d_inode);
 	
 	prev=&(sock->fasync_list);
-	
-	save_flags(flags);
-	cli();
+
+	lock_sock(sock->sk); 
 	
 	for (fa=*prev; fa!=NULL; prev=&fa->fa_next,fa=*prev)
 		if (fa->fa_file==filp)
@@ -520,11 +519,13 @@ static int sock_fasync(struct file *filp, int on)
 	{
 		if(fa!=NULL)
 		{
+			fa->fa_fd=fd;
 			kfree_s(fna,sizeof(struct fasync_struct));
-			restore_flags(flags);
+			release_sock(sock->sk); 
 			return 0;
 		}
 		fna->fa_file=filp;
+		fna->fa_fd=fd;
 		fna->magic=FASYNC_MAGIC;
 		fna->fa_next=sock->fasync_list;
 		sock->fasync_list=fna;
@@ -537,7 +538,8 @@ static int sock_fasync(struct file *filp, int on)
 			kfree_s(fa,sizeof(struct fasync_struct));
 		}
 	}
-	restore_flags(flags);
+
+	release_sock(sock->sk); 
 	return 0;
 }
 
@@ -1302,7 +1304,8 @@ out:
 /*
  *	Perform a file control on a socket file descriptor.
  *
- *	FIXME: does this need an fd lock ?
+ *	Doesn't aquire a fd lock, because no network fcntl
+ *	function sleeps currently.
  */
 
 int sock_fcntl(struct file *filp, unsigned int cmd, unsigned long arg)
@@ -1439,7 +1442,7 @@ int sock_unregister(int family)
 	return 0;
 }
 
-__initfunc(void proto_init(void))
+void __init proto_init(void)
 {
 	extern struct net_proto protocols[];	/* Network protocols */
 	struct net_proto *pro;
@@ -1459,7 +1462,7 @@ extern void sk_init(void);
 extern void wanrouter_init(void);
 #endif
 
-__initfunc(void sock_init(void))
+void __init sock_init(void)
 {
 	int i;
 

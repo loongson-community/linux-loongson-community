@@ -29,8 +29,10 @@
 #include <asm/mmu_context.h>
 #include <asm/uaccess.h>
 
-int nr_tasks=1;
-int nr_running=1;
+/* The idle tasks do not count.. */
+int nr_tasks=0;
+int nr_running=0;
+
 unsigned long int total_forks=0;	/* Handle normal Linux uptimes. */
 int last_pid=0;
 
@@ -125,7 +127,7 @@ int alloc_uid(struct task_struct *p)
 	return 0;
 }
 
-__initfunc(void uidcache_init(void))
+void __init uidcache_init(void)
 {
 	int i;
 
@@ -356,8 +358,9 @@ static inline int copy_fs(unsigned long clone_flags, struct task_struct * tsk)
 	return 0;
 }
 
-/* return value is only accurate by +-sizeof(long)*8 fds */ 
-/* XXX make this architecture specific */
+/*
+ * Copy a fd_set and compute the maximum fd it contains. 
+ */
 static inline int __copy_fdset(unsigned long *d, unsigned long *src)
 {
 	int i; 
@@ -411,7 +414,6 @@ static int copy_files(unsigned long clone_flags, struct task_struct * tsk)
 		new_fds = (struct file **) kmalloc(size, GFP_KERNEL);
 	if (!new_fds)
 		goto out_release;
-	memset((void *) new_fds, 0, size);
 
 	atomic_set(&newf->count, 1);
 	newf->max_fds = NR_OPEN;
@@ -421,13 +423,15 @@ static int copy_files(unsigned long clone_flags, struct task_struct * tsk)
 
 	old_fds = oldf->fd;
 	for (; i != 0; i--) {
-		struct file * f = *old_fds;
-		old_fds++;
+		struct file *f = *old_fds++;
 		*new_fds = f;
 		if (f)
 			f->f_count++;
 		new_fds++;
 	}
+	/* This is long word aligned thus could use a optimized version */ 
+	memset(new_fds, 0, (char *)newf->fd + size - (char *)new_fds); 
+      
 	tsk->files = newf;
 	error = 0;
 out:
@@ -554,19 +558,6 @@ int do_fork(unsigned long clone_flags, unsigned long usp, struct pt_regs *regs)
 	p->lock_depth = -1;		/* -1 = no lock */
 	p->start_time = jiffies;
 
-	{
-		/* This makes it visible to the rest of the system */
-		unsigned long flags;
-		write_lock_irqsave(&tasklist_lock, flags);
-		SET_LINKS(p);
-		hash_pid(p);
-		write_unlock_irqrestore(&tasklist_lock, flags);
-	}
-
-	nr_tasks++;
-	if (p->user)
-		atomic_inc(&p->user->count);
-
 	retval = -ENOMEM;
 	/* copy all the process information */
 	if (copy_files(clone_flags, p))
@@ -596,9 +587,23 @@ int do_fork(unsigned long clone_flags, unsigned long usp, struct pt_regs *regs)
 	current->counter >>= 1;
 	p->counter = current->counter;
 
-	/* Ok, add it to the run-queues, let it rip! */
+	/*
+	 * Ok, add it to the run-queues and make it
+	 * visible to the rest of the system.
+	 *
+	 * Let it rip!
+	 */
 	retval = p->pid;
 	if (retval) {
+		write_lock_irq(&tasklist_lock);
+		SET_LINKS(p);
+		hash_pid(p);
+		write_unlock_irq(&tasklist_lock);
+
+		nr_tasks++;
+		if (p->user)
+			atomic_inc(&p->user->count);
+
 		p->next_run = NULL;
 		p->prev_run = NULL;
 		wake_up_process(p);		/* do this last */
@@ -622,37 +627,19 @@ bad_fork_cleanup:
 	if (p->binfmt && p->binfmt->module)
 		__MOD_DEC_USE_COUNT(p->binfmt->module);
 
-	{
-		unsigned long flags;
-		write_lock_irqsave(&tasklist_lock, flags); 
-		unhash_pid(p);
-		REMOVE_LINKS(p);
-		write_unlock_irqrestore(&tasklist_lock, flags);
-	}
-
-	if (p->user)
-		atomic_dec(&p->user->count);
-	nr_tasks--;
 	add_free_taskslot(p->tarray_ptr);
 bad_fork_free:
 	free_task_struct(p);
 	goto bad_fork;
 }
 
-static void files_ctor(void *fp, kmem_cache_t *cachep, unsigned long flags)
-{
-	struct files_struct *f = fp;
-
-	memset(f, 0, sizeof(*f));
-}
-
-__initfunc(void filescache_init(void))
+void __init filescache_init(void)
 {
 	files_cachep = kmem_cache_create("files_cache", 
 					 sizeof(struct files_struct),
 					 0, 
 					 SLAB_HWCACHE_ALIGN,
-					 files_ctor, NULL);
+					 NULL, NULL);
 	if (!files_cachep) 
 		panic("Cannot create files cache"); 
 }

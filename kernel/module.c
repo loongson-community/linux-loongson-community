@@ -288,16 +288,16 @@ sys_init_module(const char *name_user, struct module *mod_user)
 		goto err3;
 	}
 
-	/* On some machines it is necessary to do something here
-	   to make the I and D caches consistent.  */
-	flush_icache_range((unsigned long)mod, (unsigned long)mod + mod->size);
-
 	/* Ok, that's about all the sanity we can stomach; copy the rest.  */
 
 	if (copy_from_user(mod+1, mod_user+1, mod->size-sizeof(*mod))) {
 		error = -EFAULT;
 		goto err3;
 	}
+
+	/* On some machines it is necessary to do something here
+	   to make the I and D caches consistent.  */
+	flush_icache_range((unsigned long)mod, (unsigned long)mod + mod->size);
 
 	/* Update module references.  */
 	mod->next = mod_tmp.next;

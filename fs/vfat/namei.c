@@ -100,22 +100,6 @@ static struct dentry_operations vfat_dentry_ops[4] = {
 	}
 };
 
-static int strnicmp(const char *s1, const char *s2, int len)
-{
-	int n = 0;
-	while (*s1 && *s2 && (tolower(*s1) == tolower(*s2))) {
-		s1++; s2++; n++;
-		if (n == len) return 0;
-	}
-	if (*s1 == 0 && *s2 == 0) return 0;
-	if (*s1 && *s2) {
-		if (*s1 > *s2) return 1;
-		return -1;
-	}
-	if (*s1) return 1;
-	return -1;
-}
-
 void vfat_put_super(struct super_block *sb)
 {
 	fat_put_super(sb);
@@ -1771,8 +1755,6 @@ int vfat_rename(struct inode *old_dir,struct dentry *old_dentry,
 	MSDOS_I(new_inode)->i_logstart = MSDOS_I(old_inode)->i_logstart;
 	MSDOS_I(new_inode)->i_attrs = MSDOS_I(old_inode)->i_attrs;
 
-	old_inode->i_nlink = 0;
-
 	fat_cache_inval_inode(old_inode);
 	mark_inode_dirty(new_inode);
 
@@ -1815,6 +1797,16 @@ int vfat_rename(struct inode *old_dir,struct dentry *old_dentry,
 		iput(dotdot_inode);
 		fat_brelse(sb, dotdot_bh);
 	}
+
+	/*
+	 * This convinces the VFS layer to drop the old inode,
+	 * but at the same time fools the VFAT layer to not
+	 * actually delete any of the blocks in the old file
+	 * (because they are very much used by the renamed file)
+	 */
+	MSDOS_I(old_inode)->i_start = 0;
+	MSDOS_I(old_inode)->i_logstart = 0;
+	old_inode->i_nlink = 0;
 
 	if (res > 0) res = 0;
 

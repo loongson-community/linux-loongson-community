@@ -1,4 +1,4 @@
-/* $Id: jazz.h,v 1.7 1998/08/25 09:21:56 ralf Exp $
+/* $Id: jazz.h,v 1.8 1998/08/26 22:12:32 tsbogend Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -199,6 +199,9 @@ typedef struct {
 
 /*
  * JAZZ Interrupt Level definitions
+ *
+ * This is somewhat broken.  For reasons which nobody can remember anymore
+ * we remap the Jazz interrupts to the usual ISA style interrupt numbers.
  */
 #define JAZZ_TIMER_IRQ          0
 #define JAZZ_KEYBOARD_IRQ       1

@@ -107,11 +107,11 @@ static inline int queue_empty(void)
 	return queue->head == queue->tail;
 }
 
-static int fasync_aux(struct file *filp, int on)
+static int fasync_aux(int fd, struct file *filp, int on)
 {
 	int retval;
 
-	retval = fasync_helper(filp, on, &queue->fasync);
+	retval = fasync_helper(fd, filp, on, &queue->fasync);
 	if (retval < 0)
 		return retval;
 	return 0;
@@ -277,9 +277,12 @@ static void aux_interrupt(int cpl, void *dev_id, struct pt_regs * regs)
 
 static int release_aux(struct inode * inode, struct file * file)
 {
-	fasync_aux(file, 0);
+	fasync_aux(-1, file, 0);
 	if (--aux_count)
 		return 0;
+#ifdef CONFIG_VT
+	pckbd_read_mask = KBD_STAT_OBF;
+#endif
 	aux_start_atomic();
 	aux_write_cmd(AUX_INTS_OFF);			/* Disable controller ints */
 	poll_aux_status();
@@ -319,6 +322,10 @@ static int open_aux(struct inode * inode, struct file * file)
 	aux_write_cmd(AUX_INTS_ON);			/* Enable controller ints */
 	poll_aux_status();
 	aux_end_atomic();
+
+#ifdef CONFIG_VT
+	pckbd_read_mask = AUX_STAT_OBF;
+#endif
 
 	aux_ready = 0;
 	return 0;
@@ -413,7 +420,7 @@ static int release_qp(struct inode * inode, struct file * file)
 {
 	unsigned char status;
 
-	fasync_aux(file, 0);
+	fasync_aux(-1, file, 0);
 	if (!--qp_count) {
 		if (!poll_qp_status())
 			printk("Warning: Mouse device busy in release_qp()\n");
@@ -605,6 +612,7 @@ struct file_operations psaux_fops = {
 	NULL, 		/* ioctl */
 	NULL,		/* mmap */
 	open_aux,
+	NULL,		/* flush */
 	release_aux,
 	NULL,
 	fasync_aux,
@@ -639,9 +647,6 @@ __initfunc(int psaux_init(void))
 #endif
 		printk(KERN_INFO "PS/2 auxiliary pointing device detected -- driver installed.\n");
 	 	aux_present = 1;
-#ifdef CONFIG_VT
-		pckbd_read_mask = AUX_STAT_OBF;
-#endif
 	} else {
 		return -EIO;
 	}
@@ -670,6 +675,7 @@ __initfunc(int psaux_init(void))
 		poll_aux_status();
 		aux_end_atomic();
 	}
+
 	return 0;
 }
 

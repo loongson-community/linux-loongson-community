@@ -1,13 +1,10 @@
-/*
- * include/asm-mips/softirq.h
+/* $Id: softirq.h,v 1.3 1998/03/22 23:27:19 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
  * Copyright (C) 1997, 1998 by Ralf Baechle
- *
- * $Id: softirq.h,v 1.4 1998/03/21 11:45:46 ralf Exp $
  */
 #ifndef __ASM_MIPS_SOFTIRQ_H
 #define __ASM_MIPS_SOFTIRQ_H
@@ -86,6 +83,6 @@ extern inline void end_bh_atomic(void)
 /* These are for the irq's testing the lock */
 #define softirq_trylock(cpu)	(local_bh_count[cpu] ? 0 : (local_bh_count[cpu] = 1))
 #define softirq_endlock(cpu)	(local_bh_count[cpu] = 0)
-#define synchronize_bh()	do { } while (0)
+#define synchronize_bh()	barrier()
 
 #endif /* __ASM_MIPS_SOFTIRQ_H */

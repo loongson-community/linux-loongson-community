@@ -1,4 +1,4 @@
-/* $Id: ptrace.c,v 1.9 1998/07/16 17:01:52 ralf Exp $
+/* $Id: ptrace.c,v 1.8 1998/07/16 19:10:01 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -9,7 +9,6 @@
  * Copyright (C) 1994, 1995, 1996, 1997, 1998 Ralf Baechle
  * Copyright (C) 1996 David S. Miller
  */
-#include <linux/head.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/mm.h>

@@ -430,9 +430,6 @@ int del_timer(struct timer_list * timer)
 	ret = detach_timer(timer);
 	timer->next = timer->prev = 0;
 	spin_unlock_irqrestore(&timerlist_lock, flags);
-
-	/* Make sure the timer isn't running in parallell.. */
-	synchronize_bh();
 	return ret;
 }
 
@@ -847,8 +844,7 @@ static unsigned long count_active_tasks(void)
 
 	read_lock(&tasklist_lock);
 	for_each_task(p) {
-		if (p->pid &&
-		    (p->state == TASK_RUNNING ||
+		if ((p->state == TASK_RUNNING ||
 		     p->state == TASK_UNINTERRUPTIBLE ||
 		     p->state == TASK_SWAPPING))
 			nr += FIXED_1;
@@ -1588,11 +1584,13 @@ asmlinkage int sys_nanosleep(struct timespec *rqtp, struct timespec *rmtp)
 static void show_task(int nr,struct task_struct * p)
 {
 	unsigned long free = 0;
+	int state;
 	static const char * stat_nam[] = { "R", "S", "D", "Z", "T", "W" };
 
 	printk("%-8s %3d ", p->comm, (p == current) ? -nr : nr);
-	if (((unsigned) p->state) < sizeof(stat_nam)/sizeof(char *))
-		printk(stat_nam[p->state]);
+	state = p->state ? ffz(~p->state) + 1 : 0;
+	if (((unsigned) state) < sizeof(stat_nam)/sizeof(char *))
+		printk(stat_nam[state]);
 	else
 		printk(" ");
 #if (BITS_PER_LONG == 32)
@@ -1673,7 +1671,7 @@ void show_state(void)
 	read_unlock(&tasklist_lock);
 }
 
-__initfunc(void sched_init(void))
+void __init sched_init(void)
 {
 	/*
 	 *	We have to do a little magic to get the first

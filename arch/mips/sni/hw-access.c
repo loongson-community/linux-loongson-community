@@ -1,4 +1,4 @@
-/* $Id: hw-access.c,v 1.5 1998/05/07 02:57:22 ralf Exp $
+/* $Id: hw-access.c,v 1.6 1998/06/30 00:21:59 ralf Exp $
  *
  * Low-level hardware access stuff for SNI RM200 PCI
  *
@@ -10,6 +10,7 @@
  */
 #include <linux/delay.h>
 #include <linux/init.h>
+#include <linux/kbd_ll.h>
 #include <linux/kbdcntrlr.h>
 #include <linux/kernel.h>
 #include <linux/linkage.h>
@@ -23,6 +24,7 @@
 #include <asm/irq.h>
 #include <asm/mc146818rtc.h>
 #include <asm/pgtable.h>
+#include <asm/sni.h>
 
 #define KBD_STAT_IBF		0x02	/* Keyboard input buffer full */
 
@@ -62,5 +64,7 @@ __initfunc(void sni_rm200_keyboard_setup(void))
 	kbd_write_output = sni_write_output;
 	kbd_write_command = sni_write_command;
 	kbd_read_status = sni_read_status;
+	request_irq(PCIMT_KEYBOARD_IRQ, keyboard_interrupt,
+	            0, "keyboard", NULL);
 	request_region(0x60, 16, "keyboard");
 }

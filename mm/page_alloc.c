@@ -8,7 +8,6 @@
 #include <linux/config.h>
 #include <linux/mm.h>
 #include <linux/sched.h>
-#include <linux/head.h>
 #include <linux/kernel.h>
 #include <linux/kernel_stat.h>
 #include <linux/errno.h>
@@ -318,7 +317,7 @@ void show_free_areas(void)
  *   - mark all memory queues empty
  *   - clear the memory bitmaps
  */
-__initfunc(unsigned long free_area_init(unsigned long start_mem, unsigned long end_mem))
+unsigned long __init free_area_init(unsigned long start_mem, unsigned long end_mem)
 {
 	mem_map_t * p;
 	unsigned long mask = PAGE_MASK;

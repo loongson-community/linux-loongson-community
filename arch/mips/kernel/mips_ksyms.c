@@ -1,4 +1,4 @@
-/* $Id: mips_ksyms.c,v 1.7 1998/05/04 09:12:49 ralf Exp $
+/* $Id: mips_ksyms.c,v 1.8 1998/06/30 00:21:50 ralf Exp $
  *
  * Export MIPS-specific functions needed for loadable modules.
  *
@@ -26,6 +26,14 @@
 #include <asm/softirq.h>
 #include <asm/uaccess.h>
 
+extern void *__bzero(void *__s, size_t __count);
+extern long __strncpy_from_user_nocheck_asm(char *__to,
+                                            const char *__from, long __len);
+extern long __strncpy_from_user_asm(char *__to, const char *__from,
+                                    long __len);
+extern long __strlen_user_nocheck_asm(const char *s);
+extern long __strlen_user_asm(const char *s);
+
 EXPORT_SYMBOL(EISA_bus);
 
 /*
@@ -52,6 +60,12 @@ EXPORT_SYMBOL(local_irq_count);
  * Userspace access stuff.
  */
 EXPORT_SYMBOL(__copy_user);
+EXPORT_SYMBOL(__bzero);
+EXPORT_SYMBOL(__strncpy_from_user_nocheck_asm);
+EXPORT_SYMBOL(__strncpy_from_user_asm);
+EXPORT_SYMBOL(__strlen_user_nocheck_asm);
+EXPORT_SYMBOL(__strlen_user_asm);
+
 
 /* Networking helper routines. */
 EXPORT_SYMBOL(csum_partial_copy);

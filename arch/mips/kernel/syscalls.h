@@ -1,4 +1,4 @@
-/* $Id: syscalls.h,v 1.15 1998/08/20 16:33:17 ralf Exp $
+/* $Id: syscalls.h,v 1.14 1998/08/25 09:14:41 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -165,7 +165,7 @@ SYS(sys_writev, 3)
 SYS(sys_cacheflush, 3)
 SYS(sys_cachectl, 3)
 SYS(sys_sysmips, 4)
-SYS(sys_setup, 1)				/* 4150 */
+SYS(sys_ni_syscall, 0)				/* 4150 */
 SYS(sys_getsid, 1)
 SYS(sys_fdatasync, 0)
 SYS(sys_sysctl, 1)

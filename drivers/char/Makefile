@@ -397,6 +397,14 @@ else
   endif
 endif                                             
 
+ifeq ($(CONFIG_RADIO_RTRACK2),y)
+L_OBJS += radio-rtrack2.o
+else
+  ifeq ($(CONFIG_RADIO_RTRACK2),m)
+  M_OBJS += radio-rtrack2.o
+  endif
+endif                                             
+
 ifeq ($(CONFIG_RADIO_ZOLTRIX),y)
 L_OBJS += radio-zoltrix.o
 else
@@ -404,6 +412,14 @@ else
   M_OBJS += radio-zoltrix.o
   endif
 endif                                             
+
+ifeq ($(CONFIG_RADIO_MIROPCM20),y)
+L_OBJS += radio-miropcm20.o
+else
+  ifeq ($(CONFIG_RADIO_MIROPCM20),m)
+  M_OBJS += radio-miropcm20.o
+  endif
+endif
 
 ifeq ($(CONFIG_QIC02_TAPE),y)
 L_OBJS += tpqic02.o

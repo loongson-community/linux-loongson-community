@@ -17,7 +17,6 @@
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/tty.h>
-#include <linux/head.h>
 #include <linux/unistd.h>
 #include <linux/string.h>
 #include <linux/timer.h>
@@ -84,6 +83,11 @@ extern long powermac_init(unsigned long, unsigned long);
 extern void sysctl_init(void);
 extern void filescache_init(void);
 extern void signals_init(void);
+
+extern void device_setup(void);
+extern void binfmt_setup(void);
+extern void free_initmem(void);
+extern void filesystem_setup(void);
 
 #ifdef CONFIG_ARCH_ACORN
 extern void ecard_init(void);
@@ -481,7 +485,7 @@ static struct dev_name_struct {
 	{ NULL, 0 }
 };
 
-__initfunc(kdev_t name_to_kdev_t(char *line))
+kdev_t __init name_to_kdev_t(char *line)
 {
 	int base = 0;
 	if (strncmp(line,"/dev/",5) == 0) {
@@ -500,7 +504,7 @@ __initfunc(kdev_t name_to_kdev_t(char *line))
 	return to_kdev_t(base + simple_strtoul(line,NULL,base?10:16));
 }
 
-__initfunc(static void root_dev_setup(char *line, int *num))
+static void __init root_dev_setup(char *line, int *num)
 {
 	ROOT_DEV = name_to_kdev_t(line);
 }
@@ -828,32 +832,32 @@ static struct kernel_param raw_params[] __initdata = {
 };
 
 #ifdef CONFIG_BLK_DEV_RAM
-__initfunc(static void ramdisk_start_setup(char *str, int *ints))
+static void __init ramdisk_start_setup(char *str, int *ints)
 {
    if (ints[0] > 0 && ints[1] >= 0)
       rd_image_start = ints[1];
 }
 
-__initfunc(static void load_ramdisk(char *str, int *ints))
+static void __init load_ramdisk(char *str, int *ints)
 {
    if (ints[0] > 0 && ints[1] >= 0)
       rd_doload = ints[1] & 1;
 }
 
-__initfunc(static void prompt_ramdisk(char *str, int *ints))
+static void __init prompt_ramdisk(char *str, int *ints)
 {
    if (ints[0] > 0 && ints[1] >= 0)
       rd_prompt = ints[1] & 1;
 }
 
-__initfunc(static void ramdisk_size(char *str, int *ints))
+static void __init ramdisk_size(char *str, int *ints)
 {
 	if (ints[0] > 0 && ints[1] >= 0)
 		rd_size = ints[1];
 }
 #endif
 
-__initfunc(static int checksetup(char *line))
+static int __init checksetup(char *line)
 {
 	int i, ints[11];
 
@@ -890,7 +894,7 @@ unsigned long loops_per_sec = (1<<12);
    better than 1% */
 #define LPS_PREC 8
 
-__initfunc(void calibrate_delay(void))
+void __init calibrate_delay(void)
 {
 	unsigned long ticks, loopbit;
 	int lps_precision = LPS_PREC;
@@ -942,7 +946,7 @@ __initfunc(void calibrate_delay(void))
  * This routine also checks for options meant for the kernel.
  * These options are not given to init - they are for internal kernel use only.
  */
-__initfunc(static void parse_options(char *line))
+static void __init parse_options(char *line)
 {
 	char *next;
 	int args, envs;
@@ -1017,6 +1021,8 @@ int cpu_idle(void *unused)
 		idle();
 }
 
+#define smp_init()	do { } while (0)
+
 #else
 
 /*
@@ -1026,24 +1032,14 @@ int cpu_idle(void *unused)
 extern int cpu_idle(void * unused);
 
 /* Called by boot processor to activate the rest. */
-__initfunc(static void smp_init(void))
+static void __init smp_init(void)
 {
 	/* Get other processors into their bootup holding patterns. */
 	smp_boot_cpus();
-}		
-
-/*
- *	The autoprobe routines assume CPU#0 on the i386
- *	so we don't actually set the game in motion until
- *	they are finished.
- */
- 
-__initfunc(static void smp_begin(void))
-{
 	smp_threads_ready=1;
 	smp_commence();
-}
-	
+}		
+
 #endif
 
 extern void initialize_secondary(void);
@@ -1052,7 +1048,7 @@ extern void initialize_secondary(void);
  *	Activate the first processor.
  */
  
-__initfunc(asmlinkage void start_kernel(void))
+asmlinkage void __init start_kernel(void)
 {
 	char * command_line;
 
@@ -1131,13 +1127,18 @@ __initfunc(asmlinkage void start_kernel(void))
 #if defined(CONFIG_QUOTA)
 	dquot_init_hash();
 #endif
+	check_bugs();
 	printk("POSIX conformance testing by UNIFIX\n");
 
-#ifdef __SMP__
 	smp_init();
-#endif
 
-	check_bugs();
+	/*
+	 * Ok, the machine is now initialized. None of the devices
+	 * have been touched yet, but the CPU subsystem is up and
+	 * running, and memory management works.
+	 *
+	 * Now we can finally start doing some real work..
+	 */
 
 #if defined(CONFIG_MTRR)	/* Do this after SMP initialization */
 /*
@@ -1145,10 +1146,9 @@ __initfunc(asmlinkage void start_kernel(void))
  * everything is up" style function where this would belong better
  * than in init/main.c..
  */
-	mtrr_init ();
+	mtrr_init();
 #endif
 
-	sock_init();
 #ifdef CONFIG_SYSCTL
 	sysctl_init();
 #endif
@@ -1207,17 +1207,20 @@ static int do_linuxrc(void * shell)
 	return execve(shell, argv, envp_init);
 }
 
-__initfunc(static void no_initrd(char *s,int *ints))
+static void __init no_initrd(char *s,int *ints)
 {
 	mount_initrd = 0;
 }
 #endif
 
-static int init(void * unused)
+static void __init do_basic_setup(void)
 {
 #ifdef CONFIG_BLK_DEV_INITRD
 	int real_root_mountflags;
 #endif
+
+	/* Networking initialization needs a process context */ 
+	sock_init();
 
 	/* Launch bdflush from here, instead of the old syscall way. */
 	kernel_thread(bdflush, NULL, CLONE_FS | CLONE_FILES | CLONE_SIGHAND);
@@ -1239,16 +1242,18 @@ static int init(void * unused)
 	if (initrd_start && mount_initrd) root_mountflags &= ~MS_RDONLY;
 	else mount_initrd =0;
 #endif
-	setup(0);
 
-#ifdef __SMP__
-	/*
-	 *	With the devices probed and setup we can
-	 *	now enter SMP mode.
-	 */
-	
-	smp_begin();
-#endif	
+	/* Set up devices .. */
+	device_setup();
+
+	/* .. executable formats .. */
+	binfmt_setup();
+
+	/* .. filesystems .. */
+	filesystem_setup();
+
+	/* Mount the root filesystem.. */
+	mount_root();
 
 #ifdef CONFIG_UMSDOS_FS
 	{
@@ -1284,9 +1289,19 @@ static int init(void * unused)
 		}
 	}
 #endif
+}
 
-	setup(1);
-	
+static int init(void * unused)
+{
+	do_basic_setup();
+
+	/*
+	 * Ok, we have completed the initial bootup, and
+	 * we're essentially up and running. Get rid of the
+	 * initmem segments and start the user-mode stuff..
+	 */
+	free_initmem();
+
 	if (open("/dev/console", O_RDWR, 0) < 0)
 		printk("Warning: unable to open an initial console.\n");
 

@@ -233,7 +233,7 @@ static inline void fallback_on_nodma_alloc(char **addr, size_t l)
 
 /* End dma memory related stuff */
 
-static unsigned int fake_change = 0;
+static unsigned long fake_change = 0;
 static int initialising=1;
 
 static inline int TYPE(kdev_t x) {
@@ -3837,6 +3837,7 @@ static struct file_operations floppy_fops = {
 	fd_ioctl,		/* ioctl */
 	NULL,			/* mmap */
 	floppy_open,		/* open */
+	NULL,			/* flush */
 	floppy_release,		/* release */
 	block_fsync,		/* fsync */
 	NULL,			/* fasync */

@@ -514,6 +514,8 @@ static inline int IO_APIC_irq_trigger(int irq)
 	return 0;
 }
 
+int irq_vector[NR_IRQS] = { IRQ0_TRAP_VECTOR , 0 };
+
 static int __init assign_irq_vector(int irq)
 {
 	static int current_vector = IRQ0_TRAP_VECTOR, offset = 0;
@@ -921,9 +923,10 @@ static int __init timer_irq_works(void)
 static inline void self_IPI(unsigned int irq)
 {
 	irq_desc_t *desc = irq_desc + irq;
+	unsigned int status = desc->status;
 
-	if (desc->events && !desc->ipi) {
-		desc->ipi = 1;
+	if ((status & (IRQ_PENDING | IRQ_REPLAY)) == IRQ_PENDING) {
+		desc->status = status | IRQ_REPLAY;
 		send_IPI(APIC_DEST_SELF, IO_APIC_VECTOR(irq));
 	}
 }
@@ -956,10 +959,11 @@ static void disable_level_ioapic_irq(unsigned int irq)
 	mask_IO_APIC_irq(irq);
 }
 
-static void do_edge_ioapic_IRQ(unsigned int irq, int cpu, struct pt_regs * regs)
+static void do_edge_ioapic_IRQ(unsigned int irq, struct pt_regs * regs)
 {
 	irq_desc_t *desc = irq_desc + irq;
 	struct irqaction * action;
+	unsigned int status;
 
 	spin_lock(&irq_controller_lock);
 
@@ -968,19 +972,19 @@ static void do_edge_ioapic_IRQ(unsigned int irq, int cpu, struct pt_regs * regs)
 	 * and do not need to be masked.
 	 */
 	ack_APIC_irq();
-	desc->ipi = 0;
-	desc->events = 1;
+	status = desc->status & ~IRQ_REPLAY;
+	status |= IRQ_PENDING;
 
 	/*
 	 * If the IRQ is disabled for whatever reason, we cannot
 	 * use the action we have.
 	 */
 	action = NULL;
-	if (!(desc->status & (IRQ_DISABLED | IRQ_INPROGRESS))) {
+	if (!(status & (IRQ_DISABLED | IRQ_INPROGRESS))) {
 		action = desc->action;
-		desc->status = IRQ_INPROGRESS;
-		desc->events = 0;
+		status &= ~IRQ_PENDING;
 	}
+	desc->status = status | IRQ_INPROGRESS;
 	spin_unlock(&irq_controller_lock);
 
 	/*
@@ -989,35 +993,28 @@ static void do_edge_ioapic_IRQ(unsigned int irq, int cpu, struct pt_regs * regs)
 	if (!action)
 		return;
 
-	irq_enter(cpu, irq);
-
 	/*
 	 * Edge triggered interrupts need to remember
 	 * pending events.
 	 */
 	for (;;) {
-		int pending;
-
-		handle_IRQ_event(irq, regs);
+		handle_IRQ_event(irq, regs, action);
 
 		spin_lock(&irq_controller_lock);
-		pending = desc->events;
-		desc->events = 0;
-		if (!pending)
+		if (!(desc->status & IRQ_PENDING))
 			break;
+		desc->status &= ~IRQ_PENDING;
 		spin_unlock(&irq_controller_lock);
 	}
-	desc->status &= IRQ_DISABLED;
+	desc->status &= ~IRQ_INPROGRESS;
 	spin_unlock(&irq_controller_lock);
-
-	irq_exit(cpu, irq);
 }
 
-static void do_level_ioapic_IRQ(unsigned int irq, int cpu,
-				struct pt_regs * regs)
+static void do_level_ioapic_IRQ(unsigned int irq, struct pt_regs * regs)
 {
 	irq_desc_t *desc = irq_desc + irq;
 	struct irqaction * action;
+	unsigned int status;
 
 	spin_lock(&irq_controller_lock);
 	/*
@@ -1029,18 +1026,17 @@ static void do_level_ioapic_IRQ(unsigned int irq, int cpu,
 	 * So this all has to be within the spinlock.
 	 */
 	mask_IO_APIC_irq(irq);
-
-	desc->ipi = 0;
+	status = desc->status & ~IRQ_REPLAY;
 
 	/*
 	 * If the IRQ is disabled for whatever reason, we must
 	 * not enter the IRQ action.
 	 */
 	action = NULL;
-	if (!(desc->status & (IRQ_DISABLED | IRQ_INPROGRESS))) {
+	if (!(status & (IRQ_DISABLED | IRQ_INPROGRESS))) {
 		action = desc->action;
-		desc->status = IRQ_INPROGRESS;
 	}
+	desc->status = status | IRQ_INPROGRESS;
 
 	ack_APIC_irq();
 	spin_unlock(&irq_controller_lock);
@@ -1049,17 +1045,13 @@ static void do_level_ioapic_IRQ(unsigned int irq, int cpu,
 	if (!action)
 		return;
 
-	irq_enter(cpu, irq);
-
-	handle_IRQ_event(irq, regs);
+	handle_IRQ_event(irq, regs, action);
 
 	spin_lock(&irq_controller_lock);
 	desc->status &= ~IRQ_INPROGRESS;
-	if (!desc->status)
+	if (!(desc->status & IRQ_DISABLED))
 		unmask_IO_APIC_irq(irq);
 	spin_unlock(&irq_controller_lock);
-
-	irq_exit(cpu, irq);
 }
 
 /*
@@ -1160,6 +1152,31 @@ static inline void check_timer(void)
 	}
 }
 
+/*
+ *
+ * IRQ's that are handled by the old PIC in all cases:
+ * - IRQ2 is the cascade IRQ, and cannot be a io-apic IRQ.
+ *   Linux doesn't really care, as it's not actually used
+ *   for any interrupt handling anyway.
+ * - IRQ13 is the FPU error IRQ, and may be connected
+ *   directly from the FPU to the old PIC. Linux doesn't
+ *   really care, because Linux doesn't want to use IRQ13
+ *   anyway (exception 16 is the proper FPU error signal)
+ * - IRQ9 is broken on PIIX4 motherboards:
+ *
+ *		"IRQ9 cannot be re-assigned"
+ *
+ *		IRQ9 is not available to assign to
+ *		ISA add-in cards because it is
+ *		dedicated to the power
+ *		management function of the PIIX4
+ *		controller on the motherboard.
+ *		This is true for other motherboards
+ *		which use the 82371AB PIIX4
+ *		component.
+ */
+#define PIC_IRQS	((1<<2)|(1<<9)|(1<<13))
+
 void __init setup_IO_APIC(void)
 {
 	init_sym_mode();
@@ -1177,7 +1194,7 @@ void __init setup_IO_APIC(void)
 		pirqs_enabled)
 	{
 		printk("ENABLING IO-APIC IRQs\n");
-		io_apic_irqs = ~((1<<2)|(1<<9)|(1<<13));
+		io_apic_irqs = ~PIC_IRQS;
 	} else {
 		if (ioapic_blacklisted())
 			printk(" blacklisted board, DISABLING IO-APIC IRQs\n");

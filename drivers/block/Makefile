@@ -106,6 +106,10 @@ ifeq ($(CONFIG_BLK_DEV_CMD640),y)
 IDE_OBJS += cmd640.o
 endif
 
+ifeq ($(CONFIG_BLK_DEV_IDE_PMAC),y)
+IDE_OBJS += ide-pmac.o
+endif
+
 ifeq ($(CONFIG_BLK_DEV_IDEPCI),y)
 IDE_OBJS += ide-pci.o
 endif
@@ -269,10 +273,10 @@ endif
 
 ifeq ($(CONFIG_PARIDE),y)
 SUB_DIRS	+= paride
-MOD_SUB_DIRS	+= paride
+MOD_IN_SUB_DIRS	+= paride
 else
   ifeq ($(CONFIG_PARIDE),m)
-  MOD_SUB_DIRS	+= paride
+  MOD_IN_SUB_DIRS	+= paride
   endif
 endif
 

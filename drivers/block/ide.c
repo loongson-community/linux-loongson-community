@@ -1104,8 +1104,7 @@ static void ide_do_request (ide_hwgroup_t *hwgroup, unsigned long *hwgroup_flags
 			if (sleep) {
 				if (0 < (signed long)(jiffies + WAIT_MIN_SLEEP - sleep)) 
 					sleep = jiffies + WAIT_MIN_SLEEP;
-				hwgroup->timer.expires = sleep;
-				add_timer(&hwgroup->timer);
+				mod_timer(&hwgroup->timer, sleep);
 			} else {
 				/* Ugly, but how can we sleep for the lock otherwise? perhaps from tq_scheduler? */
 				ide_release_lock(&ide_lock);	/* for atari only */
@@ -1658,7 +1657,7 @@ void ide_unregister (unsigned int index)
 	ide_drive_t *drive, *d;
 	ide_hwif_t *hwif, *g;
 	ide_hwgroup_t *hwgroup;
-	int irq_count = 0, unit;
+	int irq_count = 0, unit, i;
 	unsigned long flags;
 
 	if (index >= MAX_HWIFS)
@@ -1705,8 +1704,8 @@ void ide_unregister (unsigned int index)
 	 * the hwgroup if we were the only member
 	 */
 	d = hwgroup->drive;
-	for (index = 0; index < MAX_DRIVES; ++index) {
-		drive = &hwif->drives[index];
+	for (i = 0; i < MAX_DRIVES; ++i) {
+		drive = &hwif->drives[i];
 		if (!drive->present)
 			continue;
 		while (hwgroup->drive->next != drive)
@@ -2638,6 +2637,12 @@ __initfunc(static void probe_for_hwifs (void))
 		(void) init_pdc4030();
 	}
 #endif /* CONFIG_BLK_DEV_PDC4030 */
+#ifdef CONFIG_BLK_DEV_IDE_PMAC
+	{
+		extern void pmac_ide_probe(void);
+		pmac_ide_probe();
+	}
+#endif /* CONFIG_BLK_DEV_IDE_PMAC */
 }
 
 __initfunc(void ide_init_builtin_drivers (void))
@@ -2869,6 +2874,7 @@ struct file_operations ide_fops[] = {{
 	ide_ioctl,		/* ioctl */
 	NULL,			/* mmap */
 	ide_open,		/* open */
+	NULL,			/* flush */
 	ide_release,		/* release */
 	block_fsync,		/* fsync */
 	NULL,			/* fasync */

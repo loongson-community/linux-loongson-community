@@ -1,3 +1,11 @@
+/* $Id: fcntl.h,v 1.3 1998/08/29 20:41:02 ralf Exp $
+ *
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
+ *
+ * Copyright (C) 1995, 1996, 1997, 1998 by Ralf Baechle
+ */
 #ifndef __ASM_MIPS_FCNTL_H
 #define __ASM_MIPS_FCNTL_H
 
@@ -15,6 +23,8 @@
 #define O_EXCL		0x0400	/* not fcntl */
 #define O_NOCTTY	0x0800	/* not fcntl */
 #define FASYNC		0x1000	/* fcntl, for BSD compatibility */
+#define O_LARGEFILE	0x2000	/* allow large file opens - currently ignored */
+#define O_DIRECT	0x8000	/* direct disk access hint - currently ignored */
 
 #define O_NDELAY	O_NONBLOCK
 
@@ -29,6 +39,8 @@
 
 #define F_SETOWN	24	/*  for sockets. */
 #define F_GETOWN	23	/*  for sockets. */
+#define F_SETSIG	10	/*  for sockets. */
+#define F_GETSIG	11	/*  for sockets. */
 
 /* for F_[GET|SET]FL */
 #define FD_CLOEXEC	1	/* actually anything with low bit set goes */

@@ -25,6 +25,7 @@
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
 #include <linux/init.h>
+#include <linux/fs.h>
 
 #include <asm/bitops.h>
 #include <asm/uaccess.h>
@@ -94,6 +95,7 @@ struct file_operations proc_sys_file_operations =
 	NULL,		/* ioctl   */
 	NULL,		/* mmap	   */
 	NULL,		/* no special open code	   */
+	NULL,		/* no special flush code */
 	NULL,		/* no special release code */
 	NULL		/* can't fsync */
 };
@@ -228,6 +230,10 @@ static ctl_table fs_table[] = {
 	 0444, NULL, &proc_dointvec},
 	{FS_MAXFILE, "file-max", &max_files, sizeof(int),
 	 0644, NULL, &proc_dointvec},
+	{FS_NRSUPER, "super-nr", &nr_super_blocks, sizeof(int),
+	 0444, NULL, &proc_dointvec},
+	{FS_MAXSUPER, "super-max", &max_super_blocks, sizeof(int),
+	 0644, NULL, &proc_dointvec},
 	{FS_NRDQUOT, "dquot-nr", &nr_dquots, 2*sizeof(int),
 	 0444, NULL, &proc_dointvec},
 	{FS_MAXDQUOT, "dquot-max", &max_dquots, sizeof(int),
@@ -246,7 +252,7 @@ static ctl_table dev_table[] = {
 };  
 
 
-__initfunc(void sysctl_init(void))
+void __init sysctl_init(void)
 {
 #ifdef CONFIG_PROC_FS
 	register_proc_table(root_table, &proc_sys_root);

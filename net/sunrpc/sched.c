@@ -128,7 +128,7 @@ rpc_add_timer(struct rpc_task *task, rpc_action timer)
 	if (!timer)
 		timer = __rpc_default_timer;
 	if (expires < jiffies) {
-		printk("RPC: bad timeout value %ld - setting to 10 sec!\n",
+		printk(KERN_ERR "RPC: bad timeout value %ld - setting to 10 sec!\n",
 					task->tk_timeout);
 		expires = jiffies + 10 * HZ;
 	}
@@ -164,7 +164,7 @@ static inline void
 rpc_make_runnable(struct rpc_task *task)
 {
 	if (task->tk_timeout) {
-		printk("RPC: task w/ running timer in rpc_make_runnable!!\n");
+		printk(KERN_ERR "RPC: task w/ running timer in rpc_make_runnable!!\n");
 		return;
 	}
 	if (RPC_IS_ASYNC(task)) {
@@ -242,7 +242,7 @@ __rpc_wake_up(struct rpc_task *task)
 
 #ifdef RPC_DEBUG
 	if (task->tk_magic != 0xf00baa) {
-		printk("RPC: attempt to wake up non-existing task!\n");
+		printk(KERN_ERR "RPC: attempt to wake up non-existing task!\n");
 		rpc_debug = ~0;
 		return;
 	}
@@ -362,7 +362,7 @@ __rpc_execute(struct rpc_task *task)
 				task->tk_pid, task->tk_flags);
 
 	if (!RPC_IS_RUNNING(task)) {
-		printk("RPC: rpc_execute called for sleeping task!!\n");
+		printk(KERN_WARNING "RPC: rpc_execute called for sleeping task!!\n");
 		return 0;
 	}
 
@@ -412,13 +412,15 @@ __rpc_execute(struct rpc_task *task)
 			dprintk("RPC: %4d sync task going to sleep\n",
 							task->tk_pid);
 			if (current->pid == rpciod_pid)
-				printk("RPC: rpciod waiting on sync task!\n");
+				printk(KERN_ERR "RPC: rpciod waiting on sync task!\n");
 			current->timeout = 0;
 			sleep_on(&task->tk_wait);
 
-			/* When the task received a signal, remove from
-			 * any queues etc, and make runnable again. */
-			if (0 && signalled())
+			/*
+			 * When the task received a signal, remove from
+			 * any queues etc, and make runnable again.
+			 */
+			if (signalled())
 				__rpc_wake_up(task);
 
 			dprintk("RPC: %4d sync task resuming\n",
@@ -432,7 +434,7 @@ __rpc_execute(struct rpc_task *task)
 		 * clean up after sleeping on some queue, we don't
 		 * break the loop here, but go around once more.
 		 */
-		if (0 && !RPC_IS_ASYNC(task) && signalled()) {
+		if (!RPC_IS_ASYNC(task) && signalled()) {
 			dprintk("RPC: %4d got signal\n", task->tk_pid);
 			rpc_exit(task, -ERESTARTSYS);
 		}
@@ -460,11 +462,11 @@ rpc_execute(struct rpc_task *task)
 
 	if (incr) {
 		if (rpc_inhibit) {
-			printk("RPC: execution inhibited!\n");
+			printk(KERN_INFO "RPC: execution inhibited!\n");
 			return;
 		}
 		if (executing)
-			printk("RPC: %d tasks executed\n", executing);
+			printk(KERN_WARNING "RPC: %d tasks executed\n", executing);
 	}
 	
 	executing += incr;
@@ -763,6 +765,8 @@ rpc_killall_tasks(struct rpc_clnt *clnt)
 	rpc_inhibit--;
 }
 
+static struct semaphore rpciod_running = MUTEX_LOCKED;
+
 /*
  * This is the rpciod kernel thread
  */
@@ -779,11 +783,16 @@ rpciod(void *ptr)
 	 * Let our maker know we're running ...
 	 */
 	rpciod_pid = current->pid;
-	wake_up(&rpciod_idle);
+	up(&rpciod_running);
 
 	exit_files(current);
 	exit_mm(current);
+
+	spin_lock_irq(&current->sigmask_lock);
 	siginitsetinv(&current->blocked, sigmask(SIGKILL));
+	recalc_sigpending(current);
+	spin_unlock_irq(&current->sigmask_lock);
+
 	current->session = 1;
 	current->pgrp = 1;
 	sprintf(current->comm, "rpciod");
@@ -791,12 +800,7 @@ rpciod(void *ptr)
 	dprintk("RPC: rpciod starting (pid %d)\n", rpciod_pid);
 	while (rpciod_users) {
 		if (signalled()) {
-			if (sigismember(&current->signal, SIGKILL)) {
-				rpciod_killall();
-			} else {
-				printk("rpciod: ignoring signal (%d users)\n",
-					rpciod_users);
-			}
+			rpciod_killall();
 			flush_signals(current);
 		}
 		__rpc_schedule();
@@ -818,7 +822,7 @@ rpciod(void *ptr)
 
 	dprintk("RPC: rpciod shutdown commences\n");
 	if (all_tasks) {
-		printk("rpciod: active tasks at shutdown?!\n");
+		printk(KERN_ERR "rpciod: active tasks at shutdown?!\n");
 		rpciod_killall();
 	}
 
@@ -840,7 +844,7 @@ rpciod_killall(void)
 		rpc_killall_tasks(NULL);
 		__rpc_schedule();
 		if (all_tasks) {
-printk("rpciod_killall: waiting for tasks to exit\n");
+			dprintk("rpciod_killall: waiting for tasks to exit\n");
 			current->state = TASK_INTERRUPTIBLE;
 			current->timeout = jiffies + 1;
 			schedule();
@@ -871,16 +875,17 @@ rpciod_up(void)
 	 * If there's no pid, we should be the first user.
 	 */
 	if (rpciod_users > 1)
-		printk("rpciod_up: no pid, %d users??\n", rpciod_users);
+		printk(KERN_WARNING "rpciod_up: no pid, %d users??\n", rpciod_users);
 	/*
 	 * Create the rpciod thread and wait for it to start.
 	 */
 	error = kernel_thread(rpciod, &rpciod_killer, 0);
 	if (error < 0) {
-		printk("rpciod_up: create thread failed, error=%d\n", error);
+		printk(KERN_WARNING "rpciod_up: create thread failed, error=%d\n", error);
+		rpciod_users--;
 		goto out;
 	}
-	sleep_on(&rpciod_idle);
+	down(&rpciod_running);
 	error = 0;
 out:
 	up(&rpciod_sema);
@@ -900,10 +905,10 @@ rpciod_down(void)
 		if (--rpciod_users)
 			goto out;
 	} else
-		printk("rpciod_down: pid=%d, no users??\n", rpciod_pid);
+		printk(KERN_WARNING "rpciod_down: pid=%d, no users??\n", rpciod_pid);
 
 	if (!rpciod_pid) {
-		printk("rpciod_down: Nothing to do!\n");
+		dprintk("rpciod_down: Nothing to do!\n");
 		goto out;
 	}
 
@@ -921,9 +926,9 @@ rpciod_down(void)
 	 * Display a message if we're going to wait longer.
 	 */
 	while (rpciod_pid) {
-		printk("rpciod_down: waiting for pid %d to exit\n", rpciod_pid);
+		dprintk("rpciod_down: waiting for pid %d to exit\n", rpciod_pid);
 		if (signalled()) {
-			printk("rpciod_down: caught signal\n");
+			dprintk("rpciod_down: caught signal\n");
 			break;
 		}
 		interruptible_sleep_on(&rpciod_killer);

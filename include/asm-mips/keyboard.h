@@ -5,7 +5,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * $Id: keyboard.h,v 1.9 1998/08/25 09:21:57 ralf Exp $
+ * $Id: keyboard.h,v 1.10 1998/08/26 22:12:32 tsbogend Exp $
  */
 #ifndef __ASM_MIPS_KEYBOARD_H
 #define __ASM_MIPS_KEYBOARD_H
@@ -51,9 +51,6 @@ void (*keyboard_setup)(void);
 
 #ifdef CONFIG_MIPS_JAZZ
 
-/* Not true for Jazz machines, we cheat a bit for 'em. */
-#define KEYBOARD_IRQ 1
-
 extern int jazz_ps2_request_irq(void);
 extern void jazz_ps2_free_irq(void);
 
@@ -66,21 +63,14 @@ extern void jazz_ps2_free_irq(void);
 
 #define DISABLE_KBD_DURING_INTERRUPTS 1
 
-#define KEYBOARD_IRQ 20
-
 /*
  * Machine specific bits for the PS/2 driver.
  * Aux device and keyboard share the interrupt on the Indy.
  */
-
 #define ps2_request_irq() 0
 #define ps2_free_irq(void) do { } while(0);
 
 #endif /* CONFIG_SGI */
-
-#ifdef CONFIG_COBALT_MICRO_SERVER
-#define KEYBOARD_IRQ 1
-#endif
 
 #if defined(CONFIG_ACER_PICA_61) || defined(CONFIG_SNI_RM200_PCI)
 #define CONF_KEYBOARD_USES_IO_PORTS
@@ -92,8 +82,6 @@ extern void jazz_ps2_free_irq(void);
  * memory mapped I/O ports.
  */
 #include <asm/io.h>
-
-#define KEYBOARD_IRQ 1
 
 /*
  * Machine specific bits for the PS/2 driver

@@ -8,6 +8,7 @@
 #include <linux/string.h>
 #include <linux/mm.h>
 #include <linux/dcache.h>
+#include <linux/init.h>
 #include <linux/quotaops.h>
 
 /*
@@ -177,14 +178,13 @@ static inline void sync_list(struct list_head *head)
  */
 void sync_inodes(kdev_t dev)
 {
-	struct super_block * sb = super_blocks + 0;
-	int i;
+	struct super_block * sb = sb_entry(super_blocks.next);
 
 	/*
 	 * Search the super_blocks array for the device(s) to sync.
 	 */
 	spin_lock(&inode_lock);
-	for (i = NR_SUPER ; i-- ; sb++) {
+	for (; sb != sb_entry(&super_blocks); sb = sb_entry(sb->s_list.next)) {
 		if (!sb->s_dev)
 			continue;
 		if (dev && sb->s_dev != dev)
@@ -735,11 +735,11 @@ int bmap(struct inode * inode, int block)
 
 /*
  * Initialize the hash tables and default
- * value for max inodes..
+ * value for max inodes
  */
 #define MAX_INODE (8192)
 
-void inode_init(void)
+void __init inode_init(void)
 {
 	int i, max;
 	struct list_head *head = inode_hashtable;
@@ -771,7 +771,13 @@ int fs_may_remount_ro(struct super_block *sb)
 		inode = file->f_dentry->d_inode;
 		if (!inode || inode->i_sb != sb)
 			continue;
-		if (S_ISREG(inode->i_mode) && file->f_mode & FMODE_WRITE)
+
+		/* File with pending delete? */
+		if (inode->i_nlink == 0)
+			return 0;
+
+		/* Writable file? */
+		if (S_ISREG(inode->i_mode) && (file->f_mode & FMODE_WRITE))
 			return 0;
 	}
 	return 1; /* Tis' cool bro. */

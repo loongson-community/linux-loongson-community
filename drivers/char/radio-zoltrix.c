@@ -176,6 +176,7 @@ static int zol_ioctl(struct video_device *dev, unsigned int cmd, void *arg)
 			v.maxheight = 0;
 			v.minwidth = 0;
 			v.minheight = 0;
+			strcpy(v.name, "Zoltrix Radio");
 			if (copy_to_user(arg, &v, sizeof(v)))
 				return -EFAULT;
 			return 0;
@@ -220,7 +221,8 @@ static int zol_ioctl(struct video_device *dev, unsigned int cmd, void *arg)
 			struct video_audio v;
 			memset(&v, 0, sizeof(v));
 			v.flags |= VIDEO_AUDIO_MUTABLE | VIDEO_AUDIO_VOLUME;
-			v.volume = rt->curvol * 4095;
+			v.volume = rt->curvol * 4096;
+			v.step = 4096;
 			strcpy(v.name, "Radio");
 			if (copy_to_user(arg, &v, sizeof(v)))
 				return -EFAULT;

@@ -1,4 +1,4 @@
-/* $Id: graphics.c,v 1.5 1998/08/19 21:55:29 ralf Exp $
+/* $Id: graphics.c,v 1.13 1998/08/25 09:18:57 ralf Exp $
  *
  * gfx.c: support for SGI's /dev/graphics, /dev/opengl
  *
@@ -279,6 +279,7 @@ struct file_operations sgi_graphics_fops = {
 	sgi_graphics_ioctl,	/* ioctl */
 	sgi_graphics_mmap,	/* mmap */
 	sgi_graphics_open,	/* open */
+	NULL,			/* flush */
 	sgi_graphics_close,	/* release */
 	NULL,			/* fsync */
 	NULL,			/* check_media_change */

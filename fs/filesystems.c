@@ -24,6 +24,7 @@
 #include <linux/ufs_fs.h>
 #include <linux/romfs_fs.h>
 #include <linux/auto_fs.h>
+#include <linux/qnx4_fs.h>
 #include <linux/ntfs_fs.h>
 #include <linux/hfs_fs.h>
 #include <linux/devpts_fs.h>
@@ -47,16 +48,8 @@ extern int init_coda(void);
 extern int init_devpts_fs(void);
 #endif
 
-extern void device_setup(void);
-extern void binfmt_setup(void);
-extern void free_initmem(void);
-
-__initfunc(static void do_sys_setup(void))
+void __init filesystem_setup(void)
 {
-	device_setup();
-
-	binfmt_setup();
-
 #ifdef CONFIG_EXT2_FS
 	init_ext2_fs();
 #endif
@@ -153,35 +146,13 @@ __initfunc(static void do_sys_setup(void))
 	init_devpts_fs();
 #endif
 
+#ifdef CONFIG_QNX4FS_FS
+	init_qnx4_fs();
+#endif
+   
 #ifdef CONFIG_NLS
 	init_nls();
 #endif
-
-	mount_root();
-}
-
-int initmem_freed = 0;
-
-/* This may be used only twice, enforced by 'static int callable' */
-asmlinkage int sys_setup(int magic)
-{
-	static int callable = 1;
-	int err = -1;
-
-	lock_kernel();
-	if (magic) {
-		if (!initmem_freed) {
-			initmem_freed = 1;
-			free_initmem ();
-			err = 0;
-		}
-	} else if (callable) {
-		callable = 0;
-		do_sys_setup();
-		err = 0;
-	}
-	unlock_kernel();
-	return err;
 }
 
 #ifndef CONFIG_NFSD

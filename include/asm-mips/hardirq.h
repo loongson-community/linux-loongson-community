@@ -1,4 +1,4 @@
-/* $Id: hardirq.h,v 1.4 1998/08/20 11:26:19 ralf Exp $
+/* $Id: hardirq.h,v 1.3 1998/08/25 09:21:56 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -28,7 +28,7 @@ extern unsigned int local_irq_count[NR_CPUS];
 #define hardirq_enter(cpu)	(local_irq_count[cpu]++)
 #define hardirq_exit(cpu)	(local_irq_count[cpu]--)
 
-#define synchronize_irq()	do { } while (0)
+#define synchronize_irq()	barrier();
 
 #else
 

@@ -1,4 +1,4 @@
-/* $Id: streamable.c,v 1.2 1998/08/19 21:55:31 ralf Exp $
+/* $Id: streamable.c,v 1.8 1998/08/25 09:18:59 ralf Exp $
  *
  * streamable.c: streamable devices. /dev/gfx
  * (C) 1997 Miguel de Icaza (miguel@nuclecu.unam.mx)
@@ -80,6 +80,7 @@ struct file_operations sgi_gfx_fops = {
 	sgi_gfx_ioctl,		/* ioctl */
 	NULL,			/* mmap */
 	sgi_gfx_open,		/* open */
+	NULL,			/* flush */
 	sgi_gfx_close,		/* release */
 	NULL,			/* fsync */
 	NULL,			/* check_media_change */
@@ -200,6 +201,7 @@ struct file_operations sgi_keyb_fops = {
 	sgi_keyb_ioctl,		/* ioctl */
 	NULL,			/* mmap */
 	sgi_keyb_open,		/* open */
+	NULL,			/* flush */
 	NULL,			/* release */
 	NULL,			/* fsync */
 	NULL,			/* check_media_change */
@@ -340,6 +342,7 @@ struct file_operations sgi_mouse_fops = {
 	sgi_mouse_ioctl,	/* ioctl */
 	NULL,			/* mmap */
 	sgi_mouse_open,		/* open */
+	NULL,			/* flush */
 	sgi_mouse_close,	/* release */
 	NULL,			/* fsync */
 	NULL,			/* check_media_change */

@@ -5,7 +5,6 @@
  * This file contains the system call numbers.
  */
 
-#define __NR_setup		  0	/* used only by init, to get system going */
 #define __NR_exit		  1
 #define __NR_fork		  2
 #define __NR_read		  3
@@ -27,7 +26,7 @@
 #define __NR_lseek		 19
 #define __NR_getpid		 20
 #define __NR_mount		 21
-#define __NR_oldumount		 22
+#define __NR_umount		 22
 #define __NR_setuid		 23
 #define __NR_getuid		 24
 #define __NR_stime		 25
@@ -57,7 +56,7 @@
 #define __NR_geteuid		 49
 #define __NR_getegid		 50
 #define __NR_acct		 51
-#define __NR_umount		 52
+#define __NR_umount2		 52
 #define __NR_lock		 53
 #define __NR_ioctl		 54
 #define __NR_fcntl		 55
@@ -289,7 +288,6 @@ __syscall_return(type,__res); \
 #define __NR__exit __NR_exit
 static inline _syscall0(int,idle)
 static inline _syscall0(int,pause)
-static inline _syscall1(int,setup,int,magic)
 static inline _syscall0(int,sync)
 static inline _syscall0(pid_t,setsid)
 static inline _syscall3(int,write,int,fd,const char *,buf,off_t,count)

@@ -485,16 +485,18 @@ static unsigned long get_wchan(struct task_struct *p)
 		return 0;
 #if defined(__i386__)
 	{
-		unsigned long ebp, eip;
+		unsigned long ebp, esp, eip;
 		unsigned long stack_page;
 		int count = 0;
 
-		stack_page = 4096 + (unsigned long)p;
-		if (!stack_page)
+		stack_page = (unsigned long)p;
+		esp = p->tss.esp;
+		if (!stack_page || esp < stack_page || esp >= 8188+stack_page)
 			return 0;
-		ebp = p->tss.ebp;
+		/* include/asm-i386/system.h:switch_to() pushes ebp last. */
+		ebp = *(unsigned long *) esp;
 		do {
-			if (ebp < stack_page || ebp >= 4092+stack_page)
+			if (ebp < stack_page || ebp >= 8188+stack_page)
 				return 0;
 			eip = *(unsigned long *) (ebp+4);
 			if (eip < first_sched || eip >= last_sched)
@@ -543,14 +545,12 @@ static unsigned long get_wchan(struct task_struct *p)
 	    unsigned long fp, pc;
 	    unsigned long stack_page;
 	    int count = 0;
-	    extern int sys_pause (void);
 
-	    stack_page = p->kernel_stack_page;
-	    if (!stack_page)
-		    return 0;
+	    stack_page = (unsigned long)p;
 	    fp = ((struct switch_stack *)p->tss.ksp)->a6;
 	    do {
-		    if (fp < stack_page || fp >= 4088+stack_page)
+		    if (fp < stack_page+sizeof(struct task_struct) ||
+			fp >= 8184+stack_page)
 			    return 0;
 		    pc = ((unsigned long *)fp)[1];
 		/* FIXME: This depends on the order of these functions. */
@@ -1414,6 +1414,7 @@ static struct file_operations proc_array_operations = {
 	NULL,		/* array_ioctl */
 	NULL,		/* mmap */
 	NULL,		/* no special open code */
+	NULL,		/* flush */
 	NULL,		/* no special release code */
 	NULL		/* can't fsync */
 };
@@ -1461,6 +1462,7 @@ static struct file_operations proc_arraylong_operations = {
 	NULL,		/* array_ioctl */
 	NULL,		/* mmap */
 	NULL,		/* no special open code */
+	NULL,		/* flush */
 	NULL,		/* no special release code */
 	NULL		/* can't fsync */
 };

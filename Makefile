@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 1
-SUBLEVEL = 116
+SUBLEVEL = 121
 
 ARCH = mips
 
@@ -77,6 +77,12 @@ ROOT_DEV = CURRENT
 #INSTALL_PATH=/boot
 
 #
+# INSTALL_MOD_PATH specifies a prefix to MODLIB for module directory 
+# relocations required by build roots.  This is not defined in the
+# makefile but the arguement can be passed to make if needed.
+#
+
+#
 # If you want to preset the SVGA mode, uncomment the next line and
 # set SVGA_MODE to whatever number you want.
 # Set it to -DSVGA_MODE=NORMAL_VGA if you just want the EGA/VGA mode.
@@ -129,7 +135,7 @@ ifeq ($(CONFIG_SCSI),y)
 DRIVERS := $(DRIVERS) drivers/scsi/scsi.a
 endif
 
-ifneq ($(CONFIG_CD_NO_IDESCSI)$(CONFIG_BLK_DEV_IDECD)$(CONFIG_BLK_DEV_SR),)
+ifneq ($(CONFIG_CD_NO_IDESCSI)$(CONFIG_BLK_DEV_IDECD)$(CONFIG_BLK_DEV_SR)$(CONFIG_PARIDE_PCD),)
 DRIVERS := $(DRIVERS) drivers/cdrom/cdrom.a
 endif
 
@@ -297,7 +303,7 @@ $(patsubst %, _mod_%, $(SUBDIRS)) : include/linux/version.h
 
 modules_install:
 	@( \
-	MODLIB=/lib/modules/$(VERSION).$(PATCHLEVEL).$(SUBLEVEL); \
+	MODLIB=$(INSTALL_MOD_PATH)/lib/modules/$(VERSION).$(PATCHLEVEL).$(SUBLEVEL); \
 	cd modules; \
 	MODULES=""; \
 	inst_mod() { These="`cat $$1`"; MODULES="$$MODULES $$These"; \

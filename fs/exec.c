@@ -67,7 +67,7 @@ asmlinkage int sys_brk(unsigned long);
 
 static struct linux_binfmt *formats = (struct linux_binfmt *) NULL;
 
-__initfunc(void binfmt_setup(void))
+void __init binfmt_setup(void)
 {
 #ifdef CONFIG_BINFMT_MISC
 	init_misc_binfmt();
@@ -571,6 +571,15 @@ flush_failed:
 	return retval;
 }
 
+/*
+ * We mustn't allow tracing of suid binaries, unless
+ * the tracer has the capability to trace anything..
+ */
+static inline int must_not_trace_exec(struct task_struct * p)
+{
+	return (p->flags & PF_PTRACED) && !cap_raised(p->p_pptr->cap_effective, CAP_SYS_PTRACE);
+}
+
 /* 
  * Fill the binprm structure from the inode. 
  * Check permissions, then read the first 512 bytes
@@ -663,7 +672,7 @@ int prepare_binprm(struct linux_binprm *bprm)
 		/* or if we're being traced (or if suid execs are not allowed)    */
 		/* (current->mm->count > 1 is ok, as we'll get a new mm anyway)   */
 		if (IS_NOSUID(inode)
-		    || (current->flags & PF_PTRACED)
+		    || must_not_trace_exec(current)
 		    || (atomic_read(&current->fs->count) > 1)
 		    || (atomic_read(&current->sig->count) > 1)
 		    || (atomic_read(&current->files->count) > 1)) {

@@ -1,11 +1,11 @@
-/* $Id: parport_share.c,v 1.18 1998/08/19 21:54:50 ralf Exp $
+/* $Id: parport_share.c,v 1.11 1998/08/25 09:17:20 ralf Exp $
  * Parallel-port resource manager code.
  * 
  * Authors: David Campbell <campbell@tirian.che.curtin.edu.au>
  *          Tim Waugh <tim@cyberelk.demon.co.uk>
  *          Jose Renau <renau@acm.org>
  *          Philip Blundell <philb@gnu.org>
- *	    Andrea Arcangeli <arcangeli@mbox.queen.it>
+ *	    Andrea Arcangeli
  *
  * based on work by Grant Guenther <grant@torque.net>
  *          and Philip Blundell

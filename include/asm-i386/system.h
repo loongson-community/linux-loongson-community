@@ -4,38 +4,6 @@
 #include <linux/kernel.h>
 #include <asm/segment.h>
 
-/*
- * Entry into gdt where to find first TSS. GDT layout:
- *   0 - null
- *   1 - not used
- *   2 - kernel code segment
- *   3 - kernel data segment
- *   4 - user code segment
- *   5 - user data segment
- *   6 - not used
- *   7 - not used
- *   8 - APM BIOS support
- *   9 - APM BIOS support
- *  10 - APM BIOS support
- *  11 - APM BIOS support
- *  12 - TSS #0
- *  13 - LDT #0
- *  14 - TSS #1
- *  15 - LDT #1
- */
-#define FIRST_TSS_ENTRY 12
-#define FIRST_LDT_ENTRY (FIRST_TSS_ENTRY+1)
-#define _TSS(n) ((((unsigned long) n)<<4)+(FIRST_TSS_ENTRY<<3))
-#define _LDT(n) ((((unsigned long) n)<<4)+(FIRST_LDT_ENTRY<<3))
-#define load_TR(n) __asm__ __volatile__("ltr %%ax": /* no output */ :"a" (_TSS(n)))
-#define load_ldt(n) __asm__ __volatile__("lldt %%ax": /* no output */ :"a" (_LDT(n)))
-#define store_TR(n) \
-__asm__("str %%ax\n\t" \
-	"subl %2,%%eax\n\t" \
-	"shrl $4,%%eax" \
-	:"=a" (n) \
-	:"0" (0),"i" (FIRST_TSS_ENTRY<<3))
-
 #ifdef __KERNEL__
 
 struct task_struct;	/* one of the stranger aspects of C forward declarations.. */
@@ -226,61 +194,6 @@ extern void __global_restore_flags(unsigned long);
 #define restore_flags(x) __restore_flags(x)
 
 #endif
-
-#define _set_gate(gate_addr,type,dpl,addr) \
-__asm__ __volatile__ ("movw %%dx,%%ax\n\t" \
-	"movw %2,%%dx\n\t" \
-	"movl %%eax,%0\n\t" \
-	"movl %%edx,%1" \
-	:"=m" (*((long *) (gate_addr))), \
-	 "=m" (*(1+(long *) (gate_addr))) \
-	:"i" ((short) (0x8000+(dpl<<13)+(type<<8))), \
-	 "d" ((char *) (addr)),"a" (__KERNEL_CS << 16) \
-	:"ax","dx")
-
-#define set_intr_gate(n,addr) \
-	_set_gate(idt+(n),14,0,addr)
-
-#define set_trap_gate(n,addr) \
-	_set_gate(idt+(n),15,0,addr)
-
-#define set_system_gate(n,addr) \
-	_set_gate(idt+(n),15,3,addr)
-
-#define set_call_gate(a,addr) \
-	_set_gate(a,12,3,addr)
-
-#define _set_seg_desc(gate_addr,type,dpl,base,limit) {\
-	*((gate_addr)+1) = ((base) & 0xff000000) | \
-		(((base) & 0x00ff0000)>>16) | \
-		((limit) & 0xf0000) | \
-		((dpl)<<13) | \
-		(0x00408000) | \
-		((type)<<8); \
-	*(gate_addr) = (((base) & 0x0000ffff)<<16) | \
-		((limit) & 0x0ffff); }
-
-#define _set_tssldt_desc(n,addr,limit,type) \
-__asm__ __volatile__ ("movw %3,0(%2)\n\t" \
-	"movw %%ax,2(%2)\n\t" \
-	"rorl $16,%%eax\n\t" \
-	"movb %%al,4(%2)\n\t" \
-	"movb %4,5(%2)\n\t" \
-	"movb $0,6(%2)\n\t" \
-	"movb %%ah,7(%2)\n\t" \
-	"rorl $16,%%eax" \
-	: "=m"(*(n)) : "a" (addr), "r"(n), "ir"(limit), "i"(type))
-
-#define set_tss_desc(n,addr) \
-	_set_tssldt_desc(((char *) (n)),((int)(addr)),235,0x89)
-#define set_ldt_desc(n,addr,size) \
-	_set_tssldt_desc(((char *) (n)),((int)(addr)),((size << 3) - 1),0x82)
-
-/*
- * This is the ldt that every process will get unless we need
- * something other than this.
- */
-extern struct desc_struct default_ldt;
 
 /*
  * disable hlt during certain critical i/o operations

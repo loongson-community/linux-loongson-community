@@ -1,7 +1,7 @@
 /*****************************************************************************/
 
 /*
- *      es1370.c  --  Ensoniq ES1370/Ashai Kasei AK4531 audio driver.
+ *      es1370.c  --  Ensoniq ES1370/Asahi Kasei AK4531 audio driver.
  *
  *      Copyright (C) 1998  Thomas Sailer (sailer@ife.ee.ethz.ch)
  *
@@ -67,6 +67,15 @@
  *                     settings (not sure if this should be standard)
  *                     Fixed many references: f_flags should be f_mode
  *                     -- Gerald Britton <gbritton@mit.edu>
+ *    03.08.98   0.11  Now mixer behaviour can basically be selected between
+ *                     "OSS documented" and "OSS actual" behaviour
+ *                     Fixed mixer table thanks to Hakan.Lennestal@lu.erisoft.se
+ *                     On module startup, set DAC2 to 11kSPS instead of 5.5kSPS,
+ *                     as it produces an annoying ssssh in the lower sampling rate
+ *                     Do not include modversions.h
+ *    22.08.98   0.12  Mixer registers actually have 5 instead of 4 bits
+ *                     pointed out by Itai Nahshon
+ *    31.08.98   0.13  Fix realplayer problems - dac.count issues
  *
  * some important things missing in Ensoniq documentation:
  *
@@ -91,7 +100,6 @@
       
 #include <linux/version.h>
 #include <linux/module.h>
-#include <linux/modversions.h>
 #include <linux/string.h>
 #include <linux/ioport.h>
 #include <linux/sched.h>
@@ -107,6 +115,10 @@
 #include <asm/spinlock.h>
 #include <asm/uaccess.h>
 #include <asm/hardirq.h>
+
+/* --------------------------------------------------------------------- */
+
+#undef OSS_DOCUMENTED_MIXER_SEMANTICS
 
 /* --------------------------------------------------------------------- */
 
@@ -316,7 +328,7 @@ struct es1370_state {
 
 /* --------------------------------------------------------------------- */
 
-struct es1370_state *devs = NULL;
+static struct es1370_state *devs = NULL;
 
 /* --------------------------------------------------------------------- */
 
@@ -446,7 +458,7 @@ static void start_adc(struct es1370_state *s)
 	unsigned fragremain, fshift;
 
 	spin_lock_irqsave(&s->lock, flags);
-	if (!(s->ctrl & CTRL_ADC_EN) && (s->dma_adc.mapped || s->dma_adc.count < s->dma_adc.dmasize - 2*s->dma_adc.fragsize)
+	if (!(s->ctrl & CTRL_ADC_EN) && (s->dma_adc.mapped || s->dma_adc.count < (signed)(s->dma_adc.dmasize - 2*s->dma_adc.fragsize))
 	    && s->dma_adc.ready) {
 		s->ctrl |= CTRL_ADC_EN;
 		s->sctrl = (s->sctrl & ~SCTRL_R1LOOPSEL) | SCTRL_R1INTEN;
@@ -464,9 +476,8 @@ static void start_adc(struct es1370_state *s)
 
 /* --------------------------------------------------------------------- */
 
-#define DMABUF_DEFAULTORDER 8
+#define DMABUF_DEFAULTORDER (17-PAGE_SHIFT)
 #define DMABUF_MINORDER 1
-
 
 extern inline void dealloc_dmabuf(struct dmabuf *db)
 {
@@ -588,10 +599,10 @@ static void es1370_update_ptr(struct es1370_state *s)
 		s->dma_adc.total_bytes += diff;
 		s->dma_adc.count += diff;
 		if (s->dma_adc.mapped) {
-			if (s->dma_adc.count >= s->dma_adc.fragsize) 
+			if (s->dma_adc.count >= (signed)s->dma_adc.fragsize) 
 				wake_up(&s->dma_adc.wait);
 		} else {
-			if (s->dma_adc.count > s->dma_adc.dmasize - ((3 * s->dma_adc.fragsize) >> 1)) {
+			if (s->dma_adc.count > (signed)(s->dma_adc.dmasize - ((3 * s->dma_adc.fragsize) >> 1))) {
 				s->ctrl &= ~CTRL_ADC_EN;
 				outl(s->ctrl, s->io+ES1370_REG_CONTROL);
 				s->dma_adc.error++;
@@ -606,7 +617,7 @@ static void es1370_update_ptr(struct es1370_state *s)
 		s->dma_dac1.total_bytes += diff;
 		if (s->dma_dac1.mapped) {
 			s->dma_dac1.count += diff;
-			if (s->dma_dac1.count >= s->dma_dac1.fragsize)
+			if (s->dma_dac1.count >= (signed)s->dma_dac1.fragsize)
 				wake_up(&s->dma_dac1.wait);
 		} else {
 			s->dma_dac1.count -= diff;
@@ -614,12 +625,12 @@ static void es1370_update_ptr(struct es1370_state *s)
 				s->ctrl &= ~CTRL_DAC1_EN;
 				outl(s->ctrl, s->io+ES1370_REG_CONTROL);
 				s->dma_dac1.error++;
-			} else if (s->dma_dac1.count <= s->dma_dac1.fragsize && !s->dma_dac1.endcleared) {
+			} else if (s->dma_dac1.count <= (signed)s->dma_dac1.fragsize && !s->dma_dac1.endcleared) {
 				clear_advance(s->dma_dac1.rawbuf, s->dma_dac1.dmasize, s->dma_dac1.swptr, 
 					      s->dma_dac1.fragsize, (s->sctrl & SCTRL_P1SEB) ? 0 : 0x80);
 				s->dma_dac1.endcleared = 1;
 			}
-			if (s->dma_dac1.count < s->dma_dac1.dmasize)
+			if (s->dma_dac1.count < (signed)s->dma_dac1.dmasize)
 				wake_up(&s->dma_dac1.wait);
 		}
 	}
@@ -629,7 +640,7 @@ static void es1370_update_ptr(struct es1370_state *s)
 		s->dma_dac2.total_bytes += diff;
 		if (s->dma_dac2.mapped) {
 			s->dma_dac2.count += diff;
-			if (s->dma_dac2.count >= s->dma_dac2.fragsize)
+			if (s->dma_dac2.count >= (signed)s->dma_dac2.fragsize)
 				wake_up(&s->dma_dac2.wait);
 		} else {
 			s->dma_dac2.count -= diff;
@@ -637,12 +648,12 @@ static void es1370_update_ptr(struct es1370_state *s)
 				s->ctrl &= ~CTRL_DAC2_EN;
 				outl(s->ctrl, s->io+ES1370_REG_CONTROL);
 				s->dma_dac2.error++;
-			} else if (s->dma_dac2.count <= s->dma_dac2.fragsize && !s->dma_dac2.endcleared) {
+			} else if (s->dma_dac2.count <= (signed)s->dma_dac2.fragsize && !s->dma_dac2.endcleared) {
 				clear_advance(s->dma_dac2.rawbuf, s->dma_dac2.dmasize, s->dma_dac2.swptr, 
 					      s->dma_dac2.fragsize, (s->sctrl & SCTRL_P2SEB) ? 0 : 0x80);
 				s->dma_dac2.endcleared = 1;
 			}
-			if (s->dma_dac2.count < s->dma_dac2.dmasize)
+			if (s->dma_dac2.count < (signed)s->dma_dac2.dmasize)
 				wake_up(&s->dma_dac2.wait);
 		}
 	}
@@ -734,26 +745,55 @@ static const struct {
 	[SOUND_MIXER_CD]     = { 3, 0x6, 0x7, 1, 0x0006, 1 },   /* CD */
 	[SOUND_MIXER_LINE]   = { 4, 0x8, 0x9, 1, 0x0018, 1 },   /* Line */
 	[SOUND_MIXER_LINE1]  = { 5, 0xa, 0xb, 1, 0x1800, 1 },   /* AUX */
-	[SOUND_MIXER_LINE2]  = { 6, 0xc, 0x0, 1, 0x0100, 1 },   /* Mono1 */
-	[SOUND_MIXER_LINE3]  = { 7, 0xd, 0x0, 1, 0x0200, 1 },   /* Mono2 */
-	[SOUND_MIXER_MIC]    = { 8, 0xe, 0x0, 1, 0x0001, 1 },   /* Mic */
-	[SOUND_MIXER_OGAIN]  = { 9, 0xf, 0x0, 1, 0x0000, 1 }    /* mono out */
+	[SOUND_MIXER_LINE2]  = { 6, 0xc, 0x0, 0, 0x0100, 1 },   /* Mono1 */
+	[SOUND_MIXER_LINE3]  = { 7, 0xd, 0x0, 0, 0x0200, 1 },   /* Mono2 */
+	[SOUND_MIXER_MIC]    = { 8, 0xe, 0x0, 0, 0x0001, 1 },   /* Mic */
+	[SOUND_MIXER_OGAIN]  = { 9, 0xf, 0x0, 0, 0x0000, 1 }    /* mono out */
 };
 
 static int mixer_ioctl(struct es1370_state *s, unsigned int cmd, unsigned long arg)
 {
+	unsigned long flags;
 	int i, val, j;
-	unsigned char l, r, rl, rr, sr, sl;
+	unsigned char l, r, rl, rr;
 
 	VALIDATE_STATE(s);
-
 	if (cmd == SOUND_MIXER_PRIVATE1) {
+		/* enable/disable/query mixer preamp */
 		get_user_ret(val, (int *)arg, -EFAULT);
 		if (val != -1) {
 			s->mix.micpreamp = !!val;
 			wrcodec(s, 0x19, s->mix.micpreamp);
 		}
 		return put_user(s->mix.micpreamp, (int *)arg);
+	}
+	if (cmd == SOUND_MIXER_PRIVATE2) {
+		/* enable/disable/query use of linein as second lineout */
+		get_user_ret(val, (int *)arg, -EFAULT);
+		if (val != -1) {
+			spin_lock_irqsave(&s->lock, flags);
+			if (val)
+				s->ctrl |= CTRL_XCTL0;
+			else
+				s->ctrl &= ~CTRL_XCTL0;
+			outl(s->ctrl, s->io+ES1370_REG_CONTROL);
+			spin_unlock_irqrestore(&s->lock, flags);
+		}
+		return put_user((s->ctrl & CTRL_XCTL0) ? 1 : 0, (int *)arg);
+	}
+	if (cmd == SOUND_MIXER_PRIVATE3) {
+		/* enable/disable/query microphone impedance setting */
+		get_user_ret(val, (int *)arg, -EFAULT);
+		if (val != -1) {
+			spin_lock_irqsave(&s->lock, flags);
+			if (val)
+				s->ctrl |= CTRL_XCTL1;
+			else
+				s->ctrl &= ~CTRL_XCTL1;
+			outl(s->ctrl, s->io+ES1370_REG_CONTROL);
+			spin_unlock_irqrestore(&s->lock, flags);
+		}
+		return put_user((s->ctrl & CTRL_XCTL1) ? 1 : 0, (int *)arg);
 	}
         if (cmd == SOUND_MIXER_INFO) {
 		mixer_info info;
@@ -842,25 +882,23 @@ static int mixer_ioctl(struct es1370_state *s, unsigned int cmd, unsigned long a
 		l = val & 0xff;
 		if (l > 100)
 			l = 100;
-		sl = sr = l;
 		if (mixtable[i].stereo) {
 			r = (val >> 8) & 0xff;
 			if (r > 100)
 				r = 100;
-			sr = r;
-			if (l < 10) {
+			if (l < 7) {
 				rl = 0x80;
 				l = 0;
 			} else {
-				rl = 15 - ((l - 10) / 6);
-				l = (15 - rl) * 6 + 10;
+				rl = 31 - ((l - 7) / 3);
+				l = (31 - rl) * 3 + 7;
 			}
-			if (r < 10) {
+			if (r < 7) {
 				rr = 0x80;
 				r = 0;
 			} else {
-				rr =  15 - ((r - 10) / 6);
-				r = (15 - rr) * 6 + 10;
+				rr =  31 - ((r - 7) / 3);
+				r = (31 - rr) * 3 + 7;
 			}
 			wrcodec(s, mixtable[i].right, rr);
 		} else { 
@@ -873,17 +911,21 @@ static int mixer_ioctl(struct es1370_state *s, unsigned int cmd, unsigned long a
 					r = l = (7 - rl) * 14 + 2;
 				}
 			} else {
-				if (l < 10) {
+				if (l < 7) {
 					rl = 0x80;
 					r = l = 0;
 				} else {
-					rl = 15 - ((l - 10) / 6);
-					r = l = (15 - rl) * 6 + 10;
+					rl = 31 - ((l - 7) / 3);
+					r = l = (31 - rl) * 3 + 7;
 				}
 			}
-		}			
+		}
 		wrcodec(s, mixtable[i].left, rl);
-		s->mix.vol[mixtable[i].volidx] = ((unsigned int)sr << 8) | sl;
+#ifdef OSS_DOCUMENTED_MIXER_SEMANTICS
+		s->mix.vol[mixtable[i].volidx] = ((unsigned int)r << 8) | l;
+#else
+		s->mix.vol[mixtable[i].volidx] = val;
+#endif
                 return put_user(s->mix.vol[mixtable[i].volidx], (int *)arg);
 	}
 }
@@ -935,14 +977,13 @@ static /*const*/ struct file_operations es1370_mixer_fops = {
 	&es1370_ioctl_mixdev,
 	NULL,  /* mmap */
 	&es1370_open_mixdev,
+	NULL,	/* flush */
 	&es1370_release_mixdev,
 	NULL,  /* fsync */
 	NULL,  /* fasync */
 	NULL,  /* check_media_change */
-#if 0
 	NULL,  /* revalidate */
 	NULL,  /* lock */
-#endif
 };
 
 /* --------------------------------------------------------------------- */
@@ -1147,7 +1188,7 @@ static unsigned int es1370_poll(struct file *file, struct poll_table_struct *wai
 	es1370_update_ptr(s);
 	if (file->f_mode & FMODE_READ) {
 		if (s->dma_adc.mapped) {
-			if (s->dma_adc.count >= s->dma_adc.fragsize)
+			if (s->dma_adc.count >= (signed)s->dma_adc.fragsize)
 				mask |= POLLIN | POLLRDNORM;
 		} else {
 			if (s->dma_adc.count > 0)
@@ -1156,10 +1197,10 @@ static unsigned int es1370_poll(struct file *file, struct poll_table_struct *wai
 	}
 	if (file->f_mode & FMODE_WRITE) {
 		if (s->dma_dac2.mapped) {
-			if (s->dma_dac2.count >= s->dma_dac2.fragsize) 
+			if (s->dma_dac2.count >= (signed)s->dma_dac2.fragsize) 
 				mask |= POLLOUT | POLLWRNORM;
 		} else {
-			if (s->dma_dac2.dmasize > s->dma_dac2.count)
+			if ((signed)s->dma_dac2.dmasize > s->dma_dac2.count)
 				mask |= POLLOUT | POLLWRNORM;
 		}
 	}
@@ -1584,6 +1625,7 @@ static /*const*/ struct file_operations es1370_audio_fops = {
 	&es1370_ioctl,
 	&es1370_mmap,
 	&es1370_open,
+	NULL,	/* flush */
 	&es1370_release,
 	NULL,  /* fsync */
 	NULL,  /* fasync */
@@ -1660,10 +1702,10 @@ static unsigned int es1370_poll_dac(struct file *file, struct poll_table_struct 
 	spin_lock_irqsave(&s->lock, flags);
 	es1370_update_ptr(s);
 	if (s->dma_dac1.mapped) {
-		if (s->dma_dac1.count >= s->dma_dac1.fragsize)
+		if (s->dma_dac1.count >= (signed)s->dma_dac1.fragsize)
 			mask |= POLLOUT | POLLWRNORM;
 	} else {
-		if (s->dma_dac1.dmasize > s->dma_dac1.count)
+		if ((signed)s->dma_dac1.dmasize > s->dma_dac1.count)
 			mask |= POLLOUT | POLLWRNORM;
 	}
 	spin_unlock_irqrestore(&s->lock, flags);
@@ -1950,6 +1992,7 @@ static /*const*/ struct file_operations es1370_dac_fops = {
 	&es1370_ioctl_dac,
 	&es1370_mmap_dac,
 	&es1370_open_dac,
+	NULL,	/* flush */
 	&es1370_release_dac,
 	NULL,  /* fsync */
 	NULL,  /* fasync */
@@ -2186,6 +2229,7 @@ static /*const*/ struct file_operations es1370_midi_fops = {
 	NULL,  /* ioctl */
 	NULL,  /* mmap */
 	&es1370_midi_open,
+	NULL,	/* flush */
 	&es1370_midi_release,
 	NULL,  /* fsync */
 	NULL,  /* fasync */
@@ -2234,7 +2278,7 @@ __initfunc(int init_es1370(void))
 
 	if (!pci_present())   /* No PCI bus in this machine! */
 		return -ENODEV;
-	printk(KERN_INFO "es1370: version v0.10 time " __TIME__ " " __DATE__ "\n");
+	printk(KERN_INFO "es1370: version v0.13 time " __TIME__ " " __DATE__ "\n");
 	while (index < NR_DEVICE && 
 	       (pcidev = pci_find_device(PCI_VENDOR_ID_ENSONIQ, PCI_DEVICE_ID_ENSONIQ_ES1370, pcidev))) {
 		if (pcidev->base_address[0] == 0 || 
@@ -2267,7 +2311,7 @@ __initfunc(int init_es1370(void))
 			goto err_irq;
 		}
 		/* initialize codec registers */
-		s->ctrl = CTRL_CDC_EN | CTRL_SERR_DIS | (DAC2_SRTODIV(8000) << CTRL_SH_PCLKDIV);
+		s->ctrl = CTRL_CDC_EN | CTRL_SERR_DIS | (DAC2_SRTODIV(8000) << CTRL_SH_PCLKDIV) | (1 << CTRL_SH_WTSRSEL);
 		if (joystick[index]) {
 			if (check_region(0x200, JOY_EXTENT))
 				printk(KERN_ERR "es1370: io port 0x200 in use\n");
@@ -2356,7 +2400,7 @@ void cleanup_module(void)
 
 	while ((s = devs)) {
 		devs = devs->next;
-		outl(CTRL_SERR_DIS, s->io+ES1370_REG_CONTROL); /* switch everything off */
+		outl(CTRL_SERR_DIS | (1 << CTRL_SH_WTSRSEL), s->io+ES1370_REG_CONTROL); /* switch everything off */
 		outl(0, s->io+ES1370_REG_SERIAL_CONTROL); /* clear serial interrupts */
 		synchronize_irq();
 		free_irq(s->irq, s);

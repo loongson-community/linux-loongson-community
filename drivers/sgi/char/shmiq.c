@@ -1,4 +1,5 @@
-/*
+/* $Id: shmiq.c,v 1.8 1998/08/29 20:40:04 ralf Exp $
+ *
  * shmiq.c: shared memory input queue driver
  * written 1997 Miguel de Icaza (miguel@nuclecu.unam.mx)
  *
@@ -395,12 +396,12 @@ shmiq_qcntl_open (struct inode *inode, struct file *filp)
 }
 
 static int
-shmiq_qcntl_fasync (struct file *file, int on)
+shmiq_qcntl_fasync (int fd, struct file *file, int on)
 {
 	int retval;
 	int minor = MINOR (file->f_dentry->d_inode->i_rdev);
 
-	retval = fasync_helper (file, on, &shmiqs [minor].fasync);
+	retval = fasync_helper (fd, file, on, &shmiqs [minor].fasync);
 	if (retval < 0)
 		return retval;
 	return 0;
@@ -423,7 +424,7 @@ shmiq_qcntl_close (struct inode *inode, struct file *filp)
 		return -EINVAL;
 
 	lock_kernel ();
-	shmiq_qcntl_fasync (filp, 0);
+	shmiq_qcntl_fasync (-1, filp, 0);
 	shmiqs [minor].opened      = 0;
 	shmiqs [minor].mapped      = 0;
 	shmiqs [minor].events      = 0;
@@ -446,6 +447,7 @@ file_operations shmiq_fops =
         shmiq_qcntl_ioctl,      /* ioctl */
         shmiq_qcntl_mmap,       /* mmap */
         shmiq_qcntl_open,       /* open */
+	NULL,			/* flush */
         shmiq_qcntl_close,      /* close */
         NULL,                   /* fsync */
         shmiq_qcntl_fasync,     /* fasync */

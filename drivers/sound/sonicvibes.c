@@ -43,6 +43,10 @@
  *                     Fix hwptr out of bounds (now mpg123 works)
  *    14.05.98   0.4   Don't allow excessive interrupt rates
  *    08.06.98   0.5   First release using Alan Cox' soundcore instead of miscdevice
+ *    03.08.98   0.6   Do not include modversions.h
+ *                     Now mixer behaviour can basically be selected between
+ *                     "OSS documented" and "OSS actual" behaviour
+ *    31.08.98   0.7   Fix realplayer problems - dac.count issues
  *
  */
 
@@ -50,7 +54,6 @@
       
 #include <linux/version.h>
 #include <linux/module.h>
-#include <linux/modversions.h>
 #include <linux/string.h>
 #include <linux/ioport.h>
 #include <linux/sched.h>
@@ -68,6 +71,10 @@
 #include <asm/hardirq.h>
 
 #include "dm.h"
+
+/* --------------------------------------------------------------------- */
+
+#undef OSS_DOCUMENTED_MIXER_SEMANTICS
 
 /* --------------------------------------------------------------------- */
 
@@ -245,6 +252,9 @@ struct sv_state {
         /* mixer stuff */
         struct {
                 unsigned int modcnt;
+#ifndef OSS_DOCUMENTED_MIXER_SEMANTICS
+		unsigned short vol[13];
+#endif /* OSS_DOCUMENTED_MIXER_SEMANTICS */
         } mix;
 
 	/* wave stuff */
@@ -471,6 +481,7 @@ static unsigned setpll(struct sv_state *s, unsigned char reg, unsigned rate)
 	unsigned long flags;
 	unsigned char r, m, n;
 	unsigned xm, xn, xr, xd, metric = ~0U;
+	/* the warnings about m and n used uninitialized are bogus and may safely be ignored */
 
 	if (rate < 625000/ADCMULT)
 		rate = 625000/ADCMULT;
@@ -609,7 +620,7 @@ static void start_adc(struct sv_state *s)
 	unsigned long flags;
 
 	spin_lock_irqsave(&s->lock, flags);
-	if ((s->dma_adc.mapped || s->dma_adc.count < s->dma_adc.dmasize - 2*s->dma_adc.fragsize) 
+	if ((s->dma_adc.mapped || s->dma_adc.count < (signed)(s->dma_adc.dmasize - 2*s->dma_adc.fragsize)) 
 	    && s->dma_adc.ready) {
 		s->enable |= SV_CENABLE_RE;
 		wrindir(s, SV_CIENABLE, s->enable);
@@ -619,9 +630,8 @@ static void start_adc(struct sv_state *s)
 
 /* --------------------------------------------------------------------- */
 
-#define DMABUF_DEFAULTORDER 8
+#define DMABUF_DEFAULTORDER (17-PAGE_SHIFT)
 #define DMABUF_MINORDER 1
-
 
 static void dealloc_dmabuf(struct dmabuf *db)
 {
@@ -754,10 +764,10 @@ static void sv_update_ptr(struct sv_state *s)
 		s->dma_adc.total_bytes += diff;
 		s->dma_adc.count += diff;
 		if (s->dma_adc.mapped) {
-			if (s->dma_adc.count >= s->dma_adc.fragsize) 
+			if (s->dma_adc.count >= (signed)s->dma_adc.fragsize) 
 				wake_up(&s->dma_adc.wait);
 		} else {
-			if (s->dma_adc.count > s->dma_adc.dmasize - ((3 * s->dma_adc.fragsize) >> 1)) {
+			if (s->dma_adc.count > (signed)(s->dma_adc.dmasize - ((3 * s->dma_adc.fragsize) >> 1))) {
 				s->enable &= ~SV_CENABLE_RE;
 				wrindir(s, SV_CIENABLE, s->enable);
 				s->dma_adc.error++;
@@ -774,7 +784,7 @@ static void sv_update_ptr(struct sv_state *s)
 		s->dma_dac.total_bytes += diff;
 		if (s->dma_dac.mapped) {
 			s->dma_dac.count += diff;
-			if (s->dma_dac.count >= s->dma_dac.fragsize)
+			if (s->dma_dac.count >= (signed)s->dma_dac.fragsize)
 				wake_up(&s->dma_dac.wait);
 		} else {
 			s->dma_dac.count -= diff;
@@ -782,11 +792,11 @@ static void sv_update_ptr(struct sv_state *s)
 				s->enable &= ~SV_CENABLE_PE;
 				wrindir(s, SV_CIENABLE, s->enable);
 				s->dma_dac.error++;
-			} else if (s->dma_dac.count <= s->dma_dac.fragsize && !s->dma_dac.endcleared) {
+			} else if (s->dma_dac.count <= (signed)s->dma_dac.fragsize && !s->dma_dac.endcleared) {
 				clear_advance(s);
 				s->dma_dac.endcleared = 1;
 			}
-			if (s->dma_dac.count < s->dma_dac.dmasize)
+			if (s->dma_dac.count < (signed)s->dma_dac.dmasize)
 				wake_up(&s->dma_dac.wait);
 		}
 	}
@@ -885,6 +895,8 @@ static const struct {
 	[SOUND_MIXER_PCM]    = { SV_CIMIX_PCMINL,    SV_CIMIX_PCMINR,    MT_6MUTE,     0 }
 };
 
+#ifdef OSS_DOCUMENTED_MIXER_SEMANTICS
+
 static int return_mixval(struct sv_state *s, unsigned i, int *arg)
 {
 	unsigned long flags;
@@ -927,6 +939,23 @@ static int return_mixval(struct sv_state *s, unsigned i, int *arg)
 		rr = 0;
 	return put_user((rr << 8) | rl, arg);
 }
+
+#else /* OSS_DOCUMENTED_MIXER_SEMANTICS */
+
+static const unsigned char volidx[SOUND_MIXER_NRDEVICES] = 
+{
+	[SOUND_MIXER_RECLEV] = 1,
+	[SOUND_MIXER_LINE1]  = 2,
+	[SOUND_MIXER_CD]     = 3,
+	[SOUND_MIXER_LINE]   = 4,
+	[SOUND_MIXER_MIC]    = 5,
+	[SOUND_MIXER_SYNTH]  = 6,
+	[SOUND_MIXER_LINE2]  = 7,
+	[SOUND_MIXER_VOLUME] = 8,
+	[SOUND_MIXER_PCM]    = 9
+};
+
+#endif /* OSS_DOCUMENTED_MIXER_SEMANTICS */
 
 static unsigned mixer_recmask(struct sv_state *s)
 {
@@ -1022,7 +1051,13 @@ static int mixer_ioctl(struct sv_state *s, unsigned int cmd, unsigned long arg)
 			i = _IOC_NR(cmd);
                         if (i >= SOUND_MIXER_NRDEVICES || !mixtable[i].type)
                                 return -EINVAL;
+#ifdef OSS_DOCUMENTED_MIXER_SEMANTICS
 			return return_mixval(s, i, (int *)arg);
+#else /* OSS_DOCUMENTED_MIXER_SEMANTICS */
+			if (!volidx[i])
+				return -EINVAL;
+			return put_user(s->mix.vol[volidx[i]-1], (int *)arg);
+#endif /* OSS_DOCUMENTED_MIXER_SEMANTICS */
 		}
 	}
         if (_IOC_DIR(cmd) != (_IOC_READ|_IOC_WRITE)) 
@@ -1116,7 +1151,14 @@ static int mixer_ioctl(struct sv_state *s, unsigned int cmd, unsigned long arg)
 			break;
 		}
 		spin_unlock_irqrestore(&s->lock, flags);
+#ifdef OSS_DOCUMENTED_MIXER_SEMANTICS
                 return return_mixval(s, i, (int *)arg);
+#else /* OSS_DOCUMENTED_MIXER_SEMANTICS */
+		if (!volidx[i])
+			return -EINVAL;
+		s->mix.vol[volidx[i]-1] = val;
+		return put_user(s->mix.vol[volidx[i]-1], (int *)arg);
+#endif /* OSS_DOCUMENTED_MIXER_SEMANTICS */
 	}
 }
 
@@ -1167,6 +1209,7 @@ static /*const*/ struct file_operations sv_mixer_fops = {
 	&sv_ioctl_mixdev,
 	NULL,  /* mmap */
 	&sv_open_mixdev,
+	NULL,	/* flush */
 	&sv_release_mixdev,
 	NULL,  /* fsync */
 	NULL,  /* fasync */
@@ -1349,7 +1392,7 @@ static unsigned int sv_poll(struct file *file, struct poll_table_struct *wait)
 	sv_update_ptr(s);
 	if (file->f_flags & FMODE_READ) {
 		if (s->dma_adc.mapped) {
-			if (s->dma_adc.count >= s->dma_adc.fragsize)
+			if (s->dma_adc.count >= (signed)s->dma_adc.fragsize)
 				mask |= POLLIN | POLLRDNORM;
 		} else {
 			if (s->dma_adc.count > 0)
@@ -1358,10 +1401,10 @@ static unsigned int sv_poll(struct file *file, struct poll_table_struct *wait)
 	}
 	if (file->f_flags & FMODE_WRITE) {
 		if (s->dma_dac.mapped) {
-			if (s->dma_dac.count >= s->dma_dac.fragsize) 
+			if (s->dma_dac.count >= (signed)s->dma_dac.fragsize) 
 				mask |= POLLOUT | POLLWRNORM;
 		} else {
-			if (s->dma_dac.dmasize > s->dma_dac.count)
+			if ((signed)s->dma_dac.dmasize > s->dma_dac.count)
 				mask |= POLLOUT | POLLWRNORM;
 		}
 	}
@@ -1769,6 +1812,7 @@ static /*const*/ struct file_operations sv_audio_fops = {
 	&sv_ioctl,
 	&sv_mmap,
 	&sv_open,
+	NULL,	/* flush */
 	&sv_release,
 	NULL,  /* fsync */
 	NULL,  /* fasync */
@@ -2013,6 +2057,7 @@ static /*const*/ struct file_operations sv_midi_fops = {
 	NULL,  /* ioctl */
 	NULL,  /* mmap */
 	&sv_midi_open,
+	NULL,	/* flush */
 	&sv_midi_release,
 	NULL,  /* fsync */
 	NULL,  /* fasync */
@@ -2186,6 +2231,7 @@ static /*const*/ struct file_operations sv_dmfm_fops = {
 	&sv_dmfm_ioctl,
 	NULL,  /* mmap */
 	&sv_dmfm_open,
+	NULL,	/* flush */
 	&sv_dmfm_release,
 	NULL,  /* fsync */
 	NULL,  /* fasync */
@@ -2200,7 +2246,10 @@ static /*const*/ struct file_operations sv_dmfm_fops = {
 #define NR_DEVICE 5
 
 static int reverb[NR_DEVICE] = { 0, };
+
+#if 0
 static int wavetable[NR_DEVICE] = { 0, };
+#endif
 
 static unsigned dmaio = 0xac00;
 
@@ -2234,7 +2283,7 @@ __initfunc(int init_sonicvibes(void))
 
 	if (!pci_present())   /* No PCI bus in this machine! */
 		return -ENODEV;
-	printk(KERN_INFO "sv: version v0.5 time " __TIME__ " " __DATE__ "\n");
+	printk(KERN_INFO "sv: version v0.7 time " __TIME__ " " __DATE__ "\n");
 #if 0
 	if (!(wavetable_mem = __get_free_pages(GFP_KERNEL, 20-PAGE_SHIFT)))
 		printk(KERN_INFO "sv: cannot allocate 1MB of contiguous nonpageable memory for wavetable data\n");
@@ -2297,7 +2346,6 @@ __initfunc(int init_sonicvibes(void))
 		/* hack */
 		pci_write_config_dword(pcidev, 0x60, wavetable_mem >> 12);  /* wavetable base address */
 
-
 		if (check_region(s->ioenh, SV_EXTENT_ENH)) {
 			printk(KERN_ERR "sv: io ports %#x-%#x in use\n", s->ioenh, s->ioenh+SV_EXTENT_ENH-1);
 			goto err_region5;
@@ -2328,8 +2376,8 @@ __initfunc(int init_sonicvibes(void))
 		udelay(50);
 		outb(0x00, s->ioenh + SV_CODEC_CONTROL); /* deassert reset */
 		udelay(50);
-		outb(SV_CCTRL_INTADRIVE | SV_CCTRL_ENHANCED /*| SV_CCTRL_WAVETABLE | SV_CCTRL_REVERB*/,
-		     s->ioenh + SV_CODEC_CONTROL);
+		outb(SV_CCTRL_INTADRIVE | SV_CCTRL_ENHANCED /*| SV_CCTRL_WAVETABLE */
+		     | (reverb[index] ? SV_CCTRL_REVERB : 0), s->ioenh + SV_CODEC_CONTROL);
 		inb(s->ioenh + SV_CODEC_STATUS); /* clear ints */
 		wrindir(s, SV_CIDRIVECONTROL, 0);  /* drive current 16mA */
 		wrindir(s, SV_CIENABLE, s->enable = 0);  /* disable DMAA and DMAC */
@@ -2412,9 +2460,11 @@ __initfunc(int init_sonicvibes(void))
 #ifdef MODULE
 
 MODULE_PARM(reverb, "1-" __MODULE_STRING(NR_DEVICE) "i");
-MODULE_PARM_DESC(reverb, "if 1 enables joystick interface (still need separate driver)");
+MODULE_PARM_DESC(reverb, "if 1 enables the reverb circuitry. NOTE: your card must have the reverb RAM");
+#if 0
 MODULE_PARM(wavetable, "1-" __MODULE_STRING(NR_DEVICE) "i");
-MODULE_PARM_DESC(wavetable, "if 1 the LINE input is converted to LINE out");
+MODULE_PARM_DESC(wavetable, "if 1 the wavetable synth is enabled");
+#endif
 
 MODULE_PARM(dmaio, "i");
 MODULE_PARM_DESC(dmaio, "if the motherboard BIOS did not allocate DDMA io, allocate them starting at this address");

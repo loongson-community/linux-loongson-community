@@ -76,7 +76,7 @@
   of the drive.  Thanks to Tobias Ringstr|m <tori@prosolvia.se> for pointing
   this out and providing a simple fix.
   -- Fixed the procfs-unload-module bug with the fill_inode procfs callback.
-  thanks to Andrea Arcangeli <arcangeli@mbox.queen.it>
+  thanks to Andrea Arcangeli
   -- Fixed it so that the /proc entry now also shows up when cdrom is
   compiled into the kernel.  Before it only worked when loaded as a module.
 
@@ -184,6 +184,7 @@ struct file_operations cdrom_fops =
 	cdrom_ioctl,                    /* ioctl */
 	NULL,                           /* mmap */
 	cdrom_open,                     /* open */
+	NULL,				/* flush */
 	cdrom_release,                  /* release */
 	NULL,                           /* fsync */
 	NULL,                           /* fasync */
@@ -1081,10 +1082,12 @@ static void cdrom_sysctl_register(void)
 	initialized = 1;
 }
 
+#ifdef MODULE
 static void cdrom_sysctl_unregister(void)
 {
 	unregister_sysctl_table(cdrom_sysctl_header);
 }
+#endif /* endif MODULE */
 #endif /* endif CONFIG_SYSCTL */
 
 #ifdef MODULE

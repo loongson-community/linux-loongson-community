@@ -105,23 +105,21 @@ ENOSYS = 38
 	popl %eax;	\
 1:	popl %ds;	\
 2:	popl %es;	\
-3:	addl $4,%esp;	\
-4:	iret;		\
+	addl $4,%esp;	\
+3:	iret;		\
 .section fixup,"ax";	\
-5:	pushl $0;	\
-	popl %ds;	\
+4:	movl $0,(%esp);	\
+	jmp 1b;		\
+5:	movl $0,(%esp);	\
 	jmp 2b;		\
-6:	pushl $0;	\
-	popl %es;	\
-	jmp 3b;		\
-7:	pushl $11;	\
+6:	pushl $11;	\
 	call do_exit;	\
 .previous;		\
 .section __ex_table,"a";\
 	.align 4;	\
-	.long 1b,5b;	\
-	.long 2b,6b;	\
-	.long 4b,7b;	\
+	.long 1b,4b;	\
+	.long 2b,5b;	\
+	.long 3b,6b;	\
 .previous
 
 #define GET_CURRENT(reg) \
@@ -366,7 +364,7 @@ ENTRY(spurious_interrupt_bug)
 
 .data
 ENTRY(sys_call_table)
-	.long SYMBOL_NAME(sys_setup)		/* 0 */
+	.long SYMBOL_NAME(sys_ni_syscall)	/* 0  -  old "setup()" system call*/
 	.long SYMBOL_NAME(sys_exit)
 	.long SYMBOL_NAME(sys_fork)
 	.long SYMBOL_NAME(sys_read)
@@ -556,7 +554,13 @@ ENTRY(sys_call_table)
 	.long SYMBOL_NAME(sys_sendfile)
 	.long SYMBOL_NAME(sys_ni_syscall)		/* streams1 */
 	.long SYMBOL_NAME(sys_ni_syscall)		/* streams2 */
-	
-	.rept NR_syscalls-187
+
+	/*
+	 * NOTE!! This doesn' thave to be exact - we just have
+	 * to make sure we have _enough_ of the "sys_ni_syscall"
+	 * entries. Don't panic if you notice that this hasn't
+	 * been shrunk every time we add a new system call.
+	 */
+	.rept NR_syscalls-189
 		.long SYMBOL_NAME(sys_ni_syscall)
 	.endr

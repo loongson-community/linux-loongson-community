@@ -61,12 +61,14 @@ S: San Jose, California 95129
 S: USA
 
 N: Andrea Arcangeli
-E: arcangeli@mbox.queen.it
+E: andrea@e-mind.com
 W: http://e-mind.com/~andrea/
 P: 1024/CB4660B9 CC A0 71 81 F4 A0 63 AC  C0 4B 81 1D 8C 15 C8 E5
 D: Parport hacker
 D: Implemented a workaround for some interrupt buggy printers
 D: Author of pscan that helps to fix lp/parport bug
+D: Author of lil (Linux Interrupt Latency benchmark)
+D: Fixed the shm swap deallocation at swapoff time (try_to_unuse message)
 D: Various other kernel hacks
 S: Via Ciaclini 26
 S: Imola 40026
@@ -127,6 +129,12 @@ S: 633 South 550 East
 S: Provo, Utah 84606
 S: USA
 
+N: Paul Barton-Davis
+E: pbd@op.net
+D: Driver for WaveFront soundcards (Turtle Beach Maui, Tropez, Tropez+)
+D: Various bugfixes and changes to sound drivers
+S: USA 
+
 M: Krzysztof G. Baranowski
 E: kgb@manjak.knm.org.pl
 P: 1024/FA6F16D1 96 D1 1A CF 5F CA 69 EC  F9 4F 36 1F 6D 60 7B DA
@@ -156,7 +164,7 @@ S: Germany
 N: Donald Becker
 E: becker@cesdis.gsfc.nasa.gov
 D: General low-level networking hacker
-D: Most of the Ethernet drivers
+D: Most of the ethercard drivers
 D: Original author of the NFS server
 S: USRA Center of Excellence in Space Data and Information Sciences
 S: Code 930.5, Goddard Space Flight Center
@@ -210,12 +218,14 @@ S: Nexus Electronics Ltd
 S: 10 St Barnabas Road, Cambridge CB1 2BY
 S: United Kingdom
 
-N: Thomas Bogendoerfer
+N: Thomas Bogendörfer
 E: tsbogend@alpha.franken.de
-D: PCnet32 driver
+D: PCnet32 driver, SONIC driver, JAZZ_ESP driver
+D: newport abscon driver, g364 framebuffer driver
 D: strace for Linux/Alpha
-S: Baumgartenweg 5
-S: 91452 Wilhermsdorf
+D: Linux/MIPS hacker
+S: Schafhofstr. 40
+S: 90556 Cadolzburg
 S: Germany
 
 N: Bill Bogstad
@@ -242,6 +252,15 @@ D: Coda Filesystem
 S: Dept of Computer Science
 S: 5000 Forbes Avenue
 S: Pittsburgh, Pennsylvania 15213
+S: USA
+
+N: Derrick J. Brashear
+E: shadow@dementia.org
+W: http://www.dementia.org/~shadow
+P: 512/71EC9367 C5 29 0F BC 83 51 B9 F0  BC 05 89 A0 4F 1F 30 05
+D: Author of Sparc CS4231 audio driver, random Sparc work
+S: 403 Gilmore Avenue
+S: Trafford, Pennsylvania 15085
 S: USA
 
 N: Andries Brouwer
@@ -287,8 +306,8 @@ N: Gordon Chaffee
 E: chaffee@cs.berkeley.edu
 W: http://bmrc.berkeley.edu/people/chaffee/
 D: vfat, fat32, joliet, native language support
-S: 3674 Oakwood Terrace #201
-S: Fremont, California 94536
+S: 3700 Warwick Road
+S: Fremont, California 94555
 S: USA
 
 N: Chih-Jen Chang
@@ -333,18 +352,19 @@ S: East Malvern, Victoria, 3145
 S: Australia
 
 N: Alan Cox
-E: alan@lxorguk.ukuu.org.uk (linux related - except big patches)
-E: iialan@www.uk.linux.org (linux.org.uk/big patches)
-E: alan@cymru.net (commercial CymruNET stuff)
+W: http://roadrunner.swansea.linux.org.uk/alan.shtml
+E: alan@lxorguk.ukuu.org.uk
+E: alan@www.linux.org.uk (linux.org.uk stuff)
 E: Alan.Cox@linux.org (if others fail)
-D: NET2Debugged/NET3 author
-D: Network layer debugging
-D: Initial AX.25 & IPX releases
-D: Original Linux netatalk patches.
+D: Linux Networking (0.99.10->2.0.29)
+D: Original Appletalk, AX.25, and IPX code
 D: Current 3c501 hacker. >>More 3c501 info/tricks wanted<<.
 D: Watchdog timer drivers
-D: Linux/SMP
-S: CymruNet Limited
+D: Linux/SMP x86 (up to 2.0 only)
+D: Initial Mac68K port
+D: Video4Linux design, bw-qcam and PMS driver ports.
+D: 2.1.x modular sound
+S: c/o I2IT Limited
 S: The Innovation Centre
 S: Singleton Park
 S: Swansea, SA2 8PP
@@ -707,7 +727,7 @@ E: rth@cygnus.com
 E: richard@gnu.org
 D: Alpha/ELF, gcc, binutils, and glibc
 S: 50 E. Middlefield #10
-S: Mountain View, California 94043-3822
+S: Mountain View, California 94043
 S: USA
 
 N: Sebastian Hetze
@@ -1068,9 +1088,10 @@ S: Canada K2H 6S3
 N: Jamie Lokier
 E: jamie@imbolc.ucc.ie
 D: Reboot-through-BIOS for broken 486 motherboards
-S: 26 Oatlands Road
+S: 11 Goodson Walk
+S: Marston
 S: Oxford
-S: OX2 0ET
+S: OX3 0HX
 S: United Kingdom
 
 N: Warner Losh
@@ -1193,13 +1214,12 @@ S: D-90453 Nuernberg
 S: Germany
 
 N: Michael Meskes
-E: meskes@topsystem.de
+E: meskes@debian.org
 P: 1024/04B6E8F5 6C 77 33 CA CC D6 22 03  AB AB 15 A3 AE AD 39 7D
-D: Kernel hacker. Software watchdog daemon.
+D: Kernel hacker. PostgreSQL hacker. Software watchdog daemon.
 D: Maintainer of several Debian packages
-S: topsystem Systemhaus GmbH
-S: Europark A2, Adenauerstr. 20
-S: D-52146 Wuerselen
+S: Th.-Heuss-Str. 61 
+S: D-41812 Erkelenz
 S: Germany
 
 N: Nigel Metheringham
@@ -1231,12 +1251,12 @@ S: 7546 JA  Enschede
 S: Netherlands
 
 N: David S. Miller
-E: davem@caip.rutgers.edu
-D: Sparc hacker
-D: New Linux-Activists maintainer
+E: davem@dm.cobaltmicro.com
+D: Sparc and blue box hacker
+D: Vger Linux mailing list co-maintainer
 D: Linux Emacs elf/qmagic support + other libc/gcc things
 D: Yee bore de yee bore! ;-)
-S: 111 Alta Tierra Court
+S: 331 Santa Rosa Drive
 S: Los Gatos, California 95032
 S: USA
 
@@ -1443,14 +1463,11 @@ S: USA
 
 N: Eric S. Raymond
 E: esr@thyrsus.com
-W: http://www.ccil.org/~esr/home.html
-D: ncurses library co-maintainer
+W: http://www.tuxedo.org/~esr/
 D: terminfo master file maintainer
-D: Distributions HOWTO editor
-D: Instigator, FHS standard
-D: Keeper of the Jargon File and curator of the Retrocomputing Museum
-D: Author, Emacs VC and GUD modes
-S: 22 South Warren Avenue
+D: Editor: Installation HOWTO, Distributions HOWTO, XFree86 HOWTO
+D: Author: fetchmail, Emacs VC mode, Emacs GUD mode
+S: 6 Karen Drive
 S: Malvern, Pennsylvania 19355
 S: USA
 
@@ -1471,8 +1488,8 @@ D: Generic Z8530 driver, AX.25 DAMA slave implementation
 D: Several AX.25 hacks
 
 N: Francois-Rene Rideau
-E: rideau@ens.fr
-W: http://www.eleves.ens.fr:8080/home/rideau/
+E: fare@tunes.org
+W: http://www.tunes.org/~fare
 D: petty kernel janitor (byteorder, ufs)
 S: 6, rue Augustin Thierry
 S: 75019 Paris
@@ -1510,10 +1527,12 @@ S: Germany
 
 N: Stephen Rothwell
 E: Stephen.Rothwell@canb.auug.org.au
+W: http://www.canb.auug.org.au/~sfr
+P: 1024/BD8C7805 CD A4 9D 01 10 6E 7E 3B  91 88 FA D9 C8 40 AA 02
 D: Boot/setup/build work for setup > 2K
 D: Author, APM driver
-S: 59 Bugden Avenue
-S: Gowrie ACT 2904
+S: 66 Maltby Circuit
+S: Wanniassa ACT 2903
 S: Australia
 
 N: Gerard Roudier
@@ -1708,6 +1727,13 @@ D: Original kernel hacker
 S: 1050 Woodduck Avenue
 S: Santa Clara, California 95051
 S: USA
+
+N: Stefan Traby
+E: stefan@quant-x.com
+D: Minor Alpha kernel hacks
+S: Mitterlasznitzstr. 13
+S: 8302 Nestelbach
+S: Austria
 
 N: Jeff Tranter
 E: Jeff_Tranter@Mitel.COM
@@ -1944,6 +1970,14 @@ D: ALS-007 sound card extensions to Sound Blaster driver
 S: 4/36 Trevelyan St
 S: Wayville SA 5034
 S: Australia
+
+N: Clifford Wolf
+E: god@clifford.at
+W: http://www.clifford.at/
+D: Menuconfig/lxdialog improvement
+S: Foehrengasse 16
+S: A-2333 Leopoldsdorf b. Wien
+S: Austria
 
 N: Roger E. Wolff
 E: R.E.Wolff@BitWizard.nl

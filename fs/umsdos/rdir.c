@@ -18,9 +18,6 @@
 
 #include <asm/uaccess.h>
 
-#define PRINTK(x)
-#define Printk(x) printk x
-
 
 extern struct inode *pseudo_root;
 
@@ -30,8 +27,7 @@ struct RDIR_FILLDIR {
 	int real_root;
 };
 
-static int rdir_filldir (
-				void *buf,
+static int rdir_filldir (	void *buf,
 				const char *name,
 				int name_len,
 				off_t offset,
@@ -40,16 +36,13 @@ static int rdir_filldir (
 	int ret = 0;
 	struct RDIR_FILLDIR *d = (struct RDIR_FILLDIR *) buf;
 
-	PRINTK ((KERN_DEBUG "rdir_filldir /mn/: entering\n"));
 	if (d->real_root) {
 		PRINTK ((KERN_DEBUG "rdir_filldir /mn/: real root!\n"));
 		/* real root of a pseudo_rooted partition */
 		if (name_len != UMSDOS_PSDROOT_LEN
 		    || memcmp (name, UMSDOS_PSDROOT_NAME, UMSDOS_PSDROOT_LEN) != 0) {
 			/* So it is not the /linux directory */
-			if (name_len == 2
-			    && name[0] == '.'
-			    && name[1] == '.') {
+			if (name_len == 2 && name[0] == '.' && name[1] == '.') {
 				/* Make sure the .. entry points back to the pseudo_root */
 				ino = pseudo_root->i_ino;
 			}
@@ -57,30 +50,22 @@ static int rdir_filldir (
 		}
 	} else {
 		/* Any DOS directory */
-		PRINTK ((KERN_DEBUG "rdir_filldir /mn/: calling d->filldir (%p) for %.*s (%lu)\n", d->filldir, name_len, name, ino));
 		ret = d->filldir (d->dirbuf, name, name_len, offset, ino);
 	}
 	return ret;
 }
 
 
-static int UMSDOS_rreaddir (
-				   struct file *filp,
-				   void *dirbuf,
-				   filldir_t filldir)
+static int UMSDOS_rreaddir (struct file *filp, void *dirbuf, filldir_t filldir)
 {
-	struct RDIR_FILLDIR bufk;
 	struct inode *dir = filp->f_dentry->d_inode;
-
-	PRINTK ((KERN_DEBUG "UMSDOS_rreaddir /mn/: entering %p %p\n", filldir, dirbuf));
-
+	struct RDIR_FILLDIR bufk;
 
 	bufk.filldir = filldir;
 	bufk.dirbuf = dirbuf;
-	bufk.real_root = pseudo_root
-	    && dir == iget (dir->i_sb, UMSDOS_ROOT_INO)
-	    && dir == iget (pseudo_root->i_sb, UMSDOS_ROOT_INO);
-	PRINTK ((KERN_DEBUG "UMSDOS_rreaddir /mn/: calling fat_readdir with filldir=%p and exiting\n", filldir));
+	bufk.real_root = pseudo_root &&
+			 dir->i_ino == UMSDOS_ROOT_INO && 
+			 dir->i_sb == pseudo_root->i_sb;
 	return fat_readdir (filp, &bufk, rdir_filldir);
 }
 
@@ -90,167 +75,150 @@ static int UMSDOS_rreaddir (
  * If the result is a directory, make sure we find out if it is
  * a promoted one or not (calling umsdos_setup_dir_inode(inode)).
  */
-int umsdos_rlookup_x (
-			     struct inode *dir,
-			     struct dentry *dentry,
-			     int nopseudo)
-{				/* Don't care about pseudo root mode */
+/* #Specification: pseudo root / DOS/..
+ * In the real root directory (c:\), the directory ..
+ * is the pseudo root (c:\linux).
+ */
+int umsdos_rlookup_x ( struct inode *dir, struct dentry *dentry, int nopseudo)
+{
 	/* so locating "linux" will work */
-	int len = dentry->d_name.len;
 	const char *name = dentry->d_name.name;
+	int len = dentry->d_name.len;
 	struct inode *inode;
 	int ret;
 
-	if (pseudo_root
-	    && len == 2
-	    && name[0] == '.'
-	    && name[1] == '.'
-	    && dir == iget (dir->i_sb, UMSDOS_ROOT_INO)
-	    && dir == iget (pseudo_root->i_sb, UMSDOS_ROOT_INO)) {
-		/*    *result = pseudo_root; */
-		Printk ((KERN_WARNING "umsdos_rlookup_x: we are at pseudo-root thingy?\n"));
-		inc_count (pseudo_root);
+	if (pseudo_root && len == 2 && name[0] == '.' && name[1] == '.' &&
+	    dir->i_ino == UMSDOS_ROOT_INO && dir->i_sb == pseudo_root->i_sb) {
+printk (KERN_WARNING "umsdos_rlookup_x: we are at pseudo-root thingy?\n");
+		pseudo_root->i_count++;
+		d_add(dentry, pseudo_root);
 		ret = 0;
-		/* #Specification: pseudo root / DOS/..
-		 * In the real root directory (c:\), the directory ..
-		 * is the pseudo root (c:\linux).
-		 */
-	} else {
-		ret = umsdos_real_lookup (dir, dentry);
-		inode = dentry->d_inode;
+		goto out;
+	}
 
-#if 0
-		Printk ((KERN_DEBUG "umsdos_rlookup_x: umsdos_real_lookup for %.*s in %lu returned %d\n", len, name, dir->i_ino, ret));
-		Printk ((KERN_DEBUG "umsdos_rlookup_x: umsdos_real_lookup: inode is %p resolving to ", inode));
-		if (inode) {	/* /mn/ FIXME: DEL_ME */
-			Printk ((KERN_DEBUG "i_ino=%lu\n", inode->i_ino));
-		} else {
-			Printk ((KERN_DEBUG "NONE!\n"));
+	ret = umsdos_real_lookup (dir, dentry);
+	inode = dentry->d_inode;
+	if ((ret == 0) && inode) {
+		if (inode == pseudo_root && !nopseudo) {
+			/* #Specification: pseudo root / DOS/linux
+			 * Even in the real root directory (c:\), the directory
+			 * /linux won't show
+			 */
+printk(KERN_WARNING "umsdos_rlookup_x: do the pseudo-thingy...\n");
+			/* make the dentry negative */
+			d_delete(dentry);
 		}
-#endif
-
-		if ((ret == 0) && inode) {
-
-			if (pseudo_root && inode == pseudo_root && !nopseudo) {
-				/* #Specification: pseudo root / DOS/linux
-				 * Even in the real root directory (c:\), the directory
-				 * /linux won't show
-				 */
-				Printk ((KERN_WARNING "umsdos_rlookup_x: do the pseudo-thingy...\n"));
-				ret = -ENOENT;
-				iput (pseudo_root); /* FIXME? */
-
-			} else if (S_ISDIR (inode->i_mode)) {
-				/* We must place the proper function table */
-				/* depending if this is a MsDOS directory or an UMSDOS directory */
-				Printk ((KERN_DEBUG "umsdos_rlookup_x: setting up setup_dir_inode %lu...\n", inode->i_ino));
-				umsdos_setup_dir_inode (inode);
-			}
+		else if (S_ISDIR (inode->i_mode)) {
+			/* We must place the proper function table
+			 * depending on whether this is an MS-DOS or 
+			 * a UMSDOS directory
+			 */
+Printk ((KERN_DEBUG "umsdos_rlookup_x: setting up setup_dir_inode %lu...\n",
+inode->i_ino));
+			umsdos_setup_dir(dentry);
 		}
 	}
-	iput (dir); /* FIXME? */
+out:
 	PRINTK ((KERN_DEBUG "umsdos_rlookup_x: returning %d\n", ret));
 	return ret;
 }
 
 
-int UMSDOS_rlookup (
-			   struct inode *dir,
-			   struct dentry *dentry
-)
+int UMSDOS_rlookup ( struct inode *dir, struct dentry *dentry)
 {
-	PRINTK ((KERN_DEBUG "UMSDOS_rlookup /mn/: executing umsdos_rlookup_x for ino=%lu in %.*s\n", dir->i_ino, (int) dentry->d_name.len, dentry->d_name.name));
 	return umsdos_rlookup_x (dir, dentry, 0);
 }
 
 
-static int UMSDOS_rrmdir (
-				 struct inode *dir,
-				 struct dentry *dentry)
+/* #Specification: dual mode / rmdir in a DOS directory
+ * In a DOS (not EMD in it) directory, we use a reverse strategy
+ * compared with a UMSDOS directory. We assume that a subdirectory
+ * of a DOS directory is also a DOS directory. This is not always
+ * true (umssync may be used anywhere), but makes sense.
+ * 
+ * So we call msdos_rmdir() directly. If it failed with a -ENOTEMPTY
+ * then we check if it is a Umsdos directory. We check if it is
+ * really empty (only . .. and --linux-.--- in it). If it is true
+ * we remove the EMD and do a msdos_rmdir() again.
+ * 
+ * In a Umsdos directory, we assume all subdirectories are also
+ * Umsdos directories, so we check the EMD file first.
+ */
+/* #Specification: pseudo root / rmdir /DOS
+ * The pseudo sub-directory /DOS can't be removed!
+ * This is done even if the pseudo root is not a Umsdos
+ * directory anymore (very unlikely), but an accident (under
+ * MS-DOS) is always possible.
+ * 
+ * EPERM is returned.
+ */
+static int UMSDOS_rrmdir ( struct inode *dir, struct dentry *dentry)
 {
-	/* #Specification: dual mode / rmdir in a DOS directory
-	 * In a DOS (not EMD in it) directory, we use a reverse strategy
-	 * compared with an Umsdos directory. We assume that a subdirectory
-	 * of a DOS directory is also a DOS directory. This is not always
-	 * true (umssync may be used anywhere), but make sense.
-	 * 
-	 * So we call msdos_rmdir() directly. If it failed with a -ENOTEMPTY
-	 * then we check if it is a Umsdos directory. We check if it is
-	 * really empty (only . .. and --linux-.--- in it). If it is true
-	 * we remove the EMD and do a msdos_rmdir() again.
-	 * 
-	 * In a Umsdos directory, we assume all subdirectory are also
-	 * Umsdos directory, so we check the EMD file first.
-	 */
-	int ret;
+	int ret, empty;
 
-	if (umsdos_is_pseudodos (dir, dentry)) {
-		/* #Specification: pseudo root / rmdir /DOS
-		 * The pseudo sub-directory /DOS can't be removed!
-		 * This is done even if the pseudo root is not a Umsdos
-		 * directory anymore (very unlikely), but an accident (under
-		 * MsDOS) is always possible.
-		 * 
-		 * EPERM is returned.
-		 */
-		ret = -EPERM;
-	} else {
-		umsdos_lockcreate (dir);
-		inc_count (dir);
-		ret = msdos_rmdir (dir, dentry);
-		if (ret == -ENOTEMPTY) {
-			struct inode *sdir;
+	ret = -EPERM;
+	if (umsdos_is_pseudodos (dir, dentry))
+		goto out;
 
-			inc_count (dir);
-
-			ret = UMSDOS_rlookup (dir, dentry);
-			sdir = dentry->d_inode;
-			PRINTK (("rrmdir lookup %d ", ret));
-			if (ret == 0) {
-				int empty;
-
-				if ((empty = umsdos_isempty (sdir)) != 0) {
-					PRINTK (("isempty %d i_count %d ", empty,
-					  atomic_read (&sdir->i_count)));
-					if (empty == 2) {
-						/*
-						 * Not a Umsdos directory, so the previous msdos_rmdir
-						 * was not lying :-)
-						 */
-						ret = -ENOTEMPTY;
-					} else if (empty == 1) {
-						/* We have to removed the EMD file */
-						struct dentry *temp;
-
-						Printk ((KERN_WARNING "UMSDOS_rmdir: hmmm... whatabout inode ? FIXME\n"));
-						temp = creat_dentry (UMSDOS_EMD_FILE, UMSDOS_EMD_NAMELEN, NULL, NULL);	/* FIXME: prolly should fill inode part ? */
-						ret = msdos_unlink (sdir, temp);
-						sdir = NULL;
-						if (ret == 0) {
-							inc_count (dir);
-							ret = msdos_rmdir (dir, dentry);
-						}
-					}
-				} else {
-					ret = -ENOTEMPTY;
-				}
-				/* iput (sdir); FIXME */
-			}
-		}
-		umsdos_unlockcreate (dir);
+	umsdos_lockcreate (dir);
+	ret = -EBUSY;
+	if (dentry->d_count > 1) {
+		shrink_dcache_parent(dentry);
+		if (dentry->d_count > 1)
+			goto out_unlock;
 	}
-	/* iput (dir); FIXME */
+
+	ret = msdos_rmdir (dir, dentry);
+	if (ret != -ENOTEMPTY)
+		goto out_check;
+
+#if 0	/* why do this? we have the dentry ... */
+	ret = UMSDOS_rlookup (dir, dentry);
+	PRINTK (("rrmdir lookup %d ", ret));
+	if (ret)
+		goto out_unlock;
+	ret = -ENOTEMPTY;
+#endif
+
+	empty = umsdos_isempty (dentry);
+	if (empty == 1) {
+		struct dentry *temp;
+		/* We have to remove the EMD file. */
+		temp = umsdos_lookup_dentry(dentry, UMSDOS_EMD_FILE, 
+						UMSDOS_EMD_NAMELEN);
+		ret = PTR_ERR(temp);
+		if (!IS_ERR(temp)) {
+			ret = 0;
+			if (temp->d_inode)
+				ret = msdos_unlink (dentry->d_inode, temp);
+			dput(temp);
+		}
+		if (ret)
+			goto out_unlock;
+	}
+	/* now retry the original ... */
+	ret = msdos_rmdir (dir, dentry);
+
+out_check:
+	/* Check whether we succeeded ... */
+	if (!ret)
+		d_delete(dentry);
+
+out_unlock:
+	umsdos_unlockcreate (dir);
+out:
+	check_inode (dir);
 	return ret;
 }
 
 /* #Specification: dual mode / introduction
  * One goal of UMSDOS is to allow a practical and simple coexistence
- * between MsDOS and Linux in a single partition. Using the EMD file
- * in each directory, UMSDOS add Unix semantics and capabilities to
- * normal DOS file system. To help and simplify coexistence, here is
+ * between MS-DOS and Linux in a single partition. Using the EMD file
+ * in each directory, UMSDOS adds Unix semantics and capabilities to
+ * a normal DOS filesystem. To help and simplify coexistence, here is
  * the logic related to the EMD file.
  * 
- * If it is missing, then the directory is managed by the MsDOS driver.
+ * If it is missing, then the directory is managed by the MS-DOS driver.
  * The names are limited to DOS limits (8.3). No links, no device special
  * and pipe and so on.
  * 
@@ -259,12 +227,12 @@ static int UMSDOS_rrmdir (
  * of the real DOS directory and the EMD.
  * 
  * Whenever umssync is applied to a directory without EMD, one is
- * created on the fly. The directory is promoted to full unix semantic.
+ * created on the fly.  The directory is promoted to full Unix semantics.
  * Of course, the ls command will show exactly the same content as before
  * the umssync session.
  * 
- * It is believed that the user/admin will promote directories to unix
- * semantic as needed.
+ * It is believed that the user/admin will promote directories to Unix
+ * semantics as needed.
  * 
  * The strategy to implement this is to use two function table (struct
  * inode_operations). One for true UMSDOS directory and one for directory
@@ -272,18 +240,19 @@ static int UMSDOS_rrmdir (
  * 
  * Functions related to the DOS semantic (but aware of UMSDOS) generally
  * have a "r" prefix (r for real) such as UMSDOS_rlookup, to differentiate
- * from the one with full UMSDOS semantic.
+ * from the one with full UMSDOS semantics.
  */
 static struct file_operations umsdos_rdir_operations =
 {
 	NULL,			/* lseek - default */
-	UMSDOS_dir_read,	/* read */
+	dummy_dir_read,		/* read */
 	NULL,			/* write - bad */
 	UMSDOS_rreaddir,	/* readdir */
 	NULL,			/* poll - default */
 	UMSDOS_ioctl_dir,	/* ioctl - default */
 	NULL,			/* mmap */
 	NULL,			/* no special open code */
+	NULL,			/* flush */
 	NULL,			/* no special release code */
 	NULL			/* fsync */
 };

@@ -1,4 +1,4 @@
-/* $Id: init.c,v 1.7 1998/08/25 09:14:45 ralf Exp $
+/* $Id: init.c,v 1.8 1998/09/04 21:21:34 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -10,7 +10,6 @@
 #include <linux/init.h>
 #include <linux/signal.h>
 #include <linux/sched.h>
-#include <linux/head.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
 #include <linux/string.h>

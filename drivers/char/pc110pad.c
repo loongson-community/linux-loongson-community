@@ -18,7 +18,6 @@
 
 #include <linux/module.h>
 #include <linux/kernel.h>
-#include <linux/busmouse.h>
 #include <linux/signal.h>
 #include <linux/errno.h>
 #include <linux/mm.h>
@@ -474,11 +473,11 @@ static void sample_ps2(int d[3])
 
 
 
-static int fasync_pad(struct file *filp, int on)
+static int fasync_pad(int fd, struct file *filp, int on)
 {
 	int retval;
 
-	retval = fasync_helper(filp, on, &asyncptr);
+	retval = fasync_helper(fd, filp, on, &asyncptr);
 	if (retval < 0)
 		return retval;
 	return 0;
@@ -490,7 +489,7 @@ static int fasync_pad(struct file *filp, int on)
  */
 static int close_pad(struct inode * inode, struct file * file)
 {
-	fasync_pad(file, 0);
+	fasync_pad(-1, file, 0);
 	if (--active)
 		return 0;
 	outb(0x30, current_params.io+2);	/* switch off digitiser */
@@ -626,6 +625,7 @@ static struct file_operations pad_fops = {
 	pad_ioctl,
 	NULL,		/* pad_mmap */
 	open_pad,
+	NULL,		/* flush */
 	close_pad,
 	NULL,		/* fsync */
 	fasync_pad,
