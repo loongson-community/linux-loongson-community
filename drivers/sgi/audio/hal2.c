@@ -1,7 +1,8 @@
-/*
+/* $Id$
+ * 
  * drivers/sgi/audio/hal2.c
  *
- * Copyright (C) 1998 Ulf Carlsson (ulfc@bun.falkenberg.se)
+ * Copyright (C) 1998-1999 Ulf Carlsson (ulfc@bun.falkenberg.se)
  * 
  */
 
@@ -110,25 +111,24 @@ static unsigned short ireg_read(unsigned short address)
 	int tmp;
 
 	h2_ctrl->iar = address;
-	tmp = h2_ctrl->idr0;
 	INDIRECT_WAIT(h2_ctrl);
+	tmp = h2_ctrl->idr0;
 	return tmp;
 }
 
 static void ireg_write(unsigned short address, unsigned short val)
 {
-	h2_ctrl->iar = address;
 	h2_ctrl->idr0 = val;
+	h2_ctrl->iar = address;
 	INDIRECT_WAIT(h2_ctrl);
 }
 
 static void ireg_write2(unsigned short address,
 			 unsigned short val0, unsigned short val1)
 {
-	h2_ctrl->iar = address;
 	h2_ctrl->idr0 = val0;
-	INDIRECT_WAIT(h2_ctrl);
 	h2_ctrl->idr1 = val1;
+	h2_ctrl->iar = address;
 	INDIRECT_WAIT(h2_ctrl);
 }
 
@@ -137,10 +137,10 @@ static void ireg_setbit(unsigned short write_address, unsigned short
 	int tmp;
 
 	h2_ctrl->iar = read_address;
-	tmp = h2_ctrl->idr0;
 	INDIRECT_WAIT(h2_ctrl);
-	h2_ctrl->iar = write_address;
+	tmp = h2_ctrl->idr0;
 	h2_ctrl->idr0 = tmp | bit;
+	h2_ctrl->iar = write_address;
 	INDIRECT_WAIT(h2_ctrl);
 }
 
@@ -150,10 +150,10 @@ static void ireg_clearbit(unsigned short write_address, unsigned short
 	int tmp;
 
 	h2_ctrl->iar = read_address;
-	tmp = h2_ctrl->idr0;
 	INDIRECT_WAIT(h2_ctrl);
-	h2_ctrl->iar = write_address;
+	tmp = h2_ctrl->idr0;
 	h2_ctrl->idr0 = tmp & ~bit;
+	h2_ctrl->iar = write_address;
 	INDIRECT_WAIT(h2_ctrl);
 }
 
@@ -161,7 +161,7 @@ static int hal2_probe(void)
 {
         unsigned short board, major, minor;
 
-	if (!(!h2_ctrl->rev & H2_REV_AUDIO_PRESENT)) {
+	if (h2_ctrl->rev & H2_REV_AUDIO_PRESENT) {
 
 		printk("hal2: there was no device?\n");
 		return -ENODEV;
@@ -169,9 +169,38 @@ static int hal2_probe(void)
 	board = (h2_ctrl->rev & H2_REV_BOARD_M) >> 12;
 	major = (h2_ctrl->rev & H2_REV_MAJOR_CHIP_M) >> 4;
 	minor = (h2_ctrl->rev & H2_REV_MINOR_CHIP_M);
+
         printk("SGI HAL2 Processor, Revision %i.%i.%i\n",
            board, major, minor);
 
+	if (board != 4 || major != 1 || minor != 0) {
+		printk("hal2: Other revision than 4.1.0 detected\n");
+		printk("hal2: Your card is probably not supported\n");
+	}
+
+#ifdef DEBUG
+	printk("hal2: checking registers\n");
+#endif
+
+	/* check that the indirect registers are working by writing some bogus
+	 * stuff and then reading it back */
+
+	ireg_write(H2IW_DAC_C1, 0x23);		/* 16 bit register */
+	ireg_write2(H2IW_DAC_C2, 0x123, 0x321);	/* 32 bit register */
+
+	if (ireg_read(H2IR_ADC_C1) != 0x23) {
+		printk("hal2: Didn't pass register check #1\n");
+		return -ENODEV;
+	}
+	if (ireg_read(H2IR_DAC_C2_0) != 0x123) {
+		printk("hal2: Didn't pass register check #2\n");
+		return -ENODEV;
+	}
+	if (ireg_read(H2IR_DAC_C2_1) != 0x321) {
+		printk("hal2: Didn't pass register check #3\n");
+		return -ENODEV;
+	}
+	
 #ifdef DEBUG
 	printk("hal2: card found\n");
 #endif
@@ -207,7 +236,6 @@ static int hal2_init(struct sgiaudio *sa)
 #ifdef DEBUG
 	printk("hal2: resetting chip\n");
 #endif
-
 
 	/* do a global reset */
 	h2_ctrl->isr = 0;
@@ -610,8 +638,7 @@ static void hal2_configure_bres##clock(struct hal2_private *hp,		\
 		int inc = 4;						\
 									\
 		ireg_write(H2IW_BRES##clock##_C1 , master);		\
-		ireg_write2(H2IW_BRES##clock##_C2_0 , inc,		\
-			    mod);					\
+		ireg_write2(H2IW_BRES##clock##_C2 , inc, mod);		\
 }									\
 
 __BUILD_CONF_BRESN_CLOCK(1)
