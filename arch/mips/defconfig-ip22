@@ -14,6 +14,7 @@ CONFIG_EXPERIMENTAL=y
 # CONFIG_ALGOR_P4032 is not set
 # CONFIG_BAGET_MIPS is not set
 # CONFIG_DECSTATION is not set
+# CONFIG_DDB5074 is not set
 # CONFIG_MIPS_MAGNUM_4000 is not set
 # CONFIG_OLIVETTI_M700 is not set
 CONFIG_SGI_IP22=y
@@ -55,7 +56,6 @@ CONFIG_SYSCTL=y
 CONFIG_MODULES=y
 # CONFIG_MODVERSIONS is not set
 CONFIG_KMOD=y
-# CONFIG_FB is not set
 
 #
 # I2O device support
@@ -68,6 +68,12 @@ CONFIG_KMOD=y
 # CONFIG_I2O_PROC is not set
 
 #
+# Plug and Play configuration
+#
+# CONFIG_PNP is not set
+# CONFIG_ISAPNP is not set
+
+#
 # Block devices
 #
 # CONFIG_BLK_DEV_FD is not set
@@ -77,7 +83,6 @@ CONFIG_KMOD=y
 # Please see Documentation/ide.txt for help/info on IDE drives
 #
 # CONFIG_BLK_DEV_HD_ONLY is not set
-# CONFIG_BLK_CPQ_DA is not set
 
 #
 # Additional Block Devices
@@ -96,14 +101,17 @@ CONFIG_PARIDE_PARPORT=m
 # Networking options
 #
 CONFIG_PACKET=y
+# CONFIG_PACKET_MMAP is not set
 # CONFIG_NETLINK is not set
-# CONFIG_FIREWALL is not set
+# CONFIG_NETFILTER is not set
 # CONFIG_FILTER is not set
 CONFIG_UNIX=y
 CONFIG_INET=y
 # CONFIG_IP_MULTICAST is not set
 # CONFIG_IP_ADVANCED_ROUTER is not set
-# CONFIG_IP_PNP is not set
+CONFIG_IP_PNP=y
+CONFIG_IP_PNP_BOOTP=y
+# CONFIG_IP_PNP_RARP is not set
 # CONFIG_IP_ROUTER is not set
 # CONFIG_NET_IPIP is not set
 # CONFIG_NET_IPGRE is not set
@@ -113,9 +121,10 @@ CONFIG_INET=y
 #
 # (it is safe to leave these untouched)
 #
-# CONFIG_INET_RARP is not set
 # CONFIG_SKB_LARGE is not set
 # CONFIG_IPV6 is not set
+# CONFIG_KHTTPD is not set
+# CONFIG_ATM is not set
 
 #
 #  
@@ -131,7 +140,6 @@ CONFIG_INET=y
 # CONFIG_WAN_ROUTER is not set
 # CONFIG_NET_FASTROUTE is not set
 # CONFIG_NET_HW_FLOWCONTROL is not set
-# CONFIG_CPU_IS_SLOW is not set
 
 #
 # QoS and/or fair queueing
@@ -183,14 +191,12 @@ CONFIG_SERIAL=y
 # CONFIG_UNIX98_PTYS is not set
 # CONFIG_PRINTER is not set
 # CONFIG_PPDEV is not set
-CONFIG_MOUSE=y
 
 #
 # Mice
 #
-# CONFIG_ATIXL_BUSMOUSE is not set
 # CONFIG_BUSMOUSE is not set
-# CONFIG_MS_BUSMOUSE is not set
+CONFIG_MOUSE=y
 CONFIG_PSMOUSE=y
 # CONFIG_82C710_MOUSE is not set
 # CONFIG_PC110_PAD is not set
@@ -209,16 +215,24 @@ CONFIG_PSMOUSE=y
 #
 # CONFIG_JOYSTICK is not set
 # CONFIG_DTLK is not set
+# CONFIG_R3964 is not set
+# CONFIG_APPLICOM is not set
 
 #
 # Ftape, the floppy tape device driver
 #
 # CONFIG_FTAPE is not set
+# CONFIG_DRM is not set
 
 #
 # USB drivers - not for the faint of heart
 #
 # CONFIG_USB is not set
+
+#
+# Misc devices
+#
+# CONFIG_ACPI is not set
 
 #
 # Filesystems
@@ -235,6 +249,7 @@ CONFIG_AUTOFS_FS=y
 # CONFIG_EFS_FS is not set
 CONFIG_ISO9660_FS=y
 # CONFIG_JOLIET is not set
+# CONFIG_UDF_FS is not set
 # CONFIG_MINIX_FS is not set
 # CONFIG_NTFS_FS is not set
 # CONFIG_HPFS_FS is not set
@@ -250,6 +265,7 @@ CONFIG_EXT2_FS=y
 #
 # CONFIG_CODA_FS is not set
 CONFIG_NFS_FS=y
+CONFIG_ROOT_NFS=y
 CONFIG_NFSD=y
 # CONFIG_NFSD_SUN is not set
 CONFIG_SUNRPC=y
@@ -260,14 +276,13 @@ CONFIG_LOCKD=y
 #
 # Partition Types
 #
+# CONFIG_PARTITION_ADVANCED is not set
+CONFIG_MSDOS_PARTITION=y
 # CONFIG_BSD_DISKLABEL is not set
-# CONFIG_MAC_PARTITION is not set
-# CONFIG_OSF_PARTITION is not set
-# CONFIG_SMD_DISKLABEL is not set
 # CONFIG_SOLARIS_X86_PARTITION is not set
-CONFIG_SGI_DISKLABEL=y
-# CONFIG_ULTRIX_PARTITION is not set
 # CONFIG_UNIXWARE_DISKLABEL is not set
+CONFIG_SGI_PARTITION=y
+# CONFIG_SUN_PARTITION is not set
 # CONFIG_NLS is not set
 
 #
