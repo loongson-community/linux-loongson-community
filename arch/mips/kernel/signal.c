@@ -494,8 +494,6 @@ no_signal:
 	return 0;
 }
 
-extern int do_irix_signal(sigset_t *oldset, struct pt_regs *regs);
-
 /*
  * notification of userspace execution resumption
  * - triggered by current->work.notify_resume
@@ -512,7 +510,7 @@ asmlinkage void do_notify_resume(struct pt_regs *regs, sigset_t *oldset,
 		}
 #endif
 #ifdef CONFIG_BINFMT_IRIX
-		if (unlikely(current->personality != PER_LINUX) {
+		if (unlikely(current->personality) != PER_LINUX) {
 			do_irix_signal(oldset, regs);
 			return;
 		}
