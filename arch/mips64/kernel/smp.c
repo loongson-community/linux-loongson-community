@@ -68,6 +68,7 @@ void __init smp_boot_cpus(void)
 	init_idle();
 	smp_tune_scheduling();
 	smp_num_cpus = 1;		/* for now */
+	allowboot();
 }
 
 void __init smp_commence(void)

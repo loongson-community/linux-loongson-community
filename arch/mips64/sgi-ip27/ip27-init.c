@@ -187,6 +187,7 @@ void mlreset (void)
 	 */
 	CPUMASK_CLRALL(boot_cpumask);
 	maxcpus = cpu_node_probe(&boot_cpumask, &numnodes);
+	printk("Discovered %d cpus on %d nodes\n", maxcpus, numnodes);
 	initpdas();
 
 	gen_region_mask(&region_mask, numnodes);
@@ -278,11 +279,22 @@ void per_cpu_init(void)
 #endif
 }
 
+static atomic_t numstarted = ATOMIC_INIT(0);
+void cboot(void)
+{
+	atomic_inc(&numstarted);
+	/* printk("Child!\n"); */
+	while(1);
+}
+
+static long bootstacks[MAXCPUS][128];
+
 void allowboot(void)
 {
 	int		num_cpus = 0;
 	cpuid_t		cpu;
 	cnodeid_t	cnode;
+	extern void	bootstrap(void);
 
 	sn_mp_setup();
 	per_cpu_init();
@@ -310,9 +322,14 @@ void allowboot(void)
 		 	 * It doesn't take an argument, and we'll
 		 	 * take care of sp and gp when we get there.
 		 	 */
-			LAUNCH_SLAVE(cputonasid(cpu), cputoslice(cpu), 0, 0, 0, 0);
+			LAUNCH_SLAVE(cputonasid(cpu), cputoslice(cpu), 
+				(launch_proc_t)bootstrap, 0, bootstacks[cpu], 0);
 		}
 	}
+
+	/* while(atomic_read(&numstarted) != (maxcpus - num_cpus)) */
+	while(atomic_read(&numstarted) == 0);
+	printk("Holding %d cpus slave\n", atomic_read(&numstarted));
 
 #ifdef LATER
 	Wait logic goes here.
