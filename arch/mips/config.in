@@ -65,6 +65,7 @@ bool 'Support for ITE 8172G board' CONFIG_MIPS_ITE8172
        fi
        bool '    Enable Smart Card Reader 0 Support ' CONFIG_IT8172_SCR0
    fi
+bool 'Support for Alchemy Semi PB1000 board' CONFIG_MIPS_PB1000
 
 #
 # Select some configuration options automatically for certain systems.
@@ -176,6 +177,9 @@ if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
 fi
 if [ "$CONFIG_MIPS_IVR" = "y" ]; then
    define_bool CONFIG_PCI y
+fi
+if [ "$CONFIG_MIPS_PB1000" = "y" ]; then
+   define_bool CONFIG_MIPS_AU1000 y
 fi
 if [ "$CONFIG_NINO" = "y" ]; then
    define_bool CONFIG_PC_KEYB y
@@ -480,7 +484,7 @@ bool 'Are you using a crosscompiler' CONFIG_CROSSCOMPILE
 if [ "$CONFIG_MODULES" = "y" ]; then
    bool ' Build fp execption handler module' CONFIG_MIPS_FPE_MODULE
 fi
-if [ "$CONFIG_SERIAL" = "y" ]; then
+if [ "$CONFIG_SERIAL" = "y" -o "$CONFIG_AU1000_UART" = "y" ]; then
   bool 'Remote GDB kernel debugging' CONFIG_REMOTE_DEBUG
 fi
 if [ "$CONFIG_SERIAL" = "y" ]; then

@@ -341,6 +341,30 @@ static inline void cpu_probe(void)
 		}		
 		break;
 #endif
+	case PRID_COMP_ALCHEMY:
+		switch (mips_cpu.processor_id & 0xff00) {
+#ifdef CONFIG_CPU_MIPS32
+		case PRID_IMP_AU1000:
+			mips_cpu.cputype = CPU_AU1000;
+			mips_cpu.isa_level = MIPS_CPU_ISA_M32;
+			mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX | 
+					   MIPS_CPU_4KTLB | MIPS_CPU_COUNTER | 
+					   MIPS_CPU_DIVEC | MIPS_CPU_WATCH;
+			config1 = read_mips32_cp0_config1();
+			if (config1 & (1 << 3))
+				mips_cpu.options |= MIPS_CPU_WATCH;
+			if (config1 & (1 << 2))
+				mips_cpu.options |= MIPS_CPU_MIPS16;
+			if (config1 & 1)
+				mips_cpu.options |= MIPS_CPU_FPU;
+			mips_cpu.scache.flags = MIPS_CACHE_NOT_PRESENT;
+			break;
+#endif
+		default:
+			mips_cpu.cputype = CPU_UNKNOWN;
+			break;
+		}
+		break;
 	case PRID_COMP_SIBYTE:
 		switch (mips_cpu.processor_id & 0xff00) {
 		case PRID_IMP_SB1:
@@ -594,6 +618,11 @@ void __init setup_arch(char **cmdline_p)
 #ifdef CONFIG_NINO
 	case MACH_GROUP_PHILIPS:
 		nino_setup();
+		break;
+#endif
+#ifdef CONFIG_MIPS_PB1000
+	case MACH_GROUP_ALCHEMY:
+		au1000_setup();
 		break;
 #endif
 	default:

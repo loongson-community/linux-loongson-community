@@ -44,12 +44,17 @@ int get_cpuinfo(char *buffer)
 	const char *mach_momenco_names[] = GROUP_MOMENCO_NAMES;
  	const char *mach_ite_names[] = GROUP_ITE_NAMES;
 	const char *mach_philips_names[] = GROUP_PHILIPS_NAMES;
+ 	const char *mach_globespan_names[] = GROUP_GLOBESPAN_NAMES;
+	const char *mach_sibyte_names[] = GROUP_SIBYTE_NAMES;
+	const char *mach_toshiba_names[] = GROUP_TOSHIBA_NAMES;
+	const char *mach_alchemy_names[] = GROUP_ALCHEMY_NAMES;
 	const char **mach_group_to_name[] = { mach_unknown_names,
 		mach_jazz_names, mach_dec_names, mach_arc_names,
 		mach_sni_rm_names, mach_acn_names, mach_sgi_names,
 		mach_cobalt_names, mach_nec_ddb_names, mach_baget_names,
 		mach_cosine_names, mach_galileo_names, mach_momenco_names, 
-		mach_ite_names, mach_philips_names};
+		mach_ite_names, mach_philips_names, mach_globespan_names,
+		mach_sibyte_names, mach_toshiba_names, mach_alchemy_names};
 	unsigned int version = read_32bit_cp0_register(CP0_PRID);
 	int len;
 

@@ -233,6 +233,15 @@ LOADADDR      += 0x80100000
 endif
 
 #
+# Au1000 eval board
+#
+ifdef CONFIG_MIPS_PB1000
+LIBS          += arch/mips/au1000/pb1000/pb1000.o arch/mips/au1000/common/au1000.o
+SUBDIRS       += arch/mips/au1000/pb1000 arch/mips/au1000/common
+LOADADDR      += 0x80100000
+endif
+
+#
 # Choosing incompatible machines durings configuration will result in
 # error messages during linking.  Select a default linkscript if
 # none has been choosen above.

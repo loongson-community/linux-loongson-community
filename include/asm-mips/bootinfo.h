@@ -30,10 +30,11 @@
 #define MACH_GROUP_GLOBESPAN   15 /* Globespan PVR Referrence Board           */
 #define MACH_GROUP_SIBYTE      16 /* Sibyte Eval Boards                       */
 #define MACH_GROUP_TOSHIBA     17 /* Toshiba Reference Systems TSBREF         */
+#define MACH_GROUP_ALCHEMY     18 /* Alchemy Semi Eval Boards*/
 
 #define GROUP_NAMES { "unknown", "Jazz", "Digital", "ARC", "SNI", "ACN",      \
 	"SGI", "Cobalt", "NEC DDB", "Baget", "Cosine", "Galileo", "Momentum", \
-	"ITE", "Philips", "Globepspan", "SiByte", "Toshiba" }
+	"ITE", "Philips", "Globepspan", "SiByte", "Toshiba", "Alchemy" }
 
 /*
  * Valid machtype values for group unknown (low order halfword of mips_machtype)
@@ -186,6 +187,13 @@
 #define GROUP_TOSHIBA_NAMES { "Pallas", "TopasCE", "JMR" }
 
 /*
+ * Valid machtype for group Alchemy
+ */
+#define MACH_PB1000	0	         /* Au1000-based eval board */
+ 
+#define GROUP_ALCHEMY_NAMES { "PB1000" } /* the actual board name */
+
+/*
  * Valid cputype values
  */
 #define CPU_UNKNOWN		0
@@ -225,14 +233,15 @@
 #define CPU_TX3912		34
 #define CPU_TX3922		35
 #define CPU_TX3927		36
-#define CPU_LAST		36
+#define CPU_AU1000              37
+#define CPU_LAST		37
 
 #define CPU_NAMES { "unknown", "R2000", "R3000", "R3000A", "R3041", "R3051", \
         "R3052", "R3081", "R3081E", "R4000PC", "R4000SC", "R4000MC",         \
         "R4200", "R4400PC", "R4400SC", "R4400MC", "R4600", "R6000",          \
         "R6000A", "R8000", "R10000", "R4300", "R4650", "R4700", "R5000",     \
         "R5000A", "R4640", "Nevada", "RM7000", "R5432", "MIPS 4Kc",          \
-        "MIPS 5Kc", "R4310", "SiByte SB1", "TX3912", "TX3922", "TX3927" }
+        "MIPS 5Kc", "R4310", "SiByte SB1", "TX3912", "TX3922", "TX3927", "Au1000" }
 
 #define COMMAND_LINE_SIZE	256
 

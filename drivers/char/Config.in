@@ -61,6 +61,10 @@ if [ "$CONFIG_SERIAL_NONSTANDARD" = "y" ]; then
    fi
    bool '  TMPTX3912/PR31700 serial port support' CONFIG_SERIAL_TX3912
    dep_bool '     Console on TMPTX3912/PR31700 serial port' CONFIG_SERIAL_TX3912_CONSOLE $CONFIG_SERIAL_TX3912
+   bool '  Enable Au1000 UART Support' CONFIG_AU1000_UART
+     if [ "$CONFIG_AU1000_UART" = "y" ]; then
+         bool '        Enable Au1000 serial console' CONFIG_AU1000_SERIAL_CONSOLE
+     fi
 fi
 if [ "$CONFIG_IT8712" = "y" ]; then
    bool 'Enable Qtronix 990P Keyboard Support' CONFIG_QTRONIX_KEYBOARD
