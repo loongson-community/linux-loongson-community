@@ -16,10 +16,15 @@
 
 /* #define DEBUG_SGIMC */
 
+#ifdef DEBUG_SGIMC
+extern void prom_printf(char *fmt, ...);
+#endif
+
 struct sgimc_misc_ctrl *mcmisc_regs;
 struct sgimc_dma_ctrl *dmactrlregs;
 u32 *rpsscounter;
 
+#ifdef DEBUG_SGIMC
 static inline char *mconfig_string(unsigned long val)
 {
 	switch(val & SGIMC_MCONFIG_RMASK) {
@@ -45,6 +50,7 @@ static inline char *mconfig_string(unsigned long val)
 		return "wheee, unknown";
 	}
 }
+#endif
 
 void __init sgimc_init(void)
 {
