@@ -1,18 +1,11 @@
 /*
  * Copyright (C) 1991, 1992, 1995  Linus Torvalds
  * Copyright (C) 1996 - 2000  Ralf Baechle
+ * Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips
+ * Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
  *
- * This file contains the time handling details for PC-style clocks as
- * found in some MIPS systems.
+ * Don't use.  Deprecated.  Dead meat.
  */
-/**************************************************************************
- *  9 Nov, 2000.
- *  Changed init_cycle_counter() routine, use the mips_cpu structure.
- *
- *  Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips
- *  Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
- *************************************************************************/
-
 #include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/init.h>
