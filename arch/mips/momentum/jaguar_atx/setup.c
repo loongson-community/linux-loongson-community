@@ -46,6 +46,7 @@
 #include <linux/types.h>
 #include <linux/mm.h>
 #include <linux/bootmem.h>
+#include <linux/module.h>
 #include <linux/pci.h>
 #include <linux/swap.h>
 #include <linux/ioport.h>
@@ -128,6 +129,8 @@ unsigned long marvell_base	= 0xf4000000L;
 unsigned long ja_fpga_base	= JAGUAR_ATX_CS0_ADDR;
 unsigned long uart_base		= 0xfd000000L;
 static unsigned char *rtc_base	= (unsigned char*) 0xfc800000L;
+
+EXPORT_SYMBOL(marvell_base);
 
 static __init int per_cpu_mappings(void)
 {
