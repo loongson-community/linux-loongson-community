@@ -163,7 +163,7 @@ load-$(CONFIG_SGI_IP32)		+= 0x80002000
 # removed (as happens, even if they have __initcall/module_init)
 #
 core-$(CONFIG_SIBYTE_SB1250)	+= arch/mips/sibyte/sb1250/
-ifdefCONFIG_SIBYTE_BCM112X
+ifdef CONFIG_SIBYTE_BCM112X
 ifdef CONFIG_MIPS_UNCACHED
 load-y	+= 0xa0100000
 else
@@ -175,7 +175,6 @@ ifdef CONFIG_MIPS_UNCACHED
 load-y	+= 0xa0100000
 else
 load-y	+= 0x80100000
-endif
 endif
 endif
 
