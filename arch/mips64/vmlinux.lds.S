@@ -1,6 +1,8 @@
+#undef mips		/* CPP really sucks for this job  */
+#define mips mips
 OUTPUT_ARCH(mips)
 ENTRY(kernel_entry)
-jiffies = JIFFIES32;
+jiffies = jiffies_64;
 SECTIONS
 {
 #ifdef CONFIG_BOOT_ELF64
