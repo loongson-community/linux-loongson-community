@@ -60,4 +60,4 @@ void __update_cache(struct vm_area_struct *vma, unsigned long address,
 	}
 }
 
-EXPORT(flush_dcache_page);
+EXPORT_SYMBOL(flush_dcache_page);
