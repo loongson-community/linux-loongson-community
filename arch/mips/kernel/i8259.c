@@ -69,9 +69,8 @@ static struct hw_interrupt_type i8259A_irq_type = {
  */
 static unsigned int cached_irq_mask = 0xffff;
 
-#define __byte(x,y) 	(((unsigned char *)&(y))[x])
-#define cached_21	(__byte(0,cached_irq_mask))
-#define cached_A1	(__byte(1,cached_irq_mask))
+#define cached_21	(cached_irq_mask)
+#define cached_A1	(cached_irq_mask >> 8)
 
 void disable_8259A_irq(unsigned int irq)
 {
