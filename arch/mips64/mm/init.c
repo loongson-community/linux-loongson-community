@@ -32,9 +32,6 @@
 #include <asm/system.h>
 #include <asm/pgtable.h>
 #include <asm/pgalloc.h>
-#ifdef CONFIG_SGI_IP22
-#include <asm/sgialib.h>
-#endif
 #include <asm/mmu_context.h>
 #include <asm/tlb.h>
 

@@ -15,7 +15,6 @@
 #include <asm/pgtable.h>
 #include <asm/r10kcache.h>
 #include <asm/system.h>
-#include <asm/sgialib.h>
 #include <asm/mmu_context.h>
 
 static int scache_lsz64;
