@@ -579,10 +579,14 @@ static void __init probe_icache(unsigned long config)
 	ic_lsize = 16 << ((config >> 5) & 1);
 
 	/*
-	 * Processor configuration sanity check for the R4000PC and SC V2.2
-	 * erratum #2 ...
+	 * Processor configuration sanity check for the R4000SC V2.2
+	 * erratum #5.  With pagesizes larger than 32kb there is no possibility
+	 * to get a VCE exception anymore so we don't care about this
+	 * missconfiguration.  The case is rather theoretical anway; presumably
+	 * no vendor is shipping his hardware in the "bad" configuration.
 	 */
-	if (read_c0_prid() == 0x0422 && ic_lsize != 16)
+	if (PAGE_SIZE <= 0x8000 && read_c0_prid() == 0x0422 &&
+	    (read_c0_config() & CONF_SC) && ic_lsize != 16)
 		panic("Impropper processor configuration detected");
 
 	printk("Primary instruction cache %ldK, linesize %ld bytes.\n",
