@@ -251,7 +251,7 @@ config SERIAL_DEC_CONSOLE
 
 config DZ
 	bool "DZ11 Serial Support"
-	depends on SERIAL_DEC
+	depends on SERIAL_DEC && MIPS32
 	help
 	  DZ11-family serial controllers for VAXstations, including the
 	  DC7085, M7814, and M7819.

@@ -53,7 +53,7 @@ config MIPS_COBALT
 
 config DECSTATION
 	bool "Support for DECstations"
-	depends on MIPS32
+	depends on MIPS32 || EXPERIMENTAL
 	---help---
 	  This enables support for DEC's MIPS based workstations.  For details
 	  see the Linux/MIPS FAQ on <http://oss.sgi.com/mips/> and the
@@ -593,11 +593,12 @@ config IT8712
 
 config BOOT_ELF32
 	bool
-	depends on MIPS_ATLAS || MIPS_MALTA || SIBYTE_SB1250 || SGI_IP32 || SGI_IP22 || SNI_RM200_PCI
+	depends on DECSTATION || MIPS_ATLAS || MIPS_MALTA || SIBYTE_SB1250 || SGI_IP32 || SGI_IP22 || SNI_RM200_PCI
 	default y
 
 config L1_CACHE_SHIFT
 	int
+	default "4" if DECSTATION
 	default "5" if SGI_IP32 || SGI_IP22 || MIPS_SEAD || MIPS_MALTA || MIPS_ATLAS
 	default "7" if SGI_IP27
 

@@ -89,6 +89,16 @@ libs-$(CONFIG_SIBYTE_CFE)	+= arch/mips/sibyte/cfe/
 #
 
 #
+# DECstation family
+#
+ifdef CONFIG_DECSTATION
+CORE_FILES	+= arch/mips/dec/dec.o
+SUBDIRS		+= arch/mips/dec arch/mips/dec/prom
+LIBS		+= arch/mips/dec/prom/rexlib.a
+LOADADDR	:= 0x80040000
+endif
+
+#
 # MIPS Atlas board
 #
 core-$(CONFIG_MIPS_BOARDS_GEN)	+= arch/mips/mips-boards/generic/

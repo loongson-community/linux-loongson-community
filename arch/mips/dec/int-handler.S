@@ -132,19 +132,23 @@
 		 */
 		mfc0	t0,CP0_CAUSE		# get pending interrupts
 		mfc0	t1,CP0_STATUS
+#ifdef CONFIG_MIPS32
 		lw	t2,cpu_fpu_mask
+#endif
 		andi	t0,ST0_IM		# CAUSE.CE may be non-zero!
 		and	t0,t1			# isolate allowed ones
 
 		beqz	t0,spurious
 
+#ifdef CONFIG_MIPS32
 		 and	t2,t0
 		bnez	t2,fpu			# handle FPU immediately
+#endif
 
 		/*
 		 * Find irq with highest priority
 		 */
-		 la	t1,cpu_mask_nr_tbl
+		 PTR_LA	t1,cpu_mask_nr_tbl
 1:		lw	t2,(t1)
 		nop
 		and	t2,t0
@@ -161,14 +165,16 @@
 		 nop
 		jr	a0
 						# a trick to save a branch:
-		 lui	t2,KN03_IOASIC_BASE>>16	# upper part of IOASIC Address
+		 lui	t2,(KN03_IOASIC_BASE>>16)&0xffff
+						# upper part of IOASIC Address
 
 /*
  * Handle "IRQ Controller" Interrupts
  * Masked Interrupts are still visible and have to be masked "by hand".
  */
 		FEXPORT(kn02_io_int)		# 3max
-		lui	t0,KN02_CSR_ADDR>>16	# get interrupt status and mask
+		lui	t0,(KN02_CSR_ADDR>>16)&0xffff
+						# get interrupt status and mask
 		lw	t0,(t0)
 		nop
 		andi	t1,t0,KN02_IRQ_ALL
@@ -176,7 +182,8 @@
 		 srl	t0,16			# shift interrupt mask
 
 		FEXPORT(kn02xa_io_int)		# 3min/maxine
-		lui	t2,KN02XA_IOASIC_BASE>>16 # upper part of IOASIC Address
+		lui	t2,(KN02XA_IOASIC_BASE>>16)&0xffff
+						# upper part of IOASIC Address
 
 		FEXPORT(kn03_io_int)		# 3max+ (t2 loaded earlier)
 		lw	t0,SIR(t2)		# get status: IOASIC isr
@@ -190,7 +197,7 @@
 		/*
 		 * Find irq with highest priority
 		 */
-		 la	t1,asic_mask_nr_tbl
+		 PTR_LA	t1,asic_mask_nr_tbl
 2:		lw	t2,(t1)
 		nop
 		and	t2,t0
@@ -263,9 +270,11 @@ handle_it:
 		j	ret_from_irq
 		 nop
 
+#ifdef CONFIG_MIPS32
 fpu:
 		j	handle_fpe_int
 		 nop
+#endif
 
 spurious:
 		j	spurious_interrupt

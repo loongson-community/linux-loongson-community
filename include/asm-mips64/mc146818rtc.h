@@ -6,9 +6,12 @@
  * Machine dependent access functions for RTC registers.
  *
  * Copyright (C) 1996, 1997, 1998 Ralf Baechle
+ * Copyright (C) 2002  Maciej W. Rozycki
  */
 #ifndef _ASM_MC146818RTC_H
 #define _ASM_MC146818RTC_H
+
+#include <linux/config.h>
 
 #include <asm/io.h>
 
@@ -27,8 +30,11 @@ struct rtc_ops {
 extern struct rtc_ops *rtc_ops;
 
 /*
- * The yet supported machines all access the RTC index register via
- * an ISA port access but the way to access the date register differs ...
+ * Most supported machines access the RTC index register via an ISA
+ * port access but the way to access the date register differs ...
+ * The DECstation directly maps the RTC memory in the CPU's address
+ * space with the chipset generating necessary index write/data access
+ * cycles automagically.
  */
 #define CMOS_READ(addr) ({ \
 rtc_ops->rtc_read_data(addr); \
@@ -40,7 +46,15 @@ rtc_ops->rtc_write_data(val, addr); \
 rtc_ops->rtc_bcd_mode()
 
 
+#ifdef CONFIG_DECSTATION
+
+#include <asm/dec/rtc-dec.h>
+
+#else
+
 #define RTC_PORT(x)	(0x70 + (x))
 #define RTC_IRQ		8
+
+#endif
 
 #endif /* _ASM_MC146818RTC_H */

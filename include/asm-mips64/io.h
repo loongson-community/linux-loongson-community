@@ -15,6 +15,10 @@
 #include <asm/page.h>
 #include <asm/byteorder.h>
 
+#ifdef CONFIG_DECSTATION
+#include <asm/dec/io.h>
+#endif
+
 #ifdef CONFIG_MIPS_ATLAS
 #include <asm/mips-boards/io.h>
 #endif

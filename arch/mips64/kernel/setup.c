@@ -421,12 +421,16 @@ static inline void resource_init(void)
 
 void __init setup_arch(char **cmdline_p)
 {
+	extern void decstation_setup(void);
 	extern void ip22_setup(void);
 	extern void ip27_setup(void);
 	extern void ip32_setup(void);
 	extern void swarm_setup(void);
 	extern void malta_setup(void);
 
+#ifdef CONFIG_DECSTATION
+	decstation_setup();
+#endif
 #ifdef CONFIG_SGI_IP22
 	ip22_setup();
 #endif

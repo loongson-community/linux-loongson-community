@@ -186,7 +186,7 @@ config SCSI_DECNCR
 
 config SCSI_DECSII
 	tristate "DEC SII Scsi Driver"
-	depends on DECSTATION && SCSI
+	depends on DECSTATION && SCSI && MIPS32
 
 config BLK_DEV_3W_XXXX_RAID
 	tristate "3ware Hardware ATA-RAID support"
