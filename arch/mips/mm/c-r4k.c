@@ -963,13 +963,11 @@ static int __init probe_scache(void)
 	extern unsigned long stext;
 	unsigned long flags, addr, begin, end, pow2;
 	unsigned int config = read_c0_config();
-	struct cpuinfo_mips *c;
+	struct cpuinfo_mips *c = &current_cpu_data;
 	int tmp;
 
 	if (config & CONF_SC)
 		return 0;
-
-	current_cpu_data.scache.linesz = 16 << ((config & R4K_CONF_SB) >> 22);
 
 	begin = (unsigned long) &stext;
 	begin &= ~((4 * 1024 * 1024) - 1);
@@ -1012,6 +1010,9 @@ static int __init probe_scache(void)
 
 	c = &current_cpu_data;
 	scache_size = addr;
+	c->scache.linesz = 16 << ((config & R4K_CONF_SB) >> 22);
+	c->scache.ways = 1;
+	c->dcache.waybit = 0;		/* does not matter */
 
 	return 1;
 }
