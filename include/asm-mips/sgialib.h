@@ -29,9 +29,6 @@ extern int prom_flags;
 #define PROM_FLAG_USE_AS_CONSOLE	2
 #define PROM_FLAG_DONT_FREE_TEMP	4
 
-/* Init the PROM library and it's internal data structures. */
-extern void prom_init(int argc, char **argv, char **envp, int *prom_vec);
-
 /* Simple char-by-char console I/O. */
 extern void prom_putchar(char c);
 extern char prom_getchar(void);
