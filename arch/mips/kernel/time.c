@@ -31,9 +31,14 @@
 #include <asm/sections.h>
 #include <asm/time.h>
 
-/* This is for machines which generate the exact clock. */
-#define USECS_PER_JIFFY (1000000/HZ)
-#define USECS_PER_JIFFY_FRAC ((u32)((1000000ULL << 32) / HZ))
+/*
+ * The integer part of the number of usecs per jiffy is taken from tick,
+ * but the fractional part is not recorded, so we calculate it using the
+ * initial value of HZ.  This aids systems where tick isn't really an
+ * integer (e.g. for HZ = 128).
+ */
+#define USECS_PER_JIFFY		TICK_SIZE
+#define USECS_PER_JIFFY_FRAC	((unsigned long)(u32)((1000000ULL << 32) / HZ))
 
 #define TICK_SIZE	(tick_nsec / 1000)
 
@@ -51,6 +56,7 @@ spinlock_t rtc_lock = SPIN_LOCK_UNLOCKED;
  */
 int emulate_local_timer_interrupt;
 
+
 /*
  * By default we provide the null RTC ops
  */
@@ -67,6 +73,84 @@ static int null_rtc_set_time(unsigned long sec)
 unsigned long (*rtc_get_time)(void) = null_rtc_get_time;
 int (*rtc_set_time)(unsigned long) = null_rtc_set_time;
 int (*rtc_set_mmss)(unsigned long);
+
+
+/* usecs per counter cycle, shifted to left by 32 bits */
+static unsigned int sll32_usecs_per_cycle;
+
+/* how many counter cycles in a jiffy */
+static unsigned long cycles_per_jiffy;
+
+/* Cycle counter value at the previous timer interrupt.. */
+static unsigned int timerhi, timerlo;
+
+/* expirelo is the count value for next CPU timer interrupt */
+static unsigned int expirelo;
+
+
+/*
+ * Null timer ack for systems not needing one (e.g. i8254).
+ */
+static void null_timer_ack(void) { /* nothing */ }
+
+/*
+ * Null high precision timer functions for systems lacking one.
+ */
+static unsigned int null_hpt_read(void)
+{
+	return 0;
+}
+
+static void null_hpt_init(unsigned int count) { /* nothing */ }
+
+
+/*
+ * Timer ack for a R4k-compatible timer of a known frequency.
+ */
+static void c0_fixed_timer_ack(void)
+{
+	unsigned int count;
+
+	/* Ack this timer interrupt and set the next one.  */
+	expirelo += cycles_per_jiffy;
+	write_c0_compare(expirelo);
+
+	/* Check to see if we have missed any timer interrupts.  */
+	count = read_c0_count();
+	if ((count - expirelo) < 0x7fffffff) {
+		/* missed_timer_count++; */
+		expirelo = count + cycles_per_jiffy;
+		write_c0_compare(expirelo);
+	}
+}
+
+/*
+ * High precision timer functions for a R4k-compatible timer.
+ */
+static unsigned int c0_hpt_read(void)
+{
+	return read_c0_count();
+}
+
+/* For unknown frequency.  */
+static void c0_hpt_init(unsigned int count)
+{
+	write_c0_count(read_c0_count() - count);
+}
+
+/* For a known frequency.  Used as an interrupt source.  */
+static void c0_fixed_hpt_init(unsigned int count)
+{
+	expirelo = cycles_per_jiffy;
+	count = read_c0_count() - count;
+	write_c0_count(0);
+	write_c0_compare(cycles_per_jiffy);
+	write_c0_count(count);
+}
+
+void (*mips_timer_ack)(void);
+unsigned int (*mips_hpt_read)(void);
+void (*mips_hpt_init)(unsigned int);
 
 
 /*
@@ -140,42 +224,28 @@ int do_settimeofday(struct timespec *tv)
  * If the exact CPU counter frequency is known, use fixed_rate_gettimeoffset.
  * Otherwise use calibrate_gettimeoffset()
  *
- * If the CPU does not have counter register all, you can either supply
- * your own gettimeoffset() routine, or use null_gettimeoffset() routines,
- * which gives the same resolution as HZ.
+ * If the CPU does not have the counter register, you can either supply
+ * your own gettimeoffset() routine, or use null_gettimeoffset(), which
+ * gives the same resolution as HZ.
  */
 
-
-/* usecs per counter cycle, shifted to left by 32 bits */
-static unsigned int sll32_usecs_per_cycle;
-
-/* how many counter cycles in a jiffy */
-static unsigned long cycles_per_jiffy;
-
-/* Cycle counter value at the previous timer interrupt.. */
-static unsigned int timerhi, timerlo;
-
-/* expirelo is the count value for next CPU timer interrupt */
-static unsigned int expirelo;
-
-/* last time when xtime and rtc are sync'ed up */
-static long last_rtc_update;
-
-/* the function pointer to one of the gettimeoffset funcs*/
-unsigned long (*do_gettimeoffset)(void) = null_gettimeoffset;
-
-unsigned long null_gettimeoffset(void)
+static unsigned long null_gettimeoffset(void)
 {
 	return 0;
 }
 
-unsigned long fixed_rate_gettimeoffset(void)
+
+/* The function pointer to one of the gettimeoffset funcs.  */
+unsigned long (*do_gettimeoffset)(void) = null_gettimeoffset;
+
+
+static unsigned long fixed_rate_gettimeoffset(void)
 {
 	u32 count;
 	unsigned long res;
 
 	/* Get last timer tick in absolute kernel time */
-	count = read_c0_count();
+	count = mips_hpt_read();
 
 	/* .. relative to previous jiffy (32 bits is enough) */
 	count -= timerlo;
@@ -195,6 +265,7 @@ unsigned long fixed_rate_gettimeoffset(void)
 	return res;
 }
 
+
 /*
  * Cached "1/(clocks per usec) * 2^32" value.
  * It has to be recalculated once each jiffy.
@@ -204,11 +275,10 @@ static unsigned long cached_quotient;
 /* Last jiffy when calibrate_divXX_gettimeoffset() was called. */
 static unsigned long last_jiffies;
 
-
 /*
- * This is copied from dec/time.c:do_ioasic_gettimeoffset() by Maciej.
+ * This is moved from dec/time.c:do_ioasic_gettimeoffset() by Maciej.
  */
-unsigned long calibrate_div32_gettimeoffset(void)
+static unsigned long calibrate_div32_gettimeoffset(void)
 {
 	u32 count;
 	unsigned long res, tmp;
@@ -230,7 +300,7 @@ unsigned long calibrate_div32_gettimeoffset(void)
 	}
 
 	/* Get last timer tick in absolute kernel time */
-	count = read_c0_count();
+	count = mips_hpt_read();
 
 	/* .. relative to previous jiffy (32 bits is enough) */
 	count -= timerlo;
@@ -250,7 +320,7 @@ unsigned long calibrate_div32_gettimeoffset(void)
 	return res;
 }
 
-unsigned long calibrate_div64_gettimeoffset(void)
+static unsigned long calibrate_div64_gettimeoffset(void)
 {
 	u32 count;
 	unsigned long res, tmp;
@@ -260,30 +330,33 @@ unsigned long calibrate_div64_gettimeoffset(void)
 
 	quotient = cached_quotient;
 
-	if (tmp && last_jiffies != tmp) {
+	if (last_jiffies != tmp) {
 		last_jiffies = tmp;
-		__asm__(".set	push\n\t"
-			".set	noreorder\n\t"
-			".set	noat\n\t"
-			".set	mips3\n\t"
-			"lwu	%0,%2\n\t"
-			"dsll32	$1,%1,0\n\t"
-			"or	$1,$1,%0\n\t"
-			"ddivu	$0,$1,%3\n\t"
-			"mflo	$1\n\t"
-			"dsll32	%0,%4,0\n\t"
-			"nop\n\t"
-			"ddivu	$0,%0,$1\n\t"
-			"mflo	%0\n\t"
-			".set	pop"
-			: "=&r" (quotient)
-			: "r" (timerhi), "m" (timerlo),
-			  "r" (tmp), "r" (USECS_PER_JIFFY));
-		cached_quotient = quotient;
+		if (last_jiffies) {
+			unsigned long r0;
+			__asm__(".set	push\n\t"
+				".set	mips3\n\t"
+				"lwu	%0,%3\n\t"
+				"dsll32	%1,%2,0\n\t"
+				"or	%1,%1,%0\n\t"
+				"ddivu	$0,%1,%4\n\t"
+				"dsll32	%0,%5,0\n\t"
+				"or	%0,%0,%6\n\t"
+				"mflo	%1\n\t"
+				"ddivu	$0,%0,%1\n\t"
+				"mflo	%0\n\t"
+				".set	pop"
+				: "=&r" (quotient), "=&r" (r0)
+				: "r" (timerhi), "m" (timerlo),
+				  "r" (tmp), "r" (USECS_PER_JIFFY),
+				  "r" (USECS_PER_JIFFY_FRAC)
+				: "hi", "lo", "accum");
+			cached_quotient = quotient;
+		}
 	}
 
 	/* Get last timer tick in absolute kernel time */
-	count = read_c0_count();
+	count = mips_hpt_read();
 
 	/* .. relative to previous jiffy (32 bits is enough) */
 	count -= timerlo;
@@ -303,6 +376,9 @@ unsigned long calibrate_div64_gettimeoffset(void)
 	return res;
 }
 
+
+/* last time when xtime and rtc are sync'ed up */
+static long last_rtc_update;
 
 /*
  * local_timer_interrupt() does profiling and process accounting
@@ -340,30 +416,19 @@ void local_timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 }
 
 /*
- * high-level timer interrupt service routines.  This function
+ * High-level timer interrupt service routines.  This function
  * is set as irqaction->handler and is invoked through do_IRQ.
  */
 irqreturn_t timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
-	if (cpu_has_counter) {
-		unsigned int count;
+	unsigned int count;
 
-		/* ack timer interrupt, and try to set next interrupt */
-		expirelo += cycles_per_jiffy;
-		write_c0_compare(expirelo);
-		count = read_c0_count();
+	count = mips_hpt_read();
+	mips_timer_ack();
 
-		/* check to see if we have missed any timer interrupts */
-		if ((count - expirelo) < 0x7fffffff) {
-			/* missed_timer_count++; */
-			expirelo = count + cycles_per_jiffy;
-			write_c0_compare(expirelo);
-		}
-
-		/* Update timerhi/timerlo for intra-jiffy calibration. */
-		timerhi += count < timerlo;	/* Wrap around */
-		timerlo = count;
-	}
+	/* Update timerhi/timerlo for intra-jiffy calibration. */
+	timerhi += count < timerlo;			/* Wrap around */
+	timerlo = count;
 
 	/*
 	 * call the generic timer interrupt handling
@@ -390,12 +455,13 @@ irqreturn_t timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	write_sequnlock(&xtime_lock);
 
 	/*
-	 * If jiffies has overflowed in this timer_interrupt we must
+	 * If jiffies has overflown in this timer_interrupt, we must
 	 * update the timer[hi]/[lo] to make fast gettimeoffset funcs
 	 * quotient calc still valid. -arca
 	 */
 	if (!jiffies) {
 		timerhi = timerlo = 0;
+		mips_hpt_init(count);
 	}
 
 #if !defined(CONFIG_SMP)
@@ -490,50 +556,70 @@ void __init time_init(void)
 	set_normalized_timespec(&wall_to_monotonic,
 	                        -xtime.tv_sec, -xtime.tv_nsec);
 
-	/* choose appropriate gettimeoffset routine */
-	if (!cpu_has_counter) {
-		/* no cpu counter - sorry */
-		do_gettimeoffset = null_gettimeoffset;
-	} else if (mips_counter_frequency != 0) {
-		/* we have cpu counter and know counter frequency! */
-		do_gettimeoffset = fixed_rate_gettimeoffset;
-	} else if ((current_cpu_data.isa_level == MIPS_CPU_ISA_M32) ||
-		   (current_cpu_data.isa_level == MIPS_CPU_ISA_I) ||
-		   (current_cpu_data.isa_level == MIPS_CPU_ISA_II) ) {
-		/* we need to calibrate the counter but we don't have
-		 * 64-bit division. */
-		do_gettimeoffset = calibrate_div32_gettimeoffset;
-	} else {
-		/* we need to calibrate the counter but we *do* have
-		 * 64-bit division. */
-		do_gettimeoffset = calibrate_div64_gettimeoffset;
-	}
+	/* Choose appropriate high precision timer routines.  */
+	if (!cpu_has_counter && !mips_hpt_read) {
+		/* No high precision timer -- sorry.  */
+		mips_hpt_read = null_hpt_read;
+		mips_hpt_init = null_hpt_init;
+	} else if (!mips_counter_frequency) {
+		/* A high precision timer of unknown frequency.  */
+		if (!mips_hpt_read) {
+			/* No external high precision timer -- use R4k.  */
+			mips_hpt_read = c0_hpt_read;
+			mips_hpt_init = c0_hpt_init;
+		}
 
-	/* caclulate cache parameters */
-	if (mips_counter_frequency) {
+		if ((current_cpu_data.isa_level == MIPS_CPU_ISA_M32) ||
+			 (current_cpu_data.isa_level == MIPS_CPU_ISA_I) ||
+			 (current_cpu_data.isa_level == MIPS_CPU_ISA_II))
+			/*
+			 * We need to calibrate the counter but we don't have
+			 * 64-bit division.
+			 */
+			do_gettimeoffset = calibrate_div32_gettimeoffset;
+		else
+			/*
+			 * We need to calibrate the counter but we *do* have
+			 * 64-bit division.
+			 */
+			do_gettimeoffset = calibrate_div64_gettimeoffset;
+	} else {
+		/* We know counter frequency! */
+		if (!mips_hpt_read) {
+			/* No external high precision timer -- use R4k.  */
+			mips_hpt_read = c0_hpt_read;
+			mips_hpt_init = c0_fixed_hpt_init;
+
+			if (!mips_timer_ack)
+				/* R4k timer interrupt ack.  */
+				mips_timer_ack = c0_fixed_timer_ack;
+		}
+
+		do_gettimeoffset = fixed_rate_gettimeoffset;
+
+		/* Calculate cache parameters.  */
 		cycles_per_jiffy = mips_counter_frequency / HZ;
 
-		/* sll32_usecs_per_cycle = 10^6 * 2^32 / mips_counter_freq */
-		/* any better way to do this? */
+		/* sll32_usecs_per_cycle = 10^6 * 2^32 / mips_counter_freq  */
+		/* Any better way to do this?  */
 		sll32_usecs_per_cycle = mips_counter_frequency / 100000;
 		sll32_usecs_per_cycle = 0xffffffff / sll32_usecs_per_cycle;
 		sll32_usecs_per_cycle *= 10;
-
-		/*
-		 * For those using cpu counter as timer,  this sets up the
-		 * first interrupt
-		 */
-		write_c0_compare(cycles_per_jiffy);
-		write_c0_count(0);
-		expirelo = cycles_per_jiffy;
 	}
+
+	if (!mips_timer_ack)
+		/* No timer interrupt ack (e.g. i8254).  */
+		mips_timer_ack = null_timer_ack;
+
+	/* This sets up the high precision timer for the first interrupt.  */
+	mips_hpt_init(mips_hpt_read());
 
 	/*
 	 * Call board specific timer interrupt setup.
 	 *
 	 * this pointer must be setup in machine setup routine.
 	 *
-	 * Even if the machine choose to use low-level timer interrupt,
+	 * Even if a machine chooses to use a low-level timer interrupt,
 	 * it still needs to setup the timer_irqaction.
 	 * In that case, it might be better to set timer_irqaction.handler
 	 * to be NULL function so that we are sure the high-level code

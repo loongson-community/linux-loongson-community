@@ -33,6 +33,19 @@ extern int (*rtc_set_time)(unsigned long);
 extern int (*rtc_set_mmss)(unsigned long);
 
 /*
+ * Timer interrupt ack function.
+ * May be NULL if the interrupt is self-recoverable.
+ */
+extern void (*mips_timer_ack)(void);
+
+/*
+ * High precision timer functions.
+ * If mips_hpt_read is NULL, an R4k-compatible timer setup is attempted.
+ */
+extern unsigned int (*mips_hpt_read)(void);
+extern void (*mips_hpt_init)(unsigned int);
+
+/*
  * to_tm() converts system time back to (year, mon, day, hour, min, sec).
  * It is intended to help implement rtc_set_time() functions.
  * Copied from PPC implementation.
@@ -45,11 +58,6 @@ extern void to_tm(unsigned long tim, struct rtc_time *tm);
  * Higher resolution versions are available, which give ~1us resolution.
  */
 extern unsigned long (*do_gettimeoffset)(void);
-
-extern unsigned long null_gettimeoffset(void);
-extern unsigned long fixed_rate_gettimeoffset(void);
-extern unsigned long calibrate_div32_gettimeoffset(void);
-extern unsigned long calibrate_div64_gettimeoffset(void);
 
 /*
  * high-level timer interrupt routines.
