@@ -271,8 +271,7 @@ void __init cpu_time_init(void)
 	if (!cpu)
 		panic("No information about myself?");
 
-	printk("CPU %d clock is %dMHz.\n", cpu->cpu_speed, smp_processor_id());
-	printk("CPU clock is %dMHz.\n", cpu->cpu_speed);
+	printk("CPU %d clock is %dMHz.\n", smp_processor_id(), cpu->cpu_speed);
 
 	set_cp0_status(SRB_TIMOCLK, SRB_TIMOCLK);
 }

@@ -2,6 +2,9 @@
 #include <linux/init.h>
 #include <linux/sched.h>
 #include <linux/mmzone.h>	/* for numnodes */
+#include <linux/mm.h>
+#include <asm/pgalloc.h>
+#include <asm/pgtable.h>
 #include <asm/sn/types.h>
 #include <asm/sn/sn0/addrs.h>
 #include <asm/sn/sn0/hubni.h>
@@ -311,6 +314,8 @@ cpuid_t getcpuid(void)
 
 void per_cpu_init(void)
 {
+	static int is_slave = 0;
+
 #if 0
 	cpuid_t cpu = getcpuid();
 #endif
@@ -322,10 +327,18 @@ void per_cpu_init(void)
 	set_cp0_status(ST0_IM, 0);
 	cpu_time_init();
 	per_hub_init(cnode);
+	if (is_slave) {
+		set_cp0_status(ST0_BEV, 0);
+		if (mips4_available)
+			set_cp0_status(ST0_XX, ST0_XX);
+		set_cp0_status(ST0_KX|ST0_SX|ST0_UX, ST0_KX|ST0_SX|ST0_UX);
+	}
 #if 0
 	install_cpuintr(cpu);
 	install_tlbintr(cpu);
 #endif
+	if (is_slave == 0)
+		is_slave = 1;
 }
 
 cnodeid_t get_compact_nodeid(void)
@@ -370,9 +383,9 @@ void cboot(void)
 	ecc_init();
 	bte_lateinit();
 	init_mfhi_war();
-	flush_tlb();
-	flush_cache();
 #endif
+	flush_tlb_all();
+	flush_cache_all();
 	start_secondary();
 }
 

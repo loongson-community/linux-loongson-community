@@ -446,7 +446,6 @@ static inline void mips4_setup(void)
 		mips4_available = 1;
 		set_cp0_status(ST0_XX, ST0_XX);
 	}
-	mips4_available = 0;
 }
 
 static inline void go_64(void)

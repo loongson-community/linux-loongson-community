@@ -50,7 +50,12 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 	CLI					# disable interrupts
 
 	mfc0	t0, CP0_STATUS
-	li	t1, ~(ST0_CU1|ST0_CU2|ST0_CU3)
+	/*
+	 * On IP27, I am seeing the TS bit set when the
+	 * kernel is loaded. Maybe because the kernel is
+	 * in ckseg0 and not xkphys? Clear it anyway ...
+	 */
+	li	t1, ~(ST0_TS|ST0_CU1|ST0_CU2|ST0_CU3)
 	and	t0, t1
 	or	t0, (ST0_CU0|ST0_KX|ST0_SX|ST0_FR) # Bogosity: cu0 indicates kernel
 	mtc0	t0, CP0_STATUS			   # thread in copy_thread.
