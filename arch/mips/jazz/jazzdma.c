@@ -42,10 +42,9 @@ static int debuglvl = 3;
  */
 static inline void vdma_pgtbl_init(void)
 {
-	int i;
+	VDMA_PGTBL_ENTRY *pgtbl = (VDMA_PGTBL_ENTRY *) vdma_pagetable_start;
 	unsigned long paddr = 0;
-	VDMA_PGTBL_ENTRY *pgtbl =
-	    (VDMA_PGTBL_ENTRY *) vdma_pagetable_start;
+	int i;
 
 	for (i = 0; i < VDMA_PGTBL_ENTRIES; i++) {
 		pgtbl[i].frame = paddr;
@@ -88,15 +87,9 @@ void __init vdma_init(void)
  */
 unsigned long vdma_alloc(unsigned long paddr, unsigned long size)
 {
-	VDMA_PGTBL_ENTRY *entry =
-	    (VDMA_PGTBL_ENTRY *) vdma_pagetable_start;
-	int first;
-	int last;
-	int pages;
-	unsigned int frame;
-	unsigned long laddr;
-	int i;
-	unsigned long flags;
+	VDMA_PGTBL_ENTRY *entry = (VDMA_PGTBL_ENTRY *) vdma_pagetable_start;
+	int first, last, pages, frame, i;
+	unsigned long laddr, flags;
 
 	/* check arguments */
 
@@ -181,8 +174,7 @@ unsigned long vdma_alloc(unsigned long paddr, unsigned long size)
  */
 int vdma_free(unsigned long laddr)
 {
-	VDMA_PGTBL_ENTRY *pgtbl =
-	    (VDMA_PGTBL_ENTRY *) vdma_pagetable_start;
+	VDMA_PGTBL_ENTRY *pgtbl = (VDMA_PGTBL_ENTRY *) vdma_pagetable_start;
 	int i;
 
 	i = laddr >> 12;
@@ -210,8 +202,7 @@ int vdma_free(unsigned long laddr)
  * Map certain page(s) to another physical address.
  * Caller must have allocated the page(s) before.
  */
-int vdma_remap(unsigned long laddr, unsigned long paddr,
-	       unsigned long size)
+int vdma_remap(unsigned long laddr, unsigned long paddr, unsigned long size)
 {
 	VDMA_PGTBL_ENTRY *pgtbl =
 	    (VDMA_PGTBL_ENTRY *) vdma_pagetable_start;
@@ -526,8 +517,7 @@ int vdma_get_residue(int channel)
 {
 	int residual;
 
-	residual =
-	    r4030_read_reg32(JAZZ_R4030_CHNL_COUNT + (channel << 5));
+	residual = r4030_read_reg32(JAZZ_R4030_CHNL_COUNT + (channel << 5));
 
 	if (vdma_debug)
 		printk("vdma_get_residual: channel %d: residual=%d\n",
