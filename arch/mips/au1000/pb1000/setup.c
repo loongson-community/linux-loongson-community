@@ -254,6 +254,11 @@ void __init au1000_setup(void)
 	au_writel(0x83, MEM_STCFG1);         // ewait enabled, flash timing
 	au_writel(0x33030a10, MEM_STTIME1);   // slower timing for FPGA
 
+	/* setup the static bus controller */
+	au_writel(0x00000002, MEM_STCFG3);  /* type = PCMCIA */
+	au_writel(0x280E3D07, MEM_STTIME3); /* 250ns cycle time */
+	au_writel(0x10000000, MEM_STADDR3); /* any PCMCIA select */
+
 #ifdef CONFIG_FB_E1356
 	if ((argptr = strstr(argptr, "video=")) == NULL) {
 		argptr = prom_getcmdline();
@@ -278,16 +283,12 @@ void __init au1000_setup(void)
 	au_writel(0, UART3_ADDR + UART_CLK);
 
 #ifdef CONFIG_BLK_DEV_IDE
-	{
-		argptr = prom_getcmdline();
-		strcat(argptr, " ide0=noprobe");
-	}
 	ide_ops = &std_ide_ops;
 #endif
 
 	// setup irda clocks
 	// aux clock, divide by 2, clock from 2/4 divider
-	writel(readl(SYS_CLKSRC) | 0x7, SYS_CLKSRC);
+	au_writel(au_readl(SYS_CLKSRC) | 0x7, SYS_CLKSRC);
 	pin_func = au_readl(SYS_PINFUNC) & (u32)(~(1<<2)); // clear IRTXD
 	au_writel(pin_func, SYS_PINFUNC);
 
