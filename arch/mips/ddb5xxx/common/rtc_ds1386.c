@@ -101,7 +101,7 @@ rtc_ds1386_set_time(unsigned long t)
 	}
 
 	temp = READ_RTC(0x9);
-	month = BIN_TO_BCD(tm.tm_mon);
+	month = BIN_TO_BCD(tm.tm_mon+1);	/* tm_mon starts from 0 to 11 */
 	if (month != (temp & 0x1f)) {
 		WRITE_RTC( 0x9,
 			   (month & 0x1f) | (temp & ~0x1f) );

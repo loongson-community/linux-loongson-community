@@ -496,7 +496,7 @@ void to_tm(unsigned long tim, struct rtc_time * tm)
 	for (i = 1; day >= days_in_month(i); i++)
 	day -= days_in_month(i);
 	days_in_month(FEBRUARY) = 28;
-	tm->tm_mon = i;
+	tm->tm_mon = i-1;	/* tm_mon starts from 0 to 11 */
 
 	/* Days are what is left over (+1) from all that. */
 	tm->tm_mday = day + 1;
