@@ -14,6 +14,8 @@ comment 'Machine selection'
 bool 'Support for Acer PICA 1 chipset' CONFIG_ACER_PICA_61
 if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
   bool 'Support for Algorithmics P4032' CONFIG_ALGOR_P4032
+  bool 'Support for BAGET MIPS series' CONFIG_BAGET_MIPS
+  bool 'Support for DECstations' CONFIG_DECSTATION
 fi
 bool 'Support for Mips Magnum 4000' CONFIG_MIPS_MAGNUM_4000
 bool 'Support for Olivetti M700-10' CONFIG_OLIVETTI_M700
@@ -70,12 +72,12 @@ if [ "$CONFIG_PCI" = "y" ]; then
 fi
 
 if [ "$CONFIG_DECSTATION" = "y" ]; then
-  bool 'Compile the kernel into the ECOFF object format' CONFIG_ECOFF_KERNEL
   define_bool CONFIG_CPU_LITTLE_ENDIAN y
 else
-  define_bool CONFIG_ELF_KERNEL y
   bool 'Generate little endian code' CONFIG_CPU_LITTLE_ENDIAN
 fi
+
+define_bool CONFIG_ELF_KERNEL y
 
 if [ "$CONFIG_CPU_LITTLE_ENDIAN" = "n" ]; then
   define_bool CONFIG_BINFMT_IRIX y
@@ -85,7 +87,6 @@ define_bool CONFIG_BINFMT_AOUT n
 define_bool CONFIG_BINFMT_ELF y
 tristate 'Kernel support for MISC binaries' CONFIG_BINFMT_MISC
 if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
-  tristate 'Kernel support for MISC binaries' CONFIG_BINFMT_MISC
   tristate 'Kernel support for JAVA binaries (obsolete)' CONFIG_BINFMT_JAVA
 fi
 
@@ -94,7 +95,7 @@ bool 'System V IPC' CONFIG_SYSVIPC
 bool 'BSD Process Accounting' CONFIG_BSD_PROCESS_ACCT
 bool 'Sysctl support' CONFIG_SYSCTL
 
-if [ "$CONFIG_SGI" != "y" ]; then
+if [ "$CONFIG_SGI" != "y" -a "$CONFIG_DECSTATION" != "y" -a "$CONFIG_BAGET_MIPS" != "y" ]; then
   tristate 'Parallel port support' CONFIG_PARPORT
 fi
 endmenu
@@ -113,6 +114,16 @@ fi
 
 endmenu
 
+if [ "$CONFIG_DECSTATION" = "y" ]; then
+	mainmenu_option next_comment
+	comment 'TURBOchannel support'
+		bool 'TURBOchannel support' CONFIG_TC
+#		if [ "$CONFIG_TC" = "y" ]; then
+# 			tristate 'MAGMA Parallel port support' CONFIG_PARPORT
+#		fi
+	endmenu
+fi
+
 source drivers/block/Config.in
 
 if [ "$CONFIG_NET" = "y" ]; then
@@ -125,7 +136,7 @@ comment 'SCSI support'
 tristate 'SCSI support' CONFIG_SCSI
 
 if [ "$CONFIG_SCSI" != "n" ]; then
-	if [ "$CONFIG_SGI" = "y" ]; then
+	if [ "$CONFIG_SGI" = "y" -o "$CONFIG_DECSTATION" = "y" ]; then
 		comment 'SCSI support type (disk, tape, CDrom)'
 
 		dep_tristate 'SCSI disk support' CONFIG_BLK_DEV_SD $CONFIG_SCSI
@@ -141,8 +152,14 @@ if [ "$CONFIG_SCSI" != "n" ]; then
 
 		#mainmenu_option next_comment
 		comment 'SCSI low-level drivers'
-
+		if [ "$CONFIG_SGI" = "y" ]; then
 		dep_tristate 'SGI wd93 Scsi Driver' CONFIG_SCSI_SGIWD93 $CONFIG_SCSI
+	else
+			if [ "$CONFIG_TC" = "y" ]; then
+				dep_tristate 'DEC NCR53C94 Scsi Driver' CONFIG_SCSI_DECNCR $CONFIG_SCSI
+			fi
+			dep_tristate 'DEC SII Scsi Driver' CONFIG_SCSI_DECSII $CONFIG_SCSI
+		fi
 	else
 		source drivers/scsi/Config.in
 	fi
@@ -155,7 +172,7 @@ if [ "$CONFIG_NET" = "y" ]; then
 
   bool 'Network device support' CONFIG_NETDEVICES
   if [ "$CONFIG_NETDEVICES" = "y" ]; then
-    if [ "$CONFIG_SGI" != "y" ]; then
+    if [ "$CONFIG_SGI" != "y" -a "$CONFIG_DECSTATION" != "y" -a "$CONFIG_BAGET_MIPS" != "y" ]; then
 	source drivers/net/Config.in
     else
 	tristate 'Dummy net driver support' CONFIG_DUMMY
@@ -168,13 +185,22 @@ if [ "$CONFIG_NET" = "y" ]; then
 	if [ ! "$CONFIG_PPP" = "n" ]; then
 	  comment 'CCP compressors for PPP are only built as modules.'
 	fi
+        if [ "$CONFIG_SGI" = "y" ]; then
 	bool 'SGI Seeq ethernet controller support' CONFIG_SGISEEQ
+    fi
+	if [ "$CONFIG_DECSTATION" = "y" ]; then
+          bool 'DEC LANCE ethernet controller support' CONFIG_DECLANCE
+        fi
+	if [ "$CONFIG_BAGET_MIPS" = "y" ]; then
+	  tristate 'Baget AMD LANCE support' CONFIG_BAGETLANCE
+	  tristate 'Baget Backplane Shared Memory support' CONFIG_BAGETBSM
+	fi
     fi
   fi
   endmenu
 fi
 
-if [ "$CONFIG_SGI" != "y" ]; then
+if [ "$CONFIG_SGI" != "y" -a "$CONFIG_DECSTATION" != "y" -a "$CONFIG_BAGET_MIPS" != "y" ]; then
   source drivers/net/hamradio/Config.in
 
 
@@ -200,7 +226,34 @@ if [ "$CONFIG_SGI" != "y" ]; then
   endmenu
 fi
 
-source drivers/char/Config.in
+if [ "$CONFIG_DECSTATION" != "y" ]; then
+  source drivers/char/Config.in
+else
+  mainmenu_option next_comment
+  comment 'DECstation Character devices'
+
+  bool 'Virtual terminal' CONFIG_VT
+  if [ "$CONFIG_VT" = "y" ]; then
+    bool 'Support for console on virtual terminal' CONFIG_VT_CONSOLE
+  fi
+  tristate 'Standard/generic (dumb) serial support' CONFIG_SERIAL
+  if [ "$CONFIG_SERIAL" = "y" ]; then
+    bool 'DZ11 Serial Support' CONFIG_DZ
+    if [ "$CONFIG_TC" = "y" ]; then
+      bool 'Z85C30 Serial Support' CONFIG_ZS
+    fi
+    bool '   Support for console on serial port' CONFIG_SERIAL_CONSOLE
+  fi
+  bool 'PROM Console Support' CONFIG_PROM_CONSOLE
+  bool 'Unix98 PTY support' CONFIG_UNIX98_PTYS
+  if [ "$CONFIG_UNIX98_PTYS" = "y" ]; then
+    int 'Maximum number of Unix98 PTYs in use (0-2048)' CONFIG_UNIX98_PTY_COUNT 256
+  fi
+  bool 'Keyboard Support' CONFIG_KEYBOARD
+  bool 'Mouse Support' CONFIG_MOUSE
+#    bool 'Enhanced Real Time Clock Support' CONFIG_RTC
+  endmenu
+fi
 
 source fs/Config.in
 
@@ -213,21 +266,25 @@ if [ "$CONFIG_VT" = "y" ]; then
       define_bool CONFIG_DUMMY_CONSOLE y
     fi
   else
+    if [ "$CONFIG_DECSTATION" != "y" ]; then
     bool 'VGA text console' CONFIG_VGA_CONSOLE
+    fi
     bool 'Support for frame buffer devices' CONFIG_FB
     source drivers/video/Config.in
   fi
   endmenu
 fi
 
-mainmenu_option next_comment
-comment 'Sound'
+if [ "$CONFIG_DECSTATION" != "y" ]; then
+  mainmenu_option next_comment
+  comment 'Sound'
 
-tristate 'Sound card support' CONFIG_SOUND
-if [ "$CONFIG_SOUND" != "n" ]; then
+  tristate 'Sound card support' CONFIG_SOUND
+  if [ "$CONFIG_SOUND" != "n" ]; then
   source drivers/sound/Config.in
+  fi
+  endmenu
 fi
-endmenu
 
 if [ "$CONFIG_SGI" = "y" ]; then
   source drivers/sgi/Config.in

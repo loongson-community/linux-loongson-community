@@ -84,6 +84,10 @@ extern void binfmt_setup(void);
 extern void free_initmem(void);
 extern void filesystem_setup(void);
 
+#ifdef CONFIG_TC
+extern void tc_init(void);
+#endif
+
 #ifdef CONFIG_ARCH_ACORN
 extern void ecard_init(void);
 #endif
@@ -1281,6 +1285,9 @@ static void __init do_basic_setup(void)
 #endif
 #ifdef CONFIG_DIO
 	dio_init();
+#endif
+#ifdef CONFIG_TC
+	tc_init();
 #endif
 
 	/* Networking initialization needs a process context */ 

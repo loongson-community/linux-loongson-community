@@ -34,6 +34,10 @@ ifdef CONFIG_NUBUS
 SUB_DIRS += nubus
 endif
 
+ifdef CONFIG_TC
+SUB_DIRS += tc
+endif
+
 ifdef CONFIG_VT
 SUB_DIRS += video
 MOD_SUB_DIRS += video

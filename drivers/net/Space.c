@@ -109,6 +109,8 @@ extern int am79c961_probe(struct device *dev);
 extern int epic100_probe(struct device *dev);
 extern int rtl8139_probe(struct device *dev);
 extern int hplance_probe(struct device *dev);
+extern int bagetlance_probe(struct device *);
+extern int dec_lance_probe(struct device *);
 extern int via_rhine_probe(struct device *dev);
 extern int tc515_probe(struct device *dev);
 extern int lance_probe(struct device *dev);
@@ -437,6 +439,15 @@ struct devprobe sgi_probes[] __initdata = {
 struct devprobe mips_probes[] __initdata = {
 #ifdef CONFIG_MIPS_JAZZ_SONIC
 	{sonic_probe, 0},
+#endif
+#ifdef CONFIG_DECLANCE		/* DECstation on-board controller */
+	{dec_lance_probe, 0},   /* and maybe TURBOchannel option boards */
+#endif
+#ifdef CONFIG_BAGETLANCE        /* Lance-based Baget ethernet boards */
+        {bagetlance_probe, 0},
+#endif
+#ifdef CONFIG_BAGETBSM         /* Baget backplane shared memory */
+        {bsm_probe, 0},
 #endif
 	{NULL, 0},
 };

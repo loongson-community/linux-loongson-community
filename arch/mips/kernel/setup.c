@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.12 1999/02/06 03:57:41 adevries Exp $
+/* $Id: setup.c,v 1.13 1999/03/13 12:33:26 tsbogend Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -103,7 +103,6 @@ unsigned long mips_memory_upper = KSEG0; /* this is set by kernel_entry() */
 unsigned long mips_cputype = CPU_UNKNOWN;
 unsigned long mips_machtype = MACH_UNKNOWN;
 unsigned long mips_machgroup = MACH_GROUP_UNKNOWN;
-unsigned long mips_tlb_entries = 48; /* Guess which CPU I've got :) */
 
 unsigned char aux_device_present;
 extern int _end;
@@ -150,6 +149,7 @@ __initfunc(void setup_arch(char **cmdline_p,
 	unsigned long tmp;
 	unsigned long *initrd_header;
 #endif
+	void baget_setup(void);
 	void cobalt_setup(void);
 	void decstation_setup(void);
 	void deskstation_setup(void);
@@ -173,9 +173,19 @@ __initfunc(void setup_arch(char **cmdline_p,
 
 	switch(mips_machgroup)
 	{
+#ifdef CONFIG_BAGET_MIPS
+	case MACH_GROUP_UNKNOWN: 
+		baget_setup();
+		break;
+#endif
 #ifdef CONFIG_COBALT_MICRO_SERVER
 	case MACH_GROUP_COBALT:
 		cobalt_setup();
+		break;
+#endif
+#ifdef CONFIG_DECSTATION
+	case MACH_GROUP_DEC:
+		decstation_setup();
 		break;
 #endif
 #ifdef CONFIG_MIPS_JAZZ

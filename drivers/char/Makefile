@@ -31,20 +31,30 @@ endif
 ifeq ($(CONFIG_SERIAL),y)
   ifeq ($(CONFIG_SUN_SERIAL),)
     ifeq ($(CONFIG_SGI_SERIAL),)
+      ifeq ($(CONFIG_DECSTATION),)
+	ifeq ($(CONFIG_BAGET_MIPS),)
       LX_OBJS += serial.o
+    endif
+  endif
     endif
   endif
 else
   ifeq ($(CONFIG_SERIAL),m)
     ifeq ($(CONFIG_SUN_SERIAL),)
       ifeq ($(CONFIG_SGI_SERIAL),)
+        ifeq ($(CONFIG_DECSTATION),)
+          ifeq ($(CONFIG_BAGET_MIPS),)
       MX_OBJS += serial.o
       endif
+    endif
+  endif
     endif
   endif
 endif
 
 ifndef CONFIG_SUN_KEYBOARD
+ifndef CONFIG_DECSTATION
+ifndef CONFIG_BAGET_MIPS
 ifdef CONFIG_VT
 L_OBJS += keyboard.o
 endif
@@ -53,6 +63,8 @@ L_OBJS += pc_keyb.o defkeymap.o
 endif
 ifdef CONFIG_MAGIC_SYSRQ
 L_OBJS += sysrq.o
+endif
+endif
 endif
 endif
 
@@ -442,6 +454,10 @@ else
   ALL_SUB_DIRS += hfmodem
   MOD_SUB_DIRS += hfmodem
   endif
+endif
+
+ifeq ($(CONFIG_DZ),y)
+  L_OBJS += dz.o
 endif
 
 include $(TOPDIR)/Rules.make

@@ -291,10 +291,6 @@
 #include "scsi_debug.h"
 #endif
 
-#ifdef CONFIG_JAZZ_ESP
-#include "jazz_esp.h"
-#endif
-
 #ifdef CONFIG_SCSI_ACORNSCSI_3
 #include "../acorn/scsi/acornscsi.h"
 #endif
@@ -321,6 +317,10 @@
 
 #ifdef CONFIG_JAZZ_ESP
 #include "jazz_esp.h"
+#endif
+
+#ifdef CONFIG_SCSI_DECNCR
+#include "dec_esp.h"
 #endif
 
 /*
@@ -576,6 +576,9 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
     POWERTECSCSI,
 #endif
 #endif
+#ifdef CONFIG_SCSI_DECNCR	
+    SCSI_DEC_ESP,
+#endif	
 /* "Removable host adapters" below this line (Parallel Port/USB/other) */
 #ifdef CONFIG_SCSI_PPA
     PPA,

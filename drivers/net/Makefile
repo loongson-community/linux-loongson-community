@@ -875,6 +875,22 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_BAGETLANCE),y)
+L_OBJS += bagetlance.o
+else
+  ifeq ($(CONFIG_BAGETLANCE),m)
+  M_OBJS += bagetlance.o
+  endif
+endif
+
+ifeq ($(CONFIG_DECLANCE),y)
+L_OBJS += declance.o
+else
+  ifeq ($(CONFIG_DECLANCE),m)
+  M_OBJS += declance.o
+  endif
+endif
+
 ifeq ($(CONFIG_ATARILANCE),y)
 L_OBJS += atarilance.o
 else
