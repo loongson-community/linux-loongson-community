@@ -43,6 +43,58 @@
 #include <asm/mc146818rtc.h>
 #include <asm/orion.h>
 
+struct app_header_s {
+	unsigned long    MAGIC_JMP;
+	unsigned long    MAGIC_NOP;
+	unsigned long    header_tag;    
+	unsigned long    header_flags;
+	unsigned long    header_length;
+	unsigned long    header_cksum;
+     
+	void             *load_addr;
+	void             *end_addr;
+	void             *start_addr;
+	char             *app_name_p;
+	char             *version_p;
+	char             *date_p;
+	char             *time_p;
+	unsigned long    type;
+	unsigned long    crc;
+	unsigned long    reserved;
+};
+
+typedef struct app_header_s app_header_t;
+char linked_app_name[] = "linux";
+char *linked_app_name_p = &linked_app_name[0];
+
+char linked_app_ver[] = "2.4 -test1";
+char *linked_app_ver_p = &linked_app_ver[0];
+
+char linked_app_date[] = "today";
+char *linked_app_date_p = &linked_app_date[0];
+
+char linked_app_time[] = "now";
+char *linked_app_time_p = &linked_app_time[0];
+extern void *__bss_start;
+extern void *kernel_entry;
+
+app_header_t app_header __attribute__ ((section (".app_header"))) = {
+	(0x10000000 | (((sizeof(app_header_t)>>2)-1) & 0xffff)) ,
+	0 ,
+	(((( 0x4321  ) & 0xFFFF) << 16) | ((  0x0100  ) & 0xFFFF))  ,
+	0x80000000 ,
+	sizeof(app_header_t),
+	0,
+	&app_header,
+	&__bss_start,
+	&kernel_entry,
+	linked_app_name,
+	linked_app_ver,
+	linked_app_date,
+	linked_app_time,
+	0
+};
+
 char arcs_cmdline[CL_SIZE] = { "console=ttyS0,19200" };
 extern int _end;
 
@@ -88,6 +140,7 @@ void __init orion_setup(void)
 #define PFN_ALIGN(x)	(((unsigned long)(x) + (PAGE_SIZE - 1)) & PAGE_MASK)
 
 unsigned long mem_size;
+
 int __init prom_init(int a, char **b, char **c, int *d)
 {
 	unsigned long free_start, free_end, start_pfn, bootmap_size;
@@ -120,16 +173,18 @@ int __init prom_init(int a, char **b, char **c, int *d)
 	 *  -- Cort <cort@fsmlabs.com>
 	 */
 	rd_size = 22<<10;
+
 	return 0;
 }
 
-void prom_free_prom_memory (void)
+void __init prom_free_prom_memory (void)
 {
 }
 
-int page_is_ram(unsigned long pagenr)
+int __init page_is_ram(unsigned long pagenr)
 {
-	if ( pagenr < (mem_size >> PAGE_SHIFT) )
+	if (pagenr < (mem_size >> PAGE_SHIFT))
 		return 1;
+
 	return 0;
 }

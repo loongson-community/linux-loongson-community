@@ -199,10 +199,8 @@ asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 
 	irq_exit(cpu);
 
-	if (softirq_state[cpu].active&softirq_state[cpu].mask)
+	if (softirq_active(cpu) & softirq_mask(cpu))
 		do_softirq();
-
-	/* unmasking and bottom half handling is done magically for us. */
 }
 
 int request_irq(unsigned int irq, void (*handler)(int, void *, struct pt_regs *),

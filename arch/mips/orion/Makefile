@@ -13,14 +13,12 @@
 .S.o:
 	$(CC) $(CFLAGS) -c $< -o $*.o
 
-OBJS = promcon.o char.o serial.8530.o orion.hw.init.o setup.o irq.o \
-       int-handler.o zs.o
+O_TARGET = orion.o
+O_OBJS = promcon.o char.o serial.8530.o orion.hw.init.o setup.o int-handler.o \
+	 zs.o initrd.o #no_initrd.o
+OX_OBJS = irq.o
 
-all: orionkern.a
-
-orionkern.a: $(OBJS) initrd.o #no_initrd.o
-	$(AR) rcs orionkern.a $(OBJS) initrd.o #no_initrd.o
-	sync
+all: orion.o
 
 #
 # I usually have this mounted through loopback so I can
@@ -40,9 +38,9 @@ piggyback: piggyback.c
 orionboot: orion.ctl
 
 patchapp: patchapp.c
-	$(HOSTCC) -o $@ $^
+	$(HOSTCC) $(HOSTCFLAGS) -o $@ $^
 
-orion.ctl: patchapp ../../../vmlinux
+orion.ctl: ../../../vmlinux patchapp
 	$(OBJCOPY) -Obinary ../../../vmlinux orion.nosym
 	./patchapp orion.nosym orion
 	cp -f orion.bin orion.ctl
