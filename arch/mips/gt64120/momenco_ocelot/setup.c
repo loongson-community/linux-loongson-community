@@ -322,7 +322,7 @@ static void __init setup_l3cache(unsigned long size)
 	printk("Enabling L3 cache...");
 
 	/* Enable the L3 cache in the GT64120A's CPU Configuration register */
-	GT_READ(0, &tmp);
+	tmp =  GT_READ(0);
 	GT_WRITE(0, tmp | (1<<14));
 
 	/* Enable the L3 cache in the CPU */
