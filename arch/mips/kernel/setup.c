@@ -60,8 +60,9 @@ char wait_available;
 
 /*
  * There are several bus types available for MIPS machines.  "RISC PC"
- * type machines have ISA, EISA or PCI available, some DECstations have
- * Turbochannel, SGI has GIO, there are lots of VME boxes ...
+ * type machines have ISA, EISA, VLB or PCI available, DECstations
+ * have Turbochannel or Q-Bus, SGI has GIO, there are lots of VME
+ * boxes ...
  * This flag is set if a EISA slots are available.
  */
 int EISA_bus = 0;
