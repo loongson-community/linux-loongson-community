@@ -35,7 +35,7 @@ EXPORT(_stext)
 
 NESTED(kernel_entry, 16, sp)			# kernel entry point
 	PTR_LA		$28, init_thread_union
-	PTR_ADDIU	sp, $28, KERNEL_STACK_SIZE-32
+	PTR_ADDIU	sp, $28, _THREAD_SIZE - 32
 	PTR_S		sp, kernelsp
 	PTR_SUBU	sp, 4 * SZREG		# init stack pointer
 

@@ -107,7 +107,7 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 		unsigned int tmp;
 
 		regs = (struct pt_regs *) ((unsigned long) child->thread_info +
-			KERNEL_STACK_SIZE - 32 - sizeof(struct pt_regs));
+			THREAD_SIZE - 32 - sizeof(struct pt_regs));
 		ret = 0;
 
 		switch (addr) {
@@ -181,7 +181,7 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 		struct pt_regs *regs;
 		ret = 0;
 		regs = (struct pt_regs *) ((unsigned long) child->thread_info +
-			KERNEL_STACK_SIZE - 32 - sizeof(struct pt_regs));
+			THREAD_SIZE - 32 - sizeof(struct pt_regs));
 
 		switch (addr) {
 		case 0 ... 31:
@@ -346,7 +346,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 		unsigned long tmp;
 
 		regs = (struct pt_regs *) ((unsigned long) child->thread_info +
-			KERNEL_STACK_SIZE - 32 - sizeof(struct pt_regs));
+			THREAD_SIZE - 32 - sizeof(struct pt_regs));
 		ret = 0;
 
 		switch (addr) {
@@ -411,7 +411,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 		struct pt_regs *regs;
 		ret = 0;
 		regs = (struct pt_regs *) ((unsigned long) child->thread_info +
-			KERNEL_STACK_SIZE - 32 - sizeof(struct pt_regs));
+			THREAD_SIZE - 32 - sizeof(struct pt_regs));
 
 		switch (addr) {
 		case 0 ... 31:

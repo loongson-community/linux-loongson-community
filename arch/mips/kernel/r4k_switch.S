@@ -25,7 +25,7 @@
 
 #include <asm/asmmacro.h>
 
-#define ST_OFF (KERNEL_STACK_SIZE - 32 - PT_SIZE + PT_STATUS)
+#define ST_OFF (_THREAD_SIZE - 32 - PT_SIZE + PT_STATUS)
 
 /*
  * FPU context is saved iff the process has used it's FPU in the current
@@ -82,7 +82,7 @@
 	move	$28, a2
 	CPU_RESTORE_NONSCRATCH(a1)
 
-	addiu	t0, $28, KERNEL_STACK_SIZE-32
+	addiu	t0, $28, _THREAD_SIZE - 32
 #ifdef CONFIG_SMP
 	mfc0	a3, CP0_CONTEXT
 	la	t1, kernelsp

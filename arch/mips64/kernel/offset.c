@@ -94,6 +94,8 @@ void output_thread_info_defines(void)
 	offset("#define TI_PRE_COUNT       ", struct thread_info, preempt_count);
 	offset("#define TI_ADDR_LIMIT      ", struct thread_info, addr_limit);
 	offset("#define TI_RESTART_BLOCK   ", struct thread_info, restart_block);
+	constant("#define _THREAD_SIZE_ORDER ", THREAD_SIZE_ORDER);
+	constant("#define _THREAD_SIZE       ", THREAD_SIZE);
 	linefeed;
 }
 

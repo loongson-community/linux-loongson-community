@@ -69,13 +69,13 @@
 #endif
 
 #ifdef CONFIG_PREEMPT
-		.macro	BUMP_LOCK_COUNT
+		.macro	bump_lock_count
 		lw	t0, TI_PRE_COUNT($28)
 		addiu	t0, t0, 1
 		sw	t0, TI_PRE_COUNT($28)
 		.endm
 #else
-		.macro	BUMP_LOCK_COUNT
+		.macro	bump_lock_count
 		.endm
 #endif
 
@@ -112,7 +112,7 @@
 		sw	$31, PT_R31(sp)
 		ori	$28, sp, 0x1fff
 		xori	$28, 0x1fff
-		BUMP_LOCK_COUNT
+		bump_lock_count
 		.set	pop
 		.endm
 

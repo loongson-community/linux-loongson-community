@@ -4,6 +4,7 @@
  * Architecture specific compatibility types
  */
 #include <linux/types.h>
+#include <asm/page.h>
 
 #define COMPAT_USER_HZ	100
 
@@ -132,7 +133,7 @@ static inline void *compat_ptr(compat_uptr_t uptr)
 static inline void *compat_alloc_user_space(long len)
 {
 	unsigned long sp = (unsigned long) current_thread_info() +
-	                    KERNEL_STACK_SIZE - 32;
+	                    THREAD_SIZE - 32;
 
 	return (void *) (sp - len);
 }

@@ -93,7 +93,7 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 	struct pt_regs *childregs;
 	long childksp;
 
-	childksp = (unsigned long)ti + KERNEL_STACK_SIZE - 32;
+	childksp = (unsigned long)ti + THREAD_SIZE - 32;
 
 	if (is_fpu_owner()) {
 		save_fp(p);

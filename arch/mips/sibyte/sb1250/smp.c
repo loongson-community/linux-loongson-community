@@ -141,7 +141,7 @@ void __init smp_boot_cpus(void)
 			/* Iterate until we find a CPU that comes up */
 			cur_cpu++;
 			retval = prom_boot_secondary(cur_cpu,
-					    (unsigned long)idle + KERNEL_STACK_SIZE - 32,
+					    (unsigned long)idle + THREAD_SIZE - 32,
 					    (unsigned long)idle);
 		} while (!retval && (cur_cpu < NR_CPUS));
 		if (retval) {

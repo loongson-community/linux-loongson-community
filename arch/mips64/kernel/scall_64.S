@@ -8,8 +8,8 @@
  * Copyright (C) 2001 MIPS Technologies, Inc.
  */
 #include <linux/config.h>
-#include <asm/asm.h>
 #include <linux/errno.h>
+#include <asm/asm.h>
 #include <asm/mipsregs.h>
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
@@ -73,29 +73,7 @@ syscall_exit:
 		LONG_L	a2, TI_FLAGS($28)	# current->work
 		bnez	a2, syscall_exit_work
 
-FEXPORT(restore_all)
-		RESTORE_SOME
-		RESTORE_SP
-		eret
-
-EXPORT(work_pending)
-		andi	t0, a2, _TIF_NEED_RESCHED
-		bltz	t0, work_notifysig
-work_resched:
-		jal	schedule
-
-		mfc0	t0, CP0_STATUS		# make sure need_resched and
-		ori	t0, t0, 1		# signals dont change between
-		xori	t0, t0, 1		# sampling and return
-		mtc0	t0, CP0_STATUS
-		SSNOP; SSNOP; SSNOP
-
-		LONG_L	a2, TI_FLAGS($28)
-		andi	a2, _TIF_WORK_MASK	# is there any work to be done
-						# other than syscall tracing
-		beqz	a2, restore_all
-		andi	t0, a2, _TIF_NEED_RESCHED
-		bnez	t0, work_resched
+		j	restore_all
 
 work_notifysig:					# deal with pending signals and
 						# notify-resume requests
