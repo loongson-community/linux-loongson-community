@@ -269,7 +269,7 @@ prom_free_prom_memory (void)
 void __init paging_init(void)
 {
 	cnodeid_t node;
-	unsigned int zones_size[MAX_NR_ZONES] = {0, 0, 0};
+	unsigned long zones_size[MAX_NR_ZONES] = {0, 0, 0};
 
 	/* Initialize the entire pgd.  */
 	pgd_init((unsigned long)swapper_pg_dir);
@@ -281,16 +281,12 @@ void __init paging_init(void)
 		pfn_t end_pfn = node_getmaxclick(node);
 
 		zones_size[ZONE_DMA] = end_pfn + 1 - start_pfn;
-		PLAT_NODE_DATA(node)->physstart = (start_pfn << PAGE_SHIFT);
-		PLAT_NODE_DATA(node)->size = (zones_size[ZONE_DMA] << PAGE_SHIFT);
 		free_area_init_node(node, NODE_DATA(node), zones_size, 
 						start_pfn << PAGE_SHIFT);
-		PLAT_NODE_DATA(node)->start_mapnr = 
-					(NODE_DATA(node)->node_mem_map - mem_map);
-		if ((PLAT_NODE_DATA(node)->start_mapnr + 
-					PLAT_NODE_DATA(node)->size) > pagenr)
-			pagenr = PLAT_NODE_DATA(node)->start_mapnr +
-					PLAT_NODE_DATA(node)->size;
+		if ((PLAT_NODE_DATA_STARTNR(node) + 
+					PLAT_NODE_DATA_SIZE(node)) > pagenr)
+			pagenr = PLAT_NODE_DATA_STARTNR(node) +
+					PLAT_NODE_DATA_SIZE(node);
 	}
 }
 
@@ -322,7 +318,7 @@ void __init mem_init(void)
 		 * We need to manually do the other slots.
 		 */
 		pg = NODE_DATA(nid)->node_mem_map + slot_getsize(nid, 0);
-		pgnr = PLAT_NODE_DATA(nid)->start_mapnr + slot_getsize(nid, 0);
+		pgnr = PLAT_NODE_DATA_STARTNR(nid) + slot_getsize(nid, 0);
 		numslots = node_getlastslot(nid);
 		for (slot = 1; slot <= numslots; slot++) {
 			pslot = NODE_DATA(nid)->node_mem_map + 
@@ -357,9 +353,9 @@ void __init mem_init(void)
 
 	reservedpages = ram = 0;
 	for (nid = 0; nid < numnodes; nid++) {
-		for (tmp = PLAT_NODE_DATA(nid)->start_mapnr; tmp < 
-			((PLAT_NODE_DATA(nid)->start_mapnr) + 
-			(PLAT_NODE_DATA(nid)->size >> PAGE_SHIFT)); tmp++) {
+		for (tmp = PLAT_NODE_DATA_STARTNR(nid); tmp < 
+			((PLAT_NODE_DATA_STARTNR(nid)) + 
+			(PLAT_NODE_DATA_SIZE(nid) >> PAGE_SHIFT)); tmp++) {
 			/* Ignore holes */
 			if (PageSkip(mem_map+tmp))
 				continue;

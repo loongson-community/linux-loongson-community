@@ -411,8 +411,8 @@ extern inline pte_t pte_mkyoung(pte_t pte)
 #define PAGE_TO_PA(page)	((page - mem_map) << PAGE_SHIFT)
 #else
 #define PAGE_TO_PA(page) \
-		((((page)-(page)->zone->zone_pgdat->node_mem_map) << PAGE_SHIFT) \
-		+ ((PAGE_TO_PLAT_NODE(page))->physstart))
+		((((page)-(page)->zone->zone_mem_map) << PAGE_SHIFT) \
+		+ ((page)->zone->zone_start_paddr))
 #endif
 #define mk_pte(page, pgprot)						\
 ({									\
