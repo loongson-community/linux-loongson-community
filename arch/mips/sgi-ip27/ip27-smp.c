@@ -88,8 +88,10 @@ void __init prom_prepare_cpus(unsigned int max_cpus)
 
 	replicate_kernel_text(numnodes);
 
-	/* Done on master only */
-	/* XXXKW need first == physical, second == logical */
+	/*
+	 * Assumption to be fixed: we're always booted on logical / physical
+	 * processor 0.
+	 */
 	alloc_cpupda(cpu, 0);
 }
 
