@@ -53,32 +53,28 @@
 
 extern unsigned long vr41xx_vtclock;
 
-static inline int vr41xx_pci_config_access(struct pci_dev *dev, int where)
+static inline int vr41xx_pci_config_access(unsigned char bus,  unsigned int devfn, int where)
 {
-	unsigned char bus = dev->bus->number;
-	unsigned int dev_fn = dev->devfn;
-
 	if (bus == 0) {
 		/*
 		 * Type 0 configuration
 		 */
-		if (PCI_SLOT(dev_fn) < 11 || PCI_SLOT(dev_fn) > 31 || where > 255)
+		if (PCI_SLOT(devfn) < 11 || where > 255)
 			return -1;
 
-		writel((1UL << PCI_SLOT(dev_fn))|
-		       (PCI_FUNC(dev_fn) << 8)	|
+		writel((1UL << PCI_SLOT(devfn))	|
+		       (PCI_FUNC(devfn) << 8)	|
 		       (where & 0xfc),
 		       PCICONFAREG);
-	}
-	else {
+	} else {
 		/*
 		 * Type 1 configuration
 		 */
-		if (bus > 255 || PCI_SLOT(dev_fn) > 31 || where > 255)
+		if (where > 255)
 			return -1;
 
 		writel((bus << 16)	|
-		       (dev_fn << 8)	|
+		       (devfn << 8)	|
 		       (where & 0xfc)	|
 		       1UL,
 		       PCICONFAREG);
@@ -87,110 +83,69 @@ static inline int vr41xx_pci_config_access(struct pci_dev *dev, int where)
 	return 0;
 }
 
-static int vr41xx_pci_read_config_byte(struct pci_dev *dev, int where, u8 *val)
+static int vr41xx_pci_config_read(struct pci_bus *bus, unsigned int devfn, int where, int size, u32 *val)
 {
 	u32 data;
 
-	*val = 0xff;
-	if (vr41xx_pci_config_access(dev, where) < 0)
+	*val = 0xffffffffUL;
+	if (vr41xx_pci_config_access(bus->number, devfn, where) < 0)
 		return PCIBIOS_DEVICE_NOT_FOUND;
 
 	data = readl(PCICONFDREG);
-	*val = (u8)(data >> ((where & 3) << 3));
 
-	return PCIBIOS_SUCCESSFUL;
-
-}
-
-static int vr41xx_pci_read_config_word(struct pci_dev *dev, int where, u16 *val)
-{
-	u32 data;
-
-	*val = 0xffff;
-	if (where & 1)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-
-	if (vr41xx_pci_config_access(dev, where) < 0)
-		return PCIBIOS_DEVICE_NOT_FOUND;
-
-	data = readl(PCICONFDREG);
-	*val = (u16)(data >> ((where & 2) << 3));
+	switch (size) {
+	case 1:
+		*val = (data >> ((where & 3) << 3)) & 0xffUL;
+		break;
+	case 2:
+		*val = (data >> ((where & 2) << 3)) & 0xffffUL;
+		break;
+	case 4:
+		*val = data;
+		break;
+	default:
+		return PCIBIOS_FUNC_NOT_SUPPORTED;
+	}
 
 	return PCIBIOS_SUCCESSFUL;
 }
 
-static int vr41xx_pci_read_config_dword(struct pci_dev *dev, int where, u32 *val)
-{
-	*val = 0xffffffff;
-	if (where & 3)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-
-	if (vr41xx_pci_config_access(dev, where) < 0)
-		return PCIBIOS_DEVICE_NOT_FOUND;
-
-	*val = readl(PCICONFDREG);
-
-	return PCIBIOS_SUCCESSFUL;
-}
-
-static int vr41xx_pci_write_config_byte(struct pci_dev *dev, int where, u8 val)
+static int vr41xx_pci_config_write(struct pci_bus *bus, unsigned int devfn, int where, int size, u32 val)
 {
 	u32 data;
 	int shift;
 
-	if (vr41xx_pci_config_access(dev, where) < 0)
+	if (vr41xx_pci_config_access(bus->number, devfn, where) < 0)
 		return PCIBIOS_DEVICE_NOT_FOUND;
 
 	data = readl(PCICONFDREG);
-	shift = (where & 3) << 3;
-	data &= ~(0xff << shift);
-	data |= (((u32)val) << shift);
+
+	switch (size) {
+	case 1:
+		shift = (where & 3) << 3;
+		data &= ~(0xff << shift);
+		data |= ((val & 0xff) << shift);
+		break;
+	case 2:
+		shift = (where & 2) << 3;
+		data &= ~(0xffff << shift);
+		data |= ((val & 0xffff) << shift);
+		break;
+	case 4:
+		data = val;
+		break;
+	default:
+		return PCIBIOS_FUNC_NOT_SUPPORTED;
+	}
 
 	writel(data, PCICONFDREG);
-
-	return PCIBIOS_SUCCESSFUL;
-}
-
-static int vr41xx_pci_write_config_word(struct pci_dev *dev, int where, u16 val)
-{
-	u32 data;
-	int shift;
-
-	if (where & 1)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-
-	if (vr41xx_pci_config_access(dev, where) < 0)
-		return PCIBIOS_DEVICE_NOT_FOUND;
-
-	data = readl(PCICONFDREG);
-	shift = (where & 2) << 3;
-	data &= ~(0xffff << shift);
-	data |= (((u32)val) << shift);
-	writel(data, PCICONFDREG);
-
-	return PCIBIOS_SUCCESSFUL;
-}
-
-static int vr41xx_pci_write_config_dword(struct pci_dev *dev, int where, u32 val)
-{
-	if (where & 3)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-
-	if (vr41xx_pci_config_access(dev, where) < 0)
-		return PCIBIOS_DEVICE_NOT_FOUND;
-
-	writel(val, PCICONFDREG);
 
 	return PCIBIOS_SUCCESSFUL;
 }
 
 struct pci_ops vr41xx_pci_ops = {
-	vr41xx_pci_read_config_byte,
-	vr41xx_pci_read_config_word,
-	vr41xx_pci_read_config_dword,
-	vr41xx_pci_write_config_byte,
-	vr41xx_pci_write_config_word,
-	vr41xx_pci_write_config_dword
+	.read	= vr41xx_pci_config_read,
+	.write	= vr41xx_pci_config_write,
 };
 
 void __init vr41xx_pciu_init(struct vr41xx_pci_address_map *map)
