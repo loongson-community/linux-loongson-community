@@ -36,6 +36,8 @@ extern void (*_flush_page_to_ram)(struct page * page);
 extern void (*_flush_icache_page)(struct vm_area_struct *vma,
                                   struct page *page, unsigned long addr);
 
+#define flush_dcache_page(page)			do { } while (0)
+
 #define flush_cache_all()		_flush_cache_all()
 #define flush_cache_mm(mm)		_flush_cache_mm(mm)
 #define flush_cache_range(mm,start,end)	_flush_cache_range(mm,start,end)
