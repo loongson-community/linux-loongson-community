@@ -30,7 +30,7 @@
 	pgd_current[smp_processor_id()] = (unsigned long)(pgd)
 #ifdef CONFIG_MIPS32
 #define TLBMISS_HANDLER_SETUP() \
-	write_c0_context((unsigned long) smp_processor_id() << (23 + 3)); \
+	write_c0_context((unsigned long) smp_processor_id() << 23); \
 	TLBMISS_HANDLER_SETUP_PGD(swapper_pg_dir)
 #endif
 #ifdef CONFIG_MIPS64

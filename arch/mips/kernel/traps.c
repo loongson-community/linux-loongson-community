@@ -869,12 +869,7 @@ void __init per_cpu_trap_init(void)
 		set_c0_cause(CAUSEF_IV);
 
 	cpu_data[cpu].asid_cache = ASID_FIRST_VERSION;
-#ifdef CONFIG_MIPS32
-	write_c0_context(cpu << 23);
-#endif
-#ifdef CONFIG_MIPS64
-	write_c0_context(((long)(&pgd_current[cpu])) << 23);
-#endif
+	TLBMISS_HANDLER_SETUP();
 	cpu_cache_init();
 	tlb_init();
 }
