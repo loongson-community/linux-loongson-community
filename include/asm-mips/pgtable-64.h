@@ -10,13 +10,11 @@
 #define _ASM_PGTABLE_64_H
 
 #include <linux/config.h>
-#include <asm/addrspace.h>
-#include <asm/page.h>
-
-#ifndef __ASSEMBLY__
-
 #include <linux/linkage.h>
 #include <linux/mmzone.h>
+
+#include <asm/addrspace.h>
+#include <asm/page.h>
 #include <asm/cachectl.h>
 
 /*
@@ -38,8 +36,6 @@
  * kptbl[] array. We reserve 1 << PGD_ORDER pages to hold the
  * vmalloc range translations, which the fault handler looks at.
  */
-
-#endif /* !__ASSEMBLY__ */
 
 /* PMD_SHIFT determines the size of the area a second-level page table can map */
 #define PMD_SHIFT	(PAGE_SHIFT + (PAGE_SHIFT - 3))
@@ -67,8 +63,6 @@
 #define VMALLOC_VMADDR(x)	((unsigned long)(x))
 #define VMALLOC_END	\
 	(VMALLOC_START + ((1 << PGD_ORDER) * PTRS_PER_PTE * PAGE_SIZE))
-
-#ifndef __ASSEMBLY__
 
 #define pte_ERROR(e) \
 	printk("%s:%d: bad pte %016lx.\n", __FILE__, __LINE__, pte_val(e))
@@ -203,7 +197,5 @@ static inline pte_t mk_swap_pte(unsigned long type, unsigned long offset)
 #define __swp_entry_to_pte(x)	((pte_t) { (x).val })
 
 typedef pte_t *pte_addr_t;
-
-#endif /* !__ASSEMBLY__ */
 
 #endif /* _ASM_PGTABLE_64_H */
