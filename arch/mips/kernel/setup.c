@@ -461,11 +461,12 @@ void __init setup_arch(char **cmdline_p)
 	void momenco_ocelot_setup(void);
 	void nino_setup(void);
 
-#ifdef CONFIG_BLK_DEV_INITRD
+#ifdef CONFIG_NINO
 	extern void * __rd_start, * __rd_end;
 #endif
 	unsigned long bootmap_size;
-	unsigned long start_pfn, max_pfn;
+	unsigned long start_pfn, max_pfn, first_usable_pfn;
+
 	int i;
 
 	/* Save defaults for configuration-dependent routines.  */
@@ -582,6 +583,7 @@ void __init setup_arch(char **cmdline_p)
 
 	/* Find the highest page frame number we have available.  */
 	max_pfn = 0;
+	first_usable_pfn = -1UL;
 	for (i = 0; i < boot_mem_map.nr_map; i++) {
 		unsigned long start, end;
 
@@ -596,10 +598,17 @@ void __init setup_arch(char **cmdline_p)
 			continue;
 		if (end > max_pfn)
 			max_pfn = end;
+		if (start < first_usable_pfn) {
+			if (start > start_pfn) {
+				first_usable_pfn = start;
+			} else if (end > start_pfn) {
+				first_usable_pfn = start_pfn;
+			}
+		}
 	}
-
+	
 	/* Initialize the boot-time allocator.  */
-	bootmap_size = init_bootmem(start_pfn, max_pfn);
+	bootmap_size = init_bootmem(first_usable_pfn, max_pfn);
 
 	/*
 	 * Register fully available low RAM pages with the bootmem allocator.
@@ -643,7 +652,7 @@ void __init setup_arch(char **cmdline_p)
 	}
 
 	/* Reserve the bootmap memory.  */
-	reserve_bootmem(PFN_PHYS(start_pfn), bootmap_size);
+	reserve_bootmem(PFN_PHYS(first_usable_pfn), bootmap_size);
 
 #ifdef CONFIG_NINO
 	ROOT_DEV = MKDEV(RAMDISK_MAJOR, 0);
@@ -652,27 +661,22 @@ void __init setup_arch(char **cmdline_p)
 	initrd_below_start_ok = 1;
 #endif
 
-#if 0
 #ifdef CONFIG_BLK_DEV_INITRD
-#error "Fixme, I'm broken."
-	tmp = (((unsigned long)&_end + PAGE_SIZE-1) & PAGE_MASK) - 8;
-	if (tmp < (unsigned long)&_end)
-		tmp += PAGE_SIZE;
-	initrd_header = (unsigned long *)tmp;
-	if (initrd_header[0] == 0x494E5244) {
-		initrd_start = (unsigned long)&initrd_header[2];
-		initrd_end = initrd_start + initrd_header[1];
-		initrd_below_start_ok = 1;
-		if (initrd_end > memory_end) {
+	/* Board specific code should have set up initrd_start and initrd_end */
+	if (initrd_start) {
+		unsigned long initrd_size = ((unsigned char *)initrd_end) - ((unsigned char *)initrd_start); 
+		printk("Initial ramdisk at: 0x%p (%lu bytes)\n",
+		       (void *)initrd_start, 
+		       initrd_size);
+		if ((void *)initrd_end > phys_to_virt(PFN_PHYS(max_low_pfn))) {
 			printk("initrd extends beyond end of memory "
-			       "(0x%08lx > 0x%08lx)\ndisabling initrd\n",
-			       initrd_end,memory_end);
-			initrd_start = 0;
-		} else
-			*memory_start_p = initrd_end;
+			       "(0x%lx > 0x%p)\ndisabling initrd\n",
+			       initrd_end,
+			       phys_to_virt(PFN_PHYS(max_low_pfn)));
+			initrd_start = initrd_end = 0;
+		} 
 	}
 #endif /* CONFIG_BLK_DEV_INITRD  */
-#endif /* 0  */
 
 	paging_init();
 
