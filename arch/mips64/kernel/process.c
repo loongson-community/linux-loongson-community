@@ -1,4 +1,4 @@
-/* $Id: process.c,v 1.7 1999/12/03 17:51:49 ralf Exp $
+/* $Id: process.c,v 1.7 1999/12/21 12:40:52 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
