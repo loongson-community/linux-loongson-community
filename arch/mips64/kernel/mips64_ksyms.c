@@ -90,13 +90,6 @@ EXPORT_SYMBOL(_dma_cache_inv);
 EXPORT_SYMBOL(invalid_pte_table);
 
 /*
- * Semaphore stuff
- */
-EXPORT_SYMBOL(__down_read);
-EXPORT_SYMBOL(__down_write);
-EXPORT_SYMBOL(__rwsem_wake);
-
-/*
  * Base address of ports for Intel style I/O.
  */
 #if defined (CONFIG_PCI) || defined (CONFIG_ISA)
