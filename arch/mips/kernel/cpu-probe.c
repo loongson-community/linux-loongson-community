@@ -244,7 +244,7 @@ __init void cpu_probe(void)
 				break;
 			}
                         current_cpu_data.isa_level = MIPS_CPU_ISA_III;
-                        current_cpu_data.options = R4K_OPTS | MIPS_CPU_LLSC;
+                        current_cpu_data.options = R4K_OPTS;
                         current_cpu_data.tlbsize = 32;
                         break;
 		case PRID_IMP_R4300:
