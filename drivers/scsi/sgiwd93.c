@@ -4,10 +4,13 @@
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *		 1999 Andrew R. Baker (andrewb@uab.edu)
  *		      - Support for 2nd SCSI controller on Indigo2
+ *		 2001 Florian Lohoff (flo@rfc822.org)
+ *		      - Delete HPC scatter gather (Read corruption on 
+ *		        multiple disks)
+ *		      - Cleanup wback cache handling
  * 
  * (In all truth, Jed Schimmel wrote all this code.)
  *
- * $Id: sgiwd93.c,v 1.19 2000/02/04 07:40:47 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/types.h>
@@ -85,7 +88,6 @@ void fill_hpc_entries (struct hpc_chunk **hcp, char *addr, unsigned long len)
 	unsigned long physaddr;
 	unsigned long count;
 	
-	dma_cache_wback_inv((unsigned long)addr,len);
 	physaddr = PHYSADDR(addr);
 	while (len) {
 		/*
@@ -104,7 +106,6 @@ void fill_hpc_entries (struct hpc_chunk **hcp, char *addr, unsigned long len)
 static int dma_setup(Scsi_Cmnd *cmd, int datainp)
 {
 	struct WD33C93_hostdata *hdata = (struct WD33C93_hostdata *)cmd->host->hostdata;
-	const wd33c93_regs regs = hdata->regs;
 	struct hpc3_scsiregs *hregs = (struct hpc3_scsiregs *) cmd->host->base;
 	struct hpc_chunk *hcp = (struct hpc_chunk *) hdata->dma_bounce_buffer;
 
@@ -124,6 +125,7 @@ static int dma_setup(Scsi_Cmnd *cmd, int datainp)
 	 */
 	if (cmd->SCp.ptr == NULL)
 		return 1;
+
 	fill_hpc_entries (&hcp, cmd->SCp.ptr,cmd->SCp.this_residual);
 
 	/* To make sure, if we trip an HPC bug, that we transfer
@@ -139,10 +141,14 @@ static int dma_setup(Scsi_Cmnd *cmd, int datainp)
 
 	/* Start up the HPC. */
 	hregs->ndptr = PHYSADDR(hdata->dma_bounce_buffer);
-	if(datainp)
+	if(datainp) {
+		dma_cache_wback_inv((unsigned long) cmd->SCp.ptr, cmd->SCp.this_residual);
 		hregs->ctrl = (HPC3_SCTRL_ACTIVE);
-	else
+	} else {
+		dma_cache_inv((unsigned long) cmd->SCp.ptr, cmd->SCp.this_residual);
 		hregs->ctrl = (HPC3_SCTRL_ACTIVE | HPC3_SCTRL_DIR);
+	}
+
 	return 0;
 }
 
@@ -150,7 +156,6 @@ static void dma_stop(struct Scsi_Host *instance, Scsi_Cmnd *SCpnt,
 		     int status)
 {
 	struct WD33C93_hostdata *hdata = (struct WD33C93_hostdata *)instance->hostdata;
-	const wd33c93_regs regp = hdata->regs;
 	struct hpc3_scsiregs *hregs;
 
 	if (!SCpnt)
@@ -199,6 +204,9 @@ static inline void init_hpc_chain(uchar *buf)
 	};
 	hcp--;
 	hcp->desc.pnext = PHYSADDR(buf);
+
+	/* Force flush to memory */
+	dma_cache_wback_inv((unsigned long) buf, PAGE_SIZE);
 }
 
 int __init sgiwd93_detect(Scsi_Host_Template *SGIblows)
@@ -229,7 +237,6 @@ int __init sgiwd93_detect(Scsi_Host_Template *SGIblows)
 		return 0;
 	}
 	init_hpc_chain(buf);
-	dma_cache_wback_inv((unsigned long) buf, PAGE_SIZE);
 
 	regs.SASR = KSEG1ADDR (0x1fbc0003); /* HPC_SCSI_REG0 | 0x03 | KSEG1 */
 	regs.SCMD = KSEG1ADDR (0x1fbc0007);
@@ -264,7 +271,6 @@ int __init sgiwd93_detect(Scsi_Host_Template *SGIblows)
 				return 1; /* We registered host0 so return success*/
 			}
 			init_hpc_chain(buf);
-			dma_cache_wback_inv((unsigned long) buf, PAGE_SIZE);
 
 			/* HPC_SCSI_REG1 | 0x03 | KSEG1 */
 			regs.SASR = KSEG1ADDR(0x1fbc8003);
@@ -275,7 +281,6 @@ int __init sgiwd93_detect(Scsi_Host_Template *SGIblows)
 			hdata1 = (struct WD33C93_hostdata *)sgiwd93_host1->hostdata;
 			hdata1->no_sync = 0;
 			hdata1->dma_bounce_buffer = (uchar *) (KSEG1ADDR(buf));
-			dma_cache_wback_inv((unsigned long) buf, PAGE_SIZE);
 	
 			if (request_irq(SGI_WD93_1_IRQ, sgiwd93_intr, 0, "SGI WD93", (void *) sgiwd93_host1)) {
 				printk(KERN_WARNING "sgiwd93: Could not allocate irq %d (for host1).\n", SGI_WD93_1_IRQ);
