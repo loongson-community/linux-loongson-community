@@ -108,6 +108,7 @@ void __init smp_boot_cpus(void)
 	CPUMASK_SETB(cpu_online_map, 0);
 	atomic_set(&cpus_booted, 1);  /* Master CPU is already booted... */
 	init_idle();
+	/* smp_tune_scheduling();  XXX */
 
 	/*
 	 * This loop attempts to compensate for "holes" in the CPU

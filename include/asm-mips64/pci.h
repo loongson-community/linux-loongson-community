@@ -127,7 +127,7 @@ static inline dma_addr_t pci_map_single(struct pci_dev *hwdev, void *ptr,
 
 	dma_cache_wback_inv(addr, size);
 
-	return bus_to_baddr(hwdev->bus->number, __pa(ptr));
+	return bus_to_baddr(hwdev->bus, __pa(ptr));
 }
 
 /*
@@ -147,7 +147,7 @@ static inline void pci_unmap_single(struct pci_dev *hwdev, dma_addr_t dma_addr,
 	if (direction != PCI_DMA_TODEVICE) {
 		unsigned long addr;
 
-		addr = baddr_to_bus(hwdev, dma_addr) + PAGE_OFFSET;
+		addr = baddr_to_bus(hwdev->bus, dma_addr) + PAGE_OFFSET;
 		dma_cache_wback_inv(addr, size);
 	}
 }
@@ -176,7 +176,7 @@ static inline dma_addr_t pci_map_page(struct pci_dev *hwdev, struct page *page,
 	addr = (unsigned long) page_address(page) + offset;
 	dma_cache_wback_inv(addr, size);
 
-	return bus_to_baddr(hwdev, page_to_phys(page) + offset);
+	return bus_to_baddr(hwdev->bus, page_to_phys(page) + offset);
 }
 
 static inline void pci_unmap_page(struct pci_dev *hwdev, dma_addr_t dma_address,
@@ -188,7 +188,7 @@ static inline void pci_unmap_page(struct pci_dev *hwdev, dma_addr_t dma_address,
 	if (direction != PCI_DMA_TODEVICE) {
 		unsigned long addr;
 
-		addr = baddr_to_bus(hwdev, dma_address) + PAGE_OFFSET;
+		addr = baddr_to_bus(hwdev->bus, dma_address) + PAGE_OFFSET;
 		dma_cache_wback_inv(addr, size);
 	}
 }
@@ -223,7 +223,7 @@ static inline int pci_map_sg(struct pci_dev *hwdev, struct scatterlist *sg,
 		addr = (unsigned long) page_address(sg->page);
 		if (addr)
 			dma_cache_wback_inv(addr + sg->offset, sg->length);
-		sg->dma_address = (dma_addr_t) bus_to_baddr(hwdev,
+		sg->dma_address = (dma_addr_t) bus_to_baddr(hwdev->bus,
 			page_to_phys(sg->page) + sg->offset);
 	}
 
@@ -277,7 +277,7 @@ static inline void pci_dma_sync_single(struct pci_dev *hwdev,
 	if (direction == PCI_DMA_NONE)
 		BUG();
 
-	addr = baddr_to_bus(hwdev, dma_handle) + PAGE_OFFSET;
+	addr = baddr_to_bus(hwdev->bus, dma_handle) + PAGE_OFFSET;
 	dma_cache_wback_inv(addr, size);
 }
 
@@ -337,13 +337,13 @@ static inline dma64_addr_t pci_dac_page_to_dma(struct pci_dev *pdev,
 {
 	dma64_addr_t addr = page_to_phys(page) + offset;
 
-	return (dma64_addr_t) bus_to_baddr(hwdev->bus->number, addr);
+	return (dma64_addr_t) bus_to_baddr(pdev->bus, addr);
 }
 
 static inline struct page *pci_dac_dma_to_page(struct pci_dev *pdev,
 	dma64_addr_t dma_addr)
 {
-	unsigned long poff = baddr_to_bus(hwdev, dma_addr) >> PAGE_SHIFT;
+	unsigned long poff = baddr_to_bus(pdev->bus, dma_addr) >> PAGE_SHIFT;
 
 	return mem_map + poff;
 }
@@ -362,7 +362,7 @@ static inline void pci_dac_dma_sync_single(struct pci_dev *pdev,
 	if (direction == PCI_DMA_NONE)
 		BUG();
 
-	addr = baddr_to_bus(hwdev->bus->number, dma_addr) + PAGE_OFFSET;
+	addr = baddr_to_bus(pdev->bus, dma_addr) + PAGE_OFFSET;
 	dma_cache_wback_inv(addr, len);
 }
 

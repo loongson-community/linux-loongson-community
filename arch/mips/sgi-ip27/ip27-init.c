@@ -536,6 +536,17 @@ void allowboot(void)
 	smp_num_cpus = num_cpus;
 }
 
+void __init smp_boot_cpus(void)
+{
+	extern void allowboot(void);
+
+	init_new_context(current, &init_mm);
+	current_thread_info()->cpu = 0;
+	init_idle();
+	/* smp_tune_scheduling();  XXX */
+	allowboot();
+}
+
 #else /* CONFIG_SMP */
 void __init start_secondary(void)
 {

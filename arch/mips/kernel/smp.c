@@ -83,10 +83,6 @@ int prom_setup_smp(void);
 
 void prom_smp_finish(void);
 
-static void smp_tune_scheduling(void)
-{
-}
-
 void __init smp_callin(void)
 {
 #if 0
