@@ -21,7 +21,7 @@
 #define MACE_BASE	0x1f000000	/* physical */
 
 #undef BIT
-#define BIT(x)	(1 << (x))
+#define BIT(x) (1ULL << (x))
 
 #ifdef CONFIG_MIPS32
 typedef struct {
@@ -44,9 +44,9 @@ typedef struct {
 #endif
 
 #define mace_read(r)	\
-	(sizeof(##r.reg) == 4 ? readl(&##r.reg) : readq(&##r.reg))
+	(sizeof(r.reg) == 4 ? readl(&r.reg) : readq(&r.reg))
 #define mace_write(v,r)	\
-	(sizeof(##r.reg) == 4 ? writel(v,&##r.reg) : writeq(v,&##r.reg))
+	(sizeof(r.reg) == 4 ? writel(v,&r.reg) : writeq(v,&r.reg))
 
 /*
  * PCI interface
@@ -157,9 +157,9 @@ struct mace_ethernet {
 	mace32_t rx_fifo;
 };
 #define mace_eth_read(r)	\
-	mace_read(mace->eth.##r)
+	mace_read(mace->eth.r)
 #define mace_eth_write(v,r)	\
-	mace_write(v,mace->eth.##r)
+	mace_write(v,mace->eth.r)
 
 
 /* 
@@ -171,9 +171,9 @@ struct mace_audio {
 	mace32_t xxx;	/* later... */
 };
 #define mace_perif_audio_read(r)	\
-	mace_read(mace->perif.audio.##r)
+	mace_read(mace->perif.audio.r)
 #define mace_perif_audio_write(v,r)	\
-	mace_write(v,mace->perif.audio.##r)
+	mace_write(v,mace->perif.audio.r)
 
 /* ISA Control and DMA registers */
 struct mace_isactrl {
@@ -229,9 +229,9 @@ struct mace_isactrl {
 	mace64_t dp_ram[0x400];
 };
 #define mace_perif_ctrl_read(r)		\
-	mace_read(mace->perif.ctrl.##r)
+	mace_read(mace->perif.ctrl.r)
 #define mace_perif_ctrl_write(v,r)	\
-	mace_write(v,mace->perif.ctrl.##r)
+	mace_write(v,mace->perif.ctrl.r)
 
 /* Keyboard & Mouse registers
  * -> drivers/input/serio/maceps2.c */
@@ -267,7 +267,7 @@ typedef union {
 	struct reg {
 		volatile unsigned int ust;
 		volatile unsigned int msc;
-	};
+	} reg;
 } timer_reg;
 
 struct mace_timers {
