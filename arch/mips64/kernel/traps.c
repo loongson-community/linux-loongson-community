@@ -340,40 +340,46 @@ void do_ov(struct pt_regs *regs)
 /*
  * XXX Delayed fp exceptions when doing a lazy ctx switch XXX
  */
-void do_fpe(struct pt_regs *regs, unsigned long fcr31)
+asmlinkage void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 {
-	unsigned long pc;
-	unsigned int insn;
-	extern void simfp(unsigned int);
+	if (fcr31 & FPU_CSR_UNI_X) {
+		int sig;
 
-	if (fcr31 & 0x20000) {
-		/* Retry instruction with flush to zero ...  */
-		if (!(fcr31 & (1<<24))) {
-			printk("Setting flush to zero for %s.\n",
-			       current->comm);
-			fcr31 &= ~0x20000;
-			fcr31 |= (1<<24);
-			__asm__ __volatile__(
-				"ctc1\t%0,$31"
-				: /* No outputs */
-				: "r" (fcr31));
-			return;
-		}
-		pc = regs->cp0_epc + ((regs->cp0_cause & CAUSEF_BD) ? 4 : 0);
-		if (get_user(insn, (unsigned int *)pc)) {
-			/* XXX Can this happen?  */
-			force_sig(SIGSEGV, current);
-		}
+		/*
+	 	 * Unimplemented operation exception.  If we've got the full
+		 * software emulator on-board, let's use it...
+		 *
+		 * Force FPU to dump state into task/thread context.  We're
+		 * moving a lot of data here for what is probably a single
+		 * instruction, but the alternative is to pre-decode the FP
+		 * register operands before invoking the emulator, which seems
+		 * a bit extreme for what should be an infrequent event.
+		 */
+		save_fp(current);
 
-		printk(KERN_DEBUG "Unimplemented exception for insn %08x at 0x%08lx in %s.\n",
-		       insn, regs->cp0_epc, current->comm);
-		simfp(insn);
+		/* Run the emulator */
+		sig = fpu_emulator_cop1Handler(regs);
+
+		/* 
+		 * We can't allow the emulated instruction to leave the
+		 * Unimplemented Operation bit set in $fcr31.
+		 */
+		current->thread.fpu.soft.sr &= ~FPU_CSR_UNI_X;
+
+		/* Restore the hardware register state */
+		restore_fp(current);
+
+		/* If something went wrong, signal */
+		if (sig)
+			force_sig(sig, current);
+
+		return;
 	}
 
 	if (compute_return_epc(regs))
 		return;
-	//force_sig(SIGFPE, current);
-	printk(KERN_DEBUG "Should send SIGFPE to %s\n", current->comm);
+
+	force_sig(SIGFPE, current);
 }
 
 void do_bp(struct pt_regs *regs)
