@@ -372,7 +372,8 @@ cpu_4kc:
 			mips_cpu.isa_level = MIPS_CPU_ISA_M32;
 			mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX | 
 				           MIPS_CPU_4KTLB | MIPS_CPU_COUNTER | 
-				           MIPS_CPU_DIVEC | MIPS_CPU_WATCH;
+				           MIPS_CPU_DIVEC | MIPS_CPU_WATCH |
+			                   MIPS_CPU_MCHECK;
 			config1 = read_mips32_cp0_config1();
 			if (config1 & (1 << 3))
 				mips_cpu.options |= MIPS_CPU_WATCH;
@@ -388,7 +389,8 @@ cpu_4kc:
 			/* See comment above about querying options */
 			mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX | 
 				           MIPS_CPU_4KTLB | MIPS_CPU_COUNTER | 
-				           MIPS_CPU_DIVEC | MIPS_CPU_WATCH;
+				           MIPS_CPU_DIVEC | MIPS_CPU_WATCH |
+			                   MIPS_CPU_MCHECK;
 			config1 = read_mips32_cp0_config1();
 			if (config1 & (1 << 3))
 				mips_cpu.options |= MIPS_CPU_WATCH;
@@ -432,8 +434,9 @@ cpu_4kc:
 		case PRID_IMP_SB1:
 			mips_cpu.cputype = CPU_SB1;
 			mips_cpu.isa_level = MIPS_CPU_ISA_M64;
-			mips_cpu.options = (MIPS_CPU_TLB | MIPS_CPU_4KEX |
-			                   MIPS_CPU_COUNTER | MIPS_CPU_DIVEC);
+			mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX |
+			                   MIPS_CPU_COUNTER | MIPS_CPU_DIVEC |
+			                   MIPS_CPU_MCHECK;
 #ifndef CONFIG_SB1_PASS_1_WORKAROUNDS
 			/* FPU in pass1 is known to have issues. */
 			mips_cpu.options |= MIPS_CPU_FPU;
