@@ -298,6 +298,13 @@ SUBDIRS       += arch/mips/au1000/pb1000 arch/mips/au1000/common
 LOADADDR      += 0x80100000
 endif
 
+ifdef CONFIG_MIPS_PB1500
+LIBS          += arch/mips/au1000/pb1500/pb1500.o \
+                 arch/mips/au1000/common/au1000.o
+SUBDIRS       += arch/mips/au1000/pb1500 arch/mips/au1000/common
+LOADADDR      += 0x80100000
+endif
+
 #
 # Sibyte SB1250 SOC
 #

@@ -527,6 +527,15 @@ nowrite_mod:
 	END(handle_mod)
 
 #ifdef CONFIG_MIPS_AU1000
+
+#ifdef CONFIG_MIPS_PB1500
+#define PSEUDO_ADDR_BASE 0x20000000
+#endif
+
+#ifdef CONFIG_MIPS_PB1000
+#define PSEUDO_ADDR_BASE 0xC0000000
+#endif
+
 /*
  * On entry k0 contains the pte with the pseudo address.
  * On exit, k0 contains the "real" address, which is a
@@ -539,6 +548,7 @@ nowrite_mod:
  */
 LEAF(get_real_pte)
 	.set	mips3
+	.set	at
 
 	li	k1, 0xe0000000          # check lcd 
 	bltu	k0, k1, check_pcmcia_socket_1
@@ -546,6 +556,10 @@ LEAF(get_real_pte)
 	# lcd pseudo access
 	li	k1, 0x0fffffff
 	and	k0, k0, k1              # get offset
+#ifdef CONFIG_MIPS_PB1500
+	lui	k1, 0x1b00
+	addu	k0, k0, k1
+#endif
 	srl	k0, k0, 6
 	lui	k1, 0xe000>>2
 	or	k0, k0, k1
@@ -590,6 +604,10 @@ check_attr:
 	j	ra                      # done
 	nop
 io_access:
+#ifdef CONFIG_MIPS_PB1500
+	li	k1, 0xC0000000
+	bltu	k0, k1, pci_access
+#endif
 	# handle pseudo io access
 	li	k1, 0x00ffffff
 	and	k0, k0, k1              # get access offset
@@ -599,6 +617,36 @@ io_access:
 	or	k0, k0, k1
 	j	ra                      # done
 	nop
+#ifdef CONFIG_MIPS_PB1500
+pci_access:
+	li	k1, 0x80000000
+	bltu	k0, k1, pci_io_access
+	lui	k1, 0x4000>>2
+	# handle pseudo pci mem access
+	srl	k0, k0, 6
+	or	k0, k0, k1
+	j	ra                      # done
+	nop
+pci_io_access:
+	li	k1, 0x70000000
+	bltu	k0, k1, pci_cfg_access
+	lui	k1, 0x5000>>2
+	# handle pseudo pci io access
+	srl	k0, k0, 6
+	or	k0, k0, k1
+	j	ra                      # done
+	nop
+pci_cfg_access:
+	# handle pseudo pci ext cfg access
+	li	k1, 0x0fffffff
+	and	k0, k0, k1              # get access offset
+	srl	k0, k0, 6
+	lui	k1, 0x6000>>2
+	or	k0, k0, k1
+	j	ra                      # done
+	nop
+#endif
+	.set	noat
 END(get_real_pte)
 
 /*
@@ -607,12 +655,14 @@ END(get_real_pte)
 	LEAF(translate_pte)
 	.set	mips3
 	lui	k0, %hi(__saved_at)
+	.set	noat
 	sw	$at, %lo(__saved_at)(k0)	# save at
+	.set	at
 	sw	k1, %lo(__saved_pte)(k0)	# save pte pointer
 	sw	ra, %lo(__saved_ra)(k0)		# save ra
 	lw	k0, 0(k1)			# get even pte
 
-	li	k1, 0xC0000000   		# check pseudo addr
+	li	k1, PSEUDO_ADDR_BASE   		# check pseudo addr
 	bltu	k0, k1, 1f
 	nop
 	bal	get_real_pte
@@ -622,13 +672,13 @@ END(get_real_pte)
 1:
 	srl	k0, k0, 6
 2:
-	P_MTC0	k0, CP0_ENTRYLO0		# load it
+	mtc0	k0, CP0_ENTRYLO0		# load it
 
 	lui	k1, %hi(__saved_pte)
 	lw	k1, %lo(__saved_pte)(k1)	# recover pte pointer
 	lw	k0, 4(k1)			# get odd pte
 
-	li	k1, 0xC0000000   		# check pseudo addr
+	li	k1, PSEUDO_ADDR_BASE   		# check pseudo addr
 	bltu	k0, k1, 1f
 	nop
 	bal	get_real_pte
@@ -639,15 +689,18 @@ END(get_real_pte)
 1:
 	srl	k0, k0, 6			# convert to entrylo0
 2:
-	P_MTC0	k0, CP0_ENTRYLO1		# load it
+	mtc0	k0, CP0_ENTRYLO1		# load it
 	nop
 	b	1f
 	tlbwr					# write random tlb entry
 1:
 	lui	k0, %hi(__saved_at)
+	.set	noat
 	lw	$at, %lo(__saved_at)(k0)	# restore at
+	.set	at
 	lw	ra, %lo(__saved_ra)(k0)		# restore ra
 	eret					# return from trap
+	.set	noat
 	END(translate_pte)
 
 __saved_at:	PTR	0

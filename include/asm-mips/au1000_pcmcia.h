@@ -84,6 +84,10 @@ struct pcmcia_low_level {
 	int (*configure_socket)(const struct pcmcia_configure *);
 };
 
+#ifdef CONFIG_MIPS_PB1000
 extern struct pcmcia_low_level pb1000_pcmcia_ops;
+#elif defined (CONFIG_MIPS_PB1500)
+extern struct pcmcia_low_level pb1500_pcmcia_ops;
+#endif
 
 #endif /* __ASM_AU1000_PCMCIA_H */

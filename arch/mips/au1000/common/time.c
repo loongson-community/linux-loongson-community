@@ -36,6 +36,8 @@
 
 #include <asm/mipsregs.h>
 #include <asm/ptrace.h>
+#include <asm/time.h>
+#include <asm/hardirq.h>
 #include <asm/div64.h>
 #include <asm/au1000.h>
 
@@ -50,6 +52,7 @@ unsigned long missed_heart_beats = 0;
 static unsigned long r4k_offset; /* Amount to increment compare reg each time */
 static unsigned long r4k_cur;    /* What counter should be at next timer irq */
 extern rwlock_t xtime_lock;
+unsigned int mips_counter_frequency = 0;
 
 /* Cycle counter value at the previous timer interrupt.. */
 static unsigned int timerhi = 0, timerlo = 0;
@@ -75,6 +78,10 @@ void mips_timer_interrupt(struct pt_regs *regs)
 {
 	int irq = 63;
 	unsigned long count;
+	int cpu = smp_processor_id();
+
+	irq_enter(cpu, irq);
+	kstat.irqs[cpu][irq]++;
 
 #ifdef CONFIG_PM
 	printk(KERN_ERR "Unexpected CP0 interrupt\n");
@@ -98,6 +105,10 @@ void mips_timer_interrupt(struct pt_regs *regs)
 	} while (((unsigned long)read_32bit_cp0_register(CP0_COUNT)
 	         - r4k_cur) < 0x7fffffff);
 
+	irq_exit(cpu, irq);
+
+	if (softirq_pending(cpu))
+		do_softirq();
 	return;
 
 null:
@@ -112,13 +123,13 @@ void counter0_irq(int irq, void *dev_id, struct pt_regs *regs)
 	static int jiffie_drift = 0;
 
 	kstat.irqs[0][irq]++;
-	if (readl(PC_COUNTER_CNTRL) & PC_CNTRL_M20) {
+	if (readl(SYS_COUNTER_CNTRL) & SYS_CNTRL_M20) {
 		/* should never happen! */
 		printk(KERN_WARNING "counter 0 w status eror\n");
 		return;
 	}
 
-	pc0 = inl(PC0_COUNTER_READ);
+	pc0 = inl(SYS_TOYREAD);
 	if (pc0 < last_match20) {
 		/* counter overflowed */
 		time_elapsed = (0xffffffff - last_match20) + pc0;
@@ -135,7 +146,7 @@ void counter0_irq(int irq, void *dev_id, struct pt_regs *regs)
 	}
 
 	last_pc0 = pc0;
-	outl(last_match20 + MATCH20_INC, PC0_MATCH2);
+	outl(last_match20 + MATCH20_INC, SYS_TOYMATCH2);
 	au_sync();
 
 	/* our counter ticks at 10.009765625 ms/tick, we we're running
@@ -165,30 +176,31 @@ unsigned long cal_r4koff(void)
 
 	save_and_cli(flags);
 
-	counter = inl(PC_COUNTER_CNTRL);
-	outl(counter | PC_CNTRL_EN1, PC_COUNTER_CNTRL);
+	counter = inl(SYS_COUNTER_CNTRL);
+	outl(counter | SYS_CNTRL_EN1, SYS_COUNTER_CNTRL);
 
-	while (inl(PC_COUNTER_CNTRL) & PC_CNTRL_T1S);
-	outl(trim_divide-1, PC1_TRIM);    /* RTC now ticks at 32.768/16 kHz */
-	while (inl(PC_COUNTER_CNTRL) & PC_CNTRL_T1S);
+	while (inl(SYS_COUNTER_CNTRL) & SYS_CNTRL_T1S);
+	outl(trim_divide-1, SYS_RTCTRIM); /* RTC now ticks at 32.768/16 kHz */
+	while (inl(SYS_COUNTER_CNTRL) & SYS_CNTRL_T1S);
 
-	while (inl(PC_COUNTER_CNTRL) & PC_CNTRL_C1S);
-	outl (0, PC1_COUNTER_WRITE);
-	while (inl(PC_COUNTER_CNTRL) & PC_CNTRL_C1S);
+	while (inl(SYS_COUNTER_CNTRL) & SYS_CNTRL_C1S);
+	outl (0, SYS_TOYWRITE);
+	while (inl(SYS_COUNTER_CNTRL) & SYS_CNTRL_C1S);
 
-	start = inl(PC1_COUNTER_READ);
+	start = inl(SYS_RTCREAD);
 	start += 2;
 	/* wait for the beginning of a new tick */
-	while (inl(PC1_COUNTER_READ) < start);
+	while (inl(SYS_RTCREAD) < start);
 
 	/* Start r4k counter. */
 	write_32bit_cp0_register(CP0_COUNT, 0);
 	end = start + (32768 / trim_divide)/2; /* wait 0.5 seconds */
 
-	while (end > inl(PC1_COUNTER_READ));
+	while (end > inl(SYS_RTCREAD));
 
 	count = read_32bit_cp0_register(CP0_COUNT);
 	cpu_speed = count * 2;
+	mips_counter_frequency = count;
 	set_au1000_uart_baud_base(((cpu_speed) / 4) / 16);
 	restore_flags(flags);
 	return (cpu_speed / HZ);
@@ -210,9 +222,7 @@ void __init time_init(void)
 	printk("CPU frequency %d.%02d MHz\n", est_freq/1000000, 
 	       (est_freq%1000000)*100/1000000);
 	set_au1000_speed(est_freq);
-#ifdef CONFIG_FB_E1356
 	set_au1000_lcd_clock(); // program the LCD clock
-#endif
 	r4k_cur = (read_32bit_cp0_register(CP0_COUNT) + r4k_offset);
 
 	write_32bit_cp0_register(CP0_COMPARE, r4k_cur);
@@ -231,20 +241,20 @@ void __init time_init(void)
 	 * counter 0 interrupt as a special irq and it doesn't show
 	 * up under /proc/interrupts.
 	 */
-	while (readl(PC_COUNTER_CNTRL) & PC_CNTRL_C0S);
-	writel(0, PC0_COUNTER_WRITE);
-	while (readl(PC_COUNTER_CNTRL) & PC_CNTRL_C0S);
+	while (readl(SYS_COUNTER_CNTRL) & SYS_CNTRL_C0S);
+	writel(0, SYS_TOYWRITE);
+	while (readl(SYS_COUNTER_CNTRL) & SYS_CNTRL_C0S);
 
-	writel(readl(PM_WAKEUP_SOURCE_MASK) | (1<<8), PM_WAKEUP_SOURCE_MASK);
-	writel(~0, PM_WAKEUP_CAUSE);
+	writel(readl(SYS_WAKEMSK) | (1<<8), SYS_WAKEMSK);
+	writel(~0, SYS_WAKESRC);
 	au_sync();
-	while (readl(PC_COUNTER_CNTRL) & PC_CNTRL_M20);
+	while (readl(SYS_COUNTER_CNTRL) & SYS_CNTRL_M20);
 
 	/* setup match20 to interrupt once every 10ms */
-	last_pc0 = last_match20 = readl(PC0_COUNTER_READ);
-	writel(last_match20 + MATCH20_INC, PC0_MATCH2);
+	last_pc0 = last_match20 = readl(SYS_TOYREAD);
+	writel(last_match20 + MATCH20_INC, SYS_TOYMATCH2);
 	au_sync();
-	while (readl(PC_COUNTER_CNTRL) & PC_CNTRL_M20);
+	while (readl(SYS_COUNTER_CNTRL) & SYS_CNTRL_M20);
 	startup_match20_interrupt();
 #endif
 
@@ -254,7 +264,7 @@ void __init time_init(void)
 
 /* This is for machines which generate the exact clock. */
 #define USECS_PER_JIFFY (1000000/HZ)
-#define USECS_PER_JIFFY_FRAC ((u32)((1000000ULL << 32) / HZ))
+#define USECS_PER_JIFFY_FRAC (0x100000000*1000000/HZ&0xffffffff)
 
 
 static unsigned long
@@ -272,7 +282,7 @@ static unsigned long do_fast_gettimeoffset(void)
 	unsigned long pc0;
 	unsigned long offset;
 
-	pc0 = readl(PC0_COUNTER_READ);
+	pc0 = readl(SYS_TOYREAD);
 	if (pc0 < last_pc0) {
 		offset = 0xffffffff - last_pc0 + pc0;
 		printk("offset over: %x\n", (unsigned)offset);
@@ -325,8 +335,7 @@ static unsigned long do_fast_gettimeoffset(void)
 		"mfhi\t%0"
 		:"=r" (res)
 		:"r" (count),
-		 "r" (quotient)
-		 :"$1");
+		 "r" (quotient));
 
 	/*
  	 * Due to possible jiffies inconsistencies, we need to check 

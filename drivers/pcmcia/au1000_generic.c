@@ -60,7 +60,7 @@ static int pc_debug;
 #endif
 
 MODULE_AUTHOR("Pete Popov, MontaVista Software <ppopov@mvista.com>");
-MODULE_DESCRIPTION("Linux PCMCIA Card Services: Au1000 Socket Controller");
+MODULE_DESCRIPTION("Linux PCMCIA Card Services: Au1x00 Socket Controller");
 
 #define MAP_SIZE 0x1000000
 
@@ -139,7 +139,7 @@ static int __init au1000_pcmcia_driver_init(void)
 	unsigned int i;
 	unsigned long timing3;
 
-	printk("\nAU1000 PCMCIA (CS release %s)\n", CS_RELEASE);
+	printk("\nAu1x00 PCMCIA (CS release %s)\n", CS_RELEASE);
 
 	CardServices(GetCardServicesInfo, &info);
 
@@ -150,6 +150,8 @@ static int __init au1000_pcmcia_driver_init(void)
 
 #ifdef CONFIG_MIPS_PB1000
 	pcmcia_low_level=&pb1000_pcmcia_ops;
+#elif defined(CONFIG_MIPS_PB1500)
+	pcmcia_low_level=&pb1500_pcmcia_ops;
 #else
 #error Unsupported AU1000 board.
 #endif
@@ -162,9 +164,9 @@ static int __init au1000_pcmcia_driver_init(void)
 
 	/* setup the static bus controller */
 	timing3 = 0x100e3a07;
-	writel(0x00000002, STATIC_CONFIG_3);  /* type = PCMCIA */
-	writel(timing3, STATIC_TIMING_3); 
-	writel(0x10000000, STATIC_ADDRESS_3); /* any PCMCIA select */
+	writel(0x00000002, MEM_STCFG3);  /* type = PCMCIA */
+	writel(timing3, MEM_STTIME3); 
+	writel(0x10000000, MEM_STADDR3); /* any PCMCIA select */
 	au_sync_delay(1);
 
 	pcmcia_socket = 

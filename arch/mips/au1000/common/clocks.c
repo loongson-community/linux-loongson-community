@@ -27,6 +27,7 @@
  *  675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
+#include <linux/module.h>
 #include <asm/au1000.h>
 
 static unsigned int au1000_clock; // Hz
@@ -74,27 +75,24 @@ void set_au1000_lcd_clock(void)
 	unsigned int static_cfg0;
 	unsigned int sys_busclk =
 		(get_au1000_speed()/1000) /
-		((int)(inl(PM_POWERUP_CONTROL)&0x03) + 2);
+		((int)(inl(SYS_POWERCTRL)&0x03) + 2);
 
-	static_cfg0 = inl(STATIC_CONFIG_0);
-	if (sys_busclk/4 > 40000) {
-		static_cfg0 |= (1<<11);
-		outl(static_cfg0, STATIC_CONFIG_0);
-		lcd_clock = sys_busclk / 5;
-		if (lcd_clock > 40000)
+	static_cfg0 = inl(MEM_STCFG0);
+
+	if (static_cfg0 & (1<<11))
+		lcd_clock = sys_busclk / 5; /* note: BCLK switching fails with D5 */
+	else
+		lcd_clock = sys_busclk / 4;
+
+	if (lcd_clock > 50000) /* Epson MAX */
 			printk(__FUNCTION__
 			       ": warning: LCD clock too high (%d KHz)\n",
 			       lcd_clock);
-	} else {
-		static_cfg0 &= ~(1<<11);
-		outl(static_cfg0, STATIC_CONFIG_0);
-		lcd_clock = sys_busclk / 4;
-	}
-	// some time to allow LCD clock to settle
-	udelay(100);
 }
 
 unsigned int get_au1000_lcd_clock(void)
 {
-    return lcd_clock;
+	return lcd_clock;
 }
+
+EXPORT_SYMBOL(get_au1000_lcd_clock);

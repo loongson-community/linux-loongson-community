@@ -37,7 +37,12 @@ if [ "$CONFIG_PPC" = "y" ]; then
 fi
 
 if [ "$CONFIG_MIPS" = "y" ]; then
-   dep_tristate '  Alchemy Pb1000 boot flash device' CONFIG_MTD_PB1000 $CONFIG_MIPS_PB1000
+   dep_tristate '  Pb1000 boot flash device' CONFIG_MTD_PB1000 $CONFIG_MIPS_PB1000
+   dep_tristate '  Pb1500 MTD support' CONFIG_MTD_PB1500 $CONFIG_MIPS_PB1500
+   if [ "$CONFIG_MTD_PB1500" = "y" -o "$CONFIG_MTD_PB1500" = "m" ]; then
+      bool '  Pb1500 boot flash device' CONFIG_MTD_PB1500_BOOT 
+      bool '  Pb1500 user flash device (2nd 32MB bank)' CONFIG_MTD_PB1500_USER
+   fi
    dep_tristate '  Flash chip mapping on ITE QED-4N-S01B, Globespan IVR or custom board' CONFIG_MTD_CSTM_MIPS_IXX $CONFIG_MTD_CFI $CONFIG_MTD_JEDEC $CONFIG_MTD_PARTITIONS 
    if [ "$CONFIG_MTD_CSTM_MIPS_IXX" = "y" -o "$CONFIG_MTD_CSTM_MIPS_IXX" = "m" ]; then
       hex '    Physical start address of flash mapping' CONFIG_MTD_CSTM_MIPS_IXX_START 0x8000000

@@ -279,20 +279,15 @@ static struct usb_string_descriptor string_desc0 = {
 
 static endpoint_reg_t ep_reg[] = {
 	// FIFO's 0 and 1 are EP0 default control
-	{USB_DEV_EP0_READ_FIFO, USB_DEV_EP0_WRITE_FIFO,
-	 USB_DEV_EP0_CS, USB_DEV_FIFO0_STATUS, USB_DEV_FIFO1_STATUS},
+	{USBD_EP0RD, USBD_EP0WR, USBD_EP0CS, USBD_EP0RDSTAT, USBD_EP0WRSTAT},
 	// FIFO 2 is EP2, Port 0, bulk IN
-	{ -1, USB_DEV_EP2_WRITE_FIFO, USB_DEV_EP2_CS,
-	  -1, USB_DEV_FIFO2_STATUS },
+	{ -1, USBD_EP2WR, USBD_EP2CS, -1, USBD_EP2WRSTAT },
 	// FIFO 4 is EP4, Port 0, bulk OUT
-	    {USB_DEV_EP4_READ_FIFO, -1, USB_DEV_EP4_CS,
-	 USB_DEV_FIFO4_STATUS, -1},
+	    {USBD_EP4RD, -1, USBD_EP4CS, USBD_EP3WR, -1},
 	// FIFO 3 is EP3, Port 1, bulk IN
-	{ -1, USB_DEV_EP3_WRITE_FIFO, USB_DEV_EP3_CS,
-	  -1, USB_DEV_FIFO3_STATUS },
+	{ -1, USBD_EP3WRSTAT, USBD_EP3CS, -1, USBD_EP3WRSTAT },
 	// FIFO 5 is EP5, Port 1, bulk OUT
-	    {USB_DEV_EP5_READ_FIFO, -1, USB_DEV_EP5_CS,
-	 USB_DEV_FIFO5_STATUS, -1}
+	    {USBD_EP5RD, -1, USBD_EP5CS, USBD_EP5RDSTAT, -1}
 };
 
 static struct {

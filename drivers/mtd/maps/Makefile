@@ -30,5 +30,6 @@ obj-$(CONFIG_MTD_DBOX2)		+= dbox2-flash.o
 obj-$(CONFIG_MTD_OCELOT)	+= ocelot.o
 obj-$(CONFIG_MTD_SOLUTIONENGINE)+= solutionengine.o
 obj-$(CONFIG_MTD_PB1000)        += pb1xxx-flash.o
+obj-$(CONFIG_MTD_PB1500)        += pb1xxx-flash.o
 
 include $(TOPDIR)/Rules.make

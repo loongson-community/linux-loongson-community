@@ -36,6 +36,7 @@ CONFIG_EXPERIMENTAL=y
 # CONFIG_MIPS_IVR is not set
 CONFIG_MIPS_PB1000=y
 CONFIG_PCI_AUTO=y
+# CONFIG_MIPS_PB1500 is not set
 # CONFIG_TOSHIBA_JMR3927 is not set
 # CONFIG_HP_LASERJET is not set
 # CONFIG_HIGHMEM is not set
@@ -94,12 +95,27 @@ CONFIG_ELF_KERNEL=y
 # CONFIG_BINFMT_AOUT is not set
 CONFIG_BINFMT_ELF=y
 # CONFIG_BINFMT_MISC is not set
-CONFIG_PM=y
+# CONFIG_PM is not set
 CONFIG_NET=y
 CONFIG_PCI_NAMES=y
-# CONFIG_HOTPLUG is not set
-# CONFIG_PCMCIA is not set
+CONFIG_HOTPLUG=y
+
+#
+# PCMCIA/CardBus support
+#
+CONFIG_PCMCIA=m
+# CONFIG_CARDBUS is not set
+# CONFIG_I82092 is not set
+# CONFIG_I82365 is not set
+# CONFIG_TCIC is not set
+CONFIG_PCMCIA_AU1000=m
+
+#
+# PCI Hotplug Support
+#
 # CONFIG_HOTPLUG_PCI is not set
+# CONFIG_HOTPLUG_PCI_COMPAQ is not set
+# CONFIG_HOTPLUG_PCI_COMPAQ_NVRAM is not set
 CONFIG_SYSVIPC=y
 # CONFIG_BSD_PROCESS_ACCT is not set
 CONFIG_SYSCTL=y
@@ -107,64 +123,7 @@ CONFIG_SYSCTL=y
 #
 # Memory Technology Devices (MTD)
 #
-CONFIG_MTD=y
-# CONFIG_MTD_DEBUG is not set
-CONFIG_MTD_PARTITIONS=y
-# CONFIG_MTD_REDBOOT_PARTS is not set
-
-#
-# User Modules And Translation Layers
-#
-CONFIG_MTD_CHAR=y
-CONFIG_MTD_BLOCK=y
-# CONFIG_FTL is not set
-# CONFIG_NFTL is not set
-
-#
-# RAM/ROM/Flash chip drivers
-#
-CONFIG_MTD_CFI=y
-# CONFIG_MTD_JEDECPROBE is not set
-CONFIG_MTD_GEN_PROBE=y
-# CONFIG_MTD_CFI_ADV_OPTIONS is not set
-# CONFIG_MTD_CFI_INTELEXT is not set
-CONFIG_MTD_CFI_AMDSTD=y
-# CONFIG_MTD_RAM is not set
-# CONFIG_MTD_ROM is not set
-# CONFIG_MTD_ABSENT is not set
-# CONFIG_MTD_OBSOLETE_CHIPS is not set
-# CONFIG_MTD_AMDSTD is not set
-# CONFIG_MTD_SHARP is not set
-# CONFIG_MTD_JEDEC is not set
-
-#
-# Mapping drivers for chip access
-#
-# CONFIG_MTD_PHYSMAP is not set
-CONFIG_MTD_PB1000=y
-# CONFIG_MTD_CSTM_MIPS_IXX is not set
-# CONFIG_MTD_OCELOT is not set
-
-#
-# Self-contained MTD device drivers
-#
-# CONFIG_MTD_PMC551 is not set
-# CONFIG_MTD_SLRAM is not set
-# CONFIG_MTD_MTDRAM is not set
-# CONFIG_MTD_BLKMTD is not set
-
-#
-# Disk-On-Chip Device Drivers
-#
-# CONFIG_MTD_DOC1000 is not set
-# CONFIG_MTD_DOC2000 is not set
-# CONFIG_MTD_DOC2001 is not set
-# CONFIG_MTD_DOCPROBE is not set
-
-#
-# NAND Flash Device Drivers
-#
-# CONFIG_MTD_NAND is not set
+# CONFIG_MTD is not set
 
 #
 # Parallel port support
@@ -253,9 +212,50 @@ CONFIG_IP_PNP_BOOTP=y
 #
 # ATA/IDE/MFM/RLL support
 #
-# CONFIG_IDE is not set
-# CONFIG_BLK_DEV_IDE_MODES is not set
+CONFIG_IDE=y
+
+#
+# IDE, ATA and ATAPI Block devices
+#
+CONFIG_BLK_DEV_IDE=y
+
+#
+# Please see Documentation/ide.txt for help/info on IDE drives
+#
+# CONFIG_BLK_DEV_HD_IDE is not set
 # CONFIG_BLK_DEV_HD is not set
+CONFIG_BLK_DEV_IDEDISK=y
+# CONFIG_IDEDISK_MULTI_MODE is not set
+# CONFIG_BLK_DEV_IDEDISK_VENDOR is not set
+# CONFIG_BLK_DEV_IDEDISK_FUJITSU is not set
+# CONFIG_BLK_DEV_IDEDISK_IBM is not set
+# CONFIG_BLK_DEV_IDEDISK_MAXTOR is not set
+# CONFIG_BLK_DEV_IDEDISK_QUANTUM is not set
+# CONFIG_BLK_DEV_IDEDISK_SEAGATE is not set
+# CONFIG_BLK_DEV_IDEDISK_WD is not set
+# CONFIG_BLK_DEV_COMMERIAL is not set
+# CONFIG_BLK_DEV_TIVO is not set
+CONFIG_BLK_DEV_IDECS=m
+# CONFIG_BLK_DEV_IDECD is not set
+# CONFIG_BLK_DEV_IDETAPE is not set
+# CONFIG_BLK_DEV_IDEFLOPPY is not set
+# CONFIG_BLK_DEV_IDESCSI is not set
+
+#
+# IDE chipset support/bugfixes
+#
+# CONFIG_BLK_DEV_CMD640 is not set
+# CONFIG_BLK_DEV_CMD640_ENHANCED is not set
+# CONFIG_BLK_DEV_ISAPNP is not set
+# CONFIG_BLK_DEV_RZ1000 is not set
+# CONFIG_BLK_DEV_IDEPCI is not set
+# CONFIG_IDE_CHIPSETS is not set
+# CONFIG_IDEDMA_AUTO is not set
+# CONFIG_DMA_NONPCI is not set
+# CONFIG_BLK_DEV_IDE_MODES is not set
+# CONFIG_BLK_DEV_ATARAID is not set
+# CONFIG_BLK_DEV_ATARAID_PDC is not set
+# CONFIG_BLK_DEV_ATARAID_HPT is not set
 
 #
 # SCSI support
@@ -339,6 +339,11 @@ CONFIG_MIPS_AU1000_ENET=y
 # Wan interfaces
 #
 # CONFIG_WAN is not set
+
+#
+# PCMCIA network device support
+#
+# CONFIG_NET_PCMCIA is not set
 
 #
 # Amateur Radio support
@@ -433,6 +438,11 @@ CONFIG_UNIX98_PTY_COUNT=256
 # CONFIG_FTAPE is not set
 # CONFIG_AGP is not set
 # CONFIG_DRM is not set
+
+#
+# PCMCIA character devices
+#
+# CONFIG_PCMCIA_SERIAL_CS is not set
 CONFIG_AU1000_GPIO=y
 # CONFIG_TS_AU1000_ADS7846 is not set
 
@@ -464,8 +474,7 @@ CONFIG_AUTOFS4_FS=y
 # CONFIG_VFAT_FS is not set
 # CONFIG_EFS_FS is not set
 # CONFIG_JFFS_FS is not set
-CONFIG_JFFS2_FS=y
-CONFIG_JFFS2_FS_DEBUG=0
+# CONFIG_JFFS2_FS is not set
 # CONFIG_CRAMFS is not set
 # CONFIG_TMPFS is not set
 # CONFIG_RAMFS is not set

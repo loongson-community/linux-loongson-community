@@ -60,6 +60,11 @@ extern unsigned long save_local_and_disable(int controller);
 extern void restore_local_and_enable(int controller, unsigned long mask);
 extern void local_enable_irq(unsigned int irq_nr);
 
+/* Quick acpi hack. This will have to change! */
+#define	CTL_ACPI 9999
+#define	ACPI_S1_SLP_TYP 19
+#define	ACPI_SLEEP 21
+
 #ifdef CONFIG_PM
 
 unsigned long suspend_mode;
@@ -76,16 +81,16 @@ int au_sleep(void)
 
 	flush_cache_all();
 	/* pin 6 is gpio */
-	writel(readl(PIN_STATE) & ~(1 << 11), PIN_STATE);
+	writel(readl(SYS_PINSTATERD) & ~(1 << 11), SYS_PINSTATERD);
 
 	/* gpio 6 can cause a wake up event */
-	wakeup = readl(PM_WAKEUP_SOURCE_MASK);
+	wakeup = readl(SYS_WAKEMSK);
 	wakeup &= ~(1 << 8);	/* turn off match20 wakeup */
 	wakeup |= 1 << 6;	/* turn on gpio 6 wakeup   */
-	writel(wakeup, PM_WAKEUP_SOURCE_MASK);
+	writel(wakeup, SYS_WAKEMSK);
 
-	writel(1, PM_WAKEUP_CAUSE);	/* clear cause */
-	writel(1, PM_SLEEP_POWER);	/* prepare to sleep */
+	writel(1, SYS_WAKESRC);	/* clear cause */
+	writel(1, SYS_SLPPWR);	/* prepare to sleep */
 
 	__asm__("la $4, 1f\n\t"
 		"lui $5, 0xb190\n\t"
@@ -189,14 +194,14 @@ static int pm_do_freq(ctl_table * ctl, int write, struct file *file,
 		set_au1000_speed(new_cpu_freq);
 		set_au1000_uart_baud_base(new_baud_base);
 
-		old_refresh = readl(REFRESH_CONFIG) & 0x1ffffff;
+		old_refresh = readl(MEM_SDREFCFG) & 0x1ffffff;
 		new_refresh =
 		    ((old_refresh * new_cpu_freq) /
-		     old_cpu_freq) | (readl(REFRESH_CONFIG) & ~0x1ffffff);
+		     old_cpu_freq) | (readl(MEM_SDREFCFG) & ~0x1ffffff);
 
-		writel(pll, CPU_PLL_CNTRL);
+		writel(pll, SYS_CPUPLL);
 		au_sync_delay(1);
-		writel(new_refresh, REFRESH_CONFIG);
+		writel(new_refresh, MEM_SDREFCFG);
 		au_sync_delay(1);
 
 		for (i = 0; i < 4; i++) {
@@ -241,7 +246,7 @@ static int pm_do_freq(ctl_table * ctl, int write, struct file *file,
 	 */
 	intc0_mask = save_local_and_disable(0);
 	intc1_mask = save_local_and_disable(1);
-	local_enable_irq(AU1000_PC0_MATCH2_INT);
+	local_enable_irq(AU1000_TOY_MATCH2_INT);
 	restore_flags(flags);
 	calibrate_delay();
 	restore_local_and_enable(0, intc0_mask);

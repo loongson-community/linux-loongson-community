@@ -987,8 +987,10 @@ static void shutdown(struct async_struct * info)
 		set_bit(TTY_IO_ERROR, &info->tty->flags);
 
 	info->flags &= ~ASYNC_INITIALIZED;
+#ifndef CONFIG_REMOTE_DEBUG
 	outl(0, UART_MOD_CNTRL + state->port);
 	au_sync_delay(10);
+#endif
 	restore_flags(flags);
 }
 
@@ -2547,9 +2549,10 @@ static void autoconfig(struct serial_state * state)
 	(void)serial_in(info, UART_RX);
 	serial_outp(info, UART_IER, 0);
 
+#ifndef CONFIG_REMOTE_DEBUG
 	outl(0, UART_MOD_CNTRL + state->port);
 	au_sync_delay(10);
-	
+#endif
 	restore_flags(flags);
 }
 

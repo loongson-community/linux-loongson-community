@@ -32,6 +32,7 @@
 
 #include <linux/kernel.h>
 #include <linux/errno.h>
+#include <linux/sched.h>
 #include <linux/spinlock.h>
 #include <linux/string.h>
 #include <linux/delay.h>
@@ -85,12 +86,12 @@ static const struct {
 	AC97C_DATA, DMA_DR | DMA_DW16 | DMA_NC}, {
 	UART3_ADDR + UART_TX, DMA_DW8 | DMA_NC}, {
 	UART3_ADDR + UART_RX, DMA_DR | DMA_DW8 | DMA_NC}, {
-	USB_DEV_EP0_READ_FIFO, DMA_DR | DMA_DW8 | DMA_NC}, {
-	USB_DEV_EP0_WRITE_FIFO, DMA_DW8 | DMA_NC}, {
-	USB_DEV_EP2_WRITE_FIFO, DMA_DW8 | DMA_NC}, {
-	USB_DEV_EP3_WRITE_FIFO, DMA_DW8 | DMA_NC}, {
-	USB_DEV_EP4_READ_FIFO, DMA_DR | DMA_DW8 | DMA_NC}, {
-	USB_DEV_EP5_READ_FIFO, DMA_DR | DMA_DW8 | DMA_NC}, {
+	USBD_EP0RD, DMA_DR | DMA_DW8 | DMA_NC}, {
+	USBD_EP0WR, DMA_DW8 | DMA_NC}, {
+	USBD_EP2WR, DMA_DW8 | DMA_NC}, {
+	USBD_EP3WR, DMA_DW8 | DMA_NC}, {
+	USBD_EP4RD, DMA_DR | DMA_DW8 | DMA_NC}, {
+	USBD_EP5RD, DMA_DR | DMA_DW8 | DMA_NC}, {
 	I2S_DATA, DMA_DW32 | DMA_NC}, {
 	I2S_DATA, DMA_DR | DMA_DW32 | DMA_NC}
 };

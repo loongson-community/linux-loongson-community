@@ -68,7 +68,7 @@ static const struct {
 u32 get_au1000_avail_gpio_mask(void)
 {
 	int i;
-	u32 pinfunc = inl(PIN_FUNCTION);
+	u32 pinfunc = inl(SYS_PINFUNC);
 	u32 avail_mask = 0; // start with no gpio available
 
 	// first, check for GPIO's reprogrammed as peripheral pins
@@ -81,8 +81,8 @@ u32 get_au1000_avail_gpio_mask(void)
 	}
 
 	// check for GPIO's used as interrupt sources
-	avail_mask &= ~(inl(INTC1_MASK_READ) &
-			(inl(INTC1_CONFIG0_READ) | inl(INTC1_CONFIG1_READ)));
+	avail_mask &= ~(inl(IC1_MASKRD) &
+			(inl(IC1_CFG0RD) | inl(IC1_CFG1RD)));
 
 #ifdef CONFIG_USB_OHCI
 	avail_mask &= ~((1<<4) | (1<<11));
@@ -104,7 +104,7 @@ int au1000gpio_tristate(u32 data)
 	data &= get_au1000_avail_gpio_mask();
 
 	if (data)
-		outl(data, TSTATE_STATE_SET);
+		outl(data, SYS_TRIOUTCLR);
 
 	return 0;
 }
@@ -117,7 +117,7 @@ int au1000gpio_tristate(u32 data)
  */
 int au1000gpio_in(u32 *data)
 {
-	*data = inl(PIN_STATE);
+	*data = inl(SYS_PINSTATERD);
 	return 0;
 }
 
@@ -130,7 +130,7 @@ int au1000gpio_set(u32 data)
 	data &= get_au1000_avail_gpio_mask();
 
 	if (data)
-		outl(data, OUTPUT_STATE_SET);
+		outl(data, SYS_OUTPUTSET);
 	return 0;
 }
 
@@ -139,7 +139,7 @@ int au1000gpio_clear(u32 data)
 	data &= get_au1000_avail_gpio_mask();
 
 	if (data)
-		outl(data, OUTPUT_STATE_CLEAR);
+		outl(data, SYS_OUTPUTCLR);
 	return 0;
 }
 

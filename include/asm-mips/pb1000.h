@@ -30,7 +30,7 @@
 /* PCMCIA PB1000 specific defines */
 #define PCMCIA_MAX_SOCK 0 /* the second socket, 1, is not supported at this time */
 
-#define AU1000_PCR     0xBE000000
+#define PB1000_PCR     0xBE000000
   #define PCR_SLOT_0_VPP0  (1<<0)
   #define PCR_SLOT_0_VPP1  (1<<1)
   #define PCR_SLOT_0_VCC0  (1<<2)
@@ -43,12 +43,12 @@
   #define PCR_SLOT_1_VCC1  (1<<11)
   #define PCR_SLOT_1_RST   (1<<12)
 
-#define AU1000_MDR     0xBE000004
+#define PB1000_MDR     0xBE000004
   #define MDR_PI        (1<<5)  /* pcmcia int latch  */
   #define MDR_EPI      (1<<14)  /* enable pcmcia int */
   #define MDR_CPI      (1<<15)  /* clear pcmcia int  */
 
-#define AU1000_ACR1    0xBE000008
+#define PB1000_ACR1    0xBE000008
   #define ACR1_SLOT_0_CD1    (1<<0)  /* card detect 1     */
   #define ACR1_SLOT_0_CD2    (1<<1)  /* card detect 2     */
   #define ACR1_SLOT_0_READY  (1<<2)  /* ready             */

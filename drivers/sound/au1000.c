@@ -2007,7 +2007,7 @@ static int __devinit au1000_probe(void)
 #endif /* AU1000_DEBUG */
 
 	// configure pins for AC'97
-	outl(inl(PIN_FUNCTION) & ~0x02, PIN_FUNCTION);
+	outl(inl(SYS_PINFUNC) & ~0x02, SYS_PINFUNC);
 
 	// Assert reset for 10msec to the AC'97 controller, and enable clock
 	outl(AC97C_RS | AC97C_CE, AC97C_CNTRL);
