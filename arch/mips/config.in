@@ -55,17 +55,6 @@ if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
 	    int '      Maximum memory chunks' CONFIG_SIBYTE_SWARM_MAX_MEM_REGIONS 16
             bool '      Multi-Processing support' CONFIG_SMP
 	 fi
-	 if [ "$CONFIG_BLK_DEV_INITRD" = "y" ]; then
-	    bool '      Embed root filesystem ramdisk into the kernel' CONFIG_EMBEDDED_RAMDISK 
-	    if [ "$CONFIG_EMBEDDED_RAMDISK" = "y" ]; then
-               choice '      Ramdisk Image to use for root filesystem' \
-	         "Simple-init                 CONFIG_SIBYTE_RAMDISK_SIMPLE_INIT \
-                  General                     CONFIG_SIBYTE_RAMDISK_GENERAL     \
-                  Promice-console             CONFIG_SIBYTE_RAMDISK_PROMICE_CONSOLE\
-                  N+I-demo                    CONFIG_SIBYTE_RAMDISK_NIDEMO\
-                  Screening                   CONFIG_SIBYTE_RAMDISK_SCREENING" General          
-            fi
-         fi
       fi
    fi
 fi
@@ -416,6 +405,9 @@ source drivers/mtd/Config.in
 source drivers/parport/Config.in
 
 source drivers/block/Config.in
+if [ "$CONFIG_BLK_DEV_INITRD" = "y" ]; then
+   bool '  Embed root filesystem ramdisk into the kernel' CONFIG_EMBEDDED_RAMDISK 
+fi
 
 source drivers/md/Config.in
 
