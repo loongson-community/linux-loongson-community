@@ -237,7 +237,7 @@
 /* Ordinary NS16552 duart with a 20MHz crystal.  */
 #define JAGUAR_ATX_BASE_BAUD ( 20000000 / 16 )
 
-#define JAGUAR_ATX_SERIAL1_IRQ	7
+#define JAGUAR_ATX_SERIAL1_IRQ	6
 #define JAGUAR_ATX_SERIAL1_BASE	0xfd000020L
 
 #define _JAGUAR_ATX_SERIAL_INIT(int, base)				\
