@@ -1,4 +1,4 @@
-/* $Id: floppy.h,v 1.5 1998/06/30 00:23:09 ralf Exp $
+/* $Id: floppy.h,v 1.6 1999/01/04 16:09:21 ralf Exp $
  *
  * Architecture specific parts of the Floppy driver
  *
@@ -8,13 +8,12 @@
  *
  * Copyright (C) 1995, 1996, 1997, 1998 Ralf Baechle
  */
-#ifndef __ASM_MIPS_FLOPPY_H
-#define __ASM_MIPS_FLOPPY_H
+#ifndef _ASM_FLOPPY_H
+#define _ASM_FLOPPY_H
 
 #include <asm/bootinfo.h>
 #include <asm/jazz.h>
 #include <asm/jazzdma.h>
-#include <asm/mipsconfig.h>
 
 struct fd_ops {
 	unsigned char (*fd_inb)(unsigned int port);
@@ -102,4 +101,4 @@ static int FDC2=-1;
  */
 #define CROSS_64KB(a,s) ((unsigned long)(a)/K_64 != ((unsigned long)(a) + (s) - 1) / K_64)
 
-#endif /* __ASM_MIPS_FLOPPY_H */
+#endif /* _ASM_FLOPPY_H */

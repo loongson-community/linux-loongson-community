@@ -8,7 +8,6 @@
  * Copyright (C) 1997 by Ralf Baechle.
  */
 #include <linux/string.h>
-#include <asm/mipsconfig.h>
 #include <asm/addrspace.h>
 #include <asm/system.h>
 #include <asm/spinlock.h>

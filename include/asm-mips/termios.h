@@ -8,6 +8,7 @@
  * Copyright (C) 1995, 1996 by Ralf Baechle
  */
 #ifndef __ASM_MIPS_TERMIOS_H
+#define __ASM_MIPS_TERMIOS_H
 
 #include <asm/termbits.h>
 #include <asm/ioctls.h>

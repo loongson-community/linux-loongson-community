@@ -6,7 +6,7 @@
  * Multi-cpu abstraction and reworking:
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: r4k_misc.S,v 1.4 1997/12/01 17:57:30 ralf Exp $
+ * $Id: r4k_misc.S,v 1.5 1999/08/09 19:43:15 harald Exp $
  */
 #include <asm/asm.h>
 #include <asm/current.h>
@@ -15,7 +15,6 @@
 #include <asm/cachectl.h>
 #include <asm/current.h>
 #include <asm/fpregdef.h>
-#include <asm/mipsconfig.h>
 #include <asm/mipsregs.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>

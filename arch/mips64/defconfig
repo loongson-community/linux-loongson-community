@@ -1,0 +1,210 @@
+#
+# Automatically generated make config: don't edit
+#
+
+#
+# Code maturity level options
+#
+# CONFIG_EXPERIMENTAL is not set
+
+#
+# Machine selection
+#
+CONFIG_SGI=y
+
+#
+# CPU selection
+#
+# CONFIG_CPU_R4300 is not set
+# CONFIG_CPU_R4X00 is not set
+CONFIG_CPU_R5000=y
+# CONFIG_CPU_NEVADA is not set
+# CONFIG_CPU_R8000 is not set
+# CONFIG_CPU_R10000 is not set
+
+#
+# General setup
+#
+# CONFIG_CPU_LITTLE_ENDIAN is not set
+# CONFIG_BINFMT_AOUT is not set
+CONFIG_BINFMT_ELF=y
+# CONFIG_BINFMT_MISC is not set
+CONFIG_NET=y
+CONFIG_SYSVIPC=y
+# CONFIG_BSD_PROCESS_ACCT is not set
+# CONFIG_SYSCTL is not set
+
+#
+# Loadable module support
+#
+CONFIG_MODULES=y
+# CONFIG_MODVERSIONS is not set
+CONFIG_KMOD=y
+
+#
+# Block devices
+#
+# CONFIG_BLK_DEV_FD is not set
+# CONFIG_BLK_DEV_IDE is not set
+
+#
+# Please see Documentation/ide.txt for help/info on IDE drives
+#
+# CONFIG_BLK_DEV_HD_ONLY is not set
+
+#
+# Additional Block Devices
+#
+# CONFIG_BLK_DEV_LOOP is not set
+# CONFIG_BLK_DEV_NBD is not set
+# CONFIG_BLK_DEV_MD is not set
+# CONFIG_BLK_DEV_RAM is not set
+# CONFIG_BLK_DEV_XD is not set
+CONFIG_PARIDE_PARPORT=m
+# CONFIG_PARIDE is not set
+# CONFIG_BLK_DEV_IDE_MODES is not set
+# CONFIG_BLK_DEV_HD is not set
+
+#
+# Networking options
+#
+# CONFIG_PACKET is not set
+# CONFIG_NETLINK is not set
+# CONFIG_FIREWALL is not set
+# CONFIG_FILTER is not set
+CONFIG_UNIX=y
+# CONFIG_INET is not set
+
+#
+#  
+#
+# CONFIG_IPX is not set
+# CONFIG_ATALK is not set
+
+#
+# SCSI support
+#
+# CONFIG_SCSI is not set
+
+#
+# Network device support
+#
+# CONFIG_NETDEVICES is not set
+
+#
+# Amateur Radio support
+#
+# CONFIG_HAMRADIO is not set
+
+#
+# IrDA subsystem support
+#
+# CONFIG_IRDA is not set
+
+#
+# ISDN subsystem
+#
+# CONFIG_ISDN is not set
+
+#
+# Old CD-ROM drivers (not SCSI, not IDE)
+#
+# CONFIG_CD_NO_IDESCSI is not set
+
+#
+# Character devices
+#
+CONFIG_VT=y
+CONFIG_VT_CONSOLE=y
+# CONFIG_SERIAL is not set
+# CONFIG_SERIAL_EXTENDED is not set
+# CONFIG_SERIAL_NONSTANDARD is not set
+# CONFIG_UNIX98_PTYS is not set
+# CONFIG_PRINTER is not set
+# CONFIG_MOUSE is not set
+# CONFIG_QIC02_TAPE is not set
+# CONFIG_WATCHDOG is not set
+# CONFIG_NVRAM is not set
+# CONFIG_RTC is not set
+
+#
+# Video For Linux
+#
+# CONFIG_VIDEO_DEV is not set
+
+#
+# Joystick support
+#
+# CONFIG_JOYSTICK is not set
+# CONFIG_DTLK is not set
+
+#
+# Ftape, the floppy tape device driver
+#
+# CONFIG_FTAPE is not set
+
+#
+# USB drivers - not for the faint of heart
+#
+# CONFIG_USB is not set
+
+#
+# Filesystems
+#
+# CONFIG_QUOTA is not set
+# CONFIG_AUTOFS_FS is not set
+# CONFIG_AFFS_FS is not set
+# CONFIG_HFS_FS is not set
+# CONFIG_FAT_FS is not set
+# CONFIG_MSDOS_FS is not set
+# CONFIG_UMSDOS_FS is not set
+# CONFIG_VFAT_FS is not set
+# CONFIG_ISO9660_FS is not set
+# CONFIG_JOLIET is not set
+# CONFIG_MINIX_FS is not set
+# CONFIG_NTFS_FS is not set
+# CONFIG_HPFS_FS is not set
+CONFIG_PROC_FS=y
+# CONFIG_ROMFS_FS is not set
+CONFIG_EXT2_FS=y
+# CONFIG_SYSV_FS is not set
+# CONFIG_UFS_FS is not set
+
+#
+# Network File Systems
+#
+
+#
+# Partition Types
+#
+# CONFIG_BSD_DISKLABEL is not set
+# CONFIG_MAC_PARTITION is not set
+# CONFIG_OSF_PARTITION is not set
+# CONFIG_SMD_DISKLABEL is not set
+# CONFIG_SOLARIS_X86_PARTITION is not set
+CONFIG_SGI_DISKLABEL=y
+# CONFIG_NLS is not set
+
+#
+# Console drivers
+#
+CONFIG_SGI_NEWPORT_CONSOLE=y
+
+#
+# Sound
+#
+# CONFIG_SOUND is not set
+
+#
+# SGI devices
+#
+# CONFIG_SGI_SERIAL is not set
+CONFIG_SGI_DS1286=y
+
+#
+# Kernel hacking
+#
+CONFIG_CROSSCOMPILE=y
+# CONFIG_MIPS_FPE_MODULE is not set
+# CONFIG_REMOTE_DEBUG is not set
+# CONFIG_MAGIC_SYSRQ is not set

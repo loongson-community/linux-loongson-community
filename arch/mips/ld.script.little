@@ -86,6 +86,7 @@ SECTIONS
 
   __bss_start = .;
   _fbss = .;
+  .sbss      : { *(.sbss) *(.scommon) }
   .bss       :
   {
    *(.dynbss)
@@ -93,8 +94,6 @@ SECTIONS
    *(COMMON)
   _end = . ;
   PROVIDE (end = .);
-   *(.sbss)
-   *(.scommon)
   }
   /* These are needed for ELF backends which have not yet been
      converted to the new style linker.  */

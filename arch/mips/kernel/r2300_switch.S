@@ -1,4 +1,4 @@
-/* $Id: r2300_switch.S,v 1.6 1999/06/13 16:30:32 ralf Exp $
+/* $Id: r2300_switch.S,v 1.7 1999/08/09 19:43:14 harald Exp $
  *
  * r2300_switch.S: R2300 specific task switching code.
  *
@@ -16,7 +16,6 @@
 #include <asm/cachectl.h>
 #include <asm/current.h>
 #include <asm/fpregdef.h>
-#include <asm/mipsconfig.h>
 #include <asm/mipsregs.h>
 #include <asm/offset.h>
 #include <asm/page.h>
@@ -87,12 +86,12 @@ LEAF(lazy_fpu_switch)
 	and	t1, t3
 	sw	t1, ST_OFF(a0)
 	swc1	$f0, (THREAD_FPU + 0x00)(a0)
-	FPU_SAVE(a0, t1)			# clobbers t1
+	FPU_SAVE_SINGLE(a0, t1)			# clobbers t1
 
 2:
 	lwc1	$f0, (THREAD_FPU + 0x00)($28)
 	.set	reorder
-	FPU_RESTORE($28, t0)		# clobbers t0
+	FPU_RESTORE_SINGLE($28, t0)		# clobbers t0
 	jr	ra
 	END(lazy_fpu_switch)
 
@@ -101,7 +100,7 @@ LEAF(lazy_fpu_switch)
  */
 	.set	noreorder
 LEAF(save_fp)
-	FPU_SAVE(a0, t1)			# clobbers t1
+	FPU_SAVE_SINGLE(a0, t1)			# clobbers t1
 	jr	ra
 	 swc1	$f0, (THREAD_FPU + 0x00)(a0)
 	END(save_fp)

@@ -1,10 +1,7 @@
-/*
- *  include/asm-mips/bugs.h
+/* $Id: bugs.h,v 1.3 1997/12/01 18:00:36 ralf Exp $
  *
- *  Copyright (C) 1995  Waldorf Electronics
- *  Copyright (C) 1997  Ralf Baechle
- *
- * $Id: bugs.h,v 1.2 1997/09/07 04:13:53 ralf Exp $
+ * Copyright (C) 1995  Waldorf Electronics
+ * Copyright (C) 1997, 1999  Ralf Baechle
  */
 #include <asm/bootinfo.h>
 
@@ -37,7 +34,8 @@ static inline void check_wait(void)
 	}
 }
 
-static void check_bugs(void)
+static void __init
+check_bugs(void)
 {
 	check_wait();
 }

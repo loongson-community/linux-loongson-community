@@ -1,4 +1,4 @@
-/* $Id: pgtable.h,v 1.22 1999/08/09 19:43:17 harald Exp $
+/* $Id: pgtable.h,v 1.23 1999/08/13 17:07:27 harald Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -6,11 +6,10 @@
  *
  * Copyright (C) 1994 - 1998 by Ralf Baechle at alii
  */
-#ifndef __ASM_MIPS_PGTABLE_H
-#define __ASM_MIPS_PGTABLE_H
+#ifndef _ASM_PGTABLE_H
+#define _ASM_PGTABLE_H
 
 #include <asm/addrspace.h>
-#include <asm/mipsconfig.h>
 
 #ifndef _LANGUAGE_ASSEMBLY
 
@@ -865,4 +864,4 @@ extern inline void set_context(unsigned long val)
 
 #endif /* !defined (_LANGUAGE_ASSEMBLY) */
 
-#endif /* __ASM_MIPS_PGTABLE_H */
+#endif /* _ASM_PGTABLE_H */

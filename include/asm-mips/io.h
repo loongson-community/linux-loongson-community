@@ -8,7 +8,6 @@
 
 #include <linux/config.h>
 
-#include <asm/mipsconfig.h>
 #include <asm/addrspace.h>
 
 /*

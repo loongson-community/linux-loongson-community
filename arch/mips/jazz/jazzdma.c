@@ -13,7 +13,6 @@
 #include <linux/errno.h>
 #include <linux/mm.h>
 #include <asm/mipsregs.h>
-#include <asm/mipsconfig.h>
 #include <asm/jazz.h>
 #include <asm/io.h>
 #include <asm/uaccess.h>

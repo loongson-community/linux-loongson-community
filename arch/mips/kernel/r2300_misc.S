@@ -1,4 +1,4 @@
-/* $Id: misc.S,v 1.3 1999/05/01 22:40:36 ralf Exp $
+/* $Id: r2300_misc.S,v 1.4 1999/08/09 19:43:14 harald Exp $
  * misc.S: Misc. exception handling code for R3000/R2000.
  *
  * Copyright (C) 1994, 1995, 1996 by Ralf Baechle and Andreas Busse
@@ -17,7 +17,6 @@
 #include <asm/bootinfo.h>
 #include <asm/cachectl.h>
 #include <asm/fpregdef.h>
-#include <asm/mipsconfig.h>
 #include <asm/mipsregs.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>

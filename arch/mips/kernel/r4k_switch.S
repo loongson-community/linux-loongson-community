@@ -1,4 +1,4 @@
-/* $Id: r4k_switch.S,v 1.7 1999/06/13 16:30:32 ralf Exp $
+/* $Id: r4k_switch.S,v 1.8 1999/08/09 19:43:15 harald Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -13,7 +13,6 @@
 #include <asm/cachectl.h>
 #include <asm/current.h>
 #include <asm/fpregdef.h>
-#include <asm/mipsconfig.h>
 #include <asm/mipsregs.h>
 #include <asm/offset.h>
 #include <asm/page.h>
@@ -76,41 +75,26 @@ LEAF(lazy_fpu_switch)
 
 	beqz	a0, 2f				# Save floating point state
 	 nor	t3, zero, t3
+
 	lw	t1, ST_OFF(a0)			# last thread looses fpu
 	and	t1, t3
 	sw	t1, ST_OFF(a0)
-	sll	t2, t1, 5
-	bgez	t2, 1f
-	 sdc1	$f0, (THREAD_FPU + 0x00)(a0)
-	FPU_SAVE_16ODD(a0)
-1:
-	FPU_SAVE_16EVEN(a0, t1)			# clobbers t1
+
+
+	FPU_SAVE_DOUBLE(a0, t1)			# clobbers t1
 2:
 
-	sll	t0, t0, 5			# load new fp state
-	bgez	t0, 1f
-	 ldc1	$f0, (THREAD_FPU + 0x00)($28)
-	FPU_RESTORE_16ODD($28)
-1:
 	.set	reorder
-	FPU_RESTORE_16EVEN($28, t0)		# clobbers t0
+	FPU_RESTORE_DOUBLE($28, t0)		# clobbers t0
 	jr	ra
 	END(lazy_fpu_switch)
 
 /*
  * Save a thread's fp context.
  */
-	.set	noreorder
 LEAF(save_fp)
-	mfc0	t0, CP0_STATUS
-	sll	t1, t0, 5
-	bgez	t1, 1f				# 16 register mode?
-	 nop
-	FPU_SAVE_16ODD(a0)
-1:
-	FPU_SAVE_16EVEN(a0, t1)			# clobbers t1
+	FPU_SAVE_DOUBLE(a0, t1)			# clobbers t1
 	jr	ra
-	 sdc1	$f0, (THREAD_FPU + 0x00)(a0)
 	END(save_fp)
 
 /*
@@ -128,32 +112,13 @@ LEAF(init_fpu)
 	li	t1, 0x20000000
 	or	t0, t1
 	mtc0	t0, CP0_STATUS
-	sll	t0, t0, 5
 
 	li	t1, FPU_DEFAULT
 	ctc1	t1, fcr31
 
-	bgez	t0, 1f			# 16 / 32 register mode?
-	 li	t0, -1
+	li	t0, -1
 
-	dmtc1	t0, $f1
-	dmtc1	t0, $f3
-	dmtc1	t0, $f5
-	dmtc1	t0, $f7
-	dmtc1	t0, $f9
-	dmtc1	t0, $f11
-	dmtc1	t0, $f13
-	dmtc1	t0, $f15
-	dmtc1	t0, $f17
-	dmtc1	t0, $f19
-	dmtc1	t0, $f21
-	dmtc1	t0, $f23
-	dmtc1	t0, $f25
-	dmtc1	t0, $f27
-	dmtc1	t0, $f29
-	dmtc1	t0, $f31
-
-1:	dmtc1	t0, $f0
+	dmtc1	t0, $f0
 	dmtc1	t0, $f2
 	dmtc1	t0, $f4
 	dmtc1	t0, $f6
@@ -168,6 +133,8 @@ LEAF(init_fpu)
 	dmtc1	t0, $f24
 	dmtc1	t0, $f26
 	dmtc1	t0, $f28
+	.set	noreorder
 	jr	ra
 	 dmtc1	t0, $f30
+	.set	reorder
 	END(init_fpu)

@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1994, 1995 by Ralf Baechle
  *
- * $Id: entry.S,v 1.14 1999/04/12 19:13:21 harald Exp $
+ * $Id: entry.S,v 1.15 1999/07/26 19:42:40 harald Exp $
  */
 
 /*
@@ -23,7 +23,6 @@
 #include <asm/current.h>
 #include <asm/errno.h>
 #include <asm/mipsregs.h>
-#include <asm/mipsconfig.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
 #include <asm/stackframe.h>

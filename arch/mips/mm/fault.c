@@ -1,4 +1,4 @@
-/* $Id: fault.c,v 1.9 1999/01/04 16:03:53 ralf Exp $
+/* $Id: fault.c,v 1.10 1999/08/09 19:43:16 harald Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -83,7 +83,15 @@ good_area:
 		if (!(vma->vm_flags & (VM_READ | VM_EXEC)))
 			goto bad_area;
 	}
-	handle_mm_fault(tsk, vma, address, writeaccess);
+
+	/*
+	 * If for any reason at all we couldn't handle the fault,
+	 * make sure we exit gracefully rather than endlessly redo
+	 * the fault.
+	 */
+	if (!handle_mm_fault(tsk, vma, address, writeaccess))
+		goto do_sigbus;
+
 	up(&mm->mmap_sem);
 	return;
 
@@ -134,4 +142,22 @@ no_context:
 	       address, regs->cp0_epc, regs->regs[31]);
 	die("Oops", regs, writeaccess);
 	do_exit(SIGKILL);
+
+/*
+ * We ran out of memory, or some other thing happened to us that made
+ * us unable to handle the page fault gracefully.
+ */
+do_sigbus:
+	up(&mm->mmap_sem);
+
+	/*
+	 * Send a sigbus, regardless of whether we were in kernel
+	 * or user mode.
+	 */
+	tsk->tss.cp0_badvaddr = address;
+	force_sig(SIGBUS, tsk);
+
+	/* Kernel mode? Handle exceptions or die */
+	if (!user_mode(regs))
+		goto no_context;
 }

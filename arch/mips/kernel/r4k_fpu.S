@@ -10,7 +10,7 @@
  * Multi-arch abstraction and asm macros for easier reading:
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: r4k_fpu.S,v 1.5 1999/05/01 22:40:36 ralf Exp $
+ * $Id: r4k_fpu.S,v 1.6 1999/08/09 19:43:15 harald Exp $
  */
 #include <asm/asm.h>
 #include <asm/fpregdef.h>
@@ -28,28 +28,7 @@
 	.set	mips3
 	/* Save floating point context */
 LEAF(save_fp_context)
-	mfc0	t1,CP0_STATUS
-	 sll	t2,t1,5
-
-	bgez	t2,1f
-	 cfc1	t1,fcr31
-	/* Store the 16 odd double precision registers */
-	EX(sdc1	$f1,(SC_FPREGS+8)(a0))
-	EX(sdc1	$f3,(SC_FPREGS+24)(a0))
-	EX(sdc1	$f5,(SC_FPREGS+40)(a0))
-	EX(sdc1	$f7,(SC_FPREGS+56)(a0))
-	EX(sdc1	$f9,(SC_FPREGS+72)(a0))
-	EX(sdc1	$f11,(SC_FPREGS+88)(a0))
-	EX(sdc1	$f13,(SC_FPREGS+104)(a0))
-	EX(sdc1	$f15,(SC_FPREGS+120)(a0))
-	EX(sdc1	$f17,(SC_FPREGS+136)(a0))
-	EX(sdc1	$f19,(SC_FPREGS+152)(a0))
-	EX(sdc1	$f21,(SC_FPREGS+168)(a0))
-	EX(sdc1	$f23,(SC_FPREGS+184)(a0))
-	EX(sdc1	$f25,(SC_FPREGS+200)(a0))
-	EX(sdc1	$f27,(SC_FPREGS+216)(a0))
-	EX(sdc1	$f29,(SC_FPREGS+232)(a0))
-	EX(sdc1	$f31,(SC_FPREGS+248)(a0))
+	cfc1	t1,fcr31
 
 	/* Store the 16 even double precision registers */
 1:
@@ -88,30 +67,7 @@ LEAF(save_fp_context)
  * stack frame which might have been changed by the user.
  */
 LEAF(restore_fp_context)
-	mfc0	t1, CP0_STATUS
-	sll	t0,t1,5
-	bgez	t0,1f
-	 EX(lw	t0,SC_FPC_CSR(a0))
-
-	/* Restore the 16 odd double precision registers only
-	 * when enabled in the cp0 status register.
-	 */
-	EX(ldc1	$f1,(SC_FPREGS+8)(a0))
-	EX(ldc1	$f3,(SC_FPREGS+24)(a0))
-	EX(ldc1	$f5,(SC_FPREGS+40)(a0))
-	EX(ldc1	$f7,(SC_FPREGS+56)(a0))
-	EX(ldc1	$f9,(SC_FPREGS+72)(a0))
-	EX(ldc1	$f11,(SC_FPREGS+88)(a0))
-	EX(ldc1	$f13,(SC_FPREGS+104)(a0))
-	EX(ldc1	$f15,(SC_FPREGS+120)(a0))
-	EX(ldc1	$f17,(SC_FPREGS+136)(a0))
-	EX(ldc1	$f19,(SC_FPREGS+152)(a0))
-	EX(ldc1	$f21,(SC_FPREGS+168)(a0))
-	EX(ldc1	$f23,(SC_FPREGS+184)(a0))
-	EX(ldc1	$f25,(SC_FPREGS+200)(a0))
-	EX(ldc1	$f27,(SC_FPREGS+216)(a0))
-	EX(ldc1	$f29,(SC_FPREGS+232)(a0))
-	EX(ldc1	$f31,(SC_FPREGS+248)(a0))
+	EX(lw	t0,SC_FPC_CSR(a0))
 
 	/*
 	 * Restore the 16 even double precision registers

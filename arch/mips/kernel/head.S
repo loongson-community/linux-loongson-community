@@ -1,4 +1,4 @@
-/* $Id: head.S,v 1.11 1998/10/18 13:27:12 tsbogend Exp $
+/* $Id: head.S,v 1.12 1999/07/26 19:42:40 harald Exp $
  *
  * arch/mips/kernel/head.S
  *
@@ -26,7 +26,6 @@
 #include <asm/regdef.h>
 #include <asm/cachectl.h>
 #include <asm/mipsregs.h>
-#include <asm/mipsconfig.h>
 #include <asm/stackframe.h>
 #include <asm/bootinfo.h>
 #include <asm/cpu.h>
