@@ -11,7 +11,8 @@
 #include <asm/uaccess.h>
 
 static struct dentry *
-efs_follow_link(struct dentry *dentry, struct dentry *base)
+efs_follow_link(struct dentry *dentry, struct dentry *base,
+		unsigned int follow)
 {
     struct inode *in = dentry->d_inode;
     struct buffer_head *bh;
@@ -22,7 +23,7 @@ efs_follow_link(struct dentry *dentry, struct dentry *base)
 	return ERR_PTR(-EIO);
     }
     UPDATE_ATIME(in);
-    base = lookup_dentry(bh->b_data, base, 1);
+    base = lookup_dentry(bh->b_data, base, follow);
     brelse(bh);
     return base;
 }

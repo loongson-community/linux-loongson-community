@@ -86,21 +86,21 @@ efs_getblk(struct inode *in, __u32 blk)
 	    diskblk = CHECK(iter);
 	    if (diskblk) {
 		ini->cur = iter;
-		DB(("EFS: inode %d: found block %d as %d in ext %d\n",
+		DB(("EFS: inode %ld: found block %d as %d in ext %d\n",
 		    in->i_ino, blk, diskblk, iter));
 		return diskblk;
 	    }
 	}
 
-	DB(("EFS: block %d not found in direct inode %d (size %d)\n",
-	    blk, in->i_ino, in->i_size));
+	DB(("EFS: block %d not found in direct inode %ld (size %ld)\n",
+	    blk, in->i_ino, (long)in->i_size));
 	return 0;
 
     } else {
 	int indirext = 0, total_extents_checked = 0;
     
 	/* indirect inode */
-	DB(("EFS: inode %d is indirect (total %d, indir ", in->i_ino, total));
+	DB(("EFS: inode %ld is indirect (total %d, indir ", in->i_ino, total));
 	total = ini->extents[0].ex_ex.ex_offset;
 	DB(("%d)\n", total));
 
@@ -140,8 +140,8 @@ efs_getblk(struct inode *in, __u32 blk)
 		brelse(extbh);
 	    }
 	}
-	DB(("EFS: inode %d: didn't find block %d (indirect search, size %d)\n",
-	    in->i_ino, in->i_size));
+	DB(("EFS: inode %ld: didn't find block %d (indir search, size %ld)\n",
+	    in->i_ino, blk, (long)in->i_size));
 	return 0;
     }
 }
@@ -151,12 +151,16 @@ int efs_bmap(struct inode *in, int block)
     if (block < 0)
 	return 0;
     
+    if (!in->i_size) {
+	DB(("EFS: um, inode %ld has size 0.  What up?\n", in->i_ino));
+    }
+
     /*
      * the kernel wants a full page (== 4K == 8 EFS blocks), so be sure that
      * the block number isn't too large for that.
      */
     if (block > ((in->i_size - 1) >> EFS_BLOCK_SIZE_BITS)) {
-	DB(("EFS: wacky: block %d > max %d\n", block,
+	DB(("EFS: wacky: block %d > max %ld\n", block,
 	    ((in->i_size - 1) >> EFS_BLOCK_SIZE_BITS)));
 	return 0;
     }

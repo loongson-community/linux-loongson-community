@@ -22,14 +22,7 @@
 void
 efs_put_super(struct super_block *sb)
 {
-    DB(("efs_put_super ... "));
-    lock_super(sb);
-    DB(("locked ... "));
-    sb->s_dev = 0;
-    unlock_super(sb);
-    DB(("unlocked ... "));
     MOD_DEC_USE_COUNT;
-    DB(("MOD_DEC_USE_COUNT\n"));
 }
 
 static struct super_operations efs_sops = {
@@ -69,11 +62,11 @@ efs_read_super(struct super_block *s, void *data, int silent)
     struct efs_disk_sb *efs_sb;
     struct efs_sb_info *sbi;
     kdev_t dev = s->s_dev;
-    const char *errmsg;
+    const char *errmsg = "default error message";
     struct inode *root;
     __u32 magic;
 
-    DB(("read_super\n"));
+    DB(("read_super on dev %s\n", kdevname(dev)));
     MOD_INC_USE_COUNT;
 
     lock_super(s);
@@ -116,21 +109,31 @@ efs_read_super(struct super_block *s, void *data, int silent)
 	  case EFS_DIRTY:
 	    errmsg = "Partition was not umounted properly, and is dirty";
 	    break;
+	  default:
+	    errmsg = "unknown!\n";
+	    break;
 	}
 	if (!silent)
-	    printk("EFS: ERROR: %s\n", errmsg);
+	    printk("EFS: ERROR: cleanliness is %#04x: %s\n", efs_sb->s_dirty,
+		   errmsg);
 	goto out_unlock;
     }
-
+    
     s->s_blocksize = EFS_BLOCK_SIZE;
     s->s_blocksize_bits = EFS_BLOCK_SIZE_BITS;
     s->s_magic = EFS_SUPER_MAGIC;
     s->s_op = &efs_sops;
+    DB(("getting root inode (%d)\n", EFS_ROOT_INODE));
     root = iget(s, EFS_ROOT_INODE);
-
+    
+    if (!root->i_size)
+	goto out_bad_root;
+    DB(("checking root inode\n"));
     errmsg = efs_checkroot(s, root);
     if (errmsg)
 	goto out_bad_root;
+
+    DB(("root inode OK\n"));
     
     s->s_root = d_alloc_root(root, NULL);
     if (!s->s_root)
@@ -148,9 +151,8 @@ efs_read_super(struct super_block *s, void *data, int silent)
 
     /* error-handling exit paths */    
  out_bad_root:
-    if (!silent)
-	printk("EFS: ERROR: %s\n", errmsg);
-    goto out_unlock;
+    if (!silent && errmsg)
+	printk("EFS: bad_root ERROR: %s\n", errmsg);
 
  out_iput:
     iput(root);
@@ -199,7 +201,7 @@ efs_read_inode(struct inode *in)
     __u16 numext;
     __u32 rdev;
 
-    DB(("read_inode"));
+    DB(("read_inode\n"));
 
     /*
      * Calculate the disk block and offset for the inode.
@@ -224,7 +226,8 @@ efs_read_inode(struct inode *in)
     /* find the offset */
     offset = (ino % EFS_INODES_PER_BLOCK) << 7;
 
-    DB(("EFS: looking for inode #%xl\n", ino));
+    DB(("EFS: looking for inode #%xl in blk %d offset %d\n",
+	ino, block, offset));
 
     bh = bread(in->i_dev, block, EFS_BLOCK_SIZE);
 
@@ -244,12 +247,17 @@ efs_read_inode(struct inode *in)
     in->i_uid   = efs_swab16(di->di_uid);
     in->i_gid   = efs_swab16(di->di_gid);
     in->i_mode  = efs_swab16(di->di_mode);
+    
+    DB(("INODE %ld: mt %ld ct %ld at %ld sz %ld nl %ld uid %ld gid %ld mode %lo\n",
+	in->i_ino,
+	in->i_mtime, in->i_ctime, in->i_atime, in->i_size, in->i_nlink,
+	in->i_uid, in->i_gid, in->i_mode));
 
     rdev = efs_swab32(*(__u32 *) &di->di_u.di_dev);
     numext = efs_swab16(di->di_numextents);
 
     if (numext > EFS_MAX_EXTENTS) {
-	DB(("EFS: inode #%lx is indirect (%d)\n", ino, numext));
+	DB(("EFS: inode %#0x is indirect (%d)\n", ino, numext));
 
 	/*
 	 * OPT: copy the first 10 extents in here?
@@ -257,7 +265,8 @@ efs_read_inode(struct inode *in)
     } else {
 	int i;
 
-	DB(("EFS: inode %#lx is direct.  Happy day!\n", in->i_ino));
+	DB(("EFS: inode %#lx is direct (%d).  Happy day!\n", in->i_ino,
+	    numext));
 	ini->extblk = block;
 
 	/* copy extents into inode_info */
@@ -269,37 +278,35 @@ efs_read_inode(struct inode *in)
     ini->tot = numext;
     ini->cur = 0;
     brelse(bh);
-
-    switch(in->i_mode & S_IFMT) {
-      case S_IFDIR:
+    
+    if (S_ISDIR(in->i_mode))
 	in->i_op = &efs_dir_inode_operations;
-	break;
-      case S_IFREG:
+    else if (S_ISREG(in->i_mode))
 	in->i_op = &efs_file_inode_operations;
-	break;
-      case S_IFLNK:
+    else if (S_ISLNK(in->i_mode))
 	in->i_op = &efs_symlink_inode_operations;
-	break;
-      case S_IFCHR:
+    else if (S_ISCHR(in->i_mode)) {
 	in->i_rdev = rdev;
 	in->i_op = &chrdev_inode_operations;
-	break;
-      case S_IFBLK:
+    } else if (S_ISBLK(in->i_mode)) {
 	in->i_rdev = rdev;
 	in->i_op = &blkdev_inode_operations;
-	break;
-      case S_IFIFO:
+    } else if (S_ISFIFO(in->i_mode))
 	init_fifo(in);
-	break;
-      default:
-	printk("EFS: ERROR: unsupported inode mode %lo\n",
-	       (in->i_mode & S_IFMT));
+    else {
+	printk("EFS: ERROR: unsupported inode mode %#lo (dir is %#lo) =? %d\n",
+	       (in->i_mode & S_IFMT), (long)S_IFDIR,
+	       in->i_mode & S_IFMT == S_IFDIR);
 	goto error;
     }
 
     return;
 
  error:
+    DB(("ERROR: INODE %ld: mt %ld ct %ld at %ld sz %ld nl %ld uid %ld "
+	"gid %ld mode %lo\n", in->i_ino,
+	in->i_mtime, in->i_ctime, in->i_atime, in->i_size, in->i_nlink,
+	in->i_uid, in->i_gid, in->i_mode));
     in->i_mtime = in->i_atime = in->i_ctime = 0;
     in->i_size = 0;
     in->i_nlink = 1;
@@ -327,12 +334,14 @@ EXPORT_NO_SYMBOLS;
 int
 init_module(void)
 {
+    DB(("loading EFS module\n"));
     return init_efs_fs();
 }
 
 void
 cleanup_module(void)
 {
+    DB(("removing EFS module\n"));
     unregister_filesystem(&efs_fs_type);
 }
 
