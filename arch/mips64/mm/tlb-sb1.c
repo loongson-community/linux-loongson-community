@@ -101,7 +101,7 @@ void local_flush_tlb_all(void)
 
 	local_irq_save(flags);
 	/* Save old context and create impossible VPN2 value */
-	old_ctx = (read_c0_entryhi() & 0xff);
+	old_ctx = read_c0_entryhi() & ASID_MASK;
 	write_c0_entrylo0(0);
 	write_c0_entrylo1(0);
 	for (entry = 0; entry < mips_cpu.tlbsize; entry++) {
@@ -135,7 +135,7 @@ void sb1_sanitize_tlb(void)
 			addr += inc;
 			write_c0_entryhi(addr);
 			tlb_probe();
-		} while ((int)(write_c0_index()) >= 0);
+		} while ((int)(read_c0_index()) >= 0);
 		write_c0_index(entry);
 		tlb_write_indexed();
 	}
@@ -158,8 +158,8 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 		size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
 		size = (size + 1) >> 1;
 		if (size <= (mips_cpu.tlbsize/2)) {
-			int oldpid = (read_c0_entryhi() & 0xff);
-			int newpid = (cpu_context(cpu, mm) & 0xff);
+			int oldpid = read_c0_entryhi() & ASID_MASK;
+			int newpid = cpu_asid(cpu, mm);
 
 			start &= (PAGE_MASK << 1);
 			end += ((PAGE_SIZE << 1) - 1);
@@ -239,12 +239,12 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 	local_irq_save(flags);
 	if (cpu_context(cpu, vma->vm_mm) != 0) {
 		int oldpid, newpid, idx;
-		newpid = (cpu_context(cpu, vma->vm_mm) & 0xff);
+		newpid = cpu_asid(cpu, vma->vm_mm);
 		page &= (PAGE_MASK << 1);
-		oldpid = (read_c0_entryhi() & 0xff);
-		write_c0_entryhi	(page | newpid);
+		oldpid = read_c0_entryhi() & ASID_MASK;
+		write_c0_entryhi(page | newpid);
 		tlb_probe();
-		idx = write_c0_index();
+		idx = read_c0_index();
 		write_c0_entrylo0(0);
 		write_c0_entrylo1(0);
 		if(idx < 0)
@@ -288,7 +288,7 @@ void sb1_update_mmu_cache(struct vm_area_struct *vma, unsigned long address,
 
 	local_irq_save(flags);
 
-	pid = read_c0_entryhi() & 0xff;
+	pid = read_c0_entryhi() & ASID_MASK;
 	address &= (PAGE_MASK << 1);
 	write_c0_entryhi(address | (pid));
 	pgdp = pgd_offset(vma->vm_mm, address);
@@ -298,13 +298,11 @@ void sb1_update_mmu_cache(struct vm_area_struct *vma, unsigned long address,
 	ptep = pte_offset(pmdp, address);
 	write_c0_entrylo0(pte_val(*ptep++) >> 6);
 	write_c0_entrylo1(pte_val(*ptep) >> 6);
-	write_c0_entryhi(address | (pid));
 	if (idx < 0) {
 		tlb_write_random();
 	} else {
 		tlb_write_indexed();
 	}
-	write_c0_entryhi(pid);
 	local_irq_restore(flags);
 }
 
