@@ -84,4 +84,17 @@
 
 #endif
 
+#if !defined(CONFIG_CPU_MIPS32) && !defined(CONFIG_CPU_MIPS64)
+
+/*
+ * A bunch of CPUs predating the MIPS32 and MIPS64 specs do not always set
+ * the BD bit in c0_cause on an exception.  For those we need to look at
+ * the faulting instruction to deciede if we were faulting in a delay slot.
+ * There might be further CPUs where BD works as expected but for now we're
+ * paranoid.
+ */
+#define BDSLOT_WAR
+
+#endif
+
 #endif /* _ASM_WAR_H */
