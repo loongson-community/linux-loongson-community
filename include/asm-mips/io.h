@@ -177,11 +177,7 @@ extern unsigned long isa_slot_offset;
 /*
  * Change "struct page" to physical address.
  */
-#ifdef CONFIG_64BIT_PHYS_ADDR
-#define page_to_phys(page)	((u64)(page - mem_map) << PAGE_SHIFT)
-#else
-#define page_to_phys(page)	((page - mem_map) << PAGE_SHIFT)
-#endif
+#define page_to_phys(page)	((dma_addr_t)page_to_pfn(page) << PAGE_SHIFT)
 
 extern void * __ioremap(phys_t offset, phys_t size, unsigned long flags);
 

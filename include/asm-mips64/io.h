@@ -88,7 +88,7 @@ extern unsigned long bus_to_baddr[256];
 /*
  * Change "struct page" to physical address.
  */
-#define page_to_phys(page)	PHYSADDR(page_address(page))
+#define page_to_phys(page)	((dma_addr_t)page_to_pfn(page) << PAGE_SHIFT)
 
 /*
  * ioremap     -   map bus memory into CPU space

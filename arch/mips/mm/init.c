@@ -32,8 +32,8 @@
 #include <asm/cpu.h>
 #include <asm/dma.h>
 #include <asm/jazzdma.h>
-#include <asm/system.h>
 #include <asm/mmu_context.h>
+#include <asm/sections.h>
 #include <asm/tlb.h>
 
 mmu_gather_t mmu_gathers[NR_CPUS];
@@ -107,39 +107,6 @@ static void __init kmap_init(void)
 }
 
 #endif /* CONFIG_HIGHMEM */
-
-void show_mem(void)
-{
-	int i, total = 0, reserved = 0;
-	int shared = 0, cached = 0;
-	int highmem = 0;
-
-	printk("Mem-info:\n");
-	show_free_areas();
-	printk("Free swap:       %6dkB\n",nr_swap_pages<<(PAGE_SHIFT-10));
-	i = max_mapnr;
-	while (i-- > 0) {
-		total++;
-		if (PageHighMem(mem_map+i))
-			highmem++;
-		if (PageReserved(mem_map+i))
-			reserved++;
-		else if (PageSwapCache(mem_map+i))
-			cached++;
-		else if (page_count(mem_map+i))
-			shared += page_count(mem_map+i) - 1;
-	}
-	printk("%d pages of RAM\n", total);
-	printk("%d pages of HIGHMEM\n",highmem);
-	printk("%d reserved pages\n",reserved);
-	printk("%d pages shared\n",shared);
-	printk("%d pages swap cached\n",cached);
-}
-
-/* References to section boundaries */
-
-extern char _ftext, _etext, _fdata, _edata;
-extern char __init_begin, __init_end;
 
 static void __init fixrange_init (unsigned long start, unsigned long end,
 	pgd_t *pgd_base)

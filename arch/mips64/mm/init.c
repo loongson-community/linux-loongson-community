@@ -29,6 +29,7 @@
 #include <asm/cachectl.h>
 #include <asm/dma.h>
 #include <asm/system.h>
+#include <asm/sections.h>
 #include <asm/pgtable.h>
 #include <asm/pgalloc.h>
 #include <asm/mmu_context.h>
@@ -126,30 +127,6 @@ unsigned long setup_zero_pages(void)
 	memset((void *)empty_zero_page, 0, size);
 
 	return 1UL << order;
-}
-
-void show_mem(void)
-{
-	int i, total = 0, reserved = 0;
-	int shared = 0, cached = 0;
-
-	printk("Mem-info:\n");
-	show_free_areas();
-	printk("Free swap:       %6dkB\n", nr_swap_pages<<(PAGE_SHIFT-10));
-	i = max_mapnr;
-	while (i-- > 0) {
-		total++;
-		if (PageReserved(mem_map+i))
-			reserved++;
-		else if (PageSwapCache(mem_map+i))
-			cached++;
-		else if (page_count(mem_map+i))
-			shared += page_count(mem_map+i) - 1;
-	}
-	printk("%d pages of RAM\n", total);
-	printk("%d reserved pages\n", reserved);
-	printk("%d pages shared\n", shared);
-	printk("%d pages swap cached\n",cached);
 }
 
 #ifndef CONFIG_DISCONTIGMEM
@@ -273,11 +250,9 @@ void free_initrd_mem(unsigned long start, unsigned long end)
 }
 #endif
 
-extern char __init_begin, __init_end;
 extern void prom_free_prom_memory(void);
 
-void
-free_initmem(void)
+void free_initmem(void)
 {
 	unsigned long addr, page;
 

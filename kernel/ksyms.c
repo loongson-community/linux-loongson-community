@@ -335,17 +335,13 @@ EXPORT_SYMBOL(blk_dev);
 EXPORT_SYMBOL(bdev_read_only);
 EXPORT_SYMBOL(set_device_ro);
 EXPORT_SYMBOL(bmap);
-EXPORT_SYMBOL(devfs_register_partitions);
-EXPORT_SYMBOL(driverfs_remove_partitions);
 EXPORT_SYMBOL(blkdev_open);
 EXPORT_SYMBOL(blkdev_get);
 EXPORT_SYMBOL(blkdev_put);
 EXPORT_SYMBOL(ioctl_by_bdev);
-EXPORT_SYMBOL(grok_partitions);
 EXPORT_SYMBOL(register_disk);
 EXPORT_SYMBOL(read_dev_sector);
 EXPORT_SYMBOL(init_buffer);
-EXPORT_SYMBOL(wipe_partitions);
 EXPORT_SYMBOL_GPL(generic_file_direct_IO);
 
 /* tty routines */
@@ -524,7 +520,6 @@ EXPORT_SYMBOL(secure_tcp_sequence_number);
 EXPORT_SYMBOL(get_random_bytes);
 EXPORT_SYMBOL(securebits);
 EXPORT_SYMBOL(cap_bset);
-EXPORT_SYMBOL(reparent_to_init);
 EXPORT_SYMBOL(daemonize);
 EXPORT_SYMBOL(csum_partial); /* for networking and md */
 EXPORT_SYMBOL(seq_escape);

@@ -84,9 +84,6 @@
 
 #define SD_DSK_ARR_LUMP 6 /* amount to over allocate sd_dsk_arr by */
 
-
-struct hd_struct *sd;
-
 static Scsi_Disk ** sd_dsk_arr;
 static rwlock_t sd_dsk_arr_lock = RW_LOCK_UNLOCKED;
 
@@ -125,8 +122,6 @@ static struct Scsi_Device_Template sd_template = {
 static void sd_rw_intr(Scsi_Cmnd * SCpnt);
 
 static Scsi_Disk * sd_get_sdisk(int index);
-
-extern void driverfs_remove_partitions(struct gendisk *hd, int minor);
 
 #if defined(CONFIG_PPC32)
 /**
@@ -288,6 +283,8 @@ static request_queue_t *sd_find_queue(kdev_t dev)
 		return NULL;	/* No such device */
 }
 
+static struct gendisk **sd_disks;
+
 /**
  *	sd_init_command - build a scsi (read or write) command from
  *	information in the request structure.
@@ -323,7 +320,7 @@ static int sd_init_command(Scsi_Cmnd * SCpnt)
 	/* >>>>> this change is not in the lk 2.5 series */
 	if (part_nr >= (sd_template.dev_max << 4) || (part_nr & 0xf) ||
 	    !sdp || !sdp->online ||
- 	    block + SCpnt->request->nr_sectors > sd[part_nr].nr_sects) {
+ 	    block + SCpnt->request->nr_sectors > get_capacity(sd_disks[dsk_nr])) {
 		SCSI_LOG_HLQUEUE(2, printk("Finishing %ld sectors\n", 
 				 SCpnt->request->nr_sectors));
 		SCSI_LOG_HLQUEUE(2, printk("Retry with 0x%p\n", SCpnt));
@@ -589,8 +586,6 @@ static struct block_device_operations sd_fops =
 	check_media_change:	check_scsidisk_media_change,
 	revalidate:		sd_revalidate
 };
-
-static struct gendisk **sd_disks;
 
 /**
  *	sd_rw_intr - bottom half handler: called when the lower level
@@ -1007,6 +1002,28 @@ sd_read_capacity(Scsi_Disk *sdkp, char *diskname,
 	sdkp->device->sector_size = sector_size;
 }
 
+static int
+sd_do_mode_sense6(Scsi_Device *sdp, Scsi_Request *SRpnt,
+		  int modepage, unsigned char *buffer, int len) {
+	unsigned char cmd[8];
+
+	memset((void *) &cmd[0], 0, 8);
+	cmd[0] = MODE_SENSE;
+	cmd[1] = (sdp->scsi_level <= SCSI_2) ? ((sdp->lun << 5) & 0xe0) : 0;
+	cmd[2] = modepage;
+	cmd[4] = len;
+
+	SRpnt->sr_cmd_len = 0;
+	SRpnt->sr_sense_buffer[0] = 0;
+	SRpnt->sr_sense_buffer[2] = 0;
+	SRpnt->sr_data_direction = SCSI_DATA_READ;
+
+	scsi_wait_req(SRpnt, (void *) cmd, (void *) buffer,
+		      len, SD_TIMEOUT, MAX_RETRIES);
+
+	return SRpnt->sr_result;
+}
+
 /*
  * read write protect setting, if possible - called only in sd_init_onedisk()
  */
@@ -1014,50 +1031,38 @@ static void
 sd_read_write_protect_flag(Scsi_Disk *sdkp, char *diskname,
 			   Scsi_Request *SRpnt, unsigned char *buffer) {
 	Scsi_Device *sdp = sdkp->device;
-	unsigned char cmd[8];
-	int the_result;
+	int res;
 
 	/*
-	 * For removable scsi disks we have to recognise the
-	 * Write Protect Flag. This flag is kept in the Scsi_Disk
-	 * struct and tested at open !
-	 * Daniel Roche ( dan@lectra.fr )
-	 *
-	 * Changed to get all pages (0x3f) rather than page 1 to
-	 * get around devices which do not have a page 1.  Since
-	 * we're only interested in the header anyway, this should
-	 * be fine.
-	 *   -- Matthew Dharm (mdharm-scsi@one-eyed-alien.net)
-	 *
-	 * As it turns out, some devices return an error for
-	 * every MODE_SENSE request except one for page 0.
-	 * So, we should also try that. --aeb
+	 * First attempt: ask for all pages (0x3F), but only 4 bytes.
+	 * We have to start carefully: some devices hang if we ask
+	 * for more than is available.
 	 */
+	res = sd_do_mode_sense6(sdp, SRpnt, 0x3F, buffer, 4);
 
-	memset((void *) &cmd[0], 0, 8);
-	cmd[0] = MODE_SENSE;
-	cmd[1] = (sdp->scsi_level <= SCSI_2) ?
-		((sdp->lun << 5) & 0xe0) : 0;
-	cmd[2] = 0x3f;	/* Get all pages */
-	cmd[4] = 255;   /* Ask for 255 bytes, even tho we want just the first 8 */
-	SRpnt->sr_cmd_len = 0;
-	SRpnt->sr_sense_buffer[0] = 0;
-	SRpnt->sr_sense_buffer[2] = 0;
-	SRpnt->sr_data_direction = SCSI_DATA_READ;
+	/*
+	 * Second attempt: ask for page 0
+	 * When only page 0 is implemented, a request for page 3F may return
+	 * Sense Key 5: Illegal Request, Sense Code 24: Invalid field in CDB.
+	 */
+	if (res)
+		res = sd_do_mode_sense6(sdp, SRpnt, 0, buffer, 4);
 
-	scsi_wait_req(SRpnt, (void *) cmd, (void *) buffer,
-		      255, SD_TIMEOUT, MAX_RETRIES);
+	/*
+	 * Third attempt: ask 255 bytes, as we did earlier.
+	 */
+	if (res)
+		res = sd_do_mode_sense6(sdp, SRpnt, 0x3F, buffer, 255);
 
-	the_result = SRpnt->sr_result;
-
-	if (the_result) {
-		printk("%s: test WP failed, assume Write Enabled\n",
-		       diskname);
-		/* alternatively, try page 0 */
+	if (res) {
+		printk(KERN_WARNING
+		       "%s: test WP failed, assume Write Enabled\n", diskname);
 	} else {
 		sdkp->write_prot = ((buffer[2] & 0x80) != 0);
 		printk(KERN_NOTICE "%s: Write Protect is %s\n", diskname,
 		       sdkp->write_prot ? "on" : "off");
+		printk(KERN_DEBUG "%s: Mode Sense: %02x %02x %02x %02x\n",
+		       diskname, buffer[0], buffer[1], buffer[2], buffer[3]);
 	}
 }
 
@@ -1197,12 +1202,10 @@ static int sd_init()
 	init_mem_lth(sd_disks, sd_template.dev_max);
 	if (sd_disks)
 		zero_mem_lth(sd_disks, sd_template.dev_max);
-	init_mem_lth(sd, maxparts);
 
-	if (!sd_dsk_arr || !sd || !sd_disks)
+	if (!sd_dsk_arr || !sd_disks)
 		goto cleanup_mem;
 
-	zero_mem_lth(sd, maxparts);
 	return 0;
 
 #undef init_mem_lth
@@ -1211,8 +1214,6 @@ static int sd_init()
 cleanup_mem:
 	vfree(sd_disks);
 	sd_disks = NULL;
-	vfree(sd);
-	sd = NULL;
 	if (sd_dsk_arr) {
                 for (k = 0; k < sd_template.dev_max; ++k)
 			vfree(sd_dsk_arr[k]);
@@ -1302,9 +1303,6 @@ static int sd_attach(Scsi_Device * sdp)
 	unsigned long iflags;
 	struct {
 		struct gendisk disk;
-		devfs_handle_t de;
-		struct device *dev;
-		char flags;
 		char name[5];
 	} *p;
 	struct gendisk *gd;
@@ -1317,9 +1315,6 @@ static int sd_attach(Scsi_Device * sdp)
 	if (!p)
 		return 1;
 	gd = &p->disk;
-	gd->de_arr = &p->de;
-	gd->flags = &p->flags;
-	gd->driverfs_dev_arr = &p->dev;
 
 	SCSI_LOG_HLQUEUE(3, printk("sd_attach: scsi device: <%d,%d,%d,%d>\n", 
 			 sdp->host->host_no, sdp->channel, sdp->id, sdp->lun));
@@ -1351,21 +1346,19 @@ static int sd_attach(Scsi_Device * sdp)
 	}
 
 	sd_template.nr_dev++;
-	gd->nr_real = 1;
-        gd->de_arr[0] = sdp->de;
-        gd->driverfs_dev_arr[0] = &sdp->sdev_driverfs_dev;
+        gd->de = sdp->de;
 	gd->major = SD_MAJOR(dsk_nr>>4);
 	gd->first_minor = (dsk_nr & 15)<<4;
 	gd->minor_shift = 4;
-	gd->part = sd + (dsk_nr << 4);
 	gd->fops = &sd_fops;
 	if (dsk_nr > 26)
 		sprintf(p->name, "sd%c%c", 'a'+dsk_nr/26-1, 'a'+dsk_nr%26);
 	else
 		sprintf(p->name, "sd%c", 'a'+dsk_nr%26);
 	gd->major_name = p->name;
-        if (sdp->removable)
-		gd->flags[0] |= GENHD_FL_REMOVABLE;
+        gd->flags = sdp->removable ? GENHD_FL_REMOVABLE : 0;
+        gd->driverfs_dev = &sdp->sdev_driverfs_dev;
+        gd->flags |= GENHD_FL_DRIVERFS | GENHD_FL_DEVFS;
 	sd_disks[dsk_nr] = gd;
 	sd_dskname(dsk_nr, diskname);
 	printk(KERN_NOTICE "Attached scsi %sdisk %s at scsi%d, channel %d, "
@@ -1383,7 +1376,7 @@ static int sd_revalidate(kdev_t dev)
 		return -ENODEV;
 
 	sd_init_onedisk(sdkp, dsk_nr);
-	sd_disks[dsk_nr]->part[0].nr_sects = sdkp->capacity;
+	set_capacity(sd_disks[dsk_nr], sdkp->capacity);
 	return 0;
 }
 
@@ -1425,10 +1418,6 @@ static void sd_detach(Scsi_Device * sdp)
 	if (sdkp->has_been_registered) {
 		sdkp->has_been_registered = 0;
 		dev = MKDEV_SD(dsk_nr);
-		driverfs_remove_partitions(sd_disks[dsk_nr], minor(dev));
-		wipe_partitions(dev);
-		devfs_register_partitions (sd_disks[dsk_nr], minor(dev), 1);
-		/* unregister_disk() */
 		del_gendisk(sd_disks[dsk_nr]);
 	}
 	sdp->attached--;
@@ -1478,7 +1467,6 @@ static void __exit exit_sd(void)
 			vfree(sd_dsk_arr[k]);
 		vfree(sd_dsk_arr);
 	}
-	vfree((char *) sd);
 	for (k = 0; k < N_USED_SD_MAJORS; k++) {
 		blk_dev[SD_MAJOR(k)].queue = NULL;
 		blk_clear(SD_MAJOR(k));

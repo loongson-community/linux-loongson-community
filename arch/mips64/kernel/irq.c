@@ -299,8 +299,9 @@ asmlinkage unsigned int do_IRQ(int irq, struct pt_regs *regs)
 			break;
 		desc->status &= ~IRQ_PENDING;
 	}
-out:
 	desc->status &= ~IRQ_INPROGRESS;
+
+out:
 	/*
 	 * The ->end() handler has to deal with interrupts which got
 	 * disabled while the handler was running.
@@ -687,7 +688,7 @@ int setup_irq(unsigned int irq, struct irqaction * new)
 
 	if (!shared) {
 		desc->depth = 0;
-		desc->status &= ~(IRQ_DISABLED | IRQ_AUTODETECT | IRQ_WAITING);
+		desc->status &= ~(IRQ_DISABLED | IRQ_AUTODETECT | IRQ_WAITING | IRQ_INPROGRESS);
 		desc->handler->startup(irq);
 	}
 	spin_unlock_irqrestore(&desc->lock,flags);
