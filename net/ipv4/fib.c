@@ -1647,21 +1647,16 @@ int ip_rt_ioctl(unsigned int cmd, void *arg)
 	{
 		case SIOCADDRT:		/* Add a route */
 		case SIOCDELRT:		/* Delete a route */
-printk("ip_rt_ioctl() #1\n");
 			if (!suser())
 				return -EPERM;
-printk("ip_rt_ioctl() #2\n");
 			err = get_rt_from_user(&m.rtmsg, arg);
 			if (err)
 				return err;
-printk("ip_rt_ioctl() #3\n");
 			fib_lock();
-printk("ip_rt_ioctl() #4\n");
 			dummy_nlh.nlmsg_type = cmd == SIOCDELRT ? RTMSG_DELROUTE
 					    : RTMSG_NEWROUTE;
 			err = rtmsg_process(&dummy_nlh, &m.rtmsg);
 			fib_unlock();
-printk("ip_rt_ioctl() #5: err == %d\n", err);
 			return err;
 		case SIOCRTMSG:
 			if (!suser())
