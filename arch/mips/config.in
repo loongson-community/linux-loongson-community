@@ -23,6 +23,7 @@ if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
    bool 'Support for NEC DDB Vrc-5074 (EXPERIMENTAL)' CONFIG_DDB5074
    bool 'Support for NEC DDB Vrc-5476 (EXPERIMENTAL)' CONFIG_DDB5476
    bool 'Support for Galileo Evaluation board or CoSine Orion' CONFIG_ORION
+   bool 'Support for Galileo EV96100 Evaluation board' CONFIG_MIPS_EV96100
    bool 'Support for MIPS Atlas board' CONFIG_MIPS_ATLAS
    bool 'Support for MIPS Malta board' CONFIG_MIPS_MALTA
 fi
@@ -44,6 +45,11 @@ unset CONFIG_PC_KEYB
 unset CONFIG_I8259
 
 define_bool CONFIG_SBUS n
+
+if [ "$CONFIG_MIPS_EV96100" = "y" ]; then
+   define_bool CONFIG_PCI y
+   define_bool CONFIG_MIPS_GT96100 y
+fi
 
 if [ "$CONFIG_ALGOR_P4032" = "y" ]; then
    define_bool CONFIG_PCI y

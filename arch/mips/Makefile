@@ -191,6 +191,15 @@ LINKSCRIPT    = arch/mips/orion/ld.script.orion
 endif
 
 #
+# Galileo EV96100 Board
+#
+ifdef CONFIG_MIPS_EV96100
+LIBS          += arch/mips/galileo-boards/ev96100/ev96100.o arch/mips/galileo-boards/generic/galboards.o
+SUBDIRS       += arch/mips/galileo-boards/generic arch/mips/galileo-boards/ev96100
+LOADADDR      += 0x80100000
+endif
+
+#
 # Choosing incompatible machines durings configuration will result in
 # error messages during linking.  Select a default linkscript if
 # none has been choosen above.
