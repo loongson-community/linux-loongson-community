@@ -144,6 +144,18 @@ static inline struct sk_buff * ioc3_alloc_skb(unsigned long length,
 	return skb;
 }
 
+static inline unsigned long ioc3_map(void *ptr, unsigned long vdev)
+{
+#ifdef CONFIG_SGI_IP27
+	unsigned long vdev = vdev << 58;   /* Shift to PCI64_ATTR_VIRTUAL */
+
+	return vdev | (0xaUL << PCI64_ATTR_TARG_SHFT) | PCI64_ATTR_PREF |
+	       ((unsigned long)ptr & TO_PHYS_MASK);
+#else
+	return virt_to_bus(ptr);
+#endif
+}
+
 /* BEWARE: The IOC3 documentation documents the size of rx buffers as
    1644 while it's actually 1664.  This one was nasty to track down ...  */
 #define RX_OFFSET		10
@@ -625,8 +637,7 @@ static inline void ioc3_rx(struct ioc3_private *ip)
 			ip->stats.rx_frame_errors++;
 next:
 		ip->rx_skbs[n_entry] = new_skb;
-		rxr[n_entry] = cpu_to_be64((0xa5UL << 56) |
-		                         ((unsigned long) rxb & TO_PHYS_MASK));
+		rxr[n_entry] = cpu_to_be64(ioc3_map(rxb, 1));
 		rxb->w0 = 0;				/* Clear valid flag */
 		n_entry = (n_entry + 1) & 511;		/* Update erpir */
 
@@ -911,8 +922,7 @@ static void ioc3_alloc_rings(struct net_device *dev)
 			/* Because we reserve afterwards. */
 			skb_put(skb, (1664 + RX_OFFSET));
 			rxb = (struct ioc3_erxbuf *) skb->data;
-			rxr[i] = cpu_to_be64((0xa5UL << 56) |
-			                ((unsigned long) rxb & TO_PHYS_MASK));
+			rxr[i] = cpu_to_be64(ioc3_map(rxb, 1));
 			skb_reserve(skb, RX_OFFSET);
 		}
 		ip->rx_ci = 0;
@@ -942,13 +952,13 @@ static void ioc3_init_rings(struct net_device *dev)
 	ioc3_clean_tx_ring(ip);
 
 	/* Now the rx ring base, consume & produce registers.  */
-	ring = (0xa5UL << 56) | ((unsigned long)ip->rxr & TO_PHYS_MASK);
+	ring = ioc3_map(ip->rxr, 0);
 	ioc3_w_erbr_h(ring >> 32);
 	ioc3_w_erbr_l(ring & 0xffffffff);
 	ioc3_w_ercir(ip->rx_ci << 3);
 	ioc3_w_erpir((ip->rx_pi << 3) | ERPIR_ARM);
 
-	ring = (0xa5UL << 56) | ((unsigned long)ip->txr & TO_PHYS_MASK);
+	ring = ioc3_map(ip->txr, 0);
 
 	ip->txqlen = 0;					/* nothing queued  */
 
@@ -996,7 +1006,11 @@ static void ioc3_init(struct net_device *dev)
 	(void) ioc3_r_emcr();
 
 	/* Misc registers  */
-	ioc3_w_erbar(0);
+#ifdef CONFIG_SGI_IP27
+	ioc3_w_erbar(PCI64_ATTR_BAR >> 32);	/* Barrier on last store */
+#else
+	ioc3_w_erbar(0);			/* Let PCI API get it right */
+#endif
 	(void) ioc3_r_etcdc();			/* Clear on read */
 	ioc3_w_ercsr(15);			/* RX low watermark  */
 	ioc3_w_ertr(0);				/* Interrupt immediately */
@@ -1379,16 +1393,13 @@ static int ioc3_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		                           ETXD_B1V | ETXD_B2V | w0);
 		desc->bufcnt = cpu_to_be32((s1 << ETXD_B1CNT_SHIFT) |
 		                           (s2 << ETXD_B2CNT_SHIFT));
-		desc->p1     = cpu_to_be64((0xa5UL << 56) |
-                                           (data & TO_PHYS_MASK));
-		desc->p2     = cpu_to_be64((0xa5UL << 56) |
-		                           (b2 & TO_PHYS_MASK));
+		desc->p1     = cpu_to_be64(ioc3_map(skb->data, 1));
+		desc->p2     = cpu_to_be64(ioc3_map((void *) b2, 1));
 	} else {
 		/* Normal sized packet that doesn't cross a page boundary. */
 		desc->cmd = cpu_to_be32(len | ETXD_INTWHENDONE | ETXD_B1V | w0);
 		desc->bufcnt = cpu_to_be32(len << ETXD_B1CNT_SHIFT);
-		desc->p1     = cpu_to_be64((0xa5UL << 56) |
-		                           (data & TO_PHYS_MASK));
+		desc->p1     = cpu_to_be64(ioc3_map(skb->data, 1));
 	}
 
 	BARRIER();
