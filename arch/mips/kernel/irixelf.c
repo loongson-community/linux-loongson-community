@@ -601,6 +601,15 @@ static int load_irix_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 	elf_ex = *((struct elfhdr *) bprm->buf);
 	retval = -ENOEXEC;
 
+	/*
+	 * Here until I figure out why NFS filesystems are having
+	 * problems with this code. I suspect locking of some sort,
+	 * but for now we'll have to disable IRIX support.
+	 */
+#ifdef 1
+	goto out;
+#endif
+
 	if (verify_binary(&elf_ex, bprm))
 		goto out;
 
