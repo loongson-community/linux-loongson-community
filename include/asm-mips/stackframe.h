@@ -47,19 +47,28 @@
 #define __str2(x) #x
 #define __str(x) __str2(x)
 
-#define save_static(frame)                               \
-	__asm__ __volatile__(                            \
-		"sw\t$16,"__str(PT_R16)"(%0)\n\t"        \
-		"sw\t$17,"__str(PT_R17)"(%0)\n\t"        \
-		"sw\t$18,"__str(PT_R18)"(%0)\n\t"        \
-		"sw\t$19,"__str(PT_R19)"(%0)\n\t"        \
-		"sw\t$20,"__str(PT_R20)"(%0)\n\t"        \
-		"sw\t$21,"__str(PT_R21)"(%0)\n\t"        \
-		"sw\t$22,"__str(PT_R22)"(%0)\n\t"        \
-		"sw\t$23,"__str(PT_R23)"(%0)\n\t"        \
-		"sw\t$30,"__str(PT_R30)"(%0)\n\t"        \
-		: /* No outputs */                       \
-		: "r" (frame))
+#define save_static_function(symbol)                                    \
+__asm__ (                                                               \
+        ".globl\t" #symbol "\n\t"                                       \
+        ".align\t2\n\t"                                                 \
+        ".type\t" #symbol ", @function\n\t"                             \
+        ".ent\t" #symbol ", 0\n"                                        \
+        #symbol":\n\t"                                                  \
+        ".frame\t$29, 0, $31\n\t"                                       \
+        "sw\t$16,"__str(PT_R16)"($29)\t\t\t# save_static_function\n\t"  \
+        "sw\t$17,"__str(PT_R17)"($29)\n\t"                              \
+        "sw\t$18,"__str(PT_R18)"($29)\n\t"                              \
+        "sw\t$19,"__str(PT_R19)"($29)\n\t"                              \
+        "sw\t$20,"__str(PT_R20)"($29)\n\t"                              \
+        "sw\t$21,"__str(PT_R21)"($29)\n\t"                              \
+        "sw\t$22,"__str(PT_R22)"($29)\n\t"                              \
+        "sw\t$23,"__str(PT_R23)"($29)\n\t"                              \
+        "sw\t$30,"__str(PT_R30)"($29)\n\t"                              \
+        ".end\t" #symbol "\n\t"                                         \
+        ".size\t" #symbol",. - " #symbol)
+
+/* Used in declaration of save_static functions.  */
+#define unused __attribute__((unused))
 
 #define SAVE_SOME                                        \
 		.set	push;                            \

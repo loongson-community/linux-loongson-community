@@ -92,7 +92,8 @@ sys_mmap2(unsigned long addr, unsigned long len, unsigned long prot,
 	return do_mmap2(addr, len, prot, flags, fd, pgoff);
 }
 
-asmlinkage int sys_fork(struct pt_regs regs)
+save_static_function(sys_fork);
+static unused int _sys_fork(struct pt_regs regs)
 {
 	int res;
 
@@ -101,7 +102,9 @@ asmlinkage int sys_fork(struct pt_regs regs)
 	return res;
 }
 
-asmlinkage int sys_clone(struct pt_regs regs)
+
+save_static_function(sys_clone);
+static unused int _sys_clone(struct pt_regs regs)
 {
 	unsigned long clone_flags;
 	unsigned long newsp;
