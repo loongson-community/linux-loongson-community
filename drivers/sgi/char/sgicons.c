@@ -16,11 +16,28 @@
 #include <asm/uaccess.h>
 #include "gconsole.h"
 
-/* This is the system graphics console (the first adapter found) */
-struct console_ops *gconsole = 0;
-
 /* To make psaux code cleaner */
 int aux_device_present = 0xaa;
+
+/* This is the system graphics console (the first adapter found) */
+struct console_ops *gconsole = 0;
+struct console_ops *real_gconsole = 0;
+
+void
+enable_gconsole (void)
+{
+	if (!gconsole)
+		gconsole = real_gconsole;
+}
+
+void
+disable_gconsole (void)
+{
+	if (gconsole){
+		real_gconsole = gconsole;
+		gconsole = 0;
+	}
+}
 
 void
 register_gconsole (struct console_ops *gc)

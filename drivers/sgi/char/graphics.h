@@ -17,8 +17,8 @@ struct graphics_ops {
 	unsigned long      g_regs;
 	int                g_regs_size;
 
-	void (*g_save_context)(void);
-	void (*g_restore_context)(void);
+	void (*g_save_context)(void *);
+	void (*g_restore_context)(void *);
 };
 
 void shmiq_init (void);

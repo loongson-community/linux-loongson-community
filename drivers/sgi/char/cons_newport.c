@@ -1,4 +1,4 @@
-/* $Id: cons_newport.c,v 1.2 1997/07/16 02:50:38 miguel Exp $
+/* $Id: cons_newport.c,v 1.3 1997/08/26 04:35:53 miguel Exp $
  * cons_newport.c: Newport graphics console code for the SGI.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
@@ -45,25 +45,25 @@
 #define BMASK(c) (c << 24)
 
 #define RENDER(regs, cp) do { \
-(regs)->go.zpat = BMASK((cp)[0x0]); (regs)->go.zpat = BMASK((cp)[0x1]); \
-(regs)->go.zpat = BMASK((cp)[0x2]); (regs)->go.zpat = BMASK((cp)[0x3]); \
-(regs)->go.zpat = BMASK((cp)[0x4]); (regs)->go.zpat = BMASK((cp)[0x5]); \
-(regs)->go.zpat = BMASK((cp)[0x6]); (regs)->go.zpat = BMASK((cp)[0x7]); \
-(regs)->go.zpat = BMASK((cp)[0x8]); (regs)->go.zpat = BMASK((cp)[0x9]); \
-(regs)->go.zpat = BMASK((cp)[0xa]); (regs)->go.zpat = BMASK((cp)[0xb]); \
-(regs)->go.zpat = BMASK((cp)[0xc]); (regs)->go.zpat = BMASK((cp)[0xd]); \
-(regs)->go.zpat = BMASK((cp)[0xe]); (regs)->go.zpat = BMASK((cp)[0xf]); \
+(regs)->go.zpattern = BMASK((cp)[0x0]); (regs)->go.zpattern = BMASK((cp)[0x1]); \
+(regs)->go.zpattern = BMASK((cp)[0x2]); (regs)->go.zpattern = BMASK((cp)[0x3]); \
+(regs)->go.zpattern = BMASK((cp)[0x4]); (regs)->go.zpattern = BMASK((cp)[0x5]); \
+(regs)->go.zpattern = BMASK((cp)[0x6]); (regs)->go.zpattern = BMASK((cp)[0x7]); \
+(regs)->go.zpattern = BMASK((cp)[0x8]); (regs)->go.zpattern = BMASK((cp)[0x9]); \
+(regs)->go.zpattern = BMASK((cp)[0xa]); (regs)->go.zpattern = BMASK((cp)[0xb]); \
+(regs)->go.zpattern = BMASK((cp)[0xc]); (regs)->go.zpattern = BMASK((cp)[0xd]); \
+(regs)->go.zpattern = BMASK((cp)[0xe]); (regs)->go.zpattern = BMASK((cp)[0xf]); \
 } while(0)        
 
 #define REVERSE_RENDER(regs, cp) do { \
-(regs)->go.zpat = BMASK((~(cp)[0x0])); (regs)->go.zpat = BMASK((~(cp)[0x1])); \
-(regs)->go.zpat = BMASK((~(cp)[0x2])); (regs)->go.zpat = BMASK((~(cp)[0x3])); \
-(regs)->go.zpat = BMASK((~(cp)[0x4])); (regs)->go.zpat = BMASK((~(cp)[0x5])); \
-(regs)->go.zpat = BMASK((~(cp)[0x6])); (regs)->go.zpat = BMASK((~(cp)[0x7])); \
-(regs)->go.zpat = BMASK((~(cp)[0x8])); (regs)->go.zpat = BMASK((~(cp)[0x9])); \
-(regs)->go.zpat = BMASK((~(cp)[0xa])); (regs)->go.zpat = BMASK((~(cp)[0xb])); \
-(regs)->go.zpat = BMASK((~(cp)[0xc])); (regs)->go.zpat = BMASK((~(cp)[0xd])); \
-(regs)->go.zpat = BMASK((~(cp)[0xe])); (regs)->go.zpat = BMASK((~(cp)[0xf])); \
+(regs)->go.zpattern = BMASK((~(cp)[0x0])); (regs)->go.zpattern = BMASK((~(cp)[0x1])); \
+(regs)->go.zpattern = BMASK((~(cp)[0x2])); (regs)->go.zpattern = BMASK((~(cp)[0x3])); \
+(regs)->go.zpattern = BMASK((~(cp)[0x4])); (regs)->go.zpattern = BMASK((~(cp)[0x5])); \
+(regs)->go.zpattern = BMASK((~(cp)[0x6])); (regs)->go.zpattern = BMASK((~(cp)[0x7])); \
+(regs)->go.zpattern = BMASK((~(cp)[0x8])); (regs)->go.zpattern = BMASK((~(cp)[0x9])); \
+(regs)->go.zpattern = BMASK((~(cp)[0xa])); (regs)->go.zpattern = BMASK((~(cp)[0xb])); \
+(regs)->go.zpattern = BMASK((~(cp)[0xc])); (regs)->go.zpattern = BMASK((~(cp)[0xd])); \
+(regs)->go.zpattern = BMASK((~(cp)[0xe])); (regs)->go.zpattern = BMASK((~(cp)[0xf])); \
 } while(0)        
 
 extern int default_red[16], default_grn[16], default_blu[16];
@@ -149,11 +149,11 @@ newport_init_cursor(void)
 	/* Load the SRAM on the VC2 for this new GLYPH. */
 	cookie = (unsigned short *) cursor;
 	newport_vc2_set(npregs, VC2_IREG_RADDR, VC2_CGLYPH_ADDR);
-	npregs->set.dmode = (NPORT_DMODE_AVC2 | VC2_REGADDR_RAM |
-			     NPORT_DMODE_W2 | VC2_PROTOCOL);
+	npregs->set.dcbmode = (NPORT_DMODE_AVC2 | VC2_REGADDR_RAM |
+			       NPORT_DMODE_W2 | VC2_PROTOCOL);
 	for(i = 0; i < 128; i++) {
 		newport_bfwait();
-		npregs->set.ddata0.hwords.s1 = *cookie++;
+		npregs->set.dcbdata0.hwords.s1 = *cookie++;
 	}
 
 	/* Place the cursor at origin. */
@@ -167,13 +167,13 @@ static inline void
 newport_clear_screen(void)
 {
 	newport_wait();
-	npregs->set.wmask = 0xffffffff;
-	npregs->set.dmode0 = (NPORT_DMODE0_DRAW | NPORT_DMODE0_BLOCK |
+	npregs->set.wrmask = 0xffffffff;
+	npregs->set.drawmode0 = (NPORT_DMODE0_DRAW | NPORT_DMODE0_BLOCK |
 			      NPORT_DMODE0_DOSETUP | NPORT_DMODE0_STOPX |
 			      NPORT_DMODE0_STOPY);
-	npregs->set.ci = 0;
-	npregs->set.xysti = 0;
-	npregs->go.xyei = (((1280 + 63) << 16)|(1024));
+	npregs->set.colori = 0;
+	npregs->set.xystarti = 0;
+	npregs->go.xyendi = (((1280 + 63) << 16)|(1024));
 	newport_bfwait();
 }
 
@@ -204,15 +204,15 @@ newport_render_logo(void)
 	ypos = 18;
 
 	newport_wait();
-	npregs->set.ci = 9;
-	npregs->set.dmode0 = (NPORT_DMODE0_DRAW | NPORT_DMODE0_BLOCK |
+	npregs->set.colori = 9;
+	npregs->set.drawmode0 = (NPORT_DMODE0_DRAW | NPORT_DMODE0_BLOCK |
 			      NPORT_DMODE0_STOPX | NPORT_DMODE0_ZPENAB |
 			      NPORT_DMODE0_L32);
 
 	for(i = 0; i < 80; i+=8) {
 		/* Set coordinates for bitmap operation. */
-		npregs->set.xysti = ((xpos + i) << 16) | ypos;
-		npregs->set.xyei = (((xpos + i) + 7) << 16);
+		npregs->set.xystarti = ((xpos + i) << 16) | ypos;
+		npregs->set.xyendi = (((xpos + i) + 7) << 16);
 		newport_wait();
 
 		bmap = linux_logo + (i * 80);
@@ -231,13 +231,13 @@ static inline void
 newport_render_background(int xpos, int ypos, int ci)
 {
 	newport_wait();
-	npregs->set.wmask = 0xffffffff;
-	npregs->set.dmode0 = (NPORT_DMODE0_DRAW | NPORT_DMODE0_BLOCK |
+	npregs->set.wrmask = 0xffffffff;
+	npregs->set.drawmode0 = (NPORT_DMODE0_DRAW | NPORT_DMODE0_BLOCK |
 			      NPORT_DMODE0_DOSETUP | NPORT_DMODE0_STOPX |
 			      NPORT_DMODE0_STOPY);
-	npregs->set.ci = ci;
-	npregs->set.xysti = (xpos << 16) | ypos;
-	npregs->go.xyei = ((xpos + 7) << 16) | (ypos + 15);
+	npregs->set.colori = ci;
+	npregs->set.xystarti = (xpos << 16) | ypos;
+	npregs->go.xyendi = ((xpos + 7) << 16) | (ypos + 15);
 }
 
 void
@@ -306,12 +306,12 @@ newport_set_cursor(int currcons)
 		newport_render_background(oxpos, oypos, (cattr & 0xf000) >> 12);
 		p = &vga_font[(cattr & 0xff) << 4];
 		newport_wait();
-		npregs->set.ci = (cattr & 0x0f00) >> 8;
-		npregs->set.dmode0 = (NPORT_DMODE0_DRAW | NPORT_DMODE0_BLOCK |
+		npregs->set.colori = (cattr & 0x0f00) >> 8;
+		npregs->set.drawmode0 = (NPORT_DMODE0_DRAW | NPORT_DMODE0_BLOCK |
 				      NPORT_DMODE0_STOPX | NPORT_DMODE0_ZPENAB |
 				      NPORT_DMODE0_L32);
-		npregs->set.xysti = (oxpos << 16) | oypos;
-		npregs->set.xyei = ((oxpos + 7) << 16);
+		npregs->set.xystarti = (oxpos << 16) | oypos;
+		npregs->set.xyendi = ((oxpos + 7) << 16);
 		newport_wait();
 		RENDER(npregs, p);
 	}
@@ -319,12 +319,12 @@ newport_set_cursor(int currcons)
 	newport_render_background(xpos, ypos, (cattr & 0xf000) >> 12);
 	p = &vga_font[(cattr & 0xff) << 4];
 	newport_wait();
-	npregs->set.ci = (cattr & 0x0f00) >> 8;
-	npregs->set.dmode0 = (NPORT_DMODE0_DRAW | NPORT_DMODE0_BLOCK |
+	npregs->set.colori = (cattr & 0x0f00) >> 8;
+	npregs->set.drawmode0 = (NPORT_DMODE0_DRAW | NPORT_DMODE0_BLOCK |
 			      NPORT_DMODE0_STOPX | NPORT_DMODE0_ZPENAB |
 			      NPORT_DMODE0_L32);
-	npregs->set.xysti = (xpos << 16) | ypos;
-	npregs->set.xyei = ((xpos + 7) << 16);
+	npregs->set.xystarti = (xpos << 16) | ypos;
+	npregs->set.xyendi = ((xpos + 7) << 16);
 	newport_wait();
 	REVERSE_RENDER(npregs, p);
 	restore_flags (flags);
@@ -423,14 +423,14 @@ newport_blitc(unsigned short charattr, unsigned long addr)
 
 	/* Set the color and drawing mode. */
 	newport_wait();
-	npregs->set.ci = charattr & 0xf;
-	npregs->set.dmode0 = (NPORT_DMODE0_DRAW | NPORT_DMODE0_BLOCK |
+	npregs->set.colori = charattr & 0xf;
+	npregs->set.drawmode0 = (NPORT_DMODE0_DRAW | NPORT_DMODE0_BLOCK |
 			      NPORT_DMODE0_STOPX | NPORT_DMODE0_ZPENAB |
 			      NPORT_DMODE0_L32);
 
 	/* Set coordinates for bitmap operation. */
-	npregs->set.xysti = (xpos << 16) | ypos;
-	npregs->set.xyei = ((xpos + 7) << 16);
+	npregs->set.xystarti = (xpos << 16) | ypos;
+	npregs->set.xyendi = ((xpos + 7) << 16);
 	newport_wait();
 
 	/* Go, baby, go... */
@@ -547,7 +547,7 @@ struct graphics_ops newport_graphic_ops = {
 	(void *) &newport_board_info, /* board info */
 	sizeof (struct ng1_info),     /* size of our data structure */
 	0, 0,			      /* g_regs, g_regs_size */
-	0, 0			      /* save_context, restore_context */
+	newport_save, newport_restore /* save_context, restore_context */
 };
 
 struct graphics_ops *
@@ -558,14 +558,14 @@ newport_probe (int slot, const char **name)
 	npregs = (struct newport_regs *) (KSEG1 + 0x1f0f0000);
 	
 	p = npregs;
-	p->cset.cfg = NPORT_CFG_GD0;
+	p->cset.config = NPORT_CFG_GD0;
 
 	if(newport_wait()) {
 		prom_printf("whoops, timeout, no NEWPORT there?");
 		return 0;
 	}
 
-	p->set.xsti = TESTVAL; if(p->set.fxstart.i != XSTI_TO_FXSTART(TESTVAL)) {
+	p->set.xstarti = TESTVAL; if(p->set._xstart.i != XSTI_TO_FXSTART(TESTVAL)) {
 		prom_printf("newport_probe: read back wrong value ;-(\n");
 		return 0;
 	}

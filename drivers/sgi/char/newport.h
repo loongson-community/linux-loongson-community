@@ -1,4 +1,4 @@
-/* $Id: newport.h,v 1.2 1997/07/02 06:20:19 miguel Exp $
+/* $Id: newport.h,v 1.3 1997/07/16 02:50:39 miguel Exp $
  * newport.h: Defines and register layout for NEWPORT graphics
  *            hardware.
  *
@@ -25,14 +25,16 @@ union np_dcb {
 };
 
 struct newport_rexregs {
-	npireg_t dmode1;      /* GL extra mode bits */
-#define NPORT_DMODE1_PMASK       0x00000007
-#define NPORT_DMODE1_NOPLANES    0x00000000
-#define NPORT_DMODE1_RGBPLANES   0x00000001
-#define NPORT_DMODE1_RGBAPLANES  0x00000002
-#define NPORT_DMODE1_OLPLANES    0x00000004
-#define NPORT_DMODE1_PUPPLANES   0x00000005
-#define NPORT_DMODE1_CIDPLANES   0x00000006
+	npireg_t drawmode1;      /* GL extra mode bits */
+	
+#define DM1_PLANES         0x00000007
+#define    DM1_NOPLANES    0x00000000
+#define    DM1_RGBPLANES   0x00000001
+#define    DM1_RGBAPLANES  0x00000002
+#define    DM1_OLAYPLANES  0x00000004
+#define    DM1_PUPPLANES   0x00000005
+#define    DM1_CIDPLANES   0x00000006
+	
 #define NPORT_DMODE1_DDMASK      0x00000018
 #define NPORT_DMODE1_DD4         0x00000000
 #define NPORT_DMODE1_DD8         0x00000008
@@ -91,7 +93,7 @@ struct newport_rexregs {
 #define NPORT_DMODE1_LONAND      0xe0000000
 #define NPORT_DMODE1_LOONE       0xf0000000
 
-	npireg_t dmode0;      /* REX command register */
+	npireg_t drawmode0;      /* REX command register */
 
 	/* These bits define the graphics opcode being performed. */
 #define NPORT_DMODE0_OPMASK   0x00000003 /* Opcode mask */
@@ -131,64 +133,65 @@ struct newport_rexregs {
 #define NPORT_DMODE0_ENDPF    0x00400000
 #define NPORT_DMODE0_YSTR     0x00800000
 
-	npireg_t lismode;     /* Mode for line stipple ops */
-	npireg_t lispat;      /* Pattern for line stipple ops */
-	npireg_t lispsave;    /* Backup save pattern */
-	npireg_t zpat;        /* Pixel zpattern */
-	npireg_t colbk;       /* Background color */
-	npireg_t colvram;     /* Clear color for fast vram */
-	npireg_t aref;        /* Reference value for afunctions */
-	unsigned long _unused0;
-	npireg_t scmskx0;     /* Window GL relative screen mask 0 */
-	npireg_t scmsky0;     /* Window GL relative screen mask 0 */
-	npireg_t xsetup;
-	npireg_t xzpenab;
-	npireg_t xlisrestore;
-	npireg_t xlissave;
+	npireg_t lsmode;      /* Mode for line stipple ops */
+	npireg_t lspattern;   /* Pattern for line stipple ops */
+	npireg_t lspatsave;   /* Backup save pattern */
+	npireg_t zpattern;    /* Pixel zpattern */
+	npireg_t colorback;   /* Background color */
+	npireg_t colorvram;   /* Clear color for fast vram */
+	npireg_t alpharef;    /* Reference value for afunctions */
+	unsigned long pad0;
+	npireg_t smask0x;     /* Window GL relative screen mask 0 */
+	npireg_t smask0y;     /* Window GL relative screen mask 0 */
+	npireg_t _setup;
+	npireg_t _stepz;
+	npireg_t _lsrestore;
+	npireg_t _lssave;
 
-	unsigned long _unused1[0x30];
+	unsigned long _pad1[0x30];
 
-	npfreg_t fxstart;
-	npfreg_t fystart;
-	npfreg_t fxend;
-	npfreg_t fyend;
-	npireg_t xsv;
-	npireg_t xymv;
-	npfreg_t brd;
-	npfreg_t brs1;
-	npireg_t broinc1;
-	volatile int brinc2;
-	npireg_t bre1;
-	npireg_t bre2;
-	npireg_t aw0;
-	npireg_t aw1;
-	npfreg_t xstf;
-	npfreg_t ystf;
-	npfreg_t xef;
-	npfreg_t yef;
-	npireg_t xsti;
-	npfreg_t xef1;
-	npireg_t xysti;
-	npireg_t xyei;
-	npireg_t xstei;
+	/* Iterators, full state for context switch */
+	npfreg_t _xstart;	/* X-start point (current) */
+	npfreg_t _ystart;	/* Y-start point (current) */
+	npfreg_t _xend;		/* x-end point */
+	npfreg_t _yend;		/* y-end point */
+	npireg_t xsave;		/* copy of xstart integer value for BLOCk addressing MODE */
+	npireg_t xymove;	/* x.y offset from xstart, ystart for relative operations */
+	npfreg_t bresd;
+	npfreg_t bress1;;
+	npireg_t bresoctinc1;
+	volatile int bresrndinc2;
+	npireg_t brese1;
+	npireg_t bress2;
+	npireg_t aweight0;
+	npireg_t aweight1;
+	npfreg_t xstartf;
+	npfreg_t ystartf;
+	npfreg_t xendf;
+	npfreg_t yendf;
+	npireg_t xstarti;
+	npfreg_t xendf1;
+	npireg_t xystarti;
+	npireg_t xyendi;
+	npireg_t xstartendi;
 
 	unsigned long _unused2[0x29];
 
-	npfreg_t cred;
-	npfreg_t calpha;
-	npfreg_t cgreen;
-	npfreg_t cblue;
-	npfreg_t slred;
-	npfreg_t slalpha;
-	npfreg_t slgreen;
-	npfreg_t slblue;
-	npireg_t wmask;
-	npireg_t ci;
-	npfreg_t cx;
-	npfreg_t sl1;
-	npireg_t hrw0;
-	npireg_t hrw1;
-	npireg_t dmode;
+	npfreg_t colorred;
+	npfreg_t coloralpha;
+	npfreg_t colorgrn;
+	npfreg_t colorblue;
+	npfreg_t slopered;
+	npfreg_t slopealpha;
+	npfreg_t slopegrn;
+	npfreg_t slopeblue;
+	npireg_t wrmask;
+	npireg_t colori;
+	npfreg_t colorx;
+	npfreg_t slopered1;
+	npireg_t hostrw0;
+	npireg_t hostrw1;
+	npireg_t dcbmode;
 #define NPORT_DMODE_WMASK   0x00000003
 #define NPORT_DMODE_W4      0x00000000
 #define NPORT_DMODE_W1      0x00000001
@@ -219,22 +222,22 @@ struct newport_rexregs {
 
 	unsigned long _unused3;
 
-	union np_dcb ddata0;
-	npireg_t ddata1;
+	union np_dcb dcbdata0;
+	npireg_t dcbdata1;
 };
 
 struct newport_cregs {
-	npireg_t smskx1;
-	npireg_t smsky1;
-	npireg_t smskx2;
-	npireg_t smsky2;
-	npireg_t smskx3;
-	npireg_t smsky3;
-	npireg_t smskx4;
-	npireg_t smsky4;
-	npireg_t tscan;
-	npireg_t win;
-	npireg_t cmode;
+	npireg_t smask1x;
+	npireg_t smask1y;
+	npireg_t smask2x;
+	npireg_t smask2y;
+	npireg_t smask3x;
+	npireg_t smask3y;
+	npireg_t smask4x;
+	npireg_t smask4y;
+	npireg_t topscan;
+	npireg_t xywin;
+	npireg_t clipmode;
 #define NPORT_CMODE_SM0   0x00000001
 #define NPORT_CMODE_SM1   0x00000002
 #define NPORT_CMODE_SM2   0x00000004
@@ -243,7 +246,7 @@ struct newport_cregs {
 #define NPORT_CMODE_CMSK  0x00001e00
 
 	unsigned long _unused0;
-	unsigned long cfg;
+	unsigned long config;
 #define NPORT_CFG_G32MD   0x00000001
 #define NPORT_CFG_BWIDTH  0x00000002
 #define NPORT_CFG_ERCVR   0x00000004
@@ -286,6 +289,67 @@ struct newport_regs {
 };
 extern struct newport_regs *npregs;
 
+
+typedef struct {
+	unsigned int drawmode1;
+	unsigned int drawmode0;
+	unsigned int lsmode;   
+	unsigned int lspattern;
+	unsigned int lspatsave;
+	unsigned int zpattern; 
+	unsigned int colorback;
+	unsigned int colorvram;
+	unsigned int alpharef; 
+	unsigned int smask0x;  
+	unsigned int smask0y;  
+	unsigned int _xstart;  
+	unsigned int _ystart;  
+	unsigned int _xend;    
+	unsigned int _yend;    
+	unsigned int xsave;    
+	unsigned int xymove;   
+	unsigned int bresd;    
+	unsigned int bress1;   
+	unsigned int bresoctinc1;
+	unsigned int bresrndinc2;
+	unsigned int brese1;     
+	unsigned int bress2;     
+	
+	unsigned int aweight0;    
+	unsigned int aweight1;    
+	unsigned int colorred;    
+	unsigned int coloralpha;  
+	unsigned int colorgrn;    
+	unsigned int colorblue;   
+	unsigned int slopered;    
+	unsigned int slopealpha;  
+	unsigned int slopegrn;    
+	unsigned int slopeblue;   
+	unsigned int wrmask;      
+	unsigned int hostrw0;     
+	unsigned int hostrw1;     
+	
+        /* configregs */
+	
+	unsigned int smask1x;    
+	unsigned int smask1y;    
+	unsigned int smask2x;    
+	unsigned int smask2y;    
+	unsigned int smask3x;    
+	unsigned int smask3y;    
+	unsigned int smask4x;    
+	unsigned int smask4y;    
+	unsigned int topscan;    
+	unsigned int xywin;      
+	unsigned int clipmode;   
+	unsigned int config;     
+	
+        /* dcb registers */
+	unsigned int dcbmode;   
+	unsigned int dcbdata0;  
+	unsigned int dcbdata1;
+} newport_ctx;
+
 /* Reading/writing VC2 registers. */
 #define VC2_REGADDR_INDEX      0x00000000
 #define VC2_REGADDR_IREG       0x00000010
@@ -319,20 +383,20 @@ extern struct newport_regs *npregs;
 extern inline void newport_vc2_set(struct newport_regs *regs, unsigned char vc2ireg,
 				   unsigned short val)
 {
-	regs->set.dmode = (NPORT_DMODE_AVC2 | VC2_REGADDR_INDEX | NPORT_DMODE_W3 |
+	regs->set.dcbmode = (NPORT_DMODE_AVC2 | VC2_REGADDR_INDEX | NPORT_DMODE_W3 |
 			   NPORT_DMODE_ECINC | VC2_PROTOCOL);
-	regs->set.ddata0.all = (vc2ireg << 24) | (val << 8);
+	regs->set.dcbdata0.all = (vc2ireg << 24) | (val << 8);
 }
 
 extern inline unsigned short newport_vc2_get(struct newport_regs *regs,
 					     unsigned char vc2ireg)
 {
-	regs->set.dmode = (NPORT_DMODE_AVC2 | VC2_REGADDR_INDEX | NPORT_DMODE_W1 |
+	regs->set.dcbmode = (NPORT_DMODE_AVC2 | VC2_REGADDR_INDEX | NPORT_DMODE_W1 |
 			   NPORT_DMODE_ECINC | VC2_PROTOCOL);
-	regs->set.ddata0.bytes.b3 = vc2ireg;
-	regs->set.dmode = (NPORT_DMODE_AVC2 | VC2_REGADDR_IREG | NPORT_DMODE_W2 |
+	regs->set.dcbdata0.bytes.b3 = vc2ireg;
+	regs->set.dcbmode = (NPORT_DMODE_AVC2 | VC2_REGADDR_IREG | NPORT_DMODE_W2 |
 			   NPORT_DMODE_ECINC | VC2_PROTOCOL);
-	return regs->set.ddata0.hwords.s1;
+	return regs->set.dcbdata0.hwords.s1;
 }
 
 /* VC2 Control register bits */
@@ -361,11 +425,11 @@ extern inline unsigned short newport_vc2_get(struct newport_regs *regs,
 static inline void newport_cmap_setaddr(struct newport_regs *regs,
 					unsigned short addr)
 {
-	regs->set.dmode = (NPORT_DMODE_ACMALL | NCMAP_PROTOCOL |
+	regs->set.dcbmode = (NPORT_DMODE_ACMALL | NCMAP_PROTOCOL |
 			   NPORT_DMODE_SENDIAN | NPORT_DMODE_ECINC |
 			   NCMAP_REGADDR_AREG | NPORT_DMODE_W2);
-	regs->set.ddata0.hwords.s1 = addr;
-	regs->set.dmode = (NPORT_DMODE_ACMALL | NCMAP_PROTOCOL |
+	regs->set.dcbdata0.hwords.s1 = addr;
+	regs->set.dcbmode = (NPORT_DMODE_ACMALL | NCMAP_PROTOCOL |
 			   NCMAP_REGADDR_PBUF | NPORT_DMODE_W3);
 }
 
@@ -374,7 +438,7 @@ static inline void newport_cmap_setrgb(struct newport_regs *regs,
 				       unsigned char green,
 				       unsigned char blue)
 {
-	regs->set.ddata0.all =
+	regs->set.dcbdata0.all =
 		(red << 24) |
 		(green << 16) |
 		(blue << 8);
@@ -407,5 +471,8 @@ static inline int newport_bfwait(void)
 }
 
 extern struct graphics_ops *newport_probe (int, const char **);
+
+void newport_save    (void *);
+void newport_restore (void *);
 
 #endif /* !(_SGI_NEWPORT_H) */
