@@ -81,7 +81,7 @@ static void setup_irix_frame(struct sigaction * sa, struct pt_regs *regs,
 	sp &= ~(0xf);
 	ctx = (struct sigctx_irix5 *) sp;
 	if (!access_ok(VERIFY_WRITE, ctx, sizeof(*ctx)))
-		do_exit(SIGSEGV);
+		goto segv_and_exit;
 
 	__put_user(0, &ctx->weird_fpu_thing);
 	__put_user(~(0x00000001), &ctx->rmask);
@@ -112,6 +112,12 @@ static void setup_irix_frame(struct sigaction * sa, struct pt_regs *regs,
 	regs->regs[6] = regs->regs[29] = sp;
 	regs->regs[7] = (unsigned long) sa->sa_handler;
 	regs->regs[25] = regs->cp0_epc = current->tss.irix_trampoline;
+	return;
+
+segv_and_exit:
+	lock_kernel();
+	do_exit(SIGSEGV);
+	unlock_kernel();
 }
 
 asmlinkage int sys_wait4(pid_t pid, unsigned long *stat_addr,
