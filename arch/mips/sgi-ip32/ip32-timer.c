@@ -16,7 +16,6 @@
 #include <linux/string.h>
 #include <linux/interrupt.h>
 #include <linux/kernel_stat.h>
-#include <linux/mc146818rtc.h>
 #include <linux/timex.h>
 
 #include <asm/mipsregs.h>

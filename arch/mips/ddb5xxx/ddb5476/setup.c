@@ -12,7 +12,6 @@
 #include <linux/types.h>
 #include <linux/console.h>
 #include <linux/sched.h>
-#include <linux/mc146818rtc.h>
 #include <linux/pci.h>
 
 #include <asm/addrspace.h>

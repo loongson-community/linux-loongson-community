@@ -29,7 +29,6 @@
 #include <linux/ioport.h>
 #include <linux/mm.h>
 #include <linux/console.h>
-#include <linux/mc146818rtc.h>
 #include <linux/delay.h>
 #include <linux/interrupt.h>
 

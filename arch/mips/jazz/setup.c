@@ -18,7 +18,6 @@
 #include <linux/mm.h>
 #include <linux/console.h>
 #include <linux/fb.h>
-#include <linux/mc146818rtc.h>
 #include <linux/ide.h>
 #include <asm/bootinfo.h>
 #include <asm/irq.h>

@@ -39,7 +39,6 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
-#include <linux/mc146818rtc.h>
 #include <linux/mm.h>
 #include <linux/swap.h>
 #include <linux/ioport.h>

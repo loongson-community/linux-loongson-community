@@ -11,7 +11,6 @@
 #include <linux/config.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>
-#include <linux/mc146818rtc.h>
 #include <linux/param.h>
 #include <linux/console.h>
 #include <linux/init.h>

@@ -36,7 +36,6 @@
 #include <linux/init.h>
 #include <linux/sched.h>
 #include <linux/ioport.h>
-#include <linux/mc146818rtc.h>
 #include <linux/string.h>
 #include <linux/ctype.h>
 #include <linux/pci.h>

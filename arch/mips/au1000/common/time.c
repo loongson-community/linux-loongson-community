@@ -25,6 +25,7 @@
 #include <linux/init.h>
 #include <linux/kernel_stat.h>
 #include <linux/time.h>
+#include <linux/timex.h>
 #include <linux/sched.h>
 #include <linux/spinlock.h>
 
@@ -34,9 +35,6 @@
 #include <asm/hardirq.h>
 #include <asm/div64.h>
 #include <asm/au1000.h>
-
-#include <linux/mc146818rtc.h>
-#include <linux/timex.h>
 
 extern void startup_match20_interrupt(void);
 extern volatile unsigned long wall_jiffies;
