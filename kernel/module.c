@@ -350,6 +350,7 @@ err0:
 	return error;
 }
 
+#endif	/* CONFIG_MODULES */
 static spinlock_t unload_lock = SPIN_LOCK_UNLOCKED;
 int try_inc_mod_count(struct module *mod)
 {
@@ -364,6 +365,7 @@ int try_inc_mod_count(struct module *mod)
 	}
 	return res;
 }
+#ifdef CONFIG_MODULES		/* a *big* #ifdef block... */
 
 asmlinkage long
 sys_delete_module(const char *name_user)
