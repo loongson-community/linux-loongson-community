@@ -116,8 +116,8 @@ int dec_esp_detect(Scsi_Host_Template * tpnt)
 	unsigned long mem_start;
 
 	if (IOASIC) {
-	esp_dev = 0;
-	esp = esp_allocate(tpnt, (void *) esp_dev);
+		esp_dev = 0;
+		esp = esp_allocate(tpnt, (void *) esp_dev);
 	
 		scsi_dma_ptr = (unsigned long *) (system_base + IOCTL + SCSI_DMA_P);
 		scsi_next_ptr = (unsigned long *) (system_base + IOCTL + SCSI_DMA_BP);
@@ -126,72 +126,72 @@ int dec_esp_detect(Scsi_Host_Template * tpnt)
 		scsi_sdr0 = (unsigned long *) (system_base + IOCTL + SCSI_SDR0);
 		scsi_sdr1 = (unsigned long *) (system_base + IOCTL + SCSI_SDR1);
 
-	/* Do command transfer with programmed I/O */
-	esp->do_pio_cmds = 1;
+		/* Do command transfer with programmed I/O */
+		esp->do_pio_cmds = 1;
 	
-	/* Required functions */
-	esp->dma_bytes_sent = &dma_bytes_sent;
-	esp->dma_can_transfer = &dma_can_transfer;
-	esp->dma_dump_state = &dma_dump_state;
-	esp->dma_init_read = &dma_init_read;
-	esp->dma_init_write = &dma_init_write;
-	esp->dma_ints_off = &dma_ints_off;
-	esp->dma_ints_on = &dma_ints_on;
-	esp->dma_irq_p = &dma_irq_p;
-	esp->dma_ports_p = &dma_ports_p;
-	esp->dma_setup = &dma_setup;
+		/* Required functions */
+		esp->dma_bytes_sent = &dma_bytes_sent;
+		esp->dma_can_transfer = &dma_can_transfer;
+		esp->dma_dump_state = &dma_dump_state;
+		esp->dma_init_read = &dma_init_read;
+		esp->dma_init_write = &dma_init_write;
+		esp->dma_ints_off = &dma_ints_off;
+		esp->dma_ints_on = &dma_ints_on;
+		esp->dma_irq_p = &dma_irq_p;
+		esp->dma_ports_p = &dma_ports_p;
+		esp->dma_setup = &dma_setup;
 
-	/* Optional functions */
-	esp->dma_barrier = 0;
+		/* Optional functions */
+		esp->dma_barrier = 0;
 		esp->dma_drain = &dma_drain;
-	esp->dma_invalidate = 0;
-	esp->dma_irq_entry = 0;
-	esp->dma_irq_exit = 0;
-	esp->dma_poll = 0;
-	esp->dma_reset = 0;
-	esp->dma_led_off = 0;
-	esp->dma_led_on = 0;
-	
-	/* virtual DMA functions */
-	esp->dma_mmu_get_scsi_one = &dma_mmu_get_scsi_one;
-	esp->dma_mmu_get_scsi_sgl = &dma_mmu_get_scsi_sgl;
-	esp->dma_mmu_release_scsi_one = 0;
-	esp->dma_mmu_release_scsi_sgl = 0;
-	esp->dma_advance_sg = &dma_advance_sg;
+		esp->dma_invalidate = 0;
+		esp->dma_irq_entry = 0;
+		esp->dma_irq_exit = 0;
+		esp->dma_poll = 0;
+		esp->dma_reset = 0;
+		esp->dma_led_off = 0;
+		esp->dma_led_on = 0;
+		
+		/* virtual DMA functions */
+		esp->dma_mmu_get_scsi_one = &dma_mmu_get_scsi_one;
+		esp->dma_mmu_get_scsi_sgl = &dma_mmu_get_scsi_sgl;
+		esp->dma_mmu_release_scsi_one = 0;
+		esp->dma_mmu_release_scsi_sgl = 0;
+		esp->dma_advance_sg = &dma_advance_sg;
 
 
-	/* SCSI chip speed */
+		/* SCSI chip speed */
 		esp->cfreq = 25000000;
 
-	/*
-	 * we don't give the address of DMA channel, but the number
-	 * of DMA channel, so we can use the jazz DMA functions
-	 *
-	 */
-	esp->dregs = JAZZ_SCSI_DMA;
+		/*
+		 * we don't give the address of DMA channel, but the number
+		 * of DMA channel, so we can use the jazz DMA functions
+		 *
+		 */
+		esp->dregs = JAZZ_SCSI_DMA;
 	
-	/* ESP register base */
+		/* ESP register base */
 		esp->eregs = (struct ESP_regs *) (system_base + SCSI);
 	
-	/* Set the command buffer */
+		/* Set the command buffer */
 		esp->esp_command = (volatile unsigned char *) cmd_buffer;
 	
-	/* get virtual dma address for command buffer */
+		/* get virtual dma address for command buffer */
 		esp->esp_command_dvma = (__u32) KSEG1ADDR((volatile unsigned char *) cmd_buffer);
 	
 		esp->irq = SCSI_INT;
-	request_irq(esp->irq, esp_intr, SA_INTERRUPT, "NCR 53C94 SCSI",
-	            NULL);
+
+		esp->scsi_id = 7;
+		
+		/* Check for differential SCSI-bus */
+		esp->diff = 0;
+
+		esp_initialize(esp);
+
+		request_irq(esp->irq, esp_intr, SA_INTERRUPT, "NCR 53C94 SCSI",
+			    NULL);
 		request_irq(SCSI_DMA_INT, scsi_dma_int, SA_INTERRUPT, "JUNKIO SCSI DMA",
 			    NULL);
-
-	esp->scsi_id = 7;
-		
-	/* Check for differential SCSI-bus */
-	esp->diff = 0;
-
-	esp_initialize(esp);
-	
 	}
 
 	if (TURBOCHANNEL) {
