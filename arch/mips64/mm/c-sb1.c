@@ -460,6 +460,7 @@ void ld_mmu_sb1(void)
 	_flush_page_to_ram = (void (*)(struct page *)) sb1_nop;
 
 	___flush_cache_all = sb1___flush_cache_all;
+	_flush_cache_l1 = sb1___flush_cache_all;
 	_flush_icache_page = sb1_flush_icache_page;
 	_flush_icache_range = sb1_flush_icache_range;
 	_flush_cache_page = sb1_flush_cache_page;
