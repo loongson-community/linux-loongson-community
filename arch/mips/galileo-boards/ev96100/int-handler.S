@@ -4,7 +4,6 @@
 #include <asm/stackframe.h>
 
 	.text
-	.set    mips1
 	.set    macro
 	.set    noat
 	.align	5
@@ -48,8 +47,15 @@ NESTED(ev96100IRQ, PT_SIZE, sp)
 	
 	la      a1, ret_from_irq
 	jr	a1
+        nop
 	
-3:	j	spurious_interrupt
+3:	
+	move a0, sp
+	jal	mips_spurious_interrupt
+        nop
+	la      a1, ret_from_irq
+	jr	a1
+        nop
 
 /* dbg:       .asciz "\nev96100IRQ"  */
 END(ev96100IRQ)

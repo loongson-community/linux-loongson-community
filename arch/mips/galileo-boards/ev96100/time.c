@@ -5,7 +5,7 @@
  *
  * Copyright 2000 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
- *         	ppopov@mvista.com or support@mvista.com
+ *         	ppopov@mvista.com or source@mvista.com
  *
  * This file was derived from Carsten Langgaard's 
  * arch/mips/mips-boards/atlas/atlas_rtc.c.
@@ -48,16 +48,13 @@
 
 #define ALLINTS (IE_IRQ0 | IE_IRQ1 | IE_IRQ2 | IE_IRQ3 | IE_IRQ4 | IE_IRQ5)
 
+extern unsigned long spurious_count;
 extern volatile unsigned long wall_jiffies;
-static long last_rtc_update = 0;
 unsigned long missed_heart_beats = 0;
 
 static unsigned long r4k_offset; /* Amount to increment compare reg each time */
 static unsigned long r4k_cur;    /* What counter should be at next timer irq */
 extern rwlock_t xtime_lock;
-
-
-static unsigned int timer_tick_count=0;
 
 static inline void ack_r4ktimer(unsigned long newval)
 {
@@ -72,35 +69,7 @@ static int set_rtc_mmss(unsigned long nowtime)
     return retval;
 }
 
-/*
- * There are a lot of conceptually broken versions of the MIPS timer interrupt
- * handler floating around.  This one is rather different, but the algorithm
- * is probably more robust.
- */
-static unsigned long alive;
-void mips_timer_interrupt(struct pt_regs *regs)
-{
-        unsigned long status;
-        unsigned long ret_addr;
-        int irq = 7; /* FIX ME */
 
-	if (r4k_offset == 0) {
-            goto null;
-        }
-
-	do {
-		kstat.irqs[0][irq]++;
-		do_timer(regs);
-		r4k_cur += r4k_offset;
-		ack_r4ktimer(r4k_cur);
-
-	} while (((unsigned long)read_32bit_cp0_register(CP0_COUNT) 
-                    - r4k_cur) < 0x7fffffff);
-	return;
-
-null:
-	ack_r4ktimer(0);
-}
 
 /* 
  * Figure out the r4k offset, the amount to increment the compare
@@ -114,10 +83,10 @@ static unsigned long __init cal_r4koff(void)
 	return (count / HZ);
 }
 
+
 static unsigned long __init get_mips_time(void)
 {
 	unsigned int year, mon, day, hour, min, sec;
-	unsigned char save_control;
 
         year = 2000;
         mon = 10;
@@ -135,7 +104,7 @@ static unsigned long __init get_mips_time(void)
 void __init time_init(void)
 {
 
-        unsigned int est_freq, flags;
+        unsigned int est_freq;
 
 	r4k_offset = cal_r4koff();
 
@@ -149,7 +118,7 @@ void __init time_init(void)
 	write_32bit_cp0_register(CP0_COMPARE, r4k_cur);
 
         /* FIX ME */
-	change_cp0_status(ST0_IM, IE_IRQ5);
+	set_cp0_status(ST0_IM, IE_IRQ5);
 }
 
 /* This is for machines which generate the exact clock. */
@@ -275,4 +244,31 @@ void do_settimeofday(struct timeval *tv)
 	time_esterror = NTP_PHASE_LIMIT;
 
 	write_unlock_irq (&xtime_lock);
+}
+
+/*
+ * There are a lot of conceptually broken versions of the MIPS timer interrupt
+ * handler floating around.  This one is rather different, but the algorithm
+ * is probably more robust.
+ */
+void mips_timer_interrupt(struct pt_regs *regs)
+{
+        int irq = 7; /* FIX ME */
+
+	if (r4k_offset == 0) {
+            goto null;
+        }
+
+	do {
+		kstat.irqs[0][irq]++;
+		do_timer(regs);
+		r4k_cur += r4k_offset;
+		ack_r4ktimer(r4k_cur);
+
+	} while (((unsigned long)read_32bit_cp0_register(CP0_COUNT) 
+                    - r4k_cur) < 0x7fffffff);
+	return;
+
+null:
+	ack_r4ktimer(0);
 }

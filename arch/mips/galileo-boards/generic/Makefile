@@ -34,6 +34,6 @@
 
 O_TARGET:= galboards.o
 
-obj-y := pci.o reset.o init.o cmdline.o
+obj-y := reset.o cmdline.o
 
 include $(TOPDIR)/Rules.make

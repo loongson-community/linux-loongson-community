@@ -48,10 +48,29 @@
   * FIX ME!!!
   */
 
-void __init prom_meminit(void)
+
+int __init page_is_ram(unsigned long pagenr)
+{
+    return 1;
+}
+
+void prom_free_prom_memory (void)
 {
 }
 
-void prom_free_prom_memory(void)
+unsigned long __init prom_get_memsize(void)
 {
+	char *memsize_str;
+	unsigned int memsize;
+
+	memsize_str = prom_getenv("memsize");
+	if (!memsize_str) {
+		memsize = 32; /* set to 32 MB */
+	} else {
+#ifdef DEBUG
+		printk("prom_memsize: %s\n", memsize_str);
+#endif
+		memsize = simple_strtol(memsize_str, NULL, 0);
+	}
+	return memsize;
 }

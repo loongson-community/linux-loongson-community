@@ -5,7 +5,7 @@
  *
  * Copyright 2000 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
- *         	ppopov@mvista.com or support@mvista.com
+ *         	ppopov@mvista.com or source@mvista.com
  *
  * This file was derived from Carsten Langgaard's 
  * arch/mips/mips-boards/atlas/atlas_int.c.
@@ -43,7 +43,7 @@
 #include <linux/interrupt.h>
 #include <linux/ioport.h>
 #include <linux/timex.h>
-#include <linux/slab.h>
+#include <linux/malloc.h>
 #include <linux/random.h>
 
 #include <asm/bitops.h>
@@ -54,131 +54,120 @@
 #include <asm/system.h>
 #include <asm/galileo-boards/ev96100int.h>
 
+#ifdef CONFIG_REMOTE_DEBUG
+extern void breakpoint(void);
+extern int ev96100_remote_debug;
+extern int ev96100_remote_debug_line;
+#endif
+
+extern void puts(unsigned char *cp);
+extern void set_debug_traps(void);
 extern void mips_timer_interrupt(int irq, struct pt_regs *regs);
 extern asmlinkage void ev96100IRQ(void);
-irq_cpustat_t irq_stat[NR_CPUS];
+irq_cpustat_t irq_stat [NR_CPUS];
 unsigned int local_bh_count[NR_CPUS];
 unsigned int local_irq_count[NR_CPUS];
 unsigned long spurious_count = 0;
 irq_desc_t irq_desc[NR_IRQS];
-irq_desc_t *irq_desc_base = &irq_desc[0];
+irq_desc_t *irq_desc_base=&irq_desc[0];
 
+#if 0 /* unused at this time */
 static struct irqaction timer_action = {
 	NULL, 0, 0, "R7000 timer/counter", NULL, NULL,
 };
 
 static struct hw_interrupt_type mips_timer = {
-	"MIPS CPU Timer",
-	NULL,
-	NULL,
-	NULL,			/* unmask_irq */
-	NULL,			/* mask_irq */
-	NULL,			/* mask_and_ack */
-	0
+        "MIPS CPU Timer",
+        NULL,
+        NULL,
+        NULL, /* unmask_irq */
+        NULL, /* mask_irq */
+        NULL, /* mask_and_ack */
+        0
 };
+#endif
 
 /* Function for careful CP0 interrupt mask access */
 static inline void modify_cp0_intmask(unsigned clr_mask, unsigned set_mask)
 {
-	unsigned long status = read_32bit_cp0_register(CP0_STATUS);
-	status &= ~((clr_mask & 0xFF) << 8);
-	status |= (set_mask & 0xFF) << 8;
-	write_32bit_cp0_register(CP0_STATUS, status);
+        unsigned long status = read_32bit_cp0_register(CP0_STATUS);
+        status &= ~((clr_mask & 0xFF) << 8);
+        status |=   (set_mask & 0xFF) << 8;
+        write_32bit_cp0_register(CP0_STATUS, status);
 }
 
 static inline void mask_irq(unsigned int irq_nr)
 {
-	modify_cp0_intmask(irq_nr, 0);
+        modify_cp0_intmask(irq_nr, 0);
 }
 
 static inline void unmask_irq(unsigned int irq_nr)
 {
-	modify_cp0_intmask(0, irq_nr);
+        modify_cp0_intmask(0, irq_nr);
 }
 
 void disable_irq(unsigned int irq_nr)
 {
-	unsigned long flags;
+        unsigned long flags;
 
-	save_and_cli(flags);
-	mask_irq(irq_nr);
-	restore_flags(flags);
+        save_and_cli(flags);
+        mask_irq(irq_nr);
+        restore_flags(flags);
 }
 
 void enable_irq(unsigned int irq_nr)
 {
 	unsigned long flags;
 
-#if 0
-	printk("enable irq %d\n", irq_nr);
-	printk("status reg: %x, cause %x\n",
-	       read_32bit_cp0_register(CP0_STATUS),
-	       read_32bit_cp0_register(CP0_CAUSE));
-#endif
-	save_and_cli(flags);
-	unmask_irq(irq_nr);
-	restore_flags(flags);
-#if 0
-	printk("new status reg: %x, cause %x\n",
-	       read_32bit_cp0_register(CP0_STATUS),
-	       read_32bit_cp0_register(CP0_CAUSE));
-#endif
+        save_and_cli(flags);
+        unmask_irq(irq_nr);
+        restore_flags(flags);
 }
 
 
 void __init ev96100_time_init()
 {
-	puts("ev96100 time_init\n");
-
+	return;
 }
 
 int get_irq_list(char *buf)
 {
-	int i, len = 0, j;
-	struct irqaction *action;
+        int i, len = 0, j;
+        struct irqaction * action;
 
-	len += sprintf(buf + len, "           ");
-	for (j = 0; j < smp_num_cpus; j++)
-		len += sprintf(buf + len, "CPU%d       ", j);
-	*(char *) (buf + len++) = '\n';
+        len += sprintf(buf+len, "           ");
+        for (j=0; j<smp_num_cpus; j++)
+                len += sprintf(buf+len, "CPU%d       ",j);
+        *(char *)(buf+len++) = '\n';
 
-	for (i = 0; i < NR_IRQS; i++) {
-		action = irq_desc[i].action;
-		if (!action || !action->handler)
-			continue;
-		len += sprintf(buf + len, "%3d: ", i);
-		len += sprintf(buf + len, "%10u ", kstat_irqs(i));
-		if (irq_desc[i].handler)
-			len +=
-			    sprintf(buf + len, " %s ",
-				    irq_desc[i].handler->typename);
-		else
-			len += sprintf(buf + len, "  None      ");
-		len += sprintf(buf + len, "    %s", action->name);
-		for (action = action->next; action; action = action->next) {
-			len += sprintf(buf + len, ", %s", action->name);
-		}
-		len += sprintf(buf + len, "\n");
-	}
-	len += sprintf(buf + len, "BAD: %10lu\n", spurious_count);
-	return len;
+        for (i = 0 ; i < NR_IRQS ; i++) {
+                action = irq_desc[i].action;
+                if ( !action || !action->handler )
+                        continue;
+                len += sprintf(buf+len, "%3d: ", i);		
+                len += sprintf(buf+len, "%10u ", kstat_irqs(i));
+                if ( irq_desc[i].handler )		
+                        len += sprintf(buf+len, " %s ", irq_desc[i].handler->typename );
+                else
+                        len += sprintf(buf+len, "  None      ");
+                len += sprintf(buf+len, "    %s",action->name);
+                for (action=action->next; action; action = action->next) {
+                        len += sprintf(buf+len, ", %s", action->name);
+                }
+                len += sprintf(buf+len, "\n");
+        }
+        len += sprintf(buf+len, "BAD: %10lu\n", spurious_count);
+        return len;
 }
 
-asmlinkage void do_IRQ(unsigned long cause, struct pt_regs *regs)
+asmlinkage void do_IRQ(unsigned long cause, struct pt_regs * regs)
 {
 	struct irqaction *action;
 	int cpu;
-	int status;
 	int irq;
 
-	//printk("do_IRQ: cause %x *regs %x\n", cause, regs);
-	/*
-	 * Service one interrupt only.
-	 * The "priority" is not really defined at this point.
-	 * This will change once we add the R7000 extensions.
-	 */
-//        if (cause & CAUSEF_IP7)
-//            irq = 7;
+	cpu = smp_processor_id();
+
 	if (cause & CAUSEF_IP6)
 		irq = 6;
 	else if (cause & CAUSEF_IP5)
@@ -193,159 +182,169 @@ asmlinkage void do_IRQ(unsigned long cause, struct pt_regs *regs)
 		irq = 1;
 	else if (cause & CAUSEF_IP0)
 		irq = 0;
-	else
-		return;		/* should not happen */
+	else {
+		return; /* should not happen */
+	}
+	irq_enter(cpu,irq);
 
-	cpu = smp_processor_id();
-	irq_enter(cpu, irq);
 	kstat.irqs[cpu][irq]++;
-	status = 0;
-
 	if (irq_desc[irq].handler && irq_desc[irq].handler->ack) {
-		irq_desc[irq].handler->ack(irq);
+	    irq_desc[irq].handler->ack(irq);
 	}
 
 	action = irq_desc[irq].action;
 
-	if (action && action->handler) {
-		//if (!(action->flags & SA_INTERRUPT)) __sti();
-		//printk("irq %d, action->handler %x\n", irq, action->handler);
-		do {
-			status |= action->flags;
+	if (action && action->handler)
+	{
+		mask_irq(1<<irq);
+		if (!(action->flags & SA_INTERRUPT)) __sti(); /* reenable ints */
+		do { 
 			action->handler(irq, action->dev_id, regs);
 			action = action->next;
-		} while (action);
-		//__cli();
-		if (irq_desc[irq].handler) {
-			printk("handler??\n");
-			while (1);
-			if (irq_desc[irq].handler->end)
-				irq_desc[irq].handler->end(irq);
-			else if (irq_desc[irq].handler->enable)
-				irq_desc[irq].handler->enable(irq);
+		} while ( action );
+		__cli(); /* disable ints */
+		if (irq_desc[irq].handler)
+		{
+			/* revisit */
+			panic("Unprepared to handle irq_desc[%d].handler %x\n",
+					irq, (unsigned)irq_desc[irq].handler);
 		}
-	} else {
-		spurious_count++;
-		//printk(KERN_DEBUG "Unhandled interrupt %x, disabled\n", irq);
-		printk("Unhandled interrupt %x, disabled\n", irq);
-		disable_irq(1 << irq);
-		if (irq_desc[irq].handler->end)
-			irq_desc[irq].handler->end(irq);
+		unmask_irq(1<<irq);
 	}
+	else
+	{
+		spurious_count++;
+		printk("Unhandled interrupt %x, cause %x, disabled\n", 
+				(unsigned)irq, (unsigned)cause);
+		disable_irq(1<<irq);
+	}
+	irq_exit(cpu,irq);
 
-	irq_exit(cpu, irq);
-
+#if 0
 	if (softirq_active(cpu) & softirq_mask(cpu))
 		do_softirq();
+#endif
 }
 
-int request_irq(unsigned int irq,
-		void (*handler) (int, void *, struct pt_regs *),
-		unsigned long irqflags, const char *devname, void *dev_id)
+int request_irq(unsigned int irq, void (*handler)(int, void *, struct pt_regs *),
+	unsigned long irqflags, const char * devname, void *dev_id)
 {
-	struct irqaction *old, **p, *action;
-	unsigned long flags;
+        struct irqaction *old, **p, *action;
+        unsigned long flags;
 
-	/*
-	 * IRQs are number 0 through 7, where 0 corresponds to IP0 and
-	 * 7 corresponds to IP7.  IP0 and IP1 are software interrupts. IP7
-	 * is typically the timer interrupt, unless the R7000 extensions are
-	 * used.
-	 */
+        /*
+         * IRQs are number 0 through 7, where 0 corresponds to IP0 and
+         * 7 corresponds to IP7.  IP0 and IP1 are software interrupts. IP7
+         * is typically the timer interrupt, unless the R7000 extensions are
+         * used.
+         */
 
-	printk("request_irq %d, handler %x\n", irq, handler);
+        if (irq >= NR_IRQS)
+                return -EINVAL;
+        if (!handler)
+        {
+                /* Free */
+                for (p = &irq_desc[irq].action; (action = *p) != NULL; p = &action->next)
+                {
+                        /* Found it - now free it */
+                        save_flags(flags);
+                        cli();
+                        *p = action->next;
+                        disable_irq(1<<irq);
+                        restore_flags(flags);
+                        kfree(action);
+                        return 0;
+                }
+                return -ENOENT;
+        }
+        
+        action = (struct irqaction *)
+                kmalloc(sizeof(struct irqaction), GFP_KERNEL);
+        if (!action)
+                return -ENOMEM;
+        memset(action, 0, sizeof(struct irqaction));
+        
+        save_flags(flags);
+        cli();
+        
+        action->handler = handler;
+        action->flags = irqflags;					
+        action->mask = 0;
+        action->name = devname;
+        action->dev_id = dev_id;
+        action->next = NULL;
 
-	if (irq >= NR_IRQS)
-		return -EINVAL;
-	if (!handler) {
-		/* Free */
-		for (p = &irq_desc[irq].action; (action = *p) != NULL;
-		     p = &action->next) {
-			/* Found it - now free it */
-			save_flags(flags);
-			cli();
-			*p = action->next;
-			restore_flags(flags);
-			kfree(action);
-			return 0;
-		}
-		return -ENOENT;
-	}
-
-	action = (struct irqaction *)
-	    kmalloc(sizeof(struct irqaction), GFP_KERNEL);
-	if (!action)
-		return -ENOMEM;
-	memset(action, 0, sizeof(struct irqaction));
-
-	save_flags(flags);
-	cli();
-
-	action->handler = handler;
-	action->flags = irqflags;
-	action->mask = 0;
-	action->name = devname;
-	action->dev_id = dev_id;
-	action->next = NULL;
-
-	p = &irq_desc[irq].action;
-
-	if ((old = *p) != NULL) {
-		/* Can't share interrupts unless both agree to */
-		if (!(old->flags & action->flags & SA_SHIRQ))
-			return -EBUSY;
-		/* add new interrupt at end of irq queue */
-		do {
-			p = &old->next;
-			old = *p;
-		} while (old);
-	}
-	*p = action;
-	printk("action %x, action->handler %x\n",
-	       irq_desc[irq].action, irq_desc[irq].action->handler);
-
-	enable_irq(1 << irq);
-	restore_flags(flags);
-	return 0;
+        p = &irq_desc[irq].action;
+        
+        if ((old = *p) != NULL) {
+                /* Can't share interrupts unless both agree to */
+                if (!(old->flags & action->flags & SA_SHIRQ))
+                        return -EBUSY;
+                /* add new interrupt at end of irq queue */
+                do {
+                        p = &old->next;
+                        old = *p;
+                } while (old);
+        }
+        *p = action;
+        enable_irq(1<<irq);
+        restore_flags(flags);	
+        return 0;
 }
-
+		
 void free_irq(unsigned int irq, void *dev_id)
 {
-	printk("free_irq %d\n", irq);
-	request_irq(irq, NULL, 0, NULL, dev_id);
+        request_irq(irq, NULL, 0, NULL, dev_id);
 }
 
 
-unsigned long probe_irq_on(void)
+unsigned long probe_irq_on (void)
 {
-	return 0;
+        return 0;
 }
 
-int probe_irq_off(unsigned long irqs)
+int probe_irq_off (unsigned long irqs)
 {
-	return 0;
+        return 0;
 }
 
-int (*irq_cannonicalize) (int irq);
+int (*irq_cannonicalize)(int irq);
 
 int ev96100_irq_cannonicalize(int i)
 {
-	return i;
+        return i;
 }
 
 void __init init_IRQ(void)
 {
-	puts("init_IRQ\n");
-	memset(irq_desc, 0, sizeof(irq_desc));
-	irq_cannonicalize = ev96100_irq_cannonicalize;
+        memset(irq_desc, 0, sizeof(irq_desc));
+        irq_cannonicalize = ev96100_irq_cannonicalize;
+        set_except_vector(0, ev96100IRQ);
 
-	/*
-	   irq_desc[EV96100INT_TIMER].handler = &mips_timer;
-	   irq_desc[EV96100INT_TIMER].action = &timer_action;
-	   irq_desc[EV96100INT_TIMER].action->handler = mips_timer_interrupt;
-	 */
+#ifdef CONFIG_REMOTE_DEBUG
+	/* If local serial I/O used for debug port, enter kgdb at once */
+	if (ev96100_remote_debug) {
+		puts("Waiting for kgdb to connect...");
+		set_debug_traps();
+		breakpoint(); 
+	}
+#endif
+}
 
-	set_except_vector(0, ev96100IRQ);
+void mips_spurious_interrupt(struct pt_regs *regs)
+{
+#if 1
+	return;
+#else
+	unsigned long status, cause;
+
+	printk("got spurious interrupt\n");
+	status = read_32bit_cp0_register(CP0_STATUS);
+	cause = read_32bit_cp0_register(CP0_CAUSE);
+	printk("status %x cause %x\n", status, cause);
+	printk("epc %x badvaddr %x \n", regs->cp0_epc, regs->cp0_badvaddr);
+//	while(1);
+#endif
 }
 
 EXPORT_SYMBOL(irq_cannonicalize);

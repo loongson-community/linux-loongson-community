@@ -133,9 +133,10 @@ void __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
 	prom_envp = envp;
 
 	mips_machgroup = MACH_GROUP_GALILEO;
+	mips_machtype = MACH_EV96100;
 
 	prom_init_cmdline();
 
-	/* 64 MB non-upgradable */
-	add_memory_region(0, 64 << 20, BOOT_MEM_RAM);
+	/* 32 MB upgradable */
+	add_memory_region(0, 32 << 20, BOOT_MEM_RAM);
 }

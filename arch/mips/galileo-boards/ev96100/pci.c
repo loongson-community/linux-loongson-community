@@ -1,4 +1,5 @@
 /*
+ *
  * BRIEF MODULE DESCRIPTION
  *	Galileo EV96100 board specific pci support.
  *
@@ -41,11 +42,13 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 
+#include <asm//gt64120.h>
 #include <asm/galileo-boards/ev96100.h>
-#include <asm/gt64120.h>
 
 #define PCI_ACCESS_READ  0
 #define PCI_ACCESS_WRITE 1
+
+#undef DEBUG
 
 static int
 mips_pcibios_config_access(unsigned char access_type, struct pci_dev *dev,
@@ -309,10 +312,6 @@ pcibios_setup(char *str)
 	return str;
 }
 
-struct pci_fixup pcibios_fixups[] = {
-	{ 0 }
-};
-
 void __init
 pcibios_update_resource(struct pci_dev *dev, struct resource *root,
                         struct resource *res, int resource)
@@ -333,7 +332,57 @@ pcibios_update_resource(struct pci_dev *dev, struct resource *root,
  */
 void __init pcibios_fixup_bus(struct pci_bus *b)
 {
-	pci_read_bridge_bases(b);
+//	pci_read_bridge_bases(b);
 }
 
+void __init ev96100_int_line_fixup(struct pci_dev *dev)     
+{
+	unsigned int slot;
+	unsigned char irq;
+	unsigned long vendor;
+
+	/*
+	** EV96100 interrupt routing for pci bus 0
+	** NOTE: this are my experimental findings, since I do not
+	** have Galileo's latest PLD equations.
+	**
+	** The functions in irq.c assume the following irq numbering:
+	** irq 2: CPU cause register bit IP2
+	** irq 3: CPU cause register bit IP3
+	** irq 4: CPU cause register bit IP4
+	** irq 5: CPU cause register bit IP5
+	** irq 6: CPU cause register bit IP6
+	** irq 7: CPU cause register bit IP7
+	**
+	*/
+
+#ifdef DEBUG
+	printk("ev96100_int_line_fixup bus %d\n", dev->bus->number);
+#endif
+	if (dev->bus->number != 0)
+		return;
+
+	slot = PCI_SLOT(dev->devfn);
+	pci_read_config_word(dev, PCI_SUBSYSTEM_VENDOR_ID, &vendor);
+
+#ifdef DEBUG
+	printk("devfn %x, slot %d vendor %x\n", dev->devfn, slot, vendor);
+#endif
+
+	/* fixup irq line based on slot # */
+
+	if (slot == 8) {
+	    dev->irq = 5;
+	    pci_write_config_byte(dev, PCI_INTERRUPT_LINE, dev->irq);
+	}
+	else if (slot == 9) {
+	    dev->irq = 2;
+	    pci_write_config_byte(dev, PCI_INTERRUPT_LINE, dev->irq);
+	}
+}
+
+struct pci_fixup pcibios_fixups[] = {
+	{ PCI_FIXUP_HEADER, PCI_ANY_ID, PCI_ANY_ID, ev96100_int_line_fixup },
+	{ 0 }
+};
 #endif /* CONFIG_PCI */

@@ -5,7 +5,7 @@
  *
  * Copyright 2000 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
- *         	ppopov@mvista.com or support@mvista.com
+ *         	ppopov@mvista.com or source@mvista.com
  *
  * This file was derived from Carsten Langgaard's 
  * arch/mips/mips-boards/atlas/atlas_setup.c.
@@ -38,14 +38,19 @@
 #include <linux/sched.h>
 #include <linux/ioport.h>
 #include <linux/mc146818rtc.h>
+#include <linux/string.h>
+#include <linux/ctype.h>
 
 #include <asm/cpu.h>
 #include <asm/bootinfo.h>
+#include <asm/mipsregs.h>
 #include <asm/irq.h>
+#include <asm/gt64120.h>
 #include <asm/galileo-boards/ev96100.h>
 #include <asm/galileo-boards/ev96100int.h>
-#include <asm/mipsregs.h>
 
+
+void (*__wbflush) (void);
 
 #if defined(CONFIG_SERIAL_CONSOLE) || defined(CONFIG_PROM_CONSOLE)
 extern void console_setup(char *, int *);
@@ -53,114 +58,126 @@ char serial_console[20];
 #endif
 
 #ifdef CONFIG_REMOTE_DEBUG
-extern void rs_kgdb_hook(int);
-extern void saa9730_kgdb_hook(void);
 extern void breakpoint(void);
-static int remote_debug = 0;
-static int kgdb_on_pci = 0;
+int ev96100_remote_debug;
+int ev96100_remote_debug_line;
 #endif
 
-void (*board_time_init) (struct irqaction * irq);
+void (*board_time_init)(struct irqaction *irq);
 extern void ev96100_time_init(struct irqaction *irq);
+extern char * __init prom_getcmdline(void);
 
 extern void mips_reboot_setup(void);
 extern struct rtc_ops no_rtc_ops;
 extern struct resource ioport_resource;
 
-static void __init ev96100_irq_setup(void)
+void rm7000_wbflush()
 {
-	puts("ev96100_irq_setup");
-	init_IRQ();
-
-#ifdef CONFIG_REMOTE_DEBUG
-	/* If local serial I/O used for debug port, enter kgdb at once */
-	/* Otherwise, this will be done after the SAA9730 is up */
-	if (remote_debug && !kgdb_on_pci) {
-		set_debug_traps();
-		breakpoint();
-	}
-#endif
+    __asm__ __volatile__ ("sync");
 }
 
+unsigned char mac_0_1[12];
 
 void __init ev96100_setup(void)
 {
 
-#ifdef CONFIG_REMOTE_DEBUG
-	int rs_putDebugChar(char);
-	char rs_getDebugChar(void);
-	int saa9730_putDebugChar(char);
-	char saa9730_getDebugChar(void);
-	extern int (*putDebugChar) (char);
-	extern char (*getDebugChar) (void);
-#endif
+	unsigned long config = read_32bit_cp0_register(CP0_CONFIG);
+	unsigned long status = read_32bit_cp0_register(CP0_STATUS);
+	unsigned long info = read_32bit_cp0_register(CP0_INFO);
+
 	char *argptr;
 
-	irq_setup = ev96100_irq_setup;
-
-	puts("ev96100_setup");
-	puts("config reg:");
-	put32(read_32bit_cp0_register(CP0_CONFIG));
-	puts("");
+	set_cp0_status(ST0_FR,0);
+        __wbflush = rm7000_wbflush;
 
 
-#ifdef CONFIG_SERIAL_CONSOLE
+        if (config & 0x8) {
+            printk("Secondary cache is enabled\n");
+        }
+        else {
+            printk("Secondary cache is disabled\n");
+        }
+
+        if (status & (1<<27)) {
+            printk("User-mode cache ops enabled\n");
+        }
+        else {
+            printk("User-mode cache ops disabled\n");
+        }
+
+        printk("CP0 info reg: %x\n", (unsigned)info);
+        if (info & (1<<28)) {
+            printk("burst mode Scache RAMS\n");
+        }
+        else {
+            printk("pipelined Scache RAMS\n");
+        }
+
+        if ((info & (0x3<<26)) >> 26 == 0) {
+            printk("67 percent drive strength\n");
+        }
+        else if ((info & (0x3<<26)) >> 26 == 1) {
+            printk("50 percent drive strength\n");
+        }
+        else if ((info & (0x3<<26)) >> 26 == 2) {
+            printk("100 percent drive strength\n");
+        }
+        else if ((info & (0x3<<26)) >> 26 == 3) {
+            printk("83 percent drive strength\n");
+        }
+
+
+        if ((info & (0x3<<23)) >> 23 == 0) {
+            printk("Write Protocol: R4000 compatible\n");
+        }
+        else if ((info & (0x3<<23)) >> 23 == 1) {
+            printk("Write Protocol: Reserved\n");
+        }
+        else if ((info & (0x3<<23)) >> 23 == 2) {
+            printk("Write Protocol: Pipelined\n");
+        }
+        else if ((info & (0x3<<23)) >> 23 == 3) {
+            printk("Write Protocol: Write re-issue\n");
+        }
+
+        if (info & 0x1) {
+            printk("Atomic Enable is set\n");
+        }
+
 	argptr = prom_getcmdline();
-	if ((argptr = strstr(argptr, "console=ttyS0")) == NULL) {
-		int i = 0;
-		char *s = prom_getenv("modetty0");
-		while (s[i] >= '0' && s[i] <= '9')
-			i++;
-		strcpy(serial_console, "ttyS0,");
-		strncpy(serial_console + 6, s, i);
-		//prom_printf("Config serial console: %s\n", serial_console);
-		puts("Config serial console: %s\n", serial_console);
-		console_setup(serial_console, NULL);
+#ifdef CONFIG_SERIAL_CONSOLE
+	if (strstr(argptr, "console=") == NULL) {
+		argptr = prom_getcmdline();
+		strcat(argptr, " console=ttyS0,115200");
 	}
-#endif
+#endif	  
+
 
 #ifdef CONFIG_REMOTE_DEBUG
-	argptr = prom_getcmdline();
-	if ((argptr = strstr(argptr, "kgdb=ttyS")) != NULL) {
+	if (strstr(argptr, "kgdb=ttyS") != NULL) {
 		int line;
 		argptr += strlen("kgdb=ttyS");
-		if (*argptr != '0' && *argptr != '1')
-			printk("KGDB: Uknown serial line /dev/ttyS%c, "
-			       "falling back to /dev/ttyS1\n", *argptr);
-		line = *argptr == '0' ? 0 : 1;
-		printk("KGDB: Using serial line /dev/ttyS%d for session\n",
-		       line ? 1 : 0);
+		if (*argptr == '0')
+			ev96100_remote_debug_line = 0;
+		else if (*argptr == '1')
+			ev96100_remote_debug_line = 1;
+		else
+			puts("Unknown serial line /dev/ttyS%c\n", *argptr);
 
-		if (line == 0) {
-			rs_kgdb_hook(line);
-			putDebugChar = rs_putDebugChar;
-			getDebugChar = rs_getDebugChar;
-		} else {
-			saa9730_kgdb_hook();
-			putDebugChar = saa9730_putDebugChar;
-			getDebugChar = saa9730_getDebugChar;
-			kgdb_on_pci = 1;
-		}
-
-		prom_printf
-		    ("KGDB: Using serial line /dev/ttyS%d for session, "
-		     "please connect your debugger\n", line ? 1 : 0);
-
-		remote_debug = 1;
-		/* Breakpoints and stuff are in ev96100_irq_setup() */
+		debugInitUart(ev96100_remote_debug_line);
+		ev96100_remote_debug = 1;
+		/* Breakpoints and stuff are in init_IRQ() */
 	}
 #endif
-	argptr = prom_getcmdline();
 
 	board_time_init = ev96100_time_init;
 	rtc_ops = &no_rtc_ops;
 	mips_reboot_setup();
-
-	/*
-	 * reassign the start and end from the statically defined start and
-	 * end in kernel/resource.
-	 */
+	mips_io_port_base = KSEG1;
 	ioport_resource.start = GT_PCI_IO_BASE;
-	//ioport_resource.end   = GT_PCI_IO_BASE + GT_PCI_IO_SIZE;
-	ioport_resource.end = 0xB1FFFFFF;	/* what a hack! */
+	ioport_resource.end   = GT_PCI_IO_BASE + 0x01ffffff;
+
+#ifdef CONFIG_BLK_DEV_INITRD
+	ROOT_DEV = MKDEV(RAMDISK_MAJOR, 0);
+#endif
 }
