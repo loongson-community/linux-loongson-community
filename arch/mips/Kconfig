@@ -1505,7 +1505,7 @@ config TRAD_SIGNALS
 
 config BINFMT_IRIX
 	bool "Include IRIX binary compatibility"
-	depends on !CPU_LITTLE_ENDIAN && MIPS32
+	depends on !CPU_LITTLE_ENDIAN && MIPS32 && BROKEN
 
 config MIPS32_COMPAT
 	bool "Kernel support for Linux/MIPS 32-bit binary compatibility"
