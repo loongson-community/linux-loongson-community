@@ -52,6 +52,11 @@ static struct linux_binfmt irix_format = {
 #endif
 };
 
+#ifndef elf_addr_t
+#define elf_addr_t unsigned long
+#define elf_caddr_t char *
+#endif
+
 #ifdef DEBUG_ELF
 /* Debugging routines. */
 static char *get_elf_p_type(Elf32_Word p_type)
@@ -152,75 +157,73 @@ unsigned long * create_irix_tables(char * p, int argc, int envc,
 				   unsigned int interp_load_addr,
 				   struct pt_regs *regs, struct elf_phdr *ephdr)
 {
-	char **argv, **envp;
-	unsigned long *sp;
-	unsigned long *csp;
-
+	elf_caddr_t *argv;
+	elf_caddr_t *envp;
+	elf_addr_t *sp, *csp;
+	
 #ifdef DEBUG_ELF
 	printk("create_irix_tables: p[%p] argc[%d] envc[%d] "
 	       "load_addr[%08x] interp_load_addr[%08x]\n",
 	       p, argc, envc, load_addr, interp_load_addr);
 #endif
-	sp = (unsigned long *) (0xfffffffc & (unsigned long) p);
-
-	/* Make sure we will be aligned properly at the end of this. */
+	sp = (elf_addr_t *) (~15UL & (unsigned long) p);
 	csp = sp;
 	csp -= exec ? DLINFO_ITEMS*2 : 2;
-	csp -= envc + 1;
+	csp -= envc+1;
 	csp -= argc+1;
-	if (!(((unsigned long) csp) & 4))
-	    sp--;
+	csp -= 1;		/* argc itself */
+	if ((unsigned long)csp & 15UL) {
+		sp -= (16UL - ((unsigned long)csp & 15UL)) / sizeof(*sp);
+	}
 
-	sp -= exec ? DLINFO_ITEMS*2 : 2;
-	sp -= envc+1;
-	envp = (char **) sp;
-	sp -= argc+1;
-	argv = (char **) sp;
-
-	__put_user((unsigned long)argc, --sp);
-
+	/*
+	 * Put the ELF interpreter info on the stack
+	 */
 #define NEW_AUX_ENT(nr, id, val) \
-	__put_user ((id), sp+(nr*2)); \
-	__put_user ((val), sp+(nr*2+1)); \
+	  __put_user ((id), sp+(nr*2)); \
+	  __put_user ((val), sp+(nr*2+1)); \
 
-#define INTERP_ALIGN  (~((64 * 1024) - 1))
+	sp -= 2;
+	NEW_AUX_ENT(0, AT_NULL, 0);
 
-	NEW_AUX_ENT (0, AT_NULL, 0);
 	if(exec) {
-		struct elf_phdr * eppnt;
-		eppnt = (struct elf_phdr *) exec->e_phoff;
+		sp -= 11*2;
 
-		/* Put this here for an ELF program interpreter */
-		NEW_AUX_ENT (0, AT_PHDR, ephdr->p_vaddr);
+		NEW_AUX_ENT (0, AT_PHDR, load_addr + exec->e_phoff);
 		NEW_AUX_ENT (1, AT_PHENT, sizeof (struct elf_phdr));
 		NEW_AUX_ENT (2, AT_PHNUM, exec->e_phnum);
-		NEW_AUX_ENT (3, AT_PAGESZ, PAGE_SIZE);
-		NEW_AUX_ENT (4, AT_BASE, (interp_load_addr & (INTERP_ALIGN)));
+		NEW_AUX_ENT (3, AT_PAGESZ, ELF_EXEC_PAGESIZE);
+		NEW_AUX_ENT (4, AT_BASE, interp_load_addr);
 		NEW_AUX_ENT (5, AT_FLAGS, 0);
-		NEW_AUX_ENT (6, AT_ENTRY, (unsigned long) exec->e_entry);
-		NEW_AUX_ENT (7, AT_UID, (unsigned long) current->uid);
-		NEW_AUX_ENT (8, AT_EUID, (unsigned long) current->euid);
-		NEW_AUX_ENT (9, AT_GID, (unsigned long) current->gid);
-		NEW_AUX_ENT (10, AT_EGID, (unsigned long) current->egid);
+		NEW_AUX_ENT (6, AT_ENTRY, (elf_addr_t) exec->e_entry);
+		NEW_AUX_ENT (7, AT_UID, (elf_addr_t) current->uid);
+		NEW_AUX_ENT (8, AT_EUID, (elf_addr_t) current->euid);
+		NEW_AUX_ENT (9, AT_GID, (elf_addr_t) current->gid);
+		NEW_AUX_ENT (10, AT_EGID, (elf_addr_t) current->egid);
 	}
 #undef NEW_AUX_ENT
 
+	sp -= envc+1;
+	envp = (elf_caddr_t *) sp;
+	sp -= argc+1;
+	argv = (elf_caddr_t *) sp;
+
+	__put_user((elf_addr_t)argc,--sp);
 	current->mm->arg_start = (unsigned long) p;
 	while (argc-->0) {
-		__put_user(p, argv++);
+		__put_user((elf_caddr_t)(unsigned long)p,argv++);
 		p += strlen_user(p);
 	}
 	__put_user(NULL, argv);
 	current->mm->arg_end = current->mm->env_start = (unsigned long) p;
 	while (envc-->0) {
-		__put_user(p, envp++);
+		__put_user((elf_caddr_t)(unsigned long)p,envp++);
 		p += strlen_user(p);
 	}
 	__put_user(NULL, envp);
 	current->mm->env_end = (unsigned long) p;
 	return sp;
 }
-
 
 /* This is much more generalized than the library routine read function,
  * so we keep this separate.  Technically the library read function
