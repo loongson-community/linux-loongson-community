@@ -62,19 +62,34 @@ if [ "$CONFIG_SGI_IP27" = "y" ]; then
    #bool '  IP27 XXL' CONFIG_SGI_SN0_XXL
 fi
 dep_bool 'Support for SGI-IP32 (O2) (EXPERIMENTAL)' CONFIG_SGI_IP32 $CONFIG_EXPERIMENTAL
-dep_bool 'Support for SiByte SB1250 SOC (EXPERIMENTAL)' CONFIG_SIBYTE_SB1250 $CONFIG_EXPERIMENTAL
-if [ "$CONFIG_SIBYTE_SB1250" = "y" ]; then
-   bool '  Support for SB1250 onchip PCI controller' CONFIG_PCI
-   bool '  Support for SB1250 profiling - SB1/SCD perf counters' CONFIG_SIBYTE_SB1250_PROF
-   bool '  Support for BCM1250 profiling using trace buffer' CONFIG_BCM1250_TBPROF
-   bool '  Remote debugging (kgdb over UART 1)' CONFIG_REMOTE_DEBUG
-   bool '  Support for SiByte SWARM board' CONFIG_SIBYTE_SWARM
-   if [ "$CONFIG_SIBYTE_SWARM" = "y" ]; then
-      bool '    Running under simulation' CONFIG_SIMULATION
-      bool '    Configure for L3proc Demo' CONFIG_L3DEMO
-      int '    Maximum memory chunks' CONFIG_SIBYTE_SWARM_MAX_MEM_REGIONS 16
-      bool '    Multi-Processing support' CONFIG_SMP
-      define_bool CONFIG_SIBYTE_CFE y
+dep_bool 'Support for Broadcom BCM1xxx SOCs (EXPERIMENTAL)' CONFIG_SIBYTE_SB1xxx_SOC $CONFIG_EXPERIMENTAL
+if [ "$CONFIG_SIBYTE_SB1xxx_SOC" = "y" ]; then
+   choice '   BCM1xxx SOC Type' \
+	  "BCM1250          CONFIG_SIBYTE_SB1250" BCM1250
+
+   bool '   Running under simulation' CONFIG_SIMULATION
+   bool '   Booting from CFE' CONFIG_SIBYTE_CFE
+   dep_bool '     Use firmware console' CONFIG_SIBYTE_CFE_CONSOLE $CONFIG_SIBYTE_CFE
+   if [ "$CONFIG_SIBYTE_CFE" = "n" ]; then
+      define_bool CONFIG_SIBYTE_STANDALONE y
+      int  '   Memory size (in megabytes)' CONFIG_SIBYTE_STANDALONE_RAM_SIZE 32
+   fi
+
+   bool '   Support for SB1/SOC profiling - SB1/SCD perf counters' CONFIG_SIBYTE_SB1250_PROF
+   bool '   Support for ZBbus profiling' CONFIG_BCM1250_TBPROF
+
+   if [ "$CONFIG_SIBYTE_SB1250" = "y" ]; then
+      if [ "$CONFIG_SIBYTE_STANDALONE" != "y" ]; then
+	 bool '   Multi-Processing support' CONFIG_SMP
+      fi
+   fi
+
+   if [ "$CONFIG_SIBYTE_SB1250" = "y" ]; then
+      bool '   Support for BCM1250/BCM112x onchip PCI controller' CONFIG_PCI
+   fi
+
+   if [ "$CONFIG_SIBYTE_SB1250" = "y" ]; then
+      bool '   Support for SWARM board' CONFIG_SIBYTE_SWARM
    fi
 fi
 bool 'Support for SNI RM200 PCI' CONFIG_SNI_RM200_PCI
@@ -337,6 +352,7 @@ if [ "$CONFIG_SIBYTE_SB1250" = "y" ]; then
    define_bool CONFIG_NEW_TIME_C y
    define_bool CONFIG_DUMMY_KEYB y
    define_bool CONFIG_SWAP_IO_SPACE y
+   define_bool CONFIG_BOOT_ELF32 y
 fi
 if [ "$CONFIG_SNI_RM200_PCI" = "y" ]; then
    define_bool CONFIG_ARC32 y
@@ -421,10 +437,27 @@ if [ "$CONFIG_CPU_RM7000" = "y" ]; then
 fi
 
 if [ "$CONFIG_CPU_SB1" = "y" ]; then
-   bool '  Workarounds for pass 1 sb1 bugs' CONFIG_SB1_PASS_1_WORKAROUNDS
+   choice 'SB1 Pass' \
+	 "Pass1   CONFIG_CPU_SB1_PASS_1  \
+	  Pass2   CONFIG_CPU_SB1_PASS_2
+	  Pass2.2 CONFIG_CPU_SB1_PASS_2_2" Pass1
+   if [ "$CONFIG_CPU_SB1_PASS_1" = "y" ]; then
+      define_bool CONFIG_SB1_PASS_1_WORKAROUNDS y
+   fi
+   if [ "$CONFIG_CPU_SB1_PASS_2" = "y" ]; then
+      define_bool CONFIG_SB1_PASS_2_WORKAROUNDS y
+   else
+      # Avoid prefetches on Pass 2 (before 2.2)
+      bool '  Enable prefetches' CONFIG_CPU_HAS_PREFETCH
+   fi
+   if [ "$CONFIG_CPU_SB1_PASS_2_2" = "y" ]; then
+      # XXXKW for now, let 2.2 use same WORKAROUNDS flag as pre-2.2
+      define_bool CONFIG_SB1_PASS_2_WORKAROUNDS y
+   fi
    bool '  Support for SB1 Cache Error handler' CONFIG_SB1_CACHE_ERROR
+   dep_bool '    Ignore recoverable cache errors' CONFIG_SB1_CERR_IGNORE_RECOVERABLE $CONFIG_SB1_CACHE_ERROR
+   dep_bool '    Spin instead of running handler' CONFIG_SB1_CERR_SPIN $CONFIG_SB1_CACHE_ERROR
    define_bool CONFIG_VTAG_ICACHE y
-   define_bool CONFIG_CPU_HAS_PREFETCH y
 fi
 
 if [ "$CONFIG_CPU_R4X00"  = "y" -o \

@@ -166,6 +166,22 @@ SUBDIRS		+= arch/mips/sgi-ip32 arch/mips/arc
 LOADADDR	:= 0x80002000
 endif
 
+#
+# Sibyte CFE firmware
+#
+ifdef CONFIG_SIBYTE_CFE
+LIBS		+= arch/mips/sibyte/cfe/cfe.a
+SUBDIRS		+= arch/mips/sibyte/cfe
+endif
+
+#
+# SB1 Cache Error handler
+#
+ifdef CONFIG_SB1_CACHE_ERROR
+LIBS		+= arch/mips/sibyte/sb1/sb1kern.a
+SUBDIRS		+= arch/mips/sibyte/sb1
+endif
+
 
 #
 # Some machines like the Indy need 32-bit ELF binaries for booting purposes.

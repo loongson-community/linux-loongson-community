@@ -405,6 +405,14 @@ LOADADDR	:= 0x80100000
 endif
 
 #
+# Sibyte CFE firmware
+#
+ifdef CONFIG_SIBYTE_CFE
+LIBS		+= arch/mips/sibyte/cfe/cfe.a
+SUBDIRS		+= arch/mips/sibyte/cfe
+endif
+
+#
 # SB1 Cache Error handler
 #
 ifdef CONFIG_SB1_CACHE_ERROR
