@@ -27,7 +27,6 @@
 #include <asm/page.h>
 #include <asm/pgalloc.h>
 #include <asm/uaccess.h>
-#include <asm/sgialib.h>
 #include <asm/inventory.h>
 
 /* 2,191 lines of complete and utter shit coming up... */
