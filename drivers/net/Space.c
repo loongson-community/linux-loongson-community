@@ -84,7 +84,6 @@ extern int sonic_probe(struct net_device *);
 extern int SK_init(struct net_device *);
 extern int seeq8005_probe(struct net_device *);
 extern int smc_init( struct net_device * );
-extern int sgiseeq_probe(struct net_device *);
 extern int atarilance_probe(struct net_device *);
 extern int sun3lance_probe(struct net_device *);
 extern int sun3_82586_probe(struct net_device *);
@@ -364,14 +363,6 @@ static struct devprobe m68k_probes[] __initdata = {
 	{NULL, 0},
 };
 
-
-static struct devprobe sgi_probes[] __initdata = {
-#ifdef CONFIG_SGISEEQ
-	{sgiseeq_probe, 0},
-#endif
-	{NULL, 0},
-};
-
 static struct devprobe mips_probes[] __initdata = {
 #ifdef CONFIG_MIPS_JAZZ_SONIC
 	{sonic_probe, 0},
@@ -405,8 +396,6 @@ static int __init ethif_probe(struct net_device *dev)
 	if (probe_list(dev, m68k_probes) == 0)
 		return 0;
 	if (probe_list(dev, mips_probes) == 0)
-		return 0;
-	if (probe_list(dev, sgi_probes) == 0)
 		return 0;
 	if (probe_list(dev, eisa_probes) == 0)
 		return 0;
