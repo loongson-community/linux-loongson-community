@@ -97,6 +97,10 @@ config PCI_VR41XX
 	bool "Add PCI control unit support of NEC VR4100 series"
 	depends on MACH_VR41XX && PCI
 
+config GPIO_VR41XX
+	bool "Add General-purpose I/O unit support of NEC VR4100 series"
+	depends on MACH_VR41XX
+
 config VRC4171
 	tristate "Add NEC VRC4171 companion chip support"
 	depends on MACH_VR41XX && ISA

@@ -3,8 +3,7 @@
  *
  *  Copyright (C) 2001-2002  MontaVista Software Inc.
  *    Author: Yoichi Yuasa <yyuasa@mvista.com or source@mvista.com>
- *  Copyright (C) 2003-2004  Yoichi Yuasa <yuasa@hh.iij4u.or.jp>
- *  Copyright (C) 2005 Ralf Baechle (ralf@linux-mips.org)
+ *  Copyright (C) 2003-2005  Yoichi Yuasa <yuasa@hh.iij4u.or.jp>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -29,6 +28,7 @@
  *  Yoichi Yuasa <yuasa@hh.iij4u.or.jp>
  *  - Coped with INTASSIGN of NEC VR4133.
  */
+#include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
@@ -45,8 +45,10 @@
 
 extern asmlinkage void vr41xx_handle_interrupt(void);
 
+#ifdef CONFIG_GPIO_VR41XX
 extern void init_vr41xx_giuint_irq(void);
 extern void giuint_irq_dispatch(struct pt_regs *regs);
+#endif
 
 static uint32_t icu1_base;
 static uint32_t icu2_base;
@@ -672,9 +674,11 @@ asmlinkage void irq_dispatch(unsigned char intnum, struct pt_regs *regs)
 		for (i = 0; i < 16; i++) {
 			if (intnum == sysint1_assign[i] &&
 			    (mask1 & ((uint16_t)1 << i))) {
+#ifdef CONFIG_GPIO_VR41XX
 				if (i == 8)
 					giuint_irq_dispatch(regs);
 				else
+#endif
 					do_IRQ(SYSINT1_IRQ(i), regs);
 				return;
 			}
@@ -698,8 +702,10 @@ asmlinkage void irq_dispatch(unsigned char intnum, struct pt_regs *regs)
 
 /*=======================================================================*/
 
-static int __init vr41xx_icu_init(void)
+static inline void init_vr41xx_icu_irq(void)
 {
+	int i;
+
 	switch (current_cpu_data.cputype) {
 	case CPU_VR4111:
 	case CPU_VR4121:
@@ -723,17 +729,6 @@ static int __init vr41xx_icu_init(void)
 	write_icu2(0, MSYSINT2REG);
 	write_icu2(0xffff, MGIUINTHREG);
 
-	return 0;
-}
-
-early_initcall(vr41xx_icu_init);
-
-/*=======================================================================*/
-
-static inline void init_vr41xx_icu_irq(void)
-{
-	int i;
-
 	for (i = SYSINT1_IRQ_BASE; i <= SYSINT1_IRQ_LAST; i++)
 		irq_desc[i].handler = &sysint1_irq_type;
 
@@ -751,7 +746,9 @@ void __init arch_init_irq(void)
 {
 	mips_cpu_irq_init(MIPS_CPU_IRQ_BASE);
 	init_vr41xx_icu_irq();
+#ifdef CONFIG_GPIO_VR41XX
 	init_vr41xx_giuint_irq();
+#endif
 
 	set_except_vector(0, vr41xx_handle_interrupt);
 }
