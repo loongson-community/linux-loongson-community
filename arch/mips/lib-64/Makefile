@@ -11,6 +11,4 @@ else
   lib-y	+= dump_tlb.o
 endif
 
-lib-$(CONFIG_BLK_DEV_FD)	+= floppy-std.o
-
 EXTRA_AFLAGS := $(CFLAGS)

@@ -5,7 +5,7 @@
  *
  * Access the floppy hardware on PC style hardware
  *
- * Copyright (C) 1996, 1997, 1998 by Ralf Baechle
+ * Copyright (C) 1996, 1997, 1998, 2003 by Ralf Baechle
  */
 #include <linux/delay.h>
 #include <linux/init.h>
@@ -102,10 +102,9 @@ static unsigned long std_fd_getfdaddr1(void)
 
 static unsigned long std_fd_dma_mem_alloc(unsigned long size)
 {
-	int order = get_order(size);
 	unsigned long mem;
 
-	mem = __get_dma_pages(GFP_KERNEL,order);
+	mem = __get_dma_pages(GFP_KERNEL, get_order(size));
 
 	return mem;
 }

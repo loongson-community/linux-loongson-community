@@ -4,7 +4,7 @@
 
 lib-y	+= csum_partial_copy.o promlib.o rtc-std.o
 
-lib-$(CONFIG_BLK_DEV_FD)	+= floppy-no.o
-lib-$(subst m,y,$(CONFIG_IDE))	+= ide-std.o ide-no.o   # needed for ide module
+lib-$(subst m,y,$(CONFIG_BLK_DEV_FD))	+= floppy-no.o floppy-std.o
+lib-$(subst m,y,$(CONFIG_IDE))		+= ide-no.o ide-std.o
 
 EXTRA_AFLAGS := $(CFLAGS)
