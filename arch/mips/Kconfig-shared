@@ -689,9 +689,8 @@ config VR4181
 	default y
 
 config ARC_CONSOLE
-	bool
-	depends on SGI_IP22
-	default y
+	bool "ARC console support"
+	depends on SGI_IP22 || SNI_RM200_PCI
 
 config ARC_MEMORY
 	bool
@@ -1019,10 +1018,6 @@ config MIPS_INSANE_LARGE
 	  need processes of more than 1TB virtual address space, say Y here.
 	  This will result in additional memory usage, so it is not
 	  recommended for normal users.
-
-config ARC_CONSOLE
-	bool "ARC console support"
-	depends on ARC32
 
 config RWSEM_GENERIC_SPINLOCK
 	bool
