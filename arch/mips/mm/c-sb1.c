@@ -180,7 +180,7 @@ static void local_sb1_flush_icache_range(unsigned long start, unsigned long end)
 		".set pop                   \n"
 		:
 		: "r" (start  & ~(dcache_line_size - 1)),
-		  "r" ((end + dcache_line_size - 1) & ~(dcache_line_size - 1)),
+		  "r" ((end - 1) & ~(dcache_line_size - 1)),
 		  "r" (dcache_line_size));
 	__asm__ __volatile__ (
 		".set push                  \n"
@@ -222,7 +222,7 @@ static void local_sb1_flush_icache_range(unsigned long start, unsigned long end)
 		".set pop                   \n"
 		:
 		: "r" (start & ~(icache_line_size - 1)),
-		  "r" (end + (icache_line_size - 1) & ~(dcache_line_size - 1)),
+		  "r" ((end - 1) & ~(dcache_line_size - 1)),
 		  "r" (icache_line_size));
 }
 
