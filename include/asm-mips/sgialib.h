@@ -1,4 +1,4 @@
-/* $Id: sgialib.h,v 1.2 1998/07/08 16:01:13 ralf Exp $
+/* $Id: sgialib.h,v 1.2 1998/07/10 01:14:55 ralf Exp $
  * sgialib.h: SGI ARCS firmware interface library for the Linux kernel.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
@@ -71,10 +71,10 @@ extern pcomponent *prom_childadd(pcomponent *this, pcomponent *tmp, void *data);
 extern long prom_delcomponent(pcomponent *this);
 extern pcomponent *prom_componentbypath(char *path);
 
-/* This is called at prom_init time to setup the tags which the
- * MIPS kernel setup code wants to diddle with. 
+/* This is called at prom_init time to identify the
+ * ARC architecture we are running on
  */
-extern void prom_setup_archtags(void);
+extern void prom_identify_arch(void);
 
 /* Environemt variable routines. */
 extern char *prom_getenv(char *name);
