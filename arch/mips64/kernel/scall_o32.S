@@ -354,7 +354,7 @@ illegal_syscall:
 	sys	sys_ni_syscall	0			/* 4150 */
 	sys	sys_getsid	1
 	sys	sys_fdatasync	0
-	sys	sys_sysctl	1
+	sys	sys32_sysctl	1
 	sys	sys_mlock	2
 	sys	sys_munlock	2			/* 4155 */
 	sys	sys_mlockall	1

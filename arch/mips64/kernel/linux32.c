@@ -22,6 +22,7 @@
 #include <linux/shm.h>
 #include <linux/sem.h>
 #include <linux/msg.h>
+#include <linux/sysctl.h>
 
 #include <asm/uaccess.h>
 #include <asm/mman.h>
@@ -1762,3 +1763,90 @@ sys32_ipc (u32 call, int first, int second, int third, u32 ptr, u32 fifth)
 	return err;
 }
 
+struct sysctl_args32
+{
+	__kernel_caddr_t32 name;
+	int nlen;
+	__kernel_caddr_t32 oldval;
+	__kernel_caddr_t32 oldlenp;
+	__kernel_caddr_t32 newval;
+	__kernel_size_t32 newlen;
+	unsigned int __unused[4];
+};
+
+asmlinkage long sys32_sysctl(struct sysctl_args32 *uargs32)
+{
+	struct __sysctl_args kargs;
+	struct sysctl_args32 kargs32;
+	mm_segment_t old_fs;
+	int name[CTL_MAXNAME];
+	size_t oldlen[1];
+	int err, ret;
+
+	ret = -EFAULT;
+
+	memset(&kargs, 0, sizeof (kargs));
+	
+	err = get_user(kargs32.name, &uargs32->name);
+	err |= __get_user(kargs32.nlen, &uargs32->nlen);
+	err |= __get_user(kargs32.oldval, &uargs32->oldval);
+	err |= __get_user(kargs32.oldlenp, &uargs32->oldlenp);
+	err |= __get_user(kargs32.newval, &uargs32->newval);
+	err |= __get_user(kargs32.newlen, &uargs32->newlen);
+	if (err)
+		goto out;
+
+	if (kargs32.nlen == 0 || kargs32.nlen >= CTL_MAXNAME) {
+		ret = -ENOTDIR;
+		goto out;
+	}
+
+	kargs.name = name;
+	kargs.nlen = kargs32.nlen;
+	if (copy_from_user(kargs.name, (int *)A(kargs32.name),
+			   kargs32.nlen * sizeof(name) / sizeof(name[0])))
+		goto out;
+
+	if (kargs32.oldval) {
+		if (!kargs32.oldlenp || get_user(oldlen[0],
+						 (int *)A(kargs32.oldlenp)))
+			return -EFAULT;
+		kargs.oldlenp = oldlen;
+		kargs.oldval = kmalloc(oldlen[0], GFP_KERNEL);
+		if (!kargs.oldval) {
+			ret = -ENOMEM;
+			goto out;
+		}
+	}
+
+	if (kargs32.newval && kargs32.newlen) {
+		kargs.newval = kmalloc(kargs32.newlen, GFP_KERNEL);
+		if (!kargs.newval) {
+			ret = -ENOMEM;
+			goto out;
+		}
+		if (copy_from_user(kargs.newval, (int *)A(kargs32.newval),
+				   kargs32.newlen))
+			goto out;
+	}
+
+	old_fs = get_fs(); set_fs (KERNEL_DS);
+	ret = sys_sysctl(&kargs);
+	set_fs (old_fs);
+
+	if (ret)
+		goto out;
+
+	if (kargs.oldval) {
+		if (put_user(oldlen[0], (int *)A(kargs32.oldlenp)) ||
+		    copy_to_user((int *)A(kargs32.oldval), kargs.oldval,
+				 oldlen[0]))
+			ret = -EFAULT;
+	}
+out:
+	if (kargs.oldval)
+		kfree(kargs.oldval);
+	if (kargs.newval)
+		kfree(kargs.newval);
+	return ret; 
+}
