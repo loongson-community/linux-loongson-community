@@ -255,8 +255,7 @@ void __init per_cpu_init(void)
 	clear_c0_status(ST0_IM);
 	per_hub_init(cnode);
 	cpu_time_init();
-	if (smp_processor_id()) /* master can't do this early, no kmalloc */
-		install_cpuintr(cpu);
+	install_ipi();
 	/* Install our NMI handler if symmon hasn't installed one. */
 	install_cpu_nmi_handler(cputoslice(cpu));
 	set_c0_status(SRB_DEV0 | SRB_DEV1);
