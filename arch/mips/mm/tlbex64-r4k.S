@@ -179,7 +179,6 @@ LEAF(handle_vec1_r10k)
 	ld	k0, 0(k1)			# get even pte
 	ld	k1, 8(k1)			# get odd pte
 	PTE_RELOAD k0 k1
-	nop
 	tlbwr
 	eret
 
@@ -188,7 +187,6 @@ LEAF(handle_vec1_r10k)
 	ld	k0, 0(k1)			# get even pte
 	ld	k1, 8(k1)			# get odd pte
 	PTE_RELOAD k0 k1
-	nop
 	tlbwr
 	eret
 END(handle_vec1_r10k)
