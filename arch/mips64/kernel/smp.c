@@ -212,12 +212,15 @@ static void flush_tlb_mm_ipi(void *mm)
  * context on other cpus are invalidated to force a new context allocation
  * at switch_mm time, should the mm ever be used on other cpus. For 
  * multithreaded address spaces, intercpu interrupts have to be sent.
+ * Another case where intercpu interrupts are required is when the target
+ * mm might be active on another cpu (eg debuggers doing the flushes on
+ * behalf of debugees, kswapd stealing pages from another process etc).
  * Kanoj 07/00.
  */
 
 void flush_tlb_mm(struct mm_struct *mm)
 {
-	if (atomic_read(&mm->mm_users) != 1) {
+	if ((atomic_read(&mm->mm_users) != 1) || (current->mm != mm)) {
 		smp_call_function(flush_tlb_mm_ipi, (void *)mm, 1, 1);
 	} else {
 		int i;
@@ -244,7 +247,7 @@ static void flush_tlb_range_ipi(void *info)
 
 void flush_tlb_range(struct mm_struct *mm, unsigned long start, unsigned long end)
 {
-	if (atomic_read(&mm->mm_users) != 1) {
+	if ((atomic_read(&mm->mm_users) != 1) || (current->mm != mm)) {
 		struct flush_tlb_data fd;
 
 		fd.mm = mm;
@@ -269,7 +272,7 @@ static void flush_tlb_page_ipi(void *info)
 
 void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 {
-	if (atomic_read(&vma->vm_mm->mm_users) != 1) {
+	if ((atomic_read(&vma->vm_mm->mm_users) != 1) || (current->mm != vma->vm_mm)) {
 		struct flush_tlb_data fd;
 
 		fd.vma = vma;
