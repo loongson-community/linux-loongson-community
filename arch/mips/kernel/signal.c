@@ -572,6 +572,7 @@ asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 		}
 		if (regs->regs[2] == ERESTART_RESTARTBLOCK) {
 			regs->regs[2] = __NR_restart_syscall;
+			regs->regs[7] = regs->regs[26];
 			regs->cp0_epc -= 4;
 		}
 	}
