@@ -50,15 +50,13 @@ extern asmlinkage void mipsIRQ(void);
 
 void disable_atlas_irq(unsigned int irq_nr)
 {
-	atlas_hw0_icregs->intrsten = (1 << irq_nr);
+	atlas_hw0_icregs->intrsten = (1 << (irq_nr-ATLASINT_BASE));
 	iob();
 }
 
 void enable_atlas_irq(unsigned int irq_nr)
 {
-	if (irq_nr == 7)
-		return;		/* Reserved (internal interrupt) */
-	atlas_hw0_icregs->intseten = (1 << irq_nr);
+	atlas_hw0_icregs->intseten = (1 << (irq_nr-ATLASINT_BASE));
 	iob();
 }
 
@@ -113,7 +111,7 @@ void atlas_hw0_irqdispatch(struct pt_regs *regs)
 	if (unlikely(int_status == 0))
 		return;
 
-	irq = ls1bit32(int_status);
+	irq = ATLASINT_BASE + ls1bit32(int_status);
 
 	DEBUG_INT("atlas_hw0_irqdispatch: irq=%d\n", irq);
 
@@ -140,7 +138,7 @@ void __init init_IRQ(void)
 	/* Now safe to set the exception vector. */
 	set_except_vector(0, mipsIRQ);
 
-	for (i = 0; i <= ATLASINT_END; i++) {
+	for (i = ATLASINT_BASE; i <= ATLASINT_END; i++) {
 		irq_desc[i].status	= IRQ_DISABLED;
 		irq_desc[i].action	= 0;
 		irq_desc[i].depth	= 1;

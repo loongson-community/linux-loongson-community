@@ -28,12 +28,8 @@
  * This is the interface to the remote debugger stub
  * if the Philips part is used for the debug port,
  * called from the platform setup code.
- *
- * PCI init will not have been done yet, we make a
- * universal assumption about the way the bootloader (YAMON)
- * have located and set up the chip.
  */
-static t_uart_saa9730_regmap *kgdb_uart;
+void *saa9730_base = (void *)ATLAS_SAA9730_REG;
 
 static int saa9730_kgdb_active = 0;
 
@@ -41,18 +37,16 @@ static int saa9730_kgdb_active = 0;
 
 int saa9730_kgdb_hook(int speed)
 {
-        volatile unsigned char t;
 	int baudclock;
-
-	kgdb_uart = (t_uart_saa9730_regmap *)(ATLAS_SAA9730_REG + SAA9730_UART_REGS_ADDR);
+	t_uart_saa9730_regmap *kgdb_uart = (t_uart_saa9730_regmap *)(saa9730_base + SAA9730_UART_REGS_ADDR);
 
         /*
          * Clear all interrupts
          */
-	t = INB(&kgdb_uart->Lsr);
-	t += INB(&kgdb_uart->Msr);
-	t += INB(&kgdb_uart->Thr_Rbr);
-	t += INB(&kgdb_uart->Iir_Fcr);
+	(void) INB(&kgdb_uart->Lsr);
+	(void) INB(&kgdb_uart->Msr);
+	(void) INB(&kgdb_uart->Thr_Rbr);
+	(void) INB(&kgdb_uart->Iir_Fcr);
 
         /*
          * Now, initialize the UART
@@ -74,6 +68,7 @@ int saa9730_kgdb_hook(int speed)
 
 int saa9730_putDebugChar(char c)
 {
+	t_uart_saa9730_regmap *kgdb_uart = (t_uart_saa9730_regmap *)(saa9730_base + SAA9730_UART_REGS_ADDR);
 
         if (!saa9730_kgdb_active) {     /* need to init device first */
                 return 0;
@@ -88,6 +83,7 @@ int saa9730_putDebugChar(char c)
 
 char saa9730_getDebugChar(void)
 {
+	t_uart_saa9730_regmap *kgdb_uart = (t_uart_saa9730_regmap *)(saa9730_base + SAA9730_UART_REGS_ADDR);
 	char c;
 
         if (!saa9730_kgdb_active) {     /* need to init device first */

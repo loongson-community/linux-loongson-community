@@ -21,21 +21,31 @@
 
 #include <asm/io.h>
 #include <asm/mips-boards/atlas.h>
+#include <asm/mips-boards/atlasint.h>
 
-#define RTC_PORT(x)	(0x70 + (x))
-#define RTC_IRQ		4
+
+#define RTC_PORT(x)	(ATLAS_RTC_ADR_REG + (x)*8)
+#define RTC_IOMAPPED	1
+#define RTC_EXTENT	16
+#define RTC_IRQ		ATLASINT_RTC
+
+#if CONFIG_CPU_LITTLE_ENDIAN
+#define ATLAS_RTC_PORT(x) (RTC_PORT(x) + 0)
+#else
+#define ATLAS_RTC_PORT(x) (RTC_PORT(x) + 3)
+#endif
 
 static inline unsigned char CMOS_READ(unsigned long addr)
 {
-	outb(addr, RTC_PORT(0));
+	outb(addr, ATLAS_RTC_PORT(0));
 
-	return inb(RTC_PORT(1));
+	return inb(ATLAS_RTC_PORT(1));
 }
 
 static inline void CMOS_WRITE(unsigned char data, unsigned long addr)
 {
-	outb(addr, RTC_PORT(0));
-	outb(data, RTC_PORT(1));
+	outb(addr, ATLAS_RTC_PORT(0));
+	outb(data, ATLAS_RTC_PORT(1));
 }
 
 #define RTC_ALWAYS_BCD	0

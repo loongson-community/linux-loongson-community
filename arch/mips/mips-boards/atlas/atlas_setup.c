@@ -50,7 +50,7 @@ const char *get_system_type(void)
 	return "MIPS Atlas";
 }
 
-static void __init atlas_setup(void)
+static int __init atlas_setup(void)
 {
 	ioport_resource.end = 0x7fffffff;
 
@@ -64,6 +64,8 @@ static void __init atlas_setup(void)
 	board_time_init = mips_time_init;
 	board_timer_setup = mips_timer_setup;
 	rtc_get_time = mips_rtc_get_time;
+
+	return 0;
 }
 
 early_initcall(atlas_setup);
