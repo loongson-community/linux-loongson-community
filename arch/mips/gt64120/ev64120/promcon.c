@@ -40,10 +40,14 @@ static struct console sercons = {
  *    Register console.
  */
 
-void gal_serial_console_init(void)
+static int gal_serial_console_init(void)
 {
 	//  serial_init();
 	//serial_set(115200);
 
 	register_console(&sercons);
+
+	return 0;
 }
+
+console_initcall(gal_serial_console_init);

@@ -1062,9 +1062,13 @@ static struct console gdb_console = {
 	.index	= -1
 };
 
-__init void register_gdb_console(void)
+static int __init register_gdb_console(void)
 {
 	register_console(&gdb_console);
+
+	return 0;
 }
+
+console_initcall(register_gdb_console);
 
 #endif

@@ -203,8 +203,4 @@ void __init init_IRQ(void)
 	set_debug_traps();
 	breakpoint();	/* you may move this line to whereever you want :-) */
 #endif
-#ifdef CONFIG_GDB_CONSOLE
-	register_gdb_console();
-#endif
-
 }
