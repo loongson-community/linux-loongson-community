@@ -110,6 +110,21 @@ asmlinkage void ll_ht_smp_irq_handler(int irq, struct pt_regs *regs)
 	do_IRQ(irq, regs);
 }
 
+asmlinkage void do_extended_irq(struct pt_regs *regs)
+{
+	unsigned int intcontrol = read_c0_intcontrol();
+	unsigned int cause = read_c0_cause();
+	unsigned int status = read_c0_status();
+	unsigned int pending_sr, pending_ic;
+
+	pending_sr = status & cause & 0xff00;
+	pending_ic = (cause >> 8) & intcontrol & 0xff00;
+
+	if (pending_ic & (1 << 13))
+		do_IRQ(13, regs);
+
+}
+
 #ifdef CONFIG_KGDB
 extern void init_second_port(void);
 #endif
@@ -124,6 +139,7 @@ void __init arch_init_irq(void)
 	set_except_vector(0, titan_handle_int);
 	mips_cpu_irq_init(0);
 	rm7k_cpu_irq_init(8);
+	rm9k_cpu_irq_init(12);
 
 #ifdef CONFIG_KGDB
 	/* At this point, initialize the second serial port */
