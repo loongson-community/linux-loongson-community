@@ -55,6 +55,10 @@
 #define ETH_PORT1_IRQ_NUM ETH_PORT0_IRQ_NUM+1	/* main high register, bit1 */
 #define ETH_PORT2_IRQ_NUM ETH_PORT0_IRQ_NUM+2	/* main high register, bit1 */
 
+/* Checksum offload for Tx is broken */
+#define  MV64340_CHECKSUM_OFFLOAD_TX	1
+#define  MV64340_NIC_SRAM_BASE_TX       0xfe000000
+
 /* 
  * Number of RX / TX descriptors on RX / TX rings.
  * Note that allocating RX descriptors is done by allocating the RX
@@ -554,7 +558,9 @@ typedef struct _eth_port_ctrl {
 
 	/* Next available and first returning Tx resource */
 	int tx_curr_desc_q, tx_used_desc_q;
-
+#ifdef MV64340_CHECKSUM_OFFLOAD_TX
+        int tx_first_desc_q;
+#endif
 	/* Tx/Rx rings size and base variables fields. For driver use */
 	volatile ETH_RX_DESC *p_rx_desc_area;
 	unsigned int rx_desc_area_size;

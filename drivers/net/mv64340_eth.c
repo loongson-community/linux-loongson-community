@@ -374,7 +374,18 @@ static int mv64340_eth_free_tx_queue(struct net_device *dev,
 				dev_kfree_skb_irq((struct sk_buff *)
 						  pkt_info.return_info);
 				released = 0;
+				if (skb_shinfo(pkt_info.return_info)->nr_frags)
+					pci_unmap_page(0, pkt_info.buf_ptr,
+						pkt_info.byte_cnt,
+						PCI_DMA_TODEVICE);
+
+				if (port_private->tx_ring_skbs != 1)
+					port_private->tx_ring_skbs--;
 			}
+			else 
+				pci_unmap_page(0, pkt_info.buf_ptr,
+						pkt_info.byte_cnt,
+						PCI_DMA_TODEVICE);
 
 			/* 
 			 * Decrement the number of outstanding skbs counter on the
@@ -383,7 +394,6 @@ static int mv64340_eth_free_tx_queue(struct net_device *dev,
 			if (port_private->tx_ring_skbs == 0)
 				panic
 				    ("ERROR - TX outstanding SKBs counter is corrupted\n");
-			port_private->tx_ring_skbs--;
 
 		}
 
@@ -718,7 +728,7 @@ static int mv64340_eth_real_open(struct net_device *dev)
 
 	/* Assumes allocated ring is 16 bytes alligned */
 	ethernet_private->p_tx_desc_area =
-	    (ETH_TX_DESC *) mv64340_eth_malloc_ring(size);
+	    (ETH_TX_DESC *) MV64340_NIC_SRAM_BASE_TX;
 	if (!ethernet_private->p_tx_desc_area) {
 		printk(KERN_ERR
 		       "%s: Cannot allocate Tx Ring (size %d bytes)\n",
@@ -989,19 +999,96 @@ static int mv64340_eth_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	spin_lock_irqsave(&port_private->lock, flags);
 
 	/* Update packet info data structure -- DMA owned, first last */
-	pkt_info.cmd_sts = ETH_TX_ENABLE_INTERRUPT |
-	    ETH_TX_FIRST_DESC | ETH_TX_LAST_DESC;
+#ifdef MV64340_CHECKSUM_OFFLOAD_TX
+	if (!skb_shinfo(skb)->nr_frags) {
+#endif
+		pkt_info.cmd_sts = ETH_TX_ENABLE_INTERRUPT |
+	    				ETH_TX_FIRST_DESC | ETH_TX_LAST_DESC;
 
-	pkt_info.byte_cnt = skb->len;
-	pkt_info.buf_ptr = pci_map_single
-		    (0, skb->data, skb->len, PCI_DMA_TODEVICE);
+		pkt_info.byte_cnt = skb->len;
+		pkt_info.buf_ptr = pci_map_single
+			    (0, skb->data, skb->len, PCI_DMA_TODEVICE);
 
-	pkt_info.return_info = skb;
-	status = eth_port_send(ethernet_private, &pkt_info);
-	if ((status == ETH_ERROR) || (status == ETH_QUEUE_FULL))
-		printk(KERN_ERR "%s: Error on transmitting packet\n",
-			       dev->name);
-	port_private->tx_ring_skbs++;
+		pkt_info.return_info = skb;
+		status = eth_port_send(ethernet_private, &pkt_info);
+		if ((status == ETH_ERROR) || (status == ETH_QUEUE_FULL))
+			printk(KERN_ERR "%s: Error on transmitting packet\n",
+				       dev->name);
+		port_private->tx_ring_skbs++;
+#ifdef MV64340_CHECKSUM_OFFLOAD_TX
+	} 
+	else {
+		unsigned int    frag;
+		u32		ipheader;
+
+                /* first frag which is skb header */
+                pkt_info.byte_cnt = skb_headlen(skb);
+                pkt_info.buf_ptr = pci_map_single(0, skb->data,
+                                        skb_headlen(skb), PCI_DMA_TODEVICE);
+                pkt_info.return_info = 0;
+                pkt_info.cmd_sts =  ETH_TX_FIRST_DESC;
+
+                ipheader =  ( (skb->nh.iph->ihl << 11) & (BIT14
+                                                        | BIT13
+                                                        | BIT12
+                                                        | BIT11));
+
+                if (skb->ip_summed == CHECKSUM_HW)  {
+                        /* Fly baby fly */
+                        pkt_info.cmd_sts |= ETH_GEN_TCP_UDP_CHECKSUM |
+                                        ETH_GEN_IP_V_4_CHECKSUM |
+                                        BIT10 |
+                                        ipheader;
+                        pkt_info.l4i_chk = 0x0000;
+                }
+                status = eth_port_send(ethernet_private, &pkt_info);
+                if ((status == ETH_ERROR))
+                        printk(KERN_ERR "%s: Error on transmitting packet\n", dev->name);
+                if (status == ETH_QUEUE_FULL)
+                        printk("Error on Queue Full \n");
+                if (status == ETH_QUEUE_LAST_RESOURCE)
+                        printk("Tx resource error \n");
+
+                /* Check for the remaining frags */
+                for (frag = 0; frag < skb_shinfo(skb)->nr_frags; frag++) {
+                        skb_frag_t *this_frag = &skb_shinfo(skb)->frags[frag];
+                        pkt_info.l4i_chk = 0x0000;
+                        pkt_info.cmd_sts = 0x00000000;
+
+                        /* Last Frag enables interrupt and frees the skb */
+                        if (frag == (skb_shinfo(skb)->nr_frags - 1)) {
+                                pkt_info.cmd_sts |= ETH_TX_ENABLE_INTERRUPT |
+                                                        ETH_TX_LAST_DESC;
+                                pkt_info.return_info = skb;
+                                port_private->tx_ring_skbs++;
+                        }
+                        else {
+                                pkt_info.return_info = 0;
+                        }
+                        pkt_info.byte_cnt = this_frag->size;
+                        if (this_frag->size < 8)
+                                printk("%d : \n", skb_shinfo(skb)->nr_frags);
+
+                        pkt_info.buf_ptr = pci_map_page(0,
+                                        this_frag->page,
+                                        this_frag->page_offset,
+                                        this_frag->size,
+                                        PCI_DMA_TODEVICE);
+
+                        status = eth_port_send(ethernet_private, &pkt_info);
+                        if ((status == ETH_ERROR))
+                                printk(KERN_ERR "%s: Error on transmitting packet\n",
+                                        dev->name);
+
+                        if (status == ETH_QUEUE_LAST_RESOURCE)
+                                printk("Tx resource error \n");
+
+                        if (status == ETH_QUEUE_FULL)
+                                printk("Queue is full \n");
+
+                }
+        }
+#endif
 
 	/* Check if TX queue can handle another skb. If not, then
 	 * signal higher layers to stop requesting TX
@@ -1023,7 +1110,6 @@ static int mv64340_eth_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	spin_unlock_irqrestore(&ethernet_priv->lock, flags);
 	return 0;		/* success */
 }
-
 
 /**********************************************************************
  * mv64340_eth_get_stats
@@ -1086,6 +1172,19 @@ static int mv64340_eth_init(int port_num)
 	dev->flags &= ~(IFF_RUNNING);
 	dev->base_addr = 0;
 	dev->change_mtu = &mv64340_eth_change_mtu;
+
+#ifdef MV64340_CHECKSUM_OFFLOAD_TX
+#ifdef MAX_SKB_FRAGS
+#ifndef CONFIG_JAGUAR_DMALOW
+        /*
+         * Zero copy can only work if we use Discovery II memory. Else, we will
+         * have to map the buffers to ISA memory which is only 16 MB
+         */
+        dev->features = NETIF_F_SG | NETIF_F_IP_CSUM | NETIF_F_HW_CSUM;
+#endif
+#endif
+#endif
+
 	ethernet_private = dev->priv;
 
 	/* Allocate memory for stats data structure and spinlock etc... */
@@ -1132,6 +1231,15 @@ static int mv64340_eth_init(int port_num)
 		dev->name, port_num,
 		dev->dev_addr[0], dev->dev_addr[1], dev->dev_addr[2],
 		dev->dev_addr[3], dev->dev_addr[4], dev->dev_addr[5]);
+
+	if (dev->features & NETIF_F_SG)
+		printk("Scatter Gather Enabled  ");
+
+	if (dev->features & NETIF_F_IP_CSUM)
+		printk("TX TCP/IP Checksumming Supported  \n");
+
+	printk("RX TCP/UDP Checksum Offload ON, \n");
+	printk("TX and RX Interrupt Coalescing ON \n");
 
 	return 0;
 
@@ -1500,7 +1608,7 @@ static bool eth_port_start(ETH_PORT_INFO * p_eth_port_ctrl)
 	/* Assignment of Tx CTRP of given queue */
 	tx_curr_desc = p_eth_port_ctrl->tx_curr_desc_q;
 	MV_WRITE(MV64340_ETH_TX_CURRENT_QUEUE_DESC_PTR_0(eth_port_num),
-		 virt_to_bus(&(p_eth_port_ctrl->p_tx_desc_area[tx_curr_desc])));
+		 &(p_eth_port_ctrl->p_tx_desc_area[tx_curr_desc]));
 
 	/* Assignment of Rx CRDP of given queue */
 	rx_curr_desc = p_eth_port_ctrl->rx_curr_desc_q;
@@ -2195,21 +2303,23 @@ static bool ether_init_tx_desc_ring(ETH_PORT_INFO * p_eth_port_ctrl,
 		p_tx_desc[ix].byte_cnt = 0x0000;
 		p_tx_desc[ix].l4i_chk = 0x0000;
 		p_tx_desc[ix].cmd_sts = 0x00000000;
-		p_tx_desc[ix].next_desc_ptr = virt_to_bus(&(p_tx_desc[ix+1]));
+		p_tx_desc[ix].next_desc_ptr = &(p_tx_desc[ix+1]);
 		p_tx_desc[ix].buf_ptr = 0x00000000;
 		dma_cache_wback_inv((unsigned long)&(p_tx_desc[ix]), sizeof(ETH_TX_DESC));
 		p_eth_port_ctrl->tx_skb[ix] = NULL;
 	}
 
 	/* Closing Tx descriptors ring */
-	p_tx_desc[tx_desc_num-1].next_desc_ptr = virt_to_bus(&(p_tx_desc[0]));
+	p_tx_desc[tx_desc_num-1].next_desc_ptr = &(p_tx_desc[0]);
 	dma_cache_wback_inv((unsigned long)&(p_tx_desc[tx_desc_num-1]),
 			sizeof(ETH_TX_DESC));
 
 	/* Set Tx desc pointer in driver struct. */
 	p_eth_port_ctrl->tx_curr_desc_q = 0;
 	p_eth_port_ctrl->tx_used_desc_q = 0;
-
+#ifdef MV64340_CHECKSUM_OFFLOAD_TX
+        p_eth_port_ctrl->tx_first_desc_q = 0;
+#endif
 	/* Init Tx ring base and size parameters */
 	p_eth_port_ctrl->p_tx_desc_area = (ETH_TX_DESC*) tx_desc_base_addr;
 	p_eth_port_ctrl->tx_desc_area_size = tx_desc_num * sizeof(ETH_TX_DESC);
@@ -2247,6 +2357,127 @@ static bool ether_init_tx_desc_ring(ETH_PORT_INFO * p_eth_port_ctrl,
  *      ETH_OK otherwise.
  *
  *******************************************************************************/
+#ifdef  MV64340_CHECKSUM_OFFLOAD_TX
+/*
+ * Modified to include the first descriptor pointer in case of SG
+ */
+static ETH_FUNC_RET_STATUS eth_port_send(ETH_PORT_INFO * p_eth_port_ctrl,
+                                         PKT_INFO * p_pkt_info)
+{
+        int tx_desc_curr, tx_desc_used, tx_first_desc, tx_next_desc;
+        volatile ETH_TX_DESC* current_descriptor;
+        volatile ETH_TX_DESC* first_descriptor;
+        u32 command_status, first_chip_ptr;
+
+        /* Do not process Tx ring in case of Tx ring resource error */
+        if (p_eth_port_ctrl->tx_resource_err == true)
+                return ETH_QUEUE_FULL;
+
+        /* Get the Tx Desc ring indexes */
+        tx_desc_curr = p_eth_port_ctrl->tx_curr_desc_q;
+        tx_desc_used = p_eth_port_ctrl->tx_used_desc_q;
+
+        current_descriptor = &(p_eth_port_ctrl->p_tx_desc_area[tx_desc_curr]);
+        if (current_descriptor == NULL)
+                return ETH_ERROR;
+
+        tx_next_desc = (tx_desc_curr + 1) % MV64340_TX_QUEUE_SIZE;
+        command_status = p_pkt_info->cmd_sts | ETH_ZERO_PADDING | ETH_GEN_CRC;
+
+        if (command_status & ETH_TX_FIRST_DESC) {
+                tx_first_desc = tx_desc_curr;
+                p_eth_port_ctrl->tx_first_desc_q = tx_first_desc;
+
+                /* fill first descriptor */
+                first_descriptor = &(p_eth_port_ctrl->p_tx_desc_area[tx_desc_curr]);
+                first_descriptor->l4i_chk = p_pkt_info->l4i_chk;
+                first_descriptor->cmd_sts = command_status;
+                first_descriptor->byte_cnt = p_pkt_info->byte_cnt;
+                first_descriptor->buf_ptr = p_pkt_info->buf_ptr;
+                first_descriptor->next_desc_ptr = &(p_eth_port_ctrl->p_tx_desc_area[tx_next_desc]);
+                dma_cache_wback_inv((u32)first_descriptor, sizeof(ETH_TX_DESC));
+                wmb();
+        }
+        else {
+                tx_first_desc = p_eth_port_ctrl->tx_first_desc_q;
+                first_descriptor = &(p_eth_port_ctrl->p_tx_desc_area[tx_first_desc]);
+                if (first_descriptor == NULL) {
+                        printk("First desc is NULL !!\n");
+                        return ETH_ERROR;
+                }
+                if (command_status & ETH_TX_LAST_DESC)
+                        current_descriptor->next_desc_ptr = 0x00000000;
+                else {
+                        command_status |= ETH_BUFFER_OWNED_BY_DMA;
+                        current_descriptor->next_desc_ptr = &(p_eth_port_ctrl->p_tx_desc_area[tx_next_desc]);
+                }
+        }
+
+        if (p_pkt_info->byte_cnt < 8) {
+                printk(" < 8 problem \n");
+                return ETH_ERROR;
+        }
+
+        current_descriptor->buf_ptr = p_pkt_info->buf_ptr;
+        current_descriptor->byte_cnt = p_pkt_info->byte_cnt;
+        current_descriptor->l4i_chk = p_pkt_info->l4i_chk;
+        current_descriptor->cmd_sts = command_status;
+        dma_cache_wback_inv((u32)current_descriptor, sizeof(ETH_TX_DESC));
+
+        p_eth_port_ctrl->tx_skb[tx_desc_curr] =
+                (struct sk_buff*)p_pkt_info->return_info;
+
+        dma_cache_wback_inv((u32)p_eth_port_ctrl, sizeof(ETH_PORT_INFO));
+        wmb();
+
+        /* Set last desc with DMA ownership and interrupt enable. */
+        if (command_status & ETH_TX_LAST_DESC) {
+                current_descriptor->cmd_sts = command_status |
+                                        ETH_TX_ENABLE_INTERRUPT |
+                                        ETH_BUFFER_OWNED_BY_DMA;
+
+                if (!(command_status & ETH_TX_FIRST_DESC) ) {
+                        first_descriptor->cmd_sts |= ETH_BUFFER_OWNED_BY_DMA;
+                        dma_cache_wback_inv((u32)first_descriptor, sizeof(ETH_TX_DESC));
+                }
+                dma_cache_wback_inv((u32)current_descriptor, sizeof(ETH_TX_DESC));
+                wmb();
+
+                first_chip_ptr = MV_READ_DATA(MV64340_ETH_CURRENT_SERVED_TX_DESC_PTR(p_eth_port_ctrl->port_num));
+
+                /* Apply send command */
+                if (first_chip_ptr == 0x00000000) {
+                        MV_WRITE(MV64340_ETH_TX_CURRENT_QUEUE_DESC_PTR_0(p_eth_port_ctrl->port_num), &(p_eth_port_ctrl->p_tx_desc_area[tx_first_desc]));
+                }
+
+                ETH_ENABLE_TX_QUEUE(p_eth_port_ctrl->port_num);
+
+           /* Finish Tx packet. Update first desc in case of Tx resource error */
+                tx_first_desc = tx_next_desc;
+                p_eth_port_ctrl->tx_first_desc_q = tx_first_desc;
+        }
+        else {
+                if (! (command_status & ETH_TX_FIRST_DESC) ) {
+                        current_descriptor->cmd_sts = command_status;
+                        dma_cache_wback_inv((u32)current_descriptor,
+                                                        sizeof(ETH_TX_DESC));
+                        wmb();
+                }
+        }
+
+        /* Check for ring index overlap in the Tx desc ring */
+        if (tx_next_desc == tx_desc_used) {
+                p_eth_port_ctrl->tx_resource_err = true;
+                p_eth_port_ctrl->tx_curr_desc_q = tx_first_desc;
+                return ETH_QUEUE_LAST_RESOURCE;
+        }
+
+        p_eth_port_ctrl->tx_curr_desc_q = tx_next_desc;
+        dma_cache_wback_inv((u32) p_eth_port_ctrl, sizeof(ETH_PORT_INFO));
+        wmb();
+        return ETH_OK;
+}
+#else
 static ETH_FUNC_RET_STATUS eth_port_send(ETH_PORT_INFO * p_eth_port_ctrl,
 					 PKT_INFO * p_pkt_info)
 {
@@ -2313,6 +2544,7 @@ static ETH_FUNC_RET_STATUS eth_port_send(ETH_PORT_INFO * p_eth_port_ctrl,
 
 	return ETH_OK;
 }
+#endif
 
 /*******************************************************************************
  * eth_tx_return_desc - Free all used Tx descriptors
@@ -2342,12 +2574,18 @@ static ETH_FUNC_RET_STATUS eth_tx_return_desc(ETH_PORT_INFO * p_eth_port_ctrl,
 					      PKT_INFO * p_pkt_info)
 {
 	int tx_desc_used, tx_desc_curr;
+#ifdef MV64340_CHECKSUM_OFFLOAD_TX
+        int tx_first_desc;
+#endif
 	volatile ETH_TX_DESC *p_tx_desc_used;
 	unsigned int command_status;
 
 	/* Get the Tx Desc ring indexes */
 	tx_desc_curr = p_eth_port_ctrl->tx_curr_desc_q;
 	tx_desc_used = p_eth_port_ctrl->tx_used_desc_q;
+#ifdef MV64340_CHECKSUM_OFFLOAD_TX
+        tx_first_desc = p_eth_port_ctrl->tx_first_desc_q;
+#endif
 	p_tx_desc_used = &(p_eth_port_ctrl->p_tx_desc_area[tx_desc_used]);
 
 	/* XXX Sanity check */
@@ -2357,14 +2595,19 @@ static ETH_FUNC_RET_STATUS eth_tx_return_desc(ETH_PORT_INFO * p_eth_port_ctrl,
 	command_status = p_tx_desc_used->cmd_sts;
 
 	/* Still transmitting... */
+#ifndef MV64340_CHECKSUM_OFFLOAD_TX
 	if (command_status & (ETH_BUFFER_OWNED_BY_DMA)) {
 	  dma_cache_wback_inv((unsigned long)p_tx_desc_used,
 				    sizeof(ETH_TX_DESC));
 		return ETH_RETRY;
 	}
-
+#endif
 	/* Stop release. About to overlap the current available Tx descriptor */
+#ifdef MV64340_CHECKSUM_OFFLOAD_TX
+	if ((tx_desc_used == tx_first_desc) &&
+#else
 	if ((tx_desc_used == tx_desc_curr) &&
+#endif
 	    (p_eth_port_ctrl->tx_resource_err == false)) {
 	    dma_cache_wback_inv((unsigned long)p_tx_desc_used,
 				    sizeof(ETH_TX_DESC));
