@@ -275,7 +275,7 @@
 	END(except_vec0_r4k_MP250MHZhwbug)
 #endif
 
-	/* TLB refill, EXL == 0, R[23]00 version */
+	/* TLB refill, R[23]00 version */
 	LEAF(except_vec0_r2300)
 	.set	noat
 	.set	mips1
