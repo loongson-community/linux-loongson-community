@@ -853,10 +853,10 @@ unsigned long exception_handlers[32];
  */
 void *set_except_vector(int n, void *addr)
 {
-	unsigned handler = (unsigned long) addr;
-	unsigned old_handler = exception_handlers[n];
-	exception_handlers[n] = handler;
+	unsigned long handler = (unsigned long) addr;
+	unsigned long old_handler = exception_handlers[n];
 
+	exception_handlers[n] = handler;
 	if (n == 0 && mips_cpu.options & MIPS_CPU_DIVEC) {
 		*(volatile u32 *)(KSEG0+0x200) = 0x08000000 |
 		                                 (0x03ffffff & (handler >> 2));

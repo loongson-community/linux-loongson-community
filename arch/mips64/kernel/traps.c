@@ -638,16 +638,18 @@ unsigned long exception_handlers[32];
  * to interrupt handlers in the address range from
  * KSEG0 <= x < KSEG0 + 256mb on the Nevada.  Oh well ...
  */
-void set_except_vector(int n, void *addr)
+void *set_except_vector(int n, void *addr)
 {
 	unsigned long handler = (unsigned long) addr;
-	exception_handlers[n] = handler;
+	unsigned long old_handler = exception_handlers[n];
 
+	exception_handlers[n] = handler;
 	if (n == 0 && mips_cpu.options & MIPS_CPU_DIVEC) {
 		*(volatile u32 *)(KSEG0+0x200) = 0x08000000 |
 		                                 (0x03ffffff & (handler >> 2));
 		flush_icache_range(KSEG0+0x200, KSEG0 + 0x204);
 	}
+	return (void *)old_handler;
 }
 
 void __init per_cpu_trap_init(void)
