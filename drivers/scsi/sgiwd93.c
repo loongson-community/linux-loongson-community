@@ -7,7 +7,7 @@
  * 
  * (In all truth, Jed Schimmel wrote all this code.)
  *
- * $Id: sgiwd93.c,v 1.18 2000/01/29 01:42:18 ralf Exp $
+ * $Id: sgiwd93.c,v 1.19 2000/02/04 07:40:47 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/types.h>
@@ -293,7 +293,7 @@ int __init sgiwd93_detect(Scsi_Host_Template *SGIblows)
 	request_irq(SGI_WD93_0_IRQ, sgiwd93_intr, 0, "SGI WD93", (void *) sgiwd93_host);
         /* set up second controller on the Indigo2 */
 	if(!sgi_guiness) {
-		sgiwd93_host1 = scsi_register(HPsUX, sizeof(struct WD33C93_hostdata));
+		sgiwd93_host1 = scsi_register(SGIblows, sizeof(struct WD33C93_hostdata));
 		sgiwd93_host1->base = (unsigned char *) hregs1;
 		sgiwd93_host1->irq = SGI_WD93_1_IRQ;
 

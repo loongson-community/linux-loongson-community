@@ -314,6 +314,7 @@ CONFIG_SGI_PARTITION=y
 # Console drivers
 #
 CONFIG_SGI_NEWPORT_CONSOLE=y
+CONFIG_FONT_8x16=y
 
 #
 # Sound
