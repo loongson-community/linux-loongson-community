@@ -23,8 +23,6 @@
         *(volatile u32 *)(TITAN_PCI_BASE+(ofs)) = cpu_to_le32(data)
 #define TITAN_READ(ofs, data)   \
         *(data) = le32_to_cpu(*(volatile u32 *)(TITAN_PCI_BASE+(ofs)))
-#define TITAN_READ_DATA(ofs)    \
-        le32_to_cpu(*(volatile u32 *)(TITAN_PCI_BASE+(ofs)))
 
 #define TITAN_WRITE_16(ofs, data)  \
         *(volatile u16 *)(TITAN_PCI_BASE+(ofs)) = cpu_to_le16(data)
