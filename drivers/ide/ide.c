@@ -2009,7 +2009,7 @@ static void __init probe_for_hwifs (void)
 		extern void swarm_ide_probe(void);
 		swarm_ide_probe();
 	}
-#endif /* CONFIG_BLK_IDE_SWARM */
+#endif /* CONFIG_BLK_DEV_IDE_SWARM */
 #ifdef CONFIG_BLK_DEV_BUDDHA
 	{
 		extern void buddha_init(void);
