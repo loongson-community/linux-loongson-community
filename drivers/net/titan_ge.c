@@ -102,7 +102,6 @@ static void titan_ge_int_handler(int, void *, struct pt_regs *);
 static int titan_ge_set_mac_address(struct net_device *, void *);
 
 static unsigned long titan_ge_tx_coal(unsigned long, int);
-static unsigned long titan_ge_rx_coal(unsigned long, int);
 
 static void titan_ge_port_reset(unsigned int);
 static int titan_ge_free_tx_queue(titan_ge_port_info *);
@@ -322,17 +321,15 @@ static void titan_ge_tx_timeout_task(struct net_device *netdev)
 
 	/* Dump debug info */
 	printk(KERN_ERR "TRTG cause : %x \n",
-			(unsigned long)TITAN_GE_READ(0x100c + (port << 12)));
+			TITAN_GE_READ(0x100c + (port << 12)));
 
 	/* Fix this for the other ports */
-	printk(KERN_ERR "FIFO cause : %x \n",
-			(unsigned long)TITAN_GE_READ(0x482c));
-	printk(KERN_ERR "IE cause : %x \n",
-			(unsigned long)TITAN_GE_READ(0x0040));
+	printk(KERN_ERR "FIFO cause : %x \n", TITAN_GE_READ(0x482c));
+	printk(KERN_ERR "IE cause : %x \n", TITAN_GE_READ(0x0040));
 	printk(KERN_ERR "XDMA GDI ERROR : %x \n",
-			(unsigned long)TITAN_GE_READ(0x5008 + (port << 8)));
+			TITAN_GE_READ(0x5008 + (port << 8)));
 	printk(KERN_ERR "CHANNEL ERROR: %x \n",
-			(unsigned long)TITAN_GE_READ(TITAN_GE_CHANNEL0_INTERRUPT
+			TITAN_GE_READ(TITAN_GE_CHANNEL0_INTERRUPT
 						+ (port << 8)));	
 
 	netif_device_detach(netdev);
@@ -417,7 +414,7 @@ static void titan_ge_int_handler(int irq, void *dev_id,
 	struct net_device *netdev = (struct net_device *) dev_id;
 	titan_ge_port_info *titan_ge_eth;
 	unsigned int port_num, reg_data;
-	unsigned long eth_int_cause_error = 0, is;
+	unsigned int eth_int_cause_error = 0, is;
 	unsigned long eth_int_cause1;
 	int err = 0;
 #ifdef CONFIG_SMP
@@ -525,8 +522,7 @@ static void titan_ge_int_handler(int irq, void *dev_id,
 
 #endif
 	/* Handle error interrupts */
-        if (eth_int_cause_error && 
-		(eth_int_cause_error != 0x2)) {
+        if (eth_int_cause_error && (eth_int_cause_error != 0x2)) {
 		printk(KERN_ERR
 			"XDMA Channel Error : %x  on port %d\n",
 			eth_int_cause_error, port_num);
@@ -1115,6 +1111,19 @@ static void titan_ge_tx_queue(titan_ge_port_info * titan_ge_eth,
 	/* Prefetch the next descriptor */
 	prefetch(&(titan_ge_eth->tx_desc_area[titan_ge_eth->tx_curr_desc_q]));
 }
+
+#ifndef TITAN_RX_NAPI
+/*
+ * Coalescing for the Rx path
+ */
+static unsigned long titan_ge_rx_coal(unsigned long delay, int port)
+{
+	TITAN_GE_WRITE(TITAN_GE_INT_COALESCING, delay);
+	TITAN_GE_WRITE(0x5038, delay);
+
+	return delay;
+}
+#endif
 
 /*
  * Actually does the open of the Ethernet device
@@ -1955,7 +1964,7 @@ static struct net_device_stats *titan_ge_get_stats(struct net_device
  */
 static int __init titan_ge_init_module(void)
 {
-	unsigned long version, device;
+	unsigned int version, device;
 
 	printk(KERN_NOTICE
 	       "PMC-Sierra TITAN 10/100/1000 Ethernet Driver \n");
@@ -1963,8 +1972,7 @@ static int __init titan_ge_init_module(void)
 	version = (device & 0x000f0000) >> 16;
 	device &= 0x0000ffff;
 
-	printk(KERN_NOTICE "Device Id : %x,  Version : %x \n", device,
-	       version);
+	printk(KERN_NOTICE "Device Id : %x,  Version : %x \n", device, version);
 
 	/* Register only one port */ 
 	if (titan_ge_init(0)) 
@@ -2142,7 +2150,7 @@ static int titan_ge_init(int port)
 	err = register_netdev(netdev);
 
         if (err)
-                goto out_free_private;
+	        goto out_free_netdev;
 
 	printk(KERN_NOTICE
 	       "%s: port %d with MAC address %02x:%02x:%02x:%02x:%02x:%02x\n",
@@ -2158,8 +2166,6 @@ static int titan_ge_init(int port)
 #endif
 
 	return 0;
-
-out_free_private:
 
 out_free_netdev:
 	kfree(netdev);
@@ -2217,19 +2223,6 @@ static int titan_ge_return_tx_desc(titan_ge_port_info * titan_ge_eth, int port)
 
 	return 0;
 }
-
-#ifndef TITAN_RX_NAPI
-/*
- * Coalescing for the Rx path
- */
-static unsigned long titan_ge_rx_coal(unsigned long delay, int port)
-{
-	TITAN_GE_WRITE(TITAN_GE_INT_COALESCING, delay);
-	TITAN_GE_WRITE(0x5038, delay);
-
-	return delay;
-}
-#endif
 
 /*
  * Coalescing for the Tx path
