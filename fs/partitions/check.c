@@ -45,6 +45,9 @@ static int (*check_part[])(struct gendisk *hd, kdev_t dev, unsigned long first_s
 #ifdef CONFIG_ACORN_PARTITION
 	acorn_partition,
 #endif
+#ifdef CONFIG_SGI_PARTITION
+	sgi_partition,
+#endif
 #ifdef CONFIG_MSDOS_PARTITION
 	msdos_partition,
 #endif
@@ -62,9 +65,6 @@ static int (*check_part[])(struct gendisk *hd, kdev_t dev, unsigned long first_s
 #endif
 #ifdef CONFIG_MAC_PARTITION
 	mac_partition,
-#endif
-#ifdef CONFIG_SGI_PARTITION
-	sgi_partition,
 #endif
 #ifdef CONFIG_ULTRIX_PARTITION
 	ultrix_partition,
