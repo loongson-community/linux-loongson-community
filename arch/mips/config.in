@@ -15,10 +15,6 @@ if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
    bool 'Support for Acer PICA 1 chipset' CONFIG_ACER_PICA_61
    bool 'Support for Algorithmics P4032 (EXPERIMENTAL)' CONFIG_ALGOR_P4032
    bool 'Support for BAGET MIPS series (EXPERIMENTAL)' CONFIG_BAGET_MIPS
-   bool 'Support for Cobalt Server' CONFIG_COBALT_MICRO_SERVER
-   if [ "$CONFIG_COBALT_MICRO_SERVER" = "y" ]; then
-      bool '  Support for 2800' CONFIG_COBALT_28
-   fi
    bool 'Support for DECstations (EXPERIMENTAL)' CONFIG_DECSTATION
    bool 'Support for NEC DDB Vrc-5074 (EXPERIMENTAL)' CONFIG_DDB5074
    bool 'Support for NEC DDB Vrc-5476 (EXPERIMENTAL)' CONFIG_DDB5476
@@ -73,13 +69,6 @@ if [ "$CONFIG_ACER_PICA_61" = "y" ]; then
    define_bool CONFIG_MIPS_JAZZ y
    define_bool CONFIG_PC_KEYB y
    define_bool CONFIG_ROTTEN_IRQ y
-fi
-if [ "$CONFIG_COBALT_MICRO_SERVER" = "y" ]; then
-   define_bool CONFIG_ISA n
-   define_bool CONFIG_COBALT_27 y
-   define_bool CONFIG_COBALT_LCD y
-   define_bool CONFIG_COBALT_SERIAL y
-   define_bool CONFIG_PCI y
 fi
 if [ "$CONFIG_MIPS_ATLAS" = "y" ]; then
    define_bool CONFIG_PCI y
