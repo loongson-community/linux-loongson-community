@@ -35,6 +35,7 @@
 #include <linux/console.h>
 #include <linux/mc146818rtc.h>
 #include <linux/delay.h>
+#include <linux/interrupt.h>
 
 #include <asm/cpu.h>
 #include <asm/bootinfo.h>
