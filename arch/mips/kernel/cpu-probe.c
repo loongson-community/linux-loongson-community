@@ -194,10 +194,18 @@ static inline void cpu_probe_legacy(struct cpuinfo_mips *c)
 		c->tlbsize = 64;
 		break;
 	case PRID_IMP_R4000:
-		if ((c->processor_id & 0xff) >= PRID_REV_R4400)
-			c->cputype = CPU_R4400SC;
-		else
-			c->cputype = CPU_R4000SC;
+		if (read_c0_config() & CONF_SC) {
+			if ((c->processor_id & 0xff) >= PRID_REV_R4400)
+				c->cputype = CPU_R4400PC;
+			else
+				c->cputype = CPU_R4000PC;
+		} else {
+			if ((c->processor_id & 0xff) >= PRID_REV_R4400)
+				c->cputype = CPU_R4400SC;
+			else
+				c->cputype = CPU_R4000SC;
+		}
+
 		c->isa_level = MIPS_CPU_ISA_III;
 		c->options = R4K_OPTS | MIPS_CPU_FPU | MIPS_CPU_32FPR |
 		             MIPS_CPU_WATCH | MIPS_CPU_VCE |
