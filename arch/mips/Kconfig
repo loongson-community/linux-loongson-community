@@ -233,7 +233,7 @@ config MIPS_ATLAS
 	select SYS_SUPPORTS_BIG_ENDIAN
 	select SYS_SUPPORTS_LITTLE_ENDIAN
 	help
-	  This enables support for the QED R5231-based MIPS Atlas evaluation
+	  This enables support for the MIPS Technologies Atlas evaluation
 	  board.
 
 config MIPS_MALTA
@@ -254,7 +254,7 @@ config MIPS_MALTA
 	select SYS_SUPPORTS_BIG_ENDIAN
 	select SYS_SUPPORTS_LITTLE_ENDIAN
 	help
-	  This enables support for the VR5000-based MIPS Malta evaluation
+	  This enables support for the MIPS Technologies Malta evaluation
 	  board.
 
 config MIPS_SEAD
@@ -267,6 +267,9 @@ config MIPS_SEAD
 	select SYS_SUPPORTS_64BIT_KERNEL if EXPERIMENTAL
 	select SYS_SUPPORTS_BIG_ENDIAN
 	select SYS_SUPPORTS_LITTLE_ENDIAN
+	help
+	  This enables support for the MIPS Technologies SEAD evaluation
+	  board.
 
 config MOMENCO_JAGUAR_ATX
 	bool "Support for Momentum Jaguar board"
