@@ -16,11 +16,13 @@
 #include <linux/usb.h>
 
 
-static const char *version = __FILE__ ": v0.3.5 2000/03/21 Written by Petko Manolov (petkan@spct.net)\n";
+static const char *version = __FILE__ ": v0.3.9 2000/04/11 Written by Petko Manolov (petkan@spct.net)\n";
 
 
 #define	PEGASUS_MTU		1500
-#define PEGASUS_MAX_MTU		1536
+#define	PEGASUS_MAX_MTU		1536
+#define	SROM_WRITE		0x01
+#define	SROM_READ		0x02
 #define	PEGASUS_TX_TIMEOUT	(HZ*5)
 #define	ALIGN(x)		x __attribute__((aligned(16)))
 
@@ -51,12 +53,18 @@ MODULE_PARM(loopback, "i");
 
 
 static struct usb_eth_dev usb_dev_id[] = {
-	{ "D-Link DSB-650TX", 0x2001, 0x4001, NULL },
-	{ "Linksys USB100TX", 0x066b, 0x2203, NULL },
-	{ "SMC 202 USB Ethernet", 0x0707, 0x0200, NULL },
-	{ "ADMtek AN986 (Pegasus) USB Ethernet", 0x07a6, 0x0986, NULL },
-	{ "Accton USB 10/100 Ethernet Adapter", 0x083a, 0x1046, NULL },
-	{ NULL, 0, 0, NULL }
+	{"Billionton USB-100", 0x08dd, 0x0986, NULL},
+	{"Corega FEter USB-TX", 0x7aa, 0x0004, NULL},
+	{"MELCO/BUFFALO LUA-TX", 0x0411, 0x0001, NULL},
+	{"D-Link DSB-650TX", 0x2001, 0x4001, NULL},
+	{"D-Link DSB-650TX", 0x2001, 0x4002, NULL},
+	{"D-Link DSB-650TX(PNA)", 0x2001, 0x4003, NULL},
+	{"Linksys USB100TX", 0x066b, 0x2203, NULL},
+	{"Linksys USB100TX", 0x066b, 0x2204, NULL},
+	{"SMC 202 USB Ethernet", 0x0707, 0x0200, NULL},
+	{"ADMtek AN986 \"Pegasus\" USB Ethernet (eval board)", 0x07a6, 0x0986, NULL},
+	{"Accton USB 10/100 Ethernet Adapter", 0x083a, 0x1046, NULL},
+	{NULL, 0, 0, NULL}
 };
 
 
@@ -105,10 +113,10 @@ static int pegasus_write_phy_word(struct usb_device *dev, __u8 index, __u16 regd
 	return 1;
 }
 
-static int pegasus_read_srom_word(struct usb_device *dev, __u8 index, __u16 *retdata)
+static int pegasus_rw_srom_word(struct usb_device *dev, __u8 index, __u16 *retdata, __u8 direction)
 {
 	int i;
-	__u8 data[4] = { index, 0, 0, 0x02 };
+	__u8 data[4] = { index, 0, 0, direction };
 
 	pegasus_set_registers(dev, 0x20, 4, data);
 	for (i = 0; i < 100; i++) {
@@ -120,7 +128,7 @@ static int pegasus_read_srom_word(struct usb_device *dev, __u8 index, __u16 *ret
 		}
 	}
 
-	warn("read_srom_word() failed");
+	warn("pegasus_rw_srom_word() failed");
 	return 1;
 }
 
@@ -128,7 +136,7 @@ static int pegasus_get_node_id(struct usb_device *dev, __u8 *id)
 {
 	int i;
 	for (i = 0; i < 3; i++)
-		if (pegasus_read_srom_word(dev, i, (__u16 *)&id[i * 2]))
+		if (pegasus_rw_srom_word(dev,i,(__u16 *)&id[i * 2],SROM_READ))
 			return 1;
 	return 0;
 }
@@ -170,8 +178,9 @@ static int pegasus_start_net(struct net_device *dev, struct usb_device *usb)
 		return 2;
 
 	if ((~temp & 4) && !loopback) {
-		err("link NOT established - %x", temp);
-		return 3;
+		warn("%s: link NOT established (0x%x), check the cable.",
+			dev->name, temp);
+		/* return 3; FIXME */
 	}
 
 	if (pegasus_read_phy_word(usb, 5, &partmedia))
@@ -376,13 +385,14 @@ static void pegasus_set_rx_mode(struct net_device *net)
 
 	if (net->flags & IFF_PROMISC) {
 		info("%s: Promiscuous mode enabled", net->name);
-		pegasus_set_register(pegasus->usb, 2, 0x04);
+/*		pegasus_set_register(pegasus->usb, 2, 0x04); FIXME */
 	} else if ((net->mc_count > multicast_filter_limit) ||
 			(net->flags & IFF_ALLMULTI)) {
 		pegasus_set_register(pegasus->usb, 0, 0xfa);
 		pegasus_set_register(pegasus->usb, 2, 0);
+		info("%s set allmulti", net->name);
 	} else {
-		dbg("%s: set Rx mode", net->name);
+		info("%s: set Rx mode", net->name);
 	}
 
 	netif_wake_queue(net);
@@ -395,18 +405,19 @@ static int check_device_ids( __u16 vendor, __u16 product )
 	while ( usb_dev_id[i].name ) {
 		if ( (usb_dev_id[i].vendor == vendor) && 
 			(usb_dev_id[i].device == product) )
-			return 0;
+			return i;
 		i++;
 	}
-	return	1;
+	return	-1;
 }
 
 static void * pegasus_probe(struct usb_device *dev, unsigned int ifnum)
 {
 	struct net_device *net;
 	struct pegasus *pegasus;
+	int	dev_indx;
 
-	if ( check_device_ids(dev->descriptor.idVendor, dev->descriptor.idProduct) ) {
+	if ( (dev_indx = check_device_ids(dev->descriptor.idVendor, dev->descriptor.idProduct)) == -1 ) {
 		return NULL;
 	}
 
@@ -449,11 +460,11 @@ static void * pegasus_probe(struct usb_device *dev, unsigned int ifnum)
 	FILL_BULK_URB(&pegasus->tx_urb, dev, usb_sndbulkpipe(dev, 2),
 			pegasus->tx_buff, PEGASUS_MAX_MTU, pegasus_write_bulk,
 			pegasus);
-	FILL_INT_URB(&pegasus->intr_urb, dev, usb_rcvintpipe(dev, 0),
+	FILL_INT_URB(&pegasus->intr_urb, dev, usb_rcvintpipe(dev, 3),
 			pegasus->intr_buff, 8, pegasus_irq, pegasus, 250);
 
 
-	printk(KERN_INFO "%s: ADMtek AN986 Pegasus usb device\n", net->name);
+	printk(KERN_INFO "%s: %s\n", net->name, usb_dev_id[dev_indx].name);
 
 	return pegasus;
 }

@@ -1,4 +1,4 @@
-/* $Id: pgtable.h,v 1.121 2000/03/02 20:37:41 davem Exp $
+/* $Id: pgtable.h,v 1.124 2000/03/27 10:38:56 davem Exp $
  * pgtable.h: SpitFire page table operations.
  *
  * Copyright 1996,1997 David S. Miller (davem@caip.rutgers.edu)
@@ -214,26 +214,9 @@ extern inline pte_t pte_modify(pte_t orig_pte, pgprot_t new_prot)
 #define pte_page(x) (mem_map+pte_pagenr(x))
 
 /* Be very careful when you change these three, they are delicate. */
-static __inline__ pte_t pte_mkyoung(pte_t _pte)
-{	if(pte_val(_pte) & _PAGE_READ)
-		return __pte(pte_val(_pte)|(_PAGE_ACCESSED|_PAGE_R));
-	else
-		return __pte(pte_val(_pte)|(_PAGE_ACCESSED));
-}
-
-static __inline__ pte_t pte_mkwrite(pte_t _pte)
-{	if(pte_val(_pte) & _PAGE_MODIFIED)
-		return __pte(pte_val(_pte)|(_PAGE_WRITE|_PAGE_W));
-	else
-		return __pte(pte_val(_pte)|(_PAGE_WRITE));
-}
-
-static __inline__ pte_t pte_mkdirty(pte_t _pte)
-{	if(pte_val(_pte) & _PAGE_WRITE)
-		return __pte(pte_val(_pte)|(_PAGE_MODIFIED|_PAGE_W));
-	else
-		return __pte(pte_val(_pte)|(_PAGE_MODIFIED));
-}
+#define pte_mkyoung(pte)	(__pte(pte_val(pte) | _PAGE_ACCESSED | _PAGE_R))
+#define pte_mkwrite(pte)	(__pte(pte_val(pte) | _PAGE_WRITE))
+#define pte_mkdirty(pte)	(__pte(pte_val(pte) | _PAGE_MODIFIED | _PAGE_W))
 
 /* to find an entry in a page-table-directory. */
 #define pgd_index(address)	(((address) >> PGDIR_SHIFT) & (PTRS_PER_PGD))
@@ -256,41 +239,7 @@ extern pgd_t swapper_pg_dir[1];
 #define mmu_lockarea(vaddr, len)		(vaddr)
 #define mmu_unlockarea(vaddr, len)		do { } while(0)
 
-/* There used to be some funny code here which tried to guess which
- * TLB wanted the mapping, that wasn't accurate enough to justify it's
- * existance.  The real way to do that is to have each TLB miss handler
- * pass in a distinct code to do_sparc64_fault() and do it more accurately
- * there.
- *
- * What we do need to handle here is prevent I-cache corruption.  The
- * deal is that the I-cache snoops stores from other CPUs and all DMA
- * activity, however stores from the local processor are not snooped.
- * The dynamic linker and our signal handler mechanism take care of
- * the cases where they write into instruction space, but when a page
- * is copied in the kernel and then executed in user-space is not handled
- * right.  This leads to corruptions if things are "just right", consider
- * the following scenerio:
- * 1) Process 1 frees up a page that was used for the PLT of libc in
- *    it's address space.
- * 2) Process 2 writes into a page in the PLT of libc for the first
- *    time.  do_wp_page() copies the page locally, the local I-cache of
- *    the processor does not notice the writes during the page copy.
- *    The new page used just so happens to be the one just freed in #1.
- * 3) After the PLT write, later the cpu calls into an unresolved PLT
- *    entry, the CPU executes old instructions from process 1's PLT
- *    table.
- * 4) Splat.
- */
-extern void __flush_icache_page(unsigned long phys_page);
-#define update_mmu_cache(__vma, __address, _pte) \
-do { \
-	unsigned short __flags = ((__vma)->vm_flags); \
-	if ((__flags & VM_EXEC) != 0 && \
-	    ((pte_val(_pte) & (_PAGE_PRESENT | _PAGE_WRITE | _PAGE_MODIFIED)) == \
-	     (_PAGE_PRESENT | _PAGE_WRITE | _PAGE_MODIFIED))) { \
-		__flush_icache_page(pte_pagenr(_pte) << PAGE_SHIFT); \
-	} \
-} while(0)
+extern void update_mmu_cache(struct vm_area_struct *vma, unsigned long address, pte_t pte);
 
 #define flush_icache_page(vma, pg)	do { } while(0)
 

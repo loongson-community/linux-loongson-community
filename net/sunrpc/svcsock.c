@@ -769,7 +769,7 @@ again:
 		 * We have to be able to interrupt this wait
 		 * to bring down the daemons ...
 		 */
-		current->state = TASK_INTERRUPTIBLE;
+		set_current_state(TASK_INTERRUPTIBLE);
 		add_wait_queue(&rqstp->rq_wait, &wait);
 		spin_unlock_bh(&serv->sv_lock);
 
@@ -940,7 +940,6 @@ svc_create_socket(struct svc_serv *serv, int protocol, struct sockaddr_in *sin)
 	if (protocol == IPPROTO_TCP) {
 		if ((error = sock->ops->listen(sock, 5)) < 0)
 			goto bummer;
-		sock->flags |= SO_ACCEPTCON;
 	}
 
 	if ((svsk = svc_setup_socket(serv, sock, &error, 1)) != NULL)

@@ -4,6 +4,7 @@
 #include <linux/timer.h>
 #include <linux/netfilter.h>
 #include <linux/module.h>
+#include <linux/in.h>
 #include <linux/ip.h>
 #include <linux/tcp.h>
 #include <linux/netfilter_ipv4/ip_conntrack.h>
@@ -220,8 +221,3 @@ struct ip_conntrack_protocol ip_conntrack_protocol_tcp
 = { { NULL, NULL }, IPPROTO_TCP, "tcp",
     tcp_pkt_to_tuple, tcp_invert_tuple, tcp_print_tuple, tcp_print_conntrack,
     tcp_packet, tcp_new, NULL };
-
-int __init ip_conntrack_protocol_tcp_init(void)
-{
-	return 0;
-}

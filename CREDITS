@@ -1381,7 +1381,7 @@ S: 370 01  Ceske Budejovice
 S: Czech Republic
 
 N: Bas Laarhoven
-E: bas@vimec.nl
+E: sjml@xs4all.nl
 D: Loadable modules and ftape driver
 S: J. Obrechtstr 23
 S: NL-5216 GP 's-Hertogenbosch
@@ -1526,9 +1526,10 @@ D: SLS distribution
 D: Initial implementation of VC's, pty's and select()
 
 N: Pavel Machek
-E: pavel@atrey.karlin.mff.cuni.cz
-D: Softcursor for vga, hypertech cdrom support, vcsa bugfix
-D: Network block device, sun4/330 port 
+E: pavel@ucw.cz
+E: pavel@suse.cz
+D: Softcursor for vga, hypertech cdrom support, vcsa bugfix, nbd
+D: sun4/330 port, capabilities for elf, speedup for rm on ext2, USB
 S: Volkova 1131
 S: 198 00 Praha 9
 S: Czech Republic
@@ -1568,6 +1569,15 @@ D: Linux/IA-64
 S: 2200 Mission College Blvd
 S: Santa Clara, CA 95052
 S: USA
+
+N: Petko Manolov
+E: petkan@spct.net
+D: USB ethernet (pegasus) driver
+D: optimizing i[45]86 string routines
+D: i386 task swithing hacks
+S: 5, Vrah Mancho str.
+S: 1324 Sofia
+S: Bulgaria
 
 N: Martin Mares
 E: mj@suse.cz
@@ -2113,6 +2123,15 @@ D: netfilter, ipchains with Michael Neuling.
 S: 301/222 City Walk
 S: Canberra ACT 2601
 S: Australia
+
+N: Bill Ryder
+E: bryder@sgi.com
+D: FTDI_SIO usb/serial converter driver
+W: http://reality.sgi.com/bryder_wellington/ftdi_sio
+S: I/3 Walter St
+S: Wellington
+S: New Zealand
+
 
 N: Sampo Saaristo
 E: sambo@cs.tut.fi

@@ -48,6 +48,7 @@
 #include <linux/version.h>
 #include <linux/types.h>
 #include <linux/malloc.h>
+#include <linux/capability.h>
 #include <linux/sched.h>
 #include <linux/errno.h>
 #include <linux/socket.h>
@@ -227,7 +228,7 @@ xprt_sendmsg(struct rpc_xprt *xprt, struct rpc_rqst *req)
 		 */
 		break;
 	case -EAGAIN:
-		if (sock->flags & SO_NOSPACE)
+		if (test_bit(SOCK_NOSPACE, &sock->flags))
 			result = -ENOMEM;
 		break;
 	case -ENOTCONN:
@@ -1569,8 +1570,8 @@ xprt_create_socket(int proto, struct rpc_timeout *to)
 		goto failed;
 	}
 
-	/* If the caller has root privs, bind to a reserved port */
-	if (!current->fsuid && xprt_bindresvport(sock) < 0)
+	/* If the caller has the capability, bind to a reserved port */
+	if (capable(CAP_NET_BIND_SERVICE) && xprt_bindresvport(sock) < 0)
 		goto failed;
 
 	return sock;

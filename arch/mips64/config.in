@@ -58,6 +58,8 @@ if [ "$CONFIG_PCI" != "y" ]; then
    define_bool CONFIG_PCI n
 fi
 
+define_bool CONFIG_SBUS n
+
 mainmenu_option next_comment
 comment 'CPU selection'
 
@@ -81,7 +83,14 @@ bool 'Generate little endian code' CONFIG_CPU_LITTLE_ENDIAN
 bool 'Networking support' CONFIG_NET
 
 source drivers/pci/Config.in
-source drivers/pcmcia/Config.in
+
+bool 'Support for hot-pluggable devices' CONFIG_HOTPLUG
+
+if [ "$CONFIG_HOTPLUG" = "y" ] ; then
+   source drivers/pcmcia/Config.in
+else
+   define_bool CONFIG_PCMCIA n
+fi
 
 bool 'System V IPC' CONFIG_SYSVIPC
 bool 'BSD Process Accounting' CONFIG_BSD_PROCESS_ACCT
@@ -194,7 +203,6 @@ endmenu
 
 source drivers/char/Config.in
 
-source drivers/usb/Config.in
 
 #source drivers/misc/Config.in
 
@@ -230,6 +238,8 @@ endmenu
 if [ "$CONFIG_SGI_IP22" = "y" ]; then
    source drivers/sgi/Config.in
 fi
+
+source drivers/usb/Config.in
 
 mainmenu_option next_comment
 comment 'Kernel hacking'

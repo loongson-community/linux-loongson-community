@@ -9,6 +9,7 @@
 
 #include <linux/sunrpc/msg_prot.h>
 
+#define NFS_PROGRAM	100003
 #define NFS_PORT	2049
 #define NFS_MAXDATA	8192
 #define NFS_MAXPATHLEN	1024
@@ -26,7 +27,9 @@
 #define NFSMODE_SOCK	0140000
 #define NFSMODE_FIFO	0010000
 
-	
+#define NFS_MNT_PROGRAM	100005
+#define NFS_MNT_PORT	627
+
 /*
  * NFS stats. The good thing with these values is that NFSv3 errors are
  * a superset of NFSv2 errors (with the exception of NFSERR_WFLUSH which
@@ -84,38 +87,15 @@ enum nfs_ftype {
 	NFFIFO = 8
 };
 
+#if defined(__KERNEL__)
+/*
+ * This is the kernel NFS client file handle representation
+ */
+#define NFS_MAXFHSIZE		64
 struct nfs_fh {
-	char			data[NFS_FHSIZE];
+	unsigned short		size;
+	unsigned char		data[NFS_MAXFHSIZE];
 };
-
-#define NFS_PROGRAM		100003
-#define NFS_VERSION		2
-#define NFSPROC_NULL		0
-#define NFSPROC_GETATTR		1
-#define NFSPROC_SETATTR		2
-#define NFSPROC_ROOT		3
-#define NFSPROC_LOOKUP		4
-#define NFSPROC_READLINK	5
-#define NFSPROC_READ		6
-#define NFSPROC_WRITECACHE	7
-#define NFSPROC_WRITE		8
-#define NFSPROC_CREATE		9
-#define NFSPROC_REMOVE		10
-#define NFSPROC_RENAME		11
-#define NFSPROC_LINK		12
-#define NFSPROC_SYMLINK		13
-#define NFSPROC_MKDIR		14
-#define NFSPROC_RMDIR		15
-#define NFSPROC_READDIR		16
-#define NFSPROC_STATFS		17
-
-/* Mount support for NFSroot */
-#ifdef __KERNEL__
-#define NFS_MNT_PROGRAM		100005
-#define NFS_MNT_VERSION		1
-#define NFS_MNT_PORT		627
-#define NFS_MNTPROC_MNT		1
-#define NFS_MNTPROC_UMNT	3
 
 /*
  * This is really a general kernel constant, but since nothing like
@@ -123,148 +103,11 @@ struct nfs_fh {
  */
 #define NFS_OFFSET_MAX		((__s64)((~(__u64)0) >> 1))
 
-#endif /* __KERNEL__ */
-
-#if defined(__KERNEL__) || defined(NFS_NEED_KERNEL_TYPES)
-
-extern struct rpc_program	nfs_program;
-extern struct rpc_stat		nfs_rpcstat;
-
-struct nfs_time {
-	__u32			seconds;
-	__u32			useconds;
-};
-
-struct nfs_fattr {
-	enum nfs_ftype		type;
-	__u32			mode;
-	__u32			nlink;
-	__u32			uid;
-	__u32			gid;
-	__u32			size;
-	__u32			blocksize;
-	__u32			rdev;
-	__u32			blocks;
-	__u32			fsid;
-	__u32			fileid;
-	struct nfs_time		atime;
-	struct nfs_time		mtime;
-	struct nfs_time		ctime;
-};
-
-struct nfs_fsinfo {
-	__u32			tsize;
-	__u32			bsize;
-	__u32			blocks;
-	__u32			bfree;
-	__u32			bavail;
-};
-
-/* Arguments to the write call.
- * Note that NFS_WRITE_MAXIOV must be <= (MAX_IOVEC-2) from sunrpc/xprt.h
- */
-#define NFS_WRITE_MAXIOV        8
 
 enum nfs3_stable_how {
 	NFS_UNSTABLE = 0,
 	NFS_DATA_SYNC = 1,
 	NFS_FILE_SYNC = 2
 };
-
-struct nfs_writeargs {
-	struct nfs_fh *		fh;
-	__u32			offset;
-	__u32			count;
-	enum nfs3_stable_how	stable;
-	unsigned int		nriov;
-	struct iovec		iov[NFS_WRITE_MAXIOV];
-};
-
-struct nfs_writeverf {
-	enum nfs3_stable_how	committed;
-	__u32			verifier[2];
-};
-
-struct nfs_writeres {
-	struct nfs_fattr *	fattr;
-	struct nfs_writeverf *	verf;
-	__u32			count;
-};
-
-#ifdef NFS_NEED_XDR_TYPES
-
-struct nfs_sattrargs {
-	struct nfs_fh *		fh;
-	struct iattr *		sattr;
-};
-
-struct nfs_diropargs {
-	struct nfs_fh *		fh;
-	const char *		name;
-};
-
-struct nfs_readlinkargs {
-	struct nfs_fh *		fh;
-	const void *		buffer;
-};
-
-struct nfs_readargs {
-	struct nfs_fh *		fh;
-	__u32			offset;
-	__u32			count;
-	void *			buffer;
-};
-
-struct nfs_createargs {
-	struct nfs_fh *		fh;
-	const char *		name;
-	struct iattr *		sattr;
-};
-
-struct nfs_renameargs {
-	struct nfs_fh *		fromfh;
-	const char *		fromname;
-	struct nfs_fh *		tofh;
-	const char *		toname;
-};
-
-struct nfs_linkargs {
-	struct nfs_fh *		fromfh;
-	struct nfs_fh *		tofh;
-	const char *		toname;
-};
-
-struct nfs_symlinkargs {
-	struct nfs_fh *		fromfh;
-	const char *		fromname;
-	const char *		topath;
-	struct iattr *		sattr;
-};
-
-struct nfs_readdirargs {
-	struct nfs_fh *		fh;
-	__u32			cookie;
-	void *			buffer;
-	int			bufsiz;
-};
-
-struct nfs_diropok {
-	struct nfs_fh *		fh;
-	struct nfs_fattr *	fattr;
-};
-
-struct nfs_readres {
-	struct nfs_fattr *	fattr;
-	unsigned int		count;
-};
-
-struct nfs_readdirres {
-	void *			buffer;
-	int			bufsiz;
-	u32			cookie;
-};
-
-#endif /* NFS_NEED_XDR_TYPES */
 #endif /* __KERNEL__ */
-
-#endif
+#endif /* _LINUX_NFS_H */

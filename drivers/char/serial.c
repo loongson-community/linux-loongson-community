@@ -220,10 +220,6 @@ static char *serial_revdate = "2000-03-20";
 #define _INLINE_
 #endif
 
-extern void tty_register_devfs  (struct tty_driver *driver, unsigned int flags,
-				 unsigned int minor);
-extern void tty_unregister_devfs (struct tty_driver *driver, unsigned minor);
-
 static char *serial_name = "Serial driver";
 
 static DECLARE_TASK_QUEUE(tq_serial);
@@ -4360,6 +4356,9 @@ static struct pci_board pnp_devices[] __initdata = {
 		SPCI_FL_BASE0 | SPCI_FL_PNPDEFAULT, 1, 115200 },
 	/* U.S. Robotics 56K FAX INT */
 	{	ISAPNP_VENDOR('U', 'S', 'R'), ISAPNP_DEVICE(0x3031), 0, 0,
+		SPCI_FL_BASE0 | SPCI_FL_PNPDEFAULT, 1, 115200 },
+	/* Viking 56K FAX INT */
+	{	ISAPNP_VENDOR('R', 'S', 'S'), ISAPNP_DEVICE(0x0262), 0, 0,
 		SPCI_FL_BASE0 | SPCI_FL_PNPDEFAULT, 1, 115200 },
 
 	/* These ID's are taken from M$ documentation */

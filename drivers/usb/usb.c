@@ -24,7 +24,11 @@
 #include <linux/bitops.h>
 #include <linux/malloc.h>
 #include <linux/interrupt.h>  /* for in_interrupt() */
-#define DEBUG
+#ifdef CONFIG_USB_DEBUG
+	#define DEBUG
+#else
+	#undef DEBUG
+#endif
 #include <linux/usb.h>
 
 /*
@@ -1080,7 +1084,7 @@ int usb_parse_configuration(struct usb_device *dev, struct usb_config_descriptor
 	int size;
 	struct usb_descriptor_header *header;
 
-	memcpy(config, buffer, USB_DT_INTERFACE_SIZE);
+	memcpy(config, buffer, USB_DT_CONFIG_SIZE);
 	le16_to_cpus(&config->wTotalLength);
 	size = config->wTotalLength;
 
@@ -1419,32 +1423,28 @@ int usb_set_idle(struct usb_device *dev, int ifnum, int duration, int report_id)
 
 static void usb_set_maxpacket(struct usb_device *dev)
 {
-	int i, j, b;
-	struct usb_interface *ifp;
+	int i, b;
 
 	for (i=0; i<dev->actconfig->bNumInterfaces; i++) {
-		ifp = dev->actconfig->interface + i;
+		struct usb_interface *ifp = dev->actconfig->interface + i;
+		struct usb_interface_descriptor *as = ifp->altsetting + ifp->act_altsetting;
+		struct usb_endpoint_descriptor *ep = as->endpoint;
+		int e;
 
-		for (j = 0; j < ifp->num_altsetting; j++) {
-			struct usb_interface_descriptor *as = ifp->altsetting + j;
-			struct usb_endpoint_descriptor *ep = as->endpoint;
-			int e;
-
-			for (e=0; e<as->bNumEndpoints; e++) {
-				b = ep[e].bEndpointAddress & USB_ENDPOINT_NUMBER_MASK;
-				if ((ep[e].bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) ==
-					USB_ENDPOINT_XFER_CONTROL) {	/* Control => bidirectional */
+		for (e=0; e<as->bNumEndpoints; e++) {
+			b = ep[e].bEndpointAddress & USB_ENDPOINT_NUMBER_MASK;
+			if ((ep[e].bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) ==
+				USB_ENDPOINT_XFER_CONTROL) {	/* Control => bidirectional */
+				dev->epmaxpacketout[b] = ep[e].wMaxPacketSize;
+				dev->epmaxpacketin [b] = ep[e].wMaxPacketSize;
+				}
+			else if (usb_endpoint_out(ep[e].bEndpointAddress)) {
+				if (ep[e].wMaxPacketSize > dev->epmaxpacketout[b])
 					dev->epmaxpacketout[b] = ep[e].wMaxPacketSize;
+			}
+			else {
+				if (ep[e].wMaxPacketSize > dev->epmaxpacketin [b])
 					dev->epmaxpacketin [b] = ep[e].wMaxPacketSize;
-					}
-				else if (usb_endpoint_out(ep[e].bEndpointAddress)) {
-					if (ep[e].wMaxPacketSize > dev->epmaxpacketout[b])
-						dev->epmaxpacketout[b] = ep[e].wMaxPacketSize;
-				}
-				else {
-					if (ep[e].wMaxPacketSize > dev->epmaxpacketin [b])
-						dev->epmaxpacketin [b] = ep[e].wMaxPacketSize;
-				}
 			}
 		}
 	}
@@ -1512,6 +1512,8 @@ int usb_set_interface(struct usb_device *dev, int interface, int alternate)
 		return ret;
 
 	iface->act_altsetting = alternate;
+	dev->toggle[0] = 0;	/* 9.1.1.5 says to do this */
+	dev->toggle[1] = 0;
 	usb_set_maxpacket(dev);
 	return 0;
 }
@@ -1624,7 +1626,7 @@ int usb_get_configuration(struct usb_device *dev)
 			err("config descriptor too short (expected %i, got %i)",tmp,result);
 			kfree(bigbuffer);
 			goto err;
-		}		
+		}
 		result = usb_parse_configuration(dev, &dev->config[cfgno], bigbuffer);
 		kfree(bigbuffer);
 
@@ -1638,8 +1640,8 @@ int usb_get_configuration(struct usb_device *dev)
 	}
 
 	return 0;
-	err:
-	dev->descriptor.bNumConfigurations=cfgno;
+err:
+	dev->descriptor.bNumConfigurations = cfgno;
 	return result;
 }
 
@@ -1674,7 +1676,7 @@ int usb_string(struct usb_device *dev, int index, char *buf, size_t size)
 			dev->have_langid = -1;
 			dev->string_langid = tbuf[2] | (tbuf[3]<< 8);
 				/* always use the first langid listed */
-			info("USB device number %d default language ID 0x%x",
+			dbg("USB device number %d default language ID 0x%x",
 				dev->devnum, dev->string_langid);
 		}
 	}
@@ -1789,14 +1791,16 @@ int usb_new_device(struct usb_device *dev)
 		return -1;
 	}
 
-	info("new device strings: Mfr=%d, Product=%d, SerialNumber=%d",
+	dbg("new device strings: Mfr=%d, Product=%d, SerialNumber=%d",
 		dev->descriptor.iManufacturer, dev->descriptor.iProduct, dev->descriptor.iSerialNumber);
+#ifdef DEBUG
 	if (dev->descriptor.iManufacturer)
 		usb_show_string(dev, "Manufacturer", dev->descriptor.iManufacturer);
 	if (dev->descriptor.iProduct)
 		usb_show_string(dev, "Product", dev->descriptor.iProduct);
 	if (dev->descriptor.iSerialNumber)
 		usb_show_string(dev, "SerialNumber", dev->descriptor.iSerialNumber);
+#endif
 
 	/* now that the basic setup is over, add a /proc/bus/usb entry */
         usbdevfs_add_device(dev);
@@ -1874,6 +1878,7 @@ EXPORT_SYMBOL(usb_driver_release_interface);
 EXPORT_SYMBOL(usb_init_root_hub);
 EXPORT_SYMBOL(usb_root_hub_string);
 EXPORT_SYMBOL(usb_new_device);
+EXPORT_SYMBOL(usb_reset_device);
 EXPORT_SYMBOL(usb_connect);
 EXPORT_SYMBOL(usb_disconnect);
 EXPORT_SYMBOL(usb_release_bandwidth);

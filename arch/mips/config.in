@@ -32,6 +32,8 @@ unset CONFIG_ISA
 unset CONFIG_MIPS_JAZZ
 unset CONFIG_VIDEO_G364
 
+define_bool CONFIG_SBUS n
+
 if [ "$CONFIG_ALGOR_P4032" = "y" ]; then
    define_bool CONFIG_PCI y
 fi
@@ -154,8 +156,10 @@ if [ "$CONFIG_ISA" = "y" ]; then
    source drivers/pnp/Config.in
 fi
 
-if [ "$CONFIG_ISA" = "y" -o "$CONFIG_PCI" = "y" ]; then
-	source drivers/pcmcia/Config.in
+if [ "$CONFIG_HOTPLUG" = "y" ] ; then
+   source drivers/pcmcia/Config.in
+else
+   define_bool CONFIG_PCMCIA n
 fi
 
 source drivers/block/Config.in
@@ -242,15 +246,7 @@ if [ "$CONFIG_NET" = "y" ]; then
    endmenu
 fi
 
-if [ "$CONFIG_SGI_IP22" != "y" -a \
-	"$CONFIG_DECSTATION" != "y" -a \
-	"$CONFIG_BAGET_MIPS" != "y" ]; then
-
-   mainmenu_option next_comment
-   comment 'AX.25 network device drivers'
-   source drivers/net/hamradio/Config.in
-   endmenu
-
+if [ "$CONFIG_ISA" = "y" -o "$CONFIG_PCI" = "y" ]; then
    mainmenu_option next_comment
    comment 'ISDN subsystem'
 
@@ -324,9 +320,6 @@ if [ "$CONFIG_SGI_IP22" = "y" ]; then
    endmenu
 fi
 
-#The ones having USB should include it
-#source drivers/usb/Config.in
-
 source fs/Config.in
 
 if [ "$CONFIG_VT" = "y" ]; then
@@ -355,6 +348,8 @@ fi
 if [ "$CONFIG_SGI_IP22" = "y" ]; then
    source drivers/sgi/Config.in
 fi
+
+source drivers/usb/Config.in
 
 mainmenu_option next_comment
 comment 'Kernel hacking'

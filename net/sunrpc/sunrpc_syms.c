@@ -27,7 +27,6 @@ EXPORT_SYMBOL(rpc_allocate);
 EXPORT_SYMBOL(rpc_free);
 EXPORT_SYMBOL(rpc_execute);
 EXPORT_SYMBOL(rpc_init_task);
-EXPORT_SYMBOL(rpc_release_task);
 EXPORT_SYMBOL(rpc_sleep_on);
 EXPORT_SYMBOL(rpc_wake_up_next);
 EXPORT_SYMBOL(rpc_wake_up_task);
@@ -89,12 +88,15 @@ EXPORT_SYMBOL(svc_proc_read);
 #endif
 
 /* Generic XDR */
+EXPORT_SYMBOL(xdr_encode_array);
 EXPORT_SYMBOL(xdr_encode_string);
 EXPORT_SYMBOL(xdr_decode_string);
 EXPORT_SYMBOL(xdr_decode_netobj);
 EXPORT_SYMBOL(xdr_encode_netobj);
 EXPORT_SYMBOL(xdr_zero);
 EXPORT_SYMBOL(xdr_one);
+EXPORT_SYMBOL(xdr_shift_iovec);
+EXPORT_SYMBOL(xdr_zero_iovec);
 
 /* RPC errors */
 EXPORT_SYMBOL(rpc_success);

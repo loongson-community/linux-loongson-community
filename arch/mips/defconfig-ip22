@@ -19,6 +19,7 @@ CONFIG_EXPERIMENTAL=y
 # CONFIG_OLIVETTI_M700 is not set
 CONFIG_SGI_IP22=y
 # CONFIG_SNI_RM200_PCI is not set
+# CONFIG_SBUS is not set
 CONFIG_ARC32=y
 # CONFIG_ISA is not set
 # CONFIG_PCI is not set
@@ -61,6 +62,7 @@ CONFIG_SYSCTL=y
 CONFIG_MODULES=y
 # CONFIG_MODVERSIONS is not set
 CONFIG_KMOD=y
+# CONFIG_PCMCIA is not set
 
 #
 # Block devices
@@ -68,6 +70,8 @@ CONFIG_KMOD=y
 # CONFIG_BLK_DEV_FD is not set
 # CONFIG_BLK_DEV_XD is not set
 # CONFIG_PARIDE is not set
+# CONFIG_BLK_CPQ_DA is not set
+# CONFIG_BLK_DEV_DAC960 is not set
 
 #
 # Additional Block Devices
@@ -75,7 +79,10 @@ CONFIG_KMOD=y
 # CONFIG_BLK_DEV_LOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
 # CONFIG_BLK_DEV_MD is not set
+# CONFIG_MD_LINEAR is not set
+# CONFIG_MD_STRIPED is not set
 # CONFIG_BLK_DEV_RAM is not set
+# CONFIG_BLK_DEV_INITRD is not set
 
 #
 # Networking options
@@ -160,12 +167,12 @@ CONFIG_SCSI_SGIWD93=y
 # CONFIG_SCSI_AHA1542 is not set
 # CONFIG_SCSI_AHA1740 is not set
 # CONFIG_SCSI_AIC7XXX is not set
-# CONFIG_SCSI_IPS is not set
 # CONFIG_SCSI_ADVANSYS is not set
 # CONFIG_SCSI_IN2000 is not set
 # CONFIG_SCSI_AM53C974 is not set
 # CONFIG_SCSI_MEGARAID is not set
 # CONFIG_SCSI_BUSLOGIC is not set
+# CONFIG_SCSI_DMX3191D is not set
 # CONFIG_SCSI_DTC3280 is not set
 # CONFIG_SCSI_EATA is not set
 # CONFIG_SCSI_EATA_DMA is not set
@@ -173,18 +180,19 @@ CONFIG_SCSI_SGIWD93=y
 # CONFIG_SCSI_FUTURE_DOMAIN is not set
 # CONFIG_SCSI_GDTH is not set
 # CONFIG_SCSI_GENERIC_NCR5380 is not set
+# CONFIG_SCSI_INITIO is not set
+# CONFIG_SCSI_INIA100 is not set
 # CONFIG_SCSI_NCR53C406A is not set
 # CONFIG_SCSI_SYM53C416 is not set
 # CONFIG_SCSI_SIM710 is not set
+# CONFIG_SCSI_NCR53C7xx is not set
 # CONFIG_SCSI_PAS16 is not set
 # CONFIG_SCSI_PCI2000 is not set
 # CONFIG_SCSI_PCI2220I is not set
 # CONFIG_SCSI_PSI240I is not set
 # CONFIG_SCSI_QLOGIC_FAS is not set
-# CONFIG_SCSI_SEAGATE is not set
 # CONFIG_SCSI_T128 is not set
 # CONFIG_SCSI_U14_34F is not set
-# CONFIG_SCSI_ULTRASTOR is not set
 # CONFIG_SCSI_DEBUG is not set
 
 #
@@ -213,6 +221,7 @@ CONFIG_FONT_8x16=y
 CONFIG_AUTOFS_FS=y
 CONFIG_AUTOFS4_FS=y
 # CONFIG_ADFS_FS is not set
+# CONFIG_ADFS_FS_RW is not set
 # CONFIG_AFFS_FS is not set
 # CONFIG_HFS_FS is not set
 # CONFIG_BFS_FS is not set
@@ -222,27 +231,34 @@ CONFIG_AUTOFS4_FS=y
 # CONFIG_VFAT_FS is not set
 # CONFIG_EFS_FS is not set
 # CONFIG_CRAMFS is not set
+# CONFIG_RAMFS is not set
 CONFIG_ISO9660_FS=y
 # CONFIG_JOLIET is not set
 # CONFIG_MINIX_FS is not set
 # CONFIG_NTFS_FS is not set
+# CONFIG_NTFS_RW is not set
 # CONFIG_HPFS_FS is not set
 CONFIG_PROC_FS=y
 # CONFIG_DEVFS_FS is not set
 # CONFIG_DEVFS_DEBUG is not set
 # CONFIG_DEVPTS_FS is not set
 # CONFIG_QNX4FS_FS is not set
+# CONFIG_QNX4FS_RW is not set
 # CONFIG_ROMFS_FS is not set
 CONFIG_EXT2_FS=y
 # CONFIG_SYSV_FS is not set
+# CONFIG_SYSV_FS_WRITE is not set
 # CONFIG_UDF_FS is not set
+# CONFIG_UDF_RW is not set
 # CONFIG_UFS_FS is not set
+# CONFIG_UFS_FS_WRITE is not set
 
 #
 # Network File Systems
 #
 # CONFIG_CODA_FS is not set
 CONFIG_NFS_FS=y
+# CONFIG_NFS_V3 is not set
 CONFIG_ROOT_NFS=y
 CONFIG_NFSD=y
 # CONFIG_NFSD_V3 is not set
@@ -250,6 +266,16 @@ CONFIG_SUNRPC=y
 CONFIG_LOCKD=y
 # CONFIG_SMB_FS is not set
 # CONFIG_NCP_FS is not set
+# CONFIG_NCPFS_PACKET_SIGNING is not set
+# CONFIG_NCPFS_IOCTL_LOCKING is not set
+# CONFIG_NCPFS_STRONG is not set
+# CONFIG_NCPFS_NFS_NS is not set
+# CONFIG_NCPFS_OS2_NS is not set
+# CONFIG_NCPFS_SMALLDOS is not set
+# CONFIG_NCPFS_MOUNT_SUBDIR is not set
+# CONFIG_NCPFS_NDS_DOMAINS is not set
+# CONFIG_NCPFS_NLS is not set
+# CONFIG_NCPFS_EXTRAS is not set
 
 #
 # Partition Types
@@ -292,6 +318,11 @@ CONFIG_SGI_SERIAL=y
 # CONFIG_SERIAL_CONSOLE is not set
 CONFIG_SGI_DS1286=y
 # CONFIG_SGI_NEWPORT_GFX is not set
+
+#
+# USB support
+#
+# CONFIG_USB is not set
 
 #
 # Kernel hacking

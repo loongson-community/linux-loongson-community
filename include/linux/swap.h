@@ -154,7 +154,7 @@ static inline int is_page_shared(struct page *page)
 		return 1;
 	count = page_count(page);
 	if (PageSwapCache(page))
-		count += swap_count(page) - 2;
+		count += swap_count(page) - 2 - !!page->buffers;
 	return  count > 1;
 }
 
@@ -173,6 +173,8 @@ do {						\
 
 #define	lru_cache_del(page)			\
 do {						\
+	if (!PageLocked(page))			\
+		BUG();				\
 	spin_lock(&pagemap_lru_lock);		\
 	list_del(&(page)->lru);			\
 	nr_lru_pages--;				\

@@ -163,7 +163,7 @@ typedef struct page {
 #define PG_error		 1
 #define PG_referenced		 2
 #define PG_uptodate		 3
-#define PG__unused_00		 4
+#define PG_dirty		 4
 #define PG_decr_after		 5
 #define PG_unused_01		 6
 #define PG__unused_02		 7
@@ -180,6 +180,8 @@ typedef struct page {
 #define Page_Uptodate(page)	test_bit(PG_uptodate, &(page)->flags)
 #define SetPageUptodate(page)	set_bit(PG_uptodate, &(page)->flags)
 #define ClearPageUptodate(page)	clear_bit(PG_uptodate, &(page)->flags)
+#define PageDirty(page)		test_bit(PG_dirty, &(page)->flags)
+#define SetPageDirty(page)	set_bit(PG_dirty, &(page)->flags)
 #define PageLocked(page)	test_bit(PG_locked, &(page)->flags)
 #define LockPage(page)		set_bit(PG_locked, &(page)->flags)
 #define TryLockPage(page)	test_and_set_bit(PG_locked, &(page)->flags)
@@ -188,7 +190,7 @@ typedef struct page {
 					wake_up(&page->wait); \
 				} while (0)
 #define PageError(page)		test_bit(PG_error, &(page)->flags)
-#define SetPageError(page)	test_and_set_bit(PG_error, &(page)->flags)
+#define SetPageError(page)	set_bit(PG_error, &(page)->flags)
 #define ClearPageError(page)	clear_bit(PG_error, &(page)->flags)
 #define PageReferenced(page)	test_bit(PG_referenced, &(page)->flags)
 #define PageDecrAfter(page)	test_bit(PG_decr_after, &(page)->flags)
@@ -205,6 +207,9 @@ typedef struct page {
 #define PageClearSwapCache(page)	clear_bit(PG_swap_cache, &(page)->flags)
 
 #define PageTestandClearSwapCache(page)	test_and_clear_bit(PG_swap_cache, &(page)->flags)
+#define PageSwapEntry(page)		test_bit(PG_swap_entry, &(page)->flags)
+#define SetPageSwapEntry(page)		set_bit(PG_swap_entry, &(page)->flags)
+#define ClearPageSwapEntry(page)	clear_bit(PG_swap_entry, &(page)->flags)
 
 #ifdef CONFIG_HIGHMEM
 #define PageHighMem(page)		test_bit(PG_highmem, &(page)->flags)
@@ -406,7 +411,8 @@ extern int check_pgt_cache(void);
 
 extern void free_area_init(unsigned long * zones_size);
 extern void free_area_init_node(int nid, pg_data_t *pgdat, 
-		unsigned long * zones_size, unsigned long zone_start_paddr);
+	unsigned long * zones_size, unsigned long zone_start_paddr, 
+	unsigned long *zholes_size);
 extern void mem_init(void);
 extern void show_mem(void);
 extern void si_meminfo(struct sysinfo * val);

@@ -47,6 +47,35 @@ struct input_event {
 };
 
 /*
+ * The device ID structure;
+ */
+
+struct input_id {
+	__u16 bus;
+	__u16 vendor;
+	__u16 product;
+};
+
+/*
+ * Protocol version.
+ */
+
+#define EV_VERSION		0x010000
+
+/*
+ * IOCTLs (0x00 - 0x7f)
+ */
+
+#define EVIOCGVERSION		_IOR('E', 0x01, __u32)                  /* get driver version */
+#define EVIOCGID		_IOR('E', 0x02, struct input_id)	/* get device ID */
+#define EVIOCGREP		_IOR('E', 0x03, int[2])			/* get repeat settings */
+#define EVIOCSREP		_IOW('E', 0x03, int[2])			/* get repeat settings */
+#define EVIOCGNAME(len)		_IOC(_IOC_READ, 'E', 0x03, len)		/* get device name */
+#define EVIOCGBIT(ev,len)	_IOC(_IOC_READ, 'E', 0x20 + ev, len)	/* get event bits */
+#define EVIOCGABSLIM(num)	_IOR('E', 0x40 + num, int[4])		/* get abs event limits */ 
+#define EVIOCGABS(num)		_IOR('E', 0x80 + num, int)		/* get abs value */
+
+/*
  * Event types
  */
 
@@ -273,11 +302,12 @@ struct input_event {
 #define BTN_THUMB2		0x122
 #define BTN_TOP			0x123
 #define BTN_TOP2		0x124
-#define BTN_BASE		0x125
-#define BTN_BASE2		0x126
-#define BTN_BASE3		0x127
-#define BTN_BASE4		0x128
-#define BTN_BASE5		0x129
+#define BTN_PINKIE		0x125
+#define BTN_BASE		0x126
+#define BTN_BASE2		0x127
+#define BTN_BASE3		0x128
+#define BTN_BASE4		0x129
+#define BTN_BASE5		0x12a
 
 #define BTN_GAMEPAD		0x130
 #define BTN_A			0x130
@@ -383,6 +413,7 @@ struct input_event {
  */
 
 #include <linux/sched.h>
+#include <linux/devfs_fs_kernel.h>
 
 #define NBITS(x) ((((x)-1)/BITS_PER_LONG)+1)
 #define BIT(x)	(1<<((x)%BITS_PER_LONG))
@@ -393,6 +424,8 @@ struct input_dev {
 	void *private;
 
 	int number;
+	char *name;
+	struct input_id id;
 
 	unsigned long evbit[NBITS(EV_MAX)];
 	unsigned long keybit[NBITS(KEY_MAX)];
@@ -430,17 +463,21 @@ struct input_handler {
 	void *private;
 
 	void (*event)(struct input_handle *handle, unsigned int type, unsigned int code, int value);
-	int (*connect)(struct input_handler *handler, struct input_dev *dev);
+	struct input_handle* (*connect)(struct input_handler *handler, struct input_dev *dev);
 	void (*disconnect)(struct input_handle *handle);
 
-	struct input_handle *handle;
+	struct file_operations *fops;
+	int minor;
 
+	struct input_handle *handle;
 	struct input_handler *next;
 };
 
 struct input_handle {
 
 	void *private;
+
+	int open;
 	
 	struct input_dev *dev;
 	struct input_handler *handler;
@@ -455,8 +492,11 @@ void input_unregister_device(struct input_dev *);
 void input_register_handler(struct input_handler *);
 void input_unregister_handler(struct input_handler *);
 
-void input_open_device(struct input_handle *);
+int input_open_device(struct input_handle *);
 void input_close_device(struct input_handle *);
+
+devfs_handle_t input_register_minor(char *name, int minor, int minor_base);
+void input_unregister_minor(devfs_handle_t handle);
 
 void input_event(struct input_dev *dev, unsigned int type, unsigned int code, int value);
 

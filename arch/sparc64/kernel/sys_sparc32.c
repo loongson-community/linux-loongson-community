@@ -1,4 +1,4 @@
-/* $Id: sys_sparc32.c,v 1.141 2000/03/24 01:31:30 davem Exp $
+/* $Id: sys_sparc32.c,v 1.142 2000/03/24 04:17:38 davem Exp $
  * sys_sparc32.c: Conversion between 32bit and 64bit native syscalls.
  *
  * Copyright (C) 1997,1998 Jakub Jelinek (jj@sunsite.mff.cuni.cz)
@@ -1746,8 +1746,8 @@ static int copy_mount_stuff_to_kernel(const void *user, unsigned long *kernel)
 	return 0;
 }
 
-extern long do_sys_mount(char * dev_name, char * dir_name, unsigned long type_page,
-			 unsigned long new_flags, unsigned long data_page);
+extern long do_sys_mount(char * dev_page, char * dir_page, char * type_page,
+			 unsigned long new_flags, char * data_page);
 
 #define SMBFS_NAME	"smbfs"
 #define NCPFS_NAME	"ncpfs"
@@ -1756,6 +1756,8 @@ asmlinkage int sys32_mount(char *dev_name, char *dir_name, char *type, unsigned 
 {
 	unsigned long type_page = 0;
 	unsigned long data_page = 0;
+	unsigned long dev_page = 0;
+	unsigned long dir_page = 0;
 	int err, is_smb, is_ncp;
 
 	is_smb = is_ncp = 0;
@@ -1777,19 +1779,32 @@ asmlinkage int sys32_mount(char *dev_name, char *dir_name, char *type, unsigned 
 	if (err)
 		goto type_out;
 
+	err = copy_mount_stuff_to_kernel(dev_name, &dev_page);
+	if (err)
+		goto data_out;
+
+	err = copy_mount_stuff_to_kernel(dir_name, &dir_page);
+	if (err)
+		goto dev_out;
+
 	if (!is_smb && !is_ncp) {
-		err = do_sys_mount(dev_name, dir_name, type_page, new_flags,
-				   data_page);
+		err = do_sys_mount((char*)dev_page, (char*)dir_page,
+				(char*)type_page, new_flags, (char*)data_page);
 	} else {
 		if (is_ncp)
 			do_ncp_super_data_conv((void *)data_page);
 		else
 			do_smb_super_data_conv((void *)data_page);
 
-		err = do_sys_mount(dev_name, dir_name, type_page, new_flags,
-				   data_page);
+		err = do_sys_mount((char*)dev_page, (char*)dir_page,
+				(char*)type_page, new_flags, (char*)data_page);
 	}
+	free_page(dir_page);
 
+dev_out:
+	free_page(dev_page);
+
+data_out:
 	free_page(data_page);
 
 type_out:
@@ -2788,85 +2803,6 @@ asmlinkage int sys32_setsockopt(int fd, int level, int optname,
 		return ret;
 	}
 	return sys_setsockopt(fd, level, optname, optval, optlen);
-}
-
-/* Argument list sizes for sys_socketcall */
-#define AL(x) ((x) * sizeof(u32))
-static unsigned char nargs[18]={AL(0),AL(3),AL(3),AL(3),AL(2),AL(3),
-                                AL(3),AL(3),AL(4),AL(4),AL(4),AL(6),
-                                AL(6),AL(2),AL(5),AL(5),AL(3),AL(3)};
-#undef AL
-
-extern asmlinkage int sys_bind(int fd, struct sockaddr *umyaddr, int addrlen);
-extern asmlinkage int sys_connect(int fd, struct sockaddr *uservaddr, int addrlen);
-extern asmlinkage int sys_accept(int fd, struct sockaddr *upeer_sockaddr, int *upeer_addrlen);
-extern asmlinkage int sys_getsockname(int fd, struct sockaddr *usockaddr, int *usockaddr_len);
-extern asmlinkage int sys_getpeername(int fd, struct sockaddr *usockaddr, int *usockaddr_len);
-extern asmlinkage int sys_send(int fd, void *buff, size_t len, unsigned flags);
-extern asmlinkage int sys32_sendto(int fd, u32 buff, __kernel_size_t32 len,
-				   unsigned flags, u32 addr, int addr_len);
-extern asmlinkage int sys_recv(int fd, void *ubuf, size_t size, unsigned flags);
-extern asmlinkage int sys32_recvfrom(int fd, u32 ubuf, __kernel_size_t32 size,
-				     unsigned flags, u32 addr, u32 addr_len);
-extern asmlinkage int sys32_getsockopt(int fd, int level, int optname,
-				       u32 optval, u32 optlen);
-
-extern asmlinkage int sys_socket(int family, int type, int protocol);
-extern asmlinkage int sys_socketpair(int family, int type, int protocol,
-				     int usockvec[2]);
-extern asmlinkage int sys_shutdown(int fd, int how);
-extern asmlinkage int sys_listen(int fd, int backlog);
-
-asmlinkage int sys32_socketcall(int call, u32 *args)
-{
-	u32 a[6];
-	u32 a0,a1;
-				 
-	if (call<SYS_SOCKET||call>SYS_RECVMSG)
-		return -EINVAL;
-	if (copy_from_user(a, args, nargs[call]))
-		return -EFAULT;
-	a0=a[0];
-	a1=a[1];
-	
-	switch(call) 
-	{
-		case SYS_SOCKET:
-			return sys_socket(a0, a1, a[2]);
-		case SYS_BIND:
-			return sys_bind(a0, (struct sockaddr *)A(a1), a[2]);
-		case SYS_CONNECT:
-			return sys_connect(a0, (struct sockaddr *)A(a1), a[2]);
-		case SYS_LISTEN:
-			return sys_listen(a0, a1);
-		case SYS_ACCEPT:
-			return sys_accept(a0, (struct sockaddr *)A(a1), (int *)A(a[2]));
-		case SYS_GETSOCKNAME:
-			return sys_getsockname(a0, (struct sockaddr *)A(a1), (int *)A(a[2]));
-		case SYS_GETPEERNAME:
-			return sys_getpeername(a0, (struct sockaddr *)A(a1), (int *)A(a[2]));
-		case SYS_SOCKETPAIR:
-			return sys_socketpair(a0, a1, a[2], (int *)A(a[3]));
-		case SYS_SEND:
-			return sys_send(a0, (void *)A(a1), a[2], a[3]);
-		case SYS_SENDTO:
-			return sys32_sendto(a0, a1, a[2], a[3], a[4], a[5]);
-		case SYS_RECV:
-			return sys_recv(a0, (void *)A(a1), a[2], a[3]);
-		case SYS_RECVFROM:
-			return sys32_recvfrom(a0, a1, a[2], a[3], a[4], a[5]);
-		case SYS_SHUTDOWN:
-			return sys_shutdown(a0,a1);
-		case SYS_SETSOCKOPT:
-			return sys32_setsockopt(a0, a1, a[2], (char *)A(a[3]), a[4]);
-		case SYS_GETSOCKOPT:
-			return sys32_getsockopt(a0, a1, a[2], a[3], a[4]);
-		case SYS_SENDMSG:
-			return sys32_sendmsg(a0, (struct msghdr32 *)A(a1), a[2]);
-		case SYS_RECVMSG:
-			return sys32_recvmsg(a0, (struct msghdr32 *)A(a1), a[2]);
-	}
-	return -EINVAL;
 }
 
 extern void check_pending(int signum);
@@ -4144,7 +4080,7 @@ asmlinkage long sparc32_open(const char * filename, int flags, int mode)
 		if (fd >= 0) {
 			struct file * f;
 			lock_kernel();
-			f = filp_open(tmp, flags, mode, NULL);
+			f = filp_open(tmp, flags, mode);
 			unlock_kernel();
 			error = PTR_ERR(f);
 			if (IS_ERR(f))

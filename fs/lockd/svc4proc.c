@@ -470,7 +470,7 @@ nlm4svc_callback(struct svc_rqst *rqstp, u32 proc, struct nlm_res *resp)
 	host = nlmclnt_lookup_host(&rqstp->rq_addr,
 				rqstp->rq_prot, rqstp->rq_vers);
 	if (!host) {
-		rpc_free(call);
+		kfree(call);
 		return rpc_system_err;
 	}
 
@@ -478,12 +478,14 @@ nlm4svc_callback(struct svc_rqst *rqstp, u32 proc, struct nlm_res *resp)
 	call->a_host  = host;
 	memcpy(&call->a_args, resp, sizeof(*resp));
 
-/* FIXME this should become nlmSVC_async_call when that code gets
-   merged in XXX */
-	if (nlmclnt_async_call(call, proc, nlm4svc_callback_exit) < 0)
-		return rpc_system_err;
+	if (nlmsvc_async_call(call, proc, nlm4svc_callback_exit) < 0)
+		goto error;
 
 	return rpc_success;
+ error:
+	kfree(call);
+	nlm_release_host(host);
+	return rpc_system_err;
 }
 
 static void
@@ -496,7 +498,7 @@ nlm4svc_callback_exit(struct rpc_task *task)
 					task->tk_pid, -task->tk_status);
 	}
 	nlm_release_host(call->a_host);
-	rpc_free(call);
+	kfree(call);
 }
 
 /*

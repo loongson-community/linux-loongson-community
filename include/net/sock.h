@@ -263,10 +263,11 @@ struct tcp_opt {
 	__u16	mss_cache;	/* Cached effective mss, not including SACKS */
 	__u16	mss_clamp;	/* Maximal mss, negotiated at connection setup */
 	__u16	ext_header_len;	/* Network protocol overhead (IP/IPv6 options) */
-	__u8	dup_acks;	/* Consequetive duplicate acks seen from other end */
+	__u8	dup_acks;	/* Consecutive duplicate acks seen from other end */
 	__u8	retransmits;
 
-	__u16	__empty1;
+	__u8	__empty1;
+	__u8	sorry;
 	__u8	defer_accept;
 
 /* RTT measurement */
@@ -726,7 +727,7 @@ do {	spin_lock_bh(&((__sk)->lock.slock)); \
 	if ((__sk)->backlog.tail != NULL) \
 		__release_sock(__sk); \
 	(__sk)->lock.users = 0; \
-	wake_up(&((__sk)->lock.wq)); \
+        if (waitqueue_active(&((__sk)->lock.wq))) wake_up(&((__sk)->lock.wq)); \
 	spin_unlock_bh(&((__sk)->lock.slock)); \
 } while(0)
 
@@ -837,11 +838,19 @@ extern void sklist_insert_socket(struct sock **list, struct sock *sk);
 extern void sklist_destroy_socket(struct sock **list, struct sock *sk);
 
 #ifdef CONFIG_FILTER
-/*
+
+/**
+ *	sk_filter - run a packet through a socket filter
+ *	@skb: buffer to filter
+ *	@filter: filter to apply
+ *
  * Run the filter code and then cut skb->data to correct size returned by
  * sk_run_filter. If pkt_len is 0 we toss packet. If skb->len is smaller
- * than pkt_len we keep whole skb->data.
+ * than pkt_len we keep whole skb->data. This is the socket level
+ * wrapper to sk_run_filter. It returns 0 if the packet should
+ * be accepted or 1 if the packet should be tossed.
  */
+ 
 extern __inline__ int sk_filter(struct sk_buff *skb, struct sk_filter *filter)
 {
 	int pkt_len;
@@ -855,6 +864,14 @@ extern __inline__ int sk_filter(struct sk_buff *skb, struct sk_filter *filter)
 	return 0;
 }
 
+/**
+ *	sk_filter_release: Release a socket filter
+ *	@sk: socket
+ *	@fp: filter to remove
+ *
+ *	Remove a filter from a socket and release its resources.
+ */
+ 
 extern __inline__ void sk_filter_release(struct sock *sk, struct sk_filter *fp)
 {
 	unsigned int size = sk_filter_len(fp);
@@ -1135,6 +1152,12 @@ extern __inline__ unsigned long sock_wspace(struct sock *sk)
 	return amt;
 }
 
+extern __inline__ void sk_wake_async(struct sock *sk, int how, int band)
+{
+	if (sk->socket && sk->socket->fasync_list)
+		sock_wake_async(sk->socket, how, band);
+}
+
 #define SOCK_MIN_SNDBUF 2048
 #define SOCK_MIN_RCVBUF 128
 /* Must be less or equal SOCK_MIN_SNDBUF */
@@ -1167,6 +1190,14 @@ extern __inline__ long sock_sndtimeo(struct sock *sk, int noblock)
 extern __inline__ int sock_rcvlowat(struct sock *sk, int waitall, int len)
 {
 	return waitall ? len : min(sk->rcvlowat, len);
+}
+
+/* Alas, with timeout socket operations are not restartable.
+ * Compare this to poll().
+ */
+extern __inline__ int sock_intr_errno(long timeo)
+{
+	return timeo == MAX_SCHEDULE_TIMEOUT ? -ERESTARTSYS : -EINTR;
 }
 
 /* 

@@ -8,6 +8,8 @@
  *
  *  structure passed from user-space to kernel-space during an nfs mount
  */
+#include <linux/in.h>
+#include <linux/nfs.h>
 
 /*
  * WARNING!  Do not delete or change the order of these fields.  If
@@ -16,12 +18,12 @@
  * mount-to-kernel version compatibility.  Some of these aren't used yet
  * but here they are anyway.
  */
-#define NFS_MOUNT_VERSION	3
+#define NFS_MOUNT_VERSION	4
 
 struct nfs_mount_data {
 	int		version;		/* 1 */
 	int		fd;			/* 1 */
-	struct nfs_fh	root;			/* 1 */
+	struct nfs2_fh	old_root;		/* 1 */
 	int		flags;			/* 1 */
 	int		rsize;			/* 1 */
 	int		wsize;			/* 1 */
@@ -35,6 +37,7 @@ struct nfs_mount_data {
 	char		hostname[256];		/* 1 */
 	int		namlen;			/* 2 */
 	unsigned int	bsize;			/* 3 */
+	struct nfs_fh	root;			/* 4 */
 };
 
 /* bits in the flags field */
@@ -49,5 +52,13 @@ struct nfs_mount_data {
 #define NFS_MOUNT_VER3		0x0080	/* 3 */
 #define NFS_MOUNT_KERBEROS	0x0100	/* 3 */
 #define NFS_MOUNT_NONLM		0x0200	/* 3 */
+#define NFS_MOUNT_FLAGMASK	0xFFFF
+
+/*
+ * Private flags - not to be set by mount program
+ */
+#ifdef __KERNEL__
+#define NFS_NONMONOTONE_COOKIES	0x00010000
+#endif /* __KERNEL__ */
  
 #endif

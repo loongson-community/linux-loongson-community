@@ -8,7 +8,7 @@
  *		as published by the Free Software Foundation; either version
  *		2 of the License, or (at your option) any later version.
  *
- * Version:	$Id: af_unix.c,v 1.90 2000/03/16 20:38:45 davem Exp $
+ * Version:	$Id: af_unix.c,v 1.91 2000/03/25 01:55:34 davem Exp $
  *
  * Fixes:
  *		Linus Torvalds	:	Assorted bug cures.
@@ -297,9 +297,10 @@ static __inline__ int unix_writable(struct sock *sk)
 static void unix_write_space(struct sock *sk)
 {
 	read_lock(&sk->callback_lock);
-	if (!sk->dead && unix_writable(sk)) {
-		wake_up_interruptible(sk->sleep);
-		sock_wake_async(sk->socket, 2, POLL_OUT);
+	if (unix_writable(sk)) {
+		if (sk->sleep && waitqueue_active(sk->sleep))
+			wake_up_interruptible(sk->sleep);
+		sk_wake_async(sk, 2, POLL_OUT);
 	}
 	read_unlock(&sk->callback_lock);
 }
@@ -356,8 +357,10 @@ static int unix_release_sock (unix_socket *sk, int embrion)
 			if (!skb_queue_empty(&sk->receive_queue) || embrion)
 				skpair->err = ECONNRESET;
 			unix_state_wunlock(skpair);
-			sk->state_change(skpair);
-			sock_wake_async(sk->socket,1,POLL_HUP);
+			skpair->state_change(skpair);
+			read_lock(&skpair->callback_lock);
+			sk_wake_async(skpair,1,POLL_HUP);
+			read_unlock(&skpair->callback_lock);
 		}
 		sock_put(skpair); /* It may now die */
 		unix_peer(sk) = NULL;
@@ -418,7 +421,6 @@ static int unix_listen(struct socket *sock, int backlog)
 		wake_up_interruptible_all(&sk->protinfo.af_unix.peer_wait);
 	sk->max_ack_backlog=backlog;
 	sk->state=TCP_LISTEN;
-	sock->flags |= SO_ACCEPTCON;
 	/* set credentials so connect can copy them */
 	sk->peercred.pid = current->pid;
 	sk->peercred.uid = current->euid;
@@ -562,39 +564,51 @@ static unix_socket *unix_find_other(struct sockaddr_un *sunname, int len,
 				    int type, unsigned hash, int *error)
 {
 	unix_socket *u;
+	struct dentry *dentry;
+	int err;
 	
-	if (sunname->sun_path[0])
-	{
-		struct dentry *dentry;
-
+	if (sunname->sun_path[0]) {
 		/* Do not believe to VFS, grab kernel lock */
 		lock_kernel();
-		dentry = __open_namei(sunname->sun_path, 2|O_NOFOLLOW, S_IFSOCK, NULL);
+		dentry = lookup_dentry(sunname->sun_path,LOOKUP_POSITIVE);
+		err = PTR_ERR(dentry);
 		if (IS_ERR(dentry)) {
-			*error = PTR_ERR(dentry);
 			unlock_kernel();
-			return NULL;
+			goto fail;
 		}
+		err = permission(dentry->d_inode,MAY_WRITE);
+		if (err)
+			goto put_fail;
+
+		err = -ECONNREFUSED;
+		if (!S_ISSOCK(dentry->d_inode->i_mode))
+			goto put_fail;
 		u=unix_find_socket_byinode(dentry->d_inode);
+		if (!u)
+			goto put_fail;
+
 		dput(dentry);
 		unlock_kernel();
 
-		if (u && u->type != type)
-		{
-			*error=-EPROTOTYPE;
+		err=-EPROTOTYPE;
+		if (u->type != type) {
 			sock_put(u);
-			return NULL;
+			goto fail;
 		}
-	}
-	else
+	} else {
+		err = -ECONNREFUSED;
 		u=unix_find_socket_byname(sunname, len, type, hash);
-
-	if (u==NULL)
-	{
-		*error=-ECONNREFUSED;
-		return NULL;
+		if (!u)
+			goto fail;
 	}
 	return u;
+
+put_fail:
+	dput(dentry);
+	unlock_kernel();
+fail:
+	*error=err;
+	return NULL;
 }
 
 
@@ -827,7 +841,7 @@ restart:
 
 		timeo = unix_wait_for_peer(other, timeo);
 
-		err = -ERESTARTSYS;
+		err = sock_intr_errno(timeo);
 		if (signal_pending(current))
 			goto out;
 		sock_put(other);
@@ -1156,7 +1170,7 @@ restart:
 
 		timeo = unix_wait_for_peer(other, timeo);
 
-		err = -ERESTARTSYS;
+		err = sock_intr_errno(timeo);
 		if (signal_pending(current))
 			goto out_free;
 
@@ -1228,8 +1242,8 @@ static int unix_stream_sendmsg(struct socket *sock, struct msghdr *msg, int len,
 		 *	much.
 		 */
 
-		if (size > 4096-16)
-			limit = 4096-16; /* Fall back to a page if we can't grab a big buffer this instant */
+		if (size > PAGE_SIZE-16)
+			limit = PAGE_SIZE-16; /* Fall back to a page if we can't grab a big buffer this instant */
 		else
 			limit = 0;	/* Otherwise just grab and wait */
 
@@ -1383,11 +1397,11 @@ static long unix_stream_data_wait(unix_socket * sk, long timeo)
 		    !timeo)
 			break;
 
-		sk->socket->flags |= SO_WAITDATA;
+		set_bit(SOCK_ASYNC_WAITDATA, &sk->socket->flags);
 		unix_state_runlock(sk);
 		timeo = schedule_timeout(timeo);
 		unix_state_rlock(sk);
-		sk->socket->flags &= ~SO_WAITDATA;
+		clear_bit(SOCK_ASYNC_WAITDATA, &sk->socket->flags);
 	}
 
 	__set_current_state(TASK_RUNNING);
@@ -1455,7 +1469,7 @@ static int unix_stream_recvmsg(struct socket *sock, struct msghdr *msg, int size
 			timeo = unix_stream_data_wait(sk, timeo);
 
 			if (signal_pending(current)) {
-				err = -ERESTARTSYS;
+				err = sock_intr_errno(timeo);
 				goto out;
 			}
 			down(&sk->protinfo.af_unix.readsem);
@@ -1556,10 +1570,12 @@ static int unix_shutdown(struct socket *sock, int mode)
 			other->shutdown |= peer_mode;
 			unix_state_wunlock(other);
 			other->state_change(other);
+			read_lock(&other->callback_lock);
 			if (peer_mode == SHUTDOWN_MASK)
-				sock_wake_async(other->socket,1,POLL_HUP);
+				sk_wake_async(other,1,POLL_HUP);
 			else if (peer_mode & RCV_SHUTDOWN)
-				sock_wake_async(other->socket,1,POLL_IN);
+				sk_wake_async(other,1,POLL_IN);
+			read_unlock(&other->callback_lock);
 		}
 		if (other)
 			sock_put(other);
@@ -1658,7 +1674,7 @@ static int unix_read_proc(char *buffer, char **start, off_t offset,
 			s,
 			atomic_read(&s->refcnt),
 			0,
-			s->state == TCP_LISTEN ? SO_ACCEPTCON : 0,
+			s->state == TCP_LISTEN ? __SO_ACCEPTCON : 0,
 			s->type,
 			s->socket ?
 			(s->state == TCP_ESTABLISHED ? SS_CONNECTED : SS_UNCONNECTED) :

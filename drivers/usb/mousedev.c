@@ -29,8 +29,9 @@
  */
 
 #define MOUSEDEV_MINOR_BASE 	32
+#define MOUSEDEV_MINORS		32
+#define MOUSEDEV_MIX		31
 
-#include <linux/miscdevice.h>
 #include <linux/malloc.h>
 #include <linux/poll.h>
 #include <linux/module.h>
@@ -46,12 +47,13 @@
 #endif
 
 struct mousedev {
-	char name[32];
 	int used;
-	struct input_handle handle;
-	struct miscdevice misc;
+	int open;
+	int minor;
 	wait_queue_head_t wait;
 	struct mousedev_list *list;
+	struct input_handle handle;
+	devfs_handle_t devfs;
 };
 
 struct mousedev_list {
@@ -71,77 +73,80 @@ struct mousedev_list {
 static unsigned char mousedev_genius_seq[] = { 0xe8, 3, 0xe6, 0xe6, 0xe6 };
 static unsigned char mousedev_imps_seq[] = { 0xf3, 200, 0xf3, 100, 0xf3, 80 };
 
-#ifdef CONFIG_INPUT_MOUSEDEV_MIX
-static struct mousedev mousedev_single;
-#else
-static unsigned long mousedev_miscbits = 0;
-static struct mousedev *mousedev_base[BITS_PER_LONG];
-#endif
+static struct input_handler mousedev_handler;
+
+static struct mousedev *mousedev_table[MOUSEDEV_MINORS];
+static struct mousedev mousedev_mix;
 
 static void mousedev_event(struct input_handle *handle, unsigned int type, unsigned int code, int value)
 {
-	struct mousedev *mousedev = handle->private;
-	struct mousedev_list *list = mousedev->list;
+	struct mousedev *mousedevs[3] = { handle->private, &mousedev_mix, NULL };
+	struct mousedev **mousedev = mousedevs;
+	struct mousedev_list *list;
 	int index, size;
 
-	while (list) {
-		switch (type) {
-			case EV_ABS:
-				switch (code) {
-					case ABS_X:	
-						size = handle->dev->absmax[ABS_X] - handle->dev->absmin[ABS_X];
-						list->dx += (value * CONFIG_MOUSEDEV_SCREEN_X - list->oldx) / size;
-						list->oldx += list->dx * size;
-						break;
-					case ABS_Y:
-						size = handle->dev->absmax[ABS_Y] - handle->dev->absmin[ABS_Y];
-						list->dy -= (value * CONFIG_MOUSEDEV_SCREEN_Y - list->oldy) / size;
-						list->oldy -= list->dy * size;
-						break;
-				}
-				break;
-			case EV_REL:
-				switch (code) {
-					case REL_X:	list->dx += value; break;
-					case REL_Y:	list->dy -= value; break;
-					case REL_WHEEL:	if (list->mode) list->dz -= value; break;
-				}
-				break;
+	while (*mousedev) {
+		list = (*mousedev)->list;
+		while (list) {
+			switch (type) {
+				case EV_ABS:
+					switch (code) {
+						case ABS_X:	
+							size = handle->dev->absmax[ABS_X] - handle->dev->absmin[ABS_X];
+							list->dx += (value * CONFIG_MOUSEDEV_SCREEN_X - list->oldx) / size;
+							list->oldx += list->dx * size;
+							break;
+						case ABS_Y:
+							size = handle->dev->absmax[ABS_Y] - handle->dev->absmin[ABS_Y];
+							list->dy -= (value * CONFIG_MOUSEDEV_SCREEN_Y - list->oldy) / size;
+							list->oldy -= list->dy * size;
+							break;
+					}
+					break;
+				case EV_REL:
+					switch (code) {
+						case REL_X:	list->dx += value; break;
+						case REL_Y:	list->dy -= value; break;
+						case REL_WHEEL:	if (list->mode) list->dz -= value; break;
+					}
+					break;
 
-			case EV_KEY:
-				switch (code) {
-					case BTN_0:
-					case BTN_TOUCH:
-					case BTN_LEFT:   index = 0; break;
-					case BTN_4:
-					case BTN_EXTRA:  if (list->mode > 1) { index = 4; break; }
-					case BTN_STYLUS:
-					case BTN_1:
-					case BTN_RIGHT:  index = 1; break;
-					case BTN_3:
-					case BTN_SIDE:   if (list->mode > 1) { index = 3; break; }
-					case BTN_2:
-					case BTN_STYLUS2:
-					case BTN_MIDDLE: index = 2; break;	
-					default: return;
-				}
-				switch (value) {
-					case 0: clear_bit(index, &list->buttons); break;
-					case 1: set_bit(index, &list->buttons); break;
-					case 2: return;
-				}
-				break;
+				case EV_KEY:
+					switch (code) {
+						case BTN_0:
+						case BTN_TOUCH:
+						case BTN_LEFT:   index = 0; break;
+						case BTN_4:
+						case BTN_EXTRA:  if (list->mode > 1) { index = 4; break; }
+						case BTN_STYLUS:
+						case BTN_1:
+						case BTN_RIGHT:  index = 1; break;
+						case BTN_3:
+						case BTN_SIDE:   if (list->mode > 1) { index = 3; break; }
+						case BTN_2:
+						case BTN_STYLUS2:
+						case BTN_MIDDLE: index = 2; break;	
+						default: return;
+					}
+					switch (value) {
+						case 0: clear_bit(index, &list->buttons); break;
+						case 1: set_bit(index, &list->buttons); break;
+						case 2: return;
+					}
+					break;
+			}
+					
+			list->ready = 1;
+
+			if (list->fasync)
+				kill_fasync(list->fasync, SIGIO, POLL_IN);
+
+			list = list->next;
 		}
-				
-		list->ready = 1;
 
-		if (list->fasync)
-			kill_fasync(list->fasync, SIGIO, POLL_IN);
-
-		list = list->next;
+		wake_up_interruptible(&((*mousedev)->wait));
+		mousedev++;
 	}
-
-	wake_up_interruptible(&mousedev->wait);
 }
 
 static int mousedev_fasync(int fd, struct file *file, int on)
@@ -162,14 +167,27 @@ static int mousedev_release(struct inode * inode, struct file * file)
 	while (*listptr && (*listptr != list))
 		listptr = &((*listptr)->next);
 	*listptr = (*listptr)->next;
+
+	if (!--list->mousedev->open) {
+		if (list->mousedev->minor == MOUSEDEV_MIX) {
+			struct input_handle *handle = mousedev_handler.handle;
+			while (handle) {
+				struct mousedev *mousedev = handle->private;
+				if (!mousedev->open)
+					input_close_device(handle);
+				handle = handle->hnext;
+			}
+		} else {
+			if (!mousedev_mix.open)	
+				input_close_device(&list->mousedev->handle);
+		}
+	}
 	
-#ifndef CONFIG_INPUT_MOUSEDEV_MIX
 	if (!--list->mousedev->used) {
-		clear_bit(list->mousedev->misc.minor - MOUSEDEV_MINOR_BASE, &mousedev_miscbits);
-		misc_deregister(&list->mousedev->misc);
+		input_unregister_minor(list->mousedev->devfs);
+		mousedev_table[list->mousedev->minor] = NULL;
 		kfree(list->mousedev);
 	}
-#endif
 
 	kfree(list);
 
@@ -180,33 +198,41 @@ static int mousedev_release(struct inode * inode, struct file * file)
 static int mousedev_open(struct inode * inode, struct file * file)
 {
 	struct mousedev_list *list;
-
-#ifndef CONFIG_INPUT_MOUSEDEV_MIX
 	int i = MINOR(inode->i_rdev) - MOUSEDEV_MINOR_BASE;
-	if (i > BITS_PER_LONG || !test_bit(i, &mousedev_miscbits))
+
+	if (i > MOUSEDEV_MINORS || !mousedev_table[i])
 		return -ENODEV;
-#endif
-
-	if (!(list = kmalloc(sizeof(struct mousedev_list), GFP_KERNEL)))
-		return -ENOMEM;
-
-	memset(list, 0, sizeof(struct mousedev_list));
-
-
-#ifdef CONFIG_INPUT_MOUSEDEV_MIX
-	list->mousedev = &mousedev_single;
-	list->next = mousedev_single.list;
-	mousedev_single.list = list;
-#else
-	list->mousedev = mousedev_base[i];
-	list->next = mousedev_base[i]->list;
-	mousedev_base[i]->list = list;
-	list->mousedev->used++;
-#endif
-
-	file->private_data = list;
 
 	MOD_INC_USE_COUNT;
+
+	if (!(list = kmalloc(sizeof(struct mousedev_list), GFP_KERNEL))) {
+		MOD_DEC_USE_COUNT;
+		return -ENOMEM;
+	}
+	memset(list, 0, sizeof(struct mousedev_list));
+
+	list->mousedev = mousedev_table[i];
+	list->next = mousedev_table[i]->list;
+	mousedev_table[i]->list = list;
+	file->private_data = list;
+
+	list->mousedev->used++;
+
+	if (!list->mousedev->open++) {
+		if (list->mousedev->minor == MOUSEDEV_MIX) {
+			struct input_handle *handle = mousedev_handler.handle;
+			while (handle) {
+				struct mousedev *mousedev = handle->private;
+				if (!mousedev->open)
+					input_open_device(handle);
+				handle = handle->hnext;
+			}
+		} else {
+			if (!mousedev_mix.open)	
+				input_open_device(&list->mousedev->handle);
+		}
+	}
+
 	return 0;
 }
 
@@ -357,119 +383,93 @@ struct file_operations mousedev_fops = {
 	fasync:		mousedev_fasync,
 };
 
-static int mousedev_connect(struct input_handler *handler, struct input_dev *dev)
+static struct input_handle *mousedev_connect(struct input_handler *handler, struct input_dev *dev)
 {
+	struct mousedev *mousedev;
+	int minor = 0;
 
 	if (!test_bit(EV_KEY, dev->evbit) ||
 	   (!test_bit(BTN_LEFT, dev->keybit) && !test_bit(BTN_TOUCH, dev->keybit)))
-		return -1;
+		return NULL;
 
 	if ((!test_bit(EV_REL, dev->evbit) || !test_bit(REL_X, dev->relbit)) &&
 	    (!test_bit(EV_ABS, dev->evbit) || !test_bit(ABS_X, dev->absbit)))
-		return -1;
-	
-#ifdef CONFIG_INPUT_MOUSEDEV_MIX
-	{
-		struct input_handle *handle;
+		return NULL;
 
-		if (!(handle = kmalloc(sizeof(struct input_handle), GFP_KERNEL)))
-			return -1;
-
-		memset(handle, 0, sizeof(struct input_handle));
-
-		handle->dev = dev;
-		handle->handler = handler;
-		handle->private = &mousedev_single;
-
-		input_open_device(handle);
-
-		printk("mousedev.c: Adding mouse: input%d\n", dev->number);
+	for (minor = 0; minor < MOUSEDEV_MINORS && mousedev_table[minor]; minor++);
+	if (mousedev_table[minor]) {
+		printk(KERN_ERR "mousedev: no more free mousedev devices\n");
+		return NULL;
 	}
-#else
-	{
-		struct mousedev *mousedev;
 
-		if (!(mousedev = kmalloc(sizeof(struct mousedev), GFP_KERNEL)))
-			return -1;
+	if (!(mousedev = kmalloc(sizeof(struct mousedev), GFP_KERNEL)))
+		return NULL;
+	memset(mousedev, 0, sizeof(struct mousedev));
+	init_waitqueue_head(&mousedev->wait);
 
-		memset(mousedev, 0, sizeof(struct mousedev));
+	mousedev->used = 1;
+	mousedev->minor = minor;
+	mousedev_table[minor] = mousedev;
 
-		mousedev->misc.minor = ffz(mousedev_miscbits);
-		set_bit(mousedev->misc.minor, &mousedev_miscbits);
-		mousedev_base[mousedev->misc.minor] = mousedev;
+	mousedev->handle.dev = dev;
+	mousedev->handle.handler = handler;
+	mousedev->handle.private = mousedev;
 
-		sprintf(mousedev->name, "mousedev%d", mousedev->misc.minor);
-		mousedev->misc.name = mousedev->name;
-		mousedev->misc.minor += MOUSEDEV_MINOR_BASE;
-		mousedev->misc.fops = &mousedev_fops;
+	mousedev->devfs = input_register_minor("mouse%d", minor, MOUSEDEV_MINOR_BASE);
 
-		mousedev->handle.dev = dev;
-		mousedev->handle.handler = handler;
-		mousedev->handle.private = mousedev;
-
-		init_waitqueue_head(&mousedev->wait);
-
-		mousedev->used = 1;
-
-		misc_register(&mousedev->misc);
+	if (mousedev_mix.open) {
 		input_open_device(&mousedev->handle);
-
-		printk("%s: PS/2 mouse device for input%d on misc%d\n",
-			mousedev->name, dev->number, mousedev->misc.minor);
+		mousedev_mix.open++;
 	}
-#endif
 
-	return 0;
+	printk("mouse%d: PS/2 mouse device for input%d\n", minor, dev->number);
+
+	return &mousedev->handle;
 }
 
 static void mousedev_disconnect(struct input_handle *handle)
 {
-#ifdef CONFIG_INPUT_MOUSEDEV_MIX
-	printk("mousedev.c: Removing mouse: input%d\n", handle->dev->number);
-	input_close_device(handle);
-	kfree(handle);
-#else
 	struct mousedev *mousedev = handle->private;
-	input_close_device(handle);
+
+	if (mousedev->open || mousedev_mix.open) {
+		input_close_device(handle);
+		mousedev_mix.open--;
+	}
+
 	if (!--mousedev->used) {
-		clear_bit(mousedev->misc.minor - MOUSEDEV_MINOR_BASE, &mousedev_miscbits);
-		misc_deregister(&mousedev->misc);
+		input_unregister_minor(mousedev->devfs);
+		mousedev_table[mousedev->minor] = NULL;
 		kfree(mousedev);
 	}
-#endif
 }
 	
 static struct input_handler mousedev_handler = {
 	event:		mousedev_event,
 	connect:	mousedev_connect,
 	disconnect:	mousedev_disconnect,
+	fops:		&mousedev_fops,
+	minor:		MOUSEDEV_MINOR_BASE,
 };
 
 static int __init mousedev_init(void)
 {
 	input_register_handler(&mousedev_handler);
 
-#ifdef CONFIG_INPUT_MOUSEDEV_MIX
-	memset(&mousedev_single, 0, sizeof(struct mousedev));
+	memset(&mousedev_mix, 0, sizeof(struct mousedev));
+	init_waitqueue_head(&mousedev_mix.wait);
+	mousedev_table[MOUSEDEV_MIX] = &mousedev_mix;
+	mousedev_mix.used = 1;
+	mousedev_mix.minor = MOUSEDEV_MIX;
+	mousedev_mix.devfs = input_register_minor("mice", MOUSEDEV_MIX, MOUSEDEV_MINOR_BASE);
 
-	init_waitqueue_head(&mousedev_single.wait);
-	mousedev_single.misc.minor = MOUSEDEV_MINOR_BASE;
-	mousedev_single.misc.name = "mousedev";
-	mousedev_single.misc.fops = &mousedev_fops;
-
-	misc_register(&mousedev_single.misc);
-
-	printk("mousedev: PS/2 mouse device on misc%d\n", mousedev_single.misc.minor);
-#endif
+	printk("mice: PS/2 mouse device common for all mice\n");
 
 	return 0;
 }
 
 static void __exit mousedev_exit(void)
 {
-#ifdef CONFIG_INPUT_MOUSEDEV_MIX
-	misc_deregister(&mousedev_single.misc);
-#endif
+	input_unregister_minor(mousedev_mix.devfs);
 	input_unregister_handler(&mousedev_handler);
 }
 

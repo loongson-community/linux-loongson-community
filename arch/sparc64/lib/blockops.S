@@ -1,4 +1,4 @@
-/* $Id: blockops.S,v 1.22 2000/03/15 07:18:55 davem Exp $
+/* $Id: blockops.S,v 1.24 2000/03/27 10:38:41 davem Exp $
  * blockops.S: UltraSparc block zero optimized routines.
  *
  * Copyright (C) 1996, 1998, 1999, 2000 David S. Miller (davem@redhat.com)
@@ -38,21 +38,21 @@ copy_page: /* %o0=dest, %o1=src */
 	sethi		%hi(8192), %o2
 1:	TOUCH(f0, f2, f4, f6, f8, f10, f12, f14)
 	ldda		[%o1] ASI_BLK_P, %f32
+	stda		%f48, [%o0] ASI_BLK_P
 	add		%o1, 0x40, %o1
 	sub		%o2, 0x40, %o2
-	stda		%f48, [%o0] ASI_BLK_P
 	add		%o0, 0x40, %o0
 	TOUCH(f16, f18, f20, f22, f24, f26, f28, f30)
 	ldda		[%o1] ASI_BLK_P, %f0
+	stda		%f48, [%o0] ASI_BLK_P
 	add		%o1, 0x40, %o1
 	sub		%o2, 0x40, %o2
-	stda		%f48, [%o0] ASI_BLK_P
 	add		%o0, 0x40, %o0
 	TOUCH(f32, f34, f36, f38, f40, f42, f44, f46)
 	ldda		[%o1] ASI_BLK_P, %f16
-	add		%o1, 0x40, %o1
-	sub		%o2, 0x40, %o2
 	stda		%f48, [%o0] ASI_BLK_P
+	sub		%o2, 0x40, %o2
+	add		%o1, 0x40, %o1
 	cmp		%o2, 0x80
 	bne,pt		%xcc, 1b
 	 add		%o0, 0x40, %o0
@@ -122,7 +122,11 @@ copy_user_page: /* %o0=dest, %o1=src, %o2=vaddr */
 	stxa		%g2, [%o3] ASI_DTLB_DATA_ACCESS
 	membar		#Sync
 
-	membar		#LoadStore | #StoreStore | #StoreLoad
+	ldub		[%g6 + AOFF_task_thread + AOFF_thread_use_blkcommit], %g2
+	cmp		%g2, 0
+	bne,pn		%xcc, copy_page_using_blkcommit
+	 nop
+
 	ldda		[%o1] ASI_BLK_P, %f0
 	add		%o1, 0x40, %o1
 	ldda		[%o1] ASI_BLK_P, %f16
@@ -130,21 +134,21 @@ copy_user_page: /* %o0=dest, %o1=src, %o2=vaddr */
 	sethi		%hi(8192), %o2
 1:	TOUCH(f0, f2, f4, f6, f8, f10, f12, f14)
 	ldda		[%o1] ASI_BLK_P, %f32
+	stda		%f48, [%o0] ASI_BLK_P
 	add		%o1, 0x40, %o1
 	sub		%o2, 0x40, %o2
-	stda		%f48, [%o0] ASI_BLK_P
 	add		%o0, 0x40, %o0
 	TOUCH(f16, f18, f20, f22, f24, f26, f28, f30)
 	ldda		[%o1] ASI_BLK_P, %f0
+	stda		%f48, [%o0] ASI_BLK_P
 	add		%o1, 0x40, %o1
 	sub		%o2, 0x40, %o2
-	stda		%f48, [%o0] ASI_BLK_P
 	add		%o0, 0x40, %o0
 	TOUCH(f32, f34, f36, f38, f40, f42, f44, f46)
 	ldda		[%o1] ASI_BLK_P, %f16
-	add		%o1, 0x40, %o1
-	sub		%o2, 0x40, %o2
 	stda		%f48, [%o0] ASI_BLK_P
+	sub		%o2, 0x40, %o2
+	add		%o1, 0x40, %o1
 	cmp		%o2, 0x80
 	bne,pt		%xcc, 1b
 	 add		%o0, 0x40, %o0
@@ -152,6 +156,7 @@ copy_user_page: /* %o0=dest, %o1=src, %o2=vaddr */
 	stda		%f0, [%o0] ASI_BLK_P
 	add		%o0, 0x40, %o0
 	stda		%f16, [%o0] ASI_BLK_P
+copy_user_page_continue:
 	membar		#Sync
 	VISExit
 
@@ -165,6 +170,39 @@ copy_user_page: /* %o0=dest, %o1=src, %o2=vaddr */
 	membar		#Sync
 	jmpl		%o7 + 0x8, %g0
 	 wrpr		%g3, 0x0, %pstate
+
+copy_page_using_blkcommit:
+	membar		#LoadStore | #StoreStore | #StoreLoad
+	ldda		[%o1] ASI_BLK_P, %f0
+	add		%o1, 0x40, %o1
+	ldda		[%o1] ASI_BLK_P, %f16
+	add		%o1, 0x40, %o1
+	sethi		%hi(8192), %o2
+1:	TOUCH(f0, f2, f4, f6, f8, f10, f12, f14)
+	ldda		[%o1] ASI_BLK_P, %f32
+	stda		%f48, [%o0] ASI_BLK_COMMIT_P
+	add		%o1, 0x40, %o1
+	sub		%o2, 0x40, %o2
+	add		%o0, 0x40, %o0
+	TOUCH(f16, f18, f20, f22, f24, f26, f28, f30)
+	ldda		[%o1] ASI_BLK_P, %f0
+	stda		%f48, [%o0] ASI_BLK_COMMIT_P
+	add		%o1, 0x40, %o1
+	sub		%o2, 0x40, %o2
+	add		%o0, 0x40, %o0
+	TOUCH(f32, f34, f36, f38, f40, f42, f44, f46)
+	ldda		[%o1] ASI_BLK_P, %f16
+	stda		%f48, [%o0] ASI_BLK_COMMIT_P
+	sub		%o2, 0x40, %o2
+	add		%o1, 0x40, %o1
+	cmp		%o2, 0x80
+	bne,pt		%xcc, 1b
+	 add		%o0, 0x40, %o0
+	membar		#Sync
+	stda		%f0, [%o0] ASI_BLK_COMMIT_P
+	add		%o0, 0x40, %o0
+	ba,pt		%xcc, copy_user_page_continue
+	 stda		%f16, [%o0] ASI_BLK_COMMIT_P
 
 	.align		32
 	.globl		clear_page
@@ -213,6 +251,7 @@ clear_user_page:	/* %o0=dest, %o1=vaddr */
 	mov		1, %o4
 
 clear_page_common:
+	membar		#StoreLoad | #StoreStore | #LoadStore	! LSU	Group
 	fzero		%f0				! FPA	Group
 	mov		32, %o1				! IEU0
 	fzero		%f2				! FPA	Group
@@ -223,7 +262,6 @@ clear_page_common:
 
 	faddd		%f0, %f2, %f12			! FPA	Group
 	fmuld		%f0, %f2, %f14			! FPM
-	membar		#StoreLoad | #StoreStore | #LoadStore	! LSU	Group
 1:	stda		%f0, [%o0 + %g0] ASI_BLK_P	! Store	Group
 	add		%o0, 0x40, %o0			! IEU0
 	stda		%f0, [%o0 + %g0] ASI_BLK_P	! Store	Group

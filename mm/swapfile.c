@@ -207,7 +207,7 @@ swp_entry_t acquire_swap_entry(struct page *page)
 	unsigned long offset, type;
 	swp_entry_t entry;
 
-	if (!test_bit(PG_swap_entry, &page->flags))
+	if (!PageSwapEntry(page))
 		goto new_swap_entry;
 
 	/* We have the old entry in the page offset still */
@@ -538,7 +538,7 @@ int get_swaparea_info(char *buf)
 	len += sprintf(buf, "Filename\t\t\tType\t\tSize\tUsed\tPriority\n");
 	for (i = 0 ; i < nr_swapfiles ; i++, ptr++) {
 		if (ptr->flags & SWP_USED) {
-			char * path = d_path(ptr->swap_file, page, PAGE_SIZE);
+			char * path = d_path(ptr->swap_file, NULL, page, PAGE_SIZE);
 
 			len += sprintf(buf + len, "%-31s ", path);
 

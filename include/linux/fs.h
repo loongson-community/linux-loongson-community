@@ -79,7 +79,6 @@ extern int max_super_blocks, nr_super_blocks;
 #define FS_NO_PRELIM	4 /* prevent preloading of dentries, even if
 			   * FS_NO_DCACHE is not set.
 			   */
-#define FS_IBASKET	8 /* FS does callback to free_ibasket() if space gets low. */
 
 /*
  * These are the fs-independent mount-flags: up to 16 flags are supported
@@ -456,6 +455,7 @@ struct fown_struct {
 struct file {
 	struct list_head	f_list;
 	struct dentry		*f_dentry;
+	struct vfsmount         *f_vfsmnt;
 	struct file_operations	*f_op;
 	atomic_t		f_count;
 	unsigned int 		f_flags;
@@ -507,15 +507,23 @@ struct file_lock {
 	struct file *fl_file;
 	unsigned char fl_flags;
 	unsigned char fl_type;
-	off_t fl_start;
-	off_t fl_end;
+	loff_t fl_start;
+	loff_t fl_end;
 
 	void (*fl_notify)(struct file_lock *);	/* unblock callback */
+	void (*fl_insert)(struct file_lock *);	/* lock insertion callback */
+	void (*fl_remove)(struct file_lock *);	/* lock removal callback */
 
 	union {
 		struct nfs_lock_info	nfs_fl;
 	} fl_u;
 };
+
+/* The following constant reflects the upper bound of the file/locking space */
+#ifndef OFFSET_MAX
+#define INT_LIMIT(x)	(~((x)1 << (sizeof(x)*8 - 1)))
+#define OFFSET_MAX	INT_LIMIT(loff_t)
+#endif
 
 extern struct file_lock			*file_lock_table;
 
@@ -539,9 +547,35 @@ struct fasync_struct {
 	struct	file 		*fa_file;
 };
 
+struct nameidata {
+	struct dentry *dentry;
+	struct vfsmount *mnt;
+	struct qstr last;
+};
+
 #define FASYNC_MAGIC 0x4601
 
 extern int fasync_helper(int, struct file *, int, struct fasync_struct **);
+
+#define DQUOT_USR_ENABLED	0x01		/* User diskquotas enabled */
+#define DQUOT_GRP_ENABLED	0x02		/* Group diskquotas enabled */
+
+struct quota_mount_options
+{
+	unsigned int flags;			/* Flags for diskquotas on this device */
+	struct semaphore dqio_sem;		/* lock device while I/O in progress */
+	struct semaphore dqoff_sem;		/* serialize quota_off() and quota_on() on device */
+	struct file *files[MAXQUOTAS];		/* fp's to quotafiles */
+	time_t inode_expire[MAXQUOTAS];		/* expiretime for inode-quota */
+	time_t block_expire[MAXQUOTAS];		/* expiretime for block-quota */
+	char rsquash[MAXQUOTAS];		/* for quotas threat root as any other user */
+};
+
+/*
+ *	Umount options
+ */
+
+#define MNT_FORCE	0x00000001	/* Attempt to forcibily umount */
 
 #include <linux/minix_fs_sb.h>
 #include <linux/ext2_fs_sb.h>
@@ -582,9 +616,6 @@ struct super_block {
 	struct dentry		*s_root;
 	wait_queue_head_t	s_wait;
 
-	struct inode		*s_ibasket;
-	short int		s_ibasket_count;
-	short int		s_ibasket_max;
 	struct list_head	s_dirty;	/* dirty inodes */
 	struct list_head	s_files;
 
@@ -688,7 +719,7 @@ struct inode_operations {
 	int (*rename) (struct inode *, struct dentry *,
 			struct inode *, struct dentry *);
 	int (*readlink) (struct dentry *, char *,int);
-	struct dentry * (*follow_link) (struct dentry *, struct dentry *, unsigned int);
+	int (*follow_link) (struct dentry *, struct nameidata *);
 	void (*truncate) (struct inode *);
 	int (*permission) (struct inode *, int);
 	int (*revalidate) (struct dentry *);
@@ -812,10 +843,9 @@ extern int do_truncate(struct dentry *, loff_t start);
 extern int get_unused_fd(void);
 extern void put_unused_fd(unsigned int);
 
-extern struct file *filp_open(const char *, int, int, struct dentry *);
-extern struct file *dentry_open(struct dentry *, int);
+extern struct file *filp_open(const char *, int, int);
+extern struct file * dentry_open(struct dentry *, struct vfsmount *, int);
 extern int filp_close(struct file *, fl_owner_t id);
-
 extern char * getname(const char *);
 #define __getname()	((char *) __get_free_page(GFP_KERNEL))
 #define putname(name)	free_page((unsigned long)(name))
@@ -930,13 +960,8 @@ extern int get_write_access(struct inode *);
 extern void put_write_access(struct inode *);
 extern struct dentry * do_mknod(const char *, int, dev_t);
 extern int do_pipe(int *);
-extern int do_unlink(const char * name, struct dentry *);
-extern struct dentry * __open_namei(const char *, int, int, struct dentry *);
 
-static inline struct dentry * open_namei(const char *pathname)
-{
-	return __open_namei(pathname, 0, 0, NULL);
-}
+extern int open_namei(const char *, int, int, struct nameidata *);
 
 extern int kernel_read(struct file *, unsigned long, char *, unsigned long);
 extern struct file * open_exec(const char *);
@@ -968,6 +993,8 @@ extern ino_t find_inode_number(struct dentry *, struct qstr *);
 #define LOOKUP_DIRECTORY	(2)
 #define LOOKUP_SLASHOK		(4)
 #define LOOKUP_CONTINUE		(8)
+#define LOOKUP_POSITIVE		(16)
+#define LOOKUP_PARENT		(32)
 
 /*
  * "descriptor" for what we're up to with a read for sendfile().
@@ -987,12 +1014,13 @@ typedef struct {
 
 typedef int (*read_actor_t)(read_descriptor_t *, struct page *, unsigned long, unsigned long);
 
-
-extern struct dentry * lookup_dentry(const char *, struct dentry *, unsigned int);
+extern struct dentry * lookup_dentry(const char *, unsigned int);
+extern int walk_init(const char *, unsigned, struct nameidata *);
+extern int walk_name(const char *, unsigned, struct nameidata *);
 extern struct dentry * lookup_one(const char *, struct dentry *);
 extern struct dentry * __namei(const char *, unsigned int);
 
-#define namei(pathname)		__namei(pathname, 1)
+#define namei(pathname)		__namei(pathname, LOOKUP_FOLLOW)
 #define lnamei(pathname)	__namei(pathname, 0)
 
 extern void iput(struct inode *);
@@ -1062,9 +1090,9 @@ extern ssize_t generic_read_dir(struct file *, char *, size_t, loff_t *);
 extern struct file_operations generic_ro_fops;
 
 extern int vfs_readlink(struct dentry *, char *, int, const char *);
-extern struct dentry *vfs_follow_link(struct dentry *, struct dentry *, unsigned, const char *);
+extern int vfs_follow_link(struct nameidata *, const char *);
 extern int page_readlink(struct dentry *, char *, int);
-extern struct dentry *page_follow_link(struct dentry *, struct dentry *, unsigned);
+extern int page_follow_link(struct dentry *, struct nameidata *);
 extern struct inode_operations page_symlink_inode_operations;
 
 extern int vfs_readdir(struct file *, filldir_t, void *);

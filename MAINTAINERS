@@ -740,6 +740,12 @@ M:	emoenke@gwdg.de
 L:	linux-kernel@vger.rutgers.edu
 S:	Maintained
 
+NTFS FILESYSTEM
+P:	Anton Altaparmakov
+M:	aia21@cus.cam.ac.uk
+L:	linux-kernel@vger.rutgers.edu
+S:	Odd Fixes
+
 NVIDIA (RIVA) FRAMEBUFFER DRIVER
 P:	Jeff Garzik
 M:	jgarzik@mandrakesoft.com
@@ -822,8 +828,8 @@ W:	http://www-jcr.lmh.ox.ac.uk/~pnp/
 S:	Maintained
 
 PPP PROTOCOL DRIVERS AND COMPRESSORS
-P:	Al Longyear
-M:	longyear@pobox.com
+P:	Paul Mackerras
+M:	paulus@linuxcare.com
 L:	linux-ppp@vger.rutgers.edu
 S:	Maintained
 

@@ -6,12 +6,17 @@
  * (C) Copyright 1999 Gregory P. Smith
  */
 
+#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/list.h>
 #include <linux/malloc.h>
 #include <linux/smp_lock.h>
-#define DEBUG
+#ifdef CONFIG_USB_DEBUG
+	#define DEBUG
+#else
+	#undef DEBUG
+#endif
 #include <linux/usb.h>
 
 #include <asm/uaccess.h>
@@ -609,5 +614,28 @@ void usb_hub_cleanup(void)
 	usb_deregister(&hub_driver);
 } /* usb_hub_cleanup() */
 
+int usb_reset_device(struct usb_device *dev)
+{
+	struct usb_device *parent = dev->parent;
+	int i;
 
+	if (!parent) {
+		err("attempting to reset root hub!");
+		return -EINVAL;
+	}
+
+	for (i = 0; i < parent->maxchild; i++) {
+		if (parent->children[i] == dev) {
+			usb_set_port_feature(parent, i + 1,
+				USB_PORT_FEAT_RESET);
+
+			usb_disconnect(&dev);
+			usb_hub_port_connect_change(parent, i);
+
+			return 0;
+		}
+	}
+
+	return -ENOENT;
+}
 

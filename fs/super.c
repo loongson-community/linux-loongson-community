@@ -91,6 +91,19 @@ static struct file_system_type **find_filesystem(const char *name)
 	return p;
 }
 
+/**
+ *	register_filesystem - register a new filesystem
+ *	@fs: the file system structure
+ *
+ *	Adds the file system passed to the list of file systems the kernel
+ *	is aware of for by mount and other syscalls. Returns 0 on success,
+ *	or a negative errno code on an error.
+ *
+ *	The file_system_type that is passed is linked into the kernel 
+ *	structures and must not be freed until the file system has been
+ *	unregistered.
+ */
+ 
 int register_filesystem(struct file_system_type * fs)
 {
 	int res = 0;
@@ -110,6 +123,18 @@ int register_filesystem(struct file_system_type * fs)
 	return res;
 }
 
+/**
+ *	unregister_filesystem - unregister a file system
+ *	@fs: filesystem to unregister
+ *
+ *	Remove a file system that was previously successfully registered
+ *	with the kernel. An error is returned if the file system is not found.
+ *	Zero is returned on a success.
+ *	
+ *	Once this function has returned the file_system_type structure may be
+ *	freed or reused.
+ */
+ 
 int unregister_filesystem(struct file_system_type * fs)
 {
 	struct file_system_type ** tmp;
@@ -192,7 +217,6 @@ asmlinkage long sys_sysfs(int option, unsigned long arg1, unsigned long arg2)
 {
 	int retval = -EINVAL;
 
-	lock_kernel();
 	switch (option) {
 		case 1:
 			retval = fs_index((const char *) arg1);
@@ -206,7 +230,6 @@ asmlinkage long sys_sysfs(int option, unsigned long arg1, unsigned long arg2)
 			retval = fs_maxindex();
 			break;
 	}
-	unlock_kernel();
 	return retval;
 }
 
@@ -253,7 +276,7 @@ static struct vfsmount *add_vfsmnt(struct super_block *sb,
 			const char *dev_name, const char *dir_name)
 {
 	struct vfsmount *lptr;
-	char *tmp, *name;
+	char *name;
 
 	lptr = (struct vfsmount *)kmalloc(sizeof(struct vfsmount), GFP_KERNEL);
 	if (!lptr)
@@ -264,21 +287,19 @@ static struct vfsmount *add_vfsmnt(struct super_block *sb,
 	lptr->mnt_dev = sb->s_dev;
 
 	/* N.B. Is it really OK to have a vfsmount without names? */
-	if (dev_name && !IS_ERR(tmp = getname(dev_name))) {
-		name = (char *) kmalloc(strlen(tmp)+1, GFP_KERNEL);
+	if (dev_name) {
+		name = (char *) kmalloc(strlen(dev_name)+1, GFP_KERNEL);
 		if (name) {
-			strcpy(name, tmp);
+			strcpy(name, dev_name);
 			lptr->mnt_devname = name;
 		}
-		putname(tmp);
 	}
-	if (dir_name && !IS_ERR(tmp = getname(dir_name))) {
-		name = (char *) kmalloc(strlen(tmp)+1, GFP_KERNEL);
+	if (dir_name) {
+		name = (char *) kmalloc(strlen(dir_name)+1, GFP_KERNEL);
 		if (name) {
-			strcpy(name, tmp);
+			strcpy(name, dir_name);
 			lptr->mnt_dirname = name;
 		}
-		putname(tmp);
 	}
 
 	if (vfsmntlist == (struct vfsmount *)NULL) {
@@ -343,13 +364,16 @@ static struct proc_fs_info {
 static struct proc_nfs_info {
 	int flag;
 	char *str;
+	char *nostr;
 } nfs_info[] = {
-	{ NFS_MOUNT_SOFT, ",soft" },
-	{ NFS_MOUNT_INTR, ",intr" },
-	{ NFS_MOUNT_POSIX, ",posix" },
-	{ NFS_MOUNT_NOCTO, ",nocto" },
-	{ NFS_MOUNT_NOAC, ",noac" },
-	{ 0, NULL }
+	{ NFS_MOUNT_SOFT, ",soft", ",hard" },
+	{ NFS_MOUNT_INTR, ",intr", "" },
+	{ NFS_MOUNT_POSIX, ",posix", "" },
+	{ NFS_MOUNT_TCP, ",tcp", ",udp" },
+	{ NFS_MOUNT_NOCTO, ",nocto", "" },
+	{ NFS_MOUNT_NOAC, ",noac", "" },
+	{ NFS_MOUNT_NONLM, ",nolock", ",lock" },
+	{ 0, NULL, NULL }
 };
 
 int get_filesystem_info( char *buf )
@@ -362,9 +386,10 @@ int get_filesystem_info( char *buf )
 	char *path,*buffer = (char *) __get_free_page(GFP_KERNEL);
 
 	if (!buffer) return 0;
-	for (tmp = vfsmntlist; tmp && len < PAGE_SIZE - 160;
-	    tmp = tmp->mnt_next) {
-		path = d_path(tmp->mnt_sb->s_root, buffer, PAGE_SIZE);
+	for (tmp = vfsmntlist; tmp && len < PAGE_SIZE - 160; tmp = tmp->mnt_next) {
+		if (!tmp->mnt_sb || !tmp->mnt_sb->s_root)
+			continue;
+		path = d_path(tmp->mnt_sb->s_root, tmp, buffer, PAGE_SIZE);
 		if (!path)
 			continue;
 		len += sprintf( buf + len, "%s %s %s %s",
@@ -379,14 +404,11 @@ int get_filesystem_info( char *buf )
 		}
 		if (!strcmp("nfs", tmp->mnt_sb->s_type->name)) {
 			nfss = &tmp->mnt_sb->u.nfs_sb.s_server;
-			if (nfss->rsize != NFS_DEF_FILE_IO_BUFFER_SIZE) {
-				len += sprintf(buf+len, ",rsize=%d",
-					       nfss->rsize);
-			}
-			if (nfss->wsize != NFS_DEF_FILE_IO_BUFFER_SIZE) {
-				len += sprintf(buf+len, ",wsize=%d",
-					       nfss->wsize);
-			}
+			len += sprintf(buf+len, ",v%d", nfss->rpc_ops->version);
+
+			len += sprintf(buf+len, ",rsize=%d", nfss->rsize);
+
+			len += sprintf(buf+len, ",wsize=%d", nfss->wsize);
 #if 0
 			if (nfss->timeo != 7*HZ/10) {
 				len += sprintf(buf+len, ",timeo=%d",
@@ -414,10 +436,13 @@ int get_filesystem_info( char *buf )
 					       nfss->acdirmax/HZ);
 			}
 			for (nfs_infop = nfs_info; nfs_infop->flag; nfs_infop++) {
-				if (nfss->flags & nfs_infop->flag) {
-					strcpy(buf + len, nfs_infop->str);
-					len += strlen(nfs_infop->str);
-				}
+				char *str;
+				if (nfss->flags & nfs_infop->flag)
+					str = nfs_infop->str;
+				else
+					str = nfs_infop->nostr;
+				strcpy(buf + len, str);
+				len += strlen(str);
 			}
 			len += sprintf(buf+len, ",addr=%s",
 				       nfss->hostname);
@@ -429,6 +454,14 @@ int get_filesystem_info( char *buf )
 	return len;
 }
 
+/**
+ *	__wait_on_super	- wait on a superblock
+ *	@sb: superblock to wait on
+ *
+ *	Waits for a superblock to become unlocked and then returns. It does
+ *	not take the lock. This is an internal function. See wait_on_super.
+ */
+ 
 void __wait_on_super(struct super_block * sb)
 {
 	DECLARE_WAITQUEUE(wait, current);
@@ -473,6 +506,14 @@ void sync_supers(kdev_t dev)
 	}
 }
 
+/**
+ *	get_super	-	get the superblock of a device
+ *	@dev: device to get the super block for
+ *	
+ *	Scans the superblock list and finds the superblock of the file system
+ *	mounted on the device given. NULL is returned if no match is found.
+ */
+ 
 struct super_block * get_super(kdev_t dev)
 {
 	struct super_block * s;
@@ -517,9 +558,15 @@ out:
 	return err;
 }
 
-/*
- * Find a super_block with no device assigned.
+/**
+ *	get_empty_super	-	find empty superblocks
+ *
+ *	Find a super_block with no device assigned. A free superblock is 
+ *	found and returned. If neccessary new superblocks are allocated.
+ *	NULL is returned if there are insufficient resources to complete
+ *	the request
  */
+ 
 struct super_block *get_empty_super(void)
 {
 	struct super_block *s;
@@ -850,7 +897,7 @@ int fs_may_mount(kdev_t dev)
  * Anyone using this new feature must know what he/she is doing.
  */
 
-int do_mount(struct block_device *bdev, const char *dev_name,
+static int do_mount(struct block_device *bdev, const char *dev_name,
 	     const char *dir_name, const char * type, int flags, void * data)
 {
 	kdev_t dev;
@@ -881,7 +928,7 @@ int do_mount(struct block_device *bdev, const char *dev_name,
 	/*
 	 * Do the lookup first to force automounting.
 	 */
-	dir_d = namei(dir_name);
+	dir_d = lookup_dentry(dir_name, LOOKUP_FOLLOW|LOOKUP_POSITIVE);
 	error = PTR_ERR(dir_d);
 	if (IS_ERR(dir_d))
 		goto out;
@@ -981,11 +1028,10 @@ static int do_remount_sb(struct super_block *sb, int flags, char *data)
 	sb->s_flags = (sb->s_flags & ~MS_RMT_MASK) | (flags & MS_RMT_MASK);
 
 	/*
-	 * Invalidate the inodes, as some mount options may be changed.
-	 * N.B. If we are changing media, we should check the return
-	 * from invalidate_inodes ... can't allow _any_ open files.
+	 * We can't invalidate inodes as we can loose data when remounting
+	 * (someone might manage to alter data while we are waiting in lock_super()
+	 * or in foo_remount_fs()))
 	 */
-	invalidate_inodes(sb);
 
 	return 0;
 }
@@ -995,11 +1041,10 @@ static int do_remount(const char *dir,int flags,char *data)
 	struct dentry *dentry;
 	int retval;
 
-	dentry = namei(dir);
+	dentry = lookup_dentry(dir, LOOKUP_FOLLOW|LOOKUP_POSITIVE);
 	retval = PTR_ERR(dentry);
 	if (!IS_ERR(dentry)) {
 		struct super_block * sb = dentry->d_inode->i_sb;
-
 		retval = -ENODEV;
 		if (sb) {
 			retval = -EINVAL;
@@ -1062,8 +1107,8 @@ static int copy_mount_options (const void * data, unsigned long *where)
  * aren't used, as the syscall assumes we are talking to an older
  * version that didn't understand them.
  */
-long do_sys_mount(char * dev_name, char * dir_name, unsigned long type_page,
-		  unsigned long new_flags, unsigned long data_page)
+long do_sys_mount(char * dev_name, char * dir_name, char *type_page,
+		  unsigned long new_flags, void *data_page)
 {
 	struct file_system_type * fstype;
 	struct dentry * dentry = NULL;
@@ -1071,6 +1116,15 @@ long do_sys_mount(char * dev_name, char * dir_name, unsigned long type_page,
 	struct block_device *bdev = NULL;
 	int retval;
 	unsigned long flags = 0;
+ 
+	/* Basic sanity checks */
+
+	if (!dir_name || !*dir_name || !memchr(dir_name, 0, PAGE_SIZE))
+		return -EINVAL;
+	if (!type_page || !memchr(type_page, 0, PAGE_SIZE))
+		return -EINVAL;
+	if (dev_name && !memchr(dev_name, 0, PAGE_SIZE))
+		return -EINVAL;
 
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
@@ -1083,7 +1137,7 @@ long do_sys_mount(char * dev_name, char * dir_name, unsigned long type_page,
 		goto out;
 	}
 
-	fstype = get_fs_type((char *) type_page);
+	fstype = get_fs_type(type_page);
 	retval = -ENODEV;
 	if (!fstype)		
 		goto out;
@@ -1091,7 +1145,10 @@ long do_sys_mount(char * dev_name, char * dir_name, unsigned long type_page,
 	if (fstype->fs_flags & FS_REQUIRES_DEV) {
 		struct block_device_operations *bdops;
 
-		dentry = namei(dev_name);
+		retval = -EINVAL;
+		if (!dev_name || !*dev_name)
+			goto fs_out;
+		dentry = lookup_dentry(dev_name, LOOKUP_FOLLOW|LOOKUP_POSITIVE);
 		retval = PTR_ERR(dentry);
 		if (IS_ERR(dentry))
 			goto fs_out;
@@ -1114,7 +1171,7 @@ long do_sys_mount(char * dev_name, char * dir_name, unsigned long type_page,
 		flags = new_flags & ~MS_MGC_MSK;
 
 	retval = do_mount(bdev, dev_name, dir_name, fstype->name, flags,
-				(void *) data_page);
+				data_page);
 
 dput_and_out:
 	dput(dentry);
@@ -1130,6 +1187,8 @@ asmlinkage long sys_mount(char * dev_name, char * dir_name, char * type,
 	int retval;
 	unsigned long data_page = 0;
 	unsigned long type_page = 0;
+	unsigned long dev_page = 0;
+	char *dir_page;
 
 	lock_kernel();
 	retval = copy_mount_options (type, &type_page);
@@ -1146,12 +1205,24 @@ asmlinkage long sys_mount(char * dev_name, char * dir_name, char * type,
 		goto out;
 	}
 
+	dir_page = getname(dir_name);
+	retval = PTR_ERR(dir_page);
+	if (IS_ERR(dir_page))
+		goto out1;
+
+	retval = copy_mount_options (dev_name, &dev_page);
+	if (retval < 0)
+		goto out2;
 	retval = copy_mount_options (data, &data_page);
 	if (retval >= 0) {
-		retval = do_sys_mount(dev_name, dir_name, type_page,
-				      new_flags, data_page);
+		retval = do_sys_mount((char*)dev_page,dir_page,(char*)type_page,
+				      new_flags, (void*)data_page);
 		free_page(data_page);
 	}
+	free_page(dev_page);
+out2:
+	putname(dir_page);
+out1:
 	free_page(type_page);
 out:
 	unlock_kernel();
@@ -1162,7 +1233,7 @@ void __init mount_root(void)
 {
 	struct file_system_type * fs_type;
 	struct super_block * sb;
-	struct vfsmount *vfsmnt;
+	struct vfsmount *vfsmnt = NULL;
 	struct block_device *bdev = NULL;
 	mode_t mode;
 	int retval;
@@ -1186,7 +1257,9 @@ void __init mount_root(void)
 					sb->s_dirt = 0;
 					sb->s_type = fs_type;
 					current->fs->root = dget(sb->s_root);
+					current->fs->rootmnt = mntget(vfsmnt);
 					current->fs->pwd = dget(sb->s_root);
+					current->fs->pwdmnt = mntget(vfsmnt);
 					ROOT_DEV = sb->s_dev;
 			                printk (KERN_NOTICE "VFS: Mounted root (NFS filesystem)%s.\n", (sb->s_flags & MS_RDONLY) ? " readonly" : "");
 					return;
@@ -1298,7 +1371,9 @@ void __init mount_root(void)
 mount_it:
 	sb->s_flags = root_mountflags;
 	current->fs->root = dget(sb->s_root);
+	current->fs->rootmnt = mntget(vfsmnt);
 	current->fs->pwd = dget(sb->s_root);
+	current->fs->pwdmnt = mntget(vfsmnt);
 	printk ("VFS: Mounted root (%s filesystem)%s.\n",
 		fs_type->name,
 		(sb->s_flags & MS_RDONLY) ? " readonly" : "");
@@ -1321,29 +1396,34 @@ mount_it:
 
 
 static void chroot_fs_refs(struct dentry *old_root,
-    struct dentry *new_root)
+			   struct vfsmount *old_rootmnt,
+			   struct dentry *new_root,
+			   struct vfsmount *new_rootmnt)
 {
 	struct task_struct *p;
 
 	read_lock(&tasklist_lock);
 	for_each_task(p) {
 		if (!p->fs) continue;
-		if (p->fs->root == old_root) {
-			dput(old_root);
+		if (p->fs->root == old_root && p->fs->rootmnt == old_rootmnt) {
 			p->fs->root = dget(new_root);
+			p->fs->rootmnt = mntget(new_rootmnt);
+			mntput(old_rootmnt);
+			dput(old_root);
 			printk(KERN_DEBUG "chroot_fs_refs: changed root of "
 			    "process %d\n",p->pid);
 		}
-		if (p->fs->pwd == old_root) {
-			dput(old_root);
+		if (p->fs->pwd == old_root && p->fs->pwdmnt == old_rootmnt) {
 			p->fs->pwd = dget(new_root);
+			p->fs->pwdmnt = mntget(new_rootmnt);
+			mntput(old_rootmnt);
+			dput(old_root);
 			printk(KERN_DEBUG "chroot_fs_refs: changed cwd of "
 			    "process %d\n",p->pid);
 		}
 	}
 	read_unlock(&tasklist_lock);
 }
-
 
 /*
  * Moves the current root to put_root, and sets root/cwd of all processes
@@ -1360,9 +1440,11 @@ static void chroot_fs_refs(struct dentry *old_root,
 asmlinkage long sys_pivot_root(const char *new_root, const char *put_old)
 {
 	struct dentry *root = current->fs->root;
+	struct vfsmount *root_mnt = current->fs->rootmnt;
 	struct dentry *d_new_root, *d_put_old, *covered;
 	struct dentry *root_dev_root, *new_root_dev_root;
 	struct dentry *walk, *next;
+	struct vfsmount *new_root_mnt = NULL;
 	int error;
 
 	if (!capable(CAP_SYS_ADMIN))
@@ -1414,7 +1496,7 @@ asmlinkage long sys_pivot_root(const char *new_root, const char *put_old)
 	root_dev_root = root->d_sb->s_root;
 	root_dev_root->d_covers = dget(d_put_old);
 	d_put_old->d_mounts = root_dev_root;
-	chroot_fs_refs(root,d_new_root);
+	chroot_fs_refs(root,root_mnt,d_new_root,new_root_mnt);
 	error = 0;
 out2:
 	up(&mount_sem);
@@ -1444,7 +1526,7 @@ int __init change_root(kdev_t new_root_dev,const char *put_old)
 		return -EBUSY;
 	}
 	/*  First unmount devfs if mounted  */
-	dir_d = lookup_dentry ("/dev", NULL, 1);
+	dir_d = lookup_dentry ("/dev", LOOKUP_FOLLOW|LOOKUP_POSITIVE);
 	if (!IS_ERR(dir_d)) {
 		struct super_block *sb = dir_d->d_inode->i_sb;
 
@@ -1467,12 +1549,9 @@ int __init change_root(kdev_t new_root_dev,const char *put_old)
 	/*
 	 * Get the new mount directory
 	 */
-	dir_d = lookup_dentry(put_old, NULL, 1);
+	dir_d = lookup_dentry(put_old, LOOKUP_FOLLOW|LOOKUP_POSITIVE);
 	if (IS_ERR(dir_d)) {
 		error = PTR_ERR(dir_d);
-	} else if (!dir_d->d_inode) {
-		dput(dir_d);
-		error = -ENOENT;
 	} else {
 		error = 0;
 	}

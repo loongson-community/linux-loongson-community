@@ -1,6 +1,13 @@
-BOOKS	:= wanbook.sgml z8530book.sgml mcabook.sgml videobook.sgml kernel-api.sgml
-	
+BOOKS	:= wanbook.sgml z8530book.sgml mcabook.sgml videobook.sgml kernel-api.sgml parportbook.sgml
+
+PS	:=	$(patsubst %.sgml, %.ps, $(BOOKS))
+PDF	:=	$(patsubst %.sgml, %.pdf, $(BOOKS))
+
 books:	docproc $(BOOKS)
+
+ps:	$(PS)
+
+pdf:	$(PDF)
 
 docproc:
 	$(MAKE) -C $(TOPDIR)/scripts docproc
@@ -36,11 +43,32 @@ kernel-api.sgml: kernel-api.tmpl
 		$(TOPDIR)/drivers/net/wan/syncppp.c \
 		$(TOPDIR)/drivers/net/wan/z85230.c \
 		$(TOPDIR)/kernel/pm.c \
+		$(TOPDIR)/kernel/ksyms.c \
+		$(TOPDIR)/net/netsyms.c \
 		<kernel-api.tmpl >kernel-api.sgml
 
+parportbook.sgml: parportbook.tmpl
+	$(TOPDIR)/scripts/docgen $(TOPDIR)/drivers/parport/init.c \
+		<parportbook.tmpl >parportbook.sgml
+
+DVI	:=	$(patsubst %.sgml, %.dvi, $(BOOKS))
+AUX	:=	$(patsubst %.sgml, %.aux, $(BOOKS))
+TEX	:=	$(patsubst %.sgml, %.tex, $(BOOKS))
+LOG	:=	$(patsubst %.sgml, %.log, $(BOOKS))
+
 clean:
-	rm -f core *~
-	rm -f $(BOOKS)
+	$(RM) core *~
+	$(RM) $(BOOKS)
+	$(RM) $(DVI) $(AUX) $(TEX) $(LOG)
+
+mrproper: clean
+	$(RM) $(PS) $(PDF)
+
+%.ps : %.sgml
+	db2ps $<
+
+%.pdf : %.sgml
+	db2pdf $<
 
 include $(TOPDIR)/Rules.make
 

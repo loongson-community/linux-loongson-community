@@ -716,15 +716,16 @@ int remove_inode_dquot_ref(struct inode *inode, short type, struct list_head *to
 	}
 	inode->i_flags &= ~S_QUOTA;
 put_it:
-	if (dquot != NODQUOT)
+	if (dquot != NODQUOT) {
 		if (dqput_blocks(dquot)) {
 			if (dquot->dq_count != 1)
 				printk(KERN_WARNING "VFS: Adding dquot with dq_count %d to dispose list.\n", dquot->dq_count);
 			list_add(&dquot->dq_free, tofree_head);	/* As dquot must have currently users it can't be on the free list... */
 			return 1;
-		}
-		else
+		} else {
 			dqput(dquot);   /* We have guaranteed we won't block */
+		}
+	}
 	return 0;
 }
 
@@ -793,20 +794,12 @@ static inline int need_print_warning(struct dquot *dquot, int flag)
 
 static void print_warning(struct dquot *dquot, int flag, const char *fmtstr)
 {
-	struct dentry *root;
-	char *path, *buffer;
-
 	if (!need_print_warning(dquot, flag))
 		return;
-	root = dquot->dq_sb->s_root;
-	dget(root);
-	buffer = (char *) __get_free_page(GFP_KERNEL);
-	path = buffer ? d_path(root, buffer, PAGE_SIZE) : "?";
-	sprintf(quotamessage, fmtstr, path, quotatypes[dquot->dq_type]);
-	free_page((unsigned long) buffer);
+	sprintf(quotamessage, fmtstr,
+		bdevname(dquot->dq_sb->s_dev), quotatypes[dquot->dq_type]);
 	tty_write_message(current->tty, quotamessage);
 	dquot->dq_flags |= flag;
-	dput(root);
 }
 
 static inline char ignore_hardlimit(struct dquot *dquot)
@@ -1469,7 +1462,7 @@ static int quota_on(struct super_block *sb, short type, char *path)
 	if (IS_ERR(tmp))
 		goto out_lock;
 
-	f = filp_open(tmp, O_RDWR, 0600, NULL);
+	f = filp_open(tmp, O_RDWR, 0600);
 	putname(tmp);
 
 	error = PTR_ERR(f);

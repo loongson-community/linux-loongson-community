@@ -32,6 +32,8 @@
 
 #include <linux/sunrpc/clnt.h>
 
+#include <linux/nfs.h>
+
 
 #define RPC_SLACK_SPACE		1024	/* total overkill */
 
@@ -78,6 +80,7 @@ rpc_create_client(struct rpc_xprt *xprt, char *servname,
 #ifdef RPC_DEBUG
 	rpc_register_sysctl();
 #endif
+	xdr_init();
 
 	if (!xprt)
 		goto out;
@@ -198,7 +201,6 @@ rpc_release_client(struct rpc_clnt *clnt)
 static void
 rpc_default_callback(struct rpc_task *task)
 {
-	rpc_release_task(task);
 }
 
 /*
@@ -263,9 +265,10 @@ int rpc_call_sync(struct rpc_clnt *clnt, struct rpc_message *msg, int flags)
 	/* Set up the call info struct and execute the task */
 	if (task->tk_status == 0)
 		status = rpc_execute(task);
-	else
+	else {
 		status = task->tk_status;
-	rpc_release_task(task);
+		rpc_release_task(task);
+	}
 
 	rpc_clnt_sigunmask(clnt, &oldset);		
 
@@ -344,10 +347,9 @@ rpc_call_setup(struct rpc_task *task, struct rpc_message *msg, int flags)
 void
 rpc_restart_call(struct rpc_task *task)
 {
-	if (task->tk_flags & RPC_TASK_KILLED) {
-		rpc_release_task(task);
+	if (RPC_ASSASSINATED(task))
 		return;
-	}
+
 	task->tk_action = call_reserve;
 	rpcproc_count(task->tk_client, task->tk_msg.rpc_proc)++;
 }
@@ -715,7 +717,7 @@ call_decode(struct rpc_task *task)
 	 * The following is an NFS-specific hack to cater for setuid
 	 * processes whose uid is mapped to nobody on the server.
 	 */
-	if (task->tk_client->cl_prog == 100003 && 
+	if (task->tk_client->cl_prog == NFS_PROGRAM && 
             (ntohl(*p) == NFSERR_ACCES || ntohl(*p) == NFSERR_PERM)) {
 		if (RPC_IS_SETUID(task) && task->tk_suid_retry) {
 			dprintk("RPC: %4d retry squashed uid\n", task->tk_pid);
