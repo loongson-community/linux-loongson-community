@@ -18,8 +18,6 @@
 #include <linux/init.h>
 #include <linux/sysrq.h>
 
-#include <asm/sgialib.h>
-
 asmlinkage void sys_sync(void);	/* it's really int */
 extern void unblank_console(void);
 extern int C_A_D;
