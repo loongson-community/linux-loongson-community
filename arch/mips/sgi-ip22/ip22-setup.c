@@ -77,7 +77,8 @@ static int __init ip22_setup(void)
 
 	/* Set EISA IO port base for Indigo2
 	 * ioremap cannot fail */
-	set_io_port_base((phys_t)ioremap(0x00080000, 0xffffffff - 0x00080000));
+	set_io_port_base((unsigned long)ioremap(0x00080000,
+						0xffffffff - 0x00080000));
 
 	/* ARCS console environment variable is set to "g?" for
 	 * graphics console, it is set to "d" for the first serial
