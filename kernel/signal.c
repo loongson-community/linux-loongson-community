@@ -751,16 +751,6 @@ void do_notify_parent(struct task_struct *tsk, int sig)
 	status = tsk->exit_code & 0x7f;
 	why = SI_KERNEL;	/* shouldn't happen */
 	switch (tsk->state) {
-	case TASK_ZOMBIE:
-		if (tsk->exit_code & 0x80)
-			why = CLD_DUMPED;
-		else if (tsk->exit_code & 0x7f)
-			why = CLD_KILLED;
-		else {
-			why = CLD_EXITED;
-			status = tsk->exit_code >> 8;
-		}
-		break;
 	case TASK_STOPPED:
 		/* FIXME -- can we deduce CLD_TRAPPED or CLD_CONTINUED? */
 		if (tsk->ptrace & PT_PTRACED)
@@ -770,8 +760,14 @@ void do_notify_parent(struct task_struct *tsk, int sig)
 		break;
 
 	default:
-		printk(KERN_DEBUG "eh? notify_parent with state %ld?\n",
-		       tsk->state);
+		if (tsk->exit_code & 0x80)
+			why = CLD_DUMPED;
+		else if (tsk->exit_code & 0x7f)
+			why = CLD_KILLED;
+		else {
+			why = CLD_EXITED;
+			status = tsk->exit_code >> 8;
+		}
 		break;
 	}
 	info.si_code = why;

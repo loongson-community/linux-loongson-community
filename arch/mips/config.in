@@ -2,7 +2,7 @@
 # For a description of the syntax of this configuration file,
 # see Documentation/kbuild/config-language.txt.
 #
-define_bool CONFIG_ALPHA y
+define_bool CONFIG_MIPS y
 
 mainmenu_name "Linux Kernel Configuration"
 

@@ -637,6 +637,9 @@ static void __init do_initcalls(void)
 		(*call)();
 		call++;
 	} while (call < &__initcall_end);
+
+	/* Make sure there is no pending stuff from the initcall sequence */
+	flush_scheduled_tasks();
 }
 
 /*
