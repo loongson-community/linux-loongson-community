@@ -195,7 +195,7 @@ extern __inline__ int atomic_sub_return(int i, atomic_t * v)
 		"     sc    %0, %2                           \n"
 		"     beqz  %0, 1b                           \n"
 		"     subu  %0, %1, %3                       \n"
-		".set pop                                    \r"
+		".set pop                                    \n"
 		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
 		: "Ir" (i), "m" (v->counter)
 		: "memory");
