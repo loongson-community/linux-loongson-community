@@ -7,15 +7,10 @@
  *
  * Copyright (C) 1995, 1996, 1997 by Ralf Baechle
  *
- * $Id:$
+ * $Id: byteorder.h,v 1.3 1997/06/20 02:55:46 ralf Exp $
  */
 #ifndef __ASM_MIPS_BYTEORDER_H
 #define __ASM_MIPS_BYTEORDER_H
-
-extern unsigned long int ntohl(unsigned long int __x);
-extern unsigned short int ntohs(unsigned short int __x);
-extern unsigned short int htons(unsigned short int __x);
-extern unsigned long int htonl(unsigned long int __x);
 
 #define __swap32(x) \
 	((unsigned long int)((((unsigned long int)(x) & 0x000000ffU) << 24) | \
@@ -149,6 +144,12 @@ extern __inline__ void cpu_to_be32s(__u32 *addr)
 #define be16_to_cpus(x) cpu_to_be16s(x)
 #define be32_to_cpus(x) cpu_to_be32s(x)
 
+#ifdef __KERNEL__
+extern unsigned long int ntohl(unsigned long int __x);
+extern unsigned short int ntohs(unsigned short int __x);
+extern unsigned short int htons(unsigned short int __x);
+extern unsigned long int htonl(unsigned long int __x);
+
 
 extern __inline__ unsigned long int ntohl(unsigned long int __x)
 {
@@ -169,5 +170,6 @@ extern __inline__ unsigned short int htons(unsigned short int __x)
 {
 	return __constant_htons(__x);
 }
+#endif /* __KERNEL__ */
 
 #endif /* __ASM_MIPS_BYTEORDER_H */
