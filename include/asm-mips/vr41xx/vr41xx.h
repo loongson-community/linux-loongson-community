@@ -133,7 +133,6 @@ extern void vr41xx_mask_clock(vr41xx_clock_t clock);
 #define GIU_IRQ_LAST		GIU_IRQ(31)
 #define GIU_IRQ_TO_PIN(x)	((x) - GIU_IRQ_BASE)	/* Pin 0-31 */
 
-extern void (*board_irq_init)(void);
 extern int vr41xx_set_intassign(unsigned int irq, unsigned char intassign);
 extern int vr41xx_cascade_irq(unsigned int irq, int (*get_irq_number)(int irq));
 

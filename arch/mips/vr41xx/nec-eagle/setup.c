@@ -17,8 +17,6 @@
 #include <asm/pci_channel.h>
 #include <asm/vr41xx/eagle.h>
 
-extern void eagle_irq_init(void);
-
 #ifdef CONFIG_PCI
 
 extern void vrc4173_preinit(void);
@@ -80,8 +78,6 @@ static int nec_eagle_setup(void)
 	set_io_port_base(IO_PORT_BASE);
 	ioport_resource.start = IO_PORT_RESOURCE_START;
 	ioport_resource.end = IO_PORT_RESOURCE_END;
-
-	board_irq_init = eagle_irq_init;
 
 #ifdef CONFIG_SERIAL_8250
 	vr41xx_dsiu_init();
