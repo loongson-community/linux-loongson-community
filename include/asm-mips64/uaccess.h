@@ -221,105 +221,93 @@ extern size_t __copy_user(void *__to, const void *__from, size_t __n);
 
 #define __copy_to_user(to,from,n)				\
 ({								\
-	void *__cu_to;						\
-	const void *__cu_from;					\
-	long __cu_len;						\
+	register void *__cu_to __asm__ ("$4");			\
+	register const void *__cu_from __asm__ ("$5");		\
+	register long __cu_len __asm__ ("$6");			\
 								\
 	__cu_to = (to);						\
 	__cu_from = (from);					\
 	__cu_len = (n);						\
 	__asm__ __volatile__(					\
-	"move\t$4, %1\n\t"					\
-	"move\t$5, %2\n\t"					\
-	"move\t$6, %3\n\t"					\
 	__MODULE_JAL(__copy_user)				\
-	"move\t%0, $6"						\
-	: "=r" (__cu_len)					\
-	: "r" (__cu_to), "r" (__cu_from), "r" (__cu_len)	\
-	: "$4", "$5", "$6", "$8", "$9", "$10", "$11", "$12",	\
-	  "$15", "$24", "$31","memory");			\
+	: "+r" (__cu_to), "+r" (__cu_from), "+r" (__cu_len)	\
+	:							\
+	: "$8", "$9", "$10", "$11", "$12", "$15", "$24", "$31",	\
+	  "memory");						\
 	__cu_len;						\
 })
 
 #define __copy_from_user(to,from,n)				\
 ({								\
-	void *__cu_to;						\
-	const void *__cu_from;					\
-	long __cu_len;						\
+	register void *__cu_to __asm__ ("$4");			\
+	register const void *__cu_from __asm__ ("$5");		\
+	register long __cu_len __asm__ ("$6");			\
 								\
 	__cu_to = (to);						\
 	__cu_from = (from);					\
 	__cu_len = (n);						\
 	__asm__ __volatile__(					\
-	"move\t$4, %1\n\t"					\
-	"move\t$5, %2\n\t"					\
-	"move\t$6, %3\n\t"					\
 	".set\tnoreorder\n\t"					\
 	__MODULE_JAL(__copy_user)				\
 	".set\tnoat\n\t"					\
-	"daddu\t$1, %2, %3\n\t"					\
+	"daddu\t$1, %1, %2\n\t"					\
 	".set\tat\n\t"						\
 	".set\treorder\n\t"					\
 	"move\t%0, $6"						\
-	: "=r" (__cu_len)					\
-	: "r" (__cu_to), "r" (__cu_from), "r" (__cu_len)	\
-	: "$4", "$5", "$6", "$8", "$9", "$10", "$11", "$12",	\
-	  "$15", "$24", "$31","memory");			\
+	: "+r" (__cu_to), "+r" (__cu_from), "+r" (__cu_len)	\
+	:							\
+	: "$8", "$9", "$10", "$11", "$12", "$15", "$24", "$31",	\
+	  "memory");						\
 	__cu_len;						\
 })
 
 #define copy_to_user(to,from,n)					\
 ({								\
-	void *__cu_to;						\
-	const void *__cu_from;					\
-	long __cu_len;						\
+	register void *__cu_to __asm__ ("$4");			\
+	register const void *__cu_from __asm__ ("$5");		\
+	register long __cu_len __asm__ ("$6");			\
 								\
 	__cu_to = (to);						\
 	__cu_from = (from);					\
 	__cu_len = (n);						\
 	if (access_ok(VERIFY_WRITE, __cu_to, __cu_len))		\
 		__asm__ __volatile__(				\
-		"move\t$4, %1\n\t"				\
-		"move\t$5, %2\n\t"				\
-		"move\t$6, %3\n\t"				\
 		__MODULE_JAL(__copy_user)			\
-		"move\t%0, $6"					\
-		: "=r" (__cu_len)				\
-		: "r" (__cu_to), "r" (__cu_from), "r" (__cu_len) \
-		: "$4", "$5", "$6", "$8", "$9", "$10", "$11",	\
-		  "$12", "$15", "$24", "$31","memory");		\
+		: "+r" (__cu_to), "+r" (__cu_from),		\
+		  "+r" (__cu_len)				\
+		:						\
+		: "$8", "$9", "$10", "$11", "$12", "$15",	\
+		  "$24", "$31","memory");			\
 	__cu_len;						\
 })
 
 #define copy_from_user(to,from,n)				\
 ({								\
-	void *__cu_to;						\
-	const void *__cu_from;					\
-	long __cu_len;						\
+	register void *__cu_to __asm__ ("$4");			\
+	register const void *__cu_from __asm__ ("$5");		\
+	register long __cu_len __asm__ ("$6");			\
 								\
 	__cu_to = (to);						\
 	__cu_from = (from);					\
 	__cu_len = (n);						\
 	if (access_ok(VERIFY_READ, __cu_from, __cu_len))	\
 		__asm__ __volatile__(				\
-		"move\t$4, %1\n\t"				\
-		"move\t$5, %2\n\t"				\
-		"move\t$6, %3\n\t"				\
 		".set\tnoreorder\n\t"				\
 		__MODULE_JAL(__copy_user)			\
 		".set\tnoat\n\t"				\
-		"daddu\t$1, %2, %3\n\t"				\
+		"daddu\t$1, %1, %2\n\t"				\
 		".set\tat\n\t"					\
 		".set\treorder\n\t"				\
 		"move\t%0, $6"					\
-		: "=r" (__cu_len)				\
-		: "r" (__cu_to), "r" (__cu_from), "r" (__cu_len) \
-		: "$4", "$5", "$6", "$8", "$9", "$10", "$11",	\
-		  "$12", "$15", "$24", "$31","memory");		\
+		: "+r" (__cu_to), "+r" (__cu_from),		\
+		  "+r" (__cu_len)				\
+		:						\
+		: "$8", "$9", "$10", "$11", "$12", "$15",	\
+		  "$24", "$31","memory");			\
 	__cu_len;						\
 })
 
-extern inline __kernel_size_t
+static inline __kernel_size_t
 __clear_user(void *addr, __kernel_size_t size)
 {
 	__kernel_size_t res;
