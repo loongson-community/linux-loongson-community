@@ -20,7 +20,7 @@ void * vmalloc_uncached(unsigned long size);
 
 extern inline void * vmalloc(unsigned long size)
 {
-	vmalloc_prot (size, PAGE_KERNEL);
+	return vmalloc_prot (size, PAGE_KERNEL);
 }
 
 int vread(char *buf, char *addr, int count);
