@@ -424,6 +424,13 @@ cflags-$(CONFIG_PMC_YOSEMITE)	+= -Iinclude/asm-mips/mach-yosemite
 load-$(CONFIG_PMC_YOSEMITE)	+= 0xffffffff80100000
 
 #
+# Momentum Ocelot-3
+#
+core-$(CONFIG_MOMENCO_OCELOT_3) 	+= arch/mips/momentum/ocelot_3/
+cflags-$(CONFIG_MOMENCO_OCELOT_3)	+= -Iinclude/asm-mips/mach-ocelot3
+load-$(CONFIG_MOMENCO_OCELOT_3) 	+= 0xffffffff80100000
+
+#
 # Momentum Jaguar ATX
 #
 core-$(CONFIG_MOMENCO_JAGUAR_ATX)	+= arch/mips/momentum/jaguar_atx/

@@ -122,6 +122,7 @@
 #define  MACH_MOMENCO_OCELOT_G	1
 #define  MACH_MOMENCO_OCELOT_C	2
 #define  MACH_MOMENCO_JAGUAR_ATX 3
+#define  MACH_MOMENCO_OCELOT_3	4	
 
 /*
  * Valid machtype for group ITE

@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.10-rc1
-# Tue Oct 26 04:42:33 2004
+# Tue Nov  9 04:54:59 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -62,6 +62,7 @@ CONFIG_SHMEM=y
 # CONFIG_MOMENCO_OCELOT is not set
 # CONFIG_MOMENCO_OCELOT_G is not set
 # CONFIG_MOMENCO_OCELOT_C is not set
+# CONFIG_MOMENCO_OCELOT_3 is not set
 # CONFIG_MOMENCO_JAGUAR_ATX is not set
 # CONFIG_PMC_YOSEMITE is not set
 # CONFIG_DDB5074 is not set

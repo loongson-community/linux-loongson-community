@@ -314,6 +314,20 @@ config MOMENCO_OCELOT_C
 	  The Ocelot is a MIPS-based Single Board Computer (SBC) made by
 	  Momentum Computer <http://www.momenco.com/>.
 
+config MOMENCO_OCELOT_3
+	bool "Support for Momentum Ocelot-3 board"
+	select DMA_NONCOHERENT
+	select HW_HAS_PCI
+	select IRQ_CPU
+	select IRQ_CPU_RM7K
+	select IRQ_MV64340
+	select PCI_MARVELL
+	select RM7000_CPU_SCACHE
+	select SWAP_IO_SPACE
+	help
+	  The Ocelot-3 is based off Discovery III System Controller and 
+	  PMC-Sierra Rm79000 core.
+
 config MOMENCO_JAGUAR_ATX
 	bool "Support for Momentum Jaguar board"
 	select DMA_NONCOHERENT
@@ -989,7 +1003,7 @@ config IT8712
 
 config BOOT_ELF32
 	bool
-	depends on MACH_DECSTATION || MIPS_ATLAS || MIPS_MALTA || MOMENCO_JAGUAR_ATX || SIBYTE_SB1xxx_SOC || SGI_IP32 || SGI_IP22 || SNI_RM200_PCI
+	depends on MACH_DECSTATION || MIPS_ATLAS || MIPS_MALTA || MOMENCO_JAGUAR_ATX || MOMENCO_OCELOT_3 || SIBYTE_SB1xxx_SOC || SGI_IP32 || SGI_IP22 || SNI_RM200_PCI
 	default y
 
 config MIPS_L1_CACHE_SHIFT
