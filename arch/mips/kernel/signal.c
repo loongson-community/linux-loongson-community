@@ -18,6 +18,7 @@
 #include <linux/errno.h>
 #include <linux/wait.h>
 #include <linux/ptrace.h>
+#include <linux/suspend.h>
 #include <linux/unistd.h>
 
 #include <asm/asm.h>
@@ -547,6 +548,19 @@ asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 	}
 #endif
 
+	/*
+	 * We want the common case to go fast, which is why we may in certain
+	 * cases get here from kernel mode. Just return without doing anything
+	 * if so.
+	 */
+	if (!user_mode(regs))
+		return 1;
+
+	if (current->flags & PF_FREEZE) {
+		refrigerator(0);
+		goto no_signal;
+	}
+
 	if (!oldset)
 		oldset = &current->blocked;
 
@@ -556,6 +570,7 @@ asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 		return 1;
 	}
 
+no_signal:
 	/*
 	 * Who's code doesn't conform to the restartable syscall convention
 	 * dies here!!!  The li instruction, a single machine instruction,
