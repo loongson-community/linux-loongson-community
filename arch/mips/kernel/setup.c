@@ -192,7 +192,7 @@ static inline unsigned long cpu_get_fpu_id(void)
 	unsigned long tmp, fpu_id;
 
 	tmp = read_32bit_cp0_register(CP0_STATUS);
-	write_32bit_cp0_register(CP0_STATUS, tmp | ST0_CU1);
+	__enable_fpu();
 	fpu_id = read_32bit_cp1_register(CP1_REVISION);
 	write_32bit_cp0_register(CP0_STATUS, tmp);
 	return fpu_id;
@@ -207,7 +207,8 @@ static inline int cpu_has_fpu(void)
 }
 
 /* declaration of the global struct */
-struct mips_cpu mips_cpu = {PRID_IMP_UNKNOWN, CPU_UNKNOWN, 0, 0, 0,
+struct mips_cpu mips_cpu = {PRID_IMP_UNKNOWN, FPIR_IMP_NONE, CPU_UNKNOWN,
+			    0, 0, 0,
 			    {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}};
 
 /* Shortcut for assembler access to mips_cpu.options */
@@ -517,6 +518,15 @@ cpu_4kc:
 	default:
 		mips_cpu.cputype = CPU_UNKNOWN;
 	}
+	if (mips_cpu.options & MIPS_CPU_FPU)
+		mips_cpu.fpu_id = cpu_get_fpu_id();
+}
+
+static inline void cpu_report(void)
+{
+	printk("CPU revision is: %08x\n", mips_cpu.processor_id);
+	if (mips_cpu.options & MIPS_CPU_FPU)
+		printk("FPU revision is: %08x\n", mips_cpu.fpu_id);
 }
 
 asmlinkage void __init
@@ -532,6 +542,8 @@ init_arch(int argc, char **argv, char **envp, int *prom_vec)
 #ifdef CONFIG_SGI_IP22
 	sgi_sysinit();
 #endif
+
+	cpu_report();
 
 	/*
 	 * Determine the mmu/cache attached to this machine,

@@ -59,14 +59,18 @@ int get_cpuinfo(char *buffer)
 		mach_ite_names, mach_philips_names, mach_globespan_names,
 		mach_sibyte_names, mach_toshiba_names, mach_alchemy_names,
 		mach_nec_vr41xx_names};
-	unsigned int version = read_32bit_cp0_register(CP0_PRID);
+	unsigned int version = mips_cpu.processor_id;
+	unsigned int fp_vers = mips_cpu.fpu_id;
 	int len;
 
 	len = sprintf(buffer, "cpu\t\t\t: MIPS\n");
-	len += sprintf(buffer + len, "cpu model\t\t: %s V%d.%d\n",
+	sprintf(fmt, "cpu model\t\t: %%s V%%d.%%d%s\n",
+	        (mips_cpu.options & MIPS_CPU_FPU) ? "  FPU V%d.%d" : "");
+	len += sprintf(buffer + len, fmt,
 	               cpu_name[mips_cpu.cputype <= CPU_LAST ?
 	                        mips_cpu.cputype : CPU_UNKNOWN],
-	               (version >> 4) & 0x0f, version & 0x0f);
+	               (version >> 4) & 0x0f, version & 0x0f,
+	               (fp_vers >> 4) & 0x0f, fp_vers & 0x0f);
 	len += sprintf(buffer + len, "system type\t\t: %s %s\n",
 		       mach_group_names[mips_machgroup],
 		       mach_group_to_name[mips_machgroup][mips_machtype]);

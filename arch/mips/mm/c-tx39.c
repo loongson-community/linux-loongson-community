@@ -273,8 +273,6 @@ void __init ld_mmu_tx39(void)
 {
 	unsigned long config;
 
-	printk("CPU revision is: %08x\n", read_32bit_cp0_register(CP0_PRID));
-
 	_clear_page = r3k_clear_page;
 	_copy_page = r3k_copy_page;
 

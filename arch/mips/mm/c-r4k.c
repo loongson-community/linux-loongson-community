@@ -1547,8 +1547,6 @@ void __init ld_mmu_r4xx0(void)
 {
 	unsigned long config = read_32bit_cp0_register(CP0_CONFIG);
 
-	printk("CPU revision is: %08x\n", read_32bit_cp0_register(CP0_PRID));
-
 #ifdef CONFIG_MIPS_UNCACHED
 	change_cp0_config(CONF_CM_CMASK, CONF_CM_UNCACHED);
 #else

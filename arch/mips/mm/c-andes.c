@@ -94,8 +94,6 @@ andes_flush_cache_sigtramp(unsigned long addr)
 
 void __init ld_mmu_andes(void)
 {
-	printk("CPU revision is: %08x\n", read_32bit_cp0_register(CP0_PRID));
-
 	printk("Primary instruction cache %dkb, linesize %d bytes\n",
 	       icache_size >> 10, ic_lsize);
 	printk("Primary data cache %dkb, linesize %d bytes\n",

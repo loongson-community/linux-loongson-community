@@ -383,8 +383,6 @@ void __init ld_mmu_tx49(void)
 {
 	unsigned long config = read_32bit_cp0_register(CP0_CONFIG);
 
-	printk("CPU revision is: %08x\n", read_32bit_cp0_register(CP0_PRID));
-
 	if (mips_configk0 != -1)
 		change_cp0_config(CONF_CM_CMASK, mips_configk0);
 	else
