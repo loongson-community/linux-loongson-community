@@ -27,7 +27,7 @@ __delay(unsigned long loops)
 }
 
 /*
- * division by multiplication: you don't have to worry about
+ * Division by multiplication: you don't have to worry about
  * loss of precision.
  *
  * Use only for very small delays ( < 1 msec).  Should probably use a
