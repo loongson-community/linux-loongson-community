@@ -492,8 +492,9 @@ sigill:
 
 asmlinkage void do_ade(struct pt_regs *regs)
 {
-	unsigned long pc;
 	extern int do_dsemulret(struct pt_regs *);
+	mm_segment_t seg;
+	unsigned long pc;
 
 	/*
 	 * Address errors may be deliberately induced
@@ -523,7 +524,11 @@ asmlinkage void do_ade(struct pt_regs *regs)
 	 * Do branch emulation only if we didn't forward the exception.
 	 * This is all so but ugly ...
 	 */
+	seg = get_fs();
+	if (!user_mode(regs))
+		set_fs(KERNEL_DS);
 	emulate_load_store_insn(regs, (void *)regs->cp0_badvaddr, pc);
+	set_fs(seg);
 
 	return;
 
