@@ -78,6 +78,7 @@ struct pci_fixup pcibios_fixups[] __initdata = {
 	 qube_raq_via_bmIDE_fixup},
 	{PCI_FIXUP_HEADER, PCI_VENDOR_ID_GALILEO, PCI_ANY_ID,
 	 qube_raq_galileo_fixup},
+	0
 };
 
 static char irq_tab_cobalt[] __initdata = {
