@@ -119,7 +119,7 @@ extern inline u64 in64(unsigned long addr)
 #define __CSR_32_ADJUST 0
 #endif
 
-#define csr_out32(v,a) (*(u32 *)((unsigned long)(a) + __CSR_32_ADJUST) = (v))
-#define csr_in32(a)    (*(u32 *)((unsigned long)(a) + __CSR_32_ADJUST))
+#define csr_out32(v,a) (*(volatile u32 *)((unsigned long)(a) + __CSR_32_ADJUST) = (v))
+#define csr_in32(a)    (*(volatile u32 *)((unsigned long)(a) + __CSR_32_ADJUST))
 
 #endif /* __ASM_SIBYTE_64BIT_H */
