@@ -324,6 +324,7 @@ config JAGUAR_DMALOW
 
 config PMC_YOSEMITE
 	bool "Support for PMC-Sierra Yosemite eval board"
+	select DMA_NONCOHERENT
 	help
 	  Yosemite is an evaluation board for the RM9000x2 processor
 	  manufactured by PMC-Sierra
