@@ -282,8 +282,8 @@ endif
 # NEC DDB Vrc-5074
 #
 ifdef CONFIG_DDB5074
-SUBDIRS		+= arch/mips/ddb5074
-LIBS		+= arch/mips/ddb5074/ddb5074.a
+SUBDIRS		+= arch/mips/ddb5xxx/common arch/mips/ddb5xxx/ddb5074
+LIBS		+= arch/mips/ddb5xxx/common/ddb5xxx.o arch/mips/ddb5xxx/ddb5074/ddb5074.o
 LOADADDR	:= 0x80080000
 endif
 

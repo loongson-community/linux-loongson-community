@@ -217,7 +217,11 @@ if [ "$CONFIG_DDB5074" = "y" ]; then
    define_bool CONFIG_NONCOHERENT_IO y
    define_bool CONFIG_PCI y
    define_bool CONFIG_PC_KEYB y
-   define_bool CONFIG_OLD_TIME_C y
+   define_bool CONFIG_NEW_TIME_C y
+   define_bool CONFIG_PCI_AUTO y
+   define_bool CONFIG_NEW_IRQ y
+   define_bool CONFIG_IRQ_CPU y
+   define_bool CONFIG_NEW_PCI y
 fi
 if [ "$CONFIG_DDB5476"  = "y" ]; then
    define_bool CONFIG_ISA y

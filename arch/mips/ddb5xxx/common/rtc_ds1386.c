@@ -24,6 +24,7 @@
 #include <asm/time.h>
 #include <asm/addrspace.h>
 
+#include <asm/mc146818rtc.h>
 #include <asm/debug.h>
 
 #define	EPOCH		2000
@@ -93,6 +94,7 @@ rtc_ds1386_set_time(unsigned long t)
 
 	/* convert */
 	to_tm(t, &tm);
+
 
 	/* check each field one by one */
 	year = BIN_TO_BCD(tm.tm_year - EPOCH);

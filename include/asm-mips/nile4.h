@@ -9,6 +9,9 @@
  *	NEC Vrc 5074 System Controller Data Sheet, June 1998
  */
 
+#ifndef _ASM_NILE4_H
+#define _ASM_NILE4_H
+
 #define NILE4_BASE		0xbfa00000
 #define NILE4_SIZE		0x00200000		/* 2 MB */
 
@@ -290,8 +293,8 @@ extern void nile4_set_pmr(u32 pmr, u32 type, u32 addr);
 
 extern void nile4_map_irq(int nile4_irq, int cpu_irq);
 extern void nile4_map_irq_all(int cpu_irq);
-extern void nile4_enable_irq(int nile4_irq);
-extern void nile4_disable_irq(int nile4_irq);
+extern void nile4_enable_irq(unsigned int nile4_irq);
+extern void nile4_disable_irq(unsigned int nile4_irq);
 extern void nile4_disable_irq_all(void);
 extern u16 nile4_get_irq_stat(int cpu_irq);
 extern void nile4_enable_irq_output(int cpu_irq);
@@ -302,4 +305,6 @@ extern void nile4_clear_irq(int nile4_irq);
 extern void nile4_clear_irq_mask(u32 mask);
 extern u8 nile4_i8259_iack(void);
 extern void nile4_dump_irq_status(void);	/* Debug */
+
+#endif
 

@@ -33,6 +33,7 @@ const char *get_system_type(void)
 	case MACH_NEC_DDB5476:		return "NEC DDB Vrc-5476";
 	case MACH_NEC_DDB5477:		return "NEC DDB Vrc-5477";
 	case MACH_NEC_ROCKHOPPER:	return "NEC Rockhopper";
+	default:					return "Unknown NEC board";
 	}
 }
 

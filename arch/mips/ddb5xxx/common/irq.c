@@ -13,6 +13,7 @@
  */
 #include <linux/config.h>
 #include <linux/init.h>
+#include <asm/irq.h>
 
 void (*irq_setup)(void);
 
