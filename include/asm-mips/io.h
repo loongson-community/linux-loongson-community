@@ -243,11 +243,6 @@ static inline void iounmap(void *addr)
 	__iounmap(addr);
 }
 
-/*
- * XXX We need system specific versions of these to handle EISA address bits
- * 24-31 on SNI.
- * XXX more SNI hacks.
- */
 #define __raw_readb(addr)	(*(volatile unsigned char *)(addr))
 #define __raw_readw(addr)	(*(volatile unsigned short *)(addr))
 #define __raw_readl(addr)	(*(volatile unsigned int *)(addr))
