@@ -83,8 +83,8 @@ static struct resource sni_mem_resource = {
 
 static struct resource sni_io_resource = {
 	.name	= "PCIMT IO MEM",
-	.start	= 0x14000000UL,
-	.end	= 0x17ffffffUL,
+	.start	= 0x00000000UL,
+	.end	= 0x03ffffffUL,
 	.flags	= IORESOURCE_IO,
 };
 
