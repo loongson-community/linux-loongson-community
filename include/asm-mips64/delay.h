@@ -11,7 +11,7 @@
 #define _ASM_DELAY_H
 
 #include <linux/config.h>
-#include <asm/param.h>
+#include <linux/param.h>
 
 extern unsigned long loops_per_jiffy;
 
