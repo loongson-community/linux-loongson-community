@@ -6,6 +6,8 @@
  *     AC97 sound dirver for NEC Vrc5477 chip (an integrated, 
  *     multi-function controller chip for MIPS CPUs)
  *
+ * VRA support Copyright 2001 Bradley D. LaRonde <brad@ltc.com>
+ *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
  * Free Software Foundation;  either version 2 of the  License, or (at your
@@ -197,6 +199,7 @@ struct vrc5477_ac97_state {
 
 	unsigned dacChannels, adcChannels;
 	unsigned short dacRate, adcRate;
+	unsigned short extended_status;
 
 	spinlock_t lock;
 	struct semaphore open_sem;
@@ -353,8 +356,10 @@ static void set_adc_rate(struct vrc5477_ac97_state *s, unsigned rate)
 
 static void set_dac_rate(struct vrc5477_ac97_state *s, unsigned rate)
 {
+	if(s->extended_status & AC97_EXTSTAT_VRA) {
 	wrcodec(&s->codec, AC97_PCM_FRONT_DAC_RATE, rate);
-	s->dacRate = rate;
+		s->dacRate = rdcodec(&s->codec, AC97_PCM_FRONT_DAC_RATE);
+	}
 }
 
 
@@ -1862,7 +1867,9 @@ static int __devinit vrc5477_ac97_probe(struct pci_dev *pcidev,
 					const struct pci_device_id *pciid)
 {
 	struct vrc5477_ac97_state *s;
+#ifdef VRC5477_AC97_DEBUG
 	char proc_str[80];
+#endif
 
 	if (pcidev->irq == 0) 
 		return -1;
@@ -1943,6 +1950,25 @@ static int __devinit vrc5477_ac97_probe(struct pci_dev *pcidev,
 	/* TODO : why this proc file does not show up? */
 #endif
 
+	/* Try to enable variable rate audio mode. */
+	wrcodec(&s->codec, AC97_EXTENDED_STATUS,
+		rdcodec(&s->codec, AC97_EXTENDED_STATUS) | AC97_EXTSTAT_VRA);
+	/* Did we enable it? */
+	if(rdcodec(&s->codec, AC97_EXTENDED_STATUS) & AC97_EXTSTAT_VRA)
+		s->extended_status |= AC97_EXTSTAT_VRA;
+	else {
+		s->dacRate = 48000;
+		printk(KERN_INFO PFX "VRA mode not enabled; rate fixed at %d.",
+			s->dacRate);
+	}
+
+#if 0
+	/* What's wrong with the codec chip defaults?
+	 * If at all, shouldn't this be done through ac97_codec.c instead?
+	 * This code just ends up making my system noisey at boot.
+	 * /dev/mixer reaches these anyway.  bdl
+	 */
+
         /* let us get the default volumne louder */
         wrcodec(&s->codec, 0x2, 0);
         wrcodec(&s->codec, 0x18, 0x0707);
@@ -1955,6 +1981,7 @@ static int __devinit vrc5477_ac97_probe(struct pci_dev *pcidev,
 	// wrcodec(&s->codec, 0x1c, 0x0707);
 	wrcodec(&s->codec, 0x1c, 0x0f0f);
 	wrcodec(&s->codec, 0x1e, 0x07);
+#endif
 
 	/* enable the master interrupt but disable all others */
 	outl(VRC5477_INT_MASK_NMASK, s->io + VRC5477_INT_MASK);
@@ -2006,8 +2033,6 @@ static void __devinit vrc5477_ac97_remove(struct pci_dev *dev)
 }
 
 
-#define		PCI_VENDOR_ID_NEC		0x1033
-#define		PCI_DEVICE_ID_NEC_VRC5477_AC97	0x00A6
 static struct pci_device_id id_table[] __devinitdata = {
     { PCI_VENDOR_ID_NEC, PCI_DEVICE_ID_NEC_VRC5477_AC97, 
       PCI_ANY_ID, PCI_ANY_ID, 0, 0 },
