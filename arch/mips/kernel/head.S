@@ -1,5 +1,4 @@
-/* $Id: head.S,v 1.18 2000/03/03 22:17:07 kevink Exp $
- *
+/*
  * arch/mips/kernel/head.S
  *
  * This file is subject to the terms and conditions of the GNU General Public
@@ -76,9 +75,9 @@
 	mtc0	k0, CP0_ENTRYLO0		# load it
 	srl	k1, k1, 6			# convert to entrylo1
 	mtc0	k1, CP0_ENTRYLO1		# load it
-	nop					# Need 2 cycles between mtc0
-	nop					#  and tlbwr (CP0 hazard).
+	b	1f
 	tlbwr					# write random tlb entry
+1:
 	nop
 	eret					# return from trap
 	END(except_vec0_r4000)
