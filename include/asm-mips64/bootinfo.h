@@ -85,7 +85,8 @@
 #define MACH_SGI_CHALLENGE_S	1	/* The Challenge S server */
 #define MACH_SGI_INDIGO2	2	/* The Indigo2 system */
 #define MACH_SGI_IP27		3	/* Origin 200, Origin 2000, Onyx 2 */
-#define MACH_SGI_IP32		4	/* O2 */
+#define MACH_SGI_IP28		4	/* Indigo2 Impact */
+#define MACH_SGI_IP32		5	/* O2 */
 
 /*
  * Valid machtype for group COBALT

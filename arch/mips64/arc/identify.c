@@ -39,6 +39,11 @@ static struct smatch mach_table[] = {
 		MACH_GROUP_SGI,
 		MACH_SGI_IP27,
 		PROM_FLAG_ARCS
+	}, {	"SGI-IP28",
+		"SGI IP28",
+		MACH_GROUP_SGI,
+		MACH_SGI_IP28,
+		PROM_FLAG_ARCS
 	}, {	"SGI-IP32",
 		"SGI IP32",
 		MACH_GROUP_SGI,
