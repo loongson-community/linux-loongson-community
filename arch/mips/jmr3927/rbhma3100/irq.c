@@ -248,33 +248,33 @@ static void unmask_irq_irc(int irq_nr, int space_id)
 }
 
 struct tb_irq_space jmr3927_isac_irqspace = {
-	next: NULL,
-	start_irqno: JMR3927_IRQ_ISAC,
+	.next = NULL,
+	.start_irqno = JMR3927_IRQ_ISAC,
 	nr_irqs : JMR3927_NR_IRQ_ISAC,
-	mask_func: mask_irq_isac,
-	unmask_func: unmask_irq_isac,
-	name: "ISAC",
-	space_id: 0,
+	.mask_func = mask_irq_isac,
+	.unmask_func = unmask_irq_isac,
+	.name = "ISAC",
+	.space_id = 0,
 	can_share : 0
 };
 struct tb_irq_space jmr3927_ioc_irqspace = {
-	next: NULL,
-	start_irqno: JMR3927_IRQ_IOC,
+	.next = NULL,
+	.start_irqno = JMR3927_IRQ_IOC,
 	nr_irqs : JMR3927_NR_IRQ_IOC,
-	mask_func: mask_irq_ioc,
-	unmask_func: unmask_irq_ioc,
-	name: "IOC",
-	space_id: 0,
+	.mask_func = mask_irq_ioc,
+	.unmask_func = unmask_irq_ioc,
+	.name = "IOC",
+	.space_id = 0,
 	can_share : 1
 };
 struct tb_irq_space jmr3927_irc_irqspace = {
-	next: NULL,
-	start_irqno: JMR3927_IRQ_IRC,
+	.next = NULL,
+	.start_irqno = JMR3927_IRQ_IRC,
 	nr_irqs : JMR3927_NR_IRQ_IRC,
-	mask_func: mask_irq_irc,
-	unmask_func: unmask_irq_irc,
-	name: "on-chip",
-	space_id: 0,
+	.mask_func = mask_irq_irc,
+	.unmask_func = unmask_irq_irc,
+	.name = "on-chip",
+	.space_id = 0,
 	can_share : 0
 };
 

@@ -75,10 +75,10 @@ int dec_interrupt[DEC_NR_INTS] = {
 	[0 ... DEC_NR_INTS - 1] = -1
 };
 int_ptr cpu_mask_nr_tbl[DEC_MAX_CPU_INTS][2] = {
-	{ { i: ~0 }, { p: dec_intr_unimplemented } },
+	{ { .i = ~0 }, { p: dec_intr_unimplemented } },
 };
 int_ptr asic_mask_nr_tbl[DEC_MAX_ASIC_INTS][2] = {
-	{ { i: ~0 }, { p: asic_intr_unimplemented } },
+	{ { .i = ~0 }, { p: asic_intr_unimplemented } },
 };
 int cpu_fpu_mask = DEC_CPU_IRQ_MASK(DEC_CPU_INR_FPU);
 
@@ -190,18 +190,18 @@ static int kn01_interrupt[DEC_NR_INTS] __initdata = {
 };
 
 static int_ptr kn01_cpu_mask_nr_tbl[][2] __initdata = {
-	{ { i: DEC_CPU_IRQ_MASK(KN01_CPU_INR_MEMORY) },
-		{ i: DEC_CPU_IRQ_NR(KN01_CPU_INR_MEMORY) } },
-	{ { i: DEC_CPU_IRQ_MASK(KN01_CPU_INR_RTC) },
-		{ i: DEC_CPU_IRQ_NR(KN01_CPU_INR_RTC) } },
-	{ { i: DEC_CPU_IRQ_MASK(KN01_CPU_INR_DZ11) },
-		{ i: DEC_CPU_IRQ_NR(KN01_CPU_INR_DZ11) } },
-	{ { i: DEC_CPU_IRQ_MASK(KN01_CPU_INR_SII) },
-		{ i: DEC_CPU_IRQ_NR(KN01_CPU_INR_SII) } },
-	{ { i: DEC_CPU_IRQ_MASK(KN01_CPU_INR_LANCE) },
-		{ i: DEC_CPU_IRQ_NR(KN01_CPU_INR_LANCE) } },
-	{ { i: DEC_CPU_IRQ_ALL },
-		{ p: cpu_all_int } },
+	{ { .i = DEC_CPU_IRQ_MASK(KN01_CPU_INR_MEMORY) },
+		{ .i = DEC_CPU_IRQ_NR(KN01_CPU_INR_MEMORY) } },
+	{ { .i = DEC_CPU_IRQ_MASK(KN01_CPU_INR_RTC) },
+		{ .i = DEC_CPU_IRQ_NR(KN01_CPU_INR_RTC) } },
+	{ { .i = DEC_CPU_IRQ_MASK(KN01_CPU_INR_DZ11) },
+		{ .i = DEC_CPU_IRQ_NR(KN01_CPU_INR_DZ11) } },
+	{ { .i = DEC_CPU_IRQ_MASK(KN01_CPU_INR_SII) },
+		{ .i = DEC_CPU_IRQ_NR(KN01_CPU_INR_SII) } },
+	{ { .i = DEC_CPU_IRQ_MASK(KN01_CPU_INR_LANCE) },
+		{ .i = DEC_CPU_IRQ_NR(KN01_CPU_INR_LANCE) } },
+	{ { .i = DEC_CPU_IRQ_ALL },
+		{ .p = cpu_all_int } },
 };
 
 void __init dec_init_kn01(void)
@@ -271,16 +271,16 @@ static int kn230_interrupt[DEC_NR_INTS] __initdata = {
 };
 
 static int_ptr kn230_cpu_mask_nr_tbl[][2] __initdata = {
-	{ { i: DEC_CPU_IRQ_MASK(KN230_CPU_INR_MEMORY) },
-		{ i: DEC_CPU_IRQ_NR(KN230_CPU_INR_MEMORY) } },
-	{ { i: DEC_CPU_IRQ_MASK(KN230_CPU_INR_RTC) },
-		{ i: DEC_CPU_IRQ_NR(KN230_CPU_INR_RTC) } },
-	{ { i: DEC_CPU_IRQ_MASK(KN230_CPU_INR_DZ11) },
-		{ i: DEC_CPU_IRQ_NR(KN230_CPU_INR_DZ11) } },
-	{ { i: DEC_CPU_IRQ_MASK(KN230_CPU_INR_SII) },
-		{ i: DEC_CPU_IRQ_NR(KN230_CPU_INR_SII) } },
-	{ { i: DEC_CPU_IRQ_ALL },
-		{ p: cpu_all_int } },
+	{ { .i = DEC_CPU_IRQ_MASK(KN230_CPU_INR_MEMORY) },
+		{ .i = DEC_CPU_IRQ_NR(KN230_CPU_INR_MEMORY) } },
+	{ { .i = DEC_CPU_IRQ_MASK(KN230_CPU_INR_RTC) },
+		{ .i = DEC_CPU_IRQ_NR(KN230_CPU_INR_RTC) } },
+	{ { .i = DEC_CPU_IRQ_MASK(KN230_CPU_INR_DZ11) },
+		{ .i = DEC_CPU_IRQ_NR(KN230_CPU_INR_DZ11) } },
+	{ { .i = DEC_CPU_IRQ_MASK(KN230_CPU_INR_SII) },
+		{ .i = DEC_CPU_IRQ_NR(KN230_CPU_INR_SII) } },
+	{ { .i = DEC_CPU_IRQ_ALL },
+		{ .p = cpu_all_int } },
 };
 
 void __init dec_init_kn230(void)
@@ -350,31 +350,31 @@ static int kn02_interrupt[DEC_NR_INTS] __initdata = {
 };
 
 static int_ptr kn02_cpu_mask_nr_tbl[][2] __initdata = {
-	{ { i: DEC_CPU_IRQ_MASK(KN02_CPU_INR_MEMORY) },
-		{ i: DEC_CPU_IRQ_NR(KN02_CPU_INR_MEMORY) } },
-	{ { i: DEC_CPU_IRQ_MASK(KN02_CPU_INR_RTC) },
-		{ i: DEC_CPU_IRQ_NR(KN02_CPU_INR_RTC) } },
-	{ { i: DEC_CPU_IRQ_MASK(KN02_CPU_INR_CASCADE) },
-		{ p: kn02_io_int } },
-	{ { i: DEC_CPU_IRQ_ALL },
-		{ p: cpu_all_int } },
+	{ { .i = DEC_CPU_IRQ_MASK(KN02_CPU_INR_MEMORY) },
+		{ .i = DEC_CPU_IRQ_NR(KN02_CPU_INR_MEMORY) } },
+	{ { .i = DEC_CPU_IRQ_MASK(KN02_CPU_INR_RTC) },
+		{ .i = DEC_CPU_IRQ_NR(KN02_CPU_INR_RTC) } },
+	{ { .i = DEC_CPU_IRQ_MASK(KN02_CPU_INR_CASCADE) },
+		{ .p = kn02_io_int } },
+	{ { .i = DEC_CPU_IRQ_ALL },
+		{ .p = cpu_all_int } },
 };
 
 static int_ptr kn02_asic_mask_nr_tbl[][2] __initdata = {
-	{ { i: KN02_IRQ_MASK(KN02_CSR_INR_DZ11) },
-		{ i: KN02_IRQ_NR(KN02_CSR_INR_DZ11) } },
-	{ { i: KN02_IRQ_MASK(KN02_CSR_INR_ASC) },
-		{ i: KN02_IRQ_NR(KN02_CSR_INR_ASC) } },
-	{ { i: KN02_IRQ_MASK(KN02_CSR_INR_LANCE) },
-		{ i: KN02_IRQ_NR(KN02_CSR_INR_LANCE) } },
-	{ { i: KN02_IRQ_MASK(KN02_CSR_INR_TC2) },
-		{ i: KN02_IRQ_NR(KN02_CSR_INR_TC2) } },
-	{ { i: KN02_IRQ_MASK(KN02_CSR_INR_TC1) },
-		{ i: KN02_IRQ_NR(KN02_CSR_INR_TC1) } },
-	{ { i: KN02_IRQ_MASK(KN02_CSR_INR_TC0) },
-		{ i: KN02_IRQ_NR(KN02_CSR_INR_TC0) } },
-	{ { i: KN02_IRQ_ALL },
-		{ p: kn02_all_int } },
+	{ { .i = KN02_IRQ_MASK(KN02_CSR_INR_DZ11) },
+		{ .i = KN02_IRQ_NR(KN02_CSR_INR_DZ11) } },
+	{ { .i = KN02_IRQ_MASK(KN02_CSR_INR_ASC) },
+		{ .i = KN02_IRQ_NR(KN02_CSR_INR_ASC) } },
+	{ { .i = KN02_IRQ_MASK(KN02_CSR_INR_LANCE) },
+		{ .i = KN02_IRQ_NR(KN02_CSR_INR_LANCE) } },
+	{ { .i = KN02_IRQ_MASK(KN02_CSR_INR_TC2) },
+		{ .i = KN02_IRQ_NR(KN02_CSR_INR_TC2) } },
+	{ { .i = KN02_IRQ_MASK(KN02_CSR_INR_TC1) },
+		{ .i = KN02_IRQ_NR(KN02_CSR_INR_TC1) } },
+	{ { .i = KN02_IRQ_MASK(KN02_CSR_INR_TC0) },
+		{ .i = KN02_IRQ_NR(KN02_CSR_INR_TC0) } },
+	{ { .i = KN02_IRQ_ALL },
+		{ .p = kn02_all_int } },
 };
 
 void __init dec_init_kn02(void)
@@ -451,35 +451,35 @@ static int kn02ba_interrupt[DEC_NR_INTS] __initdata = {
 };
 
 static int_ptr kn02ba_cpu_mask_nr_tbl[][2] __initdata = {
-	{ { i: DEC_CPU_IRQ_MASK(KN02BA_CPU_INR_CASCADE) },
-		{ p: kn02xa_io_int } },
-	{ { i: DEC_CPU_IRQ_MASK(KN02BA_CPU_INR_TC2) },
-		{ i: DEC_CPU_IRQ_NR(KN02BA_CPU_INR_TC2) } },
-	{ { i: DEC_CPU_IRQ_MASK(KN02BA_CPU_INR_TC1) },
-		{ i: DEC_CPU_IRQ_NR(KN02BA_CPU_INR_TC1) } },
-	{ { i: DEC_CPU_IRQ_MASK(KN02BA_CPU_INR_TC0) },
-		{ i: DEC_CPU_IRQ_NR(KN02BA_CPU_INR_TC0) } },
-	{ { i: DEC_CPU_IRQ_ALL },
-		{ p: cpu_all_int } },
+	{ { .i = DEC_CPU_IRQ_MASK(KN02BA_CPU_INR_CASCADE) },
+		{ .p = kn02xa_io_int } },
+	{ { .i = DEC_CPU_IRQ_MASK(KN02BA_CPU_INR_TC2) },
+		{ .i = DEC_CPU_IRQ_NR(KN02BA_CPU_INR_TC2) } },
+	{ { .i = DEC_CPU_IRQ_MASK(KN02BA_CPU_INR_TC1) },
+		{ .i = DEC_CPU_IRQ_NR(KN02BA_CPU_INR_TC1) } },
+	{ { .i = DEC_CPU_IRQ_MASK(KN02BA_CPU_INR_TC0) },
+		{ .i = DEC_CPU_IRQ_NR(KN02BA_CPU_INR_TC0) } },
+	{ { .i = DEC_CPU_IRQ_ALL },
+		{ .p = cpu_all_int } },
 };
 
 static int_ptr kn02ba_asic_mask_nr_tbl[][2] __initdata = {
-	{ { i: IO_IRQ_MASK(KN02BA_IO_INR_MEMORY) },
-		{ i: IO_IRQ_NR(KN02BA_IO_INR_MEMORY) } },
-	{ { i: IO_IRQ_MASK(KN02BA_IO_INR_RTC) },
-		{ i: IO_IRQ_NR(KN02BA_IO_INR_RTC) } },
-	{ { i: IO_IRQ_DMA },
-		{ p: asic_dma_int } },
-	{ { i: IO_IRQ_MASK(KN02BA_IO_INR_SCC0) },
-		{ i: IO_IRQ_NR(KN02BA_IO_INR_SCC0) } },
-	{ { i: IO_IRQ_MASK(KN02BA_IO_INR_SCC1) },
-		{ i: IO_IRQ_NR(KN02BA_IO_INR_SCC1) } },
-	{ { i: IO_IRQ_MASK(KN02BA_IO_INR_ASC) },
-		{ i: IO_IRQ_NR(KN02BA_IO_INR_ASC) } },
-	{ { i: IO_IRQ_MASK(KN02BA_IO_INR_LANCE) },
-		{ i: IO_IRQ_NR(KN02BA_IO_INR_LANCE) } },
-	{ { i: IO_IRQ_ALL },
-		{ p: asic_all_int } },
+	{ { .i = IO_IRQ_MASK(KN02BA_IO_INR_MEMORY) },
+		{ .i = IO_IRQ_NR(KN02BA_IO_INR_MEMORY) } },
+	{ { .i = IO_IRQ_MASK(KN02BA_IO_INR_RTC) },
+		{ .i = IO_IRQ_NR(KN02BA_IO_INR_RTC) } },
+	{ { .i = IO_IRQ_DMA },
+		{ .p = asic_dma_int } },
+	{ { .i = IO_IRQ_MASK(KN02BA_IO_INR_SCC0) },
+		{ .i = IO_IRQ_NR(KN02BA_IO_INR_SCC0) } },
+	{ { .i = IO_IRQ_MASK(KN02BA_IO_INR_SCC1) },
+		{ .i = IO_IRQ_NR(KN02BA_IO_INR_SCC1) } },
+	{ { .i = IO_IRQ_MASK(KN02BA_IO_INR_ASC) },
+		{ .i = IO_IRQ_NR(KN02BA_IO_INR_ASC) } },
+	{ { .i = IO_IRQ_MASK(KN02BA_IO_INR_LANCE) },
+		{ .i = IO_IRQ_NR(KN02BA_IO_INR_LANCE) } },
+	{ { .i = IO_IRQ_ALL },
+		{ .p = asic_all_int } },
 };
 
 void __init dec_init_kn02ba(void)
@@ -557,31 +557,31 @@ static int kn02ca_interrupt[DEC_NR_INTS] __initdata = {
 };
 
 static int_ptr kn02ca_cpu_mask_nr_tbl[][2] __initdata = {
-	{ { i: DEC_CPU_IRQ_MASK(KN02CA_CPU_INR_MEMORY) },
-		{ i: DEC_CPU_IRQ_NR(KN02CA_CPU_INR_MEMORY) } },
-	{ { i: DEC_CPU_IRQ_MASK(KN02CA_CPU_INR_RTC) },
-		{ i: DEC_CPU_IRQ_NR(KN02CA_CPU_INR_RTC) } },
-	{ { i: DEC_CPU_IRQ_MASK(KN02CA_CPU_INR_CASCADE) },
-		{ p: kn02xa_io_int } },
-	{ { i: DEC_CPU_IRQ_ALL },
-		{ p: cpu_all_int } },
+	{ { .i = DEC_CPU_IRQ_MASK(KN02CA_CPU_INR_MEMORY) },
+		{ .i = DEC_CPU_IRQ_NR(KN02CA_CPU_INR_MEMORY) } },
+	{ { .i = DEC_CPU_IRQ_MASK(KN02CA_CPU_INR_RTC) },
+		{ .i = DEC_CPU_IRQ_NR(KN02CA_CPU_INR_RTC) } },
+	{ { .i = DEC_CPU_IRQ_MASK(KN02CA_CPU_INR_CASCADE) },
+		{ .p = kn02xa_io_int } },
+	{ { .i = DEC_CPU_IRQ_ALL },
+		{ .p = cpu_all_int } },
 };
 
 static int_ptr kn02ca_asic_mask_nr_tbl[][2] __initdata = {
-	{ { i: IO_IRQ_DMA },
-		{ p: asic_dma_int } },
-	{ { i: IO_IRQ_MASK(KN02CA_IO_INR_SCC0) },
-		{ i: IO_IRQ_NR(KN02CA_IO_INR_SCC0) } },
-	{ { i: IO_IRQ_MASK(KN02CA_IO_INR_ASC) },
-		{ i: IO_IRQ_NR(KN02CA_IO_INR_ASC) } },
-	{ { i: IO_IRQ_MASK(KN02CA_IO_INR_LANCE) },
-		{ i: IO_IRQ_NR(KN02CA_IO_INR_LANCE) } },
-	{ { i: IO_IRQ_MASK(KN02CA_IO_INR_TC1) },
-		{ i: IO_IRQ_NR(KN02CA_IO_INR_TC1) } },
-	{ { i: IO_IRQ_MASK(KN02CA_IO_INR_TC0) },
-		{ i: IO_IRQ_NR(KN02CA_IO_INR_TC0) } },
-	{ { i: IO_IRQ_ALL },
-		{ p: asic_all_int } },
+	{ { .i = IO_IRQ_DMA },
+		{ .p = asic_dma_int } },
+	{ { .i = IO_IRQ_MASK(KN02CA_IO_INR_SCC0) },
+		{ .i = IO_IRQ_NR(KN02CA_IO_INR_SCC0) } },
+	{ { .i = IO_IRQ_MASK(KN02CA_IO_INR_ASC) },
+		{ .i = IO_IRQ_NR(KN02CA_IO_INR_ASC) } },
+	{ { .i = IO_IRQ_MASK(KN02CA_IO_INR_LANCE) },
+		{ .i = IO_IRQ_NR(KN02CA_IO_INR_LANCE) } },
+	{ { .i = IO_IRQ_MASK(KN02CA_IO_INR_TC1) },
+		{ .i = IO_IRQ_NR(KN02CA_IO_INR_TC1) } },
+	{ { .i = IO_IRQ_MASK(KN02CA_IO_INR_TC0) },
+		{ .i = IO_IRQ_NR(KN02CA_IO_INR_TC0) } },
+	{ { .i = IO_IRQ_ALL },
+		{ .p = asic_all_int } },
 };
 
 void __init dec_init_kn02ca(void)
@@ -659,35 +659,35 @@ static int kn03_interrupt[DEC_NR_INTS] __initdata = {
 };
 
 static int_ptr kn03_cpu_mask_nr_tbl[][2] __initdata = {
-	{ { i: DEC_CPU_IRQ_MASK(KN03_CPU_INR_MEMORY) },
-		{ i: DEC_CPU_IRQ_NR(KN03_CPU_INR_MEMORY) } },
-	{ { i: DEC_CPU_IRQ_MASK(KN03_CPU_INR_RTC) },
-		{ i: DEC_CPU_IRQ_NR(KN03_CPU_INR_RTC) } },
-	{ { i: DEC_CPU_IRQ_MASK(KN03_CPU_INR_CASCADE) },
-		{ p: kn03_io_int } },
-	{ { i: DEC_CPU_IRQ_ALL },
-		{ p: cpu_all_int } },
+	{ { .i = DEC_CPU_IRQ_MASK(KN03_CPU_INR_MEMORY) },
+		{ .i = DEC_CPU_IRQ_NR(KN03_CPU_INR_MEMORY) } },
+	{ { .i = DEC_CPU_IRQ_MASK(KN03_CPU_INR_RTC) },
+		{ .i = DEC_CPU_IRQ_NR(KN03_CPU_INR_RTC) } },
+	{ { .i = DEC_CPU_IRQ_MASK(KN03_CPU_INR_CASCADE) },
+		{ .p = kn03_io_int } },
+	{ { .i = DEC_CPU_IRQ_ALL },
+		{ .p = cpu_all_int } },
 };
 
 static int_ptr kn03_asic_mask_nr_tbl[][2] __initdata = {
-	{ { i: IO_IRQ_DMA },
-		{ p: asic_dma_int } },
-	{ { i: IO_IRQ_MASK(KN03_IO_INR_SCC0) },
-		{ i: IO_IRQ_NR(KN03_IO_INR_SCC0) } },
-	{ { i: IO_IRQ_MASK(KN03_IO_INR_SCC1) },
-		{ i: IO_IRQ_NR(KN03_IO_INR_SCC1) } },
-	{ { i: IO_IRQ_MASK(KN03_IO_INR_ASC) },
-		{ i: IO_IRQ_NR(KN03_IO_INR_ASC) } },
-	{ { i: IO_IRQ_MASK(KN03_IO_INR_LANCE) },
-		{ i: IO_IRQ_NR(KN03_IO_INR_LANCE) } },
-	{ { i: IO_IRQ_MASK(KN03_IO_INR_TC2) },
-		{ i: IO_IRQ_NR(KN03_IO_INR_TC2) } },
-	{ { i: IO_IRQ_MASK(KN03_IO_INR_TC1) },
-		{ i: IO_IRQ_NR(KN03_IO_INR_TC1) } },
-	{ { i: IO_IRQ_MASK(KN03_IO_INR_TC0) },
-		{ i: IO_IRQ_NR(KN03_IO_INR_TC0) } },
-	{ { i: IO_IRQ_ALL },
-		{ p: asic_all_int } },
+	{ { .i = IO_IRQ_DMA },
+		{ .p = asic_dma_int } },
+	{ { .i = IO_IRQ_MASK(KN03_IO_INR_SCC0) },
+		{ .i = IO_IRQ_NR(KN03_IO_INR_SCC0) } },
+	{ { .i = IO_IRQ_MASK(KN03_IO_INR_SCC1) },
+		{ .i = IO_IRQ_NR(KN03_IO_INR_SCC1) } },
+	{ { .i = IO_IRQ_MASK(KN03_IO_INR_ASC) },
+		{ .i = IO_IRQ_NR(KN03_IO_INR_ASC) } },
+	{ { .i = IO_IRQ_MASK(KN03_IO_INR_LANCE) },
+		{ .i = IO_IRQ_NR(KN03_IO_INR_LANCE) } },
+	{ { .i = IO_IRQ_MASK(KN03_IO_INR_TC2) },
+		{ .i = IO_IRQ_NR(KN03_IO_INR_TC2) } },
+	{ { .i = IO_IRQ_MASK(KN03_IO_INR_TC1) },
+		{ .i = IO_IRQ_NR(KN03_IO_INR_TC1) } },
+	{ { .i = IO_IRQ_MASK(KN03_IO_INR_TC0) },
+		{ .i = IO_IRQ_NR(KN03_IO_INR_TC0) } },
+	{ { .i = IO_IRQ_ALL },
+		{ .p = asic_all_int } },
 };
 
 void __init dec_init_kn03(void)

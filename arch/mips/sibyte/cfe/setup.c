@@ -409,12 +409,12 @@ static int cfe_console_setup(struct console *cons, char *str)
 }
 
 static struct console sb1250_cfe_cons = {
-	name:		"cfe",
-	write:		cfe_console_write,
-	device:		cfe_console_device,
-	setup:		cfe_console_setup,
-	flags:		CON_PRINTBUFFER,
-	index:		-1,
+	.name		= "cfe",
+	.write		= cfe_console_write,
+	.device		= cfe_console_device,
+	.setup		= cfe_console_setup,
+	.flags		= CON_PRINTBUFFER,
+	.index		= -1,
 };
 
 void __init sb1250_cfe_console_init(void)

@@ -29,8 +29,8 @@
 
 struct pcmcia_state {
   unsigned detect: 1,
-            ready: 1,
-           wrprot: 1,
+            .ready = 1,
+           .wrprot = 1,
 	     bvd1: 1,
 	     bvd2: 1,
             vs_3v: 1,
@@ -40,11 +40,11 @@ struct pcmcia_state {
 
 struct pcmcia_configure {
   unsigned sock: 8,
-            vcc: 8,
-            vpp: 8,
-         output: 1,
-        speaker: 1,
-          reset: 1;
+            .vcc = 8,
+            .vpp = 8,
+         .output = 1,
+        .speaker = 1,
+          .reset = 1;
 };
 
 struct pcmcia_irq_info {

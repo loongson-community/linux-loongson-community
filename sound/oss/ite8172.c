@@ -997,11 +997,11 @@ static int it8172_ioctl_mixdev(struct inode *inode, struct file *file,
 }
 
 static /*const*/ struct file_operations it8172_mixer_fops = {
-	owner:	THIS_MODULE,
-	llseek:	no_llseek,
-	ioctl:	it8172_ioctl_mixdev,
-	open:	it8172_open_mixdev,
-	release:	it8172_release_mixdev,
+	.owner	= THIS_MODULE,
+	.llseek	= no_llseek,
+	.ioctl	= it8172_ioctl_mixdev,
+	.open	= it8172_open_mixdev,
+	.release	= it8172_release_mixdev,
 };
 
 /* --------------------------------------------------------------------- */
@@ -1870,15 +1870,15 @@ static int it8172_release(struct inode *inode, struct file *file)
 }
 
 static /*const*/ struct file_operations it8172_audio_fops = {
-	owner:	THIS_MODULE,
-	llseek:	no_llseek,
-	read:	it8172_read,
-	write:	it8172_write,
-	poll:	it8172_poll,
-	ioctl:	it8172_ioctl,
-	mmap:	it8172_mmap,
-	open:	it8172_open,
-	release:	it8172_release,
+	.owner	= THIS_MODULE,
+	.llseek	= no_llseek,
+	.read	= it8172_read,
+	.write	= it8172_write,
+	.poll	= it8172_poll,
+	.ioctl	= it8172_ioctl,
+	.mmap	= it8172_mmap,
+	.open	= it8172_open,
+	.release	= it8172_release,
 };
 
 
@@ -2186,10 +2186,10 @@ static struct pci_device_id id_table[] __devinitdata = {
 MODULE_DEVICE_TABLE(pci, id_table);
 
 static struct pci_driver it8172_driver = {
-	name: IT8172_MODULE_NAME,
-	id_table: id_table,
-	probe: it8172_probe,
-	remove: it8172_remove
+	.name = IT8172_MODULE_NAME,
+	.id_table = id_table,
+	.probe = it8172_probe,
+	.remove = it8172_remove
 };
 
 static int __init init_it8172(void)

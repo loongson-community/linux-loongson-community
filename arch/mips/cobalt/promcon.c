@@ -77,12 +77,12 @@ ns16550_console_dev(struct console *c)
 }
 
 static struct console ns16550_console = {
-    name:	"prom",
-    setup:	NULL,
-    write:	ns16550_console_write,
-    device:	ns16550_console_dev,
-    flags:	CON_PRINTBUFFER,
-    index:	-1,
+    .name	= "prom",
+    .setup	= NULL,
+    .write	= ns16550_console_write,
+    .device	= ns16550_console_dev,
+    .flags	= CON_PRINTBUFFER,
+    .index	= -1,
 };
 
 void __init ns16550_setup_console(void)

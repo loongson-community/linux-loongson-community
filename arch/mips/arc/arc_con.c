@@ -38,12 +38,12 @@ static int __init prom_console_setup(struct console *co, char *options)
 }
 
 static struct console arc_cons = {
-	name:		"arc",
-	write:		prom_console_write,
-	device:		prom_console_device,
-	setup:		prom_console_setup,
-	flags:		CON_PRINTBUFFER,
-	index:		-1,
+	.name		= "arc",
+	.write		= prom_console_write,
+	.device		= prom_console_device,
+	.setup		= prom_console_setup,
+	.flags		= CON_PRINTBUFFER,
+	.index		= -1,
 };
 
 /*

@@ -342,12 +342,12 @@ static int sbprof_tb_ioctl(struct inode *inode,
 }
 
 static struct file_operations sbprof_tb_fops = {
-	owner:		THIS_MODULE,
-	open:		sbprof_tb_open,
-	release:	sbprof_tb_release,
-	read:		sbprof_tb_read,
-	ioctl:		sbprof_tb_ioctl,
-	mmap:		NULL,
+	.owner		= THIS_MODULE,
+	.open		= sbprof_tb_open,
+	.release	= sbprof_tb_release,
+	.read		= sbprof_tb_read,
+	.ioctl		= sbprof_tb_ioctl,
+	.mmap		= NULL,
 };
 
 static devfs_handle_t devfs_handle;

@@ -141,9 +141,9 @@ static inline int cpu_has_fpu(void)
 
 /* declaration of the global struct */
 struct mips_cpu mips_cpu = {
-    processor_id:	PRID_IMP_UNKNOWN,
-    fpu_id:		FPIR_IMP_NONE,
-    cputype:		CPU_UNKNOWN
+    .processor_id	= PRID_IMP_UNKNOWN,
+    .fpu_id		= FPIR_IMP_NONE,
+    .cputype		= CPU_UNKNOWN
 };
 
 /* Shortcut for assembler access to mips_cpu.options */

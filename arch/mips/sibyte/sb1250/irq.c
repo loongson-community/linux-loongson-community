@@ -175,12 +175,12 @@ static void sb1250_dummy_handler(int irq, void *dev_id, struct pt_regs *regs)
 }
 
 static struct irqaction sb1250_dummy_action = {
-	handler: sb1250_dummy_handler,
-	flags:   0,
-	mask:    0,
-	name:    "sb1250-private",
-	next:    NULL,
-	dev_id:  0
+	.handler = sb1250_dummy_handler,
+	.flags   = 0,
+	.mask    = 0,
+	.name    = "sb1250-private",
+	.next    = NULL,
+	.dev_id  = 0
 };
 
 int sb1250_steal_irq(int irq)
