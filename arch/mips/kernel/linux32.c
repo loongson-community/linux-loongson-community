@@ -6,6 +6,7 @@
  * sys32_execve from ia64/ia32 code, Feb 2000, Kanoj Sarcar (kanoj@sgi.com)
  */
 #include <linux/config.h>
+#include <linux/compiler.h>
 #include <linux/mm.h>
 #include <linux/errno.h>
 #include <linux/file.h>
@@ -1614,8 +1615,8 @@ sys32_ipc (u32 call, int first, int second, int third, u32 ptr, u32 fifth)
 		                      NULL);
 		break;
 	case SEMTIMEDOP:
-		err = sys_semtimedop (first, (struct sembuf *)AA(ptr), second
-		                      (const struct timespec __user *)fifth);
+		err = sys32_semtimedop (first, (struct sembuf *)AA(ptr), second,
+		                      (const struct compat_timespec __user *)fifth);
 		break;
 	case SEMGET:
 		err = sys_semget (first, second, third);
@@ -1901,25 +1902,6 @@ asmlinkage ssize_t sys32_readahead(int fd, u32 pad0, u64 a2, u64 a3,
                                    size_t count)
 {
 	return sys_readahead(fd, merge_64(a2, a3), count);
-}
-
-asmlinkage long compat_sys_utimes(char __user * filename,
-	struct compat_timeval __user * utimes)
-{
-	struct timeval times[2];
-                                                                                
-	if (utimes) {
-		if (verify_area(VERIFY_READ, utimes, 2 * sizeof(*utimes)))
-			return -EFAULT;
-
-		if (__get_user(times[0].tv_sec, &utimes[0].tv_sec) | 
-		    __get_user(times[0].tv_usec, &utimes[0].tv_usec) | 
-		    __get_user(times[1].tv_sec, &utimes[1].tv_sec) | 
-		    __get_user(times[1].tv_usec, &utimes[1].tv_usec))
-			return -EFAULT;
-	}
-
-	return do_utimes(filename, utimes ? times : NULL);
 }
 
 /* Argument list sizes for sys_socketcall */

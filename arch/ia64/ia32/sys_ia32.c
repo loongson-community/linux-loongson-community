@@ -51,9 +51,10 @@
 #include <linux/compat.h>
 #include <linux/vfs.h>
 
+#include <asm/intrinsics.h>
+#include <asm/semaphore.h>
 #include <asm/types.h>
 #include <asm/uaccess.h>
-#include <asm/semaphore.h>
 
 #include "ia32priv.h"
 
@@ -1374,7 +1375,7 @@ msgctl32 (int first, int second, void *uptr)
 			break;
 		old_fs = get_fs();
 		set_fs(KERNEL_DS);
-		err = sys_msgctl(first, second, &m64);
+		err = sys_msgctl(first, second, (struct msqid_ds *)&m64);
 		set_fs(old_fs);
 		break;
 
@@ -1382,7 +1383,7 @@ msgctl32 (int first, int second, void *uptr)
 	      case MSG_STAT:
 		old_fs = get_fs();
 		set_fs(KERNEL_DS);
-		err = sys_msgctl(first, second, (void *) &m64);
+		err = sys_msgctl(first, second, (struct msqid_ds *)&m64);
 		set_fs(old_fs);
 
 		if (version == IPC_64) {
@@ -1518,7 +1519,7 @@ shmctl32 (int first, int second, void *uptr)
 			break;
 		old_fs = get_fs();
 		set_fs(KERNEL_DS);
-		err = sys_shmctl(first, second, &s64);
+		err = sys_shmctl(first, second, (struct shmid_ds *)&s64);
 		set_fs(old_fs);
 		break;
 
@@ -1526,7 +1527,7 @@ shmctl32 (int first, int second, void *uptr)
 	      case SHM_STAT:
 		old_fs = get_fs();
 		set_fs(KERNEL_DS);
-		err = sys_shmctl(first, second, (void *) &s64);
+		err = sys_shmctl(first, second, (struct shmid_ds *)&s64);
 		set_fs(old_fs);
 		if (err < 0)
 			break;
@@ -1693,6 +1694,10 @@ sys32_time (int *tloc)
 	}
 	return i;
 }
+
+asmlinkage long
+compat_sys_wait4 (compat_pid_t pid, compat_uint_t * stat_addr, int options,
+		 struct compat_rusage *ru);
 
 asmlinkage long
 sys32_waitpid (int pid, unsigned int *stat_addr, int options)
@@ -2188,7 +2193,7 @@ sys32_iopl (int level)
 	if (level != 3)
 		return(-EINVAL);
 	/* Trying to gain more privileges? */
-	asm volatile ("mov %0=ar.eflag ;;" : "=r"(old));
+	old = ia64_getreg(_IA64_REG_AR_EFLAG);
 	if ((unsigned int) level > ((old >> 12) & 3)) {
 		if (!capable(CAP_SYS_RAWIO))
 			return -EPERM;
@@ -2212,7 +2217,7 @@ sys32_iopl (int level)
 
 	if (addr >= 0) {
 		old = (old & ~0x3000) | (level << 12);
-		asm volatile ("mov ar.eflag=%0;;" :: "r"(old));
+		ia64_setreg(_IA64_REG_AR_EFLAG, old);
 	}
 
 	fput(file);

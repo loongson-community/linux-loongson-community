@@ -1154,7 +1154,7 @@ au1000_probe(u32 ioaddr, int irq, int port_num)
 	if ((err = register_netdev(dev))) {
 		printk(KERN_ERR "Au1x_eth Cannot register net device err %d\n",
 				err);
-		kfree(dev);
+		free_netdev(dev);
 		return NULL;
 	}
 
@@ -1167,7 +1167,7 @@ au1000_probe(u32 ioaddr, int irq, int port_num)
 	aup->vaddr = (u32)dma_alloc(MAX_BUF_SIZE * 
 			(NUM_TX_BUFFS+NUM_RX_BUFFS), &aup->dma_addr);
 	if (!aup->vaddr) {
-		kfree(dev);
+		free_netdev(dev);
 		release_region(ioaddr, MAC_IOSIZE);
 		return NULL;
 	}
@@ -1315,7 +1315,7 @@ err_out:
 	dma_free((void *)aup->vaddr, MAX_BUF_SIZE * 
 			(NUM_TX_BUFFS+NUM_RX_BUFFS));
 	unregister_netdev(dev);
-	kfree(dev);
+	free_netdev(dev);
 	release_region(ioaddr, MAC_IOSIZE);
 	return NULL;
 }
@@ -1517,7 +1517,7 @@ static void __exit au1000_cleanup_module(void)
 			}
 			dma_free((void *)aup->vaddr, MAX_BUF_SIZE * 
 					(NUM_TX_BUFFS+NUM_RX_BUFFS));
-			kfree(dev);
+			free_netdev(dev);
 			release_region(iflist[i].base_addr, MAC_IOSIZE);
 		}
 	}

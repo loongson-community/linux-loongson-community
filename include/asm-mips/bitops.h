@@ -685,10 +685,10 @@ static inline unsigned long __ffs(unsigned long word)
  * @offset: The bitnumber to start searching at
  * @size: The maximum size to search
  */
-static inline unsigned long find_next_zero_bit(unsigned long *addr,
+static inline unsigned long find_next_zero_bit(const unsigned long *addr,
 	unsigned long size, unsigned long offset)
 {
-	unsigned long *p = ((unsigned long *) addr) + (offset >> SZLONG_LOG);
+	const unsigned long *p = addr + (offset >> SZLONG_LOG);
 	unsigned long result = offset & ~SZLONG_MASK;
 	unsigned long tmp;
 
@@ -733,10 +733,10 @@ found_middle:
  * @offset: The bitnumber to start searching at
  * @size: The maximum size to search
  */
-static inline unsigned long find_next_bit(unsigned long *addr,
+static inline unsigned long find_next_bit(const unsigned long *addr,
 	unsigned long size, unsigned long offset)
 {
-	unsigned long *p = addr + (offset >> SZLONG_LOG);
+	const unsigned long *p = addr + (offset >> SZLONG_LOG);
 	unsigned long result = offset & ~SZLONG_MASK;
 	unsigned long tmp;
 
@@ -791,7 +791,7 @@ found_middle:
  * unlikely to be set. It's guaranteed that at least one of the 140
  * bits is cleared.
  */
-static inline int sched_find_first_bit(unsigned long *b)
+static inline int sched_find_first_bit(const unsigned long *b)
 {
 #ifdef CONFIG_MIPS32
 	if (unlikely(b[0]))
@@ -831,6 +831,7 @@ static inline int sched_find_first_bit(unsigned long *b)
  * The Hamming Weight of a number is the total number of bits set in it.
  */
 
+#define hweight64(x)	generic_hweight64(x)
 #define hweight32(x)	generic_hweight32(x)
 #define hweight16(x)	generic_hweight16(x)
 #define hweight8(x)	generic_hweight8(x)

@@ -724,7 +724,7 @@ static void __exit sgiseeq_exit(void)
 		unregister_netdev(dev);
 		free_irq(irq, dev);
 		free_page((unsigned long) dev->priv);
-		kfree(dev);
+		free_netdev(dev);
 	}
 }
 

@@ -8,6 +8,7 @@ CONFIG_MIPS64=y
 # Code maturity level options
 #
 CONFIG_EXPERIMENTAL=y
+# CONFIG_BROKEN is not set
 
 #
 # General setup
@@ -17,10 +18,12 @@ CONFIG_SYSVIPC=y
 CONFIG_BSD_PROCESS_ACCT=y
 CONFIG_SYSCTL=y
 CONFIG_LOG_BUF_SHIFT=14
+# CONFIG_IKCONFIG is not set
 # CONFIG_EMBEDDED is not set
 CONFIG_KALLSYMS=y
 CONFIG_FUTEX=y
 CONFIG_EPOLL=y
+CONFIG_IOSCHED_NOOP=y
 CONFIG_IOSCHED_AS=y
 CONFIG_IOSCHED_DEADLINE=y
 
@@ -142,7 +145,6 @@ CONFIG_BINFMT_ELF32=y
 #
 # Generic Driver Options
 #
-# CONFIG_FW_LOADER is not set
 
 #
 # Block devices
@@ -278,6 +280,7 @@ CONFIG_IP_PNP_BOOTP=y
 # CONFIG_DECNET is not set
 # CONFIG_BRIDGE is not set
 # CONFIG_NETFILTER is not set
+CONFIG_XFRM=y
 # CONFIG_XFRM_USER is not set
 
 #
@@ -344,6 +347,7 @@ CONFIG_SGI_O2MACE_ETH=y
 # CONFIG_HAMACHI is not set
 # CONFIG_YELLOWFIN is not set
 # CONFIG_R8169 is not set
+# CONFIG_SIS190 is not set
 # CONFIG_SK98LIN is not set
 # CONFIG_TIGON3 is not set
 

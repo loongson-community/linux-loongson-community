@@ -44,6 +44,6 @@ clean-files	+= parse.output
 
 endif
 
-targets += $(obj)/keywords.c $(obj)/lex.c $(obj)/parse.c $(obj)/parse.h
+targets += keywords.c lex.c parse.c parse.h
 
 clean-files := keywords.c lex.c parse.c parse.h

@@ -508,7 +508,7 @@ out:	jr	ra
 	sys	sys_remap_file_pages	5
 	sys	sys_set_tid_address	1
 	sys	sys_restart_syscall	0
-	sys	sys_fadvise64		6
+	sys	sys_fadvise64_64	7
 	sys	sys_statfs64		3		/* 4255 */
 	sys	sys_fstatfs64		2
 	sys	sys_timer_create	3

@@ -1323,7 +1323,7 @@ static void __exit dec_lance_cleanup(void)
 #endif
 		root_lance_dev = lp->next;
 		unregister_netdev(dev);
-		kfree(dev);
+		free_netdev(dev);
 	}
 }
 

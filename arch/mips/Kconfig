@@ -993,8 +993,9 @@ config NR_CPUS
 	default "32"
 	help
 	  This allows you to specify the maximum number of CPUs which this
-	  kernel will support.  The maximum supported value is 32 and the
-	  minimum value which makes sense is 2.
+	  kernel will support.  The maximum supported value is 32 for 32-bit
+	  kernel and 64 for 64-bit kernels; the minimum value which makes
+	  sense is 2.
 
 	  This is purely to save memory - each supported CPU adds
 	  approximately eight kilobytes to the kernel image.

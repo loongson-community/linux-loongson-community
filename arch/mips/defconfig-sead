@@ -9,6 +9,7 @@ CONFIG_MIPS32=y
 # Code maturity level options
 #
 CONFIG_EXPERIMENTAL=y
+# CONFIG_BROKEN is not set
 
 #
 # General setup
@@ -18,10 +19,12 @@ CONFIG_SWAP=y
 # CONFIG_BSD_PROCESS_ACCT is not set
 CONFIG_SYSCTL=y
 CONFIG_LOG_BUF_SHIFT=14
+# CONFIG_IKCONFIG is not set
 # CONFIG_EMBEDDED is not set
 CONFIG_KALLSYMS=y
 CONFIG_FUTEX=y
 CONFIG_EPOLL=y
+CONFIG_IOSCHED_NOOP=y
 CONFIG_IOSCHED_AS=y
 CONFIG_IOSCHED_DEADLINE=y
 
@@ -136,7 +139,6 @@ CONFIG_TRAD_SIGNALS=y
 #
 # Generic Driver Options
 #
-# CONFIG_FW_LOADER is not set
 
 #
 # Block devices

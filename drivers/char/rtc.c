@@ -43,10 +43,11 @@
  *	1.10e	Maciej W. Rozycki: Handle DECstation's year weirdness.
  *	1.11	Takashi Iwai: Kernel access functions
  *			      rtc_register/rtc_unregister/rtc_control
- *	1.11a	Maciej W. Rozycki: Handle memory-mapped chips properly.
+ *      1.11a   Daniele Bellucci: Audit create_proc_read_entry in rtc_init
+ *	1.11b	Maciej W. Rozycki: Handle memory-mapped chips properly.
  */
 
-#define RTC_VERSION		"1.11a"
+#define RTC_VERSION		"1.11b"
 
 /*
  *	Note that *all* calls to CMOS_READ and CMOS_WRITE are done with
@@ -917,15 +918,21 @@ no_irq:
 
 #endif /* __sparc__ vs. others */
 
-	if (misc_register(&rtc_dev))
-		{
+	if (misc_register(&rtc_dev)) {
 #if RTC_IRQ
 		free_irq(RTC_IRQ, NULL);
 #endif
 		release_region(RTC_PORT(0), RTC_IO_EXTENT);
 		return -ENODEV;
-		}
-	create_proc_read_entry ("driver/rtc", 0, 0, rtc_read_proc, NULL);
+	}
+	if (create_proc_read_entry ("driver/rtc", 0, 0, rtc_read_proc, NULL) == NULL) {
+#if RTC_IRQ
+		free_irq(RTC_IRQ, NULL);
+#endif
+		release_region(RTC_PORT(0), RTC_IO_EXTENT);
+		misc_deregister(&rtc_dev);
+		return -ENOMEM;
+	}
 
 #if defined(__alpha__) || defined(__mips__)
 	rtc_freq = HZ;

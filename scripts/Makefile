@@ -8,15 +8,11 @@
 # docproc: 	 Preprocess .tmpl file in order to generate .sgml docs
 # conmakehash:	 Create arrays for initializing the kernel console tables
 
-host-progs	:= fixdep
-ifdef include_config
-host-progs	+= split-include conmakehash docproc kallsyms modpost \
+host-progs	:= fixdep split-include conmakehash docproc kallsyms modpost \
 		   mk_elfconfig pnmtologo
-always		:= empty.o
+always		:= $(host-progs) empty.o
 
 modpost-objs	:= modpost.o file2alias.o
-endif
-always		+= $(host-progs)
 
 subdir-$(CONFIG_MODVERSIONS)	+= genksyms
 

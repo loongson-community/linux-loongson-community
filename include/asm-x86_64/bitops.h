@@ -402,12 +402,12 @@ static inline void set_bit_string(unsigned long *bitmap, unsigned long i,
 	}
 } 
 
-static inline void clear_bit_string(unsigned long *bitmap, unsigned long i, 
+static inline void __clear_bit_string(unsigned long *bitmap, unsigned long i, 
 				    int len) 
 { 
 	unsigned long end = i + len; 
 	while (i < end) {
-		clear_bit(i, bitmap); 
+		__clear_bit(i, bitmap); 
 		i++;
 	}
 } 
@@ -477,6 +477,7 @@ static __inline__ int ffs(int x)
  * The Hamming Weight of a number is the total number of bits set in it.
  */
 
+#define hweight64(x) generic_hweight64(x)
 #define hweight32(x) generic_hweight32(x)
 #define hweight16(x) generic_hweight16(x)
 #define hweight8(x) generic_hweight8(x)
