@@ -36,6 +36,10 @@
 #include <asm/stackframe.h>
 #include <asm/system.h>
 
+#ifdef CONFIG_SGI_IP27
+#include <asm/sn/sn0/addrs.h>
+#endif
+
 struct mips_cpuinfo boot_cpu_data;
 
 #ifdef CONFIG_VT
@@ -99,7 +103,7 @@ extern char arcs_cmdline[CL_SIZE];
  * mips_io_port_base is the begin of the address space to which x86 style
  * I/O ports are mapped.
  */
-unsigned long mips_io_port_base;
+unsigned long mips_io_port_base = IO_BASE;
 
 extern void ip22_setup(void);
 extern void ip27_setup(void);
