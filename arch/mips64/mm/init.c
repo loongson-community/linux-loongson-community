@@ -382,7 +382,6 @@ void __init paging_init(void)
 	pgd_set(swapper_pg_dir, kpmdtbl);
 	for (i = 0; i < (1 << KPTBL_PAGE_ORDER); pmd++,i++,pte+=PTRS_PER_PTE)
 		pmd_val(*pmd) = (unsigned long)pte;
-
 }
 
 extern int page_is_ram(unsigned long pagenr);
