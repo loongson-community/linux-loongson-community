@@ -10,9 +10,10 @@
 #define _ASM_PAGE_H
 
 #include <linux/config.h>
-#include <spaces.h>
 
 #ifdef __KERNEL__
+
+#include <spaces.h>
 
 /*
  * PAGE_SHIFT determines the page size
