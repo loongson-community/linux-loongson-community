@@ -1,4 +1,5 @@
 /*
+ *
  * BRIEF MODULE DESCRIPTION
  *	IT8172 system controller specific pci support.
  *
@@ -35,6 +36,7 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 
+#include <asm/pci_channel.h>
 #include <asm/it8172/it8172.h>
 #include <asm/it8172/it8172_pci.h>
 
@@ -42,7 +44,30 @@
 #define PCI_ACCESS_WRITE 1
 
 #undef DEBUG
-#undef DEBUG_CONFIG_CYCLES
+#ifdef DEBUG
+#define DBG(x...) printk(x)
+#else
+#define DBG(x...)
+#endif
+
+static struct resource pci_io_resource = {
+	"io pci IO space", 
+	0x14000000,
+	0x17FFFFFF,
+	IORESOURCE_IO};
+
+static struct resource pci_mem_resource = {
+	"ext pci memory space", 
+	0x0C000000,
+	0x0FFFFFFF,
+	IORESOURCE_MEM};
+
+extern struct pci_ops it8172_pci_ops;
+
+struct pci_channel mips_pci_channels[] = {
+	{ &it8172_pci_ops, &pci_io_resource, &pci_mem_resource, 0, 0xff },
+	{ NULL, NULL, NULL, NULL, NULL}
+};
 
 static int
 it8172_pcibios_config_access(unsigned char access_type, struct pci_dev *dev,
@@ -54,11 +79,8 @@ it8172_pcibios_config_access(unsigned char access_type, struct pci_dev *dev,
 	unsigned char bus = dev->bus->number;
 	unsigned char dev_fn = dev->devfn;
 
-#ifdef DEBUG_CONFIG_CYCLES
-	printk("it config: type %d dev %x bus %d dev_fn %x data %x\n",
+	DBG("it config: type %d dev %x bus %d dev_fn %x data %x\n",
 			access_type, dev, bus, dev_fn, *data);
-
-#endif
 
 	/* Setup address */
 	IT_WRITE(IT_CONFADDR, (bus << IT_BUSNUM_SHF) | 
@@ -86,7 +108,7 @@ it8172_pcibios_config_access(unsigned char access_type, struct pci_dev *dev,
  * read/write a 32bit word and mask/modify the data we actually want.
  */
 static int
-it8172_pcibios_read_config_byte (struct pci_dev *dev, int where, u8 *val)
+read_config_byte (struct pci_dev *dev, int where, u8 *val)
 {
 	u32 data = 0;
 
@@ -94,17 +116,15 @@ it8172_pcibios_read_config_byte (struct pci_dev *dev, int where, u8 *val)
 		return -1;
 
 	*val = (data >> ((where & 3) << 3)) & 0xff;
-#ifdef DEBUG
-        printk("cfg read byte: bus %d dev_fn %x where %x: val %x\n", 
+        DBG("cfg read byte: bus %d dev_fn %x where %x: val %x\n", 
                 dev->bus->number, dev->devfn, where, *val);
-#endif
 
 	return PCIBIOS_SUCCESSFUL;
 }
 
 
 static int
-it8172_pcibios_read_config_word (struct pci_dev *dev, int where, u16 *val)
+read_config_word (struct pci_dev *dev, int where, u16 *val)
 {
 	u32 data = 0;
 
@@ -115,16 +135,14 @@ it8172_pcibios_read_config_word (struct pci_dev *dev, int where, u16 *val)
 	       return -1;
 
 	*val = (data >> ((where & 3) << 3)) & 0xffff;
-#ifdef DEBUG
-        printk("cfg read word: bus %d dev_fn %x where %x: val %x\n", 
+        DBG("cfg read word: bus %d dev_fn %x where %x: val %x\n", 
                 dev->bus->number, dev->devfn, where, *val);
-#endif
 
 	return PCIBIOS_SUCCESSFUL;
 }
 
 static int
-it8172_pcibios_read_config_dword (struct pci_dev *dev, int where, u32 *val)
+read_config_dword (struct pci_dev *dev, int where, u32 *val)
 {
 	u32 data = 0;
 
@@ -135,17 +153,15 @@ it8172_pcibios_read_config_dword (struct pci_dev *dev, int where, u32 *val)
 		return -1;
 
 	*val = data;
-#ifdef DEBUG
-        printk("cfg read dword: bus %d dev_fn %x where %x: val %x\n", 
+        DBG("cfg read dword: bus %d dev_fn %x where %x: val %x\n", 
                 dev->bus->number, dev->devfn, where, *val);
-#endif
 
 	return PCIBIOS_SUCCESSFUL;
 }
 
 
 static int
-it8172_pcibios_write_config_byte (struct pci_dev *dev, int where, u8 val)
+write_config_byte (struct pci_dev *dev, int where, u8 val)
 {
 	u32 data = 0;
        
@@ -162,7 +178,7 @@ it8172_pcibios_write_config_byte (struct pci_dev *dev, int where, u8 val)
 }
 
 static int
-it8172_pcibios_write_config_word (struct pci_dev *dev, int where, u16 val)
+write_config_word (struct pci_dev *dev, int where, u16 val)
 {
         u32 data = 0;
 
@@ -183,7 +199,7 @@ it8172_pcibios_write_config_word (struct pci_dev *dev, int where, u16 val)
 }
 
 static int
-it8172_pcibios_write_config_dword(struct pci_dev *dev, int where, u32 val)
+write_config_dword(struct pci_dev *dev, int where, u32 val)
 {
 	if (where & 3)
 		return PCIBIOS_BAD_REGISTER_NUMBER;
@@ -195,87 +211,16 @@ it8172_pcibios_write_config_dword(struct pci_dev *dev, int where, u32 val)
 }
 
 struct pci_ops it8172_pci_ops = {
-	it8172_pcibios_read_config_byte,
-        it8172_pcibios_read_config_word,
-	it8172_pcibios_read_config_dword,
-	it8172_pcibios_write_config_byte,
-	it8172_pcibios_write_config_word,
-	it8172_pcibios_write_config_dword
+	read_config_byte,
+        read_config_word,
+	read_config_dword,
+	write_config_byte,
+	write_config_word,
+	write_config_dword
 };
-
-void __init pcibios_init(void)
-{
-
-	printk("PCI: Probing PCI hardware on host bus 0.\n");
-	pci_scan_bus(0, &it8172_pci_ops, NULL);
-}
-
-int __init
-pcibios_enable_device(struct pci_dev *dev)
-{
-	u16 cmd, old_cmd;
-	int idx;
-	struct resource *r;
-
-	pci_read_config_word(dev, PCI_COMMAND, &cmd);
-	old_cmd = cmd;
-	for(idx=0; idx<6; idx++) {
-		r = &dev->resource[idx];
-		if (!r->start && r->end) {
-			printk(KERN_ERR "PCI: Device %s not available because of resource collisions\n", dev->slot_name);
-			return -EINVAL;
-		}
-		if (r->flags & IORESOURCE_IO)
-			cmd |= PCI_COMMAND_IO;
-		if (r->flags & IORESOURCE_MEM)
-			cmd |= PCI_COMMAND_MEMORY;
-	}
-	if (dev->resource[PCI_ROM_RESOURCE].start)
-		cmd |= PCI_COMMAND_MEMORY;
-	if (cmd != old_cmd) {
-		printk("PCI: Enabling device %s (%04x -> %04x)\n", dev->slot_name, old_cmd, cmd);
-		pci_write_config_word(dev, PCI_COMMAND, cmd);
-	}
-	return 0;
-}
-
-
-void __init
-pcibios_align_resource(void *data, struct resource *res, unsigned long size)
-{
-    printk("pcibios_align_resource\n");
-}
-
-char * __init
-pcibios_setup(char *str)
-{
-	/* Nothing to do for now.  */
-
-	return str;
-}
-
-void __init
-pcibios_update_resource(struct pci_dev *dev, struct resource *root,
-                        struct resource *res, int resource)
-{
-	unsigned long where, size;
-	u32 reg;
-
-	where = PCI_BASE_ADDRESS_0 + (resource * 4);
-	size = res->end - res->start;
-	pci_read_config_dword(dev, where, &reg);
-	reg = (reg & size) | (((u32)(res->start - root->start)) & ~size);
-	pci_write_config_dword(dev, where, reg);
-}
-
-void __init pcibios_fixup_bus(struct pci_bus *b)
-{
-	//printk("pcibios_fixup_bus\n");
-}
 
 unsigned __init int pcibios_assign_all_busses(void)
 {
-	return 1;
+       return 1;
 }
-
 #endif /* CONFIG_PCI */

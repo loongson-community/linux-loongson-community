@@ -40,10 +40,19 @@
 #include <asm/it8172/it8172_pci.h>
 #include <asm/it8172/it8172_int.h>
 
-void __init board_int_line_fixup(struct pci_dev *dev)     
+void __init pcibios_fixup_resources(struct pci_dev *dev)
+{
+}
+
+void __init pcibios_fixup(void)
+{
+}
+
+void __init pcibios_fixup_irqs(void)
 {
 	unsigned int slot, func;
 	unsigned char pin;
+	struct pci_dev *dev;
         const int internal_func_irqs[7] = {
             IT8172_AC97_IRQ,
             IT8172_DMA_IRQ,
@@ -54,144 +63,133 @@ void __init board_int_line_fixup(struct pci_dev *dev)
             IT8172_MC68K_IRQ
         };
 
-#ifdef DEBUG
-	printk("board_int_line_fixup bus %d\n", dev->bus->number);
-#endif
-	if (dev->bus->number != 0)
-		return;
-
-	pci_read_config_byte(dev, PCI_INTERRUPT_PIN, &pin);
-
-#ifdef DEBUG
-	pci_read_config_dword(dev, PCI_SUBSYSTEM_VENDOR_ID, &vendor);
-#endif
-
-	slot = PCI_SLOT(dev->devfn);
-        func = PCI_FUNC(dev->devfn);
-
-	switch (slot) {
-                case 0x01:
-                    /*
-                     * Internal device 1 is actually 7 different internal
-                     * devices on the IT8172G (a multi-function device).
-                     */
-                    if (func < 7)
-                        dev->irq = internal_func_irqs[func];
-                    break;
-		case 0x10:
-			switch (pin) {
-				case 1: /* pin A */
-					dev->irq = IT8172_PCI_INTA_IRQ;
-					break;
-				case 2: /* pin B */
-					dev->irq = IT8172_PCI_INTB_IRQ;
-					break;
-				case 3: /* pin C */
-					dev->irq = IT8172_PCI_INTC_IRQ;
-					break;
-				case 4: /* pin D */
-					dev->irq = IT8172_PCI_INTD_IRQ;
-					break;
-				default:
-					dev->irq = 0xff; 
-					break;
-
-			}
-			break;
-		case 0x11:
-			switch (pin) {
-				case 1: /* pin A */
-					dev->irq = IT8172_PCI_INTA_IRQ;
-					break;
-				case 2: /* pin B */
-					dev->irq = IT8172_PCI_INTB_IRQ;
-					break;
-				case 3: /* pin C */
-					dev->irq = IT8172_PCI_INTC_IRQ;
-					break;
-				case 4: /* pin D */
-					dev->irq = IT8172_PCI_INTD_IRQ;
-					break;
-				default:
-					dev->irq = 0xff; 
-					break;
-
-			}
-			break;
-		case 0x12:
-			switch (pin) {
-				case 1: /* pin A */
-					dev->irq = IT8172_PCI_INTB_IRQ;
-					break;
-				case 2: /* pin B */
-					dev->irq = IT8172_PCI_INTC_IRQ;
-					break;
-				case 3: /* pin C */
-					dev->irq = IT8172_PCI_INTD_IRQ;
-					break;
-				case 4: /* pin D */
-					dev->irq = IT8172_PCI_INTA_IRQ;
-					break;
-				default:
-					dev->irq = 0xff; 
-					break;
-
-			}
-			break;
-		case 0x13:
-			switch (pin) {
-				case 1: /* pin A */
-					dev->irq = IT8172_PCI_INTC_IRQ;
-					break;
-				case 2: /* pin B */
-					dev->irq = IT8172_PCI_INTD_IRQ;
-					break;
-				case 3: /* pin C */
-					dev->irq = IT8172_PCI_INTA_IRQ;
-					break;
-				case 4: /* pin D */
-					dev->irq = IT8172_PCI_INTB_IRQ;
-					break;
-				default:
-					dev->irq = 0xff; 
-					break;
-
-			}
-			break;
-		case 0x14:
-			switch (pin) {
-				case 1: /* pin A */
-					dev->irq = IT8172_PCI_INTD_IRQ;
-					break;
-				case 2: /* pin B */
-					dev->irq = IT8172_PCI_INTA_IRQ;
-					break;
-				case 3: /* pin C */
-					dev->irq = IT8172_PCI_INTB_IRQ;
-					break;
-				case 4: /* pin D */
-					dev->irq = IT8172_PCI_INTC_IRQ;
-					break;
-				default:
-					dev->irq = 0xff; 
-					break;
-
-			}
-			break;
-		default:
+	pci_for_each_dev(dev) {
+		if (dev->bus->number != 0) {
 			return;
-	}
+		}
 
+		pci_read_config_byte(dev, PCI_INTERRUPT_PIN, &pin);
+		slot = PCI_SLOT(dev->devfn);
+		func = PCI_FUNC(dev->devfn);
+
+		switch (slot) {
+			case 0x01:
+			    /*
+			     * Internal device 1 is actually 7 different 
+			     * internal devices on the IT8172G (a multi-
+			     * function device).
+			     */
+			    if (func < 7)
+				dev->irq = internal_func_irqs[func];
+			    break;
+			case 0x10:
+				switch (pin) {
+					case 1: /* pin A */
+						dev->irq = IT8172_PCI_INTA_IRQ;
+						break;
+					case 2: /* pin B */
+						dev->irq = IT8172_PCI_INTB_IRQ;
+						break;
+					case 3: /* pin C */
+						dev->irq = IT8172_PCI_INTC_IRQ;
+						break;
+					case 4: /* pin D */
+						dev->irq = IT8172_PCI_INTD_IRQ;
+						break;
+					default:
+						dev->irq = 0xff; 
+						break;
+
+				}
+				break;
+			case 0x11:
+				switch (pin) {
+					case 1: /* pin A */
+						dev->irq = IT8172_PCI_INTA_IRQ;
+						break;
+					case 2: /* pin B */
+						dev->irq = IT8172_PCI_INTB_IRQ;
+						break;
+					case 3: /* pin C */
+						dev->irq = IT8172_PCI_INTC_IRQ;
+						break;
+					case 4: /* pin D */
+						dev->irq = IT8172_PCI_INTD_IRQ;
+						break;
+					default:
+						dev->irq = 0xff; 
+						break;
+
+				}
+				break;
+			case 0x12:
+				switch (pin) {
+					case 1: /* pin A */
+						dev->irq = IT8172_PCI_INTB_IRQ;
+						break;
+					case 2: /* pin B */
+						dev->irq = IT8172_PCI_INTC_IRQ;
+						break;
+					case 3: /* pin C */
+						dev->irq = IT8172_PCI_INTD_IRQ;
+						break;
+					case 4: /* pin D */
+						dev->irq = IT8172_PCI_INTA_IRQ;
+						break;
+					default:
+						dev->irq = 0xff; 
+						break;
+
+				}
+				break;
+			case 0x13:
+				switch (pin) {
+					case 1: /* pin A */
+						dev->irq = IT8172_PCI_INTC_IRQ;
+						break;
+					case 2: /* pin B */
+						dev->irq = IT8172_PCI_INTD_IRQ;
+						break;
+					case 3: /* pin C */
+						dev->irq = IT8172_PCI_INTA_IRQ;
+						break;
+					case 4: /* pin D */
+						dev->irq = IT8172_PCI_INTB_IRQ;
+						break;
+					default:
+						dev->irq = 0xff; 
+						break;
+
+				}
+				break;
+			case 0x14:
+				switch (pin) {
+					case 1: /* pin A */
+						dev->irq = IT8172_PCI_INTD_IRQ;
+						break;
+					case 2: /* pin B */
+						dev->irq = IT8172_PCI_INTA_IRQ;
+						break;
+					case 3: /* pin C */
+						dev->irq = IT8172_PCI_INTB_IRQ;
+						break;
+					case 4: /* pin D */
+						dev->irq = IT8172_PCI_INTC_IRQ;
+						break;
+					default:
+						dev->irq = 0xff; 
+						break;
+
+				}
+				break;
+			default:
+				continue; /* do nothing */
+		}
 #ifdef DEBUG
-	printk("irq fixup: slot %d, vendor %x, int line %d, int number %d\n",
-			slot, vendor, pin, dev->irq);
+		printk("irq fixup: slot %d, int line %d, int number %d\n",
+			slot, pin, dev->irq);
 #endif
-	pci_write_config_byte(dev, PCI_INTERRUPT_LINE, dev->irq);
-
+		pci_write_config_byte(dev, PCI_INTERRUPT_LINE, dev->irq);
+	}
 }
-
-struct pci_fixup pcibios_fixups[] = {
-	{ PCI_FIXUP_HEADER, PCI_ANY_ID, PCI_ANY_ID, board_int_line_fixup },
-	{ 0 }
-};
 #endif
