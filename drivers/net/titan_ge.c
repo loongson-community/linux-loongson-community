@@ -184,7 +184,7 @@ static void titan_ge_gmii_config(int port_num)
 		printk(KERN_ERR
 			"Setting speed to 1000 Mbps and Duplex to Full \n");
 
-		return TITAN_ERROR;
+		return;
         }
 
 	err = titan_ge_mdio_write(port_num, TITAN_GE_MDIO_PHY_IE, 0);
