@@ -57,6 +57,12 @@ static inline char *portspeed (int portstatus)
 }
 #endif
 
+/* for dev_info, dev_dbg, etc */
+static inline struct device *hubdev (struct usb_device *dev)
+{
+	return &dev->actconfig->interface [0].dev;
+}
+
 /* USB 2.0 spec Section 11.24.4.5 */
 static int usb_get_hub_descriptor(struct usb_device *dev, void *data, int size)
 {
@@ -273,12 +279,13 @@ static int usb_hub_configure(struct usb_hub *hub,
 	struct usb_hub_status hubstatus;
 	unsigned int pipe;
 	int maxp, ret;
+	char *message;
 
 	hub->descriptor = kmalloc(sizeof(*hub->descriptor), GFP_KERNEL);
 	if (!hub->descriptor) {
-		err("Unable to kmalloc %Zd bytes for hub descriptor",
-			sizeof(*hub->descriptor));
-		return -1;
+		message = "can't kmalloc hub descriptor";
+		ret = -ENOMEM;
+		goto fail;
 	}
 
 	/* Request the entire hub descriptor.
@@ -288,17 +295,16 @@ static int usb_hub_configure(struct usb_hub *hub,
 	ret = usb_get_hub_descriptor(dev, hub->descriptor,
 			sizeof(*hub->descriptor));
 	if (ret < 0) {
-		err("Unable to get hub descriptor (err = %d)", ret);
-		kfree(hub->descriptor);
-		return -1;
+		message = "can't read hub descriptor";
+		goto fail;
 	} else if (hub->descriptor->bNbrPorts > USB_MAXCHILDREN) {
-		err("Hub is too big! %d children", hub->descriptor->bNbrPorts);
-		kfree(hub->descriptor);
-		return -1;
+		message = "hub has too many ports!";
+		ret = -ENODEV;
+		goto fail;
 	}
 
 	dev->maxchild = hub->descriptor->bNbrPorts;
-	info("%d port%s detected", dev->maxchild,
+	dev_info (*hubdev (dev), "%d port%s detected\n", dev->maxchild,
 		(dev->maxchild == 1) ? "" : "s");
 
 	le16_to_cpus(&hub->descriptor->wHubCharacteristics);
@@ -390,9 +396,8 @@ static int usb_hub_configure(struct usb_hub *hub,
 
 	ret = usb_get_hub_status(dev, &hubstatus);
 	if (ret < 0) {
-		err("Unable to get hub status (err = %d)", ret);
-		kfree(hub->descriptor);
-		return -1;
+		message = "can't get hub status";
+		goto fail;
 	}
 
 	le16_to_cpus(&hubstatus.wHubStatus);
@@ -413,18 +418,17 @@ static int usb_hub_configure(struct usb_hub *hub,
 
 	hub->urb = usb_alloc_urb(0, GFP_KERNEL);
 	if (!hub->urb) {
-		err("couldn't allocate interrupt urb");
-		kfree(hub->descriptor);
-		return -1;
+		message = "couldn't allocate interrupt urb";
+		ret = -ENOMEM;
+		goto fail;
 	}
 
 	usb_fill_int_urb(hub->urb, dev, pipe, hub->buffer, maxp, hub_irq,
 		hub, endpoint->bInterval);
 	ret = usb_submit_urb(hub->urb, GFP_KERNEL);
 	if (ret) {
-		err("usb_submit_urb failed (%d)", ret);
-		kfree(hub->descriptor);
-		return -1;
+		message = "couldn't submit status urb";
+		goto fail;
 	}
 		
 	/* Wake up khubd */
@@ -433,6 +437,12 @@ static int usb_hub_configure(struct usb_hub *hub,
 	usb_hub_power_on(hub);
 
 	return 0;
+
+fail:
+	dev_err (hub->intf->dev, "config failed, %s (err %d)\n",
+			message, ret);
+	/* hub_disconnect() frees urb and descriptor */
+	return ret;
 }
 
 static void hub_disconnect(struct usb_interface *intf)
@@ -491,37 +501,32 @@ static int hub_probe(struct usb_interface *intf, const struct usb_device_id *id)
 	/*  specs is not defined, but it works */
 	if ((desc->desc.bInterfaceSubClass != 0) &&
 	    (desc->desc.bInterfaceSubClass != 1)) {
-		err("invalid subclass (%d) for USB hub device #%d",
-			desc->desc.bInterfaceSubClass, dev->devnum);
+descriptor_error:
+		dev_err (intf->dev, "bad descriptor, ignoring hub\n");
 		return -EIO;
 	}
 
 	/* Multiple endpoints? What kind of mutant ninja-hub is this? */
 	if (desc->desc.bNumEndpoints != 1) {
-		err("invalid bNumEndpoints (%d) for USB hub device #%d",
-			desc->desc.bNumEndpoints, dev->devnum);
-		return -EIO;
+		goto descriptor_error;
 	}
 
 	endpoint = &desc->endpoint[0].desc;
 
 	/* Output endpoint? Curiousier and curiousier.. */
 	if (!(endpoint->bEndpointAddress & USB_DIR_IN)) {
-		err("Device #%d is hub class, but has output endpoint?",
-			dev->devnum);
-		return -EIO;
+		goto descriptor_error;
 	}
 
 	/* If it's not an interrupt endpoint, we'd better punt! */
 	if ((endpoint->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK)
 			!= USB_ENDPOINT_XFER_INT) {
-		err("Device #%d is hub class, but endpoint is not interrupt?",
-			dev->devnum);
+		goto descriptor_error;
 		return -EIO;
 	}
 
 	/* We found a hub */
-	info("USB hub found at %s", dev->devpath);
+	dev_info (*hubdev (dev), "USB hub found\n");
 
 	hub = kmalloc(sizeof(*hub), GFP_KERNEL);
 	if (!hub) {
@@ -547,8 +552,6 @@ static int hub_probe(struct usb_interface *intf, const struct usb_device_id *id)
 		strcpy (intf->dev.name, "Hub");
 		return 0;
 	}
-
-	err("hub configuration failed for device at %s", dev->devpath);
 
 	hub_disconnect (intf);
 	return -ENODEV;
@@ -651,8 +654,6 @@ static int usb_hub_port_status(struct usb_device *hub, int port,
 		else {
 			*status = le16_to_cpu(portsts->wPortStatus);
 			*change = le16_to_cpu(portsts->wPortChange); 
-			dbg("port %d, portstatus %x, change %x, %s", port + 1,
-				*status, *change, portspeed(*status));
 			ret = 0;
 		}
 		kfree(portsts);
@@ -710,8 +711,9 @@ static int usb_hub_port_wait_reset(struct usb_device *hub, int port,
 		if (delay_time >= 2 * HUB_SHORT_RESET_TIME)
 			delay = HUB_LONG_RESET_TIME;
 
-		dbg("port %d of hub %s not reset yet, waiting %dms", port + 1,
-			hub->devpath, delay);
+		dev_dbg (*hubdev (hub),
+			"port %d not reset yet, waiting %dms\n",
+			port + 1, delay);
 	}
 
 	return -1;
@@ -735,14 +737,15 @@ static int usb_hub_port_reset(struct usb_device *hub, int port,
 			return status;
 		}
 
-		dbg("port %d of hub %s not enabled, trying reset again...",
-			port + 1, hub->devpath);
+		dev_dbg (*hubdev (hub),
+			"port %d not enabled, trying reset again...\n",
+			port + 1);
 		delay = HUB_LONG_RESET_TIME;
 	}
 
-	err("Cannot enable port %i of hub %s, disabling port.",
-		port + 1, hub->devpath);
-	err("Maybe the USB cable is bad?");
+	dev_err (*hubdev (hub),
+		"Cannot enable port %i.  Maybe the USB cable is bad?\n",
+		port + 1);
 
 	return -1;
 }
@@ -808,8 +811,9 @@ static int usb_hub_port_debounce(struct usb_device *hub, int port)
 	}
 
 	/* XXX Replace this with dbg() when 2.6 is about to ship. */
-	info("debounce: hub %d port %d: delay %dms stable %d status 0x%x\n",
-	    hub->devnum, port, delay_time, stable_count, portstatus);
+	dev_info (*hubdev (hub),
+		"debounce: port %d: delay %dms stable %d status 0x%x\n",
+		port + 1, delay_time, stable_count, portstatus);
 
 	return ((portstatus&USB_PORT_STAT_CONNECTION)) ? 0 : 1;
 }
@@ -822,9 +826,9 @@ static void usb_hub_port_connect_change(struct usb_hub *hubstate, int port,
 	unsigned int delay = HUB_SHORT_RESET_TIME;
 	int i;
 
-	dbg("hub %s port %d, portstatus %x, change %x, %s",
-		hub->devpath, port + 1,
-		portstatus, portchange, portspeed (portstatus));
+	dev_dbg (hubstate->intf->dev,
+		"port %d, status %x, change %x, %s\n",
+		port + 1, portstatus, portchange, portspeed (portstatus));
 
 	/* Clear the connection change status */
 	usb_clear_port_feature(hub, port + 1, USB_PORT_FEAT_C_CONNECTION);
@@ -842,7 +846,9 @@ static void usb_hub_port_connect_change(struct usb_hub *hubstate, int port,
 	}
 
 	if (usb_hub_port_debounce(hub, port)) {
-		err("connect-debounce failed, port %d disabled", port+1);
+		dev_err (hubstate->intf->dev,
+			"connect-debounce failed, port %d disabled\n",
+			port+1);
 		usb_hub_port_disable(hub, port);
 		return;
 	}
@@ -861,7 +867,8 @@ static void usb_hub_port_connect_change(struct usb_hub *hubstate, int port,
 		/* Allocate a new device struct */
 		dev = usb_alloc_dev(hub, hub->bus);
 		if (!dev) {
-			err("couldn't allocate usb_device");
+			dev_err (hubstate->intf->dev,
+				"couldn't allocate usb_device\n");
 			break;
 		}
 
@@ -904,10 +911,12 @@ static void usb_hub_port_connect_change(struct usb_hub *hubstate, int port,
 			len = snprintf (dev->devpath, sizeof dev->devpath,
 				"%d", port + 1);
 		if (len == sizeof dev->devpath)
-			warn ("devpath size! usb/%03d/%03d path %s",
+			dev_err (hubstate->intf->dev,
+				"devpath size! usb/%03d/%03d path %s\n",
 				dev->bus->busnum, dev->devnum, dev->devpath);
-		info("new USB device %s-%s, assigned address %d",
-			dev->bus->bus_name, dev->devpath, dev->devnum);
+		dev_info (hubstate->intf->dev,
+			"new USB device on port %d, assigned address %d\n",
+			port + 1, dev->devnum);
 
 		/* put the device in the global device tree. the hub port
 		 * is the "bus_id"; hubs show in hierarchy like bridges
@@ -992,12 +1001,11 @@ static void usb_hub_events(void)
 			}
 
 			if (portchange & USB_PORT_STAT_C_CONNECTION) {
-				dbg("hub %s port %d connection change",
-					dev->devpath, i + 1);
 				usb_hub_port_connect_change(hub, i, portstatus, portchange);
 			} else if (portchange & USB_PORT_STAT_C_ENABLE) {
-				dbg("hub %s port %d enable change, status %x",
-					dev->devpath, i + 1, portstatus);
+				dev_dbg (*hubdev (dev),
+					"port %d enable change, status %x\n",
+					i + 1, portstatus);
 				usb_clear_port_feature(dev,
 					i + 1, USB_PORT_FEAT_C_ENABLE);
 

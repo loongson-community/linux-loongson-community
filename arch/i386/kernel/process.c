@@ -44,6 +44,7 @@
 #include <asm/ldt.h>
 #include <asm/processor.h>
 #include <asm/i387.h>
+#include <asm/irq.h>
 #include <asm/desc.h>
 #ifdef CONFIG_MATH_EMULATION
 #include <asm/math_emu.h>
@@ -269,6 +270,8 @@ void release_thread(struct task_struct *dead_task)
 			BUG();
 		}
 	}
+
+	release_x86_irqs(dead_task);
 }
 
 /*
@@ -440,7 +443,7 @@ void __switch_to(struct task_struct *prev_p, struct task_struct *next_p)
 	/*
 	 * Reload esp0, LDT and the page table pointer:
 	 */
-	tss->esp0 = next->esp0;
+	load_esp0(tss, next->esp0);
 
 	/*
 	 * Load the per-thread Thread-Local Storage descriptor.

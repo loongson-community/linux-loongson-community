@@ -12,10 +12,13 @@
 
 static int cachesize_override __initdata = -1;
 static int disable_x86_fxsr __initdata = 0;
+static int disable_x86_serial_nr __initdata = 1;
 
 struct cpu_dev * cpu_devs[X86_VENDOR_NUM] = {};
 
 extern void mcheck_init(struct cpuinfo_x86 *c);
+
+extern int disable_pse;
 
 static void default_init(struct cpuinfo_x86 * c)
 {
@@ -249,6 +252,31 @@ void __init generic_identify(struct cpuinfo_x86 * c)
 	}
 }
 
+static void __init squash_the_stupid_serial_number(struct cpuinfo_x86 *c)
+{
+	if (cpu_has(c, X86_FEATURE_PN) && disable_x86_serial_nr ) {
+		/* Disable processor serial number */
+		unsigned long lo,hi;
+		rdmsr(MSR_IA32_BBL_CR_CTL,lo,hi);
+		lo |= 0x200000;
+		wrmsr(MSR_IA32_BBL_CR_CTL,lo,hi);
+		printk(KERN_NOTICE "CPU serial number disabled.\n");
+		clear_bit(X86_FEATURE_PN, c->x86_capability);
+
+		/* Disabling the serial number may affect the cpuid level */
+		c->cpuid_level = cpuid_eax(0);
+	}
+}
+
+static int __init x86_serial_nr_setup(char *s)
+{
+	disable_x86_serial_nr = 0;
+	return 1;
+}
+__setup("serialnumber", x86_serial_nr_setup);
+
+
+
 /*
  * This does the hard work of actually picking apart the CPU stuff...
  */
@@ -279,12 +307,6 @@ void __init identify_cpu(struct cpuinfo_x86 *c)
 	else
 		generic_identify(c);
 
-	printk(KERN_DEBUG "CPU: Before vendor init, caps: %08lx %08lx %08lx, vendor = %d\n",
-	       c->x86_capability[0],
-	       c->x86_capability[1],
-	       c->x86_capability[2],
-	       c->x86_vendor);
-
 	/*
 	 * Vendor-specific initialization.  In this section we
 	 * canonicalize the feature flags, meaning if there are
@@ -298,11 +320,8 @@ void __init identify_cpu(struct cpuinfo_x86 *c)
 	if (this_cpu->c_init)
 		this_cpu->c_init(c);
 
-	printk(KERN_DEBUG "CPU: After vendor init, caps: %08lx %08lx %08lx %08lx\n",
-	       c->x86_capability[0],
-	       c->x86_capability[1],
-	       c->x86_capability[2],
-	       c->x86_capability[3]);
+	/* Disable the PN if appropriate */
+	squash_the_stupid_serial_number(c);
 
 	/*
 	 * The vendor-specific functions might have changed features.  Now
@@ -318,6 +337,9 @@ void __init identify_cpu(struct cpuinfo_x86 *c)
 		clear_bit(X86_FEATURE_FXSR, c->x86_capability);
 		clear_bit(X86_FEATURE_XMM, c->x86_capability);
 	}
+
+	if (disable_pse)
+		clear_bit(X86_FEATURE_PSE, c->x86_capability);
 
 	/* If the model name is still unset, do table lookup. */
 	if ( !c->x86_model_id[0] ) {
@@ -350,12 +372,6 @@ void __init identify_cpu(struct cpuinfo_x86 *c)
 		for ( i = 0 ; i < NCAPINTS ; i++ )
 			boot_cpu_data.x86_capability[i] &= c->x86_capability[i];
 	}
-
-	printk(KERN_DEBUG "CPU:             Common caps: %08lx %08lx %08lx %08lx\n",
-	       boot_cpu_data.x86_capability[0],
-	       boot_cpu_data.x86_capability[1],
-	       boot_cpu_data.x86_capability[2],
-	       boot_cpu_data.x86_capability[3]);
 
 	/* Init Machine Check Exception if available. */
 #ifdef CONFIG_X86_MCE
@@ -487,7 +503,7 @@ void __init cpu_init (void)
 		BUG();
 	enter_lazy_tlb(&init_mm, current, cpu);
 
-	t->esp0 = thread->esp0;
+	load_esp0(t, thread->esp0);
 	set_tss_desc(cpu,t);
 	cpu_gdt_table[cpu][GDT_ENTRY_TSS].b &= 0xfffffdff;
 	load_TR_desc();

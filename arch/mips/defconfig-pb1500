@@ -109,6 +109,7 @@ CONFIG_CPU_HAS_PREFETCH=y
 CONFIG_CPU_HAS_LLSC=y
 CONFIG_CPU_HAS_SYNC=y
 # CONFIG_PREEMPT is not set
+# CONFIG_KALLSYMS is not set
 # CONFIG_DEBUG_SPINLOCK_SLEEP is not set
 
 #
@@ -459,6 +460,7 @@ CONFIG_RTC=y
 #
 # CONFIG_FTAPE is not set
 # CONFIG_AGP is not set
+# CONFIG_AGP3 is not set
 # CONFIG_DRM is not set
 
 #

@@ -100,6 +100,7 @@ CONFIG_CPU_VR41XX=y
 # CONFIG_CPU_ADVANCED is not set
 CONFIG_CPU_HAS_SYNC=y
 # CONFIG_PREEMPT is not set
+# CONFIG_KALLSYMS is not set
 # CONFIG_DEBUG_SPINLOCK_SLEEP is not set
 
 #
@@ -454,6 +455,7 @@ CONFIG_WATCHDOG=y
 #
 # CONFIG_FTAPE is not set
 # CONFIG_AGP is not set
+# CONFIG_AGP3 is not set
 # CONFIG_DRM is not set
 # CONFIG_RAW_DRIVER is not set
 

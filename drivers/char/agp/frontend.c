@@ -1062,12 +1062,12 @@ static struct file_operations agp_fops =
 
 static struct miscdevice agp_miscdev =
 {
-	AGPGART_MINOR,
-	"agpgart",
-	&agp_fops
+	.minor	= AGPGART_MINOR,
+	.name	= "agpgart",
+	.fops	= &agp_fops
 };
 
-int __init agp_frontend_initialize(void)
+int agp_frontend_initialize(void)
 {
 	memset(&agp_fe, 0, sizeof(struct agp_front_data));
 	AGP_LOCK_INIT();
@@ -1079,7 +1079,7 @@ int __init agp_frontend_initialize(void)
 	return 0;
 }
 
-void __exit agp_frontend_cleanup(void)
+void agp_frontend_cleanup(void)
 {
 	misc_deregister(&agp_miscdev);
 }

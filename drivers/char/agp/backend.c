@@ -36,8 +36,11 @@
 #include <linux/agp_backend.h>
 #include "agp.h"
 
-#define AGPGART_VERSION_MAJOR 1
-#define AGPGART_VERSION_MINOR 0
+/* Due to XFree86 brain-damage, we can't go to 1.0 until they
+ * fix some real stupidity. It's only by chance we can bump
+ * past 0.99 at all due to some boolean logic error. */
+#define AGPGART_VERSION_MAJOR 0
+#define AGPGART_VERSION_MINOR 100
 
 struct agp_bridge_data agp_bridge = { .type = NOT_SUPPORTED };
 
@@ -109,22 +112,12 @@ static struct agp_version agp_current_version =
 	.minor = AGPGART_VERSION_MINOR,
 };
 
-static int __init agp_backend_initialize(struct pci_dev *dev)
+static int agp_backend_initialize(struct pci_dev *dev)
 {
 	int size_value, rc, got_gatt=0, got_keylist=0;
-	u8 cap_ptr = 0;
 
 	agp_bridge.max_memory_agp = agp_find_max();
 	agp_bridge.version = &agp_current_version;
-
-	cap_ptr = pci_find_capability(dev, PCI_CAP_ID_AGP);
-	if (cap_ptr == 0)
-		return -ENODEV;
-	agp_bridge.capndx = cap_ptr;
-
-	/* Fill in the mode register */
-	pci_read_config_dword(agp_bridge.dev, agp_bridge.capndx + 4, &agp_bridge.mode);
-
 
 	if (agp_bridge.needs_scratch_page == TRUE) {
 		void *addr;
@@ -251,14 +244,14 @@ int agp_register_driver (struct pci_dev *dev)
 	}
 
 	inter_module_register("drm_agp", THIS_MODULE, &drm_agp);
-	
+
 	pm_register(PM_PCI_DEV, PM_PCI_ID(agp_bridge.dev), agp_power);
 
 	agp_count++;
 	return 0;
 }
 
-int __exit agp_unregister_driver(void)
+int agp_unregister_driver(void)
 {
 	agp_bridge.type = NOT_SUPPORTED;
 	pm_unregister_all(agp_power);
@@ -269,8 +262,16 @@ int __exit agp_unregister_driver(void)
 	return 0;
 }
 
+
 int __init agp_init(void)
 {
+	static int already_initialised=0;
+
+	if (already_initialised!=0)
+		return 0;
+
+	already_initialised = 1;
+
 	memset(&agp_bridge, 0, sizeof(struct agp_bridge_data));
 	agp_bridge.type = NOT_SUPPORTED;
 
@@ -279,13 +280,21 @@ int __init agp_init(void)
 	return 0;
 }
 
+void __exit agp_exit(void)
+{
+	if (agp_count!=0)
+		BUG();
+}
+
 #ifndef CONFIG_GART_IOMMU
 module_init(agp_init);
+module_exit(agp_exit);
 #endif
 
 EXPORT_SYMBOL(agp_backend_acquire);
 EXPORT_SYMBOL(agp_backend_release);
 EXPORT_SYMBOL_GPL(agp_register_driver);
+EXPORT_SYMBOL_GPL(agp_unregister_driver);
 
 MODULE_AUTHOR("Dave Jones <davej@codemonkey.org.uk>");
 MODULE_LICENSE("GPL and additional rights");

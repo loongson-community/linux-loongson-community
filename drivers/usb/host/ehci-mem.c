@@ -58,7 +58,7 @@ static void ehci_hcd_free (struct usb_hcd *hcd)
 
 /* Allocate the key transfer structures from the previously allocated pool */
 
-static void ehci_qtd_init (struct ehci_qtd *qtd, dma_addr_t dma)
+static inline void ehci_qtd_init (struct ehci_qtd *qtd, dma_addr_t dma)
 {
 	memset (qtd, 0, sizeof *qtd);
 	qtd->qtd_dma = dma;
@@ -73,8 +73,11 @@ static struct ehci_qtd *ehci_qtd_alloc (struct ehci_hcd *ehci, int flags)
 	dma_addr_t		dma;
 
 	qtd = pci_pool_alloc (ehci->qtd_pool, flags, &dma);
-	if (qtd != 0)
+	if (qtd != 0) {
 		ehci_qtd_init (qtd, dma);
+		if (ehci->async)
+			qtd->hw_alt_next = ehci->async->hw_alt_next;
+	}
 	return qtd;
 }
 

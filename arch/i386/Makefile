@@ -42,29 +42,41 @@ cflags-$(CONFIG_MCRUSOE)	+= -march=i686 -malign-functions=0 -malign-jumps=0 -mal
 cflags-$(CONFIG_MWINCHIPC6)	+= $(call check_gcc,-march=winchip-c6,-march=i586)
 cflags-$(CONFIG_MWINCHIP2)	+= $(call check_gcc,-march=winchip2,-march=i586)
 cflags-$(CONFIG_MWINCHIP3D)	+= -march=i586
-cflags-$(CONFIG_MCYRIXIII)	+= $(call check_gcc,-march=c3,-march=i486) -malign-functions=0 -malign-jumps=0 -malign-loops=0
+cflags-$(CONFIG_MCYRIXIII)	+= $(call check_gcc,-march=c3,-march=i486)
+# The alignment flags change with gcc 3.2
+cflags-$(CONFIG_MCYRIXIII)	+= $(call check_gcc,-falign-functions=0 -falign-jumps=0 -falign-loops=0,-malign-functions=0 -malign-jumps=0 -malign-loops=0)
 
 CFLAGS += $(cflags-y)
 
-ifdef CONFIG_VISWS
-MACHINE	:= mach-visws
-else
-MACHINE	:= mach-generic
-endif
+#default subarch .c files
+mcore-y  := mach-default
+
+#VISWS subarch support
+mflags-$(CONFIG_VISWS) := -Iinclude/asm-i386/mach-visws
+mcore-$(CONFIG_VISWS)  := mach-visws
+
+#NUMAQ subarch support
+mflags-$(CONFIG_X86_NUMAQ) := -Iinclude/asm-i386/mach-numaq
+mcore-$(CONFIG_X86_NUMAQ)  := mach-default
+
+#add other subarch support here
+
+#default subarch .h files
+mflags-y += -Iinclude/asm-i386/mach-default
 
 HEAD := arch/i386/kernel/head.o arch/i386/kernel/init_task.o
 
 libs-y 					+= arch/i386/lib/
 core-y					+= arch/i386/kernel/ \
 					   arch/i386/mm/ \
-					   arch/i386/$(MACHINE)/
+					   arch/i386/$(mcore-y)/
 drivers-$(CONFIG_MATH_EMULATION)	+= arch/i386/math-emu/
 drivers-$(CONFIG_PCI)			+= arch/i386/pci/
 # FIXME: is drivers- right ?
 drivers-$(CONFIG_OPROFILE)		+= arch/i386/oprofile/
 
-CFLAGS += -Iarch/i386/$(MACHINE)
-AFLAGS += -Iarch/i386/$(MACHINE)
+CFLAGS += $(mflags-y)
+AFLAGS += $(mflags-y)
 
 makeboot =$(Q)$(MAKE) -f scripts/Makefile.build obj=arch/i386/boot $(1)
 

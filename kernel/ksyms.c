@@ -228,6 +228,7 @@ EXPORT_SYMBOL(file_ra_state_init);
 EXPORT_SYMBOL(generic_file_write);
 EXPORT_SYMBOL(generic_file_write_nolock);
 EXPORT_SYMBOL(generic_file_mmap);
+EXPORT_SYMBOL(generic_file_readonly_mmap);
 EXPORT_SYMBOL(generic_ro_fops);
 EXPORT_SYMBOL(file_lock_list);
 EXPORT_SYMBOL(locks_init_lock);
@@ -327,7 +328,9 @@ EXPORT_SYMBOL(set_anon_super);
 /* for stackable file systems (lofs, wrapfs, cryptfs, etc.) */
 EXPORT_SYMBOL(default_llseek);
 EXPORT_SYMBOL(dentry_open);
+#ifdef CONFIG_MMU
 EXPORT_SYMBOL(filemap_nopage);
+#endif
 EXPORT_SYMBOL(filemap_fdatawrite);
 EXPORT_SYMBOL(filemap_fdatawait);
 EXPORT_SYMBOL(lock_page);
@@ -523,7 +526,9 @@ EXPORT_SYMBOL(single_open);
 EXPORT_SYMBOL(single_release);
 
 /* Program loader interfaces */
+#ifdef CONFIG_MMU
 EXPORT_SYMBOL(setup_arg_pages);
+#endif
 EXPORT_SYMBOL(copy_strings_kernel);
 EXPORT_SYMBOL(do_execve);
 EXPORT_SYMBOL(flush_old_exec);

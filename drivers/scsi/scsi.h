@@ -374,6 +374,14 @@ extern const char *const scsi_device_types[MAX_SCSI_DEVICE_CODE];
 #define SYNC_RESET      0x40
 
 /*
+ * This specifies "machine infinity" for host templates which don't
+ * limit the transfer size.  Note this limit represents an absolute
+ * maximum, and may be over the transfer limits allowed for individual
+ * devices (e.g. 256 for SCSI-1)
+ */
+#define SCSI_DEFAULT_MAX_SECTORS	1024
+
+/*
  * This is the crap from the old error handling code.  We have it in a special
  * place so that we can more easily delete it later on.
  */
@@ -503,6 +511,7 @@ static inline void scsi_proc_host_rm(struct Scsi_Host *);
  */
 extern int scsi_add_single_device(uint, uint, uint, uint);
 extern int scsi_remove_single_device(uint, uint, uint, uint);
+extern u64 scsi_calculate_bounce_limit(struct Scsi_Host *);
 
 /*
  * Prototypes for functions in constants.c
@@ -561,14 +570,12 @@ struct scsi_device {
 	/*
 	 * This information is private to the scsi mid-layer.
 	 */
-	struct scsi_device *next;	/* Used for linked list */
-	struct scsi_device *prev;	/* Used for linked list */
 	struct list_head    siblings;   /* list of all devices on this host */
 	struct list_head    same_target_siblings; /* just the devices sharing same target id */
 	wait_queue_head_t   scpnt_wait;	/* Used to wait if
 					   device is busy */
 	struct Scsi_Host *host;
-	request_queue_t request_queue;
+	request_queue_t *request_queue;
         atomic_t                device_active; /* commands checked out for device */
 	volatile unsigned short device_busy;	/* commands actually active on low-level */
 	struct list_head free_cmnds;    /* list of available Scsi_Cmnd structs */
@@ -886,11 +893,9 @@ extern int scsi_reset_provider(Scsi_Device *, int);
  *	would be adjustable from 0 to depth.
  **/
 static inline void scsi_activate_tcq(Scsi_Device *SDpnt, int depth) {
-        request_queue_t *q = &SDpnt->request_queue;
-
         if(SDpnt->tagged_supported) {
-		if(!blk_queue_tagged(q))
-			blk_queue_init_tags(q, depth);
+		if(!blk_queue_tagged(SDpnt->request_queue))
+			blk_queue_init_tags(SDpnt->request_queue, depth);
 		scsi_adjust_queue_depth(SDpnt, MSG_ORDERED_TAG, depth);
         }
 }
@@ -900,10 +905,8 @@ static inline void scsi_activate_tcq(Scsi_Device *SDpnt, int depth) {
  * @SDpnt:	device to turn off TCQ for
  **/
 static inline void scsi_deactivate_tcq(Scsi_Device *SDpnt, int depth) {
-	request_queue_t *q = &SDpnt->request_queue;
-
-	if(blk_queue_tagged(q))
-		blk_queue_free_tags(q);
+	if(blk_queue_tagged(SDpnt->request_queue))
+		blk_queue_free_tags(SDpnt->request_queue);
 	scsi_adjust_queue_depth(SDpnt, 0, depth);
 }
 
@@ -949,7 +952,7 @@ static inline Scsi_Cmnd *scsi_find_tag(Scsi_Device *SDpnt, int tag) {
                 /* single command, look in space */
                 return SDpnt->current_cmnd;
 
-        req = blk_queue_find_tag(&SDpnt->request_queue, tag);
+        req = blk_queue_find_tag(SDpnt->request_queue, tag);
 
         if(req == NULL)
                 return NULL;
