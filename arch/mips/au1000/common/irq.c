@@ -374,6 +374,7 @@ void __init init_IRQ(void)
 {
 	int i;
 	unsigned long cp0_status;
+	extern char except_vec0_au1000;
 
 	cp0_status = read_32bit_cp0_register(CP0_STATUS);
 	memset(irq_desc, 0, sizeof(irq_desc));
@@ -381,6 +382,10 @@ void __init init_IRQ(void)
 
 	init_generic_irq();
 
+	/* override the generic vec0 handler */
+	memcpy((void *)KSEG0, &except_vec0_au1000, 0x80);
+	flush_icache_range(KSEG0, KSEG0 + 0x200);
+	
 	for (i = 0; i <= NR_IRQS; i++) {
 		switch (i) {
 			case AU1000_UART0_INT:
