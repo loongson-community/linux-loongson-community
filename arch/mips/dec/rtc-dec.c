@@ -11,6 +11,7 @@
  */
 
 #include <linux/mc146818rtc.h>
+#include <linux/module.h>
 #include <linux/types.h>
 
 volatile u8 *dec_rtc_base;
@@ -35,3 +36,5 @@ struct rtc_ops dec_rtc_ops = {
 	&dec_rtc_write_data,
 	&dec_rtc_bcd_mode
 };
+
+EXPORT_SYMBOL(dec_rtc_base);

@@ -763,6 +763,5 @@ void __init init_IRQ(void)
 }
 
 EXPORT_SYMBOL(ioasic_base);
-EXPORT_SYMBOL(dec_rtc_base);
 EXPORT_SYMBOL(dec_kn_slot_size);
 EXPORT_SYMBOL(dec_interrupt);
