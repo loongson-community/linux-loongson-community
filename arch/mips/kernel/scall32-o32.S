@@ -276,19 +276,23 @@ bad_alignment:
 #if defined(CONFIG_BINFMT_IRIX)
 	sltiu	v0, a0, MAX_SYSCALL_NO + 1 # check syscall number
 #else
-	subu	v0, a0, __NR_O32_Linux	# check syscall number
-	sltiu	v0, v0, __NR_O32_Linux_syscalls + 1
+	subu	t0, a0, __NR_O32_Linux	# check syscall number
+	sltiu	v0, t0, __NR_O32_Linux_syscalls + 1
 #endif
+	sll	t1, t0, 3
 	beqz	v0, enosys
 
-	sll	t0, v0, 3
-	lw	t2, sys_call_table(t0)		# syscall routine
+	lw	t2, sys_call_table(t1)		# syscall routine
 
+#if defined(CONFIG_BINFMT_IRIX)
 	li	v1, 4000			# nr of sys_syscall
+#else
+	li	v1, 4000 - __NR_O32_Linux	# index of sys_syscall
+#endif
 	beqz	t2, enosys			# null function pointer?
 
 	li	v0, -EINVAL
-	beq	a0, v1, out			# do not recurse
+	beq	t0, v1, out			# do not recurse
 
 	/* Some syscalls like execve get their arguments from struct pt_regs
 	   and claim zero arguments in the syscall table. Thus we have to
@@ -391,7 +395,7 @@ out:	jr	ra
 	sys	sys_ni_syscall		0	/* was signal(2) */
 	sys	sys_geteuid		0
 	sys	sys_getegid		0	/* 4050 */
-	sys	sys_acct		0
+	sys	sys_acct		1
 	sys	sys_umount		2
 	sys	sys_ni_syscall		0
 	sys	sys_ioctl		3
@@ -471,7 +475,7 @@ out:	jr	ra
 	sys	sys_init_module		5
 	sys	sys_delete_module	1
 	sys	sys_ni_syscall		0	/* 4130	was get_kernel_syms */
-	sys	sys_quotactl		0
+	sys	sys_quotactl		4
 	sys	sys_getpgid		1
 	sys	sys_fchdir		1
 	sys	sys_bdflush		2
@@ -492,7 +496,7 @@ out:	jr	ra
 	sys	sys_sysmips		4
 	sys	sys_ni_syscall		0	/* 4150 */
 	sys	sys_getsid		1
-	sys	sys_fdatasync		0
+	sys	sys_fdatasync		1
 	sys	sys_sysctl		1
 	sys	sys_mlock		2
 	sys	sys_munlock		2	/* 4155 */
