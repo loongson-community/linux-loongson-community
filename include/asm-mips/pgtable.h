@@ -108,15 +108,15 @@ extern void (*flush_tlb_page)(struct vm_area_struct *vma, unsigned long page);
 #define _CACHE_CACHABLE_ACCELERATED (7<<9)  /* R10000 only             */
 #define _CACHE_MASK                 (7<<9)
 
-#define __READABLE	(_PAGE_READ|_PAGE_SILENT_READ|_PAGE_ACCESSED)
-#define __WRITEABLE	(_PAGE_WRITE|_PAGE_SILENT_WRITE|_PAGE_MODIFIED)
+#define __READABLE	(_PAGE_READ | _PAGE_SILENT_READ | _PAGE_ACCESSED)
+#define __WRITEABLE	(_PAGE_WRITE | _PAGE_SILENT_WRITE | _PAGE_MODIFIED)
 
 #define _PAGE_CHG_MASK  (PAGE_MASK | __READABLE | __WRITEABLE | _CACHE_MASK)
 
 #define PAGE_NONE	__pgprot(_PAGE_PRESENT | _PAGE_ACCESSED | \
                         _CACHE_CACHABLE_NONCOHERENT)
 #define PAGE_SHARED     __pgprot(_PAGE_PRESENT | _PAGE_READ | _PAGE_WRITE | \
-			_PAGE_ACCESSED | _CACHE_CACHABLE_NONCOHERENT)
+			_CACHE_CACHABLE_NONCOHERENT)
 #define PAGE_COPY       __pgprot(_PAGE_PRESENT | _PAGE_READ | \
 			_CACHE_CACHABLE_NONCOHERENT)
 #define PAGE_READONLY   __pgprot(_PAGE_PRESENT | _PAGE_READ | \
@@ -217,7 +217,7 @@ extern inline int pte_present(pte_t pte) { return pte_val(pte) & _PAGE_PRESENT; 
  */
 extern inline void set_pte(pte_t *ptep, pte_t pteval)
 {
-        *ptep = pteval;
+	*ptep = pteval;
 }
 
 extern inline void pte_clear(pte_t *ptep)
@@ -230,7 +230,7 @@ extern inline void pte_clear(pte_t *ptep)
  */
 extern inline int pmd_none(pmd_t pmd)
 {
-	return pmd_val(pmd) == ((unsigned long) invalid_pte_table);
+	return pmd_val(pmd) == (unsigned long) invalid_pte_table;
 }
 
 extern inline int pmd_bad(pmd_t pmd)
@@ -288,7 +288,7 @@ extern inline pte_t pte_mkclean(pte_t pte)
 
 extern inline pte_t pte_mkold(pte_t pte)
 {
-	pte_val(pte) &= ~(_PAGE_ACCESSED|_PAGE_SILENT_READ|_PAGE_SILENT_WRITE);
+	pte_val(pte) &= ~(_PAGE_ACCESSED|_PAGE_SILENT_READ);
 	return pte;
 }
 
@@ -319,12 +319,8 @@ extern inline pte_t pte_mkdirty(pte_t pte)
 extern inline pte_t pte_mkyoung(pte_t pte)
 {
 	pte_val(pte) |= _PAGE_ACCESSED;
-	if (pte_val(pte) & _PAGE_READ) {
+	if (pte_val(pte) & _PAGE_READ)
 		pte_val(pte) |= _PAGE_SILENT_READ;
-		if ((pte_val(pte) & (_PAGE_WRITE|_PAGE_MODIFIED)) ==
-		    (_PAGE_WRITE|_PAGE_MODIFIED))
-			pte_val(pte) |= _PAGE_SILENT_WRITE;
-	}
 	return pte;
 }
 
