@@ -185,9 +185,10 @@ static struct pci_ops bridge_pci_ops = {
 
 int __init bridge_probe(nasid_t nasid, int widget_id, int masterwid)
 {
+	unsigned long offset = NODE_OFFSET(nasid);
 	struct bridge_controller *bc;
-	bridge_t *bridge;
 	static int num_bridges = 0;
+	bridge_t *bridge;
 
 	printk("a bridge\n");
 
@@ -202,7 +203,7 @@ int __init bridge_probe(nasid_t nasid, int widget_id, int masterwid)
 	bc->pc.io_resource	= &bc->io;
 
 	bc->mem.name		= "Bridge PCI MEM";
-	bc->pc.mem_offset	= 0;
+	bc->pc.mem_offset	= offset;
 	bc->mem.start		= 0;
 	bc->mem.end		= ~0UL;
 	bc->mem.flags		= IORESOURCE_MEM;
@@ -318,22 +319,10 @@ static inline void pci_enable_swapping(struct pci_dev *dev)
 	bridge->b_widget.w_tflush;	/* Flush */
 }
 
-static void __init pci_fixup_ioc3(struct pci_dev *d)
-{
-	struct bridge_controller *bc = BRIDGE_CONTROLLER(d->bus);
-	unsigned long offset = NODE_OFFSET(bc->nasid);
-
-	printk("PCI: Fixing base addresses for IOC3 device %s\n", pci_name(d));
-
-	d->resource[0].start |= offset;
-	d->resource[0].end |= offset;
-}
-
 static void __init pci_fixup_isp1020(struct pci_dev *d)
 {
 	struct bridge_controller *bc = BRIDGE_CONTROLLER(d->bus);
 
-	d->resource[0].start |= (unsigned long) bc->nasid << 32;
 	printk("PCI: Fixing isp1020 in [bus:slot.fn] %s\n", pci_name(d));
 
 	/*
@@ -362,14 +351,6 @@ static void __init pci_fixup_isp2x00(struct pci_dev *d)
 	start = (u32) (u64) bridge;	/* yes, we want to lose the upper 32 bits here */
 	start |= BRIDGE_DEVIO(slot);
 
-	d->resource[0].start = start;
-	d->resource[0].end = d->resource[0].start + 0xff;
-	d->resource[0].flags = IORESOURCE_IO;
-
-	d->resource[1].start = start;
-	d->resource[1].end = d->resource[0].start + 0xfff;
-	d->resource[1].flags = IORESOURCE_MEM;
-
 	/*
 	 * set the bridge device(x) reg for this device
 	 */
@@ -380,10 +361,6 @@ static void __init pci_fixup_isp2x00(struct pci_dev *d)
 	bridge->b_device[slot].reg = devreg;
 
 	pci_enable_swapping(d);
-
-	/* I got these from booting irix on system... */
-	pci_write_config_dword(d, PCI_BASE_ADDRESS_0, 0x200001);
-	pci_write_config_dword(d, PCI_ROM_ADDRESS, 0x10200000);
 
 	pci_write_config_dword(d, PCI_BASE_ADDRESS_1, start);
 
@@ -406,8 +383,6 @@ static void __init pci_fixup_isp2x00(struct pci_dev *d)
 }
 
 struct pci_fixup pcibios_fixups[] = {
-	{PCI_FIXUP_HEADER, PCI_VENDOR_ID_SGI, PCI_DEVICE_ID_SGI_IOC3,
-	 pci_fixup_ioc3},
 	{PCI_FIXUP_HEADER, PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP1020,
 	 pci_fixup_isp1020},
 	{PCI_FIXUP_HEADER, PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2100,
