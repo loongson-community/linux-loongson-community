@@ -1,4 +1,4 @@
-/* $Id: time.c,v 1.7 1998/08/28 23:29:33 tsbogend Exp $
+/* $Id: time.c,v 1.9 1999/01/04 16:03:49 ralf Exp $
  *
  *  Copyright (C) 1991, 1992, 1995  Linus Torvalds
  *  Copyright (C) 1996, 1997, 1998  Ralf Baechle
@@ -62,7 +62,7 @@ static unsigned long do_fast_gettimeoffset(void)
 
 	quotient = cached_quotient;
 
-	if (last_jiffies != tmp) {
+	if (tmp && last_jiffies != tmp) {
 		last_jiffies = tmp;
 		__asm__(".set\tnoreorder\n\t"
 			".set\tnoat\n\t"
@@ -380,6 +380,16 @@ static void r4k_timer_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 	timerlo = count;
 
 	timer_interrupt(irq, dev_id, regs);
+
+	if (!jiffies)
+	{
+		/*
+		 * If jiffies has overflowed in this timer_interrupt we must
+		 * update the timer[hi]/[lo] to make do_fast_gettimeoffset()
+		 * quotient calc still valid. -arca
+		 */
+		timerhi = timerlo = 0;
+	}
 }
 
 /* Converts Gregorian date to seconds since 1970-01-01 00:00:00.
