@@ -55,10 +55,11 @@ int cfe_init(cfe_xuint_t handle)
 	return 0;
 }
 
-int cfe_iocb_dispatch(cfe_xiocb_t *xiocb);
 int cfe_iocb_dispatch(cfe_xiocb_t *xiocb)
 {
-	if (!cfe_dispfunc) return -1;
+	if (!cfe_dispfunc)
+		return -1;
+
 	return (*cfe_dispfunc)(cfe_handle,xiocb);
 }
 
@@ -343,7 +344,7 @@ int cfe_getstdhandle(int flg)
 int cfe_start_cpu(int cpu, void (*fn)(void), long sp, long gp, long a1)
 {
 	cfe_xiocb_t xiocb;
-	
+
 	xiocb.xiocb_fcode = CFE_CMD_FW_CPUCTL;
 	xiocb.xiocb_status = 0;
 	xiocb.xiocb_handle = 0;
@@ -355,9 +356,9 @@ int cfe_start_cpu(int cpu, void (*fn)(void), long sp, long gp, long a1)
 	xiocb.plist.xiocb_cpuctl.sp_val = sp;
 	xiocb.plist.xiocb_cpuctl.a1_val = a1;
 	xiocb.plist.xiocb_cpuctl.start_addr = (long)fn;
-	
+
 	cfe_iocb_dispatch(&xiocb);
-	
+
 	return xiocb.xiocb_status;
 }
 
@@ -383,4 +384,3 @@ void cfe_console_print(char *str)
 		} while (len);
 	}
 }
-
