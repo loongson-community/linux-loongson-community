@@ -1,6 +1,4 @@
 /*
- * arch/ppc/kernel/pci_auto.c
- * 
  * PCI autoconfiguration library
  *
  * Author: Matt Porter <mporter@mvista.com>
