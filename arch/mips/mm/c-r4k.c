@@ -990,7 +990,7 @@ static void __init probe_pcache(void)
 	       cpu_has_vtag_icache ? "virtually tagged" : "physically tagged",
 	       way_string[c->icache.ways], c->icache.linesz);
 
-	printk("Primary data cache %ldkB %s, linesize %d bytes.\n",
+	printk("Primary data cache %ldkB, %s, linesize %d bytes.\n",
 	       dcache_size >> 10, way_string[c->dcache.ways], c->dcache.linesz);
 }
 
