@@ -148,9 +148,9 @@ static inline int serial_paranoia_check(struct sgi_serial *info,
 					dev_t device, const char *routine)
 {
 #ifdef SERIAL_PARANOIA_CHECK
-	static const char *badmagic =
+	static const char *badmagic = KERN_WARNING
 		"Warning: bad magic number for serial struct (%d, %d) in %s\n";
-	static const char *badinfo =
+	static const char *badinfo = KERN_WARNING
 		"Warning: null sgi_serial for (%d, %d) in %s\n";
 
 	if (!info) {
