@@ -357,7 +357,7 @@ static _INLINE_ void rs_sched_event(struct sgi_serial *info,
 	mark_bh(SERIAL_BH);
 }
 
-extern void breakpoint(void);  /* For the KGDB frame character */
+extern void set_async_breakpoint(unsigned int epc);
 
 static _INLINE_ void receive_chars(struct sgi_serial *info, struct pt_regs *regs)
 {
@@ -394,7 +394,7 @@ static _INLINE_ void receive_chars(struct sgi_serial *info, struct pt_regs *regs
 	 * to see how all this works.
 	 */
 	if((info->kgdb_channel) && (ch =='\003')) {
-		/* breakpoint(); */
+		set_async_breakpoint(read_32bit_cp0_register(CP0_EPC));
 		goto clear_and_exit;
 	}
 
