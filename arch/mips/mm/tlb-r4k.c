@@ -47,7 +47,6 @@ void local_flush_tlb_all(void)
 	__save_and_cli(flags);
 	/* Save old context and create impossible VPN2 value */
 	old_ctx = (get_entryhi() & 0xff);
-	set_entryhi(KSEG0);
 	set_entrylo0(0);
 	set_entrylo1(0);
 	BARRIER;
@@ -56,6 +55,11 @@ void local_flush_tlb_all(void)
 
 	/* Blast 'em all away. */
 	while (entry < mips_cpu.tlbsize) {
+		/*
+		 * Make sure all entries differ.  If they're not different
+		 * MIPS32 will take revenge ...
+		 */
+		set_entryhi(KSEG0 + entry*0x2000);
 		set_index(entry);
 		BARRIER;
 		tlb_write_indexed();
@@ -116,9 +120,11 @@ void local_flush_tlb_range(struct mm_struct *mm, unsigned long start,
 				set_entrylo0(0);
 				set_entrylo1(0);
 				set_entryhi(KSEG0);
-				BARRIER;
-				if(idx < 0)
+				if (idx < 0)
 					continue;
+				BARRIER;
+				/* Make sure all entries differ. */
+				set_entryhi(KSEG0+idx*0x2000);
 				tlb_write_indexed();
 				BARRIER;
 			}
@@ -152,9 +158,10 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 		idx = get_index();
 		set_entrylo0(0);
 		set_entrylo1(0);
-		set_entryhi(KSEG0);
 		if(idx < 0)
 			goto finish;
+		/* Make sure all entries differ. */
+		set_entryhi(KSEG0+idx*0x2000);
 		BARRIER;
 		tlb_write_indexed();
 
@@ -326,8 +333,31 @@ out:
 	return ret;
 }
 
+static void __init probe_tlb(unsigned long config)
+{
+	unsigned long config1;
+
+	if (!(config & (1 << 31)))
+	        /* 
+		 * Not a MIPS32 complianant CPU.  Config 1 register not
+		 * supported, we assume R4k style.  Cpu probing already figured
+		 * out the number of tlb entries.
+		 */  
+		return;
+
+	config1 = read_mips32_cp0_config1();
+	if (!((config >> 7) & 3))
+		panic("No MMU present");
+	else
+		mips_cpu.tlbsize = ((config1 >> 25) & 0x3f) + 1;
+
+	printk("Number of TLB entries %d.\n", mips_cpu.tlbsize);
+}
+
 void __init r4k_tlb_init(void)
 {
+	u32 config = read_32bit_cp0_register(CP0_CONFIG);
+
 	/*
 	 * You should never change this register:
 	 *   - On R4600 1.7 the tlbp never hits for pages smaller than
@@ -335,6 +365,7 @@ void __init r4k_tlb_init(void)
 	 *   - The entire mm handling assumes the c0_pagemask register to
 	 *     be set for 4kb pages.
 	 */
+	probe_tlb(config);
 	set_pagemask(PM_4K);
 	write_32bit_cp0_register(CP0_WIRED, 0);
 	temp_tlb_entry = mips_cpu.tlbsize - 1;
