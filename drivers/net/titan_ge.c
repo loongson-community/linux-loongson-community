@@ -266,7 +266,7 @@ static void titan_ge_tx_timeout(struct net_device *netdev)
 	printk(KERN_INFO "Resetting card \n");
 
 	/* Do the reset outside of interrupt context */
-	schedule_task(&titan_ge_eth->tx_timeout_task);
+	schedule_work(&titan_ge_eth->tx_timeout_task);
 }
 
 /*
@@ -2148,8 +2148,8 @@ static int titan_ge_init(int port)
 	memset(&titan_ge_eth->stats, 0, sizeof(struct net_device_stats));
 
 	/* Configure the Tx timeout handler */
-	INIT_TQUEUE(&titan_ge_eth->tx_timeout_task,
-		    (void (*)(void *)) titan_ge_tx_timeout_task, netdev);
+	INIT_WORK(&titan_ge_eth->tx_timeout_task,
+		  (void (*)(void *)) titan_ge_tx_timeout_task, netdev);
 
 	spin_lock_init(&titan_ge_eth->lock);
 
