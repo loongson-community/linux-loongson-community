@@ -669,7 +669,7 @@ void __init setup_arch(char **cmdline_p)
 	void hp_setup(void);
 
 	unsigned long bootmap_size;
-	unsigned long start_pfn, max_pfn, first_usable_pfn;
+	unsigned long start_pfn, max_low_pfn, first_usable_pfn;
 	unsigned long tmp;
 	unsigned long* initrd_header;
 
@@ -813,6 +813,9 @@ void __init setup_arch(char **cmdline_p)
 #define PFN_DOWN(x)	((x) >> PAGE_SHIFT)
 #define PFN_PHYS(x)	((x) << PAGE_SHIFT)
 
+#define MAXMEM		HIGHMEM_START
+#define MAXMEM_PFN	PFN_DOWN(MAXMEM)
+
 #ifdef CONFIG_BLK_DEV_INITRD
 	tmp = (((unsigned long)&_end + PAGE_SIZE-1) & PAGE_MASK) - 8; 
 	if (tmp < (unsigned long)&_end) 
@@ -856,9 +859,36 @@ void __init setup_arch(char **cmdline_p)
 			}
 		}
 	}
-	
-	/* Initialize the boot-time allocator.  */
-	bootmap_size = init_bootmem(first_usable_pfn, max_pfn);
+
+	/*
+	 * Determine low and high memory ranges
+	 */
+	max_low_pfn = max_pfn;
+	if (max_low_pfn > MAXMEM_PFN) {
+		max_low_pfn = MAXMEM_PFN;
+#ifndef CONFIG_HIGHMEM
+		/* Maximum memory usable is what is directly addressable */
+		printk(KERN_WARNING "Warning only %ldMB will be used.\n",
+		       MAXMEM>>20);
+		printk(KERN_WARNING "Use a HIGHMEM enabled kernel.\n");
+#endif
+	}
+
+#ifdef CONFIG_HIGHMEM
+	/*
+	 * Crude, we really should make a better attempt at detecting
+	 * highstart_pfn
+	 */
+	highstart_pfn = highend_pfn = max_pfn;
+	if (max_pfn > MAXMEM_PFN) {
+		highstart_pfn = MAXMEM_PFN;
+		printk(KERN_NOTICE "%ldMB HIGHMEM available.\n",
+		       (highend_pfn - highstart_pfn) >> (20 - PAGE_SHIFT));
+	}
+#endif
+
+	/* Initialize the boot-time allocator with low memory only.  */
+	bootmap_size = init_bootmem(first_usable_pfn, max_low_pfn);
 
 	/*
 	 * Register fully available low RAM pages with the bootmem allocator.
@@ -876,7 +906,7 @@ void __init setup_arch(char **cmdline_p)
 		 * We are rounding up the start address of usable memory:
 		 */
 		curr_pfn = PFN_UP(boot_mem_map.map[i].addr);
-		if (curr_pfn >= max_pfn)
+		if (curr_pfn >= max_low_pfn)
 			continue;
 		if (curr_pfn < start_pfn)
 			curr_pfn = start_pfn;
@@ -888,7 +918,18 @@ void __init setup_arch(char **cmdline_p)
 				    + boot_mem_map.map[i].size);
 
 		if (last_pfn > max_pfn)
-			last_pfn = max_pfn;
+			last_pfn = max_low_pfn;
+
+		/*
+		 * Only register lowmem part of lowmem segment with bootmem.
+		 */
+		size = last_pfn - curr_pfn;
+		if (curr_pfn > PFN_DOWN(HIGHMEM_START))
+			continue;
+		if (curr_pfn + size - 1 > PFN_DOWN(HIGHMEM_START))
+			size = PFN_DOWN(HIGHMEM_START) - curr_pfn;
+		if (!size)
+			continue;
 
 		/*
 		 * ... finally, did all the rounding and playing
@@ -897,7 +938,7 @@ void __init setup_arch(char **cmdline_p)
 		if (last_pfn <= curr_pfn)
 			continue;
 
-		size = last_pfn - curr_pfn;
+		/* Register lowmem ranges */
 		free_bootmem(PFN_PHYS(curr_pfn), PFN_PHYS(size));
 	}
 

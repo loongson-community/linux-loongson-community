@@ -182,14 +182,17 @@ void local_flush_tlb_range(struct mm_struct *mm, unsigned long start,
 void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 {
 	unsigned long flags;
+
 	__save_and_cli(flags);
 #ifdef CONFIG_SMP
 	/*
-	 * This variable is eliminated from CPU_CONTEXT() if SMP isn't defined, so
-	 * conditional it to get rid of silly "unused variable" compiler complaints
-	*/
+	 * This variable is eliminated from CPU_CONTEXT() if SMP isn't defined,
+	 * so conditional it to get rid of silly "unused variable" compiler
+	 * complaints
+	 */
 	int cpu = smp_processor_id();
 #endif
+
 	if (CPU_CONTEXT(cpu, vma->vm_mm) != 0) {
 		int oldpid, newpid, idx;
 #ifdef DEBUG_TLB

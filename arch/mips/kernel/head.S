@@ -21,6 +21,7 @@
 #include <asm/asm.h>
 #include <asm/current.h>
 #include <asm/offset.h>
+#include <asm/pgtable.h>
 #include <asm/processor.h>
 #include <asm/regdef.h>
 #include <asm/cachectl.h>
@@ -153,9 +154,9 @@ NESTED(kernel_entry, 16, sp)
 		mtc0	zero, CP0_WIRED
 		CLI
 		mfc0	t0, CP0_STATUS
-		li	t1, ~(ST0_CU1|ST0_CU2|ST0_CU3|ST0_BEV); 
+		li	t1, ~(ST0_CU1|ST0_CU2|ST0_CU3|ST0_KX|ST0_SX|ST0_BEV)
 		and	t0, t1
-		or	t0, (ST0_CU0|ST0_KX|ST0_SX|ST0_FR);
+		or	t0, (ST0_CU0|ST0_FR);
 		jal	start_secondary
 		mtc0	t0, CP0_STATUS
 		.set pop
@@ -167,28 +168,20 @@ NESTED(kernel_entry, 16, sp)
 		.comm	kernelsp,    NR_CPUS * 8, 8
 		.comm	pgd_current, NR_CPUS * 8, 8
 
-		.text
-		.org	0x1000
-EXPORT(swapper_pg_dir)
+#undef PAGE_SIZE
+#define PAGE_SIZE	0x1000
 
-		.org	0x2000
-EXPORT(empty_bad_page)
+	.macro	page name, order=0
+	.globl	\name
+\name:	.size	\name, (PAGE_SIZE << \order)
+	.org	. + (PAGE_SIZE << \order)
+	.type	\name, @object
+	.endm
 
-		.org	0x3000
-EXPORT(empty_bad_page_table)
+	.data
+	.align	12
 
-		.org	0x4000
-EXPORT(invalid_pte_table)
-
-		.org	0x5000
-/*
- * Odd MIPS as behaviour but no bug - this label is required to keep as from
- * trying to be too clever ...
- */
-dummy:
-
-/*
- * Align to 8kb boundary for init_task_union which follows in the
- * .text segment.
- */
-		.align	13
+	page	swapper_pg_dir, PGD_ORDER
+	page	empty_bad_page, 0
+	page	empty_bad_page_table, 0
+	page	invalid_pte_table, 0

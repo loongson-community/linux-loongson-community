@@ -919,7 +919,7 @@ void __init trap_init(void)
 #ifdef CONFIG_SB1_CACHE_ERROR
 		/* Special cache error handler for SB1 */
 		extern char except_vec2_sb1;
-		memcpy((void *)(KSEG1 + 0x100), &except_vec2_sb1, 0x80);
+		memcpy((void *)(KSEG0 + 0x100), &except_vec2_sb1, 0x80);
 #endif
 
 		save_fp_context = _save_fp_context;

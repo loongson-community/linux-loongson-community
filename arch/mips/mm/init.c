@@ -39,7 +39,9 @@
 #include <asm/tlb.h>
 
 mmu_gather_t mmu_gathers[NR_CPUS];
+unsigned long highstart_pfn, highend_pfn;
 static unsigned long totalram_pages;
+static unsigned long totalhigh_pages;
 
 extern void prom_free_prom_memory(void);
 
@@ -105,6 +107,26 @@ int do_check_pgt_cache(int low, int high)
 	return freed;
 }
 
+#if CONFIG_HIGHMEM
+pte_t *kmap_pte;
+pgprot_t kmap_prot;
+
+#define kmap_get_fixmap_pte(vaddr)					\
+	pte_offset(pmd_offset(pgd_offset_k(vaddr), (vaddr)), (vaddr))
+
+static void __init kmap_init(void)
+{
+	unsigned long kmap_vstart;
+
+	/* cache the first kmap pte */
+	kmap_vstart = __fix_to_virt(FIX_KMAP_BEGIN);
+	kmap_pte = kmap_get_fixmap_pte(kmap_vstart);
+
+	kmap_prot = PAGE_KERNEL;
+}
+
+#endif /* CONFIG_HIGHMEM */
+
 void show_mem(void)
 {
 	int i, free = 0, total = 0, reserved = 0;
@@ -139,17 +161,77 @@ void show_mem(void)
 extern char _ftext, _etext, _fdata, _edata;
 extern char __init_begin, __init_end;
 
-void __init paging_init(void)
+static void __init fixrange_init (unsigned long start, unsigned long end,
+	pgd_t *pgd_base)
 {
-	unsigned long zones_size[MAX_NR_ZONES] = {0, 0, 0};
-	unsigned long max_dma, low;
+	pgd_t *pgd;
+	pmd_t *pmd;
+	pte_t *pte;
+	int i, j;
+	unsigned long vaddr;
+
+	vaddr = start;
+	i = __pgd_offset(vaddr);
+	j = __pmd_offset(vaddr);
+	pgd = pgd_base + i;
+
+	for ( ; (i < PTRS_PER_PGD) && (vaddr != end); pgd++, i++) {
+		pmd = (pmd_t *)pgd;
+		for (; (j < PTRS_PER_PMD) && (vaddr != end); pmd++, j++) {
+			if (pmd_none(*pmd)) {
+				pte = (pte_t *) alloc_bootmem_low_pages(PAGE_SIZE);
+				set_pmd(pmd, __pmd(pte));
+				if (pte != pte_offset(pmd, 0))
+					BUG();
+			}
+			vaddr += PMD_SIZE;
+		}
+		j = 0;
+	}
+}
+
+void __init pagetable_init(void)
+{
+	unsigned long vaddr;
+	pgd_t *pgd, *pgd_base;
+	pmd_t *pmd;
+	pte_t *pte;
 
 	/* Initialize the entire pgd.  */
 	pgd_init((unsigned long)swapper_pg_dir);
-	pgd_init((unsigned long)swapper_pg_dir + PAGE_SIZE / 2);
+	pgd_init((unsigned long)swapper_pg_dir +
+	         sizeof(pgd_t ) * USER_PTRS_PER_PGD);
+
+	pgd_base = swapper_pg_dir;
+
+#ifdef CONFIG_HIGHMEM
+	/*
+	 * Permanent kmaps:
+	 */
+	vaddr = PKMAP_BASE;
+	fixrange_init(vaddr, vaddr + PAGE_SIZE*LAST_PKMAP, pgd_base);
+
+	pgd = swapper_pg_dir + __pgd_offset(vaddr);
+	pmd = pmd_offset(pgd, vaddr);
+	pte = pte_offset(pmd, vaddr);
+	pkmap_page_table = pte;
+#endif
+}
+
+void __init paging_init(void)
+{
+	unsigned long zones_size[MAX_NR_ZONES] = {0, 0, 0};
+	unsigned long max_dma, high, low;
+
+	pagetable_init();
+
+#ifdef CONFIG_HIGHMEM
+	kmap_init();
+#endif
 
 	max_dma = virt_to_phys((char *)MAX_DMA_ADDRESS) >> PAGE_SHIFT;
 	low = max_low_pfn;
+	high = highend_pfn;
 
 #if defined(CONFIG_PCI) || defined(CONFIG_ISA)
 	if (low < max_dma)
@@ -160,6 +242,9 @@ void __init paging_init(void)
 	}
 #else
 	zones_size[ZONE_DMA] = low;
+#endif
+#ifdef CONFIG_HIGHMEM
+	zones_size[ZONE_HIGHMEM] = high - low;
 #endif
 
 	free_area_init(zones_size);
@@ -195,8 +280,17 @@ void __init mem_init(void)
 	unsigned long codesize, reservedpages, datasize, initsize;
 	unsigned long tmp, ram;
 
+#ifdef CONFIG_HIGHMEM
+	highstart_pfn = (KSEG1 - KSEG0) >> PAGE_SHIFT;
+	highmem_start_page = mem_map + highstart_pfn;
+#ifdef CONFIG_DISCONTIGMEM
+#error "CONFIG_HIGHMEM and CONFIG_DISCONTIGMEM dont work together yet"
+#endif
+	max_mapnr = num_physpages = highend_pfn;
+#else
 	max_mapnr = num_physpages = max_low_pfn;
-	high_memory = (void *) __va(max_mapnr << PAGE_SHIFT);
+#endif
+	high_memory = (void *) __va(max_low_pfn * PAGE_SIZE);
 
 	totalram_pages += free_all_bootmem();
 	totalram_pages -= setup_zero_pages();	/* Setup zeroed pages.  */
@@ -209,18 +303,36 @@ void __init mem_init(void)
 				reservedpages++;
 		}
 
+#ifdef CONFIG_HIGHMEM
+	for (tmp = highstart_pfn; tmp < highend_pfn; tmp++) {
+		struct page *page = mem_map + tmp;
+
+		if (!page_is_ram(tmp)) {
+			SetPageReserved(page);
+			continue;
+		}
+		ClearPageReserved(page);
+		set_bit(PG_highmem, &page->flags);
+		atomic_set(&page->count, 1);
+		__free_page(page);
+		totalhigh_pages++;
+	}
+	totalram_pages += totalhigh_pages;
+#endif
+
 	codesize =  (unsigned long) &_etext - (unsigned long) &_ftext;
 	datasize =  (unsigned long) &_edata - (unsigned long) &_fdata;
 	initsize =  (unsigned long) &__init_end - (unsigned long) &__init_begin;
 
 	printk("Memory: %luk/%luk available (%ldk kernel code, %ldk reserved, "
-	       "%ldk data, %ldk init)\n",
+	       "%ldk data, %ldk init, %ldk highmem)\n",
 	       (unsigned long) nr_free_pages() << (PAGE_SHIFT-10),
 	       ram << (PAGE_SHIFT-10),
 	       codesize >> 10,
 	       reservedpages << (PAGE_SHIFT-10),
 	       datasize >> 10,
-	       initsize >> 10);
+	       initsize >> 10,
+	       (unsigned long) (totalhigh_pages << (PAGE_SHIFT-10)));
 }
 
 #ifdef CONFIG_BLK_DEV_INITRD
@@ -266,7 +378,7 @@ void si_meminfo(struct sysinfo *val)
 	val->sharedram = 0;
 	val->freeram = nr_free_pages();
 	val->bufferram = atomic_read(&buffermem_pages);
-	val->totalhigh = 0;
+	val->totalhigh = totalhigh_pages;
 	val->freehigh = nr_free_highpages();
 	val->mem_unit = PAGE_SIZE;
 

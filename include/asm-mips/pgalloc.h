@@ -11,6 +11,7 @@
 
 #include <linux/config.h>
 #include <linux/mm.h>
+#include <asm/fixmap.h>
 
 /* TLB flushing:
  *

@@ -140,7 +140,7 @@ void local_flush_tlb_range(struct mm_struct *mm, unsigned long start,
 
 void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 {
-	if (vma->vm_mm->context != 0) {
+	if (!vma || vma->vm_mm->context != 0) {
 		unsigned long flags;
 		int oldpid, newpid, idx;
 

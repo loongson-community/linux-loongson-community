@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2001 Broadcom Corporation
+ * Copyright (C) 2000, 2001 Broadcom Corporation
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,6 +16,14 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
+#ifndef _ASM_SIBYTE_SB1250_H
+#define _ASM_SIBYTE_SB1250_H
+
+extern void sb1250_time_init(void);
 extern void sb1250_mask_irq(int cpu, int irq);
 extern void sb1250_unmask_irq(int cpu, int irq);
-extern void sb1250_time_init(void);
+extern void sb1250_smp_finish(void);
+
+#define IO_SPACE_BASE 0xa0000000UL
+
+#endif
