@@ -3,8 +3,10 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1994 - 2000 by Ralf Baechle
- * Copyright (C) 1999, 2000 by Silicon Graphics
+ * Copyright (C) 1994 - 2000 Ralf Baechle
+ * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
+ * Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
+ * Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -21,20 +23,19 @@
 #include <linux/bootmem.h>
 #include <linux/highmem.h>
 #include <linux/swap.h>
-#include <linux/initrd.h>
 
 #include <asm/bootinfo.h>
 #include <asm/cachectl.h>
+#include <asm/cpu.h>
 #include <asm/dma.h>
-#include <asm/system.h>
-#include <asm/sections.h>
-#include <asm/pgtable.h>
 #include <asm/pgalloc.h>
 #include <asm/mmu_context.h>
+#include <asm/sections.h>
 #include <asm/tlb.h>
-#include <asm/cpu.h>
 
 DEFINE_PER_CPU(struct mmu_gather, mmu_gathers);
+
+unsigned long highstart_pfn, highend_pfn;
 
 /*
  * We have up to 8 empty zeroed pages so we can map one of the right colour
@@ -45,6 +46,9 @@ DEFINE_PER_CPU(struct mmu_gather, mmu_gathers);
  */
 unsigned long empty_zero_page, zero_page_mask;
 
+/*
+ * Not static inline because used by IP27 special magic initialization code
+ */
 unsigned long setup_zero_pages(void)
 {
 	unsigned long order, size;
@@ -73,28 +77,75 @@ unsigned long setup_zero_pages(void)
 	return 1UL << order;
 }
 
-#ifndef CONFIG_DISCONTIGMEM
-/* References to section boundaries */
+#ifdef CONFIG_HIGHMEM
+pte_t *kmap_pte;
+pgprot_t kmap_prot;
 
-extern char _stext, _etext, _fdata, _edata;
-extern char __init_begin, __init_end;
+#define kmap_get_fixmap_pte(vaddr)					\
+	pte_offset_kernel(pmd_offset(pgd_offset_k(vaddr), (vaddr)), (vaddr))
+
+static void __init kmap_init(void)
+{
+	unsigned long kmap_vstart;
+
+	/* cache the first kmap pte */
+	kmap_vstart = __fix_to_virt(FIX_KMAP_BEGIN);
+	kmap_pte = kmap_get_fixmap_pte(kmap_vstart);
+
+	kmap_prot = PAGE_KERNEL;
+}
+
+#endif /* CONFIG_HIGHMEM */
+
+#ifdef CONFIG_HIGHMEM
+static void __init fixrange_init (unsigned long start, unsigned long end,
+	pgd_t *pgd_base)
+{
+	pgd_t *pgd;
+	pmd_t *pmd;
+	pte_t *pte;
+	int i, j;
+	unsigned long vaddr;
+
+	vaddr = start;
+	i = __pgd_offset(vaddr);
+	j = __pmd_offset(vaddr);
+	pgd = pgd_base + i;
+
+	for ( ; (i < PTRS_PER_PGD) && (vaddr != end); pgd++, i++) {
+		pmd = (pmd_t *)pgd;
+		for (; (j < PTRS_PER_PMD) && (vaddr != end); pmd++, j++) {
+			if (pmd_none(*pmd)) {
+				pte = (pte_t *) alloc_bootmem_low_pages(PAGE_SIZE);
+				set_pmd(pmd, __pmd(pte));
+				if (pte != pte_offset_kernel(pmd, 0))
+					BUG();
+			}
+			vaddr += PMD_SIZE;
+		}
+		j = 0;
+	}
+}
+#endif
+
+#ifndef CONFIG_DISCONTIGMEM
+
+extern void pagetable_init(void);
 
 void __init paging_init(void)
 {
-	pmd_t *pmd = kpmdtbl;
-	pte_t *pte = kptbl;
-
 	unsigned long zones_size[MAX_NR_ZONES] = {0, 0, 0};
-	unsigned long max_dma, low;
-	int i;
+	unsigned long max_dma, high, low;
 
-	/* Initialize the entire pgd.  */
-	pgd_init((unsigned long)swapper_pg_dir);
-	pmd_init((unsigned long)invalid_pmd_table, (unsigned long)invalid_pte_table);
-	memset((void *)invalid_pte_table, 0, sizeof(pte_t) * PTRS_PER_PTE);
+	pagetable_init();
 
-	max_dma =  virt_to_phys((char *)MAX_DMA_ADDRESS) >> PAGE_SHIFT;
+#ifdef CONFIG_HIGHMEM
+	kmap_init();
+#endif
+
+	max_dma = virt_to_phys((char *)MAX_DMA_ADDRESS) >> PAGE_SHIFT;
 	low = max_low_pfn;
+	high = highend_pfn;
 
 #ifdef CONFIG_ISA
 	if (low < max_dma)
@@ -106,14 +157,11 @@ void __init paging_init(void)
 #else
 	zones_size[ZONE_DMA] = low;
 #endif
+#ifdef CONFIG_HIGHMEM
+	zones_size[ZONE_HIGHMEM] = high - low;
+#endif
 
 	free_area_init(zones_size);
-
-	memset((void *)kptbl, 0, PAGE_SIZE << PGD_ORDER);
-	memset((void *)kpmdtbl, 0, PAGE_SIZE);
-	set_pgd(swapper_pg_dir, __pgd(kpmdtbl));
-	for (i = 0; i < (1 << PGD_ORDER); pmd++,i++,pte+=PTRS_PER_PTE)
-		pmd_val(*pmd) = (unsigned long)pte;
 }
 
 #define PFN_UP(x)	(((x) + PAGE_SIZE - 1) >> PAGE_SHIFT)
@@ -146,8 +194,17 @@ void __init mem_init(void)
 	unsigned long codesize, reservedpages, datasize, initsize;
 	unsigned long tmp, ram;
 
+#ifdef CONFIG_HIGHMEM
+	highstart_pfn = (KSEG1 - KSEG0) >> PAGE_SHIFT;
+	highmem_start_page = mem_map + highstart_pfn;
+#ifdef CONFIG_DISCONTIGMEM
+#error "CONFIG_HIGHMEM and CONFIG_DISCONTIGMEM dont work together yet"
+#endif
+	max_mapnr = num_physpages = highend_pfn;
+#else
 	max_mapnr = num_physpages = max_low_pfn;
-	high_memory = (void *) __va(max_mapnr << PAGE_SHIFT);
+#endif
+	high_memory = (void *) __va(max_low_pfn << PAGE_SHIFT);
 
 	totalram_pages += free_all_bootmem();
 	totalram_pages -= setup_zero_pages();	/* Setup zeroed pages.  */
@@ -160,18 +217,36 @@ void __init mem_init(void)
 				reservedpages++;
 		}
 
+#ifdef CONFIG_HIGHMEM
+	for (tmp = highstart_pfn; tmp < highend_pfn; tmp++) {
+		struct page *page = mem_map + tmp;
+
+		if (!page_is_ram(tmp)) {
+			SetPageReserved(page);
+			continue;
+		}
+		ClearPageReserved(page);
+		set_bit(PG_highmem, &page->flags);
+		atomic_set(&page->count, 1);
+		__free_page(page);
+		totalhigh_pages++;
+	}
+	totalram_pages += totalhigh_pages;
+#endif
+
 	codesize =  (unsigned long) &_etext - (unsigned long) &_text;
 	datasize =  (unsigned long) &_edata - (unsigned long) &_etext;
 	initsize =  (unsigned long) &__init_end - (unsigned long) &__init_begin;
 
 	printk(KERN_INFO "Memory: %luk/%luk available (%ldk kernel code, "
-	       "%ldk reserved, %ldk data, %ldk init)\n",
+	       "%ldk reserved, %ldk data, %ldk init, %ldk highmem)\n",
 	       (unsigned long) nr_free_pages() << (PAGE_SHIFT-10),
 	       ram << (PAGE_SHIFT-10),
 	       codesize >> 10,
 	       reservedpages << (PAGE_SHIFT-10),
 	       datasize >> 10,
-	       initsize >> 10);
+	       initsize >> 10,
+	       (unsigned long) (totalhigh_pages << (PAGE_SHIFT-10)));
 }
 #endif /* !CONFIG_DISCONTIGMEM */
 
@@ -181,6 +256,7 @@ void free_initrd_mem(unsigned long start, unsigned long end)
 	/* Switch from KSEG0 to XKPHYS addresses */
 	start = (unsigned long)phys_to_virt(CPHYSADDR(start));
 	end = (unsigned long)phys_to_virt(CPHYSADDR(end));
+
 	if (start < end)
 		printk(KERN_INFO "Freeing initrd memory: %ldk freed\n",
 		       (end - start) >> 10);
@@ -202,8 +278,8 @@ void free_initmem(void)
 
 	prom_free_prom_memory();
 
-	addr = (unsigned long)(&__init_begin);
-	while (addr < (unsigned long)&__init_end) {
+	addr = (unsigned long) &__init_begin;
+	while (addr < (unsigned long) &__init_end) {
 		page = PAGE_OFFSET | CPHYSADDR(addr);
 		ClearPageReserved(virt_to_page(page));
 		set_page_count(virt_to_page(page), 1);

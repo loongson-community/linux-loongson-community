@@ -3,11 +3,12 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1995  Linus Torvalds
- * Copyright (C) 1995  Waldorf Electronics
- * Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001  Ralf Baechle
- * Copyright (C) 1996  Stoned Elipot
- * Copyright (C) 2000, 2001, 2002  Maciej W. Rozycki
+ * Copyright (C) 1995 Linus Torvalds
+ * Copyright (C) 1995 Waldorf Electronics
+ * Copyright (C) 1994, 95, 96, 97, 98, 99, 2000, 01, 02, 03  Ralf Baechle
+ * Copyright (C) 1996 Stoned Elipot
+ * Copyright (C) 1999 Silicon Graphics, Inc.
+ * Copyright (C) 2000 2001, 2002  Maciej W. Rozycki
  */
 #include <linux/config.h>
 #include <linux/errno.h>
@@ -46,19 +47,13 @@
 struct cpuinfo_mips cpu_data[NR_CPUS];
 
 /*
- * There are several bus types available for MIPS machines.  "RISC PC"
- * type machines have ISA, EISA, VLB or PCI available, DECstations
- * have Turbochannel or Q-Bus, SGI has GIO, there are lots of VME
- * boxes ...
- * This flag is set if a EISA slots are available.
+ * Set if box has EISA slots.
  */
 #ifdef CONFIG_EISA
 int EISA_bus;
 
 EXPORT_SYMBOL(EISA_bus);
 #endif
-
-struct screen_info screen_info;
 
 extern struct fd_ops no_fd_ops;
 struct fd_ops *fd_ops;
@@ -94,7 +89,6 @@ extern char arcs_cmdline[CL_SIZE];
 const unsigned long mips_io_port_base = -1;
 EXPORT_SYMBOL(mips_io_port_base);
 
-
 /*
  * isa_slot_offset is the address where E(ISA) busaddress 0 is mapped
  * for the processor.
@@ -104,14 +98,14 @@ EXPORT_SYMBOL(isa_slot_offset);
 
 extern void SetUpBootInfo(void);
 extern void load_mmu(void);
-extern asmlinkage void start_kernel(void);
+extern ATTRIB_NORET asmlinkage void start_kernel(void);
 extern void prom_init(int, char **, char **, int *);
 
 static struct resource code_resource = { "Kernel code" };
 static struct resource data_resource = { "Kernel data" };
 
-asmlinkage void __init
-init_arch(int argc, char **argv, char **envp, int *prom_vec)
+asmlinkage void __init init_arch(int argc, char **argv, char **envp,
+	int *prom_vec)
 {
 	/* Determine which MIPS variant we are running on. */
 	cpu_probe();
@@ -121,9 +115,9 @@ init_arch(int argc, char **argv, char **envp, int *prom_vec)
 	cpu_report();
 
 	/*
-	 * Determine the mmu/cache attached to this machine,
-	 * then flush the tlb and caches.  On the r4xx0
-	 * variants this also sets CP0_WIRED to zero.
+	 * Determine the mmu/cache attached to this machine, then flush the
+	 * tlb and caches.  On the r4xx0 variants this also sets CP0_WIRED to
+	 * zero.
 	 */
 	load_mmu();
 
@@ -455,38 +449,39 @@ static inline void resource_init(void)
 #undef MAXMEM
 #undef MAXMEM_PFN
 
-
 void __init setup_arch(char **cmdline_p)
 {
-	void atlas_setup(void);
-	void baget_setup(void);
-	void cobalt_setup(void);
-	void lasat_setup(void);
-	void ddb_setup(void);
-	void decstation_setup(void);
-	void deskstation_setup(void);
-	void jazz_setup(void);
-	void sni_rm200_pci_setup(void);
-	void ip22_setup(void);
-	void ev96100_setup(void);
-	void malta_setup(void);
-	void sead_setup(void);
-	void ikos_setup(void);
-	void momenco_ocelot_setup(void);
-	void momenco_ocelot_g_setup(void);
-	void momenco_ocelot_c_setup(void);
-	void nec_osprey_setup(void);
-	void nec_eagle_setup(void);
-	void zao_capcella_setup(void);
-	void victor_mpc30x_setup(void);
-	void ibm_workpad_setup(void);
-	void casio_e55_setup(void);
-	void jmr3927_setup(void);
- 	void it8172_setup(void);
-	void swarm_setup(void);
-	void hp_setup(void);
-	void au1x00_setup(void);
-	void frame_info_init(void);
+	extern void atlas_setup(void);
+	extern void baget_setup(void);
+	extern void cobalt_setup(void);
+	extern void lasat_setup(void);
+	extern void ddb_setup(void);
+	extern void decstation_setup(void);
+	extern void deskstation_setup(void);
+	extern void jazz_setup(void);
+	extern void sni_rm200_pci_setup(void);
+	extern void ip22_setup(void);
+	extern void ip27_setup(void);
+	extern void ip32_setup(void);
+	extern void ev96100_setup(void);
+	extern void malta_setup(void);
+	extern void sead_setup(void);
+	extern void ikos_setup(void);
+	extern void momenco_ocelot_setup(void);
+	extern void momenco_ocelot_g_setup(void);
+	extern void momenco_ocelot_c_setup(void);
+	extern void nec_osprey_setup(void);
+	extern void nec_eagle_setup(void);
+	extern void zao_capcella_setup(void);
+	extern void victor_mpc30x_setup(void);
+	extern void ibm_workpad_setup(void);
+	extern void casio_e55_setup(void);
+	extern void jmr3927_setup(void);
+	extern void it8172_setup(void);
+	extern void swarm_setup(void);
+	extern void hp_setup(void);
+	extern void au1x00_setup(void);
+	extern void frame_info_init(void);
 
 	frame_info_init();
 
@@ -500,17 +495,16 @@ void __init setup_arch(char **cmdline_p)
 
 	rtc_ops = &no_rtc_ops;
 
-	switch(mips_machgroup)
-	{
+	switch (mips_machgroup) {
 #ifdef CONFIG_BAGET_MIPS
 	case MACH_GROUP_BAGET:
 		baget_setup();
 		break;
 #endif
 #ifdef CONFIG_MIPS_COBALT
-        case MACH_GROUP_COBALT:
-                cobalt_setup();
-                break;
+	case MACH_GROUP_COBALT:
+		cobalt_setup();
+		break;
 #endif
 #ifdef CONFIG_DECSTATION
 	case MACH_GROUP_DEC:
@@ -556,6 +550,16 @@ void __init setup_arch(char **cmdline_p)
 	/* As of now this is only IP22.  */
 	case MACH_GROUP_SGI:
 		ip22_setup();
+		break;
+#endif
+#ifdef CONFIG_SGI_IP27
+	case MACH_GROUP_SGI:
+		ip27_setup();
+		break;
+#endif
+#ifdef CONFIG_SGI_IP32
+	case MACH_GROUP_SGI:
+		ip32_setup();
 		break;
 #endif
 #ifdef CONFIG_SNI_RM200_PCI
@@ -669,8 +673,9 @@ void __init setup_arch(char **cmdline_p)
 		panic("Unsupported architecture");
 	}
 
-	strlcpy(command_line, arcs_cmdline, sizeof command_line);
-	strlcpy(saved_command_line, command_line, sizeof saved_command_line);
+	strlcpy(command_line, arcs_cmdline, sizeof(command_line));
+	strlcpy(saved_command_line, command_line, sizeof(saved_command_line));
+
 	*cmdline_p = command_line;
 
 	parse_cmdline_early();
@@ -688,4 +693,5 @@ int __init fpu_disable(char *s)
 
 	return 1;
 }
+
 __setup("nofpu", fpu_disable);

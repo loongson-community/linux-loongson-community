@@ -5,6 +5,7 @@
  *
  * Copyright (C) 2003 by Ralf Baechle
  */
+#include <linux/init.h>
 #include <linux/mm.h>
 #include <asm/pgtable.h>
 
@@ -23,4 +24,40 @@ void pgd_init(unsigned long page)
 		p[i + 6] = (unsigned long) invalid_pte_table;
 		p[i + 7] = (unsigned long) invalid_pte_table;
 	}
+}
+
+void __init pagetable_init(void)
+{
+#ifdef CONFIG_HIGHMEM
+	unsigned long vaddr;
+	pgd_t *pgd, *pgd_base;
+	pmd_t *pmd;
+	pte_t *pte;
+#endif
+
+	/* Initialize the entire pgd.  */
+	pgd_init((unsigned long)swapper_pg_dir);
+	pgd_init((unsigned long)swapper_pg_dir +
+	         sizeof(pgd_t ) * USER_PTRS_PER_PGD);
+
+#ifdef CONFIG_HIGHMEM
+	pgd_base = swapper_pg_dir;
+
+	/*
+	 * Fixed mappings:
+	 */
+	vaddr = __fix_to_virt(__end_of_fixed_addresses - 1) & PMD_MASK;
+	fixrange_init(vaddr, 0, pgd_base);
+
+	/*
+	 * Permanent kmaps:
+	 */
+	vaddr = PKMAP_BASE;
+	fixrange_init(vaddr, vaddr + PAGE_SIZE*LAST_PKMAP, pgd_base);
+
+	pgd = swapper_pg_dir + __pgd_offset(vaddr);
+	pmd = pmd_offset(pgd, vaddr);
+	pte = pte_offset_kernel(pmd, vaddr);
+	pkmap_page_table = pte;
+#endif
 }

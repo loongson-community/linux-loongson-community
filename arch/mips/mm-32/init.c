@@ -3,9 +3,8 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1994 - 2000 by Ralf Baechle
- * Copyright (C) 2000 Silicon Graphics, Inc.
- *
+ * Copyright (C) 1994 - 2000 Ralf Baechle
+ * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  * Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
  * Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
  */
@@ -24,10 +23,8 @@
 #include <linux/bootmem.h>
 #include <linux/highmem.h>
 #include <linux/swap.h>
-#include <linux/blk.h>
 
 #include <asm/bootinfo.h>
-#include <asm/cacheflush.h>
 #include <asm/cachectl.h>
 #include <asm/cpu.h>
 #include <asm/dma.h>
@@ -41,7 +38,7 @@ DEFINE_PER_CPU(struct mmu_gather, mmu_gathers);
 unsigned long highstart_pfn, highend_pfn;
 
 /*
- * We have upto 8 empty zeroed pages so we can map one of the right colour
+ * We have up to 8 empty zeroed pages so we can map one of the right colour
  * when needed.  This is necessary only on R4000 / R4400 SC and MC versions
  * where we have to avoid VCED / VECI exceptions for good performance at
  * any price.  Since page is never written to after the initialization we
@@ -49,7 +46,10 @@ unsigned long highstart_pfn, highend_pfn;
  */
 unsigned long empty_zero_page, zero_page_mask;
 
-static inline unsigned long setup_zero_pages(void)
+/*
+ * Not static inline because used by IP27 special magic initialization code
+ */
+unsigned long setup_zero_pages(void)
 {
 	unsigned long order, size;
 	struct page *page;
@@ -128,41 +128,9 @@ static void __init fixrange_init (unsigned long start, unsigned long end,
 }
 #endif
 
-void __init pagetable_init(void)
-{
-#ifdef CONFIG_HIGHMEM
-	unsigned long vaddr;
-	pgd_t *pgd, *pgd_base;
-	pmd_t *pmd;
-	pte_t *pte;
-#endif
+#ifndef CONFIG_DISCONTIGMEM
 
-	/* Initialize the entire pgd.  */
-	pgd_init((unsigned long)swapper_pg_dir);
-	pgd_init((unsigned long)swapper_pg_dir +
-	         sizeof(pgd_t ) * USER_PTRS_PER_PGD);
-
-#ifdef CONFIG_HIGHMEM
-	pgd_base = swapper_pg_dir;
-
-	/*
-	 * Fixed mappings:
-	 */
-	vaddr = __fix_to_virt(__end_of_fixed_addresses - 1) & PMD_MASK;
-	fixrange_init(vaddr, 0, pgd_base);
-
-	/*
-	 * Permanent kmaps:
-	 */
-	vaddr = PKMAP_BASE;
-	fixrange_init(vaddr, vaddr + PAGE_SIZE*LAST_PKMAP, pgd_base);
-
-	pgd = swapper_pg_dir + __pgd_offset(vaddr);
-	pmd = pmd_offset(pgd, vaddr);
-	pte = pte_offset_kernel(pmd, vaddr);
-	pkmap_page_table = pte;
-#endif
-}
+extern void pagetable_init(void);
 
 void __init paging_init(void)
 {
@@ -211,8 +179,8 @@ static inline int page_is_ram(unsigned long pagenr)
 			continue;
 
 		addr = PFN_UP(boot_mem_map.map[i].addr);
-		end = PFN_DOWN(boot_mem_map.map[i].addr
-			       + boot_mem_map.map[i].size);
+		end = PFN_DOWN(boot_mem_map.map[i].addr +
+			       boot_mem_map.map[i].size);
 
 		if (pagenr >= addr && pagenr < end)
 			return 1;
@@ -236,7 +204,7 @@ void __init mem_init(void)
 #else
 	max_mapnr = num_physpages = max_low_pfn;
 #endif
-	high_memory = (void *) __va(max_low_pfn * PAGE_SIZE);
+	high_memory = (void *) __va(max_low_pfn << PAGE_SHIFT);
 
 	totalram_pages += free_all_bootmem();
 	totalram_pages -= setup_zero_pages();	/* Setup zeroed pages.  */
@@ -280,6 +248,7 @@ void __init mem_init(void)
 	       initsize >> 10,
 	       (unsigned long) (totalhigh_pages << (PAGE_SHIFT-10)));
 }
+#endif /* !CONFIG_DISCONTIGMEM */
 
 #ifdef CONFIG_BLK_DEV_INITRD
 void free_initrd_mem(unsigned long start, unsigned long end)
@@ -297,23 +266,23 @@ void free_initrd_mem(unsigned long start, unsigned long end)
 }
 #endif
 
-extern char __init_begin, __init_end;
 extern void prom_free_prom_memory(void) __init;
 
 void free_initmem(void)
 {
-	unsigned long addr;
+	unsigned long addr, page;
 
-	prom_free_prom_memory ();
+	prom_free_prom_memory();
 
 	addr = (unsigned long) &__init_begin;
 	while (addr < (unsigned long) &__init_end) {
-		ClearPageReserved(virt_to_page(addr));
-		set_page_count(virt_to_page(addr), 1);
-		free_page(addr);
+		page = addr;
+		ClearPageReserved(virt_to_page(page));
+		set_page_count(virt_to_page(page), 1);
+		free_page(page);
 		totalram_pages++;
 		addr += PAGE_SIZE;
 	}
-	printk(KERN_INFO "Freeing unused kernel memory: %dk freed\n",
+	printk(KERN_INFO "Freeing unused kernel memory: %ldk freed\n",
 	       (&__init_end - &__init_begin) >> 10);
 }
