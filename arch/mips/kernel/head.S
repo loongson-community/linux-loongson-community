@@ -61,13 +61,13 @@
 	.set	mips3
 #ifdef CONFIG_SMP
 	mfc0	k1, CP0_CONTEXT
-	la	k0, current_pgd
+	la	k0, pgd_current
 	srl	k1, 23
 	sll	k1, 2
 	addu	k1, k0, k1
 	lw	k1, (k1)
 #else 
-	lw	k1, current_pgd			# get pgd pointer
+	lw	k1, pgd_current			# get pgd pointer
 #endif	
 	mfc0	k0, CP0_BADVADDR		# Get faulting address
 	srl	k0, k0, 22			# get pgd only bits
@@ -101,7 +101,7 @@
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
 	srl	k0, k0, 22
-	lw	k1, current_pgd			# get pgd pointer
+	lw	k1, pgd_current			# get pgd pointer
 	sll	k0, k0, 2
 	addu	k1, k1, k0
 	mfc0	k0, CP0_CONTEXT
@@ -137,7 +137,7 @@
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR		# Get faulting address
 	srl	k0, k0, 22			# get pgd only bits
-	lw	k1, current_pgd			# get pgd pointer
+	lw	k1, pgd_current			# get pgd pointer
 	sll	k0, k0, 2
 	addu	k1, k1, k0			# add in pgd offset
 	lw	k1, (k1)
@@ -163,7 +163,7 @@
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
 	srl	k0, k0, 22
-	lw	k1, current_pgd			# get pgd pointer
+	lw	k1, pgd_current			# get pgd pointer
 	sll	k0, k0, 2
 	addu	k1, k1, k0
 	mfc0	k0, CP0_CONTEXT
@@ -193,7 +193,7 @@
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
 	srl	k0, k0, 22
-	lw	k1, current_pgd			# get pgd pointer
+	lw	k1, pgd_current			# get pgd pointer
 	sll	k0, k0, 2
 	addu	k1, k1, k0
 	mfc0	k0, CP0_CONTEXT
@@ -223,7 +223,7 @@
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
 	srl	k0, k0, 22
-	lw	k1, current_pgd			# get pgd pointer
+	lw	k1, pgd_current			# get pgd pointer
 	sll	k0, k0, 2
 	addu	k1, k1, k0
 	mfc0	k0, CP0_CONTEXT
@@ -252,7 +252,7 @@
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
 	srl	k0, k0, 22
-	lw	k1, current_pgd			# get pgd pointer
+	lw	k1, pgd_current			# get pgd pointer
 	sll	k0, k0, 2
 	addu	k1, k1, k0
 	mfc0	k0, CP0_CONTEXT
@@ -284,7 +284,7 @@
 	.set	noat
 	.set	mips1
 	mfc0	k0, CP0_BADVADDR
-	lw	k1, current_pgd			# get pgd pointer
+	lw	k1, pgd_current			# get pgd pointer
 	srl	k0, k0, 22
 	sll	k0, k0, 2
 	addu	k1, k1, k0
@@ -526,18 +526,9 @@ NESTED(kernel_entry, 16, sp)
 		EXPORT(cache_error_buffer)
 		.fill	32*4,1,0
 
-#ifndef CONFIG_SMP
-EXPORT(kernelsp)
-		PTR	0
-EXPORT(current_pgd)
-		PTR     0
-#else
-		/* There's almost certainly a better way to do this with the macros...*/
-		.globl kernelsp
-		.comm  kernelsp,     NR_CPUS * 8, 8
-		.globl current_pgd
-		.comm	current_pgd, NR_CPUS * 8, 8
-#endif
+		.comm	kernelsp, NR_CPUS * 8, 8
+		.comm	pgd_current, NR_CPUS * 8, 8
+
 		.text
 		.org	0x1000
 EXPORT(swapper_pg_dir)

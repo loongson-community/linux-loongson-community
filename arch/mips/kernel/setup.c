@@ -41,8 +41,9 @@
 #include <asm/sgialib.h>
 #endif
 
-
-struct mips_cpuinfo boot_cpu_data = { 0, NULL, NULL, 0 };
+#ifndef CONFIG_SMP
+struct cpuinfo_mips cpu_data[1];
+#endif
 
 /*
  * Not all of the MIPS CPUs have the "wait" instruction available. Moreover,

@@ -15,9 +15,27 @@
 #include <linux/slab.h>
 #include <asm/pgalloc.h>
 
-/* Fuck.  The f-word is here so you can grep for it :-)  */
-extern unsigned long asid_cache;
-extern pgd_t *current_pgd[];
+/*
+ * For the fast tlb miss handlers, we currently keep a per cpu array
+ * of pointers to the current pgd for each processor. Also, the proc.
+ * id is stuffed into the context register. This should be changed to 
+ * use the processor id via current->processor, where current is stored
+ * in watchhi/lo. The context register should be used to contiguously
+ * map the page tables.
+ */
+#define TLBMISS_HANDLER_SETUP_PGD(pgd) \
+	pgd_current[smp_processor_id()] = (unsigned long)(pgd)
+#define TLBMISS_HANDLER_SETUP() \
+	set_context((unsigned long) smp_processor_id() << (23 + 3)); \
+	TLBMISS_HANDLER_SETUP_PGD(swapper_pg_dir)
+extern unsigned long pgd_current[];
+
+#ifndef CONFIG_SMP
+#define CPU_CONTEXT(cpu, mm)	(mm)->context
+#else
+#define CPU_CONTEXT(cpu, mm)	(*((unsigned long *)((mm)->context) + cpu))
+#endif
+#define ASID_CACHE(cpu)		cpu_data[cpu].asid_cache
 
 #if defined(CONFIG_CPU_R3000)
 
@@ -43,14 +61,16 @@ static inline void enter_lazy_tlb(struct mm_struct *mm, struct task_struct *tsk,
 #define ASID_FIRST_VERSION ((unsigned long)(~ASID_VERSION_MASK) + 1)
 
 extern inline void
-get_new_mmu_context(struct mm_struct *mm, unsigned long asid)
+get_new_cpu_mmu_context(struct mm_struct *mm, unsigned long cpu)
 {
+	unsigned long asid = ASID_CACHE(cpu);
+
 	if (! ((asid += ASID_INC) & ASID_MASK) ) {
 		local_flush_tlb_all();	/* start new asid cycle */
 		if (!asid)		/* fix version if needed */
 			asid = ASID_FIRST_VERSION;
 	}
-	mm->context = asid_cache = asid;
+	CPU_CONTEXT(cpu, mm) = ASID_CACHE(cpu) = asid;
 }
 
 /*
@@ -79,14 +99,12 @@ init_new_context(struct task_struct *tsk, struct mm_struct *mm)
 extern inline void switch_mm(struct mm_struct *prev, struct mm_struct *next,
                              struct task_struct *tsk, unsigned cpu)
 {
-	unsigned long asid = asid_cache;
-
 	/* Check if our ASID is of an older version and thus invalid */
-	if ((next->context ^ asid) & ASID_VERSION_MASK)
-		get_new_mmu_context(next, asid);
+	if ((CPU_CONTEXT(cpu, next) ^ ASID_CACHE(cpu)) & ASID_VERSION_MASK)
+		get_new_cpu_mmu_context(next, cpu);
 
-	current_pgd[cpu] = next->pgd;
-	set_entryhi(next->context);
+	set_entryhi(CPU_CONTEXT(cpu, next));
+	TLBMISS_HANDLER_SETUP_PGD(next->pgd);
 }
 
 /*
@@ -95,7 +113,10 @@ extern inline void switch_mm(struct mm_struct *prev, struct mm_struct *next,
  */
 extern inline void destroy_context(struct mm_struct *mm)
 {
-	/* Nothing to do.  */
+#ifdef CONFIG_SMP
+	if (mm->context)
+		kfree((void *)mm->context);
+#endif
 }
 
 /*
@@ -106,10 +127,10 @@ extern inline void
 activate_mm(struct mm_struct *prev, struct mm_struct *next)
 {
 	/* Unconditionally get a new ASID.  */
-	get_new_mmu_context(next, asid_cache);
+	get_new_cpu_mmu_context(next, smp_processor_id());
 
-	current_pgd[smp_processor_id()] = next->pgd;
-	set_entryhi(next->context);
+	set_entryhi(CPU_CONTEXT(smp_processor_id(), next));
+	TLBMISS_HANDLER_SETUP_PGD(next->pgd);
 }
 
 #endif /* _ASM_MMU_CONTEXT_H */

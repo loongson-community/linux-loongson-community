@@ -28,31 +28,29 @@
 #include <asm/reg.h>
 #include <asm/system.h>
 
-struct mips_cpuinfo {
+struct cpuinfo_mips {
 	unsigned long udelay_val;
 	unsigned long *pgd_quick;
 	unsigned long *pte_quick;
 	unsigned long pgtable_cache_sz;
+	unsigned long asid_cache;
 };
 
 /*
  * System setup and hardware flags..
- * XXX: Should go into mips_cpuinfo.
  */
 extern void (*cpu_wait)(void);	/* only available on R4[26]00 and R3081 */
 extern void r3081_wait(void);
 extern void r4k_wait(void);
 extern char cyclecounter_available;	/* only available from R4000 upwards. */
 
-extern struct mips_cpuinfo boot_cpu_data;
+extern struct cpuinfo_mips cpu_data[];
 extern unsigned int vced_count, vcei_count;
 
 #ifdef CONFIG_SMP
-extern struct mips_cpuinfo cpu_data[];
 #define current_cpu_data cpu_data[smp_processor_id()]
 #else
-#define cpu_data &boot_cpu_data
-#define current_cpu_data boot_cpu_data
+#define current_cpu_data cpu_data[0]
 #endif
 
 /*

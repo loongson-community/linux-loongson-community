@@ -71,6 +71,15 @@ struct cpuinfo_mips {
 	unsigned char	p_slice;	/* Physical position on node board */
 	hub_intmasks_t	p_intmasks;	/* SN0 per-CPU interrupt masks */
 #endif
+#if 0
+	unsigned long loops_per_sec;
+	unsigned long pgtable_cache_sz;
+	unsigned long ipi_count;
+	unsigned long irq_attempt[NR_IRQS];
+	unsigned long smp_local_irq_count;
+	unsigned long prof_multiplier;
+	unsigned long prof_counter;
+#endif
 } __attribute__((aligned(128)));
 
 /*

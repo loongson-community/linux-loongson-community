@@ -56,7 +56,7 @@ int smp_threads_ready;  /* Not used */
 int smp_num_cpus;    
 int global_irq_holder = NO_PROC_ID;
 spinlock_t global_irq_lock = SPIN_LOCK_UNLOCKED;
-struct mips_cpuinfo cpu_data[NR_CPUS];
+struct cpuinfo_mips cpu_data[NR_CPUS];
 
 struct smp_fn_call_struct smp_fn_call = 
 { SPIN_LOCK_UNLOCKED, ATOMIC_INIT(0), NULL, NULL};
@@ -97,7 +97,7 @@ int start_secondary(void *unused)
 {
 	prom_init_secondary();
 	write_32bit_cp0_register(CP0_CONTEXT, smp_processor_id()<<23);
-	current_pgd[smp_processor_id()] = init_mm.pgd;
+	pgd_current[smp_processor_id()] = init_mm.pgd;
 	printk("Slave cpu booted successfully\n");
 	atomic_inc(&cpus_booted);
 	cpu_idle();

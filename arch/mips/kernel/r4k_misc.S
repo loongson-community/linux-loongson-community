@@ -38,14 +38,14 @@
 #ifdef CONFIG_SMP
 #define GET_PGD(scratch, ptr)        \
 	mfc0    ptr, CP0_CONTEXT;    \
-	la      scratch, current_pgd;\
+	la      scratch, pgd_current;\
 	srl     ptr, 23;             \
 	sll     ptr, 2;              \
 	addu    ptr, scratch, ptr;   \
 	lw      ptr, (ptr);          
 #else
 #define GET_PGD(scratch, ptr)    \
-	lw	ptr, current_pgd;
+	lw	ptr, pgd_current;
 #endif
 	
 	

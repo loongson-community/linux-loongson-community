@@ -28,8 +28,6 @@
 
 #define development_version (LINUX_VERSION_CODE & 0x100)
 
-unsigned long asid_cache = ASID_FIRST_VERSION;
-
 /*
  * Macro for exception fixup code to access integer registers.
  */

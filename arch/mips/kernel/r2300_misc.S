@@ -39,7 +39,7 @@
 	 */
 #define LOAD_PTE(pte, ptr) \
 	mfc0	pte, CP0_BADVADDR; \
-	lw	ptr, current_pgd; \
+	lw	ptr, pgd_current; \
 	srl	pte, pte, 22; \
 	sll	pte, pte, 2; \
 	addu	ptr, ptr, pte; \

@@ -14,7 +14,6 @@
 #include <linux/config.h>
 #include <linux/slab.h>
 #include <asm/pgalloc.h>
-#include <asm/processor.h>
 
 /*
  * For the fast tlb miss handlers, we currently keep a per cpu array
@@ -58,8 +57,8 @@ get_new_cpu_mmu_context(struct mm_struct *mm, unsigned long cpu)
 	unsigned long asid = ASID_CACHE(cpu);
 
 	if (! ((asid += ASID_INC) & ASID_MASK) ) {
-		local_flush_tlb_all(); /* start new asid cycle */
-		if (!asid)      /* fix version if needed */
+		local_flush_tlb_all();	/* start new asid cycle */
+		if (!asid)		/* fix version if needed */
 			asid = ASID_FIRST_VERSION;
 	}
 	CPU_CONTEXT(cpu, mm) = ASID_CACHE(cpu) = asid;
@@ -95,7 +94,7 @@ extern inline void switch_mm(struct mm_struct *prev, struct mm_struct *next,
 	if ((CPU_CONTEXT(cpu, next) ^ ASID_CACHE(cpu)) & ASID_VERSION_MASK)
 		get_new_cpu_mmu_context(next, cpu);
 
-	set_entryhi(CPU_CONTEXT(cpu, next) & 0xff);
+	set_entryhi(CPU_CONTEXT(cpu, next));
 	TLBMISS_HANDLER_SETUP_PGD(next->pgd);
 }
 
@@ -121,7 +120,7 @@ activate_mm(struct mm_struct *prev, struct mm_struct *next)
 	/* Unconditionally get a new ASID.  */
 	get_new_cpu_mmu_context(next, smp_processor_id());
 
-	set_entryhi(CPU_CONTEXT(smp_processor_id(), next) & 0xff);
+	set_entryhi(CPU_CONTEXT(smp_processor_id(), next));
 	TLBMISS_HANDLER_SETUP_PGD(next->pgd);
 }
 

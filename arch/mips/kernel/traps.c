@@ -917,7 +917,7 @@ void __init trap_init(void)
 	case CPU_R6000A:
 	        save_fp_context = _save_fp_context;
 		restore_fp_context = _restore_fp_context;
-		
+
 		/*
 		 * The R6000 is the only R-series CPU that features a machine
 		 * check exception (similar to the R4000 cache error) and
@@ -956,6 +956,8 @@ void __init trap_init(void)
 
 	atomic_inc(&init_mm.mm_count);	/* XXX  UP?  */
 	current->active_mm = &init_mm;
-	write_32bit_cp0_register(CP0_CONTEXT, smp_processor_id()<<23);
-	current_pgd[0] = init_mm.pgd;
+
+	/* XXX Must be done for all CPUs  */
+	current_cpu_data.asid_cache = ASID_FIRST_VERSION;
+	TLBMISS_HANDLER_SETUP();
 }
