@@ -50,7 +50,7 @@ static char *efs_getlinktarget(struct inode *in)
 	__u32 size = in->i_size;
 	__u32 block;
   
-#ifdef DEBUG_EFS
+#ifdef DEBUG_EFS_SYMLINK
 	printk("efs_getlinktarget: size of inode %#0lx is %d\n", in->i_ino,
 	       size);
 #endif
@@ -103,7 +103,7 @@ static struct dentry * efs_follow_link(struct dentry * dent,
 	char * name;
 	UPDATE_ATIME(dir);
 	name = efs_getlinktarget(dir);
-#ifdef DEBUG_EFS
+#ifdef DEBUG_EFS_SYMLINK
 	printk("EFS: efs_getlinktarget(%d) returned \"%s\"\n",
 	       dir->i_ino, name);
 #endif
@@ -128,16 +128,16 @@ static int efs_readlink(struct dentry * dent, char * buffer, int buflen)
 		return 0;
 	/* copy the link target to the given buffer */
 	i = 0;
-#ifdef DEBUG_EFS
+#ifdef DEBUG_EFS_SYMLINK
 	printk("EFS: efs_readlink returning ");
 #endif
 	while (i<buflen && bh->b_data[i] && i < dir->i_size) {
-#ifdef DEBUG_EFS
+#ifdef DEBUG_EFS_SYMLINK
 		printk("%c", bh->b_data[i]);
 #endif
 		i++;
 	}
-#ifdef DEBUG_EFS
+#ifdef DEBUG_EFS_SYMLINK
 	printk("\n");
 #endif
 	if (copy_to_user(buffer, bh->b_data, i))

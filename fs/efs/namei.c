@@ -39,7 +39,7 @@ static struct buffer_head * efs_find_entry(struct inode *dir,
 	struct efs_dirblk *db;
  
 	/* Warnings */ 
-	if(ini->tot!=1)
+	if(ini->efs_total!=1)
 		printk("efs_find: More than one extent!\n");
 	if(dir->i_size & (EFS_BLOCK_SIZE-1))
 		printk("efs_find: dirsize != blocklen * n\n");
@@ -100,7 +100,7 @@ static struct buffer_head * efs_find_entry(struct inode *dir,
 			}
 		}
 	}
-#ifdef DEBUG_EFS
+#ifdef DEBUG_EFS_DIRS
 	printk("EFS: efs_find_entry didn't find inode for \"%s\"/%d!\n",
 	       oname, onamelen);
 #endif

@@ -12,14 +12,15 @@
 #include <linux/efs_fs_i.h>
 #include <linux/efs_fs_sb.h>
 #include <linux/locks.h>
+#include <linux/malloc.h>
 
 #include <asm/uaccess.h>
 
 /* ----- Define the operations for the Superblock ----- */
-void efs_read_inode(struct inode *);
-void efs_put_inode(struct inode *);
-void efs_put_super(struct super_block *);
-int efs_statfs(struct super_block *, struct statfs *,int );
+static void efs_read_inode(struct inode *);
+static void efs_put_inode(struct inode *);
+static void efs_put_super(struct super_block *);
+static int efs_statfs(struct super_block *, struct statfs *,int );
 
 static struct super_operations efs_sops = {
 	efs_read_inode, 
@@ -34,7 +35,7 @@ static struct super_operations efs_sops = {
 };
 
 static void efs_put_inode(struct inode *i) {
-  printk("efs_put_inode: iput()ting inode %d\n", i->i_ino);
+  printk("efs_put_inode: iput()ting inode %#0lx\n", i->i_ino);
 }
 
 
@@ -255,14 +256,14 @@ struct super_block *efs_read_super(struct super_block *s, void *d, int silent)
 
 	/* Read the Superblock */
 	if(!error) {	
-#ifdef DEBUG_EFS
+#ifdef DEBUG_EFS_SB
 		if (!silent)
 			printk("EFS: reading superblock.\n");
 #endif
 		bh = bread(dev, EFS_BLK_SUPER,  EFS_BLOCK_SIZE );
 		if(bh) {
 			es = (struct efs_super_block *)(bh->b_data);
-#ifdef DEBUG_EFS
+#ifdef DEBUG_EFS_SB
 			if(!silent)
 				efs_dump_super(es);
 #endif
@@ -319,7 +320,7 @@ struct super_block *efs_read_super(struct super_block *s, void *d, int silent)
 
    s - superblock
 */
-void efs_put_super(struct super_block *s)
+static void efs_put_super(struct super_block *s)
 {
 	lock_super(s);
 	s->s_dev = 0;
@@ -334,7 +335,7 @@ void efs_put_super(struct super_block *s)
    s   - superblock of fs
    buf - statfs struct that has to be filled
 */
-int efs_statfs(struct super_block *s, struct statfs *buf,int bufsize)
+static int efs_statfs(struct super_block *s, struct statfs *buf,int bufsize)
 {
 	struct efs_sb_info *sbi = (struct efs_sb_info *)&s->u.generic_sbp;
 	struct statfs tmp;
@@ -360,144 +361,202 @@ int efs_statfs(struct super_block *s, struct statfs *buf,int bufsize)
 */
 void efs_read_inode(struct inode *in)
 {
-	struct buffer_head *bh;
-	struct efs_sb_info *sbi = (struct efs_sb_info *)&in->i_sb->u.generic_sbp;
-	__u32 blk,off;
-	int error = 0;
+    struct buffer_head *bh;
+    struct efs_sb_info *sbi = (struct efs_sb_info *)&in->i_sb->u.generic_sbp;
+    struct efs_disk_inode *di;
+    struct efs_inode_info *ini;
+    __u32 blk, off, rdev;
+    __u16 numext;
+    int i;
+    int error = 0;
   
-	/* Calc the discblock and the offset for inode (4 Nodes fit in one block) */
-	blk = in->i_ino >> 2; 
-	blk = sbi->fs_start + sbi->first_block + 
-		(sbi->group_size * (blk / sbi->inode_blocks)) +
-		(blk % sbi->inode_blocks);
-	off = (in->i_ino&3)<<7;
+    /*
+     * Find the block and offset for desired inode (4 inodes fit in one block)
+     */
+    blk = in->i_ino >> 2; 
+    blk = sbi->fs_start + sbi->first_block + 
+	(sbi->group_size * (blk / sbi->inode_blocks)) +
+	(blk % sbi->inode_blocks);
+    off = (in->i_ino&3)<<7;
   
-	/* Read the block with the inode from disk */
-#ifdef DEBUG_EFS
-	printk("EFS: looking for inode %#lx\n", in->i_ino);
+    /* Read the block with the inode from disk */
+#ifdef DEBUG_EFS_INODE
+    printk("EFS: looking for inode %#lx at %d/%d\n", in->i_ino, blk, off);
 #endif
-	bh = bread(in->i_dev,blk,EFS_BLOCK_SIZE);
-	if(bh) {
+    bh = bread(in->i_dev,blk,EFS_BLOCK_SIZE);
+    if (!bh) {
+	printk("EFS: can't read physical block %d for inode %#lx\n",
+	       blk, in->i_ino);
+	return;
+    }
+    di = (struct efs_disk_inode *)(bh->b_data + off);
+    ini = &in->u.efs_i;
+	    
+    /* fill in standard inode infos */
+    in->i_mtime = efs_swab32(di->di_mtime);
+    in->i_ctime = efs_swab32(di->di_ctime);
+    in->i_atime = efs_swab32(di->di_atime);
+    in->i_size  = efs_swab32(di->di_size);
+    in->i_nlink = efs_swab16(di->di_nlink);
+    in->i_uid   = efs_swab16(di->di_uid);
+    in->i_gid   = efs_swab16(di->di_gid);
+    in->i_mode  = efs_swab16(di->di_mode);
+	    
+    /* Special files store their rdev value where the extends of
+       a regular file are found */
+    /*    rdev = ConvertLong(rawnode,EFS_IN_EXTENTS);*/
+    /* XXX this isn't right */
+    rdev = efs_swab32(*(__u32 *)&di->di_u.di_dev); 
     
-		struct efs_disk_inode *di = (struct efs_disk_inode *)(bh->b_data + off);
-		__u16 numext;
-		struct efs_inode_info *ini = &in->u.efs_i;
-		__u32 rdev;
-		int i;
-    
-		/* fill in standard inode infos */
-		in->i_mtime = efs_swab32(di->di_mtime);
-		in->i_ctime = efs_swab32(di->di_ctime);
-		in->i_atime = efs_swab32(di->di_atime);
-		in->i_size  = efs_swab32(di->di_size);
-		in->i_nlink = efs_swab16(di->di_nlink);
-		in->i_uid   = efs_swab16(di->di_uid);
-		in->i_gid   = efs_swab16(di->di_gid);
-		in->i_mode  = efs_swab16(di->di_mode);
+    /* get the number of extends the inode posseses */
+    numext = efs_swab16(di->di_numextents);
+    ini->efs_extents = kmalloc(sizeof(union efs_extent) * numext, GFP_KERNEL);
+    if (!ini->efs_extents) {
+	printk("EFS: not enough memory\n");
+	brelse(bh);
+	return;
+    }
 
-		/* Special files store their rdev value where the extends of
-		   a regular file are found */
-		/*    rdev = ConvertLong(rawnode,EFS_IN_EXTENTS);*/
-		/* XXX this isn't right */
-		rdev = efs_swab32(*(__u32 *)&di->di_u.di_dev); 
-    
-		/* -----------------------------------------------------------------
-		   The following values are stored in my private part of the Inode.
-		   They are necessary for further operations with the file */
+#define COPY_EXTENT(from, to) \
+    (to).ex_bytes[0] = efs_swab32((from).ex_bytes[0]); \
+    (to).ex_bytes[1] = efs_swab32((from).ex_bytes[1]);
 
-		/* get the number of extends the inode posseses */
-		numext = efs_swab16(di->di_numextents);
+#define EXTENTS_PER_BLOCK	(EFS_BLOCK_SIZE / sizeof (union efs_extent))
 
-		/* if this inode has more than EFS_MAX_EXTENDS then the extends are
-		   stored not directly in the inode but indirect on an extra block.
-		   The address of the extends-block is stored in the inode */
-		if(numext>EFS_MAX_EXTENTS) { 
-			struct buffer_head *bh2;
-			printk("EFS: inode #%lx has > EFS_MAX_EXTENTS (%d)\n",
-			       in->i_ino, numext);
+    /* if this inode has more than EFS_MAX_EXTENDS then the extends are
+       stored not directly in the inode but indirect on an extra block.
+       The address of the extends-block is stored in the inode */
+    if(numext>EFS_MAX_EXTENTS) { 
+	__u32 numindirect, count;
+	union efs_extent indirect;
 
-			/* Store the discblock and offset of extend-list in Inode info */
-			ini->extblk = sbi->fs_start + efs_swab32((__u32)(di->di_u.di_extents));
-
-			/* read INI_MAX_EXT extents from the indirect block */
-			printk("EFS: ");
-			bh2 = bread(in->i_dev,ini->extblk,EFS_BLOCK_SIZE);
-			if(bh2) {
-			  union efs_extent *ptr = 
-			    (union efs_extent *)bh2->b_data;
-				for(i=0;i<EFS_MAX_EXTENTS;i++) {
-					ini->extents[i].ex_bytes[0] = efs_swab32(ptr[i].ex_bytes[0]);
-					ini->extents[i].ex_bytes[1] = efs_swab32(ptr[i].ex_bytes[1]);
-				}
-				brelse(bh2);
-			} else
-				printk("efs: failed reading indirect extents!\n");
-
-		} else {
-#ifdef DEBUG_EFS
-			printk("EFS: inode %#lx is direct (woohoo!)\n",
-			       in->i_ino);
+	numindirect = di->di_u.di_extents[0].ex_ex.ex_offset;
+#if defined(DEBUG_EFS_INODE) || defined(DEBUG_EFS_EXTENTS)
+	printk("EFS: indirect inode #%lx has %d extents (%d indirect)\n",
+	       in->i_ino, numext, numindirect);
 #endif
-			/* The extends are found in the inode block */
-			ini->extblk = blk;
-      
-			/* copy extends directly from rawinode */
-			for(i=0;i<numext;i++) {
-				ini->extents[i].ex_bytes[0] = efs_swab32(di->di_u.di_extents[i].ex_bytes[0]);
-				ini->extents[i].ex_bytes[1] = efs_swab32(di->di_u.di_extents[i].ex_bytes[1]);
-			}
-		}
-		ini->tot = numext;
-		ini->cur = 0;
 
+	count = 0;
+	for (i = 0; i < numindirect; i++) {
+	    union efs_extent *ptr;
+	    struct buffer_head *bh2;
+	    __u32 extbytes, copybytes;
+
+	    COPY_EXTENT(di->di_u.di_extents[i], indirect);
+	    if (numext - count > EXTENTS_PER_BLOCK) {
+		extbytes = indirect.ex_ex.ex_length * EFS_BLOCK_SIZE;
+		copybytes = extbytes;
+	    } else {
+		extbytes = (numext - count) * sizeof (union efs_extent);
+		copybytes = (extbytes & ~511) + 512;
+	    }
+	    bh2 = bread(in->i_dev, indirect.ex_ex.ex_bn, copybytes);
+	    if (!bh2) {
+		printk("EFS: failed reading indirect extents\n");
 		brelse(bh);
-    
-#ifdef DEBUG_EFS
-		printk("%lx inode: blk %lx numext %x\n",in->i_ino,ini->extblk,numext);
-		efs_dump_inode(di);
+		return;
+	    }
+
+	    ptr = (union efs_extent *)bh2->b_data;
+
+#ifdef __BIG_ENDIAN
+	    /* we're the same endianness as EFS, so we can just copy them
+	       into place */
+	    {
+		void * copyto = ini->efs_extents + count;
+#ifdef DEBUG_EFS_EXTENTS_VERBOSE
+		union efs_extent *iter = copyto;
+		printk("EFS: copying %lx extbytes (%d exts) from %p to %p "
+		       "(ini %p, ->efs_extents %p)\n",
+		       extbytes, extbytes / sizeof (union efs_extent),
+		       ptr, copyto, ini, ini->efs_extents);
+#endif
+		bcopy((void *)ptr, copyto, extbytes);
+		count += extbytes / sizeof (union efs_extent);
+#ifdef DEBUG_EFS_EXTENTS_VERBOSE
+		for(; iter < (char *)copyto + extbytes; iter++) {
+		    printk("EFS: ext: [%08x%08x]: magic: %x bn: %0#6x "
+			   "length: %0#2x offset: %0#6x\n",
+			   iter->ex_bytes[0], iter->ex_bytes[1],
+			   iter->ex_ex.ex_magic, iter->ex_ex.ex_bn,
+			   iter->ex_ex.ex_length, iter->ex_ex.ex_offset);
+		}
+#endif
+	    }
+#else
+#error "EFS not supported on __LITTLE_ENDIAN systems yet"
+#if 0
+	    
+	    for (j = 0; j < EXTENTS_PER_BLOCK * indirect.ex_ex.ex_length; j++){
+		union efs_extent *_ext = &ini->efs_extents[count];
+		COPY_EXTENT(ptr[k], *_ext);
+
+#ifdef DEBUG_EFS_EXTENTS_VERBOSE
+		printk("EFS: %d/%d: extent %d is %8d-%8d (phys %d)\n",
+		       i, j, count, _ext->ex_ex.ex_offset,
+		       _ext->ex_ex.ex_offset + _ext->ex_ex.ex_length,
+		       _ext->ex_ex.ex_bn);
 #endif
 
-		/* Install the filetype Handler */
-		switch(in->i_mode & S_IFMT) {
-		case S_IFDIR: 
-			in->i_op = &efs_dir_in_ops; 
-			break;
-		case S_IFREG:
-			in->i_op = &efs_file_in_ops;
-			break;
-		case S_IFLNK:
-			in->i_op = &efs_symlink_in_ops;
-			break;
-		case S_IFCHR:
-			in->i_rdev = rdev;
-			in->i_op = &chrdev_inode_operations; 
-			break;
-		case S_IFBLK:
-			in->i_rdev = rdev;
-			in->i_op = &blkdev_inode_operations; 
-			break;
-		case S_IFIFO:
-			init_fifo(in);
-			break;    
-		default:
-			printk("EFS: Unsupported inode Mode %o\n",(unsigned int)(in->i_mode));
-			error++;
-			break;
-		}
+		if (++count == numext)
+		    break;
+	    }
+#endif /* 0 */
+#endif /* ENDIAN */
+	    brelse(bh2);
+	    if (count == numext)
+		break;
+	}
+#ifdef DEBUG_EFS_EXTENTS
+	printk("EFS: loaded %d of %d extents from indirect inode %#0lx\n",
+	       count, numext, in->i_ino);
+#endif
+    } else {
+#if defined(DEBUG_EFS_INODE) || defined(DEBUG_EFS_EXTENTS)
+	printk("EFS: inode %#lx is direct with %d extents\n",
+	       in->i_ino, numext);
+#endif
+	/* copy extends directly from rawinode */
+	for(i=0; i<numext; i++) {
+	    COPY_EXTENT(di->di_u.di_extents[i], ini->efs_extents[i]);
+	}
+    }
+    ini->efs_total = numext;
+    ini->efs_current = 0;
+    
+    brelse(bh);
+    
+#ifdef DEBUG_EFS_INODE
+    printk("%lx inode: blk %lx numext %x\n",in->i_ino,ini->extblk,numext);
+    efs_dump_inode(di);
+#endif
+
+    /* Install the filetype Handler */
+    switch(in->i_mode & S_IFMT) {
+    case S_IFDIR: 
+	in->i_op = &efs_dir_in_ops; 
+	break;
+    case S_IFREG:
+	in->i_op = &efs_file_in_ops;
+	break;
+    case S_IFLNK:
+	in->i_op = &efs_symlink_in_ops;
+	break;
+    case S_IFCHR:
+	in->i_rdev = rdev;
+	in->i_op = &chrdev_inode_operations; 
+	break;
+    case S_IFBLK:
+	in->i_rdev = rdev;
+	in->i_op = &blkdev_inode_operations; 
+	break;
+    case S_IFIFO:
+	init_fifo(in);
+	break;    
+    default:
+	printk("EFS: Unsupported inode mode %o\n",(unsigned int)(in->i_mode));
+	error++;
+	break;
+    }
         
-	} else {
-		printk("EFS: Inode: failed bread!\n");
-		error++;
-	}
-  
-	/* failed inode */
-	if(error) {
-		printk("EFS: read inode failed with %d errors\n",error);
-		in->i_mtime = in->i_atime = in->i_ctime = 0;
-		in->i_size = 0;
-		in->i_nlink = 1;
-		in->i_uid = in->i_gid = 0;
-		in->i_mode = S_IFREG;
-		in->i_op = NULL;   
-	}
 }

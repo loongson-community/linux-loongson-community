@@ -83,7 +83,7 @@ efs_readdir(struct file *filp,
 	return -EBADF;
     }
     
-    if(ini->tot!=1) {
+    if(ini->efs_total!=1) {
 	printk("EFS: directory %s has more than one extent.\n", 
 	       filp->f_dentry->d_name.name);
 	printk("EFS: Mike is lazy, so we can't handle this yet.  Sorry =(\n");
