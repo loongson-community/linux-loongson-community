@@ -126,7 +126,7 @@ symbol		=	value
 		.word	1f;                             \
 		.popsection				\
 		.pushsection .data;			\
-1:		.asciz	string;                         \
+1:		.asciiz	string;                         \
 		.popsection
 
 /*
