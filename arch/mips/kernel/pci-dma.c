@@ -33,13 +33,7 @@ void *dma_alloc_coherent(struct device *dev, size_t size,
 
 	if (ret != NULL) {
 		memset(ret, 0, size);
-#if 0	/* Broken support for some platforms ...  */
-		if (hwdev)
-			bus = hwdev->bus;
-		*dma_handle = dev_to_baddr(bus, __pa(ret));
-#else
-		*dma_handle = virt_to_phys(ret);
-#endif
+		*dma_handle = dev_to_baddr(dev, virt_to_phys(ret));
 #ifdef CONFIG_NONCOHERENT_IO
 		dma_cache_wback_inv((unsigned long) ret, size);
 		ret = UNCAC_ADDR(ret);

@@ -66,7 +66,7 @@ dma_map_single(struct device *dev, void *ptr, size_t size,
 
 	__dma_sync(addr, size, direction);
 
-	return dev_to_baddr(hwdev->bus, __pa(ptr));
+	return dev_to_baddr(dev, __pa(ptr));
 }
 
 static inline void
@@ -96,7 +96,7 @@ dma_map_sg(struct device *dev, struct scatterlist *sg, int nents,
 		addr = (unsigned long) page_address(sg->page);
 		if (addr)
 		        __dma_sync(addr + sg->offset, sg->length, direction);
-		sg->dma_address = (dma_addr_t) dev_to_baddr(hwdev->bus,
+		sg->dma_address = (dma_addr_t) dev_to_baddr(dev,
 			page_to_phys(sg->page) + sg->offset);
 	}
 
@@ -114,7 +114,7 @@ dma_map_page(struct device *dev, struct page *page, unsigned long offset,
 	addr = (unsigned long) page_address(page) + offset;
 	dma_cache_wback_inv(addr, size);
 
-	return dev_to_baddr(hwdev->bus, page_to_phys(page) + offset);
+	return dev_to_baddr(dev, page_to_phys(page) + offset);
 }
 
 static inline void
