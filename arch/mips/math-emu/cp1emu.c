@@ -69,9 +69,6 @@
 
 #include "ieee754.h"
 
-#ifdef __KERNEL__
-#define _mon_printf printk
-#endif
 /* Strap kernel emulator for full MIPS IV emulation */
 
 #ifdef __mips
@@ -290,7 +287,7 @@ cop1Emulate(int xcptno, struct pt_regs *xcp,
 
 		if (__compute_return_epc(xcp)) {
 #ifdef CP1DBG
-			_mon_printf("failed to emulate branch at %p\n",
+			printk("failed to emulate branch at %p\n",
 				    REG_TO_VA(xcp->cp0_epc));
 #endif
 			return SIGILL;;
@@ -600,7 +597,7 @@ cop1Emulate(int xcptno, struct pt_regs *xcp,
 				if (MIPSInst_RD(ir) == FPCREG_CSR) {
 					value = ctx->sr;
 #ifdef CSRTRACE
-					_mon_printf
+					printk
 					    ("%p gpr[%d]<-csr=%08x\n",
 					     REG_TO_VA(xcp->cp0_epc),
 					     MIPSInst_RT(ir), value);
@@ -628,7 +625,7 @@ cop1Emulate(int xcptno, struct pt_regs *xcp,
 				 */
 				if (MIPSInst_RD(ir) == FPCREG_CSR) {
 #ifdef CSRTRACE
-					_mon_printf
+					printk
 					    ("%p gpr[%d]->csr=%08x\n",
 					     REG_TO_VA(xcp->cp0_epc),
 					     MIPSInst_RT(ir), value);
@@ -787,7 +784,7 @@ cop1Emulate(int xcptno, struct pt_regs *xcp,
 int do_dsemulret(struct pt_regs *xcp)
 {
 #ifdef DSEMUL_TRACE
-	_mon_printf("desemulret\n");
+	printk("desemulret\n");
 #endif
 	/* Set EPC to return to post-branch instruction */
 	xcp->cp0_epc = current->thread.dsemul_epc;
@@ -814,7 +811,7 @@ mips_dsemul(struct pt_regs *xcp, mips_instruction ir, vaddr_t cpc)
 		return 0;
 	}
 #ifdef DSEMUL_TRACE
-	_mon_printf("desemul %p %p\n", REG_TO_VA(xcp->cp0_epc), cpc);
+	printk("desemul %p %p\n", REG_TO_VA(xcp->cp0_epc), cpc);
 #endif
 
 	/* 
@@ -1120,7 +1117,7 @@ fpux_emu(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx,
 				    (ctx->sr & ~FPU_CSR_ALL_X) | rcsr;
 				if ((ctx->sr >> 5) & ctx->
 				    sr & FPU_CSR_ALL_E) {
-		/*_mon_printf ("SIGFPE: fpu csr = %08x\n",ctx->sr); */
+		/*printk ("SIGFPE: fpu csr = %08x\n",ctx->sr); */
 					return SIGFPE;
 				}
 
@@ -1656,7 +1653,7 @@ dcopuop:
 	 */
 	ctx->sr = (ctx->sr & ~FPU_CSR_ALL_X) | rcsr;
 	if ((ctx->sr >> 5) & ctx->sr & FPU_CSR_ALL_E) {
-		/*_mon_printf ("SIGFPE: fpu csr = %08x\n",ctx->sr); */
+		/*printk ("SIGFPE: fpu csr = %08x\n",ctx->sr); */
 		return SIGFPE;
 	}
 
@@ -1812,3 +1809,4 @@ void _cop1_init(int emulate)
 	}
 }
 #endif
+

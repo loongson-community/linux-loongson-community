@@ -29,14 +29,6 @@
  *  Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
  *************************************************************************/
 
-#if !#system(sde) && !defined(__KERNEL__)
-#include <stdio.h>
-#endif
-
-#ifdef __KERNEL__
-#define _mon_printf printk
-#endif
-
 #include "ieee754.h"
 
 /*
@@ -50,11 +42,7 @@ static const char *const rtnames[] = {
 
 void ieee754_xcpt(struct ieee754xctx *xcp)
 {
-#if #system(sde) || defined(__KERNEL__)
-	_mon_printf("floating point exception in \"%s\", type=%s\n",
-		    xcp->op, rtnames[xcp->rt]);
-#else
-	fprintf(stderr, "floating point exception in \"%s\", type=%s\n",
+	printk("floating point exception in \"%s\", type=%s\n",
 		xcp->op, rtnames[xcp->rt]);
-#endif
 }
+

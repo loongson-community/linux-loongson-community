@@ -31,13 +31,6 @@
  *  Copyright (C) 2000 MIPS Technologies, Inc. All rights reserved.
  *************************************************************************/
 
-#ifdef __KERNEL__
-#define printf printk
-#else
-#include <stdio.h>
-#include <stdarg.h>
-#endif
-
 #include "ieee754.h"
 
 #define DP_EBIAS	1023
@@ -72,39 +65,39 @@ ieee754dp ieee754dp_dump(char *m, ieee754dp x)
 {
 	int i;
 
-	printf("%s", m);
-	printf("<%08x,%08x>\n", (unsigned) (x.bits >> 32),
+	printk("%s", m);
+	printk("<%08x,%08x>\n", (unsigned) (x.bits >> 32),
 	       (unsigned) x.bits);
-	printf("\t=");
+	printk("\t=");
 	switch (ieee754dp_class(x)) {
 	case IEEE754_CLASS_QNAN:
 	case IEEE754_CLASS_SNAN:
-		printf("Nan %c", DPSIGN(x) ? '-' : '+');
+		printk("Nan %c", DPSIGN(x) ? '-' : '+');
 		for (i = DP_FBITS - 1; i >= 0; i--)
-			printf("%c", DPMANT(x) & DP_MBIT(i) ? '1' : '0');
+			printk("%c", DPMANT(x) & DP_MBIT(i) ? '1' : '0');
 		break;
 	case IEEE754_CLASS_INF:
-		printf("%cInfinity", DPSIGN(x) ? '-' : '+');
+		printk("%cInfinity", DPSIGN(x) ? '-' : '+');
 		break;
 	case IEEE754_CLASS_ZERO:
-		printf("%cZero", DPSIGN(x) ? '-' : '+');
+		printk("%cZero", DPSIGN(x) ? '-' : '+');
 		break;
 	case IEEE754_CLASS_DNORM:
-		printf("%c0.", DPSIGN(x) ? '-' : '+');
+		printk("%c0.", DPSIGN(x) ? '-' : '+');
 		for (i = DP_FBITS - 1; i >= 0; i--)
-			printf("%c", DPMANT(x) & DP_MBIT(i) ? '1' : '0');
-		printf("e%d", DPBEXP(x) - DP_EBIAS);
+			printk("%c", DPMANT(x) & DP_MBIT(i) ? '1' : '0');
+		printk("e%d", DPBEXP(x) - DP_EBIAS);
 		break;
 	case IEEE754_CLASS_NORM:
-		printf("%c1.", DPSIGN(x) ? '-' : '+');
+		printk("%c1.", DPSIGN(x) ? '-' : '+');
 		for (i = DP_FBITS - 1; i >= 0; i--)
-			printf("%c", DPMANT(x) & DP_MBIT(i) ? '1' : '0');
-		printf("e%d", DPBEXP(x) - DP_EBIAS);
+			printk("%c", DPMANT(x) & DP_MBIT(i) ? '1' : '0');
+		printk("e%d", DPBEXP(x) - DP_EBIAS);
 		break;
 	default:
-		printf("Illegal/Unknown IEEE754 value class");
+		printk("Illegal/Unknown IEEE754 value class");
 	}
-	printf("\n");
+	printk("\n");
 	return x;
 }
 
@@ -112,37 +105,38 @@ ieee754sp ieee754sp_dump(char *m, ieee754sp x)
 {
 	int i;
 
-	printf("%s=", m);
-	printf("<%08x>\n", (unsigned) x.bits);
-	printf("\t=");
+	printk("%s=", m);
+	printk("<%08x>\n", (unsigned) x.bits);
+	printk("\t=");
 	switch (ieee754sp_class(x)) {
 	case IEEE754_CLASS_QNAN:
 	case IEEE754_CLASS_SNAN:
-		printf("Nan %c", SPSIGN(x) ? '-' : '+');
+		printk("Nan %c", SPSIGN(x) ? '-' : '+');
 		for (i = SP_FBITS - 1; i >= 0; i--)
-			printf("%c", SPMANT(x) & SP_MBIT(i) ? '1' : '0');
+			printk("%c", SPMANT(x) & SP_MBIT(i) ? '1' : '0');
 		break;
 	case IEEE754_CLASS_INF:
-		printf("%cInfinity", SPSIGN(x) ? '-' : '+');
+		printk("%cInfinity", SPSIGN(x) ? '-' : '+');
 		break;
 	case IEEE754_CLASS_ZERO:
-		printf("%cZero", SPSIGN(x) ? '-' : '+');
+		printk("%cZero", SPSIGN(x) ? '-' : '+');
 		break;
 	case IEEE754_CLASS_DNORM:
-		printf("%c0.", SPSIGN(x) ? '-' : '+');
+		printk("%c0.", SPSIGN(x) ? '-' : '+');
 		for (i = SP_FBITS - 1; i >= 0; i--)
-			printf("%c", SPMANT(x) & SP_MBIT(i) ? '1' : '0');
-		printf("e%d", SPBEXP(x) - SP_EBIAS);
+			printk("%c", SPMANT(x) & SP_MBIT(i) ? '1' : '0');
+		printk("e%d", SPBEXP(x) - SP_EBIAS);
 		break;
 	case IEEE754_CLASS_NORM:
-		printf("%c1.", SPSIGN(x) ? '-' : '+');
+		printk("%c1.", SPSIGN(x) ? '-' : '+');
 		for (i = SP_FBITS - 1; i >= 0; i--)
-			printf("%c", SPMANT(x) & SP_MBIT(i) ? '1' : '0');
-		printf("e%d", SPBEXP(x) - SP_EBIAS);
+			printk("%c", SPMANT(x) & SP_MBIT(i) ? '1' : '0');
+		printk("e%d", SPBEXP(x) - SP_EBIAS);
 		break;
 	default:
-		printf("Illegal/Unknown IEEE754 value class");
+		printk("Illegal/Unknown IEEE754 value class");
 	}
-	printf("\n");
+	printk("\n");
 	return x;
 }
+
