@@ -55,10 +55,8 @@
  * we need to map irq's up to at least bit 7 of the INT_MASK0_A register
  * since bits 0-6 are pre-allocated for other purposes.
  */
-#define LEAST_LEVEL	7
-#define FAST_IRQ_TO_LEVEL(i)	((i) + LEAST_LEVEL)
-#define LEVEL_TO_IRQ(c, l) \
-			(node_level_to_irq[CPUID_TO_COMPACT_NODEID(c)][(l)])
+#define FAST_IRQ_TO_LEVEL(i)	(i)
+#define LEVEL_TO_IRQ(c, l) (node_level_to_irq[CPUID_TO_COMPACT_NODEID(c)][(l)])
 
 /*
  * Linux has a controller-independent x86 interrupt architecture.
@@ -97,7 +95,7 @@ static int node_level_to_irq[MAX_COMPACT_NODES][PERNODE_LEVELS];
 static inline int alloc_level(cpuid_t cpunum, int irq)
 {
 	cnodeid_t nodenum = CPUID_TO_COMPACT_NODEID(cpunum);
-	int j = LEAST_LEVEL + 3;	/* resched & crosscall entries taken */
+	int j = BASE_PCI_IRQ;			/* pre-allocated entries */
 
 	while (++j < PERNODE_LEVELS) {
 		if (node_level_to_irq[nodenum][j] == -1) {
@@ -115,7 +113,7 @@ static inline int find_level(cpuid_t *cpunum, int irq)
 	cnodeid_t nodenum = INVALID_CNODEID;
 
 	while (++nodenum < MAX_COMPACT_NODES) {
-		j = LEAST_LEVEL + 3;	/* resched & crosscall entries taken */
+		j = BASE_PCI_IRQ;		/* Pre-allocated entries */
 		while (++j < PERNODE_LEVELS)
 			if (node_level_to_irq[nodenum][j] == irq) {
 				*cpunum = 0;	/* XXX Fixme */
@@ -153,35 +151,92 @@ static int ms1bit(unsigned long x)
  * same intr. This effect is mostly seen for intercpu intrs.
  * Kanoj 05.13.00
  */
-void ip27_do_irq(struct pt_regs *regs)
+
+void ip27_do_irq_mask0(struct pt_regs *regs)
 {
 	int irq, swlevel;
 	hubreg_t pend0, mask0;
-	cpuid_t thiscpu = smp_processor_id();
-	int pi_int_mask0 = ((cputoslice(thiscpu) == 0) ?
-					PI_INT_MASK0_A : PI_INT_MASK0_B);
+	cpuid_t cpu = smp_processor_id();
+	int pi_int_mask0 =
+		(cputoslice(cpu) == 0) ?  PI_INT_MASK0_A : PI_INT_MASK0_B;
 
 	/* copied from Irix intpend0() */
-	while (((pend0 = LOCAL_HUB_L(PI_INT_PEND0)) &
-				(mask0 = LOCAL_HUB_L(pi_int_mask0))) != 0) {
-		pend0 &= mask0;		/* Pick intrs we should look at */
-		if (pend0) {
-			/* Prevent any of the picked intrs from recursing */
-			LOCAL_HUB_S(pi_int_mask0, mask0 & ~(pend0));
-			do {
-				swlevel = ms1bit(pend0);
-				LOCAL_HUB_CLR_INTR(swlevel);
-				/* "map" swlevel to irq */
-				irq = LEVEL_TO_IRQ(thiscpu, swlevel);
-				do_IRQ(irq, regs);
-				/* clear bit in pend0 */
-				pend0 ^= 1ULL << swlevel;
-			} while(pend0);
-			/* Now allow the set of serviced intrs again */
-			LOCAL_HUB_S(pi_int_mask0, mask0);
-			LOCAL_HUB_L(PI_INT_PEND0);
-		}
+	pend0 = LOCAL_HUB_L(PI_INT_PEND0);
+	mask0 = LOCAL_HUB_L(pi_int_mask0);
+
+	pend0 &= mask0;		/* Pick intrs we should look at */
+	if (!pend0)
+		return;
+
+	/* Prevent any of the picked intrs from recursing */
+	LOCAL_HUB_S(pi_int_mask0, mask0 & ~pend0);
+
+	swlevel = ms1bit(pend0);
+	if (pend0 & (1UL << CPU_RESCHED_A_IRQ)) {
+		LOCAL_HUB_CLR_INTR(CPU_RESCHED_A_IRQ);
+		handle_resched_intr();
+	} else if (pend0 & (1UL << CPU_RESCHED_B_IRQ)) {
+		LOCAL_HUB_CLR_INTR(CPU_RESCHED_B_IRQ);
+		handle_resched_intr();
+	} else if (pend0 & (1UL << CPU_CALL_A_IRQ)) {
+		LOCAL_HUB_CLR_INTR(CPU_CALL_A_IRQ);
+		smp_call_function_interrupt();
+	} else if (pend0 & (1UL << CPU_CALL_B_IRQ)) {
+		LOCAL_HUB_CLR_INTR(CPU_CALL_B_IRQ);
+		smp_call_function_interrupt();
+	} else {
+		/* "map" swlevel to irq */
+		irq = LEVEL_TO_IRQ(cpu, swlevel);
+		do_IRQ(irq, regs);
 	}
+
+	/* clear bit in pend0 */
+	pend0 ^= 1UL << swlevel;
+
+	/* Now allow the set of serviced intrs again */
+	LOCAL_HUB_S(pi_int_mask0, mask0);
+	LOCAL_HUB_L(PI_INT_PEND0);
+}
+
+void ip27_do_irq_mask1(struct pt_regs *regs)
+{
+	int irq, swlevel;
+	hubreg_t pend1, mask1;
+	cpuid_t cpu = smp_processor_id();
+	int pi_int_mask1 = (cputoslice(cpu) == 0) ?  PI_INT_MASK1_A : PI_INT_MASK1_B;
+
+	/* copied from Irix intpend0() */
+	pend1 = LOCAL_HUB_L(PI_INT_PEND1);
+	mask1 = LOCAL_HUB_L(pi_int_mask1);
+
+	pend1 &= mask1;		/* Pick intrs we should look at */
+	if (!pend1)
+		return;
+
+	/* Prevent any of the picked intrs from recursing */
+	LOCAL_HUB_S(pi_int_mask1, mask1 & ~pend1);
+
+	swlevel = ms1bit(pend1);
+	/* "map" swlevel to irq */
+	irq = LEVEL_TO_IRQ(cpu, swlevel);
+	LOCAL_HUB_CLR_INTR(swlevel);
+	do_IRQ(irq, regs);
+	/* clear bit in pend1 */
+	pend1 ^= 1UL << swlevel;
+
+	/* Now allow the set of serviced intrs again */
+	LOCAL_HUB_S(pi_int_mask1, mask1);
+	LOCAL_HUB_L(PI_INT_PEND1);
+}
+
+void ip27_prof_timer(struct pt_regs *regs)
+{
+	panic("CPU %d got a profiling interrupt", smp_processor_id());
+}
+
+void ip27_hub_error(struct pt_regs *regs)
+{
+	panic("CPU %d got a hub error interrupt", smp_processor_id());
 }
 
 /*
@@ -228,7 +283,8 @@ static int intr_connect_level(int cpu, int bit)
 				PI_INT_MASK_OFFSET * slice);
 	}
 	HUB_S(mask_reg, intpend_masks[0]);
-	return(0);
+
+	return 0;
 }
 
 static int intr_disconnect_level(int cpu, int bit)
@@ -249,7 +305,8 @@ static int intr_disconnect_level(int cpu, int bit)
 				PI_INT_MASK_OFFSET * slice);
 	}
 	HUB_S(mask_reg, intpend_masks[0]);
-	return(0);
+
+	return 0;
 }
 
 /* Startup one of the (PCI ...) IRQs routes over a bridge.  */
@@ -360,7 +417,11 @@ void irq_debug(void)
 
 void __init init_IRQ(void)
 {
-	int i;
+	int i, j;
+
+	for (i = 0; i < MAX_COMPACT_NODES; i++)
+		for (j = 0; j < PERNODE_LEVELS; j++)
+			node_level_to_irq[i][j] = -1;
 
 	set_except_vector(0, ip27_irq);
 
@@ -387,17 +448,17 @@ void core_send_ipi(int destid, unsigned int action)
 {
 	int irq;
 
-#if (CPUS_PER_NODE == 2)
 	switch (action) {
-		case SMP_RESCHEDULE_YOURSELF:
-			irq = CPU_RESCHED_A_IRQ;
-			break;
-		case SMP_CALL_FUNCTION:
-			irq = CPU_CALL_A_IRQ;
-			break;
-		default:
-			panic("sendintr");
+	case SMP_RESCHEDULE_YOURSELF:
+		irq = CPU_RESCHED_A_IRQ;
+		break;
+	case SMP_CALL_FUNCTION:
+		irq = CPU_CALL_A_IRQ;
+		break;
+	default:
+		panic("sendintr");
 	}
+
 	irq += cputoslice(destid);
 
 	/*
@@ -406,77 +467,29 @@ void core_send_ipi(int destid, unsigned int action)
 	 * with the CPU we want to send the interrupt to.
 	 */
 	REMOTE_HUB_SEND_INTR(COMPACT_TO_NASID_NODEID(cputocnode(destid)),
-			FAST_IRQ_TO_LEVEL(irq));
-#else
-	<< Bomb!  Must redefine this for more than 2 CPUS. >>
-#endif
+	                     FAST_IRQ_TO_LEVEL(irq));
 }
 
 #endif
 
-extern irqreturn_t smp_call_function_interrupt(int irq, void *dev,
-	struct pt_regs *regs);
-
-void install_cpuintr(int cpu)
+void install_ipi(void)
 {
-#ifdef CONFIG_SMP
-#if (CPUS_PER_NODE == 2)
-	static int done = 0;
+	int slice = LOCAL_HUB_L(PI_CPU_NUM);
+	hubreg_t mask;
 
-	/*
-	 * This is a hack till we have a pernode irqlist. Currently,
-	 * just have the master cpu set up the handlers for the per
-	 * cpu irqs.
-	 */
-	if (done == 0) {
-		int j;
-
-		if (request_irq(CPU_RESCHED_A_IRQ, handle_resched_intr,
-							0, "resched", 0))
-			panic("intercpu intr unconnectible");
-		if (request_irq(CPU_RESCHED_B_IRQ, handle_resched_intr,
-							0, "resched", 0))
-			panic("intercpu intr unconnectible");
-		if (request_irq(CPU_CALL_A_IRQ, smp_call_function_interrupt,
-							0, "callfunc", 0))
-			panic("intercpu intr unconnectible");
-		if (request_irq(CPU_CALL_B_IRQ, smp_call_function_interrupt,
-							0, "callfunc", 0))
-			panic("intercpu intr unconnectible");
-
-		for (j = 0; j < PERNODE_LEVELS; j++)
-			LEVEL_TO_IRQ(0, j) = -1;
-		LEVEL_TO_IRQ(0, FAST_IRQ_TO_LEVEL(CPU_RESCHED_A_IRQ)) =
-							CPU_RESCHED_A_IRQ;
-		LEVEL_TO_IRQ(0, FAST_IRQ_TO_LEVEL(CPU_RESCHED_B_IRQ)) =
-							CPU_RESCHED_B_IRQ;
-		LEVEL_TO_IRQ(0, FAST_IRQ_TO_LEVEL(CPU_CALL_A_IRQ)) =
-							CPU_CALL_A_IRQ;
-		LEVEL_TO_IRQ(0, FAST_IRQ_TO_LEVEL(CPU_CALL_B_IRQ)) =
-							CPU_CALL_B_IRQ;
-		for (j = 1; j < MAX_COMPACT_NODES; j++)
-			memcpy(&node_level_to_irq[j][0],
-			&node_level_to_irq[0][0],
-			sizeof(node_level_to_irq[0][0])*PERNODE_LEVELS);
-
-		done = 1;
+	if (slice == 0) {
+		LOCAL_HUB_CLR_INTR(CPU_RESCHED_A_IRQ);
+		LOCAL_HUB_CLR_INTR(CPU_CALL_A_IRQ);
+		mask = LOCAL_HUB_L(PI_INT_MASK0_A);	/* Slice A */
+		mask |= (1UL << FAST_IRQ_TO_LEVEL(CPU_RESCHED_A_IRQ)) |
+		        (1UL << FAST_IRQ_TO_LEVEL(CPU_CALL_A_IRQ));
+		LOCAL_HUB_S(PI_INT_MASK0_A, mask);
+	} else {
+		LOCAL_HUB_CLR_INTR(CPU_RESCHED_B_IRQ);
+		LOCAL_HUB_CLR_INTR(CPU_CALL_B_IRQ);
+		mask = LOCAL_HUB_L(PI_INT_MASK0_B);	/* Slice B */
+		mask |= (1UL << FAST_IRQ_TO_LEVEL(CPU_RESCHED_B_IRQ)) |
+		        (1UL << FAST_IRQ_TO_LEVEL(CPU_CALL_B_IRQ));
+		LOCAL_HUB_S(PI_INT_MASK0_B, mask);
 	}
-
-	intr_connect_level(cpu, FAST_IRQ_TO_LEVEL(CPU_RESCHED_A_IRQ +
-							cputoslice(cpu)));
-	intr_connect_level(cpu, FAST_IRQ_TO_LEVEL(CPU_CALL_A_IRQ +
-							cputoslice(cpu)));
-#else /* CPUS_PER_NODE */
-#error Must redefine this for more than 2 CPUS.
-#endif /* CPUS_PER_NODE */
-#endif /* CONFIG_SMP */
-}
-
-void install_tlbintr(int cpu)
-{
-#if 0
-	int intr_bit = N_INTPEND_BITS + TLB_INTR_A + cputoslice(cpu);
-
-	intr_connect_level(cpu, intr_bit);
-#endif
 }
