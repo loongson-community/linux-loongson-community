@@ -1876,7 +1876,8 @@ static int irix_filldir32(void *__buf, const char *name, int namlen,
 	return 0;
 }
 
-asmlinkage int irix_ngetdents(unsigned int fd, void * dirent, unsigned int count, int *eob)
+asmlinkage int irix_ngetdents(unsigned int fd, void * dirent,
+	unsigned int count, int *eob)
 {
 	struct file *file;
 	struct irix_dirent32 *lastdirent;
@@ -1900,6 +1901,7 @@ asmlinkage int irix_ngetdents(unsigned int fd, void * dirent, unsigned int count
 	error = vfs_readdir(file, irix_filldir32, &buf);
 	if (error < 0)
 		goto out_putf;
+
 	error = buf.error;
 	lastdirent = buf.previous;
 	if (lastdirent) {
@@ -1908,10 +1910,9 @@ asmlinkage int irix_ngetdents(unsigned int fd, void * dirent, unsigned int count
 	}
 
 	if (put_user(0, eob) < 0) {
-		error = EFAULT;
+		error = -EFAULT;
 		goto out_putf;
 	}
-
 
 #ifdef DEBUG_GETDENTS
 	printk("eob=%d returning %d\n", *eob, count - buf.count);
