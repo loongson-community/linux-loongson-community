@@ -40,14 +40,10 @@ struct sgi_zslayout *zs_chips[NUM_SERIAL] = { 0, };
 struct sgi_zschannel *zs_channels[NUM_CHANNELS] = { 0, 0, };
 struct sgi_zschannel *zs_conschan;
 struct sgi_zschannel *zs_kgdbchan;
-int zs_nodes[NUM_SERIAL] = { 0, };
 
 struct sgi_serial zs_soft[NUM_CHANNELS];
 struct sgi_serial *zs_chain;  /* IRQ servicing chain */
 static int zilog_irq = 21;
-
-struct tty_struct zs_ttys[NUM_CHANNELS];
-/** struct tty_struct *zs_constty; **/
 
 /* Console hooks... */
 static int zs_cons_chanout = 0;
@@ -556,7 +552,7 @@ void rs_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 	struct sgi_serial * info = (struct sgi_serial *) dev_id;
 	unsigned char zs_intreg;
 
-	zs_intreg = read_zsreg(info->zs_channel, 3);
+	zs_intreg = read_zsreg(info->zs_next->zs_channel, 3);
 
 	/* NOTE: The read register 3, which holds the irq status,
 	 *       does so for both channels on each chip.  Although
@@ -568,18 +564,6 @@ void rs_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 #define CHAN_B_IRQMASK (CHBRxIP | CHBTxIP | CHBEXT)
 
 	/* *** Chip 1 *** */
-	/* Channel A -- /dev/ttya, could be the console */
-	if(zs_intreg & CHAN_A_IRQMASK) {
-		if (zs_intreg & CHARxIP)
-			receive_chars(info, regs);
-		if (zs_intreg & CHATxIP)
-			transmit_chars(info);
-		if (zs_intreg & CHAEXT)
-			status_handle(info);
-	}
-
-	info=info->zs_next;
-
 	/* Channel B -- /dev/ttyb, could be the console */
 	if(zs_intreg & CHAN_B_IRQMASK) {
 		if (zs_intreg & CHBRxIP)
@@ -587,6 +571,18 @@ void rs_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 		if (zs_intreg & CHBTxIP)
 			transmit_chars(info);
 		if (zs_intreg & CHBEXT)
+			status_handle(info);
+	}
+
+	info=info->zs_next;
+
+	/* Channel A -- /dev/ttya, could be the console */
+	if(zs_intreg & CHAN_A_IRQMASK) {
+		if (zs_intreg & CHARxIP)
+			receive_chars(info, regs);
+		if (zs_intreg & CHATxIP)
+			transmit_chars(info);
+		if (zs_intreg & CHAEXT)
 			status_handle(info);
 	}
 }
@@ -1719,7 +1715,6 @@ static inline void
 rs_cons_check(struct sgi_serial *ss, int channel)
 {
 	int i, o, io;
-	static int consout_registered = 0;
 	static int msg_printed = 0;
 
 	i = o = io = 0;
@@ -1850,8 +1845,8 @@ int rs_init(void)
 		if(!zs_chips[chip]) {
 			zs_chips[chip] = get_zs(chip);
 			/* Two channels per chip */
-			zs_channels[(chip*2)] = &zs_chips[chip]->channelA;
-			zs_channels[(chip*2)+1] = &zs_chips[chip]->channelB;
+			zs_channels[(chip*2)] = &zs_chips[chip]->channelB;
+			zs_channels[(chip*2)+1] = &zs_chips[chip]->channelA;
 			zs_soft[(chip*2)].kgdb_channel = 0;
 			zs_soft[(chip*2)+1].kgdb_channel = 0;
 		}
@@ -1973,8 +1968,8 @@ rs_cons_hook(int chip, int out, int line)
 	if(!zs_chips[chip]) {
 		zs_chips[chip] = get_zs(chip);
 		/* Two channels per chip */
-		zs_channels[(chip*2)] = &zs_chips[chip]->channelA;
-		zs_channels[(chip*2)+1] = &zs_chips[chip]->channelB;
+		zs_channels[(chip*2)] = &zs_chips[chip]->channelB;
+		zs_channels[(chip*2)+1] = &zs_chips[chip]->channelA;
 	}
 	zs_soft[channel].zs_channel = zs_channels[channel];
 	zs_soft[channel].change_needed = 0;
