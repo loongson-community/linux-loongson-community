@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.6 1999/02/25 21:44:46 tsbogend Exp $
+# $Id: Makefile,v 1.7 1999/03/09 21:33:21 tsbogend Exp $
 #
 # This file is subject to the terms and conditions of the GNU General Public
 # License.  See the file "COPYING" in the main directory of this archive
@@ -21,13 +21,15 @@ OBJS  = milo.o a.out.o
 drop-sections	= .reginfo .mdebug
 strip-flags	= $(addprefix --remove-section=,$(drop-sections))
 
-#
-# Fake compressed boot
-#
+all: vmlinux.ecoff addinitrd
+
 vmlinux.ecoff:	$(CONFIGURE) elf2ecoff $(TOPDIR)/vmlinux
 	./elf2ecoff $(TOPDIR)/vmlinux vmlinux.ecoff
 
 elf2ecoff: elf2ecoff.c
+	$(HOSTCC) -o $@ $^
+
+addinitrd: addinitrd.c
 	$(HOSTCC) -o $@ $^
 
 # Don't build dependencies, this may die if $(CC) isn't gcc
