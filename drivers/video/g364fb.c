@@ -1,4 +1,4 @@
-/* $Id: g364fb.c,v 1.2 1998/08/25 09:19:49 ralf Exp $
+/* $Id: g364fb.c,v 1.3 1998/08/28 22:43:00 tsbogend Exp $
  *
  * linux/drivers/video/g364fb.c -- Mips Magnum frame buffer device
  *
@@ -14,8 +14,6 @@
  *  more details.
  */
 
-
-#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
@@ -35,8 +33,8 @@
 #include <asm/io.h>
 #include <asm/jazz.h>
 
-#include "fbcon.h"
-#include "fbcon-cfb8.h"
+#include <video/fbcon.h>
+#include <video/fbcon-cfb8.h>
 
 /* 
  * Various defines for the G364
@@ -146,7 +144,7 @@ void fbcon_g364fb_cursor(struct display *p, int mode, int x, int y)
      case CM_MOVE:
      case CM_DRAW:
 	*(unsigned int *) CTLA_REG &= ~CURS_TOGGLE;
-	*(unsigned int *) CURS_POS_REG = ((x * p->fontwidth) << 12) | ((y * p->fontheight)-p->var.yoffset);
+	*(unsigned int *) CURS_POS_REG = ((x * fontwidth(p)) << 12) | ((y * fontheight(p))-p->var.yoffset);
 	break;
     }
 }
@@ -259,8 +257,7 @@ static int g364fb_get_cmap(struct fb_cmap *cmap, int kspc, int con,
 			   struct fb_info *info)
 {
     if (con == currcon) /* current console? */
-	return fb_get_cmap(cmap, &fb_display[con].var, kspc, g364fb_getcolreg,
-			   info);
+	return fb_get_cmap(cmap, kspc, g364fb_getcolreg, info);
     else if (fb_display[con].cmap.len) /* non default colormap? */
 	fb_copy_cmap(&fb_display[con].cmap, cmap, kspc ? 0 : 2);
     else
@@ -283,9 +280,7 @@ static int g364fb_set_cmap(struct fb_cmap *cmap, int kspc, int con,
 	    return err;
     }
     if (con == currcon) {		/* current console? */
-	err = fb_set_cmap(cmap, &fb_display[con].var, kspc, g364fb_setcolreg,
-			  info);
-	return err;
+	return fb_set_cmap(cmap, kspc, g364fb_setcolreg, info);
     } else
 	fb_copy_cmap(cmap, &fb_display[con].cmap, kspc ? 0 : 1);
     return 0;
@@ -413,6 +408,7 @@ __initfunc(void g364fb_init(void))
     fb_info.switch_con = &g364fbcon_switch;
     fb_info.updatevar = &g364fbcon_updatevar;
     fb_info.blank = &g364fbcon_blank;
+    fb_info.flags = FBINFO_FLAG_DEFAULT;
 
     g364fb_set_var(&fb_var, -1, &fb_info);
 
@@ -428,8 +424,7 @@ static int g364fbcon_switch(int con, struct fb_info *info)
 {
     /* Do we have to save the colormap? */
     if (fb_display[currcon].cmap.len)
-	fb_get_cmap(&fb_display[currcon].cmap, &fb_display[currcon].var, 1,
-		    g364fb_getcolreg, info);
+	fb_get_cmap(&fb_display[currcon].cmap, 1, g364fb_getcolreg, info);
 
     currcon = con;
     /* Install new colormap */
@@ -472,16 +467,15 @@ static int g364fb_getcolreg(u_int regno, u_int *red, u_int *green, u_int *blue,
 {
     if (regno > 255)
 	return 1;
-    *red = palette[regno].red;
-    *green = palette[regno].green;
-    *blue = palette[regno].blue;
+    *red = (palette[regno].red << 8) | palette[regno].red;
+    *green = (palette[regno].green << 8) | palette[regno].green;
+    *blue = (palette[regno].blue << 8) | palette[regno].blue;
+    *transp = 0;
     return 0;
 }
 
 /*
- *  Set a single color register. The values supplied are already
- *  rounded down to the hardware's capabilities (according to the
- *  entries in the var structure). Return != 0 for invalid regno.
+ *  Set a single color register. Return != 0 for invalid regno.
  */
 static int g364fb_setcolreg(u_int regno, u_int red, u_int green, u_int blue,
 			    u_int transp, struct fb_info *info)
@@ -490,6 +484,10 @@ static int g364fb_setcolreg(u_int regno, u_int red, u_int green, u_int blue,
 
     if (regno > 255)
 	return 1;
+
+    red >>= 8;
+    green >>= 8;
+    blue >>=8;
     palette[regno].red = red;
     palette[regno].green = green;
     palette[regno].blue = blue;
@@ -505,10 +503,8 @@ static void do_install_cmap(int con, struct fb_info *info)
     if (con != currcon)
 	return;
     if (fb_display[con].cmap.len)
-	fb_set_cmap(&fb_display[con].cmap, &fb_display[con].var, 1,
-		    g364fb_setcolreg, info);
+	fb_set_cmap(&fb_display[con].cmap, 1, g364fb_setcolreg, info);
     else
-	fb_set_cmap(fb_default_cmap(1<<fb_display[con].var.bits_per_pixel),
-				    &fb_display[con].var, 1, g364fb_setcolreg,
-				    info);
+	fb_set_cmap(fb_default_cmap(1<<fb_display[con].var.bits_per_pixel), 1,
+		    g364fb_setcolreg, info);
 }
