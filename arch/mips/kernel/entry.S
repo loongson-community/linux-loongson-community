@@ -52,9 +52,10 @@ ENTRY(resume_kernel)
 need_resched:
 	LONG_L	t0, TI_FLAGS($28)
 	andi	t1, t0, _TIF_NEED_RESCHED
-	beqz	restore_all
-	if (in_exception_path)
-		goto restore_all;
+	beqz	t1, restore_all
+	LONG_L	t0, PT_STATUS(sp)		# Interrupts off?
+	andi	t0, 1
+	beqz	t0, restore_all
 	li	t0, PREEMPT_ACTIVE
 	sw	t0, TI_PRE_COUNT($28)
 	local_irq_enable t0

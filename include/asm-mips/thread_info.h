@@ -36,8 +36,6 @@ struct thread_info {
 	struct restart_block	restart_block;
 };
 
-#define PREEMPT_ACTIVE		0x4000000
-
 /*
  * macros/functions for gaining access to the thread information structure
  *
@@ -86,6 +84,8 @@ register struct thread_info *__current_thread_info __asm__("$28");
 #define put_thread_info(ti) put_task_struct((ti)->task)
 
 #endif /* !__ASSEMBLY__ */
+
+#define PREEMPT_ACTIVE		0x4000000
 
 /*
  * thread information flags
