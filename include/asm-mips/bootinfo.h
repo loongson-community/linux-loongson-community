@@ -153,6 +153,10 @@
 #define MACH_TOPAS		1
 #define MACH_JMR		2
 #define MACH_TOSHIBA_JMR3927	3	/* JMR-TX3927 CPU/IO board */
+#define MACH_TOSHIBA_RBTX4927	4
+#define MACH_TOSHIBA_RBTX4937	5
+#define GROUP_TOSHIBA_NAMES	{ "Pallas", "TopasCE", "JMR", "JMR TX3927", \
+				  "RBTX4927", "RBTX4937" }
 
 /*
  * Valid machtype for group LASAT

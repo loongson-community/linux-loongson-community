@@ -659,6 +659,11 @@ void __init setup_arch(char **cmdline_p)
 		jmr3927_setup();
 		break;
 #endif
+#ifdef CONFIG_TOSHIBA_RBTX4927
+	case MACH_GROUP_TOSHIBA:
+		tx4927_setup();
+		break;
+#endif
 #ifdef CONFIG_SIBYTE_BOARD
 	case MACH_GROUP_SIBYTE:
 		swarm_setup();

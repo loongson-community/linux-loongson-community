@@ -78,6 +78,8 @@
  */
 
 
+#define PRID_REV_TX4927		0x0022
+#define PRID_REV_TX4937		0x0030
 #define PRID_REV_R4400		0x0040
 #define PRID_REV_R3000A		0x0030
 #define PRID_REV_R3000		0x0020

@@ -327,7 +327,7 @@ void __init ld_mmu_tx49(void)
 		break;
 	}
 	flush_cache_all = tx49_flush_cache_all;
-	__flush_cache_all = _flush_cache_all;
+	__flush_cache_all = tx49_flush_cache_all;
 	flush_cache_mm = tx49_flush_cache_mm;
 	flush_cache_range = tx49_flush_cache_range;
 	flush_cache_page = tx49_flush_cache_page;

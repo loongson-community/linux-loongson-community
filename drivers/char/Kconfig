@@ -411,6 +411,14 @@ config TXX927_SERIAL_CONSOLE
 	bool "TXx927 SIO Console support"
 	depends on TXX927_SERIAL
 
+config SERIAL_TXX9
+	bool "TMPTX39XX/49XX SIO support"
+	depends on MIPS && TOSHIBA_BOARDS=y
+
+config SERIAL_TXX9_CONSOLE
+	bool "TMPTX39XX/49XX SIO Console support"
+	depends on SERIAL_TXX9
+
 config SIBYTE_SB1250_DUART
 	bool "Support for BCM1xxx onchip DUART"
 	depends on MIPS && SIBYTE_SB1xxx_SOC=y

@@ -1036,6 +1036,7 @@
 	0009  r4x00
 	0020  ATM Meteor 155
 		102f 00f8  ATM Meteor 155
+	0180  TX4927
 1030  TMC Research
 1031  Miro Computer Products AG
 	5601  DC20 ASIC

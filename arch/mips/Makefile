@@ -335,6 +335,14 @@ core-$(CONFIG_TOSHIBA_JMR3927)	+= arch/mips/jmr3927/rbhma3100/ \
 				   arch/mips/jmr3927/common/
 load-$(CONFIG_TOSHIBA_JMR3927)	+= 0x80050000
 
+#
+# Toshiba RBTX4927 board or
+# Toshiba RBTX4937 board
+#
+core-$(CONFIG_TOSHIBA_RBTX4927)	+= arch/mips/tx4927/toshiba_rbtx4927/ 
+core-$(CONFIG_TOSHIBA_RBTX4927)	+= arch/mips/tx4927/common/
+load-$(CONFIG_TOSHIBA_RBTX4927)	:= 0x80020000
+
 
 #
 # Choosing incompatible machines durings configuration will result in
