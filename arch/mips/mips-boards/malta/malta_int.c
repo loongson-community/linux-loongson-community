@@ -69,6 +69,10 @@ static struct irqaction *irq_action[8] = {
  */
 static unsigned int cached_int_mask = 0xffff;
 
+void inline disable_irq_nosync(unsigned int irq_nr)
+{
+	disable_irq(irq_nr);
+}
 
 void disable_irq(unsigned int irq_nr)
 {

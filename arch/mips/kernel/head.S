@@ -432,12 +432,31 @@ handle_vcei:
 	 * unconditional jump to this vector.
 	 */	
 	NESTED(except_vec_ejtag_debug, 0, sp)
-	PRINT("SDBBP EJTAG debug exception - not handled yet, hang!\n");
-1:	j	1b
+	j	ejtag_debug_handler
 	 nop
 	END(except_vec_ejtag_debug)
 
-	
+	/*
+	 * EJTAG debug exception handler.
+	 */
+	NESTED(ejtag_debug_handler, PT_SIZE, sp)
+	.set	noat
+	.set	noreorder
+	SAVE_ALL
+	PRINT("SDBBP EJTAG debug exception - not handled yet, just ignored!\n");
+	mfc0	k0, $23         # Get EJTAG Debug register.
+	mfc0    k1, $24         # Get DEPC register.
+	bgez	k0, 1f
+	 addiu	k1, k1, 4	# SBDDP inst. in delay slot.
+	addiu	k1, k1, 4
+1:	mtc0	k1, $24
+	RESTORE_ALL
+	.word	0x4200001f      # deret, return EJTAG debug exception.
+	 nop
+	.set	at
+	END(ejtag_debug_handler)
+
+		
 /*
  * Kernel entry point
  */

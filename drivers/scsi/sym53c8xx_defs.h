@@ -408,11 +408,6 @@
 #define	readl_l2b(a)	le32_to_cpu(readl(a))
 #define	writew_b2l(v,a)	writew(cpu_to_le16(v),a)
 #define	writel_b2l(v,a)	writel(cpu_to_le32(v),a)
-#else	/* Other bid-endian */
-#define	readw_l2b	readw
-#define	readl_l2b	readl
-#define	writew_b2l	writew
-#define	writel_b2l	writel
 #elif defined(__mips__)
 #define readw_l2b	readw
 #define readl_l2b	readl
@@ -422,6 +417,11 @@
 #define inl_l2b 	inl
 #define outw_b2l	outw
 #define outl_b2l	outl
+#else	/* Other big-endian */
+#define	readw_l2b	readw
+#define	readl_l2b	readl
+#define	writew_b2l	writew
+#define	writel_b2l	writel
 #endif
 
 #else	/* little endian */

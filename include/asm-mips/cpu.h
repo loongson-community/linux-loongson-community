@@ -59,6 +59,8 @@
 #define PRID_IMP_NEVADA		0x2800		/* RM5260 ??? */
 #define PRID_IMP_4KC		0x8000
 #define PRID_IMP_5KC		0x8100
+#define PRID_IMP_4KEC		0x8400
+#define PRID_IMP_4KSC		0x8600
 
 
 #define PRID_IMP_UNKNOWN	0xff00

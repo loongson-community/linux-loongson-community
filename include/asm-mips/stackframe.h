@@ -1,12 +1,13 @@
 /*
- *  include/asm-mips/stackframe.h
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
  *
- *  Copyright (C) 1994, 1995, 1996 by Ralf Baechle and Paul M. Antoine.
- *
- * $Id: stackframe.h,v 1.10 1999/08/13 17:07:27 harald Exp $
+ *  Copyright (C) 1994, 1995, 1996, 2001 Ralf Baechle
+ *  Copyright (C) 1994, 1995, 1996 Paul M. Antoine.
  */
-#ifndef __ASM_MIPS_STACKFRAME_H
-#define __ASM_MIPS_STACKFRAME_H
+#ifndef __ASM_STACKFRAME_H
+#define __ASM_STACKFRAME_H
 
 #include <asm/addrspace.h>
 #include <asm/mipsregs.h>
@@ -235,12 +236,23 @@ __asm__ (                                                               \
 
 #endif
 
+#define RESTORE_SP                                       \
+		lw	sp,  PT_R29(sp);                 \
+
+#define RESTORE_ALL                                      \
+		RESTORE_SOME;                            \
+		RESTORE_AT;                              \
+		RESTORE_TEMP;                            \
+		RESTORE_STATIC;                          \
+		RESTORE_SP
+
 #define RESTORE_ALL_AND_RET                              \
 		RESTORE_SOME;                            \
 		RESTORE_AT;                              \
 		RESTORE_TEMP;                            \
 		RESTORE_STATIC;                          \
 		RESTORE_SP_AND_RET
+
 
 /*
  * Move to kernel mode and disable interrupts.
@@ -275,4 +287,4 @@ __asm__ (                                                               \
 		xori	t0,0x1e;                        \
 		mtc0	t0,CP0_STATUS
 
-#endif /* __ASM_MIPS_STACKFRAME_H */
+#endif /* __ASM_STACKFRAME_H */

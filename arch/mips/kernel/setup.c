@@ -305,6 +305,13 @@ static inline void cpu_probe(void)
 		switch (mips_cpu.processor_id & 0xff00) {
 		case PRID_IMP_4KC:
 			mips_cpu.cputype = CPU_4KC;
+			goto cpu_4kc;
+		case PRID_IMP_4KEC:
+			mips_cpu.cputype = CPU_4KEC;
+			goto cpu_4kc;
+		case PRID_IMP_4KSC:
+			mips_cpu.cputype = CPU_4KSC;
+cpu_4kc:
 			/* Why do we set all these options by default, THEN query them?? */
 			mips_cpu.cputype = MIPS_CPU_ISA_M32;
 			mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX | 
