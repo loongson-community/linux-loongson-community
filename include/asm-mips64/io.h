@@ -152,7 +152,7 @@ static inline void iounmap(void *addr)
 #define __raw_readb(addr)	(*(volatile unsigned char *)(addr))
 #define __raw_readw(addr)	(*(volatile unsigned short *)(addr))
 #define __raw_readl(addr)	(*(volatile unsigned int *)(addr))
-#define ____raw_readq(addr)	(*(volatile unsigned long *)addr)
+#define ____raw_readq(addr)	(*(volatile unsigned long *)(addr))
 #define __raw_readq(addr)	(____raw_readq(addr))
 
 #define writeb(b,addr) ((*(volatile unsigned char *)(addr)) = (__ioswab8(b)))
