@@ -793,7 +793,10 @@ static void __init probe_pcache(void)
 		c->dcache.ways = 4;
 		c->dcache.waybit = ffs(dcache_size / c->dcache.ways) - 1;
 
-		c->options |= MIPS_CPU_CACHE_CDEX_P | MIPS_CPU_PREFETCH;
+#if !defined(CONFIG_SMP) || !defined(RM9000_CDEX_SMP_WAR)
+		c->options |= MIPS_CPU_CACHE_CDEX_P;
+#endif
+		c->options |= MIPS_CPU_PREFETCH;
 		break;
 
 	default:
