@@ -60,7 +60,8 @@ void __init pcibios_fixup_irqs(void)
 	/*
 	** EV96100/A interrupt routing for pci bus 0
 	**
-	** Note: EV96100A board with irq jumper set on 'linux'
+	** Note: EV96100A board with irq jumper set on 'VxWorks'
+	** for EV96100 compatibility.
 	*/
 
 	pci_for_each_dev(dev) {
@@ -70,25 +71,14 @@ void __init pcibios_fixup_irqs(void)
 		slot = PCI_SLOT(dev->devfn);
 		pci_read_config_dword(dev, PCI_SUBSYSTEM_VENDOR_ID, &vendor);
 
-//#ifdef DEBUG
+#ifdef DEBUG
 		printk("devfn %x, slot %d devid %x\n", 
 				dev->devfn, slot, gt_devid);
-//#endif
+#endif
 
 		/* fixup irq line based on slot # */
-
 		if (slot == 8) {
-			if (gt_devid == PCI_DEVICE_ID_GALILEO_GT96100) 
-				dev->irq = 5;
-			else if (gt_devid == PCI_DEVICE_ID_GALILEO_GT96100A)
-				dev->irq = 3;
-			else {
-				printk(KERN_ERR "unknown GT controller id %x\n",
-						gt_devid);
-				pci_write_config_byte(dev, PCI_INTERRUPT_LINE, 
-						0xff);
-				continue;
-			}
+			dev->irq = 5;
 			pci_write_config_byte(dev, PCI_INTERRUPT_LINE, 
 					dev->irq);
 		}
