@@ -661,7 +661,7 @@ void __init setup_arch(char **cmdline_p)
 		jmr3927_setup();
 		break;
 #endif
-#ifdef CONFIG_SIBYTE_SWARM
+#ifdef CONFIG_SIBYTE_BOARD
 	case MACH_GROUP_SIBYTE:
 		swarm_setup();
 		break;

@@ -1837,7 +1837,7 @@ static void sbmac_set_iphdr_offset(struct sbmac_softc *sc)
 	SBMAC_WRITECSR(sc->sbm_rxfilter,reg);
 	
 	/* read system identification to determine revision */
-	if (sb1250_pass >= K_SYS_REVISION_PASS2) {
+	if (soc_pass >= K_SYS_REVISION_PASS2) {
 		printk(KERN_INFO "pass2 - enabling Rx rcv tcp checksum\n");
 		sc->rx_hw_checksum = ENABLE;
 	} else {
@@ -2465,7 +2465,7 @@ static int sbmac_init(struct net_device *dev, int idx)
 
 	dev->change_mtu         = sb1250_change_mtu;
 
-	if (sb1250_pass >= K_SYS_REVISION_PASS3) {
+	if (soc_pass >= K_SYS_REVISION_PASS3) {
 		/* In pass3 we do dumb checksum in TX */
 		dev->features |= NETIF_F_IP_CSUM;
 	}

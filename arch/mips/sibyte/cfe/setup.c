@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2000, 2001 Broadcom Corporation
+ * Copyright (C) 2000, 2001, 2002 Broadcom Corporation
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -23,7 +23,6 @@
 #include <linux/blk.h>
 #include <linux/bootmem.h>
 #include <linux/smp.h>
-#include <linux/console.h>
 
 #include <asm/bootinfo.h>
 #include <asm/reboot.h>
@@ -47,12 +46,6 @@
 #endif
 #endif
 
-#define SB1250_DUART_MINOR_BASE		192 /* XXXKW put this somewhere sane */
-#define SB1250_PROMICE_MINOR_BASE	191 /* XXXKW put this somewhere sane */
-
-static int cfe_cons_handle;
-kdev_t cfe_consdev;
-
 #define SIBYTE_MAX_MEM_REGIONS 8
 phys_t board_mem_region_addrs[SIBYTE_MAX_MEM_REGIONS];
 phys_t board_mem_region_sizes[SIBYTE_MAX_MEM_REGIONS];
@@ -62,6 +55,8 @@ unsigned int board_mem_region_count;
    copied, eventually, to command_line, and looks to be
    quite redundant.  But not something to fix just now */
 extern char arcs_cmdline[];
+
+int cfe_cons_handle;
 
 #ifdef CONFIG_EMBEDDED_RAMDISK
 /* These are symbols defined by the ramdisk linker script */
@@ -206,13 +201,13 @@ static int __init initrd_setup(char *str)
 	if (!*tmp) {
 		goto fail;
 	}
-	initrd_size = simple_strtol(str, &endptr, 16);
+	initrd_size = (unsigned long)(int32_t)simple_strtol(str, &endptr, 16);
 	if (*endptr) {
 		*(tmp-1) = '@';
 		goto fail;
 	}
 	*(tmp-1) = '@';
-	initrd_start = simple_strtol(tmp, &endptr, 16);
+	initrd_start = (unsigned long)(int32_t)simple_strtol(tmp, &endptr, 16);
 	if (*endptr) {
 		goto fail;
 	}
@@ -273,6 +268,10 @@ __init int prom_init(int argc, char **argv, char **envp, int *prom_vec)
 		/* XXXKW what?  way too early to panic... */
 	}
 	cfe_init(cfe_handle, cfe_ept);
+	/* 
+	 * Get the handle for (at least) prom_putchar, possibly for
+	 * boot console
+	 */
 	cfe_cons_handle = cfe_getstdhandle(CFE_STDHANDLE_CONSOLE);
 	if (cfe_getenv("LINUX_CMDLINE", arcs_cmdline, CL_SIZE) < 0) {
 		if (argc < 0) {
@@ -338,88 +337,10 @@ int page_is_ram(unsigned long pagenr)
 	return 0;
 }
 
-#ifdef CONFIG_SIBYTE_CFE_CONSOLE
-
-static void cfe_console_write(struct console *cons, const char *str,
-		       unsigned int count)
+void prom_putchar(char c)
 {
-	int i, last, written;
+	int ret;
 
-	for (i=0,last=0; i<count; i++) {
-		if (!str[i])
-			/* XXXKW can/should this ever happen? */
-			return;
-		if (str[i] == '\n') {
-			do {
-				written = cfe_write(cfe_cons_handle, &str[last], i-last);
-				if (written < 0)
-					;
-				last += written;
-			} while (last < i);
-			while (cfe_write(cfe_cons_handle, "\r", 1) <= 0)
-				;
-		}
-	}
-	if (last != count) {
-		do {
-			written = cfe_write(cfe_cons_handle, &str[last], count-last);
-			if (written < 0)
-				;
-			last += written;
-		} while (last < count);
-	}
-			
+	while ((ret = cfe_write(cfe_cons_handle, &c, 1)) == 0)
+		;
 }
-
-static kdev_t cfe_console_device(struct console *c)
-{
-	return cfe_consdev;
-}
-
-static int cfe_console_setup(struct console *cons, char *str)
-{
-	char consdev[32];
-	/* XXXKW think about interaction with 'console=' cmdline arg */
-	/* If none of the console options are configured, the build will break. */
-	if (cfe_getenv("BOOT_CONSOLE", consdev, 32) >= 0) {
-#ifdef CONFIG_SIBYTE_SB1250_DUART
-		if (!strcmp(consdev, "uart0")) {
-			setleds("u0cn");
-			cfe_consdev = MKDEV(TTY_MAJOR, SB1250_DUART_MINOR_BASE + 0);
-#ifndef CONFIG_SIBYTE_SB1250_DUART_NO_PORT_1
-		} else if (!strcmp(consdev, "uart1")) {
-			setleds("u1cn");
-			cfe_consdev = MKDEV(TTY_MAJOR, SB1250_DUART_MINOR_BASE + 1);
-#endif
-#endif
-#ifdef CONFIG_VGA_CONSOLE
-		} else if (!strcmp(consdev, "pcconsole0")) {
-			setleds("pccn");
-			cfe_consdev = MKDEV(TTY_MAJOR, 0);
-#endif
-#ifdef CONFIG_PROMICE
-		} else if (!strcmp(consdev, "promice0")) {
-			setleds("picn");
-			cfe_consdev = MKDEV(TTY_MAJOR, SB1250_PROMICE_MINOR_BASE);
-#endif
-		} else
-			return -ENODEV;
-	}
-	return 0;
-}
-
-static struct console sb1250_cfe_cons = {
-	.name		= "cfe",
-	.write		= cfe_console_write,
-	.device		= cfe_console_device,
-	.setup		= cfe_console_setup,
-	.flags		= CON_PRINTBUFFER,
-	.index		= -1,
-};
-
-void __init sb1250_cfe_console_init(void)
-{
-	register_console(&sb1250_cfe_cons);
-}
-
-#endif /* CONFIG_SIBYTE_CFE_CONSOLE */

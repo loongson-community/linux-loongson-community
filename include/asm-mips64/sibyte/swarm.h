@@ -21,46 +21,35 @@
 #include <asm/sibyte/sb1250.h>
 #include <asm/sibyte/sb1250_int.h>
 
-#define KERNEL_RESERVED_MEM 0x100000
-
-#define LEDS_CS         3
-
 #ifdef CONFIG_SIBYTE_SWARM
+#define SIBYTE_BOARD_NAME "BCM91250A (SWARM)"
+#endif
+#ifdef CONFIG_SIBYTE_PTSWARM
+#define SIBYTE_BOARD_NAME "PTSWARM"
+#endif
+#ifdef CONFIG_SIBYTE_CRHONE
+#define SIBYTE_BOARD_NAME "BCM91125C (CRhone)"
+#endif
+#ifdef CONFIG_SIBYTE_CRHINE
+#define SIBYTE_BOARD_NAME "BCM91120C (CRhine)"
+#endif
 
 /* Generic bus chip selects */
+#define LEDS_CS         3
+#define LEDS_PHYS       0x100a0000
+#if defined(CONFIG_SIBYTE_SWARM) || defined(CONFIG_SIBYTE_PTSWARM)
 #define IDE_CS          4
+#define IDE_PHYS        0x100b0000
 #define PCMCIA_CS       6
+#define PCMCIA_PHYS     0x11000000
+#endif
 
 /* GPIOs */
+#if defined(CONFIG_SIBYTE_SWARM) || defined(CONFIG_SIBYTE_PTSWARM)
 #define K_GPIO_GB_IDE   4
 #define K_INT_GB_IDE    (K_INT_GPIO_0 + K_GPIO_GB_IDE)
 #define K_GPIO_PC_READY 9
 #define K_INT_PC_READY  (K_INT_GPIO_0 + K_GPIO_PC_READY)
-
-#endif
-
-#ifdef __ASSEMBLY__
-#define setleds(t0,t1,c0,c1,c2,c3) \
-	li	t0, (LED_BASE_ADDR|0xa0000000); \
-	li	t1, c0; \
-	sb	t1, 0x18(t0); \
-	li	t1, c1; \
-	sb	t1, 0x10(t0); \
-	li	t1, c2; \
-	sb	t1, 0x08(t0); \
-	li	t1, c3; \
-	sb	t1, 0x00(t0)
-#else
-void swarm_setup(void);
-void setleds(char *str);
-
-#define AT_spin \
-	__asm__ __volatile__ (		\
-		".set noat\n"		\
-		"li $at, 0\n"		\
-		"1: beqz $at, 1b\n"	\
-		".set at\n"		\
-		)
 #endif
 
 #endif /* __ASM_SIBYTE_SWARM_H */

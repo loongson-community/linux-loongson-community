@@ -1,23 +1,23 @@
 /*  *********************************************************************
     *  SB1250 Board Support Package
-    *
+    *  
     *  LDT constants				File: sb1250_ldt.h
-    *
-    *  This module contains constants and macros to describe
-    *  the LDT interface on the SB1250.
-    *
+    *  
+    *  This module contains constants and macros to describe 
+    *  the LDT interface on the SB1250.  
+    *  
     *  SB1250 specification level:  User's manual 1/02/02
-    *
+    *  
     *  Author:  Mitch Lichtenberg (mpl@broadcom.com)
+    *  
+    *********************************************************************  
     *
-    *********************************************************************
-    *
-    *  Copyright 2000,2001
+    *  Copyright 2000,2001,2002,2003
     *  Broadcom Corporation. All rights reserved.
-    *
-    *  This program is free software; you can redistribute it and/or
-    *  modify it under the terms of the GNU General Public License as
-    *  published by the Free Software Foundation; either version 2 of
+    *  
+    *  This program is free software; you can redistribute it and/or 
+    *  modify it under the terms of the GNU General Public License as 
+    *  published by the Free Software Foundation; either version 2 of 
     *  the License, or (at your option) any later version.
     *
     *  This program is distributed in the hope that it will be useful,
@@ -27,7 +27,7 @@
     *
     *  You should have received a copy of the GNU General Public License
     *  along with this program; if not, write to the Free Software
-    *  Foundation, Inc., 59 Temple Place, Suite 330, Boston,
+    *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, 
     *  MA 02111-1307 USA
     ********************************************************************* */
 
@@ -70,7 +70,9 @@
 #define R_LDT_TYPE1_SRIRXNUM	0x0058
 #define R_LDT_TYPE1_ERRSTATUS   0x0068
 #define R_LDT_TYPE1_SRICTRL	0x006C
-#define R_LDT_TYPE1_ADDSTATUS	0x0070		/* PASS2 */
+#if SIBYTE_HDR_FEATURE(1250, PASS2) || SIBYTE_HDR_FEATURE(112x, PASS1)
+#define R_LDT_TYPE1_ADDSTATUS	0x0070
+#endif /* 1250 PASS2 || 112x PASS1 */
 #define R_LDT_TYPE1_TXBUFCNT	0x00C8
 #define R_LDT_TYPE1_EXPCRC	0x00DC
 #define R_LDT_TYPE1_RXCRC	0x00F0
@@ -153,14 +155,16 @@
 
 /*
  * LDT Status Register (Table 8-14).  Note that these constants
- * assume you've read the command and status register
+ * assume you've read the command and status register 
  * together (32-bit read at offset 0x04)
  *
  * These bits also apply to the secondary status
  * register (Table 8-15), offset 0x1C
  */
 
-#define M_LDT_STATUS_VGAEN		_SB_MAKEMASK1_32(3)	/* PASS2 */
+#if SIBYTE_HDR_FEATURE(1250, PASS2) || SIBYTE_HDR_FEATURE(112x, PASS1)
+#define M_LDT_STATUS_VGAEN		_SB_MAKEMASK1_32(3)
+#endif /* 1250 PASS2 || 112x PASS1 */
 #define M_LDT_STATUS_CAPLIST		_SB_MAKEMASK1_32(20)
 #define M_LDT_STATUS_66MHZCAP		_SB_MAKEMASK1_32(21)
 #define M_LDT_STATUS_RESERVED2		_SB_MAKEMASK1_32(22)
@@ -179,8 +183,8 @@
 #define M_LDT_STATUS_DETPARERR		_SB_MAKEMASK1_32(31)
 
 /*
- * Bridge Control Register (Table 8-16).  Note that these
- * constants assume you've read the register as a 32-bit
+ * Bridge Control Register (Table 8-16).  Note that these 
+ * constants assume you've read the register as a 32-bit 
  * read (offset 0x3C)
  */
 
@@ -281,9 +285,13 @@
 #define M_LDT_SRICMD_SIPREADY		_SB_MAKEMASK1_32(16)
 #define M_LDT_SRICMD_SYNCPTRCTL		_SB_MAKEMASK1_32(17)
 #define M_LDT_SRICMD_REDUCESYNCZERO	_SB_MAKEMASK1_32(18)
-/*#define M_LDT_SRICMD_DISSTARVATIONCNT	_SB_MAKEMASK1_32(19) */ /* PASS1 */
-#define M_LDT_SRICMD_DISMULTTXVLD	_SB_MAKEMASK1_32(19)	/* PASS2 */
-#define M_LDT_SRICMD_EXPENDIAN		_SB_MAKEMASK1_32(26)	/* PASS2 */
+#if SIBYTE_HDR_FEATURE_UP_TO(1250, PASS1)
+#define M_LDT_SRICMD_DISSTARVATIONCNT	_SB_MAKEMASK1_32(19)	/* PASS1 */
+#endif /* up to 1250 PASS1 */
+#if SIBYTE_HDR_FEATURE(1250, PASS2) || SIBYTE_HDR_FEATURE(112x, PASS1)
+#define M_LDT_SRICMD_DISMULTTXVLD	_SB_MAKEMASK1_32(19)
+#define M_LDT_SRICMD_EXPENDIAN		_SB_MAKEMASK1_32(26)
+#endif /* 1250 PASS2 || 112x PASS1 */
 
 
 #define S_LDT_SRICMD_RXMARGIN		20
@@ -402,14 +410,16 @@
 #define V_LDT_TXBUFCNT_RDATA(x)		_SB_MAKEVALUE_32(x,S_LDT_TXBUFCNT_RDATA)
 #define G_LDT_TXBUFCNT_RDATA(x)		_SB_GETVALUE_32(x,S_LDT_TXBUFCNT_RDATA,M_LDT_TXBUFCNT_RDATA)
 
+#if SIBYTE_HDR_FEATURE(1250, PASS2) || SIBYTE_HDR_FEATURE(112x, PASS1)
 /*
- * Additional Status Register (PASS2)
+ * Additional Status Register
  */
 
 #define S_LDT_ADDSTATUS_TGTDONE		0
 #define M_LDT_ADDSTATUS_TGTDONE		_SB_MAKEMASK_32(8,S_LDT_ADDSTATUS_TGTDONE)
 #define V_LDT_ADDSTATUS_TGTDONE(x)	_SB_MAKEVALUE_32(x,S_LDT_ADDSTATUS_TGTDONE)
 #define G_LDT_ADDSTATUS_TGTDONE(x)	_SB_GETVALUE_32(x,S_LDT_ADDSTATUS_TGTDONE,M_LDT_ADDSTATUS_TGTDONE)
+#endif /* 1250 PASS2 || 112x PASS1 */
 
 #endif
 

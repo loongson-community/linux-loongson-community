@@ -46,6 +46,7 @@ LDFLAGS_vmalinux		+= -G 0 -static # -N
 MODFLAGS			+= -mlong-calls
 
 cflags-$(CONFIG_REMOTE_DEBUG)	+= -g
+cflags-$(CONFIG_SB1XXX_CORELIS)	+= -mno-sched-prolog -fno-omit-frame-pointer
 
 check_gcc = $(shell if $(CC) $(1) -S -o /dev/null -xc /dev/null > /dev/null 2>&1; then echo "$(1)"; else echo "$(2)"; fi)
 
@@ -298,11 +299,26 @@ load-$(CONFIG_SGI_IP22)		+= 0x88002000
 # the sequence; but it is built as an object so that modules don't get
 # removed (as happens, even if they have __initcall/module_init)
 #
+libs-$(CONFIG_SIBYTE_BCM112X)	+= arch/mips/sibyte/sb1250/
 libs-$(CONFIG_SIBYTE_SB1250)	+= arch/mips/sibyte/sb1250/
 
 #
+# Sibyte BCM91120x (Carmel) board
+# Sibyte BCM91120C (CRhine) board
+# Sibyte BCM91125C (CRhone) board
+# Sibyte BCM91125E (Rhone) board
 # Sibyte SWARM board
 #
+libs-$(CONFIG_SIBYTE_CARMEL)	+= arch/mips/sibyte/swarm/
+load-$(CONFIG_SIBYTE_CARMEL)	:= 0x80100000
+libs-$(CONFIG_SIBYTE_CRHINE)	+= arch/mips/sibyte/swarm/
+load-$(CONFIG_SIBYTE_CRHINE)	:= 0x80100000
+libs-$(CONFIG_SIBYTE_CRHONE)	+= arch/mips/sibyte/swarm/
+load-$(CONFIG_SIBYTE_CRHONE)	:= 0x80100000
+libs-$(CONFIG_SIBYTE_RHONE)	+= arch/mips/sibyte/swarm/
+load-$(CONFIG_SIBYTE_RHONE)	:= 0x80100000
+libs-$(CONFIG_SIBYTE_SENTOSA)	+= arch/mips/sibyte/swarm/
+load-$(CONFIG_SIBYTE_SENTOSA)	:= 0x80100000
 libs-$(CONFIG_SIBYTE_SWARM)	+= arch/mips/sibyte/swarm/
 load-$(CONFIG_SIBYTE_SWARM)	:= 0x80100000
 

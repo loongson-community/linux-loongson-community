@@ -100,7 +100,7 @@
 	/* Mailbox interrupt is routed to IP[3] */
 	andi	 t1, s0, CAUSEF_IP3
 	beqz	 t1, 2f
-         nop
+	 nop
 	jal	 sb1250_mailbox_interrupt
 	 move    a0, sp
 	j	ret_from_irq
@@ -127,8 +127,14 @@
 	/*
 	 * Default...we've hit an IP[2] interrupt, which means we've got to
 	 * check the 1250 interrupt registers to figure out what to do
+	 * Need to detect which CPU we're on, now that smp_affinity is supported.
 	 */
 	la	v0, KSEG1 + A_IMR_CPU0_BASE
+#ifdef CONFIG_SMP
+	lw	t1, TASK_PROCESSOR($28)
+	sll	t1, IMR_REGISTER_SPACING_SHIFT
+	addu	v0, t1
+#endif
 	ld	s0, R_IMR_INTERRUPT_STATUS_BASE(v0)	/* read IP[2] status */
 
 	beqz	s0, 4f		/* No interrupts.  Return */

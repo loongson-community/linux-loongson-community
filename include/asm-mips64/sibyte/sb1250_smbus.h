@@ -1,23 +1,23 @@
 /*  *********************************************************************
     *  SB1250 Board Support Package
-    *
+    *  
     *  SMBUS Constants                          File: sb1250_smbus.h
-    *
-    *  This module contains constants and macros useful for
+    *  
+    *  This module contains constants and macros useful for 
     *  manipulating the SB1250's SMbus devices.
-    *
+    *  
     *  SB1250 specification level:  01/02/2002
-    *
+    *  
     *  Author:  Mitch Lichtenberg (mpl@broadcom.com)
+    *  
+    *********************************************************************  
     *
-    *********************************************************************
-    *
-    *  Copyright 2000,2001
+    *  Copyright 2000,2001,2002,2003
     *  Broadcom Corporation. All rights reserved.
-    *
-    *  This program is free software; you can redistribute it and/or
-    *  modify it under the terms of the GNU General Public License as
-    *  published by the Free Software Foundation; either version 2 of
+    *  
+    *  This program is free software; you can redistribute it and/or 
+    *  modify it under the terms of the GNU General Public License as 
+    *  published by the Free Software Foundation; either version 2 of 
     *  the License, or (at your option) any later version.
     *
     *  This program is distributed in the hope that it will be useful,
@@ -27,7 +27,7 @@
     *
     *  You should have received a copy of the GNU General Public License
     *  along with this program; if not, write to the Free Software
-    *  Foundation, Inc., 59 Temple Place, Suite 330, Boston,
+    *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, 
     *  MA 02111-1307 USA
     ********************************************************************* */
 
@@ -132,11 +132,7 @@
 #define V_SPEC_MB(x)                _SB_MAKEVALUE(x,S_SPEC_PEC)
 
 
-/*  *********************************************************************
-    *  PASS2 Extensions to SMBus
-    ********************************************************************* */
-
-/* BEGIN PASS2 */
+#if SIBYTE_HDR_FEATURE(1250, PASS2) || SIBYTE_HDR_FEATURE(112x, PASS1)
 
 #define S_SMB_CMDH                  8
 #define M_SMB_CMDH                  _SB_MAKEMASK(8,S_SMBH_CMD)
@@ -169,6 +165,6 @@
 #define V_SMB_DFMT_CMD5BYTE	    V_SMB_DFMT(K_SMB_DFMT_CMD5BYTE)
 #define V_SMB_DFMT_RESERVED	    V_SMB_DFMT(K_SMB_DFMT_RESERVED)
 
-/* END PASS2 */
+#endif /* 1250 PASS2 || 112x PASS1 */
 
 #endif

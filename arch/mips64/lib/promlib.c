@@ -1,4 +1,7 @@
 #include <stdarg.h>
+#include <linux/kernel.h>
+
+extern void prom_putchar(char);
 
 void prom_printf(char *fmt, ...)
 {

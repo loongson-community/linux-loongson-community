@@ -42,6 +42,7 @@ LDFLAGS_vmlinux			+= -G 0 -static # -N
 MODFLAGS			+= -mlong-calls
 
 cflags-$(CONFIG_REMOTE_DEBUG)	+= -g
+cflags-$(CONFIG_SB1XXX_CORELIS)	+= -mno-sched-prolog -fno-omit-frame-pointer
 
 check_gcc = $(shell if $(AS) $(1) -o /dev/null -xc /dev/null > /dev/null 2>&1; then echo "$(1)"; else echo "$(2)"; fi)
 check_warning = $(shell if $(CC) $(1) -c -o /dev/null -xc /dev/null > /dev/null 2>&1; then echo "$(1)"; else echo "$(2)"; fi)
@@ -162,12 +163,41 @@ load-$(CONFIG_SGI_IP32)		+= 0x80002000
 # removed (as happens, even if they have __initcall/module_init)
 #
 core-$(CONFIG_SIBYTE_SB1250)	+= arch/mips/sibyte/sb1250/
+ifdefCONFIG_SIBYTE_BCM112X
+ifdef CONFIG_MIPS_UNCACHED
+load-y	+= 0xa0100000
+else
+load-y	+= 0x80100000
+endif
+endif
+ifdef CONFIG_SIBYTE_SB1250
+ifdef CONFIG_MIPS_UNCACHED
+load-y	+= 0xa0100000
+else
+load-y	+= 0x80100000
+endif
+endif
+endif
 
 #
+# Sibyte BCM91120x (Carmel) board
+# Sibyte BCM91120C (CRhine) board
+# Sibyte BCM91125C (CRhone) board
+# Sibyte BCM91125E (Rhone) board
 # Sibyte SWARM board
 #
+libs-$(CONFIG_SIBYTE_CARMEL)	+= arch/mips/sibyte/swarm/
+load-$(CONFIG_SIBYTE_CARMEL)	:= 0x80100000
+libs-$(CONFIG_SIBYTE_CRHINE)	+= arch/mips/sibyte/swarm/
+load-$(CONFIG_SIBYTE_CRHINE)	:= 0x80100000
+libs-$(CONFIG_SIBYTE_CRHONE)	+= arch/mips/sibyte/swarm/
+load-$(CONFIG_SIBYTE_CRHONE)	:= 0x80100000
+libs-$(CONFIG_SIBYTE_RHONE)	+= arch/mips/sibyte/swarm/
+load-$(CONFIG_SIBYTE_RHONE)	:= 0x80100000
+libs-$(CONFIG_SIBYTE_SENTOSA)	+= arch/mips/sibyte/swarm/
+load-$(CONFIG_SIBYTE_SENTOSA)	:= 0x80100000
 libs-$(CONFIG_SIBYTE_SWARM)	+= arch/mips/sibyte/swarm/
-load-$(CONFIG_SIBYTE_SWARM)	+= 0x80100000
+load-$(CONFIG_SIBYTE_SWARM)	:= 0x80100000
 
 #
 # SNI RM200 PCI

@@ -19,19 +19,32 @@
 #ifndef _ASM_SIBYTE_SB1250_H
 #define _ASM_SIBYTE_SB1250_H
 
+#define SB1250_NR_IRQS 64
+
 #ifndef __ASSEMBLY__
 
 #include <asm/addrspace.h>
 
 /* For revision/pass information */
 #include <asm/sibyte/sb1250_scd.h>
-extern unsigned int sb1250_pass;
+extern unsigned int sb1_pass;
+extern unsigned int soc_pass;
+extern unsigned int soc_type;
 
 extern void sb1250_time_init(void);
 extern unsigned long sb1250_gettimeoffset(void);
 extern void sb1250_mask_irq(int cpu, int irq);
 extern void sb1250_unmask_irq(int cpu, int irq);
 extern void sb1250_smp_finish(void);
+
+#define AT_spin \
+	__asm__ __volatile__ (		\
+		".set noat\n"		\
+		"li $at, 0\n"		\
+		"1: beqz $at, 1b\n"	\
+		".set at\n"		\
+		)
+
 #endif
 
 #endif

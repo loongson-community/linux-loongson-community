@@ -440,7 +440,7 @@ void __init setup_arch(char **cmdline_p)
 #ifdef CONFIG_SGI_IP32
 	ip32_setup();
 #endif
-#ifdef CONFIG_SIBYTE_SWARM
+#ifdef CONFIG_SIBYTE_BOARD
 	swarm_setup();
 #endif
 #ifdef CONFIG_MIPS_MALTA

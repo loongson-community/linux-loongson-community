@@ -1,23 +1,23 @@
 /*  *********************************************************************
     *  SB1250 Board Support Package
-    *
+    *  
     *  Interrupt Mapper definitions		File: sb1250_int.h
-    *
+    *  
     *  This module contains constants for manipulating the SB1250's
     *  interrupt mapper and definitions for the interrupt sources.
-    *
+    *  
     *  SB1250 specification level:  User's manual 1/02/02
-    *
+    *  
     *  Author:  Mitch Lichtenberg (mpl@broadcom.com)
+    *  
+    *********************************************************************  
     *
-    *********************************************************************
-    *
-    *  Copyright 2000,2001
+    *  Copyright 2000,2001,2002,2003
     *  Broadcom Corporation. All rights reserved.
-    *
-    *  This program is free software; you can redistribute it and/or
-    *  modify it under the terms of the GNU General Public License as
-    *  published by the Free Software Foundation; either version 2 of
+    *  
+    *  This program is free software; you can redistribute it and/or 
+    *  modify it under the terms of the GNU General Public License as 
+    *  published by the Free Software Foundation; either version 2 of 
     *  the License, or (at your option) any later version.
     *
     *  This program is distributed in the hope that it will be useful,
@@ -27,7 +27,7 @@
     *
     *  You should have received a copy of the GNU General Public License
     *  along with this program; if not, write to the Free Software
-    *  Foundation, Inc., 59 Temple Place, Suite 330, Boston,
+    *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, 
     *  MA 02111-1307 USA
     ********************************************************************* */
 
@@ -43,7 +43,7 @@
 
 /*
  * Interrupt sources (Table 4-8, UM 0.2)
- *
+ * 
  * First, the interrupt numbers.
  */
 
@@ -77,8 +77,10 @@
 #define K_INT_MBOX_1                27
 #define K_INT_MBOX_2                28
 #define K_INT_MBOX_3                29
-#define K_INT_CYCLE_CP0_INT	    30		/* PASS2 */
-#define K_INT_CYCLE_CP1_INT	    31		/* PASS2 */
+#if SIBYTE_HDR_FEATURE(1250, PASS2) || SIBYTE_HDR_FEATURE(112x, PASS1)
+#define K_INT_CYCLE_CP0_INT	    30
+#define K_INT_CYCLE_CP1_INT	    31
+#endif /* 1250 PASS2 || 112x PASS1 */
 #define K_INT_GPIO_0                32
 #define K_INT_GPIO_1                33
 #define K_INT_GPIO_2                34
@@ -108,9 +110,11 @@
 #define K_INT_PCI_INTC              58
 #define K_INT_PCI_INTD              59
 #define K_INT_SPARE_2               60
-#define K_INT_MAC_0_CH1		    61		/* PASS2 */
-#define K_INT_MAC_1_CH1		    62		/* PASS2 */
-#define K_INT_MAC_2_CH1		    63		/* PASS2 */
+#if SIBYTE_HDR_FEATURE(1250, PASS2) || SIBYTE_HDR_FEATURE(112x, PASS1)
+#define K_INT_MAC_0_CH1		    61
+#define K_INT_MAC_1_CH1		    62
+#define K_INT_MAC_2_CH1		    63
+#endif /* 1250 PASS2 || 112x PASS1 */
 
 /*
  * Mask values for each interrupt
@@ -146,8 +150,10 @@
 #define M_INT_MBOX_1                _SB_MAKEMASK1(K_INT_MBOX_1)
 #define M_INT_MBOX_2                _SB_MAKEMASK1(K_INT_MBOX_2)
 #define M_INT_MBOX_3                _SB_MAKEMASK1(K_INT_MBOX_3)
-#define M_INT_CYCLE_CP0_INT	    _SB_MAKEMASK1(K_INT_CYCLE_CP0_INT)	/* PASS2 */
-#define M_INT_CYCLE_CP1_INT	    _SB_MAKEMASK1(K_INT_CYCLE_CP1_INT)	/* PASS2 */
+#if SIBYTE_HDR_FEATURE(1250, PASS2) || SIBYTE_HDR_FEATURE(112x, PASS1)
+#define M_INT_CYCLE_CP0_INT	    _SB_MAKEMASK1(K_INT_CYCLE_CP0_INT)
+#define M_INT_CYCLE_CP1_INT	    _SB_MAKEMASK1(K_INT_CYCLE_CP1_INT)
+#endif /* 1250 PASS2 || 112x PASS1 */
 #define M_INT_GPIO_0                _SB_MAKEMASK1(K_INT_GPIO_0)
 #define M_INT_GPIO_1                _SB_MAKEMASK1(K_INT_GPIO_1)
 #define M_INT_GPIO_2                _SB_MAKEMASK1(K_INT_GPIO_2)
@@ -177,9 +183,11 @@
 #define M_INT_PCI_INTC              _SB_MAKEMASK1(K_INT_PCI_INTC)
 #define M_INT_PCI_INTD              _SB_MAKEMASK1(K_INT_PCI_INTD)
 #define M_INT_SPARE_2               _SB_MAKEMASK1(K_INT_SPARE_2)
-#define M_INT_MAC_0_CH1		    _SB_MAKEMASK1(K_INT_MAC_0_CH1)	/* PASS2 */
-#define M_INT_MAC_1_CH1		    _SB_MAKEMASK1(K_INT_MAC_1_CH1)	/* PASS2 */
-#define M_INT_MAC_2_CH1		    _SB_MAKEMASK1(K_INT_MAC_2_CH1)	/* PASS2 */
+#if SIBYTE_HDR_FEATURE(1250, PASS2) || SIBYTE_HDR_FEATURE(112x, PASS1)
+#define M_INT_MAC_0_CH1		    _SB_MAKEMASK1(K_INT_MAC_0_CH1)
+#define M_INT_MAC_1_CH1		    _SB_MAKEMASK1(K_INT_MAC_1_CH1)
+#define M_INT_MAC_2_CH1		    _SB_MAKEMASK1(K_INT_MAC_2_CH1)
+#endif /* 1250 PASS2 || 112x PASS1 */
 
 /*
  * Interrupt mappings

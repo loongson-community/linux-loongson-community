@@ -64,8 +64,6 @@ static int __init nokgdb(char *str)
 __setup("nokgdb", nokgdb);
 #endif
 
-#define SB1250_NR_IRQS 64
-
 static struct hw_interrupt_type sb1250_irq_type = {
 	"SB1250-IMR",
 	startup_sb1250_irq,
@@ -189,7 +187,7 @@ int sb1250_steal_irq(int irq)
 	unsigned long flags;
 	int retval = 0;
 
-	if (irq >= NR_IRQS)
+	if (irq >= SB1250_NR_IRQS)
 		return -EINVAL;
 
 	spin_lock_irqsave(&desc->lock,flags);
@@ -239,7 +237,7 @@ void __init init_IRQ(void)
 		STATUSF_IP1 | STATUSF_IP0;
 
 	/* Default everything to IP2 */
-	for (i = 0; i < NR_IRQS; i++) {	/* was I0 */
+	for (i = 0; i < SB1250_NR_IRQS; i++) {	/* was I0 */
 		out64(IMR_IP2_VAL,
 		      KSEG1 + A_IMR_REGISTER(0,
 					     R_IMR_INTERRUPT_MAP_BASE) +

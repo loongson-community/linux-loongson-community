@@ -1,23 +1,23 @@
 /*  *********************************************************************
     *  SB1250 Board Support Package
-    *
+    *  
     *  L2 Cache constants and macros		File: sb1250_l2c.h
-    *
+    *  
     *  This module contains constants useful for manipulating the
     *  level 2 cache.
-    *
+    *  
     *  SB1250 specification level:  User's manual 1/02/02
-    *
+    *  
     *  Author:  Mitch Lichtenberg (mpl@broadcom.com)
+    *  
+    *********************************************************************  
     *
-    *********************************************************************
-    *
-    *  Copyright 2000,2001
+    *  Copyright 2000,2001,2002,2003
     *  Broadcom Corporation. All rights reserved.
-    *
-    *  This program is free software; you can redistribute it and/or
-    *  modify it under the terms of the GNU General Public License as
-    *  published by the Free Software Foundation; either version 2 of
+    *  
+    *  This program is free software; you can redistribute it and/or 
+    *  modify it under the terms of the GNU General Public License as 
+    *  published by the Free Software Foundation; either version 2 of 
     *  the License, or (at your option) any later version.
     *
     *  This program is distributed in the hope that it will be useful,
@@ -27,7 +27,7 @@
     *
     *  You should have received a copy of the GNU General Public License
     *  along with this program; if not, write to the Free Software
-    *  Foundation, Inc., 59 Temple Place, Suite 330, Boston,
+    *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, 
     *  MA 02111-1307 USA
     ********************************************************************* */
 
@@ -101,5 +101,28 @@
 
 #define L2C_ENTRIES_PER_WAY       4096
 #define L2C_NUM_WAYS              4
+
+
+#if SIBYTE_HDR_FEATURE(112x, PASS1)
+/*
+ * L2 Read Misc. register (A_L2_READ_MISC)
+ */
+#define S_L2C_MISC_NO_WAY		10
+#define M_L2C_MISC_NO_WAY		_SB_MAKEMASK(4,S_L2C_MISC_NO_WAY)
+#define V_L2C_MISC_NO_WAY(x)		_SB_MAKEVALUE(x,S_L2C_MISC_NO_WAY)
+#define G_L2C_MISC_NO_WAY(x)		_SB_GETVALUE(x,S_L2C_MISC_NO_WAY,M_L2C_MISC_NO_WAY)
+
+#define M_L2C_MISC_ECC_CLEANUP_DIS	_SB_MAKEMASK1(9)
+#define M_L2C_MISC_MC_PRIO_LOW		_SB_MAKEMASK1(8)
+#define M_L2C_MISC_SOFT_DISABLE_T	_SB_MAKEMASK1(7)
+#define M_L2C_MISC_SOFT_DISABLE_B	_SB_MAKEMASK1(6)
+#define M_L2C_MISC_SOFT_DISABLE_R	_SB_MAKEMASK1(5)
+#define M_L2C_MISC_SOFT_DISABLE_L	_SB_MAKEMASK1(4)
+#define M_L2C_MISC_SCACHE_DISABLE_T	_SB_MAKEMASK1(3)
+#define M_L2C_MISC_SCACHE_DISABLE_B	_SB_MAKEMASK1(2)
+#define M_L2C_MISC_SCACHE_DISABLE_R	_SB_MAKEMASK1(1)
+#define M_L2C_MISC_SCACHE_DISABLE_L	_SB_MAKEMASK1(0)
+#endif /* 112x PASS1 */
+
 
 #endif

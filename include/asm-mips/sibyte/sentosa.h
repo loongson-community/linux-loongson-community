@@ -15,38 +15,26 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
+#ifndef __ASM_SIBYTE_SENTOSA_H
+#define __ASM_SIBYTE_SENTOSA_H
 
-#ifndef _ASM_SIBYTE_SB1250_H
-#define _ASM_SIBYTE_SB1250_H
+#include <asm/sibyte/sb1250.h>
+#include <asm/sibyte/sb1250_int.h>
 
-#define SB1250_NR_IRQS 64
-
-#ifndef __ASSEMBLY__
-
-#include <asm/addrspace.h>
-
-/* For revision/pass information */
-#include <asm/sibyte/sb1250_scd.h>
-extern unsigned int sb1_pass;
-extern unsigned int soc_pass;
-extern unsigned int soc_type;
-
-extern void sb1250_time_init(void);
-extern unsigned long sb1250_gettimeoffset(void);
-extern void sb1250_mask_irq(int cpu, int irq);
-extern void sb1250_unmask_irq(int cpu, int irq);
-extern void sb1250_smp_finish(void);
-
-#define AT_spin \
-	__asm__ __volatile__ (		\
-		".set noat\n"		\
-		"li $at, 0\n"		\
-		"1: beqz $at, 1b\n"	\
-		".set at\n"		\
-		)
-
+#ifdef CONFIG_SIBYTE_SENTOSA
+#define SIBYTE_BOARD_NAME "BCM91250E (Sentosa)"
+#endif
+#ifdef CONFIG_SIBYTE_RHONE
+#define SIBYTE_BOARD_NAME "BCM91125E (Rhone)"
 #endif
 
-#define IO_SPACE_BASE KSEG1
-
+/* Generic bus chip selects */
+#ifdef CONFIG_SIBYTE_RHONE
+#define LEDS_CS         6
+#define LEDS_PHYS       0x1d0a0000
 #endif
+
+/* GPIOs */
+#define K_GPIO_DBG_LED  0
+
+#endif /* __ASM_SIBYTE_SENTOSA_H */

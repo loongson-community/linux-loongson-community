@@ -52,6 +52,7 @@ extern int sb1250_steal_irq(int irq);
 void sb1250_time_init(void)
 {
 	int cpu = smp_processor_id();
+	int irq = K_INT_TIMER_0+cpu;
 
 	/* Only have 4 general purpose timers */
 	if (cpu > 3) {
@@ -63,11 +64,11 @@ void sb1250_time_init(void)
 		do_gettimeoffset = sb1250_gettimeoffset;
 	}
 
-	sb1250_mask_irq(cpu, K_INT_TIMER_0 + cpu);
+	sb1250_mask_irq(cpu, irq);
 
 	/* Map the timer interrupt to ip[4] of this cpu */
 	out64(IMR_IP4_VAL, KSEG1 + A_IMR_REGISTER(cpu, R_IMR_INTERRUPT_MAP_BASE)
-	      + ((K_INT_TIMER_0 + cpu)<<3));
+	      + (irq<<3));
 
 	/* the general purpose timer ticks at 1 Mhz independent if the rest of the system */
 	/* Disable the timer and set up the count */
@@ -84,8 +85,8 @@ void sb1250_time_init(void)
 	out64(M_SCD_TIMER_ENABLE|M_SCD_TIMER_MODE_CONTINUOUS,
 	      KSEG1 + A_SCD_TIMER_REGISTER(cpu, R_SCD_TIMER_CFG));
 
-	sb1250_unmask_irq(cpu, K_INT_TIMER_0 + cpu);
-	sb1250_steal_irq(K_INT_TIMER_0 + cpu);
+	sb1250_unmask_irq(cpu, irq);
+	sb1250_steal_irq(irq);
 	/*
 	 * This interrupt is "special" in that it doesn't use the request_irq
 	 * way to hook the irq line.  The timer interrupt is initialized early
@@ -99,8 +100,9 @@ void sb1250_time_init(void)
 void sb1250_timer_interrupt(struct pt_regs *regs)
 {
 	int cpu = smp_processor_id();
+	int irq = K_INT_TIMER_0 + cpu;
 
-	kstat_cpu(cpu).irqs[K_INT_TIMER_0 + cpu]++;
+	kstat_cpu(cpu).irqs[irq]++;
 	/* Reset the timer */
 	out64(M_SCD_TIMER_ENABLE|M_SCD_TIMER_MODE_CONTINUOUS,
 	      KSEG1 + A_SCD_TIMER_REGISTER(cpu, R_SCD_TIMER_CFG));
@@ -109,13 +111,13 @@ void sb1250_timer_interrupt(struct pt_regs *regs)
 	 * CPU 0 handles the global timer interrupt job
 	 */
 	if (cpu == 0) {
-		ll_timer_interrupt(0, regs);
+		ll_timer_interrupt(irq, regs);
 	}
 
 	/*
 	 * every CPU should do profiling and process accouting
 	 */
-	ll_local_timer_interrupt(0, regs);
+	ll_local_timer_interrupt(irq, regs);
 }
 
 /*
