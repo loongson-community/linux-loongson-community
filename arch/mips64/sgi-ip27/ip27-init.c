@@ -40,6 +40,7 @@ static int	fine_mode = 0;
 int		maxcpus;
 static spinlock_t hub_mask_lock = SPIN_LOCK_UNLOCKED;
 static cnodemask_t hub_init_mask;
+static atomic_t numstarted = ATOMIC_INIT(1);
 
 cnodeid_t	nasid_to_compact_node[MAX_NASIDS];
 nasid_t		compact_to_nasid_node[MAX_COMPACT_NODES];
@@ -379,10 +380,8 @@ int __init start_secondary(void)
 	return cpu_idle();
 }
 
-static atomic_t numstarted = ATOMIC_INIT(0);
 void cboot(void)
 {
-	atomic_inc(&numstarted);
 	CPUMASK_CLRB(boot_barrier, getcpuid());	/* needs atomicity */
 	per_cpu_init();
 #if 0
@@ -392,6 +391,7 @@ void cboot(void)
 #endif
 	_flush_tlb_all();
 	flush_cache_all();
+	atomic_inc(&numstarted); 
 	start_secondary();
 }
 
@@ -464,9 +464,11 @@ void allowboot(void)
 		}
 	}
 
-	/* while(atomic_read(&numstarted) != (maxcpus - num_cpus)) */
-	if (maxcpus > 1) while(atomic_read(&numstarted) == 0);
-	printk("Holding %d cpus slave\n", atomic_read(&numstarted));
+	/*
+	 * Wait for all cpus to start up and initialize their hubs,
+	 * and discover the io devices they will control.
+	 */
+	while(atomic_read(&numstarted) != maxcpus);
 
 #ifdef LATER
 	Wait logic goes here.
