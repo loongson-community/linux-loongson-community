@@ -249,7 +249,7 @@ less_than_4units:
 EXC(	LOAD	 t0, 0(src),		l_exc)
 	ADD	src, src, NBYTES
 	SUB	len, len, NBYTES
-EXC(	STORE	t0, 0(dst),		s_exc)
+EXC(	STORE	t0, 0(dst),		s_exc_p1u)
 	bne	rem, len, 1b
 	 ADD	dst, dst, NBYTES
 
