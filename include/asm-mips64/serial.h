@@ -18,7 +18,7 @@
  */
 #define BASE_BAUD (1843200 / 16)
 
-#if defined(CONFIG_SGI_IP27)
+#ifdef CONFIG_SGI_IP27
 
 /*
  * Note about serial ports and consoles:
@@ -46,21 +46,23 @@
  *
  * The IOC3 serials use a 22MHz clock rate with an additional divider by 3.
  * (IOC3_BAUD = (22000000 / (3*16)))
+ *
+ * At the moment this is only a skeleton definition as we register all serials
+ * at runtime.
  */
 
-#define RS_TABLE_SIZE	64
+#define IP27_SERIAL_PORT_DEFNS
+#else
+#define IP27_SERIAL_PORT_DEFNS
+#endif /* CONFIG_SGI_IP27 */
 
-#define SERIAL_PORT_DFNS
-
-#elif defined(CONFIG_SGI_IP32)
+#ifdef CONFIG_SGI_IP32
 
 #include <asm/ip32/ip32_ints.h>
 
 /*
  * The IP32 (SGI O2) has standard serial ports (UART 16550A) mapped in memory
  */
-
-#define RS_TABLE_SIZE
 
 /* Standard COM flags (except for COM4, because of the 8514 problem) */
 #ifdef CONFIG_SERIAL_DETECT_IRQ
@@ -71,7 +73,7 @@
 #define STD_COM4_FLAGS ASYNC_BOOT_AUTOCONF
 #endif
 
-#define SERIAL_PORT_DFNS				\
+#define IP32_SERIAL_PORT_DEFNS				\
         { baud_base: BASE_BAUD,				\
 	  irq: MACEISA_SERIAL1_IRQ,			\
           flags: STD_COM_FLAGS,				\
@@ -84,7 +86,14 @@
           iomem_base: (u8*)MACE_BASE+MACEISA_SER2_BASE,	\
           iomem_reg_shift: 8,				\
           io_type: SERIAL_IO_MEM},                      
-#endif
+#else
+#define IP32_SERIAL_PORT_DEFNS
+#endif /* CONFIG_SGI_IP31 */
 
+#define SERIAL_PORT_DFNS				\
+	IP27_SERIAL_PORT_DEFNS				\
+	IP32_SERIAL_PORT_DEFNS
+
+#define RS_TABLE_SIZE	64
 
 #endif /* _ASM_SERIAL_H */
