@@ -577,7 +577,7 @@ asmlinkage void do_ri(struct pt_regs *regs)
 asmlinkage void do_cpu(struct pt_regs *regs)
 {
 	unsigned int cpid;
-	extern void lazy_fpu_switch(void*);
+	extern void lazy_fpu_switch(void *);
 	extern void init_fpu(void);
 	void fpu_emulator_init_fpu(void);
 	int sig;
@@ -586,19 +586,8 @@ asmlinkage void do_cpu(struct pt_regs *regs)
 	if (cpid != 1)
 		goto bad_cid;
 
-	if (!(mips_cpu.options & MIPS_CPU_FPU)) {
-		if (last_task_used_math != current) {
-			if (!current->used_math) {
-				fpu_emulator_init_fpu();
-				current->used_math = 1;
-			}
-		}
-		sig = fpu_emulator_cop1Handler(0, regs);
-		last_task_used_math = current;
-		if (sig)
-			force_sig(sig, current);
-		return;
-	}
+	if (!(mips_cpu.options & MIPS_CPU_FPU))
+		goto fp_emul;
 
 	regs->cp0_status |= ST0_CU1;
 	if (last_task_used_math == current)
@@ -611,6 +600,19 @@ asmlinkage void do_cpu(struct pt_regs *regs)
 		current->used_math = 1;
 	}
 	last_task_used_math = current;
+	return;
+
+fp_emul:
+	if (last_task_used_math != current) {
+		if (!current->used_math) {
+			fpu_emulator_init_fpu();
+			current->used_math = 1;
+		}
+	}
+	sig = fpu_emulator_cop1Handler(0, regs);
+	last_task_used_math = current;
+	if (sig)
+		force_sig(sig, current);
 	return;
 
 bad_cid:
