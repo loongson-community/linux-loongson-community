@@ -8,6 +8,6 @@
 .version
 System.map
 vmlinux
+vmlinux.64
 modules
 nohup.out
-

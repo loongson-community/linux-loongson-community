@@ -39,7 +39,7 @@ struct async_icount {
 struct serial_state {
 	int	magic;
 	int	baud_base;
-	int	port;
+	unsigned long	port;
 	int	irq;
 	int	flags;
 	int	hub6;
@@ -54,14 +54,14 @@ struct serial_state {
 	unsigned short	close_delay;
 	unsigned short	closing_wait; /* time to wait before closing */
 	struct async_icount	icount;	
-	struct termios		normal_termios;
+	struct termios	normal_termios;
 	struct termios		callout_termios;
 	struct async_struct *info;
 };
 
 struct async_struct {
 	int			magic;
-	int			port;
+	unsigned long		port;
 	int			hub6;
 	int			flags;
 	int			xmit_fifo_size;

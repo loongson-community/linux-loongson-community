@@ -13,6 +13,7 @@
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  */
 #include <linux/init.h>
+#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
 #include <linux/string.h>
@@ -29,6 +30,7 @@ struct smatch {
 
 static struct smatch mach_table[] = {
 	{ "SGI-IP22", MACH_GROUP_SGI, MACH_SGI_INDY, PROM_FLAG_ARCS },
+	{ "SGI-IP27", MACH_GROUP_SGI, MACH_SGI_IP27, PROM_FLAG_ARCS },
 	{ "Microsoft-Jazz", MACH_GROUP_JAZZ, MACH_MIPS_MAGNUM_4000, 0 },
 	{ "PICA-61", MACH_GROUP_JAZZ, MACH_ACER_PICA_61, 0 },
 	{ "RM200PCI", MACH_GROUP_SNI_RM, MACH_SNI_RM200_PCI, 0 }
@@ -58,12 +60,22 @@ prom_identify_arch(void)
 {
 	pcomponent *p;
 	struct smatch *mach;
+	const char *iname;
 
 	/* The root component tells us what machine architecture we
 	   have here.  */
 	p = ArcGetChild(PROM_NULL_COMPONENT);
-	printk("ARCH: %s\n", (char *) (long) p->iname);
-	mach = string_to_mach((char *) (long) p->iname);
+	if (p == NULL) {
+#ifdef CONFIG_SGI_IP27
+		/* IP27 PROM bisbehaves, seems to not implement ARC
+		   GetChild().  So we just assume it's an IP27.  */
+		iname = "SGI-IP27";
+#endif
+	} else
+		iname = (char *) (long) p->iname;
+
+	printk("ARCH: %s\n", iname);
+	mach = string_to_mach(iname);
 
 	mips_machgroup = mach->group;
 	mips_machtype = mach->type;

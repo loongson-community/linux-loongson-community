@@ -28,7 +28,7 @@ extern void reset_wd33c93(void *instance);
 VOID
 ArcHalt(VOID)
 {
-	bcops->bc_disable();
+	bc_disable();
 	cli();
 #if CONFIG_SCSI_SGIWD93
 	reset_wd33c93(sgiwd93_host);
@@ -40,7 +40,7 @@ never:	goto never;
 VOID
 ArcPowerDown(VOID)
 {
-	bcops->bc_disable();
+	bc_disable();
 	cli();
 #if CONFIG_SCSI_SGIWD93
 	reset_wd33c93(sgiwd93_host);
@@ -53,7 +53,7 @@ never:	goto never;
 VOID
 ArcRestart(VOID)
 {
-	bcops->bc_disable();
+	bc_disable();
 	cli();
 #if CONFIG_SCSI_SGIWD93
 	reset_wd33c93(sgiwd93_host);
@@ -65,7 +65,7 @@ never:	goto never;
 VOID
 ArcReboot(VOID)
 {
-	bcops->bc_disable();
+	bc_disable();
 	cli();
 #if CONFIG_SCSI_SGIWD93
 	reset_wd33c93(sgiwd93_host);
@@ -77,7 +77,7 @@ never:	goto never;
 VOID
 ArcEnterInteractiveMode(VOID)
 {
-	bcops->bc_disable();
+	bc_disable();
 	cli();
 #if CONFIG_SCSI_SGIWD93
 	reset_wd33c93(sgiwd93_host);

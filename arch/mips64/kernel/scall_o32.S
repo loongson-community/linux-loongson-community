@@ -258,13 +258,13 @@ illegal_syscall:
 	sys	sys_getppid	0
 	sys	sys_getpgrp	0			/* 4065 */
 	sys	sys_setsid	0
-	sys	sys_sigaction	3
+	sys	sys32_sigaction	3
 	sys	sys_sgetmask	0
 	sys	sys_ssetmask	1
 	sys	sys_setreuid	2			/* 4070 */
 	sys	sys_setregid	2
-	sys	sys_sigsuspend	0
-	sys	sys_sigpending	1
+	sys	sys32_sigsuspend	0
+	sys	sys32_sigpending	1
 	sys	sys_sethostname	2
 	sys	sys_setrlimit	2			/* 4075 */
 	sys	sys_getrlimit	2
@@ -297,9 +297,9 @@ illegal_syscall:
 	sys	sys_syslog	3
 	sys	sys_setitimer	3
 	sys	sys_getitimer	2			/* 4105 */
-	sys	sys_newstat	2
-	sys	sys_newlstat	2
-	sys	sys_newfstat	2
+	sys	sys32_newstat	2
+	sys	sys32_newlstat	2
+	sys	sys32_newfstat	2
 	sys	sys_uname	1
 	sys	sys_ni_syscall	0	/* sys_ioperm  *//* 4110 */
 	sys	sys_vhangup	0
@@ -310,7 +310,7 @@ illegal_syscall:
 	sys	sys_sysinfo	1
 	sys	sys_ipc		6
 	sys	sys_fsync	1
-	sys	sys_sigreturn	0
+	sys	sys32_sigreturn	0
 	sys	sys_clone	0			/* 4120 */
 	sys	sys_setdomainname 2
 	sys	sys_newuname	1
@@ -384,20 +384,20 @@ illegal_syscall:
 	sys	sys_setresgid	3			/* 4190 */
 	sys	sys_getresgid	3
 	sys	sys_prctl	5
-	sys	sys_rt_sigreturn 0
-	sys	sys_rt_sigaction 4
-	sys	sys_rt_sigprocmask 4			/* 4195 */
-	sys	sys_rt_sigpending 2
-	sys	sys_rt_sigtimedwait 4
-	sys	sys_rt_sigqueueinfo 3
-	sys	sys_rt_sigsuspend 0
+	sys	sys32_rt_sigreturn 0
+	sys	sys32_rt_sigaction 4
+	sys	sys32_rt_sigprocmask 4			/* 4195 */
+	sys	sys32_rt_sigpending 2
+	sys	sys32_rt_sigtimedwait 4
+	sys	sys32_rt_sigqueueinfo 3
+	sys	sys32_rt_sigsuspend 0
 	sys	sys_pread	4			/* 4200 */
 	sys	sys_pwrite	4
 	sys	sys_chown	3
 	sys	sys_getcwd	2
 	sys	sys_capget	2
 	sys	sys_capset	2			/* 4205 */
-	sys	sys_sigaltstack	0
+	sys	sys32_sigaltstack	0
 	sys	sys_sendfile	3
 	sys	sys_ni_syscall	0
 	sys	sys_ni_syscall	0

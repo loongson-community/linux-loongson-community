@@ -12,6 +12,7 @@
  * Copyright (C) 1999 Silicon Graphics, Inc.
  */
 #define __ASSEMBLY__
+#include <linux/config.h>
 #include <linux/init.h>
 #include <asm/asm.h>
 #include <asm/regdef.h>
@@ -28,6 +29,14 @@ EXPORT(_stext)
 
 NESTED(kernel_entry, 16, sp)			# kernel entry point
 
+#ifdef CONFIG_ARC64
+	/* We get launched at a XKPHYS address but the kernel is linked to
+	   run at a KSEG0 address, so jump there.  */
+	la	t0, 1f
+	jr	t0
+1:
+#endif
+
 	ori	sp, 0xf				# align stack on 16 byte.
 	xori	sp, 0xf
 
@@ -38,9 +47,9 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 	CLI					# disable interrupts
 
 	mfc0	t0, CP0_STATUS
-	li	t1, ~(ST0_CU1|ST0_CU2|ST0_CU3|ST0_KX|ST0_SX)
+	li	t1, ~(ST0_CU1|ST0_CU2|ST0_CU3)
 	and	t0, t1
-	or	t0, ST0_CU0
+	or	t0, (ST0_CU0|ST0_KX|ST0_SX)
 	mtc0	t0, CP0_STATUS
 
 	la	$28, init_task_union		# init current pointer

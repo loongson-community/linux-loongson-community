@@ -14,7 +14,7 @@
 #define _ASM_R4KCACHE_H
 
 #include <asm/asm.h>
-#include <asm/cacheops.h>
+#include <asm/r4kcacheops.h>
 
 extern inline void flush_icache_line_indexed(unsigned long addr)
 {

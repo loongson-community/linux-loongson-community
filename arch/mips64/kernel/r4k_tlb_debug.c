@@ -6,6 +6,9 @@
  *
  * Copyright (C) 1999 Ralf Baechle
  * Copyright (C) 1999 Silicon Graphics, Inc.
+ *
+ * TLB debugging routines.  These perform horribly slow but can easily be
+ * modified for debugging purposes.
  */
 #include <linux/linkage.h>
 #include <linux/kernel.h>
@@ -43,8 +46,10 @@ asmlinkage void xtlb_refill_debug(struct pt_regs *regs)
 
 asmlinkage void xtlb_mod_debug(struct pt_regs *regs)
 {
-	show_regs(regs);
-	panic(__FUNCTION__ " called.");
+	unsigned long addr;
+
+	addr = regs->cp0_badvaddr;
+	do_page_fault(regs, 1, addr);
 }
 
 asmlinkage void xtlb_tlbl_debug(struct pt_regs *regs)
@@ -52,20 +57,7 @@ asmlinkage void xtlb_tlbl_debug(struct pt_regs *regs)
 	unsigned long addr;
 
 	addr = regs->cp0_badvaddr;
-#if 0
-	printk(__FUNCTION__ " called.\n");
-	show_regs(regs);
-	printk("TLB Dump:\n");
-	dump_tlb_all();
-	printk("c0_badvaddr = %08lx\n", addr);
-#endif
 	do_page_fault(regs, 0, addr);
-
-#if 0
-	printk("TLB Dump:\n");
-	dump_tlb_all();
-	printk("\n");
-#endif
 }
 
 asmlinkage void xtlb_tlbs_debug(struct pt_regs *regs)
@@ -73,18 +65,5 @@ asmlinkage void xtlb_tlbs_debug(struct pt_regs *regs)
 	unsigned long addr;
 
 	addr = regs->cp0_badvaddr;
-#if 0
-	printk(__FUNCTION__ " called.\n");
-	show_regs(regs);
-	printk("TLB Dump:\n");
-	dump_tlb_all();
-	printk("c0_badvaddr = %08lx\n", addr);
-#endif
 	do_page_fault(regs, 1, addr);
-
-#if 0
-	printk("TLB Dump:\n");
-	dump_tlb_all();
-	printk("\n");
-#endif
 }

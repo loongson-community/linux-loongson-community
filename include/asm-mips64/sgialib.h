@@ -1,4 +1,4 @@
-/* $Id: sgialib.h,v 1.2 1999/08/20 21:59:08 ralf Exp $
+/* $Id: sgialib.h,v 1.3 1999/12/04 03:59:12 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -42,7 +42,7 @@ extern void prom_printf(char *fmt, ...);
 /* Memory descriptor management. */
 #define PROM_MAX_PMEMBLOCKS    32
 struct prom_pmemblock {
-	LONG	base;		/* Within KSEG0. */
+	LONG	base;		/* Within KSEG0 or XKPHYS. */
 	ULONG size;		/* In bytes. */
         ULONG type;		/* free or prom memory */
 };
@@ -120,13 +120,13 @@ extern long prom_invoke(unsigned long pc, unsigned long sp, long argc, char **ar
 extern long prom_exec(char *name, long argc, char **argv, char **envp);
 
 /* Misc. routines. */
-extern void prom_halt(void) __attribute__((noreturn));
-extern void prom_powerdown(void) __attribute__((noreturn));
-extern void prom_restart(void) __attribute__((noreturn));
+extern void prom_halt(VOID) __attribute__((noreturn));
+extern void prom_powerdown(VOID) __attribute__((noreturn));
+extern void prom_restart(VOID) __attribute__((noreturn));
 extern VOID ArcReboot(VOID) __attribute__((noreturn));
-extern VOID ArcEnterInteractiveMode(VOID) __attribute__((noreturn));
-extern long prom_cfgsave(void);
-extern struct linux_sysid *prom_getsysid(void);
-extern void prom_cacheflush(void);
+extern VOID ArcEnterInteractiveMode(void) __attribute__((noreturn));
+extern long prom_cfgsave(VOID);
+extern struct linux_sysid *prom_getsysid(VOID);
+extern VOID ArcFlushAllCaches(VOID);
 
 #endif /* _ASM_SGIALIB_H */

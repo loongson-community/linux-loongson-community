@@ -519,11 +519,18 @@ syscall_restart(struct pt_regs *regs, struct k_sigaction *ka)
 }
 
 extern int do_irix_signal(sigset_t *oldset, struct pt_regs *regs);
+extern int do_signal32(sigset_t *oldset, struct pt_regs *regs);
 
 asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 {
 	struct k_sigaction *ka;
 	siginfo_t info;
+
+#ifdef CONFIG_BINFMT_ELF32
+	if (current->thread.mflags & MF_32BIT) {
+		return do_signal32(oldset, regs);
+	}
+#endif
 
 #ifdef CONFIG_BINFMT_IRIX
 	if (current->personality != PER_LINUX)

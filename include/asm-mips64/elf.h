@@ -82,8 +82,16 @@ typedef elf_fpreg_t elf_fpregset_t[ELF_NFPREG];
 #endif
 
 #ifdef __KERNEL__
-#define SET_PERSONALITY(ex,ibcs2) \
-	current->personality = (ibcs2 ? PER_SVR4 : PER_LINUX)
+#define SET_PERSONALITY(ex, ibcs2)			\
+do {	if ((ex).e_ident[EI_CLASS] == ELFCLASS32)	\
+		current->thread.mflags |= MF_32BIT;	\
+	else						\
+		current->thread.mflags &= ~MF_32BIT;	\
+	if (ibcs2)					\
+		current->personality = PER_SVR4;	\
+	else if (current->personality != PER_LINUX32)	\
+		current->personality = PER_LINUX;	\
+} while (0)
 #endif
 
 #endif /* _ASM_ELF_H */

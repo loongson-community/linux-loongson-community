@@ -1,4 +1,4 @@
-/* $Id: r4xx0.c,v 1.6 1999/11/23 17:12:50 ralf Exp $
+/* $Id: r4xx0.c,v 1.5 1999/12/04 03:59:00 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -36,7 +36,7 @@ static int ic_lsize, dc_lsize;       /* LineSize in bytes */
 /* Secondary cache (if present) parameters. */
 static unsigned int scache_size, sc_lsize;	/* Again, in bytes */
 
-#include <asm/cacheops.h>
+#include <asm/r4kcacheops.h>
 #include <asm/r4kcache.h>
 
 #undef DEBUG_CACHE
@@ -1876,7 +1876,7 @@ r4k_dma_cache_wback_inv_pc(unsigned long addr, unsigned long size)
 		}
 		__restore_flags(flags);
 	}
-	bcops->bc_wback_inv(addr, size);
+	bc_wback_inv(addr, size);
 }
 
 static void
@@ -1921,7 +1921,7 @@ r4k_dma_cache_inv_pc(unsigned long addr, unsigned long size)
 		__restore_flags(flags);
 	}
 
-	bcops->bc_inv(addr, size);
+	bc_inv(addr, size);
 }
 
 static void
@@ -2122,11 +2122,6 @@ static void r4k_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 		set_entryhi(oldpid);
 		restore_flags(flags);
 	}
-}
-
-/* Load a new root pointer into the TLB. */
-static void r4k_load_pgd(unsigned long pg_dir)
-{
 }
 
 #ifdef DEBUG_TLBUPDATE
@@ -2520,7 +2515,6 @@ void __init ld_mmu_r4xx0(void)
 	flush_tlb_range = r4k_flush_tlb_range;
 	flush_tlb_page = r4k_flush_tlb_page;
 
-	load_pgd = r4k_load_pgd;
 	update_mmu_cache = r4k_update_mmu_cache;
 
 	show_regs = r4k_show_regs;

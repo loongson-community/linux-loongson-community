@@ -96,7 +96,7 @@
 LEAF(xxmemcpy)					/* a0=dst a1=src a2=len */
 	move	v0, a0				/* return value */
 __memcpy:
-EXPORT(__copy_user)
+FEXPORT(__copy_user)
 	xor	ta0, a0, a1
 	andi	ta0, ta0, 0x3
 	move	t3, a0

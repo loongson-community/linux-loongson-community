@@ -90,7 +90,6 @@ struct elf_prpsinfo32
 #ifdef CONFIG_BINFMT_ELF32_MODULE
 #define CONFIG_BINFMT_ELF_MODULE CONFIG_BINFMT_ELF32_MODULE
 #endif
-#define ELF_FLAGS_INIT	current->thread.flags |= SPARC_FLAG_32BIT
 
 MODULE_DESCRIPTION("Binary format loader for compatibility with 32bit Linux/MIPS binaries");
 MODULE_AUTHOR("Ralf Baechle (ralf@oss.sgi.com)");

@@ -10,36 +10,31 @@
 #
 # Machine selection
 #
-# CONFIG_SGI_IP22 is not set
-CONFIG_SGI_IP27=y
-# CONFIG_SGI_SN0_N_MODE is not set
-CONFIG_BOOT_ELF64=y
-CONFIG_ARC64=y
-CONFIG_COHERENT_IO=y
+CONFIG_SGI_IP22=y
+CONFIG_BOOT_ELF32=y
+CONFIG_ARC32=y
 
 #
 # CPU selection
 #
 # CONFIG_CPU_R4300 is not set
 # CONFIG_CPU_R4X00 is not set
-# CONFIG_CPU_R5000 is not set
+CONFIG_CPU_R5000=y
 # CONFIG_CPU_NEVADA is not set
 # CONFIG_CPU_R8000 is not set
-CONFIG_CPU_R10000=y
+# CONFIG_CPU_R10000 is not set
 
 #
 # General setup
 #
-# CONFIG_MIPS_INSANE_LARGE is not set
 # CONFIG_CPU_LITTLE_ENDIAN is not set
+# CONFIG_BINFMT_AOUT is not set
+CONFIG_BINFMT_ELF=y
+# CONFIG_BINFMT_MISC is not set
 CONFIG_NET=y
 CONFIG_SYSVIPC=y
 # CONFIG_BSD_PROCESS_ACCT is not set
 # CONFIG_SYSCTL is not set
-# CONFIG_BINFMT_ELF is not set
-CONFIG_MIPS32_COMPAT=y
-CONFIG_BINFMT_ELF32=y
-# CONFIG_BINFMT_MISC is not set
 
 #
 # Loadable module support
@@ -121,16 +116,7 @@ CONFIG_NETDEVICES=y
 #
 # Ethernet (10 or 100Mbit)
 #
-CONFIG_NET_ETHERNET=y
-CONFIG_SGI_IOC3_ETH=y
-# CONFIG_NET_VENDOR_3COM is not set
-# CONFIG_LANCE is not set
-# CONFIG_NET_VENDOR_SMC is not set
-# CONFIG_NET_VENDOR_RACAL is not set
-# CONFIG_DEPCA is not set
-# CONFIG_NET_ISA is not set
-# CONFIG_NET_EISA is not set
-# CONFIG_NET_POCKET is not set
+# CONFIG_NET_ETHERNET is not set
 # CONFIG_FDDI is not set
 # CONFIG_PLIP is not set
 # CONFIG_PPP is not set
@@ -158,6 +144,7 @@ CONFIG_SGI_IOC3_ETH=y
 # CONFIG_PCMCIA_PCNET is not set
 # CONFIG_PCMCIA_3C589 is not set
 # CONFIG_PCMCIA_RAYCS is not set
+CONFIG_SGISEEQ=y
 
 #
 # Amateur Radio support
@@ -182,9 +169,9 @@ CONFIG_SGI_IOC3_ETH=y
 #
 # Character devices
 #
-# CONFIG_VT is not set
-CONFIG_SERIAL=y
-CONFIG_SERIAL_CONSOLE=y
+CONFIG_VT=y
+CONFIG_VT_CONSOLE=y
+# CONFIG_SERIAL is not set
 # CONFIG_SERIAL_EXTENDED is not set
 # CONFIG_SERIAL_NONSTANDARD is not set
 # CONFIG_UNIX98_PTYS is not set
@@ -273,13 +260,24 @@ CONFIG_SGI_PARTITION=y
 # CONFIG_NLS is not set
 
 #
+# Console drivers
+#
+CONFIG_SGI_NEWPORT_CONSOLE=y
+
+#
 # Sound
 #
 # CONFIG_SOUND is not set
+
+#
+# SGI devices
+#
+# CONFIG_SGI_SERIAL is not set
+CONFIG_SGI_DS1286=y
 
 #
 # Kernel hacking
 #
 CONFIG_CROSSCOMPILE=y
 # CONFIG_REMOTE_DEBUG is not set
-CONFIG_MAGIC_SYSRQ=y
+# CONFIG_MAGIC_SYSRQ is not set

@@ -1,4 +1,4 @@
-/* $Id: processor.h,v 1.4 1999/12/04 03:59:12 ralf Exp $
+/* $Id: processor.h,v 1.5 2000/01/16 01:40:43 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -76,16 +76,17 @@ extern struct task_struct *last_task_used_math;
 /*
  * User space process size: 1TB. This is hardcoded into a few places,
  * so don't change it unless you know what you are doing.  TASK_SIZE
- * is limited to 1TB by the R4000 architecture; R10000 and better do
+ * is limited to 1TB by the R4000 architecture; R10000 and better can
  * support 16TB.
-#define TASK_SIZE	   0x80000000UL
  */
+#define TASK_SIZE32	   0x80000000UL
 #define TASK_SIZE	0x10000000000UL
 
 /* This decides where the kernel will search for a free chunk of vm
  * space during mmap's.
  */
-#define TASK_UNMAPPED_BASE	(TASK_SIZE / 3)
+#define TASK_UNMAPPED_BASE	((current->thread.mflags & MF_32BIT) ? \
+	(TASK_SIZE32 / 3) : (TASK_SIZE / 3))
 
 /*
  * Size of io_bitmap in longwords: 32 is ports 0-0x3ff.

@@ -21,13 +21,12 @@
 		.text
 		.set	noreorder
 		.align 4
-EXPORT(ret_from_fork)
+FEXPORT(ret_from_fork)
 		jal	schedule_tail
 		 move	a0, v0					# prev
 		j	ret_from_sys_call
 		 nop
-EXPORT(handle_bottom_half)
-		.type	handle_bottom_half,@function
+FEXPORT(handle_bottom_half)
 		jal	do_bottom_half
 		 nop
 		b	9f
@@ -36,10 +35,8 @@ EXPORT(handle_bottom_half)
 reschedule:	jal	schedule 
 		 nop
 
-EXPORT(ret_from_sys_call)
-		.type	ret_from_sys_call,@function
-EXPORT(ret_from_irq)
-		.type	ret_from_irq,@function
+FEXPORT(ret_from_sys_call)
+FEXPORT(ret_from_irq)
 		ld	t0, bh_mask
 		ld	t1, bh_active		# unused delay slot
 		and	t0, t1
@@ -57,8 +54,7 @@ EXPORT(ret_from_irq)
 		jal	do_signal
 		 move	a1, sp
 
-EXPORT(return)	.set	noat
-		.type	return,@function
+FEXPORT(return)	.set	noat
 		RESTORE_ALL
 		eret
 		.set	at

@@ -95,7 +95,14 @@ static char command_line[CL_SIZE] = { 0, };
        char saved_command_line[CL_SIZE];
 extern char arcs_cmdline[CL_SIZE];
 
+/*
+ * mips_io_port_base is the begin of the address space to which x86 style
+ * I/O ports are mapped.
+ */
+unsigned long mips_io_port_base;
+
 extern void ip22_setup(void);
+extern void ip27_setup(void);
 
 static inline void cpu_probe(void)
 {
@@ -146,6 +153,9 @@ void __init setup_arch(char **cmdline_p, unsigned long * memory_start_p,
 #ifdef CONFIG_SGI_IP22
 	ip22_setup();
 #endif
+#ifdef CONFIG_SGI_IP27
+	ip27_setup();
+#endif
 
 	memory_end = mips_memory_upper;
 
@@ -164,6 +174,12 @@ void __init setup_arch(char **cmdline_p, unsigned long * memory_start_p,
 
 	*cmdline_p = command_line;
 	*memory_start_p = (unsigned long) &_end;
+#ifdef CONFIG_BOOT_ELF64
+	/* memory_end is a XKPHYS address but memory_start is in CKSEG.
+	   All memory handling is done using XKPHYS addresses, so convert.  */
+	*memory_start_p = (*memory_start_p & 0x1ffffffUL)
+	                  | 0xa800000000000000UL;
+#endif
 	*memory_end_p = memory_end;
 
 #ifdef CONFIG_BLK_DEV_INITRD

@@ -1,4 +1,4 @@
-/* $Id: r10kcache.h,v 1.1 2000/01/12 23:18:32 ralf Exp $
+/* $Id: r10kcache.h,v 1.1 2000/01/16 01:27:14 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -21,6 +21,8 @@
 /* These are fixed for the current R10000.  */
 #define icache_size	0x8000
 #define dcache_size	0x8000
+#define icache_way_size	0x4000
+#define dcache_way_size	0x4000
 #define ic_lsize	64
 #define dc_lsize	32
 
@@ -148,6 +150,22 @@ extern inline void protected_writeback_dcache_line(unsigned long addr)
 		: "r" (addr), "i" (Hit_Writeback_Inv_D));
 }
 
+#define cache32_unroll16(base,op)				\
+	__asm__ __volatile__("					\
+		.set noreorder;					\
+		cache %1, 0x000(%0); cache %1, 0x020(%0);	\
+		cache %1, 0x040(%0); cache %1, 0x060(%0);	\
+		cache %1, 0x080(%0); cache %1, 0x0a0(%0);	\
+		cache %1, 0x0c0(%0); cache %1, 0x0e0(%0);	\
+		cache %1, 0x100(%0); cache %1, 0x120(%0);	\
+		cache %1, 0x140(%0); cache %1, 0x160(%0);	\
+		cache %1, 0x180(%0); cache %1, 0x1a0(%0);	\
+		cache %1, 0x1c0(%0); cache %1, 0x1e0(%0);	\
+		.set reorder"					\
+		:						\
+		: "r" (base),					\
+		  "i" (op));
+
 #define cache32_unroll32(base,op)				\
 	__asm__ __volatile__("					\
 		.set noreorder;					\
@@ -174,12 +192,15 @@ extern inline void protected_writeback_dcache_line(unsigned long addr)
 
 extern inline void blast_dcache32(void)
 {
-	unsigned long start = KSEG0;
-	unsigned long end = (start + dcache_size);
+	unsigned long way0 = KSEG0;
+	unsigned long way1 = way0 ^ 1;
+	unsigned long end = (way0 + dcache_way_size);
 
-	while (start < end) {
-		cache32_unroll32(start,Index_Writeback_Inv_D);
-		start += 0x400;
+	while (way0 < end) {
+		cache32_unroll16(way0, Index_Writeback_Inv_D);
+		cache32_unroll16(way1, Index_Writeback_Inv_D);
+		way0 += 0x200;
+		way1 += 0x200;
 	}
 }
 
@@ -189,21 +210,40 @@ extern inline void blast_dcache32_page(unsigned long page)
 	unsigned long end = page + PAGE_SIZE;
 
 	while (start < end) {
-		cache32_unroll32(start,Hit_Writeback_Inv_D);
-		start += 0x800;
+		cache32_unroll32(start, Hit_Writeback_Inv_D);
+		start += 0x400;
 	}
 }
 
 extern inline void blast_dcache32_page_indexed(unsigned long page)
 {
-	unsigned long start = page;
-	unsigned long end = (start + PAGE_SIZE);
+	unsigned long way0 = page;
+	unsigned long way1 = page ^ 1;
+	unsigned long end = page + PAGE_SIZE;
 
-	while (start < end) {
-		cache32_unroll32(start,Index_Writeback_Inv_D);
-		start += 0x400;
+	while (way0 < end) {
+		cache32_unroll16(way0, Index_Writeback_Inv_D);
+		cache32_unroll16(way1, Index_Writeback_Inv_D);
+		way0 += 0x200;
+		way1 += 0x200;
 	}
 }
+
+#define cache64_unroll16(base,op)				\
+	__asm__ __volatile__("					\
+		.set noreorder;					\
+		cache %1, 0x000(%0); cache %1, 0x040(%0);	\
+		cache %1, 0x080(%0); cache %1, 0x0c0(%0);	\
+		cache %1, 0x100(%0); cache %1, 0x140(%0);	\
+		cache %1, 0x180(%0); cache %1, 0x1c0(%0);	\
+		cache %1, 0x200(%0); cache %1, 0x240(%0);	\
+		cache %1, 0x280(%0); cache %1, 0x2c0(%0);	\
+		cache %1, 0x300(%0); cache %1, 0x340(%0);	\
+		cache %1, 0x380(%0); cache %1, 0x3c0(%0);	\
+		.set reorder"					\
+		:						\
+		: "r" (base),					\
+		  "i" (op));
 
 #define cache64_unroll32(base,op)				\
 	__asm__ __volatile__("					\
@@ -231,12 +271,15 @@ extern inline void blast_dcache32_page_indexed(unsigned long page)
 
 extern inline void blast_icache64(void)
 {
-	unsigned long start = KSEG0;
-	unsigned long end = KSEG0 + dcache_size;
+	unsigned long way0 = KSEG0;
+	unsigned long way1 = way0 ^ 1;
+	unsigned long end = way0 + icache_way_size;
 
-	while (start < end) {
-		cache64_unroll32(start,Index_Invalidate_I);
-		start += 0x800;
+	while (way0 < end) {
+		cache64_unroll16(way0,Index_Invalidate_I);
+		cache64_unroll16(way1,Index_Invalidate_I);
+		way0 += 0x400;
+		way1 += 0x400;
 	}
 }
 
@@ -253,23 +296,29 @@ extern inline void blast_icache64_page(unsigned long page)
 
 extern inline void blast_icache64_page_indexed(unsigned long page)
 {
-	unsigned long start = page;
+	unsigned long way0 = page;
+	unsigned long way1 = page ^ 1;
 	unsigned long end = page + PAGE_SIZE;
 
-	while (start < end) {
-		cache64_unroll32(start,Index_Invalidate_I);
-		start += 0x800;
+	while (way0 < end) {
+		cache64_unroll16(way0,Index_Invalidate_I);
+		cache64_unroll16(way1,Index_Invalidate_I);
+		way0 += 0x400;
+		way1 += 0x400;
 	}
 }
 
 extern inline void blast_scache64(void)
 {
-	unsigned long start = KSEG0;
+	unsigned long way0 = KSEG0;
+	unsigned long way1 = way0 ^ 1;
 	unsigned long end = KSEG0 + scache_size();
 
-	while (start < end) {
-		cache64_unroll32(start,Index_Writeback_Inv_S);
-		start += 0x800;
+	while (way0 < end) {
+		cache64_unroll16(way0,Index_Writeback_Inv_S);
+		cache64_unroll16(way1,Index_Writeback_Inv_S);
+		way0 += 0x400;
+		way1 += 0x400;
 	}
 }
 
@@ -286,14 +335,33 @@ extern inline void blast_scache64_page(unsigned long page)
 
 extern inline void blast_scache64_page_indexed(unsigned long page)
 {
-	unsigned long start = page;
+	unsigned long way0 = page;
+	unsigned long way1 = page ^ 1;
 	unsigned long end = page + PAGE_SIZE;
 
-	while (start < end) {
-		cache64_unroll32(start,Index_Writeback_Inv_S);
-		start += 0x800;
+	while (way0 < end) {
+		cache64_unroll16(way0,Index_Writeback_Inv_S);
+		cache64_unroll16(way1,Index_Writeback_Inv_S);
+		way0 += 0x400;
+		way1 += 0x400;
 	}
 }
+
+#define cache128_unroll16(base,op)				\
+	__asm__ __volatile__("					\
+		.set noreorder;					\
+		cache %1, 0x000(%0); cache %1, 0x080(%0);	\
+		cache %1, 0x100(%0); cache %1, 0x180(%0);	\
+		cache %1, 0x200(%0); cache %1, 0x280(%0);	\
+		cache %1, 0x300(%0); cache %1, 0x380(%0);	\
+		cache %1, 0x400(%0); cache %1, 0x480(%0);	\
+		cache %1, 0x500(%0); cache %1, 0x580(%0);	\
+		cache %1, 0x600(%0); cache %1, 0x680(%0);	\
+		cache %1, 0x700(%0); cache %1, 0x780(%0);	\
+		.set reorder"					\
+		:						\
+		: "r" (base),					\
+		  "i" (op));
 
 #define cache128_unroll32(base,op)				\
 	__asm__ __volatile__("					\
@@ -321,23 +389,27 @@ extern inline void blast_scache64_page_indexed(unsigned long page)
 
 extern inline void blast_scache128(void)
 {
-	unsigned long start = KSEG0;
-	unsigned long end = KSEG0 + scache_size();
+	unsigned long way0 = KSEG0;
+	unsigned long way1 = way0 ^ 1;
+	unsigned long end = way0 + scache_size();
 
-	while (start < end) {
-		cache128_unroll32(start,Index_Writeback_Inv_S);
-		start += 0x1000;
+	while (way0 < end) {
+		cache128_unroll16(way0, Index_Writeback_Inv_S);
+		cache128_unroll16(way1, Index_Writeback_Inv_S);
+		way0 += 0x800;
+		way1 += 0x800;
 	}
 }
 
 extern inline void blast_scache128_page(unsigned long page)
 {
-	cache128_unroll32(page,Hit_Writeback_Inv_S);
+	cache128_unroll32(page, Hit_Writeback_Inv_S);
 }
 
 extern inline void blast_scache128_page_indexed(unsigned long page)
 {
-	cache128_unroll32(page,Index_Writeback_Inv_S);
+	cache128_unroll32(page    , Index_Writeback_Inv_S);
+	cache128_unroll32(page ^ 1, Index_Writeback_Inv_S);
 }
 
 #endif /* _ASM_R10KCACHE_H */

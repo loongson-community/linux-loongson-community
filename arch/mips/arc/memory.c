@@ -4,7 +4,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: memory.c,v 1.6 1999/10/09 00:00:57 ralf Exp $
+ * $Id: memory.c,v 1.7 1999/12/04 03:58:59 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -189,7 +189,7 @@ restart:
 	}
 }
 
-void prom_free_prom_memory (void)
+void __init prom_free_prom_memory (void)
 {
     struct prom_pmemblock *p;
     unsigned long addr;

@@ -40,11 +40,11 @@ typedef LONG		_PVOID;
 
 typedef char		CHAR;
 typedef short		SHORT;
-typedef long		LARGE_INTEGER __attribute__ (__mode__ (__DI__));
-typedef	long		LONG __attribute__ (__mode__ (__DI__));
+typedef long		LARGE_INTEGER __attribute__ ((__mode__ (__DI__)));
+typedef	long		LONG __attribute__ ((__mode__ (__DI__)));
 typedef unsigned char	UCHAR;
 typedef unsigned short	USHORT;
-typedef unsigned long	ULONG __attribute__ (__mode__ (__DI__));
+typedef unsigned long	ULONG __attribute__ ((__mode__ (__DI__)));
 typedef void		VOID;
 
 /* The pointer types.  We're 64-bit and the firmware is also 64-bit, so

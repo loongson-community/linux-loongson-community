@@ -7,6 +7,7 @@
  * Copyright (C) 1995, 1996, 1997, 1998, 1999 by Ralf Baechle
  * Copyright (C) 1999 Silicon Graphics, Inc.
  */
+#include <linux/config.h>
 #include <asm/asm.h>
 #include <linux/errno.h>
 #include <asm/current.h>
@@ -23,6 +24,10 @@
 
 /* Highest syscall handled here.  */
 #define MAX_SYSCALL_NO	__NR_Linux + __NR_Linux_syscalls
+
+#ifndef CONFIG_MIPS32_COMPAT
+#define handle_sys64 handle_sys
+#endif
 
 	.align  5
 NESTED(handle_sys64, PT_SIZE, sp)
@@ -55,8 +60,7 @@ NESTED(handle_sys64, PT_SIZE, sp)
 	sd	v0, PT_R0(sp)		# set flag for syscall restarting
 1:	sd	v0, PT_R2(sp)		# result
 
-EXPORT(ret_from_sys_call_64)
-	.type	ret_from_sys_call_64,@function
+FEXPORT(ret_from_sys_call_64)
 	ld	t0, bh_mask
 	ld	t1, bh_active		# unused delay slot
 	and	t0, t1

@@ -1384,9 +1384,22 @@ CONFIG_OLIVETTI_M700
   a machine on the Internet that has a program like lynx or netscape).
 
 Support for SGI IP22
+CONFIG_SGI_IP22
   This are the SGI Indy, Challenge S and Indigo2, as well as certain OEM
   variants like the Tandem CMN B006S.  To compile a Linux kernel that
   runs on these, say Y here.
+
+Support for SGI IP27
+  This are the SGI Origin 200, Origin 2000 and Onyx 2 Graphics
+  workstations.  To compile a Linux kernel that runs on these, say Y
+  here.
+
+IP27 N-Mode
+CONFIG_SGI_SN0_N_MODE
+  The nodes of Origin 200, Origin 2000 and Onyx 2 systems can be
+  configured in either N-Modes which allows for more nodes or M-Mode
+  which allows for more more memory.  Your system is most probly
+  running in M-Mode, so you should say N here.
 
 MIPS JAZZ onboard SONIC Ethernet support
 CONFIG_MIPS_JAZZ_SONIC
@@ -1397,11 +1410,6 @@ MIPS JAZZ FAS216 SCSI support
 CONFIG_JAZZ_ESP
   This is the driver for the onboard SCSI hostadapter of MIPS Magnum 4000,
   Acer PICA, Olivetti M700-10 and a few other identical OEM systems.
-
-Support for SGI IP27
-  This are the SGI Origin 200, Origin 2000 and Onyx 2 Graphics
-  workstations.  To compile a Linux kernel that runs on these, say Y
-  here.
 
 CPU type
 CONFIG_CPU_R3000
@@ -10831,6 +10839,12 @@ Are you using a crosscompiler
 CONFIG_CROSSCOMPILE
   Say Y here if you are compiling the kernel on a different
   architecture than the one it is intended to run on.
+
+Kernel support for Linux/MIPS 32-bit binary compatibility
+CONFIG_MIPS32_COMPAT
+  Select this option this option if you want Linux/MIPS 32-bit binary
+  compatibility.  Since all software available available for Linux/MIPS
+  is currently 32-bit you should say Y here.
 
 Build fp exception handler module
 CONFIG_MIPS_FPE_MODULE

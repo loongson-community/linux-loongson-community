@@ -1,4 +1,4 @@
-/* $Id: io.h,v 1.1 1999/08/18 23:37:51 ralf Exp $
+/* $Id: io.h,v 1.2 1999/10/09 00:01:43 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -11,12 +11,12 @@
 #ifndef _ASM_IO_H
 #define _ASM_IO_H
 
+#include <linux/config.h>
+
 /*
  * Slowdown I/O port space accesses for antique hardware.
  */
 #undef CONF_SLOWDOWN_IO
-
-#include <linux/config.h>
 
 #include <asm/addrspace.h>
 
@@ -394,8 +394,27 @@ __OUTS(w,l,4)
  *    be discarded.  This operation is necessary before dma operations
  *    to the memory.
  */
+#ifdef CONFIG_COHERENT_IO
+
+/* This is for example for IP27.  */
+extern inline void dma_cache_wback_inv(unsigned long start, unsigned long size)
+{
+}
+
+extern inline void dma_cache_wback(unsigned long start, unsigned long size)
+{
+}
+
+extern inline void dma_cache_inv(unsigned long start, unsigned long size)
+{
+}
+
+#else
+
 extern void (*dma_cache_wback_inv)(unsigned long start, unsigned long size);
 extern void (*dma_cache_wback)(unsigned long start, unsigned long size);
 extern void (*dma_cache_inv)(unsigned long start, unsigned long size);
+
+#endif
 
 #endif /* _ASM_IO_H */

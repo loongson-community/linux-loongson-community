@@ -37,6 +37,7 @@
  *    gracefully. 
  *  - Free rings and buffers when closing or before re-initializing rings.
  *  - Handle allocation failures in ioc3_alloc_skb() more gracefully.
+ *  - Handle allocation failures in ioc3_init_rings().
  *  - Maybe implement private_ioctl().
  *  - Use prefetching for large packets.  What is a good lower limit for
  *    prefetching?
@@ -300,7 +301,7 @@ static struct net_device_stats *ioc3_get_stats(struct net_device *dev)
 	return &ip->stats;
 }
 
-static void
+static inline void
 ioc3_rx(struct net_device *dev, struct ioc3_private *ip, struct ioc3 *ioc3)
 {
 	struct sk_buff *skb, *new_skb;
@@ -328,8 +329,7 @@ ioc3_rx(struct net_device *dev, struct ioc3_private *ip, struct ioc3 *ioc3)
 			skb->protocol = eth_type_trans(skb, dev);
 			netif_rx(skb);
 
-			new_skb = ioc3_alloc_skb(RX_BUF_ALLOC_SIZE,
-			                         GFP_DMA|GFP_ATOMIC);
+			new_skb = ioc3_alloc_skb(RX_BUF_ALLOC_SIZE, GFP_ATOMIC);
 			if (!new_skb) {
 				/* Ouch, drop packet and just recycle packet
 				   to keep the ring filled.  */
@@ -383,7 +383,7 @@ next:
 	return;
 }
 
-static void
+static inline void
 ioc3_tx(struct ioc3_private *ip, struct ioc3 *ioc3)
 {
 	int tx_entry, o_entry;
@@ -412,6 +412,25 @@ ioc3_tx(struct ioc3_private *ip, struct ioc3 *ioc3)
 	ip->tx_ci = o_entry;
 }
 
+/*
+ * Deal with fatal IOC3 errors.  For now let's panic.  This condition might
+ * be caused by a hard or software problems, so we should try to recover
+ * more gracefully if this ever happens.
+ */
+static void
+ioc3_error(struct net_device *dev, struct ioc3_private *ip,
+           struct ioc3 *ioc3, u32 eisr)
+{
+	if (eisr & (EISR_RXMEMERR | EISR_TXMEMERR)) {
+		if (eisr & EISR_RXMEMERR) {
+			panic("%s: RX PCI error.\n", dev->name);
+		}
+		if (eisr & EISR_TXMEMERR) {
+			panic("%s: TX PCI error.\n", dev->name);
+		}
+	}
+}
+
 /* The interrupt handler does all of the Rx thread work and cleans up
    after the Tx thread.  */
 static void ioc3_interrupt(int irq, void *_dev, struct pt_regs *regs)
@@ -434,6 +453,9 @@ static void ioc3_interrupt(int irq, void *_dev, struct pt_regs *regs)
 	}
 	if (eisr & EISR_TXEXPLICIT) {
 		ioc3_tx(ip, ioc3);
+	}
+	if (eisr & (EISR_RXMEMERR | EISR_TXMEMERR)) {
+		ioc3_error(dev, ip, ioc3, eisr);
 	}
 
 	if (dev->tbusy && (TX_BUFFS_AVAIL(ip) >= 0)) {
@@ -501,6 +523,7 @@ static void
 ioc3_init_rings(struct net_device *dev, struct ioc3_private *p,
 	        struct ioc3 *ioc3)
 {
+	struct ioc3_erxbuf *rxb;
 	unsigned long *rxr;
 	unsigned long ring;
 	int i;
@@ -515,17 +538,20 @@ ioc3_init_rings(struct net_device *dev, struct ioc3_private *p,
 	for (i = 0; i < RX_BUFFS; i++) {
 		struct sk_buff *skb;
 
-		skb = ioc3_alloc_skb(RX_BUF_ALLOC_SIZE, GFP_DMA);
-		if (!skb)
+		skb = ioc3_alloc_skb(RX_BUF_ALLOC_SIZE, 0);
+		if (!skb) {
+			show_free_areas();
 			continue;
+		}
 
 		p->rx_skbs[i] = skb;
 		skb->dev = dev;
 
 		/* Because we reserve afterwards. */
 		skb_put(skb, (1664 + RX_OFFSET));
-		rxr[i] = (0xa5UL << 56) |
-		         ((unsigned long) skb->data & TO_PHYS_MASK);
+		rxb = (struct ioc3_erxbuf *) skb->data;
+		rxb->w0 = 0;				/* Clear valid bit */
+		rxr[i] = (0xa5UL << 56) | ((unsigned long) rxb & TO_PHYS_MASK);
 		skb_reserve(skb, RX_OFFSET);
 	}
 
@@ -652,7 +678,8 @@ ioc3_open(struct net_device *dev)
 
 	ioc3->emcr = ((RX_OFFSET / 2) << EMCR_RXOFF_SHIFT) | EMCR_TXDMAEN |
 	             EMCR_TXEN | EMCR_RXDMAEN | EMCR_RXEN;
-	ioc3->eier = EISR_RXTIMERINT | EISR_TXEXPLICIT;	/* Interrupts ...  */
+	ioc3->eier = EISR_RXTIMERINT | EISR_TXEXPLICIT | /* Interrupts ...  */
+	             EISR_RXMEMERR | EISR_TXMEMERR;
 
 	dev->tbusy = 0;
 	dev->interrupt = 0;

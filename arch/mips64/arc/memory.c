@@ -4,12 +4,14 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * memory.c: PROM library functions for acquiring/using memory descriptors
- *           given to us from the ARCS firmware.
+ * Copyright (C) 1996 by David S. Miller
+ * Copyright (C) 1999, 2000 by Ralf Baechle
+ * Copyright (C) 1999, 2000 by Silicon Graphics, Inc.
  *
- * Copyright (C) 1996 by David S. Miller (dm@engr.sgi.com)
- * Copyright (C) 1999 by Ralf Baechle
- * Copyright (C) 1999 by Silicon Graphics, Inc.
+ * PROM library functions for acquiring/using memory descriptors given to us
+ * from the ARCS firmware.  This is only used when CONFIG_ARC_MEMORY is set
+ * because on some machines like SGI IP27 the ARC memory configuration data
+ * completly bogus and alternate easier to use mechanisms are available.
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -133,11 +135,12 @@ void __init
 prom_meminit(void)
 {
 	struct linux_mdesc *p;
-	int totram;
-	int i = 0;
+	unsigned long totram;
+	int i;
 
-	p = ArcGetMemoryDescriptor(PROM_NULL_MDESC);
 #ifdef DEBUG
+	i = 0;
+	p = ArcGetMemoryDescriptor(PROM_NULL_MDESC);
 	prom_printf("ARCS MEMORY DESCRIPTOR dump:\n");
 	while(p) {
 		prom_printf("[%d,%p]: base<%08lx> pages<%08lx> type<%s>\n",
@@ -151,21 +154,22 @@ prom_meminit(void)
 	i = 0;
 	while(p) {
 		prom_pblocks[i].type = prom_memtype_classify (p->type);
-		prom_pblocks[i].base = ((p->base<<PAGE_SHIFT) + 0x80000000);
+		prom_pblocks[i].base = PAGE_OFFSET + (p->base << PAGE_SHIFT);
 		prom_pblocks[i].size = p->pages << PAGE_SHIFT;
 		switch (prom_pblocks[i].type) {
 		case MEMTYPE_FREE:
 			totram += prom_pblocks[i].size;
 #ifdef DEBUG
-			prom_printf("free_chunk[%d]: base=%08lx size=%d\n",
+			prom_printf("free_chunk[%d]: base=%08lx size=%x"
+			            " total=%x\n",
 			            i, prom_pblocks[i].base,
-			            prom_pblocks[i].size);
+			            prom_pblocks[i].size, totram);
 #endif
 			i++;
 			break;
 		case MEMTYPE_PROM:
 #ifdef DEBUG
-			prom_printf("prom_chunk[%d]: base=%08lx size=%d\n",
+			prom_printf("prom_chunk[%d]: base=%08lx size=%x\n",
 			            i, prom_pblocks[i].base,
 			            prom_pblocks[i].size);
 #endif
@@ -178,7 +182,7 @@ prom_meminit(void)
 	}
 	prom_pblocks[i].base = 0xdeadbeef;
 	prom_pblocks[i].size = 0; /* indicates last elem. of array */
-	printk("PROMLIB: Total free ram %d bytes (%dK,%dMB)\n",
+	printk("PROMLIB: Total free ram %ld bytes (%ldK,%ldMB)\n",
 	       totram, (totram/1024), (totram/1024/1024));
 
 	/* Setup upper physical memory bound. */
@@ -217,7 +221,7 @@ restart:
 	}
 }
 
-void
+void __init
 prom_free_prom_memory (void)
 {
 	struct prom_pmemblock *p;

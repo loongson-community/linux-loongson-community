@@ -26,6 +26,7 @@ NESTED(__tlb_refill_debug_tramp, PT_SIZE, sp)
 	.macro	tlb_handler name
 	NESTED(__\name, PT_SIZE, sp)
 	SAVE_ALL
+	CLI
 	dmfc0	t0, CP0_BADVADDR
 	sd	t0, PT_BVADDR(sp)
 	move	a0, sp

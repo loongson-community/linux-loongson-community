@@ -1,10 +1,29 @@
-# $Id: Makefile,v 1.2 1999/08/20 21:13:33 ralf Exp $
+# $Id: Makefile,v 1.3 1999/12/04 03:59:00 ralf Exp $
 #
 # Makefile for the Linux/MIPS-specific parts of the memory manager.
 #
 
 O_TARGET := mm.o
-O_OBJS	 := extable.o init.o fault.o r4xx0.o tfp.o andes.o loadmmu.o
+O_OBJS	 := extable.o init.o fault.o loadmmu.o
+
+ifdef CONFIG_CPU_R4300
+O_OBJS	+= r4xx0.o
+endif
+ifdef CONFIG_CPU_R4X00
+O_OBJS	+= r4xx0.o
+endif
+ifdef CONFIG_CPU_R5000
+O_OBJS	+= r4xx0.o
+endif
+ifdef CONFIG_CPU_NEVADA
+O_OBJS	+= r4xx0.o
+endif
+ifdef CONFIG_CPU_R8000
+O_OBJS	+= tfp.o
+endif
+ifdef CONFIG_CPU_R10000
+O_OBJS	+= andes.o
+endif
 
 ifdef CONFIG_SGI_IP22
 O_OBJS   += umap.o

@@ -1,4 +1,4 @@
-/* $Id: page.h,v 1.1 1999/08/18 23:37:51 ralf Exp $
+/* $Id: page.h,v 1.2 1999/12/04 03:59:12 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -9,6 +9,8 @@
  */
 #ifndef _ASM_PAGE_H
 #define _ASM_PAGE_H
+
+#include <linux/config.h>
 
 /* PAGE_SHIFT determines the page size */
 #define PAGE_SHIFT	12
@@ -74,9 +76,16 @@ typedef unsigned long pgprot_t;
 
 /*
  * This handles the memory map.
- * We handle pages at KSEG0 for kernels with 32 bit address space.
+ * We handle pages at KSEG0 for kernels with upto 512mb of memory,
+ * at XKPHYS for kernels with more than that.
  */
+#ifdef CONFIG_SGI_IP22
 #define PAGE_OFFSET	0xffffffff80000000UL
+#endif
+#ifdef CONFIG_SGI_IP27
+#define PAGE_OFFSET	0xa800000000000000UL
+#endif
+
 #define __pa(x)		((unsigned long) (x) - PAGE_OFFSET)
 #define __va(x)		((void *)((unsigned long) (x) + PAGE_OFFSET))
 #define MAP_NR(addr)	(__pa(addr) >> PAGE_SHIFT)

@@ -198,8 +198,6 @@ extern unsigned long zero_page_mask;
 #define PAGE_PTR(address) \
 ((unsigned long)(address)>>(PAGE_SHIFT-SIZEOF_PTR_LOG2)&PTR_MASK&~PAGE_MASK)
 
-extern void (*load_pgd)(unsigned long pg_dir);
-
 extern pte_t invalid_pte_table[PAGE_SIZE/sizeof(pte_t)];
 extern pmd_t invalid_pmd_table[2*PAGE_SIZE/sizeof(pmd_t)];
 
@@ -777,7 +775,7 @@ extern inline void set_entryhi(unsigned long val)
 }
 
 /* CP0_INDEX register */
-extern inline unsigned long get_index(void)
+extern inline unsigned int get_index(void)
 {
 	unsigned long val;
 
@@ -789,7 +787,7 @@ extern inline unsigned long get_index(void)
 	return val;
 }
 
-extern inline void set_index(unsigned long val)
+extern inline void set_index(unsigned int val)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"

@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.3 1999/10/19 20:51:44 ralf Exp $
+# $Id: Makefile,v 1.3 1999/12/04 03:59:00 ralf Exp $
 #
 # This file is subject to the terms and conditions of the GNU General Public
 # License.  See the file "COPYING" in the main directory of this archive
@@ -77,6 +77,18 @@ SUBDIRS       += arch/mips64/sgi-ip22 arch/mips64/arc
 LOADADDR      += 0x88004000
 endif
 
+ifdef CONFIG_SGI_IP27
+LIBS          += arch/mips64/sgi-ip27/ip27.a arch/mips64/arc/arclib.a
+SUBDIRS       += arch/mips64/sgi-ip27 arch/mips64/arc
+#
+# Set LOADADDR to >= 0xc000000000300000 if you want to leave space for
+# symmon, 0xc00000000001c000 for production kernels.  Note that the value
+# must be 16kb aligned or the handling of the current variable will break.
+#
+#LOADADDR      += 0xa80000000001c000
+LOADADDR      += 0x8001c000
+endif
+
 #
 # Some machines like the Indy need 32-bit ELF binaries for booting purposes.
 # Other need ECOFF, so we build a 32-bit ELF binary for them which we then
@@ -85,6 +97,17 @@ endif
 ifdef CONFIG_BOOT_ELF32
 CFLAGS += -Wa,-32
 LINKFLAGS += -T arch/mips64/ld.script.elf32
+endif
+#
+# The 64-bit ELF tools are pretty broken so at this time we generate 64-bit
+# ELF files from 32-bit files by conversion.
+#
+ifdef CONFIG_BOOT_ELF64
+CFLAGS += -Wa,-32
+LINKFLAGS += -T arch/mips64/ld.script.elf32
+#AS += -64
+#LD += -m elf64bmip
+#LINKFLAGS += -T arch/mips64/ld.script.elf64
 endif
 
 LINKFLAGS += -Ttext $(LOADADDR)
@@ -96,6 +119,15 @@ CORE_FILES := arch/mips64/kernel/kernel.o arch/mips64/mm/mm.o $(CORE_FILES)
 LIBS := arch/mips64/lib/lib.a $(LIBS)
 
 MAKEBOOT = $(MAKE) -C arch/$(ARCH)/boot
+
+ifdef CONFIG_CPU_LITTLE_ENDIAN
+64bit-bfd = elf64-littlemips
+else
+64bit-bfd = elf64-bigmips
+endif
+
+vmlinux.64: vmlinux
+	$(OBJCOPY) -O $(64bit-bfd) --change-addresses=0xa7ffffff80000000 $< $@
 
 zImage: vmlinux
 	@$(MAKEBOOT) zImage

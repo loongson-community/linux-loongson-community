@@ -377,7 +377,7 @@ sigill:
 
 unsigned long unaligned_instructions;
 
-asmlinkage void do_ade(abi64_no_regargs, struct pt_regs regs)
+asmlinkage void do_ade(struct pt_regs *regs)
 {
 	unsigned long pc;
 
@@ -386,16 +386,16 @@ asmlinkage void do_ade(abi64_no_regargs, struct pt_regs regs)
 	 * This also catches attempts to activate MIPS16 code on
 	 * CPUs which don't support it.
 	 */
-	if (regs.cp0_badvaddr == regs.cp0_epc)
+	if (regs->cp0_badvaddr == regs->cp0_epc)
 		goto sigbus;
 
-	pc = regs.cp0_epc + ((regs.cp0_cause & CAUSEF_BD) ? 4 : 0);
-	if (compute_return_epc(&regs))
+	pc = regs->cp0_epc + ((regs->cp0_cause & CAUSEF_BD) ? 4 : 0);
+	if (compute_return_epc(regs))
 		return;
 	if ((current->thread.mflags & MF_FIXADE) == 0)
 		goto sigbus;
 
-	emulate_load_store_insn(&regs, regs.cp0_badvaddr, pc);
+	emulate_load_store_insn(regs, regs->cp0_badvaddr, pc);
 	unaligned_instructions++;
 
 	return;

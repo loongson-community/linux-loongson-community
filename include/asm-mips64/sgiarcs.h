@@ -1,4 +1,4 @@
-/* $Id: sgiarcs.h,v 1.3 1999/08/21 22:19:17 ralf Exp $
+/* $Id: sgiarcs.h,v 1.4 1999/12/04 03:59:12 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -13,6 +13,7 @@
 #ifndef _ASM_SGIARCS_H
 #define _ASM_SGIARCS_H
 
+#include <linux/config.h>
 #include <asm/arc/types.h>
 
 /* Various ARCS error codes. */
@@ -364,6 +365,7 @@ struct linux_smonblock {
  * Macros for calling a 32-bit ARC implementation from 64-bit code
  */
 
+#ifdef CONFIG_ARC32
 #define __arc_clobbers							\
 	"$2","$3","$4","$5","$6","$7","$8","$9","$10","$11",		\
 	"$12","$13","$14","$15","$16","$24","25","$31"
@@ -470,5 +472,73 @@ struct linux_smonblock {
 	: __arc_clobbers);						\
 	__res;								\
 })
+#endif /* CONFIG_ARC32 */
+
+#ifdef CONFIG_ARC64
+
+#define ARC_CALL0(dest)							\
+({	long __res;							\
+	long (*__vec)(void) = (void *) romvec->dest;			\
+									\
+	__res = __vec();						\
+	__res;								\
+})
+
+#define ARC_CALL1(dest,a1)						\
+({	long __res;							\
+	long __a1 = (long) (a1);					\
+	long (*__vec)(long) = (void *) romvec->dest;			\
+									\
+	__res = __vec(__a1);						\
+	__res;								\
+})
+
+#define ARC_CALL2(dest,a1,a2)						\
+({	long __res;							\
+	long __a1 = (long) (a1);					\
+	long __a2 = (long) (a2);					\
+	long (*__vec)(long, long) = (void *) romvec->dest;		\
+									\
+	__res = __vec(__a1, __a2);					\
+	__res;								\
+})
+
+#define ARC_CALL3(dest,a1,a2,a3)					\
+({	long __res;							\
+	long __a1 = (long) (a1);					\
+	long __a2 = (long) (a2);					\
+	long __a3 = (long) (a3);					\
+	long (*__vec)(long, long, long)	= (void *) romvec->dest;	\
+									\
+	__res = __vec(__a1, __a2, __a3);				\
+	__res;								\
+})
+
+#define ARC_CALL4(dest,a1,a2,a3,a4)					\
+({	long __res;							\
+	long __a1 = (long) (a1);					\
+	long __a2 = (long) (a2);					\
+	long __a3 = (long) (a3);					\
+	long __a4 = (long) (a4);					\
+	long (*__vec)(long, long, long, long) = (void *) romvec->dest;	\
+									\
+	__res = __vec(__a1, __a2, __a3, __a4);				\
+	__res;								\
+})
+
+#define ARC_CALL5(dest,a1,a2,a3,a4,a5)					\
+({	long __res;							\
+	long __a1 = (long) (a1);					\
+	long __a2 = (long) (a2);					\
+	long __a3 = (long) (a3);					\
+	long __a4 = (long) (a4);					\
+	long __a5 = (long) (a5);					\
+	long (*__vec)(long, long, long, long, long);			\
+	__vec = (void *) romvec->dest;					\
+									\
+	__res = __vec(__a1, __a2, __a3, __a4, __a5);			\
+	__res;								\
+})
+#endif /* CONFIG_ARC64 */
 
 #endif /* _ASM_SGIARCS_H */

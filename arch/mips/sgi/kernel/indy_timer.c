@@ -1,4 +1,4 @@
-/* $Id: indy_timer.c,v 1.14 1999/10/09 00:00:59 ralf Exp $
+/* $Id: indy_timer.c,v 1.15 1999/10/21 00:23:05 ralf Exp $
  *
  * indy_timer.c: Setting up the clock on the INDY 8254 controller.
  *
@@ -85,6 +85,7 @@ void indy_timer_interrupt(struct pt_regs *regs)
 	unsigned long count;
 	int irq = 7;
 
+	write_lock(&xtime_lock);
 	/* Ack timer and compute new compare. */
 	count = read_32bit_cp0_register(CP0_COUNT);
 	/* This has races.  */
@@ -114,6 +115,7 @@ void indy_timer_interrupt(struct pt_regs *regs)
 			/* do it again in 60 s */
 			last_rtc_update = xtime.tv_sec - 600;
 	}
+	write_unlock(&xtime_lock);
 }
 
 static unsigned long dosample(volatile unsigned char *tcwp,
@@ -254,9 +256,10 @@ void __init indy_timer_init(void)
 	set_cp0_status(ST0_IM, ALLINTS);
 	sti();
 
-	/* Read time from the dallas chipset. */
-	xtime.tv_sec = get_indy_time();
+	write_lock_irq(&xtime_lock);
+	xtime.tv_sec = get_indy_time();		/* Read time from RTC. */
 	xtime.tv_usec = 0;
+	write_unlock_irq(&xtime_lock);
 }
 
 void indy_8254timer_irq(void)
@@ -276,17 +279,17 @@ void do_gettimeofday(struct timeval *tv)
 {
 	unsigned long flags;
 
-	save_and_cli(flags);
+	read_lock_irqsave(&xtime_lock, flags);
 	*tv = xtime;
-	restore_flags(flags);
+	read_unlock_irqrestore(&xtime_lock, flags);
 }
 
 void do_settimeofday(struct timeval *tv)
 {
-	cli();
+	write_lock_irq(&xtime_lock);
 	xtime = *tv;
 	time_state = TIME_BAD;
 	time_maxerror = MAXPHASE;
 	time_esterror = MAXPHASE;
-	sti();
+	write_unlock_irq(&xtime_lock);
 }

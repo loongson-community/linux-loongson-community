@@ -1,4 +1,4 @@
-/* $Id: asm.h,v 1.1 1999/08/18 23:37:50 ralf Exp $
+/* $Id: asm.h,v 1.2 1999/12/04 03:59:12 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -65,8 +65,16 @@ symbol:		.frame	sp, framesize, rpc
 /*
  * EXPORT - export definition of symbol
  */
-#define	EXPORT(symbol)                                  \
+#define	EXPORT(symbol)					\
 		.globl	symbol;                         \
+symbol:
+
+/*
+ * FEXPORT - export definition of a function symbol
+ */
+#define	FEXPORT(symbol)					\
+		.globl	symbol;                         \
+		.type	symbol,@function;		\
 symbol:
 
 /*

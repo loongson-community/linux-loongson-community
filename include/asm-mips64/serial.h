@@ -1,4 +1,4 @@
-/* $Id: serial.h,v 1.1 2000/01/04 10:37:18 ralf Exp $
+/* $Id: serial.h,v 1.1 2000/01/04 10:51:55 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -37,8 +37,8 @@
 
 #ifdef CONFIG_SGI_IP27
 #define ORIGIN_SERIAL_PORT_DFNS						\
-	{ 0, IOC3_BAUD, 0x9200000008620178, IOC3_SERIAL_INT, IOC3_COM_FLAGS },\
-	{ 0, IOC3_BAUD, 0x9200000008620170, IOC3_SERIAL_INT, IOC3_COM_FLAGS },
+	{ 0, IOC3_BAUD, 0x9200000008620178, 0, IOC3_COM_FLAGS },\
+	{ 0, IOC3_BAUD, 0x9200000008620170, 0, IOC3_COM_FLAGS },
 #else
 #define ORIGIN_SERIAL_PORT_DFNS
 #endif

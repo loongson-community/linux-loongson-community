@@ -28,7 +28,7 @@ LEAF(__strlen_user_asm)
 	and	v0, a0
 	bltz	v0, fault
 
-EXPORT(__strlen_user_nocheck_asm)
+FEXPORT(__strlen_user_nocheck_asm)
 	move	v0, a0
 1:	EX(lb, ta0, (v0), fault)
 	daddiu	v0, 1

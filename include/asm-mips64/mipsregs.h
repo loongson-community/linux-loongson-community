@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: mipsregs.h,v 1.1 1999/08/18 23:37:51 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -153,8 +153,7 @@ set_cp0_##name(unsigned int change, unsigned int new)           \
 	res = read_32bit_cp0_register(register);                \
 	res &= ~change;                                         \
 	res |= (new & change);                                  \
-	if(change)                                              \
-		write_32bit_cp0_register(register, res);        \
+	write_32bit_cp0_register(register, res);                \
                                                                 \
 	return res;                                             \
 }

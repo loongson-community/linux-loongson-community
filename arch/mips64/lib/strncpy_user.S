@@ -33,7 +33,7 @@ LEAF(__strncpy_from_user_asm)
 	and	v0, a1
 	bltz	v0, fault
 
-EXPORT(__strncpy_from_user_nocheck_asm)
+FEXPORT(__strncpy_from_user_nocheck_asm)
 	move	v0, zero
 	move	v1, a1
 	.set	noreorder
