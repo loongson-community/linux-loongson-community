@@ -9,5 +9,7 @@
 System.map
 vmlinux
 vmlinux.64
+vmlinux.ecoff
+vmlinux.rm200
 modules
 nohup.out
