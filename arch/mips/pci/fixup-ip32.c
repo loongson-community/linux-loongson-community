@@ -2,8 +2,6 @@
 #include <linux/kernel.h>
 #include <linux/pci.h>
 #include <asm/pci_channel.h>
-#include <asm/ip32/mace.h>
-#include <asm/ip32/crime.h>
 #include <asm/ip32/ip32_ints.h>
 /*
  * O2 has up to 5 PCI devices connected into the MACE bridge.  The device
@@ -25,7 +23,7 @@
 #define INTC   MACEPCI_SHARED1_IRQ
 #define INTD   MACEPCI_SHARED2_IRQ
 static char irq_tab_mace[][5] __initdata = {
-      /* Dummy  INT#A  INT#B INT#C   INT#D */
+      /* Dummy  INT#A  INT#B  INT#C  INT#D */
 	{0,         0,     0,     0,     0}, /* This is placeholder row - never used */
 	{0,     SCSI0, SCSI0, SCSI0, SCSI0},
 	{0,     SCSI1, SCSI1, SCSI1, SCSI1},
