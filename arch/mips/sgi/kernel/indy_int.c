@@ -4,7 +4,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: indy_int.c,v 1.2 1997/06/28 23:27:29 ralf Exp $
+ * $Id: indy_int.c,v 1.2 1997/07/01 09:00:58 ralf Exp $
  */
 #include <linux/config.h>
 
@@ -277,8 +277,10 @@ atomic_t __mips_bh_counter;
 asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 {
 	struct irqaction * action = *(irq + irq_action);
-
+	int cpu = smp_processor_id ();
+	
 	lock_kernel();
+	irq_enter (cpu, irq);
 	kstat.interrupts[irq]++;
 	printk("Got irq %d, press a key.", irq);
 	prom_getchar();
@@ -289,6 +291,7 @@ asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 		action->handler(irq, action->dev_id, regs);
 		action = action->next;
         }
+	irq_exit (cpu, irq);
 	unlock_kernel();
 }
 
