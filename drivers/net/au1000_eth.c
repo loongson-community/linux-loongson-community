@@ -115,8 +115,11 @@ static struct {
   au1500_iflist[NUM_INTERFACES] = {
 		{AU1500_ETH0_BASE, AU1000_ETH0_IRQ}, 
 		{AU1500_ETH1_BASE, AU1000_ETH1_IRQ}
+	},
+  au1100_iflist[NUM_INTERFACES] = {
+		{AU1000_ETH0_BASE, AU1000_ETH0_IRQ}, 
+		{NULL, NULL}
 	};
-
 
 static char version[] __devinitdata =
     "au1000eth.c:1.0 ppopov@mvista.com\n";
@@ -630,13 +633,19 @@ static int __init au1000_init_module(void)
 		} else if ( (prid & 0xffff0000) == 0x01030000 ) {
 			base_addr = au1500_iflist[i].port;
 			irq = au1500_iflist[i].irq;
+		} else if ( (prid & 0xffff0000) == 0x02030000 ) {
+			base_addr = au1100_iflist[i].port;
+			irq = au1100_iflist[i].irq;
 		} else {
 			printk(KERN_ERR "au1000 eth: unknown Processor ID\n");
 			return -ENODEV;
 		}
+		// check for valid entries, au1100 only has one entry
+		if (base_addr && irq) {
 		if (au1000_probe1(NULL, base_addr, irq, i) != 0) {
 			return -ENODEV;
 		}
+	}
 	}
 	return 0;
 }

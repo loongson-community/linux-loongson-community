@@ -33,7 +33,7 @@
 #define ETH_TX_TIMEOUT HZ/4
 #define MAC_MIN_PKT_SIZE 64
 
-#if defined(CONFIG_MIPS_PB1000) || defined(CONFIG_MIPS_PB1500)
+#if defined(CONFIG_MIPS_PB1000) || defined(CONFIG_MIPS_PB1500) || defined(CONFIG_MIPS_PB1100)
 #define PHY_ADDRESS              0
 #define PHY_CONTROL_DEFAULT 0x3000
 #define PHY_CONTROL_REG_ADDR     0
