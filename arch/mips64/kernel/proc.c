@@ -59,14 +59,15 @@ static const char *cpu_name[] = {
 	[CPU_TX3912]	"TX3912",
 	[CPU_TX3922]	"TX3922",
 	[CPU_TX3927]	"TX3927",
-        [CPU_AU1000]	"Au1000",
+	[CPU_AU1000]	"Au1000",
+	[CPU_AU1500]	"Au1500",
 	[CPU_4KEC]	"MIPS 4KEc",
 	[CPU_4KSC]	"MIPS 4KSc",
 	[CPU_VR41XX]	"NEC Vr41xx",
 	[CPU_R5500]	"R5500",
 	[CPU_TX49XX]	"TX49xx",
-        [CPU_TX39XX]	"TX39xx",
-        [CPU_20KC]	"MIPS 20Kc"
+	[CPU_TX39XX]	"TX39xx",
+	[CPU_20KC]	"MIPS 20Kc"
 };
 
 
@@ -101,6 +102,7 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 	seq_printf(m, "wait instruction\t: %s\n", cpu_wait ? "yes" : "no");
 	seq_printf(m, "microsecond timers\t: %s\n",
 	              (mips_cpu.options & MIPS_CPU_COUNTER) ? "yes" : "no");
+	seq_printf(m, "tlb_entries\t\t: %d\n", mips_cpu.tlbsize);
 	seq_printf(m, "extra interrupt vector\t: %s\n",
 	              (mips_cpu.options & MIPS_CPU_DIVEC) ? "yes" : "no");
 	seq_printf(m, "hardware watchpoint\t: %s\n",

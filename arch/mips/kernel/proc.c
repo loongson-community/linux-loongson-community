@@ -59,15 +59,15 @@ static const char *cpu_name[] = {
 	[CPU_TX3912]	"TX3912",
 	[CPU_TX3922]	"TX3922",
 	[CPU_TX3927]	"TX3927",
-        [CPU_AU1000]	"Au1000",
-        [CPU_AU1500]	"Au1500",
+	[CPU_AU1000]	"Au1000",
+	[CPU_AU1500]	"Au1500",
 	[CPU_4KEC]	"MIPS 4KEc",
 	[CPU_4KSC]	"MIPS 4KSc",
 	[CPU_VR41XX]	"NEC Vr41xx",
 	[CPU_R5500]	"R5500",
 	[CPU_TX49XX]	"TX49xx",
-        [CPU_TX39XX]	"TX39xx",
-        [CPU_20KC]	"MIPS 20Kc"
+	[CPU_TX39XX]	"TX39xx",
+	[CPU_20KC]	"MIPS 20Kc"
 };
 
 
@@ -79,7 +79,7 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 	char fmt [64];
 
 #ifdef CONFIG_SMP
-	if (!(cpu_online_map & (1<<n)))
+	if (!CPUMASK_TSTB(cpu_online_map, n))
 		return 0;
 #endif
 
