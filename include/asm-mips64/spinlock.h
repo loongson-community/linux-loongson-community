@@ -44,8 +44,8 @@ static inline void spin_lock(spinlock_t *lock)
 	"beqz\t%1, 1b\n\t"
 	" sync\n\t"
 	".set\treorder"
-	: "=o" (lock->lock), "=&r" (tmp)
-	: "o" (lock->lock)
+	: "=m" (lock->lock), "=&r" (tmp)
+	: "m" (lock->lock)
 	: "memory");
 }
 
@@ -56,8 +56,8 @@ static inline void spin_unlock(spinlock_t *lock)
 	"sync\n\t"
 	"sw\t$0, %0\n\t"
 	".set\treorder"	
-	: "=o" (lock->lock)
-	: "o" (lock->lock)
+	: "=m" (lock->lock)
+	: "m" (lock->lock)
 	: "memory");
 }
 
@@ -108,8 +108,8 @@ static inline void read_lock(rwlock_t *rw)
 	"beqz\t%1, 1b\n\t"
 	" sync\n\t"
 	".set\treorder"	
-	: "=o" (rw->lock), "=&r" (tmp)
-	: "o" (rw->lock)
+	: "=m" (rw->lock), "=&r" (tmp)
+	: "m" (rw->lock)
 	: "memory");
 }
 
@@ -128,8 +128,8 @@ static inline void read_unlock(rwlock_t *rw)
 	"beqz\t%1, 1b\n\t"
 	"sync\n\t"
 	".set\treorder"	
-	: "=o" (rw->lock), "=&r" (tmp)
-	: "o" (rw->lock)
+	: "=m" (rw->lock), "=&r" (tmp)
+	: "m" (rw->lock)
 	: "memory");
 }
 
@@ -146,8 +146,8 @@ static inline void write_lock(rwlock_t *rw)
 	"beqz\t%1, 1b\n\t"
 	" sync\n\t"
 	".set\treorder"	
-	: "=o" (rw->lock), "=&r" (tmp)
-	: "o" (rw->lock)
+	: "=m" (rw->lock), "=&r" (tmp)
+	: "m" (rw->lock)
 	: "memory");
 }
 
@@ -158,8 +158,8 @@ static inline void write_unlock(rwlock_t *rw)
 	"sync\n\t"
 	"sw\t$0, %0\n\t"
 	".set\treorder"	
-	: "=o" (rw->lock)
-	: "o" (rw->lock)
+	: "=m" (rw->lock)
+	: "m" (rw->lock)
 	: "memory");
 }
 
