@@ -27,11 +27,11 @@ typedef u64	nic_t;
 #define CNODE_NUM_CPUS(_cnode)		(NODEPDA(_cnode)->node_num_cpus)
 #define CNODE_TO_CPU_BASE(_cnode)	(NODEPDA(_cnode)->node_first_cpu)
 #define cputocnode(cpu)				\
-               (ASSERT(pdaindr[(cpu)].pda), (pdaindr[(cpu)].pda->p_nodeid))
+               (cpu_data[(cpu)].p_nodeid)
 #define cputonasid(cpu)				\
-               (ASSERT(pdaindr[(cpu)].pda), (pdaindr[(cpu)].pda->p_nasid))
+               (cpu_data[(cpu)].p_nasid)
 #define cputoslice(cpu)				\
-               (ASSERT(pdaindr[(cpu)].pda), (pdaindr[(cpu)].pda->p_slice))
+               (cpu_data[(cpu)].p_slice)
 #define makespnum(_nasid, _slice)					\
 		(((_nasid) << CPUS_PER_NODE_SHFT) | (_slice))
 

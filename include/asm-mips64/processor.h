@@ -19,10 +19,15 @@
 #define current_text_addr() ({ __label__ _l; _l: &&_l;})
 
 #if !defined (_LANGUAGE_ASSEMBLY)
+#include <linux/config.h>
 #include <asm/cachectl.h>
 #include <asm/mipsregs.h>
 #include <asm/reg.h>
 #include <asm/system.h>
+
+#if (defined(CONFIG_SGI_IP27) && defined(CONFIG_SMP))
+#include <asm/sn/types.h>
+#endif
 
 struct cpuinfo_mips {
 	unsigned long udelay_val;
@@ -32,6 +37,11 @@ struct cpuinfo_mips {
 	unsigned long pgtable_cache_sz;
 	unsigned long last_asn;
 	unsigned int irq_count, bh_count;
+#if (defined(CONFIG_SGI_IP27) && defined(CONFIG_SMP))
+	cnodeid_t	p_nodeid;	/* my node ID in compact-id-space */
+	nasid_t		p_nasid;	/* my node ID in numa-as-id-space */
+	unsigned char	p_slice;	/* Physical position on node board */
+#endif
 } __attribute__((aligned(128)));
 
 /*
