@@ -240,16 +240,28 @@
 #define __NR_Linux32_security		(__NR_Linux32 + 221)
 #define __NR_Linux32_gettid		(__NR_Linux32 + 222)
 #define __NR_Linux32_readahead		(__NR_Linux32 + 223)
-#define __NR_Linux32_tkill		(__NR_Linux32 + 224)
-#define __NR_Linux32_sendfile64		(__NR_Linux32 + 225)
-#define __NR_Linux32_futex		(__NR_Linux32 + 226)
-#define __NR_Linux32_sched_setaffinity	(__NR_Linux32 + 227)
-#define __NR_Linux32_sched_getaffinity	(__NR_Linux32 + 228)
+#define __NR_Linux32_setxattr		(__NR_Linux32 + 224)
+#define __NR_Linux32_lsetxattr		(__NR_Linux32 + 225)
+#define __NR_Linux32_fsetxattr		(__NR_Linux32 + 226)
+#define __NR_Linux32_getxattr		(__NR_Linux32 + 227)
+#define __NR_Linux32_lgetxattr		(__NR_Linux32 + 228)
+#define __NR_Linux32_fgetxattr		(__NR_Linux32 + 229)
+#define __NR_Linux32_listxattr		(__NR_Linux32 + 230)
+#define __NR_Linux32_llistxattr		(__NR_Linux32 + 231)
+#define __NR_Linux32_flistxattr		(__NR_Linux32 + 232)
+#define __NR_Linux32_removexattr	(__NR_Linux32 + 233)
+#define __NR_Linux32_lremovexattr	(__NR_Linux32 + 234)
+#define __NR_Linux32_fremovexattr	(__NR_Linux32 + 235)
+#define __NR_Linux32_tkill		(__NR_Linux32 + 236)
+#define __NR_Linux32_sendfile64		(__NR_Linux32 + 237)
+#define __NR_Linux32_futex		(__NR_Linux32 + 238)
+#define __NR_Linux32_sched_setaffinity	(__NR_Linux32 + 239)
+#define __NR_Linux32_sched_getaffinity	(__NR_Linux32 + 240)
 
 /*
  * Offset of the last Linux o32 flavoured syscall
  */
-#define __NR_Linux32_syscalls		228
+#define __NR_Linux32_syscalls		240
 
 /*
  * Linux 64-bit syscalls are in the range from 5000 to 5999.
@@ -472,16 +484,30 @@
 #define __NR__security			(__NR_Linux + 214)
 #define __NR__gettid			(__NR_Linux + 215)
 #define __NR__readahead			(__NR_Linux + 216)
-#define __NR__tkill			(__NR_Linux + 217)
-#define __NR_sendfile64			(__NR_Linux + 218)
-#define __NR_futex			(__NR_Linux + 219)
-#define __NR_sched_setaffinity		(__NR_Linux + 220)
-#define __NR_sched_getaffinity		(__NR_Linux + 221)
+
+#define __NR_setxattr			(__NR_Linux + 217)
+#define __NR_lsetxattr			(__NR_Linux + 218)
+#define __NR_fsetxattr			(__NR_Linux + 219)
+#define __NR_getxattr			(__NR_Linux + 220)
+#define __NR_lgetxattr			(__NR_Linux + 221)
+#define __NR_fgetxattr			(__NR_Linux + 222)
+#define __NR_listxattr			(__NR_Linux + 223)
+#define __NR_llistxattr			(__NR_Linux + 224)
+#define __NR_flistxattr			(__NR_Linux + 225)
+#define __NR_removexattr		(__NR_Linux + 226)
+#define __NR_lremovexattr		(__NR_Linux + 227)
+#define __NR_fremovexattr		(__NR_Linux + 228)
+
+#define __NR__tkill			(__NR_Linux + 229)
+#define __NR_sendfile64			(__NR_Linux + 230)
+#define __NR_futex			(__NR_Linux + 231)
+#define __NR_sched_setaffinity		(__NR_Linux + 232)
+#define __NR_sched_getaffinity		(__NR_Linux + 233)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		221
+#define __NR_Linux_syscalls		233
 
 #ifndef __ASSEMBLY__
 

@@ -238,8 +238,20 @@ SYS(sys_fcntl64, 3)				/* 4220 */
 SYS(sys_ni_syscall, 0)
 SYS(sys_gettid, 0)
 SYS(sys_readahead, 5)
+SYS(sys_setxattr, 5)
+SYS(sys_lsetxattr, 5)				/* 4225 */
+SYS(sys_fsetxattr, 5)
+SYS(sys_getxattr, 4)
+SYS(sys_lgetxattr, 4)
+SYS(sys_fgetxattr, 4)
+SYS(sys_listxattr, 3)				/* 4230 */
+SYS(sys_llistxattr, 3)
+SYS(sys_flistxattr, 3)
+SYS(sys_removexattr, 2)
+SYS(sys_lremovexattr, 2)
+SYS(sys_fremovexattr, 2)			/* 4235 */
 SYS(sys_tkill, 2)
-SYS(sys_sendfile64, 5)				/* 4225 */
+SYS(sys_sendfile64, 5)
 SYS(sys_futex, 2)
 SYS(sys_sched_setaffinity, 3)
-SYS(sys_sched_getaffinity, 3)
+SYS(sys_sched_getaffinity, 3)			/* 4240 */

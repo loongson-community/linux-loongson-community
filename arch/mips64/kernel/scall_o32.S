@@ -521,11 +521,23 @@ out:	jr	ra
 	sys	sys_ni_syscall	0
 	sys	sys_gettid	0
 	sys	sys32_readahead	5
+	sys	sys_setxattr	5
+	sys	sys_lsetxattr	5			/* 4225 */
+	sys	sys_fsetxattr	5
+	sys	sys_getxattr	4
+	sys	sys_lgetxattr	4
+	sys	sys_fgetxattr	4
+	sys	sys_listxattr	3			/* 4230 */
+	sys	sys_llistxattr	3
+	sys	sys_flistxattr	3
+	sys	sys_removexattr	2
+	sys	sys_lremovexattr	2
+	sys	sys_fremovexattr	2		/* 4235 */
 	sys	sys_tkill	2
-	sys	sys_sendfile64	5			/* 4225 */
+	sys	sys_sendfile64	5
 	sys	sys_futex	2
 	sys	sys_sched_setaffinity	3
-	sys	sys_sched_getaffinity	3
+	sys	sys_sched_getaffinity	3		/* 4240 */
 	.endm
 
 	.macro	sys function, nargs

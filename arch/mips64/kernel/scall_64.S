@@ -366,8 +366,20 @@ sys_call_table:
 	PTR	sys_ni_syscall
 	PTR	sys_gettid				/* 5215 */
 	PTR	sys_readahead
+	PTR	sys_setxattr
+	PTR	sys_lsetxattr
+	PTR	sys_fsetxattr
+	PTR	sys_getxattr				/* 5220 */
+	PTR	sys_lgetxattr
+	PTR	sys_fgetxattr
+	PTR	sys_listxattr
+	PTR	sys_llistxattr
+	PTR	sys_flistxattr				/* 5225 */
+	PTR	sys_removexattr
+	PTR	sys_lremovexattr
+	PTR	sys_fremovexattr
 	PTR	sys_tkill
-	PTR	sys_sendfile64
+	PTR	sys_sendfile64				/* 5230 */
 	PTR	sys_futex
-	PTR	sys_sched_setaffinity			/* 5220 */
+	PTR	sys_sched_setaffinity
 	PTR	sys_sched_getaffinity

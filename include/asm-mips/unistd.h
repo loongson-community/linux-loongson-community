@@ -233,16 +233,28 @@
 #define __NR_security			(__NR_Linux + 221)
 #define __NR_gettid			(__NR_Linux + 222)
 #define __NR_readahead			(__NR_Linux + 223)
-#define __NR_tkill			(__NR_Linux + 224)
-#define __NR_sendfile64			(__NR_Linux + 225)
-#define __NR_futex			(__NR_Linux + 226)
-#define __NR_sched_setaffinity		(__NR_Linux + 227)
-#define __NR_sched_getaffinity		(__NR_Linux + 228)
+#define __NR_setxattr			(__NR_Linux + 224)
+#define __NR_lsetxattr			(__NR_Linux + 225)
+#define __NR_fsetxattr			(__NR_Linux + 226)
+#define __NR_getxattr			(__NR_Linux + 227)
+#define __NR_lgetxattr			(__NR_Linux + 228)
+#define __NR_fgetxattr			(__NR_Linux + 229)
+#define __NR_listxattr			(__NR_Linux + 230)
+#define __NR_llistxattr			(__NR_Linux + 231)
+#define __NR_flistxattr			(__NR_Linux + 232)
+#define __NR_removexattr		(__NR_Linux + 233)
+#define __NR_lremovexattr		(__NR_Linux + 234)
+#define __NR_fremovexattr		(__NR_Linux + 235)
+#define __NR_tkill			(__NR_Linux + 236)
+#define __NR_sendfile64			(__NR_Linux + 237)
+#define __NR_futex			(__NR_Linux + 238)
+#define __NR_sched_setaffinity		(__NR_Linux + 239)
+#define __NR_sched_getaffinity		(__NR_Linux + 240)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		228
+#define __NR_Linux_syscalls		240
 
 #ifndef __ASSEMBLY__
 
