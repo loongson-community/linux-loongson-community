@@ -224,9 +224,6 @@ asmlinkage void __init init_arch(int argc, char **argv, char **envp, int *prom_v
 #ifdef CONFIG_SGI_IP22
 	sgi_sysinit();
 #endif
-#ifdef CONFIG_COBALT_MICRO_SERVER
-	SetUpBootInfo();
-#endif
 
 	/*
 	 * Determine the mmu/cache attached to this machine,
@@ -257,7 +254,6 @@ static void __init default_irq_setup(void)
 void __init setup_arch(char **cmdline_p)
 {
 	void baget_setup(void);
-	void cobalt_setup(void);
 	void decstation_setup(void);
 	void deskstation_setup(void);
 	void jazz_setup(void);
@@ -291,11 +287,6 @@ void __init setup_arch(char **cmdline_p)
 #ifdef CONFIG_BAGET_MIPS
 	case MACH_GROUP_BAGET: 
 		baget_setup();
-		break;
-#endif
-#ifdef CONFIG_COBALT_MICRO_SERVER
-	case MACH_GROUP_COBALT:
-		cobalt_setup();
 		break;
 #endif
 #ifdef CONFIG_DECSTATION
