@@ -1,16 +1,25 @@
+/*
+ * This file is subject to the terms and conditions of the GNU General
+ * Public License.  See the file "COPYING" in the main directory of this
+ * archive for more details.
+ *
+ * Copyright (C) 2000 - 2001 by Kanoj Sarcar (kanoj@sgi.com)
+ * Copyright (C) 2000 - 2001 by Silicon Graphics, Inc.
+ */
+
 #ifndef __ASM_SMP_H
 #define __ASM_SMP_H
 
 #include <linux/config.h>
+#include <linux/threads.h>
 
 #ifdef CONFIG_SMP
 
-#include <linux/threads.h>
 #include <linux/irq.h>
 
 #if 0
 struct cpuinfo_mips {				/* XXX  */
-	unsigned long loops_per_jiffy;
+	unsigned long loops_per_sec;
 	unsigned long last_asn;
 	unsigned long *pgd_cache;
 	unsigned long *pte_cache;
@@ -38,8 +47,15 @@ extern int __cpu_number_map[NR_CPUS];
 extern int __cpu_logical_map[NR_CPUS];
 #define cpu_logical_map(cpu)  __cpu_logical_map[cpu]
 
-#endif
+#endif /* CONFIG_SMP */
 
 #define NO_PROC_ID	(-1)
 
-#endif __ASM_SMP_H
+typedef unsigned long   cpumask_t;
+
+#define CPUMASK_CLRALL(p)       (p) = 0
+#define CPUMASK_SETB(p, bit)    (p) |= 1 << (bit)
+#define CPUMASK_CLRB(p, bit)    (p) &= ~(1ULL << (bit))
+#define CPUMASK_TSTB(p, bit)    ((p) & (1ULL << (bit)))
+
+#endif /* __ASM_SMP_H */

@@ -1,3 +1,12 @@
+/*
+ * This file is subject to the terms and conditions of the GNU General
+ * Public License.  See the file "COPYING" in the main directory of this
+ * archive for more details.
+ *
+ * Copyright (C) 2000 - 2001 by Kanoj Sarcar (kanoj@sgi.com)
+ * Copyright (C) 2000 - 2001 by Silicon Graphics, Inc.
+ */
+
 #include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -26,11 +35,9 @@
 
 #define CPU_NONE		(cpuid_t)-1
 
-#define	CPUMASK_CLRALL(p)	(p) = 0
-#define CPUMASK_SETB(p, bit)	(p) |= 1 << (bit)
-#define CPUMASK_CLRB(p, bit)	(p) &= ~(1ULL << (bit))
-#define CPUMASK_TSTB(p, bit)	((p) & (1ULL << (bit)))
-
+/*
+ * The following should work till 64 nodes, ie 128p SN0s.
+ */
 #define CNODEMASK_CLRALL(p)	(p) = 0
 #define CNODEMASK_TSTB(p, bit)	((p) & (1ULL << (bit)))
 #define CNODEMASK_SETB(p, bit)	((p) |= 1ULL << (bit))
