@@ -1451,7 +1451,7 @@ au1000_probe(u32 ioaddr, int irq, int port_num)
 	char ethaddr[6];
 	int i, err;
 
-	if (!request_region(ioaddr, MAC_IOSIZE, "Au1x00 ENET"))
+	if (!request_mem_region(CPHYSADDR(ioaddr), MAC_IOSIZE, "Au1x00 ENET"))
 		return NULL;
 
 	if (version_printed++ == 0) 
@@ -1483,7 +1483,7 @@ au1000_probe(u32 ioaddr, int irq, int port_num)
 			0);
 	if (!aup->vaddr) {
 		free_netdev(dev);
-		release_region(ioaddr, MAC_IOSIZE);
+		release_mem_region(CPHYSADDR(ioaddr), MAC_IOSIZE);
 		return NULL;
 	}
 
@@ -1623,7 +1623,7 @@ err_out:
 			aup->dma_addr);
 	unregister_netdev(dev);
 	free_netdev(dev);
-	release_region(ioaddr, MAC_IOSIZE);
+	release_mem_region(CPHYSADDR(ioaddr), MAC_IOSIZE);
 	return NULL;
 }
 
@@ -1822,7 +1822,7 @@ static void __exit au1000_cleanup_module(void)
 					(void *)aup->vaddr,
 					aup->dma_addr);
 			free_netdev(dev);
-			release_region(iflist[i].base_addr, MAC_IOSIZE);
+			release_mem_region(CPHYSADDR(iflist[i].base_addr), MAC_IOSIZE);
 		}
 	}
 }
