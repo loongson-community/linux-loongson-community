@@ -82,6 +82,26 @@ void au1000_restart(char *command)
 		au_writel(0x00, 0xb1900024); /* sys_freqctrl1 */
 		au_writel(0x00, 0xb1900028); /* sys_clksrc */
 		au_writel(0x00, 0xb1900100); /* sys_pininputen */
+		break;
+	case 0x02000000: /* Au1100 */
+		au_writel(0x02, 0xb0000010); /* ac97_enable */
+		au_writel(0x08, 0xb017fffc); /* usbh_enable - early errata */
+		asm("sync");
+		au_writel(0x00, 0xb017fffc); /* usbh_enable */
+		au_writel(0x00, 0xb0200058); /* usbd_enable */
+		au_writel(0x00, 0xb0300040); /* ir_enable */
+		au_writel(0x00, 0xb0520000); /* macen0 */	   
+		au_writel(0x00, 0xb1000008); /* i2s_enable  */
+		au_writel(0x00, 0xb1100100); /* uart0_enable */
+		au_writel(0x00, 0xb1200100); /* uart1_enable */
+		au_writel(0x00, 0xb1400100); /* uart3_enable */
+		au_writel(0x02, 0xb1600100); /* ssi0_enable */
+		au_writel(0x02, 0xb1680100); /* ssi1_enable */
+		au_writel(0x00, 0xb1900020); /* sys_freqctrl0 */
+		au_writel(0x00, 0xb1900024); /* sys_freqctrl1 */
+		au_writel(0x00, 0xb1900028); /* sys_clksrc */
+		au_writel(0x00, 0xb1900100); /* sys_pininputen */
+		break;
 
 	default:
 		break;
