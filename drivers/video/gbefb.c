@@ -1170,7 +1170,7 @@ static int __init gbefb_probe(struct device *dev)
 	info->currcon = -1;
 	info->fbops = &gbefb_ops;
 	info->pseudo_palette = pseudo_palette;
-	info->flags = FBINFO_FLAG_DEFAULT;
+	info->flags = FBINFO_DEFAULT;
 	info->screen_base = gbe_mem;
 	fb_alloc_cmap(&info->cmap, 256, 0);
 

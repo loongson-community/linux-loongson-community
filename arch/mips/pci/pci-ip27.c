@@ -329,8 +329,5 @@ static void __init pci_fixup_ioc3(struct pci_dev *d)
 	pci_disable_swapping(d);
 }
 
-struct pci_fixup pcibios_fixups[] = {
-	{PCI_FIXUP_HEADER, PCI_VENDOR_ID_SGI, PCI_DEVICE_ID_SGI_IOC3,
-	 pci_fixup_ioc3},
-	{0}
-};
+DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_SGI, PCI_DEVICE_ID_SGI_IOC3,
+	pci_fixup_ioc3);

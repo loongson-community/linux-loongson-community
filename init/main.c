@@ -31,6 +31,7 @@
 #include <linux/tty.h>
 #include <linux/gfp.h>
 #include <linux/percpu.h>
+#include <linux/kmod.h>
 #include <linux/kernel_stat.h>
 #include <linux/security.h>
 #include <linux/workqueue.h>
@@ -93,6 +94,11 @@ extern void free_initmem(void);
 extern void populate_rootfs(void);
 extern void driver_init(void);
 extern void prepare_namespace(void);
+#ifdef	CONFIG_ACPI
+extern void acpi_early_init(void);
+#else
+static inline void acpi_early_init(void) { }
+#endif
 
 #ifdef CONFIG_TC
 extern void tc_init(void);
@@ -530,6 +536,8 @@ asmlinkage void __init start_kernel(void)
 #endif
 	check_bugs();
 
+	acpi_early_init(); /* before LAPIC and SMP init */
+
 	/* 
 	 *	We count on the initial thread going ok 
 	 *	Like idlers init is an unlocked kernel thread, which will
@@ -598,6 +606,10 @@ static void __init do_initcalls(void)
  */
 static void __init do_basic_setup(void)
 {
+	/* drivers will send hotplug events */
+	init_workqueues();
+	usermodehelper_init();
+
 	driver_init();
 
 #ifdef CONFIG_SYSCTL
@@ -607,7 +619,6 @@ static void __init do_basic_setup(void)
 	/* Networking initialization needs a process context */ 
 	sock_init();
 
-	init_workqueues();
 	do_initcalls();
 }
 

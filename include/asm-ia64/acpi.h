@@ -89,6 +89,7 @@ ia64_acpi_release_global_lock (unsigned int *lock)
 	((Acq) = ia64_acpi_release_global_lock((unsigned int *) GLptr))
 
 #define acpi_disabled 0	/* ACPI always enabled on IA64 */
+#define acpi_noirq 0	/* ACPI always enabled on IA64 */
 #define acpi_pci_disabled 0 /* ACPI PCI always enabled on IA64 */
 #define acpi_strict 1	/* no ACPI spec workarounds on IA64 */
 static inline void disable_acpi(void) { }
@@ -104,6 +105,8 @@ int acpi_gsi_to_irq (u32 gsi, unsigned int *irq);
 extern int __initdata pxm_to_nid_map[MAX_PXM_DOMAINS];
 extern int __initdata nid_to_pxm_map[MAX_NUMNODES];
 #endif
+
+extern u16 ia64_acpiid_to_sapicid[];
 
 #endif /*__KERNEL__*/
 

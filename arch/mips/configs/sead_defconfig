@@ -1,5 +1,7 @@
 #
 # Automatically generated make config: don't edit
+# Linux kernel version: 2.6.9-rc1
+# Tue Aug 24 16:44:40 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -112,7 +114,6 @@ CONFIG_CPU_HAS_PREFETCH=y
 CONFIG_CPU_HAS_LLSC=y
 CONFIG_CPU_HAS_SYNC=y
 # CONFIG_PREEMPT is not set
-# CONFIG_DEBUG_SPINLOCK_SLEEP is not set
 
 #
 # Bus options (PCI, PCMCIA, EISA, ISA, TC)
@@ -416,9 +417,9 @@ CONFIG_MSDOS_PARTITION=y
 #
 # Kernel hacking
 #
+# CONFIG_DEBUG_KERNEL is not set
 CONFIG_CROSSCOMPILE=y
 CONFIG_CMDLINE=""
-# CONFIG_DEBUG_KERNEL is not set
 
 #
 # Security options

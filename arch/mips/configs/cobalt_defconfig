@@ -1,5 +1,7 @@
 #
 # Automatically generated make config: don't edit
+# Linux kernel version: 2.6.9-rc1
+# Tue Aug 24 16:44:30 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -112,7 +114,6 @@ CONFIG_CPU_HAS_LLSC=y
 CONFIG_CPU_HAS_LLDSCD=y
 CONFIG_CPU_HAS_SYNC=y
 # CONFIG_PREEMPT is not set
-# CONFIG_DEBUG_SPINLOCK_SLEEP is not set
 
 #
 # Bus options (PCI, PCMCIA, EISA, ISA, TC)
@@ -245,10 +246,11 @@ CONFIG_INET=y
 # CONFIG_INET_AH is not set
 # CONFIG_INET_ESP is not set
 # CONFIG_INET_IPCOMP is not set
+CONFIG_INET_TUNNEL=y
 # CONFIG_IPV6 is not set
 # CONFIG_NETFILTER is not set
 CONFIG_XFRM=y
-# CONFIG_XFRM_USER is not set
+CONFIG_XFRM_USER=y
 
 #
 # SCTP Configuration (EXPERIMENTAL)
@@ -571,6 +573,7 @@ CONFIG_LOCKD=y
 # CONFIG_EXPORTFS is not set
 CONFIG_SUNRPC=y
 # CONFIG_RPCSEC_GSS_KRB5 is not set
+# CONFIG_RPCSEC_GSS_SPKM3 is not set
 # CONFIG_SMB_FS is not set
 # CONFIG_CIFS is not set
 # CONFIG_NCP_FS is not set
@@ -591,9 +594,9 @@ CONFIG_MSDOS_PARTITION=y
 #
 # Kernel hacking
 #
+# CONFIG_DEBUG_KERNEL is not set
 CONFIG_CROSSCOMPILE=y
 CONFIG_CMDLINE=""
-# CONFIG_DEBUG_KERNEL is not set
 
 #
 # Security options
