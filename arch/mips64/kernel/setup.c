@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.8 2000/03/02 02:36:50 ralf Exp $
+/* $Id: setup.c,v 1.9 2000/03/14 01:39:27 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -37,6 +37,7 @@
 #include <asm/system.h>
 
 #ifdef CONFIG_SGI_IP27
+/* XXX Origin garbage has no business in this file  */
 #include <asm/sn/sn0/addrs.h>
 #endif
 
@@ -102,7 +103,10 @@ extern char arcs_cmdline[CL_SIZE];
  * mips_io_port_base is the begin of the address space to which x86 style
  * I/O ports are mapped.
  */
+#ifdef CONFIG_SGI_IP27
+/* XXX Origin garbage has no business in this file  */
 unsigned long mips_io_port_base = IO_BASE;
+#endif
 
 extern void ip22_setup(void);
 extern void ip27_setup(void);
