@@ -472,7 +472,8 @@ nb85e_uart_set_termios (struct uart_port *port, struct termios *termios,
 	/* Restrict flags to legal values.  */
 	if ((cflags & CSIZE) != CS7 && (cflags & CSIZE) != CS8)
 		/* The new value of CSIZE is invalid, use the old value.  */
-		cflags = (cflags & ~CSIZE) | (old->c_cflag & CSIZE);
+		cflags = (cflags & ~CSIZE)
+			| (old ? (old->c_cflag & CSIZE) : CS8);
 
 	termios->c_cflag = cflags;
 
@@ -609,8 +610,6 @@ static void __exit nb85e_uart_exit (void)
 
 module_init (nb85e_uart_init);
 module_exit (nb85e_uart_exit);
-
-EXPORT_NO_SYMBOLS;
 
 MODULE_AUTHOR ("Miles Bader");
 MODULE_DESCRIPTION ("NEC " NB85E_UART_CHIP_NAME " on-chip UART");

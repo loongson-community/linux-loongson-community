@@ -821,8 +821,9 @@ int flush_old_exec(struct linux_binprm * bprm)
 	   
 	current->self_exec_id++;
 			
-	flush_signal_handlers(current);
+	flush_signal_handlers(current, 0);
 	flush_old_files(current->files);
+	exit_itimers(current);
 
 	return 0;
 

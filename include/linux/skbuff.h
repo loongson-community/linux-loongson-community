@@ -777,7 +777,7 @@ static inline int skb_is_nonlinear(const struct sk_buff *skb)
 	return skb->data_len;
 }
 
-static inline int skb_headlen(const struct sk_buff *skb)
+static inline unsigned int skb_headlen(const struct sk_buff *skb)
 {
 	return skb->len - skb->data_len;
 }
@@ -1102,7 +1102,7 @@ static inline int skb_cow(struct sk_buff *skb, unsigned int headroom)
  
 static inline struct sk_buff *skb_padto(struct sk_buff *skb, unsigned int len)
 {
-	unsigned int size = skb->len + skb->data_len;
+	unsigned int size = skb->len;
 	if (likely(size >= len))
 		return skb;
 	return skb_pad(skb, len-size);

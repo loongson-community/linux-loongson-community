@@ -1,5 +1,5 @@
 /*
- * linux/drivers/ide/pdcadma.c		Version 0.05	Sept 10, 2002
+ * linux/drivers/ide/pci/pdcadma.c		Version 0.05	Sept 10, 2002
  *
  * Copyright (C) 1999-2000		Andre Hedrick <andre@linux-ide.org>
  * May be copied or modified under the terms of the GNU General Public License
@@ -161,5 +161,3 @@ module_exit(pdcadma_ide_exit);
 MODULE_AUTHOR("Andre Hedrick");
 MODULE_DESCRIPTION("PCI driver module for PDCADMA IDE");
 MODULE_LICENSE("GPL");
-
-EXPORT_NO_SYMBOLS;

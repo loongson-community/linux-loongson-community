@@ -1,5 +1,5 @@
 /*
- * linux/drivers/ide/hpt34x.c		Version 0.40	Sept 10, 2002
+ * linux/drivers/ide/pci/hpt34x.c		Version 0.40	Sept 10, 2002
  *
  * Copyright (C) 1998-2000	Andre Hedrick <andre@linux-ide.org>
  * May be copied or modified under the terms of the GNU General Public License
@@ -362,5 +362,3 @@ module_exit(hpt34x_ide_exit);
 MODULE_AUTHOR("Andre Hedrick");
 MODULE_DESCRIPTION("PCI driver module for Highpoint 34x IDE");
 MODULE_LICENSE("GPL");
-
-EXPORT_NO_SYMBOLS;

@@ -222,7 +222,7 @@ static void set_ioapic_affinity (unsigned int irq, unsigned long mask)
 # endif
 
 extern unsigned long irq_affinity [NR_IRQS];
-unsigned long __cacheline_aligned irq_balance_mask [NR_IRQS];
+int __cacheline_aligned pending_irq_balance_apicid [NR_IRQS];
 static int irqbalance_disabled __initdata = 0;
 static int physical_balance = 0;
 
@@ -441,7 +441,7 @@ tryanotherirq:
 		Dprintk("irq = %d moved to cpu = %d\n", selected_irq, min_loaded);
 		/* mark for change destination */
 		spin_lock(&desc->lock);
-		irq_balance_mask[selected_irq] = target_cpu_mask;
+		pending_irq_balance_apicid[selected_irq] = cpu_to_logical_apicid(min_loaded);
 		spin_unlock(&desc->lock);
 		/* Since we made a change, come back sooner to 
 		 * check for more variation.
@@ -500,7 +500,7 @@ static inline void balance_irq (int cpu, int irq)
 	if (cpu != new_cpu) {
 		irq_desc_t *desc = irq_desc + irq;
 		spin_lock(&desc->lock);
-		irq_balance_mask[irq] = cpu_to_logical_apicid(new_cpu);
+		pending_irq_balance_apicid[irq] = cpu_to_logical_apicid(new_cpu);
 		spin_unlock(&desc->lock);
 	}
 }
@@ -515,7 +515,7 @@ int balanced_irq(void *unused)
 	
 	/* push everything to CPU 0 to give us a starting point.  */
 	for (i = 0 ; i < NR_IRQS ; i++)
-		irq_balance_mask[i] = 1 << 0;
+		pending_irq_balance_apicid[i] = cpu_to_logical_apicid(0);
 	for (;;) {
 		set_current_state(TASK_INTERRUPTIBLE);
 		time_remaining = schedule_timeout(time_remaining);
@@ -580,9 +580,9 @@ static void set_ioapic_affinity (unsigned int irq, unsigned long mask);
 static inline void move_irq(int irq)
 {
 	/* note - we hold the desc->lock */
-	if (unlikely(irq_balance_mask[irq])) {
-		set_ioapic_affinity(irq, irq_balance_mask[irq]);
-		irq_balance_mask[irq] = 0;
+	if (unlikely(pending_irq_balance_apicid[irq])) {
+		set_ioapic_affinity(irq, pending_irq_balance_apicid[irq]);
+		pending_irq_balance_apicid[irq] = 0;
 	}
 }
 
@@ -1745,25 +1745,25 @@ static void mask_and_ack_level_ioapic_irq (unsigned int irq) { /* nothing */ }
  */
 
 static struct hw_interrupt_type ioapic_edge_irq_type = {
-	"IO-APIC-edge",
-	startup_edge_ioapic_irq,
-	shutdown_edge_ioapic_irq,
-	enable_edge_ioapic_irq,
-	disable_edge_ioapic_irq,
-	ack_edge_ioapic_irq,
-	end_edge_ioapic_irq,
-	set_ioapic_affinity,
+	.typename 	= "IO-APIC-edge",
+	.startup 	= startup_edge_ioapic_irq,
+	.shutdown 	= shutdown_edge_ioapic_irq,
+	.enable 	= enable_edge_ioapic_irq,
+	.disable 	= disable_edge_ioapic_irq,
+	.ack 		= ack_edge_ioapic_irq,
+	.end 		= end_edge_ioapic_irq,
+	.set_affinity 	= set_ioapic_affinity,
 };
 
 static struct hw_interrupt_type ioapic_level_irq_type = {
-	"IO-APIC-level",
-	startup_level_ioapic_irq,
-	shutdown_level_ioapic_irq,
-	enable_level_ioapic_irq,
-	disable_level_ioapic_irq,
-	mask_and_ack_level_ioapic_irq,
-	end_level_ioapic_irq,
-	set_ioapic_affinity,
+	.typename 	= "IO-APIC-level",
+	.startup 	= startup_level_ioapic_irq,
+	.shutdown 	= shutdown_level_ioapic_irq,
+	.enable 	= enable_level_ioapic_irq,
+	.disable 	= disable_level_ioapic_irq,
+	.ack 		= mask_and_ack_level_ioapic_irq,
+	.end 		= end_level_ioapic_irq,
+	.set_affinity 	= set_ioapic_affinity,
 };
 
 static inline void init_IO_APIC_traps(void)
@@ -1821,26 +1821,14 @@ static void ack_lapic_irq (unsigned int irq)
 static void end_lapic_irq (unsigned int i) { /* nothing */ }
 
 static struct hw_interrupt_type lapic_irq_type = {
-	"local-APIC-edge",
-	NULL, /* startup_irq() not used for IRQ0 */
-	NULL, /* shutdown_irq() not used for IRQ0 */
-	enable_lapic_irq,
-	disable_lapic_irq,
-	ack_lapic_irq,
-	end_lapic_irq
+	.typename 	= "local-APIC-edge",
+	.startup 	= NULL, /* startup_irq() not used for IRQ0 */
+	.shutdown 	= NULL, /* shutdown_irq() not used for IRQ0 */
+	.enable 	= enable_lapic_irq,
+	.disable 	= disable_lapic_irq,
+	.ack 		= ack_lapic_irq,
+	.end 		= end_lapic_irq
 };
-
-void enable_NMI_through_LVT0 (void * dummy)
-{
-	unsigned int v, ver;
-
-	ver = apic_read(APIC_LVR);
-	ver = GET_APIC_VERSION(ver);
-	v = APIC_DM_NMI;			/* unmask and set to NMI */
-	if (!APIC_INTEGRATED(ver))		/* 82489DX */
-		v |= APIC_LVT_LEVEL_TRIGGER;
-	apic_write_around(APIC_LVT0, v);
-}
 
 static void setup_nmi (void)
 {

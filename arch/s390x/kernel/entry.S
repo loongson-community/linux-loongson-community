@@ -280,6 +280,12 @@ sys_clone_glue:
         la      %r2,SP_PTREGS(%r15)    # load pt_regs
         jg      sys_clone              # branch to sys_clone
 
+#ifdef CONFIG_S390_SUPPORT
+sys32_clone_glue: 
+        la      %r2,SP_PTREGS(%r15)    # load pt_regs
+        jg      sys32_clone            # branch to sys32_clone
+#endif
+
 sys_fork_glue:  
         la      %r2,SP_PTREGS(%r15)    # load pt_regs
         jg      sys_fork               # branch to sys_fork
@@ -511,7 +517,7 @@ sys_call_table:
         .long  SYSCALL(sys_ipc,sys32_ipc_wrapper)
         .long  SYSCALL(sys_fsync,sys32_fsync_wrapper)
         .long  SYSCALL(sys_sigreturn_glue,sys32_sigreturn_glue)
-        .long  SYSCALL(sys_clone_glue,sys_clone_glue) /* 120 */
+        .long  SYSCALL(sys_clone_glue,sys32_clone_glue) /* 120 */
         .long  SYSCALL(sys_setdomainname,sys32_setdomainname_wrapper)
         .long  SYSCALL(s390x_newuname,sys32_newuname_wrapper)
         .long  SYSCALL(sys_ni_syscall,sys_ni_syscall) /* modify_ldt for i386 */
@@ -643,8 +649,9 @@ sys_call_table:
 	.long  SYSCALL(sys_epoll_create,sys_ni_syscall)
 	.long  SYSCALL(sys_epoll_ctl,sys_ni_syscall)
 	.long  SYSCALL(sys_epoll_wait,sys_ni_syscall)
-	.long  SYSCALL(sys_set_tid_address,sys_ni_syscall)
-        .rept  255-252
+	.long  SYSCALL(sys_set_tid_address,sys32_set_tid_address_wrapper)
+	.long  SYSCALL(sys_fadvise64,sys_ni_syscall)
+        .rept  255-253
 	.long  SYSCALL(sys_ni_syscall,sys_ni_syscall)
 	.endr
 
@@ -781,8 +788,8 @@ io_int_handler:
         GET_THREAD_INFO                # load pointer to task_struct to R9
         la      %r2,SP_PTREGS(%r15)    # address of register-save area
 	llgh    %r3,__LC_SUBCHANNEL_NR # load subchannel number
-        llgf    %r4,__LC_IO_INT_PARM   # load interuption parm
-        llgf    %r5,__LC_IO_INT_WORD   # load interuption word
+        llgf    %r4,__LC_IO_INT_PARM   # load interruption parm
+        llgf    %r5,__LC_IO_INT_WORD   # load interruption word
 	brasl   %r14,do_IRQ            # call standard irq handler
 
 io_return:

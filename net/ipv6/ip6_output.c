@@ -134,7 +134,7 @@ int ip6_output(struct sk_buff *skb)
 
 
 #ifdef CONFIG_NETFILTER
-static int route6_me_harder(struct sk_buff *skb)
+int ip6_route_me_harder(struct sk_buff *skb)
 {
 	struct ipv6hdr *iph = skb->nh.ipv6h;
 	struct dst_entry *dst;
@@ -152,7 +152,7 @@ static int route6_me_harder(struct sk_buff *skb)
 
 	if (dst->error) {
 		if (net_ratelimit())
-			printk(KERN_DEBUG "route6_me_harder: No more route.\n");
+			printk(KERN_DEBUG "ip6_route_me_harder: No more route.\n");
 		return -EINVAL;
 	}
 
@@ -168,13 +168,13 @@ static inline int ip6_maybe_reroute(struct sk_buff *skb)
 {
 #ifdef CONFIG_NETFILTER
 	if (skb->nfcache & NFC_ALTERED){
-		if (route6_me_harder(skb) != 0){
+		if (ip6_route_me_harder(skb) != 0){
 			kfree_skb(skb);
 			return -EINVAL;
 		}
 	}
 #endif /* CONFIG_NETFILTER */
-	return skb->dst->output(skb);
+	return dst_output(skb);
 }
 
 /*
@@ -722,7 +722,7 @@ int ip6_call_ra_chain(struct sk_buff *skb, int sel)
 
 static inline int ip6_forward_finish(struct sk_buff *skb)
 {
-	return skb->dst->output(skb);
+	return dst_output(skb);
 }
 
 int ip6_forward(struct sk_buff *skb)

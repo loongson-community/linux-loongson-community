@@ -38,11 +38,37 @@
 #define X86_VENDOR_ID	CPU_PARAMS+28
 
 /*
+ * Initialize page tables
+ */
+#define INIT_PAGE_TABLES \
+	movl $pg0 - __PAGE_OFFSET, %edi; \
+	/* "007" doesn't mean with license to kill, but	PRESENT+RW+USER */ \
+	movl $007, %eax; \
+2:	stosl; \
+	add $0x1000, %eax; \
+	cmp $empty_zero_page - __PAGE_OFFSET, %edi; \
+	jne 2b;
+
+/*
  * swapper_pg_dir is the main page directory, address 0x00101000
  *
  * On entry, %esi points to the real-mode code as a 32-bit pointer.
  */
-startup_32:
+ENTRY(startup_32)
+
+#ifdef CONFIG_X86_VISWS
+/*
+ * On SGI Visual Workstations boot CPU starts in protected mode.
+ */
+	orw %bx, %bx
+	jnz 1f
+	INIT_PAGE_TABLES
+	movl $swapper_pg_dir - __PAGE_OFFSET, %eax
+	movl %eax, %cr3
+	lgdt boot_gdt
+1:
+#endif
+
 /*
  * Set segments to known values
  */
@@ -79,17 +105,7 @@ startup_32:
 	jmp 3f
 1:
 #endif
-/*
- * Initialize page tables
- */
-	movl $pg0-__PAGE_OFFSET,%edi /* initialize page tables */
-	movl $007,%eax		/* "007" doesn't mean with license to kill, but
-				   PRESENT+RW+USER */
-2:	stosl
-	add $0x1000,%eax
-	cmp $empty_zero_page-__PAGE_OFFSET,%edi
-	jne 2b
-
+	INIT_PAGE_TABLES
 /*
  * Enable paging
  */
@@ -412,7 +428,7 @@ ENTRY(_stext)
 /*
  * The Global Descriptor Table contains 28 quadwords, per-CPU.
  */
-#ifdef CONFIG_SMP
+#if defined(CONFIG_SMP) || defined(CONFIG_X86_VISWS)
 /*
  * The boot_gdt_table must mirror the equivalent in setup.S and is
  * used only by the trampoline for booting other CPUs
@@ -459,6 +475,13 @@ ENTRY(cpu_gdt_table)
 	.quad 0x00409a0000000000	/* 0xb8 APM CS    code */
 	.quad 0x00009a0000000000	/* 0xc0 APM CS 16 code (16 bit) */
 	.quad 0x0040920000000000	/* 0xc8 APM DS    data */
+
+	.quad 0x0000000000000000	/* 0xd0 - unused */
+	.quad 0x0000000000000000	/* 0xd8 - unused */
+	.quad 0x0000000000000000	/* 0xe0 - unused */
+	.quad 0x0000000000000000	/* 0xe8 - unused */
+	.quad 0x0000000000000000	/* 0xf0 - unused */
+	.quad 0x0000000000000000	/* 0xf8 - GDT entry 31: double-fault TSS */
 
 #if CONFIG_SMP
 	.fill (NR_CPUS-1)*GDT_ENTRIES,8,0 /* other CPU's GDT */

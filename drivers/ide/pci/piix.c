@@ -1,5 +1,5 @@
 /*
- *  linux/drivers/ide/piix.c		Version 0.42	January 11, 2003
+ *  linux/drivers/ide/pci/piix.c	Version 0.42	January 11, 2003
  *
  *  Copyright (C) 1998-1999 Andrzej Krzysztofowicz, Author and Maintainer
  *  Copyright (C) 1998-2000 Andre Hedrick <andre@linux-ide.org>
@@ -821,5 +821,3 @@ module_exit(piix_ide_exit);
 MODULE_AUTHOR("Andre Hedrick, Andrzej Krzysztofowicz");
 MODULE_DESCRIPTION("PCI driver module for Intel PIIX IDE");
 MODULE_LICENSE("GPL");
-
-EXPORT_NO_SYMBOLS;

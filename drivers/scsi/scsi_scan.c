@@ -84,6 +84,7 @@ struct dev_info scsi_static_device_list[] __initdata = {
 	{"NEC", "CD-ROM DRIVE:841", "1.0", BLIST_NOLUN},/* locks up */
 	{"PHILIPS", "PCA80SC", "V4-2", BLIST_NOLUN},	/* responds to all lun */
 	{"RODIME", "RO3000S", "2.33", BLIST_NOLUN},	/* locks up */
+	{"SUN", "SENA", NULL, BLIST_NOLUN},		/* responds to all luns */
 	/*
 	 * The following causes a failed REQUEST SENSE on lun 1 for
 	 * aha152x controller, which causes SCSI code to reset bus.
@@ -128,6 +129,7 @@ struct dev_info scsi_static_device_list[] __initdata = {
 	{"MITSUMI", "CD-R CR-2201CS", "6119", BLIST_NOLUN},	/* locks up */
 	{"RELISYS", "Scorpio", NULL, BLIST_NOLUN},	/* responds to all lun */
 	{"MICROTEK", "ScanMaker II", "5.61", BLIST_NOLUN},	/* responds to all lun */
+	{"NEC", "D3856", "0009", BLIST_NOLUN},
 
 	/*
 	 * Other types of devices that have special flags.
@@ -362,62 +364,6 @@ static void print_inquiry(unsigned char *inq_result)
 		printk(" CCS\n");
 	else
 		printk("\n");
-}
-
-u64 scsi_calculate_bounce_limit(struct Scsi_Host *shost)
-{
-	if (shost->highmem_io) {
-		struct device *host_dev = scsi_get_device(shost);
-
-		if (PCI_DMA_BUS_IS_PHYS && host_dev && host_dev->dma_mask)
-			return *host_dev->dma_mask;
-
-		/*
-		 * Platforms with virtual-DMA translation
- 		 * hardware have no practical limit.
-		 */
-		return BLK_BOUNCE_ANY;
-	} else if (shost->unchecked_isa_dma)
-		return BLK_BOUNCE_ISA;
-
-	return BLK_BOUNCE_HIGH;
-}
-
-static request_queue_t *scsi_alloc_queue(struct Scsi_Host *shost)
-{
-	request_queue_t *q;
-
-	q = kmalloc(sizeof(*q), GFP_ATOMIC);
-	if (!q)
-		return NULL;
-	memset(q, 0, sizeof(*q));
-
-	if (!shost->max_sectors) {
-		/*
-		 * Driver imposes no hard sector transfer limit.
-		 * start at machine infinity initially.
-		 */
-		shost->max_sectors = SCSI_DEFAULT_MAX_SECTORS;
-	}
-
-	blk_init_queue(q, scsi_request_fn, shost->host_lock);
-	blk_queue_prep_rq(q, scsi_prep_fn);
-
-	blk_queue_max_hw_segments(q, shost->sg_tablesize);
-	blk_queue_max_phys_segments(q, MAX_PHYS_SEGMENTS);
-	blk_queue_max_sectors(q, shost->max_sectors);
-	blk_queue_bounce_limit(q, scsi_calculate_bounce_limit(shost));
-
-	if (!shost->use_clustering)
-		clear_bit(QUEUE_FLAG_CLUSTER, &q->queue_flags);
-
-	return q;
-}
-
-static void scsi_free_queue(request_queue_t *q)
-{
-	blk_cleanup_queue(q);
-	kfree(q);
 }
 
 /**

@@ -1,5 +1,5 @@
 /*
- *  linux/drivers/ide/opti621.c		Version 0.7	Sept 10, 2002
+ *  linux/drivers/ide/pci/opti621.c		Version 0.7	Sept 10, 2002
  *
  *  Copyright (C) 1996-1998  Linus Torvalds & authors (see below)
  */
@@ -399,5 +399,3 @@ module_exit(opti621_ide_exit);
 MODULE_AUTHOR("Jaromir Koutek, Jan Harkes, Mark Lord");
 MODULE_DESCRIPTION("PCI driver module for Opti621 IDE");
 MODULE_LICENSE("GPL");
-
-EXPORT_NO_SYMBOLS;

@@ -215,6 +215,14 @@ M:	Juergen Fischer <fischer@norbit.de>
 L:	linux-scsi@vger.kernel.org
 S:	Maintained
 
+ALCATEL SPEEDTOUCH USB DRIVER
+P:	Duncan Sands
+M:	duncan.sands@wanadoo.fr
+L:	linux-usb-users@lists.sourceforge.net
+L:	linux-usb-devel@lists.sourceforge.net
+W:	http://www.linux-usb.org/SpeedTouch/
+S:	Maintained
+
 ALPHA PORT
 P:	Richard Henderson
 M:	rth@twiddle.net
@@ -266,6 +274,13 @@ P:	Jonathan Layes
 L:	linux-net@vger.kernel.org
 S:	Maintained
 
+ATM
+P:	Chas Williams
+M:	chas@cmf.nrl.navy.mil
+L:	linux-atm-general@lists.sourceforge.net
+W:	http://linux-atm.sourceforge.net
+S:	Maintained
+
 AX.25 NETWORK LAYER
 P:	Ralf Baechle
 M:	ralf@linux-mips.org
@@ -307,6 +322,15 @@ P:	Marcel Holtmann
 M:	marcel@holtmann.org
 W:	http://www.holtmann.org/linux/bluetooth/
 S:	Maintained
+
+BONDING DRIVER
+P:   Chad Tindel
+M:   ctindel@users.sourceforge.net
+P:   Jay Vosburgh
+M:   fubar@us.ibm.com
+L:   bonding-devel@lists.sourceforge.net
+W:   http://sourceforge.net/projects/bonding/
+S:   Supported
 
 BTTV VIDEO4LINUX DRIVER
 P:	Gerd Knorr
@@ -1238,6 +1262,8 @@ P:	Alexey Kuznetsov
 M:	kuznet@ms2.inr.ac.ru
 P:	Pekka Savola (ipv6)
 M:	pekkas@netcore.fi
+P:	James Morris
+M:	jmorris@intercode.com.au
 L:	netdev@oss.sgi.com
 S:	Maintained
 
@@ -1572,11 +1598,11 @@ W:	http://www.weinigel.se
 S:	Supported
 
 SGI VISUAL WORKSTATION 320 AND 540
-P:	Bent Hagemark
-M:	bh@sgi.com
-P:	Ingo Molnar
-M:	mingo@redhat.com
-S:	Maintained
+P:	Andrey Panin
+M:	pazke@orbita1.ru
+L:	linux-visws@lists.sf.net
+W:	http://linux-visws.sf.net
+S:	Maintained for 2.5.
 
 SIS 5513 IDE CONTROLLER DRIVER
 P:	Lionel Bouton

@@ -66,12 +66,7 @@ void release_task(struct task_struct * p)
  
 	BUG_ON(p->state < TASK_ZOMBIE);
  
-	if (p != current)
-		wait_task_inactive(p);
-
 	atomic_dec(&p->user->processes);
-	security_task_free(p);
-	free_uid(p->user);
 	write_lock_irq(&tasklist_lock);
 	if (unlikely(p->ptrace))
 		__ptrace_unlink(p);
@@ -435,32 +430,6 @@ void exit_fs(struct task_struct *tsk)
 }
 
 /*
- * We can use these to temporarily drop into
- * "lazy TLB" mode and back.
- */
-struct mm_struct * start_lazy_tlb(void)
-{
-	struct mm_struct *mm = current->mm;
-	current->mm = NULL;
-	/* active_mm is still 'mm' */
-	atomic_inc(&mm->mm_count);
-	enter_lazy_tlb(mm, current, smp_processor_id());
-	return mm;
-}
-
-void end_lazy_tlb(struct mm_struct *mm)
-{
-	struct mm_struct *active_mm = current->active_mm;
-
-	current->mm = mm;
-	if (mm != active_mm) {
-		current->active_mm = mm;
-		activate_mm(active_mm, mm);
-	}
-	mmdrop(active_mm);
-}
-
-/*
  * Turn us into a lazy TLB process if we
  * aren't already..
  */
@@ -700,13 +669,19 @@ static void exit_notify(struct task_struct *tsk)
 
 	tsk->state = TASK_ZOMBIE;
 	/*
-	 * No need to unlock IRQs, we'll schedule() immediately
-	 * anyway. In the preemption case this also makes it
-	 * impossible for the task to get runnable again (thus
-	 * the "_raw_" unlock - to make sure we don't try to
-	 * preempt here).
+	 * In the preemption case it must be impossible for the task
+	 * to get runnable again, so use "_raw_" unlock to keep
+	 * preempt_count elevated until we schedule().
+	 *
+	 * To avoid deadlock on SMP, interrupts must be unmasked.  If we
+	 * don't, subsequently called functions (e.g, wait_task_inactive()
+	 * via release_task()) will spin, with interrupt flags
+	 * unwittingly blocked, until the other task sleeps.  That task
+	 * may itself be waiting for smp_call_function() to answer and
+	 * complete, and with interrupts blocked that will never happen.
 	 */
 	_raw_write_unlock(&tasklist_lock);
+	local_irq_enable();
 }
 
 NORET_TYPE void do_exit(long code)
@@ -741,6 +716,7 @@ NORET_TYPE void do_exit(long code)
 	__exit_files(tsk);
 	__exit_fs(tsk);
 	exit_namespace(tsk);
+	exit_itimers(tsk);
 	exit_thread();
 
 	if (tsk->leader)
@@ -752,7 +728,6 @@ NORET_TYPE void do_exit(long code)
 
 	tsk->exit_code = code;
 	exit_notify(tsk);
-	preempt_disable();
 
 	if (tsk->exit_signal == -1)
 		release_task(tsk);

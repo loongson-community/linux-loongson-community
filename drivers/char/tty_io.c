@@ -156,6 +156,9 @@ extern void tub3270_init(void);
 extern void uart_console_init(void);
 extern void sgi_serial_console_init(void);
 extern void sci_console_init(void);
+extern void m68328_console_init(void);
+extern void mcfrs_console_init(void);
+extern void rs_360_init(void);
 extern void dec_serial_console_init(void);
 extern void tx3912_console_init(void);
 extern void tx3912_rs_init(void);
@@ -218,11 +221,11 @@ inline int tty_paranoia_check(struct tty_struct *tty, kdev_t device,
 		"Warning: null TTY for (%s) in %s\n";
 
 	if (!tty) {
-		printk(badtty, kdevname(device), routine);
+		printk(badtty, cdevname(device), routine);
 		return 1;
 	}
 	if (tty->magic != TTY_MAGIC) {
-		printk(badmagic, kdevname(device), routine);
+		printk(badmagic, cdevname(device), routine);
 		return 1;
 	}
 #endif
@@ -236,9 +239,8 @@ static int check_tty_count(struct tty_struct *tty, const char *routine)
 	int count = 0;
 	
 	file_list_lock();
-	for(p = tty->tty_files.next; p != &tty->tty_files; p = p->next) {
-		if(list_entry(p, struct file, f_list)->private_data == tty)
-			count++;
+	list_for_each(p, &tty->tty_files) {
+		count++;
 	}
 	file_list_unlock();
 	if (tty->driver.type == TTY_DRIVER_TYPE_PTY &&
@@ -248,7 +250,7 @@ static int check_tty_count(struct tty_struct *tty, const char *routine)
 	if (tty->count != count) {
 		printk(KERN_WARNING "Warning: dev (%s) tty->count(%d) "
 				    "!= #fd's(%d) in %s\n",
-		       kdevname(tty->device), tty->count, count, routine);
+		       cdevname(tty->device), tty->count, count, routine);
 		return count;
        }	
 #endif
@@ -293,6 +295,10 @@ static int tty_set_ldisc(struct tty_struct *tty, int ldisc)
 
 	if (tty->ldisc.num == ldisc)
 		return 0;	/* We are already in the desired discipline */
+
+	if (!try_module_get(ldiscs[ldisc].owner))
+	       	return -EINVAL;
+	
 	o_ldisc = tty->ldisc;
 
 	tty_wait_until_sent(tty, 0);
@@ -307,9 +313,13 @@ static int tty_set_ldisc(struct tty_struct *tty, int ldisc)
 	if (tty->ldisc.open)
 		retval = (tty->ldisc.open)(tty);
 	if (retval < 0) {
+		module_put(tty->ldisc.owner);
+		
 		tty->ldisc = o_ldisc;
 		tty->termios->c_line = tty->ldisc.num;
 		if (tty->ldisc.open && (tty->ldisc.open(tty) < 0)) {
+			module_put(tty->ldisc.owner);
+
 			tty->ldisc = ldiscs[N_TTY];
 			tty->termios->c_line = N_TTY;
 			if (tty->ldisc.open) {
@@ -321,7 +331,10 @@ static int tty_set_ldisc(struct tty_struct *tty, int ldisc)
 					      tty_name(tty, buf), r);
 			}
 		}
+	} else {
+		module_put(o_ldisc.owner);
 	}
+	
 	if (tty->ldisc.num != o_ldisc.num && tty->driver.set_ldisc)
 		tty->driver.set_ldisc(tty);
 	return retval;
@@ -434,8 +447,8 @@ void do_tty_hangup(void *data)
 {
 	struct tty_struct *tty = (struct tty_struct *) data;
 	struct file * cons_filp = NULL;
+	struct file *filp;
 	struct task_struct *p;
-	struct list_head *l;
 	struct pid *pid;
 	int    closecount = 0, n;
 
@@ -447,15 +460,7 @@ void do_tty_hangup(void *data)
 	
 	check_tty_count(tty, "do_tty_hangup");
 	file_list_lock();
-	for (l = tty->tty_files.next; l != &tty->tty_files; l = l->next) {
-		struct file * filp = list_entry(l, struct file, f_list);
-		/*
-		 * If this file descriptor has been closed, ignore it; it
-		 * will be going away shortly. (We don't test filp->f_count
-		 * for zero since that could open another race.) --rmk
-		 */
-		if (filp->private_data == NULL)
-			continue;
+	list_for_each_entry(filp, &tty->tty_files, f_list) {
 		if (IS_CONSOLE_DEV(filp->f_dentry->d_inode->i_rdev) ||
 		    IS_SYSCONS_DEV(filp->f_dentry->d_inode->i_rdev)) {
 			cons_filp = filp;
@@ -497,6 +502,8 @@ void do_tty_hangup(void *data)
 	if (tty->ldisc.num != ldiscs[N_TTY].num) {
 		if (tty->ldisc.close)
 			(tty->ldisc.close)(tty);
+		module_put(tty->ldisc.owner);
+		
 		tty->ldisc = ldiscs[N_TTY];
 		tty->termios->c_line = N_TTY;
 		if (tty->ldisc.open) {
@@ -508,7 +515,8 @@ void do_tty_hangup(void *data)
 	}
 	
 	read_lock(&tasklist_lock);
-	if (tty->session > 0)
+	if (tty->session > 0) {
+		struct list_head *l;
 		for_each_task_pid(tty->session, PIDTYPE_SID, p, l, pid) {
 			if (p->tty == tty)
 				p->tty = NULL;
@@ -519,6 +527,7 @@ void do_tty_hangup(void *data)
 			if (tty->pgrp > 0)
 				p->tty_old_pgrp = tty->pgrp;
 		}
+	}
 	read_unlock(&tasklist_lock);
 
 	tty->flags = 0;
@@ -1089,24 +1098,24 @@ static void release_dev(struct file * filp)
 #ifdef TTY_PARANOIA_CHECK
 	if (idx < 0 || idx >= tty->driver.num) {
 		printk(KERN_DEBUG "release_dev: bad idx when trying to "
-				  "free (%s)\n", kdevname(tty->device));
+				  "free (%s)\n", cdevname(tty->device));
 		return;
 	}
 	if (tty != tty->driver.table[idx]) {
 		printk(KERN_DEBUG "release_dev: driver.table[%d] not tty "
-				  "for (%s)\n", idx, kdevname(tty->device));
+				  "for (%s)\n", idx, cdevname(tty->device));
 		return;
 	}
 	if (tty->termios != tty->driver.termios[idx]) {
 		printk(KERN_DEBUG "release_dev: driver.termios[%d] not termios "
 		       "for (%s)\n",
-		       idx, kdevname(tty->device));
+		       idx, cdevname(tty->device));
 		return;
 	}
 	if (tty->termios_locked != tty->driver.termios_locked[idx]) {
 		printk(KERN_DEBUG "release_dev: driver.termios_locked[%d] not "
 		       "termios_locked for (%s)\n",
-		       idx, kdevname(tty->device));
+		       idx, cdevname(tty->device));
 		return;
 	}
 #endif
@@ -1121,20 +1130,20 @@ static void release_dev(struct file * filp)
 		if (o_tty != tty->driver.other->table[idx]) {
 			printk(KERN_DEBUG "release_dev: other->table[%d] "
 					  "not o_tty for (%s)\n",
-			       idx, kdevname(tty->device));
+			       idx, cdevname(tty->device));
 			return;
 		}
 		if (o_tty->termios != tty->driver.other->termios[idx]) {
 			printk(KERN_DEBUG "release_dev: other->termios[%d] "
 					  "not o_termios for (%s)\n",
-			       idx, kdevname(tty->device));
+			       idx, cdevname(tty->device));
 			return;
 		}
 		if (o_tty->termios_locked != 
 		      tty->driver.other->termios_locked[idx]) {
 			printk(KERN_DEBUG "release_dev: other->termios_locked["
 					  "%d] not o_termios_locked for (%s)\n",
-			       idx, kdevname(tty->device));
+			       idx, cdevname(tty->device));
 			return;
 		}
 		if (o_tty->link != tty) {
@@ -1218,14 +1227,16 @@ static void release_dev(struct file * filp)
 	}
 
 	/*
-	 * We've decremented tty->count, so we should zero out
-	 * filp->private_data, to break the link between the tty and
-	 * the file descriptor.  Otherwise if filp_close() blocks before
-	 * the file descriptor is removed from the inuse_filp
-	 * list, check_tty_count() could observe a discrepancy and
-	 * printk a warning message to the user.
+	 * We've decremented tty->count, so we need to remove this file
+	 * descriptor off the tty->tty_files list; this serves two
+	 * purposes:
+	 *  - check_tty_count sees the correct number of file descriptors
+	 *    associated with this tty.
+	 *  - do_tty_hangup no longer sees this file descriptor as
+	 *    something that needs to be handled for hangups.
 	 */
-	filp->private_data = 0;
+	file_kill(filp);
+	filp->private_data = NULL;
 
 	/*
 	 * Perform some housekeeping before deciding whether to return.
@@ -1275,11 +1286,14 @@ static void release_dev(struct file * filp)
 	 */
 	if (tty->ldisc.close)
 		(tty->ldisc.close)(tty);
+	module_put(tty->ldisc.owner);
+	
 	tty->ldisc = ldiscs[N_TTY];
 	tty->termios->c_line = N_TTY;
 	if (o_tty) {
 		if (o_tty->ldisc.close)
 			(o_tty->ldisc.close)(o_tty);
+		module_put(o_tty->ldisc.owner);
 		o_tty->ldisc = ldiscs[N_TTY];
 	}
 	
@@ -2270,6 +2284,15 @@ void __init console_init(void)
 #endif
 #ifdef CONFIG_ARC_CONSOLE
 	arc_console_init();
+#endif
+#ifdef CONFIG_SERIAL_68328
+	m68328_console_init();
+#endif
+#ifdef CONFIG_SERIAL_COLDFIRE
+	mcfrs_console_init();
+#endif
+#ifdef CONFIG_SERIAL_68360
+	rs_360_init();
 #endif
 #ifdef CONFIG_SERIAL_TX3912_CONSOLE
 	tx3912_console_init();

@@ -22,6 +22,7 @@ obj-$(CONFIG_SUPERH) += setup-bus.o setup-irq.o
 obj-$(CONFIG_PPC32) += setup-irq.o
 obj-$(CONFIG_SGI_IP27) += setup-irq.o
 obj-$(CONFIG_SGI_IP32) += setup-irq.o
+obj-$(CONFIG_X86_VISWS) += setup-irq.o
 
 # CompactPCI hotplug requires the pbus_* functions
 ifdef CONFIG_HOTPLUG_PCI_CPCI

@@ -1,5 +1,5 @@
 /*
- *  linux/drivers/ide/slc90e66.c	Version 0.11	September 11, 2002
+ *  linux/drivers/ide/pci/slc90e66.c	Version 0.11	September 11, 2002
  *
  *  Copyright (C) 2000-2002 Andre Hedrick <andre@linux-ide.org>
  *
@@ -403,5 +403,3 @@ module_exit(slc90e66_ide_exit);
 MODULE_AUTHOR("Andre Hedrick");
 MODULE_DESCRIPTION("PCI driver module for SLC90E66 IDE");
 MODULE_LICENSE("GPL");
-
-EXPORT_NO_SYMBOLS;

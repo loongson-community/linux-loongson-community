@@ -1921,7 +1921,7 @@ asmlinkage int sys32_personality(unsigned long personality)
 	return ret;
 }
 
-/* Handle adjtimex compatability. */
+/* Handle adjtimex compatibility. */
 
 struct timex32 {
 	u32 modes;

@@ -1,5 +1,5 @@
 /*
- * linux/drivers/ide/cs5530.c		Version 0.7	Sept 10, 2002
+ * linux/drivers/ide/pci/cs5530.c		Version 0.7	Sept 10, 2002
  *
  * Copyright (C) 2000			Andre Hedrick <andre@linux-ide.org>
  * Ditto of GNU General Public License.
@@ -9,6 +9,9 @@
  *
  * Development of this chipset driver was funded
  * by the nice folks at National Semiconductor.
+ *
+ * Documentation:
+ *	CS5530 documentation available from National Semiconductor.
  */
 
 #include <linux/config.h>
@@ -456,5 +459,3 @@ module_exit(cs5530_ide_exit);
 MODULE_AUTHOR("Mark Lord");
 MODULE_DESCRIPTION("PCI driver module for Cyrix/NS 5530 IDE");
 MODULE_LICENSE("GPL");
-
-EXPORT_NO_SYMBOLS;

@@ -77,6 +77,7 @@ struct resource_list {
 #define IORESOURCE_MEM_8BIT		(0<<3)
 #define IORESOURCE_MEM_16BIT		(1<<3)
 #define IORESOURCE_MEM_8AND16BIT	(2<<3)
+#define IORESOURCE_MEM_32BIT		(3<<3)
 #define IORESOURCE_MEM_SHADOWABLE	(1<<5)	/* dup: IORESOURCE_SHADOWABLE */
 #define IORESOURCE_MEM_EXPANSIONROM	(1<<6)
 
@@ -110,8 +111,5 @@ extern struct resource * __request_region(struct resource *, unsigned long start
 
 extern int __deprecated __check_region(struct resource *, unsigned long, unsigned long);
 extern void __release_region(struct resource *, unsigned long, unsigned long);
-
-#define get_ioport_list(buf)	get_resource_list(&ioport_resource, buf, PAGE_SIZE)
-#define get_mem_list(buf)	get_resource_list(&iomem_resource, buf, PAGE_SIZE)
 
 #endif	/* _LINUX_IOPORT_H */

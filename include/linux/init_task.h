@@ -62,6 +62,7 @@
 {									\
 	.state		= 0,						\
 	.thread_info	= &init_thread_info,				\
+	.usage		= ATOMIC_INIT(2),				\
 	.flags		= 0,						\
 	.lock_depth	= -1,						\
 	.prio		= MAX_PRIO-20,					\
@@ -98,6 +99,7 @@
 	.sighand	= &init_sighand,				\
 	.pending	= { NULL, &tsk.pending.head, {{0}}},		\
 	.blocked	= {{0}},					\
+	 .posix_timers	 = LIST_HEAD_INIT(tsk.posix_timers),		   \
 	.alloc_lock	= SPIN_LOCK_UNLOCKED,				\
 	.switch_lock	= SPIN_LOCK_UNLOCKED,				\
 	.journal_info	= NULL,						\

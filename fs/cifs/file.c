@@ -137,6 +137,46 @@ cifs_open(struct inode *inode, struct file *file)
 	return rc;
 }
 
+/* Try to reaquire byte range locks that were released when session */
+/* to server was lost */
+int relock_files(struct cifsFileInfo * cifsFile)
+{
+	int rc = 0;
+
+/* list all locks open on this file */
+	return rc;
+}
+
+/* Try to reopen files that were closed when session to server was lost */
+int reopen_files(struct cifsTconInfo * pTcon, struct nls_table * nlsinfo)
+{
+	int rc = 0;
+	struct cifsFileInfo *open_file = NULL;
+	struct list_head *tmp;
+
+/* list all files open on tree connection */
+	list_for_each(tmp, &pTcon->openFileList) {            
+		open_file = list_entry(tmp,struct cifsFileInfo, flist);
+		if(open_file)
+			if(open_file->pfile) {
+				if(open_file->pfile->private_data) {
+					kfree(open_file->pfile->private_data);
+				}
+				rc = cifs_open(open_file->pfile->f_dentry->d_inode,
+						  open_file->pfile);
+				if(rc) {
+					cFYI(1,("reconnecting file %s failed with %d",
+							open_file->pfile->f_dentry->d_name.name,rc));
+				} else {
+					cFYI(1,("reconnection of %s succeeded",
+							open_file->pfile->f_dentry->d_name.name));
+				}
+			}
+	}
+
+	return rc;
+}
+
 int
 cifs_close(struct inode *inode, struct file *file)
 {
@@ -423,6 +463,7 @@ cifs_partialpagewrite(struct page *page,unsigned from, unsigned to)
 	return rc;
 }
 
+#if 0
 static int
 cifs_writepages(struct address_space *mapping, struct writeback_control *wbc)
 {
@@ -434,6 +475,7 @@ cifs_writepages(struct address_space *mapping, struct writeback_control *wbc)
 	FreeXid(xid);
 	return rc;
 }
+#endif
 
 static int
 cifs_writepage(struct page* page, struct writeback_control *wbc)
@@ -635,7 +677,7 @@ static void cifs_copy_cache_pages(struct address_space *mapping,
 		}
 
 		page_cache_get(page);
-		target = kmap(page);
+		target = kmap_atomic(page,KM_USER0);
 
 		if(PAGE_CACHE_SIZE > bytes_read) {
 			memcpy(target,data,bytes_read);
@@ -649,7 +691,7 @@ static void cifs_copy_cache_pages(struct address_space *mapping,
 			__pagevec_lru_add(plru_pvec);
 		flush_dcache_page(page);
 		SetPageUptodate(page);
-		kunmap(page);
+		kunmap_atomic(page,KM_USER0);
 		unlock_page(page);
 		page_cache_release(page);
 		data += PAGE_CACHE_SIZE;
@@ -1049,18 +1091,29 @@ cifs_readdir(struct file *file, void *direntry, filldir_t filldir)
 		file->f_pos++;
 		/* fallthrough */
 	case 2:
-		/* Should we first check if file->private_data is null? */
-		rc = CIFSFindFirst(xid, pTcon, full_path, pfindData,
+		/* do not reallocate search handle if rewind */
+		if(file->private_data == NULL) {
+			rc = CIFSFindFirst(xid, pTcon, full_path, pfindData,
 				   &findParms, cifs_sb->local_nls,
 				   &Unicode, &UnixSearch);
-		cFYI(1,
-		     ("Count: %d  End: %d ", findParms.SearchCount,
-		      findParms.EndofSearch));
+			cFYI(1,
+			     ("Count: %d  End: %d ", findParms.SearchCount,
+			      findParms.EndofSearch));
+		} else {
+			cFYI(1,("Search rewinding on %s",full_path));
+			goto readdir_rewind;
+		}
 
 		if (rc == 0) {
 			searchHandle = findParms.SearchHandle;
-			file->private_data =
-			    kmalloc(sizeof (struct cifsFileInfo), GFP_KERNEL);
+			if(file->private_data == NULL)
+				file->private_data =
+				    kmalloc(sizeof(struct cifsFileInfo),
+					 GFP_KERNEL);
+			else {
+				/* BB close search handle */
+				cFYI(1,("Search rewinding on %s",full_path));
+			}
 			if (file->private_data) {
 				memset(file->private_data, 0,
 				       sizeof (struct cifsFileInfo));
@@ -1144,7 +1197,9 @@ cifs_readdir(struct file *file, void *direntry, filldir_t filldir)
 			rc = 0;	/* unless parent directory disappeared - do not return error here (eg Access Denied or no more files) */
 		}
 		break;
+readdir_rewind:
 	default:
+		/* BB rewrite eventually to better handle rewind */
 		if (file->private_data == NULL) {
 			rc = -EBADF;
 			cFYI(1,

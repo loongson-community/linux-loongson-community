@@ -217,7 +217,7 @@ static int aac_detect(Scsi_Host_Template *template)
 			host_ptr->irq = dev->irq;		/* Adapter IRQ number */
 			/* host_ptr->base = ( char * )(dev->resource[0].start & ~0xff); */
 			host_ptr->base = dev->resource[0].start;
-			scsi_set_pci_device(host_ptr, dev);
+			scsi_set_device(host_ptr, &dev->dev);
 			dprintk((KERN_DEBUG "Device base address = 0x%lx [0x%lx].\n", host_ptr->base, dev->resource[0].start));
 			dprintk((KERN_DEBUG "Device irq = 0x%x.\n", dev->irq));
 			/*
@@ -734,5 +734,3 @@ static int aac_procinfo(char *proc_buffer, char **start_ptr,off_t offset,
 	*start_ptr = proc_buffer;
 	return sprintf(proc_buffer, "%s  %d\n", "Raid Controller, scsi hba number", host_no);
 }
-
-EXPORT_NO_SYMBOLS;

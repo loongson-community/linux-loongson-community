@@ -76,21 +76,31 @@ cifs_reconnect(struct TCP_Server_Info *server)
 	int rc = 0;
 	struct list_head *tmp;
 	struct cifsSesInfo *ses;
+	struct cifsTconInfo *tcon;
 
 	server->tcpStatus = CifsNeedReconnect;
 	server->maxBuf = 0;
 
 	cFYI(1, ("Reconnecting tcp session "));
 
+	/* before reconnecting the tcp session, mark the smb session (uid)
+		and the tid bad so they are not used until reconnected */
 	read_lock(&GlobalSMBSeslock);
 	list_for_each(tmp, &GlobalSMBSessionList) {
 		ses = list_entry(tmp, struct cifsSesInfo, cifsSessionList);
 		if (ses->server) {
 			if (ses->server == server) {
 				ses->status = CifsNeedReconnect;
+				ses->ipc_tid = 0;
 			}
 		}
 		/* else tcp and smb sessions need reconnection */
+	}
+	list_for_each(tmp, &GlobalTreeConnectionList) {
+		tcon = list_entry(tmp, struct cifsTconInfo, cifsConnectionList);
+		if(tcon->ses->server == server) {
+			tcon->tidStatus = CifsNeedReconnect;
+		}
 	}
 	read_unlock(&GlobalSMBSeslock);
 
@@ -112,6 +122,7 @@ cifs_reconnect(struct TCP_Server_Info *server)
 			schedule_timeout(3 * HZ);
 		} else {
 			server->tcpStatus = CifsGood;
+			wake_up(&server->response_q);
 		}
 	}
 
@@ -174,15 +185,12 @@ cifs_demultiplex_thread(struct TCP_Server_Info *server)
 				csocket = server->ssocket;
 				continue;
 			} else { /* find define for the -512 returned at unmount time */
-				cFYI(1,
-				       ("Received error on sock_recvmsg( peek) with length = %d",
+				cFYI(1,("Error on sock_recvmsg(peek) length = %d",
 					length)); 
 			}
 			break;
-		}
-		if (length == 0) {
-			cFYI(1,
-			     ("Zero length peek received - dead session?"));
+		} else if (length == 0) {
+			cFYI(1,("Zero length peek received - dead session?"));
 			cifs_reconnect(server);
 			csocket = server->ssocket;
 			continue;
@@ -437,6 +445,10 @@ parse_mount_options(char *options, char *devname, struct smb_vol *vol)
 			printk(KERN_WARNING "CIFS: Unknown mount option %s\n",data);
 	}
 	if (vol->UNC == NULL) {
+		if(devname == NULL) {
+			printk(KERN_WARNING "CIFS: Missing UNC name for mount target\n");
+			return 1;
+		}
 		if (strnlen(devname, 300) < 300) {
 			vol->UNC = devname;
 			if (strncmp(vol->UNC, "//", 2) == 0) {
@@ -507,8 +519,7 @@ find_unc(__u32 new_target_ip_addr, char *uncName, char *userName)
 	/* BB lock tcon and server and tcp session and increment use count here? */
 					/* found a match on the TCP session */
 					/* BB check if reconnection needed */
-					cFYI(1,
-					     ("Matched ip, old UNC: %s == new: %s ?",
+					cFYI(1,("Matched ip, old UNC: %s == new: %s ?",
 					      tcon->treeName, uncName));
 					if (strncmp
 					    (tcon->treeName, uncName,
@@ -855,9 +866,9 @@ cifs_mount(struct super_block *sb, struct cifs_sb_info *cifs_sb,
 					FreeXid(xid);
 					return -ENODEV;
 				} else {
-					rc = CIFSTCon(xid, pSesInfo,
-						      volume_info.UNC,
-						      tcon, cifs_sb->local_nls);
+					rc = CIFSTCon(xid, pSesInfo, 
+						volume_info.UNC,
+						tcon, cifs_sb->local_nls);
 					cFYI(1, ("CIFS Tcon rc = %d", rc));
 				}
 				if (!rc)
@@ -882,7 +893,7 @@ cifs_mount(struct super_block *sb, struct cifs_sb_info *cifs_sb,
 					if (pSesInfo->Suid)
 						CIFSSMBLogoff(xid, pSesInfo);
 					if(pSesInfo->server->tsk)
-						send_sig(SIGINT,pSesInfo->server->tsk,1);
+						send_sig(SIGKILL,pSesInfo->server->tsk,1);
 					else
 						cFYI(1,("Can not wake captive thread on cleanup of failed mount"));
 					set_current_state(TASK_INTERRUPTIBLE);
@@ -2196,6 +2207,7 @@ CIFSTCon(unsigned int xid, struct cifsSesInfo *ses,
 	/* if (rc) rc = map_smb_to_linux_error(smb_buffer_response); */
 	/* above now done in SendReceive */
 	if ((rc == 0) && (tcon != NULL)) {
+        tcon->tidStatus = CifsGood;
 		tcon->tid = smb_buffer_response->Tid;
 		bcc_ptr = pByteArea(smb_buffer_response);
 		length = strnlen(bcc_ptr, BCC(smb_buffer_response) - 2);
@@ -2270,7 +2282,7 @@ cifs_umount(struct super_block *sb, struct cifs_sb_info *cifs_sb)
 			schedule_timeout(HZ / 4);	/* give captive thread time to exit */
 			if((ses->server) && (ses->server->ssocket)) {            
 				cFYI(1,("Waking up socket by sending it signal "));
-				send_sig(SIGINT,ses->server->tsk,1);
+				send_sig(SIGKILL,ses->server->tsk,1);
 			}
 		} else
 			cFYI(1, ("No session or bad tcon"));
@@ -2280,11 +2292,6 @@ cifs_umount(struct super_block *sb, struct cifs_sb_info *cifs_sb)
 	if (ses) {
 		set_current_state(TASK_INTERRUPTIBLE);
 		schedule_timeout(HZ / 2);
-		/* if ((ses->server) && (ses->server->ssocket)) {
-               cFYI(1,("Releasing socket "));        
-               sock_release(ses->server->ssocket); 
-               kfree(ses->server); 
-          } */ 
 	}
 	if (ses)
 		sesInfoFree(ses);
