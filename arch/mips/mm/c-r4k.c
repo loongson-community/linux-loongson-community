@@ -34,6 +34,23 @@ static unsigned long scache_size, sc_lsize;	/* S-cache parameters. */
 #include <asm/cacheops.h>
 #include <asm/r4kcache.h>
 
+extern void r4k_clear_page_d16(void * page);
+extern void r4k_clear_page_d32(void * page);
+extern void r4k_clear_page_r4600_v1(void * page);
+extern void r4k_clear_page_r4600_v2(void * page);
+extern void r4k_clear_page_s16(void * page);
+extern void r4k_clear_page_s32(void * page);
+extern void r4k_clear_page_s64(void * page);
+extern void r4k_clear_page_s128(void * page);
+extern void r4k_copy_page_d16(void * to, void * from);
+extern void r4k_copy_page_d32(void * to, void * from);
+extern void r4k_copy_page_r4600_v1(void * to, void * from);
+extern void r4k_copy_page_r4600_v2(void * to, void * from);
+extern void r4k_copy_page_s16(void * to, void * from);
+extern void r4k_copy_page_s32(void * to, void * from);
+extern void r4k_copy_page_s64(void * to, void * from);
+extern void r4k_copy_page_s128(void * to, void * from);
+
 /*
  * Dummy cache handling routines for machines without boardcaches
  */

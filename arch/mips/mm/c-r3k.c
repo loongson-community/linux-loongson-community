@@ -22,6 +22,9 @@
 #include <asm/bootinfo.h>
 #include <asm/cpu.h>
 
+void r3k_clear_page(void * page);
+void r3k_copy_page(void * to, void * from);
+
 static unsigned long icache_size, dcache_size;		/* Size in bytes */
 static unsigned long icache_lsize, dcache_lsize;	/* Size in bytes */
 

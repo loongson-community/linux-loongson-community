@@ -29,6 +29,9 @@
 #include <asm/cpu.h>
 #include <asm/mmu_context.h>
 
+extern void rm7k_clear_page(void * page);
+extern void rm7k_copy_page(void * to, void * from);
+
 /* Primary cache parameters. */
 static int icache_size, dcache_size; /* Size in bytes */
 static int icache_way_size, dcache_way_size; /* Size divided by ways */

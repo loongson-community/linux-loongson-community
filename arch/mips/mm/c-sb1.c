@@ -25,6 +25,9 @@
 #include <asm/cpu.h>
 #include <asm/uaccess.h>
 
+extern void sb1_clear_page(void * page);
+extern void sb1_copy_page(void * to, void * from);
+
 /* These are probed at ld_mmu time */
 static unsigned long icache_size;
 static unsigned long dcache_size;
