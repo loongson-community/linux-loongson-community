@@ -68,7 +68,7 @@ __asm__ (                                                               \
         ".size\t" #symbol",. - " #symbol)
 
 /* Used in declaration of save_static functions.  */
-#define unused __attribute__((unused))
+#define static_unused static __attribute__((unused))
 
 #define SAVE_SOME                                        \
 		.set	push;                            \

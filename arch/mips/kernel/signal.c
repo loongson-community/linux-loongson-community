@@ -77,7 +77,7 @@ int copy_siginfo_to_user(siginfo_t *to, siginfo_t *from)
  * Atomically swap in the new signal mask, and wait for a signal.
  */
 save_static_function(sys_sigsuspend);
-static unused int
+static_unused int
 _sys_sigsuspend(struct pt_regs regs)
 {
 	sigset_t *uset, saveset, newset;
@@ -105,7 +105,7 @@ _sys_sigsuspend(struct pt_regs regs)
 
 
 save_static_function(sys_rt_sigsuspend);
-static unused int
+static_unused int
 _sys_rt_sigsuspend(struct pt_regs regs)
 {
 	sigset_t *unewset, saveset, newset;
