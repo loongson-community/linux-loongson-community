@@ -107,11 +107,14 @@ static void __init r3k_probe_cache(void)
 static void r3k_flush_icache_range(unsigned long start, unsigned long end)
 {
 	unsigned long size, i, flags;
-	volatile unsigned char *p = (char *)start;
+	volatile unsigned char *p;
 
 	size = end - start;
-	if (size > icache_size)
+	if (size > icache_size || KSEGX(start) != KSEG0) {
+		start = KSEG0;
 		size = icache_size;
+	}
+	p = (char *)start;
 
 	flags = read_32bit_cp0_register(CP0_STATUS);
 
@@ -161,11 +164,14 @@ static void r3k_flush_icache_range(unsigned long start, unsigned long end)
 static void r3k_flush_dcache_range(unsigned long start, unsigned long end)
 {
 	unsigned long size, i, flags;
-	volatile unsigned char *p = (char *)start;
+	volatile unsigned char *p;
 
 	size = end - start;
-	if (size > dcache_size)
+	if (size > dcache_size || KSEGX(start) != KSEG0) {
+		start = KSEG0;
 		size = dcache_size;
+	}
+	p = (char *)start;
 
 	flags = read_32bit_cp0_register(CP0_STATUS);
 
