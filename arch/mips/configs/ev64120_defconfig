@@ -594,3 +594,4 @@ CONFIG_CMDLINE="console=ttyS0,115200 root=/dev/nfs rw nfsroot=192.168.1.1:/mnt/d
 # Library routines
 #
 # CONFIG_CRC32 is not set
+CONFIG_LIBCRC32C=m

@@ -2,7 +2,7 @@
  * compress.c - NTFS kernel compressed attributes handling.
  *		Part of the Linux-NTFS project.
  *
- * Copyright (c) 2001-2003 Anton Altaparmakov
+ * Copyright (c) 2001-2004 Anton Altaparmakov
  * Copyright (c) 2002 Richard Russon
  *
  * This program/include file is free software; you can redistribute it and/or
@@ -10,13 +10,13 @@
  * by the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  *
- * This program/include file is distributed in the hope that it will be 
- * useful, but WITHOUT ANY WARRANTY; without even the implied warranty 
+ * This program/include file is distributed in the hope that it will be
+ * useful, but WITHOUT ANY WARRANTY; without even the implied warranty
  * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program (in the main directory of the Linux-NTFS 
+ * along with this program (in the main directory of the Linux-NTFS
  * distribution in the file COPYING); if not, write to the Free Software
  * Foundation,Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
@@ -357,7 +357,7 @@ do_next_tag:
 			continue;
 		}
 
-		/* 
+		/*
 		 * We have a phrase token. Make sure it is not the first tag in
 		 * the sb as this is illegal and would confuse the code below.
 		 */
@@ -597,8 +597,9 @@ lock_retry_remap:
 			lcn = vcn_to_lcn(rl, vcn);
 		} else
 			lcn = (LCN)LCN_RL_NOT_MAPPED;
-		ntfs_debug("Reading vcn = 0x%Lx, lcn = 0x%Lx.",
-				(long long)vcn, (long long)lcn);
+		ntfs_debug("Reading vcn = 0x%llx, lcn = 0x%llx.",
+				(unsigned long long)vcn,
+				(unsigned long long)lcn);
 		if (lcn < 0) {
 			/*
 			 * When we reach the first sparse cluster we have
@@ -643,7 +644,7 @@ lock_retry_remap:
 			unlock_buffer(tbh);
 			continue;
 		}
-		atomic_inc(&tbh->b_count);
+		get_bh(tbh);
 		tbh->b_end_io = end_buffer_read_sync;
 		submit_bh(READ, tbh);
 	}
@@ -943,4 +944,3 @@ err_out:
 	kfree(pages);
 	return -EIO;
 }
-

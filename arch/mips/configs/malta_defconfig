@@ -615,3 +615,4 @@ CONFIG_CMDLINE=""
 # Library routines
 #
 CONFIG_CRC32=y
+CONFIG_LIBCRC32C=m

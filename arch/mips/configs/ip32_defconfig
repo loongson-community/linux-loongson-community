@@ -663,3 +663,4 @@ CONFIG_CMDLINE=""
 # Library routines
 #
 # CONFIG_CRC32 is not set
+# CONFIG_LIBCRC32C is not set

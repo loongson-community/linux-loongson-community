@@ -137,7 +137,8 @@ move_one_page(struct vm_area_struct *vma, unsigned long old_addr,
 				error = -ENOMEM;
 			pte_unmap_nested(src);
 		}
-		pte_unmap(dst);
+		if (dst)
+			pte_unmap(dst);
 	}
 	spin_unlock(&mm->page_table_lock);
 	pte_chain_free(pte_chain);
@@ -145,7 +146,7 @@ out:
 	return error;
 }
 
-static int move_page_tables(struct vm_area_struct *vma,
+static unsigned long move_page_tables(struct vm_area_struct *vma,
 	unsigned long new_addr, unsigned long old_addr, unsigned long len)
 {
 	unsigned long offset;

@@ -1702,11 +1702,22 @@ static int idedisk_cleanup (ide_drive_t *drive)
 
 static int idedisk_attach(ide_drive_t *drive);
 
+static void ide_device_shutdown(struct device *dev)
+{
+	ide_drive_t *drive = container_of(dev, ide_drive_t, gendev);
+
+	printk("Shutdown: %s\n", drive->name);
+	dev->bus->suspend(dev, PM_SUSPEND_STANDBY);
+}
+
 /*
  *      IDE subdriver functions, registered with ide.c
  */
 static ide_driver_t idedisk_driver = {
 	.owner			= THIS_MODULE,
+	.gen_driver = {
+		.shutdown	= ide_device_shutdown,
+	},
 	.name			= "ide-disk",
 	.version		= IDEDISK_VERSION,
 	.media			= ide_disk,
@@ -1729,11 +1740,11 @@ static ide_driver_t idedisk_driver = {
 
 static int idedisk_open(struct inode *inode, struct file *filp)
 {
+	u8 cf;
 	ide_drive_t *drive = inode->i_bdev->bd_disk->private_data;
 	drive->usage++;
 	if (drive->removable && drive->usage == 1) {
 		ide_task_t args;
-		u8 cf;
 		memset(&args, 0, sizeof(ide_task_t));
 		args.tfRegister[IDE_COMMAND_OFFSET] = WIN_DOORLOCK;
 		args.command_type = IDE_DRIVE_TASK_NO_DATA;
@@ -1746,23 +1757,26 @@ static int idedisk_open(struct inode *inode, struct file *filp)
 		 */
 		if (drive->doorlocking && ide_raw_taskfile(drive, &args, NULL))
 			drive->doorlocking = 0;
-		drive->wcache = 0;
-		/* Cache enabled ? */
-		if (drive->id->csfo & 1)
-		drive->wcache = 1;
-		/* Cache command set available ? */
-		if (drive->id->cfs_enable_1 & (1<<5))
-			drive->wcache = 1;
-		/* ATA6 cache extended commands */
-		cf = drive->id->command_set_2 >> 24;
-		if((cf & 0xC0) == 0x40 && (cf & 0x30) != 0)
-			drive->wcache = 1;
 	}
+	drive->wcache = 0;
+	/* Cache enabled? */
+	if (drive->id->csfo & 1)
+		drive->wcache = 1;
+	/* Cache command set available? */
+	if (drive->id->cfs_enable_1 & (1 << 5))
+		drive->wcache = 1;
+	/* ATA6 cache extended commands */
+	cf = drive->id->command_set_2 >> 24;
+	if ((cf & 0xC0) == 0x40 && (cf & 0x30) != 0)
+		drive->wcache = 1;
 	return 0;
 }
 
 static int ide_cacheflush_p(ide_drive_t *drive)
 {
+	if (!(drive->id->cfs_enable_2 & 0x3000))
+		return 0;
+
 	if(drive->wcache)
 	{
 		if (do_idedisk_flushcache(drive))
@@ -1779,6 +1793,8 @@ static int ide_cacheflush_p(ide_drive_t *drive)
 static int idedisk_release(struct inode *inode, struct file *filp)
 {
 	ide_drive_t *drive = inode->i_bdev->bd_disk->private_data;
+	if (drive->usage == 1)
+		ide_cacheflush_p(drive);
 	if (drive->removable && drive->usage == 1) {
 		ide_task_t args;
 		memset(&args, 0, sizeof(ide_task_t));
@@ -1788,7 +1804,6 @@ static int idedisk_release(struct inode *inode, struct file *filp)
 		if (drive->doorlocking && ide_raw_taskfile(drive, &args, NULL))
 			drive->doorlocking = 0;
 	}
-	ide_cacheflush_p(drive);
 	drive->usage--;
 	return 0;
 }

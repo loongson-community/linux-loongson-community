@@ -542,3 +542,4 @@ CONFIG_CMDLINE="ip=bootp ether=46,0x03fe0300,eth0"
 # Library routines
 #
 # CONFIG_CRC32 is not set
+CONFIG_LIBCRC32C=m
