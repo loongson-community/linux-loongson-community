@@ -41,6 +41,7 @@ struct cpuinfo_mips {
  */
 extern void (*cpu_wait)(void);	/* only available on R4[26]00 and R3081 */
 extern void r3081_wait(void);
+extern void r39xx_wait(void);
 extern void r4k_wait(void);
 extern char cyclecounter_available;	/* only available from R4000 upwards. */
 
