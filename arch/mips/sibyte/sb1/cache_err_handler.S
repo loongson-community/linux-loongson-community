@@ -15,6 +15,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
+#include <linux/config.h>
 
 #include <asm/asm.h>
 #include <asm/regdef.h>
@@ -39,8 +40,9 @@
 	mfc0	k1, $26				# mfc0	k1, $26, 0
 	# check if error was recoverable
 	# XXXKW - count them
-	bltz	k1,leave_cerr
+	bltz	k1, leave_cerr
 	 nop
+
 #ifdef CONFIG_SB1_PASS_1_WORKAROUNDS
 	# look for signature of spurious CErr
 	lui	k0, 0x4000
@@ -65,11 +67,11 @@ leave_cerr:
 	eret
 
 real_cerr:
-	mfc0	k0,CP0_CONFIG
-	li	k1,~CONF_CM_CMASK
-	and	k0,k0,k1
-	ori	k0,k0,CONF_CM_UNCACHED
-	mtc0	k0,CP0_CONFIG
+	mfc0	k0, CP0_CONFIG
+	li	k1, ~CONF_CM_CMASK
+	and	k0, k0, k1
+	ori	k0, k0, CONF_CM_UNCACHED
+	mtc0	k0, CP0_CONFIG
 	/* Give it a few cycles to sink in... */
 	sll     zero, zero, 0x1			# ssnop
 	sll     zero, zero, 0x1			# ssnop
