@@ -11,6 +11,7 @@
 #include <asm/system.h>
 #include <asm/hardirq.h>
 #include <asm/softirq.h>
+#include <asm/mmu_context.h>
 
 #ifdef CONFIG_SGI_IP27
 
@@ -68,12 +69,14 @@ static void smp_tune_scheduling (void)
 void __init smp_boot_cpus(void)
 {
 	extern void allowboot(void);
+	extern int maxcpus;
 
+	init_new_context(current, &init_mm);
 	global_irq_holder = 0;
 	current->processor = 0;
 	init_idle();
 	smp_tune_scheduling();
-	smp_num_cpus = 1;		/* for now */
+	smp_num_cpus = 1; /* maxcpus; */
 	allowboot();
 }
 

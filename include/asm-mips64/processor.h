@@ -38,6 +38,7 @@ struct cpuinfo_mips {
 	unsigned long pgtable_cache_sz;
 	unsigned long last_asn;
 	unsigned int irq_count, bh_count;
+	unsigned long asid_cache;
 #if defined(CONFIG_SGI_IP27)
 	cnodeid_t	p_nodeid;	/* my node ID in compact-id-space */
 	nasid_t		p_nasid;	/* my node ID in numa-as-id-space */

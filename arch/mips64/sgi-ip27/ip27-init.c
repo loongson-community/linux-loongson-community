@@ -17,6 +17,7 @@
 #include <asm/current.h>
 #include <asm/smp.h>
 #include <asm/processor.h>
+#include <asm/mmu_context.h>
 #include <asm/sn/launch.h>
 #include <asm/sn/sn_private.h>
 #include <asm/sn/sn0/ip27.h>
@@ -317,6 +318,7 @@ void per_cpu_init(void)
 	cpuid_t cpu = getcpuid();
 	cnodeid_t cnode = get_compact_nodeid();
 
+	current_cpu_data.asid_cache = ASID_FIRST_VERSION;
 #if 0
 	intr_init();
 #endif

@@ -32,8 +32,6 @@
 
 extern void die(char *, struct pt_regs *, unsigned long write);
 
-unsigned long asid_cache = ASID_FIRST_VERSION;
-
 /*
  * Macro for exception fixup code to access integer registers.
  */
