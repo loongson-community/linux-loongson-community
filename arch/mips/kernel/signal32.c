@@ -28,7 +28,7 @@
 #include <asm/fpu.h>
 
 /*
- * Including <asm/unistd.h would give use the 64-bit syscall numbers ...
+ * Including <asm/unistd.h> would give use the 64-bit syscall numbers ...
  */
 #define __NR_O32_sigreturn		4119
 #define __NR_O32_rt_sigreturn		4193
