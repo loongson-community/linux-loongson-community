@@ -679,17 +679,16 @@ extern __inline__ int find_next_zero_bit (void * addr, int size, int offset)
  */
 static inline unsigned long ffz(unsigned long word)
 {
-	unsigned long k;
+	int b = 0, s;
 
 	word = ~word;
-	k = 31;
-	if (word & 0x0000ffffUL) { k -= 16; word <<= 16; }
-	if (word & 0x00ff0000UL) { k -= 8;  word <<= 8;  }
-	if (word & 0x0f000000UL) { k -= 4;  word <<= 4;  }
-	if (word & 0x30000000UL) { k -= 2;  word <<= 2;  }
-	if (word & 0x40000000UL) { k -= 1; }
+	s = 16; if (word >> 16 == 0) s = 0; b += s; word >>= s;
+	s =  8; if (word >>  8 == 0) s = 0; b += s; word >>= s;
+	s =  4; if (word >>  4 == 0) s = 0; b += s; word >>= s;
+	s =  2; if (word >>  2 == 0) s = 0; b += s; word >>= s;
+	s =  1; if (word >>  1 == 0) s = 0; b += s;
 
-	return k;
+	return b;
 }
 
 

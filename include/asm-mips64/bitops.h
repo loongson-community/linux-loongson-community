@@ -393,18 +393,17 @@ static inline int find_next_zero_bit (void * addr, int size, int offset)
  */
 static inline unsigned long ffz(unsigned long word)
 {
-	unsigned long k;
+	int b = 0, s;
 
 	word = ~word;
-	k = 63;
-	if (word & 0x00000000ffffffffUL) { k -= 32; word <<= 32; }
-	if (word & 0x0000ffff00000000UL) { k -= 16; word <<= 16; }
-	if (word & 0x00ff000000000000UL) { k -= 8;  word <<= 8;  }
-	if (word & 0x0f00000000000000UL) { k -= 4;  word <<= 4;  }
-	if (word & 0x3000000000000000UL) { k -= 2;  word <<= 2;  }
-	if (word & 0x4000000000000000UL) { k -= 1; }
+	s = 32; if (word >> 32 == 0) s = 0; b += s; word >>= s;
+	s = 16; if (word >> 16 == 0) s = 0; b += s; word >>= s;
+	s =  8; if (word >>  8 == 0) s = 0; b += s; word >>= s;
+	s =  4; if (word >>  4 == 0) s = 0; b += s; word >>= s;
+	s =  2; if (word >>  2 == 0) s = 0; b += s; word >>= s;
+	s =  1; if (word >>  1 == 0) s = 0; b += s;
 
-	return k;
+	return b;
 }
 
 #ifdef __KERNEL__
