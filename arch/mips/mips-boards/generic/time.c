@@ -29,6 +29,10 @@
 #include <linux/kernel_stat.h>
 #include <linux/sched.h>
 #include <linux/spinlock.h>
+#include <linux/interrupt.h>
+#include <linux/time.h>
+#include <linux/timex.h>
+#include <linux/mc146818rtc.h>
 
 #include <asm/mipsregs.h>
 #include <asm/ptrace.h>
@@ -36,11 +40,6 @@
 #include <asm/div64.h>
 #include <asm/cpu.h>
 #include <asm/time.h>
-
-#include <linux/interrupt.h>
-#include <linux/mc146818rtc.h>
-#include <linux/time.h>
-#include <linux/timex.h>
 
 #include <asm/mips-boards/generic.h>
 #include <asm/mips-boards/prom.h>
