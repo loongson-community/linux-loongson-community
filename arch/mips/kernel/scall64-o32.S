@@ -479,8 +479,8 @@ sys_call_table:
 	PTR	sys_set_tid_address	
 	PTR	sys_restart_syscall	
 	PTR	sys_fadvise64_64	
-	PTR	sys_statfs64			/* 4255 */
-	PTR	sys_fstatfs64		
+	PTR	compat_statfs64			/* 4255 */
+	PTR	compat_fstatfs64		
 	PTR	sys_timer_create	
 	PTR	compat_timer_settime	
 	PTR	compat_timer_gettime	
