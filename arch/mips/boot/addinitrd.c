@@ -3,7 +3,7 @@
  *
  * (C) 1999 Thomas Bogendoerfer
  * minor modifications, cleanup: Guido Guenther <agx@sigxcpu.org>
- *
+ * further cleanup: Maciej W. Rozycki
  */
 
 #include <sys/types.h>
@@ -81,9 +81,9 @@ int main (int argc, char *argv[])
 	}
 
 	/* make sure we have an empty data segment for the initrd */
-	if( eaout.dsize || esecs[1].s_size ) {
-		fprintf(2,"Data segment not empty. Giving up!");
-		exit(1);
+	if (eaout.dsize || esecs[1].s_size) {
+		fprintf (stderr, "Data segment not empty. Giving up!\n");
+		exit (1);
 	}
 	if ((fd_initrd = open (argv[2], O_RDONLY)) < 0)
 		die ("open initrd");
