@@ -23,7 +23,20 @@ if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
    bool '  Support for SGI-IP22 (Indy/Indigo2)' CONFIG_SGI_IP22
    bool '  Support for SGI-IP32 (O2)' CONFIG_SGI_IP32
 fi
-bool '  Support for SiByte SWARM board' CONFIG_SIBYTE_SWARM
+bool 'Support for SiByte SB1250 SOC' CONFIG_SIBYTE_SB1250
+if [ "$CONFIG_SIBYTE_SB1250" = "y" ]; then
+   bool '  Support for SB1250 onchip PCI controller' CONFIG_PCI
+   bool '  Support for SB1250 profiling - SB1/SCD perf counters' CONFIG_SIBYTE_SB1250_PROF
+   bool '  Support for BCM1250 profiling using trace buffer' CONFIG_BCM1250_TBPROF
+   bool '  Remote debugging (kgdb over UART 1)' CONFIG_REMOTE_DEBUG
+   bool '  Support for SiByte SWARM board' CONFIG_SIBYTE_SWARM
+   if [ "$CONFIG_SIBYTE_SWARM" = "y" ]; then
+      bool '    Running under simulation' CONFIG_SIMULATION
+      bool '    Configure for L3proc Demo' CONFIG_L3DEMO
+      int '      Maximum memory chunks' CONFIG_SIBYTE_SWARM_MAX_MEM_REGIONS 16
+      bool '      Multi-Processing support' CONFIG_SMP
+   fi
+fi
 
 if [ "$CONFIG_SGI_IP27" = "y" ]; then
    bool '  IP27 N-Mode' CONFIG_SGI_SN0_N_MODE
@@ -34,9 +47,6 @@ if [ "$CONFIG_SGI_IP27" = "y" ]; then
    bool '  Exception handler replication support' CONFIG_REPLICATE_EXHANDLERS
    bool '  Multi-Processing support' CONFIG_SMP
    #bool '  IP27 XXL' CONFIG_SGI_SN0_XXL
-fi
-if [ "$CONFIG_SIBYTE_SWARM" = "y" ]; then
-   bool '  Multi-Processing support' CONFIG_SMP
 fi
 endmenu
 
@@ -99,7 +109,7 @@ if [ "$CONFIG_SGI_IP32" = "y" ]; then
 fi
 
 if [ "$CONFIG_SIBYTE_SWARM" = "y" ]; then
-   define_bool CONFIG_BOOT_ELF64 y
+   define_bool CONFIG_BOOT_ELF32 y
    define_bool CONFIG_SWAP_IO_SPACE y
    define_bool CONFIG_CFE y
    define_bool CONFIG_SIBYTE_SB1250 y
