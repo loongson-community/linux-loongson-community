@@ -84,8 +84,6 @@ unsigned char num_bridges;	/* number of bridges in the system */
 extern asmlinkage void ip27_irq(void);
 
 extern int irq_to_bus[], irq_to_slot[], bus_to_cpu[];
-static int intr_connect_level(int cpu, int bit);
-static int intr_disconnect_level(int cpu, int bit);
 
 /*
  * There is a single intpend register per node, and we want to have
@@ -195,6 +193,73 @@ void ip27_do_irq(struct pt_regs *regs)
 	}
 }
 
+/*
+ * Get values that vary depending on which CPU and bit we're operating on.
+ */
+static hub_intmasks_t *intr_get_ptrs(cpuid_t cpu, int bit, int *new_bit,
+				hubreg_t **intpend_masks, int *ip)
+{
+	hub_intmasks_t *hub_intmasks;
+
+	hub_intmasks = &cpu_data[cpu].p_intmasks;
+	if (bit < N_INTPEND_BITS) {
+		*intpend_masks = hub_intmasks->intpend0_masks;
+		*ip = 0;
+		*new_bit = bit;
+	} else {
+		*intpend_masks = hub_intmasks->intpend1_masks;
+		*ip = 1;
+		*new_bit = bit - N_INTPEND_BITS;
+	}
+	return hub_intmasks;
+}
+
+static int intr_connect_level(int cpu, int bit)
+{
+	int ip;
+	int slice = cputoslice(cpu);
+	volatile hubreg_t *mask_reg;
+	hubreg_t *intpend_masks;
+	nasid_t nasid = COMPACT_TO_NASID_NODEID(cputocnode(cpu));
+
+	(void)intr_get_ptrs(cpu, bit, &bit, &intpend_masks, &ip);
+
+	/* Make sure it's not already pending when we connect it. */
+	REMOTE_HUB_CLR_INTR(nasid, bit + ip * N_INTPEND_BITS);
+
+	intpend_masks[0] |= (1ULL << (u64)bit);
+
+	if (ip == 0) {
+		mask_reg = REMOTE_HUB_ADDR(nasid, PI_INT_MASK0_A +
+				PI_INT_MASK_OFFSET * slice);
+	} else {
+		mask_reg = REMOTE_HUB_ADDR(nasid, PI_INT_MASK1_A +
+				PI_INT_MASK_OFFSET * slice);
+	}
+	HUB_S(mask_reg, intpend_masks[0]);
+	return(0);
+}
+
+static int intr_disconnect_level(int cpu, int bit)
+{
+	int ip;
+	int slice = cputoslice(cpu);
+	volatile hubreg_t *mask_reg;
+	hubreg_t *intpend_masks;
+	nasid_t nasid = COMPACT_TO_NASID_NODEID(cputocnode(cpu));
+
+	(void)intr_get_ptrs(cpu, bit, &bit, &intpend_masks, &ip);
+	intpend_masks[0] &= ~(1ULL << (u64)bit);
+	if (ip == 0) {
+		mask_reg = REMOTE_HUB_ADDR(nasid, PI_INT_MASK0_A +
+				PI_INT_MASK_OFFSET * slice);
+	} else {
+		mask_reg = REMOTE_HUB_ADDR(nasid, PI_INT_MASK1_A +
+				PI_INT_MASK_OFFSET * slice);
+	}
+	HUB_S(mask_reg, intpend_masks[0]);
+	return(0);
+}
 
 /* Startup one of the (PCI ...) IRQs routes over a bridge.  */
 static unsigned int startup_bridge_irq(unsigned int irq)
@@ -322,75 +387,6 @@ void __init init_IRQ(void)
 		irq_desc[i].handler	= &bridge_irq_type;
 	}
 }
-
-/*
- * Get values that vary depending on which CPU and bit we're operating on.
- */
-static hub_intmasks_t *intr_get_ptrs(cpuid_t cpu, int bit, int *new_bit,
-				hubreg_t **intpend_masks, int *ip)
-{
-	hub_intmasks_t *hub_intmasks;
-
-	hub_intmasks = &cpu_data[cpu].p_intmasks;
-	if (bit < N_INTPEND_BITS) {
-		*intpend_masks = hub_intmasks->intpend0_masks;
-		*ip = 0;
-		*new_bit = bit;
-	} else {
-		*intpend_masks = hub_intmasks->intpend1_masks;
-		*ip = 1;
-		*new_bit = bit - N_INTPEND_BITS;
-	}
-	return hub_intmasks;
-}
-
-int intr_connect_level(int cpu, int bit)
-{
-	int ip;
-	int slice = cputoslice(cpu);
-	volatile hubreg_t *mask_reg;
-	hubreg_t *intpend_masks;
-	nasid_t nasid = COMPACT_TO_NASID_NODEID(cputocnode(cpu));
-
-	(void)intr_get_ptrs(cpu, bit, &bit, &intpend_masks, &ip);
-
-	/* Make sure it's not already pending when we connect it. */
-	REMOTE_HUB_CLR_INTR(nasid, bit + ip * N_INTPEND_BITS);
-
-	intpend_masks[0] |= (1ULL << (u64)bit);
-
-	if (ip == 0) {
-		mask_reg = REMOTE_HUB_ADDR(nasid, PI_INT_MASK0_A +
-				PI_INT_MASK_OFFSET * slice);
-	} else {
-		mask_reg = REMOTE_HUB_ADDR(nasid, PI_INT_MASK1_A +
-				PI_INT_MASK_OFFSET * slice);
-	}
-	HUB_S(mask_reg, intpend_masks[0]);
-	return(0);
-}
-
-int intr_disconnect_level(int cpu, int bit)
-{
-	int ip;
-	int slice = cputoslice(cpu);
-	volatile hubreg_t *mask_reg;
-	hubreg_t *intpend_masks;
-	nasid_t nasid = COMPACT_TO_NASID_NODEID(cputocnode(cpu));
-
-	(void)intr_get_ptrs(cpu, bit, &bit, &intpend_masks, &ip);
-	intpend_masks[0] &= ~(1ULL << (u64)bit);
-	if (ip == 0) {
-		mask_reg = REMOTE_HUB_ADDR(nasid, PI_INT_MASK0_A +
-				PI_INT_MASK_OFFSET * slice);
-	} else {
-		mask_reg = REMOTE_HUB_ADDR(nasid, PI_INT_MASK1_A +
-				PI_INT_MASK_OFFSET * slice);
-	}
-	HUB_S(mask_reg, intpend_masks[0]);
-	return(0);
-}
-
 
 irqreturn_t handle_resched_intr(int irq, void *dev_id, struct pt_regs *regs)
 {
