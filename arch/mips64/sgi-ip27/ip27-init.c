@@ -205,6 +205,8 @@ void mlreset (void)
 	gen_region_mask(&region_mask, numnodes);
 	CNODEMASK_CLRALL(hub_init_mask);
 
+	setup_replication_mask(numnodes);
+
 	/*
 	 * Set all nodes' calias sizes to 8k
 	 */
@@ -410,6 +412,7 @@ void allowboot(void)
 	ecc_init();
 #endif
 
+	replicate_kernel_text(numnodes);
 	boot_barrier = boot_cpumask;
 	/* Launch slaves. */
 	for (cpu = 0; cpu < maxcpus; cpu++) {
