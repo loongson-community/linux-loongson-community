@@ -16,7 +16,7 @@ static inline void kb_wait(void)
 	do {
 		if (! (kbd_read_status() & 0x02))
 			return;
-	} time_before_eq(jiffies, timeout);
+	} while (time_before_eq(jiffies, timeout));
 }
 
 void jazz_machine_restart(char *command)
