@@ -430,7 +430,10 @@ source drivers/parport/Config.in
 
 source drivers/block/Config.in
 if [ "$CONFIG_BLK_DEV_INITRD" = "y" ]; then
+   mainmenu_option next_comment
+   comment 'MIPS initrd options'
    bool '  Embed root filesystem ramdisk into the kernel' CONFIG_EMBEDDED_RAMDISK 
+   endmenu
 fi
 
 source drivers/md/Config.in
