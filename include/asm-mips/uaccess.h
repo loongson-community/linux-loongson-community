@@ -233,7 +233,7 @@ struct __large_struct { unsigned long buf[100]; };
 
 #define __get_user_nocheck(x,ptr,size)					\
 ({									\
-	__typeof(*(ptr)) __gu_val = 0;					\
+	__typeof(*(ptr)) __gu_val =  (__typeof(*(ptr))) 0;		\
 	long __gu_err = 0;						\
 									\
 	might_sleep();							\
