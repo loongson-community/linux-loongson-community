@@ -6,7 +6,6 @@
  * Copyright (C) 1995, 1996, 1997, 2000, 2001 by Ralf Baechle
  * Copyright (C) 2001 MIPS Technologies, Inc.
  */
-#include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/linkage.h>
 #include <linux/mm.h>

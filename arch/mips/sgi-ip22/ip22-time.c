@@ -8,8 +8,6 @@
  *
  * Copyright (C) 2001 by Ladislav Michl 
  */
-
-#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
 #include <linux/kernel_stat.h>

@@ -1,5 +1,4 @@
 /*
- *
  * BRIEF MODULE DESCRIPTION
  *	IT8172/QED5231 board setup.
  *
@@ -27,14 +26,12 @@
  *  with this program; if not, write  to the Free Software Foundation, Inc.,
  *  675 Mass Ave, Cambridge, MA 02139, USA.
  */
-
 #include <linux/init.h>
 #include <linux/mm.h>
 #include <linux/sched.h>
 #include <linux/bootmem.h>
 #include <asm/addrspace.h>
 #include <asm/bootinfo.h>
-#include <linux/config.h>
 #include <linux/string.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>

@@ -1607,7 +1607,9 @@ do_sys32_msgsnd (int first, int second, int third, void *uptr)
 	if (!p)
 		return -ENOMEM;
 	err = get_user (p->mtype, &up->mtype);
-	err |= __copy_from_user (p->mtext, &up->mtext, second);
+	if (err)
+		goto out;
+	err = __copy_from_user (p->mtext, &up->mtext, second);
 	if (err)
 		goto out;
 	old_fs = get_fs ();

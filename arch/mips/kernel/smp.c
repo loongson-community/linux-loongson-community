@@ -18,7 +18,6 @@
  * Copyright (C) 2000, 2001 Silicon Graphics, Inc.
  * Copyright (C) 2000, 2001 Broadcom Corporation
  */ 
-#include <linux/config.h>
 #include <linux/cache.h>
 #include <linux/init.h>
 #include <linux/spinlock.h>

@@ -6,7 +6,6 @@
  * Copyright (C) 1996 David S. Miller (dm@sgi.com)
  * Compability with board caches, Ulf Carlsson
  */
-#include <linux/config.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <asm/sgialib.h>

@@ -3,7 +3,6 @@
  *
  * Based on the cobalt handler.
  */
-#include <linux/config.h>
 #include <asm/asm.h>
 #include <asm/mipsregs.h>
 #include <asm/addrspace.h>

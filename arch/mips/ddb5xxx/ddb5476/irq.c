@@ -9,7 +9,6 @@
  * Author: Jun Sun, jsun@mvista.com or jsun@junsun.net
  *
  */
-#include <linux/config.h>
 #include <linux/init.h>
 #include <linux/sched.h>
 #include <linux/types.h>
