@@ -37,17 +37,15 @@
 	#.set	mips64
 	.set	mips4
 	.set	reorder
-#ifdef CONFIG_SB1_CERR_IGNORE_RECOVERABLE
 	mfc0	k1, $26				# mfc0	k1, $26, 0
 	# check if error was recoverable
 	# XXXKW - count them
 	bltz	k1, leave_cerr
-#endif
 #ifdef CONFIG_SB1_PASS_1_WORKAROUNDS
 	# look for signature of spurious CErr
 	lui	k0, 0x4000
 	bne	k0, k1, real_cerr
-	.word	0x401Bd801			# mfc0	k1, $27, 1
+	mfc0	k1, $27, 1
 	lui	k0, 0xffe0
 	and	k1, k0, k1
 	lui	k0, 0x0200
@@ -56,11 +54,6 @@
 #endif
 
 real_cerr:
-#ifdef CONFIG_SB1_CERR_SPIN
-        setleds(k0,k1,'C','E','R','R')
-
-1:	b	1b
-#else
 	mfc0	k0,CP0_CONFIG
 	li	k1,~CONF_CM_CMASK
 	and	k0,k0,k1
@@ -74,17 +67,14 @@ real_cerr:
 	bnezl	$0, 1f
 1:
 	j	sb1_cache_error
-#endif
 
-#if defined(CONFIG_SB1_PASS_1_WORKAROUNDS) || defined(CONFIG_SB1_CERR_IGNORE_RECOVERABLE)
 leave_cerr:
 	# clear/unlock the registers
-	mtc0	zero, $26			# mtc0	zero, $26, 0
-	mtc0	zero, $27			# mtc0	zero, $27, 0
-	.word	0x4080d801			# mtc0	zero, $27, 1
-	.word	0x4080d803			# mtc0	zero, $27, 3
+	mtc0	zero, $26, 0
+	mtc0	zero, $27, 0
+	mtc0	zero, $27, 1
+	mtc0	zero, $27, 3
 	eret
-#endif
 
 	.set	pop
 	END(except_vec2_sb1)
