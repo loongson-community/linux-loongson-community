@@ -59,8 +59,8 @@ SECTIONS
    . = ALIGN(4096);
    __rd_start = .;
    *(.initrd)
-   __rd_end = .;
    . = ALIGN(4096);
+   __rd_end = .;
 
     CONSTRUCTORS
   }
