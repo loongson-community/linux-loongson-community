@@ -406,7 +406,7 @@ asmlinkage void do_notify_resume(struct pt_regs *regs, sigset_t *oldset,
 	/* deal with pending signal delivery */
 	if (thread_info_flags & _TIF_SIGPENDING) {
 #ifdef CONFIG_BINFMT_ELF32
-		if (likely((current->thread.mflags & MF_32BIT))) {
+		if (likely((current->thread.mflags & MF_32BIT_REGS))) {
 			do_signal32(oldset, regs);
 			return;
 		}
