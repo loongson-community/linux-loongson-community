@@ -58,6 +58,13 @@ do {									\
 	/*if (dev->bus->number)			 */			\
 	/*	return PCIBIOS_DEVICE_NOT_FOUND; */			\
 									\
+	if (dev->vendor == PCI_VENDOR_ID_SGI				\
+	    && dev->device == PCI_DEVICE_ID_SGI_IOC3			\
+	    && ((where >= 0x14 && where < 0x40) || (where >= 0x48))) {	\
+		*value = 0;						\
+		return PCIBIOS_SUCCESSFUL;				\
+	}								\
+									\
 	__bit = (((where) & (bm)) << 3);				\
 	addr = &bridge->b_type0_cfg_dev[slot].f[fn].l[where >> 2];	\
 	if (get_dbe(cf, addr))						\
@@ -100,7 +107,8 @@ do {									\
 	/* 	return PCIBIOS_DEVICE_NOT_FOUND; */			\
 									\
 	if (dev->vendor == PCI_VENDOR_ID_SGI				\
-	    && dev->device == PCI_DEVICE_ID_SGI_IOC3)			\
+	    && dev->device == PCI_DEVICE_ID_SGI_IOC3			\
+	    && ((where >= 0x14 && where < 0x40) || (where >= 0x48)))	\
 		return PCIBIOS_SUCCESSFUL;				\
 									\
 	__bit = (((where) & (bm)) << 3);				\
