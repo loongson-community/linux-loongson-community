@@ -5,7 +5,7 @@
 #define _TITAN_MDIO_H
 
 #include <linux/netdevice.h>
-#include <linux/tqueue.h>
+#include <linux/workqueue.h>
 #include <linux/delay.h>
 #include "titan_ge.h"
 
@@ -13,12 +13,13 @@
 #define	TITAN_GE_MDIO_ERROR	(-9000)
 #define	TITAN_GE_MDIO_GOOD	0
 
-#define	TITAN_GE_MDIO_BASE		TITAN_GE_BASE
+#define	TITAN_GE_MDIO_BASE		titan_ge_base
 
-#define	TITAN_GE_MDIO_READ(offset)	*(volatile u32 *)(TITAN_GE_MDIO_BASE + offset)
+#define	TITAN_GE_MDIO_READ(offset)	\
+	*(volatile u32 *)(titan_ge_base + (offset))
 
 #define	TITAN_GE_MDIO_WRITE(offset, data)	\
-					*(volatile u32 *)(TITAN_GE_MDIO_BASE + offset) = data
+	*(volatile u32 *)(titan_ge_base + (offset)) = (data)
 
 
 /* GMII specific registers */
@@ -38,8 +39,7 @@
 /*
  * MDIO Config Structure 
  */
-typedef struct 
-{
+typedef struct {
 	unsigned int		clka;
 	int			mdio_spre;
 	int			mdio_mode;
@@ -54,6 +54,3 @@ int titan_ge_mdio_read(int, int, unsigned int *);
 int titan_ge_mdio_write(int, int, unsigned int);
 
 #endif /* _TITAN_MDIO_H */
-		
-
-

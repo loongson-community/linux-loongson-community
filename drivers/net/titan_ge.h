@@ -20,16 +20,15 @@
  * register.
  */
 
-#ifdef CONFIG_MIPS64
-#define	TITAN_GE_BASE	0xfffffffffe000000
-#else
-#define	TITAN_GE_BASE	0xfe000000
-#endif
+#define	TITAN_GE_BASE	0xfe000000UL
+#define	TITAN_GE_SIZE	0x10000UL
+
+extern unsigned long titan_ge_base;
 
 #define	TITAN_GE_WRITE(offset, data) \
-		*(volatile u32 *)(TITAN_GE_BASE + offset) = data	
+		*(volatile u32 *)(titan_ge_base + (offset)) = (data)
 
-#define TITAN_GE_READ(offset) *(volatile u32 *)(TITAN_GE_BASE + offset)
+#define TITAN_GE_READ(offset) *(volatile u32 *)(titan_ge_base + (offset))
 
 #ifndef msec_delay
 #define msec_delay(x)   do { if(in_interrupt()) { \

@@ -131,6 +131,8 @@ int titan_ge_receive_queue(struct net_device *, unsigned int);
 /* MAC Address */
 extern unsigned char titan_ge_mac_addr_base[6];
 
+unsigned long titan_ge_base;
+
 /* 
  * The Titan GE has two alignment requirements:
  * -> skb->data to be cacheline aligned (32 byte)
@@ -403,42 +405,22 @@ static irqreturn_t titan_ge_int_handler(int irq, void *dev_id,
 
 	/* Ack the CPU interrupt */
 	if (port_num == 1) {
-#ifdef CONFIG_MIPS64
-		is = *(volatile u_int32_t *)(0xfffffffffb001b00);
-		*(volatile u_int32_t *)(0xfffffffffb001b0c) = is;
-#else
-                is = *(volatile u_int32_t *)(0xfb001b00);
-                *(volatile u_int32_t *)(0xfb001b0c) = is;
-#endif
+                is = *(volatile u_int32_t *)(titan_ge_base + 0x1b00);
+                *(volatile u_int32_t *)(titan_ge_base + 0x1b0c) = is;
 
 #ifdef CONFIG_SMP
-#ifdef CONFIG_MIPS64
-		is = *(volatile u_int32_t *)(0xfffffffffb002b00);
-		*(volatile u_int32_t *)(0xfffffffffb002b0c) = is;
-#else
-		is = *(volatile u_int32_t *)(0xfb002b00);
-		*(volatile u_int32_t *)(0xfb002b0c) = is;
-#endif
+		is = *(volatile u_int32_t *)(titan_ge_base + 0x2b00);
+		*(volatile u_int32_t *)(titan_ge_base + 0x2b0c) = is;
 #endif
         }
 
         if (port_num == 0) {
-#ifdef CONFIG_MIPS64
-		is = *(volatile u_int32_t *)(0xfffffffffb001b10);
-		*(volatile u_int32_t *)(0xfffffffffb001b1c) = is;
-#else
-                is = *(volatile u_int32_t *)(0xfb001b10);
-                *(volatile u_int32_t *)(0xfb001b1c) = is;
-#endif
+                is = *(volatile u_int32_t *)(titan_ge_base + 0x1b10);
+                *(volatile u_int32_t *)(titan_ge_base + 0x1b1c) = is;
 
 #ifdef CONFIG_SMP
-#ifdef CONFIG_MIPS64
-		is = *(volatile u_int32_t *)(0xfffffffffb002b10);
-		*(volatile u_int32_t *)(0xfffffffffb002b1c) = is;
-#else
-		is = *(volatile u_int32_t *)(0xfb002b10);
-		*(volatile u_int32_t *)(0xfb002b1c) = is;
-#endif
+		is = *(volatile u_int32_t *)(titan_ge_base + 0x2b10);
+		*(volatile u_int32_t *)(titan_ge_base + 0x2b1c) = is;
 #endif
         }
 
@@ -1947,6 +1929,13 @@ static int __init titan_ge_init_module(void)
 {
 	unsigned int version, device;
 
+	titan_ge_base = (unsigned long) ioremap(TITAN_GE_BASE, TITAN_GE_SIZE);
+	if (!titan_ge_base) {
+	printk("Mapping Titan GE failed\n");
+
+	return -ENOMEM;
+	}
+
 	printk(KERN_NOTICE
 	       "PMC-Sierra TITAN 10/100/1000 Ethernet Driver \n");
 	device = TITAN_GE_READ(TITAN_GE_DEVICE_ID);
@@ -1973,7 +1962,7 @@ static int __init titan_ge_init_module(void)
  */
 static void __init titan_ge_cleanup_module(void)
 {
-	/* Nothing to do here */
+	iounmap((void *)titan_ge_base);
 }
 
 module_init(titan_ge_init_module);
