@@ -73,8 +73,6 @@ static struct hw_interrupt_type sb1250_irq_type = {
 	NULL
 };
 
-
-spinlock_t global_irq_lock = SPIN_LOCK_UNLOCKED;
 spinlock_t sb1250_imr_lock = SPIN_LOCK_UNLOCKED;
 
 void sb1250_mask_irq(int cpu, int irq)
