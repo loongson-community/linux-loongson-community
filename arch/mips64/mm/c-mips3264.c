@@ -29,8 +29,8 @@
 #include <asm/system.h>
 #include <asm/mmu_context.h>
 
-extern void mips3264_clear_page_dc(unsigned long page);
-extern void mips3264_copy_page_dc(unsigned long to, unsigned long from);
+extern void mips3264_clear_page_dc(void *page);
+extern void mips3264_copy_page_dc(void *to, void *from);
 
 /* Primary cache parameters. */
 static unsigned long icache_size, dcache_size;	/* Size in bytes */
@@ -58,6 +58,15 @@ struct bcache_ops *bcops = &no_sc_ops;
 
 static inline void mips3264_flush_cache_all_pc(void)
 {
+	if (!cpu_has_dc_aliases)
+		return;
+
+	blast_dcache();
+	blast_icache();
+}
+
+static inline void mips3264___flush_cache_all_pc(void)
+{
 	blast_dcache();
 	blast_icache();
 }
@@ -65,6 +74,9 @@ static inline void mips3264_flush_cache_all_pc(void)
 static void mips3264_flush_cache_range_pc(struct vm_area_struct *vma,
 	unsigned long start, unsigned long end)
 {
+	if (!cpu_has_dc_aliases)
+		return;
+
 	if (cpu_context(smp_processor_id(), mm) != 0) {
 		blast_dcache();
 		if (vma->vm_flags & VM_EXEC)
@@ -74,6 +86,9 @@ static void mips3264_flush_cache_range_pc(struct vm_area_struct *vma,
 
 static void mips3264_flush_cache_mm_pc(struct mm_struct *mm)
 {
+	if (!cpu_has_dc_aliases)
+		return;
+
 	if (cpu_context(smp_processor_id(), mm) != 0)
 		mips3264_flush_cache_all_pc();
 }
@@ -85,6 +100,7 @@ static void mips3264_flush_cache_page_pc(struct vm_area_struct *vma,
 	pgd_t *pgdp;
 	pmd_t *pmdp;
 	pte_t *ptep;
+	int exec;
 
 	/*
 	 * If ownes no valid ASID yet, cannot possibly have gotten
@@ -111,14 +127,21 @@ static void mips3264_flush_cache_page_pc(struct vm_area_struct *vma,
 	 * flush operation.  So we do indexed flushes in that case, which
 	 * doesn't overly flush the cache too much.
 	 */
+	exec = vma->vm_flags & VM_EXEC;
 	if ((mm == current->active_mm) && (pte_val(*ptep) & _PAGE_VALID)) {
-		blast_dcache_page(page);
+		if (cpu_has_dc_aliases || exec)
+			blast_dcache_page(page);
+		if (exec)
+			blast_icache_page(page);
 	} else {
 		/* Do indexed flush, too much work to get the (possible)
 		 * tlb refills to work correctly.
 		 */
 		page = KSEG0 + (page & (dcache_size - 1));
-		blast_dcache_page_indexed(page);
+		if (cpu_has_dc_aliases || exec)
+			blast_dcache_page_indexed(page);
+		if (exec)
+			blast_icache_page_indexed(page);
 	}
 }
 
@@ -136,6 +159,8 @@ mips3264_flush_icache_range(unsigned long start, unsigned long end)
 static void
 mips3264_flush_icache_page(struct vm_area_struct *vma, struct page *page)
 {
+	unsigned long addr;
+
 	/*
 	 * If there's no context yet, or the page isn't executable, no icache 
 	 * flush is needed.
@@ -147,7 +172,9 @@ mips3264_flush_icache_page(struct vm_area_struct *vma, struct page *page)
 	 * We're not sure of the virtual address(es) involved here, so
 	 * conservatively flush the entire caches.
 	 */
-	flush_cache_all();
+	addr = (unsigned long) page_address(page);
+	blast_dcache_page(addr);
+	blast_icache();
 }
 
 /*
@@ -311,7 +338,7 @@ void __init ld_mmu_mips3264(void)
 	_copy_page		= mips3264_copy_page_dc;
 
 	_flush_cache_all	= mips3264_flush_cache_all_pc;
-	___flush_cache_all	= mips3264_flush_cache_all_pc;
+	___flush_cache_all	= mips3264___flush_cache_all_pc;
 	_flush_cache_mm		= mips3264_flush_cache_mm_pc;
 	_flush_cache_range	= mips3264_flush_cache_range_pc;
 	_flush_cache_page	= mips3264_flush_cache_page_pc;
