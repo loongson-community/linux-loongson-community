@@ -1,4 +1,4 @@
-/* $Id: r4xx0.c,v 1.28 2000/02/13 20:52:05 harald Exp $
+/* $Id: r4xx0.c,v 1.29 2000/02/24 00:12:40 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -2791,7 +2791,7 @@ void __init ld_mmu_r4xx0(void)
 		_flush_cache_page = r4k_flush_cache_page_d32i32_r4600;
 	}
 
-	flush_cache_sigtramp = r4k_flush_cache_sigtramp;
+	_flush_cache_sigtramp = r4k_flush_cache_sigtramp;
 	if ((read_32bit_cp0_register(CP0_PRID) & 0xfff0) == 0x2020) {
 		_flush_cache_sigtramp = r4600v20k_flush_cache_sigtramp;
 	}
