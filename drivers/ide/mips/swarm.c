@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2001 Broadcom Corporation
+ * Copyright (C) 2001, 2002, 2003 Broadcom Corporation
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -21,81 +21,204 @@
  *  Copyright (C) 1998 Paul Mackerras.
  *  Copyright (C) 1995-1998 Mark Lord
  */
+
+/*
+ * Boards with SiByte processors so far have supported IDE devices via
+ * the Generic Bus, PCI bus, and built-in PCMCIA interface.  In all
+ * cases, byte-swapping must be avoided for these devices (whereas
+ * other PCI devices, for example, will require swapping).  Any
+ * SiByte-targetted kernel including IDE support will include this
+ * file.  Probing of a Generic Bus for an IDE device is controlled by
+ * the definitions of "SIBYTE_HAVE_IDE" and "IDE_PHYS", which are
+ * provided by <asm/sibyte/board.h> for Broadcom boards.
+ *
+ * We hijack ide_init_default_hwifs() from <asm/ide.h> because it
+ * gives us the best opportunity to prep the ide_hwifs[] with our
+ * non-swapping operations (and it's easier to get ide_hwif_t /
+ * ide_hwifs[] declarations outside of the header).
+ */
+
 #include <linux/config.h>
-#include <linux/types.h>
 #include <linux/kernel.h>
-#include <linux/sched.h>
-#include <linux/init.h>
-#include <linux/delay.h>
 #include <linux/ide.h>
-#include <asm/irq.h>
-#include <asm/io.h>
-#include <asm/sibyte/sb1250_int.h>
+#include <asm/sibyte/board.h>
 
-#define __IDE_SWARM_C
+extern struct ide_ops std_ide_ops;
 
-#include <asm/sibyte/swarm_ide.h>
+/*
+ * Don't force a binding of hwif indexes to ioports or irqs; avoid
+ * probing anywhere there isn't a device - we don't support the
+ * standard IDE ioport addresses.
+ */
 
-void __init swarm_ide_probe(void)
+static ide_ioreg_t sibyte_ide_default_io_base(int index)
 {
-	int i;
-	ide_hwif_t *hwif;
-	/* 
-	 * Find the first untaken slot in hwifs 
-	 */
-	for (i = 0; i < MAX_HWIFS; i++) {
-		if (!ide_hwifs[i].io_ports[IDE_DATA_OFFSET]) {
-			break;
-		}
-	}
-	if (i == MAX_HWIFS) {
-		printk("No space for SWARM onboard IDE driver in ide_hwifs[].  Not enabled.\n");
-		return;
-	}
-
-	/* Set up our stuff */
-	hwif = &ide_hwifs[i];
-	hwif->hw.io_ports[IDE_DATA_OFFSET]    = SWARM_IDE_REG(0x1f0);
-	hwif->hw.io_ports[IDE_ERROR_OFFSET]   = SWARM_IDE_REG(0x1f1);
-	hwif->hw.io_ports[IDE_NSECTOR_OFFSET] = SWARM_IDE_REG(0x1f2);
-	hwif->hw.io_ports[IDE_SECTOR_OFFSET]  = SWARM_IDE_REG(0x1f3);
-	hwif->hw.io_ports[IDE_LCYL_OFFSET]    = SWARM_IDE_REG(0x1f4);
-	hwif->hw.io_ports[IDE_HCYL_OFFSET]    = SWARM_IDE_REG(0x1f5);
-	hwif->hw.io_ports[IDE_SELECT_OFFSET]  = SWARM_IDE_REG(0x1f6);
-	hwif->hw.io_ports[IDE_STATUS_OFFSET]  = SWARM_IDE_REG(0x1f7);
-	hwif->hw.io_ports[IDE_CONTROL_OFFSET] = SWARM_IDE_REG(0x3f6);
-	hwif->hw.io_ports[IDE_IRQ_OFFSET]     = SWARM_IDE_REG(0x3f7);
-//	hwif->hw->ack_intr                    = swarm_ide_ack_intr;
-	hwif->hw.irq                          = SWARM_IDE_INT;
-#if 0
-	hwif->iops                            = swarm_iops;
-#else
-	hwif->OUTB      = hwif->OUTBP         = swarm_outb;
-	hwif->OUTW      = hwif->OUTWP         = swarm_outw;
-	hwif->OUTL      = hwif->OUTLP         = swarm_outl;
-	hwif->OUTSW     = hwif->OUTSWP        = swarm_outsw;
-	hwif->OUTSL     = hwif->OUTSLP        = swarm_outsl;
-	hwif->INB       = hwif->INBP          = swarm_inb;
-	hwif->INW       = hwif->INWP          = swarm_inw;
-	hwif->INL       = hwif->INLP          = swarm_inl;
-	hwif->INSW      = hwif->INSWP         = swarm_insw;
-	hwif->INSL      = hwif->INSLP         = swarm_insl;
-#endif
-#if 0
-	hwif->pioops                          = swarm_pio_ops;
-#else
-	hwif->ata_input_data                  = swarm_ata_input_data;
-	hwif->ata_output_data                 = swarm_ata_output_data;
-	hwif->atapi_input_bytes               = swarm_atapi_input_bytes;
-	hwif->atapi_output_bytes              = swarm_atapi_output_bytes;
-#endif
-	memcpy(hwif->io_ports, hwif->hw.io_ports, sizeof(hwif->io_ports));
-	hwif->irq                             = hwif->hw.irq;
-	printk("SWARM onboard IDE configured as device %i\n", i);
-
-#ifndef HWIF_PROBE_CLASSIC_METHOD
-	probe_hwif_init(hwif->index);
-#endif /* HWIF_PROBE_CLASSIC_METHOD */
-
+	return 0;
 }
 
+static int sibyte_ide_default_irq(ide_ioreg_t base)
+{
+	return 0;
+}
+
+/* 
+ * The standard assignment of hw registers is fine.
+ */
+static void sibyte_ide_init_hwif_ports (hw_regs_t *hw, ide_ioreg_t data_port,
+				       ide_ioreg_t ctrl_port, int *irq)
+{
+	std_ide_ops.ide_init_hwif_ports(hw, data_port, ctrl_port, irq);
+}
+
+struct ide_ops sibyte_ide_ops = {
+	&sibyte_ide_default_irq,
+	&sibyte_ide_default_io_base,
+	&sibyte_ide_init_hwif_ports
+};
+
+/*
+ * Our non-swapping I/O operations.  
+ */
+
+static inline void sibyte_outb(u8 val, unsigned long port) {
+	*(volatile u8 *)(mips_io_port_base + (port)) = val;
+}
+
+static inline void sibyte_outw(u16 val, unsigned long port) {
+	*(volatile u16 *)(mips_io_port_base + (port)) = val;
+}
+
+static inline void sibyte_outl(u32 val, unsigned long port) {
+	*(volatile u32 *)(mips_io_port_base + (port)) = val;
+}
+
+static inline unsigned char sibyte_inb(unsigned long port)
+{
+	return (*(volatile u8 *)(mips_io_port_base + (port)));
+}
+
+static inline unsigned short sibyte_inw(unsigned long port)
+{
+	return (*(volatile u16 *)(mips_io_port_base + (port)));
+}
+
+static inline unsigned int sibyte_inl(unsigned long port)
+{
+	return (*(volatile u32 *)(mips_io_port_base + (port)));
+}
+
+
+static inline void sibyte_outsb(unsigned long port, void *addr, unsigned int count)
+{
+	while (count--) {
+		sibyte_outb(*(u8 *)addr, port);
+		addr++;
+	}
+}
+
+static inline void sibyte_insb(unsigned long port, void *addr, unsigned int count)
+{
+	while (count--) {
+		*(u8 *)addr = sibyte_inb(port);
+		addr++;
+	}
+}
+
+static inline void sibyte_outsw(unsigned long port, void *addr, unsigned int count)
+{
+	while (count--) {
+		sibyte_outw(*(u16 *)addr, port);
+		addr += 2;
+	}
+}
+
+static inline void sibyte_insw(unsigned long port, void *addr, unsigned int count)
+{
+	while (count--) {
+		*(u16 *)addr = sibyte_inw(port);
+		addr += 2;
+	}
+}
+
+static inline void sibyte_outsl(unsigned long port, void *addr, unsigned int count)
+{
+	while (count--) {
+		sibyte_outl(*(u32 *)addr, port);
+		addr += 4;
+	}
+}
+
+static inline void sibyte_insl(unsigned long port, void *addr, unsigned int count)
+{
+	while (count--) {
+		*(u32 *)addr = sibyte_inl(port);
+		addr += 4;
+	}
+}
+
+static void sibyte_set_ideops(ide_hwif_t *hwif)
+{
+	hwif->INB = sibyte_inb;
+	hwif->INW = sibyte_inw;
+	hwif->INL = sibyte_inl;
+	hwif->OUTB = sibyte_outb;
+	hwif->OUTW = sibyte_outw;
+	hwif->OUTL = sibyte_outl;
+	hwif->INSW = sibyte_insw;
+	hwif->INSL = sibyte_insl;
+	hwif->OUTSW = sibyte_outsw;
+	hwif->OUTSL = sibyte_outsl;
+}
+
+/*
+ * ide_init_default_hwifs - prep the hwifs with our non-swapping ops
+ * (otherwise PCI-IDE drives will not come up correctly)
+ */
+void ide_init_default_hwifs(void)
+{
+	int i;
+
+	mips_ide_init_default_hwifs();
+	for (i=0; i<MAX_HWIFS; i++) {
+		sibyte_set_ideops(&ide_hwifs[i]);
+	}
+}
+
+/*
+ * swarm_ide_probe - if the board header indicates the existence of
+ * Generic Bus IDE, allocate a HWIF for it.
+ */
+void __init swarm_ide_probe(void)
+{
+#if defined(SIBYTE_HAVE_IDE) && defined(IDE_PHYS)
+
+	hw_regs_t hw;
+	ide_hwif_t *sb_ide_hwif;
+
+	/*
+	 * Preadjust for mips_io_port_base since the I/O ops expect
+	 * relative addresses
+	 */
+#define SIBYTE_IDE_REG(pcaddr) (IOADDR(IDE_PHYS) + ((pcaddr)<<5) - mips_io_port_base)
+
+	hw.io_ports[IDE_DATA_OFFSET]    = SIBYTE_IDE_REG(0x1f0);
+	hw.io_ports[IDE_ERROR_OFFSET]   = SIBYTE_IDE_REG(0x1f1);
+	hw.io_ports[IDE_NSECTOR_OFFSET] = SIBYTE_IDE_REG(0x1f2);
+	hw.io_ports[IDE_SECTOR_OFFSET]  = SIBYTE_IDE_REG(0x1f3);
+	hw.io_ports[IDE_LCYL_OFFSET]    = SIBYTE_IDE_REG(0x1f4);
+	hw.io_ports[IDE_HCYL_OFFSET]    = SIBYTE_IDE_REG(0x1f5);
+	hw.io_ports[IDE_SELECT_OFFSET]  = SIBYTE_IDE_REG(0x1f6);
+	hw.io_ports[IDE_STATUS_OFFSET]  = SIBYTE_IDE_REG(0x1f7);
+	hw.io_ports[IDE_CONTROL_OFFSET] = SIBYTE_IDE_REG(0x3f6);
+	hw.io_ports[IDE_IRQ_OFFSET]     = SIBYTE_IDE_REG(0x3f7);
+	hw.irq                          = K_INT_GB_IDE;
+
+	if (ide_register_hw(&hw, &sb_ide_hwif) >= 0) {
+		printk("SiByte onboard IDE configured as device %d\n", (int)(sb_ide_hwif - ide_hwifs));
+		/* Prevent resource map manipulation */
+		sb_ide_hwif->mmio = 2;
+		/* Reset the ideops after ide_register_hw */
+		sibyte_set_ideops(sb_ide_hwif);
+	}
+#endif
+}
