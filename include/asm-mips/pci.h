@@ -118,7 +118,4 @@ static inline void pci_dac_dma_sync_single(struct pci_dev *pdev,
 /* implement the pci_ DMA API in terms of the generic device dma_ one */
 #include <asm-generic/pci-dma-compat.h>
 
-/* generic pci stuff */
-#include <asm-generic/pci.h>
-
 #endif /* _ASM_PCI_H */

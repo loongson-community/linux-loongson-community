@@ -6,6 +6,7 @@
  *
  * Copyright (C) 2003 Ralf Baechle (ralf@linux-mips.org)
  */
+#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/bootmem.h>
@@ -193,8 +194,10 @@ unsigned long __init pci_bridge_check_io(struct pci_dev *bridge)
 void __init
 pcibios_fixup_resource(struct resource *res, struct resource *root)
 {
+#if 0
 	res->start += root->start;
 	res->end += root->start;
+#endif
 }
 
 void __init
@@ -268,6 +271,26 @@ u8 __init common_swizzle(struct pci_dev *dev, u8 *pinp)
 	/* The slot is the slot of the last bridge. */
 	return PCI_SLOT(dev->devfn);
 }
+
+void __devinit
+pcibios_resource_to_bus(struct pci_dev *dev, struct pci_bus_region *region,
+			 struct resource *res)
+{
+	struct pci_controller *hose = (struct pci_controller *)dev->sysdata;
+	unsigned long offset = 0;
+
+	if (res->flags & IORESOURCE_IO)
+		offset = hose->io_resource->start;
+	else if (res->flags & IORESOURCE_MEM)
+		offset = hose->mem_resource->start;
+
+	region->start = res->start - offset;
+	region->end = res->end - offset;
+}
+
+#ifdef CONFIG_HOTPLUG
+EXPORT_SYMBOL(pcibios_resource_to_bus);
+#endif
 
 char *pcibios_setup(char *str)
 {
