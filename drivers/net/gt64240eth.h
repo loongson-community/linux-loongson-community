@@ -108,10 +108,10 @@
 #define REV_GT64240A 0x10
 
 #define GT64240ETH_READ(gp, offset)					\
-	GT_READ((gp)->port_offset + (offset))
+	MV_READ((gp)->port_offset + (offset))
 
 #define GT64240ETH_WRITE(gp, offset, data)				\
-	GT_WRITE((gp)->port_offset + (offset), (data))
+	MV_WRITE((gp)->port_offset + (offset), (data))
 
 #define GT64240ETH_SETBIT(gp, offset, bits)				\
 	GT64240ETH_WRITE((gp), (offset),				\
@@ -121,8 +121,8 @@
 	GT64240ETH_WRITE((gp), (offset),				\
 	                 GT64240ETH_READ((gp), (offset)) & ~(bits))
 
-#define GT64240_READ(ofs)		GT_READ(ofs)
-#define GT64240_WRITE(ofs, data)	GT_WRITE((ofs), (data))
+#define GT64240_READ(ofs)		MV_READ(ofs)
+#define GT64240_WRITE(ofs, data)	MV_WRITE((ofs), (data))
 
 /* Bit definitions of the SMI Reg */
 enum {

@@ -311,6 +311,7 @@ config MOMENCO_OCELOT_G
 	select HW_HAS_PCI
 	select IRQ_CPU
 	select IRQ_CPU_RM7K
+	select PCI_MARVELL
 	select RM7000_CPU_SCACHE
 	help
 	  The Ocelot is a MIPS-based Single Board Computer (SBC) made by
@@ -321,6 +322,8 @@ config MOMENCO_OCELOT_C
 	select DMA_NONCOHERENT
 	select HW_HAS_PCI
 	select IRQ_CPU
+	select IRQ_MV64340
+	select PCI_MARVELL
 	select RM7000_CPU_SCACHE
 	help
 	  The Ocelot is a MIPS-based Single Board Computer (SBC) made by
@@ -332,7 +335,9 @@ config MOMENCO_JAGUAR_ATX
 	select HW_HAS_PCI
 	select IRQ_CPU
 	select IRQ_CPU_RM7K
+	select IRQ_MV64340
 	select LIMITED_DMA
+	select PCI_MARVELL
 	select RM7000_CPU_SCACHE
 	help
 	  The Jaguar ATX is a MIPS-based Single Board Computer (SBC) made by
@@ -898,6 +903,9 @@ config IRQ_CPU
 config IRQ_CPU_RM7K
 	bool
 
+config IRQ_MV64340
+	bool
+
 config DDB5XXX_COMMON
 	bool
 	depends on DDB5074 || DDB5476 || DDB5477
@@ -918,15 +926,13 @@ config MIPS_GT64120
 	depends on MIPS_EV64120 || MIPS_EV96100 || LASAT || MIPS_ATLAS || MIPS_MALTA || MOMENCO_OCELOT
 	default y
 
-config MIPS_MV64340
-	bool
-	depends on MOMENCO_JAGUAR_ATX || MOMENCO_OCELOT_C
-	default y
-
 config MIPS_TX3927
 	bool
 	depends on TOSHIBA_JMR3927
 	default y
+
+config PCI_MARVELL
+	bool
 
 config ITE_BOARD_GEN
 	bool

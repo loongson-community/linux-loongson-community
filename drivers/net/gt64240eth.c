@@ -786,9 +786,9 @@ static void enable_ether_irq(struct net_device *dev)
 
 	// now route ethernet interrupts to GT PCI1 (eth0 and eth1 will be
 	// sharing it).
-	intMask = GT_READ(PCI_1INTERRUPT_CAUSE_MASK_REGISTER_HIGH);
+	intMask = MV_READ(PCI_1INTERRUPT_CAUSE_MASK_REGISTER_HIGH);
 	intMask |= 1 << gp->port_num;
-	GT_WRITE(PCI_1INTERRUPT_CAUSE_MASK_REGISTER_HIGH, intMask);
+	MV_WRITE(PCI_1INTERRUPT_CAUSE_MASK_REGISTER_HIGH, intMask);
 }
 
 static void disable_ether_irq(struct net_device *dev)
@@ -796,9 +796,9 @@ static void disable_ether_irq(struct net_device *dev)
 	struct gt64240_private *gp = netdev_priv(dev);
 	u32 intMask;
 
-	intMask = GT_READ(PCI_1INTERRUPT_CAUSE_MASK_REGISTER_HIGH);
+	intMask = MV_READ(PCI_1INTERRUPT_CAUSE_MASK_REGISTER_HIGH);
 	intMask &= ~(1 << gp->port_num);
-	GT_WRITE(PCI_1INTERRUPT_CAUSE_MASK_REGISTER_HIGH, intMask);
+	MV_WRITE(PCI_1INTERRUPT_CAUSE_MASK_REGISTER_HIGH, intMask);
 
 	// mask all device interrupts: 
 	GT64240ETH_WRITE(gp, GT64240_ETH_INT_MASK, 0);
