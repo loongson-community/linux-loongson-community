@@ -4,7 +4,9 @@
  * for more details.
  *
  * Copyright (C) 1994 by Waldorf GMBH, written by Ralf Baechle
- * Copyright (C) 1995, 96, 97, 98, 99, 2000, 2001 by Ralf Baechle
+ * Copyright (C) 1995, 96, 97, 98, 99, 2000, 01, 02 by Ralf Baechle
+ * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
+ * Copyright (C) 2001 Kanoj Sarcar
  */
 #ifndef _ASM_IRQ_H
 #define _ASM_IRQ_H
@@ -12,8 +14,6 @@
 #include <linux/config.h>
 
 #define NR_IRQS 128		/* Largest number of ints of all machines.  */
-
-#define TIMER_IRQ 0
 
 #ifdef CONFIG_I8259
 static inline int irq_cannonicalize(int irq)

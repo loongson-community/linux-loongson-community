@@ -4,7 +4,7 @@
  * for more details.
  *
  * Copyright (C) 1994 by Waldorf GMBH, written by Ralf Baechle
- * Copyright (C) 1995, 96, 97, 98, 1999, 2000 by Ralf Baechle
+ * Copyright (C) 1995, 96, 97, 98, 99, 2000, 01, 02 by Ralf Baechle
  * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  * Copyright (C) 2001 Kanoj Sarcar
  */
@@ -42,13 +42,15 @@ static inline int irq_cannonicalize(int irq)
 #define irq_cannonicalize(irq) (irq)	/* Sane hardware, sane code ... */
 #endif
 
-
 struct irqaction;
 extern int i8259_setup_irq(int irq, struct irqaction * new);
 extern void disable_irq(unsigned int);
+extern void disable_irq_nosync(unsigned int);
 extern void enable_irq(unsigned int);
 
 /* Machine specific interrupt initialization  */
 extern void (*irq_setup)(void);
+
+extern void init_generic_irq(void);
 
 #endif /* _ASM_IRQ_H */
