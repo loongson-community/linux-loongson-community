@@ -151,7 +151,9 @@ void smp_call_function_interrupt(void)
 	void (*func) (void *info) = call_data->func;
 	void *info = call_data->info;
 	int wait = call_data->wait;
+	int cpu = smp_processor_id();
 
+	irq_enter(cpu, 0);	/* XXX choose an irq number? */
 	/*
 	 * Notify initiating CPU that I've grabbed the data and am
 	 * about to execute the function.
@@ -167,6 +169,7 @@ void smp_call_function_interrupt(void)
 		mb();
 		atomic_inc(&call_data->finished);
 	}
+	irq_exit(cpu, 0);	/* XXX choose an irq number? */
 }
 
 static void stop_this_cpu(void *dummy)
