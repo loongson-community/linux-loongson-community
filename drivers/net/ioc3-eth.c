@@ -45,6 +45,7 @@
 #include <linux/etherdevice.h>
 #include <linux/ethtool.h>
 #include <linux/skbuff.h>
+#include <linux/mii.h>
 
 #include <asm/byteorder.h>
 #include <asm/io.h>
@@ -58,8 +59,6 @@
 #include <asm/sn/ioc3.h>
 #include <asm/sn/sn0/ip27.h>
 #include <asm/pci/bridge.h>
-
-#include "mii.h"
 
 /*
  * 64 RX buffers.  This is tunable in the range of 16 <= x < 512.  The
@@ -648,20 +647,20 @@ static void ioc3_interrupt(int irq, void *_dev, struct pt_regs *regs)
  */
 static int ioc3_try_next_permutation(struct ioc3_private *ip)
 {
-	ip->sw_bmcr = mii_read(ip, MII_CONTROL);
+	ip->sw_bmcr = mii_read(ip, MII_BMCR);
 
 	/* Downgrade from full to half duplex.  Only possible via ethtool.  */
-	if (ip->sw_bmcr & MII_CR_FULLDPLX) {
-		ip->sw_bmcr &= ~MII_CR_FULLDPLX;
-		mii_write(ip, MII_CONTROL, ip->sw_bmcr);
+	if (ip->sw_bmcr & BMCR_FULLDPLX) {
+		ip->sw_bmcr &= ~BMCR_FULLDPLX;
+		mii_write(ip, MII_BMCR, ip->sw_bmcr);
 
 		return 0;
 	}
 
 	/* Downgrade from 100 to 10. */
-	if (ip->sw_bmcr & MII_CR_SPEED100) {
-		ip->sw_bmcr &= ~MII_CR_SPEED100;
-		mii_write(ip, MII_CONTROL, ip->sw_bmcr);
+	if (ip->sw_bmcr & BMCR_SPEED100) {
+		ip->sw_bmcr &= ~BMCR_SPEED100;
+		mii_write(ip, MII_BMCR, ip->sw_bmcr);
 
 		return 0;
 	}
@@ -677,13 +676,13 @@ ioc3_display_link_mode(struct ioc3_private *ip)
 
 	ip->sw_lpa = mii_read(ip, MII_LPA);
 
-	if (ip->sw_lpa & (MII_LPA_100HALF | MII_LPA_100FULL)) {
-		if (ip->sw_lpa & MII_LPA_100FULL)
+	if (ip->sw_lpa & (LPA_100HALF | LPA_100FULL)) {
+		if (ip->sw_lpa & LPA_100FULL)
 			tmode = "100Mb/s, Full Duplex";
 		else
 			tmode = "100Mb/s, Half Duplex";
 	} else {
-		if (ip->sw_lpa & MII_LPA_10FULL)
+		if (ip->sw_lpa & LPA_10FULL)
 			tmode = "10Mb/s, Full Duplex";
 		else
 			tmode = "10Mb/s, Half Duplex";
@@ -697,12 +696,12 @@ ioc3_display_forced_link_mode(struct ioc3_private *ip)
 {
 	char *speed = "", *duplex = "";
 
-	ip->sw_bmcr = mii_read(ip, MII_CONTROL);
-	if (ip->sw_bmcr & MII_CR_SPEED100)
+	ip->sw_bmcr = mii_read(ip, MII_BMCR);
+	if (ip->sw_bmcr & BMCR_SPEED100)
 		speed = "100Mb/s, ";
 	else
 		speed = "10Mb/s, ";
-	if (ip->sw_bmcr & MII_CR_FULLDPLX)
+	if (ip->sw_bmcr & BMCR_FULLDPLX)
 		duplex = "Full Duplex.\n";
 	else
 		duplex = "Half Duplex.\n";
@@ -722,21 +721,21 @@ static int ioc3_set_link_modes(struct ioc3_private *ip)
 	 */
 	if (ip->timer_state == arbwait) {
 		ip->sw_lpa = mii_read(ip, MII_LPA);
-		if (!(ip->sw_lpa & (MII_LPA_10HALF | MII_LPA_10FULL |
-		                    MII_LPA_100HALF | MII_LPA_100FULL)))
+		if (!(ip->sw_lpa & (LPA_10HALF | LPA_10FULL |
+		                    LPA_100HALF | LPA_100FULL)))
 			goto no_response;
-		if (ip->sw_lpa & MII_LPA_100FULL)
+		if (ip->sw_lpa & LPA_100FULL)
 			full = 1;
-		else if (ip->sw_lpa & MII_LPA_100HALF)
+		else if (ip->sw_lpa & LPA_100HALF)
 			full = 0;
-		else if (ip->sw_lpa & MII_LPA_10FULL)
+		else if (ip->sw_lpa & LPA_10FULL)
 			full = 1;
 		else
 			full = 0;
 	} else {
 		/* Forcing a link mode. */
-		ip->sw_bmcr = mii_read(ip, MII_CONTROL);
-		if (ip->sw_bmcr & MII_CR_FULLDPLX)
+		ip->sw_bmcr = mii_read(ip, MII_BMCR);
+		if (ip->sw_bmcr & BMCR_FULLDPLX)
 			full = 1;
 		else
 			full = 0;
@@ -786,11 +785,11 @@ static void ioc3_timer(unsigned long data)
 		if (ip->timer_ticks >= 10) {
 			/* Enter force mode. */
 	do_force_mode:
-			ip->sw_bmcr = mii_read(ip, MII_CONTROL);
+			ip->sw_bmcr = mii_read(ip, MII_BMCR);
 			printk(KERN_NOTICE "%s: Auto-Negotiation unsuccessful,"
 			       " trying force link mode\n", ip->dev->name);
-			ip->sw_bmcr = MII_CR_SPEED100;
-			mii_write(ip, MII_CONTROL, ip->sw_bmcr);
+			ip->sw_bmcr = BMCR_SPEED100;
+			mii_write(ip, MII_BMCR, ip->sw_bmcr);
 
 			if (!is_lucent_phy(ip)) {
 				/*
@@ -798,19 +797,17 @@ static void ioc3_timer(unsigned long data)
 				 * for the first tick to make sure we get an
 				 * accurate link state at the second tick.
 				 */
-				ip->sw_csconfig = mii_read(ip,
-				                           DP83840_CSCONFIG);
+				ip->sw_csconfig = mii_read(ip, MII_CSCONFIG);
 				ip->sw_csconfig &= ~(CSCONFIG_TCVDISAB);
-				mii_write(ip, DP83840_CSCONFIG,
-				          ip->sw_csconfig);
+				mii_write(ip, MII_CSCONFIG, ip->sw_csconfig);
 			}
 			ip->timer_state = ltrywait;
 			ip->timer_ticks = 0;
 			restart_timer = 1;
 		} else {
 			/* Anything interesting happen? */
-			ip->sw_bmsr = mii_read(ip, MII_STATUS);
-			if (ip->sw_bmsr & MII_SR_ANEGCOMPLETE) {
+			ip->sw_bmsr = mii_read(ip, MII_BMSR);
+			if (ip->sw_bmsr & BMSR_ANEGCOMPLETE) {
 				int ret;
 
 				/* Just what we've been waiting for... */
@@ -845,8 +842,8 @@ static void ioc3_timer(unsigned long data)
 		 * forever until some sort of error is signalled, reporting
 		 * a message to the user at 10 second intervals.
 		 */
-		ip->sw_bmsr = mii_read(ip, MII_STATUS);
-		if (ip->sw_bmsr & MII_SR_LSTATUS) {
+		ip->sw_bmsr = mii_read(ip, MII_BMSR);
+		if (ip->sw_bmsr & BMSR_LSTATUS) {
 			/*
 			 * Wheee, it's up, display the link mode in use and put
 			 * the timer to sleep.
@@ -873,8 +870,8 @@ static void ioc3_timer(unsigned long data)
 		 * permutations, but then again this is essentially
 		 * error recovery code for the most part.
 		 */
-		ip->sw_bmsr = mii_read(ip, MII_STATUS);
-		ip->sw_csconfig = mii_read(ip, DP83840_CSCONFIG);
+		ip->sw_bmsr = mii_read(ip, MII_BMSR);
+		ip->sw_csconfig = mii_read(ip, MII_CSCONFIG);
 		if (ip->timer_ticks == 1) {
 			if (!is_lucent_phy(ip)) {
 				/*
@@ -883,8 +880,7 @@ static void ioc3_timer(unsigned long data)
 				 * on the following tick.
 				 */
 				ip->sw_csconfig |= CSCONFIG_TCVDISAB;
-				mii_write(ip, DP83840_CSCONFIG,
-				          ip->sw_csconfig);
+				mii_write(ip, MII_CSCONFIG, ip->sw_csconfig);
 			}
 			restart_timer = 1;
 			break;
@@ -892,13 +888,12 @@ static void ioc3_timer(unsigned long data)
 		if (ip->timer_ticks == 2) {
 			if (!is_lucent_phy(ip)) {
 				ip->sw_csconfig &= ~(CSCONFIG_TCVDISAB);
-				mii_write(ip, DP83840_CSCONFIG,
-				          ip->sw_csconfig);
+				mii_write(ip, MII_CSCONFIG, ip->sw_csconfig);
 			}
 			restart_timer = 1;
 			break;
 		}
-		if (ip->sw_bmsr & MII_SR_LSTATUS) {
+		if (ip->sw_bmsr & BMSR_LSTATUS) {
 			/* Force mode selection success. */
 			ioc3_display_forced_link_mode(ip);
 			ioc3_set_link_modes(ip);  /* XXX error? then what? */
@@ -923,9 +918,9 @@ static void ioc3_timer(unsigned long data)
 				}
 				if (!is_lucent_phy(ip)) {
 					ip->sw_csconfig = mii_read(ip,
-					                    DP83840_CSCONFIG);
+					                    MII_CSCONFIG);
 					ip->sw_csconfig |= CSCONFIG_TCVDISAB;
-					mii_write(ip, DP83840_CSCONFIG,
+					mii_write(ip, MII_CSCONFIG,
 					          ip->sw_csconfig);
 				}
 				ip->timer_ticks = 0;
@@ -959,34 +954,34 @@ ioc3_start_auto_negotiation(struct ioc3_private *ip, struct ethtool_cmd *ep)
 	int timeout;
 
 	/* Read all of the registers we are interested in now. */
-	ip->sw_bmsr      = mii_read(ip, MII_STATUS);
-	ip->sw_bmcr      = mii_read(ip, MII_CONTROL);
+	ip->sw_bmsr      = mii_read(ip, MII_BMSR);
+	ip->sw_bmcr      = mii_read(ip, MII_BMCR);
 	ip->sw_physid1   = mii_read(ip, MII_PHYSID1);
 	ip->sw_physid2   = mii_read(ip, MII_PHYSID2);
 
-	/* XXX Check MII_SR_ANEGCAPABLE, should not be necessary though. */
+	/* XXX Check BMSR_ANEGCAPABLE, should not be necessary though. */
 
-	ip->sw_advertise = mii_read(ip, MII_ADVERTISMENT);
+	ip->sw_advertise = mii_read(ip, MII_ADVERTISE);
 	if (ep == NULL || ep->autoneg == AUTONEG_ENABLE) {
 		/* Advertise everything we can support. */
-		if (ip->sw_bmsr & MII_SR_10HALF)
-			ip->sw_advertise |= (MII_AVT_10HALF);
+		if (ip->sw_bmsr & BMSR_10HALF)
+			ip->sw_advertise |= ADVERTISE_10HALF;
 		else
-			ip->sw_advertise &= ~(MII_AVT_10HALF);
+			ip->sw_advertise &= ~ADVERTISE_10HALF;
 
-		if (ip->sw_bmsr & MII_SR_10FULL)
-			ip->sw_advertise |= (MII_AVT_10FULL);
+		if (ip->sw_bmsr & BMSR_10FULL)
+			ip->sw_advertise |= ADVERTISE_10FULL;
 		else
-			ip->sw_advertise &= ~(MII_AVT_10FULL);
-		if (ip->sw_bmsr & MII_SR_100HALF)
-			ip->sw_advertise |= (MII_AVT_100HALF);
+			ip->sw_advertise &= ~ADVERTISE_10FULL;
+		if (ip->sw_bmsr & BMSR_100HALF)
+			ip->sw_advertise |= ADVERTISE_100HALF;
 		else
-			ip->sw_advertise &= ~(MII_AVT_100HALF);
-		if (ip->sw_bmsr & MII_SR_100FULL)
-			ip->sw_advertise |= (MII_AVT_100FULL);
+			ip->sw_advertise &= ~ADVERTISE_100HALF;
+		if (ip->sw_bmsr & BMSR_100FULL)
+			ip->sw_advertise |= ADVERTISE_100FULL;
 		else
-			ip->sw_advertise &= ~(MII_AVT_100FULL);
-		mii_write(ip, MII_ADVERTISMENT, ip->sw_advertise);
+			ip->sw_advertise &= ~ADVERTISE_100FULL;
+		mii_write(ip, MII_ADVERTISE, ip->sw_advertise);
 
 		/*
 		 * XXX Currently no Happy Meal cards I know off support
@@ -1009,19 +1004,19 @@ ioc3_start_auto_negotiation(struct ioc3_private *ip, struct ethtool_cmd *ep)
 #endif
 
 		/* Enable Auto-Negotiation, this is usually on already... */
-		ip->sw_bmcr |= MII_CR_ANENABLE;
-		mii_write(ip, MII_CONTROL, ip->sw_bmcr);
+		ip->sw_bmcr |= BMCR_ANENABLE;
+		mii_write(ip, MII_BMCR, ip->sw_bmcr);
 
 		/* Restart it to make sure it is going. */
-		ip->sw_bmcr |= MII_CR_ANRESTART;
-		mii_write(ip, MII_CONTROL, ip->sw_bmcr);
+		ip->sw_bmcr |= BMCR_ANRESTART;
+		mii_write(ip, MII_BMCR, ip->sw_bmcr);
 
 		/* MII_CR_ANRESTART self clears when the process has begun. */
 
 		timeout = 64;  /* More than enough. */
 		while (--timeout) {
-			ip->sw_bmcr = mii_read(ip, MII_CONTROL);
-			if (!(ip->sw_bmcr & MII_CR_ANRESTART))
+			ip->sw_bmcr = mii_read(ip, MII_BMCR);
+			if (!(ip->sw_bmcr & BMCR_ANRESTART))
 				break; /* got it. */
 			udelay(10);
 		}
@@ -1047,16 +1042,16 @@ force_link:
 		 * speed setting, init the timer state machine, and fire it off.
 		 */
 		if (ep == NULL || ep->autoneg == AUTONEG_ENABLE) {
-			ip->sw_bmcr = MII_CR_SPEED100;
+			ip->sw_bmcr = BMCR_SPEED100;
 		} else {
 			if (ep->speed == SPEED_100)
-				ip->sw_bmcr = MII_CR_SPEED100;
+				ip->sw_bmcr = BMCR_SPEED100;
 			else
 				ip->sw_bmcr = 0;
 			if (ep->duplex == DUPLEX_FULL)
-				ip->sw_bmcr |= MII_CR_FULLDPLX;
+				ip->sw_bmcr |= BMCR_FULLDPLX;
 		}
-		mii_write(ip, MII_CONTROL, ip->sw_bmcr);
+		mii_write(ip, MII_BMCR, ip->sw_bmcr);
 
 		if (!is_lucent_phy(ip)) {
 			/*
@@ -1064,9 +1059,9 @@ force_link:
 			 * first tick to make sure we get an accurate link
 			 * state at the second tick.
 			 */
-			ip->sw_csconfig = mii_read(ip, DP83840_CSCONFIG);
+			ip->sw_csconfig = mii_read(ip, MII_CSCONFIG);
 			ip->sw_csconfig &= ~(CSCONFIG_TCVDISAB);
-			mii_write(ip, DP83840_CSCONFIG, ip->sw_csconfig);
+			mii_write(ip, MII_CSCONFIG, ip->sw_csconfig);
 		}
 		ip->timer_state = ltrywait;
 	}
@@ -1694,25 +1689,25 @@ static int ioc3_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 
 			/* Record PHY settings. */
 			spin_lock_irq(&ip->ioc3_lock);
-			ip->sw_bmcr = mii_read(ip, MII_CONTROL);
+			ip->sw_bmcr = mii_read(ip, MII_BMCR);
 			ip->sw_lpa = mii_read(ip, MII_LPA);
 			spin_unlock_irq(&ip->ioc3_lock);
-			if (ip->sw_bmcr & MII_CR_ANENABLE) {
+			if (ip->sw_bmcr & BMCR_ANENABLE) {
 				ecmd.autoneg = AUTONEG_ENABLE;
 				ecmd.speed = (ip->sw_lpa &
-			             (MII_LPA_100HALF | MII_LPA_100FULL)) ?
+			             (LPA_100HALF | LPA_100FULL)) ?
 			             SPEED_100 : SPEED_10;
 			if (ecmd.speed == SPEED_100)
-				ecmd.duplex = (ip->sw_lpa & (MII_LPA_100FULL)) ?
+				ecmd.duplex = (ip->sw_lpa & (LPA_100FULL)) ?
 				              DUPLEX_FULL : DUPLEX_HALF;
 			else
-				ecmd.duplex = (ip->sw_lpa & (MII_LPA_10FULL)) ?
+				ecmd.duplex = (ip->sw_lpa & (LPA_10FULL)) ?
 				              DUPLEX_FULL : DUPLEX_HALF;
 			} else {
 				ecmd.autoneg = AUTONEG_DISABLE;
-				ecmd.speed = (ip->sw_bmcr & MII_CR_SPEED100) ?
+				ecmd.speed = (ip->sw_bmcr & BMCR_SPEED100) ?
 				             SPEED_100 : SPEED_10;
-				ecmd.duplex = (ip->sw_bmcr & MII_CR_FULLDPLX) ?
+				ecmd.duplex = (ip->sw_bmcr & BMCR_FULLDPLX) ?
 				              DUPLEX_FULL : DUPLEX_HALF;
 			}
 			if (copy_to_user(ep_user, &ecmd, sizeof(ecmd)))
