@@ -31,8 +31,6 @@ extern unsigned long dec_kn_slot_size;
 #include <linux/module.h>
 #include <linux/types.h>
 
-volatile u8 *dec_rtc_base;
-
 static inline unsigned char CMOS_READ(unsigned long addr)
 {
 	return dec_rtc_base[addr * 4];
