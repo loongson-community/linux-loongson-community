@@ -87,7 +87,6 @@ bool 'Sysctl support' CONFIG_SYSCTL
 if [ "$CONFIG_SGI" != "y" ]; then
   tristate 'Parallel port support' CONFIG_PARPORT
 fi
-
 endmenu
 
 mainmenu_option next_comment
@@ -97,6 +96,7 @@ if [ "$CONFIG_MODULES" = "y" ]; then
   bool 'Set version information on all symbols for modules' CONFIG_MODVERSIONS
   bool 'Kernel daemon support (e.g. autoload of modules)' CONFIG_KERNELD
 fi
+endmenu
 
 source drivers/block/Config.in
 
