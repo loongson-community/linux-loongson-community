@@ -413,16 +413,6 @@ static struct hw_interrupt_type bridge_irq_type = {
 	.end		= end_bridge_irq,
 };
 
-void irq_debug(void)
-{
-	bridge_t *bridge = (bridge_t *) 0x9200000008000000;
-
-	printk("bridge->b_int_status = 0x%x\n", bridge->b_int_status);
-	printk("bridge->b_int_enable = 0x%x\n", bridge->b_int_enable);
-	printk("PI_INT_PEND0   = 0x%lx\n", LOCAL_HUB_L(PI_INT_PEND0));
-	printk("PI_INT_MASK0_A = 0x%lx\n", LOCAL_HUB_L(PI_INT_MASK0_A));
-}
-
 void __init init_IRQ(void)
 {
 	int i, j;
