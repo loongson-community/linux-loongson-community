@@ -1324,8 +1324,9 @@ iPTE_SW(u32 **p, struct reloc **r, unsigned int pte, int offset,
 		/* no i_nop needed */
 		i_lw(p, pte, 0, ptr);
 	} else
-# else
 		i_nop(p);
+# else
+	i_nop(p);
 # endif
 #else
 # ifdef CONFIG_64BIT_PHYS_ADDR
