@@ -41,8 +41,6 @@ unsigned long highstart_pfn, highend_pfn;
 static unsigned long totalram_pages;
 static unsigned long totalhigh_pages;
 
-extern void prom_free_prom_memory(void);
-
 /*
  * We have upto 8 empty zeroed pages so we can map one of the right colour
  * when needed.  This is necessary only on R4000 / R4400 SC and MC versions
@@ -297,7 +295,7 @@ void free_initrd_mem(unsigned long start, unsigned long end)
 #endif
 
 extern char __init_begin, __init_end;
-extern void prom_free_prom_memory(void);
+extern void prom_free_prom_memory(void) __init;
 
 void free_initmem(void)
 {

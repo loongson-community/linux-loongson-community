@@ -236,7 +236,7 @@ void free_initrd_mem(unsigned long start, unsigned long end)
 }
 #endif
 
-extern void prom_free_prom_memory(void);
+extern void prom_free_prom_memory(void) __init;
 
 void free_initmem(void)
 {
