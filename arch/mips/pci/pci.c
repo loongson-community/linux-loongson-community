@@ -205,22 +205,6 @@ int pcibios_enable_device(struct pci_dev *dev, int mask)
 	return pcibios_enable_irq(dev);
 }
 
-unsigned long __init pci_bridge_check_io(struct pci_dev *bridge)
-{
-	u16 io;
-
-	pci_read_config_word(bridge, PCI_IO_BASE, &io);
-	if (!io) {
-		pci_write_config_word(bridge, PCI_IO_BASE, 0xf0f0);
-		pci_read_config_word(bridge, PCI_IO_BASE, &io);
-		pci_write_config_word(bridge, PCI_IO_BASE, 0x0);
-	}
-	if (io)
-		return IORESOURCE_IO;
-	//printk(KERN_WARNING "PCI: bridge %s does not support I/O forwarding!\n", bridge->name);
-	return 0;
-}
-
 static void __init pcibios_fixup_resource(struct pci_dev *dev,
 	struct resource *res, struct resource *root)
 {
