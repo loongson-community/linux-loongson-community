@@ -209,7 +209,7 @@ extern void __die(const char * str, struct pt_regs * regs, const char *where,
 		printk(" in %s, line %ld", where, line);
 	printk(":\n");
 	show_regs(regs);
-	printk("Process %s (pid: %ld, stackpage=%08lx)\n",
+	printk("Process %s (pid: %d, stackpage=%08lx)\n",
 		current->comm, current->pid, (unsigned long) current);
 	show_stack((unsigned int *) regs->regs[29]);
 	show_trace((unsigned int *) regs->regs[29]);
@@ -230,7 +230,7 @@ void __die_if_kernel(const char * str, struct pt_regs * regs, const char *where,
 extern const struct exception_table_entry __start___dbe_table[];
 extern const struct exception_table_entry __stop___dbe_table[];
 
-static void __declare_dbe_table(void)
+void __declare_dbe_table(void)
 {
 	__asm__ __volatile__(
 	".section\t__dbe_table,\"a\"\n\t"
@@ -527,7 +527,7 @@ void simulate_sc(struct pt_regs *regp, unsigned int opcode)
 void do_ri(struct pt_regs *regs)
 {
 	lock_kernel();
-	printk("[%s:%ld] Illegal instruction at %08lx ra=%08lx\n",
+	printk("[%s:%d] Illegal instruction at %08lx ra=%08lx\n",
 	       current->comm, current->pid, regs->cp0_epc, regs->regs[31]);
 	unlock_kernel();
 	if (compute_return_epc(regs))
