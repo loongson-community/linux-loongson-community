@@ -301,6 +301,7 @@ void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 	local_flush_tlb_page(vma, page);
 }
 
+EXPORT_SYMBOL(smp_num_cpus);
 EXPORT_SYMBOL(flush_tlb_page);
 EXPORT_SYMBOL(cpu_data);
 EXPORT_SYMBOL(synchronize_irq);
