@@ -1221,10 +1221,10 @@ do_sys32_semctl(int first, int second, int third, void *uptr)
 	case IPC_STAT:
 	case SEM_STAT:
 		fourth.__pad = &s;
-		old_fs = get_fs ();
-		set_fs (KERNEL_DS);
-		err = sys_semctl (first, second, third, fourth);
-		set_fs (old_fs);
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		err = sys_semctl(first, second, third | IPC_64, fourth);
+		set_fs(old_fs);
 
 		if (third & IPC_64) {
 			struct semid64_ds32 *usp64 = (struct semid64_ds32 *) A(pad);
@@ -1386,18 +1386,18 @@ do_sys32_msgctl (int first, int second, void *uptr)
 		}
 		if (err)
 			break;
-		old_fs = get_fs ();
-		set_fs (KERNEL_DS);
-		err = sys_msgctl (first, second, (struct msqid_ds *)&m);
-		set_fs (old_fs);
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		err = sys_msgctl(first, second | IPC_64, (struct msqid_ds *)&m);
+		set_fs(old_fs);
 		break;
 
 	case IPC_STAT:
 	case MSG_STAT:
-		old_fs = get_fs ();
-		set_fs (KERNEL_DS);
-		err = sys_msgctl (first, second, (struct msqid_ds *)&m);
-		set_fs (old_fs);
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		err = sys_msgctl(first, second | IPC_64, (struct msqid_ds *)&m);
+		set_fs(old_fs);
 		if (second & IPC_64) {
 			if (!access_ok(VERIFY_WRITE, up64, sizeof(*up64))) {
 				err = -EFAULT;
@@ -1465,21 +1465,23 @@ do_sys32_shmat (int first, int second, int third, int version, void *uptr)
 	return err;
 }
 
+struct shm_info32 {
+	int used_ids;
+	u32 shm_tot, shm_rss, shm_swp;
+	u32 swap_attempts, swap_successes;
+};
+
 static int
 do_sys32_shmctl (int first, int second, void *uptr)
 {
-	int err = -EFAULT, err2;
-	struct shmid_ds s;
-	struct shmid64_ds s64;
-	struct shmid_ds32 *up32 = (struct shmid_ds32 *)uptr;
 	struct shmid64_ds32 *up64 = (struct shmid64_ds32 *)uptr;
+	struct shmid_ds32 *up32 = (struct shmid_ds32 *)uptr;
+	struct shm_info32 *uip = (struct shm_info32 *)uptr;
+	int err = -EFAULT, err2;
+	struct shmid64_ds s64;
 	mm_segment_t old_fs;
-	struct shm_info32 {
-		int used_ids;
-		u32 shm_tot, shm_rss, shm_swp;
-		u32 swap_attempts, swap_successes;
-	} *uip = (struct shm_info32 *)uptr;
 	struct shm_info si;
+	struct shmid_ds s;
 
 	switch (second & ~IPC_64) {
 	case IPC_INFO:
@@ -1487,7 +1489,7 @@ do_sys32_shmctl (int first, int second, void *uptr)
 	case IPC_RMID:
 	case SHM_LOCK:
 	case SHM_UNLOCK:
-		err = sys_shmctl (first, second, (struct shmid_ds *)uptr);
+		err = sys_shmctl(first, second, (struct shmid_ds *)uptr);
 		break;
 	case IPC_SET:
 		if (second & IPC_64) {
@@ -1501,18 +1503,18 @@ do_sys32_shmctl (int first, int second, void *uptr)
 		}
 		if (err)
 			break;
-		old_fs = get_fs ();
-		set_fs (KERNEL_DS);
-		err = sys_shmctl (first, second, &s);
-		set_fs (old_fs);
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		err = sys_shmctl(first, second & ~IPC_64, &s);
+		set_fs(old_fs);
 		break;
 
 	case IPC_STAT:
 	case SHM_STAT:
-		old_fs = get_fs ();
-		set_fs (KERNEL_DS);
-		err = sys_shmctl (first, second, (void *) &s64);
-		set_fs (old_fs);
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		err = sys_shmctl(first, second | IPC_64, (void *) &s64);
+		set_fs(old_fs);
 		if (err < 0)
 			break;
 		if (second & IPC_64) {
@@ -1559,20 +1561,18 @@ do_sys32_shmctl (int first, int second, void *uptr)
 		break;
 
 	case SHM_INFO:
-		old_fs = get_fs ();
-		set_fs (KERNEL_DS);
-		err = sys_shmctl (first, second, (void *)&si);
-		set_fs (old_fs);
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		err = sys_shmctl(first, second, (void *)&si);
+		set_fs(old_fs);
 		if (err < 0)
 			break;
-		err2 = put_user (si.used_ids, &uip->used_ids);
-		err2 |= __put_user (si.shm_tot, &uip->shm_tot);
-		err2 |= __put_user (si.shm_rss, &uip->shm_rss);
-		err2 |= __put_user (si.shm_swp, &uip->shm_swp);
-		err2 |= __put_user (si.swap_attempts,
-				    &uip->swap_attempts);
-		err2 |= __put_user (si.swap_successes,
-				    &uip->swap_successes);
+		err2 = put_user(si.used_ids, &uip->used_ids);
+		err2 |= __put_user(si.shm_tot, &uip->shm_tot);
+		err2 |= __put_user(si.shm_rss, &uip->shm_rss);
+		err2 |= __put_user(si.shm_swp, &uip->shm_swp);
+		err2 |= __put_user(si.swap_attempts, &uip->swap_attempts);
+		err2 |= __put_user (si.swap_successes, &uip->swap_successes);
 		if (err2)
 			err = -EFAULT;
 		break;
