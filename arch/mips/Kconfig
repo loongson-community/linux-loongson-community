@@ -743,6 +743,10 @@ config DUMMY_KEYB
 	depends on ZAO_CAPCELLA || VICTOR_MPC30X || SIBYTE_SB1xxx_SOC || NEC_EAGLE || NEC_OSPREY || DDB5477 || CASIO_E55 || TANBAC_TB0226 || TANBAC_TB0229
 	default y
 
+config VRC4171
+	tristate "NEC VRC4171 Support"
+	depends on IBM_WORKPAD
+
 config VRC4173
 	tristate "NEC VRC4173 Support"
 	depends on NEC_EAGLE || VICTOR_MPC30X
