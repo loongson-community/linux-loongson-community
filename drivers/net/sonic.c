@@ -14,7 +14,7 @@
  */
 
 static const char *version =
-	"sonic.c:v0.10 6.7.96 tsbogend@bigbug.franken.de\n";
+	"sonic.c:v0.10 6.7.96 tsbogend@alpha.franken.de\n";
 
 /*
  * Sources: Olivetti M700-10 Risc Personal Computer hardware handbook,
