@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2000, 2001 Broadcom Corporation
+ * Copyright (C) 2000, 2001, 2002, 2003 Broadcom Corporation
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -64,15 +64,21 @@
 #define MIN(a,b)	((a) < (b) ? (a) : (b))
 #endif
 
+#ifdef CONFIG_SIBYTE_SB1250_DUART_NO_PORT_1
+#define DUART_MAX_LINE 1
+#else
+#define DUART_MAX_LINE 2
+#endif
+
 /*
  * Still not sure what the termios structures set up here are for, 
  *  but we have to supply pointers to them to register the tty driver
  */
 static struct tty_driver sb1250_duart_driver, sb1250_duart_callout_driver;
-static int ref_count;
-static struct tty_struct *duart_table[2];
-static struct termios    *duart_termios[2];
-static struct termios    *duart_termios_locked[2];
+static int duart_refcount;
+static struct tty_struct *duart_table[DUART_MAX_LINE];
+static struct termios    *duart_termios[DUART_MAX_LINE];
+static struct termios    *duart_termios_locked[DUART_MAX_LINE];
 
 /*
  * tmp_buf is used as a temporary buffer by serial_write.  We need to
@@ -96,18 +102,19 @@ static spinlock_t          open_lock = SPIN_LOCK_UNLOCKED;
 
 typedef struct { 
 	struct tty_struct   *tty;
-	unsigned char       outp_buf[CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE];
+	unsigned char       outp_buf[SERIAL_XMIT_SIZE];
 	unsigned int        outp_head;
 	unsigned int        outp_tail;
 	unsigned int        outp_count;
 	spinlock_t          outp_lock;
 	unsigned int        outp_stopped;
 	unsigned int        open;
-	unsigned long       flags;
+	unsigned int        line;
 	unsigned int        last_cflags;
+	unsigned long       flags;
 } uart_state_t;
 
-static uart_state_t uart_states[2] = { [0 ... 1] = {
+static uart_state_t uart_states[DUART_MAX_LINE] = { [0 ... DUART_MAX_LINE-1] = {
 	tty:                0,
 	outp_head:          0,
 	outp_tail:          0,
@@ -160,17 +167,6 @@ static inline unsigned long get_status_reg(unsigned int line)
 	return status;
 }
 
-/* Derive which uart a call is for from the passed tty line.  */
-static inline unsigned int get_line(struct tty_struct *tty) 
-{
-	unsigned int line = minor(tty->device) - tty->driver.minor_start;
-
-	if (line > 1)
-		printk(KERN_CRIT "Invalid line\n");
-
-	return line;
-}
-
 
 /* 
  * Generic interrupt handler for both channels.  dev_id is a pointer
@@ -181,7 +177,7 @@ static inline unsigned int get_line(struct tty_struct *tty)
 static void duart_int(int irq, void *dev_id, struct pt_regs *regs)
 {
 	uart_state_t *us = (uart_state_t *)dev_id;
-	unsigned int line = us - uart_states;
+	unsigned int line = us->line;
 	struct tty_struct *tty = us->tty;
 
 #ifdef DUART_SPEW
@@ -214,13 +210,13 @@ static void duart_int(int irq, void *dev_id, struct pt_regs *regs)
 	if ((get_status_reg(line) & M_DUART_TX_RDY) && us->outp_count) {
 		do {
 			out64(us->outp_buf[us->outp_head], IO_SPACE_BASE | A_DUART_CHANREG(line, R_DUART_TX_HOLD));
-			us->outp_head = (us->outp_head + 1) & (CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE-1);
+			us->outp_head = (us->outp_head + 1) & (SERIAL_XMIT_SIZE-1);
 			us->outp_count--;
 		} while ((get_status_reg(line) & M_DUART_TX_RDY) &&
 		         us->outp_count);
 
 		if (us->open &&
-		    (us->outp_count < (CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE/2))) {
+		    (us->outp_count < (SERIAL_XMIT_SIZE/2))) {
 			/*
 			 * We told the discipline at one point that we had no
 			 * space, so it went to sleep.  Wake it up when we hit
@@ -247,7 +243,7 @@ static int duart_write_room(struct tty_struct *tty)
 	uart_state_t *us = (uart_state_t *) tty->driver_data;
 	int retval;
 
-	retval = CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE - us->outp_count;
+	retval = SERIAL_XMIT_SIZE - us->outp_count;
 
 #ifdef DUART_SPEW
 	printk("duart_write_room called, returning %i\n", retval);
@@ -273,10 +269,9 @@ static inline int copy_buf(char *dest, const char *src, int size, int from_user)
  * other characters buffered, enable the tx interrupt to start sending
  */
 static int duart_write(struct tty_struct * tty, int from_user,
-		      const unsigned char *buf, int count)
+	const unsigned char *buf, int count)
 {
 	uart_state_t *us = (uart_state_t *) tty->driver_data;
-	unsigned int line = get_line(tty);
 	int c, total = 0;
 	unsigned long flags;
 
@@ -287,7 +282,7 @@ static int duart_write(struct tty_struct * tty, int from_user,
 	printk("duart_write called for %i chars by %i (%s)\n", count, current->pid, current->comm);
 #endif
 	if (!count ||
-	    (us->outp_count == CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE)) {
+	    (us->outp_count == SERIAL_XMIT_SIZE)) {
 		return 0;
 	}
 	if (from_user) {
@@ -306,10 +301,10 @@ static int duart_write(struct tty_struct * tty, int from_user,
 			}
 			
 			spin_lock_irqsave(&us->outp_lock, flags);
-			c = MIN(c, MIN(CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE - us->outp_count - 1,
-				       CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE - us->outp_tail));
+			c = MIN(c, MIN(SERIAL_XMIT_SIZE - us->outp_count - 1,
+				       SERIAL_XMIT_SIZE - us->outp_tail));
 			memcpy(us->outp_buf + us->outp_tail, tmp_buf, c);
-			us->outp_tail = (us->outp_tail + c) & (CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE-1);
+			us->outp_tail = (us->outp_tail + c) & (SERIAL_XMIT_SIZE-1);
 			us->outp_count += c;
 			spin_unlock_irqrestore(&us->outp_lock, flags);
 			
@@ -321,15 +316,15 @@ static int duart_write(struct tty_struct * tty, int from_user,
 	} else {
 	    while (1) {
 		    spin_lock_irqsave(&us->outp_lock, flags);
-		    c = MIN(count, MIN(CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE - us->outp_count - 1,
-				       CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE - us->outp_tail));
+		    c = MIN(count, MIN(SERIAL_XMIT_SIZE - us->outp_count - 1,
+				       SERIAL_XMIT_SIZE - us->outp_tail));
 		    if (c <= 0) {
 			    spin_unlock_irqrestore(&us->outp_lock, flags);
 			    break;
 		    }
 
 		    memcpy(us->outp_buf + us->outp_tail, buf, c);
-		    us->outp_tail = (us->outp_tail + c) & (CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE-1);
+		    us->outp_tail = (us->outp_tail + c) & (SERIAL_XMIT_SIZE-1);
 		    us->outp_count += c;
 		    spin_unlock_irqrestore(&us->outp_lock, flags);
 
@@ -341,7 +336,7 @@ static int duart_write(struct tty_struct * tty, int from_user,
 	/* Excessive... */
 	if (us->outp_count && !us->outp_stopped) {
 		spin_lock_irqsave(&us->outp_lock, flags);
-		duart_unmask_ints(line, M_DUART_IMR_TX);
+		duart_unmask_ints(us->line, M_DUART_IMR_TX);
 		spin_unlock_irqrestore(&us->outp_lock, flags);
 	}
 
@@ -354,18 +349,17 @@ static int duart_write(struct tty_struct * tty, int from_user,
 static void duart_put_char(struct tty_struct *tty, u_char ch)
 {
 	uart_state_t *us = (uart_state_t *) tty->driver_data;
-	unsigned int line = get_line(tty);
 	unsigned long flags;
 
 #ifdef DUART_SPEW
 	printk("duart_put_char called.  Char is %x (%c)\n", (int)ch, ch);
 #endif
 	spin_lock_irqsave(&us->outp_lock, flags);
-	if (us->outp_count != CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE) {
+	if (us->outp_count != SERIAL_XMIT_SIZE) {
 		us->outp_buf[us->outp_tail] = ch;
-		us->outp_tail = (us->outp_tail + 1) &(CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE-1);
+		us->outp_tail = (us->outp_tail + 1) &(SERIAL_XMIT_SIZE-1);
 		if (!(us->outp_count || us->outp_stopped)) {
-			duart_unmask_ints(line, M_DUART_IMR_TX);
+			duart_unmask_ints(us->line, M_DUART_IMR_TX);
 		}
 		us->outp_count++;
 	}
@@ -392,13 +386,12 @@ static int duart_chars_in_buffer(struct tty_struct *tty)
 static void duart_flush_buffer(struct tty_struct *tty)
 {
 	uart_state_t *us = (uart_state_t *) tty->driver_data;
-	unsigned int line = get_line(tty);
 	unsigned long flags;
 
 #ifdef DUART_SPEW
 	printk("duart_flush_buffer called\n");
 #endif
-	duart_mask_ints(line, M_DUART_IMR_TX);
+	duart_mask_ints(us->line, M_DUART_IMR_TX);
 	spin_lock_irqsave(&us->outp_lock, flags);
 	us->outp_head = us->outp_tail = us->outp_count = 0;
 	spin_unlock_irqrestore(&us->outp_lock, flags);
@@ -464,12 +457,14 @@ static inline void duart_set_cflag(unsigned int line, unsigned int cflag)
 /* Handle notification of a termios change.  */
 static void duart_set_termios(struct tty_struct *tty, struct termios *old)
 {
+	uart_state_t *us = (uart_state_t *) tty->driver_data;
+
 #ifdef DUART_SPEW 
 	printk("duart_set_termios called by %i (%s)\n", current->pid, current->comm);
 #endif
 	if (old && tty->termios->c_cflag == old->c_cflag)
 		return;
-	duart_set_cflag(get_line(tty), tty->termios->c_cflag);
+	duart_set_cflag(us->line, tty->termios->c_cflag);
 }
 
 /* Stop pushing stuff into the fifo, now.  Do the mask under the 
@@ -483,7 +478,7 @@ static void duart_stop(struct tty_struct *tty)
 	printk("duart_stop called\n");
 #endif
 	spin_lock_irqsave(&us->outp_lock, flags);
-	duart_mask_ints(get_line(tty), M_DUART_IMR_TX);
+	duart_mask_ints(us->line, M_DUART_IMR_TX);
 	us->outp_stopped = 1;
 	spin_unlock_irqrestore(&us->outp_lock, flags);
 }
@@ -582,7 +577,7 @@ static void duart_start(struct tty_struct *tty)
 #endif
 	spin_lock_irqsave(&us->outp_lock, flags);
 	if (us->outp_count) {
-		duart_unmask_ints(get_line(tty), M_DUART_IMR_TX);
+		duart_unmask_ints(us->line, M_DUART_IMR_TX);
 	}
 	us->outp_stopped = 0;
 	spin_unlock_irqrestore(&us->outp_lock, flags);
@@ -596,14 +591,14 @@ static void duart_start(struct tty_struct *tty)
 
 static void duart_wait_until_sent(struct tty_struct *tty, int timeout)
 {
-	unsigned int line = get_line(tty);
+	uart_state_t *us = (uart_state_t *) tty->driver_data;
 	unsigned long orig_jiffies;
 
 	orig_jiffies = jiffies;
 #ifdef DUART_SPEW
 	printk("duart_wait_until_sent(%d)+\n", timeout);
 #endif
-	while (!(get_status_reg(line) & M_DUART_TX_EMT)) {
+	while (!(get_status_reg(us->line) & M_DUART_TX_EMT)) {
 		set_current_state(TASK_INTERRUPTIBLE);
 	 	schedule_timeout(1);
 		if (signal_pending(current))
@@ -621,10 +616,11 @@ static void duart_wait_until_sent(struct tty_struct *tty, int timeout)
  */
 static void duart_hangup(struct tty_struct *tty)
 {
-	//uart_state_t *info = (uart_state_t *) tty->driver_data;
+	uart_state_t *us = (uart_state_t *) tty->driver_data;
 
-	//info->tty = 0;
-	//wake_up_interruptible(&info->open_wait);
+	duart_flush_buffer(tty);
+	us->open = 0;
+	us->tty = 0;
 }
 
 /*
@@ -635,16 +631,12 @@ static void duart_hangup(struct tty_struct *tty)
 static int duart_open(struct tty_struct *tty, struct file *filp)
 {
 	uart_state_t *us;
+	unsigned int line = MINOR(tty->device) - tty->driver.minor_start;
 	unsigned long flags;
-	unsigned int line;
 
 	MOD_INC_USE_COUNT;
-#ifndef CONFIG_SIBYTE_SB1250_DUART_NO_PORT_1
-	if (get_line(tty) > 1)
-#else
-	if (get_line(tty) > 0)
-#endif
-	                      {
+
+	if ((line < 0) || (line >= DUART_MAX_LINE)) {
 		MOD_DEC_USE_COUNT;
 		return -ENODEV;
 	}
@@ -655,7 +647,6 @@ static int duart_open(struct tty_struct *tty, struct file *filp)
 	       tty->write_wait);
 #endif
 
-	line = get_line(tty);
 	us = uart_states + line;
 	tty->driver_data = us;
 
@@ -697,9 +688,32 @@ static void duart_close(struct tty_struct *tty, struct file *filp)
 		return;
 
 	spin_lock_irqsave(&open_lock, flags);
-	us->open--;
-	ref_count--;
+	if (tty_hung_up_p(filp)) {
+		MOD_DEC_USE_COUNT;
+		spin_unlock_irqrestore(&open_lock, flags);
+		return;
+	}
+
+	if (--us->open < 0) {
+		us->open = 0;
+		printk(KERN_ERR "duart: bad open count: %d\n", us->open);
+	}
+	if (us->open) {
+		spin_unlock_irqrestore(&open_lock, flags);
+		return;
+	}
+
 	spin_unlock_irqrestore(&open_lock, flags);
+
+	tty->closing = 1;
+	duart_mask_ints(us-uart_states, M_DUART_IMR_TX);
+
+	if (tty->driver.flush_buffer)
+		tty->driver.flush_buffer(tty);
+	if (tty->ldisc.flush_buffer)
+		tty->ldisc.flush_buffer(tty);
+	tty->closing = 0;
+
 	MOD_DEC_USE_COUNT;
 }
 
@@ -708,6 +722,8 @@ static void duart_close(struct tty_struct *tty, struct file *filp)
    is called from tty_init, or as a part of the module init */
 static int __init sb1250_duart_init(void) 
 {
+	int i;
+
 	sb1250_duart_driver.magic            = TTY_DRIVER_MAGIC;
 	sb1250_duart_driver.driver_name      = "serial";
 #ifdef CONFIG_DEVFS_FS
@@ -717,12 +733,12 @@ static int __init sb1250_duart_init(void)
 #endif
 	sb1250_duart_driver.major            = TTY_MAJOR;
 	sb1250_duart_driver.minor_start      = SB1250_DUART_MINOR_BASE;
-	sb1250_duart_driver.num              = 2;
+	sb1250_duart_driver.num              = DUART_MAX_LINE;
 	sb1250_duart_driver.type             = TTY_DRIVER_TYPE_SERIAL;
 	sb1250_duart_driver.subtype          = SERIAL_TYPE_NORMAL;
 	sb1250_duart_driver.init_termios     = tty_std_termios;
 	sb1250_duart_driver.flags            = TTY_DRIVER_REAL_RAW;
-	sb1250_duart_driver.refcount         = &ref_count;
+	sb1250_duart_driver.refcount         = &duart_refcount;
 	sb1250_duart_driver.table            = duart_table;
 	sb1250_duart_driver.termios          = duart_termios;
 	sb1250_duart_driver.termios_locked   = duart_termios_locked;
@@ -750,18 +766,16 @@ static int __init sb1250_duart_init(void)
 	sb1250_duart_callout_driver.major    = TTYAUX_MAJOR;
 	sb1250_duart_callout_driver.subtype  = SERIAL_TYPE_CALLOUT;
 
-	duart_mask_ints(0, 0xf);
-	if (request_irq(K_INT_UART_0, duart_int, 0, "uart0", &uart_states[0])) {
-		panic("Couldn't get uart0 interrupt line");
+	for (i=0; i<DUART_MAX_LINE; i++) {
+		duart_mask_ints(i, 0xf);
+		if (request_irq(K_INT_UART_0+i, duart_int, 0, "uart", &uart_states[i])) {
+			panic("Couldn't get uart0 interrupt line");
+		}
+		out64(M_DUART_RX_EN|M_DUART_TX_EN,
+		      IO_SPACE_BASE | A_DUART_CHANREG(i, R_DUART_CMD));
+		duart_set_cflag(i, DEFAULT_CFLAGS);
+		uart_states[i].line = i;
 	}
-	out64(M_DUART_RX_EN|M_DUART_TX_EN, IO_SPACE_BASE | A_DUART_CHANREG(0, R_DUART_CMD));
-#ifndef CONFIG_SIBYTE_SB1250_DUART_NO_PORT_1
-	duart_mask_ints(1, 0xf);
-	if (request_irq(K_INT_UART_1, duart_int, 0, "uart1", &uart_states[1])) {
-		panic("Couldn't get uart1 interrupt line");
-	}
-	out64(M_DUART_RX_EN|M_DUART_TX_EN, IO_SPACE_BASE | A_DUART_CHANREG(1, R_DUART_CMD));
-#endif	
 
 	/* Interrupts are now active, our ISR can be called. */
 
@@ -771,10 +785,6 @@ static int __init sb1250_duart_init(void)
 	if (tty_register_driver(&sb1250_duart_callout_driver)) {
 		printk(KERN_ERR "Couldn't register sb1250 duart callout driver\n");
 	}
-	duart_set_cflag(0, DEFAULT_CFLAGS);
-#ifndef CONFIG_SIBYTE_SB1250_DUART_NO_PORT_1
-	duart_set_cflag(1, DEFAULT_CFLAGS);
-#endif
 	return 0;
 }
 
@@ -782,6 +792,7 @@ static int __init sb1250_duart_init(void)
 static void __exit sb1250_duart_fini(void)
 {
 	unsigned long flags;
+	int i;
 	int ret;
 
 	save_and_cli(flags);
@@ -793,12 +804,10 @@ static void __exit sb1250_duart_fini(void)
 	if (ret) {
 		printk(KERN_ERR "Unable to unregister sb1250 duart serial driver (%d)\n", ret);
 	}
-	free_irq(K_INT_UART_0, &uart_states[0]);
-	disable_irq(K_INT_UART_0);
-#ifndef CONFIG_SIBYTE_SB1250_DUART_NO_PORT_1
-	free_irq(K_INT_UART_1, &uart_states[1]);
-	disable_irq(K_INT_UART_1);
-#endif
+	for (i=0; i<DUART_MAX_LINE; i++) {
+		free_irq(K_INT_UART_0+i, &uart_states[i]);
+		disable_irq(K_INT_UART_0+i);
+	}
 	restore_flags(flags);
 }
 
@@ -817,7 +826,7 @@ MODULE_AUTHOR("Justin Carlson <carlson@sibyte.com>");
  */
 
 static void ser_console_write(struct console *cons, const char *str,
-                              unsigned int count)
+	unsigned int count)
 {
 	unsigned int i;
 
@@ -845,7 +854,7 @@ static void ser_console_write(struct console *cons, const char *str,
 
 static kdev_t ser_console_device(struct console *c)
 {
-	return mk_kdev(TTY_MAJOR, 64 + c->index);
+	return mk_kdev(TTY_MAJOR, SB1250_DUART_MINOR_BASE + c->index);
 }
 
 static int ser_console_setup(struct console *cons, char *str)
@@ -857,7 +866,7 @@ static int ser_console_setup(struct console *cons, char *str)
 }
 
 static struct console sb1250_ser_cons = {
-	name:		"ttyS",
+	name:		"duart",
 	write:		ser_console_write,
 	device:		ser_console_device,
 	setup:		ser_console_setup,

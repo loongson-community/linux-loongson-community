@@ -424,14 +424,10 @@ config SERIAL_CONSOLE
 	depends on SIBYTE_SB1250_DUART_CONSOLE
 	default y
 
-config SB1250_DUART_OUTPUT_BUF_SIZE
-	int "Output buffers size (in bytes)"
-	depends on SIBYTE_SB1250_DUART
-	default "1024"
-
 config SIBYTE_SB1250_DUART_NO_PORT_1
-	bool "Leave port 1 alone (for kgdb or audio)"
-	depends on SIBYTE_SB1250_DUART
+	bool
+	depends on SIBYTE_SB1250_DUART && REMOTE_DEBUG
+	default y
 
 config QTRONIX_KEYBOARD
 	bool "Enable Qtronix 990P Keyboard Support"
