@@ -280,7 +280,7 @@ pci_disable_swapping(struct pci_dev *dev)
 	int		slot = PCI_SLOT(dev->devfn);
 
 	/* Turn off byte swapping */
-	bridge->b_device[slot].reg; devreg &= ~BRIDGE_DEV_SWAP_DIR;
+	bridge->b_device[slot].reg &= ~BRIDGE_DEV_SWAP_DIR;
 	bridge->b_widget.w_tflush;		/* Flush */
 }
 
@@ -293,7 +293,7 @@ pci_enable_swapping(struct pci_dev *dev)
 	int		slot = PCI_SLOT(dev->devfn);
 
 	/* Turn on byte swapping */
-	bridge->b_device[slot].reg; devreg |= BRIDGE_DEV_SWAP_DIR;
+	bridge->b_device[slot].reg |= BRIDGE_DEV_SWAP_DIR;
 	bridge->b_widget.w_tflush;		/* Flush */
 }
 
