@@ -135,11 +135,6 @@ static void __init swarm_setup(void)
        };
        /* XXXKW for CFE, get lines/cols from environment */
 #endif
-
-#ifdef CONFIG_SMP
-	/* Detect available CPUs, populate phys_cpu_present_map */
-	prom_build_cpu_map();
-#endif
 }
 
 early_initcall(swarm_setup);
