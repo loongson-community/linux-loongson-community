@@ -24,6 +24,7 @@
 #include <linux/sem.h>
 #include <linux/msg.h>
 #include <linux/shm.h>
+#include <linux/compiler.h>
 
 #include <asm/branch.h>
 #include <asm/cachectl.h>
@@ -162,13 +163,15 @@ sys_mmap2(unsigned long addr, unsigned long len, unsigned long prot,
 }
 
 save_static_function(sys_fork);
-static_unused int _sys_fork(nabi_no_regargs struct pt_regs regs)
+__attribute_used__ noinline static int
+_sys_fork(nabi_no_regargs struct pt_regs regs)
 {
 	return do_fork(SIGCHLD, regs.regs[29], &regs, 0, NULL, NULL);
 }
 
 save_static_function(sys_clone);
-static_unused int _sys_clone(nabi_no_regargs struct pt_regs regs)
+__attribute_used__ noinline static int
+_sys_clone(nabi_no_regargs struct pt_regs regs)
 {
 	unsigned long clone_flags;
 	unsigned long newsp;

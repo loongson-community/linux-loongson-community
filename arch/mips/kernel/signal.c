@@ -20,6 +20,7 @@
 #include <linux/ptrace.h>
 #include <linux/suspend.h>
 #include <linux/unistd.h>
+#include <linux/compiler.h>
 
 #include <asm/asm.h>
 #include <asm/bitops.h>
@@ -41,7 +42,8 @@ extern asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs);
 
 #ifdef CONFIG_TRAD_SIGNALS
 save_static_function(sys_sigsuspend);
-static_unused int _sys_sigsuspend(struct pt_regs regs)
+__attribute_used__ noinline static int
+_sys_sigsuspend(nabi_no_regargs struct pt_regs regs)
 {
 	sigset_t *uset, saveset, newset;
 
@@ -68,7 +70,8 @@ static_unused int _sys_sigsuspend(struct pt_regs regs)
 #endif
 
 save_static_function(sys_rt_sigsuspend);
-static_unused int _sys_rt_sigsuspend(nabi_no_regargs struct pt_regs regs)
+__attribute_used__ noinline static int
+_sys_rt_sigsuspend(nabi_no_regargs struct pt_regs regs)
 {
 	sigset_t *unewset, saveset, newset;
 	size_t sigsetsize;

@@ -19,6 +19,7 @@
 #include <linux/ptrace.h>
 #include <linux/compat.h>
 #include <linux/suspend.h>
+#include <linux/compiler.h>
 
 #include <asm/asm.h>
 #include <asm/bitops.h>
@@ -127,7 +128,8 @@ static inline int get_sigset(sigset_t *kbuf, const compat_sigset_t *ubuf)
  * Atomically swap in the new signal mask, and wait for a signal.
  */
 save_static_function(sys32_sigsuspend);
-static_unused int _sys32_sigsuspend(nabi_no_regargs struct pt_regs regs)
+__attribute_used__ noinline static int
+_sys32_sigsuspend(nabi_no_regargs struct pt_regs regs)
 {
 	compat_sigset_t *uset;
 	sigset_t newset, saveset;
@@ -154,7 +156,8 @@ static_unused int _sys32_sigsuspend(nabi_no_regargs struct pt_regs regs)
 }
 
 save_static_function(sys32_rt_sigsuspend);
-static_unused int _sys32_rt_sigsuspend(nabi_no_regargs struct pt_regs regs)
+__attribute_used__ noinline static int
+_sys32_rt_sigsuspend(nabi_no_regargs struct pt_regs regs)
 {
 	compat_sigset_t *uset;
 	sigset_t newset, saveset;
