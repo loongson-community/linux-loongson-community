@@ -2297,7 +2297,7 @@ static inline void end_request(struct request *req, int uptodate)
 {
 	if (end_that_request_first(req, uptodate, current_count_sectors))
 		return;
-	add_blkdev_randomness(MAJOR_NR);
+	add_disk_randomness(req->rq_disk);
 	floppy_off((int)req->rq_disk->private_data);
 	blkdev_dequeue_request(req);
 	end_that_request_last(req);
@@ -4210,6 +4210,7 @@ static struct gendisk *floppy_find(dev_t dev, int *part, void *data)
 	    !(allowed_drive_mask & (1 << drive)) ||
 	    fdc_state[FDC(drive)].version == FDC_NONE)
 		return NULL;
+	*part = 0;
 	return get_disk(disks[drive]);
 }
 

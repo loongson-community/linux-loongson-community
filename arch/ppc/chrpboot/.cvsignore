@@ -1,4 +1,3 @@
-.depend
-.*.flags
+.d
 mkboot zImage
 .*.cmd

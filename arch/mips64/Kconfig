@@ -1,0 +1,17 @@
+#
+# For a description of the syntax of this configuration file,
+# see Documentation/kbuild/config-language.txt.
+#
+config MIPS
+	bool
+	default y
+
+config MIPS32
+	bool
+	default n
+
+config MIPS64
+	bool
+	default y
+
+source "arch/mips/Kconfig-shared"

@@ -375,7 +375,7 @@ static inline void resource_init(void)
 
 	code_resource.start = virt_to_bus(&_ftext);
 	code_resource.end = virt_to_bus(&_etext) - 1;
-	data_resource.start = virt_to_bus(&_fdata);
+	data_resource.start = virt_to_bus(&_etext);
 	data_resource.end = virt_to_bus(&_edata) - 1;
 
 	/*

@@ -1,10 +1,9 @@
 !core
-.SUMS
 .config
-.depend
+..config.cmd
 .hdepend
-.tmpconfig
-.tmpconfig.h
+.tmpver.1
+.tmpver.2
 .version
 .vmlinux.cmd
 System.map

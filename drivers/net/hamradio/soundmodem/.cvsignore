@@ -1,5 +1,4 @@
-.depend
-.*.flags
+.d
 gentbl
 sm_tbl_afsk1200.h
 sm_tbl_afsk2666.h

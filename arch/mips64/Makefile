@@ -82,22 +82,20 @@ libs-$(CONFIG_SIBYTE_CFE)	+= arch/mips/sibyte/cfe/
 #
 # MIPS Atlas board
 #
-core-$(CONFIG_MIPS_ATLAS)	+= arch/mips/mips-boards/generic/ \
-				   arch/mips/mips-boards/atlas/
+core-$(CONFIG_MIPS_BOARDS_GEN)	+= arch/mips/mips-boards/generic/
+core-$(CONFIG_MIPS_ATLAS)	+= arch/mips/mips-boards/atlas/
 load-$(CONFIG_MIPS_ATLAS)	+= 0x80100000
 
 #
 # MIPS Malta board
 #
-core-$(CONFIG_MIPS_MALTA)	+= arch/mips/mips-boards/malta/ \
-				   arch/mips/mips-boards/generic/
+core-$(CONFIG_MIPS_MALTA)	+= arch/mips/mips-boards/malta/
 load-$(CONFIG_MIPS_MALTA)	+= 0x80100000
 
 #
 # MIPS SEAD board
 #
-core-$(CONFIG_MIPS_SEAD)	+= arch/mips/mips-boards/generic/ \
-				   arch/mips/mips-boards/sead/
+core-$(CONFIG_MIPS_SEAD)	+= arch/mips/mips-boards/sead/
 load-$(CONFIG_MIPS_SEAD)	+= 0x80100000
 
 #

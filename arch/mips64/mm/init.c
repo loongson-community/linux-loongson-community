@@ -217,7 +217,7 @@ void __init mem_init(void)
 		}
 
 	codesize =  (unsigned long) &_etext - (unsigned long) &_text;
-	datasize =  (unsigned long) &_edata - (unsigned long) &_data;
+	datasize =  (unsigned long) &_edata - (unsigned long) &_etext;
 	initsize =  (unsigned long) &__init_end - (unsigned long) &__init_begin;
 
 	printk(KERN_INFO "Memory: %luk/%luk available (%ldk kernel code, "

@@ -545,6 +545,9 @@ out:	jr	ra
 	sys	sys_io_cancel		3		/* 4245 */
 	sys	sys_exit_group		1
 	sys	sys_lookup_dcookie	3
+	sys	sys_epoll_create	1
+	sys	sys_epoll_ctl		4
+	sys	sys_epoll_wait		3		/* 4250 */
 	.endm
 
 	.macro	sys function, nargs

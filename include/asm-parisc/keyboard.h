@@ -1,4 +1,13 @@
 /*
+ *  WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING
+ *  ---------------------------------------------------------------
+ *  This file will be removed as soon as we have converted
+ *  hp_psaux.c and hp_keyb.c to the input layer !
+ *  
+ */
+
+
+/*
  *  linux/include/asm-parisc/keyboard.h
  *
  *  Original by Geert Uytterhoeven
@@ -20,6 +29,9 @@
 
 #ifdef __KERNEL__
 #ifdef CONFIG_VT
+
+#include <linux/kernel.h>
+#include <linux/kd.h>
 
 /*  These are basically the generic functions / variables.  The only
  *  unexpected detail is the initialization sequence for the keyboard
@@ -43,6 +55,16 @@ extern struct kbd_ops {
 	void (*leds)(unsigned char);
 	void (*init_hw)(void);
 
+	/* Keyboard driver resource allocation  */
+	void (*kbd_request_region)(void);
+	int (*kbd_request_irq)(void (*handler)(int, void *, struct pt_regs *));
+
+	/* Methods to access the keyboard processor's I/O registers  */
+	unsigned char (*kbd_read_input)(void);
+	void (*kbd_write_output)(unsigned char val);
+	void (*kbd_write_command)(unsigned char val);
+	unsigned char (*kbd_read_status)(void);
+
 	unsigned char sysrq_key;
 	unsigned char *sysrq_xlate;
 } *kbd_ops;
@@ -56,8 +78,18 @@ extern struct kbd_ops {
 
 #define SYSRQ_KEY		(kbd_ops->sysrq_key)
 #define	kbd_sysrq_xlate		(kbd_ops->sysrq_xlate)
+
+/* Do the actual calls via kbd_ops vector  */
+#define kbd_request_region() 	kbd_ops->kbd_request_region()
+#define kbd_request_irq(handler) kbd_ops->kbd_request_irq(handler)
+#define kbd_read_input() 	kbd_ops->kbd_read_input()
+#define kbd_write_output(val) 	kbd_ops->kbd_write_output(val)
+#define kbd_write_command(val) 	kbd_ops->kbd_write_command(val)
+#define kbd_read_status() 	kbd_ops->kbd_read_status()
+
 extern unsigned char hp_ps2kbd_sysrq_xlate[128]; 	/* from drivers/char/hp_keyb.c */
 
+extern void unregister_kbd_ops(void);
 extern void register_kbd_ops(struct kbd_ops *ops);
 
 #endif /* CONFIG_VT */

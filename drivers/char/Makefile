@@ -7,14 +7,14 @@
 #
 FONTMAPFILE = cp437.uni
 
-obj-y	 += mem.o tty_io.o n_tty.o tty_ioctl.o pty.o misc.o random.o
+obj-y	 += mem.o tty_io.o n_tty.o tty_ioctl.o pty.o misc.o random.o eventpoll.o
 
 # All of the (potential) objects that export symbols.
 # This list comes from 'grep -l EXPORT_SYMBOL *.[hc]'.
 
 export-objs     :=	busmouse.o vt.o generic_serial.o ip2main.o \
 			ite_gpio.o keyboard.o misc.o nvram.o random.o rtc.o \
-			selection.o sonypi.o sysrq.o tty_io.o tty_ioctl.o \
+			selection.o sonypi.o sysrq.o tty_io.o tty_ioctl.o eventpoll.o \
 			ip2main.o au1000_gpio.o
 
 obj-$(CONFIG_VT) += vt_ioctl.o vc_screen.o consolemap.o consolemap_deftbl.o selection.o keyboard.o
@@ -118,7 +118,7 @@ clean-files := consolemap_deftbl.c defkeymap.c qtronixmap.c
 include $(TOPDIR)/Rules.make
 
 $(obj)/consolemap_deftbl.c: $(src)/$(FONTMAPFILE)
-	$(call do_cmd,CONMK  $(echo_target),$(objtree)/scripts/conmakehash $< > $@)
+	$(call do_cmd,CONMK  $@,$(objtree)/scripts/conmakehash $< > $@)
 
 $(obj)/defkeymap.o:  $(obj)/defkeymap.c
 

@@ -39,6 +39,7 @@
 #include <linux/seq_file.h>
 #include <linux/times.h>
 #include <linux/profile.h>
+#include <linux/blkdev.h>
 
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
@@ -295,6 +296,18 @@ static struct file_operations proc_partitions_operations = {
 	.release	= seq_release,
 };
 
+extern struct seq_operations swaps_op;
+static int swaps_open(struct inode *inode, struct file *file)
+{
+	return seq_open(file, &swaps_op);
+}
+static struct file_operations proc_swaps_operations = {
+	.open		= swaps_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= seq_release,
+};
+
 #ifdef CONFIG_MODULES
 extern struct seq_operations modules_op;
 static int modules_open(struct inode *inode, struct file *file)
@@ -404,10 +417,14 @@ static int kstat_read_proc(char *page, char **start, off_t off,
 	len += sprintf(page + len,
 		"\nctxt %lu\n"
 		"btime %lu\n"
-		"processes %lu\n",
+		"processes %lu\n"
+		"procs_running %lu\n"
+		"procs_blocked %u\n",
 		nr_context_switches(),
 		xtime.tv_sec - jif / HZ,
-		total_forks);
+		total_forks,
+		nr_running(),
+		atomic_read(&nr_iowait_tasks));
 
 	return proc_calc_metrics(page, start, off, count, eof, len);
 }
@@ -500,13 +517,6 @@ static int execdomains_read_proc(char *page, char **start, off_t off,
 				 int count, int *eof, void *data)
 {
 	int len = get_exec_domain_list(page);
-	return proc_calc_metrics(page, start, off, count, eof, len);
-}
-
-static int swaps_read_proc(char *page, char **start, off_t off,
-				 int count, int *eof, void *data)
-{
-	int len = get_swaparea_info(page);
 	return proc_calc_metrics(page, start, off, count, eof, len);
 }
 
@@ -616,7 +626,6 @@ void __init proc_misc_init(void)
 		{"rtc",		ds1286_read_proc},
 #endif
 		{"locks",	locks_read_proc},
-		{"swaps",	swaps_read_proc},
 		{"iomem",	memory_read_proc},
 		{"execdomains",	execdomains_read_proc},
 		{NULL,}
@@ -632,6 +641,7 @@ void __init proc_misc_init(void)
 		entry->proc_fops = &proc_kmsg_operations;
 	create_seq_entry("cpuinfo", 0, &proc_cpuinfo_operations);
 	create_seq_entry("partitions", 0, &proc_partitions_operations);
+	create_seq_entry("swaps", 0, &proc_swaps_operations);
 #if !defined(CONFIG_ARCH_S390)
 	create_seq_entry("interrupts", 0, &proc_interrupts_operations);
 #endif

@@ -257,11 +257,14 @@
 #define __NR_io_cancel			(__NR_Linux + 245)
 #define __NR_exit_group			(__NR_Linux + 246)
 #define __NR_lookup_dcookie		(__NR_Linux + 247)
+#define __NR_sys_epoll_create		(__NR_Linux + 248)
+#define __NR_sys_epoll_ctl		(__NR_Linux + 249)
+#define __NR_sys_epoll_wait		(__NR_Linux + 250)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		247
+#define __NR_Linux_syscalls		250
 
 #ifndef __ASSEMBLY__
 

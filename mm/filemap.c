@@ -61,6 +61,10 @@
  *          ->mapping->page_lock
  *  ->inode_lock
  *    ->sb_lock			(fs/fs-writeback.c)
+ *  ->page_table_lock
+ *    ->swap_device_lock	(try_to_unmap_one)
+ *    ->private_lock		(try_to_unmap_one)
+ *    ->page_lock		(try_to_unmap_one)
  */
 
 /*
@@ -254,7 +258,7 @@ static int page_cache_read(struct file * file, unsigned long offset)
 	struct page *page; 
 	int error;
 
-	page = page_cache_alloc(mapping);
+	page = page_cache_alloc_cold(mapping);
 	if (!page)
 		return -ENOMEM;
 
@@ -701,7 +705,7 @@ no_cached_page:
 		 * page..
 		 */
 		if (!cached_page) {
-			cached_page = page_cache_alloc(mapping);
+			cached_page = page_cache_alloc_cold(mapping);
 			if (!cached_page) {
 				desc->error = -ENOMEM;
 				break;
@@ -912,7 +916,7 @@ generic_file_read(struct file *filp, char *buf, size_t count, loff_t *ppos)
 	return ret;
 }
 
-static int file_send_actor(read_descriptor_t * desc, struct page *page, unsigned long offset, unsigned long size)
+int file_send_actor(read_descriptor_t * desc, struct page *page, unsigned long offset, unsigned long size)
 {
 	ssize_t written;
 	unsigned long count = desc->count;
@@ -1195,7 +1199,7 @@ repeat:
 	page = find_get_page(mapping, index);
 	if (!page) {
 		if (!cached_page) {
-			cached_page = page_cache_alloc(mapping);
+			cached_page = page_cache_alloc_cold(mapping);
 			if (!cached_page)
 				return ERR_PTR(-ENOMEM);
 		}
@@ -1445,7 +1449,7 @@ generic_file_write_nolock(struct file *file, const struct iovec *iov,
 	/* We can write back this queue in page reclaim */
 	current->backing_dev_info = mapping->backing_dev_info;
 
-	pagevec_init(&lru_pvec);
+	pagevec_init(&lru_pvec, 0);
 
 	if (unlikely(file->f_error)) {
 		err = file->f_error;

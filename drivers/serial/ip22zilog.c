@@ -4,7 +4,7 @@
  * Driver for Zilog serial chips found on SGI workstations and
  * servers.  This driver could actually be made more generic.
  *
- * This is based on the drivers/serial/sunzilog.c code as of 2.5.40 and the
+ * This is based on the drivers/serial/sunzilog.c code as of 2.5.45 and the
  * old drivers/sgi/char/sgiserial.c code which itself is based of the original
  * drivers/sbus/char/zs.c code.  A lot of code has been simply moved over
  * directly from there but much has been rewritten.  Credits therefore go out
@@ -260,7 +260,7 @@ static void ip22zilog_receive_chars(struct uart_ip22zilog_port *up,
 		unsigned char ch, r1;
 
 		if (unlikely(tty->flip.count >= TTY_FLIPBUF_SIZE)) {
-			tty->flip.tqueue.routine((void *)tty);
+			tty->flip.work.func((void *)tty);
 			if (tty->flip.count >= TTY_FLIPBUF_SIZE)
 				return;
 		}

@@ -78,10 +78,6 @@
 #include <asm/amigahw.h>
 #include <asm/amigaints.h>
 #include <asm/irq.h>
-
-#define MAJOR_NR FLOPPY_MAJOR
-#define DEVICE_NAME "floppy"
-#define QUEUE (&floppy_queue)
 #include <linux/blk.h>
 
 #undef DEBUG /* print _LOTS_ of infos */
@@ -124,6 +120,11 @@ MODULE_PARM(fd_def_df0,"l");
 MODULE_LICENSE("GPL");
 
 static struct request_queue floppy_queue;
+
+#define MAJOR_NR FLOPPY_MAJOR
+#define DEVICE_NAME "floppy"
+#define QUEUE (&floppy_queue)
+#define CURRENT elv_next_request(&floppy_queue)
 
 /*
  *  Macros
@@ -1764,6 +1765,7 @@ static struct gendisk *floppy_find(dev_t dev, int *part, void *data)
 	int drive = *part & 3;
 	if (unit[drive].type->code == FD_NODRIVE)
 		return NULL;
+	*part = 0;
 	return get_disk(unit[drive].gendisk);
 }
 

@@ -1,0 +1,9 @@
+.d
+.*.cmd
+.tmp_qtcheck
+.zconf.tab.o.cmd
+conf
+lex.zconf.c
+lkc_defs.h
+zconf.tab.c
+zconf.tab.h

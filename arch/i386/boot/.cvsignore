@@ -1,5 +1,4 @@
 *.s
-.*.flags
 bootsect
 setup
 zImage

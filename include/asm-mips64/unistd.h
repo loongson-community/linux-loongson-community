@@ -264,11 +264,14 @@
 #define __NR_O32_io_cancel		(__NR_O32_Linux + 245)
 #define __NR_O32_exit_group		(__NR_O32_Linux + 246)
 #define __NR_O32_lookup_dcookie		(__NR_O32_Linux + 247)
+#define __NR_O32_sys_epoll_create	(__NR_O32_Linux + 248)
+#define __NR_O32_sys_epoll_ctl		(__NR_O32_Linux + 249)
+#define __NR_O32_sys_epoll_wait		(__NR_O32_Linux + 250)
 
 /*
  * Offset of the last Linux o32 flavoured syscall
  */
-#define __NR_O32_Linux_syscalls		247
+#define __NR_O32_Linux_syscalls		250
 
 
 /*
@@ -482,11 +485,14 @@
 #define __NR_io_cancel			(__NR_Linux + 204)
 #define __NR_exit_group			(__NR_Linux + 205)
 #define __NR_lookup_dcookie		(__NR_Linux + 206)
+#define __NR_sys_epoll_create		(__NR_Linux + 207)
+#define __NR_sys_epoll_ctl		(__NR_Linux + 208)
+#define __NR_sys_epoll_wait		(__NR_Linux + 209)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		206
+#define __NR_Linux_syscalls		209
 
 /*
  * Linux N32 syscalls are in the range from 6000 to 6999.
@@ -699,11 +705,14 @@
 #define __NR_N32_io_cancel		(__NR_N32_Linux + 204)
 #define __NR_N32_exit_group		(__NR_N32_Linux + 205)
 #define __NR_N32_lookup_dcookie		(__NR_N32_Linux + 206)
+#define __NR_N32_sys_epoll_create	(__NR_N32_Linux + 207)
+#define __NR_N32_sys_epoll_ctl		(__NR_N32_Linux + 208)
+#define __NR_N32_sys_epoll_wait		(__NR_N32_Linux + 209)
 
 /*
  * Offset of the last N32 flavoured syscall
  */
-#define __NR_N32_Linux_syscalls		206
+#define __NR_N32_Linux_syscalls		209
 
 #ifndef __ASSEMBLY__
 

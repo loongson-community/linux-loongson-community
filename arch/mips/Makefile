@@ -154,8 +154,8 @@ load-$(CONFIG_MIPS_EV96100)	+= 0x80100000
 #
 # Globespan IVR eval board with QED 5231 CPU
 #
-core-$(CONFIG_MIPS_IVR)		+= arch/mips/ite-boards/generic/ \
-				   arch/mips/ite-boards/ivr/
+core-$(CONFIG_ITE_BOARD_GEN)	+= arch/mips/ite-boards/generic/
+core-$(CONFIG_MIPS_IVR)		+= arch/mips/ite-boards/ivr/
 load-$(CONFIG_MIPS_IVR)		+= 0x80100000
 
 #
@@ -167,29 +167,26 @@ load-$(CONFIG_HP_LASERJET)	+= 0x80030000
 #
 # ITE 8172 eval board with QED 5231 CPU
 #
-core-$(CONFIG_MIPS_ITE8172)	+= arch/mips/ite-boards/generic/ \
-				   arch/mips/ite-boards/qed-4n-s01b/
+core-$(CONFIG_MIPS_ITE8172)	+= arch/mips/ite-boards/qed-4n-s01b/
 load-$(CONFIG_MIPS_ITE8172)	+= 0x80100000
 
 #
 # MIPS Atlas board
 #
-core-$(CONFIG_MIPS_ATLAS)	+= arch/mips/mips-boards/generic/ \
-				   arch/mips/mips-boards/atlas/
+core-$(CONFIG_MIPS_BOARDS_GEN)	+= arch/mips/mips-boards/generic/
+core-$(CONFIG_MIPS_ATLAS)	+= arch/mips/mips-boards/atlas/
 load-$(CONFIG_MIPS_ATLAS)	+= 0x80100000
 
 #
 # MIPS Malta board
 #
-core-$(CONFIG_MIPS_MALTA)	+= arch/mips/mips-boards/malta/ \
-				   arch/mips/mips-boards/generic/
+core-$(CONFIG_MIPS_MALTA)	+= arch/mips/mips-boards/malta/
 load-$(CONFIG_MIPS_MALTA)	:= 0x80100000
 
 #
 # MIPS SEAD board
 #
-core-$(CONFIG_MIPS_SEAD)	+= arch/mips/mips-boards/generic/ \
-				   arch/mips/mips-boards/sead/
+core-$(CONFIG_MIPS_SEAD)	+= arch/mips/mips-boards/sead/
 load-$(CONFIG_MIPS_SEAD)	+= 0x80100000
 
 #
@@ -214,22 +211,20 @@ load-$(CONFIG_MOMENCO_OCELOT_G)	+= 0x80100000
 #
 # NEC DDB Vrc-5074
 #
-core-$(CONFIG_DDB5074)		+= arch/mips/ddb5xxx/common/ \
-				   arch/mips/ddb5xxx/ddb5074/
+core-$(CONFIG_DDB5XXX_COMMON)	+= arch/mips/ddb5xxx/common/
+core-$(CONFIG_DDB5074)		+= arch/mips/ddb5xxx/ddb5074/
 load-$(CONFIG_DDB5074)		+= 0x80080000
 
 #
 # NEC DDB Vrc-5476
 #
-core-$(CONFIG_DDB5476)		+= arch/mips/ddb5xxx/common/ \
-				   arch/mips/ddb5xxx/ddb5476/
+core-$(CONFIG_DDB5476)		+= arch/mips/ddb5xxx/ddb5476/
 load-$(CONFIG_DDB5476)		+= 0x80080000
 
 #
 # NEC DDB Vrc-5477
 #
-core-$(CONFIG_DDB5477)		+= arch/mips/ddb5xxx/common/ \
-				   arch/mips/ddb5xxx/ddb5477/
+core-$(CONFIG_DDB5477)		+= arch/mips/ddb5xxx/ddb5477/
 load-$(CONFIG_DDB5477)		+= 0x80080000
 
 core-$(CONFIG_LASAT)		+= arch/mips/lasat/
@@ -245,36 +240,32 @@ load-$(CONFIG_NEC_OSPREY)	+= 0x80002000
 #
 # NEC Eagle/Hawk (VR4122/VR4131) board
 #
-core-$(CONFIG_NEC_EAGLE)	+= arch/mips/vr41xx/common/ \
-				   arch/mips/vr41xx/nec-eagle/
+core-$(CONFIG_VR41XX_COMMON)	+= arch/mips/vr41xx/common/
+core-$(CONFIG_NEC_EAGLE)	+= arch/mips/vr41xx/nec-eagle/
 load-$(CONFIG_NEC_EAGLE)	+= 0x80000000
 
 #
 # ZAO Networks Capcella (VR4131)
 #
-core-$(CONFIG_ZAO_CAPCELLA)	+= arch/mips/vr41xx/common/ \
-				   arch/mips/vr41xx/zao-capcella/
+core-$(CONFIG_ZAO_CAPCELLA)	+= arch/mips/vr41xx/zao-capcella/
 load-$(CONFIG_ZAO_CAPCELLA)	+= 0x80000000
 
 #
 # Victor MP-C303/304 (VR4122)
 #
-core-$(CONFIG_VICTOR_MPC30X)	+= arch/mips/vr41xx/common/ \
-				   arch/mips/vr41xx/victor-mpc30x/
+core-$(CONFIG_VICTOR_MPC30X)	+= arch/mips/vr41xx/victor-mpc30x/
 load-$(CONFIG_VICTOR_MPC30X)	+= 0x80001000
 
 #
 # IBM WorkPad z50 (VR4121)
 #
-core-$(CONFIG_IBM_WORKPAD)	+= arch/mips/vr41xx/common/ \
-				   arch/mips/vr41xx/ibm-workpad/
+core-$(CONFIG_IBM_WORKPAD)	+= arch/mips/vr41xx/ibm-workpad/
 load-$(CONFIG_IBM_WORKPAD)	+= 0x80004000
 
 #
 # CASIO CASSIPEIA E-55/65 (VR4111)
 #
-core-$(CONFIG_CASIO_E55)	+= arch/mips/vr41xx/common/ \
-				   arch/mips/vr41xx/casio-e55/
+core-$(CONFIG_CASIO_E55)	+= arch/mips/vr41xx/casio-e55/
 load-$(CONFIG_CASIO_E55)	+= 0x80004000
 
 #

@@ -769,8 +769,6 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 	p->start_time = jiffies;
 	p->security = NULL;
 
-	INIT_LIST_HEAD(&p->local_pages);
-
 	retval = -ENOMEM;
 	if (security_ops->task_alloc_security(p))
 		goto bad_fork_cleanup;
@@ -863,6 +861,14 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 
 	/* Need tasklist lock for parent etc handling! */
 	write_lock_irq(&tasklist_lock);
+	/*
+	 * Check for pending SIGKILL! The new thread should not be allowed
+	 * to slip out of an OOM kill. (or normal SIGKILL.)
+	 */
+	if (sigismember(&current->pending.signal, SIGKILL)) {
+		write_unlock_irq(&tasklist_lock);
+		goto bad_fork_cleanup_namespace;
+	}
 
 	/* CLONE_PARENT re-uses the old parent */
 	if (clone_flags & CLONE_PARENT)

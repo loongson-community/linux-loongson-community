@@ -1,5 +1,4 @@
-.depend
-.*.flags
+.d
 gen-devlist
 devlist.h
 classlist.h

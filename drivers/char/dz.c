@@ -33,7 +33,6 @@
 #include <linux/major.h>
 #include <linux/module.h>
 #include <linux/param.h>
-#include <linux/tqueue.h>
 #include <linux/interrupt.h>
 
 #include <linux/console.h>

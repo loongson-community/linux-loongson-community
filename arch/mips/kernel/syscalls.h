@@ -262,3 +262,7 @@ SYS(sys_io_submit, 3)
 SYS(sys_io_cancel, 3)				/* 4245 */
 SYS(sys_exit_group, 1)
 SYS(sys_lookup_dcookie, 3)
+SYS(sys_epoll_create, 1)
+SYS(sys_epoll_ctl, 4)
+SYS(sys_epoll_wait, 3)				/* 4250 */
+
