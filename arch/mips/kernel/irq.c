@@ -705,3 +705,5 @@ void __init init_generic_irq(void)
 		irq_desc[i].handler = &no_irq_type;
 	}
 }
+
+EXPORT_SYMBOL(probe_irq_mask);

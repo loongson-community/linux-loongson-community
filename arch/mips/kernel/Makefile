@@ -37,7 +37,7 @@ endif
 obj-$(CONFIG_SMP)		+= smp.o
 
 # Old style irq support, going to die in 2.5.
-export-objs			+= old-irq.o
+export-objs			+= irq.o old-irq.o
 obj-$(CONFIG_NEW_IRQ)		+= irq.o
 obj-$(CONFIG_ROTTEN_IRQ)	+= old-irq.o
 obj-$(CONFIG_I8259)		+= i8259.o
