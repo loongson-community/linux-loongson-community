@@ -238,7 +238,7 @@ EXPORT(exception_count_##exception);                                    \
 
 		BUILD_HANDLER(adel,ade,ade,silent)		/* #4  */
 		BUILD_HANDLER(ades,ade,ade,silent)		/* #5  */
-		BUILD_HANDLER(ibe,ibe,cli,verbose)		/* #6  */
+		BUILD_HANDLER(ibe,ibe,cli,silent)		/* #6  */
 		BUILD_HANDLER(dbe,dbe,cli,silent)		/* #7  */
 		BUILD_HANDLER(bp,bp,sti,silent)			/* #9  */
 		BUILD_HANDLER(ri,ri,sti,silent)			/* #10 */
@@ -246,9 +246,9 @@ EXPORT(exception_count_##exception);                                    \
 		BUILD_HANDLER(ov,ov,sti,silent)			/* #12 */
 		BUILD_HANDLER(tr,tr,sti,silent)			/* #13 */
 		BUILD_HANDLER(fpe,fpe,fpe,silent)		/* #15 */
-		BUILD_HANDLER(watch,watch,sti,verbose)		/* #23 */
-		BUILD_HANDLER(mcheck,mcheck,cli,verbose)	/* #24 */
-		BUILD_HANDLER(reserved,reserved,sti,verbose)	/* others */
+		BUILD_HANDLER(watch,watch,sti,silent)		/* #23 */
+		BUILD_HANDLER(mcheck,mcheck,cli,silent)		/* #24 */
+		BUILD_HANDLER(reserved,reserved,sti,silent)	/* others */
 
 		.set	pop
 
