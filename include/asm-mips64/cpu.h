@@ -27,6 +27,7 @@
 #define PRID_COMP_BROADCOM     0x020000
 #define PRID_COMP_ALCHEMY      0x030000
 #define PRID_COMP_SIBYTE       0x040000
+#define PRID_COMP_SANDCRAFT    0x050000
 
 /*
  * Assigned values for the product ID register.  In order to detect a
@@ -72,6 +73,12 @@
  */
 
 #define PRID_IMP_SB1            0x0100
+
+/*
+ * These are the PRID's for when 23:16 == PRID_COMP_SANDCRAFT
+ */
+
+#define PRID_IMP_SR71000        0x0400
 
 /*
  * Definitions for 7:0 on legacy processors
@@ -158,7 +165,8 @@
 #define CPU_VR4181		50
 #define CPU_VR4181A		51
 #define CPU_AU1100		52
-#define CPU_LAST		52
+#define CPU_SR71000		53
+#define CPU_LAST		53
 
 /*
  * ISA Level encodings
