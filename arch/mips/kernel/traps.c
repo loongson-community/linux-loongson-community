@@ -870,6 +870,13 @@ void __init per_cpu_trap_init(void)
 
 	cpu_data[cpu].asid_cache = ASID_FIRST_VERSION;
 	TLBMISS_HANDLER_SETUP();
+
+	atomic_inc(&init_mm.mm_count);
+	current->active_mm = &init_mm;
+	if (current->mm) 
+		BUG();  
+	enter_lazy_tlb(&init_mm, current);
+
 	cpu_cache_init();
 	tlb_init();
 }
@@ -991,7 +998,4 @@ void __init trap_init(void)
 
 	if (current_cpu_data.isa_level == MIPS_CPU_ISA_IV)
 		set_c0_status(ST0_XX);
-
-	atomic_inc(&init_mm.mm_count);	/* XXX UP?  */
-	current->active_mm = &init_mm;
 }
