@@ -458,6 +458,7 @@ endif
 #
 ifdef CONFIG_SGI_IP27
 core-$(CONFIG_SGI_IP27)		+= arch/mips/sgi-ip27/
+cflags-$(CONFIG_SGI_IP27)	+= -Iinclude/asm-mips/mach-ip27
 #load-$(CONFIG_SGI_IP27)	+= 0xa80000000001c000
 ifdef CONFIG_MAPPED_KERNEL
 load-$(CONFIG_SGI_IP27)		+= 0xc001c000
