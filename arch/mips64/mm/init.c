@@ -243,17 +243,18 @@ static inline int page_is_ram(unsigned long pagenr)
 	int i;
 
 	for (i = 0; i < boot_mem_map.nr_map; i++) {
-	unsigned long addr, end;
+		unsigned long addr, end;
 
-	if (boot_mem_map.map[i].type != BOOT_MEM_RAM)
-		/* not usable memory */
-		continue;
+		if (boot_mem_map.map[i].type != BOOT_MEM_RAM)
+			/* not usable memory */
+			continue;
 
-	addr = PFN_UP(boot_mem_map.map[i].addr);
-	end = PFN_DOWN(boot_mem_map.map[i].addr + boot_mem_map.map[i].size);
+		addr = PFN_UP(boot_mem_map.map[i].addr);
+		end = PFN_DOWN(boot_mem_map.map[i].addr +
+			       boot_mem_map.map[i].size);
 
-	if (pagenr >= addr && pagenr < end)
-		return 1;
+		if (pagenr >= addr && pagenr < end)
+			return 1;
 	}
 
 	return 0;
