@@ -69,8 +69,7 @@ MODULE_PARM(timeout, "i");
  * This structure is private to each device. It is used to pass
  * packets in and out, so there is place for a packet
  */
-
-typedef struct meth_private {
+struct meth_private {
 	struct net_device_stats stats;
 	volatile struct meth_regs *regs;
 	u64 mode; /* in-memory copy of MAC control register */
@@ -90,10 +89,10 @@ typedef struct meth_private {
 	int rx_write;
 
 	spinlock_t meth_lock;
-} meth_private;
+};
 
-void meth_tx_timeout (struct net_device *dev);
-irqreturn_t meth_interrupt(int irq, void *dev_id, struct pt_regs *pregs);
+static void meth_tx_timeout(struct net_device *dev);
+static irqreturn_t meth_interrupt(int irq, void *dev_id, struct pt_regs *pregs);
         
 /* global, initialized in ip32-setup.c */
 char o2meth_eaddr[8]={0,0,0,0,0,0,0,0};
@@ -118,7 +117,7 @@ static inline void load_eaddr(struct net_device *dev,
 		udelay(25);				\
 	}
 /*read phy register, return value read */
-static int mdio_read(meth_private *priv,int phyreg)
+static int mdio_read(struct meth_private *priv, int phyreg)
 {
 	volatile meth_regs* regs=priv->regs;
 	volatile u32 rval;
@@ -131,7 +130,7 @@ static int mdio_read(meth_private *priv,int phyreg)
 	return rval&MDIO_DATA_MASK;
 }
 
-static int mdio_probe(meth_private *priv)
+static int mdio_probe(struct meth_private *priv)
 {
 	int i, p2, p3;
 	/* check if phy is detected already */
@@ -208,7 +207,7 @@ static void meth_check_link(struct net_device *dev)
 }
 
 
-static int meth_init_tx_ring(meth_private *priv)
+static int meth_init_tx_ring(struct meth_private *priv)
 {
 	/* Init TX ring */
 	priv->tx_ring = dma_alloc_coherent(NULL, TX_RING_BUFFER_SIZE,
@@ -225,7 +224,7 @@ static int meth_init_tx_ring(meth_private *priv)
 	return 0;
 }
 
-static int meth_init_rx_ring(meth_private *priv)
+static int meth_init_rx_ring(struct meth_private *priv)
 {
 	int i;
 	for(i=0;i<RX_RING_ENTRIES;i++){
@@ -242,7 +241,7 @@ static int meth_init_rx_ring(meth_private *priv)
         priv->rx_write = 0;
 	return 0;
 }
-static void meth_free_tx_ring(meth_private *priv)
+static void meth_free_tx_ring(struct meth_private *priv)
 {
 	int i;
 
@@ -257,7 +256,7 @@ static void meth_free_tx_ring(meth_private *priv)
 }
 
 /* Presumes RX DMA engine is stopped, and RX fifo ring is reset */
-static void meth_free_rx_ring(meth_private *priv)
+static void meth_free_rx_ring(struct meth_private *priv)
 {
 	int i;
 
@@ -310,59 +309,70 @@ int meth_reset(struct net_device *dev)
 /*
  * Open and close
  */
-
-int meth_open(struct net_device *dev)
+static int meth_open(struct net_device *dev)
 {
-	meth_private *priv=dev->priv;
-	volatile meth_regs *regs=priv->regs;
+	struct meth_private *priv = dev->priv;
+	volatile meth_regs *regs = priv->regs;
 	int ret;
+
 	/* Initialize the hardware */
-	if((ret=meth_reset(dev)) < 0)
-	        return ret;
+	ret = meth_reset(dev);
+	if (ret < 0)
+		return ret;
 
 	/* Allocate the ring buffers */
-	if((ret=meth_init_tx_ring(priv))<0||(ret=meth_init_rx_ring(priv))<0){
-		meth_free_tx_ring(priv);
-		meth_free_rx_ring(priv);
+	ret = meth_init_tx_ring(priv);
+	if (ret < 0)
 		return ret;
-	}
+	ret = meth_init_rx_ring(priv);
+	if (ret < 0)
+		goto out_free_tx_ring;
 
-	if(request_irq(dev->irq,meth_interrupt,SA_SHIRQ,meth_str,dev)){
+	ret = request_irq(dev->irq, meth_interrupt, 0, meth_str, dev);
+	if (ret) {
 		printk(KERN_ERR "%s: Can't get irq %d\n", dev->name, dev->irq);
-		return -EAGAIN;
+		goto out_free_rx_ring;
 	}
 
 	/* Start DMA */
-	priv->dma_ctrl|=
-	        METH_DMA_TX_EN|/*METH_DMA_TX_INT_EN|*/
-		METH_DMA_RX_EN|METH_DMA_RX_INT_EN;
-	regs->dma_ctrl=priv->dma_ctrl;
+	priv->dma_ctrl |=  METH_DMA_TX_EN | /*METH_DMA_TX_INT_EN|*/
+			   METH_DMA_RX_EN | METH_DMA_RX_INT_EN;
+	regs->dma_ctrl = priv->dma_ctrl;
 
 	DPRINTK("About to start queue\n");
 	netif_start_queue(dev);
+
 	return 0;
+
+out_free_rx_ring:
+	meth_free_rx_ring(priv);
+out_free_tx_ring:
+	meth_free_tx_ring(priv);
+
+	return ret;
 }
 
-int meth_release(struct net_device *dev)
+static int meth_release(struct net_device *dev)
 {
-	meth_private *priv=dev->priv;
+	struct meth_private *priv = dev->priv;
+
 	DPRINTK("Stopping queue\n");
 	netif_stop_queue(dev); /* can't transmit any more */
 	/* shut down dma */
-	priv->dma_ctrl&=
-		~(METH_DMA_TX_EN|METH_DMA_TX_INT_EN|
-		  METH_DMA_RX_EN|METH_DMA_RX_INT_EN);
-	priv->regs->dma_ctrl=priv->dma_ctrl;
+	priv->dma_ctrl &= ~(METH_DMA_TX_EN | METH_DMA_TX_INT_EN |
+			    METH_DMA_RX_EN | METH_DMA_RX_INT_EN);
+	priv->regs->dma_ctrl = priv->dma_ctrl;
 	free_irq(dev->irq, dev);
 	meth_free_tx_ring(priv);
 	meth_free_rx_ring(priv);
+
 	return 0;
 }
 
 /*
  * Configuration changes (passed on by ifconfig)
  */
-int meth_config(struct net_device *dev, struct ifmap *map)
+static int meth_config(struct net_device *dev, struct ifmap *map)
 {
 	if (dev->flags & IFF_UP) /* can't act on a running interface */
 		return -EBUSY;
@@ -387,7 +397,7 @@ int meth_config(struct net_device *dev, struct ifmap *map)
 /*
  * Receive a packet: retrieve, encapsulate and pass over to upper levels
  */
-void meth_rx(struct net_device* dev,u64 int_status)
+static void meth_rx(struct net_device* dev,u64 int_status)
 {
 	struct sk_buff *skb;
 	struct meth_private *priv = (struct meth_private *) dev->priv;
@@ -484,9 +494,9 @@ static int meth_tx_full(struct net_device *dev)
 	return(priv->tx_count >= TX_RING_ENTRIES-1);
 }
 
-void meth_tx_cleanup(struct net_device* dev, int int_status)
+static void meth_tx_cleanup(struct net_device* dev, int int_status)
 {
-	meth_private *priv=dev->priv;
+	struct meth_private *priv = dev->priv;
 	tx_packet* status;
 	struct sk_buff *skb;
 	int rptr=(int_status&TX_INFO_RPTR)>>16;
@@ -557,18 +567,11 @@ static void meth_error(struct net_device* dev, u32 status)
 /*
  * The typical interrupt entry point
  */
-irqreturn_t meth_interrupt(int irq, void *dev_id, struct pt_regs *pregs)
+static irqreturn_t meth_interrupt(int irq, void *dev_id, struct pt_regs *pregs)
 {
-	struct meth_private *priv;
-	u32 status;
-
-	/*
-	 * As usual, check the "device" pointer for shared handlers.
-	 * Then assign "struct device *dev"
-	 */
 	struct net_device *dev = (struct net_device *)dev_id;
-
-	priv = (struct meth_private *) dev->priv;
+	struct meth_private *priv = (struct meth_private *) dev->priv;
+	u32 status;
 
 	status = priv->regs->int_flags;
 	while (status&0xFF) {
@@ -598,7 +601,8 @@ irqreturn_t meth_interrupt(int irq, void *dev_id, struct pt_regs *pregs)
 /*
  * Transmits packets that fit into TX descriptor (are <=120B)
  */
-static void meth_tx_short_prepare(meth_private* priv, struct sk_buff* skb)
+static void meth_tx_short_prepare(struct meth_private *priv,
+				  struct sk_buff *skb)
 {
 	tx_packet *desc=&priv->tx_ring[priv->tx_write];
 	int len = (skb->len<ETH_ZLEN)?ETH_ZLEN:skb->len;
@@ -610,7 +614,8 @@ static void meth_tx_short_prepare(meth_private* priv, struct sk_buff* skb)
 	desc->header.raw=METH_TX_CMD_INT_EN|(len-1)|((128-len)<<16);
 }
 #define TX_CATBUF1 BIT(25)
-static void meth_tx_1page_prepare(meth_private* priv, struct sk_buff* skb)
+static void meth_tx_1page_prepare(struct meth_private *priv,
+				  struct sk_buff *skb)
 {
 	tx_packet *desc=&priv->tx_ring[priv->tx_write];
 	void *buffer_data = (void *)(((u64)skb->data + 7ULL) & (~7ULL));
@@ -634,7 +639,8 @@ static void meth_tx_1page_prepare(meth_private* priv, struct sk_buff* skb)
 	desc->data.cat_buf[0].form.len = buffer_len-1;
 }
 #define TX_CATBUF2 BIT(26)
-static void meth_tx_2page_prepare(meth_private* priv, struct sk_buff* skb)
+static void meth_tx_2page_prepare(struct meth_private *priv,
+				  struct sk_buff *skb)
 {
 	tx_packet *desc=&priv->tx_ring[priv->tx_write];
 	void *buffer1_data = (void *)(((u64)skb->data + 7ULL) & (~7ULL));
@@ -664,7 +670,7 @@ static void meth_tx_2page_prepare(meth_private* priv, struct sk_buff* skb)
 	desc->data.cat_buf[1].form.len = buffer2_len-1;
 }
 
-void meth_add_to_tx_ring(meth_private *priv, struct sk_buff* skb)
+static void meth_add_to_tx_ring(struct meth_private *priv, struct sk_buff *skb)
 {
 	if(skb->len <= 120) {
 		/* Whole packet fits into descriptor */
@@ -688,7 +694,7 @@ void meth_add_to_tx_ring(meth_private *priv, struct sk_buff* skb)
 /*
  * Transmit a packet (called by the kernel)
  */
-int meth_tx(struct sk_buff *skb, struct net_device *dev)
+static int meth_tx(struct sk_buff *skb, struct net_device *dev)
 {
 	struct meth_private *priv = (struct meth_private *) dev->priv;
 	unsigned long flags;
@@ -710,7 +716,7 @@ int meth_tx(struct sk_buff *skb, struct net_device *dev)
 
 	/* Restart DMA notification */
 	priv->dma_ctrl |= METH_DMA_TX_INT_EN;
-	  priv->regs->dma_ctrl=priv->dma_ctrl;
+	priv->regs->dma_ctrl=priv->dma_ctrl;
 
 	spin_unlock_irqrestore(&priv->meth_lock,flags);
 
@@ -720,8 +726,7 @@ int meth_tx(struct sk_buff *skb, struct net_device *dev)
 /*
  * Deal with a transmit timeout.
  */
-
-void meth_tx_timeout (struct net_device *dev)
+static void meth_tx_timeout(struct net_device *dev)
 {
 	struct meth_private *priv = (struct meth_private *) dev->priv;
 	unsigned long flags;
@@ -758,9 +763,8 @@ void meth_tx_timeout (struct net_device *dev)
 /*
  * Ioctl commands 
  */
-int meth_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
+static int meth_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
- 
 	DPRINTK("ioctl\n");
 	return 0;
 }
@@ -768,19 +772,24 @@ int meth_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 /*
  * Return statistics to the caller
  */
-struct net_device_stats *meth_stats(struct net_device *dev)
+static struct net_device_stats *meth_stats(struct net_device *dev)
 {
 	struct meth_private *priv = (struct meth_private *) dev->priv;
 	return &priv->stats;
 }
 
 /*
- * The init function (sometimes called probe).
- * It is invoked by register_netdev()
+ * The init function.
  */
-int meth_init(struct net_device *dev)
+static struct net_device *meth_init(void)
 {
-	meth_private *priv=(meth_private*)dev->priv;
+	struct net_device *dev;
+	struct meth_private *priv;
+	int ret;
+
+	dev = alloc_etherdev(sizeof(struct meth_private));
+	if (!dev)
+		return ERR_PTR(-ENOMEM);
 
 	dev->open            = meth_open;
 	dev->stop            = meth_release;
@@ -792,55 +801,42 @@ int meth_init(struct net_device *dev)
 	dev->tx_timeout      = meth_tx_timeout;
 	dev->watchdog_timeo  = timeout;
 #endif
-	dev->irq		 = MACE_ETHERNET_IRQ;
+	dev->irq	     = MACE_ETHERNET_IRQ;
 	SET_MODULE_OWNER(dev);
 
+	priv = dev->priv;
 	spin_lock_init(&priv->meth_lock);
-	/*
-	 * Make the usual checks: check_region(), probe irq, ...  -ENODEV
-	 * should be returned if no device found.  No resource should be
-	 * grabbed: this is done on open(). 
-	 */
-	priv->regs=(meth_regs*)ioremap(SGI_MFE,0x100);
-	dev->base_addr=priv->regs;
+
+	/* FIXME: Use register access defined in mace.h !!! */
+	priv->regs = (meth_regs *)ioremap(SGI_MFE,0x100);
+	dev->base_addr = (unsigned long)priv->regs;
 	priv->phy_addr = -1; /* No phy is known yet... */
 
-	printk("SGI O2 Fast Ethernet rev. %ld\n", priv->regs->mac_ctrl >> 29);
+	ret = register_netdev(dev);
+	if (ret) {
+		free_netdev(dev);
+		return ERR_PTR(ret);
+	}
 
+	printk("SGI O2 Fast Ethernet rev. %ld\n", priv->regs->mac_ctrl >> 29);
 	return 0;
 }
 
-/*
- * The devices
- */
+static struct net_device *meth_dev;
 
-struct net_device *meth_dev;
-
-/*
- * Finally, the module stuff
- */
-
-int meth_init_module(void)
+static int __init meth_init_module(void)
 {
-	int result, device_present = 0;
-
-	meth_dev=alloc_etherdev(sizeof(meth_private));
-	meth_init(meth_dev);
-
-	if ( (result = register_netdev(meth_dev)) )
-		printk("meth: error %i registering device \"%s\"\n",
-		       result, meth_dev->name);
-	else device_present++;
-	
-	return device_present ? 0 : -ENODEV;
+	meth_dev = meth_init();
+	if (IS_ERR(meth_dev))
+		return PTR_ERR(meth_dev);
+	return 0;
 }
 
-void meth_cleanup(void)
+static void __exit meth_exit_module(void)
 {
 	unregister_netdev(meth_dev);
-	kfree(meth_dev);
-	return;
+	free_netdev(meth_dev);
 }
 
 module_init(meth_init_module);
-module_exit(meth_cleanup);
+module_exit(meth_exit_module);
