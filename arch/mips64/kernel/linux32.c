@@ -1151,7 +1151,7 @@ get_fd_set32(unsigned long n, unsigned long *fdset, u32 *ufdset)
 	}
 	return 0;
 #else
-	<<Bomb - little endian support must define this>>
+#error little endian support must define this
 #endif
 }
 
