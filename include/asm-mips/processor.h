@@ -187,8 +187,7 @@ struct thread_struct {
 
 extern int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags);
 
-/* Copy and release all segment info associated with a VM */
-#define copy_segments(p, mm) do { } while(0)
+/* Release all segment info associated with a VM */
 #define release_segments(mm) do { } while(0)
 
 extern unsigned long thread_saved_pc(struct thread_struct *t);

@@ -295,8 +295,6 @@ CONFIG_BLK_DEV_IDEDMA_PCI=y
 CONFIG_IDEDMA_PCI_AUTO=y
 # CONFIG_IDEDMA_ONLYDISK is not set
 CONFIG_BLK_DEV_IDEDMA=y
-# CONFIG_BLK_DEV_IDE_TCQ is not set
-# CONFIG_BLK_DEV_IDE_TCQ_DEFAULT is not set
 # CONFIG_IDEDMA_PCI_WIP is not set
 # CONFIG_IDEDMA_NEW_DRIVE_LISTINGS is not set
 # CONFIG_BLK_DEV_AEC62XX is not set
@@ -543,6 +541,7 @@ CONFIG_SERIAL_NONSTANDARD=y
 # CONFIG_MOXA_SMARTIO is not set
 # CONFIG_ISI is not set
 # CONFIG_SYNCLINK is not set
+# CONFIG_SYNCLINKMP is not set
 # CONFIG_N_HDLC is not set
 # CONFIG_RISCOM8 is not set
 # CONFIG_SPECIALIX is not set
@@ -592,6 +591,7 @@ CONFIG_RTC=y
 # PCMCIA character devices
 #
 # CONFIG_PCMCIA_SERIAL_CS is not set
+# CONFIG_SYNCLINK_CS is not set
 
 #
 # File systems
@@ -629,7 +629,7 @@ CONFIG_RAMFS=y
 # CONFIG_MINIX_FS is not set
 # CONFIG_VXFS_FS is not set
 # CONFIG_NTFS_FS is not set
-# CONFIG_NTFS_RW is not set
+# CONFIG_NTFS_DEBUG is not set
 # CONFIG_HPFS_FS is not set
 CONFIG_PROC_FS=y
 # CONFIG_DEVFS_FS is not set
@@ -823,8 +823,9 @@ CONFIG_USB=y
 # Miscellaneous USB options
 #
 # CONFIG_USB_DEVICEFS is not set
-# CONFIG_USB_BANDWIDTH is not set
 # CONFIG_USB_LONG_TIMEOUT is not set
+# CONFIG_USB_BANDWIDTH is not set
+# CONFIG_USB_DYNAMIC_MINORS is not set
 
 #
 # USB Host Controller Drivers

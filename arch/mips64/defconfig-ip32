@@ -249,6 +249,7 @@ CONFIG_CHR_DEV_SG=y
 # Some SCSI devices (e.g. CD jukebox) support multiple LUNs
 #
 CONFIG_SCSI_MULTI_LUN=y
+# CONFIG_SCSI_REPORT_LUNS is not set
 CONFIG_SCSI_CONSTANTS=y
 CONFIG_SCSI_LOGGING=y
 
@@ -501,7 +502,7 @@ CONFIG_RAMFS=y
 # CONFIG_MINIX_FS is not set
 # CONFIG_VXFS_FS is not set
 # CONFIG_NTFS_FS is not set
-# CONFIG_NTFS_RW is not set
+# CONFIG_NTFS_DEBUG is not set
 # CONFIG_HPFS_FS is not set
 CONFIG_PROC_FS=y
 # CONFIG_DEVFS_FS is not set
