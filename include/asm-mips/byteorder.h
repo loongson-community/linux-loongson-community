@@ -6,6 +6,8 @@
  * for more details.
  *
  * Copyright (C) 1995, 1996, 1997 by Ralf Baechle
+ *
+ * $Id:$
  */
 #ifndef __ASM_MIPS_BYTEORDER_H
 #define __ASM_MIPS_BYTEORDER_H
@@ -93,6 +95,60 @@ extern unsigned long int htonl(unsigned long int __x);
 #else
 #error "MIPS but neither __MIPSEL__ nor __MIPSEB__?"
 #endif
+
+/* The same, but returns converted value from the location pointer by addr. */
+extern __inline__ __u16 cpu_to_le16p(__u16 *addr)
+{
+	return cpu_to_le16(*addr);
+}
+
+extern __inline__ __u32 cpu_to_le32p(__u32 *addr)
+{
+	return cpu_to_le32(*addr);
+}
+
+extern __inline__ __u16 cpu_to_be16p(__u16 *addr)
+{
+	return cpu_to_be16(*addr);
+}
+
+extern __inline__ __u32 cpu_to_be32p(__u32 *addr)
+{
+	return cpu_to_be32(*addr);
+}
+
+#define le16_to_cpup(x) cpu_to_le16p(x)
+#define le32_to_cpup(x) cpu_to_le32p(x)
+#define be16_to_cpup(x) cpu_to_be16p(x)
+#define be32_to_cpup(x) cpu_to_be32p(x)
+
+
+/* The same, but do the conversion in situ, ie. put the value back to addr. */
+extern __inline__ void cpu_to_le16s(__u16 *addr)
+{
+	*addr = cpu_to_le16(*addr);
+}
+
+extern __inline__ void cpu_to_le32s(__u32 *addr)
+{
+	*addr = cpu_to_le32(*addr);
+}
+
+extern __inline__ void cpu_to_be16s(__u16 *addr)
+{
+	*addr = cpu_to_be16(*addr);
+}
+
+extern __inline__ void cpu_to_be32s(__u32 *addr)
+{
+	*addr = cpu_to_be32(*addr);
+}
+
+#define le16_to_cpus(x) cpu_to_le16s(x)
+#define le32_to_cpus(x) cpu_to_le32s(x)
+#define be16_to_cpus(x) cpu_to_be16s(x)
+#define be32_to_cpus(x) cpu_to_be32s(x)
+
 
 extern __inline__ unsigned long int ntohl(unsigned long int __x)
 {

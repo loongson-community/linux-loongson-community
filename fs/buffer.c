@@ -36,6 +36,7 @@
 #include <linux/smp_lock.h>
 #include <linux/vmalloc.h>
 #include <linux/blkdev.h>
+#include <linux/sysrq.h>
 
 #include <asm/system.h>
 #include <asm/uaccess.h>
@@ -81,8 +82,6 @@ int buffermem = 0;
  * remove any of the parameters, make sure to update kernel/sysctl.c.
  */
 
-static void wakeup_bdflush(int);
-
 #define N_PARAM 9
 
 /* The dummy values in this structure are left in there for compatibility
@@ -112,6 +111,8 @@ union bdflush_param{
 /* These are the min and max parameter values that we will allow to be assigned */
 int bdflush_min[N_PARAM] = {  0,  10,    5,   25,  0,   100,   100, 1, 1};
 int bdflush_max[N_PARAM] = {100,5000, 2000, 2000,100, 60000, 60000, 2047, 5};
+
+void wakeup_bdflush(int);
 
 /*
  * Rewrote the wait-routines to use the "new" wait-queue functionality,
@@ -1109,10 +1110,10 @@ static inline void after_unlock_page (struct page * page)
 {
 	if (test_and_clear_bit(PG_decr_after, &page->flags))
 		atomic_dec(&nr_async_pages);
+	if (test_and_clear_bit(PG_swap_unlock_after, &page->flags))
+		swap_after_unlock_page(page->pg_swap_entry);
 	if (test_and_clear_bit(PG_free_after, &page->flags))
 		__free_page(page);
-	if (test_and_clear_bit(PG_swap_unlock_after, &page->flags))
-		swap_after_unlock_page(page->swap_unlock_entry);
 }
 
 /*
@@ -1533,7 +1534,7 @@ struct wait_queue * bdflush_wait = NULL;
 struct wait_queue * bdflush_done = NULL;
 struct task_struct *bdflush_tsk = 0;
 
-static void wakeup_bdflush(int wait)
+void wakeup_bdflush(int wait)
 {
 	if (current == bdflush_tsk)
 		return;
@@ -1707,7 +1708,9 @@ int bdflush(void * unused)
 #ifdef DEBUG
 		printk("bdflush() activated...");
 #endif
-		
+
+		CHECK_EMERGENCY_SYNC
+
 		ncount = 0;
 #ifdef DEBUG
 		for(nlist = 0; nlist < NR_LIST; nlist++)

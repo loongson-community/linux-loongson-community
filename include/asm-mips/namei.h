@@ -11,55 +11,43 @@
 #ifdef CONFIG_BINFMT_IRIX
 
 /* Only one at this time. */
-#define IRIX32_EMUL "/usr/gnemul/irix"
+#define IRIX32_EMUL "usr/gnemul/irix/"
 
-#define translate_namei(pathname, base, follow_links, res_inode) ({					\
-	if ((current->personality == PER_IRIX32) && !base && *pathname == '/') {			\
-		struct inode *emul_ino;									\
-		int namelen;										\
-		const char *name;									\
-													\
-		while (*pathname == '/')								\
-			pathname++;									\
-		current->fs->root->i_count++;								\
-		if (dir_namei (IRIX32_EMUL, 								\
-				&namelen, &name, current->fs->root, &emul_ino) >= 0 && emul_ino) {	\
-			*res_inode = NULL;								\
-			if (_namei (pathname, emul_ino, follow_links, res_inode) >= 0 && *res_inode) 	\
-				return 0;								\
-		}											\
-		base = current->fs->root;								\
-		base->i_count++;									\
-	}												\
-})
+extern int __namei(int, const char *, struct inode *, char *, struct inode **,
+		   struct inode **, struct qstr *, struct dentry **, int *);
 
-#define translate_open_namei(pathname, flag, mode, res_inode, base) ({					\
-	if ((current->personality == PER_IRIX32) && !base && *pathname == '/') {			\
-		struct inode *emul_ino;									\
-		int namelen;										\
-		const char *name;									\
-													\
-		while (*pathname == '/')								\
-			pathname++;									\
-		current->fs->root->i_count++;								\
-		if (dir_namei (IRIX32_EMUL, 								\
-				&namelen, &name, current->fs->root, &emul_ino) >= 0 && emul_ino) {	\
-			*res_inode = NULL;								\
-			if (open_namei (pathname, flag, mode, res_inode, emul_ino) >= 0 && *res_inode)	\
-				return 0;								\
-		}											\
-		base = current->fs->root;								\
-		base->i_count++;									\
-	}												\
-})
+static __inline__ int
+__prefix_namei(int retrieve_mode, const char * name, struct inode * base,
+	       char * buf, struct inode ** res_dir, struct inode ** res_inode,
+	       struct qstr * last_name, struct dentry ** last_entry,
+	       int * last_error)
+{
+	int error;
+
+	if (current->personality != PER_IRIX32)
+		return -EINVAL;
+
+	while (*name == '/')
+		name++;
+
+	atomic_inc(&current->fs->root->i_count);
+	error = __namei(NAM_FOLLOW_LINK, IRIX32_EMUL, current->fs->root,
+			buf, NULL, &base, NULL, NULL, NULL);
+	if (error)
+		return error;
+
+	error = __namei(retrieve_mode, name, base, buf, res_dir, res_inode,
+			last_name, last_entry, last_error);
+	if (error)
+		return error;
+
+	return 0;
+}
 
 #else /* !defined(CONFIG_BINFMT_IRIX) */
 
-#define translate_namei(pathname, base, follow_links, res_inode)	\
-	do { } while (0)
-
-#define translate_open_namei(pathname, flag, mode, res_inode, base) \
-	do { } while (0)
+#define __prefix_namei(retrieve_mode, name, base, buf, res_dir, res_inode, \
+		       last_name, last_entry, last_error) 1
 
 #endif /* !defined(CONFIG_BINFMT_IRIX) */
 

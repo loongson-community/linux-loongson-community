@@ -125,11 +125,11 @@ unsigned long video_port_base;
 #include <asm/uaccess.h>
 #include <asm/bitops.h>
 
-#include "kbd_kern.h"
-#include "vt_kern.h"
-#include "consolemap.h"
-#include "selection.h"
-#include "console_struct.h"
+#include <linux/kbd_kern.h>
+#include <linux/vt_kern.h>
+#include <linux/consolemap.h>
+#include <linux/selection.h>
+#include <linux/console_struct.h>
 
 #ifndef MIN
 #define MIN(a,b)	((a) < (b) ? (a) : (b))

@@ -16,6 +16,7 @@
 #include <linux/smp.h>
 #include <linux/reboot.h>
 #include <linux/init.h>
+#include <linux/sysrq.h>
 
 #include <asm/sgialib.h>
 
@@ -73,6 +74,8 @@ NORET_TYPE void panic(const char * fmt, ...)
 	printk("Press L1-A to return to the boot prom\n");
 #endif
 	sti();
-	for(;;);
+	for(;;) {
+		CHECK_EMERGENCY_SYNC
+	}
 }
 

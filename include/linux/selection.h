@@ -73,8 +73,6 @@ extern void putconsxy(int currcons, char *p);
 
 /* how to access screen memory */
 
-#include <linux/config.h>
-
 #if defined(CONFIG_TGA_CONSOLE)
 
 extern int tga_blitc(unsigned int, unsigned long);
@@ -113,7 +111,7 @@ static inline unsigned short scr_readw(unsigned short * addr)
 
 #elif defined (CONFIG_SGI)
 
-#include "vt_kern.h"
+#include <linux/vt_kern.h>
 #include <linux/kd.h>
 extern void newport_blitc(unsigned short, unsigned long);
 extern void memsetw(void * s, unsigned short c, unsigned int count);

@@ -176,14 +176,16 @@ static inline int unuse_pte(struct vm_area_struct * vma, unsigned long address,
 	if (pte_none(pte))
 		return 0;
 	if (pte_present(pte)) {
+		struct page *pg;
 		unsigned long page_nr = MAP_NR(pte_page(pte));
 		if (page_nr >= max_mapnr)
 			return 0;
-		if (!in_swap_cache(page_nr))
+		pg = mem_map + page_nr;
+		if (!in_swap_cache(pg))
 			return 0;
-		if (SWP_TYPE(in_swap_cache(page_nr)) != type)
+		if (SWP_TYPE(in_swap_cache(pg)) != type)
 			return 0;
-		delete_from_swap_cache(page_nr);
+		delete_from_swap_cache(pg);
 		set_pte(dir, pte_mkdirty(pte));
 		return 0;
 	}
@@ -332,7 +334,7 @@ asmlinkage int sys_swapoff(const char * specialfile)
 	lock_kernel();
 	if (!suser())
 		goto out;
-	err = namei(specialfile,&inode);
+	err = namei(NAM_FOLLOW_LINK, specialfile, &inode);
 	if (err)
 		goto out;
 	prev = -1;
@@ -486,12 +488,12 @@ asmlinkage int sys_swapon(const char * specialfile, int swap_flags)
 	} else {
 		p->prio = --least_priority;
 	}
-	error = namei(specialfile,&swap_inode);
+	error = namei(NAM_FOLLOW_LINK, specialfile, &swap_inode);
 	if (error)
 		goto bad_swap_2;
 	p->swap_file = swap_inode;
 	error = -EBUSY;
-	if (swap_inode->i_count != 1)
+	if (atomic_read(&swap_inode->i_count) != 1)
 		goto bad_swap_2;
 	error = -EINVAL;
 
