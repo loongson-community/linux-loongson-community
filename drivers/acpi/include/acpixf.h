@@ -6,7 +6,7 @@
  *****************************************************************************/
 
 /*
- *  Copyright (C) 2000 R. Byron Moore
+ *  Copyright (C) 2000, 2001 R. Byron Moore
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -283,6 +283,10 @@ acpi_set_firmware_waking_vector (
 ACPI_STATUS
 acpi_get_firmware_waking_vector (
 	ACPI_PHYSICAL_ADDRESS   *physical_address);
+
+ACPI_STATUS
+acpi_enter_sleep_state (
+	u8 sleep_state);
 
 ACPI_STATUS
 acpi_get_processor_throttling_info (

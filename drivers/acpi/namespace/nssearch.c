@@ -1,12 +1,12 @@
 /*******************************************************************************
  *
  * Module Name: nssearch - Namespace search
- *              $Revision: 62 $
+ *              $Revision: 64 $
  *
  ******************************************************************************/
 
 /*
- *  Copyright (C) 2000 R. Byron Moore
+ *  Copyright (C) 2000, 2001 R. Byron Moore
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -68,8 +68,6 @@ acpi_ns_search_node (
 	ACPI_NAMESPACE_NODE     **return_node)
 {
 	ACPI_NAMESPACE_NODE     *next_node;
-
-
 
 
 	/*

@@ -1,12 +1,12 @@
 /******************************************************************************
  *
  * Name: acoutput.h -- debug output
- *       $Revision: 66 $
+ *       $Revision: 69 $
  *
  *****************************************************************************/
 
 /*
- *  Copyright (C) 2000 R. Byron Moore
+ *  Copyright (C) 2000, 2001 R. Byron Moore
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -58,6 +58,7 @@
 #define BATTERY                     0x00040000
 
 #define DEBUGGER                    0x00100000
+#define COMPILER                    0x00200000
 #define ALL_COMPONENTS              0x001FFFFF
 
 #define COMPONENT_DEFAULT           (ALL_COMPONENTS)

@@ -134,7 +134,6 @@ static inline int dup_mmap(struct mm_struct * mm)
 	mm->mmap_cache = NULL;
 	mm->map_count = 0;
 	mm->cpu_vm_mask = 0;
-	mm->swap_cnt = 0;
 	mm->swap_address = 0;
 	pprev = &mm->mmap;
 	for (mpnt = current->mm->mmap ; mpnt ; mpnt = mpnt->vm_next) {
@@ -193,6 +192,7 @@ fail_nomem:
 }
 
 spinlock_t mmlist_lock __cacheline_aligned = SPIN_LOCK_UNLOCKED;
+int mmlist_nr;
 
 #define allocate_mm()	(kmem_cache_alloc(mm_cachep, SLAB_KERNEL))
 #define free_mm(mm)	(kmem_cache_free(mm_cachep, (mm)))
@@ -246,6 +246,7 @@ void mmput(struct mm_struct *mm)
 {
 	if (atomic_dec_and_lock(&mm->mm_users, &mmlist_lock)) {
 		list_del(&mm->mmlist);
+		mmlist_nr--;
 		spin_unlock(&mmlist_lock);
 		exit_mmap(mm);
 		mmdrop(mm);
@@ -326,6 +327,7 @@ static int copy_mm(unsigned long clone_flags, struct task_struct * tsk)
 	 */
 	spin_lock(&mmlist_lock);
 	list_add(&mm->mmlist, &oldmm->mmlist);
+	mmlist_nr++;
 	spin_unlock(&mmlist_lock);
 
 	if (retval)
@@ -445,7 +447,7 @@ static int copy_files(unsigned long clone_flags, struct task_struct * tsk)
 	if (size > __FD_SETSIZE) {
 		newf->max_fdset = 0;
 		write_lock(&newf->file_lock);
-		error = expand_fdset(newf, size);
+		error = expand_fdset(newf, size-1);
 		write_unlock(&newf->file_lock);
 		if (error)
 			goto out_release;
@@ -464,7 +466,7 @@ static int copy_files(unsigned long clone_flags, struct task_struct * tsk)
 		read_unlock(&oldf->file_lock);
 		newf->max_fds = 0;
 		write_lock(&newf->file_lock);
-		error = expand_fd_array(newf, open_files);
+		error = expand_fd_array(newf, open_files-1);
 		write_unlock(&newf->file_lock);
 		if (error) 
 			goto out_release;

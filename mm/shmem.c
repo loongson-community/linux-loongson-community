@@ -117,11 +117,43 @@ shmem_truncate_part (swp_entry_t * dir, unsigned long size,
 	return 0;
 }
 
+/*
+ * shmem_recalc_inode - recalculate the size of an inode
+ *
+ * @inode: inode to recalc
+ *
+ * We have to calculate the free blocks since the mm can drop pages
+ * behind our back
+ *
+ * But we know that normally
+ * inodes->i_blocks == inode->i_mapping->nrpages + info->swapped
+ *
+ * So the mm freed 
+ * inodes->i_blocks - (inode->i_mapping->nrpages + info->swapped)
+ *
+ * It has to be called with the spinlock held.
+ */
+
+static void shmem_recalc_inode(struct inode * inode)
+{
+	unsigned long freed;
+
+	freed = inode->i_blocks -
+		(inode->i_mapping->nrpages + inode->u.shmem_i.swapped);
+	if (freed){
+		struct shmem_sb_info * info = &inode->i_sb->u.shmem_sb;
+		inode->i_blocks -= freed;
+		spin_lock (&info->stat_lock);
+		info->free_blocks += freed;
+		spin_unlock (&info->stat_lock);
+	}
+}
+
 static void shmem_truncate (struct inode * inode)
 {
 	int clear_base;
 	unsigned long start;
-	unsigned long mmfreed, freed = 0;
+	unsigned long freed = 0;
 	swp_entry_t **base, **ptr;
 	struct shmem_inode_info * info = &inode->u.shmem_i;
 
@@ -154,26 +186,9 @@ static void shmem_truncate (struct inode * inode)
 	info->i_indirect = 0;
 
 out:
-
-	/*
-	 * We have to calculate the free blocks since we do not know
-	 * how many pages the mm discarded
-	 *
-	 * But we know that normally
-	 * inodes->i_blocks == inode->i_mapping->nrpages + info->swapped
-	 *
-	 * So the mm freed 
-	 * inodes->i_blocks - (inode->i_mapping->nrpages + info->swapped)
-	 */
-
-	mmfreed = inode->i_blocks - (inode->i_mapping->nrpages + info->swapped);
 	info->swapped -= freed;
-	inode->i_blocks -= freed + mmfreed;
+	shmem_recalc_inode(inode);
 	spin_unlock (&info->lock);
-
-	spin_lock (&inode->i_sb->u.shmem_sb.stat_lock);
-	inode->i_sb->u.shmem_sb.free_blocks += freed + mmfreed;
-	spin_unlock (&inode->i_sb->u.shmem_sb.stat_lock);
 }
 
 static void shmem_delete_inode(struct inode * inode)
@@ -201,13 +216,15 @@ static int shmem_writepage(struct page * page)
 	swp_entry_t *entry, swap;
 
 	info = &page->mapping->host->u.shmem_i;
-	if (info->locked)
-		return 1;
 	swap = __get_swap_page(2);
-	if (!swap.val)
-		return 1;
+	if (!swap.val) {
+		set_page_dirty(page);
+		UnlockPage(page);
+		return -ENOMEM;
+	}
 
 	spin_lock(&info->lock);
+	shmem_recalc_inode(page->mapping->host);
 	entry = shmem_swp_entry (info, page->index);
 	if (!entry)	/* this had been allocted on page allocation */
 		BUG();
@@ -269,6 +286,9 @@ struct page * shmem_nopage(struct vm_area_struct * vma, unsigned long address, i
 	entry = shmem_swp_entry (info, idx);
 	if (!entry)
 		goto oom;
+	spin_lock (&info->lock);
+	shmem_recalc_inode(inode);
+	spin_unlock (&info->lock);
 	if (entry->val) {
 		unsigned long flags;
 
@@ -310,6 +330,8 @@ struct page * shmem_nopage(struct vm_area_struct * vma, unsigned long address, i
 	}
 	/* We have the page */
 	SetPageUptodate (page);
+	if (info->locked)
+		page_cache_get(page);
 
 cached_page:
 	UnlockPage (page);
@@ -374,8 +396,7 @@ struct inode *shmem_get_inode(struct super_block *sb, int mode, int dev)
 			inode->i_fop = &shmem_dir_operations;
 			break;
 		case S_IFLNK:
-			inode->i_op = &page_symlink_inode_operations;
-			break;
+			BUG();
 		}
 		spin_lock (&shmem_ilock);
 		list_add (&inode->u.shmem_i.list, &shmem_inodes);
@@ -399,6 +420,32 @@ static int shmem_statfs(struct super_block *sb, struct statfs *buf)
 	spin_unlock (&sb->u.shmem_sb.stat_lock);
 	buf->f_namelen = 255;
 	return 0;
+}
+
+void shmem_lock(struct file * file, int lock)
+{
+	struct inode * inode = file->f_dentry->d_inode;
+	struct shmem_inode_info * info = &inode->u.shmem_i;
+	struct page * page;
+	unsigned long idx, size;
+
+	if (info->locked == lock)
+		return;
+	down(&inode->i_sem);
+	info->locked = lock;
+	size = (inode->i_size + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
+	for (idx = 0; idx < size; idx++) {
+		page = find_lock_page(inode->i_mapping, idx);
+		if (!page)
+			continue;
+		if (!lock) {
+			/* release the extra count and our reference */
+			page_cache_release(page);
+			page_cache_release(page);
+		}
+		UnlockPage(page);
+	}
+	up(&inode->i_sem);
 }
 
 /*
@@ -524,19 +571,6 @@ static int shmem_rename(struct inode * old_dir, struct dentry *old_dentry, struc
 			dput(new_dentry);
 		}
 		error = 0;
-	}
-	return error;
-}
-
-static int shmem_symlink(struct inode * dir, struct dentry *dentry, const char * symname)
-{
-	int error;
-
-	error = shmem_mknod(dir, dentry, S_IFLNK | S_IRWXUGO, 0);
-	if (!error) {
-		int l = strlen(symname)+1;
-		struct inode *inode = dentry->d_inode;
-		error = block_symlink(inode, symname, l);
 	}
 	return error;
 }
@@ -677,7 +711,6 @@ static struct inode_operations shmem_dir_inode_operations = {
 	lookup:		shmem_lookup,
 	link:		shmem_link,
 	unlink:		shmem_unlink,
-	symlink:	shmem_symlink,
 	mkdir:		shmem_mkdir,
 	rmdir:		shmem_rmdir,
 	mknod:		shmem_mknod,

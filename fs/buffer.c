@@ -834,6 +834,10 @@ still_busy:
 	return;
 }
 
+void set_buffer_async_io(struct buffer_head *bh) {
+    bh->b_end_io = end_buffer_io_async ;
+}
+
 /*
  * Synchronise all the inode's dirty buffers to the disk.
  *
@@ -1151,7 +1155,7 @@ void __bforget(struct buffer_head * buf)
 	/* grab the lru lock here to block bdflush. */
 	spin_lock(&lru_list_lock);
 	write_lock(&hash_table_lock);
-	if (!atomic_dec_and_test(&buf->b_count) || buffer_locked(buf))
+	if (!atomic_dec_and_test(&buf->b_count) || buffer_locked(buf) || buffer_protected(buf))
 		goto in_use;
 	__hash_unlink(buf);
 	remove_inode_queue(buf);
@@ -2411,6 +2415,7 @@ busy_buffer_page:
 			loop = 1;
 			goto cleaned_buffers_try_again;
 		}
+		wakeup_bdflush(0);
 	}
 	return 0;
 }

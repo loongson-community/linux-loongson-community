@@ -1,12 +1,12 @@
 /******************************************************************************
  *
  * Name: acconfig.h - Global configuration constants
- *       $Revision: 48 $
+ *       $Revision: 53 $
  *
  *****************************************************************************/
 
 /*
- *  Copyright (C) 2000 R. Byron Moore
+ *  Copyright (C) 2000, 2001 R. Byron Moore
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -53,7 +53,7 @@
 
 /* Version string */
 
-#define ACPI_CA_VERSION             __DATE__
+#define ACPI_CA_VERSION             0x20010125
 
 
 /* Maximum objects in the various object caches */
@@ -121,6 +121,10 @@
 
 #define MTH_NUM_ARGS                7
 #define MTH_MAX_ARG                 6
+
+/* Maximum length of resulting string when converting from a buffer */
+
+#define ACPI_MAX_STRING_CONVERSION  200
 
 /*
  * Operand Stack (in WALK_STATE), Must be large enough to contain MTH_MAX_ARG

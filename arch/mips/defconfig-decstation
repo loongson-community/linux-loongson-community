@@ -109,7 +109,6 @@ CONFIG_TC=y
 # CONFIG_MD_RAID1 is not set
 # CONFIG_MD_RAID5 is not set
 # CONFIG_BLK_DEV_LVM is not set
-# CONFIG_LVM_PROC_FS is not set
 
 #
 # Networking options
@@ -243,6 +242,8 @@ CONFIG_RTC=y
 # CONFIG_QUOTA is not set
 # CONFIG_AUTOFS_FS is not set
 # CONFIG_AUTOFS4_FS is not set
+# CONFIG_REISERFS_FS is not set
+# CONFIG_REISERFS_CHECK is not set
 # CONFIG_ADFS_FS is not set
 # CONFIG_ADFS_FS_RW is not set
 # CONFIG_AFFS_FS is not set

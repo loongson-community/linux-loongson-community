@@ -76,26 +76,23 @@ static void __init check_fpu(void)
 	}
 
 /* Enable FXSR and company _before_ testing for FP problems. */
-#if defined(CONFIG_X86_FXSR) || defined(CONFIG_X86_RUNTIME_FXSR)
 	/*
 	 * Verify that the FXSAVE/FXRSTOR data will be 16-byte aligned.
 	 */
-	if (offsetof(struct task_struct, thread.i387.fxsave) & 15)
-		panic("Kernel compiled for PII/PIII+ with FXSR, data not 16-byte aligned!");
-
+	if (offsetof(struct task_struct, thread.i387.fxsave) & 15) {
+		extern void __buggy_fxsr_alignment(void);
+		__buggy_fxsr_alignment();
+	}
 	if (cpu_has_fxsr) {
 		printk(KERN_INFO "Enabling fast FPU save and restore... ");
 		set_in_cr4(X86_CR4_OSFXSR);
 		printk("done.\n");
 	}
-#endif
-#ifdef CONFIG_X86_XMM
 	if (cpu_has_xmm) {
 		printk(KERN_INFO "Enabling unmasked SIMD FPU exception support... ");
 		set_in_cr4(X86_CR4_OSXMMEXCPT);
 		printk("done.\n");
 	}
-#endif
 
 	/* Test for the divl bug.. */
 	__asm__("fninit\n\t"
@@ -202,14 +199,6 @@ static void __init check_config(void)
 	    && boot_cpu_data.x86_model == 2
 	    && (boot_cpu_data.x86_mask < 6 || boot_cpu_data.x86_mask == 11))
 		panic("Kernel compiled for PMMX+, assumes a local APIC without the read-before-write bug!");
-#endif
-
-/*
- * If we configured ourselves for FXSR, we'd better have it.
- */
-#ifdef CONFIG_X86_FXSR
-	if (!cpu_has_fxsr)
-		panic("Kernel compiled for PII/PIII+, requires FXSR feature!");
 #endif
 }
 

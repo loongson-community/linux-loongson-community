@@ -29,8 +29,6 @@
 
 #define _BLOCKABLE (~(sigmask(SIGKILL) | sigmask(SIGSTOP)))
 
-asmlinkage int sys_wait4(pid_t pid, unsigned long *stat_addr,
-			 int options, unsigned long *ru);
 asmlinkage int do_signal(struct pt_regs *regs, sigset_t *oldset);
 
 int copy_siginfo_to_user(siginfo_t *to, siginfo_t *from)
@@ -433,7 +431,7 @@ static void setup_frame(int sig, struct k_sigaction *ka,
 		current->comm, current->pid, frame, regs->pc, regs->pr);
 #endif
 
-	flush_icache_range(regs->pr, regs->pr+4);
+	flush_cache_sigtramp(regs->pr);
 	return;
 
 give_sigsegv:
@@ -507,7 +505,7 @@ static void setup_rt_frame(int sig, struct k_sigaction *ka, siginfo_t *info,
 		current->comm, current->pid, frame, regs->pc, regs->pr);
 #endif
 
-	flush_icache_range(regs->pr, regs->pr+4);
+	flush_cache_sigtramp(regs->pr);
 	return;
 
 give_sigsegv:

@@ -1,12 +1,12 @@
 /******************************************************************************
  *
  * Module Name: psxface - Parser external interfaces
- *              $Revision: 37 $
+ *              $Revision: 40 $
  *
  *****************************************************************************/
 
 /*
- *  Copyright (C) 2000 R. Byron Moore
+ *  Copyright (C) 2000, 2001 R. Byron Moore
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -120,6 +120,12 @@ acpi_psx_execute (
 	if (!op) {
 		return (AE_NO_MEMORY);
 	}
+
+
+	/* Init new op with the method name and pointer back to the NS node */
+
+	acpi_ps_set_name (op, method_node->name);
+	op->node = method_node;
 
 	/*
 	 * The walk of the parse tree is where we actually execute the method

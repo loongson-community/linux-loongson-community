@@ -143,7 +143,8 @@ void __set_page_dirty(struct page *page)
 	list_add(&page->list, &mapping->dirty_pages);
 	spin_unlock(&pagecache_lock);
 
-	mark_inode_dirty_pages(mapping->host);
+	if (mapping->host)
+		mark_inode_dirty_pages(mapping->host);
 }
 
 /**
@@ -306,7 +307,7 @@ inside:
 	 */
 	age_page_up(page);
 	if (inactive_shortage() > inactive_target / 2 && free_shortage())
-			wakeup_kswapd(0);
+			wakeup_kswapd();
 not_found:
 	return page;
 }
@@ -974,10 +975,6 @@ static void generic_file_readahead(int reada_ok,
  *   accessed sequentially.
  */
 	if (ahead) {
-		if (reada_ok == 2) {
-			run_task_queue(&tq_disk);
-		}
-
 		filp->f_ralen += ahead;
 		filp->f_rawin += filp->f_ralen;
 		filp->f_raend = raend + ahead + 1;
@@ -1835,7 +1832,8 @@ static long madvise_fixup_start(struct vm_area_struct * vma,
 	n->vm_end = end;
 	setup_read_behavior(n, behavior);
 	n->vm_raend = 0;
-	get_file(n->vm_file);
+	if (n->vm_file)
+		get_file(n->vm_file);
 	if (n->vm_ops && n->vm_ops->open)
 		n->vm_ops->open(n);
 	lock_vma_mappings(vma);
@@ -1861,7 +1859,8 @@ static long madvise_fixup_end(struct vm_area_struct * vma,
 	n->vm_pgoff += (n->vm_start - vma->vm_start) >> PAGE_SHIFT;
 	setup_read_behavior(n, behavior);
 	n->vm_raend = 0;
-	get_file(n->vm_file);
+	if (n->vm_file)
+		get_file(n->vm_file);
 	if (n->vm_ops && n->vm_ops->open)
 		n->vm_ops->open(n);
 	lock_vma_mappings(vma);
@@ -1893,7 +1892,8 @@ static long madvise_fixup_middle(struct vm_area_struct * vma,
 	right->vm_pgoff += (right->vm_start - left->vm_start) >> PAGE_SHIFT;
 	left->vm_raend = 0;
 	right->vm_raend = 0;
-	atomic_add(2, &vma->vm_file->f_count);
+	if (vma->vm_file)
+		atomic_add(2, &vma->vm_file->f_count);
 
 	if (vma->vm_ops && vma->vm_ops->open) {
 		vma->vm_ops->open(left);

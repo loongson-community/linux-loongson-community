@@ -9,7 +9,7 @@
 
 
 /*
- *  Copyright (C) 2000 R. Byron Moore
+ *  Copyright (C) 2000, 2001 R. Byron Moore
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -121,6 +121,10 @@ acpi_os_unmap_memory (
 	void                    *logical_address,
 	u32                     length);
 
+ACPI_STATUS
+acpi_os_get_physical_address (
+	void                    *logical_address,
+	ACPI_PHYSICAL_ADDRESS   *physical_address);
 
 /*
  * Interrupt handlers
