@@ -252,12 +252,11 @@ struct __large_struct { unsigned long buf[100]; };
 ({									\
 	const __typeof__(*(ptr)) __user * __gu_addr = (ptr);		\
 	__typeof__(*(ptr)) __gu_val = 0;				\
-	long __gu_err;							\
+	long __gu_err = -EFAULT;					\
 									\
 	might_sleep();							\
 									\
-	__gu_err = verify_area(VERIFY_READ,  __gu_addr, size);		\
-	if (likely(!__gu_err)) {					\
+	if (likely(access_ok(VERIFY_READ,  __gu_addr, size))) {		\
 		switch (size) {						\
 		case 1: __get_user_asm("lb", __gu_addr); break;		\
 		case 2: __get_user_asm("lh", __gu_addr); break;		\
@@ -283,7 +282,7 @@ struct __large_struct { unsigned long buf[100]; };
 	"	"__UA_ADDR "\t1b, 3b				\n"	\
 	"	.previous					\n"	\
 	: "=r" (__gu_err), "=r" (__gu_val)				\
-	: "0" (__gu_err), "o" (__m(addr)), "i" (-EFAULT));		\
+	: "0" (0), "o" (__m(addr)), "i" (-EFAULT));			\
 }
 
 /*
@@ -306,7 +305,7 @@ struct __large_struct { unsigned long buf[100]; };
 	"	" __UA_ADDR "	2b, 4b				\n"	\
 	"	.previous					\n"	\
 	: "=r" (__gu_err), "=&r" (__gu_val)				\
-	: "0" (__gu_err), "r" (addr), "i" (-EFAULT));			\
+	: "0" (0), "r" (addr), "i" (-EFAULT));				\
 }
 
 extern void __get_user_unknown(void);
@@ -342,12 +341,11 @@ extern void __get_user_unknown(void);
 ({									\
 	__typeof__(*(ptr)) __user *__pu_addr = (ptr);			\
 	__typeof__(*(ptr)) __pu_val = (x);				\
-	long __pu_err;							\
+	long __pu_err = -EFAULT;					\
 									\
 	might_sleep();							\
 									\
-	__pu_err = verify_area(VERIFY_WRITE, __pu_addr, size);		\
-	if (likely(!__pu_err)) {					\
+	if (likely(access_ok(VERIFY_WRITE,  __pu_addr, size))) {	\
 		switch (size) {						\
 		case 1: __put_user_asm("sb", __pu_addr); break;		\
 		case 2: __put_user_asm("sh", __pu_addr); break;		\
@@ -372,7 +370,7 @@ extern void __get_user_unknown(void);
 	"	" __UA_ADDR "	1b, 3b				\n"	\
 	"	.previous					\n"	\
 	: "=r" (__pu_err)						\
-	: "0" (__pu_err), "Jr" (__pu_val), "o" (__m(ptr)),		\
+	: "0" (0), "Jr" (__pu_val), "o" (__m(ptr)),			\
 	  "i" (-EFAULT));						\
 }
 
@@ -391,7 +389,7 @@ extern void __get_user_unknown(void);
 	"	" __UA_ADDR "	2b, 4b				\n"	\
 	"	.previous"						\
 	: "=r" (__pu_err)						\
-	: "0" (__pu_err), "r" (__pu_val), "r" (ptr),			\
+	: "0" (0), "r" (__pu_val), "r" (ptr),				\
 	  "i" (-EFAULT));						\
 }
 

@@ -92,7 +92,7 @@ int mips_dsemul(struct pt_regs *regs, mips_instruction ir, unsigned long cpc)
 	fr = (struct emuframe *) dsemul_insns;
 
 	/* Verify that the stack pointer is not competely insane */
-	if (unlikely(verify_area(VERIFY_WRITE, fr, sizeof(struct emuframe))))
+	if (unlikely(!access_ok(VERIFY_WRITE, fr, sizeof(struct emuframe))))
 		return SIGBUS;
 
 	err = __put_user(ir, &fr->emul);
@@ -125,7 +125,7 @@ int do_dsemulret(struct pt_regs *xcp)
 	 * If we can't even access the area, something is very wrong, but we'll
 	 * leave that to the default handling
 	 */
-	if (verify_area(VERIFY_READ, fr, sizeof(struct emuframe)))
+	if (!access_ok(VERIFY_READ, fr, sizeof(struct emuframe)))
 		return 0;
 
 	/*

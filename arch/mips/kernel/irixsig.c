@@ -79,33 +79,36 @@ static inline void dump_irix5_sigctx(struct sigctx_irix5 *c)
 static void setup_irix_frame(struct k_sigaction *ka, struct pt_regs *regs,
 			     int signr, sigset_t *oldmask)
 {
+	struct sigctx_irix5 __user *ctx;
 	unsigned long sp;
-	struct sigctx_irix5 *ctx;
-	int i;
+	int error, i;
 
 	sp = regs->regs[29];
 	sp -= sizeof(struct sigctx_irix5);
 	sp &= ~(0xf);
-	ctx = (struct sigctx_irix5 *) sp;
+	ctx = (struct sigctx_irix5 __user *) sp;
 	if (!access_ok(VERIFY_WRITE, ctx, sizeof(*ctx)))
 		goto segv_and_exit;
 
-	__put_user(0, &ctx->weird_fpu_thing);
-	__put_user(~(0x00000001), &ctx->rmask);
-	__put_user(0, &ctx->regs[0]);
+	error = __put_user(0, &ctx->weird_fpu_thing);
+	error |= __put_user(~(0x00000001), &ctx->rmask);
+	error |= __put_user(0, &ctx->regs[0]);
 	for(i = 1; i < 32; i++)
-		__put_user((u64) regs->regs[i], &ctx->regs[i]);
+		error |= __put_user((u64) regs->regs[i], &ctx->regs[i]);
 
-	__put_user((u64) regs->hi, &ctx->hi);
-	__put_user((u64) regs->lo, &ctx->lo);
-	__put_user((u64) regs->cp0_epc, &ctx->pc);
-	__put_user(!!used_math(), &ctx->usedfp);
-	__put_user((u64) regs->cp0_cause, &ctx->cp0_cause);
-	__put_user((u64) regs->cp0_badvaddr, &ctx->cp0_badvaddr);
+	error |= __put_user((u64) regs->hi, &ctx->hi);
+	error |= __put_user((u64) regs->lo, &ctx->lo);
+	error |= __put_user((u64) regs->cp0_epc, &ctx->pc);
+	error |= __put_user(!!used_math(), &ctx->usedfp);
+	error |= __put_user((u64) regs->cp0_cause, &ctx->cp0_cause);
+	error |= __put_user((u64) regs->cp0_badvaddr, &ctx->cp0_badvaddr);
 
-	__put_user(0, &ctx->sstk_flags); /* XXX sigstack unimp... todo... */
+	error |= __put_user(0, &ctx->sstk_flags); /* XXX sigstack unimp... todo... */
 
-	__copy_to_user(&ctx->sigset, oldmask, sizeof(irix_sigset_t));
+	error |= __copy_to_user(&ctx->sigset, oldmask, sizeof(irix_sigset_t)) ? -EFAULT : 0;
+
+	if (error)
+		goto segv_and_exit;
 
 #ifdef DEBUG_SIG
 	dump_irix5_sigctx(ctx);
@@ -209,10 +212,11 @@ no_signal:
 asmlinkage void
 irix_sigreturn(struct pt_regs *regs)
 {
-	struct sigctx_irix5 *context, *magic;
+	struct sigctx_irix5 __user *context, *magic;
 	unsigned long umask, mask;
 	u64 *fregs;
-	int sig, i, base = 0;
+	u32 usedfp;
+	int error, sig, i, base = 0;
 	sigset_t blocked;
 
 	/* Always make any pending restarted system calls return -EINTR */
@@ -221,8 +225,8 @@ irix_sigreturn(struct pt_regs *regs)
 	if (regs->regs[2] == 1000)
 		base = 1;
 
-	context = (struct sigctx_irix5 *) regs->regs[base + 4];
-	magic = (struct sigctx_irix5 *) regs->regs[base + 5];
+	context = (struct sigctx_irix5 __user *) regs->regs[base + 4];
+	magic = (struct sigctx_irix5 __user *) regs->regs[base + 5];
 	sig = (int) regs->regs[base + 6];
 #ifdef DEBUG_SIG
 	printk("[%s:%d] IRIX sigreturn(scp[%p],ucp[%p],sig[%d])\n",
@@ -237,25 +241,31 @@ irix_sigreturn(struct pt_regs *regs)
 	dump_irix5_sigctx(context);
 #endif
 
-	__get_user(regs->cp0_epc, &context->pc);
-	umask = context->rmask; mask = 2;
-	for (i = 1; i < 32; i++, mask <<= 1) {
-		if(umask & mask)
-			__get_user(regs->regs[i], &context->regs[i]);
-	}
-	__get_user(regs->hi, &context->hi);
-	__get_user(regs->lo, &context->lo);
+	error = __get_user(regs->cp0_epc, &context->pc);
+	error |= __get_user(umask, &context->rmask);
 
-	if ((umask & 1) && context->usedfp) {
+	mask = 2;
+	for (i = 1; i < 32; i++, mask <<= 1) {
+		if (umask & mask)
+			error |= __get_user(regs->regs[i], &context->regs[i]);
+	}
+	error |= __get_user(regs->hi, &context->hi);
+	error |= __get_user(regs->lo, &context->lo);
+
+	error |= __get_user(usedfp, &context->usedfp);
+	if ((umask & 1) && usedfp) {
 		fregs = (u64 *) &current->thread.fpu;
+
 		for(i = 0; i < 32; i++)
-			fregs[i] = (u64) context->fpregs[i];
-		__get_user(current->thread.fpu.hard.fcr31, &context->fpcsr);
+			error |= __get_user(fregs[i], &context->fpregs[i]);
+		error |= __get_user(current->thread.fpu.hard.fcr31, &context->fpcsr);
 	}
 
 	/* XXX do sigstack crapola here... XXX */
 
-	if (__copy_from_user(&blocked, &context->sigset, sizeof(blocked)))
+	error |= __copy_from_user(&blocked, &context->sigset, sizeof(blocked)) ? -EFAULT : 0;
+
+	if (error)
 		goto badframe;
 
 	sigdelsetmask(&blocked, ~_BLOCKABLE);
@@ -297,8 +307,8 @@ static inline void dump_sigact_irix5(struct sigact_irix5 *p)
 #endif
 
 asmlinkage int
-irix_sigaction(int sig, const struct sigaction *act,
-	      struct sigaction *oact, void *trampoline)
+irix_sigaction(int sig, const struct sigaction __user *act,
+	      struct sigaction __user *oact, void __user *trampoline)
 {
 	struct k_sigaction new_ka, old_ka;
 	int ret;
@@ -312,12 +322,16 @@ irix_sigaction(int sig, const struct sigaction *act,
 #endif
 	if (act) {
 		sigset_t mask;
-		if (verify_area(VERIFY_READ, act, sizeof(*act)) ||
-		    __get_user(new_ka.sa.sa_handler, &act->sa_handler) ||
-		    __get_user(new_ka.sa.sa_flags, &act->sa_flags))
-			return -EFAULT;
+		int err;
 
-		__copy_from_user(&mask, &act->sa_mask, sizeof(sigset_t));
+		if (!access_ok(VERIFY_READ, act, sizeof(*act)))
+			return -EFAULT;
+		err = __get_user(new_ka.sa.sa_handler, &act->sa_handler);
+		err |= __get_user(new_ka.sa.sa_flags, &act->sa_flags);
+
+		err |= __copy_from_user(&mask, &act->sa_mask, sizeof(sigset_t)) ? -EFAULT : 0;
+		if (err)
+			return err;
 
 		/*
 		 * Hmmm... methinks IRIX libc always passes a valid trampoline
@@ -331,32 +345,37 @@ irix_sigaction(int sig, const struct sigaction *act,
 	ret = do_sigaction(sig, act ? &new_ka : NULL, oact ? &old_ka : NULL);
 
 	if (!ret && oact) {
-		if (verify_area(VERIFY_WRITE, oact, sizeof(*oact)) ||
-		    __put_user(old_ka.sa.sa_handler, &oact->sa_handler) ||
-		    __put_user(old_ka.sa.sa_flags, &oact->sa_flags))
+		int err;
+
+		if (!access_ok(VERIFY_WRITE, oact, sizeof(*oact)))
 			return -EFAULT;
-		__copy_to_user(&old_ka.sa.sa_mask, &oact->sa_mask,
-		               sizeof(sigset_t));
+
+		err = __put_user(old_ka.sa.sa_handler, &oact->sa_handler);
+		err |= __put_user(old_ka.sa.sa_flags, &oact->sa_flags);
+		err |= __copy_to_user(&oact->sa_mask, &old_ka.sa.sa_mask,
+		               sizeof(sigset_t)) ? -EFAULT : 0;
+		if (err)
+			return -EFAULT;
 	}
 
 	return ret;
 }
 
-asmlinkage int irix_sigpending(irix_sigset_t *set)
+asmlinkage int irix_sigpending(irix_sigset_t __user *set)
 {
 	return do_sigpending(set, sizeof(*set));
 }
 
-asmlinkage int irix_sigprocmask(int how, irix_sigset_t *new, irix_sigset_t *old)
+asmlinkage int irix_sigprocmask(int how, irix_sigset_t __user *new,
+	irix_sigset_t __user *old)
 {
 	sigset_t oldbits, newbits;
-	int error;
 
 	if (new) {
-		error = verify_area(VERIFY_READ, new, sizeof(*new));
-		if (error)
-			return error;
-		__copy_from_user(&newbits, new, sizeof(unsigned long)*4);
+		if (!access_ok(VERIFY_READ, new, sizeof(*new)))
+			return -EFAULT;
+		if (__copy_from_user(&newbits, new, sizeof(unsigned long)*4))
+			return -EFAULT;
 		sigdelsetmask(&newbits, ~_BLOCKABLE);
 
 		spin_lock_irq(&current->sighand->siglock);
@@ -384,21 +403,19 @@ asmlinkage int irix_sigprocmask(int how, irix_sigset_t *new, irix_sigset_t *old)
 		recalc_sigpending();
 		spin_unlock_irq(&current->sighand->siglock);
 	}
-	if(old) {
-		error = verify_area(VERIFY_WRITE, old, sizeof(*old));
-		if(error)
-			return error;
-		__copy_to_user(old, &current->blocked, sizeof(unsigned long)*4);
-	}
+	if (old)
+		return copy_to_user(old, &current->blocked,
+		                  sizeof(unsigned long)*4) ? -EFAULT : 0;
 
 	return 0;
 }
 
 asmlinkage int irix_sigsuspend(struct pt_regs *regs)
 {
-	sigset_t *uset, saveset, newset;
+	sigset_t saveset, newset;
+	sigset_t __user *uset;
 
-	uset = (sigset_t *) regs->regs[4];
+	uset = (sigset_t __user *) regs->regs[4];
 	if (copy_from_user(&newset, uset, sizeof(sigset_t)))
 		return -EFAULT;
 	sigdelsetmask(&newset, ~_BLOCKABLE);
@@ -456,12 +473,13 @@ static inline unsigned long timespectojiffies(struct timespec *value)
 	return HZ * sec + nsec;
 }
 
-asmlinkage int irix_sigpoll_sys(unsigned long *set, struct irix5_siginfo *info,
-				struct timespec *tp)
+asmlinkage int irix_sigpoll_sys(unsigned long __user *set,
+	struct irix5_siginfo __user *info, struct timespec __user *tp)
 {
 	long expire = MAX_SCHEDULE_TIMEOUT;
 	sigset_t kset;
 	int i, sig, error, timeo = 0;
+	struct timespec ktp;
 
 #ifdef DEBUG_SIG
 	printk("[%s:%d] irix_sigpoll_sys(%p,%p,%p)\n",
@@ -469,31 +487,25 @@ asmlinkage int irix_sigpoll_sys(unsigned long *set, struct irix5_siginfo *info,
 #endif
 
 	/* Must always specify the signal set. */
-	if(!set)
+	if (!set)
 		return -EINVAL;
 
-	error = verify_area(VERIFY_READ, set, sizeof(kset));
-	if (error)
-		goto out;
-
-	__copy_from_user(&kset, set, sizeof(set));
-	if (error)
-		goto out;
+	if (copy_from_user(&kset, set, sizeof(set)))
+		return -EFAULT;
 
 	if (info && clear_user(info, sizeof(*info))) {
 		error = -EFAULT;
 		goto out;
 	}
 
-	if(tp) {
-		error = verify_area(VERIFY_READ, tp, sizeof(*tp));
-		if(error)
-			return error;
-		if(!tp->tv_sec && !tp->tv_nsec) {
-			error = -EINVAL;
-			goto out;
-		}
-		expire = timespectojiffies(tp)+(tp->tv_sec||tp->tv_nsec);
+	if (tp) {
+		if (copy_from_user(&ktp, tp, sizeof(*tp)))
+			return -EFAULT;
+
+		if (!ktp.tv_sec && !ktp.tv_nsec)
+			return -EINVAL;
+
+		expire = timespectojiffies(&ktp) + (ktp.tv_sec || ktp.tv_nsec);
 	}
 
 	while(1) {
@@ -517,15 +529,14 @@ asmlinkage int irix_sigpoll_sys(unsigned long *set, struct irix5_siginfo *info,
 	if (timeo)
 		return -EAGAIN;
 
-	for(sig = 1; i <= 65 /* IRIX_NSIG */; sig++) {
+	for (sig = 1; i <= 65 /* IRIX_NSIG */; sig++) {
 		if (sigismember (&kset, sig))
 			continue;
 		if (sigismember (&current->pending.signal, sig)) {
 			/* XXX need more than this... */
 			if (info)
-				info->sig = sig;
-			error = 0;
-			goto out;
+				return copy_to_user(&info->sig, &sig, sizeof(sig));
+			return 0;
 		}
 	}
 
@@ -551,8 +562,9 @@ extern int getrusage(struct task_struct *, int, struct rusage __user *);
 
 #define W_MASK      (W_EXITED | W_TRAPPED | W_STOPPED | W_CONT | W_NOHANG)
 
-asmlinkage int irix_waitsys(int type, int pid, struct irix5_siginfo *info,
-			    int options, struct rusage *ru)
+asmlinkage int irix_waitsys(int type, int pid,
+	struct irix5_siginfo __user *info, int options,
+	struct rusage __user *ru)
 {
 	int flag, retval;
 	DECLARE_WAITQUEUE(wait, current);
@@ -560,26 +572,22 @@ asmlinkage int irix_waitsys(int type, int pid, struct irix5_siginfo *info,
 	struct task_struct *p;
 	struct list_head *_p;
 
-	if (!info) {
-		retval = -EINVAL;
-		goto out;
-	}
-	retval = verify_area(VERIFY_WRITE, info, sizeof(*info));
-	if(retval)
-		goto out;
-	if (ru) {
-		retval = verify_area(VERIFY_WRITE, ru, sizeof(*ru));
-		if(retval)
-			goto out;
-	}
-	if (options & ~(W_MASK)) {
-		retval = -EINVAL;
-		goto out;
-	}
-	if (type != IRIX_P_PID && type != IRIX_P_PGID && type != IRIX_P_ALL) {
-		retval = -EINVAL;
-		goto out;
-	}
+	if (!info)
+		return -EINVAL;
+
+	if (!access_ok(VERIFY_WRITE, info, sizeof(*info)))
+		return -EFAULT;
+
+	if (ru)
+		if (!access_ok(VERIFY_WRITE, ru, sizeof(*ru)))
+			return -EFAULT;
+
+	if (options & ~W_MASK)
+		return -EINVAL;
+
+	if (type != IRIX_P_PID && type != IRIX_P_PGID && type != IRIX_P_ALL)
+		return -EINVAL;
+
 	add_wait_queue(&current->signal->wait_chldexit, &wait);
 repeat:
 	flag = 0;
@@ -610,18 +618,20 @@ repeat:
 			add_parent(p, p->parent);
 			write_unlock_irq(&tasklist_lock);
 			retval = ru ? getrusage(p, RUSAGE_BOTH, ru) : 0;
-			if (!retval && ru) {
-				retval |= __put_user(SIGCHLD, &info->sig);
-				retval |= __put_user(0, &info->code);
-				retval |= __put_user(p->pid, &info->stuff.procinfo.pid);
-				retval |= __put_user((p->exit_code >> 8) & 0xff,
-				           &info->stuff.procinfo.procdata.child.status);
-				retval |= __put_user(p->utime, &info->stuff.procinfo.procdata.child.utime);
-				retval |= __put_user(p->stime, &info->stuff.procinfo.procdata.child.stime);
-			}
-			if (!retval) {
-				p->exit_code = 0;
-			}
+			if (retval)
+				goto end_waitsys;
+
+			retval = __put_user(SIGCHLD, &info->sig);
+			retval |= __put_user(0, &info->code);
+			retval |= __put_user(p->pid, &info->stuff.procinfo.pid);
+			retval |= __put_user((p->exit_code >> 8) & 0xff,
+			           &info->stuff.procinfo.procdata.child.status);
+			retval |= __put_user(p->utime, &info->stuff.procinfo.procdata.child.utime);
+			retval |= __put_user(p->stime, &info->stuff.procinfo.procdata.child.stime);
+			if (retval)
+				goto end_waitsys;
+
+			p->exit_code = 0;
 			goto end_waitsys;
 
 		case EXIT_ZOMBIE:
@@ -629,16 +639,18 @@ repeat:
 			current->signal->cstime += p->stime + p->signal->cstime;
 			if (ru != NULL)
 				getrusage(p, RUSAGE_BOTH, ru);
-			__put_user(SIGCHLD, &info->sig);
-			__put_user(1, &info->code);      /* CLD_EXITED */
-			__put_user(p->pid, &info->stuff.procinfo.pid);
-			__put_user((p->exit_code >> 8) & 0xff,
+			retval = __put_user(SIGCHLD, &info->sig);
+			retval |= __put_user(1, &info->code);      /* CLD_EXITED */
+			retval |= __put_user(p->pid, &info->stuff.procinfo.pid);
+			retval |= __put_user((p->exit_code >> 8) & 0xff,
 			           &info->stuff.procinfo.procdata.child.status);
-			__put_user(p->utime,
+			retval |= __put_user(p->utime,
 			           &info->stuff.procinfo.procdata.child.utime);
-			__put_user(p->stime,
+			retval |= __put_user(p->stime,
 			           &info->stuff.procinfo.procdata.child.stime);
-			retval = 0;
+			if (retval)
+				return retval;
+
 			if (p->real_parent != p->parent) {
 				write_lock_irq(&tasklist_lock);
 				remove_parent(p);
@@ -671,7 +683,6 @@ end_waitsys:
 	current->state = TASK_RUNNING;
 	remove_wait_queue(&current->signal->wait_chldexit, &wait);
 
-out:
 	return retval;
 }
 
@@ -691,174 +702,169 @@ struct irix5_context {
 asmlinkage int irix_getcontext(struct pt_regs *regs)
 {
 	int error, i, base = 0;
-	struct irix5_context *ctx;
+	struct irix5_context __user *ctx;
 	unsigned long flags;
 
 	if (regs->regs[2] == 1000)
 		base = 1;
-	ctx = (struct irix5_context *) regs->regs[base + 4];
+	ctx = (struct irix5_context __user *) regs->regs[base + 4];
 
 #ifdef DEBUG_SIG
 	printk("[%s:%d] irix_getcontext(%p)\n",
 	       current->comm, current->pid, ctx);
 #endif
 
-	error = verify_area(VERIFY_WRITE, ctx, sizeof(*ctx));
-	if(error)
-		goto out;
-	__put_user(current->thread.irix_oldctx, &ctx->link);
+	if (!access_ok(VERIFY_WRITE, ctx, sizeof(*ctx)));
+		return -EFAULT;
 
-	__copy_to_user(&ctx->sigmask, &current->blocked, sizeof(irix_sigset_t));
+	error = __put_user(current->thread.irix_oldctx, &ctx->link);
+
+	error |= __copy_to_user(&ctx->sigmask, &current->blocked, sizeof(irix_sigset_t)) ? -EFAULT : 0;
 
 	/* XXX Do sigstack stuff someday... */
-	__put_user(0, &ctx->stack.sp);
-	__put_user(0, &ctx->stack.size);
-	__put_user(0, &ctx->stack.flags);
+	error |= __put_user(0, &ctx->stack.sp);
+	error |= __put_user(0, &ctx->stack.size);
+	error |= __put_user(0, &ctx->stack.flags);
 
-	__put_user(0, &ctx->weird_graphics_thing);
-	__put_user(0, &ctx->regs[0]);
+	error |= __put_user(0, &ctx->weird_graphics_thing);
+	error |= __put_user(0, &ctx->regs[0]);
 	for (i = 1; i < 32; i++)
-		__put_user(regs->regs[i], &ctx->regs[i]);
-	__put_user(regs->lo, &ctx->regs[32]);
-	__put_user(regs->hi, &ctx->regs[33]);
-	__put_user(regs->cp0_cause, &ctx->regs[34]);
-	__put_user(regs->cp0_epc, &ctx->regs[35]);
+		error |= __put_user(regs->regs[i], &ctx->regs[i]);
+	error |= __put_user(regs->lo, &ctx->regs[32]);
+	error |= __put_user(regs->hi, &ctx->regs[33]);
+	error |= __put_user(regs->cp0_cause, &ctx->regs[34]);
+	error |= __put_user(regs->cp0_epc, &ctx->regs[35]);
 
 	flags = 0x0f;
-	if(!used_math()) {
+	if (!used_math()) {
 		flags &= ~(0x08);
 	} else {
 		/* XXX wheee... */
 		printk("Wheee, no code for saving IRIX FPU context yet.\n");
 	}
-	__put_user(flags, &ctx->flags);
-	error = 0;
+	error |= __put_user(flags, &ctx->flags);
 
-out:
 	return error;
 }
 
-asmlinkage unsigned long irix_setcontext(struct pt_regs *regs)
+asmlinkage void irix_setcontext(struct pt_regs *regs)
 {
-	int error, base = 0;
-	struct irix5_context *ctx;
+	struct irix5_context __user *ctx;
+	int err, base = 0;
+	u32 flags;
 
-	if(regs->regs[2] == 1000)
+	if (regs->regs[2] == 1000)
 		base = 1;
-	ctx = (struct irix5_context *) regs->regs[base + 4];
+	ctx = (struct irix5_context __user *) regs->regs[base + 4];
 
 #ifdef DEBUG_SIG
 	printk("[%s:%d] irix_setcontext(%p)\n",
 	       current->comm, current->pid, ctx);
 #endif
 
-	error = verify_area(VERIFY_READ, ctx, sizeof(*ctx));
-	if (error)
-		goto out;
+	if (!access_ok(VERIFY_READ, ctx, sizeof(*ctx)))
+		goto segv_and_exit;
 
-	if (ctx->flags & 0x02) {
+	err = __get_user(flags, &ctx->flags);
+	if (flags & 0x02) {
 		/* XXX sigstack garbage, todo... */
 		printk("Wheee, cannot do sigstack stuff in setcontext\n");
 	}
 
-	if (ctx->flags & 0x04) {
+	if (flags & 0x04) {
 		int i;
 
 		/* XXX extra control block stuff... todo... */
-		for(i = 1; i < 32; i++)
-			regs->regs[i] = ctx->regs[i];
-		regs->lo = ctx->regs[32];
-		regs->hi = ctx->regs[33];
-		regs->cp0_epc = ctx->regs[35];
+		for (i = 1; i < 32; i++)
+			err |= __get_user(regs->regs[i], &ctx->regs[i]);
+		err |= __get_user(regs->lo, &ctx->regs[32]);
+		err |= __get_user(regs->hi, &ctx->regs[33]);
+		err |= __get_user(regs->cp0_epc, &ctx->regs[35]);
 	}
 
-	if (ctx->flags & 0x08) {
+	if (flags & 0x08)
 		/* XXX fpu context, blah... */
-		printk("Wheee, cannot restore FPU context yet...\n");
-	}
-	current->thread.irix_oldctx = ctx->link;
-	error = regs->regs[2];
+		printk(KERN_ERR "Wheee, cannot restore FPU context yet...\n");
 
-out:
-	return error;
+	err |= __get_user(current->thread.irix_oldctx, &ctx->link);
+	if (err)
+		goto segv_and_exit;
+
+	/*
+	 * Don't let your children do this ...
+	 */
+	if (current_thread_info()->flags & TIF_SYSCALL_TRACE)
+		do_syscall_trace(regs, 1);
+	__asm__ __volatile__(
+		"move\t$29,%0\n\t"
+		"j\tsyscall_exit"
+		:/* no outputs */
+		:"r" (&regs));
+		/* Unreached */
+
+segv_and_exit:
+	force_sigsegv(SIGSEGV, current);
 }
 
-struct irix_sigstack { unsigned long sp; int status; };
+struct irix_sigstack {
+	unsigned long sp;
+	int status;
+};
 
-asmlinkage int irix_sigstack(struct irix_sigstack *new, struct irix_sigstack *old)
+asmlinkage int irix_sigstack(struct irix_sigstack __user *new,
+	struct irix_sigstack __user *old)
 {
-	int error;
-
 #ifdef DEBUG_SIG
 	printk("[%s:%d] irix_sigstack(%p,%p)\n",
 	       current->comm, current->pid, new, old);
 #endif
-	if(new) {
-		error = verify_area(VERIFY_READ, new, sizeof(*new));
-		if(error)
-			goto out;
+	if (new) {
+		if (!access_ok(VERIFY_READ, new, sizeof(*new)))
+			return -EFAULT;
 	}
 
-	if(old) {
-		error = verify_area(VERIFY_WRITE, old, sizeof(*old));
-		if(error)
-			goto out;
+	if (old) {
+		if (!access_ok(VERIFY_WRITE, old, sizeof(*old)))
+			return -EFAULT;
 	}
-	error = 0;
 
-out:
-	return error;
+	return 0;
 }
 
 struct irix_sigaltstack { unsigned long sp; int size; int status; };
 
-asmlinkage int irix_sigaltstack(struct irix_sigaltstack *new,
-				struct irix_sigaltstack *old)
+asmlinkage int irix_sigaltstack(struct irix_sigaltstack __user *new,
+				struct irix_sigaltstack __user *old)
 {
-	int error;
-
 #ifdef DEBUG_SIG
 	printk("[%s:%d] irix_sigaltstack(%p,%p)\n",
 	       current->comm, current->pid, new, old);
 #endif
-	if (new) {
-		error = verify_area(VERIFY_READ, new, sizeof(*new));
-		if(error)
-			goto out;
-	}
+	if (new)
+		if (!access_ok(VERIFY_READ, new, sizeof(*new)))
+			return -EFAULT;
 
 	if (old) {
-		error = verify_area(VERIFY_WRITE, old, sizeof(*old));
-		if(error)
-			goto out;
+		if (!access_ok(VERIFY_WRITE, old, sizeof(*old)))
+			return -EFAULT;
 	}
-	error = 0;
 
-out:
-	error = 0;
-
-	return error;
+	return 0;
 }
 
 struct irix_procset {
 	int cmd, ltype, lid, rtype, rid;
 };
 
-asmlinkage int irix_sigsendset(struct irix_procset *pset, int sig)
+asmlinkage int irix_sigsendset(struct irix_procset __user *pset, int sig)
 {
-	int error;
-
-	error = verify_area(VERIFY_READ, pset, sizeof(*pset));
-	if(error)
-		goto out;
+	if (!access_ok(VERIFY_READ, pset, sizeof(*pset)))
+		return -EFAULT;
 #ifdef DEBUG_SIG
 	printk("[%s:%d] irix_sigsendset([%d,%d,%d,%d,%d],%d)\n",
 	       current->comm, current->pid,
 	       pset->cmd, pset->ltype, pset->lid, pset->rtype, pset->rid,
 	       sig);
 #endif
-	error = -EINVAL;
-
-out:
-	return error;
+	return -EINVAL;
 }
