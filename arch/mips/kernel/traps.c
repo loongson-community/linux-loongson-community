@@ -62,8 +62,6 @@ extern asmlinkage void handle_reserved(void);
 
 extern int fpu_emulator_cop1Handler(int, struct pt_regs *);
 
-static char *cpu_names[] = CPU_NAMES;
-
 char watch_available = 0;
 
 void (*ibe_board_handler)(struct pt_regs *regs);
