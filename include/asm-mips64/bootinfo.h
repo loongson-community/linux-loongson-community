@@ -177,6 +177,10 @@
 #define MACH_NEC_OSPREY		0	/* Osprey eval board */
 #define MACH_NEC_EAGLE		1	/* NEC Eagle/Hawk board */
 #define MACH_ZAO_CAPCELLA	2	/* ZAO Networks Capcella */
+#define MACH_VICTOR_MPC30X	3	/* Victor MP-C303/304 */
+#define MACH_IBM_WORKPAD	4	/* IBM WorkPad z50 */
+#define MACH_CASIO_E55		5	/* CASIO CASSIOPEIA E-10/15/55/65 */
+#define MACH_TANBAC_TB0226	6	/* TANBAC TB0226 (Mbase) */
 
 #define CL_SIZE			(256)
 

@@ -180,6 +180,7 @@
 #define MACH_VICTOR_MPC30X	3	/* Victor MP-C303/304 */
 #define MACH_IBM_WORKPAD	4	/* IBM WorkPad z50 */
 #define MACH_CASIO_E55		5	/* CASIO CASSIOPEIA E-10/15/55/65 */
+#define MACH_TANBAC_TB0226	6	/* TANBAC TB0226 (Mbase) */
 
 #define CL_SIZE			(256)
 

@@ -277,6 +277,12 @@ core-$(CONFIG_CASIO_E55)	+= arch/mips/vr41xx/casio-e55/
 load-$(CONFIG_CASIO_E55)	+= 0x80004000
 
 #
+# TANBAC TB0226 Mbase (VR4131)
+#
+core-$(CONFIG_TANBAC_TB0226)	+= arch/mips/vr41xx/tanbac-tb0226/
+load-$(CONFIG_TANBAC_TB0226)	+= 0x80000000
+
+#
 # Philips Nino
 #
 core-$(CONFIG_NINO)		+= arch/mips/philips/nino/
