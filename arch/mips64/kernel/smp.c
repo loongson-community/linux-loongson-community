@@ -1,12 +1,24 @@
 /*
- * This file is subject to the terms and conditions of the GNU General Public
- * License.  See the file "COPYING" in the main directory of this archive
- * for more details.
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  *
  * Copyright (C) 2000, 2001 Kanoj Sarcar
  * Copyright (C) 2000, 2001 Ralf Baechle
  * Copyright (C) 2000, 2001 Silicon Graphics, Inc.
+ * Copyright (C) 2000, 2001 Broadcom Corporation
  */
+#include <linux/config.h>
 #include <linux/cache.h>
 #include <linux/delay.h>
 #include <linux/init.h>
@@ -17,7 +29,6 @@
 #include <linux/time.h>
 #include <linux/timex.h>
 #include <linux/sched.h>
-#include <linux/cache.h>
 
 #include <asm/atomic.h>
 #include <asm/cpu.h>
@@ -26,20 +37,53 @@
 #include <asm/hardirq.h>
 #include <asm/softirq.h>
 #include <asm/mmu_context.h>
-#include <asm/irq.h>
+#include <asm/smp.h>
 
 /* The 'big kernel lock' */
-static spinlock_t kernel_flag __cacheline_aligned_in_smp = SPIN_LOCK_UNLOCKED;
+spinlock_t kernel_flag __cacheline_aligned_in_smp = SPIN_LOCK_UNLOCKED;
 int smp_threads_ready;	/* Not used */
 atomic_t smp_commenced = ATOMIC_INIT(0);
 struct cpuinfo_mips cpu_data[NR_CPUS];
+
+// static atomic_t cpus_booted = ATOMIC_INIT(0);
+atomic_t cpus_booted = ATOMIC_INIT(0);
+
 int smp_num_cpus = 1;			/* Number that came online.  */
 cpumask_t cpu_online_map;		/* Bitmask of currently online CPUs */
 int __cpu_number_map[NR_CPUS];
 int __cpu_logical_map[NR_CPUS];
 cycles_t cacheflush_time;
 
-static void smp_tune_scheduling (void)
+/* These are defined by the board-specific code. */
+
+/*
+ * Cause the function described by call_data to be executed on the passed
+ * cpu.  When the function has finished, increment the finished field of
+ * call_data.
+ */
+void core_send_ipi(int cpu, unsigned int action);
+
+/*
+ * Clear all undefined state in the cpu, set up sp and gp to the passed
+ * values, and kick the cpu into smp_bootstrap();
+ */
+void prom_boot_secondary(int cpu, unsigned long sp, unsigned long gp);
+
+/*
+ *  After we've done initial boot, this function is called to allow the
+ *  board code to clean up state, if needed
+ */
+void prom_init_secondary(void);
+
+/*
+ * Do whatever setup needs to be done for SMP at the board level.  Return
+ * the number of cpus in the system, including this one
+ */
+int prom_setup_smp(void);
+
+void prom_smp_finish(void);
+
+static void smp_tune_scheduling(void)
 {
 }
 
@@ -51,6 +95,7 @@ void __init smp_callin(void)
 #endif
 }
 
+#ifndef CONFIG_SGI_IP27
 /*
  * Hook for doing final board-specific setup after the generic smp setup
  * is done
@@ -75,22 +120,12 @@ asmlinkage void start_secondary(void)
 	while (!atomic_read(&smp_commenced));
 	cpu_idle();
 }
-
-void __init smp_boot_cpus(void)
-{
-	extern void allowboot(void);
-
-	set_context(0);
-	init_new_context(current, &init_mm);
-	init_idle();
-	smp_tune_scheduling();
-	allowboot();
-}
+#endif /* CONFIG_SGI_IP27 */
 
 void __init smp_commence(void)
 {
 	wmb();
-	atomic_set(&smp_commenced,1);
+	atomic_set(&smp_commenced, 1);
 }
 
 /*
@@ -101,12 +136,6 @@ void __init smp_commence(void)
 void smp_send_reschedule(int cpu)
 {
 	core_send_ipi(cpu, SMP_RESCHEDULE_YOURSELF);
-}
-
-/* Not really SMP stuff ... */
-int setup_profiling_timer(unsigned int multiplier)
-{
-	return 0;
 }
 
 static spinlock_t call_lock = SPIN_LOCK_UNLOCKED;
@@ -124,7 +153,6 @@ struct call_data_struct *call_data;
  * Does not return until remote CPUs are nearly ready to execute <func>
  * or are or have executed.
  */
-
 int smp_call_function (void (*func) (void *info), void *info, int retry,
 								int wait)
 {
@@ -192,16 +220,29 @@ void smp_call_function_interrupt(void)
 static void stop_this_cpu(void *dummy)
 {
 	/*
-	 * Remove this CPU
-	 * XXX update this from 32-bit version
+	 * Remove this CPU:
 	 */
+	clear_bit(smp_processor_id(), &cpu_online_map);
+	/* May need to service _machine_restart IPI */
+	__sti();
+	/* XXXKW wait if available? */
 	for (;;);
 }
 
 void smp_send_stop(void)
 {
 	smp_call_function(stop_this_cpu, NULL, 1, 0);
+	/*
+	 * Fix me: this prevents future IPIs, for example that would
+	 * cause a restart to happen on CPU0.
+	 */
 	smp_num_cpus = 1;
+}
+
+/* Not really SMP stuff ... */
+int setup_profiling_timer(unsigned int multiplier)
+{
+	return 0;
 }
 
 static void flush_tlb_all_ipi(void *info)
@@ -259,13 +300,12 @@ static void flush_tlb_range_ipi(void *info)
 	local_flush_tlb_range(fd->vma, fd->addr1, fd->addr2);
 }
 
-void flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
-	unsigned long end)
+void flush_tlb_range(struct mm_struct *mm, unsigned long start, unsigned long end)
 {
 	if ((atomic_read(&mm->mm_users) != 1) || (current->mm != mm)) {
 		struct flush_tlb_data fd;
 
-		fd.vma = vma;
+		fd.mm = mm;
 		fd.addr1 = start;
 		fd.addr2 = end;
 		smp_call_function(flush_tlb_range_ipi, (void *)&fd, 1, 1);
@@ -287,8 +327,7 @@ static void flush_tlb_page_ipi(void *info)
 
 void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 {
-	if ((atomic_read(&vma->vm_mm->mm_users) != 1) ||
-	    (current->mm != vma->vm_mm)) {
+	if ((atomic_read(&vma->vm_mm->mm_users) != 1) || (current->mm != vma->vm_mm)) {
 		struct flush_tlb_data fd;
 
 		fd.vma = vma;

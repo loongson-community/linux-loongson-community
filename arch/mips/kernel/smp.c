@@ -18,17 +18,17 @@
  * Copyright (C) 2000, 2001 Silicon Graphics, Inc.
  * Copyright (C) 2000, 2001 Broadcom Corporation
  */
+#include <linux/config.h>
 #include <linux/cache.h>
+#include <linux/delay.h>
 #include <linux/init.h>
+#include <linux/interrupt.h>
 #include <linux/spinlock.h>
 #include <linux/threads.h>
-#include <linux/time.h>
 #include <linux/module.h>
+#include <linux/time.h>
 #include <linux/timex.h>
 #include <linux/sched.h>
-#include <linux/interrupt.h>
-#include <linux/cache.h>
-#include <linux/mm.h>
 
 #include <asm/atomic.h>
 #include <asm/cpu.h>
@@ -37,23 +37,22 @@
 #include <asm/hardirq.h>
 #include <asm/softirq.h>
 #include <asm/mmu_context.h>
-#include <asm/delay.h>
 #include <asm/smp.h>
 
-/* Ze Big Kernel Lock! */
+/* The 'big kernel lock' */
 spinlock_t kernel_flag __cacheline_aligned_in_smp = SPIN_LOCK_UNLOCKED;
-int smp_threads_ready;
+int smp_threads_ready;	/* Not used */
 atomic_t smp_commenced = ATOMIC_INIT(0);
-int smp_num_cpus = 1;			/* Number that came online.  */
-cpumask_t cpu_online_map;		/* Bitmask of currently online CPUs */
-int __cpu_number_map[NR_CPUS];
-int __cpu_logical_map[NR_CPUS];
 struct cpuinfo_mips cpu_data[NR_CPUS];
-void (*volatile smp_cpu0_finalize)(void);
 
 // static atomic_t cpus_booted = ATOMIC_INIT(0);
 atomic_t cpus_booted = ATOMIC_INIT(0);
 
+int smp_num_cpus = 1;			/* Number that came online.  */
+cpumask_t cpu_online_map;		/* Bitmask of currently online CPUs */
+int __cpu_number_map[NR_CPUS];
+int __cpu_logical_map[NR_CPUS];
+cycles_t cacheflush_time;
 
 /* These are defined by the board-specific code. */
 
@@ -82,6 +81,21 @@ void prom_init_secondary(void);
  */
 int prom_setup_smp(void);
 
+void prom_smp_finish(void);
+
+static void smp_tune_scheduling(void)
+{
+}
+
+void __init smp_callin(void)
+{
+#if 0
+	calibrate_delay();
+	smp_store_cpu_info(cpuid);
+#endif
+}
+
+#ifndef CONFIG_SGI_IP27
 /*
  * Hook for doing final board-specific setup after the generic smp setup
  * is done
@@ -97,7 +111,6 @@ asmlinkage void start_secondary(void)
 	 * XXX parity protection should be folded in here when it's converted
 	 * to an option instead of something based on .cputype
 	 */
-
 	pgd_current[cpu] = init_mm.pgd;
 	cpu_data[cpu].udelay_val = loops_per_jiffy;
 	prom_smp_finish();
@@ -107,6 +120,7 @@ asmlinkage void start_secondary(void)
 	while (!atomic_read(&smp_commenced));
 	cpu_idle();
 }
+#endif /* CONFIG_SGI_IP27 */
 
 void __init smp_commence(void)
 {
@@ -114,6 +128,11 @@ void __init smp_commence(void)
 	atomic_set(&smp_commenced, 1);
 }
 
+/*
+ * this function sends a 'reschedule' IPI to another CPU.
+ * it goes straight through and wastes no time serializing
+ * anything. Worst case is that we lose a reschedule ...
+ */
 void smp_send_reschedule(int cpu)
 {
 	core_send_ipi(cpu, SMP_RESCHEDULE_YOURSELF);
@@ -124,9 +143,15 @@ static spinlock_t call_lock = SPIN_LOCK_UNLOCKED;
 struct call_data_struct *call_data;
 
 /*
- * The caller of this wants the passed function to run on every cpu.  If wait
- * is set, wait until all cpus have finished the function before returning.
- * The lock is here to protect the call structure.
+ * Run a function on all other CPUs.
+ *  <func>      The function to run. This must be fast and non-blocking.
+ *  <info>      An arbitrary pointer to pass to the function.
+ *  <retry>     If true, keep retrying until ready.
+ *  <wait>      If true, wait until function has completed on other CPUs.
+ *  [RETURNS]   0 on success, else a negative status code.
+ *
+ * Does not return until remote CPUs are nearly ready to execute <func>
+ * or are or have executed.
  */
 int smp_call_function (void (*func) (void *info), void *info, int retry,
 								int wait)
@@ -175,14 +200,14 @@ void smp_call_function_interrupt(void)
 
 	irq_enter(cpu, 0);	/* XXX choose an irq number? */
 	/*
-	 * Notify initiating CPU that I've grabbed the data
-	 * and am about to execute the function
+	 * Notify initiating CPU that I've grabbed the data and am
+	 * about to execute the function.
 	 */
 	mb();
 	atomic_inc(&call_data->started);
 
 	/*
-	 * At this point the info structure may be out of scope unless wait==1
+	 * At this point the info structure may be out of scope unless wait==1.
 	 */
 	(*func)(info);
 	if (wait) {
@@ -194,18 +219,23 @@ void smp_call_function_interrupt(void)
 
 static void stop_this_cpu(void *dummy)
 {
-	int cpu = smp_processor_id();
-	if (cpu)
-		for (;;);		/* XXX Use halt like i386 */
-
-	/* XXXKW this isn't quite there yet */
-	while (!smp_cpu0_finalize) ;
-	smp_cpu0_finalize();
+	/*
+	 * Remove this CPU:
+	 */
+	clear_bit(smp_processor_id(), &cpu_online_map);
+	/* May need to service _machine_restart IPI */
+	__sti();
+	/* XXXKW wait if available? */
+	for (;;);
 }
 
 void smp_send_stop(void)
 {
 	smp_call_function(stop_this_cpu, NULL, 1, 0);
+	/*
+	 * Fix me: this prevents future IPIs, for example that would
+	 * cause a restart to happen on CPU0.
+	 */
 	smp_num_cpus = 1;
 }
 
@@ -267,7 +297,7 @@ static void flush_tlb_range_ipi(void *info)
 {
 	struct flush_tlb_data *fd = (struct flush_tlb_data *)info;
 
-	local_flush_tlb_range(fd->mm, fd->addr1, fd->addr2);
+	local_flush_tlb_range(fd->vma, fd->addr1, fd->addr2);
 }
 
 void flush_tlb_range(struct mm_struct *mm, unsigned long start, unsigned long end)
