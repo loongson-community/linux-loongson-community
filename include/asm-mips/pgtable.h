@@ -187,12 +187,10 @@ extern int add_temporary_entry(unsigned long entrylo0, unsigned long entrylo1,
 
 #ifdef CONFIG_MIPS_UNCACHED
 #define PAGE_CACHABLE_DEFAULT	_CACHE_UNCACHED
-#else
-#ifdef CONFIG_CPU_SB1
+#elif CONFIG_CPU_SB1
 #define PAGE_CACHABLE_DEFAULT	_CACHE_CACHABLE_COW
 #else
 #define PAGE_CACHABLE_DEFAULT	_CACHE_CACHABLE_NONCOHERENT
-#endif
 #endif
 
 #define PAGE_NONE	__pgprot(_PAGE_PRESENT | _CACHE_CACHABLE_NONCOHERENT)
