@@ -1,4 +1,3 @@
-# $Id: Makefile,v 1.22 2000/01/26 00:07:44 ralf Exp $
 #
 # This file is subject to the terms and conditions of the GNU General Public
 # License.  See the file "COPYING" in the main directory of this archive

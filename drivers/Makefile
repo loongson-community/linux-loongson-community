@@ -80,16 +80,10 @@ else
   endif
 endif 
 
-ifdef CONFIG_SGI_IP22
+ifdef CONFIG_SGI
 SUB_DIRS += sgi
 MOD_SUB_DIRS += sgi
 endif
-
-ifdef CONFIG_SGI_IP35
-SUB_DIRS += sgi
-MOD_SUB_DIRS += sgi
-endif
-
 
 ifeq ($(CONFIG_I2O),y)
 SUB_DIRS += i2o
