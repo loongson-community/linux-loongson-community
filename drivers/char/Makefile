@@ -328,6 +328,14 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_VIDEO_VINO),y)
+L_OBJS += vino.o
+else
+  ifeq ($(CONFIG_VIDEO_VINO),m)
+  M_OBJS += vino.o
+  endif
+endif
+
 ifeq ($(CONFIG_RADIO_AZTECH),y)
 L_OBJS += radio-aztech.o
 else

@@ -261,6 +261,7 @@ struct video_unit
 #define VID_HARDWARE_PERMEDIA2	14	/* Reserved for Permedia2 */
 #define VID_HARDWARE_RIVA128	15	/* Reserved for RIVA 128 */
 #define VID_HARDWARE_PLANB	16	/* PowerMac motherboard video-in */
+#define VID_HARDWARE_VINO	17
 
 /*
  *	Initialiser list

@@ -1,4 +1,4 @@
-/* $Id: hal2.c,v 1.11 1999/02/03 23:25:31 tsbogend Exp $
+/* $Id: hal2.c,v 1.13 1999/02/07 22:18:37 ulfc Exp $
  * 
  * drivers/sgi/audio/hal2.c
  *
@@ -101,6 +101,7 @@ struct sgiaudio_chan_ops {
 	void (*start) (struct sgiaudio *);
 	void (*stop) (struct sgiaudio *);
 	void (*free) (struct sgiaudio *);
+	void *priv;
 };
 
 #if 0
@@ -198,7 +199,7 @@ static void hal2_reset(void)
 }
 
 /* enable/disable a specific PBUS dma channel */
-__inline__ void sgipbus_enable(unsigned int channel, unsigned long desc)
+static __inline__ void sgipbus_enable(unsigned int channel, unsigned long desc)
 {
 	struct hpc3_pbus_dmacregs *pbus = &hpc3c0->pbdma0;
 
@@ -206,14 +207,14 @@ __inline__ void sgipbus_enable(unsigned int channel, unsigned long desc)
 	pbus[channel].pbdma_ctrl |= HPC3_PDMACTRL_ACT;
 }
 
-__inline__ void sgipbus_disable(unsigned int channel)
+static __inline__ void sgipbus_disable(unsigned int channel)
 {
 	struct hpc3_pbus_dmacregs *pbus = &hpc3c0->pbdma0;
 
 	pbus[channel].pbdma_ctrl &= ~HPC3_PDMACTRL_ACT;
 }
 
-__inline__ int sgipbus_interrupted(unsigned int channel)
+static __inline__ int sgipbus_interrupted(unsigned int channel)
 {
 	struct hpc3_pbus_dmacregs *pbus = &hpc3c0->pbdma0;
 
