@@ -15,15 +15,18 @@
 #define _ASM_ATOMIC_H
 
 #include <linux/config.h>
+#include <linux/spinlock.h>
 
-#include <asm/system.h>
+/*
+ * This lock is intensionally undeclared and undefined so attempts to reference
+ * this code on SMP will result in a linker error.
+ *
+ * extern spinlock_t atomic_lock;
+ */
 
 typedef struct { volatile int counter; } atomic_t;
-typedef struct { volatile __s64 counter; } atomic64_t;
 
-#ifdef __KERNEL__
 #define ATOMIC_INIT(i)    { (i) }
-#define ATOMIC64_INIT(i)    { (i) }
 
 /*
  * atomic_read - read atomic variable
@@ -35,13 +38,6 @@ typedef struct { volatile __s64 counter; } atomic64_t;
 #define atomic_read(v)		((v)->counter)
 
 /*
- * atomic64_read - read atomic variable
- * @v: pointer of type atomic64_t
- *
- */
-#define atomic64_read(v)	((v)->counter)
-
-/*
  * atomic_set - set atomic variable
  * @v: pointer of type atomic_t
  * @i: required value
@@ -51,86 +47,7 @@ typedef struct { volatile __s64 counter; } atomic64_t;
  */
 #define atomic_set(v,i)		((v)->counter = (i))
 
-/*
- * atomic64_set - set atomic variable
- * @v: pointer of type atomic64_t
- * @i: required value
- */
-#define atomic64_set(v,i)	((v)->counter = (i))
-
-#ifndef CONFIG_CPU_HAS_LLSC
-
-/*
- * The MIPS I implementation is only atomic with respect to
- * interrupts.  R3000 based multiprocessor machines are rare anyway ...
- *
- * atomic_add - add integer to atomic variable
- * @i: integer value to add
- * @v: pointer of type atomic_t
- *
- * Atomically adds @i to @v.  Note that the guaranteed useful range
- * of an atomic_t is only 24 bits.
- */
-static __inline__ void atomic_add(int i, atomic_t * v)
-{
-	unsigned long flags;
-
-	local_irq_save(flags);
-	v->counter += i;
-	local_irq_restore(flags);
-}
-
-/*
- * atomic_sub - subtract the atomic variable
- * @i: integer value to subtract
- * @v: pointer of type atomic_t
- *
- * Atomically subtracts @i from @v.  Note that the guaranteed
- * useful range of an atomic_t is only 24 bits.
- */
-static __inline__ void atomic_sub(int i, atomic_t * v)
-{
-	unsigned long flags;
-
-	local_irq_save(flags);
-	v->counter -= i;
-	local_irq_restore(flags);
-}
-
-static __inline__ int atomic_add_return(int i, atomic_t * v)
-{
-	unsigned long flags;
-	int temp;
-
-	local_irq_save(flags);
-	temp = v->counter;
-	temp += i;
-	v->counter = temp;
-	local_irq_restore(flags);
-
-	return temp;
-}
-
-static __inline__ int atomic_sub_return(int i, atomic_t * v)
-{
-	unsigned long flags;
-	int temp;
-
-	local_irq_save(flags);
-	temp = v->counter;
-	temp -= i;
-	v->counter = temp;
-	local_irq_restore(flags);
-
-	return temp;
-}
-
-#else
-
-/*
- * ... while for MIPS II and better we can use ll/sc instruction.  This
- * implementation is SMP safe ...
- */
+#ifdef CONFIG_CPU_HAS_LLSC
 
 /*
  * atomic_add - add integer to atomic variable
@@ -212,79 +129,164 @@ static __inline__ int atomic_sub_return(int i, atomic_t * v)
 
 	return result;
 }
-#endif
-
-#ifndef CONFIG_CPU_HAS_LLDSCD
-
-/*
- * This implementation is only atomic with respect to interrupts.  It can't
- * be used on SMP
- *
- * atomic64_add - add integer to atomic variable
- * @i: integer value to add
- * @v: pointer of type atomic64_t
- *
- * Atomically adds @i to @v.
- */
-static __inline__ void atomic64_add(int i, atomic64_t * v)
-{
-	unsigned long flags;
-
-	local_irq_save(flags);
-	v->counter += i;
-	local_irq_restore(flags);
-}
-
-/*
- * atomic64_sub - subtract the atomic variable
- * @i: integer value to subtract
- * @v: pointer of type atomic64_t
- *
- * Atomically subtracts @i from @v.
- */
-static __inline__ void atomic64_sub(int i, atomic64_t * v)
-{
-	unsigned long flags;
-
-	local_irq_save(flags);
-	v->counter -= i;
-	local_irq_restore(flags);
-}
-
-static __inline__ int atomic64_add_return(int i, atomic64_t * v)
-{
-	unsigned long flags;
-	int temp;
-
-	local_irq_save(flags);
-	temp = v->counter;
-	temp += i;
-	v->counter = temp;
-	local_irq_restore(flags);
-
-	return temp;
-}
-
-static __inline__ int atomic64_sub_return(int i, atomic64_t * v)
-{
-	unsigned long flags;
-	int temp;
-
-	local_irq_save(flags);
-	temp = v->counter;
-	temp -= i;
-	v->counter = temp;
-	local_irq_restore(flags);
-
-	return temp;
-}
 
 #else
 
 /*
- * ... while for MIPS III and better we can use ll/sc instruction.  This
- * implementation is SMP safe ...
+ * The MIPS I implementation is only atomic with respect to
+ * interrupts.  R3000 based multiprocessor machines are rare anyway ...
+ *
+ * atomic_add - add integer to atomic variable
+ * @i: integer value to add
+ * @v: pointer of type atomic_t
+ *
+ * Atomically adds @i to @v.  Note that the guaranteed useful range
+ * of an atomic_t is only 24 bits.
  */
+static __inline__ void atomic_add(int i, atomic_t * v)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&atomic_lock, flags);
+	v->counter += i;
+	spin_unlock_irqrestore(&atomic_lock, flags);
+}
+
+/*
+ * atomic_sub - subtract the atomic variable
+ * @i: integer value to subtract
+ * @v: pointer of type atomic_t
+ *
+ * Atomically subtracts @i from @v.  Note that the guaranteed
+ * useful range of an atomic_t is only 24 bits.
+ */
+static __inline__ void atomic_sub(int i, atomic_t * v)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&atomic_lock, flags);
+	v->counter -= i;
+	spin_unlock_irqrestore(&atomic_lock, flags);
+}
+
+static __inline__ int atomic_add_return(int i, atomic_t * v)
+{
+	unsigned long flags;
+	int temp;
+
+	spin_lock_irqsave(&atomic_lock, flags);
+	temp = v->counter;
+	temp += i;
+	v->counter = temp;
+	spin_unlock_irqrestore(&atomic_lock, flags);
+
+	return temp;
+}
+
+static __inline__ int atomic_sub_return(int i, atomic_t * v)
+{
+	unsigned long flags;
+	int temp;
+
+	spin_lock_irqsave(&atomic_lock, flags);
+	temp = v->counter;
+	temp -= i;
+	v->counter = temp;
+	spin_unlock_irqrestore(&atomic_lock, flags);
+
+	return temp;
+}
+
+#endif /* CONFIG_CPU_HAS_LLSC */
+
+#define atomic_dec_return(v) atomic_sub_return(1,(v))
+#define atomic_inc_return(v) atomic_add_return(1,(v))
+
+/*
+ * atomic_sub_and_test - subtract value from variable and test result
+ * @i: integer value to subtract
+ * @v: pointer of type atomic_t
+ *
+ * Atomically subtracts @i from @v and returns
+ * true if the result is zero, or false for all
+ * other cases.  Note that the guaranteed
+ * useful range of an atomic_t is only 24 bits.
+ */
+#define atomic_sub_and_test(i,v) (atomic_sub_return((i), (v)) == 0)
+
+/*
+ * atomic_inc_and_test - increment and test
+ * @v: pointer of type atomic_t
+ *
+ * Atomically increments @v by 1
+ * and returns true if the result is zero, or false for all
+ * other cases.  Note that the guaranteed
+ * useful range of an atomic_t is only 24 bits.
+ */
+#define atomic_inc_and_test(v) (atomic_inc_return(v) == 0)
+
+/*
+ * atomic_dec_and_test - decrement by 1 and test
+ * @v: pointer of type atomic_t
+ *
+ * Atomically decrements @v by 1 and
+ * returns true if the result is 0, or false for all other
+ * cases.  Note that the guaranteed
+ * useful range of an atomic_t is only 24 bits.
+ */
+#define atomic_dec_and_test(v) (atomic_sub_return(1, (v)) == 0)
+
+/*
+ * atomic_inc - increment atomic variable
+ * @v: pointer of type atomic_t
+ *
+ * Atomically increments @v by 1.  Note that the guaranteed
+ * useful range of an atomic_t is only 24 bits.
+ */
+#define atomic_inc(v) atomic_add(1,(v))
+
+/*
+ * atomic_dec - decrement and test
+ * @v: pointer of type atomic_t
+ *
+ * Atomically decrements @v by 1.  Note that the guaranteed
+ * useful range of an atomic_t is only 24 bits.
+ */
+#define atomic_dec(v) atomic_sub(1,(v))
+
+/*
+ * atomic_add_negative - add and test if negative
+ * @v: pointer of type atomic_t
+ * @i: integer value to add
+ *
+ * Atomically adds @i to @v and returns true
+ * if the result is negative, or false when
+ * result is greater than or equal to zero.  Note that the guaranteed
+ * useful range of an atomic_t is only 24 bits.
+ */
+#define atomic_add_negative(i,v) (atomic_add_return(i, (v)) < 0)
+
+#ifdef CONFIG_MIPS64
+
+typedef struct { volatile __s64 counter; } atomic64_t;
+
+#define ATOMIC64_INIT(i)    { (i) }
+
+/*
+ * atomic64_read - read atomic variable
+ * @v: pointer of type atomic64_t
+ *
+ */
+#define atomic64_read(v)	((v)->counter)
+
+/*
+ * atomic64_set - set atomic variable
+ * @v: pointer of type atomic64_t
+ * @i: required value
+ */
+#define atomic64_set(v,i)	((v)->counter = (i))
+
+#ifdef CONFIG_CPU_HAS_LLDSCD
 
 /*
  * atomic64_add - add integer to atomic variable
@@ -364,24 +366,76 @@ static __inline__ int atomic64_sub_return(int i, atomic64_t * v)
 
 	return result;
 }
-#endif
 
-#define atomic_dec_return(v) atomic_sub_return(1,(v))
-#define atomic64_dec_return(v) atomic64_sub_return(1,(v))
-#define atomic_inc_return(v) atomic_add_return(1,(v))
-#define atomic64_inc_return(v) atomic64_add_return(1,(v))
+#else
 
 /*
- * atomic_sub_and_test - subtract value from variable and test result
- * @i: integer value to subtract
- * @v: pointer of type atomic_t
+ * This implementation is only atomic with respect to interrupts.  It can't
+ * be used on SMP
  *
- * Atomically subtracts @i from @v and returns
- * true if the result is zero, or false for all
- * other cases.  Note that the guaranteed
- * useful range of an atomic_t is only 24 bits.
+ * atomic64_add - add integer to atomic variable
+ * @i: integer value to add
+ * @v: pointer of type atomic64_t
+ *
+ * Atomically adds @i to @v.
  */
-#define atomic_sub_and_test(i,v) (atomic_sub_return((i), (v)) == 0)
+static __inline__ void atomic64_add(int i, atomic64_t * v)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&atomic_lock, flags);
+	v->counter += i;
+	spin_unlock_irqrestore(&atomic_lock, flags);
+}
+
+/*
+ * atomic64_sub - subtract the atomic variable
+ * @i: integer value to subtract
+ * @v: pointer of type atomic64_t
+ *
+ * Atomically subtracts @i from @v.
+ */
+static __inline__ void atomic64_sub(int i, atomic64_t * v)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&atomic_lock, flags);
+	v->counter -= i;
+	spin_unlock_irqrestore(&atomic_lock, flags);
+}
+
+static __inline__ int atomic64_add_return(int i, atomic64_t * v)
+{
+	unsigned long flags;
+	int temp;
+
+	spin_lock_irqsave(&atomic_lock, flags);
+	temp = v->counter;
+	temp += i;
+	v->counter = temp;
+	spin_unlock_irqrestore(&atomic_lock, flags);
+
+	return temp;
+}
+
+static __inline__ int atomic64_sub_return(int i, atomic64_t * v)
+{
+	unsigned long flags;
+	int temp;
+
+	spin_lock_irqsave(&atomic_lock, flags);
+	temp = v->counter;
+	temp -= i;
+	v->counter = temp;
+	spin_unlock_irqrestore(&atomic_lock, flags);
+
+	return temp;
+}
+
+#endif /* CONFIG_CPU_HAS_LLDSCD */
+
+#define atomic64_dec_return(v) atomic64_sub_return(1,(v))
+#define atomic64_inc_return(v) atomic64_add_return(1,(v))
 
 /*
  * atomic64_sub_and_test - subtract value from variable and test result
@@ -395,17 +449,6 @@ static __inline__ int atomic64_sub_return(int i, atomic64_t * v)
 #define atomic64_sub_and_test(i,v) (atomic64_sub_return((i), (v)) == 0)
 
 /*
- * atomic_inc_and_test - increment and test
- * @v: pointer of type atomic_t
- *
- * Atomically increments @v by 1
- * and returns true if the result is zero, or false for all
- * other cases.  Note that the guaranteed
- * useful range of an atomic_t is only 24 bits.
- */
-#define atomic_inc_and_test(v) (atomic_inc_return(v) == 0)
-
-/*
  * atomic64_inc_and_test - increment and test
  * @v: pointer of type atomic64_t
  *
@@ -414,17 +457,6 @@ static __inline__ int atomic64_sub_return(int i, atomic64_t * v)
  * other cases.
  */
 #define atomic64_inc_and_test(v) (atomic64_inc_return(v) == 0)
-
-/*
- * atomic_dec_and_test - decrement by 1 and test
- * @v: pointer of type atomic_t
- *
- * Atomically decrements @v by 1 and
- * returns true if the result is 0, or false for all other
- * cases.  Note that the guaranteed
- * useful range of an atomic_t is only 24 bits.
- */
-#define atomic_dec_and_test(v) (atomic_sub_return(1, (v)) == 0)
 
 /*
  * atomic64_dec_and_test - decrement by 1 and test
@@ -437,15 +469,6 @@ static __inline__ int atomic64_sub_return(int i, atomic64_t * v)
 #define atomic64_dec_and_test(v) (atomic64_sub_return(1, (v)) == 0)
 
 /*
- * atomic_inc - increment atomic variable
- * @v: pointer of type atomic_t
- *
- * Atomically increments @v by 1.  Note that the guaranteed
- * useful range of an atomic_t is only 24 bits.
- */
-#define atomic_inc(v) atomic_add(1,(v))
-
-/*
  * atomic64_inc - increment atomic variable
  * @v: pointer of type atomic64_t
  *
@@ -454,33 +477,12 @@ static __inline__ int atomic64_sub_return(int i, atomic64_t * v)
 #define atomic64_inc(v) atomic64_add(1,(v))
 
 /*
- * atomic_dec - decrement and test
- * @v: pointer of type atomic_t
- *
- * Atomically decrements @v by 1.  Note that the guaranteed
- * useful range of an atomic_t is only 24 bits.
- */
-#define atomic_dec(v) atomic_sub(1,(v))
-
-/*
  * atomic64_dec - decrement and test
  * @v: pointer of type atomic64_t
  *
  * Atomically decrements @v by 1.
  */
 #define atomic64_dec(v) atomic64_sub(1,(v))
-
-/*
- * atomic_add_negative - add and test if negative
- * @v: pointer of type atomic_t
- * @i: integer value to add
- *
- * Atomically adds @i to @v and returns true
- * if the result is negative, or false when
- * result is greater than or equal to zero.  Note that the guaranteed
- * useful range of an atomic_t is only 24 bits.
- */
-#define atomic_add_negative(i,v) (atomic_add_return(i, (v)) < 0)
 
 /*
  * atomic64_add_negative - add and test if negative
@@ -493,12 +495,15 @@ static __inline__ int atomic64_sub_return(int i, atomic64_t * v)
  */
 #define atomic64_add_negative(i,v) (atomic64_add_return(i, (v)) < 0)
 
-/* Atomic operations are already serializing */
+#endif /* CONFIG_MIPS64 */
+
+/*
+ * atomic*_return operations are serializing but not the non-*_return
+ * versions.
+ */
 #define smp_mb__before_atomic_dec()	smp_mb()
 #define smp_mb__after_atomic_dec()	smp_mb()
 #define smp_mb__before_atomic_inc()	smp_mb()
 #define smp_mb__after_atomic_inc()	smp_mb()
-
-#endif /* defined(__KERNEL__) */
 
 #endif /* _ASM_ATOMIC_H */
