@@ -97,8 +97,7 @@ static void dump_mii(struct net_device *dev, int phy_id);
 // externs
 extern  void ack_rise_edge_irq(unsigned int);
 extern int get_ethernet_addr(char *ethernet_addr);
-extern inline void str2eaddr(unsigned char *ea, unsigned char *str);
-extern inline unsigned char str2hexnum(unsigned char c);
+extern void str2eaddr(unsigned char *ea, unsigned char *str);
 extern char * __init prom_getcmdline(void);
 
 /*
@@ -1042,7 +1041,7 @@ found:
 	}
 #endif
 
-	if (aup->mii == NULL) {
+	if (aup->mii->chip_info == NULL) {
 		printk(KERN_ERR "%s: Au1x No MII transceivers found!\n",
 				dev->name);
 		return -1;
@@ -1494,7 +1493,7 @@ au1000_probe(u32 ioaddr, int irq, int port_num)
 	{
 		/* check env variables first */
 		if (!get_ethernet_addr(ethaddr)) { 
-			memcpy(au1000_mac_addr, ethaddr, sizeof(dev->dev_addr));
+			memcpy(au1000_mac_addr, ethaddr, sizeof(au1000_mac_addr));
 		} else {
 			/* Check command line */
 			argptr = prom_getcmdline();
@@ -1505,12 +1504,12 @@ au1000_probe(u32 ioaddr, int irq, int port_num)
 			} else {
 				str2eaddr(ethaddr, pmac + strlen("ethaddr="));
 				memcpy(au1000_mac_addr, ethaddr, 
-						sizeof(dev->dev_addr));
+						sizeof(au1000_mac_addr));
 			}
 		}
 			aup->enable = (volatile u32 *) 
 				((unsigned long)iflist[0].macen_addr);
-		memcpy(dev->dev_addr, au1000_mac_addr, sizeof(dev->dev_addr));
+		memcpy(dev->dev_addr, au1000_mac_addr, sizeof(au1000_mac_addr));
 		setup_hw_rings(aup, MAC0_RX_DMA_ADDR, MAC0_TX_DMA_ADDR);
 		aup->mac_id = 0;
 		au_macs[0] = aup;
@@ -1520,7 +1519,7 @@ au1000_probe(u32 ioaddr, int irq, int port_num)
 	{
 			aup->enable = (volatile u32 *) 
 				((unsigned long)iflist[1].macen_addr);
-		memcpy(dev->dev_addr, au1000_mac_addr, sizeof(dev->dev_addr));
+		memcpy(dev->dev_addr, au1000_mac_addr, sizeof(au1000_mac_addr));
 		dev->dev_addr[4] += 0x10;
 		setup_hw_rings(aup, MAC1_RX_DMA_ADDR, MAC1_TX_DMA_ADDR);
 		aup->mac_id = 1;
