@@ -43,7 +43,7 @@
 #include <asm/ip32/io.h>
 #endif
 
-#ifdef CONFIG_SIBYTE_SB1250
+#ifdef CONFIG_SIBYTE_SB1xxx_SOC
 #include <asm/sibyte/io.h>
 #endif
 
