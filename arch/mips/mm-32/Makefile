@@ -10,6 +10,7 @@ obj-$(CONFIG_CPU_R5000)		+= tlbex-r4k.o
 obj-$(CONFIG_CPU_NEVADA)	+= tlbex-r4k.o
 obj-$(CONFIG_CPU_R5432)		+= tlbex-r4k.o
 obj-$(CONFIG_CPU_RM7000)	+= tlbex-r4k.o
+obj-$(CONFIG_CPU_RM9000)	+= tlbex-r4k.o
 obj-$(CONFIG_CPU_R10000)	+= tlbex-r4k.o
 obj-$(CONFIG_CPU_MIPS32)	+= tlbex-r4k.o
 obj-$(CONFIG_CPU_MIPS64)	+= tlbex-r4k.o

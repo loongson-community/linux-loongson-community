@@ -10,6 +10,7 @@ obj-$(CONFIG_CPU_R5000)		+= tlb-glue-r4k.o
 obj-$(CONFIG_CPU_NEVADA)	+= tlb-glue-r4k.o
 obj-$(CONFIG_CPU_R5432)		+= tlb-glue-r4k.o
 obj-$(CONFIG_CPU_RM7000)	+= tlb-glue-r4k.o
+obj-$(CONFIG_CPU_RM9000)	+= tlb-glue-r4k.o
 obj-$(CONFIG_CPU_R10000)	+= tlb-glue-r4k.o
 obj-$(CONFIG_CPU_SB1)		+= tlb-glue-sb1.o
 obj-$(CONFIG_CPU_MIPS64)	+= tlb-glue-r4k.o
