@@ -43,7 +43,6 @@ search_exception_table(unsigned long addr)
 	return ret;
 #else
 	unsigned long flags;
-
 	/* The kernel is the last "module" -- no need to treat it special.  */
 	struct module *mp;
 

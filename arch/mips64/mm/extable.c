@@ -40,13 +40,13 @@ extern spinlock_t modlist_lock;
 unsigned long search_exception_table(unsigned long addr)
 {
 	unsigned long ret = 0;
-	unsigned long flags;
 
 #ifndef CONFIG_MODULES
 	/* There is only the kernel to search.  */
 	ret = search_one_table(__start___ex_table, __stop___ex_table-1, addr);
 	return ret;
 #else
+	unsigned long flags;
 	/* The kernel is the last "module" -- no need to treat it special.  */
 	struct module *mp;
 
