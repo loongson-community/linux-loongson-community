@@ -162,7 +162,6 @@
     { .baud_base = 0, .port = UART3_ADDR, .irq = AU1000_UART3_INT,  \
       .flags = STD_COM_FLAGS, .type = 1 },
 #else
-#error
 #define AU1000_SERIAL_PORT_DEFNS
 #endif
 
