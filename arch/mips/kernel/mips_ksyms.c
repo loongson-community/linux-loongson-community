@@ -19,7 +19,6 @@
 
 #include <asm/checksum.h>
 #include <asm/dma.h>
-#include <asm/floppy.h>
 #include <asm/io.h>
 #include <asm/page.h>
 #include <asm/pgalloc.h>
@@ -27,6 +26,9 @@
 #include <asm/sgi/sgihpc.h>
 #include <asm/softirq.h>
 #include <asm/uaccess.h>
+#ifdef CONFIG_BLK_DEV_FD
+#include <asm/floppy.h>
+#endif
 
 extern void *__bzero(void *__s, size_t __count);
 extern long __strncpy_from_user_nocheck_asm(char *__to,

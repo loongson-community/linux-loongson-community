@@ -431,7 +431,7 @@ void do_ri(struct pt_regs *regs)
 		if ((opcode & OPCODE) == SC)
 			simulate_sc(regs, opcode);
 	} else {
-	printk("[%s:%ld] Illegal instruction at %08lx ra=%08lx\n",
+	printk("[%s:%d] Illegal instruction at %08lx ra=%08lx\n",
 	       current->comm, current->pid, regs->cp0_epc, regs->regs[31]);
 	}
 	if (compute_return_epc(regs))

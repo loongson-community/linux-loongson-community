@@ -25,7 +25,7 @@
         __asm__("multu\t%2,%3\n\t"		  \
 		:"=h" (__res), "=l" (lo)	  \
 		:"r" (a),"r" (QUOTIENT));         \
-        __res;})
+        (__typeof__(a)) __res;})
 #else
 #  define HZ 100
 #  define HZ_TO_STD(a) (a)
