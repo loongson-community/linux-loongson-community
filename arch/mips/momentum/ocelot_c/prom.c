@@ -153,7 +153,9 @@ void __init prom_init(void)
 	int argc = fw_arg0;
 	char **arg = (char **) fw_arg1;
 	char **env = (char **) fw_arg2;
+	struct callvectors *cv = (struct callvectors *) fw_arg3;
 	int i;
+
 #ifdef CONFIG_MIPS64
 	char *ptr;
 
