@@ -162,11 +162,11 @@ static inline void handle_signal(unsigned long sig, siginfo_t *info,
 	if (ka->sa.sa_flags & SA_ONESHOT)
 		ka->sa.sa_handler = SIG_DFL;
 	if (!(ka->sa.sa_flags & SA_NODEFER)) {
-		spin_lock_irq(&current->sigmask_lock);
+		spin_lock_irq(&current->sig->siglock);
 		sigorsets(&current->blocked,&current->blocked,&ka->sa.sa_mask);
 		sigaddset(&current->blocked,sig);
 		recalc_sigpending();
-		spin_unlock_irq(&current->sigmask_lock);
+		spin_unlock_irq(&current->sig->siglock);
 	}
 }
 
@@ -249,10 +249,10 @@ irix_sigreturn(struct pt_regs *regs)
 		goto badframe;
 
 	sigdelsetmask(&blocked, ~_BLOCKABLE);
-	spin_lock_irq(&current->sigmask_lock);
+	spin_lock_irq(&current->sig->siglock);
 	current->blocked = blocked;
 	recalc_sigpending();
-	spin_unlock_irq(&current->sigmask_lock);
+	spin_unlock_irq(&current->sig->siglock);
 
 	/*
 	 * Don't let your children do this ...
@@ -349,7 +349,7 @@ asmlinkage int irix_sigprocmask(int how, irix_sigset_t *new, irix_sigset_t *old)
 		__copy_from_user(&newbits, new, sizeof(unsigned long)*4);
 		sigdelsetmask(&newbits, ~_BLOCKABLE);
 
-		spin_lock_irq(&current->sigmask_lock);
+		spin_lock_irq(&current->sig->siglock);
 		oldbits = current->blocked;
 
 		switch(how) {
@@ -372,7 +372,7 @@ asmlinkage int irix_sigprocmask(int how, irix_sigset_t *new, irix_sigset_t *old)
 			return -EINVAL;
 		}
 		recalc_sigpending();
-		spin_unlock_irq(&current->sigmask_lock);
+		spin_unlock_irq(&current->sig->siglock);
 	}
 	if(old) {
 		error = verify_area(VERIFY_WRITE, old, sizeof(*old));
@@ -393,11 +393,11 @@ asmlinkage int irix_sigsuspend(struct pt_regs *regs)
 		return -EFAULT;
 	sigdelsetmask(&newset, ~_BLOCKABLE);
 
-	spin_lock_irq(&current->sigmask_lock);
+	spin_lock_irq(&current->sig->siglock);
 	saveset = current->blocked;
 	current->blocked = newset;
 	recalc_sigpending();
-	spin_unlock_irq(&current->sigmask_lock);
+	spin_unlock_irq(&current->sig->siglock);
 
 	regs->regs[2] = -EINTR;
 	while (1) {

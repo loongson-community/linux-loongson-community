@@ -87,4 +87,14 @@ if [ "$CONFIG_SERIAL_AMBA_CONSOLE" = "y" -o \
    define_bool CONFIG_SERIAL_CORE_CONSOLE y
 fi
 
+if [ "$CONFIG_SGI_IP22" = "y" ]; then
+   tristate 'IP22 Zilog8530 serial support' CONFIG_SERIAL_IP22_ZILOG
+   if [ "$CONFIG_SERIAL_IP22_ZILOG" = "y" ]; then
+      define CONFIG_SERIAL_CORE y
+   else if [ "$CONFIG_SERIAL_IP22_ZILOG" = "m" ]; then
+      define CONFIG_SERIAL_CORE m
+   fi
+   define_bool CONFIG_SERIAL_CORE_CONSOLE y
+fi
+
 endmenu

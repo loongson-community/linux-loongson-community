@@ -55,6 +55,9 @@
 #define PORT_SUNZILOG	38
 #define PORT_SUNSAB	39
 
+/* MIPS type numbers.  */
+#define PORT_IP22ZILOG	40
+
 #ifdef __KERNEL__
 
 #include <linux/config.h>

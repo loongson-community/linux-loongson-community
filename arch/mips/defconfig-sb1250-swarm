@@ -462,6 +462,59 @@ CONFIG_SERIAL_NONSTANDARD=y
 # CONFIG_SX is not set
 # CONFIG_RIO is not set
 # CONFIG_STALDRV is not set
+CONFIG_SIBYTE_SB1250_DUART=y
+CONFIG_SIBYTE_SB1250_DUART_CONSOLE=y
+CONFIG_SERIAL_CONSOLE=y
+CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE=1024
+# CONFIG_SIBYTE_SB1250_DUART_NO_PORT_1 is not set
+
+#
+# Serial drivers
+#
+# CONFIG_SERIAL_8250 is not set
+# CONFIG_SERIAL_8250_CONSOLE is not set
+# CONFIG_SERIAL_8250_CS is not set
+# CONFIG_SERIAL_8250_EXTENDED is not set
+# CONFIG_SERIAL_8250_MANY_PORTS is not set
+# CONFIG_SERIAL_8250_SHARE_IRQ is not set
+# CONFIG_SERIAL_8250_DETECT_IRQ is not set
+# CONFIG_SERIAL_8250_MULTIPORT is not set
+# CONFIG_SERIAL_8250_RSA is not set
+
+#
+# Non-8250 serial port support
+#
+# CONFIG_UNIX98_PTYS is not set
+
+#
+# I2C support
+#
+# CONFIG_I2C is not set
+
+#
+# Mice
+#
+# CONFIG_BUSMOUSE is not set
+# CONFIG_QIC02_TAPE is not set
+
+#
+# Watchdog Cards
+#
+# CONFIG_WATCHDOG is not set
+# CONFIG_NVRAM is not set
+# CONFIG_RTC is not set
+# CONFIG_GEN_RTC is not set
+# CONFIG_DTLK is not set
+# CONFIG_R3964 is not set
+# CONFIG_APPLICOM is not set
+
+#
+# Ftape, the floppy tape device driver
+#
+# CONFIG_FTAPE is not set
+# CONFIG_AGP is not set
+# CONFIG_DRM is not set
+# CONFIG_RAW_DRIVER is not set
 
 #
 # Multimedia devices

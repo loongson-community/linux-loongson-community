@@ -57,18 +57,13 @@ asmlinkage void dodebug2(abi64_no_regargs, struct pt_regs regs)
 	       regs.cp0_epc);
 }
 
-extern spinlock_t timerlist_lock;
-
 /*
- * Unlock any spinlocks which will prevent us from getting the
- * message out (timerlist_lock is acquired through the
- * console unblank code)
+ * Unlock any spinlocks which will prevent us from getting the out
  */
 void bust_spinlocks(int yes)
 {
 	int loglevel_save = console_loglevel;
 
-	spin_lock_init(&timerlist_lock);
 	if (yes) {
 		oops_in_progress = 1;
 		return;

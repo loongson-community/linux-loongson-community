@@ -125,11 +125,11 @@ asmlinkage inline int sys32_sigsuspend(abi64_no_regargs, struct pt_regs regs)
 		return -EFAULT;
 	sigdelsetmask(&newset, ~_BLOCKABLE);
 
-	spin_lock_irq(&current->sigmask_lock);
+	spin_lock_irq(&current->sig->siglock);
 	saveset = current->blocked;
 	current->blocked = newset;
 	recalc_sigpending();
-	spin_unlock_irq(&current->sigmask_lock);
+	spin_unlock_irq(&current->sig->siglock);
 
 	regs.regs[2] = EINTR;
 	regs.regs[7] = 1;
@@ -158,11 +158,11 @@ asmlinkage int sys32_rt_sigsuspend(abi64_no_regargs, struct pt_regs regs)
 		return -EFAULT;
 	sigdelsetmask(&newset, ~_BLOCKABLE);
 
-	spin_lock_irq(&current->sigmask_lock);
+	spin_lock_irq(&current->sig->siglock);
 	saveset = current->blocked;
 	current->blocked = newset;
         recalc_sigpending();
-	spin_unlock_irq(&current->sigmask_lock);
+	spin_unlock_irq(&current->sig->siglock);
 
 	regs.regs[2] = EINTR;
 	regs.regs[7] = 1;
@@ -422,10 +422,10 @@ asmlinkage void sys32_sigreturn(abi64_no_regargs, struct pt_regs regs)
 		goto badframe;
 
 	sigdelsetmask(&blocked, ~_BLOCKABLE);
-	spin_lock_irq(&current->sigmask_lock);
+	spin_lock_irq(&current->sig->siglock);
 	current->blocked = blocked;
 	recalc_sigpending();
-	spin_unlock_irq(&current->sigmask_lock);
+	spin_unlock_irq(&current->sig->siglock);
 
 	if (restore_sigcontext(&regs, &frame->sf_sc))
 		goto badframe;
@@ -459,10 +459,10 @@ asmlinkage void sys32_rt_sigreturn(abi64_no_regargs, struct pt_regs regs)
 		goto badframe;
 
 	sigdelsetmask(&set, ~_BLOCKABLE);
-	spin_lock_irq(&current->sigmask_lock);
+	spin_lock_irq(&current->sig->siglock);
 	current->blocked = set;
 	recalc_sigpending();
-	spin_unlock_irq(&current->sigmask_lock);
+	spin_unlock_irq(&current->sig->siglock);
 
 	if (restore_sigcontext(&regs, &frame->rs_uc.uc_mcontext))
 		goto badframe;
@@ -734,11 +734,11 @@ static inline void handle_signal(unsigned long sig, siginfo_t *info,
 	if (ka->sa.sa_flags & SA_ONESHOT)
 		ka->sa.sa_handler = SIG_DFL;
 	if (!(ka->sa.sa_flags & SA_NODEFER)) {
-		spin_lock_irq(&current->sigmask_lock);
+		spin_lock_irq(&current->sig->siglock);
 		sigorsets(&current->blocked,&current->blocked,&ka->sa.sa_mask);
 		sigaddset(&current->blocked,sig);
 		recalc_sigpending();
-		spin_unlock_irq(&current->sigmask_lock);
+		spin_unlock_irq(&current->sig->siglock);
 	}
 }
 
@@ -954,7 +954,7 @@ asmlinkage int sys32_rt_sigtimedwait(sigset_t32 *uthese, siginfo_t32 *uinfo,
 			return -EINVAL;
 	}
 
-	spin_lock_irq(&current->sigmask_lock);
+	spin_lock_irq(&current->sig->siglock);
 	sig = dequeue_signal(&these, &info);
 	if (!sig) {
 		/* None ready -- temporarily unblock those we're interested
@@ -962,7 +962,7 @@ asmlinkage int sys32_rt_sigtimedwait(sigset_t32 *uthese, siginfo_t32 *uinfo,
 		sigset_t oldblocked = current->blocked;
 		sigandsets(&current->blocked, &current->blocked, &these);
 		recalc_sigpending();
-		spin_unlock_irq(&current->sigmask_lock);
+		spin_unlock_irq(&current->sig->siglock);
 
 		timeout = MAX_SCHEDULE_TIMEOUT;
 		if (uts)
@@ -972,12 +972,12 @@ asmlinkage int sys32_rt_sigtimedwait(sigset_t32 *uthese, siginfo_t32 *uinfo,
 		current->state = TASK_INTERRUPTIBLE;
 		timeout = schedule_timeout(timeout);
 
-		spin_lock_irq(&current->sigmask_lock);
+		spin_lock_irq(&current->sig->siglock);
 		sig = dequeue_signal(&these, &info);
 		current->blocked = oldblocked;
 		recalc_sigpending();
 	}
-	spin_unlock_irq(&current->sigmask_lock);
+	spin_unlock_irq(&current->sig->siglock);
 
 	if (sig) {
 		ret = sig;

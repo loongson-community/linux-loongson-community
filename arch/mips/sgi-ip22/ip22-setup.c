@@ -74,6 +74,25 @@ static int sgi_request_irq(void (*handler)(int, void *, struct pt_regs *))
 	return request_irq(SGI_KEYBD_IRQ, handler, 0, "keyboard", NULL);
 }
 
+/*
+ * Stop-A is originally a Sun thing that isn't standard on IP22 so to avoid
+ * accidents it's disabled by default on IP22.
+ *
+ * FIXME: provide a mechanism to change the value of stop_a_enabled.
+ */
+int serial_console;
+int stop_a_enabled;
+
+void ip22_do_break(void)
+{
+	if (!stop_a_enabled)
+		return;
+
+	printk("\n");
+
+	ArcEnterInteractiveMode();
+}
+
 void __init ip22_setup(void)
 {
 	char *ctype;
@@ -185,3 +204,5 @@ void __init ip22_setup(void)
 	aux_device_present = 0xaa;
 #endif
 }
+
+EXPORT_SYMBOL(stop_a_enabled);

@@ -87,7 +87,7 @@ if [ "$CONFIG_MIPS" = "y" ]; then
       bool 'Enable Qtronix 990P Keyboard Support' CONFIG_QTRONIX_KEYBOARD
       if [ "$CONFIG_QTRONIX_KEYBOARD" = "y" ]; then
 	 define_bool CONFIG_IT8172_CIR y
-      else
+      #else
 	 #if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
 	 #   bool '    Enable PS2 Keyboard Support' CONFIG_PC_KEYB
 	 #fi

@@ -297,4 +297,12 @@ extern void __die_if_kernel(const char *, struct pt_regs *, const char *file,
 #define die_if_kernel(msg, regs)					\
 	__die_if_kernel(msg, regs, __FILE__ ":", __FUNCTION__, __LINE__)
 
+extern int serial_console;
+extern int stop_a_enabled;
+
+static __inline__ int con_is_present(void)
+{
+	return serial_console ? 0 : 1;
+}
+
 #endif /* _ASM_SYSTEM_H */
