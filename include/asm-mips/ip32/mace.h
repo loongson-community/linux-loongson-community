@@ -1,16 +1,18 @@
 /*
- * Definitions for the SGI O2 Mace chip.
+ * Definitions for the SGI MACE (Multimedia, Audio and Communications Engine)
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
  * Copyright (C) 2000 Harald Koerfgen
+ * Copyright (C) 2004 Ladislav Michl
  */
 
 #ifndef __ASM_MACE_H__
 #define __ASM_MACE_H__
 
+#include <linux/config.h>
 #include <asm/addrspace.h>
 #include <asm/io.h>
 
@@ -18,70 +20,35 @@
  * Address map
  */
 #define MACE_BASE	0x1f000000	/* physical */
-#define MACE_PCI	0x00080000
-#define MACE_VIN1	0x00100000
-#define MACE_VIN2	0x00180000
-#define MACE_VOUT	0x00200000
-#define MACE_ENET	0x00280000
-#define MACE_PERIF	0x00300000
-#define MACE_ISA_EXT	0x00380000
-                                                                                                  
-#define MACE_AUDIO	(MACE_PERIF + 0x00000)
-#define MACE_ISA	(MACE_PERIF + 0x10000)
-#define MACE_KBDMS	(MACE_PERIF + 0x20000)
-#define MACE_I2C	(MACE_PERIF + 0x30000)
-#define MACE_UST_MSC	(MACE_PERIF + 0X40000)
-
 
 #undef BIT
-#define BIT(__bit_offset) (1UL << (__bit_offset))
+#define BIT(x)	(1 << (x))
+
+typedef struct {
+	volatile uint64_t reg;
+} mace64_t;
+
+typedef struct {
+#ifdef CONFIG_MIPS32
+	uint32_t pad;
+	volatile uint32_t reg;
+#endif
+#ifdef CONFIG_MIPS64
+	volatile uint64_t reg;
+#endif
+} mace32_t;
+
+#define __mace_read(reg)	\
+	(sizeof(reg) == 4 ? readl(&reg) : readq(&reg))
+#define __mace_write(val,reg)	\
+	(sizeof(reg) == 4 ? writel(val, &reg) : writeq(val, &reg))
 
 /*
- * MACE PCI interface
+ * PCI interface
  */
-#define MACEPCI_ERROR_ADDR		(MACE_PCI	      )
-#define MACEPCI_ERROR_FLAGS		(MACE_PCI + 0x00000004)
-#define MACEPCI_CONTROL			(MACE_PCI + 0x00000008)
-#define MACEPCI_REV			(MACE_PCI + 0x0000000c)
-#define MACEPCI_WFLUSH			MACEPCI_REV
-#define MACEPCI_CONFIG_ADDR		(MACE_PCI + 0x00000cf8)
-#define MACEPCI_CONFIG_DATA		(MACE_PCI + 0x00000cfc)
-
-#define MACEPCI_LOW_MEMORY		0x1a000000
-#define MACEPCI_LOW_IO			0x18000000
-#define MACEPCI_SWAPPED_VIEW		0
-#define MACEPCI_NATIVE_VIEW		0x40000000
-#define MACEPCI_IO			0x80000000
-#define MACEPCI_HI_MEMORY		0x280000000
-#define MACEPCI_HI_IO			0x100000000
-
-/*
- * Bits in the MACEPCI_CONTROL register
- */
-#define MACEPCI_CONTROL_INT(x)		BIT(x)
-#define MACEPCI_CONTROL_INT_MASK	0xff
-#define MACEPCI_CONTROL_SERR_ENA	BIT(8)
-#define MACEPCI_CONTROL_ARB_N6		BIT(9)
-#define MACEPCI_CONTROL_PARITY_ERR	BIT(10)
-#define MACEPCI_CONTROL_MRMRA_ENA	BIT(11)
-#define MACEPCI_CONTROL_ARB_N3		BIT(12)
-#define MACEPCI_CONTROL_ARB_N4		BIT(13)
-#define MACEPCI_CONTROL_ARB_N5		BIT(14)
-#define MACEPCI_CONTROL_PARK_LIU	BIT(15)
-#define MACEPCI_CONTROL_INV_INT(x)	BIT(16+x)
-#define MACEPCI_CONTROL_INV_INT_MASK	0x00ff0000
-#define MACEPCI_CONTROL_OVERRUN_INT	BIT(24)
-#define MACEPCI_CONTROL_PARITY_INT	BIT(25)
-#define MACEPCI_CONTROL_SERR_INT	BIT(26)
-#define MACEPCI_CONTROL_IT_INT		BIT(27)
-#define MACEPCI_CONTROL_RE_INT		BIT(28)
-#define MACEPCI_CONTROL_DPED_INT	BIT(29)
-#define MACEPCI_CONTROL_TAR_INT		BIT(30)
-#define MACEPCI_CONTROL_MAR_INT		BIT(31)
-
-/*
- * Bits in the MACE_PCI error register
- */
+struct mace_pci {
+	volatile uint32_t error_addr;
+	volatile uint32_t error;
 #define MACEPCI_ERROR_MASTER_ABORT		BIT(31)
 #define MACEPCI_ERROR_TARGET_ABORT		BIT(30)
 #define MACEPCI_ERROR_DATA_PARITY_ERR		BIT(29)
@@ -105,192 +72,286 @@
 #define MACEPCI_ERROR_DEVSEL_SLOW		0x80
 #define MACEPCI_ERROR_FBB			BIT(1)
 #define MACEPCI_ERROR_66MHZ			BIT(0)
+	volatile uint32_t control;
+#define MACEPCI_CONTROL_INT(x)			BIT(x)
+#define MACEPCI_CONTROL_INT_MASK		0xff
+#define MACEPCI_CONTROL_SERR_ENA		BIT(8)
+#define MACEPCI_CONTROL_ARB_N6			BIT(9)
+#define MACEPCI_CONTROL_PARITY_ERR		BIT(10)
+#define MACEPCI_CONTROL_MRMRA_ENA		BIT(11)
+#define MACEPCI_CONTROL_ARB_N3			BIT(12)
+#define MACEPCI_CONTROL_ARB_N4			BIT(13)
+#define MACEPCI_CONTROL_ARB_N5			BIT(14)
+#define MACEPCI_CONTROL_PARK_LIU		BIT(15)
+#define MACEPCI_CONTROL_INV_INT(x)		BIT(16+x)
+#define MACEPCI_CONTROL_INV_INT_MASK		0x00ff0000
+#define MACEPCI_CONTROL_OVERRUN_INT		BIT(24)
+#define MACEPCI_CONTROL_PARITY_INT		BIT(25)
+#define MACEPCI_CONTROL_SERR_INT		BIT(26)
+#define MACEPCI_CONTROL_IT_INT			BIT(27)
+#define MACEPCI_CONTROL_RE_INT			BIT(28)
+#define MACEPCI_CONTROL_DPED_INT		BIT(29)
+#define MACEPCI_CONTROL_TAR_INT			BIT(30)
+#define MACEPCI_CONTROL_MAR_INT			BIT(31)
+	volatile uint32_t rev;
+	uint32_t _pad[0xcf8/4 - 4];
+	volatile uint32_t config_addr;
+	union {
+		volatile uint8_t b[4];
+		volatile uint16_t w[2];
+		volatile uint32_t l;
+	} config_data;
+};
+#define MACEPCI_LOW_MEMORY		0x1a000000
+#define MACEPCI_LOW_IO			0x18000000
+#define MACEPCI_SWAPPED_VIEW		0
+#define MACEPCI_NATIVE_VIEW		0x40000000
+#define MACEPCI_IO			0x80000000
+#define MACEPCI_HI_MEMORY		0x280000000
+#define MACEPCI_HI_IO			0x100000000
 
 /*
- * Mace timer registers - 64 bit regs (63:32 are UST, 31:0 are MSC)
+ * Video interface
  */
-#define MSC_PART(__reg) ((__reg) & 0x00000000ffffffff)
-#define UST_PART(__reg) (((__reg) & 0xffffffff00000000) >> 32)
+struct mace_video {
+	uint64_t xxx;	/* later... */
+};
 
-#define MACE_UST_UST		(MACE_UST_MSC       )	/* Universial system time */
-#define MACE_UST_COMPARE1	(MACE_UST_MSC + 0x08)	/* Interrupt compare reg 1 */
-#define MACE_UST_COMPARE2	(MACE_UST_MSC + 0x10)	/* Interrupt compare reg 2 */
-#define MACE_UST_COMPARE3	(MACE_UST_MSC + 0x18)	/* Interrupt compare reg 3 */
-#define MACE_UST_PERIOD_NS	960			/* UST Period in ns  */
-
-#define MACE_UST_AIN_MSC	(MACE_UST_MSC + 0x20)	/* Audio in MSC/UST pair */
-#define MACE_UST_AOUT1_MSC	(MACE_UST_MSC + 0x28)	/* Audio out 1 MSC/UST pair */
-#define MACE_UST_AOUT2_MSC	(MACE_UST_MSC + 0x30)	/* Audio out 2 MSC/UST pair */
-#define MACE_VIN1_MSC_UST	(MACE_UST_MSC + 0x38)	/* Video In 1 MSC/UST pair */
-#define MACE_VIN2_MSC_UST	(MACE_UST_MSC + 0x40)	/* Video In 2 MSC/UST pair */
-#define MACE_VOUT_MSC_UST	(MACE_UST_MSC + 0x48)	/* Video out MSC/UST pair */
-
-/*
- * Mace "ISA" peripherals
+/* 
+ * Ethernet interface
  */
-#define MACEISA_EPP	(MACE_ISA_EXT          )
-#define MACEISA_ECP	(MACE_ISA_EXT + 0x08000)
-#define MACEISA_SER1	(MACE_ISA_EXT + 0x10000)
-#define MACEISA_SER2	(MACE_ISA_EXT + 0x18000)
-#define MACEISA_RTC	(MACE_ISA_EXT + 0x20000)
-#define MACEISA_GAME	(MACE_ISA_EXT + 0x30000)
+struct mace_ethernet {
+	mace32_t mac_ctrl;
+	mace32_t int_stat;
+	mace32_t dma_ctrl;
+	mace32_t timer;
+	mace32_t tx_int_al;
+	mace32_t rx_int_al;
+	mace32_t tx_info;
+	mace32_t tx_info_al;
+	mace32_t rx_buff;
+	mace32_t rx_buff_al1;
+	mace32_t rx_buff_al2;
+	mace64_t diag;
+	mace32_t phy_data;
+	mace32_t phy_regs;
+	mace32_t phy_trans_go;
+	mace32_t backoff_seed;
+	/*===================================*/
+	mace64_t imq_reserved[4];
+	mace64_t mac_addr;
+	mace64_t mac_addr2;
+	mace64_t mcast_filter;
+	mace32_t tx_ring_base;
+	/* Following are read-only registers for debugging */
+	mace64_t tx_pkt1_hdr;
+	mace64_t tx_pkt1_ptr[3];
+	mace64_t tx_pkt2_hdr;
+	mace64_t tx_pkt2_ptr[3];
+	/*===================================*/
+	mace32_t rx_fifo;
+};
 
-/*
- * Ringbase address and reset register - 64 bits
+
+/* 
+ * Peripherals
  */
-#define MACEISA_RINGBASE	MACE_ISA
-/* Ring buffers occupy 8 4K buffers */
-#define MACEISA_RINGBUFFERS_SIZE 8*4*1024
 
-/*
- * Flash-ROM/LED/DP-RAM/NIC Controller Register - 8 bit
- */
-#define MACEISA_FLASH_NIC_REG	(MACE_ISA + 0x008)
+/* Audio registers */
+struct mace_audio {
+	uint64_t xxx;	/* later... */
+};
 
-/*
- * Bit definitions for that
- */
-#define MACEISA_FLASH_WE       BIT(0) /* 1=> Enable FLASH writes */
-#define MACEISA_PWD_CLEAR      BIT(1) /* 1=> PWD CLEAR jumper detected */
-#define MACEISA_NIC_DEASSERT   BIT(2)
-#define MACEISA_NIC_DATA       BIT(3)
-#define MACEISA_LED_RED        BIT(4) /* 0=> Illuminate RED LED */
-#define MACEISA_LED_GREEN      BIT(5) /* 0=> Illuminate GREEN LED */
-#define MACEISA_DP_RAM_ENABLE  BIT(6)
+/* ISA Control and DMA registers */
+struct mace_isactrl {
+	mace32_t ringbase;
+#define MACEISA_RINGBUFFERS_SIZE	(8 * 4096)
 
-/*
- * ISA interrupt and status registers - 32 bit
- */
-#define MACEISA_INT_STAT	(MACE_ISA + 0x014)
-#define MACEISA_INT_MASK	(MACE_ISA + 0x01c)
+	mace32_t misc;
+#define MACEISA_FLASH_WE		BIT(0)	/* 1=> Enable FLASH writes */
+#define MACEISA_PWD_CLEAR		BIT(1)	/* 1=> PWD CLEAR jumper detected */
+#define MACEISA_NIC_DEASSERT		BIT(2)
+#define MACEISA_NIC_DATA		BIT(3)
+#define MACEISA_LED_RED			BIT(4)	/* 0=> Illuminate red LED */
+#define MACEISA_LED_GREEN		BIT(5)	/* 0=> Illuminate green LED */
+#define MACEISA_DP_RAM_ENABLE		BIT(6)
 
-/*
- * Bits in the status/mask registers
- */
-#define MACEISA_AUDIO_SW_INT		BIT (0)
-#define MACEISA_AUDIO_SC_INT		BIT (1)
-#define MACEISA_AUDIO1_DMAT_INT		BIT (2)
-#define MACEISA_AUDIO1_OF_INT		BIT (3)
-#define MACEISA_AUDIO2_DMAT_INT		BIT (4)
-#define MACEISA_AUDIO2_MERR_INT		BIT (5)
-#define MACEISA_AUDIO3_DMAT_INT		BIT (6)
-#define MACEISA_AUDIO3_MERR_INT		BIT (7)
-#define MACEISA_RTC_INT			BIT (8)
-#define MACEISA_KEYB_INT		BIT (9)
-#define MACEISA_KEYB_POLL_INT		BIT (10)
-#define MACEISA_MOUSE_INT		BIT (11)
-#define MACEISA_MOUSE_POLL_INT		BIT (12)
-#define MACEISA_TIMER0_INT		BIT (13)
-#define MACEISA_TIMER1_INT		BIT (14)
-#define MACEISA_TIMER2_INT		BIT (15)
-#define MACEISA_PARALLEL_INT		BIT (16)
-#define MACEISA_PAR_CTXA_INT		BIT (17)
-#define MACEISA_PAR_CTXB_INT		BIT (18)
-#define MACEISA_PAR_MERR_INT		BIT (19)
-#define MACEISA_SERIAL1_INT		BIT (20)
-#define MACEISA_SERIAL1_TDMAT_INT	BIT (21)
-#define MACEISA_SERIAL1_TDMAPR_INT	BIT (22)
-#define MACEISA_SERIAL1_TDMAME_INT	BIT (23)
-#define MACEISA_SERIAL1_RDMAT_INT	BIT (24)
-#define MACEISA_SERIAL1_RDMAOR_INT	BIT (25)
-#define MACEISA_SERIAL2_INT		BIT (26)
-#define MACEISA_SERIAL2_TDMAT_INT	BIT (27)
-#define MACEISA_SERIAL2_TDMAPR_INT	BIT (28)
-#define MACEISA_SERIAL2_TDMAME_INT	BIT (29)
-#define MACEISA_SERIAL2_RDMAT_INT	BIT (30)
-#define MACEISA_SERIAL2_RDMAOR_INT	BIT (31)
+	mace32_t istat;
+	mace32_t imask;
+#define MACEISA_AUDIO_SW_INT		BIT(0)
+#define MACEISA_AUDIO_SC_INT		BIT(1)
+#define MACEISA_AUDIO1_DMAT_INT		BIT(2)
+#define MACEISA_AUDIO1_OF_INT		BIT(3)
+#define MACEISA_AUDIO2_DMAT_INT		BIT(4)
+#define MACEISA_AUDIO2_MERR_INT		BIT(5)
+#define MACEISA_AUDIO3_DMAT_INT		BIT(6)
+#define MACEISA_AUDIO3_MERR_INT		BIT(7)
+#define MACEISA_RTC_INT			BIT(8)
+#define MACEISA_KEYB_INT		BIT(9)
+#define MACEISA_KEYB_POLL_INT		BIT(10)
+#define MACEISA_MOUSE_INT		BIT(11)
+#define MACEISA_MOUSE_POLL_INT		BIT(12)
+#define MACEISA_TIMER0_INT		BIT(13)
+#define MACEISA_TIMER1_INT		BIT(14)
+#define MACEISA_TIMER2_INT		BIT(15)
+#define MACEISA_PARALLEL_INT		BIT(16)
+#define MACEISA_PAR_CTXA_INT		BIT(17)
+#define MACEISA_PAR_CTXB_INT		BIT(18)
+#define MACEISA_PAR_MERR_INT		BIT(19)
+#define MACEISA_SERIAL1_INT		BIT(20)
+#define MACEISA_SERIAL1_TDMAT_INT	BIT(21)
+#define MACEISA_SERIAL1_TDMAPR_INT	BIT(22)
+#define MACEISA_SERIAL1_TDMAME_INT	BIT(23)
+#define MACEISA_SERIAL1_RDMAT_INT	BIT(24)
+#define MACEISA_SERIAL1_RDMAOR_INT	BIT(25)
+#define MACEISA_SERIAL2_INT		BIT(26)
+#define MACEISA_SERIAL2_TDMAT_INT	BIT(27)
+#define MACEISA_SERIAL2_TDMAPR_INT	BIT(28)
+#define MACEISA_SERIAL2_TDMAME_INT	BIT(29)
+#define MACEISA_SERIAL2_RDMAT_INT	BIT(30)
+#define MACEISA_SERIAL2_RDMAOR_INT	BIT(31)
 
-#define MACEI2C_CONFIG		(MACE_I2C       )
-#define MACEI2C_CONTROL		(MACE_I2C + 0x10)
-#define MACEI2C_DATA		(MACE_I2C + 0x18)
+	uint64_t _pad[0x2000/8 - 4];
 
-/* Bits for I2C_CONFIG */
+	mace64_t dp_ram[0x400];
+};
+
+/* Keyboard & Mouse registers
+ * -> drivers/input/serio/i8042.c */
+struct mace_ps2 {
+	mace32_t tbuf;
+	mace32_t rbuf;
+	mace32_t control;
+	mace32_t status;
+};
+
+struct mace_kbdmouse {
+	struct mace_ps2 keyb;
+	struct mace_ps2 mouse;
+};
+
+/* I2C registers
+ * -> drivers/i2c/algos/i2c-algo-sgi.c */
+struct mace_i2c {
+	mace32_t config;
 #define MACEI2C_RESET           BIT(0)
 #define MACEI2C_FAST            BIT(1)
 #define MACEI2C_DATA_OVERRIDE   BIT(2)
 #define MACEI2C_CLOCK_OVERRIDE  BIT(3)
 #define MACEI2C_DATA_STATUS     BIT(4)
 #define MACEI2C_CLOCK_STATUS    BIT(5)
+	mace32_t control;
+	mace32_t data;
+};
 
-#define MACEISA_AUDIO_INT	(MACEISA_AUDIO_SW_INT |		\
-				 MACEISA_AUDIO_SC_INT |		\
-				 MACEISA_AUDIO1_DMAT_INT |	\
-				 MACEISA_AUDIO1_OF_INT |	\
-				 MACEISA_AUDIO2_DMAT_INT |	\
-				 MACEISA_AUDIO2_MERR_INT |	\
-				 MACEISA_AUDIO3_DMAT_INT |	\
-				 MACEISA_AUDIO3_MERR_INT)
-#define MACEISA_MISC_INT	(MACEISA_RTC_INT |		\
-				 MACEISA_KEYB_INT |		\
-				 MACEISA_KEYB_POLL_INT |	\
-				 MACEISA_MOUSE_INT |		\
-				 MACEISA_MOUSE_POLL_INT |	\
-				 MACEISA_TIMER0_INT |		\
-				 MACEISA_TIMER1_INT |		\
-				 MACEISA_TIMER2_INT)
-#define MACEISA_SUPERIO_INT	(MACEISA_PARALLEL_INT |		\
-				 MACEISA_PAR_CTXA_INT |		\
-				 MACEISA_PAR_CTXB_INT |		\
-				 MACEISA_PAR_MERR_INT |		\
-				 MACEISA_SERIAL1_INT |		\
-				 MACEISA_SERIAL1_TDMAT_INT |	\
-				 MACEISA_SERIAL1_TDMAPR_INT |	\
-				 MACEISA_SERIAL1_TDMAME_INT |	\
-				 MACEISA_SERIAL1_RDMAT_INT |	\
-				 MACEISA_SERIAL1_RDMAOR_INT |	\
-				 MACEISA_SERIAL2_INT |		\
-				 MACEISA_SERIAL2_TDMAT_INT |	\
-				 MACEISA_SERIAL2_TDMAPR_INT |	\
-				 MACEISA_SERIAL2_TDMAME_INT |	\
-				 MACEISA_SERIAL2_RDMAT_INT |	\
-				 MACEISA_SERIAL2_RDMAOR_INT)
+/* Timer registers */
+typedef union {
+	mace32_t ust_msc;
+	struct reg {
+		volatile uint32_t ust;
+		volatile uint32_t msc;
+	};
+} timer_reg;
 
-extern void *sgi_mace;
+struct mace_timers {
+	mace32_t ust;
+#define MACE_UST_PERIOD_NS	960
 
-static inline uint8_t mace_read_8(unsigned long offset)
-{
-	return readb(sgi_mace + offset);
-}
+	mace32_t compare1;
+	mace32_t compare2;
+	mace32_t compare3;
 
-static inline uint16_t mace_read_16(unsigned long offset)
-{
-	return readw(sgi_mace + offset);
-}
+	timer_reg audio_in;
+	timer_reg audio_out1;
+	timer_reg audio_out2;
+	timer_reg video_in1;
+	timer_reg video_in2;
+	timer_reg video_out;	
+};
 
-static inline uint32_t mace_read_32(unsigned long offset)
-{
-	return readl(sgi_mace + offset);
-}
+struct mace_perif {
+	struct mace_audio audio;
+#define mace_perif_audio_read(r)	__mace_read(mace->perif.audio.##r.reg)
+#define mace_perif_audio_write(v,r)	__mace_write(v,mace->perif.audio.##r.reg)
+	uint8_t _pad0[0x10000 - sizeof(struct mace_audio)];
 
-static inline uint64_t mace_read_64(unsigned long offset)
-{
-	return readq(sgi_mace + offset);
-}
+	struct mace_isactrl ctrl;
+#define mace_perif_ctrl_read(r)		__mace_read(mace->perif.ctrl.##r.reg)
+#define mace_perif_ctrl_write(v,r)	__mace_write(v,mace->perif.ctrl.##r.reg)
+	uint8_t _pad1[0x10000 - sizeof(struct mace_isactrl)];
 
-static inline void mace_write_8(uint8_t val, unsigned long offset)
-{
-	writeb(val, sgi_mace + offset);
-}
+	struct mace_kbdmouse kbdmouse;
+	uint8_t _pad2[0x10000 - sizeof(struct mace_kbdmouse)];
 
-static inline void mace_write_16(uint16_t val, unsigned long offset)
-{
-	writew(val, sgi_mace + offset);
-}
+	struct mace_i2c i2c;
+	uint8_t _pad3[0x10000 - sizeof(struct mace_i2c)];
 
-static inline void mace_write_32(uint32_t val, unsigned long offset)
-{
-	writel(val, sgi_mace + offset);
-}
+	struct mace_timers timers;
+	uint8_t _pad4[0x10000 - sizeof(struct mace_timers)];
+};
 
-static inline void mace_write_64(uint64_t val, unsigned long offset)
-{
-	writeq(val, sgi_mace + offset);
-}
 
-/* Call it whenever device needs to read data from main memory coherently */
-static inline void mace_inv_read_buffers(void)
-{
-/*	mace_write_32(0xffffffff, MACEPCI_WFLUSH);*/
-}
+/* 
+ * ISA peripherals
+ */
+
+/* Parallel port */
+struct mace_parallel {
+	uint64_t xxx;	/* later... */
+};
+
+struct mace_ecp1284 {
+	uint64_t xxx;	/* later... */
+};
+
+/* Serial port */
+struct mace_serial {
+	uint64_t xxx;	/* later... */
+};
+
+struct mace_isa {
+	struct mace_parallel parallel;
+	uint8_t _pad1[0x8000 - sizeof(struct mace_parallel)];
+
+	struct mace_ecp1284 ecp1284;
+	uint8_t _pad2[0x8000 - sizeof(struct mace_ecp1284)];
+
+	struct mace_serial serial1;
+	uint8_t _pad3[0x8000 - sizeof(struct mace_serial)];
+
+	struct mace_serial serial2;
+	uint8_t _pad4[0x8000 - sizeof(struct mace_serial)];
+
+	mace32_t rtc[0x10000/8];
+};
+
+struct sgi_mace {
+	uint8_t _reserved[0x80000];
+
+	struct mace_pci pci;
+	uint8_t _pad0[0x80000 - sizeof(struct mace_pci)];
+
+	struct mace_video video_in1;
+	uint8_t _pad1[0x80000 - sizeof(struct mace_video)];
+
+	struct mace_video video_in2;
+	uint8_t _pad2[0x80000 - sizeof(struct mace_video)];
+
+	struct mace_video video_out;
+	uint8_t _pad3[0x80000 - sizeof(struct mace_video)];
+
+	struct mace_ethernet eth;
+#define mace_eth_read(r)	__mace_read(mace->eth.##r.reg)
+#define mace_eth_write(v,r)	__mace_write(v,mace->eth.##r.reg)
+	uint8_t _pad4[0x80000 - sizeof(struct mace_ethernet)];
+
+	struct mace_perif perif;
+	uint8_t _pad5[0x80000 - sizeof(struct mace_perif)];
+
+	struct mace_isa isa;
+	uint8_t _pad6[0x80000 - sizeof(struct mace_isa)];
+};
+
+extern struct sgi_mace *mace;
 
 #endif /* __ASM_MACE_H__ */

@@ -17,7 +17,7 @@
 #include <asm/ip32/mace.h>
 
 void *sgi_crime;
-void *sgi_mace;
+struct sgi_mace *mace;
 
 void __init crime_init(void)
 {
@@ -25,7 +25,7 @@ void __init crime_init(void)
 	const int field = 2 * sizeof(unsigned long);
 	
 	sgi_crime = ioremap(CRIME_BASE, 1);
-	sgi_mace = ioremap(MACE_BASE, 1);
+	mace = ioremap(MACE_BASE, sizeof(struct sgi_mace));
 
 	id = crime_read(CRIME_ID);
 	rev = id & CRIME_ID_REV;

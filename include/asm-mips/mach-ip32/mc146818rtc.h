@@ -11,6 +11,7 @@
 #ifndef __ASM_MACH_IP32_MC146818RTC_H
 #define __ASM_MACH_IP32_MC146818RTC_H
 
+#include <asm/io.h>
 #include <asm/ip32/mace.h>
 
 #define RTC_PORT(x)	(0x70 + (x))
@@ -18,12 +19,12 @@
 
 static unsigned char CMOS_READ(unsigned long addr)
 {
-	return mace_read_8(MACEISA_RTC + (addr << 8));
+	return readb(mace->isa.rtc + addr);
 }
 
 static inline void CMOS_WRITE(unsigned char data, unsigned long addr)
 {
-	mace_write_8(data, MACEISA_RTC + (addr << 8));
+	writeb(data, mace->isa.rtc + addr);
 }
 
 #define RTC_ALWAYS_BCD	0

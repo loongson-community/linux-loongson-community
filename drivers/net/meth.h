@@ -16,9 +16,6 @@
 
 /* version dependencies have been confined to a separate file */
 
-#define SGI_MFE		(MACE_BASE+MACE_ENET)
-/*		(0xBF280000)*/
-
 /* Tunable parameters */
 #define TX_RING_ENTRIES 64	/* 64-512?*/
 
@@ -31,7 +28,8 @@
 #define RX_BUFFER_OFFSET (sizeof(rx_status_vector)+2) /* staus vector + 2 bytes of padding */
 #define RX_BUCKET_SIZE 256
 
-
+#undef BIT
+#define BIT(x)	(1 << (x))
 
 /* For more detailed explanations of what each field menas,
    see Nick's great comments to #defines below (or docs, if
@@ -116,41 +114,6 @@ typedef struct rx_packet {
 
 #define TX_INFO_RPTR    0x00FF0000
 #define TX_INFO_WPTR    0x000000FF
-typedef struct meth_regs {
-	u64		mac_ctrl;		/*0x00,rw,31:0*/
-	u64		int_flags;		/*0x08,rw,30:0*/
-	u64		dma_ctrl;		/*0x10,rw,15:0*/
-	u64		timer;			/*0x18,rw,5:0*/
-	u64		int_tx;			/*0x20,wo,0:0*/
-	u64		int_rx;			/*0x28,wo,9:4*/
-	u64             tx_info;		/*0x30,rw,31:0*/
-	u64		tx_info_al;		/*0x38,rw,31:0*/
-	u64             rx_buff;		/*0x40,ro,23:0*/
-	u64		rx_buff_al1;	/*0x48,ro,23:0*/
-	u64		rx_buff_al2;	/*0x50,ro,23:0*/
-	u64		int_update;		/*0x58,wo,31:0*/
-	u32		phy_data_pad;
-	u32		phy_data;		/*0x60,rw,16:0*/
-	u32		phy_reg_pad;
-	u32		phy_registers;	/*0x68,rw,9:0*/
-	u64		phy_trans_go;	/*0x70,wo,0:0*/
-	u64		backoff_seed;	/*0x78,wo,10:0*/
-	u64		imq_reserved[4];/*0x80,ro,64:0(x4)*/
-	/*===================================*/
-	u64		mac_addr;		/*0xA0,rw,47:0, I think it's MAC address, but I'm not sure*/
-	u64		mcast_addr;		/*0xA8,rw,47:0, This seems like secondary MAC address*/
-	u64		mcast_filter;	/*0xB0,rw,63:0*/
-	u64		tx_ring_base;	/*0xB8,rw,31:13*/
-	/* Following are read-only debugging info register */
-	u64		tx_pkt1_hdr;	/*0xC0,ro,63:0*/
-	u64		tx_pkt1_ptr[3];	/*0xC8,ro,63:0(x3)*/
-	u64		tx_pkt2_hdr;	/*0xE0,ro,63:0*/
-	u64		tx_pkt2_ptr[3];	/*0xE8,ro,63:0(x3)*/
-	/*===================================*/
-	u32		rx_pad;
-	u32		rx_fifo;
-	u64		reserved[31];
-}meth_regs;
 
 	/* Bits in METH_MAC */
 
@@ -198,9 +161,9 @@ typedef struct meth_regs {
 #define METH_DMA_RX_INT_EN BIT(9) /* Enable interrupt on RX packet */
 
 /* RX FIFO MCL Info bits */
-#define METH_RX_FIFO_WPTR(x)   ((x>>16)&0xF)
-#define METH_RX_FIFO_RPTR(x)   ((x>>8)&0xF)
-#define METH_RX_FIFO_DEPTH(x)  (x&0x1F)
+#define METH_RX_FIFO_WPTR(x)   (((x)>>16)&0xf)
+#define METH_RX_FIFO_RPTR(x)   (((x)>>8)&0xf)
+#define METH_RX_FIFO_DEPTH(x)  ((x)&0x1f)
 
 /* RX status bits */
 
@@ -244,9 +207,10 @@ typedef struct meth_regs {
 
 						/* Bits 13 through 15 are always 0. */
 
-#define METH_INT_TX_RPTR_MASK 0x1FF0000	        /* Bits 16 through 24 alias of TX read-pointer */
+#define METH_INT_TX_RPTR_MASK	0x1FF0000        /* Bits 16 through 24 alias of TX read-pointer */
 
-#define METH_INT_SEQ_MASK    0x2E000000	        /* Bits 25 through 29 are the starting seq number for the message at the */
+#define METH_INT_RX_SEQ_MASK	0x2E000000	/* Bits 25 through 29 are the starting seq number for the message at the */
+
 						/* top of the queue */
 
 #define METH_INT_ERROR	(METH_INT_TX_LINK_FAIL| \
@@ -258,7 +222,14 @@ typedef struct meth_regs {
 #define METH_INT_MCAST_HASH		BIT(30) /* If RX DMA is enabled the hash select logic output is latched here */
 
 /* TX status bits */
-#define METH_TX_STATUS_DONE BIT(23) /* Packet was transmitted successfully */
+#define METH_TX_ST_DONE      BIT(63) /* TX complete */
+#define METH_TX_ST_SUCCESS   BIT(23) /* Packet was transmitted successfully */
+#define METH_TX_ST_TOOLONG   BIT(24) /* TX abort due to excessive length */
+#define METH_TX_ST_UNDERRUN  BIT(25) /* TX abort due to underrun (?) */
+#define METH_TX_ST_EXCCOLL   BIT(26) /* TX abort due to excess collisions */
+#define METH_TX_ST_DEFER     BIT(27) /* TX abort due to excess deferals */
+#define METH_TX_ST_LATECOLL  BIT(28) /* TX abort due to late collision */
+
 
 /* Tx command header bits */
 #define METH_TX_CMD_INT_EN BIT(24) /* Generate TX interrupt when packet is sent */

@@ -26,8 +26,8 @@
 static irqreturn_t macepci_error(int irq, void *dev, struct pt_regs *regs)
 {
 	char s;
-	uint32_t flags = mace_read_32(MACEPCI_ERROR_FLAGS);
-	uint32_t addr = mace_read_32(MACEPCI_ERROR_ADDR);
+	unsigned int flags = mace->pci.error;
+	unsigned int addr = mace->pci.error_addr;
 
 	if (flags & MACEPCI_ERROR_MEMORY_ADDR)
 		s = 'M';
@@ -77,7 +77,7 @@ static irqreturn_t macepci_error(int irq, void *dev, struct pt_regs *regs)
 		flags &= ~MACEPCI_ERROR_INTERRUPT_TEST;
 	}
 
-	mace_write_32(flags, MACEPCI_ERROR_FLAGS);
+	mace->pci.error = flags;
 
 	return IRQ_HANDLED;
 }
@@ -124,27 +124,22 @@ static struct pci_controller mace_pci_controller = {
 
 static int __init mace_init(void)
 {
+	PCIBIOS_MIN_IO = 0x1000;
+
 	/* Clear any outstanding errors and enable interrupts */
-	mace_write_32(0, MACEPCI_ERROR_ADDR);
-	mace_write_32(0, MACEPCI_ERROR_FLAGS);
-	mace_write_32(0xff008500, MACEPCI_CONTROL);
+	mace->pci.error_addr = 0;
+	mace->pci.error = 0;
+	mace->pci.control = 0xff008500;
+
+	printk("MACE PCI rev %d\n", mace->pci.rev);
 
 	BUG_ON(request_irq(MACE_PCI_BRIDGE_IRQ, macepci_error, 0,
 			   "MACE PCI error", NULL));
 
-	return 0;
-}
-subsys_initcall(mace_init);
-
-extern int pci_probe_only;
-void __init ip32_pci_setup(void)
-{
-	const int field = 2 * sizeof(unsigned long);
-	PCIBIOS_MIN_IO = 0x1000;
-
- 	printk("MACE PCI rev %d at 0x%0*lx\n", mace_read_32(MACEPCI_REV),
-		field, (unsigned long) MACE_BASE + MACE_PCI);
-
 	ioport_resource.end = mace_pci_io_resource.end;
 	register_pci_controller(&mace_pci_controller);
+
+	return 0;
 }
+
+arch_initcall(mace_init);

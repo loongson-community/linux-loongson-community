@@ -76,6 +76,8 @@ static int __init ip32_setup(void)
 {
 	set_io_port_base((unsigned long) ioremap(MACEPCI_LOW_IO, 0x2000000));
 
+	crime_init();
+
 #ifdef CONFIG_SERIAL_8250
  	{
 		static struct uart_port o2_serial[2];
@@ -87,7 +89,7 @@ static int __init ip32_setup(void)
 		o2_serial[0].flags	= STD_COM_FLAGS | UPF_RESOURCES;
 		o2_serial[0].uartclk	= BASE_BAUD * 16;
 		o2_serial[0].iotype	= UPIO_MEM;
-		o2_serial[0].membase	= ioremap(MACE_BASE + MACEISA_SER1, 0x8000);
+		o2_serial[0].membase	= (char *)&mace->isa.serial1;
 		o2_serial[0].fifosize	= 14;
                 /* How much to shift register offset by. Each UART register
 		 * is replicated over 256 byte space */
@@ -98,7 +100,7 @@ static int __init ip32_setup(void)
 		o2_serial[1].flags	= STD_COM_FLAGS | UPF_RESOURCES;
 		o2_serial[1].uartclk	= BASE_BAUD * 16;
 		o2_serial[1].iotype	= UPIO_MEM;
-		o2_serial[1].membase	= ioremap(MACE_BASE + MACEISA_SER2, 0x8000);
+		o2_serial[1].membase	= (char *)&mace->isa.serial2;
 		o2_serial[1].fifosize	= 14;
 		o2_serial[1].regshift	= 8;
 
@@ -131,8 +133,6 @@ static int __init ip32_setup(void)
 	conswitchp = &dummy_con;
 # endif
 #endif
-	crime_init();
-	ip32_pci_setup();
 
 	board_be_init = ip32_be_init;
 	board_time_init = ip32_time_init;

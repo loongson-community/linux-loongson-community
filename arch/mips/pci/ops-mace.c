@@ -12,11 +12,10 @@
 #include <asm/pci.h>
 #include <asm/ip32/mace.h>
 
-#undef DEBUG_MACE_PCI
-#ifdef DEBUG_MACE_PCI
-# define DPRINTK(fmt,args...) printk(KERN_DEBUG "%s: %d:" fmt "\n", __FILE__, __LINE__, ##args);
+#if 0
+# define DPRINTK(args...) printk(args);
 #else
-# define DPRINTK(fmt...)
+# define DPRINTK(args...)
 #endif
 
 /*
@@ -45,20 +44,20 @@ mace_pci_read_config(struct pci_bus *bus, unsigned int devfn,
 		     int reg, int size, u32 *val)
 {
 	chkslot(bus, devfn);
-	mace_write_32(mkaddr(devfn, reg), MACEPCI_CONFIG_ADDR);
+	mace->pci.config_addr = mkaddr(devfn, reg);
 	switch (size) {
 	case 1:
-		*val = mace_read_8(MACEPCI_CONFIG_DATA + ((reg & 3UL) ^ 3UL));
+		*val = mace->pci.config_data.b[(reg & 3) ^ 3];
 		break;
 	case 2:
-		*val = mace_read_16(MACEPCI_CONFIG_DATA + ((reg & 2UL) ^ 2UL));
+		*val = mace->pci.config_data.w[((reg >> 1) & 1) ^ 1];
 		break;
 	case 4:
-		*val = mace_read_32(MACEPCI_CONFIG_DATA);
+		*val = mace->pci.config_data.l;
 		break;
 	}
 
-	DPRINTK("read%d: reg=%08x,val=%02x", size * 8, reg, *val);
+	DPRINTK("read%d: reg=%08x,val=%02x\n", size * 8, reg, *val);
 
 	return PCIBIOS_SUCCESSFUL;
 }
@@ -68,20 +67,20 @@ mace_pci_write_config(struct pci_bus *bus, unsigned int devfn,
 		      int reg, int size, u32 val)
 {
 	chkslot(bus, devfn);
-	mace_write_32(mkaddr(devfn, reg), MACEPCI_CONFIG_ADDR);
+	mace->pci.config_addr = mkaddr(devfn, reg);
 	switch (size) {
 	case 1:
-		mace_write_8(val, MACEPCI_CONFIG_DATA + ((reg & 3UL) ^ 3UL));
+		mace->pci.config_data.b[(reg & 3) ^ 3] = val;
 		break;
 	case 2:
-		mace_write_16(val, MACEPCI_CONFIG_DATA + ((reg & 2UL) ^ 2UL));
+		mace->pci.config_data.w[((reg >> 1) & 1) ^ 1] = val;
 		break;
 	case 4:
-		mace_write_32(val, MACEPCI_CONFIG_DATA);
+		mace->pci.config_data.l = val;
 		break;
 	}
 
-	DPRINTK("write%d: reg=%08x,val=%02x", size * 8, reg, val);
+	DPRINTK("write%d: reg=%08x,val=%02x\n", size * 8, reg, val);
 
 	return PCIBIOS_SUCCESSFUL;
 }

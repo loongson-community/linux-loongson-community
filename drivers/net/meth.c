@@ -44,7 +44,7 @@
 #endif
 
 #if MFE_DEBUG>=1
-#define DPRINTK(str,args...) printk (KERN_DEBUG "meth: %s: " str, __FUNCTION__ , ## args)
+#define DPRINTK(str,args...) printk(KERN_DEBUG "meth: %s: " str, __FUNCTION__ , ## args)
 #define MFE_RX_DEBUG 2
 #else
 #define DPRINTK(str,args...)
@@ -71,22 +71,22 @@ MODULE_PARM(timeout, "i");
  */
 struct meth_private {
 	struct net_device_stats stats;
-	volatile struct meth_regs *regs;
-	u64 mode; /* in-memory copy of MAC control register */
-	u64 dma_ctrl; /* dma control */
-	int  phy_addr; /* address of phy, used by mdio_* functions, initialized in mdio_probe*/
+	/* in-memory copy of MAC Control register */
+	unsigned long mac_ctrl;
+	/* in-memory copy of DMA Control register */
+	unsigned long dma_ctrl;
+	/* address of PHY, used by mdio_* functions, initialized in mdio_probe */
+	unsigned long phy_addr;
 	tx_packet *tx_ring;
 	dma_addr_t tx_ring_dma;
-	int free_space;
 	struct sk_buff *tx_skbs[TX_RING_ENTRIES];
-	dma_addr_t      tx_skb_dmas[TX_RING_ENTRIES];
-	int tx_read,tx_write;
-	int tx_count;
+	dma_addr_t tx_skb_dmas[TX_RING_ENTRIES];
+	unsigned long tx_read, tx_write, tx_count;
 
 	rx_packet *rx_ring[RX_RING_ENTRIES];
 	dma_addr_t rx_ring_dmas[RX_RING_ENTRIES];
 	struct sk_buff *rx_skbs[RX_RING_ENTRIES];
-	int rx_write;
+	unsigned long rx_write;
 
 	spinlock_t meth_lock;
 };
@@ -97,48 +97,47 @@ static irqreturn_t meth_interrupt(int irq, void *dev_id, struct pt_regs *pregs);
 /* global, initialized in ip32-setup.c */
 char o2meth_eaddr[8]={0,0,0,0,0,0,0,0};
 
-static inline void load_eaddr(struct net_device *dev,
-			      volatile struct meth_regs *regs)
+static inline void load_eaddr(struct net_device *dev)
 {
 	int i;
 	DPRINTK("Loading MAC Address: %02x:%02x:%02x:%02x:%02x:%02x\n",
 		(int)o2meth_eaddr[0]&0xFF,(int)o2meth_eaddr[1]&0xFF,(int)o2meth_eaddr[2]&0xFF,
 		(int)o2meth_eaddr[3]&0xFF,(int)o2meth_eaddr[4]&0xFF,(int)o2meth_eaddr[5]&0xFF);
-	for (i=0; i<6; i++)
-		dev->dev_addr[i]=o2meth_eaddr[i];
-	regs->mac_addr=(*(u64*)o2meth_eaddr)>>16;
+	for (i = 0; i < 6; i++)
+		dev->dev_addr[i] = o2meth_eaddr[i];
+	mace_eth_write((*(u64*)o2meth_eaddr)>>16, mac_addr);
 }
 
- /*
- *Waits for BUSY status of mdio bus to clear
+/*
+ * Waits for BUSY status of mdio bus to clear
  */
-#define WAIT_FOR_PHY(___regs, ___rval)			\
-	while((___rval=___regs->phy_data)&MDIO_BUSY){	\
-		udelay(25);				\
+#define WAIT_FOR_PHY(___rval)						\
+	while ((___rval = mace_eth_read(phy_data)) & MDIO_BUSY) {	\
+		udelay(25);						\
 	}
 /*read phy register, return value read */
-static int mdio_read(struct meth_private *priv, int phyreg)
+static unsigned long mdio_read(struct meth_private *priv, unsigned long phyreg)
 {
-	volatile meth_regs* regs=priv->regs;
-	volatile u32 rval;
-	WAIT_FOR_PHY(regs,rval);
-	regs->phy_registers=(priv->phy_addr<<5)|(phyreg&0x1f);
+	unsigned long rval;
+	WAIT_FOR_PHY(rval);
+	mace_eth_write((priv->phy_addr << 5) | (phyreg & 0x1f), phy_regs);
 	udelay(25);
-	regs->phy_trans_go=1;
+	mace_eth_write(1, phy_trans_go);
 	udelay(25);
-	WAIT_FOR_PHY(regs,rval);
+	WAIT_FOR_PHY(rval);
 	return rval&MDIO_DATA_MASK;
 }
 
 static int mdio_probe(struct meth_private *priv)
 {
-	int i, p2, p3;
+	int i;
+	unsigned long p2, p3;
 	/* check if phy is detected already */
 	if(priv->phy_addr>=0&&priv->phy_addr<32)
 		return 0;
 	spin_lock(&priv->meth_lock);
 	for (i=0;i<32;++i){
-		priv->phy_addr=(char)i;
+		priv->phy_addr=i;
 		p2=mdio_read(priv,2);
 		p3=mdio_read(priv,3);
 #if MFE_DEBUG>=2
@@ -174,35 +173,34 @@ static int mdio_probe(struct meth_private *priv)
 static void meth_check_link(struct net_device *dev)
 {
 	struct meth_private *priv = (struct meth_private *) dev->priv;
-	int mii_partner = mdio_read(priv, 5);
-	int mii_advertising = mdio_read(priv, 4);
-	int negotiated = mii_advertising & mii_partner;
-	int duplex, speed;
+	unsigned long mii_advertising = mdio_read(priv, 4);
+	unsigned long mii_partner = mdio_read(priv, 5);
+	unsigned long negotiated = mii_advertising & mii_partner;
+	unsigned long duplex, speed;
 
 	if (mii_partner == 0xffff)
 		return;
 
-	duplex = ((negotiated & 0x0100) || (negotiated & 0x01C0) == 0x0040)?METH_PHY_FDX:0;
-	speed = (negotiated & 0x0380)?METH_100MBIT:0;
+	speed = (negotiated & 0x0380) ? METH_100MBIT : 0;
+	duplex = ((negotiated & 0x0100) || (negotiated & 0x01C0) == 0x0040) ?
+		 METH_PHY_FDX : 0;
 
-	if ((priv->mode & METH_PHY_FDX) ^ duplex)
-	{
+	if ((priv->mac_ctrl & METH_PHY_FDX) ^ duplex) {
 		DPRINTK("Setting %s-duplex\n", duplex ? "full" : "half");
 		if (duplex)
-			priv->mode |= METH_PHY_FDX;
+			priv->mac_ctrl |= METH_PHY_FDX;
 		else
-			priv->mode &= ~METH_PHY_FDX;
-		priv->regs->mac_ctrl = priv->mode;
+			priv->mac_ctrl &= ~METH_PHY_FDX;
+		mace_eth_write(priv->mac_ctrl, mac_ctrl);
 	}
 
-	if ((priv->mode & METH_100MBIT) ^ speed)
-	{
+	if ((priv->mac_ctrl & METH_100MBIT) ^ speed) {
 		DPRINTK("Setting %dMbs mode\n", speed ? 100 : 10);
 		if (duplex)
-			priv->mode |= METH_100MBIT;
+			priv->mac_ctrl |= METH_100MBIT;
 		else
-			priv->mode &= ~METH_100MBIT;
-		priv->regs->mac_ctrl = priv->mode;
+			priv->mac_ctrl &= ~METH_100MBIT;
+		mace_eth_write(priv->mac_ctrl, mac_ctrl);
 	}
 }
 
@@ -216,8 +214,7 @@ static int meth_init_tx_ring(struct meth_private *priv)
 		return -ENOMEM;
 	memset(priv->tx_ring, 0, TX_RING_BUFFER_SIZE);
 	priv->tx_count = priv->tx_read = priv->tx_write = 0;
-	priv->regs->tx_ring_base = priv->tx_ring_dma;
-	priv->free_space = TX_RING_ENTRIES;
+	mace_eth_write(priv->tx_ring_dma, tx_ring_base);
 	/* Now init skb save area */
 	memset(priv->tx_skbs,0,sizeof(priv->tx_skbs));
 	memset(priv->tx_skb_dmas,0,sizeof(priv->tx_skb_dmas));
@@ -236,7 +233,7 @@ static int meth_init_rx_ring(struct meth_private *priv)
 		/* I'll need to re-sync it after each RX */
 		priv->rx_ring_dmas[i]=dma_map_single(NULL,priv->rx_ring[i],
 						     METH_RX_BUFF_SIZE,DMA_FROM_DEVICE);
-		priv->regs->rx_fifo=priv->rx_ring_dmas[i];
+		mace_eth_write(priv->rx_ring_dmas[i], rx_fifo);
 	}
         priv->rx_write = 0;
 	return 0;
@@ -273,12 +270,12 @@ int meth_reset(struct net_device *dev)
 	struct meth_private *priv = (struct meth_private *) dev->priv;
 
 	/* Reset card */
-	priv->regs->mac_ctrl = SGI_MAC_RESET;
-	priv->regs->mac_ctrl = 0;
+	mace_eth_write(SGI_MAC_RESET, mac_ctrl);
+	mace_eth_write(0, mac_ctrl);
 	udelay(25);
 
 	/* Load ethernet address */
-	load_eaddr(dev, priv->regs);
+	load_eaddr(dev);
 	/* Should load some "errata", but later */
 	
 	/* Check for device */
@@ -287,11 +284,11 @@ int meth_reset(struct net_device *dev)
 		return -ENODEV;
 	}
 
-	/* Initial mode -- 10|Half-duplex|Accept normal packets */
-	priv->mode=METH_ACCEPT_MCAST|METH_DEFAULT_IPG;
+	/* Initial mode: 10 | Half-duplex | Accept normal packets */
+	priv->mac_ctrl = METH_ACCEPT_MCAST | METH_DEFAULT_IPG;
 	if(dev->flags | IFF_PROMISC)
-		priv->mode |= METH_PROMISC;
-	priv->regs->mac_ctrl = priv->mode;
+		priv->mac_ctrl |= METH_PROMISC;
+	mace_eth_write(priv->mac_ctrl, mac_ctrl);
 
 	/* Autonegotiate speed and duplex mode */
 	meth_check_link(dev);
@@ -299,9 +296,9 @@ int meth_reset(struct net_device *dev)
 	/* Now set dma control, but don't enable DMA, yet */
 	priv->dma_ctrl= (4 << METH_RX_OFFSET_SHIFT) |
 		(RX_RING_ENTRIES << METH_RX_DEPTH_SHIFT);
-	priv->regs->dma_ctrl=priv->dma_ctrl;
+	mace_eth_write(priv->dma_ctrl, dma_ctrl);
 
-	return(0);
+	return 0;
 }
 
 /*============End Helper Routines=====================*/
@@ -312,8 +309,9 @@ int meth_reset(struct net_device *dev)
 static int meth_open(struct net_device *dev)
 {
 	struct meth_private *priv = dev->priv;
-	volatile meth_regs *regs = priv->regs;
 	int ret;
+
+	priv->phy_addr = -1;    /* No PHY is known yet... */
 
 	/* Initialize the hardware */
 	ret = meth_reset(dev);
@@ -335,9 +333,9 @@ static int meth_open(struct net_device *dev)
 	}
 
 	/* Start DMA */
-	priv->dma_ctrl |=  METH_DMA_TX_EN | /*METH_DMA_TX_INT_EN|*/
-			   METH_DMA_RX_EN | METH_DMA_RX_INT_EN;
-	regs->dma_ctrl = priv->dma_ctrl;
+	priv->dma_ctrl |= METH_DMA_TX_EN | /*METH_DMA_TX_INT_EN |*/
+			  METH_DMA_RX_EN | METH_DMA_RX_INT_EN;
+	mace_eth_write(priv->dma_ctrl, dma_ctrl);
 
 	DPRINTK("About to start queue\n");
 	netif_start_queue(dev);
@@ -358,10 +356,10 @@ static int meth_release(struct net_device *dev)
 
 	DPRINTK("Stopping queue\n");
 	netif_stop_queue(dev); /* can't transmit any more */
-	/* shut down dma */
+	/* shut down DMA */
 	priv->dma_ctrl &= ~(METH_DMA_TX_EN | METH_DMA_TX_INT_EN |
 			    METH_DMA_RX_EN | METH_DMA_RX_INT_EN);
-	priv->regs->dma_ctrl = priv->dma_ctrl;
+	mace_eth_write(priv->dma_ctrl, dma_ctrl);
 	free_irq(dev->irq, dev);
 	meth_free_tx_ring(priv);
 	meth_free_rx_ring(priv);
@@ -397,14 +395,14 @@ static int meth_config(struct net_device *dev, struct ifmap *map)
 /*
  * Receive a packet: retrieve, encapsulate and pass over to upper levels
  */
-static void meth_rx(struct net_device* dev,u64 int_status)
+static void meth_rx(struct net_device* dev, unsigned long int_status)
 {
 	struct sk_buff *skb;
 	struct meth_private *priv = (struct meth_private *) dev->priv;
-	unsigned int fifo_rptr=(int_status&METH_INT_RX_RPTR_MASK)>>8;
+	unsigned long fifo_rptr=(int_status&METH_INT_RX_RPTR_MASK)>>8;
 	spin_lock(&priv->meth_lock);
 	priv->dma_ctrl&=~METH_DMA_RX_INT_EN;
-	priv->regs->dma_ctrl=priv->dma_ctrl;
+	mace_eth_write(priv->dma_ctrl, dma_ctrl);
 	spin_unlock(&priv->meth_lock);
 
 	if (int_status & METH_INT_RX_UNDERFLOW){
@@ -476,14 +474,14 @@ static void meth_rx(struct net_device* dev,u64 int_status)
 		priv->rx_ring[priv->rx_write]->status.raw=0;
 		priv->rx_ring_dmas[priv->rx_write]=dma_map_single(NULL,priv->rx_ring[priv->rx_write],
 								  METH_RX_BUFF_SIZE,DMA_FROM_DEVICE);
-		priv->regs->rx_fifo=priv->rx_ring_dmas[priv->rx_write];
+		mace_eth_write(priv->rx_ring_dmas[priv->rx_write], rx_fifo);
 		ADVANCE_RX_PTR(priv->rx_write);
 	}
 	spin_lock(&priv->meth_lock);
 	/* In case there was underflow, and Rx DMA was disabled */
 	priv->dma_ctrl|=METH_DMA_RX_INT_EN|METH_DMA_RX_EN;
-	priv->regs->dma_ctrl=priv->dma_ctrl;
-	priv->regs->int_flags=METH_INT_RX_THRESHOLD;
+	mace_eth_write(priv->dma_ctrl, dma_ctrl);
+	mace_eth_write(METH_INT_RX_THRESHOLD, int_stat);
 	spin_unlock(&priv->meth_lock);
 }
 
@@ -494,31 +492,56 @@ static int meth_tx_full(struct net_device *dev)
 	return(priv->tx_count >= TX_RING_ENTRIES-1);
 }
 
-static void meth_tx_cleanup(struct net_device* dev, int int_status)
+static void meth_tx_cleanup(struct net_device* dev, unsigned long int_status)
 {
 	struct meth_private *priv = dev->priv;
-	tx_packet* status;
+	u64 status;
 	struct sk_buff *skb;
-	int rptr=(int_status&TX_INFO_RPTR)>>16;
+	unsigned long rptr=(int_status&TX_INFO_RPTR)>>16;
 
 	spin_lock(&priv->meth_lock);
 
 	/* Stop DMA notification */
 	priv->dma_ctrl &= ~(METH_DMA_TX_INT_EN);
-	priv->regs->dma_ctrl=priv->dma_ctrl;
+	mace_eth_write(priv->dma_ctrl, dma_ctrl);
 
 	while(priv->tx_read != rptr){
 		skb = priv->tx_skbs[priv->tx_read];
-		status = &priv->tx_ring[priv->tx_read];
-		if(!status->header.res.sent)
+		status = priv->tx_ring[priv->tx_read].header.raw;
+#if MFE_DEBUG>=1
+		if(priv->tx_read==priv->tx_write)
+			DPRINTK("Auchi! tx_read=%d,tx_write=%d,rptr=%d?\n",priv->tx_read,priv->tx_write,rptr);
+#endif
+		if(status & METH_TX_ST_DONE) {
+			if(status & METH_TX_ST_SUCCESS){
+				priv->stats.tx_packets++;
+				priv->stats.tx_bytes += skb->len;
+			} else {
+				priv->stats.tx_errors++;
+#if MFE_DEBUG>=1
+				DPRINTK("TX error: status=%016lx <",status);
+				if(status & METH_TX_ST_SUCCESS)
+					printk(" SUCCESS");
+				if(status & METH_TX_ST_TOOLONG)
+					printk(" TOOLONG");
+				if(status & METH_TX_ST_UNDERRUN)
+					printk(" UNDERRUN");
+				if(status & METH_TX_ST_EXCCOLL)
+					printk(" EXCCOLL");
+				if(status & METH_TX_ST_DEFER)
+					printk(" DEFER");
+				if(status & METH_TX_ST_LATECOLL)
+					printk(" LATECOLL");
+				printk(" >\n");
+#endif
+			}
+		} else {
+			DPRINTK("RPTR points us here, but packet not done?\n");
 			break;
-		if(status->header.raw & METH_TX_STATUS_DONE) {
-			priv->stats.tx_packets++;
-			priv->stats.tx_bytes += skb->len;
 		}
 		dev_kfree_skb_irq(skb);
 		priv->tx_skbs[priv->tx_read] = NULL;
-		status->header.raw = 0;
+		priv->tx_ring[priv->tx_read].header.raw = 0;
 		priv->tx_read = (priv->tx_read+1)&(TX_RING_ENTRIES-1);
 		priv->tx_count --;
 	}
@@ -528,14 +551,13 @@ static void meth_tx_cleanup(struct net_device* dev, int int_status)
 		netif_wake_queue(dev);
 	}
 
-	priv->regs->int_flags=METH_INT_TX_EMPTY|METH_INT_TX_PKT;
+	mace_eth_write(METH_INT_TX_EMPTY | METH_INT_TX_PKT, int_stat);
 	spin_unlock(&priv->meth_lock);
 }
 
 static void meth_error(struct net_device* dev, u32 status)
 {
-	struct meth_private *priv;
-	priv = (struct meth_private *) dev->priv;
+	struct meth_private *priv = (struct meth_private *) dev->priv;
 
 	printk(KERN_WARNING "meth: error status: 0x%08x\n",status);
 	/* check for errors too... */
@@ -551,17 +573,17 @@ static void meth_error(struct net_device* dev, u32 status)
 	if (status & (METH_INT_RX_UNDERFLOW)) {
 		printk(KERN_WARNING "meth: Rx underflow\n");
 		spin_lock(&priv->meth_lock);
-		priv->regs->int_flags=METH_INT_RX_UNDERFLOW;
+		mace_eth_write(METH_INT_RX_UNDERFLOW, int_stat);
 		/* more underflow interrupts will be delivered, 
 		   effectively throwing us into an infinite loop.
 		   Thus I stop processing Rx in this case.
 		*/
 		priv->dma_ctrl&=~METH_DMA_RX_EN;
-		priv->regs->dma_ctrl=priv->dma_ctrl;
+		mace_eth_write(priv->dma_ctrl, dma_ctrl);
 		DPRINTK("Disabled meth Rx DMA temporarily\n");
 		spin_unlock(&priv->meth_lock);
 	}
-	priv->regs->int_flags=METH_INT_ERROR;
+	mace_eth_write(METH_INT_ERROR, int_stat);
 }
 
 /*
@@ -571,28 +593,28 @@ static irqreturn_t meth_interrupt(int irq, void *dev_id, struct pt_regs *pregs)
 {
 	struct net_device *dev = (struct net_device *)dev_id;
 	struct meth_private *priv = (struct meth_private *) dev->priv;
-	u32 status;
+	unsigned long status;
 
-	status = priv->regs->int_flags;
-	while (status&0xFF) {
+	status = mace_eth_read(int_stat);
+	while (status & 0xFF) {
 		/* First handle errors - if we get Rx underflow,
 		   Rx DMA will be disabled, and Rx handler will reenable
 		   it. I don't think it's possible to get Rx underflow,
 		   without getting Rx interrupt */
-		if( status & METH_INT_ERROR) {
-			meth_error(dev,status);
+		if (status & METH_INT_ERROR) {
+			meth_error(dev, status);
 		}
-		if (status & (METH_INT_TX_EMPTY|METH_INT_TX_PKT)) {
+		if (status & (METH_INT_TX_EMPTY | METH_INT_TX_PKT)) {
 			/* a transmission is over: free the skb */
 			meth_tx_cleanup(dev, status);
 		}
 		if (status & METH_INT_RX_THRESHOLD) {
-			if(!(priv->dma_ctrl&METH_DMA_RX_INT_EN))
+			if (!(priv->dma_ctrl & METH_DMA_RX_INT_EN))
 				break;
 			/* send it to meth_rx for handling */
-			meth_rx(dev,status);
+			meth_rx(dev, status);
 		}
- 		status = priv->regs->int_flags;
+		status = mace_eth_read(int_stat);
 	}
 
 	return IRQ_HANDLED;
@@ -607,19 +629,19 @@ static void meth_tx_short_prepare(struct meth_private *priv,
 	tx_packet *desc=&priv->tx_ring[priv->tx_write];
 	int len = (skb->len<ETH_ZLEN)?ETH_ZLEN:skb->len;
 
+	desc->header.raw=METH_TX_CMD_INT_EN|(len-1)|((128-len)<<16);
 	/* maybe I should set whole thing to 0 first... */
 	memcpy(desc->data.dt+(120-len),skb->data,skb->len);
 	if(skb->len < len)
 		memset(desc->data.dt+120-len+skb->len,0,len-skb->len);
-	desc->header.raw=METH_TX_CMD_INT_EN|(len-1)|((128-len)<<16);
 }
 #define TX_CATBUF1 BIT(25)
 static void meth_tx_1page_prepare(struct meth_private *priv,
 				  struct sk_buff *skb)
 {
 	tx_packet *desc=&priv->tx_ring[priv->tx_write];
-	void *buffer_data = (void *)(((u64)skb->data + 7ULL) & (~7ULL));
-	int unaligned_len = (int)((u64)buffer_data - (u64)skb->data);
+	void *buffer_data = (void *)(((unsigned long)skb->data + 7) & ~7);
+	int unaligned_len = (int)((unsigned long)buffer_data - (unsigned long)skb->data);
 	int buffer_len = skb->len - unaligned_len;
 	dma_addr_t catbuf;
 
@@ -643,10 +665,10 @@ static void meth_tx_2page_prepare(struct meth_private *priv,
 				  struct sk_buff *skb)
 {
 	tx_packet *desc=&priv->tx_ring[priv->tx_write];
-	void *buffer1_data = (void *)(((u64)skb->data + 7ULL) & (~7ULL));
-	void *buffer2_data = (void *)PAGE_ALIGN((u64)skb->data);
-	int unaligned_len = (int)((u64)buffer1_data - (u64)skb->data);
-	int buffer1_len = (int)((u64)buffer2_data - (u64)buffer1_data);
+	void *buffer1_data = (void *)(((unsigned long)skb->data + 7) & ~7);
+	void *buffer2_data = (void *)PAGE_ALIGN((unsigned long)skb->data);
+	int unaligned_len = (int)((unsigned long)buffer1_data - (unsigned long)skb->data);
+	int buffer1_len = (int)((unsigned long)buffer2_data - (unsigned long)buffer1_data);
 	int buffer2_len = skb->len - buffer1_len - unaligned_len;
 	dma_addr_t catbuf1, catbuf2;
 
@@ -672,22 +694,21 @@ static void meth_tx_2page_prepare(struct meth_private *priv,
 
 static void meth_add_to_tx_ring(struct meth_private *priv, struct sk_buff *skb)
 {
+	/* Remember the skb, so we can free it at interrupt time */
+	priv->tx_skbs[priv->tx_write] = skb;
 	if(skb->len <= 120) {
 		/* Whole packet fits into descriptor */
 		meth_tx_short_prepare(priv,skb);
-	} else if(PAGE_ALIGN((u64)skb->data) !=
-		  PAGE_ALIGN((u64)skb->data+skb->len-1)) {
+	} else if(PAGE_ALIGN((unsigned long)skb->data) !=
+		  PAGE_ALIGN((unsigned long)skb->data+skb->len-1)) {
 		/* Packet crosses page boundary */
 		meth_tx_2page_prepare(priv,skb);
 	} else {
 		/* Packet is in one page */
 		meth_tx_1page_prepare(priv,skb);
 	}
-
-	/* Remember the skb, so we can free it at interrupt time */
-	priv->tx_skbs[priv->tx_write] = skb;
 	priv->tx_write = (priv->tx_write+1) & (TX_RING_ENTRIES-1);
-	priv->regs->tx_info = priv->tx_write;
+	mace_eth_write(priv->tx_write, tx_info);
 	priv->tx_count ++;
 }
 
@@ -702,8 +723,7 @@ static int meth_tx(struct sk_buff *skb, struct net_device *dev)
 	spin_lock_irqsave(&priv->meth_lock,flags);
 	/* Stop DMA notification */
 	priv->dma_ctrl &= ~(METH_DMA_TX_INT_EN);
-	priv->regs->dma_ctrl=priv->dma_ctrl;
-
+	mace_eth_write(priv->dma_ctrl, dma_ctrl);
 
 	meth_add_to_tx_ring(priv, skb);
 	dev->trans_start = jiffies; /* save the timestamp */
@@ -716,7 +736,7 @@ static int meth_tx(struct sk_buff *skb, struct net_device *dev)
 
 	/* Restart DMA notification */
 	priv->dma_ctrl |= METH_DMA_TX_INT_EN;
-	priv->regs->dma_ctrl=priv->dma_ctrl;
+	mace_eth_write(priv->dma_ctrl, dma_ctrl);
 
 	spin_unlock_irqrestore(&priv->meth_lock,flags);
 
@@ -749,7 +769,7 @@ static void meth_tx_timeout(struct net_device *dev)
 
 	/* Restart dma */
 	priv->dma_ctrl|=METH_DMA_TX_EN|METH_DMA_RX_EN|METH_DMA_RX_INT_EN;
-	priv->regs->dma_ctrl=priv->dma_ctrl;
+	mace_eth_write(priv->dma_ctrl, dma_ctrl);
 
 	/* Enable interrupt */
 	spin_unlock_irqrestore(&priv->meth_lock,flags);
@@ -802,15 +822,11 @@ static struct net_device *meth_init(void)
 	dev->watchdog_timeo  = timeout;
 #endif
 	dev->irq	     = MACE_ETHERNET_IRQ;
+	dev->base_addr	     = (unsigned long)&mace->eth;
 	SET_MODULE_OWNER(dev);
 
-	priv = dev->priv;
+	priv = (struct meth_private *) dev->priv;
 	spin_lock_init(&priv->meth_lock);
-
-	/* FIXME: Use register access defined in mace.h !!! */
-	priv->regs = (meth_regs *)ioremap(SGI_MFE,0x100);
-	dev->base_addr = (unsigned long)priv->regs;
-	priv->phy_addr = -1; /* No phy is known yet... */
 
 	ret = register_netdev(dev);
 	if (ret) {
@@ -818,7 +834,8 @@ static struct net_device *meth_init(void)
 		return ERR_PTR(ret);
 	}
 
-	printk("SGI O2 Fast Ethernet rev. %ld\n", priv->regs->mac_ctrl >> 29);
+	printk(KERN_INFO "%s: SGI MACE Ethernet rev. %d\n",
+	       dev->name, (unsigned int)mace_eth_read(mac_ctrl) >> 29);
 	return 0;
 }
 
