@@ -140,7 +140,6 @@ static void tx39_flush_cache_page(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	local_irq_save(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -151,7 +150,7 @@ static void tx39_flush_cache_page(struct vm_area_struct *vma,
 	 * in the cache.
 	 */
 	if(!(pte_val(*ptep) & _PAGE_PRESENT))
-		goto out;
+		return;
 
 	/*
 	 * Doing flushes for another ASID than the current one is
@@ -169,8 +168,6 @@ static void tx39_flush_cache_page(struct vm_area_struct *vma,
 		page = (KSEG0 + (page & (dcache_size - 1)));
 		blast_dcache16_page_indexed_wayLSB(page);
 	}
-out:
-	local_irq_restore(flags);
 }
 
 static void tx39_flush_page_to_ram(struct page * page)

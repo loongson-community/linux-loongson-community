@@ -192,7 +192,7 @@ static void mips64_flush_cache_page_sc(struct vm_area_struct *vma,
 	 * in the cache.
 	 */
 	if (!(pte_val(*ptep) & _PAGE_VALID))
-		goto out;
+		return;
 
 	/*
 	 * Doing flushes for another ASID than the current one is
@@ -210,8 +210,6 @@ static void mips64_flush_cache_page_sc(struct vm_area_struct *vma,
 		blast_scache_page_indexed(page);
 	} else
 		blast_scache_page(page);
-out:
-	local_irq_restore(flags);
 }
 
 static void mips64_flush_cache_page_pc(struct vm_area_struct *vma,
@@ -233,7 +231,6 @@ static void mips64_flush_cache_page_pc(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	local_irq_save(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -244,7 +241,7 @@ static void mips64_flush_cache_page_pc(struct vm_area_struct *vma,
 	 * in the cache.
 	 */
 	if (!(pte_val(*ptep) & _PAGE_VALID))
-		goto out;
+		return;
 
 	/*
 	 * Doing flushes for another ASID than the current one is
@@ -261,8 +258,6 @@ static void mips64_flush_cache_page_pc(struct vm_area_struct *vma,
 		page = (KSEG0 + (page & ((unsigned long)dcache_size - 1)));
 		blast_dcache_page_indexed(page);
 	}
-out:
-	local_irq_restore(flags);
 }
 
 /* If the addresses passed to these routines are valid, they are
