@@ -1099,7 +1099,7 @@ static __init void build_update_entries(u32 **p, unsigned int tmp,
 	 * Kernel is a special case. Only a few CPUs use it.
 	 */
 #ifdef CONFIG_64BIT_PHYS_ADDR
-	if (cpu_has_64bit_gp_regs) {
+	if (cpu_has_64bits) {
 		i_ld(p, tmp, 0, ptep); /* get even pte */
 		i_ld(p, ptep, sizeof(pte_t), ptep); /* get odd pte */
 		i_dsrl(p, tmp, tmp, 6); /* convert to entrylo0 */
@@ -1282,14 +1282,14 @@ iPTE_LW(u32 **p, struct label **l, unsigned int pte, int offset,
 {
 #ifdef CONFIG_SMP
 # ifdef CONFIG_64BIT_PHYS_ADDR
-	if (cpu_has_64bit_gp_regs)
+	if (cpu_has_64bits)
 		i_lld(p, pte, offset, ptr);
 	else
 # endif
 		i_LL(p, pte, offset, ptr);
 #else
 # ifdef CONFIG_64BIT_PHYS_ADDR
-	if (cpu_has_64bit_gp_regs)
+	if (cpu_has_64bits)
 		i_ld(p, pte, offset, ptr);
 	else
 # endif
@@ -1303,7 +1303,7 @@ iPTE_SW(u32 **p, struct reloc **r, unsigned int pte, int offset,
 {
 #ifdef CONFIG_SMP
 # ifdef CONFIG_64BIT_PHYS_ADDR
-	if (cpu_has_64bit_gp_regs)
+	if (cpu_has_64bits)
 		i_scd(p, pte, offset, ptr);
 	else
 # endif
@@ -1315,7 +1315,7 @@ iPTE_SW(u32 **p, struct reloc **r, unsigned int pte, int offset,
 		il_beqz(p, r, pte, label_smp_pgtable_change);
 
 # ifdef CONFIG_64BIT_PHYS_ADDR
-	if (!cpu_has_64bit_gp_regs) {
+	if (!cpu_has_64bits) {
 		/* no i_nop needed */
 		i_ll(p, pte, sizeof(pte_t) / 2, ptr);
 		i_ori(p, pte, pte, _PAGE_VALID);
@@ -1330,14 +1330,14 @@ iPTE_SW(u32 **p, struct reloc **r, unsigned int pte, int offset,
 # endif
 #else
 # ifdef CONFIG_64BIT_PHYS_ADDR
-	if (cpu_has_64bit_gp_regs)
+	if (cpu_has_64bits)
 		i_sd(p, pte, offset, ptr);
 	else
 # endif
 		i_SW(p, pte, offset, ptr);
 
 # ifdef CONFIG_64BIT_PHYS_ADDR
-	if (!cpu_has_64bit_gp_regs) {
+	if (!cpu_has_64bits) {
 		i_lw(p, pte, sizeof(pte_t) / 2, ptr);
 		i_ori(p, pte, pte, _PAGE_VALID);
 		i_sw(p, pte, sizeof(pte_t) / 2, ptr);
