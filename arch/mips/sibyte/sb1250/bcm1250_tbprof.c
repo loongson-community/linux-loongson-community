@@ -29,7 +29,6 @@
 #include <linux/errno.h>
 #include <linux/reboot.h>
 #include <asm/uaccess.h>
-#include <asm/smplock.h>
 #include <asm/io.h>
 #include <asm/sibyte/sb1250.h>
 #include <asm/sibyte/sb1250_regs.h>
