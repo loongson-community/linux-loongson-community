@@ -56,13 +56,13 @@
 		.align	5
 		.set	push
 		.set	reorder
-EXPORT(ret_from_irq)
-EXPORT(ret_from_exception)
+FEXPORT(ret_from_irq)
+FEXPORT(ret_from_exception)
 		lw	t0, PT_STATUS(sp)	# returning to kernel mode?
 		andi	t0, t0, KU_USER
 		beqz	t0, resume_kernel
 
-EXPORT(resume_userspace)
+FEXPORT(resume_userspace)
 		mfc0	t0, CP0_STATUS		# make sure we dont miss an
 		ori	t0, t0, 1		# interrupt setting need_resched
 		xori	t0, t0, 1		# between sampling and return
@@ -105,12 +105,12 @@ ENTRY(resume_kernel)
 		j	ret_from_intr
 #endif
 
-EXPORT(ret_from_fork)
+FEXPORT(ret_from_fork)
 #if defined(CONFIG_SMP) || defined(CONFIG_PREEMPT)
 		jal	schedule_tail
 #endif
 
-EXPORT(syscall_exit)
+FEXPORT(syscall_exit)
 		mfc0	t0, CP0_STATUS		# make sure need_resched and
 		ori	t0, t0, 1		# signals dont change between
 		xori	t0, t0, 1		# sampling and return
@@ -125,7 +125,7 @@ FEXPORT(restore_all)
 		RESTORE_ALL_AND_RET
 		.set	at
 
-EXPORT(work_pending)
+FEXPORT(work_pending)
 		andi	t0, a2, _TIF_NEED_RESCHED
 		bnez	t0, work_notifysig
 work_resched:

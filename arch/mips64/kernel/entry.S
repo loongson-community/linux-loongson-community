@@ -19,13 +19,13 @@
 
 		.text
 		.align	5
-EXPORT(ret_from_irq)
-EXPORT(ret_from_exception)
+FEXPORT(ret_from_irq)
+FEXPORT(ret_from_exception)
 		ld	t0, PT_STATUS(sp)	# returning to kernel mode?
 		andi	t0, t0, KU_USER
 		beqz	t0, restore_all
 
-EXPORT(resume_userspace)
+FEXPORT(resume_userspace)
 		mfc0	t0, CP0_STATUS		# make sure need_resched and
 		ori	t0, t0, 1		# signals dont change between
 		xori	t0, t0, 1		# sampling and return
@@ -42,7 +42,7 @@ FEXPORT(ret_from_fork)
 		jal	schedule_tail
 #endif
 
-EXPORT(syscall_exit)
+FEXPORT(syscall_exit)
 		mfc0	t0, CP0_STATUS		# make sure need_resched and
 		ori	t0, t0, 1		# signals dont change between
 		xori	t0, t0, 1		# sampling and return
