@@ -24,10 +24,10 @@
 #define MACH_GROUP_BAGET	9 /* Baget                                    */
 #define MACH_GROUP_COSINE      10 /* CoSine Orion                             */
 #define MACH_GROUP_GALILEO     11 /* Galileo Eval Boards                      */
-#define MACH_GROUP_PMC         12 /* PMC Sierra Eval Boards                   */
+#define MACH_GROUP_MOMENCO     12 /* Momentum Boards                          */
 
 #define GROUP_NAMES { "unknown", "Jazz", "Digital", "ARC", "SNI", "ACN",      \
-	"SGI", "Cobalt", "NEC DDB", "Baget", "Cosine", "Galileo", "PMC Sierra" }
+	"SGI", "Cobalt", "NEC DDB", "Baget", "Cosine", "Galileo", "Momentum" }
 
 /*
  * Valid machtype values for group unknown (low order halfword of mips_machtype)
@@ -134,11 +134,11 @@
 #define GROUP_GALILEO_NAMES { "EV96100" , "EV64120A" }
 
 /*
- * Valid machtype for group PMC
+ * Valid machtype for group MOMENCO
  */
-#define MACH_PMC_CP7000		0
+#define MACH_MOMENCO_OCELOT		0
 
-#define GROUP_PMC_NAMES { "CP7000" }
+#define GROUP_MOMENCO_NAMES { "Ocelot" }
 
 /*
  * Valid cputype values

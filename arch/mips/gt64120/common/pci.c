@@ -12,6 +12,9 @@
  * written by RidgeRun, Inc,  Copyright (C) 2000 RidgeRun, Inc.
  *   glonnon@ridgerun.com, skranz@ridgerun.com, stevej@ridgerun.com
  *
+ * Copyright 2001 MontaVista Software Inc.
+ * Author: Jun Sun, jsun@mvista.com or jsun@junsun.net
+ *
  *  This program is free software; you can redistribute  it and/or modify it
  *  under  the terms of  the GNU General  Public License as published by the
  *  Free Software Foundation;  either version 2 of the  License, or (at your
@@ -40,8 +43,7 @@
 #include <linux/version.h>
 #include <asm/pci.h>
 #include <asm/io.h>
-#include <asm/pmc/ev64120.h>
-#include <asm/gt64120.h>
+#include <asm/gt64120/gt64120.h>
 
 #include <linux/init.h>
 
@@ -65,8 +67,6 @@ struct pci_device {
 static void __init scan_and_initialize_pci(void);
 static u32 __init scan_pci_bus(struct pci_device *pci_devices);
 static void __init allocate_pci_space(struct pci_device *pci_devices);
-
-static void __init galileo_pcibios_fixup_bus(struct pci_bus *bus);
 
 /*
  * The functions that actually read and write to the controller.
@@ -801,7 +801,6 @@ static void galileo_pcibios_set_master(struct pci_dev *dev)
 int pcibios_enable_resources(struct pci_dev *dev)
 {
 	u16 cmd, old_cmd;
-	u16 tmp;
 	u8 tmp1;
 	int idx;
 	struct resource *r;
@@ -917,49 +916,13 @@ struct pci_ops galileo_pci_ops = {
 	galileo_pcibios_write_config_dword
 };
 
-/*
- * galileo_pcibios_fixup_bus -
- *
- * After detecting all agents over the PCI , this function is called
- * in order to give an interrupt number for each PCI device starting
- * from IRQ 20. It does also enables master for each device.
- *
- * Inputs :
- * mem_start , mem_end are not relevant in MIPS architecture.
- *
- * Outpus :
- * return always mem_start
- */
-static void __init galileo_pcibios_fixup_bus(struct pci_bus *bus)
-{
-	unsigned int Current_IRQ = 20;
-	struct pci_bus *current_bus = bus;
-	struct pci_dev *devices;
-	struct list_head *devices_link;
-
-	list_for_each(devices_link, &(current_bus->devices)) {
-		devices = pci_dev_b(devices_link);
-		if (devices != NULL) {
-			devices->irq = Current_IRQ++;
-
-			/* Assign an interrupt number for the device */
-			galileo_pcibios_write_config_byte(devices,
-							  PCI_INTERRUPT_LINE,
-							  Current_IRQ);
-			galileo_pcibios_set_master(devices);
-
-		}
-	}
-}
-
 struct pci_fixup pcibios_fixups[] = {
-//    { PCI_FIXUP_HEADER, 0x4620, 0x11ab, galileo_pcibios_fixup },
 	{0}
 };
 
 void __init pcibios_fixup_bus(struct pci_bus *c)
 {
-	galileo_pcibios_fixup_bus(c);
+	gt64120_board_pcibios_fixup_bus(c);
 }
 
 /*
@@ -1163,12 +1126,15 @@ void __init pcibios_init(void)
 	pci_scan_bus(0, &galileo_pci_ops, NULL);
 }
 
+/*
+ * for parsing "pci=" kernel boot arguments.
+ */
 char *pcibios_setup(char *str)
 {
-	printk(KERN_INFO "rr: pcibios_setup\n");
-	/* Nothing to do for now.  */
+        printk(KERN_INFO "rr: pcibios_setup\n");
+        /* Nothing to do for now.  */
 
-	return str;
+        return str;
 }
 
 #endif	/* CONFIG_PCI */

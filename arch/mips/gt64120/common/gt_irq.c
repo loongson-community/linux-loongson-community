@@ -1,9 +1,19 @@
-/*
- * Galileo Technology chip interrupt handler
+/***********************************************************************
  *
- * Modified by RidgeRun, Inc.
- *    
+ * Copyright 2001 MontaVista Software Inc.
+ * Author: jsun@mvista.com or jsun@junsun.net
+ *
+ * arch/mips/gt64120/common/gt_irq.c
+ *     Interrupt routines for gt64120.  Currently it only handles timer irq.
+ *
+ * This program is free software; you can redistribute  it and/or modify it
+ * under  the terms of  the GNU General  Public License as published by the
+ * Free Software Foundation;  either version 2 of the  License, or (at your
+ * option) any later version.
+ *
+ ***********************************************************************
  */
+
 #include <linux/module.h>
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
@@ -12,9 +22,7 @@
 #include <linux/sched.h>
 #include <linux/kernel_stat.h>
 #include <asm/io.h>
-#include <asm/gt64120.h>
-#include <asm/pmc/ev64120.h>
-#include <asm/pmc/ev64120int.h>
+#include <asm/gt64120/gt64120.h>
 
 /*
  * These are interrupt handlers for the GT on-chip interrupts.  They
@@ -96,13 +104,11 @@ int disable_galileo_irq(int int_cause, int bit_num)
  * Interrupt handler for interrupts coming from the Galileo chip.
  * It could be timer interrupt, built in ethernet ports etc...
  */
-static void galileo_irq(int irq, void *dev_id, struct pt_regs *regs)
+static void gt64120_irq(int irq, void *dev_id, struct pt_regs *regs)
 {
 	unsigned int irq_src, int_high_src, irq_src_mask,
 	    int_high_src_mask;
 	int handled;
-	unsigned int count;
-	static int counter = 0;
 
 	GT_READ(GT_INTRCAUSE_OFS, &irq_src);
 	GT_READ(GT_INTRMASK_OFS, &irq_src_mask);
@@ -192,7 +198,7 @@ static void galileo_irq(int irq, void *dev_id, struct pt_regs *regs)
  * that is passed in as *irq (=irq0 in ../kernel/time.c).
  * We will do our own timer interrupt handling.
  */
-void galileo_time_init(struct irqaction *irq)
+void gt64120_time_init(struct irqaction *irq)
 {
 	extern irq_desc_t irq_desc[NR_IRQS];
 	static struct irqaction timer;
@@ -207,13 +213,15 @@ void galileo_time_init(struct irqaction *irq)
 	 * in the boot process to use the "request_irq()" call, we'll hard-code
 	 * the values to the correct interrupt line.
 	 */
-	timer.handler = &galileo_irq;
+	timer.handler = &gt64120_irq;
 	timer.flags = SA_SHIRQ | SA_INTERRUPT;
 	timer.name = "timer";
 	timer.dev_id = NULL;
 	timer.next = NULL;
 	timer.mask = 0;
 	irq_desc[TIMER].action = &timer;
+
+	enable_irq(TIMER);
 
 	/* Enable timer ints */
 	GT_WRITE(GT_TC_CONTROL_OFS, 0xc0);
@@ -227,11 +235,11 @@ void galileo_time_init(struct irqaction *irq)
 	GT_WRITE(GT_HINTRMASK_OFS, 0x0);
 }
 
-void galileo_irq_init(void)
+void gt64120_irq_init(void)
 {
+#if CURRENTLY_UNUSED
 	int i, j;
 
-#if CURRENTLY_UNUSED
 	/* Reset irq handlers pointers to NULL */
 	for (i = 0; i < MAX_CAUSE_REGS; i++) {
 		for (j = 0; j < MAX_CAUSE_REG_WIDTH; j++) {

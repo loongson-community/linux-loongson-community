@@ -1,11 +1,14 @@
 /*
- * BRIEF MODULE DESCRIPTION
- * Code to handle irqs on GT64120A boards
- *  Derived from mips/orion and Cort <cort@fsmlabs.com>
+ * arch/mips/gt64120/common/irq.c
+ *   Top-level irq code.  This is really common among all MIPS boards.
+ *   Should be "upgraded" to arch/mips/kernel/irq.c
  *
  * Copyright (C) 2000 RidgeRun, Inc.
  * Author: RidgeRun, Inc.
  *   glonnon@ridgerun.com, skranz@ridgerun.com, stevej@ridgerun.com
+ *
+ * Copyright 2001 MontaVista Software Inc.
+ * Author: Jun Sun, jsun@mvista.com or jsun@junsun.net
  *
  *  This program is free software; you can redistribute  it and/or modify it
  *  under  the terms of  the GNU General  Public License as published by the
@@ -59,113 +62,6 @@
 #endif
 
 
-asmlinkage void do_IRQ(int irq, struct pt_regs *regs);
-
-#define MAX_AGENTS_PER_INT 21	/*  Random number  */
-unsigned char pci_int_irq[MAX_AGENTS_PER_INT];
-static int max_interrupts = 0;
-
-/*  Duplicate interrupt handlers.  */
-/*
- * pci_int(A/B/C/D) -
- *	
- * Calls all the handlers connected to PCI interrupt A/B/C/D
- *
- * Inputs :
- *
- * Outpus :
- *
- */
-asmlinkage void pci_intA(struct pt_regs *regs)
-{
-	unsigned int count = 0;
-	DBG(KERN_INFO "pci_intA, max_interrupts %d\n", max_interrupts);
-	for (count = 0; count < max_interrupts; count++) {
-		do_IRQ(pci_int_irq[count], regs);
-	}
-}
-
-asmlinkage void pci_intB(struct pt_regs *regs)
-{
-	unsigned int count = 0;
-	DBG(KERN_INFO "pci_intB, max_interrupts %d\n", max_interrupts);
-	for (count = 0; count < max_interrupts; count++) {
-		do_IRQ(pci_int_irq[count], regs);
-	}
-}
-
-asmlinkage void pci_intC(struct pt_regs *regs)
-{
-	unsigned int count = 0;
-	DBG(KERN_INFO "pci_intC, max_interrupts %d\n", max_interrupts);
-	for (count = 0; count < max_interrupts; count++) {
-		do_IRQ(pci_int_irq[count], regs);
-	}
-}
-asmlinkage void pci_intD(struct pt_regs *regs)
-{
-	unsigned int count = 0;
-	DBG(KERN_INFO "pci_intD, max_interrupts %d\n", max_interrupts);
-	for (count = 0; count < max_interrupts; count++) {
-		do_IRQ(pci_int_irq[count], regs);
-	}
-}
-
-
-/* Function for careful CP0 interrupt mask access */
-static inline void modify_cp0_intmask(unsigned clr_mask, unsigned set_mask)
-{
-	unsigned long status = read_32bit_cp0_register(CP0_STATUS);
-	DBG(KERN_INFO "modify_cp0_intmask clr %x, set %x\n", clr_mask,
-	    set_mask);
-	DBG(KERN_INFO "modify_cp0_intmask status %x\n", status);
-	status &= ~((clr_mask & 0xFF) << 8);
-	status |= (set_mask & 0xFF) << 8;
-	DBG(KERN_INFO "modify_cp0_intmask status %x\n", status);
-	write_32bit_cp0_register(CP0_STATUS, status);
-}
-
-static inline void mask_irq(unsigned int irq_nr)
-{
-	modify_cp0_intmask(irq_nr, 0);
-}
-
-static inline void unmask_irq(unsigned int irq_nr)
-{
-	modify_cp0_intmask(0, irq_nr);
-}
-
-void disable_irq(unsigned int irq_nr)
-{
-	unsigned long flags;
-
-	DBG(KERN_INFO "disable_irq, irq %d\n", irq_nr);
-	save_and_cli(flags);
-	if (irq_nr >= 8) {	// All PCI interrupts are on line 5 or 2 XXX
-		mask_irq(9 << 2);
-	} else {
-		mask_irq(1 << irq_nr);
-	}
-	restore_flags(flags);
-}
-
-void enable_irq(unsigned int irq_nr)
-{
-	unsigned long flags;
-
-	DBG(KERN_INFO "enable_irq, irq %d\n", irq_nr);
-	save_and_cli(flags);
-	if (irq_nr >= 8) {	// All PCI interrupts are on line 5 or 2 XXX
-		DBG(KERN_INFO __FUNCTION__ " pci interrupt %d\n", irq_nr);
-		unmask_irq(9 << 2);
-	} else {
-		DBG(KERN_INFO __FUNCTION__ " interrupt set mask %d\n",
-		    1 << irq_nr);
-		unmask_irq(1 << irq_nr);
-	}
-	restore_flags(flags);
-}
-
 /*
  * Generic no controller code
  */
@@ -179,12 +75,10 @@ static unsigned int no_irq_startup(unsigned int irq)
 	return 0;
 }
 
-#if 0
 static void no_irq_ack(unsigned int irq)
 {
 	printk(KERN_CRIT "Unexpected IRQ trap at vector %u\n", irq);
 }
-#endif
 
 struct hw_interrupt_type no_irq_type = {
     typename:	"none",
@@ -192,11 +86,12 @@ struct hw_interrupt_type no_irq_type = {
     shutdown:	no_irq_enable_disable,
     enable:	no_irq_enable_disable,
     disable:	no_irq_enable_disable,
+    // ack:        no_irq_ack, 	
+    // [jsun] cannot use it yet. gt64120 does not have its own handler
     ack:	NULL,
     end:	no_irq_enable_disable,
 };
 
-//      ack:            no_irq_ack,                re-enable later -- SKJ  
 
 
 /*
@@ -242,22 +137,9 @@ asmlinkage void do_IRQ(int irq, struct pt_regs *regs)
 {
 	struct irqaction *action;
 	int cpu;
-
-#ifdef IRQ_DEBUG
-	if (irq != TIMER)
-		DBG(KERN_INFO __FUNCTION__ " irq = %d\n", irq);
-	if (irq != TIMER)
-		DBG(KERN_INFO "cause register = %x\n",
-		    read_32bit_cp0_register(CP0_CAUSE));
-	if (irq != TIMER)
-		DBG(KERN_INFO "status register = %x\n",
-		    read_32bit_cp0_register(CP0_STATUS));
-#endif
-
 	cpu = smp_processor_id();
 	irq_enter(cpu, irq);
 	kstat.irqs[cpu][irq]++;
-
 	if (irq_desc[irq].handler->ack) {
 		irq_desc[irq].handler->ack(irq);
 	}
@@ -302,9 +184,6 @@ int request_irq(unsigned int irq,
 {
 	struct irqaction *old, **p, *action;
 	unsigned long flags;
-
-	DBG(KERN_INFO "rr:dev %s irq %d handler %x\n", devname, irq,
-	    handler);
 	if (irq >= NR_IRQS)
 		return -EINVAL;
 
@@ -338,12 +217,6 @@ int request_irq(unsigned int irq,
 	*p = action;
 
 	restore_flags(flags);
-	if (irq >= 8) {
-		DBG(KERN_INFO "request_irq, max_interrupts %d\n",
-		    max_interrupts);
-		// NOTE:  Add error-handling if > max
-		pci_int_irq[max_interrupts++] = irq;
-	}
 	enable_irq(irq);
 
 	return 0;
@@ -374,25 +247,6 @@ void free_irq(unsigned int irq, void *dev_id)
 			break;
 		}
 	}
-
-	/*
-	   Remove PCI interrupts from the pci_int_irq list.  Make sure
-	   that some handler was removed before decrementing max_interrupts.
-	 */
-	if ((irq >= 8) && (removed)) {
-		for (count = 0; count < max_interrupts; count++) {
-			if (pci_int_irq[count] == irq) {
-				for (tmp = count; tmp < max_interrupts;
-				     tmp++) {
-					pci_int_irq[tmp] =
-					    pci_int_irq[tmp + 1];
-				}
-			}
-		}
-		max_interrupts--;
-		DBG(KERN_INFO "free_irq, max_interrupts %d\n",
-		    max_interrupts);
-	}
 }
 
 unsigned long probe_irq_on(void)
@@ -405,55 +259,6 @@ int probe_irq_off(unsigned long irqs)
 {
 	printk(KERN_INFO "probe_irq_off\n");
 	return 0;
-}
-
-/*
- * galileo_irq_setup -
- *
- * Initializes CPU interrupts
- *
- *
- * Inputs :
- *
- * Outpus :
- *
- */
-void galileo_irq_setup(void)
-{
-	extern asmlinkage void galileo_handle_int(void);
-	extern void galileo_irq_init(void);
-
-	DBG(KERN_INFO "rr: galileo_irq_setup entry\n");
-
-	galileo_irq_init();
-
-	/*
-	 * Clear all of the interrupts while we change the able around a bit.
-	 */
-	set_cp0_status(ST0_IM, 0);
-	set_cp0_status(ST0_BEV, 1);	/* int-handler is not on bootstrap */
-
-	/* Sets the exception_handler array. */
-	set_except_vector(0, galileo_handle_int);
-
-	cli();
-
-	/*
-	 * Enable timer.  Other interrupts will be enabled as they are
-	 * registered.
-	 */
-	set_cp0_status(ST0_IM, IE_IRQ4);
-
-
-#ifdef CONFIG_REMOTE_DEBUG
-	{
-		extern int DEBUG_CHANNEL;
-		serial_init(DEBUG_CHANNEL);
-		serial_set(DEBUG_CHANNEL, 115200);
-		set_debug_traps();
-		breakpoint();	/* you may move this line to whereever you want :-) */
-	}
-#endif
 }
 
 void __init init_IRQ(void)
@@ -471,7 +276,7 @@ void __init init_IRQ(void)
 		irq_desc[i].lock = SPIN_LOCK_UNLOCKED;
 	}
 
-	galileo_irq_setup();
+	irq_setup();
 }
 
 /*

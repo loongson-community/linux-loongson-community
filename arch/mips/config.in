@@ -19,7 +19,6 @@ if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
    bool 'Support for BAGET MIPS series (EXPERIMENTAL)' CONFIG_BAGET_MIPS
    bool 'Support for DECstations (EXPERIMENTAL)' CONFIG_DECSTATION
    bool 'Support for NEC DDB Vrc-5074 (EXPERIMENTAL)' CONFIG_DDB5074
-   bool 'Support for NEC DDB Vrc-5476 (EXPERIMENTAL)' CONFIG_DDB5476
    bool 'Support for Galileo EV96100 Evaluation board' CONFIG_MIPS_EV96100
    bool 'Support for Galileo EV64120 Evaluation board' CONFIG_MIPS_EV64120
    if [ "$CONFIG_MIPS_EV64120" = "y" ]; then
@@ -33,8 +32,9 @@ if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
    bool 'Support for MIPS Malta board' CONFIG_MIPS_MALTA
 fi
 bool 'Support for Mips Magnum 4000' CONFIG_MIPS_MAGNUM_4000
+bool 'Support for Momentum Ocelot board' CONFIG_MOMENCO_OCELOT
+bool 'Support for NEC DDB Vrc-5476' CONFIG_DDB5476
 bool 'Support for Olivetti M700-10' CONFIG_OLIVETTI_M700
-bool 'Support for PMC Sierra CP7000' CONFIG_PMC_CP7000
 bool 'Support for SGI IP22' CONFIG_SGI_IP22
 bool 'Support for SNI RM200 PCI' CONFIG_SNI_RM200_PCI
 
@@ -99,7 +99,7 @@ if [ "$CONFIG_MIPS_MALTA" = "y" ]; then
    define_bool CONFIG_HAVE_STD_PC_SERIAL_PORT y
    define_bool CONFIG_SWAP_IO_SPACE y
 fi
-if [ "$CONFIG_PMC_CP7000" = "y" ]; then
+if [ "$CONFIG_MOMENCO_OCELOT" = "y" ]; then
    define_bool CONFIG_PCI y
    define_bool CONFIG_SYSCLK_100 y
    define_bool CONFIG_SWAP_IO_SPACE y

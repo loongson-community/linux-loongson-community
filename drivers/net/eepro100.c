@@ -43,7 +43,7 @@ static int rxdmacount /* = 0 */;
 
 /* Set the copy breakpoint for the copy-only-tiny-buffer Rx method.
    Lower values use more memory, but are faster. */
-#if defined(__alpha__) || defined(__sparc__)
+#if defined(__alpha__) || defined(__sparc__) || defined(__mips__)
 static int rx_copybreak = 1518;
 #else
 static int rx_copybreak = 200;

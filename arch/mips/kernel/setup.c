@@ -447,7 +447,7 @@ void __init setup_arch(char **cmdline_p)
 	void sgi_setup(void);
         void ev96100_setup(void);
 	void malta_setup(void);
-	void cp7000_setup(void);
+	void momenco_ocelot_setup(void);
 
 	unsigned long bootmap_size;
 	unsigned long start_pfn, max_pfn;
@@ -497,9 +497,9 @@ void __init setup_arch(char **cmdline_p)
 		malta_setup();
 		break;
 #endif
-#ifdef CONFIG_PMC_CP7000
-	case MACH_GROUP_PMC:
-		cp7000_setup();
+#ifdef CONFIG_MOMENCO_OCELOT
+	case MACH_GROUP_MOMENCO:
+		momenco_ocelot_setup();
 		break;
 #endif
 #ifdef CONFIG_SGI_IP22

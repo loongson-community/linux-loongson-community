@@ -1,5 +1,5 @@
 #
-# Makefile for PMC Sierra's Ocelot CP7000 board.
+# Makefile for common code of gt64120-based boards.
 #
 # Note! Dependencies are done automagically by 'make dep', which also
 # removes any old dependencies. DON'T put your own dependencies here
@@ -11,9 +11,8 @@
 .S.o:
 	$(CC) $(CFLAGS) -c $< -o $*.o
 
-O_TARGET := cp7000.o
+O_TARGET:= gt64120.o
 
-obj-y	 := i2o.o int-handler.o irq.o irq-handler.o pci.o promcon.o reset.o \
-	    serialGT.o setup.o
+obj-y	 := gt_irq.o irq.o pci.o
 
 include $(TOPDIR)/Rules.make

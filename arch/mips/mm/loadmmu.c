@@ -56,6 +56,10 @@ void __init loadmmu(void)
 		printk("Loading R4000 MMU routines.\n");
 		ld_mmu_r4xx0();
 #endif
+#if defined(CONFIG_CPU_RM7000)
+               printk("Loading RM7000 MMU routines.\n");
+               ld_mmu_rm7k();
+#endif
 #if defined(CONFIG_CPU_MIPS32)
 		printk("Loading MIPS32 MMU routines.\n");
 		ld_mmu_mips32();
@@ -75,13 +79,6 @@ void __init loadmmu(void)
 	case CPU_R5432:
 		printk("Loading R5432 MMU routines.\n");
 		ld_mmu_r5432();
-		break;
-#endif
-
-#if defined(CONFIG_CPU_RM7000)
-	case CPU_RM7000:
-		printk("Loading RM7000 MMU routines.\n");
-		ld_mmu_rm7k();
 		break;
 #endif
 
