@@ -342,7 +342,7 @@ static cpuid_t getcpuid(void)
 	return klcpu->cpu_info.virtid;
 }
 
-void per_cpu_init(void)
+void prom_init_secondary(void)
 {
 	extern void install_cpu_nmi_handler(int slice);
 	static int is_slave = 0;
