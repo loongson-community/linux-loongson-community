@@ -1,10 +1,10 @@
-/* $Id: bitops.h,v 1.7 1999/08/19 22:56:33 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (c) 1994 - 1997, 1999  Ralf Baechle (ralf@gnu.org)
+ * Copyright (c) 1994 - 1997, 1999, 2000  Ralf Baechle (ralf@gnu.org)
+ * Copyright (c) 2000  Silicon Graphics, Inc.
  */
 #ifndef _ASM_BITOPS_H
 #define _ASM_BITOPS_H
@@ -40,14 +40,14 @@
  * elements.  With respect to a future 64 bit implementation it is
  * wrong to use long *.  Use u32 * or int *.
  */
-extern __inline__ void set_bit(int nr, void *addr);
-extern __inline__ void clear_bit(int nr, void *addr);
-extern __inline__ void change_bit(int nr, void *addr);
-extern __inline__ int test_and_set_bit(int nr, void *addr);
-extern __inline__ int test_and_clear_bit(int nr, void *addr);
-extern __inline__ int test_and_change_bit(int nr, void *addr);
+extern __inline__ void set_bit(int nr, volatile void *addr);
+extern __inline__ void clear_bit(int nr, volatile void *addr);
+extern __inline__ void change_bit(int nr, volatile void *addr);
+extern __inline__ int test_and_set_bit(int nr, volatile void *addr);
+extern __inline__ int test_and_clear_bit(int nr, volatile void *addr);
+extern __inline__ int test_and_change_bit(int nr, volatile void *addr);
 
-extern __inline__ int test_bit(int nr, const void *addr);
+extern __inline__ int test_bit(int nr, volatile void *addr);
 #ifndef __MIPSEB__
 extern __inline__ int find_first_zero_bit (void *addr, unsigned size);
 #endif
@@ -63,90 +63,115 @@ extern __inline__ unsigned long ffz(unsigned long word);
  * interrupt friendly
  */
 
-/*
- * The following functions will only work for the R4000!
- */
-
-extern __inline__ void set_bit(int nr, void *addr)
+extern __inline__ void
+set_bit(int nr, volatile void *addr)
 {
-	int	mask, mw;
+	unsigned long *m = ((unsigned long *) addr) + (nr >> 5);
+	unsigned long temp;
 
-	addr += ((nr >> 3) & ~3);
-	mask = 1 << (nr & 0x1f);
-	do {
-		mw = load_linked(addr);
-	} while (!store_conditional(addr, mw|mask));
+	__asm__ __volatile__(
+		"1:\tll\t%0, %1\t\t# set_bit\n\t"
+		"or\t%0, %2\n\t"
+		"sc\t%0, %1\n\t"
+		"beqz\t%0, 1b"
+		:"=&r" (temp), "=m" (*m)
+		:"ir" (1UL << (nr & 0x1f)), "m" (*m));
 }
 
-extern __inline__ void clear_bit(int nr, void *addr)
+extern __inline__ void
+clear_bit(int nr, volatile void *addr)
 {
-	int	mask, mw;
+	unsigned long *m = ((unsigned long *) addr) + (nr >> 5);
+	unsigned long temp;
 
-	addr += ((nr >> 3) & ~3);
-	mask = 1 << (nr & 0x1f);
-	do {
-		mw = load_linked(addr);
-		}
-	while (!store_conditional(addr, mw & ~mask));
+	__asm__ __volatile__(
+		"1:\tll\t%0, %1\t\t# clear_bit\n\t"
+		"and\t%0, %2\n\t"
+		"sc\t%0, %1\n\t"
+		"beqz\t%0, 1b\n\t"
+		:"=&r" (temp), "=m" (*m)
+		:"ir" (~(1UL << (nr & 0x1f))), "m" (*m));
 }
 
-extern __inline__ void change_bit(int nr, void *addr)
+extern __inline__ void
+change_bit(int nr, volatile void *addr)
 {
-	int	mask, mw;
+	unsigned long *m = ((unsigned long *) addr) + (nr >> 5);
+	unsigned long temp;
 
-	addr += ((nr >> 3) & ~3);
-	mask = 1 << (nr & 0x1f);
-	do {
-		mw = load_linked(addr);
-	} while (!store_conditional(addr, mw ^ mask));
+	__asm__ __volatile__(
+		"1:\tll\t%0, %1\t\t# change_bit\n\t"
+		"xor\t%0, %2\n\t"
+		"sc\t%0, %1\n\t"
+		"beqz\t%0, 1b"
+		:"=&r" (temp), "=m" (*m)
+		:"ir" (1UL << (nr & 0x1f)), "m" (*m));
 }
 
-extern __inline__ int test_and_set_bit(int nr, void *addr)
+extern __inline__ int
+test_and_set_bit(int nr, volatile void *addr)
 {
-	int	mask, retval, mw;
+	unsigned long *m = ((unsigned long *) addr) + (nr >> 5);
+	unsigned long temp, res;
 
-	addr += ((nr >> 3) & ~3);
-	mask = 1 << (nr & 0x1f);
-	do {
-		mw = load_linked(addr);
-		retval = (mask & mw) != 0;
-	} while (!store_conditional(addr, mw|mask));
+	__asm__ __volatile__(
+		".set\tnoreorder\t\t# test_and_set_bit\n"
+		"1:\tll\t%0, %1\n\t"
+		"or\t%2, %0, %3\n\t"
+		"sc\t%2, %1\n\t"
+		"beqz\t%2, 1b\n\t"
+		" and\t%2, %0, %3\n\t"
+		".set\treorder"
+		:"=&r" (temp), "=m" (*m), "=&r" (res)
+		:"r" (1UL << (nr & 0x1f)), "m" (*m));
 
-	return retval;
+	return res != 0;
 }
 
-extern __inline__ int test_and_clear_bit(int nr, void *addr)
+extern __inline__ int
+test_and_clear_bit(int nr, volatile void *addr)
 {
-	int	mask, retval, mw;
+	unsigned long *m = ((unsigned long *) addr) + (nr >> 5);
+	unsigned long temp, res;
 
-	addr += ((nr >> 3) & ~3);
-	mask = 1 << (nr & 0x1f);
-	do {
-		mw = load_linked(addr);
-		retval = (mask & mw) != 0;
-		}
-	while (!store_conditional(addr, mw & ~mask));
+	__asm__ __volatile__(
+		".set\tnoreorder\t\t# test_and_clear_bit\n"
+		"1:\tll\t%0, %1\n\t"
+		"or\t%2, %0, %3\n\t"
+		"xor\t%2, %3\n\t"
+		"sc\t%2, %1\n\t"
+		"beqz\t%2, 1b\n\t"
+		" and\t%2, %0, %3\n\t"
+		".set\treorder"
+		:"=&r" (temp), "=m" (*m), "=&r" (res)
+		:"r" (1UL << (nr & 0x1f)), "m" (*m));
 
-	return retval;
+	return res != 0;
 }
 
-extern __inline__ int test_and_change_bit(int nr, void *addr)
+extern __inline__ int
+test_and_change_bit(int nr, volatile void *addr)
 {
-	int	mask, retval, mw;
+	unsigned long *m = ((unsigned long *) addr) + (nr >> 5);
+	unsigned long temp, res;
 
-	addr += ((nr >> 3) & ~3);
-	mask = 1 << (nr & 0x1f);
-	do {
-		mw = load_linked(addr);
-		retval = (mask & mw) != 0;
-	} while (!store_conditional(addr, mw ^ mask));
+	__asm__ __volatile__(
+		".set\tnoreorder\t\t# test_and_change_bit\n"
+		"1:\tll\t%0, %1\n\t"
+		"xor\t%2, %0, %3\n\t"
+		"sc\t%2, %1\n\t"
+		"beqz\t%2, 1b\n\t"
+		" and\t%2, %0, %3\n\t"
+		".set\treorder"
+		:"=&r" (temp), "=m" (*m), "=&r" (res)
+		:"r" (1UL << (nr & 0x1f)), "m" (*m));
 
-	return retval;
+	return res != 0;
 }
 
 #else /* MIPS I */
 
-extern __inline__ void set_bit(int nr, void * addr)
+extern __inline__ void set_bit(int nr, volatile void * addr)
 {
 	int	mask;
 	int	*a = addr;
@@ -159,7 +184,7 @@ extern __inline__ void set_bit(int nr, void * addr)
 	__bi_restore_flags(flags);
 }
 
-extern __inline__ void clear_bit(int nr, void * addr)
+extern __inline__ void clear_bit(int nr, volatile void * addr)
 {
 	int	mask;
 	int	*a = addr;
@@ -172,7 +197,7 @@ extern __inline__ void clear_bit(int nr, void * addr)
 	__bi_restore_flags(flags);
 }
 
-extern __inline__ void change_bit(int nr, void * addr)
+extern __inline__ void change_bit(int nr, volatile void * addr)
 {
 	int	mask;
 	int	*a = addr;
@@ -185,7 +210,7 @@ extern __inline__ void change_bit(int nr, void * addr)
 	__bi_restore_flags(flags);
 }
 
-extern __inline__ int test_and_set_bit(int nr, void * addr)
+extern __inline__ int test_and_set_bit(int nr, volatile void * addr)
 {
 	int	mask, retval;
 	int	*a = addr;
@@ -201,7 +226,7 @@ extern __inline__ int test_and_set_bit(int nr, void * addr)
 	return retval;
 }
 
-extern __inline__ int test_and_clear_bit(int nr, void * addr)
+extern __inline__ int test_and_clear_bit(int nr, volatile void * addr)
 {
 	int	mask, retval;
 	int	*a = addr;
@@ -217,7 +242,7 @@ extern __inline__ int test_and_clear_bit(int nr, void * addr)
 	return retval;
 }
 
-extern __inline__ int test_and_change_bit(int nr, void * addr)
+extern __inline__ int test_and_change_bit(int nr, volatile void * addr)
 {
 	int	mask, retval;
 	int	*a = addr;
@@ -240,7 +265,7 @@ extern __inline__ int test_and_change_bit(int nr, void * addr)
 
 #endif /* MIPS I */
 
-extern __inline__ int test_bit(int nr, const void *addr)
+extern __inline__ int test_bit(int nr, volatile void *addr)
 {
 	return ((1UL << (nr & 31)) & (((const unsigned int *) addr)[nr >> 5])) != 0;
 }

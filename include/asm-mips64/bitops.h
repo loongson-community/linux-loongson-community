@@ -1,11 +1,10 @@
-/* $Id: bitops.h,v 1.3 1999/08/20 21:59:08 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (c) 1994 - 1999  Ralf Baechle (ralf@gnu.org)
- * Copyright (c) 1999  Silicon Graphics, Inc.
+ * Copyright (c) 1994, 95, 96, 97, 98, 99, 2000  Ralf Baechle
+ * Copyright (c) 1999, 2000  Silicon Graphics, Inc.
  */
 #ifndef _ASM_BITOPS_H
 #define _ASM_BITOPS_H
@@ -27,7 +26,7 @@
  */
 
 extern __inline__ void
-set_bit(unsigned long nr, void *addr)
+set_bit(unsigned long nr, volatile void *addr)
 {
 	unsigned long *m = ((unsigned long *) addr) + (nr >> 6);
 	unsigned long temp;
@@ -42,7 +41,7 @@ set_bit(unsigned long nr, void *addr)
 }
 
 extern __inline__ void
-clear_bit(unsigned long nr, void *addr)
+clear_bit(unsigned long nr, volatile void *addr)
 {
 	unsigned long *m = ((unsigned long *) addr) + (nr >> 6);
 	unsigned long temp;
@@ -57,7 +56,7 @@ clear_bit(unsigned long nr, void *addr)
 }
 
 extern __inline__ void
-change_bit(unsigned long nr, void *addr)
+change_bit(unsigned long nr, volatile void *addr)
 {
 	unsigned long *m = ((unsigned long *) addr) + (nr >> 6);
 	unsigned long temp;
@@ -72,7 +71,7 @@ change_bit(unsigned long nr, void *addr)
 }
 
 extern __inline__ unsigned long
-test_and_set_bit(unsigned long nr, void *addr)
+test_and_set_bit(unsigned long nr, volatile void *addr)
 {
 	unsigned long *m = ((unsigned long *) addr) + (nr >> 6);
 	unsigned long temp, res;
@@ -92,7 +91,7 @@ test_and_set_bit(unsigned long nr, void *addr)
 }
 
 extern __inline__ unsigned long
-test_and_clear_bit(unsigned long nr, void *addr)
+test_and_clear_bit(unsigned long nr, volatile void *addr)
 {
 	unsigned long *m = ((unsigned long *) addr) + (nr >> 6);
 	unsigned long temp, res;
@@ -113,7 +112,7 @@ test_and_clear_bit(unsigned long nr, void *addr)
 }
 
 extern __inline__ unsigned long
-test_and_change_bit(unsigned long nr, void *addr)
+test_and_change_bit(unsigned long nr, volatile void *addr)
 {
 	unsigned long *m = ((unsigned long *) addr) + (nr >> 6);
 	unsigned long temp, res;
