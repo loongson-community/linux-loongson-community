@@ -138,11 +138,11 @@ static inline void blast_dcache16_wayLSB(void)
 {
 	unsigned long start = KSEG0;
 	unsigned long end = (start + mips_cpu.dcache.sets * mips_cpu.dcache.linesz);
-	int way;
+	int way, ways = mips_cpu.dcache.ways;
 
 	while (start < end) {
 		/* LSB of VA select the way */
-		for (way = 0; way < mips_cpu.dcache.ways; way++)
+		for (way = 0; way < ways; way++)
 			cache16_unroll32(start|way,Index_Writeback_Inv_D);
 		start += 0x200;
 	}
@@ -174,11 +174,11 @@ static inline void blast_dcache16_page_indexed_wayLSB(unsigned long page)
 {
 	unsigned long start = page;
 	unsigned long end = (start + PAGE_SIZE);
-	int way;
+	int way, ways = mips_cpu.dcache.ways;
 
 	while (start < end) {
 		/* LSB of VA select the way */
-		for (way = 0; way < mips_cpu.dcache.ways; way++)
+		for (way = 0; way < ways; way++)
 			cache16_unroll32(start|way,Index_Writeback_Inv_D);
 		start += 0x200;
 	}
@@ -199,11 +199,11 @@ static inline void blast_icache16_wayLSB(void)
 {
 	unsigned long start = KSEG0;
 	unsigned long end = (start + mips_cpu.icache.sets * mips_cpu.icache.linesz);
-	int way;
+	int way, ways = mips_cpu.icache.ways;
 
 	while (start < end) {
 		/* LSB of VA select the way */
-		for (way = 0; way < mips_cpu.icache.ways; way++)
+		for (way = 0; way < ways; way++)
 			cache16_unroll32(start|way,Index_Invalidate_I);
 		start += 0x200;
 	}
@@ -235,11 +235,11 @@ static inline void blast_icache16_page_indexed_wayLSB(unsigned long page)
 {
 	unsigned long start = page;
 	unsigned long end = (start + PAGE_SIZE);
-	int way;
+	int way, ways = mips_cpu.icache.ways;
 
 	while (start < end) {
 		/* LSB of VA select the way */
-		for (way = 0; way < mips_cpu.icache.ways; way++)
+		for (way = 0; way < ways; way++)
 			cache16_unroll32(start|way,Index_Invalidate_I);
 		start += 0x200;
 	}
@@ -319,11 +319,11 @@ static inline void blast_dcache32_wayLSB(void)
 {
 	unsigned long start = KSEG0;
 	unsigned long end = (start + mips_cpu.dcache.sets * mips_cpu.dcache.linesz);
-	int way;
+	int way, ways = mips_cpu.dcache.ways;
 
 	while (start < end) {
 		/* LSB of VA select the way */
-		for (way = 0; way < mips_cpu.dcache.ways; way++)
+		for (way = 0; way < ways; way++)
 			cache32_unroll32(start|way,Index_Writeback_Inv_D);
 		start += 0x400;
 	}
@@ -373,11 +373,11 @@ static inline void blast_dcache32_page_indexed_wayLSB(unsigned long page)
 {
 	unsigned long start = page;
 	unsigned long end = (start + PAGE_SIZE);
-	int way;
+	int way, ways = mips_cpu.dcache.ways;
 
 	while (start < end) {
 		/* LSB of VA select the way */
-		for (way = 0; way < mips_cpu.dcache.ways; way++)
+		for (way = 0; way < ways; way++)
 			cache32_unroll32(start|way,Index_Writeback_Inv_D);
 		start += 0x400;
 	}
@@ -398,11 +398,11 @@ static inline void blast_icache32_wayLSB(void)
 {
 	unsigned long start = KSEG0;
 	unsigned long end = (start + mips_cpu.icache.sets * mips_cpu.icache.linesz);
-	int way;
+	int way, ways = mips_cpu.icache.ways;
 
 	while (start < end) {
 		/* LSB of VA select the way */
-		for (way = 0; way < mips_cpu.icache.ways; way++)
+		for (way = 0; way < ways; way++)
 			cache32_unroll32(start|way,Index_Invalidate_I);
 		start += 0x400;
 	}
@@ -434,11 +434,11 @@ static inline void blast_icache32_page_indexed_wayLSB(unsigned long page)
 {
 	unsigned long start = page;
 	unsigned long end = (start + PAGE_SIZE);
-	int way;
+	int way, ways = mips_cpu.icache.ways;
 
 	while (start < end) {
 		/* LSB of VA select the way */
-		for (way = 0; way < mips_cpu.icache.ways; way++)
+		for (way = 0; way < ways; way++)
 			cache32_unroll32(start|way,Index_Invalidate_I);
 		start += 0x400;
 	}
