@@ -11,8 +11,12 @@
 #ifndef _ASM_STACKFRAME_H
 #define _ASM_STACKFRAME_H
 
+#include <linux/config.h>
+
 #include <asm/asm.h>
 #include <asm/offset.h>
+#include <asm/processor.h>
+#include <asm/addrspace.h>
 
 #ifdef _LANGUAGE_C
 
@@ -82,8 +86,18 @@
 		 move	k1, sp
 		.set	reorder
 		/* Called from user mode, new stack. */
+#ifndef CONFIG_SMP
 		lui	k1, %hi(kernelsp)
 		ld	k1, %lo(kernelsp)(k1)
+#else
+		mfc0	k1, CP0_WATCHHI
+		mfc0	k0, CP0_WATCHLO
+		dsll32	k1, k1, 0
+		or	k1, k1, k0
+		li	k0, K0BASE
+		or	k1, k1, k0
+		daddiu	k1, k1, KERNEL_STACK_SIZE-32
+#endif
 8:		move	k0, sp
 		dsubu	sp, k1, PT_SIZE
 		sd	k0, PT_R29(sp)

@@ -9,6 +9,7 @@
  * Copyright (C) 1994, 1995, 1996, by Andreas Busse
  * Copyright (C) 1999 Silicon Graphics, Inc.
  */
+#include <linux/config.h>
 #include <asm/asm.h>
 #include <asm/bootinfo.h>
 #include <asm/cachectl.h>
@@ -43,8 +44,14 @@
 	 */
 	move	$28, a1
 	cpu_restore_nonscratch $28
+#ifndef CONFIG_SMP
 	daddiu	t0, $28, KERNEL_STACK_SIZE-32
 	sd	t0, kernelsp
+#else
+	mtc0	a1, CP0_WATCHLO
+	dsrl32	a1, a1, 0
+	mtc0	a1, CP0_WATCHHI
+#endif
 	mfc0	t1, CP0_STATUS		/* Do we really need this? */
 	li	a3, 0xff00
 	and	t1, a3

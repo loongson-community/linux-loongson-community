@@ -15,21 +15,4 @@
 register struct task_struct *current asm("$28");
 
 #endif /* _LANGUAGE_C */
-#ifdef _LANGUAGE_ASSEMBLY
-
-/*
- * Special variant for use by exception handlers when the stack pointer
- * is not loaded.
- */
-#define _GET_CURRENT(reg)			\
-	lui	reg, %hi(kernelsp);		\
-	.set	push;				\
-	.set	noreorder;			\
-	ld	reg, %lo(kernelsp)(reg);	\
-	.set	pop;				\
-	ori	reg, 0x3fff;			\
-	xori	reg, 0x3fff
-
-#endif
-
 #endif /* _ASM_CURRENT_H */

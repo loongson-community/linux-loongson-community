@@ -64,7 +64,12 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 	daddiu	t0, $28, KERNEL_STACK_SIZE-32
 	sd	t0, kernelsp
 	dsubu	sp, t0, 4*SZREG			# init stack pointer
-
+	move	t0, $28
+#ifdef CONFIG_SMP
+	mtc0	t0, CP0_WATCHLO
+	dsrl32	t0, t0, 0
+	mtc0	t0, CP0_WATCHHI
+#endif
 	jal	start_kernel
 1:	b	1b				# just in case ...
 	END(kernel_entry)
