@@ -41,19 +41,14 @@ static int  nfs_file_flush(struct file *);
 static int  nfs_fsync(struct file *, struct dentry *dentry);
 
 static struct file_operations nfs_file_operations = {
-	NULL,			/* lseek - default */
-	nfs_file_read,		/* read */
-	nfs_file_write,		/* write */
-	NULL,			/* readdir - bad */
-	NULL,			/* select - default */
-	NULL,			/* ioctl - default */
-	nfs_file_mmap,		/* mmap */
-	nfs_open,		/* open */
-	nfs_file_flush,		/* flush */
-	nfs_release,		/* release */
-	nfs_fsync,		/* fsync */
-	NULL,			/* fasync */
-	nfs_lock,		/* lock */
+	read:		nfs_file_read,
+	write:		nfs_file_write,
+	mmap:		nfs_file_mmap,
+	open:		nfs_open,
+	flush:		nfs_file_flush,
+	release:	nfs_release,
+	fsync:		nfs_fsync,
+	lock:		nfs_lock,
 };
 
 struct inode_operations nfs_file_inode_operations = {
@@ -69,9 +64,6 @@ struct inode_operations nfs_file_inode_operations = {
 	NULL,			/* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow_link */
-	NULL,			/* get_block */
-	nfs_readpage,		/* readpage */
-	nfs_writepage,		/* writepage */
 	NULL,			/* truncate */
 	NULL,			/* permission */
 	nfs_revalidate,		/* revalidate */
@@ -146,11 +138,13 @@ nfs_fsync(struct file *file, struct dentry *dentry)
 
 	dfprintk(VFS, "nfs: fsync(%x/%ld)\n", inode->i_dev, inode->i_ino);
 
+	lock_kernel();
 	status = nfs_wb_file(inode, file);
 	if (!status) {
 		status = file->f_error;
 		file->f_error = 0;
 	}
+	unlock_kernel();
 	return status;
 }
 
@@ -163,20 +157,28 @@ nfs_fsync(struct file *file, struct dentry *dentry)
  * If the writer ends up delaying the write, the writer needs to
  * increment the page use counts until he is done with the page.
  */
-static int nfs_write_one_page(struct file *file, struct page *page, unsigned long offset, unsigned long bytes, const char * buf)
+static int nfs_prepare_write(struct page *page, unsigned offset, unsigned to)
+{
+	kmap(page);
+	return 0;
+}
+static int nfs_commit_write(struct file *file, struct page *page, unsigned offset, unsigned to)
 {
 	long status;
 
-	bytes -= copy_from_user((u8*)kmap(page) + offset, buf, bytes);
 	kunmap(page);
-	status = -EFAULT;
-	if (bytes) {
-		lock_kernel();
-		status = nfs_updatepage(file, page, offset, bytes);
-		unlock_kernel();
-	}
+	lock_kernel();
+	status = nfs_updatepage(file, page, offset, to-offset);
+	unlock_kernel();
 	return status;
 }
+
+struct address_space_operations nfs_file_aops = {
+	readpage: nfs_readpage,
+	writepage: nfs_writepage,
+	prepare_write: nfs_prepare_write,
+	commit_write: nfs_commit_write
+};
 
 /* 
  * Write to a file (through the page cache).
@@ -203,7 +205,7 @@ nfs_file_write(struct file *file, const char *buf, size_t count, loff_t *ppos)
 	if (!count)
 		goto out;
 
-	result = generic_file_write(file, buf, count, ppos, nfs_write_one_page);
+	result = generic_file_write(file, buf, count, ppos);
 out:
 	return result;
 

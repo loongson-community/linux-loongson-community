@@ -65,16 +65,8 @@
 
 #include <asm/uaccess.h>
 
-#define SOCK_HAS_USER_DATA
 /* Following value should be > 32k + RPC overhead */
 #define XPRT_MIN_WRITE_SPACE 35000
-
-/*
- * Local variables
- */
-#ifndef SOCK_HAS_USER_DATA
-static struct rpc_xprt *	sock_list = NULL;
-#endif
 
 /* Spinlock for critical sections in the code. */
 spinlock_t xprt_lock = SPIN_LOCK_UNLOCKED;
@@ -140,15 +132,7 @@ xprt_pktdump(char *msg, u32 *packet, unsigned int count)
 static inline struct rpc_xprt *
 xprt_from_sock(struct sock *sk)
 {
-#ifndef SOCK_HAS_USER_DATA
-	struct rpc_xprt		*xprt;
-
-	for (xprt = sock_list; xprt && sk != xprt->inet; xprt = xprt->link)
-		;
-	return xprt;
-#else
 	return (struct rpc_xprt *) sk->user_data;
-#endif
 }
 
 /*
@@ -352,9 +336,7 @@ xprt_close(struct rpc_xprt *xprt)
 
 	xprt_disconnect(xprt);
 
-#ifdef SOCK_HAS_USER_DATA
 	sk->user_data    = NULL;
-#endif
 	sk->data_ready   = xprt->old_data_ready;
 	sk->state_change = xprt->old_state_change;
 	sk->write_space  = xprt->old_write_space;
@@ -409,19 +391,19 @@ xprt_reconnect(struct rpc_task *task)
 	if (!xprt->stream)
 		return;
 
-	start_bh_atomic();
+	spin_lock_bh(&xprt_lock);
 	if (xprt->connected) {
-		end_bh_atomic();
+		spin_unlock_bh(&xprt_lock);
 		return;
 	}
 	if (xprt->connecting) {
 		task->tk_timeout = xprt->timeout.to_maxval;
 		rpc_sleep_on(&xprt->reconn, task, NULL, NULL);
-		end_bh_atomic();
+		spin_unlock_bh(&xprt_lock);
 		return;
 	}
 	xprt->connecting = 1;
-	end_bh_atomic();
+	spin_unlock_bh(&xprt_lock);
 
 	/* Create an unconnected socket */
 	if (!(sock = xprt_create_socket(xprt->prot, NULL, &xprt->timeout))) {
@@ -433,9 +415,7 @@ xprt_reconnect(struct rpc_task *task)
 	inet->data_ready   = xprt->inet->data_ready;
 	inet->state_change = xprt->inet->state_change;
 	inet->write_space  = xprt->inet->write_space;
-#ifdef SOCK_HAS_USER_DATA
 	inet->user_data    = xprt;
-#endif
 
 	dprintk("RPC: %4d closing old socket\n", task->tk_pid);
 	xprt_close(xprt);
@@ -460,22 +440,22 @@ xprt_reconnect(struct rpc_task *task)
 				task->tk_pid, status, xprt->connected);
 		task->tk_timeout = 60 * HZ;
 
-		start_bh_atomic();
+		spin_lock_bh(&xprt_lock);
 		if (!xprt->connected) {
 			rpc_sleep_on(&xprt->reconn, task,
 				NULL, xprt_reconn_timeout);
-			end_bh_atomic();
+			spin_unlock_bh(&xprt_lock);
 			return;
 		}
-		end_bh_atomic();
+		spin_unlock_bh(&xprt_lock);
 	}
 
 
 defer:
-	start_bh_atomic();
+	spin_lock_bh(&xprt_lock);
 	if (!xprt->connected)
 		rpc_wake_up_next(&xprt->reconn);
-	end_bh_atomic();
+	spin_unlock_bh(&xprt_lock);
 }
 
 /*
@@ -485,34 +465,36 @@ defer:
 static void
 xprt_reconn_timeout(struct rpc_task *task)
 {
+	spin_lock_bh(&xprt_lock);
 	dprintk("RPC: %4d xprt_reconn_timeout %d\n",
 				task->tk_pid, task->tk_status);
 	task->tk_status = -ENOTCONN;
-	start_bh_atomic();
 	if (task->tk_xprt->connecting)
 		task->tk_xprt->connecting = 0;
 	if (!task->tk_xprt->connected)
 		task->tk_status = -ENOTCONN;
 	else
 		task->tk_status = -ETIMEDOUT;
-	end_bh_atomic();
 	task->tk_timeout = 0;
 	rpc_wake_up_task(task);
+	spin_unlock_bh(&xprt_lock);
 }
 
 extern spinlock_t rpc_queue_lock;
 /*
  * Look up the RPC request corresponding to a reply.
+ *
+ * RED-PEN: Niiice... Guys, when will we learn finally that locking
+ * in this manner is NOOP? --ANK
  */
 static inline struct rpc_rqst *
 xprt_lookup_rqst(struct rpc_xprt *xprt, u32 xid)
 {
 	struct rpc_task	*head, *task;
 	struct rpc_rqst	*req;
-	unsigned long	oldflags;
 	int		safe = 0;
 
-	spin_lock_irqsave(&rpc_queue_lock, oldflags);
+	spin_lock_bh(&rpc_queue_lock);
 	if ((head = xprt->pending.task) != NULL) {
 		task = head;
 		do {
@@ -529,7 +511,7 @@ xprt_lookup_rqst(struct rpc_xprt *xprt, u32 xid)
  out_bad:
 	req = NULL;
  out:
-	spin_unlock_irqrestore(&rpc_queue_lock, oldflags);
+	spin_unlock_bh(&rpc_queue_lock);
 	return req;
 }
 
@@ -858,9 +840,10 @@ do_rpciod_tcp_dispatcher(void)
 
 void rpciod_tcp_dispatcher(void)
 {
-	start_bh_atomic();
+	/* mama... start_bh_atomic was here...
+	   Calls to sock->ops _are_ _impossible_ with disabled bh. Period. --ANK
+	 */
 	do_rpciod_tcp_dispatcher();
-	end_bh_atomic();
 }
 
 int xprt_tcp_pending(void)
@@ -1027,8 +1010,7 @@ xprt_down_transmit(struct rpc_task *task)
 	struct rpc_xprt *xprt = task->tk_rqstp->rq_xprt;
 	struct rpc_rqst	*req = task->tk_rqstp;
 
-	start_bh_atomic();
-	spin_lock(&xprt_lock);
+	spin_lock_bh(&xprt_lock);
 	if (xprt->snd_task && xprt->snd_task != task) {
 		dprintk("RPC: %4d TCP write queue full (task %d)\n",
 			task->tk_pid, xprt->snd_task->tk_pid);
@@ -1041,8 +1023,7 @@ xprt_down_transmit(struct rpc_task *task)
 #endif
 		req->rq_bytes_sent = 0;
 	}
-	spin_unlock(&xprt_lock);
-	end_bh_atomic();
+	spin_unlock_bh(&xprt_lock);
 	return xprt->snd_task == task;
 }
 
@@ -1055,10 +1036,10 @@ xprt_up_transmit(struct rpc_task *task)
 	struct rpc_xprt *xprt = task->tk_rqstp->rq_xprt;
 
 	if (xprt->snd_task && xprt->snd_task == task) {
-		start_bh_atomic();
+		spin_lock_bh(&xprt_lock);
 		xprt->snd_task = NULL;
 		rpc_wake_up_next(&xprt->sending);
-		end_bh_atomic();
+		spin_unlock_bh(&xprt_lock);
 	}
 }
 
@@ -1175,16 +1156,16 @@ do_xprt_transmit(struct rpc_task *task)
 		rpc_remove_wait_queue(task);
 
 	/* Protect against (udp|tcp)_write_space */
-	start_bh_atomic();
+	spin_lock_bh(&xprt_lock);
 	if (status == -ENOMEM || status == -EAGAIN) {
 		task->tk_timeout = req->rq_timeout.to_current;
 		if (!xprt->write_space)
 			rpc_sleep_on(&xprt->sending, task, xprt_transmit_status,
 				     xprt_transmit_timeout);
-		end_bh_atomic();
+		spin_unlock_bh(&xprt_lock);
 		return;
 	}
-	end_bh_atomic();
+	spin_unlock_bh(&xprt_lock);
 
 out_release:
 	xprt_up_transmit(task);
@@ -1238,22 +1219,22 @@ xprt_receive(struct rpc_task *task)
 	 */
 	task->tk_timeout = req->rq_timeout.to_current;
 
-	start_bh_atomic();
+	spin_lock_bh(&xprt_lock);
 	if (task->tk_rpcwait)
 		rpc_remove_wait_queue(task);
 
 	if (task->tk_status < 0 || xprt->shutdown) {
-		end_bh_atomic();
+		spin_unlock_bh(&xprt_lock);
 		goto out;
 	}
 
 	if (!req->rq_gotit) {
 		rpc_sleep_on(&xprt->pending, task,
 				xprt_receive_status, xprt_timer);
-		end_bh_atomic();
+		spin_unlock_bh(&xprt_lock);
 		return;
 	}
-	end_bh_atomic();
+	spin_unlock_bh(&xprt_lock);
 
 	dprintk("RPC: %4d xprt_receive returns %d\n",
 				task->tk_pid, task->tk_status);
@@ -1385,13 +1366,13 @@ xprt_release(struct rpc_task *task)
 	spin_unlock(&xprt_lock);
 
 	/* remove slot from queue of pending */
-	start_bh_atomic();
+	spin_lock_bh(&xprt_lock);
 	if (task->tk_rpcwait) {
 		printk("RPC: task of released request still queued!\n");
 		rpc_del_timer(task);
 		rpc_remove_wait_queue(task);
 	}
-	end_bh_atomic();
+	spin_unlock_bh(&xprt_lock);
 
 	/* Decrease congestion value. */
 	xprt->cong -= RPC_CWNDSCALE;
@@ -1455,12 +1436,7 @@ xprt_setup(struct socket *sock, int proto,
 	xprt->stream = (proto == IPPROTO_TCP)? 1 : 0;
 	xprt->congtime = jiffies;
 	init_waitqueue_head(&xprt->cong_wait);
-#ifdef SOCK_HAS_USER_DATA
 	inet->user_data = xprt;
-#else
-	xprt->link = sock_list;
-	sock_list = xprt;
-#endif
 	xprt->old_data_ready = inet->data_ready;
 	xprt->old_state_change = inet->state_change;
 	xprt->old_write_space = inet->write_space;
@@ -1626,18 +1602,6 @@ xprt_clear_backlog(struct rpc_xprt *xprt) {
 int
 xprt_destroy(struct rpc_xprt *xprt)
 {
-#ifndef SOCK_HAS_USER_DATA
-	struct rpc_xprt	**q;
-
-	for (q = &sock_list; *q && *q != xprt; q = &((*q)->link))
-		;
-	if (!*q) {
-		printk(KERN_WARNING "xprt_destroy: unknown socket!\n");
-		return -EIO;	/* why is there no EBUGGYSOFTWARE */
-	}
-	*q = xprt->link;
-#endif
-
 	dprintk("RPC:      destroying transport %p\n", xprt);
 	xprt_close(xprt);
 	kfree(xprt);

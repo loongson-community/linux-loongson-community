@@ -778,16 +778,14 @@ static int sound_mmap(struct file *file, struct vm_area_struct *vma)
 
 struct file_operations oss_sound_fops =
 {
-	sound_lseek,
-	sound_read,
-	sound_write,
-	NULL,			/* sound_readdir */
-	sound_poll,
-	sound_ioctl,
-	sound_mmap,
-	sound_open,
-	NULL,			/* flush */
-	sound_release
+	llseek:		sound_lseek,
+	read:		sound_read,
+	write:		sound_write,
+	poll:		sound_poll,
+	ioctl:		sound_ioctl,
+	mmap:		sound_mmap,
+	open:		sound_open,
+	release:	sound_release,
 };
 
 /*
@@ -877,8 +875,10 @@ MODULE_PARM(dmabug, "i");
 int init_module(void)
 {
 	int             err;
+#if FIXED_FOR_2_4_0
 	int             ints[21];
 	int             i;
+#endif
 
 	trace_init=traceinit;
 	
@@ -890,6 +890,7 @@ int init_module(void)
 		printk(KERN_ERR "sound: rebuild with PCI_QUIRKS enabled to configure this.\n");
 #endif
 		
+#if FIXED_FOR_2_4_0
 	/*
 	 * "sound=" command line handling by Harald Milz.
 	 */
@@ -900,6 +901,7 @@ int init_module(void)
 
 	if (i)
 		sound_setup("sound=", ints);
+#endif
 
 	err = create_special_devices();
 	if (err)

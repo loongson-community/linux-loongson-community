@@ -224,7 +224,7 @@ void hpfs_set_dentry_operations(struct dentry *);
 
 /* dir.c */
 
-int hpfs_dir_read(struct file *, char *, size_t, loff_t *);
+ssize_t hpfs_dir_read(struct file *, char *, size_t, loff_t *);
 int hpfs_dir_release(struct inode *, struct file *);
 loff_t hpfs_dir_lseek(struct file *, loff_t, int);
 int hpfs_readdir(struct file *, void *, filldir_t);
@@ -314,3 +314,5 @@ void hpfs_put_super(struct super_block *);
 unsigned hpfs_count_one_bitmap(struct super_block *, secno);
 int hpfs_statfs(struct super_block *, struct statfs *, int);
 struct super_block *hpfs_read_super(struct super_block *, void *, int);
+
+extern struct address_space_operations hpfs_aops;

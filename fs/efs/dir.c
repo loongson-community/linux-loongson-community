@@ -9,41 +9,13 @@
 static int efs_readdir(struct file *, void *, filldir_t);
 
 static struct file_operations efs_dir_operations = {
-	NULL,			/* lseek */
-	NULL,			/* read */
-	NULL,			/* write */
-	efs_readdir,		/* readdir */
-	NULL,			/* poll */
-	NULL,			/* ioctl */
-	NULL,			/* mmap */
-	NULL,			/* open */
-	NULL,			/* flush */
-	NULL,			/* release */
-	NULL,			/* fsync */
-	NULL,			/* fasync */
+	readdir:	efs_readdir,
 };
-
-extern int efs_get_block(struct inode *, long, struct buffer_head *, int);
 
 struct inode_operations efs_dir_inode_operations = {
 	&efs_dir_operations,	/* default directory file-ops */
 	NULL,			/* create */
 	efs_lookup,		/* lookup */
-	NULL,			/* link */
-	NULL,			/* unlink */
-	NULL,			/* symlink */
-	NULL,			/* mkdir */
-	NULL,			/* rmdir */
-	NULL,			/* mknod */
-	NULL,			/* rename */
-	NULL,			/* readlink */
-	NULL,			/* follow_link */
-	efs_get_block,		/* get_block */
-	NULL,			/* readpage */
-	NULL,			/* writepage */
-	NULL,			/* truncate */
-	NULL,			/* permission */
-	NULL			/* revalidate */
 };
 
 static int efs_readdir(struct file *filp, void *dirent, filldir_t filldir) {

@@ -29,6 +29,7 @@
 #include <linux/smp.h>
 #include <linux/signal.h>
 #include <linux/module.h>
+#include <linux/init.h>
 
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
@@ -593,9 +594,8 @@ static ssize_t write_profile(struct file * file, const char * buf,
 }
 
 static struct file_operations proc_profile_operations = {
-	NULL,           /* lseek */
-	read_profile,
-	write_profile,
+	read:		read_profile,
+	write:		write_profile,
 };
 
 static struct inode_operations proc_profile_inode_operations = {
@@ -618,7 +618,7 @@ static struct proc_dir_entry proc_root_profile = {
 	0, &proc_profile_inode_operations
 };
 
-void proc_misc_init(void)
+void __init proc_misc_init(void)
 {
 	static struct {
 		char *name;

@@ -1,4 +1,4 @@
-/* $Id: sparc64_ksyms.c,v 1.72 2000/01/28 13:41:59 jj Exp $
+/* $Id: sparc64_ksyms.c,v 1.74 2000/02/09 11:15:07 davem Exp $
  * arch/sparc64/kernel/sparc64_ksyms.c: Sparc64 specific ksyms support.
  *
  * Copyright (C) 1996 David S. Miller (davem@caip.rutgers.edu)
@@ -127,11 +127,6 @@ EXPORT_SYMBOL_PRIVATE(write_unlock);
 /* Kernel wide locking */
 EXPORT_SYMBOL(kernel_flag);
 
-/* Software-IRQ BH locking */
-EXPORT_SYMBOL(global_bh_lock);
-EXPORT_SYMBOL(global_bh_count);
-EXPORT_SYMBOL(synchronize_bh);
-
 /* Hard IRQ locking */
 EXPORT_SYMBOL(global_irq_holder);
 EXPORT_SYMBOL(global_irq_lock);
@@ -160,8 +155,8 @@ EXPORT_SYMBOL(_do_write_unlock);
 #endif
 
 #else
-EXPORT_SYMBOL(local_irq_count);
 EXPORT_SYMBOL(local_bh_count);
+EXPORT_SYMBOL(local_irq_count);
 #endif
 
 /* rw semaphores */
@@ -194,12 +189,8 @@ EXPORT_SYMBOL(sbus_unmap_sg);
 EXPORT_SYMBOL(sbus_dma_sync_single);
 EXPORT_SYMBOL(sbus_dma_sync_sg);
 #endif
-#if CONFIG_PCI
+#ifdef CONFIG_PCI
 EXPORT_SYMBOL(ebus_chain);
-#ifndef NEW_PCI_DMA_MAP
-EXPORT_SYMBOL(pci_dvma_v2p_hash);
-EXPORT_SYMBOL(pci_dvma_p2v_hash);
-#endif
 EXPORT_SYMBOL(pci_memspace_mask);
 EXPORT_SYMBOL(empty_zero_page);
 EXPORT_SYMBOL(outsb);
@@ -208,8 +199,6 @@ EXPORT_SYMBOL(outsl);
 EXPORT_SYMBOL(insb);
 EXPORT_SYMBOL(insw);
 EXPORT_SYMBOL(insl);
-#endif
-#ifdef NEW_PCI_DMA_MAP
 EXPORT_SYMBOL(pci_alloc_consistent);
 EXPORT_SYMBOL(pci_free_consistent);
 EXPORT_SYMBOL(pci_map_single);

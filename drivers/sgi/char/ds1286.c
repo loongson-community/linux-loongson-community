@@ -1,4 +1,4 @@
-/* $Id: ds1286.c,v 1.5 1999/06/24 01:00:50 ulfc Exp $
+/* $Id: ds1286.c,v 1.6 1999/10/09 00:01:31 ralf Exp $
  *
  *	Real Time Clock interface for Linux	
  *
@@ -371,16 +371,12 @@ static unsigned int ds1286_poll(struct file *file, poll_table *wait)
  */
 
 static struct file_operations ds1286_fops = {
-	ds1286_llseek,
-	ds1286_read,
-	NULL,		/* No write */
-	NULL,		/* No readdir */
-	ds1286_poll,
-	ds1286_ioctl,
-	NULL,		/* No mmap */
-	ds1286_open,
-	NULL,
-	ds1286_release
+	llseek:		ds1286_llseek,
+	read:		ds1286_read,
+	poll:		ds1286_poll,
+	ioctl:		ds1286_ioctl,
+	open:		ds1286_open,
+	release:	ds1286_release,
 };
 
 static struct miscdevice ds1286_dev=

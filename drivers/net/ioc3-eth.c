@@ -79,6 +79,7 @@
 static void ioc3_set_multicast_list(struct net_device *dev);
 static int ioc3_open(struct net_device *dev);
 static int ioc3_start_xmit(struct sk_buff *skb, struct net_device *dev);
+static void ioc3_timeout(struct net_device *dev);
 static int ioc3_close(struct net_device *dev);
 static inline unsigned int ioc3_hash(const unsigned char *addr);
 
@@ -440,7 +441,6 @@ static void ioc3_interrupt(int irq, void *_dev, struct pt_regs *regs)
 	struct ioc3 *ioc3 = ip->regs;
 	u32 eisr, eier;
 
-	dev->interrupt = 1;
 	ip = dev->priv;
 
 	eier = ioc3->eier;				/* Disable eth ints */
@@ -458,14 +458,13 @@ static void ioc3_interrupt(int irq, void *_dev, struct pt_regs *regs)
 		ioc3_error(dev, ip, ioc3, eisr);
 	}
 
-	if (dev->tbusy && (TX_BUFFS_AVAIL(ip) >= 0)) {
-		dev->tbusy = 0;
-		mark_bh(NET_BH);		/* Inform upper layers. */
+	if (test_bit(LINK_STATE_XOFF, &dev->state) &&
+	    (TX_BUFFS_AVAIL(ip) >= 0)) {
+		netif_wake_queue(dev);
 	}
 
 	__cli();
 	ioc3->eier = eier;
-	dev->interrupt = 0;
 
 	return;
 }
@@ -634,11 +633,13 @@ static void ioc3_probe1(struct net_device *dev, struct ioc3 *ioc3)
 	//ioc3->erpir = ERPIR_ARM;
 
 	/* The IOC3-specific entries in the device structure. */
-	dev->open = &ioc3_open;
-	dev->hard_start_xmit = &ioc3_start_xmit;
-	dev->stop = &ioc3_close;
-	dev->get_stats = &ioc3_get_stats;
-	dev->set_multicast_list = &ioc3_set_multicast_list;
+	dev->open		= &ioc3_open;
+	dev->hard_start_xmit	= &ioc3_start_xmit;
+	dev->tx_timeout		= ioc3_timeout;
+	dev->watchdog_timeo	= (400 * HZ) / 1000;
+	dev->stop		= &ioc3_close;
+	dev->get_stats		= &ioc3_get_stats;
+	dev->set_multicast_list	= &ioc3_set_multicast_list;
 }
 
 int
@@ -681,9 +682,7 @@ ioc3_open(struct net_device *dev)
 	ioc3->eier = EISR_RXTIMERINT | EISR_TXEXPLICIT | /* Interrupts ...  */
 	             EISR_RXMEMERR | EISR_TXMEMERR;
 
-	dev->tbusy = 0;
-	dev->interrupt = 0;
-	dev->start = 1;
+	netif_wake_queue(dev);
 	restore_flags(flags);
 
 	MOD_INC_USE_COUNT;
@@ -700,17 +699,6 @@ ioc3_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	unsigned int len;
 	struct ioc3_etxd *desc;
 	int produce;
-
-	if (test_and_set_bit(0, (void *) &dev->tbusy) != 0) {
-		int tickssofar = jiffies - dev->trans_start;
-
-		if (tickssofar >= 40) {
-			printk("%s: transmit timed out.\n", dev->name);
-			dev->tbusy = 0;
-			dev->trans_start = jiffies;
-		}
-		return 1;
-	}
 
 	if (!TX_BUFFS_AVAIL(ip)) {
 		return 1;
@@ -760,9 +748,18 @@ ioc3_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	ioc3->etpir = produce << 7;			/* Fire ... */
 
 	if (TX_BUFFS_AVAIL(ip))
-		dev->tbusy = 0;
+		netif_wake_queue(dev);
 
 	return 0;
+}
+
+static void ioc3_timeout(struct net_device *dev)
+{
+	printk("%s: transmit timed out, resetting\n", dev->name);
+	/* XXX should reset device here.  */
+
+	dev->trans_start = jiffies;
+	netif_wake_queue(dev);
 }
 
 static int
@@ -771,8 +768,7 @@ ioc3_close(struct net_device *dev)
 	struct ioc3_private *ip = dev->priv;
 	struct ioc3 *ioc3 = ip->regs;
 
-	dev->start = 0;
-	dev->tbusy = 1;
+	netif_stop_queue(dev);
 
 	ioc3->emcr = 0;				/* Shutup */
 	ioc3->eier = 0;				/* Disable interrupts */

@@ -28,17 +28,9 @@ static int affs_readdir(struct file *, void *, filldir_t);
 static ssize_t affs_dir_read(struct file *, char *, size_t, loff_t *);
 
 static struct file_operations affs_dir_operations = {
-	NULL,			/* lseek - default */
-	affs_dir_read,		/* read */
-	NULL,			/* write - bad */
-	affs_readdir,		/* readdir */
-	NULL,			/* poll - default */
-	NULL,			/* ioctl - default */
-	NULL,			/* mmap */
-	NULL,			/* no special open code */
-	NULL,			/* flush */
-	NULL,			/* no special release code */
-	file_fsync		/* default fsync */
+	read:		affs_dir_read,
+	readdir:	affs_readdir,
+	fsync:		file_fsync,
 };
 
 /*
@@ -55,14 +47,6 @@ struct inode_operations affs_dir_inode_operations = {
 	affs_rmdir,		/* rmdir */
 	NULL,			/* mknod */
 	affs_rename,		/* rename */
-	NULL,			/* readlink */
-	NULL,			/* follow_link */
-	NULL,			/* get_block */
-	NULL,			/* readpage */
-	NULL,			/* writepage */
-	NULL,			/* truncate */
-	NULL,			/* permissions */
-	NULL			/* revalidate */
 };
 
 static ssize_t

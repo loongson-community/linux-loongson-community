@@ -10,19 +10,12 @@
 
 static const struct file_operations hpfs_file_ops =
 {
-	NULL,				/* lseek - default */
-	generic_file_read,		/* read */
-	hpfs_file_write,		/* write */
-	NULL,				/* readdir - bad */
-	NULL,				/* poll - default */
-	NULL,				/* ioctl - default */
-	generic_file_mmap,		/* mmap */
-	hpfs_open,			/* open */
-	NULL,				/* flush */
-	hpfs_file_release,		/* release */
-	hpfs_file_fsync,		/* fsync */
-	NULL,				/* fasync */
-	NULL,				/* lock */
+	read:		generic_file_read,
+	write:		hpfs_file_write,
+	mmap:		generic_file_mmap,
+	open:		hpfs_open,
+	release:	hpfs_file_release,
+	fsync:		hpfs_file_fsync,
 };
 
 static const struct inode_operations hpfs_file_iops =
@@ -39,29 +32,17 @@ static const struct inode_operations hpfs_file_iops =
 	NULL,				/* rename */
 	NULL,				/* readlink */
 	NULL,				/* follow_link */
-	&hpfs_get_block,		/* get_block */
-	block_read_full_page,		/* readpage */
-	block_write_full_page,		/* writepage */
 	hpfs_truncate,			/* truncate */
-	NULL,				/* permission */
-	NULL,				/* revalidate */
 };
 
 static const struct file_operations hpfs_dir_ops =
 {
-	hpfs_dir_lseek,			/* lseek */
-	hpfs_dir_read,			/* read */
-	NULL,				/* write - bad */
-	hpfs_readdir,			/* readdir */
-	NULL,				/* poll - default */
-	NULL,				/* ioctl - default */
-	NULL,				/* mmap */
-	hpfs_open,			/* open */
-	NULL,				/* flush */
-	hpfs_dir_release,		/* no special release code */
-	hpfs_file_fsync,		/* fsync */
-	NULL,				/* fasync */
-	NULL,				/* lock */
+	llseek:		hpfs_dir_lseek,
+	read:		hpfs_dir_read,
+	readdir:	hpfs_readdir,
+	open:		hpfs_open,
+	release:	hpfs_dir_release,
+	fsync:		hpfs_file_fsync,
 };
 
 static const struct inode_operations hpfs_dir_iops =
@@ -76,20 +57,9 @@ static const struct inode_operations hpfs_dir_iops =
 	hpfs_rmdir,			/* rmdir */
 	hpfs_mknod,			/* mknod */
 	hpfs_rename,			/* rename */
-	NULL,				/* readlink */
-	NULL,				/* follow_link */
-	NULL,				/* get_block */
-	NULL,				/* readpage */
-	NULL,				/* writepage */
-	NULL,				/* truncate */
-	NULL,				/* permission */
-	NULL				/* revalidate */
 };
 
-const struct inode_operations hpfs_symlink_iops =
-{
-	readlink:	page_readlink,
-	follow_link:	page_follow_link,
+struct address_space_operations hpfs_symlink_aops = {
 	readpage:	hpfs_symlink_readpage
 };
 
@@ -164,7 +134,8 @@ void hpfs_read_inode(struct inode *i)
 		if ((ea = hpfs_get_ea(i->i_sb, fnode, "SYMLINK", &ea_size))) {
 			kfree(ea);
 			i->i_mode = S_IFLNK | 0777;
-			i->i_op = (struct inode_operations *) &hpfs_symlink_iops;
+			i->i_op = &page_symlink_inode_operations;
+			i->i_data.a_ops = &hpfs_symlink_aops;
 			i->i_nlink = 1;
 			i->i_size = ea_size;
 			i->i_blocks = 1;
@@ -219,6 +190,8 @@ void hpfs_read_inode(struct inode *i)
 		i->i_nlink = 1;
 		i->i_size = fnode->file_size;
 		i->i_blocks = ((i->i_size + 511) >> 9) + 1;
+		i->i_data.a_ops = &hpfs_aops;
+		i->u.hpfs_i.mmu_private = i->i_size;
 	}
 	brelse(bh);
 }

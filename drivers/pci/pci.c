@@ -96,7 +96,17 @@ pci_find_capability(struct pci_dev *dev, int cap)
 	pci_read_config_word(dev, PCI_STATUS, &status);
 	if (!(status & PCI_STATUS_CAP_LIST))
 		return 0;
-	pci_read_config_byte(dev, PCI_CAPABILITY_LIST, &pos);
+	switch (dev->hdr_type) {
+	case PCI_HEADER_TYPE_NORMAL:
+	case PCI_HEADER_TYPE_BRIDGE:
+		pci_read_config_byte(dev, PCI_CAPABILITY_LIST, &pos);
+		break;
+	case PCI_HEADER_TYPE_CARDBUS:
+		pci_read_config_byte(dev, PCI_CB_CAPABILITY_LIST, &pos);
+		break;
+	default:
+		return 0;
+	}
 	while (ttl-- && pos >= 0x40) {
 		pos &= ~3;
 		pci_read_config_byte(dev, pos + PCI_CAP_LIST_ID, &id);
@@ -297,9 +307,11 @@ static void pci_free_resources(struct pci_dev *dev)
 void
 pci_remove_device(struct pci_dev *dev)
 {
-	if (dev->driver->remove)
-		dev->driver->remove(dev);
-	dev->driver = NULL;
+	if (dev->driver) {
+		if (dev->driver->remove)
+			dev->driver->remove(dev);
+		dev->driver = NULL;
+	}
 	list_del(&dev->bus_list);
 	list_del(&dev->global_list);
 	pci_free_resources(dev);
@@ -389,7 +401,7 @@ pci_set_master(struct pci_dev *dev)
  * Translate the low bits of the PCI base
  * to the resource type
  */
-static inline unsigned int pci_resource_flags(unsigned int flags)
+static inline unsigned int pci_calc_resource_flags(unsigned int flags)
 {
 	if (flags & PCI_BASE_ADDRESS_SPACE_IO)
 		return IORESOURCE_IO;
@@ -433,7 +445,7 @@ static void pci_read_bases(struct pci_dev *dev, unsigned int howmany, int rom)
 			sz = ~(sz & PCI_BASE_ADDRESS_IO_MASK) & 0xffff;
 		}
 		res->end = res->start + (unsigned long) sz;
-		res->flags |= (l & 0xf) | pci_resource_flags(l);
+		res->flags |= (l & 0xf) | pci_calc_resource_flags(l);
 		if ((l & (PCI_BASE_ADDRESS_SPACE | PCI_BASE_ADDRESS_MEM_TYPE_MASK))
 		    == (PCI_BASE_ADDRESS_SPACE_MEMORY | PCI_BASE_ADDRESS_MEM_TYPE_64)) {
 			pci_read_config_dword(dev, reg+4, &l);

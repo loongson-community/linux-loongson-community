@@ -1,6 +1,4 @@
-/* $Id$
- *
- * mc146818rtc.h - register definitions for the Real-Time-Clock / CMOS RAM
+/* mc146818rtc.h - register definitions for the Real-Time-Clock / CMOS RAM
  * Copyright Torsten Duwe <duwe@informatik.uni-erlangen.de> 1993
  * derived from Data Sheet, Copyright Motorola 1984 (!).
  * It was written to be part of the Linux operating system.
@@ -9,10 +7,13 @@
  * in terms of the GNU Library General Public License, Version 2 or later,
  * at your option.
  */
-#ifndef _LINUX_MC146818RTC_H
-#define _LINUX_MC146818RTC_H
 
-#include <asm/mc146818rtc.h>
+#ifndef _MC146818RTC_H
+#define _MC146818RTC_H
+
+#include <asm/io.h>
+#include <linux/rtc.h>			/* get the user-level API */
+#include <asm/mc146818rtc.h>		/* register access macros */
 
 /**********************************************************************
  * register summary
@@ -94,4 +95,4 @@
 #define BIN_TO_BCD(val) ((val)=(((val)/10)<<4) + (val)%10)
 #endif
 
-#endif /* _LINUX_MC146818RTC_H */
+#endif /* _MC146818RTC_H */

@@ -5,7 +5,7 @@
  *
  *		The Internet Protocol (IP) output module.
  *
- * Version:	$Id: ip_output.c,v 1.78 2000/01/16 05:11:22 davem Exp $
+ * Version:	$Id: ip_output.c,v 1.80 2000/02/09 11:16:41 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -645,14 +645,14 @@ static int ip_build_xmit_slow(struct sock *sk,
 	} while (offset >= 0);
 
 	if (nfrags>1)
-		ip_statistics[smp_processor_id()*2 + !in_interrupt()].IpFragCreates += nfrags;
+		ip_statistics[smp_processor_id()*2 + !in_softirq()].IpFragCreates += nfrags;
 out:
 	return 0;
 
 error:
 	IP_INC_STATS(IpOutDiscards);
 	if (nfrags>1)
-		ip_statistics[smp_processor_id()*2 + !in_interrupt()].IpFragCreates += nfrags;
+		ip_statistics[smp_processor_id()*2 + !in_softirq()].IpFragCreates += nfrags;
 	return err; 
 }
 
@@ -972,10 +972,15 @@ void ip_send_reply(struct sock *sk, struct sk_buff *skb, struct ip_reply_arg *ar
 		return;
 
 	daddr = ipc.addr = rt->rt_src;
-	ipc.opt = &replyopts.opt;
+	ipc.opt = NULL;
 
-	if (ipc.opt->srr)
-		daddr = replyopts.opt.faddr;
+	if (replyopts.opt.optlen) {
+		ipc.opt = &replyopts.opt;
+
+		if (ipc.opt->srr)
+			daddr = replyopts.opt.faddr;
+	}
+
 	if (ip_route_output(&rt, daddr, rt->rt_spec_dst, RT_TOS(skb->nh.iph->tos), 0))
 		return;
 

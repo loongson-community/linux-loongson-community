@@ -52,17 +52,10 @@ static int nfs_rename(struct inode *, struct dentry *,
 		      struct inode *, struct dentry *);
 
 static struct file_operations nfs_dir_operations = {
-	NULL,			/* lseek - default */
-	nfs_dir_read,		/* read - bad */
-	NULL,			/* write - bad */
-	nfs_readdir,		/* readdir */
-	NULL,			/* select - default */
-	NULL,			/* ioctl - default */
-	NULL,			/* mmap */
-	nfs_open,		/* open */
-	NULL,			/* flush */
-	nfs_release,		/* release */
-	NULL			/* fsync */
+	read:		nfs_dir_read,
+	readdir:	nfs_readdir,
+	open:		nfs_open,
+	release:	nfs_release,
 };
 
 struct inode_operations nfs_dir_inode_operations = {
@@ -78,9 +71,6 @@ struct inode_operations nfs_dir_inode_operations = {
 	nfs_rename,		/* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow_link */
-	NULL,			/* get_block */
-	NULL,			/* readpage */
-	NULL,			/* writepage */
 	NULL,			/* truncate */
 	NULL,			/* permission */
 	nfs_revalidate,		/* revalidate */

@@ -14,6 +14,7 @@
 #include <linux/stat.h>
 #include <linux/errno.h>
 #include <linux/locks.h>
+#include <linux/smp_lock.h>
 #include <asm/segment.h>
 #include <linux/string.h>
 #include <asm/uaccess.h>
@@ -26,9 +27,6 @@
 #include <linux/coda_proc.h>
 
 /* file operations */
-static int coda_readpage(struct dentry *dentry, struct page * page);
-static ssize_t coda_file_read(struct file *f, char *buf, size_t count, loff_t *off);
-static ssize_t coda_file_write(struct file *f, const char *buf, size_t count, loff_t *off);
 static int coda_file_mmap(struct file * file, struct vm_area_struct * vma);
 
 /* also exported from this file (used for dirs) */
@@ -47,57 +45,21 @@ struct inode_operations coda_file_inode_operations = {
 	NULL,		        /* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow_link */
-	NULL,			/* get_block */
-	coda_readpage,    	/* readpage */
-	NULL,			/* writepage */
 	NULL,			/* truncate */
         coda_permission,        /* permission */
         coda_revalidate_inode   /* revalidate */
 };
 
 struct file_operations coda_file_operations = {
-	NULL,		        /* lseek - default should work for coda */
-	coda_file_read,         /* read */
-	coda_file_write,        /* write */
-	NULL,          		/* readdir */
-	NULL,			/* select - default */
-	NULL,		        /* ioctl */
-	coda_file_mmap,         /* mmap */
-	coda_open,              /* open */
-	NULL,
-	coda_release,           /* release */
-	coda_fsync,		/* fsync */
-	NULL,                   /* fasync */
-	NULL                    /* lock */
+	read:		generic_file_read,
+	write:		generic_file_write,
+	mmap:		coda_file_mmap,
+	open:		coda_open,
+	release:	coda_release,
+	fsync:		coda_fsync,
 };
-
-/*  File file operations */
-static int coda_readpage(struct dentry * dentry, struct page * page)
-{
-	struct inode *coda_inode = dentry->d_inode;
-	struct dentry cont_dentry;
-        struct coda_inode_info *cii;
-
-        ENTRY;
-	coda_vfs_stat.readpage++;
-        
-        cii = ITOC(coda_inode);
-
-        if ( ! cii->c_ovp ) {
-		printk("coda_readpage: no open inode for ino %ld, %s\n", 
-		       coda_inode->i_ino, dentry->d_name.name);
-                return -ENXIO;
-        }
-       
-        cont_dentry.d_inode = cii->c_ovp;
-
-        CDEBUG(D_INODE, "coda ino: %ld, cached ino %ld, page offset: %lx\n", 
-	       coda_inode->i_ino, cii->c_ovp->i_ino, page->index);
-
-        block_read_full_page(&cont_dentry, page);
-        EXIT;
-        return 0;
-}
+ 
+/*  File operations */
 
 static int coda_file_mmap(struct file * file, struct vm_area_struct * vma)
 {
@@ -115,89 +77,6 @@ static int coda_file_mmap(struct file * file, struct vm_area_struct * vma)
 	return res;
 }
 
-static ssize_t coda_file_read(struct file *coda_file, char *buff, 
-			   size_t count, loff_t *ppos)
-{
-        struct coda_inode_info *cnp;
-	struct inode *coda_inode = coda_file->f_dentry->d_inode;
-        struct inode *cont_inode = NULL;
-        struct file  cont_file;
-	struct dentry cont_dentry;
-        int result = 0;
-
-	ENTRY;
-	coda_vfs_stat.file_read++;
-
-        cnp = ITOC(coda_inode);
-        CHECK_CNODE(cnp);
-	
-        cont_inode = cnp->c_ovp;
-        if ( cont_inode == NULL ) {
-                printk("coda_file_read: cached inode is 0!\n");
-                return -1;
-        }
-
-        coda_prepare_openfile(coda_inode, coda_file, cont_inode, 
-			      &cont_file, &cont_dentry);
-
-        if (!cont_file.f_op || ! cont_file.f_op->read) { 
-                printk( "container file has no read in file operations.\n");
-                return -1;
-        }
-
-        result = cont_file.f_op->read(&cont_file , buff, count, 
-				      &(cont_file.f_pos));
-
-        CDEBUG(D_FILE, "ops at %p result %d, count %ld, position: %d\n", 
-	       cont_file.f_op, result, (long)count, (int)cont_file.f_pos);
-
-        coda_restore_codafile(coda_inode, coda_file, cont_inode, &cont_file);
-        return result;
-}
-
-
-static ssize_t coda_file_write(struct file *coda_file, const char *buff, 
-			    size_t count, loff_t *ppos)
-{
-        struct coda_inode_info *cnp;
-	struct inode *coda_inode = coda_file->f_dentry->d_inode;
-        struct inode *cont_inode = NULL;
-        struct file  cont_file;
-	struct dentry cont_dentry;
-        int result = 0;
-
-        ENTRY;
-	coda_vfs_stat.file_write++;
-
-        cnp = ITOC(coda_inode);
-        CHECK_CNODE(cnp);
-
-        cont_inode = cnp->c_ovp;
-        if ( cont_inode == NULL ) {
-                printk("coda_file_write: cached inode is 0!\n");
-                return -1; 
-        }
-
-        coda_prepare_openfile(coda_inode, coda_file, cont_inode, 
-			      &cont_file, &cont_dentry);
-
-        if (!cont_file.f_op || !cont_file.f_op->write) {
-                printk("coda_file_write: container file has no file ops.\n");
-                return -1;
-        }
-
-	down(&cont_inode->i_sem);
-        result = cont_file.f_op->write(&cont_file , buff, count, 
-				       &(cont_file.f_pos));
-	up(&cont_inode->i_sem);
-        coda_restore_codafile(coda_inode, coda_file, cont_inode, &cont_file);
-	
-	if (result)
-		cnp->c_flags |= C_VATTR;
-
-        return result;
-}
-
 int coda_fsync(struct file *coda_file, struct dentry *coda_dentry)
 {
         struct coda_inode_info *cnp;
@@ -213,12 +92,14 @@ int coda_fsync(struct file *coda_file, struct dentry *coda_dentry)
 	      S_ISLNK(coda_inode->i_mode)))
 		return -EINVAL;
 
+	lock_kernel();
         cnp = ITOC(coda_inode);
         CHECK_CNODE(cnp);
 
         cont_inode = cnp->c_ovp;
         if ( cont_inode == NULL ) {
                 printk("coda_file_write: cached inode is 0!\n");
+		unlock_kernel();
                 return -1; 
         }
 
@@ -235,6 +116,7 @@ int coda_fsync(struct file *coda_file, struct dentry *coda_dentry)
 	up(&cont_inode->i_sem);
 
         coda_restore_codafile(coda_inode, coda_file, cont_inode, &cont_file);
+	unlock_kernel();
         return result;
 }
 /* 
@@ -284,8 +166,8 @@ int coda_inode_grab(dev_t dev, ino_t ino, struct inode **ind)
         *ind = iget(sbptr, ino);
 
         if ( *ind == NULL ) {
-                printk("coda_inode_grab: iget(dev: %d, ino: %ld) 
-                       returns NULL.\n", dev, (long)ino);
+		printk("coda_inode_grab: iget(dev: %d, ino: %ld) "
+		       "returns NULL.\n", dev, (long)ino);
                 return -ENOENT;
         }
 	CDEBUG(D_FILE, "ino: %ld, ops at %p\n", (long)ino, (*ind)->i_op);

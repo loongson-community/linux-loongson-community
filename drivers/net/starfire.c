@@ -68,19 +68,8 @@ static int full_duplex[MAX_UNITS] = {-1, -1, -1, -1, -1, -1, -1, -1};
 #error You must compile this driver with "-O".
 #endif
 
-/* Include files, designed to support most kernel versions 2.0.0 and later. */
-#ifdef MODULE
-#ifdef MODVERSIONS
-#include <linux/modversions.h>
-#endif
 #include <linux/module.h>
-#else
-#define MOD_INC_USE_COUNT
-#define MOD_DEC_USE_COUNT
-#endif
-
 #include <linux/kernel.h>
-#include <linux/version.h>
 #include <linux/sched.h>
 #include <linux/string.h>
 #include <linux/timer.h>
@@ -92,6 +81,7 @@ static int full_duplex[MAX_UNITS] = {-1, -1, -1, -1, -1, -1, -1, -1};
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
+#include <linux/init.h>
 #include <asm/processor.h>		/* Processor type for cache alignment. */
 #include <asm/bitops.h>
 #include <asm/io.h>
@@ -101,7 +91,6 @@ static int full_duplex[MAX_UNITS] = {-1, -1, -1, -1, -1, -1, -1, -1};
 
 #define RUN_AT(x) (jiffies + (x))
 
-#ifdef MODULE
 MODULE_AUTHOR("Donald Becker <becker@cesdis.gsfc.nasa.gov>");
 MODULE_DESCRIPTION("Adaptec Starfire Ethernet driver");
 MODULE_PARM(max_interrupt_work, "i");
@@ -111,7 +100,6 @@ MODULE_PARM(debug, "i");
 MODULE_PARM(rx_copybreak, "i");
 MODULE_PARM(options, "1-" __MODULE_STRING(MAX_UNITS) "i");
 MODULE_PARM(full_duplex, "1-" __MODULE_STRING(MAX_UNITS) "i");
-#endif
 
 /*
 				Theory of Operation
@@ -212,11 +200,12 @@ struct pci_id_info {
 	const char *name;
 	u16	vendor_id, device_id, device_id_mask, flags;
 	int io_size;
-	struct net_device *(*probe1)(int pci_bus, int pci_devfn, long ioaddr, int irq, int chip_idx, int fnd_cnt);
+	struct net_device *(*probe1)(struct pci_dev *pdev, int pci_bus, int pci_devfn, long ioaddr, int irq, int chip_idx, int fnd_cnt);
 };
 
-static struct net_device *starfire_probe1(int pci_bus, int pci_devfn, long ioaddr,
-									  int irq, int chp_idx, int fnd_cnt);
+static struct net_device *starfire_probe1(struct pci_dev *pdev, int pci_bus,
+										  int pci_devfn, long ioaddr,
+										  int irq, int chp_idx, int fnd_cnt);
 
 #if 0
 #define ADDR_64BITS 1			/* This chip uses 64 bit addresses. */
@@ -322,25 +311,35 @@ struct tx_done_report {
 #endif
 };
 
+struct ring_info {
+	struct sk_buff *skb;
+	dma_addr_t mapping;
+};
+
 struct netdev_private {
 	/* Descriptor rings first for alignment. */
 	struct starfire_rx_desc *rx_ring;
 	struct starfire_tx_desc *tx_ring;
+	dma_addr_t rx_ring_dma;
+	dma_addr_t tx_ring_dma;
 	struct net_device *next_module;			/* Link for devices of this type. */
 	const char *product_name;
 	/* The addresses of rx/tx-in-place skbuffs. */
-	struct sk_buff* rx_skbuff[RX_RING_SIZE];
-	struct sk_buff* tx_skbuff[TX_RING_SIZE];
+	struct ring_info rx_info[RX_RING_SIZE];
+	struct ring_info tx_info[TX_RING_SIZE];
 	/* Pointers to completion queues (full pages).  I should cache line pad..*/
 	u8 pad0[100];
 	struct rx_done_desc *rx_done_q;
+	dma_addr_t rx_done_q_dma;
 	unsigned int rx_done;
 	struct tx_done_report *tx_done_q;
 	unsigned int tx_done;
+	dma_addr_t tx_done_q_dma;
 	struct net_device_stats stats;
 	struct timer_list timer;	/* Media monitoring timer. */
 	/* Frequently used values: keep some adjacent for cache effect. */
 	int chip_id;
+	struct pci_dev *pdev;
 	unsigned char pci_bus, pci_devfn;
 	unsigned int cur_rx, dirty_rx;		/* Producer/consumer ring indices */
 	unsigned int cur_tx, dirty_tx;
@@ -396,10 +395,8 @@ static int pci_etherdev_probe(struct pci_id_info pci_tbl[])
 	unsigned char pci_bus, pci_device_fn;
 	struct net_device *dev;
 
-	if ( ! pcibios_present())
-		return -ENODEV;
-
 	for (;pci_index < 0xff; pci_index++) {
+		struct pci_dev *pdev;
 		u16 vendor, device, pci_command, new_command;
 		int chip_idx, irq;
 		long pciaddr;
@@ -409,28 +406,24 @@ static int pci_etherdev_probe(struct pci_id_info pci_tbl[])
 								&pci_bus, &pci_device_fn)
 			!= PCIBIOS_SUCCESSFUL)
 			break;
-		pcibios_read_config_word(pci_bus, pci_device_fn,
-								 PCI_VENDOR_ID, &vendor);
-		pcibios_read_config_word(pci_bus, pci_device_fn,
-								 PCI_DEVICE_ID, &device);
+		pdev = pci_find_slot (pci_bus, pci_device_fn);
+		if (!pdev) continue;
+		vendor = pdev->vendor;
+		device = pdev->device;
 
 		for (chip_idx = 0; pci_tbl[chip_idx].vendor_id; chip_idx++)
 			if (vendor == pci_tbl[chip_idx].vendor_id
 				&& (device & pci_tbl[chip_idx].device_id_mask) ==
 				pci_tbl[chip_idx].device_id)
 				break;
-		if (pci_tbl[chip_idx].vendor_id == 0) 		/* Compiled out! */
+		if (pci_tbl[chip_idx].vendor_id == 0)	/* Compiled out! */
 			continue;
 
-		{
-			struct pci_dev *pdev = pci_find_slot(pci_bus, pci_device_fn);
-
-			pciaddr = pdev->resource[0].start;
+		pciaddr = pdev->resource[0].start;
 #if defined(ADDR_64BITS) && defined(__alpha__)
-			pciaddr |= ((long)pdev->base_address[1]) << 32;
+		pciaddr |= ((long)pdev->base_address[1]) << 32;
 #endif
-			irq = pdev->irq;
-		}
+		irq = pdev->irq;
 
 		if (debug > 2)
 			printk(KERN_INFO "Found %s at PCI address %#lx, IRQ %d.\n",
@@ -446,30 +439,26 @@ static int pci_etherdev_probe(struct pci_id_info pci_tbl[])
 			continue;
 		}
 
-		pcibios_read_config_word(pci_bus, pci_device_fn,
-								 PCI_COMMAND, &pci_command);
+		pci_read_config_word(pdev, PCI_COMMAND, &pci_command);
 		new_command = pci_command | (pci_tbl[chip_idx].flags & 7);
 		if (pci_command != new_command) {
 			printk(KERN_INFO "  The PCI BIOS has not enabled the"
 				   " device at %d/%d!  Updating PCI command %4.4x->%4.4x.\n",
 				   pci_bus, pci_device_fn, pci_command, new_command);
-			pcibios_write_config_word(pci_bus, pci_device_fn,
-									  PCI_COMMAND, new_command);
+			pci_write_config_word(pdev, PCI_COMMAND, new_command);
 		}
 
-		dev = pci_tbl[chip_idx].probe1(pci_bus, pci_device_fn, ioaddr,
+		dev = pci_tbl[chip_idx].probe1(pdev, pci_bus, pci_device_fn, ioaddr,
 									   irq, chip_idx, cards_found);
 
 		if (dev  && (pci_tbl[chip_idx].flags & PCI_COMMAND_MASTER)) {
 			u8 pci_latency;
-			pcibios_read_config_byte(pci_bus, pci_device_fn,
-									 PCI_LATENCY_TIMER, &pci_latency);
+			pci_read_config_byte(pdev, PCI_LATENCY_TIMER, &pci_latency);
 			if (pci_latency < min_pci_latency) {
 				printk(KERN_INFO "  PCI latency timer (CFLT) is "
 					   "unreasonably low at %d.  Setting to %d clocks.\n",
 					   pci_latency, min_pci_latency);
-				pcibios_write_config_byte(pci_bus, pci_device_fn,
-										  PCI_LATENCY_TIMER, min_pci_latency);
+				pci_write_config_byte(pdev, PCI_LATENCY_TIMER, min_pci_latency);
 			}
 		}
 		cards_found++;
@@ -478,21 +467,15 @@ static int pci_etherdev_probe(struct pci_id_info pci_tbl[])
 	return cards_found ? 0 : -ENODEV;
 }
 
-int starfire_probe(void)
-{
-	if (pci_etherdev_probe(pci_tbl) < 0)
-		return -ENODEV;
-	printk(KERN_INFO "%s" KERN_INFO "%s", versionA, versionB);
-	return 0;
-}
-
-
 static struct net_device *
-starfire_probe1(int pci_bus, int pci_devfn, long ioaddr, int irq, int chip_id, int card_idx)
+starfire_probe1(struct pci_dev *pdev, int pci_bus, int pci_devfn, long ioaddr, int irq, int chip_id, int card_idx)
 {
 	struct netdev_private *np;
 	int i, option = card_idx < MAX_UNITS ? options[card_idx] : 0;
-	struct net_device *dev = init_etherdev(NULL, sizeof(struct netdev_private));
+	struct net_device *dev = init_etherdev(NULL, 0);
+
+	if (!dev)
+		return NULL;
 
 	printk(KERN_INFO "%s: %s at 0x%lx, ",
 		   dev->name, skel_netdrv_tbl[chip_id].chip_name, ioaddr);
@@ -525,6 +508,7 @@ starfire_probe1(int pci_bus, int pci_devfn, long ioaddr, int irq, int chip_id, i
 	np->next_module = root_net_dev;
 	root_net_dev = dev;
 
+	np->pdev = pdev;
 	np->pci_bus = pci_bus;
 	np->pci_devfn = pci_devfn;
 	np->chip_id = chip_id;
@@ -549,6 +533,8 @@ starfire_probe1(int pci_bus, int pci_devfn, long ioaddr, int irq, int chip_id, i
 	/* The chip-specific entries in the device structure. */
 	dev->open = &netdev_open;
 	dev->hard_start_xmit = &start_tx;
+	dev->tx_timeout = tx_timeout;
+	dev->watchdog_timeo = TX_TIMEOUT;
 	dev->stop = &netdev_close;
 	dev->get_stats = &get_stats;
 	dev->set_multicast_list = &set_rx_mode;
@@ -617,16 +603,29 @@ static int netdev_open(struct net_device *dev)
 			   dev->name, dev->irq);
 	/* Allocate the various queues, failing gracefully. */
 	if (np->tx_done_q == 0)
-		np->tx_done_q = (struct tx_done_report *)get_free_page(GFP_KERNEL);
+		np->tx_done_q = pci_alloc_consistent(np->pdev, PAGE_SIZE, &np->tx_done_q_dma);
 	if (np->rx_done_q == 0)
-		np->rx_done_q = (struct rx_done_desc *)get_free_page(GFP_KERNEL);
+		np->rx_done_q = pci_alloc_consistent(np->pdev, PAGE_SIZE, &np->rx_done_q_dma);
 	if (np->tx_ring == 0)
-		np->tx_ring = (struct starfire_tx_desc *)get_free_page(GFP_KERNEL);
+		np->tx_ring = pci_alloc_consistent(np->pdev, PAGE_SIZE, &np->tx_ring_dma);
 	if (np->rx_ring == 0)
-		np->rx_ring = (struct starfire_rx_desc *)get_free_page(GFP_KERNEL);
+		np->rx_ring = pci_alloc_consistent(np->pdev, PAGE_SIZE, &np->rx_ring_dma);
 	if (np->tx_done_q == 0  ||  np->rx_done_q == 0
-		|| np->rx_ring == 0 ||  np->tx_ring == 0)
+		|| np->rx_ring == 0 ||  np->tx_ring == 0) {
+		if (np->tx_done_q)
+			pci_free_consistent(np->pdev, PAGE_SIZE,
+								np->tx_done_q, np->tx_done_q_dma);
+		if (np->rx_done_q)
+			pci_free_consistent(np->pdev, PAGE_SIZE,
+								np->rx_done_q, np->rx_done_q_dma);
+		if (np->tx_ring)
+			pci_free_consistent(np->pdev, PAGE_SIZE,
+								np->tx_ring, np->tx_ring_dma);
+		if (np->rx_ring)
+			pci_free_consistent(np->pdev, PAGE_SIZE,
+								np->rx_ring, np->rx_ring_dma);
 		return -ENOMEM;
+	}
 
 	MOD_INC_USE_COUNT;
 
@@ -638,18 +637,19 @@ static int netdev_open(struct net_device *dev)
 	writel(0x02000401, ioaddr + TxDescCtrl);
 
 #if defined(ADDR_64BITS) && defined(__alpha__)
-	writel(virt_to_bus(np->rx_ring) >> 32, ioaddr + RxDescQHiAddr);
-	writel(virt_to_bus(np->tx_ring) >> 32, ioaddr + TxRingHiAddr);
+	/* XXX We really need a 64-bit PCI dma interfaces too... -DaveM */
+	writel(np->rx_ring_dma >> 32, ioaddr + RxDescQHiAddr);
+	writel(np->tx_ring_dma >> 32, ioaddr + TxRingHiAddr);
 #else
 	writel(0, ioaddr + RxDescQHiAddr);
 	writel(0, ioaddr + TxRingHiAddr);
 	writel(0, ioaddr + CompletionHiAddr);
 #endif
-	writel(virt_to_bus(np->rx_ring), ioaddr + RxDescQAddr);
-	writel(virt_to_bus(np->tx_ring), ioaddr + TxRingPtr);
+	writel(np->rx_ring_dma, ioaddr + RxDescQAddr);
+	writel(np->tx_ring_dma, ioaddr + TxRingPtr);
 
-	writel(virt_to_bus(np->tx_done_q), ioaddr + TxCompletionAddr);
-	writel(virt_to_bus(np->rx_done_q), ioaddr + RxCompletionAddr);
+	writel(np->tx_done_q_dma, ioaddr + TxCompletionAddr);
+	writel(np->rx_done_q_dma, ioaddr + RxCompletionAddr);
 
 	if (debug > 1)
 		printk(KERN_DEBUG "%s:  Filling in the station address.\n", dev->name);
@@ -674,16 +674,11 @@ static int netdev_open(struct net_device *dev)
 	if (dev->if_port == 0)
 		dev->if_port = np->default_port;
 
-	dev->tbusy = 0;
-	dev->interrupt = 0;
-
 	if (debug > 1)
 		printk(KERN_DEBUG "%s:  Setting the Rx and Tx modes.\n", dev->name);
 	set_rx_mode(dev);
 
 	check_duplex(dev, 1);
-
-	dev->start = 1;
 
 	/* Set the interrupt mask and enable PCI interrupts. */
 	writel(IntrRxDone | IntrRxEmpty | IntrRxPCIErr |
@@ -794,7 +789,7 @@ static void tx_timeout(struct net_device *dev)
 
   /* Trigger an immediate transmit demand. */
 
-  dev->trans_start = jiffies;
+  netif_wake_queue(dev);
   np->stats.tx_errors++;
   return;
 }
@@ -815,12 +810,13 @@ static void init_ring(struct net_device *dev)
 	/* Fill in the Rx buffers.  Handle allocation failure gracefully. */
 	for (i = 0; i < RX_RING_SIZE; i++) {
 		struct sk_buff *skb = dev_alloc_skb(np->rx_buf_sz);
-		np->rx_skbuff[i] = skb;
+		np->rx_info[i].skb = skb;
 		if (skb == NULL)
 			break;
+		np->rx_info[i].mapping = pci_map_single(np->pdev, skb->tail, np->rx_buf_sz);
 		skb->dev = dev;			/* Mark as being used by this device. */
 		/* Grrr, we cannot offset to correctly align the IP header. */
-		np->rx_ring[i].rxaddr = cpu_to_le32(virt_to_bus(skb->tail) | RxDescValid);
+		np->rx_ring[i].rxaddr = cpu_to_le32(np->rx_info[i].mapping | RxDescValid);
 	}
 	writew(i-1, dev->base_addr + RxDescQIdx);
 	np->dirty_rx = (unsigned int)(i - RX_RING_SIZE);
@@ -828,7 +824,8 @@ static void init_ring(struct net_device *dev)
 	/* Clear the remainder of the Rx buffer ring. */
 	for (  ; i < RX_RING_SIZE; i++) {
 		np->rx_ring[i].rxaddr = 0;
-		np->rx_skbuff[i] = 0;
+		np->rx_info[i].skb = NULL;
+		np->rx_info[i].mapping = 0;
 	}
 	/* Mark the last entry as wrapping the ring. */
 	np->rx_ring[i-1].rxaddr |= cpu_to_le32(RxDescEndRing);
@@ -840,7 +837,8 @@ static void init_ring(struct net_device *dev)
 	}
 
 	for (i = 0; i < TX_RING_SIZE; i++) {
-		np->tx_skbuff[i] = 0;
+		np->tx_info[i].skb = NULL;
+		np->tx_info[i].mapping = 0;
 		np->tx_ring[i].status = 0;
 	}
 	return;
@@ -851,14 +849,7 @@ static int start_tx(struct sk_buff *skb, struct net_device *dev)
 	struct netdev_private *np = (struct netdev_private *)dev->priv;
 	unsigned entry;
 
-	/* Block a timer-based transmit from overlapping.  This could better be
-	   done with atomic_swap(1, dev->tbusy), but set_bit() works as well. */
-	if (test_and_set_bit(0, (void*)&dev->tbusy) != 0) {
-		if (jiffies - dev->trans_start < TX_TIMEOUT)
-			return 1;
-		tx_timeout(dev);
-		return 1;
-	}
+	netif_stop_queue(dev);
 
 	/* Caution: the write order is important here, set the field
 	   with the "ownership" bits last. */
@@ -866,9 +857,11 @@ static int start_tx(struct sk_buff *skb, struct net_device *dev)
 	/* Calculate the next Tx descriptor entry. */
 	entry = np->cur_tx % TX_RING_SIZE;
 
-	np->tx_skbuff[entry] = skb;
+	np->tx_info[entry].skb = skb;
+	np->tx_info[entry].mapping =
+		pci_map_single(np->pdev, skb->data, skb->len);
 
-	np->tx_ring[entry].addr = cpu_to_le32(virt_to_bus(skb->data));
+	np->tx_ring[entry].addr = cpu_to_le32(np->tx_info[entry].mapping);
 	/* Add  |TxDescIntr to generate Tx-done interrupts. */
 	np->tx_ring[entry].status = cpu_to_le32(skb->len | TxDescID);
 	if (debug > 5) {
@@ -893,7 +886,7 @@ static int start_tx(struct sk_buff *skb, struct net_device *dev)
 	if (np->cur_tx - np->dirty_tx >= TX_RING_SIZE - 1)
 		np->tx_full = 1;
 	if (! np->tx_full)
-		clear_bit(0, (void*)&dev->tbusy);
+		netif_start_queue(dev);
 	dev->trans_start = jiffies;
 
 	if (debug > 4) {
@@ -921,21 +914,6 @@ static void intr_handler(int irq, void *dev_instance, struct pt_regs *rgs)
 
 	ioaddr = dev->base_addr;
 	np = (struct netdev_private *)dev->priv;
-#if defined(__i386__)
-	/* A lock to prevent simultaneous entry bug on Intel SMP machines. */
-	if (test_and_set_bit(0, (void*)&dev->interrupt)) {
-		printk(KERN_ERR"%s: SMP simultaneous entry of an interrupt handler.\n",
-			   dev->name);
-		dev->interrupt = 0;	/* Avoid halting machine. */
-		return;
-	}
-#else
-	if (dev->interrupt) {
-		printk(KERN_ERR "%s: Re-entering the interrupt handler.\n", dev->name);
-		return;
-	}
-	dev->interrupt = 1;
-#endif
 
 	do {
 		u32 intr_status = readl(ioaddr + IntrClear);
@@ -974,11 +952,19 @@ static void intr_handler(int irq, void *dev_instance, struct pt_regs *rgs)
 				if ((tx_status & 0xe0000000) == 0xa0000000) {
 					np->stats.tx_packets++;
 				} else if ((tx_status & 0xe0000000) == 0x80000000) {
+					struct sk_buff *skb;
 					u16 entry = tx_status; 		/* Implicit truncate */
 					entry >>= 3;
+
+					skb = np->tx_info[entry].skb;
+					pci_unmap_single(np->pdev,
+									 np->tx_info[entry].mapping,
+									 skb->len);
+
 					/* Scavenge the descriptor. */
-					dev_kfree_skb(np->tx_skbuff[entry]);
-					np->tx_skbuff[entry] = 0;
+					kfree_skb(skb);
+					np->tx_info[entry].skb = NULL;
+					np->tx_info[entry].mapping = 0;
 					np->dirty_tx++;
 				}
 				np->tx_done_q[np->tx_done].status = 0;
@@ -987,10 +973,9 @@ static void intr_handler(int irq, void *dev_instance, struct pt_regs *rgs)
 			writew(np->tx_done, ioaddr + CompletionQConsumerIdx + 2);
 		}
 		if (np->tx_full && np->cur_tx - np->dirty_tx < TX_RING_SIZE - 4) {
-			/* The ring is no longer full, clear tbusy. */
+			/* The ring is no longer full, wake the queue. */
 			np->tx_full = 0;
-			clear_bit(0, (void*)&dev->tbusy);
-			mark_bh(NET_BH);
+			netif_wake_queue(dev);
 		}
 
 		/* Abnormal error summary/uncommon events handlers. */
@@ -1009,23 +994,6 @@ static void intr_handler(int irq, void *dev_instance, struct pt_regs *rgs)
 		printk(KERN_DEBUG "%s: exiting interrupt, status=%#4.4x.\n",
 			   dev->name, readl(ioaddr + IntrStatus));
 
-#ifndef final_version
-	/* Code that should never be run!  Remove after testing.. */
-	{
-		static int stopit = 10;
-		if (dev->start == 0  &&  --stopit < 0) {
-			printk(KERN_ERR "%s: Emergency stop, looping startup interrupt.\n",
-				   dev->name);
-			free_irq(irq, dev);
-		}
-	}
-#endif
-
-#if defined(__i386__)
-	clear_bit(0, (void*)&dev->interrupt);
-#else
-	dev->interrupt = 0;
-#endif
 	return;
 }
 
@@ -1074,23 +1042,24 @@ static int netdev_rx(struct net_device *dev)
 				&& (skb = dev_alloc_skb(pkt_len + 2)) != NULL) {
 				skb->dev = dev;
 				skb_reserve(skb, 2);	/* 16 byte align the IP header */
+				pci_dma_sync_single(np->pdev,
+									np->rx_info[entry].mapping,
+									pkt_len);
 #if HAS_IP_COPYSUM			/* Call copy + cksum if available. */
-				eth_copy_and_sum(skb, np->rx_skbuff[entry]->tail, pkt_len, 0);
+				eth_copy_and_sum(skb, np->rx_info[entry].skb->tail, pkt_len, 0);
 				skb_put(skb, pkt_len);
 #else
-				memcpy(skb_put(skb, pkt_len), np->rx_skbuff[entry]->tail,
+				memcpy(skb_put(skb, pkt_len), np->rx_info[entry].skb->tail,
 					   pkt_len);
 #endif
 			} else {
-				char *temp = skb_put(skb = np->rx_skbuff[entry], pkt_len);
-				np->rx_skbuff[entry] = NULL;
-#ifndef final_version				/* Remove after testing. */
-				if (bus_to_virt(le32_to_cpu(np->rx_ring[entry].rxaddr) & ~3) != temp)
-					printk(KERN_ERR "%s: Internal fault: The skbuff addresses "
-						   "do not match in netdev_rx: %p vs. %p / %p.\n",
-						   dev->name, bus_to_virt(le32_to_cpu(np->rx_ring[entry].rxaddr)),
-						   skb->head, temp);
-#endif
+				char *temp;
+
+				pci_unmap_single(np->pdev, np->rx_info[entry].mapping, np->rx_buf_sz);
+				skb = np->rx_info[entry].skb;
+				temp = skb_put(skb, pkt_len);
+				np->rx_info[entry].skb = NULL;
+				np->rx_info[entry].mapping = 0;
 			}
 #ifndef final_version				/* Remove after testing. */
 			/* You will want this info for the initial debug. */
@@ -1124,13 +1093,16 @@ static int netdev_rx(struct net_device *dev)
 	for (; np->cur_rx - np->dirty_rx > 0; np->dirty_rx++) {
 		struct sk_buff *skb;
 		int entry = np->dirty_rx % RX_RING_SIZE;
-		if (np->rx_skbuff[entry] == NULL) {
+		if (np->rx_info[entry].skb == NULL) {
 			skb = dev_alloc_skb(np->rx_buf_sz);
-			np->rx_skbuff[entry] = skb;
+			np->rx_info[entry].skb = skb;
 			if (skb == NULL)
 				break;			/* Better luck next round. */
+			np->rx_info[entry].mapping =
+				pci_map_single(np->pdev, skb->tail, np->rx_buf_sz);
 			skb->dev = dev;			/* Mark as being used by this device. */
-			np->rx_ring[entry].rxaddr = cpu_to_le32(virt_to_bus(skb->tail) | RxDescValid);
+			np->rx_ring[entry].rxaddr =
+				cpu_to_le32(np->rx_info[entry].mapping | RxDescValid);
 		}
 		if (entry == RX_RING_SIZE - 1)
 			np->rx_ring[entry].rxaddr |= cpu_to_le32(RxDescEndRing);
@@ -1184,10 +1156,8 @@ static struct enet_statistics *get_stats(struct net_device *dev)
 	/* We should lock this segment of code for SMP eventually, although
 	   the vulnerability window is very small and statistics are
 	   non-critical. */
-#if LINUX_VERSION_CODE > 0x20119
 	np->stats.tx_bytes = readl(ioaddr + 0x57010);
 	np->stats.rx_bytes = readl(ioaddr + 0x57044);
-#endif
 	np->stats.tx_packets = readl(ioaddr + 0x57000);
 	np->stats.tx_aborted_errors =
 		readl(ioaddr + 0x57024) + readl(ioaddr + 0x57028);
@@ -1313,8 +1283,7 @@ static int netdev_close(struct net_device *dev)
 	struct netdev_private *np = (struct netdev_private *)dev->priv;
 	int i;
 
-	dev->start = 0;
-	dev->tbusy = 1;
+	netif_stop_queue(dev);
 
 	if (debug > 1) {
 		printk(KERN_DEBUG "%s: Shutting down ethercard, status was Int %4.4x.\n",
@@ -1333,14 +1302,14 @@ static int netdev_close(struct net_device *dev)
 #ifdef __i386__
 	if (debug > 2) {
 		printk("\n"KERN_DEBUG"  Tx ring at %8.8x:\n",
-			   (int)virt_to_bus(np->tx_ring));
+			   np->tx_ring_dma);
 		for (i = 0; i < 8 /* TX_RING_SIZE */; i++)
 			printk(KERN_DEBUG " #%d desc. %8.8x %8.8x -> %8.8x.\n",
 				   i, le32_to_cpu(np->tx_ring[i].status),
 				   le32_to_cpu(np->tx_ring[i].addr),
 				   le32_to_cpu(np->tx_done_q[i].status));
 		printk(KERN_DEBUG "  Rx ring at %8.8x -> %p:\n",
-			   (int)virt_to_bus(np->rx_ring), np->rx_done_q);
+			   np->rx_ring_dma, np->rx_done_q);
 		if (np->rx_done_q)
 			for (i = 0; i < 8 /* RX_RING_SIZE */; i++) {
 				printk(KERN_DEBUG " #%d desc. %8.8x -> %8.8x\n",
@@ -1354,18 +1323,23 @@ static int netdev_close(struct net_device *dev)
 	/* Free all the skbuffs in the Rx queue. */
 	for (i = 0; i < RX_RING_SIZE; i++) {
 		np->rx_ring[i].rxaddr = cpu_to_le32(0xBADF00D0); /* An invalid address. */
-		if (np->rx_skbuff[i]) {
-#if LINUX_VERSION_CODE < 0x20100
-			np->rx_skbuff[i]->free = 1;
-#endif
-			dev_kfree_skb(np->rx_skbuff[i]);
+		if (np->rx_info[i].skb != NULL) {
+			pci_unmap_single(np->pdev, np->rx_info[i].mapping, np->rx_buf_sz);
+			kfree_skb(np->rx_info[i].skb);
 		}
-		np->rx_skbuff[i] = 0;
+		np->rx_info[i].skb = NULL;
+		np->rx_info[i].mapping = 0;
 	}
 	for (i = 0; i < TX_RING_SIZE; i++) {
-		if (np->tx_skbuff[i])
-			dev_kfree_skb(np->tx_skbuff[i]);
-		np->tx_skbuff[i] = 0;
+		struct sk_buff *skb = np->tx_info[i].skb;
+		if (skb != NULL) {
+			pci_unmap_single(np->pdev,
+							 np->tx_info[i].mapping,
+							 skb->len);
+			kfree_skb(skb);
+		}
+		np->tx_info[i].skb = NULL;
+		np->tx_info[i].mapping = 0;
 	}
 
 	MOD_DEC_USE_COUNT;
@@ -1373,9 +1347,7 @@ static int netdev_close(struct net_device *dev)
 	return 0;
 }
 
-
-#ifdef MODULE
-int init_module(void)
+static int __init starfire_init_module (void)
 {
 	if (debug)					/* Emit version even if no cards detected. */
 		printk(KERN_INFO "%s" KERN_INFO "%s", versionA, versionB);
@@ -1391,7 +1363,7 @@ int init_module(void)
 #endif
 }
 
-void cleanup_module(void)
+static void __exit starfire_cleanup_module (void)
 {
 	struct net_device *next_dev;
 
@@ -1406,15 +1378,27 @@ void cleanup_module(void)
 		next_dev = np->next_module;
 		unregister_netdev(root_net_dev);
 		iounmap((char *)root_net_dev->base_addr);
-		if (np->tx_done_q) free_page((long)np->tx_done_q);
-		if (np->rx_done_q) free_page((long)np->rx_done_q);
+		if (np->tx_done_q)
+			pci_free_consistent(np->pdev, PAGE_SIZE,
+								np->tx_done_q, np->tx_done_q_dma);
+		if (np->rx_done_q)
+			pci_free_consistent(np->pdev, PAGE_SIZE,
+								np->rx_done_q, np->rx_done_q_dma);
+		if (np->tx_ring)
+			pci_free_consistent(np->pdev, PAGE_SIZE,
+								np->tx_ring, np->tx_ring_dma);
+		if (np->rx_ring)
+			pci_free_consistent(np->pdev, PAGE_SIZE,
+								np->rx_ring, np->rx_ring_dma);
 		kfree(root_net_dev);
 		root_net_dev = next_dev;
 	}
 }
 
-#endif  /* MODULE */
-
+module_init(starfire_init_module);
+module_exit(starfire_cleanup_module);
+
+
 /*
  * Local variables:
  *  compile-command: "gcc -DMODULE -D__KERNEL__ -Wall -Wstrict-prototypes -O6 -c starfire.c `[ -f /usr/include/linux/modversions.h ] && echo -DMODVERSIONS`"

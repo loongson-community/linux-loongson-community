@@ -1,20 +1,13 @@
-/*
+/* $Id: entry.S,v 1.19 1999/12/08 22:05:10 harald Exp $
+ *
  * Low level exception handling
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1994, 1995 by Ralf Baechle
- *
- * $Id: entry.S,v 1.18 1999/12/06 23:13:20 ralf Exp $
- */
-
-/*
- * entry.S contains the system-call and fault low-level handling routines.
- * This also contains the timer-interrupt handler, as well as all interrupts
- * and faults that can result in a task-switch. The ISA dependent TLB
- * code is in arch/mips/<ISA-level>/<cputype>.S
+ * Copyright (C) 1994 - 2000 by Ralf Baechle
+ * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  */
 #include <linux/config.h>
 #include <linux/sys.h>
@@ -32,10 +25,6 @@
 #include <asm/unistd.h>
 #include <asm/isadep.h>
 
-/*
- * Heia ...  The %lo, %hi and %HI stuff is too strong for the ELF assembler
- * and the ABI to cope with ...
- */
 		.text
 		.align 4
 		.set	push
@@ -45,8 +34,8 @@ EXPORT(ret_from_fork)
 		jal	schedule_tail
 		j	ret_from_sys_call
 
-EXPORT(handle_bottom_half)
-		jal	do_bottom_half
+EXPORT(handle_softirq)
+		jal	do_softirq
 		b	9f
 
 reschedule:	jal	schedule 
@@ -54,10 +43,11 @@ reschedule:	jal	schedule
 EXPORT(ret_from_sys_call)
 EXPORT(ret_from_irq)
 		.type	ret_from_irq,@function
-		lw	t0,bh_mask
-		lw	t1,bh_active		# unused delay slot
-		and	t0,t1
-		bnez	t0,handle_bottom_half
+		lw	t0, softirq_state
+		lw	t1, softirq_state+4	# unused delay slot
+		and	t0, t1
+		bnez	t0, handle_softirq
+
 
 9:		lw	t0,PT_STATUS(sp)	# returning to kernel mode?
 		lw	t2, TASK_NEED_RESCHED($28)

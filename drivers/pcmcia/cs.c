@@ -62,10 +62,8 @@
 #include "cs_internal.h"
 #include "rsrc_mgr.h"
 
-#ifdef CONFIG_APM
-#include <linux/apm_bios.h>
-static int handle_apm_event(apm_event_t event);
-#endif
+#include <linux/pm.h>
+static int handle_pm_event(struct pm_dev *dev, pm_request_t rqst, void *data);
 
 #ifdef PCMCIA_DEBUG
 int pc_debug = PCMCIA_DEBUG;
@@ -84,13 +82,13 @@ static const char *version =
 #else
 #define CB_OPT ""
 #endif
-#ifdef CONFIG_APM
+#if defined(CONFIG_APM) || defined(CONFIG_ACPI)
 #define APM_OPT " [apm]"
 #else
 #define APM_OPT ""
 #endif
 #if !defined(CONFIG_CARDBUS) && !defined(CONFIG_PCI) && \
-    !defined(CONFIG_APM)
+    !defined(CONFIG_APM) && !defined(CONFIG_ACPI)
 #define OPTIONS " none"
 #else
 #define OPTIONS PCI_OPT CB_OPT APM_OPT
@@ -126,9 +124,11 @@ static int cis_speed		= 300;	/* ns */
 static int io_speed		= 0;	/* ns */
 
 /* Optional features */
-#ifdef CONFIG_APM
+#if defined(CONFIG_APM) || defined(CONFIG_ACPI)
 static int do_apm		= 1;
 MODULE_PARM(do_apm, "i");
+#else
+static int do_apm		= 0;
 #endif
 
 MODULE_PARM(setup_delay, "i");
@@ -678,22 +678,14 @@ static void parse_events(void *info, u_int events)
     
 ======================================================================*/
 
-#ifdef CONFIG_APM
-static int handle_apm_event(apm_event_t event)
+static int handle_pm_event(struct pm_dev *dev, pm_request_t rqst, void *data)
 {
     int i, stat;
     socket_info_t *s;
-    static int down = 0;
     
-    switch (event) {
-    case APM_SYS_SUSPEND:
-    case APM_USER_SUSPEND:
+    switch (rqst) {
+    case PM_SUSPEND:
 	DEBUG(1, "cs: received suspend notification\n");
-	if (down) {
-	    printk(KERN_DEBUG "cs: received extra suspend event\n");
-	    break;
-	}
-	down = 1;
 	for (i = 0; i < sockets; i++) {
 	    s = socket_table[i];
 	    if ((s->state & SOCKET_PRESENT) &&
@@ -704,14 +696,8 @@ static int handle_apm_event(apm_event_t event)
 	    }
 	}
 	break;
-    case APM_NORMAL_RESUME:
-    case APM_CRITICAL_RESUME:
+    case PM_RESUME:
 	DEBUG(1, "cs: received resume notification\n");
-	if (!down) {
-	    printk(KERN_DEBUG "cs: received bogus resume event\n");
-	    break;
-	}
-	down = 0;
 	for (i = 0; i < sockets; i++) {
 	    s = socket_table[i];
 	    /* Do this just to reinitialize the socket */
@@ -725,8 +711,7 @@ static int handle_apm_event(apm_event_t event)
 	break;
     }
     return 0;
-} /* handle_apm_event */
-#endif
+} /* handle_pm_event */
 
 /*======================================================================
 
@@ -2287,23 +2272,32 @@ int CardServices(int func, void *a1, void *a2, void *a3)
     OS-specific module glue goes here
     
 ======================================================================*/
+/* in alpha order */
 EXPORT_SYMBOL(pcmcia_access_configuration_register);
 EXPORT_SYMBOL(pcmcia_adjust_resource_info);
+EXPORT_SYMBOL(pcmcia_bind_device);
+EXPORT_SYMBOL(pcmcia_bind_mtd);
 EXPORT_SYMBOL(pcmcia_check_erase_queue);
 EXPORT_SYMBOL(pcmcia_close_memory);
 EXPORT_SYMBOL(pcmcia_copy_memory);
 EXPORT_SYMBOL(pcmcia_deregister_client);
 EXPORT_SYMBOL(pcmcia_deregister_erase_queue);
+EXPORT_SYMBOL(pcmcia_eject_card);
 EXPORT_SYMBOL(pcmcia_get_first_client);
 EXPORT_SYMBOL(pcmcia_get_card_services_info);
 EXPORT_SYMBOL(pcmcia_get_configuration_info);
+EXPORT_SYMBOL(pcmcia_get_mem_page);
 EXPORT_SYMBOL(pcmcia_get_next_client);
 EXPORT_SYMBOL(pcmcia_get_first_region);
 EXPORT_SYMBOL(pcmcia_get_first_tuple);
+EXPORT_SYMBOL(pcmcia_get_first_window);
 EXPORT_SYMBOL(pcmcia_get_next_region);
 EXPORT_SYMBOL(pcmcia_get_next_tuple);
+EXPORT_SYMBOL(pcmcia_get_next_window);
 EXPORT_SYMBOL(pcmcia_get_status);
 EXPORT_SYMBOL(pcmcia_get_tuple_data);
+EXPORT_SYMBOL(pcmcia_insert_card);
+EXPORT_SYMBOL(pcmcia_lookup_bus);
 EXPORT_SYMBOL(pcmcia_map_mem_page);
 EXPORT_SYMBOL(pcmcia_modify_configuration);
 EXPORT_SYMBOL(pcmcia_modify_window);
@@ -2317,26 +2311,20 @@ EXPORT_SYMBOL(pcmcia_release_configuration);
 EXPORT_SYMBOL(pcmcia_release_io);
 EXPORT_SYMBOL(pcmcia_release_irq);
 EXPORT_SYMBOL(pcmcia_release_window);
+EXPORT_SYMBOL(pcmcia_replace_cis);
+EXPORT_SYMBOL(pcmcia_report_error);
 EXPORT_SYMBOL(pcmcia_request_configuration);
 EXPORT_SYMBOL(pcmcia_request_io);
 EXPORT_SYMBOL(pcmcia_request_irq);
 EXPORT_SYMBOL(pcmcia_request_window);
 EXPORT_SYMBOL(pcmcia_reset_card);
+EXPORT_SYMBOL(pcmcia_resume_card);
 EXPORT_SYMBOL(pcmcia_set_event_mask);
+EXPORT_SYMBOL(pcmcia_suspend_card);
 EXPORT_SYMBOL(pcmcia_validate_cis);
 EXPORT_SYMBOL(pcmcia_write_memory);
-EXPORT_SYMBOL(pcmcia_bind_device);
-EXPORT_SYMBOL(pcmcia_bind_mtd);
-EXPORT_SYMBOL(pcmcia_report_error);
-EXPORT_SYMBOL(pcmcia_suspend_card);
-EXPORT_SYMBOL(pcmcia_resume_card);
-EXPORT_SYMBOL(pcmcia_eject_card);
-EXPORT_SYMBOL(pcmcia_insert_card);
-EXPORT_SYMBOL(pcmcia_replace_cis);
-EXPORT_SYMBOL(pcmcia_get_first_window);
-EXPORT_SYMBOL(pcmcia_get_next_window);
-EXPORT_SYMBOL(pcmcia_get_mem_page);
 
+EXPORT_SYMBOL(dead_socket);
 EXPORT_SYMBOL(register_ss_entry);
 EXPORT_SYMBOL(unregister_ss_entry);
 EXPORT_SYMBOL(CardServices);
@@ -2353,10 +2341,8 @@ static int __init init_pcmcia_cs(void)
 #endif
     printk(KERN_INFO "  %s\n", options);
     DEBUG(0, "%s\n", version);
-#ifdef CONFIG_APM
     if (do_apm)
-	apm_register_callback(&handle_apm_event);
-#endif
+	pm_register(PM_SYS_DEV, PM_SYS_PCMCIA, handle_pm_event);
 #ifdef CONFIG_PROC_FS
     proc_pccard = proc_mkdir("pccard", proc_bus);
 #endif
@@ -2371,10 +2357,8 @@ static void __exit exit_pcmcia_cs(void)
 	remove_proc_entry("pccard", proc_bus);
     }
 #endif
-#ifdef CONFIG_APM
     if (do_apm)
-	apm_unregister_callback(&handle_apm_event);
-#endif
+	pm_unregister_all(handle_pm_event);
     release_resource_db();
 }
 

@@ -29,12 +29,13 @@ extern pgd_t swapper_pg_dir[1024];
 
 #define __flush_tlb()							\
 	do {								\
-		__asm__ __volatile__					\
-			("movl %0, %%cr3;"				\
-				:					\
-				: "r" __pa(current->active_mm->pgd)	\
-				: "memory"				\
-		);							\
+		unsigned int tmpreg;					\
+									\
+		__asm__ __volatile__(					\
+			"movl %%cr3, %0;  # flush TLB \n"		\
+			"movl %0, %%cr3;              \n"		\
+			: "=r" (tmpreg)					\
+			:: "memory");					\
 	} while (0)
 
 /*
@@ -43,14 +44,16 @@ extern pgd_t swapper_pg_dir[1024];
  */
 #define __flush_tlb_global()						\
 	do {								\
+		unsigned int tmpreg;					\
+									\
 		__asm__ __volatile__(					\
-			"movl %0, %%cr4; # turn off PGE \n"		\
-			"mov %2, %%cr3;  # flush TLB \n"		\
-			"mov %1, %%cr4;  # turn PGE back on \n"		\
-			:						\
-			: "r" (mmu_cr4_features),			\
-			  "r" (mmu_cr4_features & ~X86_CR4_PGE),	\
-			  "r" (__pa(current->active_mm->pgd))		\
+			"movl %1, %%cr4;  # turn off PGE     \n"	\
+			"movl %%cr3, %0;  # flush TLB        \n"	\
+			"movl %0, %%cr3;                     \n"	\
+			"movl %2, %%cr4;  # turn PGE back on \n"	\
+			: "=r" (tmpreg)					\
+			: "r" (mmu_cr4_features & ~X86_CR4_PGE),	\
+			  "r" (mmu_cr4_features)			\
 			: "memory");					\
 	} while (0)
 
@@ -151,7 +154,7 @@ extern unsigned long empty_zero_page[1024];
 
 #define _PAGE_TABLE	(_PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED | _PAGE_DIRTY)
 #define _KERNPG_TABLE	(_PAGE_PRESENT | _PAGE_RW | _PAGE_ACCESSED | _PAGE_DIRTY)
-#define _PAGE_CHG_MASK	(PAGE_MASK | _PAGE_ACCESSED | _PAGE_DIRTY)
+#define _PAGE_CHG_MASK	(PTE_MASK | _PAGE_ACCESSED | _PAGE_DIRTY)
 
 #define PAGE_NONE	__pgprot(_PAGE_PROTNONE | _PAGE_ACCESSED)
 #define PAGE_SHARED	__pgprot(_PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED)

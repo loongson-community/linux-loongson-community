@@ -908,6 +908,8 @@ asmlinkage long sys_getrlimit(unsigned int resource, struct rlimit *rlim)
 			? -EFAULT : 0;
 }
 
+#if !defined(__ia64__)
+
 /*
  *	Back compatibility for getrlimit. Needed for some apps.
  */
@@ -926,6 +928,7 @@ asmlinkage long sys_old_getrlimit(unsigned int resource, struct rlimit *rlim)
 	return copy_to_user(rlim, &x, sizeof(x))?-EFAULT:0;
 }
 
+#endif
 
 asmlinkage long sys_setrlimit(unsigned int resource, struct rlimit *rlim)
 {

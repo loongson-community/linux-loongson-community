@@ -1,4 +1,4 @@
-/* $Id: hardirq.h,v 1.2 1999/12/04 03:59:12 ralf Exp $
+/* $Id: hardirq.h,v 1.3 2000/02/04 07:40:53 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -20,6 +20,7 @@ extern unsigned int local_irq_count[NR_CPUS];
  */
 #define in_interrupt() ({ int __cpu = smp_processor_id(); \
 	(local_irq_count[__cpu] + local_bh_count[__cpu] != 0); })
+#define in_irq() (local_irq_count[smp_processor_id()] != 0)
 
 #ifndef __SMP__
 

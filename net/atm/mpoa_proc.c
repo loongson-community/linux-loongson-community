@@ -41,9 +41,8 @@ static int parse_qos(const char *buff, int len);
  *   Define allowed FILE OPERATIONS
  */
 static struct file_operations mpc_file_operations = {
-        NULL,                   /* lseek */
-        proc_mpc_read,          /* read */
-        proc_mpc_write,         /* write */
+	read:		proc_mpc_read,
+	write:		proc_mpc_write,
 };
 
 /*
@@ -143,7 +142,7 @@ static ssize_t proc_mpc_read(struct file *file, char *buff,
 		while(eg_entry != NULL){
 		  for(i=0;i<ATM_ESA_LEN;i++){
 		          length += sprintf((char *)page + length,"%02x",eg_entry->ctrl_info.in_MPC_data_ATM_addr[i]);}  
-		        length += sprintf((char *)page + length,"\n%-16lu%s%-14lu%-15u",ntohl(eg_entry->ctrl_info.cache_id), egress_state_string(eg_entry->entry_state), (eg_entry->ctrl_info.holding_time-(now.tv_sec-eg_entry->tv.tv_sec)), eg_entry->packets_rcvd);
+		        length += sprintf((char *)page + length,"\n%-16lu%s%-14lu%-15u",(unsigned long) ntohl(eg_entry->ctrl_info.cache_id), egress_state_string(eg_entry->entry_state), (eg_entry->ctrl_info.holding_time-(now.tv_sec-eg_entry->tv.tv_sec)), eg_entry->packets_rcvd);
 			
 			/* latest IP address */
 			temp = (unsigned char *)&eg_entry->latest_ip_addr;

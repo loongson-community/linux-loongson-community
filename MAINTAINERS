@@ -561,7 +561,7 @@ S:	Maintained
 
 LINUX FOR POWERPC
 P:	Cort Dougan
-M:	cort@ppc.kernel.org
+M:	cort@fsmlabs.com
 W:	http://www.ppc.kernel.org/
 S:	Maintained
 
@@ -826,6 +826,12 @@ M:	pgmdsg@ibi.com
 L:	linux-kernel@vger.rutgers.edu
 S:	Maintained
 
+SA1100 SUPPORT
+P:	Nicolas Pitre
+M:	nico@cam.org
+L:	sa1100-linux@pa.dec.com
+S:	Maintained
+
 SBPCD CDROM DRIVER
 P:	Eberhard Moenkeberg
 M:	emoenke@gwdg.de
@@ -880,6 +886,11 @@ SMP: (except SPARC)
 P:	Linus Torvalds
 M:	torvalds@transmeta.com
 L:	linux-smp@vger.rutgers.edu
+S:	Maintained
+
+SOFTWARE RAID (Multiple Disks) SUPPORT
+P:	Ingo Molnar
+M:	mingo@redhat.com
 S:	Maintained
 
 SONIC NETWORK DRIVER

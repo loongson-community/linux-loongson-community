@@ -103,8 +103,7 @@
 /* The 'big kernel lock' */
 spinlock_t kernel_flag = SPIN_LOCK_UNLOCKED;
 
-volatile unsigned long smp_invalidate_needed; /* immediate flush required */
-unsigned int cpu_tlbbad[NR_CPUS]; /* flush before returning to user space */
+struct tlb_state cpu_tlbstate[NR_CPUS];
 
 /*
  * the following functions deal with sending IPIs between CPUs.
@@ -186,15 +185,15 @@ static inline int __prepare_ICR (unsigned int shortcut, int vector)
 	return cfg;
 }
 
-static inline int __prepare_ICR2 (unsigned int dest)
+static inline int __prepare_ICR2 (unsigned int mask)
 {
 	unsigned int cfg;
 
 	cfg = __get_ICR2();
 #if LOGICAL_DELIVERY
-	cfg |= SET_APIC_DEST_FIELD((1<<dest));
+	cfg |= SET_APIC_DEST_FIELD(mask);
 #else
-	cfg |= SET_APIC_DEST_FIELD(dest);
+	cfg |= SET_APIC_DEST_FIELD(mask);
 #endif
 
 	return cfg;
@@ -250,7 +249,7 @@ void send_IPI_self(int vector)
 	__send_IPI_shortcut(APIC_DEST_SELF, vector);
 }
 
-static inline void send_IPI_single(int dest, int vector)
+static inline void send_IPI_mask(int mask, int vector)
 {
 	unsigned long cfg;
 #if FORCE_READ_AROUND_WRITE
@@ -264,7 +263,7 @@ static inline void send_IPI_single(int dest, int vector)
 	 * prepare target chip field
 	 */
 
-	cfg = __prepare_ICR2(dest);
+	cfg = __prepare_ICR2(mask);
 	apic_write(APIC_ICR2, cfg);
 
 	/*
@@ -282,112 +281,173 @@ static inline void send_IPI_single(int dest, int vector)
 }
 
 /*
- * This is fraught with deadlocks. Probably the situation is not that
- * bad as in the early days of SMP, so we might ease some of the
- * paranoia here.
- */
-static void flush_tlb_others(unsigned int cpumask)
-{
-	int cpu = smp_processor_id();
-	int stuck;
-	unsigned long flags;
-
-	/*
-	 * it's important that we do not generate any APIC traffic
-	 * until the AP CPUs have booted up!
-	 */
-	cpumask &= cpu_online_map;
-	if (cpumask) {
-		atomic_set_mask(cpumask, &smp_invalidate_needed);
-
-		/*
-		 * Processors spinning on some lock with IRQs disabled
-		 * will see this IRQ late. The smp_invalidate_needed
-		 * map will ensure they don't do a spurious flush tlb
-		 * or miss one.
-		 */
-	
-		__save_flags(flags);
-		__cli();
-
-		send_IPI_allbutself(INVALIDATE_TLB_VECTOR);
-
-		/*
-		 * Spin waiting for completion
-		 */
-
-		stuck = 50000000;
-		while (smp_invalidate_needed) {
-			/*
-			 * Take care of "crossing" invalidates
-			 */
-			if (test_bit(cpu, &smp_invalidate_needed))
-				do_flush_tlb_local();
-
-			--stuck;
-			if (!stuck) {
-				printk("stuck on TLB IPI wait (CPU#%d)\n",cpu);
-				break;
-			}
-		}
-		__restore_flags(flags);
-	}
-}
-
-/*
  *	Smarter SMP flushing macros. 
  *		c/o Linus Torvalds.
  *
  *	These mean you can really definitely utterly forget about
  *	writing to user space from interrupts. (Its not allowed anyway).
- */	
-void flush_tlb_current_task(void)
-{
-	unsigned long vm_mask = 1 << smp_processor_id();
-	struct mm_struct *mm = current->mm;
-	unsigned long cpu_mask = mm->cpu_vm_mask & ~vm_mask;
+ *
+ *	Optimizations Manfred Spraul <manfreds@colorfullife.com>
+ */
 
-	mm->cpu_vm_mask = vm_mask;
-	flush_tlb_others(cpu_mask);
-	local_flush_tlb();
+static volatile unsigned long flush_cpumask;
+static struct mm_struct * flush_mm;
+static unsigned long flush_va;
+static spinlock_t tlbstate_lock = SPIN_LOCK_UNLOCKED;
+#define FLUSH_ALL	0xffffffff
+
+static void inline leave_mm (unsigned long cpu)
+{
+	if (cpu_tlbstate[cpu].state == TLBSTATE_OK)
+		BUG();
+	clear_bit(cpu, &cpu_tlbstate[cpu].active_mm->cpu_vm_mask);
+	cpu_tlbstate[cpu].state = TLBSTATE_OLD;
 }
 
-void flush_tlb_mm(struct mm_struct * mm)
-{
-	unsigned long vm_mask = 1 << smp_processor_id();
-	unsigned long cpu_mask = mm->cpu_vm_mask & ~vm_mask;
+/*
+ *
+ * The flush IPI assumes that a thread switch happens in this order:
+ * 1) set_bit(cpu, &new_mm->cpu_vm_mask);
+ * 2) update cpu_tlbstate
+ * [now the cpu can accept tlb flush request for the new mm]
+ * 3) change cr3 (if required, or flush local tlb,...)
+ * 4) clear_bit(cpu, &old_mm->cpu_vm_mask);
+ * 5) switch %%esp, ie current
+ *
+ * The interrupt must handle 2 special cases:
+ * - cr3 is changed before %%esp, ie. it cannot use current->{active_,}mm.
+ * - the cpu performs speculative tlb reads, i.e. even if the cpu only
+ *   runs in kernel space, the cpu could load tlb entries for user space
+ *   pages.
+ *
+ * The good news is that cpu_tlbstate is local to each cpu, no
+ * write/read ordering problems.
+ */
 
-	mm->cpu_vm_mask = 0;
-	if (current->active_mm == mm) {
-		mm->cpu_vm_mask = vm_mask;
-		local_flush_tlb();
+/*
+ * TLB flush IPI:
+ *
+ * 1) Flush the tlb entries if the cpu uses the mm that's being flushed.
+ * 2) Leave the mm if we are in the lazy tlb mode.
+ * We cannot call mmdrop() because we are in interrupt context, 
+ * instead update cpu_tlbstate.
+ */
+
+asmlinkage void smp_invalidate_interrupt (void)
+{
+	unsigned long cpu = smp_processor_id();
+
+	if (!test_bit(cpu, &flush_cpumask))
+		BUG();
+	if (flush_mm == cpu_tlbstate[cpu].active_mm) {
+		if (cpu_tlbstate[cpu].state == TLBSTATE_OK) {
+			if (flush_va == FLUSH_ALL)
+				local_flush_tlb();
+			else
+				__flush_tlb_one(flush_va);
+		} else
+			leave_mm(cpu);
+	} else {
+		extern void show_stack (void *);
+		printk("hm #1: %p, %p.\n", flush_mm, cpu_tlbstate[cpu].active_mm);
+		show_stack(NULL);
 	}
-	flush_tlb_others(cpu_mask);
+	__flush_tlb();
+	ack_APIC_irq();
+	clear_bit(cpu, &flush_cpumask);
+}
+
+static void flush_tlb_others (unsigned long cpumask, struct mm_struct *mm,
+						unsigned long va)
+{
+	/*
+	 * A couple of (to be removed) sanity checks:
+	 *
+	 * - we do not send IPIs to not-yet booted CPUs.
+	 * - current CPU must not be in mask
+	 * - mask must exist :)
+	 */
+	if (!cpumask)
+		BUG();
+	if ((cpumask & cpu_online_map) != cpumask)
+		BUG();
+	if (cpumask & (1 << smp_processor_id()))
+		BUG();
+	if (!mm)
+		BUG();
+
+	/*
+	 * i'm not happy about this global shared spinlock in the
+	 * MM hot path, but we'll see how contended it is.
+	 * Temporarily this turns IRQs off, so that lockups are
+	 * detected by the NMI watchdog.
+	 */
+	spin_lock_irq(&tlbstate_lock);
+	
+	flush_mm = mm;
+	flush_va = va;
+	atomic_set_mask(cpumask, &flush_cpumask);
+	/*
+	 * We have to send the IPI only to
+	 * CPUs affected.
+	 */
+	send_IPI_mask(cpumask, INVALIDATE_TLB_VECTOR);
+
+	while (flush_cpumask)
+		/* nothing. lockup detection does not belong here */;
+
+	flush_mm = NULL;
+	flush_va = 0;
+	spin_unlock_irq(&tlbstate_lock);
+}
+	
+void flush_tlb_current_task(void)
+{
+	struct mm_struct *mm = current->mm;
+	unsigned long cpu_mask = mm->cpu_vm_mask & ~(1 << smp_processor_id());
+
+	local_flush_tlb();
+	if (cpu_mask)
+		flush_tlb_others(cpu_mask, mm, FLUSH_ALL);
+}
+
+void flush_tlb_mm (struct mm_struct * mm)
+{
+	unsigned long cpu_mask = mm->cpu_vm_mask & ~(1 << smp_processor_id());
+
+	if (current->active_mm == mm) {
+		if (current->mm)
+			local_flush_tlb();
+		else
+			leave_mm(smp_processor_id());
+	}
+	if (cpu_mask)
+		flush_tlb_others(cpu_mask, mm, FLUSH_ALL);
 }
 
 void flush_tlb_page(struct vm_area_struct * vma, unsigned long va)
 {
-	unsigned long vm_mask = 1 << smp_processor_id();
 	struct mm_struct *mm = vma->vm_mm;
-	unsigned long cpu_mask = mm->cpu_vm_mask & ~vm_mask;
+	unsigned long cpu_mask = mm->cpu_vm_mask & ~(1 << smp_processor_id());
 
-	mm->cpu_vm_mask = 0;
 	if (current->active_mm == mm) {
-		__flush_tlb_one(va);
-		mm->cpu_vm_mask = vm_mask;
+		if(current->mm)
+			__flush_tlb_one(va);
+		 else
+		 	leave_mm(smp_processor_id());
 	}
-	flush_tlb_others(cpu_mask);
+
+	if (cpu_mask)
+		flush_tlb_others(cpu_mask, mm, va);
 }
 
 static inline void do_flush_tlb_all_local(void)
 {
-	__flush_tlb_all();
-	if (!current->mm && current->active_mm) {
-		unsigned long cpu = smp_processor_id();
+	unsigned long cpu = smp_processor_id();
 
-		clear_bit(cpu, &current->active_mm->cpu_vm_mask);
-		cpu_tlbbad[cpu] = 1;
-	}
+	__flush_tlb_all();
+	if (cpu_tlbstate[cpu].state == TLBSTATE_LAZY)
+		leave_mm(cpu);
 }
 
 static void flush_tlb_all_ipi(void* info)
@@ -410,7 +470,7 @@ void flush_tlb_all(void)
 
 void smp_send_reschedule(int cpu)
 {
-	send_IPI_single(cpu, RESCHEDULE_VECTOR);
+	send_IPI_mask(1 << cpu, RESCHEDULE_VECTOR);
 }
 
 /*
@@ -512,23 +572,6 @@ void smp_send_stop(void)
 asmlinkage void smp_reschedule_interrupt(void)
 {
 	ack_APIC_irq();
-}
-
-/*
- * Invalidate call-back.
- *
- * Mark the CPU as a VM user if there is a active
- * thread holding on to an mm at this time. This
- * allows us to optimize CPU cross-calls even in the
- * presense of lazy TLB handling.
- */
-asmlinkage void smp_invalidate_interrupt(void)
-{
-	if (test_bit(smp_processor_id(), &smp_invalidate_needed))
-		do_flush_tlb_local();
-
-	ack_APIC_irq();
-
 }
 
 asmlinkage void smp_call_function_interrupt(void)

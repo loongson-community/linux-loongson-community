@@ -557,6 +557,13 @@ CONFIG_BLK_DEV_RZ1000
 
   People with SCSI-only systems should say N here. If unsure, say Y.
 
+Cyrix CS5530 MediaGX chipset support
+CONFIG_BLK_DEV_CS5530
+  Include support for UDMA on the Cyrix MediaGX 5530 chipset. This
+  will automatically be detected and configured if found.
+
+  It is safe to say Y to this question.
+
 Generic PCI IDE chipset support
 CONFIG_BLK_DEV_IDEPCI
   Say Y here for PCI systems which use IDE drive(s).
@@ -583,7 +590,7 @@ CONFIG_BLK_DEV_IDEDMA_PCI
   It is safe to say Y to this question.
 
 Good-Bad DMA Model-Firmware (EXPERIMENTAL)
-IDEDMA_NEW_DRIVE_LISTINGS
+CONFIG_IDEDMA_NEW_DRIVE_LISTINGS
   If you say Y here, the model and firmware revision of your drive
   will be compared against a blacklist of buggy drives that claim to
   be (U)DMA capable but aren't. This is a blanket on/off test with no
@@ -711,12 +718,12 @@ CONFIG_BLK_DEV_HPT366
   Please read the comments at the top of drivers/block/hpt366.c
 
 HPT366 Fast Interrupt support (EXPERIMENTAL) (WIP)
-HPT366_FAST_IRQ_PREDICTION
+CONFIG_HPT366_FAST_IRQ_PREDICTION
 
   If unsure, say N.
 
 HPT366 mode three unsupported (EXPERIMENTAL) (WIP)
-HPT366_MODE3
+CONFIG_HPT366_MODE3
   This is an undocumented mode that the HA366 can default to in many cases.
   If unsure, say N.
 
@@ -785,7 +792,7 @@ CONFIG_BLK_DEV_PDC202XX
   If unsure, say N.
 
 Special UDMA Feature
-PDC202XX_FORCE_BURST_BIT
+CONFIG_PDC202XX_FORCE_BURST_BIT
   For PDC20246 and PDC20262 Ultra DMA chipsets. Designed originally
   for PDC20246/Ultra33 that has BIOS setup failures when using 3 or
   more cards.
@@ -795,7 +802,7 @@ PDC202XX_FORCE_BURST_BIT
   If unsure, say N.
 
 Special Mode Feature (EXPERIMENTAL)
-PDC202XX_FORCE_MASTER_MODE
+CONFIG_PDC202XX_FORCE_MASTER_MODE
   For PDC20246 and PDC20262 Ultra DMA chipsets. This is reserved for
   possible Hardware RAID 0,1 for the FastTrak Series.
 
@@ -2265,7 +2272,8 @@ CONFIG_FB
 Acorn VIDC support
 CONFIG_FB_ACORN
   This is the frame buffer device driver for the Acorn VIDC graphics
-  chipset.
+  hardware found in Acorn RISC PCs and other ARM-based machines.  If
+  unsure, say N.
 
 Apollo frame buffer device
 CONFIG_FB_APOLLO
@@ -2305,6 +2313,13 @@ CONFIG_FB_CYBER
   Cybervision 64 or plan to get one before you next recompile the
   kernel. Please note that this driver DOES NOT support the
   Cybervision 64 3D card, as they use incompatible video chips.
+
+CyberPro 20x0 support
+CONFIG_FB_CYBER2000
+  This enables support for the Integraphics CyberPro 20x0 and 5000
+  VGA chips used in the Rebel.com Netwinder and other machines.
+  Say Y if you have a NetWinder or a graphics card containing this
+  device, otherwise say N.
 
 Amiga CyberVision3D support (EXPERIMENTAL)
 CONFIG_FB_VIRGE
@@ -2426,6 +2441,14 @@ CONFIG_FB_VESA
   You will get a boot time penguin logo at no additional cost. Please
   read Documentation/fb/vesafb.txt. If unsure, say Y.
 
+VGA 16-color planar support
+CONFIG_FBCON_VGA_PLANES
+  This low level frame buffer console driver enable the kernel to use
+  the 16-color planar modes of the old VGA cards where the bits of each
+  pixel are separated into 4 plans.
+  Only answer Y here if you have an (very old) VGA card that isn't
+  VESA 2 compatible.
+
 VGA 16-color graphics console
 CONFIG_FB_VGA16
   This is the frame buffer device driver for VGA 16 color graphic
@@ -2435,6 +2458,25 @@ CONFIG_FB_VGA16
   as a module ( = code which can be inserted in and removed from the
   running kernel whenever you want), say M here and read
   Documentation/modules.txt. The module will be called vga16fb.o.
+
+VGA 8x16 font
+CONFIG_FONT_8x16
+  This is the "high resolution" font for the VGA frame buffer (the one
+  provided by the text console 80x25 mode.
+
+Support only 8 pixels wide fonts
+CONFIG_FBCON_FONTWIDTH8_ONLY
+  Answer Y here will make the kernel provide only the 8x8 fonts (these
+  are the less readable).
+
+VGA 8x8 font
+CONFIG_FONT_8x8
+  This is the "high resolution" font for the VGA frame buffer (the one
+  provided by the text console 80x50 (and higher) modes.
+  Note this is a poor quality font. The VGA 8x16 font is quite a lot
+  more readable.
+  Given the resolution provided by the frame buffer device, anwser N
+  here is safe.
 
 Backward compatibility mode for Xpmac
 CONFIG_FB_COMPAT_XPMAC
@@ -2728,6 +2770,12 @@ CONFIG_PARPORT_AX
   Say Y here if you need support for the parallel port hardware on Sun
   Ultra/AX machines. This code is also available as a module (say M),
   called parport_ax.o. If in doubt, saying N is the safe plan.
+
+Support IEEE1284 status readback
+CONFIG_PRINTER_READBACK
+  If you have a device on your parrallel port that support this protocol,
+  this option'll enable it to report its status.
+  It is safe to say Y.
 
 IEEE1284 transfer modes
 CONFIG_PARPORT_1284
@@ -3933,7 +3981,8 @@ CONFIG_ATM
   of your ATM card below.
 
   Note that you need a set of user-space programs to actually make use
-  of ATM. See the file Documentation/atm.txt for further details.
+  of ATM. See the file Documentation/networking/atm.txt for further
+  details.
 
 Classical IP over ATM
 CONFIG_ATM_CLIP
@@ -4075,11 +4124,29 @@ CONFIG_ATM_ZATM_EXACT_TS
   overhead for timer synchronization and also per-packet overhead for
   time conversion.
 
-IDT 77201 (NICStAR)
+IDT 77201/11 (NICStAR) (ForeRunnerLE)
 CONFIG_ATM_NICSTAR
   The NICStAR chipset family is used in a large number of ATM NICs for
   25 and for 155 Mbps, including IDT cards and the Fore ForeRunnerLE
   series.
+
+ForeRunner LE155 PHYsical layer
+CONFIG_ATM_NICSTAR_USE_SUNI
+  Support for the S-UNI and compatible PHYsical layer chips. These are
+  found in most 155Mbps NICStAR based ATM cards, namely in the
+  ForeRunner LE155 cards. This driver provides detection of cable
+  removal and reinsertion and provides some statistics. This driver
+  doesn't have removal capability when compiled as a module, so if you
+  need that capability don't include S-UNI support (it's not needed to
+  make the card work).
+
+ForeRunner LE25 PHYsical layer
+CONFIG_ATM_NICSTAR_USE_IDT77105
+  Support for the PHYsical layer chip in ForeRunner LE25 cards. In
+  addition to cable removal/reinsertion detection, this driver allows
+  you to control the loopback mode of the chip via a dedicated IOCTL.
+  This driver is required for proper handling of temporary carrier
+  loss, so if you have a 25Mbps NICStAR based ATM card you must say Y.
 
 Madge Ambassador (Collage PCI 155 Server)
 CONFIG_ATM_AMBASSADOR
@@ -4114,6 +4181,33 @@ CONFIG_ATM_HORIZON_DEBUG
   dynamically using an ioctl (not yet) or changed by sending the
   string "Dxxxx" to VCI 1023 (where x is a hex digit). See the file
   drivers/atm/horizon.h for the meanings of the bits in the mask.
+
+  When active, these messages can have a significant impact on the
+  speed of the driver, and the size of your syslog files! When
+  inactive, they will have only a modest impact on performance.
+
+Interphase ATM PCI x575/x525/x531 
+CONFIG_ATM_IA
+  This is a driver for the Interphase (i)ChipSAR adapter cards
+  which include a variety of variants in term of the size of the 
+  control memory (128K-1KVC, 512K-4KVC), the size of the packet 
+  memory (128K, 512K, 1M), and the PHY type (Single/Multi mode OC3, 
+  UTP155, UTP25, DS3 and E3). Go to:
+  	www.iphase.com/products/ClassSheet.cfm?ClassID=ATM
+  for more info about the cards. Say Y (or M to compile as a module 
+  named iphase.o) here if you have one of these cards.
+
+  See the file Documentation/networking/iphase.txt for further
+  details.
+
+Enable debugging messages
+CONFIG_ATM_IA_DEBUG
+  Somewhat useful debugging messages are available. The choice of
+  messages is controlled by a bitmap. This may be specified as a
+  module argument (kernel command line argument as well?), changed
+  dynamically using an ioctl (Get the debug utility, iadbg, from 
+  ftp.iphase.com/pub/atm/pci). See the file drivers/atm/iphase.h 
+  for the meanings of the bits in the mask.
 
   When active, these messages can have a significant impact on the
   speed of the driver, and the size of your syslog files! When
@@ -4161,6 +4255,18 @@ CONFIG_BLK_DEV_SD
   on a SCSI disk. In this case, do not compile the driver for your
   SCSI host adapter (below) as a module either.
 
+Extra SCSI Disks
+CONFIG_SD_EXTRA_DEVS
+  This controls the amount of additional space allocated in tables for
+  drivers that are loaded as modules after the kernel is booted.  In
+  the event that the SCSI core itself was loaded as a module, this this
+  value is the number of additional disks that can be loaded after the
+  first host driver is loaded.
+
+  Admittedly this isn't pretty, but there are tons of race conditions
+  involved with resizing the internal arrays on the fly.  Someday this
+  flag will go away, and everything will work automatically.
+
 SCSI tape support
 CONFIG_CHR_DEV_ST
   If you want to use a SCSI tape drive under Linux, say Y and read the
@@ -4175,6 +4281,18 @@ CONFIG_CHR_DEV_ST
   module, say M here and read Documentation/modules.txt and
   Documentation/scsi.txt .
 
+Extra SCSI Tapes
+CONFIG_ST_EXTRA_DEVS
+  This controls the amount of additional space allocated in tables for
+  drivers that are loaded as modules after the kernel is booted.  In the
+  event that the SCSI core itself was loaded as a module, this this value
+  is the number of additional tape devices that can be loaded after the
+  first host driver is loaded.
+
+  Admittedly this isn't pretty, but there are tons of race conditions
+  involved with resizing the internal arrays on the fly.  Someday this
+  flag will go away, and everything will work automatically.
+
 SCSI CDROM support
 CONFIG_BLK_DEV_SR
   If you want to use a SCSI CDROM under Linux, say Y and read the
@@ -4187,6 +4305,18 @@ CONFIG_BLK_DEV_SR
   The module will be called sr_mod.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt and
   Documentation/scsi.txt .
+
+Extra SCSI CDROMs
+CONFIG_SR_EXTRA_DEVS
+  This controls the amount of additional space allocated in tables for
+  drivers that are loaded as modules after the kernel is booted.  In the
+  event that the SCSI core itself was loaded as a module, this this value
+  is the number of additional CDROMs that can be loaded after the first
+  host driver is loaded.
+
+  Admittedly this isn't pretty, but there are tons of race conditions
+  involved with resizing the internal arrays on the fly.  Someday this
+  flag will go away, and everything will work automatically.
 
 Enable vendor-specific extensions (for SCSI CDROM)
 CONFIG_BLK_DEV_SR_VENDOR
@@ -7359,7 +7489,7 @@ CONFIG_DE4X5
   Documentation/networking/net-modules.txt.
 
 DECchip Tulip (dc21x4x) PCI support
-CONFIG_DEC_ELCP
+CONFIG_TULIP
   This driver is developed for the SMC EtherPower series Ethernet
   cards and also works with cards based on the DECchip
   21040/21041/21140 (Tulip series) chips. Some LinkSys PCI cards are
@@ -9492,9 +9622,9 @@ CONFIG_NLS_ISO8859_14
   from the Microsoft fat filesystem family or from JOLIET CDROMs
   correctly on the screen, you need to include the appropriate
   input/output character sets. Say Y here for the Latin 8 character
-  set, which adds the last accented vowels for Welsh (and Manx Gaelic)
-  that were missing in Latin 1. http://linux.speech.cymru.org/
-  has further information.
+  set, which adds the last accented vowels for Welsh (aka Cymraeg)
+  (and Manx Gaelic) hat were missing in Latin 1.
+  http://linux.speech.cymru.org/ has further information.
 
 nls iso8859-15
 CONFIG_NLS_ISO8859_15
@@ -10450,6 +10580,11 @@ CONFIG_APPLICOM
   applicom.o.
 
   If unsure, say N.
+
+Enter S1 for sleep (EXPERIMENTAL)
+CONFIG_ACPI_S1_SLEEP
+  This enable ACPI compliant devices to enter level 1 of ACPI saving
+  power levels. Basically, this will let them entering in sleep mode.
 
 Advanced Power Management
 CONFIG_APM
@@ -13062,7 +13197,84 @@ CONFIG_PHONE_IXJ
 
   If you do not have any Quicknet telephony cards, you can safely
   ignore this option.
- 
+
+/dev/agpgart (AGP Support) (EXPERIMENTAL)
+CONFIG_AGP
+  The agpgart kernel module is necessary to use the AGP features
+  of your 3D rendering video card.  It acts as a sort of "AGP
+  driver" for the motherboard's chipset.
+  Loading this module into the kernel will allow the glx module to
+  program the GART (graphics aperture relocation table) registers
+  with appropriate values to transfer commands to the card. 
+
+  If you need more texture memory than you can get with the AGP GART
+  (theoretically up to 256 megs, but in practice usually 64 or 128
+  megs due to kernel allocation issues), you could use PCI accesses
+  and have up to a couple gigs of texture space.
+
+  Note that this is the only meas to have get XFree4/GLX use
+  write-combining with MTRR support on AGP bus. Without, OpenGL
+  direct rendering will be a lot slower but still faster than PIO.
+
+  For the moment, most people should say no, unless you want to
+  test the GLX component which can be downloaded from
+       http://glx.on.openprojects.net/
+
+  or need to use the 810 Xserver in XFree 3.3.6
+
+Intel 440LX/BX/GX support
+CONFIG_AGP_INTEL
+  This option give you AGP support for the GLX component of the
+  "soon to be released" XFree86-4 on Intel 440LX/BX/GX chipsets.
+
+  For the moment, most people should say no, unless you want to
+  test the GLX component which can be downloaded from
+       http://glx.on.openprojects.net/
+
+Intel I810/I810 DC100/I810e support
+CONFIG_AGP_I810
+  This option give you AGP support for the Xserver for the intel
+  810 chipset boards. This is required to do any useful video
+  modes.
+
+VIA VP3/MVP3/Apollo Pro support
+CONFIG_AGP_VIA
+  This option give you AGP support for the GLX component of the
+  "soon to be released" XFree86-4 on VIA MPV3/Apollo Pro chipsets.
+
+  For the moment, most people should say no, unless you want to
+  test the GLX component which can be downloaded from
+       http://glx.on.openprojects.net/
+
+AMD Irongate support
+CONFIG_AGP_AMD
+  This option give you AGP support for the GLX component of the
+  "soon to be released" XFree86-4 on Intel AMD Irongate chipset.
+
+  For the moment, most people should say no, unless you want to
+  test the GLX component which can be downloaded from
+       http://glx.on.openprojects.net/
+
+Generic SiS support
+CONFIG_AGP_SIS
+  This option give you AGP support for the GLX component of the
+  "soon to be released" XFree86-4 on Silicon Integrated Systems [SiS]
+  chipsets.
+
+  Note than 5591/5592 AGP chipsets are NOT supported.
+
+  For the moment, most people should say no, unless you want to
+  test the GLX component which can be downloaded from
+       http://glx.on.openprojects.net/
+
+ALI M1541 support
+CONFIG_AGP_ALI
+  This option give you AGP support for the GLX component of the
+  "soon to be released" XFree86-4 on ALI M1541 chipset.
+
+  For the moment, most people should say no, unless you want to
+  test the GLX component which can be downloaded from
+       http://glx.on.openprojects.net/
 
 #
 # ARM options
@@ -13591,7 +13803,6 @@ CONFIG_KHTTPD
   The kHTTPd is experimental. Be careful when using it on a production
   machine. Also note that kHTTPd doesn't support virtual servers yet.
 
-#
 I2C support
 CONFIG_I2C
   I2C (pronounce: I-square-C) is a slow bus protocol developed by
@@ -13644,6 +13855,7 @@ CONFIG_I2C_CHARDEV
   files, usually found in the /dev directory on your system. They
   make it possible to have user-space programs use the I2C bus.
 
+#
 # A couple of things I keep forgetting:
 #   capitalize: AppleTalk, Ethernet, DOS, DMA, FAT, FTP, Internet, 
 #               Intel, IRQ, Linux, MSDOS, NetWare, NetWinder, NFS, 
@@ -13905,4 +14117,4 @@ CONFIG_I2C_CHARDEV
 # LocalWords:  adbmouse DRI DRM dlabs GMX PLCs Applicom fieldbus applicom int
 # LocalWords:  VWSND eg ESSSOLO CFU CFNR scribed eiconctrl eicon hylafax KFPU
 # LocalWords:  EXTRAPREC fpu mainboards KHTTPD kHTTPd khttpd Xcelerator
-# LocalWords:  LOGIBUSMOUSE OV511 ov511
+# LocalWords:  LOGIBUSMOUSE OV511 ov511 Integraphics

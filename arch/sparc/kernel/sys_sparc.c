@@ -1,4 +1,4 @@
-/* $Id: sys_sparc.c,v 1.59 2000/01/29 07:40:10 davem Exp $
+/* $Id: sys_sparc.c,v 1.60 2000/02/08 20:24:18 davem Exp $
  * linux/arch/sparc/kernel/sys_sparc.c
  *
  * This file contains various random system calls that
@@ -9,7 +9,6 @@
 #include <linux/errno.h>
 #include <linux/types.h>
 #include <linux/sched.h>
-#include <linux/config.h>
 #include <linux/mm.h>
 #include <linux/fs.h>
 #include <linux/file.h>

@@ -1,4 +1,4 @@
-/* $Id: entry.S,v 1.6 1999/11/23 17:12:49 ralf Exp $
+/* $Id: entry.S,v 1.4 2000/01/17 23:32:46 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -6,18 +6,14 @@
  *
  * Low level exception handling
  *
- * Copyright (C) 1994 - 1999 by Ralf Baechle
- * Copyright (C) 1999 Silicon Graphics
+ * Copyright (C) 1994 - 2000 by Ralf Baechle
+ * Copyright (C) 1999, 2000 Silicon Graphics
  */
 #include <asm/asm.h>
 #include <asm/regdef.h>
 #include <asm/mipsregs.h>
 #include <asm/stackframe.h>
 
-/*
- * Heia ...  The %lo, %hi and %HI stuff is too strong for the ELF assembler
- * and the ABI to cope with ...
- */
 		.text
 		.set	noreorder
 		.align 4
@@ -26,8 +22,8 @@ FEXPORT(ret_from_fork)
 		 move	a0, v0					# prev
 		j	ret_from_sys_call
 		 nop
-FEXPORT(handle_bottom_half)
-		jal	do_bottom_half
+FEXPORT(handle_softirq)
+		jal	do_softirq
 		 nop
 		b	9f
 		 nop
@@ -37,10 +33,15 @@ reschedule:	jal	schedule
 
 FEXPORT(ret_from_sys_call)
 FEXPORT(ret_from_irq)
-		ld	t0, bh_mask
-		ld	t1, bh_active		# unused delay slot
+#ifdef __SMP__
+#error Barffff...
+#else
+		la	t1, softirq_state
+#endif
+		lw	t0, 0 (t1)
+		lw	t1, 4 (t1)		# unused delay slot
 		and	t0, t1
-		bnez	t0, handle_bottom_half
+		bnez	t0, handle_softirq
 9:		 ld	t0, PT_STATUS(sp)	# returning to kernel mode?
 
 		andi	t1, t0, 0x10

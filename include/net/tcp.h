@@ -20,6 +20,8 @@
 
 #define TCP_DEBUG 1
 #undef  TCP_FORMAL_WINDOW
+#define TCP_MORE_COARSE_ACKS
+#undef  TCP_LESS_COARSE_ACKS
 
 #include <linux/config.h>
 #include <linux/tcp.h>
@@ -287,10 +289,10 @@ static __inline__ int tcp_sk_listen_hashfn(struct sock *sk)
 				  * TIME-WAIT timer.
 				  */
 
-#define TCP_DELACK_MAX	(HZ/2)	/* maximal time to delay before sending an ACK */
+#define TCP_DELACK_MAX	(HZ/5)	/* maximal time to delay before sending an ACK */
 #define TCP_DELACK_MIN	(2)	/* minimal time to delay before sending an ACK,
-				 * 2 scheduler ticks, not depending on HZ */
-#define TCP_ATO_MAX	((TCP_DELACK_MAX*4)/5) /* ATO producing TCP_DELACK_MAX */
+				 * 2 scheduler ticks, not depending on HZ. */
+#define TCP_ATO_MAX	(HZ/2)	/* Clamp ATO estimator at his value. */
 #define TCP_ATO_MIN	2
 #define TCP_RTO_MAX	(120*HZ)
 #define TCP_RTO_MIN	(HZ/5)
@@ -335,12 +337,14 @@ static __inline__ int tcp_sk_listen_hashfn(struct sock *sk)
    so that we select tick to get range about 4 seconds.
  */
 
-#if HZ == 100 || HZ == 128
-#define TCP_TW_RECYCLE_TICK (7+2-TCP_TW_RECYCLE_SLOTS_LOG)
+#if HZ == 20
+# define TCP_TW_RECYCLE_TICK (5+2-TCP_TW_RECYCLE_SLOTS_LOG)
+#elif HZ == 100 || HZ == 128
+# define TCP_TW_RECYCLE_TICK (7+2-TCP_TW_RECYCLE_SLOTS_LOG)
 #elif HZ == 1024
-#define TCP_TW_RECYCLE_TICK (10+2-TCP_TW_RECYCLE_SLOTS_LOG)
+# define TCP_TW_RECYCLE_TICK (10+2-TCP_TW_RECYCLE_SLOTS_LOG)
 #else
-#error HZ != 100 && HZ != 1024.
+# error HZ != 20 &&  HZ != 100 && HZ != 1024.
 #endif
 
 /*
@@ -594,11 +598,8 @@ extern int			tcp_rcv_established(struct sock *sk,
 
 static __inline__ void tcp_dec_quickack_mode(struct tcp_opt *tp)
 {
-	if (tp->ack.quick && --tp->ack.quick == 0 && !tp->ack.pingpong) {
-		/* Leaving quickack mode we deflate ATO to give peer
-		 * a time to adapt to new worse(!) RTO. It is not required
-		 * in pingpong mode, when ACKs were delayed in any case.
-		 */
+	if (tp->ack.quick && --tp->ack.quick == 0) {
+		/* Leaving quickack mode we deflate ATO. */
 		tp->ack.ato = TCP_ATO_MIN;
 	}
 }
@@ -825,12 +826,13 @@ extern __inline__ u16 tcp_select_window(struct sock *sk)
 		 * Don't update rcv_wup/rcv_wnd here or else
 		 * we will not be able to advertise a zero
 		 * window in time.  --DaveM
+		 *
+		 * Relax Will Robinson.
 		 */
 		new_win = cur_win;
-	} else {
-		tp->rcv_wnd = new_win;
-		tp->rcv_wup = tp->rcv_nxt;
 	}
+	tp->rcv_wnd = new_win;
+	tp->rcv_wup = tp->rcv_nxt;
 
 	/* RFC1323 scaling applied */
 	new_win >>= tp->rcv_wscale;
@@ -1186,7 +1188,7 @@ static __inline__ void tcp_set_state(struct sock *sk, int state)
 		/* fall through */
 	default:
 		if (oldstate==TCP_ESTABLISHED)
-			tcp_statistics[smp_processor_id()*2+!in_interrupt()].TcpCurrEstab--;
+			tcp_statistics[smp_processor_id()*2+!in_softirq()].TcpCurrEstab--;
 	}
 
 	/* Change state AFTER socket is unhashed to avoid closed

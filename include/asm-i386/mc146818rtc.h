@@ -1,8 +1,8 @@
 /*
  * Machine dependent access functions for RTC registers.
  */
-#ifndef __ASM_I386_MC146818RTC_H
-#define __ASM_I386_MC146818RTC_H
+#ifndef _I386_MC146818RTC_H
+#define _I386_MC146818RTC_H
 
 #include <asm/io.h>
 
@@ -24,4 +24,4 @@ outb_p((addr),RTC_PORT(0)); \
 outb_p((val),RTC_PORT(1)); \
 })
 
-#endif /* __ASM_I386_MC146818RTC_H */
+#endif /* _I386_MC146818RTC_H */

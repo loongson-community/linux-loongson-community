@@ -1,4 +1,4 @@
-/* $Id: mmu_context.h,v 1.41 1999/09/10 15:39:03 jj Exp $ */
+/* $Id: mmu_context.h,v 1.42 2000/02/08 07:47:03 davem Exp $ */
 #ifndef __SPARC64_MMU_CONTEXT_H
 #define __SPARC64_MMU_CONTEXT_H
 
@@ -9,6 +9,10 @@
 #include <linux/spinlock.h>
 #include <asm/system.h>
 #include <asm/spitfire.h>
+
+static inline void enter_lazy_tlb(struct mm_struct *mm, struct task_struct *tsk, unsigned cpu)
+{
+}
 
 extern spinlock_t ctx_alloc_lock;
 extern unsigned long tlb_context_cache;

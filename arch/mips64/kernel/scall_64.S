@@ -1,4 +1,4 @@
-/* $Id: scall_64.S,v 1.5 2000/01/24 01:34:16 ralf Exp $
+/* $Id: scall_64.S,v 1.6 2000/02/18 00:24:30 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -66,10 +66,10 @@ NESTED(handle_sys64, PT_SIZE, sp)
 1:	sd	v0, PT_R2(sp)		# result
 
 FEXPORT(ret_from_sys_call_64)
-	ld	t0, bh_mask
-	ld	t1, bh_active		# unused delay slot
+	lw	t0, softirq_state
+	lw	t1, softirq_state+4	# unused delay slot
 	and	t0, t1
-	bnez	t0, handle_bottom_half_64
+	bnez	t0, handle_softirq_64
 
 9:	ld	t0, PT_STATUS(sp)	# returning to kernel mode?
 	andi	t1, t0, 0x10
@@ -90,8 +90,8 @@ return_64:
 	eret
 	.set	mips0
 
-handle_bottom_half_64:
-	jal	do_bottom_half
+handle_softirq_64:
+	jal	do_softirq
 	b	9b
 reschedule_64:
 	SAVE_STATIC

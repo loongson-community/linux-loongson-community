@@ -30,6 +30,7 @@
 #include <linux/fcntl.h>
 #include <linux/poll.h>
 #include <linux/init.h>
+#include <linux/string.h>
 #if 0	/* P3 from mem.c */
 #include <linux/mm.h>
 #include <linux/vmalloc.h>
@@ -47,6 +48,8 @@
 #include <asm/sbus.h>
 #include <asm/ebus.h>
 #endif
+#include <asm/pcic.h>
+#include <asm/oplib.h>
 
 #include <asm/jsflash.h>		/* ioctl arguments. <linux/> ?? */
 #define JSFIDSZ		(sizeof(struct jsflash_ident_arg))
@@ -357,17 +360,13 @@ static int jsf_release(struct inode *inode, struct file *file)
 }
 
 static struct file_operations jsf_fops = {
-	jsf_lseek,
-	jsf_read,
-	jsf_write,
-	NULL,		/* readdir */
-	NULL,		/* poll */
-	jsf_ioctl,
-	jsf_mmap,
-	jsf_open,
-	NULL,		/* flush */
-	jsf_release,
-	NULL		/* fsync */
+	llseek:		jsf_lseek,
+	read:		jsf_read,
+	write:		jsf_write,
+	ioctl:		jsf_ioctl,
+	mmap:		jsf_mmap,
+	open:		jsf_open,
+	release:	jsf_release,
 };
 
 static struct miscdevice jsf_dev = { JSF_MINOR, "jsflash", &jsf_fops };
@@ -377,10 +376,16 @@ EXPORT_NO_SYMBOLS;
 #ifdef MODULE
 int init_module(void)
 #else
-int /* __init */ jsflash_init(void)
+int __init jsflash_init(void)
 #endif
 {
 	int rc;
+	char banner[128];
+
+	/* FIXME: Really autodetect things */
+	prom_getproperty(prom_root_node, "banner-name", banner, 128);
+	if (strcmp (banner, "JavaStation-NC") && strcmp (banner, "JavaStation-E"))
+		return -ENXIO;
 
 	/* extern enum sparc_cpu sparc_cpu_model; */ /* in <asm/system.h> */
 	if (sparc_cpu_model == sun4m && jsf0.base == 0) {

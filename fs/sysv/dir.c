@@ -30,17 +30,9 @@ static ssize_t sysv_dir_read(struct file * filp, char * buf,
 static int sysv_readdir(struct file *, void *, filldir_t);
 
 static struct file_operations sysv_dir_operations = {
-	NULL,			/* lseek - default */
-	sysv_dir_read,		/* read */
-	NULL,			/* write - bad */
-	sysv_readdir,		/* readdir */
-	NULL,			/* poll - default */
-	NULL,			/* ioctl - default */
-	NULL,			/* mmap */
-	NULL,			/* no special open code */
-	NULL,			/* flush */
-	NULL,			/* no special release code */
-	file_fsync		/* default fsync */
+	read:		sysv_dir_read,
+	readdir:	sysv_readdir,
+	fsync:		file_fsync,
 };
 
 /*
@@ -57,14 +49,6 @@ struct inode_operations sysv_dir_inode_operations = {
 	sysv_rmdir,		/* rmdir */
 	sysv_mknod,		/* mknod */
 	sysv_rename,		/* rename */
-	NULL,			/* readlink */
-	NULL,			/* follow_link */
-	NULL,			/* get_block */
-	NULL,			/* readpage */
-	NULL,			/* writepage */
-	NULL,			/* truncate */
-	NULL,			/* permission */
-	NULL			/* revalidate */
 };
 
 static int sysv_readdir(struct file * filp, void * dirent, filldir_t filldir)

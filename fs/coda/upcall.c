@@ -24,6 +24,7 @@
 #include <linux/mm.h>
 #include <linux/sched.h>
 #include <linux/fs.h>
+#include <linux/file.h>
 #include <linux/stat.h>
 #include <linux/errno.h>
 #include <linux/locks.h>
@@ -392,7 +393,7 @@ int venus_readlink(struct super_block *sb, struct ViceFid *fid,
 		if ( retlen > *length )
 		        retlen = *length;
 		*length = retlen;
-		result =  (char *)outp + (int)outp->coda_readlink.data;
+		result =  (char *)outp + (long)outp->coda_readlink.data;
 		memcpy(buffer, result, retlen);
 		*(buffer + retlen) = '\0';
 	}
@@ -541,7 +542,7 @@ int venus_pioctl(struct super_block *sb, struct ViceFid *fid,
         inp->coda_ioctl.data = (char *)(INSIZE(ioctl));
      
         /* get the data out of user space */
-        if ( copy_from_user((char*)inp + (int)inp->coda_ioctl.data,
+        if ( copy_from_user((char*)inp + (long)inp->coda_ioctl.data,
 			    data->vi.in, data->vi.in_size) ) {
 	        error = EINVAL;
 	        goto exit;
@@ -567,7 +568,7 @@ int venus_pioctl(struct super_block *sb, struct ViceFid *fid,
 		if ( error ) goto exit;
 
 		if (copy_to_user(data->vi.out, 
-				 (char *)outp + (int)outp->coda_ioctl.data, 
+				 (char *)outp + (long)outp->coda_ioctl.data, 
 				 data->vi.out_size)) {
 		        error = EINVAL;
 			goto exit;
@@ -630,7 +631,7 @@ static inline unsigned long coda_waitfor_upcall(struct upc_req *vmp)
 			set_current_state(TASK_UNINTERRUPTIBLE);
 
 		/* got a reply */
-		if ( vmp->uc_flags & REQ_WRITE )
+		if ( vmp->uc_flags & ( REQ_WRITE | REQ_ABORT ) )
 			break;
 
 		if ( !coda_hard && signal_pending(current) ) {
@@ -660,7 +661,8 @@ static inline unsigned long coda_waitfor_upcall(struct upc_req *vmp)
 	}
 
 	CDEBUG(D_SPECIAL, "begin: %ld.%06ld, elapsed: %ld.%06ld\n",
-		begin.tv_sec, begin.tv_usec, end.tv_sec, end.tv_usec);
+		begin.tv_sec, (unsigned long)begin.tv_usec,
+		end.tv_sec, (unsigned long)end.tv_usec);
 
 	return 	((end.tv_sec * 1000000) + end.tv_usec);
 }
@@ -844,7 +846,6 @@ ENTRY;
 
 int coda_downcall(int opcode, union outputArgs * out, struct super_block *sb)
 {
-
 	/* Handle invalidation requests. */
           if ( !sb || !sb->s_root || !sb->s_root->d_inode) { 
 	          printk("coda_downcall: opcode %d, no sb!\n", opcode);
@@ -877,7 +878,8 @@ int coda_downcall(int opcode, union outputArgs * out, struct super_block *sb)
 	  case CODA_ZAPDIR : {
 	          struct inode *inode;
 		  ViceFid *fid = &out->coda_zapdir.CodaFid;
-		  CDEBUG(D_DOWNCALL, "zapdir: fid = %s...\n", coda_f2s(fid));
+			CDEBUG(D_DOWNCALL, "zapdir: fid = %s...\n",
+			       coda_f2s(fid));
 		  clstats(CODA_ZAPDIR);
 
 		  inode = coda_fid_to_inode(fid, sb);
@@ -887,6 +889,7 @@ int coda_downcall(int opcode, union outputArgs * out, struct super_block *sb)
 			  coda_flag_inode_children(inode, C_PURGE);
 			  CDEBUG(D_DOWNCALL, "zapdir: inode = %ld cache cleared\n", inode->i_ino);
 	                  coda_flag_inode(inode, C_VATTR);
+				iput(inode);
 		  } else 
 			  CDEBUG(D_DOWNCALL, "zapdir: no inode\n");
 		  
@@ -897,11 +900,14 @@ int coda_downcall(int opcode, union outputArgs * out, struct super_block *sb)
 	          struct inode *inode;
 		  struct ViceFid *fid = &out->coda_zapfile.CodaFid;
 		  clstats(CODA_ZAPFILE);
-		  CDEBUG(D_DOWNCALL, "zapfile: fid = %s\n", coda_f2s(fid));
+			CDEBUG(D_DOWNCALL, "zapfile: fid = %s\n",
+			       coda_f2s(fid));
 		  inode = coda_fid_to_inode(fid, sb);
 		  if ( inode ) {
-			  CDEBUG(D_DOWNCALL, "zapfile: inode = %ld\n", inode->i_ino);
+				CDEBUG(D_DOWNCALL, "zapfile: inode = %ld\n",
+				       inode->i_ino);
 	                  coda_flag_inode(inode, C_VATTR);
+				iput(inode);
 		  } else 
 			  CDEBUG(D_DOWNCALL, "zapfile: no inode\n");
 		  return 0;
@@ -910,18 +916,61 @@ int coda_downcall(int opcode, union outputArgs * out, struct super_block *sb)
 	  case CODA_PURGEFID : {
 	          struct inode *inode;
 		  ViceFid *fid = &out->coda_purgefid.CodaFid;
-		  CDEBUG(D_DOWNCALL, "purgefid: fid = %s\n", coda_f2s(fid));
+			CDEBUG(D_DOWNCALL, "purgefid: fid = %s\n",
+			       coda_f2s(fid));
 		  clstats(CODA_PURGEFID);
 		  inode = coda_fid_to_inode(fid, sb);
 		  if ( inode ) { 
-			  CDEBUG(D_DOWNCALL, "purgefid: inode = %ld\n", inode->i_ino);
+				CDEBUG(D_DOWNCALL, "purgefid: inode = %ld\n",
+				       inode->i_ino);
 			  coda_flag_inode_children(inode, C_PURGE);
 			  coda_purge_dentries(inode);
+				iput(inode);
 		  }else 
 			  CDEBUG(D_DOWNCALL, "purgefid: no inode\n");
 		  return 0;
 	  }
 
+	case CODA_MAKE_CINODE : {
+			struct inode *inode;
+			ViceFid *fid = &out->coda_make_cinode.CodaFid;
+			struct coda_vattr *attr = &out->coda_make_cinode.attr;
+			int fd = out->coda_make_cinode.fd;
+			struct file *file;
+			CDEBUG(D_DOWNCALL, "make_cinode: fid = %s, ino = %ld\n",
+			       coda_f2s(fid), attr->va_fileid);
+
+			inode = coda_iget(sb, fid, attr);
+			if ( !inode ) { 
+				CDEBUG(D_DOWNCALL, "make_cinode: no inode\n");
+				return -EINVAL;
+			}
+
+			file = fget(fd);
+			if ( !file ) { 
+				CDEBUG(D_DOWNCALL, "make_cinode: no file\n");
+				iput(inode);
+				return -EINVAL;
+			}
+
+			inode->u.coda_i.c_ovp = file->f_dentry->d_inode;
+			inode->i_mapping = file->f_dentry->d_inode->i_mapping;
+			file->f_dentry->d_inode = inode;
+			file->f_op = &coda_file_operations;
+
+			/*
+			   Unhash the dentry of the container file, as it is
+			   still owned by the fs that stores the container
+			   file. A more reliable solution would be to create
+			   an new dentry owned by Coda, but that would require
+			   knowledge of the internals of the dcache.
+			 */
+			d_drop(file->f_dentry);
+
+			fput(file);
+			return 0;
+		}
+                              
 	  case CODA_REPLACE : {
 	          struct inode *inode;
 		  ViceFid *oldfid = &out->coda_replace.OldFid;
@@ -932,6 +981,7 @@ int coda_downcall(int opcode, union outputArgs * out, struct super_block *sb)
 		  if ( inode ) { 
 			  CDEBUG(D_DOWNCALL, "replacefid: inode = %ld\n", inode->i_ino);
 			  coda_replace_fid(inode, oldfid, newfid);
+				iput(inode);
 		  }else 
 			  CDEBUG(D_DOWNCALL, "purgefid: no inode\n");
 		  
@@ -941,5 +991,3 @@ int coda_downcall(int opcode, union outputArgs * out, struct super_block *sb)
 	  return 0;
 }
 
-
-                

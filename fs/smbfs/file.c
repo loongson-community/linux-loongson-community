@@ -260,19 +260,30 @@ out:
  * If the writer ends up delaying the write, the writer needs to
  * increment the page use counts until he is done with the page.
  */
-static int smb_write_one_page(struct file *file, struct page *page, unsigned long offset, unsigned long bytes, const char * buf)
+static int smb_prepare_write(struct page *page, unsigned offset, unsigned to)
+{
+	kmap(page);
+	return 0;
+}
+
+static int smb_commit_write(struct file *file, struct page *page, unsigned offset, unsigned to)
 {
 	int status;
 
-	bytes -= copy_from_user((u8*)page_address(page) + offset, buf, bytes);
 	status = -EFAULT;
-	if (bytes) {
-		lock_kernel();
-		status = smb_updatepage(file, page, offset, bytes);
-		unlock_kernel();
-	}
+	lock_kernel();
+	status = smb_updatepage(file, page, offset, to-offset);
+	unlock_kernel();
+	kunmap(page);
 	return status;
 }
+
+struct address_space_operations smb_file_aops = {
+	readpage: smb_readpage,
+	writepage: smb_writepage,
+	prepare_write: smb_prepare_write,
+	commit_write: smb_commit_write
+};
 
 /* 
  * Write to a file (through the page cache).
@@ -305,7 +316,7 @@ dentry->d_parent->d_name.name, dentry->d_name.name, result);
 
 	if (count > 0)
 	{
-		result = generic_file_write(file, buf, count, ppos, smb_write_one_page);
+		result = generic_file_write(file, buf, count, ppos);
 #ifdef SMBFS_DEBUG_VERBOSE
 printk("smb_file_write: pos=%ld, size=%ld, mtime=%ld, atime=%ld\n",
 (long) file->f_pos, dentry->d_inode->i_size, dentry->d_inode->i_mtime,
@@ -367,19 +378,13 @@ printk("smb_file_permission: mode=%x, mask=%x\n", mode, mask);
 
 static struct file_operations smb_file_operations =
 {
-	NULL,			/* lseek - default */
-	smb_file_read,		/* read */
-	smb_file_write,		/* write */
-	NULL,			/* readdir - bad */
-	NULL,			/* poll - default */
-	smb_ioctl,		/* ioctl */
-	smb_file_mmap,		/* mmap(struct file*, struct vm_area_struct*) */
-	smb_file_open,		/* open(struct inode*, struct file*) */
-	NULL,			/* flush */
-	smb_file_release,	/* release(struct inode*, struct file*) */
-	smb_fsync,		/* fsync(struct file*, struct dentry*) */
-	NULL,			/* fasync(struct file*, int) */
-	NULL			/* lock(struct file*, int, struct file_lock*) */
+	read:		smb_file_read,
+	write:		smb_file_write,
+	ioctl:		smb_ioctl,
+	mmap:		smb_file_mmap,
+	open:		smb_file_open,
+	release:	smb_file_release,
+	fsync:		smb_fsync,
 };
 
 struct inode_operations smb_file_inode_operations =
@@ -396,9 +401,6 @@ struct inode_operations smb_file_inode_operations =
 	NULL,			/* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow_link */
-	NULL,			/* get_block */
-	smb_readpage,		/* readpage */
-	smb_writepage,		/* writepage */
 	NULL,			/* truncate */
 	smb_file_permission,	/* permission */
 	smb_revalidate_inode,	/* revalidate */

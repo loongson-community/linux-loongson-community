@@ -4,7 +4,7 @@
  * This is the code behind /dev/parport* -- it allows a user-space
  * application to use the parport subsystem.
  *
- * Copyright (C) 1998-9 Tim Waugh <tim@cyberelk.demon.co.uk>
+ * Copyright (C) 1998-2000 Tim Waugh <tim@cyberelk.demon.co.uk>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -506,9 +506,13 @@ static int pp_open (struct inode * inode, struct file * file)
 	if (minor >= PARPORT_MAX)
 		return -ENXIO;
 
+	MOD_INC_USE_COUNT;
+
 	pp = kmalloc (sizeof (struct pp_struct), GFP_KERNEL);
-	if (!pp)
+	if (!pp) {
+		MOD_DEC_USE_COUNT;
 		return -ENOMEM;
+	}
 
 	pp->state.mode = IEEE1284_MODE_COMPAT;
 	pp->state.phase = init_phase (pp->state.mode);
@@ -524,7 +528,6 @@ static int pp_open (struct inode * inode, struct file * file)
 	pp->pdev = NULL;
 	file->private_data = pp;
 
-	MOD_INC_USE_COUNT;
 	return 0;
 }
 
@@ -567,16 +570,13 @@ static unsigned int pp_poll (struct file * file, poll_table * wait)
 }
 
 static struct file_operations pp_fops = {
-	pp_lseek,
-	pp_read,
-	pp_write,
-	NULL,	/* pp_readdir */
-	pp_poll,
-	pp_ioctl,
-	NULL,	/* pp_mmap */
-	pp_open,
-	NULL,   /* pp_flush */
-	pp_release
+	llseek:		pp_lseek,
+	read:		pp_read,
+	write:		pp_write,
+	poll:		pp_poll,
+	ioctl:		pp_ioctl,
+	open:		pp_open,
+	release:	pp_release,
 };
 
 static int __init ppdev_init (void)

@@ -58,18 +58,9 @@ const struct hfs_name hfs_cap_reserved2[] = {
 #define DOT_ROOTINFO	(&hfs_cap_reserved2[0])
 
 static struct file_operations hfs_cap_dir_operations = {
-	NULL,			/* lseek - default */
-	hfs_dir_read,		/* read - invalid */
-	NULL,			/* write - bad */
-	cap_readdir,		/* readdir */
-	NULL,			/* select - default */
-	NULL,			/* ioctl - default */
-	NULL,			/* mmap - none */
-	NULL,			/* no special open code */
-	NULL,			/* flush */
-	NULL,			/* no special release code */
-	file_fsync,		/* fsync - default */
-	NULL,			/* fasync - default */
+	read:		hfs_dir_read,
+	readdir:	cap_readdir,
+	fsync:		file_fsync,
 };
 
 struct inode_operations hfs_cap_ndir_inode_operations = {
@@ -83,56 +74,18 @@ struct inode_operations hfs_cap_ndir_inode_operations = {
 	hfs_rmdir,		/* rmdir */
 	NULL,			/* mknod */
 	hfs_rename,		/* rename */
-	NULL,			/* readlink */
-	NULL,			/* follow_link */
-	NULL,			/* get_block */
-	NULL,			/* readpage */
-	NULL,			/* writepage */
-	NULL,			/* truncate */
-	NULL,			/* permission */
-	NULL			/* revalidate */
 };
 
 struct inode_operations hfs_cap_fdir_inode_operations = {
 	&hfs_cap_dir_operations,/* default directory file-ops */
 	NULL,			/* create */
 	cap_lookup,		/* lookup */
-	NULL,			/* link */
-	NULL,			/* unlink */
-	NULL,			/* symlink */
-	NULL,			/* mkdir */
-	NULL,			/* rmdir */
-	NULL,			/* mknod */
-	NULL,			/* rename */
-	NULL,			/* readlink */
-	NULL,			/* follow_link */
-	NULL,			/* get_block */
-	NULL,			/* readpage */
-	NULL,			/* writepage */
-	NULL,			/* truncate */
-	NULL,			/* permission */
-	NULL			/* revalidate */
 };
 
 struct inode_operations hfs_cap_rdir_inode_operations = {
 	&hfs_cap_dir_operations,/* default directory file-ops */
 	hfs_create,		/* create */
 	cap_lookup,		/* lookup */
-	NULL,			/* link */
-	NULL,			/* unlink */
-	NULL,			/* symlink */
-	NULL,			/* mkdir */
-	NULL,			/* rmdir */
-	NULL,			/* mknod */
-	NULL,			/* rename */
-	NULL,			/* readlink */
-	NULL,			/* follow_link */
-	NULL,			/* get_block */
-	NULL,			/* readpage */
-	NULL,			/* writepage */
-	NULL,			/* truncate */
-	NULL,			/* permission */
-	NULL			/* revalidate */
 };
 
 /*================ File-local functions ================*/

@@ -182,29 +182,11 @@ int get_irq_list(char *buf)
  * Global interrupt locks for SMP. Allow interrupts to come in on any
  * CPU, yet make cli/sti act globally to protect critical regions..
  */
-spinlock_t i386_bh_lock = SPIN_LOCK_UNLOCKED;
 
 #ifdef CONFIG_SMP
 unsigned char global_irq_holder = NO_PROC_ID;
 unsigned volatile int global_irq_lock;
 atomic_t global_irq_count;
-
-atomic_t global_bh_count;
-atomic_t global_bh_lock;
-
-/*
- * "global_cli()" is a special case, in that it can hold the
- * interrupts disabled for a longish time, and also because
- * we may be doing TLB invalidates when holding the global
- * IRQ lock for historical reasons. Thus we may need to check
- * SMP invalidate events specially by hand here (but not in
- * any normal spinlocks)
- */
-static inline void check_smp_invalidate(int cpu)
-{
-	if (test_bit(cpu, &smp_invalidate_needed))
-		do_flush_tlb_local();
-}
 
 static void show(char * str)
 {
@@ -216,7 +198,7 @@ static void show(char * str)
 	printk("irq:  %d [%d %d]\n",
 		atomic_read(&global_irq_count), local_irq_count[0], local_irq_count[1]);
 	printk("bh:   %d [%d %d]\n",
-		atomic_read(&global_bh_count), local_bh_count[0], local_bh_count[1]);
+		spin_is_locked(&global_bh_lock) ? 1 : 0, local_bh_count[0], local_bh_count[1]);
 	stack = (unsigned long *) &stack;
 	for (i = 40; i ; i--) {
 		unsigned long x = *++stack;
@@ -227,18 +209,6 @@ static void show(char * str)
 }
 	
 #define MAXCOUNT 100000000
-
-static inline void wait_on_bh(void)
-{
-	int count = MAXCOUNT;
-	do {
-		if (!--count) {
-			show("wait_on_bh");
-			count = ~0;
-		}
-		/* nothing .. wait for the other bh's to go away */
-	} while (atomic_read(&global_bh_count) != 0);
-}
 
 /*
  * I had a lockup scenario where a tight loop doing
@@ -279,7 +249,7 @@ static inline void wait_on_irq(int cpu)
 		 * already executing in one..
 		 */
 		if (!atomic_read(&global_irq_count)) {
-			if (local_bh_count[cpu] || !atomic_read(&global_bh_count))
+			if (local_bh_count[cpu] || !spin_is_locked(&global_bh_lock))
 				break;
 		}
 
@@ -294,31 +264,16 @@ static inline void wait_on_irq(int cpu)
 			__sti();
 			SYNC_OTHER_CORES(cpu);
 			__cli();
-			check_smp_invalidate(cpu);
 			if (atomic_read(&global_irq_count))
 				continue;
 			if (global_irq_lock)
 				continue;
-			if (!local_bh_count[cpu] && atomic_read(&global_bh_count))
+			if (!local_bh_count[cpu] && spin_is_locked(&global_bh_lock))
 				continue;
 			if (!test_and_set_bit(0,&global_irq_lock))
 				break;
 		}
 	}
-}
-
-/*
- * This is called when we want to synchronize with
- * bottom half handlers. We need to wait until
- * no other CPU is executing any bottom half handler.
- *
- * Don't wait if we're already running in an interrupt
- * context or are inside a bh handler. 
- */
-void synchronize_bh(void)
-{
-	if (atomic_read(&global_bh_count) && !in_interrupt())
-		wait_on_bh();
 }
 
 /*
@@ -346,7 +301,6 @@ static inline void get_irqlock(int cpu)
 		/* Uhhuh.. Somebody else got it. Wait.. */
 		do {
 			do {
-				check_smp_invalidate(cpu);
 			} while (test_bit(0,&global_irq_lock));
 		} while (test_and_set_bit(0,&global_irq_lock));		
 	}
@@ -621,16 +575,8 @@ asmlinkage unsigned int do_IRQ(struct pt_regs regs)
 		desc->handler->end(irq);
 	spin_unlock(&irq_controller_lock);
 
-	/*
-	 * This should be conditional: we should really get
-	 * a return code from the irq handler to tell us
-	 * whether the handler wants us to do software bottom
-	 * half handling or not..
-	 */
-	if (1) {
-		if (bh_active & bh_mask)
-			do_bottom_half();
-	}
+	if (softirq_state[cpu].active&softirq_state[cpu].mask)
+		do_softirq();
 	return 1;
 }
 

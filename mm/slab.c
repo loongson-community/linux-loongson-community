@@ -114,7 +114,7 @@
 /* If there is a different PAGE_SIZE around, and it works with this allocator,
  * then change the following.
  */
-#if	(PAGE_SIZE != 8192 && PAGE_SIZE != 4096 && PAGE_SIZE != 32768)
+#if	(PAGE_SIZE != 8192 && PAGE_SIZE != 4096 && PAGE_SIZE != 16384 && PAGE_SIZE != 32768)
 #error	Your page size is probably not correctly supported - please check
 #endif
 
@@ -1880,11 +1880,10 @@ next:
 	} while (--scan && searchp != clock_searchp);
 
 	clock_searchp = searchp;
-	up(&cache_chain_sem);
 
 	if (!best_cachep) {
 		/* couldn't find anything to reap */
-		return;
+		goto out;
 	}
 
 	spin_lock_irq(&best_cachep->c_spinlock);
@@ -1918,6 +1917,8 @@ good_dma:
 	}
 dma_fail:
 	spin_unlock_irq(&best_cachep->c_spinlock);
+out:
+	up(&cache_chain_sem);
 	return;
 }
 
@@ -2006,14 +2007,14 @@ get_slabinfo(char *buf)
 		unsigned long allocs = cachep->c_num_allocations;
 		errors = (unsigned long) atomic_read(&cachep->c_errors);
 		spin_unlock_irqrestore(&cachep->c_spinlock, save_flags);
-		len += sprintf(buf+len, "%-16s %6lu %6lu %4lu %4lu %4lu %6lu %7lu %5lu %4lu %4lu\n",
-				cachep->c_name, active_objs, num_objs, active_slabs, num_slabs,
+		len += sprintf(buf+len, "%-16s %6lu %6lu %6lu %4lu %4lu %4lu %6lu %7lu %5lu %4lu %4lu\n",
+				cachep->c_name, active_objs, num_objs, cachep->c_offset, active_slabs, num_slabs,
 				(1<<cachep->c_gfporder)*num_slabs,
 				high, allocs, grown, reaped, errors);
 		}
 #else
 		spin_unlock_irqrestore(&cachep->c_spinlock, save_flags);
-		len += sprintf(buf+len, "%-17s %6lu %6lu\n", cachep->c_name, active_objs, num_objs);
+		len += sprintf(buf+len, "%-17s %6lu %6lu %6lu\n", cachep->c_name, active_objs, num_objs, cachep->c_offset);
 #endif	/* SLAB_STATS */
 	} while ((cachep = cachep->c_nextp) != &cache_cache);
 	up(&cache_chain_sem);

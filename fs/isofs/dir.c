@@ -28,16 +28,7 @@ static int isofs_readdir(struct file *, void *, filldir_t);
 
 static struct file_operations isofs_dir_operations =
 {
-	NULL,			/* lseek - default */
-	NULL,			/* read */
-	NULL,			/* write - bad */
-	isofs_readdir,		/* readdir */
-	NULL,			/* poll - default */
-	NULL,			/* ioctl - default */
-	NULL,			/* no special open code */
-	NULL,			/* flush */
-	NULL,			/* no special release code */
-	NULL			/* fsync */
+	readdir:	isofs_readdir,
 };
 
 /*
@@ -48,21 +39,6 @@ struct inode_operations isofs_dir_inode_operations =
 	&isofs_dir_operations,	/* default directory file-ops */
 	NULL,			/* create */
 	isofs_lookup,		/* lookup */
-	NULL,			/* link */
-	NULL,			/* unlink */
-	NULL,			/* symlink */
-	NULL,			/* mkdir */
-	NULL,			/* rmdir */
-	NULL,			/* mknod */
-	NULL,			/* rename */
-	NULL,			/* readlink */
-	NULL,			/* follow_link */
-	NULL,			/* get_block */
-	NULL,			/* readpage */
-	NULL,			/* writepage */
-	NULL,			/* truncate */
-	NULL,			/* permission */
-	NULL			/* revalidate */
 };
 
 static int isofs_name_translate(char * old, int len, char * new)

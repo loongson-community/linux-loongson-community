@@ -1,4 +1,4 @@
-/* $Id: pgalloc.h,v 1.1 2000/02/04 07:40:53 ralf Exp $
+/* $Id: pgalloc.h,v 1.2 2000/02/13 20:52:06 harald Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -39,6 +39,9 @@ extern void flush_tlb_mm(struct mm_struct *mm);
 extern void flush_tlb_range(struct mm_struct *mm, unsigned long start,
 			       unsigned long end);
 extern void flush_tlb_page(struct vm_area_struct *vma, unsigned long page);
+extern inline void flush_tlb_pgtables(struct mm_struct *mm, unsigned long start,
+                                  unsigned long end);
+
 
 /*
  * Allocate and free page tables. The xxx_kernel() versions are

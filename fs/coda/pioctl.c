@@ -46,26 +46,15 @@ struct inode_operations coda_ioctl_inode_operations =
 	NULL,		        /* rename */
 	NULL,	                /* readlink */
 	NULL,	                /* follow_link */
-	NULL,		        /* get_block */
-	NULL,	                /* readpage */
-	NULL,		        /* writepage */
 	NULL,	                /* truncate */
 	coda_ioctl_permission,  /* permission */
         NULL                    /* revalidate */
 };
 
 struct file_operations coda_ioctl_operations = {
-	NULL,		        /* lseek - default should work for coda */
-	NULL,                   /* read */
-	NULL,                   /* write */
-	NULL,          		/* readdir */
-	NULL,			/* select - default */
-	coda_pioctl,	        /* ioctl */
-	NULL,                   /* mmap */
-	coda_ioctl_open,        /* open */
-	NULL,
-	coda_ioctl_release,     /* release */
-	NULL,		        /* fsync */
+	ioctl:		coda_pioctl,
+	open:		coda_ioctl_open,
+	release:	coda_ioctl_release,
 };
 
 /* the coda pioctl inode ops */
@@ -79,7 +68,6 @@ static int coda_ioctl_permission(struct inode *inode, int mask)
 /* The pioctl file ops*/
 int coda_ioctl_open(struct inode *i, struct file *f)
 {
-
         ENTRY;
 
         CDEBUG(D_PIOCTL, "File inode number: %ld\n", 

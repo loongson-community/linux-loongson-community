@@ -1,4 +1,4 @@
-/* $Id: inode.c,v 1.3 2000/01/04 10:02:29 jj Exp $
+/* $Id: inode.c,v 1.4 2000/02/09 22:35:50 davem Exp $
  * openpromfs.c: /proc/openprom handling routines
  *
  * Copyright (C) 1996-1999 Jakub Jelinek  (jakub@redhat.com)
@@ -553,17 +553,9 @@ int property_release (struct inode *inode, struct file *filp)
 }
 
 static struct file_operations openpromfs_prop_ops = {
-	NULL,			/* lseek - default */
-	property_read,		/* read */
-	property_write,		/* write - bad */
-	NULL,			/* readdir */
-	NULL,			/* poll - default */
-	NULL,			/* ioctl - default */
-	NULL,			/* mmap */
-	NULL,			/* no special open code */
-	NULL,			/* flush */
-	property_release,	/* no special release code */
-	NULL			/* can't fsync */
+	read:		property_read,
+	write:		property_write,
+	release:	property_release,
 };
 
 static struct inode_operations openpromfs_prop_inode_ops = {
@@ -571,17 +563,7 @@ static struct inode_operations openpromfs_prop_inode_ops = {
 };
 
 static struct file_operations openpromfs_nodenum_ops = {
-	NULL,			/* lseek - default */
-	nodenum_read,		/* read */
-	NULL,			/* write - bad */
-	NULL,			/* readdir */
-	NULL,			/* poll - default */
-	NULL,			/* ioctl - default */
-	NULL,			/* mmap */
-	NULL,			/* no special open code */
-	NULL,			/* flush */
-	NULL,			/* no special release code */
-	NULL			/* can't fsync */
+	read:		nodenum_read,
 };
 
 static struct inode_operations openpromfs_nodenum_inode_ops = {
@@ -589,17 +571,7 @@ static struct inode_operations openpromfs_nodenum_inode_ops = {
 };
 
 static struct file_operations openprom_alias_operations = {
-	NULL,			/* lseek - default */
-	NULL,			/* read - bad */
-	NULL,			/* write - bad */
-	openpromfs_readdir,	/* readdir */
-	NULL,			/* poll - default */
-	NULL,			/* ioctl - default */
-	NULL,			/* mmap */
-	NULL,			/* no special open code */
-	NULL,			/* flush */
-	NULL,			/* no special release code */
-	NULL			/* can't fsync */
+	readdir:	openpromfs_readdir,
 };
 
 static struct inode_operations openprom_alias_inode_operations = {
@@ -608,19 +580,6 @@ static struct inode_operations openprom_alias_inode_operations = {
 	openpromfs_lookup,	/* lookup */
 	NULL,			/* link */
 	openpromfs_unlink,	/* unlink */
-	NULL,			/* symlink */
-	NULL,			/* mkdir */
-	NULL,			/* rmdir */
-	NULL,			/* mknod */
-	NULL,			/* rename */
-	NULL,			/* readlink */
-	NULL,			/* follow_link */
-	NULL,			/* get_block */
-	NULL,			/* readpage */
-	NULL,			/* writepage */
-	NULL,			/* truncate */
-	NULL,			/* permission */
-	NULL			/* revalidate */
 };
 
 extern struct inode_operations openprom_inode_operations;
@@ -1019,10 +978,7 @@ static u16 get_nodes (u16 parent, u32 node)
 
 
 static struct file_operations openprom_operations = {
-	NULL,			/* lseek - default */
-	NULL,			/* read - bad */
-	NULL,			/* write - bad */
-	openpromfs_readdir,	/* readdir */
+	readdir:	openpromfs_readdir,
 };
 
 static struct inode_operations openprom_inode_operations = {

@@ -21,6 +21,8 @@
  *    Steve Whitehouse:  Now handles returned conninit frames.
  *     David S. Miller:  New socket locking
  *    Steve Whitehouse:  Fixed lockup when socket filtering was enabled.
+ *         Paul Koning:  Fix to push CC sockets into RUN when acks are
+ *                       received.
  */
 
 /******************************************************************************
@@ -400,7 +402,7 @@ out:
 }
 
 /*
- * Copy of sock_queue_rcv_skb (from sock.h) with out
+ * Copy of sock_queue_rcv_skb (from sock.h) without
  * bh_lock_sock() (its already held when this is called) which
  * also allows data and other data to be queued to a socket.
  */
@@ -409,7 +411,6 @@ static __inline__ int dn_queue_skb(struct sock *sk, struct sk_buff *skb, int sig
 #ifdef CONFIG_FILTER
 	struct sk_filter *filter;
 #endif
-	unsigned long flags;
 
         /* Cast skb->rcvbuf to unsigned... It's pointless, but reduces
            number of warnings when compiling with -W --ANK
@@ -431,7 +432,10 @@ static __inline__ int dn_queue_skb(struct sock *sk, struct sk_buff *skb, int sig
         skb_set_owner_r(skb, sk);
         skb_queue_tail(queue, skb);
 
-	read_lock_irqsave(&sk->callback_lock, flags);
+	/* This code only runs from BH or BH protected context.
+	 * Therefore the plain read_lock is ok here. -DaveM
+	 */
+	read_lock(&sk->callback_lock);
         if (!sk->dead) {
 		struct socket *sock = sk->socket;
 		wake_up_interruptible(sk->sleep);
@@ -439,7 +443,7 @@ static __inline__ int dn_queue_skb(struct sock *sk, struct sk_buff *skb, int sig
 			kill_fasync(sock->fasync_list, sig, 
 				    (sig == SIGURG) ? POLL_PRI : POLL_IN);
 	}
-	read_unlock_irqrestore(&sk->callback_lock, flags);
+	read_unlock(&sk->callback_lock);
 
         return 0;
 }
@@ -616,7 +620,6 @@ got_it:
 	if (sk != NULL) {
 		struct dn_scp *scp = &sk->protinfo.dn;
 		int ret;
-		/* printk(KERN_DEBUG "dn_nsp_rx: Found a socket\n"); */
 
 		/* Reset backoff */
 		scp->nsp_rxtshift = 0;
@@ -691,6 +694,13 @@ int dn_nsp_backlog_rcv(struct sock *sk, struct sk_buff *skb)
 	} else {
 		int other = 1;
 
+		/* both data and ack frames can kick a CC socket into RUN */
+		if ((scp->state == DN_CC) && !sk->dead) {
+			scp->state = DN_RUN;
+			sk->state = TCP_ESTABLISHED;
+			sk->state_change(sk);
+		}
+
 		if ((cb->nsp_flags & 0x1c) == 0)
 			other = 0;
 		if (cb->nsp_flags == 0x04)
@@ -706,16 +716,9 @@ int dn_nsp_backlog_rcv(struct sock *sk, struct sk_buff *skb)
 		/*
 		 * If we've some sort of data here then call a
 		 * suitable routine for dealing with it, otherwise
-		 * the packet is an ack and can be discarded. All
-		 * data frames can also kick a CC socket into RUN.
+		 * the packet is an ack and can be discarded.
 		 */
 		if ((cb->nsp_flags & 0x0c) == 0) {
-
-			if ((scp->state == DN_CC) && !sk->dead) {
-				scp->state = DN_RUN;
-				sk->state = TCP_ESTABLISHED;
-				sk->state_change(sk);
-			}
 
 			if (scp->state != DN_RUN)
 				goto free_out;

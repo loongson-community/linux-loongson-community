@@ -405,44 +405,14 @@ static struct dentry *ntfs_lookup(struct inode *dir, struct dentry *d)
 }
 
 static struct file_operations ntfs_file_operations_nommap = {
-	NULL, /* lseek */
-	ntfs_read,
+	read:		ntfs_read,
 #ifdef CONFIG_NTFS_RW
-	ntfs_write,
-#else
-	NULL,
+	write:		ntfs_write,
 #endif
-	NULL, /* readdir */
-	NULL, /* select */
-	NULL, /* ioctl */
-	NULL, /* mmap */
-	NULL, /* open */
-	NULL, /* flush */
-	NULL, /* release */
-	NULL, /* fsync */
-	NULL, /* fasync */
-	NULL, /* lock */
 };
 
 static struct inode_operations ntfs_inode_operations_nobmap = {
 	&ntfs_file_operations_nommap,
-	NULL, /* create */
-	NULL, /* lookup */
-	NULL, /* link */
-	NULL, /* unlink */
-	NULL, /* symlink */
-	NULL, /* mkdir */
-	NULL, /* rmdir */
-	NULL, /* mknod */
-	NULL, /* rename */
-	NULL, /* readlink */
-	NULL, /* follow_link */
-	NULL, /* get_block */
-	NULL, /* readpage */
-	NULL, /* writepage */
-	NULL, /* truncate */
-	NULL, /* permission */
-	NULL, /* revalidate */
 };
 
 #ifdef CONFIG_NTFS_RW
@@ -583,52 +553,28 @@ ntfs_bmap(struct inode *ino,int block)
 	return (ret==-1) ? 0:ret;
 }
 
+/* It's fscking broken. */
+
+static int ntfs_get_block(struct inode *inode, long block, struct buffer_head *bh, int create)
+{
+	BUG();
+	return -1;
+}
+
 static struct file_operations ntfs_file_operations = {
-	NULL, /* lseek */
-	ntfs_read,
+	read:		ntfs_read,
+	mmap:		generic_file_mmap,
 #ifdef CONFIG_NTFS_RW
-	ntfs_write,
-#else
-	NULL,
+	write:		ntfs_write,
 #endif
-	NULL, /* readdir */
-	NULL, /* select */
-	NULL, /* ioctl */
-	generic_file_mmap,
-	NULL, /* open */
-	NULL, /* flush */
-	NULL, /* release */
-	NULL, /* fsync */
-	NULL, /* fasync */
-	NULL, /* lock */
 };
 
 static struct inode_operations ntfs_inode_operations = {
 	&ntfs_file_operations,
-	NULL, /* create */
-	NULL, /* lookup */
-	NULL, /* link */
-	NULL, /* unlink */
-	NULL, /* symlink */
-	NULL, /* mkdir */
-	NULL, /* rmdir */
-	NULL, /* mknod */
-	NULL, /* rename */
-	NULL, /* readlink */
-	NULL, /* follow_link */
-	ntfs_bmap, /* get_block */
-	block_read_full_page, /* readpage */
-	NULL, /* writepage */
-	NULL, /* truncate */
-	NULL, /* permission */
-	NULL, /* revalidate */
 };
 
 static struct file_operations ntfs_dir_operations = {
-	NULL, /* lseek */
-	NULL, /* read */
-	NULL, /* write */
-	ntfs_readdir, /* readdir */
+	readdir:	ntfs_readdir,
 };
 
 static struct inode_operations ntfs_dir_inode_operations = {
@@ -650,16 +596,32 @@ static struct inode_operations ntfs_dir_inode_operations = {
 	NULL, /* rmdir */
 	NULL, /* mknod */
 	NULL, /* rename */
-	NULL, /* readlink */
-	NULL, /* follow_link */
-	NULL, /* get_block */
-	NULL, /* readpage */
-	NULL, /* writepage */
-	NULL, /* truncate */
-	NULL, /* permission */
-	NULL, /* revalidate */
 };
 
+static int ntfs_writepage(struct dentry *dentry, struct page *page)
+{
+	return block_write_full_page(page,ntfs_get_block);
+}
+static int ntfs_readpage(struct dentry *dentry, struct page *page)
+{
+	return block_read_full_page(page,ntfs_get_block);
+}
+static int ntfs_prepare_write(struct page *page, unsigned from, unsigned to)
+{
+	return cont_prepare_write(page,from,to,ntfs_get_block,
+		&((struct inode*)page->mapping->host)->u.ntfs_i.mmu_private);
+}
+static int _ntfs_bmap(struct address_space *mapping, long block)
+{
+	return generic_block_bmap(mapping,block,ntfs_get_block);
+}
+struct address_space_operations ntfs_aops = {
+	readpage: ntfs_readpage,
+	writepage: ntfs_writepage,
+	prepare_write: ntfs_prepare_write,
+	commit_write: generic_commit_write,
+	bmap: _ntfs_bmap
+};
 /* ntfs_read_inode is called by the Virtual File System (the kernel layer that
  * deals with filesystems) when iget is called requesting an inode not already
  * present in the inode table. Typically filesystems have separate
@@ -735,8 +697,13 @@ static void ntfs_read_inode(struct inode* inode)
 	}
 	else
 	{
-		inode->i_op=can_mmap ? &ntfs_inode_operations : 
-			&ntfs_inode_operations_nobmap;
+		if (can_mmap) {
+			inode->i_op = &ntfs_inode_operations;
+			inode->i_mapping->a_ops = &ntfs_aops;
+			inode->u.ntfs_i.mmu_private = inode->i_size;
+		} else {
+			inode->i_op=&ntfs_inode_operations_nobmap;
+		}
 		inode->i_mode=S_IFREG|S_IRUGO;
 	}
 #ifdef CONFIG_NTFS_RW

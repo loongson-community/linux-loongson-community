@@ -63,19 +63,9 @@ const struct hfs_name hfs_nat_reserved2[] = {
 #define ROOTINFO        (&hfs_nat_reserved2[0])
 
 static struct file_operations hfs_nat_dir_operations = {
-	NULL,			/* lseek - default */
-	hfs_dir_read,		/* read - invalid */
-	NULL,			/* write - bad */
-	nat_readdir,		/* readdir */
-	NULL,			/* select - default */
-	NULL,			/* ioctl - default */
-	NULL,			/* mmap - none */
-	NULL,			/* no special open code */
-	NULL,			/* flush */
-	NULL,			/* no special release code */
-	file_fsync,		/* fsync - default */
-        NULL,			/* fasync - default */
-	NULL                    /* lock - none */
+	read:		hfs_dir_read,
+	readdir:	nat_readdir,
+	fsync:		file_fsync,
 };
 
 struct inode_operations hfs_nat_ndir_inode_operations = {
@@ -89,14 +79,6 @@ struct inode_operations hfs_nat_ndir_inode_operations = {
 	nat_rmdir,		/* rmdir */
 	NULL,			/* mknod */
 	hfs_rename,		/* rename */
-	NULL,			/* readlink */
-	NULL,			/* follow_link */
-	NULL,			/* get_block */
-	NULL,			/* readpage */
-	NULL,			/* writepage */
-	NULL,			/* truncate */
-	NULL,			/* permission */
-	NULL                    /* revalidate */
 };
 
 struct inode_operations hfs_nat_hdir_inode_operations = {
@@ -110,14 +92,6 @@ struct inode_operations hfs_nat_hdir_inode_operations = {
 	NULL,			/* rmdir */
 	NULL,			/* mknod */
 	nat_hdr_rename,		/* rename */
-	NULL,			/* readlink */
-	NULL,			/* follow_link */
-	NULL,			/* get_block */
-	NULL,			/* readpage */
-	NULL,			/* writepage */
-	NULL,			/* truncate */
-	NULL,			/* permission */
-	NULL                    /* revalidate */
 };
 
 /*================ File-local functions ================*/

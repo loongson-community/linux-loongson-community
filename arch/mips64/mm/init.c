@@ -1,4 +1,4 @@
-/* $Id: init.c,v 1.11 2000/02/04 07:40:24 ralf Exp $
+/* $Id: init.c,v 1.12 2000/02/10 02:03:59 kanoj Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -39,8 +39,6 @@
 #include <asm/mmu_context.h>
 
 unsigned long totalram_pages = 0;
-
-extern void show_net_buffers(void);
 
 void __bad_pte_kernel(pmd_t *pmd)
 {
@@ -332,9 +330,6 @@ void show_mem(void)
 	printk("%ld pages in page table cache\n", pgtable_cache_size);
 	printk("%d free pages\n", free);
 	show_buffers();
-#ifdef CONFIG_NET
-	show_net_buffers();
-#endif
 }
 
 #ifndef CONFIG_DISCONTIGMEM
@@ -345,7 +340,7 @@ extern char __init_begin, __init_end;
 
 void __init paging_init(void)
 {
-	unsigned int zones_size[MAX_NR_ZONES] = {0, 0, 0};
+	unsigned long zones_size[MAX_NR_ZONES] = {0, 0, 0};
 	unsigned long max_dma, low;
 
 	/* Initialize the entire pgd.  */

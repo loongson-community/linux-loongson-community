@@ -1,4 +1,4 @@
-/* $Id: mmu_context.h,v 1.2 1999/12/04 03:59:12 ralf Exp $
+/* $Id: mmu_context.h,v 1.3 2000/02/04 07:40:53 ralf Exp $
  *
  * Switch a MMU context.
  *
@@ -21,6 +21,10 @@ extern pgd_t *current_pgd;
 
 #define ASID_INC	0x1
 #define ASID_MASK	0xff
+
+static inline void enter_lazy_tlb(struct mm_struct *mm, struct task_struct *tsk, unsigned cpu)
+{
+}
 
 /*
  *  All unused by hardware upper bits will be considered

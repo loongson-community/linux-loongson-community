@@ -111,17 +111,8 @@ static int proc_sys_permission(struct inode *, int);
 
 struct file_operations proc_sys_file_operations =
 {
-	NULL,		/* lseek   */
-	proc_readsys,	/* read	   */
-	proc_writesys,	/* write   */
-	NULL,		/* readdir */
-	NULL,		/* poll    */
-	NULL,		/* ioctl   */
-	NULL,		/* mmap	   */
-	NULL,		/* no special open code	   */
-	NULL,		/* no special flush code */
-	NULL,		/* no special release code */
-	NULL		/* can't fsync */
+	read:		proc_readsys,
+	write:		proc_writesys,
 };
 
 struct inode_operations proc_sys_inode_operations =
@@ -138,9 +129,6 @@ struct inode_operations proc_sys_inode_operations =
 	NULL,		/* rename */
 	NULL,		/* readlink */
 	NULL,		/* follow_link */
-	NULL,		/* get_block */
-	NULL,		/* readpage */
-	NULL,		/* writepage */
 	NULL,		/* truncate */
 	proc_sys_permission, /* permission */
 	NULL		/* revalidate */

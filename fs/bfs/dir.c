@@ -14,9 +14,9 @@
 #undef DEBUG
 
 #ifdef DEBUG
-#define DBG(x...)	printk(x)
+#define dprintf(x...)	printf(x)
 #else
-#define DBG(x...)
+#define dprintf(x...)
 #endif
 
 static int bfs_add_entry(struct inode * dir, const char * name, int namelen, int ino);
@@ -38,14 +38,13 @@ static int bfs_readdir(struct file * f, void * dirent, filldir_t filldir)
 	int block;
 
 	if (!dir || !dir->i_sb || !S_ISDIR(dir->i_mode)) {
-		printk(KERN_ERR "BFS-fs: %s(): Bad inode or not a directory %s:%08lx\n",
-			__FUNCTION__, bdevname(dev), dir->i_ino);
+		printf("Bad inode or not a directory %s:%08lx\n", bdevname(dev), dir->i_ino);
 		return -EBADF;
 	}
 
 	if (f->f_pos & (BFS_DIRENT_SIZE-1)) {
-		printk(KERN_ERR "BFS-fs: %s(): Bad f_pos=%08lx for %s:%08lx\n", 
-			__FUNCTION__, (unsigned long)f->f_pos, bdevname(dev), dir->i_ino);
+		printf("Bad f_pos=%08lx for %s:%08lx\n", (unsigned long)f->f_pos, 
+			bdevname(dev), dir->i_ino);
 		return -EBADF;
 	}
 
@@ -77,18 +76,9 @@ static int bfs_readdir(struct file * f, void * dirent, filldir_t filldir)
 }
 
 static struct file_operations bfs_dir_operations = {
-	llseek:			NULL,
 	read:			bfs_dir_read,
-	write:			NULL,
 	readdir:		bfs_readdir,
-	poll:			NULL,
-	ioctl:			NULL,
-	mmap:			NULL,
-	open:			NULL,
-	flush:			NULL,
-	release:		NULL,
 	fsync:			file_fsync,
-	fasync:			NULL,
 };
 
 extern void dump_imap(const char *, struct super_block *);
@@ -117,6 +107,7 @@ static int bfs_create(struct inode * dir, struct dentry * dentry, int mode)
 	inode->i_mtime = inode->i_atime = inode->i_ctime = CURRENT_TIME;
 	inode->i_blocks = inode->i_blksize = 0;
 	inode->i_op = &bfs_file_inops;
+	inode->i_mapping->a_ops = &bfs_aops;
 	inode->i_mode = mode;
 	inode->i_ino = inode->iu_dsk_ino = ino;
 	inode->iu_sblock = inode->iu_eblock = 0;
@@ -189,9 +180,8 @@ static int bfs_unlink(struct inode * dir, struct dentry * dentry)
 		goto out_brelse;
 
 	if (!inode->i_nlink) {
-		printk(KERN_WARNING 
-		"BFS-fs: %s(): unlinking non-existent file %s:%lu (nlink=%d)\n",
-		__FUNCTION__, bdevname(inode->i_dev), inode->i_ino, inode->i_nlink);
+		printf("unlinking non-existent file %s:%lu (nlink=%d)\n", bdevname(inode->i_dev), 
+				inode->i_ino, inode->i_nlink);
 		inode->i_nlink = 1;
 	}
 	de->ino = 0;
@@ -276,14 +266,6 @@ struct inode_operations bfs_dir_inops = {
 	rmdir:			NULL,
 	mknod:			NULL,
 	rename:			bfs_rename,
-	readlink:		NULL,
-	follow_link:		NULL,
-	get_block:		NULL,
-	readpage:		NULL,
-	writepage:		NULL,
-	truncate:		NULL,
-	permission:		NULL,
-	revalidate:		NULL
 };
 
 static int bfs_add_entry(struct inode * dir, const char * name, int namelen, int ino)
@@ -294,7 +276,7 @@ static int bfs_add_entry(struct inode * dir, const char * name, int namelen, int
 	kdev_t dev;
 	int i;
 
-	DBG(KERN_ERR "BFS-fs: %s(%s,%d)\n", __FUNCTION__, name, namelen);
+	dprintf("name=%s, namelen=%d\n", name, namelen);
 
 	if (!namelen)
 		return -ENOENT;

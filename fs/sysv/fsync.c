@@ -16,9 +16,9 @@
 
 #include <linux/errno.h>
 #include <linux/stat.h>
-
 #include <linux/fs.h>
 #include <linux/sysv_fs.h>
+#include <linux/smp_lock.h>
 
 
 /* return values: 0 means OK/done, 1 means redo, -1 means I/O error. */
@@ -187,6 +187,7 @@ int sysv_sync_file(struct file * file, struct dentry *dentry)
 	     S_ISLNK(inode->i_mode)))
 		return -EINVAL;
 
+	lock_kernel();
 	for (wait=0; wait<=1; wait++) {
 		err |= sync_direct(inode, wait);
 		err |= sync_indirect(inode, inode->u.sysv_i.i_data+10, 0, wait);
@@ -194,5 +195,6 @@ int sysv_sync_file(struct file * file, struct dentry *dentry)
 		err |= sync_tindirect(inode, inode->u.sysv_i.i_data+12, 0, wait);
 	}
 	err |= sysv_sync_inode (inode);
+	unlock_kernel();
 	return (err < 0) ? -EIO : 0;
 }

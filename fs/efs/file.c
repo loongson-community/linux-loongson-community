@@ -62,37 +62,10 @@ int efs_bmap(struct inode *inode, efs_block_t block) {
 }
 
 static struct file_operations efs_file_operations = {
-	NULL,			/* lseek */
-	generic_file_read,	/* read */
-	NULL,			/* write */
-	NULL,			/* readdir */
-	NULL,			/* poll */
-	NULL,			/* ioctl */
-	generic_file_mmap,	/* mmap */
-	NULL,			/* open */
-	NULL,			/* flush */
-	NULL,			/* release */
-	NULL,			/* fsync */
-	NULL,			/* fasync */
+	read:		generic_file_read,
+	mmap:		generic_file_mmap,
 };
 
 struct inode_operations efs_file_inode_operations = {
 	&efs_file_operations,	/* default file operations */
-	NULL,			/* create */
-	NULL,			/* lookup */
-	NULL,			/* link */
-	NULL,			/* unlink */
-	NULL,			/* symlink */
-	NULL,			/* mkdir */
-	NULL,			/* rmdir */
-	NULL,			/* mknod */
-	NULL,			/* rename */
-	NULL,			/* readlink */
-	NULL,			/* follow_link */
-	efs_get_block,		/* get_block */
-	block_read_full_page,	/* readpage */
-	NULL,			/* writepage */
-	NULL,			/* truncate */
-	NULL,			/* permission */
-	NULL			/* revalidate */
 };

@@ -1,13 +1,13 @@
-/* $Id: rtc.h,v 1.1 1998/07/09 20:01:31 ralf Exp $
- *
- * Interface definitions for the /dev/rtc realtime clock interface.
- *
- * permission is hereby granted to copy, modify and redistribute this code
- * in terms of the GNU Library General Public License, Version 2 or later,
- * at your option.
+/*
+ * Generic RTC interface.
+ * This version contains the part of the user interface to the Real Time Clock
+ * service. It is used with both the legacy mc146818 and also  EFI
+ * 
+ * Copyright (C) 1999 Hewlett-Packard Co.
+ * Copyright (C) 1999 Stephane Eranian <eranian@hpl.hp.com>
  */
 #ifndef _LINUX_RTC_H
-#define _LINUX_RTC_H
+#define _LINUX_RTC_H_
 
 /*
  * The struct used to pass data via the following ioctl. Similar to the
@@ -29,18 +29,17 @@ struct rtc_time {
 
 /*
  * ioctl calls that are permitted to the /dev/rtc interface, if 
- * CONFIG_RTC or CONFIG_SGI_DS1286 are enabled.  The interface definitions
- * in this file are a superset from the features provided by actual
- * RTC driver and chip implementations.
+ * CONFIG_RTC/CONFIG_EFI_RTC was enabled.
  */
+
 #define RTC_AIE_ON	_IO('p', 0x01)	/* Alarm int. enable on		*/
 #define RTC_AIE_OFF	_IO('p', 0x02)	/* ... off			*/
 #define RTC_UIE_ON	_IO('p', 0x03)	/* Update int. enable on	*/
 #define RTC_UIE_OFF	_IO('p', 0x04)	/* ... off			*/
 #define RTC_PIE_ON	_IO('p', 0x05)	/* Periodic int. enable on	*/
 #define RTC_PIE_OFF	_IO('p', 0x06)	/* ... off			*/
-#define RTC_WIE_ON	_IO('p', 0x0f)	/* Watchdog int. enable on	*/
-#define RTC_WIE_OFF	_IO('p', 0x10)	/* ... off			*/
+#define RTC_WIE_ON	_IO('p', 0x0f)  /* Watchdog int. enable on	*/
+#define RTC_WIE_OFF	_IO('p', 0x10)  /* ... off			*/
 
 #define RTC_ALM_SET	_IOW('p', 0x07, struct rtc_time) /* Set alarm time  */
 #define RTC_ALM_READ	_IOR('p', 0x08, struct rtc_time) /* Read alarm time */
@@ -51,4 +50,4 @@ struct rtc_time {
 #define RTC_EPOCH_READ	_IOR('p', 0x0d, unsigned long)	 /* Read epoch      */
 #define RTC_EPOCH_SET	_IOW('p', 0x0e, unsigned long)	 /* Set epoch       */
 
-#endif /* _LINUX_RTC_H */
+#endif /* _LINUX_RTC_H_ */

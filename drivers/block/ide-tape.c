@@ -4372,12 +4372,12 @@ static ssize_t idetape_chrdev_read (struct file *file, char *buf,
 		return -ENXIO;
 	}
 	if (tape->onstream && (count != tape->tape_block_size)) {
-		printk(KERN_ERR "ide-tape: %s: use %d bytes as block size (%d used)\n", tape->name, tape->tape_block_size, count);
+		printk(KERN_ERR "ide-tape: %s: use %d bytes as block size (%Zd used)\n", tape->name, tape->tape_block_size, count);
 		return -EINVAL;
 	}
 #if IDETAPE_DEBUG_LOG
 	if (tape->debug_level >= 3)
-		printk (KERN_INFO "ide-tape: Reached idetape_chrdev_read, count %d\n", count);
+		printk (KERN_INFO "ide-tape: Reached idetape_chrdev_read, count %Zd\n", count);
 #endif /* IDETAPE_DEBUG_LOG */
 
 	if (tape->chrdev_direction != idetape_direction_read) {
@@ -4552,12 +4552,12 @@ static ssize_t idetape_chrdev_write (struct file *file, const char *buf,
 		return -ENXIO;
 	}
 	if (tape->onstream && (count != tape->tape_block_size)) {
-		printk(KERN_ERR "ide-tape: %s: use %d bytes as block size (%d used)\n", tape->name, tape->tape_block_size, count);
+		printk(KERN_ERR "ide-tape: %s: use %d bytes as block size (%Zd used)\n", tape->name, tape->tape_block_size, count);
 		return -EINVAL;
 	}
 #if IDETAPE_DEBUG_LOG
 	if (tape->debug_level >= 3)
-		printk (KERN_INFO "ide-tape: Reached idetape_chrdev_write, count %d\n", count);
+		printk (KERN_INFO "ide-tape: Reached idetape_chrdev_write, count %Zd\n", count);
 #endif /* IDETAPE_DEBUG_LOG */
 
 	if (tape->chrdev_direction != idetape_direction_write) {	/* Initialize write operation */
@@ -5839,18 +5839,11 @@ static ide_module_t idetape_module = {
  *	Our character device supporting functions, passed to register_chrdev.
  */
 static struct file_operations idetape_fops = {
-	NULL,			/* lseek - default */
-	idetape_chrdev_read,	/* read  */
-	idetape_chrdev_write,	/* write */
-	NULL,			/* readdir - bad */
-	NULL,			/* poll */
-	idetape_chrdev_ioctl,	/* ioctl */
-	NULL,			/* mmap */
-	idetape_chrdev_open,	/* open */
-	NULL,			/* flush */
-	idetape_chrdev_release,	/* release */
-	NULL,			/* fsync */
-	NULL,			/* fasync */
+	read:		idetape_chrdev_read,
+	write:		idetape_chrdev_write,
+	ioctl:		idetape_chrdev_ioctl,
+	open:		idetape_chrdev_open,
+	release:	idetape_chrdev_release,
 };
 
 /*

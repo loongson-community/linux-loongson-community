@@ -104,7 +104,7 @@ pci_clone_list[] __initdata = {
 #define NESM_START_PG	0x40	/* First page of TX buffer */
 #define NESM_STOP_PG	0x80	/* Last page +1 of RX ring */
 
-int ne2k_pci_probe(void);
+static int ne2k_pci_probe(void);
 static struct net_device *ne2k_pci_probe1(long ioaddr, int irq, int chip_idx);
 
 static int ne2k_pci_open(struct net_device *dev);
@@ -129,10 +129,7 @@ struct ne2k_pci_card {
 /* A list of all installed devices, for removing the driver module. */
 static struct ne2k_pci_card *ne2k_card_list = NULL;
 
-#ifdef MODULE
-
-int
-init_module(void)
+static int __init ne2k_pci_init_module(void)
 {
 	/* We must emit version information. */
 	if (debug)
@@ -146,8 +143,7 @@ init_module(void)
 	return 0;
 }
 
-void
-cleanup_module(void)
+static void __exit ne2k_pci_cleanup_module(void)
 {
 	struct net_device *dev;
 	struct ne2k_pci_card *this_card;
@@ -165,7 +161,8 @@ cleanup_module(void)
 	unlock_8390_module();
 }
 
-#endif  /* MODULE */
+module_init(ne2k_pci_init_module);
+module_exit(ne2k_pci_cleanup_module);
 
 /*
   NEx000-clone boards have a Station Address (SA) PROM (SAPROM) in the packet
@@ -185,7 +182,7 @@ struct netdev_entry netcard_drv =
 {"ne2k_pci", ne2k_pci_probe1, NE_IO_EXTENT, 0};
 #endif
 
-int __init ne2k_pci_probe(void)
+static int __init ne2k_pci_probe(void)
 {
 	struct pci_dev *pdev = NULL;
 	int cards_found = 0;
@@ -216,13 +213,11 @@ int __init ne2k_pci_probe(void)
 		if (check_region(pci_ioaddr, NE_IO_EXTENT))
 			continue;
 
-#ifndef MODULE
 		{
 			static unsigned version_printed = 0;
 			if (version_printed++ == 0)
 				printk(KERN_INFO "%s", version);
 		}
-#endif
 
 		/* Activate the card: fix for brain-damaged Win98 BIOSes. */
 		new_command = pci_command | PCI_COMMAND_IO;
@@ -451,9 +446,8 @@ ne2k_pci_get_8390_hdr(struct net_device *dev, struct e8390_pkt_hdr *hdr, int rin
 	/* This *shouldn't* happen. If it does, it's the last thing you'll see */
 	if (ei_status.dmaing) {
 		printk("%s: DMAing conflict in ne2k_pci_get_8390_hdr "
-			   "[DMAstat:%d][irqlock:%d][intr:%d].\n",
-			   dev->name, ei_status.dmaing, ei_status.irqlock,
-			   (int)dev->interrupt);
+			   "[DMAstat:%d][irqlock:%d].\n",
+			   dev->name, ei_status.dmaing, ei_status.irqlock);
 		return;
 	}
 
@@ -490,9 +484,8 @@ ne2k_pci_block_input(struct net_device *dev, int count, struct sk_buff *skb, int
 	/* This *shouldn't* happen. If it does, it's the last thing you'll see */
 	if (ei_status.dmaing) {
 		printk("%s: DMAing conflict in ne2k_pci_block_input "
-			   "[DMAstat:%d][irqlock:%d][intr:%d].\n",
-			   dev->name, ei_status.dmaing, ei_status.irqlock,
-			   (int)dev->interrupt);
+			   "[DMAstat:%d][irqlock:%d].\n",
+			   dev->name, ei_status.dmaing, ei_status.irqlock);
 		return;
 	}
 	ei_status.dmaing |= 0x01;
@@ -543,9 +536,8 @@ ne2k_pci_block_output(struct net_device *dev, int count,
 	/* This *shouldn't* happen. If it does, it's the last thing you'll see */
 	if (ei_status.dmaing) {
 		printk("%s: DMAing conflict in ne2k_pci_block_output."
-			   "[DMAstat:%d][irqlock:%d][intr:%d]\n",
-			   dev->name, ei_status.dmaing, ei_status.irqlock,
-			   (int)dev->interrupt);
+			   "[DMAstat:%d][irqlock:%d]\n",
+			   dev->name, ei_status.dmaing, ei_status.irqlock);
 		return;
 	}
 	ei_status.dmaing |= 0x01;

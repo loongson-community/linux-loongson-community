@@ -21,31 +21,13 @@ static struct dentry *devpts_root_lookup(struct inode *,struct dentry *);
 static int devpts_revalidate(struct dentry *, int);
 
 static struct file_operations devpts_root_operations = {
-	NULL,                   /* llseek */
-	NULL,                   /* read */
-	NULL,                   /* write */
-	devpts_root_readdir,    /* readdir */
+	readdir:	devpts_root_readdir,
 };
 
 struct inode_operations devpts_root_inode_operations = {
 	&devpts_root_operations, /* file operations */
 	NULL,                   /* create */
 	devpts_root_lookup,     /* lookup */
-	NULL,                   /* link */
-	NULL,			/* unlink */
-	NULL,			/* symlink */
-	NULL,			/* mkdir */
-	NULL,			/* rmdir */
-	NULL,                   /* mknod */
-	NULL,                   /* rename */
-	NULL,                   /* readlink */
-	NULL,                   /* follow_link */
-	NULL,                   /* get_block */
-	NULL,                   /* readpage */
-	NULL,                   /* writepage */
-	NULL,                   /* truncate */
-	NULL,			/* permission */
-	NULL			/* revalidate */
 };
 
 static struct dentry_operations devpts_dentry_operations = {

@@ -1,4 +1,4 @@
-/* $Id: pgtable.h,v 1.27 2000/01/29 01:42:28 ralf Exp $
+/* $Id: pgtable.h,v 1.28 2000/02/04 07:40:53 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -18,6 +18,11 @@
 #include <linux/linkage.h>
 #include <asm/cachectl.h>
 #include <linux/config.h>
+
+extern __inline__ void flush_tlb_pgtables(struct mm_struct *mm, unsigned long start, unsigned long end)
+{
+}
+
 
 /*
  * - add_wired_entry() add a fixed TLB entry, and move wired register

@@ -802,17 +802,9 @@ out_noread:
 
 static struct file_operations umsdos_dir_operations =
 {
-	NULL,			/* lseek - default */
-	dummy_dir_read,		/* read */
-	NULL,			/* write - bad */
-	UMSDOS_readdir,		/* readdir */
-	NULL,			/* poll - default */
-	UMSDOS_ioctl_dir,	/* ioctl - default */
-	NULL,			/* mmap */
-	NULL,			/* no special open code */
-	NULL,			/* flush */
-	NULL,			/* no special release code */
-	NULL			/* fsync */
+	read:		dummy_dir_read,
+	readdir:	UMSDOS_readdir,
+	ioctl:		UMSDOS_ioctl_dir,
 };
 
 struct inode_operations umsdos_dir_inode_operations =
@@ -827,12 +819,4 @@ struct inode_operations umsdos_dir_inode_operations =
 	UMSDOS_rmdir,		/* rmdir */
 	UMSDOS_mknod,		/* mknod */
 	UMSDOS_rename,		/* rename */
-	NULL,			/* readlink */
-	NULL,			/* followlink */
-	NULL,			/* get_block */
-	NULL,			/* readpage */
-	NULL,			/* writepage */
-	NULL,			/* truncate */
-	NULL,			/* permission */
-	NULL			/* revalidate */
 };

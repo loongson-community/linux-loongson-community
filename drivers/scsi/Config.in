@@ -1,10 +1,22 @@
 comment 'SCSI support type (disk, tape, CD-ROM)'
 
 dep_tristate '  SCSI disk support' CONFIG_BLK_DEV_SD $CONFIG_SCSI
+
+if [ "$CONFIG_BLK_DEV_SD" != "n" ]; then
+   int  'Maximum number of SCSI disks that can be loaded as modules' CONFIG_SD_EXTRA_DEVS 40
+fi
+
 dep_tristate '  SCSI tape support' CONFIG_CHR_DEV_ST $CONFIG_SCSI
+
+if [ "$CONFIG_BLK_DEV_ST" != "n" ]; then
+   int  'Maximum number of SCSI tapes that can be loaded as modules' CONFIG_ST_EXTRA_DEVS 2
+fi
+
 dep_tristate '  SCSI CD-ROM support' CONFIG_BLK_DEV_SR $CONFIG_SCSI
+
 if [ "$CONFIG_BLK_DEV_SR" != "n" ]; then
    bool '    Enable vendor-specific extensions (for SCSI CDROM)' CONFIG_BLK_DEV_SR_VENDOR
+   int  'Maximum number of CDROM devices that can be loaded as modules' CONFIG_SR_EXTRA_DEVS 2
 fi
 dep_tristate '  SCSI generic support' CONFIG_CHR_DEV_SG $CONFIG_SCSI
 
@@ -21,6 +33,16 @@ bool '  SCSI logging facility' CONFIG_SCSI_LOGGING
 
 mainmenu_option next_comment
 comment 'SCSI low-level drivers'
+
+if [ "$CONFIG_SGI_IP22" = "y" ]; then
+   dep_tristate 'SGI WD93C93 SCSI Driver' CONFIG_SCSI_SGIWD93 $CONFIG_SCSI
+fi
+if [ "$CONFIG_DECSTATION" = "y" ]; then
+   if [ "$CONFIG_TC" = "y" ]; then
+      dep_tristate 'DEC NCR53C94 Scsi Driver' CONFIG_SCSI_DECNCR $CONFIG_SCSI
+   fi
+   dep_tristate 'DEC SII Scsi Driver' CONFIG_SCSI_DECSII $CONFIG_SCSI
+fi
 
 dep_tristate '7000FASST SCSI support' CONFIG_SCSI_7000FASST $CONFIG_SCSI
 dep_tristate 'ACARD SCSI support' CONFIG_SCSI_ACARD $CONFIG_SCSI
@@ -126,6 +148,7 @@ dep_tristate 'Qlogic FAS SCSI support' CONFIG_SCSI_QLOGIC_FAS $CONFIG_SCSI
 if [ "$CONFIG_PCI" = "y" ]; then
    dep_tristate 'Qlogic ISP SCSI support' CONFIG_SCSI_QLOGIC_ISP $CONFIG_SCSI
    dep_tristate 'Qlogic ISP FC SCSI support' CONFIG_SCSI_QLOGIC_FC $CONFIG_SCSI
+   dep_tristate 'Qlogic QLA 1280 SCSI support' CONFIG_SCSI_QLOGIC_1280 $CONFIG_SCSI
 fi
 dep_tristate 'Seagate ST-02 and Future Domain TMC-8xx SCSI support' CONFIG_SCSI_SEAGATE $CONFIG_SCSI
 if [ "$CONFIG_PCI" = "y" ]; then

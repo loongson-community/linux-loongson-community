@@ -1363,7 +1363,7 @@ int usb_set_idle(struct usb_device *dev, int ifnum, int duration, int report_id)
 
 static void usb_set_maxpacket(struct usb_device *dev)
 {
-	int i, j;
+	int i, j, b;
 	struct usb_interface *ifp;
 
 	for (i=0; i<dev->actconfig->bNumInterfaces; i++) {
@@ -1375,12 +1375,15 @@ static void usb_set_maxpacket(struct usb_device *dev)
 			int e;
 
 			for (e=0; e<as->bNumEndpoints; e++) {
-				if (usb_endpoint_out(ep[e].bEndpointAddress))
-					dev->epmaxpacketout[ep[e].bEndpointAddress & 0x0f] =
-						ep[e].wMaxPacketSize;
-				else
-					dev->epmaxpacketin [ep[e].bEndpointAddress & 0x0f] =
-						ep[e].wMaxPacketSize;
+				b = ep[e].bEndpointAddress & 0x0f;
+				if (usb_endpoint_out(ep[e].bEndpointAddress)) {
+					if (ep[e].wMaxPacketSize > dev->epmaxpacketout[b])
+						dev->epmaxpacketout[b] = ep[e].wMaxPacketSize;
+				}
+				else {
+					if (ep[e].wMaxPacketSize > dev->epmaxpacketin [b])
+						dev->epmaxpacketin [b] = ep[e].wMaxPacketSize;
+				}
 			}
 		}
 	}
@@ -1756,16 +1759,7 @@ static int usb_open(struct inode * inode, struct file * file)
 }
 
 static struct file_operations usb_fops = {
-	NULL,		/* seek */
-	NULL,		/* read */
-	NULL,		/* write */
-	NULL,		/* readdir */
-	NULL,		/* poll */
-	NULL,		/* ioctl */
-	NULL,		/* mmap */
-	usb_open,
-	NULL,		/* flush */
-	NULL		/* release */
+	open:		usb_open,
 };
 
 int usb_major_init(void)

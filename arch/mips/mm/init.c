@@ -1,4 +1,4 @@
-/* $Id: init.c,v 1.24 2000/01/29 01:41:59 ralf Exp $
+/* $Id: init.c,v 1.25 2000/02/04 07:40:23 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -250,7 +250,7 @@ extern char __init_begin, __init_end;
 
 void __init paging_init(void)
 {
-	unsigned int zones_size[MAX_NR_ZONES] = {0, 0, 0};
+	unsigned long zones_size[MAX_NR_ZONES] = {0, 0, 0};
 	unsigned long max_dma, low;
 
 	/* Initialize the entire pgd.  */

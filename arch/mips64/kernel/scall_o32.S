@@ -1,4 +1,4 @@
-/* $Id: scall_o32.S,v 1.6 2000/02/05 06:47:09 ralf Exp $
+/* $Id: scall_o32.S,v 1.7 2000/02/18 00:24:30 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -74,10 +74,10 @@ stack_done:
 1:	sd	v0, PT_R2(sp)		# result
 
 FEXPORT(o32_ret_from_sys_call)
-	ld	t0,bh_mask
-	ld	t1,bh_active		# unused delay slot
-	and	t0,t1
-	bnez	t0,o32_handle_bottom_half
+	lw	t0, softirq_state
+	lw	t1, softirq_state+4	# unused delay slot
+	and	t0, t1
+	bnez	t0, o32_handle_softirq
 
 9:	ld	t0,PT_STATUS(sp)	# returning to kernel mode?
 	andi	t1, t0, 0x10
@@ -98,8 +98,8 @@ o32_return:
 	eret
 	.set	mips0
 
-o32_handle_bottom_half:
-	jal	do_bottom_half
+o32_handle_softirq:
+	jal	do_softirq
 	b	9b
 o32_reschedule:
 	SAVE_STATIC

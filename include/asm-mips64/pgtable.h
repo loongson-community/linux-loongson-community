@@ -1,4 +1,4 @@
-/* $Id: pgtable.h,v 1.6 2000/01/29 01:42:28 ralf Exp $
+/* $Id: pgtable.h,v 1.10 2000/02/10 21:38:10 kanoj Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -11,6 +11,7 @@
 #define _ASM_PGTABLE_H
 
 #include <asm/addrspace.h>
+#include <asm/page.h>
 
 #ifndef _LANGUAGE_ASSEMBLY
 
@@ -18,6 +19,10 @@
 #include <linux/config.h>
 #include <linux/mmzone.h>
 #include <asm/cachectl.h>
+
+extern __inline__ void flush_tlb_pgtables(struct mm_struct *mm, unsigned long start, unsigned long end)
+{
+}
 
 /* Basically we have the same two-level (which is the logical three level
  * Linux page table layout folded) page tables as the i386.  Some day

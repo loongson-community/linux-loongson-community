@@ -106,18 +106,15 @@ static int sock_fasync(int fd, struct file *filp, int on);
  */
 
 static struct file_operations socket_file_ops = {
-	sock_lseek,
-	sock_read,
-	sock_write,
-	NULL,			/* readdir */
-	sock_poll,
-	sock_ioctl,
-	sock_mmap,
-	sock_no_open,		/* special open code to disallow open via /proc */
-	NULL,			/* flush */
-	sock_close,
-	NULL,			/* no fsync */
-	sock_fasync
+	llseek:		sock_lseek,
+	read:		sock_read,
+	write:		sock_write,
+	poll:		sock_poll,
+	ioctl:		sock_ioctl,
+	mmap:		sock_mmap,
+	open:		sock_no_open,	/* special open code to disallow open via /proc */
+	release:	sock_close,
+	fasync:		sock_fasync
 };
 
 /*
@@ -272,12 +269,12 @@ static int sock_map_fd(struct socket *sock)
 			goto out;
 		}
 
+		sock->file = file;
 		file->f_op = &socket_file_ops;
 		file->f_mode = 3;
 		file->f_flags = O_RDWR;
 		file->f_pos = 0;
 		fd_install(fd, file);
-		sock->file = file;
 	}
 
 out:
@@ -588,9 +585,9 @@ int sock_close(struct inode *inode, struct file *filp)
  *	   i.e. under semaphore.
  *	2. fasync_list is used under read_lock(&sk->callback_lock)
  *	   or under socket lock.
- *	3. fasync_list is used from any context including IRQ, so that
+ *	3. fasync_list can be used from softirq context, so that
  *	   modification under socket lock have to be enhanced with
- *	   write_lock_irq(&sk->callback_lock).
+ *	   write_lock_bh(&sk->callback_lock).
  *							--ANK (990710)
  */
 
@@ -625,9 +622,9 @@ static int sock_fasync(int fd, struct file *filp, int on)
 	{
 		if(fa!=NULL)
 		{
-			write_lock_irq(&sk->callback_lock);
+			write_lock_bh(&sk->callback_lock);
 			fa->fa_fd=fd;
-			write_unlock_irq(&sk->callback_lock);
+			write_unlock_bh(&sk->callback_lock);
 
 			kfree_s(fna,sizeof(struct fasync_struct));
 			goto out;
@@ -636,17 +633,17 @@ static int sock_fasync(int fd, struct file *filp, int on)
 		fna->fa_fd=fd;
 		fna->magic=FASYNC_MAGIC;
 		fna->fa_next=sock->fasync_list;
-		write_lock_irq(&sk->callback_lock);
+		write_lock_bh(&sk->callback_lock);
 		sock->fasync_list=fna;
-		write_unlock_irq(&sk->callback_lock);
+		write_unlock_bh(&sk->callback_lock);
 	}
 	else
 	{
 		if (fa!=NULL)
 		{
-			write_lock_irq(&sk->callback_lock);
+			write_lock_bh(&sk->callback_lock);
 			*prev=fa->fa_next;
-			write_unlock_irq(&sk->callback_lock);
+			write_unlock_bh(&sk->callback_lock);
 			kfree_s(fa,sizeof(struct fasync_struct));
 		}
 	}
@@ -929,7 +926,7 @@ asmlinkage long sys_accept(int fd, struct sockaddr *upeer_sockaddr, int *upeer_a
 		goto out_release;
 
 	if (upeer_sockaddr) {
-		if(newsock->ops->getname(newsock, (struct sockaddr *)address, &len, 1)<0) {
+		if(newsock->ops->getname(newsock, (struct sockaddr *)address, &len, 2)<0) {
 			err = -ECONNABORTED;
 			goto out_release;
 		}
@@ -938,9 +935,8 @@ asmlinkage long sys_accept(int fd, struct sockaddr *upeer_sockaddr, int *upeer_a
 			goto out_release;
 	}
 
-	/* File flags are inherited via accept(). It looks silly, but we
-	 * have to be compatible with another OSes.
-	 */
+	/* File flags are not inherited via accept() unlike another OSes. */
+
 	if ((err = sock_map_fd(newsock)) < 0)
 		goto out_release;
 

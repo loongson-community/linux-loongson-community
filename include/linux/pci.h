@@ -149,7 +149,8 @@
 #define  PCI_BRIDGE_CTL_FAST_BACK 0x80	/* Fast Back2Back enabled on secondary interface */
 
 /* Header type 2 (CardBus bridges) */
-/* 0x14-0x15 reserved */
+#define PCI_CB_CAPABILITY_LIST	0x14
+/* 0x15 reserved */
 #define PCI_CB_SEC_STATUS	0x16	/* Secondary status */
 #define PCI_CB_PRIMARY_BUS	0x18	/* PCI bus number */
 #define PCI_CB_CARD_BUS		0x19	/* CardBus bus number */
@@ -570,6 +571,19 @@ extern inline void pci_set_master(struct pci_dev *dev) { }
 extern inline int pci_enable_device(struct pci_dev *dev) { return 0; }
 
 #endif /* !CONFIG_PCI */
+
+/* these helpers provide future and backwards compatibility
+ * for accessing popular PCI BAR info */
+#define pci_resource_start(dev,bar)   ((dev)->resource[(bar)].start)
+#define pci_resource_end(dev,bar)     ((dev)->resource[(bar)].end)
+#define pci_resource_flags(dev,bar)   ((dev)->resource[(bar)].flags)
+#define pci_resource_len(dev,bar) \
+	((pci_resource_start((dev),(bar)) == 0 &&	\
+	  pci_resource_end((dev),(bar)) ==		\
+	  pci_resource_start((dev),(bar))) ? 0 :	\
+	  						\
+	 (pci_resource_end((dev),(bar)) -		\
+	  pci_resource_start((dev),(bar)) + 1))
 
 /*
  *  The world is not perfect and supplies us with broken PCI devices.

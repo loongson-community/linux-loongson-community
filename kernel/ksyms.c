@@ -151,6 +151,7 @@ EXPORT_SYMBOL(d_instantiate);
 EXPORT_SYMBOL(d_alloc);
 EXPORT_SYMBOL(d_lookup);
 EXPORT_SYMBOL(d_path);
+EXPORT_SYMBOL(mark_buffer_dirty);
 EXPORT_SYMBOL(__mark_buffer_dirty);
 EXPORT_SYMBOL(__mark_inode_dirty);
 EXPORT_SYMBOL(free_kiovec);
@@ -163,7 +164,7 @@ EXPORT_SYMBOL(filp_close);
 EXPORT_SYMBOL(put_filp);
 EXPORT_SYMBOL(files_lock);
 EXPORT_SYMBOL(check_disk_change);
-EXPORT_SYMBOL(invalidate_buffers);
+EXPORT_SYMBOL(__invalidate_buffers);
 EXPORT_SYMBOL(invalidate_inodes);
 EXPORT_SYMBOL(invalidate_inode_pages);
 EXPORT_SYMBOL(truncate_inode_pages);
@@ -183,11 +184,12 @@ EXPORT_SYMBOL(__bforget);
 EXPORT_SYMBOL(ll_rw_block);
 EXPORT_SYMBOL(__wait_on_buffer);
 EXPORT_SYMBOL(___wait_on_page);
-EXPORT_SYMBOL(block_read_full_page);
 EXPORT_SYMBOL(block_write_full_page);
-EXPORT_SYMBOL(block_write_partial_page);
-EXPORT_SYMBOL(block_write_cont_page);
-EXPORT_SYMBOL(block_write_zero_range);
+EXPORT_SYMBOL(block_read_full_page);
+EXPORT_SYMBOL(block_prepare_write);
+EXPORT_SYMBOL(cont_prepare_write);
+EXPORT_SYMBOL(generic_commit_write);
+EXPORT_SYMBOL(generic_block_bmap);
 EXPORT_SYMBOL(generic_file_read);
 EXPORT_SYMBOL(do_generic_file_read);
 EXPORT_SYMBOL(generic_file_write);
@@ -222,6 +224,7 @@ EXPORT_SYMBOL(vfs_readlink);
 EXPORT_SYMBOL(vfs_follow_link);
 EXPORT_SYMBOL(page_readlink);
 EXPORT_SYMBOL(page_follow_link);
+EXPORT_SYMBOL(page_symlink_inode_operations);
 EXPORT_SYMBOL(block_symlink);
 
 /* for stackable file systems (lofs, wrapfs, etc.) */
@@ -263,8 +266,6 @@ EXPORT_SYMBOL(ioctl_by_bdev);
 EXPORT_SYMBOL(gendisk_head);
 EXPORT_SYMBOL(grok_partitions);
 EXPORT_SYMBOL(register_disk);
-EXPORT_SYMBOL(unplug_device);
-EXPORT_SYMBOL(make_request);
 EXPORT_SYMBOL(tq_disk);
 EXPORT_SYMBOL(init_buffer);
 EXPORT_SYMBOL(refile_buffer);
@@ -317,12 +318,11 @@ EXPORT_SYMBOL(request_irq);
 EXPORT_SYMBOL(free_irq);
 EXPORT_SYMBOL(probe_irq_on);
 EXPORT_SYMBOL(probe_irq_off);
-EXPORT_SYMBOL(bh_active);
-EXPORT_SYMBOL(bh_mask);
-EXPORT_SYMBOL(bh_mask_count);
-EXPORT_SYMBOL(bh_base);
 EXPORT_SYMBOL(add_timer);
 EXPORT_SYMBOL(del_timer);
+#ifdef __SMP__
+EXPORT_SYMBOL(del_timer_sync);
+#endif
 EXPORT_SYMBOL(mod_timer);
 EXPORT_SYMBOL(tq_timer);
 EXPORT_SYMBOL(tq_immediate);
@@ -369,7 +369,9 @@ EXPORT_SYMBOL(schedule_timeout);
 EXPORT_SYMBOL(jiffies);
 EXPORT_SYMBOL(xtime);
 EXPORT_SYMBOL(do_gettimeofday);
+#ifndef __ia64__
 EXPORT_SYMBOL(loops_per_sec);
+#endif
 EXPORT_SYMBOL(kstat);
 
 /* misc */
@@ -380,7 +382,6 @@ EXPORT_SYMBOL(vsprintf);
 EXPORT_SYMBOL(kdevname);
 EXPORT_SYMBOL(bdevname);
 EXPORT_SYMBOL(cdevname);
-EXPORT_SYMBOL(partition_name);		/* md.c only */
 EXPORT_SYMBOL(simple_strtoul);
 EXPORT_SYMBOL(system_utsname);	/* UTS data */
 EXPORT_SYMBOL(uts_sem);		/* UTS semaphore */
@@ -460,5 +461,12 @@ EXPORT_SYMBOL(get_fast_time);
 /* library functions */
 EXPORT_SYMBOL(strnicmp);
 
+/* software interrupts */
+EXPORT_SYMBOL(tasklet_hi_vec);
+EXPORT_SYMBOL(bh_task_vec);
+EXPORT_SYMBOL(init_bh);
+EXPORT_SYMBOL(remove_bh);
+
 /* init task, for moving kthread roots - ought to export a function ?? */
+
 EXPORT_SYMBOL(init_task_union);

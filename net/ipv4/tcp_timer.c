@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp_timer.c,v 1.71 2000/01/18 08:24:19 davem Exp $
+ * Version:	$Id: tcp_timer.c,v 1.73 2000/02/09 11:16:42 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -200,15 +200,23 @@ static void tcp_delack_timer(unsigned long data)
 	}
 
 	if (tp->ack.pending) {
-		/* Delayed ACK missed: inflate ATO, leave pingpong mode */
-		tp->ack.ato = min(tp->ack.ato<<1, TCP_ATO_MAX);
-		tp->ack.pingpong = 0;
+		if (!tp->ack.pingpong) {
+			/* Delayed ACK missed: inflate ATO. */
+			tp->ack.ato = min(tp->ack.ato<<1, TCP_ATO_MAX);
+		} else {
+			/* Delayed ACK missed: leave pingpong mode and
+			 * deflate ATO.
+			 */
+			tp->ack.pingpong = 0;
+			tp->ack.ato = TCP_ATO_MIN;
+		}
 		tcp_send_ack(sk);
 		NET_INC_STATS_BH(DelayedACKs);
 	}
 	TCP_CHECK_TIMER(sk);
 
 out_unlock:
+	timer_exit(&tp->delack_timer);
 	bh_unlock_sock(sk);
 	sock_put(sk);
 }
@@ -259,6 +267,7 @@ static void tcp_probe_timer(unsigned long data)
 		TCP_CHECK_TIMER(sk);
 	}
 out_unlock:
+	timer_exit(&tp->probe_timer);
 	bh_unlock_sock(sk);
 	sock_put(sk);
 }
@@ -272,7 +281,7 @@ static struct tcp_tw_bucket *tcp_tw_death_row[TCP_TWKILL_SLOTS];
 static spinlock_t tw_death_lock = SPIN_LOCK_UNLOCKED;
 static struct timer_list tcp_tw_timer = { function: tcp_twkill };
 
-static void tcp_twkill(unsigned long data)
+static void SMP_TIMER_NAME(tcp_twkill)(unsigned long dummy)
 {
 	struct tcp_tw_bucket *tw;
 	int killed = 0;
@@ -309,6 +318,8 @@ static void tcp_twkill(unsigned long data)
 out:
 	spin_unlock(&tw_death_lock);
 }
+
+SMP_TIMER_DEFINE(tcp_twkill, tcp_twkill_task);
 
 /* These are always called from BH context.  See callers in
  * tcp_input.c to verify this.
@@ -419,7 +430,7 @@ void tcp_tw_schedule(struct tcp_tw_bucket *tw, int timeo)
 	spin_unlock(&tw_death_lock);
 }
 
-void tcp_twcal_tick(unsigned long dummy)
+void SMP_TIMER_NAME(tcp_twcal_tick)(unsigned long dummy)
 {
 	int n, slot;
 	unsigned long j;
@@ -470,6 +481,7 @@ out:
 	spin_unlock(&tw_death_lock);
 }
 
+SMP_TIMER_DEFINE(tcp_twcal_tick, tcp_twcal_tasklet);
 
 /*
  *	The TCP retransmit timer.
@@ -565,6 +577,7 @@ static void tcp_retransmit_timer(unsigned long data)
 	TCP_CHECK_TIMER(sk);
 
 out_unlock:
+	timer_exit(&tp->retransmit_timer);
 	bh_unlock_sock(sk);
 	sock_put(sk);
 }
@@ -763,6 +776,7 @@ death:
 	tcp_done(sk);
 
 out:
+	timer_exit(&sk->timer);
 	bh_unlock_sock(sk);
 	sock_put(sk);
 }

@@ -1,4 +1,4 @@
-/* $Id: irq.c,v 1.18 2000/01/26 00:07:44 ralf Exp $
+/* $Id: irq.c,v 1.19 2000/02/04 07:40:23 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -209,6 +209,9 @@ asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 		__cli();
 	}
 	irq_exit(cpu);
+
+	if (softirq_state[cpu].active&softirq_state[cpu].mask)
+		do_softirq();
 
 	/* unmasking and bottom half handling is done magically for us. */
 }

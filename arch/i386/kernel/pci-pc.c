@@ -939,12 +939,26 @@ static void __init pci_fixup_ide_bases(struct pci_dev *d)
 	}
 }
 
+static void __init pci_fixup_ide_trash(struct pci_dev *d)
+{
+	int i;
+
+	/*
+	 * There exist PCI IDE controllers which have utter garbage
+	 * in first four base registers. Ignore that.
+	 */
+	DBG("PCI: IDE base address trash cleared for %s\n", d->slot_name);
+	for(i=0; i<4; i++)
+		d->resource[i].start = d->resource[i].end = d->resource[i].flags = 0;
+}
+
 struct pci_fixup pcibios_fixups[] = {
 	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_INTEL,	PCI_DEVICE_ID_INTEL_82451NX,	pci_fixup_i450nx },
 	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_RCC,	PCI_DEVICE_ID_RCC_HE,		pci_fixup_rcc },
 	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_RCC,	PCI_DEVICE_ID_RCC_LE,		pci_fixup_rcc },
 	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_COMPAQ,	PCI_DEVICE_ID_COMPAQ_6010,	pci_fixup_compaq },
 	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_UMC,	PCI_DEVICE_ID_UMC_UM8886BF,	pci_fixup_umc_ide },
+	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_SI,	PCI_DEVICE_ID_SI_5513,		pci_fixup_ide_trash },
 	{ PCI_FIXUP_HEADER,	PCI_ANY_ID,		PCI_ANY_ID,			pci_fixup_ide_bases },
 	{ 0 }
 };
@@ -1132,6 +1146,10 @@ static void __init pcibios_fixup_irqs(void)
 			if (pin) {
 				pin--;		/* interrupt pins are numbered starting from 1 */
 				irq = IO_APIC_get_PCI_irq_vector(dev->bus->number, PCI_SLOT(dev->devfn), pin);
+/*
+ * Will be removed completely if things work out well with fuzzy parsing
+ */
+#if 0
 				if (irq < 0 && dev->bus->parent) { /* go back to the bridge */
 					struct pci_dev * bridge = dev->bus->self;
 
@@ -1142,6 +1160,7 @@ static void __init pcibios_fixup_irqs(void)
 						printk(KERN_WARNING "PCI: using PPB(B%d,I%d,P%d) to get irq %d\n", 
 							bridge->bus->number, PCI_SLOT(bridge->devfn), pin, irq);
 				}
+#endif
 				if (irq >= 0) {
 					printk("PCI->APIC IRQ transform: (B%d,I%d,P%d) -> %d\n",
 						dev->bus->number, PCI_SLOT(dev->devfn), pin, irq);

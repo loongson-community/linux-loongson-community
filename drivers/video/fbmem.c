@@ -550,17 +550,12 @@ fb_release(struct inode *inode, struct file *file)
 }
 
 static struct file_operations fb_fops = {
-	NULL,		/* lseek	*/
-	fb_read,	/* read		*/
-	fb_write,	/* write	*/
-	NULL,		/* readdir 	*/
-	NULL,		/* poll 	*/
-	fb_ioctl,	/* ioctl 	*/
-	fb_mmap,	/* mmap		*/
-	fb_open,	/* open 	*/
-	NULL,		/* flush	*/
-	fb_release,	/* release 	*/
-	NULL		/* fsync 	*/
+	read:		fb_read,
+	write:		fb_write,
+	ioctl:		fb_ioctl,
+	mmap:		fb_mmap,
+	open:		fb_open,
+	release:	fb_release,
 };
 
 int
@@ -720,6 +715,8 @@ __setup("video=", video_setup);
 
 EXPORT_SYMBOL(register_framebuffer);
 EXPORT_SYMBOL(unregister_framebuffer);
+EXPORT_SYMBOL(registered_fb);
+EXPORT_SYMBOL(num_registered_fb);
 #if 1 /* to go away in 2.4.0 */
 EXPORT_SYMBOL(GET_FB_IDX);
 #endif

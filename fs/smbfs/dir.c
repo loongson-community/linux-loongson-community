@@ -32,17 +32,10 @@ static int smb_rename(struct inode *, struct dentry *,
 
 static struct file_operations smb_dir_operations =
 {
-	NULL,			/* lseek - default */
-	smb_dir_read,		/* read - bad */
-	NULL,			/* write - bad */
-	smb_readdir,		/* readdir */
-	NULL,			/* poll - default */
-	smb_ioctl,		/* ioctl */
-	NULL,			/* mmap */
-	smb_dir_open,		/* open(struct inode *, struct file *) */
-	NULL,			/* flush */
-	NULL,			/* no special release code */
-	NULL			/* fsync */
+	read:		smb_dir_read,
+	readdir:	smb_readdir,
+	ioctl:		smb_ioctl,
+	open:		smb_dir_open,
 };
 
 struct inode_operations smb_dir_inode_operations =
@@ -59,9 +52,6 @@ struct inode_operations smb_dir_inode_operations =
 	smb_rename,		/* rename */
 	NULL,			/* readlink */
 	NULL,			/* follow_link */
-	NULL,			/* get_block */
-	NULL,			/* readpage */
-	NULL,			/* writepage */
 	NULL,			/* truncate */
 	NULL,			/* permission */
 	smb_revalidate_inode,	/* revalidate */

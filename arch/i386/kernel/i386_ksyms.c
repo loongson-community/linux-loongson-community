@@ -8,7 +8,7 @@
 #include <linux/in6.h>
 #include <linux/interrupt.h>
 #include <linux/smp_lock.h>
-#include <linux/acpi.h>
+#include <linux/pm.h>
 #include <linux/pci.h>
 
 #include <asm/semaphore.h>
@@ -44,14 +44,13 @@ EXPORT_SYMBOL(dump_fpu);
 EXPORT_SYMBOL(__ioremap);
 EXPORT_SYMBOL(iounmap);
 EXPORT_SYMBOL(__io_virt_debug);
-EXPORT_SYMBOL(local_bh_count);
-EXPORT_SYMBOL(local_irq_count);
 EXPORT_SYMBOL(enable_irq);
 EXPORT_SYMBOL(disable_irq);
 EXPORT_SYMBOL(disable_irq_nosync);
+EXPORT_SYMBOL(probe_irq_mask);
 EXPORT_SYMBOL(kernel_thread);
-EXPORT_SYMBOL(acpi_idle);
-EXPORT_SYMBOL(acpi_power_off);
+EXPORT_SYMBOL(pm_idle);
+EXPORT_SYMBOL(pm_power_off);
 
 EXPORT_SYMBOL_NOVERS(__down_failed);
 EXPORT_SYMBOL_NOVERS(__down_failed_interruptible);
@@ -106,11 +105,7 @@ EXPORT_SYMBOL_NOVERS(__read_lock_failed);
 
 /* Global SMP irq stuff */
 EXPORT_SYMBOL(synchronize_irq);
-EXPORT_SYMBOL(synchronize_bh);
-EXPORT_SYMBOL(global_bh_count);
-EXPORT_SYMBOL(global_bh_lock);
 EXPORT_SYMBOL(global_irq_holder);
-EXPORT_SYMBOL(i386_bh_lock);
 EXPORT_SYMBOL(__global_cli);
 EXPORT_SYMBOL(__global_sti);
 EXPORT_SYMBOL(__global_save_flags);
@@ -141,3 +136,7 @@ EXPORT_SYMBOL(screen_info);
 #endif
 
 EXPORT_SYMBOL(get_wchan);
+
+
+EXPORT_SYMBOL(local_bh_count); 
+EXPORT_SYMBOL(local_irq_count); 

@@ -30,6 +30,7 @@
 #include <linux/poll.h>
 #include <linux/miscdevice.h>
 #include <linux/malloc.h>
+#include <linux/kbd_kern.h>
 
 #include <asm/keyboard.h>
 #include <asm/bitops.h>
@@ -412,16 +413,13 @@ static inline void handle_mouse_event(unsigned char scancode)
 #endif
 }
 
-static unsigned char kbd_exists = 1;
-
 static inline void handle_keyboard_event(unsigned char scancode)
 {
-	kbd_exists = 1;
 #ifdef CONFIG_VT
 	if (do_acknowledge(scancode))
 		handle_scancode(scancode, !(scancode & 0x80));
 #endif				
-	mark_bh(KEYBOARD_BH);
+	tasklet_schedule(&keyboard_tasklet);
 }	
 
 /*
@@ -485,8 +483,6 @@ static int send_data(unsigned char data)
 {
 	int retries = 3;
 
-	if (!kbd_exists) return 0;
-
 	do {
 		unsigned long timeout = KBD_TIMEOUT;
 
@@ -504,7 +500,6 @@ static int send_data(unsigned char data)
 #ifdef KBD_REPORT_TIMEOUTS
 				printk(KERN_WARNING "keyboard: Timeout - AT keyboard not present?\n");
 #endif
-				kbd_exists = 0;
 				return 0;
 			}
 		}
@@ -512,7 +507,6 @@ static int send_data(unsigned char data)
 #ifdef KBD_REPORT_TIMEOUTS
 	printk(KERN_WARNING "keyboard: Too many NACKs -- noisy kbd cable?\n");
 #endif
-	kbd_exists = 0;
 	return 0;
 }
 
@@ -971,18 +965,12 @@ static unsigned int aux_poll(struct file *file, poll_table * wait)
 }
 
 struct file_operations psaux_fops = {
-	NULL,		/* seek */
-	read_aux,
-	write_aux,
-	NULL, 		/* readdir */
-	aux_poll,
-	NULL, 		/* ioctl */
-	NULL,		/* mmap */
-	open_aux,
-	NULL,		/* flush */
-	release_aux,
-	NULL,
-	fasync_aux,
+	read:		read_aux,
+	write:		write_aux,
+	poll:		aux_poll,
+	open:		open_aux,
+	release:	release_aux,
+	fasync:		fasync_aux,
 };
 
 /*

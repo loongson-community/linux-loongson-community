@@ -1,4 +1,4 @@
-/* $Id: graphics.c,v 1.21 2000/02/05 06:47:30 ralf Exp $
+/* $Id: graphics.c,v 1.22 2000/02/18 00:24:43 ralf Exp $
  *
  * gfx.c: support for SGI's /dev/graphics, /dev/opengl
  *
@@ -287,18 +287,10 @@ graphics_ops_post_init (int slot)
 #endif
 
 struct file_operations sgi_graphics_fops = {
-	NULL,			/* llseek */
-	NULL,			/* read */
-	NULL,			/* write */
-	NULL,			/* readdir */
-	NULL,			/* poll */
-	sgi_graphics_ioctl,	/* ioctl */
-	sgi_graphics_mmap,	/* mmap */
-	sgi_graphics_open,	/* open */
-	NULL,			/* flush */
-	sgi_graphics_close,	/* release */
-	NULL,			/* fsync */
-	NULL			/* lock */
+	ioctl:		sgi_graphics_ioctl,
+	mmap:		sgi_graphics_mmap,
+	open:		sgi_graphics_open,
+	release:	sgi_graphics_close,
 };
 
 /* /dev/graphics */

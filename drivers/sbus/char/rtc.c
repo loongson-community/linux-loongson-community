@@ -1,4 +1,4 @@
-/* $Id: rtc.c,v 1.18 1999/08/31 18:51:36 davem Exp $
+/* $Id: rtc.c,v 1.19 2000/02/09 22:33:26 davem Exp $
  *
  * Linux/SPARC Real Time Clock Driver
  * Copyright (C) 1996 Thomas K. Dyas (tdyas@eden.rutgers.edu)
@@ -137,16 +137,10 @@ static int rtc_release(struct inode *inode, struct file *file)
 }
 
 static struct file_operations rtc_fops = {
-	rtc_lseek,
-	NULL,		/* rtc_read */
-	NULL,		/* rtc_write */
-	NULL,		/* rtc_readdir */
-	NULL,		/* rtc_poll */
-	rtc_ioctl,
-	NULL,		/* rtc_mmap */
-	rtc_open,
-	NULL,		/* flush */
-	rtc_release
+	llseek:		rtc_lseek,
+	ioctl:		rtc_ioctl,
+	open:		rtc_open,
+	release:	rtc_release,
 };
 
 static struct miscdevice rtc_dev = { RTC_MINOR, "rtc", &rtc_fops };

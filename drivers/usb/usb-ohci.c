@@ -52,10 +52,8 @@
 #include "usb.h"
 #include "usb-ohci.h"
 
-#ifdef CONFIG_APM
-#include <linux/apm_bios.h>
-static int handle_apm_event (apm_event_t event);
-#endif
+#include <linux/pm.h>
+static int handle_pm_event (struct pm_dev *dev, pm_request_t rqst, void *data);
 
 #ifdef CONFIG_PMAC_PBOOK
 #include <linux/adb.h>
@@ -1632,7 +1630,7 @@ static void hc_release_ohci (ohci_t * ohci)
 /* Increment the module usage count, start the control thread and
  * return success. */
  
-static int hc_found_ohci (int irq, void * mem_base)
+static int hc_found_ohci (struct pci_dev *dev, int irq, void * mem_base)
 {
 	ohci_t * ohci;
 	dbg("USB HC found: irq= %d membase= %lx", irq, (unsigned long) mem_base);
@@ -1651,8 +1649,17 @@ static int hc_found_ohci (int irq, void * mem_base)
 	usb_register_bus (ohci->bus);
 	
 	if (request_irq (irq, hc_interrupt, SA_SHIRQ, "ohci-usb", ohci) == 0) {
+		struct pm_dev *pmdev;
+
 		ohci->irq = irq;     
 		hc_start (ohci);
+
+		pmdev = pm_register (PM_PCI_DEV,
+				     PM_PCI_ID(dev),
+				     handle_pm_event);
+		if (pmdev)
+			pmdev->data = ohci;
+
 		return 0;
  	}	
  	err("request interrupt %d failed", irq);
@@ -1664,6 +1671,7 @@ static int hc_found_ohci (int irq, void * mem_base)
  
 static int hc_start_ohci (struct pci_dev * dev)
 {
+	u32 cmd;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,3,0)
 	unsigned long mem_base = dev->resource[0].start;
 #else
@@ -1672,6 +1680,11 @@ static int hc_start_ohci (struct pci_dev * dev)
 	mem_base &= PCI_BASE_ADDRESS_MEM_MASK;
 #endif
 	
+	/* Some Mac firmware will switch memory response off */
+	pci_read_config_dword(dev, PCI_COMMAND, &cmd);
+	cmd = (cmd | PCI_COMMAND_MEMORY);
+	pci_write_config_dword(dev, PCI_COMMAND, cmd);
+
 	pci_set_master (dev);
 	mem_base = (unsigned long) ioremap_nocache (mem_base, 4096);
 
@@ -1679,7 +1692,7 @@ static int hc_start_ohci (struct pci_dev * dev)
 		err("Error mapping OHCI memory");
 		return -EFAULT;
 	}
-	return hc_found_ohci (dev->irq, (void *) mem_base);
+	return hc_found_ohci (dev, dev->irq, (void *) mem_base);
 } 
 
 /*-------------------------------------------------------------------------*/
@@ -1721,50 +1734,26 @@ static struct pmu_sleep_notifier ohci_sleep_notifier = {
 
 /*-------------------------------------------------------------------------*/
  
-#ifdef CONFIG_APM
-static int handle_apm_event (apm_event_t event) 
+static int handle_pm_event (struct pm_dev *dev, pm_request_t rqst, void *data)
 {
-	static int down = 0;
-	ohci_t * ohci;
-	struct list_head * ohci_l;
-	
-	switch (event) {
-	case APM_SYS_SUSPEND:
-	case APM_USER_SUSPEND:
-		if (down) {
-			dbg("received extra suspend event");
-			break;
-		}
-		for (ohci_l = ohci_hcd_list.next; ohci_l != &ohci_hcd_list; ohci_l = ohci_l->next) {
-			ohci = list_entry (ohci_l, ohci_t, ohci_hcd_list);
+	ohci_t * ohci = (ohci_t*) dev->data;
+	if (ohci) {
+		switch (rqst) {
+		case PM_SUSPEND:
 			dbg("USB-Bus suspend: %p", ohci);
 			writel (ohci->hc_control = 0xFF, &ohci->regs->control);
-		}
-		wait_ms (10);
-		down = 1;
-		break;
-	case APM_NORMAL_RESUME:
-	case APM_CRITICAL_RESUME:
-		if (!down) {
-			dbg("received bogus resume event");
+			wait_ms (10);
 			break;
-		}
-		for (ohci_l = ohci_hcd_list.next; ohci_l != &ohci_hcd_list; ohci_l = ohci_l->next) {
-			ohci = list_entry(ohci_l, ohci_t, ohci_hcd_list);
+		case PM_RESUME:
 			dbg("USB-Bus resume: %p", ohci);
 			writel (ohci->hc_control = 0x7F, &ohci->regs->control);
-		}		
-		wait_ms (20);
-		for (ohci_l = ohci_hcd_list.next; ohci_l != &ohci_hcd_list; ohci_l = ohci_l->next) {
-			ohci = list_entry (ohci_l, ohci_t, ohci_hcd_list);
+			wait_ms (20);
 			writel (ohci->hc_control = 0xBF, &ohci->regs->control);
+			break;
 		}
-		down = 0;
-		break;
 	}
 	return 0;
 }
-#endif
 
 /*-------------------------------------------------------------------------*/
 
@@ -1779,10 +1768,6 @@ int ohci_hcd_init (void)
 		if (hc_start_ohci(dev) >= 0) ret = 0;
 	}
     
-#ifdef CONFIG_APM
-	apm_register_callback (&handle_apm_event);
-#endif
-
 #ifdef CONFIG_PMAC_PBOOK
 	pmu_register_sleep_notifier (&ohci_sleep_notifier);
 #endif  
@@ -1803,9 +1788,7 @@ void cleanup_module (void)
 {	
 	ohci_t * ohci;
 	
-#ifdef CONFIG_APM
-	apm_unregister_callback (&handle_apm_event);
-#endif
+	pm_unregister_all (handle_pm_event);
 
 #ifdef CONFIG_PMAC_PBOOK
 	pmu_unregister_sleep_notifier (&ohci_sleep_notifier);

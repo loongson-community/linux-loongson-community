@@ -242,6 +242,7 @@ struct tcp_opt {
 		__u32	lrcvtime;	/* timestamp of last received data packet*/
 		__u16	last_seg_size;	/* Size of last incoming segment */
 		__u16	rcv_mss;	/* MSS used for delayed ACK decisions */ 
+		__u32	rcv_segs;	/* Number of received segments since last ack */
 	} ack;
 
 	/* Data for direct copy to user */
@@ -325,7 +326,6 @@ struct tcp_opt {
         __u32	rcv_tsecr;	/* Time stamp echo reply        	*/
         __u32	ts_recent;	/* Time stamp to echo next		*/
         long	ts_recent_stamp;/* Time we stored ts_recent (for aging) */
-	__u32	last_ack_sent;	/* last ack we sent (RTTM/PAWS)		*/
 
 /*	SACKs data	*/
 	struct tcp_sack_block selective_acks[4]; /* The SACKS themselves*/
@@ -934,20 +934,20 @@ extern __inline__ void sock_put(struct sock *sk)
  */
 extern __inline__ void sock_orphan(struct sock *sk)
 {
-	write_lock_irq(&sk->callback_lock);
+	write_lock_bh(&sk->callback_lock);
 	sk->dead = 1;
 	sk->socket = NULL;
 	sk->sleep = NULL;
-	write_unlock_irq(&sk->callback_lock);
+	write_unlock_bh(&sk->callback_lock);
 }
 
 extern __inline__ void sock_graft(struct sock *sk, struct socket *parent)
 {
-	write_lock_irq(&sk->callback_lock);
+	write_lock_bh(&sk->callback_lock);
 	sk->sleep = &parent->wait;
 	parent->sk = sk;
 	sk->socket = parent;
-	write_unlock_irq(&sk->callback_lock);
+	write_unlock_bh(&sk->callback_lock);
 }
 
 
@@ -1150,7 +1150,7 @@ extern __inline__ int sock_writeable(struct sock *sk)
 
 extern __inline__ int gfp_any(void)
 {
-	return in_interrupt() ? GFP_ATOMIC : GFP_KERNEL;
+	return in_softirq() ? GFP_ATOMIC : GFP_KERNEL;
 }
 
 extern __inline__ long sock_rcvtimeo(struct sock *sk, int noblock)

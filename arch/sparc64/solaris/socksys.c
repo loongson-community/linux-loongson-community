@@ -1,4 +1,4 @@
-/* $Id: socksys.c,v 1.10 1999/08/31 06:55:08 davem Exp $
+/* $Id: socksys.c,v 1.11 2000/02/09 22:32:17 davem Exp $
  * socksys.c: /dev/inet/ stuff for Solaris emulation.
  *
  * Copyright (C) 1997 Jakub Jelinek (jj@sunsite.mff.cuni.cz)
@@ -48,16 +48,7 @@ extern void mykfree(void *);
 static unsigned int (*sock_poll)(struct file *, poll_table *);
 
 static struct file_operations socksys_file_ops = {
-	NULL,		/* lseek */
-	NULL,		/* read */
-	NULL,		/* write */
-	NULL,		/* readdir */
-	NULL,		/* poll */
-	NULL,		/* ioctl */
-	NULL,		/* mmap */
-	NULL,		/* open */
-	NULL,		/* flush */
-	NULL,		/* release */
+	/* Currently empty */
 };
 
 static int socksys_open(struct inode * inode, struct file * filp)
@@ -162,16 +153,8 @@ static unsigned int socksys_poll(struct file * filp, poll_table * wait)
 }
 	
 static struct file_operations socksys_fops = {
-	NULL,		/* lseek */
-	NULL,		/* read */
-	NULL,		/* write */
-	NULL,		/* readdir */
-	NULL,		/* poll */
-	NULL,		/* ioctl */
-	NULL,		/* mmap */
-	socksys_open,	/* open */
-	NULL,		/* flush */
-	socksys_release,/* release */
+	open:		socksys_open,
+	release:	socksys_release,
 };
 
 int __init

@@ -198,6 +198,10 @@ ifeq ($(CONFIG_BLK_DEV_PDC202XX),y)
 IDE_OBJS += pdc202xx.o
 endif
 
+ifeq ($(CONFIG_BLK_DEV_CS5530),y)
+IDE_OBJS += cs5530.o
+endif
+
 ifeq ($(CONFIG_BLK_DEV_PDC4030),y)
 IDE_OBJS += pdc4030.o
 endif
@@ -350,10 +354,30 @@ else
 endif
 
 ifeq ($(CONFIG_MD_RAID5),y)
+LX_OBJS += xor.o
+CFLAGS_xor.o := $(PROFILING) -fomit-frame-pointer
 L_OBJS += raid5.o
 else
   ifeq ($(CONFIG_MD_RAID5),m)
+  LX_OBJS += xor.o
+  CFLAGS_xor.o := $(PROFILING) -fomit-frame-pointer
   M_OBJS += raid5.o
+  endif
+endif
+
+ifeq ($(CONFIG_MD_TRANSLUCENT),y)
+L_OBJS += translucent.o
+else
+  ifeq ($(CONFIG_MD_TRANSLUCENT),m)
+  M_OBJS += translucent.o
+  endif
+endif
+
+ifeq ($(CONFIG_MD_HSM),y)
+L_OBJS += hsm.o
+else
+  ifeq ($(CONFIG_MD_HSM),m)
+  M_OBJS += hsm.o
   endif
 endif
 

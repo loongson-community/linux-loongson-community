@@ -187,6 +187,7 @@ extern inline void set_pgdir(unsigned long address, pgd_t entry)
  *  - flush_tlb_mm(mm) flushes the specified mm context TLB's
  *  - flush_tlb_page(vma, vmaddr) flushes one page
  *  - flush_tlb_range(mm, start, end) flushes a range of pages
+ *  - flush_tlb_pgtables(mm, start, end) flushes a range of page tables
  *
  * ..but the i386 has somewhat limited tlb flushing capabilities,
  * and page-granular flushes are available only on i486 and up.
@@ -220,11 +221,6 @@ static inline void flush_tlb_range(struct mm_struct *mm,
 
 #else
 
-/*
- * We aren't very clever about this yet -  SMP could certainly
- * avoid some global flushes..
- */
-
 #include <asm/smp.h>
 
 #define local_flush_tlb() \
@@ -242,23 +238,24 @@ static inline void flush_tlb_range(struct mm_struct * mm, unsigned long start, u
 	flush_tlb_mm(mm);
 }
 
-extern volatile unsigned long smp_invalidate_needed;
-extern unsigned int cpu_tlbbad[NR_CPUS];
+#define TLBSTATE_OK	1
+#define TLBSTATE_LAZY	2
+#define TLBSTATE_OLD	3
 
-static inline void do_flush_tlb_local(void)
+struct tlb_state
 {
-	unsigned long cpu = smp_processor_id();
-	struct mm_struct *mm = current->mm;
+	struct mm_struct *active_mm;
+	int state;
+};
+extern struct tlb_state cpu_tlbstate[NR_CPUS];
 
-	clear_bit(cpu, &smp_invalidate_needed);
-	if (mm) {
-		set_bit(cpu, &mm->cpu_vm_mask);
-		local_flush_tlb();
-	} else {
-		cpu_tlbbad[cpu] = 1;
-	}
-}
 
 #endif
+
+extern inline void flush_tlb_pgtables(struct mm_struct *mm,
+				      unsigned long start, unsigned long end)
+{
+	/* i386 does not keep any page table caches in TLB */
+}
 
 #endif /* _I386_PGALLOC_H */

@@ -45,17 +45,9 @@ extern unsigned long pte_misses;
 extern unsigned long pte_errors;
 
 static struct file_operations ppc_htab_operations = {
-    ppc_htab_lseek,	/* lseek   */
-    ppc_htab_read,	/* read	   */
-    ppc_htab_write,	/* write   */
-    NULL,		/* readdir */
-    NULL,		/* poll    */
-    NULL,		/* ioctl   */
-    NULL,		/* mmap	   */
-    NULL,		/* no special open code	   */
-    NULL,		/* flush */
-    NULL,		/* no special release code */
-    NULL		/* can't fsync */
+	llseek:		ppc_htab_lseek,
+	read:		ppc_htab_read,
+	write:		ppc_htab_write,
 };
 
 /*
@@ -531,7 +523,8 @@ int proc_dol2crvec(ctl_table *table, int write, struct file *filp,
 		"0.5", "1.0", "(reserved2)", "(reserved3)"
 	};
 
-	if ( (_get_PVR() >> 16) != 8) return -EFAULT;
+	if ( ((_get_PVR() >> 16) != 8) && ((_get_PVR() >> 16) != 12))
+		return -EFAULT;
 	
 	if ( /*!table->maxlen ||*/ (filp->f_pos && !write)) {
 		*lenp = 0;

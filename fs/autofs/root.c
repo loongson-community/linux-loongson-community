@@ -24,12 +24,8 @@ static int autofs_root_mkdir(struct inode *,struct dentry *,int);
 static int autofs_root_ioctl(struct inode *, struct file *,unsigned int,unsigned long);
 
 static struct file_operations autofs_root_operations = {
-        NULL,                   /* llseek */
-        NULL,                   /* read */
-        NULL,                   /* write */
-        autofs_root_readdir,    /* readdir */
-        NULL,                   /* poll */
-        autofs_root_ioctl,	/* ioctl */
+	readdir:	autofs_root_readdir,
+	ioctl:		autofs_root_ioctl,
 };
 
 struct inode_operations autofs_root_inode_operations = {
@@ -41,16 +37,6 @@ struct inode_operations autofs_root_inode_operations = {
         autofs_root_symlink,    /* symlink */
         autofs_root_mkdir,      /* mkdir */
         autofs_root_rmdir,      /* rmdir */
-        NULL,                   /* mknod */
-        NULL,                   /* rename */
-        NULL,                   /* readlink */
-        NULL,                   /* follow_link */
-        NULL,                   /* get_block */
-        NULL,                   /* readpage */
-        NULL,                   /* writepage */
-        NULL,                   /* truncate */
-        NULL,			/* permission */
-	NULL			/* revalidate */
 };
 
 static int autofs_root_readdir(struct file *filp, void *dirent, filldir_t filldir)
