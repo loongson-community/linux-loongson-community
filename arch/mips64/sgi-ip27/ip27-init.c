@@ -323,7 +323,8 @@ void per_cpu_init(void)
 	set_cp0_status(ST0_IM, 0);
 	per_hub_init(cnode);
 	cpu_time_init();
-	install_cpuintr(cpu);
+	if (smp_processor_id())	/* master can't do this early, no kmalloc */
+		install_cpuintr(cpu);
 #if 0
 	install_tlbintr(cpu);
 #endif
@@ -395,6 +396,7 @@ void allowboot(void)
 
 	sn_mp_setup();
 	/* Master has already done per_cpu_init() */
+	install_cpuintr(getcpuid());
 #if 0
 	bte_lateinit();
 	ecc_init();

@@ -56,6 +56,8 @@ irq_cpustat_t irq_stat [NR_CPUS];
 
 extern asmlinkage void ip27_irq(void);
 int (*irq_cannonicalize)(int irq);
+int intr_connect_level(cpuid_t cpu, int bit);
+int intr_disconnect_level(cpuid_t cpu, int bit);
 
 unsigned int local_bh_count[NR_CPUS];
 unsigned int local_irq_count[NR_CPUS];
@@ -63,8 +65,7 @@ unsigned long spurious_count = 0;
 
 /*
  * we need to map irq's up to at least bit 7 of the INT_MASK0_A register
- * since bits 0-6 are pre-allocated for other purposes. 7,8,9 are taken 
- * for intercpu and msc intrs.
+ * since bits 0-6 are pre-allocated for other purposes.
  */
 #define IRQ_TO_SWLEVEL(i)	i + 7
 #define SWLEVEL_TO_IRQ(s)	s - 7
@@ -187,7 +188,6 @@ void ip27_do_irq(struct pt_regs *regs)
 static unsigned int bridge_startup(unsigned int irq)
 {
 	bridge_t *bridge = (bridge_t *) 0x9200000008000000;
-	bridgereg_t br;
 	int pin, swlevel;
 
 	/* FIIIIIXME ...  Temporary kludge.  This knows how interrupts are
@@ -198,24 +198,18 @@ static unsigned int bridge_startup(unsigned int irq)
 	case IOC3_ETH_INT:	pin = 2; break;
 	case SCSI1_INT:		pin = 1; break;
 	case SCSI0_INT:		pin = 0; break;
-	default:		panic("bridge_startup: whoops?");
+	case SWLEVEL_TO_IRQ(CPU_ACTION_A):
+	case SWLEVEL_TO_IRQ(CPU_ACTION_B):
+				return;
+	default:		panic("bridge_startup: whoops? %d\n", irq);
 	}
 
 	/* 
 	 * "map" irq to a swlevel greater than 6 since the first 6 bits
 	 * of INT_PEND0 are taken
 	 */
-#if 0
-	/* Get this to work */
-	intr_connect_level(smp_processor_id(), swlevel);
-#else
 	swlevel = IRQ_TO_SWLEVEL(irq);
-	br = LOCAL_HUB_L(PI_INT_MASK0_A);
-	LOCAL_HUB_S(PI_INT_MASK0_A, br | (1 << swlevel));
-	LOCAL_HUB_L(PI_INT_MASK0_A);			/* Flush */
-	cpu_data[smp_processor_id()].p_intmasks.intpend0_masks[0] |= 
-						(1 << swlevel);
-#endif
+	intr_connect_level(smp_processor_id(), swlevel);
 
 	bridge->b_int_addr[pin].addr = 0x20000 | swlevel;
 	bridge->b_int_enable |= (1 << pin);
@@ -254,7 +248,6 @@ static unsigned int bridge_startup(unsigned int irq)
 static unsigned int bridge_shutdown(unsigned int irq)
 {
 	bridge_t *bridge = (bridge_t *) 0x9200000008000000;
-	bridgereg_t br;
 	int pin, swlevel;
 
 	/* FIIIIIXME ...  Temporary kludge.  This knows how interrupts are
@@ -272,17 +265,8 @@ static unsigned int bridge_shutdown(unsigned int irq)
 	 * map irq to a swlevel greater than 6 since the first 6 bits
 	 * of INT_PEND0 are taken
 	 */
-#if 0
-	/* Get this to work */
-	intr_disconnect_level(smp_processor_id(), swlevel);
-#else
 	swlevel = IRQ_TO_SWLEVEL(irq);
-	br = LOCAL_HUB_L(PI_INT_MASK0_A);
-	LOCAL_HUB_S(PI_INT_MASK0_A, br & ~(1 << swlevel));
-	LOCAL_HUB_L(PI_INT_MASK0_A);			/* Flush */
-	cpu_data[smp_processor_id()].p_intmasks.intpend0_masks[0] &= 
-						~(1 << swlevel);
-#endif
+	intr_disconnect_level(smp_processor_id(), swlevel);
 
 	bridge->b_int_enable &= ~(1 << pin);
 	bridge->b_widget.w_tflush;			/* Flush */
@@ -671,11 +655,41 @@ int intr_connect_level(cpuid_t cpu, int bit)
 	return(0);
 }
 
+int intr_disconnect_level(cpuid_t cpu, int bit)
+{
+	int ip;
+	int slice = cputoslice(cpu);
+	volatile hubreg_t *mask_reg;
+	hubreg_t *intpend_masks;
+	nasid_t nasid = COMPACT_TO_NASID_NODEID(cputocnode(cpu));
+
+	(void)intr_get_ptrs(cpu, bit, &bit, &intpend_masks, &ip);
+	intpend_masks[0] &= ~(1ULL << (u64)bit);
+	if (ip == 0) {
+		mask_reg = REMOTE_HUB_ADDR(nasid, PI_INT_MASK0_A + 
+				PI_INT_MASK_OFFSET * slice);
+	} else {
+		mask_reg = REMOTE_HUB_ADDR(nasid, PI_INT_MASK1_A + 
+				PI_INT_MASK_OFFSET * slice);
+	}
+	HUB_S(mask_reg, intpend_masks[0]);
+	return(0);
+}
+
+
+void handle_cpuintr(int irq, void *dev_id, struct pt_regs *regs)
+{
+	printk("HANDLE_CPUINTR: cpu%d irq%d\n", smp_processor_id(), irq);
+}
+
 void install_cpuintr(cpuid_t cpu)
 {
 	int intr_bit = CPU_ACTION_A + cputoslice(cpu);
 
 	intr_connect_level(cpu, intr_bit);
+	if (request_irq(SWLEVEL_TO_IRQ(intr_bit), handle_cpuintr, 0, 
+							"intercpu", 0))
+		panic("intercpu intr unconnectible\n");
 }
 
 void install_tlbintr(cpuid_t cpu)

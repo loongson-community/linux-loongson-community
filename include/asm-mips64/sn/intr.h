@@ -79,9 +79,9 @@
 #endif
 
 /* Hardcoded bits required by software. */
-#define MSC_MESG_INTR	9
-#define CPU_ACTION_B	8
-#define CPU_ACTION_A	7
+#define MSC_MESG_INTR	13
+#define CPU_ACTION_B	11
+#define CPU_ACTION_A	10
 
 /* These are determined by hardware: */
 #define CC_PEND_B	6
