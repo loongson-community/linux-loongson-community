@@ -36,6 +36,7 @@
 #define LOGO_H		80
 
 extern struct fbcon_font_desc font_vga_8x16;
+extern unsigned long sgi_gfxaddr;
 
 #define FONT_DATA ((unsigned char *)font_vga_8x16.data)
 
@@ -290,8 +291,9 @@ static const char *__init newport_startup(void)
 	int i;
 	struct newport_regs *p;
 
-	npregs = (struct newport_regs *) (KSEG1 + 0x1f0f0000);
-
+	if (!sgi_gfxaddr)
+		return NULL;
+	npregs = (struct newport_regs *) (KSEG1 + sgi_gfxaddr);
 	p = npregs;
 	p->cset.config = NPORT_CFG_GD0;
 

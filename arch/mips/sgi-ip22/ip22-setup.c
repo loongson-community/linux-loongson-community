@@ -49,6 +49,8 @@ extern void sgi_volume_set(unsigned char);
 
 #define KBD_STAT_IBF		0x02	/* Keyboard input buffer full */
 
+unsigned long sgi_gfxaddr;
+
 static void sgi_request_region(void)
 {
 	/* No I/O ports are being used on the Indy.  */
@@ -186,9 +188,16 @@ void __init ip22_setup(void)
  
 	sgi_volume_set(simple_strtoul(ArcGetEnvironmentVariable("volume"), NULL, 10));
 
+	{
+	  unsigned long *gfxinfo;
+	  long (*__vec)(void) = (void *) *(long *)((PROMBLOCK)->pvector + 0x20);
+	  gfxinfo = (unsigned long *)__vec();
+	  sgi_gfxaddr = gfxinfo[1] >= 0xa0000000 && gfxinfo[1] <= 0xc0000000 ? gfxinfo[1] - 0xa0000000 : 0;
+	}
 #ifdef CONFIG_VT
 #ifdef CONFIG_SGI_NEWPORT_CONSOLE
-	if( mips_machtype == MACH_SGI_INDY ) {
+	/* newport addresses? */
+	if (sgi_gfxaddr == 0x1f0f0000 || sgi_gfxaddr == 0x1f4f0000) {
 		conswitchp = &newport_con;
 
 		screen_info = (struct screen_info) {
