@@ -499,14 +499,14 @@ sys_call_table:
 	PTR	sys_statfs64			/* 4255 */
 	PTR	sys_fstatfs64		
 	PTR	sys_timer_create	
-	PTR	sys_timer_settime	
-	PTR	sys_timer_gettime	
+	PTR	compat_timer_settime	
+	PTR	compat_timer_gettime	
 	PTR	sys_timer_getoverrun		/* 4260 */
 	PTR	sys_timer_delete	
-	PTR	sys_clock_settime	
-	PTR	sys_clock_gettime	
-	PTR	sys_clock_getres	
-	PTR	sys_clock_nanosleep		/* 4265 */
+	PTR	compat_clock_settime	
+	PTR	compat_clock_gettime	
+	PTR	compat_clock_getres	
+	PTR	compat_clock_nanosleep		/* 4265 */
 	PTR	sys_tgkill		
 	PTR	compat_sys_utimes	
 	PTR	sys_ni_syscall			/* sys_mbind */
