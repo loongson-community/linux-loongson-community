@@ -139,6 +139,7 @@ CONFIG_HOTPLUG=y
 #
 CONFIG_PCMCIA=m
 # CONFIG_TCIC is not set
+# CONFIG_PCMCIA_AU1X00 is not set
 
 #
 # PCI Hotplug Support

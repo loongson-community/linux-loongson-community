@@ -130,6 +130,7 @@ CONFIG_CPU_HAS_SYNC=y
 #
 # Bus options (PCI, PCMCIA, EISA, ISA, TC)
 #
+# CONFIG_PCI is not set
 CONFIG_MMU=y
 CONFIG_HOTPLUG=y
 
@@ -138,6 +139,7 @@ CONFIG_HOTPLUG=y
 #
 CONFIG_PCMCIA=m
 # CONFIG_TCIC is not set
+# CONFIG_PCMCIA_AU1X00 is not set
 
 #
 # PCI Hotplug Support
