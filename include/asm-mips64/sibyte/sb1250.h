@@ -19,11 +19,21 @@
 #ifndef _ASM_SIBYTE_SB1250_H
 #define _ASM_SIBYTE_SB1250_H
 
+#ifndef __ASSEMBLY__
+
+#include <asm/addrspace.h>
+
+/* For revision/pass information */
+#include <asm/sibyte/sb1250_scd.h>
+extern unsigned int sb1250_pass;
+
 extern void sb1250_time_init(void);
+extern unsigned long sb1250_gettimeoffset(void);
 extern void sb1250_mask_irq(int cpu, int irq);
 extern void sb1250_unmask_irq(int cpu, int irq);
 extern void sb1250_smp_finish(void);
+#endif
 
-#define IO_SPACE_BASE 0xa0000000UL
+#define IO_SPACE_BASE KSEG1
 
 #endif
