@@ -594,6 +594,46 @@ sys32_waitpid(__kernel_pid_t32 pid, unsigned int *stat_addr, int options)
 	return sys32_wait4(pid, stat_addr, options, NULL);
 }
 
+struct sysinfo32 {
+        s32 uptime;
+        u32 loads[3];
+        u32 totalram;
+        u32 freeram;
+        u32 sharedram;
+        u32 bufferram;
+        u32 totalswap;
+        u32 freeswap;
+        unsigned short procs;
+        char _f[22];
+};
+
+extern asmlinkage int sys_sysinfo(struct sysinfo *info);
+
+asmlinkage int sys32_sysinfo(struct sysinfo32 *info)
+{
+	struct sysinfo s;
+	int ret, err;
+	mm_segment_t old_fs = get_fs ();
+	
+	set_fs (KERNEL_DS);
+	ret = sys_sysinfo(&s);
+	set_fs (old_fs);
+	err = put_user (s.uptime, &info->uptime);
+	err |= __put_user (s.loads[0], &info->loads[0]);
+	err |= __put_user (s.loads[1], &info->loads[1]);
+	err |= __put_user (s.loads[2], &info->loads[2]);
+	err |= __put_user (s.totalram, &info->totalram);
+	err |= __put_user (s.freeram, &info->freeram);
+	err |= __put_user (s.sharedram, &info->sharedram);
+	err |= __put_user (s.bufferram, &info->bufferram);
+	err |= __put_user (s.totalswap, &info->totalswap);
+	err |= __put_user (s.freeswap, &info->freeswap);
+	err |= __put_user (s.procs, &info->procs);
+	if (err)
+		return -EFAULT;
+	return ret;
+}
+
 #define RLIM_INFINITY32	0x7fffffff
 #define RESOURCE32(x) ((x > RLIM_INFINITY32) ? RLIM_INFINITY32 : x)
 

@@ -195,7 +195,7 @@ EXPORT(sysn32_call_table)
 	PTR	sys32_gettimeofday
 	PTR	sys32_getrlimit			/* 6095 */
 	PTR	sys32_getrusage
-	PTR	sys_ni_syscall
+	PTR	sys32_sysinfo
 	PTR	sys32_times
 	PTR	sys_ptrace
 	PTR	sys_getuid			/* 6100 */
