@@ -30,8 +30,6 @@
 /*
  * decstation_handle_int: Interrupt handler for DECStations
  *
- * FIXME: Detection of spurious interrupts not yet implemented!
- *
  * We follow the model in the Indy interrupt code by David Miller, where he
  * says: a lot of complication here is taken away because:
  *
@@ -145,12 +143,12 @@
 		la	t1,cpu_mask_tbl
 		and	t0,t2			# isolate allowed ones
 
-		/* insert detection of spurious interrupts here */
+		beqz	t0,spurious
 
 		/*
 		 * Find irq with highest priority
 		 */
-1:		lw	t2,(t1)
+1:		 lw	t2,(t1)
 		move	t3,t0
 		and	t3,t2
 		beq	t3,zero,1b
@@ -162,8 +160,8 @@
 		lw	a0,%lo(cpu_irq_nr-cpu_mask_tbl-PTRSIZE)(t1)
 		lw	t0,%lo(cpu_ivec_tbl-cpu_mask_tbl-PTRSIZE)(t1)
 		bgez	a0, handle_it		# irq_nr >= 0?
-						# irq_nr < 0: a0 contains an address
-		nop
+						# irq_nr < 0: t0 contains an address
+		 nop
 		jr	t0
 		 nop				# delay slot
 
@@ -202,10 +200,12 @@ kn02xa_io_int:					# 3min/maxine
 		/*
 		 * Find irq with highest priority
 		 */
-find_int:	lw	t2,(t1)
+find_int:	beqz	t0,spurious
+
+1:		 lw	t2,(t1)
 		move	t3,t0
 		and	t3,t2
-		beq	zero,t3,find_int
+		beq	zero,t3,1b
 		 addu	t1,PTRSIZE		# delay slot
 
 		/*
@@ -218,7 +218,10 @@ handle_it:	jal	do_IRQ
 		 move	a1,sp
 		j	ret_from_irq
 		 nop
-		
+
+spurious:
+		j	spurious_interrupt
+		 nop
 		END(decstation_handle_int)
 /*
   * Interrupt routines common to all DECStations first.
@@ -367,5 +370,3 @@ asic_irq_nr:
 		.word	0
 		.word	0
 		.word	0xffffffff		# EOL
-
-
