@@ -14,6 +14,7 @@
 #include <linux/config.h>
 #include <linux/slab.h>
 #include <asm/pgalloc.h>
+#include <asm/pgtable.h>
 
 /*
  * For the fast tlb miss handlers, we currently keep a per cpu array
@@ -57,6 +58,7 @@ get_new_mmu_context(struct mm_struct *mm, unsigned long cpu)
 	unsigned long asid = ASID_CACHE(cpu);
 
 	if (! ((asid += ASID_INC) & ASID_MASK) ) {
+		flush_icache_all();
 		local_flush_tlb_all();	/* start new asid cycle */
 		if (!asid)		/* fix version if needed */
 			asid = ASID_FIRST_VERSION;

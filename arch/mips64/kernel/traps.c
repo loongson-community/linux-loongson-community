@@ -610,7 +610,7 @@ void __init per_cpu_trap_init(void)
 		set_cp0_cause(CAUSEF_IV);
 
 	cpu_data[cpu].asid_cache = ASID_FIRST_VERSION;
-	set_context(cpu << 23);
+	set_context(((long)(&pgd_current[cpu])) << 23);
 	set_wired(0);
 }
 

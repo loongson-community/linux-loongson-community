@@ -26,17 +26,16 @@
 
 	.macro	LOAD_PTE2, ptr, tmp
 #ifdef CONFIG_SMP
-	dmfc0	\tmp, CP0_CONTEXT
-	dla	\ptr, pgd_current
-	dsrl	\tmp, 23
-	daddu	\ptr, \tmp
+	dmfc0	\ptr, CP0_CONTEXT
+	dmfc0	\tmp, CP0_BADVADDR
+	dsra	\ptr, 23			# get pgd_current[cpu]
 #else
+	dmfc0	\tmp, CP0_BADVADDR
 	dla	\ptr, pgd_current
 #endif
-	dmfc0	\tmp, CP0_BADVADDR
-	ld	\ptr, (\ptr)
 	bltz	\tmp, kaddr
-	 dsrl	\tmp, (PGDIR_SHIFT-3)		# get pgd offset in bytes
+	ld	\ptr, (\ptr)
+	dsrl	\tmp, (PGDIR_SHIFT-3)		# get pgd offset in bytes
 	andi	\tmp, ((PTRS_PER_PGD - 1)<<3)
 	daddu	\ptr, \tmp			# add in pgd offset
 	dmfc0	\tmp, CP0_BADVADDR
