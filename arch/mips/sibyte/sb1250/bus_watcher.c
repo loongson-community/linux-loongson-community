@@ -175,8 +175,22 @@ static irqreturn_t sibyte_bw_int(int irq, void *data, struct pt_regs *regs)
 {
 	struct bw_stats_struct *stats = data;
 	unsigned long cntr;
+#ifdef CONFIG_SIBYTE_BW_TRACE
+	int i;
+#endif
 #ifndef CONFIG_PROC_FS
 	char bw_buf[1024];
+#endif
+
+#ifdef CONFIG_SIBYTE_BW_TRACE
+	csr_out32(M_SCD_TRACE_CFG_FREEZE, IOADDR(A_SCD_TRACE_CFG));
+	csr_out32(M_SCD_TRACE_CFG_START_READ, IOADDR(A_SCD_TRACE_CFG));
+
+	for (i=0; i<256*6; i++)
+		printk("%016llx\n", (unsigned long long)__raw_readq(IOADDR(A_SCD_TRACE_READ)));
+
+	csr_out32(M_SCD_TRACE_CFG_RESET, IOADDR(A_SCD_TRACE_CFG));
+	csr_out32(M_SCD_TRACE_CFG_START, IOADDR(A_SCD_TRACE_CFG));
 #endif
 
 	/* Destructive read, clears register and interrupt */
@@ -200,6 +214,7 @@ static irqreturn_t sibyte_bw_int(int irq, void *data, struct pt_regs *regs)
 	bw_print_buffer(bw_buf, stats);
 	printk(bw_buf);
 #endif
+
 	return IRQ_HANDLED;
 }
 
@@ -226,6 +241,14 @@ int __init sibyte_bus_watcher(void)
 
 #ifdef CONFIG_PROC_FS
 	create_proc_decoder(&bw_stats);
+#endif
+
+#ifdef CONFIG_SIBYTE_BW_TRACE
+	csr_out32((M_SCD_TRSEQ_ASAMPLE | M_SCD_TRSEQ_DSAMPLE |
+		   K_SCD_TRSEQ_TRIGGER_ALL),
+		  IOADDR(A_SCD_TRACE_SEQUENCE_0));
+	csr_out32(M_SCD_TRACE_CFG_RESET, IOADDR(A_SCD_TRACE_CFG));
+	csr_out32(M_SCD_TRACE_CFG_START, IOADDR(A_SCD_TRACE_CFG));
 #endif
 
 	return 0;

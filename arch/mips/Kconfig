@@ -603,6 +603,16 @@ config SIBYTE_BUS_WATCHER
 	  Handle and keep statistics on the bus error interrupts (COR_ECC,
 	  BAD_ECC, IO_BUS).
 
+config SIBYTE_BW_TRACE
+	bool "Capture bus trace before bus error"
+	depends on SIBYTE_BUS_WATCHER
+	help
+	  Run a continuous bus trace, dumping the raw data as soon as
+	  a ZBbus error is detected.  Cannot work if ZBbus profiling
+	  is turned on, and also will interfere with JTAG-based trace
+	  buffer activity.  Raw buffer data is dumped to console, and
+	  must be processed off-line.
+
 config SIBYTE_SB1250_PROF
 	bool "Support for SB1/SOC profiling - SB1/SCD perf counters"
 	depends on SIBYTE_SB1xxx_SOC
