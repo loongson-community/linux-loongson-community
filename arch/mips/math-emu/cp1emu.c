@@ -872,14 +872,14 @@ mips_dsemul(struct pt_regs *xcp, mips_instruction ir, vaddr_t cpc)
  * cond = ieee754dp_cmp(x,y,IEEE754_UN);
  */
 static const unsigned char cmptab[8] = {
-	0,			/* cmp_0 (sig) cmp_sf */
-	IEEE754_CUN,		/* cmp_un (sig) cmp_ngle */
-	IEEE754_CEQ,		/* cmp_eq (sig) cmp_seq */
-	IEEE754_CEQ | IEEE754_CUN,	/* cmp_ueq (sig) cmp_ngl  */
-	IEEE754_CLT,		/* cmp_olt (sig) cmp_lt */
-	IEEE754_CLT | IEEE754_CUN,	/* cmp_ult (sig) cmp_nge */
-	IEEE754_CLT | IEEE754_CEQ,	/* cmp_ole (sig) cmp_le */
-	IEEE754_CLT | IEEE754_CEQ | IEEE754_CUN,	/* cmp_ule (sig) cmp_ngt */
+	0,					/* cmp_0 (sig) cmp_sf */
+	IEEE754_CUN,				/* cmp_un (sig) cmp_ngle */
+	IEEE754_CEQ,				/* cmp_eq (sig) cmp_seq */
+	IEEE754_CEQ | IEEE754_CUN,		/* cmp_ueq (sig) cmp_ngl  */
+	IEEE754_CLT,				/* cmp_olt (sig) cmp_lt */
+	IEEE754_CLT | IEEE754_CUN,		/* cmp_ult (sig) cmp_nge */
+	IEEE754_CLT | IEEE754_CEQ,		/* cmp_ole (sig) cmp_le */
+	IEEE754_CLT | IEEE754_CEQ | IEEE754_CUN, /* cmp_ule (sig) cmp_ngt */
 };
 
 #define SIFROMREG(si,x)	((si) = ctx->regs[x])

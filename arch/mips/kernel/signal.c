@@ -33,8 +33,9 @@
 extern asmlinkage int sys_wait4(pid_t pid, unsigned long *stat_addr,
                          int options, unsigned long *ru);
 extern asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs);
-extern asmlinkage int save_fp_context(struct sigcontext *sc);
-extern asmlinkage int restore_fp_context(struct sigcontext *sc);
+
+extern asmlinkage int (*save_fp_context)(struct sigcontext *sc);
+extern asmlinkage int (*restore_fp_context)(struct sigcontext *sc);
 
 extern asmlinkage void syscall_trace(void);
 

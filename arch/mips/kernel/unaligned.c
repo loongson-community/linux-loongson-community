@@ -379,6 +379,21 @@ unsigned long unaligned_instructions;
 asmlinkage void do_ade(struct pt_regs *regs)
 {
 	unsigned long pc;
+#ifdef CONFIG_MIPS_FPU_EMULATOR
+        extern int do_dsemulret(struct pt_regs *);
+
+        /* 
+         * Address errors may be deliberately induced
+         * by the FPU emulator to take retake control
+         * of the CPU after executing the instruction
+         * in the delay slot of an emulated branch.
+         */
+
+        if((unsigned long)regs->cp0_epc == current->thread.dsemul_aerpc) {
+                (void)do_dsemulret(regs);
+                return;
+        }
+#endif /* CONFIG_MIPS_FPU_EMULATOR */
 
 	/*
 	 * Did we catch a fault trying to load an instruction?

@@ -6,6 +6,12 @@
  * Copyright (C) 1994 - 1999 by Ralf Baechle
  * Copyright (C) 1996 by Paul M. Antoine
  * Copyright (C) 1994 - 1999 by Ralf Baechle
+ *
+ * Changed set_except_vector declaration to allow return of previous
+ * vector address value - necessary for "borrowing" vectors. 
+ *
+ * Kevin D. Kissell, kevink@mips.org and Carsten Langgaard, carstenl@mips.com
+ * Copyright (C) 2000 MIPS Technologies, Inc.
  */
 #ifndef _ASM_SYSTEM_H
 #define _ASM_SYSTEM_H
@@ -231,7 +237,7 @@ __xchg(unsigned long x, volatile void * ptr, int size)
 	return x;
 }
 
-extern void set_except_vector(int n, void *addr);
+extern void *set_except_vector(int n, void *addr);
 
 extern void __die(const char *, struct pt_regs *, const char *where,
 	unsigned long line) __attribute__((noreturn));
