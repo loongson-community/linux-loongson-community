@@ -12,6 +12,7 @@
 #include <linux/interrupt.h>
 #include <linux/mc146818rtc.h>
 #include <linux/param.h>
+#include <linux/console.h>
 #include <asm/mipsregs.h>
 #include <asm/bootinfo.h>
 #include <linux/init.h>
@@ -125,6 +126,10 @@ void __init decstation_setup(void)
     _machine_restart = dec_machine_restart;
     _machine_halt = dec_machine_halt;
     _machine_power_off = dec_machine_power_off;
+
+#ifdef CONFIG_FB
+    conswitchp = &dummy_con;
+#endif
 
     rtc_ops = &dec_rtc_ops;
 }

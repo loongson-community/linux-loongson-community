@@ -113,6 +113,8 @@ extern int tdfxfb_init(void);
 extern int tdfxfb_setup(char*);
 extern int sisfb_init(void);
 extern int sisfb_setup(char*);
+extern int pmagbafb_init(void);
+extern int pmagbafb_setup(char *);
 
 static struct {
 	const char *name;
@@ -266,6 +268,9 @@ static struct {
 #ifdef CONFIG_GSP_RESOLVER
 	/* Not a real frame buffer device... */
 	{ "resolver", NULL, resolver_video_setup },
+#endif
+#ifdef CONFIG_FB_PMAGBA
+	{ "pmagbafb", pmagbafb_init, pmagbafb_setup },
 #endif
 
 #ifdef CONFIG_FB_VIRTUAL

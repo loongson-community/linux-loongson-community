@@ -1,4 +1,3 @@
 .depend
 .*.flags
-aic7xxx_asm
-aic7xxx_seq.h
+lk201-map.c

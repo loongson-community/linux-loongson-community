@@ -90,6 +90,7 @@ ifeq ($(ARCH),sh)
 endif
 
 ifeq ($(CONFIG_DECSTATION),y)
+  KEYMAP   =
   KEYBD    =
   SERIAL   =
 endif

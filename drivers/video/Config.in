@@ -155,6 +155,11 @@ if [ "$CONFIG_FB" = "y" ]; then
    if [ "$CONFIG_HD64461" = "y" ]; then
       tristate '  HD64461 Frame Buffer support' CONFIG_FB_HIT
    fi
+   if [ "$CONFIG_DECSTATION" = "y" ]; then
+     if [ "$CONFIG_TC" = "y" ]; then
+       bool '  PMAG-BA TURBOchannel framebuffer support' CONFIG_FB_PMAGBA
+     fi
+   fi
    if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
       tristate '  Virtual Frame Buffer support (ONLY FOR TESTING!)' CONFIG_FB_VIRTUAL
    fi

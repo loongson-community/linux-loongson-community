@@ -89,6 +89,7 @@ obj-$(CONFIG_FB_TCX)              += tcxfb.o sbusfb.o
 obj-$(CONFIG_FB_CGFOURTEEN)       += cgfourteenfb.o sbusfb.o
 obj-$(CONFIG_FB_P9100)            += p9100fb.o sbusfb.o
 obj-$(CONFIG_FB_LEO)              += leofb.o sbusfb.o
+obj-$(CONFIG_FB_PMAGBA)           += pmag-ba-fb.o
 
 ifeq ($(CONFIG_FB_MATROX),y)
 SUB_DIRS			  += matrox
@@ -183,3 +184,4 @@ promcon_tbl.c: prom.uni ../char/conmakehash
 	    -e 's/dfont\(_uni.*\]\)/promfont\1 __initdata/' > promcon_tbl.c
 
 promcon_tbl.o: promcon_tbl.c $(TOPDIR)/include/linux/types.h
+
