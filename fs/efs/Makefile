@@ -7,8 +7,6 @@
 #
 # Note 2! The CFLAGS definitions are now in the main makefile...
 
-EXTRA_CFLAGS +=-g -DDEBUG_EFS
-
 O_TARGET := efs.o
 O_OBJS   := dir.o file.o inode.o namei.o \
 		symlink.o

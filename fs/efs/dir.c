@@ -1,146 +1,119 @@
 /*
- * linux/fs/efs/dir.c
+ * dir.c
  *
- * Copyright (C) 1998  Mike Shaver
+ * Copyright (c) 1999 Al Smith
  *
- * Portions derived from work (C) 1995,1996 Christian Vogelgsang.
- * ``Inspired by'' fs/minix/dir.c.
+ * Portions derived from work (c) 1995,1996 Christian Vogelgsang.
  */
 
-#include <linux/string.h>
-#include <linux/errno.h>
-#include <linux/efs_fs.h>
-#include <asm/uaccess.h>
+#include <linux/efs.h>
 
 static int efs_readdir(struct file *, void *, filldir_t);
-int efs_lookup(struct inode *, struct dentry *);
 
-static ssize_t
-efs_dir_read(struct file *filp, char *buf, size_t count, loff_t *ppos)
-{
-    return -EISDIR;
-}
-
-static struct file_operations efs_dir_ops = {
-    NULL,			/* lseek */
-    efs_dir_read,
-    NULL,			/* write */
-    efs_readdir,
-    NULL,			/* poll */
-    NULL,			/* ioctl */
-    NULL,			/* mmap */
-    NULL,			/* open */
-    NULL,			/* flush */
-    NULL,			/* release */
-    NULL			/* fsync */
+static struct file_operations efs_dir_operations = {
+	NULL,		/* lseek */
+	NULL,		/* read */
+	NULL,		/* write */
+	efs_readdir,
+	NULL,		/* poll */
+	NULL,		/* ioctl */
+	NULL,		/* no special open code */
+	NULL,		/* flush */
+	NULL,		/* no special release code */
+	NULL		/* fsync */
 };
 
 struct inode_operations efs_dir_inode_operations = {
-    &efs_dir_ops,
-    NULL,			/* create */
-    efs_lookup,
-    NULL,			/* link */
-    NULL,			/* unlink */
-    NULL,			/* symlink */
-    NULL,			/* mkdir */
-    NULL,			/* rmdir */
-    NULL,			/* mknod */
-    NULL,			/* rename */
-    NULL,			/* readlink */
-    NULL,			/* follow_link */
-    NULL,			/* readpage */
-    NULL,			/* writepage */
-    efs_bmap,
-    NULL,			/* truncate */
-    NULL			/* permission */
+	&efs_dir_operations,
+	NULL,		/* create */
+	efs_lookup,
+	NULL,		/* link */
+	NULL,		/* unlink */
+	NULL,		/* symlink */
+	NULL,		/* mkdir */
+	NULL,		/* rmdir */
+	NULL,		/* mknod */
+	NULL,		/* rename */
+	NULL,		/* readlink */
+	NULL,		/* follow_link */
+	NULL,		/* readpage */
+	NULL,		/* writepage */
+	efs_bmap,
+	NULL,		/* truncate */
+	NULL		/* permission */
 };
 
-static int
-efs_readdir(struct file *filp, void *dirent, filldir_t filldir)
-{
-    struct inode *in = filp->f_dentry->d_inode;
-    struct efs_inode_info *ini = &in->u.efs_i;
-    struct buffer_head *bh;
-    __u16 item;
-    __u32 block;
-    __u16 offset;
-    struct efs_dirblk *dirblk;
-    struct efs_dir_entry *entry;
+/* read the next entry for a given directory */
 
-    if (!in || !in->i_sb || !S_ISDIR(in->i_mode) || !ini->tot)
-	return -EBADF;
+static int efs_readdir(struct file *filp, void *dirent, filldir_t filldir) {
+	struct inode *inode = filp->f_dentry->d_inode;
+	struct efs_in_info *ini = (struct efs_in_info *) &inode->u.generic_ip;
+	struct buffer_head *bh;
 
-    if (ini->tot > 1) {
-	printk("EFS: ERROR: directory %s has %d extents\n",
-	    filp->f_dentry->d_name.name, ini->tot);
-	printk("EFS: ERROR: Mike is lazy, so this is NYI.\n");
-	return 0;
-    };
+	struct efs_dir		*dirblock;
+	struct efs_dentry	*dirslot;
+	efs_ino_t		inodenum;
+	efs_block_t		block;
+	int			slot, namelen, numslots;
+	char			*nameptr;
 
-    if (in->i_size & (EFS_BLOCK_SIZE - 1))
-	printk("EFS: readdir: dirsize %#lx not block multiple\n", in->i_size);
+	if (!inode || !S_ISDIR(inode->i_mode)) 
+		return -EBADF;
+  
+	if (ini->numextents != 1)
+		printk("EFS: WARNING: readdir(): more than one extent\n");
 
-    /* filp->f_pos is (block << BLOCK_SIZE | item) */
-    block = filp->f_pos >> EFS_BLOCK_SIZE_BITS;
-    item  = filp->f_pos & 0xFF;
-    
- start_block:
-    if (block == (in->i_size >> EFS_BLOCK_SIZE_BITS))
-	return 0;		/* all done! */
+	if (inode->i_size & (EFS_BLOCKSIZE-1))
+		printk("EFS: WARNING: readdir(): directory size not a multiple of EFS_BLOCKSIZE\n");
 
-    bh = bread(in->i_dev, efs_bmap(in, block), EFS_BLOCK_SIZE);
-    if (!bh) {
-	printk("EFS: ERROR: readdir: bread of %#lx/%#x\n",
-	       in->i_ino, efs_bmap(in, block));
-	return 0;
-    }
+	/* work out the block where this entry can be found */
+	block = filp->f_pos >> EFS_BLOCKSIZE_BITS;
+  
+	/* don't read past last entry */
+	if (block > inode->i_blocks) return 0;
 
-    dirblk = (struct efs_dirblk *)bh->b_data;
+	/* read the dir block */
+	bh = bread(inode->i_dev, efs_bmap(inode, block), EFS_BLOCKSIZE);
 
-    /* skip empty slots */
-    do {
-	offset = EFS_SLOT2OFF(dirblk, item);
-	if (!offset) {
-	    DB(("EFS: skipping empty slot %d\n", item));
+	if (!bh) {
+		printk("EFS: readdir(): failed to read dir block %d\n", block);
+		return 0;
 	}
-	item++;
-	if (item == dirblk->db_slots) {
-	    item = 0;
-	    block++;
-	    if (!offset) {
+
+	dirblock = (struct efs_dir *) bh->b_data; 
+
+	if (be16_to_cpu(dirblock->magic) != EFS_DIRBLK_MAGIC) {
+		printk("EFS: readdir(): invalid directory block\n");
 		brelse(bh);
-		goto start_block;
-	    }
+		return(0);
 	}
-    } while(!offset);
 
-    entry = EFS_DENT4OFF(dirblk, offset);
-    /*
-    DB(("EFS_SLOT2OFF(%d) -> %d, EFS_DENT4OFF(%p, %d) -> %p) || ",
-	item-1, offset, dirblk, offset, entry));
-#ifdef DEBUG_EFS
-    {
-	__u8 *rawdirblk, nameptr;
-	__u32 iteminode;
-	__u16 namelen, rawdepos;
-	rawdirblk = (__u8*)bh->b_data;
-	rawdepos = (__u16)rawdirblk[EFS_DB_FIRST+item-1] << 1;
-	DB(("OLD_WAY: offset = %d, dent = %p ||", rawdepos,
-	    (struct efs_dir_entry *)(rawdirblk + rawdepos)));
-    }
+	slot     = filp->f_pos & 0xff;
+
+	dirslot  = (struct efs_dentry *) (((char *) bh->b_data) + EFS_SLOTAT(dirblock, slot));
+
+	numslots = dirblock->slots;
+        inodenum = be32_to_cpu(dirslot->inode);
+	namelen  = dirslot->namelen;
+	nameptr  = dirslot->name;
+
+#ifdef DEBUG
+	printk("EFS: dent #%d: inode %u, name \"%s\", namelen %u\n", slot, inodenum, nameptr, namelen);
 #endif
 
-    DB(("EFS: filldir(dirent, \"%.*s\", %d, %d, %d)\n",
-	entry->d_namelen, entry->d_name, entry->d_namelen,
-	filp->f_pos, efs_swab32(entry->ud_inum.l)));
-    */
-    filldir(dirent, entry->d_name, entry->d_namelen, filp->f_pos,
-	    efs_swab32(entry->ud_inum.l));
-    
-    brelse(bh);
+	/* copy filename and data in dirslot */
+	filldir(dirent, nameptr, namelen, filp->f_pos, inodenum);
 
-    filp->f_pos = (block << EFS_BLOCK_SIZE_BITS) | item;
-    UPDATE_ATIME(in);
+	brelse(bh);
 
-    return 0;
+	/* store position of next slot */
+	if (++slot == numslots) {
+		slot = 0;
+		block++;
+	}
+
+	filp->f_pos = (block << EFS_BLOCKSIZE_BITS) | slot;
+  
+	return 0;
 }
+

@@ -1,63 +1,17 @@
 /*
- * linux/fs/efs/symlink.c
+ * symlink.c
  *
- * Copyright (C) 1998  Mike Shaver
+ * Copyright (c) 1999 Al Smith
  *
- * Portions derived from work (C) 1995,1996 Christian Vogelgsang.
- * ``Inspired by'' fs/ext2/symlink.c.
+ * Portions derived from work (c) 1995,1996 Christian Vogelgsang.
  */
 
-#include <linux/efs_fs.h>
-#include <asm/uaccess.h>
-
-static struct dentry *
-efs_follow_link(struct dentry *dentry, struct dentry *base,
-		unsigned int follow)
-{
-    struct inode *in = dentry->d_inode;
-    struct buffer_head *bh;
-
-    bh = bread(in->i_dev, efs_bmap(in, 0), EFS_BLOCK_SIZE);
-    if (!bh) {
-	dput(base);
-	return ERR_PTR(-EIO);
-    }
-    UPDATE_ATIME(in);
-    base = lookup_dentry(bh->b_data, base, follow);
-    brelse(bh);
-    return base;
-}
+#include <linux/efs.h>
 
 static int
-efs_readlink(struct dentry *dentry, char * buffer, int buflen)
-{
-    int i;
-    struct buffer_head *bh;
-    struct inode *in = dentry->d_inode;
-    
-    if (buflen > 1023)
-	buflen = 1023;
-
-    if (in->i_size < buflen)
-	buflen = in->i_size;
-
-    bh = bread(in->i_dev, efs_bmap(in, 0), EFS_BLOCK_SIZE);
-    if (!bh)
-	return 0;
-    i = 0;
-
-    /* XXX need strncpy_to_user */
-    while (i < buflen && bh->b_data[i])
-	i++;
-
-    if (copy_to_user(buffer, bh->b_data, i))
-	i = -EFAULT;
-
-    UPDATE_ATIME(in);
-
-    brelse(bh);
-    return i;
-}
+	efs_readlink(struct dentry *, char *, int);
+static struct dentry *
+	efs_follow_link(struct dentry *, struct dentry *, unsigned int);
 
 struct inode_operations efs_symlink_inode_operations = {
 	NULL,			/* no file-operations */
@@ -70,12 +24,78 @@ struct inode_operations efs_symlink_inode_operations = {
 	NULL,			/* rmdir */
 	NULL,			/* mknod */
 	NULL,			/* rename */
-	efs_readlink,
-	efs_follow_link,
+	efs_readlink,		/* readlink */
+	efs_follow_link,	/* follow_link */
 	NULL,			/* readpage */
 	NULL,			/* writepage */
 	NULL,			/* bmap */
 	NULL,			/* truncate */
-	NULL,			/* permission */
-	NULL			/* smap */
+	NULL			/* permission */
 };
+
+static char *efs_linktarget(struct inode *in) {
+	char *name;
+	struct buffer_head * bh;
+	efs_block_t size = in->i_size;
+  
+	if (size > 2 * EFS_BLOCKSIZE) {
+		printk("EFS: efs_linktarget: name too long: %lu\n", in->i_size);
+		return NULL;
+	}
+  
+	if (!(name = kmalloc(size + 1, GFP_KERNEL)))
+		return NULL;
+  
+	/* read first 512 bytes of link target */
+	bh = bread(in->i_dev, efs_bmap(in, 0), EFS_BLOCKSIZE);
+	if (!bh) {
+		kfree(name);
+		printk("EFS: efs_linktarget: couldn't read block %d\n", efs_bmap(in, 0));
+		return NULL;
+	}
+
+	memcpy(name, bh->b_data, (size > EFS_BLOCKSIZE) ? EFS_BLOCKSIZE : size);
+	brelse(bh);
+
+	if (size > EFS_BLOCKSIZE) {
+		bh = bread(in->i_dev, efs_bmap(in, 1), EFS_BLOCKSIZE);
+		if (!bh) {
+			kfree(name);
+			printk("EFS: efs_linktarget: couldn't read block %d\n", efs_bmap(in, 1));
+			return NULL;
+		}
+		memcpy(name + EFS_BLOCKSIZE, bh->b_data, size - EFS_BLOCKSIZE);
+		brelse(bh);
+	}
+  
+	name[size] = (char) 0;
+
+	return name;
+}
+
+static struct dentry *efs_follow_link(struct dentry *dentry, struct dentry *base, unsigned int follow) {
+	char *name;
+	struct inode *inode = dentry->d_inode;
+
+	name = efs_linktarget(inode);
+	base = lookup_dentry(name, base, follow);
+	kfree(name);
+  
+	return base;
+}
+
+static int efs_readlink(struct dentry * dir, char * buf, int bufsiz) {
+	int rc;
+	char *name;
+	struct inode *inode = dir->d_inode;
+  
+	if (bufsiz > 1023) bufsiz = 1023;
+
+	if (!(name = efs_linktarget(inode))) return 0;
+
+	rc = copy_to_user(buf, name, bufsiz) ? -EFAULT : 0;
+	kfree(name);
+
+	return rc;
+}
+

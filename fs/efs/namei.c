@@ -1,96 +1,83 @@
 /*
- * linux/fs/efs/namei.c
+ * namei.c
  *
- * Copyright (C) 1998  Mike Shaver
+ * Copyright (c) 1999 Al Smith
  *
- * Portions derived from work (C) 1995,1996 Christian Vogelgsang.
- * ``Inspired by'' fs/minix/namei.c.
+ * Portions derived from work (c) 1995,1996 Christian Vogelgsang.
  */
 
-#include <linux/efs_fs.h>
-#include <linux/errno.h>
+#include <linux/efs.h>
 
-static struct buffer_head *
-efs_find_entry(struct inode *dir, const char *oname, int onamelen,
-	       struct efs_dir_entry **res_dir)
-{
-    struct buffer_head *bh;
-    struct efs_sb_info *sbi;
-    struct efs_dirblk *dirblk;
-    __u32 offset, block, maxblk;
-    __u16 i, namelen;
-    char *name;
+/* search an efs directory inode for the given name */
 
-    *res_dir = NULL;
-    if (!dir || !dir->i_sb)
-	return NULL;
-    sbi = &dir->i_sb->u.efs_sb;
-    bh = NULL;
-    block = offset = 0;
-    maxblk = dir->i_size >> EFS_BLOCK_SIZE_BITS;
-    DB(("EFS: dir has %d blocks\n", maxblk));
-    for (block = 0; block < maxblk; block++) {
+static uint32_t efs_find_entry(struct inode *inode, const char *name, int len) {
+	struct efs_in_info *ini = (struct efs_in_info *) &inode->u.generic_ip;
+	struct buffer_head *bh;
 
-	bh = bread(dir->i_dev, efs_bmap(dir, block), EFS_BLOCK_SIZE);
-	if (!bh) {
-	    DB(("EFS: find_entry: skip blk %d (ino %#lx): bread\n",
-		block, dir->i_ino));
-	    continue;
+	int			slot, namelen;
+	char			*nameptr;
+	struct efs_dir		*dirblock;
+	struct efs_dentry	*dirslot;
+	efs_ino_t		inodenum;
+	efs_block_t		block;
+ 
+	if (ini->numextents != 1)
+		printk("EFS: WARNING: readdir(): more than one extent\n");
+
+	if (inode->i_size & (EFS_BLOCKSIZE-1))
+		printk("EFS: WARNING: readdir(): directory size not a multiple of EFS_BLOCKSIZE\n");
+
+	for(block = 0; block <= inode->i_blocks; block++) {
+
+		bh = bread(inode->i_dev, efs_bmap(inode, block), EFS_BLOCKSIZE);
+		if (!bh) {
+			printk("EFS: find_entry(): failed to read dir block %d\n", block);
+			return 0;
+		}
+    
+		dirblock = (struct efs_dir *) bh->b_data;
+
+		if (be16_to_cpu(dirblock->magic) != EFS_DIRBLK_MAGIC) {
+			printk("EFS: readdir(): invalid directory block\n");
+			brelse(bh);
+			return(0);
+		}
+
+		for(slot = 0; slot < dirblock->slots; slot++) {
+			dirslot  = (struct efs_dentry *) (((char *) bh->b_data) + EFS_SLOTAT(dirblock, slot));
+
+			namelen  = dirslot->namelen;
+			nameptr  = dirslot->name;
+
+			if ((namelen == len) && (!memcmp(name, nameptr, len))) {
+				inodenum = be32_to_cpu(dirslot->inode);
+				brelse(bh);
+				return(inodenum);
+			}
+		}
+		brelse(bh);
 	}
-
-	dirblk = (struct efs_dirblk *)bh->b_data;
-
-	if (efs_swab32(dirblk->db_magic) != EFS_DIRBLK_MAGIC) {
-	    printk("EFS: dirblk %d (ino %#lx) has bad magic (%#x)!\n",
-		   block, dir->i_ino, efs_swab32(dirblk->db_magic));
-	    brelse(bh);
-	    continue;
-	}
-
-	DB(("EFS: db %d has %d entries\n", block, dirblk->db_slots));
-	
-	for (i = 0; i < dirblk->db_slots; i++) {
-	    struct efs_dir_entry *dent;
-	    __u16 off = EFS_SLOT2OFF(dirblk, i);
-	    if (!off) {
-		DB(("skipping empty slot %d\n", i));
-		continue;	/* skip empty slot */
-	    }
-	    dent = EFS_DENT4OFF(dirblk, off);
-	    namelen = dent->d_namelen;
-	    name = dent->d_name;
-
-	    if ((namelen == onamelen) &&
-		!memcmp(oname, name, onamelen)) {
-		*res_dir = dent;
-		return bh;
-	    }
-	}
-
-	brelse(bh);
-    }
-    DB(("EFS: find_entry didn't find inode for \"%s\"/%d\n",
-	oname, onamelen));
-    return NULL;
+	return(0);
 }
 
-int
-efs_lookup(struct inode *dir, struct dentry *dentry)
-{
-    struct buffer_head *bh;
-    struct inode *in = NULL;
-    struct efs_dir_entry *dent;
-    
-    bh = efs_find_entry(dir, dentry->d_name.name, dentry->d_name.len, &dent);
-    if (bh) {
-	int ino = efs_swab32(dent->ud_inum.l);
 
-	brelse(bh);
-	in = iget(dir->i_sb, ino);
-	if (!in)
-	    return -EACCES;
-    }
-    
-    d_add(dentry, in);
-    return 0;
+/* get inode associated with directory entry */
+
+int efs_lookup(struct inode *dir, struct dentry *dentry) {
+	int ino;
+	struct inode * inode;
+
+	if (!dir || !S_ISDIR(dir->i_mode)) return -ENOENT;
+
+	inode = NULL;
+
+	ino = efs_find_entry(dir, dentry->d_name.name, dentry->d_name.len);
+	if (ino) {
+		if (!(inode = iget(dir->i_sb, ino)))
+			return -EACCES;
+	}
+
+	d_add(dentry, inode);
+	return 0;
 }
+
