@@ -10,7 +10,7 @@
 #define _ASM_UACCESS_H
 
 #include <linux/config.h>
-#include <linux/compiler.h>
+#include <linux/kernel.h>
 #include <linux/errno.h>
 #include <linux/thread_info.h>
 #include <asm-generic/uaccess.h>

@@ -6,11 +6,12 @@
  * Copyright (C) 1994, 1995 Waldorf Electronics GmbH
  * Copyright (C) 1998, 1999 Ralf Baechle
  */
-#include <net/checksum.h>
+#include <linux/kernel.h>
 #include <linux/types.h>
 #include <asm/byteorder.h>
 #include <asm/string.h>
 #include <asm/uaccess.h>
+#include <net/checksum.h>
 
 /*
  * copy while checksumming, otherwise like csum_partial

@@ -13,8 +13,7 @@
 #define _ASM_SYSTEM_H
 
 #include <linux/config.h>
-
-#include <linux/kernel.h>
+#include <linux/types.h>
 
 #include <asm/addrspace.h>
 #include <asm/cpu-features.h>
