@@ -24,21 +24,22 @@
 #ifdef CONFIG_SMP
 
 #include <asm/spinlock.h>
+#include <linux/threads.h>
 #include <asm/atomic.h>
 #include <asm/current.h>
 
-
-/* Mappings are straight across.  If we want
-   to add support for disabling cpus and such,
-   we'll have to do what the mips64 port does here */
-#define cpu_logical_map(cpu)	(cpu)
-#define cpu_number_map(cpu)     (cpu)
-
 #define smp_processor_id()  (current->processor)
 
-
-/* I've no idea what the real meaning of this is */
 #define PROC_CHANGE_PENALTY	20
+
+/* Map from cpu id to sequential logical cpu number.  This will only
+   not be idempotent when cpus failed to come on-line.  */
+extern int __cpu_number_map[NR_CPUS];
+#define cpu_number_map(cpu)  __cpu_number_map[cpu]
+
+/* The reverse map from sequential logical cpu number to cpu id.  */
+extern int __cpu_logical_map[NR_CPUS];
+#define cpu_logical_map(cpu)  __cpu_logical_map[cpu]
 
 #define NO_PROC_ID	(-1)
 

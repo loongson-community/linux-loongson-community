@@ -92,6 +92,8 @@ void __init smp_boot_cpus(void)
 	CPUMASK_CLRALL(cpu_online_map);
 	CPUMASK_SETB(cpu_online_map, 0);
 	atomic_set(&cpus_booted, 1);  /* Master CPU is already booted... */
+	__cpu_number_map[0] = 0;
+	__cpu_logical_map[0] = 0;
 	init_idle();
 	for (i = 1; i < smp_num_cpus; i++) {
 		struct task_struct *p;
@@ -143,6 +145,8 @@ void __init smp_boot_cpus(void)
 				    (unsigned long)p + KERNEL_STACK_SIZE - 32,
 				    (unsigned long)p);
 #endif
+		__cpu_number_map[i] = i;
+		__cpu_logical_map[i] = i;
 	}
 
 	/* Wait for everyone to come up */

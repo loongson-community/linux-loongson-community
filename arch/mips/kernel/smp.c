@@ -46,6 +46,8 @@ int smp_threads_ready;
 atomic_t smp_commenced = ATOMIC_INIT(0);
 int smp_num_cpus = 1;			/* Number that came online.  */
 cpumask_t cpu_online_map;		/* Bitmask of currently online CPUs */
+int __cpu_number_map[NR_CPUS];
+int __cpu_logical_map[NR_CPUS];
 struct cpuinfo_mips cpu_data[NR_CPUS];
 void (*volatile smp_cpu0_finalize)(void);
 
