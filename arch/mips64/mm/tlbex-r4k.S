@@ -21,7 +21,7 @@
 
 	/*
 	 * After this macro runs we have a pointer to the pte of the address
-	 * that caused the fault in in PTR.
+	 * that caused the fault in PTR.
 	 */
 	.macro	LOAD_PTE2, ptr, tmp, kaddr
 #ifdef CONFIG_SMP
