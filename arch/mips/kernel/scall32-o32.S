@@ -84,17 +84,16 @@ o32_syscall_exit_work:
 
 syscall_trace_entry:
 	SAVE_STATIC
-	sw	t2, PT_SCRATCH0(sp)
+	move	s0, t2
 	move	a0, sp
 	li	a1, 0
 	jal	do_syscall_trace
-	lw	t2, PT_SCRATCH0(sp)
 
 	lw	a0, PT_R4(sp)		# Restore argument registers
 	lw	a1, PT_R5(sp)
 	lw	a2, PT_R6(sp)
 	lw	a3, PT_R7(sp)
-	jalr	t2
+	jalr	s0
 
 	li	t0, -EMAXERRNO - 1	# error?
 	sltu	t0, t0, v0

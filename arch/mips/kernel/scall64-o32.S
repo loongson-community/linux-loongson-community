@@ -114,11 +114,10 @@ trace_a_syscall:
 	sd	a6, PT_R10(sp)
 	sd	a7, PT_R11(sp)
 
-	sd	t2, PT_SCRATCH0(sp)
+	move	s0, t2
 	move	a0, sp
 	li	a1, 0
 	jal	do_syscall_trace
-	ld	t2, PT_SCRATCH0(sp)
 
 	ld	a0, PT_R4(sp)		# Restore argument registers
 	ld	a1, PT_R5(sp)
@@ -127,7 +126,7 @@ trace_a_syscall:
 	ld	a4, PT_R8(sp)
 	ld	a5, PT_R9(sp)
 	ld	a6, PT_R10(sp)		# For indirect syscalls
-	jalr	t2
+	jalr	s0
 
 	li	t0, -EMAXERRNO - 1	# error?
 	sltu	t0, t0, v0
