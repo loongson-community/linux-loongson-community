@@ -45,10 +45,6 @@
 #include <asm/au1000.h>
 #include <asm/csb250.h>
 
-#ifdef CONFIG_RTC
-extern struct rtc_ops csb250_rtc_ops;
-#endif
-
 extern int (*board_pci_idsel)(unsigned int devsel, int assert);
 int	csb250_pci_idsel(unsigned int devsel, int assert);
 
@@ -197,7 +193,6 @@ void __init board_setup(void)
 	au_writel(au_readl(SYS_POWERCTRL) | (0x3 << 5), SYS_POWERCTRL);
 
 #ifdef CONFIG_RTC
-	rtc_ops = &csb250_rtc_ops;
 	// Enable the RTC if not already enabled
 	if (!(au_readl(0xac000028) & 0x20)) {
 		printk("enabling clock ...\n");
