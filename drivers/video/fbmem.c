@@ -279,9 +279,6 @@ static struct {
 #ifdef CONFIG_FB_TX3912
 	{ "tx3912", tx3912fb_init, NULL },
 #endif
-#ifdef CONFIG_FB_TX3912
-	{ "tx3912", tx3912fb_init, NULL },
-#endif
 #ifdef CONFIG_FB_E1355
 	{ "e1355fb", e1355fb_init, e1355fb_setup },
 #endif

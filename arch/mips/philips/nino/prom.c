@@ -30,7 +30,6 @@ void __init prom_init(int argc, char **argv,
 		unsigned long magic, int *prom_vec)
 {
 	unsigned long mem_size;
-	unsigned int i;
 
 	strcpy(arcs_cmdline, "console=tty0 console=ttyS0,115200");
 

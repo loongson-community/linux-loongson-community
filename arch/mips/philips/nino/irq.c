@@ -13,17 +13,23 @@
 #include <linux/sched.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
+#include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/mipsregs.h>
 #include <asm/tx3912.h>
+
+#define ALLINTS (IE_IRQ0 | IE_IRQ1 | IE_IRQ2 | IE_IRQ3 | IE_IRQ4 | IE_IRQ5)
 
 extern asmlinkage void do_IRQ(int irq, struct pt_regs *regs);
 
 static void enable_irq6(unsigned int irq)
 {
 	if(irq == 0) {
-		IntEnable5 |= INT5_PERIODICINT;
-		IntEnable6 |= INT6_PERIODICINT;
+		outl(inl(TX3912_INT6_ENABLE) |
+			TX3912_INT6_ENABLE_PRIORITYMASK_PERINT,
+			TX3912_INT6_ENABLE);
+		outl(inl(TX3912_INT5_ENABLE) | TX3912_INT5_PERINT,
+			TX3912_INT5_ENABLE);
 	}
 }
 
@@ -37,9 +43,11 @@ static unsigned int startup_irq6(unsigned int irq)
 static void disable_irq6(unsigned int irq)
 {
 	if(irq == 0) {
-		IntEnable6 &= ~INT6_PERIODICINT;
-		IntClear5 |= INT5_PERIODICINT;
-		IntClear6 |= INT6_PERIODICINT;
+		outl(inl(TX3912_INT6_ENABLE) &
+			~TX3912_INT6_ENABLE_PRIORITYMASK_PERINT,
+			TX3912_INT6_ENABLE);
+		outl(inl(TX3912_INT5_CLEAR) | TX3912_INT5_PERINT,
+			TX3912_INT5_CLEAR);
 	}
 }
 
@@ -67,29 +75,29 @@ void irq6_dispatch(struct pt_regs *regs)
 {
 	int irq = -1;
 
-	if(IntStatus6 & INT6_PERIODICINT) {
+	if(inl(TX3912_INT6_STATUS) & TX3912_INT6_STATUS_INTVEC_PERINT) {
 		irq = 0;
 		goto done;
 	}
 
-	/* if irq == -1, then the interrupt has already been cleared */
+	/* if irq == -1, then interrupt was cleared or is invalid */
 	if(irq == -1) {
-		panic("No handler installed for MIPS IRQ6\n");
+		panic("Unhandled High Priority PR31700 Interrupt = 0x%08x\n",
+			inl(TX3912_INT6_STATUS));
 	}
 
 done:
 	do_IRQ(irq, regs);
-
-end:	
-	return;
 }
 
 static void enable_irq4(unsigned int irq)
 {
 	set_cp0_status(STATUSF_IP4);
 	if(irq == 2) {
-		IntClear2 = 0xffffffff;
-		IntEnable2 |= 0x07c00000;
+		outl(inl(TX3912_INT2_CLEAR) | TX3912_INT2_UARTA_TX_BITS,
+			TX3912_INT2_CLEAR);
+		outl(inl(TX3912_INT2_ENABLE) | TX3912_INT2_UARTA_TX_BITS,
+			TX3912_INT2_ENABLE);
 	}
 }
 
@@ -129,31 +137,38 @@ void irq4_dispatch(struct pt_regs *regs)
 {
 	int irq = -1;
 
-	if(IntStatus2 & 0x07c00000) {
+	if(inl(TX3912_INT2_STATUS) & TX3912_INT2_UARTA_TX_BITS) {
 		irq = 2;
 		goto done;
 	}
 
-	/* if irq == -1, then the interrupt has already been cleared */
+	/* if irq == -1, then interrupt was cleared or is invalid */
 	if (irq == -1) {
-		panic("No handler installed for MIPS IRQ4\n");
+		printk("PR31700 Interrupt Status Register 1 = 0x%08x\n",
+			inl(TX3912_INT1_STATUS));
+		printk("PR31700 Interrupt Status Register 2 = 0x%08x\n",
+			inl(TX3912_INT2_STATUS));
+		printk("PR31700 Interrupt Status Register 3 = 0x%08x\n",
+			inl(TX3912_INT3_STATUS));
+		printk("PR31700 Interrupt Status Register 4 = 0x%08x\n",
+			inl(TX3912_INT4_STATUS));
+		printk("PR31700 Interrupt Status Register 5 = 0x%08x\n",
+			inl(TX3912_INT5_STATUS));
+		panic("Unhandled Low Priority PR31700 Interrupt\n");
 	}
 
 done:
 	do_IRQ(irq, regs);
-
-end:	
 	return;
 }
 
 void irq_bad(struct pt_regs *regs)
 {
 	/* This should never happen */
-	printk("Stray interrupt, spinning...\n");
 	printk(" CAUSE register = 0x%08lx\n", regs->cp0_cause);
 	printk("STATUS register = 0x%08lx\n", regs->cp0_status);
 	printk("   EPC register = 0x%08lx\n", regs->cp0_epc);
-	while(1);
+	panic("Stray interrupt, spinning...\n");
 }
 
 void __init nino_irq_setup(void)
@@ -166,19 +181,19 @@ void __init nino_irq_setup(void)
 	/* Disable all hardware interrupts */
 	change_cp0_status(ST0_IM, 0x00);
 
-	/* Clear any pending interrupts */
-	IntClear1 = 0xffffffff;
-	IntClear2 = 0xffffffff;
-	IntClear3 = 0xffffffff;
-	IntClear4 = 0xffffffff;
-	IntClear5 = 0xffffffff;
+	/* Clear interrupts */
+	outl(0xffffffff, TX3912_INT1_CLEAR);
+	outl(0xffffffff, TX3912_INT2_CLEAR);
+	outl(0xffffffff, TX3912_INT3_CLEAR);
+	outl(0xffffffff, TX3912_INT4_CLEAR);
+	outl(0xffffffff, TX3912_INT5_CLEAR);
 
-	/* FIXME: disable interrupts 1,3,4 */
-	IntEnable1 = 0x00000000;
-	IntEnable2 = 0xfffff000;
-	IntEnable3 = 0x00000000;
-	IntEnable4 = 0x00000000;
-	IntEnable5 = 0xffffffff;
+	/* Enable interrupts */
+	outl(0x00000000, TX3912_INT1_ENABLE);
+	outl(0xfffff000, TX3912_INT2_ENABLE);
+	outl(0x00000000, TX3912_INT3_ENABLE);
+	outl(0x00000000, TX3912_INT4_ENABLE);
+	outl(0xffffffff, TX3912_INT5_ENABLE);
 
 	/* Initialize IRQ vector table */
 	init_generic_irq();
@@ -203,7 +218,8 @@ void __init nino_irq_setup(void)
 	set_except_vector(0, ninoIRQ);
 
 	/* Enable high priority interrupts */
-	IntEnable6 = (INT6_GLOBALEN | 0xffff);
+	outl(TX3912_INT6_ENABLE_GLOBALEN | TX3912_INT6_ENABLE_HIGH_PRIORITY,
+		TX3912_INT6_ENABLE);
 
 	/* Enable all interrupts */
 	change_cp0_status(ST0_IM, ALLINTS);

@@ -9,6 +9,7 @@
  *
  *  Interrupt and exception initialization for Philips Nino
  */
+#include <linux/console.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/sched.h>
@@ -46,15 +47,17 @@ static void __init nino_board_init()
 
 static __init void nino_time_init(void)
 {
-	unsigned int scratch = 0;
+	/* Load the counter and enable the timer */
+	outl(TX3912_SYS_TIMER_VALUE, TX3912_TIMER_PERIOD);
+	outl(TX3912_TIMER_CTRL_ENPERTIMER, TX3912_TIMER_CTRL);
 
-	RTCperiodTimer = PER_TIMER_COUNT;
-	RTCtimerControl = TIM_ENPERTIMER;
-	IntEnable5 |= INT5_PERIODICINT;
+	/* Enable the timer clock line */
+	outl(inl(TX3912_CLK_CTRL) | TX3912_CLK_CTRL_ENTIMERCLK,
+		TX3912_CLK_CTRL);
 
-	scratch = inl(TX3912_CLK_CTRL_BASE);
-	scratch |= TX3912_CLK_CTRL_ENTIMERCLK;
-	outl(scratch, TX3912_CLK_CTRL_BASE);
+	/* Enable the interrupt */
+	outl(inl(TX3912_INT5_ENABLE) | TX3912_INT5_PERINT,
+		TX3912_INT5_ENABLE);
 }
 
 static __init void nino_timer_setup(struct irqaction *irq)
@@ -79,6 +82,10 @@ void __init nino_setup(void)
 	board_timer_setup = nino_timer_setup;
 
 	cpu_wait = nino_wait;
+
+#ifdef CONFIG_FB
+	conswitchp = &dummy_con;
+#endif
 
 	nino_board_init();
 }

@@ -10,19 +10,22 @@
  *
  *  Power management routines for the Philips Nino
  */
+#include <asm/io.h>
 #include <asm/tx3912.h>
 
 void nino_wait(void)
 {
 	/* We stop the CPU to conserve power */
-	PowerControl |= PWR_STOPCPU;
+	outl(inl(TX3912_POWER_CTRL) | TX3912_POWER_CTRL_STOPCPU,
+		 TX3912_POWER_CTRL);
 
 	/* 
 	 * We wait until an interrupt happens...
 	 */
 
 	/* We resume here */
-	PowerControl &= ~PWR_STOPCPU;
+	outl(inl(TX3912_POWER_CTRL) & ~TX3912_POWER_CTRL_STOPCPU,
+		 TX3912_POWER_CTRL);
 
 	/* Give ourselves a little delay */
 	__asm__ __volatile__(

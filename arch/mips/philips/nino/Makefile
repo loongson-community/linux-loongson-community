@@ -15,12 +15,9 @@ O_TARGET := nino.o
 
 all: nino.o
 
-obj-y	 := int-handler.o irq.o setup.o		\
-	    prom.o power.o time.o
+obj-y	 := int-handler.o irq.o setup.o prom.o power.o
 
 int-handler.o: int-handler.S
-
-obj-$(CONFIG_REMOTE_DEBUG)	+= kgdb.o
 
 obj-$(CONFIG_BLK_DEV_INITRD)	+= ramdisk.o
 

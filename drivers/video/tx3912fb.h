@@ -11,20 +11,7 @@
  */
 #include <asm/tx3912.h>
 
-#define VidCtrl1        REG_AT(0x028)
-#define VidCtrl2        REG_AT(0x02C)
-#define VidCtrl3        REG_AT(0x030)
-#define VidCtrl4        REG_AT(0x034)
-#define VidCtrl5        REG_AT(0x038)
-#define VidCtrl6        REG_AT(0x03C)
-#define VidCtrl7        REG_AT(0x040)
-#define VidCtrl8        REG_AT(0x044)
-#define VidCtrl9        REG_AT(0x048)
-#define VidCtrl10       REG_AT(0x04C)
-#define VidCtrl11       REG_AT(0x050)
-#define VidCtrl12       REG_AT(0x054)
-#define VidCtrl13       REG_AT(0x058)
-#define VidCtrl14       REG_AT(0x05C)
+#define BIT(x)		(1 << x)
 
 /* Video Control 1 Register */
 #define LINECNT         0xffc00000
