@@ -160,7 +160,7 @@ subsys_initcall(pcibios_init);
  * A given PCI device, in general, should be able to intr any of the cpus
  * on any one of the hubs connected to its xbow.
  */
-static int __devinit pci_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
+int __devinit pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 {
 	if ((dev->bus->number >= MAX_PCI_BUSSES)
 	    || (pin != 1)
@@ -179,11 +179,6 @@ static int __devinit pci_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 	irqstore[dev->bus->number][slot] = lastirq;
 	lastirq++;
 	return lastirq - 1;
-}
-
-void __init pcibios_fixup_irqs(void)
-{
-	pci_fixup_irqs(pci_swizzle, pci_map_irq);
 }
 
 /*
