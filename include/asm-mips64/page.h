@@ -80,7 +80,7 @@ extern __inline__ int get_order(unsigned long size)
  * at XKPHYS with a suitable caching mode for kernels with more than that.
  */
 #if defined(CONFIG_SGI_IP22) || defined(CONFIG_MIPS_ATLAS) || \
-    defined(CONFIG_MIPS_MALTA)
+    defined(CONFIG_MIPS_MALTA) || defined(CONFIG_MIPS_SEAD)
 #define PAGE_OFFSET	0xffffffff80000000UL
 #define UNCAC_BASE	0xffffffffa0000000UL
 #endif
