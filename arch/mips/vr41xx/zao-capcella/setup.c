@@ -53,8 +53,6 @@ struct pci_controller vr41xx_controller = {
 	.pci_ops	= &vr41xx_pci_ops,
 	.io_resource	= &vr41xx_pci_io_resource,
 	.mem_resource	= &vr41xx_pci_mem_resource,
-	.first_devfn	= 0,
-	.last_devfn	= 256,
 };
 
 struct vr41xx_pci_address_space vr41xx_pci_mem1 = {

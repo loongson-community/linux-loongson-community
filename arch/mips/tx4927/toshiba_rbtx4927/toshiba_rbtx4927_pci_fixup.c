@@ -49,11 +49,6 @@ void __init pcibios_fixup_resources(struct pci_dev *dev)
 	/* will need to fixup IO resources */
 }
 
-void __init pcibios_fixup(void)
-{
-	/* nothing to do here */
-}
-
 /* look up table for backplane pci irq for slots 17-20 by pin # */
 static unsigned char backplane_pci_irq[4][4] = {
 	/* PJ6 SLOT:  17, PIN: 1 */ {TX4927_IRQ_IOC_PCIA,

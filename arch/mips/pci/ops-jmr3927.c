@@ -1,4 +1,4 @@
-/***********************************************************************
+/*
  * Copyright 2001 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
  *              ahennessy@mvista.com
@@ -62,14 +62,7 @@ struct pci_controller jmr3927_controller = {
 	.pci_ops	= &jmr3927_pci_ops,
 	.io_resource	= &pci_io_resource,
 	.mem_resource	= &pci_mem_resource,
-	.first_devfn	= 0,
-	.last_devfn	= 0xff,
 };
-
-unsigned int pcibios_assign_all_busses(void)
-{
-	return 1;
-}
 
 static int
 mkaddr(unsigned char bus, unsigned char dev_fn, unsigned char where,

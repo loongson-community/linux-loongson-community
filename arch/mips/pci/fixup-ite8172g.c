@@ -39,10 +39,6 @@ void __init pcibios_fixup_resources(struct pci_dev *dev)
 {
 }
 
-void __init pcibios_fixup(void)
-{
-}
-
 void __init pcibios_fixup_irqs(void)
 {
 	unsigned int slot, func;

@@ -67,14 +67,7 @@ struct pci_controller tx4927_controller = {
 	.pci_ops	= &tx4927_pci_ops,
 	.io_resource	= &pci_io_resource,
 	.mem_resource	= &pci_mem_resource,
-	.first_devfn	= PCI_DEVFN(0x00, 0),
-	.last_devfn	= PCI_DEVFN(0x14, 7),
 };
-
-unsigned int pcibios_assign_all_busses(void)
-{
-	return 1;
-}
 
 static int
 mkaddr(unsigned char bus, unsigned char dev_fn, unsigned char where,

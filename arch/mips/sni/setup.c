@@ -25,6 +25,7 @@
 #include <asm/bootinfo.h>
 #include <asm/io.h>
 #include <asm/irq.h>
+#include <asm/pci_channel.h>
 #include <asm/processor.h>
 #include <asm/ptrace.h>
 #include <asm/reboot.h>
@@ -73,6 +74,28 @@ static inline void sni_pcimt_detect(void)
 	printk("%s.\n", boardtype);
 }
 
+static struct resource sni_mem_resource = {
+	.name	= "PCIMT PCI MEM",
+	.start	= 0x14000000UL,
+	.end	= 0x17ffffffUL,
+	.flags	= IORESOURCE_MEM,
+};
+
+static struct resource sni_io_resource = {
+	.name	= "PCIMT IO MEM",
+	.start	= 0x14000000UL,
+	.end	= 0x17ffffffUL,
+	.flags	= IORESOURCE_IO,
+};
+
+extern struct pci_ops sni_pci_ops;
+
+static struct pci_controller sni_controller = {
+	.pci_ops	= &sni_pci_ops,
+	.io_resource	= &sni_io_resource,
+	.mem_resource	= &sni_mem_resource
+};
+
 void __init sni_rm200_pci_setup(void)
 {
 	sni_pcimt_detect();
@@ -110,7 +133,14 @@ void __init sni_rm200_pci_setup(void)
 #ifdef CONFIG_BLK_DEV_IDE
 	ide_ops = &std_ide_ops;
 #endif
+
+#ifdef CONFIG_VT
+#if defined(CONFIG_VGA_CONSOLE)
 	conswitchp = &vga_con;
+#elif defined(CONFIG_DUMMY_CONSOLE)
+	conswitchp = &dummy_con;
+#endif
+#endif
 
 	screen_info = (struct screen_info) {
 		0, 0,		/* orig-x, orig-y */
@@ -125,4 +155,6 @@ void __init sni_rm200_pci_setup(void)
 	};
 
 	rtc_ops = &std_rtc_ops;
+
+	register_pci_controller(&sni_controller);
 }

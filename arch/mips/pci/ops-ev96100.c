@@ -78,8 +78,6 @@ struct pci_controller gt96100_controller = {
 	.pci_ops	= &gt96100_pci_ops,
 	.io_resource	= &pci_io_resource,
 	.mem_resource	= &pci_mem_resource,
-	.first_devfn	= 1,
-	.fast_devfn	= 0xff
 };
 
 int

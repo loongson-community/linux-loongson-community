@@ -15,11 +15,7 @@
    already-configured bus numbers - to be used for buggy BIOSes
    or architectures with incomplete PCI setup by the loader */
 
-#ifdef CONFIG_PCI
 extern unsigned int pcibios_assign_all_busses(void);
-#else
-#define pcibios_assign_all_busses()	0
-#endif
 
 #define PCIBIOS_MIN_IO		0x1000
 #define PCIBIOS_MIN_MEM		0x10000000

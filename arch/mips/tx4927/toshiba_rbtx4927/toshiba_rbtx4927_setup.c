@@ -364,20 +364,13 @@ EARLY_PCI_OP(write, dword, u32)
 
 static int __init tx4927_pcibios_init(int busno, struct pci_controller *hose)
 {
-	u32 pci_devfn;
-	int devfn_start = 0;
-	int devfn_stop = 0xff;
 	unsigned int id;
+	u32 pci_devfn;
 
 	TOSHIBA_RBTX4927_SETUP_DPRINTK(TOSHIBA_RBTX4927_SETUP_PCIBIOS,
 				       "-\n");
 
-	if (hose->first_devfn)
-		devfn_start = hose->first_devfn;
-	if (hose->last_devfn)
-		devfn_stop = hose->last_devfn;
-
-	for (pci_devfn = devfn_start; pci_devfn < devfn_stop; pci_devfn++) {
+	for (pci_devfn = 0x0; pci_devfn < 0xff; pci_devfn++) {
 		early_read_config_dword(hose, busno, busno, pci_devfn,
 					PCI_VENDOR_ID, &id);
 

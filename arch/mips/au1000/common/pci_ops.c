@@ -74,8 +74,6 @@ struct pci_controller au1x_controller[] = {
 	.pci_ops	= &au1x_pci_ops,
 	.io_resource	= &pci_io_resource,
 	.mem_resource	= &pci_mem_resource,
-	.first_devfn	= PCI_FIRST_DEVFN,
-	.last_devfn	= PCI_LAST_DEVFN,
 };
 
 #ifdef CONFIG_MIPS_PB1000

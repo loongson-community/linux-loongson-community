@@ -40,10 +40,6 @@ void __init pcibios_fixup_resources(struct pci_dev *dev)
 {
 }
 
-void __init pcibios_fixup(void)
-{
-}
-
 void __init pcibios_fixup_irqs(void)
 {
 	struct pci_dev *dev = NULL;
@@ -146,9 +142,4 @@ void __init pcibios_fixup_irqs(void)
 
 		pci_write_config_byte(dev, PCI_INTERRUPT_LINE, dev->irq);
 	}
-}
-
-unsigned int pcibios_assign_all_busses(void)
-{
-	return 0;
 }

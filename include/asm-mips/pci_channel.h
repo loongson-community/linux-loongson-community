@@ -20,15 +20,12 @@ struct pci_controller {
 	struct pci_bus *bus;
 
 	struct pci_ops *pci_ops;
-	struct resource *io_resource;
 	struct resource *mem_resource;
+	struct resource *io_resource;
 
 	/* For compatibility with current (as of July 2003) pciutils
 	   and XFree86. Eventually will be removed. */
 	unsigned int need_domain_info;
-
-	int first_devfn;
-	int last_devfn;
 };
 
 /*
@@ -46,5 +43,7 @@ extern void pcibios_fixup_irqs(void);
  * board supplied pci fixup routines
  */
 extern void pcibios_fixup_resources(struct pci_dev *dev);
+
+extern u8 common_swizzle(struct pci_dev *dev, u8 *pinp);
 
 #endif  /* __ASM_PCI_CHANNEL_H */

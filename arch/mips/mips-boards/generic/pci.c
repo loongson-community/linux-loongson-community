@@ -132,12 +132,3 @@ static int __init pcibios_init(void)
 }
 
 subsys_initcall(pcibios_init);
-
-/*
- *  Called after each bus is probed, but before its children
- *  are examined.
- */
-void __devinit pcibios_fixup_bus(struct pci_bus *b)
-{
-	pci_read_bridge_bases(b);
-}

@@ -108,10 +108,6 @@ void __init pcibios_fixup_irqs(void)
 	}
 }
 
-#if defined(CONFIG_RUNTIME_DEBUG)
-extern void jsun_scan_pci_bus(void);
-#endif
-
 void __init ddb_pci_reset_bus(void)
 {
 	u32 temp;
@@ -131,16 +127,6 @@ void __init ddb_pci_reset_bus(void)
 
 }
 
-unsigned __init int pcibios_assign_all_busses(void)
-{
-	/* we hope pci_auto has assigned the bus numbers to all buses */
-	return 1;
-}
-
 void __init pcibios_fixup_resources(struct pci_dev *dev)
-{
-}
-
-void __init pcibios_fixup(void)
 {
 }

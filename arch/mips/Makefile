@@ -107,7 +107,7 @@ cflags-$(CONFIG_CPU_R5000)	+= -mcpu=r8000
 cflags-$(CONFIG_CPU_R5432)	+= -mcpu=r5000
 32bit-isa-$(CONFIG_CPU_R5432)	+= -mips1 -Wa,--trap
 64bit-isa-$(CONFIG_CPU_R5432)	+= -mips3 -Wa,--trap
-cflags-$(CONFIG_CPU_NEVADA)	+= -mcpu=r8000 -mmad
+cflags-$(CONFIG_CPU_NEVADA)	+= -mcpu=r8000 #-mmad
 32bit-isa-$(CONFIG_CPU_NEVADA)	+= -mips2 -Wa,--trap
 64bit-isa-$(CONFIG_CPU_NEVADA)	+= -mips3 -Wa,--trap
 cflags-$(CONFIG_CPU_RM7000)	+= $(call check_gcc, -march=rm7000, -mcpu=r5000)

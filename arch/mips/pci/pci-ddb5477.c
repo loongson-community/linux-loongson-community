@@ -192,10 +192,6 @@ void __init pcibios_fixup_irqs(void)
 	}
 }
 
-#if defined(CONFIG_RUNTIME_DEBUG)
-extern void jsun_scan_pci_bus(void);
-extern void jsun_assign_pci_resource(void);
-#endif
 void ddb_pci_reset_bus(void)
 {
 	u32 temp;
@@ -220,87 +216,6 @@ void ddb_pci_reset_bus(void)
 	ddb_out32(DDB_PCICTL1_H, temp);
 }
 
-unsigned __init int pcibios_assign_all_busses(void)
-{
-	/* we hope pci_auto has assigned the bus numbers to all buses */
-	return 1;
-}
-
 void __init pcibios_fixup_resources(struct pci_dev *dev)
 {
-}
-
-/* 
- * fixup baseboard AMD chip so that tx does not underflow.
- *	bcr_18 |= 0x0800
- * This sets NOUFLO bit which makes tx not start until whole pkt 
- * is fetched to the chip.
- */
-#define	PCNET32_WIO_RDP         0x10
-#define	PCNET32_WIO_RAP		0x12
-#define	PCNET32_WIO_RESET       0x14
-#define	PCNET32_WIO_BDP         0x16
-void __init fix_amd_lance(struct pci_dev *dev)
-{
-	unsigned long ioaddr;
-	u16 temp;
-
-	ioaddr = pci_resource_start(dev, 0);
-
-	inw(ioaddr + PCNET32_WIO_RESET);	/* reset chip */
-
-	/* bcr_18 |= 0x0800 */
-	outw(18, ioaddr + PCNET32_WIO_RAP);
-	temp = inw(ioaddr + PCNET32_WIO_BDP);
-	temp |= 0x0800;
-	outw(18, ioaddr + PCNET32_WIO_RAP);
-	outw(temp, ioaddr + PCNET32_WIO_BDP);
-}
-
-void __init pcibios_fixup(void)
-{
-	struct pci_dev *dev = NULL;
-
-	if (mips_machtype != MACH_NEC_ROCKHOPPERII)
-		return;
-
-
-#define M1535_CONFIG_PORT 0x3f0
-#define M1535_INDEX_PORT  0x3f0
-#define M1535_DATA_PORT   0x3f1
-
-	printk("Configuring ALI M1535 Super I/O mouse irq.\n");
-
-	request_region(M1535_CONFIG_PORT, 2, "M1535 Super I/O config");
-
-	/* Enter config mode. */
-	outb(0x51, M1535_CONFIG_PORT);
-	outb(0x23, M1535_CONFIG_PORT);
-
-	/* Select device 0x07. */
-	outb(0x07, M1535_INDEX_PORT);
-	outb(0x07, M1535_DATA_PORT);
-
-	/* Set mouse irq (register 0x72) to 12. */
-	outb(0x72, M1535_INDEX_PORT);
-	outb(0x0c, M1535_DATA_PORT);
-
-	/* Exit config mode. */
-	outb(0xbb, M1535_CONFIG_PORT);
-
-	while ((dev = pci_find_device(PCI_ANY_ID, PCI_ANY_ID, dev)) != NULL) {
-		if (dev->vendor == PCI_VENDOR_ID_AL)
-			if (dev->device == PCI_DEVICE_ID_AL_M1535
-			    || dev->device == PCI_DEVICE_ID_AL_M1533) {
-				u8 old;
-				printk
-				    ("Enabling ALI M1533/35 PS2 keyboard/mouse.\n");
-				pci_read_config_byte(dev, 0x41, &old);
-				pci_write_config_byte(dev, 0x41, old | 0xd0);
-			}
-
-		if (dev->vendor == PCI_VENDOR_ID_AMD &&
-		    dev->device == PCI_DEVICE_ID_AMD_LANCE)
-			fix_amd_lance(dev);
-	}
 }

@@ -388,69 +388,6 @@ int pcibios_enable_resources(struct pci_dev *dev)
 	return 0;
 }
 
-#if 0
-int pcibios_enable_device(struct pci_dev *dev, int mask)
-{
-	return pcibios_enable_resources(dev);
-}
-
-void pcibios_update_resource(struct pci_dev *dev, struct resource *root,
-			     struct resource *res, int resource)
-{
-	u32 new, check;
-	int reg;
-
-	return;
-
-	new = res->start | (res->flags & PCI_REGION_FLAG_MASK);
-	if (resource < 6) {
-		reg = PCI_BASE_ADDRESS_0 + 4 * resource;
-	} else if (resource == PCI_ROM_RESOURCE) {
-		res->flags |= PCI_ROM_ADDRESS_ENABLE;
-		reg = dev->rom_base_reg;
-	} else {
-		/*
-		 * Somebody might have asked allocation of a non-standard
-		 * resource
-		 */
-		return;
-	}
-
-	pci_write_config_dword(dev, reg, new);
-	pci_read_config_dword(dev, reg, &check);
-	if ((new ^ check) &
-	    ((new & PCI_BASE_ADDRESS_SPACE_IO) ? PCI_BASE_ADDRESS_IO_MASK :
-	     PCI_BASE_ADDRESS_MEM_MASK)) {
-		printk(KERN_ERR "PCI: Error while updating region "
-		       "%s/%d (%08x != %08x)\n", dev->slot_name, resource,
-		       new, check);
-	}
-}
-
-
-void pcibios_align_resource(void *data, struct resource *res,
-			    unsigned long size, unsigned long align)
-{
-	struct pci_dev *dev = data;
-
-	if (res->flags & IORESOURCE_IO) {
-		unsigned long start = res->start;
-
-		/* We need to avoid collisions with `mirrored' VGA ports
-		   and other strange ISA hardware, so we always want the
-		   addresses kilobyte aligned.  */
-		if (size > 0x100) {
-			printk(KERN_ERR "PCI: I/O Region %s/%d too large"
-			       " (%ld bytes)\n", dev->slot_name,
-			        dev->resource - res, size);
-		}
-
-		start = (start + 1024 - 1) & ~(1024 - 1);
-		res->start = start;
-	}
-}
-#endif
-
 struct pci_ops galileo_pci_ops = {
 	galileo_pcibios_read_config_byte,
 	galileo_pcibios_read_config_word,
@@ -479,11 +416,6 @@ void __init pcibios_init(void)
 
 	pci_scan_bus(0, &galileo_pci_ops, NULL);
 	pci_scan_bus(1, &galileo_pci_ops, NULL);
-}
-
-unsigned __init int pcibios_assign_all_busses(void)
-{
-	return 1;
 }
 
 #endif	/* CONFIG_PCI */

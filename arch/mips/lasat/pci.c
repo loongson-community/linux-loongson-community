@@ -24,8 +24,3 @@ void __init pcibios_init(void)
 
 	pci_scan_bus(0, pci_ops, NULL);
 }
-
-void __init pcibios_fixup_bus(struct pci_bus *b)
-{
-	pci_read_bridge_bases(b);
-}

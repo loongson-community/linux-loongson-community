@@ -331,85 +331,6 @@ static void marvell_pcibios_set_master(struct pci_dev *dev)
 	marvell_pcibios_write_config_word(dev, PCI_COMMAND, cmd);
 }
 
-/*  Externally-expected functions.  Do not change function names  */
-
-int pcibios_enable_resources(struct pci_dev *dev)
-{
-	u16 cmd, old_cmd;
-	u8 tmp1;
-	int idx;
-	struct resource *r;
-
-	marvell_pcibios_read_config_word(dev, PCI_COMMAND, &cmd);
-	old_cmd = cmd;
-	for (idx = 0; idx < 6; idx++) {
-		r = &dev->resource[idx];
-		if (!r->start && r->end) {
-			printk(KERN_ERR
-			       "PCI: Device %s not available because of "
-			       "resource collisions\n", pci_name(dev));
-			return -EINVAL;
-		}
-		if (r->flags & IORESOURCE_IO)
-			cmd |= PCI_COMMAND_IO;
-		if (r->flags & IORESOURCE_MEM)
-			cmd |= PCI_COMMAND_MEMORY;
-	}
-	if (cmd != old_cmd) {
-		marvell_pcibios_write_config_word(dev, PCI_COMMAND, cmd);
-	}
-
-	/*
-	 * Let's fix up the latency timer and cache line size here.  Cache
-	 * line size = 32 bytes / sizeof dword (4) = 8.
-	 * Latency timer must be > 8.  32 is random but appears to work.
-	 */
-	marvell_pcibios_read_config_byte(dev, PCI_CACHE_LINE_SIZE, &tmp1);
-	if (tmp1 != 8) {
-		printk(KERN_WARNING
-		       "PCI setting cache line size to 8 from " "%d\n",
-		       tmp1);
-		marvell_pcibios_write_config_byte(dev, PCI_CACHE_LINE_SIZE,
-						  8);
-	}
-	marvell_pcibios_read_config_byte(dev, PCI_LATENCY_TIMER, &tmp1);
-	if (tmp1 < 32) {
-		printk(KERN_WARNING
-		       "PCI setting latency timer to 32 from %d\n", tmp1);
-		marvell_pcibios_write_config_byte(dev, PCI_LATENCY_TIMER,
-						  32);
-	}
-
-	return 0;
-}
-
-int pcibios_enable_device(struct pci_dev *dev, int mask)
-{
-	return pcibios_enable_resources(dev);
-}
-
-void pcibios_align_resource(void *data, struct resource *res,
-			    unsigned long size)
-{
-	struct pci_dev *dev = data;
-
-	if (res->flags & IORESOURCE_IO) {
-		unsigned long start = res->start;
-
-		/* We need to avoid collisions with `mirrored' VGA ports
-		   and other strange ISA hardware, so we always want the
-		   addresses kilobyte aligned.  */
-		if (size > 0x100) {
-			printk(KERN_ERR "PCI: I/O Region %s/%d too large"
-			       " (%ld bytes)\n", pci_name(dev),
-			       dev->resource - res, size);
-		}
-
-		start = (start + 1024 - 1) & ~(1024 - 1);
-		res->start = start;
-	}
-}
-
 struct pci_ops marvell_pci_ops = {
 	marvell_pcibios_read_config_byte,
 	marvell_pcibios_read_config_word,
@@ -449,9 +370,4 @@ char *pcibios_setup(char *str)
 	/* Nothing to do for now.  */
 
 	return str;
-}
-
-unsigned __init int pcibios_assign_all_busses(void)
-{
-	return 1;
 }

@@ -81,8 +81,6 @@ struct pci_controller it8172_controller = {
 	.pci_ops	= &it8172_pci_ops,
 	.io_resource	= &pci_io_resource,
 	.mem_resource	= &pci_mem_resource_0,
-	.first_devfn	= 0x10,
-	.last_devfn	= 0xff,
 };
 
 static int it8172_pcibios_config_access(unsigned char access_type,
@@ -214,8 +212,3 @@ struct pci_ops it8172_pci_ops = {
 	.read = read_config,
 	.write = write_config,
 };
-
-unsigned __init int pcibios_assign_all_busses(void)
-{
-	return 1;
-}

@@ -38,6 +38,7 @@
 #include <linux/console.h>
 
 #include <asm/io.h>
+#include <asm/pci_channel.h>
 
 #include <asm/sibyte/sb1250_defs.h>
 #include <asm/sibyte/sb1250_regs.h>
@@ -173,8 +174,27 @@ struct pci_ops sb1250_pci_ops = {
 	.write = sb1250_pcibios_write
 };
 
+static struct resource sb1250_mem_resource = {
+	.name	= "SB1250 PCI MEM",
+	.start	= 0x14000000UL,
+	.end	= 0x17ffffffUL,
+	.flags	= IORESOURCE_MEM,
+};
+                                                                                
+static struct resource sb1250_io_resource = {
+	.name	= "SB1250 IO MEM",
+	.start	= 0x14000000UL,
+	.end	= 0x17ffffffUL,
+	.flags	= IORESOURCE_IO,
+};
 
-static int __init pcibios_init(void)
+struct pci_controller sb1250_controller = {
+	.pci_ops	= &sb1250_pci_ops,
+	.mem_resource	= &sb1250_mem_resource,
+	.io_resource	= &sb1250_io_resource
+};
+
+int __init pcibios_init(void)	xxx This needs to be called somehow ...
 {
 	uint32_t cmdreg;
 	uint64_t reg;
@@ -238,10 +258,7 @@ static int __init pcibios_init(void)
 	}
 #endif
 
-	/* Probe for PCI hardware */
-
-	printk("PCI: Probing PCI hardware on host bus 0.\n");
-	pci_scan_bus(0, &sb1250_pci_ops, NULL);
+	register_pci_controller(&sb1250_controller);
 
 #ifdef CONFIG_VGA_CONSOLE
 	take_over_console(&vga_con, 0, MAX_NR_CONSOLES - 1, 1);
@@ -249,40 +266,11 @@ static int __init pcibios_init(void)
 	return 0;
 }
 
-subsys_initcall(pcibios_init);
-
-int pcibios_enable_device(struct pci_dev *dev, int mask)
+void __init pcibios_fixup_irqs(void)
 {
-	/* Not needed, since we enable all devices at startup.  */
-	return 0;
-}
-
-void pcibios_align_resource(void *data, struct resource *res,
-			    unsigned long size, unsigned long align)
-{
-}
-
-char *__init pcibios_setup(char *str)
-{
-	/* Nothing to do for now.  */
-
-	return str;
+	panic("pcibios_fixup_irqs: Implement me");
 }
 
 struct pci_fixup pcibios_fixups[] = {
 	{0}
 };
-
-/*
- *  Called after each bus is probed, but before its children
- *  are examined.
- */
-void __devinit pcibios_fixup_bus(struct pci_bus *b)
-{
-	pci_read_bridge_bases(b);
-}
-
-unsigned int pcibios_assign_all_busses(void)
-{
-	return 1;
-}

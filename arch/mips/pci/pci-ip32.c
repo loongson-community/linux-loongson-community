@@ -7,6 +7,7 @@
  */
 #include <linux/kernel.h>
 #include <linux/init.h>
+#include <linux/interrupt.h>
 #include <linux/pci.h>
 #include <linux/types.h>
 #include <asm/pci.h>
@@ -18,31 +19,97 @@
 #undef DEBUG_MACE_PCI
 
 /*
- * O2 has up to 5 PCI devices connected into the MACE bridge.  The device
- * map looks like this:
- *
- * 0  aic7xxx 0
- * 1  aic7xxx 1
- * 2  expansion slot
- * 3  N/C
- * 4  N/C
+ * Handle errors from the bridge.  This includes master and target aborts,
+ * various command and address errors, and the interrupt test.  This gets
+ * registered on the bridge error irq.  It's conceivable that some of these
+ * conditions warrant a panic.  Anybody care to say which ones?
  */
+static irqreturn_t macepci_error(int irq, void *dev, struct pt_regs *regs)
+{
+	u32 flags, error_addr;
+	char space;
 
-#define chkslot(_bus,_devfn)					\
-do {							        \
-	if ((_bus)->number > 0 || PCI_SLOT (_devfn) < 1	\
-	    || PCI_SLOT (_devfn) > 3)			        \
-		return PCIBIOS_DEVICE_NOT_FOUND;		\
-} while (0)
+	flags = mace_read_32(MACEPCI_ERROR_FLAGS);
+	error_addr = mace_read_32(MACEPCI_ERROR_ADDR);
 
-void macepci_error(int irq, void *dev, struct pt_regs *regs);
+	if (flags & MACEPCI_ERROR_MEMORY_ADDR)
+		space = 'M';
+	else if (flags & MACEPCI_ERROR_CONFIG_ADDR)
+		space = 'C';
+	else
+		space = 'X';
 
-struct pci_fixup pcibios_fixups[] = { {0} };
+	if (flags & MACEPCI_ERROR_MASTER_ABORT) {
+		printk("MACEPCI: Master abort at 0x%08x (%c)\n",
+		       error_addr, space);
+		mace_write_32(MACEPCI_ERROR_FLAGS,
+			      flags & ~MACEPCI_ERROR_MASTER_ABORT);
+	}
+	if (flags & MACEPCI_ERROR_TARGET_ABORT) {
+		printk("MACEPCI: Target abort at 0x%08x (%c)\n",
+		       error_addr, space);
+		mace_write_32(MACEPCI_ERROR_FLAGS,
+			      flags & ~MACEPCI_ERROR_TARGET_ABORT);
+	}
+	if (flags & MACEPCI_ERROR_DATA_PARITY_ERR) {
+		printk("MACEPCI: Data parity error at 0x%08x (%c)\n",
+		       error_addr, space);
+		mace_write_32(MACEPCI_ERROR_FLAGS, flags
+			      & ~MACEPCI_ERROR_DATA_PARITY_ERR);
+	}
+	if (flags & MACEPCI_ERROR_RETRY_ERR) {
+		printk("MACEPCI: Retry error at 0x%08x (%c)\n", error_addr,
+		       space);
+		mace_write_32(MACEPCI_ERROR_FLAGS, flags
+			      & ~MACEPCI_ERROR_RETRY_ERR);
+	}
+	if (flags & MACEPCI_ERROR_ILLEGAL_CMD) {
+		printk("MACEPCI: Illegal command at 0x%08x (%c)\n",
+		       error_addr, space);
+		mace_write_32(MACEPCI_ERROR_FLAGS,
+			      flags & ~MACEPCI_ERROR_ILLEGAL_CMD);
+	}
+	if (flags & MACEPCI_ERROR_SYSTEM_ERR) {
+		printk("MACEPCI: System error at 0x%08x (%c)\n",
+		       error_addr, space);
+		mace_write_32(MACEPCI_ERROR_FLAGS, flags
+			      & ~MACEPCI_ERROR_SYSTEM_ERR);
+	}
+	if (flags & MACEPCI_ERROR_PARITY_ERR) {
+		printk("MACEPCI: Parity error at 0x%08x (%c)\n",
+		       error_addr, space);
+		mace_write_32(MACEPCI_ERROR_FLAGS,
+			      flags & ~MACEPCI_ERROR_PARITY_ERR);
+	}
+	if (flags & MACEPCI_ERROR_OVERRUN) {
+		printk("MACEPCI: Overrun error at 0x%08x (%c)\n",
+		       error_addr, space);
+		mace_write_32(MACEPCI_ERROR_FLAGS, flags
+			      & ~MACEPCI_ERROR_OVERRUN);
+	}
+	if (flags & MACEPCI_ERROR_SIG_TABORT) {
+		printk("MACEPCI: Signaled target abort (clearing)\n");
+		mace_write_32(MACEPCI_ERROR_FLAGS, flags
+			      & ~MACEPCI_ERROR_SIG_TABORT);
+	}
+	if (flags & MACEPCI_ERROR_INTERRUPT_TEST) {
+		printk("MACEPCI: Interrupt test triggered (clearing)\n");
+		mace_write_32(MACEPCI_ERROR_FLAGS, flags
+			      & ~MACEPCI_ERROR_INTERRUPT_TEST);
+	}
+
+	return IRQ_HANDLED;
+}
 
 static u8 __init macepci_swizzle(struct pci_dev *dev, u8 * pinp);
 static int __devinit macepci_map_irq(struct pci_dev *dev, u8 slot, u8 pin);
 
-static int __init pcibios_init(void)
+extern struct pci_ops mace_pci_ops;
+
+/*
+ * Non-static duplicate symbol to poke your nose at this piece of code :-)
+ */
+int __init pcibios_init(void)
 {
 	struct pci_dev *dev = NULL;
 	u32 start, size;
@@ -73,7 +140,7 @@ static int __init pcibios_init(void)
 			"MACE PCI error", NULL))
 		panic("PCI bridge can't get interrupt; can't happen.");
 
-	pci_scan_bus(0, &macepci_ops, NULL);
+	pci_scan_bus(0, &mace_pci_ops, NULL);
 	pci_fixup_irqs(macepci_swizzle, macepci_map_irq);
 #ifdef DEBUG_MACE_PCI
 	while ((dev = pci_find_device(PCI_ANY_ID, PCI_ANY_ID, dev)) != NULL) {
@@ -194,7 +261,23 @@ static int __init pcibios_init(void)
 	return 0;
 }
 
-subsys_initcall(pcibios_init);
+/*
+ * O2 has up to 5 PCI devices connected into the MACE bridge.  The device
+ * map looks like this:
+ *
+ * 0  aic7xxx 0
+ * 1  aic7xxx 1
+ * 2  expansion slot
+ * 3  N/C
+ * 4  N/C
+ */
+
+#define chkslot(_bus,_devfn)					\
+do {							        \
+	if ((_bus)->number > 0 || PCI_SLOT (_devfn) < 1		\
+	    || PCI_SLOT (_devfn) > 3)			        \
+		return PCIBIOS_DEVICE_NOT_FOUND;		\
+} while (0)
 
 /*
  * Given a PCI slot number (a la PCI_SLOT(...)) and the interrupt pin of
@@ -266,115 +349,4 @@ static u8 __init macepci_swizzle(struct pci_dev *dev, u8 * pinp)
 	else
 		*pinp = 1;
 	return PCI_SLOT(dev->devfn);
-}
-
-/* All devices are enabled during initialization. */
-int pcibios_enable_device(struct pci_dev *dev, int mask)
-{
-	return PCIBIOS_SUCCESSFUL;
-}
-
-char *__init pcibios_setup(char *str)
-{
-	return str;
-}
-
-void pcibios_align_resource(void *data, struct resource *res,
-			    unsigned long size, unsigned long align)
-{
-}
-
-void __init pcibios_update_irq(struct pci_dev *dev, int irq)
-{
-	pci_write_config_byte(dev, PCI_INTERRUPT_LINE, irq);
-}
-
-void __devinit pcibios_fixup_bus(struct pci_bus *b)
-{
-}
-
-/*
- * Handle errors from the bridge.  This includes master and target aborts,
- * various command and address errors, and the interrupt test.  This gets
- * registered on the bridge error irq.  It's conceivable that some of these
- * conditions warrant a panic.  Anybody care to say which ones?
- */
-void macepci_error(int irq, void *dev, struct pt_regs *regs)
-{
-	u32 flags, error_addr;
-	char space;
-
-	flags = mace_read_32(MACEPCI_ERROR_FLAGS);
-	error_addr = mace_read_32(MACEPCI_ERROR_ADDR);
-
-	if (flags & MACEPCI_ERROR_MEMORY_ADDR)
-		space = 'M';
-	else if (flags & MACEPCI_ERROR_CONFIG_ADDR)
-		space = 'C';
-	else
-		space = 'X';
-
-	if (flags & MACEPCI_ERROR_MASTER_ABORT) {
-		printk("MACEPCI: Master abort at 0x%08x (%c)\n",
-		       error_addr, space);
-		mace_write_32(MACEPCI_ERROR_FLAGS,
-			      flags & ~MACEPCI_ERROR_MASTER_ABORT);
-	}
-	if (flags & MACEPCI_ERROR_TARGET_ABORT) {
-		printk("MACEPCI: Target abort at 0x%08x (%c)\n",
-		       error_addr, space);
-		mace_write_32(MACEPCI_ERROR_FLAGS,
-			      flags & ~MACEPCI_ERROR_TARGET_ABORT);
-	}
-	if (flags & MACEPCI_ERROR_DATA_PARITY_ERR) {
-		printk("MACEPCI: Data parity error at 0x%08x (%c)\n",
-		       error_addr, space);
-		mace_write_32(MACEPCI_ERROR_FLAGS, flags
-			      & ~MACEPCI_ERROR_DATA_PARITY_ERR);
-	}
-	if (flags & MACEPCI_ERROR_RETRY_ERR) {
-		printk("MACEPCI: Retry error at 0x%08x (%c)\n", error_addr,
-		       space);
-		mace_write_32(MACEPCI_ERROR_FLAGS, flags
-			      & ~MACEPCI_ERROR_RETRY_ERR);
-	}
-	if (flags & MACEPCI_ERROR_ILLEGAL_CMD) {
-		printk("MACEPCI: Illegal command at 0x%08x (%c)\n",
-		       error_addr, space);
-		mace_write_32(MACEPCI_ERROR_FLAGS,
-			      flags & ~MACEPCI_ERROR_ILLEGAL_CMD);
-	}
-	if (flags & MACEPCI_ERROR_SYSTEM_ERR) {
-		printk("MACEPCI: System error at 0x%08x (%c)\n",
-		       error_addr, space);
-		mace_write_32(MACEPCI_ERROR_FLAGS, flags
-			      & ~MACEPCI_ERROR_SYSTEM_ERR);
-	}
-	if (flags & MACEPCI_ERROR_PARITY_ERR) {
-		printk("MACEPCI: Parity error at 0x%08x (%c)\n",
-		       error_addr, space);
-		mace_write_32(MACEPCI_ERROR_FLAGS,
-			      flags & ~MACEPCI_ERROR_PARITY_ERR);
-	}
-	if (flags & MACEPCI_ERROR_OVERRUN) {
-		printk("MACEPCI: Overrun error at 0x%08x (%c)\n",
-		       error_addr, space);
-		mace_write_32(MACEPCI_ERROR_FLAGS, flags
-			      & ~MACEPCI_ERROR_OVERRUN);
-	}
-	if (flags & MACEPCI_ERROR_SIG_TABORT) {
-		printk("MACEPCI: Signaled target abort (clearing)\n");
-		mace_write_32(MACEPCI_ERROR_FLAGS, flags
-			      & ~MACEPCI_ERROR_SIG_TABORT);
-	}
-	if (flags & MACEPCI_ERROR_INTERRUPT_TEST) {
-		printk("MACEPCI: Interrupt test triggered (clearing)\n");
-		mace_write_32(MACEPCI_ERROR_FLAGS, flags
-			      & ~MACEPCI_ERROR_INTERRUPT_TEST);
-	}
-}
-
-unsigned int pcibios_assign_all_busses(void)
-{
-	return 0;
 }

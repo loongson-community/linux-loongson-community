@@ -55,40 +55,6 @@ void __init pcibios_fixup_resources(struct pci_dev *dev)
 	/* will need to fixup IO resources */
 }
 
-void __init pcibios_fixup(void)
-{
-#ifdef CONFIG_SOC_AU1500
-	int i;
-	struct pci_dev *dev;
-
-	virt_io_addr = (unsigned long) ioremap(Au1500_PCI_IO_START,
-					       Au1500_PCI_IO_END -
-					       Au1500_PCI_IO_START + 1);
-
-	if (!virt_io_addr) {
-		printk(KERN_ERR "Unable to ioremap pci space\n");
-		return;
-	}
-
-	set_io_port_base(virt_io_addr);
-#endif
-
-#ifdef CONFIG_MIPS_PB1000	/* This is truly board specific */
-	unsigned long pci_mem_start = (unsigned long) PCI_MEM_START;
-
-	au_writel(0, PCI_BRIDGE_CONFIG);	// set extend byte to 0
-	au_writel(0, SDRAM_MBAR);	// set mbar to 0
-	au_writel(0x2, SDRAM_CMD);	// enable memory accesses
-	au_sync_delay(1);
-
-	// set extend byte to mbar of ext slot
-	au_writel(((pci_mem_start >> 24) & 0xff) |
-		  (1 << 8 | 1 << 9 | 1 << 10 | 1 << 27),
-		  PCI_BRIDGE_CONFIG);
-	DBG("Set bridge config to %x\n", au_readl(PCI_BRIDGE_CONFIG));
-#endif
-}
-
 void __init pcibios_fixup_irqs(void)
 {
 #ifdef CONFIG_SOC_AU1500
@@ -113,10 +79,6 @@ void __init pcibios_fixup_irqs(void)
 		DBG("slot %d irq %d\n", slot, dev->irq);
 	}
 #endif
-}
-unsigned int pcibios_assign_all_busses(void)
-{
-	return 0;
 }
 
 static void fixup_resource(int r_num, struct pci_dev *dev)

@@ -46,11 +46,6 @@ void __init pcibios_fixup_resources(struct pci_dev *dev)
 	/* will need to fixup IO resources */
 }
 
-void __init pcibios_fixup(void)
-{
-	/* nothing to do here */
-}
-
 int pci_get_irq(struct pci_dev *dev, int pin)
 {
 	unsigned char irq = pin;

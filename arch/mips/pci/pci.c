@@ -1,59 +1,10 @@
 /*
- * Copyright 2001 MontaVista Software Inc.
- * Author: Jun Sun, jsun@mvista.com or jsun@junsun.net
- *
- * Modified to be mips generic, ppopov@mvista.com
- * arch/mips/kernel/pci.c
- *     Common MIPS PCI routines.
- *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
  * Free Software Foundation;  either version 2 of the  License, or (at your
  * option) any later version.
- */
-
-/*
- * This file contains common PCI routines meant to be shared for
- * all MIPS machines.
  *
- * Strategies:
- *
- * . We rely on pci_auto.c file to assign PCI resources (MEM and IO)
- *   TODO: this should be optional for some machines where they do have
- *   a real "pcibios" that does resource assignment.
- *
- * . We then use pci_scan_bus() to "discover" all the resources for
- *   later use by Linux.
- *
- * . We finally reply on a board supplied function, pcibios_fixup_irq(), to
- *   to assign the interrupts.  We may use setup-irq.c under drivers/pci
- *   later.
- *
- * . Specifically, we will *NOT* use pci_assign_unassigned_resources(),
- *   because we assume all PCI devices should have the resources correctly
- *   assigned and recorded.
- *
- * Limitations:
- *
- * . We "collapse" all IO and MEM spaces in sub-buses under a top-level bus
- *   into a contiguous range.
- *
- * . In the case of Memory space, the rnage is 1:1 mapping with CPU physical
- *   address space.
- *
- * . In the case of IO space, it starts from 0, and the beginning address
- *   is mapped to KSEG0ADDR(mips_io_port) in the CPU physical address.
- *
- * . These are the current MIPS limitations (by ioremap, etc).  In the
- *   future, we may remove them.
- *
- * Credits:
- *	Most of the code are derived from the pci routines from PPC and Alpha,
- *	which were mostly writtne by
- *		Cort Dougan, cort@fsmlabs.com
- *		Matt Porter, mporter@mvista.com
- *		Dave Rusling david.rusling@reo.mts.dec.com
- *		David Mosberger davidm@cs.arizona.edu
+ * Copyright (C) 2003 Ralf Baechle (ralf@linux-mips.org)
  */
 #include <linux/kernel.h>
 #include <linux/mm.h>
@@ -71,6 +22,10 @@
  * whether we probed only or not.
  */
 int pci_probe_only;
+
+#define PCI_ASSIGN_ALL_BUSSES	1
+
+unsigned int pci_probe = PCI_ASSIGN_ALL_BUSSES;
 
 /*
  * The PCI controller list.
@@ -102,32 +57,6 @@ pcibios_align_resource(void *data, struct resource *res,
 		if (start & 0x300) {
 			start = (start + 0x3ff) & ~0x3ff;
 			res->start = start;
-		}
-	}
-}
-
-extern void pcibios_fixup(void);
-
-void __init pcibios_fixup_irqs(void)
-{
-	struct pci_dev *dev = NULL;
-	int slot_num;
-
-
-	while ((dev = pci_find_device(PCI_ANY_ID, PCI_ANY_ID, dev)) != NULL) {
-		slot_num = PCI_SLOT(dev->devfn);
-		switch (slot_num) {
-		case 2:
-			dev->irq = 3;
-			break;
-		case 3:
-			dev->irq = 4;
-			break;
-		case 4:
-			dev->irq = 5;
-			break;
-		default:
-			break;
 		}
 	}
 }
@@ -164,8 +93,6 @@ static int __init pcibios_init(void)
 		}
 	}
 
-	/* machine dependent fixups */
-	pcibios_fixup();
 	/* fixup irqs (board specific routines) */
 	pcibios_fixup_irqs();
 
@@ -209,6 +136,11 @@ static int pcibios_enable_resources(struct pci_dev *dev, int mask)
 static int pcibios_enable_irq(struct pci_dev *dev)
 {
 	return 0;
+}
+
+unsigned int pcibios_assign_all_busses(void)
+{
+	return (pci_probe & PCI_ASSIGN_ALL_BUSSES) ? 1 : 0;
 }
 
 int pcibios_enable_device(struct pci_dev *dev, int mask)
@@ -263,8 +195,7 @@ pcibios_fixup_device_resources(struct pci_dev *dev, struct pci_bus *bus)
 	}
 }
 
-void __init
-pcibios_fixup_bus(struct pci_bus *bus)
+void __devinit pcibios_fixup_bus(struct pci_bus *bus)
 {
 	/* Propagate hose info into the subordinate devices.  */
 
@@ -288,6 +219,34 @@ pcibios_fixup_bus(struct pci_bus *bus)
 		if ((dev->class >> 8) != PCI_CLASS_BRIDGE_PCI)
 			pcibios_fixup_device_resources(dev, bus);
 	}
+}
+
+void __init
+pcibios_update_irq(struct pci_dev *dev, int irq)
+{
+	pci_write_config_byte(dev, PCI_INTERRUPT_LINE, irq);
+}
+
+/* Most MIPS systemems have straight-forward swizzling needs.  */
+
+static inline u8 bridge_swizzle(u8 pin, u8 slot)
+{
+	return (((pin - 1) + slot) % 4) + 1;
+}
+
+u8 __init common_swizzle(struct pci_dev *dev, u8 *pinp)
+{
+	u8 pin = *pinp;
+
+	while (dev->bus->parent) {
+		pin = bridge_swizzle(pin, PCI_SLOT(dev->devfn));
+		/* Move up the chain of bridges. */
+		dev = dev->bus->self;
+        }
+	*pinp = pin;
+
+	/* The slot is the slot of the last bridge. */
+	return PCI_SLOT(dev->devfn);
 }
 
 char *pcibios_setup(char *str)

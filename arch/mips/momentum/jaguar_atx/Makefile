@@ -6,6 +6,7 @@
 # unless it's something special (ie not a .c file).
 #
 
-obj-y	 += mv-irq.o int-handler.o irq.o pci-irq.o pci.o prom.o reset.o setup.o
+obj-y	 		+= mv-irq.o int-handler.o irq.o pci-irq.o prom.o reset.o setup.o
+obj-$(CONFIG_PCI)	+= pci.o
 
 obj-$(CONFIG_REMOTE_DEBUG) += dbg_io.o

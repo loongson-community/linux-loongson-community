@@ -151,24 +151,6 @@ static int __init pcibios_init(void)
 
 subsys_initcall(pcibios_init);
 
-static inline u8 bridge_swizzle(u8 pin, u8 slot)
-{
-	return (((pin - 1) + slot) % 4) + 1;
-}
-
-static u8 __devinit pci_swizzle(struct pci_dev *dev, u8 * pinp)
-{
-	u8 pin = *pinp;
-
-	while (dev->bus->self) {	/* Move up the chain of bridges. */
-		pin = bridge_swizzle(pin, PCI_SLOT(dev->devfn));
-		dev = dev->bus->self;
-	}
-	*pinp = pin;
-
-	return PCI_SLOT(dev->devfn);
-}
-
 /*
  * All observed requests have pin == 1. We could have a global here, that
  * gets incremented and returned every time - unfortunately, pci_map_irq
@@ -199,37 +181,9 @@ static int __devinit pci_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 	return lastirq - 1;
 }
 
-void __init pcibios_update_irq(struct pci_dev *dev, int irq)
-{
-	pci_write_config_byte(dev, PCI_INTERRUPT_LINE, irq);
-}
-
-void __devinit pcibios_fixup_bus(struct pci_bus *b)
+void __init pcibios_fixup_irqs(void)
 {
 	pci_fixup_irqs(pci_swizzle, pci_map_irq);
-}
-
-int pcibios_enable_device(struct pci_dev *dev, int mask)
-{
-	/* Not needed, since we enable all devices at startup.  */
-	return 0;
-}
-
-void pcibios_align_resource(void *data, struct resource *res,
-			    unsigned long size, unsigned long align)
-{
-}
-
-unsigned int pcibios_assign_all_busses(void)
-{
-	return 0;
-}
-
-char *__devinit pcibios_setup(char *str)
-{
-	/* Nothing to do for now.  */
-
-	return str;
 }
 
 /*

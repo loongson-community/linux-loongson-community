@@ -795,33 +795,6 @@ int pcibios_enable_resources(struct pci_dev *dev)
 	return 0;
 }
 
-int pcibios_enable_device(struct pci_dev *dev, int mask)
-{
-	return pcibios_enable_resources(dev);
-}
-
-void pcibios_align_resource(void *data, struct resource *res,
-			    unsigned long size, unsigned long align)
-{
-	struct pci_dev *dev = data;
-
-	if (res->flags & IORESOURCE_IO) {
-		unsigned long start = res->start;
-
-		/* We need to avoid collisions with `mirrored' VGA ports
-		   and other strange ISA hardware, so we always want the
-		   addresses kilobyte aligned.  */
-		if (size > 0x100) {
-			printk(KERN_ERR "PCI: I/O Region %s/%d too large"
-			       " (%ld bytes)\n", pci_name(dev),
-			       dev->resource - res, size);
-		}
-
-		start = (start + 1024 - 1) & ~(1024 - 1);
-		res->start = start;
-	}
-}
-
 struct pci_ops galileo_pci_ops = {
 	.read = galileo_pcibios_read,
 	.write = galileo_pcibios_write,
@@ -1047,9 +1020,4 @@ char *pcibios_setup(char *str)
 	/* Nothing to do for now.  */
 
 	return str;
-}
-
-unsigned __init int pcibios_assign_all_busses(void)
-{
-	return 1;
 }

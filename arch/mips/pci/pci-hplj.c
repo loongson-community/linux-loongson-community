@@ -113,16 +113,6 @@ struct pci_controller hp_controller = {
 	.mem_resource	= &iomem_resource,
 };
 
-unsigned __init int pcibios_assign_all_busses(void)
-{
-	return 1;
-}
-
-void __init pcibios_fixup(void)
-{
-}
-
-
 void __init pcibios_fixup_irqs(void)
 {
 	struct pci_dev *dev = NULL;
