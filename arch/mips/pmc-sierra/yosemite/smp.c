@@ -55,7 +55,7 @@ static char maxcpus_string[] __initdata =
 
 void __init prom_prepare_cpus(unsigned int max_cpus)
 {
-	int i;
+	int enabled = 0, i;
 
 	if (max_cpus == 0) {
 		printk(maxcpus_string);
@@ -74,7 +74,14 @@ void __init prom_prepare_cpus(unsigned int max_cpus)
 		cpu_set(i, phys_cpu_present_map);
 		__cpu_number_map[i]	= i;
 		__cpu_logical_map[i]	= i;
+		enabled++;
 	}
+
+	/*
+	 * Be paranoid.  Enable the IPI only if we're really about to go SMP.
+	 */
+	if (enabled > 1)
+		set_c0_status(STATUSF_IP5);
 }
 
 /*
