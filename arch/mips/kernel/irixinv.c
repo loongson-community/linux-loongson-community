@@ -78,4 +78,4 @@ void __init init_inventory (void)
 	add_to_inventory (7, 14, 0, 0, 6);
 }
 
-__initcall(init_inventory);
+module_init(init_inventory);
