@@ -127,12 +127,11 @@ static unsigned long dosample(volatile unsigned char *tcwp,
 	return ((ct1 - ct0) / 5000) * 5000;
 }
 
+/* 
+ * Here we need to calibrate the cycle counter to at least be close. 
+ */
 void indy_time_init(void)
 {
-	/* Here we need to calibrate the cycle counter to at least be close.
-	 * We don't need to actually register the irq handler because that's
-	 * all done in indyIRQ.S.
-	 */
 	struct sgi_ioc_timers *p;
 	volatile unsigned char *tcwp, *tc2p;
 	unsigned long r4k_ticks[3];
@@ -215,8 +214,16 @@ extern int setup_irq(unsigned int irq, struct irqaction *irqaction);
 
 static void indy_timer_setup(struct irqaction *irq)
 {
+	unsigned long count;
+	
 	/* over-write the handler, we use our own way */
 	irq->handler = no_action;
+
+	/* set time for first interrupt */
+	count = read_32bit_cp0_register(CP0_COUNT);
+	count += mips_counter_frequency / HZ;
+	write_32bit_cp0_register(CP0_COMPARE, count);
+
 	/* setup irqaction */
 	setup_irq(SGI_TIMER_IRQ, irq);
 }

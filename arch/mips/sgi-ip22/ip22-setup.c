@@ -61,7 +61,7 @@ static int sgi_request_irq(void (*handler)(int, void *, struct pt_regs *))
 	   indy_setup wouldn't work since kmalloc isn't initialized yet.  */
 	indy_reboot_setup();
 
-	return request_irq(SGI_KEYBOARD_IRQ, handler, 0, "keyboard", NULL);
+	return request_irq(SGI_KEYBD_IRQ, handler, 0, "keyboard", NULL);
 }
 
 static int sgi_aux_request_irq(void (*handler)(int, void *, struct pt_regs *))

@@ -180,7 +180,7 @@ static void panel_int(int irq, void *dev_id, struct pt_regs *regs)
 	unsigned int buttons;
 
 	buttons = hpc3mregs->panel;
-	hpc3mregs->panel = 3; /* power_interrupt | power_supply_on */
+	hpc3mregs->panel = 0x03;	/* power_interrupt | power_supply_on */
 
 	if (ioc_icontrol->istat1 & 2) { /* Wait until interrupt goes away */
 		disable_irq(SGI_PANEL_IRQ);
@@ -190,7 +190,7 @@ static void panel_int(int irq, void *dev_id, struct pt_regs *regs)
 		add_timer(&debounce_timer);
 	}
 
-	if (!(buttons & 2))		/* Power button was pressed */
+	if (!(buttons & 0x02))		/* Power button was pressed */
 		power_button();
 	if (!(buttons & 0x40)) {	/* Volume up button was pressed */
 		init_timer(&volume_timer);
