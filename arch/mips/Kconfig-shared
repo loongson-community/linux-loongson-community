@@ -399,6 +399,10 @@ config SIBYTE_STANDALONE_RAM_SIZE
 	depends on SIBYTE_SB1xxx_SOC && !SIBYTE_CFE
 	default "32"
 
+config SIBYTE_BUS_WATCHER
+        bool "Support for Bus Watcher statistics"
+	depends on SIBYTE_SB1xxx_SOC
+
 config SIBYTE_SB1250_PROF
 	bool "Support for SB1/SOC profiling - SB1/SCD perf counters"
 	depends on SIBYTE_SB1xxx_SOC
