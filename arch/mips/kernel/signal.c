@@ -353,7 +353,7 @@ out:
 static inline void *get_sigframe(struct k_sigaction *ka, struct pt_regs *regs,
 	size_t frame_size)
 {
-	unsigned long sp;
+	unsigned long sp, almask;
 
 	/* Default to using normal stack */
 	sp = regs->regs[29];
@@ -369,7 +369,12 @@ static inline void *get_sigframe(struct k_sigaction *ka, struct pt_regs *regs,
 	if ((ka->sa.sa_flags & SA_ONSTACK) && (sas_ss_flags (sp) == 0))
 		sp = current->sas_ss_sp + current->sas_ss_size;
 
-	return (void *)((sp - frame_size) & ALMASK);
+	if (PLAT_TRAMPOLINE_STUFF_LINE)
+		almask = ~(PLAT_TRAMPOLINE_STUFF_LINE - 1);
+	else
+		almask = ALMASK;
+
+	return (void *)((sp - frame_size) & ~(PLAT_TRAMPOLINE_STUFF_LINE - 1));
 }
 
 #ifdef CONFIG_TRAD_SIGNALS

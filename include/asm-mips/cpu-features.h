@@ -82,7 +82,7 @@
  * like the others.
  */
 #ifndef PLAT_TRAMPOLINE_STUFF_LINE
-#define PLAT_TRAMPOLINE_STUFF_LINE	0
+#define PLAT_TRAMPOLINE_STUFF_LINE	0UL
 #endif
 
 #ifdef CONFIG_MIPS32
