@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 1994, 1995, 1996 by Ralf Baechle and Paul M. Antoine.
  *
- * $Id: stackframe.h,v 1.6 1998/03/26 07:39:21 ralf Exp $
+ * $Id: stackframe.h,v 1.7 1998/04/28 19:39:15 ralf Exp $
  */
 #ifndef __ASM_MIPS_STACKFRAME_H
 #define __ASM_MIPS_STACKFRAME_H
@@ -174,14 +174,21 @@
 /*
  * Move to kernel mode and enable interrupts.
  * Set cp0 enable bit as sign that we're running on the kernel stack
- *
- * Note that the mtc0 will be effective on R4000 pipeline stage 7. This
- * means that another three instructions will be executed with interrupts
- * disabled.  Arch/mips/mips3/r4xx0.S makes use of this fact.
  */
 #define STI                                             \
 		mfc0	t0,CP0_STATUS;                  \
 		li	t1,ST0_CU0|0x1f;                \
+		or	t0,t1;                          \
+		xori	t0,0x1e;                        \
+		mtc0	t0,CP0_STATUS
+
+/*
+ * Just move to kernel mode and leave interrupts as they are.
+ * Set cp0 enable bit as sign that we're running on the kernel stack
+ */
+#define KMODE                                           \
+		mfc0	t0,CP0_STATUS;                  \
+		li	t1,ST0_CU0|0x1e;                \
 		or	t0,t1;                          \
 		xori	t0,0x1e;                        \
 		mtc0	t0,CP0_STATUS

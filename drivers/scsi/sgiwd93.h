@@ -1,4 +1,4 @@
-/* $Id: sgiwd93.h,v 1.2 1997/12/01 18:00:19 ralf Exp $
+/* $Id: sgiwd93.h,v 1.3 1998/03/17 22:12:40 ralf Exp $
  * sgiwd93.h: SGI WD93 scsi definitions.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
@@ -28,7 +28,7 @@ int wd33c93_reset(Scsi_Cmnd *, unsigned int);
 extern struct proc_dir_entry proc_scsi_sgiwd93;
 
 #define SGIWD93_SCSI {proc_dir:		   &proc_scsi_sgiwd93, \
-		      name:                "GVP Series II SCSI", \
+		      name:                "SGI WD93", \
 		      detect:              sgiwd93_detect,    \
 		      release:             sgiwd93_release,   \
 		      queuecommand:        wd33c93_queuecommand, \

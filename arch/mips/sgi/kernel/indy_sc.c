@@ -4,7 +4,7 @@
  * Copyright (C) 1997 Ralf Baechle (ralf@gnu.org),
  * derived from r4xx0.c by David S. Miller (dm@engr.sgi.com).
  *
- * $Id: indy_sc.c,v 1.2 1998/03/27 04:47:57 ralf Exp $
+ * $Id: indy_sc.c,v 1.3 1998/04/05 11:23:58 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -23,20 +23,8 @@
 #include <asm/sgialib.h>
 #include <asm/mmu_context.h>
 
-/* CP0 hazard avoidance. */
-#define BARRIER __asm__ __volatile__(".set noreorder\n\t" \
-				     "nop; nop; nop; nop; nop; nop;\n\t" \
-				     ".set reorder\n\t")
-
-/* Primary cache parameters. */
-static int icache_size, dcache_size; /* Size in bytes */
-static int ic_lsize, dc_lsize;       /* LineSize in bytes */
-
-/* Secondary cache (if present) parameters. */
-static scache_size, sc_lsize;        /* Again, in bytes */
-
-#include <asm/cacheops.h>
-#include <asm/r4kcache.h>
+/* Secondary cache size in bytes, if present.  */
+static unsigned long scache_size;
 
 #undef DEBUG_CACHE
 
@@ -166,7 +154,6 @@ __initfunc(static inline int indy_sc_probe(void))
 	volatile unsigned int *cpu_control;
 	unsigned short cmd = 0xc220;
 	unsigned long data = 0;
-	unsigned long addr;
 	int i, n;
 
 #ifdef __MIPSEB__
@@ -209,43 +196,17 @@ __initfunc(static inline int indy_sc_probe(void))
 	DEASSERT(SGIMC_EEPROM_CSEL);
 	ASSERT(SGIMC_EEPROM_PRE);
 	ASSERT(SGIMC_EEPROM_SECLOCK);
+
 	data <<= PAGE_SHIFT;
-	printk("R4600/R5000 SCACHE size %dK ", (int) (data >> 10));
-	switch(mips_cputype) {
-	case CPU_R4600:
-	case CPU_R4640:
-		sc_lsize = 32;
-		break;
+	if (data == 0)
+		return 0;
 
-	default:
-		sc_lsize = 128;
-		break;
-	}
-	printk("linesize %d bytes\n", sc_lsize);
 	scache_size = data;
-	if (data == 0) {
-		if (mips_cputype == CPU_R5000)
-			return -1;
-		else
-			return 0;
-	}
 
-	/* Enable r4600/r5000 cache.  But flush it first. */
-	for(addr = KSEG0; addr < (KSEG0 + dcache_size);
-	    addr += dc_lsize)
-		flush_dcache_line_indexed(addr);
-	for(addr = KSEG0; addr < (KSEG0 + icache_size);
-	    addr += ic_lsize)
-		flush_icache_line_indexed(addr);
-	for(addr = KSEG0; addr < (KSEG0 + scache_size);
-	    addr += sc_lsize)
-		flush_scache_line_indexed(addr);
+	printk("R4600/R5000 SCACHE size %ldK, linesize 32 bytes.\n",
+	       scache_size >> 10);
 
-	if (mips_cputype == CPU_R4600 ||
-	    mips_cputype == CPU_R5000)
-		return 1;
-
-	return 0;
+	return 1;
 }
 
 /* XXX Check with wje if the Indy caches can differenciate between

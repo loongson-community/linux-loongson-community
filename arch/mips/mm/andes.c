@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: andes.c,v 1.3 1998/03/22 23:27:14 ralf Exp $
+ * $Id: andes.c,v 1.4 1998/04/05 11:23:54 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -86,7 +86,7 @@ static void andes_add_wired_entry(unsigned long entrylo0, unsigned long entrylo1
         /* XXX */
 }
 
-static void andes_user_mode(struct pt_regs *regs)
+static int andes_user_mode(struct pt_regs *regs)
 {
 	return (regs->cp0_status & ST0_KSU) == KSU_USER;
 }

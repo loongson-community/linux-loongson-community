@@ -5,7 +5,7 @@
  * written by Ralf Baechle
  * Modified further for R[236]000 compatibility by Paul M. Antoine
  *
- * $Id: processor.h,v 1.8 1998/03/27 04:47:59 ralf Exp $
+ * $Id: processor.h,v 1.13 1998/04/25 05:35:15 ralf Exp $
  */
 #ifndef __ASM_MIPS_PROCESSOR_H
 #define __ASM_MIPS_PROCESSOR_H
@@ -90,7 +90,7 @@ typedef struct {
  */
 struct thread_struct {
         /* Saved main processor registers. */
-        unsigned long reg16 __attribute__ ((aligned (8)));
+        unsigned long reg16;
 	unsigned long reg17, reg18, reg19, reg20, reg21, reg22, reg23;
         unsigned long reg29, reg30, reg31;
 
@@ -98,10 +98,11 @@ struct thread_struct {
 	unsigned long cp0_status;
 
 	/* Saved fpu/fpu emulator stuff. */
-	union mips_fpu_union fpu __attribute__ ((aligned (8)));
+	union mips_fpu_union fpu;
 
 	/* Other stuff associated with the thread. */
-	unsigned long cp0_badvaddr;
+	unsigned long cp0_badvaddr;	/* Last user fault */
+	unsigned long cp0_baduaddr;	/* Last kernel fault accessing USEG */
 	unsigned long error_code;
 	unsigned long trap_no;
 	unsigned long pg_dir;                   /* used in tlb refill    */
@@ -135,7 +136,7 @@ struct thread_struct {
 	/* \
 	 * Other stuff associated with the process \
 	 */ \
-	0, 0, 0, (unsigned long) swapper_pg_dir, \
+	0, 0, 0, 0, (unsigned long) swapper_pg_dir, \
 	/* \
 	 * For now the default is to fix address errors \
 	 */ \

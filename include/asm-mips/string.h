@@ -7,7 +7,7 @@
  *
  * Copyright (c) 1994, 1995, 1996, 1997 by Ralf Baechle
  *
- * $Id: string.h,v 1.4 1998/03/21 19:31:09 ralf Exp $
+ * $Id: string.h,v 1.7 1998/03/25 00:24:10 ralf Exp $
  */
 #ifndef __ASM_MIPS_STRING_H
 #define __ASM_MIPS_STRING_H
@@ -128,7 +128,10 @@ extern void *memcpy(void *__to, __const__ void *__from, size_t __n);
 extern void *memmove(void *__dest, __const__ void *__src, size_t __n);
 
 #define __HAVE_ARCH_BCOPY
-extern char * bcopy(const char * src, char * dest, int count);
+extern __inline__ char * bcopy(const char * src, char * dest, int count)
+{
+	memmove(dest, src, count);
+}
 
 #define __HAVE_ARCH_MEMSCAN
 extern __inline__ void *memscan(void *__addr, int __c, size_t __size)

@@ -3,13 +3,13 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: indy_mc.c,v 1.2 1998/03/27 08:53:44 ralf Exp $
+ * $Id: indy_mc.c,v 1.2 1998/04/05 11:23:58 ralf Exp $
  */
 #include <linux/init.h>
+#include <linux/kernel.h>
 
 #include <asm/addrspace.h>
 #include <asm/ptrace.h>
-#include <asm/processor.h>
 #include <asm/sgimc.h>
 #include <asm/sgihpc.h>
 #include <asm/sgialib.h>

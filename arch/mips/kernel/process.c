@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1994 - 1998 by Ralf Baechle and others.
  *
- * $Id: process.c,v 1.7 1998/03/27 04:47:55 ralf Exp $
+ * $Id: process.c,v 1.8 1998/04/05 11:23:51 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/errno.h>
@@ -32,8 +32,6 @@
 #include <asm/uaccess.h>
 #include <asm/io.h>
 #include <asm/elf.h>
-
-mm_segment_t active_ds = USER_DS;
 
 asmlinkage void ret_from_sys_call(void);
 

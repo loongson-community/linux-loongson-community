@@ -1,7 +1,8 @@
-/* $Id: tfp.c,v 1.4 1998/03/27 08:53:42 ralf Exp $
+/*
  * tfp.c: MMU and cache routines specific to the r8000 (TFP).
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
+ *
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -87,7 +88,7 @@ static void tfp_add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 
 static int tfp_user_mode(struct pt_regs *regs)
 {
-	return regs->cp0_status & ST0_KSU == KSU_USER;
+	return (regs->cp0_status & ST0_KSU) == KSU_USER;
 }
 
 __initfunc(void ld_mmu_tfp(void))

@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: r4xx0.c,v 1.15 1998/04/05 11:23:55 ralf Exp $
+ * $Id: r4xx0.c,v 1.23 1998/04/04 14:02:54 ralf Exp $
  *
  * To do:
  *
@@ -2608,7 +2608,7 @@ __initfunc(static void setup_noscache_funcs(void))
 	dma_cache_inv = r4k_dma_cache_inv_pc;
 }
 
-static void setup_scache_funcs(void)
+__initfunc(static void setup_scache_funcs(void))
 {
 	switch(sc_lsize) {
 	case 16:
@@ -2690,7 +2690,7 @@ static void setup_scache_funcs(void)
 
 typedef int (*probe_func_t)(unsigned long);
 
-static inline void setup_scache(unsigned int config)
+__initfunc(static inline void setup_scache(unsigned int config))
 {
 	probe_func_t probe_scache_kseg1;
 	int sc_present = 0;

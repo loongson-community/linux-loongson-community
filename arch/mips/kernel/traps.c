@@ -8,7 +8,7 @@
  * Copyright 1994, 1995, 1996, 1997 by Ralf Baechle
  * Modified for R3000 by Paul M. Antoine, 1995, 1996
  *
- * $Id: traps.c,v 1.9 1998/03/27 04:47:56 ralf Exp $
+ * $Id: traps.c,v 1.13 1998/04/04 13:59:39 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -387,9 +387,8 @@ void do_vcei(struct pt_regs *regs)
 {
 	lock_kernel();
 	/*
-	 * Theory says this exception doesn't happen.
-	 *
-	 * Murphy is right.  It does happen ...
+	 * Only possible on R4[04]00[SM]C. No handler because I don't have
+	 * such a cpu.  Theory says this exception doesn't happen.
 	 */
 	panic("Caught VCEI exception - should not happen");
 	unlock_kernel();
@@ -399,11 +398,10 @@ void do_vced(struct pt_regs *regs)
 {
 	lock_kernel();
 	/*
-	 * Theory says this exception doesn't happen.
-	 *
-	 * Murphy is right.  It does happen ...
+	 * Only possible on R4[04]00[SM]C. No handler because I don't have
+	 * such a cpu.  Theory says this exception doesn't happen.
 	 */
-	panic("Caught VCED exception - should not happen");
+	panic("Caught VCE exception - should not happen");
 	unlock_kernel();
 }
 
@@ -547,14 +545,8 @@ __initfunc(void trap_init(void))
 	case CPU_R4400MC:
 	case CPU_R4000SC:
 	case CPU_R4400SC:
-		/*
-		 * The following won't work because we _cannot_ perform any
-		 * load/store before the VCE handler.  We deal with this
-		 * by checking for for vced / vcei exceptions before doing
-		 * the generic exception handling thing.  This costs us
-		 * several instructions, therefore there should be a special
-		 * handler for those CPUs which have these exceptions.
-		 * 
+		/* XXX The following won't work because we _cannot_
+		 * XXX perform any load/store before the VCE handler.
 		 */
 		set_except_vector(14, handle_vcei);
 		set_except_vector(31, handle_vced);

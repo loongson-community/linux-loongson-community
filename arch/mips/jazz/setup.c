@@ -5,10 +5,12 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1996, 1997 by Ralf Baechle
+ * Copyright (C) 1996, 1997, 1998 by Ralf Baechle
  *
- * $Id: setup.c,v 1.8 1998/03/04 08:29:10 ralf Exp $
+ * $Id: setup.c,v 1.9 1998/03/17 22:07:31 ralf Exp $
  */
+#include <linux/config.h>
+#include <linux/hdreg.h>
 #include <linux/init.h>
 #include <linux/ioport.h>
 #include <linux/sched.h>
@@ -16,6 +18,7 @@
 #include <linux/mm.h>
 #include <asm/bootinfo.h>
 #include <asm/keyboard.h>
+#include <asm/ide.h>
 #include <asm/irq.h>
 #include <asm/jazz.h>
 #include <asm/ptrace.h>
@@ -42,6 +45,8 @@ extern void jazz_keyboard_setup(void);
 extern void jazz_machine_restart(char *command);
 extern void jazz_machine_halt(void);
 extern void jazz_machine_power_off(void);
+
+extern struct ide_ops std_ide_ops;
 
 void (*board_time_init)(struct irqaction *irq);
 
@@ -120,4 +125,8 @@ __initfunc(void jazz_setup(void))
 	_machine_restart = jazz_machine_restart;
 	_machine_halt = jazz_machine_halt;
 	_machine_power_off = jazz_machine_power_off;
+
+#ifdef CONFIG_BLK_DEV_IDE
+	ide_ops = &std_ide_ops;
+#endif
 }

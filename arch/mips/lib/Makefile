@@ -1,11 +1,7 @@
 #
 # Makefile for MIPS-specific library files..
 #
-# Many of these routines are just left over debugging trash of ancient
-# times when I just make my Tyne beep and so ...
-#
-# ...and for when I need to get the DECStation to use the boot prom to
-# do things... Paul M. Antoine.
+# $Id: Makefile,v 1.9 1998/05/03 00:28:00 ralf Exp $
 #
 
 .S.s:
@@ -14,12 +10,7 @@
 	$(CC) $(CFLAGS) -c $< -o $*.o
 
 L_TARGET = lib.a
-L_OBJS	= beep.o checksum.o copy_user.o csum.o dump_tlb.o memset.o memcpy.o \
-          strlen_user.o strncpy_user.o tags.o watch.o
-
-#
-# Debug console, works without other support from the kernel
-#
-L_OBJS += tinycon.o
+L_OBJS	= csum_partial.o csum_partial_copy.o dump_tlb.o ide-std.c ide-no.o \
+	  memset.o memcpy.o strlen_user.o strncpy_user.o tags.o watch.o
 
 include $(TOPDIR)/Rules.make

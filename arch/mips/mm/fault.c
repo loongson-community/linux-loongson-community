@@ -97,9 +97,6 @@ bad_area:
 		       (unsigned long) regs->cp0_epc,
 		       (unsigned long) regs->regs[31]);
 #endif
-
-		current->tss.cp0_badvaddr = address;
-		current->tss.error_code = writeaccess;
 		force_sig(SIGSEGV, tsk);
 		goto out;
 	}
@@ -108,6 +105,8 @@ bad_area:
 	fixup = search_exception_table(regs->cp0_epc);
 	if (fixup) {
 		long new_epc;
+
+		tsk->tss.cp0_baduaddr = address;
 		new_epc = fixup_exception(dpf_reg, fixup, regs->cp0_epc);
 		printk(KERN_DEBUG "%s: Exception at [<%lx>] (%lx)\n",
 		       tsk->comm, regs->cp0_epc, new_epc);
