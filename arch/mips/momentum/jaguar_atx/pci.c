@@ -34,8 +34,6 @@
 
 #include <linux/init.h>
 
-#ifdef CONFIG_PCI
-
 #define SELF 0
 
 /*
@@ -417,5 +415,3 @@ void __init pcibios_init(void)
 	pci_scan_bus(0, &galileo_pci_ops, NULL);
 	pci_scan_bus(1, &galileo_pci_ops, NULL);
 }
-
-#endif	/* CONFIG_PCI */
