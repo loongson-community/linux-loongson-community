@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 #
-CONFIG_ALPHA=y
+CONFIG_MIPS=y
 
 #
 # Code maturity level options
