@@ -32,12 +32,15 @@
 #include <linux/sched.h>
 #include <linux/file.h>
 #include <linux/major.h>
+#include <linux/string.h>
+#include <linux/dcache.h>
 
 #include <asm/smp_lock.h>
 #include <asm/usioctl.h>
 #include <asm/mman.h>
 
 #define NUM_USEMAS (1 << MINORBITS - 1)
+#define USEMA_FORMAT "/dev/usema%d"
 
 static struct irix_usema{
 	int used;
@@ -60,6 +63,8 @@ static int
 sgi_usemaclone_open(struct inode *inode, struct file *filp)
 {
 	int semanum;
+	char semaname[14];
+	struct dentry * semadentry;
 	printk("[%s:%d] wants a new usema",
 	       current->comm, current->pid);
 	for (semanum = 0; 
@@ -71,8 +76,19 @@ sgi_usemaclone_open(struct inode *inode, struct file *filp)
 		       current->pid);
 		return -EBUSY;
 	}
-	/* XXX is this the right way to do it? */
-	filp->f_dentry->d_inode->i_rdev = MKDEV(USEMA_MAJOR,semanum);
+	/* We find a dentry for the clone device that we're
+	 * allocating and pull a switcheroo on filp->d_entry.
+	 */
+	sprintf(semaname, USEMA_FORMAT, semanum);
+	semadentry = namei(semaname, 0);
+	if (!semadentry) {
+		/* This Shouldn't Happen(tm) */
+		printk("[%s:%d] usemaclone_open: can't find dentry for %s",
+		       current->comm, current->pid, semaname);
+		return -EINVAL;	/* ??? */
+	}
+	dput(filp->f_dentry);
+	filp->f_dentry = semadentry;
 	usema_list[semanum].used = 1;
 	usema_list[semanum].filp = filp;
 	printk("[%s:%d] got usema %d",
