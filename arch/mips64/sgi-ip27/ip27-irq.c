@@ -111,20 +111,41 @@ asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 	/* unmasking and bottom half handling is done magically for us. */
 }
 
+/*
+ * Find first bit set
+ */
+static int ms1bit(unsigned long x)
+{
+	int	b;
+
+	if (x >> 32) 	b = 32, x >>= 32;
+	else		b  =  0;
+	if (x >> 16)	b += 16, x >>= 16;
+	if (x >>  8)	b +=  8, x >>=  8;
+	if (x >>  4)	b +=  4, x >>=  4;
+	if (x >>  2)	b +=  2, x >>=  2;
+
+	return b + (int) (x >> 1);
+}
+	
 /* For now ...  */
 void ip27_do_irq(struct pt_regs *regs)
 {
+	int irq;
 	hubreg_t pend0, mask0;
 
-	pend0 = LOCAL_HUB_L(PI_INT_PEND0);
-	mask0 = LOCAL_HUB_L(PI_INT_MASK0_A);
-
-	if (pend0 & mask0 & (1 << 9)) {
-		LOCAL_HUB_S(PI_INT_MASK0_A, mask0 & ~(1 << 9));
-		LOCAL_HUB_S(PI_INT_PEND_MOD, 9);
-		LOCAL_HUB_L(PI_INT_MASK0_A);		/* Flush */
-		do_IRQ(9, regs);
-		LOCAL_HUB_S(PI_INT_MASK0_A, mask0);
+	/* copied from Irix intpend0() */
+	while (((pend0 = LOCAL_HUB_L(PI_INT_PEND0)) & 
+				(mask0 = LOCAL_HUB_L(PI_INT_MASK0_A))) != 0) {
+		do {
+			irq = ms1bit(pend0);
+			LOCAL_HUB_S(PI_INT_MASK0_A, mask0 & ~(1 << irq));
+			LOCAL_HUB_S(PI_INT_PEND_MOD, irq);
+			LOCAL_HUB_L(PI_INT_MASK0_A);		/* Flush */
+			do_IRQ(irq, regs);
+			LOCAL_HUB_S(PI_INT_MASK0_A, mask0);
+			pend0 ^= 1ULL << irq;
+		} while (pend0);
 	}
 }
 
