@@ -23,7 +23,8 @@
 #include <asm/sn/sn0/ip27.h>
 #include <asm/sn/sn0/hub.h>
 
-/* This is a hack; we really need to figure these values out dynamically
+/*
+ * This is a hack; we really need to figure these values out dynamically
  * 
  * Since 800 ns works very well with various HUB frequencies, such as
  * 360, 380, 390 and 400 MHZ, we use 800 ns rtc cycle time.
@@ -43,49 +44,47 @@ extern volatile unsigned long wall_jiffies;
 
 
 static int set_rtc_mmss(unsigned long nowtime)
-{               
-        int retval = 0;
-        int real_seconds, real_minutes, cmos_minutes;
+{
+	int retval = 0;
+	int real_seconds, real_minutes, cmos_minutes;
 	struct m48t35_rtc *rtc;
 	nasid_t nid;
 
 	nid = get_nasid();
-	rtc = (struct m48t35_rtc *)
-	    KL_CONFIG_CH_CONS_INFO(nid)->memory_base + IOC3_BYTEBUS_DEV0;
-                
+	rtc = (struct m48t35_rtc *)(KL_CONFIG_CH_CONS_INFO(nid)->memory_base + 
+							IOC3_BYTEBUS_DEV0);
+
 	rtc->control |= M48T35_RTC_READ;
 	cmos_minutes = rtc->min;
 	BCD_TO_BIN(cmos_minutes);
 	rtc->control &= ~M48T35_RTC_READ;
-         
-        /*      
-         * Since we're only adjusting minutes and seconds,
-         * don't interfere with hour overflow. This avoids
-         * messing with unknown time zones but requires your
-         * RTC not to be off by more than 15 minutes
-         */     
-        real_seconds = nowtime % 60;
-        real_minutes = nowtime / 60;
-        if (((abs(real_minutes - cmos_minutes) + 15)/30) & 1)
-                real_minutes += 30;             /* correct for half hour time zone */           
-        real_minutes %= 60;
-                
-        if (abs(real_minutes - cmos_minutes) < 30) {
+
+	/*
+	 * Since we're only adjusting minutes and seconds, don't interfere with
+	 * hour overflow. This avoids messing with unknown time zones but
+	 * requires your RTC not to be off by more than 15 minutes
+	 */
+	real_seconds = nowtime % 60;
+	real_minutes = nowtime / 60;
+	if (((abs(real_minutes - cmos_minutes) + 15)/30) & 1)
+		real_minutes += 30;	/* correct for half hour time zone */
+	real_minutes %= 60;
+
+	if (abs(real_minutes - cmos_minutes) < 30) {
 		BIN_TO_BCD(real_seconds);
 		BIN_TO_BCD(real_minutes);
 		rtc->control |= M48T35_RTC_SET;
-                rtc->sec = real_seconds;
-                rtc->min = real_minutes;
+		rtc->sec = real_seconds;
+		rtc->min = real_minutes;
 		rtc->control &= ~M48T35_RTC_SET;
-        } else {
-                printk(KERN_WARNING
-                       "set_rtc_mmss: can't update from %d to %d\n",
-                       cmos_minutes, real_minutes);
-                retval = -1;
-        }
+	} else {
+		printk(KERN_WARNING
+		       "set_rtc_mmss: can't update from %d to %d\n",
+		       cmos_minutes, real_minutes);
+		retval = -1;
+	}
 
-                
-        return retval;
+	return retval;
 }
 
 void rt_timer_interrupt(struct pt_regs *regs)
@@ -125,14 +124,13 @@ again:
 	}
 #endif /* CONFIG_SMP */
 	
-        /*
-         * If we have an externally synchronized Linux clock, then update
-         * RTC clock accordingly every ~11 minutes. Set_rtc_mmss() has to be
-         * called as close as possible to when a second starts.
-         */
-
-        if ((time_status & STA_UNSYNC) == 0 &&
-            xtime.tv_sec > last_rtc_update + 660) {
+	/*
+	 * If we have an externally synchronized Linux clock, then update
+	 * RTC clock accordingly every ~11 minutes. Set_rtc_mmss() has to be
+	 * called as close as possible to when a second starts.
+	 */
+	if ((time_status & STA_UNSYNC) == 0 &&
+	    xtime.tv_sec > last_rtc_update + 660) {
 		if (xtime.tv_usec >= 1000000 - ((unsigned) tick) / 2) {
 			if (set_rtc_mmss(xtime.tv_sec + 1) == 0)
 				last_rtc_update = xtime.tv_sec;
@@ -238,10 +236,8 @@ static inline unsigned long mktime(unsigned int year, unsigned int mon,
           )*60 + sec; /* finally seconds */
 }
 
-#define DEBUG_RTC
-
-static unsigned long __init get_m48t35_time(void)
-{       
+static __init unsigned long get_m48t35_time(void)
+{
         unsigned int year, month, date, hour, min, sec;
 	struct m48t35_rtc *rtc;
 	nasid_t nid;
@@ -250,7 +246,7 @@ static unsigned long __init get_m48t35_time(void)
 	rtc = (struct m48t35_rtc *)(KL_CONFIG_CH_CONS_INFO(nid)->memory_base + 
 							IOC3_BYTEBUS_DEV0);
 
-        rtc->control |= M48T35_RTC_READ;
+	rtc->control |= M48T35_RTC_READ;
 	sec = rtc->sec;
 	min = rtc->min;
 	hour = rtc->hour;
@@ -271,8 +267,6 @@ static unsigned long __init get_m48t35_time(void)
         return mktime(year, month, date, hour, min, sec);
 }
 
-extern void ioc3_eth_init(void);
-
 void __init time_init(void)
 {
 	xtime.tv_sec = get_m48t35_time();
@@ -284,7 +278,7 @@ void __init cpu_time_init(void)
 	lboard_t *board;
 	klcpu_t *cpu;
 	int cpuid;
-	
+
 	/* Don't use ARCS.  ARCS is fragile.  Klconfig is simple and sane.  */
 	board = find_lboard(KL_CONFIG_INFO(get_nasid()), KLTYPE_IP27);
 	if (!board)

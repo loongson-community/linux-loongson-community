@@ -325,7 +325,7 @@ illegal_syscall:
 	sys	sys_setdomainname 2
 	sys	sys32_newuname	1
 	sys	sys_ni_syscall	0	/* sys_modify_ldt */
-	sys	sys_adjtimex	1
+	sys	sys32_adjtimex	1
 	sys	sys_mprotect	3			/* 4125 */
 	sys	sys32_sigprocmask	3
 	sys	sys_create_module 2
@@ -337,7 +337,7 @@ illegal_syscall:
 	sys	sys_fchdir	1
 	sys	sys_bdflush	2
 	sys	sys_sysfs	3			/* 4135 */
-	sys	sys_personality	1
+	sys	sys32_personality	1
 	sys	sys_ni_syscall	0 /* for afs_syscall */
 	sys	sys_setfsuid	1
 	sys	sys_setfsgid	1
