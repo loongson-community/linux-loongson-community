@@ -19,6 +19,8 @@ struct graphics_ops {
 
 	void (*g_save_context)(void *);
 	void (*g_restore_context)(void *);
+	void (*g_reset_console)(void);
+	int  (*g_ioctl)(int device, int cmd, unsigned long arg);
 };
 
 void shmiq_init (void);
