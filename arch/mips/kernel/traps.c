@@ -914,6 +914,9 @@ void __init per_cpu_trap_init(void)
 	set_c0_status(ST0_CU0|ST0_FR|ST0_KX|ST0_SX|ST0_UX);
 #endif
 
+	if (current_cpu_data.isa_level == MIPS_CPU_ISA_IV)
+		set_c0_status(ST0_XX);
+
 	/*
 	 * Some MIPS CPUs have a dedicated interrupt vector which reduces the
 	 * interrupt processing overhead.  Use it where available.
@@ -1047,7 +1050,4 @@ void __init trap_init(void)
 #endif
 
 	flush_icache_range(CAC_BASE, CAC_BASE + 0x400);
-
-	if (current_cpu_data.isa_level == MIPS_CPU_ISA_IV)
-		set_c0_status(ST0_XX);
 }
