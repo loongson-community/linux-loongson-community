@@ -1914,14 +1914,9 @@ S: Santa Clara, CA 95052
 S: USA
 
 N: Petko Manolov
-<<<<<<< CREDITS
 E: petkan@users.sourceforge.net
 D: USB ethernet pegasus/pegasus-II driver
 D: USB ethernet rtl8150 driver
-=======
-E: petkan@users.sourceforge.net
-D: USB ethernet pegasus/pegasus-II driver
->>>>>>> 1.80
 D: optimizing i[45]86 string routines
 D: i386 task switching hacks
 S: 482 Shadowgraph Dr.
