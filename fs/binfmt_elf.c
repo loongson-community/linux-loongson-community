@@ -391,7 +391,7 @@ static unsigned long load_elf_interp(struct elfhdr * interp_elf_ex,
 	error = ((unsigned long) interp_elf_ex->e_entry) + load_addr;
 
 out_close:
-	fput(file);
+//	fput(file);
 	sys_close(elf_exec_fileno);
 out_free:
 	kfree(elf_phdata);
@@ -731,7 +731,7 @@ do_load_elf_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 		}
 	}
 	set_fs(old_fs);
-	fput(file); /* all done with the file */
+//	fput(file); /* all done with the file */
 
 	elf_entry += load_bias;
 	elf_bss += load_bias;
@@ -850,7 +850,7 @@ out_free_interp:
 	if (elf_interpreter)
 		kfree(elf_interpreter);
 out_free_file:
-	fput(file);
+//	fput(file);
 	sys_close(elf_exec_fileno);
 out_free_ph:
 	kfree(elf_phdata);

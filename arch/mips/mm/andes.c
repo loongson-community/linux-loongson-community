@@ -1,7 +1,9 @@
-/* $Id: andes.c,v 1.1.1.1 1997/06/01 03:16:38 ralf Exp $
+/*
  * andes.c: MMU and cache operations for the R10000 (ANDES).
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
+ *
+ * $Id: andes.c,v 1.3 1998/03/21 08:03:53 ralf Exp $
  */
 
 #include <linux/kernel.h>
@@ -85,6 +87,11 @@ static void andes_add_wired_entry(unsigned long entrylo0, unsigned long entrylo1
         /* XXX */
 }
 
+static void andes_user_mode(struct pt_regs *regs)
+{
+	return regs->cp0_status & ST0_KSU == KSU_USER;
+}
+
 void ld_mmu_andes(void)
 {
 	flush_cache_all = andes_flush_cache_all;
@@ -100,6 +107,8 @@ void ld_mmu_andes(void)
 	flush_tlb_page = andes_flush_tlb_page;
     
         add_wired_entry = andes_add_wired_entry;
+
+	user_mode = andes_user_mode;
 
 	load_pgd = andes_load_pgd;
 	pgd_init = andes_pgd_init;

@@ -8,7 +8,7 @@
  * Copyright 1994, 1995, 1996, 1997 by Ralf Baechle
  * Modified for R3000 by Paul M. Antoine, 1995, 1996
  *
- * $Id: traps.c,v 1.6 1997/12/16 05:34:39 ralf Exp $
+ * $Id: traps.c,v 1.7 1998/03/17 22:07:38 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -26,10 +26,6 @@
 #include <asm/watch.h>
 #include <asm/system.h>
 #include <asm/uaccess.h>
-
-#ifdef CONFIG_SGI
-#include <asm/sgialib.h>
-#endif
 
 #undef CONF_DEBUG_EXCEPTIONS
 
@@ -167,18 +163,9 @@ void show_registers(char * str, struct pt_regs * regs, long err)
 
 void die_if_kernel(const char * str, struct pt_regs * regs, long err)
 {
-	/*
-	 * Just return if in user mode.
-	 * XXX
-	 */
-#if (_MIPS_ISA == _MIPS_ISA_MIPS1) || (_MIPS_ISA == _MIPS_ISA_MIPS2)
-	if (!((regs)->cp0_status & 0x4))
+	if (user_mode(regs))	/* Just return if in user mode.  */
 		return;
-#endif
-#if (_MIPS_ISA == _MIPS_ISA_MIPS3) || (_MIPS_ISA == _MIPS_ISA_MIPS4)
-	if (regs->cp0_status & ST0_KSU == KSU_USER)
-		return;
-#endif
+
 	console_verbose();
 	printk("%s: %04lx\n", str, err & 0xffff);
 	show_regs(regs);
@@ -240,7 +227,7 @@ int unregister_fpe(void (*handler)(struct pt_regs *regs, unsigned int fcr31))
 }
 #endif
 
-void do_fpe(struct pt_regs *regs, unsigned int fcr31)
+void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 {
 #ifdef CONFIG_MIPS_FPE_MODULE
 	if (fpe_handler != NULL) {
@@ -252,8 +239,20 @@ void do_fpe(struct pt_regs *regs, unsigned int fcr31)
 #ifdef CONF_DEBUG_EXCEPTIONS
 	show_regs(regs);
 #endif
-	printk("Caught floating exception at epc == %08lx, fcr31 == %08x\n",
-	       regs->cp0_epc, fcr31);
+	if (fcr31 & 0x20000) {
+		printk("Unimplemented exception at 0x%08lx in %s.\n",
+		       regs->cp0_epc, current->comm);
+		/* Retry instruction with flush to zero ...  */
+		if (!(fcr31 & (1<<24))) {
+			printk("Setting flush to zero ...\n");
+			fcr31 |= (1<<24);
+			__asm__ __volatile__(
+				"ctc1\t%0,$31"
+				: /* No outputs */
+				: "r" (fcr31));
+			goto out;
+		}
+	}
 	if (compute_return_epc(regs))
 		goto out;
 	force_sig(SIGFPE, current);
@@ -350,16 +349,16 @@ void do_cpu(struct pt_regs *regs)
 {
 	unsigned int cpid;
 
-	lock_kernel();
 	cpid = (regs->cp0_cause >> CAUSEB_CE) & 3;
-	if (cpid == 1)
-	{
+	if (cpid == 1) {
 		regs->cp0_status |= ST0_CU1;
 		goto out;
 	}
+
+	lock_kernel();
 	force_sig(SIGILL, current);
-out:
 	unlock_kernel();
+out:
 }
 
 void do_vcei(struct pt_regs *regs)

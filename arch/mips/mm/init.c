@@ -1,8 +1,11 @@
 /*
- *  arch/mips/mm/init.c
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
  *
- *  Copyright (C) 1991, 1992, 1993, 1994  Linus Torvalds
- *  Ported to MIPS by Ralf Baechle
+ * Copyright (C) 1994, 1995, 1996 by Ralf Baechle
+ *
+ * $Id: init.c,v 1.4 1998/03/21 08:01:45 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/signal.h>
@@ -113,58 +116,12 @@ pte_t * __bad_pagetable(void)
 	return (pte_t *)page;
 }
 
-static inline void
-__zeropage(unsigned long page)
-{
-	unsigned long dummy1, dummy2;
-
-#if (_MIPS_ISA == _MIPS_ISA_MIPS3) || (_MIPS_ISA == _MIPS_ISA_MIPS4)
-        /*
-         * Use 64bit code even for Linux/MIPS 32bit on R4000
-         */
-	__asm__ __volatile__(
-		".set\tnoreorder\n"
-		".set\tnoat\n\t"
-		".set\tmips3\n"
-		"1:\tsd\t$0,(%0)\n\t"
-		"subu\t%1,1\n\t"
-		"bnez\t%1,1b\n\t"
-		"addiu\t%0,8\n\t"
-		".set\tmips0\n\t"
-		".set\tat\n"
-		".set\treorder"
-		:"=r" (dummy1),
-		 "=r" (dummy2)
-		:"0" (page),
-		 "1" (PAGE_SIZE/8));
-#else /* (_MIPS_ISA == _MIPS_ISA_MIPS1) || (_MIPS_ISA == _MIPS_ISA_MIPS2) */
-	__asm__ __volatile__(
-		".set\tnoreorder\n"
-		"1:\tsw\t$0,(%0)\n\t"
-		"subu\t%1,1\n\t"
-		"bnez\t%1,1b\n\t"
-		"addiu\t%0,4\n\t"
-		".set\treorder"
-		:"=r" (dummy1),
-		 "=r" (dummy2)
-		:"0" (page),
-		 "1" (PAGE_SIZE/4));
-#endif
-}
-
-static inline void
-zeropage(unsigned long page)
-{
-	flush_page_to_ram(page);
-	__zeropage(page);
-}
-
 pte_t __bad_page(void)
 {
 	extern char empty_bad_page[PAGE_SIZE];
 	unsigned long page = (unsigned long)empty_bad_page;
 
-	zeropage(page);
+	clear_page(page);
 	return pte_mkdirty(mk_pte(page, PAGE_SHARED));
 }
 
@@ -221,7 +178,7 @@ void mem_init(unsigned long start_mem, unsigned long end_mem)
 	high_memory = (void *)end_mem;
 
 	/* clear the zero-page */
-	memset(empty_zero_page, 0, PAGE_SIZE);
+	clear_page(empty_zero_page);
 
 	/* mark usable pages in the mem_map[] */
 	start_mem = PAGE_ALIGN(start_mem);

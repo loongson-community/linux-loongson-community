@@ -2,17 +2,17 @@
  *  include/asm-mips/stackframe.h
  *
  *  Copyright (C) 1994, 1995, 1996 by Ralf Baechle and Paul M. Antoine.
+ *
+ * $Id: stackframe.h,v 1.4 1998/03/21 08:01:09 ralf Exp $
  */
 #ifndef __ASM_MIPS_STACKFRAME_H
 #define __ASM_MIPS_STACKFRAME_H
 
 #include <asm/asm.h>
 #include <asm/offset.h>
-#include <asm/cacheops.h>	/* XXX */
 
 #define SAVE_ALL                                         \
 		.set	push;                            \
-	.set	mips3; \
 		.set	reorder;                         \
 		mfc0	k0, CP0_STATUS;                  \
 		sll	k0, 3;     /* extract cu0 bit */ \
@@ -25,15 +25,7 @@
 		lw	k1, %lo(kernelsp)(k1);           \
 8:                                                       \
 		move	k0, sp;                          \
-	/*	subu	sp, k1, PT_SIZE;     */            \
-	subu	sp, k1, ((PT_SIZE + 31) & ~31); \
-	ori	sp, 31;	\
-	xori	sp, 31;	\
-	cache	Create_Dirty_Excl_D, (sp); \
-	cache	Create_Dirty_Excl_D, 32(sp); \
-	cache	Create_Dirty_Excl_D, 64(sp); \
-	cache	Create_Dirty_Excl_D, 96(sp); \
-	cache	Create_Dirty_Excl_D, 128(sp); \
+		subu	sp, k1, PT_SIZE;                 \
 		sw	k0, PT_R29(sp);                  \
 		sw	$3, PT_R3(sp);                   \
 		sw	$1, PT_R1(sp);                   \

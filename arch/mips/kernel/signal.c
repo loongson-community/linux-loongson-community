@@ -4,7 +4,7 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  *  Copyright (C) 1994, 1995, 1996  Ralf Baechle
  *
- * $Id: signal.c,v 1.8 1997/12/16 05:34:37 ralf Exp $
+ * $Id: signal.c,v 1.9 1998/03/17 22:07:36 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/sched.h>
@@ -347,11 +347,10 @@ static inline void handle_signal(unsigned long sig, struct k_sigaction *ka,
 	}
 }
 
-static inline void syscall_restart(unsigned long r0, unsigned long or2,
-				   unsigned long or7, struct pt_regs *regs,
-				   struct sigaction *sa)
+static inline void syscall_restart(unsigned long or2, unsigned long or7,
+                                   struct pt_regs *regs, struct sigaction *sa)
 {
-	switch(r0) {
+	switch(regs->regs[0]) {
 	case ERESTARTNOHAND:
 	no_system_call_restart:
 		regs->regs[0] = regs->regs[2] = EINTR;
@@ -371,7 +370,6 @@ extern int do_irix_signal(sigset_t *oldset, struct pt_regs *regs);
 
 asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 {
-	unsigned long r0 = regs->regs[0];
 	unsigned long r7 = regs->orig_reg7;
 	struct k_sigaction *ka;
 	siginfo_t info;
@@ -479,8 +477,8 @@ asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 			}
 		}
 
-		if (r0)
-			syscall_restart(r0, regs->orig_reg2, r7, regs, &ka->sa);
+		if (regs->regs[0])
+			syscall_restart(regs->orig_reg2, r7, regs, &ka->sa);
 		/* Whee!  Actually deliver the signal.  */
 		handle_signal(signr, ka, &info, oldset, regs);
 		return 1;
@@ -491,13 +489,14 @@ asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 	 * dies here!!!  The li instruction, a single machine instruction,
 	 * must directly be followed by the syscall instruction.
 	 */
-	if (r0 &&
-	    (regs->regs[2] == ERESTARTNOHAND ||
-	     regs->regs[2] == ERESTARTSYS ||
-	     regs->regs[2] == ERESTARTNOINTR)) {
+	if (regs->regs[0]) {
+		if (regs->regs[2] == ERESTARTNOHAND ||
+		    regs->regs[2] == ERESTARTSYS ||
+		    regs->regs[2] == ERESTARTNOINTR) {
 		regs->regs[0] = regs->regs[2] = regs->orig_reg2;
 		regs->regs[7] = r7;
 		regs->cp0_epc -= 8;
+		}
 	}
 	return 0;
 }

@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: r4xx0.c,v 1.12 1998/03/03 16:57:26 ralf Exp $
+ * $Id: r4xx0.c,v 1.13 1998/03/18 17:18:13 ralf Exp $
  *
  * To do:
  *
@@ -2631,6 +2631,12 @@ static inline void setup_scache(unsigned int config)
 	setup_noscache_funcs();
 }
 
+static int r4k_user_mode(struct pt_regs *regs)
+{
+	return (regs->cp0_status & ST0_KSU) == KSU_USER;
+}
+
+
 void ld_mmu_r4xx0(void)
 {
 	unsigned long config = read_32bit_cp0_register(CP0_CONFIG);
@@ -2668,6 +2674,8 @@ void ld_mmu_r4xx0(void)
 	show_regs = r4k_show_regs;
     
         add_wired_entry = r4k_add_wired_entry;
+
+	user_mode = r4k_user_mode;
 
 	flush_cache_all();
 	write_32bit_cp0_register(CP0_WIRED, 0);

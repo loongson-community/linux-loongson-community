@@ -1,3 +1,14 @@
+/*
+ * include/asm-mips/softirq.h
+ *
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
+ *
+ * Copyright (C) 1997, 1998 by Ralf Baechle
+ *
+ * $Id: softirq.h,v 1.4 1998/03/21 11:45:46 ralf Exp $
+ */
 #ifndef __ASM_MIPS_SOFTIRQ_H
 #define __ASM_MIPS_SOFTIRQ_H
 
@@ -22,7 +33,7 @@ static inline void clear_active_bhs(unsigned long x)
 		"beqz\t%0,1b"
 		:"=&r" (temp),
 		 "=m" (bh_active)
-		:"Ir" (x),
+		:"Ir" (~x),
 		 "m" (bh_active));
 }
 

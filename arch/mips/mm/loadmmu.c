@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: loadmmu.c,v 1.5 1998/01/13 04:39:35 ralf Exp $
+ * $Id: loadmmu.c,v 1.5 1998/03/03 16:57:25 ralf Exp $
  */
 
 #include <linux/kernel.h>
@@ -50,6 +50,8 @@ void (*show_regs)(struct pt_regs *);
 
 void (*add_wired_entry)(unsigned long entrylo0, unsigned long entrylo1,
 			unsigned long entryhi, unsigned long pagemask);
+
+int (*user_mode)(struct pt_regs *);
 
 asmlinkage void (*resume)(void *tsk);
 

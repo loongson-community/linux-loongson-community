@@ -1,13 +1,13 @@
 /*
- *  linux/arch/mips/kernel/process.c
+ * linux/arch/mips/kernel/process.c
  *
- *  Copyright (C) 1995 Ralf Baechle
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
  *
- *  Modified for R3000/DECStation support by Paul M. Antoine 1995, 1996
+ * Copyright (C) 1994 - 1998 by Ralf Baechle and others.
  *
- * This file handles the architecture-dependent parts of initialization,
- * though it does not yet currently fully support the DECStation,
- * or R3000 - PMA.
+ * $Id: process.c,v 1.6 1998/03/21 22:37:05 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/errno.h>
@@ -32,9 +32,6 @@
 #include <asm/uaccess.h>
 #include <asm/io.h>
 #include <asm/elf.h>
-#ifdef CONFIG_SGI
-#include <asm/sgialib.h>
-#endif
 
 mm_segment_t active_ds = USER_DS;
 

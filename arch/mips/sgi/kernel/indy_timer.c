@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: indy_timer.c,v 1.5 1998/03/11 15:21:44 ralf Exp $
+ * $Id: indy_timer.c,v 1.6 1998/03/17 22:07:41 ralf Exp $
  */
 
 #include <linux/errno.h>
@@ -98,6 +98,7 @@ static int set_rtc_mmss(unsigned long nowtime)
 }
 
 static long last_rtc_update = 0;
+unsigned long missed_heart_beats = 0;
 
 void indy_timer_interrupt(struct pt_regs *regs)
 {
@@ -106,9 +107,10 @@ void indy_timer_interrupt(struct pt_regs *regs)
 
 	/* Ack timer and compute new compare. */
 	count = read_32bit_cp0_register(CP0_COUNT);
+	/* This has races.  */
 	if ((count - r4k_cur) >= r4k_offset) {
-		printk("missed heartbeat: r4k_cur[0x%lx] count[0x%lx]\n",
-		       r4k_cur, count);
+		/* If this happens to often we'll need to compensate.  */
+		missed_heart_beats++;
 		r4k_cur = count + r4k_offset;
 	}
         else

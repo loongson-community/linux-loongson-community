@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1996, 1997 by Ralf Baechle
  *
- * $Id: uaccess.h,v 1.4 1997/12/01 18:00:44 ralf Exp $
+ * $Id: uaccess.h,v 1.7 1998/03/21 08:04:33 ralf Exp $
  */
 #ifndef __ASM_MIPS_UACCESS_H
 #define __ASM_MIPS_UACCESS_H
@@ -173,18 +173,14 @@ __asm__ __volatile__( \
 	"move\t%0,$0\n" \
 	"2:\n\t" \
 	".section\t.fixup,\"ax\"\n" \
-	"3:\t.set\tnoat\n\t" \
-	"la\t$1,2b\n\t" \
-	"li\t%0,%3\n\t" \
-	"jr\t$1\n\t" \
-	".set\tat\n\t" \
+	"3:\tli\t%0,%3\n\t" \
+	"j\t2b\n\t" \
 	".previous\n\t" \
 	".section\t__ex_table,\"a\"\n\t" \
 	STR(PTR)"\t1b,3b\n\t" \
 	".previous" \
 	:"=r" (__gu_err), "=r" (__gu_val) \
-	:"o" (__m(__gu_addr)), "i" (-EFAULT) \
-	:"$1"); })
+	:"o" (__m(__gu_addr)), "i" (-EFAULT)); })
 
 /*
  * Get a long long 64 using 32 bit registers.
@@ -196,11 +192,8 @@ __asm__ __volatile__( \
 	"2:\tlw\t%D1,%3\n\t" \
 	"move\t%0,$0\n" \
 	"3:\t.section\t.fixup,\"ax\"\n" \
-	"4:\t.set\tnoat\n\t" \
-	"la\t$1,3b\n\t" \
-	"li\t%0,%4\n\t" \
-	"jr\t$1\n\t" \
-	".set\tat\n\t" \
+	"4:\tli\t%0,%4\n\t" \
+	"j\t3b\n\t" \
 	".previous\n\t" \
 	".section\t__ex_table,\"a\"\n\t" \
 	STR(PTR)"\t1b,4b\n\t" \
@@ -208,8 +201,7 @@ __asm__ __volatile__( \
 	".previous" \
 	:"=r" (__gu_err), "=&r" (__gu_val) \
 	:"o" (__m(__gu_addr)), "o" (__m(__gu_addr + 4)), \
-	 "i" (-EFAULT) \
-	:"$1"); })
+	 "i" (-EFAULT)); })
 
 extern void __get_user_unknown(void);
 
@@ -261,18 +253,14 @@ __asm__ __volatile__( \
 	"move\t%0,$0\n" \
 	"2:\n\t" \
 	".section\t.fixup,\"ax\"\n" \
-	"3:\t.set\tnoat\n\t" \
-	"la\t$1,2b\n\t" \
-	"li\t%0,%3\n\t" \
-	"jr\t$1\n\t" \
-	".set\tat\n\t" \
+	"3:\tli\t%0,%3\n\t" \
+	"j\t2b\n\t" \
 	".previous\n\t" \
 	".section\t__ex_table,\"a\"\n\t" \
 	STR(PTR)"\t1b,3b\n\t" \
 	".previous" \
 	:"=r" (__pu_err) \
-	:"r" (__pu_val), "o" (__m(__pu_addr)), "i" (-EFAULT) \
-	:"$1"); })
+	:"r" (__pu_val), "o" (__m(__pu_addr)), "i" (-EFAULT)); })
 
 #define __put_user_asm_ll32 \
 ({ \
@@ -282,11 +270,8 @@ __asm__ __volatile__( \
 	"move\t%0,$0\n" \
 	"3:\n\t" \
 	".section\t.fixup,\"ax\"\n" \
-	"4:\t.set\tnoat\n\t" \
-	"la\t$1,3b\n\t" \
-	"li\t%0,%4\n\t" \
-	"jr\t$1\n\t" \
-	".set\tat\n\t" \
+	"4:\tli\t%0,%4\n\t" \
+	"j\t3b\n\t" \
 	".previous\n\t" \
 	".section\t__ex_table,\"a\"\n\t" \
 	STR(PTR)"\t1b,4b\n\t" \
@@ -294,8 +279,7 @@ __asm__ __volatile__( \
 	".previous" \
 	:"=r" (__pu_err) \
 	:"r" (__pu_val), "o" (__m(__pu_addr)), "o" (__m(__pu_addr + 4)), \
-	 "i" (-EFAULT) \
-	:"$1"); })
+	 "i" (-EFAULT)); })
 
 extern void __put_user_unknown(void);
 
@@ -325,17 +309,15 @@ if (copy_from_user(to,from,n)) \
 		"sb\t$0,-1(%0)\n\t" \
 		"2:\t.set\treorder\n\t" \
 		".section\t.fixup,\"ax\"\n" \
-		"3:\t.set\tnoat\n\t" \
-		"subu\t%0,1\n\t" \
+		"3:\tsubu\t%0,1\n\t" \
 		"j\t2b\n\t" \
-		".set\tat\n\t" \
 		".previous\n\t" \
 		".section\t__ex_table,\"a\"\n\t" \
 		STR(PTR)"\t1b,3b\n\t" \
 		".previous" \
 		:"=r" (addr), "=r" (__cu_end) \
 		:"0" (addr), "1" (addr + size), "i" (-EFAULT) \
-		:"$1","memory"); \
+		:"memory"); \
 		size = __cu_end - (addr); \
 })
 

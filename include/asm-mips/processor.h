@@ -5,7 +5,7 @@
  * written by Ralf Baechle
  * Modified further for R[236]000 compatibility by Paul M. Antoine
  *
- * $Id: processor.h,v 1.4 1997/12/16 05:36:43 ralf Exp $
+ * $Id: processor.h,v 1.5 1998/03/17 22:16:15 ralf Exp $
  */
 #ifndef __ASM_MIPS_PROCESSOR_H
 #define __ASM_MIPS_PROCESSOR_H
@@ -167,16 +167,12 @@ extern inline unsigned long thread_saved_pc(struct thread_struct *t)
 	return ((unsigned long*)t->reg29)[17];
 }
 
+extern int (*user_mode)(struct pt_regs *);
+
 /*
  * Do necessary setup to start up a newly executed thread.
  */
 extern void start_thread(struct pt_regs * regs, unsigned long pc, unsigned long sp);
-
-/*
- * Does the process account for user or for system time?
- */
-extern int (*running_in_user_mode)(void);
-#define USES_USER_TIME(regs) running_in_user_mode()
 
 /* Allocation and freeing of basic task resources. */
 /*

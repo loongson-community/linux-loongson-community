@@ -1,4 +1,4 @@
-/* $Id: tfp.c,v 1.1.1.1 1997/06/01 03:16:38 ralf Exp $
+/* $Id: tfp.c,v 1.2 1997/07/29 22:54:53 tsbogend Exp $
  * tfp.c: MMU and cache routines specific to the r8000 (TFP).
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
@@ -85,6 +85,11 @@ static void tfp_add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
         /* XXX */
 }
 
+static int tfp_user_mode(struct pt_regs *regs)
+{
+	return regs->cp0_status & ST0_KSU == KSU_USER;
+}
+
 void ld_mmu_tfp(void)
 {
 	flush_cache_all = tfp_flush_cache_all;
@@ -101,10 +106,11 @@ void ld_mmu_tfp(void)
 
         add_wired_entry = tfp_add_wired_entry;
 
+	user_mode = tfp_user_mode;
+
 	load_pgd = tfp_load_pgd;
 	pgd_init = tfp_pgd_init;
     
 	flush_cache_all();
 	flush_tlb_all();
 }
-
