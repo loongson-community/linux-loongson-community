@@ -498,6 +498,9 @@
         __asm__ __volatile__(                                   \
 	".set\tnoreorder\n\t"                                   \
 	".set\tnoat\n\t"                                        \
+	"#.set\tmips64\n\t"					\
+	"#mfc0\t$1, $16, 1\n\t"					\
+	"#.set\tmips0\n\t"					\
      	".word\t0x40018001\n\t"                                 \
 	"move\t%0,$1\n\t"                                       \
 	".set\tat\n\t"                                          \
