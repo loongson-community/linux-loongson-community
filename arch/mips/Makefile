@@ -1,4 +1,6 @@
 #
+# $Id:$
+#
 # arch/mips/Makefile
 #
 # This file is included by the global makefile so that you can add your own
@@ -135,7 +137,12 @@ endif
 ifdef CONFIG_SGI
 LIBS          += arch/mips/sgi/kernel/sgikern.a arch/mips/sgi/prom/promlib.a
 SUBDIRS       += arch/mips/sgi/kernel arch/mips/sgi/prom
-LOADADDR      += 0x88069000
+#
+# Set LOADADDR to >= 0x88069000 if you want to leave space for symmon,
+# 0x88002000 for production kernels.  Note that the value must be
+# 8kb aligned or the handling of the current variable will break.
+#
+LOADADDR      += 0x88002000
 HOSTCC        = cc
 endif
 
