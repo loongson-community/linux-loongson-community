@@ -3305,13 +3305,13 @@ void cleanup_module(void)
 /*
  *	Wait for transmitter & holding register to empty
  */
-static inline void wait_for_xmitr(struct serial_state *ser)
+static inline void wait_for_xmitr(struct async_struct *info)
 {
 	int lsr;
 	unsigned int tmout = 1000000;
 
 	do {
-		lsr = inb(ser->port + UART_LSR);
+		lsr = serial_inp(info, UART_LSR);
 		if (--tmout == 0) break;
 	} while ((lsr & BOTH_EMPTY) != BOTH_EMPTY);
 }
@@ -3326,28 +3326,36 @@ static void serial_console_write(struct console *co, const char *s,
 	struct serial_state *ser;
 	int ier;
 	unsigned i;
+	struct async_struct scr_info; /* serial_{in,out} because HUB6 */
 
 	ser = rs_table + co->index;
+	scr_info.magic = SERIAL_MAGIC;
+	scr_info.port = ser->port;
+	scr_info.flags = ser->flags;
+#ifdef CONFIG_HUB6
+	scr_info.hub6 = state->hub6;
+#endif
+
 	/*
 	 *	First save the IER then disable the interrupts
 	 */
-	ier = inb(ser->port + UART_IER);
-	outb(0x00, ser->port + UART_IER);
+	ier = serial_inp(&scr_info, UART_IER);
+	serial_outp(&scr_info, UART_IER, 0x00);
 
 	/*
 	 *	Now, do each character
 	 */
 	for (i = 0; i < count; i++, s++) {
-		wait_for_xmitr(ser);
+		wait_for_xmitr(&scr_info);
 
 		/*
 		 *	Send the character out.
 		 *	If a LF, also do CR...
 		 */
-		outb(*s, ser->port + UART_TX);
+		serial_outp(&scr_info, UART_TX, *s);
 		if (*s == 10) {
-			wait_for_xmitr(ser);
-			outb(13, ser->port + UART_TX);
+			wait_for_xmitr(&scr_info);
+			serial_outp(&scr_info, UART_TX, 13);
 		}
 	}
 
@@ -3355,8 +3363,8 @@ static void serial_console_write(struct console *co, const char *s,
 	 *	Finally, Wait for transmitter & holding register to empty
 	 * 	and restore the IER
 	 */
-	wait_for_xmitr(ser);
-	outb(ier, ser->port + UART_IER);
+	wait_for_xmitr(&scr_info);
+	serial_outp(&scr_info, UART_IER, ier);
 }
 
 /*
@@ -3368,26 +3376,33 @@ static int serial_console_wait_key(struct console *co)
 	int ier;
 	int lsr;
 	int c;
+	struct async_struct scr_info; /* serial_{in,out} because HUB6 */
 
 	ser = rs_table + co->index;
+	scr_info.magic = SERIAL_MAGIC;
+	scr_info.port = ser->port;
+	scr_info.flags = ser->flags;
+#ifdef CONFIG_HUB6
+	scr_info.hub6 = state->hub6;
+#endif
 
 	/*
 	 *	First save the IER then disable the interrupts so
 	 *	that the real driver for the port does not get the
 	 *	character.
 	 */
-	ier = inb(ser->port + UART_IER);
-	outb(0x00, ser->port + UART_IER);
+	ier = serial_inp(&scr_info, UART_IER);
+	serial_outp(&scr_info, UART_IER, 0x00);
 
 	do {
-		lsr = inb(ser->port + UART_LSR);
+		lsr = serial_inp(&scr_info, UART_LSR);
 	} while (!(lsr & UART_LSR_DR));
-	c = inb(ser->port + UART_RX);
+	c = serial_inp(&scr_info, UART_RX);
 
 	/*
 	 *	Restore the interrupts
 	 */
-	outb(ier, ser->port + UART_IER);
+	serial_outp(&scr_info, UART_IER, ier);
 
 	return c;
 }
@@ -3413,6 +3428,7 @@ __initfunc(static int serial_console_setup(struct console *co, char *options))
 	int	cflag = CREAD | HUPCL | CLOCAL;
 	int	quot = 0;
 	char	*s;
+	struct async_struct scr_info; /* serial_{in,out} because HUB6 */
 
 	if (options) {
 		baud = simple_strtoul(options, NULL, 10);
@@ -3476,6 +3492,12 @@ __initfunc(static int serial_console_setup(struct console *co, char *options))
 	 *	Divisor, bytesize and parity
 	 */
 	ser = rs_table + co->index;
+	scr_info.magic = SERIAL_MAGIC;
+	scr_info.port = ser->port;
+	scr_info.flags = ser->flags;
+#ifdef CONFIG_HUB6
+	scr_info.hub6 = state->hub6;
+#endif
 	quot = ser->baud_base / baud;
 	cval = cflag & (CSIZE | CSTOPB);
 #if defined(__powerpc__) || defined(__alpha__)
@@ -3492,17 +3514,17 @@ __initfunc(static int serial_console_setup(struct console *co, char *options))
 	 *	Disable UART interrupts, set DTR and RTS high
 	 *	and set speed.
 	 */
-	outb(cval | UART_LCR_DLAB, ser->port + UART_LCR);	/* set DLAB */
-	outb(quot & 0xff, ser->port + UART_DLL);	/* LS of divisor */
-	outb(quot >> 8, ser->port + UART_DLM);		/* MS of divisor */
-	outb(cval, ser->port + UART_LCR);		/* reset DLAB */
-	outb(0, ser->port + UART_IER);
-	outb(UART_MCR_DTR | UART_MCR_RTS, ser->port + UART_MCR);
+	serial_outp(&scr_info, UART_LCR, cval | UART_LCR_DLAB);	/* set DLAB */
+	serial_outp(&scr_info, UART_DLL, quot & 0xff);	/* LS of divisor */
+	serial_outp(&scr_info, UART_DLM, quot >> 8);	/* MS of divisor */
+	serial_outp(&scr_info, UART_LCR, cval);		/* reset DLAB */
+	serial_outp(&scr_info, UART_IER, 0);
+	serial_outp(&scr_info, UART_MCR, UART_MCR_DTR | UART_MCR_RTS);
 
 	/*
 	 *	If we read 0xff from the LSR, there is no UART here.
 	 */
-	if (inb(ser->port + UART_LSR) == 0xff)
+	if (serial_inp(&scr_info, UART_LSR) == 0xff)
 		return -1;
 	return 0;
 }
