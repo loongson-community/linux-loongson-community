@@ -19,7 +19,7 @@
 static inline void pmd_populate_kernel(struct mm_struct *mm, pmd_t *pmd,
 	pte_t *pte)
 {
-	set_pmd(pmd, __pmd(__pa(pte)));
+	set_pmd(pmd, __pmd((unsigned long)pte));
 }
 
 static inline void pmd_populate(struct mm_struct *mm, pmd_t *pmd,
