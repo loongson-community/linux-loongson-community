@@ -189,6 +189,18 @@ static __init void prom_meminit(void)
 #ifdef CONFIG_BLK_DEV_INITRD
 static int __init initrd_setup(char *str)
 {
+	char rdarg[64];
+	int idx;
+
+	/* Make a copy of the initrd argument so we can smash it up here */
+	for (idx = 0; idx < sizeof(rdarg)-1; idx++) {
+		if (!str[idx] || (str[idx] == ' ')) break;
+		rdarg[idx] = str[idx];
+	}
+
+	rdarg[idx] = 0;
+	str = rdarg;
+
 	/*
 	 *Initrd location comes in the form "<hex size of ramdisk in bytes>@<location in memory>"
 	 *  e.g. initrd=3abfd@80010000.  This is set up by the loader.
@@ -216,10 +228,10 @@ static int __init initrd_setup(char *str)
 		goto fail;
 	}
 	initrd_end = initrd_start + initrd_size;
-	printk("Found initrd of %lx@%lx\n", initrd_size, initrd_start);
+	prom_printf("Found initrd of %lx@%lx\n", initrd_size, initrd_start);
 	return 1;
  fail:
-	printk("Bad initrd argument.  Disabling initrd\n");
+	prom_printf("Bad initrd argument.  Disabling initrd\n");
 	initrd_start = 0;
 	initrd_end = 0;
 	return 1;
@@ -272,7 +284,9 @@ __init int prom_init(int argc, char **argv, char **envp, int *prom_vec)
 		}
 	}
 	if (cfe_eptseal != CFE_EPTSEAL) {
-		/* XXXKW what?  way too early to panic... */
+		/* too early for panic to do any good */
+		prom_printf("CFE's entrypoint seal doesn't match. Spinning.");
+		while (1) ;
 	}
 	cfe_init(cfe_handle, cfe_ept);
 	/* 
@@ -292,7 +306,9 @@ __init int prom_init(int argc, char **argv, char **envp, int *prom_vec)
 #endif
 		} else {
 			/* The loader should have set the command line */
-			panic("LINUX_CMDLINE not defined in cfe.");
+			/* too early for panic to do any good */
+			prom_printf("LINUX_CMDLINE not defined in cfe.");
+			while (1) ;
 		}
 	}
 
