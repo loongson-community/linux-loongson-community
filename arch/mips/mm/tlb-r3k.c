@@ -7,6 +7,8 @@
  * Tx39XX R4k style caches added. HK
  * Copyright (C) 1998, 1999, 2000 Harald Koerfgen
  * Copyright (C) 1998 Gleb Raiko & Vladimir Roganov
+ * Copyright (C) 2002  Ralf Baechle
+ * Copyright (C) 2002  Maciej W. Rozycki
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -23,11 +25,19 @@
 #include <asm/bootinfo.h>
 #include <asm/cpu.h>
 
-extern char except_vec0_r2300;
-
 #undef DEBUG_TLB
 
-int r3k_have_wired_reg = 0;	/* should be in mips_cpu? */
+extern char except_vec0_r2300;
+
+/* CP0 hazard avoidance. */
+#define BARRIER				\
+	__asm__ __volatile__(		\
+		".set	push\n\t"	\
+		".set	noreorder\n\t"	\
+		"nop\n\t"		\
+		".set	pop\n\t")
+
+int r3k_have_wired_reg;		/* should be in mips_cpu? */
 
 /* TLB operations. */
 void local_flush_tlb_all(void)
@@ -40,21 +50,18 @@ void local_flush_tlb_all(void)
 	printk("[tlball]");
 #endif
 
-	save_and_cli(flags);
-	old_ctx = (get_entryhi() & 0xfc0);
-	write_32bit_cp0_register(CP0_ENTRYLO0, 0);
-#ifdef CONFIG_CPU_TX39XX
+	__save_and_cli(flags);
+	old_ctx = get_entryhi() & 0xfc0;
+	set_entrylo0(0);
 	entry = r3k_have_wired_reg ? get_wired() : 8;
-#else
-	entry = 8;
-#endif
 	for (; entry < mips_cpu.tlbsize; entry++) {
-		write_32bit_cp0_register(CP0_INDEX, entry << 8);
-		write_32bit_cp0_register(CP0_ENTRYHI, ((entry | 0x80000) << 12));
-		__asm__ __volatile__("tlbwi");
+		set_index(entry << 8);
+		set_entryhi((entry | 0x80000) << 12);
+		BARRIER;
+		tlb_write_indexed();
 	}
 	set_entryhi(old_ctx);
-	restore_flags(flags);
+	__restore_flags(flags);
 }
 
 void local_flush_tlb_mm(struct mm_struct *mm)
@@ -63,18 +70,18 @@ void local_flush_tlb_mm(struct mm_struct *mm)
 		unsigned long flags;
 
 #ifdef DEBUG_TLB
-		printk("[tlbmm<%lu>]", (unsigned long) mm->context);
+		printk("[tlbmm<%lu>]", (unsigned long)mm->context);
 #endif
-		save_and_cli(flags);
+		__save_and_cli(flags);
 		get_new_mmu_context(mm, smp_processor_id());
 		if (mm == current->active_mm)
 			set_entryhi(mm->context & 0xfc0);
-		restore_flags(flags);
+		__restore_flags(flags);
 	}
 }
 
 void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
-                     unsigned long end)
+			   unsigned long end)
 {
 	struct mm_struct *mm = vma->vm_mm;
 
@@ -89,22 +96,22 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 		__save_and_cli(flags);
 		size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
 		if (size <= mips_cpu.tlbsize) {
-			int oldpid = (get_entryhi() & 0xfc0);
-			int newpid = (mm->context & 0xfc0);
+			int oldpid = get_entryhi() & 0xfc0;
+			int newpid = mm->context & 0xfc0;
 
 			start &= PAGE_MASK;
-			end += (PAGE_SIZE - 1);
+			end += PAGE_SIZE - 1;
 			end &= PAGE_MASK;
 			while (start < end) {
 				int idx;
 
 				set_entryhi(start | newpid);
-				start += PAGE_SIZE;
+				start += PAGE_SIZE;	/* BARRIER */
 				tlb_probe();
 				idx = get_index();
 				set_entrylo0(0);
 				set_entryhi(KSEG0);
-				if (idx < 0)
+				if (idx < 0)		/* BARRIER */
 					continue;
 				tlb_write_indexed();
 			}
@@ -132,19 +139,19 @@ void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
 		int pid = get_entryhi();
 
 		start &= PAGE_MASK;
-		end += (PAGE_SIZE - 1);
+		end += PAGE_SIZE - 1;
 		end &= PAGE_MASK;
 
 		while (start < end) {
 			int idx;
 
 			set_entryhi(start);
-			start += PAGE_SIZE;
+			start += PAGE_SIZE;		/* BARRIER */
 			tlb_probe();
 			idx = get_index();
 			set_entrylo0(0);
 			set_entryhi(KSEG0);
-			if (idx < 0)
+			if (idx < 0)			/* BARRIER */
 				continue;
 			tlb_write_indexed();
 		}
@@ -164,32 +171,30 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 #ifdef DEBUG_TLB
 		printk("[tlbpage<%lu,0x%08lx>]", vma->vm_mm->context, page);
 #endif
-		newpid = (vma->vm_mm->context & 0xfc0);
+		newpid = vma->vm_mm->context & 0xfc0;
 		page &= PAGE_MASK;
-		save_and_cli(flags);
-		oldpid = (get_entryhi() & 0xfc0);
+		__save_and_cli(flags);
+		oldpid = get_entryhi() & 0xfc0;
 		set_entryhi(page | newpid);
+		BARRIER;
 		tlb_probe();
 		idx = get_index();
 		set_entrylo0(0);
 		set_entryhi(KSEG0);
-		if (idx < 0)
+		if (idx < 0)				/* BARRIER */
 			goto finish;
 		tlb_write_indexed();
 
 finish:
 		set_entryhi(oldpid);
-		restore_flags(flags);
+		__restore_flags(flags);
 	}
 }
 
-void update_mmu_cache(struct vm_area_struct * vma, unsigned long address,
-                      pte_t pte)
+void update_mmu_cache(struct vm_area_struct *vma, unsigned long address,
+		      pte_t pte)
 {
 	unsigned long flags;
-	pgd_t *pgdp;
-	pmd_t *pmdp;
-	pte_t *ptep;
 	int idx, pid;
 
 	/*
@@ -207,82 +212,76 @@ void update_mmu_cache(struct vm_area_struct * vma, unsigned long address,
 	}
 #endif
 
-	save_and_cli(flags);
+	__save_and_cli(flags);
 	address &= PAGE_MASK;
-	set_entryhi(address | (pid));
-	pgdp = pgd_offset(vma->vm_mm, address);
+	set_entryhi(address | pid);
+	BARRIER;
 	tlb_probe();
-	pmdp = pmd_offset(pgdp, address);
 	idx = get_index();
-	ptep = pte_offset(pmdp, address);
-	set_entrylo0(pte_val(*ptep));
-	set_entryhi(address | (pid));
-	if (idx < 0) {
+	set_entrylo0(pte_val(pte));
+	set_entryhi(address | pid);
+	if (idx < 0) {					/* BARRIER */
 		tlb_write_random();
-#if 0
-		printk("[MISS]");
-#endif
 	} else {
 		tlb_write_indexed();
-#if 0
-		printk("[HIT]");
-#endif
 	}
 	set_entryhi(pid);
-	restore_flags(flags);
+	__restore_flags(flags);
 }
 
 void __init add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
-                     unsigned long entryhi, unsigned long pagemask)
+			    unsigned long entryhi, unsigned long pagemask)
 {
 	unsigned long flags;
 	unsigned long old_ctx;
 	static unsigned long wired = 0;
 
-#ifdef CONFIG_CPU_TX39XX
-	if (r3k_have_wired_reg) {
+	if (r3k_have_wired_reg) {			/* TX39XX */
 		unsigned long old_pagemask;
 		unsigned long w;
 
 #ifdef DEBUG_TLB
-		printk("[tlbwired]");
-		printk("ently lo0 %8x, hi %8x\n, pagemask %8x\n",
+		printk("[tlbwired<entry lo0 %8x, hi %8x\n, pagemask %8x>]\n",
 		       entrylo0, entryhi, pagemask);
 #endif
-		save_and_cli(flags);
+
+		__save_and_cli(flags);
 		/* Save old context and create impossible VPN2 value */
-		old_ctx = (get_entryhi() & 0xff);
+		old_ctx = get_entryhi() & 0xfc0;
 		old_pagemask = get_pagemask();
 		w = get_wired();
-		set_wired (w + 1);
+		set_wired(w + 1);
 		if (get_wired() != w + 1) {
 			printk("[tlbwired] No WIRED reg?\n");
 			return;
 		}
-		set_index (w << 8);
-		set_pagemask (pagemask);
+		set_index(w << 8);
+		set_pagemask(pagemask);
 		set_entryhi(entryhi);
 		set_entrylo0(entrylo0);
+		BARRIER;
 		tlb_write_indexed();
 
 		set_entryhi(old_ctx);
-		set_pagemask (old_pagemask);
+		set_pagemask(old_pagemask);
 		local_flush_tlb_all();
-		restore_flags(flags);
-		return;
-	}
+		__restore_flags(flags);
+
+	} else if (wired < 8) {
+#ifdef DEBUG_TLB
+		printk("[tlbwired<entry lo0 %8x, hi %8x\n>]\n",
+		       entrylo0, entryhi);
 #endif
 
-	if (wired < 8) {
 		__save_and_cli(flags);
 		old_ctx = get_entryhi() & 0xfc0;
 		set_entrylo0(entrylo0);
 		set_entryhi(entryhi);
 		set_index(wired);
-		wired++;
+		wired++;				/* BARRIER */
 		tlb_write_indexed();
 		set_entryhi(old_ctx);
-	        local_flush_tlb_all();
+		local_flush_tlb_all();
 		__restore_flags(flags);
 	}
 }
