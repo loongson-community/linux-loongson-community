@@ -663,12 +663,16 @@ static int osf_partition(struct gendisk *hd, unsigned int dev, unsigned long fir
 	label = (struct disklabel *) (bh->b_data+64);
 	partition = label->d_partitions;
 	if (label->d_magic != DISKLABELMAGIC) {
+#ifndef CONFIG_DECSTATION
 		printk("magic: %08x\n", label->d_magic);
+#endif
 		brelse(bh);
 		return 0;
 	}
 	if (label->d_magic2 != DISKLABELMAGIC) {
+#ifndef CONFIG_DECSTATION
 		printk("magic2: %08x\n", label->d_magic2);
+#endif
 		brelse(bh);
 		return 0;
 	}
@@ -1182,6 +1186,53 @@ static int atari_partition (struct gendisk *hd, kdev_t dev,
 }
 #endif /* CONFIG_ATARI_PARTITION */
 
+#ifdef CONFIG_ULTRIX_PARTITION
+
+static int ultrix_partition(struct gendisk *hd, kdev_t dev, unsigned long first_sector)
+{
+	int i, minor = current_minor;
+	struct buffer_head *bh;
+	struct ultrix_disklabel {
+		long	pt_magic;	/* magic no. indicating part. info exits */
+		int	pt_valid;	/* set by driver if pt is current */
+		struct  pt_info {
+			int		pi_nblocks; /* no. of sectors */
+			unsigned long	pi_blkoff;  /* block offset for start */
+		} pt_part[8];
+	} *label;
+
+#define PT_MAGIC	0x032957	/* Partition magic number */
+#define PT_VALID	1		/* Indicates if struct is valid */
+
+#define	SBLOCK	((unsigned long)((16384 - sizeof(struct ultrix_disklabel)) \
+                  /get_ptable_blocksize(dev)))
+
+	bh = bread (dev, SBLOCK, get_ptable_blocksize(dev));
+	if (!bh) {
+		printk (" unable to read block 0x%lx\n", SBLOCK);
+		return -1;
+	}
+	
+	label = (struct ultrix_disklabel *)(bh->b_data
+                                            + get_ptable_blocksize(dev)
+                                            - sizeof(struct ultrix_disklabel));
+
+	if (label->pt_magic == PT_MAGIC && label->pt_valid == PT_VALID) {
+		for (i=0; i<8; i++, minor++)
+			if (label->pt_part[i].pi_nblocks)
+				add_partition(hd, minor, 
+					      label->pt_part[i].pi_blkoff,
+					      label->pt_part[i].pi_nblocks);
+		brelse(bh);
+		return 1;
+	} else {
+		brelse(bh);
+		return 0;
+	}
+}
+
+#endif /* CONFIG_ULTRIX_PARTITION */
+
 static void check_partition(struct gendisk *hd, kdev_t dev)
 {
 	static int first_time = 1;
@@ -1229,6 +1280,10 @@ static void check_partition(struct gendisk *hd, kdev_t dev)
 #endif
 #ifdef CONFIG_SGI_PARTITION
 	if(sgi_partition(hd, dev, first_sector))
+		return;
+#endif
+#ifdef CONFIG_ULTRIX_PARTITION
+	if(ultrix_partition(hd, dev, first_sector))
 		return;
 #endif
 	printk(" unknown partition table\n");
