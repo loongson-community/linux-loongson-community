@@ -6,6 +6,8 @@
  * for more details.
  *
  * This file is a mess.  Put on your peril sensitive glasses.
+ *
+ * $Id:$
  */
 #ifndef __ASM_MIPS_KEYBOARD_H
 #define __ASM_MIPS_KEYBOARD_H
@@ -81,23 +83,10 @@ int (*kbd_inb)(unsigned short port);
 void (*kbd_outb_p)(unsigned char data, unsigned short port);
 void (*kbd_outb)(unsigned char data, unsigned short port);
 
-#if defined(CONFIG_MIPS_JAZZ) || defined(CONFIG_SGI)
-/*
- * We want the full initialization for the keyboard controller.
- */
-
-/* XXX Define both and ...  */
 #ifdef CONFIG_MIPS_JAZZ
 #define INIT_KBD	/* full initialization for the keyboard controller. */
-#define __khtype keyboard_hardware
-#endif
 
-#ifdef CONFIG_SGI
-#define INIT_KBD	/* full initialization for the keyboard controller. */
-#define __khtype struct hpc_keyb
-#endif
-
-static volatile __khtype *kh;
+static volatile keyboard_hardware *jazz_kh;
 
 static int
 jazz_kbd_inb_p(unsigned short port)
@@ -105,12 +94,10 @@ jazz_kbd_inb_p(unsigned short port)
 	int result;
 
 	if(port == KBD_DATA_REG)
-		result = kh->data;
+		result = jazz_kh->data;
 	else /* Must be KBD_STATUS_REG */
-		result = kh->command;
-#ifndef CONFIG_SGI
+		result = jazz_kh->command;
 	inb(0x80);
-#endif
 
 	return result;
 }
@@ -121,9 +108,9 @@ jazz_kbd_inb(unsigned short port)
 	int result;
 
 	if(port == KBD_DATA_REG)
-		result = kh->data;
+		result = jazz_kh->data;
 	else /* Must be KBD_STATUS_REG */
-		result = kh->command;
+		result = jazz_kh->command;
 
 	return result;
 }
@@ -132,23 +119,49 @@ static void
 jazz_kbd_outb_p(unsigned char data, unsigned short port)
 {
 	if(port == KBD_DATA_REG)
-		kh->data = data;
+		jazz_kh->data = data;
 	else if(port == KBD_CNTL_REG)
-		kh->command = data;
-#ifndef CONFIG_SGI
+		jazz_kh->command = data;
 	inb(0x80);
-#endif
 }
 
 static void
 jazz_kbd_outb(unsigned char data, unsigned short port)
 {
 	if(port == KBD_DATA_REG)
-		kh->data = data;
+		jazz_kh->data = data;
 	else if(port == KBD_CNTL_REG)
-		kh->command = data;
+		jazz_kh->command = data;
 }
 #endif /* CONFIG_MIPS_JAZZ */
+
+#ifdef CONFIG_SGI
+#define INIT_KBD	/* full initialization for the keyboard controller. */
+
+static volatile struct hpc_keyb *sgi_kh;
+
+static int
+sgi_kbd_inb(unsigned short port)
+{
+	int result;
+
+	if(port == KBD_DATA_REG)
+		result = sgi_kh->data;
+	else /* Must be KBD_STATUS_REG */
+		result = sgi_kh->command;
+
+	return result;
+}
+
+static void
+sgi_kbd_outb(unsigned char data, unsigned short port)
+{
+	if(port == KBD_DATA_REG)
+		sgi_kh->data = data;
+	else if(port == KBD_CNTL_REG)
+		sgi_kh->command = data;
+}
+#endif /* CONFIG_SGI */
 
 /*
  * Most other MIPS machines access the keyboard controller via
@@ -178,14 +191,11 @@ port_kbd_outb(unsigned char data, unsigned short port)
 	return outb(data, port);
 }
 
-static inline void kb_wait(void);
-static int send_data(unsigned char data);
-
 extern __inline__ void keyboard_setup(void)
 {
 #ifdef CONFIG_MIPS_JAZZ
         if (mips_machgroup == MACH_GROUP_JAZZ) {
-		kh = (void *) JAZZ_KEYBOARD_ADDRESS;
+		jazz_kh = (void *) JAZZ_KEYBOARD_ADDRESS;
 		kbd_inb_p = jazz_kbd_inb_p;
 		kbd_inb = jazz_kbd_inb;
 		kbd_outb_p = jazz_kbd_outb_p;
@@ -211,18 +221,14 @@ extern __inline__ void keyboard_setup(void)
 		kbd_outb_p = port_kbd_outb_p;
 		kbd_outb = port_kbd_outb;
 		request_region(0x60,16,"keyboard");
-
-		kb_wait();
-		kbd_outb(0x60, 0x64); /* 60 == PS/2 MODE ??  */
-		kb_wait();
-		kbd_outb(0x41, 0x60); /* 4d:same as freebsd, 41:KCC+EKI */
-		kb_wait();
-		if (!send_data(0xf0) || !send_data(0x02))
-			printk("Scanmode 2 change failed\n");
 	}
 #ifdef CONFIG_SGI
-	if (mips_machgroup == MACH_SGI_INDY) {
-		kh = (struct hpc_keyb *) (KSEG1 + 0x1fbd9800 + 64);
+	if (mips_machgroup == MACH_GROUP_SGI) {
+		sgi_kh = (struct hpc_keyb *) (KSEG1 + 0x1fbd9800 + 64);
+		kbd_inb_p = sgi_kbd_inb;
+		kbd_inb = sgi_kbd_inb;
+		kbd_outb_p = sgi_kbd_outb;
+		kbd_outb = sgi_kbd_outb;
 	}
 #endif
 }
