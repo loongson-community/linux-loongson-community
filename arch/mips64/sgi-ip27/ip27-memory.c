@@ -57,17 +57,12 @@ int numa_debug(void)
  */
 pfn_t node_getfirstfree(cnodeid_t cnode)
 {
-#ifdef LATER
 	nasid_t nasid = COMPACT_TO_NASID_NODEID(cnode);
 
 	if (cnode == 0)
-		return KDM_TO_PHYS((unsigned long)(&_end));
-	return KDM_TO_PHYS(SYMMON_STK_ADDR(nasid, 0));
-#endif
-	if (cnode == 0)
 		return (KDM_TO_PHYS(PAGE_ALIGN((unsigned long)(&_end)) - 
 					(CKSEG0 - K0BASE)) >> PAGE_SHIFT);
-	return slot_getbasepfn(cnode, 0);
+	return (KDM_TO_PHYS(PAGE_ALIGN(SYMMON_STK_ADDR(nasid, 0))) >> PAGE_SHIFT);
 }
 
 /*
