@@ -1,4 +1,4 @@
-/* $Id: softfp.S,v 1.1 1999/12/04 03:59:00 ralf Exp $
+/* $Id: softfp.S,v 1.2 2000/03/21 23:50:42 ulfc Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -411,9 +411,7 @@ cvt.l = unimp
 /* Get the single precission register which's number is in ta1.  */
 s_get_fpreg:
 	.set	noat
-	sll	AT, ta1, 2
 	sll	ta1, 3
-	daddu	ta1, AT
 	la	AT, 1f
 	daddu	AT, ta1
 	jr	AT
@@ -490,9 +488,7 @@ s_get_fpreg:
  */
 s_put_fpreg:
 	.set	noat
-	sll	AT, ta1, 2
 	sll	ta1, 3
-	daddu	ta1, AT
 	la	AT, 1f
 	daddu	AT, ta1
 	jr	AT
@@ -563,11 +559,12 @@ s_put_fpreg:
 	mtc1	ta2, $31
 	jr	ra
 
-/* Get the double precission register which's number is in ta1 into ta1/ta2.
-   XXX broken offsets.  */
+/* Get the double precission register which's number is in ta1 into ta1/ta2.  */
 d_get_fpreg:
 	.set	noat
-	sll	ta1, 3
+	sll	AT, ta1, 1
+	sll	ta1, 2
+	daddu	ta1, AT
 	la	AT, 1f
 	daddu	AT, ta1
 	jr	AT
