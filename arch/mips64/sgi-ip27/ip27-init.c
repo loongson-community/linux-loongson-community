@@ -1,4 +1,5 @@
 #include <linux/kernel.h>
+#include <linux/sched.h>
 #include <linux/mmzone.h>	/* for numnodes */
 #include <asm/sn/types.h>
 #include <asm/sn/sn0/addrs.h>
@@ -8,16 +9,25 @@
 #include <asm/ioc3.h>
 #include <asm/mipsregs.h>
 #include <asm/sn/gda.h>
+#include <asm/sn/intr.h>
+#include <asm/current.h>
+#include <asm/smp.h>
+#include <asm/processor.h>
+#include <asm/sn/launch.h>
 
 typedef unsigned long cpumask_t;	/* into asm/sn/types.h */
 typedef unsigned long cpuid_t;
 
 #define	CPUMASK_CLRALL(p)	(p) = 0
 #define CPUMASK_SETB(p, bit)	(p) |= 1 << (bit)
+#define CPUMASK_CLRB(p, bit)	(p) &= ~(1ULL << (bit))
+#define CPUMASK_TSTB(p, bit)	((p) & (1ULL << (bit)))
 
 cpumask_t	boot_cpumask;
+static volatile cpumask_t boot_barrier;
 hubreg_t	region_mask = 0;
 static int	fine_mode = 0;
+int		maxcpus;
 
 cnodeid_t	nasid_to_compact_node[MAX_NASIDS];
 nasid_t		compact_to_nasid_node[MAX_COMPACT_NODES];
@@ -184,7 +194,7 @@ cpuid_t cpu_node_probe(cpumask_t *boot_cpumask, int *numnodes)
 
 void mlreset (void)
 {
-	int i, maxcpus;
+	int i;
 
 	fine_mode = is_fine_dirmode();
 
@@ -225,3 +235,115 @@ void mlreset (void)
 	}
 }
 
+
+void intr_clear_bits(nasid_t nasid, volatile hubreg_t *pend, int base_level,
+							char *name)
+{
+	volatile hubreg_t bits;
+	int i;
+
+	/* Check pending interrupts */
+	if ((bits = HUB_L(pend)) != 0)
+		for (i = 0; i < N_INTPEND_BITS; i++)
+			if (bits & (1 << i))
+				LOCAL_HUB_CLR_INTR(base_level + i);
+}
+	
+void intr_clear_all(nasid_t nasid)
+{
+	REMOTE_HUB_S(nasid, PI_INT_MASK0_A, 0);
+	REMOTE_HUB_S(nasid, PI_INT_MASK0_B, 0);
+	REMOTE_HUB_S(nasid, PI_INT_MASK1_A, 0);
+	REMOTE_HUB_S(nasid, PI_INT_MASK1_B, 0);
+	intr_clear_bits(nasid, REMOTE_HUB_ADDR(nasid, PI_INT_PEND0),
+		INT_PEND0_BASELVL, "INT_PEND0");
+	intr_clear_bits(nasid, REMOTE_HUB_ADDR(nasid, PI_INT_PEND1),
+		INT_PEND1_BASELVL, "INT_PEND1");
+}
+
+void sn_mp_setup(void)
+{
+	cnodeid_t	cnode;
+#if 0
+	cpuid_t		cpu;
+#endif
+
+	for (cnode = 0; cnode < numnodes; cnode++) {
+#if 0
+		init_platform_nodepda();
+#endif
+		intr_clear_all(COMPACT_TO_NASID_NODEID(cnode));
+	}
+#if 0
+	for (cpu = 0; cpu < maxcpus; cpu++) {
+		init_platform_pda();
+	}
+#endif
+}
+
+void per_cpu_init(void)
+{
+#if 0
+	cpuid_t cpu = getcpuid();
+	cnodeid_t cnode = get_compact_nodeid();
+
+	intr_init();
+	per_hub_init(cnode);
+	install_cpuintr(cpu);
+	install_tlbintr(cpu);
+#endif
+}
+
+void allowboot(void)
+{
+	int		num_cpus = 0;
+	cpuid_t		cpu;
+	cnodeid_t	cnode;
+
+	sn_mp_setup();
+	per_cpu_init();
+#if 0
+	bte_lateinit();
+	ecc_init();
+#endif
+
+	boot_barrier = boot_cpumask;
+	/* Launch slaves. */
+	for (cpu = 0; cpu < maxcpus; cpu++) {
+		if (cpu == smp_processor_id()) {
+			num_cpus++;
+			/* We're already started, clear our bit */
+			CPUMASK_CLRB(boot_barrier, cpu);
+			continue;
+		}
+
+		/* Skip holes in CPU space */
+		if (CPUMASK_TSTB(boot_cpumask, cpu)) {
+			num_cpus++;
+
+		/*
+		 * Launch a slave into bootstrap().
+		 * It doesn't take an argument, and we'll
+		 * take care of sp and gp when we get there.
+		 */
+/* cputonasid/cputoslice not working yet */
+			LAUNCH_SLAVE(cputonasid(cpu), cputoslice(cpu), 0, 0, 0, 0);
+		}
+	}
+
+#ifdef LATER
+	Wait logic goes here.
+#endif
+	for (cnode = 0; cnode < numnodes; cnode++) {
+#if 0
+		if (cnodetocpu(cnode) == -1) {
+			printk("Initializing headless hub,cnode %d", cnode);
+			per_hub_init(cnode);
+		}
+#endif
+	}
+#if 0
+	cpu_io_setup();
+	init_mfhi_war();
+#endif
+}

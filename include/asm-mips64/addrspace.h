@@ -104,4 +104,9 @@
 #endif
 #define K2BASE		0xc000000000000000
 
+#if !defined (CONFIG_CPU_R8000)
+#define COMPAT_K1BASE32		0xffffffffa0000000
+#define PHYS_TO_COMPATK1(x)	((x) | COMPAT_K1BASE32) /* 32-bit compat k1 */
+#endif
+
 #endif /* _ASM_ADDRSPACE_H */
