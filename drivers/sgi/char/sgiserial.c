@@ -1,6 +1,9 @@
-/* sgiserial.c: Serial port driver for SGI machines.
+/*
+ * sgiserial.c: Serial port driver for SGI machines.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
+ *
+ * $Id$
  */
 
 #include <linux/config.h> /* for CONFIG_REMOTE_DEBUG */

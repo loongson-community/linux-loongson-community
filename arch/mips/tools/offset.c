@@ -4,7 +4,7 @@
  * Copyright (C) 1996 David S. Miller
  * Made portable by Ralf Baechle
  *
- * $Id: offset.c,v 1.7 1998/03/26 07:28:02 ralf Exp $
+ * $Id: offset.c,v 1.6 1998/03/27 04:47:58 ralf Exp $
  */
 
 #include <linux/types.h>
@@ -104,7 +104,6 @@ void output_thread_defines(void)
 	offset("#define THREAD_BVADDR  ", struct task_struct, tss.cp0_badvaddr);
 	offset("#define THREAD_ECODE   ", struct task_struct, tss.error_code);
 	offset("#define THREAD_TRAPNO  ", struct task_struct, tss.trap_no);
-	offset("#define THREAD_KSP     ", struct task_struct, tss.ksp);
 	offset("#define THREAD_PGDIR   ", struct task_struct, tss.pg_dir);
 	offset("#define THREAD_MFLAGS  ", struct task_struct, tss.mflags);
 	offset("#define THREAD_CURDS   ", struct task_struct, tss.current_ds);

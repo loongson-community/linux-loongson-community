@@ -22,6 +22,7 @@
  * the reasons behind them.
  */
 #include <linux/fs.h>
+#include <linux/init.h>
 #include <linux/miscdevice.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
@@ -292,15 +293,13 @@ static struct miscdevice dev_opengl = {
 };
 
 /* This is called later from the misc-init routine */
-void
-gfx_register (void)
+__initfunc(void gfx_register (void))
 {
 	misc_register (&dev_graphics);
 	misc_register (&dev_opengl);
 }
 
-void 
-gfx_init (const char **name)
+__initfunc(void gfx_init (const char **name))
 {
 	struct console_ops *console;
 	struct graphics_ops *g;

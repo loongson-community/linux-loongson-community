@@ -342,8 +342,8 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			struct pt_regs *regs;
 			unsigned long tmp;
 
-			regs = (struct pt_regs *)
-				(child->tss.ksp - sizeof(struct pt_regs));
+			regs = (struct pt_regs *) ((unsigned long) child +
+			       KERNEL_STACK_SIZE - 32 - sizeof(struct pt_regs));
 			tmp = 0;  /* Default return value. */
 			if(addr < 32 && addr >= 0) {
 				tmp = regs->regs[addr];
@@ -398,8 +398,8 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			struct pt_regs *regs;
 			int res = 0;
 
-			regs = (struct pt_regs *)
-				(child->tss.ksp - sizeof(struct pt_regs));
+			regs = (struct pt_regs *) ((unsigned long) child +
+			       KERNEL_STACK_SIZE - 32 - sizeof(struct pt_regs));
 			if(addr < 32 && addr >= 0) {
 				regs->regs[addr] = data;
 			} else if(addr >= 32 && addr < 64) {

@@ -4,7 +4,9 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  *  Copyright (C) 1994, 1995, 1996  Ralf Baechle
  *
- * $Id: signal.c,v 1.17 1998/03/26 07:39:10 ralf Exp $
+ * $Id: signal.c,v 1.11 1998/03/27 04:47:55 ralf Exp $
+ *
+ * XXX Handle lazy fp context switches correctly.
  */
 #include <linux/config.h>
 #include <linux/sched.h>
@@ -125,17 +127,10 @@ asmlinkage void
 restore_sigcontext(struct pt_regs *regs, struct sigcontext *context)
 {
 	long long reg;
-	int i;
+	int owned_fp;
 
 	__get_user(regs->cp0_epc, &context->sc_pc);
 
-	/*
-	 * Restore all integer registers.
-	 */
-	for(i = 31;i >= 0;i--) {
-		__get_user(reg, &context->sc_regs[i]);
-		regs->regs[i] = (int) reg;
-	}
 	__get_user(reg, &context->sc_mdhi);
 	regs->hi = (int) reg;
 	__get_user(reg, &context->sc_mdlo);
@@ -156,11 +151,15 @@ restore_sigcontext(struct pt_regs *regs, struct sigcontext *context)
 	restore_gp_reg(31);
 #undef restore_gp_reg
 
-	/*
-	 * FP depends on what FPU in what mode we have.  Best done in
-	 * Assembler ...
-	 */
-	restore_fp_context(context);
+	/* FP depends on what FPU in what mode we have.  */
+	__get_user(owned_fp, &context->sc_ownedfp);
+#if 0
+	if (owned_fp) {
+		restore_fp_context(context);
+		last_task_used_math = current;
+	}
+#endif
+restore_fp_context(context);
 }
 
 /*
@@ -191,8 +190,16 @@ asmlinkage int sys_sigreturn(struct pt_regs regs)
 	    (regs.regs[29] & (SZREG - 1)))
 		goto badframe;
 
+#if 1
+	if (__get_user(blocked.sig[0], &context->sc_sigset[0]) ||
+	    __get_user(blocked.sig[1], &context->sc_sigset[1]) ||
+	    __get_user(blocked.sig[2], &context->sc_sigset[2]) ||
+	    __get_user(blocked.sig[3], &context->sc_sigset[3]))
+		goto badframe;
+#else
 	if (__copy_from_user(&blocked, &context->sc_sigset, sizeof(blocked)))
 		goto badframe;
+#endif
 
 	sigdelsetmask(&blocked, ~_BLOCKABLE);
 	spin_lock_irq(&current->sigmask_lock);
@@ -251,6 +258,8 @@ setup_trampoline(unsigned int *code)
 static void inline
 setup_sigcontext(struct pt_regs *regs, struct sigcontext *sc, sigset_t *set)
 {
+	int owned_fp;
+
 	__put_user(regs->cp0_epc, &sc->sc_pc);
 	__put_user(regs->cp0_status, &sc->sc_status);	/* Status register */
 
@@ -266,13 +275,29 @@ setup_sigcontext(struct pt_regs *regs, struct sigcontext *sc, sigset_t *set)
 	save_gp_reg(31);
 #undef save_gp_reg
 
-	save_fp_context(sc);				/* cpu dependant */
 	__put_user(regs->hi, &sc->sc_mdhi);
 	__put_user(regs->lo, &sc->sc_mdlo);
 	__put_user(regs->cp0_cause, &sc->sc_cause);
-	__put_user((regs->cp0_status & ST0_CU1) != 0, &sc->sc_ownedfp);
 
-	__copy_to_user(sc->sc_sigset, set, sizeof(*set));
+	owned_fp = (current == last_task_used_math);
+	__put_user(owned_fp, &sc->sc_ownedfp);
+
+#if 0
+	if (current->used_math) {	/* fp is active.  */
+		set_cp0_status(ST0_CU1, ST0_CU1);
+		save_fp_context(sc);		/* cpu dependant */
+		last_task_used_math = NULL;
+		regs->cp0_status &= ~ST0_CU1;
+		current->used_math = 0;
+	}
+#endif
+set_cp0_status(ST0_CU1, ST0_CU1);
+save_fp_context(sc);		/* cpu dependant */
+
+	__put_user(set->sig[0], &sc->sc_sigset[0]);
+	__put_user(set->sig[1], &sc->sc_sigset[1]);
+	__put_user(set->sig[2], &sc->sc_sigset[2]);
+	__put_user(set->sig[3], &sc->sc_sigset[3]);
 }
 
 static void inline

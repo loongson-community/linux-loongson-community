@@ -1,9 +1,9 @@
-/* $Id: r6000.c,v 1.2 1997/07/29 22:54:52 tsbogend Exp $
+/* $Id: r6000.c,v 1.4 1998/03/27 08:53:42 ralf Exp $
  * r6000.c: MMU and cache routines for the R6000 processors.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  */
-
+#include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
@@ -167,7 +167,7 @@ static int r6000_user_mode(struct pt_regs *regs)
 	return !(regs->cp0_status & 0x4);
 }
 
-void ld_mmu_r6000(void)
+__initfunc(void ld_mmu_r6000(void))
 {
 	flush_cache_all = r6000_flush_cache_all;
 	flush_cache_mm = r6000_flush_cache_mm;

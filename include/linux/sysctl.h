@@ -84,7 +84,8 @@ enum
 	VM_FREEPG,		/* struct: Set free page thresholds */
 	VM_BDFLUSH,		/* struct: Control buffer cache flushing */
 	VM_OVERCOMMIT_MEMORY,	/* Turn off the virtual memory safety limit */
-	VM_BUFFERMEM		/* struct: Set cache memory thresholds */
+	VM_BUFFERMEM,		/* struct: Set buffer memory thresholds */
+	VM_PAGECACHE		/* struct: Set cache memory thresholds */
 };
 
 
@@ -151,6 +152,7 @@ enum
 	NET_IPV4_TCP_HOE_RETRANSMITS=32,
 	NET_IPV4_TCP_TIMESTAMPS,
 	NET_IPV4_TCP_WINDOW_SCALING,
+	NET_IPV4_TCP_SACK,
 	NET_IPV4_TCP_VEGAS_CONG_AVOID,
 	NET_IPV4_DEFAULT_TTL,
 	NET_IPV4_AUTOCONFIG,
@@ -196,6 +198,7 @@ enum {
 	NET_IPV4_ROUTE_REDIRECT_SILENCE,
 	NET_IPV4_ROUTE_ERROR_COST,
 	NET_IPV4_ROUTE_ERROR_BURST,
+	NET_IPV4_ROUTE_GC_ELASTICITY,
 };
 
 enum
@@ -235,6 +238,7 @@ enum {
 	NET_IPV6_ROUTE_GC_MIN_INTERVAL,
 	NET_IPV6_ROUTE_GC_TIMEOUT,
 	NET_IPV6_ROUTE_GC_INTERVAL,
+	NET_IPV6_ROUTE_GC_ELASTICITY,
 };
 
 enum {

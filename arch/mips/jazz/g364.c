@@ -10,6 +10,8 @@
  * Olivetti M700-10 ie. an Inmos G364 based card in a dedicated video slot,
  * 2MB dual ported VRAM with a 64 bit data path, 256 color lookup table,
  * palette of 16.7M and a user definable 64x64 hardware cursor.
+ *
+ * $Id: g364.c,v 1.7 1998/03/27 08:53:38 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/sched.h>

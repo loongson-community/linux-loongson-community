@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 1
-SUBLEVEL = 90
+SUBLEVEL = 91
 
 ARCH = mips
 
@@ -249,11 +249,10 @@ newversion:
 	fi
 
 include/linux/compile.h: $(CONFIGURATION) include/linux/version.h newversion
-	@if [ -f .name ]; then \
-	   echo \#define UTS_VERSION \"\#`cat .version`-`cat .name` `date`\"; \
-	 else \
-	   echo \#define UTS_VERSION \"\#`cat .version` `date`\";  \
-	 fi >> .ver
+	@echo -n \#define UTS_VERSION \"\#`cat .version` > .ver
+	@if [ -n "$(SMP)" ] ; then echo -n " SMP" >> .ver; fi
+	@if [ -f .name ]; then  echo -n \-`cat .name` >> .ver; fi
+	@echo ' '`date`'"' >> .ver
 	@echo \#define LINUX_COMPILE_TIME \"`date +%T`\" >> .ver
 	@echo \#define LINUX_COMPILE_BY \"`whoami`\" >> .ver
 	@echo \#define LINUX_COMPILE_HOST \"`hostname`\" >> .ver

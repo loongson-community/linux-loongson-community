@@ -8,11 +8,12 @@
  * Copyright 1994, 1995, 1996, 1997 by Ralf Baechle
  * Modified for R3000 by Paul M. Antoine, 1995, 1996
  *
- * $Id: traps.c,v 1.12 1998/03/26 07:39:11 ralf Exp $
+ * $Id: traps.c,v 1.9 1998/03/27 04:47:56 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/init.h>
 #include <linux/mm.h>
+#include <linux/sched.h>
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
 
@@ -229,6 +230,9 @@ int unregister_fpe(void (*handler)(struct pt_regs *regs, unsigned int fcr31))
 }
 #endif
 
+/*
+ * XXX Delayed fp exceptions when doing a lazy ctx switch XXX
+ */
 void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 {
 #ifdef CONFIG_MIPS_FPE_MODULE
@@ -257,6 +261,7 @@ void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 		printk("Unimplemented exception at 0x%08lx in %s.\n",
 		       regs->cp0_epc, current->comm);
 	}
+
 	if (compute_return_epc(regs))
 		goto out;
 	force_sig(SIGFPE, current);
@@ -354,11 +359,24 @@ void do_cpu(struct pt_regs *regs)
 	unsigned int cpid;
 
 	cpid = (regs->cp0_cause >> CAUSEB_CE) & 3;
-	if (cpid == 1) {
-		regs->cp0_status |= ST0_CU1;
-		goto out;
-	}
+	if (cpid != 1)
+		goto bad_cid;
 
+	regs->cp0_status |= ST0_CU1;
+	if (last_task_used_math == current)
+		goto out;
+
+	if (current->used_math) {		/* Using the FPU again.  */
+		r4xx0_lazy_fpu_switch(last_task_used_math);
+	} else {				/* First time FPU user.  */
+
+		r4xx0_init_fpu();
+		current->used_math = 1;
+	}
+	last_task_used_math = current;
+	return;
+
+bad_cid:
 	lock_kernel();
 	force_sig(SIGILL, current);
 	unlock_kernel();
@@ -369,8 +387,9 @@ void do_vcei(struct pt_regs *regs)
 {
 	lock_kernel();
 	/*
-	 * Only possible on R4[04]00[SM]C. No handler because I don't have
-	 * such a cpu.  Theory says this exception doesn't happen.
+	 * Theory says this exception doesn't happen.
+	 *
+	 * Murphy is right.  It does happen ...
 	 */
 	panic("Caught VCEI exception - should not happen");
 	unlock_kernel();
@@ -380,10 +399,11 @@ void do_vced(struct pt_regs *regs)
 {
 	lock_kernel();
 	/*
-	 * Only possible on R4[04]00[SM]C. No handler because I don't have
-	 * such a cpu.  Theory says this exception doesn't happen.
+	 * Theory says this exception doesn't happen.
+	 *
+	 * Murphy is right.  It does happen ...
 	 */
-	panic("Caught VCE exception - should not happen");
+	panic("Caught VCED exception - should not happen");
 	unlock_kernel();
 }
 
@@ -527,8 +547,14 @@ __initfunc(void trap_init(void))
 	case CPU_R4400MC:
 	case CPU_R4000SC:
 	case CPU_R4400SC:
-		/* XXX The following won't work because we _cannot_
-		 * XXX perform any load/store before the VCE handler.
+		/*
+		 * The following won't work because we _cannot_ perform any
+		 * load/store before the VCE handler.  We deal with this
+		 * by checking for for vced / vcei exceptions before doing
+		 * the generic exception handling thing.  This costs us
+		 * several instructions, therefore there should be a special
+		 * handler for those CPUs which have these exceptions.
+		 * 
 		 */
 		set_except_vector(14, handle_vcei);
 		set_except_vector(31, handle_vced);

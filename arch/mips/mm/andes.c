@@ -3,13 +3,12 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: andes.c,v 1.3 1998/03/21 08:03:53 ralf Exp $
+ * $Id: andes.c,v 1.3 1998/03/22 23:27:14 ralf Exp $
  */
-
+#include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
-
 #include <asm/page.h>
 #include <asm/pgtable.h>
 #include <asm/system.h>
@@ -89,10 +88,10 @@ static void andes_add_wired_entry(unsigned long entrylo0, unsigned long entrylo1
 
 static void andes_user_mode(struct pt_regs *regs)
 {
-	return regs->cp0_status & ST0_KSU == KSU_USER;
+	return (regs->cp0_status & ST0_KSU) == KSU_USER;
 }
 
-void ld_mmu_andes(void)
+__initfunc(void ld_mmu_andes(void))
 {
 	flush_cache_all = andes_flush_cache_all;
 	flush_cache_mm = andes_flush_cache_mm;

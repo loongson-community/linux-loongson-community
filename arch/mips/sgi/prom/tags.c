@@ -1,10 +1,12 @@
-/* $Id: tags.c,v 1.5 1996/06/24 07:12:22 dm Exp $
+/*
  * tags.c: Initialize the arch tags the way the MIPS kernel setup
  *         expects.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
+ *
+ * $Id: tags.c,v 1.2 1998/03/27 08:53:48 ralf Exp $
  */
-
+#include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
 
@@ -43,7 +45,7 @@ tag_def taglist_sgi_indy[] = {
 	/* XXX COLOSTOMY BAG!!!! XXX */
 };
 
-void prom_setup_archtags(void)
+__initfunc(void prom_setup_archtags(void))
 {
 	tag_def *tdp = &taglist_sgi_indy[0];
 	tag *tp;

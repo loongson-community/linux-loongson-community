@@ -1,18 +1,19 @@
-/* $Id: printf.c,v 1.1 1996/06/04 00:57:06 dm Exp $
+/*
  * printf.c: Putting things on the screen using SGI arcs
  *           PROM facilities.
  *
  * Copyright (C) 1996 David S. Miller (dm@sgi.com)
+ *
+ * $Id: printf.c,v 1.2 1998/03/27 08:53:48 ralf Exp $
  */
-
+#include <linux/init.h>
 #include <linux/kernel.h>
 
 #include <asm/sgialib.h>
 
 static char ppbuf[1024];
 
-void
-prom_printf(char *fmt, ...)
+__initfunc(void prom_printf(char *fmt, ...))
 {
 	va_list args;
 	char ch, *bptr;

@@ -5,7 +5,7 @@
  * written by Ralf Baechle
  * Modified further for R[236]000 compatibility by Paul M. Antoine
  *
- * $Id: processor.h,v 1.11 1998/03/22 20:43:52 ralf Exp $
+ * $Id: processor.h,v 1.8 1998/03/27 04:47:59 ralf Exp $
  */
 #ifndef __ASM_MIPS_PROCESSOR_H
 #define __ASM_MIPS_PROCESSOR_H
@@ -104,7 +104,6 @@ struct thread_struct {
 	unsigned long cp0_badvaddr;
 	unsigned long error_code;
 	unsigned long trap_no;
-	unsigned long ksp;			/* Top of kernel stack   */
 	unsigned long pg_dir;                   /* used in tlb refill    */
 #define MF_FIXADE 1			/* Fix address errors in software */
 #define MF_LOGADE 2			/* Log address errors to syslog */
@@ -136,8 +135,7 @@ struct thread_struct {
 	/* \
 	 * Other stuff associated with the process \
 	 */ \
-	0, 0, 0, (unsigned long)&init_task_union + KERNEL_STACK_SIZE - 32, \
-	(unsigned long) swapper_pg_dir, \
+	0, 0, 0, (unsigned long) swapper_pg_dir, \
 	/* \
 	 * For now the default is to fix address errors \
 	 */ \

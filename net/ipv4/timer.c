@@ -59,10 +59,8 @@ void net_delete_timer (struct sock *t)
 
 void net_reset_timer (struct sock *t, int timeout, unsigned long len)
 {
-	net_delete_timer (t);
 	t->timeout = timeout;
-	t->timer.expires = jiffies+len;
-	add_timer (&t->timer);
+	mod_timer(&t->timer, jiffies+len);
 }
 
 /* Now we will only be called whenever we need to do

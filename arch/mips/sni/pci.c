@@ -5,11 +5,10 @@
  *
  * SNI specific PCI support for RM200/RM300.
  *
- * $Id: pci.c,v 1.3 1998/01/14 05:01:51 ralf Exp $
+ * $Id: pci.c,v 1.3 1998/03/04 08:47:29 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/bios32.h>
-#include <linux/init.h>
 #include <linux/pci.h>
 #include <linux/types.h>
 #include <asm/byteorder.h>

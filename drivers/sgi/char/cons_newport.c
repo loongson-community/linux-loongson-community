@@ -3,9 +3,9 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: cons_newport.c,v 1.7 1998/03/03 01:23:05 ralf Exp $
+ * $Id: cons_newport.c,v 1.8 1998/03/03 16:57:28 ralf Exp $
  */
-
+#include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
 #include <linux/sched.h>
@@ -573,8 +573,7 @@ struct graphics_ops newport_graphic_ops = {
 	newport_reset, newport_ioctl /* g_reset_console, g_ioctl */
 };
 
-struct graphics_ops *
-newport_probe (int slot, const char **name)
+__initfunc(struct graphics_ops * newport_probe (int slot, const char **name))
 {
 	struct newport_regs *p;
 

@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1994, 1995 by Ralf Baechle
  *
- * $Id: entry.S,v 1.10 1998/03/26 07:39:09 ralf Exp $
+ * $Id: entry.S,v 1.8 1998/03/27 04:47:53 ralf Exp $
  */
 
 /*
@@ -104,7 +104,8 @@ LEAF(spurious_interrupt)
 		cfc1	a1,fcr31;                                       \
 		li	a2,~(0x3f<<12);                                 \
 		and	a2,a1;                                          \
-		ctc1	a2,fcr31;
+		ctc1	a2,fcr31;                                       \
+		STI
 #define __BUILD_clear_ade(exception)                                    \
 		MFC0	t0,CP0_BADVADDR;                                \
 		REG_S	t0,PT_BVADDR(sp);                               \

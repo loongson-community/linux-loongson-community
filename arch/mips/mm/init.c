@@ -5,9 +5,10 @@
  *
  * Copyright (C) 1994, 1995, 1996 by Ralf Baechle
  *
- * $Id: init.c,v 1.4 1998/03/21 08:01:45 ralf Exp $
+ * $Id: init.c,v 1.4 1998/03/22 23:27:15 ralf Exp $
  */
 #include <linux/config.h>
+#include <linux/init.h>
 #include <linux/signal.h>
 #include <linux/sched.h>
 #include <linux/head.h>
@@ -155,13 +156,13 @@ void show_mem(void)
 
 extern unsigned long free_area_init(unsigned long, unsigned long);
 
-unsigned long paging_init(unsigned long start_mem, unsigned long end_mem)
+__initfunc(unsigned long paging_init(unsigned long start_mem, unsigned long end_mem))
 {
 	pgd_init((unsigned long)swapper_pg_dir);
 	return free_area_init(start_mem, end_mem);
 }
 
-void mem_init(unsigned long start_mem, unsigned long end_mem)
+__initfunc(void mem_init(unsigned long start_mem, unsigned long end_mem))
 {
 	int codepages = 0;
 	int datapages = 0;
@@ -178,7 +179,7 @@ void mem_init(unsigned long start_mem, unsigned long end_mem)
 	high_memory = (void *)end_mem;
 
 	/* clear the zero-page */
-	clear_page(empty_zero_page);
+	clear_page((unsigned long)empty_zero_page);
 
 	/* mark usable pages in the mem_map[] */
 	start_mem = PAGE_ALIGN(start_mem);
@@ -225,9 +226,20 @@ void mem_init(unsigned long start_mem, unsigned long end_mem)
 	return;
 }
 
+extern char __init_begin, __init_end;
+
 void free_initmem(void)
 {
-	/* To be written */
+	unsigned long addr;
+        
+	addr = (unsigned long)(&__init_begin);
+	for (; addr < (unsigned long)(&__init_end); addr += PAGE_SIZE) {
+		mem_map[MAP_NR(addr)].flags &= ~(1 << PG_reserved);
+		atomic_set(&mem_map[MAP_NR(addr)].count, 1);
+		free_page(addr);
+	}
+	printk("Freeing unused kernel memory: %dk freed\n",
+	       (&__init_end - &__init_begin) >> 10);
 }
 
 void si_meminfo(struct sysinfo *val)

@@ -3,10 +3,10 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: indy_timer.c,v 1.6 1998/03/17 22:07:41 ralf Exp $
+ * $Id: indy_timer.c,v 1.7 1998/03/22 23:27:17 ralf Exp $
  */
-
 #include <linux/errno.h>
+#include <linux/init.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/param.h>
@@ -195,7 +195,7 @@ static inline unsigned long mktime(unsigned int year, unsigned int mon,
 	  )*60 + sec; /* finally seconds */
 }
 
-unsigned long get_indy_time(void)
+__initfunc(static unsigned long get_indy_time(void))
 {
 	struct indy_clock *clock = INDY_CLOCK_REGS;
 	unsigned int year, mon, day, hour, min, sec;
@@ -240,7 +240,7 @@ unsigned long get_indy_time(void)
 
 #define ALLINTS (IE_IRQ0 | IE_IRQ1 | IE_IRQ2 | IE_IRQ3 | IE_IRQ4 | IE_IRQ5)
 
-void indy_timer_init(void)
+__initfunc(void indy_timer_init(void))
 {
 	struct sgi_ioc_timers *p;
 	volatile unsigned char *tcwp, *tc2p;
@@ -307,4 +307,3 @@ void do_settimeofday(struct timeval *tv)
 	time_esterror = MAXPHASE;
 	sti();
 }
-

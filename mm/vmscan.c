@@ -31,7 +31,7 @@
 /* 
  * When are we next due for a page scan? 
  */
-static int next_swap_jiffies = 0;
+static unsigned long next_swap_jiffies = 0;
 
 /* 
  * How often do we do a pageout scan during normal conditions?
@@ -43,11 +43,6 @@ int swapout_interval = HZ / 4;
  * The wait queue for waking up the pageout daemon:
  */
 static struct wait_queue * kswapd_wait = NULL;
-
-/* 
- * We avoid doing a reschedule if the pageout daemon is already awake;
- */
-static int kswapd_awake = 0;
 
 static void init_swap_timer(void);
 
@@ -456,14 +451,14 @@ static inline int do_try_to_free_page(int gfp_mask)
 	stop = 3;
 	if (gfp_mask & __GFP_WAIT)
 		stop = 0;
-	if (BUFFER_MEM > buffer_mem.borrow_percent * num_physpages / 100)
+	if (((buffermem >> PAGE_SHIFT) * 100 > buffer_mem.borrow_percent * num_physpages)
+		   || (page_cache_size * 100 > page_cache.borrow_percent * num_physpages))
 		state = 0;
 
 	switch (state) {
 		do {
 		case 0:
-			if (BUFFER_MEM > (buffer_mem.min_percent * num_physpages /100) &&
-					shrink_mmap(i, gfp_mask))
+			if (shrink_mmap(i, gfp_mask))
 				return 1;
 			state = 1;
 		case 1:
@@ -545,30 +540,41 @@ int kswapd(void *unused)
 	add_wait_queue(&kswapd_wait, &wait);
 	while (1) {
 		int tries;
+		int tried = 0;
 
 		current->state = TASK_INTERRUPTIBLE;
-		kswapd_awake = 0;
 		flush_signals(current);
 		run_task_queue(&tq_disk);
 		schedule();
-		kswapd_awake = 1;
 		swapstats.wakeups++;
-		/* Do the background pageout: 
-		 * When we've got loads of memory, we try
-		 * (freepages.high - nr_free_pages) times to
-		 * free memory. As memory gets tighter, kswapd
-		 * gets more and more agressive. -- Rik.
+	
+		/*
+		 * Do the background pageout: be
+		 * more aggressive if we're really
+		 * low on free memory.
+		 *
+		 * Normally this is called 4 times
+		 * a second if we need more memory,
+		 * so this has a normal rate of
+		 * X*4 pages of memory free'd per
+		 * second. That rate goes up when
+		 *
+		 * - we're really low on memory (we get woken
+		 *   up a lot more)
+		 * - other processes fail to allocate memory,
+		 *   at which time they try to do their own
+		 *   freeing.
+		 *
+		 * A "tries" value of 50 means up to 200 pages
+		 * per second (1.6MB/s). This should be a /proc
+		 * thing.
 		 */
-		tries = freepages.high - nr_free_pages;
-		if (tries < freepages.min) {
-			tries = freepages.min;
-		}
-		if (nr_free_pages < freepages.high + freepages.low)
-			tries <<= 1;
+		tries = (50 << 2) >> free_memory_available(3);
+	
 		while (tries--) {
 			int gfp_mask;
 
-			if (free_memory_available())
+			if (++tried > SWAP_CLUSTER_MAX && free_memory_available(0))
 				break;
 			gfp_mask = __GFP_IO;
 			try_to_free_page(gfp_mask);
@@ -589,27 +595,38 @@ int kswapd(void *unused)
 /* 
  * The swap_tick function gets called on every clock tick.
  */
-
 void swap_tick(void)
 {
-	int want_wakeup = 0, memory_low = 0;
-	int pages = nr_free_pages + atomic_read(&nr_async_pages);
+	unsigned long now, want;
+	int want_wakeup = 0;
 
-	if (pages < freepages.low)
-		memory_low = want_wakeup = 1;
-	else if ((pages < freepages.high || BUFFER_MEM > (num_physpages * buffer_mem.max_percent / 100))
-			&& jiffies >= next_swap_jiffies)
+	want = next_swap_jiffies;
+	now = jiffies;
+
+	/*
+	 * Examine the memory queues. Mark memory low
+	 * if there is nothing available in the three
+	 * highest queues.
+	 *
+	 * Schedule for wakeup if there isn't lots
+	 * of free memory.
+	 */
+	switch (free_memory_available(3)) {
+	case 0:
+		want = now;
+		/* Fall through */
+	case 1 ... 3:
 		want_wakeup = 1;
-
-	if (want_wakeup) { 
-		if (!kswapd_awake) {
+	default:
+	}
+ 
+	if ((long) (now - want) >= 0) {
+		if (want_wakeup || (num_physpages * buffer_mem.max_percent) < (buffermem >> PAGE_SHIFT) * 100
+				|| (num_physpages * page_cache.max_percent < page_cache_size)) {
+			/* Set the next wake-up time */
+			next_swap_jiffies = now + swapout_interval;
 			wake_up(&kswapd_wait);
-			need_resched = 1;
 		}
-		/* Set the next wake-up time */
-		next_swap_jiffies = jiffies;
-		if (!memory_low) 
-			next_swap_jiffies += swapout_interval;
 	}
 	timer_active |= (1<<SWAP_TIMER);
 }

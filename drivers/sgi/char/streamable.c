@@ -5,9 +5,10 @@
  * Major 10 is the streams clone device.  The IRIX Xsgi server just
  * opens /dev/gfx and closes it inmediately.
  *
+ * $Id$
  */
-
 #include <linux/fs.h>
+#include <linux/init.h>
 #include <linux/miscdevice.h>
 #include <linux/sched.h>
 #include <linux/kbd_kern.h>
@@ -351,8 +352,7 @@ static struct miscdevice dev_input_mouse = {
 	SGI_STREAMS_KEYBOARD, "streams-mouse", &sgi_mouse_fops
 };
 
-void
-streamable_init (void)
+__initfunc(void streamable_init (void))
 {
 	printk ("streamable misc devices registered (keyb:%d, gfx:%d)\n",
 		SGI_STREAMS_KEYBOARD, SGI_GFX_MINOR);

@@ -1,12 +1,14 @@
-/* $Id: console.c,v 1.1 1996/06/04 00:57:05 dm Exp $
+/*
  * console.c: SGI arcs console code.
  *
  * Copyright (C) 1996 David S. Miller (dm@sgi.com)
+ *
+ * $Id: console.c,v 1.2 1998/03/27 08:53:46 ralf Exp $
  */
-
+#include <linux/init.h>
 #include <asm/sgialib.h>
 
-void prom_putchar(char c)
+__initfunc(void prom_putchar(char c))
 {
 	long cnt;
 	char it = c;
@@ -14,7 +16,7 @@ void prom_putchar(char c)
 	romvec->write(1, &it, 1, &cnt);
 }
 
-char prom_getchar(void)
+__initfunc(char prom_getchar(void))
 {
 	long cnt;
 	char c;

@@ -1,10 +1,13 @@
-/* $Id: sgiwd93.c,v 1.4 1998/03/04 10:49:47 ralf Exp $
+/*
  * sgiwd93.c: SGI WD93 scsi driver.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
  * (In all truth, Jed Schimmel wrote all this code.)
+ *
+ * $Id: sgiwd93.c,v 1.7 1996/07/23 09:00:16 dm Exp $
  */
+#include <linux/init.h>
 #include <linux/types.h>
 #include <linux/mm.h>
 #include <linux/blk.h>
@@ -214,7 +217,7 @@ static inline void init_hpc_chain(uchar *buf)
 	hcp->desc.pnext = PHYSADDR(buf);
 }
 
-int sgiwd93_detect(Scsi_Host_Template *HPsUX)
+__initfunc(int sgiwd93_detect(Scsi_Host_Template *HPsUX))
 {
 	static unsigned char called = 0;
 	struct hpc3_scsiregs *hregs = &hpc3c0->scsi_chan0;

@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1994 - 1998 by Ralf Baechle and others.
  *
- * $Id: process.c,v 1.7 1998/03/22 20:43:43 ralf Exp $
+ * $Id: process.c,v 1.7 1998/03/27 04:47:55 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/errno.h>
@@ -51,10 +51,22 @@ void start_thread(struct pt_regs * regs, unsigned long pc, unsigned long sp)
 
 void exit_thread(void)
 {
+	/* Forget lazy fpu state */
+	if (last_task_used_math == current) {
+		set_cp0_status(ST0_CU1, ST0_CU1);
+		__asm__ __volatile__("cfc1\t$0,$31");
+		last_task_used_math = NULL;
+	}
 }
 
 void flush_thread(void)
 {
+	/* Forget lazy fpu state */
+	if (last_task_used_math == current) {
+		set_cp0_status(ST0_CU1, ST0_CU1);
+		__asm__ __volatile__("cfc1\t$0,$31");
+		last_task_used_math = NULL;
+	}
 }
 
 void release_thread(struct task_struct *dead_task)
@@ -69,6 +81,10 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 
 	childksp = (unsigned long)p + KERNEL_STACK_SIZE - 32;
 
+	if (last_task_used_math == current) {
+		set_cp0_status(ST0_CU1, ST0_CU1);
+		r4xx0_save_fp(p);
+	}
 	/* set up new TSS. */
 	childregs = (struct pt_regs *) childksp - 1;
 	*childregs = *regs;
@@ -84,14 +100,13 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 		regs->regs[3] = 0;
 	}
 	if (childregs->cp0_status & ST0_CU0) {
-		childregs->regs[28] = p;
+		childregs->regs[28] = (unsigned long) p;
 		childregs->regs[29] = childksp;
 		p->tss.current_ds = KERNEL_DS;
 	} else {
 		childregs->regs[29] = usp;
 		p->tss.current_ds = USER_DS;
 	}
-	p->tss.ksp = childksp;
 	p->tss.reg29 = (unsigned long) childregs;
 	p->tss.reg31 = (unsigned long) ret_from_sys_call;
 
@@ -100,7 +115,7 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 	 * switching for most programs since they don't use the fpu.
 	 */
 	p->tss.cp0_status = read_32bit_cp0_register(CP0_STATUS) &
-                            ~(ST0_CU3|ST0_CU2|ST0_CU1|ST0_KSU|ST0_ERL|ST0_EXL);
+                            ~(ST0_CU3|ST0_CU2|ST0_CU1|ST0_KSU);
 	childregs->cp0_status &= ~(ST0_CU3|ST0_CU2|ST0_CU1);
 	p->mm->context = 0;
 

@@ -53,7 +53,7 @@ unsigned char pckbd_sysrq_xlate[128] =
 	"\r\000/";					/* 0x60 - 0x6f */
 #endif
 
-__initfunc(static int kbd_wait_for_input(void))
+static int kbd_wait_for_input(void)
 {
 	int	n;
 	int	status, data;
@@ -86,7 +86,7 @@ __initfunc(static int kbd_wait_for_input(void))
         return -1;	/* timed-out if fell through to here... */
 }
 
-__initfunc(static void init_write_command(int data))
+static void init_write_command(int data)
 {
 	int status;
 
@@ -96,7 +96,7 @@ __initfunc(static void init_write_command(int data))
 	kbd_write_command(data);
 }
 
-__initfunc(static void init_write_output(int data))
+static void init_write_output(int data)
 {
 	int status;
 
@@ -106,7 +106,7 @@ __initfunc(static void init_write_output(int data))
 	kbd_write_output(data);
 }
 
-__initfunc(static char *initialize_kbd2(void))
+static char *initialize_kbd2(void)
 {
 	/* Flush any pending input. */
 
@@ -183,7 +183,7 @@ __initfunc(static char *initialize_kbd2(void))
 	return NULL;
 }
 
-__initfunc(void initialize_kbd(void))
+void initialize_kbd(void)
 {
 	char *msg;
 

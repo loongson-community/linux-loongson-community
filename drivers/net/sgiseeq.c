@@ -1,7 +1,9 @@
-/* $Id: sgiseeq.c,v 1.5 1997/12/06 23:53:49 ralf Exp $
+/*
  * sgiseeq.c: Seeq8003 ethernet driver for SGI machines.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
+ *
+ * $Id: sgiseeq.c,v 1.3 1997/11/16 13:57:45 alan Exp $
  */
 
 #include <linux/kernel.h>
@@ -15,6 +17,7 @@
 #include <linux/string.h>
 #include <linux/delay.h>
 
+#include <asm/io.h>
 #include <asm/segment.h>
 #include <asm/system.h>
 #include <asm/bitops.h>
@@ -173,7 +176,7 @@ static void seeq_init_ring(struct device *dev)
 			buffer = (unsigned long) kmalloc(PKT_BUF_SZ, GFP_KERNEL);
 			ib->tx_desc[i].buf_vaddr = KSEG1ADDR(buffer);
 			ib->tx_desc[i].tdma.pbuf = PHYSADDR(buffer);
-			flush_cache_all();
+//			flush_cache_all();
 		}
 		ib->tx_desc[i].tdma.cntinfo = (TCNTINFO_INIT);
 	}
@@ -186,7 +189,7 @@ static void seeq_init_ring(struct device *dev)
 			buffer = (unsigned long) kmalloc(PKT_BUF_SZ, GFP_KERNEL);
 			ib->rx_desc[i].buf_vaddr = KSEG1ADDR(buffer);
 			ib->rx_desc[i].rdma.pbuf = PHYSADDR(buffer);
-			flush_cache_all();
+//			flush_cache_all();
 		}
 		ib->rx_desc[i].rdma.cntinfo = (RCNTINFO_INIT);
 	}
@@ -662,15 +665,17 @@ int sgiseeq_init(struct device *dev, struct sgiseeq_regs *sregs,
 	sp->name = sgiseeqstr;
 
 	sp->srings.rx_desc = (struct sgiseeq_rx_desc *)
-		(KSEG1ADDR(ALIGNED(&sp->srings.rxvector[0])));
+	                     (KSEG1ADDR(ALIGNED(&sp->srings.rxvector[0])));
+	dma_cache_wback_inv((unsigned long)&sp->srings.rxvector,
+	                    sizeof(sp->srings.rxvector));
 	sp->srings.tx_desc = (struct sgiseeq_tx_desc *)
-		(KSEG1ADDR(ALIGNED(&sp->srings.txvector[0])));
-	flush_cache_all();
+	                     (KSEG1ADDR(ALIGNED(&sp->srings.txvector[0])));
+	dma_cache_wback_inv((unsigned long)&sp->srings.txvector,
+	                    sizeof(sp->srings.txvector));
 
 	/* A couple calculations now, saves many cycles later. */
 	setup_rx_ring(sp->srings.rx_desc, SEEQ_RX_BUFFERS);
 	setup_tx_ring(sp->srings.tx_desc, SEEQ_TX_BUFFERS);
-	flush_cache_all();
 
 	/* Reset the chip. */
 	hpc3_eth_reset((volatile struct hpc3_ethregs *) hregs);

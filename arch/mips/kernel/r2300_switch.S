@@ -6,7 +6,7 @@
  * Multi-cpu abstraction and macros for easier reading:
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: r2300_switch.S,v 1.3 1998/03/23 06:34:37 ralf Exp $
+ * $Id: r2300_switch.S,v 1.3 1998/03/27 04:47:55 ralf Exp $
  */
 #include <asm/asm.h>
 #include <asm/bootinfo.h>
@@ -83,8 +83,8 @@ MODE_ALIAS	=	0x00e0			# uncachable, dirty, valid
 	FPU_RESTORE($28, t0)
 1:
 	CPU_RESTORE_NONSCRATCH($28)
-	lw	t0,THREAD_KSP($28)		# Restore status register
+	addiu	t0, $28, KERNEL_STACK_SIZE-32
 	sw	t0,kernelsp
 	jr	ra
-	 mtc0	a2,CP0_STATUS
+	 mtc0	a2,CP0_STATUS			# Restore status register
 	END(r2300_resume)

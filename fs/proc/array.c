@@ -597,8 +597,9 @@ static unsigned long get_wchan(struct task_struct *p)
 #elif defined(__mips__)
 # define PT_REG(reg)		((long)&((struct pt_regs *)0)->reg \
 				 - sizeof(struct pt_regs))
-# define KSTK_EIP(tsk)	(*(unsigned long *)((tsk)->tss.ksp + PT_REG(cp0_epc)))
-# define KSTK_ESP(tsk)	(*(unsigned long *)((tsk)->tss.ksp + PT_REG(regs[29])))
+#define KSTK_TOS(tsk) ((unsigned long)(tsk) + KERNEL_STACK_SIZE - 32)
+# define KSTK_EIP(tsk)	(*(unsigned long *)(KSTK_TOS(tsk) + PT_REG(cp0_epc)))
+# define KSTK_ESP(tsk)	(*(unsigned long *)(KSTK_TOS(tsk) + PT_REG(regs[29])))
 #endif
 
 /* Gcc optimizes away "strlen(x)" for constant x */

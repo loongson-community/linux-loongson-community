@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: r4xx0.c,v 1.13 1998/03/18 17:18:13 ralf Exp $
+ * $Id: r4xx0.c,v 1.14 1998/03/22 23:27:16 ralf Exp $
  *
  * To do:
  *
@@ -11,10 +11,10 @@
  *  - many of the bug workarounds are not efficient at all, but at
  *    least they are functional ...
  */
+#include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
-#include <linux/autoconf.h>
 
 #include <asm/bcache.h>
 #include <asm/io.h>
@@ -65,9 +65,19 @@ struct bcache_ops *bcops = &no_sc_ops;
 #define dcache_waybit (dcache_size >> 1)
 
 /*
- * Zero an entire page.  We have three flavours of the routine available.
- * One for CPU with 16byte, with 32byte cachelines plus a special version
- * with nops which handles the buggy R4600 v1.x.
+ * Zero an entire page.  Basically a simple unrolled loop should do the
+ * job but we want more performance by saving memory bus bandwidth.  We
+ * have five flavours of the routine available for:
+ *
+ * - 16byte cachelines and no second level cache
+ * - 32byte cachelines second level cache
+ * - a version which handles the buggy R4600 v1.x
+ * - a version which handles the buggy R4600 v2.0
+ * - Finally a last version without fancy cache games for the SC and MC
+ *   versions of R4000 and R4400.  Cache instructions are quite expensive
+ *   and I guess using them for both the primary and the second level cache
+ *   wouldn't be worth the effort.
+ *   This needs to be verified by benchmarking.
  */
 
 static void r4k_clear_page_d16(unsigned long page)
@@ -229,6 +239,58 @@ static void r4k_clear_page_r4600_v2(unsigned long page)
 		 "i" (Create_Dirty_Excl_D)
 		:"$1","memory");
 	restore_flags(flags);
+}
+
+static void r4k_clear_page(unsigned long page)
+{
+	__asm__ __volatile__(
+		".set\tnoreorder\n\t"
+		".set\tnoat\n\t"
+		".set\tmips3\n\t"
+		"daddiu\t$1,%0,%2\n"
+		"1:\tsd\t$0,(%0)\n\t"
+		"sd\t$0,8(%0)\n\t"
+		"sd\t$0,16(%0)\n\t"
+		"sd\t$0,24(%0)\n\t"
+		"daddiu\t%0,64\n\t"
+		"sd\t$0,-32(%0)\n\t"
+		"sd\t$0,-24(%0)\n\t"
+		"sd\t$0,-16(%0)\n\t"
+		"bne\t$1,%0,1b\n\t"
+		"sd\t$0,-8(%0)\n\t"
+		".set\tmips0\n\t"
+		".set\tat\n\t"
+		".set\treorder"
+		:"=r" (page)
+		:"0" (page),
+		 "I" (PAGE_SIZE)
+		:"$1","memory");
+}
+
+static void r4k_clear_page(unsigned long page)
+{
+	__asm__ __volatile__(
+		".set\tnoreorder\n\t"
+		".set\tnoat\n\t"
+		".set\tmips3\n\t"
+		"daddiu\t$1,%0,%2\n"
+		"1:\tsd\t$0,(%0)\n\t"
+		"sd\t$0,8(%0)\n\t"
+		"sd\t$0,16(%0)\n\t"
+		"sd\t$0,24(%0)\n\t"
+		"daddiu\t%0,64\n\t"
+		"sd\t$0,-32(%0)\n\t"
+		"sd\t$0,-24(%0)\n\t"
+		"sd\t$0,-16(%0)\n\t"
+		"bne\t$1,%0,1b\n\t"
+		"sd\t$0,-8(%0)\n\t"
+		".set\tmips0\n\t"
+		".set\tat\n\t"
+		".set\treorder"
+		:"=r" (page)
+		:"0" (page),
+		 "I" (PAGE_SIZE)
+		:"$1","memory");
 }
 
 
@@ -487,6 +549,114 @@ static void r4k_copy_page_r4600_v2(unsigned long to, unsigned long from)
 		 "I" (PAGE_SIZE),
 		 "i" (Create_Dirty_Excl_D));
 	restore_flags(flags);
+}
+
+static void r4k_copy_page(unsigned long to, unsigned long from)
+{
+	unsigned long dummy1, dummy2;
+	unsigned long reg1, reg2, reg3, reg4;
+
+	__asm__ __volatile__(
+		".set\tnoreorder\n\t"
+		".set\tnoat\n\t"
+		".set\tmips3\n\t"
+		"daddiu\t$1,%0,%8\n"
+		"1:\tlw\t%2,(%1)\n\t"
+		"lw\t%3,4(%1)\n\t"
+		"lw\t%4,8(%1)\n\t"
+		"lw\t%5,12(%1)\n\t"
+		"sw\t%2,(%0)\n\t"
+		"sw\t%3,4(%0)\n\t"
+		"sw\t%4,8(%0)\n\t"
+		"sw\t%5,12(%0)\n\t"
+		"lw\t%2,16(%1)\n\t"
+		"lw\t%3,20(%1)\n\t"
+		"lw\t%4,24(%1)\n\t"
+		"lw\t%5,28(%1)\n\t"
+		"sw\t%2,16(%0)\n\t"
+		"sw\t%3,20(%0)\n\t"
+		"sw\t%4,24(%0)\n\t"
+		"sw\t%5,28(%0)\n\t"
+		"daddiu\t%0,64\n\t"
+		"daddiu\t%1,64\n\t"
+		"lw\t%2,-32(%1)\n\t"
+		"lw\t%3,-28(%1)\n\t"
+		"lw\t%4,-24(%1)\n\t"
+		"lw\t%5,-20(%1)\n\t"
+		"sw\t%2,-32(%0)\n\t"
+		"sw\t%3,-28(%0)\n\t"
+		"sw\t%4,-24(%0)\n\t"
+		"sw\t%5,-20(%0)\n\t"
+		"lw\t%2,-16(%1)\n\t"
+		"lw\t%3,-12(%1)\n\t"
+		"lw\t%4,-8(%1)\n\t"
+		"lw\t%5,-4(%1)\n\t"
+		"sw\t%2,-16(%0)\n\t"
+		"sw\t%3,-12(%0)\n\t"
+		"sw\t%4,-8(%0)\n\t"
+		"bne\t$1,%0,1b\n\t"
+		"sw\t%5,-4(%0)\n\t"
+		".set\tmips0\n\t"
+		".set\tat\n\t"
+		".set\treorder"
+		:"=r" (dummy1), "=r" (dummy2),
+		 "=&r" (reg1), "=&r" (reg2), "=&r" (reg3), "=&r" (reg4)
+		:"0" (to), "1" (from),
+		 "I" (PAGE_SIZE));
+}
+
+static void r4k_copy_page(unsigned long to, unsigned long from)
+{
+	unsigned long dummy1, dummy2;
+	unsigned long reg1, reg2, reg3, reg4;
+
+	__asm__ __volatile__(
+		".set\tnoreorder\n\t"
+		".set\tnoat\n\t"
+		".set\tmips3\n\t"
+		"daddiu\t$1,%0,%8\n"
+		"1:\tlw\t%2,(%1)\n\t"
+		"lw\t%3,4(%1)\n\t"
+		"lw\t%4,8(%1)\n\t"
+		"lw\t%5,12(%1)\n\t"
+		"sw\t%2,(%0)\n\t"
+		"sw\t%3,4(%0)\n\t"
+		"sw\t%4,8(%0)\n\t"
+		"sw\t%5,12(%0)\n\t"
+		"lw\t%2,16(%1)\n\t"
+		"lw\t%3,20(%1)\n\t"
+		"lw\t%4,24(%1)\n\t"
+		"lw\t%5,28(%1)\n\t"
+		"sw\t%2,16(%0)\n\t"
+		"sw\t%3,20(%0)\n\t"
+		"sw\t%4,24(%0)\n\t"
+		"sw\t%5,28(%0)\n\t"
+		"daddiu\t%0,64\n\t"
+		"daddiu\t%1,64\n\t"
+		"lw\t%2,-32(%1)\n\t"
+		"lw\t%3,-28(%1)\n\t"
+		"lw\t%4,-24(%1)\n\t"
+		"lw\t%5,-20(%1)\n\t"
+		"sw\t%2,-32(%0)\n\t"
+		"sw\t%3,-28(%0)\n\t"
+		"sw\t%4,-24(%0)\n\t"
+		"sw\t%5,-20(%0)\n\t"
+		"lw\t%2,-16(%1)\n\t"
+		"lw\t%3,-12(%1)\n\t"
+		"lw\t%4,-8(%1)\n\t"
+		"lw\t%5,-4(%1)\n\t"
+		"sw\t%2,-16(%0)\n\t"
+		"sw\t%3,-12(%0)\n\t"
+		"sw\t%4,-8(%0)\n\t"
+		"bne\t$1,%0,1b\n\t"
+		"sw\t%5,-4(%0)\n\t"
+		".set\tmips0\n\t"
+		".set\tat\n\t"
+		".set\treorder"
+		:"=r" (dummy1), "=r" (dummy2),
+		 "=&r" (reg1), "=&r" (reg2), "=&r" (reg3), "=&r" (reg4)
+		:"0" (to), "1" (from),
+		 "I" (PAGE_SIZE));
 }
 
 /*
@@ -1951,9 +2121,9 @@ r4k_dma_cache_wback_inv_sc(unsigned long addr, unsigned long size)
 	a = addr & ~(sc_lsize - 1);
 	end = (addr + size) & ~(sc_lsize - 1);
 	while (1) {
-		flush_scache_line(addr); /* Hit_Writeback_Inv_SD */
-		if (addr == end) break;
-		addr += sc_lsize;
+		flush_scache_line(a);	/* Hit_Writeback_Inv_SD */
+		if (a == end) break;
+		a += sc_lsize;
 	}
 }
 
@@ -2006,9 +2176,9 @@ r4k_dma_cache_inv_sc(unsigned long addr, unsigned long size)
 	a = addr & ~(sc_lsize - 1);
 	end = (addr + size) & ~(sc_lsize - 1);
 	while (1) {
-		flush_scache_line(addr); /* Hit_Writeback_Inv_SD */
-		if (addr == end) break;
-		addr += sc_lsize;
+		flush_scache_line(a); /* Hit_Writeback_Inv_SD */
+		if (a == end) break;
+		a += sc_lsize;
 	}
 }
 
@@ -2373,7 +2543,7 @@ static void r4k_add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 }
 
 /* Detect and size the various r4k caches. */
-static void probe_icache(unsigned long config)
+__initfunc(static void probe_icache(unsigned long config))
 {
 	icache_size = 1 << (12 + ((config >> 6) & 7));
 	ic_lsize = 16 << ((config >> 4) & 1);
@@ -2382,7 +2552,7 @@ static void probe_icache(unsigned long config)
 	       icache_size >> 10, ic_lsize);
 }
 
-static void probe_dcache(unsigned long config)
+__initfunc(static void probe_dcache(unsigned long config))
 {
 	dcache_size = 1 << (12 + ((config >> 6) & 7));
 	dc_lsize = 16 << ((config >> 4) & 1);
@@ -2397,7 +2567,7 @@ static void probe_dcache(unsigned long config)
  * the cache sizing loop that executes in KSEG1 space or else
  * you will crash and burn badly.  You have been warned.
  */
-static int probe_scache(unsigned long config)
+__initfunc(static int probe_scache(unsigned long config))
 {
 	extern unsigned long stext;
 	unsigned long flags, addr, begin, end, pow2;
@@ -2481,7 +2651,7 @@ static int probe_scache(unsigned long config)
 	return 1;
 }
 
-static void setup_noscache_funcs(void)
+__initfunc(static void setup_noscache_funcs(void))
 {
 	unsigned int prid;
 
@@ -2524,8 +2694,6 @@ static void setup_scache_funcs(void)
 	case 16:
 		switch(dc_lsize) {
 		case 16:
-			clear_page = r4k_clear_page_d16;
-			copy_page = r4k_copy_page_d16;
 			flush_cache_all = r4k_flush_cache_all_s16d16i16;
 			flush_cache_mm = r4k_flush_cache_mm_s16d16i16;
 			flush_cache_range = r4k_flush_cache_range_s16d16i16;
@@ -2533,8 +2701,6 @@ static void setup_scache_funcs(void)
 			flush_page_to_ram = r4k_flush_page_to_ram_s16d16i16;
 			break;
 		case 32:
-			clear_page = r4k_clear_page_d32;
-			copy_page = r4k_copy_page_d32;
 			flush_cache_all = r4k_flush_cache_all_s16d32i32;
 			flush_cache_mm = r4k_flush_cache_mm_s16d32i32;
 			flush_cache_range = r4k_flush_cache_range_s16d32i32;
@@ -2546,8 +2712,6 @@ static void setup_scache_funcs(void)
 	case 32:
 		switch(dc_lsize) {
 		case 16:
-			clear_page = r4k_clear_page_d16;
-			copy_page = r4k_copy_page_d16;
 			flush_cache_all = r4k_flush_cache_all_s32d16i16;
 			flush_cache_mm = r4k_flush_cache_mm_s32d16i16;
 			flush_cache_range = r4k_flush_cache_range_s32d16i16;
@@ -2555,8 +2719,6 @@ static void setup_scache_funcs(void)
 			flush_page_to_ram = r4k_flush_page_to_ram_s32d16i16;
 			break;
 		case 32:
-			clear_page = r4k_clear_page_d32;
-			copy_page = r4k_copy_page_d32;
 			flush_cache_all = r4k_flush_cache_all_s32d32i32;
 			flush_cache_mm = r4k_flush_cache_mm_s32d32i32;
 			flush_cache_range = r4k_flush_cache_range_s32d32i32;
@@ -2567,8 +2729,6 @@ static void setup_scache_funcs(void)
 	case 64:
 		switch(dc_lsize) {
 		case 16:
-			clear_page = r4k_clear_page_d16;
-			copy_page = r4k_copy_page_d16;
 			flush_cache_all = r4k_flush_cache_all_s64d16i16;
 			flush_cache_mm = r4k_flush_cache_mm_s64d16i16;
 			flush_cache_range = r4k_flush_cache_range_s64d16i16;
@@ -2576,8 +2736,6 @@ static void setup_scache_funcs(void)
 			flush_page_to_ram = r4k_flush_page_to_ram_s64d16i16;
 			break;
 		case 32:
-			clear_page = r4k_clear_page_d32;
-			copy_page = r4k_copy_page_d32;
 			flush_cache_all = r4k_flush_cache_all_s64d32i32;
 			flush_cache_mm = r4k_flush_cache_mm_s64d32i32;
 			flush_cache_range = r4k_flush_cache_range_s64d32i32;
@@ -2588,8 +2746,6 @@ static void setup_scache_funcs(void)
 	case 128:
 		switch(dc_lsize) {
 		case 16:
-			clear_page = r4k_clear_page_d16;
-			copy_page = r4k_copy_page_d16;
 			flush_cache_all = r4k_flush_cache_all_s128d16i16;
 			flush_cache_mm = r4k_flush_cache_mm_s128d16i16;
 			flush_cache_range = r4k_flush_cache_range_s128d16i16;
@@ -2597,8 +2753,6 @@ static void setup_scache_funcs(void)
 			flush_page_to_ram = r4k_flush_page_to_ram_s128d16i16;
 			break;
 		case 32:
-			clear_page = r4k_clear_page_d32;
-			copy_page = r4k_copy_page_d32;
 			flush_cache_all = r4k_flush_cache_all_s128d32i32;
 			flush_cache_mm = r4k_flush_cache_mm_s128d32i32;
 			flush_cache_range = r4k_flush_cache_range_s128d32i32;
@@ -2608,6 +2762,8 @@ static void setup_scache_funcs(void)
 		};
 		break;
 	}
+	clear_page = r4k_clear_page;
+	copy_page = r4k_copy_page;
 	dma_cache_wback_inv = r4k_dma_cache_wback_inv_sc;
 	dma_cache_inv = r4k_dma_cache_inv_sc;
 }
@@ -2637,7 +2793,7 @@ static int r4k_user_mode(struct pt_regs *regs)
 }
 
 
-void ld_mmu_r4xx0(void)
+__initfunc(void ld_mmu_r4xx0(void))
 {
 	unsigned long config = read_32bit_cp0_register(CP0_CONFIG);
 

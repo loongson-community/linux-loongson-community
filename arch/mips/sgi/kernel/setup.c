@@ -3,8 +3,9 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: setup.c,v 1.6 1997/12/01 17:57:38 ralf Exp $
+ * $Id: setup.c,v 1.7 1998/03/04 08:47:27 ralf Exp $
  */
+#include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 
@@ -50,7 +51,7 @@ static unsigned char sgi_read_status(void)
 	return sgi_kh->command;
 }
 
-static void sgi_keyboard_setup(void)
+__initfunc(static void sgi_keyboard_setup(void))
 {
 	kbd_read_input = sgi_read_input;
 	kbd_write_output = sgi_write_output;
@@ -58,12 +59,12 @@ static void sgi_keyboard_setup(void)
 	kbd_read_status = sgi_read_status;
 }
 
-static void sgi_irq_setup(void)
+__initfunc(static void sgi_irq_setup(void))
 {
 	sgint_init();
 }
 
-void sgi_setup(void)
+__initfunc(void sgi_setup(void))
 {
 	char *ctype;
 

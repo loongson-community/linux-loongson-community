@@ -3,9 +3,9 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: r2300.c,v 1.3 1997/07/29 22:54:51 tsbogend Exp $
+ * $Id: r2300.c,v 1.4 1998/03/22 23:27:15 ralf Exp $
  */
-
+#include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
@@ -258,7 +258,7 @@ static int r2300_user_mode(struct pt_regs *regs)
 	return !(regs->cp0_status & 0x4);
 }
 
-void ld_mmu_r2300(void)
+__initfunc(void ld_mmu_r2300(void))
 {
 	clear_page = r2300_clear_page;
 	copy_page = r2300_copy_page;

@@ -39,7 +39,6 @@ extern atomic_t nr_async_pages;
 extern struct inode swapper_inode;
 extern unsigned long page_cache_size;
 extern int buffermem;
-#define BUFFER_MEM ((buffermem >> PAGE_SHIFT) + page_cache_size)
 
 /* Incomplete types for prototype declarations: */
 struct task_struct;
@@ -120,6 +119,21 @@ static inline int is_page_shared(struct page *page)
 	if (PageFreeAfter(page))
 		count--;
 	return (count > 1);
+}
+
+/*
+ * When we're freeing pages from a user application, we want
+ * to cluster swapouts too.	-- Rik.
+ * linux/mm/page_alloc.c
+ */
+static inline int try_to_free_pages(int gfp_mask, int count)
+{
+	int retval = 0;
+	while (count--) {
+		if (try_to_free_page(gfp_mask))
+			retval = 1;
+	}
+	return retval;
 }
 
 /*

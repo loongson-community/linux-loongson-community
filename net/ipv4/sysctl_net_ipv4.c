@@ -47,6 +47,7 @@ extern int sysctl_tcp_cong_avoidance;
 extern int sysctl_tcp_hoe_retransmits;
 extern int sysctl_tcp_timestamps;
 extern int sysctl_tcp_window_scaling;
+extern int sysctl_tcp_sack;
 extern int sysctl_tcp_keepalive_time;
 extern int sysctl_tcp_keepalive_probes;
 extern int sysctl_tcp_max_ka_probes;
@@ -103,6 +104,9 @@ ctl_table ipv4_table[] = {
          &proc_dointvec},
         {NET_IPV4_TCP_WINDOW_SCALING, "tcp_window_scaling",
          &sysctl_tcp_window_scaling, sizeof(int), 0644, NULL,
+         &proc_dointvec},
+        {NET_IPV4_TCP_SACK, "tcp_sack",
+         &sysctl_tcp_sack, sizeof(int), 0644, NULL,
          &proc_dointvec},
 	{NET_IPV4_TCP_VEGAS_CONG_AVOID, "tcp_vegas_cong_avoid",
 	 &sysctl_tcp_cong_avoidance, sizeof(int), 0644,

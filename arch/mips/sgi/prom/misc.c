@@ -2,8 +2,11 @@
  * misc.c: Miscellaneous ARCS PROM routines.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
+ *
+ * $Id: misc.c,v 1.5 1998/03/27 08:53:47 ralf Exp $
  */
 #include <linux/config.h>
+#include <linux/init.h>
 #include <linux/kernel.h>
 
 #include <asm/bcache.h>
@@ -82,7 +85,7 @@ struct linux_sysid *prom_getsysid(void)
 	return romvec->get_sysid();
 }
 
-void prom_cacheflush(void)
+__initfunc(void prom_cacheflush(void))
 {
 	romvec->cache_flush();
 }

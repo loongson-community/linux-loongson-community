@@ -4,10 +4,10 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: indy_int.c,v 1.5 1997/12/01 17:57:38 ralf Exp $
+ * $Id: indy_int.c,v 1.6 1998/03/17 22:07:41 ralf Exp $
  */
 #include <linux/config.h>
-
+#include <linux/init.h>
 #include <linux/errno.h>
 #include <linux/kernel_stat.h>
 #include <linux/signal.h>
@@ -417,7 +417,7 @@ void free_irq(unsigned int irq, void *dev_id)
 	printk("Trying to free free IRQ%d\n",irq);
 }
 
-void init_IRQ(void)
+__initfunc(void init_IRQ(void))
 {
 	irq_setup();
 }
@@ -495,7 +495,7 @@ int probe_irq_off (unsigned long irqs)
 	return 0;
 }
 
-void sgint_init(void)
+__initfunc(void sgint_init(void))
 {
 	int i;
 #ifdef CONFIG_REMOTE_DEBUG

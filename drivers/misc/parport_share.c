@@ -1,4 +1,4 @@
-/* $Id: parport_share.c,v 1.10 1998/03/18 06:32:19 ralf Exp $
+/* $Id: parport_share.c,v 1.11 1998/03/26 10:38:32 ralf Exp $
  * Parallel-port resource manager code.
  * 
  * Authors: David Campbell <campbell@tirian.che.curtin.edu.au>
@@ -46,7 +46,9 @@ struct parport *parport_enumerate(void)
 {
 #ifdef CONFIG_KMOD
 	if (portlist == NULL) {
+#if defined(CONFIG_PARPORT_PC_MODULE) || defined(CONFIG_PARPORT_AX_MODULE) || defined(CONFIG_PARPORT_ARC_MODULE)
 		request_module("parport_lowlevel");
+#endif /* CONFIG_PARPORT_LOWLEVEL_MODULE */
 #ifdef CONFIG_PNP_PARPORT_MODULE
 		request_module("parport_probe");
 #endif /* CONFIG_PNP_PARPORT_MODULE */

@@ -4,10 +4,10 @@
  * Copyright (C) 1997 Ralf Baechle (ralf@gnu.org),
  * derived from r4xx0.c by David S. Miller (dm@engr.sgi.com).
  *
- * $Id: indy_sc.c,v 1.5 1998/03/26 07:33:13 ralf Exp $
+ * $Id: indy_sc.c,v 1.2 1998/03/27 04:47:57 ralf Exp $
  */
 #include <linux/config.h>
-
+#include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
@@ -161,7 +161,7 @@ static void indy_sc_disable(void)
         " : "=r" (tmp1), "=r" (tmp2), "=r" (tmp3));
 }
 
-static inline int indy_sc_probe(void)
+__initfunc(static inline int indy_sc_probe(void))
 {
 	volatile unsigned int *cpu_control;
 	unsigned short cmd = 0xc220;
@@ -257,7 +257,7 @@ struct bcache_ops indy_sc_ops = {
 	indy_sc_wback_invalidate
 };
 
-void indy_sc_init(void)
+__initfunc(void indy_sc_init(void))
 {
 	if (indy_sc_probe()) {
 		indy_sc_enable();

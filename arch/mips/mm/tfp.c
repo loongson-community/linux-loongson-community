@@ -1,9 +1,9 @@
-/* $Id: tfp.c,v 1.2 1997/07/29 22:54:53 tsbogend Exp $
+/* $Id: tfp.c,v 1.4 1998/03/27 08:53:42 ralf Exp $
  * tfp.c: MMU and cache routines specific to the r8000 (TFP).
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  */
-
+#include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
@@ -90,7 +90,7 @@ static int tfp_user_mode(struct pt_regs *regs)
 	return regs->cp0_status & ST0_KSU == KSU_USER;
 }
 
-void ld_mmu_tfp(void)
+__initfunc(void ld_mmu_tfp(void))
 {
 	flush_cache_all = tfp_flush_cache_all;
 	flush_cache_mm = tfp_flush_cache_mm;

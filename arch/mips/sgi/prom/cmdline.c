@@ -1,9 +1,11 @@
-/* $Id: cmdline.c,v 1.1.1.1 1997/06/01 03:16:40 ralf Exp $
+/*
  * cmdline.c: Kernel command line creation using ARCS argc/argv.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
+ *
+ * $Id: cmdline.c,v 1.3 1998/03/27 08:53:46 ralf Exp $
  */
-
+#include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
 
@@ -14,7 +16,7 @@
 
 extern char arcs_cmdline[CL_SIZE];
 
-char *prom_getcmdline(void)
+__initfunc(char *prom_getcmdline(void))
 {
 	return &(arcs_cmdline[0]);
 }
@@ -29,7 +31,7 @@ static char *ignored[] = {
 };
 #define NENTS(foo) ((sizeof((foo)) / (sizeof((foo[0])))))
 
-void prom_init_cmdline(void)
+__initfunc(void prom_init_cmdline(void))
 {
 	char *cp;
 	int actr, i;

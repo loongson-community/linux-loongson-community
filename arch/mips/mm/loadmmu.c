@@ -3,9 +3,9 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: loadmmu.c,v 1.5 1998/03/03 16:57:25 ralf Exp $
+ * $Id: loadmmu.c,v 1.6 1998/03/22 23:27:15 ralf Exp $
  */
-
+#include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
@@ -61,7 +61,7 @@ extern void ld_mmu_r6000(void);
 extern void ld_mmu_tfp(void);
 extern void ld_mmu_andes(void);
 
-void loadmmu(void)
+__initfunc(void loadmmu(void))
 {
 	switch(mips_cputype) {
 	case CPU_R2000:
