@@ -413,10 +413,10 @@ static void hal2_setup_adc(hal2_card_t *hal2)
 	
 	sample_size = 2 * hal2->adc.voices;
 
-	highwater = (sample_size * 2) >> 1;	/* halfwords */
-	fifobeg = (4 * 4) >> 3;			/* record is second */
-	fifoend = (sample_size * 4) >> 3;	/* doublewords */
-	pbus->ctrl = HPC3_PDMACTRL_RT | HPC3_PDMACTRL_RCV | HPC3_PDMACTRL_LD |
+	highwater = (sample_size * 2) >> 1;		/* halfwords */
+	fifobeg = (4 * 4) >> 3;				/* record is second */
+	fifoend = (4 * 4 + sample_size * 4) >> 3;	/* doublewords */
+	pbus->ctrl = HPC3_PDMACTRL_RT | HPC3_PDMACTRL_RCV | HPC3_PDMACTRL_LD | 
 		     (highwater << 8) | (fifobeg << 16) | (fifoend << 24);
 	pbus->pbus->pbdma_ctrl = HPC3_PDMACTRL_LD;
 	hal2_i_clearbit16(hal2, H2I_DMA_PORT_EN, H2I_DMA_PORT_EN_CODECR);
@@ -427,7 +427,6 @@ static void hal2_setup_adc(hal2_card_t *hal2)
 	hal2_i_write16(hal2, H2I_ADC_C1, (pbus->pbusnr << H2I_C1_DMA_SHIFT)
 			| (2 << H2I_C1_CLKID_SHIFT)
 			| (hal2->adc.voices << H2I_C1_DATAT_SHIFT));
-
 }
 
 static void hal2_start_dac(hal2_card_t *hal2)
@@ -489,16 +488,18 @@ static inline void hal2_stop_adc(hal2_card_t *hal2)
 #define hal2_alloc_adc_dmabuf(hal2)	hal2_alloc_dmabuf(hal2, 0)
 static int hal2_alloc_dmabuf(hal2_card_t *hal2, int is_dac)
 {
-	int buffers;
+	int buffers, cntinfo;
 	hal2_buf_t *buf, *prev;
 	hal2_codec_t *codec;
 
 	if (is_dac) {
 		codec = &hal2->dac;
 		buffers = obuffers;
+		cntinfo = HPCDMA_XIE | HPCDMA_EOX;
 	} else {
 		codec = &hal2->adc;
 		buffers = ibuffers;
+		cntinfo = HPCDMA_XIE | H2_BUFFER_SIZE;
 	}
 	
 	DEBUG("allocating %d DMA buffers.\n", buffers);
@@ -511,8 +512,7 @@ static int hal2_alloc_dmabuf(hal2_card_t *hal2, int is_dac)
 	
 	while (--buffers) {
 		buf->info.desc.pbuf = PHYSADDR(&buf->data);
-		buf->info.desc.cntinfo = HPCDMA_XIE | (is_dac) ?
-					 HPCDMA_EOX : H2_BUFFER_SIZE;
+		buf->info.desc.cntinfo = cntinfo;
 		buf->info.cnt = 0;
 		prev = buf;
 		buf = (hal2_buf_t*) get_zeroed_page(GFP_KERNEL);
@@ -534,8 +534,7 @@ static int hal2_alloc_dmabuf(hal2_card_t *hal2, int is_dac)
 		dma_cache_wback_inv((unsigned long) prev, PAGE_SIZE);
 	}
 	buf->info.desc.pbuf = PHYSADDR(&buf->data);
-	buf->info.desc.cntinfo = HPCDMA_XIE | (is_dac) ?
-				 HPCDMA_EOX : H2_BUFFER_SIZE;
+	buf->info.desc.cntinfo = cntinfo;
 	buf->info.cnt = 0;
 	buf->info.next = codec->head;
 	buf->info.desc.pnext = PHYSADDR(codec->head);

@@ -178,47 +178,25 @@
 
 #define H2I_SYNTH_MAP_C		0x1104		/* synth dma handshake ctrl */
 
-/* Clock generator 1 CTL 1, 16 bit */
+/* Clock generator CTL 1, 16 bit */
 
-#define H2I_BRES1_C1		0x2104 
-#define H2I_BRES1_C1_SHIFT	0		/* 0=48.0 1=44.1 2=aes_rx */
-#define H2I_BRES1_C1_M		0x03
+#define H2I_BRES1_C1		0x2104
+#define H2I_BRES2_C1		0x2204
+#define H2I_BRES3_C1		0x2304
+
+#define H2I_BRES_C1_SHIFT	0		/* 0=48.0 1=44.1 2=aes_rx */
+#define H2I_BRES_C1_M		0x03
 				
-/* Clock generator 1 CTL 2, 32 bit */
+/* Clock generator CTL 2, 32 bit */
 
 #define H2I_BRES1_C2		0x2108
-#define H2I_BRES1_C2_INC_SHIFT	0		/* increment value */
-#define H2I_BRES1_C2_INC_M	0xffff
-#define H2I_BRES1_C2_MOD_SHIFT	16		/* modcontrol value */
-#define H2I_BRES1_C2_MOD_M	0xffff0000	/* modctrl=0xffff&(modinc-1) */
-
-/* Clock generator 2 CTL 1, 16 bit */
-
-#define H2I_BRES2_C1		0x2204 
-#define H2I_BRES2_C1_SHIFT	0		/* 0=48.0 1=44.1 2=aes_rx */
-#define H2I_BRES2_C1_M		0x03
-				
-/* Clock generator 2 CTL 2, 32 bit */
-
 #define H2I_BRES2_C2		0x2208
-#define H2I_BRES2_C2_INC_SHIFT	0		/* increment value */
-#define H2I_BRES2_C2_INC_M	0xffff
-#define H2I_BRES2_C2_MOD_SHIFT	16		/* modcontrol value */
-#define H2I_BRES2_C2_MOD_M	0xffff0000	/* modctrl=0xffff&(modinc-1) */
-
-/* Clock generator 3 CTL 1, 16 bit */
-
-#define H2I_BRES3_C1		0x2304 
-#define H2I_BRES3_C1_SHIFT	0		/* 0=48.0 1=44.1 2=aes_rx */
-#define H2I_BRES3_C1_M		0x03
-				
-/* Clock generator 3 CTL 2, 32 bit */
-
 #define H2I_BRES3_C2		0x2308
-#define H2I_BRES3_C2_INC_SHIFT	0		/* increment value */
-#define H2I_BRES3_C2_INC_M	0xffff
-#define H2I_BRES3_C2_MOD_SHIFT	16		/* modcontrol value */
-#define H2I_BRES3_C2_MOD_M	0xffff0000	/* modctrl=0xffff&(modinc-1) */
+
+#define H2I_BRES_C2_INC_SHIFT	0		/* increment value */
+#define H2I_BRES_C2_INC_M	0xffff
+#define H2I_BRES_C2_MOD_SHIFT	16		/* modcontrol value */
+#define H2I_BRES_C2_MOD_M	0xffff0000	/* modctrl=0xffff&(modinc-1) */
 
 /* Unix timer, 64 bit */
 
