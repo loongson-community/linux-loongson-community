@@ -88,6 +88,9 @@ extern int kbd_rate(struct kbd_repeat *rep);
 extern void kbd_init_hw(void);
 extern unsigned char *kbd_sysrq_xlate;
 
+extern unsigned char kbd_sysrq_key;
+#define SYSRQ_KEY kbd_sysrq_key
+
 #endif
 
 #endif /* __KERNEL */

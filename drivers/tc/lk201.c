@@ -5,12 +5,16 @@
  * for more details.
  *
  */
+#include <linux/config.h>
+
 #include <linux/errno.h>
 #include <linux/tty.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/delay.h>
 #include <linux/kbd_ll.h>
+
+#include <asm/keyboard.h>
 #include <asm/wbflush.h>
 #include <asm/dec/tc.h>
 #include <asm/dec/machtype.h>
@@ -27,6 +31,8 @@
  */
 unsigned char lk201_sysrq_xlate[128];
 unsigned char *kbd_sysrq_xlate = lk201_sysrq_xlate;
+
+unsigned char kbd_sysrq_key = -1;
 #endif
 
 #define KEYB_LINE	3
