@@ -174,16 +174,15 @@ int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
 		"1:  addiu   $sp,32           \n"
 		"    move    %0,$2            \n"
 		".set reorder"
-		:"=r" (retval)
-		:"i" (__NR_clone), "i" (__NR_exit),
-		 "r" (arg), "r" (fn),
-		 "r" (flags | CLONE_VM)
+		: "=r" (retval)
+		: "i" (__NR_clone), "i" (__NR_exit), "r" (arg), "r" (fn),
+		  "r" (flags | CLONE_VM)
 		 /*
 		  * The called subroutine might have destroyed any of the
 		  * at, result, argument or temporary registers ...
 		  */
-		:"$1", "$2", "$3", "$4", "$5", "$6", "$7", "$8",
-		 "$9","$10","$11","$12","$13","$14","$15","$24","$25");
+		: "$2", "$3", "$4", "$5", "$6", "$7", "$8",
+		  "$9","$10","$11","$12","$13","$14","$15","$24","$25");
 
 	return retval;
 }

@@ -111,10 +111,9 @@ static void sb1_clear_page(void *page)
 		"     bne       $1, %0, 1b  \n"
 		"     addiu     %0, %0, 32  \n"  /* Next cacheline (This instruction better be short piped!) */
 		".set pop                   \n"
-		:"=r" (page)
-		:"0" (page),
-		 "I" (PAGE_SIZE-32)
-		:"$1","memory");
+		: "=r" (page)
+		: "0" (page), "I" (PAGE_SIZE-32)
+		: "memory");
 
 }
 
@@ -169,13 +168,9 @@ static void sb1_copy_page(void *to, void *from)
 		"     bne       $1, %0, 1b  \n"
 		"     addiu     %0, %0, 32  \n"  /* Next cacheline */
 		".set pop                   \n" 
-		:"=r" (to),
-		"=r" (from)
-		:
-		"0" (from),
-		"1" (to),
-		"I" (PAGE_SIZE-32)
-		:"$1","$2","$3","$4","$5","$6","$7","$8","$9","memory");
+		: "=r" (to), "=r" (from)
+		: "0" (from), "1" (to), "I" (PAGE_SIZE-32)
+		: "$2","$3","$4","$5","$6","$7","$8","$9","memory");
 /*
 	unsigned long *src = from;
 	unsigned long *dest = to;
@@ -224,8 +219,7 @@ static void sb1_flush_cache_all(void)
 			".set pop                   \n"
 			::"r" (icache_line_size),
 			"r" (icache_sets * icache_assoc),
-			"r" (KSEG0)
-			:"$1");
+			"r" (KSEG0));
 	}
 	if (dcache_sets) {
 		__asm__ __volatile__ (
@@ -239,10 +233,9 @@ static void sb1_flush_cache_all(void)
 			"     bnez   %1, 1b         \n" /* loop test */
 			"     addu   $1, $1, %0     \n" /* Next address JDCXXX - Should be short piped */
 			".set pop                   \n"
-			::"r" (dcache_line_size),
-			"r" (dcache_sets * dcache_assoc),
-			"r" (KSEG0)
-			:"$1");
+			:
+			: "r" (dcache_line_size),
+			  "r" (dcache_sets * dcache_assoc), "r" (KSEG0));
 	}
 }
 
