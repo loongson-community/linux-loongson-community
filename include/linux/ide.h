@@ -385,7 +385,7 @@ typedef struct hwif_s {
 	ide_resetproc_t	*resetproc;	/* routine to reset controller after a disk reset */
 	ide_dmaproc_t	*dmaproc;	/* dma read/write/abort routine */
 	unsigned int	*dmatable_cpu;	/* dma physical region descriptor table (cpu view) */
-	u32		dmatable_dma;	/* dma physical region descriptor table (dma view) */
+	dma_addr_t	dmatable_dma;	/* dma physical region descriptor table (dma view) */
 	struct scatterlist *sg_table;	/* Scatter-gather list used to build the above */
 	int sg_nents;			/* Current number of entries in it */
 	int sg_dma_direction;		/* dma transfer direction */
