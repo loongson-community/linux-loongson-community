@@ -1066,15 +1066,19 @@ static void rs_timer(unsigned long dummy)
 	mod_timer(&serial_timer, jiffies + RS_STROBE_TIME);
 
 	if (IRQ_ports[0]) {
+		unsigned long next;
 		save_flags(flags); cli();
 #ifdef CONFIG_SERIAL_SHARE_IRQ
 		rs_interrupt(0, NULL, NULL);
 #else
 		rs_interrupt_single(0, NULL, NULL);
 #endif
+		
+		next = jiffies + IRQ_timeout[0] - 2;
+		if (next < jiffies + 1)
+			next = jiffies + 1;
+		mod_timer(&serial_timer, next);
 		restore_flags(flags);
-
-		mod_timer(&serial_timer, jiffies + IRQ_timeout[0] - 2);
 	}
 }
 
