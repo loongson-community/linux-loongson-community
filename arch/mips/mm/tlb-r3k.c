@@ -27,9 +27,7 @@ extern char except_vec0_r2300;
 
 #undef DEBUG_TLB
 
-#ifdef CONFIG_CPU_TX39XX
 int r3k_have_wired_reg = 0;	/* should be in mips_cpu? */
-#endif
 
 /* TLB operations. */
 void local_flush_tlb_all(void)
