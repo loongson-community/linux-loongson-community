@@ -265,29 +265,33 @@ static void tx49_flush_cache_sigtramp(unsigned long addr)
 	protected_flush_icache_line(addr & ~(ic_lsize - 1));
 }
 
+static char *way_string[] = { NULL, "direct mapped", "2-way", "3-way", "4-way",
+	"5-way", "6-way", "7-way", "8-way"
+};
+
 /* Detect and size the various r4k caches. */
 static void __init probe_icache(unsigned long config)
 {
-	icache_size		= 1 << (12 + ((config >> 9) & 7));
-	ic_lsize		= 16 << ((config >> 5) & 1);
-	ic_ways			= 4;
-	current_cpu_data.icache.sets	= icache_size /
-				   (ic_lsize * current_cpu_data.icache.ways);
+	icache_size			= 1 << (12 + ((config >> 9) & 7));
+	ic_lsize			= 16 << ((config >> 5) & 1);
+	ic_ways				= 4;
+	current_cpu_data.icache.sets	= icache_size / (ic_lsize * ic_ways);
 
-	printk("Primary instruction cache %dkb, linesize %d bytes (%d ways)\n",
-	       icache_size >> 10, ic_lsize, ic_ways);
+	printk("Primary instruction cache %dkb %s, linesize %d bytes\n",
+	       icache_size >> 10, way_string[current_cpu_data.icache.ways],
+	       ic_lsize);
 }
 
 static void __init probe_dcache(unsigned long config)
 {
-	dcache_size		= 1 << (12 + ((config >> 6) & 7));
-	dc_lsize		= 16 << ((config >> 4) & 1);
-	dc_ways			= 4;
-	current_cpu_data.dcache.sets	= dcache_size /
-				  (dc_lsize * current_cpu_data.dcache.ways);
+	dcache_size			= 1 << (12 + ((config >> 6) & 7));
+	dc_lsize			= 16 << ((config >> 4) & 1);
+	dc_ways				= 4;
+	current_cpu_data.dcache.sets	= dcache_size / (dc_lsize * dc_ways);
 
-	printk("Primary data cache %dkb, linesize %d bytes (%d ways)\n",
-	       dcache_size >> 10, dc_lsize, dc_ways);
+	printk("Primary data cache %dkb %s, linesize %d bytes\n",
+	       dcache_size >> 10, way_string[current_cpu_data.dcache.ways],
+	       dc_lsize);
 }
 
 int mips_configk0 __initdata = -1;	/* board-specific setup routine can override this */
@@ -295,7 +299,7 @@ void __init ld_mmu_tx49(void)
 {
 	unsigned long config = read_c0_config();
 
-	/* Default cache error handler for SB1 */
+	/* Default cache error handler for TX49 */
 	extern char except_vec2_generic;
 
 	memcpy((void *)(KSEG0 + 0x100), &except_vec2_generic, 0x80);

@@ -54,7 +54,6 @@ EXPORT_SYMBOL(_dma_cache_inv);
 
 #endif /* CONFIG_NONCOHERENT_IO */
 
-
 extern void ld_mmu_r23000(void);
 extern void ld_mmu_r4xx0(void);
 extern void ld_mmu_tx39(void);
@@ -65,7 +64,8 @@ extern void ld_mmu_rm7k(void);
 extern void ld_mmu_tfp(void);
 extern void ld_mmu_andes(void);
 extern void ld_mmu_sb1(void);
-extern void ld_mmu_mips32(void);
+extern void sb1_tlb_init(void);
+extern void ld_mmu_mips3264(void);
 extern void r3k_tlb_init(void);
 extern void r4k_tlb_init(void);
 extern void sb1_tlb_init(void);
@@ -91,9 +91,8 @@ void __init load_mmu(void)
 		ld_mmu_tx49();
 		r4k_tlb_init();
 #endif
-
 #if defined(CONFIG_CPU_MIPS32) || defined(CONFIG_CPU_MIPS64)
-		ld_mmu_mips32();
+		ld_mmu_mips3264();
 		r4k_tlb_init();
 #endif
 	} else switch (current_cpu_data.cputype) {
@@ -119,7 +118,7 @@ void __init load_mmu(void)
 	case CPU_R10000:
 	case CPU_R12000:
 		ld_mmu_andes();
-		r4k_tlb_init();
+		andes_tlb_init();
 		break;
 #endif
 #ifdef CONFIG_CPU_SB1

@@ -29,8 +29,6 @@
  * optimizations.
  */
 void andes_clear_page(void * page);
-void mips32_clear_page_dc(unsigned long page);
-void mips32_clear_page_sc(unsigned long page);
 void r3k_clear_page(void * page);
 void r4k_clear_page_d16(void * page);
 void r4k_clear_page_d32(void * page);
@@ -44,8 +42,6 @@ void r5432_clear_page_d32(void * page);
 void rm7k_clear_page(void * page);
 void sb1_clear_page(void * page);
 void andes_copy_page(void * to, void * from);
-void mips32_copy_page_dc(unsigned long to, unsigned long from);
-void mips32_copy_page_sc(unsigned long to, unsigned long from);
 void r3k_copy_page(void * to, void * from);
 void r4k_copy_page_d16(void * to, void * from);
 void r4k_copy_page_d32(void * to, void * from);

@@ -588,6 +588,10 @@ static void r4600v20k_flush_cache_sigtramp(unsigned long addr)
 #endif
 }
 
+static char *way_string[] = { NULL, "direct mapped", "2-way", "3-way", "4-way",
+	"5-way", "6-way", "7-way", "8-way"
+};
+
 static void __init probe_icache(unsigned long config)
 {
 	switch (current_cpu_data.cputype) {
@@ -617,8 +621,22 @@ static void __init probe_icache(unsigned long config)
 	    (read_c0_config() & CONF_SC) && ic_lsize != 16)
 		panic("Impropper processor configuration detected");
 
-	printk("Primary instruction cache %ldK, linesize %ld bytes.\n",
-	       icache_size >> 10, ic_lsize);
+	switch (current_cpu_data.cputype) {
+	case CPU_R4600:			/* QED style two way caches? */
+	case CPU_R4700:
+	case CPU_R5000:
+	case CPU_NEVADA:
+		current_cpu_data.icache.ways = 2;
+		break;
+
+	default:
+		current_cpu_data.icache.ways = 1;
+		break;
+	}
+
+	printk("Primary instruction cache %dkb %s, linesize %d bytes\n",
+	       icache_size >> 10, way_string[current_cpu_data.icache.ways],
+	       ic_lsize);
 }
 
 static void __init probe_dcache(unsigned long config)
@@ -639,8 +657,26 @@ static void __init probe_dcache(unsigned long config)
 	}
 	dc_lsize = 16 << ((config >> 4) & 1);
 
-	printk("Primary data cache %ldK, linesize %ld bytes.\n",
-	       dcache_size >> 10, dc_lsize);
+	switch (current_cpu_data.cputype) {
+	case CPU_R4600:			/* QED style two way caches? */
+	case CPU_R4700:
+	case CPU_R5000:
+	case CPU_NEVADA:
+		current_cpu_data.dcache.ways = 2;
+		break;
+
+	default:
+		current_cpu_data.dcache.ways = 1;
+		break;
+	}
+
+	if (current_cpu_data.dcache.sets * current_cpu_data.dcache.ways >
+	    PAGE_SIZE)
+	        current_cpu_data.dcache.flags |= MIPS_CACHE_ALIASES;
+
+	printk("Primary data cache %dkb %s, linesize %d bytes\n",
+	       dcache_size >> 10, way_string[current_cpu_data.dcache.ways],
+	       dc_lsize);
 }
 
 /*
@@ -823,6 +859,10 @@ void __init ld_mmu_r4xx0(void)
 	probe_icache(config);
 	probe_dcache(config);
 	setup_scache(config);
+
+	if (current_cpu_data.dcache.sets * current_cpu_data.dcache.ways >
+	    PAGE_SIZE)
+	        current_cpu_data.dcache.flags |= MIPS_CACHE_ALIASES;
 
 	switch(current_cpu_data.cputype) {
 	case CPU_R4600:			/* QED style two way caches? */

@@ -1,6 +1,6 @@
 /*
  * Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
- * Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
+ * Copyright (C) 2000, 2002 MIPS Technologies, Inc.  All rights reserved.
  *
  * This program is free software; you can distribute it and/or modify it
  * under the terms of the GNU General Public License (Version 2) as
@@ -14,8 +14,6 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
- *
- * MIPS32 CPU variant specific MMU/Cache routines.
  */
 #include <linux/sched.h>
 #include <linux/mm.h>
@@ -24,18 +22,14 @@
 #include <asm/cacheops.h>
 #include <asm/cpu.h>
 
-extern int dc_lsize, ic_lsize, sc_lsize;
+#define dc_lsize	current_cpu_data.dcache.linesz
 
-/*
- * Zero an entire page.
- */
-
-void mips32_clear_page_dc(unsigned long page)
+void mips3264_clear_page_dc(unsigned long page)
 {
 	unsigned long i;
 
         if (cpu_has_cache_cdex) {
-	        for (i=page; i<page+PAGE_SIZE; i+=dc_lsize) {
+	        for (i = page; i < page + PAGE_SIZE; i += dc_lsize) {
 		        __asm__ __volatile__(
 			        ".set\tnoreorder\n\t"
 				".set\tnoat\n\t"
@@ -49,39 +43,16 @@ void mips32_clear_page_dc(unsigned long page)
 				"I" (Create_Dirty_Excl_D));
 		}
 	}
-	for (i=page; i<page+PAGE_SIZE; i+=4)
+	for (i = page; i < page + PAGE_SIZE; i += sizeof(long))
 	        *(unsigned long *)(i) = 0;
 }
 
-void mips32_clear_page_sc(unsigned long page)
+void mips3264_copy_page_dc(unsigned long to, unsigned long from)
 {
 	unsigned long i;
 
         if (cpu_has_cache_cdex) {
-	        for (i=page; i<page+PAGE_SIZE; i+=sc_lsize) {
-		        __asm__ __volatile__(
-				".set\tnoreorder\n\t"
-				".set\tnoat\n\t"
-				".set\tmips3\n\t"
-				"cache\t%2,(%0)\n\t"
-				".set\tmips0\n\t"
-				".set\tat\n\t"
-				".set\treorder"
-				:"=r" (i)
-				:"0" (i),
-				"I" (Create_Dirty_Excl_SD));
-		}
-	}
-	for (i=page; i<page+PAGE_SIZE; i+=4)
-	        *(unsigned long *)(i) = 0;
-}
-
-void mips32_copy_page_dc(unsigned long to, unsigned long from)
-{
-	unsigned long i;
-
-        if (cpu_has_cache_cdex) {
-	        for (i=to; i<to+PAGE_SIZE; i+=dc_lsize) {
+	        for (i = to; i < to + PAGE_SIZE; i += dc_lsize) {
 		        __asm__ __volatile__(
 			        ".set\tnoreorder\n\t"
 				".set\tnoat\n\t"
@@ -95,31 +66,8 @@ void mips32_copy_page_dc(unsigned long to, unsigned long from)
 				"I" (Create_Dirty_Excl_D));
 		}
 	}
-	for (i=0; i<PAGE_SIZE; i+=4)
-	        *(unsigned long *)(to+i) = *(unsigned long *)(from+i);
-}
-
-void mips32_copy_page_sc(unsigned long to, unsigned long from)
-{
-	unsigned long i;
-
-        if (cpu_has_cache_cdex) {
-	        for (i=to; i<to+PAGE_SIZE; i+=sc_lsize) {
-		        __asm__ __volatile__(
-				".set\tnoreorder\n\t"
-				".set\tnoat\n\t"
-				".set\tmips3\n\t"
-				"cache\t%2,(%0)\n\t"
-				".set\tmips0\n\t"
-				".set\tat\n\t"
-				".set\treorder"
-				:"=r" (i)
-				:"0" (i),
-				"I" (Create_Dirty_Excl_SD));
-		}
-	}
-	for (i=0; i<PAGE_SIZE; i+=4)
-	        *(unsigned long *)(to+i) = *(unsigned long *)(from+i);
+	for (i = 0; i < PAGE_SIZE; i += sizeof(long))
+	        *(unsigned long *)(to + i) = *(unsigned long *)(from + i);
 }
 
 void pgd_init(unsigned long page)

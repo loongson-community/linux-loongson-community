@@ -1,6 +1,6 @@
 /*
  * Carsten Langgaard, carstenl@mips.com
- * Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
+ * Copyright (C) 2000, 2002 MIPS Technologies, Inc.
  *
  *  This program is free software; you can distribute it and/or modify it
  *  under the terms of the GNU General Public License (Version 2) as
@@ -23,8 +23,8 @@
  * FIXME: Handle split L2 caches.
  *
  */
-#ifndef _ASM_R4KCACHE_H
-#define _ASM_R4KCACHE_H
+#ifndef _ASM_MIPS3264_CACHE_H
+#define _ASM_MIPS3264_CACHE_H
 
 #include <asm/asm.h>
 #include <asm/cacheops.h>
@@ -45,7 +45,7 @@ static inline void flush_icache_line_indexed(unsigned long addr)
 			:
 			: "r" (addr),
 			"i" (Index_Invalidate_I));
-		
+
 		addr += waystep;
 	}
 }
@@ -94,7 +94,6 @@ static inline void flush_scache_line_indexed(unsigned long addr)
 
 static inline void flush_icache_line(unsigned long addr)
 {
-
 	__asm__ __volatile__(
 		".set noreorder\n\t"
 		".set mips3\n\t"
@@ -173,8 +172,7 @@ static inline void protected_flush_icache_line(unsigned long addr)
 		STR(PTR)"\t1b,2b\n\t"
 		".previous"
 		:
-		: "r" (addr),
-		  "i" (Hit_Invalidate_I));
+		: "r" (addr), "i" (Hit_Invalidate_I));
 }
 
 static inline void protected_writeback_dcache_line(unsigned long addr)
@@ -189,15 +187,14 @@ static inline void protected_writeback_dcache_line(unsigned long addr)
 		STR(PTR)"\t1b,2b\n\t"
 		".previous"
 		:
-		: "r" (addr),
-		  "i" (Hit_Writeback_D));
+		: "r" (addr), "i" (Hit_Writeback_D));
 }
 
-#define cache_unroll(base,op)	        	\
-	__asm__ __volatile__("	         	\
-		.set noreorder;		        \
-		.set mips3;		        \
-                cache %1, (%0);	                \
+#define cache_unroll(base,op)			\
+	__asm__ __volatile__("			\
+		.set noreorder;			\
+		.set mips3;			\
+		cache %1, (%0);			\
 		.set mips0;			\
 		.set reorder"			\
 		:				\
@@ -307,11 +304,11 @@ static inline void blast_scache_page_indexed(unsigned long page)
 {
 	unsigned long start;
 	unsigned long end = page + PAGE_SIZE;
-	unsigned long waystep = scache_size/current_cpu_data.scache.ways;
+	unsigned long waystep = scache_size / current_cpu_data.scache.ways;
 	unsigned int way;
 
 	for (way = 0; way < current_cpu_data.scache.ways; way++) {
-		start = page + way*waystep;
+		start = page + way * waystep;
 		while(start < end) {
 			cache_unroll(start,Index_Writeback_Inv_SD);
 			start += sc_lsize;
@@ -319,4 +316,4 @@ static inline void blast_scache_page_indexed(unsigned long page)
 	}
 }
 
-#endif /* _ASM_R4KCACHE_H */
+#endif /* _ASM_MIPS3264_CACHE_H */

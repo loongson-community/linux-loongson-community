@@ -1,6 +1,6 @@
 /*
  * Carsten Langgaard, carstenl@mips.com
- * Copyright (C) 2002 MIPS Technologies, Inc.  All rights reserved.
+ * Copyright (C) 2000, 2002 MIPS Technologies, Inc.
  *
  *  This program is free software; you can distribute it and/or modify it
  *  under the terms of the GNU General Public License (Version 2) as
@@ -23,8 +23,8 @@
  * FIXME: Handle split L2 caches.
  *
  */
-#ifndef _ASM_MIPS64_CACHE_H
-#define _ASM_MIPS64_CACHE_H
+#ifndef _ASM_MIPS3264_CACHE_H
+#define _ASM_MIPS3264_CACHE_H
 
 #include <asm/asm.h>
 #include <asm/cacheops.h>
@@ -38,7 +38,9 @@ static inline void flush_icache_line_indexed(unsigned long addr)
 	{
 		__asm__ __volatile__(
 			".set noreorder\n\t"
+			".set mips3\n\t"
 			"cache %1, (%0)\n\t"
+			".set mips0\n\t"
 			".set reorder"
 			:
 			: "r" (addr),
@@ -57,7 +59,9 @@ static inline void flush_dcache_line_indexed(unsigned long addr)
 	{
 		__asm__ __volatile__(
 			".set noreorder\n\t"
+			".set mips3\n\t"
 			"cache %1, (%0)\n\t"
+			".set mips0\n\t"
 			".set reorder"
 			:
 			: "r" (addr),
@@ -76,7 +80,9 @@ static inline void flush_scache_line_indexed(unsigned long addr)
 	{
 		__asm__ __volatile__(
 			".set noreorder\n\t"
+			".set mips3\n\t"
 			"cache %1, (%0)\n\t"
+			".set mips0\n\t"
 			".set reorder"
 			:
 			: "r" (addr),
@@ -90,7 +96,9 @@ static inline void flush_icache_line(unsigned long addr)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
+		".set mips3\n\t"
 		"cache %1, (%0)\n\t"
+		".set mips0\n\t"
 		".set reorder"
 		:
 		: "r" (addr),
@@ -101,7 +109,9 @@ static inline void flush_dcache_line(unsigned long addr)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
+		".set mips3\n\t"
 		"cache %1, (%0)\n\t"
+		".set mips0\n\t"
 		".set reorder"
 		:
 		: "r" (addr),
@@ -112,7 +122,9 @@ static inline void invalidate_dcache_line(unsigned long addr)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
+		".set mips3\n\t"
 		"cache %1, (%0)\n\t"
+		".set mips0\n\t"
 		".set reorder"
 		:
 		: "r" (addr),
@@ -123,7 +135,9 @@ static inline void invalidate_scache_line(unsigned long addr)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
+		".set mips3\n\t"
 		"cache %1, (%0)\n\t"
+		".set mips0\n\t"
 		".set reorder"
 		:
 		: "r" (addr),
@@ -134,7 +148,9 @@ static inline void flush_scache_line(unsigned long addr)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
+		".set mips3\n\t"
 		"cache %1, (%0)\n\t"
+		".set mips0\n\t"
 		".set reorder"
 		:
 		: "r" (addr),
@@ -148,10 +164,12 @@ static inline void protected_flush_icache_line(unsigned long addr)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
+		".set mips3\n"
 		"1:\tcache %1,(%0)\n"
-		"2:\t.set reorder\n\t"
+		"2:\t.set mips0\n\t"
+		".set reorder\n\t"
 		".section\t__ex_table,\"a\"\n\t"
-		".dword\t1b,2b\n\t"
+		STR(PTR)"\t1b,2b\n\t"
 		".previous"
 		:
 		: "r" (addr), "i" (Hit_Invalidate_I));
@@ -161,10 +179,12 @@ static inline void protected_writeback_dcache_line(unsigned long addr)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
+		".set mips3\n"
 		"1:\tcache %1,(%0)\n"
-		"2:\t.set reorder\n\t"
+		"2:\t.set mips0\n\t"
+		".set reorder\n\t"
 		".section\t__ex_table,\"a\"\n\t"
-		".dword\t1b,2b\n\t"
+		STR(PTR)"\t1b,2b\n\t"
 		".previous"
 		:
 		: "r" (addr), "i" (Hit_Writeback_D));
@@ -173,7 +193,9 @@ static inline void protected_writeback_dcache_line(unsigned long addr)
 #define cache_unroll(base,op)			\
 	__asm__ __volatile__("			\
 		.set noreorder;			\
+		.set mips3;			\
 		cache %1, (%0);			\
+		.set mips0;			\
 		.set reorder"			\
 		:				\
 		: "r" (base),			\
@@ -294,4 +316,4 @@ static inline void blast_scache_page_indexed(unsigned long page)
 	}
 }
 
-#endif /* _ASM_MIPS64_CACHE_H */
+#endif /* _ASM_MIPS3264_CACHE_H */

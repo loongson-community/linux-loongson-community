@@ -43,8 +43,9 @@ struct cache_desc {
 /*
  * Flag definitions
  */
-#define MIPS_CACHE_NOT_PRESENT 0x00000001
-#define MIPS_CACHE_VTAG_CACHE  0x00000002	/* Virtually tagged cache. */
+#define MIPS_CACHE_NOT_PRESENT	0x00000001
+#define MIPS_CACHE_VTAG		0x00000002	/* Virtually tagged cache */
+#define MIPS_CACHE_ALIASES	0x00000004	/* Cache could have aliases */
 
 struct cpuinfo_mips {
 	unsigned long udelay_val;
@@ -83,6 +84,8 @@ struct cpuinfo_mips {
 #define cpu_has_mcheck		(cpu_data[0].options & MIPS_CPU_MCHECK)
 #define cpu_has_ejtag		(cpu_data[0].options & MIPS_CPU_EJTAG)
 #define cpu_has_nofpuex		(cpu_data[0].options & MIPS_CPU_NOFPUEX)
+#define cpu_has_vtag_icache	(cpu_data[0].icache.flags & MIPS_CACHE_VTAG)
+#define cpu_has_dc_aliases	(cpu_data[0].dcache.flags & MIPS_CACHE_ALIASES)
 
 extern struct cpuinfo_mips cpu_data[];
 #define current_cpu_data cpu_data[smp_processor_id()]

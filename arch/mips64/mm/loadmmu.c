@@ -54,20 +54,28 @@ EXPORT_SYMBOL(_dma_cache_inv);
 
 #endif /* CONFIG_NONCOHERENT_IO */
 
+extern void ld_mmu_r23000(void);
 extern void ld_mmu_r4xx0(void);
+extern void ld_mmu_tx39(void);
+extern void ld_mmu_tx49(void);
+extern void ld_mmu_r5432(void);
+extern void ld_mmu_r6000(void);
+extern void ld_mmu_rm7k(void);
+extern void ld_mmu_tfp(void);
 extern void ld_mmu_andes(void);
 extern void ld_mmu_sb1(void);
 extern void sb1_tlb_init(void);
-extern void ld_mmu_mips64(void);
+extern void ld_mmu_mips3264(void);
+extern void r3k_tlb_init(void);
 extern void r4k_tlb_init(void);
+extern void sb1_tlb_init(void);
 
 void __init load_mmu(void)
 {
 	if (cpu_has_4ktlb) {
-#if defined (CONFIG_CPU_R4300)						\
-    || defined (CONFIG_CPU_R4X00)					\
-    || defined (CONFIG_CPU_R5000)					\
-    || defined (CONFIG_CPU_NEVADA)
+#if defined(CONFIG_CPU_R4X00) || defined(CONFIG_CPU_VR41XX) || \
+    defined(CONFIG_CPU_R4300) || defined(CONFIG_CPU_R5000) || \
+    defined(CONFIG_CPU_NEVADA)
 		ld_mmu_r4xx0();
 		r4k_tlb_init();
 #endif
@@ -81,13 +89,31 @@ void __init load_mmu(void)
 #endif
 #if defined(CONFIG_CPU_TX49XX)
 		ld_mmu_tx49();
-#endif
-#if defined(CONFIG_CPU_MIPS64)
-		ld_mmu_mips64();
 		r4k_tlb_init();
 #endif
-
-	} else switch(current_cpu_data.cputype) {
+#if defined(CONFIG_CPU_MIPS32) || defined(CONFIG_CPU_MIPS64)
+		ld_mmu_mips3264();
+		r4k_tlb_init();
+#endif
+	} else switch (current_cpu_data.cputype) {
+#ifdef CONFIG_CPU_R3000
+	case CPU_R2000:
+	case CPU_R3000:
+	case CPU_R3000A:
+	case CPU_R3081E:
+		ld_mmu_r23000();
+		r3k_tlb_init();
+		break;
+#endif
+#ifdef CONFIG_CPU_TX39XX
+	case CPU_TX3912:
+	case CPU_TX3922:
+	case CPU_TX3927:
+	case CPU_TX39XX:
+		ld_mmu_tx39();
+		r3k_tlb_init();
+		break;
+#endif
 #ifdef CONFIG_CPU_R10000
 	case CPU_R10000:
 	case CPU_R12000:
