@@ -10,8 +10,9 @@
 #ifndef _ASM_CACHE_H
 #define _ASM_CACHE_H
 
+#include <linux/config.h>
+
 /* bytes per L1 cache line */
-#define L1_CACHE_BYTES		32	/* A guess */
-#define SMP_CACHE_BYTES		L1_CACHE_BYTES
+#define L1_CACHE_BYTES		(1 << CONFIG_L1_CACHE_SHIFT)
 
 #endif /* _ASM_CACHE_H */

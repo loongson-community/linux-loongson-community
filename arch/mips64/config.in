@@ -44,6 +44,7 @@ if [ "$CONFIG_SGI_IP22" = "y" ]; then
    define_bool CONFIG_BOARD_SCACHE y
    define_bool CONFIG_ARC_MEMORY y
    define_bool CONFIG_SGI y
+   define_int CONFIG_L1_CACHE_SHIFT 5
 fi
 
 if [ "$CONFIG_SGI_IP27" = "y" ]; then
@@ -52,6 +53,7 @@ if [ "$CONFIG_SGI_IP27" = "y" ]; then
    define_bool CONFIG_COHERENT_IO y
    define_bool CONFIG_PCI y
    define_bool CONFIG_QL_ISP_A64 y
+   define_int CONFIG_L1_CACHE_SHIFT 7
 fi
 
 if [ "$CONFIG_ISA" != "y" ]; then
