@@ -1041,7 +1041,8 @@ static int __init dec_lance_init(const int type, const int slot)
 
 	dev = alloc_etherdev(sizeof(struct lance_private));
 	if (!dev) {
-		printk(KERN_ERR "Sgiseeq: Etherdev alloc failed, aborting.\n");
+		printk(KERN_ERR
+			"declance: Unable to allocate etherdev, aborting.\n");
 		ret = -ENOMEM;
 		goto err_out;
 	}
@@ -1243,10 +1244,10 @@ static int __init dec_lance_init(const int type, const int slot)
 	lp->multicast_timer.data = (unsigned long) dev;
 	lp->multicast_timer.function = &lance_set_multicast_retry;
 
-	err = register_netdev(dev);
-	if (err) {
-		printk(KERN_ERR "declance: Cannot register net device, "
-		       "aborting.\n");
+	ret = register_netdev(dev);
+	if (ret) {
+		printk(KERN_ERR
+			"declance: Unable to register netdev, aborting.\n");
 		goto err_out_free_dev;
 	}
 
