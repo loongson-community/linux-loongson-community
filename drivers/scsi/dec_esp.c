@@ -26,7 +26,7 @@
 #include <linux/types.h>
 #include <linux/string.h>
 #include <linux/slab.h>
-#include <linux/blk.h>
+#include <linux/blkdev.h>
 #include <linux/proc_fs.h>
 #include <linux/spinlock.h>
 #include <linux/stat.h>

@@ -479,7 +479,6 @@ AFLAGS		+= $(cflags-y)
 CFLAGS		+= $(cflags-y)
 
 LDFLAGS			+= --oformat $(32bit-bfd)
-LDFLAGS_BLOB		:= --format binary --oformat $(64bit-bfd)
 
 head-y := arch/mips/kernel/head.o arch/mips/kernel/init_task.o
 

@@ -140,7 +140,7 @@ bad_area:
 		tsk->thread.error_code = write;
 #if 0
 		printk("do_page_fault() #2: sending SIGSEGV to %s for "
-		       "illegal %s\n%0*lx (epc == %0*lx, ra == %0*lx)\n",
+		       "invalid %s\n%0*lx (epc == %0*lx, ra == %0*lx)\n",
 		       tsk->comm,
 		       write ? "write access to" : "read access from",
 		       szlong, address,

@@ -266,7 +266,7 @@ void free_initrd_mem(unsigned long start, unsigned long end)
 }
 #endif
 
-extern void prom_free_prom_memory(void) __init;
+extern void prom_free_prom_memory(void);
 
 void free_initmem(void)
 {
@@ -284,5 +284,5 @@ void free_initmem(void)
 		addr += PAGE_SIZE;
 	}
 	printk(KERN_INFO "Freeing unused kernel memory: %ldk freed\n",
-	       (&__init_end - &__init_begin) >> 10);
+	       (unsigned long) (__init_end - __init_begin) >> 10);
 }

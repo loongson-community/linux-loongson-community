@@ -51,7 +51,7 @@ static int indydog_open(struct inode *inode, struct file *file)
 		return -EBUSY;
 
 	if (nowayout)
-		MOD_INC_USE_COUNT;
+		__module_get(THIS_MODULE);
 
 	/* Activate timer */
 	mc_ctrl0 = sgimc->cpuctrl0 | SGIMC_CCTRL0_WDOG;

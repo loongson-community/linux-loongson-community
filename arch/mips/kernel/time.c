@@ -26,9 +26,10 @@
 
 #include <asm/bootinfo.h>
 #include <asm/cpu.h>
-#include <asm/time.h>
-#include <asm/hardirq.h>
 #include <asm/div64.h>
+#include <asm/hardirq.h>
+#include <asm/sections.h>
+#include <asm/time.h>
 
 /* This is for machines which generate the exact clock. */
 #define USECS_PER_JIFFY (1000000/HZ)
@@ -317,10 +318,9 @@ void local_timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	if (!user_mode(regs)) {
 		if (prof_buffer && current->pid) {
-			extern int _stext;
 			unsigned long pc = regs->cp0_epc;
 
-			pc -= (unsigned long) &_stext;
+			pc -= (unsigned long) _stext;
 			pc >>= prof_shift;
 			/*
 			 * Dont ignore out-of-bounds pc values silently,

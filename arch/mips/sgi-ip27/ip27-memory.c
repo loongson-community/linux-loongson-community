@@ -26,6 +26,7 @@
 #include <asm/sn/klconfig.h>
 #include <asm/sn/arch.h>
 #include <asm/mmzone.h>
+#include <asm/sections.h>
 
 /* ip27-klnuma.c   */
 extern pfn_t node_getfirstfree(cnodeid_t cnode);
@@ -254,8 +255,6 @@ void __init paging_init(void)
 
 void __init mem_init(void)
 {
-	extern char _stext, _etext, _fdata, _edata;
-	extern char __init_begin, __init_end;
 	extern unsigned long setup_zero_pages(void);
 	cnodeid_t nid;
 	unsigned long tmp;
@@ -314,9 +313,9 @@ void __init mem_init(void)
 
 	totalram_pages -= setup_zero_pages();	/* This comes from node 0 */
 
-	codesize =  (unsigned long) &_etext - (unsigned long) &_stext;
-	datasize =  (unsigned long) &_edata - (unsigned long) &_fdata;
-	initsize =  (unsigned long) &__init_end - (unsigned long) &__init_begin;
+	codesize =  (unsigned long) _etext - (unsigned long) _stext;
+	datasize =  (unsigned long) _edata - (unsigned long) _fdata;
+	initsize =  (unsigned long) __init_end - (unsigned long) __init_begin;
 
 	tmp = (unsigned long) nr_free_pages();
 	printk("Memory: %luk/%luk available (%ldk kernel code, %ldk reserved, "

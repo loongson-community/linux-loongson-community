@@ -3,7 +3,6 @@
 
 #include <asm-generic/sections.h>
 
-extern char _stext;
 extern char _fdata;
 extern char _end;
 
