@@ -114,10 +114,13 @@ LEAF(save_fp)
 	 sdc1	$f0, (THREAD_FPU + 0x00)(a0)
 	END(save_fp)
 
+/*
+ * Restore a thread's fp context.
+ */
 LEAF(restore_fp)
-	mfc0	t0, CP0_STATUS			# enable cp1
-	sll	t1, t0, 5			# load new fp state
-	bgez	t0, 1f
+	mfc0	t0, CP0_STATUS
+	sll	t1, t0, 5
+	bgez	t0, 1f				# 16 register mode?
 	 nop
 
 	fpu_restore_16odd $28
