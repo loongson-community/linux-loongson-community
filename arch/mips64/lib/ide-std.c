@@ -5,7 +5,7 @@
  *
  * IDE routines for typical pc-like standard configurations.
  *
- * Copyright (C) 1998, 1999 by Ralf Baechle
+ * Copyright (C) 1998, 1999, 2001 by Ralf Baechle
  */
 #include <linux/sched.h>
 #include <linux/ide.h>
@@ -59,6 +59,7 @@ static void std_ide_init_hwif_ports (hw_regs_t *hw, ide_ioreg_t data_port,
 	}
 	if (irq != NULL)
 		*irq = 0;
+	hw->io_ports[IDE_IRQ_OFFSET] = 0;
 }
 
 static int std_ide_request_irq(unsigned int irq,
