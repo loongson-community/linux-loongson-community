@@ -749,7 +749,6 @@ static inline void set_taghi(unsigned long val)
 		: : "Jr" (val));
 }
 
-/* CP0_CONTEXT register */
 static inline unsigned long get_context(void)
 {
 	unsigned long val;
@@ -768,6 +767,28 @@ static inline void set_context(unsigned long val)
 	__asm__ __volatile__(
 		".set noreorder\n\t"
 		"dmtc0 %z0, $4\n\t"
+		".set reorder"
+		: : "Jr" (val));
+}
+
+static inline unsigned long get_xcontext(void)
+{
+	unsigned long val;
+
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		"dmfc0 %0, $20\n\t"
+		".set reorder"
+		: "=r" (val));
+
+	return val;
+}
+
+static inline void set_xcontext(unsigned long val)
+{
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		"dmtc0 %z0, $20\n\t"
 		".set reorder"
 		: : "Jr" (val));
 }
