@@ -1,4 +1,4 @@
-.d
+.*.d
 aic7xxx_asm
 aic7xxx_seq.h
 .*.cmd

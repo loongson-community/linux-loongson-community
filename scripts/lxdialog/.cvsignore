@@ -1,1 +1,4 @@
 lxdialog
+mconf
+.*.cmd
+.*.d

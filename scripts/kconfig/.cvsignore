@@ -1,8 +1,11 @@
-.d
+.*.d
 .*.cmd
 .tmp_qtcheck
 .zconf.tab.o.cmd
 conf
+mconf
+qconf
+qconf.moc
 lex.zconf.c
 lkc_defs.h
 zconf.tab.c

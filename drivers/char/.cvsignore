@@ -1,4 +1,4 @@
-.d
+.*.d
 .*.cmd
 conmakehash
 consolemap_deftbl.c

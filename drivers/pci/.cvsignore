@@ -1,4 +1,4 @@
-.d
+.*.d
 gen-devlist
 devlist.h
 classlist.h
