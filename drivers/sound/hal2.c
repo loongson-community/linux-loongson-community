@@ -273,16 +273,18 @@ static void hal2_dac_interrupt(hal2_codec_t *dac)
 	if (running)
 		dac->tail = dac->tail->info.next;
 
-	wake_up(&dac->dma_wait);
-	
 	spin_unlock(&dac->lock);
+
+	wake_up(&dac->dma_wait);
 }
 
 static void hal2_adc_interrupt(hal2_codec_t *adc)
 {
 	spin_lock(&adc->lock);
-	wake_up(&adc->dma_wait);
+	/* TODO :)) */
 	spin_unlock(&adc->lock);
+
+	wake_up(&adc->dma_wait);
 }
 
 static void hal2_interrupt(int irq, void *dev_id, struct pt_regs *regs)
@@ -924,6 +926,8 @@ static int hal2_ioctl(struct inode *inode, struct file *file,
 	case SNDCTL_DSP_NONBLOCK:
 		file->f_flags |= O_NONBLOCK;
 		return 0;
+	case SNDCTL_DSP_GETBLKSIZE:
+		return put_user(H2_BUFFER_SIZE, (int *)arg);
 	case SOUND_PCM_READ_RATE:
 		val = -EINVAL;
 		if (file->f_mode & FMODE_READ)
