@@ -39,6 +39,7 @@ static const char *cpu_name[] = {
         [CPU_R6000A]	"R6000A",
 	[CPU_R8000]	"R8000",
 	[CPU_R10000]	"R10000",
+	[CPU_R12000]	"R12000",
 	[CPU_R4300]	"R4300",
 	[CPU_R4650]	"R4650",
 	[CPU_R4700]	"R4700",
