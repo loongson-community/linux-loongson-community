@@ -277,18 +277,7 @@ int probe_irq_off (unsigned long irqs)
 	return 0;
 }
 
-int (*irq_cannonicalize)(int irq);
-
-int orion_irq_cannonicalize(int i)
-{
-	return i;
-}
-
 void __init init_IRQ(void)
 {
-	
-	irq_cannonicalize = orion_irq_cannonicalize;
 	set_except_vector(0, orionIRQ);
 }
-
-EXPORT_SYMBOL(irq_cannonicalize);

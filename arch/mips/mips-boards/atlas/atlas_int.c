@@ -187,17 +187,8 @@ void free_irq(unsigned int irq, void *dev_id)
 }
 
 
-int (*irq_cannonicalize)(int irq);
-
-static int atlas_irq_cannonicalize(int irq)
-{
-	return irq;	/* Sane hardware, sane code ... */
-}
-
-
 void __init init_IRQ(void)
 {
-  	irq_cannonicalize = atlas_irq_cannonicalize;
 	irq_setup();
 }
 

@@ -4,8 +4,6 @@
  * Copyright (C) 1998 Vladimir Roganov & Gleb Raiko
  *      Code (mostly sleleton and comments) derived from DECstation IRQ
  *      handling.
- *
- * $Id: irq.c,v 1.6 2000/02/04 07:40:23 ralf Exp $
  */
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -358,13 +356,6 @@ void free_irq(unsigned int irq, void *dev_id)
 	}
 	printk("Trying to free free IRQ%d\n",irq);
 }
-
-static int baget_irq_canonicalize(int irq) 
-{
-	return irq;
-}
-
-int (*irq_cannonicalize)(int irq) = baget_irq_canonicalize; 
 
 unsigned long probe_irq_on (void)
 {

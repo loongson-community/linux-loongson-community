@@ -40,6 +40,7 @@ unset CONFIG_PCI
 unset CONFIG_MIPS_JAZZ
 unset CONFIG_VIDEO_G364
 unset CONFIG_PC_KEYB
+unset CONFIG_I8259
 
 define_bool CONFIG_SBUS n
 
@@ -50,6 +51,7 @@ if [ "$CONFIG_MIPS_MAGNUM_4000" = "y" -o \
      "$CONFIG_OLIVETTI_M700" = "y" ]; then
    define_bool CONFIG_ARC32 y
    define_bool CONFIG_BOARD_SCACHE y
+   define_bool CONFIG_I8259 y
    define_bool CONFIG_ISA y
    define_bool CONFIG_FB y
    define_bool CONFIG_FB_G364 y	
@@ -58,6 +60,7 @@ if [ "$CONFIG_MIPS_MAGNUM_4000" = "y" -o \
 fi
 if [ "$CONFIG_ACER_PICA_61" = "y" ]; then
    define_bool CONFIG_ARC32 y
+   define_bool CONFIG_I8259 y
    define_bool CONFIG_ISA y
    define_bool CONFIG_MIPS_JAZZ y
    define_bool CONFIG_PC_KEYB y
@@ -69,8 +72,12 @@ if [ "$CONFIG_COBALT_MICRO_SERVER" = "y" ]; then
    define_bool CONFIG_COBALT_SERIAL y
    define_bool CONFIG_PCI y
 fi
-if [ "$CONFIG_MIPS_ATLAS" = "y" -o \
-     "$CONFIG_MIPS_MALTA" = "y" ]; then
+if [ "$CONFIG_MIPS_ATLAS" = "y" ]; then
+   define_bool CONFIG_PCI y
+   define_bool CONFIG_ISA n
+fi
+if [ "$CONFIG_MIPS_MALTA" = "y" ]; then
+   define_bool CONFIG_I8259 y
    define_bool CONFIG_PCI y
    define_bool CONFIG_ISA n
 fi
@@ -82,11 +89,13 @@ if [ "$CONFIG_SGI_IP22" = "y" ]; then
 fi
 if [ "$CONFIG_SNI_RM200_PCI" = "y" ]; then
    define_bool CONFIG_ARC32 y
-   define_bool CONFIG_PCI y
+   define_bool CONFIG_I8259 y
    define_bool CONFIG_ISA y
    define_bool CONFIG_PC_KEYB y
+   define_bool CONFIG_PCI y
 fi
 if [ "$CONFIG_DDB5074" = "y" ]; then
+   define_bool CONFIG_I8259 y
    define_bool CONFIG_ISA y
    define_bool CONFIG_PCI y
 fi
@@ -97,6 +106,10 @@ fi
 
 if [ "$CONFIG_PCI" != "y" ]; then
    define_bool CONFIG_PCI n
+fi
+
+if [ "$CONFIG_I8259" != "y" ]; then
+   define_bool CONFIG_I8259 n
 fi
 endmenu
 

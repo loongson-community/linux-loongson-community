@@ -24,8 +24,10 @@ CONFIG_MIPS_ATLAS=y
 # CONFIG_SGI_IP22 is not set
 # CONFIG_SNI_RM200_PCI is not set
 # CONFIG_SBUS is not set
+CONFIG_PCI=y
 # CONFIG_ISA is not set
-# CONFIG_PCI is not set
+# CONFIG_ISA is not set
+# CONFIG_I8259 is not set
 
 #
 # Loadable module support
@@ -60,6 +62,7 @@ CONFIG_BINFMT_IRIX=y
 CONFIG_BINFMT_ELF=y
 # CONFIG_BINFMT_MISC is not set
 CONFIG_NET=y
+# CONFIG_PCI_NAMES is not set
 CONFIG_SYSVIPC=y
 # CONFIG_BSD_PROCESS_ACCT is not set
 # CONFIG_SYSCTL is not set
@@ -182,6 +185,7 @@ CONFIG_SD_EXTRA_DEVS=40
 #
 # SCSI low-level drivers
 #
+# CONFIG_BLK_DEV_3W_XXXX_RAID is not set
 # CONFIG_SCSI_7000FASST is not set
 # CONFIG_SCSI_ACARD is not set
 # CONFIG_SCSI_AHA152X is not set
@@ -193,6 +197,7 @@ CONFIG_SD_EXTRA_DEVS=40
 # CONFIG_SCSI_AM53C974 is not set
 # CONFIG_SCSI_MEGARAID is not set
 # CONFIG_SCSI_BUSLOGIC is not set
+# CONFIG_SCSI_CPQFCTS is not set
 # CONFIG_SCSI_DMX3191D is not set
 # CONFIG_SCSI_DTC3280 is not set
 # CONFIG_SCSI_EATA is not set
@@ -205,13 +210,19 @@ CONFIG_SD_EXTRA_DEVS=40
 # CONFIG_SCSI_INIA100 is not set
 # CONFIG_SCSI_NCR53C406A is not set
 # CONFIG_SCSI_NCR53C7xx is not set
+# CONFIG_SCSI_NCR53C8XX is not set
+# CONFIG_SCSI_SYM53C8XX is not set
 # CONFIG_SCSI_PAS16 is not set
 # CONFIG_SCSI_PCI2000 is not set
 # CONFIG_SCSI_PCI2220I is not set
 # CONFIG_SCSI_PSI240I is not set
 # CONFIG_SCSI_QLOGIC_FAS is not set
+# CONFIG_SCSI_QLOGIC_ISP is not set
+# CONFIG_SCSI_QLOGIC_FC is not set
+# CONFIG_SCSI_QLOGIC_1280 is not set
 # CONFIG_SCSI_SIM710 is not set
 # CONFIG_SCSI_SYM53C416 is not set
+# CONFIG_SCSI_DC390T is not set
 # CONFIG_SCSI_T128 is not set
 # CONFIG_SCSI_U14_34F is not set
 # CONFIG_SCSI_DEBUG is not set
@@ -220,6 +231,7 @@ CONFIG_SD_EXTRA_DEVS=40
 # I2O device support
 #
 # CONFIG_I2O is not set
+# CONFIG_I2O_PCI is not set
 # CONFIG_I2O_BLOCK is not set
 # CONFIG_I2O_LAN is not set
 # CONFIG_I2O_SCSI is not set
@@ -283,6 +295,16 @@ CONFIG_NET_ETHERNET=y
 # Wan interfaces
 #
 # CONFIG_WAN is not set
+
+#
+# ISDN subsystem
+#
+# CONFIG_ISDN is not set
+
+#
+# Old CD-ROM drivers (not SCSI, not IDE)
+#
+# CONFIG_CD_NO_IDESCSI is not set
 
 #
 # Character devices

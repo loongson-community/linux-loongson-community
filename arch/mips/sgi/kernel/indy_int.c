@@ -1,5 +1,4 @@
-/* $Id: indy_int.c,v 1.18 2000/03/02 02:36:50 ralf Exp $
- *
+/*
  * indy_int.c: Routines for generic manipulation of the INT[23] ASIC
  *             found on INDY workstations..
  *
@@ -428,16 +427,8 @@ void free_irq(unsigned int irq, void *dev_id)
 	printk("Trying to free free IRQ%d\n",irq);
 }
 
-int (*irq_cannonicalize)(int irq);
-
-static int indy_irq_cannonicalize(int irq)
-{
-	return irq;	/* Sane hardware, sane code ... */
-}
-
 void __init init_IRQ(void)
 {
-	irq_cannonicalize = indy_irq_cannonicalize;
 	irq_setup();
 }
 

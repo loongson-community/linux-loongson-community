@@ -252,21 +252,10 @@ void free_irq(unsigned int irq, void *dev_id)
 	printk("Trying to free IRQ%d\n",irq);
 }
 
-
-int (*irq_cannonicalize)(int irq);
-
-static int malta_irq_cannonicalize(int irq)
-{
-        return ((irq == 2) ? 9 : irq);
-}
-
-
 void __init init_IRQ(void)
 {
-  	irq_cannonicalize = malta_irq_cannonicalize;
 	irq_setup();
 }
-
 
 static inline int get_int(int *irq)
 {

@@ -369,13 +369,6 @@ int probe_irq_off (unsigned long irqs)
 	return i;
 }
 
-int (*irq_cannonicalize)(int irq);
-
-static int i8259_irq_cannonicalize(int irq)
-{
-	return ((irq == 2) ? 9 : irq);
-}
-
 void __init i8259_init(void)
 {
 	/* Init master interrupt controller */
@@ -398,9 +391,6 @@ void __init i8259_init(void)
 
 void __init init_IRQ(void)
 {
-	irq_cannonicalize = i8259_irq_cannonicalize;
 	/* i8259_init(); */
 	irq_setup();
 }
-
-EXPORT_SYMBOL(irq_cannonicalize);
