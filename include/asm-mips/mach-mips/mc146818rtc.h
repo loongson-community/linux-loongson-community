@@ -27,7 +27,7 @@
 #include <asm/mips-boards/malta.h>
 
 #define RTC_PORT(x)	(0x70 + (x))
-#define RTC_IRQ		4
+#define RTC_IRQ		8
 
 static inline unsigned char CMOS_READ(unsigned long addr)
 {
