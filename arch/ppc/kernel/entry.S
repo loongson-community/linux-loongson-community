@@ -265,37 +265,29 @@ _GLOBAL(_switch)
 	SYNC
 	rfi
 
-/*
- * ret_from_int():
- *
- * Return from an interrupt (external interrupt and
- * decrementer).  This checks the first argument so
- * we know if rtl_intercept wants us to check for
- * a bottom half, signals and so on (normal return) or
- * we're returning from a real-time interrupt or have
- * interrupts soft disabled so we cannot enter Linux.
- *   -- Cort
- */
-	.globl	ret_from_int
-ret_from_int:
-	cmpi	0,r3,0
-	beq	10f
-	/* we're allowed to do signal/bh checks */
-	b	ret_from_syscall
 #ifdef __SMP__	
 	.globl	ret_from_smpfork
 ret_from_smpfork:
 	bl	schedule_tail
+	b	ret_from_except
 #endif
-	.globl	ret_from_syscall
-ret_from_syscall:
+	.globl	ret_from_intercept
+ret_from_intercept:
+	/*
+	 * We may be returning from RTL and cannot do the normal checks
+	 * -- Cort
+	 */
+	cmpi	0,r3,0
+	beq	10f
 	.globl	ret_from_except
 ret_from_except:
-0:	mfmsr	r30		/* Disable interrupts */
-	rlwinm	r30,r30,0,17,15	/* clear MSR_EE */
-	SYNC			/* Some chip revs need this... */
-	mtmsr	r30
-	SYNC
+0:	/* disable interrupts */	
+	lis	r30,int_control@h
+	ori	r30,r30,int_control@l
+	lwz	r30,0(r30)
+	mtlr	r30
+	blrl
+	
 	lwz	r5,_MSR(r1)
 	andi.	r5,r5,MSR_EE
 	beq	2f
@@ -317,9 +309,13 @@ lost_irq_ret:
 	bl	do_bottom_half
 	.globl	do_bottom_half_ret
 do_bottom_half_ret:
-2:	SYNC
-	mtmsr	r30		/* disable interrupts again */
-	SYNC
+2:	/* disable interrupts */	
+	lis	r30,int_control@h
+	ori	r30,r30,int_control@l
+	lwz	r30,0(r30)
+	mtlr	r30
+	blrl
+	
 	lwz	r3,_MSR(r1)	/* Returning to user mode? */
 	andi.	r3,r3,MSR_PR
 	beq+	10f		/* if so, check need_resched and signals */

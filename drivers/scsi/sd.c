@@ -19,17 +19,8 @@
  *       scsi disks using eight major numbers.
  */
 
+#include <linux/config.h>
 #include <linux/module.h>
-#ifdef MODULE
-/*
- * This is a variable in scsi.c that is set when we are processing something
- * after boot time.  By definition, this is true when we are a loadable module
- * ourselves.
- */
-#define MODULE_FLAG 1
-#else
-#define MODULE_FLAG scsi_loadable_module_flag
-#endif				/* MODULE */
 
 #include <linux/fs.h>
 #include <linux/kernel.h>
@@ -452,7 +443,6 @@ static int sd_open(struct inode *inode, struct file *filp)
 static int sd_release(struct inode *inode, struct file *file)
 {
 	int target;
-	fsync_dev(inode->i_rdev);
 
 	target = DEVICE_NR(inode->i_rdev);
 
@@ -468,8 +458,6 @@ static int sd_release(struct inode *inode, struct file *file)
 		__MOD_DEC_USE_COUNT(sd_template.module);
 	return 0;
 }
-
-static void sd_geninit(struct gendisk *);
 
 static struct block_device_operations sd_fops =
 {
@@ -491,8 +479,6 @@ static struct gendisk sd_gendisk =
 	"sd",			/* Major name */
 	4,			/* Bits to shift to get real from partition */
 	1 << 4,			/* Number of partitions per real */
-	0,			/* maximum number of real */
-	sd_geninit,		/* init function */
 	NULL,			/* hd struct */
 	NULL,			/* block sizes */
 	0,			/* number */
@@ -504,15 +490,6 @@ static struct gendisk *sd_gendisks = &sd_gendisk;
 
 #define SD_GENDISK(i)    sd_gendisks[(i) / SCSI_DISKS_PER_MAJOR]
 #define LAST_SD_GENDISK  sd_gendisks[N_USED_SD_MAJORS - 1]
-
-static void sd_geninit(struct gendisk *ignored)
-{
-	int i;
-
-	for (i = 0; i < sd_template.dev_max; ++i)
-		if (rscsi_disks[i].device)
-			sd[i << 4].nr_sects = rscsi_disks[i].capacity;
-}
 
 /*
  * rw_intr is the interrupt routine for the device driver.
@@ -1018,8 +995,6 @@ static int sd_init()
 		sd_gendisks[i].major_name = "sd";
 		sd_gendisks[i].minor_shift = 4;
 		sd_gendisks[i].max_p = 1 << 4;
-		sd_gendisks[i].max_nr = SCSI_DISKS_PER_MAJOR;
-		sd_gendisks[i].init = sd_geninit;
 		sd_gendisks[i].part = sd + (i * SCSI_DISKS_PER_MAJOR << 4);
 		sd_gendisks[i].sizes = sd_sizes + (i * SCSI_DISKS_PER_MAJOR << 4);
 		sd_gendisks[i].nr_real = 0;
@@ -1028,8 +1003,6 @@ static int sd_init()
 		    (void *) (rscsi_disks + i * SCSI_DISKS_PER_MAJOR);
 	}
 
-	LAST_SD_GENDISK.max_nr =
-	    (sd_template.dev_max - 1) % SCSI_DISKS_PER_MAJOR + 1;
 	LAST_SD_GENDISK.next = NULL;
 	return 0;
 }
@@ -1051,16 +1024,15 @@ static void sd_finish()
 		gendisk_head = sd_gendisks;
 	}
 	for (i = 0; i < sd_template.dev_max; ++i)
-		if (!rscsi_disks[i].capacity &&
-		    rscsi_disks[i].device) {
-			if (MODULE_FLAG
-			    && !rscsi_disks[i].has_part_table) {
+		if (!rscsi_disks[i].capacity && rscsi_disks[i].device) {
+			sd_init_onedisk(i);
+			if (!rscsi_disks[i].has_part_table) {
 				sd_sizes[i << 4] = rscsi_disks[i].capacity;
-				/* revalidate does sd_init_onedisk via MAYBE_REINIT */
-				revalidate_scsidisk(MKDEV_SD(i), 0);
-			} else
-				i = sd_init_onedisk(i);
-			rscsi_disks[i].has_part_table = 1;
+				register_disk(&SD_GENDISK(i), MKDEV_SD(i),
+						1<<4, &sd_fops,
+						rscsi_disks[i].capacity);
+				rscsi_disks[i].has_part_table = 1;
+			}
 		}
 	/* If our host adapter is capable of scatter-gather, then we increase
 	 * the read-ahead to 60 blocks (120 sectors).  If not, we use
@@ -1175,11 +1147,8 @@ int revalidate_scsidisk(kdev_t dev, int maxusage)
 	MAYBE_REINIT;
 #endif
 
-	sd_gendisks->part[start].nr_sects = CAPACITY;
-	if (!rscsi_disks[target].device)
-		return -EBUSY;
-	resetup_one_dev(&SD_GENDISK(target),
-			target % SCSI_DISKS_PER_MAJOR);
+	grok_partitions(&SD_GENDISK(target), target % SCSI_DISKS_PER_MAJOR,
+			1<<4, CAPACITY);
 
 	DEVICE_BUSY = 0;
 	return 0;
@@ -1216,6 +1185,7 @@ static void sd_detach(Scsi_Device * SDp)
 				sd_gendisks->part[index].nr_sects = 0;
 				sd_sizes[index] = 0;
 			}
+			/* unregister_disk() */
 			dpnt->has_part_table = 0;
 			dpnt->device = NULL;
 			dpnt->capacity = 0;

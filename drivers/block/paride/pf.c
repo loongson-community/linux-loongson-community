@@ -360,6 +360,8 @@ int pf_init (void)      /* preliminary initialisation */
         
 	for (i=0;i<PF_UNITS;i++) pf_blocksizes[i] = 1024;
 	blksize_size[MAJOR_NR] = pf_blocksizes;
+	for (i=0;i<PF_UNITS;i++)
+		register_disk(NULL, MKDEV(MAJOR_NR, i), 1, &pf_fops, 0);
 
         return 0;
 }
@@ -447,8 +449,6 @@ static int pf_release (struct inode *inode, struct file *file)
 {       kdev_t devp;
 	int	unit;
 
-	struct super_block *sb;
-
         devp = inode->i_rdev;
         unit = DEVICE_NR(devp);
 
@@ -457,15 +457,8 @@ static int pf_release (struct inode *inode, struct file *file)
 
 	PF.access--;
 
-	if (!PF.access) {
-                fsync_dev(devp);
-
-		sb = get_super(devp);
-		if (sb) invalidate_inodes(sb);
-
-                invalidate_buffers(devp);
-		if (PF.removable) pf_lock(unit,0);
-        }
+	if (!PF.access && PF.removable)
+		pf_lock(unit,0);
 
         MOD_DEC_USE_COUNT;
 

@@ -353,6 +353,8 @@ int register_cdrom(struct cdrom_device_info *cdi)
 	cdinfo(CD_REG_UNREG, "drive \"/dev/%s\" registered\n", cdi->name);
 	cdi->next = topCdromPtr; 	
 	topCdromPtr = cdi;
+	/*FIXME:as soon as we'll switch to real thing, pass device number here*/
+	register_disk(NULL, cdi->dev, 1, &cdrom_fops, 0);
 	return 0;
 }
 #undef ENSURE
@@ -380,6 +382,7 @@ int unregister_cdrom(struct cdrom_device_info *unreg)
 		prev->next = cdi->next;
 	else
 		topCdromPtr = cdi->next;
+/*	unregister_disk();	*/
 	cdi->ops->n_minors--;
 	cdinfo(CD_REG_UNREG, "drive \"/dev/%s\" unregistered\n", cdi->name);
 	return 0;
@@ -640,11 +643,6 @@ int cdrom_release(struct inode *ip, struct file *fp)
 		!(fp && fp->f_flags & O_NONBLOCK);
 	cdo->release(cdi);
 	if (cdi->use_count == 0) {      /* last process that closes dev*/
-		struct super_block *sb;
-		sync_dev(dev);
-		sb = get_super(dev);
-		if (sb) invalidate_inodes(sb);
-		invalidate_buffers(dev);
 		if (opened_for_data &&
 		    cdi->options & CDO_AUTO_EJECT && CDROM_CAN(CDC_OPEN_TRAY))
 			cdo->tray_move(cdi, 1);

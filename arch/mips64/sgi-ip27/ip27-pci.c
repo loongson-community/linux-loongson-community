@@ -1,4 +1,4 @@
-/* $Id: ip27-pci.c,v 1.5 2000/01/31 23:25:06 kanoj Exp $
+/* $Id: ip27-pci.c,v 1.7 2000/02/03 23:30:59 kanoj Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -172,6 +172,7 @@ void __init
 pcibios_fixup_bus(struct pci_bus *b)
 {
 	unsigned short command;
+	struct list_head *ln;
 	struct pci_dev *dev;
 
 	pci_fixup_irqs(pci_swizzle, pci_map_irq);
@@ -182,7 +183,8 @@ pcibios_fixup_bus(struct pci_bus *b)
 	 * stop working if we program the controllers as not having
 	 * PCI_COMMAND_MEMORY, so we have to fudge the mem_flags.
 	 */
-	for (dev = b->devices; dev; dev = dev->sibling) {
+	for (ln=b->devices.next; ln != &b->devices; ln=ln->next) {
+		dev = pci_dev_b(ln);
 		if (PCI_FUNC(dev->devfn) == 0) {
 			if ((PCI_SLOT(dev->devfn) == 0) || 
 						(PCI_SLOT(dev->devfn) == 1)) {
@@ -206,6 +208,13 @@ pcibios_fixup_pbus_ranges(struct pci_bus * bus,
 	ranges->io_end -= bus->resource[0]->start;
 	ranges->mem_start -= bus->resource[1]->start;
 	ranges->mem_end -= bus->resource[1]->start;
+}
+
+int __init
+pcibios_enable_device(struct pci_dev *dev)
+{
+	/* Not needed, since we enable all devices at startup.  */
+	return 0;
 }
 
 void __init

@@ -197,7 +197,8 @@ turn_on_mmu:
 	stw	r2,GPR2(r21);	\
 	stw	r1,0(r21);	\
 	tovirt(r1,r21);			/* set new kernel sp */	\
-	SAVE_4GPRS(3, r21);
+	SAVE_4GPRS(3, r21);	\
+	SAVE_GPR(7, r21);
 /*
  * Note: code which follows this uses cr0.eq (set if from kernel),
  * r21, r22 (SRR0), and r23 (SRR1).
@@ -265,34 +266,6 @@ InstructionAccess:
 	. = 0x500;
 HardwareInterrupt:
 	EXCEPTION_PROLOG;
-#ifdef CONFIG_APUS
-	/* This is horrible, but there's no way around it. Enable the
-	data cache so the IRQ hardware register can be accessed
-	without cache intervention. Then disable interrupts and get
-	the current emulated m68k IPL value. */
-	
-	mfmsr	20
-	xori	r20,r20,MSR_DR
-	sync
-	mtmsr	r20
-	sync
-
-	lis	r3,APUS_IPL_EMU@h
-
-	li	r20,(IPLEMU_SETRESET|IPLEMU_DISABLEINT)
-	stb	r20,APUS_IPL_EMU@l(r3)
-	eieio
-
-	lbz	r3,APUS_IPL_EMU@l(r3)
-
-	mfmsr	r20
-	xori	r20,r20,MSR_DR
-	sync
-	mtmsr	r20
-	sync
-
-	stw	r3,(_CCR+4)(r21);
-#endif
 	addi	r3,r1,STACK_FRAME_OVERHEAD
 	li	r20,MSR_KERNEL
 	li	r4,0
@@ -300,7 +273,7 @@ HardwareInterrupt:
 	.globl do_IRQ_intercept
 do_IRQ_intercept:
 	.long	do_IRQ;
-	.long	ret_from_except
+	.long	ret_from_intercept
 	
 
 /* Alignment exception */
@@ -342,7 +315,7 @@ Decrementer:
 	.globl timer_interrupt_intercept
 timer_interrupt_intercept:
 	.long	timer_interrupt
-	.long	ret_from_except
+	.long	ret_from_intercept
 
 	STD_EXCEPTION(0xa00, Trap_0a, UnknownException)
 	STD_EXCEPTION(0xb00, Trap_0b, UnknownException)
@@ -591,7 +564,6 @@ transfer_to_handler:
 	lis	r22,MSR_POW@h
 	andc	r23,r23,r22
 	stw	r23,_MSR(r21)
-	SAVE_GPR(7, r21)
 	SAVE_4GPRS(8, r21)
 	SAVE_8GPRS(12, r21)
 	SAVE_8GPRS(24, r21)

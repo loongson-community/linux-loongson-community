@@ -344,7 +344,7 @@ static int hung_up_tty_ioctl(struct inode * inode, struct file * file,
 	return cmd == TIOCSPGRP ? -ENOTTY : -EIO;
 }
 
-static long long tty_lseek(struct file * file,	long long offset, int orig)
+static loff_t tty_lseek(struct file * file, loff_t offset, int orig)
 {
 	return -ESPIPE;
 }
@@ -2216,6 +2216,12 @@ void __init tty_init(void)
         rs_8xx_init();
 #endif /* CONFIG_8xx */
 	pty_init();
+#ifdef CONFIG_MOXA_SMARTIO
+	mxser_init();
+#endif	
+#ifdef CONFIG_MOXA_INTELLIO
+	moxa_init();
+#endif	
 #ifdef CONFIG_VT
 	vcs_init();
 #endif

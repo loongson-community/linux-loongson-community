@@ -115,6 +115,7 @@
 
 #define MAJOR_NR	MFM_ACORN_MAJOR
 #include <linux/blk.h>
+#include <linux/blkpg.h>
 
 #include <asm/system.h>
 #include <asm/io.h>
@@ -975,7 +976,7 @@ static void mfm_request(void)
 	DBG("mfm_request: Dropping out bottom\n");
 }
 
-static void do_mfm_request(void)
+static void do_mfm_request(request_queue_t *q)
 {
 	DBG("do_mfm_request: about to mfm_request\n");
 	mfm_request();
@@ -1017,8 +1018,7 @@ static void mfm_interrupt_handler(int unused, void *dev_id, struct pt_regs *regs
 
 
 /*
- * Tell the user about the drive if we decided it exists.  Also,
- * set the size of the drive.
+ * Tell the user about the drive if we decided it exists.
  */
 static void mfm_geometry (int drive)
 {
@@ -1027,8 +1027,6 @@ static void mfm_geometry (int drive)
 			mfm_info[drive].cylinders * mfm_info[drive].heads * mfm_info[drive].sectors / 4096,
 			mfm_info[drive].cylinders, mfm_info[drive].heads, mfm_info[drive].sectors,
 			mfm_info[drive].lowcurrent, mfm_info[drive].precomp);
-	mfm[drive << 6].start_sect = 0;
-	mfm[drive << 6].nr_sects = mfm_info[drive].cylinders * mfm_info[drive].heads * mfm_info[drive].sectors / 2;
 }
 
 #ifdef CONFIG_BLK_DEV_MFM_AUTODETECT
@@ -1210,24 +1208,6 @@ static int mfm_ioctl(struct inode *inode, struct file *file, u_int cmd, u_long a
 			return -EFAULT;
 		return 0;
 
-	case BLKFLSBUF:
-		if (!capable(CAP_SYS_ADMIN))
-			return -EACCES;
-		fsync_dev(dev);
-		invalidate_buffers(dev);
-		return 0;
-
-	case BLKRASET:
-		if (!capable(CAP_SYS_ADMIN))
-			return -EACCES;
-		if (arg > 0xff)
-			return -EINVAL;
-		read_ahead[major] = arg;
-		return 0;
-
-	case BLKRAGET:
-		return put_user(read_ahead[major], (long *)arg);
-
 	case BLKGETSIZE:
 		return put_user (mfm[minor].nr_sects, (long *)arg);
 
@@ -1248,7 +1228,13 @@ static int mfm_ioctl(struct inode *inode, struct file *file, u_int cmd, u_long a
 			return -EACCES;
 		return mfm_reread_partitions(dev);
 
-	RO_IOCTLS(dev, arg);
+	case BLKFLSBUF:
+	case BLKROSET:
+	case BLKROGET:
+	case BLKRASET:
+	case BLKRAGET:
+	case BLKPG:
+		return blk_ioctl(dev, cmd, arg);
 
 	default:
 		return -EINVAL;
@@ -1276,7 +1262,6 @@ static int mfm_open(struct inode *inode, struct file *file)
  */
 static int mfm_release(struct inode *inode, struct file *file)
 {
-	fsync_dev(inode->i_rdev);
 	mfm_info[DEVICE_NR(MINOR(inode->i_rdev))].access_count--;
 	MOD_DEC_USE_COUNT;
 	return 0;
@@ -1295,6 +1280,7 @@ void mfm_setup(char *str, int *ints)
  * Set the CHS from the ADFS boot block if it is present.  This is not ideal
  * since if there are any non-ADFS partitions on the disk, this won't work!
  * Hence, I want to get rid of this...
+ * 	Please, do. It does seriously sucking things.
  */
 void xd_set_geometry(kdev_t dev, unsigned char secsptrack, unsigned char heads,
 		     unsigned long discsize, unsigned int secsize)
@@ -1320,50 +1306,22 @@ void xd_set_geometry(kdev_t dev, unsigned char secsptrack, unsigned char heads,
 		if (raw_cmd.dev == drive)
 			mfm_specify ();
 		mfm_geometry (drive);
+		mfm[drive << 6].start_sect = 0;
+		mfm[drive << 6].nr_sects = mfm_info[drive].cylinders * mfm_info[drive].heads * mfm_info[drive].sectors / 2;
 	}
 }
-
-static void mfm_geninit (struct gendisk *gdev);
 
 static struct gendisk mfm_gendisk = {
 	MAJOR_NR,		/* Major number */
 	"mfm",			/* Major name */
 	6,			/* Bits to shift to get real from partition */
 	1 << 6,			/* Number of partitions per real */
-	MFM_MAXDRIVES,		/* maximum number of real */
-	mfm_geninit,		/* init function */
 	mfm,			/* hd struct */
 	mfm_sizes,		/* block sizes */
 	0,			/* number */
 	(void *) mfm_info,	/* internal */
 	NULL			/* next */
 };
-
-static void mfm_geninit (struct gendisk *gdev)
-{
-	int i;
-
-	mfm_drives = mfm_initdrives();
-
-	printk("mfm: detected %d hard drive%s\n", mfm_drives, mfm_drives == 1 ? "" : "s");
-	gdev->nr_real = mfm_drives;
-
-	for (i = 0; i < mfm_drives; i++)
-		mfm_geometry (i);
-
-	if (request_irq(mfm_irq, mfm_interrupt_handler, SA_INTERRUPT, "MFM harddisk", NULL))
-		printk("mfm: unable to get IRQ%d\n", mfm_irq);
-
-	if (mfm_irqenable)
-		outw(0x80, mfm_irqenable);	/* Required to enable IRQs from MFM podule */
-
-	for (i = 0; i < (MFM_MAXDRIVES << 6); i++) {
-		mfm_blocksizes[i] = 1024;	/* Can't increase this - if you do all hell breaks loose */
-		mfm_sectsizes[i] = 512;
-	}
-	blksize_size[MAJOR_NR] = mfm_blocksizes;
-	hardsect_size[MAJOR_NR] = mfm_sectsizes;
-}
 
 static struct block_device_operations mfm_fops =
 {
@@ -1372,6 +1330,38 @@ static struct block_device_operations mfm_fops =
 	ioctl:		mfm_ioctl,
 };
 
+static void mfm_geninit (void)
+{
+	int i;
+
+	for (i = 0; i < (MFM_MAXDRIVES << 6); i++) {
+		/* Can't increase this - if you do all hell breaks loose */
+		mfm_blocksizes[i] = 1024;
+		mfm_sectsizes[i] = 512;
+	}
+	blksize_size[MAJOR_NR] = mfm_blocksizes;
+	hardsect_size[MAJOR_NR] = mfm_sectsizes;
+
+	mfm_drives = mfm_initdrives();
+
+	printk("mfm: detected %d hard drive%s\n", mfm_drives,
+				mfm_drives == 1 ? "" : "s");
+	mfm_gendisk.nr_real = mfm_drives;
+
+	if (request_irq(mfm_irq, mfm_interrupt_handler, SA_INTERRUPT, "MFM harddisk", NULL))
+		printk("mfm: unable to get IRQ%d\n", mfm_irq);
+
+	if (mfm_irqenable)
+		outw(0x80, mfm_irqenable);	/* Required to enable IRQs from MFM podule */
+
+	for (i = 0; i < mfm_drives; i++) {
+		mfm_geometry (i);
+		register_disk(&mfm_gendisk, MKDEV(MAJOR_NR,i<<6), 1<<6,
+				&mfm_fops,
+				mfm_info[i].cylinders * mfm_info[i].heads *
+				mfm_info[i].sectors / 2);
+	}
+}
 
 static struct expansion_card *ecs;
 
@@ -1422,11 +1412,6 @@ int mfm_init (void)
 {
 	unsigned char irqmask;
 
-	if (register_blkdev(MAJOR_NR, "mfm", &mfm_fops)) {
-		printk("mfm_init: unable to get major number %d\n", MAJOR_NR);
-		return -1;
-	}
-
 	if (mfm_probecontroller(ONBOARD_MFM_ADDRESS)) {
 		mfm_addr	= ONBOARD_MFM_ADDRESS;
 		mfm_IRQPollLoc	= IOC_IRQSTATB;
@@ -1449,6 +1434,12 @@ int mfm_init (void)
 		ecard_claim(ecs);
 	}
 
+	if (register_blkdev(MAJOR_NR, "mfm", &mfm_fops)) {
+		printk("mfm_init: unable to get major number %d\n", MAJOR_NR);
+		ecard_release(ecs);
+		return -1;
+	}
+
 	printk("mfm: found at address %08X, interrupt %d\n", mfm_addr, mfm_irq);
 	request_region (mfm_addr, 10, "mfm");
 
@@ -1457,7 +1448,7 @@ int mfm_init (void)
 	hdc63463_irqpolladdress	= ioaddr(mfm_IRQPollLoc);
 	hdc63463_irqpollmask	= irqmask;
 
-	blk_dev[MAJOR_NR].request_fn = DEVICE_REQUEST;
+	blk_init_queue(BLK_DEFAULT_QUEUE(MAJOR_NR), DEVICE_REQUEST);
 	read_ahead[MAJOR_NR] = 8;	/* 8 sector (4kB?) read ahread */
 
 #ifndef MODULE
@@ -1468,6 +1459,7 @@ int mfm_init (void)
 	Busy = 0;
 	lastspecifieddrive = -1;
 
+	mfm_geninit();
 	return 0;
 }
 
@@ -1506,10 +1498,10 @@ static int mfm_reread_partitions(kdev_t dev)
 		mfm_gendisk.part[minor].nr_sects = 0;
 	}
 
-	mfm_gendisk.part[start].nr_sects = mfm_info[target].heads *
-	    mfm_info[target].cylinders * mfm_info[target].sectors / 2;
+	/* Divide by 2, since sectors are 2 times smaller than usual ;-) */
 
-	resetup_one_dev(&mfm_gendisk, target);
+	grok_partitions(&mfm_gendisk, target, 1<<6, mfm_info[target].heads *
+		    mfm_info[target].cylinders * mfm_info[target].sectors / 2);
 
 	mfm_info[target].busy = 0;
 	wake_up (&mfm_wait_open);
@@ -1519,11 +1511,7 @@ static int mfm_reread_partitions(kdev_t dev)
 #ifdef MODULE
 int init_module(void)
 {
-	int ret;
-	ret = mfm_init();
-	if (!ret)
-		mfm_geninit(&mfm_gendisk);
-	return ret;
+	return mfm_init();
 }
 
 void cleanup_module(void)

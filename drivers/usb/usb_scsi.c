@@ -288,7 +288,7 @@ static int pop_CB_reset(struct us_data *us)
 	cmd[0] = SEND_DIAGNOSTIC;
 	cmd[1] = 4;
 	result = usb_control_msg(us->pusb_dev, usb_sndctrlpipe(us->pusb_dev,0),
-				 US_CBI_ADSC, USB_TYPE_CLASS | USB_RT_INTERFACE,
+				 US_CBI_ADSC, USB_TYPE_CLASS | USB_RECIP_INTERFACE,
 				 0, us->ifnum, cmd, sizeof(cmd), HZ*5);
 
 	/* long wait for reset */
@@ -346,7 +346,7 @@ static int pop_CB_command(Scsi_Cmnd *srb)
 			} /* switch */
 
 			result = usb_control_msg(us->pusb_dev, usb_sndctrlpipe(us->pusb_dev,0),
-						 US_CBI_ADSC, USB_TYPE_CLASS | USB_RT_INTERFACE,
+						 US_CBI_ADSC, USB_TYPE_CLASS | USB_RECIP_INTERFACE,
 						 0, us->ifnum,
 						 cmd, us->fixedlength, HZ*5);
 			US_DEBUGP("First usb_control_msg returns %d\n", result);
@@ -367,7 +367,7 @@ static int pop_CB_command(Scsi_Cmnd *srb)
 
 				result = usb_control_msg(us->pusb_dev, usb_sndctrlpipe(us->pusb_dev,0),
 							 US_CBI_ADSC, 
-							 USB_TYPE_CLASS | USB_RT_INTERFACE,
+							 USB_TYPE_CLASS | USB_RECIP_INTERFACE,
 							 0, us->ifnum,
 							 cmd, us->fixedlength, HZ*5);
 				US_DEBUGP("Next usb_control_msg returns %d\n", result);
@@ -378,7 +378,7 @@ static int pop_CB_command(Scsi_Cmnd *srb)
 			}
 		} else { /* !US_FL_FIXED_COMMAND */
 			result = usb_control_msg(us->pusb_dev, usb_sndctrlpipe(us->pusb_dev,0),
-						 US_CBI_ADSC, USB_TYPE_CLASS | USB_RT_INTERFACE,
+						 US_CBI_ADSC, USB_TYPE_CLASS | USB_RECIP_INTERFACE,
 						 0, us->ifnum,
 						 srb->cmnd, srb->cmd_len, HZ*5);
 		}
@@ -411,7 +411,7 @@ static int pop_CB_status(Scsi_Cmnd *srb)
 		while (retry--) {
 			result = usb_control_msg(us->pusb_dev, usb_rcvctrlpipe(us->pusb_dev,0),
 						 USB_REQ_GET_STATUS, USB_DIR_IN |
-						 USB_TYPE_STANDARD | USB_RT_DEVICE,
+						 USB_TYPE_STANDARD | USB_RECIP_DEVICE,
 						 0, us->ifnum, status, sizeof(status), HZ*5);
 			if (result != USB_ST_TIMEOUT)
 				break;
@@ -517,7 +517,7 @@ static int pop_Bulk_reset(struct us_data *us)
 	int result;
 
 	result = usb_control_msg(us->pusb_dev, usb_sndctrlpipe(us->pusb_dev,0),
-				 US_BULK_RESET, USB_TYPE_CLASS | USB_RT_INTERFACE,
+				 US_BULK_RESET, USB_TYPE_CLASS | USB_RECIP_INTERFACE,
 				 US_BULK_RESET_HARD, us->ifnum,
 				 NULL, 0, HZ*5);
 	if (result)
@@ -770,24 +770,24 @@ int usb_stor_proc_info (char *buffer, char **start, off_t offset,
 	SPRINTF ("Host scsi%d: usb-scsi\n", hostno);
 
 	/* print product and vendor strings */
-	if (!us->pusb_dev) {
+	tmp_ptr = kmalloc(256, GFP_KERNEL);
+	if (!us->pusb_dev || !tmp_ptr) {
 		SPRINTF("Vendor: Unknown Vendor\n");
 		SPRINTF("Product: Unknown Product\n");
 	} else {
 		SPRINTF("Vendor: ");
-		tmp_ptr = usb_string(us->pusb_dev, us->pusb_dev->descriptor.iManufacturer);
-		if (!tmp_ptr)
-			SPRINTF("Unknown Vendor\n");
-		else
+		if (usb_string(us->pusb_dev, us->pusb_dev->descriptor.iManufacturer, tmp_ptr, 256) > 0)
 			SPRINTF("%s\n", tmp_ptr);
+		else
+			SPRINTF("Unknown Vendor\n");
     
 		SPRINTF("Product: ");
-		tmp_ptr = usb_string(us->pusb_dev, us->pusb_dev->descriptor.iProduct);
-		if (!tmp_ptr)
-			SPRINTF("Unknown Vendor\n");
-		else
+		if (usb_string(us->pusb_dev, us->pusb_dev->descriptor.iProduct, tmp_ptr, 256) > 0)
 			SPRINTF("%s\n", tmp_ptr);
+		else
+			SPRINTF("Unknown Vendor\n");
 	}
+	kfree(tmp_ptr);
 
 	SPRINTF("Protocol: ");
 	switch (us->protocol) {
@@ -1196,9 +1196,9 @@ static void * storage_probe(struct usb_device *dev, unsigned int ifnum)
 {
 	struct usb_interface_descriptor *interface;
 	int i;
-	char *mf;		     /* manufacturer */
-	char *prod;		     /* product */
-	char *serial;		     /* serial number */
+	char mf[32];		     /* manufacturer */
+	char prod[32];		     /* product */
+	char serial[32];	     /* serial number */
 	struct us_data *ss = NULL;
 	unsigned int flags = 0;
 	GUID(guid);		     /* Global Unique Identifier */
@@ -1211,9 +1211,9 @@ static void * storage_probe(struct usb_device *dev, unsigned int ifnum)
 
 	/* clear the GUID and fetch the strings */
 	GUID_CLEAR(guid);
-	mf = usb_string(dev, dev->descriptor.iManufacturer);
-	prod = usb_string(dev, dev->descriptor.iProduct);
-	serial = usb_string(dev, dev->descriptor.iSerialNumber);
+	usb_string(dev, dev->descriptor.iManufacturer, mf, sizeof(mf));
+	usb_string(dev, dev->descriptor.iProduct, prod, sizeof(prod));
+	usb_string(dev, dev->descriptor.iSerialNumber, serial, sizeof(serial));
 
 	/* let's examine the device now */
 
@@ -1234,12 +1234,11 @@ static void * storage_probe(struct usb_device *dev, unsigned int ifnum)
 	US_DEBUGP("USB Mass Storage device detected\n");
 
 	/* Create a GUID for this device */
-	if (dev->descriptor.iSerialNumber &&
-	    usb_string(dev, dev->descriptor.iSerialNumber) ) {
+	if (dev->descriptor.iSerialNumber && serial[0]) {
 		/* If we have a serial number, and it's a non-NULL string */
 		make_guid(guid, dev->descriptor.idVendor, 
 			  dev->descriptor.idProduct,
-			  usb_string(dev, dev->descriptor.iSerialNumber));
+			  serial);
 	} else {
 		/* We don't have a serial number, so we use 0 */
 		make_guid(guid, dev->descriptor.idVendor, 

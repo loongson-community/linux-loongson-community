@@ -9,6 +9,7 @@
  *	Copyright 1997 -- 2000 Martin Mares <mj@suse.cz>
  */
 
+#include <linux/config.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/pci.h>
@@ -193,6 +194,138 @@ pci_enable_device(struct pci_dev *dev)
 		return err;
 	pci_set_power_state(dev, 0);
 	return 0;
+}
+
+/*
+ *  Registration of PCI drivers and handling of hot-pluggable devices.
+ */
+
+static LIST_HEAD(pci_drivers);
+
+const struct pci_device_id *
+pci_match_device(const struct pci_device_id *ids, struct pci_dev *dev)
+{
+	while (ids->vendor || ids->subvendor || ids->class_mask) {
+		if ((ids->vendor == PCI_ANY_ID || ids->vendor == dev->vendor) &&
+		    (ids->device == PCI_ANY_ID || ids->device == dev->device) &&
+		    (ids->subvendor == PCI_ANY_ID || ids->subvendor == dev->subsystem_vendor) &&
+		    (ids->subdevice == PCI_ANY_ID || ids->subdevice == dev->subsystem_device) &&
+		    !((ids->class ^ dev->class) & ids->class_mask))
+			return ids;
+		ids++;
+	}
+	return NULL;
+}
+
+static int
+pci_announce_device(struct pci_driver *drv, struct pci_dev *dev)
+{
+	const struct pci_device_id *id;
+
+	if (drv->id_table) {
+		id = pci_match_device(drv->id_table, dev);
+		if (!id)
+			return 0;
+	} else
+		id = NULL;
+	if (drv->probe(dev, id) >= 0) {
+		dev->driver = drv;
+		return 1;
+	}
+	return 0;
+}
+
+int
+pci_register_driver(struct pci_driver *drv)
+{
+	struct pci_dev *dev;
+	int count = 0;
+
+	list_add_tail(&drv->node, &pci_drivers);
+	pci_for_each_dev(dev) {
+		if (!pci_dev_driver(dev))
+			count += pci_announce_device(drv, dev);
+	}
+	return count;
+}
+
+void
+pci_unregister_driver(struct pci_driver *drv)
+{
+	struct pci_dev *dev;
+
+	list_del(&drv->node);
+	pci_for_each_dev(dev) {
+		if (dev->driver == drv) {
+			if (drv->remove)
+				drv->remove(dev);
+			dev->driver = NULL;
+		}
+	}
+}
+
+#ifdef CONFIG_HOTPLUG
+
+void
+pci_insert_device(struct pci_dev *dev, struct pci_bus *bus)
+{
+	struct list_head *ln;
+
+	list_add_tail(&dev->bus_list, &bus->devices);
+	list_add_tail(&dev->global_list, &pci_devices);
+#ifdef CONFIG_PROC_FS
+	pci_proc_attach_device(dev);
+#endif
+	for(ln=pci_drivers.next; ln != &pci_drivers; ln=ln->next) {
+		struct pci_driver *drv = list_entry(ln, struct pci_driver, node);
+		if (drv->remove && pci_announce_device(drv, dev))
+			break;
+	}
+}
+
+static void pci_free_resources(struct pci_dev *dev)
+{
+	int i;
+
+	for (i = 0; i < PCI_NUM_RESOURCES; i++) {
+		struct resource *res = dev->resource + i;
+		if (res->parent)
+			release_resource(res);
+	}
+}
+
+void
+pci_remove_device(struct pci_dev *dev)
+{
+	if (dev->driver->remove)
+		dev->driver->remove(dev);
+	dev->driver = NULL;
+	list_del(&dev->bus_list);
+	list_del(&dev->global_list);
+	pci_free_resources(dev);
+#ifdef CONFIG_PROC_FS
+	pci_proc_detach_device(dev);
+#endif
+}
+
+#endif
+
+static struct pci_driver pci_compat_driver = {
+	name: "compat"
+};
+
+struct pci_driver *
+pci_dev_driver(struct pci_dev *dev)
+{
+	if (dev->driver)
+		return dev->driver;
+	else {
+		int i;
+		for(i=0; i<=PCI_ROM_RESOURCE; i++)
+			if (dev->resource[i].flags & IORESOURCE_BUSY)
+				return &pci_compat_driver;
+	}
+	return NULL;
 }
 
 

@@ -5,7 +5,7 @@
  *
  *		ROUTE - implementation of the IP router.
  *
- * Version:	$Id: route.c,v 1.77 2000/01/06 00:41:59 davem Exp $
+ * Version:	$Id: route.c,v 1.78 2000/01/13 00:06:58 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -816,8 +816,8 @@ void ip_rt_redirect(u32 old_gw, u32 daddr, u32 new_gw,
 reject_redirect:
 #ifdef CONFIG_IP_ROUTE_VERBOSE
 	if (IN_DEV_LOG_MARTIANS(in_dev) && net_ratelimit())
-		printk(KERN_INFO "Redirect from %lX/%s to %lX ignored."
-		       "Path = %lX -> %lX, tos %02x\n",
+		printk(KERN_INFO "Redirect from %X/%s to %X ignored."
+		       "Path = %X -> %X, tos %02x\n",
 		       ntohl(old_gw), dev->name, ntohl(new_gw),
 		       ntohl(saddr), ntohl(daddr), tos);
 #endif
@@ -2261,8 +2261,9 @@ void __init ip_rt_init(void)
 	if (!rt_hash_table)
 		panic("Failed to allocate IP route cache hash table\n");
 
-	printk("IP: routing cache hash table of %u buckets, %dKbytes\n",
-	       rt_hash_mask, (rt_hash_mask*sizeof(struct rt_hash_bucket))/1024);
+	printk("IP: routing cache hash table of %u buckets, %ldKbytes\n",
+	       rt_hash_mask,
+	       (long) (rt_hash_mask*sizeof(struct rt_hash_bucket))/1024);
 
 	for (rt_hash_log=0; (1<<rt_hash_log) != rt_hash_mask; rt_hash_log++)
 		/* NOTHING */;

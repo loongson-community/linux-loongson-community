@@ -66,7 +66,6 @@
 
 /* PCI-bus controllers */
 #include "old-yenta.h"
-#include "ti113x.h"
 #include "smc34c90.h"
 #include "topic.h"
 

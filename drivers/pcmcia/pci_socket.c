@@ -70,9 +70,8 @@ static int pci_inquire_socket(unsigned int sock, socket_cap_t *cap)
 {
 	pci_socket_t *socket = pci_socket_array + sock;
 
-	if (socket->op && socket->op->inquire)
-		return socket->op->inquire(socket, cap);
-	return -EINVAL;
+	*cap = socket->cap;
+	return 0;
 }
 
 static int pci_get_status(unsigned int sock, unsigned int *value)
@@ -166,8 +165,10 @@ static int __init add_pci_socket(int nr, struct pci_dev *dev, struct pci_socket_
 {
 	pci_socket_t *socket = nr + pci_socket_array;
 
+	memset(socket, 0, sizeof(*socket));
 	socket->dev = dev;
 	socket->op = ops;
+	init_waitqueue_head(&socket->wait);
 	return socket->op->open(socket);
 }
 

@@ -1,6 +1,8 @@
 #ifndef _LINUX_INIT_H
 #define _LINUX_INIT_H
 
+#include <linux/config.h>
+
 /* These macros are used to mark some functions or 
  * initialized data (doesn't apply to uninitialized data)
  * as `initialization' functions. The kernel can take this
@@ -68,9 +70,9 @@ extern struct kernel_param __setup_start, __setup_end;
  * or exit time.
  */
 #define __init		__attribute__ ((__section__ (".text.init")))
-#define __exit		__attribute__ ((unused, __section__(".text.init")))
+#define __exit		__attribute__ ((unused, __section__(".text.exit")))
 #define __initdata	__attribute__ ((__section__ (".data.init")))
-#define __exitdata	__attribute__ ((unused, __section__ (".data.init")))
+#define __exitdata	__attribute__ ((unused, __section__ (".data.exit")))
 #define __initsetup	__attribute__ ((unused,__section__ (".setup.init")))
 #define __init_call	__attribute__ ((unused,__section__ (".initcall.init")))
 
@@ -111,6 +113,18 @@ extern struct kernel_param __setup_start, __setup_end;
 #define __initlocaldata  __initdata
 #else
 #define __initlocaldata
+#endif
+
+#ifdef CONFIG_HOTPLUG
+#define __devinit
+#define __devinitdata
+#define __devexit
+#define __devexitdata
+#else
+#define __devinit __init
+#define __devinitdata __initdata
+#define __devexit __exit
+#define __devexitdata __exitdata
 #endif
 
 #endif /* _LINUX_INIT_H */

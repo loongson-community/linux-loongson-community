@@ -435,8 +435,6 @@ static int nbd_release(struct inode *inode, struct file *file)
 	dev = MINOR(inode->i_rdev);
 	if (dev >= MAX_NBD)
 		return -ENODEV;
-	fsync_dev(inode->i_rdev);
-	invalidate_buffers(inode->i_rdev);
 	lo = &nbd_dev[dev];
 	if (lo->refcnt <= 0)
 		printk(KERN_ALERT "nbd_release: refcount(%d) <= 0\n", lo->refcnt);
@@ -491,6 +489,8 @@ int nbd_init(void)
 		nbd_blksize_bits[i] = 10;
 		nbd_bytesizes[i] = 0x7ffffc00; /* 2GB */
 		nbd_sizes[i] = nbd_bytesizes[i] >> nbd_blksize_bits[i];
+		register_disk(NULL, MKDEV(MAJOR_NR,i), 1, &nbd_fops,
+				nbd_bytesizes[i]>>9);
 	}
 	return 0;
 }

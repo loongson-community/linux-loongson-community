@@ -34,6 +34,7 @@
 #include <asm/dma.h>
 #include <asm/fixmap.h>
 #include <asm/e820.h>
+#include <asm/apic.h>
 
 unsigned long highstart_pfn, highend_pfn;
 static unsigned long totalram_pages = 0;
@@ -194,8 +195,6 @@ void __init kmap_init(void)
 	kmap_pte = kmap_get_fixmap_pte(kmap_vstart);
 
 	kmap_prot = PAGE_KERNEL;
-	if (boot_cpu_data.x86_capability & X86_FEATURE_PGE)
-		pgprot_val(kmap_prot) |= _PAGE_GLOBAL;
 }
 #endif
 
@@ -239,7 +238,8 @@ void show_mem(void)
 extern char _text, _etext, _edata, __bss_start, _end;
 extern char __init_begin, __init_end;
 
-static void set_pte_phys (unsigned long vaddr, unsigned long phys)
+static inline void set_pte_phys (unsigned long vaddr,
+			unsigned long phys, pgprot_t flags)
 {
 	pgprot_t prot;
 	pgd_t *pgd;
@@ -249,26 +249,25 @@ static void set_pte_phys (unsigned long vaddr, unsigned long phys)
 	pgd = swapper_pg_dir + __pgd_offset(vaddr);
 	pmd = pmd_offset(pgd, vaddr);
 	pte = pte_offset(pmd, vaddr);
-	prot = PAGE_KERNEL;
-	if (boot_cpu_data.x86_capability & X86_FEATURE_PGE)
-		pgprot_val(prot) |= _PAGE_GLOBAL;
+	pgprot_val(prot) = pgprot_val(PAGE_KERNEL) | pgprot_val(flags);
 	set_pte(pte, mk_pte_phys(phys, prot));
 
 	/*
 	 * It's enough to flush this one mapping.
+	 * (PGE mappings get flushed as well)
 	 */
 	__flush_tlb_one(vaddr);
 }
 
-void set_fixmap (enum fixed_addresses idx, unsigned long phys)
+void __set_fixmap (enum fixed_addresses idx, unsigned long phys, pgprot_t flags)
 {
 	unsigned long address = __fix_to_virt(idx);
 
 	if (idx >= __end_of_fixed_addresses) {
-		printk("Invalid set_fixmap\n");
+		printk("Invalid __set_fixmap\n");
 		return;
 	}
-	set_pte_phys(address,phys);
+	set_pte_phys(address, phys, flags);
 }
 
 static void __init fixrange_init (unsigned long start, unsigned long end, pgd_t *pgd_base)
@@ -439,10 +438,10 @@ void __init paging_init(void)
 		set_in_cr4(X86_CR4_PAE);
 #endif
 
-	__flush_tlb();
+	__flush_tlb_all();
 
-#ifdef __SMP__
-	init_smp_mappings();
+#ifdef CONFIG_X86_LOCAL_APIC
+	init_apic_mappings();
 #endif
 
 #ifdef CONFIG_HIGHMEM

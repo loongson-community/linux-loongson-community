@@ -99,11 +99,6 @@ static int pc_debug = PCMCIA_DEBUG;
 #define PCDATA_CODE_TYPE	0x0014
 #define PCDATA_INDICATOR	0x0015
 
-#ifndef CONFIG_PROC_FS
-#define pci_proc_attach_device(dev)	do { } while (0)
-#define pci_proc_detach_device(dev)	do { } while (0)
-#endif
-
 typedef struct cb_config_t {
 	struct pci_dev dev;
 } cb_config_t;
@@ -111,38 +106,11 @@ typedef struct cb_config_t {
 /*=====================================================================
 
     Expansion ROM's have a special layout, and pointers specify an
-    image number and an offset within that image.  check_rom()
-    verifies that the expansion ROM exists and has the standard
-    layout.  xlate_rom_addr() converts an image/offset address to an
-    absolute offset from the ROM's base address.
+    image number and an offset within that image.  xlate_rom_addr()
+    converts an image/offset address to an absolute offset from the
+    ROM's base address.
     
 =====================================================================*/
-
-static int check_rom(u_char * b, u_long len)
-{
-	u_int img = 0, ofs = 0, sz;
-	u_short data;
-	DEBUG(0, "ROM image dump:\n");
-	while ((readb(b) == 0x55) && (readb(b + 1) == 0xaa)) {
-		data = readb(b + ROM_DATA_PTR) +
-		    (readb(b + ROM_DATA_PTR + 1) << 8);
-		sz = 512 * (readb(b + data + PCDATA_IMAGE_SZ) +
-			    (readb(b + data + PCDATA_IMAGE_SZ + 1) << 8));
-		DEBUG(0, "  image %d: 0x%06x-0x%06x, signature %c%c%c%c\n",
-		      img, ofs, ofs + sz - 1,
-		      readb(b + data + PCDATA_SIGNATURE),
-		      readb(b + data + PCDATA_SIGNATURE + 1),
-		      readb(b + data + PCDATA_SIGNATURE + 2),
-		      readb(b + data + PCDATA_SIGNATURE + 3));
-		ofs += sz;
-		img++;
-		if ((readb(b + data + PCDATA_INDICATOR) & 0x80) ||
-		    (sz == 0) || (ofs >= len))
-			break;
-		b += sz;
-	}
-	return img;
-}
 
 static u_int xlate_rom_addr(u_char * b, u_int addr)
 {
@@ -261,6 +229,21 @@ fail:
     
 =====================================================================*/
 
+static int cb_assign_irq(u32 mask)
+{
+	int irq, try;
+
+	for (try = 0; try < 2; try++) {
+		for (irq = 1; irq < 32; irq++) {
+			if ((mask >> irq) & 1) {
+				if (try_irq(IRQ_TYPE_EXCLUSIVE, irq, try) == 0)
+					return irq;
+			}
+		}
+	}
+	return 0;
+}
+
 int cb_alloc(socket_info_t * s)
 {
 	struct pci_bus *bus;
@@ -268,6 +251,7 @@ int cb_alloc(socket_info_t * s)
 	u_short vend, v, dev;
 	u_char i, hdr, fn;
 	cb_config_t *c;
+	int irq;
 
 	bus = s->cap.cb_dev->subordinate;
 	memset(&tmp, 0, sizeof(tmp));
@@ -297,8 +281,10 @@ int cb_alloc(socket_info_t * s)
 		return CS_OUT_OF_RESOURCE;
 	memset(c, 0, fn * sizeof(struct cb_config_t));
 
+	irq = s->cap.pci_irq;
 	for (i = 0; i < fn; i++) {
 		struct pci_dev *dev = &c[i].dev;
+		u8 irq_pin;
 		int r;
 
 		dev->bus = bus;
@@ -306,39 +292,33 @@ int cb_alloc(socket_info_t * s)
 		dev->devfn = i;
 		dev->vendor = vend;
 		pci_readw(dev, PCI_DEVICE_ID, &dev->device);
-		dev->hdr_type = hdr;
+		dev->hdr_type = hdr & 0x7f;
 
 		pci_setup_device(dev);
+
 		/* FIXME: Do we need to enable the expansion ROM? */
 		for (r = 0; r < 7; r++) {
 			struct resource *res = dev->resource + r;
-			if (res->flags) {
-				/* Unset resource address, assign new one! */
-				res->end -= res->start;
-				res->start = 0;
+			if (res->flags)
 				pci_assign_resource(dev, r);
-			}
+		}
+		pci_enable_device(dev);
+
+		/* Does this function have an interrupt at all? */
+		pci_readb(dev, PCI_INTERRUPT_PIN, &irq_pin);
+		if (irq_pin) {
+			if (!irq)
+				irq = cb_assign_irq(s->cap.irq_mask);
+			dev->irq = irq;
+			pci_writeb(dev, PCI_INTERRUPT_LINE, irq);
 		}
 
-		list_add_tail(&dev->bus_list, &bus->devices);
-		list_add_tail(&dev->global_list, &pci_devices);
-		pci_proc_attach_device(dev);
-		pci_enable_device(dev);
+		pci_insert_device(dev, bus);
 	}
 
 	s->cb_config = c;
+	s->irq.AssignedIRQ = irq;
 	return CS_SUCCESS;
-}
-
-static void free_resources(struct pci_dev *dev)
-{
-	int i;
-
-	for (i = 0; i < 7; i++) {
-		struct resource *res = dev->resource + i;
-		if (res->parent)
-			release_resource(res);
-	}
 }
 
 void cb_free(socket_info_t * s)
@@ -349,14 +329,9 @@ void cb_free(socket_info_t * s)
 		int i;
 
 		s->cb_config = NULL;
-		for(i=0; i<s->functions; i++) {
-			struct pci_dev *dev = &c[i].dev;
+		for (i = 0 ; i < s->functions ; i++)
+			pci_remove_device(&c[i].dev);
 
-			list_del(&dev->bus_list);
-			list_del(&dev->global_list);
-			free_resources(dev);
-			pci_proc_detach_device(dev);
-		}
 		kfree(c);
 		printk(KERN_INFO "cs: cb_free(bus %d)\n", s->cap.cb_dev->subordinate->number);
 	}
@@ -374,54 +349,8 @@ void cb_free(socket_info_t * s)
     
 ======================================================================*/
 
-static int cb_assign_irq(u32 mask)
-{
-	int irq, try;
-
-	for (try = 0; try < 2; try++) {
-		for (irq = 1; irq < 32; irq++) {
-			if ((mask >> irq) & 1) {
-				if (try_irq(IRQ_TYPE_EXCLUSIVE, irq, try) == 0)
-					return irq;
-			}
-		}
-	}
-	return 0;
-}
-
 int cb_config(socket_info_t * s)
 {
-	cb_config_t *c = s->cb_config;
-	u_char fn = s->functions;
-	int i, irq;
-
-	printk(KERN_INFO "cs: cb_config(bus %d)\n", s->cap.cb_dev->subordinate->number);
-
-	/*
-	 * If we have a PCI interrupt for the bridge,
-	 * then use that..
-	 */
-	irq = s->cap.pci_irq;
-
-	for (i = 0; i < fn; i++) {
-		struct pci_dev *dev = &c[i].dev;
-		u8 irq_pin;
-
-		/* Does this function have an interrupt at all? */
-		pci_readb(dev, PCI_INTERRUPT_PIN, &irq_pin);
-		if (!irq_pin)
-			continue;
-
-		if (!irq) {
-			irq = cb_assign_irq(s->cap.irq_mask);
-			if (!irq)
-				return CS_OUT_OF_RESOURCE;
-		}
-
-		dev->irq = irq;
-		pci_writeb(dev, PCI_INTERRUPT_LINE, irq);
-	}
-	s->irq.AssignedIRQ = irq;
 	return CS_SUCCESS;
 }
 

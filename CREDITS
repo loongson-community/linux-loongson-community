@@ -539,6 +539,15 @@ S: Virginia Tech
 S: Blacksburg, Virginia 24061
 S: USA
 
+N: Randy Dunlap
+E: randy.dunlap@intel.com
+W: http://home.att.net/~randy.dunlap/
+W: http://www.linux-usb.org
+D: Linux-USB subsystem, USB core/UHCI/printer/storage drivers
+S: 5200 NE Elam Young Pkwy., M/S HF3-77
+S: Hillsboro, Oregon 97124
+S: USA
+
 N: Cyrus Durgin
 E: cider@speakeasy.org
 W: http://www.speakeasy.org/~cider/
@@ -896,9 +905,9 @@ S: Germany
 
 N: Jauder Ho
 E: jauderho@carumba.com
-W: http://www.carumba.com/~jauderho/
+W: http://www.carumba.com/
 D: bug toaster (A1 sauce makes all the difference)
-D: Transmeta BOFH in my copius free time
+D: Random linux hacker
 
 N: Dirk Hohndel
 E: hohndel@suse.de
@@ -1039,12 +1048,14 @@ S: USA
 
 N: Dave Jones
 E: dave@powertweak.com
+E: djones2@glam.ac.uk
 W: http://linux.powertweak.com
-D: Centaur/IDT Winchip/Winchip 2 tweaks
+D: Moved PCI bridge tuning to userspace (Powertweak).
+D: Centaur/IDT Winchip/Winchip 2 tweaks.
 D: Misc clean ups and other random hacking.
-S: 40, Heol Edward Lewis,
-S: Gelligaer, Hengoed,
-S: Mid Glamorgan, CF82 8EJ,
+S: 28, Laura Street,
+S: Treforest, Pontypridd,
+S: Mid Glamorgan, CF37 1NW,
 S: Wales, United Kingdom
 
 N: Bernhard Kaindl
@@ -1450,9 +1461,9 @@ D: USB hacking
 D: miscellaneous Makefile & Config.in fixes
 D: Cyclom 2X synchronous card driver
 D: i18n for minicom, net-tools, util-linux, fetchmail, etc
-S: Conectiva Informática LTDA
-S: R. Prof. Rubens Elke Braga, 558 - Parolin
-S: 80220-320 Curitiba - Paraná
+S: Conectiva S.A.
+S: R. Tocantins, 89 - Cristo Rei
+S: 80050-430 - Curitiba - Paraná
 S: Brazil
 
 N: Michael Meskes
@@ -1632,6 +1643,15 @@ D: IPX development and support
 N: David Parsons
 E: orc@pell.chi.il.us
 D: improved memory detection code.
+
+N: Ivan Passos
+E: ivan@cyclades.com
+D: Author of the Cyclades-PC300 synchronous card driver
+D: Maintainer of the Cyclom-Y/Cyclades-Z asynchronous card driver
+S: Cyclades Corp
+S: 41934 Christy St
+S: Fremont, CA 94538
+S: USA
 
 N: Mikulas Patocka
 E: mikulas@artax.karlin.mff.cuni.cz
@@ -2063,13 +2083,13 @@ S: USA
 
 N: Marcelo W. Tosatti
 E: marcelo@conectiva.com.br
-W: http://lie-br.conectiva.com.br/~marcelo/
+W: http://bazar.conectiva.com.br/~marcelo/
 D: Miscellaneous kernel hacker
-D: Cyclom 2X driver hacker
+D: Cyclom 2X driver, drbd hacker
 D: linuxconf apache & proftpd module maintainer
-S: Conectiva Informática LTDA
-S: R. Prof. Rubens Elke Braga, 558 - Parolin
-S: 80220-320 Curitiba - Paraná
+S: Conectiva S.A.
+S: R. Tocantins, 89 - Cristo Rei
+S: 80050-430 - Curitiba - Paraná
 S: Brazil
 
 N: Stefan Traby
@@ -2309,6 +2329,7 @@ E: SteveW@ACM.org
 W: http://www-sigproc.eng.cam.ac.uk/~sjw44/
 D: Linux DECnet project: http://www.sucs.swan.ac.uk/~rohan/DECnet/index.html
 D: Minor debugging of other networking protocols.
+D: Misc bug fixes and filesystem development
 
 N: Hans-Joachim Widmaier
 E: hjw@zvw.de
@@ -2342,18 +2363,15 @@ S: Germany
 
 N: Lars Wirzenius
 E: liw@iki.fi
-D: Linux System Administrator's Guide
-D: Co-moderator, comp.os.linux.announce
+D: Linux System Administrator's Guide, author, former maintainer
+D: comp.os.linux.announce, former moderator
+D: Linux Documentation Project, co-founder
 D: Original sprintf in kernel
-D: Personal information about Linus
-D: Original kernel README
-D: Linux News (electronic magazine)
-D: Meta-FAQ, originator
+D: Original kernel README (for version 0.97)
+D: Linux News (electronic magazine, now dead), founder and former editor
+D: Meta-FAQ, originator, former maintainer
 D: INFO-SHEET, former maintainer
 D: Author of the longest-living linux bug
-S: Hernesaarenkatu 15 A 2
-S: Fin-00150 Helsinki
-S: Finland
 
 N: Jonathan Woithe
 E: jwoithe@physics.adelaide.edu.au

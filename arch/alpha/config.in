@@ -2,6 +2,9 @@
 # For a description of the syntax of this configuration file,
 # see the Configure script.
 #
+
+define_bool CONFIG_UID16 n
+
 mainmenu_name "Kernel configuration of Linux for Alpha machines"
 
 mainmenu_option next_comment
@@ -180,6 +183,12 @@ fi
 
 source drivers/pci/Config.in
 
+bool 'Support for hot-pluggable devices' CONFIG_HOTPLUG
+ 
+if [ "$CONFIG_HOTPLUG" = "y" ] ; then
+   source drivers/pcmcia/Config.in
+fi
+
 bool 'Networking support' CONFIG_NET
 bool 'System V IPC' CONFIG_SYSVIPC
 bool 'BSD Process Accounting' CONFIG_BSD_PROCESS_ACCT
@@ -249,6 +258,10 @@ fi
 endmenu
 
 source drivers/char/Config.in
+
+source drivers/usb/Config.in
+
+source drivers/misc/Config.in
 
 source fs/Config.in
 

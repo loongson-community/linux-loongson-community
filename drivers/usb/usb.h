@@ -21,6 +21,28 @@
 #define USB_CLASS_VENDOR_SPEC		0xff
 
 /*
+ * USB types
+ */
+#define USB_TYPE_STANDARD		(0x00 << 5)
+#define USB_TYPE_CLASS			(0x01 << 5)
+#define USB_TYPE_VENDOR			(0x02 << 5)
+#define USB_TYPE_RESERVED		(0x03 << 5)
+
+/*
+ * USB recipients
+ */
+#define USB_RECIP_DEVICE		0x00
+#define USB_RECIP_INTERFACE		0x01
+#define USB_RECIP_ENDPOINT		0x02
+#define USB_RECIP_OTHER			0x03
+
+/*
+ * USB directions
+ */
+#define USB_DIR_OUT			0
+#define USB_DIR_IN			0x80
+
+/*
  * Descriptor types
  */
 #define USB_DT_DEVICE			0x01
@@ -29,10 +51,10 @@
 #define USB_DT_INTERFACE		0x04
 #define USB_DT_ENDPOINT			0x05
 
-#define USB_DT_HUB			0x29
-#define USB_DT_HID			0x21
-#define USB_DT_REPORT			0x22
-#define USB_DT_PHYSICAL			0x23
+#define USB_DT_HID			(USB_TYPE_CLASS | 0x01)
+#define USB_DT_REPORT			(USB_TYPE_CLASS | 0x02)
+#define USB_DT_PHYSICAL			(USB_TYPE_CLASS | 0x03)
+#define USB_DT_HUB			(USB_TYPE_CLASS | 0x09)
 
 /*
  * Descriptor sizes per descriptor type
@@ -46,11 +68,8 @@
 #define USB_DT_HID_SIZE			9
 
 /*
- * USB Request Type and Endpoint Directions
+ * Endpoints
  */
-#define USB_DIR_OUT			0
-#define USB_DIR_IN			0x80
-
 #define USB_ENDPOINT_NUMBER_MASK	0x0f	/* in bEndpointAddress */
 #define USB_ENDPOINT_DIR_MASK		0x80
 
@@ -72,9 +91,7 @@
  */
 #define USB_REQ_GET_STATUS		0x00
 #define USB_REQ_CLEAR_FEATURE		0x01
-/* 0x02 is reserved */
 #define USB_REQ_SET_FEATURE		0x03
-/* 0x04 is reserved */
 #define USB_REQ_SET_ADDRESS		0x05
 #define USB_REQ_GET_DESCRIPTOR		0x06
 #define USB_REQ_SET_DESCRIPTOR		0x07
@@ -85,7 +102,7 @@
 #define USB_REQ_SYNCH_FRAME		0x0C
 
 /*
- * HIDD requests
+ * HID requests
  */
 #define USB_REQ_GET_REPORT		0x01
 #define USB_REQ_GET_IDLE		0x02
@@ -94,79 +111,6 @@
 #define USB_REQ_SET_IDLE		0x0A
 #define USB_REQ_SET_PROTOCOL		0x0B
 
-#define USB_TYPE_STANDARD		(0x00 << 5)
-#define USB_TYPE_CLASS			(0x01 << 5)
-#define USB_TYPE_VENDOR			(0x02 << 5)
-#define USB_TYPE_RESERVED		(0x03 << 5)
-
-#define USB_RECIP_DEVICE		0x00
-#define USB_RECIP_INTERFACE		0x01
-#define USB_RECIP_ENDPOINT		0x02
-#define USB_RECIP_OTHER			0x03
-
-#define USB_HID_RPT_INPUT		0x01
-#define USB_HID_RPT_OUTPUT		0x02
-#define USB_HID_RPT_FEATURE		0x03
-
-/*
- * Request target types.
- */
-#define USB_RT_DEVICE			0x00
-#define USB_RT_INTERFACE		0x01
-#define USB_RT_ENDPOINT			0x02
-
-#define USB_RT_HUB			(USB_TYPE_CLASS | USB_RECIP_DEVICE)
-#define USB_RT_PORT			(USB_TYPE_CLASS | USB_RECIP_OTHER)
-
-#define USB_RT_HIDD			(USB_TYPE_CLASS | USB_RECIP_INTERFACE)
-
-/* /proc/bus/usb/xxx/yyy ioctl codes */
-
-struct usb_proc_ctrltransfer {
-	__u8 requesttype;
-	__u8 request;
-	__u16 value;
-	__u16 index;
-	__u16 length;
-	__u32 timeout;  /* in milliseconds */
- 	void *data;
-};
-
-struct usb_proc_bulktransfer {
-	unsigned int ep;
-	unsigned int len;
-	unsigned int timeout; /* in milliseconds */
-	void *data;
-};
-
-struct usb_proc_old_ctrltransfer {
-	__u8 requesttype;
-	__u8 request;
-	__u16 value;
-	__u16 index;
-	__u16 length;
-	/* pointer to data */
-	void *data;
-};
-
-struct usb_proc_old_bulktransfer {
-	unsigned int ep;
-	unsigned int len;
-	void *data;
-};
-
-struct usb_proc_setinterface {
-	unsigned int interface;
-	unsigned int altsetting;
-};
-
-#define USB_PROC_CONTROL           _IOWR('U', 0, struct usb_proc_ctrltransfer)
-#define USB_PROC_BULK              _IOWR('U', 2, struct usb_proc_bulktransfer)
-#define USB_PROC_OLD_CONTROL       _IOWR('U', 0, struct usb_proc_old_ctrltransfer)
-#define USB_PROC_OLD_BULK          _IOWR('U', 2, struct usb_proc_old_bulktransfer)
-#define USB_PROC_RESETEP           _IOR('U', 3, unsigned int)
-#define USB_PROC_SETINTERFACE      _IOR('U', 4, struct usb_proc_setinterface)
-#define USB_PROC_SETCONFIGURATION  _IOR('U', 5, unsigned int)
 
 #ifdef __KERNEL__
 
@@ -227,9 +171,10 @@ typedef struct {
 	__u16 length;
 } devrequest __attribute__ ((packed));
 
-/* USB-status codes:
+/*
+ * USB-status codes:
  * USB_ST* maps to -E* and should go away in the future
-*/
+ */
 
 #define USB_ST_NOERROR		0
 #define USB_ST_CRC		(-EILSEQ)
@@ -316,22 +261,6 @@ struct usb_endpoint_descriptor {
 
    	unsigned char *extra;   /* Extra descriptors */
 	int extralen;
-} __attribute__ ((packed));
-
-/* HID descriptor */
-struct usb_hid_class_descriptor {
-	__u8  bDescriptorType;
-	__u16 wDescriptorLength;
-} __attribute__ ((packed));
-
-struct usb_hid_descriptor {
-	__u8  bLength;
-	__u8  bDescriptorType;
-	__u16 bcdHID;
-	__u8  bCountryCode;
-	__u8  bNumDescriptors;
-
-	struct usb_hid_class_descriptor desc[1];
 } __attribute__ ((packed));
 
 /* Interface descriptor */
@@ -548,8 +477,8 @@ struct usb_bus {
 	int bandwidth_int_reqs;		/* number of Interrupt requesters */
 	int bandwidth_isoc_reqs;	/* number of Isoc. requesters */
 
-	/* procfs entry */
-	struct proc_dir_entry *proc_entry;
+	/* usbdevfs inode list */
+        struct list_head inodes;
 };
 
 #define USB_MAXCHILDREN (8)	/* This is arbitrary */
@@ -574,13 +503,13 @@ struct usb_device {
 	struct usb_device_descriptor descriptor;/* Descriptor */
 	struct usb_config_descriptor *config;	/* All of the configs */
 
-	char *string;			/* pointer to the last string read from the device */
 	int string_langid;		/* language ID for strings */
   
 	void *hcpriv;			/* Host Controller private data */
 	
-	/* procfs entry */
-	struct proc_dir_entry *proc_entry;
+        /* usbdevfs inode list */
+        struct list_head inodes;
+        struct list_head filelist;
 
 	/*
 	 * Child devices - these can be either new devices
@@ -746,7 +675,7 @@ int usb_get_report(struct usb_device *dev, unsigned char type,
 	unsigned char id, unsigned char index, void *buf, int size);
 int usb_set_report(struct usb_device *dev, unsigned char type,
 	unsigned char id, unsigned char index, void *buf, int size);
-char *usb_string(struct usb_device *dev, int index);
+int usb_string(struct usb_device *dev, int index, char *buf, size_t size);
 int usb_clear_halt(struct usb_device *dev, int endp);
 
 #define usb_get_extra_descriptor(ifpoint,type,ptr)\
@@ -778,36 +707,56 @@ int usb_clear_halt(struct usb_device *dev, int endp);
 void usb_show_device_descriptor(struct usb_device_descriptor *);
 void usb_show_config_descriptor(struct usb_config_descriptor *);
 void usb_show_interface_descriptor(struct usb_interface_descriptor *);
-void usb_show_hid_descriptor(struct usb_hid_descriptor * desc);
 void usb_show_endpoint_descriptor(struct usb_endpoint_descriptor *);
 void usb_show_device(struct usb_device *);
 void usb_show_string(struct usb_device *dev, char *id, int index);
 
 #ifdef DEBUG
-#define dbg(format, arg...) printk(KERN_DEBUG __FILE__ ": " format "\n", ## arg)
+#define dbg(format, arg...) printk(KERN_DEBUG __FILE__ ": " format "\n" , ## arg)
 #else
-#define dbg(format, arg...)
+#define dbg(format, arg...) do {} while (0)
 #endif
-#define err(format, arg...) printk(KERN_ERR __FILE__ ": " format "\n", ## arg)
-#define info(format, arg...) printk(KERN_INFO __FILE__ ": " format "\n", ## arg)
-#define warn(format, arg...) printk(KERN_WARNING __FILE__ ": " format "\n", ## arg)
+#define err(format, arg...) printk(KERN_ERR __FILE__ ": " format "\n" , ## arg)
+#define info(format, arg...) printk(KERN_INFO __FILE__ ": " format "\n" , ## arg)
+#define warn(format, arg...) printk(KERN_WARNING __FILE__ ": " format "\n" , ## arg)
 
 
 /*
- * procfs stuff
+ * bus and driver list
  */
 
-#ifdef CONFIG_USB_PROC
-void proc_usb_add_bus(struct usb_bus *bus);
-void proc_usb_remove_bus(struct usb_bus *bus);
-void proc_usb_add_device(struct usb_device *dev);
-void proc_usb_remove_device(struct usb_device *dev);
-#else
-extern inline void proc_usb_add_bus(struct usb_bus *bus) {}
-extern inline void proc_usb_remove_bus(struct usb_bus *bus) {}
-extern inline void proc_usb_add_device(struct usb_device *dev) {}
-extern inline void proc_usb_remove_device(struct usb_device *dev) {}
-#endif
+extern struct list_head usb_driver_list;
+extern struct list_head usb_bus_list;
+
+/*
+ * USB device fs stuff
+ */
+
+#ifdef CONFIG_USB_DEVICEFS
+
+/*
+ * these are expected to be called from the USB core/hub thread
+ * with the kernel lock held
+ */
+extern void usbdevfs_add_bus(struct usb_bus *bus);
+extern void usbdevfs_remove_bus(struct usb_bus *bus);
+extern void usbdevfs_add_device(struct usb_device *dev);
+extern void usbdevfs_remove_device(struct usb_device *dev);
+
+extern int usbdevfs_init(void);
+extern void usbdevfs_cleanup(void);
+
+#else /* CONFIG_USB_DEVICEFS */
+
+extern inline void usbdevfs_add_bus(struct usb_bus *bus) {}
+extern inline void usbdevfs_remove_bus(struct usb_bus *bus) {}
+extern inline void usbdevfs_add_device(struct usb_device *dev) {}
+extern inline void usbdevfs_remove_device(struct usb_device *dev) {}
+
+extern inline int usbdevfs_init(void) { return 0; }
+extern inline void usbdevfs_cleanup(void) { }
+
+#endif /* CONFIG_USB_DEVICEFS */
 
 #endif  /* __KERNEL__ */
 

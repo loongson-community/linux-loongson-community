@@ -34,6 +34,7 @@
 #include <linux/malloc.h>
 #include <linux/init.h>
 #include <linux/module.h>
+#include <linux/kbd_kern.h>
 
 #ifdef CONFIG_X86
 
@@ -43,11 +44,11 @@ static unsigned char keybdev_x86_e0s[] =
 	  0x26, 0x25, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x00,
 	  0x23, 0x24, 0x25, 0x26, 0x27 };
 
-#elif CONFIG_MAC_KEYBOARD
+#elif CONFIG_ADB_KEYBOARD
 
 static unsigned char keybdev_mac_codes[256] =
 	{ 0, 53, 18, 19, 20, 21, 23, 22, 26, 28, 25, 29, 27, 24, 51, 48,
-	 12, 13, 14, 15, 17, 16, 32, 34, 31, 35, 33, 30, 36, 54,  0,  1,
+	 12, 13, 14, 15, 17, 16, 32, 34, 31, 35, 33, 30, 36, 54,128,  1,
 	  2,  3,  5,  4, 38, 40, 37, 41, 39, 50, 56, 42,  6,  7,  8,  9,
 	 11, 45, 46, 43, 47, 44,123, 67, 55, 49, 57,122,120, 99,118, 96,
 	 97, 98,100,101,109, 71,107, 89, 91, 92, 78, 86, 87, 88, 69, 83,
@@ -56,6 +57,21 @@ static unsigned char keybdev_mac_codes[256] =
 	  0,  0,  0,  0,127, 81,  0,113 };
 
 #endif
+
+struct input_handler keybdev_handler;
+
+void keybdev_ledfunc(unsigned int led)
+{
+	struct input_handle *handle;	
+
+	for (handle = keybdev_handler.handle; handle; handle = handle->hnext) {
+
+		input_event(handle->dev, EV_LED, LED_SCROLLL, !!(led & 0x01));
+		input_event(handle->dev, EV_LED, LED_NUML,    !!(led & 0x02));
+		input_event(handle->dev, EV_LED, LED_CAPSL,   !!(led & 0x04));
+
+	}
+}
 
 void keybdev_event(struct input_handle *handle, unsigned int type, unsigned int code, int down)
 {
@@ -85,10 +101,10 @@ void keybdev_event(struct input_handle *handle, unsigned int type, unsigned int 
 		}
 	} else handle_scancode(code, down);
 
-#elif CONFIG_MAC_KEYBOARD
+#elif CONFIG_ADB_KEYBOARD
 
-	if (keycode < 128 && keybdev_mac_codes[code]) 
-		handle_scancode(keybdev_mac_codes[code], down);
+	if (code < 128 && keybdev_mac_codes[code]) 
+		handle_scancode(keybdev_mac_codes[code] & 0x7f, down);
 	else
 		printk(KERN_WARNING "keybdev.c: can't emulate keycode %d\n", code);
 
@@ -96,6 +112,7 @@ void keybdev_event(struct input_handle *handle, unsigned int type, unsigned int 
 #error "Cannot generate rawmode keyboard for your architecture yet."
 #endif
 
+	mark_bh(KEYBOARD_BH);
 }
 
 static int keybdev_connect(struct input_handler *handler, struct input_dev *dev)
@@ -137,6 +154,7 @@ struct input_handler keybdev_handler = {
 #ifdef MODULE
 void cleanup_module(void)
 {
+	kbd_ledfunc = NULL;
 	input_unregister_handler(&keybdev_handler);
 }
 int init_module(void)
@@ -145,5 +163,6 @@ int __init keybdev_init(void)
 #endif
 {
 	input_register_handler(&keybdev_handler);
+	kbd_ledfunc = keybdev_ledfunc;
 	return 0;
 }

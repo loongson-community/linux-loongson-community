@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp_output.c,v 1.113 1999/09/07 02:31:39 davem Exp $
+ * Version:	$Id: tcp_output.c,v 1.116 2000/01/13 00:19:49 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -192,7 +192,7 @@ void tcp_transmit_skb(struct sock *sk, struct sk_buff *skb)
 
 		clear_delayed_acks(sk);
 		tp->last_ack_sent = tp->rcv_nxt;
-		tcp_statistics.TcpOutSegs++;
+		TCP_INC_STATS(TcpOutSegs);
 		tp->af_specific->queue_xmit(skb);
 	}
 #undef SYSCTL_FLAG_TSTAMPS
@@ -677,7 +677,7 @@ int tcp_retransmit_skb(struct sock *sk, struct sk_buff *skb)
 
 	/* Update global TCP statistics and return success. */
 	sk->prot->retransmits++;
-	tcp_statistics.TcpRetransSegs++;
+	TCP_INC_STATS(TcpRetransSegs);
 
 	return 0;
 }
@@ -941,7 +941,7 @@ struct sk_buff * tcp_make_synack(struct sock *sk, struct dst_entry *dst,
 
 	skb->csum = 0;
 	th->doff = (tcp_header_size >> 2);
-	tcp_statistics.TcpOutSegs++;
+	TCP_INC_STATS(TcpOutSegs);
 	return skb;
 }
 
@@ -1009,7 +1009,7 @@ int tcp_connect(struct sock *sk, struct sk_buff *buff)
 	__skb_queue_tail(&sk->write_queue, buff);
 	tp->packets_out++;
 	tcp_transmit_skb(sk, skb_clone(buff, GFP_KERNEL));
-	tcp_statistics.TcpActiveOpens++;
+	TCP_INC_STATS(TcpActiveOpens);
 
 	/* Timer for repeating the SYN until an answer. */
 	tcp_reset_xmit_timer(sk, TIME_RETRANS, tp->rto);
@@ -1031,7 +1031,7 @@ void tcp_send_delayed_ack(struct sock *sk, int max_timeout)
 	unsigned long timeout;
 
 	/* Stay within the limit we were given */
-	timeout = tp->ato;
+	timeout = (tp->ato << 1) >> 1;
 	if (timeout > max_timeout)
 		timeout = max_timeout;
 	timeout += jiffies;
@@ -1070,10 +1070,14 @@ void tcp_send_ack(struct sock *sk)
 			 *
 			 * This is the one possible way that we can delay an
 			 * ACK and have tp->ato indicate that we are in
-			 * quick ack mode, so clear it.
+			 * quick ack mode, so clear it.  It is also the only
+			 * possible way for ato to be zero, when ACK'ing a
+			 * SYNACK because we've taken no ATO measurement yet.
 			 */
-			if(tcp_in_quickack_mode(tp))
+			if (tcp_in_quickack_mode(tp))
 				tcp_exit_quickack_mode(tp);
+			if (!tp->ato)
+				tp->ato = tp->rto;
 			tcp_send_delayed_ack(sk, HZ/2);
 			return;
 		}

@@ -6,6 +6,7 @@
  */
 #include <linux/version.h>
 #include <linux/kernel.h>
+#include <linux/slab.h>
 
 #define DEBUG
 
@@ -131,24 +132,6 @@ void usb_show_interface_descriptor(struct usb_interface_descriptor *desc)
 	printk("    iInterface          =   %02x\n", desc->iInterface);
 }
 
-void usb_show_hid_descriptor(struct usb_hid_descriptor * desc)
-{
-	int i;
-    
-	printk("    HID:\n");
-	printk("      HID version %x.%02x\n", desc->bcdHID >> 8, desc->bcdHID & 0xff);
-	printk("      bLength             = %4d\n", desc->bLength);
-	printk("      bDescriptorType     =   %02x\n", desc->bDescriptorType);
-	printk("      bCountryCode        =   %02x\n", desc->bCountryCode);
-	printk("      bNumDescriptors     =   %02x\n", desc->bNumDescriptors);
-
-	for (i=0; i<desc->bNumDescriptors; i++) {
-		printk("        %d:\n", i);
-		printk("            bDescriptorType      =   %02x\n", desc->desc[i].bDescriptorType);
-		printk("            wDescriptorLength    =   %04x\n", desc->desc[i].wDescriptorLength);
-	}
-}
-
 void usb_show_endpoint_descriptor(struct usb_endpoint_descriptor *desc)
 {
 	char *LengthCommentString = (desc->bLength ==
@@ -175,9 +158,12 @@ void usb_show_endpoint_descriptor(struct usb_endpoint_descriptor *desc)
 
 void usb_show_string(struct usb_device *dev, char *id, int index)
 {
-	char *p = usb_string(dev, index);
+	char *buf;
 
-	if (p != 0)
-		printk(KERN_INFO "%s: %s\n", id, p);
+	if (!(buf = kmalloc(256, GFP_KERNEL)))
+		return;
+	if (usb_string(dev, index, buf, 256) > 0)
+		printk(KERN_INFO "%s: %s\n", id, buf);
+	kfree(buf);
 }
 

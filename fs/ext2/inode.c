@@ -24,6 +24,7 @@
 #include <linux/locks.h>
 #include <linux/smp_lock.h>
 #include <linux/sched.h>
+#include <linux/highuid.h>
 
 
 
@@ -254,6 +255,8 @@ repeat:
 	}
 	if (metadata) {
 		result = getblk (inode->i_dev, tmp, blocksize);
+		if (!buffer_uptodate(result))
+			wait_on_buffer(result);
 		memset(result->b_data, 0, blocksize);
 		mark_buffer_uptodate(result, 1);
 		mark_buffer_dirty(result, 1);
@@ -363,6 +366,8 @@ repeat:
 		goto out;
 	if (metadata) {
 		result = getblk (bh->b_dev, tmp, blocksize);
+		if (!buffer_uptodate(result))
+			wait_on_buffer(result);
 		memset(result->b_data, 0, inode->i_sb->s_blocksize);
 		mark_buffer_uptodate(result, 1);
 		mark_buffer_dirty(result, 1);
@@ -542,6 +547,8 @@ struct buffer_head * ext2_getblk(struct inode * inode, long block, int create, i
 		struct buffer_head *bh;
 		bh = getblk(dummy.b_dev, dummy.b_blocknr, inode->i_sb->s_blocksize);
 		if (buffer_new(&dummy)) {
+			if (!buffer_uptodate(bh))
+				wait_on_buffer(bh);
 			memset(bh->b_data, 0, inode->i_sb->s_blocksize);
 			mark_buffer_uptodate(bh, 1);
 			mark_buffer_dirty(bh, 1);
@@ -655,8 +662,12 @@ void ext2_read_inode (struct inode * inode)
 	raw_inode = (struct ext2_inode *) (bh->b_data + offset);
 
 	inode->i_mode = le16_to_cpu(raw_inode->i_mode);
-	inode->i_uid = le16_to_cpu(raw_inode->i_uid);
-	inode->i_gid = le16_to_cpu(raw_inode->i_gid);
+	inode->i_uid = (uid_t)le16_to_cpu(raw_inode->i_uid_low);
+	inode->i_gid = (gid_t)le16_to_cpu(raw_inode->i_gid_low);
+	if(!(test_opt (inode->i_sb, NO_UID32))) {
+		inode->i_uid |= le16_to_cpu(raw_inode->i_uid_high) << 16;
+		inode->i_gid |= le16_to_cpu(raw_inode->i_gid_high) << 16;
+	}
 	inode->i_nlink = le16_to_cpu(raw_inode->i_links_count);
 	inode->i_size = le32_to_cpu(raw_inode->i_size);
 	inode->i_atime = le32_to_cpu(raw_inode->i_atime);
@@ -795,8 +806,26 @@ static int ext2_update_inode(struct inode * inode, int do_sync)
 	raw_inode = (struct ext2_inode *) (bh->b_data + offset);
 
 	raw_inode->i_mode = cpu_to_le16(inode->i_mode);
-	raw_inode->i_uid = cpu_to_le16(inode->i_uid);
-	raw_inode->i_gid = cpu_to_le16(inode->i_gid);
+	if(!(test_opt(inode->i_sb, NO_UID32))) {
+		raw_inode->i_uid_low = cpu_to_le16(low_16_bits(inode->i_uid));
+		raw_inode->i_gid_low = cpu_to_le16(low_16_bits(inode->i_gid));
+/*
+ * Fix up interoperability with old kernels. Otherwise, old inodes get
+ * re-used with the upper 16 bits of the uid/gid intact
+ */
+		if(!inode->u.ext2_i.i_dtime) {
+			raw_inode->i_uid_high = cpu_to_le16(high_16_bits(inode->i_uid));
+			raw_inode->i_gid_high = cpu_to_le16(high_16_bits(inode->i_gid));
+		} else {
+			raw_inode->i_uid_high = 0;
+			raw_inode->i_gid_high = 0;
+		}
+	} else {
+		raw_inode->i_uid_low = cpu_to_le16(fs_high2lowuid(inode->i_uid));
+		raw_inode->i_gid_low = cpu_to_le16(fs_high2lowgid(inode->i_gid));
+		raw_inode->i_uid_high = 0;
+		raw_inode->i_gid_high = 0;
+	}
 	raw_inode->i_links_count = cpu_to_le16(inode->i_nlink);
 	raw_inode->i_size = cpu_to_le32(inode->i_size);
 	raw_inode->i_atime = cpu_to_le32(inode->i_atime);
@@ -870,28 +899,28 @@ int ext2_notify_change(struct dentry *dentry, struct iattr *iattr)
 	flags = iattr->ia_attr_flags;
 	if (flags & ATTR_FLAG_SYNCRONOUS) {
 		inode->i_flags |= MS_SYNCHRONOUS;
-		inode->u.ext2_i.i_flags = EXT2_SYNC_FL;
+		inode->u.ext2_i.i_flags |= EXT2_SYNC_FL;
 	} else {
 		inode->i_flags &= ~MS_SYNCHRONOUS;
 		inode->u.ext2_i.i_flags &= ~EXT2_SYNC_FL;
 	}
 	if (flags & ATTR_FLAG_NOATIME) {
 		inode->i_flags |= MS_NOATIME;
-		inode->u.ext2_i.i_flags = EXT2_NOATIME_FL;
+		inode->u.ext2_i.i_flags |= EXT2_NOATIME_FL;
 	} else {
 		inode->i_flags &= ~MS_NOATIME;
 		inode->u.ext2_i.i_flags &= ~EXT2_NOATIME_FL;
 	}
 	if (flags & ATTR_FLAG_APPEND) {
 		inode->i_flags |= S_APPEND;
-		inode->u.ext2_i.i_flags = EXT2_APPEND_FL;
+		inode->u.ext2_i.i_flags |= EXT2_APPEND_FL;
 	} else {
 		inode->i_flags &= ~S_APPEND;
 		inode->u.ext2_i.i_flags &= ~EXT2_APPEND_FL;
 	}
 	if (flags & ATTR_FLAG_IMMUTABLE) {
 		inode->i_flags |= S_IMMUTABLE;
-		inode->u.ext2_i.i_flags = EXT2_IMMUTABLE_FL;
+		inode->u.ext2_i.i_flags |= EXT2_IMMUTABLE_FL;
 	} else {
 		inode->i_flags &= ~S_IMMUTABLE;
 		inode->u.ext2_i.i_flags &= ~EXT2_IMMUTABLE_FL;

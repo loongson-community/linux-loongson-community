@@ -161,6 +161,9 @@ int ndisc_mc_map(struct in6_addr *addr, char *buf, struct net_device *dev, int d
 	case ARPHRD_FDDI:
 		ipv6_eth_mc_map(addr, buf);
 		return 0;
+	case ARPHRD_IEEE802_TR:
+		ipv6_tr_mc_map(addr,buf);
+		return 0;
 	default:
 		if (dir) {
 			memcpy(buf, dev->broadcast, dev->addr_len);
@@ -374,8 +377,8 @@ void ndisc_send_na(struct net_device *dev, struct neighbour *neigh,
 
 	dev_queue_xmit(skb);
 
-	icmpv6_statistics.Icmp6OutNeighborAdvertisements++;
-	icmpv6_statistics.Icmp6OutMsgs++;
+	ICMP6_INC_STATS(Icmp6OutNeighborAdvertisements);
+	ICMP6_INC_STATS(Icmp6OutMsgs);
 }        
 
 void ndisc_send_ns(struct net_device *dev, struct neighbour *neigh,
@@ -436,8 +439,8 @@ void ndisc_send_ns(struct net_device *dev, struct neighbour *neigh,
 	/* send it! */
 	dev_queue_xmit(skb);
 
-	icmpv6_statistics.Icmp6OutNeighborSolicits++;
-	icmpv6_statistics.Icmp6OutMsgs++;
+	ICMP6_INC_STATS(Icmp6OutNeighborSolicits);
+	ICMP6_INC_STATS(Icmp6OutMsgs);
 }
 
 void ndisc_send_rs(struct net_device *dev, struct in6_addr *saddr,
@@ -487,8 +490,8 @@ void ndisc_send_rs(struct net_device *dev, struct in6_addr *saddr,
 	/* send it! */
 	dev_queue_xmit(skb);
 
-	icmpv6_statistics.Icmp6OutRouterSolicits++;
-	icmpv6_statistics.Icmp6OutMsgs++;
+	ICMP6_INC_STATS(Icmp6OutRouterSolicits);
+	ICMP6_INC_STATS(Icmp6OutMsgs);
 }
 		   
 
@@ -912,8 +915,8 @@ void ndisc_send_redirect(struct sk_buff *skb, struct neighbour *neigh,
 
 	dev_queue_xmit(buff);
 
-	icmpv6_statistics.Icmp6OutRedirects++;
-	icmpv6_statistics.Icmp6OutMsgs++;
+	ICMP6_INC_STATS(Icmp6OutRedirects);
+	ICMP6_INC_STATS(Icmp6OutMsgs);
 }
 
 static __inline__ struct neighbour *
@@ -968,9 +971,22 @@ int ndisc_rcv(struct sk_buff *skb, unsigned long len)
 				   does DAD, otherwise we ignore solicitations
 				   until DAD timer expires.
 				 */
-				if (addr_type == IPV6_ADDR_ANY)
-					addrconf_dad_failure(ifp);
-				else
+				if (addr_type == IPV6_ADDR_ANY) {
+					if (dev->type == ARPHRD_IEEE802_TR) { 
+						unsigned char *sadr = skb->mac.raw ;
+						if (((sadr[8] &0x7f) != (dev->dev_addr[0] & 0x7f)) ||
+						(sadr[9] != dev->dev_addr[1]) ||
+						(sadr[10] != dev->dev_addr[2]) ||
+						(sadr[11] != dev->dev_addr[3]) ||
+						(sadr[12] != dev->dev_addr[4]) ||
+						(sadr[13] != dev->dev_addr[5])) 
+						{
+							addrconf_dad_failure(ifp) ; 
+						}
+					} else {
+						addrconf_dad_failure(ifp);
+					}
+				} else
 					in6_ifa_put(ifp);
 				return 0;
 			}

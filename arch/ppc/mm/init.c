@@ -59,6 +59,10 @@
 
 #include "mem_pieces.h"
 
+#if defined(CONFIG_4xx)
+#include "4xx_tlb.h"
+#endif
+
 #define	PGTOKB(pages)	(((pages) * PAGE_SIZE) >> 10)
 
 int prom_trashed;
@@ -97,6 +101,9 @@ extern unsigned long *find_end_of_memory(void);
 #ifdef CONFIG_8xx
 unsigned long *m8xx_find_end_of_memory(void);
 #endif /* CONFIG_8xx */
+#ifdef CONFIG_4xx
+unsigned long *oak_find_end_of_memory(void);
+#endif
 static void mapin_ram(void);
 void map_page(unsigned long va, unsigned long pa, int flags);
 extern void die_if_kernel(char *,struct pt_regs *,long);
@@ -339,9 +346,7 @@ void si_meminfo(struct sysinfo *val)
 			continue;
 		val->sharedram += atomic_read(&mem_map[i].count) - 1;
 	}
-	val->totalram <<= PAGE_SHIFT;
-	val->sharedram <<= PAGE_SHIFT;
-	return;
+	val->mem_unit = PAGE_SIZE;
 }
 
 void *
@@ -682,7 +687,7 @@ static void __init mapin_ram(void)
 	int i;
 	unsigned long v, p, s, f;
 
-#ifndef CONFIG_8xx
+#if !defined(CONFIG_4xx) && !defined(CONFIG_8xx)
 	if (!__map_without_bats) {
 		unsigned long tot, mem_base, bl, done;
 		unsigned long max_size = (256<<20);
@@ -717,7 +722,7 @@ static void __init mapin_ram(void)
 			       RAM_PAGE);
 		}
 	}
-#endif /* CONFIG_8xx */
+#endif /* !CONFIG_4xx && !CONFIG_8xx */
 
 	for (i = 0; i < phys_mem.n_regions; ++i) {
 		v = (ulong)__va(phys_mem.regions[i].address);
@@ -846,6 +851,31 @@ void free_initrd_mem(unsigned long start, unsigned long end)
  * still be merged.
  * -- Cort
  */
+#if defined(CONFIG_4xx)
+void __init
+MMU_init(void)
+{
+	PPC4xx_tlb_pin(KERNELBASE, 0, TLB_PAGESZ(PAGESZ_16M), 1);
+	PPC4xx_tlb_pin(OAKNET_IO_BASE, OAKNET_IO_BASE, TLB_PAGESZ(PAGESZ_4K), 0);
+        end_of_DRAM = oak_find_end_of_memory();
+
+        /* Map in all of RAM starting at KERNELBASE */
+
+        mapin_ram();
+
+        /* Zone 0 - kernel (above 0x80000000), zone 1 - user */
+
+        mtspr(SPRN_ZPR, 0x2aaaaaaa);
+        mtspr(SPRN_DCWR, 0x00000000);	/* all caching is write-back */
+
+        /* Cache 128MB of space starting at KERNELBASE. */
+
+        mtspr(SPRN_DCCR, 0x00000000);
+        /* flush_instruction_cache(); XXX */
+        mtspr(SPRN_ICCR, 0x00000000);
+        
+}
+#else
 void __init MMU_init(void)
 {
 	if ( ppc_md.progress ) ppc_md.progress("MMU:enter", 0x111);
@@ -947,6 +977,7 @@ void __init MMU_init(void)
 #endif /* CONFIG_8xx */
 	if ( ppc_md.progress ) ppc_md.progress("MMU:exit", 0x211);
 }
+#endif /* CONFIG_4xx */
 
 /*
  * Initialize the bootmem system and give it all the memory we
@@ -1037,29 +1068,21 @@ unsigned long __init find_available_memory(void)
  */
 void __init paging_init(void)
 {
+	unsigned int zones_size[MAX_NR_ZONES], i;
+
 	/*
 	 * Grab some memory for bad_page and bad_pagetable to use.
 	 */
 	empty_bad_page = alloc_bootmem_pages(PAGE_SIZE);
 	empty_bad_page_table = alloc_bootmem_pages(PAGE_SIZE);
-	{
-		unsigned int zones_size[MAX_NR_ZONES], i;
-		/*
-		 * All pages are DMA-able so this is wrong - the zone code is
-		 * assuming both regions have a value so this is necessary for
-		 * now.
-		 * -- Cort
-		 */
-#if 1
-		for ( i = 1; i < MAX_NR_ZONES; i++ )
-			zones_size[i] = 1<<MAX_ORDER;
-		zones_size[0] = (virt_to_phys(end_of_DRAM) >> PAGE_SHIFT) -
-			((MAX_NR_ZONES-1)*(1<<MAX_ORDER));
-#else
-		zones_size[0] = virt_to_phys(end_of_DRAM) >> PAGE_SHIFT;
-#endif
-		free_area_init(zones_size);
-	}
+
+	/*
+	 * All pages are DMA-able so we put them all in the DMA zone.
+	 */
+	zones_size[0] = virt_to_phys(end_of_DRAM) >> PAGE_SHIFT;
+	for (i = 1; i < MAX_NR_ZONES; i++)
+		zones_size[i] = 0;
+	free_area_init(zones_size);
 }
 
 void __init mem_init(void)
@@ -1404,7 +1427,7 @@ static void __init hash_init(void)
 	}
 	if ( ppc_md.progress ) ppc_md.progress("hash:done", 0x205);
 }
-#else /* CONFIG_8xx */
+#elif defined(CONFIG_8xx)
 /*
  * This is a big hack right now, but it may turn into something real
  * someday.
@@ -1432,4 +1455,29 @@ unsigned long __init *m8xx_find_end_of_memory(void)
 	set_phys_avail(&phys_mem);
 	return ret;
 }
-#endif /* ndef CONFIG_8xx */
+#endif /* !CONFIG_4xx && !CONFIG_8xx */
+
+#ifdef CONFIG_OAK
+/*
+ * Return the virtual address representing the top of physical RAM
+ * on the Oak board.
+ */
+unsigned long __init *
+oak_find_end_of_memory(void)
+{
+	extern unsigned char __res[];
+
+	unsigned long *ret;
+	bd_t *bip = (bd_t *)__res;
+	
+	phys_mem.regions[0].address = 0;
+	phys_mem.regions[0].size = bip->bi_memsize;
+	phys_mem.n_regions = 1;
+	
+	ret = __va(phys_mem.regions[0].address +
+		   phys_mem.regions[0].size);
+
+	set_phys_avail(&phys_mem);
+	return (ret);
+}
+#endif

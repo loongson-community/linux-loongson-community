@@ -31,6 +31,7 @@
 
 #define IDESCSI_VERSION "0.9"
 
+#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/types.h>
 #include <linux/string.h>
@@ -579,6 +580,17 @@ int idescsi_init (void)
 	for (i = 0; media[i] != 255; i++) {
 		failed = 0;
 		while ((drive = ide_scan_devices (media[i], idescsi_driver.name, NULL, failed++)) != NULL) {
+
+#ifndef CONFIG_BLK_DEV_IDETAPE
+			/*
+			 * The Onstream DI-30 does not handle clean emulation, yet.
+			 */
+			if (strstr(drive->id->model, "OnStream DI-30")) {
+				printk("ide-tape: ide-scsi emulation is not supported for %s.\n", drive->id->model);
+				continue;
+			}
+#endif /* CONFIG_BLK_DEV_IDETAPE */
+
 			if ((scsi = (idescsi_scsi_t *) kmalloc (sizeof (idescsi_scsi_t), GFP_KERNEL)) == NULL) {
 				printk (KERN_ERR "ide-scsi: %s: Can't allocate a scsi structure\n", drive->name);
 				continue;

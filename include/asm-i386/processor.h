@@ -57,6 +57,7 @@ struct cpuinfo_x86 {
 #define X86_VENDOR_UMC 3
 #define X86_VENDOR_NEXGEN 4
 #define X86_VENDOR_CENTAUR 5
+#define X86_VENDOR_RISE 6
 #define X86_VENDOR_UNKNOWN 0xff
 
 /*
@@ -114,7 +115,7 @@ extern struct cpuinfo_x86 cpu_data[];
 #define cpu_has_pae \
 		(boot_cpu_data.x86_capability & X86_FEATURE_PAE)
 #define cpu_has_tsc \
-		(cpu_data[smp_processor_id()].x86_capability & X86_FEATURE_TSC)
+		(boot_cpu_data.x86_capability & X86_FEATURE_TSC)
 
 extern char ignore_irq13;
 

@@ -2,6 +2,8 @@
 # For a description of the syntax of this configuration file,
 # see the Configure script.
 #
+define_bool CONFIG_UID16 n
+
 mainmenu_name "Linux/PowerPC Kernel Configuration"
 
 mainmenu_option next_comment
@@ -91,10 +93,9 @@ if [ "$CONFIG_OAK" = "y" ]; then
 fi
 if [ "$CONFIG_8xx" = "y" ]; then
     bool 'QSpan PCI' CONFIG_PCI
-else
-  if [ "$CONFIG_APUS" != "y" ]; then
+fi
+if [ "$CONFIG_6xx" = "y" -a "$CONFIG_APUS" != "y" ]; then
     define_bool CONFIG_PCI y
-  fi
 fi
 
 bool 'Networking support' CONFIG_NET
@@ -112,11 +113,15 @@ tristate 'Kernel support for MISC binaries' CONFIG_BINFMT_MISC
 
 source drivers/pci/Config.in
 
-source drivers/pcmcia/Config.in
+bool 'Support for hot-pluggable devices' CONFIG_HOTPLUG
+
+if [ "$CONFIG_HOTPLUG" = "y" ]; then
+   source drivers/pcmcia/Config.in
+fi
 
 source drivers/parport/Config.in
 
-if [ "$CONFIG_8xx" != "y" ]; then
+if [ "$CONFIG_4xx" != "y" -a "$CONFIG_8xx" != "y" ]; then
   bool 'Support for VGA Console' CONFIG_VGA_CONSOLE
   bool 'Support for frame buffer devices' CONFIG_FB
   if [ "$CONFIG_FB" = "y" ]; then
@@ -187,6 +192,8 @@ if [ "$CONFIG_SCSI" != "n" ]; then
   source drivers/scsi/Config.in
 fi
 endmenu
+
+source drivers/ieee1394/Config.in
 
 if [ "$CONFIG_NET" = "y" ]; then
   mainmenu_option next_comment

@@ -2,7 +2,7 @@
 
     PC Card Driver Services
     
-    ds.c 1.100 1999/11/08 20:47:02
+    ds.c 1.104 2000/01/11 01:18:02
     
     The contents of this file are subject to the Mozilla Public
     License Version 1.1 (the "License"); you may not use this file
@@ -46,6 +46,7 @@
 #include <linux/ioctl.h>
 #include <linux/proc_fs.h>
 #include <linux/poll.h>
+#include <linux/pci.h>
 
 #include <pcmcia/version.h>
 #include <pcmcia/cs_types.h>
@@ -59,10 +60,13 @@ int pc_debug = PCMCIA_DEBUG;
 MODULE_PARM(pc_debug, "i");
 #define DEBUG(n, args...) if (pc_debug>(n)) printk(KERN_DEBUG args)
 static const char *version =
-"ds.c 1.100 1999/11/08 20:47:02 (David Hinds)";
+"ds.c 1.104 2000/01/11 01:18:02 (David Hinds)";
 #else
 #define DEBUG(n, args...)
 #endif
+
+MODULE_AUTHOR("David Hinds <dhinds@pcmcia.sourceforge.org>");
+MODULE_DESCRIPTION("PCMCIA Driver Services " CS_RELEASE);
 
 /*====================================================================*/
 
@@ -154,6 +158,7 @@ int register_pccard_driver(dev_info_t *dev_info,
 	    break;
     if (!driver) {
 	driver = kmalloc(sizeof(driver_info_t), GFP_KERNEL);
+	if (!driver) return -ENOMEM;
 	strncpy(driver->dev_info, (char *)dev_info, DEV_NAME_LEN);
 	driver->use_count = 0;
 	driver->status = init_status;
@@ -192,7 +197,7 @@ int unregister_pccard_driver(dev_info_t *dev_info)
 			    DEV_NAME_LEN) != 0))
 	d = &(*d)->next;
     if (*d == NULL)
-	return -1;
+	return -ENODEV;
     
     target = *d;
     if (target->use_count == 0) {
@@ -376,6 +381,7 @@ static int bind_request(int i, bind_info_t *bind_info)
 	    break;
     if (driver == NULL) {
 	driver = kmalloc(sizeof(driver_info_t), GFP_KERNEL);
+	if (!driver) return -ENOMEM;
 	strncpy(driver->dev_info, bind_info->dev_info, DEV_NAME_LEN);
 	driver->use_count = 0;
 	driver->next = root_driver;
@@ -429,15 +435,55 @@ static int get_device_info(int i, bind_info_t *bind_info, int first)
     socket_info_t *s = &socket_table[i];
     socket_bind_t *b;
     dev_node_t *node;
-    
+
+#ifdef CONFIG_CARDBUS
+    /*
+     * Some unbelievably ugly code to associate the PCI cardbus
+     * device and its driver with the PCMCIA "bind" information.
+     */
+    {
+	struct pci_bus *bus;
+
+	bus = pcmcia_lookup_bus(s->handle);
+	if (bus) {
+	    	struct list_head *list;
+		struct pci_dev *dev = NULL;
+		
+		list = bus->devices.next;
+		while (list != &bus->devices) {
+			struct pci_dev *pdev = pci_dev_b(list);
+			list = list->next;
+
+			if (first) {
+				dev = pdev;
+				break;
+			}
+
+			/* Try to handle "next" here some way? */
+		}
+		if (dev && dev->driver) {
+			strncpy(bind_info->name, dev->driver->name, DEV_NAME_LEN);
+			bind_info->name[DEV_NAME_LEN-1] = '\0';
+			bind_info->major = 0;
+			bind_info->minor = 0;
+			bind_info->next = NULL;
+			return 0;
+		}
+	}
+    }
+#endif
+
     for (b = s->bind; b; b = b->next)
 	if (strcmp((char *)b->driver->dev_info,
 		   (char *)bind_info->dev_info) == 0)
 	    break;
     if (b == NULL) return -ENODEV;
-    if ((b->instance == NULL) ||
-	(b->instance->state & DEV_CONFIG_PENDING))
+
+    if (b->instance == NULL)
 	return -EAGAIN;
+    if (b->instance->state & DEV_CONFIG_PENDING)
+	return -EAGAIN;
+
     if (first)
 	node = b->instance->dev;
     else
@@ -481,11 +527,11 @@ static int unbind_request(int i, bind_info_t *bind_info)
 	    for (d = &root_driver; *d; d = &((*d)->next))
 		if (c->driver == *d) break;
 	    *d = (*d)->next;
-	    kfree_s(c->driver, sizeof(driver_info_t));
+	    kfree(c->driver);
 	}
     }
     *b = c->next;
-    kfree_s(c, sizeof(socket_bind_t));
+    kfree(c);
     
     return 0;
 } /* unbind_request */
@@ -513,8 +559,9 @@ static int ds_open(struct inode *inode, struct file *file)
 	    s->state |= SOCKET_BUSY;
     }
     
-    MOD_INC_USE_COUNT;
     user = kmalloc(sizeof(user_info_t), GFP_KERNEL);
+    if (!user) return -ENOMEM;
+    MOD_INC_USE_COUNT;
     user->event_tail = user->event_head = 0;
     user->next = s->user;
     user->user_magic = USER_MAGIC;
@@ -552,7 +599,7 @@ static int ds_release(struct inode *inode, struct file *file)
 	return 0;
     *link = user->next;
     user->user_magic = 0;
-    kfree_s(user, sizeof(user_info_t));
+    kfree(user);
     
     MOD_DEC_USE_COUNT;
     return 0;
@@ -663,7 +710,7 @@ static int ds_ioctl(struct inode * inode, struct file * file,
     if (size > sizeof(ds_ioctl_arg_t)) return -EINVAL;
 
     /* Permission check */
-    if (!(cmd & IOC_OUT) && !suser())
+    if (!(cmd & IOC_OUT) && !capable(CAP_SYS_ADMIN))
 	return -EPERM;
 	
     if (cmd & IOC_IN) {
@@ -732,7 +779,7 @@ static int ds_ioctl(struct inode * inode, struct file * file,
 	ret = pcmcia_insert_card(s->handle, NULL);
 	break;
     case DS_ACCESS_CONFIGURATION_REGISTER:
-	if ((buf.conf_reg.Action == CS_WRITE) && !suser())
+	if ((buf.conf_reg.Action == CS_WRITE) && !capable(CAP_SYS_ADMIN))
 	    return -EPERM;
 	ret = pcmcia_access_configuration_register(s->handle, &buf.conf_reg);
 	break;
@@ -757,7 +804,7 @@ static int ds_ioctl(struct inode * inode, struct file * file,
 	ret = pcmcia_replace_cis(s->handle, &buf.cisdump);
 	break;
     case DS_BIND_REQUEST:
-	if (!suser()) return -EPERM;
+	if (!capable(CAP_SYS_ADMIN)) return -EPERM;
 	err = bind_request(i, &buf.bind_info);
 	break;
     case DS_GET_DEVICE_INFO:
@@ -806,17 +853,12 @@ static int ds_ioctl(struct inode * inode, struct file * file,
 /*====================================================================*/
 
 static struct file_operations ds_fops = {
-    NULL,		/* lseek */
-    ds_read,		/* read */
-    ds_write,		/* write */
-    NULL,		/* readdir */
-    ds_poll,		/* poll */
-    ds_ioctl,		/* ioctl */
-    NULL,		/* mmap */
-    ds_open,		/* open */
-    NULL,		/* flush */
-    ds_release,		/* release */
-    NULL		/* fsync */
+    open:	ds_open,
+    release:	ds_release,
+    ioctl:	ds_ioctl,
+    read:	ds_read,
+    write:	ds_write,
+    poll:	ds_poll
 };
 
 EXPORT_SYMBOL(register_pccard_driver);
@@ -846,6 +888,7 @@ int __init init_pcmcia_ds(void)
     
     sockets = serv.Count;
     socket_table = kmalloc(sockets*sizeof(socket_info_t), GFP_KERNEL);
+    if (!socket_table) return -1;
     for (i = 0, s = socket_table; i < sockets; i++, s++) {
 	s->state = 0;
 	s->user = NULL;

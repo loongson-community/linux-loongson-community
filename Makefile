@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 3
-SUBLEVEL = 38
+SUBLEVEL = 40
 EXTRAVERSION =
 
 ARCH = mips
@@ -159,6 +159,10 @@ ifeq ($(CONFIG_SCSI),y)
 DRIVERS := $(DRIVERS) drivers/scsi/scsi.a
 endif
 
+ifeq ($(CONFIG_IEEE1394),y)
+DRIVERS := $(DRIVERS) drivers/ieee1394/ieee1394.a
+endif
+
 ifneq ($(CONFIG_CD_NO_IDESCSI)$(CONFIG_BLK_DEV_IDECD)$(CONFIG_BLK_DEV_SR)$(CONFIG_PARIDE_PCD),)
 DRIVERS := $(DRIVERS) drivers/cdrom/cdrom.a
 endif
@@ -203,8 +207,8 @@ ifdef CONFIG_PPC
 DRIVERS := $(DRIVERS) drivers/macintosh/macintosh.a
 endif
 
-ifeq ($(CONFIG_PNP),y)
-DRIVERS := $(DRIVERS) drivers/pnp/pnp.a
+ifeq ($(CONFIG_ISAPNP),y)
+DRIVERS := $(DRIVERS) drivers/pnp/isa-pnp.o
 endif
 
 ifdef CONFIG_SGI_IP22
@@ -236,7 +240,7 @@ DRIVERS := $(DRIVERS) drivers/tc/tc.a
 endif
 
 ifeq ($(CONFIG_USB),y)
-DRIVERS := $(DRIVERS) drivers/usb/usb.a
+DRIVERS := $(DRIVERS) drivers/usb/usbdrv.o
 endif
 
 ifeq ($(CONFIG_I2O),y)
@@ -398,6 +402,7 @@ modules_install:
 	if [ -f IRDA_MODULES  ]; then inst_mod IRDA_MODULES  net;   fi; \
 	if [ -f SK98LIN_MODULES ]; then inst_mod SK98LIN_MODULES  net;   fi; \
 	if [ -f USB_MODULES   ]; then inst_mod USB_MODULES   usb;   fi; \
+	if [ -f IEEE1394_MODULES ]; then inst_mod IEEE1394_MODULES ieee1394; fi; \
 	if [ -f PCMCIA_MODULES ]; then inst_mod PCMCIA_MODULES pcmcia; fi; \
 	if [ -f PCMCIA_NET_MODULES ]; then inst_mod PCMCIA_NET_MODULES pcmcia; fi; \
 	if [ -f PCMCIA_CHAR_MODULES ]; then inst_mod PCMCIA_CHAR_MODULES pcmcia; fi; \
@@ -484,7 +489,7 @@ depend dep: dep-files $(MODVERFILE)
 
 # make checkconfig: Prune 'scripts' directory to avoid "false positives".
 checkconfig:
-	perl -w scripts/checkconfig.pl `find * -path 'scripts' -prune -o -name '*.[hcS]' -print | sort`
+	find * -name '*.[hcS]' -type f -print | grep -v scripts/ | sort | xargs perl -w scripts/checkconfig.pl
 
 checkhelp:
 	perl -w scripts/checkhelp.pl `find * -name [cC]onfig.in -print`

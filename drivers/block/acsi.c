@@ -369,7 +369,7 @@ static int acsi_release( struct inode * inode, struct file * file );
 static void acsi_prevent_removal( int target, int flag );
 static int acsi_change_blk_size( int target, int lun);
 static int acsi_mode_sense( int target, int lun, SENSE_DATA *sd );
-static void acsi_geninit( struct gendisk *gd );
+static void acsi_geninit(void);
 static int revalidate_acsidisk( int dev, int maxusage );
 static int acsi_revalidate (dev_t);
 
@@ -1216,11 +1216,7 @@ static int acsi_open( struct inode * inode, struct file * filp )
 
 static int acsi_release( struct inode * inode, struct file * file )
 {
-	int device;
-
-	sync_dev(inode->i_rdev);
-
-	device = DEVICE_NR(MINOR(inode->i_rdev));
+	int device = DEVICE_NR(MINOR(inode->i_rdev));
 	if (--access_count[device] == 0 && acsi_info[device].removable)
 		acsi_prevent_removal(device, 0);
 	MOD_DEC_USE_COUNT;
@@ -1390,21 +1386,15 @@ static int acsi_mode_sense( int target, int lun, SENSE_DATA *sd )
 
 
 static struct gendisk acsi_gendisk = {
-	MAJOR_NR,			/* Major number */	
-	"ad",				/* Major name */
-	4,					/* Bits to shift to get real from partition */
-	1 << 4,				/* Number of partitions per real */
-	MAX_DEV,			/* maximum number of real */
-#ifdef MODULE
-	NULL,				/* called from init_module() */
-#else
-	acsi_geninit,		/* init function */
-#endif
-	acsi_part,			/* hd struct */
-	acsi_sizes,			/* block sizes */
-	0,					/* number */
+	MAJOR_NR,		/* Major number */	
+	"ad",			/* Major name */
+	4,			/* Bits to shift to get real from partition */
+	1 << 4,			/* Number of partitions per real */
+	acsi_part,		/* hd struct */
+	acsi_sizes,		/* block sizes */
+	0,			/* number */
 	(void *)acsi_info,	/* internal */
-	NULL				/* next */
+	NULL			/* next */
 };
 	
 #define MAX_SCSI_DEVICE_CODE 10
@@ -1663,7 +1653,15 @@ EXPORT_SYMBOL(acsi_attach_SLMs);
 int SLM_devices[8];
 #endif
 
-static void acsi_geninit( struct gendisk *gd )
+static struct block_device_operations acsi_fops = {
+	open:			acsi_open,
+	release:		acsi_release,
+	ioctl:			acsi_ioctl,
+	check_media_change:	acsi_media_change,
+	revalidate:		acsi_revalidate,
+};
+
+static void acsi_geninit(void)
 {
 	int i, target, lun;
 	struct acsi_info_struct *aip;
@@ -1745,14 +1743,15 @@ static void acsi_geninit( struct gendisk *gd )
 			NDevices, n_slm );
 #endif
 					 
-	for( i = 0; i < NDevices; ++i ) {
-		acsi_part[i<<4].start_sect = 0;
-		acsi_part[i<<4].nr_sects = acsi_info[i].size;
-	}
-	acsi_gendisk.nr_real = NDevices;
 	for( i = 0; i < (MAX_DEV << 4); i++ )
 		acsi_blocksizes[i] = 1024;
 	blksize_size[MAJOR_NR] = acsi_blocksizes;
+	for( i = 0; i < NDevices; ++i )
+		register_disk(&acsi_gendisk, MKDEV(MAJOR_NR,i<<4),
+				(acsi_info[i].type==HARDDISK)?1<<4:1,
+				&acsi_fops,
+				acsi_info[i].size);
+	acsi_gendisk.nr_real = NDevices;
 }
 
 #ifdef CONFIG_ATARI_SLM_MODULE
@@ -1770,18 +1769,11 @@ void acsi_attach_SLMs( int (*attach_func)( int, int ) )
 }
 #endif /* CONFIG_ATARI_SLM_MODULE */
 
-static struct block_device_operations acsi_fops = {
-	open:			acsi_open,
-	release:		acsi_release,
-	ioctl:			acsi_ioctl,
-	check_media_change:	acsi_media_change,
-	revalidate:		acsi_revalidate,
-};
-
 
 int acsi_init( void )
 
 {
+	int err = 0;
 	if (!MACH_IS_ATARI || !ATARIHW_PRESENT(ACSI))
 		return 0;
 
@@ -1805,10 +1797,11 @@ int acsi_init( void )
 	gendisk_head = &acsi_gendisk;
 
 #ifdef CONFIG_ATARI_SLM
-	return( slm_init() );
-#else
-	return 0;
+	err = slm_init();
 #endif
+	if (!err)
+		acsi_geninit();
+	return err;
 }
 
 
@@ -1820,7 +1813,6 @@ int init_module(void)
 	if ((err = acsi_init()))
 		return( err );
 	printk( KERN_INFO "ACSI driver loaded as module.\n");
-	acsi_geninit( &(struct gendisk){ 0,0,0,0,0,0,0,0,0,0,0 } );
 	return( 0 );
 }
 
@@ -1918,9 +1910,7 @@ static int revalidate_acsidisk( int dev, int maxusage )
 	ENABLE_IRQ();
 	stdma_release();
 	
-	gdev->part[start].nr_sects = aip->size;
-	if (aip->type == HARDDISK && aip->size > 0)
-		resetup_one_dev(gdev, device);
+	grok_partitions(gdev, device, (aip->type==HARDDISK)?1<<4:1, aip->size);
 
 	DEVICE_BUSY = 0;
 	wake_up(&busy_wait);

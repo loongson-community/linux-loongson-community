@@ -266,10 +266,10 @@ svc_sendto(struct svc_rqst *rqstp, struct iovec *iov, int nr)
 	set_fs(oldfs);
 #endif
 
-	dprintk("svc: socket %p sendto([%p %d... ], %d, %d) = %d\n",
-			rqstp->rq_sock,
-			iov[0].iov_base, iov[0].iov_len, nr,
-			buflen, len);
+	dprintk("svc: socket %p sendto([%p %lu... ], %d, %d) = %d\n",
+		rqstp->rq_sock, iov[0].iov_base,
+		(unsigned long) iov[0].iov_len, nr,
+		buflen, len);
 
 	return len;
 }
@@ -326,8 +326,8 @@ svc_recvfrom(struct svc_rqst *rqstp, struct iovec *iov, int nr, int buflen)
 	set_fs(oldfs);
 #endif
 
-	dprintk("svc: socket %p recvfrom(%p, %d) = %d\n", rqstp->rq_sock,
-				iov[0].iov_base, iov[0].iov_len, len);
+	dprintk("svc: socket %p recvfrom(%p, %lu) = %d\n", rqstp->rq_sock,
+		iov[0].iov_base, (unsigned long) iov[0].iov_len, len);
 
 	return len;
 }
@@ -526,16 +526,18 @@ svc_tcp_accept(struct svc_sock *svsk)
 	newsock->ops = ops = sock->ops;
 
 	if ((err = ops->accept(sock, newsock, O_NONBLOCK)) < 0) {
-		printk(KERN_WARNING "%s: accept failed (err %d)!\n",
-					serv->sv_name, -err);
+		if (net_ratelimit())
+			printk(KERN_WARNING "%s: accept failed (err %d)!\n",
+				   serv->sv_name, -err);
 		goto failed;		/* aborted connection or whatever */
 	}
 
 	slen = sizeof(sin);
 	err = ops->getname(newsock, (struct sockaddr *) &sin, &slen, 1);
 	if (err < 0) {
-		printk(KERN_WARNING "%s: peername failed (err %d)!\n",
-					serv->sv_name, -err);
+		if (net_ratelimit())
+			printk(KERN_WARNING "%s: peername failed (err %d)!\n",
+				   serv->sv_name, -err);
 		goto failed;		/* aborted connection or whatever */
 	}
 
@@ -543,10 +545,11 @@ svc_tcp_accept(struct svc_sock *svsk)
 	 * hosts here, but we have no generic client tables. For now,
 	 * we just punt connects from unprivileged ports. */
 	if (ntohs(sin.sin_port) >= 1024) {
-		printk(KERN_WARNING
-			"%s: connect from unprivileged port: %s:%d",
-			serv->sv_name, 
-			in_ntoa(sin.sin_addr.s_addr), ntohs(sin.sin_port));
+		if (net_ratelimit())
+			printk(KERN_WARNING
+				   "%s: connect from unprivileged port: %s:%d",
+				   serv->sv_name, 
+				   in_ntoa(sin.sin_addr.s_addr), ntohs(sin.sin_port));
 		goto failed;
 	}
 
@@ -913,7 +916,7 @@ svc_create_socket(struct svc_serv *serv, int protocol, struct sockaddr_in *sin)
 	int		error;
 	int		type;
 
-	dprintk("svc: svc_create_socket(%s, %d, %08lx:%d)\n",
+	dprintk("svc: svc_create_socket(%s, %d, %08x:%d)\n",
 				serv->sv_program->pg_name, protocol,
 				ntohl(sin->sin_addr.s_addr),
 				ntohs(sin->sin_port));

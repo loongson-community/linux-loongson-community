@@ -657,23 +657,16 @@ static int hd_open(struct inode * inode, struct file * filp)
  */
 static int hd_release(struct inode * inode, struct file * file)
 {
-        int target;
-	sync_dev(inode->i_rdev);
-
-	target =  DEVICE_NR(inode->i_rdev);
+        int target =  DEVICE_NR(inode->i_rdev);
 	access_count[target]--;
 	return 0;
 }
-
-static void hd_geninit(struct gendisk *);
 
 static struct gendisk hd_gendisk = {
 	MAJOR_NR,	/* Major number */	
 	"hd",		/* Major name */
 	6,		/* Bits to shift to get real from partition */
 	1 << 6,		/* Number of partitions per real */
-	MAX_HD,		/* maximum number of real */
-	hd_geninit,	/* init function */
 	hd,		/* hd struct */
 	hd_sizes,	/* block sizes */
 	0,		/* number */
@@ -693,6 +686,12 @@ static void hd_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	sti();
 }
 
+static struct block_device_operations hd_fops = {
+	open:		hd_open,
+	release:	hd_release,
+	ioctl:		hd_ioctl,
+};
+
 /*
  * This is the hard disk IRQ description. The SA_INTERRUPT in sa_flags
  * means we run the IRQ-handler with interrupts disabled:  this is bad for
@@ -702,9 +701,16 @@ static void hd_interrupt(int irq, void *dev_id, struct pt_regs *regs)
  * We enable interrupts in some of the routines after making sure it's
  * safe.
  */
-static void hd_geninit(struct gendisk *ignored)
+static void hd_geninit(void)
 {
 	int drive;
+
+	for(drive=0; drive < (MAX_HD << 6); drive++) {
+		hd_blocksizes[drive] = 1024;
+		hd_hardsectsizes[drive] = 512;
+	}
+	blksize_size[MAJOR_NR] = hd_blocksizes;
+	hardsect_size[MAJOR_NR] = hd_hardsectsizes;
 
 #ifdef __i386__
 	if (!NR_HD) {
@@ -768,36 +774,29 @@ static void hd_geninit(struct gendisk *ignored)
 #endif
 
 	for (drive=0 ; drive < NR_HD ; drive++) {
-		hd[drive<<6].nr_sects = hd_info[drive].head *
-			hd_info[drive].sect * hd_info[drive].cyl;
 		printk ("hd%c: %ldMB, CHS=%d/%d/%d\n", drive+'a',
 			hd[drive<<6].nr_sects / 2048, hd_info[drive].cyl,
 			hd_info[drive].head, hd_info[drive].sect);
 	}
-	if (NR_HD) {
-		if (request_irq(HD_IRQ, hd_interrupt, SA_INTERRUPT, "hd", NULL)) {
-			printk("hd: unable to get IRQ%d for the hard disk driver\n",HD_IRQ);
-			NR_HD = 0;
-		} else {
-			request_region(HD_DATA, 8, "hd");
-			request_region(HD_CMD, 1, "hd(cmd)");
-		}
+	if (!NR_HD)
+		return;
+
+	if (request_irq(HD_IRQ, hd_interrupt, SA_INTERRUPT, "hd", NULL)) {
+		printk("hd: unable to get IRQ%d for the hard disk driver\n",
+			HD_IRQ);
+		NR_HD = 0;
+		return;
 	}
+	request_region(HD_DATA, 8, "hd");
+	request_region(HD_CMD, 1, "hd(cmd)");
+
 	hd_gendisk.nr_real = NR_HD;
 
-	for(drive=0; drive < (MAX_HD << 6); drive++) {
-		hd_blocksizes[drive] = 1024;
-		hd_hardsectsizes[drive] = 512;
-	}
-	blksize_size[MAJOR_NR] = hd_blocksizes;
-	hardsect_size[MAJOR_NR] = hd_hardsectsizes;
+	for(drive=0; drive < NR_HD; drive++)
+		register_disk(&hd_gendisk, MKDEV(MAJOR_NR,drive<<6), 1<<6,
+			&hd_fops, hd_info[drive].head * hd_info[drive].sect *
+			hd_info[drive].cyl);
 }
-
-static struct block_device_operations hd_fops = {
-	open:		hd_open,
-	release:	hd_release,
-	ioctl:		hd_ioctl,
-};
 
 int __init hd_init(void)
 {
@@ -810,6 +809,7 @@ int __init hd_init(void)
 	hd_gendisk.next = gendisk_head;
 	gendisk_head = &hd_gendisk;
 	timer_table[HD_TIMER].fn = hd_times_out;
+	hd_geninit();
 	return 0;
 }
 
@@ -870,8 +870,7 @@ static int revalidate_hddisk(kdev_t dev, int maxusage)
 	MAYBE_REINIT;
 #endif
 
-	gdev->part[start].nr_sects = CAPACITY;
-	resetup_one_dev(gdev, target);
+	grok_partitions(gdev, target, 1<<6, CAPACITY);
 
 	DEVICE_BUSY = 0;
 	wake_up(&busy_wait);

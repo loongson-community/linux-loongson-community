@@ -1413,8 +1413,6 @@ static int sjcd_release( struct inode *inode, struct file *file ){
 #endif
   if( --sjcd_open_count == 0 ){
     sjcd_invalidate_buffers();
-    sync_dev( inode->i_rdev );
-    invalidate_buffers( inode->i_rdev );
     s = sjcd_tray_unlock();
     if( s < 0 || !sjcd_status_valid || sjcd_command_failed ){
 #if defined( SJCD_DIAGNOSTIC )
@@ -1480,6 +1478,7 @@ int __init sjcd_init( void ){
   
   blk_init_queue(BLK_DEFAULT_QUEUE(MAJOR_NR), DEVICE_REQUEST);
   read_ahead[ MAJOR_NR ] = 4;
+  register_disk(NULL, MKDEV(MAJOR_NR,0), 1, &sjcd_fops, 0);
   
   if( check_region( sjcd_base, 4 ) ){
     printk( "SJCD: Init failed, I/O port (%X) is already in use\n",

@@ -685,7 +685,6 @@ static int i2ob_release(struct inode *inode, struct file *file)
 	minor = MINOR(inode->i_rdev);
 	if (minor >= (MAX_I2OB<<4))
 		return -ENODEV;
-	sync_dev(inode->i_rdev);
 	dev = &i2ob_dev[(minor&0xF0)];
 	if (dev->refcnt <= 0)
 		printk(KERN_ALERT "i2ob_release: refcount(%d) <= 0\n", dev->refcnt);
@@ -739,7 +738,9 @@ static int i2ob_open(struct inode *inode, struct file *file)
 	if (minor >= MAX_I2OB<<4)
 		return -ENODEV;
 	dev=&i2ob_dev[(minor&0xF0)];
-
+	if(dev->i2odev == NULL)
+		return -ENODEV;
+		
 	if(dev->refcnt++==0)
 	{ 
 		u32 msg[6];
@@ -822,7 +823,6 @@ static int i2ob_install_device(struct i2o_controller *c, struct i2o_device *d, i
 	i2ob_query_device(dev, 0x0000, 6, &status, 4);
 	i2ob_sizes[unit] = (int)(size>>10);
 	i2ob_hardsizes[unit] = blocksize;
-	i2ob_gendisk.part[unit].nr_sects = i2ob_sizes[unit];
 
 	limit=4096;	/* 8 deep scatter gather */
 
@@ -870,7 +870,7 @@ static int i2ob_install_device(struct i2o_controller *c, struct i2o_device *d, i
 	printk(".\n");
 	printk("%s: Maximum sectors/read set to %d.\n", 
 		d->dev_name, i2ob_max_sectors[unit]);
-	resetup_one_dev(&i2ob_gendisk, unit>>4);
+	grok_partitions(&i2ob_gendisk, unit>>4, 1<<4, (long)(size>>9));
 	return 0;
 }
 
@@ -1014,14 +1014,6 @@ static struct block_device_operations i2ob_fops =
 	check_media_change:	i2ob_media_change,
 	revalidate:		i2ob_revalidate,
 };
-
-/*
- *	Partitioning
- */
- 
-static void i2ob_geninit(struct gendisk *gd)
-{
-}
 	
 static struct gendisk i2ob_gendisk = 
 {
@@ -1029,8 +1021,6 @@ static struct gendisk i2ob_gendisk =
 	"i2ohd",
 	4,
 	1<<4,
-	MAX_I2OB,
-	i2ob_geninit,
 	i2ob,
 	i2ob_sizes,
 	0,
@@ -1129,6 +1119,9 @@ int i2o_block_init(void)
 	 *	Finally see what is actually plugged in to our controllers
 	 */
 
+	for (i = 0; i < MAX_I2OB; i++)
+		register_disk(&i2ob_gendisk, MKDEV(MAJOR_NR,i<<4), 1<<4,
+			&i2ob_fops, 0);
 	i2ob_probe();
 	
 	register_reboot_notifier(&i2ob_reboot_notifier);

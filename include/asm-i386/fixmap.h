@@ -15,7 +15,7 @@
 
 #include <linux/config.h>
 #include <linux/kernel.h>
-#include <asm/apic.h>
+#include <asm/apicdef.h>
 #include <asm/page.h>
 #ifdef CONFIG_HIGHMEM
 #include <linux/threads.h>
@@ -68,8 +68,16 @@ enum fixed_addresses {
 	__end_of_fixed_addresses
 };
 
-extern void set_fixmap (enum fixed_addresses idx, unsigned long phys);
+extern void __set_fixmap (enum fixed_addresses idx,
+					unsigned long phys, pgprot_t flags);
 
+#define set_fixmap(idx, phys) \
+		__set_fixmap(idx, phys, PAGE_KERNEL)
+/*
+ * Some hardware wants to get fixmapped without caching.
+ */
+#define set_fixmap_nocache(idx, phys) \
+		__set_fixmap(idx, phys, PAGE_KERNEL_NOCACHE)
 /*
  * used by vmalloc.c.
  *

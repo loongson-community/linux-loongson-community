@@ -5,18 +5,18 @@
  *	2 of the License, or (at your option) any later version.
  *
  *	(c) Copyright 1998 Building Number Three Ltd
+ *	(c) Copyright 2000 Red Hat Software
  *
  *	Development of this driver was funded by Equiinet Ltd
  *			http://www.equiinet.com
  *
  *	ChangeLog:
  *
- *	Asynchronous mode dropped for 2.2. For 2.3 we will attempt the
+ *	Asynchronous mode dropped for 2.2. For 2.5 we will attempt the
  *	unification of all the Z85x30 asynchronous drivers for real.
  *
- *	To Do:
- *	
- *	Finish DMA mode support.
+ *	DMA now uses get_free_page as kmalloc buffers may span a 64K 
+ *	boundary.
  *
  *	Performance
  *
@@ -170,7 +170,7 @@ EXPORT_SYMBOL(z8530_hdlc_kilostream);
 /*
  *	As above but for enhanced chips.
  */
-
+ 
 u8 z8530_hdlc_kilostream_85230[]=
 {
 	4,	SYNC_ENAB|SDLC|X1CLK,
@@ -355,13 +355,15 @@ static void z8530_status(struct z8530_channel *chan)
 		z8530_tx_done(chan);
 	}
 		
-	if(altered&DCD)
+	if(altered&chan->dcdcheck)
 	{
-		if(status&DCD)
+		if(status&chan->dcdcheck)
 		{
 			printk(KERN_INFO "%s: DCD raised\n", chan->dev->name);
 			write_zsreg(chan, R3, chan->regs[3]|RxENABLE);
-			if(chan->netdevice)
+			if(chan->netdevice &&
+			    ((chan->netdevice->type == ARPHRD_HDLC) ||
+			    (chan->netdevice->type == ARPHRD_PPP)))
 				sppp_reopen(chan->netdevice);
 		}
 		else
@@ -441,7 +443,6 @@ static void z8530_dma_status(struct z8530_channel *chan)
 		if(status&TxEOM)
 		{
 			flags=claim_dma_lock();
-			/* Transmit underrun */
 			disable_dma(chan->txdma);
 			clear_dma_ff(chan->txdma);	
 			chan->txdma_on=0;
@@ -449,13 +450,15 @@ static void z8530_dma_status(struct z8530_channel *chan)
 			z8530_tx_done(chan);
 		}
 	}
-	if(altered&DCD)
+	if(altered&chan->dcdcheck)
 	{
-		if(status&DCD)
+		if(status&chan->dcdcheck)
 		{
 			printk(KERN_INFO "%s: DCD raised\n", chan->dev->name);
 			write_zsreg(chan, R3, chan->regs[3]|RxENABLE);
-			if(chan->netdevice)
+			if(chan->netdevice &&
+			    ((chan->netdevice->type == ARPHRD_HDLC) ||
+			    (chan->netdevice->type == ARPHRD_PPP)))
 				sppp_reopen(chan->netdevice);
 		}
 		else
@@ -662,39 +665,28 @@ int z8530_sync_dma_open(struct net_device *dev, struct z8530_channel *c)
 	c->txdma_on = 0;
 	
 	/*
-	 *	Allocate the DMA flip buffers
+	 *	Allocate the DMA flip buffers. Limit by page size.
+	 *	Everyone runs 1500 mtu or less on wan links so this
+	 *	should be fine.
 	 */
 	 
-	c->rx_buf[0]=kmalloc(c->mtu, GFP_KERNEL|GFP_DMA);
+	if(c->mtu  > PAGE_SIZE/2)
+		return -EMSGSIZE;
+	 
+	c->rx_buf[0]=(void *)get_free_page(GFP_KERNEL|GFP_DMA);
 	if(c->rx_buf[0]==NULL)
 		return -ENOBUFS;
-	c->rx_buf[1]=kmalloc(c->mtu, GFP_KERNEL|GFP_DMA);
-	if(c->rx_buf[1]==NULL)
-	{
-		kfree(c->rx_buf[0]);
-		c->rx_buf[0]=NULL;
-		return -ENOBUFS;
-	}
+	c->rx_buf[1]=c->rx_buf[0]+PAGE_SIZE/2;
 	
-	c->tx_dma_buf[0]=kmalloc(c->mtu, GFP_KERNEL|GFP_DMA);
+	c->tx_dma_buf[0]=(void *)get_free_page(GFP_KERNEL|GFP_DMA);
 	if(c->tx_dma_buf[0]==NULL)
 	{
-		kfree(c->rx_buf[0]);
-		kfree(c->rx_buf[1]);
+		free_page((unsigned long)c->rx_buf[0]);
 		c->rx_buf[0]=NULL;
 		return -ENOBUFS;
 	}
-	c->tx_dma_buf[1]=kmalloc(c->mtu, GFP_KERNEL|GFP_DMA);
-	if(c->tx_dma_buf[1]==NULL)
-	{
-		kfree(c->tx_dma_buf[0]);
-		kfree(c->rx_buf[0]);
-		kfree(c->rx_buf[1]);
-		c->rx_buf[0]=NULL;
-		c->rx_buf[1]=NULL;
-		c->tx_dma_buf[0]=NULL;
-		return -ENOBUFS;
-	}
+	c->tx_dma_buf[1]=c->tx_dma_buf[0]+PAGE_SIZE/2;
+
 	c->tx_dma_used=0;
 	c->dma_tx = 1;
 	c->dma_num=0;
@@ -806,23 +798,13 @@ int z8530_sync_dma_close(struct net_device *dev, struct z8530_channel *c)
 	
 	if(c->rx_buf[0])
 	{
-		kfree(c->rx_buf[0]);
+		free_page((unsigned long)c->rx_buf[0]);
 		c->rx_buf[0]=NULL;
-	}
-	if(c->rx_buf[1])
-	{
-		kfree(c->rx_buf[1]);
-		c->rx_buf[1]=NULL;
 	}
 	if(c->tx_dma_buf[0])
 	{
-		kfree(c->tx_dma_buf[0]);
+		free_page((unsigned  long)c->tx_dma_buf[0]);
 		c->tx_dma_buf[0]=NULL;
-	}
-	if(c->tx_dma_buf[1])
-	{
-		kfree(c->tx_dma_buf[1]);
-		c->tx_dma_buf[1]=NULL;
 	}
 	chk=read_zsreg(c,R0);
 	write_zsreg(c, R3, c->regs[R3]);
@@ -857,25 +839,21 @@ int z8530_sync_txdma_open(struct net_device *dev, struct z8530_channel *c)
 	c->rxdma_on = 0;
 	c->txdma_on = 0;
 	
-	c->tx_dma_buf[0]=kmalloc(c->mtu, GFP_KERNEL|GFP_DMA);
+	/*
+	 *	Allocate the DMA flip buffers. Limit by page size.
+	 *	Everyone runs 1500 mtu or less on wan links so this
+	 *	should be fine.
+	 */
+	 
+	if(c->mtu  > PAGE_SIZE/2)
+		return -EMSGSIZE;
+	 
+	c->tx_dma_buf[0]=(void *)get_free_page(GFP_KERNEL|GFP_DMA);
 	if(c->tx_dma_buf[0]==NULL)
-	{
-		kfree(c->rx_buf[0]);
-		kfree(c->rx_buf[1]);
-		c->rx_buf[0]=NULL;
 		return -ENOBUFS;
-	}
-	c->tx_dma_buf[1]=kmalloc(c->mtu, GFP_KERNEL|GFP_DMA);
-	if(c->tx_dma_buf[1]==NULL)
-	{
-		kfree(c->tx_dma_buf[0]);
-		kfree(c->rx_buf[0]);
-		kfree(c->rx_buf[1]);
-		c->rx_buf[0]=NULL;
-		c->rx_buf[1]=NULL;
-		c->tx_dma_buf[0]=NULL;
-		return -ENOBUFS;
-	}
+
+	c->tx_dma_buf[1] = c->tx_dma_buf[0] + PAGE_SIZE/2;
+
 	c->tx_dma_used=0;
 	c->dma_num=0;
 	c->dma_ready=1;
@@ -960,13 +938,8 @@ int z8530_sync_txdma_close(struct net_device *dev, struct z8530_channel *c)
 	
 	if(c->tx_dma_buf[0])
 	{
-		kfree(c->tx_dma_buf[0]);
+		free_page((unsigned long)c->tx_dma_buf[0]);
 		c->tx_dma_buf[0]=NULL;
-	}
-	if(c->tx_dma_buf[1])
-	{
-		kfree(c->tx_dma_buf[1]);
-		c->tx_dma_buf[1]=NULL;
 	}
 	chk=read_zsreg(c,R0);
 	write_zsreg(c, R3, c->regs[R3]);
@@ -1012,6 +985,8 @@ int z8530_init(struct z8530_dev *dev)
 	   floating IRQ transition when we reset the chip */
 	dev->chanA.irqs=&z8530_nop;
 	dev->chanB.irqs=&z8530_nop;
+	dev->chanA.dcdcheck=DCD;
+	dev->chanB.dcdcheck=DCD;
 	/* Reset the chip */
 	write_zsreg(&dev->chanA, R9, 0xC0);
 	udelay(200);
@@ -1104,7 +1079,7 @@ int z8530_channel_load(struct z8530_channel *c, u8 *rtable)
 	c->mtu=1500;
 	c->max=0;
 	c->count=0;
-	c->status=0;	/* Fixme - check DCD now */
+	c->status=read_zsreg(c, R0);
 	c->sync=1;
 	write_zsreg(c, R3, c->regs[R3]|RxENABLE);
 	return 0;
@@ -1251,7 +1226,7 @@ static void z8530_rx_done(struct z8530_channel *c)
 		 *	Save the ready state and the buffer currently
 		 *	being used as the DMA target
 		 */
-
+		 
 		int ready=c->dma_ready;
 		unsigned char *rxb=c->rx_buf[c->dma_num];
 		unsigned long flags;

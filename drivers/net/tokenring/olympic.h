@@ -245,6 +245,8 @@ struct olympic_private {
 	__u8 *olympic_lap;
 	char *olympic_card_name ; 
 
+	spinlock_t olympic_lock ; 
+
 	volatile int srb_queued;    /* True if an SRB is still posted */	
 	wait_queue_head_t srb_wait;
 
@@ -265,7 +267,6 @@ struct olympic_private {
 	__u8 olympic_ring_speed ;
 	__u16 pkt_buf_sz ; 
 	__u8 olympic_receive_options, olympic_copy_all_options, olympic_message_level;  
-	__u8 olympic_multicast_set ; 
 	__u16 olympic_addr_table_addr, olympic_parms_addr ; 
 	__u8 olympic_laa[6] ; 
 };

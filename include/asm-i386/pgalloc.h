@@ -195,7 +195,7 @@ extern inline void set_pgdir(unsigned long address, pgd_t entry)
 #ifndef __SMP__
 
 #define flush_tlb() __flush_tlb()
-#define flush_tlb_all() __flush_tlb()
+#define flush_tlb_all() __flush_tlb_all()
 #define local_flush_tlb() __flush_tlb()
 
 static inline void flush_tlb_mm(struct mm_struct *mm)

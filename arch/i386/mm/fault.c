@@ -16,6 +16,7 @@
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
 #include <linux/interrupt.h>
+#include <linux/init.h>
 
 #include <asm/system.h>
 #include <asm/uaccess.h>
@@ -76,7 +77,7 @@ bad_area:
 	return 0;
 }
 
-static inline void handle_wp_test (void)
+static void __init handle_wp_test (void)
 {
 	const unsigned long vaddr = PAGE_OFFSET;
 	pgd_t *pgd;
@@ -91,7 +92,7 @@ static inline void handle_wp_test (void)
 	pmd = pmd_offset(pgd, vaddr);
 	pte = pte_offset(pmd, vaddr);
 	*pte = mk_pte_phys(0, PAGE_KERNEL);
-	local_flush_tlb();
+	__flush_tlb_all();
 
 	boot_cpu_data.wp_works_ok = 1;
 	/*
@@ -123,6 +124,7 @@ asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long error_code)
 	unsigned long page;
 	unsigned long fixup;
 	int write;
+	int si_code = SEGV_MAPERR;
 
 	/* get the address */
 	__asm__("movl %%cr2,%0":"=r" (address));
@@ -164,6 +166,8 @@ asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long error_code)
  */
 good_area:
 	write = 0;
+	si_code = SEGV_ACCERR;
+
 	switch (error_code & 3) {
 		default:	/* 3: write, present */
 #ifdef TEST_VERIFY_AREA
@@ -216,10 +220,14 @@ bad_area:
 
 	/* User mode accesses just cause a SIGSEGV */
 	if (error_code & 4) {
+		struct siginfo si;
 		tsk->thread.cr2 = address;
 		tsk->thread.error_code = error_code;
 		tsk->thread.trap_no = 14;
-		force_sig(SIGSEGV, tsk);
+		si.si_signo = SIGSEGV;
+		si.si_code = si_code;
+		si.si_addr = (void*) address;
+		force_sig_info(SIGSEGV, &si, tsk);
 		return;
 	}
 

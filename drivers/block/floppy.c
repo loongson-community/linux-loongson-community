@@ -3629,11 +3629,7 @@ static void config_types(void)
 
 static int floppy_release(struct inode * inode, struct file * filp)
 {
-	int drive;
-
-	drive = DRIVE(inode->i_rdev);
-
-	block_fsync(filp, filp->f_dentry);
+	int drive = DRIVE(inode->i_rdev);
 
 	if (UDRS->fd_ref < 0)
 		UDRS->fd_ref=0;
@@ -4169,6 +4165,16 @@ int __init floppy_init(void)
  			floppy_release_irq_and_dma();
 		blk_cleanup_queue(BLK_DEFAULT_QUEUE(MAJOR_NR));
 		unregister_blkdev(MAJOR_NR,"fd");		
+	}
+	
+	for (drive = 0; drive < N_DRIVE; drive++) {
+		if (!(allowed_drive_mask & (1 << drive)))
+			continue;
+		if (fdc_state[FDC(drive)].version == FDC_NONE)
+			continue;
+		for (i = 0; i<NUMBER(floppy_type); i++)
+			register_disk(NULL, MKDEV(MAJOR_NR,TOMINOR(drive)+i*4),
+					1, &floppy_fops, 0);
 	}
 	return have_no_fdc;
 }

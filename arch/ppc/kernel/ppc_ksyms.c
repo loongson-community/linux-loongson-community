@@ -260,10 +260,8 @@ EXPORT_SYMBOL(screen_info);
 #endif
 
 EXPORT_SYMBOL(int_control);
-#if !defined(CONFIG_4xx)
 EXPORT_SYMBOL(timer_interrupt_intercept);
 EXPORT_SYMBOL(timer_interrupt);
-#endif
 extern unsigned long do_IRQ_intercept;
 EXPORT_SYMBOL(do_IRQ_intercept);
 EXPORT_SYMBOL(irq_desc);
@@ -272,3 +270,4 @@ EXPORT_SYMBOL(ppc_irq_dispatch_handler);
 EXPORT_SYMBOL(decrementer_count);
 EXPORT_SYMBOL(get_wchan);
 EXPORT_SYMBOL(console_drivers);
+EXPORT_SYMBOL(do_bottom_half);

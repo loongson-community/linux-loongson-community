@@ -42,6 +42,7 @@
 #include <linux/mmzone.h>
 #include <linux/mm.h>
 #include <linux/capability.h>
+#include <linux/highuid.h>
 
 #if defined(CONFIG_PROC_FS)
 #include <linux/proc_fs.h>
@@ -247,7 +248,6 @@ EXPORT_SYMBOL(tty_std_termios);
 /* block device driver support */
 EXPORT_SYMBOL(block_read);
 EXPORT_SYMBOL(block_write);
-EXPORT_SYMBOL(block_fsync);
 EXPORT_SYMBOL(wait_for_request);
 EXPORT_SYMBOL(blksize_size);
 EXPORT_SYMBOL(hardsect_size);
@@ -262,7 +262,8 @@ EXPORT_SYMBOL(blkdev_get);
 EXPORT_SYMBOL(blkdev_put);
 EXPORT_SYMBOL(ioctl_by_bdev);
 EXPORT_SYMBOL(gendisk_head);
-EXPORT_SYMBOL(resetup_one_dev);
+EXPORT_SYMBOL(grok_partitions);
+EXPORT_SYMBOL(register_disk);
 EXPORT_SYMBOL(unplug_device);
 EXPORT_SYMBOL(make_request);
 EXPORT_SYMBOL(tq_disk);
@@ -432,6 +433,9 @@ EXPORT_SYMBOL(__down_interruptible);
 EXPORT_SYMBOL(__down_trylock);
 EXPORT_SYMBOL(__up);
 EXPORT_SYMBOL(brw_page);
+
+EXPORT_SYMBOL(fs_overflowuid);
+EXPORT_SYMBOL(fs_overflowgid);
 
 /* all busmice */
 EXPORT_SYMBOL(add_mouse_randomness);

@@ -7,6 +7,8 @@ mainmenu_name "Linux Kernel Configuration"
 define_bool CONFIG_X86 y
 define_bool CONFIG_ISA y
 
+define_bool CONFIG_UID16 y
+
 mainmenu_option next_comment
 comment 'Code maturity level options'
 bool 'Prompt for development and/or incomplete code/drivers' CONFIG_EXPERIMENTAL
@@ -35,6 +37,7 @@ if [ "$CONFIG_M686" = "y" -o "$CONFIG_M586TSC" = "y" ]; then
 fi
 if [ "$CONFIG_M686" = "y" ]; then
    define_bool CONFIG_X86_GOOD_APIC y
+   define_bool CONFIG_X86_PGE y
 fi
 if [ "$CONFIG_MK7" = "y" ]; then
    define_bool CONFIG_X86_TSC y
@@ -57,6 +60,13 @@ fi
 bool 'Math emulation' CONFIG_MATH_EMULATION
 bool 'MTRR (Memory Type Range Register) support' CONFIG_MTRR
 bool 'Symmetric multi-processing support' CONFIG_SMP
+if [ "$CONFIG_SMP" != "y" ]; then
+    bool 'APIC and IO-APIC support on uniprocessors' CONFIG_X86_UP_IOAPIC
+    if [ "$CONFIG_X86_UP_IOAPIC" = "y" ]; then
+       define_bool CONFIG_X86_IO_APIC y
+       define_bool CONFIG_X86_LOCAL_APIC y
+    fi
+fi
 endmenu
 
 mainmenu_option next_comment
@@ -103,7 +113,11 @@ if [ "$CONFIG_VISWS" != "y" ]; then
    bool 'MCA support' CONFIG_MCA
 fi
 
-source drivers/pcmcia/Config.in
+bool 'Support for hot-pluggable devices' CONFIG_HOTPLUG
+
+if [ "$CONFIG_HOTPLUG" = "y" ] ; then
+   source drivers/pcmcia/Config.in
+fi
 
 bool 'System V IPC' CONFIG_SYSVIPC
 bool 'BSD Process Accounting' CONFIG_BSD_PROCESS_ACCT
@@ -162,6 +176,8 @@ if [ "$CONFIG_SCSI" != "n" ]; then
    source drivers/scsi/Config.in
 fi
 endmenu
+
+source drivers/ieee1394/Config.in
 
 source drivers/i2o/Config.in
 

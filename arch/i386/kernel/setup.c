@@ -31,6 +31,11 @@
  *
  *	Added proper L2 cache detection for Coppermine
  *	Dragan Stancevic <visitor@valinux.com>, October 1999
+ *
+ *  Added the origninal array for capability flags but forgot to credit 
+ *  myself :) (~1998) Fixed/cleaned up some cpu_model_info and other stuff
+ *  	Jauder Ho <jauderho@carumba.com>, January 2000
+ *  	
  */
 
 /*
@@ -69,6 +74,7 @@
 #include <asm/desc.h>
 #include <asm/e820.h>
 #include <asm/dma.h>
+#include <asm/mpspec.h>
 
 /*
  * Machine setup..
@@ -77,7 +83,7 @@
 char ignore_irq13 = 0;		/* set if exception 16 works */
 struct cpuinfo_x86 boot_cpu_data = { 0, 0, 0, 0, -1, 1, 0, 0, -1 };
 
-unsigned long mmu_cr4_features __initdata = 0;
+unsigned long mmu_cr4_features = 0;
 
 /*
  * Bus types ..
@@ -691,7 +697,7 @@ void __init setup_arch(char **cmdline_p)
 	 */
 	reserve_bootmem(0, PAGE_SIZE);
 
-#ifdef __SMP__
+#ifdef CONFIG_SMP
 	/*
 	 * But first pinch a few for the stack/trampoline stuff
 	 * FIXME: Don't need the extra page at 4K, but need to fix
@@ -701,7 +707,7 @@ void __init setup_arch(char **cmdline_p)
 	smp_alloc_memory(); /* AP processor realmode stacks in low memory*/
 #endif
 
-#ifdef __SMP__
+#ifdef CONFIG_X86_IO_APIC
 	/*
 	 *	Save possible boot-time SMP configuration:
 	 */
@@ -1166,6 +1172,8 @@ void __init get_cpu_vendor(struct cpuinfo_x86 *c)
 		c->x86_vendor = X86_VENDOR_CENTAUR;
 	else if (!strcmp(v, "NexGenDriven"))
 		c->x86_vendor = X86_VENDOR_NEXGEN;
+	else if (!strcmp(v, "RiseRiseRise"))
+		c->x86_vendor = X86_VENDOR_RISE;
 	else
 		c->x86_vendor = X86_VENDOR_UNKNOWN;
 }
@@ -1176,6 +1184,7 @@ struct cpu_model_info {
 	char *model_names[16];
 };
 
+/* Naming convention should be: <Name> [(<Codename>)] */
 static struct cpu_model_info cpu_models[] __initdata = {
 	{ X86_VENDOR_INTEL,	4,
 	  { "486 DX-25/33", "486 DX-50", "486 SX", "486 DX/2", "486 SL", 
@@ -1188,8 +1197,9 @@ static struct cpu_model_info cpu_models[] __initdata = {
 	    NULL, NULL, NULL, NULL }},
 	{ X86_VENDOR_INTEL,	6,
 	  { "Pentium Pro A-step", "Pentium Pro", NULL, "Pentium II (Klamath)", 
-	    NULL, "Pentium II (Deschutes)", "Mobile Pentium II", "Pentium III (Katmai)",
-	    "Pentium III (Coppermine)", NULL, NULL, NULL, NULL, NULL, NULL }},
+	    NULL, "Pentium II (Deschutes)", "Mobile Pentium II",
+	    "Pentium III (Katmai)", "Pentium III (Coppermine)", NULL, NULL, 
+	    NULL, NULL, NULL, NULL }},
 	{ X86_VENDOR_AMD,	4,
 	  { NULL, NULL, NULL, "486 DX/2", NULL, NULL, NULL, "486 DX/2-WB",
 	    "486 DX/4", "486 DX/4-WB", NULL, NULL, NULL, NULL, "Am5x86-WT",
@@ -1210,6 +1220,9 @@ static struct cpu_model_info cpu_models[] __initdata = {
 	{ X86_VENDOR_NEXGEN,	5,
 	  { "Nx586", NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 	    NULL, NULL, NULL, NULL, NULL, NULL, NULL }},
+	{ X86_VENDOR_RISE,	5,
+	  { "mP6", "mP6", NULL, NULL, NULL, NULL, NULL,
+	    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL }},
 };
 
 void __init identify_cpu(struct cpuinfo_x86 *c)
@@ -1300,8 +1313,9 @@ void __init identify_cpu(struct cpuinfo_x86 *c)
 			if (c->x86_model <= 16)
 				p = cpu_models[i].model_names[c->x86_model];
 
-			/* Names for the Pentium II Celeron processors 
-                           detectable only by also checking the cache size */
+			/* Names for the Pentium II/Celeron processors 
+                           detectable only by also checking the cache size.
+			   Dixon is NOT a Celeron. */
 			if ((cpu_models[i].vendor == X86_VENDOR_INTEL)
 			    && (cpu_models[i].x86 == 6))
 			{
@@ -1310,7 +1324,7 @@ void __init identify_cpu(struct cpuinfo_x86 *c)
 				else if(c->x86_model == 6 && c->x86_cache_size == 128)
                             		p = "Celeron (Mendocino)"; 
  			  	else if(c->x86_model == 5 && c->x86_cache_size == 256)
-					p = "Celeron (Dixon)";
+					p = "Mobile Pentium II (Dixon)";
 			}
 		}
 	}
@@ -1341,7 +1355,7 @@ void __init dodgy_tsc(void)
 	
 
 static char *cpu_vendor_names[] __initdata = {
-	"Intel", "Cyrix", "AMD", "UMC", "NexGen", "Centaur" };
+	"Intel", "Cyrix", "AMD", "UMC", "NexGen", "Centaur", "Rise" };
 
 
 void __init print_cpu_info(struct cpuinfo_x86 *c)
@@ -1373,17 +1387,28 @@ int get_cpuinfo(char * buffer)
 {
 	char *p = buffer;
 	int sep_bug;
+
+	/* 
+	 * Flags should be entered into the array ONLY if there is no overlap.
+	 * Else a number should be used and then overridden in the case 
+	 * statement below. --Jauder <jauderho@carumba.com>
+	 *
+	 * NOTE: bits 10, 19-22, 26-31 are reserved.
+	 *
+	 * Data courtesy of http://www.sandpile.org/arch/cpuid.htm
+	 * Thanks to the Greasel!
+	 */
 	static char *x86_cap_flags[] = {
 	        "fpu", "vme", "de", "pse", "tsc", "msr", "pae", "mce",
 	        "cx8", "apic", "10", "sep", "mtrr", "pge", "mca", "cmov",
-	        "pat", "17", "psn", "19", "20", "21", "22", "mmx",
-	        "24", "kni", "26", "27", "28", "29", "30", "31"
+	        "16", "pse36", "psn", "19", "20", "21", "22", "mmx",
+	        "24", "xmm", "26", "27", "28", "29", "30", "31"
 	};
 	struct cpuinfo_x86 *c = cpu_data;
 	int i, n;
 
-	for(n=0; n<NR_CPUS; n++, c++) {
-#ifdef __SMP__
+	for (n = 0; n < NR_CPUS; n++, c++) {
+#ifdef CONFIG_SMP
 		if (!(cpu_online_map & (1<<n)))
 			continue;
 #endif
@@ -1430,9 +1455,8 @@ int get_cpuinfo(char * buffer)
 			break;
 
 		    case X86_VENDOR_INTEL:
-			x86_cap_flags[17] = "pse36";
-			x86_cap_flags[18] = "psn";
-			x86_cap_flags[24] = "osfxsr";
+			x86_cap_flags[16] = "pat";
+			x86_cap_flags[24] = "fxsr";
 			break;
 
 		    case X86_VENDOR_CENTAUR:
@@ -1496,14 +1520,14 @@ void cpu_init (void)
 	int nr = smp_processor_id();
 	struct tss_struct * t = &init_tss[nr];
 
-	if (test_and_set_bit(nr,&cpu_initialized)) {
+	if (test_and_set_bit(nr, &cpu_initialized)) {
 		printk("CPU#%d already initialized!\n", nr);
 		for (;;) __sti();
 	}
 	cpus_initialized++;
 	printk("Initializing CPU#%d\n", nr);
 
-	if (boot_cpu_data.x86_capability & X86_FEATURE_PSE)
+	if (cpu_has_pse)
 		clear_in_cr4(X86_CR4_VME|X86_CR4_PVI|X86_CR4_TSD|X86_CR4_DE);
 
 	__asm__ __volatile__("lgdt %0": "=m" (gdt_descr));

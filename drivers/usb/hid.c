@@ -2,7 +2,7 @@
  *  hid.c  Version 0.8
  *
  *  Copyright (c) 1999 Andreas Gal
- *  Copyright (c) 1999 Vojtech Pavlik
+ *  Copyright (c) 2000 Vojtech Pavlik
  *
  *  USB HID support for the Linux input drivers
  *
@@ -38,10 +38,10 @@
 #include <linux/list.h>
 #include <linux/mm.h>
 #include <linux/smp_lock.h>
-#include <linux/config.h>
 #include <linux/spinlock.h>
 
 #undef DEBUG
+#undef DEBUG_DATA
 
 #include "usb.h"
 #include "hid.h"
@@ -710,7 +710,7 @@ static __inline__ __u32 extract(__u8 *report, unsigned offset, unsigned n)
 static __inline__ void implement(__u8 *report, unsigned offset, unsigned n, __u32 value)
 {
 	report += (offset >> 5) << 2; offset &= 31;
-	*(__u64*)report &= cpu_to_le64(~((1ULL << n) - 1) << offset);
+	*(__u64*)report &= cpu_to_le64(~((((__u64) 1 << n) - 1) << offset));
 	*(__u64*)report |= cpu_to_le64((__u64)value << offset);
 }
 
@@ -761,6 +761,12 @@ static void hid_configure_usage(struct hid_device *device, struct hid_field *fie
 				usage->code = ABS_HAT0X;
 				usage->hat = 1 + (field->logical_maximum == 4);
 			}
+			break;
+
+		case HID_UP_LED:
+
+			usage->code = (usage->hid - 1) & 0xf;
+			usage->type = EV_LED; bit = input->ledbit; max = LED_MAX; 
 			break;
 
 		default:
@@ -905,7 +911,7 @@ static void hid_irq(struct urb *urb)
 		return;
 	}
 
-#ifdef DEBUG
+#ifdef DEBUG_DATA
 	printk(KERN_DEBUG __FILE__ ": report (size %u) (%snumbered) = ", len, report_enum->numbered ? "" : "un");
 	for (n = 0; n < len; n++)
 		printk(" %02x", data[n]);
@@ -953,10 +959,10 @@ static void hid_irq(struct urb *urb)
 static void hid_read_report(struct hid_device *hid, struct hid_report *report)
 {
 #if 0
-	int rlen = ((report->size - 1) >> 3) + 1 + report_enum->numbered;
+	int rlen = ((report->size - 1) >> 3) + 1 +  hid->report_enum[HID_INPUT_REPORT].numbered;
 	char rdata[rlen];
 	struct urb urb;
-	int read;
+	int read, j;
 
 	memset(&urb, 0, sizeof(struct urb));
 	memset(rdata, 0, rlen);
@@ -974,38 +980,11 @@ static void hid_read_report(struct hid_device *hid, struct hid_report *report)
 		for (j = 0; j < rlen; j++) printk(" %02x", rdata[j]);
 		printk("\n");
 #endif
-		continue;
+		return;
 	}
 
 	hid_irq(&urb);
 #endif
-}
-
-/*
- * Configure the input layer interface
- * Read all reports and initalize the absoulte field values.
- */
-
-static void hid_init_input(struct hid_device *hid)
-{
-	struct hid_report_enum *report_enum = hid->report_enum + HID_INPUT_REPORT;
-	struct list_head *list;
-	int i, j;
-
-	list = report_enum->report_list.next;
-
-	while (list != &report_enum->report_list) {
-
-		struct hid_report *report = (struct hid_report *) list;
-
-		list = list->next;
-
-		for (i = 0; i < report->maxfield; i++)
-			for (j = 0; j < report->field[i]->maxusage; j++)
-				hid_configure_usage(hid, report->field[i], report->field[i]->usage + j);
-
-		hid_read_report(hid, report);
-	}
 }
 
 /*
@@ -1035,9 +1014,11 @@ void hid_output_report(struct hid_report *report, __u8 *data)
 {
 	unsigned n;
 
+#if 0
 	/* skip the ID if we have a single report */
 	if (report->device->report_enum[report->type].numbered)
 		*data++ = report->id;
+#endif
 
 	for (n = 0; n < report->maxfield; n++)
 		hid_output_field(report->field[n], data);
@@ -1052,6 +1033,8 @@ void hid_output_report(struct hid_report *report, __u8 *data)
 int hid_set_field(struct hid_field *field, unsigned offset, __s32 value)
 {
 	unsigned size = field->report_size;
+
+	hid_dump_input(field->usage + offset, value);
 	
 	if (offset >= field->report_count) {
 		dbg("offset exceeds report_count");
@@ -1072,10 +1055,104 @@ int hid_set_field(struct hid_field *field, unsigned offset, __s32 value)
 	return 0;
 }
 
+static int hid_find_field(struct hid_device *hid, unsigned int type, unsigned int code, struct hid_field **field)
+{
+	struct hid_report_enum *report_enum = hid->report_enum + HID_OUTPUT_REPORT;
+	struct list_head *list = report_enum->report_list.next;
+	int i, j;
+
+	while (list != &report_enum->report_list) {
+		struct hid_report *report = (struct hid_report *) list;
+		list = list->next;
+		for (i = 0; i < report->maxfield; i++) {
+			*field = report->field[i];
+			for (j = 0; j < (*field)->maxusage; j++)
+				if ((*field)->usage[j].type == type && (*field)->usage[j].code == code)
+					return j;
+		}
+	}
+	return -1;
+}
+
+static void hid_ctrl(struct urb *urb)
+{
+        if (urb->status)
+                warn("ctrl urb status %d received", urb->status);
+}       
+
+static int hid_event(struct input_dev *dev, unsigned int type, unsigned int code, int value)
+{
+	struct hid_device *hid = dev->private;
+	struct hid_field *field = NULL;
+	int offset;
+
+	if ((offset = hid_find_field(hid, type, code, &field)) == -1) {
+		warn("event field not found");
+		return -1;
+	}
+
+	hid_set_field(field, offset, value);
+
+	if (hid->urbout.status == -EINPROGRESS) {
+		warn("had to kill output urb");
+		usb_unlink_urb(&hid->urbout);
+	}
+
+	hid_output_report(field->report, hid->bufout);
+
+	hid->dr.value = 0x200 | field->report->id;
+	hid->dr.length = ((field->report->size - 1) >> 3) + 1;
+	hid->urbout.transfer_buffer_length = hid->dr.length;
+
+	if (usb_submit_urb(&hid->urbout)) {
+		err("usb_submit_urb(out) failed");
+		return -1;
+	}
+
+	return 0;
+}
+
+/*
+ * Configure the input layer interface
+ * Read all reports and initalize the absoulte field values.
+ */
+
+static void hid_init_input(struct hid_device *hid)
+{
+	struct hid_report_enum *report_enum;
+	struct list_head *list;
+	int i, j, k;
+
+	hid->input.private = hid;
+	hid->input.event = hid_event;
+
+	for (k = HID_INPUT_REPORT; k <= HID_OUTPUT_REPORT; k++) {
+
+		report_enum = hid->report_enum + k;
+		list = report_enum->report_list.next;
+
+		while (list != &report_enum->report_list) {
+
+			struct hid_report *report = (struct hid_report *) list;
+
+			list = list->next;
+
+			for (i = 0; i < report->maxfield; i++)
+				for (j = 0; j < report->field[i]->maxusage; j++)
+					hid_configure_usage(hid, report->field[i], report->field[i]->usage + j);
+
+			if (k == HID_INPUT_REPORT)  {
+				usb_set_idle(hid->dev, 0, report->id);
+				hid_read_report(hid, report);
+			}
+		}
+	}
+}
+
 static struct hid_device *usb_hid_configure(struct usb_device *dev, int ifnum)
 {
 	struct usb_interface_descriptor *interface = &dev->actconfig->interface[ifnum].altsetting[0];
-	struct usb_hid_descriptor *hdesc;
+	struct hid_descriptor *hdesc;
 	struct hid_device *hid;
 	unsigned rsize = 0;
 	int n;
@@ -1106,7 +1183,7 @@ static struct hid_device *usb_hid_configure(struct usb_device *dev, int ifnum)
 			return NULL;
 		}
 
-#ifdef DEBUG
+#ifdef DEBUG_DATA
 		printk(KERN_DEBUG __FILE__ ": report (size %u, read %d) = ", rsize, n);
 		for (n = 0; n < rsize; n++)
 			printk(" %02x", (unsigned) rdesc[n]);
@@ -1148,6 +1225,15 @@ static struct hid_device *usb_hid_configure(struct usb_device *dev, int ifnum)
 		hid_free_device(hid);
 		return NULL;
 	}
+
+	hid->dr.requesttype = USB_TYPE_CLASS | USB_RECIP_INTERFACE;
+	hid->dr.request = USB_REQ_SET_REPORT;
+	hid->dr.value = 0x200;
+	hid->dr.index = interface->bInterfaceNumber;
+	hid->dr.length = 1;
+
+	FILL_CONTROL_URB(&hid->urbout, dev, usb_sndctrlpipe(dev, 0),
+		(void*) &hid->dr, hid->bufout, 1, hid_ctrl, hid);
 
 	hid->version = hdesc->bcdHID;
 	hid->country = hdesc->bCountryCode;

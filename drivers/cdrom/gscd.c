@@ -418,8 +418,6 @@ printk ( "GSCD: release\n" );
 #endif
 
 	gscd_bn = -1;
-	sync_dev(inode->i_rdev);
-	invalidate_buffers(inode -> i_rdev);
 
 	MOD_DEC_USE_COUNT;
 	return 0;
@@ -1084,6 +1082,7 @@ int result;
         gscdPresent = 1;
 
 	request_region(gscd_port, 4, "gscd");
+	register_disk(NULL, MKDEV(MAJOR_NR,0), 1, &gscd_fops, 0);
 
         printk (KERN_INFO "GSCD: GoldStar CD-ROM Drive found.\n" );
 	return 0;

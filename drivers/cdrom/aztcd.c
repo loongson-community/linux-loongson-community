@@ -1593,8 +1593,6 @@ static int  aztcd_release(struct inode * inode, struct file * file)
   MOD_DEC_USE_COUNT;
   if (!--azt_open_count) {
 	azt_invalidate_buffers();
-	sync_dev(inode->i_rdev);             /*??? isn't it a read only dev?*/
-	invalidate_buffers(inode -> i_rdev);
 	aztUnlockDoor();
         if (azt_auto_eject)
            aztSendCmd(ACMD_EJECT);
@@ -1798,6 +1796,7 @@ int __init aztcd_init(void)
 	blksize_size[MAJOR_NR] = aztcd_blocksizes;
 #endif
 	read_ahead[MAJOR_NR] = 4;
+	register_disk(NULL, MKDEV(MAJOR_NR,0), 1, &azt_fops, 0);
 
         if ((azt_port==0x1f0)||(azt_port==0x170))  
 	   request_region(azt_port, 8, "aztcd");  /*IDE-interface*/

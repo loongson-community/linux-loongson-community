@@ -125,7 +125,7 @@ static struct hpscan_usb_data hpscan;
 MODULE_AUTHOR("David E. Nelson, dnelson@jump.net, http://www.jump.net/~dnelson");
 MODULE_DESCRIPTION("USB Scanner Driver");
 
-static __u16 vendor=0, product=0;
+static __u16 vendor=0x05f9, product=0xffff;
 MODULE_PARM(vendor, "i");
 MODULE_PARM_DESC(vendor, "User specified USB idVendor");
 
@@ -410,9 +410,12 @@ probe_scanner(struct usb_device *dev, unsigned int ifnum)
 		hps->oep = endpoint[1].bEndpointAddress;
 	}
 
-	ident = usb_string(dev, dev->descriptor.iProduct); /* usb_string allocates memory using kmalloc() so kfree() needs to be called afterwards when the pointer is no longer needed. */
-	info("USB Scanner (%s) found at address %d", ident, dev->devnum);
-	kfree(ident);
+	ident = kmalloc(256, GFP_KERNEL);
+	if (ident) {
+		usb_string(dev, dev->descriptor.iProduct, ident, 256);
+		info("USB Scanner (%s) found at address %d", ident, dev->devnum);
+		kfree(ident);
+	}
 
 	dbg("probe_scanner: using bulk endpoints - In: %x  Out: %x", hps->iep, hps->oep);
 

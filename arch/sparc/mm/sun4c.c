@@ -1,4 +1,4 @@
-/* $Id: sun4c.c,v 1.182 1999/12/27 06:30:04 anton Exp $
+/* $Id: sun4c.c,v 1.185 2000/01/15 00:51:32 anton Exp $
  * sun4c.c: Doing in software what should be done in hardware.
  *
  * Copyright (C) 1996 David S. Miller (davem@caip.rutgers.edu)
@@ -67,20 +67,6 @@ extern int num_segmaps, num_contexts;
 /* Flushing the cache. */
 struct sun4c_vac_props sun4c_vacinfo;
 unsigned long sun4c_kernel_faults;
-
-/* convert a virtual address to a physical address and vice
- * versa. Easy on the 4c
- */
-static unsigned long sun4c_v2p(unsigned long vaddr)
-{
-	return (vaddr - PAGE_OFFSET);
-}
-
-static unsigned long sun4c_p2v(unsigned long vaddr)
-{
-	return (vaddr + PAGE_OFFSET);
-}
-
 
 /* Invalidate every sun4c cache line tag. */
 void sun4c_flush_all(void)
@@ -1162,21 +1148,23 @@ static void sun4c_free_task_struct_hw(struct task_struct *tsk)
 	unsigned long pages = BUCKET_PTE_PAGE(sun4c_get_pte(tsaddr));
 	int entry = BUCKET_NUM(tsaddr);
 
-	/* We are deleting a mapping, so the flush here is mandatory. */
-	sun4c_flush_page_hw(tsaddr);
+	if (atomic_dec_and_test(&(tsk)->thread.refcount)) {
+		/* We are deleting a mapping, so the flush here is mandatory. */
+		sun4c_flush_page_hw(tsaddr);
 #ifndef CONFIG_SUN4	
-	sun4c_flush_page_hw(tsaddr + PAGE_SIZE);
+		sun4c_flush_page_hw(tsaddr + PAGE_SIZE);
 #endif
-	sun4c_put_pte(tsaddr, 0);
+		sun4c_put_pte(tsaddr, 0);
 #ifndef CONFIG_SUN4	
-	sun4c_put_pte(tsaddr + PAGE_SIZE, 0);
+		sun4c_put_pte(tsaddr + PAGE_SIZE, 0);
 #endif
-	sun4c_bucket[entry] = BUCKET_EMPTY;
-	if (entry < sun4c_lowbucket_avail)
-		sun4c_lowbucket_avail = entry;
+		sun4c_bucket[entry] = BUCKET_EMPTY;
+		if (entry < sun4c_lowbucket_avail)
+			sun4c_lowbucket_avail = entry;
 
-	free_pages(pages, TASK_STRUCT_ORDER);
-	garbage_collect(entry);
+		free_pages(pages, TASK_STRUCT_ORDER);
+		garbage_collect(entry);
+	}
 }
 
 static void sun4c_free_task_struct_sw(struct task_struct *tsk)
@@ -1185,21 +1173,28 @@ static void sun4c_free_task_struct_sw(struct task_struct *tsk)
 	unsigned long pages = BUCKET_PTE_PAGE(sun4c_get_pte(tsaddr));
 	int entry = BUCKET_NUM(tsaddr);
 
-	/* We are deleting a mapping, so the flush here is mandatory. */
-	sun4c_flush_page_sw(tsaddr);
+	if (atomic_dec_and_test(&(tsk)->thread.refcount)) {
+		/* We are deleting a mapping, so the flush here is mandatory. */
+		sun4c_flush_page_sw(tsaddr);
 #ifndef CONFIG_SUN4	
-	sun4c_flush_page_sw(tsaddr + PAGE_SIZE);
+		sun4c_flush_page_sw(tsaddr + PAGE_SIZE);
 #endif
-	sun4c_put_pte(tsaddr, 0);
+		sun4c_put_pte(tsaddr, 0);
 #ifndef CONFIG_SUN4	
-	sun4c_put_pte(tsaddr + PAGE_SIZE, 0);
+		sun4c_put_pte(tsaddr + PAGE_SIZE, 0);
 #endif
-	sun4c_bucket[entry] = BUCKET_EMPTY;
-	if (entry < sun4c_lowbucket_avail)
-		sun4c_lowbucket_avail = entry;
+		sun4c_bucket[entry] = BUCKET_EMPTY;
+		if (entry < sun4c_lowbucket_avail)
+			sun4c_lowbucket_avail = entry;
 
-	free_pages(pages, TASK_STRUCT_ORDER);
-	garbage_collect(entry);
+		free_pages(pages, TASK_STRUCT_ORDER);
+		garbage_collect(entry);
+	}
+}
+
+static void sun4c_get_task_struct(struct task_struct *tsk)
+{
+		atomic_inc(&(tsk)->thread.refcount);
 }
 
 static void __init sun4c_init_buckets(void)
@@ -1568,13 +1563,12 @@ static void sun4c_flush_cache_page_hw(struct vm_area_struct *vma, unsigned long 
 	}
 }
 
-static void sun4c_flush_page_to_ram_hw(struct page *page)
+static void sun4c_flush_page_to_ram_hw(unsigned long page)
 {
 	unsigned long flags;
-	unsigned long addr = page_address(page);
 
 	save_and_cli(flags);
-	sun4c_flush_page_hw(addr);
+	sun4c_flush_page_hw(page);
 	restore_flags(flags);
 }
 
@@ -1691,13 +1685,12 @@ static void sun4c_flush_cache_page_sw(struct vm_area_struct *vma, unsigned long 
 	}
 }
 
-static void sun4c_flush_page_to_ram_sw(struct page *page)
+static void sun4c_flush_page_to_ram_sw(unsigned long page)
 {
 	unsigned long flags;
-	unsigned long addr = page_address(page);
 
 	save_and_cli(flags);
-	sun4c_flush_page_sw(addr);
+	sun4c_flush_page_sw(page);
 	restore_flags(flags);
 }
 
@@ -2643,7 +2636,7 @@ void __init ld_mmu_sun4c(void)
 		BTFIXUPSET_CALL(flush_cache_mm, sun4c_flush_cache_mm_hw, BTFIXUPCALL_NORM);
 		BTFIXUPSET_CALL(flush_cache_range, sun4c_flush_cache_range_hw, BTFIXUPCALL_NORM);
 		BTFIXUPSET_CALL(flush_cache_page, sun4c_flush_cache_page_hw, BTFIXUPCALL_NORM);
-		BTFIXUPSET_CALL(flush_page_to_ram, sun4c_flush_page_to_ram_hw, BTFIXUPCALL_NORM);
+		BTFIXUPSET_CALL(__flush_page_to_ram, sun4c_flush_page_to_ram_hw, BTFIXUPCALL_NORM);
 		BTFIXUPSET_CALL(flush_tlb_mm, sun4c_flush_tlb_mm_hw, BTFIXUPCALL_NORM);
 		BTFIXUPSET_CALL(flush_tlb_range, sun4c_flush_tlb_range_hw, BTFIXUPCALL_NORM);
 		BTFIXUPSET_CALL(flush_tlb_page, sun4c_flush_tlb_page_hw, BTFIXUPCALL_NORM);
@@ -2654,7 +2647,7 @@ void __init ld_mmu_sun4c(void)
 		BTFIXUPSET_CALL(flush_cache_mm, sun4c_flush_cache_mm_sw, BTFIXUPCALL_NORM);
 		BTFIXUPSET_CALL(flush_cache_range, sun4c_flush_cache_range_sw, BTFIXUPCALL_NORM);
 		BTFIXUPSET_CALL(flush_cache_page, sun4c_flush_cache_page_sw, BTFIXUPCALL_NORM);
-		BTFIXUPSET_CALL(flush_page_to_ram, sun4c_flush_page_to_ram_sw, BTFIXUPCALL_NORM);
+		BTFIXUPSET_CALL(__flush_page_to_ram, sun4c_flush_page_to_ram_sw, BTFIXUPCALL_NORM);
 		BTFIXUPSET_CALL(flush_tlb_mm, sun4c_flush_tlb_mm_sw, BTFIXUPCALL_NORM);
 		BTFIXUPSET_CALL(flush_tlb_range, sun4c_flush_tlb_range_sw, BTFIXUPCALL_NORM);
 		BTFIXUPSET_CALL(flush_tlb_page, sun4c_flush_tlb_page_sw, BTFIXUPCALL_NORM);
@@ -2731,11 +2724,9 @@ void __init ld_mmu_sun4c(void)
 	BTFIXUPSET_CALL(mmu_flush_dma_area, sun4c_flush_dma_area, BTFIXUPCALL_NOP);
 	BTFIXUPSET_CALL(mmu_inval_dma_area, sun4c_inval_dma_area, BTFIXUPCALL_NORM);
 
-        BTFIXUPSET_CALL(mmu_v2p, sun4c_v2p, BTFIXUPCALL_NORM);
-        BTFIXUPSET_CALL(mmu_p2v, sun4c_p2v, BTFIXUPCALL_NORM);
-	
 	/* Task struct and kernel stack allocating/freeing. */
 	BTFIXUPSET_CALL(alloc_task_struct, sun4c_alloc_task_struct, BTFIXUPCALL_NORM);
+	BTFIXUPSET_CALL(get_task_struct, sun4c_get_task_struct, BTFIXUPCALL_NORM);
 
 	BTFIXUPSET_CALL(quick_kernel_fault, sun4c_quick_kernel_fault, BTFIXUPCALL_NORM);
 	BTFIXUPSET_CALL(mmu_info, sun4c_mmu_info, BTFIXUPCALL_NORM);

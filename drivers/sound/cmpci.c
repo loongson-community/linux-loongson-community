@@ -62,7 +62,7 @@
  *    18.08.99   1.5   Only deallocate DMA buffer when unloading.
  *    02.09.99   1.6   Enable SPDIF LOOP
  *                     Change the mixer read back
- *    21.09.99   2.33  Use RCS version aas driver version.
+ *    21.09.99   2.33  Use RCS version as driver version.
  *                     Add support for modem, S/PDIF loop and 4 channels.
  *                     (8738 only)
  *                     Fix bug cause x11amp cannot play.
@@ -2372,6 +2372,7 @@ int __init init_cmpci(void)
 		init_waitqueue_head(&s->midi.iwait);
 		init_waitqueue_head(&s->midi.owait);
 		init_MUTEX(&s->open_sem);
+		spin_lock_init(&s->lock);
 		s->magic = CM_MAGIC;
 		s->iobase = pcidev->resource[0].start;
 		s->iosynth = 0x388;
