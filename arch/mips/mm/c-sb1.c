@@ -449,6 +449,11 @@ static unsigned int decode_cache_line_size(unsigned int config_field)
  * 9:7   Dcache Associativity
  */
 
+static char *way_string[] = {
+	"direct mapped", "2-way", "3-way", "4-way",
+	"5-way", "6-way", "7-way", "8-way",
+};
+
 static __init void probe_cache_sizes(void)
 {
 	u32 config1;
@@ -473,6 +478,13 @@ static __init void probe_cache_sizes(void)
 	 */
 	icache_range_cutoff = icache_sets * icache_line_size;
 	dcache_range_cutoff = (dcache_sets / 2) * icache_line_size;
+
+	printk("Primary instruction cache %ldkB, %s, linesize %d bytes.\n",
+	       icache_size >> 10, way_string[icache_assoc - 1],
+	       icache_line_size);
+	printk("Primary data cache %ldkB, %s, linesize %d bytes.\n",
+	       dcache_size >> 10, way_string[dcache_assoc - 1],
+	       dcache_line_size);
 }
 
 /*
