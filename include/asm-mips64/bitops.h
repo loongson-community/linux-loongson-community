@@ -107,14 +107,15 @@ test_and_set_bit(unsigned long nr, volatile void *addr)
 	return res != 0;
 }
 
-extern __inline__ int __test_and_set_bit(int nr, volatile void * addr)
+extern __inline__ int
+__test_and_set_bit(int nr, volatile void * addr)
 {
-	int mask, retval;
-	volatile long *a = addr;
+	unsigned long mask, retval;
+	long *a = (unsigned long *) addr;
 
-	a += nr >> 6;
-	mask = 1 << (nr & 0x3f);
-	retval = (mask & *a) != 0;
+	a += (nr >> 6);
+	mask = 1UL << (nr & 0x3f);
+	retval = ((mask & *a) != 0);
 	*a |= mask;
 
 	return retval;
@@ -142,14 +143,15 @@ test_and_clear_bit(unsigned long nr, volatile void *addr)
 	return res != 0;
 }
 
-extern __inline__ int __test_and_clear_bit(int nr, volatile void * addr)
+extern __inline__ int
+__test_and_clear_bit(int nr, volatile void * addr)
 {
-	int     mask, retval;
-	volatile long    *a = addr;
+	unsigned long mask, retval;
+	unsigned long *a = (unsigned long *) addr;
 
-	a += nr >> 6;
-	mask = 1 << (nr & 0x3f);
-	retval = (mask & *a) != 0;
+	a += (nr >> 6);
+	mask = 1UL << (nr & 0x3f);
+	retval = ((mask & *a) != 0);
 	*a &= ~mask;
 
 	return retval;
@@ -179,7 +181,7 @@ test_and_change_bit(unsigned long nr, volatile void *addr)
 extern __inline__ unsigned long
 test_bit(int nr, volatile void * addr)
 {
-	return 1UL & (((const long *) addr)[nr >> 6] >> (nr & 0x3f));
+	return 1UL & (((volatile unsigned long *) addr)[nr >> 6] >> (nr & 0x3f));
 }
 
 #ifndef __MIPSEB__
