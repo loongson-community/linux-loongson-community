@@ -701,10 +701,8 @@ void __init trap_init(void)
 	 * Some MIPS CPUs have a dedicated interrupt vector which reduces the
 	 * interrupt processing overhead.  Use it where available.
 	 */
-	if (mips_cpu.options & MIPS_CPU_DIVEC) {
+	if (mips_cpu.options & MIPS_CPU_DIVEC)
 		memcpy((void *)(KSEG0 + 0x200), &except_vec4, 0x80);
-		set_c0_cause(CAUSEF_IV);
-	}
 
 	/*
 	 * The Data Bus Errors / Instruction Bus Errors are signaled
