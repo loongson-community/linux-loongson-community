@@ -196,6 +196,7 @@ static void sb1_flush_cache_page(struct vm_area_struct *vma, unsigned long addr)
 	if (!(vma->vm_flags & VM_EXEC))
 		return;
 
+	addr &= PAGE_MASK;
 	args.vma = vma;
 	args.addr = addr;
 	on_each_cpu(sb1_flush_cache_page_ipi, (void *) &args, 1, 1);
