@@ -9,6 +9,7 @@
 #ifndef __ASM_SGI_SGIHPC_H
 #define __ASM_SGI_SGIHPC_H
 
+#include <linux/types.h>
 #include <asm/page.h>
 
 extern int sgi_has_ioc2;	/* to know if we have older ioc1 or ioc2. */
