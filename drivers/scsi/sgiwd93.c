@@ -237,9 +237,10 @@ int __init sgiwd93_detect(Scsi_Host_Template *SGIblows)
 		return 0;
 	}
 	init_hpc_chain(buf);
-
-	regs.SASR = KSEG1ADDR (0x1fbc0003); /* HPC_SCSI_REG0 | 0x03 | KSEG1 */
-	regs.SCMD = KSEG1ADDR (0x1fbc0007);
+	
+	/* HPC_SCSI_REG0 | 0x03 | KSEG1 */
+	regs.SASR = (unsigned char*) KSEG1ADDR (0x1fbc0003);
+	regs.SCMD = (unsigned char*) KSEG1ADDR (0x1fbc0007);
 	wd33c93_init(sgiwd93_host, regs, dma_setup, dma_stop, WD33C93_FS_16_20);
 
 	hdata = (struct WD33C93_hostdata *)sgiwd93_host->hostdata;
@@ -273,8 +274,8 @@ int __init sgiwd93_detect(Scsi_Host_Template *SGIblows)
 			init_hpc_chain(buf);
 
 			/* HPC_SCSI_REG1 | 0x03 | KSEG1 */
-			regs.SASR = KSEG1ADDR(0x1fbc8003);
-			regs.SCMD = KSEG1ADDR(0x1fbc8007);
+			regs.SASR = (unsigned char*) KSEG1ADDR(0x1fbc8003);
+			regs.SCMD = (unsigned char*) KSEG1ADDR(0x1fbc8007);
 			wd33c93_init(sgiwd93_host1, regs, dma_setup, dma_stop,
 			             WD33C93_FS_16_20);
 	
