@@ -134,14 +134,17 @@ static inline dma_addr_t pci_map_page(struct pci_dev *hwdev, struct page *page,
 				      unsigned long offset, size_t size,
                                       int direction)
 {
+	unsigned long addr;
+
 	if (direction == PCI_DMA_NONE)
 		BUG();
 
+	addr = (unsigned long) page_address(page) + offset;
 #ifndef CONFIG_COHERENT_IO
-	dma_cache_wback_inv((unsigned long) page_address(page), size);
+	dma_cache_wback_inv(addr, size);
 #endif
 
-	return page_to_bus(page);
+	return virt_to_bus(addr);
 }
 
 static inline void pci_unmap_page(struct pci_dev *hwdev, dma_addr_t dma_address,

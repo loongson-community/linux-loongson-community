@@ -130,6 +130,7 @@ static inline dma_addr_t pci_map_page(struct pci_dev *hwdev, struct page *page,
 		BUG();
 
 	addr = (unsigned long) page_address(page);
+	addr += offset;
 #ifndef CONFIG_COHERENT_IO
 	dma_cache_wback_inv(addr, size);
 #endif
