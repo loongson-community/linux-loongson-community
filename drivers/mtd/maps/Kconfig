@@ -175,12 +175,6 @@ config MTD_TSUNAMI
 	help
 	  Support for the flash chip on Tsunami TIG bus.
 
-config MTD_LASAT
-	tristate "Flash chips on LASAT board"
-	depends on LASAT && MTD_CFI
-	help
-	  Support for the flash chips on the Lasat 100 and 200 boards.
-
 config MTD_NETtel
 	tristate "CFI flash device on SnapGear/SecureEdge"
 	depends on X86 && MTD_PARTITIONS && MTD_JEDECPROBE
@@ -385,6 +379,8 @@ config MTD_OCELOT
 config MTD_LASAT
 	tristate "LASAT flash device"
 	depends on MIPS && MTD_CFI && LASAT
+	help
+	  Support for the flash chips on the Lasat 100 and 200 boards.
 
 config MTD_SOLUTIONENGINE
 	tristate "CFI Flash device mapped on Hitachi SolutionEngine"
