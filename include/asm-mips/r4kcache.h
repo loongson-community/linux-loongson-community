@@ -1,11 +1,14 @@
-/* $Id: r4kcache.h,v 1.2 1997/06/23 06:50:07 ralf Exp $
+/*
  * r4kcache.h: Inline assembly cache operations.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
+ *
+ * $Id: r4kcache.h,v 1.3 1997/09/12 22:25:35 ralf Exp $
  */
 #ifndef _MIPS_R4KCACHE_H
 #define _MIPS_R4KCACHE_H
 
+#include <asm/asm.h>
 #include <asm/cacheops.h>
 
 extern inline void flush_icache_line_indexed(unsigned long addr)
@@ -84,6 +87,41 @@ extern inline void flush_scache_line(unsigned long addr)
 		:
 		: "r" (addr),
 		  "i" (Hit_Writeback_Inv_SD));
+}
+
+/*
+ * The next two are for badland addresses like signal trampolines.
+ */
+extern inline void protected_flush_icache_line(unsigned long addr)
+{
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		".set mips3\n"
+		"1:\tcache %1,(%0)\n"
+		"2:\t.set mips0\n\t"
+		".set reorder\n\t"
+		".section\t__ex_table,\"a\"\n\t"
+		STR(PTR)"\t1b,2b\n\t"
+		".previous"
+		:
+		: "r" (addr),
+		  "i" (Hit_Invalidate_I));
+}
+
+extern inline void protected_writeback_dcache_line(unsigned long addr)
+{
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		".set mips3\n"
+		"1:\tcache %1,(%0)\n"
+		"2:\t.set mips0\n\t"
+		".set reorder\n\t"
+		".section\t__ex_table,\"a\"\n\t"
+		STR(PTR)"\t1b,2b\n\t"
+		".previous"
+		:
+		: "r" (addr),
+		  "i" (Hit_Writeback_D));
 }
 
 extern inline void blast_dcache16(void)

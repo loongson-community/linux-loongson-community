@@ -4,7 +4,7 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  *  Copyright (C) 1994, 1995, 1996  Ralf Baechle
  *
- * $Id: signal.c,v 1.4 1997/08/06 19:15:07 miguel Exp $
+ * $Id: signal.c,v 1.5 1997/09/12 01:30:24 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/sched.h>
@@ -64,6 +64,8 @@ asmlinkage int sys_sigsuspend(struct pt_regs *regs)
 asmlinkage int sys_sigreturn(struct pt_regs *regs)
 {
 	struct sigcontext *context;
+	unsigned long blocked;
+	long long reg;
 	int i;
 
 	context = (struct sigcontext *)(long) regs->regs[29];
@@ -71,36 +73,26 @@ asmlinkage int sys_sigreturn(struct pt_regs *regs)
 	    (regs->regs[29] & (SZREG - 1)))
 		goto badframe;
 
-	current->blocked = context->sc_sigset & _BLOCKABLE; /* XXX */
-	regs->cp0_epc = context->sc_pc; /* XXX */
+	__get_user(blocked, &context->sc_sigset);
+	current->blocked = blocked & _BLOCKABLE;
+	__get_user(regs->cp0_epc, &context->sc_pc);
 
-/*
- * Disabled because we only use the lower 32 bit of the registers.
- */
-#if 0
 	/*
-	 * We only allow user processes in 64bit mode (n32, 64 bit ABI) to
-	 * restore the upper half of registers.
+	 * Restore all integer registers.
 	 */
-	if (read_32bit_cp0_register(CP0_STATUS) & ST0_UX) {
-		for(i = 31;i >= 0;i--)
-			__get_user(regs->regs[i], &context->sc_regs[i]);
-		__get_user(regs->hi, &context->sc_mdhi);
-		__get_user(regs->lo, &context->sc_mdlo);
-	} else
-#endif
-	{
-		long long reg;
-		for(i = 31;i >= 0;i--) {
-			__get_user(reg, &context->sc_regs[i]);
-			regs->regs[i] = (int) reg;
-		}
-		__get_user(reg, &context->sc_mdhi);
-		regs->hi = (int) reg;
-		__get_user(reg, &context->sc_mdlo);
-		regs->lo = (int) reg;
+	for(i = 31;i >= 0;i--) {
+		__get_user(reg, &context->sc_regs[i]);
+		regs->regs[i] = (int) reg;
 	}
+	__get_user(reg, &context->sc_mdhi);
+	regs->hi = (int) reg;
+	__get_user(reg, &context->sc_mdlo);
+	regs->lo = (int) reg;
 
+	/*
+	 * FP depends on what FPU in what mode we have.  Best done in
+	 * Assembler ...
+	 */
 	restore_fp_context(context);
 
 	/*

@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: r4xx0.c,v 1.6 1997/08/06 19:15:10 miguel Exp $
+ * $Id: r4xx0.c,v 1.7 1997/09/12 01:30:27 ralf Exp $
  */
 #include <linux/config.h>
 
@@ -43,7 +43,8 @@ static scache_size, sc_lsize;        /* Again, in bytes */
  * this is the bit which selects the way in the cache for the
  * indexed cachops.
  */
-#define waybit 0x2000
+#define icache_waybit (icache_size >> 1)
+#define dcache_waybit (dcache_size >> 1)
 
 /*
  * Zero an entire page.  We have three flavours of the routine available.
@@ -1589,10 +1590,10 @@ static void r4k_flush_cache_page_d32i32_r4600(struct vm_area_struct *vma,
 		 */
 		page = (KSEG0 + (page & (dcache_size - 1)));
 		blast_dcache32_page_indexed(page);
-		blast_dcache32_page_indexed(page ^ waybit);
+		blast_dcache32_page_indexed(page ^ dcache_waybit);
 		if(text) {
 			blast_icache32_page_indexed(page);
-			blast_icache32_page_indexed(page ^ waybit);
+			blast_icache32_page_indexed(page ^ icache_waybit);
 		}
 	}
 out:
@@ -1826,15 +1827,19 @@ static void r4k_flush_page_to_ram_d32i32_r4600(unsigned long page)
 	}
 }
 
+/*
+ * While we're protected against bad userland addresses we don't care
+ * very much about what happens in that case.  Usually a segmentation
+ * fault will dump the process later on anyway ...
+ */
 static void r4k_flush_cache_sigtramp(unsigned long addr)
 {
-	/* XXX  protect like uaccess.h loads/stores */
 	addr &= ~(dc_lsize - 1);
 	__asm__ __volatile__("nop;nop;nop;nop");
-	flush_dcache_line(addr);
-	flush_dcache_line(addr + dc_lsize);
-	flush_icache_line(addr);
-	flush_icache_line(addr + dc_lsize);
+	protected_writeback_dcache_line(addr);
+	protected_writeback_dcache_line(addr + dc_lsize);
+	protected_flush_icache_line(addr);
+	protected_flush_icache_line(addr + dc_lsize);
 }
 
 #undef DEBUG_TLB
@@ -2540,6 +2545,8 @@ void ld_mmu_r4xx0(void)
 	int sc_present = 0;
 
 	printk("CPU revision is: %08x\n", read_32bit_cp0_register(CP0_PRID));
+
+	set_cp0_config(CONFIG_CM_CMASK, CONFIG_CM_CACHABLE_NONCOHERENT);
 
 	probe_icache(cfg);
 	probe_dcache(cfg);
