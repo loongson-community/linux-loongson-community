@@ -115,7 +115,7 @@ struct ioc3_private {
 
 /* BEWARE: The IOC3 documentation documents the size of rx buffers as
    1644 while it's actually 1664.  This one was nasty to track down ...  */
-#define RX_OFFSET		8
+#define RX_OFFSET		10
 #define RX_BUF_ALLOC_SIZE	(1664 + RX_OFFSET + 128)
 
 /* DMA barrier to separate cached and uncached accesses.  */
@@ -314,7 +314,7 @@ ioc3_rx(struct net_device *dev, struct ioc3_private *ip, struct ioc3 *ioc3)
 	n_entry = ip->rx_pi;
 
 	skb = ip->rx_skbs[rx_entry];
-	rxb = (struct ioc3_erxbuf *) (skb->data - sizeof(struct ioc3_erxbuf));
+	rxb = (struct ioc3_erxbuf *) (skb->data - RX_OFFSET);
 	w0 = rxb->w0;
 
 	while (w0 & ERXBUF_V) {
@@ -374,8 +374,7 @@ next:
 		/* Now go on to the next ring entry.  */
 		rx_entry = (rx_entry + 1) & 511;
 		skb = ip->rx_skbs[rx_entry];
-		rxb = (struct ioc3_erxbuf *) (skb->data -
-		                              sizeof(struct ioc3_erxbuf));
+		rxb = (struct ioc3_erxbuf *) (skb->data - RX_OFFSET);
 		w0 = rxb->w0;
 	}
 	ip->rx_pi = n_entry;
@@ -651,8 +650,8 @@ ioc3_open(struct net_device *dev)
 
 	//ioc3_eth_init(dev, p, ioc3);
 
-	ioc3->emcr = (4 << EMCR_RXOFF_SHIFT) | EMCR_TXDMAEN | EMCR_TXEN
-	             | EMCR_RXDMAEN | EMCR_RXEN;
+	ioc3->emcr = ((RX_OFFSET / 2) << EMCR_RXOFF_SHIFT) | EMCR_TXDMAEN |
+	             EMCR_TXEN | EMCR_RXDMAEN | EMCR_RXEN;
 	ioc3->eier = EISR_RXTIMERINT | EISR_TXEXPLICIT;	/* Interrupts ...  */
 
 	dev->tbusy = 0;
