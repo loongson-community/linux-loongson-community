@@ -205,7 +205,8 @@ void do_settimeofday(struct timeval *tv)
 #include <asm/sn/sn0/hubio.h>
 #include <asm/pci/bridge.h>
 
-/* Converts Gregorian date to seconds since 1970-01-01 00:00:00.
+/*
+ * Converts Gregorian date to seconds since 1970-01-01 00:00:00.
  * Assumes input in normal date format, i.e. 1980-12-31 23:59:59
  * => year=1980, mon=12, day=31, hour=23, min=59, sec=59.
  *
