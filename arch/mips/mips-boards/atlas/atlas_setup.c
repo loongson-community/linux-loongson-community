@@ -59,6 +59,8 @@ void __init bus_error_init(void)
 }
 
 extern void mips_time_init(void);
+extern void mips_timer_setup(struct irqaction *irq);
+extern unsigned long mips_rtc_get_time(void);
 
 void __init atlas_setup(void)
 {
@@ -124,6 +126,8 @@ void __init atlas_setup(void)
 
 	rtc_ops = &atlas_rtc_ops;
 	board_time_init = mips_time_init;
+	board_timer_setup = mips_timer_setup;
+	rtc_get_time = mips_rtc_get_time;
 
 	mips_reboot_setup();
 }

@@ -127,7 +127,7 @@
 	 nop				# delay slot
 1:	
 #endif	
-
+#if defined(CONFIG_MIPS_MALTA)
 	beq	a0, zero, 1f            # check hw3 (coreHI) interrupt
 	 nop
 	jal	corehi_irqdispatch
@@ -135,7 +135,7 @@
 	j	ret_from_irq
 	 nop				
 1:	
-
+#endif
 	/*
 	 * Here by mistake?  This is possible, what can happen is that by the
 	 * time we take the exception the IRQ pin goes low, so just leave if
