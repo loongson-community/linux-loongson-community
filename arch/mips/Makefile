@@ -17,8 +17,10 @@
 #
 ifdef CONFIG_CPU_LITTLE_ENDIAN
 tool-prefix	= mipsel-linux-
+output-format	= elf32-littlemips
 else
 tool-prefix	= mips-linux-
+output-format	= elf32-bigmips
 endif
 
 ifdef CONFIG_CROSSCOMPILE
@@ -194,11 +196,11 @@ endif
 # none has been choosen above.
 #
 ifndef LINKSCRIPT
-ifndef CONFIG_CPU_LITTLE_ENDIAN
-LINKSCRIPT    = arch/mips/ld.script.big
-else
-LINKSCRIPT    = arch/mips/ld.script.little
-endif
+vmlinux: arch/$(ARCH)/ld.script
+
+arch/$(ARCH)/ld.script: arch/$(ARCH)/ld.script.in
+	sed 's/@@OUTPUT_FORMAT@@/$(output-format)/' <$< >$@
+LINKSCRIPT    = arch/mips/ld.script
 endif
 LINKFLAGS     += -T $(word 1,$(LINKSCRIPT))
 
@@ -240,6 +242,7 @@ zdisk: vmlinux
 
 archclean:
 	@$(MAKEBOOT) clean
+	rm -f arch/$(ARCH)/ld.script
 	$(MAKE) -C arch/$(ARCH)/kernel clean
 	$(MAKE) -C arch/$(ARCH)/tools clean
 	$(MAKE) -C arch/mips/baget clean
