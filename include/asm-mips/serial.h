@@ -55,7 +55,7 @@
 
 #define C_P(card,port) (((card)<<6|(port)<<3) + 1)
 
-#ifdef CONFIG_MIPS_JAZZ
+#ifdef CONFIG_MACH_JAZZ
 #include <asm/jazz.h>
 
 #ifndef CONFIG_OLIVETTI_M700
