@@ -6,8 +6,8 @@
  * r4xx0.c: R4000 processor variant specific MMU/Cache routines.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
- * Copyright (C) 1997, 1998, 1999 Ralf Baechle (ralf@gnu.org)
- * Copyright (C) 1999 Silicon Graphics, Inc.
+ * Copyright (C) 1997, 1998, 1999, 2000 Ralf Baechle (ralf@gnu.org)
+ * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -2413,7 +2413,6 @@ void __init ld_mmu_r4xx0(void)
 	update_mmu_cache = r4k_update_mmu_cache;
 
 	_show_regs = r4k_show_regs;
-	_user_mode = r4k_user_mode;
 
 	flush_cache_l1();
 

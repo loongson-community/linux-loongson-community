@@ -308,12 +308,6 @@ static void andes_update_mmu_cache(struct vm_area_struct * vma,
 	__restore_flags(flags);
 }
 
-static int
-andes_user_mode(struct pt_regs *regs)
-{
-	return (regs->cp0_status & ST0_KSU) == KSU_USER;
-}
-
 static void andes_show_regs(struct pt_regs *regs)
 {
 	printk("Cpu %d\n", smp_processor_id());
@@ -382,7 +376,6 @@ void __init ld_mmu_andes(void)
 	update_mmu_cache = andes_update_mmu_cache;
 
 	_show_regs = andes_show_regs;
-	_user_mode = andes_user_mode;
 
         flush_cache_l1();
 
