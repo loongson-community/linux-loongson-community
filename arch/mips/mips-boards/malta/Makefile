@@ -1,6 +1,3 @@
-# $Id: Makefile,v 1.1 2000/07/07 10:22:15 carstenl Exp $
-#
-# Makefile
 #
 # Carsten Langgaard, carstenl@mips.com
 # Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
@@ -36,15 +33,10 @@
 .S.o:
 	$(CC) $(CFLAGS) -c $< -o $*.o
 
-OBJS  = malta_int.o malta_rtc.o malta_setup.o
+all: malta.o
 
-all: malta.a
+O_TARGET := malta.o
 
-malta.a: $(OBJS)
-	$(AR) rcs malta.a $(OBJS)
-	sync
-
-dep:
-	$(CPP) -M *.c > .depend
+O_OBJS := malta_int.o malta_rtc.o malta_setup.o
 
 include $(TOPDIR)/Rules.make

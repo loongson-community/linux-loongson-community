@@ -1,6 +1,3 @@
-# $Id: Makefile,v 1.1 2000/07/07 10:21:35 carstenl Exp $
-#
-# Makefile
 #
 # Carsten Langgaard, carstenl@mips.com
 # Copyright (C) 1999,2000 MIPS Technologies, Inc.  All rights reserved.
@@ -35,15 +32,11 @@
 .S.o:
 	$(CC) $(CFLAGS) -c $< -o $*.o
 
-OBJS  = mipsIRQ.o pci.o reset.o display.o init.o memory.o printf.o cmdline.o time.o
+all: mipsboards.o
 
-all: mipsboards.a
+O_TARGET := mipsboards.o
 
-mipsboards.a: $(OBJS)
-	$(AR) rcs mipsboards.a $(OBJS)
-	sync
-
-dep:
-	$(CPP) -M *.c > .depend
+O_OBJS := mipsIRQ.o pci.o reset.o display.o init.o memory.o printf.o \
+	  cmdline.o time.o
 
 include $(TOPDIR)/Rules.make

@@ -215,10 +215,10 @@ void atlas_hw0_irqdispatch(struct pt_regs *regs)
 
 	/* if int_status == 0, then the interrupt has already been cleared */
 	if (int_status == 0)
-	        return;
+		return;
 
 	for (i=0; i<ATLASINT_END; i++)
-	        if (int_status & 1<<i)
+		if (int_status & 1<<i)
 			break;
 	
 	irq = i;
@@ -227,15 +227,15 @@ void atlas_hw0_irqdispatch(struct pt_regs *regs)
 	DEBUG_INT("atlas_hw0_irqdispatch: irq=%d\n", irq);
 
 	/* if action == NULL, then we don't have a handler for the irq */
-	if ( action == NULL ) {
+	if (action == NULL) {
 	        printk("No handler for hw0 irq: %i\n", irq);
 		return;
 	}
 
-	hardirq_enter(cpu);
+	irq_enter(cpu);
 	kstat.irqs[0][irq + 8]++;
 	action->handler(irq, action->dev_id, regs);
-	hardirq_exit(cpu);
+	irq_exit(cpu);
 
 	return;		
 }

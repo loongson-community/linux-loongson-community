@@ -32,15 +32,16 @@ ifdef CONFIG_MIPS_FPE_MODULE
 M_OBJS += fpe.o
 endif
 
-#
-# SGIs have very different interrupt/timer hardware.
-#
 ifndef CONFIG_DECSTATION
   ifndef CONFIG_BAGET_MIPS
-    O_OBJS += time.o
     ifndef CONFIG_SGI_IP22
       ifndef CONFIG_ORION
-        OX_OBJS += irq.o
+        ifndef CONFIG_MIPS_ATLAS
+	  ifndef CONFIG_MIPS_MALTA
+	    O_OBJS += time.o
+	    OX_OBJS += irq.o
+	  endif
+        endif
       endif
     endif
   endif

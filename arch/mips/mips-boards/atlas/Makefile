@@ -1,6 +1,3 @@
-# $Id: Makefile,v 1.1 2000/07/07 10:20:28 carstenl Exp $
-#
-# Makefile
 #
 # Carsten Langgaard, carstenl@mips.com
 # Copyright (C) 1999,2000 MIPS Technologies, Inc.  All rights reserved.
@@ -36,13 +33,11 @@
 .S.o:
 	$(CC) $(CFLAGS) -c $< -o $*.o
 
-OBJS  = atlas_int.o atlas_rtc.o atlas_setup.o
+all: atlas.o
 
-all: atlas.a
+O_TARGET := atlas.o
 
-atlas.a: $(OBJS)
-	$(AR) rcs atlas.a $(OBJS)
-	sync
+O_OBJS := atlas_int.o atlas_rtc.o atlas_setup.o
 
 dep:
 	$(CPP) -M *.c > .depend

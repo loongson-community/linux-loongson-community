@@ -27,6 +27,7 @@
 #include <linux/init.h>
 #include <linux/kernel_stat.h>
 #include <linux/sched.h>
+#include <linux/spinlock.h>
 
 #include <asm/mipsregs.h>
 #include <asm/ptrace.h>
@@ -37,11 +38,13 @@
 #include <asm/mips-boards/generic.h>
 #include <asm/mips-boards/prom.h>
 
+extern volatile unsigned long wall_jiffies;
 static long last_rtc_update = 0;
 unsigned long missed_heart_beats = 0;
 
 static unsigned long r4k_offset; /* Amount to increment compare reg each time */
 static unsigned long r4k_cur;    /* What counter should be at next timer irq */
+extern rwlock_t xtime_lock;
 
 #define ALLINTS (IE_IRQ0 | IE_IRQ1 | IE_IRQ2 | IE_IRQ3 | IE_IRQ4 | IE_IRQ5)
 
@@ -131,77 +134,79 @@ void mips_timer_interrupt(struct pt_regs *regs)
 {
 	int irq = 7;
 
-	if(r4k_offset != 0) {
-		do {
-			kstat.irqs[0][irq]++;
-			do_timer(regs);
+	if (r4k_offset == 0)
+		goto null;
 
-			/* Historical comment/code:
-	 		* RTC time of day s updated approx. every 11 
-	 		* minutes.  Because of how the numbers work out 
-	 		* we need to make absolutely sure we do this update
-	 		* within 500ms before the * next second starts, 
-	 		* thus the following code.
-	 		*/
-			if ((time_status & STA_UNSYNC) == 0 
-			&& xtime.tv_sec > last_rtc_update + 660 
-			&& xtime.tv_usec >= 500000 - (tick >> 1) 
-			&& xtime.tv_usec <= 500000 + (tick >> 1))
-			    if (set_rtc_mmss(xtime.tv_sec) == 0)
+	do {
+		kstat.irqs[0][irq]++;
+		do_timer(regs);
+
+		/* Historical comment/code:
+ 		 * RTC time of day s updated approx. every 11 
+ 		 * minutes.  Because of how the numbers work out 
+ 		 * we need to make absolutely sure we do this update
+ 		 * within 500ms before the * next second starts, 
+ 		 * thus the following code.
+ 		 */
+		read_lock(&xtime_lock);
+		if ((time_status & STA_UNSYNC) == 0 
+		    && xtime.tv_sec > last_rtc_update + 660 
+		    && xtime.tv_usec >= 500000 - (tick >> 1) 
+		    && xtime.tv_usec <= 500000 + (tick >> 1))
+			if (set_rtc_mmss(xtime.tv_sec) == 0)
 				last_rtc_update = xtime.tv_sec;
-			    else
+			else
 				/* do it again in 60 s */
-		    		last_rtc_update = xtime.tv_sec - 600; 
+	    			last_rtc_update = xtime.tv_sec - 600; 
+		read_unlock(&xtime_lock);
 
-			if ((timer_tick_count++ % HZ) == 0)
-			{
-			    mips_display_message(&display_string[display_count++]);
-			    if (display_count == MAX_DISPLAY_COUNT)
-			        display_count = 0;
-			}
+		if ((timer_tick_count++ % HZ) == 0) {
+		    mips_display_message(&display_string[display_count++]);
+		    if (display_count == MAX_DISPLAY_COUNT)
+		        display_count = 0;
+		}
 
-			r4k_cur += r4k_offset;
-			ack_r4ktimer(r4k_cur);
+		r4k_cur += r4k_offset;
+		ack_r4ktimer(r4k_cur);
 
-		} while (((unsigned long)read_32bit_cp0_register(CP0_COUNT)
-			- r4k_cur) < 0x7fffffff);
-	} else ack_r4ktimer(0);
+	} while (((unsigned long)read_32bit_cp0_register(CP0_COUNT)
+	         - r4k_cur) < 0x7fffffff);
+
+	return;
+
+null:
+	ack_r4ktimer(0);
 }
 
-static unsigned long cal_r4koff(void)
+/* 
+ * Figure out the r4k offset, the amount to increment the compare
+ * register for each time tick. 
+ * Use the RTC to calculate offset.
+ */
+static unsigned long __init cal_r4koff(void)
 {
-        unsigned long count;
-	unsigned long flags;
+	unsigned long count;
+	unsigned int flags;
 
-        /* 
-	 * Figure out the r4k offset, the amount to increment the compare
-	 * register for each time tick. 
-	 * Use the RTC to calculate offset.
-	 */
-	/* Disable Interrupts */
-	save_and_cli(flags);
+	__save_and_cli(flags);
 
 	/* Start counter exactly on falling edge of update flag */
-	while (CMOS_READ(RTC_REG_A) & RTC_UIP)
-		        ;
-	while (!(CMOS_READ(RTC_REG_A) & RTC_UIP))
-		        ;
+	while (CMOS_READ(RTC_REG_A) & RTC_UIP);
+	while (!(CMOS_READ(RTC_REG_A) & RTC_UIP));
 
 	/* Start r4k counter. */
 	write_32bit_cp0_register(CP0_COUNT, 0);
 
 	/* Read counter exactly on falling edge of update flag */
-	while (CMOS_READ(RTC_REG_A) & RTC_UIP)
-		        ;
-	while (!(CMOS_READ(RTC_REG_A) & RTC_UIP))
-		        ;
+	while (CMOS_READ(RTC_REG_A) & RTC_UIP);
+	while (!(CMOS_READ(RTC_REG_A) & RTC_UIP));
 
 	count = read_32bit_cp0_register(CP0_COUNT);
 
 	/* restore interrupts */
-	restore_flags(flags);
+	__restore_flags(flags);
 
-        return (count / HZ);
+	return (count / HZ);
 }
 
 static unsigned long __init get_mips_time(void)
@@ -241,7 +246,7 @@ static unsigned long __init get_mips_time(void)
 
 void __init time_init(void)
 {
-        unsigned int est_freq;
+        unsigned int est_freq, flags;
 
         /* Set Data mode - binary. */ 
         CMOS_WRITE(CMOS_READ(RTC_CONTROL) | RTC_DM_BINARY, RTC_CONTROL);
@@ -261,25 +266,133 @@ void __init time_init(void)
 	set_cp0_status(ST0_IM, ALLINTS);
 
 	/* Read time from the RTC chipset. */
+	write_lock_irqsave (&xtime_lock, flags);
 	xtime.tv_sec = get_mips_time();
 	xtime.tv_usec = 0;
+	write_unlock_irqrestore(&xtime_lock, flags);
+}
+
+/* This is for machines which generate the exact clock. */
+#define USECS_PER_JIFFY (1000000/HZ)
+
+/* Cycle counter value at the previous timer interrupt.. */
+
+static unsigned int timerhi = 0, timerlo = 0;
+
+/*
+ * FIXME: Does playing with the RP bit in c0_status interfere with this code?
+ */
+static unsigned long do_fast_gettimeoffset(void)
+{
+	u32 count;
+	unsigned long res, tmp;
+
+	/* Last jiffy when do_fast_gettimeoffset() was called. */
+	static unsigned long last_jiffies=0;
+	unsigned long quotient;
+
+	/*
+	 * Cached "1/(clocks per usec)*2^32" value.
+	 * It has to be recalculated once each jiffy.
+	 */
+	static unsigned long cached_quotient=0;
+
+	tmp = jiffies;
+
+	quotient = cached_quotient;
+
+	if (tmp && last_jiffies != tmp) {
+		last_jiffies = tmp;
+		__asm__(".set\tnoreorder\n\t"
+			".set\tnoat\n\t"
+			".set\tmips3\n\t"
+			"lwu\t%0,%2\n\t"
+			"dsll32\t$1,%1,0\n\t"
+			"or\t$1,$1,%0\n\t"
+			"ddivu\t$0,$1,%3\n\t"
+			"mflo\t$1\n\t"
+			"dsll32\t%0,%4,0\n\t"
+			"nop\n\t"
+			"ddivu\t$0,%0,$1\n\t"
+			"mflo\t%0\n\t"
+			".set\tmips0\n\t"
+			".set\tat\n\t"
+			".set\treorder"
+			:"=&r" (quotient)
+			:"r" (timerhi),
+			 "m" (timerlo),
+			 "r" (tmp),
+			 "r" (USECS_PER_JIFFY)
+			:"$1");
+		cached_quotient = quotient;
+	}
+
+	/* Get last timer tick in absolute kernel time */
+	count = read_32bit_cp0_register(CP0_COUNT);
+
+	/* .. relative to previous jiffy (32 bits is enough) */
+	count -= timerlo;
+
+	__asm__("multu\t%1,%2\n\t"
+		"mfhi\t%0"
+		:"=r" (res)
+		:"r" (count),
+		 "r" (quotient));
+
+	/*
+ 	 * Due to possible jiffies inconsistencies, we need to check 
+	 * the result so that we'll get a timer that is monotonic.
+	 */
+	if (res >= USECS_PER_JIFFY)
+		res = USECS_PER_JIFFY-1;
+
+	return res;
 }
 
 void do_gettimeofday(struct timeval *tv)
 {
-	unsigned long flags;
+	unsigned int flags;
 
-	save_and_cli(flags);
+	read_lock_irqsave (&xtime_lock, flags);
 	*tv = xtime;
-	restore_flags(flags);
+	tv->tv_usec += do_fast_gettimeoffset();
+
+	/*
+	 * xtime is atomically updated in timer_bh. jiffies - wall_jiffies
+	 * is nonzero if the timer bottom half hasnt executed yet.
+	 */
+	if (jiffies - wall_jiffies)
+		tv->tv_usec += USECS_PER_JIFFY;
+
+	read_unlock_irqrestore (&xtime_lock, flags);
+
+	if (tv->tv_usec >= 1000000) {
+		tv->tv_usec -= 1000000;
+		tv->tv_sec++;
+	}
 }
 
 void do_settimeofday(struct timeval *tv)
 {
-	cli();
+	write_lock_irq (&xtime_lock);
+
+	/* This is revolting. We need to set the xtime.tv_usec correctly.
+	 * However, the value in this location is is value at the last tick.
+	 * Discover what correction gettimeofday would have done, and then
+	 * undo it!
+	 */
+	tv->tv_usec -= do_fast_gettimeoffset();
+
+	if (tv->tv_usec < 0) {
+		tv->tv_usec += 1000000;
+		tv->tv_sec--;
+	}
+
 	xtime = *tv;
-	time_state = TIME_BAD;
-	time_maxerror = MAXPHASE;
-	time_esterror = MAXPHASE;
-	sti();
+	time_adjust = 0;		/* stop active adjtime() */
+	time_status |= STA_UNSYNC;
+	time_maxerror = NTP_PHASE_LIMIT;
+	time_esterror = NTP_PHASE_LIMIT;
+
+	write_unlock_irq (&xtime_lock);
 }

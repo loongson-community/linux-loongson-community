@@ -103,13 +103,13 @@ LOADADDR      += 0x80040000
 endif
 
 ifdef CONFIG_MIPS_ATLAS
-LIBS          += arch/mips/mips-boards/atlas/atlas.a arch/mips/mips-boards/generic/mipsboards.a
+LIBS          += arch/mips/mips-boards/atlas/atlas.o arch/mips/mips-boards/generic/mipsboards.o
 SUBDIRS       += arch/mips/mips-boards/generic arch/mips/mips-boards/atlas
 LOADADDR      += 0x80100000
 endif
 
 ifdef CONFIG_MIPS_MALTA
-LIBS          += arch/mips/mips-boards/malta/malta.a arch/mips/mips-boards/generic/mipsboards.a
+LIBS          += arch/mips/mips-boards/malta/malta.o arch/mips/mips-boards/generic/mipsboards.o
 SUBDIRS       += arch/mips/mips-boards/malta arch/mips/mips-boards/generic
 LOADADDR      += 0x80100000
 endif

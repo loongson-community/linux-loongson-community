@@ -53,7 +53,7 @@ extern void mips_reboot_setup(void);
 
 static void __init atlas_irq_setup(void)
 {
-  	atlasint_init();
+	atlasint_init();
 
 #ifdef CONFIG_REMOTE_DEBUG
 	/* If local serial I/O used for debug port, enter kgdb at once */
@@ -81,17 +81,16 @@ void __init atlas_setup(void)
 	irq_setup = atlas_irq_setup;
 
 #ifdef CONFIG_SERIAL_CONSOLE
-        argptr = prom_getcmdline();
-	if ((argptr = strstr(argptr, "console=ttyS0")) == NULL) 
-	{
-	        int i=0;
-	        char *s = prom_getenv("modetty0");
+	argptr = prom_getcmdline();
+	if ((argptr = strstr(argptr, "console=ttyS0")) == NULL) {
+		int i = 0;
+		char *s = prom_getenv("modetty0");
 		while(s[i] >= '0' && s[i] <= '9')
 			i++;
 		strcpy(serial_console, "ttyS0,");
 		strncpy(serial_console + 6, s, i);
 		prom_printf("Config serial console: %s\n", serial_console);
-	        console_setup(serial_console, NULL);
+		console_setup(serial_console, NULL);
 	}
 #endif	  
 

@@ -26,6 +26,7 @@
 #include <linux/config.h>
 #include <linux/init.h>
 #include <linux/mm.h>
+#include <linux/bootmem.h>
 
 #include <asm/bootinfo.h>
 #include <asm/page.h>
@@ -37,7 +38,7 @@
 enum yamon_memtypes {
 	yamon_dontuse,
 	yamon_prom,
-        yamon_free,
+	yamon_free,
 };
 struct prom_pmemblock mdesc[PROM_MAX_PMEMBLOCKS];
 
@@ -47,7 +48,7 @@ struct prom_pmemblock mdesc[PROM_MAX_PMEMBLOCKS];
 
 #ifdef DEBUG
 static char *mtypes[3] = {
-        "Dont use memory",
+	"Dont use memory",
 	"YAMON PROM memory",
 	"Free memmory",
 };
@@ -55,30 +56,28 @@ static char *mtypes[3] = {
 
 struct prom_pmemblock * __init prom_getmdesc(void)
 {
-        char *memsize_str;
+	char *memsize_str;
 	unsigned int memsize;
-	
+
 	memsize_str = prom_getenv("memsize");
 	if (!memsize_str) {
-	        prom_printf("memsize not set in boot prom, set to default (32Mb)\n");
+		prom_printf("memsize not set in boot prom, set to default (32Mb)\n");
 		memsize = 0x02000000;
-	} 
-	else 
-	{
+	} else {
 #ifdef DEBUG
-	        prom_printf("prom_memsize = %s\n", memsize_str);
+		prom_printf("prom_memsize = %s\n", memsize_str);
 #endif
-	        memsize = simple_strtol(memsize_str, NULL, 0);
+		memsize = simple_strtol(memsize_str, NULL, 0);
 	}
 
-        memset(mdesc, 0, sizeof(mdesc));
+	memset(mdesc, 0, sizeof(mdesc));
 
 	mdesc[0].type = yamon_dontuse;
-        mdesc[0].base = 0x00000000;
+	mdesc[0].base = 0x00000000;
 	mdesc[0].size = 0x00001000;
 
 	mdesc[1].type = yamon_prom;
-        mdesc[1].base = 0x00001000;
+	mdesc[1].base = 0x00001000;
 	mdesc[1].size = 0x000ef000;
 
 #if (CONFIG_MIPS_MALTA)
@@ -90,157 +89,167 @@ struct prom_pmemblock * __init prom_getmdesc(void)
 	 * devices.
 	 */
 	mdesc[2].type = yamon_dontuse;
-        mdesc[2].base = 0x000f0000;
+	mdesc[2].base = 0x000f0000;
 	mdesc[2].size = 0x00010000;
 #else
 	mdesc[2].type = yamon_prom;
-        mdesc[2].base = 0x000f0000;
+	mdesc[2].base = 0x000f0000;
 	mdesc[2].size = 0x00010000;
 #endif
-
 	mdesc[3].type = yamon_free;
         mdesc[3].base = 0x00100000;
 	mdesc[3].size = memsize - mdesc[3].base;
 
-        return &mdesc[0];
+	return &mdesc[0];
 }
 
-static struct prom_pmemblock prom_pblocks[PROM_MAX_PMEMBLOCKS];
-
-struct prom_pmemblock * __init prom_getpblock_array(void)
+int __init page_is_ram(unsigned long pagenr)
 {
-	return &prom_pblocks[0];
+	if ((pagenr << PAGE_SHIFT) < mdesc[3].base + mdesc[3].size)
+		return 1;
+
+	return 0;
 }
+
+static struct prom_pmemblock pblocks[PROM_MAX_PMEMBLOCKS];
 
 static int __init prom_memtype_classify (unsigned int type)
 {
-        switch (type) {
-	  case yamon_free:
-	    return MEMTYPE_FREE;
-	  case yamon_prom:
-	    return MEMTYPE_PROM;
-	  default:
-	    return MEMTYPE_DONTUSE;
+	switch (type) {
+	case yamon_free:
+		return MEMTYPE_FREE;
+	case yamon_prom:
+		return MEMTYPE_PROM;
+	default:
+		return MEMTYPE_DONTUSE;
 	}
 }
 
-static void __init prom_setup_memupper(void)
+static inline unsigned long find_max_low_pfn(void)
 {
 	struct prom_pmemblock *p, *highest;
+	unsigned long pfn;
 
-	for(p = prom_getpblock_array(), highest = 0; p->size != 0; p++) {
-		if(p->base == 0xdeadbeef)
-			prom_printf("WHEEE, bogus pmemblock\n");
-		if(!highest || p->base > highest->base)
+	p = pblocks;
+	highest = 0;
+	while (p->size != 0) {
+		if (!highest || p->base > highest->base)
 			highest = p;
-	}
-	mips_memory_upper = highest->base + highest->size;
+		p++;
+        }
+
+	pfn = (highest->base + highest->size) >> PAGE_SHIFT;
 #ifdef DEBUG
-	prom_printf("prom_setup_memupper: mips_memory_upper = %08lx\n",
-		    mips_memory_upper);
+	prom_printf("find_max_low_pfn: 0x%lx pfns.\n", pfn);
 #endif
+	return pfn;
+}
+
+static inline struct prom_pmemblock *find_largest_memblock(void)
+{
+	struct prom_pmemblock *p, *largest;
+
+	p = pblocks;
+	largest = 0;
+	while (p->size != 0) {
+		if (!largest || p->size > largest->size)
+			largest = p;
+		p++;
+	}
+
+	return largest;
 }
 
 void __init prom_meminit(void)
 {
-	struct prom_pmemblock *p;
+	struct prom_pmemblock *largest, *p;
+	unsigned long bootmap_size;
 	int totram;
 	int i = 0;
 
 #ifdef DEBUG
-	p = prom_getmdesc();
 	prom_printf("YAMON MEMORY DESCRIPTOR dump:\n");
-	while(p->size) {
+	p = prom_getmdesc();
+	while (p->size) {
 		prom_printf("[%d,%p]: base<%08lx> size<%08lx> type<%s>\n",
 			    i, p, p->base, p->size, memtypes[p->type]);
 		p++;
 		i++;
 	}
 #endif
-	p = prom_getmdesc();
 	totram = 0;
 	i = 0;
-	while(p->size) {
-	    prom_pblocks[i].type = prom_memtype_classify (p->type);
-	    prom_pblocks[i].base = p->base | 0x80000000;
-	    prom_pblocks[i].size = p->size;
-	    switch (prom_pblocks[i].type) {
-	     case MEMTYPE_FREE:
-		totram += prom_pblocks[i].size;
+	p = prom_getmdesc();
+	while (p->size) {
+		pblocks[i].type = prom_memtype_classify (p->type);
+		pblocks[i].base = p->base | 0x80000000;
+		pblocks[i].size = p->size;
+		switch (pblocks[i].type) {
+		case MEMTYPE_FREE:
+			totram += pblocks[i].size;
 #ifdef DEBUG
-		prom_printf("free_chunk[%d]: base=%08lx size=%d\n",
-			    i, prom_pblocks[i].base,
-			    prom_pblocks[i].size);
+			prom_printf("free_chunk[%d]: base=%08lx size=%d\n",
+				    i, pblocks[i].base,
+				    pblocks[i].size);
 #endif
-		i++;
-		break;
-	     case MEMTYPE_PROM:
+			i++;
+			break;
+		case MEMTYPE_PROM:
 #ifdef DEBUG
-		prom_printf("prom_chunk[%d]: base=%08lx size=%d\n",
-			    i, prom_pblocks[i].base,
-			    prom_pblocks[i].size);
+			prom_printf("prom_chunk[%d]: base=%08lx size=%d\n",
+				    i, pblocks[i].base,
+				    pblocks[i].size);
 #endif
-		i++;
-		break;
-	     default:
-		break;
-	    }
-	    p++;
+			i++;
+			break;
+		default:
+			break;
+		}
+		p++;
 	}
-	prom_pblocks[i].base = 0xdeadbeef;
-	prom_pblocks[i].size = 0; /* indicates last elem. of array */
+	pblocks[i].base = 0xdeadbeef;
+	pblocks[i].size = 0; /* indicates last elem. of array */
+
+	max_low_pfn = find_max_low_pfn();
+	largest = find_largest_memblock();
+	bootmap_size = init_bootmem(largest->base >> PAGE_SHIFT, max_low_pfn);
+
+	for (i = 0; pblocks[i].size; i++)
+		if (pblocks[i].type == MEMTYPE_FREE)
+			free_bootmem(pblocks[i].base, pblocks[i].size);
+
+	/* This test is simpleminded.  It will fail if the bootmem bitmap
+	   falls into multiple adjacent PROM memory areas.  */
+	if (bootmap_size > largest->size) {
+		prom_printf("CRITIAL: overwriting PROM data.\n");
+		BUG();
+	}
+
+	/* Reserve the memory bootmap itself */
+	reserve_bootmem(largest->base, bootmap_size);
+
 	printk("PROMLIB: Total free ram %d bytes (%dK,%dMB)\n",
 		    totram, (totram/1024), (totram/1024/1024));
-
-	/* Setup upper physical memory bound. */
-	prom_setup_memupper();
-}
-
-/* Called from mem_init() to fixup the mem_map page settings. */
-void __init prom_fixup_mem_map(unsigned long start, unsigned long end)
-{
-	struct prom_pmemblock *p;
-	int i, nents;
-
-	/* Determine number of pblockarray entries. */
-	p = prom_getpblock_array();
-	for(i = 0; p[i].size; i++)
-		;
-	nents = i;
-restart:
-	while(start < end) {
-		for(i = 0; i < nents; i++) {
-			if((p[i].type == MEMTYPE_FREE) &&
-			   (start >= (p[i].base)) &&
-			   (start < (p[i].base + p[i].size))) {
-				start = p[i].base + p[i].size;
-				start &= PAGE_MASK;
-				goto restart;
-			}
-		}
-		set_bit(PG_reserved, &mem_map[MAP_NR(start)].flags);
-		start += PAGE_SIZE;
-	}
 }
 
 void prom_free_prom_memory (void)
 {
 	struct prom_pmemblock *p;
+	unsigned long freed = 0;
 	unsigned long addr;
-	unsigned long num_pages = 0;
 
-	for (p = prom_getpblock_array(); p->size != 0; p++) {
+	for (p = pblocks; p->size != 0; p++) {
 		if (p->type != MEMTYPE_PROM)
 			continue;
 
-		for (addr = p->base; addr < p->base + p->size;
-		     addr += PAGE_SIZE) {
-			mem_map[MAP_NR(addr)].flags &= ~(1 << PG_reserved);
-			atomic_set(&mem_map[MAP_NR(addr)].count, 1);
+		addr = p->base;
+		while (addr < p->base + p->size) {
+			ClearPageReserved(virt_to_page(addr));
+			set_page_count(virt_to_page(addr), 1);
 			free_page(addr);
-			num_pages++;
+			addr += PAGE_SIZE;
+			freed++;
 		}
 	}
-	printk("Freeing prom memory: %ldk freed\n",
-	       (num_pages << (PAGE_SHIFT - 10)));
+	printk("Freeing prom memory: %ldkk freed\n", freed >> 10);
 }

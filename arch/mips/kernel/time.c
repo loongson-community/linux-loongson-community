@@ -97,7 +97,6 @@ static unsigned long do_fast_gettimeoffset(void)
 
 	/* .. relative to previous jiffy (32 bits is enough) */
 	count -= timerlo;
-//printk("count: %08lx, %08lx:%08lx\n", count, timerhi, timerlo);
 
 	__asm__("multu\t%1,%2\n\t"
 		"mfhi\t%0"

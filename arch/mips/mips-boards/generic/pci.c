@@ -52,15 +52,15 @@ mips_pcibios_config_access(unsigned char access_type, struct pci_dev *dev,
 	        return -1; /* Because of a bug in the galileo (for slot 31). */
 
 	/* Clear cause register bits */
-	GT_WRITE( GT_INTRCAUSE_OFS, ~(GT_INTRCAUSE_MASABORT0_BIT | 
-				      GT_INTRCAUSE_TARABORT0_BIT) );
+	GT_WRITE(GT_INTRCAUSE_OFS, ~(GT_INTRCAUSE_MASABORT0_BIT | 
+	                             GT_INTRCAUSE_TARABORT0_BIT));
 
 	/* Setup address */
-	GT_WRITE( GT_PCI0_CFGADDR_OFS, 
-		  (bus         << GT_PCI0_CFGADDR_BUSNUM_SHF) |
-		  (dev_fn      << GT_PCI0_CFGADDR_FUNCTNUM_SHF) |
-		  ((where / 4) << GT_PCI0_CFGADDR_REGNUM_SHF)   |
-		  GT_PCI0_CFGADDR_CONFIGEN_BIT );
+	GT_WRITE(GT_PCI0_CFGADDR_OFS, 
+		 (bus         << GT_PCI0_CFGADDR_BUSNUM_SHF)   |
+		 (dev_fn      << GT_PCI0_CFGADDR_FUNCTNUM_SHF) |
+		 ((where / 4) << GT_PCI0_CFGADDR_REGNUM_SHF)   |
+		 GT_PCI0_CFGADDR_CONFIGEN_BIT);
 
 	if (access_type == PCI_ACCESS_WRITE) {
 		GT_WRITE(GT_PCI0_CFGDATA_OFS, *data);
@@ -266,6 +266,53 @@ void __init pcibios_init(void)
 	/* Exit config state. */
 	SMSC_WRITE(SMSC_CONFIG_EXIT, SMSC_CONFIG_REG);
 #endif
+}
+
+int __init
+pcibios_enable_device(struct pci_dev *dev)
+{
+	/* Not needed, since we enable all devices at startup.  */
+	return 0;
+}
+
+void __init
+pcibios_align_resource(void *data, struct resource *res, unsigned long size)
+{
+}
+
+char * __init
+pcibios_setup(char *str)
+{
+	/* Nothing to do for now.  */
+
+	return str;
+}
+
+struct pci_fixup pcibios_fixups[] = {
+	{ 0 }
+};
+
+void __init
+pcibios_update_resource(struct pci_dev *dev, struct resource *root,
+                        struct resource *res, int resource)
+{
+	unsigned long where, size;
+	u32 reg;
+
+	where = PCI_BASE_ADDRESS_0 + (resource * 4);
+	size = res->end - res->start;
+	pci_read_config_dword(dev, where, &reg);
+	reg = (reg & size) | (((u32)(res->start - root->start)) & ~size);
+	pci_write_config_dword(dev, where, reg);
+}
+
+/*
+ *  Called after each bus is probed, but before its children
+ *  are examined.
+ */
+void __init pcibios_fixup_bus(struct pci_bus *b)
+{
+	pci_read_bridge_bases(b);
 }
 
 #endif /* CONFIG_PCI */
