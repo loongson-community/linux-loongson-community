@@ -45,7 +45,6 @@
 #define	DBG(x...)
 #endif
 
-static void fixup_resource(int r_num, struct pci_dev *dev);
 #ifdef CONFIG_SOC_AU1500
 static unsigned long virt_io_addr;
 #endif
@@ -74,8 +73,4 @@ void __init pcibios_fixup_irqs(void)
 		DBG("slot %d irq %d\n", slot, dev->irq);
 	}
 #endif
-}
-
-static void fixup_resource(int r_num, struct pci_dev *dev)
-{
 }
