@@ -40,7 +40,7 @@
  * Below a little program to play around with this feature.
  *
  * #include <stdio.h>
- * #include <asm/sysmips.h>
+ * #include <sys/sysmips.h>
  *
  * struct foo {
  *         unsigned char bar[8];
