@@ -38,6 +38,7 @@
 #include <linux/smp_lock.h>
 #include <linux/seq_file.h>
 #include <linux/times.h>
+#include <linux/profile.h>
 
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
@@ -202,9 +203,9 @@ static int meminfo_read_proc(char *page, char **start, off_t off,
 	{
 		extern unsigned long htlbpagemem, htlbzone_pages;
 		len += sprintf(page + len,
-				"HugePages:    %8lu\n"
-				"Available:    %8lu\n"
-				"Size:         %8lu kB\n",
+				"HugePages_Total: %5lu\n"
+				"HugePages_Free:  %5lu\n"
+				"Hugepagesize:    %5lu kB\n",
 				htlbzone_pages,
 				htlbpagemem,
 				HPAGE_SIZE/1024);

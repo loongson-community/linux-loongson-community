@@ -575,7 +575,7 @@ Enomem:
 
 void get_capabilities(Scsi_CD *cd)
 {
-	unsigned char cmd[6];
+	struct cdrom_generic_command cgc;
 	unsigned char *buffer;
 	int rc, n;
 
@@ -597,13 +597,18 @@ void get_capabilities(Scsi_CD *cd)
 		printk(KERN_ERR "sr: out of memory.\n");
 		return;
 	}
-	cmd[0] = MODE_SENSE;
-	cmd[1] = (cd->device->scsi_level <= SCSI_2) ?
-		 ((cd->device->lun << 5) & 0xe0) : 0;
-	cmd[2] = 0x2a;
-	cmd[4] = 128;
-	cmd[3] = cmd[5] = 0;
-	rc = sr_do_ioctl(cd, cmd, buffer, 128, 1, SCSI_DATA_READ, NULL);
+	memset(&cgc, 0, sizeof(struct cdrom_generic_command));
+	cgc.cmd[0] = MODE_SENSE;
+	cgc.cmd[1] = (cd->device->scsi_level <= SCSI_2) ?
+		     ((cd->device->lun << 5) & 0xe0) : 0;
+	cgc.cmd[2] = 0x2a;
+	cgc.cmd[4] = 128;
+	cgc.buffer = buffer;
+	cgc.buflen = 128;
+	cgc.quiet = 1;
+	cgc.data_direction = SCSI_DATA_READ;
+	cgc.timeout = SR_TIMEOUT;
+	rc = sr_do_ioctl(cd, &cgc);
 
 	if (rc) {
 		/* failed, drive doesn't have capabilities mode page */
@@ -680,7 +685,10 @@ static int sr_packet(struct cdrom_device_info *cdi, struct cdrom_generic_command
 	if (device->scsi_level <= SCSI_2)
 		cgc->cmd[1] |= device->lun << 5;
 
-	cgc->stat = sr_do_ioctl(cdi->handle, cgc->cmd, cgc->buffer, cgc->buflen, cgc->quiet, cgc->data_direction, cgc->sense);
+	if (cgc->timeout <= 0)
+		cgc->timeout = IOCTL_TIMEOUT;
+
+	sr_do_ioctl(cdi->handle, cgc);
 
 	return cgc->stat;
 }
@@ -718,24 +726,6 @@ cleanup_dev:
 	return 1;
 }
 
-/* Driverfs file support */
-static ssize_t sr_device_kdev_read(struct device *driverfs_dev, 
-				   char *page, size_t count, loff_t off)
-{
-	kdev_t kdev; 
-	kdev.value=(int)(long)driverfs_dev->driver_data;
-	return off ? 0 : sprintf(page, "%x\n",kdev.value);
-}
-static DEVICE_ATTR(kdev,S_IRUGO,sr_device_kdev_read,NULL);
-
-static ssize_t sr_device_type_read(struct device *driverfs_dev, 
-				   char *page, size_t count, loff_t off) 
-{
-	return off ? 0 : sprintf (page, "CHR\n");
-}
-static DEVICE_ATTR(type,S_IRUGO,sr_device_type_read,NULL);
-
-
 void sr_finish()
 {
 	int i;
@@ -749,7 +739,7 @@ void sr_finish()
 		 * with loadable modules. */
 		if (cd->disk)
 			continue;
-		disk = alloc_disk();
+		disk = alloc_disk(1);
 		if (!disk)
 			continue;
 		if (cd->disk) {
@@ -758,7 +748,6 @@ void sr_finish()
 		}
 		disk->major = MAJOR_NR;
 		disk->first_minor = i;
-		disk->minor_shift = 0;
 		strcpy(disk->disk_name, cd->cdi.name);
 		disk->fops = &sr_bdops;
 		disk->flags = GENHD_FL_CD;
@@ -790,22 +779,8 @@ void sr_finish()
 		 */
 		get_capabilities(cd);
 		sr_vendor_init(cd);
-
-		sprintf(cd->cdi.cdrom_driverfs_dev.bus_id, "%s:cd",
-			cd->device->sdev_driverfs_dev.bus_id);
-		sprintf(cd->cdi.cdrom_driverfs_dev.name, "%scdrom",
-			cd->device->sdev_driverfs_dev.name);
-		cd->cdi.cdrom_driverfs_dev.parent = 
-			&cd->device->sdev_driverfs_dev;
-		cd->cdi.cdrom_driverfs_dev.bus = &scsi_driverfs_bus_type;
-		cd->cdi.cdrom_driverfs_dev.driver_data = 
-			(void *)(long)__mkdev(MAJOR_NR, i);
-		device_register(&cd->cdi.cdrom_driverfs_dev);
-		device_create_file(&cd->cdi.cdrom_driverfs_dev,
-				   &dev_attr_type);
-		device_create_file(&cd->cdi.cdrom_driverfs_dev,
-				   &dev_attr_kdev);
 		disk->de = cd->device->de;
+		disk->driverfs_dev = &cd->device->sdev_driverfs_dev;
 		register_cdrom(&cd->cdi);
 		set_capacity(disk, cd->capacity);
 		add_disk(disk);

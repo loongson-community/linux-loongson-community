@@ -349,7 +349,6 @@ static int fib_check_nh(const struct rtmsg *r, struct fib_info *fi, struct fib_n
 	int err;
 
 	if (nh->nh_gw) {
-		struct rt_key key;
 		struct fib_result res;
 
 #ifdef CONFIG_IP_ROUTE_PERVASIVE
@@ -372,16 +371,18 @@ static int fib_check_nh(const struct rtmsg *r, struct fib_info *fi, struct fib_n
 			nh->nh_scope = RT_SCOPE_LINK;
 			return 0;
 		}
-		memset(&key, 0, sizeof(key));
-		key.dst = nh->nh_gw;
-		key.oif = nh->nh_oif;
-		key.scope = r->rtm_scope + 1;
+		{
+			struct flowi fl = { .nl_u = { .ip4_u =
+						      { .daddr = nh->nh_gw,
+							.scope = r->rtm_scope + 1 } },
+					    .oif = nh->nh_oif };
 
-		/* It is not necessary, but requires a bit of thinking */
-		if (key.scope < RT_SCOPE_LINK)
-			key.scope = RT_SCOPE_LINK;
-		if ((err = fib_lookup(&key, &res)) != 0)
-			return err;
+			/* It is not necessary, but requires a bit of thinking */
+			if (fl.fl4_scope < RT_SCOPE_LINK)
+				fl.fl4_scope = RT_SCOPE_LINK;
+			if ((err = fib_lookup(&fl, &res)) != 0)
+				return err;
+		}
 		err = -EINVAL;
 		if (res.type != RTN_UNICAST && res.type != RTN_LOCAL)
 			goto out;
@@ -578,7 +579,7 @@ failure:
 }
 
 int 
-fib_semantic_match(int type, struct fib_info *fi, const struct rt_key *key, struct fib_result *res)
+fib_semantic_match(int type, struct fib_info *fi, const struct flowi *flp, struct fib_result *res)
 {
 	int err = fib_props[type].error;
 
@@ -603,7 +604,7 @@ fib_semantic_match(int type, struct fib_info *fi, const struct rt_key *key, stru
 			for_nexthops(fi) {
 				if (nh->nh_flags&RTNH_F_DEAD)
 					continue;
-				if (!key->oif || key->oif == nh->nh_oif)
+				if (!flp->oif || flp->oif == nh->nh_oif)
 					break;
 			}
 #ifdef CONFIG_IP_ROUTE_MULTIPATH
@@ -949,7 +950,7 @@ int fib_sync_up(struct net_device *dev)
    fair weighted route distribution.
  */
 
-void fib_select_multipath(const struct rt_key *key, struct fib_result *res)
+void fib_select_multipath(const struct flowi *flp, struct fib_result *res)
 {
 	struct fib_info *fi = res->fi;
 	int w;
@@ -1016,24 +1017,24 @@ static unsigned fib_flag_trans(int type, int dead, u32 mask, struct fib_info *fi
 	return flags;
 }
 
-void fib_node_get_info(int type, int dead, struct fib_info *fi, u32 prefix, u32 mask, char *buffer)
+void fib_node_seq_show(struct seq_file *seq, int type, int dead,
+		       struct fib_info *fi, u32 prefix, u32 mask)
 {
-	int len;
+	char bf[128];
 	unsigned flags = fib_flag_trans(type, dead, mask, fi);
 
-	if (fi) {
-		len = sprintf(buffer, "%s\t%08X\t%08X\t%04X\t%d\t%u\t%d\t%08X\t%d\t%u\t%u",
-			      fi->fib_dev ? fi->fib_dev->name : "*", prefix,
-			      fi->fib_nh->nh_gw, flags, 0, 0, fi->fib_priority,
-			      mask, fi->fib_advmss+40, fi->fib_window, fi->fib_rtt>>3);
-	} else {
-		len = sprintf(buffer, "*\t%08X\t%08X\t%04X\t%d\t%u\t%d\t%08X\t%d\t%u\t%u",
-			      prefix, 0,
-			      flags, 0, 0, 0,
-			      mask, 0, 0, 0);
-	}
-	memset(buffer+len, ' ', 127-len);
-	buffer[127] = '\n';
+	if (fi)
+		snprintf(bf, sizeof(bf),
+			 "%s\t%08X\t%08X\t%04X\t%d\t%u\t%d\t%08X\t%d\t%u\t%u",
+			 fi->fib_dev ? fi->fib_dev->name : "*", prefix,
+			 fi->fib_nh->nh_gw, flags, 0, 0, fi->fib_priority,
+			 mask, fi->fib_advmss + 40, fi->fib_window,
+			 fi->fib_rtt >> 3);
+	else
+		snprintf(bf, sizeof(bf),
+			 "*\t%08X\t%08X\t%04X\t%d\t%u\t%d\t%08X\t%d\t%u\t%u",
+			 prefix, 0, flags, 0, 0, 0, mask, 0, 0, 0);
+	seq_printf(seq, "%-127s\n", bf);
 }
 
 #endif

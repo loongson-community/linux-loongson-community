@@ -529,7 +529,7 @@ static int sd_open(struct inode *inode, struct file *filp)
 	if (sdp->removable)
 		if (sdp->access_count==1)
 			if (scsi_block_when_processing_errors(sdp))
-				scsi_ioctl(sdp, SCSI_IOCTL_DOORLOCK, NULL);
+				scsi_set_medium_removal(sdp, SCSI_REMOVAL_PREVENT);
 
 	return 0;
 
@@ -573,7 +573,7 @@ static int sd_release(struct inode *inode, struct file *filp)
 	if (sdp->removable) {
 		if (!sdp->access_count)
 			if (scsi_block_when_processing_errors(sdp))
-				scsi_ioctl(sdp, SCSI_IOCTL_DOORUNLOCK, NULL);
+				scsi_set_medium_removal(sdp, SCSI_REMOVAL_ALLOW);
 	}
 	if (sdp->host->hostt->module)
 		__MOD_DEC_USE_COUNT(sdp->host->hostt->module);
@@ -916,7 +916,7 @@ sd_read_cache_type(Scsi_Disk *sdkp, char *diskname,
 
 		SRpnt->sr_data_direction = SCSI_DATA_READ;
 		scsi_wait_req(SRpnt, (void *) cmd, (void *) buffer,
-			    24, SD_TIMEOUT, MAX_RETRIES);
+			    128, SD_TIMEOUT, MAX_RETRIES);
 
 		the_result = SRpnt->sr_result;
 		retries--;
@@ -1386,7 +1386,7 @@ static int sd_attach(Scsi_Device * sdp)
 	    ((sdp->type != TYPE_DISK) && (sdp->type != TYPE_MOD)))
 		return 0;
 
-	gd = alloc_disk();
+	gd = alloc_disk(16);
 	if (!gd)
 		return 1;
 
@@ -1423,7 +1423,6 @@ static int sd_attach(Scsi_Device * sdp)
         gd->de = sdp->de;
 	gd->major = SD_MAJOR(dsk_nr>>4);
 	gd->first_minor = (dsk_nr & 15)<<4;
-	gd->minor_shift = 4;
 	gd->fops = &sd_fops;
 	if (dsk_nr > 26)
 		sprintf(gd->disk_name, "sd%c%c",'a'+dsk_nr/26-1,'a'+dsk_nr%26);
@@ -1623,7 +1622,6 @@ static int sd_synchronize_cache(int index, int verbose)
 	}
 
 	the_result = SRpnt->sr_result;
-	scsi_release_request(SRpnt);
 	if(verbose) {
 		if(the_result != 0) {
 			printk("FAILED\n  status = %x, message = %02x, host = %d, driver = %02x\n  ",
@@ -1636,6 +1634,7 @@ static int sd_synchronize_cache(int index, int verbose)
 
 		}
 	}
+	scsi_release_request(SRpnt);
 	return (the_result == 0);
 }
 

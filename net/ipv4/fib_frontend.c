@@ -31,7 +31,6 @@
 #include <linux/inet.h>
 #include <linux/netdevice.h>
 #include <linux/if_arp.h>
-#include <linux/proc_fs.h>
 #include <linux/skbuff.h>
 #include <linux/netlink.h>
 #include <linux/init.h>
@@ -51,8 +50,8 @@
 
 #define RT_TABLE_MIN RT_TABLE_MAIN
 
-struct fib_table *local_table;
-struct fib_table *main_table;
+struct fib_table *ip_fib_local_table;
+struct fib_table *ip_fib_main_table;
 
 #else
 
@@ -88,55 +87,13 @@ void fib_flush(void)
 		flushed += tb->tb_flush(tb);
 	}
 #else /* CONFIG_IP_MULTIPLE_TABLES */
-	flushed += main_table->tb_flush(main_table);
-	flushed += local_table->tb_flush(local_table);
+	flushed += ip_fib_main_table->tb_flush(ip_fib_main_table);
+	flushed += ip_fib_local_table->tb_flush(ip_fib_local_table);
 #endif /* CONFIG_IP_MULTIPLE_TABLES */
 
 	if (flushed)
 		rt_cache_flush(-1);
 }
-
-
-#ifdef CONFIG_PROC_FS
-
-/* 
- *	Called from the PROCfs module. This outputs /proc/net/route.
- *
- *	It always works in backward compatibility mode.
- *	The format of the file is not supposed to be changed.
- */
- 
-static int
-fib_get_procinfo(char *buffer, char **start, off_t offset, int length)
-{
-	int first = offset/128;
-	char *ptr = buffer;
-	int count = (length+127)/128;
-	int len;
-
-	*start = buffer + offset%128;
-	
-	if (--first < 0) {
-		sprintf(buffer, "%-127s\n", "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT");
-		--count;
-		ptr += 128;
-		first = 0;
-  	}
-
-	if (main_table && count > 0) {
-		int n = main_table->tb_get_info(main_table, ptr, first, count);
-		count -= n;
-		ptr += n*128;
-	}
-	len = ptr - *start;
-	if (len >= length)
-		return length;
-	if (len >= 0)
-		return len;
-	return 0;
-}
-
-#endif /* CONFIG_PROC_FS */
 
 /*
  *	Find the first device with a given source address.
@@ -144,19 +101,17 @@ fib_get_procinfo(char *buffer, char **start, off_t offset, int length)
 
 struct net_device * ip_dev_find(u32 addr)
 {
-	struct rt_key key;
+	struct flowi fl = { .nl_u = { .ip4_u = { .daddr = addr } } };
 	struct fib_result res;
 	struct net_device *dev = NULL;
 
-	memset(&key, 0, sizeof(key));
-	key.dst = addr;
 #ifdef CONFIG_IP_MULTIPLE_TABLES
 	res.r = NULL;
 #endif
 
-	if (!local_table || local_table->tb_lookup(local_table, &key, &res)) {
+	if (!ip_fib_local_table ||
+	    ip_fib_local_table->tb_lookup(ip_fib_local_table, &fl, &res))
 		return NULL;
-	}
 	if (res.type != RTN_LOCAL)
 		goto out;
 	dev = FIB_RES_DEV(res);
@@ -170,7 +125,7 @@ out:
 
 unsigned inet_addr_type(u32 addr)
 {
-	struct rt_key		key;
+	struct flowi		fl = { .nl_u = { .ip4_u = { .daddr = addr } } };
 	struct fib_result	res;
 	unsigned ret = RTN_BROADCAST;
 
@@ -179,15 +134,14 @@ unsigned inet_addr_type(u32 addr)
 	if (MULTICAST(addr))
 		return RTN_MULTICAST;
 
-	memset(&key, 0, sizeof(key));
-	key.dst = addr;
 #ifdef CONFIG_IP_MULTIPLE_TABLES
 	res.r = NULL;
 #endif
 	
-	if (local_table) {
+	if (ip_fib_local_table) {
 		ret = RTN_UNICAST;
-		if (local_table->tb_lookup(local_table, &key, &res) == 0) {
+		if (!ip_fib_local_table->tb_lookup(ip_fib_local_table,
+						   &fl, &res)) {
 			ret = res.type;
 			fib_res_put(&res);
 		}
@@ -207,17 +161,14 @@ int fib_validate_source(u32 src, u32 dst, u8 tos, int oif,
 			struct net_device *dev, u32 *spec_dst, u32 *itag)
 {
 	struct in_device *in_dev;
-	struct rt_key key;
+	struct flowi fl = { .nl_u = { .ip4_u =
+				      { .daddr = src,
+					.saddr = dst,
+					.tos = tos } },
+			    .iif = oif };
 	struct fib_result res;
 	int no_addr, rpf;
 	int ret;
-
-	key.dst = src;
-	key.src = dst;
-	key.tos = tos;
-	key.oif = 0;
-	key.iif = oif;
-	key.scope = RT_SCOPE_UNIVERSE;
 
 	no_addr = rpf = 0;
 	read_lock(&inetdev_lock);
@@ -231,7 +182,7 @@ int fib_validate_source(u32 src, u32 dst, u8 tos, int oif,
 	if (in_dev == NULL)
 		goto e_inval;
 
-	if (fib_lookup(&key, &res))
+	if (fib_lookup(&fl, &res))
 		goto last_resort;
 	if (res.type != RTN_UNICAST)
 		goto e_inval_res;
@@ -252,10 +203,10 @@ int fib_validate_source(u32 src, u32 dst, u8 tos, int oif,
 		goto last_resort;
 	if (rpf)
 		goto e_inval;
-	key.oif = dev->ifindex;
+	fl.oif = dev->ifindex;
 
 	ret = 0;
-	if (fib_lookup(&key, &res) == 0) {
+	if (fib_lookup(&fl, &res) == 0) {
 		if (res.type == RTN_UNICAST) {
 			*spec_dst = FIB_RES_PREFSRC(res);
 			ret = FIB_RES_NH(res).nh_scope >= RT_SCOPE_HOST;
@@ -643,13 +594,9 @@ struct notifier_block fib_netdev_notifier = {
 
 void __init ip_fib_init(void)
 {
-#ifdef CONFIG_PROC_FS
-	proc_net_create("route",0,fib_get_procinfo);
-#endif		/* CONFIG_PROC_FS */
-
 #ifndef CONFIG_IP_MULTIPLE_TABLES
-	local_table = fib_hash_init(RT_TABLE_LOCAL);
-	main_table = fib_hash_init(RT_TABLE_MAIN);
+	ip_fib_local_table = fib_hash_init(RT_TABLE_LOCAL);
+	ip_fib_main_table  = fib_hash_init(RT_TABLE_MAIN);
 #else
 	fib_rules_init();
 #endif

@@ -136,7 +136,9 @@ CONFIG_BINFMT_ELF=y
 CONFIG_MTD=y
 # CONFIG_MTD_DEBUG is not set
 # CONFIG_MTD_PARTITIONS is not set
+# CONFIG_MTD_CONCAT is not set
 # CONFIG_MTD_REDBOOT_PARTS is not set
+# CONFIG_MTD_CMDLINE_PARTS is not set
 
 #
 # User Modules And Translation Layers
@@ -180,6 +182,8 @@ CONFIG_MTD_PHYSMAP_BUSWIDTH=4
 # CONFIG_MTD_CSTM_MIPS_IXX is not set
 # CONFIG_MTD_OCELOT is not set
 # CONFIG_MTD_LASAT is not set
+# CONFIG_MTD_PCI is not set
+# CONFIG_MTD_PCMCIA is not set
 
 #
 # Self-contained MTD device drivers
@@ -679,6 +683,7 @@ CONFIG_EXT2_FS=y
 # CONFIG_INTERMEZZO_FS is not set
 CONFIG_NFS_FS=y
 # CONFIG_NFS_V3 is not set
+# CONFIG_NFS_V4 is not set
 CONFIG_ROOT_NFS=y
 CONFIG_NFSD=y
 # CONFIG_NFSD_V3 is not set
@@ -698,6 +703,7 @@ CONFIG_EXPORTFS=y
 # CONFIG_NCPFS_SMALLDOS is not set
 # CONFIG_NCPFS_NLS is not set
 # CONFIG_NCPFS_EXTRAS is not set
+# CONFIG_AFS_FS is not set
 # CONFIG_ZISOFS_FS is not set
 
 #

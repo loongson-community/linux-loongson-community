@@ -256,11 +256,12 @@
 #define __NR_io_submit			(__NR_Linux + 244)
 #define __NR_io_cancel			(__NR_Linux + 245)
 #define __NR_exit_group			(__NR_Linux + 246)
+#define __NR_lookup_dcookie		(__NR_Linux + 247)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		246
+#define __NR_Linux_syscalls		247
 
 #ifndef __ASSEMBLY__
 

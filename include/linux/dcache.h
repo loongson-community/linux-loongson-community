@@ -66,6 +66,8 @@ static __inline__ unsigned int full_name_hash(const unsigned char * name, unsign
 
 #define DNAME_INLINE_LEN 16
 
+struct dcookie_struct;
+ 
 struct dentry {
 	atomic_t d_count;
 	unsigned int d_flags;
@@ -84,6 +86,7 @@ struct dentry {
 	unsigned long d_vfs_flags;
 	void * d_fsdata;		/* fs-specific data */
 	unsigned char d_iname[DNAME_INLINE_LEN]; /* small names */
+	struct dcookie_struct * d_cookie; /* cookie, if any */
 };
 
 struct dentry_operations {
@@ -179,17 +182,6 @@ extern void shrink_dcache_sb(struct super_block *);
 extern void shrink_dcache_parent(struct dentry *);
 extern void shrink_dcache_anon(struct list_head *);
 extern int d_invalidate(struct dentry *);
-
-/* dcache memory management */
-extern int shrink_dcache_memory(int, unsigned int);
-extern void prune_dcache(int);
-
-/* icache memory management (defined in linux/fs/inode.c) */
-extern int shrink_icache_memory(int, unsigned int);
-extern void prune_icache(int);
-
-/* quota cache memory management (defined in linux/fs/dquot.c) */
-extern int shrink_dqcache_memory(int, unsigned int);
 
 /* only used at mount-time */
 extern struct dentry * d_alloc_root(struct inode *);

@@ -261,3 +261,4 @@ SYS(sys_io_getevents, 5)
 SYS(sys_io_submit, 3)
 SYS(sys_io_cancel, 3)				/* 4245 */
 SYS(sys_exit_group, 1)
+SYS(sys_lookup_dcookie, 3)

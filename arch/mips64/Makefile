@@ -188,7 +188,6 @@ LDFLAGS_vmlinux += -Ttext $(LOADADDR)
 
 HEAD := arch/mips64/kernel/head.o arch/mips64/kernel/init_task.o
 
-SUBDIRS		:= arch/mips/tools
 libs-y		+= arch/mips64/lib
 core-y		+= arch/mips64/kernel arch/mips64/mm arch/mips/math-emu
 
@@ -218,11 +217,11 @@ zdisk: vmlinux
 
 archclean:
 	@$(MAKEBOOT) clean
-	$(MAKE) -C arch/mips/tools clean
+	$(MAKE) -C arch/mips/baget clean
+	$(MAKE) -C arch/mips/lasat clean
 
 archmrproper:
 	@$(MAKEBOOT) mrproper
-	$(MAKE) -C arch/mips/tools mrproper
 
 # Generate <asm/offset.h 
 #

@@ -35,7 +35,6 @@
 #include <xfs_dfrag.h>
 #include <linux/dcache.h>
 #include <linux/namei.h>
-#include <linux/iobuf.h>
 
 
 extern int xfs_change_file_space(bhv_desc_t *, int,
@@ -68,7 +67,7 @@ xfs_find_handle(
 	if (copy_from_user(&hreq, (xfs_fsop_handlereq_t *)arg, sizeof(hreq)))
 		return -XFS_ERROR(EFAULT);
 
-	bzero((char *)&handle, sizeof(handle));
+	memset((char *)&handle, 0, sizeof(handle));
 
 	switch (cmd) {
 	case XFS_IOC_PATH_TO_FSHANDLE:
@@ -229,7 +228,7 @@ xfs_vget_fsop_handlereq(
 	if (copy_from_user(handlep, hanp, hlen))
 		return XFS_ERROR(EFAULT);
 	if (hlen < sizeof(*handlep))
-		bzero(((char *)handlep) + hlen, sizeof(*handlep) - hlen);
+		memset(((char *)handlep) + hlen, 0, sizeof(*handlep) - hlen);
 	if (hlen > sizeof(handlep->ha_fsid)) {
 		if (handlep->ha_fid.xfs_fid_len !=
 				(hlen - sizeof(handlep->ha_fsid)
@@ -265,12 +264,6 @@ xfs_vget_fsop_handlereq(
 	vpp = XFS_ITOV(ip);
 	inodep = LINVFS_GET_IP(vpp);
 	xfs_iunlock(ip, XFS_ILOCK_SHARED);
-	error = linvfs_revalidate_core(inodep, ATTR_COMM);
-	if (error) {
-		iput(inodep);
-		/* this error is (-) but our callers expect + */
-		return XFS_ERROR(-error);
-	}
 
 	*vp = vpp;
 	*inode = inodep;
@@ -605,6 +598,7 @@ xfs_ioctl(
 		 * it is set to the file system block size to
 		 * avoid having to do block zeroing on short writes.
 		 */
+#define KIO_MAX_ATOMIC_IO 512	/* FIXME: what do we really want here? */
 		da.d_maxiosz = XFS_FSB_TO_B(mp,
 				XFS_B_TO_FSBT(mp, KIO_MAX_ATOMIC_IO << 10));
 

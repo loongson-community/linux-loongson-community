@@ -3,10 +3,13 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 2000, 2001 by Ralf Baechle
+ * Copyright (C) 2000, 2001, 2002 by Ralf Baechle
  */
-#ifndef _ASM_HW_IRQ_H
-#define _ASM_HW_IRQ_H
+#ifndef __ASM_HW_IRQ_H
+#define __ASM_HW_IRQ_H
+
+#include <linux/profile.h>
+#include <asm/atomic.h>
 
 extern atomic_t irq_err_count;
 
@@ -15,4 +18,4 @@ static inline void hw_resend_irq(struct hw_interrupt_type *h, unsigned int i)
 {
 }
 
-#endif /* _ASM_HW_IRQ_H */
+#endif /* __ASM_HW_IRQ_H */

@@ -53,6 +53,7 @@ obj-$(CONFIG_HVC_CONSOLE) += hvc_console.o
 obj-$(CONFIG_RAW_DRIVER) += raw.o
 
 obj-$(CONFIG_PRINTER) += lp.o
+obj-$(CONFIG_TIPAR) += tipar.o
 
 obj-$(CONFIG_BUSMOUSE) += busmouse.o
 obj-$(CONFIG_DTLK) += dtlk.o

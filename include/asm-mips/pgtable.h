@@ -334,10 +334,7 @@ static inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
 #define pgd_index(address)	((address) >> PGDIR_SHIFT)
 
 /* to find an entry in a page-table-directory */
-static inline pgd_t *pgd_offset(struct mm_struct *mm, unsigned long address)
-{
-	return mm->pgd + pgd_index(address);
-}
+#define pgd_offset(mm,addr)	((mm)->pgd + pgd_index(addr))
 
 /* Find an entry in the second-level page table.. */
 static inline pmd_t *pmd_offset(pgd_t *dir, unsigned long address)

@@ -467,6 +467,7 @@ extern Scsi_Cmnd *scsi_end_request(Scsi_Cmnd * SCpnt, int uptodate,
 				   int sectors);
 extern struct Scsi_Device_Template *scsi_get_request_dev(struct request *);
 extern int scsi_init_cmd_errh(Scsi_Cmnd * SCpnt);
+extern void scsi_setup_cmd_retry(Scsi_Cmnd *SCpnt);
 extern int scsi_insert_special_cmd(Scsi_Cmnd * SCpnt, int);
 extern void scsi_io_completion(Scsi_Cmnd * SCpnt, int good_sectors,
 			       int block_sectors);
@@ -556,15 +557,19 @@ struct scsi_device {
 	 */
 	struct scsi_device *next;	/* Used for linked list */
 	struct scsi_device *prev;	/* Used for linked list */
+	struct list_head    siblings;   /* list of all devices on this host */
+	struct list_head    same_target_siblings; /* just the devices sharing same target id */
 	wait_queue_head_t   scpnt_wait;	/* Used to wait if
 					   device is busy */
 	struct Scsi_Host *host;
 	request_queue_t request_queue;
         atomic_t                device_active; /* commands checked out for device */
 	volatile unsigned short device_busy;	/* commands actually active on low-level */
+	struct list_head free_cmnds;    /* list of available Scsi_Cmnd structs */
+	struct list_head busy_cmnds;    /* list of Scsi_Cmnd structs in use */
 	Scsi_Cmnd *device_queue;	/* queue of SCSI Command structures */
         Scsi_Cmnd *current_cmnd;	/* currently active command */
-	unsigned short queue_depth;	/* How deep of a queue we have */
+	unsigned short current_queue_depth;/* How deep of a queue we have */
 	unsigned short new_queue_depth; /* How deep of a queue we want */
 
 	unsigned int id, lun, channel;
@@ -597,9 +602,10 @@ struct scsi_device {
 	unsigned changed:1;	/* Data invalid due to media change */
 	unsigned busy:1;	/* Used to prevent races */
 	unsigned lockable:1;	/* Able to prevent media removal */
+	unsigned locked:1;      /* Media removal disabled */
 	unsigned borken:1;	/* Tell the Seagate driver to be 
 				 * painfully slow on this device */
-//	unsigned disconnect:1;	/* can disconnect */
+	unsigned disconnect:1;	/* can disconnect */
 	unsigned soft_reset:1;	/* Uses soft reset option */
 	unsigned sdtr:1;	/* Device supports SDTR messages */
 	unsigned wdtr:1;	/* Device supports WDTR messages */
@@ -711,6 +717,7 @@ struct scsi_cmnd {
 	Scsi_Request *sc_request;
 	struct scsi_cmnd *next;
 	struct scsi_cmnd *reset_chain;
+	struct list_head list_entry; /* Used to place us on the cmd lists */
 
 	int eh_state;		/* Used for state tracking in error handlr */
 	int eh_eflags;		/* Used by error handlr */
@@ -974,5 +981,7 @@ static inline Scsi_Cmnd *scsi_find_tag(Scsi_Device *SDpnt, int tag) {
 #define SCSI_EH_REC_TIMEOUT	0x0008	/* Recovery cmd timeout */
 
 #define SCSI_SENSE_VALID(scmd) ((scmd->sense_buffer[0] & 0x70) == 0x70)
+
+int scsi_set_medium_removal(Scsi_Device *dev, char state);
 
 #endif

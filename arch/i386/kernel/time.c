@@ -43,7 +43,6 @@
 #include <linux/smp.h>
 #include <linux/module.h>
 #include <linux/device.h>
-#include <linux/cpufreq.h>
 
 #include <asm/io.h>
 #include <asm/smp.h>
@@ -64,11 +63,6 @@
 extern spinlock_t i8259A_lock;
 
 #include "do_timer.h"
-
-/*
- * for x86_do_profile()
- */
-#include <linux/irq.h>
 
 u64 jiffies_64;
 

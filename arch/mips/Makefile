@@ -423,7 +423,6 @@ vmlinux.ecoff: vmlinux
 
 archclean:
 	@$(MAKEBOOT) clean
-	rm -f arch/$(ARCH)/ld.script
 	$(MAKE) -C arch/mips/baget clean
 	$(MAKE) -C arch/mips/lasat clean
 

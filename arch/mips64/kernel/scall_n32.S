@@ -304,3 +304,4 @@ EXPORT(sysn32_call_table)
 	PTR	sys_io_submit
 	PTR	sys_io_cancel
 	PTR	sys_exit_group			/* 6205 */
+	PTR	sys_lookup_dcookie

@@ -564,6 +564,7 @@ CONFIG_EXT2_FS=y
 # CONFIG_INTERMEZZO_FS is not set
 CONFIG_NFS_FS=y
 # CONFIG_NFS_V3 is not set
+# CONFIG_NFS_V4 is not set
 CONFIG_ROOT_NFS=y
 # CONFIG_NFSD is not set
 # CONFIG_NFSD_V3 is not set
@@ -583,6 +584,7 @@ CONFIG_LOCKD=y
 # CONFIG_NCPFS_SMALLDOS is not set
 # CONFIG_NCPFS_NLS is not set
 # CONFIG_NCPFS_EXTRAS is not set
+# CONFIG_AFS_FS is not set
 # CONFIG_ZISOFS_FS is not set
 
 #

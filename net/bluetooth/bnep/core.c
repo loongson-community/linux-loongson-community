@@ -58,7 +58,7 @@
 
 #include "bnep.h"
 
-#ifndef CONFIG_BLUEZ_BNEP_DEBUG
+#ifndef CONFIG_BT_BNEP_DEBUG
 #undef  BT_DBG
 #define BT_DBG(D...)
 #endif
@@ -97,11 +97,26 @@ static void __bnep_unlink_session(struct bnep_session *s)
 
 static int bnep_send(struct bnep_session *s, void *data, size_t len)
 {
+	struct kiocb iocb;
+	struct sock_iocb *si;
 	struct socket *sock = s->sock;
 	struct iovec iv = { data, len };
+	int err;
+
 	s->msg.msg_iov    = &iv;
 	s->msg.msg_iovlen = 1;
-	return sock->ops->sendmsg(sock, &s->msg, len, NULL);
+	init_sync_kiocb(&iocb, NULL);
+	si = kiocb_to_siocb(&iocb);
+	si->scm = NULL;
+	si->sock = sock;
+	si->msg = &s->msg;
+	si->size = len;
+
+	err = sock->ops->sendmsg(&iocb, sock, &s->msg, len, NULL);
+	if (-EIOCBQUEUED == err)
+		err = wait_on_sync_kiocb(&iocb);
+
+	return err;
 }
 
 static int bnep_send_rsp(struct bnep_session *s, u8 ctrl, u16 resp)
@@ -129,7 +144,7 @@ static int bnep_ctrl_set_netfilter(struct bnep_session *s, struct sk_buff *skb)
 
 	BT_DBG("filter len %d", n);
 
-#ifdef CONFIG_BLUEZ_BNEP_PROTO_FILTER
+#ifdef CONFIG_BT_BNEP_PROTO_FILTER
 	n /= 4;
 	if (n <= BNEP_MAX_PROTO_FILTERS) {
 		struct bnep_proto_filter *f = s->proto_filter;
@@ -171,7 +186,7 @@ static int bnep_ctrl_set_mcfilter(struct bnep_session *s, struct sk_buff *skb)
 
 	BT_DBG("filter len %d", n);
 
-#ifdef CONFIG_BLUEZ_BNEP_MC_FILTER
+#ifdef CONFIG_BT_BNEP_MC_FILTER
 	n /= (ETH_ALEN * 2);
 
 	if (n > 0) {
@@ -426,10 +441,22 @@ send:
 	len += skb->len;
 	
 	/* FIXME: linearize skb */
+	{
+		struct kiocb iocb;
+		struct sock_iocb *si;
 	
-	s->msg.msg_iov    = iv;
-	s->msg.msg_iovlen = il;
-	len = sock->ops->sendmsg(sock, &s->msg, len, NULL);
+		s->msg.msg_iov    = iv;
+		s->msg.msg_iovlen = il;
+		init_sync_kiocb(&iocb, NULL);
+		si = kiocb_to_siocb(&iocb);
+		si->scm = NULL;
+		si->sock = sock;
+		si->msg = &s->msg;
+		si->size = len;
+		len = sock->ops->sendmsg(&iocb, sock, &s->msg, len, NULL);
+		if (-EIOCBQUEUED == len)
+			len = wait_on_sync_kiocb(&iocb);
+	}
 	kfree_skb(skb);
 
 	if (len > 0) {
@@ -452,7 +479,7 @@ static int bnep_session(void *arg)
 	BT_DBG("");
 
         daemonize();
-	set_user_nice(current, 19);
+	set_user_nice(current, -15);
 	current->flags |= PF_IOTHREAD;
         sigfillset(&current->blocked);
 	flush_signals(current);
@@ -511,8 +538,8 @@ int bnep_add_connection(struct bnep_conadd_req *req, struct socket *sock)
 
 	BT_DBG("");
 
-	baswap((void *) dst, &bluez_sk(sock->sk)->dst);
-	baswap((void *) src, &bluez_sk(sock->sk)->src);
+	baswap((void *) dst, &bt_sk(sock->sk)->dst);
+	baswap((void *) src, &bt_sk(sock->sk)->src);
 
 	s = kmalloc(sizeof(struct bnep_session), GFP_KERNEL);
 	if (!s) 
@@ -545,12 +572,12 @@ int bnep_add_connection(struct bnep_conadd_req *req, struct socket *sock)
 	
 	s->msg.msg_flags = MSG_NOSIGNAL;
 
-#ifdef CONFIG_BLUEZ_BNEP_MC_FILTER
+#ifdef CONFIG_BT_BNEP_MC_FILTER
 	/* Set default mc filter */
 	set_bit(bnep_mc_hash(dev->broadcast), (ulong *) &s->mc_filter);
 #endif
 	
-#ifdef CONFIG_BLUEZ_BNEP_PROTO_FILTER
+#ifdef CONFIG_BT_BNEP_PROTO_FILTER
 	/* Set default protocol filter */
 
 	/* (IPv4, ARP)  */
