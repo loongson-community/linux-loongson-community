@@ -21,6 +21,7 @@ typedef struct {
 } sigset_t;
 
 typedef unsigned long old_sigset_t;		/* at least 32 bits */
+typedef unsigned int old_sigset_t32;
 
 #define SIGHUP		 1	/* Hangup (POSIX).  */
 #define SIGINT		 2	/* Interrupt (ANSI).  */

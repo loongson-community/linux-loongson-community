@@ -684,6 +684,25 @@ printk("%s: delivering signal.\n", __FUNCTION__);
 	return 0;
 }
 
+extern asmlinkage int sys_sigprocmask(int how, old_sigset_t *set,
+						old_sigset_t *oset);
+
+asmlinkage int sys32_sigprocmask(int how, old_sigset_t32 *set, 
+							old_sigset_t32 *oset)
+{
+	old_sigset_t s;
+	int ret;
+	mm_segment_t old_fs = get_fs();
+
+	if (set && get_user (s, set)) return -EFAULT;
+	set_fs (KERNEL_DS);
+	ret = sys_sigprocmask(how, set ? &s : NULL, oset ? &s : NULL);
+	set_fs (old_fs);
+	if (ret) return ret;
+	if (oset && put_user (s, oset)) return -EFAULT;
+	return 0;
+}
+
 /* Dummies ... */
 
 asmlinkage void sys32_sigpending(void) { panic(__FUNCTION__ " called."); }

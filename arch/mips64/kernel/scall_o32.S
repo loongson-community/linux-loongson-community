@@ -328,7 +328,7 @@ illegal_syscall:
 	sys	sys_ni_syscall	0	/* sys_modify_ldt */
 	sys	sys_adjtimex	1
 	sys	sys_mprotect	3			/* 4125 */
-	sys	sys_sigprocmask	3
+	sys	sys32_sigprocmask	3
 	sys	sys_create_module 2
 	sys	sys_init_module	5
 	sys	sys_delete_module 1
