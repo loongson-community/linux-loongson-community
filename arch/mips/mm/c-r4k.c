@@ -739,8 +739,8 @@ static inline void rm7k_erratum31(void)
 	}
 }
 
-static char *way_string[] = { NULL, "direct mapped", "2-way", "3-way", "4-way",
-	"5-way", "6-way", "7-way", "8-way"
+static char *way_string[] __initdata = { NULL, "direct mapped", "2-way",
+	"3-way", "4-way", "5-way", "6-way", "7-way", "8-way"
 };
 
 static void __init probe_pcache(void)
