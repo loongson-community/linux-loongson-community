@@ -223,15 +223,10 @@ shmiq_ioctl (struct inode *inode, struct file *f, unsigned int cmd, unsigned lon
 		return v;
 		
 	case I_STR:
-		v = verify_area (VERIFY_WRITE, (void *) arg, sizeof (struct strioctl));
+		v = get_sioc (&sioc, arg);
 		if (v)
 			return v;
-		if (copy_from_user (&sioc, (void *) arg, sizeof (sioc)))
-			return -EFAULT;
 		
-		v = verify_area (VERIFY_WRITE, (void *) sioc.ic_dp, sioc.ic_len);
-		if (v)
-			return v;
 		/* FIXME: This forces device = 0 */
 		return shmiq_sioc (0, sioc.ic_cmd, &sioc);
 	}

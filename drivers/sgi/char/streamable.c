@@ -10,12 +10,13 @@
 #include <linux/fs.h>
 #include <linux/miscdevice.h>
 #include <linux/sched.h>
-#include <asm/shmiq.h>
-#include "graphics.h"
-
-#include <asm/keyboard.h>
 #include <linux/kbd_kern.h>
 #include <linux/vt_kern.h>
+#include <asm/uaccess.h>
+#include <asm/shmiq.h>
+#include <asm/keyboard.h>
+#include "graphics.h"
+
 
 extern struct kbd_struct kbd_table [MAX_NR_CONSOLES];
 
@@ -27,6 +28,24 @@ int kbd_assigned_device;
 
 /* previous kbd_mode for the forward_chars terminal */
 int kbd_prev_mode;
+
+/* Fetchs the strioctl information from user space for I_STR ioctls */
+int
+get_sioc (struct strioctl *sioc, unsigned long arg)
+{
+	int v;
+	
+	v = verify_area (VERIFY_WRITE, (void *) arg, sizeof (struct strioctl));
+	if (v)
+		return v;
+	if (copy_from_user (sioc, (void *) arg, sizeof (struct strioctl)))
+		return -EFAULT;
+		
+	v = verify_area (VERIFY_WRITE, (void *) sioc->ic_dp, sioc->ic_len);
+	if (v)
+		return v;
+	return 0;
+}
 
 static int
 sgi_gfx_open (struct inode *inode, struct file *file)
@@ -49,13 +68,72 @@ sgi_gfx_ioctl (struct inode *inode, struct file *file, unsigned int cmd, unsigne
 	return -EINVAL;
 }
 
+static idevDesc sgi_kbd_desc = {
+        "keyboard",             /* devName */
+        "KEYBOARD",             /* devType */
+        240,                    /* nButtons */
+        0,                      /* nValuators */
+        0,                      /* nLEDs */
+        0,                      /* nStrDpys */
+        0,                      /* nIntDpys */
+        0,                      /* nBells */
+	IDEV_HAS_KEYMAP | IDEV_HAS_PCKBD
+};
+
+static int
+sgi_kbd_sioc (idevInfo *dinfo, int cmd, int size, char *data, int *found)
+{
+	*found = 1;
+	
+	switch (cmd){
+
+	case IDEVINITDEVICE:
+		return 0;
+			
+	case IDEVGETDEVICEDESC:
+		if (size >= sizeof (idevDesc)){
+			if (copy_to_user (data, &sgi_kbd_desc, sizeof (sgi_kbd_desc)))
+				return -EFAULT;
+			return 0;
+		}
+		return -EINVAL;
+
+	case IDEVGETKEYMAPDESC:
+		if (size >= sizeof (idevKeymapDesc)){
+			if (copy_to_user (data, "US", 3))
+				return -EFAULT;
+			return 0;
+		}
+		return -EINVAL;
+	}
+	*found = 0;
+	return -EINVAL;
+}
+
 static int
 sgi_keyb_ioctl (struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
 {
+	struct strioctl sioc;
+	int    f, v;
 	
 	/* IRIX calls I_PUSH on the opened device, go figure */
 	if (cmd == I_PUSH)
 		return 0;
+
+	if (cmd == I_STR){
+		v = get_sioc (&sioc, arg);
+		if (v)
+			return v;
+
+		/* Why like this?  Because this is a sample piece of code
+		 * that can be copied into other drivers and shows how to
+		 * call a stock IRIX xxx_wioctl routine
+		 *
+		 * The NULL is supposed to be a idevInfo, right now we
+		 * do not support this in our kernel.  
+		 */
+		return sgi_kbd_sioc (NULL, sioc.ic_cmd, sioc.ic_len, sioc.ic_dp, &f);
+	}
 	
 	if (cmd == SHMIQ_ON){
 		kbd_assigned_device = arg;
