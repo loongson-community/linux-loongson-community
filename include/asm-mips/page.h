@@ -1,4 +1,4 @@
-/* $Id: page.h,v 1.2 1998/05/09 02:57:49 ralf Exp $
+/* $Id: page.h,v 1.2 1998/06/30 00:23:11 ralf Exp $
  *
  * Definitions for page handling
  *
@@ -129,8 +129,7 @@ typedef unsigned long pgprot_t;
 #define PAGE_OFFSET	0x80000000UL
 #define __pa(x)		((unsigned long) (x) - PAGE_OFFSET)
 #define __va(x)		((void *)((unsigned long) (x) + PAGE_OFFSET))
-#define MAP_MASK        0x1fffffffUL
-#define MAP_NR(addr)	((((unsigned long)(addr)) & MAP_MASK) >> PAGE_SHIFT)
+#define MAP_NR(addr)	(__pa(addr) >> PAGE_SHIFT)
 
 #endif /* defined (__KERNEL__) */
 
