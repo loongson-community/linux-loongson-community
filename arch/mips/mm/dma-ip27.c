@@ -17,13 +17,14 @@
 
 dma64_addr_t dev_to_baddr[256];
 
-#define dev_to_baddr(bus, addr)	(dev_to_baddr[(bus)->number] + (addr))
-#define baddr_to_dev(bus, addr)	((addr) - dev_to_baddr[(bus)->number])
+#define dev_to_baddr(dev, addr)	(dev_to_baddr[to_pci_dev(dev)->bus->number] + (addr))
+#define baddr_to_dev(dev, addr)	((addr) - dev_to_baddr[to_pci_dev(dev)->bus->number])
 
-static void *__dma_alloc(struct device *dev, size_t size,
+void *dma_alloc_noncoherent(struct device *dev, size_t size,
 	dma_addr_t * dma_handle, int gfp)
 {
 	void *ret;
+
 	/* ignore region specifiers */
 	gfp &= ~(__GFP_DMA | __GFP_HIGHMEM);
 
@@ -39,19 +40,15 @@ static void *__dma_alloc(struct device *dev, size_t size,
 	return ret;
 }
 
-static void *__dma_alloc(struct device *dev, size_t size,
-	dma_addr_t * dma_handle, int gfp)
-	__attribute__((alias("dma_alloc_coherent")));
+EXPORT_SYMBOL(dma_alloc_noncoherent);
 
-EXPORT_SYMBOL(dma_alloc_coherent);
-
-static void *__dma_alloc(struct device *dev, size_t size,
+void *dma_alloc_coherent(struct device *dev, size_t size,
 	dma_addr_t * dma_handle, int gfp)
 	__attribute__((alias("dma_alloc_noncoherent")));
 
-EXPORT_SYMBOL(dma_alloc_noncoherent);
+EXPORT_SYMBOL(dma_alloc_coherent);
 
-static void __dma_free(struct device *dev, size_t size, void *vaddr,
+void dma_free_noncoherent(struct device *dev, size_t size, void *vaddr,
 	dma_addr_t dma_handle)
 {
 	unsigned long addr = (unsigned long) vaddr;
@@ -59,15 +56,12 @@ static void __dma_free(struct device *dev, size_t size, void *vaddr,
 	free_pages(addr, get_order(size));
 }
 
-static void __dma_free(struct device *dev, size_t size, void *vaddr,
-	dma_addr_t dma_handle) __attribute__((alias("dma_free_coherent")));
+EXPORT_SYMBOL(dma_free_noncoherent);
 
-EXPORT_SYMBOL(dma_free_coherent);
-
-static void __dma_free(struct device *dev, size_t size, void *vaddr,
+void dma_free_coherent(struct device *dev, size_t size, void *vaddr,
 	dma_addr_t dma_handle) __attribute__((alias("dma_free_noncoherent")));
 
-EXPORT_SYMBOL(dma_free_noncoherent);
+EXPORT_SYMBOL(dma_free_coherent);
 
 dma_addr_t dma_map_single(struct device *dev, void *ptr, size_t size,
 	enum dma_data_direction direction)
@@ -180,7 +174,7 @@ EXPORT_SYMBOL(dma_is_consistent);
 void dma_cache_sync(void *vaddr, size_t size,
 	       enum dma_data_direction direction)
 {
-	BUG_ON(direction == DMA_NONE)
+	BUG_ON(direction == DMA_NONE);
 }
 
 EXPORT_SYMBOL(dma_cache_sync);
