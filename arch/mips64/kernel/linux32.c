@@ -1,4 +1,4 @@
-/* $Id: linux32.c,v 1.6 2000/02/29 22:57:04 kanoj Exp $
+/* $Id: linux32.c,v 1.7 2000/03/06 23:24:34 ulfc Exp $
  * 
  * Conversion between 32-bit and 64-bit native system calls.
  *
@@ -13,9 +13,14 @@
 #include <linux/smp_lock.h>
 #include <linux/highuid.h>
 #include <linux/dirent.h>
+#include <linux/resource.h>
+#include <linux/highmem.h>
 
 #include <asm/uaccess.h>
 #include <asm/mman.h>
+
+
+#define A(__x) ((unsigned long)(__x))
 
 /*
  * Revalidate the inode. This is required for proper NFS attribute caching.
@@ -174,6 +179,186 @@ asmlinkage int sys_fstat64(unsigned int fd, struct stat *statbuf)
 	return sys_fstat(fd, statbuf);
 }
 
+#if 0
+/*
+ * count32() counts the number of arguments/envelopes
+ */
+static int count32(u32 * argv, int max)
+{
+	int i = 0;
+
+	if (argv != NULL) {
+		for (;;) {
+			u32 p;
+			/* egcs is stupid */
+			if (!access_ok(VERIFY_READ, argv, sizeof (u32)))
+				return -EFAULT;
+			__get_user(p,argv);
+			if (!p)
+				break;
+			argv++;
+			if(++i > max)
+				return -E2BIG;
+		}
+	}
+	return i;
+}
+
+
+/*
+ * 'copy_strings32()' copies argument/envelope strings from user
+ * memory to free pages in kernel mem. These are in a format ready
+ * to be put directly into the top of new user memory.
+ */
+int copy_strings32(int argc, u32 * argv, struct linux_binprm *bprm) 
+{
+	while (argc-- > 0) {
+		u32 str;
+		int len;
+		unsigned long pos;
+
+		if (get_user(str, argv+argc) || !str || !(len = strnlen_user((char *)A(str), bprm->p))) 
+			return -EFAULT;
+		if (bprm->p < len) 
+			return -E2BIG; 
+
+		bprm->p -= len;
+		/* XXX: add architecture specific overflow check here. */ 
+
+		pos = bprm->p;
+		while (len > 0) {
+			char *kaddr;
+			int i, new, err;
+			struct page *page;
+			int offset, bytes_to_copy;
+
+			offset = pos % PAGE_SIZE;
+			i = pos/PAGE_SIZE;
+			page = bprm->page[i];
+			new = 0;
+			if (!page) {
+				page = alloc_page(GFP_HIGHUSER);
+				bprm->page[i] = page;
+				if (!page)
+					return -ENOMEM;
+				new = 1;
+			}
+			kaddr = (char *)kmap(page);
+
+			if (new && offset)
+				memset(kaddr, 0, offset);
+			bytes_to_copy = PAGE_SIZE - offset;
+			if (bytes_to_copy > len) {
+				bytes_to_copy = len;
+				if (new)
+					memset(kaddr+offset+len, 0, PAGE_SIZE-offset-len);
+			}
+			err = copy_from_user(kaddr + offset, (char *)A(str), bytes_to_copy);
+			flush_page_to_ram(page);
+			kunmap(page);
+
+			if (err)
+				return -EFAULT; 
+
+			pos += bytes_to_copy;
+			str += bytes_to_copy;
+			len -= bytes_to_copy;
+		}
+	}
+	return 0;
+}
+
+
+/*
+ * sys_execve32() executes a new program.
+ */
+int do_execve32(char * filename, u32 * argv, u32 * envp, struct pt_regs * regs)
+{
+	struct linux_binprm bprm;
+	struct dentry * dentry;
+	int retval;
+	int i;
+
+	bprm.p = PAGE_SIZE*MAX_ARG_PAGES-sizeof(void *);
+	memset(bprm.page, 0, MAX_ARG_PAGES*sizeof(bprm.page[0])); 
+
+	dentry = open_namei(filename, 0, 0);
+	retval = PTR_ERR(dentry);
+	if (IS_ERR(dentry))
+		return retval;
+
+	bprm.dentry = dentry;
+	bprm.filename = filename;
+	bprm.sh_bang = 0;
+	bprm.loader = 0;
+	bprm.exec = 0;
+	if ((bprm.argc = count32(argv, bprm.p / sizeof(u32))) < 0) {
+		dput(dentry);
+		return bprm.argc;
+	}
+
+	if ((bprm.envc = count32(envp, bprm.p / sizeof(u32))) < 0) {
+		dput(dentry);
+		return bprm.envc;
+	}
+
+	retval = prepare_binprm(&bprm);
+	if (retval < 0) 
+		goto out; 
+
+	retval = copy_strings_kernel(1, &bprm.filename, &bprm);
+	if (retval < 0) 
+		goto out; 
+
+	bprm.exec = bprm.p;
+	retval = copy_strings32(bprm.envc, envp, &bprm);
+	if (retval < 0) 
+		goto out; 
+
+	retval = copy_strings32(bprm.argc, argv, &bprm);
+	if (retval < 0) 
+		goto out; 
+
+	retval = search_binary_handler(&bprm,regs);
+	if (retval >= 0)
+		/* execve success */
+		return retval;
+
+out:
+	/* Something went wrong, return the inode and free the argument pages*/
+	if (bprm.dentry)
+		dput(bprm.dentry);
+
+	/* Assumes that free_page() can take a NULL argument. */ 
+	/* I hope this is ok for all architectures */ 
+	for (i = 0 ; i < MAX_ARG_PAGES ; i++)
+		if (bprm.page[i])
+			__free_page(bprm.page[i]);
+
+	return retval;
+}
+
+/*
+ * sys_execve() executes a new program.
+ */
+asmlinkage int sys32_execve(abi64_no_regargs, struct pt_regs regs)
+{
+	int error;
+	char * filename;
+
+	filename = getname((char *) (long)regs.regs[4]);
+	printk("Executing: %s\n", filename);
+	error = PTR_ERR(filename);
+	if (IS_ERR(filename))
+		goto out;
+	error = do_execve32(filename, (u32 *) (long)regs.regs[5],
+	                  (u32 *) (long)regs.regs[6], &regs);
+	putname(filename);
+
+out:
+	return error;
+}
+#else
 static int
 nargs(unsigned int arg, char **ap)
 {
@@ -236,6 +421,7 @@ sys32_execve(abi64_no_regargs, struct pt_regs regs)
 		sys_munmap(av, len);
 	return(r);
 }
+#endif
 
 struct dirent32 {
 	unsigned int	d_ino;
@@ -288,3 +474,84 @@ sys32_readdir(unsigned int fd, void * dirent32, unsigned int count)
 	xlate_dirent(&dirent64, dirent32, dirent64.d_reclen);
 	return(n);
 }
+
+struct timeval32
+{
+    int tv_sec, tv_usec;
+};
+
+
+struct rusage32 {
+        struct timeval32 ru_utime;
+        struct timeval32 ru_stime;
+        int    ru_maxrss;
+        int    ru_ixrss;
+        int    ru_idrss;
+        int    ru_isrss;
+        int    ru_minflt;
+        int    ru_majflt;
+        int    ru_nswap;
+        int    ru_inblock;
+        int    ru_oublock;
+        int    ru_msgsnd; 
+        int    ru_msgrcv; 
+        int    ru_nsignals;
+        int    ru_nvcsw;
+        int    ru_nivcsw;
+};
+
+static int
+put_rusage (struct rusage32 *ru, struct rusage *r)
+{
+	int err;
+	
+	err = put_user (r->ru_utime.tv_sec, &ru->ru_utime.tv_sec);
+	err |= __put_user (r->ru_utime.tv_usec, &ru->ru_utime.tv_usec);
+	err |= __put_user (r->ru_stime.tv_sec, &ru->ru_stime.tv_sec);
+	err |= __put_user (r->ru_stime.tv_usec, &ru->ru_stime.tv_usec);
+	err |= __put_user (r->ru_maxrss, &ru->ru_maxrss);
+	err |= __put_user (r->ru_ixrss, &ru->ru_ixrss);
+	err |= __put_user (r->ru_idrss, &ru->ru_idrss);
+	err |= __put_user (r->ru_isrss, &ru->ru_isrss);
+	err |= __put_user (r->ru_minflt, &ru->ru_minflt);
+	err |= __put_user (r->ru_majflt, &ru->ru_majflt);
+	err |= __put_user (r->ru_nswap, &ru->ru_nswap);
+	err |= __put_user (r->ru_inblock, &ru->ru_inblock);
+	err |= __put_user (r->ru_oublock, &ru->ru_oublock);
+	err |= __put_user (r->ru_msgsnd, &ru->ru_msgsnd);
+	err |= __put_user (r->ru_msgrcv, &ru->ru_msgrcv);
+	err |= __put_user (r->ru_nsignals, &ru->ru_nsignals);
+	err |= __put_user (r->ru_nvcsw, &ru->ru_nvcsw);
+	err |= __put_user (r->ru_nivcsw, &ru->ru_nivcsw);
+	return err;
+}
+
+extern asmlinkage int sys_wait4(pid_t pid,unsigned int * stat_addr,
+				int options, struct rusage * ru);
+
+asmlinkage int
+sys32_wait4(__kernel_pid_t32 pid, unsigned int *stat_addr, int options,
+	    struct rusage32 *ru)
+{
+	if (!ru)
+		return sys_wait4(pid, stat_addr, options, NULL);
+	else {
+		struct rusage r;
+		int ret;
+		unsigned int status;
+		mm_segment_t old_fs = get_fs();
+		
+		ret = sys_wait4(pid, stat_addr ? &status : NULL, options, &r);
+		if (put_rusage (ru, &r)) return -EFAULT;
+		if (stat_addr && put_user (status, stat_addr))
+			return -EFAULT;
+		return ret;
+	}
+}
+
+asmlinkage int
+sys32_waitpid(__kernel_pid_t32 pid, unsigned int *stat_addr, int options)
+{
+	return sys32_wait4(pid, stat_addr, options, NULL);
+}
+

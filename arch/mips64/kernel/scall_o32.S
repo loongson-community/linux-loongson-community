@@ -1,4 +1,4 @@
-/* $Id: scall_o32.S,v 1.7 2000/02/18 00:24:30 ralf Exp $
+/* $Id: scall_o32.S,v 1.9 2000/02/29 22:13:07 kanoj Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -72,7 +72,7 @@ stack_done:
 	negu	v0			# error
 	sd	v0, PT_R0(sp)		# set flag for syscall restarting
 1:	sd	v0, PT_R2(sp)		# result
-
+	
 FEXPORT(o32_ret_from_sys_call)
 	lw	t0, softirq_state
 	lw	t1, softirq_state+4	# unused delay slot
@@ -280,7 +280,7 @@ illegal_syscall:
 	sys	sys_uselib	1
 	sys	sys_swapon	2
 	sys	sys_reboot	3
-	sys	old_readdir	3
+	sys	sys32_readdir	3
 	sys	sys_mmap	6			/* 4090 */
 	sys	sys_munmap	2
 	sys	sys_truncate	2
@@ -305,7 +305,7 @@ illegal_syscall:
 	sys	sys_vhangup	0
 	sys	sys_ni_syscall	0	/* was sys_idle	 */
 	sys	sys_ni_syscall	0	/* sys_vm86 */
-	sys	sys_wait4	4
+	sys	sys32_wait4	4
 	sys	sys_swapoff	1			/* 4115 */
 	sys	sys_sysinfo	1
 	sys	sys_ipc		6
@@ -332,7 +332,7 @@ illegal_syscall:
 	sys	sys_setfsuid	1
 	sys	sys_setfsgid	1
 	sys	sys_llseek	5			/* 4140 */
-	sys	sys_getdents	3
+	sys	sys32_getdents	3
 	sys	sys_select	5
 	sys	sys_flock	2
 	sys	sys_msync	3
