@@ -43,9 +43,9 @@ static void andes_clear_page(void * page)
 		"sd\t$0,-8(%0)\n\t"
 		".set\tat\n\t"
 		".set\treorder"
-		:"=r" (page)
-		:"0" (page), "I" (PAGE_SIZE)
-		:"$1", "memory");
+		: "=r" (page)
+		: "0" (page), "I" (PAGE_SIZE)
+		: "memory");
 }
 
 /* R10000 has no Create_Dirty type cacheops.  */
