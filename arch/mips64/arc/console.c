@@ -18,15 +18,14 @@
 #include <asm/sn/sn0/hub.h>
 #include <asm/sn/klconfig.h>
 #include <asm/ioc3.h>
+#include <asm/sn/sn_private.h>
 
 void prom_putchar(char c)
 {
 	struct ioc3 *ioc3;
 	struct ioc3_uartregs *uart;
-	nasid_t nid;
 
-	nid = get_nasid();
-	ioc3 = (struct ioc3 *) KL_CONFIG_CH_CONS_INFO(nid)->memory_base;
+	ioc3 = (struct ioc3 *)KL_CONFIG_CH_CONS_INFO(master_nasid)->memory_base;
 	uart = &ioc3->sregs.uarta;
 
 	while ((uart->iu_lsr & 0x20) == 0);
