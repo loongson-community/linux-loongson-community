@@ -57,6 +57,8 @@ pci_conf0_read_config_dword(struct pci_dev *dev, int where, u32 *value)
 	CF0_READ_PCI_CFG(dev,where,value,0,0xffffffff);
 }
 
+static int reallydo = 0;
+
 #define CF0_WRITE_PCI_CFG(dev,where,value,bm,mask)			\
 do {									\
 	bridge_t *bridge = (bridge_t *) 0x9200000008000000;		\
@@ -72,8 +74,9 @@ do {									\
 	addr = &bridge->b_type0_cfg_dev[slot].f[fn].l[where >> 2];	\
 	if (get_dbe(cf, addr))						\
 		return PCIBIOS_DEVICE_NOT_FOUND;			\
-	cf &= (mask << __bit);						\
-	cf |= ((value) << __bit);					\
+	cf &= (~mask);							\
+	cf |= (value);							\
+	if (reallydo) put_dbe(cf, addr);				\
 	return PCIBIOS_SUCCESSFUL;					\
 } while (0)
 
@@ -179,9 +182,35 @@ pcibios_update_resource(struct pci_dev *dev, struct resource *root,
 void __init
 pcibios_fixup_bus(struct pci_bus *b)
 {
+	unsigned short command;
+	struct pci_dev *dev;
+
 	/* Nothing to do for now.  */
 	printk("%s called.\n", __FUNCTION__);
 	pci_fixup_irqs(pci_swizzle, pci_map_irq);
+
+	/*
+	 * Older qlogicisp driver expects to have the IO space enable 
+	 * bit set. Make that happen for qlogic in slots 0 and 1. Things
+	 * stop working if we program the controllers as not having
+	 * PCI_COMMAND_MEMORY, so we have to fudge the mem_flags.
+	 */
+	reallydo = 1;
+	for (dev = b->devices; dev; dev = dev->sibling) {
+		if (PCI_FUNC(dev->devfn) == 0) {
+			if ((PCI_SLOT(dev->devfn) == 0) || 
+						(PCI_SLOT(dev->devfn) == 1)) {
+				if (pci_read_config_word(dev, PCI_COMMAND, 
+								&command) == 0) {
+					command |= PCI_COMMAND_IO;
+					pci_write_config_word(dev, PCI_COMMAND, 
+									command);
+					dev->resource[1].flags |= 1;
+				}
+			}
+		}
+	}
+	reallydo = 0;
 }
 
 char * __init
