@@ -58,10 +58,9 @@ extern char arcs_cmdline[];
 
 int cfe_cons_handle;
 
-#ifdef CONFIG_EMBEDDED_RAMDISK
-/* These are symbols defined by the ramdisk linker script */
-extern unsigned char __rd_start;
-extern unsigned char __rd_end;
+#ifdef CONFIG_BLK_DEV_INITRD
+extern unsigned long initrd_start, initrd_end;
+extern void * __rd_start, * __rd_end;
 #endif
 
 #ifdef CONFIG_SMP
