@@ -30,7 +30,7 @@ static unsigned long icache_size, dcache_size; /* Size in bytes */
 static unsigned long ic_lsize, dc_lsize;       /* LineSize in bytes */
 
 /* Secondary cache (if present) parameters. */
-static unsigned int scache_size, sc_lsize;	/* Again, in bytes */
+static unsigned long scache_size, sc_lsize;	/* Again, in bytes */
 
 #include <asm/cacheops.h>
 #include <asm/r4kcache.h>
@@ -1116,7 +1116,7 @@ static void __init probe_icache(unsigned long config)
 	}
 	ic_lsize = 16 << ((config >> 5) & 1);
 
-	printk("Primary instruction cache %ldkb, linesize %ld bytes.\n",
+	printk("Primary instruction cache %ldK, linesize %ld bytes.\n",
 	       icache_size >> 10, ic_lsize);
 }
 
@@ -1138,7 +1138,7 @@ static void __init probe_dcache(unsigned long config)
 	}
 	dc_lsize = 16 << ((config >> 4) & 1);
 
-	printk("Primary data cache %ldkb, linesize %ld bytes.\n",
+	printk("Primary data cache %ldK, linesize %ld bytes.\n",
 	       dcache_size >> 10, dc_lsize);
 }
 
@@ -1211,8 +1211,8 @@ static int __init probe_scache(unsigned long config)
 	}
 	local_irq_restore(flags);
 	addr -= begin;
-	printk("Secondary cache sized at %dK linesize %d bytes.\n",
-	       (int) (addr >> 10), sc_lsize);
+	printk("Secondary cache sized at %ldK, linesize %ld bytes.\n",
+	       addr >> 10, sc_lsize);
 	scache_size = addr;
 	return 1;
 }
