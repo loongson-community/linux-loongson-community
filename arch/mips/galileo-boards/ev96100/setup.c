@@ -64,7 +64,7 @@ void (*board_time_init) (struct irqaction * irq);
 extern void ev96100_time_init(struct irqaction *irq);
 
 extern void mips_reboot_setup(void);
-extern struct rtc_ops ev96100_rtc_ops;
+extern struct rtc_ops no_rtc_ops;
 extern struct resource ioport_resource;
 
 static void __init ev96100_irq_setup(void)
@@ -153,7 +153,7 @@ void __init ev96100_setup(void)
 	argptr = prom_getcmdline();
 
 	board_time_init = ev96100_time_init;
-	rtc_ops = &ev96100_rtc_ops;
+	rtc_ops = &no_rtc_ops;
 	mips_reboot_setup();
 
 	/*
