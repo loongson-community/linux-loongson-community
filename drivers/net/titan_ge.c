@@ -95,7 +95,6 @@ static int titan_ge_init_tx_desc_ring(titan_ge_port_info *, int,
 static int titan_ge_open(struct net_device *);
 static int titan_ge_start_xmit(struct sk_buff *, struct net_device *);
 static int titan_ge_stop(struct net_device *);
-static int titan_ge_set_mac_address(struct net_device *, void *);
 
 static unsigned long titan_ge_tx_coal(unsigned long, int);
 
@@ -1753,21 +1752,22 @@ static void titan_ge_update_mac_address(struct net_device *netdev)
 		       ((p_addr[3] << 8) | p_addr[2]));
 	TITAN_GE_WRITE((TITAN_GE_RMAC_STATION_LOW + (port_num << 12)),
 		       ((p_addr[1] << 8) | p_addr[0]));
-
-	return;
 }
 
 /*
  * Set the MAC address of the Ethernet device
  */
-int titan_ge_set_mac_address(struct net_device *netdev, void *addr)
+static int titan_ge_set_mac_address(struct net_device *dev, void *addr)
 {
-	int i;
+	titan_ge_port_info *tp = netdev_priv(dev);
+	struct sockaddr *sa = addr;
 
-	for (i = 0; i < 6; i++)
-		netdev->dev_addr[i] = ((unsigned char *) addr)[i + 2];
+	memcpy(dev->dev_addr, sa->sa_data, dev->addr_len);
 
-	titan_ge_update_mac_address(netdev);
+	spin_lock_irq(&tp->lock);
+	titan_ge_update_mac_address(dev);
+	spin_unlock_irq(&tp->lock);
+
 	return 0;
 }
 
