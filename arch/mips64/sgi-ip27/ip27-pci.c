@@ -300,6 +300,7 @@ pci_enable_swapping(struct pci_dev *dev)
 static void __init
 pci_fixup_ioc3(struct pci_dev *d)
 {
+	unsigned int bus_id = (unsigned) d->bus->number;
 	int i;
 
 	/* IOC3 only decodes 0x20 bytes of the config space, so we end up
@@ -307,6 +308,9 @@ pci_fixup_ioc3(struct pci_dev *d)
 	   INTA, INTB and INTC pins are all wired together as if it'd only
 	   use INTA.  */
 	printk("PCI: Fixing base addresses for IOC3 device %s\n", d->slot_name);
+
+	d->resource[0].start |= NODE_OFFSET(bus_to_nid[bus_id]);
+	d->resource[0].end |= NODE_OFFSET(bus_to_nid[bus_id]);
 
 	for (i = 1; i <= PCI_ROM_RESOURCE; i++) {
 		d->resource[i].start = 0UL;
