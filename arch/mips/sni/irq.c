@@ -92,36 +92,45 @@ void pciasic_hwint5(struct pt_regs *regs)
 	panic("hwint5 and no handler yet");
 }
 
-static inline int ls1bit8(unsigned int x)
+static unsigned int ls1bit8(unsigned int x)
 {
-	int b = 8, s;
+	int b = 7, s;
 
-	x <<= 24;
 	s = 4; if ((x & 0x0f) == 0) s = 0; b -= s; x <<= s;
-	s = 2; if ((x & 0x03) == 0) s = 0; b -= s; x <<= s;
-	s = 1; if ((x & 0x01) == 0) s = 0; b -= s;
+	s = 2; if ((x & 0x30) == 0) s = 0; b -= s; x <<= s;
+	s = 1; if ((x & 0x40) == 0) s = 0; b -= s;
 
 	return b;
 }
 
 /*
+ * The EISA_INT bit in CSITPEND is high active, all others are low active.
+ */
+#define CSITPEND_HIGH_ACTIVE	0xdf
+
+/*
  * hwint 1 deals with EISA and SCSI interrupts,
  * hwint 3 should deal with the PCI A - D interrupts,
  * hwint 4 is used for only the onboard PCnet 32.
+ * 
+ * The EISA_INT bit in CSITPEND is high active, all others are low active.
  */
 void pciasic_hwint134(struct pt_regs *regs)
 {
-	u8 pend = *(volatile char *)PCIMT_CSITPEND;
+	u8 pend = *(volatile char *)PCIMT_CSITPEND ^ CSITPEND_HIGH_ACTIVE;
 	int irq;
+
+	if (!pend)
+		return;
 
 	irq = PCIMT_IRQ_INT2 + ls1bit8(pend);
 	if (irq == PCIMT_IRQ_EISA) {
-		pend = *(volatile char *)PCIMT_INT_ACKNOWLEDGE;
-		if (!(pend ^ 0xff))
+		irq = *(volatile char *)PCIMT_INT_ACKNOWLEDGE;
+		if (!(irq ^ 0xff))
 			return;
 	}
+
 	do_IRQ(irq, regs);
-	return;
 }
 
 void __init init_pciasic(void)
@@ -156,4 +165,6 @@ void __init init_IRQ (void)
 		irq_desc[i].depth      = 1;
 		irq_desc[i].handler    = &pciasic_irq_type;
 	}
+
+	change_c0_status(ST0_IM, IE_IRQ1|IE_IRQ2|IE_IRQ3|IE_IRQ4);
 }
