@@ -31,7 +31,7 @@
 #include <asm/cachectl.h>
 #include <asm/cpu.h>
 #include <asm/dma.h>
-#include <asm/jazzdma.h>
+#include <asm/pgalloc.h>
 #include <asm/mmu_context.h>
 #include <asm/sections.h>
 #include <asm/tlb.h>
