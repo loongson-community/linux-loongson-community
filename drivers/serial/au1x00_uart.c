@@ -30,9 +30,10 @@
 #include <linux/serialP.h>
 #include <linux/delay.h>
 
+#include <asm/serial.h>
 #include <asm/io.h>
 #include <asm/irq.h>
-#include <asm/au1000.h>
+#include <asm/mach-au1x00/au1000.h>
 
 #if defined(CONFIG_SERIAL_AU1X00_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ)
 #define SUPPORT_SYSRQ
@@ -1382,24 +1383,26 @@ void serial8250_get_irq_map(unsigned int *map)
 
 /**
  *	serial8250_suspend_port - suspend one serial port
- *	@line: serial line number
+ *	@line:  serial line number
+ *      @level: the level of port suspension, as per uart_suspend_port
  *
  *	Suspend one serial port.
  */
-void serial8250_suspend_port(int line, u32 level)
+void serial8250_suspend_port(int line)
 {
-	uart_suspend_port(&serial8250_reg, &serial8250_ports[line].port, level);
+	uart_suspend_port(&serial8250_reg, &serial8250_ports[line].port);
 }
 
 /**
  *	serial8250_resume_port - resume one serial port
- *	@line: serial line number
+ *	@line:  serial line number
+ *      @level: the level of port resumption, as per uart_resume_port
  *
  *	Resume one serial port.
  */
-void serial8250_resume_port(int line, u32 level)
+void serial8250_resume_port(int line)
 {
-	uart_resume_port(&serial8250_reg, &serial8250_ports[line].port, level);
+	uart_resume_port(&serial8250_reg, &serial8250_ports[line].port);
 }
 
 static int __init serial8250_init(void)

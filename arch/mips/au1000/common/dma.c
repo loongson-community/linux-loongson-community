@@ -36,11 +36,9 @@
 #include <linux/spinlock.h>
 #include <linux/string.h>
 #include <linux/delay.h>
-#include <asm/au1000.h>
-#include <asm/au1000_dma.h>
 #include <asm/system.h>
-
-
+#include <asm/mach-au1x00/au1000.h>
+#include <asm/mach-au1x00/au1000_dma.h>
 
 /*
  * A note on resource allocation:

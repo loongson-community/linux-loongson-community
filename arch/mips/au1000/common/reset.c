@@ -35,7 +35,7 @@
 #include <asm/processor.h>
 #include <asm/reboot.h>
 #include <asm/system.h>
-#include <asm/au1000.h>
+#include <asm/mach-au1x00/au1000.h>
 
 extern int au_sleep(void);
 

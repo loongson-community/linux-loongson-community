@@ -39,7 +39,7 @@
 #include <asm/uaccess.h>
 #include <asm/io.h>
 #include <asm/system.h>
-#include <asm/au1000.h>
+#include <asm/mach-au1x00/au1000.h>
 
 #define DEBUG 1
 #ifdef DEBUG

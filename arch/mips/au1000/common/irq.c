@@ -47,9 +47,9 @@
 #include <asm/io.h>
 #include <asm/mipsregs.h>
 #include <asm/system.h>
-#include <asm/au1000.h>
+#include <asm/mach-au1x00/au1000.h>
 #ifdef CONFIG_MIPS_PB1000
-#include <asm/pb1000.h>
+#include <asm/mach-pb1x00/pb1000.h>
 #endif
 
 #undef DEBUG_IRQ

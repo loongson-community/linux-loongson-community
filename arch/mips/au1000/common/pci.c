@@ -34,10 +34,10 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 
-#include <asm/au1000.h>
+#include <asm/mach-au1x00/au1000.h>
 //#include <asm/pb1500.h>
 #ifdef CONFIG_MIPS_PB1000
-#include <asm/pb1000.h>
+#include <asm/mach-pb1x00/pb1000.h>
 #endif
 #include <asm/pci_channel.h>
 

@@ -366,13 +366,13 @@ config SGI_IP32
 	help
 	  If you want this kernel to run on SGI O2 workstation, say Y here.
 
-config MACH_AU1X00
+config SOC_AU1X00
 	depends on MIPS32
 	bool "Support for AMD/Alchemy Au1X00 SOCs"
 
 choice
 	prompt "Au1X00 SOC Type"
-	depends on MACH_AU1X00
+	depends on SOC_AU1X00
         help
            Say Y here to enable support for one of three AMD/Alchemy
            SOCs. For additional documentation see www.amd.com.
@@ -388,7 +388,7 @@ endchoice
 
 choice  
         prompt "AMD/Alchemy Au1x00 board support"
-        depends on MACH_AU1X00
+        depends on SOC_AU1X00
 	help
 	  These are evaluation boards built by AMD/Alchemy to
 	  showcase their Au1X00 Internet Edge Processors. The SOC design

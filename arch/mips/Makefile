@@ -213,58 +213,63 @@ load-$(CONFIG_MACH_JAZZ)	+= 0x80080000
 #
 # Common Alchemy Au1x00 stuff
 #
-core-$(CONFIG_MACH_AU1X00)	+= arch/mips/au1000/common/
-cflags-$(CONFIG_MACH_AU1X00)	+= -Iinclude/asm-mips/mach-au1x00
+core-$(CONFIG_SOC_AU1X00)	+= arch/mips/au1000/common/
+cflags-$(CONFIG_SOC_AU1X00)	+= -Iinclude/asm-mips/mach-au1x00
 
 #
 # AMD Alchemy Pb1000 eval board
 #
 libs-$(CONFIG_MIPS_PB1000)	+= arch/mips/au1000/pb1000/
-cflags-$(CONFIG_MACH_AU1X00)	+= -Iinclude/asm-mips/mach-pb1x00
+cflags-$(CONFIG_MIPS_PB1000)	+= -Iinclude/asm-mips/mach-pb1x00
 load-$(CONFIG_MIPS_PB1000)	+= 0x80100000
 
 #
 # AMD Alchemy Pb1100 eval board
 #
 libs-$(CONFIG_MIPS_PB1100)	+= arch/mips/au1000/pb1100/
-cflags-$(CONFIG_MACH_AU1X00)	+= -Iinclude/asm-mips/mach-pb1x00
+cflags-$(CONFIG_MIPS_PB1100)	+= -Iinclude/asm-mips/mach-pb1x00
 load-$(CONFIG_MIPS_PB1100)	+= 0x80100000
 
 #
 # AMD Alchemy Pb1500 eval board
 #
 libs-$(CONFIG_MIPS_PB1500)	+= arch/mips/au1000/pb1500/
-cflags-$(CONFIG_MACH_AU1X00)	+= -Iinclude/asm-mips/mach-pb1x00
+cflags-$(CONFIG_MIPS_PB1500)	+= -Iinclude/asm-mips/mach-pb1x00
 load-$(CONFIG_MIPS_PB1500)	+= 0x80100000
 
 #
 # AMD Alchemy Db1000 eval board
 #
 libs-$(CONFIG_MIPS_DB1000)	+= arch/mips/au1000/db1x00/
+cflags-$(CONFIG_MIPS_DB1000)	+= -Iinclude/asm-mips/mach-db1x00
 load-$(CONFIG_MIPS_DB1000)	+= 0x80100000
 
 #
 # AMD Alchemy Db1100 eval board
 #
 libs-$(CONFIG_MIPS_DB1100)	+= arch/mips/au1000/db1x00/
+cflags-$(CONFIG_MIPS_DB1100)	+= -Iinclude/asm-mips/mach-db1x00
 load-$(CONFIG_MIPS_DB1100)	+= 0x80100000
 
 #
 # AMD Alchemy Db1500 eval board
 #
 libs-$(CONFIG_MIPS_DB1500)	+= arch/mips/au1000/db1x00/
+cflags-$(CONFIG_MIPS_DB1500)	+= -Iinclude/asm-mips/mach-db1x00
 load-$(CONFIG_MIPS_DB1500)	+= 0x80100000
 
 #
 # AMD Alchemy Bosporus eval board
 #
 libs-$(CONFIG_MIPS_BOSPORUS)	+= arch/mips/au1000/db1x00/
+cflags-$(CONFIG_MIPS_BOSPORUS)	+= -Iinclude/asm-mips/mach-db1x00
 load-$(CONFIG_MIPS_BOSPORUS)	+= 0x80100000
 
 #
 # AMD Alchemy Mirage eval board
 #
 libs-$(CONFIG_MIPS_MIRAGE)	+= arch/mips/au1000/db1x00/
+cflags-$(CONFIG_MIPS_MIRAGE)	+= -Iinclude/asm-mips/mach-db1x00
 load-$(CONFIG_MIPS_MIRAGE)	+= 0x80100000
 
 #

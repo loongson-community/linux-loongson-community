@@ -34,7 +34,7 @@
 #include <asm/time.h>
 #include <asm/hardirq.h>
 #include <asm/div64.h>
-#include <asm/au1000.h>
+#include <asm/mach-au1x00/au1000.h>
 
 extern void startup_match20_interrupt(void);
 extern volatile unsigned long wall_jiffies;

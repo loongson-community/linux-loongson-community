@@ -28,7 +28,7 @@
  */
 
 #include <linux/module.h>
-#include <asm/au1000.h>
+#include <asm/mach-au1x00/au1000.h>
 
 static unsigned int au1x00_clock; // Hz
 static unsigned int lcd_clock;    // KHz

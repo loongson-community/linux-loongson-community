@@ -38,7 +38,7 @@
 #include <asm/mipsregs.h>
 #include <asm/reboot.h>
 #include <asm/pgtable.h>
-#include <asm/au1000.h>
+#include <asm/mach-au1x00/au1000.h>
 
 #ifdef CONFIG_BLK_DEV_INITRD
 extern unsigned long initrd_start, initrd_end;

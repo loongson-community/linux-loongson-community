@@ -29,7 +29,7 @@
  */
 
 #include <linux/types.h>
-#include <asm/au1000.h>
+#include <asm/mach-au1x00/au1000.h>
 
 #define SERIAL_BASE   UART_BASE
 #define SER_CMD       0x7

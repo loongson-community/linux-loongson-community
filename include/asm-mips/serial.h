@@ -150,6 +150,22 @@
 #define TXX927_SERIAL_PORT_DEFNS
 #endif
 
+#ifdef CONFIG_SERIAL_AU1X00
+#include <asm/mach-au1x00/au1000.h>
+#define AU1000_SERIAL_PORT_DEFNS                              \
+    { .baud_base = 0, .port = UART0_ADDR, .irq = AU1000_UART0_INT,  \
+      .flags = STD_COM_FLAGS, .type = 1 },                        \
+    { .baud_base = 0, .port = UART1_ADDR, .irq = AU1000_UART1_INT,  \
+      .flags = STD_COM_FLAGS, .type = 1 },     \
+    { .baud_base = 0, .port = UART2_ADDR, .irq = AU1000_UART2_INT,  \
+      .flags = STD_COM_FLAGS, .type = 1 },    \
+    { .baud_base = 0, .port = UART3_ADDR, .irq = AU1000_UART3_INT,  \
+      .flags = STD_COM_FLAGS, .type = 1 },
+#else
+#error
+#define AU1000_SERIAL_PORT_DEFNS
+#endif
+
 #ifdef CONFIG_HAVE_STD_PC_SERIAL_PORT
 #define STD_SERIAL_PORT_DEFNS			\
 	/* UART CLK   PORT IRQ     FLAGS        */			\
@@ -350,6 +366,7 @@
 	MOMENCO_OCELOT_C_SERIAL_PORT_DEFNS		\
 	MOMENCO_OCELOT_SERIAL_PORT_DEFNS		\
 	TITAN_SERIAL_PORT_DEFNS				\
-	TXX927_SERIAL_PORT_DEFNS
+	TXX927_SERIAL_PORT_DEFNS                        \
+	AU1000_SERIAL_PORT_DEFNS
 
 #endif /* _ASM_SERIAL_H */

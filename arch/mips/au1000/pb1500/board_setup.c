@@ -37,8 +37,8 @@
 #include <asm/mipsregs.h>
 #include <asm/reboot.h>
 #include <asm/pgtable.h>
-#include <asm/au1000.h>
-#include <asm/pb1500.h>
+#include <asm/mach-au1x00/au1000.h>
+#include <asm/mach-pb1x00/pb1500.h>
 
 #ifdef CONFIG_USB_OHCI
 // Enable the workaround for the OHCI DoneHead

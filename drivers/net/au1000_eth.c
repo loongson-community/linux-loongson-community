@@ -54,7 +54,7 @@
 #include <asm/io.h>
 #include <asm/processor.h>
 
-#include <asm/au1000.h>
+#include <asm/mach-au1x00/au1000.h>
 #include <asm/cpu.h>
 #include "au1000_eth.h"
 
