@@ -464,7 +464,6 @@ next:
 		                ((unsigned long) rxb & TO_PHYS_MASK);
 		rxb->w0 = 0;				/* Clear valid flag */
 		n_entry = (n_entry + 1) & 511;		/* Update erpir */
-		ioc3->erpir = (n_entry << 3) | ERPIR_ARM;
 
 		/* Now go on to the next ring entry.  */
 		rx_entry = (rx_entry + 1) & 511;
@@ -472,6 +471,7 @@ next:
 		rxb = (struct ioc3_erxbuf *) (skb->data - RX_OFFSET);
 		w0 = rxb->w0;
 	}
+	ioc3->erpir = (n_entry << 3) | ERPIR_ARM;
 	ip->rx_pi = n_entry;
 	ip->rx_ci = rx_entry;
 }
@@ -527,13 +527,17 @@ static void
 ioc3_error(struct net_device *dev, struct ioc3_private *ip,
            struct ioc3 *ioc3, u32 eisr)
 {
-	if (eisr & (EISR_RXMEMERR | EISR_TXMEMERR)) {
-		if (eisr & EISR_RXMEMERR) {
-			printk(KERN_ERR "%s: RX PCI error.\n", dev->name);
-		}
-		if (eisr & EISR_TXMEMERR) {
-			printk(KERN_ERR "%s: TX PCI error.\n", dev->name);
-		}
+	if (eisr & EISR_RXOFLO) {
+		printk(KERN_ERR "%s: RX overflow.\n", dev->name);
+	}
+	if (eisr & EISR_RXBUFOFLO) {
+		printk(KERN_ERR "%s: RX Buffer overflow.\n", dev->name);
+	}
+	if (eisr & EISR_RXMEMERR) {
+		printk(KERN_ERR "%s: RX PCI error.\n", dev->name);
+	}
+	if (eisr & EISR_TXMEMERR) {
+		printk(KERN_ERR "%s: TX PCI error.\n", dev->name);
 	}
 
 	ioc3_stop(dev);
@@ -551,8 +555,8 @@ static void ioc3_interrupt(int irq, void *_dev, struct pt_regs *regs)
 	struct net_device *dev = (struct net_device *)_dev;
 	struct ioc3_private *ip = dev->priv;
 	struct ioc3 *ioc3 = ip->regs;
-	const u32 enabled = EISR_RXTIMERINT | EISR_TXEXPLICIT |
-	                    EISR_RXMEMERR | EISR_TXMEMERR;
+	const u32 enabled = EISR_RXTIMERINT | EISR_RXOFLO | EISR_RXBUFOFLO |
+	                    EISR_TXEXPLICIT | EISR_RXMEMERR | EISR_TXMEMERR;
 	u32 eisr;
 
 	eisr = ioc3->eisr & enabled;
@@ -564,8 +568,10 @@ static void ioc3_interrupt(int irq, void *_dev, struct pt_regs *regs)
 			ioc3_rx(dev, ip, ioc3);
 		if (eisr & EISR_TXEXPLICIT)
 			ioc3_tx(dev, ip, ioc3);
-		if (eisr & (EISR_RXMEMERR | EISR_TXMEMERR))
+		if (eisr & (EISR_RXOFLO | EISR_RXBUFOFLO | \
+		            EISR_RXMEMERR | EISR_TXMEMERR))
 			ioc3_error(dev, ip, ioc3, eisr);
+
 		eisr = ioc3->eisr & enabled;
 	}
 }
@@ -797,16 +803,17 @@ static void ioc3_init(struct net_device *dev)
 	ioc3->emar_h = (dev->dev_addr[5] << 8) | dev->dev_addr[4];
 	ioc3->emar_l = (dev->dev_addr[3] << 24) | (dev->dev_addr[2] << 16) |
 	               (dev->dev_addr[1] <<  8) | dev->dev_addr[0];
-	ioc3->ehar_h = ioc3->ehar_l = 0;
+	ioc3->ehar_h = ip->ehar_h;
+	ioc3->ehar_l = ip->ehar_l;
 	ioc3->ersr = 42;			/* XXX should be random */
 
 	ioc3_init_rings(dev, ip, ioc3);
 
 	ip->emcr |= ((RX_OFFSET / 2) << EMCR_RXOFF_SHIFT) | EMCR_TXDMAEN |
-	            EMCR_TXEN | EMCR_RXDMAEN | EMCR_RXEN;
+	             EMCR_TXEN | EMCR_RXDMAEN | EMCR_RXEN;
 	ioc3->emcr = ip->emcr;
-	ioc3->eier = EISR_RXTIMERINT | EISR_TXEXPLICIT | /* Interrupts ...  */
-	             EISR_RXMEMERR | EISR_TXMEMERR;
+	ioc3->eier = EISR_RXTIMERINT | EISR_RXOFLO | EISR_RXBUFOFLO |
+	             EISR_TXEXPLICIT | EISR_RXMEMERR | EISR_TXMEMERR;
 	ioc3->eier;
 }
 
@@ -823,14 +830,18 @@ static void ioc3_stop(struct net_device *dev)
 static int
 ioc3_open(struct net_device *dev)
 {
+	struct ioc3_private *ip;
+
 	if (request_irq(dev->irq, ioc3_interrupt, 0, ioc3_str, dev)) {
 		printk(KERN_ERR "%s: Can't get irq %d\n", dev->name, dev->irq);
 
 		return -EAGAIN;
 	}
 
-	((struct ioc3_private *)dev->priv)->ehar_h = 0;
-	((struct ioc3_private *)dev->priv)->ehar_l = 0;
+	ip = (struct ioc3_private *) dev->priv;
+
+	ip->ehar_h = 0;
+	ip->ehar_l = 0;
 	ioc3_init(dev);
 
 	netif_start_queue(dev);
@@ -1115,7 +1126,7 @@ static void ioc3_set_multicast_list(struct net_device *dev)
 				if (!(*addr & 1))
 					continue;
 
-				ehar |= (1 << ioc3_hash(addr));
+				ehar |= (1UL << ioc3_hash(addr));
 			}
 			ip->ehar_h = ehar >> 32;
 			ip->ehar_l = ehar & 0xffffffff;
