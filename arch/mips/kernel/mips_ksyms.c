@@ -9,6 +9,7 @@
  * Copyright (C) 1999, 2000, 01 Silicon Graphics, Inc.
  */
 #include <linux/module.h>
+#include <asm/checksum.h>
 #include <asm/pgtable.h>
 #include <asm/uaccess.h>
 
@@ -25,6 +26,7 @@ extern long __strnlen_user_asm(const char *s);
 /*
  * String functions
  */
+EXPORT_SYMBOL_NOVERS(memchr);
 EXPORT_SYMBOL_NOVERS(memcmp);
 EXPORT_SYMBOL_NOVERS(memset);
 EXPORT_SYMBOL_NOVERS(memcpy);
@@ -51,5 +53,7 @@ EXPORT_SYMBOL_NOVERS(__strlen_user_nocheck_asm);
 EXPORT_SYMBOL_NOVERS(__strlen_user_asm);
 EXPORT_SYMBOL_NOVERS(__strnlen_user_nocheck_asm);
 EXPORT_SYMBOL_NOVERS(__strnlen_user_asm);
+
+EXPORT_SYMBOL(csum_partial);
 
 EXPORT_SYMBOL(invalid_pte_table);
