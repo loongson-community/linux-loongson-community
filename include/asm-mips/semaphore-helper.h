@@ -134,29 +134,26 @@ waking_non_zero_interruptible(struct semaphore *sem, struct task_struct *tsk)
 {
 	long ret, tmp;
 
-        __asm__ __volatile__("
-	.set	push
-	.set	mips3
-	.set	noat
-0:	lld	%1, %2
-	li	%0, 0
-	sll	$1, %1, 0
-	blez	$1, 1f
-	daddiu	%1, %1, -1
-	li	%0, 1
-	b 	2f
-1:
-	beqz	%3, 2f
-	li	%0, %4
-	dli	$1, 0x0000000100000000
-	daddu	%1, %1, $1
-2:
-	scd	%1, %2
-	beqz	%1, 0b
-
-	.set	pop"
-	: "=&r"(ret), "=&r"(tmp), "=m"(*sem)
-	: "r"(signal_pending(tsk)), "i"(-EINTR));
+	__asm__ __volatile__(
+	".set\tpush\n\t"
+	".set\tmips3\n\t"
+	".set\tnoat\n"
+	"0:\tlld\t%1, %2\n\t"
+	"li\t%0, 0\n\t"
+	"sll\t$1, %1, 0\n\t"
+	"blez\t$1, 1f\n\t"
+	"daddiu\t%1, %1, -1\n\t"
+	"li\t%0, 1\n\t"
+	"b\t2f\n"
+	"1:\tbeqz\t%3, 2f\n\t"
+	"li\t%0, %4\n\t"
+	"dli\t$1, 0x0000000100000000\n\t"
+	"daddu\t%1, %1, $1\n"
+	"2:\tscd\t%1, %2\n\t"
+	"beqz\t%1, 0b\n\t"
+	".set\tpop"
+	: "=&r" (ret), "=&r" (tmp), "=m" (*sem)
+	: "r" (signal_pending(tsk)), "i" (-EINTR));
 
 	return ret;
 }

@@ -147,29 +147,25 @@ static inline int down_trylock(struct semaphore * sem)
 	CHECK_MAGIC(sem->__magic);
 #endif
 
-	__asm__ __volatile__("
-			.set	mips3
-
-		0:	lld	%1, %4
-			dli	%3, 0x0000000100000000
-			dsubu	%1, %3
-			li	%0, 0
-			bgez	%1, 2f
-			sll	%2, %1, 0
-			blez	%2, 1f
-			daddiu	%1, %1, -1
-			b	2f
-		1:
-			daddu	%1, %1, %3
-			li	%0, 1
-		2:
-			scd	%1, %4
-			beqz	%1, 0b
-
-			.set	mips0"
-		: "=&r"(ret), "=&r"(tmp), "=&r"(tmp2), "=&r"(sub)
-		: "m"(*sem)
-		: "memory");
+	__asm__ __volatile__(
+	".set\tmips3\t\t\t# down_trylock\n"
+	"0:\tlld\t%1, %4\n\t"
+	"dli\t%3, 0x0000000100000000\n\t"
+	"dsubu\t%1, %3\n\t"
+	"li\t%0, 0\n\t"
+	"bgez\t%1, 2f\n\t"
+	"sll\t%2, %1, 0\n\t"
+	"blez\t%2, 1f\n\t"
+	"daddiu\t%1, %1, -1\n\t"
+	"b\t2f\n\t"
+	"1:\tdaddu\t%1, %1, %3\n"
+	"li\t%0, 1\n"
+	"2:\tscd\t%1, %4\n\t"
+	"beqz\t%1, 0b\n\t"
+	".set	mips0"
+	: "=&r"(ret), "=&r"(tmp), "=&r"(tmp2), "=&r"(sub)
+	: "m"(*sem)
+	: "memory");
 
 	return ret;
 }
