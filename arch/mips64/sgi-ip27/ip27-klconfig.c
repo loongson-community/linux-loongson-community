@@ -61,6 +61,19 @@ lboard_t * find_lboard(lboard_t *start, unsigned char brd_type)
 	return (lboard_t *)NULL;
 }
 
+lboard_t * find_lboard_class(lboard_t *start, unsigned char brd_type)
+{
+	/* Search all boards stored on this node. */
+	while (start) {
+		if (KLCLASS(start->brd_type) == KLCLASS(brd_type))
+			return start;
+		start = KLCF_NEXT(start);
+	}
+
+	/* Didn't find it. */
+	return (lboard_t *)NULL;
+}
+
 cnodeid_t get_cpu_cnode(cpuid_t cpu)
 {
 	return CPUID_TO_COMPACT_NODEID(cpu);
