@@ -6,7 +6,7 @@
  *
  * Based on work Copyright (C) 1995, 1996 Christian Vogelgsang.
  *
- * $Id: efs_fs.h,v 1.1 1997/09/16 20:51:18 shaver Exp $
+ * $Id: efs_fs.h,v 1.2 1998/05/23 17:11:25 shaver Exp $
  */
 
 #ifndef __LINUX_EFS_FS_H
@@ -87,7 +87,7 @@ union efs_extent {
 		__u32	ex_magic:4,	/* must be zero */
 			ex_bn:24;
 		__u32	ex_length:8,
-			ex_offset;
+			ex_offset:24;
 	} ex_ex;
 	__u32	ex_bytes[2];
 };

@@ -6,7 +6,7 @@
  *
  * Based on work Copyright (C) 1995, 1996 Christian Vogelgsang.
  *
- * $Id$
+ * $Id: efs_fs_i.h,v 1.1 1997/09/16 20:51:18 shaver Exp $
  */
 
 #ifndef __LINUX_EFS_FS_I_H
@@ -16,12 +16,9 @@
 
 /* private Inode part */
 struct efs_inode_info {
-  __u32  extblk;
-  
-  __u16 tot;
-  __u16 cur;
-
-  union efs_extent  extents[EFS_MAX_EXTENTS];
+  __u16 efs_total;
+  __u16 efs_current;
+  union efs_extent  *efs_extents;
 };
 
 #endif /* __LINUX_EFS_FS_I_H */
