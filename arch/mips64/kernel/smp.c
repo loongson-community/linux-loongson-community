@@ -52,7 +52,6 @@ int smp_num_cpus = 1;			/* Number that came online.  */
 cpumask_t cpu_online_map;		/* Bitmask of currently online CPUs */
 int __cpu_number_map[NR_CPUS];
 int __cpu_logical_map[NR_CPUS];
-cycles_t cacheflush_time;
 
 /* These are defined by the board-specific code. */
 
@@ -83,8 +82,50 @@ int prom_setup_smp(void);
 
 void prom_smp_finish(void);
 
-static void smp_tune_scheduling(void)
+cycles_t cacheflush_time;
+unsigned long cache_decay_ticks;
+
+void smp_tune_scheduling (void)
 {
+	struct cache_desc *cd = &mips_cpu.scache;
+	unsigned long cachesize;       /* kB   */
+	unsigned long bandwidth = 350; /* MB/s */
+	unsigned long cpu_khz;
+
+	/*
+	 * Crude estimate until we actually meassure ...
+	 */
+	cpu_khz = loops_per_jiffy * 2 * HZ / 1000;
+
+	/*
+	 * Rough estimation for SMP scheduling, this is the number of
+	 * cycles it takes for a fully memory-limited process to flush
+	 * the SMP-local cache.
+	 *
+	 * (For a P5 this pretty much means we will choose another idle
+	 *  CPU almost always at wakeup time (this is due to the small
+	 *  L1 cache), on PIIs it's around 50-100 usecs, depending on
+	 *  the cache size)
+	 */
+	if (!cpu_khz) {
+		/*
+		 * This basically disables processor-affinity scheduling on SMP
+		 * without a cycle counter.  Currently all SMP capable MIPS
+		 * processors have a cycle counter.
+		 */
+		cacheflush_time = 0;
+		return;
+	}
+
+	cachesize = cd->linesz * cd->sets * cd->ways;
+	cacheflush_time = (cpu_khz>>10) * (cachesize<<10) / bandwidth;
+	cache_decay_ticks = (long)cacheflush_time/cpu_khz * HZ / 1000;
+
+	printk("per-CPU timeslice cutoff: %ld.%02ld usecs.\n",
+		(long)cacheflush_time/(cpu_khz/1000),
+		((long)cacheflush_time*100/(cpu_khz/1000)) % 100);
+	printk("task migration cache decay timeout: %ld msecs.\n",
+		(cache_decay_ticks + 1) * 1000 / HZ);
 }
 
 void __init smp_callin(void)
