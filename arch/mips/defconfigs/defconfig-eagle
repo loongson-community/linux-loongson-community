@@ -30,6 +30,7 @@ CONFIG_EPOLL=y
 CONFIG_IOSCHED_NOOP=y
 CONFIG_IOSCHED_AS=y
 CONFIG_IOSCHED_DEADLINE=y
+# CONFIG_CC_OPTIMIZE_FOR_SIZE is not set
 
 #
 # Loadable module support
@@ -577,6 +578,7 @@ CONFIG_WATCHDOG=y
 # CONFIG_SCx200_WDT is not set
 # CONFIG_60XX_WDT is not set
 # CONFIG_W83877F_WDT is not set
+# CONFIG_W83627HF_WDT is not set
 # CONFIG_MACHZ_WDT is not set
 # CONFIG_SC520_WDT is not set
 # CONFIG_AMD7XX_TCO is not set
@@ -726,6 +728,11 @@ CONFIG_SUNRPC=y
 #
 # CONFIG_PARTITION_ADVANCED is not set
 CONFIG_MSDOS_PARTITION=y
+
+#
+# Native Language Support
+#
+# CONFIG_NLS is not set
 
 #
 # Kernel hacking

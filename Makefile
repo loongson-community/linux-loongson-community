@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 6
-SUBLEVEL = 0
+SUBLEVEL = 1
 EXTRAVERSION =
 
 # *DOCUMENTATION*
@@ -274,7 +274,7 @@ NOSTDINC_FLAGS  = -nostdinc -iwithprefix include
 CPPFLAGS        := -D__KERNEL__ -Iinclude \
 		   $(if $(KBUILD_SRC),-Iinclude2 -I$(srctree)/include)
 
-CFLAGS 		:= -Wall -Wstrict-prototypes -Wno-trigraphs -O2 \
+CFLAGS 		:= -Wall -Wstrict-prototypes -Wno-trigraphs \
 	  	   -fno-strict-aliasing -fno-common
 AFLAGS		:= -D__ASSEMBLY__
 
@@ -429,6 +429,12 @@ libs-y		:= $(libs-y1) $(libs-y2)
 # Here goes the main Makefile
 # ---------------------------------------------------------------------------
 
+
+ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
+CFLAGS		+= -Os
+else
+CFLAGS		+= -O2
+endif
 
 ifndef CONFIG_FRAME_POINTER
 CFLAGS		+= -fomit-frame-pointer
@@ -871,7 +877,7 @@ rpm:	clean spec
 	$(CONFIG_SHELL) $(srctree)/scripts/mkversion > $(objtree)/.tmp_version;\
 	mv -f $(objtree)/.tmp_version $(objtree)/.version;
 
-	$(RPM) -ta ../$(KERNELPATH).tar.gz
+	$(RPM) --target $(UTS_MACHINE) -ta ../$(KERNELPATH).tar.gz
 	rm ../$(KERNELPATH).tar.gz
 
 # Brief documentation of the typical targets used

@@ -30,6 +30,7 @@ CONFIG_EPOLL=y
 CONFIG_IOSCHED_NOOP=y
 CONFIG_IOSCHED_AS=y
 CONFIG_IOSCHED_DEADLINE=y
+# CONFIG_CC_OPTIMIZE_FOR_SIZE is not set
 
 #
 # Loadable module support
@@ -195,7 +196,6 @@ CONFIG_SCSI_REPORT_LUNS=y
 #
 # SCSI low-level drivers
 #
-# CONFIG_SCSI_AIC7XXX is not set
 # CONFIG_SCSI_AIC7XXX_OLD is not set
 # CONFIG_SCSI_SATA is not set
 # CONFIG_SCSI_EATA_PIO is not set
@@ -210,6 +210,11 @@ CONFIG_SCSI_REPORT_LUNS=y
 # Fusion MPT device support
 #
 # CONFIG_FUSION is not set
+
+#
+# IEEE 1394 (FireWire) support (EXPERIMENTAL)
+#
+# CONFIG_IEEE1394 is not set
 
 #
 # I2O device support
@@ -539,6 +544,11 @@ CONFIG_SUNRPC=y
 #
 # CONFIG_PARTITION_ADVANCED is not set
 CONFIG_MSDOS_PARTITION=y
+
+#
+# Native Language Support
+#
+# CONFIG_NLS is not set
 
 #
 # Kernel hacking

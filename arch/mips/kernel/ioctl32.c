@@ -33,6 +33,7 @@
 #include <linux/blkdev.h>
 #include <linux/loop.h>
 #include <linux/fb.h>
+#include <linux/i2c.h>
 #include <linux/vt.h>
 #include <linux/vt_kern.h>
 #include <linux/kd.h>
