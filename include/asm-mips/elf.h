@@ -23,7 +23,8 @@
 #define EF_MIPS_ABI_O64		0x00002000	/* O32 extended for 64 bit.  */
 
 #define PT_MIPS_REGINFO		0x70000000
-#define PT_MIPS_OPTIONS		0x70000001
+#define PT_MIPS_RTPROC		0x70000001
+#define PT_MIPS_OPTIONS		0x70000002
 
 /* Flags in the e_flags field of the header */
 #define EF_MIPS_NOREORDER	0x00000001
