@@ -116,16 +116,12 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 #ifdef CONFIG_BINFMT_IRIX
 	if (current->personality != PER_LINUX) {
 		/* Under IRIX things are a little different. */
-		childregs->regs[2] = 0;
 		childregs->regs[3] = 1;
-		regs->regs[2] = p->pid;
 		regs->regs[3] = 0;
-	} else
-#endif
-	{
-		childregs->regs[2] = 0;	/* Child gets zero as return value */
-		regs->regs[2] = p->pid;
 	}
+#endif
+	childregs->regs[2] = 0;	/* Child gets zero as return value */
+	regs->regs[2] = p->pid;
 
 	if (childregs->cp0_status & ST0_CU0) {
 		childregs->regs[28] = (unsigned long) ti;
@@ -263,7 +259,6 @@ arch_initcall(frame_info_init);
  */
 unsigned long thread_saved_pc(struct task_struct *tsk)
 {
-	extern void ret_from_fork(void);
 	struct thread_struct *t = &tsk->thread;
 
 	/* New born processes are a special case */
