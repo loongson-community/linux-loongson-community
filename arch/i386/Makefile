@@ -30,56 +30,42 @@ CFLAGS += $(shell if ! $(CC) -march=i486 -S -o /dev/null -xc /dev/null >/dev/nul
 CFLAGS += $(shell if $(CC) -mpreferred-stack-boundary=2 -S -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo "-mpreferred-stack-boundary=2"; fi)
 
 ifdef CONFIG_M386
-CFLAGS := $(CFLAGS) -DCPU=386
 CFLAGS += $(shell if $(CC) -march=i386 -S -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo "-march=i386"; else echo "-m386"; fi)
-AFLAGS := $(AFLAGS) -DCPU=386
 endif
 
 ifdef CONFIG_M486
-CFLAGS := $(CFLAGS) -DCPU=486
 CFLAGS += $(shell if $(CC) -march=i486 -S -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo "-march=i486"; else echo "-m486"; fi)
-AFLAGS := $(AFLAGS) -DCPU=486
 endif
 
 ifdef CONFIG_M586
-CFLAGS := $(CFLAGS) -DCPU=586
 CFLAGS += $(shell if $(CC) -march=i586 -S -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo "-march=i586"; fi)
-AFLAGS := $(AFLAGS) -DCPU=586
 endif
 
 ifdef CONFIG_M586TSC
-CFLAGS := $(CFLAGS) -DCPU=586
 CFLAGS += $(shell if $(CC) -march=i586 -S -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo "-march=i586"; fi)
-AFLAGS := $(AFLAGS) -DCPU=586
 endif
 
 ifdef CONFIG_M686
-CFLAGS := $(CFLAGS) -DCPU=686
 CFLAGS += $(shell if $(CC) -march=i686 -S -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo "-march=i686"; fi)
-AFLAGS := $(AFLAGS) -DCPU=686
 endif
 
 ifdef CONFIG_MK6
-CFLAGS := $(CFLAGS) -DCPU=586
 CFLAGS += $(shell if $(CC) -march=k6 -S -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo "-march=k6"; fi)
-AFLAGS := $(AFLAGS) -DCPU=586
 endif
 
 ifdef CONFIG_MK7
-CFLAGS := $(CFLAGS) -malign-functions=4 -fschedule-insns2 -mwide-multiply -fexpensive-optimizations -DCPU=686
-CFLAGS += $(shell if $(CC) -march=i686 -S -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo "-march=i686"; fi)
-AFLAGS := $(AFLAGS) -DCPU=686
+CFLAGS += $(shell if $(CC) -march=i686 -S -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo "-march=i686"; fi) -malign-functions=4 -fschedule-insns2 -mwide-multiply -fexpensive-optimizations
 endif
 
 HEAD := arch/i386/kernel/head.o arch/i386/kernel/init_task.o
 
-SUBDIRS := $(SUBDIRS) arch/i386/kernel arch/i386/mm arch/i386/lib
+SUBDIRS += arch/i386/kernel arch/i386/mm arch/i386/lib
 CORE_FILES := arch/i386/kernel/kernel.o arch/i386/mm/mm.o $(CORE_FILES)
 LIBS := $(TOPDIR)/arch/i386/lib/lib.a $(LIBS) $(TOPDIR)/arch/i386/lib/lib.a
 
 ifdef CONFIG_MATH_EMULATION
-SUBDIRS := $(SUBDIRS) arch/i386/math-emu
-DRIVERS := $(DRIVERS) arch/i386/math-emu/math.a
+SUBDIRS += arch/i386/math-emu
+DRIVERS += arch/i386/math-emu/math.a
 endif
 
 arch/i386/kernel: dummy

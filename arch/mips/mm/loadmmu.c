@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: loadmmu.c,v 1.16 2000/03/07 15:45:28 ralf Exp $
+ * $Id: loadmmu.c,v 1.17 2000/03/13 10:33:05 raiko Exp $
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -15,7 +15,6 @@
 #include <asm/pgtable.h>
 #include <asm/system.h>
 #include <asm/bootinfo.h>
-#include <asm/sgialib.h>
 
 /* memory functions */
 void (*_clear_page)(void * page);

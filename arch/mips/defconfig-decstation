@@ -19,6 +19,8 @@ CONFIG_DECSTATION=y
 # CONFIG_OLIVETTI_M700 is not set
 # CONFIG_SGI_IP22 is not set
 # CONFIG_SNI_RM200_PCI is not set
+# CONFIG_ISA is not set
+# CONFIG_PCI is not set
 
 #
 # CPU selection

@@ -495,36 +495,32 @@ S:	Maintained
 IEEE 1394 SUBSYSTEM
 P:	Andreas Bombe
 M:	andreas.bombe@munich.netsurf.de
-L:	linux1394-devel@eclipt.uni-klu.ac.at
-W:	http://eclipt.uni-klu.ac.at/ieee1394
+L:	linux1394-devel@lists.sourceforge.net
+W:	http://linux1394.sourceforge.net/
 S:	Maintained
 
 IEEE 1394 AIC5800 DRIVER
 P:	Emanuel Pirker
 M:	epirker@edu.uni-klu.ac.at
 L:	linux1394-devel@eclipt.uni-klu.ac.at
-W:	http://eclipt.uni-klu.ac.at/ieee1394
 S:	Maintained
 
 IEEE 1394 OHCI DRIVER
 P:	Sebastien Rougeaux
 M:	sebastien.rougeaux@anu.edu.au
 L:	linux1394-devel@eclipt.uni-klu.ac.at
-W:	http://eclipt.uni-klu.ac.at/ieee1394
 S:	Maintained
 
 IEEE 1394 PCILYNX DRIVER
 P:	Andreas Bombe
 M:	andreas.bombe@munich.netsurf.de
 L:	linux1394-devel@eclipt.uni-klu.ac.at
-W:	http://eclipt.uni-klu.ac.at/ieee1394
 S:	Maintained
 
 IEEE 1394 RAW I/O DRIVER
 P:	Andreas Bombe
 M:	andreas.bombe@munich.netsurf.de
 L:	linux1394-devel@eclipt.uni-klu.ac.at
-W:	http://eclipt.uni-klu.ac.at/ieee1394
 S:	Maintained
 
 INTEL APIC/IOAPIC, LOWLEVEL X86 SMP SUPPORT
@@ -1027,6 +1023,7 @@ S:	Maintained
 TLAN NETWORK DRIVER
 P:	Torben Mathiasen
 M:	torben.mathiasen@compaq.com
+M:	tmm@image.dk
 L:	tlan@vuser.vu.union.edu
 S:	Maintained
 
@@ -1135,6 +1132,13 @@ M:	greg@kroah.com
 L:	linux-usb@suse.com
 S:	Maintained
 W:	http://www.kroah.com/linux-usb/
+
+USB MASS STORAGE DRIVER
+P:	Matthew Dharm
+M:	mdharm-usb@one-eyed-alien.net
+L:	linux-usb@suse.com
+S:	Maintained
+W:	http://www.one-eyed-alien.net/~mdharm/linux-usb/
 
 USB UHCI DRIVER
 P:	Georg Acher

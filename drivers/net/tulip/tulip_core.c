@@ -19,7 +19,7 @@
 
 */
 
-static const char version[] = "Linux Tulip driver version 0.9.4 (Feb 28, 2000)\n";
+static const char version[] = "Linux Tulip driver version 0.9.4.2 (Mar 21, 2000)\n";
 
 #include <linux/module.h>
 #include "tulip.h"
@@ -27,7 +27,6 @@ static const char version[] = "Linux Tulip driver version 0.9.4 (Feb 28, 2000)\n
 #include <linux/init.h>
 #include <linux/etherdevice.h>
 #include <linux/delay.h>
-#include <asm/io.h>
 #include <asm/unaligned.h>
 
 
@@ -92,9 +91,6 @@ static int csr0 = 0x00A00000 | 0x4800;
 #define TX_TIMEOUT  (4*HZ)
 
 
-/* Kernel compatibility defines, some common to David Hind's PCMCIA package.
-   This is only in the support-all-kernels source code. */
-
 MODULE_AUTHOR("The Linux Kernel Team");
 MODULE_DESCRIPTION("Digital 21*4* Tulip ethernet driver");
 MODULE_PARM(tulip_debug, "i");
@@ -123,12 +119,13 @@ int tulip_debug = 1;
 
 struct tulip_chip_table tulip_tbl[] = {
   { "Digital DC21040 Tulip", 128, 0x0001ebef, 0, tulip_timer },
-  { "Digital DC21041 Tulip", 128, 0x0001ebff, HAS_MEDIA_TABLE, tulip_timer },
+  { "Digital DC21041 Tulip", 128, 0x0001ebef,
+	HAS_MEDIA_TABLE | HAS_NWAY, tulip_timer },
   { "Digital DS21140 Tulip", 128, 0x0001ebef,
 	HAS_MII | HAS_MEDIA_TABLE | CSR12_IN_SROM, tulip_timer },
   { "Digital DS21143 Tulip", 128, 0x0801fbff,
-	HAS_MII | HAS_MEDIA_TABLE | ALWAYS_CHECK_MII | HAS_ACPI | HAS_NWAY143,
-	t21142_timer },
+	HAS_MII | HAS_MEDIA_TABLE | ALWAYS_CHECK_MII | HAS_ACPI | HAS_NWAY
+	| HAS_INTR_MITIGATION, t21142_timer },
   { "Lite-On 82c168 PNIC", 256, 0x0001ebef,
 	HAS_MII | HAS_PNICNWAY, pnic_timer },
   { "Macronix 98713 PMAC", 128, 0x0001ebef,
@@ -138,18 +135,15 @@ struct tulip_chip_table tulip_tbl[] = {
   { "Macronix 98725 PMAC", 256, 0x0001ebef,
 	HAS_MEDIA_TABLE, mxic_timer },
   { "ASIX AX88140", 128, 0x0001fbff,
-	HAS_MII | HAS_MEDIA_TABLE | CSR12_IN_SROM | MC_HASH_ONLY, tulip_timer },
+	HAS_MII | HAS_MEDIA_TABLE | CSR12_IN_SROM | MC_HASH_ONLY | IS_ASIX, tulip_timer },
   { "Lite-On PNIC-II", 256, 0x0801fbff,
-	HAS_MII | HAS_NWAY143 | HAS_8023X, t21142_timer },
+	HAS_MII | HAS_NWAY | HAS_8023X, t21142_timer },
   { "ADMtek Comet", 256, 0x0001abef,
 	MC_HASH_ONLY, comet_timer },
   { "Compex 9881 PMAC", 128, 0x0001ebef,
 	HAS_MII | HAS_MEDIA_TABLE | CSR12_IN_SROM, mxic_timer },
   { "Intel DS21145 Tulip", 128, 0x0801fbff,
-	HAS_MII | HAS_MEDIA_TABLE | ALWAYS_CHECK_MII | HAS_NWAY143,
-	t21142_timer },
-  { "Xircom tulip work-alike", 128, 0x0801fbff,
-	HAS_MII | HAS_MEDIA_TABLE | ALWAYS_CHECK_MII | HAS_ACPI | HAS_NWAY143,
+	HAS_MII | HAS_MEDIA_TABLE | ALWAYS_CHECK_MII | HAS_ACPI | HAS_NWAY,
 	t21142_timer },
   {0},
 };
@@ -163,16 +157,20 @@ static struct pci_device_id tulip_pci_tbl[] __devinitdata = {
 	{ 0x11AD, 0x0002, PCI_ANY_ID, PCI_ANY_ID, 0, 0, LC82C168 },
 	{ 0x10d9, 0x0512, PCI_ANY_ID, PCI_ANY_ID, 0, 0, MX98713 },
 	{ 0x10d9, 0x0531, PCI_ANY_ID, PCI_ANY_ID, 0, 0, MX98715 },
-	{ 0x10d9, 0x0531, PCI_ANY_ID, PCI_ANY_ID, 0, 0, MX98725 },
+/*	{ 0x10d9, 0x0531, PCI_ANY_ID, PCI_ANY_ID, 0, 0, MX98725 },*/
 	{ 0x125B, 0x1400, PCI_ANY_ID, PCI_ANY_ID, 0, 0, AX88140 },
 	{ 0x11AD, 0xc115, PCI_ANY_ID, PCI_ANY_ID, 0, 0, PNIC2 },
 	{ 0x1317, 0x0981, PCI_ANY_ID, PCI_ANY_ID, 0, 0, COMET },
+	{ 0x1317, 0x0985, PCI_ANY_ID, PCI_ANY_ID, 0, 0, COMET },
+	{ 0x1317, 0x1985, PCI_ANY_ID, PCI_ANY_ID, 0, 0, COMET },
 	{ 0x11F6, 0x9881, PCI_ANY_ID, PCI_ANY_ID, 0, 0, COMPEX9881 },
 	{ 0x8086, 0x0039, PCI_ANY_ID, PCI_ANY_ID, 0, 0, I21145 },
-	{ 0x115d, 0x0003, PCI_ANY_ID, PCI_ANY_ID, 0, 0, X3201_3 },
+	{ 0x1282, 0x9100, PCI_ANY_ID, PCI_ANY_ID, 0, 0, DC21140 },
+	{ 0x1282, 0x9102, PCI_ANY_ID, PCI_ANY_ID, 0, 0, DC21140 },
+	{ 0x1113, 0x1217, PCI_ANY_ID, PCI_ANY_ID, 0, 0, MX98715 },
 	{0},
 };
-MODULE_DEVICE_TABLE(pci,tulip_pci_tbl);
+MODULE_DEVICE_TABLE(pci, tulip_pci_tbl);
 
 
 /* A full-duplex map for media types. */
@@ -181,7 +179,13 @@ const char tulip_media_cap[] =
 u8 t21040_csr13[] = {2,0x0C,8,4,  4,0,0,0, 0,0,0,0, 4,0,0,0};
 
 /* 21041 transceiver register settings: 10-T, 10-2, AUI, 10-T, 10T-FD*/
-u16 t21041_csr13[] = { 0xEF01, 0xEF09, 0xEF09, 0xEF01, 0xEF09, };
+u16 t21041_csr13[] = {
+	csr13_mask_10bt,		/* 10-T */
+	csr13_mask_auibnc,		/* 10-2 */
+	csr13_mask_auibnc,		/* AUI */
+	csr13_mask_10bt,		/* 10-T */
+	csr13_mask_10bt,		/* 10T-FD */
+};
 u16 t21041_csr14[] = { 0xFFFF, 0xF7FD, 0xF7FD, 0x7F3F, 0x7F3D, };
 u16 t21041_csr15[] = { 0x0008, 0x0006, 0x000E, 0x0008, 0x0008, };
 
@@ -197,54 +201,6 @@ static struct net_device_stats *tulip_get_stats(struct net_device *dev);
 static int private_ioctl(struct net_device *dev, struct ifreq *rq, int cmd);
 static void set_rx_mode(struct net_device *dev);
 
-
-/* The Xircom cards are picky about when certain bits in CSR6 can be
-   manipulated.  Keith Owens <kaos@ocs.com.au>. */
-
-void tulip_outl_CSR6 (struct tulip_private *tp, u32 newcsr6)
-{
-	long ioaddr = tp->base_addr;
-	const int strict_bits = 0x0060e202;
-	int csr5, csr5_22_20, csr5_19_17, currcsr6, attempts = 200;
-
-	/* common path */
-	if (tp->chip_id != X3201_3) {
-		outl (newcsr6, ioaddr + CSR6);
-		return;
-	}
-
-	newcsr6 &= 0x726cfeca;	/* mask out the reserved CSR6 bits that always */
-	/* read 0 on the Xircom cards */
-	newcsr6 |= 0x320c0000;	/* or in the reserved bits that always read 1 */
-	currcsr6 = inl (ioaddr + CSR6);
-	if (((newcsr6 & strict_bits) == (currcsr6 & strict_bits)) ||
-	    ((currcsr6 & ~0x2002) == 0))
-		goto out_write;
-
-	/* make sure the transmitter and receiver are stopped first */
-	currcsr6 &= ~0x2002;
-	while (1) {
-		csr5 = inl (ioaddr + CSR5);
-		if (csr5 == 0xffffffff)
-			break;	/* cannot read csr5, card removed? */
-		csr5_22_20 = csr5 & 0x700000;
-		csr5_19_17 = csr5 & 0x0e0000;
-		if ((csr5_22_20 == 0 || csr5_22_20 == 0x600000) &&
-		    (csr5_19_17 == 0 || csr5_19_17 == 0x80000 || csr5_19_17 == 0xc0000))
-			break;	/* both are stopped or suspended */
-		if (!--attempts) {
-			printk (KERN_INFO "tulip.c: tulip_outl_CSR6 too many attempts,"
-				"csr5=0x%08x\n", csr5);
-			goto out_write;
-		}
-		outl (currcsr6, ioaddr + CSR6);
-		udelay (1);
-	}
-
-out_write:
-	/* now it is safe to change csr6 */
-	outl (newcsr6, ioaddr + CSR6);
-}
 
 
 static void tulip_up(struct net_device *dev)
@@ -264,11 +220,13 @@ static void tulip_up(struct net_device *dev)
 
 	/* Reset the chip, holding bit 0 set at least 50 PCI cycles. */
 	outl(0x00000001, ioaddr + CSR0);
+	udelay(100);
 
 	/* Deassert reset.
 	   Wait the specified 50 PCI cycles after a reset by initializing
 	   Tx and Rx queues and the address filter list. */
 	outl(tp->csr0, ioaddr + CSR0);
+	udelay(100);
 
 	if (tulip_debug > 1)
 		printk(KERN_DEBUG "%s: tulip_up(), irq==%d.\n", dev->name, dev->irq);
@@ -561,7 +519,6 @@ static void tulip_tx_timeout(struct net_device *dev)
 
 out:
 	dev->trans_start = jiffies;
-	netif_start_queue (dev);
 	spin_unlock_irqrestore (&tp->lock, flags);
 }
 
@@ -786,14 +743,14 @@ static int private_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 	case SIOCDEVPRIVATE:		/* Get the address of the PHY in use. */
 		if (tp->mii_cnt)
 			data[0] = phy;
-		else if (tp->flags & HAS_NWAY143)
+		else if (tp->flags & HAS_NWAY)
 			data[0] = 32;
 		else if (tp->chip_id == COMET)
 			data[0] = 1;
 		else
 			return -ENODEV;
 	case SIOCDEVPRIVATE+1:		/* Read the specified MII register. */
-		if (data[0] == 32  &&  (tp->flags & HAS_NWAY143)) {
+		if (data[0] == 32  &&  (tp->flags & HAS_NWAY)) {
 			int csr12 = inl(ioaddr + CSR12);
 			int csr14 = inl(ioaddr + CSR14);
 			switch (data[1]) {
@@ -821,7 +778,7 @@ static int private_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 	case SIOCDEVPRIVATE+2:		/* Write the specified MII register */
 		if (!capable(CAP_NET_ADMIN))
 			return -EPERM;
-		if (data[0] == 32  &&  (tp->flags & HAS_NWAY143)) {
+		if (data[0] == 32  &&  (tp->flags & HAS_NWAY)) {
 			if (data[1] == 5)
 				tp->to_advertise = data[2];
 		} else {
@@ -1108,9 +1065,13 @@ static int __devinit tulip_init_one (struct pci_dev *pdev,
 	/* Clear the missed-packet counter. */
 	(volatile int)inl(ioaddr + CSR8);
 
-	if (chip_idx == DC21041  &&  inl(ioaddr + CSR9) & 0x8000) {
-		printk(" 21040 compatible mode,");
-		chip_idx = DC21040;
+	if (chip_idx == DC21041) {
+		if (inl(ioaddr + CSR9) & 0x8000) {
+			printk(" 21040 compatible mode,");
+			chip_idx = DC21040;
+		} else {
+			printk(" 21041 mode,");
+		}
 	}
 
 	/* The station address ROM is read byte serially.  The register must
@@ -1307,7 +1268,7 @@ static int __devinit tulip_init_one (struct pci_dev *pdev,
 	dev->do_ioctl = private_ioctl;
 	dev->set_multicast_list = set_rx_mode;
 
-	if ((tp->flags & HAS_NWAY143)  || tp->chip_id == DC21041)
+	if ((tp->flags & HAS_NWAY)  || tp->chip_id == DC21041)
 		tp->link_change = t21142_lnk_change;
 	else if (tp->flags & HAS_PNICNWAY)
 		tp->link_change = pnic_lnk_change;

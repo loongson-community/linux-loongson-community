@@ -3,14 +3,16 @@
  *
  * Default SMP lock implementation
  */
-#ifndef __ASM_SMPLOCK_H
-#define __ASM_SMPLOCK_H
+#ifndef _ASM_SMPLOCK_H
+#define _ASM_SMPLOCK_H
 
 #include <linux/sched.h>
 #include <linux/interrupt.h>
 #include <linux/spinlock.h>
 
 extern spinlock_t kernel_flag;
+
+#define kernel_locked()			spin_is_locked(&kernel_flag)
 
 /*
  * Release global kernel lock and global interrupt lock
@@ -51,4 +53,4 @@ static __inline__ void unlock_kernel(void)
 		spin_unlock(&kernel_flag);
 }
 
-#endif /* __ASM_SMPLOCK_H */
+#endif /* _ASM_SMPLOCK_H */

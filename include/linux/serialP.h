@@ -22,6 +22,7 @@
 #include <linux/config.h>
 #include <linux/termios.h>
 #include <linux/tqueue.h>
+#include <linux/circ_buf.h>
 #include <linux/wait.h>
 
 struct serial_state {
@@ -42,7 +43,7 @@ struct serial_state {
 	unsigned short	close_delay;
 	unsigned short	closing_wait; /* time to wait before closing */
 	struct async_icount	icount;	
-	struct termios	normal_termios;
+	struct termios		normal_termios;
 	struct termios		callout_termios;
 	int	io_type;
 	struct async_struct *info;
@@ -74,10 +75,8 @@ struct async_struct {
 	int			blocked_open; /* # of blocked opens */
 	long			session; /* Session of opening process */
 	long			pgrp; /* pgrp of opening process */
-	unsigned char 		*xmit_buf;
-	int			xmit_head;
-	int			xmit_tail;
-	int			xmit_cnt;
+ 	struct circ_buf		xmit;
+ 	spinlock_t		xmit_lock;
 	u8			*iomem_base;
 	u16			iomem_reg_shift;
 	int			io_type;
@@ -99,11 +98,6 @@ struct async_struct {
 
 #define SERIAL_MAGIC 0x5301
 #define SSTATE_MAGIC 0x5302
-
-/*
- * The size of the serial xmit buffer is 1 page, or 4096 bytes
- */
-#define SERIAL_XMIT_SIZE 4096
 
 /*
  * Events are used to schedule things to happen at timer-interrupt
@@ -180,19 +174,22 @@ struct pci_board_inst {
 #define SPCI_FL_IRQBASE3       (0x0003 << 4)
 #define SPCI_FL_IRQBASE4       (0x0004 << 4)
 #define SPCI_FL_GET_IRQBASE(x)        ((x & SPCI_FL_IRQ_MASK) >> 4)
-	
+
 /* Use sucessiveentries base resource table */
 #define SPCI_FL_BASE_TABLE	0x0100
-	
+
 /* Use successive entries in the irq resource table */
 #define SPCI_FL_IRQ_TABLE	0x0200
-	
+
 /* Use the irq resource table instead of dev->irq */
 #define SPCI_FL_IRQRESOURCE	0x0400
 
 /* Use the Base address register size to cap number of ports */
 #define SPCI_FL_REGION_SZ_CAP	0x0800
-	
+
+/* Do not use irq sharing for this device */
+#define SPCI_FL_NO_SHIRQ	0x1000
+
 #define SPCI_FL_PNPDEFAULT	(SPCI_FL_IRQRESOURCE)
-	
+
 #endif /* _LINUX_SERIAL_H */

@@ -27,16 +27,19 @@
 	LK1.1.1:
 	- Justin Guyett: softnet and locking fixes
 	- Jeff Garzik: use PCI interface
-		
+
+	LK1.1.2:
+	- Urban Widmark: minor cleanups, merges from Becker 1.03a/1.04 versions
+
+	LK1.1.3:
+	- Urban Widmark: use PCI DMA interface (with thanks to the eepro100.c code)
+	                 update "Theory of Operation" with softnet/locking changes
+	- Dave Miller: PCI DMA and endian fixups
+	- Jeff Garzik: MOD_xxx race fixes, updated PCI resource allocation
 */
 
-static const char *versionA =
-"via-rhine.c:v1.01-LK1.1.1  3/2/2000  Written by Donald Becker\n";
-static const char *versionB =
-"  http://cesdis.gsfc.nasa.gov/linux/drivers/via-rhine.html\n";
-
 /* A few user-configurable values.   These may be modified when a driver
-   module is loaded.*/
+   module is loaded. */
 
 static int debug = 1;			/* 1 normal messages, 0 quiet .. 7 verbose. */
 static int max_interrupt_work = 20;
@@ -58,6 +61,7 @@ static int full_duplex[MAX_UNITS] = {-1, -1, -1, -1, -1, -1, -1, -1};
    The Rhine has a 64 element 8390-like hash table.  */
 static const int multicast_filter_limit = 32;
 
+
 /* Operational parameters that are set at compile time. */
 
 /* Keep the ring sizes a power of two for compile efficiency.
@@ -68,11 +72,20 @@ static const int multicast_filter_limit = 32;
 #define TX_RING_SIZE	8
 #define RX_RING_SIZE	16
 
+
 /* Operational parameters that usually are not changed. */
+
 /* Time in jiffies before concluding the transmitter is hung. */
 #define TX_TIMEOUT  (2*HZ)
 
 #define PKT_BUF_SZ		1536			/* Size of each temporary Rx buffer.*/
+
+
+#if !defined(__OPTIMIZE__)  ||  !defined(__KERNEL__)
+#warning  You must compile this file with the correct options!
+#warning  See the last lines of the source file.
+#error  See the last lines of the source file for the proper compile-command.
+#endif
 
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -91,15 +104,20 @@ static const int multicast_filter_limit = 32;
 #include <asm/bitops.h>
 #include <asm/io.h>
 
-/* This driver was written to use PCI memory space, however some x86
-   motherboards only configure I/O space accesses correctly. */
-#if defined(__i386__)  &&  !defined(VIA_USE_MEMORY)
-#define VIA_USE_IO
-#endif
-#if defined(__alpha__)
-#define VIA_USE_IO
-#endif
-#ifdef VIA_USE_IO
+static const char *versionA __devinitdata =
+"via-rhine.c:v1.03a-LK1.1.3  3/23/2000  Written by Donald Becker\n";
+static const char *versionB __devinitdata =
+"  http://cesdis.gsfc.nasa.gov/linux/drivers/via-rhine.html\n";
+
+
+
+/* This driver was written to use PCI memory space, however most versions
+   of the Rhine only work correctly with I/O space accesses. */
+#if defined(VIA_USE_MEMORY)
+#warning Many adapters using the VIA Rhine chip are not configured to work
+#warning with PCI memory space accesses.
+#else
+#define USE_IO
 #undef readb
 #undef readw
 #undef readl
@@ -113,9 +131,6 @@ static const int multicast_filter_limit = 32;
 #define writew outw
 #define writel outl
 #endif
-
-/* Kernel compatibility defines, some common to David Hind's PCMCIA package.
-   This is only in the support-all-kernels source code. */
 
 #define RUN_AT(x) (jiffies + (x))
 
@@ -186,18 +201,17 @@ IIId. Synchronization
 
 The driver runs as two independent, single-threaded flows of control.  One
 is the send-packet routine, which enforces single-threaded use by the
-dev->tbusy flag.  The other thread is the interrupt handler, which is single
-threaded by the hardware and interrupt handling software.
+dev->priv->lock spinlock. The other thread is the interrupt handler, which 
+is single threaded by the hardware and interrupt handling software.
 
-The send packet thread has partial control over the Tx ring and 'dev->tbusy'
-flag.  It sets the tbusy flag whenever it's queuing a Tx packet. If the next
-queue slot is empty, it clears the tbusy flag when finished otherwise it sets
-the 'lp->tx_full' flag.
+The send packet thread has partial control over the Tx ring. It locks the 
+dev->priv->lock whenever it's queuing a Tx packet. If the next slot in the ring
+is not available it stops the transmit queue by calling netif_stop_queue.
 
 The interrupt handler has exclusive control over the Rx ring and records stats
 from the Tx ring.  After reaping the stats, it marks the Tx queue entry as
-empty by incrementing the dirty_tx mark. Iff the 'lp->tx_full' flag is set, it
-clears both the tx_full and tbusy flags.
+empty by incrementing the dirty_tx mark. If at least half of the entries in
+the Rx ring are available the transmit queue is woken up if it was stopped.
 
 IV. Notes
 
@@ -231,57 +245,49 @@ enum pci_flags_bit {
 };
 
 enum via_rhine_chips {
-	vt86c100a = 0,
-	vt3043,
+	VT86C100A = 0,
+	VT3043,
 };
 
 struct via_rhine_chip_info {
 	const char *name;
-	u16 flags;
+	u16 pci_flags;
 	int io_size;
+	int drv_flags;
 };
 
+
+enum chip_capability_flags {CanHaveMII=1, };
+
+#if defined(VIA_USE_MEMORY)
+#define RHINE_IOTYPE (PCI_USES_MEM | PCI_USES_MASTER | PCI_ADDR1)
+#else
+#define RHINE_IOTYPE (PCI_USES_IO  | PCI_USES_MASTER | PCI_ADDR0)
+#endif
 
 /* directly indexed by enum via_rhine_chips, above */
 static struct via_rhine_chip_info via_rhine_chip_info[] __devinitdata =
 {
-	{"VIA VT86C100A Rhine-II",
-	 PCI_USES_MEM | PCI_USES_IO | PCI_USES_MEM | PCI_USES_MASTER,
-	 128,},
-	{"VIA VT3043 Rhine",
-	 PCI_USES_IO | PCI_USES_MEM | PCI_USES_MASTER,
-	 128,},
+	{ "VIA VT86C100A Rhine-II", RHINE_IOTYPE, 128, CanHaveMII },
+	{ "VIA VT3043 Rhine", RHINE_IOTYPE, 128, CanHaveMII }
 };
 
 static struct pci_device_id via_rhine_pci_tbl[] __devinitdata =
 {
-	{0x1106, 0x6100, PCI_ANY_ID, PCI_ANY_ID, 0, 0, vt86c100a},
-	{0x1106, 0x3043, PCI_ANY_ID, PCI_ANY_ID, 0, 0, vt3043},
+	{0x1106, 0x6100, PCI_ANY_ID, PCI_ANY_ID, 0, 0, VT86C100A},
+	{0x1106, 0x3043, PCI_ANY_ID, PCI_ANY_ID, 0, 0, VT3043},
 	{0,},			/* terminate list */
 };
 MODULE_DEVICE_TABLE(pci, via_rhine_pci_tbl);
 
 
-
-/* A chip capabilities table, matching the entries in pci_tbl[] above. */
-enum chip_capability_flags {CanHaveMII=1, };
-struct chip_info {
-	int io_size;
-	int flags;
-} static cap_tbl[] = {
-	{128, CanHaveMII, },
-	{128, CanHaveMII, },
-};
-
-
-/* Offsets to the device registers.
-*/
+/* Offsets to the device registers. */
 enum register_offsets {
 	StationAddr=0x00, RxConfig=0x06, TxConfig=0x07, ChipCmd=0x08,
 	IntrStatus=0x0C, IntrEnable=0x0E,
 	MulticastFilter0=0x10, MulticastFilter1=0x14,
 	RxRingPtr=0x18, TxRingPtr=0x1C,
-	MIIPhyAddr=0x6C, MIIStatus=0x6D, PCIConfig=0x6E,
+	MIIPhyAddr=0x6C, MIIStatus=0x6D, PCIBusConfig=0x6E,
 	MIICmd=0x70, MIIRegAddr=0x71, MIIData=0x72,
 	Config=0x78, RxMissed=0x7C, RxCRCErrs=0x7E,
 };
@@ -295,21 +301,19 @@ enum intr_status_bits {
 	IntrRxOverflow=0x0400, IntrRxDropped=0x0800, IntrRxNoBuf=0x1000,
 	IntrTxAborted=0x2000, IntrLinkChange=0x4000,
 	IntrRxWakeUp=0x8000,
-	IntrNormalSummary=0x0003, IntrAbnormalSummary=0x8260,
+	IntrNormalSummary=0x0003, IntrAbnormalSummary=0xC260,
 };
 
 
 /* The Rx and Tx buffer descriptors. */
 struct rx_desc {
-	u16 rx_status;
-	u16 rx_length;
+	s32 rx_status;
 	u32 desc_length;
 	u32 addr;
 	u32 next_desc;
 };
 struct tx_desc {
-	u16 tx_status;
-	u16 tx_own;
+	s32 tx_status;
 	u32 desc_length;
 	u32 addr;
 	u32 next_desc;
@@ -317,9 +321,11 @@ struct tx_desc {
 
 /* Bits in *_desc.status */
 enum rx_status_bits {
-	RxDescOwn=0x80000000, RxOK=0x8000, RxWholePkt=0x0300, RxErr=0x008F};
+	RxOK=0x8000, RxWholePkt=0x0300, RxErr=0x008F
+};
+
 enum desc_status_bits {
-	DescOwn=0x8000, DescEndPacket=0x4000, DescIntr=0x1000,
+	DescOwn=0x80000000, DescEndPacket=0x4000, DescIntr=0x1000,
 };
 
 /* Bits in ChipCmd. */
@@ -331,32 +337,42 @@ enum chip_cmd_bits {
 };
 
 struct netdev_private {
-	/* Descriptor rings first for alignment. */
-	struct rx_desc rx_ring[RX_RING_SIZE];
-	struct tx_desc tx_ring[TX_RING_SIZE];
+	/* Descriptor rings */
+	struct rx_desc *rx_ring;
+	struct tx_desc *tx_ring;
+	dma_addr_t rx_ring_dma;
+	dma_addr_t tx_ring_dma;
+
 	/* The addresses of receive-in-place skbuffs. */
-	struct sk_buff* rx_skbuff[RX_RING_SIZE];
+	struct sk_buff *rx_skbuff[RX_RING_SIZE];
+	dma_addr_t rx_skbuff_dma[RX_RING_SIZE];
+
 	/* The saved address of a sent-in-place packet/buffer, for later free(). */
-	struct sk_buff* tx_skbuff[TX_RING_SIZE];
+	struct sk_buff *tx_skbuff[TX_RING_SIZE];
+	dma_addr_t tx_skbuff_dma[TX_RING_SIZE];
 	unsigned char *tx_buf[TX_RING_SIZE];	/* Tx bounce buffers */
-	unsigned char *tx_bufs;				/* Tx bounce buffer region. */
+
+	struct pci_dev *pdev;
 	struct net_device_stats stats;
 	struct timer_list timer;	/* Media monitoring timer. */
 	spinlock_t lock;
+
 	/* Frequently used values: keep some adjacent for cache effect. */
 	int chip_id;
 	struct rx_desc *rx_head_desc;
-	unsigned short int cur_rx, dirty_rx;		/* Producer/consumer ring indices */
-	unsigned short int cur_tx, dirty_tx;
+	unsigned int cur_rx, dirty_rx;		/* Producer/consumer ring indices */
+	unsigned int cur_tx, dirty_tx;
 	unsigned int rx_buf_sz;				/* Based on MTU+slack. */
 	u16 chip_cmd;						/* Current setting for ChipCmd */
 	unsigned int tx_full:1;				/* The Tx queue is full. */
+
 	/* These values are keep track of the transceiver/media in use. */
 	unsigned int full_duplex:1;			/* Full-duplex operation requested. */
 	unsigned int duplex_lock:1;
 	unsigned int medialock:1;			/* Do not sense media. */
 	unsigned int default_port:4;		/* Last dev->if_port value. */
 	u8 tx_thresh, rx_thresh;
+
 	/* MII transceiver section. */
 	int mii_cnt;						/* MII device addresses. */
 	u16 advertising;					/* NWay media advertisement */
@@ -393,6 +409,9 @@ static int __devinit via_rhine_init_one (struct pci_dev *pdev,
 	static int did_version = 0;
 	long ioaddr;
 	int io_size;
+	int pci_flags;
+	void *ring;
+	dma_addr_t ring_dma;
 	
 	/* print version once and once only */
 	if (! did_version++) {
@@ -403,44 +422,67 @@ static int __devinit via_rhine_init_one (struct pci_dev *pdev,
 	card_idx++;
 	option = card_idx < MAX_UNITS ? options[card_idx] : 0;
 	io_size = via_rhine_chip_info[chip_id].io_size;
+	pci_flags = via_rhine_chip_info[chip_id].pci_flags;
 
+	/* this should always be supported */
+	if (!pci_dma_supported(pdev, 0xffffffff)) {
+		printk(KERN_ERR "32-bit PCI DMA addresses not supported by the card!?\n");
+		goto err_out;
+	}
+	
+	/* sanity check */
+	if ((pci_resource_len (pdev, 0) < io_size) ||
+	    (pci_resource_len (pdev, 1) < io_size)) {
+		printk (KERN_ERR "Insufficient PCI resources, aborting\n");
+		goto err_out;
+	}
 
-#ifdef VIA_USE_IO
-	ioaddr = pci_resource_start (pdev, 0);
-#else
-	ioaddr = pci_resource_start (pdev, 1);
-#endif
+	/* allocate pci dma space for rx and tx descriptor rings */
+	ring = pci_alloc_consistent(pdev, 
+				    RX_RING_SIZE * sizeof(struct rx_desc) +
+				    TX_RING_SIZE * sizeof(struct tx_desc),
+				    &ring_dma);
+	if (!ring) {
+		printk(KERN_ERR "Could not allocate DMA memory.\n");
+		goto err_out;
+	}
+
+	ioaddr = pci_resource_start (pdev, pci_flags & PCI_ADDR0 ? 0 : 1);
 
 	if (pci_enable_device (pdev)) {
 		printk (KERN_ERR "unable to init PCI device (card #%d)\n",
 			card_idx);
-		goto err_out;
+		goto err_out_free_dma;
 	}
 	
-	if (via_rhine_chip_info[chip_id].flags & PCI_USES_MASTER)
+	if (pci_flags & PCI_USES_MASTER)
 		pci_set_master (pdev);
 
 	dev = init_etherdev(NULL, sizeof(*np));
 	if (dev == NULL) {
 		printk (KERN_ERR "init_ethernet failed for card #%d\n",
 			card_idx);
-		goto err_out;
+		goto err_out_free_dma;
 	}
 	
-	if (!request_region(pci_resource_start (pdev, 0), io_size, dev->name)) {
+	/* request all PIO and MMIO regions just to make sure
+	 * noone else attempts to use any portion of our I/O space */
+	if (!request_region (pci_resource_start (pdev, 0),
+			     pci_resource_len (pdev, 0), dev->name)) {
 		printk (KERN_ERR "request_region failed for device %s, region 0x%X @ 0x%lX\n",
 			dev->name, io_size,
 			pci_resource_start (pdev, 0));
 		goto err_out_free_netdev;
 	}
-	if (!request_mem_region(pci_resource_start (pdev, 1), io_size, dev->name)) {
+	if (!request_mem_region (pci_resource_start (pdev, 1),
+				 pci_resource_len (pdev, 1), dev->name)) {
 		printk (KERN_ERR "request_mem_region failed for device %s, region 0x%X @ 0x%lX\n",
 			dev->name, io_size,
 			pci_resource_start (pdev, 1));
 		goto err_out_free_pio;
 	}
 
-#ifndef VIA_USE_IO
+#ifndef USE_IO
 	ioaddr = (long) ioremap (ioaddr, io_size);
 	if (!ioaddr) {
 		printk (KERN_ERR "ioremap failed for device %s, region 0x%X @ 0x%X\n",
@@ -469,6 +511,11 @@ static int __devinit via_rhine_init_one (struct pci_dev *pdev,
 	np = dev->priv;
 	spin_lock_init (&np->lock);
 	np->chip_id = chip_id;
+	np->pdev = pdev;
+	np->rx_ring = ring;
+	np->tx_ring = ring + RX_RING_SIZE * sizeof(struct rx_desc);
+	np->rx_ring_dma = ring_dma;
+	np->tx_ring_dma = ring_dma + RX_RING_SIZE * sizeof(struct rx_desc);
 
 	if (dev->mem_start)
 		option = dev->mem_start;
@@ -499,7 +546,7 @@ static int __devinit via_rhine_init_one (struct pci_dev *pdev,
 	
 	pdev->driver_data = dev;
 
-	if (cap_tbl[np->chip_id].flags & CanHaveMII) {
+	if (via_rhine_chip_info[chip_id].drv_flags & CanHaveMII) {
 		int phy, phy_idx = 0;
 		np->phys[0] = 1;		/* Standard for this chip. */
 		for (phy = 1; phy < 32 && phy_idx < 4; phy++) {
@@ -518,18 +565,25 @@ static int __devinit via_rhine_init_one (struct pci_dev *pdev,
 
 	return 0;
 
-#ifndef VIA_USE_IO
+#ifndef USE_IO
 /* note this is ifdef'd because the ioremap is ifdef'd...
  * so additional exit conditions above this must move
  * release_mem_region outside of the ifdef */
 err_out_free_mmio:
-	release_mem_region(pci_resource_start (pdev, 1), io_size, dev->name));
+	release_mem_region(pci_resource_start (pdev, 1),
+			   pci_resource_len (pdev, 1));
 #endif
 err_out_free_pio:
-	release_region(pci_resource_start (pdev, 0), io_size);
+	release_region(pci_resource_start (pdev, 0),
+		       pci_resource_len (pdev, 0));
 err_out_free_netdev:
 	unregister_netdev (dev);
 	kfree (dev);
+err_out_free_dma:
+	pci_free_consistent(pdev, 
+			    RX_RING_SIZE * sizeof(struct rx_desc) +
+			    TX_RING_SIZE * sizeof(struct tx_desc),
+			    ring, ring_dma);
 err_out:
 	return -ENODEV;
 }
@@ -557,9 +611,12 @@ static int mdio_read(struct net_device *dev, int phy_id, int regnum)
 
 static void mdio_write(struct net_device *dev, int phy_id, int regnum, int value)
 {
+	struct netdev_private *np = (struct netdev_private *)dev->priv;
 	long ioaddr = dev->base_addr;
 	int boguscnt = 1024;
 
+	if (phy_id == np->phys[0]  &&  regnum == 4)
+		np->advertising = value;
 	/* Wait for a previous command to complete. */
 	while ((readb(ioaddr + MIICmd) & 0x60) && --boguscnt > 0)
 		;
@@ -578,32 +635,34 @@ static int via_rhine_open(struct net_device *dev)
 	long ioaddr = dev->base_addr;
 	int i;
 
+	MOD_INC_USE_COUNT;
+
 	/* Reset the chip. */
 	writew(CmdReset, ioaddr + ChipCmd);
 
-	if (request_irq(dev->irq, &via_rhine_interrupt, SA_SHIRQ, dev->name, dev))
-		return -EAGAIN;
+	if (request_irq(dev->irq, &via_rhine_interrupt, SA_SHIRQ, dev->name, dev)) {
+		MOD_DEC_USE_COUNT;
+		return -EBUSY;
+	}
 
 	if (debug > 1)
 		printk(KERN_DEBUG "%s: via_rhine_open() irq %d.\n",
 			   dev->name, dev->irq);
 
-	MOD_INC_USE_COUNT;
-
 	via_rhine_init_ring(dev);
 
-	writel(virt_to_bus(np->rx_ring), ioaddr + RxRingPtr);
-	writel(virt_to_bus(np->tx_ring), ioaddr + TxRingPtr);
+	writel(np->rx_ring_dma, ioaddr + RxRingPtr);
+	writel(np->tx_ring_dma, ioaddr + TxRingPtr);
 
 	for (i = 0; i < 6; i++)
 		writeb(dev->dev_addr[i], ioaddr + StationAddr + i);
 
 	/* Initialize other registers. */
-	writew(0x0006, ioaddr + PCIConfig);	/* Tune configuration??? */
+	writew(0x0006, ioaddr + PCIBusConfig);	/* Tune configuration??? */
 	/* Configure the FIFO thresholds. */
 	writeb(0x20, ioaddr + TxConfig);	/* Initial threshold 32 bytes */
 	np->tx_thresh = 0x20;
-	np->rx_thresh = 0x60;				/* Written in via_rhine_set_rx_mode(). */
+	np->rx_thresh = 0x60;			/* Written in via_rhine_set_rx_mode(). */
 
 	if (dev->if_port == 0)
 		dev->if_port = np->default_port;
@@ -666,6 +725,7 @@ static void via_rhine_check_duplex(struct net_device *dev)
 	}
 }
 
+
 static void via_rhine_timer(unsigned long data)
 {
 	struct net_device *dev = (struct net_device *)data;
@@ -677,11 +737,13 @@ static void via_rhine_timer(unsigned long data)
 		printk(KERN_DEBUG "%s: VIA Rhine monitor tick, status %4.4x.\n",
 			   dev->name, readw(ioaddr + IntrStatus));
 	}
+
 	via_rhine_check_duplex(dev);
 
 	np->timer.expires = RUN_AT(next_tick);
 	add_timer(&np->timer);
 }
+
 
 static void via_rhine_tx_timeout (struct net_device *dev)
 {
@@ -693,16 +755,17 @@ static void via_rhine_tx_timeout (struct net_device *dev)
 		dev->name, readw (ioaddr + IntrStatus),
 		mdio_read (dev, np->phys[0], 1));
 
-	/* Perhaps we should reinitialize the hardware here. */
+	/* XXX Perhaps we should reinitialize the hardware here. */
 	dev->if_port = 0;
+
 	/* Stop and restart the chip's Tx processes . */
+	/* XXX to do */
 
 	/* Trigger an immediate transmit demand. */
+	/* XXX to do */
 
 	dev->trans_start = jiffies;
 	np->stats.tx_errors++;
-
-	netif_start_queue (dev);
 }
 
 
@@ -720,13 +783,13 @@ static void via_rhine_init_ring(struct net_device *dev)
 
 	for (i = 0; i < RX_RING_SIZE; i++) {
 		np->rx_ring[i].rx_status = 0;
-		np->rx_ring[i].rx_length = 0;
-		np->rx_ring[i].desc_length = np->rx_buf_sz;
-		np->rx_ring[i].next_desc = virt_to_bus(&np->rx_ring[i+1]);
+		np->rx_ring[i].desc_length = cpu_to_le32(np->rx_buf_sz);
+		np->rx_ring[i].next_desc =
+			cpu_to_le32(np->rx_ring_dma + sizeof(struct rx_desc)*(i+1));
 		np->rx_skbuff[i] = 0;
 	}
 	/* Mark the last entry as wrapping the ring. */
-	np->rx_ring[i-1].next_desc = virt_to_bus(&np->rx_ring[0]);
+	np->rx_ring[i-1].next_desc = cpu_to_le32(np->rx_ring_dma);
 
 	/* Fill in the Rx buffers. */
 	for (i = 0; i < RX_RING_SIZE; i++) {
@@ -734,20 +797,25 @@ static void via_rhine_init_ring(struct net_device *dev)
 		np->rx_skbuff[i] = skb;
 		if (skb == NULL)
 			break;
-		skb->dev = dev;			/* Mark as being used by this device. */
-		np->rx_ring[i].addr = virt_to_bus(skb->tail);
-		np->rx_ring[i].rx_status = 0;
-		np->rx_ring[i].rx_length = DescOwn;
+		skb->dev = dev;                 /* Mark as being used by this device. */
+
+		np->rx_skbuff_dma[i] =
+			pci_map_single(np->pdev, skb->tail, np->rx_buf_sz,
+						   PCI_DMA_FROMDEVICE);
+
+		np->rx_ring[i].addr = cpu_to_le32(np->rx_skbuff_dma[i]);
+		np->rx_ring[i].rx_status = cpu_to_le32(DescOwn);
 	}
 
 	for (i = 0; i < TX_RING_SIZE; i++) {
 		np->tx_skbuff[i] = 0;
-		np->tx_ring[i].tx_own = 0;
-		np->tx_ring[i].desc_length = 0x00e08000;
-		np->tx_ring[i].next_desc = virt_to_bus(&np->tx_ring[i+1]);
+		np->tx_ring[i].tx_status = 0;
+		np->tx_ring[i].desc_length = cpu_to_le32(0x00e08000);
+		np->tx_ring[i].next_desc =
+			cpu_to_le32(np->tx_ring_dma + sizeof(struct tx_desc)*(i+1));
 		np->tx_buf[i] = kmalloc(PKT_BUF_SZ, GFP_KERNEL);
 	}
-	np->tx_ring[i-1].next_desc = virt_to_bus(&np->tx_ring[0]);
+	np->tx_ring[i-1].next_desc = cpu_to_le32(np->tx_ring_dma);
 
 	return;
 }
@@ -771,16 +839,24 @@ static int via_rhine_start_tx(struct sk_buff *skb, struct net_device *dev)
 
 	if ((long)skb->data & 3) {			/* Must use alignment buffer. */
 		if (np->tx_buf[entry] == NULL &&
-			(np->tx_buf[entry] = kmalloc(PKT_BUF_SZ, GFP_KERNEL)) == NULL)
+			(np->tx_buf[entry] = kmalloc(PKT_BUF_SZ, GFP_KERNEL)) == NULL) {
+			spin_unlock_irqrestore (&np->lock, flags);
 			return 1;
+		}
 		memcpy(np->tx_buf[entry], skb->data, skb->len);
-		np->tx_ring[entry].addr = virt_to_bus(np->tx_buf[entry]);
-	} else
-		np->tx_ring[entry].addr = virt_to_bus(skb->data);
+		np->tx_skbuff_dma[entry] =
+			pci_map_single(np->pdev, np->tx_buf[entry], skb->len,
+						   PCI_DMA_TODEVICE);
+	} else {
+		np->tx_skbuff_dma[entry] =
+			pci_map_single(np->pdev, skb->data, skb->len,
+						   PCI_DMA_TODEVICE);
+	}
+	np->tx_ring[entry].addr = cpu_to_le32(np->tx_skbuff_dma[entry]);
 
-	np->tx_ring[entry].desc_length = 0x00E08000 |
-		(skb->len >= ETH_ZLEN ? skb->len : ETH_ZLEN);
-	np->tx_ring[entry].tx_own = DescOwn;
+	np->tx_ring[entry].desc_length = 
+		cpu_to_le32(0x00E08000 | (skb->len >= ETH_ZLEN ? skb->len : ETH_ZLEN));
+	np->tx_ring[entry].tx_status = cpu_to_le32(DescOwn);
 
 	np->cur_tx++;
 
@@ -848,7 +924,7 @@ static void via_rhine_interrupt(int irq, void *dev_instance, struct pt_regs *rgs
 }
 
 /* This routine is logically part of the interrupt handler, but isolated
-   for clarity and better register allocation. */
+   for clarity. */
 static void via_rhine_tx(struct net_device *dev)
 {
 	struct netdev_private *np = (struct netdev_private *)dev->priv;
@@ -858,15 +934,15 @@ static void via_rhine_tx(struct net_device *dev)
 
 	/* if tx_full is set, they're all dirty, not clean */
 	while (np->dirty_tx != np->cur_tx) {
-		if (np->tx_ring[entry].tx_own) /* transmit request pending */
+		txstatus = le32_to_cpu(np->tx_ring[entry].tx_status);
+		if (txstatus & DescOwn)
 			break;
-		txstatus = np->tx_ring[entry].tx_status;
 		if (debug > 6)
-			printk(KERN_DEBUG " Tx scavenge %d status %4.4x.\n",
+			printk(KERN_DEBUG " Tx scavenge %d status %8.8x.\n",
 				   entry, txstatus);
 		if (txstatus & 0x8000) {
 			if (debug > 1)
-				printk(KERN_DEBUG "%s: Transmit error, Tx status %4.4x.\n",
+				printk(KERN_DEBUG "%s: Transmit error, Tx status %8.8x.\n",
 					   dev->name, txstatus);
 			np->stats.tx_errors++;
 			if (txstatus & 0x0400) np->stats.tx_carrier_errors++;
@@ -877,12 +953,15 @@ static void via_rhine_tx(struct net_device *dev)
 			/* Transmitter restarted in 'abnormal' handler. */
 		} else {
 			np->stats.collisions += (txstatus >> 3) & 15;
-			np->stats.tx_bytes += np->tx_ring[entry].desc_length & 0x7ff;
+			np->stats.tx_bytes += le32_to_cpu(np->tx_ring[entry].desc_length) & 0x7ff;
 			np->stats.tx_packets++;
-        	}
-        	/* Free the original skb. */
-        	dev_kfree_skb_irq(np->tx_skbuff[entry]);
-        	np->tx_skbuff[entry] = NULL;
+		}
+		/* Free the original skb. */
+		pci_unmap_single(np->pdev,
+						 le32_to_cpu(np->tx_ring[entry].addr),
+						 np->tx_skbuff[entry]->len, PCI_DMA_TODEVICE);
+		dev_kfree_skb_irq(np->tx_skbuff[entry]);
+		np->tx_skbuff[entry] = NULL;
 		entry = (++np->dirty_tx) % TX_RING_SIZE;
 	}
 	if ((np->cur_tx - np->dirty_tx) <= TX_RING_SIZE/2)
@@ -896,33 +975,32 @@ static void via_rhine_tx(struct net_device *dev)
 static void via_rhine_rx(struct net_device *dev)
 {
 	struct netdev_private *np = (struct netdev_private *)dev->priv;
-	int entry = (np->dirty_rx = np->cur_rx) % RX_RING_SIZE;
-	int boguscnt = RX_RING_SIZE;
+	int entry = np->cur_rx % RX_RING_SIZE;
+	int boguscnt = np->dirty_rx + RX_RING_SIZE - np->cur_rx;
 
 	if (debug > 4) {
-		printk(KERN_DEBUG " In via_rhine_rx(), entry %d status %4.4x.\n",
-			   entry, np->rx_head_desc->rx_length);
+		printk(KERN_DEBUG " In via_rhine_rx(), entry %d status %8.8x.\n",
+			   entry, le32_to_cpu(np->rx_head_desc->rx_status));
 	}
 
 	/* If EOP is set on the next entry, it's a new packet. Send it up. */
-	while ( ! (np->rx_head_desc->rx_length & DescOwn)) {
+	while ( ! (np->rx_head_desc->rx_status & cpu_to_le32(DescOwn))) {
 		struct rx_desc *desc = np->rx_head_desc;
-		int data_size = desc->rx_length;
-		u16 desc_status = desc->rx_status;
+		u32 desc_status = le32_to_cpu(desc->rx_status);
+		int data_size = desc_status >> 16;
 
 		if (debug > 4)
-			printk(KERN_DEBUG "  via_rhine_rx() status is %4.4x.\n",
+			printk(KERN_DEBUG "  via_rhine_rx() status is %8.8x.\n",
 				   desc_status);
 		if (--boguscnt < 0)
 			break;
 		if ( (desc_status & (RxWholePkt | RxErr)) !=  RxWholePkt) {
 			if ((desc_status & RxWholePkt) !=  RxWholePkt) {
 				printk(KERN_WARNING "%s: Oversized Ethernet frame spanned "
-					   "multiple buffers, entry %#x length %d status %4.4x!\n",
+					   "multiple buffers, entry %#x length %d status %8.8x!\n",
 					   dev->name, entry, data_size, desc_status);
 				printk(KERN_WARNING "%s: Oversized Ethernet frame %p vs %p.\n",
-					   dev->name, np->rx_head_desc,
-					   &np->rx_ring[entry]);
+					   dev->name, np->rx_head_desc, &np->rx_ring[entry]);
 				np->stats.rx_length_errors++;
 			} else if (desc_status & RxErr) {
 				/* There was a error. */
@@ -942,25 +1020,35 @@ static void via_rhine_rx(struct net_device *dev)
 
 			/* Check if the packet is long enough to accept without copying
 			   to a minimally-sized skbuff. */
-			if (pkt_len < rx_copybreak
-				&& (skb = dev_alloc_skb(pkt_len + 2)) != NULL) {
+			if (pkt_len < rx_copybreak &&
+				(skb = dev_alloc_skb(pkt_len + 2)) != NULL) {
 				skb->dev = dev;
 				skb_reserve(skb, 2);	/* 16 byte align the IP header */
+				pci_dma_sync_single(np->pdev, np->rx_skbuff_dma[entry],
+						    np->rx_buf_sz, PCI_DMA_FROMDEVICE);
 #if ! defined(__alpha__) || USE_IP_COPYSUM		/* Avoid misaligned on Alpha */
-				eth_copy_and_sum(skb, bus_to_virt(desc->addr),
-								 pkt_len, 0);
+				eth_copy_and_sum(skb, np->rx_skbuff[entry]->tail, pkt_len, 0);
 				skb_put(skb, pkt_len);
 #else
-				memcpy(skb_put(skb,pkt_len), bus_to_virt(desc->addr), pkt_len);
+				memcpy(skb_put(skb, pkt_len), np->rx_skbuff[entry]->tail,
+					   pkt_len);
 #endif
 			} else {
-				skb_put(skb = np->rx_skbuff[entry], pkt_len);
+				skb = np->rx_skbuff[entry];
+				if (skb == NULL) {
+					printk(KERN_ERR "%s: Inconsistent Rx descriptor chain.\n",
+						   dev->name);
+					break;
+				}
 				np->rx_skbuff[entry] = NULL;
+				skb_put(skb, pkt_len);
+				pci_unmap_single(np->pdev, np->rx_skbuff_dma[entry],
+								 np->rx_buf_sz, PCI_DMA_FROMDEVICE);
 			}
 			skb->protocol = eth_type_trans(skb, dev);
-			np->stats.rx_bytes+=skb->len;
 			netif_rx(skb);
 			dev->last_rx = jiffies;
+			np->stats.rx_bytes += skb->len;
 			np->stats.rx_packets++;
 		}
 		entry = (++np->cur_rx) % RX_RING_SIZE;
@@ -968,19 +1056,21 @@ static void via_rhine_rx(struct net_device *dev)
 	}
 
 	/* Refill the Rx ring buffers. */
-	while (np->dirty_rx != np->cur_rx) {
+	for (; np->cur_rx - np->dirty_rx > 0; np->dirty_rx++) {
 		struct sk_buff *skb;
-		entry = np->dirty_rx++ % RX_RING_SIZE;
+		entry = np->dirty_rx % RX_RING_SIZE;
 		if (np->rx_skbuff[entry] == NULL) {
 			skb = dev_alloc_skb(np->rx_buf_sz);
 			np->rx_skbuff[entry] = skb;
 			if (skb == NULL)
 				break;			/* Better luck next round. */
 			skb->dev = dev;			/* Mark as being used by this device. */
-			np->rx_ring[entry].addr = virt_to_bus(skb->tail);
+			np->rx_skbuff_dma[entry] =
+				pci_map_single(np->pdev, skb->tail, np->rx_buf_sz, 
+							   PCI_DMA_FROMDEVICE);
+			np->rx_ring[entry].addr = cpu_to_le32(np->rx_skbuff_dma[entry]);
 		}
-		np->rx_ring[entry].rx_status = 0;
-		np->rx_ring[entry].rx_length = DescOwn;
+		np->rx_ring[entry].rx_status = cpu_to_le32(DescOwn);
 	}
 
 	/* Pre-emptively restart Rx engine. */
@@ -1020,7 +1110,8 @@ static void via_rhine_error(struct net_device *dev, int intr_status)
 			printk(KERN_INFO "%s: Transmitter underrun, increasing Tx "
 				   "threshold setting to %2.2x.\n", dev->name, np->tx_thresh);
 	}
-	if ((intr_status & ~(IntrLinkChange|IntrStatsMax|IntrTxAbort)) && debug > 1) {
+	if ((intr_status & ~( IntrLinkChange | IntrStatsMax |
+						  IntrTxAbort | IntrTxAborted)) && debug > 1) {
 		printk(KERN_ERR "%s: Something Wicked happened! %4.4x.\n",
 			   dev->name, intr_status);
 		/* Recovery for other fault sources not known. */
@@ -1076,6 +1167,8 @@ static void via_rhine_set_rx_mode(struct net_device *dev)
 	} else if ((dev->mc_count > multicast_filter_limit)
 			   ||  (dev->flags & IFF_ALLMULTI)) {
 		/* Too many to match, or accept all multicasts. */
+		writel(0xffffffff, ioaddr + MulticastFilter0);
+		writel(0xffffffff, ioaddr + MulticastFilter1);
 		rx_mode = 0x0C;
 	} else {
 		struct dev_mc_list *mclist;
@@ -1083,12 +1176,11 @@ static void via_rhine_set_rx_mode(struct net_device *dev)
 		memset(mc_filter, 0, sizeof(mc_filter));
 		for (i = 0, mclist = dev->mc_list; mclist && i < dev->mc_count;
 			 i++, mclist = mclist->next) {
-			set_bit(ether_crc(ETH_ALEN, mclist->dmi_addr) >> 26,
-					mc_filter);
+			set_bit(ether_crc(ETH_ALEN, mclist->dmi_addr) >> 26, mc_filter);
 		}
 		writel(mc_filter[0], ioaddr + MulticastFilter0);
 		writel(mc_filter[1], ioaddr + MulticastFilter1);
-		rx_mode = 0x08;
+		rx_mode = 0x0C;
 	}
 	writeb(np->rx_thresh | rx_mode, ioaddr + RxConfig);
 }
@@ -1138,13 +1230,17 @@ static int via_rhine_close(struct net_device *dev)
 
 	/* Free all the skbuffs in the Rx queue. */
 	for (i = 0; i < RX_RING_SIZE; i++) {
-		np->rx_ring[i].rx_length = 0;
-		np->rx_ring[i].addr = 0xBADF00D0; /* An invalid address. */
+		np->rx_ring[i].rx_status = 0;
+		np->rx_ring[i].addr = cpu_to_le32(0xBADF00D0); /* An invalid address. */
 		if (np->rx_skbuff[i]) {
+			pci_unmap_single(np->pdev,
+							 np->rx_skbuff_dma[i],
+							 np->rx_buf_sz, PCI_DMA_FROMDEVICE);
 			dev_kfree_skb(np->rx_skbuff[i]);
 		}
 		np->rx_skbuff[i] = 0;
 	}
+
 	for (i = 0; i < TX_RING_SIZE; i++) {
 		if (np->tx_skbuff[i])
 			dev_kfree_skb(np->tx_skbuff[i]);
@@ -1165,13 +1261,18 @@ static void __devexit via_rhine_remove_one (struct pci_dev *pdev)
 	unregister_netdev(dev);
 
 	release_region(pci_resource_start (pdev, 0),
-		       via_rhine_chip_info[np->chip_id].io_size);
+		       pci_resource_len (pdev, 0));
 	release_mem_region(pci_resource_start (pdev, 1),
-		           via_rhine_chip_info[np->chip_id].io_size);
+		           pci_resource_len (pdev, 1));
 
-#ifndef VIA_USE_IO
+#ifndef USE_IO
 	iounmap((char *)(dev->base_addr));
 #endif
+
+	pci_free_consistent(pdev, 
+			    RX_RING_SIZE * sizeof(struct rx_desc) +
+			    TX_RING_SIZE * sizeof(struct tx_desc),
+			    np->rx_ring, np->rx_ring_dma);
 
 	kfree(dev);
 }
@@ -1187,7 +1288,15 @@ static struct pci_driver via_rhine_driver = {
 
 static int __init via_rhine_init (void)
 {
-	return pci_module_init (&via_rhine_driver);
+	int rc;
+	
+	MOD_INC_USE_COUNT;
+	
+	rc = pci_module_init (&via_rhine_driver);
+	
+	MOD_DEC_USE_COUNT;
+	
+	return rc;
 }
 
 

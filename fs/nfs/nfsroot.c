@@ -145,6 +145,8 @@ static struct nfs_bool_opts {
 	{ "nocto",	~NFS_MOUNT_NOCTO,	NFS_MOUNT_NOCTO },
 	{ "ac",		~NFS_MOUNT_NOAC,	0 },
 	{ "noac",	~NFS_MOUNT_NOAC,	NFS_MOUNT_NOAC },
+	{ "lock",	~NFS_MOUNT_NONLM,	0 },
+	{ "nolock",	~NFS_MOUNT_NONLM,	NFS_MOUNT_NONLM },
 	{ NULL,		0,			0 }
 };
 
@@ -320,7 +322,7 @@ int __init root_nfs_init(void)
  *  Parse NFS server and directory information passed on the kernel
  *  command line.
  */
-void __init nfs_root_setup(char *line)
+int __init nfs_root_setup(char *line)
 {
 	ROOT_DEV = MKDEV(UNNAMED_MAJOR, 255);
 	if (line[0] == '/' || line[0] == ',' || (line[0] >= '0' && line[0] <= '9')) {
@@ -333,6 +335,7 @@ void __init nfs_root_setup(char *line)
 		sprintf(nfs_root_name, NFS_ROOT, line);
 	}
 	root_nfs_parse_addr(nfs_root_name);
+	return 1;
 }
 
 __setup("nfsroot=", nfs_root_setup);

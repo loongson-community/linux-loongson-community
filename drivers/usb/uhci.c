@@ -1315,8 +1315,8 @@ static __u8 root_hub_dev_des[] =
 	0x00,			/*  __u16 bcdDevice; */
 	0x00,
 	0x00,			/*  __u8  iManufacturer; */
-	0x00,			/*  __u8  iProduct; */
-	0x00,			/*  __u8  iSerialNumber; */
+	0x02,			/*  __u8  iProduct; */
+	0x01,			/*  __u8  iSerialNumber; */
 	0x01			/*  __u8  bNumConfigurations; */
 };
 
@@ -1617,7 +1617,13 @@ static int rh_submit_urb(urb_t *urb)
 			memcpy (data, root_hub_config_des, len);
 			OK(len);
 		case 0x03:	/* string descriptors */
-			stat = -EPIPE;
+			len = usb_root_hub_string (wValue & 0xff,
+				uhci->io_addr, "UHCI",
+				data, wLength);
+			if (len > 0) {
+				OK (min (leni, len));
+			} else 
+				stat = -EPIPE;
 		}
 		break;
 	case RH_GET_DESCRIPTOR | RH_CLASS:
@@ -1985,6 +1991,15 @@ static int setup_uhci(struct pci_dev *dev, int irq, unsigned int io_addr, unsign
 {
 	int retval;
 	struct uhci *uhci;
+	char buf[8], *bufp = buf;
+
+#ifndef __sparc__
+	sprintf(buf, "%d", irq);
+#else
+	bufp = __irq_itoa(irq);
+#endif
+	printk(KERN_INFO __FILE__ ": USB UHCI at I/O 0x%x, IRQ %s\n",
+		io_addr, bufp);
 
 	uhci = alloc_uhci(io_addr, io_size);
 	if (!uhci)

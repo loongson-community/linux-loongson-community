@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp_input.c,v 1.189 2000/02/27 19:52:55 davem Exp $
+ * Version:	$Id: tcp_input.c,v 1.190 2000/03/21 19:34:23 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -1944,10 +1944,8 @@ queue_and_out:
 
 		if (eaten) {
 			kfree_skb(skb);
-		} else if (!sk->dead) {
-			wake_up_interruptible(sk->sleep);
-			sock_wake_async(sk->socket,1, POLL_IN);
-		}
+		} else
+			sk->data_ready(sk, 0);
 		return;
 	}
 
@@ -2531,8 +2529,7 @@ int tcp_rcv_established(struct sock *sk, struct sk_buff *skb,
 				/* FIN bit check is not done since if FIN is set in
 				 * this frame, the pred_flags won't match up. -DaveM
 				 */
-				wake_up_interruptible(sk->sleep);
-				sock_wake_async(sk->socket,1, POLL_IN);
+				sk->data_ready(sk, 0);
 			}
 
 			tcp_event_data_recv(tp, skb);

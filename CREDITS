@@ -891,6 +891,10 @@ S: Fichtenweg 3/511
 S: 72076 Tübingen
 S: Germany
 
+N: Justin Guyett
+E: jguyett@andrew.cmu.edu
+D: via-rhine net driver hacking
+
 N: Danny ter Haar
 E: dth@cistron.nl
 D: /proc/procinfo, reboot on panic , kernel pre-patch tester ;)
@@ -1143,6 +1147,7 @@ E: nkbj@image.dk
 W: http://www.image.dk/~nkbj
 D: 4.4BSD and NeXTstep filesystem support in the old ufs.
 D: Openstep filesystem and NeXTstep CDROM support in the new ufs.
+D: Replace CPU==[3-6]86 and __i386__ submodel flags by configuration options.
 D: Danish HOWTO, Linux+FreeBSD mini-HOWTO.
 S: Dr. Holsts Vej 34, lejl. 164
 S: DK-8230 Åbyhøj
@@ -1327,6 +1332,13 @@ N: Andreas S. Krebs
 E: akrebs@altavista.net
 D: CYPRESS CY82C693 chipset IDE, Digital's PC-Alpha 164SX boards
 
+N: Greg Kroah-Hartman
+E: greg@kroah.com
+W: http://www.kroah.com/linux-usb/
+D: USB Serial Converter driver framework, USB Handspring Visor driver
+D: ConnectTech WHITEHeat USB driver, Generic USB Serial driver
+D: bits and pieces of USB core code.
+
 N: Russell Kroll
 E: rkroll@exploits.org
 W: http://www.exploits.org/
@@ -1360,10 +1372,13 @@ S: D-91080 Uttenreuth
 S: Germany
 
 N: Jaroslav Kysela
-E: perex@jcu.cz
-W: http://www.pf.jcu.cz/~perex
+E: perex@suse.cz
+W: http://www.perex.cz
 D: Original Author and Maintainer for HP 10/100 Mbit Network Adapters
-S: Unix Centre of Pedagogical Faculty, University of South Bohemia
+D: ISA PnP
+S: Sindlovy Dvory 117
+S: 370 01  Ceske Budejovice
+S: Czech Republic
 
 N: Bas Laarhoven
 E: bas@vimec.nl
@@ -1947,6 +1962,16 @@ S: Lazarettstrasse 8
 S: 91054 Erlangen
 S: Germany
 
+N: Giuliano Procida
+E: myxie@debian.org,gprocida@madge.com
+D: Madge Ambassador driver (Collage 155 Server ATM adapter)
+D: Madge Horizon driver (Collage 25 and 155 Client ATM adapters)
+P: 1024/93898735 D3 9E F4 F7 6D 8D 2F 3A  38 BA 06 7C 2B 33 43 7D
+S: Madge Networks
+S: Framewood Road
+S: Wexham SL3 6PJ
+S: United Kingdom
+
 N: Daniel Quinlan
 E: quinlan@pathname.com
 W: http://www.pathname.com/~quinlan/
@@ -2035,6 +2060,14 @@ E: flla@stud.uni-sb.de
 D: Net programs and kernel net hacker
 S: Gaildorfer Str. 27
 S: 7000 Stuttgart 50
+S: Germany
+
+N: Christoph Rohland
+E: hans-christoph.rohland@sap.com
+E: ch.rohland@gmx.net
+D: shm fs, SYSV semaphores, af_unix
+S: Neue Heimat Str. 8
+S: D-68789 St.Leon-Rot
 S: Germany
 
 N: Stephen Rothwell
@@ -2455,6 +2488,7 @@ D: Amiga Zorro maintainer
 D: Amiga Buddha and Catweasel chipset IDE
 D: Atari Falcon chipset IDE
 D: Amiga Gayle chipset IDE
+D: mipsel NEC DDB Vrc-5074
 S: C. Huysmansstraat 12
 S: B-3128 Baal
 S: Belgium
@@ -2598,6 +2632,10 @@ D: AFFS rewrite
 S: Eichenweg 16
 S: 73650 Winterbach
 S: Germany
+
+N: Urban Widmark
+E: urban@svenskatest.se
+D: via-rhine, misc net driver hacking
 
 N: Marco van Wieringen
 E: mvw@planets.elm.net

@@ -6,6 +6,9 @@
  * Copyright 2000, Jayson C. Vantuyl <vantuyl@csc.smsu.edu>
  *             and Bryon W. Roche    <bryon@csc.smsu.edu>
  *
+ * 64-bit addressing added by Kanoj Sarcar <kanoj@sgi.com>
+ * 			   and Leo Dagum    <dagum@sgi.com>
+ *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
  * Free Software Foundation; either version 2, or (at your option) any
@@ -18,6 +21,7 @@
  */
 
 #include <linux/blk.h>
+#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
 #include <linux/ioport.h>
@@ -179,7 +183,7 @@ struct {
 #define REQUEST_QUEUE_WAKEUP		0x8005
 #define EXECUTION_TIMEOUT_RESET		0x8006
 
-#ifdef CONFIG_QL_ISP_A64 
+#ifdef CONFIG_QL_ISP_A64
 #define IOCB_SEGS                       2
 #define CONTINUATION_SEGS               5
 #define MAX_CONTINUATION_ENTRIES        254
@@ -500,7 +504,7 @@ static const u_char mbox_param[] = {
 	PACKB(0, 0),	/* 0x004b */
 	PACKB(0, 0),	/* 0x004c */
 	PACKB(0, 0),	/* 0x004d */
-	PACKB(0, 0),	/* 0x004e */	
+	PACKB(0, 0),	/* 0x004e */
 	PACKB(0, 0),	/* 0x004f */
 	PACKB(0, 0),	/* 0x0050 */
 	PACKB(0, 0),	/* 0x0051 */
@@ -907,7 +911,7 @@ int isp1020_queuecommand(Scsi_Cmnd *Cmnd, void (*done)(Scsi_Cmnd *))
 				dma_addr = sg_dma_address(sg);
 				ds[i].d_base = cpu_to_le32((u32) dma_addr);
 #ifdef CONFIG_QL_ISP_A64
-				ds[i].d_base_hi = cpu_to_le32((u32) (dma_addr>>32));
+				ds[i].d_base_hi = cpu_to_le32((u32)(dma_addr>>32));
 #endif /* CONFIG_QL_ISP_A64 */
 				ds[i].d_count = cpu_to_le32(sg_dma_len(sg));
 				++sg;

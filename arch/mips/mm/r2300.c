@@ -7,7 +7,7 @@
  * Copyright (C) 1998, 2000 Harald Koerfgen
  * Copyright (C) 1998 Gleb Raiko & Vladimir Roganov
  *
- * $Id: r2300.c,v 1.15 2000/02/24 00:12:40 ralf Exp $
+ * $Id: r2300.c,v 1.16 2000/03/13 10:33:05 raiko Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -18,7 +18,6 @@
 #include <asm/pgtable.h>
 #include <asm/mmu_context.h>
 #include <asm/system.h>
-#include <asm/sgialib.h>
 #include <asm/isadep.h>
 #include <asm/io.h>
 #include <asm/wbflush.h>

@@ -1,4 +1,4 @@
-/* $Id: inode.c,v 1.9 2000/03/13 21:59:43 davem Exp $
+/* $Id: inode.c,v 1.10 2000/03/24 01:32:51 davem Exp $
  * openpromfs.c: /proc/openprom handling routines
  *
  * Copyright (C) 1996-1999 Jakub Jelinek  (jakub@redhat.com)
@@ -980,10 +980,6 @@ static void openprom_read_inode(struct inode * inode)
 	}
 }
 
-static void openprom_put_super(struct super_block *sb)
-{
-}
-
 static int openprom_statfs(struct super_block *sb, struct statfs *buf)
 {
 	buf->f_type = OPENPROM_SUPER_MAGIC;
@@ -997,7 +993,6 @@ static int openprom_statfs(struct super_block *sb, struct statfs *buf)
 
 static struct super_operations openprom_sops = { 
 	read_inode:	openprom_read_inode,
-	put_super:	openprom_put_super,
 	statfs:		openprom_statfs,
 };
 

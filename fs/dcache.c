@@ -27,6 +27,9 @@
 #define DCACHE_PARANOIA 1
 /* #define DCACHE_DEBUG 1 */
 
+/* Right now the dcache depends on the kernel lock */
+#define check_lock()	if (!kernel_locked()) BUG()
+
 /* For managing the dcache */
 extern unsigned long num_physpages, page_cache_size;
 extern int inodes_stat[];
@@ -104,6 +107,8 @@ void dput(struct dentry *dentry)
 {
 	int count;
 
+	check_lock();
+
 	if (!dentry)
 		return;
 
@@ -158,7 +163,7 @@ out:
 		count,
 		dentry->d_parent->d_name.name,
 		dentry->d_name.name);
-	*(int *)0 = 0;	
+	BUG();
 }
 
 /*
@@ -168,6 +173,8 @@ out:
  */
 int d_invalidate(struct dentry * dentry)
 {
+	check_lock();
+
 	/*
 	 * If it's already been dropped, return OK.
 	 */
@@ -226,6 +233,7 @@ static inline void prune_one_dentry(struct dentry * dentry)
  */
 void prune_dcache(int count)
 {
+	check_lock();
 	for (;;) {
 		struct dentry *dentry;
 		struct list_head *tmp = dentry_unused.prev;
@@ -260,6 +268,8 @@ void shrink_dcache_sb(struct super_block * sb)
 {
 	struct list_head *tmp, *next;
 	struct dentry *dentry;
+
+	check_lock();
 
 	/*
 	 * Pass one ... move the dentries for the specified
@@ -308,6 +318,8 @@ int is_root_busy(struct dentry *root)
 	struct list_head *next;
 	int count = root->d_count;
 
+	check_lock();
+
 repeat:
 	next = this_parent->d_subdirs.next;
 resume:
@@ -337,6 +349,44 @@ resume:
 }
 
 /*
+ * Search for at least 1 mount point in the dentry's subdirs.
+ * We descend to the next level whenever the d_subdirs
+ * list is non-empty and continue searching.
+ */
+int have_submounts(struct dentry *parent)
+{
+	struct dentry *this_parent = parent;
+	struct list_head *next;
+
+	if (parent->d_mounts != parent)
+		return 1;
+repeat:
+	next = this_parent->d_subdirs.next;
+resume:
+	while (next != &this_parent->d_subdirs) {
+		struct list_head *tmp = next;
+		struct dentry *dentry = list_entry(tmp, struct dentry, d_child);
+		next = tmp->next;
+		/* Have we found a mount point ? */
+		if (dentry->d_mounts != dentry)
+			return 1;
+		if (!list_empty(&dentry->d_subdirs)) {
+			this_parent = dentry;
+			goto repeat;
+		}
+	}
+	/*
+	 * All done at this level ... ascend and resume the search.
+	 */
+	if (this_parent != parent) {
+		next = this_parent->d_child.next; 
+		this_parent = this_parent->d_parent;
+		goto resume;
+	}
+	return 0; /* No mount points found in tree */
+}
+
+/*
  * Search the dentry child list for the specified parent,
  * and move any unused dentries to the end of the unused
  * list for prune_dcache(). We descend to the next level
@@ -348,6 +398,8 @@ static int select_parent(struct dentry * parent)
 	struct dentry *this_parent = parent;
 	struct list_head *next;
 	int found = 0;
+
+	check_lock();
 
 repeat:
 	next = this_parent->d_subdirs.next;
@@ -525,6 +577,8 @@ struct dentry * d_lookup(struct dentry * parent, struct qstr * name)
 	struct list_head *head = d_hash(parent,hash);
 	struct list_head *tmp = head->next;
 
+	check_lock();
+
 	for (;;) {
 		struct dentry * dentry = list_entry(tmp, struct dentry, d_hash);
 		if (tmp == head)
@@ -563,6 +617,8 @@ int d_validate(struct dentry *dentry, struct dentry *dparent,
 {
 	struct list_head *base, *lhp;
 	int valid = 1;
+
+	check_lock();
 
 	if (dentry != dparent) {
 		base = d_hash(dparent, hash);
@@ -605,6 +661,10 @@ out:
  */
 void d_delete(struct dentry * dentry)
 {
+	check_lock();
+
+	check_lock();
+
 	/*
 	 * Are we the only user?
 	 */
@@ -646,6 +706,7 @@ static inline void switch_names(struct dentry * dentry, struct dentry * target)
 {
 	const unsigned char *old_name, *new_name;
 
+	check_lock();
 	memcpy(dentry->d_iname, target->d_iname, DNAME_INLINE_LEN); 
 	old_name = target->d_name.name;
 	new_name = dentry->d_name.name;
@@ -674,6 +735,8 @@ static inline void switch_names(struct dentry * dentry, struct dentry * target)
  */
 void d_move(struct dentry * dentry, struct dentry * target)
 {
+	check_lock();
+
 	if (!dentry->d_inode)
 		printk(KERN_WARNING "VFS: moving negative dcache entry\n");
 
@@ -773,7 +836,11 @@ asmlinkage long sys_getcwd(char *buf, unsigned long size)
 		error = -ENOMEM;
 		if (page) {
 			unsigned long len;
-			char * cwd = d_path(pwd, page, PAGE_SIZE);
+			char * cwd;
+
+			lock_kernel();
+			cwd = d_path(pwd, page, PAGE_SIZE);
+			unlock_kernel();
 
 			error = -ERANGE;
 			len = PAGE_SIZE + page - cwd;

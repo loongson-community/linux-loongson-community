@@ -1,7 +1,7 @@
 VERSION = 2
 PATCHLEVEL = 3
 SUBLEVEL = 99
-EXTRAVERSION = -pre2
+EXTRAVERSION = -pre3
 
 KERNELRELEASE=$(VERSION).$(PATCHLEVEL).$(SUBLEVEL)$(EXTRAVERSION)
 
@@ -86,6 +86,9 @@ endif
 CFLAGS := $(CPPFLAGS) -Wall -Wstrict-prototypes -O2 -fomit-frame-pointer
 AFLAGS := $(CPPFLAGS)
 
+# use '-fno-strict-aliasing', but only if the compiler can take it
+CFLAGS += $(shell if $(CC) -fno-strict-aliasing -S -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo "-fno-strict-aliasing"; fi)
+
 export	CPPFLAGS CFLAGS AFLAGS
 
 #
@@ -139,7 +142,7 @@ DRIVERS-$(CONFIG_APPLETALK) += drivers/net/appletalk/appletalk.a
 DRIVERS-$(CONFIG_TR) += drivers/net/tokenring/tr.a
 DRIVERS-$(CONFIG_WAN) += drivers/net/wan/wan.a
 DRIVERS-$(CONFIG_ARCNET) += drivers/net/arcnet/arcnet.a
-DRIVERS-$(CONFIG_ATM) += drivers/atm/atm.a
+DRIVERS-$(CONFIG_ATM) += drivers/atm/atm.o
 DRIVERS-$(CONFIG_IDE) += drivers/ide/ide.a
 DRIVERS-$(CONFIG_SCSI) += drivers/scsi/scsi.a
 DRIVERS-$(CONFIG_IEEE1394) += drivers/ieee1394/ieee1394.a
@@ -175,14 +178,10 @@ DRIVERS += $(DRIVERS-y)
 
 include arch/$(ARCH)/Makefile
 
-export	CORE_FILES NETWORKS DRIVERS LIBS HEAD LDFLAGS LIBS LINKFLAGS \
-	MAKEBOOT ASFLAGS
-
-# use '-fno-strict-aliasing', but only if the compiler can take it
-CFLAGS += $(shell if $(CC) -fno-strict-aliasing -S -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo "-fno-strict-aliasing"; fi)
+export	NETWORKS DRIVERS LIBS HEAD LDFLAGS LINKFLAGS MAKEBOOT ASFLAGS
 
 .S.s:
-	$(CC) -D__ASSEMBLY__ $(AFLAGS) -traditional -E -o $*.s $<
+	$(CPP) -D__ASSEMBLY__ $(AFLAGS) -traditional -o $*.s $<
 .S.o:
 	$(CC) -D__ASSEMBLY__ $(AFLAGS) -traditional -c -o $*.o $<
 
@@ -395,6 +394,7 @@ mrproper: clean archmrproper
 	rm -f .hdepend scripts/mkdep scripts/split-include scripts/docproc
 	rm -f $(TOPDIR)/include/linux/modversions.h
 	rm -rf $(TOPDIR)/include/linux/modules
+	make clean TOPDIR=$(TOPDIR) -C Documentation/DocBook
 
 distclean: mrproper
 	find . -type f \( -name core -o -name '*.orig' -o -name '*.rej' \
