@@ -25,19 +25,18 @@ static inline void wake_one_more(struct semaphore * sem)
 
 #ifdef CONFIG_CPU_HAS_LLSC
 
-static inline int
-waking_non_zero(struct semaphore *sem)
+static inline int waking_non_zero(struct semaphore *sem)
 {
 	int ret, tmp;
 
 	__asm__ __volatile__(
-	"1:\tll\t%1, %2\n\t"
+	"1:\tll\t%1, %2\t\t\t# waking_non_zero\n\t"
 	"blez\t%1, 2f\n\t"
 	"subu\t%0, %1, 1\n\t"
 	"sc\t%0, %2\n\t"
-	"beqz\t%0, 1b\n\t"
+	"beqz\t%0, 1b\n"
 	"2:"
-	: "=r" (ret), "=r" (tmp), "=m" (sem->waking)
+	: "=r" (ret), "=r" (tmp), "+m" (sem->waking)
 	: "0"(0));
 
 	return ret;
