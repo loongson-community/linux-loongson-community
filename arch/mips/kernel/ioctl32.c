@@ -815,19 +815,19 @@ static int vt_check(struct file *file)
 		return -EINVAL;
 	                
 	tty = (struct tty_struct *)file->private_data;
-	if (tty_paranoia_check(tty, inode->i_rdev, "tty_ioctl"))
+	if (tty_paranoia_check(tty, inode, "tty_ioctl"))
 		return -EINVAL;
 	                                                
-	if (tty->driver.ioctl != vt_ioctl)
+	if (tty->driver->ioctl != vt_ioctl)
 		return -EINVAL;
 	
 	/*
 	 * To have permissions to do most of the vt ioctls, we either have
 	 * to be the owner of the tty, or super-user.
 	 */
-	if (current->tty == tty || suser())
+	if (process_tty(current) == tty || capable(CAP_SYS_TTY_CONFIG))
 		return 1;
-	return 0;                                                    
+	return 0;
 }
 
 struct consolefontdesc32 {
@@ -1012,8 +1012,8 @@ COMPATIBLE_IOCTL(GIO_UNISCRNMAP)
 COMPATIBLE_IOCTL(PIO_UNISCRNMAP)
 COMPATIBLE_IOCTL(PIO_FONTRESET)
 COMPATIBLE_IOCTL(PIO_UNIMAPCLR)
-HANDLE_IOCTL(PIO_FONTX, do_fontx_ioctl),
-HANDLE_IOCTL(KDFONTOP, do_kdfontop_ioctl),
+HANDLE_IOCTL(PIO_FONTX, do_fontx_ioctl)
+HANDLE_IOCTL(KDFONTOP, do_kdfontop_ioctl)
 
 /* Big S */
 COMPATIBLE_IOCTL(SCSI_IOCTL_GET_IDLUN)
