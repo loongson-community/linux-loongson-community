@@ -422,11 +422,6 @@ config SERIAL_CONSOLE
 	depends on SIBYTE_SB1250_DUART_CONSOLE
 	default y
 
-config SIBYTE_SB1250_DUART_NO_PORT_1
-	bool
-	depends on SIBYTE_SB1250_DUART && (KGDB || SOUND_BCM_CS4297A!=n)
-	default y
-
 config QTRONIX_KEYBOARD
 	bool "Enable Qtronix 990P Keyboard Support"
 	depends on MIPS && (MIPS_ITE8172 || MIPS_IVR)
