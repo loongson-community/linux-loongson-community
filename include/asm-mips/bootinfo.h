@@ -162,7 +162,7 @@
  */
 #define MACH_NEC_OSPREY                0       /* Osprey eval board */
 
-#define CL_SIZE			80
+#define CL_SIZE			(256)
 
 const char *get_system_type(void);
 
