@@ -22,6 +22,7 @@
 #include <linux/compiler.h>
 #include <linux/module.h>
 #include <linux/suspend.h>
+#include <linux/pagevec.h>
 
 unsigned long totalram_pages;
 unsigned long totalhigh_pages;
@@ -79,8 +80,7 @@ static inline int bad_range(zone_t *zone, struct page *page)
  * -- wli
  */
 
-static void FASTCALL(__free_pages_ok (struct page *page, unsigned int order));
-static void __free_pages_ok (struct page *page, unsigned int order)
+void __free_pages_ok (struct page *page, unsigned int order)
 {
 	unsigned long index, page_idx, mask, flags;
 	free_area_t *area;
@@ -89,6 +89,7 @@ static void __free_pages_ok (struct page *page, unsigned int order)
 
 	KERNEL_STAT_ADD(pgfree, 1<<order);
 
+	BUG_ON(PageLRU(page));
 	BUG_ON(PagePrivate(page));
 	BUG_ON(page->mapping != NULL);
 	BUG_ON(PageLocked(page));
@@ -449,13 +450,12 @@ unsigned long get_zeroed_page(unsigned int gfp_mask)
 	return 0;
 }
 
-void page_cache_release(struct page *page)
+void __pagevec_free(struct pagevec *pvec)
 {
-	if (!PageReserved(page) && put_page_testzero(page)) {
-		if (PageLRU(page))
-			lru_cache_del(page);
-		__free_pages_ok(page, 0);
-	}
+	int i = pagevec_count(pvec);
+
+	while (--i >= 0)
+		__free_pages_ok(pvec->pages[i], 0);
 }
 
 void __free_pages(struct page *page, unsigned int order)

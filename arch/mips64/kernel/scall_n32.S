@@ -293,8 +293,13 @@ EXPORT(sysn32_call_table)
 	PTR	sys_tkill
 	PTR	sys_time
 	PTR	sys_futex
-	PTR	sys_sched_setaffinity		/* 5195 */
-	PTR	sys_sched_getaffinity
+	PTR	sys32_sched_setaffinity		/* 6195 */
+	PTR	sys32_sched_getaffinity
 	PTR	sys_cacheflush
 	PTR	sys_cachectl
 	PTR	sys_sysmips
+	PTR	sys_io_setup			/* 6200 */
+	PTR	sys_io_destroy
+	PTR	sys_io_getevents
+	PTR	sys_io_submit
+	PTR	sys_io_cancel

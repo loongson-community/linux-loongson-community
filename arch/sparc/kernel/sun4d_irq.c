@@ -7,12 +7,12 @@
  */
 
 #include <linux/config.h>
-#include <linux/ptrace.h>
 #include <linux/errno.h>
 #include <linux/linkage.h>
 #include <linux/kernel_stat.h>
 #include <linux/signal.h>
 #include <linux/sched.h>
+#include <linux/ptrace.h>
 #include <linux/interrupt.h>
 #include <linux/slab.h>
 #include <linux/random.h>
@@ -198,7 +198,7 @@ void sun4d_handler_irq(int irq, struct pt_regs * regs)
 	
 	cc_set_iclr(1 << irq);
 	
-	irq_enter(cpu, irq);
+	irq_enter();
 	kstat.irqs[cpu][irq]++;
 	if (!sbusl) {
 		action = *(irq + irq_action);
@@ -239,9 +239,7 @@ void sun4d_handler_irq(int irq, struct pt_regs * regs)
 					}
 			}
 	}
-	irq_exit(cpu, irq);
-	if (softirq_pending(cpu))
-		do_softirq();
+	irq_exit();
 }
 
 unsigned int sun4d_build_irq(struct sbus_dev *sdev, int irq)

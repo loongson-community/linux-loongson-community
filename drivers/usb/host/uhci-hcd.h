@@ -4,6 +4,9 @@
 #include <linux/list.h>
 #include <linux/usb.h>
 
+#define usb_packetid(pipe)	(usb_pipein(pipe) ? USB_PID_IN : USB_PID_OUT)
+#define PIPE_DEVEP_MASK		0x0007ff00
+
 /*
  * Universal Host Controller Interface data structures and defines
  */
@@ -337,9 +340,6 @@ struct urb_priv {
 
 	struct urb *urb;
 	struct usb_device *dev;
-
-	dma_addr_t setup_packet_dma_handle;
-	dma_addr_t transfer_buffer_dma_handle;
 
 	struct uhci_qh *qh;		/* QH for this URB */
 	struct list_head td_list;	/* P: urb->lock */

@@ -39,8 +39,6 @@
 #include <asm/mmu_context.h>
 #include <asm/smp.h>
 
-/* The 'big kernel lock' */
-spinlock_t kernel_flag __cacheline_aligned_in_smp = SPIN_LOCK_UNLOCKED;
 int smp_threads_ready;	/* Not used */
 struct cpuinfo_mips cpu_data[NR_CPUS];
 
@@ -393,4 +391,3 @@ void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 EXPORT_SYMBOL(flush_tlb_page);
 EXPORT_SYMBOL(cpu_data);
 EXPORT_SYMBOL(synchronize_irq);
-EXPORT_SYMBOL(kernel_flag);

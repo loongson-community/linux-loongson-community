@@ -53,14 +53,6 @@
 #include <asm/mca.h>
 
 /*
- * The Big Kernel Lock.  It's not supposed to be used for performance critical stuff
- * anymore.  But we still need to align it because certain workloads are still affected by
- * it.  For example, llseek() and various other filesystem related routines still use the
- * BKL.
- */
-spinlock_t kernel_flag __cacheline_aligned = SPIN_LOCK_UNLOCKED;
-
-/*
  * Structure and data for smp_call_function(). This is designed to minimise static memory
  * requirements. It also looks cleaner.
  */
@@ -80,7 +72,7 @@ static volatile struct call_data_struct *call_data;
 #define IPI_CPU_STOP		1
 
 /* This needs to be cacheline aligned because it is written to by *other* CPUs.  */
-static __u64 ipi_operation __per_cpu_data ____cacheline_aligned;
+static DECLARE_PER_CPU(__u64, ipi_operation) ____cacheline_aligned;
 
 static void
 stop_this_cpu (void)
@@ -99,7 +91,7 @@ void
 handle_IPI (int irq, void *dev_id, struct pt_regs *regs)
 {
 	int this_cpu = smp_processor_id();
-	unsigned long *pending_ipis = &this_cpu(ipi_operation);
+	unsigned long *pending_ipis = &__get_cpu_var(ipi_operation);
 	unsigned long ops;
 
 	/* Count this now; we may make a call that never returns. */

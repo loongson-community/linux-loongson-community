@@ -66,7 +66,6 @@
 #include <asm/ohare.h>
 #include <asm/mediabay.h>
 #include <asm/machdep.h>
-#include <asm/keyboard.h>
 #include <asm/dma.h>
 #include <asm/bootx.h>
 #include <asm/cputable.h>
@@ -230,17 +229,6 @@ pmac_show_cpuinfo(struct seq_file *m)
 	return 0;
 }
 
-#ifdef CONFIG_VT
-/*
- * Dummy mksound function that does nothing.
- * The real one is in the dmasound driver.
- */
-static void __pmac
-pmac_mksound(unsigned int hz, unsigned int ticks)
-{
-}
-#endif /* CONFIG_VT */
-
 static volatile u32 *sysctrl_regs;
 
 void __init
@@ -323,9 +311,6 @@ pmac_setup_arch(void)
 #endif
 #ifdef CONFIG_DUMMY_CONSOLE
 	conswitchp = &dummy_con;
-#endif
-#ifdef CONFIG_VT
-	kd_mksound = pmac_mksound;
 #endif
 #ifdef CONFIG_BLK_DEV_INITRD
 	if (initrd_start)
@@ -618,15 +603,6 @@ pmac_find_end_of_memory(void)
 }
 
 void __init
-select_adb_keyboard(void)
-{
-#ifdef CONFIG_VT
-	ppc_md.kbd_translate     = mac_hid_kbd_translate;
-	ppc_md.kbd_unexpected_up = mac_hid_kbd_unexpected_up;
-#endif /* CONFIG_VT */
-}
-
-void __init
 pmac_init(unsigned long r3, unsigned long r4, unsigned long r5,
 	  unsigned long r6, unsigned long r7)
 {
@@ -665,8 +641,6 @@ pmac_init(unsigned long r3, unsigned long r4, unsigned long r5,
 	ppc_md.find_end_of_memory = pmac_find_end_of_memory;
 
 	ppc_md.feature_call   = pmac_do_feature_call;
-
-	select_adb_keyboard();
 
 #ifdef CONFIG_BOOTX_TEXT
 	ppc_md.progress = pmac_progress;

@@ -9,7 +9,6 @@
  */
 #include <linux/sched.h>
 #include <linux/pc_keyb.h>
-#include <asm/keyboard.h>
 #include <asm/jazz.h>
 
 #define jazz_kh ((keyboard_hardware *) JAZZ_KEYBOARD_ADDRESS)

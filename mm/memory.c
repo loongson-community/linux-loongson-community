@@ -1181,6 +1181,7 @@ static int do_swap_page(struct mm_struct * mm,
 		KERNEL_STAT_INC(pgmajfault);
 	}
 
+	mark_page_accessed(page);
 	lock_page(page);
 
 	/*
@@ -1258,6 +1259,7 @@ static int do_anonymous_page(struct mm_struct * mm, struct vm_area_struct * vma,
 		flush_page_to_ram(page);
 		entry = pte_mkwrite(pte_mkdirty(mk_pte(page, vma->vm_page_prot)));
 		lru_cache_add(page);
+		mark_page_accessed(page);
 	}
 
 	set_pte(page_table, entry);

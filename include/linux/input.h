@@ -570,6 +570,7 @@ struct input_absinfo {
 
 #define SND_CLICK		0x00
 #define SND_BELL		0x01
+#define SND_TONE		0x02
 #define SND_MAX			0x07
 
 /*
@@ -756,6 +757,9 @@ struct ff_effect {
 #define BIT(x)	(1UL<<((x)%BITS_PER_LONG))
 #define LONG(x) ((x)/BITS_PER_LONG)
 
+#define INPUT_KEYCODE(dev, scancode) ((dev->keycodesize == 1) ? ((u8*)dev->keycode)[scancode] : \
+	((dev->keycodesize == 1) ? ((u16*)dev->keycode)[scancode] : (((u32*)dev->keycode)[scancode])))
+
 struct input_dev {
 
 	void *private;
@@ -807,8 +811,8 @@ struct input_dev {
 	int (*upload_effect)(struct input_dev *dev, struct ff_effect *effect);
 	int (*erase_effect)(struct input_dev *dev, int effect_id);
 
-	struct input_handle *handle;
-	struct input_dev *next;
+	struct list_head	h_list;
+	struct list_head	node;
 };
 
 /*
@@ -852,6 +856,8 @@ struct input_device_id {
 	unsigned long driver_info;
 };
 
+struct input_handle;
+
 struct input_handler {
 
 	void *private;
@@ -866,8 +872,8 @@ struct input_handler {
 
 	struct input_device_id *id_table;
 
-	struct input_handle *handle;
-	struct input_handler *next;
+	struct list_head	h_list;
+	struct list_head	node;
 };
 
 struct input_handle {
@@ -880,9 +886,14 @@ struct input_handle {
 	struct input_dev *dev;
 	struct input_handler *handler;
 
-	struct input_handle *dnext;
-	struct input_handle *hnext;
+	struct list_head	d_node;
+	struct list_head	h_node;
 };
+
+#define to_dev(n) container_of(n,struct input_dev,node)
+#define to_handler(n) container_of(n,struct input_handler,node);
+#define to_handle(n) container_of(n,struct input_handle,d_node)
+#define to_handle_h(n) container_of(n,struct input_handle,h_node)
 
 void input_register_device(struct input_dev *);
 void input_unregister_device(struct input_dev *);
@@ -907,6 +918,8 @@ void input_event(struct input_dev *dev, unsigned int type, unsigned int code, in
 #define input_report_abs(a,b,c) input_event(a, EV_ABS, b, c)
 #define input_report_ff(a,b,c)	input_event(a, EV_FF, b, c)
 #define input_report_ff_status(a,b,c)	input_event(a, EV_FF_STATUS, b, c)
+
+extern struct device_class input_devclass;
 
 #endif
 #endif

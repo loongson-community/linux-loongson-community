@@ -36,6 +36,7 @@
 #include <linux/init.h>
 #include <linux/input.h>
 #include <linux/smp_lock.h>
+#include <linux/device.h>
 
 struct evdev {
 	int exist;
@@ -234,7 +235,7 @@ static int evdev_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 	struct evdev *evdev = list->evdev;
 	struct input_dev *dev = evdev->handle.dev;
 	struct input_absinfo abs;
-	int t, u;
+	int i, t, u;
 
 	if (!evdev->exist) return -ENODEV;
 
@@ -258,26 +259,21 @@ static int evdev_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 
 		case EVIOCGKEYCODE:
 			if (get_user(t, ((int *) arg) + 0)) return -EFAULT;
-			if (t < 0 || t > dev->keycodemax) return -EINVAL;
-			switch (dev->keycodesize) {
-				case 1: u = *(u8*)(dev->keycode + t); break;
-				case 2: u = *(u16*)(dev->keycode + t * 2); break;
-				case 4: u = *(u32*)(dev->keycode + t * 4); break;
-				default: return -EINVAL;
-			}
-			if (put_user(u, ((int *) arg) + 1)) return -EFAULT;
+			if (t < 0 || t > dev->keycodemax || !dev->keycodesize) return -EINVAL;
+			if (put_user(INPUT_KEYCODE(dev, t), ((int *) arg) + 1)) return -EFAULT;
 			return 0;
 
 		case EVIOCSKEYCODE:
 			if (get_user(t, ((int *) arg) + 0)) return -EFAULT;
-			if (t < 0 || t > dev->keycodemax) return -EINVAL;
-			if (get_user(u, ((int *) arg) + 1)) return -EFAULT;
-			switch (dev->keycodesize) {
-				case 1: *(u8*)(dev->keycode + t) = u; break;
-				case 2: *(u16*)(dev->keycode + t * 2) = u; break;
-				case 4: *(u32*)(dev->keycode + t * 4) = u; break;
-				default: return -EINVAL;
-			}
+			if (t < 0 || t > dev->keycodemax || !dev->keycodesize) return -EINVAL;
+			u = INPUT_KEYCODE(dev, t);
+			if (get_user(INPUT_KEYCODE(dev, t), ((int *) arg) + 1)) return -EFAULT;
+
+			for (i = 0; i < dev->keycodemax; i++)
+				if(INPUT_KEYCODE(dev, t) == u) break;
+			if (i == dev->keycodemax) clear_bit(u, dev->keybit);
+			set_bit(INPUT_KEYCODE(dev, t), dev->keybit);
+
 			return 0;
 
 		case EVIOCSFF:
@@ -489,8 +485,14 @@ static struct input_handler evdev_handler = {
 	.id_table =	evdev_ids,
 };
 
+static struct device_interface evdev_intf = {
+	.name		= "event",
+	.devclass	= &input_devclass,
+};
+
 static int __init evdev_init(void)
 {
+	interface_register(&evdev_intf);
 	input_register_handler(&evdev_handler);
 	return 0;
 }
@@ -498,6 +500,7 @@ static int __init evdev_init(void)
 static void __exit evdev_exit(void)
 {
 	input_unregister_handler(&evdev_handler);
+	interface_register(&evdev_intf);
 }
 
 module_init(evdev_init);

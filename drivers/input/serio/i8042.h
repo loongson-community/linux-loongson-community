@@ -13,7 +13,11 @@
  * Arch-dependent inline functions and defines.
  */
 
-#if defined(CONFIG_PPC)
+#if defined(CONFIG_MIPS_JAZZ)
+#include "i8042-jazz.h"
+#elif defined(CONFIG_SGI_IP22)
+#include "i8042-ip22.h"
+#elif defined(CONFIG_PPC)
 #include "i8042-ppcio.h"
 #else
 #include "i8042-io.h"

@@ -95,8 +95,6 @@ asmlinkage long sys32_utime(char * filename, struct utimbuf32 *times)
 	int ret;
 	char *filenam;
 	
-	PPCDBG(PPCDBG_SYS32NI, "sys32_utime - running - filename=%s, times=%p - pid=%ld, comm=%s \n", filename, times, current->pid, current->comm);
-
 	if (!times)
 		return sys_utime(filename, NULL);
 	if (get_user(t.actime, &times->actime) || __get_user(t.modtime, &times->modtime))
@@ -225,8 +223,6 @@ asmlinkage long sys32_readv(u32 fd, struct iovec32 *vector, u32 count)
 	struct file *file;
 	long ret = -EBADF;
 	
-	PPCDBG(PPCDBG_SYS32, "sys32_readv - entered - pid=%ld current=%lx comm=%s \n", current->pid, current, current->comm);
-
 	file = fget(fd);
 	if(!file)
 		goto bad_file;
@@ -237,7 +233,6 @@ asmlinkage long sys32_readv(u32 fd, struct iovec32 *vector, u32 count)
 	fput(file);
 
 bad_file:
-	PPCDBG(PPCDBG_SYS32, "sys32_readv - exited - pid=%ld current=%lx comm=%s \n", current->pid, current, current->comm);
 	return ret;
 }
 
@@ -246,8 +241,6 @@ asmlinkage long sys32_writev(u32 fd, struct iovec32 *vector, u32 count)
 	struct file *file;
 	int ret = -EBADF;
 	
-	PPCDBG(PPCDBG_SYS32, "sys32_writev - entered - pid=%ld current=%lx comm=%s \n", current->pid, current, current->comm);
-
 	file = fget(fd);
 	if(!file)
 		goto bad_file;
@@ -257,7 +250,6 @@ asmlinkage long sys32_writev(u32 fd, struct iovec32 *vector, u32 count)
 	fput(file);
 
 bad_file:
-	PPCDBG(PPCDBG_SYS32, "sys32_writev - exited - pid=%ld current=%lx comm=%s \n", current->pid, current, current->comm);
 	return ret;
 }
 
@@ -404,8 +396,6 @@ asmlinkage long sys32_mount(char *dev_name, char *dir_name, char *type, unsigned
 	unsigned long dir_page = 0;
 	int err, is_smb, is_ncp;
 	
-	PPCDBG(PPCDBG_SYS32, "sys32_mount - entered - pid=%ld current=%lx comm=%s \n", current->pid, current, current->comm);
-
 	is_smb = is_ncp = 0;
 
 	err = copy_mount_stuff_to_kernel((const void *)type, &type_page);
@@ -460,23 +450,9 @@ type_out:
 	free_page(type_page);
 
 out:
-	
-	PPCDBG(PPCDBG_SYS32, "sys32_mount - exited - pid=%ld current=%lx comm=%s \n", current->pid, current, current->comm);
-
 	return err;
 }
 
-struct dqblk32 {
-    __u32 dqb_bhardlimit;
-    __u32 dqb_bsoftlimit;
-    __u32 dqb_curblocks;
-    __u32 dqb_ihardlimit;
-    __u32 dqb_isoftlimit;
-    __u32 dqb_curinodes;
-    __kernel_time_t32 dqb_btime;
-    __kernel_time_t32 dqb_itime;
-};
-                                
 /* readdir & getdents */
 #define NAME_OFFSET(de) ((int) ((de)->d_name - (char *) (de)))
 #define ROUND_UP(x) (((x)+sizeof(u32)-1) & ~(sizeof(u32)-1))
@@ -594,8 +570,6 @@ asmlinkage long sys32_getdents(unsigned int fd, struct linux_dirent32 *dirent, u
 	struct getdents_callback32 buf;
 	int error = -EBADF;
 
-	PPCDBG(PPCDBG_SYS32NI, "sys32_getdents - running - fd=%x, pid=%ld, comm=%s \n", fd, current->pid, current->comm);
-
 	file = fget(fd);
 	if (!file)
 		goto out;
@@ -711,8 +685,6 @@ asmlinkage long sys32_select(int n, u32 *inp, u32 *outp, u32 *exp, u32 tvp_x)
 	long timeout;
 	int ret, size;
 	
-  PPCDBG(PPCDBG_SYS32X, "sys32_select - entered - n=%x, inp=%p, outp=%p - pid=%ld comm=%s \n", n, inp, outp, current->pid, current->comm);
-
 	timeout = MAX_SCHEDULE_TIMEOUT;
 	if (tvp) {
 		time_t sec, usec;
@@ -776,7 +748,7 @@ asmlinkage long sys32_select(int n, u32 *inp, u32 *outp, u32 *exp, u32 tvp_x)
 		put_user(usec, &tvp->tv_usec);
 	}
 
-  if (ret < 0)
+	if (ret < 0)
 		goto out;
 	if (!ret) {
 		ret = -ERESTARTNOHAND;
@@ -793,7 +765,6 @@ out:
 	kfree(bits);
 
 out_nofds:
-	PPCDBG(PPCDBG_SYS32X, "sys32_select - exited - pid=%ld, comm=%s \n", current->pid, current->comm);
 	return ret;
 }
 
@@ -894,8 +865,6 @@ asmlinkage long sys32_statfs(const char * path, struct statfs32 *buf)
 	mm_segment_t old_fs = get_fs();
 	char *pth;
 	
-	PPCDBG(PPCDBG_SYS32X, "sys32_statfs - entered - pid=%ld current=%lx comm=%s\n", current->pid, current, current->comm);
-	
 	pth = getname (path);
 	ret = PTR_ERR(pth);
 	if (!IS_ERR(pth)) {
@@ -907,8 +876,6 @@ asmlinkage long sys32_statfs(const char * path, struct statfs32 *buf)
 			return -EFAULT;
 	}
 	
-	PPCDBG(PPCDBG_SYS32X, "sys32_statfs - exited - pid=%ld current=%lx comm=%s \n", current->pid, current, current->comm);
-
 	return ret;
 }
 
@@ -920,16 +887,12 @@ asmlinkage long sys32_fstatfs(unsigned int fd, struct statfs32 *buf)
 	struct statfs s;
 	mm_segment_t old_fs = get_fs();
 	
-	PPCDBG(PPCDBG_SYS32X, "sys32_fstatfs - entered - pid=%ld current=%lx comm=%s\n", current->pid, current, current->comm);
-	
 	set_fs (KERNEL_DS);
 	ret = sys_fstatfs(fd, &s);
 	set_fs (old_fs);
 	if (put_statfs(buf, &s))
 		return -EFAULT;
 	
-	PPCDBG(PPCDBG_SYS32X, "sys32_fstatfs - exited - pid=%ld current=%lx comm=%s\n", current->pid, current, current->comm);
-
 	return ret;
 }
 
@@ -944,7 +907,6 @@ extern asmlinkage long sys_sysfs(int option, unsigned long arg1, unsigned long a
  */
 asmlinkage long sys32_sysfs(u32 option, u32 arg1, u32 arg2)
 {
-	PPCDBG(PPCDBG_SYS32, "sys32_sysfs - running - pid=%ld, comm=%s\n", current->pid, current->comm);
 	return sys_sysfs((int)option, arg1, arg2);
 }
 
@@ -961,10 +923,6 @@ asmlinkage unsigned long sys32_mremap(unsigned long addr, unsigned long old_len,
 	unsigned long ret = -EINVAL;
 	unsigned long new_addr = AA(__new_addr);
 	
-	PPCDBG(PPCDBG_SYS32, "sys32_mremap - entered - pid=%ld current=%lx comm=%s\n",
-		    current->pid, current, current->comm);
-
-
 	if (old_len > 0xf0000000UL || new_len > 0xf0000000UL)
 		goto out;
 	if (addr > 0xf0000000UL - old_len)
@@ -986,10 +944,6 @@ asmlinkage unsigned long sys32_mremap(unsigned long addr, unsigned long old_len,
 out_sem:
 	up_write(&current->mm->mmap_sem);
 out:
-	
-	PPCDBG(PPCDBG_SYS32, "sys32_mremap - exited - pid=%ld current=%lx comm=%s\n",
-		    current->pid, current, current->comm);
-
 	return ret;       
 }
 
@@ -1017,8 +971,6 @@ asmlinkage long sys32_adjtimex(struct timex32 *utp)
 	struct timex txc;
 	int ret;
 	
-	PPCDBG(PPCDBG_SYS32, "sys32_adjtimex - running - pid=%ld current=%lx comm=%s \n", current->pid, current, current->comm);
-
 	memset(&txc, 0, sizeof(struct timex));
 
 	if(get_user(txc.modes, &utp->modes) ||
@@ -1081,9 +1033,6 @@ extern asmlinkage unsigned long sys_create_module(const char *name_user, size_t 
 
 asmlinkage unsigned long sys32_create_module(const char *name_user, __kernel_size_t32 size)
 {
-	
-	PPCDBG(PPCDBG_SYS32M, "sys32_create_module - running - pid=%ld current=%lx comm=%s\n", current->pid, current, current->comm);
-
 	return sys_create_module(name_user, (size_t)size);
 }
 
@@ -1093,9 +1042,6 @@ extern asmlinkage long sys_init_module(const char *name_user, struct module *mod
 
 asmlinkage long sys32_init_module(const char *name_user, struct module *mod_user)
 {
-	
-	PPCDBG(PPCDBG_SYS32, "sys32_init_module - running - pid=%ld current=%lx comm=%s\n", current->pid, current, current->comm);
-
 	return sys_init_module(name_user, mod_user);
 }
 
@@ -1105,9 +1051,6 @@ extern asmlinkage long sys_delete_module(const char *name_user);
 
 asmlinkage long sys32_delete_module(const char *name_user)
 {
-	
-	PPCDBG(PPCDBG_SYS32, "sys32_delete_module - running - pid=%ld current=%lx comm=%s\n", current->pid, current, current->comm);
-
 	return sys_delete_module(name_user);
 }
 
@@ -1384,9 +1327,6 @@ asmlinkage long sys32_query_module(char *name_user, u32 which, char *buf, __kern
 	struct module *mod;
 	int err;
 	
-	PPCDBG(PPCDBG_SYS32M, "sys32_query_module - entered - pid=%ld current=%lx comm=%s\n",
-		    current->pid, current, current->comm);
-
 	lock_kernel();
 	if (name_user == 0) {
 		/* This finds "kernel_module" which is not exported. */
@@ -1439,8 +1379,6 @@ asmlinkage long sys32_query_module(char *name_user, u32 which, char *buf, __kern
 out:
 	unlock_kernel();
 	
-	PPCDBG(PPCDBG_SYS32, "sys32_query_module - exited - pid=%ld current=%lx comm=%s\n", current->pid, current, current->comm);
-
 	return err;
 }
 
@@ -1459,9 +1397,6 @@ asmlinkage long sys32_get_kernel_syms(struct kernel_sym32 *table)
 	struct kernel_sym *tbl;
 	mm_segment_t old_fs;
 	
-	PPCDBG(PPCDBG_SYS32, "sys32_get_kernel_syms - entered - pid=%ld current=%lx comm=%s \n", current->pid, current, current->comm);
-
-	
 	len = sys_get_kernel_syms(NULL);
 	if (!table) return len;
 	tbl = kmalloc (len * sizeof (struct kernel_sym), GFP_KERNEL);
@@ -1477,8 +1412,6 @@ asmlinkage long sys32_get_kernel_syms(struct kernel_sym32 *table)
 	}
 	kfree (tbl);
 	
-	PPCDBG(PPCDBG_SYS32, "sys32_get_kernel_syms - exited - pid=%ld current=%lx comm=%s \n", current->pid, current, current->comm);
-
 	return i;
 }
 
@@ -1486,23 +1419,16 @@ asmlinkage long sys32_get_kernel_syms(struct kernel_sym32 *table)
 
 asmlinkage unsigned long sys32_create_module(const char *name_user, size_t size)
 {
-	
-	PPCDBG(PPCDBG_SYS32, "sys32_create_module - running - pid=%ld, comm=%s\n", current->pid, current->comm);
-
 	return -ENOSYS;
 }
 
 asmlinkage long sys32_init_module(const char *name_user, struct module *mod_user)
 {
-	PPCDBG(PPCDBG_SYS32, "sys32_init_module - running - pid=%ld, comm=%s\n", current->pid, current->comm);
-
 	return -ENOSYS;
 }
 
 asmlinkage long sys32_delete_module(const char *name_user)
 {
-	PPCDBG(PPCDBG_SYS32, "sys32_delete_module - running - pid=%ld, comm=%s\n", current->pid, current->comm);
-
 	return -ENOSYS;
 }
 
@@ -1513,20 +1439,15 @@ asmlinkage long sys32_delete_module(const char *name_user)
  */
 asmlinkage long sys32_query_module(const char *name_user, u32 which, char *buf, size_t bufsize, size_t *ret)
 {
-	PPCDBG(PPCDBG_SYS32, "sys32_query_module - entered - pid=%ld current=%lx comm=%s\n", current->pid, current, current->comm);
-
 	/* Let the program know about the new interface.  Not that it'll do them much good. */
 	if ((int)which == 0)
 		return 0;
 
-	PPCDBG(PPCDBG_SYS32, "sys32_query_module - exited - pid=%ld current=%lx comm=%s\n", current->pid, current, current->comm);
 	return -ENOSYS;
 }
 
 asmlinkage long sys32_get_kernel_syms(struct kernel_sym *table)
 {
-	PPCDBG(PPCDBG_SYS32, "sys32_get_kernel_syms - running - pid=%ld, comm=%s\n", current->pid, current->comm);
-
 	return -ENOSYS;
 }
 
@@ -1893,8 +1814,6 @@ asmlinkage long sys32_nanosleep(struct timespec32 *rqtp, struct timespec32 *rmtp
 	int ret;
 	mm_segment_t old_fs = get_fs ();
 	
-	PPCDBG(PPCDBG_SYS32NI, "sys32_nanosleep - running - pid=%ld, comm=%s \n", current->pid, current->comm);
-	
 	if (get_user (t.tv_sec, &rqtp->tv_sec) ||
 	    __get_user (t.tv_nsec, &rqtp->tv_nsec))
 		return -EFAULT;
@@ -1916,9 +1835,6 @@ asmlinkage long sys32_nanosleep(struct timespec32 *rqtp, struct timespec32 *rmtp
 /* These are here just in case some old sparc32 binary calls it. */
 asmlinkage long sys32_pause(void)
 {
-	
-	PPCDBG(PPCDBG_SYS32, "sys32_pause - running - pid=%ld, comm=%s \n", current->pid, current->comm);
-
 	current->state = TASK_INTERRUPTIBLE;
 	schedule();
 	
@@ -1974,14 +1890,10 @@ asmlinkage long sys32_getitimer(u32 which, struct itimerval32 *it)
 	struct itimerval kit;
 	int error;
 	
-	PPCDBG(PPCDBG_SYS32, "sys32_getitimer - entered - pid=%ld current=%lx comm=%s \n", current->pid, current, current->comm);
-
 	error = do_getitimer((int)which, &kit);
 	if (!error && put_it32(it, &kit))
 		error = -EFAULT;
 
-	
-	PPCDBG(PPCDBG_SYS32, "sys32_getitimer - exited - pid=%ld current=%lx comm=%s\n", current->pid, current, current->comm);
 	return error;
 }
 
@@ -1999,8 +1911,6 @@ asmlinkage long sys32_setitimer(u32 which, struct itimerval32 *in, struct itimer
 	struct itimerval kin, kout;
 	int error;
 	
-	PPCDBG(PPCDBG_SYS32, "sys32_setitimer - entered - pid=%ld current=%lx comm=%s\n", current->pid, current, current->comm);
-
 	if (in) {
 		if (get_it32(&kin, in))
 			return -EFAULT;
@@ -2013,8 +1923,6 @@ asmlinkage long sys32_setitimer(u32 which, struct itimerval32 *in, struct itimer
 	if (put_it32(out, &kout))
 		return -EFAULT;
 
-	
-	PPCDBG(PPCDBG_SYS32, "sys32_setitimer - exited - pid=%ld current=%lx comm=%s\n", current->pid, current, current->comm);
 	return 0;
 }
 
@@ -2049,32 +1957,23 @@ asmlinkage long sys32_old_getrlimit(unsigned int resource, struct rlimit32* rlim
 {
 	struct rlimit   x;    // 64-bit version of the resource limits.
 	struct rlimit32 x32;  // 32-bit version of the resource limits.
-	long rc = 0;
-	
-	if (resource >= RLIM_NLIMITS) {
-		PPCDBG(PPCDBG_SYS32, "sys32_old_getrlimit - specified resource is too large (%x) - pid=%ld, comm=%s\n", resource, current->pid, current->comm);
+
+	if (resource >= RLIM_NLIMITS)
 		return -EINVAL;
-	}
 
 	memcpy(&x, current->rlim+resource, sizeof(struct rlimit));
 
-	if(x.rlim_cur > RLIM_INFINITY32)
+	if (x.rlim_cur > RLIM_INFINITY32)
 		x32.rlim_cur = RLIM_INFINITY32;
 	else
 		x32.rlim_cur = x.rlim_cur;
 
-	if(x.rlim_max > RLIM_INFINITY32)
+	if (x.rlim_max > RLIM_INFINITY32)
 		x32.rlim_max = RLIM_INFINITY32;
 	else
 		x32.rlim_max = x.rlim_max;
 
-	rc = (copy_to_user(rlim, &x32, sizeof(x32))) ? (-EFAULT) : 0;
-	if (rc == 0) {
-		PPCDBG(PPCDBG_SYS32, "sys32_old_getrlimit - current=%x, maximum=%x - pid=%ld, comm=%s\n", x32.rlim_cur, x32.rlim_max, current->pid, current->comm);
-	} else {
-		PPCDBG(PPCDBG_SYS32, "sys32_old_getrlimit - unable to copy into user's storage - pid=%ld, comm=%s\n", current->pid, current->comm);
-	}
-	return rc;
+	return (copy_to_user(rlim, &x32, sizeof(x32))) ? (-EFAULT) : 0;
 }
 
 extern asmlinkage long sys_setrlimit(unsigned int resource, struct rlimit *rlim);
@@ -2084,8 +1983,6 @@ asmlinkage long sys32_setrlimit(unsigned int resource, struct rlimit32 *rlim)
 	long ret;
 	mm_segment_t old_fs = get_fs ();
 	
-	PPCDBG(PPCDBG_SYS32, "sys32_setrlimit - entered - resource=%x, rlim=%p - pid=%ld, comm=%s\n", resource, rlim, current->pid, current->comm);
-
 	if (resource >= RLIM_NLIMITS) return -EINVAL;	
 	if (get_user (r.rlim_cur, &rlim->rlim_cur) ||
 	    __get_user (r.rlim_max, &rlim->rlim_max))
@@ -2098,7 +1995,6 @@ asmlinkage long sys32_setrlimit(unsigned int resource, struct rlimit32 *rlim)
 	ret = sys_setrlimit(resource, &r);
 	set_fs (old_fs);
 	
-	PPCDBG(PPCDBG_SYS32, "sys32_setrlimit - exited w/ ret=%x - pid=%ld, comm=%s\n", ret, current->pid, current->comm);
 	return ret;
 }
 
@@ -2161,8 +2057,6 @@ asmlinkage long sys32_getrusage(u32 who, struct rusage32 *ru)
 	int ret;
 	mm_segment_t old_fs = get_fs();
 	
-	PPCDBG(PPCDBG_SYS32X, "sys32_getrusage - running - pid=%ld, comm=%s\n", current->pid, current->comm);
-		
 	set_fs (KERNEL_DS);
 	ret = sys_getrusage((int)who, &r);
 	set_fs (old_fs);
@@ -2196,8 +2090,6 @@ asmlinkage long sys32_sysinfo(struct sysinfo32 *info)
 	int ret, err;
 	mm_segment_t old_fs = get_fs ();
 	
-	PPCDBG(PPCDBG_SYS32, "sys32_sysinfo - entered - pid=%ld current=%lx comm=%s \n", current->pid, current, current->comm);
-	
 	set_fs (KERNEL_DS);
 	ret = sys_sysinfo(&s);
 	set_fs (old_fs);
@@ -2215,8 +2107,6 @@ asmlinkage long sys32_sysinfo(struct sysinfo32 *info)
 	if (err)
 		return -EFAULT;
 	
-	PPCDBG(PPCDBG_SYS32, "sys32_sysinfo - exited - pid=%ld current=%lx comm=%s \n", current->pid, current, current->comm);
-
 	return ret;
 }
 
@@ -2230,9 +2120,6 @@ extern int do_sys_settimeofday(struct timeval *tv, struct timezone *tz);
 
 asmlinkage long sys32_gettimeofday(struct timeval32 *tv, struct timezone *tz)
 {
-	
-	PPCDBG(PPCDBG_SYS32X, "sys32_gettimeofday - running - pid=%ld, comm=%s\n", current->pid, current->comm);
-
 	if (tv) {
 		struct timeval ktv;
 		do_gettimeofday(&ktv);
@@ -2254,8 +2141,6 @@ asmlinkage long sys32_settimeofday(struct timeval32 *tv, struct timezone *tz)
 	struct timeval ktv;
 	struct timezone ktz;
 	
-	PPCDBG(PPCDBG_SYS32, "sys32_settimeofday - running - pid=%ld current=%lx comm=%s \n", current->pid, current, current->comm);
-
  	if (tv) {
 		if (get_tv32(&ktv, tv))
 			return -EFAULT;
@@ -2267,8 +2152,6 @@ asmlinkage long sys32_settimeofday(struct timeval32 *tv, struct timezone *tz)
 
 	return do_sys_settimeofday(tv ? &ktv : NULL, tz ? &ktz : NULL);
 }
-
-
 
 
 struct tms32 {
@@ -2287,8 +2170,6 @@ asmlinkage long sys32_times(struct tms32 *tbuf)
 	mm_segment_t old_fs = get_fs ();
 	int err;
 	
-	PPCDBG(PPCDBG_SYS32, "sys32_times - entered - pid=%ld current=%lx comm=%s \n", current->pid, current, current->comm);
-	
 	set_fs (KERNEL_DS);
 	ret = sys_times(tbuf ? &t : NULL);
 	set_fs (old_fs);
@@ -2301,8 +2182,6 @@ asmlinkage long sys32_times(struct tms32 *tbuf)
 			ret = -EFAULT;
 	}
 	
-	PPCDBG(PPCDBG_SYS32, "sys32_times - exited - pid=%ld current=%lx comm=%s \n", current->pid, current, current->comm);
-
 	return ret;
 }
 
@@ -2847,9 +2726,6 @@ asmlinkage long sys32_ipc(u32 call, u32 first_parm, u32 second_parm, u32 third_p
 	int third  = (int)third_parm;
 	int version, err;
 	
-	PPCDBG(PPCDBG_SYS32, "sys32_ipc - entered - call=%x, parm1=%x, parm2=%x, parm3=%x, parm4=%x, parm5=%x \n", 
-         call, first_parm, second_parm, third_parm, ptr, fifth);
-
 	version = call >> 16; /* hack for backward compatibility */
 	call &= 0xffff;
 
@@ -2900,9 +2776,6 @@ asmlinkage long sys32_ipc(u32 call, u32 first_parm, u32 second_parm, u32 third_p
 		err = -EINVAL;
 		break;
 	}
-
-	
-	PPCDBG(PPCDBG_SYS32, "sys32_ipc - exited w/ %d/0x%x \n", err, err);
 	return err;
 }
 
@@ -2999,9 +2872,6 @@ extern asmlinkage int sys_setsockopt(int fd, int level, int optname, char *optva
 
 asmlinkage long sys32_setsockopt(int fd, int level, int optname, char* optval, int optlen)
 {
-	
-	PPCDBG(PPCDBG_SYS32,"sys32_setsockopt - running - pid=%ld, comm=%s\n", current->pid, current->comm);
-
 	if (optname == SO_ATTACH_FILTER) {
 		struct sock_fprog32 {
 			__u16 len;
@@ -3272,8 +3142,6 @@ asmlinkage long sys32_sendmsg(int fd, struct msghdr32* user_msg, unsigned int us
 	struct msghdr kern_msg;
 	int err, total_len;
 	
-	PPCDBG(PPCDBG_SYS32, "sys32_sendmsg - entered - fd=%x, user_msg@=%p, user_flags=%x \n", fd, user_msg, user_flags);
-
 	if(msghdr_from_user32_to_kern(&kern_msg, user_msg))
 		return -EFAULT;
 	if(kern_msg.msg_iovlen > UIO_MAXIOV)
@@ -3306,8 +3174,6 @@ out_freeiov:
 	if(kern_msg.msg_iov != iov)
 		kfree(kern_msg.msg_iov);
 out:
-	
-	PPCDBG(PPCDBG_SYS32, "sys32_sendmsg - exited w/ %lx \n", err);
 	return err;
 }
 
@@ -3510,8 +3376,6 @@ asmlinkage long sys32_recvmsg(int fd, struct msghdr32* user_msg, unsigned int us
 	unsigned long cmsg_ptr;
 	int err, total_len, len = 0;
 	
-	PPCDBG(PPCDBG_SYS32, "sys32_recvmsg - entered - fd=%x, user_msg@=%p, user_flags=%x \n", fd, user_msg, user_flags);
-
 	if(msghdr_from_user32_to_kern(&kern_msg, user_msg))
 		return -EFAULT;
 	if(kern_msg.msg_iovlen > UIO_MAXIOV)
@@ -3579,7 +3443,6 @@ out:
 	if(err < 0)
 		return err;
 	
-	PPCDBG(PPCDBG_SYS32, "sys32_recvmsg - exited w/ %lx \n", len);
 	return len;
 }
 
@@ -3804,8 +3667,6 @@ extern asmlinkage int sys_prctl(int option, unsigned long arg2, unsigned long ar
  */
 asmlinkage long sys32_prctl(u32 option, u32 arg2, u32 arg3, u32 arg4, u32 arg5)
 {
-	PPCDBG(PPCDBG_SYS32, "sys32_prctl - running - pid=%ld current=%lx comm=%s\n", current->pid, current, current->comm);
-
 	return sys_prctl((int)option,
 			 (unsigned long) arg2,
 			 (unsigned long) arg3,
@@ -3826,8 +3687,6 @@ asmlinkage int sys32_sched_rr_get_interval(u32 pid, struct timespec32 *interval)
 	int ret;
 	mm_segment_t old_fs = get_fs ();
 	
-	PPCDBG(PPCDBG_SYS32, "sys32_sched_rr_get_interval - entered - pid=%ld current=%lx comm=%s \n", current->pid, current, current->comm);
-	
 	set_fs (KERNEL_DS);
 	ret = sys_sched_rr_get_interval((int)pid, &t);
 	set_fs (old_fs);
@@ -3835,7 +3694,6 @@ asmlinkage int sys32_sched_rr_get_interval(u32 pid, struct timespec32 *interval)
 	    __put_user (t.tv_nsec, &interval->tv_nsec))
 		return -EFAULT;
 	
-	PPCDBG(PPCDBG_SYS32, "sys32_sched_rr_get_interval - exited - pid=%ld current=%lx comm=%s \n", current->pid, current, current->comm);
 	return ret;
 }
 
@@ -3844,9 +3702,6 @@ extern asmlinkage int sys_pciconfig_read(unsigned long bus, unsigned long dfn, u
 
 asmlinkage int sys32_pciconfig_read(u32 bus, u32 dfn, u32 off, u32 len, u32 ubuf)
 {
-	
-	PPCDBG(PPCDBG_SYS32, "sys32_pciconfig_read - running - pid=%ld current=%lx comm=%s\n", current->pid, current, current->comm);
-
 	return sys_pciconfig_read((unsigned long) bus,
 				  (unsigned long) dfn,
 				  (unsigned long) off,
@@ -3862,9 +3717,6 @@ extern asmlinkage int sys_pciconfig_write(unsigned long bus, unsigned long dfn, 
 
 asmlinkage int sys32_pciconfig_write(u32 bus, u32 dfn, u32 off, u32 len, u32 ubuf)
 {
-	
-	PPCDBG(PPCDBG_SYS32, "sys32_pciconfig_write - running - pid=%ld current=%lx comm=%s \n", current->pid, current, current->comm);
-
 	return sys_pciconfig_write((unsigned long) bus,
 				   (unsigned long) dfn,
 				   (unsigned long) off,
@@ -3962,8 +3814,6 @@ extern asmlinkage long sys_wait4(pid_t pid, unsigned int * stat_addr, int option
  */
 asmlinkage long sys32_wait4(u32 pid, unsigned int * stat_addr, u32 options, struct rusage * ru)
 {
-        PPCDBG(PPCDBG_SYS32, "sys32_wait4 - running - pid=%ld current=%lx comm=%s \n", current->pid, current, current->comm);
-
 	if (!ru)
 		return sys_wait4((int)pid, stat_addr, options, NULL);
 	else {
@@ -4062,30 +3912,6 @@ asmlinkage long sys32_getsid(u32 pid)
 }
 
 
-extern asmlinkage long sys_ioperm(unsigned long from, unsigned long num, int on);
-
-/* Note: it is necessary to treat on as an unsigned int,
- * with the corresponding cast to a signed int to insure that the 
- * proper conversion (sign extension) between the register representation of a signed int (msr in 32-bit mode)
- * and the register representation of a signed int (msr in 64-bit mode) is performed.
- */
-asmlinkage long sys32_ioperm(unsigned long from, unsigned long num, u32 on)
-{
-	return sys_ioperm(from, num, (int)on);
-}
-
-
-extern asmlinkage int sys_iopl(int a1, int a2, int a3, int a4);
-
-/* Note: it is necessary to treat a1, a2, a3, and a4 as unsigned ints,
- * with the corresponding cast to a signed int to insure that the 
- * proper conversion (sign extension) between the register representation of a signed int (msr in 32-bit mode)
- * and the register representation of a signed int (msr in 64-bit mode) is performed.
- */
-asmlinkage int sys32_iopl(u32 a1, u32 a2, u32 a3, u32 a4)
-{
-	return sys_iopl((int)a1, (int)a2, (int)a3, (int)a4);
-}
 
 
 extern asmlinkage long sys_kill(int pid, int sig);
@@ -4124,19 +3950,6 @@ extern asmlinkage long sys_mlockall(int flags);
 asmlinkage long sys32_mlockall(u32 flags)
 {
 	return sys_mlockall((int)flags);
-}
-
-
-extern asmlinkage int sys_modify_ldt(int a1, int a2, int a3, int a4);
-
-/* Note: it is necessary to treat a1, a2, a3, and a4 as unsigned ints,
- * with the corresponding cast to a signed int to insure that the 
- * proper conversion (sign extension) between the register representation of a signed int (msr in 32-bit mode)
- * and the register representation of a signed int (msr in 64-bit mode) is performed.
- */
-asmlinkage int sys32_modify_ldt(u32 a1, u32 a2, u32 a3, u32 a4)
-{
-	return sys_modify_ldt((int)a1, (int)a2, (int)a3, (int)a4);
 }
 
 
@@ -4426,42 +4239,32 @@ asmlinkage int sys32_vfork(u32 p1, u32 p2, u32 p3, u32 p4, u32 p5, u32 p6, struc
 }
 
 
-extern asmlinkage int sys_vm86(int a1, int a2, int a3, int a4);
+extern ssize_t sys_pread64(unsigned int fd, char *buf, size_t count,
+			   loff_t pos);
 
-/* Note: it is necessary to treat a1, a2, a3, and a4 as unsigned ints,
- * with the corresponding cast to a signed int to insure that the 
- * proper conversion (sign extension) between the register representation of a signed int (msr in 32-bit mode)
- * and the register representation of a signed int (msr in 64-bit mode) is performed.
- */
-asmlinkage int sys32_vm86(u32 a1, u32 a2, u32 a3, u32 a4)
-{
-	return sys_vm86((int)a1, (int)a2, (int)a3, (int)a4);
-}
-
-
-
-
-
-extern asmlinkage ssize_t sys_pread(unsigned int fd, char * buf,
-				    size_t count, loff_t pos);
-
-extern asmlinkage ssize_t sys_pwrite(unsigned int fd, const char * buf,
-				     size_t count, loff_t pos);
+extern ssize_t sys_pwrite64(unsigned int fd, const char *buf, size_t count,
+			    loff_t pos);
 
 typedef __kernel_ssize_t32 ssize_t32;
 
-asmlinkage ssize_t32 sys32_pread(unsigned int fd, char *ubuf,
-				 __kernel_size_t32 count, u32 reg6, u32 poshi, u32 poslo)
+ssize_t32 sys32_pread64(unsigned int fd, char *ubuf, __kernel_size_t32 count,
+			u32 reg6, u32 poshi, u32 poslo)
 {
-	return sys_pread(fd, ubuf, count, ((loff_t)AA(poshi) << 32) | AA(poslo));
+	return sys_pread64(fd, ubuf, count, ((loff_t)AA(poshi) << 32) | AA(poslo));
 }
 
-asmlinkage ssize_t32 sys32_pwrite(unsigned int fd, char *ubuf,
-				  __kernel_size_t32 count, u32 reg6 ,u32 poshi, u32 poslo)
+ssize_t32 sys32_pwrite64(unsigned int fd, char *ubuf, __kernel_size_t32 count,
+			 u32 reg6 ,u32 poshi, u32 poslo)
 {
-	return sys_pwrite(fd, ubuf, count, ((loff_t)AA(poshi) << 32) | AA(poslo));
+	return sys_pwrite64(fd, ubuf, count, ((loff_t)AA(poshi) << 32) | AA(poslo));
 }
 
+extern ssize_t sys_readahead(int fd, loff_t offset, size_t count);
+
+ssize_t32 sys32_readahead(int fd, u32 offhi, u32 offlo, s32 count)
+{
+        return sys_readahead(fd, ((loff_t)AA(offhi) << 32) | AA(offlo), count);
+}
 
 extern asmlinkage long sys_truncate(const char * path, unsigned long length);
 extern asmlinkage long sys_ftruncate(unsigned int fd, unsigned long length);

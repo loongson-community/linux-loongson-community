@@ -46,9 +46,6 @@ cpuinfo_sparc cpu_data[NR_CPUS];
 /* Please don't make this stuff initdata!!!  --DaveM */
 static unsigned char boot_cpu_id;
 
-/* Kernel spinlock */
-spinlock_t kernel_flag __cacheline_aligned_in_smp = SPIN_LOCK_UNLOCKED;
-
 atomic_t sparc64_num_cpus_online = ATOMIC_INIT(0);
 unsigned long cpu_online_map = 0;
 atomic_t sparc64_num_cpus_possible = ATOMIC_INIT(0);
@@ -558,9 +555,9 @@ extern unsigned long xcall_flush_tlb_page;
 extern unsigned long xcall_flush_tlb_mm;
 extern unsigned long xcall_flush_tlb_range;
 extern unsigned long xcall_flush_tlb_kernel_range;
-extern unsigned long xcall_flush_tlb_all;
-extern unsigned long xcall_tlbcachesync;
-extern unsigned long xcall_flush_cache_all;
+extern unsigned long xcall_flush_tlb_all_spitfire;
+extern unsigned long xcall_flush_tlb_all_cheetah;
+extern unsigned long xcall_flush_cache_all_spitfire;
 extern unsigned long xcall_report_regs;
 extern unsigned long xcall_receive_signal;
 extern unsigned long xcall_flush_dcache_page_cheetah;
@@ -676,13 +673,19 @@ void smp_report_regs(void)
 
 void smp_flush_cache_all(void)
 {
-	smp_cross_call(&xcall_flush_cache_all, 0, 0, 0);
-	__flush_cache_all();
+	/* Cheetah need do nothing. */
+	if (tlb_type == spitfire) {
+		smp_cross_call(&xcall_flush_cache_all_spitfire, 0, 0, 0);
+		__flush_cache_all();
+	}
 }
 
 void smp_flush_tlb_all(void)
 {
-	smp_cross_call(&xcall_flush_tlb_all, 0, 0, 0);
+	if (tlb_type == spitfire)
+		smp_cross_call(&xcall_flush_tlb_all_spitfire, 0, 0, 0);
+	else
+		smp_cross_call(&xcall_flush_tlb_all_cheetah, 0, 0, 0);
 	__flush_tlb_all();
 }
 
@@ -1115,7 +1118,7 @@ static void __init smp_tune_scheduling(void)
 	 * of moving a process from one cpu to another).
 	 */
 	printk("SMP: Calibrating ecache flush... ");
-	if (tlb_type == cheetah) {
+	if (tlb_type == cheetah || tlb_type == cheetah_plus) {
 		cacheflush_time = cheetah_tune_scheduling();
 		goto report;
 	}

@@ -72,11 +72,6 @@ extern void * __rd_start, * __rd_end;
 extern struct rtc_ops no_rtc_ops;
 struct rtc_ops *rtc_ops;
 
-#ifdef CONFIG_PC_KEYB
-extern struct kbd_ops no_kbd_ops;
-struct kbd_ops *kbd_ops;
-#endif
-
 /*
  * Setup information
  *
@@ -507,10 +502,6 @@ void __init setup_arch(char **cmdline_p)
 
 #ifdef CONFIG_BLK_DEV_IDE
 	ide_ops = &no_ide_ops;
-#endif
-
-#ifdef CONFIG_PC_KEYB
-	kbd_ops = &no_kbd_ops;
 #endif
 
 	rtc_ops = &no_rtc_ops;

@@ -14,7 +14,6 @@
 #include <linux/smp_lock.h>
 #include <asm/uaccess.h>
 #include <asm/shmiq.h>
-#include <asm/keyboard.h>
 #include "graphics.h"
 
 

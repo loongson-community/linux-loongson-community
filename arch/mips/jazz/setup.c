@@ -20,7 +20,6 @@
 #include <linux/mc146818rtc.h>
 #include <linux/ide.h>
 #include <asm/bootinfo.h>
-#include <asm/keyboard.h>
 #include <asm/irq.h>
 #include <asm/jazz.h>
 #include <asm/jazzdma.h>

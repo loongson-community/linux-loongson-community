@@ -105,7 +105,6 @@
 #include <linux/types.h>
 #include <linux/fcntl.h>
 #include <linux/interrupt.h>
-#include <linux/ptrace.h>
 #include <linux/ioport.h>
 #include <linux/string.h>
 #include <linux/in.h>
@@ -341,7 +340,7 @@ static inline unsigned short int SHADOW(short int addr)
 int __init express_probe(struct net_device *dev)
 {
 	unsigned short *port;
-	static unsigned short ports[] = { 0x300,0x310,0x270,0x320,0x340,0 };
+	static unsigned short ports[] = { 0x240,0x300,0x310,0x270,0x320,0x340,0 };
 	unsigned short ioaddr = dev->base_addr;
 
 	SET_MODULE_OWNER(dev);

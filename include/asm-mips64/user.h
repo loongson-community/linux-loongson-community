@@ -8,8 +8,6 @@
 #ifndef _ASM_USER_H
 #define _ASM_USER_H
 
-#include <linux/ptrace.h>
-
 #include <asm/page.h>
 #include <asm/reg.h>
 

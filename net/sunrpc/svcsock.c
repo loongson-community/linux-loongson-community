@@ -140,7 +140,7 @@ svc_sock_enqueue(struct svc_sock *svsk)
 	    && !test_bit(SK_CLOSE, &svsk->sk_flags)
 	    && !test_bit(SK_CONN, &svsk->sk_flags)) {
 		/* Don't enqueue while not enough space for reply */
-		dprintk("svc: socket %p  no space, %d > %ld, not enqueued\n",
+		dprintk("svc: socket %p  no space, %d*2 > %ld, not enqueued\n",
 			svsk->sk_sk, svsk->sk_reserved+serv->sv_bufsz,
 			sock_wspace(svsk->sk_sk));
 		goto out_unlock;
@@ -481,6 +481,16 @@ svc_udp_recvfrom(struct svc_rqst *rqstp)
 	u32		*data;
 	int		err, len;
 
+	if (test_and_clear_bit(SK_CHNGBUF, &svsk->sk_flags))
+	    /* udp sockets need large rcvbuf as all pending
+	     * requests are still in that buffer.  sndbuf must
+	     * also be large enough that there is enough space
+	     * for one reply per thread.
+	     */
+	    svc_sock_setbufsize(svsk->sk_sock,
+				(serv->sv_nrthreads+3) * serv->sv_bufsz,
+				(serv->sv_nrthreads+3) * serv->sv_bufsz);
+
 	clear_bit(SK_DATA, &svsk->sk_flags);
 	while ((skb = skb_recv_datagram(svsk->sk_sk, 0, 1, &err)) == NULL) {
 		svc_sock_received(svsk);
@@ -563,6 +573,16 @@ svc_udp_init(struct svc_sock *svsk)
 	svsk->sk_sk->write_space = svc_write_space;
 	svsk->sk_recvfrom = svc_udp_recvfrom;
 	svsk->sk_sendto = svc_udp_sendto;
+
+	/* initialise setting must have enough space to
+	 * receive and respond to one request.  
+	 * svc_udp_recvfrom will re-adjust if necessary
+	 */
+	svc_sock_setbufsize(svsk->sk_sock,
+			    3 * svsk->sk_server->sv_bufsz,
+			    3 * svsk->sk_server->sv_bufsz);
+
+	set_bit(SK_CHNGBUF, &svsk->sk_flags);
 
 	return 0;
 }
@@ -667,6 +687,8 @@ svc_tcp_accept(struct svc_sock *svsk)
 		goto failed;		/* aborted connection or whatever */
 	}
 	set_bit(SK_CONN, &svsk->sk_flags);
+	svc_sock_enqueue(svsk);
+
 	slen = sizeof(sin);
 	err = ops->getname(newsock, (struct sockaddr *) &sin, &slen, 1);
 	if (err < 0) {
@@ -771,6 +793,18 @@ svc_tcp_recvfrom(struct svc_rqst *rqstp)
 		return 0;
 	}
 
+	if (test_and_clear_bit(SK_CHNGBUF, &svsk->sk_flags))
+		/* sndbuf needs to have room for one request
+		 * per thread, otherwise we can stall even when the
+		 * network isn't a bottleneck.
+		 * rcvbuf just needs to be able to hold a few requests.
+		 * Normally they will be removed from the queue 
+		 * as soon a a complete request arrives.
+		 */
+		svc_sock_setbufsize(svsk->sk_sock,
+				    (serv->sv_nrthreads+3) * serv->sv_bufsz,
+				    3 * serv->sv_bufsz);
+
 	clear_bit(SK_DATA, &svsk->sk_flags);
 
 	/* Receive data. If we haven't got the record length yet, get
@@ -786,6 +820,9 @@ svc_tcp_recvfrom(struct svc_rqst *rqstp)
 		if ((len = svc_recvfrom(rqstp, &iov, 1, want)) < 0)
 			goto error;
 		svsk->sk_tcplen += len;
+
+		if (len < want)
+			return 0;
 
 		svsk->sk_reclen = ntohl(svsk->sk_reclen);
 		if (!(svsk->sk_reclen & 0x80000000)) {
@@ -887,8 +924,9 @@ svc_tcp_sendto(struct svc_rqst *rqstp)
 
 	sent = svc_sendto(rqstp, bufp->iov, bufp->nriov);
 	if (sent != bufp->len<<2) {
-		printk(KERN_NOTICE "rpc-srv/tcp: %s: sent only %d bytes of %d - should shutdown socket\n",
+		printk(KERN_NOTICE "rpc-srv/tcp: %s: %s %d when sending %d bytes - shutting down socket\n",
 		       rqstp->rq_sock->sk_server->sv_name,
+		       (sent<0)?"got error":"sent only",
 		       sent, bufp->len << 2);
 		svc_delete_socket(rqstp->rq_sock);
 		sent = -EAGAIN;
@@ -916,17 +954,15 @@ svc_tcp_init(struct svc_sock *svsk)
 		svsk->sk_reclen = 0;
 		svsk->sk_tcplen = 0;
 
-		/* sndbuf needs to have room for one request
-		 * per thread, otherwise we can stall even when the
-		 * network isn't a bottleneck.
-		 * rcvbuf just needs to be able to hold a few requests.
-		 * Normally they will be removed from the queue 
-		 * as soon a a complete request arrives.
+		/* initialise setting must have enough space to
+		 * receive and respond to one request.  
+		 * svc_tcp_recvfrom will re-adjust if necessary
 		 */
 		svc_sock_setbufsize(svsk->sk_sock,
-				    (svsk->sk_server->sv_nrthreads+3) *
-				    svsk->sk_server->sv_bufsz,
+				    3 * svsk->sk_server->sv_bufsz,
 				    3 * svsk->sk_server->sv_bufsz);
+
+		set_bit(SK_CHNGBUF, &svsk->sk_flags);
 	}
 
 	return 0;
@@ -945,30 +981,12 @@ svc_sock_update_bufs(struct svc_serv *serv)
 	list_for_each(le, &serv->sv_permsocks) {
 		struct svc_sock *svsk = 
 			list_entry(le, struct svc_sock, sk_list);
-		struct socket *sock = svsk->sk_sock;
-		if (sock->type == SOCK_DGRAM) {
-			/* udp sockets need large rcvbuf as all pending
-			 * requests are still in that buffer.
-			 */
-			svc_sock_setbufsize(sock,
-					    (serv->sv_nrthreads+3) * serv->sv_bufsz,
-					    (serv->sv_nrthreads+3) * serv->sv_bufsz);
-		} else if (svsk->sk_sk->state != TCP_LISTEN) {
-			printk(KERN_ERR "RPC update_bufs: permanent sock neither UDP or TCP_LISTEN\n");
-		}
+		set_bit(SK_CHNGBUF, &svsk->sk_flags);
 	}
 	list_for_each(le, &serv->sv_tempsocks) {
 		struct svc_sock *svsk =
 			list_entry(le, struct svc_sock, sk_list);
-		struct socket *sock = svsk->sk_sock;
-		if (sock->type == SOCK_STREAM) {
-			/* See svc_tcp_init above for rationale on buffer sizes */
-			svc_sock_setbufsize(sock,
-					    (serv->sv_nrthreads+3) *
-					    serv->sv_bufsz,
-					    3 * serv->sv_bufsz);
-		} else 
-			printk(KERN_ERR "RPC update_bufs: temp sock not TCP\n");
+		set_bit(SK_CHNGBUF, &svsk->sk_flags);
 	}
 	spin_unlock_bh(&serv->sv_lock);
 }
@@ -1212,6 +1230,7 @@ svc_create_socket(struct svc_serv *serv, int protocol, struct sockaddr_in *sin)
 		return error;
 
 	if (sin != NULL) {
+		sock->sk->reuse = 1; /* allow address reuse */
 		error = sock->ops->bind(sock, (struct sockaddr *) sin,
 						sizeof(*sin));
 		if (error < 0)
@@ -1219,7 +1238,7 @@ svc_create_socket(struct svc_serv *serv, int protocol, struct sockaddr_in *sin)
 	}
 
 	if (protocol == IPPROTO_TCP) {
-		if ((error = sock->ops->listen(sock, 5)) < 0)
+		if ((error = sock->ops->listen(sock, 64)) < 0)
 			goto bummer;
 	}
 

@@ -194,10 +194,17 @@ struct page {
  * routine so they can be sure the page doesn't go away from under them.
  */
 #define get_page(p)		atomic_inc(&(p)->count)
-#define put_page(p)		__free_page(p)
+#define __put_page(p)		atomic_dec(&(p)->count)
 #define put_page_testzero(p) 	atomic_dec_and_test(&(p)->count)
 #define page_count(p)		atomic_read(&(p)->count)
 #define set_page_count(p,v) 	atomic_set(&(p)->count, v)
+extern void FASTCALL(__page_cache_release(struct page *));
+#define put_page(p)							\
+	do {								\
+		if (!PageReserved(p) && put_page_testzero(p))		\
+			__page_cache_release(p);			\
+	} while (0)
+void FASTCALL(__free_pages_ok(struct page *page, unsigned int order));
 
 /*
  * Multiple processes may "see" the same page. E.g. for untouched
@@ -347,12 +354,6 @@ extern pte_t *FASTCALL(pte_alloc_map(struct mm_struct *mm, pmd_t *pmd, unsigned 
 extern int handle_mm_fault(struct mm_struct *mm,struct vm_area_struct *vma, unsigned long address, int write_access);
 extern int make_pages_present(unsigned long addr, unsigned long end);
 extern int access_process_vm(struct task_struct *tsk, unsigned long addr, void *buf, int len, int write);
-extern int ptrace_readdata(struct task_struct *tsk, unsigned long src, char *dst, int len);
-extern int ptrace_writedata(struct task_struct *tsk, char * src, unsigned long dst, int len);
-extern int ptrace_attach(struct task_struct *tsk);
-extern int ptrace_detach(struct task_struct *, unsigned int);
-extern void ptrace_disable(struct task_struct *);
-extern int ptrace_check_attach(struct task_struct *task, int kill);
 
 int get_user_pages(struct task_struct *tsk, struct mm_struct *mm, unsigned long start,
 		int len, int write, int force, struct page **pages, struct vm_area_struct **vmas);

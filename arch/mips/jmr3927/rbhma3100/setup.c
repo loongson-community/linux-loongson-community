@@ -331,10 +331,6 @@ static void __init jmr3927_board_init(void)
 #ifdef CONFIG_BLK_DEV_IDE
 		/* overrides PCI-IDE */
 #endif
-
-#ifdef CONFIG_PC_KEYB
-		//not yet kbd_ops = &jmr3927_kbd_ops;
-#endif
 	}
 #ifdef USE_RTC_DS1742
 	if (jmr3927_have_nvram()) {

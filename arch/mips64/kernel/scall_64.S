@@ -349,3 +349,8 @@ sys_call_table:
 	PTR	sys_cacheflush
 	PTR	sys_cachectl
 	PTR	sys_sysmips
+	PTR	sys_io_setup			/* 5200 */
+	PTR	sys_io_destroy
+	PTR	sys_io_getevents
+	PTR	sys_io_submit
+	PTR	sys_io_cancel

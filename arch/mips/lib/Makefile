@@ -17,7 +17,6 @@ endif
 
 obj-$(CONFIG_BLK_DEV_FD)	+= floppy-no.o floppy-std.o
 obj-$(CONFIG_IDE)		+= ide-std.o ide-no.o
-obj-$(CONFIG_PC_KEYB)		+= kbd-std.o kbd-no.o
 
 EXTRA_AFLAGS := $(CFLAGS)
 

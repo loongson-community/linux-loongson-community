@@ -20,7 +20,6 @@
 #include <asm/cachectl.h>
 #include <asm/dma.h>
 #include <asm/floppy.h>
-#include <asm/keyboard.h>
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/pgtable.h>

@@ -60,6 +60,7 @@
 
 #include <asm/time.h>
 #include <asm/ppcdebug.h>
+#include <asm/prom.h>
 
 void smp_local_timer_interrupt(struct pt_regs *);
 
@@ -293,9 +294,6 @@ int timer_interrupt(struct pt_regs * regs)
 
 	irq_exit();
 
-	if (softirq_pending(cpu))
-		do_softirq();
-	
 	return 1;
 }
 

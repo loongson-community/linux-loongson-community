@@ -45,6 +45,10 @@ struct exec_domain;
 #define CLONE_THREAD	0x00010000	/* Same thread group? */
 #define CLONE_NEWNS	0x00020000	/* New namespace group? */
 #define CLONE_SYSVSEM	0x00040000	/* share system V SEM_UNDO semantics */
+#define CLONE_SETTLS	0x00080000	/* create a new TLS for the child */
+#define CLONE_SETTID	0x00100000	/* write the TID back to userspace */
+#define CLONE_CLEARTID	0x00200000	/* clear the userspace TID */
+#define CLONE_DETACHED	0x00400000	/* parent wants no child-exit signal */
 
 #define CLONE_SIGNAL	(CLONE_SIGHAND | CLONE_THREAD)
 
@@ -166,6 +170,7 @@ struct namespace;
 /* Maximum number of active map areas.. This is a random (large) number */
 #define MAX_MAP_COUNT	(65536)
 
+struct kioctx;
 struct mm_struct {
 	struct vm_area_struct * mmap;		/* list of VMAs */
 	rb_root_t mm_rb;
@@ -194,6 +199,10 @@ struct mm_struct {
 
 	/* Architecture-specific MM context */
 	mm_context_t context;
+
+	/* aio bits */
+	rwlock_t		ioctx_list_lock;
+	struct kioctx		*ioctx_list;
 };
 
 extern int mmlist_nr;
@@ -266,6 +275,8 @@ struct task_struct {
 	unsigned int time_slice, first_time_slice;
 
 	struct list_head tasks;
+	struct list_head ptrace_children;
+	struct list_head ptrace_list;
 
 	struct mm_struct *mm, *active_mm;
 	struct list_head local_pages;
@@ -303,6 +314,7 @@ struct task_struct {
 
 	wait_queue_head_t wait_chldexit;	/* for wait4() */
 	struct completion *vfork_done;		/* for vfork() */
+	int *user_tid;				/* for CLONE_CLEARTID */
 
 	unsigned long rt_priority;
 	unsigned long it_real_value, it_prof_value, it_virt_value;
@@ -440,7 +452,6 @@ extern union thread_union init_thread_union;
 extern struct task_struct init_task;
 
 extern struct   mm_struct init_mm;
-extern struct task_struct *init_tasks[NR_CPUS];
 
 /* PID hashing. (shouldnt this be dynamic?) */
 #define PIDHASH_SZ (4096 >> 2)

@@ -38,9 +38,6 @@
 #include <asm/dma.h>
 #include <asm/time.h>
 #include <asm/traps.h>
-#ifdef CONFIG_PC_KEYB
-#include <asm/keyboard.h>
-#endif
 #ifdef CONFIG_VT
 #include <linux/console.h>
 #endif
@@ -152,9 +149,6 @@ void __init malta_setup(void)
 #endif
 #ifdef CONFIG_BLK_DEV_FD
         fd_ops = &std_fd_ops;
-#endif
-#ifdef CONFIG_PC_KEYB
-	kbd_ops = &std_kbd_ops;
 #endif
 #ifdef CONFIG_VT
 #if defined(CONFIG_VGA_CONSOLE)

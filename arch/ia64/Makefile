@@ -13,8 +13,8 @@ AWK := awk
 
 export AWK
 
-OBJCOPYFLAGS := --strip-all 
-LDFLAGS_vmlinux := -static -T arch/$(ARCH)/vmlinux.lds
+OBJCOPYFLAGS := --strip-all
+LDFLAGS_vmlinux := -static -T arch/$(ARCH)/vmlinux.lds.s
 AFLAGS_KERNEL := -mconstant-gp
 EXTRA	=
 
@@ -26,7 +26,7 @@ CFLAGS_KERNEL := -mconstant-gp
 GCC_VERSION=$(shell $(CC) -v 2>&1 | fgrep 'gcc version' | cut -f3 -d' ' | cut -f1 -d'.')
 
 ifneq ($(GCC_VERSION),2)
-	CFLAGS += -frename-registers --param max-inline-insns=2000
+	CFLAGS += -frename-registers --param max-inline-insns=5000
 endif
 
 ifeq ($(CONFIG_ITANIUM_BSTEP_SPECIFIC),y)
@@ -94,11 +94,9 @@ LIBS := $(TOPDIR)/arch/$(ARCH)/lib/lib.a $(LIBS) \
 
 MAKEBOOT = $(MAKE) -C arch/$(ARCH)/boot
 
-vmlinux: arch/$(ARCH)/vmlinux.lds
+vmlinux: arch/$(ARCH)/vmlinux.lds.s
 
-arch/$(ARCH)/vmlinux.lds: arch/$(ARCH)/vmlinux.lds.S FORCE
-	$(CPP) -D__ASSEMBLY__ -C -P -I$(HPATH) -I$(HPATH)/asm-$(ARCH) \
-		-traditional arch/$(ARCH)/vmlinux.lds.S > $@
+CPPFLAGS_arch/ia64/vmlinux.lds.s := -traditional
 
 compressed: vmlinux
 	$(OBJCOPY) $(OBJCOPYFLAGS) vmlinux vmlinux-tmp
@@ -125,7 +123,6 @@ archclean:
 	@$(MAKEBOOT) clean
 
 archmrproper:
-	rm -f arch/$(ARCH)/vmlinux.lds
 	@$(MAKE) -C arch/$(ARCH)/tools mrproper
 
 bootpfile:

@@ -624,8 +624,6 @@ extern void __kill_fasync(struct fasync_struct *, int, int);
 
 #include <linux/ext3_fs_sb.h>
 #include <linux/hpfs_fs_sb.h>
-#include <linux/ufs_fs_sb.h>
-#include <linux/romfs_fs_sb.h>
 
 extern struct list_head super_blocks;
 extern spinlock_t sb_lock;
@@ -670,8 +668,6 @@ struct super_block {
 	union {
 		struct ext3_sb_info	ext3_sb;
 		struct hpfs_sb_info	hpfs_sb;
-		struct ufs_sb_info	ufs_sb;
-		struct romfs_sb_info	romfs_sb;
 		void			*generic_sbp;
 	} u;
 	/*
@@ -744,11 +740,14 @@ struct block_device_operations {
  * read, write, poll, fsync, readv, writev can be called
  *   without the big kernel lock held in all filesystems.
  */
+struct kiocb;
 struct file_operations {
 	struct module *owner;
 	loff_t (*llseek) (struct file *, loff_t, int);
 	ssize_t (*read) (struct file *, char *, size_t, loff_t *);
+	ssize_t (*aio_read) (struct kiocb *, char *, size_t, loff_t);
 	ssize_t (*write) (struct file *, const char *, size_t, loff_t *);
+	ssize_t (*aio_write) (struct kiocb *, char *, size_t, loff_t);
 	int (*readdir) (struct file *, void *, filldir_t);
 	unsigned int (*poll) (struct file *, struct poll_table_struct *);
 	int (*ioctl) (struct inode *, struct file *, unsigned int, unsigned long);
@@ -757,6 +756,7 @@ struct file_operations {
 	int (*flush) (struct file *);
 	int (*release) (struct inode *, struct file *);
 	int (*fsync) (struct file *, struct dentry *, int datasync);
+	int (*aio_fsync) (struct kiocb *, int datasync);
 	int (*fasync) (int, struct file *, int);
 	int (*lock) (struct file *, int, struct file_lock *);
 	ssize_t (*readv) (struct file *, const struct iovec *, unsigned long, loff_t *);
@@ -1241,6 +1241,7 @@ extern int generic_file_mmap(struct file *, struct vm_area_struct *);
 extern int file_read_actor(read_descriptor_t * desc, struct page *page, unsigned long offset, unsigned long size);
 extern ssize_t generic_file_read(struct file *, char *, size_t, loff_t *);
 extern ssize_t generic_file_write(struct file *, const char *, size_t, loff_t *);
+extern ssize_t generic_file_write_nolock(struct file *, const char *, size_t, loff_t *);
 extern ssize_t generic_file_sendfile(struct file *, struct file *, loff_t *, size_t);
 extern void do_generic_file_read(struct file *, loff_t *, read_descriptor_t *, read_actor_t);
 ssize_t generic_file_direct_IO(int rw, struct inode *inode, char *buf,

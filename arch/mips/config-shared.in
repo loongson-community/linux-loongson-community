@@ -124,7 +124,6 @@ if [ "$CONFIG_ACER_PICA_61" = "y" ]; then
    define_bool CONFIG_ISA y
    define_bool CONFIG_MIPS_JAZZ y
    define_bool CONFIG_NONCOHERENT_IO y
-   define_bool CONFIG_PC_KEYB y
    define_bool CONFIG_OLD_TIME_C y
 fi
 if [ "$CONFIG_CASIO_E55" = "y" ]; then
@@ -145,7 +144,6 @@ if [ "$CONFIG_MIPS_PB1000" = "y" ]; then
    define_bool CONFIG_PCI y
    define_bool CONFIG_NEW_PCI y
    define_bool CONFIG_NONCOHERENT_IO y
-   define_bool CONFIG_PC_KEYB y
    define_bool CONFIG_SWAP_IO_SPACE y
    define_bool CONFIG_AU1000_USB_DEVICE y
 fi
@@ -155,7 +153,6 @@ if [ "$CONFIG_MIPS_PB1100" = "y" ]; then
    define_bool CONFIG_PCI_AUTO n
    define_bool CONFIG_NEW_PCI y
    define_bool CONFIG_NONCOHERENT_IO y
-   define_bool CONFIG_PC_KEYB y
    define_bool CONFIG_SWAP_IO_SPACE y
    define_bool CONFIG_AU1000_USB_DEVICE y
 fi
@@ -165,7 +162,6 @@ if [ "$CONFIG_MIPS_PB1500" = "y" ]; then
    define_bool CONFIG_NEW_PCI y
    define_bool CONFIG_PCI_AUTO y
    define_bool CONFIG_NONCOHERENT_IO y
-   define_bool CONFIG_PC_KEYB y
    define_bool CONFIG_AU1000_USB_DEVICE y
 fi
 if [ "$CONFIG_ALGOR_P4032" = "y" ]; then
@@ -201,7 +197,6 @@ if [ "$CONFIG_MIPS_EV96100" = "y" ]; then
 fi
 if [ "$CONFIG_MIPS_IVR" = "y" ]; then
    define_bool CONFIG_PCI y
-   define_bool CONFIG_PC_KEYB y
    define_bool CONFIG_NEW_PCI y
    define_bool CONFIG_NONCOHERENT_IO y
    define_bool CONFIG_PCI_AUTO y
@@ -232,7 +227,6 @@ fi
 if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
    define_bool CONFIG_PCI y
    define_bool CONFIG_IT8712 y
-   define_bool CONFIG_PC_KEYB y
    define_bool CONFIG_NEW_PCI y
    define_bool CONFIG_NONCOHERENT_IO y
    define_bool CONFIG_PCI_AUTO y
@@ -263,7 +257,6 @@ if [ "$CONFIG_MIPS_MAGNUM_4000" = "y" -o \
    define_bool CONFIG_FB_G364 y
    define_bool CONFIG_MIPS_JAZZ y
    define_bool CONFIG_NONCOHERENT_IO y
-   define_bool CONFIG_PC_KEYB y
    define_bool CONFIG_OLD_TIME_C y
 fi
 if [ "$CONFIG_MIPS_MALTA" = "y" ]; then
@@ -274,7 +267,6 @@ if [ "$CONFIG_MIPS_MALTA" = "y" ]; then
    define_bool CONFIG_NEW_TIME_C y
    define_bool CONFIG_NONCOHERENT_IO y
    define_bool CONFIG_SWAP_IO_SPACE y
-   define_bool CONFIG_PC_KEYB y
    define_bool CONFIG_PCI y
 fi
 if [ "$CONFIG_MIPS_SEAD" = "y" ]; then
@@ -303,7 +295,6 @@ if [ "$CONFIG_DDB5074" = "y" ]; then
    define_bool CONFIG_ISA y
    define_bool CONFIG_NONCOHERENT_IO y
    define_bool CONFIG_PCI y
-   define_bool CONFIG_PC_KEYB y
    define_bool CONFIG_NEW_TIME_C y
    define_bool CONFIG_PCI_AUTO y
    define_bool CONFIG_IRQ_CPU y
@@ -312,7 +303,6 @@ fi
 if [ "$CONFIG_DDB5476"  = "y" ]; then
    define_bool CONFIG_ISA y
    define_bool CONFIG_PCI y
-   define_bool CONFIG_PC_KEYB y
    define_bool CONFIG_IRQ_CPU y
    define_bool CONFIG_I8259 y
    define_bool CONFIG_HAVE_STD_PC_SERIAL_PORT y
@@ -357,7 +347,6 @@ fi
 if [ "$CONFIG_NINO" = "y" ]; then
    define_bool CONFIG_NEW_TIME_C y
    define_bool CONFIG_NONCOHERENT_IO y
-   define_bool CONFIG_PC_KEYB y
 fi
 if [ "$CONFIG_SGI_IP22" = "y" ]; then
    define_bool CONFIG_ARC32 y
@@ -372,7 +361,6 @@ if [ "$CONFIG_SGI_IP22" = "y" ]; then
    define_bool CONFIG_NONCOHERENT_IO y
    define_bool CONFIG_NEW_TIME_C y
    define_bool CONFIG_NONCOHERENT_IO y
-   define_bool CONFIG_PC_KEYB y
    define_bool CONFIG_SGI y
 fi
 if [ "$CONFIG_SGI_IP27" = "y" ]; then
@@ -391,7 +379,6 @@ if [ "$CONFIG_SGI_IP32" = "y" ]; then
    define_bool CONFIG_BOOT_ELF32 y
    define_int CONFIG_L1_CACHE_SHIFT 5
    define_bool CONFIG_NONCOHERENT_IO y
-   define_bool CONFIG_PC_KEYB y
    define_bool CONFIG_PCI y
 fi
 if [ "$CONFIG_SIBYTE_SB1250" = "y" ]; then
@@ -409,7 +396,6 @@ if [ "$CONFIG_SNI_RM200_PCI" = "y" ]; then
    define_bool CONFIG_ISA y
    define_bool CONFIG_NONCOHERENT_IO y
    define_bool CONFIG_OLD_TIME_C y
-   define_bool CONFIG_PC_KEYB y
    define_bool CONFIG_PCI y
 fi
 if [ "$CONFIG_TOSHIBA_JMR3927" = "y" ]; then
@@ -420,7 +406,6 @@ if [ "$CONFIG_TOSHIBA_JMR3927" = "y" ]; then
    define_bool CONFIG_NEW_TIME_C y
    define_bool CONFIG_NONCOHERENT_IO y
    define_bool CONFIG_SWAP_IO_SPACE y
-   define_bool CONFIG_PC_KEYB y
 fi
 if [ "$CONFIG_VICTOR_MPC30X" = "y" ]; then
    define_bool CONFIG_CPU_VR41XX y
@@ -699,12 +684,6 @@ endmenu
 
 source drivers/md/Config.in
 
-if [ "$CONFIG_NET" = "y" ]; then
-   source net/Config.in
-fi
-
-source drivers/telephony/Config.in
-
 source drivers/message/fusion/Config.in
 
 source drivers/ieee1394/Config.in
@@ -730,6 +709,8 @@ source net/ax25/Config.in
 source net/irda/Config.in
 
 source drivers/isdn/Config.in
+
+source drivers/telephony/Config.in
 
 #
 # input before char - char/joystick depends on it. As does USB.
@@ -765,9 +746,9 @@ if [ "$CONFIG_SGI_IP22" = "y" ]; then
    endmenu
 fi
 
-source fs/Config.in
-
 source drivers/media/Config.in
+
+source fs/Config.in
 
 if [ "$CONFIG_VT" = "y" ]; then
    mainmenu_option next_comment

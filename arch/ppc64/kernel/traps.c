@@ -128,13 +128,12 @@ void
 SystemResetException(struct pt_regs *regs)
 {
 	if (fwnmi_active) {
-		char *msg;
 		unsigned long *r3 = __va(regs->gpr[3]); /* for FWNMI debug */
 		struct rtas_error_log *errlog;
 
-		msg = "FWNMI is active with save area at %016lx\n";
-		udbg_printf(msg, r3); printk(msg, r3);
+		udbg_printf("FWNMI is active with save area at %016lx\n", r3);
 		errlog = FWNMI_get_errinfo(regs);
+		FWNMI_release_errinfo();
 	}
 
 	if (debugger)
@@ -241,14 +240,12 @@ InstructionBreakpointException(struct pt_regs *regs)
 static void parse_fpe(struct pt_regs *regs)
 {
 	siginfo_t info;
-	unsigned int *tmp;
-	unsigned int fpscr;
+	unsigned long fpscr;
 
 	if (regs->msr & MSR_FP)
 		giveup_fpu(current);
 
-	tmp = &current->thread.fpscr;
-	fpscr = *tmp;
+	fpscr = current->thread.fpscr;
 
 	/* Invalid operation */
 	if ((fpscr & FPSCR_VE) && (fpscr & FPSCR_VX))

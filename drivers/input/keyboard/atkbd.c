@@ -366,7 +366,7 @@ static int atkbd_probe(struct atkbd *atkbd)
  */
 
 	if (atkbd_command(atkbd, NULL, ATKBD_CMD_RESET_DIS))
-		return -1;
+		printk(KERN_WARNING "atkbd.c: keyboard reset failed\n");
 
 /*
  * Next, we check if it's a keyboard. It should send 0xab83
@@ -470,6 +470,8 @@ static void atkbd_connect(struct serio *serio, struct serio_dev *dev)
 	atkbd->serio = serio;
 
 	atkbd->dev.keycode = atkbd->keycode;
+	atkbd->dev.keycodesize = sizeof(unsigned char);
+	atkbd->dev.keycodemax = ARRAY_SIZE(atkbd_set2_keycode);
 	atkbd->dev.event = atkbd_event;
 	atkbd->dev.private = atkbd;
 

@@ -45,9 +45,6 @@
 #include <asm/traps.h>
 #include <asm/it8172/it8172.h>
 #include <asm/it8712.h>
-#ifdef CONFIG_PC_KEYB
-#include <asm/keyboard.h>
-#endif
 
 #if defined(CONFIG_SERIAL_CONSOLE) || defined(CONFIG_PROM_CONSOLE)
 extern void console_setup(char *, int *);
@@ -61,7 +58,6 @@ extern struct ide_ops std_ide_ops;
 extern struct ide_ops *ide_ops;
 #endif
 #ifdef CONFIG_PC_KEYB
-extern struct kbd_ops std_kbd_ops;
 int init_8712_keyboard(void);
 #endif
 

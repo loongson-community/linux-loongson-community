@@ -54,11 +54,14 @@ static struct serio i8042_kbd_port;
 static struct serio i8042_aux_port;
 static unsigned char i8042_initial_ctr;
 static unsigned char i8042_ctr;
+static unsigned char i8042_last_e0;
 struct timer_list i8042_timer;
 
 #ifdef I8042_DEBUG_IO
 static unsigned long i8042_start;
 #endif
+
+extern struct pt_regs *kbd_pt_regs;
 
 static unsigned long i8042_unxlate_seen[128 / BITS_PER_LONG];
 static unsigned char i8042_unxlate_table[128] = {
@@ -250,7 +253,7 @@ static int i8042_open(struct serio *port)
 
 	i8042_flush();
 
-	if (request_irq(values->irq, i8042_interrupt, 0, "i8042", NULL)) {
+	if (request_irq(values->irq, i8042_interrupt, SA_SHIRQ, "i8042", NULL)) {
 		printk(KERN_ERR "i8042.c: Can't get irq %d for %s, unregistering the port.\n", values->irq, values->name);
 		values->exists = 0;
 		serio_unregister_port(port);
@@ -345,6 +348,10 @@ static void i8042_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	unsigned char str, data;
 	unsigned int dfl;
 
+#ifdef CONFIG_VT
+	kbd_pt_regs = regs;
+#endif
+
 	spin_lock_irqsave(&i8042_lock, flags);
 
 	while ((str = i8042_read_status()) & I8042_STR_OBF) {
@@ -366,12 +373,15 @@ static void i8042_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 					if (data > 0x7f) {
 						if (test_and_clear_bit(data & 0x7f, i8042_unxlate_seen)) {
 							serio_interrupt(&i8042_kbd_port, 0xf0, dfl);
+							if (i8042_last_e0 && (data == 0xaa || data == 0xb6))
+								set_bit(data & 0x7f, i8042_unxlate_seen);
 							data = i8042_unxlate_table[data & 0x7f];
 						}
 					} else {
 						set_bit(data, i8042_unxlate_seen);
 						data = i8042_unxlate_table[data];
 					}
+					i8042_last_e0 = (data == 0xe0);
 				}
 				serio_interrupt(&i8042_kbd_port, data, dfl);
 			}
@@ -531,7 +541,7 @@ static int __init i8042_check_aux(struct i8042_values *values, struct serio *por
  * in trying to detect AUX presence.
  */
 
-	if (request_irq(values->irq, i8042_interrupt, 0, "i8042", NULL))
+	if (request_irq(values->irq, i8042_interrupt, SA_SHIRQ, "i8042", NULL))
                 return -1;
 	free_irq(values->irq, NULL);
 

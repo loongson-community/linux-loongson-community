@@ -21,7 +21,6 @@
 
 #include <asm/addrspace.h>
 #include <asm/bcache.h>
-#include <asm/keyboard.h>
 #include <asm/irq.h>
 #include <asm/reboot.h>
 #include <asm/gdb-stub.h>
@@ -126,10 +125,6 @@ void __init ddb_setup(void)
 
 #ifdef CONFIG_BLK_DEV_IDE
 	ide_ops = &std_ide_ops;
-#endif
-
-#ifdef CONFIG_PC_KEYB
-    kbd_ops = &std_kbd_ops;
 #endif
 
 	rtc_ops = &ddb_rtc_ops;

@@ -50,7 +50,6 @@
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/string.h>
-#include <linux/ptrace.h>
 #include <linux/errno.h>
 #include <linux/in.h>
 #include <linux/init.h>
@@ -92,8 +91,6 @@ static char version[] __initdata =
 static U32 DriverControlWord;
 
 static void rc_timer (unsigned long);
-
-static int RCinit (struct net_device *);
 
 static int RCopen (struct net_device *);
 static int RC_xmit_packet (struct sk_buff *, struct net_device *);
@@ -224,7 +221,7 @@ rcpci45_init_one (struct pci_dev *pdev, const struct pci_device_id *ent)
 	}
 	pDpa->PLanApiPA = (void *) (((long) pDpa->msgbuf + 0xff) & ~0xff);
 
-	dprintk ("pDpa->PLanApiPA = 0x%x\n", (uint) pDpa->PLanApiPA);
+	dprintk ("pDpa->PLanApiPA = %p\n", pDpa->PLanApiPA);
 
 	/* The adapter is accessible through memory-access read/write, not
 	 * I/O read/write.  Thus, we need to map it to some virtual address

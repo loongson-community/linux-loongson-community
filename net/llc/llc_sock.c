@@ -43,8 +43,6 @@
 #include <linux/rtnetlink.h>
 #include <linux/init.h>
 
-#define dprintk(format, a...) printk(KERN_INFO __FUNCTION__ ": " format, ##a)
-
 /* remember: uninitialized global data is zeroed because its in .bss */
 static u16 llc_ui_sap_last_autoport = LLC_SAP_DYN_START;
 static u16 llc_ui_sap_link_no_max[256];
@@ -527,8 +525,6 @@ static int llc_ui_release(struct socket *sock)
 	llc_ui_remove_socket(sk);
 	if (llc_ui->sap && !llc_ui_find_sap(llc_ui->sap->laddr.lsap))
 		llc_sap_close(llc_ui->sap);
-	dprintk("rxq=%d, txq=%d\n", skb_queue_len(&sk->receive_queue),
-		skb_queue_len(&sk->write_queue));
 	sock_orphan(sk);
 	sock->sk = NULL;
 	if (!atomic_read(&sk->wmem_alloc) &&
@@ -1416,10 +1412,8 @@ static void llc_ui_ind_conn(struct llc_prim_if_block *prim)
 	llc_sk(prim_data->sk)->laddr.lsap = prim->sap->laddr.lsap;
 	sk = llc_ui_find_sk_by_addr(&llc_sk(prim_data->sk)->laddr,
 				    &prim_data->saddr, prim_data->dev);
-	if (!sk) {
-		dprintk("llc_ui_find_sk_by_addr failed\n");
+	if (!sk)
 		goto out;
-	}
 	if (sk->type != SOCK_STREAM || sk->state != TCP_LISTEN)
 		goto out_put;
 	if (prim->data->conn.status)
@@ -1469,10 +1463,8 @@ static void llc_ui_ind_data(struct llc_prim_if_block *prim)
 	memcpy(llc_ui->sllc_smac, llc_sk(prim_data->sk)->daddr.mac,
 	       IFHWADDRLEN);
 	/* queue skb to the user. */
-	if (sock_queue_rcv_skb(sk, skb)) {
-		dprintk("sock_queue_rcv_skb failed!\n");
+	if (sock_queue_rcv_skb(sk, skb))
 		kfree_skb(skb);
-	}
 out_put:
 	sock_put(sk);
 out:;
@@ -1547,13 +1539,11 @@ static void llc_ui_conf_conn(struct llc_prim_if_block *prim)
 {
 	struct llc_prim_conn *prim_data = &prim->data->conn;
 	struct llc_opt *llc_core = llc_sk(prim_data->sk);
-	struct llc_ui_opt *llc_ui = llc_ui_sk(prim_data->sk);
 	struct sock* sk = llc_core->handler;
+	struct llc_ui_opt *llc_ui = llc_ui_sk(sk);
 
-	if (!sk) {
-		dprintk("llc_core->handler == NULL!\n");
+	if (!sk)
 		goto out;
-	}
 	sock_hold(sk);
 	if (sk->type != SOCK_STREAM || sk->state != TCP_SYN_SENT)
 		goto out_put;
@@ -1562,8 +1552,6 @@ static void llc_ui_conf_conn(struct llc_prim_if_block *prim)
 		sk->state	  = TCP_ESTABLISHED;
 		llc_ui->core_sk   = prim_data->sk;
 	} else {
-		dprintk("prim->data->conn.status = %d\n",
-			prim->data->conn.status);
 		sk->socket->state = SS_UNCONNECTED;
 		sk->state	  = TCP_CLOSE;
 		llc_ui->core_sk	  = NULL;
@@ -1633,7 +1621,7 @@ static int llc_ui_confirm(struct llc_prim_if_block *prim)
 			llc_ui_conf_disc(prim);		break;
 		case LLC_RESET_PRIM:			break;
 		default:
-			printk(KERN_ERR __FUNCTION__ ": unknown prim %d\n",
+			printk(KERN_ERR "%s: unknown prim %d\n", __FUNCTION__,
 			       prim->prim);
 			break;
 	}
@@ -1641,6 +1629,13 @@ static int llc_ui_confirm(struct llc_prim_if_block *prim)
 }
 
 #ifdef CONFIG_PROC_FS
+#define MAC_FORMATTED_SIZE 17
+static void llc_ui_format_mac(char *bf, unsigned char *mac)
+{
+	sprintf(bf, "%02X:%02X:%02X:%02X:%02X:%02X",
+		mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+}
+
 /**
  *	llc_ui_get_info - return info to procfs
  *	@buffer: where to put the formatted output
@@ -1668,41 +1663,25 @@ static int llc_ui_get_info(char *buffer, char **start, off_t offset, int length)
 		if (llc_ui->sap) {
 			if (llc_ui->dev &&
 			    llc_ui_mac_null(llc_ui->addr.sllc_mmac))
-				len += sprintf(buffer + len,
-					"%02X:%02X:%02X:%02X:%02X:%02X",
-					llc_ui->dev->dev_addr[0],
-					llc_ui->dev->dev_addr[1],
-					llc_ui->dev->dev_addr[2],
-					llc_ui->dev->dev_addr[3],
-					llc_ui->dev->dev_addr[4],
-					llc_ui->dev->dev_addr[5]);
+				llc_ui_format_mac(buffer + len,
+						  llc_ui->dev->dev_addr);
 			else {
 				if (!llc_ui_mac_null(llc_ui->addr.sllc_mmac))
-					len += sprintf(buffer + len,
-						"%02X:%02X:%02X:%02X:%02X:%02X",
-						llc_ui->addr.sllc_mmac[0],
-						llc_ui->addr.sllc_mmac[1],
-						llc_ui->addr.sllc_mmac[2],
-						llc_ui->addr.sllc_mmac[3],
-						llc_ui->addr.sllc_mmac[4],
-						llc_ui->addr.sllc_mmac[5]);
+					llc_ui_format_mac(buffer + len,
+							llc_ui->addr.sllc_mmac);
 				else
-					len += sprintf(buffer + len,
-							"00:00:00:00:00:00");
+					sprintf(buffer + len,
+						"00:00:00:00:00:00");
 			}
+			len += MAC_FORMATTED_SIZE;
 			len += sprintf(buffer + len, "@%02X ",
 					llc_ui->sap->laddr.lsap);
 		} else
 			len += sprintf(buffer + len, "00:00:00:00:00:00@00 ");
+		llc_ui_format_mac(buffer + len, llc_ui->addr.sllc_dmac);
+		len += MAC_FORMATTED_SIZE;
 		len += sprintf(buffer + len,
-				"%02X:%02X:%02X:%02X:%02X:%02X@%02X "
-				"%08X:%08X %02X %-3d ",
-				llc_ui->addr.sllc_dmac[0],
-				llc_ui->addr.sllc_dmac[1],
-				llc_ui->addr.sllc_dmac[2],
-				llc_ui->addr.sllc_dmac[3],
-				llc_ui->addr.sllc_dmac[4],
-				llc_ui->addr.sllc_dmac[5],
+				"@%02X %08d:%08d %02d %-3d ",
 				llc_ui->addr.sllc_dsap,
 				atomic_read(&s->wmem_alloc),
 				atomic_read(&s->rmem_alloc), s->state,

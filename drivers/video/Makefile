@@ -60,7 +60,7 @@ obj-$(CONFIG_FB_SGIVW)            += sgivwfb.o cfbfillrect.o cfbcopyarea.o cfbim
 obj-$(CONFIG_FB_3DFX)             += tdfxfb.o
 obj-$(CONFIG_FB_MAC)              += macfb.o macmodes.o cfbfillrect.o cfbcopyarea.o cfbimgblt.o 
 obj-$(CONFIG_FB_HP300)            += hpfb.o cfbfillrect.o cfbimgblt.o
-obj-$(CONFIG_FB_OF)               += offb.o
+obj-$(CONFIG_FB_OF)               += offb.o cfbfillrect.o cfbimgblit.o cfbcopyarea.o
 obj-$(CONFIG_FB_IMSTT)            += imsttfb.o
 obj-$(CONFIG_FB_RETINAZ3)         += retz3fb.o
 obj-$(CONFIG_FB_CLGEN)            += clgenfb.o
@@ -90,7 +90,7 @@ obj-$(CONFIG_FB_AU1100)		  += au1100fb.o fbgen.o
 obj-$(CONFIG_FB_MATROX)		  += matrox/
 obj-$(CONFIG_FB_RIVA)		  += riva/
 obj-$(CONFIG_FB_SIS)		  += sis/
-obj-$(CONFIG_FB_ATY)		  += aty/
+obj-$(CONFIG_FB_ATY)		  += aty/ cfbimgblt.o
 
 obj-$(CONFIG_FB_SUN3)             += sun3fb.o
 obj-$(CONFIG_FB_BWTWO)            += bwtwofb.o
@@ -120,12 +120,10 @@ obj-$(CONFIG_FBCON_HGA)           += fbcon-hga.o
 obj-$(CONFIG_FBCON_STI)           += fbcon-sti.o
 obj-$(CONFIG_FBCON_ACCEL)	  += fbcon-accel.o
 
-host-progs := ../char/conmakehash
-
 include $(TOPDIR)/Rules.make
 
-$(obj)/promcon_tbl.c: $(src)/prom.uni $(obj)/../char/conmakehash
-	$(obj)/../char/conmakehash $< | \
+$(obj)/promcon_tbl.c: $(src)/prom.uni
+	$(objtree)/scripts/conmakehash $< | \
 	sed -e '/#include <[^>]*>/p' -e 's/types/init/' \
 	    -e 's/dfont\(_uni.*\]\)/promfont\1 __initdata/' > $@
 

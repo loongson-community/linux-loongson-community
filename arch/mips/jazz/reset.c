@@ -7,7 +7,6 @@
 #include <asm/system.h>
 #include <asm/reboot.h>
 #include <asm/delay.h>
-#include <asm/keyboard.h>
 
 static inline void kb_wait(void)
 {

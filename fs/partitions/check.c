@@ -79,22 +79,7 @@ static int (*check_part[])(struct parsed_partitions *, struct block_device *) = 
 #endif
 	NULL
 };
-
-/*
- *	This is ucking fugly but its probably the best thing for 2.4.x
- *	Take it as a clear reminder that: 1) we should put the device name
- *	generation in the object kdev_t points to in 2.5.
- *	and 2) ioctls better work on half-opened devices.
- */
  
-#ifdef CONFIG_ARCH_S390
-int (*genhd_dasd_name)(char*,int,int,struct gendisk*) = NULL;
-int (*genhd_dasd_ioctl)(struct inode *inp, struct file *filp,
-			unsigned int no, unsigned long data);
-EXPORT_SYMBOL(genhd_dasd_name);
-EXPORT_SYMBOL(genhd_dasd_ioctl);
-#endif
-
 /*
  * disk_name() is used by partition check code and the md driver.
  * It formats the devicename of the indicated disk into
@@ -119,11 +104,6 @@ char *disk_name (struct gendisk *hd, int minor, char *buf)
 			return buf + pos;
 	}
 
-#ifdef CONFIG_ARCH_S390
-	if (genhd_dasd_name
-	    && genhd_dasd_name (buf, unit, part, hd) == 0)
-		return buf;
-#endif
 	/*
 	 * Yes, I know, ... in cases is gccism and not a pretty one.  
 	 * However, the first variant will eventually consume _all_ cases
@@ -137,24 +117,7 @@ char *disk_name (struct gendisk *hd, int minor, char *buf)
 			sprintf(s, "%s%d", "md", unit);
 			maj = s;
 			break;
-		case COMPAQ_CISS_MAJOR ... COMPAQ_CISS_MAJOR+7:
-			sprintf(s, "cciss/c%dd%d",
-				hd->major - COMPAQ_CISS_MAJOR, unit);
-			maj = s;
-			break;
-		case DAC960_MAJOR ... DAC960_MAJOR+7:
-			sprintf(s, "rd/c%dd%d",
-				hd->major - DAC960_MAJOR, unit);
-			maj = s;
-			break;
-		case ATARAID_MAJOR:
-			sprintf(s, "ataraid/d%d", unit);
-			maj = s;
-			break;
-		case ACSI_MAJOR:
-		case XT_DISK_MAJOR:
 		case I2O_MAJOR:
-		case DASD_MAJOR:
 			sprintf(s, "%s%c", hd->major_name, unit + 'a');
 			maj = s;
 	}
@@ -175,14 +138,14 @@ static ssize_t partition_device_kdev_read(struct device *driverfs_dev,
 	kdev.value=(int)(long)driverfs_dev->driver_data;
 	return off ? 0 : sprintf (page, "%x\n",kdev.value);
 }
-static DEVICE_ATTR(kdev,"kdev",S_IRUGO,partition_device_kdev_read,NULL);
+static DEVICE_ATTR(kdev,S_IRUGO,partition_device_kdev_read,NULL);
 
 static ssize_t partition_device_type_read(struct device *driverfs_dev, 
 			char *page, size_t count, loff_t off) 
 {
 	return off ? 0 : sprintf (page, "BLK\n");
 }
-static DEVICE_ATTR(type,"type",S_IRUGO,partition_device_type_read,NULL);
+static DEVICE_ATTR(type,S_IRUGO,partition_device_type_read,NULL);
 
 void driverfs_create_partitions(struct gendisk *hd, int minor)
 {

@@ -24,7 +24,6 @@
 
 #include <asm/bcache.h>
 #include <asm/bootinfo.h>
-#include <asm/keyboard.h>
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/processor.h>

@@ -8,6 +8,9 @@ bool 'Virtual terminal' CONFIG_VT
 if [ "$CONFIG_VT" = "y" ]; then
    bool '  Support for console on virtual terminal' CONFIG_VT_CONSOLE
 fi
+if [ "$CONFIG_VT" = "y" -a "$CONFIG_S390" != "y" -a "$CONFIG_UM" != "y" ]; then
+   define_bool CONFIG_HW_CONSOLE y
+fi
 bool 'Non-standard serial port support' CONFIG_SERIAL_NONSTANDARD
 if [ "$CONFIG_SERIAL_NONSTANDARD" = "y" ]; then
    tristate '  Computone IntelliPort Plus serial support' CONFIG_COMPUTONE
@@ -85,9 +88,9 @@ if [ "$CONFIG_MIPS" = "y" ]; then
       if [ "$CONFIG_QTRONIX_KEYBOARD" = "y" ]; then
 	 define_bool CONFIG_IT8172_CIR y
       else
-	 if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
-	    bool '    Enable PS2 Keyboard Support' CONFIG_PC_KEYB
-	 fi
+	 #if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
+	 #   bool '    Enable PS2 Keyboard Support' CONFIG_PC_KEYB
+	 #fi
       fi
       bool 'Enable Smart Card Reader 0 Support ' CONFIG_IT8172_SCR0
       if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
@@ -124,7 +127,6 @@ source drivers/i2c/Config.in
 mainmenu_option next_comment
 comment 'Mice'
    tristate 'Bus Mouse Support' CONFIG_BUSMOUSE
-   bool 'PS/2 mouse (aka "auxiliary device") support' CONFIG_PSMOUSE
 endmenu
 
 tristate 'QIC-02 tape support' CONFIG_QIC02_TAPE
@@ -187,6 +189,12 @@ if [ "$CONFIG_X86" = "y" -o "$CONFIG_IA64" = "y" ]; then
 fi
 tristate '/dev/nvram support' CONFIG_NVRAM
 tristate 'Enhanced Real Time Clock Support' CONFIG_RTC
+if [ "$CONFIG_RTC" != "y" ]; then
+   tristate 'Generic /dev/rtc emulation' CONFIG_GEN_RTC      
+   if [ "$CONFIG_GEN_RTC" != "n" ]; then
+      bool '   Extended RTC operation' CONFIG_GEN_RTC_X
+   fi
+fi
 if [ "$CONFIG_IA64" = "y" ]; then
    bool 'EFI Real Time Clock Services' CONFIG_EFI_RTC
 fi

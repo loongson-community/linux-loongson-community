@@ -147,7 +147,8 @@ static int queuecommand( Scsi_Cmnd *srb , void (*done)(Scsi_Cmnd *))
 	srb->host_scribble = (unsigned char *)us;
 
 	/* enqueue the command */
-	BUG_ON(atomic_read(&us->sm_state) != US_STATE_IDLE || us->srb != NULL);
+	BUG_ON(atomic_read(&us->sm_state) != US_STATE_IDLE);
+	BUG_ON(us->srb != NULL);
 	srb->scsi_done = done;
 	us->srb = srb;
 
@@ -264,7 +265,7 @@ static int bus_reset( Scsi_Cmnd *srb )
 		US_DEBUGPX("simulating disconnect/reconnect.\n");
 		down(&intf->driver->serialize);
 		intf->driver->disconnect(pusb_dev_save, intf->private_data);
-		id = usb_match_id(pusb_dev_save, intf, intf->driver->id_table);
+		id = usb_match_id(intf, intf->driver->id_table);
 		intf->driver->probe(pusb_dev_save, i, id);
 		up(&intf->driver->serialize);
 	}
@@ -379,12 +380,21 @@ Scsi_Host_Template usb_stor_host_template = {
 	.emulated =		TRUE
 };
 
+/* For a device that is "Not Ready" */
 unsigned char usb_stor_sense_notready[18] = {
 	[0]	= 0x70,			    /* current error */
 	[2]	= 0x02,			    /* not ready */
 	[7]	= 0x0a,			    /* additional length */
 	[12]	= 0x04,			    /* not ready */
 	[13]	= 0x03			    /* manual intervention */
+};
+
+/* To Report "Illegal Request: Invalid Field in CDB */
+unsigned char usb_stor_sense_invalidCDB[18] = {
+	[0]	= 0x70,			    /* current error */
+	[2]	= ILLEGAL_REQUEST,	    /* Illegal Request = 0x05 */
+	[7]	= 0x0a,			    /* additional length */
+	[12]	= 0x24			    /* Invalid Field in CDB */
 };
 
 #define USB_STOR_SCSI_SENSE_HDRSZ 4

@@ -19,6 +19,31 @@
 
 #ifdef __KERNEL__
 
+/* This file contains declarations of usbcore internals that are mostly
+ * used or exposed by Host Controller Drivers.
+ */
+
+/*
+ * USB Packet IDs (PIDs)
+ */
+#define USB_PID_UNDEF_0			0xf0
+#define USB_PID_OUT			0xe1
+#define USB_PID_ACK			0xd2
+#define USB_PID_DATA0			0xc3
+#define USB_PID_PING			0xb4	/* USB 2.0 */
+#define USB_PID_SOF			0xa5
+#define USB_PID_NYET			0x96	/* USB 2.0 */
+#define USB_PID_DATA2			0x87	/* USB 2.0 */
+#define USB_PID_SPLIT			0x78	/* USB 2.0 */
+#define USB_PID_IN			0x69
+#define USB_PID_NAK			0x5a
+#define USB_PID_DATA1			0x4b
+#define USB_PID_PREAMBLE		0x3c	/* Token mode */
+#define USB_PID_ERR			0x3c	/* USB 2.0: handshake mode */
+#define USB_PID_SETUP			0x2d
+#define USB_PID_STALL			0x1e
+#define USB_PID_MDATA			0x0f	/* USB 2.0 */
+
 /*-------------------------------------------------------------------------*/
 
 /*
@@ -57,6 +82,9 @@ struct usb_hcd {	/* usb_bus.hcpriv points to this */
 	u32			pci_state [16];	/* for PM state save */
 	atomic_t		resume_count;	/* multiple resumes issue */
 #endif
+
+#define HCD_BUFFER_POOLS	4
+	struct pci_pool		*pool [HCD_BUFFER_POOLS];
 
 	int			state;
 #	define	__ACTIVE		0x01
@@ -109,6 +137,25 @@ struct usb_operations {
 	int (*get_frame_number) (struct usb_device *usb_dev);
 	int (*submit_urb) (struct urb *urb, int mem_flags);
 	int (*unlink_urb) (struct urb *urb);
+
+	/* allocate dma-consistent buffer for URB_DMA_NOMAPPING */
+	void *(*buffer_alloc)(struct usb_bus *bus, size_t size,
+			int mem_flags,
+			dma_addr_t *dma);
+	void (*buffer_free)(struct usb_bus *bus, size_t size,
+			void *addr, dma_addr_t dma);
+
+	int (*buffer_map) (struct usb_bus *bus,
+		void *addr, dma_addr_t *dma,
+		size_t size, int direction);
+	void (*buffer_dmasync) (struct usb_bus *bus,
+		dma_addr_t dma,
+		size_t size, int direction);
+	void (*buffer_unmap) (struct usb_bus *bus,
+		dma_addr_t dma,
+		size_t size, int direction);
+
+	// FIXME  also: buffer_sg_map (), buffer_sg_unmap ()
 };
 
 /* each driver provides one of these, and hardware init support */
@@ -181,6 +228,25 @@ extern int usb_hcd_pci_resume (struct pci_dev *dev);
 
 #endif /* CONFIG_PCI */
 
+/* pci-ish (pdev null is ok) buffer alloc/mapping support */
+int hcd_buffer_create (struct usb_hcd *hcd);
+void hcd_buffer_destroy (struct usb_hcd *hcd);
+
+void *hcd_buffer_alloc (struct usb_bus *bus, size_t size,
+	int mem_flags, dma_addr_t *dma);
+void hcd_buffer_free (struct usb_bus *bus, size_t size,
+	void *addr, dma_addr_t dma);
+
+int hcd_buffer_map (struct usb_bus *bus,
+	void *addr, dma_addr_t *dma,
+	size_t size, int direction);
+void hcd_buffer_dmasync (struct usb_bus *bus,
+	dma_addr_t dma,
+	size_t size, int direction);
+void hcd_buffer_unmap (struct usb_bus *bus,
+	dma_addr_t dma,
+	size_t size, int direction);
+
 /* generic bus glue, needed for host controllers that don't use PCI */
 extern struct usb_operations usb_hcd_operations;
 extern void usb_hcd_irq (int irq, void *__hcd, struct pt_regs *r);
@@ -193,13 +259,11 @@ extern int usb_new_device(struct usb_device *dev);
 extern void usb_connect(struct usb_device *dev);
 extern void usb_disconnect(struct usb_device **);
 
-#ifndef _LINUX_HUB_H
 /* exported to hub driver ONLY to support usb_reset_device () */
 extern int usb_get_configuration(struct usb_device *dev);
 extern void usb_set_maxpacket(struct usb_device *dev);
 extern void usb_destroy_configuration(struct usb_device *dev);
 extern int usb_set_address(struct usb_device *dev);
-#endif /* _LINUX_HUB_H */
 
 /*-------------------------------------------------------------------------*/
 
@@ -306,6 +370,54 @@ extern struct semaphore usb_bus_list_lock;
 
 extern void usb_bus_get (struct usb_bus *bus);
 extern void usb_bus_put (struct usb_bus *bus);
+
+extern struct usb_interface *usb_ifnum_to_if (struct usb_device *dev,
+	unsigned ifnum);
+
+extern int usb_find_interface_driver (struct usb_device *dev,
+	struct usb_interface *interface);
+
+#define usb_endpoint_halt(dev, ep, out) ((dev)->halted[out] |= (1 << (ep)))
+
+#define usb_endpoint_out(ep_dir)	(!((ep_dir) & USB_DIR_IN))
+
+/* for probe/disconnect with correct module usage counting */
+void *usb_bind_driver(struct usb_driver *driver, struct usb_interface *intf);
+void usb_unbind_driver(struct usb_device *device, struct usb_interface *intf);
+
+extern struct list_head usb_driver_list;
+
+/*
+ * USB device fs stuff
+ */
+
+#ifdef CONFIG_USB_DEVICEFS
+
+/*
+ * these are expected to be called from the USB core/hub thread
+ * with the kernel lock held
+ */
+extern void usbfs_add_bus(struct usb_bus *bus);
+extern void usbfs_remove_bus(struct usb_bus *bus);
+extern void usbfs_add_device(struct usb_device *dev);
+extern void usbfs_remove_device(struct usb_device *dev);
+extern void usbfs_update_special (void);
+
+extern int usbfs_init(void);
+extern void usbfs_cleanup(void);
+
+#else /* CONFIG_USB_DEVICEFS */
+
+static inline void usbfs_add_bus(struct usb_bus *bus) {}
+static inline void usbfs_remove_bus(struct usb_bus *bus) {}
+static inline void usbfs_add_device(struct usb_device *dev) {}
+static inline void usbfs_remove_device(struct usb_device *dev) {}
+static inline void usbfs_update_special (void) {}
+
+static inline int usbfs_init(void) { return 0; }
+static inline void usbfs_cleanup(void) { }
+
+#endif /* CONFIG_USB_DEVICEFS */
 
 /*-------------------------------------------------------------------------*/
 

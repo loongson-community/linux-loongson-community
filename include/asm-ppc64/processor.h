@@ -274,16 +274,10 @@
 #define	SPRN_SPRG3	0x113	/* Special Purpose Register General 3 */
 #define	SPRN_SRR0	0x01A	/* Save/Restore Register 0 */
 #define	SPRN_SRR1	0x01B	/* Save/Restore Register 1 */
-#define	SPRN_SRR2	0x3DE	/* Save/Restore Register 2 */
-#define	SPRN_SRR3 	0x3DF	/* Save/Restore Register 3 */
-#define	SPRN_TBHI	0x3DC	/* Time Base High */
-#define	SPRN_TBHU	0x3CC	/* Time Base High User-mode */
-#define	SPRN_TBLO	0x3DD	/* Time Base Low */
-#define	SPRN_TBLU	0x3CD	/* Time Base Low User-mode */
-#define	SPRN_TBRL	0x10D	/* Time Base Read Lower Register */
-#define	SPRN_TBRU	0x10C	/* Time Base Read Upper Register */
-#define	SPRN_TBWL	0x11D	/* Time Base Write Lower Register */
-#define	SPRN_TBWU	0x11C	/* Time Base Write Upper Register */
+#define	SPRN_TBRL	0x10C	/* Time Base Read Lower Register (user, R/O) */
+#define	SPRN_TBRU	0x10D	/* Time Base Read Upper Register (user, R/O) */
+#define	SPRN_TBWL	0x11C	/* Time Base Lower Register (super, W/O) */
+#define	SPRN_TBWU	0x11D	/* Time Base Write Upper Register (super, W/O) */
 #define	SPRN_TCR	0x3DA	/* Timer Control Register */
 #define	  TCR_WP(x)		(((x)&0x3)<<30)	/* WDT Period */
 #define	    WP_2_17		0		/* 2^17 clocks */
@@ -585,6 +579,9 @@ GLUE(GLUE(.LT,NAME),_procname_end):
 #define mftb()		({unsigned long rval;	\
 			asm volatile("mftb %0" : "=r" (rval)); rval;})
 
+#define mttbl(v)	asm volatile("mttbl %0":: "r"(v))
+#define mttbu(v)	asm volatile("mttbu %0":: "r"(v))
+
 /* iSeries CTRL register (for runlatch) */
 
 #define CTRLT		0x098
@@ -655,6 +652,7 @@ struct thread_struct {
 	mm_segment_t	fs;		/* for get_fs() validation */
 	double		fpr[32];	/* Complete floating point set */
 	unsigned long	fpscr;		/* Floating point status */
+	unsigned int	fpexc_mode;	/* Floating-point exception mode */
 };
 
 #define INIT_SP		(sizeof(init_stack) + (unsigned long) &init_stack)
@@ -664,7 +662,8 @@ struct thread_struct {
 	(struct pt_regs *)INIT_SP - 1, /* regs */ \
 	KERNEL_DS, /*fs*/ \
 	{0}, /* fpr */ \
-	0 /* fpscr */ \
+	0, /* fpscr */ \
+	MSR_FE0|MSR_FE1, /* fpexc_mode */ \
 }
 
 /*
@@ -692,7 +691,24 @@ unsigned long get_wchan(struct task_struct *p);
 #define KSTK_EIP(tsk)  ((tsk)->thread.regs? (tsk)->thread.regs->nip: 0)
 #define KSTK_ESP(tsk)  ((tsk)->thread.regs? (tsk)->thread.regs->gpr[1]: 0)
 
-#define cpu_relax()     barrier()
+/* Get/set floating-point exception mode */
+#define GET_FPEXC_CTL(tsk, adr) get_fpexc_mode((tsk), (adr))
+#define SET_FPEXC_CTL(tsk, val) set_fpexc_mode((tsk), (val))
+
+extern int get_fpexc_mode(struct task_struct *tsk, unsigned long adr);
+extern int set_fpexc_mode(struct task_struct *tsk, unsigned int val);
+
+static inline unsigned int __unpack_fe01(unsigned long msr_bits)
+{
+	return ((msr_bits & MSR_FE0) >> 10) | ((msr_bits & MSR_FE1) >> 8);
+}
+
+static inline unsigned int __pack_fe01(unsigned int fpmode)
+{
+	return ((fpmode << 10) & MSR_FE0) | ((fpmode << 8) & MSR_FE1);
+}
+
+#define cpu_relax()	do { HMT_low(); HMT_medium(); barrier(); } while (0)
 
 /*
  * Prefetch macros.

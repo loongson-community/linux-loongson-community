@@ -26,6 +26,8 @@
 #include <linux/mman.h>
 #include <linux/fs.h>
 #include <linux/security.h>
+#include <linux/futex.h>
+#include <linux/ptrace.h>
 
 #include <asm/pgtable.h>
 #include <asm/pgalloc.h>
@@ -50,6 +52,31 @@ struct task_struct *pidhash[PIDHASH_SZ];
 
 rwlock_t tasklist_lock __cacheline_aligned = RW_LOCK_UNLOCKED;  /* outer */
 
+/*
+ * A per-CPU task cache - this relies on the fact that
+ * the very last portion of sys_exit() is executed with
+ * preemption turned off.
+ */
+static task_t *task_cache[NR_CPUS] __cacheline_aligned;
+
+void __put_task_struct(struct task_struct *tsk)
+{
+	if (tsk != current) {
+		free_thread_info(tsk->thread_info);
+		kmem_cache_free(task_struct_cachep,tsk);
+	} else {
+		int cpu = smp_processor_id();
+
+		tsk = task_cache[cpu];
+		if (tsk) {
+			free_thread_info(tsk->thread_info);
+			kmem_cache_free(task_struct_cachep,tsk);
+		}
+		task_cache[cpu] = current;
+	}
+}
+
+/* Protects next_safe and last_pid. */
 void add_wait_queue(wait_queue_head_t *q, wait_queue_t * wait)
 {
 	unsigned long flags;
@@ -106,9 +133,10 @@ static struct task_struct *dup_task_struct(struct task_struct *orig)
 	struct thread_info *ti;
 
 	ti = alloc_thread_info();
-	if (!ti) return NULL;
+	if (!ti)
+		return NULL;
 
-	tsk = kmem_cache_alloc(task_struct_cachep,GFP_ATOMIC);
+	tsk = kmem_cache_alloc(task_struct_cachep, GFP_KERNEL);
 	if (!tsk) {
 		free_thread_info(ti);
 		return NULL;
@@ -123,13 +151,6 @@ static struct task_struct *dup_task_struct(struct task_struct *orig)
 	return tsk;
 }
 
-void __put_task_struct(struct task_struct *tsk)
-{
-	free_thread_info(tsk->thread_info);
-	kmem_cache_free(task_struct_cachep,tsk);
-}
-
-/* Protects next_safe and last_pid. */
 spinlock_t lastpid_lock = SPIN_LOCK_UNLOCKED;
 
 static int get_pid(unsigned long flags)
@@ -167,6 +188,8 @@ inside:
 				next_safe = p->pid;
 			if(p->pgrp > last_pid && next_safe > p->pgrp)
 				next_safe = p->pgrp;
+			if(p->tgid > last_pid && next_safe > p->tgid)
+				next_safe = p->tgid;
 			if(p->session > last_pid && next_safe > p->session)
 				next_safe = p->session;
 		}
@@ -348,6 +371,14 @@ void mm_release(void)
 	if (vfork_done) {
 		tsk->vfork_done = NULL;
 		complete(vfork_done);
+	}
+	if (tsk->user_tid) {
+		/*
+		 * We dont check the error code - if userspace has
+		 * not set up a proper pointer then tough luck.
+		 */
+		put_user(0, tsk->user_tid);
+		sys_futex(tsk->user_tid, FUTEX_WAKE, 1, NULL);
 	}
 }
 
@@ -737,7 +768,10 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 
 	/* ok, now we should be set up.. */
 	p->swappable = 1;
-	p->exit_signal = clone_flags & CSIGNAL;
+	if (clone_flags & CLONE_DETACHED)
+		p->exit_signal = -1;
+	else
+		p->exit_signal = clone_flags & CSIGNAL;
 	p->pdeath_signal = 0;
 
 	/*
@@ -775,6 +809,8 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 	 */
 	p->tgid = p->pid;
 	INIT_LIST_HEAD(&p->thread_group);
+	INIT_LIST_HEAD(&p->ptrace_children);
+	INIT_LIST_HEAD(&p->ptrace_list);
 
 	/* Need tasklist lock for parent etc handling! */
 	write_lock_irq(&tasklist_lock);
@@ -794,6 +830,7 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 	}
 
 	SET_LINKS(p);
+	ptrace_link(p, p->parent);
 	hash_pid(p);
 	nr_threads++;
 	write_unlock_irq(&tasklist_lock);

@@ -37,6 +37,12 @@
 #ifndef GET_FPEMU_CTL
 # define GET_FPEMU_CTL(a,b)	(-EINVAL)
 #endif
+#ifndef SET_FPEXC_CTL
+# define SET_FPEXC_CTL(a,b)	(-EINVAL)
+#endif
+#ifndef GET_FPEXC_CTL
+# define GET_FPEXC_CTL(a,b)	(-EINVAL)
+#endif
 
 /*
  * this is where the system-wide overflow UID and GID are defined, for
@@ -61,6 +67,7 @@ int fs_overflowgid = DEFAULT_FS_OVERFLOWUID;
 int C_A_D = 1;
 int cad_pid = 1;
 
+extern int system_running;
 
 /*
  *	Notifier list for kernel code which wants to be called
@@ -317,6 +324,7 @@ asmlinkage long sys_reboot(int magic1, int magic2, unsigned int cmd, void * arg)
 	switch (cmd) {
 	case LINUX_REBOOT_CMD_RESTART:
 		notifier_call_chain(&reboot_notifier_list, SYS_RESTART, NULL);
+		system_running = 0;
 		device_shutdown();
 		printk(KERN_EMERG "Restarting system.\n");
 		machine_restart(NULL);
@@ -332,6 +340,7 @@ asmlinkage long sys_reboot(int magic1, int magic2, unsigned int cmd, void * arg)
 
 	case LINUX_REBOOT_CMD_HALT:
 		notifier_call_chain(&reboot_notifier_list, SYS_HALT, NULL);
+		system_running = 0;
 		device_shutdown();
 		printk(KERN_EMERG "System halted.\n");
 		machine_halt();
@@ -340,6 +349,7 @@ asmlinkage long sys_reboot(int magic1, int magic2, unsigned int cmd, void * arg)
 
 	case LINUX_REBOOT_CMD_POWER_OFF:
 		notifier_call_chain(&reboot_notifier_list, SYS_POWER_OFF, NULL);
+		system_running = 0;
 		device_shutdown();
 		printk(KERN_EMERG "Power down.\n");
 		machine_power_off();
@@ -354,6 +364,7 @@ asmlinkage long sys_reboot(int magic1, int magic2, unsigned int cmd, void * arg)
 		buffer[sizeof(buffer) - 1] = '\0';
 
 		notifier_call_chain(&reboot_notifier_list, SYS_RESTART, buffer);
+		system_running = 0;
 		device_shutdown();
 		printk(KERN_EMERG "Restarting system with command '%s'.\n", buffer);
 		machine_restart(buffer);
@@ -1283,6 +1294,13 @@ asmlinkage long sys_prctl(int option, unsigned long arg2, unsigned long arg3,
 		case PR_GET_FPEMU:
 			error = GET_FPEMU_CTL(current, arg2);
 			break;
+		case PR_SET_FPEXC:
+			error = SET_FPEXC_CTL(current, arg2);
+			break;
+		case PR_GET_FPEXC:
+			error = GET_FPEXC_CTL(current, arg2);
+			break;
+
 
 		case PR_GET_KEEPCAPS:
 			if (current->keep_capabilities)

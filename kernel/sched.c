@@ -214,8 +214,7 @@ static inline runqueue_t *this_rq_lock(void)
 
 static inline void rq_unlock(runqueue_t *rq)
 {
-	spin_unlock(&rq->lock);
-	local_irq_enable();
+	spin_unlock_irq(&rq->lock);
 }
 
 /*
@@ -1886,7 +1885,6 @@ void __init init_idle(task_t *idle, int cpu)
 }
 
 #if CONFIG_SMP
-
 /*
  * This is how migration works:
  *
@@ -2068,11 +2066,25 @@ __init int migration_init(void)
 {
 	/* Start one for boot CPU. */
 	migration_call(&migration_notifier, CPU_ONLINE,
-		       (void *)smp_processor_id());
+		       (void *)(long)smp_processor_id());
 	register_cpu_notifier(&migration_notifier);
 	return 0;
 }
 
+#endif
+
+#if CONFIG_SMP || CONFIG_PREEMPT
+/*
+ * The 'big kernel lock'
+ *
+ * This spinlock is taken and released recursively by lock_kernel()
+ * and unlock_kernel().  It is transparently dropped and reaquired
+ * over schedule().  It is used to protect legacy code that hasn't
+ * been migrated to a proper locking design yet.
+ *
+ * Don't use in new code.
+ */
+spinlock_t kernel_flag __cacheline_aligned_in_smp = SPIN_LOCK_UNLOCKED;
 #endif
 
 extern void init_timervecs(void);

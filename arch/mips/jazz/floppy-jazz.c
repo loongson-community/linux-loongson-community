@@ -15,7 +15,6 @@
 #include <asm/addrspace.h>
 #include <asm/jazz.h>
 #include <asm/jazzdma.h>
-#include <asm/keyboard.h>
 #include <asm/pgtable.h>
 #include <asm/floppy.h>
 

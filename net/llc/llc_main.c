@@ -38,27 +38,19 @@
 /* static function prototypes */
 static void llc_station_service_events(struct llc_station *station);
 static void llc_station_free_ev(struct llc_station *station,
-				struct llc_station_state_ev *ev);
+				struct sk_buff *skb);
 static void llc_station_send_pdus(struct llc_station *station);
 static u16 llc_station_next_state(struct llc_station *station,
-			      struct llc_station_state_ev *ev);
+				  struct sk_buff *skb);
 static u16 llc_exec_station_trans_actions(struct llc_station *station,
 					  struct llc_station_state_trans *trans,
-					  struct llc_station_state_ev *ev);
+					  struct sk_buff *skb);
 static struct llc_station_state_trans *
 			     llc_find_station_trans(struct llc_station *station,
-					       struct llc_station_state_ev *ev);
+						    struct sk_buff *skb);
 static int llc_rtn_all_conns(struct llc_sap *sap);
 
-extern void llc_register_sap(unsigned char sap,
-			     int (*rcvfunc)(struct sk_buff *skb,
-					    struct net_device *dev,
-					    struct packet_type *pt));
-extern void llc_unregister_sap(unsigned char sap);
-
 static struct llc_station llc_main_station;	/* only one of its kind */
-struct llc_prim_if_block llc_ind_prim, llc_cfm_prim;
-static union llc_u_prim_data llc_ind_data_prim, llc_cfm_data_prim;
 
 /**
  *	llc_sap_alloc - allocates and initializes sap.
@@ -76,6 +68,8 @@ struct llc_sap *llc_sap_alloc(void)
 		spin_lock_init(&sap->sk_list.lock);
 		INIT_LIST_HEAD(&sap->sk_list.list);
 		skb_queue_head_init(&sap->mac_pdu_q);
+		sap->llc_ind_prim.data = &sap->llc_ind_data_prim;
+		sap->llc_cfm_prim.data = &sap->llc_cfm_data_prim;
 	}
 	return sap;
 }
@@ -150,21 +144,23 @@ static int llc_backlog_rcv(struct sock *sk, struct sk_buff *skb)
 	int rc = 0;
 	struct llc_opt *llc = llc_sk(sk);
 
-	if (skb->cb[0] == LLC_PACKET) {
+	if (llc_backlog_type(skb) == LLC_PACKET) {
 		if (llc->state > 1) /* not closed */
 			rc = llc_pdu_router(llc->sap, sk, skb, LLC_TYPE_2);
 		else
 			kfree_skb(skb);
-	} else if (skb->cb[0] == LLC_EVENT) {
-		struct llc_conn_state_ev *ev =
-					(struct llc_conn_state_ev *)skb->data;
+	} else if (llc_backlog_type(skb) == LLC_EVENT) {
 		/* timer expiration event */
 		if (llc->state > 1)  /* not closed */
-			rc = llc_conn_send_ev(sk, ev);
+			rc = llc_conn_send_ev(sk, skb);
 		else
-			llc_conn_free_ev(ev);
+			llc_conn_free_ev(skb);
+		kfree_skb(skb);
+	} else {
+		printk(KERN_ERR "%s: invalid skb in backlog\n", __FUNCTION__);
 		kfree_skb(skb);
 	}
+
 	return rc;
 }
 
@@ -238,9 +234,11 @@ void __llc_sock_free(struct sock *sk, u8 free)
 	/* stop all (possibly) running timers */
 	llc_conn_ac_stop_all_timers(sk, NULL);
 	/* handle return of frames on lists */
-	printk(KERN_INFO __FUNCTION__ ": unackq=%d, txq=%d\n",
+#if 0
+	printk(KERN_INFO "%s: unackq=%d, txq=%d\n", __FUNCTION__,
 		skb_queue_len(&llc->pdu_unack_q),
 		skb_queue_len(&sk->write_queue));
+#endif
 	skb_queue_purge(&sk->write_queue);
 	skb_queue_purge(&llc->pdu_unack_q);
 	if (free)
@@ -322,34 +320,17 @@ struct llc_station *llc_station_get(void)
 }
 
 /**
- *	llc_station_alloc_ev - allocates an event
- *	@station: Address of the station
- *
- *	Allocates an event in this station. Returns the allocated event on
- *	success, %NULL otherwise.
- */
-struct llc_station_state_ev *llc_station_alloc_ev(struct llc_station *station)
-{
-	struct llc_station_state_ev *ev = kmalloc(sizeof(*ev), GFP_ATOMIC);
-
-	if (ev)
-		memset(ev, 0, sizeof(*ev));
-	return ev;
-}
-
-/**
  *	llc_station_send_ev: queue event and try to process queue.
  *	@station: Address of the station
- *	@ev: Address of the event
+ *	@skb: Address of the event
  *
  *	Queues an event (on the station event queue) for handling by the
  *	station state machine and attempts to process any queued-up events.
  */
-void llc_station_send_ev(struct llc_station *station,
-			 struct llc_station_state_ev *ev)
+void llc_station_send_ev(struct llc_station *station, struct sk_buff *skb)
 {
 	spin_lock_bh(&station->ev_q.lock);
-	list_add_tail(&ev->node, &station->ev_q.list);
+	skb_queue_tail(&station->ev_q.list, skb);
 	llc_station_service_events(station);
 	spin_unlock_bh(&station->ev_q.lock);
 }
@@ -390,18 +371,17 @@ static void llc_station_send_pdus(struct llc_station *station)
 /**
  *	llc_station_free_ev - frees an event
  *	@station: Address of the station
- *	@event: Address of the event
+ *	@skb: Address of the event
  *
  *	Frees an event.
  */
 static void llc_station_free_ev(struct llc_station *station,
-				struct llc_station_state_ev *ev)
+				struct sk_buff *skb)
 {
-	struct sk_buff *skb = ev->data.pdu.skb;
+	struct llc_station_state_ev *ev = llc_station_ev(skb);
 
 	if (ev->type == LLC_STATION_EV_TYPE_PDU)
 		kfree_skb(skb);
-	kfree(ev);
 }
 
 /**
@@ -418,39 +398,35 @@ static void llc_station_free_ev(struct llc_station *station,
  */
 static void llc_station_service_events(struct llc_station *station)
 {
-	struct llc_station_state_ev *ev;
-	struct list_head *entry, *tmp;
+	struct sk_buff *skb;
 
-	list_for_each_safe(entry, tmp, &station->ev_q.list) {
-		ev = list_entry(entry, struct llc_station_state_ev, node);
-		list_del(&ev->node);
-		llc_station_next_state(station, ev);
-	}
+	while ((skb = skb_dequeue(&station->ev_q.list)) != NULL)
+		llc_station_next_state(station, skb);
 }
 
 /**
  *	llc_station_next_state - processes event and goes to the next state
  *	@station: Address of the station
- *	@ev: Address of the event
+ *	@skb: Address of the event
  *
  *	Processes an event, executes any transitions related to that event and
  *	updates the state of the station.
  */
 static u16 llc_station_next_state(struct llc_station *station,
-			      struct llc_station_state_ev *ev)
+				  struct sk_buff *skb)
 {
 	u16 rc = 1;
 	struct llc_station_state_trans *trans;
 
 	if (station->state > LLC_NBR_STATION_STATES)
 		goto out;
-	trans = llc_find_station_trans(station, ev);
+	trans = llc_find_station_trans(station, skb);
 	if (trans) {
 		/* got the state to which we next transition; perform the
 		 * actions associated with this transition before actually
 		 * transitioning to the next state
 		 */
-		rc = llc_exec_station_trans_actions(station, trans, ev);
+		rc = llc_exec_station_trans_actions(station, trans, skb);
 		if (!rc)
 			/* transition station to next state if all actions
 			 * execute successfully; done; wait for next event
@@ -462,22 +438,22 @@ static u16 llc_station_next_state(struct llc_station *station,
 		 */
 		rc = 0;
 out:
-	llc_station_free_ev(station, ev);
+	llc_station_free_ev(station, skb);
 	return rc;
 }
 
 /**
  *	llc_find_station_trans - finds transition for this event
  *	@station: Address of the station
- *	@ev: Address of the event
+ *	@skb: Address of the event
  *
  *	Search thru events of the current state of the station until list
  *	exhausted or it's obvious that the event is not valid for the current
  *	state. Returns the address of the transition if cound, %NULL otherwise.
  */
 static struct llc_station_state_trans *
-	llc_find_station_trans(struct llc_station *station,
-				struct llc_station_state_ev *ev)
+			llc_find_station_trans(struct llc_station *station,
+					       struct sk_buff *skb)
 {
 	int i = 0;
 	struct llc_station_state_trans *rc = NULL;
@@ -486,7 +462,7 @@ static struct llc_station_state_trans *
 				&llc_station_state_table[station->state - 1];
 
 	for (next_trans = curr_state->transitions; next_trans[i]->ev; i++)
-		if (!next_trans[i]->ev(station, ev)) {
+		if (!next_trans[i]->ev(station, skb)) {
 			rc = next_trans[i];
 			break;
 		}
@@ -497,21 +473,20 @@ static struct llc_station_state_trans *
  *	llc_exec_station_trans_actions - executes actions for transition
  *	@station: Address of the station
  *	@trans: Address of the transition
- *	@ev: Address of the event that caused the transition
+ *	@skb: Address of the event that caused the transition
  *
  *	Executes actions of a transition of the station state machine. Returns
  *	0 if all actions complete successfully, nonzero otherwise.
  */
 static u16 llc_exec_station_trans_actions(struct llc_station *station,
 					  struct llc_station_state_trans *trans,
-					  struct llc_station_state_ev *ev)
+					  struct sk_buff *skb)
 {
 	u16 rc = 0;
-	llc_station_action_t *next_action;
+	llc_station_action_t *next_action = trans->ev_actions;
 
-	for (next_action = trans->ev_actions;
-	     next_action && *next_action; next_action++)
-		if ((*next_action)(station, ev))
+	for (; next_action && *next_action; next_action++)
+		if ((*next_action)(station, skb))
 			rc = 1;
 	return rc;
 }
@@ -580,6 +555,18 @@ unlock:
 	return len;
 }
 
+static struct packet_type llc_packet_type = {
+	.type = __constant_htons(ETH_P_802_2),
+	.func = mac_indicate,
+	.data = (void *)1,
+};
+
+static struct packet_type llc_tr_packet_type = {
+	.type = __constant_htons(ETH_P_TR_802_2),
+	.func = mac_indicate,
+	.data = (void *)1,
+};
+
 static char llc_banner[] __initdata =
 		KERN_INFO "LLC 2.0 by Procom, 1997, Arnaldo C. Melo, 2001\n"
 		KERN_INFO "NET4.0 IEEE 802.2 extended support\n";
@@ -589,21 +576,24 @@ static char llc_error_msg[] __initdata =
 static int __init llc_init(void)
 {
 	u16 rc = 0;
+	struct sk_buff *skb;
 	struct llc_station_state_ev *ev;
 
 	printk(llc_banner);
-	INIT_LIST_HEAD(&llc_main_station.ev_q.list);
-	spin_lock_init(&llc_main_station.ev_q.lock);
 	INIT_LIST_HEAD(&llc_main_station.sap_list.list);
 	spin_lock_init(&llc_main_station.sap_list.lock);
 	skb_queue_head_init(&llc_main_station.mac_pdu_q);
-	ev = kmalloc(sizeof(*ev), GFP_ATOMIC);
-	if (!ev)
+	skb_queue_head_init(&llc_main_station.ev_q.list);
+	spin_lock_init(&llc_main_station.ev_q.lock);
+	skb = alloc_skb(1, GFP_ATOMIC);
+	if (!skb)
 		goto err;
 	llc_build_offset_table();
+	ev = llc_station_ev(skb);
 	memset(ev, 0, sizeof(*ev));
-	if(dev_base->next)
-		memcpy(llc_main_station.mac_sa, dev_base->next->dev_addr, ETH_ALEN);
+	if (dev_base->next)
+		memcpy(llc_main_station.mac_sa,
+		       dev_base->next->dev_addr, ETH_ALEN);
 	else
 		memset(llc_main_station.mac_sa, 0, ETH_ALEN);
 	llc_main_station.ack_timer.expires = jiffies + 3 * HZ;
@@ -611,13 +601,11 @@ static int __init llc_init(void)
 	llc_main_station.state		= LLC_STATION_STATE_DOWN;
 	ev->type	= LLC_STATION_EV_TYPE_SIMPLE;
 	ev->data.a.ev	= LLC_STATION_EV_ENABLE_WITHOUT_DUP_ADDR_CHECK;
-	rc = llc_station_next_state(&llc_main_station, ev);
-	llc_ind_prim.data = &llc_ind_data_prim;
-	llc_cfm_prim.data = &llc_cfm_data_prim;
+	rc = llc_station_next_state(&llc_main_station, skb);
 	proc_net_create("802.2", 0, llc_proc_get_info);
-	/* initialize the station component */
-	llc_register_sap(0, mac_indicate);
 	llc_ui_init();
+	dev_add_pack(&llc_packet_type);
+	dev_add_pack(&llc_tr_packet_type);
 out:
 	return rc;
 err:
@@ -629,7 +617,8 @@ err:
 static void __exit llc_exit(void)
 {
 	llc_ui_exit();
-	llc_unregister_sap(0);
+	dev_remove_pack(&llc_packet_type);
+	dev_remove_pack(&llc_tr_packet_type);
 	proc_net_remove("802.2");
 }
 

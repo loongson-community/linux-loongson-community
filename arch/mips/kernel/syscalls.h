@@ -255,3 +255,9 @@ SYS(sys_sendfile64, 5)
 SYS(sys_futex, 2)
 SYS(sys_sched_setaffinity, 3)
 SYS(sys_sched_getaffinity, 3)			/* 4240 */
+SYS(sys_io_setup, 2)
+SYS(sys_io_destroy, 1)
+SYS(sys_io_getevents, 5)
+SYS(sys_io_submit, 3)
+SYS(sys_io_cancel, 3)				/* 4245 */
+

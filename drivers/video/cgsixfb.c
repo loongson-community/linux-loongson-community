@@ -521,13 +521,13 @@ static void cg6_restore_palette (struct fb_info_sbusfb *fb)
 }
 
 static struct display_switch cg6_dispsw __initdata = {
-	setup:		cg6_setup,
-	bmove:		fbcon_redraw_bmove,
-	clear:		cg6_clear,
-	putc:		cg6_putc,
-	putcs:		cg6_putcs,
-	revc:		cg6_revc, 
-	fontwidthmask:	FONTWIDTHRANGE(1,16) /* Allow fontwidths up to 16 */
+	.setup =	cg6_setup,
+	.bmove =	fbcon_redraw_bmove,
+	.clear =	cg6_clear,
+	.putc =		cg6_putc,
+	.putcs =	cg6_putcs,
+	.revc =		cg6_revc, 
+	.fontwidthmask =FONTWIDTHRANGE(1,16) /* Allow fontwidths up to 16 */
 };
 
 static void cg6_setcursormap (struct fb_info_sbusfb *fb, u8 *red, u8 *green, u8 *blue)
@@ -673,7 +673,7 @@ static void cg6_reset (struct fb_info_sbusfb *fb)
 static void cg6_margins (struct fb_info_sbusfb *fb, struct display *p, int x_margin, int y_margin)
 {
 	fb->info.screen_base += (y_margin - fb->y_margin) *
-		p->line_length + (x_margin - fb->x_margin);
+		fb->info.fix.line_length + (x_margin - fb->x_margin);
 }
 
 static int __init cg6_rasterimg (struct fb_info *info, int start)

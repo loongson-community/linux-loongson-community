@@ -257,6 +257,11 @@
 #define __NR_O32_futex			(__NR_O32_Linux + 238)
 #define __NR_O32_sched_setaffinity	(__NR_O32_Linux + 239)
 #define __NR_O32_sched_getaffinity	(__NR_O32_Linux + 240)
+#define __NR_O32_io_setup		(__NR_O32_Linux + 241)
+#define __NR_O32_io_destroy		(__NR_O32_Linux + 242)
+#define __NR_O32_io_getevents		(__NR_O32_Linux + 243)
+#define __NR_O32_io_submit		(__NR_O32_Linux + 244)
+#define __NR_O32_io_cancel		(__NR_O32_Linux + 245)
 
 /*
  * Offset of the last Linux o32 flavoured syscall
@@ -468,12 +473,16 @@
 #define __NR_cacheflush			(__NR_Linux + 197)
 #define __NR_cachectl			(__NR_Linux + 198)
 #define __NR_sysmips			(__NR_Linux + 199)
-
+#define __NR_io_setup			(__NR_Linux + 200)
+#define __NR_io_destroy			(__NR_Linux + 201)
+#define __NR_io_getevents		(__NR_Linux + 202)
+#define __NR_io_submit			(__NR_Linux + 203)
+#define __NR_io_cancel			(__NR_Linux + 204)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		199
+#define __NR_Linux_syscalls		204
 
 /*
  * Linux N32 syscalls are in the range from 6000 to 6999.
@@ -679,11 +688,16 @@
 #define __NR_N32_cacheflush		(__NR_N32_Linux + 197)
 #define __NR_N32_cachectl		(__NR_N32_Linux + 198)
 #define __NR_N32_sysmips		(__NR_N32_Linux + 199)
+#define __NR_N32_io_setup		(__NR_N32_Linux + 200)
+#define __NR_N32_io_destroy		(__NR_N32_Linux + 201)
+#define __NR_N32_io_getevents		(__NR_N32_Linux + 202)
+#define __NR_N32_io_submit		(__NR_N32_Linux + 203)
+#define __NR_N32_io_cancel		(__NR_N32_Linux + 204)
 
 /*
  * Offset of the last N32 flavoured syscall
  */
-#define __NR_N32_Linux_syscalls		199
+#define __NR_N32_Linux_syscalls		204
 
 #ifndef __ASSEMBLY__
 

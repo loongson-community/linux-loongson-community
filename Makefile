@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 5
-SUBLEVEL = 31
+SUBLEVEL = 32
 EXTRAVERSION =
 
 # *DOCUMENTATION*
@@ -42,9 +42,6 @@ CONFIG_SHELL := $(shell if [ -x "$$BASH" ]; then echo $$BASH; \
 	  else if [ -x /bin/bash ]; then echo /bin/bash; \
 	  else echo sh; fi ; fi)
 TOPDIR	:= $(CURDIR)
-
-HPATH   	= $(TOPDIR)/include
-FINDHPATH	= $(HPATH)/asm $(HPATH)/linux $(HPATH)/scsi $(HPATH)/net
 
 HOSTCC  	= gcc
 HOSTCFLAGS	= -Wall -Wstrict-prototypes -O2 -fomit-frame-pointer
@@ -151,7 +148,7 @@ EXPORT_FLAGS    =
 NOSTDINC_FLAGS  = -nostdinc -iwithprefix include
 
 export	VERSION PATCHLEVEL SUBLEVEL EXTRAVERSION KERNELRELEASE ARCH \
-	CONFIG_SHELL TOPDIR HPATH HOSTCC HOSTCFLAGS CROSS_COMPILE AS LD CC \
+	CONFIG_SHELL TOPDIR HOSTCC HOSTCFLAGS CROSS_COMPILE AS LD CC \
 	CPP AR NM STRIP OBJCOPY OBJDUMP MAKE MAKEFILES GENKSYMS PERL
 
 export CPPFLAGS EXPORT_FLAGS NOSTDINC_FLAGS OBJCOPYFLAGS
@@ -199,11 +196,17 @@ ifeq ($(filter $(noconfig_targets),$(MAKECMDGOALS)),)
 
 #	If .config doesn't exist - tough luck
 
-.config:
+.config: arch/$(ARCH)/config.in $(shell find . -name Config.in)
 	@echo '***'
-	@echo '*** You have not yet configured your kernel!'
-	@echo '*** Please run some configurator (do "make xconfig" or'
-	@echo '*** "make menuconfig" or "make oldconfig" or "make config").'
+	@if [ -f $@ ]; then \
+	  echo '*** The tree was updated, so your .config may be'; \
+	  echo '*** out of date!'; \
+	else \
+	  echo '*** You have not yet configured your kernel!'; \
+	fi
+	@echo '***'
+	@echo '*** Please run some configurator (e.g. "make oldconfig" or'
+	@echo '*** "make menuconfig" or "make xconfig").'
 	@echo '***'
 	@exit 1
 
@@ -227,7 +230,7 @@ export MODLIB
 # standard CFLAGS
 #
 
-CPPFLAGS := -D__KERNEL__ -I$(HPATH)
+CPPFLAGS := -D__KERNEL__ -I$(objtree)/include
 
 CFLAGS := $(CPPFLAGS) -Wall -Wstrict-prototypes -Wno-trigraphs -O2 \
 	  -fomit-frame-pointer -fno-strict-aliasing -fno-common
@@ -311,6 +314,12 @@ $(SUBDIRS): .hdepend prepare
 .PHONY: prepare
 prepare: include/linux/version.h include/asm include/config/MARKER
 	@echo '  Starting the build. KBUILD_BUILTIN=$(KBUILD_BUILTIN) KBUILD_MODULES=$(KBUILD_MODULES)'
+
+#	This can be used by arch/$ARCH/Makefile to preprocess
+#	their vmlinux.lds.S file
+
+arch/$ARCH/vmlinux.lds.s: arch/$ARCH/vmlinux.lds.S
+	$(CPP) $(CPPFLAGS) $(CPPFLAGS_$@) -P -C -U$(ARCH) $< -o $@
 
 # Single targets
 # ---------------------------------------------------------------------------
@@ -428,7 +437,7 @@ ifdef CONFIG_MODULES
 #	Build modules
 
 ifdef CONFIG_MODVERSIONS
-MODFLAGS += -include $(HPATH)/linux/modversions.h
+MODFLAGS += -include $(objtree)/include/linux/modversions.h
 endif
 
 .PHONY: modules
@@ -565,28 +574,28 @@ xconfig:
 
 menuconfig:
 	@$(MAKE) -C scripts lxdialog
-	$(CONFIG_SHELL) scripts/Menuconfig arch/$(ARCH)/config.in
+	$(CONFIG_SHELL) $(src)/scripts/Menuconfig arch/$(ARCH)/config.in
 
 config:
-	$(CONFIG_SHELL) scripts/Configure arch/$(ARCH)/config.in
+	$(CONFIG_SHELL) $(src)/scripts/Configure arch/$(ARCH)/config.in
 
 oldconfig:
-	$(CONFIG_SHELL) scripts/Configure -d arch/$(ARCH)/config.in
+	$(CONFIG_SHELL) $(src)/scripts/Configure -d arch/$(ARCH)/config.in
 
 randconfig:
-	$(CONFIG_SHELL) scripts/Configure -r arch/$(ARCH)/config.in
+	$(CONFIG_SHELL) $(src)/scripts/Configure -r arch/$(ARCH)/config.in
 
 allyesconfig:
-	$(CONFIG_SHELL) scripts/Configure -y arch/$(ARCH)/config.in
+	$(CONFIG_SHELL) $(src)/scripts/Configure -y arch/$(ARCH)/config.in
 
 allnoconfig:
-	$(CONFIG_SHELL) scripts/Configure -n arch/$(ARCH)/config.in
+	$(CONFIG_SHELL) $(src)/scripts/Configure -n arch/$(ARCH)/config.in
 
 allmodconfig:
-	$(CONFIG_SHELL) scripts/Configure -m arch/$(ARCH)/config.in
+	$(CONFIG_SHELL) $(src)/scripts/Configure -m arch/$(ARCH)/config.in
 
 defconfig:
-	yes '' | $(CONFIG_SHELL) scripts/Configure -d arch/$(ARCH)/config.in
+	yes '' | $(CONFIG_SHELL) $(src)/scripts/Configure -d arch/$(ARCH)/config.in
 
 # Cleaning up
 # ---------------------------------------------------------------------------
@@ -632,12 +641,9 @@ MRPROPER_FILES += \
 	sound/oss/pndspini.c \
 	drivers/atm/fore200e_*_fw.c drivers/atm/.fore200e_*.fw \
 	.version .config* config.in config.old \
-	scripts/tkparse scripts/kconfig.tk scripts/kconfig.tmp \
-	scripts/lxdialog/*.o scripts/lxdialog/lxdialog \
 	.menuconfig.log \
 	include/asm \
-	.hdepend scripts/split-include scripts/docproc \
-	scripts/fixdep $(TOPDIR)/include/linux/modversions.h \
+	.hdepend $(TOPDIR)/include/linux/modversions.h \
 	tags TAGS kernel.spec \
 	.tmpversion
 
@@ -667,6 +673,7 @@ mrproper: clean archmrproper
 		-type f -print | xargs rm -f
 	@rm -f $(MRPROPER_FILES)
 	@rm -rf $(MRPROPER_DIRS)
+	@$(MAKE) -C scripts mrproper
 	@$(MAKE) -f Documentation/DocBook/Makefile mrproper
 
 distclean: mrproper

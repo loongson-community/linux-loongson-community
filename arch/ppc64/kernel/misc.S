@@ -460,21 +460,21 @@ _GLOBAL(_get_HID0)
 	blr
 
 _GLOBAL(cvt_fd)
-	lfd	0,-4(r5)	/* load up fpscr value */
+	lfd	0,0(r5)		/* load up fpscr value */
 	mtfsf	0xff,0
 	lfs	0,0(r3)
 	stfd	0,0(r4)
 	mffs	0		/* save new fpscr value */
-	stfd	0,-4(r5)
+	stfd	0,0(r5)
 	blr
 
 _GLOBAL(cvt_df)
-	lfd	0,-4(r5)	/* load up fpscr value */
+	lfd	0,0(r5)		/* load up fpscr value */
 	mtfsf	0xff,0
 	lfd	0,0(r3)
 	stfs	0,0(r4)
 	mffs	0		/* save new fpscr value */
-	stfd	0,-4(r5)
+	stfd	0,0(r5)
 	blr
 
 /*
@@ -518,8 +518,8 @@ _GLOBAL(sys_call_table32)
 	.llong .sys32_execve
 	.llong .sys_chdir
 	.llong .sys32_time
-	.llong .sys32_mknod
-	.llong .sys32_chmod		/* 15 */
+	.llong .sys_mknod
+	.llong .sys_chmod		/* 15 */
 	.llong .sys_lchown
 	.llong .sys_ni_syscall			/* old break syscall holder */
 	.llong .sys32_stat
@@ -605,7 +605,7 @@ _GLOBAL(sys_call_table32)
 	.llong .sys_ni_syscall			/* old profil syscall holder */
 	.llong .sys32_statfs
 	.llong .sys32_fstatfs	/* 100 */
-	.llong .sys32_ioperm
+	.llong .sys_ni_syscall		/* old ioperm syscall holder */
 	.llong .sys32_socketcall
 	.llong .sys32_syslog
 	.llong .sys32_setitimer
@@ -614,10 +614,10 @@ _GLOBAL(sys_call_table32)
 	.llong .sys32_newlstat
 	.llong .sys32_newfstat
 	.llong .sys_uname
-	.llong .sys32_iopl		/* 110 */
+	.llong .sys_ni_syscall		/* 110 old iopl syscall holder */
 	.llong .sys_vhangup
-	.llong .sys_ni_syscall	/* old 'idle' syscall */
-	.llong .sys32_vm86
+	.llong .sys_ni_syscall		/* old 'idle' syscall */
+	.llong .sys_ni_syscall		/* old vm86 syscall holder */
 	.llong .sys32_wait4
 	.llong .sys_swapoff	/* 115 */
 	.llong .sys32_sysinfo
@@ -627,7 +627,7 @@ _GLOBAL(sys_call_table32)
 	.llong .sys32_clone		/* 120 */
 	.llong .sys32_setdomainname
 	.llong .ppc64_newuname
-	.llong .sys32_modify_ldt
+	.llong .sys_ni_syscall		/* old modify_ldt syscall holder */
 	.llong .sys32_adjtimex
 	.llong .sys_mprotect	/* 125 */
 	.llong .sys32_sigprocmask
@@ -683,8 +683,8 @@ _GLOBAL(sys_call_table32)
 	.llong .sys32_rt_sigtimedwait
 	.llong .sys32_rt_sigqueueinfo
 	.llong .sys32_rt_sigsuspend
-	.llong .sys32_pread
-	.llong .sys32_pwrite	        /* 180 */
+	.llong .sys32_pread64
+	.llong .sys32_pwrite64	        /* 180 */
 	.llong .sys_chown
 	.llong .sys_getcwd
 	.llong .sys_capget
@@ -695,7 +695,7 @@ _GLOBAL(sys_call_table32)
 	.llong .sys_ni_syscall		/* streams2 */
 	.llong .sys32_vfork
 	.llong .sys32_getrlimit	        /* 190 */
-	.llong .sys_ni_syscall		/* 191 */	/* Unused */
+	.llong .sys32_readahead
 	.llong .sys_ni_syscall		/* 192 - reserved - mmap2 */
 	.llong .sys32_truncate64	/* 193 - truncate64 */
 	.llong .sys32_ftruncate64	/* 194 - ftruncate64 */
@@ -726,11 +726,12 @@ _GLOBAL(sys_call_table32)
 	.llong .sys_lremovexattr
 	.llong .sys_fremovexattr	/* 220 */
 	.llong .sys_futex
-	.llong .sys_ni_syscall		/* reserved for tux */
 	.llong .sys32_sched_setaffinity
 	.llong .sys32_sched_getaffinity
+	.llong .sys_ni_syscall		/* reserved for security */
+	.llong .sys_ni_syscall		/* 225 - reserved for tux */
 
-	.rept NR_syscalls-224
+	.rept NR_syscalls-225
 		.llong .sys_ni_syscall
 	.endr
 #endif
@@ -838,7 +839,7 @@ _GLOBAL(sys_call_table)
 	.llong .sys_ni_syscall			/* old profil syscall holder */
 	.llong .sys_statfs
 	.llong .sys_fstatfs	/* 100 */
-	.llong .sys_ioperm
+	.llong .sys_ni_syscall		/* old ioperm syscall holder */
 	.llong .sys_socketcall
 	.llong .sys_syslog
 	.llong .sys_setitimer
@@ -847,10 +848,10 @@ _GLOBAL(sys_call_table)
 	.llong .sys_newlstat
 	.llong .sys_newfstat
 	.llong .sys_uname
-	.llong .sys_iopl		/* 110 */
+	.llong .sys_ni_syscall		/* 110 old iopl syscall holder */
 	.llong .sys_vhangup
 	.llong .sys_ni_syscall	/* old 'idle' syscall */
-	.llong .sys_vm86
+	.llong .sys_ni_syscall		/* old vm86 syscall holder */
 	.llong .sys_wait4
 	.llong .sys_swapoff	/* 115 */
 	.llong .sys_sysinfo
@@ -860,7 +861,7 @@ _GLOBAL(sys_call_table)
 	.llong .sys_clone		/* 120 */
 	.llong .sys_setdomainname
 	.llong .ppc64_newuname
-	.llong .sys_modify_ldt
+	.llong .sys_ni_syscall		/* old modify_ldt syscall */
 	.llong .sys_adjtimex
 	.llong .sys_mprotect	/* 125 */
 	.llong .sys_sigprocmask
@@ -928,7 +929,7 @@ _GLOBAL(sys_call_table)
 	.llong .sys_ni_syscall		/* streams2 */
 	.llong .sys_vfork
 	.llong .sys_getrlimit	        /* 190 */
-	.llong .sys_ni_syscall		/* 191 */	/* Unused */
+	.llong .sys_readahead
 	.llong .sys_ni_syscall		/* 192 - reserved - mmap2 */
 	.llong .sys_ni_syscall		/* 193 - reserved - truncate64 */
 	.llong .sys_ni_syscall		/* 194 - reserved - ftruncate64 */
@@ -959,10 +960,11 @@ _GLOBAL(sys_call_table)
 	.llong .sys_lremovexattr
 	.llong .sys_fremovexattr	/* 220 */
 	.llong .sys_futex
-	.llong .sys_ni_syscall		/* reserved for tux */
 	.llong .sys_sched_setaffinity
 	.llong .sys_sched_getaffinity
+	.llong .sys_ni_syscall		/* reserved for security */
+	.llong .sys_ni_syscall		/* reserved for tux */
 
-	.rept NR_syscalls-224
+	.rept NR_syscalls-225
 	.llong .sys_ni_syscall
 	.endr

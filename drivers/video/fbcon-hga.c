@@ -45,7 +45,7 @@ void fbcon_hga_setup(struct display *p)
 {
 	DPRINTK("fbcon_hga_setup: ll:%d\n", (int)p->line_length);
 
-	p->next_line = p->line_length;
+	p->next_line = p->fb_info->fix.line_length;
 	p->next_plane = 0;
 }
 
@@ -214,14 +214,14 @@ void fbcon_hga_clear_margins(struct vc_data *conp, struct display *p,
 	 */
 
 struct display_switch fbcon_hga = {
-	setup:		fbcon_hga_setup,
-	bmove:		fbcon_hga_bmove,
-	clear:		fbcon_hga_clear,
-	putc:		fbcon_hga_putc,
-	putcs:		fbcon_hga_putcs,
-	revc:		fbcon_hga_revc,
-	clear_margins:	fbcon_hga_clear_margins,
-	fontwidthmask:	FONTWIDTH(8)
+	.setup =	fbcon_hga_setup,
+	.bmove =	fbcon_hga_bmove,
+	.clear =	fbcon_hga_clear,
+	.putc =		fbcon_hga_putc,
+	.putcs =	fbcon_hga_putcs,
+	.revc =		fbcon_hga_revc,
+	.clear_margins =fbcon_hga_clear_margins,
+	.fontwidthmask =FONTWIDTH(8)
 };
 
 

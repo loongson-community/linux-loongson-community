@@ -220,6 +220,9 @@ extern unsigned long irq_affinity [NR_IRQS];
 		((1 << cpu) & (allowed_mask))
 
 #if CONFIG_SMP
+
+#define IRQ_BALANCE_INTERVAL (HZ/50)
+	
 static unsigned long move(int curr_cpu, unsigned long allowed_mask, unsigned long now, int direction)
 {
 	int search_idle = 1;
@@ -251,8 +254,12 @@ static inline void balance_irq(int irq)
 	irq_balance_t *entry = irq_balance + irq;
 	unsigned long now = jiffies;
 
-	if (entry->timestamp != now) {
+	if (clustered_apic_mode)
+		return;
+
+	if (unlikely(time_after(now, entry->timestamp + IRQ_BALANCE_INTERVAL))) {
 		unsigned long allowed_mask;
+		unsigned int new_cpu;
 		int random_number;
 
 		rdtscl(random_number);
@@ -260,8 +267,11 @@ static inline void balance_irq(int irq)
 
 		allowed_mask = cpu_online_map & irq_affinity[irq];
 		entry->timestamp = now;
-		entry->cpu = move(entry->cpu, allowed_mask, now, random_number);
-		set_ioapic_affinity(irq, 1 << entry->cpu);
+		new_cpu = move(entry->cpu, allowed_mask, now, random_number);
+		if (entry->cpu != new_cpu) {
+			entry->cpu = new_cpu;
+			set_ioapic_affinity(irq, 1 << new_cpu);
+		}
 	}
 }
 #else /* !SMP */

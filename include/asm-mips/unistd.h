@@ -250,11 +250,16 @@
 #define __NR_futex			(__NR_Linux + 238)
 #define __NR_sched_setaffinity		(__NR_Linux + 239)
 #define __NR_sched_getaffinity		(__NR_Linux + 240)
+#define __NR_io_setup			(__NR_Linux + 241)
+#define __NR_io_destroy			(__NR_Linux + 242)
+#define __NR_io_getevents		(__NR_Linux + 243)
+#define __NR_io_submit			(__NR_Linux + 244)
+#define __NR_io_cancel			(__NR_Linux + 245)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		240
+#define __NR_Linux_syscalls		245
 
 #ifndef __ASSEMBLY__
 
