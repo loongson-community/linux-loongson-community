@@ -483,53 +483,33 @@ static void ioc3_interrupt(int irq, void *_dev, struct pt_regs *regs)
 int ioc3_eth_init(struct net_device *dev, struct ioc3_private *ip,
                   struct ioc3 *ioc3)
 {
-	u16 word, mii0, mii_status, mii2, mii3, mii4;
+	u16 mii0, mii_status, mii2, mii3, mii4;
 	u32 vendor, model, rev;
-	int i, phy;
-
-	ioc3->emcr = EMCR_RST;			/* Reset		*/
-	ioc3->emcr;				/* flush WB		*/
-	udelay(4);				/* Give it time ...	*/
-	ioc3->emcr = 0;
 
 	spin_lock_irq(&ip->ioc3_lock);
-	phy = -1;
-	for (i = 0; i < 32; i++) {
-		word = mii_read(ioc3, i, 2);
-		if ((word != 0xffff) & (word != 0x0000)) {
-			phy = i;
-			break;			/* Found a PHY		*/
-		}
-	}
-	if (phy == -1) {
-		spin_unlock_irq(&ip->ioc3_lock);
-		printk("Didn't find a PHY, goodbye.\n");
-		return -ENODEV;
-	}
-	ip->phy = phy;
 
-	mii0 = mii_read(ioc3, phy, 0);
-	mii_status = mii_read(ioc3, phy, 1);
-	mii2 = mii_read(ioc3, phy, 2);
-	mii3 = mii_read(ioc3, phy, 3);
-	mii4 = mii_read(ioc3, phy, 4);
+	mii0 = mii_read(ioc3, ip->phy, 0);
+	mii_status = mii_read(ioc3, ip->phy, 1);
+	mii2 = mii_read(ioc3, ip->phy, 2);
+	mii3 = mii_read(ioc3, ip->phy, 3);
+	mii4 = mii_read(ioc3, ip->phy, 4);
 	vendor = (mii2 << 12) | (mii3 >> 4);
 	model  = (mii3 >> 4) & 0x3f;
 	rev    = mii3 & 0xf;
 	printk("Ok, using PHY %d, vendor 0x%x, model %d, rev %d.\n",
-	       phy, vendor, model, rev);
+	       ip->phy, vendor, model, rev);
 	printk(KERN_INFO "%s:  MII transceiver found at MDIO address "
 	       "%d, config %4.4x status %4.4x.\n",
-	       dev->name, phy, mii0, mii_status);
+	       dev->name, ip->phy, mii0, mii_status);
 
 	/* Autonegotiate 100mbit and fullduplex. */
-	mii_write(ioc3, phy, 0, mii0 | 0x3100);
+	mii_write(ioc3, ip->phy, 0, mii0 | 0x3100);
 
 	spin_unlock_irq(&ip->ioc3_lock);
 	mdelay(1000);				/* XXX Yikes XXX */
 	spin_lock_irq(&ip->ioc3_lock);
 
-	mii_status = mii_read(ioc3, phy, 1);
+	mii_status = mii_read(ioc3, ip->phy, 1);
 	spin_unlock_irq(&ip->ioc3_lock);
 
 	return 0;	/* XXX */
@@ -620,31 +600,51 @@ ioc3_ssram_disc(struct ioc3_private *ip)
 	}
 }
 
-static void ioc3_init(struct pci_dev *pdev)
+static int ioc3_probe1(struct pci_dev *pdev)
 {
 	struct net_device *dev = NULL;	// XXX
 	struct ioc3_private *ip;
 	struct ioc3 *ioc3;
 	unsigned long ioc3_base, ioc3_size;
-
-	dev = init_etherdev(dev, 0);
-
-	/*
-	 * This probably needs to be register_netdevice, or call
-	 * init_etherdev so that it calls register_netdevice. Quick
-	 * hack for now.
-	 */
-	netif_device_attach(dev);
-
-	ip = (struct ioc3_private *) kmalloc(sizeof(*ip), GFP_KERNEL);
-	memset(ip, 0, sizeof(*ip));
-	dev->priv = ip;
-	dev->irq = pdev->irq;
+	int phy;
+	u16 word;
 
 	ioc3_base = pdev->resource[0].start;
 	ioc3_size = pdev->resource[0].end - ioc3_base;
 	ioc3 = (struct ioc3 *) ioremap(ioc3_base, ioc3_size);
+
+	/* Probe for a PHY first ... */
+
+	ioc3->emcr = EMCR_RST;			/* Reset		*/
+	ioc3->emcr;				/* flush WB		*/
+	udelay(4);				/* Give it time ...	*/
+	ioc3->emcr = 0;
+
+	for (phy = 31; phy > 0; phy--) {
+		word = mii_read(ioc3, phy, 2);
+		if (word == 0x0000)
+			return -ENODEV;		/* No PHY connected */
+		if (word != 0xffff)
+			break;			/* Found a PHY */
+	}
+	if (phy == -1) {
+		printk("No PHY present?\n");
+		return -ENODEV;
+	}
+
+	dev = init_etherdev(dev, 0);
+
+	ip = (struct ioc3_private *) kmalloc(sizeof(*ip), GFP_KERNEL);
+	if (ip == NULL) {
+		printk(KERN_ERR "ioc3: Unable to allocate memory\n");
+		return -ENOMEM;
+	}
+	memset(ip, 0, sizeof(*ip));
+	dev->priv = ip;
+	dev->irq = pdev->irq;
+
 	ip->regs = ioc3;
+	ip->phy = phy;
 
 	ioc3_eth_init(dev, ip, ioc3);
 	ioc3_ssram_disc(ip);
@@ -676,25 +676,29 @@ static void ioc3_init(struct pci_dev *pdev)
 	dev->get_stats		= ioc3_get_stats;
 	dev->do_ioctl		= ioc3_ioctl;
 	dev->set_multicast_list	= ioc3_set_multicast_list;
+
+	ether_setup(dev);
+
+	return 0;
 }
 
 static int __init ioc3_probe(void)
 {
 	static int called = 0;
-	struct ioc3 *ioc3;
 	int cards;
 
 	if (called)
 		return -ENODEV;
 	called = 1;
 
+	cards = 0;
 	if (pci_present()) {
 		struct pci_dev *pdev = NULL;
 
 		while ((pdev = pci_find_device(PCI_VENDOR_ID_SGI,
-		                               PCI_DEVICE_ID_SGI_IOC3, pdev))) {
-			ioc3_init(pdev);
-		}
+		                               PCI_DEVICE_ID_SGI_IOC3, pdev)))
+			if (ioc3_probe1(pdev) == 0)
+				cards++;
 	}
 
 	return cards ? -ENODEV : 0;
