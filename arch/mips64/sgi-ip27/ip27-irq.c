@@ -1,4 +1,4 @@
-/* $Id: ip27-irq.c,v 1.4 2000/01/31 19:48:11 kanoj Exp $
+/* $Id: ip27-irq.c,v 1.5 2000/02/04 07:40:24 ralf Exp $
  *
  * ip27-irq.c: Highlevel interrupt handling for IP27 architecture.
  *
@@ -231,9 +231,15 @@ static void bridge_init(void)
 	/* Hmm...  IRIX sets additional bits in the address which are
 	   documented as reserved in the bridge docs ...  */
 	bridge->b_int_mode = 0x0;			/* Don't clear ints */
+#if 0
 	bridge->b_wid_int_upper = 0x000a8000;           /* Ints to node 0 */
 	bridge->b_wid_int_lower = 0x01000090;
 	bridge->b_dir_map = 0xa00000;			/* DMA */
+#endif /* shouldn't lower= 0x01800090 ??? */
+        bridge->b_wid_int_upper = 0x00098000;           /* Ints to node 0 */
+        bridge->b_wid_int_lower = 0x01800090;
+        bridge->b_dir_map = 0x900000;                   /* DMA */
+
 	bridge->b_int_enable = 0;
 	bridge->b_widget.w_tflush;			/* Flush */
 	set_cp0_status(SRB_DEV0 | SRB_DEV1, SRB_DEV0 | SRB_DEV1);
