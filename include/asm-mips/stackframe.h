@@ -26,8 +26,10 @@
 
 		.macro	SAVE_TEMP
 		mfhi	v1
+#ifdef CONFIG_MIPS32
 		LONG_S	$8, PT_R8(sp)
 		LONG_S	$9, PT_R9(sp)
+#endif
 		LONG_S	v1, PT_HI(sp)
 		mflo	v1
 		LONG_S	$10, PT_R10(sp)
@@ -137,6 +139,10 @@
 		LONG_S	$6, PT_R6(sp)
 		MFC0	v1, CP0_EPC
 		LONG_S	$7, PT_R7(sp)
+#ifdef CONFIG_MIPS64
+		LONG_S	$8, PT_R8(sp)
+		LONG_S	$9, PT_R9(sp)
+#endif
 		LONG_S	v1, PT_EPC(sp)
 		LONG_S	$25, PT_R25(sp)
 		LONG_S	$28, PT_R28(sp)
@@ -163,8 +169,10 @@
 
 		.macro	RESTORE_TEMP
 		LONG_L	$24, PT_LO(sp)
+#ifdef CONFIG_MIPS32
 		LONG_L	$8, PT_R8(sp)
 		LONG_L	$9, PT_R9(sp)
+#endif
 		mtlo	$24
 		LONG_L	$24, PT_HI(sp)
 		LONG_L	$10, PT_R10(sp)
@@ -209,6 +217,10 @@
 		LONG_L	$31, PT_R31(sp)
 		LONG_L	$28, PT_R28(sp)
 		LONG_L	$25, PT_R25(sp)
+#ifdef CONFIG_MIPS64
+		LONG_L	$8, PT_R8(sp)
+		LONG_L	$9, PT_R9(sp)
+#endif
 		LONG_L	$7,  PT_R7(sp)
 		LONG_L	$6,  PT_R6(sp)
 		LONG_L	$5,  PT_R5(sp)
