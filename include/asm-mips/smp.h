@@ -16,6 +16,7 @@
 #ifdef CONFIG_SMP
 
 #include <linux/bitops.h>
+#include <linux/linkage.h>
 #include <linux/threads.h>
 #include <linux/cpumask.h>
 #include <asm/atomic.h>
@@ -58,6 +59,8 @@ static inline int num_booting_cpus(void)
 {
 	return cpus_weight(cpu_callout_map);
 }
+
+extern void asmlinkage smp_bootstrap(void);
 
 #endif /* CONFIG_SMP */
 

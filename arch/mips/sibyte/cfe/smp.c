@@ -62,7 +62,6 @@ void prom_prepare_cpus(void)
 int prom_boot_secondary(int cpu, struct task_struct *idle)
 {
 	int retval;
-	extern void asmlinkage smp_bootstrap(void);
 	
 	retval = cfe_cpu_start(cpu_logical_map(cpu), &smp_bootstrap,
 			       __KSTK_TOS(idle),
