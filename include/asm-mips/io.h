@@ -248,10 +248,12 @@ static inline void iounmap(void *addr)
 #define __raw_readw(addr)	(*(volatile unsigned short *)(addr))
 #define __raw_readl(addr)	(*(volatile unsigned int *)(addr))
 #ifdef CONFIG_MIPS32
-#define ____raw_readq(addr)						\
+#define __raw_readq(addr)						\
 ({									\
+	unsigned long __flags;						\
 	u64 __res;							\
 									\
+	local_irq_save(__flags);					\
 	__asm__ __volatile__ (						\
 		"	.set	mips3		# ____raw_readq	\n"	\
 		"	ld	%L0, (%1)			\n"	\
@@ -260,25 +262,13 @@ static inline void iounmap(void *addr)
 		"	.set	mips0				\n"	\
 		: "=r" (__res)						\
 		: "r" (addr));						\
-									\
+	local_irq_restore(__flags);					\
 	__res;								\
 })
 #endif
 #ifdef CONFIG_MIPS64
-#define ____raw_readq(addr)	(*(volatile unsigned long *)(addr))
+#define __raw_readq(addr)	(*(volatile unsigned long *)(addr))
 #endif
-
-#define __raw_readq(addr)						\
-({									\
-	unsigned long __flags;						\
-	u64 __res;							\
-									\
-	local_irq_save(__flags);					\
-	__res = ____raw_readq(addr);					\
-	local_irq_restore(__flags);					\
-									\
-	__res;								\
-})
 
 #define readb(addr)		__ioswab8(__raw_readb(addr))
 #define readw(addr)		__ioswab16(__raw_readw(addr))
@@ -289,10 +279,12 @@ static inline void iounmap(void *addr)
 #define __raw_writew(w,addr)	((*(volatile unsigned short *)(addr)) = (w))
 #define __raw_writel(l,addr)	((*(volatile unsigned int *)(addr)) = (l))
 #ifdef CONFIG_MIPS32
-#define ____raw_writeq(val,addr)					\
+#define __raw_writeq(val,addr)						\
 ({									\
+	unsigned long __flags;						\
 	u64 __tmp;							\
 									\
+	local_irq_save(__flags);					\
 	__asm__ __volatile__ (						\
 		"	.set	mips3				\n"	\
 		"	dsll32	%L0, %L0, 0	# ____raw_writeq\n"	\
@@ -303,20 +295,12 @@ static inline void iounmap(void *addr)
 		"	.set	mips0				\n"	\
 		: "=r" (__tmp)						\
 		: "0" ((unsigned long long)val), "r" (addr));		\
+	local_irq_restore(__flags);					\
 })
 #endif
 #ifdef CONFIG_MIPS64
-#define ____raw_writeq(l,addr)	((*(volatile unsigned long *)(addr)) = (l))
+#define __raw_writeq(l,addr)	((*(volatile unsigned long *)(addr)) = (l))
 #endif
-
-#define __raw_writeq(val,addr)						\
-({									\
-	unsigned long __flags;						\
-									\
-	local_irq_save(__flags);					\
-	____raw_writeq(val, addr);					\
-	local_irq_restore(__flags);					\
-})
 
 #define writeb(b,addr)		__raw_writeb(__ioswab8(b),(addr))
 #define writew(w,addr)		__raw_writew(__ioswab16(w),(addr))
