@@ -776,10 +776,10 @@ asmlinkage void cache_parity_error(void)
 
 #if defined(CONFIG_CPU_MIPS32) || defined (CONFIG_CPU_MIPS64)
 	if (reg_val & (1<<22))
-		printk("DErrAddr0: 0x%08x\n", read_c0_derraddr0());
+		printk("DErrAddr0: 0x%0*lx\n", field, read_c0_derraddr0());
 
 	if (reg_val & (1<<23))
-		printk("DErrAddr1: 0x%08x\n", read_c0_derraddr1());
+		printk("DErrAddr1: 0x%0*lx\n", field, read_c0_derraddr1());
 #endif
 
 	panic("Can't handle the cache error!");
