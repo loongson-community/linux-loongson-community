@@ -172,8 +172,8 @@ CFLAGS		+= $(cflags-y)
 
 HEAD := arch/mips64/kernel/head.o arch/mips64/kernel/init_task.o
 
-libs-y		+= arch/mips64/lib
-core-y		+= arch/mips64/kernel arch/mips64/mm arch/mips/math-emu
+libs-y		+= arch/mips64/lib/
+core-y		+= arch/mips64/kernel/ arch/mips64/mm/ arch/mips/math-emu/
 
 MAKEBOOT = $(MAKE) -C arch/$(ARCH)/boot
 
