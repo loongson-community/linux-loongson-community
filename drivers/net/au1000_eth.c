@@ -90,8 +90,6 @@ extern inline void str2eaddr(unsigned char *ea, unsigned char *str);
 extern inline unsigned char str2hexnum(unsigned char c);
 extern char * __init prom_getcmdline(void);
 
-static int next_dev;
-
 /*
  * Theory of operation
  *
@@ -121,7 +119,7 @@ static struct {
 
 
 static char version[] __devinitdata =
-    "au1000eth.c:0.1 ppopov@mvista.com\n";
+    "au1000eth.c:0.2 ppopov@mvista.com\n";
 
 /* These addresses are only used if yamon doesn't tell us what
  * the mac address is, and the mac address is not passed on the
@@ -518,34 +516,20 @@ setup_hw_rings(struct au1000_private *aup, u32 rx_base, u32 tx_base)
 	}
 }
 
-/*
- * Probe for a AU1000 ethernet controller.
- */
-int __init au1000_probe(struct net_device *dev)
+static int __init au1000_init_module(void)
 {
-	int base_addr = au1000_iflist[next_dev].port;
-	int irq = au1000_iflist[next_dev].irq;
+	int i;
+	int base_addr, irq;
 
-#ifndef CONFIG_MIPS_AU1000_ENET
-	return -ENODEV;
-#endif
-
-	if (au1000_debug > 4)
-		printk(KERN_INFO "%s: au1000_probe base_addr %x\n", 
-				dev->name, base_addr);
-
-	if (next_dev >= NUM_INTERFACES) {
-		return -ENODEV;
+	for (i=0; i<NUM_INTERFACES; i++) {
+		base_addr = au1000_iflist[i].port;
+		irq = au1000_iflist[i].irq;
+		if (au1000_probe1(NULL, base_addr, irq, i) != 0) {
+			return -ENODEV;
+		}
 	}
-	if (au1000_probe1(dev, base_addr, irq, next_dev) == 0) {
-		next_dev++;
-		return 0;
-	}
-	next_dev++;
-	return -ENODEV;
+	return 0;
 }
-
-
 
 static int __init
 au1000_probe1(struct net_device *dev, long ioaddr, int irq, int port_num)
@@ -875,6 +859,10 @@ static int au1000_close(struct net_device *dev)
 	reset_mac(dev);
 	MOD_DEC_USE_COUNT;
 	return 0;
+}
+
+static void __exit au1000_cleanup_module(void)
+{
 }
 
 
@@ -1290,3 +1278,6 @@ static struct net_device_stats *au1000_get_stats(struct net_device *dev)
 	}
 	return 0;
 }
+
+module_init(au1000_init_module);
+module_exit(au1000_cleanup_module);

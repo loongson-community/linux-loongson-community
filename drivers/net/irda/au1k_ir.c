@@ -274,19 +274,19 @@ static int au1k_irda_net_init(struct net_device *dev)
 	for (i=0; i<NUM_IR_DESC; i++) {
 		pDB = GetFreeDB(aup);
 		if (!pDB) goto out;
-		aup->rx_ring[i]->addr_0 = (u8)((u32)pDB->dma_addr & 0xff);
-		aup->rx_ring[i]->addr_1 = (u8)(((u32)pDB->dma_addr>>8) & 0xff);
-		aup->rx_ring[i]->addr_2 = (u8)(((u32)pDB->dma_addr>>16) & 0xff);
-		aup->rx_ring[i]->addr_3 = (u8)(((u32)pDB->dma_addr>>24) & 0xff);
+		aup->rx_ring[i]->addr_0 = (u8)(pDB->dma_addr & 0xff);
+		aup->rx_ring[i]->addr_1 = (u8)((pDB->dma_addr>>8) & 0xff);
+		aup->rx_ring[i]->addr_2 = (u8)((pDB->dma_addr>>16) & 0xff);
+		aup->rx_ring[i]->addr_3 = (u8)((pDB->dma_addr>>24) & 0xff);
 		aup->rx_db_inuse[i] = pDB;
 	}
 	for (i=0; i<NUM_IR_DESC; i++) {
 		pDB = GetFreeDB(aup);
 		if (!pDB) goto out;
-		aup->tx_ring[i]->addr_0 = (u8)((u32)pDB->dma_addr & 0xff);
-		aup->tx_ring[i]->addr_1 = (u8)(((u32)pDB->dma_addr>>8) & 0xff);
-		aup->tx_ring[i]->addr_2 = (u8)(((u32)pDB->dma_addr>>16) & 0xff);
-		aup->tx_ring[i]->addr_3 = (u8)(((u32)pDB->dma_addr>>24) & 0xff);
+		aup->tx_ring[i]->addr_0 = (u8)(pDB->dma_addr & 0xff);
+		aup->tx_ring[i]->addr_1 = (u8)((pDB->dma_addr>>8) & 0xff);
+		aup->tx_ring[i]->addr_2 = (u8)((pDB->dma_addr>>16) & 0xff);
+		aup->tx_ring[i]->addr_3 = (u8)((pDB->dma_addr>>24) & 0xff);
 		aup->tx_ring[i]->count_0 = 0;
 		aup->tx_ring[i]->count_1 = 0;
 		aup->tx_ring[i]->flags = 0;
@@ -295,7 +295,6 @@ static int au1k_irda_net_init(struct net_device *dev)
 	return 0;
 
 out:
-	unregister_netdev(dev);
 	if (aup->db[0].vaddr) 
 		dma_free((void *)aup->db[0].vaddr, 
 				MAX_BUF_SIZE * 2*NUM_IR_DESC);
@@ -305,7 +304,7 @@ out:
 		kfree(aup->rx_buff.head);
 	if (dev->priv != NULL)
 		kfree(dev->priv);
-	kfree(dev);
+	unregister_netdevice(dev);
 	printk(KERN_ERR "%s: au1k_init_module failed.  Returns %d\n",
 	       dev->name, retval);
 	return retval;
@@ -400,6 +399,12 @@ static int au1k_irda_stop(struct net_device *dev)
 {
 	struct au1k_private *aup = (struct au1k_private *) dev->priv;
 
+	/* disable interrupts */
+	writel(read_ir_reg(IR_CONFIG_2) & ~(1<<8), IR_CONFIG_2);
+	writel(0, IR_CONFIG_1); 
+	writel(0, IR_INTERFACE_CONFIG); /* disable clock */
+	au_sync();
+
 	if (aup->irlap) {
 		irlap_close(aup->irlap);
 		aup->irlap = NULL;
@@ -407,13 +412,6 @@ static int au1k_irda_stop(struct net_device *dev)
 
 	netif_stop_queue(dev);
 	del_timer(&aup->timer);
-
-	/* disable interrupts */
-	writel(read_ir_reg(IR_CONFIG_2) & ~(1<<8), IR_CONFIG_2);
-	writel(0, IR_CONFIG_1); 
-	writel(0, IR_INTERFACE_CONFIG); /* disable clock */
-	au_sync();
-
 
 	/* disable the interrupt */
 	free_irq(AU1000_IRDA_TX_INT, dev);
@@ -441,8 +439,9 @@ static void __exit au1k_irda_exit(void)
 				2*MAX_NUM_IR_DESC*(sizeof(ring_dest_t)));
 		aup->rx_ring[0] = 0;
 	}
-	unregister_netdev(dev);
-	kfree(dev);
+	rtnl_lock();
+	unregister_netdevice(dev);
+	rtnl_unlock();
 	ir_devs[0] = 0;
 }
 
@@ -486,57 +485,22 @@ static void au1k_tx_ack(struct net_device *dev)
 	}
 
 	if (aup->tx_tail == aup->tx_head) {
-		writel(read_ir_reg(IR_CONFIG_1) & ~IR_TX_ENABLE, IR_CONFIG_1); 
-		au_sync();
-		writel(read_ir_reg(IR_CONFIG_1) | IR_RX_ENABLE, IR_CONFIG_1); 
-		writel(0, IR_RING_PROMPT);
-		au_sync();
-
-		if (aup->newspeed)
+		if (aup->newspeed) {
 			au1k_irda_set_speed(dev, aup->newspeed);
-		aup->newspeed = 0;
+			aup->newspeed = 0;
+		}
+		else {
+			writel(read_ir_reg(IR_CONFIG_1) & ~IR_TX_ENABLE, 
+					IR_CONFIG_1); 
+			au_sync();
+			writel(read_ir_reg(IR_CONFIG_1) | IR_RX_ENABLE, 
+					IR_CONFIG_1); 
+			writel(0, IR_RING_PROMPT);
+			au_sync();
+		}
 	}
 }
 
-void dump_tx_desc(struct net_device *dev)
-{
-	struct au1k_private *aup = (struct au1k_private *) dev->priv;
-	volatile ring_dest_t *ptxd = aup->tx_ring[aup->tx_head];
-	int i;
-	u32 ring_stat;
-
-	printk("dumping tx desc:  tx_head %d tx_tail %d\n",
-			aup->tx_head, aup->tx_tail);
-	ring_stat = read_ir_reg(IR_RING_PTR_STATUS);
-	printk("rx ring ptr %d, tx ring ptr %d\n", 
-			ring_stat & 0x3f, (ring_stat >> 8) & 0x3f);
-
-	for (i=0; i<NUM_IR_DESC; i++) {
-		ptxd = aup->tx_ring[i];
-
-		printk("tx ptxd %x\n", ptxd);
-		printk("count_0 %x\n", ptxd->count_0);
-		printk("count_1 %x\n", ptxd->count_1);
-		printk("flags %x\n", ptxd->flags);
-		printk("addr_0 %x\n", ptxd->addr_0);
-		printk("addr_1 %x\n", ptxd->addr_1);
-		printk("addr_2 %x\n", ptxd->addr_2);
-		printk("addr_3 %x\n\n", ptxd->addr_3);
-	}
-
-	for (i=0; i<NUM_IR_DESC; i++) {
-		ptxd = aup->rx_ring[i];
-
-		printk("rx ptxd %x\n", ptxd);
-		printk("count_0 %x\n", ptxd->count_0);
-		printk("count_1 %x\n", ptxd->count_1);
-		printk("flags %x\n", ptxd->flags);
-		printk("addr_0 %x\n", ptxd->addr_0);
-		printk("addr_1 %x\n", ptxd->addr_1);
-		printk("addr_2 %x\n", ptxd->addr_2);
-		printk("addr_3 %x\n\n", ptxd->addr_3);
-	}
-}
 
 /*
  * Au1000 transmit routine.
@@ -555,10 +519,11 @@ static int au1k_irda_hard_xmit(struct sk_buff *skb, struct net_device *dev)
 		aup->newspeed = speed;
 	}
 
-	if (skb->len == 0) {
-		if (aup->newspeed)
+	if ((skb->len == 0) && (aup->newspeed)) {
+		if (aup->tx_tail == aup->tx_head) {
 			au1k_irda_set_speed(dev, speed);
-		aup->newspeed = 0;
+			aup->newspeed = 0;
+		}
 		dev_kfree_skb(skb);
 		return 0;
 	}
@@ -567,11 +532,13 @@ static int au1k_irda_hard_xmit(struct sk_buff *skb, struct net_device *dev)
 	flags = ptxd->flags;
 
 	if (flags & AU_OWN) {
+		printk(KERN_INFO "%s: tx_full\n", dev->name);
 		netif_stop_queue(dev);
 		aup->tx_full = 1;
 		return 1;
 	}
 	else if (((aup->tx_head + 1) & (NUM_IR_DESC - 1)) == aup->tx_tail) {
+		printk(KERN_INFO "%s: tx_full\n", dev->name);
 		netif_stop_queue(dev);
 		aup->tx_full = 1;
 		return 1;
@@ -709,10 +676,15 @@ void au1k_irda_interrupt(int irq, void *dev_id, struct pt_regs *regs)
  */
 static void au1k_tx_timeout(struct net_device *dev)
 {
+	u32 speed;
 	struct au1k_private *aup = (struct au1k_private *) dev->priv;
 
 	printk(KERN_ERR "%s: tx timeout\n", dev->name);
-	au1k_irda_set_speed(dev, aup->speed);
+	speed = aup->speed;
+	aup->speed = 0;
+	au1k_irda_set_speed(dev, speed);
+	aup->tx_full = 0;
+	netif_wake_queue(dev);
 }
 
 
@@ -744,7 +716,8 @@ au1k_irda_set_speed(struct net_device *dev, int speed)
 	while (read_ir_reg(IR_ENABLE) & (IR_RX_STATUS | IR_TX_STATUS)) {
 		mdelay(1);
 		if (!timeout--) {
-			printk("rx/tx disable timeout\n");
+			printk(KERN_ERR "%s: rx/tx disable timeout\n",
+					dev->name);
 			break;
 		}
 	}

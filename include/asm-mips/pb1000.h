@@ -73,6 +73,7 @@
 /* VPPEN1 - VPPEN0 */
 #define VPP_GND ((0<<1) | (0<<0))
 #define VPP_5V  ((1<<1) | (0<<0))
+#define VPP_3V  ((0<<1) | (1<<0))
 #define VPP_12V ((0<<1) | (1<<0))
 #define VPP_HIZ ((1<<1) | (1<<0))
 
