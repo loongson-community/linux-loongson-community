@@ -52,11 +52,9 @@ void __init sgihpc_init(void)
 	if ((sid & 1) == 0 ) {
 		HPC_DEBUG("GUINESS ");
 		sgi_guiness = 1;
-		mips_machtype = MACH_SGI_INDY;
-		system_type =  "SGI Indy";
+		system_type = "SGI Indy";
 	} else {
 		HPC_DEBUG("FULLHOUSE ");
-		mips_machtype = MACH_SGI_INDIGO2;
 		sgi_guiness = 0;
 		system_type = "SGI Indigo2";
 	}

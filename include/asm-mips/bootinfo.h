@@ -83,17 +83,15 @@
 /*
  * Valid machtype for group SGI
  */
-#define MACH_SGI_INDY		0	/* R4?K and R5K Indy workstations */
-#define MACH_SGI_CHALLENGE_S	1	/* The Challenge S server */
-#define MACH_SGI_INDIGO2	2	/* The Indigo2 system */
-#define MACH_SGI_IP27		3	/* Origin 200, Origin 2000, Onyx 2 */
-#define MACH_SGI_IP28		4	/* Indigo2 Impact */
-#define MACH_SGI_IP32		5	/* O2 */
+#define MACH_SGI_IP22		0	/* Indy, Indigo2, Challenge S */
+#define MACH_SGI_IP27		1	/* Origin 200, Origin 2000, Onyx 2 */
+#define MACH_SGI_IP28		2	/* Indigo2 Impact */
+#define MACH_SGI_IP32		3	/* O2 */
 
 /*
  * Valid machtype for group COBALT
  */
-#define MACH_COBALT_27 		 0	/* Proto "27" hardware */
+#define MACH_COBALT_27		0	/* Proto "27" hardware */
 
 /*
  * Valid machtype for group NEC DDB
