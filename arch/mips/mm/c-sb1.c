@@ -335,7 +335,7 @@ static inline void protected_writeback_dcache_line(unsigned long addr)
  * but things that "seem to work" when I don't understand *why* they
  * "seem to work" disturb me greatly...JDC
  */
-static void sb1_flush_cache_sigtramp(unsigned long addr)
+static void local_sb1_flush_cache_sigtramp(unsigned long addr)
 {
 	unsigned long daddr, iaddr;
 	
@@ -346,6 +346,19 @@ static void sb1_flush_cache_sigtramp(unsigned long addr)
 	protected_flush_icache_line(iaddr);
 	protected_flush_icache_line(iaddr + icache_line_size);
 }
+
+#ifdef CONFIG_SMP
+extern void sb1_flush_cache_sigtramp_ipi(void *ignored);
+asm("sb1_flush_cache_sigtramp_ipi = local_sb1_flush_cache_sigtramp");
+
+static void sb1_flush_cache_sigtramp(unsigned long addr)
+{
+	smp_call_function(sb1_flush_cache_sigtramp_ipi, (void *) addr, 1, 1);
+	local_sb1_flush_cache_sigtramp(addr);
+}
+#else
+asm("sb1_flush_cache_sigtramp = local_sb1_flush_cache_sigtramp");
+#endif
 
 static void sb1_flush_icache_all(void)
 {
