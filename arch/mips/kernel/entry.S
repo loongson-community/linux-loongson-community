@@ -64,7 +64,7 @@ need_resched:
 #endif
 
 FEXPORT(ret_from_fork)
-	jal	schedule_tail
+	jal	schedule_tail		# a0 = task_t *prev
 
 FEXPORT(syscall_exit)
 	local_irq_disable		# make sure need_resched and
