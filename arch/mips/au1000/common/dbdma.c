@@ -269,7 +269,7 @@ au1xxx_dbdma_chan_alloc(u32 srcid, u32 destid,
 				/* If kmalloc fails, it is caught below same
 				 * as a channel not available.
 				 */
-				ctp = (chan_tab_t *)kmalloc(sizeof(chan_tab_t), GFP_KERNEL);
+				ctp = kmalloc(sizeof(chan_tab_t), GFP_KERNEL);
 				chan_tab_ptr[i] = ctp;
 				ctp->chan_index = chan = i;
 				break;
@@ -370,7 +370,7 @@ au1xxx_dbdma_ring_alloc(u32 chanid, int entries)
 	 * and if we try that first we are likely to not waste larger
 	 * slabs of memory.
 	 */
-	desc_base = (u32)kmalloc(entries * sizeof(au1x_ddma_desc_t), GFP_KERNEL);
+	desc_base = kmalloc(entries * sizeof(au1x_ddma_desc_t), GFP_KERNEL);
 	if (desc_base == 0)
 		return 0;
 	
@@ -381,7 +381,7 @@ au1xxx_dbdma_ring_alloc(u32 chanid, int entries)
 		kfree((const void *)desc_base);
 		i = entries * sizeof(au1x_ddma_desc_t);
 		i += (sizeof(au1x_ddma_desc_t) - 1);
-		if ((desc_base = (u32)kmalloc(i, GFP_KERNEL)) == 0)
+		if ((desc_base = kmalloc(i, GFP_KERNEL)) == 0)
 			return 0;
 
 		desc_base = ALIGN_ADDR(desc_base, sizeof(au1x_ddma_desc_t));

@@ -265,9 +265,8 @@ static unsigned int load_irix_interp(struct elfhdr * interp_elf_ex,
 	    return 0xffffffff;
 	}
 
-	elf_phdata =  (struct elf_phdr *)
-		kmalloc(sizeof(struct elf_phdr) * interp_elf_ex->e_phnum,
-			GFP_KERNEL);
+	elf_phdata = kmalloc(sizeof(struct elf_phdr) * interp_elf_ex->e_phnum,
+			     GFP_KERNEL);
 
 	if(!elf_phdata) {
           printk("Cannot kmalloc phdata for IRIX interp.\n");
@@ -436,9 +435,8 @@ static inline int look_for_irix_interpreter(char **name,
 		if (*name != NULL)
 			goto out;
 
-		*name = (char *) kmalloc((epp->p_filesz +
-					  strlen(IRIX_INTERP_PREFIX)),
-					 GFP_KERNEL);
+		*name = kmalloc((epp->p_filesz + strlen(IRIX_INTERP_PREFIX)),
+				GFP_KERNEL);
 		if (!*name)
 			return -ENOMEM;
 
@@ -611,7 +609,7 @@ static int load_irix_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 	size = elf_ex.e_phentsize * elf_ex.e_phnum;
 	if (size > 65536)
 		goto out;
-	elf_phdata = (struct elf_phdr *) kmalloc(size, GFP_KERNEL);
+	elf_phdata = kmalloc(size, GFP_KERNEL);
 	if (elf_phdata == NULL) {
 		retval = -ENOMEM;
 		goto out;
@@ -814,8 +812,7 @@ static int load_irix_library(struct file *file)
 	if(sizeof(struct elf_phdr) * elf_ex.e_phnum > PAGE_SIZE)
 		return -ENOEXEC;
 
-	elf_phdata =  (struct elf_phdr *)
-		kmalloc(sizeof(struct elf_phdr) * elf_ex.e_phnum, GFP_KERNEL);
+	elf_phdata = kmalloc(sizeof(struct elf_phdr) * elf_ex.e_phnum, GFP_KERNEL);
 	if (elf_phdata == NULL)
 		return -ENOMEM;
 
