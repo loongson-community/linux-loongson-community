@@ -24,8 +24,8 @@
 /*
  *   Duart I/O ports.
  */
-#define EV96100_COM1_BASE_ADDR  (0x1d000000 + 0x20) 
-#define EV96100_COM2_BASE_ADDR  (0x1d000000 + 0x00)
+#define EV96100_COM1_BASE_ADDR  (0xBD000000 + 0x20) 
+#define EV96100_COM2_BASE_ADDR  (0xBD000000 + 0x00)
 
 
 /*
