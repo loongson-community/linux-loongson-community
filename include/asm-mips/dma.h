@@ -1,4 +1,4 @@
-/* $Id: dma.h,v 1.4 1999/10/09 00:01:42 ralf Exp $
+/* $Id: dma.h,v 1.5 1999/10/17 19:55:23 harald Exp $
  * linux/include/asm/dma.h: Defines for using and allocating dma channels.
  * Written by Hennus Bergman, 1992.
  * High DMA channel support & info by Hannu Savolainen
@@ -298,5 +298,11 @@ static __inline__ int get_dma_residue(unsigned int dmanr)
 /* These are in kernel/dma.c: */
 extern int request_dma(unsigned int dmanr, const char * device_id);	/* reserve a DMA channel */
 extern void free_dma(unsigned int dmanr);	/* release it again */
+
+#ifdef CONFIG_PCI
+extern int isa_dma_bridge_buggy;
+#else
+#define isa_dma_bridge_buggy 	(0)
+#endif
 
 #endif /* __ASM_MIPS_DMA_H */
