@@ -1617,12 +1617,11 @@ CONFIG_DDB5476
   This enables support for the R5432-based NEC DDB Vrc-5476
   evaluation board.
 
-  Features : kernel debugging, serial terminal, NFS root fs.
+  Features : kernel debugging, serial terminal, NFS root fs, on-board
+  ether port (with a patch to tulip driver), IDE controller, PS2 keyboard
+  PS2 mouse, etc.
 
-  Limits : on-board ether chip does not work yet.  Use external
-  PCI slot and NE2000-PCI compatible card.
-
-  TODO : Compact-PCI interface; Enable more Ali M1543 features.
+  TODO : USB, Compact-PCI interface.
 
 Support for MIPS Atlas board
 CONFIG_DDB5074
