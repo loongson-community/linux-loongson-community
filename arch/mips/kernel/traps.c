@@ -91,8 +91,6 @@ void simulate_sc(struct pt_regs *regs, unsigned int opcode);
 #define OFFSET 0x0000ffff
 #define LL     0xc0000000
 #define SC     0xe0000000
-
-#undef DEBUG_LLSC
 #endif
 
 /*
@@ -505,10 +503,6 @@ void simulate_ll(struct pt_regs *regp, unsigned int opcode)
 
 	vaddr = (unsigned long *)((long)(regp->regs[(opcode & BASE) >> 21]) + offset);
 
-#ifdef DEBUG_LLSC
-	printk("ll: vaddr = 0x%08x, reg = %d\n", (unsigned int)vaddr, (opcode & RT) >> 16);
-#endif
-
 #ifdef CONFIG_PROC_FS
 	ll_ops++;
 #endif
@@ -550,10 +544,6 @@ void simulate_sc(struct pt_regs *regp, unsigned int opcode)
 
 	vaddr = (unsigned long *)((long)(regp->regs[(opcode & BASE) >> 21]) + offset);
 	reg = (opcode & RT) >> 16;
-
-#ifdef DEBUG_LLSC
-	printk("sc: vaddr = 0x%08x, reg = %d\n", (unsigned int)vaddr, (unsigned int)reg);
-#endif
 
 #ifdef CONFIG_PROC_FS
 	sc_ops++;
