@@ -121,6 +121,7 @@ CONFIG_CPU_HAS_SYNC=y
 #
 # Bus options (PCI, PCMCIA, EISA, ISA, TC)
 #
+CONFIG_ISA=y
 CONFIG_MMU=y
 # CONFIG_HOTPLUG is not set
 
@@ -152,11 +153,13 @@ CONFIG_TRAD_SIGNALS=y
 #
 # Plug and Play support
 #
+# CONFIG_PNP is not set
 
 #
 # Block devices
 #
 # CONFIG_BLK_DEV_FD is not set
+# CONFIG_BLK_DEV_XD is not set
 # CONFIG_BLK_DEV_LOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
 # CONFIG_BLK_DEV_RAM is not set
@@ -185,6 +188,7 @@ CONFIG_IDE_TASKFILE_IO=y
 # IDE chipset support/bugfixes
 #
 CONFIG_IDE_GENERIC=y
+# CONFIG_IDE_CHIPSETS is not set
 # CONFIG_BLK_DEV_IDEDMA is not set
 # CONFIG_IDEDMA_AUTO is not set
 # CONFIG_DMA_NONPCI is not set
@@ -194,6 +198,11 @@ CONFIG_IDE_GENERIC=y
 # SCSI device support
 #
 # CONFIG_SCSI is not set
+
+#
+# Old CD-ROM drivers (not SCSI, not IDE)
+#
+# CONFIG_CD_NO_IDESCSI is not set
 
 #
 # Multi-device support (RAID and LVM)
@@ -278,6 +287,11 @@ CONFIG_IPV6_SCTP__=y
 #
 # CONFIG_NET_PKTGEN is not set
 CONFIG_NETDEVICES=y
+
+#
+# ARCnet devices
+#
+# CONFIG_ARCNET is not set
 # CONFIG_DUMMY is not set
 # CONFIG_BONDING is not set
 # CONFIG_EQUALIZER is not set
@@ -289,6 +303,16 @@ CONFIG_NETDEVICES=y
 #
 CONFIG_NET_ETHERNET=y
 # CONFIG_MII is not set
+# CONFIG_NET_VENDOR_3COM is not set
+# CONFIG_LANCE is not set
+# CONFIG_NET_VENDOR_SMC is not set
+# CONFIG_NET_VENDOR_RACAL is not set
+# CONFIG_AT1700 is not set
+# CONFIG_DEPCA is not set
+# CONFIG_HP100 is not set
+# CONFIG_NET_ISA is not set
+# CONFIG_NET_PCI is not set
+# CONFIG_NET_POCKET is not set
 
 #
 # Ethernet (1000 Mbit)
@@ -308,6 +332,7 @@ CONFIG_NET_ETHERNET=y
 #
 # Token Ring devices
 #
+# CONFIG_TR is not set
 # CONFIG_SHAPER is not set
 
 #
@@ -421,6 +446,13 @@ CONFIG_WATCHDOG=y
 # Watchdog Device Drivers
 #
 # CONFIG_SOFT_WATCHDOG is not set
+
+#
+# ISA-based Watchdog Cards
+#
+# CONFIG_PCWATCHDOG is not set
+# CONFIG_MIXCOMWD is not set
+# CONFIG_WDT is not set
 # CONFIG_NVRAM is not set
 # CONFIG_RTC is not set
 # CONFIG_GEN_RTC is not set

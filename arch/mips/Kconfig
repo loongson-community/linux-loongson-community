@@ -29,6 +29,7 @@ menu "Machine selection"
 
 config MACH_JAZZ
 	bool "Support for the Jazz family of machines"
+	select ISA
 	help
 	 This a family of machines based on the MIPS R4030 chipset which was
 	 used by several vendors to build RISC/os and Windows NT workstations.
@@ -77,11 +78,13 @@ config CASIO_E55
 	bool "Support for CASIO CASSIOPEIA E-10/15/55/65"
 	depends on MACH_VR41XX
 	select IRQ_CPU
+	select ISA
 
 config IBM_WORKPAD
 	bool "Support for IBM WorkPad z50"
 	depends on MACH_VR41XX
 	select IRQ_CPU
+	select ISA
 
 config NEC_EAGLE
 	bool "Support for NEC Eagle/Hawk board"
@@ -282,6 +285,7 @@ config DDB5074
 	depends on EXPERIMENTAL
 	select HAVE_STD_PC_SERIAL_PORT
 	select IRQ_CPU
+	select ISA
 	help
 	  This enables support for the VR5000-based NEC DDB Vrc-5074
 	  evaluation board.
@@ -290,6 +294,7 @@ config DDB5476
 	bool "Support for NEC DDB Vrc-5476"
 	select HAVE_STD_PC_SERIAL_PORT
 	select IRQ_CPU
+	select ISA
 	help
 	  This enables support for the R5432-based NEC DDB Vrc-5476
 	  evaluation board.
@@ -679,6 +684,7 @@ config SIBYTE_TBPROF
 config SNI_RM200_PCI
 	bool "Support for SNI RM200 PCI"
 	select HAVE_STD_PC_SERIAL_PORT
+	select ISA
 	help
 	  The SNI RM200 PCI was a MIPS-based platform manufactured by Siemens
 	  Nixdorf Informationssysteme (SNI), parent company of Pyramid
@@ -687,6 +693,7 @@ config SNI_RM200_PCI
 
 config TOSHIBA_RBTX4927
 	bool "Support for Toshiba TBTX49[23]7 board"
+	select ISA
 	depends on MIPS32
 
 config RWSEM_GENERIC_SPINLOCK
@@ -1315,20 +1322,18 @@ config PCI
 
 source "drivers/pci/Kconfig"
 
+#
+# ISA support is now enabled via select.  Too many systems still have the one
+# or other ISA chip on the board that users don't know about so don't expect
+# users to choose the right thing ...
+#
 config ISA
-	bool "ISA bus support"
-	depends on ACER_PICA_61 || SGI_IP22 || MIPS_MAGNUM_4000 || OLIVETTI_M700 || SNI_RM200_PCI
-	default y if TOSHIBA_RBTX4927 || DDB5476 || DDB5074 || IBM_WORKPAD || CASIO_E55
-	help
-	  Find out whether you have ISA slots on your motherboard.  ISA is the
-	  name of a bus system, i.e. the way the CPU talks to the other stuff
-	  inside your box.  Other bus systems are PCI, EISA, or VESA.  ISA is
-	  an older system, now being displaced by PCI; newer boards don't
-	  support it.  If you have ISA, say Y, otherwise N.
+	bool
 
 config EISA
 	bool "EISA support"
-	depends on ISA && (SGI_IP22 || SNI_RM200_PCI)
+	depends on SGI_IP22 || SNI_RM200_PCI
+	select ISA
 	---help---
 	  The Extended Industry Standard Architecture (EISA) bus was
 	  developed as an open alternative to the IBM MicroChannel bus.

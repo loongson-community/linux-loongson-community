@@ -116,6 +116,7 @@ CONFIG_CPU_HAS_SYNC=y
 CONFIG_PCI=y
 CONFIG_PCI_LEGACY_PROC=y
 CONFIG_PCI_NAMES=y
+CONFIG_ISA=y
 CONFIG_MMU=y
 # CONFIG_HOTPLUG is not set
 
@@ -147,11 +148,13 @@ CONFIG_TRAD_SIGNALS=y
 #
 # Plug and Play support
 #
+# CONFIG_PNP is not set
 
 #
 # Block devices
 #
 # CONFIG_BLK_DEV_FD is not set
+# CONFIG_BLK_DEV_XD is not set
 # CONFIG_BLK_CPQ_DA is not set
 # CONFIG_BLK_CPQ_CISS_DA is not set
 # CONFIG_BLK_DEV_DAC960 is not set
@@ -185,6 +188,7 @@ CONFIG_IDE_TASKFILE_IO=y
 #
 CONFIG_IDE_GENERIC=y
 # CONFIG_BLK_DEV_IDEPCI is not set
+# CONFIG_IDE_CHIPSETS is not set
 # CONFIG_BLK_DEV_IDEDMA is not set
 # CONFIG_IDEDMA_AUTO is not set
 # CONFIG_DMA_NONPCI is not set
@@ -194,6 +198,11 @@ CONFIG_IDE_GENERIC=y
 # SCSI device support
 #
 # CONFIG_SCSI is not set
+
+#
+# Old CD-ROM drivers (not SCSI, not IDE)
+#
+# CONFIG_CD_NO_IDESCSI is not set
 
 #
 # Multi-device support (RAID and LVM)
@@ -300,13 +309,20 @@ CONFIG_NET_ETHERNET=y
 # CONFIG_HAPPYMEAL is not set
 # CONFIG_SUNGEM is not set
 # CONFIG_NET_VENDOR_3COM is not set
+# CONFIG_LANCE is not set
+# CONFIG_NET_VENDOR_SMC is not set
+# CONFIG_NET_VENDOR_RACAL is not set
 
 #
 # Tulip family network device support
 #
 # CONFIG_NET_TULIP is not set
+# CONFIG_AT1700 is not set
+# CONFIG_DEPCA is not set
 # CONFIG_HP100 is not set
+# CONFIG_NET_ISA is not set
 # CONFIG_NET_PCI is not set
+# CONFIG_NET_POCKET is not set
 
 #
 # Ethernet (1000 Mbit)
