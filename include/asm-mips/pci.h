@@ -45,9 +45,9 @@ struct pci_dev;
 /*
  * The PCI address space does equal the physical memory address space.  The
  * networking and block device layers use this boolean for bounce buffer
- * decisions.
+ * decisions.  This is set if any hose does not have an IOMMU.
  */
-#define PCI_DMA_BUS_IS_PHYS	(1)
+extern int PCI_DMA_BUS_IS_PHYS;
 
 #ifdef CONFIG_MAPPED_DMA_IO
 

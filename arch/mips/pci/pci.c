@@ -37,6 +37,7 @@ struct pci_controller *pci_isa_hose;
 
 unsigned long PCIBIOS_MIN_IO	= 0x1000;
 unsigned long PCIBIOS_MIN_MEM	= 0;
+int PCI_DMA_BUS_IS_PHYS = 0;
 
 /*
  * We need to avoid collisions with `mirrored' VGA ports
@@ -103,6 +104,9 @@ static int __init pcibios_init(void)
 			goto out;
 		if (request_resource(&ioport_resource, hose->io_resource) < 0)
 			goto out_free_mem_resource;
+
+		if (!hose->iommu)
+			PCI_DMA_BUS_IS_PHYS = 1;
 
 		bus = pci_scan_bus(next_busno, hose->pci_ops, hose);
 		hose->bus = bus;
