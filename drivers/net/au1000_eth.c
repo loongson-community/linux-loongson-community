@@ -73,8 +73,6 @@ MODULE_DESCRIPTION(DRV_DESC);
 MODULE_LICENSE("GPL");
 
 // prototypes
-static void *dma_alloc(size_t, dma_addr_t *);
-static void dma_free(void *, size_t);
 static void hard_stop(struct net_device *);
 static void enable_rx_tx(struct net_device *dev);
 static struct net_device * au1000_probe(u32 ioaddr, int irq, int port_num);
@@ -607,6 +605,99 @@ int ks8995m_status(struct net_device *dev, int phy_addr, u16 *link, u16 *speed)
 	return 0;
 }
 
+int
+smsc_83C185_init (struct net_device *dev, int phy_addr)
+{
+	s16 data;
+
+	if (au1000_debug > 4)
+		printk("smsc_83C185_init\n");
+
+	/* Stop auto-negotiation */
+	data = mdio_read(dev, phy_addr, MII_CONTROL);
+	mdio_write(dev, phy_addr, MII_CONTROL, data & ~MII_CNTL_AUTO);
+
+	/* Set advertisement to 10/100 and Half/Full duplex
+	 * (full capabilities) */
+	data = mdio_read(dev, phy_addr, MII_ANADV);
+	data |= MII_NWAY_TX | MII_NWAY_TX_FDX | MII_NWAY_T_FDX | MII_NWAY_T;
+	mdio_write(dev, phy_addr, MII_ANADV, data);
+	
+	/* Restart auto-negotiation */
+	data = mdio_read(dev, phy_addr, MII_CONTROL);
+	data |= MII_CNTL_RST_AUTO | MII_CNTL_AUTO;
+
+	mdio_write(dev, phy_addr, MII_CONTROL, data);
+
+	if (au1000_debug > 4) dump_mii(dev, phy_addr);
+	return 0;
+}
+
+int
+smsc_83C185_reset (struct net_device *dev, int phy_addr)
+{
+	s16 mii_control, timeout;
+	
+	if (au1000_debug > 4)
+		printk("smsc_83C185_reset\n");
+
+	mii_control = mdio_read(dev, phy_addr, MII_CONTROL);
+	mdio_write(dev, phy_addr, MII_CONTROL, mii_control | MII_CNTL_RESET);
+	mdelay(1);
+	for (timeout = 100; timeout > 0; --timeout) {
+		mii_control = mdio_read(dev, phy_addr, MII_CONTROL);
+		if ((mii_control & MII_CNTL_RESET) == 0)
+			break;
+		mdelay(1);
+	}
+	if (mii_control & MII_CNTL_RESET) {
+		printk(KERN_ERR "%s PHY reset timeout !\n", dev->name);
+		return -1;
+	}
+	return 0;
+}
+
+int 
+smsc_83C185_status (struct net_device *dev, int phy_addr, u16 *link, u16 *speed)
+{
+	u16 mii_data;
+	struct au1000_private *aup;
+
+	if (!dev) {
+		printk(KERN_ERR "smsc_83C185_status error: NULL dev\n");
+		return -1;
+	}
+
+	aup = (struct au1000_private *) dev->priv;
+	mii_data = mdio_read(dev, aup->phy_addr, MII_STATUS);
+
+	if (mii_data & MII_STAT_LINK) {
+		*link = 1;
+		mii_data = mdio_read(dev, aup->phy_addr, 0x1f);
+		if (mii_data & (1<<3)) {
+			if (mii_data & (1<<4)) {
+				*speed = IF_PORT_100BASEFX;
+				dev->if_port = IF_PORT_100BASEFX;
+			}
+			else {
+				*speed = IF_PORT_100BASETX;
+				dev->if_port = IF_PORT_100BASETX;
+			}
+		}
+		else {
+			*speed = IF_PORT_10BASET;
+			dev->if_port = IF_PORT_10BASET;
+		}
+	}
+	else {
+		*link = 0;
+		*speed = 0;
+		dev->if_port = IF_PORT_UNKNOWN;
+	}
+	return 0;
+}
+
+
 #ifdef CONFIG_MIPS_BOSPORUS
 int stub_init(struct net_device *dev, int phy_addr)
 {
@@ -668,6 +759,12 @@ struct phy_ops ks8995m_ops = {
 	ks8995m_status,
 };
 
+struct phy_ops smsc_83C185_ops = {
+	smsc_83C185_init,
+	smsc_83C185_reset,
+	smsc_83C185_status,
+};
+
 #ifdef CONFIG_MIPS_BOSPORUS
 struct phy_ops stub_ops = {
 	stub_init,
@@ -691,6 +788,7 @@ static struct mii_chip_info {
 	{"LSI 80227 10/100 BaseT PHY",0x0016,0xf840, &lsi_80227_ops,0},
 	{"Intel LXT971A Dual Speed PHY",0x0013,0x78e2, &lxt971a_ops,0},
 	{"Kendin KS8995M 10/100 BaseT PHY",0x0022,0x1450, &ks8995m_ops,0},
+	{"SMSC LAN83C185 10/100 BaseT PHY",0x0007,0xc0a3, &smsc_83C185_ops,0},
 #ifdef CONFIG_MIPS_BOSPORUS
 	{"Stub", 0x1234, 0x5678, &stub_ops },
 #endif
@@ -980,35 +1078,6 @@ void ReleaseDB(struct au1000_private *aup, db_dest_t *pDB)
 		pDBfree->pnext = pDB;
 	aup->pDBfree = pDB;
 }
-
-
-/*
-  DMA memory allocation, derived from pci_alloc_consistent.
-  However, the Au1000 data cache is coherent (when programmed
-  so), therefore we return KSEG0 address, not KSEG1.
-*/
-static void *dma_alloc(size_t size, dma_addr_t * dma_handle)
-{
-	void *ret;
-	int gfp = GFP_ATOMIC | GFP_DMA;
-
-	ret = (void *) __get_free_pages(gfp, get_order(size));
-
-	if (ret != NULL) {
-		memset(ret, 0, size);
-		*dma_handle = virt_to_bus(ret);
-		ret = (void *)KSEG0ADDR(ret);
-	}
-	return ret;
-}
-
-
-static void dma_free(void *vaddr, size_t size)
-{
-	vaddr = (void *)KSEG0ADDR(vaddr);
-	free_pages((unsigned long) vaddr, get_order(size));
-}
-
 
 static void enable_rx_tx(struct net_device *dev)
 {
@@ -1407,8 +1476,11 @@ au1000_probe(u32 ioaddr, int irq, int port_num)
 	aup = dev->priv;
 
 	/* Allocate the data buffers */
-	aup->vaddr = (u32)dma_alloc(MAX_BUF_SIZE * 
-			(NUM_TX_BUFFS+NUM_RX_BUFFS), &aup->dma_addr);
+	/* Snooping works fine with eth on all au1xxx */
+	aup->vaddr = (u32)dma_alloc_noncoherent(NULL,
+			MAX_BUF_SIZE * (NUM_TX_BUFFS+NUM_RX_BUFFS),
+			&aup->dma_addr,
+			0);
 	if (!aup->vaddr) {
 		free_netdev(dev);
 		release_region(ioaddr, MAC_IOSIZE);
@@ -1545,8 +1617,10 @@ err_out:
 		if (aup->tx_db_inuse[i])
 			ReleaseDB(aup, aup->tx_db_inuse[i]);
 	}
-	dma_free((void *)aup->vaddr, MAX_BUF_SIZE * 
-			(NUM_TX_BUFFS+NUM_RX_BUFFS));
+	dma_free_noncoherent(NULL,
+			MAX_BUF_SIZE * (NUM_TX_BUFFS+NUM_RX_BUFFS),
+			(void *)aup->vaddr,
+			aup->dma_addr);
 	unregister_netdev(dev);
 	free_netdev(dev);
 	release_region(ioaddr, MAC_IOSIZE);
@@ -1743,8 +1817,10 @@ static void __exit au1000_cleanup_module(void)
 				if (aup->tx_db_inuse[j])
 					ReleaseDB(aup, aup->tx_db_inuse[j]);
 			}
-			dma_free((void *)aup->vaddr, MAX_BUF_SIZE * 
-					(NUM_TX_BUFFS+NUM_RX_BUFFS));
+			dma_free_noncoherent(NULL,
+					MAX_BUF_SIZE * (NUM_TX_BUFFS+NUM_RX_BUFFS),
+					(void *)aup->vaddr,
+					aup->dma_addr);
 			free_netdev(dev);
 			release_region(iflist[i].base_addr, MAC_IOSIZE);
 		}
