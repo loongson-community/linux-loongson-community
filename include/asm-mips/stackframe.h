@@ -194,17 +194,17 @@
 		.macro	RESTORE_SOME
 		.set	push
 		.set	reorder
-		mfc0	t0, CP0_STATUS
-		.set	pop
-		ori	t0, 0x1f
-		xori	t0, 0x1f
-		mtc0	t0, CP0_STATUS
+		.set	noat
+		mfc0	AT, CP0_STATUS
+		ori	AT, 0x1f
+		xori	AT, 0x1f
+		mtc0	AT, CP0_STATUS
 		li	v1, 0xff00
-		and	t0, v1
+		and	AT, v1
 		LONG_L	v0, PT_STATUS(sp)
 		nor	v1, $0, v1
 		and	v0, v1
-		or	v0, t0
+		or	v0, AT
 		mtc0	v0, CP0_STATUS
 		LONG_L	$31, PT_R31(sp)
 		LONG_L	$28, PT_R28(sp)
@@ -215,6 +215,7 @@
 		LONG_L	$4,  PT_R4(sp)
 		LONG_L	$3,  PT_R3(sp)
 		LONG_L	$2,  PT_R2(sp)
+		.set	pop
 		.endm
 
 		.macro	RESTORE_SP_AND_RET
@@ -232,17 +233,17 @@
 		.macro	RESTORE_SOME
 		.set	push
 		.set	reorder
-		mfc0	t0, CP0_STATUS
-		.set	pop
-		ori	t0, 0x1f
-		xori	t0, 0x1f
-		mtc0	t0, CP0_STATUS
+		.set	noat
+		mfc0	AT, CP0_STATUS
+		ori	AT, 0x1f
+		xori	AT, 0x1f
+		mtc0	AT, CP0_STATUS
 		li	v1, 0xff00
-		and	t0, v1
+		and	AT, v1
 		LONG_L	v0, PT_STATUS(sp)
 		nor	v1, $0, v1
 		and	v0, v1
-		or	v0, t0
+		or	v0, AT
 		mtc0	v0, CP0_STATUS
 		LONG_L	v1, PT_EPC(sp)
 		MTC0	v1, CP0_EPC
@@ -255,6 +256,7 @@
 		LONG_L	$4,  PT_R4(sp)
 		LONG_L	$3,  PT_R3(sp)
 		LONG_L	$2,  PT_R2(sp)
+		.set	pop
 		.endm
 
 		.macro	RESTORE_SP_AND_RET
@@ -271,18 +273,18 @@
 		.endm
 
 		.macro	RESTORE_ALL
-		RESTORE_SOME
-		RESTORE_AT
 		RESTORE_TEMP
+		RESTORE_AT
 		RESTORE_STATIC
+		RESTORE_SOME
 		RESTORE_SP
 		.endm
 
 		.macro	RESTORE_ALL_AND_RET
-		RESTORE_SOME
-		RESTORE_AT
 		RESTORE_TEMP
+		RESTORE_AT
 		RESTORE_STATIC
+		RESTORE_SOME
 		RESTORE_SP_AND_RET
 		.endm
 
