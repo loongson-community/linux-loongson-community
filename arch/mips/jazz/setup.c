@@ -28,17 +28,8 @@
 #include <asm/reboot.h>
 #include <asm/io.h>
 #include <asm/pgtable.h>
+#include <asm/time.h>
 #include <asm/traps.h>
-
-/*
- * Initial irq handlers.
- */
-static void no_action(int cpl, void *dev_id, struct pt_regs *regs) { }
-
-/*
- * IRQ2 is cascade interrupt to second interrupt controller
- */
-static struct irqaction irq2  = { no_action, 0, 0, "cascade", NULL, NULL};
 
 extern asmlinkage void jazz_handle_int(void);
 
@@ -51,31 +42,11 @@ extern struct rtc_ops jazz_rtc_ops;
 extern struct fd_ops *fd_ops;
 extern struct fd_ops jazz_fd_ops;
 
-void (*board_time_init)(struct irqaction *irq);
-
 static void __init jazz_time_init(struct irqaction *irq)
 {
-        /* set the clock to 100 Hz */
-        r4030_write_reg32(JAZZ_TIMER_INTERVAL, 9);
-        i8259_setup_irq(JAZZ_TIMER_IRQ, irq);
-}
-
-static void __init jazz_irq_setup(void)
-{
-        set_except_vector(0, jazz_handle_int);
-	r4030_write_reg16(JAZZ_IO_IRQ_ENABLE,
-			  JAZZ_IE_ETHERNET |
-			  JAZZ_IE_SCSI     |
-			  JAZZ_IE_SERIAL1  |
-			  JAZZ_IE_SERIAL2  |
- 			  JAZZ_IE_PARALLEL |
-			  JAZZ_IE_FLOPPY);
-	r4030_read_reg16(JAZZ_IO_IRQ_SOURCE); /* clear pending IRQs */
-	r4030_read_reg32(JAZZ_R4030_INVAL_ADDR); /* clear error bits */
-	change_c0_status(ST0_IM, IE_IRQ4 | IE_IRQ3 | IE_IRQ2 | IE_IRQ1);
 	/* set the clock to 100 Hz */
 	r4030_write_reg32(JAZZ_TIMER_INTERVAL, 9);
-	i8259_setup_irq(2, &irq2);
+	setup_irq(JAZZ_TIMER_IRQ, irq);
 }
 
 static struct resource jazz_io_resources[] = {
@@ -110,7 +81,7 @@ void __init jazz_setup(void)
 	for (i = 0; i < JAZZ_IO_RESOURCES; i++)
 		request_resource(&ioport_resource, jazz_io_resources + i);
 
-        board_time_init = jazz_time_init;
+        board_timer_setup = jazz_time_init;
 	/* The RTC is outside the port address space */
 
 	_machine_restart = jazz_machine_restart;
