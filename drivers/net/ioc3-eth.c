@@ -402,7 +402,7 @@ ioc3_tx(struct ioc3_private *ip, struct ioc3 *ioc3)
 		skb = ip->tx_skbs[o_entry];
 		ip->stats.tx_packets++;
 		ip->stats.tx_bytes += skb->len;
-		dev_kfree_skb(skb);
+		dev_kfree_skb_irq(skb);
 		ip->tx_skbs[o_entry] = NULL;
 
 		o_entry = (o_entry + 1) & 127;		/* Next */
