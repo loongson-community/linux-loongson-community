@@ -111,7 +111,7 @@ sys_sysmips(int cmd, int arg1, int arg2, int arg3)
 
 		__asm__ __volatile__(
 			"move\t$29, %0\n\t"
-			"j\tret_from_sys_call"
+			"j\to32_ret_from_sys_call"
 			: /* No outputs */
 			: "r" (&cmd));
 		/* Unreached */
