@@ -172,7 +172,7 @@ dma_sync_single_range(struct device *dev, dma_addr_t dma_handle,
 
 	BUG_ON(direction == DMA_NONE);
 
-	addr = baddr_to_bus(hwdev->bus, dma_handle) + PAGE_OFFSET;
+	addr = baddr_to_bus(hwdev->bus, dma_handle) + offset + PAGE_OFFSET;
 	__dma_sync(addr, size, direction);
 }
 
