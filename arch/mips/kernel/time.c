@@ -475,10 +475,10 @@ static int month_days[12] = {
 
 void to_tm(unsigned long tim, struct rtc_time * tm)
 {
-	long hms, day;
+	long hms, day, gday;
 	int i;
 
-	day = tim / SECDAY;
+	gday = day = tim / SECDAY;
 	hms = tim % SECDAY;
 
 	/* Hours, minutes, seconds are easy */
@@ -505,5 +505,5 @@ void to_tm(unsigned long tim, struct rtc_time * tm)
 	/*
 	 * Determine the day of week
 	 */
-	tm->tm_wday = (day + 3) % 7;
+	tm->tm_wday = (gday + 4) % 7; /* 1970/1/1 was Thursday */
 }
