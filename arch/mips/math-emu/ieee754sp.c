@@ -204,6 +204,24 @@ ieee754sp ieee754sp_format(int sn, int xe, unsigned xm)
 		/* we underflow (tiny/zero) */
 		assert(xe == SP_EMIN);
 		SETCX(IEEE754_UNDERFLOW);
+		if (!xm) {
+			switch(ieee754_csr.rm) {
+			case IEEE754_RN:
+				return ieee754sp_zero(sn);
+			case IEEE754_RZ:
+				return ieee754sp_zero(sn);
+			case IEEE754_RU:      /* toward +Infinity */
+				if(sn == 0)
+					return ieee754sp_mind(0);
+				else
+					return ieee754sp_zero(1);
+			case IEEE754_RD:      /* toward -Infinity */
+				if(sn == 0)
+					return ieee754sp_zero(0);
+				else
+					return ieee754sp_mind(1);
+			}
+		}
 		return buildsp(sn, SP_EMIN - 1 + SP_EBIAS, xm);
 	} else {
 		assert((xm >> (SP_MBITS + 1)) == 0);	/* no execess */

@@ -30,6 +30,7 @@
 ieee754sp ieee754sp_fdp(ieee754dp x)
 {
 	COMPXDP;
+	ieee754sp nan;
 
 	EXPLODEXDP;
 
@@ -42,12 +43,11 @@ ieee754sp ieee754sp_fdp(ieee754dp x)
 		SETCX(IEEE754_INVALID_OPERATION);
 		return ieee754sp_nanxcpt(ieee754sp_indef(), "fdp");
 	case IEEE754_CLASS_QNAN:
-		return ieee754sp_nanxcpt(buildsp(xs,
-						 SP_EMAX + 1 + SP_EBIAS,
-						 (unsigned long)
-						 (xm >>
-						  (DP_MBITS - SP_MBITS))),
-					 "fdp", x);
+		nan = buildsp(xs, SP_EMAX + 1 + SP_EBIAS, (unsigned long)
+				(xm >> (DP_MBITS - SP_MBITS)));
+		if (!ieee754sp_isnan(nan))
+			nan = ieee754sp_indef();
+		return ieee754sp_nanxcpt(nan, "fdp", x);
 	case IEEE754_CLASS_INF:
 		return ieee754sp_inf(xs);
 	case IEEE754_CLASS_ZERO:
