@@ -240,10 +240,10 @@ bad_alignment:
 	jr	ra
 	END(mips_atomic_set)
 
-	LEAF(sys_sysmips)
+	LEAF(sys32_sysmips)
 	beq	a0, MIPS_ATOMIC_SET, mips_atomic_set
-	j	_sys_sysmips
-	END(sys_sysmips)
+	j	sys_sysmips
+	END(sys32_sysmips)
 
 	.macro	syscalltable
 	sys	sys_syscall	0			/* 4000 */
@@ -395,7 +395,7 @@ bad_alignment:
 	sys	sys32_writev	3
 	sys	sys_cacheflush	3
 	sys	sys_cachectl	3
-	sys	sys_sysmips	4
+	sys	sys32_sysmips	4
 	sys	sys_ni_syscall	0			/* 4150 */
 	sys	sys_getsid	1
 	sys	sys_fdatasync	0

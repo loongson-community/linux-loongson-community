@@ -187,7 +187,7 @@ asmlinkage int sys_syscall(abi64_no_regargs, struct pt_regs regs)
 }
 
 asmlinkage int
-_sys_sysmips(int cmd, long arg1, int arg2, int arg3)
+sys_sysmips(int cmd, long arg1, int arg2, int arg3)
 {
 	int	*p;
 	char	*name;
