@@ -92,15 +92,15 @@ int do_check_pgt_cache(int low, int high)
 {
 	int freed = 0;
 
-	if(pgtable_cache_size > high) {
+	if (pgtable_cache_size > high) {
 		do {
-			if(pgd_quicklist)
+			if (pgd_quicklist)
 				free_pgd_slow(get_pgd_fast()), freed++;
-			if(pmd_quicklist)
+			if (pmd_quicklist)
 				free_pmd_slow(get_pmd_fast()), freed++;
-			if(pte_quicklist)
+			if (pte_quicklist)
 				free_pte_slow(get_pte_fast()), freed++;
-		} while(pgtable_cache_size > low);
+		} while (pgtable_cache_size > low);
 	}
 	return freed;
 }
