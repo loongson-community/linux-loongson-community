@@ -3,7 +3,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1994 - 1999 by Ralf Baechle at alii
+ * Copyright (C) 1994, 95, 96, 97, 98, 99, 2000 by Ralf Baechle at alii
  * Copyright (C) 1999 Silicon Graphics, Inc.
  */
 #ifndef _ASM_PGTABLE_H
@@ -386,7 +386,7 @@ extern inline pte_t pte_mkyoung(pte_t pte)
 
 extern inline pte_t mk_pte_phys(unsigned long physpage, pgprot_t pgprot)
 {
-	return __pte(physpage | pgprot_val(pgprot);
+	return __pte(physpage | pgprot_val(pgprot));
 }
 
 extern inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
