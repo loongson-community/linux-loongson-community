@@ -152,6 +152,7 @@ obj-$(CONFIG_DIGIEPCA) += epca.o
 obj-$(CONFIG_CYCLADES) += cyclades.o
 obj-$(CONFIG_STALLION) += stallion.o
 obj-$(CONFIG_ISTALLION) += istallion.o
+obj-$(CONFIG_SIBYTE_SB1250_DUART) += sb1250_duart.o
 obj-$(CONFIG_COMPUTONE) += ip2.o ip2main.o
 obj-$(CONFIG_RISCOM8) += riscom8.o
 obj-$(CONFIG_ISI) += isicom.o
