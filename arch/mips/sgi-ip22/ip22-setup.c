@@ -144,8 +144,11 @@ void __init ip22_setup(void)
 	/* Init INDY memory controller. */
 	sgimc_init();
 
+#ifdef CONFIG_BOARD_SCACHE
 	/* Now enable boardcaches, if any. */
 	indy_sc_init();
+#endif
+	conswitchp = NULL;
 
 #ifdef CONFIG_SERIAL_CONSOLE
 	/* ARCS console environment variable is set to "g?" for
