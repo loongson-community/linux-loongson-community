@@ -247,9 +247,9 @@ do {									\
 	SLOW_DOWN_IO;							\
 } while(0)
 
-#define inb(port) (__ioswab8(*(volatile u8 *)(mips_io_port_base + (port))))
-#define inw(port) (__ioswab16(*(volatile u16 *)(mips_io_port_base + (port))))
-#define inl(port) (__ioswab32(*(volatile u32 *)(mips_io_port_base + (port))))
+#define inb(port) ({__ioswab8(*(volatile u8 *)(mips_io_port_base + (port)));})
+#define inw(port) ({__ioswab16(*(volatile u16 *)(mips_io_port_base + (port)));})
+#define inl(port) ({__ioswab32(*(volatile u32 *)(mips_io_port_base + (port)));})
 
 #define inb_p(port)							\
 ({									\
