@@ -113,7 +113,32 @@ asmlinkage long sys32_newfstat(unsigned int fd, struct stat32 * statbuf)
 	return error;
 }
 
-asmlinkage int sys_mmap2(void) {return 0;}
+asmlinkage unsigned long
+sys32_mmap2(unsigned long addr, size_t len, unsigned long prot,
+         unsigned long flags, unsigned long fd, unsigned long pgoff)
+{
+	struct file * file = NULL;
+	unsigned long error;
+
+	error = -EINVAL;
+	if (!(flags & MAP_ANONYMOUS)) {
+		error = -EBADF;
+		file = fget(fd);
+		if (!file)
+			goto out;
+	}
+	flags &= ~(MAP_EXECUTABLE | MAP_DENYWRITE);
+
+	down_write(&current->mm->mmap_sem);
+	error = do_mmap_pgoff(file, addr, len, prot, flags, pgoff);
+	up_write(&current->mm->mmap_sem);
+	if (file)
+		fput(file);
+
+out:
+	return error;
+}
+
 
 asmlinkage long sys_truncate(const char * path, unsigned long length);
 
