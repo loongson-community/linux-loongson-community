@@ -53,9 +53,9 @@
 #define DO_FAULT(write) \
 	SAVE_ALL; \
 	mfc0	a2, CP0_BADVADDR; \
+	KMODE; \
 	move	a0, sp; \
 	sw	a2, PT_BVADDR(sp); \
-	KMODE; \
 	jal	do_page_fault; \
 	 li	a1, write; \
 	j	ret_from_exception; \
