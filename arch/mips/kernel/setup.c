@@ -306,7 +306,7 @@ static inline void bootmem_init(void)
 		max_low_pfn = MAXMEM_PFN;
 #ifndef CONFIG_HIGHMEM
 		/* Maximum memory usable is what is directly addressable */
-		printk(KERN_WARNING "Warning only %ldMB will be used.\n",
+		printk(KERN_WARNING "Warning only %dMB will be used.\n",
 		       MAXMEM>>20);
 		printk(KERN_WARNING "Use a HIGHMEM enabled kernel.\n");
 #endif
@@ -385,7 +385,7 @@ static inline void bootmem_init(void)
 
 #ifdef CONFIG_BLK_DEV_INITRD
 	/* Board specific code should have set up initrd_start and initrd_end */
-	ROOT_DEV = MKDEV(RAMDISK_MAJOR, 0);
+	ROOT_DEV = mk_kdev(RAMDISK_MAJOR, 0);
 	if (&__rd_start != &__rd_end) {
 		initrd_start = (unsigned long)&__rd_start;
 		initrd_end = (unsigned long)&__rd_end;

@@ -99,7 +99,7 @@ static void tx39_flush_cache_mm(struct mm_struct *mm)
 	}
 }
 
-static void tx39_flush_cache_range(struct vm_area_cache *vma,
+static void tx39_flush_cache_range(struct vm_area_struct *vma,
 	unsigned long start, unsigned long end)
 {
 	struct mm_struct *mm = vma->vm_mm;

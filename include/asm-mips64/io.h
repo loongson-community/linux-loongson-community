@@ -216,6 +216,19 @@ static inline void * phys_to_virt(unsigned long address)
 }
 
 /*
+ * ISA I/O bus memory addresses are 1:1 with the physical address.
+ */
+static inline unsigned long isa_virt_to_bus(volatile void * address)
+{
+	return PHYSADDR(address);
+}
+
+static inline void * isa_bus_to_virt(unsigned long address)
+{
+	return (void *)KSEG0ADDR(address);
+}
+
+/*
  * However PCI ones are not necessarily 1:1 and therefore these interfaces
  * are forbidden in portable PCI drivers.
  *

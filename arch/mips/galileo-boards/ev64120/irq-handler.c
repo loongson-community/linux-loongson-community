@@ -254,9 +254,9 @@ void galileo_time_init(struct irqaction *irq)
 
 void galileo_irq_init(void)
 {
+#if CURRENTLY_UNUSED
 	int i, j;
 
-#if CURRENTLY_UNUSED
 	/* Reset irq handlers pointers to NULL */
 	for (i = 0; i < MAX_CAUSE_REGS; i++) {
 		for (j = 0; j < MAX_CAUSE_REG_WIDTH; j++) {

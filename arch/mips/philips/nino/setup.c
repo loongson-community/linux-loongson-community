@@ -42,7 +42,7 @@ static void nino_machine_power_off(void)
 	while(1);
 }
 
-static void __init nino_board_init()
+static void __init nino_board_init(void)
 {
 	/*
 	 * Set up the master clock module. The value set in
@@ -85,10 +85,6 @@ static __init void nino_timer_setup(struct irqaction *irq)
 void __init bus_error_init(void)
 {
 }
-
-
-void __init bus_error_init(void) { /* nothing */ }
-
 
 void __init nino_setup(void)
 {

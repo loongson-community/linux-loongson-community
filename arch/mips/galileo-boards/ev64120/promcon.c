@@ -6,6 +6,7 @@
  *
  * Derived from DECstation promcon.c
  * Copyright (c) 1998 Harald Koerfgen
+ * Copyright (c) 2002 Ralf Baechle
  */
 
 #include <linux/tty.h>
@@ -38,26 +39,21 @@ int prom_getchar(void)
 }
 static int __init prom_console_setup(struct console *co, char *options)
 {
-
 	return 0;
 }
 
 static kdev_t prom_console_device(struct console *c)
 {
-	return MKDEV(TTY_MAJOR, 64 + c->index);
+	return mk_kdev(TTY_MAJOR, 64 + c->index);
 }
 
 static struct console sercons = {
-	"ttyS",
-	prom_console_write,
-	NULL,
-	prom_console_device,
-	NULL,
-	prom_console_setup,
-	CON_PRINTBUFFER,
-	-1,
-	0,
-	NULL
+	name:	"ttyS",
+	write:	prom_console_write,
+	device:	prom_console_device,
+	setup:	prom_console_setup,
+	flags:	CON_PRINTBUFFER,
+	index:	-1,
 };
 
 

@@ -186,8 +186,9 @@ unsigned long jmr3927_do_gettimeoffset(void)
 }
 
 
-void __init bus_error_init(void) { /* nothing */ }
-
+void __init bus_error_init(void)
+{
+}
 
 #if defined(CONFIG_BLK_DEV_INITRD)
 extern unsigned long __rd_start, __rd_end, initrd_start, initrd_end;
@@ -203,17 +204,13 @@ extern void jmr3927_irq_setup(void);
 extern struct resource pci_io_resource;
 extern struct resource pci_mem_resource;
 
-void __init bus_error_init(void)
-{
-}
-
 void __init jmr3927_setup(void)
 {
 	extern int panic_timeout;
 	char *argptr;
 
 	irq_setup = jmr3927_irq_setup;
-	mips_io_port_base = JMR3927_PORT_BASE + JMR3927_PCIIO;
+	set_io_port_base(JMR3927_PORT_BASE + JMR3927_PCIIO);
 
 	board_time_init = jmr3927_time_init;
 	board_timer_setup = jmr3927_timer_setup;

@@ -137,8 +137,3 @@ void __init it8172_timer_setup(struct irqaction *irq)
 	write_32bit_cp0_register(CP0_COMPARE, r4k_cur);
 	set_cp0_status(ALLINTS);
 }
-
-void local_timer_interrupt(struct pt_regs *regs)
-{
-	do_IRQ(MIPS_CPU_TIMER_IRQ, regs);
-}

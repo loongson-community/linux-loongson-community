@@ -41,7 +41,7 @@
 #include <asm/io.h>
 #include <asm/it8172/it8172_int.h>
 
-#include "ide_modes.h"
+#include "ata-timing.h"
 #include "pcihost.h"
 
 /*
@@ -201,7 +201,7 @@ static int it8172_tune_chipset (struct ata_device *drive, byte speed)
 	return err;
 }
 
-static int it8172_dmaproc(ide_dma_action_t func, struct ata_device *drive)
+static int it8172_config_chipset_for_dma (ata_device *drive)
 {
 	struct hd_driveid *id = drive->id;
 	byte speed;
@@ -239,7 +239,7 @@ static int it8172_dmaproc(ide_dma_action_t func, struct ata_device *drive)
 		ide_dma_off_quietly);
 }
 
-static int it8172_dmaproc(ide_dma_action_t func, ide_drive_t * drive)
+static int it8172_dmaproc(ide_dma_action_t func, ide_drive_t *drive)
 {
 	switch (func) {
 	case ide_dma_check:
@@ -253,7 +253,7 @@ static int it8172_dmaproc(ide_dma_action_t func, ide_drive_t * drive)
 	return ide_dmaproc(func, drive);
 }
 
-#endif				/* defined(CONFIG_BLK_DEV_IDEDMA) && (CONFIG_IT8172_TUNING) */
+#endif /* defined(CONFIG_BLK_DEV_IDEDMA) && (CONFIG_IT8172_TUNING) */
 
 
 __init unsigned int pci_init_it8172(struct pci_dev *dev)

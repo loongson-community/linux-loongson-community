@@ -65,6 +65,9 @@ extern struct resource ioport_resource;
 
 unsigned char mac_0_1[12];
 
+void __init bus_error_init(void)
+{
+}
 
 void __init ev96100_setup(void)
 {
@@ -187,7 +190,7 @@ void __init ev96100_setup(void)
 	tmp = le32_to_cpu(*(volatile u32 *)(MIPS_GT_BASE+GT_PCI0_CFGDATA_OFS));
 }
 
-unsigned short get_gt_devid()
+unsigned short get_gt_devid(void)
 {
 	u32 gt_devid;
 

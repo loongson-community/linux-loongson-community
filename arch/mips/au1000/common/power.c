@@ -34,7 +34,6 @@
 #include <linux/pm.h>
 #include <linux/slab.h>
 #include <linux/sysctl.h>
-#include <linux/acpi.h>
 
 #include <asm/string.h>
 #include <asm/uaccess.h>
@@ -50,7 +49,6 @@
 #endif
 
 extern void au1k_wait(void);
-static void calibrate_delay(void);
 
 extern void set_au1000_speed(unsigned int new_freq);
 extern unsigned int get_au1000_speed(void);

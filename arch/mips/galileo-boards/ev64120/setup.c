@@ -124,10 +124,6 @@ extern void galileo_time_init();
 
 void __init ev64120_setup(void)
 {
-	unsigned int i, j;
-
-	//printk(KERN_INFO "ev64120_setup\n");
-
 	_machine_restart = galileo_machine_restart;
 	_machine_halt = galileo_machine_halt;
 	_machine_power_off = galileo_machine_power_off;
@@ -150,7 +146,6 @@ void __init ev64120_setup(void)
 		     config_register);
 	}
 #endif
-
 }
 
 const char *get_system_type(void)
@@ -180,8 +175,6 @@ void SetUpBootInfo(int argc, char **argv, char **envp)
 
 void __init prom_init(int a, char **b, char **c, int *d)
 {
-	unsigned long free_start, free_end, start_pfn, bootmap_size;
-
 	mips_machgroup = MACH_GROUP_GALILEO;
 	add_memory_region(0, 32 << 20, BOOT_MEM_RAM);
 }
