@@ -11,7 +11,7 @@ obj-$(CONFIG_CPU_NEVADA)	+= pg-r4k.o tlb-glue-r4k.o
 obj-$(CONFIG_CPU_R5432)		+= pg-r4k.o tlb-glue-r4k.o
 obj-$(CONFIG_CPU_RM7000)	+= pg-r4k.o tlb-glue-r4k.o
 obj-$(CONFIG_CPU_R10000)	+= pg-r4k.o tlb-glue-r4k.o
-obj-$(CONFIG_CPU_SB1)		+= pg-sb1.o tlb-glue-sb1.o
+obj-$(CONFIG_CPU_SB1)		+= tlb-glue-sb1.o
 obj-$(CONFIG_CPU_MIPS64)	+= pg-r4k.o tlb-glue-r4k.o
 
 #
