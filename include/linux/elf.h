@@ -32,11 +32,14 @@ typedef __s64	Elf64_Sxword;
 #define PT_LOPROC  0x70000000
 #define PT_HIPROC  0x7fffffff
 #define PT_MIPS_REGINFO		0x70000000
+#define PT_MIPS_OPTIONS		0x70000001
 
 /* Flags in the e_flags field of the header */
 #define EF_MIPS_NOREORDER 0x00000001
 #define EF_MIPS_PIC       0x00000002
 #define EF_MIPS_CPIC      0x00000004
+#define EF_MIPS_ABI2      0x00000020
+#define EF_MIPS_OPTIONS_FIRST 0x00000080
 #define EF_MIPS_ARCH      0xf0000000
 
 /* These constants define the different elf file types */
