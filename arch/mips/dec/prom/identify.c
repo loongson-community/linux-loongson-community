@@ -144,7 +144,7 @@ void __init prom_identify_arch(u32 magic)
 		if (!(ioasic_read(IO_REG_SIR) & KN03_IO_INR_3MAXP))
 			mips_machtype = MACH_DS5900;
 		break;
-	case DS5000_XX:	/* Personal DS5000/2x */
+	case DS5000_XX:		/* Personal DS5000/xx maxine */
 		mips_machtype = MACH_DS5000_XX;
 		prom_init_kn02xa();
 		break;
