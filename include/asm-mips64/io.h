@@ -22,6 +22,10 @@
 #include <asm/sn/io.h>
 #endif
 
+#ifdef CONFIG_SGI_IP32
+#include <asm/ip32/io.h>
+#endif
+
 extern unsigned long bus_to_baddr[256];
 
 /*
