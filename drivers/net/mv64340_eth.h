@@ -55,9 +55,8 @@
 #define ETH_PORT1_IRQ_NUM ETH_PORT0_IRQ_NUM+1	/* main high register, bit1 */
 #define ETH_PORT2_IRQ_NUM ETH_PORT0_IRQ_NUM+2	/* main high register, bit1 */
 
-/* Checksum offload for Tx is broken */
+/* Checksum offload for Tx works */
 #define  MV64340_CHECKSUM_OFFLOAD_TX	1
-#define  MV64340_NIC_SRAM_BASE_TX       0xfe000000
 #define	 MV64340_NAPI			1
 #define	 MV64340_TX_FAST_REFILL		1
 #undef	 MV64340_COAL

@@ -88,6 +88,7 @@ static int mv64340_poll(struct net_device *dev, int *budget);
 #endif
 
 unsigned char prom_mac_addr_base[6];
+unsigned long mv64340_sram_base;
 
 /************************************************** 
  * Helper functions - used inside the driver only *
@@ -760,7 +761,7 @@ static int mv64340_eth_real_open(struct net_device *dev)
 
 	/* Assumes allocated ring is 16 bytes alligned */
 	ethernet_private->p_tx_desc_area =
-	    (ETH_TX_DESC *) MV64340_NIC_SRAM_BASE_TX;
+	    (ETH_TX_DESC *) mv64340_sram_base;
 	if (!ethernet_private->p_tx_desc_area) {
 		printk(KERN_ERR
 		       "%s: Cannot allocate Tx Ring (size %d bytes)\n",

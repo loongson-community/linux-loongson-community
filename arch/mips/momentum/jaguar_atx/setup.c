@@ -73,6 +73,7 @@
 
 
 unsigned long mv64340_base;
+extern unsigned long mv64340_sram_base;
 unsigned long cpu_clock;
 
 /* These functions are used for rebooting or halting the machine*/
@@ -117,6 +118,7 @@ void PMON_v2_setup(void)
 	add_wired_entry(ENTRYLO(0xfe000000), ENTRYLO(0xff000000), 0xfffffffffe000000, PM_16M);
 
 	mv64340_base = 0xfffffffff4000000;
+	mv64340_sram_base = 0xfffffffffe000000;
 #else
 	/* marvell and extra space */
 	add_wired_entry(ENTRYLO(0xf4000000), ENTRYLO(0xf4010000), 0xf4000000, PM_64K);
@@ -126,6 +128,7 @@ void PMON_v2_setup(void)
 	add_wired_entry(ENTRYLO(0xfe000000), ENTRYLO(0xff000000), 0xfe000000, PM_16M);
 
 	mv64340_base = 0xf4000000;
+	mv64340_sram_base = 0xfe000000;
 #endif
 }
 
