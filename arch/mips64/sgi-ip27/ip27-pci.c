@@ -265,6 +265,7 @@ pci_fixup_isp1020(struct pci_dev *d)
 {
 	unsigned short command;
 
+	d->resource[0].start |= ((unsigned long)(bus_to_nid[d->bus->number])<<32);
 	printk("PCI: Fixing isp1020 in [bus:slot.fn] %s\n", d->slot_name);
 
 	/* Configure device to allow bus mastering, i/o and memory mapping. 
