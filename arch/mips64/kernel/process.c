@@ -172,8 +172,8 @@ int kernel_thread(int (*fn)(void *), void *arg, unsigned long flags)
 
 		 /* The called subroutine might have destroyed any of the
 		  * at, result, argument or temporary registers ...  */
-		:"$1", "$2", "$3", "$4", "$5", "$6", "$7", "$8",
-		 "$9","$10","$11","$12","$13","$14","$15","$24","$25");
+		: "$2", "$3", "$4", "$5", "$6", "$7", "$8",
+		  "$9","$10","$11","$12","$13","$14","$15","$24","$25");
 
 	return retval;
 }

@@ -333,8 +333,7 @@ static unsigned long do_fast_gettimeoffset(void)
 			:"r" (timerhi),
 			 "m" (timerlo),
 			 "r" (tmp),
-			 "r" (USECS_PER_JIFFY)
-			:"$1");
+			 "r" (USECS_PER_JIFFY));
 		cached_quotient = quotient;
 #endif
 	}

@@ -38,8 +38,7 @@ static inline void indy_sc_wipe(unsigned long first, unsigned long last)
 	"daddu\t%0, 32\n\t"
 	".set reorder"
 	: "=r" (first), "=r" (last)
-	: "0" (first), "1" (last), "r" (0x9000000080000000)
-	: "$1");
+	: "0" (first), "1" (last), "r" (0x9000000080000000));
 }
 
 static void indy_sc_wback_invalidate(unsigned long addr, unsigned long size)
