@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.13 1998/08/25 09:14:50 ralf Exp $
+/* $Id: setup.c,v 1.14 1998/09/19 19:16:19 ralf Exp $
  *
  * setup.c: SGI specific setup, including init of the feature struct.
  *
@@ -24,8 +24,6 @@
 #include <asm/sgimc.h>
 #include <asm/sgihpc.h>
 #include <asm/sgint23.h>
-
-extern int serial_console; /* in sgiserial.c  */
 
 extern struct rtc_ops indy_rtc_ops;
 void indy_reboot_setup(void);
@@ -114,18 +112,11 @@ __initfunc(void sgi_setup(void))
 	 * line and "d2" for the second serial line.
 	 */
 	ctype = prom_getenv("console");
-	serial_console = 0;
 	if(*ctype == 'd') {
-		if(*(ctype+1)=='2')
-			serial_console = 1;
+		if(*(ctype+1)=='1')
+			console_setup ("ttyS1");
 		else
-			serial_console = 2;
-		if(!serial_console) {
-			prom_printf("Weird console env setting %s\n", ctype);
-			prom_printf("Press a key to reboot.\n");
-			prom_getchar();
-			prom_imode();
-		}
+			console_setup ("ttyS0");
 	}
 #endif
 
