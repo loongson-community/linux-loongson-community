@@ -3,6 +3,7 @@
 .*.cmd
 .*.ver
 genksyms
+keywords.c
 lex.c
 parse.c
 parse.h
