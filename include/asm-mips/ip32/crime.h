@@ -18,7 +18,7 @@
  * Address map
  */
 #ifndef __ASSEMBLY__
-#define CRIME_BASE	KSEG1ADDR(0x14000000)
+#define CRIME_BASE	CKSEG1ADDR(0x14000000)
 #else
 #define CRIME_BASE	0xffffffffb4000000
 #endif

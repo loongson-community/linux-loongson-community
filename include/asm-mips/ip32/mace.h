@@ -16,7 +16,8 @@
 /*
  * Address map
  */
-#define MACE_BASE		KSEG1ADDR(0x1f000000)
+#define MACE_BASE_OFFSET        0x1f000000
+#define MACE_BASE		CKSEG1ADDR(MACE_BASE_OFFSET)
 #define MACE_PCI		(0x00080000)
 #define MACE_VIN1		(0x00100000)
 #define MACE_VIN2		(0x00180000)
@@ -50,8 +51,7 @@
 #define MACEPCI_SWAPPED_VIEW		0
 #define MACEPCI_NATIVE_VIEW		0x40000000
 #define MACEPCI_IO			0x80000000
-/*#define MACEPCI_HI_MEMORY		0x0000000280000000UL * This mipght be just 0x0000000200000000UL 2G more :) (or maybe it is different between 1.1 & 1.5 */
-#define MACEPCI_HI_MEMORY		0x0000000200000000UL /* This mipght be just 0x0000000200000000UL 2G more :) (or maybe it is different between 1.1 & 1.5 */
+#define MACEPCI_HI_MEMORY		0x0000000200000000UL
 #define MACEPCI_HI_IO			0x0000000100000000UL
 
 /*

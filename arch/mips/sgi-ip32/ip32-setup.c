@@ -14,6 +14,7 @@
 #include <linux/mc146818rtc.h>
 #include <linux/param.h>
 #include <linux/init.h>
+#include <linux/console.h>
 
 #include <asm/time.h>
 #include <asm/mipsregs.h>
@@ -24,12 +25,12 @@
 #include <asm/ip32/ip32_ints.h>
 #include <asm/sgialib.h>
 #include <asm/traps.h>
+#include <asm/io.h>
 
 extern struct rtc_ops ip32_rtc_ops;
 extern u32 cc_interval;
 
 #ifdef CONFIG_SGI_O2MACE_ETH
-
 /*
  * This is taken care of in here 'cause they say using Arc later on is
  * problematic
@@ -65,24 +66,26 @@ extern void ip32_be_init(void);
 extern void __init ip32_timer_setup (struct irqaction *irq);                   
 extern void __init crime_init (void);                                          
 
+#ifdef CONFIG_SERIAL_8250
+#include <linux/tty.h>
+#include <linux/serial.h>
+#include <linux/serial_core.h>
+extern int __init early_serial_setup(struct uart_port *port);
+extern void __init ip32_pci_setup(void);
+
+#define STD_COM_FLAGS ( ASYNC_SKIP_TEST)
+#define BASE_BAUD (1843200 / 16)
+
+#endif /* CONFIG_SERIAL_8250 */
 
 void __init ip32_setup(void)
 {
-#ifdef CONFIG_SERIAL_CONSOLE
-	char *ctype;
-#endif
 	TLBMISS_HANDLER_SETUP ();
 
 	set_io_port_base(UNCACHEDADDR(MACEPCI_HI_IO));
 
-#ifdef CONFIG_SERIAL_CONSOLE
-	ctype = ArcGetEnvironmentVariable("console");
-	if (*ctype == 'd') {
-		if (ctype[1] == '2')
-			console_setup ("ttyS1");
-		else
-			console_setup ("ttyS0");
-	}
+	early_serial_setup(sgio2_serial_ports);
+	early_serial_setup(sgio2_serial_ports+1);
 #endif
 #ifdef CONFIG_SGI_O2MACE_ETH
 	{
@@ -91,8 +94,21 @@ void __init ip32_setup(void)
 	}
 #endif
 
+#if defined(CONFIG_SERIAL_CORE_CONSOLE)
+	{
+		char* ctype = ArcGetEnvironmentVariable("console");
+		if (*ctype == 'd') {
+			if (ctype[1] == '2')
+				console_setup ("ttyS1");
+			else
+				console_setup ("ttyS0");
+		}
+	}
+#endif
 #ifdef CONFIG_VT
+# ifdef CONFIG_DUMMY_CONSOLE
 	conswitchp = &dummy_con;
+# endif
 #endif
 
 	rtc_ops = &ip32_rtc_ops;
@@ -101,4 +117,5 @@ void __init ip32_setup(void)
 	board_timer_setup = ip32_timer_setup;
 
 	crime_init();
+ 	ip32_pci_setup();
 }

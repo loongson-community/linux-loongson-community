@@ -307,41 +307,19 @@
 #endif
 
 #ifdef CONFIG_SGI_IP32
-
-#include <asm/ip32/ip32_ints.h>
-
 /*
  * The IP32 (SGI O2) has standard serial ports (UART 16550A) mapped in memory
+ * They are initialized in ip32_setup
  */
-
-/* Standard COM flags (except for COM4, because of the 8514 problem) */
-#ifdef CONFIG_SERIAL_DETECT_IRQ
-#define STD_COM_FLAGS (ASYNC_BOOT_AUTOCONF | ASYNC_SKIP_TEST | ASYNC_AUTO_IRQ)
-#define STD_COM4_FLAGS (ASYNC_BOOT_AUTOCONF | ASYNC_AUTO_IRQ)
-#else
-#define STD_COM_FLAGS (ASYNC_BOOT_AUTOCONF/* | ASYNC_SKIP_TEST*/)
-#define STD_COM4_FLAGS ASYNC_BOOT_AUTOCONF
-#endif
-
 #define IP32_SERIAL_PORT_DEFNS				\
-        { .baud_base = BASE_BAUD,				\
-	  .irq = MACEISA_SERIAL1_IRQ,			\
-          .flags = STD_COM_FLAGS,				\
-          .iomem_base = (u8*)MACE_BASE+MACEISA_SER1_BASE,	\
-          .iomem_reg_shift = 8,				\
-          .io_type = SERIAL_IO_MEM},                      \
-        { .baud_base = BASE_BAUD,				\
-	  .irq = MACEISA_SERIAL2_IRQ,			\
-          .flags = STD_COM_FLAGS,				\
-          .iomem_base = (u8*)MACE_BASE+MACEISA_SER2_BASE,	\
-          .iomem_reg_shift = 8,				\
-          .io_type = SERIAL_IO_MEM},
+        {},{},
 #else
 #define IP32_SERIAL_PORT_DEFNS
-#endif /* CONFIG_SGI_IP31 */
+#endif /* CONFIG_SGI_IP32 */
 
 #define SERIAL_PORT_DFNS				\
 	IVR_SERIAL_PORT_DEFNS           		\
+	IP32_SERIAL_PORT_DEFNS                          \
 	ITE_SERIAL_PORT_DEFNS           		\
 	COBALT_SERIAL_PORT_DEFNS			\
 	EV96100_SERIAL_PORT_DEFNS			\

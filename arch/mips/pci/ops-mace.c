@@ -16,6 +16,11 @@
 #include <linux/delay.h>
 
 #undef DEBUG_MACE_PCI
+#ifdef DEBUG_MACE_PCI
+# define DPRINTK(fmt,args...) printk(KERN_DEBUG "%s: %d:" fmt "\n", __FILE__, __LINE__, ##args);
+#else
+# define DPRINTK(fmt...)
+#endif
 
 /*
  * O2 has up to 5 PCI devices connected into the MACE bridge.  The device
@@ -41,36 +46,37 @@ do {							        \
 static int mace_pci_read_config(struct pci_bus *bus, unsigned int devfn,
 			       int where, int size, u32 * val)
 {
+	chkslot(bus, devfn);
 	switch (size) {
 	case 1:
 		*val = 0xff;
-		chkslot(bus, devfn);
 		mace_write_32(MACEPCI_CONFIG_ADDR, mkaddr(devfn, where));
 		*val =
 		    mace_read_8(MACEPCI_CONFIG_DATA +
 				((where & 3UL) ^ 3UL));
+		DPRINTK("read: where=%016lx,val=%02x",where,*val);
 
 		return PCIBIOS_SUCCESSFUL;
 
 	case 2:
 		*val = 0xffff;
-		chkslot(bus, devfn);
 		if (where & 1)
 			return PCIBIOS_BAD_REGISTER_NUMBER;
 		mace_write_32(MACEPCI_CONFIG_ADDR, mkaddr(devfn, where));
 		*val =
 		    mace_read_16(MACEPCI_CONFIG_DATA +
 				 ((where & 2UL) ^ 2UL));
+		DPRINTK("read: where=%016lx,val=%04x",where,*val);
 
 		return PCIBIOS_SUCCESSFUL;
 
 	case 4:
 		*val = 0xffffffff;
-		chkslot(bus, devfn);
 		if (where & 3)
 			return PCIBIOS_BAD_REGISTER_NUMBER;
 		mace_write_32(MACEPCI_CONFIG_ADDR, mkaddr(devfn, where));
 		*val = mace_read_32(MACEPCI_CONFIG_DATA);
+		DPRINTK("read: where=%016lx,val=%08x",where,*val);
 
 		return PCIBIOS_SUCCESSFUL;
 	}
@@ -81,31 +87,32 @@ static int mace_pci_read_config(struct pci_bus *bus, unsigned int devfn,
 static int mace_pci_write_config(struct pci_bus *bus, unsigned int devfn,
 				int where, int size, u32 val)
 {
+	chkslot(bus, devfn);
 	switch (size) {
 	case 1:
-		chkslot(bus, devfn);
 		mace_write_32(MACEPCI_CONFIG_ADDR, mkaddr(devfn, where));
 		mace_write_8(MACEPCI_CONFIG_DATA + ((where & 3UL) ^ 3UL),
 			     val);
+		DPRINTK("write: where=%016lx,val=%02x",where,val);
 
 		return PCIBIOS_SUCCESSFUL;
 
 	case 2:
-		chkslot(bus, devfn);
 		if (where & 1)
 			return PCIBIOS_BAD_REGISTER_NUMBER;
 		mace_write_32(MACEPCI_CONFIG_ADDR, mkaddr(devfn, where));
 		mace_write_16(MACEPCI_CONFIG_DATA + ((where & 2UL) ^ 2UL),
 			      val);
+		DPRINTK("write: where=%016lx,val=%04x",where,val);
 
 		return PCIBIOS_SUCCESSFUL;
 
 	case 4:
-		chkslot(bus, devfn);
 		if (where & 3)
 			return PCIBIOS_BAD_REGISTER_NUMBER;
 		mace_write_32(MACEPCI_CONFIG_ADDR, mkaddr(devfn, where));
 		mace_write_32(MACEPCI_CONFIG_DATA, val);
+		DPRINTK("write: where=%016lx,val=%08x",where,val);
 
 		return PCIBIOS_SUCCESSFUL;
 	}
