@@ -8,8 +8,6 @@
 
 USE_STANDARD_AS_RULE := true
 
-OBJS  = milo.o a.out.o
-
 #
 # Some DECstations need all possible sections of an ECOFF executable
 #
