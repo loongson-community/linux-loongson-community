@@ -81,9 +81,11 @@ extern void (*_flush_page_to_ram)(struct page * page);
 #define USER_PTRS_PER_PGD	(TASK_SIZE/PGDIR_SIZE)
 #define FIRST_USER_PGD_NR	0
 
+#define KPTBL_PAGE_ORDER  1
 #define VMALLOC_START     XKSEG
 #define VMALLOC_VMADDR(x) ((unsigned long)(x))
-#define VMALLOC_END       (KSEG3 + (1UL << 40))	/* 1 TB */
+#define VMALLOC_END       \
+  (VMALLOC_START + ((PAGE_SIZE << KPTBL_PAGE_ORDER) * PTRS_PER_PTE * PAGE_SIZE))
 
 /* Note that we shift the lower 32bits of each EntryLo[01] entry
  * 6 bits to the left. That way we can convert the PFN into the

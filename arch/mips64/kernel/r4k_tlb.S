@@ -1,4 +1,4 @@
-/* $Id: r4k_tlb.S,v 1.1 2000/05/25 19:33:16 ulfc Exp $
+/* $Id: r4k_tlb.S,v 1.2 2000/06/13 23:48:20 kanoj Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -33,13 +33,14 @@
 #endif
 	dmfc0	\tmp, CP0_BADVADDR
 	ld	\ptr, (\ptr)
-	dsrl	\tmp, 28			# get pgd offset
-	andi	\tmp, 0x1ff8
+	bltz	\tmp, kaddr
+	 dsrl	\tmp, (PGDIR_SHIFT-3)		# get pgd offset in bytes
+	andi	\tmp, ((PTRS_PER_PGD - 1)<<3)
 	daddu	\ptr, \tmp			# add in pgd offset
 	dmfc0	\tmp, CP0_BADVADDR
 	ld	\ptr, (\ptr)			# get pmd pointer
-	dsrl	\tmp, 18			# get pmd offset
-	andi	\tmp, 0x1ff8
+	dsrl	\tmp, (PMD_SHIFT-3)		# get pmd offset in bytes
+	andi	\tmp, ((PTRS_PER_PMD - 1)<<3)
 	daddu	\ptr, \tmp			# add in pmd offset
 	dmfc0	\tmp, CP0_XCONTEXT
 	ld	\ptr, (\ptr)			# get pte pointer
@@ -82,3 +83,51 @@ FEXPORT(except_vec1_r10k)
 	nop
 	tlbwr
 	eret
+kaddr:
+	dla	k0, handle_vmalloc_address	# MAPPED kernel needs this
+	jr	k0
+	 nop
+
+	.align	5
+FEXPORT(handle_vmalloc_address)
+	.set	noat
+	/*
+	 * First, determine that the address is in/above vmalloc range.
+	 */
+	dmfc0	k0, CP0_BADVADDR
+	dli	k1, VMALLOC_START
+	sltu	k1, k0, k1
+	bne	k1, zero, not_vmalloc
+	 dli	k1, VMALLOC_START
+
+	/*
+	 * Now find offset into kptbl.
+	 */
+	dsubu	k0, k0, k1
+	dla	k1, kptbl
+	dsrl	k0, (PAGE_SHIFT+1)		# get vpn2
+	dsll	k0, 4				# byte offset of pte
+	daddu	k1, k1, k0
+
+	/*
+	 * Determine that fault address is within vmalloc range.
+	 */
+	dla	k0, ekptbl
+	sltu	k0, k1, k0
+	beq	k0, zero, not_vmalloc
+
+	/*
+	 * Load cp0 registers.
+	 */
+	ld	k0, 0(k1)			# get even pte
+	ld	k1, 8(k1)			# get odd pte
+1:
+	PTE_RELOAD k0 k1
+	nop
+	tlbwr
+	eret
+not_vmalloc:
+	daddu	k0, zero, zero
+	daddu	k1, zero, zero
+	j	1b
+	nop

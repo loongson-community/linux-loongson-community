@@ -35,6 +35,7 @@
 #include <asm/io.h>
 #include <asm/stackframe.h>
 #include <asm/system.h>
+#include <asm/pgalloc.h>
 
 #ifdef CONFIG_SGI_IP27
 /* XXX Origin garbage has no business in this file  */
@@ -154,6 +155,7 @@ void __init setup_arch(char **cmdline_p)
 	unsigned long *initrd_header;
 #endif
 
+	memset((void *)kptbl, 0, PAGE_SIZE << KPTBL_PAGE_ORDER);
 	cpu_probe();
 	load_mmu();
 
