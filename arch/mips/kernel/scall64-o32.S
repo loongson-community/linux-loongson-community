@@ -502,4 +502,5 @@ sys_call_table:
 	PTR	compat_sys_mq_notify		/* 4275 */
 	PTR	compat_sys_mq_getsetattr 
 	PTR	sys_ni_syscall			/* sys_vserver */
+	PTR	sys_waitid
 	.size	sys_call_table,.-sys_call_table

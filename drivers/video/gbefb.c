@@ -1118,6 +1118,10 @@ static int __init gbefb_probe(struct device *dev)
 	if (!info)
 		return -ENOMEM;
 
+#ifndef MODULE
+	gbefb_setup(fb_get_options("gbefb"));
+#endif
+
 	if (!request_mem_region(GBE_BASE, sizeof(struct sgi_gbe), "GBE")) {
 		printk(KERN_ERR "gbefb: couldn't reserve mmio region\n");
 		ret = -EBUSY;
@@ -1267,8 +1271,9 @@ int __init gbefb_init(void)
 	return ret;
 }
 
-#ifdef MODULE
 module_init(gbefb_init);
+
+#ifdef MODULE
 module_exit(gbefb_exit);
 #endif
 

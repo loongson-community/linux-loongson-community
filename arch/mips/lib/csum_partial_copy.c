@@ -37,6 +37,7 @@ unsigned int csum_partial_copy_from_user (const char *src, char *dst,
 {
 	int missing;
 
+	might_sleep();
 	missing = copy_from_user(dst, src, len);
 	if (missing) {
 		memset(dst + len - missing, 0, missing);

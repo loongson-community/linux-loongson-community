@@ -73,6 +73,11 @@ struct ethtool_ops;
 
 #define MAX_ADDR_LEN	32		/* Largest hardware address length */
 
+/* Driver transmit return codes */
+#define NETDEV_TX_OK 0		/* driver took care of packet */
+#define NETDEV_TX_BUSY 1	/* driver tx path was busy*/
+#define NETDEV_TX_LOCKED -1	/* driver tx lock was already taken */
+
 /*
  *	Compute the worst case header length according to the protocols
  *	used.
@@ -462,7 +467,7 @@ struct net_device
 						     unsigned char *haddr);
 	int			(*neigh_setup)(struct net_device *dev, struct neigh_parms *);
 	int			(*accept_fastpath)(struct net_device *, struct dst_entry*);
-#ifdef CONFIG_NETPOLL_RX
+#ifdef CONFIG_NETPOLL
 	int			netpoll_rx;
 #endif
 #ifdef CONFIG_NET_POLL_CONTROLLER
@@ -479,7 +484,6 @@ struct net_device
 
 	/* class/net/name entry */
 	struct class_device	class_dev;
-	struct net_device_stats* (*last_stats)(struct net_device *);
 	/* how much padding had been added by alloc_netdev() */
 	int padded;
 };
@@ -677,6 +681,7 @@ extern int		dev_ioctl(unsigned int cmd, void __user *);
 extern int		dev_ethtool(struct ifreq *);
 extern unsigned		dev_get_flags(const struct net_device *);
 extern int		dev_change_flags(struct net_device *, unsigned);
+extern int		dev_change_name(struct net_device *, char *);
 extern int		dev_set_mtu(struct net_device *, int);
 extern void		dev_queue_xmit_nit(struct sk_buff *skb, struct net_device *dev);
 

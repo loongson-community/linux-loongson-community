@@ -251,4 +251,5 @@ int __init g364fb_init(void)
 	return 0;
 }
 
+module_init(g364fb_init);
 MODULE_LICENSE("GPL");

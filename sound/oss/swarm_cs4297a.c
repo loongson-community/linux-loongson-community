@@ -71,6 +71,7 @@
 #include <linux/ac97_codec.h>
 #include <linux/pci.h>
 #include <linux/bitops.h>
+#include <linux/interrupt.h>
 #include <linux/init.h>
 #include <linux/poll.h>
 #include <linux/smp_lock.h>
@@ -78,7 +79,6 @@
 
 #include <asm/byteorder.h>
 #include <asm/dma.h>
-#include <asm/hardirq.h>
 #include <asm/io.h>
 #include <asm/uaccess.h>
 

@@ -171,7 +171,7 @@ static void __exit maxinefb_exit(void)
 
 #ifdef MODULE
 MODULE_LICENSE("GPL");
-module_init(maxinefb_init);
 #endif
+module_init(maxinefb_init);
 module_exit(maxinefb_exit);
 

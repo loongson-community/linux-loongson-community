@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.9-rc1
-# Tue Aug 24 16:44:37 2004
+# Linux kernel version: 2.6.9-rc2
+# Tue Sep 14 18:48:27 2004
 #
 CONFIG_MIPS=y
 CONFIG_MIPS64=y
@@ -17,6 +17,7 @@ CONFIG_BROKEN_ON_SMP=y
 #
 # General setup
 #
+CONFIG_LOCALVERSION=""
 CONFIG_SWAP=y
 CONFIG_SYSVIPC=y
 # CONFIG_POSIX_MQUEUE is not set
@@ -36,6 +37,8 @@ CONFIG_IOSCHED_AS=y
 CONFIG_IOSCHED_DEADLINE=y
 CONFIG_IOSCHED_CFQ=y
 # CONFIG_CC_OPTIMIZE_FOR_SIZE is not set
+CONFIG_SHMEM=y
+# CONFIG_TINY_SHMEM is not set
 
 #
 # Loadable module support
@@ -405,7 +408,6 @@ CONFIG_SERIAL_CORE_CONSOLE=y
 CONFIG_UNIX98_PTYS=y
 CONFIG_LEGACY_PTYS=y
 CONFIG_LEGACY_PTY_COUNT=256
-# CONFIG_QIC02_TAPE is not set
 
 #
 # IPMI
@@ -461,7 +463,6 @@ CONFIG_LEGACY_PTY_COUNT=256
 # Console display driver support
 #
 # CONFIG_VGA_CONSOLE is not set
-# CONFIG_MDA_CONSOLE is not set
 CONFIG_DUMMY_CONSOLE=y
 
 #

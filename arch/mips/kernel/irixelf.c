@@ -1131,14 +1131,28 @@ static int irix_core_dump(long signr, struct pt_regs * regs, struct file *file)
 	psinfo.pr_ppid = prstatus.pr_ppid = current->parent->pid;
 	psinfo.pr_pgrp = prstatus.pr_pgrp = process_group(current);
 	psinfo.pr_sid = prstatus.pr_sid = current->signal->session;
-	prstatus.pr_utime.tv_sec = CT_TO_SECS(current->utime);
-	prstatus.pr_utime.tv_usec = CT_TO_USECS(current->utime);
-	prstatus.pr_stime.tv_sec = CT_TO_SECS(current->stime);
-	prstatus.pr_stime.tv_usec = CT_TO_USECS(current->stime);
-	prstatus.pr_cutime.tv_sec = CT_TO_SECS(current->cutime);
-	prstatus.pr_cutime.tv_usec = CT_TO_USECS(current->cutime);
-	prstatus.pr_cstime.tv_sec = CT_TO_SECS(current->cstime);
-	prstatus.pr_cstime.tv_usec = CT_TO_USECS(current->cstime);
+	if (current->pid == current->tgid) {
+		/*
+		 * This is the record for the group leader.  Add in the
+		 * cumulative times of previous dead threads.  This total
+		 * won't include the time of each live thread whose state
+		 * is included in the core dump.  The final total reported
+		 * to our parent process when it calls wait4 will include
+		 * those sums as well as the little bit more time it takes
+		 * this and each other thread to finish dying after the
+		 * core dump synchronization phase.
+		 */
+		jiffies_to_timeval(current->utime + current->signal->utime,
+		                   &prstatus.pr_utime);
+		jiffies_to_timeval(current->stime + current->signal->stime,
+		                   &prstatus.pr_stime);
+	} else {
+		jiffies_to_timeval(current->utime, &prstatus.pr_utime);
+		jiffies_to_timeval(current->stime, &prstatus.pr_stime);
+	}
+	jiffies_to_timeval(current->signal->cutime, &prstatus.pr_cutime);
+	jiffies_to_timeval(current->signal->cstime, &prstatus.pr_cstime);
+
 	if (sizeof(elf_gregset_t) != sizeof(struct pt_regs)) {
 		printk("sizeof(elf_gregset_t) (%d) != sizeof(struct pt_regs) "
 		       "(%d)\n", sizeof(elf_gregset_t), sizeof(struct pt_regs));

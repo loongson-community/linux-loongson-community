@@ -359,3 +359,4 @@ EXPORT(sysn32_call_table)
 	PTR	compat_sys_mq_notify
 	PTR	compat_sys_mq_getsetattr	/* 6239 */
 	PTR	sys_ni_syscall			/* sys_vserver */
+	PTR	sys_waitid

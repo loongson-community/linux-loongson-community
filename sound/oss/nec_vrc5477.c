@@ -81,7 +81,6 @@
 #include <asm/io.h>
 #include <asm/dma.h>
 #include <asm/uaccess.h>
-#include <asm/hardirq.h>
 
 /* -------------------debug macros -------------------------------------- */
 /* #undef VRC5477_AC97_DEBUG */

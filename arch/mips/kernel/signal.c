@@ -409,9 +409,7 @@ static void inline setup_frame(struct k_sigaction * ka, struct pt_regs *regs,
         return;
 
 give_sigsegv:
-	if (signr == SIGSEGV)
-		ka->sa.sa_handler = SIG_DFL;
-	force_sig(SIGSEGV, current);
+	force_sigsegv(signr, current);
 }
 #endif
 
@@ -478,19 +476,15 @@ static void inline setup_rt_frame(struct k_sigaction * ka, struct pt_regs *regs,
 	return;
 
 give_sigsegv:
-	if (signr == SIGSEGV)
-		ka->sa.sa_handler = SIG_DFL;
-	force_sig(SIGSEGV, current);
+	force_sigsegv(signr, current);
 }
 
 extern void setup_rt_frame_n32(struct k_sigaction * ka,
 	struct pt_regs *regs, int signr, sigset_t *set, siginfo_t *info);
 
 static inline void handle_signal(unsigned long sig, siginfo_t *info,
-	sigset_t *oldset, struct pt_regs *regs)
+	struct k_sigaction *ka, sigset_t *oldset, struct pt_regs *regs)
 {
-	struct k_sigaction *ka = &current->sighand->action[sig-1];
-
 	switch(regs->regs[0]) {
 	case ERESTART_RESTARTBLOCK:
 	case ERESTARTNOHAND:
@@ -526,8 +520,6 @@ static inline void handle_signal(unsigned long sig, siginfo_t *info,
 		setup_frame(ka, regs, sig, oldset);
 #endif
 
-	if (ka->sa.sa_flags & SA_ONESHOT)
-		ka->sa.sa_handler = SIG_DFL;
 	if (!(ka->sa.sa_flags & SA_NODEFER)) {
 		spin_lock_irq(&current->sighand->siglock);
 		sigorsets(&current->blocked,&current->blocked,&ka->sa.sa_mask);
@@ -542,6 +534,7 @@ extern int do_irix_signal(sigset_t *oldset, struct pt_regs *regs);
 
 asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 {
+	struct k_sigaction ka;
 	siginfo_t info;
 	int signr;
 
@@ -567,9 +560,9 @@ asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 	if (!oldset)
 		oldset = &current->blocked;
 
-	signr = get_signal_to_deliver(&info, regs, NULL);
+	signr = get_signal_to_deliver(&info, &ka, regs, NULL);
 	if (signr > 0) {
-		handle_signal(signr, &info, oldset, regs);
+		handle_signal(signr, &info, &ka, oldset, regs);
 		return 1;
 	}
 

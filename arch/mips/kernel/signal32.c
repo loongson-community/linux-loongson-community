@@ -30,6 +30,72 @@
 #include <asm/system.h>
 #include <asm/fpu.h>
 
+#define SI_PAD_SIZE32   ((SI_MAX_SIZE/sizeof(int)) - 3)
+
+typedef union sigval32 {
+	int sival_int;
+	s32 sival_ptr;
+} sigval_t32;
+
+typedef struct siginfo32 {
+	int si_signo;
+	int si_code;
+	int si_errno;
+
+	union {
+		int _pad[SI_PAD_SIZE32];
+
+		/* kill() */
+		struct {
+			compat_pid_t _pid;	/* sender's pid */
+			compat_uid_t _uid;	/* sender's uid */
+		} _kill;
+
+		/* SIGCHLD */
+		struct {
+			compat_pid_t _pid;	/* which child */
+			compat_uid_t _uid;	/* sender's uid */
+			compat_clock_t _utime;
+			int _status;		/* exit code */
+			compat_clock_t _stime;
+			struct compat_rusage _rusage;
+		} _sigchld;
+
+		/* IRIX SIGCHLD */
+		struct {
+			compat_pid_t _pid;	/* which child */
+			compat_clock_t _utime;
+			int _status;		/* exit code */
+			compat_clock_t _stime;
+		} _irix_sigchld;
+
+		/* SIGILL, SIGFPE, SIGSEGV, SIGBUS */
+		struct {
+			s32 _addr; /* faulting insn/memory ref. */
+		} _sigfault;
+
+		/* SIGPOLL, SIGXFSZ (To do ...)  */
+		struct {
+			int _band;	/* POLL_IN, POLL_OUT, POLL_MSG */
+			int _fd;
+		} _sigpoll;
+
+		/* POSIX.1b timers */
+		struct {
+			unsigned int _timer1;
+			unsigned int _timer2;
+		} _timer;
+
+		/* POSIX.1b signals */
+		struct {
+			compat_pid_t _pid;	/* sender's pid */
+			compat_uid_t _uid;	/* sender's uid */
+			sigval_t32 _sigval;
+		} _rt;
+
+	} _sifields;
+} siginfo_t32;
+
 /*
  * Including <asm/unistd.h> would give use the 64-bit syscall numbers ...
  */
@@ -577,9 +643,7 @@ static inline void setup_frame(struct k_sigaction * ka, struct pt_regs *regs,
         return;
 
 give_sigsegv:
-	if (signr == SIGSEGV)
-		ka->sa.sa_handler = SIG_DFL;
-	force_sig(SIGSEGV, current);
+	force_sigsegv(signr, current);
 }
 
 static inline void setup_rt_frame(struct k_sigaction * ka,
@@ -650,16 +714,12 @@ static inline void setup_rt_frame(struct k_sigaction * ka,
 	return;
 
 give_sigsegv:
-	if (signr == SIGSEGV)
-		ka->sa.sa_handler = SIG_DFL;
-	force_sig(SIGSEGV, current);
+	force_sigsegv(signr, current);
 }
 
 static inline void handle_signal(unsigned long sig, siginfo_t *info,
-	sigset_t *oldset, struct pt_regs * regs)
+	struct k_sigaction *ka, sigset_t *oldset, struct pt_regs * regs)
 {
-	struct k_sigaction *ka = &current->sighand->action[sig-1];
-
 	switch (regs->regs[0]) {
 	case ERESTART_RESTARTBLOCK:
 	case ERESTARTNOHAND:
@@ -683,8 +743,6 @@ static inline void handle_signal(unsigned long sig, siginfo_t *info,
 	else
 		setup_frame(ka, regs, sig, oldset);
 
-	if (ka->sa.sa_flags & SA_ONESHOT)
-		ka->sa.sa_handler = SIG_DFL;
 	if (!(ka->sa.sa_flags & SA_NODEFER)) {
 		spin_lock_irq(&current->sighand->siglock);
 		sigorsets(&current->blocked,&current->blocked,&ka->sa.sa_mask);
@@ -696,6 +754,7 @@ static inline void handle_signal(unsigned long sig, siginfo_t *info,
 
 asmlinkage int do_signal32(sigset_t *oldset, struct pt_regs *regs)
 {
+	struct k_sigaction ka;
 	siginfo_t info;
 	int signr;
 
@@ -715,9 +774,9 @@ asmlinkage int do_signal32(sigset_t *oldset, struct pt_regs *regs)
 	if (!oldset)
 		oldset = &current->blocked;
 
-	signr = get_signal_to_deliver(&info, regs, NULL);
+	signr = get_signal_to_deliver(&info, &ka, regs, NULL);
 	if (signr > 0) {
-		handle_signal(signr, &info, oldset, regs);
+		handle_signal(signr, &info, &ka, oldset, regs);
 		return 1;
 	}
 

@@ -21,6 +21,7 @@
 #include <linux/config.h>
 #include <linux/wait.h>
 #include <linux/stringify.h>
+#include <asm/socket.h>
 
 struct poll_table_struct;
 struct inode;
@@ -60,6 +61,33 @@ typedef enum {
 #define SOCK_ASYNC_NOSPACE	0
 #define SOCK_ASYNC_WAITDATA	1
 #define SOCK_NOSPACE		2
+
+#ifndef ARCH_HAS_SOCKET_TYPES
+/** sock_type - Socket types
+ *
+ * When adding some new socket type please
+ * grep ARCH_HAS_SOCKET_TYPE include/asm-* /socket.h, at least MIPS
+ * overrides this enum for binary compat reasons.
+ *
+ * @SOCK_STREAM - stream (connection) socket
+ * @SOCK_DGRAM - datagram (conn.less) socket
+ * @SOCK_RAW - raw socket
+ * @SOCK_RDM - reliably-delivered message
+ * @SOCK_SEQPACKET - sequential packet socket 
+ * @SOCK_PACKET - linux specific way of getting packets at the dev level.
+ *		  For writing rarp and other similar things on the user level.
+ */
+enum sock_type {
+	SOCK_STREAM	= 1,
+	SOCK_DGRAM	= 2,
+	SOCK_RAW	= 3,
+	SOCK_RDM	= 4,
+	SOCK_SEQPACKET	= 5,
+	SOCK_PACKET	= 10,
+};
+#endif /* ARCH_HAS_SOCKET_TYPES */
+
+#define SOCK_MAX (SOCK_PACKET + 1)
 
 /**
  *  struct socket - general BSD socket

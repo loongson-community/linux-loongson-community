@@ -690,7 +690,7 @@ int zs_startup(struct dec_serial * info)
 	save_flags(flags); cli();
 
 #ifdef SERIAL_DEBUG_OPEN
-	printk("starting up ttyS%02d (irq %d)...", info->line, info->irq);
+	printk("starting up ttyS%d (irq %d)...", info->line, info->irq);
 #endif
 
 	/*
@@ -1339,7 +1339,7 @@ static void rs_close(struct tty_struct *tty, struct file * filp)
 	}
 
 #ifdef SERIAL_DEBUG_OPEN
-	printk("rs_close ttyS%02d, count = %d\n", info->line, info->count);
+	printk("rs_close ttyS%d, count = %d\n", info->line, info->count);
 #endif
 	if ((tty->count == 1) && (info->count != 1)) {
 		/*
@@ -1354,7 +1354,7 @@ static void rs_close(struct tty_struct *tty, struct file * filp)
 		info->count = 1;
 	}
 	if (--info->count < 0) {
-		printk("rs_close: bad serial port count for ttyS%02d: %d\n",
+		printk("rs_close: bad serial port count for ttyS%d: %d\n",
 		       info->line, info->count);
 		info->count = 0;
 	}
@@ -1510,7 +1510,7 @@ static int block_til_ready(struct tty_struct *tty, struct file * filp,
 	retval = 0;
 	add_wait_queue(&info->open_wait, &wait);
 #ifdef SERIAL_DEBUG_OPEN
-	printk("block_til_ready before block: ttyS%02d, count = %d\n",
+	printk("block_til_ready before block: ttyS%d, count = %d\n",
 	       info->line, info->count);
 #endif
 	cli();
@@ -1544,7 +1544,7 @@ static int block_til_ready(struct tty_struct *tty, struct file * filp,
 			break;
 		}
 #ifdef SERIAL_DEBUG_OPEN
-		printk("block_til_ready blocking: ttyS%02d, count = %d\n",
+		printk("block_til_ready blocking: ttyS%d, count = %d\n",
 		       info->line, info->count);
 #endif
 		schedule();
@@ -1555,7 +1555,7 @@ static int block_til_ready(struct tty_struct *tty, struct file * filp,
 		info->count++;
 	info->blocked_open--;
 #ifdef SERIAL_DEBUG_OPEN
-	printk("block_til_ready after blocking: ttyS%02d, count = %d\n",
+	printk("block_til_ready after blocking: ttyS%d, count = %d\n",
 	       info->line, info->count);
 #endif
 	if (retval)
@@ -1728,14 +1728,10 @@ static void __init probe_sccs(void)
 			 * We're called early and memory managment isn't up, yet.
 			 * Thus check_region would fail.
 			 */
-			if (check_region((unsigned long)
+			if (!request_region((unsigned long)
 					 zs_channels[n_channels].control,
-					 ZS_CHAN_IO_SIZE) < 0) {
+					 ZS_CHAN_IO_SIZE, "SCC"))
 				panic("SCC I/O region is not free");
-			}
-			request_region((unsigned long)
-				       zs_channels[n_channels].control,
-				       ZS_CHAN_IO_SIZE, "SCC");
 #endif
 			zs_soft[n_channels].zs_channel = &zs_channels[n_channels];
 			/* HACK alert! */
