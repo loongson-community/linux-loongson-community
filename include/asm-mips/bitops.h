@@ -706,7 +706,7 @@ static __inline__ int find_next_zero_bit (unsigned long * addr, int size,
 	/*
 	 * No zero yet, search remaining full bytes for a zero
 	 */
-	res = find_first_zero_bit(p, size - 32 * (p - (unsigned int *) addr));
+	res = find_first_zero_bit(p, size - 32 * (p - addr));
 	return offset + set + res;
 }
 
@@ -958,6 +958,7 @@ found_middle:
 #else /* !(__MIPSEB__) */
 
 /* Native ext2 byte ordering, just collapse using defines. */
+#define ext2_set_bit(nr, addr) test_and_set_bit((nr), (addr))
 #define ext2_clear_bit(nr, addr) \
 	__test_and_clear_bit((nr),(unsigned long*)addr)
 #define ext2_test_bit(nr, addr) \
