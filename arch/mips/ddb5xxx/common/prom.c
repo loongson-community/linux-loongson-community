@@ -40,6 +40,9 @@ void __init prom_init(int argc, const char **arg)
 		strcat(arcs_cmdline, " ");
 	}
 
+	/* by default all these boards use dhcp/nfs root fs */
+	strcat(arcs_cmdline, "ip=bootp");
+
 	mips_machgroup = MACH_GROUP_NEC_DDB;
 
 #if defined(CONFIG_DDB5074)

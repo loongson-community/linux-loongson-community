@@ -3,9 +3,10 @@
 #include <linux/types.h>
 #include <linux/pci.h>
 
+#include <asm/pci_channel.h>
+
 #include <asm/ddb5xxx/ddb5xxx.h>
 #include <asm/ddb5xxx/debug.h>
-#include <asm/ddb5xxx/pci.h>
 
 static struct resource extpci_io_resource = {
 	"ext pci IO space", 
@@ -143,5 +144,15 @@ void __init ddb_pci_reset_bus(void)
 
 unsigned __init int pcibios_assign_all_busses(void)
 {
+	/* we hope pci_auto has assigned the bus numbers to all buses */
 	return 1;
 }
+
+void __init pcibios_fixup_resources(struct pci_dev *dev)
+{
+}
+
+void __init pcibios_fixup(void)
+{
+}
+
