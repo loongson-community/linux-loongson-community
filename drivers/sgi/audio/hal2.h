@@ -168,8 +168,6 @@ struct hal2_vol_regs {
 					/* 1=mono 2=stereo 3=quad */
 
 #define H2IW_DAC_C2		0x1408 	/* dac control 2 write word 0 */
-					/* both words have to be written at */
-					/* the same time, fill idr[0-1] */
 #define H2IR_DAC_C2_0		0x1488  /* dac control 2 read word 0 */
 #define H2IR_DAC_C2_1		0x1489 	/* dac control 2 read word 1 */
 					/* XXX: The spec says 0x1488 */

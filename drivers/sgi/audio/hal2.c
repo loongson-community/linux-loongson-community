@@ -1,4 +1,4 @@
-/* $Id: hal2.c,v 1.3 1999/01/27 19:33:48 ulfc Exp $
+/* $Id: hal2.c,v 1.4 1999/01/27 21:13:01 ulfc Exp $
  * 
  * drivers/sgi/audio/hal2.c
  *
@@ -14,6 +14,7 @@
 #include <linux/string.h>
 #include <linux/module.h>
 #include <linux/init.h>
+#include <linux/delay.h>
 
 #include <asm/uaccess.h>
 #include <asm/system.h>
@@ -101,14 +102,27 @@ struct sgiaudio_chan_ops {
 	void (*free) (struct sgiaudio *);
 };
 
-#define INDIRECT_WAIT(regs)	while(regs->isr & H2_ISR_TSTATUS)
+#if 0
+#define INDIRECT_WAIT(regs) while(regs->isr & H2_ISR_TSTATUS);
+#endif
+
+#define INDIRECT_WAIT(regs)							\
+{										\
+	int cnt = 1000;								\
+	printk("hal2: waiting (isr: %04hx)\n", regs->isr);			\
+	while(regs->isr & H2_ISR_TSTATUS && cnt--)				\
+		udelay(1000);							\
+	if (!cnt)								\
+		printk("hal2: failed while waiting for indirect trans.\n");	\
+	printk("hal2: finished waiting (isr: %04hx)\n", regs->isr);		\
+}										\
 
 static unsigned short ireg_read(unsigned short address)
 {
-	int tmp;
+	unsigned short tmp;
 
 	h2_ctrl->iar = address;
-	INDIRECT_WAIT(h2_ctrl);
+	INDIRECT_WAIT(h2_ctrl)
 	tmp = h2_ctrl->idr0;
 	return tmp;
 }
@@ -117,7 +131,7 @@ static void ireg_write(unsigned short address, unsigned short val)
 {
 	h2_ctrl->idr0 = val;
 	h2_ctrl->iar = address;
-	INDIRECT_WAIT(h2_ctrl);
+	INDIRECT_WAIT(h2_ctrl)
 }
 
 static void ireg_write2(unsigned short address,
@@ -126,7 +140,19 @@ static void ireg_write2(unsigned short address,
 	h2_ctrl->idr0 = val0;
 	h2_ctrl->idr1 = val1;
 	h2_ctrl->iar = address;
-	INDIRECT_WAIT(h2_ctrl);
+	INDIRECT_WAIT(h2_ctrl)
+}
+
+static void ireg_write4(unsigned short address,
+			 unsigned short val0, unsigned short val1,
+			 unsigned short val2, unsigned short val3)
+{
+	h2_ctrl->idr0 = val0;
+	h2_ctrl->idr1 = val1;
+	h2_ctrl->idr2 = val2;
+	h2_ctrl->idr3 = val3;
+	h2_ctrl->iar = address;
+	INDIRECT_WAIT(h2_ctrl)
 }
 
 static void ireg_setbit(unsigned short write_address, unsigned short
@@ -158,6 +184,8 @@ static int hal2_probe(void)
 {
         unsigned short board, major, minor;
 
+	h2_ctrl->isr = 0;
+
 	if (h2_ctrl->rev & H2_REV_AUDIO_PRESENT) {
 
 		printk("hal2: there was no device?\n");
@@ -182,21 +210,26 @@ static int hal2_probe(void)
 	/* check that the indirect registers are working by writing some bogus
 	 * stuff and then reading it back */
 
-	ireg_write(H2IW_DAC_C1, 0x23);		/* 16 bit register */
-	ireg_write2(H2IW_DAC_C2, 0x123, 0x321);	/* 32 bit register */
+	ireg_write(H2IW_DAC_C1, 0x123);			/* 16 bit register */
+	printk("hal2: wrote #1\n");
+	ireg_write2(H2IW_BRES2_C2, 0x132, 0x231);	/* 32 bit register */
+	printk("hal2: wrote #2\n");
 
-	if (ireg_read(H2IR_ADC_C1) != 0x23) {
+	if (ireg_read(H2IR_DAC_C1) != 0x123) {
 		printk("hal2: Didn't pass register check #1\n");
 		return -ENODEV;
 	}
-	if (ireg_read(H2IR_DAC_C2_0) != 0x123) {
+	printk("hal2: read #1\n");
+	if (ireg_read(H2IR_BRES2_C2_0) != 0x132) {
 		printk("hal2: Didn't pass register check #2\n");
 		return -ENODEV;
 	}
-	if (ireg_read(H2IR_DAC_C2_1) != 0x321) {
+	printk("hal2: read #2\n");
+	if (ireg_read(H2IR_BRES2_C2_1) != 0x231) {
 		printk("hal2: Didn't pass register check #3\n");
 		return -ENODEV;
 	}
+	printk("hal2: read #3\n");
 	
 #ifdef DEBUG
 	printk("hal2: card found\n");
