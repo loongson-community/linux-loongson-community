@@ -8,6 +8,7 @@
 
 #include <linux/kernel.h>
 #include <linux/sched.h>
+#include <linux/errno.h>
 #include <linux/types.h>
 #include <linux/interrupt.h>
 #include <linux/malloc.h>
@@ -15,16 +16,13 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/delay.h>
+#include <linux/soundcard.h>
 
 #include <asm/uaccess.h>
 #include <asm/system.h>
 #include <asm/page.h>
 #include <asm/io.h>
-#include <linux/errno.h>
-
-#include <linux/soundcard.h>
 #include <asm/sgihpc.h>
-#include <asm/indy_pbus.h>
 
 #include "hal2.h"
 
