@@ -12,6 +12,7 @@
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/timer.h>
+#include <asm/sn/sgi.h>
 #include <asm/mca.h>
 #include <asm/sal.h>
 #include <asm/sn/sn_sal.h>
@@ -65,20 +66,6 @@ print_hook(const char *fmt, ...)
 	printk("%s", buf);
 	return len;
 }
-
-
-
-/*
- * ia64_sn2_platform_plat_specific_err_print
- *
- * Called by the MCA handler to log platform-specific errors.
- */
-void
-ia64_sn2_platform_plat_specific_err_print(int header_len, int sect_len, u8 *p_data, prfunc_t prfunc)
-{
-	ia64_sn_plat_specific_err_print(print_hook, p_data - sect_len);
-}
-
 
 
 static void

@@ -60,7 +60,9 @@ obj-$(CONFIG_GEN_RTC) += genrtc.o
 obj-$(CONFIG_EFI_RTC) += efirtc.o
 obj-$(CONFIG_SGI_DS1286) += ds1286.o
 obj-$(CONFIG_SGI_IP27_RTC) += ip27-rtc.o
-ifeq ($(CONFIG_PPC),)
+ifeq ($(CONFIG_GENERIC_NVRAM),y)
+  obj-$(CONFIG_NVRAM) += generic_nvram.o
+else
   obj-$(CONFIG_NVRAM) += nvram.o
 endif
 obj-$(CONFIG_TOSHIBA) += toshiba.o

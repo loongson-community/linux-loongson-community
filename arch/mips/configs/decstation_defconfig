@@ -217,6 +217,10 @@ CONFIG_SCSI_DECNCR=y
 #
 
 #
+# Macintosh device drivers
+#
+
+#
 # Networking support
 #
 CONFIG_NET=y

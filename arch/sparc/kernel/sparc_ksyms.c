@@ -85,22 +85,38 @@ extern int __divdi3(int, int);
 
 extern void dump_thread(struct pt_regs *, struct user *);
 
+/* Private functions with odd calling conventions. */
+extern void ___atomic24_add(void);
+extern void ___atomic24_sub(void);
+extern void ___set_bit(void);
+extern void ___clear_bit(void);
+extern void ___change_bit(void);
+
 /* One thing to note is that the way the symbols of the mul/div
  * support routines are named is a mess, they all start with
  * a '.' which makes it a bitch to export, here is the trick:
  */
 
-#define EXPORT_SYMBOL_DOT(sym)					\
-extern int __sparc_dot_ ## sym (int) __asm__("." #sym);		\
-const struct kernel_symbol __ksymtab___sparc_dot_##sym		\
-__attribute__((section("__ksymtab")))				\
-= { (unsigned long)&__sparc_dot_##sym , "." #sym }
+/* If the interface of any of these special functions does ever
+ * change in an incompatible way, you must modify this.
+ */
+#define DOT_PROTO(sym) extern int __dot_##sym(int, int)
 
-#define EXPORT_SYMBOL_PRIVATE(sym)				\
-extern int __sparc_priv_ ## sym (int) __asm__("__" #sym);	\
-const struct kernel_symbol __export_priv_##sym			\
-__attribute__((section("__ksymtab"))) =				\
-{ (unsigned long) &__sparc_priv_ ## sym, "__" #sym }
+#ifdef __GENKSYMS__
+#define EXPORT_SYMBOL_DOT(sym)						\
+	DOT_PROTO(sym);							\
+	EXPORT_SYMBOL(__dot_ ## sym)
+#else /* !__GENKSYMS__ */
+#define EXPORT_SYMBOL_DOT(sym)						\
+	DOT_PROTO(sym) __asm__("." # sym);				\
+	__CRC_SYMBOL(__dot_##sym, "")					\
+	static const char __kstrtab___dot_##sym[]			\
+	__attribute__((section("__ksymtab_strings")))			\
+	= "." #sym;							\
+	static const struct kernel_symbol __ksymtab___dot_##sym		\
+	__attribute__((section("__ksymtab")))				\
+	= { (unsigned long)&__dot_##sym, __kstrtab___dot_##sym }
+#endif
 
 /* used by various drivers */
 EXPORT_SYMBOL(sparc_cpu_model);
@@ -131,22 +147,18 @@ EXPORT_SYMBOL(sparc_valid_addr_bitmap);
 EXPORT_SYMBOL(phys_base);
 
 /* Atomic operations. */
-EXPORT_SYMBOL_PRIVATE(_atomic_add);
-EXPORT_SYMBOL_PRIVATE(_atomic_sub);
+EXPORT_SYMBOL(___atomic24_add);
+EXPORT_SYMBOL(___atomic24_sub);
 
 /* Bit operations. */
-EXPORT_SYMBOL_PRIVATE(_set_bit);
-EXPORT_SYMBOL_PRIVATE(_clear_bit);
-EXPORT_SYMBOL_PRIVATE(_change_bit);
+EXPORT_SYMBOL(___set_bit);
+EXPORT_SYMBOL(___clear_bit);
+EXPORT_SYMBOL(___change_bit);
 
 #ifdef CONFIG_SMP
 /* IRQ implementation. */
 EXPORT_SYMBOL(global_irq_holder);
 EXPORT_SYMBOL(synchronize_irq);
-EXPORT_SYMBOL(__global_cli);
-EXPORT_SYMBOL(__global_sti);
-EXPORT_SYMBOL(__global_save_flags);
-EXPORT_SYMBOL(__global_restore_flags);
 
 /* Misc SMP information */
 EXPORT_SYMBOL(__cpu_number_map);

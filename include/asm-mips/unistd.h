@@ -1059,7 +1059,6 @@ type name (atype a,btype b,ctype c,dtype d,etype e,ftype f) \
  * won't be any messing with the stack from main(), but we define
  * some others too.
  */
-#define __NR__exit __NR_exit
 static inline _syscall0(pid_t,setsid)
 static inline _syscall3(int,write,int,fd,const char *,buf,off_t,count)
 static inline _syscall3(int,read,int,fd,char *,buf,off_t,count)
@@ -1068,7 +1067,6 @@ static inline _syscall1(int,dup,int,fd)
 static inline _syscall3(int,execve,const char *,file,char **,argv,char **,envp)
 static inline _syscall3(int,open,const char *,file,int,flag,int,mode)
 static inline _syscall1(int,close,int,fd)
-static inline _syscall1(int,_exit,int,exitcode)
 struct rusage;
 static inline _syscall4(pid_t,wait4,pid_t,pid,int *,stat_addr,int,options,struct rusage *,ru)
 

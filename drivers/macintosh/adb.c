@@ -40,8 +40,8 @@
 #include <asm/semaphore.h>
 #ifdef CONFIG_PPC
 #include <asm/prom.h>
-#include <asm/hydra.h>
 #endif
+
 
 EXPORT_SYMBOL(adb_controller);
 EXPORT_SYMBOL(adb_client_list);
@@ -83,6 +83,7 @@ static pid_t adb_probe_task_pid;
 static DECLARE_MUTEX(adb_probe_mutex);
 static struct completion adb_probe_task_comp;
 static int sleepy_trackpad;
+static int autopoll_devs;
 int __adb_probe_sync;
 
 #ifdef CONFIG_PMAC_PBOOK
@@ -289,7 +290,7 @@ int __init adb_init(void)
 	struct adb_driver *driver;
 	int i;
 
-#ifdef CONFIG_PPC
+#ifdef CONFIG_PPC32
 	if ( (_machine != _MACH_chrp) && (_machine != _MACH_Pmac) )
 		return 0;
 #endif
@@ -379,7 +380,7 @@ adb_notify_sleep(struct pmu_sleep_notifier *self, int when)
 static int
 do_adb_reset_bus(void)
 {
-	int ret, nret, devs;
+	int ret, nret;
 	
 	if (adb_controller == NULL)
 		return -ENXIO;
@@ -390,7 +391,7 @@ do_adb_reset_bus(void)
 	nret = notifier_call_chain(&adb_client_list, ADB_MSG_PRE_RESET, NULL);
 	if (nret & NOTIFY_STOP_MASK) {
 		if (adb_controller->autopoll)
-			adb_controller->autopoll(devs);
+			adb_controller->autopoll(autopoll_devs);
 		return -EBUSY;
 	}
 
@@ -416,9 +417,9 @@ do_adb_reset_bus(void)
 	}
 
 	if (!ret) {
-		devs = adb_scan_bus();
+		autopoll_devs = adb_scan_bus();
 		if (adb_controller->autopoll)
-			adb_controller->autopoll(devs);
+			adb_controller->autopoll(autopoll_devs);
 	}
 	up(&adb_handler_sem);
 

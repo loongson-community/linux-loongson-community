@@ -20,6 +20,8 @@
 #endif
 
 
+#define pcibios_scan_all_fns(a, b)	0
+
 static inline void pcibios_set_master(struct pci_dev *dev)
 {
 	/* No special bus mastering setup handling */
@@ -73,7 +75,7 @@ pci_unmap_single(struct pci_dev *hwdev, dma_addr_t handle, size_t size, int dir)
 		return;
 	}
 
-	return dma_unmap_single(hwdev ? &hwdev->dev : NULL, handle, size, dir);
+	dma_unmap_single(hwdev ? &hwdev->dev : NULL, handle, size, dir);
 }
 
 static inline int
@@ -183,6 +185,10 @@ extern int pci_mmap_page_range(struct pci_dev *dev, struct vm_area_struct *vma,
 extern void
 pcibios_resource_to_bus(struct pci_dev *dev, struct pci_bus_region *region,
 			 struct resource *res);
+
+static inline void pcibios_add_platform_entries(struct pci_dev *dev)
+{
+}
 
 #endif /* __KERNEL__ */
  

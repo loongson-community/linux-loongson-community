@@ -72,12 +72,6 @@ static inline int pa_to_nid(unsigned long pa)
 #define local_mapnr(kvaddr) \
 	( (__pa(kvaddr) >> PAGE_SHIFT) - node_start_pfn(kvaddr_to_nid(kvaddr)) 
 
-#if 0
-/* XXX fix - Anton */
-#define kern_addr_valid(kaddr)	test_bit(local_mapnr(kaddr), \
-		 NODE_DATA(kvaddr_to_nid(kaddr))->valid_addr_bitmap)
-#endif
-
 /* Written this way to avoid evaluating arguments twice */
 #define discontigmem_pfn_to_page(pfn) \
 ({ \

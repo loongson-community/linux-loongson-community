@@ -830,7 +830,7 @@ static ide_startstop_t idefloppy_pc_intr (ide_drive_t *drive)
 	if (test_and_clear_bit(PC_DMA_IN_PROGRESS, &pc->flags)) {
 		printk(KERN_ERR "ide-floppy: The floppy wants to issue "
 			"more interrupts in DMA mode\n");
-		(void) HWIF(drive)->ide_dma_off(drive);
+		(void)__ide_dma_off(drive);
 		return ide_do_reset(drive);
 	}
 
@@ -1045,7 +1045,7 @@ static ide_startstop_t idefloppy_issue_pc (ide_drive_t *drive, idefloppy_pc_t *p
 	bcount.all = min(pc->request_transfer, 63 * 1024);
 
 	if (test_and_clear_bit(PC_DMA_ERROR, &pc->flags)) {
-		(void) HWIF(drive)->ide_dma_off(drive);
+		(void)__ide_dma_off(drive);
 	}
 	feature.all = 0;
 
@@ -1317,6 +1317,7 @@ static int idefloppy_get_flexible_disk_page (ide_drive_t *drive)
 	}
 	header = (idefloppy_mode_parameter_header_t *) pc.buffer;
 	floppy->wp = header->wp;
+	set_disk_ro(drive->disk, floppy->wp);
 	page = (idefloppy_flexible_disk_page_t *) (header + 1);
 
 	page->transfer_rate = ntohs(page->transfer_rate);

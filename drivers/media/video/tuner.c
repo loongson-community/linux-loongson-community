@@ -746,6 +746,7 @@ static int microtune_init(struct i2c_client *c)
         printk("tuner: microtune: companycode=%04x part=%02x rev=%02x\n",
 	       company_code,buf[0x13],buf[0x14]);
 	switch (company_code) {
+	case 0x30bf:
 	case 0x3cbf:
 	case 0x3dbf:
 	case 0x4d54:
@@ -1040,6 +1041,7 @@ static int tuner_attach(struct i2c_adapter *adap, int addr, int kind)
 
         i2c_attach_client(client);
 	if (type < TUNERS) {
+ 		t->type = type;
 		printk("tuner: type forced to %d (%s) [insmod]\n",
 		       t->type,tuners[t->type].name);
 		set_type(client,type);
@@ -1060,6 +1062,7 @@ static int tuner_probe(struct i2c_adapter *adap)
 		return i2c_probe(adap, &addr_data, tuner_attach);
 #else
 	switch (adap->id) {
+	case I2C_ALGO_BIT | I2C_HW_SMBUS_VOODOO3:
 	case I2C_ALGO_BIT | I2C_HW_B_BT848:
 	case I2C_ALGO_BIT | I2C_HW_B_RIVA:
 	case I2C_ALGO_SAA7134:

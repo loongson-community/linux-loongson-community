@@ -29,7 +29,8 @@
 #ifdef PCI_DEBUG
 #define ASSERT(expr) \
 	if(!(expr)) { \
-		printk( "\n" __FILE__ ":%d: Assertion " #expr " failed!\n",__LINE__); \
+		printk("\n%s:%d: Assertion " #expr " failed!\n", \
+		       __FILE__, __LINE__); \
 		panic(#expr); \
 	}
 #else
@@ -55,6 +56,12 @@ struct pci_hba_data {
 	struct resource io_space;	/* PIOP */
 	struct resource lmmio_space;	/* bus addresses < 4Gb */
 	struct resource elmmio_space;	/* additional bus addresses < 4Gb */
+	struct resource gmmio_space;	/* bus addresses > 4Gb */
+	/* NOTE: Dino code assumes it can use *all* of the lmmio_space,
+	 * elmmio_space and gmmio_space as a contiguous array of
+	 * resources.  This #define represents the array size */
+	#define DINO_MAX_LMMIO_RESOURCES	3
+
 	unsigned long   lmmio_space_offset;  /* CPU view - PCI view */
 	void *          iommu;          /* IOMMU this device is under */
 	/* REVISIT - spinlock to protect resources? */
@@ -174,6 +181,7 @@ extern inline void pcibios_register_hba(struct pci_hba_data *x)
 **   to zero for legacy platforms and one for PAT platforms.
 */
 #define pcibios_assign_all_busses()     (pdc_type == PDC_TYPE_PAT)
+#define pcibios_scan_all_fns(a, b)	0
 
 #define PCIBIOS_MIN_IO          0x10
 #define PCIBIOS_MIN_MEM         0x1000 /* NBPG - but pci/setup-res.c dies */
@@ -187,5 +195,9 @@ extern inline void pcibios_register_hba(struct pci_hba_data *x)
 extern void
 pcibios_resource_to_bus(struct pci_dev *dev, struct pci_bus_region *region,
 			 struct resource *res);
+
+static inline void pcibios_add_platform_entries(struct pci_dev *dev)
+{
+}
 
 #endif /* __ASM_PARISC_PCI_H */

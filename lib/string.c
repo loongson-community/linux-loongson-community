@@ -18,6 +18,8 @@
  *                    Matthew Hawkins <matt@mh.dropbear.id.au>
  * -  Kissed strtok() goodbye
  */
+
+#define IN_STRING_C 1
  
 #include <linux/types.h>
 #include <linux/string.h>
@@ -271,6 +273,22 @@ char * strrchr(const char * s, int c)
 }
 #endif
 
+#ifndef __HAVE_ARCH_STRNCHR
+/**
+ * strnchr - Find a character in a length limited string
+ * @s: The string to be searched
+ * @count: The number of characters to be searched
+ * @c: The character to search for
+ */
+char *strnchr(const char *s, size_t count, int c)
+{
+	for (; count-- && *s != '\0'; ++s)
+		if (*s == (char) c)
+			return (char *) s;
+	return NULL;
+}
+#endif
+
 #ifndef __HAVE_ARCH_STRLEN
 /**
  * strlen - Find the length of a string
@@ -437,12 +455,13 @@ void * memset(void * s,int c, size_t count)
  * You should not use this function to access IO space, use memcpy_toio()
  * or memcpy_fromio() instead.
  */
-void bcopy(const char * src, char * dest, int count)
+void bcopy(const void * srcp, void * destp, size_t count)
 {
-	char *tmp = dest;
+	const char *src = srcp;
+	char *dest = destp;
 
 	while (count--)
-		*tmp++ = *src++;
+		*dest++ = *src++;
 }
 #endif
 

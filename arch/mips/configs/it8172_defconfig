@@ -270,6 +270,10 @@ CONFIG_IDE_GENERIC=y
 #
 
 #
+# Macintosh device drivers
+#
+
+#
 # Networking support
 #
 CONFIG_NET=y

@@ -1058,7 +1058,6 @@ static int __init dec_lance_init(const int type, const int slot)
 		ret = -ENOMEM;
 		goto err_out;
 	}
-	SET_MODULE_OWNER(dev);
 
 	/*
 	 * alloc_etherdev ensures the data structures used by the LANCE
@@ -1207,9 +1206,6 @@ static int __init dec_lance_init(const int type, const int slot)
 		}
 	}
 
-	lp->next = root_lance_dev;
-	root_lance_dev = dev;
-
 	/* Copy the ethernet address to the device structure, later to the
 	 * lance initialization block so the lance gets it every time it's
 	 * (re)initialized.
@@ -1266,6 +1262,9 @@ static int __init dec_lance_init(const int type, const int slot)
 		goto err_out_free_dev;
 	}
 
+	lp->next = root_lance_dev;
+	root_lance_dev = dev;
+
 	printk("%s: registered as %s.\n", name, dev->name);
 	return 0;
 
@@ -1316,13 +1315,12 @@ static void __exit dec_lance_cleanup(void)
 	while (root_lance_dev) {
 		struct net_device *dev = root_lance_dev;
 		struct lance_private *lp = (struct lance_private *)dev->priv;
-
+		unregister_netdev(dev);
 #ifdef CONFIG_TC
 		if (lp->slot >= 0)
 			release_tc_card(lp->slot);
 #endif
 		root_lance_dev = lp->next;
-		unregister_netdev(dev);
 		free_netdev(dev);
 	}
 }

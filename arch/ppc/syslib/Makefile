@@ -31,8 +31,9 @@ obj-$(CONFIG_PCI)		+= qspan_pci.o i8259.o
 endif
 obj-$(CONFIG_PPC_OF)		+= prom_init.o prom.o of_device.o
 obj-$(CONFIG_PPC_PMAC)		+= open_pic.o indirect_pci.o
+obj-$(CONFIG_POWER4)		+= open_pic2.o
 obj-$(CONFIG_PPC_CHRP)		+= open_pic.o indirect_pci.o i8259.o
-obj-$(CONFIG_PPC_PREP)		+= open_pic.o indirect_pci.o i8259.o
+obj-$(CONFIG_PPC_PREP)		+= open_pic.o indirect_pci.o i8259.o todc_time.o
 obj-$(CONFIG_ADIR)		+= i8259.o indirect_pci.o pci_auto.o \
 					todc_time.o
 obj-$(CONFIG_EBONY)		+= indirect_pci.o pci_auto.o todc_time.o
@@ -66,7 +67,7 @@ obj-$(CONFIG_SANDPOINT)		+= i8259.o open_pic.o mpc10x_common.o \
 obj-$(CONFIG_SPRUCE)		+= cpc700_pic.o indirect_pci.o pci_auto.o \
 				   todc_time.o
 obj-$(CONFIG_8260)		+= m8260_setup.o ppc8260_pic.o
-ifeq ($(CONFIG_SERIAL_8250)$(CONFIG_PPC_GEN550),yy)
+ifeq ($(CONFIG_PPC_GEN550),y)
 obj-$(CONFIG_KGDB)		+= gen550_kgdb.o gen550_dbg.o
 obj-$(CONFIG_SERIAL_TEXT_DEBUG)	+= gen550_dbg.o
 endif

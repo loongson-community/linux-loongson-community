@@ -11,6 +11,7 @@
  * or architectures with incomplete PCI setup by the loader.
  */
 #define pcibios_assign_all_busses()	0
+#define pcibios_scan_all_fns(a, b)	0
 
 #define PCIBIOS_MIN_IO		0UL
 #define PCIBIOS_MIN_MEM		0UL
@@ -213,6 +214,10 @@ pcibios_resource_to_bus(struct pci_dev *dev, struct pci_bus_region *region,
 extern void
 pcibios_bus_to_resource(struct pci_dev *dev, struct resource *res,
 			struct pci_bus_region *region);
+
+static inline void pcibios_add_platform_entries(struct pci_dev *dev)
+{
+}
 
 #endif /* __KERNEL__ */
 

@@ -1,8 +1,8 @@
 /*
    libata-core.c - helper library for ATA
 
-   Copyright 2003 Red Hat, Inc.  All rights reserved.
-   Copyright 2003 Jeff Garzik
+   Copyright 2003-2004 Red Hat, Inc.  All rights reserved.
+   Copyright 2003-2004 Jeff Garzik
 
    The contents of this file are subject to the Open
    Software License version 1.1 that can be found at
@@ -969,7 +969,7 @@ retry:
 		printk(KERN_INFO "ata%u: dev %u ATA, max %s, %Lu sectors%s\n",
 		       ap->id, device,
 		       ata_udma_string(udma_modes),
-		       dev->n_sectors,
+		       (unsigned long long)dev->n_sectors,
 		       dev->flags & ATA_DFLAG_LBA48 ? " (lba48)" : "");
 	}
 

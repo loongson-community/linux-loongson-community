@@ -220,6 +220,10 @@ CONFIG_SCSI_REPORT_LUNS=y
 #
 
 #
+# Macintosh device drivers
+#
+
+#
 # Networking support
 #
 CONFIG_NET=y

@@ -237,30 +237,34 @@ int permission(struct inode * inode,int mask, struct nameidata *nd)
  * except for the cases where we don't hold i_writecount yet. Then we need to
  * use {get,deny}_write_access() - these functions check the sign and refuse
  * to do the change if sign is wrong. Exclusion between them is provided by
- * spinlock (arbitration_lock) and I'll rip the second arsehole to the first
- * who will try to move it in struct inode - just leave it here.
+ * the inode->i_lock spinlock.
  */
-static spinlock_t arbitration_lock = SPIN_LOCK_UNLOCKED;
+
 int get_write_access(struct inode * inode)
 {
-	spin_lock(&arbitration_lock);
+	spin_lock(&inode->i_lock);
 	if (atomic_read(&inode->i_writecount) < 0) {
-		spin_unlock(&arbitration_lock);
+		spin_unlock(&inode->i_lock);
 		return -ETXTBSY;
 	}
 	atomic_inc(&inode->i_writecount);
-	spin_unlock(&arbitration_lock);
+	spin_unlock(&inode->i_lock);
+
 	return 0;
 }
+
 int deny_write_access(struct file * file)
 {
-	spin_lock(&arbitration_lock);
-	if (atomic_read(&file->f_dentry->d_inode->i_writecount) > 0) {
-		spin_unlock(&arbitration_lock);
+	struct inode *inode = file->f_dentry->d_inode;
+
+	spin_lock(&inode->i_lock);
+	if (atomic_read(&inode->i_writecount) > 0) {
+		spin_unlock(&inode->i_lock);
 		return -ETXTBSY;
 	}
-	atomic_dec(&file->f_dentry->d_inode->i_writecount);
-	spin_unlock(&arbitration_lock);
+	atomic_dec(&inode->i_writecount);
+	spin_unlock(&inode->i_lock);
+
 	return 0;
 }
 
@@ -420,15 +424,15 @@ int follow_up(struct vfsmount **mnt, struct dentry **dentry)
 {
 	struct vfsmount *parent;
 	struct dentry *mountpoint;
-	spin_lock(&dcache_lock);
+	spin_lock(&vfsmount_lock);
 	parent=(*mnt)->mnt_parent;
 	if (parent == *mnt) {
-		spin_unlock(&dcache_lock);
+		spin_unlock(&vfsmount_lock);
 		return 0;
 	}
 	mntget(parent);
 	mountpoint=dget((*mnt)->mnt_mountpoint);
-	spin_unlock(&dcache_lock);
+	spin_unlock(&vfsmount_lock);
 	dput(*dentry);
 	*dentry = mountpoint;
 	mntput(*mnt);
@@ -446,9 +450,9 @@ static int follow_mount(struct vfsmount **mnt, struct dentry **dentry)
 		struct vfsmount *mounted = lookup_mnt(*mnt, *dentry);
 		if (!mounted)
 			break;
+		mntput(*mnt);
 		*mnt = mounted;
 		dput(*dentry);
-		mntput(mounted->mnt_parent);
 		*dentry = dget(mounted->mnt_root);
 		res = 1;
 	}
@@ -464,9 +468,9 @@ static inline int __follow_down(struct vfsmount **mnt, struct dentry **dentry)
 
 	mounted = lookup_mnt(*mnt, *dentry);
 	if (mounted) {
+		mntput(*mnt);
 		*mnt = mounted;
 		dput(*dentry);
-		mntput(mounted->mnt_parent);
 		*dentry = dget(mounted->mnt_root);
 		return 1;
 	}
@@ -498,14 +502,16 @@ static inline void follow_dotdot(struct vfsmount **mnt, struct dentry **dentry)
 			dput(old);
 			break;
 		}
+		spin_unlock(&dcache_lock);
+		spin_lock(&vfsmount_lock);
 		parent = (*mnt)->mnt_parent;
 		if (parent == *mnt) {
-			spin_unlock(&dcache_lock);
+			spin_unlock(&vfsmount_lock);
 			break;
 		}
 		mntget(parent);
 		*dentry = dget((*mnt)->mnt_mountpoint);
-		spin_unlock(&dcache_lock);
+		spin_unlock(&vfsmount_lock);
 		dput(old);
 		mntput(*mnt);
 		*mnt = parent;
@@ -1258,7 +1264,6 @@ int open_namei(const char * pathname, int flag, int mode, struct nameidata *nd)
 		error = path_lookup(pathname, lookup_flags(flag)|LOOKUP_OPEN, nd);
 		if (error)
 			return error;
-		dentry = nd->dentry;
 		goto ok;
 	}
 

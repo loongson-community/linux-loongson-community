@@ -972,11 +972,11 @@ static void __devexit saa9730_remove_one(struct pci_dev *pdev)
         struct net_device *dev = pci_get_drvdata(pdev);
 
         if (dev) {
-		
+                unregister_netdev(dev);
+
 		if (dev->priv)
 			kfree(dev->priv);
 
-                unregister_netdev(dev);
                 free_netdev(dev);
                 pci_release_regions(pdev);
                 pci_disable_device(pdev);
@@ -1025,6 +1025,7 @@ static int lan_saa9730_init(struct net_device *dev, struct pci_dev *pdev, unsign
 							 SAA9730_EVM_REGS_ADDR);
 
 	/* Allocate LAN RX/TX frame buffer space. */
+	/* FIXME: a leak */
 	if ((ret = lan_saa9730_allocate_buffers(pdev, lp)))
 		goto out_free_lp;
 

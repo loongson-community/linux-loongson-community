@@ -57,7 +57,6 @@
 #include <asm/mmu_context.h>
 #include <asm/cputable.h>
 #include <asm/time.h>
-#include <asm/xmon.h>
 #ifdef CONFIG_PMAC_BACKLIGHT
 #include <asm/backlight.h>
 #endif
@@ -72,13 +71,6 @@
 
 /* How many iterations between battery polls */
 #define BATTERY_POLLING_COUNT	2
-
-/* Some debugging tools */
-#ifdef CONFIG_XMON
-//#define LIVE_DEBUG(req) ((req) && (req)->data[0] == 0x7d)
-#define LIVE_DEBUG(req) (0)
-static int whacky_debug;
-#endif /* CONFIG_XMON */
 
 static volatile unsigned char *via;
 
@@ -168,6 +160,7 @@ static struct proc_dir_entry *proc_pmu_root;
 static struct proc_dir_entry *proc_pmu_info;
 static struct proc_dir_entry *proc_pmu_irqstats;
 static struct proc_dir_entry *proc_pmu_options;
+static int option_server_mode;
 
 #ifdef CONFIG_PMAC_PBOOK
 int pmu_battery_count;
@@ -334,7 +327,8 @@ find_via_pmu(void)
 		pmu_kind = PMU_PADDINGTON_BASED;
 	else if (device_is_compatible(vias->parent, "heathrow"))
 		pmu_kind = PMU_HEATHROW_BASED;
-	else if (device_is_compatible(vias->parent, "Keylargo")) {
+	else if (device_is_compatible(vias->parent, "Keylargo")
+		 || device_is_compatible(vias->parent, "K2-Keylargo")) {
 		struct device_node *gpio, *gpiop;
 
 		pmu_kind = PMU_KEYLARGO_BASED;
@@ -349,6 +343,8 @@ find_via_pmu(void)
 		if (gpiop && gpiop->n_addrs) {
 			gpio_reg = ioremap(gpiop->addrs->address, 0x10);
 			gpio = find_devices("extint-gpio1");
+			if (gpio == NULL)
+				gpio = find_devices("pmu-interrupt");
 			if (gpio && gpio->parent == gpiop && gpio->n_intrs)
 				gpio_irq = gpio->intrs[0].line;
 		}
@@ -370,7 +366,9 @@ find_via_pmu(void)
 	printk(KERN_INFO "PMU driver %d initialized for %s, firmware: %02x\n",
 	       PMU_DRIVER_VERSION, pbook_type[pmu_kind], pmu_version);
 	       
+#ifndef CONFIG_PPC64
 	sys_ctrler = SYS_CTRLER_PMU;
+#endif
 	
 	return 1;
 }
@@ -455,7 +453,9 @@ static int __init via_pmu_dev_init(void)
 	if (vias == NULL)
 		return -ENODEV;
 
+#ifndef CONFIG_PPC64
 	request_OF_resource(vias, 0, NULL);
+#endif
 #ifdef CONFIG_PMAC_BACKLIGHT
 	/* Enable backlight */
 	register_backlight_controller(&pmu_backlight_controller, NULL, "pmu");
@@ -564,7 +564,19 @@ init_pmu(void)
 	pmu_wait_complete(&req);
 	if (req.reply_len > 0)
 		pmu_version = req.reply[0];
-
+	
+	/* Read server mode setting */
+	if (pmu_kind == PMU_KEYLARGO_BASED) {
+		pmu_request(&req, NULL, 2, PMU_POWER_EVENTS,
+			    PMU_PWR_GET_POWERUP_EVENTS);
+		pmu_wait_complete(&req);
+		if (req.reply_len == 2) {
+			if (req.reply[1] & PMU_PWR_WAKEUP_AC_INSERT)
+				option_server_mode = 1;
+			printk(KERN_INFO "via-pmu: Server Mode is %s\n",
+			       option_server_mode ? "enabled" : "disabled");
+		}
+	}
 	return 1;
 }
 
@@ -574,6 +586,7 @@ pmu_get_model(void)
 	return pmu_kind;
 }
 
+#ifndef CONFIG_PPC64
 static inline void wakeup_decrementer(void)
 {
 	set_dec(tb_ticks_per_jiffy);
@@ -582,7 +595,30 @@ static inline void wakeup_decrementer(void)
 	 */
 	last_jiffy_stamp(0) = tb_last_stamp = get_tbl();
 }
+#endif
 
+static void pmu_set_server_mode(int server_mode)
+{
+	struct adb_request req;
+
+	if (pmu_kind != PMU_KEYLARGO_BASED)
+		return;
+
+	option_server_mode = server_mode;
+	pmu_request(&req, NULL, 2, PMU_POWER_EVENTS, PMU_PWR_GET_POWERUP_EVENTS);
+	pmu_wait_complete(&req);
+	if (req.reply_len < 2)
+		return;
+	if (server_mode)
+		pmu_request(&req, NULL, 4, PMU_POWER_EVENTS,
+			    PMU_PWR_SET_POWERUP_EVENTS,
+			    req.reply[0], PMU_PWR_WAKEUP_AC_INSERT); 
+	else
+		pmu_request(&req, NULL, 4, PMU_POWER_EVENTS,
+			    PMU_PWR_CLR_POWERUP_EVENTS,
+			    req.reply[0], PMU_PWR_WAKEUP_AC_INSERT); 
+	pmu_wait_complete(&req);
+}
 
 #ifdef CONFIG_PMAC_PBOOK
 
@@ -845,6 +881,8 @@ proc_read_options(char *page, char **start, off_t off,
 	if (pmu_kind == PMU_KEYLARGO_BASED && can_sleep)
 		p += sprintf(p, "lid_wakeup=%d\n", option_lid_wakeup);
 #endif /* CONFIG_PMAC_PBOOK */
+	if (pmu_kind == PMU_KEYLARGO_BASED)
+		p += sprintf(p, "server_mode=%d\n", option_server_mode);
 
 	return p - page;
 }
@@ -884,6 +922,12 @@ proc_write_options(struct file *file, const char __user *buffer,
 		if (!strcmp(label, "lid_wakeup"))
 			option_lid_wakeup = ((*val) == '1');
 #endif /* CONFIG_PMAC_PBOOK */
+	if (pmu_kind == PMU_KEYLARGO_BASED && !strcmp(label, "server_mode")) {
+		int new_value;
+		new_value = ((*val) == '1');
+		if (new_value != option_server_mode)
+			pmu_set_server_mode(new_value);
+	}
 	return fcount;
 }
 
@@ -1167,12 +1211,6 @@ pmu_start(void)
 	wait_for_ack();
 	/* set the shift register to shift out and send a byte */
 	send_byte(req->data[0]);
-#ifdef CONFIG_XMON
-	if (LIVE_DEBUG(req))
-		xmon_printf("R");
-	else
-		whacky_debug = 0;
-#endif /* CONFIG_XMON */
 }
 
 void __openfirmware
@@ -1343,7 +1381,7 @@ next:
 			}
 			pmu_done(req);
 		} else {
-#ifdef CONFIG_XMON
+#if defined(CONFIG_XMON) && !defined(CONFIG_PPC64)
 			if (len == 4 && data[1] == 0x2c) {
 				extern int xmon_wants_key, xmon_adb_keycode;
 				if (xmon_wants_key) {
@@ -1351,7 +1389,7 @@ next:
 					return;
 				}
 			}
-#endif /* CONFIG_XMON */
+#endif /* defined(CONFIG_XMON) && !defined(CONFIG_PPC64) */
 #ifdef CONFIG_ADB
 			/*
 			 * XXX On the [23]400 the PMU gives us an up
@@ -1425,29 +1463,17 @@ pmu_sr_intr(struct pt_regs *regs)
 	case sending:
 		req = current_req;
 		if (data_len < 0) {
-#ifdef CONFIG_XMON
-			if (LIVE_DEBUG(req))
-				xmon_printf("s");
-#endif /* CONFIG_XMON */
 			data_len = req->nbytes - 1;
 			send_byte(data_len);
 			break;
 		}
 		if (data_index <= data_len) {
-#ifdef CONFIG_XMON
-			if (LIVE_DEBUG(req))
-				xmon_printf("S");
-#endif /* CONFIG_XMON */
 			send_byte(req->data[data_index++]);
 			break;
 		}
 		req->sent = 1;
 		data_len = pmu_data_len[req->data[0]][1];
 		if (data_len == 0) {
-#ifdef CONFIG_XMON
-			if (LIVE_DEBUG(req))
-				xmon_printf("D");
-#endif /* CONFIG_XMON */
 			pmu_state = idle;
 			current_req = req->next;
 			if (req->reply_expected)
@@ -1455,10 +1481,6 @@ pmu_sr_intr(struct pt_regs *regs)
 			else
 				return req;
 		} else {
-#ifdef CONFIG_XMON
-			if (LIVE_DEBUG(req))
-				xmon_printf("-");
-#endif /* CONFIG_XMON */
 			pmu_state = reading;
 			data_index = 0;
 			reply_ptr = req->reply + req->reply_len;
@@ -1481,18 +1503,10 @@ pmu_sr_intr(struct pt_regs *regs)
 	case reading:
 	case reading_intr:
 		if (data_len == -1) {
-#ifdef CONFIG_XMON
-			if (LIVE_DEBUG(current_req))
-				xmon_printf("r");
-#endif /* CONFIG_XMON */
 			data_len = bite;
 			if (bite > 32)
 				printk(KERN_ERR "PMU: bad reply len %d\n", bite);
 		} else if (data_index < 32) {
-#ifdef CONFIG_XMON
-			if (LIVE_DEBUG(current_req))
-				xmon_printf("R");
-#endif /* CONFIG_XMON */
 			reply_ptr[data_index++] = bite;
 		}
 		if (data_index < data_len) {
@@ -1500,12 +1514,6 @@ pmu_sr_intr(struct pt_regs *regs)
 			break;
 		}
 
-#ifdef CONFIG_XMON
-		if (LIVE_DEBUG(current_req)) {
-			whacky_debug = 1;
-		       	xmon_printf("D");
-		}
-#endif /* CONFIG_XMON */
 		if (pmu_state == reading_intr) {
 			pmu_state = idle;
 			int_data_state[int_data_last] = int_data_ready;
@@ -1552,10 +1560,6 @@ via_pmu_interrupt(int irq, void *arg, struct pt_regs *regs)
 		intr = in_8(&via[IFR]) & (SR_INT | CB1_INT);
 		if (intr == 0)
 			break;
-#ifdef CONFIG_XMON
-		if (whacky_debug)
-			xmon_printf("|%02x|", intr);
-#endif /* CONFIG_XMON */
 		handled = 1;
 		if (++nloop > 1000) {
 			printk(KERN_DEBUG "PMU: stuck in intr loop, "
@@ -1578,10 +1582,6 @@ via_pmu_interrupt(int irq, void *arg, struct pt_regs *regs)
 recheck:
 	if (pmu_state == idle) {
 		if (adb_int_pending) {
-#ifdef CONFIG_XMON
-			if (whacky_debug)
-				xmon_printf("!A!");
-#endif /* CONFIG_XMON */
 			if (int_data_state[0] == int_data_empty)
 				int_data_last = 0;
 			else if (int_data_state[1] == int_data_empty)
@@ -1758,6 +1758,11 @@ pmu_shutdown(void)
 		pmu_request(&req, NULL, 2, PMU_SET_INTR_MASK, PMU_INT_ADB |
 						PMU_INT_TICK );
 		pmu_wait_complete(&req);
+	} else {
+		/* Disable server mode on shutdown or we'll just
+		 * wake up again
+		 */
+		pmu_set_server_mode(0);
 	}
 
 	pmu_request(&req, NULL, 5, PMU_SHUTDOWN,
@@ -2288,8 +2293,6 @@ restore_via_state(void)
 }
 
 extern long sys_sync(void);
-extern void pm_prepare_console(void);
-extern void pm_restore_console(void);
 
 static int __pmac
 pmac_suspend_devices(void)

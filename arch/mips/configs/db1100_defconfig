@@ -214,6 +214,10 @@ CONFIG_BLK_DEV_LOOP=y
 #
 
 #
+# Macintosh device drivers
+#
+
+#
 # Networking support
 #
 CONFIG_NET=y

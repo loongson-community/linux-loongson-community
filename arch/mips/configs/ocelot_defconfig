@@ -193,6 +193,10 @@ CONFIG_TRAD_SIGNALS=y
 #
 
 #
+# Macintosh device drivers
+#
+
+#
 # Networking support
 #
 CONFIG_NET=y

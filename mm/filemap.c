@@ -129,10 +129,10 @@ static inline int sync_page(struct page *page)
  * filemap_fdatawrite - start writeback against all of a mapping's dirty pages
  * @mapping: address space structure to write
  *
- * This is a "data integrity" operation, as opposed to a regular memory
- * cleansing writeback.  The difference between these two operations is that
- * if a dirty page/buffer is encountered, it must be waited upon, and not just
- * skipped over.
+ * If sync_mode is WB_SYNC_ALL then this is a "data integrity" operation, as
+ * opposed to a regular memory * cleansing writeback.  The difference between
+ * these two operations is that if a dirty page/buffer is encountered, it must
+ * be waited upon, and not just skipped over.
  */
 static int __filemap_fdatawrite(struct address_space *mapping, int sync_mode)
 {
@@ -1495,22 +1495,35 @@ repeat:
 	return page;
 }
 
+/*
+ * The logic we want is
+ *
+ *	if suid or (sgid and xgrp)
+ *		remove privs
+ */
 void remove_suid(struct dentry *dentry)
 {
-	struct iattr newattrs;
-	struct inode *inode = dentry->d_inode;
-	unsigned int mode = inode->i_mode & (S_ISUID|S_ISGID|S_IXGRP);
+	mode_t mode = dentry->d_inode->i_mode;
+	int kill = 0;
 
-	if (!(mode & S_IXGRP))
-		mode &= S_ISUID;
+	/* suid always must be killed */
+	if (unlikely(mode & S_ISUID))
+		kill = ATTR_KILL_SUID;
 
-	/* were any of the uid bits set? */
-	if (mode && !capable(CAP_FSETID)) {
-		newattrs.ia_valid = ATTR_KILL_SUID|ATTR_KILL_SGID|ATTR_FORCE;
+	/*
+	 * sgid without any exec bits is just a mandatory locking mark; leave
+	 * it alone.  If some exec bits are set, it's a real sgid; kill it.
+	 */
+	if (unlikely((mode & S_ISGID) && (mode & S_IXGRP)))
+		kill |= ATTR_KILL_SGID;
+
+	if (unlikely(kill && !capable(CAP_FSETID))) {
+		struct iattr newattrs;
+
+		newattrs.ia_valid = ATTR_FORCE | kill;
 		notify_change(dentry, &newattrs);
 	}
 }
-
 EXPORT_SYMBOL(remove_suid);
 
 /*

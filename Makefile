@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 6
-SUBLEVEL = 2
+SUBLEVEL = 3
 EXTRAVERSION =
 NAME=Feisty Dunnart
 
@@ -829,7 +829,7 @@ quiet_cmd_cscope-file = FILELST cscope.files
       cmd_cscope-file = $(all-sources) > cscope.files
 
 quiet_cmd_cscope = MAKE    cscope.out
-      cmd_cscope = cscope -k -b
+      cmd_cscope = cscope -k -b -q
 
 cscope: FORCE
 	$(call cmd,cscope-file)

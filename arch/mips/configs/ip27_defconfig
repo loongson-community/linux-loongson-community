@@ -223,10 +223,13 @@ CONFIG_SCSI_LOGGING=y
 CONFIG_SCSI_QLOGIC_ISP=y
 # CONFIG_SCSI_QLOGIC_FC is not set
 # CONFIG_SCSI_QLOGIC_1280 is not set
-CONFIG_SCSI_QLA2XXX_CONFIG=y
+CONFIG_SCSI_QLA2XXX=y
 # CONFIG_SCSI_QLA21XX is not set
 # CONFIG_SCSI_QLA22XX is not set
-# CONFIG_SCSI_QLA23XX is not set
+# CONFIG_SCSI_QLA2300 is not set
+# CONFIG_SCSI_QLA2322 is not set
+# CONFIG_SCSI_QLA6312 is not set
+# CONFIG_SCSI_QLA6322 is not set
 # CONFIG_SCSI_DC395x is not set
 # CONFIG_SCSI_DC390T is not set
 # CONFIG_SCSI_DEBUG is not set
@@ -248,6 +251,10 @@ CONFIG_SCSI_QLA2XXX_CONFIG=y
 
 #
 # I2O device support
+#
+
+#
+# Macintosh device drivers
 #
 
 #

@@ -823,7 +823,6 @@ static struct net_device *meth_init(void)
 #endif
 	dev->irq	     = MACE_ETHERNET_IRQ;
 	dev->base_addr	     = (unsigned long)&mace->eth;
-	SET_MODULE_OWNER(dev);
 
 	priv = (struct meth_private *) dev->priv;
 	spin_lock_init(&priv->meth_lock);

@@ -17,6 +17,8 @@
 /* Get any platform-dependent definitions.  */
 #include <asm/machdep.h>
 
+#define pcibios_scan_all_fns(a, b)	0
+
 /* Generic declarations.  */
 
 struct scatterlist;
@@ -73,5 +75,9 @@ pci_alloc_consistent (struct pci_dev *pdev, size_t size, dma_addr_t *dma_addr);
 extern void
 pci_free_consistent (struct pci_dev *pdev, size_t size, void *cpu_addr,
 		     dma_addr_t dma_addr);
+
+static inline void pcibios_add_platform_entries(struct pci_dev *dev)
+{
+}
 
 #endif /* __V850_PCI_H__ */

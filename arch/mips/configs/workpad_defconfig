@@ -215,6 +215,10 @@ CONFIG_IDE_GENERIC=y
 #
 
 #
+# Macintosh device drivers
+#
+
+#
 # Networking support
 #
 CONFIG_NET=y
@@ -413,28 +417,11 @@ CONFIG_UNIX98_PTY_COUNT=256
 #
 CONFIG_WATCHDOG=y
 # CONFIG_WATCHDOG_NOWAYOUT is not set
+
+#
+# Watchdog Device Drivers
+#
 # CONFIG_SOFT_WATCHDOG is not set
-# CONFIG_WDT is not set
-# CONFIG_WDTPCI is not set
-# CONFIG_PCWATCHDOG is not set
-# CONFIG_ACQUIRE_WDT is not set
-# CONFIG_ADVANTECH_WDT is not set
-# CONFIG_EUROTECH_WDT is not set
-# CONFIG_IB700_WDT is not set
-# CONFIG_I810_TCO is not set
-# CONFIG_MIXCOMWD is not set
-# CONFIG_SCx200_WDT is not set
-# CONFIG_60XX_WDT is not set
-# CONFIG_W83877F_WDT is not set
-# CONFIG_W83627HF_WDT is not set
-# CONFIG_MACHZ_WDT is not set
-# CONFIG_SC520_WDT is not set
-# CONFIG_AMD7XX_TCO is not set
-# CONFIG_ALIM7101_WDT is not set
-# CONFIG_ALIM1535_WDT is not set
-# CONFIG_SC1200_WDT is not set
-# CONFIG_WAFER_WDT is not set
-# CONFIG_CPU5_WDT is not set
 # CONFIG_NVRAM is not set
 # CONFIG_RTC is not set
 # CONFIG_GEN_RTC is not set

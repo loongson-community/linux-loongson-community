@@ -51,6 +51,7 @@ struct pci_controller {
    bus numbers.  */
 
 #define pcibios_assign_all_busses()	1
+#define pcibios_scan_all_fns(a, b)	0
 
 #define PCIBIOS_MIN_IO		alpha_mv.min_io_address
 #define PCIBIOS_MIN_MEM		alpha_mv.min_mem_address
@@ -205,6 +206,10 @@ static inline int pci_name_bus(char *name, struct pci_bus *bus)
 		sprintf(name, "%04x:%02x", hose->index, bus->number);
 	}
 	return 0;
+}
+
+static inline void pcibios_add_platform_entries(struct pci_dev *dev)
+{
 }
 
 #endif /* __KERNEL__ */

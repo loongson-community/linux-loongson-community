@@ -216,6 +216,10 @@ CONFIG_IDE_GENERIC=y
 # CONFIG_I2O is not set
 
 #
+# Macintosh device drivers
+#
+
+#
 # Networking support
 #
 CONFIG_NET=y
@@ -483,6 +487,7 @@ CONFIG_UNIX98_PTY_COUNT=256
 # CONFIG_FB_IMSTT is not set
 # CONFIG_FB_RIVA is not set
 # CONFIG_FB_MATROX is not set
+# CONFIG_FB_RADEON_OLD is not set
 # CONFIG_FB_RADEON is not set
 # CONFIG_FB_ATY128 is not set
 # CONFIG_FB_ATY is not set

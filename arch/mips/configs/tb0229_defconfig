@@ -204,6 +204,10 @@ CONFIG_BLK_DEV_RAM_SIZE=4096
 # CONFIG_I2O is not set
 
 #
+# Macintosh device drivers
+#
+
+#
 # Networking support
 #
 CONFIG_NET=y
@@ -527,6 +531,7 @@ CONFIG_JFS_FS=m
 CONFIG_XFS_FS=y
 # CONFIG_XFS_RT is not set
 CONFIG_XFS_QUOTA=y
+# CONFIG_XFS_SECURITY is not set
 CONFIG_XFS_POSIX_ACL=y
 # CONFIG_MINIX_FS is not set
 CONFIG_ROMFS_FS=m

@@ -3,6 +3,15 @@
  * Added support for customized reject packets (Jozsef Kadlecsik).
  * Added support for ICMP type-3-code-13 (Maciej Soltysiak). [RFC 1812]
  */
+
+/* (C) 1999-2001 Paul `Rusty' Russell
+ * (C) 2002-2004 Netfilter Core Team <coreteam@netfilter.org>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
 #include <linux/config.h>
 #include <linux/module.h>
 #include <linux/skbuff.h>
@@ -108,7 +117,7 @@ static void send_reset(struct sk_buff *oldskb, int hook)
 	if ((rt = route_reverse(oldskb, hook)) == NULL)
 		return;
 
-	hh_len = (rt->u.dst.dev->hard_header_len + 15)&~15;
+	hh_len = LL_RESERVED_SPACE(rt->u.dst.dev);
 
 	/* We need a linear, writeable skb.  We also need to expand
 	   headroom in case hh_len of incoming interface < hh_len of
@@ -296,9 +305,9 @@ static void send_unreach(struct sk_buff *skb_in, int code)
 	if (length > 576)
 		length = 576;
 
-	hh_len = (rt->u.dst.dev->hard_header_len + 15)&~15;
+	hh_len = LL_RESERVED_SPACE(rt->u.dst.dev);
 
-	nskb = alloc_skb(hh_len+15+length, GFP_ATOMIC);
+	nskb = alloc_skb(hh_len + length, GFP_ATOMIC);
 	if (!nskb) {
 		ip_rt_put(rt);
 		return;
@@ -449,9 +458,7 @@ static struct ipt_target ipt_reject_reg = {
 
 static int __init init(void)
 {
-	if (ipt_register_target(&ipt_reject_reg))
-		return -EINVAL;
-	return 0;
+	return ipt_register_target(&ipt_reject_reg);
 }
 
 static void __exit fini(void)

@@ -320,13 +320,13 @@ extern unsigned long ioremap_bot, ioremap_base;
  * another purpose.  -- paulus.
  */
 
-#define _PAGE_BASE	(_PAGE_PRESENT | _PAGE_ACCESSED)
-#define _PAGE_WRENABLE	(_PAGE_RW | _PAGE_DIRTY | _PAGE_HWWRITE)
-#ifndef CONFIG_44x
-#define _PAGE_KERNEL	(_PAGE_BASE | _PAGE_SHARED | _PAGE_WRENABLE)
+#ifdef CONFIG_44x
+#define _PAGE_BASE	(_PAGE_PRESENT | _PAGE_ACCESSED | _PAGE_GUARDED)
 #else
-#define _PAGE_KERNEL	(_PAGE_BASE | _PAGE_SHARED | _PAGE_WRENABLE | _PAGE_GUARDED)
+#define _PAGE_BASE	(_PAGE_PRESENT | _PAGE_ACCESSED)
 #endif
+#define _PAGE_WRENABLE	(_PAGE_RW | _PAGE_DIRTY | _PAGE_HWWRITE)
+#define _PAGE_KERNEL	(_PAGE_BASE | _PAGE_SHARED | _PAGE_WRENABLE)
 
 #ifdef CONFIG_PPC_STD_MMU
 /* On standard PPC MMU, no user access implies kernel read/write access,
@@ -511,9 +511,21 @@ static inline void set_pte(pte_t *ptep, pte_t pte)
 #endif
 }
 
+extern void flush_hash_one_pte(pte_t *ptep);
+
+/*
+ * 2.6 calles this without flushing the TLB entry, this is wrong
+ * for our hash-based implementation, we fix that up here
+ */
 static inline int ptep_test_and_clear_young(pte_t *ptep)
 {
-	return (pte_update(ptep, _PAGE_ACCESSED, 0) & _PAGE_ACCESSED) != 0;
+	unsigned long old;
+	old = (pte_update(ptep, _PAGE_ACCESSED, 0) & _PAGE_ACCESSED);
+#if _PAGE_HASHPTE != 0
+	if (old & _PAGE_HASHPTE)
+		flush_hash_one_pte(ptep);
+#endif
+	return old != 0;
 }
 
 static inline int ptep_test_and_clear_dirty(pte_t *ptep)
@@ -626,7 +638,7 @@ extern void cache_clear(__u32 addr, int length);
 extern void cache_push(__u32 addr, int length);
 extern int mm_end_of_chunk (unsigned long addr, int len);
 extern unsigned long iopa(unsigned long addr);
-extern unsigned long mm_ptov(unsigned long addr) __attribute__ ((const));
+extern unsigned long mm_ptov(unsigned long addr) __attribute_const__;
 
 /* Values for nocacheflag and cmode */
 /* These are not used by the APUS kernel_map, but prevents

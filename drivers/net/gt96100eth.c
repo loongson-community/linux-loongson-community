@@ -682,10 +682,12 @@ static int __init gt96100_probe1(struct pci_dev *pci, int port_num)
 		return -EBUSY;
 	}
 
-	dev = init_etherdev(0, sizeof(struct gt96100_private));
+	dev = alloc_etherdev(sizeof(struct gt96100_private));
+	if (!dev)
+		goto out;
 	gtif->dev = dev;
 	
-	/* private struct aligned and zeroed by init_etherdev */
+	/* private struct aligned and zeroed by alloc_etherdev */
 	/* Fill in the 'dev' fields. */
 	dev->base_addr = gtif->iobase;
 	dev->irq = gtif->irq;
@@ -693,7 +695,7 @@ static int __init gt96100_probe1(struct pci_dev *pci, int port_num)
 	if ((retval = parse_mac_addr(dev, gtif->mac_str))) {
 		err("%s: MAC address parse failed\n", __FUNCTION__);
 		retval = -EINVAL;
-		goto free_region;
+		goto out1;
 	}
 
 	gp = dev->priv;
@@ -721,7 +723,7 @@ static int __init gt96100_probe1(struct pci_dev *pci, int port_num)
 				       &gp->rx_ring_dma);
 		if (gp->rx_ring == NULL) {
 			retval = -ENOMEM;
-			goto free_region;
+			goto out1;
 		}
 	
 		gp->tx_ring = (gt96100_td_t *)(gp->rx_ring + RX_RING_SIZE);
@@ -734,11 +736,8 @@ static int __init gt96100_probe1(struct pci_dev *pci, int port_num)
 		gp->rx_buff = dmaalloc(PKT_BUF_SZ*RX_RING_SIZE,
 				       &gp->rx_buff_dma);
 		if (gp->rx_buff == NULL) {
-			dmafree(sizeof(gt96100_rd_t) * RX_RING_SIZE
-				+ sizeof(gt96100_td_t) * TX_RING_SIZE,
-				gp->rx_ring);
 			retval = -ENOMEM;
-			goto free_region;
+			goto out2;
 		}
 	}
     
@@ -750,12 +749,8 @@ static int __init gt96100_probe1(struct pci_dev *pci, int port_num)
 		gp->hash_table = (char*)dmaalloc(RX_HASH_TABLE_SIZE,
 						 &gp->hash_table_dma);
 		if (gp->hash_table == NULL) {
-			dmafree(sizeof(gt96100_rd_t) * RX_RING_SIZE
-				+ sizeof(gt96100_td_t) * TX_RING_SIZE,
-				gp->rx_ring);
-			dmafree(PKT_BUF_SZ*RX_RING_SIZE, gp->rx_buff);
 			retval = -ENOMEM;
-			goto free_region;
+			goto out3;
 		}
 	}
     
@@ -772,14 +767,24 @@ static int __init gt96100_probe1(struct pci_dev *pci, int port_num)
 	dev->tx_timeout = gt96100_tx_timeout;
 	dev->watchdog_timeo = GT96100ETH_TX_TIMEOUT;
 
-	/* Fill in the fields of the device structure with ethernet values. */
-	ether_setup(dev);
+	retval = register_netdev(dev);
+	if (retval)
+		goto out4;
 	return 0;
 
-free_region:
-	release_region(gtif->iobase, GT96100_ETH_IO_SIZE);
-	unregister_netdev(dev);
+out4:
+	dmafree(RX_HASH_TABLE_SIZE, gp->hash_table_dma);
+out3:
+	dmafree(PKT_BUF_SZ*RX_RING_SIZE, gp->rx_buff);
+out2:
+	dmafree(sizeof(gt96100_rd_t) * RX_RING_SIZE
+		+ sizeof(gt96100_td_t) * TX_RING_SIZE,
+		gp->rx_ring);
+out1:
 	free_netdev (dev);
+out:
+	release_region(gtif->iobase, GT96100_ETH_IO_SIZE);
+
 	err("%s failed.  Returns %d\n", __FUNCTION__, retval);
 	return retval;
 }
@@ -1528,9 +1533,14 @@ static void gt96100_cleanup_module(void)
 		if (gtif->dev != NULL) {
 			struct gt96100_private *gp =
 				(struct gt96100_private *)gtif->dev->priv;
-			release_region(gtif->iobase, gp->io_size);
 			unregister_netdev(gtif->dev);
-			free_netdev (gtif->dev);
+			dmafree(RX_HASH_TABLE_SIZE, gp->hash_table_dma);
+			dmafree(PKT_BUF_SZ*RX_RING_SIZE, gp->rx_buff);
+			dmafree(sizeof(gt96100_rd_t) * RX_RING_SIZE
+				+ sizeof(gt96100_td_t) * TX_RING_SIZE,
+				gp->rx_ring);
+			free_netdev(gtif->dev);
+			release_region(gtif->iobase, gp->io_size);
 		}
 	}
 }

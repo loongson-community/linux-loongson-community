@@ -8,6 +8,7 @@
  * or architectures with incomplete PCI setup by the loader.
  */
 #define pcibios_assign_all_busses()	0
+#define pcibios_scan_all_fns(a, b)	0
 
 #define PCIBIOS_MIN_IO		0UL
 #define PCIBIOS_MIN_MEM		0UL
@@ -139,6 +140,10 @@ extern inline int pci_dma_supported(struct pci_dev *hwdev, u64 mask)
 }
 
 #define pci_dac_dma_supported(dev, mask)	(0)
+
+static inline void pcibios_add_platform_entries(struct pci_dev *dev)
+{
+}
 
 #endif /* __KERNEL__ */
 

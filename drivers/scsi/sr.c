@@ -712,6 +712,9 @@ static void get_capabilities(struct scsi_cd *cd)
 		""
 	};
 
+	/* Set read only initially */
+	set_disk_ro(cd->disk, 1);
+
 	/* allocate a request for the TEST_UNIT_READY */
 	SRpnt = scsi_allocate_request(cd->device, GFP_KERNEL);
 	if (!SRpnt) {
@@ -795,10 +798,9 @@ static void get_capabilities(struct scsi_cd *cd)
 	if ((buffer[n + 2] & 0x8) == 0)
 		/* not a DVD drive */
 		cd->cdi.mask |= CDC_DVD;
-	if ((buffer[n + 3] & 0x20) == 0) {
+	if ((buffer[n + 3] & 0x20) == 0) 
 		/* can't write DVD-RAM media */
 		cd->cdi.mask |= CDC_DVD_RAM;
-	} else
 	if ((buffer[n + 3] & 0x10) == 0)
 		/* can't write DVD-R media */
 		cd->cdi.mask |= CDC_DVD_R;
@@ -825,8 +827,11 @@ static void get_capabilities(struct scsi_cd *cd)
 	/*
 	 * if DVD-RAM of MRW-W, we are randomly writeable
 	 */
-	if ((cd->cdi.mask & (CDC_DVD_RAM | CDC_MRW_W)) != (CDC_DVD_RAM | CDC_MRW_W))
+	if ((cd->cdi.mask & (CDC_DVD_RAM | CDC_MRW_W)) !=
+			(CDC_DVD_RAM | CDC_MRW_W)) {
 		cd->device->writeable = 1;
+		set_disk_ro(cd->disk, 0);
+	}
 
 	scsi_release_request(SRpnt);
 	kfree(buffer);

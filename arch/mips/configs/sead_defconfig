@@ -192,6 +192,10 @@ CONFIG_BLK_DEV_INITRD=y
 #
 
 #
+# Macintosh device drivers
+#
+
+#
 # Networking support
 #
 # CONFIG_NET is not set

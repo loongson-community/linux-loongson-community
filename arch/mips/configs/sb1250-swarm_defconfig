@@ -236,6 +236,10 @@ CONFIG_BLK_DEV_INITRD=y
 # CONFIG_I2O is not set
 
 #
+# Macintosh device drivers
+#
+
+#
 # Networking support
 #
 CONFIG_NET=y

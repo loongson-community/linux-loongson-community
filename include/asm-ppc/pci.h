@@ -26,6 +26,7 @@ struct pci_dev;
 extern int pci_assign_all_busses;
 
 #define pcibios_assign_all_busses()	(pci_assign_all_busses)
+#define pcibios_scan_all_fns(a, b)	0
 
 #define PCIBIOS_MIN_IO		0x1000
 #define PCIBIOS_MIN_MEM		0x10000000
@@ -280,6 +281,8 @@ int pci_mmap_page_range(struct pci_dev *pdev, struct vm_area_struct *vma,
 extern void
 pcibios_resource_to_bus(struct pci_dev *dev, struct pci_bus_region *region,
 			struct resource *res);
+
+extern void pcibios_add_platform_entries(struct pci_dev *dev);
 
 #endif	/* __KERNEL__ */
 

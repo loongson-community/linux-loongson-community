@@ -1452,15 +1452,12 @@ static int au1000_open(struct net_device *dev)
 	int retval;
 	struct au1000_private *aup = (struct au1000_private *) dev->priv;
 
-	MOD_INC_USE_COUNT;
-
 	if (au1000_debug > 4)
 		printk("%s: open: dev=%p\n", dev->name, dev);
 
 	if ((retval = au1000_init(dev))) {
 		printk(KERN_ERR "%s: error in au1000_init\n", dev->name);
 		free_irq(dev->irq, dev);
-		MOD_DEC_USE_COUNT;
 		return retval;
 	}
 	netif_start_queue(dev);
@@ -1469,7 +1466,6 @@ static int au1000_open(struct net_device *dev)
 					dev->name, dev))) {
 		printk(KERN_ERR "%s: unable to get IRQ %d\n", 
 				dev->name, dev->irq);
-		MOD_DEC_USE_COUNT;
 		return retval;
 	}
 
@@ -1504,7 +1500,6 @@ static int au1000_close(struct net_device *dev)
 	free_irq(dev->irq, dev);
 	spin_unlock_irqrestore(&aup->lock, flags);
 
-	MOD_DEC_USE_COUNT;
 	return 0;
 }
 

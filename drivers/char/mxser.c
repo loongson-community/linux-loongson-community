@@ -56,6 +56,7 @@
 #include <linux/mm.h>
 #include <linux/smp_lock.h>
 #include <linux/pci.h>
+#include <linux/init.h>
 
 #include <asm/system.h>
 #include <asm/io.h>
@@ -496,7 +497,6 @@ static struct tty_operations mxser_ops = {
 static int __init mxser_module_init(void)
 {
 	int i, m, retval, b;
-	int n, index;
 	struct mxser_hwconf hwconf;
 
 	mxvar_sdriver = alloc_tty_driver(MXSER_PORTS + 1);
@@ -509,6 +509,7 @@ static int __init mxser_module_init(void)
 
 	mxvar_sdriver->owner = THIS_MODULE;
 	mxvar_sdriver->name = "ttyM";
+	mxvar_sdriver->devfs_name = "tts/M";
 	mxvar_sdriver->major = ttymajor;
 	mxvar_sdriver->minor_start = 0;
 	mxvar_sdriver->type = TTY_DRIVER_TYPE_SERIAL;
@@ -600,9 +601,8 @@ static int __init mxser_module_init(void)
 #ifdef CONFIG_PCI
 	{
 		struct pci_dev *pdev = NULL;
-
-		n = (sizeof(mxser_pcibrds) / sizeof(mxser_pcibrds[0])) - 1;
-		index = 0;
+		int n = (sizeof(mxser_pcibrds) / sizeof(mxser_pcibrds[0])) - 1;
+		int index = 0;
 		for (b = 0; b < n; b++) {
 			while ((pdev = pci_find_device(mxser_pcibrds[b].vendor, mxser_pcibrds[b].device, pdev)))
 			{

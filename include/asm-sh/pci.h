@@ -12,6 +12,7 @@
    or architectures with incomplete PCI setup by the loader */
 
 #define pcibios_assign_all_busses()	1
+#define pcibios_scan_all_fns(a, b)	0
 
 /*
  * A board can define one or more PCI channels that represent built-in (or
@@ -254,6 +255,10 @@ extern void pcibios_fixup_irqs(void);
 #ifdef CONFIG_PCI_AUTO
 extern int pciauto_assign_resources(int busno, struct pci_channel *hose);
 #endif
+
+static inline void pcibios_add_platform_entries(struct pci_dev *dev)
+{
+}
 
 #endif /* __KERNEL__ */
 

@@ -59,7 +59,6 @@
 #include <asm/bitops.h>
 #include <asm/machdep.h>
 #include <asm/pmac_feature.h>
-#include <asm/kgdb.h>
 #include <asm/dbdma.h>
 #include <asm/macio.h>
 
@@ -68,6 +67,10 @@
 
 #include "pmac_zilog.h"
 
+#if defined(CONFIG_SERIAL_PMACZILOG_CONSOLE) && defined(CONFIG_PPC64)
+#define HAS_SCCDBG
+extern int sccdbg;
+#endif
 
 /* Not yet implemented */
 #undef HAS_DBDMA
@@ -170,7 +173,6 @@ static void pmz_load_zsregs(struct uart_pmac_port *up, u8 *regs)
  */
 static void pmz_maybe_update_regs(struct uart_pmac_port *up)
 {
-#if 1
        	if (!ZS_REGS_HELD(up)) {
 		if (ZS_TX_ACTIVE(up)) {
 			up->flags |= PMACZILOG_FLAG_REGS_HELD;
@@ -179,10 +181,6 @@ static void pmz_maybe_update_regs(struct uart_pmac_port *up)
 			pmz_load_zsregs(up, up->curregs);
 		}
 	}
-#else
-       	pr_debug("pmz: maybe_update_regs: updating\n");
-	 pmz_load_zsregs(up, up->curregs);
-#endif
 }
 
 static void pmz_receive_chars(struct uart_pmac_port *up, struct pt_regs *regs)
@@ -205,22 +203,18 @@ static void pmz_receive_chars(struct uart_pmac_port *up, struct pt_regs *regs)
 			zssync(up);
 		}
 
-		ch = read_zsreg(up, R0);
-
-		/* This funny hack depends upon BRK_ABRT not interfering
-		 * with the other bits we care about in R1.
-		 */
-		if (ch & BRK_ABRT)
-			r1 |= BRK_ABRT;
-
 		ch = read_zsdata(up);
 		ch &= up->parity_mask;
+		if (ch == 0 && up->prev_status & BRK_ABRT) {
+			r1 |= BRK_ABRT;
+			printk("rx break\n");
+		}
 
 		/* A real serial line, record the character and status.  */
 		*tty->flip.char_buf_ptr = ch;
 		*tty->flip.flag_buf_ptr = TTY_NORMAL;
 		up->port.icount.rx++;
-		if (r1 & (BRK_ABRT | PAR_ERR | Rx_OVR | CRC_ERR)) {
+		if (r1 & (PAR_ERR | Rx_OVR | CRC_ERR | BRK_ABRT)) {
 			if (r1 & BRK_ABRT) {
 				r1 &= ~(PAR_ERR | CRC_ERR);
 				up->port.icount.brk++;
@@ -273,6 +267,15 @@ static void pmz_status_handle(struct uart_pmac_port *up, struct pt_regs *regs)
 	status = read_zsreg(up, R0);
 	write_zsreg(up, R0, RES_EXT_INT);
 	zssync(up);
+
+#ifdef HAS_SCCDBG
+	if (sccdbg && (status & BRK_ABRT) && !(up->prev_status & BRK_ABRT)) {
+#ifdef CONFIG_XMON
+		extern void xmon(struct pt_regs *);
+		xmon(regs);
+#endif
+	}
+#endif /* HAS_SCCDBG */
 
 	if (ZS_WANTS_MODEM_STATUS(up)) {
 		if (status & SYNC_HUNT)
@@ -383,10 +386,10 @@ static irqreturn_t pmz_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		write_zsreg(up_a, R0, RES_H_IUS);
 		zssync(up_a);		
 		pr_debug("pmz: irq channel A: %x\n", r3);
-		if (r3 & CHARxIP)
-			pmz_receive_chars(up_a, regs);
        		if (r3 & CHAEXT)
        			pmz_status_handle(up_a, regs);
+		if (r3 & CHARxIP)
+			pmz_receive_chars(up_a, regs);
        		if (r3 & CHATxIP)
        			pmz_transmit_chars(up_a);
 	        rc = IRQ_HANDLED;
@@ -398,10 +401,10 @@ static irqreturn_t pmz_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		write_zsreg(up_b, R0, RES_H_IUS);
 		zssync(up_b);
 		pr_debug("pmz: irq channel B: %x\n", r3);
-       	       	if (r3 & CHBRxIP)
-       			pmz_receive_chars(up_b, regs);
        		if (r3 & CHBEXT)
        			pmz_status_handle(up_b, regs);
+       	       	if (r3 & CHBRxIP)
+       			pmz_receive_chars(up_b, regs);
        		if (r3 & CHBTxIP)
        			pmz_transmit_chars(up_b);
 	       	rc = IRQ_HANDLED;
@@ -575,15 +578,12 @@ static void pmz_stop_rx(struct uart_port *port)
 
 /* 
  * Enable modem status change interrupts
- * The port lock is not held.
+ * The port lock is held.
  */
 static void pmz_enable_ms(struct uart_port *port)
 {
 	struct uart_pmac_port *up = to_pmz(port);
 	unsigned char new_reg;
-	unsigned long flags;
-
-	spin_lock_irqsave(&port->lock, flags);
 
 	new_reg = up->curregs[R15] | (DCDIE | SYNCIE | CTSIE);
 	if (new_reg != up->curregs[R15]) {
@@ -592,8 +592,6 @@ static void pmz_enable_ms(struct uart_port *port)
 		/* NOTE: Not subject to 'transmitter active' rule.  */ 
 		write_zsreg(up, R15, up->curregs[R15]);
 	}
-
-	spin_unlock_irqrestore(&port->lock, flags);
 }
 
 /* 
@@ -765,7 +763,7 @@ static int __pmz_startup(struct uart_pmac_port *up)
 	up->curregs[R9] |= NV | MIE;
 
 	up->curregs[R1] |= EXT_INT_ENAB | INT_ALL_Rx | TxINT_ENAB;
-	//	pmz_maybe_update_regs(up);
+       	pmz_maybe_update_regs(up);
 
 	return pwr_delay;
 }
@@ -1051,10 +1049,13 @@ pmz_set_termios(struct uart_port *port, struct termios *termios,
 
 	pmz_convert_to_zs(up, termios->c_cflag, termios->c_iflag, baud);
 
-	if (UART_ENABLE_MS(&up->port, termios->c_cflag))
+	if (UART_ENABLE_MS(&up->port, termios->c_cflag)) {
+		up->curregs[R15] |= DCDIE | SYNCIE | CTSIE;
 		up->flags |= PMACZILOG_FLAG_MODEM_STATUS;
-	else
+	} else {
+		up->curregs[R15] &= ~(DCDIE | SYNCIE | CTSIE);
 		up->flags &= ~PMACZILOG_FLAG_MODEM_STATUS;
+	}
 
 	/* set the irda codec to the right rate */
 	if (ZS_IS_IRDA(up))
@@ -1120,7 +1121,7 @@ static struct uart_ops pmz_pops = {
  * Unlike sunzilog, we don't need to pre-init the spinlock as we don't
  * register our console before uart_add_one_port() is called
  */
-static int __init pmz_setup_port(struct uart_pmac_port *up, int early)
+static int __init pmz_init_port(struct uart_pmac_port *up)
 {
 	struct device_node *np = up->node;
 	char *conn;
@@ -1133,11 +1134,6 @@ static int __init pmz_setup_port(struct uart_pmac_port *up, int early)
 	/*
 	 * Request & map chip registers
 	 */
-	if (!early && request_OF_resource(np, 0, NULL) == NULL) {
-		printk("pmac_zilog: failed to request resources for %s\n",
-			np->full_name);
-		return -EBUSY;
-	}
 	up->port.mapbase = np->addrs[0].address;
 	up->port.membase = ioremap(up->port.mapbase, 0x1000);
       
@@ -1152,27 +1148,23 @@ static int __init pmz_setup_port(struct uart_pmac_port *up, int early)
 		up->flags |= PMACZILOG_FLAG_HAS_DMA;
 #endif	
 	if (ZS_HAS_DMA(up)) {
-		if (!early && request_OF_resource(np, np->n_addrs - 2, " (tx dma)") == NULL) {
-			printk(KERN_ERR "pmac_zilog: can't request TX DMA resource !\n");
-			up->flags &= ~PMACZILOG_FLAG_HAS_DMA;
-			goto no_dma;
-		}
-		if (!early && request_OF_resource(np, np->n_addrs - 1, " (rx dma)") == NULL) {
-			release_OF_resource(np, np->n_addrs - 2);
-			printk(KERN_ERR "pmac_zilog: can't request RX DMA resource !\n");
-			up->flags &= ~PMACZILOG_FLAG_HAS_DMA;
-			goto no_dma;
-		}
 		up->tx_dma_regs = (volatile struct dbdma_regs *)
 			ioremap(np->addrs[np->n_addrs - 2].address, 0x1000);
+		if (up->tx_dma_regs == NULL) {	
+			up->flags &= ~PMACZILOG_FLAG_HAS_DMA;
+			goto no_dma;
+		}
 		up->rx_dma_regs = (volatile struct dbdma_regs *)
 			ioremap(np->addrs[np->n_addrs - 1].address, 0x1000);
+		if (up->rx_dma_regs == NULL) {	
+			iounmap((void *)up->tx_dma_regs);
+			up->flags &= ~PMACZILOG_FLAG_HAS_DMA;
+			goto no_dma;
+		}
 		up->tx_dma_irq = np->intrs[1].line;
 		up->rx_dma_irq = np->intrs[2].line;
 	}
 no_dma:
-	if (!early)
-		up->flags |= PMACZILOG_FLAG_RSRC_REQUESTED;
 
 	/*
 	 * Detect port type
@@ -1234,13 +1226,6 @@ static void pmz_dispose_port(struct uart_pmac_port *up)
 {
 	struct device_node *np;
 
-	if (up->flags & PMACZILOG_FLAG_RSRC_REQUESTED) {
-		release_OF_resource(up->node, 0);
-		if (ZS_HAS_DMA(up)) {
-			release_OF_resource(up->node, up->node->n_addrs - 2);
-			release_OF_resource(up->node, up->node->n_addrs - 1);
-		}
-	}
 	iounmap((void *)up->control_reg);
 	np = up->node;
 	up->node = NULL;
@@ -1258,8 +1243,15 @@ static int pmz_attach(struct macio_dev *mdev, const struct of_match *match)
 	 */
 	for (i = 0; i < MAX_ZS_PORTS; i++)
 		if (pmz_ports[i].node == mdev->ofdev.node) {
-			pmz_ports[i].dev = mdev;
-			dev_set_drvdata(&mdev->ofdev.dev, &pmz_ports[i]);
+			struct uart_pmac_port *up = &pmz_ports[i];
+
+			up->dev = mdev;
+			dev_set_drvdata(&mdev->ofdev.dev, up);
+			if (macio_request_resources(up->dev, "pmac_zilog"))
+				printk(KERN_WARNING "%s: Failed to request resource, port still active\n",
+				       up->node->name);
+			else
+				up->flags |= PMACZILOG_FLAG_RSRC_REQUESTED;				
 			return 0;
 		}
 	return -ENODEV;
@@ -1271,13 +1263,17 @@ static int pmz_attach(struct macio_dev *mdev, const struct of_match *match)
  */
 static int pmz_detach(struct macio_dev *mdev)
 {
-	struct uart_pmac_port	*port = dev_get_drvdata(&mdev->ofdev.dev);
+	struct uart_pmac_port	*up = dev_get_drvdata(&mdev->ofdev.dev);
 	
-	if (!port)
+	if (!up)
 		return -ENODEV;
 
+	if (up->flags & PMACZILOG_FLAG_RSRC_REQUESTED) {
+		macio_release_resources(up->dev);
+		up->flags &= ~PMACZILOG_FLAG_RSRC_REQUESTED;
+	}
 	dev_set_drvdata(&mdev->ofdev.dev, NULL);
-	port->dev = NULL;
+	up->dev = NULL;
 	
 	return 0;
 }
@@ -1288,7 +1284,7 @@ static int pmz_detach(struct macio_dev *mdev)
  * used later to "attach" to the sysfs tree so we get power management
  * events
  */
-static int __init pmz_probe(int early)
+static int __init pmz_probe(void)
 {
 	struct device_node	*node_p, *node_a, *node_b, *np;
 	int			count = 0;
@@ -1333,9 +1329,9 @@ static int __init pmz_probe(int early)
 		/*
 		 * Setup the ports for real
 		 */
-		rc = pmz_setup_port(&pmz_ports[count], early);
+		rc = pmz_init_port(&pmz_ports[count]);
 		if (rc == 0)
-			rc = pmz_setup_port(&pmz_ports[count+1], early);
+			rc = pmz_init_port(&pmz_ports[count+1]);
 		if (rc != 0) {
 			of_node_put(node_a);
 			of_node_put(node_b);
@@ -1436,42 +1432,9 @@ static struct macio_driver pmz_driver =
 //	.resume		= pmz_resume,  *** NYI
 };
 
-static void pmz_fixup_resources(void)
-{
-	int i;
-       	for (i=0; i<pmz_ports_count; i++) {
-       		struct uart_pmac_port *up = &pmz_ports[i];
-
-		if (up->node == NULL)
-			continue;
-       		if (up->flags & PMACZILOG_FLAG_RSRC_REQUESTED)
-			continue;
-		if (request_OF_resource(up->node, 0, NULL) == NULL)
-			printk(KERN_WARNING "%s: Failed to do late IO resource request, port still active\n",
-			       up->node->name);
-		up->flags |= PMACZILOG_FLAG_RSRC_REQUESTED;
-		if (!ZS_HAS_DMA(up))
-			continue;
-		if (request_OF_resource(up->node, up->node->n_addrs - 2, NULL) == NULL)
-			printk(KERN_WARNING "%s: Failed to do late DMA resource request, port still active\n",
-			       up->node->name);
-		if (request_OF_resource(up->node, up->node->n_addrs - 1, NULL) == NULL)
-			printk(KERN_WARNING "%s: Failed to do late DMA resource request, port still active\n",
-			       up->node->name);
-       	}
-
-}
-
 static int __init init_pmz(void)
 {
 	printk(KERN_DEBUG "%s\n", version);
-
-	/*
-	 * If we had serial console, then we didn't request
-	 * resources yet. We fix that up now
-	 */
-	if (pmz_ports_count > 0)
-		pmz_fixup_resources();
 
 	/* 
 	 * First, we need to do a direct OF-based probe pass. We
@@ -1481,7 +1444,7 @@ static int __init init_pmz(void)
 	 * uart_register_driver()
 	 */
 	if (pmz_ports_count == 0)
-		pmz_probe(0);
+		pmz_probe();
 
 	/*
 	 * Bail early if no port found
@@ -1610,8 +1573,10 @@ static int __init pmz_console_setup(struct console *co, char *options)
 static int __init pmz_console_init(void)
 {
 	/* Probe ports */
-	pmz_probe(1);
+	pmz_probe();
 
+#ifdef CONFIG_SERIAL_PMACZILOG_CONSOLE
+#endif
 	/* TODO: Autoprobe console based on OF */
 	/* pmz_console.index = i; */
 	register_console(&pmz_console);

@@ -338,12 +338,6 @@ static ctl_table kern_table[] = {
 		.proc_handler	= &proc_dointvec,
 	},
 #endif
-#ifdef __hppa__
-	{KERN_HPPA_PWRSW, "soft-power", &pwrsw_enabled, sizeof (int),
-	 0644, NULL, &proc_dointvec},
-	{KERN_HPPA_UNALIGNED, "unaligned-trap", &unaligned_enabled, sizeof (int),
-	 0644, NULL, &proc_dointvec},
-#endif
 #if defined(CONFIG_PPC32) && defined(CONFIG_6xx)
 	{
 		.ctl_name	= KERN_PPC_POWERSAVE_NAP,
@@ -598,7 +592,6 @@ static ctl_table kern_table[] = {
 		.maxlen		= sizeof(int),
 		.mode		= 0644,
 		.proc_handler	= &proc_dointvec,
-		.strategy	= &sysctl_jiffies,
 	},
 	{ .ctl_name = 0 }
 };

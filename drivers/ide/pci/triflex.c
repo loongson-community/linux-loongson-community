@@ -45,6 +45,7 @@
 
 static struct pci_dev *triflex_dev;
 
+#ifdef CONFIG_PROC_FS
 static int triflex_get_info(char *buf, char **addr, off_t offset, int count)
 {
 	char *p = buf;
@@ -91,6 +92,7 @@ static int triflex_get_info(char *buf, char **addr, off_t offset, int count)
 	
 	return len > count ? count : len;
 }
+#endif
 
 static int triflex_tune_chipset(ide_drive_t *drive, u8 xferspeed)
 {
@@ -171,7 +173,7 @@ static int triflex_config_drive_xfer_rate(ide_drive_t *drive)
 	struct hd_driveid *id	= drive->id;
 	
 	if (id && (id->capability & 1) && drive->autodma) {
-		if (hwif->ide_dma_bad_drive(drive))
+		if (__ide_dma_bad_drive(drive))
 			goto tune_pio;
 		if (id->field_valid & 2) {
 			if ((id->dma_mword & hwif->mwdma_mask) ||
@@ -224,7 +226,6 @@ static int __devinit triflex_init_one(struct pci_dev *dev,
 	
 	ide_setup_pci_device(dev, d);
 	triflex_dev = dev;
-	MOD_INC_USE_COUNT;
 	
 	return 0;
 }
@@ -240,13 +241,7 @@ static int triflex_ide_init(void)
 	return ide_pci_register_driver(&driver);
 }
 
-static void triflex_ide_exit(void)
-{
-	ide_pci_unregister_driver(&driver);
-}
-
 module_init(triflex_ide_init);
-module_exit(triflex_ide_exit);
 
 MODULE_AUTHOR("Torben Mathiasen");
 MODULE_DESCRIPTION("PCI driver module for Compaq Triflex IDE");

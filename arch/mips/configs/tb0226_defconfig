@@ -247,6 +247,10 @@ CONFIG_SCSI_CONSTANTS=y
 #
 
 #
+# Macintosh device drivers
+#
+
+#
 # Networking support
 #
 CONFIG_NET=y

@@ -1,6 +1,7 @@
 .*.d
 .*.o
 .*.cmd
+clut_vga16.c
 logo_linux_mono.c
 logo_linux_vga16.c
 logo_linux_clut224.c
