@@ -298,6 +298,7 @@ CONFIG_NE2K_PCI=y
 # CONFIG_TLAN is not set
 # CONFIG_VIA_RHINE is not set
 # CONFIG_WINBOND_840 is not set
+# CONFIG_LAN_SAA9730 is not set
 # CONFIG_NET_POCKET is not set
 
 #

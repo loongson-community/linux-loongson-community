@@ -245,6 +245,7 @@ obj-$(CONFIG_8139TOO) += 8139too.o
 obj-$(CONFIG_WAVELAN) += wavelan.o
 obj-$(CONFIG_ARLAN) += arlan.o arlan-proc.o
 obj-$(CONFIG_ZNET) += znet.o
+obj-$(CONFIG_LAN_SAA9730) += saa9730.o
 obj-$(CONFIG_DEPCA) += depca.o
 obj-$(CONFIG_EWRK3) += ewrk3.o
 obj-$(CONFIG_ATP) += atp.o
