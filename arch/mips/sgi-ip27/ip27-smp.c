@@ -151,28 +151,15 @@ static void intr_clear_all(nasid_t nasid)
 		INT_PEND1_BASELVL, "INT_PEND1");
 }
 
-static void sn_mp_setup(void)
-{
-	cnodeid_t	cnode;
-//	cpuid_t		cpu;
-
-	for (cnode = 0; cnode < numnodes; cnode++) {
-//		init_platform_nodepda();
-		intr_clear_all(COMPACT_TO_NASID_NODEID(cnode));
-	}
-//	for (cpu = 0; cpu < maxcpus; cpu++)
-//		init_platform_pda();
-}
-
 void __init prom_prepare_cpus(unsigned int max_cpus)
 {
-	sn_mp_setup();
+	cnodeid_t	cnode;
+
+	for (cnode = 0; cnode < numnodes; cnode++)
+		intr_clear_all(COMPACT_TO_NASID_NODEID(cnode));
+
 	/* Master has already done per_cpu_init() */
 	install_cpuintr(smp_processor_id());
-#if 0
-	bte_lateinit();
-	ecc_init();
-#endif
 
 	replicate_kernel_text(numnodes);
 
@@ -206,28 +193,8 @@ void prom_init_secondary(void)
 	local_irq_enable();
 }
 
-/* XXXKW implement prom_init_secondary() and prom_smp_finish to share
- * start_secondary with kernel/smp.c; otherwise, roll your own. */
-
 void __init prom_cpus_done(void)
 {
-	cnodeid_t cnode;
-
-#ifdef LATER
-	Wait logic goes here.
-#endif
-	for (cnode = 0; cnode < numnodes; cnode++) {
-#if 0
-		if (cnodetocpu(cnode) == -1) {
-			printk("Initializing headless hub,cnode %d", cnode);
-			per_hub_init(cnode);
-		}
-#endif
-	}
-#if 0
-	cpu_io_setup();
-	init_mfhi_war();
-#endif
 }
 
 void prom_smp_finish(void)
