@@ -655,20 +655,7 @@ static int __init probe_scache(unsigned long config)
 	if ((config >> 17) & 1)
 		return 0;
 
-	switch ((config >> 22) & 3) {
-	case 0:
-		sc_lsize = 16;
-		break;
-	case 1:
-		sc_lsize = 32;
-		break;
-	case 2:
-		sc_lsize = 64;
-		break;
-	case 3:
-		sc_lsize = 128;
-		break;
-	}
+	sc_lsize = 16 << ((config >> 22) & 3);
 
 	begin = (unsigned long) &stext;
 	begin &= ~((4 * 1024 * 1024) - 1);
