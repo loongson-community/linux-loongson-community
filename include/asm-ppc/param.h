@@ -3,9 +3,6 @@
 
 #ifndef HZ
 #define HZ 100
-#ifdef __KERNEL__
-#define hz_to_std(a) (a)
-#endif
 #endif
 
 #ifdef __KERNEL__
