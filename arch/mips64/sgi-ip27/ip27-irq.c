@@ -689,10 +689,6 @@ void handle_resched_intr(int irq, void *dev_id, struct pt_regs *regs)
 	/* Nothing, the return from intr will work for us */
 }
 
-void handle_cpuintr(int irq, void *dev_id, struct pt_regs *regs)
-{
-}
-
 void install_cpuintr(cpuid_t cpu)
 {
 	int irq;
@@ -702,11 +698,13 @@ void install_cpuintr(cpuid_t cpu)
 	intr_connect_level(cpu, IRQ_TO_SWLEVEL(irq));
 	if (request_irq(irq, handle_resched_intr, SA_SHIRQ, "resched", 0))
 		panic("intercpu intr unconnectible\n");
+#ifdef CONFIG_SMP
 	irq = CPU_CALL_A_IRQ + cputoslice(cpu);
 	intr_connect_level(cpu, IRQ_TO_SWLEVEL(irq));
 	if (request_irq(irq, smp_call_function_interrupt, SA_SHIRQ,
 						"callfunc", 0))
 		panic("intercpu intr unconnectible\n");
+#endif
 }
 
 void install_tlbintr(cpuid_t cpu)
