@@ -259,6 +259,7 @@ ejtag_return:
 	__BUILD_\verbose \exception
 	move	a0, sp
 	jal	do_\handler
+	 nop
 	j	ret_from_exception
 	 nop
 	END(handle_\exception)
