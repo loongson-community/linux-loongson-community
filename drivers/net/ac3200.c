@@ -99,6 +99,8 @@ int __init ac3200_probe(struct net_device *dev)
 {
 	unsigned short ioaddr = dev->base_addr;
 
+	SET_MODULE_OWNER(dev);
+
 	if (ioaddr > 0x1ff)		/* Check a single specified location. */
 		return ac_probe1(ioaddr, dev);
 	else if (ioaddr > 0)		/* Don't probe at all. */
@@ -107,12 +109,9 @@ int __init ac3200_probe(struct net_device *dev)
 	if ( ! EISA_bus)
 		return -ENXIO;
 
-	for (ioaddr = 0x1000; ioaddr < 0x9000; ioaddr += 0x1000) {
-		if (check_region(ioaddr, AC_IO_EXTENT))
-			continue;
+	for (ioaddr = 0x1000; ioaddr < 0x9000; ioaddr += 0x1000)
 		if (ac_probe1(ioaddr, dev) == 0)
 			return 0;
-	}
 
 	return -ENODEV;
 }
@@ -121,8 +120,8 @@ static int __init ac_probe1(int ioaddr, struct net_device *dev)
 {
 	int i, retval;
 
-	if (!request_region(ioaddr, AC_IO_EXTENT, "ac3200"))
-		return -ENODEV;
+	if (!request_region(ioaddr, AC_IO_EXTENT, dev->name))
+		return -EBUSY;
 
 	if (inb_p(ioaddr + AC_ID_PORT) == 0xff) {
 		retval = -ENODEV;
@@ -172,9 +171,9 @@ static int __init ac_probe1(int ioaddr, struct net_device *dev)
 		printk(", assigning");
 	}
 
-	if (request_irq(dev->irq, ei_interrupt, 0, "ac3200", dev)) {
+	retval = request_irq(dev->irq, ei_interrupt, 0, dev->name, dev);
+	if (retval) {
 		printk (" nothing! Unable to get IRQ %d.\n", dev->irq);
-		retval = -EAGAIN;
 		goto out1;
 	}
 
@@ -262,15 +261,9 @@ static int ac_open(struct net_device *dev)
 #ifdef notyet
 	/* Someday we may enable the IRQ and shared memory here. */
 	int ioaddr = dev->base_addr;
-
-	if (request_irq(dev->irq, ei_interrupt, 0, "ac3200", dev))
-		return -EAGAIN;
 #endif
 
 	ei_open(dev);
-
-	MOD_INC_USE_COUNT;
-
 	return 0;
 }
 
@@ -339,9 +332,6 @@ static int ac_close_card(struct net_device *dev)
 #endif
 
 	ei_close(dev);
-
-	MOD_DEC_USE_COUNT;
-
 	return 0;
 }
 
@@ -360,9 +350,6 @@ init_module(void)
 {
 	int this_dev, found = 0;
 
-	if (load_8390_module("ac3200.c"))
-			return -ENOSYS;
-
 	for (this_dev = 0; this_dev < MAX_AC32_CARDS; this_dev++) {
 		struct net_device *dev = &dev_ac32[this_dev];
 		dev->irq = irq[this_dev];
@@ -376,7 +363,6 @@ init_module(void)
 			if (found != 0) {	/* Got at least one. */
 				return 0;
 			}
-			unload_8390_module();
 			return -ENXIO;
 		}
 		found++;
@@ -392,17 +378,16 @@ cleanup_module(void)
 	for (this_dev = 0; this_dev < MAX_AC32_CARDS; this_dev++) {
 		struct net_device *dev = &dev_ac32[this_dev];
 		if (dev->priv != NULL) {
-			void *priv = dev->priv;
 			/* Someday free_irq may be in ac_close_card() */
 			free_irq(dev->irq, dev);
 			release_region(dev->base_addr, AC_IO_EXTENT);
 			if (ei_status.reg0)
 				iounmap((void *)dev->mem_start);
 			unregister_netdev(dev);
-			kfree(priv);
+			kfree(dev->priv);
+			dev->priv = NULL;
 		}
 	}
-	unload_8390_module();
 }
 #endif /* MODULE */
 

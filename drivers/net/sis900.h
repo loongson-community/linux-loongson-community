@@ -10,7 +10,10 @@
  *   http://www.sis.com.tw/support/databook.htm
  */
 
-/* MAC operation registers of SiS 7016 and SiS 900 ethernet controller */
+/*
+ * SiS 7016 and SiS 900 ethernet controller registers
+ */
+
 /* The I/O extent, SiS 900 needs 256 bytes of io address */
 #define SIS900_TOTAL_SIZE 0x100
 
@@ -252,14 +255,11 @@ enum sis630_revision_id {
 #define NUM_TX_DESC     16      	/* Number of Tx descriptor registers. */
 #define NUM_RX_DESC     16       	/* Number of Rx descriptor registers. */
 
-#define TRUE            1
-#define FALSE           0
-
 /* PCI stuff, should be move to pic.h */
 #define PCI_DEVICE_ID_SI_900	0x900   
 #define PCI_DEVICE_ID_SI_7016	0x7016  
 
-/* ioctl for accessing MII transveiver */
+/* ioctl for accessing MII transceiver */
 #define SIOCGMIIPHY (SIOCDEVPRIVATE)		/* Get the PHY in use. */
 #define SIOCGMIIREG (SIOCDEVPRIVATE+1)		/* Read a PHY register. */
 #define SIOCSMIIREG (SIOCDEVPRIVATE+2)		/* Write a PHY register */

@@ -1,6 +1,6 @@
 /* Driver for USB Mass Storage compliant devices
  *
- * $Id: usb.c,v 1.51 2000/10/19 18:49:51 mdharm Exp $
+ * $Id: usb.c,v 1.54 2000/10/31 21:32:10 mdharm Exp $
  *
  * Current development and maintenance by:
  *   (c) 1999, 2000 Matthew Dharm (mdharm-usb@one-eyed-alien.net)
@@ -243,6 +243,7 @@ static int usb_stor_control_thread(void * __us)
 			/* handle those devices which can't do a START_STOP */
 			if ((us->srb->cmnd[0] == START_STOP) &&
 			    (us->flags & US_FL_START_STOP)) {
+				US_DEBUGP("Skipping START_STOP command\n");
 				us->srb->result = GOOD << 1;
 
 				set_current_state(TASK_INTERRUPTIBLE);
@@ -311,10 +312,14 @@ static int usb_stor_control_thread(void * __us)
 			US_DEBUGP("-- US_ACT_EXIT command recieved\n");
 			break;
 		}
+
+		set_current_state(TASK_INTERRUPTIBLE);
 	} /* for (;;) */
 
 	/* notify the exit routine that we're actually exiting now */
 	up(&(us->notify));
+
+	remove_wait_queue(&(us->wqh), &wait);
 
 	return 0;
 }	
@@ -423,8 +428,8 @@ static struct us_unusual_dev us_unusual_dev_list[] = {
 	{ 0x054c, 0x002d, 0x0100, 0x0100, 
 		"Sony",
 		"Memorystick MSAC-US1",
-		US_SC_SCSI, US_PR_CB, NULL,
-		US_FL_SINGLE_LUN | US_FL_START_STOP | US_FL_MODE_XLATE },
+		US_SC_UFI, US_PR_CB, NULL,
+		US_FL_SINGLE_LUN | US_FL_START_STOP },
 
 	{ 0x057b, 0x0000, 0x0000, 0x0299, 
 		"Y-E Data",
@@ -504,7 +509,7 @@ static struct us_unusual_dev us_unusual_dev_list[] = {
 		US_FL_SCM_MULT_TARG }, 
 
 #ifdef CONFIG_USB_STORAGE_FREECOM
-        { 0x07ab, 0xfc01, 0x0921, 0x0921,
+        { 0x07ab, 0xfc01, 0x0000, 0x9999,
                 "Freecom",
                 "USB-IDE",
                 US_SC_QIC, US_PR_FREECOM, freecom_init, 0},
@@ -754,7 +759,7 @@ static void * storage_probe(struct usb_device *dev, unsigned int ifnum)
 	/*
 	 * Now check if we have seen this GUID before
 	 * We're looking for a device with a matching GUID that isn't
-	 * allready on the system
+	 * already on the system
 	 */
 	ss = us_list;
 	while ((ss != NULL) && 

@@ -101,9 +101,9 @@ int __init hp_probe1(struct net_device *dev, int ioaddr)
 {
 	int i, retval, board_id, wordmode;
 	const char *name;
-	static unsigned version_printed = 0;
+	static unsigned version_printed;
 
-	if (!request_region(ioaddr, HP_IO_EXTENT, "hp"))
+	if (!request_region(ioaddr, HP_IO_EXTENT, dev->name))
 		return -ENODEV;
 
 	/* Check for the HP physical address, 08 00 09 xx xx xx. */
@@ -150,12 +150,12 @@ int __init hp_probe1(struct net_device *dev, int ioaddr)
 		do {
 			int irq = *irqp;
 			if (request_irq (irq, NULL, 0, "bogus", NULL) != -EBUSY) {
-				autoirq_setup(0);
+				unsigned long cookie = probe_irq_on();
 				/* Twinkle the interrupt, and check if it's seen. */
 				outb_p(irqmap[irq] | HP_RUN, ioaddr + HP_CONFIGURE);
 				outb_p( 0x00 | HP_RUN, ioaddr + HP_CONFIGURE);
-				if (irq == autoirq_report(0)		 /* It's a good IRQ line! */
-					&& request_irq (irq, ei_interrupt, 0, "hp", dev) == 0) {
+				if (irq == probe_irq_off(cookie)		 /* It's a good IRQ line! */
+					&& request_irq (irq, ei_interrupt, 0, dev->name, dev) == 0) {
 					printk(" selecting IRQ %d.\n", irq);
 					dev->irq = *irqp;
 					break;
@@ -170,9 +170,8 @@ int __init hp_probe1(struct net_device *dev, int ioaddr)
 	} else {
 		if (dev->irq == 2)
 			dev->irq = 9;
-		if (request_irq(dev->irq, ei_interrupt, 0, "hp", dev)) {
+		if ((retval = request_irq(dev->irq, ei_interrupt, 0, dev->name, dev))) {
 			printk (" unable to get IRQ %d.\n", dev->irq);
-			retval = -EBUSY;
 			goto out1;
 		}
 	}
@@ -396,9 +395,6 @@ init_module(void)
 {
 	int this_dev, found = 0;
 
-	if (load_8390_module("hp.c"))
-		return -ENOSYS;
-
 	for (this_dev = 0; this_dev < MAX_HP_CARDS; this_dev++) {
 		struct net_device *dev = &dev_hp[this_dev];
 		dev->irq = irq[this_dev];
@@ -413,7 +409,6 @@ init_module(void)
 			if (found != 0) {	/* Got at least one. */
 				return 0;
 			}
-			unload_8390_module();
 			return -ENXIO;
 		}
 		found++;
@@ -437,7 +432,6 @@ cleanup_module(void)
 			kfree(priv);
 		}
 	}
-	unload_8390_module();
 }
 #endif /* MODULE */
 

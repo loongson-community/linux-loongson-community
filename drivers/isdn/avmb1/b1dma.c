@@ -1,11 +1,19 @@
 /*
- * $Id: b1dma.c,v 1.7 2000/08/04 12:20:08 calle Exp $
+ * $Id: b1dma.c,v 1.9 2000/11/01 14:05:02 calle Exp $
  * 
  * Common module for AVM B1 cards that support dma with AMCC
  * 
  * (c) Copyright 2000 by Carsten Paeth (calle@calle.in-berlin.de)
  * 
  * $Log: b1dma.c,v $
+ * Revision 1.9  2000/11/01 14:05:02  calle
+ * - use module_init/module_exit from linux/init.h.
+ * - all static struct variables are initialized with "membername:" now.
+ * - avm_cs.c, let it work with newer pcmcia-cs.
+ *
+ * Revision 1.8  2000/10/10 17:44:19  kai
+ * changes from/for 2.2.18
+ *
  * Revision 1.7  2000/08/04 12:20:08  calle
  * - Fix unsigned/signed warning in the right way ...
  *
@@ -47,7 +55,7 @@
 #include "capicmd.h"
 #include "capiutil.h"
 
-static char *revision = "$Revision: 1.7 $";
+static char *revision = "$Revision: 1.9 $";
 
 /* ------------------------------------------------------------- */
 
@@ -243,14 +251,14 @@ void b1dma_reset(avmcard *card)
 	restore_flags(flags);
 
 	b1dmaoutmeml(card->mbase+AMCC_MCSR, 0);
-	udelay(10 * 1000);
+	mdelay(10);
 	b1dmaoutmeml(card->mbase+AMCC_MCSR, 0x0f000000); /* reset all */
-	udelay(10 * 1000);
+	mdelay(10);
 	b1dmaoutmeml(card->mbase+AMCC_MCSR, 0);
 	if (card->cardtype == avm_t1pci)
-		udelay(42 * 1000);
+		mdelay(42);
 	else
-		udelay(10 * 1000);
+		mdelay(10);
 }
 
 /* ------------------------------------------------------------- */
@@ -258,11 +266,11 @@ void b1dma_reset(avmcard *card)
 int b1dma_detect(avmcard *card)
 {
 	b1dmaoutmeml(card->mbase+AMCC_MCSR, 0);
-	udelay(10 * 1000);
+	mdelay(10);
 	b1dmaoutmeml(card->mbase+AMCC_MCSR, 0x0f000000); /* reset all */
-	udelay(10 * 1000);
+	mdelay(10);
 	b1dmaoutmeml(card->mbase+AMCC_MCSR, 0);
-	udelay(42 * 1000);
+	mdelay(42);
 
 	b1dmaoutmeml(card->mbase+AMCC_RXLEN, 0);
 	b1dmaoutmeml(card->mbase+AMCC_TXLEN, 0);
@@ -475,8 +483,7 @@ static void b1dma_handle_rx(avmcard *card)
 	struct capi_ctr *ctrl = cinfo->capi_ctrl;
 	struct sk_buff *skb;
 	void *p = dma->recvbuf+4;
-	__u32 ApplId, DataB3Len, NCCI, WindowSize;
-	__s32 MsgLen;
+	__u32 ApplId, MsgLen, DataB3Len, NCCI, WindowSize;
 	__u8 b1cmd =  _get_byte(&p);
 
 #ifdef CONFIG_B1DMA_DEBUG

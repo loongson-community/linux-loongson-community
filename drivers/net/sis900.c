@@ -1,6 +1,6 @@
 /* sis900.c: A SiS 900/7016 PCI Fast Ethernet driver for Linux.
    Copyright 1999 Silicon Integrated System Corporation 
-   Revision:	1.07.04	Sep. 6 2000
+   Revision:	1.07.06	Nov. 7 2000
 
    Modified from the driver which is originally written by Donald Becker.
    
@@ -18,6 +18,8 @@
    preliminary Rev. 1.0 Jan. 18, 1998
    http://www.sis.com.tw/support/databook.htm
 
+   Rev 1.07.06 Nov.  7 2000 Jeff Garzik <jgarzik@mandrakesoft.com> some bug fix and cleaning
+   Rev 1.07.05 Nov.  6 2000 metapirat<metapirat@gmx.de> contribute media type select by ifconfig
    Rev 1.07.04 Sep.  6 2000 Lei-Chun Chang added ICS1893 PHY support
    Rev 1.07.03 Aug. 24 2000 Lei-Chun Chang (lcchang@sis.com.tw) modified 630E eqaulizer workaroung rule
    Rev 1.07.01 Aug. 08 2000 Ollie Lho minor update for SiS 630E and SiS 630E A1
@@ -56,21 +58,19 @@
 #include "sis900.h"
 
 static const char *version =
-"sis900.c: v1.07.04  09/06/2000\n";
+"sis900.c: v1.07.06  11/07/2000\n";
 
 static int max_interrupt_work = 20;
 static int multicast_filter_limit = 128;
 
 #define sis900_debug debug
-static int sis900_debug = 0;
+static int sis900_debug;
 
 /* Time in jiffies before concluding the transmitter is hung. */
 #define TX_TIMEOUT  (4*HZ)
 /* SiS 900 is capable of 32 bits BM DMA */
 #define SIS900_DMA_MASK 0xffffffff
 
-static struct net_device * sis900_mac_probe (struct pci_dev * pci_dev,
-					     char *card_name);
 enum {
 	SIS_900 = 0,
 	SIS_7016
@@ -140,7 +140,6 @@ struct sis900_private {
 	BufferDesc rx_ring[NUM_RX_DESC];
 
 	unsigned int tx_full;			/* The Tx queue is full.    */
-	int LinkOn;
 };
 
 MODULE_AUTHOR("Jim Huang <cmhuang@sis.com.tw>, Ollie Lho <ollie@sis.com.tw>");
@@ -171,39 +170,10 @@ static u16 sis900_compute_hashtable_index(u8 *addr);
 static void set_rx_mode(struct net_device *net_dev);
 static void sis900_reset(struct net_device *net_dev);
 static void sis630e_set_eq(struct net_device *net_dev);
-
-/* walk through every ethernet PCI devices to see if some of them are matched with our card list*/
-static int __init sis900_probe (struct pci_dev *pci_dev, const struct pci_device_id *pci_id)
-{
-	u32 pci_io_base;
-
-	if (!pci_dma_supported(pci_dev, SIS900_DMA_MASK)) {
-		printk(KERN_ERR "sis900.c: architecture does not support "
-		       "32bit PCI busmaster DMA\n");
-		return -ENODEV;
-	}
-
-	pci_io_base = pci_resource_start(pci_dev, 0);
-	if (check_region(pci_io_base, SIS900_TOTAL_SIZE)) {
-		printk(KERN_ERR "sis900.c: can't allocate I/O space at 0x%08x\n",
-		       pci_io_base);
-		return -ENODEV;
-	}
-
-	/* setup various bits in PCI command register */
-	if (pci_enable_device (pci_dev))
-		return -ENODEV;
-	pci_set_master(pci_dev);
-
-	/* do the real low level jobs */
-	if (sis900_mac_probe(pci_dev, card_names[pci_id->driver_data]) == NULL)
-		return -ENODEV;
-
-	return 0;
-}
+static int sis900_set_config(struct net_device *dev, struct ifmap *map);
 
 /* older SiS900 and friends, use EEPROM to store MAC address */
-static int sis900_get_mac_addr(struct pci_dev * pci_dev, struct net_device *net_dev)
+static int __devinit sis900_get_mac_addr(struct pci_dev * pci_dev, struct net_device *net_dev)
 {
 	long ioaddr = pci_resource_start(pci_dev, 0);
 	u16 signature;
@@ -225,7 +195,7 @@ static int sis900_get_mac_addr(struct pci_dev * pci_dev, struct net_device *net_
 }
 
 /* SiS630E model, use APC CMOS RAM to store MAC address */
-static int sis630e_get_mac_addr(struct pci_dev * pci_dev, struct net_device *net_dev)
+static int __devinit sis630e_get_mac_addr(struct pci_dev * pci_dev, struct net_device *net_dev)
 {
 	struct pci_dev *isa_bridge = NULL;
 	u8 reg;
@@ -247,17 +217,36 @@ static int sis630e_get_mac_addr(struct pci_dev * pci_dev, struct net_device *net
 	return 1;
 }
 
-static struct net_device * __init sis900_mac_probe (struct pci_dev * pci_dev, char * card_name)
+static int __devinit sis900_probe (struct pci_dev *pci_dev, const struct pci_device_id *pci_id)
 {
 	struct sis900_private *sis_priv;
 	long ioaddr = pci_resource_start(pci_dev, 0);
-	struct net_device *net_dev = NULL;
+	struct net_device *net_dev;
 	int irq = pci_dev->irq;
 	int i, ret = 0;
 	u8 revision;
+	char *card_name = card_names[pci_id->driver_data];
 
-	if ((net_dev = init_etherdev(net_dev, 0)) == NULL)
-		return NULL;
+	if (!pci_dma_supported(pci_dev, SIS900_DMA_MASK)) {
+		printk(KERN_ERR "sis900.c: architecture does not support "
+		       "32bit PCI busmaster DMA\n");
+		return -ENODEV;
+	}
+
+	/* setup various bits in PCI command register */
+	if (pci_enable_device (pci_dev))
+		return -ENODEV;
+	pci_set_master(pci_dev);
+
+	net_dev = init_etherdev(NULL, sizeof(struct sis900_private));
+	if (!net_dev)
+		return -ENOMEM;
+
+	if (!request_region(ioaddr, SIS900_TOTAL_SIZE, net_dev->name)) {
+		printk(KERN_ERR "sis900.c: can't allocate I/O space at 0x%lX\n", ioaddr);
+		ret = -EBUSY;
+		goto err_out;
+	}
 
 	pci_read_config_byte(pci_dev, PCI_CLASS_REVISION, &revision);
 	if (revision == SIS630E_REV || revision == SIS630EA1_REV)
@@ -268,8 +257,8 @@ static struct net_device * __init sis900_mac_probe (struct pci_dev * pci_dev, ch
 		ret = sis900_get_mac_addr(pci_dev, net_dev);
 
 	if (ret == 0) {
-		unregister_netdevice(net_dev);
-		return NULL;
+		ret = -ENODEV;
+		goto err_out_region;
 	}
 
 	/* print some information about our NIC */
@@ -279,16 +268,9 @@ static struct net_device * __init sis900_mac_probe (struct pci_dev * pci_dev, ch
 		printk("%2.2x:", (u8)net_dev->dev_addr[i]);
 	printk("%2.2x.\n", net_dev->dev_addr[i]);
 
-	if ((net_dev->priv = kmalloc(sizeof(struct sis900_private), GFP_KERNEL)) == NULL) {
-		unregister_netdevice(net_dev);
-		return NULL;
-	}
-	
 	sis_priv = net_dev->priv;
-	memset(sis_priv, 0, sizeof(struct sis900_private));
 
 	/* We do a request_region() to register /proc/ioports info. */
-	request_region(ioaddr, SIS900_TOTAL_SIZE, net_dev->name);
 	net_dev->base_addr = ioaddr;
 	net_dev->irq = irq;
 	sis_priv->pci_dev = pci_dev;
@@ -296,10 +278,8 @@ static struct net_device * __init sis900_mac_probe (struct pci_dev * pci_dev, ch
 	
 	/* probe for mii transciver */
 	if (sis900_mii_probe(net_dev) == 0) {
-		unregister_netdev(net_dev);
-		kfree(sis_priv);
-		release_region(ioaddr, SIS900_TOTAL_SIZE);
-		return NULL;
+		ret = -ENODEV;
+		goto err_out_region;
 	}
 
 	pci_dev->driver_data = net_dev;
@@ -310,12 +290,20 @@ static struct net_device * __init sis900_mac_probe (struct pci_dev * pci_dev, ch
 	net_dev->hard_start_xmit = &sis900_start_xmit;
 	net_dev->stop = &sis900_close;
 	net_dev->get_stats = &sis900_get_stats;
+	net_dev->set_config = &sis900_set_config;
 	net_dev->set_multicast_list = &set_rx_mode;
 	net_dev->do_ioctl = &mii_ioctl;
 	net_dev->tx_timeout = sis900_tx_timeout;
 	net_dev->watchdog_timeo = TX_TIMEOUT;
 
-	return net_dev;
+	return 0;
+
+err_out_region:
+	release_region(ioaddr, SIS900_TOTAL_SIZE);
+err_out:
+	unregister_netdev(net_dev);
+	kfree(net_dev);
+	return ret;
 }
 
 static int __init sis900_mii_probe (struct net_device * net_dev)
@@ -385,9 +373,9 @@ static int __init sis900_mii_probe (struct net_device * net_dev)
 	}
 
 	if (sis_priv->mii->status & MII_STAT_LINK)
-		sis_priv->LinkOn = TRUE;
+		netif_carrier_on(net_dev);
 	else
-		sis_priv->LinkOn = FALSE;
+		netif_carrier_off(net_dev);
 
 	return 1;
 }
@@ -720,7 +708,7 @@ static void sis630e_set_eq(struct net_device *net_dev)
 	u16 reg14h, eq_value, max_value=0, min_value=0;
 	int i, maxcount=10;
 
-	if (sis_priv->LinkOn == TRUE) {
+	if (netif_carrier_ok(net_dev)) {
 		reg14h=mdio_read(net_dev, sis_priv->cur_phy, MII_RESV);
 		mdio_write(net_dev, sis_priv->cur_phy, MII_RESV, (0x2200 | reg14h) & 0xBFFF);
 		for (i=0; i < maxcount; i++) {
@@ -764,10 +752,10 @@ static void sis900_timer(unsigned long data)
 	/* current mii phy is failed to link, try another one */
 	while (!(status & MII_STAT_LINK)) {
 		if (mii_phy->next == NULL) {
-			if (sis_priv->LinkOn) {
+			if (netif_carrier_ok(net_dev)) {
 				/* link stat change from ON to OFF */
 				next_tick = HZ;
-				sis_priv->LinkOn = FALSE;
+				netif_carrier_off(net_dev);
 
 				/* Equalizer workaroung Rule */
 				pci_read_config_byte(sis_priv->pci_dev, PCI_CLASS_REVISION, &revision);
@@ -785,9 +773,9 @@ static void sis900_timer(unsigned long data)
 		status = mdio_read(net_dev, mii_phy->phy_addr, MII_STATUS);
 	}
 
-	if (!sis_priv->LinkOn) {
+	if (!netif_carrier_ok(net_dev)) {
 		/* link stat change forn OFF to ON, read and report link mode */
-		sis_priv->LinkOn = TRUE;
+		netif_carrier_on(net_dev);
 		next_tick = 5*HZ;
 
 		/* Equalizer workaroung Rule */
@@ -1326,6 +1314,96 @@ sis900_get_stats(struct net_device *net_dev)
 	return &sis_priv->stats;
 }
 
+/* Support for media type changes via net_device->set_config */
+static int sis900_set_config(struct net_device *dev, struct ifmap *map)
+{    
+	struct sis900_private *sis_priv = (struct sis900_private *)dev->priv;
+	struct mii_phy *mii_phy = sis_priv->mii;
+        
+	u16 status;
+
+	/* we support only port changes. All other runtime configuration
+	   changes will be ignored (io base and interrupt changes for example)*/    
+	if ((map->port != (u_char)(-1)) && (map->port != dev->if_port)) {
+        /* we switch on the ifmap->port field. I couldn't find anything
+           like a definition or standard for the values of that field.
+           I think the meaning of those values is device specific. But
+           since I would like to change the media type via the ifconfig
+           command I use the definition from linux/netdevice.h 
+           (which seems to be different from the ifport(pcmcia) definition) 
+        */
+		switch(map->port){
+			case IF_PORT_UNKNOWN: /* use auto here */   
+                		dev->if_port = map->port;
+                		/* we are going to change the media type, so the Link will
+                		be temporary down and we need to reflect that here. When
+                		the Link comes up again, it will be sensed by the sis_timer
+                		procedure, which also does all the rest for us */
+				netif_carrier_off(dev);
+                
+                		/* read current state */
+                		status = mdio_read(dev, mii_phy->phy_addr, MII_CONTROL);
+                
+                		/* enable auto negotiation and reset the negotioation
+                		(I dont really know what the auto negatiotiation reset
+                		really means, but it sounds for me right to do one here)*/
+                		mdio_write(dev, mii_phy->phy_addr,
+                                           MII_CONTROL, status | MII_CNTL_AUTO | MII_CNTL_RST_AUTO);
+
+            			break;
+            
+            		case IF_PORT_10BASET: /* 10BaseT */         
+                		dev->if_port = map->port;
+                
+                		/* we are going to change the media type, so the Link will
+                		be temporary down and we need to reflect that here. When
+                		the Link comes up again, it will be sensed by the sis_timer
+                		procedure, which also does all the rest for us */
+				netif_carrier_off(dev);
+        
+                		/* set Speed to 10Mbps */
+                		/* read current state */
+                		status = mdio_read(dev, mii_phy->phy_addr, MII_CONTROL);
+                
+                		/* disable auto negotiation and force 10MBit mode*/
+                		mdio_write(dev, mii_phy->phy_addr,
+                                           MII_CONTROL, status & ~(MII_CNTL_SPEED | MII_CNTL_AUTO));
+            			break;
+            
+            		case IF_PORT_100BASET: /* 100BaseT */
+            		case IF_PORT_100BASETX: /* 100BaseTx */ 
+                		dev->if_port = map->port;
+                
+                		/* we are going to change the media type, so the Link will
+                		be temporary down and we need to reflect that here. When
+                		the Link comes up again, it will be sensed by the sis_timer
+                		procedure, which also does all the rest for us */
+				netif_carrier_off(dev);
+                
+                		/* set Speed to 100Mbps */
+                		/* disable auto negotiation and enable 100MBit Mode */
+                		status = mdio_read(dev, mii_phy->phy_addr, MII_CONTROL);
+                		mdio_write(dev, mii_phy->phy_addr,
+                                           MII_CONTROL, (status & ~MII_CNTL_SPEED) | MII_CNTL_SPEED);
+                
+            			break;
+            
+            		case IF_PORT_10BASE2: /* 10Base2 */
+            		case IF_PORT_AUI: /* AUI */
+            		case IF_PORT_100BASEFX: /* 100BaseFx */
+                	/* These Modes are not supported (are they?)*/
+                		printk(KERN_INFO "Not supported");
+                		return -EOPNOTSUPP;
+            			break;
+            
+            		default:
+                		printk(KERN_INFO "Invalid");
+                		return -EINVAL;
+		}
+	}
+	return 0;
+}
+
 /* SiS 900 uses the most sigificant 7 bits to index a 128 bits multicast hash table, which makes
    this function a little bit different from other drivers */
 static u16 sis900_compute_hashtable_index(u8 *addr)
@@ -1431,15 +1509,12 @@ static void sis900_reset(struct net_device *net_dev)
 	outl(PESEL, ioaddr + cfg);
 }
 
-static void __exit sis900_remove(struct pci_dev *pci_dev)
+static void __devexit sis900_remove(struct pci_dev *pci_dev)
 {
 	struct net_device *net_dev = pci_dev->driver_data;
-	struct sis900_private *sis_priv = (struct sis900_private *)net_dev->priv;
 		
 	unregister_netdev(net_dev);
 	release_region(net_dev->base_addr, SIS900_TOTAL_SIZE);
-
-	kfree(sis_priv);
 	kfree(net_dev);
 }
 
@@ -1454,16 +1529,9 @@ static struct pci_driver sis900_pci_driver = {
 
 static int __init sis900_init_module(void)
 {
-	if (!pci_present())   /* No PCI bus in this machine! */
-		return -ENODEV;
-
 	printk(KERN_INFO "%s", version);
 
-	if (!pci_register_driver(&sis900_pci_driver)) {
-		pci_unregister_driver(&sis900_pci_driver);
-                return -ENODEV;
-	}
-	return 0;
+	return pci_module_init(&sis900_pci_driver);
 }
 
 static void __exit sis900_cleanup_module(void)
@@ -1473,3 +1541,4 @@ static void __exit sis900_cleanup_module(void)
 
 module_init(sis900_init_module);
 module_exit(sis900_cleanup_module);
+

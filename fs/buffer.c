@@ -707,11 +707,8 @@ void set_blocksize(kdev_t dev, int size)
  */
 static void refill_freelist(int size)
 {
-	if (!grow_buffers(size)) {
+	if (!grow_buffers(size)) 
 		wakeup_bdflush(1);  /* Sets task->state to TASK_RUNNING */
-		current->policy |= SCHED_YIELD;
-		schedule();
-	}
 }
 
 void init_buffer(struct buffer_head *bh, bh_end_io_t *handler, void *private)
@@ -1470,7 +1467,7 @@ static int __block_prepare_write(struct inode *inode, struct page *page,
 	int err = 0;
 	unsigned blocksize, bbits;
 	struct buffer_head *bh, *head, *wait[2], **wait_bh=wait;
-	char *kaddr = (char *)kmap(page);
+	char *kaddr = kmap(page);
 
 	blocksize = inode->i_sb->s_blocksize;
 	if (!page->buffers)
@@ -1585,7 +1582,7 @@ int block_read_full_page(struct page *page, get_block_t *get_block)
 	unsigned long iblock, lblock;
 	struct buffer_head *bh, *head, *arr[MAX_BUF_PER_PAGE];
 	unsigned int blocksize, blocks;
-	unsigned long kaddr = 0;
+	char *kaddr = NULL;
 	int nr, i;
 
 	if (!PageLocked(page))
@@ -1614,7 +1611,7 @@ int block_read_full_page(struct page *page, get_block_t *get_block)
 			if (!buffer_mapped(bh)) {
 				if (!kaddr)
 					kaddr = kmap(page);
-				memset((char *)(kaddr + i*blocksize), 0, blocksize);
+				memset(kaddr + i*blocksize, 0, blocksize);
 				flush_dcache_page(page);
 				set_bit(BH_Uptodate, &bh->b_state);
 				continue;
@@ -1818,7 +1815,7 @@ int block_truncate_page(struct address_space *mapping, loff_t from, get_block_t 
 			goto unlock;
 	}
 
-	memset((char *) kmap(page) + offset, 0, length);
+	memset(kmap(page) + offset, 0, length);
 	flush_dcache_page(page);
 	kunmap(page);
 

@@ -9,8 +9,11 @@
  * OSS/Free for Linux is distributed under the GNU GENERAL PUBLIC LICENSE (GPL)
  * Version 2 (June 1991). See the "COPYING" file distributed with this software
  * for more info.
+ *
+ * Bartlomiej Zolnierkiewicz	: Added __init to pas_init_mixer()
  */
 
+#include <linux/init.h>
 #include "sound_config.h"
 
 #include "pas2.h"
@@ -204,7 +207,7 @@ static struct midi_operations pas_midi_operations =
 	buffer_status:	pas_buffer_status,
 };
 
-void pas_midi_init(void)
+void __init pas_midi_init(void)
 {
 	int dev = sound_alloc_mididev();
 

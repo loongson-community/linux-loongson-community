@@ -17,50 +17,56 @@ extern struct page * prepare_highmem_swapout(struct page *);
 extern struct page * replace_with_highmem(struct page *);
 extern struct buffer_head * create_bounce(int rw, struct buffer_head * bh_orig);
 
+
+static inline char *bh_kmap(struct buffer_head *bh)
+{
+	return kmap(bh->b_page) + bh_offset(bh);
+}
+
+static inline void bh_kunmap(struct buffer_head *bh)
+{
+	kunmap(bh->b_page);
+}
+
 #else /* CONFIG_HIGHMEM */
 
 static inline unsigned int nr_free_highpages(void) { return 0; }
 #define prepare_highmem_swapout(page) page
 #define replace_with_highmem(page) page
 
-static __inline__ unsigned long kmap(struct page * page) {
-	return (unsigned long) page_address(page);
-}
+static inline void *kmap(struct page *page) { return page_address(page); }
 
 #define kunmap(page) do { } while (0)
 
 #define kmap_atomic(page,idx)		kmap(page)
 #define kunmap_atomic(page,idx)		kunmap(page)
 
+#define bh_kmap(bh)	((bh)->b_data)
+#define bh_kunmap(bh)	do { } while (0);
+
 #endif /* CONFIG_HIGHMEM */
 
 /* when CONFIG_HIGHMEM is not set these will be plain clear/copy_page */
 static inline void clear_user_highpage(struct page *page, unsigned long vaddr)
 {
-	unsigned long kaddr;
-
-	kaddr = kmap(page);
-	clear_user_page((void *)kaddr, vaddr);
+	clear_user_page(kmap(page), vaddr);
 	kunmap(page);
 }
 
 static inline void clear_highpage(struct page *page)
 {
-	unsigned long kaddr;
-
-	kaddr = kmap(page);
-	clear_page((void *)kaddr);
+	clear_page(kmap(page));
 	kunmap(page);
 }
 
 static inline void memclear_highpage(struct page *page, unsigned int offset, unsigned int size)
 {
-	unsigned long kaddr;
+	char *kaddr;
 
 	if (offset + size > PAGE_SIZE)
 		BUG();
 	kaddr = kmap(page);
-	memset((void *)(kaddr + offset), 0, size);
+	memset(kaddr + offset, 0, size);
 	kunmap(page);
 }
 
@@ -69,34 +75,34 @@ static inline void memclear_highpage(struct page *page, unsigned int offset, uns
  */
 static inline void memclear_highpage_flush(struct page *page, unsigned int offset, unsigned int size)
 {
-	unsigned long kaddr;
+	char *kaddr;
 
 	if (offset + size > PAGE_SIZE)
 		BUG();
 	kaddr = kmap(page);
-	memset((void *)(kaddr + offset), 0, size);
+	memset(kaddr + offset, 0, size);
 	flush_page_to_ram(page);
 	kunmap(page);
 }
 
 static inline void copy_user_highpage(struct page *to, struct page *from, unsigned long vaddr)
 {
-	unsigned long vfrom, vto;
+	char *vfrom, *vto;
 
 	vfrom = kmap(from);
 	vto = kmap(to);
-	copy_user_page((void *)vto, (void *)vfrom, vaddr);
+	copy_user_page(vto, vfrom, vaddr);
 	kunmap(from);
 	kunmap(to);
 }
 
 static inline void copy_highpage(struct page *to, struct page *from)
 {
-	unsigned long vfrom, vto;
+	char *vfrom, *vto;
 
 	vfrom = kmap(from);
 	vto = kmap(to);
-	copy_page((void *)vto, (void *)vfrom);
+	copy_page(vto, vfrom);
 	kunmap(from);
 	kunmap(to);
 }

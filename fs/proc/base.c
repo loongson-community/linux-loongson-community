@@ -207,14 +207,11 @@ static int standard_permission(struct inode *inode, int mask)
 	return -EACCES;
 }
 
-static int proc_permission(struct inode *inode, int mask)
+static int proc_check_root(struct inode *inode)
 {
 	struct dentry *de, *base, *root;
 	struct vfsmount *our_vfsmnt, *vfsmnt, *mnt;
 	int res = 0;
-
-	if (standard_permission(inode, mask) != 0)
-		return -EACCES;
 
 	if (proc_root_link(inode, &root, &vfsmnt)) /* Ewww... */
 		return -ENOENT;
@@ -248,6 +245,13 @@ out:
 	spin_unlock(&dcache_lock);
 	res = -EACCES;
 	goto exit;
+}
+
+static int proc_permission(struct inode *inode, int mask)
+{
+	if (standard_permission(inode, mask) != 0)
+		return -EACCES;
+	return proc_check_root(inode);
 }
 
 static ssize_t pid_maps_read(struct file * file, char * buf,
@@ -403,12 +407,14 @@ static struct inode_operations proc_mem_inode_operations = {
 static int proc_pid_follow_link(struct dentry *dentry, struct nameidata *nd)
 {
 	struct inode *inode = dentry->d_inode;
-	int error;
+	int error = -EACCES;
 
 	/* We don't need a base pointer in the /proc filesystem */
 	path_release(nd);
 
-	error = proc_permission(inode, MAY_EXEC);
+	if (current->fsuid != inode->i_uid && !capable(CAP_DAC_OVERRIDE))
+		goto out;
+	error = proc_check_root(inode);
 	if (error)
 		goto out;
 
@@ -441,12 +447,14 @@ static int do_proc_readlink(struct dentry *dentry, struct vfsmount *mnt,
 
 static int proc_pid_readlink(struct dentry * dentry, char * buffer, int buflen)
 {
-	int error;
+	int error = -EACCES;
 	struct inode *inode = dentry->d_inode;
 	struct dentry *de;
 	struct vfsmount *mnt = NULL;
 
-	error = proc_permission(inode, MAY_EXEC);
+	if (current->fsuid != inode->i_uid && !capable(CAP_DAC_OVERRIDE))
+		goto out;
+	error = proc_check_root(inode);
 	if (error)
 		goto out;
 
@@ -618,14 +626,12 @@ static struct inode *proc_pid_make_inode(struct super_block * sb, struct task_st
 
 	/* We need a new inode */
 	
-	inode = get_empty_inode();
+	inode = new_inode(sb);
 	if (!inode)
 		goto out;
 
 	/* Common stuff */
 
-	inode->i_sb = sb;
-	inode->i_dev = sb->s_dev;
 	inode->i_mtime = inode->i_atime = inode->i_ctime = CURRENT_TIME;
 	inode->i_ino = fake_ino(task->pid, ino);
 
@@ -910,11 +916,9 @@ struct dentry *proc_pid_lookup(struct inode *dir, struct dentry * dentry)
 	name = dentry->d_name.name;
 	len = dentry->d_name.len;
 	if (len == 4 && !memcmp(name, "self", 4)) {
-		inode = get_empty_inode();
+		inode = new_inode(dir->i_sb);
 		if (!inode)
 			return ERR_PTR(-ENOMEM);
-		inode->i_sb = dir->i_sb;
-		inode->i_dev = dir->i_sb->s_dev;
 		inode->i_mtime = inode->i_atime = inode->i_ctime = CURRENT_TIME;
 		inode->i_ino = fake_ino(0, PROC_PID_INO);
 		inode->u.proc_i.file = NULL;

@@ -230,7 +230,7 @@ irport_open(int i, unsigned int iobase, unsigned int irq)
 	dev->init            = irport_net_init;
 	dev->hard_start_xmit = irport_hard_xmit;
 	dev->tx_timeout	     = irport_timeout;
-	dev->watchdog_timeo  = HZ/20;
+	dev->watchdog_timeo  = HZ;  /* Allow time enough for speed change */
 	dev->open            = irport_net_open;
 	dev->stop            = irport_net_close;
 	dev->get_stats	     = irport_net_get_stats;
@@ -496,7 +496,6 @@ static void irport_write_wakeup(struct irport_cb *self)
 		self->tx_buff.data += actual;
 		self->tx_buff.len  -= actual;
 	} else {
-		
 		/* 
 		 *  Now serial buffer is almost free & we can start 
 		 *  transmission of another packet. But first we must check
@@ -629,8 +628,16 @@ int irport_hard_xmit(struct sk_buff *skb, struct net_device *dev)
 	netif_stop_queue(dev);
 	
 	/* Check if we need to change the speed */
-	if ((speed = irda_get_speed(skb)) != self->io.speed)
-		self->new_speed = speed;
+	if ((speed = irda_get_speed(skb)) != self->io.speed) {
+		/* Check for empty frame */
+		if (!skb->len) {
+			irda_task_execute(self, __irport_change_speed, 
+					  irport_change_speed_complete, 
+					  NULL, (void *) speed);
+			return 0;
+		} else
+			self->new_speed = speed;
+	}
 
 	spin_lock_irqsave(&self->lock, flags);
 
@@ -999,7 +1006,9 @@ static struct net_device_stats *irport_net_get_stats(struct net_device *dev)
 
 #ifdef MODULE
 MODULE_PARM(io, "1-4i");
+MODULE_PARM_DESC(io, "Base I/O adresses");
 MODULE_PARM(irq, "1-4i");
+MODULE_PARM_DESC(irq, "IRQ lines");
 
 MODULE_AUTHOR("Dag Brattli <dagb@cs.uit.no>");
 MODULE_DESCRIPTION("Half duplex serial driver for IrDA SIR mode");

@@ -1069,6 +1069,8 @@ int __init arlan_probe_everywhere(struct net_device *dev)
 	int probed = 0;
 	int found = 0;
 
+	SET_MODULE_OWNER(dev);
+
 	ARLAN_DEBUG_ENTRY("arlan_probe_everywhere");
 	if (mem != 0 && numDevices == 1)	/* Check a single specified location. */
 	{
@@ -1276,11 +1278,12 @@ static int arlan_open(struct net_device *dev)
 		return ret;
 
 	arlan = ((struct arlan_private *) dev->priv)->card;
-	if (request_irq(dev->irq, &arlan_interrupt, 0, dev->name, dev))
+	ret = request_irq(dev->irq, &arlan_interrupt, 0, dev->name, dev);
+	if (ret)
 	{
 		printk(KERN_ERR "%s: unable to get IRQ %d .\n",
 			dev->name, dev->irq);
-		return -EAGAIN;
+		return ret;
 	}
 
 
@@ -1323,7 +1326,6 @@ static int arlan_open(struct net_device *dev)
 	udelay(200000);
 	add_timer(&priv->timer);
 
-	MOD_INC_USE_COUNT;
 #ifdef CONFIG_PROC_FS
 #ifndef MODULE
 	if (arlan_device[0])
@@ -1887,7 +1889,6 @@ static int arlan_close(struct net_device *dev)
 	priv->open_time = 0;
 	netif_stop_queue(dev);
 	free_irq(dev->irq, dev);
-	MOD_DEC_USE_COUNT;
 
 	ARLAN_DEBUG_EXIT("arlan_close");
 	return 0;

@@ -1,11 +1,19 @@
 /*
- * $Id: c4.c,v 1.16 2000/08/20 07:30:13 keil Exp $
+ * $Id: c4.c,v 1.18 2000/11/01 14:05:02 calle Exp $
  * 
  * Module for AVM C4 card.
  * 
  * (c) Copyright 1999 by Carsten Paeth (calle@calle.in-berlin.de)
  * 
  * $Log: c4.c,v $
+ * Revision 1.18  2000/11/01 14:05:02  calle
+ * - use module_init/module_exit from linux/init.h.
+ * - all static struct variables are initialized with "membername:" now.
+ * - avm_cs.c, let it work with newer pcmcia-cs.
+ *
+ * Revision 1.17  2000/10/10 17:44:19  kai
+ * changes from/for 2.2.18
+ *
  * Revision 1.16  2000/08/20 07:30:13  keil
  * changes for 2.4
  *
@@ -80,7 +88,7 @@
 #include "capilli.h"
 #include "avmcard.h"
 
-static char *revision = "$Revision: 1.16 $";
+static char *revision = "$Revision: 1.18 $";
 
 #undef CONFIG_C4_DEBUG
 #undef CONFIG_C4_POLLDEBUG
@@ -410,7 +418,7 @@ static int c4_detect(avmcard *card)
 		return 8;
 	if (c4_poke(card, DC21285_ARMCSR_BASE+DRAM_TIMING, 0)) return 9;
 
-        udelay(1000);
+        mdelay(1);
 
 	if (c4_peek(card, DC21285_DRAM_A0MR, &dummy)) return 10;
 	if (c4_peek(card, DC21285_DRAM_A1MR, &dummy)) return 11;
@@ -422,7 +430,7 @@ static int c4_detect(avmcard *card)
 	if (c4_poke(card, DC21285_DRAM_A2MR+CAS_OFFSET, 0)) return 16;
 	if (c4_poke(card, DC21285_DRAM_A3MR+CAS_OFFSET, 0)) return 17;
 
-        udelay(1000);
+        mdelay(1);
 
 	if (c4_poke(card, DC21285_ARMCSR_BASE+DRAM_TIMING, DRAM_TIMING_DEF))
 		return 18;
@@ -572,8 +580,7 @@ static void c4_handle_rx(avmcard *card)
 	avmctrl_info *cinfo;
 	struct sk_buff *skb;
 	void *p = dma->recvbuf;
-	__u32 ApplId, DataB3Len, NCCI, WindowSize;
-	__s32 MsgLen;
+	__u32 ApplId, MsgLen, DataB3Len, NCCI, WindowSize;
 	__u8 b1cmd =  _get_byte(&p);
 	__u32 cidx;
 
@@ -927,7 +934,7 @@ static int c4_load_firmware(struct capi_ctr *ctrl, capiloaddata *data)
 	c4outmeml(card->mbase+MBOX_UP_LEN, 0);
 	c4outmeml(card->mbase+MBOX_DOWN_LEN, 0);
 	c4outmeml(card->mbase+DOORBELL, DBELL_INIT);
-	udelay(1000);
+	mdelay(1);
 	c4outmeml(card->mbase+DOORBELL,
 			DBELL_UP_HOST | DBELL_DOWN_HOST | DBELL_RESET_HOST);
 
@@ -1303,21 +1310,22 @@ static int c4_add_card(struct capi_driver *driver, struct capicardparams *p)
 /* ------------------------------------------------------------- */
 
 static struct capi_driver c4_driver = {
-    "c4",
-    "0.0",
-    c4_load_firmware,
-    c4_reset_ctr,
-    c4_remove_ctr,
-    c4_register_appl,
-    c4_release_appl,
-    c4_send_message,
+    name: "c4",
+    revision: "0.0",
+    load_firmware: c4_load_firmware,
+    reset_ctr: c4_reset_ctr,
+    remove_ctr: c4_remove_ctr,
+    register_appl: c4_register_appl,
+    release_appl: c4_release_appl,
+    send_message: c4_send_message,
 
-    c4_procinfo,
-    c4_read_proc,
-    0,	/* use standard driver_read_proc */
+    procinfo: c4_procinfo,
+    ctr_read_proc: c4_read_proc,
+    driver_read_proc: 0,	/* use standard driver_read_proc */
 
-    0, /* no add_card function */
+    add_card: 0, /* no add_card function */
 };
+
 
 #ifdef MODULE
 #define c4_init init_module

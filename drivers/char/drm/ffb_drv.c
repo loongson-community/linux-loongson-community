@@ -1,4 +1,4 @@
-/* $Id: ffb_drv.c,v 1.6 2000/08/10 05:26:23 davem Exp $
+/* $Id: ffb_drv.c,v 1.7 2000/11/12 10:01:41 davem Exp $
  * ffb_drv.c: Creator/Creator3D direct rendering driver.
  *
  * Copyright (C) 2000 David S. Miller (davem@redhat.com)
@@ -244,7 +244,7 @@ static void get_ffb_type(ffb_dev_priv_t *ffb_priv, int instance)
 	};
 }
 
-static int ffb_init_one(int prom_node, int instance)
+static int __init ffb_init_one(int prom_node, int instance)
 {
 	struct linux_prom64_registers regs[2*PROMREG_MAX];
 	drm_device_t *dev;
@@ -305,7 +305,7 @@ static int ffb_init_one(int prom_node, int instance)
 	return 0;
 }
 
-static int ffb_init_dev_table(void)
+static int __init ffb_init_dev_table(void)
 {
 	int root, node;
 	int total = 0;
@@ -324,7 +324,7 @@ static int ffb_init_dev_table(void)
 	return 0;
 }
 
-int ffb_init(void)
+int __init ffb_init(void)
 {
 	int root, node, instance, ret;
 
@@ -345,7 +345,7 @@ int ffb_init(void)
 	return 0;
 }
 
-void ffb_cleanup(void)
+void __exit ffb_cleanup(void)
 {
 	int instance;
 

@@ -181,7 +181,8 @@ typedef struct page {
 #define PG_skip			10
 #define PG_inactive_clean	11
 #define PG_highmem		12
-				/* bits 21-30 unused */
+				/* bits 21-29 unused */
+#define PG_arch_1		30
 #define PG_reserved		31
 
 
@@ -328,6 +329,10 @@ typedef struct page {
  * parts of the address space.
  *
  * PG_error is set to indicate that an I/O error occurred on this page.
+ *
+ * PG_arch_1 is an architecture specific page state bit.  The generic
+ * code guarentees that this bit is cleared for a page when it first
+ * is entered into the page cache.
  */
 
 extern mem_map_t * mem_map;
@@ -412,8 +417,11 @@ extern void si_meminfo(struct sysinfo * val);
 extern void swapin_readahead(swp_entry_t);
 
 /* mmap.c */
+extern void lock_vma_mappings(struct vm_area_struct *);
+extern void unlock_vma_mappings(struct vm_area_struct *);
 extern void merge_segments(struct mm_struct *, unsigned long, unsigned long);
 extern void insert_vm_struct(struct mm_struct *, struct vm_area_struct *);
+extern void __insert_vm_struct(struct mm_struct *, struct vm_area_struct *);
 extern void build_mmap_avl(struct mm_struct *);
 extern void exit_mmap(struct mm_struct *);
 extern unsigned long get_unmapped_area(unsigned long, unsigned long);
@@ -447,8 +455,6 @@ extern void truncate_inode_pages(struct address_space *, loff_t);
 
 /* generic vm_area_ops exported for stackable file systems */
 extern int filemap_swapout(struct page * page, struct file *file);
-extern pte_t filemap_swapin(struct vm_area_struct * vma,
-			    unsigned long offset, unsigned long entry);
 extern int filemap_sync(struct vm_area_struct * vma, unsigned long address,
 			size_t size, unsigned int flags);
 extern struct page *filemap_nopage(struct vm_area_struct * area,

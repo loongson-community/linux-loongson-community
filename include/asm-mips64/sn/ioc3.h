@@ -1,10 +1,9 @@
-/* $Id: ioc3.h,v 1.1 2000/01/13 00:17:02 ralf Exp $
- *
- * Copyright (C) 1999 Ralf Baechle
- * This file is part of the Linux driver for the SGI IOC3.
+/*
+ * Copyright (C) 1999, 2000 Ralf Baechle
+ * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  */
-#ifndef IOC3_H
-#define IOC3_H
+#ifndef _IOC3_H
+#define _IOC3_H
 
 /* SUPERIO uart register map */
 typedef volatile struct ioc3_uartregs {
@@ -659,4 +658,4 @@ typedef enum ioc3_subdevs_e {
 #define IOC3_INTA_SUBDEVS	IOC3_SDB_ETHER
 #define IOC3_INTB_SUBDEVS	(IOC3_SDB_GENERIC|IOC3_SDB_KBMS|IOC3_SDB_SERIAL|IOC3_SDB_ECPP|IOC3_SDB_RT)
 
-#endif /* IOC3_H */
+#endif /* _IOC3_H */

@@ -77,7 +77,7 @@ CONFIG_EXPERIMENTAL
   in some special cases. Detailed bug reports from people familiar
   with the kernel internals are usually welcomed by the developers
   (before submitting bug reports, please read the documents README,
-  MAINTAINERS, REPORTING_BUGS, Documentation/BUG-HUNTING, and
+  MAINTAINERS, REPORTING-BUGS, Documentation/BUG-HUNTING, and
   Documentation/oops-tracing.txt in the kernel source). 
 
   This option will also make obsoleted drivers available. These are
@@ -113,7 +113,7 @@ CONFIG_SMP
   Management" code will be disabled if you say Y here.
 
   See also the files Documentation/smp.tex, Documentation/smp.txt,
-  Documentation/IO-APIC.txt, Documentation/nmi_watchdog.txt and the 
+  Documentation/i386/IO-APIC.txt, Documentation/nmi_watchdog.txt and the 
   SMP-FAQ on the WWW at http://www.irisa.fr/prive/mentre/smp-faq/ .
   
   If you don't know what to do here, say N.
@@ -2069,6 +2069,23 @@ CONFIG_IP_NF_COMPAT_IPFWADM
   If you want to compile it as a module, say M here and read
   Documentation/modules.txt.  If unsure, say `N'.
 
+TCP Explicit Congestion Notification support
+CONFIG_INET_ECN
+  Explicit Congestion Notification (ECN) allows routers to notify
+  clients about network congestion, resulting in fewer dropped packets
+  and increased network performance. This option adds ECN support to the
+  Linux kernel, as well as a sysctl (/proc/sys/net/ipv4/tcp_ecn) which
+  allows ECN support to be disabled at runtime.
+
+  Note that, on the Internet, there are many broken firewalls which
+  refuse connections from ECN-enabled machines, and it may be a while
+  before these firewalls are fixed. Until then, to access a site behind
+  such a firewall (some of which are major sites, at the time of this
+  writing) you will have to disable this option, either by saying N now
+  or by using the sysctl.
+
+  If in doubt, say N.
+
 SYN flood protection
 CONFIG_SYN_COOKIES
   Normal TCP/IP networking is open to an attack known as "SYN
@@ -2355,7 +2372,7 @@ CONFIG_AGP
 Intel 440LX/BX/GX support
 CONFIG_AGP_INTEL
   This option gives you AGP support for the GLX component of the
-  XFree86 4.x on Intel 440LX/BX/GX chipsets.
+  XFree86 4.x on Intel 440LX/BX/GX, 815, and 840 chipsets.
 
   For the moment, you should probably say N, unless you want to test
   the GLX component for XFree86 3.3.6, which can be downloaded from
@@ -2363,9 +2380,9 @@ CONFIG_AGP_INTEL
 
 Intel I810/I810 DC100/I810e support
 CONFIG_AGP_I810
-  This option gives you AGP support for the Xserver for the Intel
-  810 chipset boards. This is required to do any useful video
-  modes.
+  This option gives you AGP support for the Xserver on the Intel 810
+  and 815 chipset boards for their on-board integrated graphics. This
+  is required to do any useful video modes with these boards.
 
 VIA chipset support
 CONFIG_AGP_VIA
@@ -2481,6 +2498,20 @@ CONFIG_MCA
   laptops. It is a bus system similar to PCI or ISA. See
   Documentation/mca.txt (and especially the web page given there)
   before attempting to build an MCA bus kernel.
+
+EISA support
+CONFIG_EISA
+  The Extended Industry Standard Architecture (EISA) bus was
+  developed as an open alternative to the IBM MicroChannel bus.
+
+  The EISA bus provided some of the features of the IBM MicroChannel
+  bus while maintaining backward compatibility with cards made for
+  the older ISA bus. The EISA bus saw limited use between 1988 and 1995
+  when it was made obsolete by the PCI bus.
+
+  Say Y here if you are building a kernel for an EISA-based machine.
+
+  Otherwise, say N.
 
 SGI Visual Workstation support
 CONFIG_VISWS
@@ -2855,6 +2886,7 @@ CONFIG_M386
    - "Pentium-MMX" for the Intel Pentium MMX.
    - "Pentium-Pro" for the Intel Pentium Pro/Celeron/Pentium II.
    - "Pentium-III" for the Intel Pentium III.
+   - "Pentium-4" for the Intel Pentium 4
    - "K6" for the AMD K6, K6-II and K6-III (aka K6-3D).
    - "Athlon" for the AMD Athlon (K7).
    - "Crusoe" for the Transmeta Crusoe series.
@@ -3488,7 +3520,7 @@ CONFIG_PARPORT
   The module will be called parport.o. If you have more than one
   parallel port and want to specify which port and IRQ to be used by
   this driver at module load time, take a look at
-  Documentation/networking/parport.txt.
+  Documentation/parport.txt.
 
   If unsure, say Y.
 
@@ -3631,7 +3663,7 @@ CONFIG_INET
   "Sysctl support" below, you can change various aspects of the
   behavior of the TCP/IP code by writing to the (virtual) files in
   /proc/sys/net/ipv4/*; the options are explained in the file
-  Documentation/Networking/ip-sysctl.txt.
+  Documentation/networking/ip-sysctl.txt.
 
   Short answer: say Y.
 
@@ -5012,7 +5044,7 @@ Compaq Smart Array support
 CONFIG_BLK_CPQ_CISS_DA
    This is the driver for Compaq Smart Array controllers.
    Everyone using these boards should say Y here.
-   See "linux/Documentation/cciss.txt" for the current list of
+   See Documentation/cciss.txt for the current list of
    boards supported by this driver, and for further information
    on the use of this driver.
 
@@ -14012,7 +14044,7 @@ CONFIG_SOUND_MSS
 SGI Visual Workstation on-board audio
 CONFIG_SOUND_VWSND
   Say Y or M if you have an SGI Visual Workstation and you want to
-  be able to use its on-board audio.  Read Documentation/sound/visws
+  be able to use its on-board audio.  Read Documentation/sound/vwsnd
   for more info on this driver's capabilities.
 
 Ensoniq Soundscape support
@@ -14045,8 +14077,7 @@ CONFIG_TRIX_BOOT_FILE
 Support for OPTi MAD16 and/or Mozart based cards
 CONFIG_SOUND_MAD16
   Answer Y if your card has a Mozart (OAK OTI-601) or MAD16 (OPTi
-  82C928 or 82C929 or 82C931) audio interface chip. For the 82C931,
-  please read drivers/sound/README.C931. These chips are currently
+  82C928 or 82C929 or 82C931) audio interface chip. These chips are 
   quite common so it's possible that many no-name cards have one of
   them. In addition the MAD16 chip is used in some cards made by known
   manufacturers such as Turtle Beach (Tropez), Reveal (some models)

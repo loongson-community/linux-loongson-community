@@ -28,7 +28,6 @@
 #include <asm/bitops.h>
 #include <linux/module.h>
 #include <linux/hdreg.h>
-#include <linux/sysctl.h>
 #include <linux/proc_fs.h>
 #include <linux/smp_lock.h>
 #include <linux/delay.h>
@@ -88,5 +87,5 @@ extern void md_print_devices (void);
 
 #define MD_BUG(x...) { printk("md: bug in file %s, line %d\n", __FILE__, __LINE__); md_print_devices(); }
 
-#endif _MD_H
+#endif 
 

@@ -1381,7 +1381,10 @@ asmlinkage long sys_rmdir(const char * pathname)
 		case LAST_DOTDOT:
 			error = -ENOTEMPTY;
 			goto exit1;
-		case LAST_ROOT: case LAST_DOT:
+		case LAST_DOT:
+			error = -EINVAL;
+			goto exit1;
+		case LAST_ROOT:
 			error = -EBUSY;
 			goto exit1;
 	}
@@ -1949,7 +1952,7 @@ static char *page_getlink(struct dentry * dentry, struct page **ppage)
 	if (!Page_Uptodate(page))
 		goto async_fail;
 	*ppage = page;
-	return (char*) kmap(page);
+	return kmap(page);
 
 async_fail:
 	page_cache_release(page);

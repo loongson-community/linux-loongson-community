@@ -1,4 +1,4 @@
-/* $Id: sys_sparc32.c,v 1.165 2000/10/10 04:47:31 davem Exp $
+/* $Id: sys_sparc32.c,v 1.166 2000/11/10 04:49:56 davem Exp $
  * sys_sparc32.c: Conversion between 32bit and 64bit native syscalls.
  *
  * Copyright (C) 1997,1998 Jakub Jelinek (jj@sunsite.mff.cuni.cz)
@@ -2952,7 +2952,7 @@ static int copy_strings32(int argc, u32 * argv, struct linux_binprm *bprm)
 					return -ENOMEM;
 				new = 1;
 			}
-			kaddr = (char *)kmap(page);
+			kaddr = kmap(page);
 
 			if (new && offset)
 				memset(kaddr, 0, offset);
@@ -2967,7 +2967,7 @@ static int copy_strings32(int argc, u32 * argv, struct linux_binprm *bprm)
 			err = copy_from_user(kaddr + offset, (char *)A(str),
 					     bytes_to_copy);
 			flush_page_to_ram(page);
-			kunmap((unsigned long)kaddr);
+			kunmap(page);
 
 			if (err)
 				return -EFAULT;

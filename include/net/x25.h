@@ -169,6 +169,7 @@ extern void x25_limit_facilities(struct x25_facilities *, struct x25_neigh *);
 
 /* x25_in.c */
 extern int  x25_process_rx_frame(struct sock *, struct sk_buff *);
+extern int  x25_backlog_rcv(struct sock *, struct sk_buff *);
 
 /* x25_link.c */
 extern void x25_link_control(struct sk_buff *, struct x25_neigh *, unsigned short);
@@ -220,5 +221,8 @@ extern unsigned long x25_display_timer(struct sock *);
 /* sysctl_net_x25.c */
 extern void x25_register_sysctl(void);
 extern void x25_unregister_sysctl(void);
-
+struct x25_skb_cb {
+	unsigned flags;
+};
+#define X25_SKB_CB(s) ((struct x25_skb_cb *) ((s)->cb))
 #endif

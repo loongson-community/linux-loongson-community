@@ -40,6 +40,7 @@ unset CONFIG_VIDEO_G364
 unset CONFIG_PC_KEYB
 unset CONFIG_I8259
 
+define_bool CONFIG_MCA n
 define_bool CONFIG_SBUS n
 
 if [ "$CONFIG_MIPS_EV96100" = "y" ]; then
@@ -103,6 +104,9 @@ fi
 
 if [ "$CONFIG_ISA" != "y" ]; then
    define_bool CONFIG_ISA n
+   define_bool CONFIG_EISA n
+else
+   define_bool CONFIG_EISA y
 fi
 
 if [ "$CONFIG_PCI" != "y" ]; then

@@ -97,6 +97,8 @@ static char __init *mpc_family(int family,int model)
 			return("Pentium(tm) Pro");
 
 		case 0x0F:
+			if (model == 0x00)
+				return("Pentium 4(tm)");
 			if (model == 0x0F)
 				return("Special controller");
 	}
@@ -125,6 +127,44 @@ static void __init MP_processor_info (struct mpc_config_processor *m)
 		Dprintk("    64 bit compare & exchange supported.\n");
 	if (m->mpc_featureflag&(1<<9))
 		Dprintk("    Internal APIC present.\n");
+	if (m->mpc_featureflag&(1<<11))
+		Dprintk("    SEP present.\n");
+	if (m->mpc_featureflag&(1<<12))
+		Dprintk("    MTRR  present.\n");
+	if (m->mpc_featureflag&(1<<13))
+		Dprintk("    PGE  present.\n");
+	if (m->mpc_featureflag&(1<<14))
+		Dprintk("    MCA  present.\n");
+	if (m->mpc_featureflag&(1<<15))
+		Dprintk("    CMOV  present.\n");
+	if (m->mpc_featureflag&(1<<16))
+		Dprintk("    PAT  present.\n");
+	if (m->mpc_featureflag&(1<<17))
+		Dprintk("    PSE  present.\n");
+	if (m->mpc_featureflag&(1<<18))
+		Dprintk("    PSN  present.\n");
+	if (m->mpc_featureflag&(1<<19))
+		Dprintk("    Cache Line Flush Instruction present.\n");
+	/* 20 Reserved */
+	if (m->mpc_featureflag&(1<<21))
+		Dprintk("    Debug Trace and EMON Store present.\n");
+	if (m->mpc_featureflag&(1<<22))
+		Dprintk("    ACPI Thermal Throttle Registers  present.\n");
+	if (m->mpc_featureflag&(1<<23))
+		Dprintk("    MMX  present.\n");
+	if (m->mpc_featureflag&(1<<24))
+		Dprintk("    FXSR  present.\n");
+	if (m->mpc_featureflag&(1<<25))
+		Dprintk("    XMM  present.\n");
+	if (m->mpc_featureflag&(1<<26))
+		Dprintk("    Willamette New Instructions  present.\n");
+	if (m->mpc_featureflag&(1<<27))
+		Dprintk("    Self Snoop  present.\n");
+	/* 28 Reserved */
+	if (m->mpc_featureflag&(1<<29))
+		Dprintk("    Thermal Monitor present.\n");
+	/* 30, 31 Reserved */
+
 
 	if (m->mpc_cpuflag & CPU_BOOTPROCESSOR) {
 		Dprintk("    Bootup CPU\n");
@@ -378,7 +418,7 @@ static inline void __init construct_default_ISA_mptable(int mpc_default_type)
 	processor.mpc_cpufeature = (boot_cpu_data.x86 << 8) |
 				   (boot_cpu_data.x86_model << 4) |
 				   boot_cpu_data.x86_mask;
-	processor.mpc_featureflag = boot_cpu_data.x86_capability;
+	processor.mpc_featureflag = boot_cpu_data.x86_capability[0];
 	processor.mpc_reserved[0] = 0;
 	processor.mpc_reserved[1] = 0;
 	for (i = 0; i < 2; i++) {

@@ -18,7 +18,9 @@ CONFIG_BOARD_SCACHE=y
 CONFIG_ARC_MEMORY=y
 CONFIG_SGI=y
 # CONFIG_ISA is not set
+# CONFIG_EISA is not set
 # CONFIG_PCI is not set
+# CONFIG_MCA is not set
 # CONFIG_SBUS is not set
 
 #

@@ -117,18 +117,18 @@ static int badness(struct task_struct *p)
  */
 static struct task_struct * select_bad_process(void)
 {
-	int points = 0, maxpoints = 0;
+	int maxpoints = 0;
 	struct task_struct *p = NULL;
 	struct task_struct *chosen = NULL;
 
 	read_lock(&tasklist_lock);
-	for_each_task(p)
-	{
-		if (p->pid)
-			points = badness(p);
-		if (points > maxpoints) {
-			chosen = p;
-			maxpoints = points;
+	for_each_task(p) {
+		if (p->pid) {
+			int points = badness(p);
+			if (points > maxpoints) {
+				chosen = p;
+				maxpoints = points;
+			}
 		}
 	}
 	read_unlock(&tasklist_lock);
@@ -156,7 +156,7 @@ void oom_kill(void)
 	if (p == NULL)
 		panic("Out of memory and no killable processes...\n");
 
-	printk(KERN_ERR "Out of Memory: Killed process %d (%s).", p->pid, p->comm);
+	printk(KERN_ERR "Out of Memory: Killed process %d (%s).\n", p->pid, p->comm);
 
 	/*
 	 * We give our sacrificial lamb high priority and access to

@@ -100,7 +100,7 @@ static int rd_hardsec[NUM_RAMDISKS];		/* Size of real blocks in bytes */
 static int rd_blocksizes[NUM_RAMDISKS];		/* Size of 1024 byte blocks :)  */
 static int rd_kbsize[NUM_RAMDISKS];		/* Size in blocks of 1024 bytes */
 static devfs_handle_t devfs_handle;
-static struct inode *rd_inode[NUM_RAMDISKS];		/* Protected device inodes */
+static struct inode *rd_inode[NUM_RAMDISKS];	/* Protected device inodes */
 
 /*
  * Parameters for the boot-loading of the RAM disk.  These are set by
@@ -108,7 +108,7 @@ static struct inode *rd_inode[NUM_RAMDISKS];		/* Protected device inodes */
  * architecture-specific setup routine (from the stored boot sector
  * information). 
  */
-int rd_size = 4096;		/* Size of the RAM disks */
+int rd_size = CONFIG_BLK_DEV_RAM_SIZE;		/* Size of the RAM disks */
 /*
  * It would be very desiderable to have a soft-blocksize (that in the case
  * of the ramdisk driver is also the hardblocksize ;) of PAGE_SIZE because
@@ -120,7 +120,7 @@ int rd_size = 4096;		/* Size of the RAM disks */
  * behaviour. The default is still BLOCK_SIZE (needed by rd_load_image that
  * supposes the filesystem in the image uses a BLOCK_SIZE blocksize).
  */
-int rd_blocksize = BLOCK_SIZE;	/* Size of the RAM disks */
+int rd_blocksize = BLOCK_SIZE;			/* blocksize of the RAM disks */
 
 #ifndef MODULE
 
@@ -194,50 +194,53 @@ __setup("ramdisk_blocksize=", ramdisk_blocksize);
  * 19-JAN-1998  Richard Gooch <rgooch@atnf.csiro.au>  Added devfs support
  *
  */
-static void rd_request(request_queue_t * q)
+static int rd_make_request(request_queue_t * q, int rw, struct buffer_head *sbh)
 {
 	unsigned int minor;
 	unsigned long offset, len;
 	struct buffer_head *rbh;
-	struct buffer_head *sbh;
+	char *bdata;
 
-repeat:
-	INIT_REQUEST;
 	
-	minor = MINOR(CURRENT->rq_dev);
+	minor = MINOR(sbh->b_rdev);
 
-	if (minor >= NUM_RAMDISKS) {
-		end_request(0);
-		goto repeat;
-	}
+	if (minor >= NUM_RAMDISKS)
+		goto fail;
+
 	
-	offset = CURRENT->sector << 9;
-	len = CURRENT->current_nr_sectors << 9;
+	offset = sbh->b_rsector << 9;
+	len = sbh->b_size;
 
-	if ((offset + len) > rd_length[minor]) {
-		end_request(0);
-		goto repeat;
+	if ((offset + len) > rd_length[minor])
+		goto fail;
+
+	if (rw==READA)
+		rw=READ;
+	if ((rw != READ) && (rw != WRITE)) {
+		printk(KERN_INFO "RAMDISK: bad command: %d\n", rw);
+		goto fail;
 	}
 
-	if ((CURRENT->cmd != READ) && (CURRENT->cmd != WRITE)) {
-		printk(KERN_INFO "RAMDISK: bad command: %d\n", CURRENT->cmd);
-		end_request(0);
-		goto repeat;
-	}
-
-	sbh = CURRENT->bh;
-	rbh = getblk(sbh->b_dev, sbh->b_blocknr, sbh->b_size);
-	if (CURRENT->cmd == READ) {
+	rbh = getblk(sbh->b_rdev, sbh->b_rsector/(sbh->b_size>>9), sbh->b_size);
+	/* I think that it is safe to assume that rbh is not in HighMem, though
+	 * sbh might be - NeilBrown
+	 */
+	bdata = bh_kmap(sbh);
+	if (rw == READ) {
 		if (sbh != rbh)
-			memcpy(CURRENT->buffer, rbh->b_data, rbh->b_size);
+			memcpy(bdata, rbh->b_data, rbh->b_size);
 	} else
 		if (sbh != rbh)
-			memcpy(rbh->b_data, CURRENT->buffer, rbh->b_size);
+			memcpy(rbh->b_data, bdata, rbh->b_size);
+	bh_kunmap(sbh);
 	mark_buffer_protected(rbh);
 	brelse(rbh);
 
-	end_request(1);
-	goto repeat;
+	sbh->b_end_io(sbh,1);
+	return 0;
+ fail:
+	sbh->b_end_io(sbh,0);
+	return 0;
 } 
 
 static int rd_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
@@ -378,7 +381,6 @@ static void __exit rd_cleanup (void)
 
 	devfs_unregister (devfs_handle);
 	unregister_blkdev( MAJOR_NR, "ramdisk" );
-	blk_cleanup_queue(BLK_DEFAULT_QUEUE(MAJOR_NR));
 	hardsect_size[MAJOR_NR] = NULL;
 	blksize_size[MAJOR_NR] = NULL;
 	blk_size[MAJOR_NR] = NULL;
@@ -403,7 +405,7 @@ int __init rd_init (void)
 		return -EIO;
 	}
 
-	blk_init_queue(BLK_DEFAULT_QUEUE(MAJOR_NR), &rd_request);
+	blk_queue_make_request(BLK_DEFAULT_QUEUE(MAJOR_NR), &rd_make_request);
 
 	for (i = 0; i < NUM_RAMDISKS; i++) {
 		/* rd_size is given in kB */

@@ -546,7 +546,6 @@ struct file_lock {
 #endif
 
 extern struct list_head file_lock_list;
-extern struct semaphore file_lock_sem;
 
 #include <linux/fcntl.h>
 
@@ -1150,6 +1149,15 @@ static inline struct inode *iget(struct super_block *sb, unsigned long ino)
 
 extern void clear_inode(struct inode *);
 extern struct inode * get_empty_inode(void);
+static inline struct inode * new_inode(struct super_block *sb)
+{
+	struct inode *inode = get_empty_inode();
+	if (inode) {
+		inode->i_sb = sb;
+		inode->i_dev = sb->s_dev;
+	}
+	return inode;
+}
 
 extern void insert_inode_hash(struct inode *);
 extern void remove_inode_hash(struct inode *);

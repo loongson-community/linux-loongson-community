@@ -39,6 +39,7 @@ void add_wait_queue(wait_queue_head_t *q, wait_queue_t * wait)
 	unsigned long flags;
 
 	wq_write_lock_irqsave(&q->lock, flags);
+	wait->flags = 0;
 	__add_wait_queue(q, wait);
 	wq_write_unlock_irqrestore(&q->lock, flags);
 }
@@ -48,6 +49,7 @@ void add_wait_queue_exclusive(wait_queue_head_t *q, wait_queue_t * wait)
 	unsigned long flags;
 
 	wq_write_lock_irqsave(&q->lock, flags);
+	wait->flags = WQ_FLAG_EXCLUSIVE;
 	__add_wait_queue_tail(q, wait);
 	wq_write_unlock_irqrestore(&q->lock, flags);
 }
@@ -572,9 +574,9 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 	 */
 	if (nr_threads >= max_threads)
 		goto bad_fork_cleanup_count;
+	
+	get_exec_domain(p->exec_domain);
 
-	if (p->exec_domain && p->exec_domain->module)
-		__MOD_INC_USE_COUNT(p->exec_domain->module);
 	if (p->binfmt && p->binfmt->module)
 		__MOD_INC_USE_COUNT(p->binfmt->module);
 

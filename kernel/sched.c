@@ -77,16 +77,14 @@ struct task_struct * init_tasks[NR_CPUS] = {&init_task, };
 /*
  * The tasklist_lock protects the linked list of processes.
  *
- * The scheduler lock is protecting against multiple entry
- * into the scheduling code, and doesn't need to worry
- * about interrupts (because interrupts cannot call the
- * scheduler).
- *
- * The run-queue lock locks the parts that actually access
+ * The runqueue_lock locks the parts that actually access
  * and change the run-queues, and have to be interrupt-safe.
+ *
+ * If both locks are to be concurrently held, the runqueue_lock
+ * nests inside the tasklist_lock.
  */
-spinlock_t runqueue_lock __cacheline_aligned = SPIN_LOCK_UNLOCKED;  /* second */
-rwlock_t tasklist_lock __cacheline_aligned = RW_LOCK_UNLOCKED;	/* third */
+spinlock_t runqueue_lock __cacheline_aligned = SPIN_LOCK_UNLOCKED;  /* inner */
+rwlock_t tasklist_lock __cacheline_aligned = RW_LOCK_UNLOCKED;	/* outer */
 
 static LIST_HEAD(runqueue_head);
 
@@ -199,12 +197,8 @@ static inline int preemption_goodness(struct task_struct * prev, struct task_str
 
 /*
  * This is ugly, but reschedule_idle() is very timing-critical.
- * We enter with the runqueue spinlock held, but we might end
- * up unlocking it early, so the caller must not unlock the
- * runqueue, it's always done by reschedule_idle().
- *
- * This function must be inline as anything that saves and restores
- * flags has to do so within the same register window on sparc (Anton)
+ * We `are called with the runqueue spinlock held and we must
+ * not claim the tasklist_lock.
  */
 static FASTCALL(void reschedule_idle(struct task_struct * p));
 
@@ -433,15 +427,27 @@ static inline void __schedule_tail(struct task_struct *prev)
 	int policy;
 
 	/*
+	 * prev->policy can be written from here only before `prev'
+	 * can be scheduled (before setting prev->has_cpu to zero).
+	 * Of course it must also be read before allowing prev
+	 * to be rescheduled, but since the write depends on the read
+	 * to complete, wmb() is enough. (the spin_lock() acquired
+	 * before setting has_cpu is not enough because the spin_lock()
+	 * common code semantics allows code outside the critical section
+	 * to enter inside the critical section)
+	 */
+	policy = prev->policy;
+	prev->policy = policy & ~SCHED_YIELD;
+	wmb();
+
+	/*
 	 * fast path falls through. We have to clear has_cpu before
 	 * checking prev->state to avoid a wakeup race - thus we
 	 * also have to protect against the task exiting early.
 	 */
 	task_lock(prev);
-	policy = prev->policy;
-	prev->policy = policy & ~SCHED_YIELD;
 	prev->has_cpu = 0;
-	wmb();
+	mb();
 	if (prev->state == TASK_RUNNING)
 		goto needs_resched;
 
@@ -535,7 +541,7 @@ handle_softirq_back:
 		goto move_rr_last;
 move_rr_back:
 
-	switch (prev->state & ~TASK_EXCLUSIVE) {
+	switch (prev->state) {
 		case TASK_INTERRUPTIBLE:
 			if (signal_pending(prev)) {
 				prev->state = TASK_RUNNING;
@@ -694,14 +700,14 @@ scheduling_in_interrupt:
 }
 
 static inline void __wake_up_common (wait_queue_head_t *q, unsigned int mode,
-						const int sync)
+				     unsigned int wq_mode, const int sync)
 {
 	struct list_head *tmp, *head;
 	struct task_struct *p, *best_exclusive;
 	unsigned long flags;
 	int best_cpu, irq;
 
-	if (!q || !waitqueue_active(q))
+	if (!q)
 		goto out;
 
 	best_cpu = smp_processor_id();
@@ -730,7 +736,7 @@ static inline void __wake_up_common (wait_queue_head_t *q, unsigned int mode,
 #endif
 		p = curr->task;
 		state = p->state;
-		if (state & (mode & ~TASK_EXCLUSIVE)) {
+		if (state & mode) {
 #if WAITQUEUE_DEBUG
 			curr->__waker = (long)__builtin_return_address(0);
 #endif
@@ -739,18 +745,19 @@ static inline void __wake_up_common (wait_queue_head_t *q, unsigned int mode,
 			 * prefer processes which are affine to this
 			 * CPU.
 			 */
-			if (irq && (state & mode & TASK_EXCLUSIVE)) {
+			if (irq && (curr->flags & wq_mode & WQ_FLAG_EXCLUSIVE)) {
 				if (!best_exclusive)
 					best_exclusive = p;
-				else if ((p->processor == best_cpu) &&
-					(best_exclusive->processor != best_cpu))
-						best_exclusive = p;
+				if (p->processor == best_cpu) {
+					best_exclusive = p;
+					break;
+				}
 			} else {
 				if (sync)
 					wake_up_process_synchronous(p);
 				else
 					wake_up_process(p);
-				if (state & mode & TASK_EXCLUSIVE)
+				if (curr->flags & wq_mode & WQ_FLAG_EXCLUSIVE)
 					break;
 			}
 		}
@@ -766,14 +773,14 @@ out:
 	return;
 }
 
-void __wake_up(wait_queue_head_t *q, unsigned int mode)
+void __wake_up(wait_queue_head_t *q, unsigned int mode, unsigned int wq_mode)
 {
-	__wake_up_common(q, mode, 0);
+	__wake_up_common(q, mode, wq_mode, 0);
 }
 
-void __wake_up_sync(wait_queue_head_t *q, unsigned int mode)
+void __wake_up_sync(wait_queue_head_t *q, unsigned int mode, unsigned int wq_mode)
 {
-	__wake_up_common(q, mode, 1);
+	__wake_up_common(q, mode, wq_mode, 1);
 }
 
 #define	SLEEP_ON_VAR				\
@@ -905,8 +912,8 @@ static int setscheduler(pid_t pid, int policy,
 	/*
 	 * We play safe to avoid deadlocks.
 	 */
-	spin_lock_irq(&runqueue_lock);
-	read_lock(&tasklist_lock);
+	read_lock_irq(&tasklist_lock);
+	spin_lock(&runqueue_lock);
 
 	p = find_process_by_pid(pid);
 
@@ -950,8 +957,8 @@ static int setscheduler(pid_t pid, int policy,
 	current->need_resched = 1;
 
 out_unlock:
-	read_unlock(&tasklist_lock);
-	spin_unlock_irq(&runqueue_lock);
+	spin_unlock(&runqueue_lock);
+	read_unlock_irq(&tasklist_lock);
 
 out_nounlock:
 	return retval;
@@ -1227,7 +1234,9 @@ void daemonize(void)
 	fs = init_task.fs;
 	current->fs = fs;
 	atomic_inc(&fs->count);
-
+ 	exit_files(current);
+	current->files = init_task.files;
+	atomic_inc(&current->files->count);
 }
 
 void __init init_idle(void)

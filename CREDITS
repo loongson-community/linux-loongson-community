@@ -765,11 +765,10 @@ S: D-57250 Netphen
 S: Germany
 
 N: Rik Faith
-E: faith@cs.unc.edu
 E: faith@acm.org
-D: Author: Future Domain TMC-16x0 SCSI driver
-D: Debugging: SCSI code; Cyclades serial driver; APM driver
-D: Debugging: XFree86 Mach 32 server, accelerated server code
+D: Future Domain TMC-16x0 SCSI driver (author)
+D: APM driver (early port)
+D: DRM drivers (author of several)
 
 N: János Farkas
 E: chexum@shadow.banki.hu
@@ -910,6 +909,15 @@ E: jgotts@linuxsavvy.com
 D: kernel hacker
 S: 8124 Constitution Apt. 7
 S: Sterling Heights, Michigan 48313
+S: USA
+
+N: William Greathouse
+E: wgreathouse@smva.com
+E: wgreathouse@myfavoritei.com
+D: Current Belkin USB Serial Adapter F5U103 hacker
+D: Kernel hacker, embedded systems
+S: 7802 Fitzwater Road   
+S: Brecksville, OH  44141-1334
 S: USA
 
 N: Tristan Greaves
@@ -1425,9 +1433,10 @@ D: bits and pieces of USB core code.
 N: Russell Kroll
 E: rkroll@exploits.org
 W: http://www.exploits.org/
-D: V4L Aztech radio card driver, mods to Aimslab driver
-S: Post Office Box 49458
-S: Colorado Springs, Colorado 80949-9458
+D: V4L radio cards: radio-aztech (new), others (bugfixes/features)
+D: Loopback block device: dynamic sizing ("max_loop" as module)
+S: Post Office Box 691886
+S: San Antonio, Texas 78269-1886
 S: USA
 
 N: Andrzej M. Krzysztofowicz
@@ -1590,7 +1599,8 @@ N: Robert M. Love
 E: rml@tech9.net
 E: rml@ufl.edu
 D: misc. kernel hacking and debugging
-S: FL, USA
+S: Gainesville, Florida 32608
+S: USA
 
 N: Martin von Löwis
 E: loewis@informatik.hu-berlin.de
@@ -2239,11 +2249,12 @@ S: D-68789 St.Leon-Rot
 S: Germany
 
 N: Stephen Rothwell
-E: sfr@linuxcare.com
+E: sfr@linuxcare.com.au
 W: http://linuxcare.com.au/sfr
 P: 1024/BD8C7805 CD A4 9D 01 10 6E 7E 3B  91 88 FA D9 C8 40 AA 02
 D: Boot/setup/build work for setup > 2K
 D: Author, APM driver
+D: Directory notification
 S: 66 Maltby Circuit
 S: Wanniassa ACT 2903
 S: Australia
@@ -2624,17 +2635,14 @@ S: Rockville, Maryland 20853
 S: USA
 
 N: Stephen Tweedie
-E: sct@dcs.ed.ac.uk
+E: sct@redhat.com
 P: 1024/E7A417AD E2 FE A4 20 34 EC ED FC 7D 7E 67 8D E0 31 D1 69
+P: 1024D/43BE7544 D2A4 8556 08E6 90E7 076C  BA3F 243F 20A4 43BE 7544
 D: Second extended file system developer
 D: General filesystem hacker
 D: kswap vm management code
-S: Dept. of Computer Science
-S: University of Edinburgh
-S: JCMB, The King's Buildings
-S: Mayfield Road
-S: Edinburgh 
-S: EH9 3JZ
+S: 44 Campbell Park Crescent
+S: Edinburgh EH13 0HT
 S: United Kingdom
 
 N: Thomas Uhl

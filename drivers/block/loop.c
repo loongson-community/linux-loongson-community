@@ -235,7 +235,7 @@ static int lo_read_actor(read_descriptor_t * desc, struct page *page, unsigned l
 	if (size > count)
 		size = count;
 
-	kaddr = (char*)kmap(page);
+	kaddr = kmap(page);
 	if ((lo->transfer)(lo,READ,kaddr+offset,p->data,size,IV)) {
 		size = 0;
 		printk(KERN_ERR "loop: transfer error block %ld\n",
@@ -411,10 +411,6 @@ static int loop_set_fd(struct loop_device *lo, kdev_t dev, unsigned int arg)
 
 	error = -EINVAL;
 	inode = file->f_dentry->d_inode;
-	if (!inode) {
-		printk(KERN_ERR "loop_set_fd: NULL inode?!?\n");
-		goto out_putf;
-	}
 
 	if (S_ISBLK(inode->i_mode)) {
 		/* dentry will be wired, so... */

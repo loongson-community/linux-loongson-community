@@ -387,7 +387,7 @@ static inline void __add_to_page_cache(struct page * page,
 	if (PageLocked(page))
 		BUG();
 
-	flags = page->flags & ~((1 << PG_uptodate) | (1 << PG_error) | (1 << PG_dirty) | (1 << PG_referenced));
+	flags = page->flags & ~((1 << PG_uptodate) | (1 << PG_error) | (1 << PG_dirty) | (1 << PG_referenced) | (1 << PG_arch_1));
 	page->flags = flags | (1 << PG_locked);
 	page_cache_get(page);
 	page->index = offset;
@@ -1095,14 +1095,14 @@ no_cached_page:
 
 static int file_read_actor(read_descriptor_t * desc, struct page *page, unsigned long offset, unsigned long size)
 {
-	unsigned long kaddr;
+	char *kaddr;
 	unsigned long left, count = desc->count;
 
 	if (size > count)
 		size = count;
 
 	kaddr = kmap(page);
-	left = __copy_to_user(desc->buf, (void *)(kaddr + offset), size);
+	left = __copy_to_user(desc->buf, kaddr + offset, size);
 	kunmap(page);
 	
 	if (left) {
@@ -1146,7 +1146,7 @@ ssize_t generic_file_read(struct file * filp, char * buf, size_t count, loff_t *
 
 static int file_send_actor(read_descriptor_t * desc, struct page *page, unsigned long offset , unsigned long size)
 {
-	unsigned long kaddr;
+	char *kaddr;
 	ssize_t written;
 	unsigned long count = desc->count;
 	struct file *file = (struct file *) desc->buf;
@@ -1158,8 +1158,7 @@ static int file_send_actor(read_descriptor_t * desc, struct page *page, unsigned
 	set_fs(KERNEL_DS);
 
 	kaddr = kmap(page);
-	written = file->f_op->write(file, (char *)kaddr + offset,
-						 size, &file->f_pos);
+	written = file->f_op->write(file, kaddr + offset, size, &file->f_pos);
 	kunmap(page);
 	set_fs(old_fs);
 	if (written < 0) {
@@ -1209,8 +1208,6 @@ asmlinkage ssize_t sys_sendfile(int out_fd, int in_fd, off_t *offset, size_t cou
 	if (!out_file->f_op || !out_file->f_op->write)
 		goto fput_out;
 	out_inode = out_file->f_dentry->d_inode;
-	if (!out_inode)
-		goto fput_out;
 	retval = locks_verify_area(FLOCK_VERIFY_WRITE, out_inode, out_file, out_file->f_pos, count);
 	if (retval)
 		goto fput_out;
@@ -1814,11 +1811,13 @@ static long madvise_fixup_start(struct vm_area_struct * vma,
 	get_file(n->vm_file);
 	if (n->vm_ops && n->vm_ops->open)
 		n->vm_ops->open(n);
+	lock_vma_mappings(vma);
 	spin_lock(&vma->vm_mm->page_table_lock);
 	vma->vm_pgoff += (end - vma->vm_start) >> PAGE_SHIFT;
 	vma->vm_start = end;
-	insert_vm_struct(current->mm, n);
+	__insert_vm_struct(current->mm, n);
 	spin_unlock(&vma->vm_mm->page_table_lock);
+	unlock_vma_mappings(vma);
 	return 0;
 }
 
@@ -1838,10 +1837,12 @@ static long madvise_fixup_end(struct vm_area_struct * vma,
 	get_file(n->vm_file);
 	if (n->vm_ops && n->vm_ops->open)
 		n->vm_ops->open(n);
+	lock_vma_mappings(vma);
 	spin_lock(&vma->vm_mm->page_table_lock);
 	vma->vm_end = start;
-	insert_vm_struct(current->mm, n);
+	__insert_vm_struct(current->mm, n);
 	spin_unlock(&vma->vm_mm->page_table_lock);
+	unlock_vma_mappings(vma);
 	return 0;
 }
 
@@ -1871,15 +1872,17 @@ static long madvise_fixup_middle(struct vm_area_struct * vma,
 		vma->vm_ops->open(left);
 		vma->vm_ops->open(right);
 	}
+	lock_vma_mappings(vma);
 	spin_lock(&vma->vm_mm->page_table_lock);
 	vma->vm_pgoff += (start - vma->vm_start) >> PAGE_SHIFT;
 	vma->vm_start = start;
 	vma->vm_end = end;
 	setup_read_behavior(vma, behavior);
 	vma->vm_raend = 0;
-	insert_vm_struct(current->mm, left);
-	insert_vm_struct(current->mm, right);
+	__insert_vm_struct(current->mm, left);
+	__insert_vm_struct(current->mm, right);
 	spin_unlock(&vma->vm_mm->page_table_lock);
+	unlock_vma_mappings(vma);
 	return 0;
 }
 

@@ -28,6 +28,7 @@ CONFIG_KMOD=y
 # CONFIG_M586MMX is not set
 # CONFIG_M686 is not set
 CONFIG_M686FXSR=y
+# CONFIG_MPENTIUM4 is not set
 # CONFIG_MK6 is not set
 # CONFIG_MK7 is not set
 # CONFIG_MCRUSOE is not set
@@ -71,6 +72,7 @@ CONFIG_PCI_GOANY=y
 CONFIG_PCI_BIOS=y
 CONFIG_PCI_DIRECT=y
 CONFIG_PCI_NAMES=y
+# CONFIG_EISA is not set
 # CONFIG_MCA is not set
 CONFIG_HOTPLUG=y
 
@@ -79,6 +81,8 @@ CONFIG_HOTPLUG=y
 #
 CONFIG_PCMCIA=y
 CONFIG_CARDBUS=y
+# CONFIG_I82365 is not set
+# CONFIG_TCIC is not set
 CONFIG_SYSVIPC=y
 # CONFIG_BSD_PROCESS_ACCT is not set
 CONFIG_SYSCTL=y
@@ -143,11 +147,12 @@ CONFIG_PACKET=y
 # CONFIG_FILTER is not set
 CONFIG_UNIX=y
 CONFIG_INET=y
-# CONFIG_IP_MULTICAST is not set
+CONFIG_IP_MULTICAST=y
 # CONFIG_IP_ADVANCED_ROUTER is not set
 # CONFIG_IP_PNP is not set
 # CONFIG_NET_IPIP is not set
 # CONFIG_NET_IPGRE is not set
+# CONFIG_IP_MROUTE is not set
 # CONFIG_INET_ECN is not set
 # CONFIG_SYN_COOKIES is not set
 
@@ -359,21 +364,29 @@ CONFIG_NET_ETHERNET=y
 CONFIG_NET_PCI=y
 # CONFIG_PCNET32 is not set
 # CONFIG_ADAPTEC_STARFIRE is not set
+# CONFIG_AC3200 is not set
 # CONFIG_APRICOT is not set
 # CONFIG_CS89x0 is not set
-# CONFIG_DE4X5 is not set
 # CONFIG_TULIP is not set
+# CONFIG_DE4X5 is not set
 # CONFIG_DGRS is not set
+# CONFIG_DM9102 is not set
 CONFIG_EEPRO100=y
+# CONFIG_EEPRO100_PM is not set
+# CONFIG_LNE390 is not set
 # CONFIG_NATSEMI is not set
 # CONFIG_NE2K_PCI is not set
+# CONFIG_NE3210 is not set
+# CONFIG_ES3210 is not set
 # CONFIG_8139TOO is not set
+# CONFIG_RTL8129 is not set
 # CONFIG_SIS900 is not set
 # CONFIG_EPIC100 is not set
 # CONFIG_SUNDANCE is not set
 # CONFIG_TLAN is not set
 # CONFIG_VIA_RHINE is not set
 # CONFIG_WINBOND_840 is not set
+# CONFIG_HAPPYMEAL is not set
 # CONFIG_NET_POCKET is not set
 
 #

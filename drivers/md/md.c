@@ -31,6 +31,7 @@
 #include <linux/module.h>
 #include <linux/config.h>
 #include <linux/raid/md.h>
+#include <linux/sysctl.h>
 #include <linux/raid/xor.h>
 #include <linux/devfs_fs_kernel.h>
 
@@ -2836,14 +2837,13 @@ int md_thread(void * arg)
 	mdk_thread_t *thread = arg;
 
 	md_lock_kernel();
-	exit_mm(current);
-	exit_files(current);
-	exit_fs(current);
 
 	/*
 	 * Detach thread
 	 */
+
 	daemonize();
+
 	sprintf(current->comm, thread->name);
 	md_init_signals();
 	md_flush_signals();

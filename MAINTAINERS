@@ -353,6 +353,12 @@ W:	http://www.dgii.com/linux,http://lameter.com/digi
 L:	digilnux@dgii.com
 S:	Maintained
 
+DIRECTORY NOTIFICATION
+P:	Stephen Rothwell
+M:	sfr@linuxcare.com.au
+L:	linux-kernel@vger.kernel.org
+S:	Supported
+
 DISK GEOMETRY AND PARTITION HANDLING
 P:     Andries Brouwer
 M:     aeb@veritas.com
@@ -372,6 +378,12 @@ P:	James R. Van Zandt
 M:	jrv@vanzandt.mv.com
 L:	blinux-list@redhat.com
 S:	Maintained
+
+DRM DRIVERS
+P:	Rik Faith
+M:	faith@valinux.com
+L:	dri-devel@lists.sourceforge.net
+S:	Supported
 
 EATA-DMA SCSI DRIVER
 P:	Michael Neuffer
@@ -411,9 +423,9 @@ S:	Maintained
 
 ETHERNET BRIDGE
 P:	Lennert Buytenhek
-M:	buytenh@openrock.net
-L:	bridge@openrock.net
-W:	http://openrock.net/bridge
+M:	buytenh@gnu.org
+L:	bridge@math.leidenuniv.nl
+W:	http://www.math.leidenuniv.nl/~buytenh/bridge
 S:	Maintained
 
 ETHERTEAM 16I DRIVER
@@ -1239,8 +1251,9 @@ W:	http://www.kernel.dk
 S:	Maintained
 
 USB SUBSYSTEM
-P:	Randy Dunlap
-M:	randy.dunlap@intel.com
+P:	Johannes Erdfelt
+M:	jerdfelt@valinux.com
+M:	johannes@erdfelt.com
 L:	linux-usb-users@lists.sourceforge.net
 L:	linux-usb-devel@lists.sourceforge.net
 W:	http://www.linux-usb.org
@@ -1329,6 +1342,14 @@ L:	linux-usb-users@lists.sourceforge.net
 L:	linux-usb-devel@lists.sourceforge.net
 S:	Maintained
 W:	http://www.kroah.com/linux-usb/
+
+USB SERIAL BELKIN F5U103 DRIVER
+P:	William Greathouse
+M:	wgreathouse@smva.com
+M:	wgreathouse@myfavoritei.com
+L:	linux-usb-users@lists.sourceforge.net
+L:	linux-usb-devel@lists.sourceforge.net
+S:	Maintained
 
 USB MASS STORAGE DRIVER
 P:	Matthew Dharm

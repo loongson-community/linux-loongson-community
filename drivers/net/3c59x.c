@@ -98,7 +98,7 @@
     - Added INVERT_LED_PWR, used it.
     - Backed out the extra_reset stuff
 
-   LK1.1.9 2 Sep 2000 andrewm
+   LK1.1.9 12 Sep 2000 andrewm
     - Backed out the tx_reset_resume flags.  It was a no-op.
     - In vortex_error, don't reset the Tx on txReclaim errors
     - In vortex_error, don't reset the Tx on maxCollisions errors.
@@ -109,6 +109,14 @@
     - Fixed a bug where, if vp->tx_full is set when the interface
       is downed, it remains set when the interface is upped.  Bad
       things happen.
+
+   LK1.1.10 17 Sep 2000 andrewm
+    - Added EEPROM_8BIT for 3c555 (Fred Maciel)
+    - Added experimental support for the 3c556B Laptop Hurricane (Louis Gerbarg)
+    - Add HAS_NWAY to "3c900 Cyclone 10Mbps TPO"
+
+   LK1.1.11 13 Nov 2000 andrewm
+    - Dump MOD_INC/DEC_USE_COUNT, use SET_MODULE_OWNER
 
     - See http://www.uow.edu.au/~andrewm/linux/#3c59x-2.3 for more details.
     - Also see Documentation/networking/vortex.txt
@@ -195,7 +203,7 @@ static int rx_nocopy = 0, rx_copy = 0, queued_packet = 0, rx_csumhits;
 #include <linux/delay.h>
 
 static char version[] __devinitdata =
-"3c59x.c:LK1.1.9  2 Sep 2000  Donald Becker and others. http://www.scyld.com/network/vortex.html " "$Revision: 1.102.2.38 $\n";
+"3c59x.c:LK1.1.11 13 Nov 2000  Donald Becker and others. http://www.scyld.com/network/vortex.html " "$Revision: 1.102.2.46 $\n";
 
 MODULE_AUTHOR("Donald Becker <becker@scyld.com>");
 MODULE_DESCRIPTION("3Com 3c59x/3c90x/3c575 series Vortex/Boomerang/Cyclone driver");
@@ -315,8 +323,8 @@ enum pci_flags_bit {
 enum {	IS_VORTEX=1, IS_BOOMERANG=2, IS_CYCLONE=4, IS_TORNADO=8,
 	EEPROM_8BIT=0x10,	/* AKPM: Uses 0x230 as the base bitmaps for EEPROM reads */
 	HAS_PWR_CTRL=0x20, HAS_MII=0x40, HAS_NWAY=0x80, HAS_CB_FNS=0x100,
-	INVERT_MII_PWR=0x200, INVERT_LED_PWR=0x400, MAX_COLLISION_RESET=0x800 };
-
+	INVERT_MII_PWR=0x200, INVERT_LED_PWR=0x400, MAX_COLLISION_RESET=0x800,
+	EEPROM_OFFSET=0x1000 };
 
 enum vortex_chips {
 	CH_3C590 = 0,
@@ -346,15 +354,16 @@ enum vortex_chips {
 	CH_3CSOHO100_TX,
 	CH_3C555,
 	CH_3C556,
+	CH_3C556B,
 	CH_3C575,
-	CH_3C575_1,
 
+	CH_3C575_1,
 	CH_3CCFE575,
 	CH_3CCFE575CT,
 	CH_3CCFE656,
 	CH_3CCFEM656,
-	CH_3CCFEM656_1,
 
+	CH_3CCFEM656_1,
 	CH_3C450,
 };
 
@@ -388,7 +397,7 @@ static struct vortex_chip_info {
 	{"3c900 Boomerang 10Mbps Combo",
 	 PCI_USES_IO|PCI_USES_MASTER, IS_BOOMERANG, 64, },
 	{"3c900 Cyclone 10Mbps TPO",						/* AKPM: from Don's 0.99M */
-	 PCI_USES_IO|PCI_USES_MASTER, IS_CYCLONE, 128, },
+	 PCI_USES_IO|PCI_USES_MASTER, IS_CYCLONE|HAS_NWAY, 128, },
 	{"3c900 Cyclone 10Mbps Combo",
 	 PCI_USES_IO|PCI_USES_MASTER, IS_CYCLONE, 128, },
 
@@ -417,14 +426,16 @@ static struct vortex_chip_info {
 	{"3cSOHO100-TX Hurricane",
 	 PCI_USES_IO|PCI_USES_MASTER, IS_CYCLONE, 128, },
 	{"3c555 Laptop Hurricane",
-	 PCI_USES_IO|PCI_USES_MASTER, IS_CYCLONE, 128, },
-	{"3c556 10/100 Mini PCI Adapter",
-	 PCI_USES_IO|PCI_USES_MASTER, IS_CYCLONE|HAS_NWAY|EEPROM_8BIT|HAS_CB_FNS|INVERT_MII_PWR, 128, },
+	 PCI_USES_IO|PCI_USES_MASTER, IS_CYCLONE|EEPROM_8BIT, 128, },
+	{"3c556 Laptop Tornado",
+	 PCI_USES_IO|PCI_USES_MASTER, IS_TORNADO|HAS_NWAY|EEPROM_8BIT|HAS_CB_FNS|INVERT_MII_PWR, 128, },
+	{"3c556B Laptop Hurricane",
+	 PCI_USES_IO|PCI_USES_MASTER, IS_TORNADO|HAS_NWAY|EEPROM_OFFSET|HAS_CB_FNS|INVERT_MII_PWR, 128, },
 	{"3c575 [Megahertz] 10/100 LAN 	CardBus",
 	 PCI_USES_IO|PCI_USES_MASTER, IS_BOOMERANG|HAS_MII|EEPROM_8BIT, 128, },
+
 	{"3c575 Boomerang CardBus",
 	 PCI_USES_IO|PCI_USES_MASTER, IS_BOOMERANG|HAS_MII|EEPROM_8BIT, 128, },
-
 	{"3CCFE575BT Cyclone CardBus",
 	 PCI_USES_IO|PCI_USES_MASTER, IS_CYCLONE|HAS_NWAY|HAS_CB_FNS|EEPROM_8BIT|INVERT_LED_PWR, 128, },
 	{"3CCFE575CT Tornado CardBus",
@@ -433,9 +444,9 @@ static struct vortex_chip_info {
 	 PCI_USES_IO|PCI_USES_MASTER, IS_CYCLONE|HAS_NWAY|HAS_CB_FNS|EEPROM_8BIT|INVERT_MII_PWR|INVERT_LED_PWR, 128, },
 	{"3CCFEM656B Cyclone+Winmodem CardBus",
 	 PCI_USES_IO|PCI_USES_MASTER, IS_CYCLONE|HAS_NWAY|HAS_CB_FNS|EEPROM_8BIT|INVERT_MII_PWR|INVERT_LED_PWR, 128, },
+
 	{"3CXFEM656C Tornado+Winmodem CardBus",			/* From pcmcia-cs-3.1.5 */
 	 PCI_USES_IO|PCI_USES_MASTER, IS_TORNADO|HAS_NWAY|HAS_CB_FNS|EEPROM_8BIT|INVERT_MII_PWR|MAX_COLLISION_RESET, 128, },
-
 	{"3c450 HomePNA Tornado",						/* AKPM: from Don's 0.99Q */
 	 PCI_USES_IO|PCI_USES_MASTER, IS_TORNADO|HAS_NWAY, 128, },
 	{0,}, /* 0 terminated list. */
@@ -470,15 +481,16 @@ static struct pci_device_id vortex_pci_tbl[] __devinitdata = {
 	{ 0x10B7, 0x7646, PCI_ANY_ID, PCI_ANY_ID, 0, 0, CH_3CSOHO100_TX },
 	{ 0x10B7, 0x5055, PCI_ANY_ID, PCI_ANY_ID, 0, 0, CH_3C555 },
 	{ 0x10B7, 0x6055, PCI_ANY_ID, PCI_ANY_ID, 0, 0, CH_3C556 },
+	{ 0x10B7, 0x6056, PCI_ANY_ID, PCI_ANY_ID, 0, 0, CH_3C556B },
 	{ 0x10B7, 0x5b57, PCI_ANY_ID, PCI_ANY_ID, 0, 0, CH_3C575 },
-	{ 0x10B7, 0x5057, PCI_ANY_ID, PCI_ANY_ID, 0, 0, CH_3C575_1 },
 
+	{ 0x10B7, 0x5057, PCI_ANY_ID, PCI_ANY_ID, 0, 0, CH_3C575_1 },
 	{ 0x10B7, 0x5157, PCI_ANY_ID, PCI_ANY_ID, 0, 0, CH_3CCFE575 },
 	{ 0x10B7, 0x5257, PCI_ANY_ID, PCI_ANY_ID, 0, 0, CH_3CCFE575CT },
 	{ 0x10B7, 0x6560, PCI_ANY_ID, PCI_ANY_ID, 0, 0, CH_3CCFE656 },
 	{ 0x10B7, 0x6562, PCI_ANY_ID, PCI_ANY_ID, 0, 0, CH_3CCFEM656 },
-	{ 0x10B7, 0x6564, PCI_ANY_ID, PCI_ANY_ID, 0, 0, CH_3CCFEM656_1 },
 
+	{ 0x10B7, 0x6564, PCI_ANY_ID, PCI_ANY_ID, 0, 0, CH_3CCFEM656_1 },
 	{ 0x10B7, 0x4500, PCI_ANY_ID, PCI_ANY_ID, 0, 0, CH_3C450 },
 	{0,}						/* 0 terminated list. */
 };
@@ -869,7 +881,8 @@ static int __devinit vortex_probe1(struct pci_dev *pdev,
 		retval = -ENOMEM;
 		goto out;
 	}
-	
+	SET_MODULE_OWNER(dev);
+
 	printk(KERN_INFO "%s: 3Com %s %s at 0x%lx, ",
 	       dev->name,
 	       pdev ? "PCI" : "EISA",
@@ -963,7 +976,15 @@ static int __devinit vortex_probe1(struct pci_dev *pdev,
 	/* Read the station address from the EEPROM. */
 	EL3WINDOW(0);
 	{
-		int base = (vci->drv_flags & EEPROM_8BIT) ? 0x230 : EEPROM_Read;
+		int base;
+
+		if (vci->drv_flags & EEPROM_8BIT)
+			base = 0x230;
+		else if (vci->drv_flags & EEPROM_OFFSET)
+			base = EEPROM_Read + 0x30;
+		else
+			base = EEPROM_Read;
+
 		for (i = 0; i < 0x40; i++) {
 			int timer;
 			outw(base + i, ioaddr + Wn0EepromCmd);
@@ -1338,8 +1359,6 @@ vortex_open(struct net_device *dev)
 	int i;
 	int retval;
 
-	MOD_INC_USE_COUNT;
-
 	/* Use the now-standard shared IRQ implementation. */
 	if ((retval = request_irq(dev->irq, vp->full_bus_master_rx ?
 				&boomerang_interrupt : &vortex_interrupt, SA_SHIRQ, dev->name, dev))) {
@@ -1388,7 +1407,6 @@ out_free_irq:
 out:
 	if (vortex_debug > 1)
 		printk(KERN_ERR "%s: vortex_open() fails: returning %d\n", dev->name, retval);
-	MOD_DEC_USE_COUNT;
 	return retval;
 }
 
@@ -2265,7 +2283,6 @@ vortex_close(struct net_device *dev)
 			}
 	}
 
-	MOD_DEC_USE_COUNT;
 	vp->open = 0;
 	return 0;
 }
@@ -2550,7 +2567,6 @@ static void __devexit vortex_remove_one (struct pci_dev *pdev)
 
 	vp = (void *)(dev->priv);
 
-	/* No need to check MOD_IN_USE, as sys_delete_module() checks. */
 	/* AKPM: FIXME: we should have
 	 *	if (vp->cb_fn_base) iounmap(vp->cb_fn_base);
 	 * here

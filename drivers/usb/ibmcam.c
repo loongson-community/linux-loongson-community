@@ -2492,11 +2492,6 @@ static void ibmcam_close(struct video_device *dev)
 	MOD_DEC_USE_COUNT;
 }
 
-static int ibmcam_init_done(struct video_device *dev)
-{
-	return 0;
-}
-
 static long ibmcam_write(struct video_device *dev, const char *buf, unsigned long count, int noblock)
 {
 	return -EINVAL;
@@ -2855,20 +2850,15 @@ static int ibmcam_mmap(struct video_device *dev, const char *adr, unsigned long 
 }
 
 static struct video_device ibmcam_template = {
-	"CPiA USB Camera",
-	VID_TYPE_CAPTURE,
-	VID_HARDWARE_CPIA,
-	ibmcam_open,
-	ibmcam_close,
-	ibmcam_read,
-	ibmcam_write,
-	NULL,
-	ibmcam_ioctl,
-	ibmcam_mmap,
-	ibmcam_init_done,
-	NULL,
-	0,
-	0
+	name:		"CPiA USB Camera",
+	type:		VID_TYPE_CAPTURE,
+	hardware:	VID_HARDWARE_CPIA,
+	open:		ibmcam_open,
+	close:		ibmcam_close,
+	read:		ibmcam_read,
+	write:		ibmcam_write,
+	ioctl:		ibmcam_ioctl,
+	mmap:		ibmcam_mmap,
 };
 
 static void usb_ibmcam_configure_video(struct usb_ibmcam *ibmcam)
@@ -2953,7 +2943,8 @@ static int ibmcam_find_struct(void)
  * 5/24/00  Corrected to prevent race condition (MOD_xxx_USE_COUNT).
  * 7/3/00   Fixed endianness bug.
  */
-static void *usb_ibmcam_probe(struct usb_device *dev, unsigned int ifnum)
+static void *usb_ibmcam_probe(struct usb_device *dev, unsigned int ifnum,
+			 const struct usb_device_id *id)
 {
 	struct usb_ibmcam *ibmcam = NULL;
 	const struct usb_interface_descriptor *interface;
@@ -2965,11 +2956,6 @@ static void *usb_ibmcam_probe(struct usb_device *dev, unsigned int ifnum)
 
 	/* We don't handle multi-config cameras */
 	if (dev->descriptor.bNumConfigurations != 1)
-		return NULL;
-
-	/* Is it an IBM camera? */
-	if ((dev->descriptor.idVendor != 0x0545) ||
-	    (dev->descriptor.idProduct != 0x8080))
 		return NULL;
 
 	/* Check the version/revision */
@@ -2988,10 +2974,9 @@ static void *usb_ibmcam_probe(struct usb_device *dev, unsigned int ifnum)
 			dev->descriptor.bcdDevice);
 		model = IBMCAM_MODEL_2;
 		break;
-	default:
-		printk(KERN_ERR "IBM camera with revision 0x%04x is not supported.\n",
-			dev->descriptor.bcdDevice);
-		return NULL;
+
+	/* ibmcam_table contents prevents any other values from ever
+	   being passed to us, so no need for "default" case. */
 	}
 
 	/* Validate found interface: must have one ISO endpoint */
@@ -3124,11 +3109,29 @@ static void usb_ibmcam_disconnect(struct usb_device *dev, void *ptr)
 	MOD_DEC_USE_COUNT;
 }
 
+static struct usb_device_id ibmcam_table [] = {
+    {
+	idVendor: 0x0545,
+	idProduct: 0x8080,
+	bcdDevice_lo: 0x0002,
+	bcdDevice_hi: 0x0002
+    },
+    {
+	idVendor: 0x0545,
+	idProduct: 0x8080,
+	bcdDevice_lo: 0X030a,
+	bcdDevice_hi: 0x030a
+    },
+    { }						/* Terminating entry */
+};
+
+MODULE_DEVICE_TABLE (usb, ibmcam_table);
+
 static struct usb_driver ibmcam_driver = {
-	"ibmcam",
-	usb_ibmcam_probe,
-	usb_ibmcam_disconnect,
-	{ NULL, NULL }
+	name:		"ibmcam",
+	probe:		usb_ibmcam_probe,
+	disconnect:	usb_ibmcam_disconnect,
+	id_table:	ibmcam_table,
 };
 
 /*

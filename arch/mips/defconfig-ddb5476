@@ -24,12 +24,14 @@ CONFIG_DDB5476=y
 # CONFIG_OLIVETTI_M700 is not set
 # CONFIG_SGI_IP22 is not set
 # CONFIG_SNI_RM200_PCI is not set
+# CONFIG_MCA is not set
 # CONFIG_SBUS is not set
 CONFIG_I8259=y
 CONFIG_ISA=y
 CONFIG_PCI=y
 CONFIG_PC_KEYB=y
 CONFIG_ROTTEN_IRQ=y
+CONFIG_EISA=y
 
 #
 # Loadable module support
@@ -283,8 +285,8 @@ CONFIG_NET_PCI=y
 # CONFIG_AC3200 is not set
 # CONFIG_APRICOT is not set
 # CONFIG_CS89x0 is not set
-# CONFIG_DE4X5 is not set
 CONFIG_TULIP=y
+# CONFIG_DE4X5 is not set
 # CONFIG_DGRS is not set
 # CONFIG_DM9102 is not set
 CONFIG_EEPRO100=y
@@ -294,14 +296,15 @@ CONFIG_EEPRO100=y
 CONFIG_NE2K_PCI=y
 # CONFIG_NE3210 is not set
 # CONFIG_ES3210 is not set
-# CONFIG_RTL8129 is not set
 # CONFIG_8139TOO is not set
+# CONFIG_RTL8129 is not set
 # CONFIG_SIS900 is not set
 # CONFIG_EPIC100 is not set
 # CONFIG_SUNDANCE is not set
 # CONFIG_TLAN is not set
 # CONFIG_VIA_RHINE is not set
 # CONFIG_WINBOND_840 is not set
+# CONFIG_HAPPYMEAL is not set
 # CONFIG_LAN_SAA9730 is not set
 # CONFIG_NET_POCKET is not set
 

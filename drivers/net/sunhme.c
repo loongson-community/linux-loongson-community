@@ -1,9 +1,16 @@
-/* $Id: sunhme.c,v 1.98 2000/10/22 16:08:38 davem Exp $
+/* $Id: sunhme.c,v 1.104 2000/11/17 01:40:00 davem Exp $
  * sunhme.c: Sparc HME/BigMac 10/100baseT half/full duplex auto switching,
  *           auto carrier detecting ethernet driver.  Also known as the
  *           "Happy Meal Ethernet" found on SunSwift SBUS cards.
  *
  * Copyright (C) 1996, 1998, 1999 David S. Miller (davem@redhat.com)
+ *
+ * Changes :
+ * 2000/11/11 Willy Tarreau <willy AT meta-x.org>
+ *   - port to non-sparc architectures. Tested only on x86 and
+ *     only currently works with QFE PCI cards.
+ *   - ability to specify the MAC address at module load time by passing this
+ *     argument : macaddr=0x00,0x10,0x20,0x30,0x40,0x50
  */
 
 static char *version =
@@ -24,6 +31,7 @@ static char *version =
 #include <linux/string.h>
 #include <linux/delay.h>
 #include <linux/init.h>
+#include <linux/ethtool.h>
 #include <asm/system.h>
 #include <asm/bitops.h>
 #include <asm/io.h>
@@ -31,18 +39,20 @@ static char *version =
 #include <linux/errno.h>
 #include <asm/byteorder.h>
 
+#ifdef __sparc__
 #include <asm/idprom.h>
 #include <asm/sbus.h>
 #include <asm/openprom.h>
 #include <asm/oplib.h>
 #include <asm/auxio.h>
-#include <asm/pgtable.h>
-#include <asm/irq.h>
 #ifndef __sparc_v9__
 #include <asm/io-unit.h>
 #endif
-#include <asm/ethtool.h>
+#endif
 #include <asm/uaccess.h>
+
+#include <asm/pgtable.h>
+#include <asm/irq.h>
 
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
@@ -50,14 +60,25 @@ static char *version =
 
 #ifdef CONFIG_PCI
 #include <linux/pci.h>
+#ifdef __sparc__
 #include <asm/pbm.h>
+#endif
 #endif
 
 #include "sunhme.h"
 
+
+static int macaddr[6];
+
+/* accept MAC address of the form macaddr=0x08,0x00,0x20,0x30,0x40,0x50 */
+MODULE_PARM(macaddr, "6i");
+
 static struct happy_meal *root_happy_dev = NULL;
 
+#ifdef CONFIG_SBUS
 static struct quattro *qfe_sbus_list = NULL;
+#endif
+
 #ifdef CONFIG_PCI
 static struct quattro *qfe_pci_list = NULL;
 #endif
@@ -149,6 +170,25 @@ static __inline__ void tx_dump_ring(struct happy_meal *hp)
 #define DEFAULT_IPG1       8 /* For all modes */
 #define DEFAULT_IPG2       4 /* For all modes */
 #define DEFAULT_JAMSIZE    4 /* Toe jam */
+
+#ifdef CONFIG_PCI
+/* This happy_pci_ids is declared __initdata because it is only used
+   as an advisory to depmod.  If this is ported to the new PCI interface
+   where it could be referenced at any time due to hot plugging,
+   it should be changed to __devinitdata. */
+
+struct pci_device_id happymeal_pci_ids[] __initdata = {
+	{
+	  vendor: PCI_VENDOR_ID_SUN,
+	  device: PCI_DEVICE_ID_SUN_HAPPYMEAL,
+	  subvendor: PCI_ANY_ID,
+	  subdevice: PCI_ANY_ID,
+	},
+	{ }			/* Terminating entry */
+};
+
+MODULE_DEVICE_TABLE(pci, happymeal_pci_ids);
+#endif
 
 /* NOTE: In the descriptor writes one _must_ write the address
  *	 member _first_.  The card must not be allowed to see
@@ -282,9 +322,25 @@ do {	(__txd)->tx_addr = cpu_to_le32(__addr); \
 #endif
 #endif
 
-#define DMA_BIDIRECTIONAL	SBUS_DMA_BIDIRECTIONAL
-#define DMA_FROMDEVICE		SBUS_DMA_FROMDEVICE
-#define DMA_TODEVICE		SBUS_DMA_TODEVICE
+
+#ifdef SBUS_DMA_BIDIRECTIONAL
+#	define DMA_BIDIRECTIONAL	SBUS_DMA_BIDIRECTIONAL
+#else
+#	define DMA_BIDIRECTIONAL	0
+#endif
+
+#ifdef SBUS_DMA_FROMDEVICE
+#	define DMA_FROMDEVICE		SBUS_DMA_FROMDEVICE
+#else
+#	define DMA_TODEVICE		1
+#endif
+
+#ifdef SBUS_DMA_TODEVICE
+#	define DMA_TODEVICE		SBUS_DMA_TODEVICE
+#else
+#	define DMA_FROMDEVICE		2
+#endif
+
 
 /* Oh yes, the MIF BitBang is mighty fun to program.  BitBucket is more like it. */
 static void BB_PUT_BIT(struct happy_meal *hp, unsigned long tregs, int bit)
@@ -1563,6 +1619,10 @@ static int happy_meal_init(struct happy_meal *hp, int from_irq)
 	HMD(("happy_meal_init: old[%08x] bursts<",
 	     hme_read32(hp, gregs + GREG_CFG)));
 
+#ifndef __sparc__
+	/* It is always PCI and can handle 64byte bursts. */
+	hme_write32(hp, gregs + GREG_CFG, GREG_CFG_BURST64);
+#else
 	if ((hp->happy_bursts & DMA_BURST64) &&
 	    ((hp->happy_flags & HFLAG_PCI) != 0
 #ifdef CONFIG_SBUS
@@ -1596,6 +1656,7 @@ static int happy_meal_init(struct happy_meal *hp, int from_irq)
 		HMD(("XXX>"));
 		hme_write32(hp, gregs + GREG_CFG, 0);
 	}
+#endif /* __sparc__ */
 
 	/* Turn off interrupts we do not want to hear. */
 	HMD((", enable global interrupts, "));
@@ -2071,6 +2132,7 @@ static void happy_meal_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	HMD(("done\n"));
 }
 
+#ifdef CONFIG_SBUS
 static void quattro_sbus_interrupt(int irq, void *cookie, struct pt_regs *ptregs)
 {
 	struct quattro *qp = (struct quattro *) cookie;
@@ -2112,6 +2174,7 @@ static void quattro_sbus_interrupt(int irq, void *cookie, struct pt_regs *ptregs
 	}
 	HMD(("done\n"));
 }
+#endif
 
 static int happy_meal_open(struct net_device *dev)
 {
@@ -2127,8 +2190,14 @@ static int happy_meal_open(struct net_device *dev)
 		if (request_irq(dev->irq, &happy_meal_interrupt,
 				SA_SHIRQ, "HAPPY MEAL", (void *)dev)) {
 			HMD(("EAGAIN\n"));
+#ifdef __sparc__
 			printk(KERN_ERR "happy_meal(SBUS): Can't order irq %s to go.\n",
 			       __irq_itoa(dev->irq));
+#else
+			printk(KERN_ERR "happy_meal(SBUS): Can't order irq %d to go.\n",
+			       dev->irq);
+#endif
+
 			return -EAGAIN;
 		}
 	}
@@ -2168,6 +2237,7 @@ static int happy_meal_close(struct net_device *dev)
 #define SXD(x)
 #endif
 
+#ifdef CONFIG_SBUS
 static void happy_meal_tx_timeout(struct net_device *dev)
 {
 	struct happy_meal *hp = (struct happy_meal *) dev->priv;
@@ -2181,6 +2251,7 @@ static void happy_meal_tx_timeout(struct net_device *dev)
 	happy_meal_init(hp, 0);
 	netif_wake_queue(dev);
 }
+#endif
 
 static int happy_meal_start_xmit(struct sk_buff *skb, struct net_device *dev)
 {
@@ -2541,11 +2612,25 @@ static int __init happy_meal_sbus_init(struct net_device *dev,
 		printk(KERN_INFO "%s: HAPPY MEAL (SBUS) 10/100baseT Ethernet ",
 		       dev->name);
 
-	/* Quattro local-mac-address... */
-	if (qfe_slot != -1 && prom_getproplen(sdev->prom_node,"local-mac-address")==6)
-		prom_getproperty(sdev->prom_node,"local-mac-address",dev->dev_addr,6);
-	else
-		memcpy(dev->dev_addr,idprom->id_ethaddr,6);
+	/* If user did not specify a MAC address specifically, use
+	 * the Quattro local-mac-address property...
+	 */
+	for (i = 0; i < 6; i++) {
+		if (macaddr[i] != 0)
+			break;
+	}
+	if (i < 6) { /* a mac address was given */
+		for (i = 0; i < 6; i++)
+			dev->dev_addr[i] = macaddr[i];
+	} else if (qfe_slot != -1 &&
+		   prom_getproplen(sdev->prom_node,
+				   "local-mac-address") == 6) {
+		prom_getproperty(sdev->prom_node, "local-mac-address",
+				 dev->dev_addr, 6);
+	} else {
+		memcpy(dev->dev_addr, idprom->id_ethaddr, 6);
+	}
+
 	for (i = 0; i < 6; i++)
 		printk("%2.2x%c",
 		       dev->dev_addr[i], i == 5 ? ' ' : ':');
@@ -2683,13 +2768,17 @@ static int __init happy_meal_sbus_init(struct net_device *dev,
 static int __init happy_meal_pci_init(struct net_device *dev, struct pci_dev *pdev)
 {
 	struct quattro *qp = NULL;
+#ifdef __sparc__
 	struct pcidev_cookie *pcp;
+	int node;
+#endif
 	struct happy_meal *hp;
 	unsigned long hpreg_base;
-	int i, node, qfe_slot = -1;
+	int i, qfe_slot = -1;
 	char prom_name[64];
 
 	/* Now make sure pci_dev cookie is there. */
+#ifdef __sparc__
 	pcp = pdev->sysdata;
 	if (pcp == NULL || pcp->prom_node == -1) {
 		printk(KERN_ERR "happymeal(PCI): Some PCI device info missing\n");
@@ -2698,6 +2787,11 @@ static int __init happy_meal_pci_init(struct net_device *dev, struct pci_dev *pd
 	node = pcp->prom_node;
 	
 	prom_getstring(node, "name", prom_name, sizeof(prom_name));
+#else
+#warning This needs to be corrected... -DaveM
+	strcpy(prom_name, "qfe");
+#endif
+
 	if (!strcmp(prom_name, "SUNW,qfe") || !strcmp(prom_name, "qfe")) {
 		qp = quattro_pci_find(pdev);
 		if (qp == NULL)
@@ -2763,10 +2857,27 @@ static int __init happy_meal_pci_init(struct net_device *dev, struct pci_dev *pd
 	}
 	hpreg_base = (unsigned long) ioremap(hpreg_base, 0x8000);
 
-	if (qfe_slot != -1 && prom_getproplen(node, "local-mac-address") == 6)
-		prom_getproperty(node, "local-mac-address", dev->dev_addr, 6);
-	else
-		memcpy(dev->dev_addr, idprom->id_ethaddr, 6);
+	for (i = 0; i < 6; i++) {
+		if (macaddr[i] != 0)
+			break;
+	}
+	if (i < 6) { /* a mac address was given */
+		for (i = 0; i < 6; i++)
+			dev->dev_addr[i] = macaddr[i];
+	} else {
+#ifdef __sparc__
+		if (qfe_slot != -1 &&
+		    prom_getproplen(node, "local-mac-address") == 6) {
+			prom_getproperty(node, "local-mac-address",
+					 dev->dev_addr, 6);
+		} else {
+			memcpy(dev->dev_addr, idprom->id_ethaddr, 6);
+		}
+#else
+		memset(dev->dev_addr, 0, 6);
+#endif
+	}
+	
 	for (i = 0; i < 6; i++)
 		printk("%2.2x%c", dev->dev_addr[i], i == 5 ? ' ' : ':');
 
@@ -2779,9 +2890,14 @@ static int __init happy_meal_pci_init(struct net_device *dev, struct pci_dev *pd
 	hp->bigmacregs = (hpreg_base + 0x6000UL);
 	hp->tcvregs    = (hpreg_base + 0x7000UL);
 
+#ifdef __sparc__
 	hp->hm_revision = prom_getintdefault(node, "hm-rev", 0xff);
 	if (hp->hm_revision == 0xff)
 		hp->hm_revision = 0xa0;
+#else
+	/* works with this on non-sparc hosts */
+	hp->hm_revision = 0x20;
+#endif
 
 	/* Now enable the feature flags we can. */
 	if (hp->hm_revision == 0x20 || hp->hm_revision == 0x21)
@@ -2795,8 +2911,10 @@ static int __init happy_meal_pci_init(struct net_device *dev, struct pci_dev *pd
 	/* And of course, indicate this is PCI. */
 	hp->happy_flags |= HFLAG_PCI;
 
+#ifdef __sparc__
 	/* Assume PCI happy meals can handle all burst sizes. */
 	hp->happy_bursts = DMA_BURSTBITS;
+#endif
 
 	hp->happy_block = (struct hmeal_init_block *)
 		pci_alloc_consistent(pdev, PAGE_SIZE, &hp->hblock_dvma);

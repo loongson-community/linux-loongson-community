@@ -87,6 +87,8 @@ el2_probe(struct net_device *dev)
     int *addr, addrs[] = { 0xddffe, 0xd9ffe, 0xcdffe, 0xc9ffe, 0};
     int base_addr = dev->base_addr;
 
+    SET_MODULE_OWNER(dev);
+
     if (base_addr > 0x1ff)	/* Check a single specified location. */
 	return el2_probe1(dev, base_addr);
     else if (base_addr != 0)		/* Don't probe at all. */
@@ -100,8 +102,6 @@ el2_probe(struct net_device *dev)
 	    if (base_bits & 0x1)
 		break;
 	if (base_bits != 1)
-	    continue;
-	if (check_region(netcard_portlist[i], EL2_IO_EXTENT))
 	    continue;
 	if (el2_probe1(dev, netcard_portlist[i]) == 0)
 	    return 0;
@@ -126,13 +126,9 @@ el2_pio_probe(struct net_device *dev)
     else if (base_addr != 0)	/* Don't probe at all. */
 	return -ENXIO;
 
-    for (i = 0; netcard_portlist[i]; i++) {
-	int ioaddr = netcard_portlist[i];
-	if (check_region(ioaddr, EL2_IO_EXTENT))
-	    continue;
-	if (el2_probe1(dev, ioaddr) == 0)
+    for (i = 0; netcard_portlist[i]; i++)
+	if (el2_probe1(dev, netcard_portlist[i]) == 0)
 	    return 0;
-    }
 
     return -ENODEV;
 }
@@ -143,14 +139,18 @@ el2_pio_probe(struct net_device *dev)
 int __init 
 el2_probe1(struct net_device *dev, int ioaddr)
 {
-    int i, iobase_reg, membase_reg, saved_406, wordlength;
-    static unsigned version_printed = 0;
+    int i, iobase_reg, membase_reg, saved_406, wordlength, retval;
+    static unsigned version_printed;
     unsigned long vendor_id;
+
+    if (!request_region(ioaddr, EL2_IO_EXTENT, dev->name))
+	return -EBUSY;
 
     /* Reset and/or avoid any lurking NE2000 */
     if (inb(ioaddr + 0x408) == 0xff) {
     	mdelay(1);
-	return -ENODEV;
+	retval = -ENODEV;
+	goto out;
     }
 
     /* We verify that it's a 3C503 board by checking the first three octets
@@ -160,7 +160,8 @@ el2_probe1(struct net_device *dev, int ioaddr)
     /* ASIC location registers should be 0 or have only a single bit set. */
     if (   (iobase_reg  & (iobase_reg - 1))
 	|| (membase_reg & (membase_reg - 1))) {
-	return -ENODEV;
+	retval = -ENODEV;
+	goto out;
     }
     saved_406 = inb_p(ioaddr + 0x406);
     outb_p(ECNTRL_RESET|ECNTRL_THIN, ioaddr + 0x406); /* Reset it... */
@@ -172,7 +173,8 @@ el2_probe1(struct net_device *dev, int ioaddr)
     if ((vendor_id != OLD_3COM_ID) && (vendor_id != NEW_3COM_ID)) {
 	/* Restore the register we frobbed. */
 	outb(saved_406, ioaddr + 0x406);
-	return -ENODEV;
+	retval = -ENODEV;
+	goto out;
     }
 
     if (ei_debug  &&  version_printed++ == 0)
@@ -182,8 +184,9 @@ el2_probe1(struct net_device *dev, int ioaddr)
     /* Allocate dev->priv and fill in 8390 specific dev fields. */
     if (ethdev_init(dev)) {
 	printk ("3c503: unable to allocate memory for dev->priv.\n");
-	return -ENOMEM;
-     }
+	retval = -ENOMEM;
+	goto out;
+    }
 
     printk("%s: 3c503 at i/o base %#3x, node ", dev->name, ioaddr);
 
@@ -282,8 +285,6 @@ el2_probe1(struct net_device *dev, int ioaddr)
     ei_status.block_input = &el2_block_input;
     ei_status.block_output = &el2_block_output;
 
-    request_region(ioaddr, EL2_IO_EXTENT, ei_status.name);
-
     if (dev->irq == 2)
 	dev->irq = 9;
     else if (dev->irq > 5 && dev->irq != 9) {
@@ -310,6 +311,9 @@ el2_probe1(struct net_device *dev, int ioaddr)
 	       dev->name, ei_status.name, (wordlength+1)<<3);
     }
     return 0;
+out:
+    release_region(ioaddr, EL2_IO_EXTENT);
+    return retval;
 }
 
 static int
@@ -324,10 +328,10 @@ el2_open(struct net_device *dev)
 	do {
 	    if (request_irq (*irqp, NULL, 0, "bogus", dev) != -EBUSY) {
 		/* Twinkle the interrupt, and check if it's seen. */
-		autoirq_setup(0);
+		unsigned long cookie = probe_irq_on();
 		outb_p(0x04 << ((*irqp == 9) ? 2 : *irqp), E33G_IDCFR);
 		outb_p(0x00, E33G_IDCFR);
-		if (*irqp == autoirq_report(0)	 /* It's a good IRQ line! */
+		if (*irqp == probe_irq_off(cookie)	 /* It's a good IRQ line! */
 		    && request_irq (dev->irq = *irqp, ei_interrupt, 0, ei_status.name, dev) == 0)
 		    break;
 	    }
@@ -344,7 +348,6 @@ el2_open(struct net_device *dev)
 
     el2_init_card(dev);
     ei_open(dev);
-    MOD_INC_USE_COUNT;
     return 0;
 }
 
@@ -356,7 +359,6 @@ el2_close(struct net_device *dev)
     outb(EGACFR_IRQOFF, E33G_GACFR);	/* disable interrupts. */
 
     ei_close(dev);
-    MOD_DEC_USE_COUNT;
     return 0;
 }
 
@@ -602,18 +604,10 @@ el2_block_input(struct net_device *dev, int count, struct sk_buff *skb, int ring
 #ifdef MODULE
 #define MAX_EL2_CARDS	4	/* Max number of EL2 cards per module */
 
-static struct net_device dev_el2[MAX_EL2_CARDS] = {
-	{
-		"",
-		0, 0, 0, 0,
-		0, 0,
-		0, 0, 0, NULL, NULL
-	},
-};
-
-static int io[MAX_EL2_CARDS] = { 0, };
-static int irq[MAX_EL2_CARDS]  = { 0, };
-static int xcvr[MAX_EL2_CARDS] = { 0, };	/* choose int. or ext. xcvr */
+static struct net_device dev_el2[MAX_EL2_CARDS];
+static int io[MAX_EL2_CARDS];
+static int irq[MAX_EL2_CARDS];
+static int xcvr[MAX_EL2_CARDS];	/* choose int. or ext. xcvr */
 MODULE_PARM(io, "1-" __MODULE_STRING(MAX_EL2_CARDS) "i");
 MODULE_PARM(irq, "1-" __MODULE_STRING(MAX_EL2_CARDS) "i");
 MODULE_PARM(xcvr, "1-" __MODULE_STRING(MAX_EL2_CARDS) "i");
@@ -624,9 +618,6 @@ int
 init_module(void)
 {
 	int this_dev, found = 0;
-
-	if (load_8390_module("3c503.c"))
-		return -ENOSYS;
 
 	for (this_dev = 0; this_dev < MAX_EL2_CARDS; this_dev++) {
 		struct net_device *dev = &dev_el2[this_dev];
@@ -643,7 +634,6 @@ init_module(void)
 			if (found != 0) {	/* Got at least one. */
 				return 0;
 			}
-			unload_8390_module();
 			return -ENXIO;
 		}
 		found++;
@@ -666,7 +656,6 @@ cleanup_module(void)
 			kfree(priv);
 		}
 	}
-	unload_8390_module();
 }
 #endif /* MODULE */
 

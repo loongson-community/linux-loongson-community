@@ -71,20 +71,12 @@ __attribute__((section("__ksymtab"))) = {
 #endif
 
 
-#ifdef CONFIG_KMOD
-EXPORT_SYMBOL(request_module);
-EXPORT_SYMBOL(exec_usermodehelper);
-#ifdef CONFIG_HOTPLUG
-EXPORT_SYMBOL(hotplug_path);
-EXPORT_SYMBOL(call_usermodehelper);
-#endif
-#endif
-
-#ifdef CONFIG_MODULES
-EXPORT_SYMBOL(get_module_symbol);
-EXPORT_SYMBOL(put_module_symbol);
+EXPORT_SYMBOL(inter_module_register);
+EXPORT_SYMBOL(inter_module_unregister);
+EXPORT_SYMBOL(inter_module_get);
+EXPORT_SYMBOL(inter_module_get_request);
+EXPORT_SYMBOL(inter_module_put);
 EXPORT_SYMBOL(try_inc_mod_count);
-#endif
 
 /* process memory management */
 EXPORT_SYMBOL(do_mmap_pgoff);
@@ -124,6 +116,7 @@ EXPORT_SYMBOL(vmtruncate);
 EXPORT_SYMBOL(find_vma);
 EXPORT_SYMBOL(get_unmapped_area);
 EXPORT_SYMBOL(init_mm);
+EXPORT_SYMBOL(deactivate_page);
 #ifdef CONFIG_HIGHMEM
 EXPORT_SYMBOL(kmap_high);
 EXPORT_SYMBOL(kunmap_high);
@@ -215,7 +208,6 @@ EXPORT_SYMBOL(generic_buffer_fdatasync);
 EXPORT_SYMBOL(page_hash_bits);
 EXPORT_SYMBOL(page_hash_table);
 EXPORT_SYMBOL(file_lock_list);
-EXPORT_SYMBOL(file_lock_sem);
 EXPORT_SYMBOL(locks_init_lock);
 EXPORT_SYMBOL(locks_copy_lock);
 EXPORT_SYMBOL(posix_lock_file);
@@ -342,6 +334,7 @@ EXPORT_SYMBOL(register_sysctl_table);
 EXPORT_SYMBOL(unregister_sysctl_table);
 EXPORT_SYMBOL(sysctl_string);
 EXPORT_SYMBOL(sysctl_intvec);
+EXPORT_SYMBOL(sysctl_jiffies);
 EXPORT_SYMBOL(proc_dostring);
 EXPORT_SYMBOL(proc_dointvec);
 EXPORT_SYMBOL(proc_dointvec_jiffies);
@@ -425,6 +418,7 @@ EXPORT_SYMBOL(ioport_resource);
 EXPORT_SYMBOL(iomem_resource);
 
 /* process management */
+EXPORT_SYMBOL(up_and_exit);
 EXPORT_SYMBOL(__wake_up);
 EXPORT_SYMBOL(wake_up_process);
 EXPORT_SYMBOL(sleep_on);
@@ -494,10 +488,6 @@ EXPORT_SYMBOL(remove_inode_hash);
 EXPORT_SYMBOL(make_bad_inode);
 EXPORT_SYMBOL(is_bad_inode);
 EXPORT_SYMBOL(event);
-EXPORT_SYMBOL(__down);
-EXPORT_SYMBOL(__down_interruptible);
-EXPORT_SYMBOL(__down_trylock);
-EXPORT_SYMBOL(__up);
 EXPORT_SYMBOL(brw_page);
 
 #ifdef CONFIG_UID16

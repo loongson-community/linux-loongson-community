@@ -347,10 +347,9 @@ static void generic_plug_device(request_queue_t *q, kdev_t dev)
  */
 static inline void __generic_unplug_device(request_queue_t *q)
 {
-	if (q->plugged) {
+	if (!list_empty(&q->queue_head)) {
 		q->plugged = 0;
-		if (!list_empty(&q->queue_head))
-			q->request_fn(q);
+		q->request_fn(q);
 	}
 }
 
@@ -496,7 +495,7 @@ static struct request *__get_request_wait(request_queue_t *q, int rw)
 
 	add_wait_queue_exclusive(&q->wait_for_request, &wait);
 	for (;;) {
-		__set_current_state(TASK_UNINTERRUPTIBLE | TASK_EXCLUSIVE);
+		__set_current_state(TASK_UNINTERRUPTIBLE);
 		spin_lock_irq(&io_request_lock);
 		rq = get_request(q, rw);
 		spin_unlock_irq(&io_request_lock);
@@ -683,7 +682,7 @@ static int __make_request(request_queue_t * q, int rw,
 {
 	unsigned int sector, count;
 	int max_segments = MAX_SEGMENTS;
-	struct request * req = NULL;
+	struct request * req = NULL, *freereq = NULL;
 	int rw_ahead, max_sectors, el_ret;
 	struct list_head *head = &q->queue_head;
 	int latency;
@@ -733,6 +732,7 @@ static int __make_request(request_queue_t * q, int rw,
 	 * Now we acquire the request spinlock, we have to be mega careful
 	 * not to schedule or do something nonatomic
 	 */
+again:
 	spin_lock_irq(&io_request_lock);
 
 	/*
@@ -791,19 +791,16 @@ static int __make_request(request_queue_t * q, int rw,
 	 * are not crucial.
 	 */
 get_rq:
-	if ((req = get_request(q, rw)) == NULL) {
+	if (freereq) {
+		req = freereq;
+		freereq = NULL;
+	} else if ((req = get_request(q, rw)) == NULL) {
 		spin_unlock_irq(&io_request_lock);
 		if (rw_ahead)
 			goto end_io;
 
-		req = __get_request_wait(q, rw);
-		spin_lock_irq(&io_request_lock);
-		
-		if (q->head_active) {
-			head = &q->queue_head;
-			if (!q->plugged)
-				head = head->next;
-		}
+		freereq = __get_request_wait(q, rw);
+		goto again;
 	}
 
 /* fill up the request-info, and add it to the queue */
@@ -824,6 +821,8 @@ get_rq:
 out:
 	if (!q->plugged)
 		(q->request_fn)(q);
+	if (freereq)
+		blkdev_release_request(freereq);
 	spin_unlock_irq(&io_request_lock);
 	return 0;
 end_io:
@@ -1059,7 +1058,7 @@ int __init blk_dev_init(void)
 #endif
 #ifdef CONFIG_ISP16_CDI
 	isp16_init();
-#endif CONFIG_ISP16_CDI
+#endif
 #if defined(CONFIG_IDE) && defined(CONFIG_BLK_DEV_IDE)
 	ide_init();		/* this MUST precede hd_init */
 #endif
@@ -1099,37 +1098,37 @@ int __init blk_dev_init(void)
 #endif
 #ifdef CONFIG_CDU31A
 	cdu31a_init();
-#endif CONFIG_CDU31A
+#endif
 #ifdef CONFIG_ATARI_ACSI
 	acsi_init();
-#endif CONFIG_ATARI_ACSI
+#endif
 #ifdef CONFIG_MCD
 	mcd_init();
-#endif CONFIG_MCD
+#endif
 #ifdef CONFIG_MCDX
 	mcdx_init();
-#endif CONFIG_MCDX
+#endif
 #ifdef CONFIG_SBPCD
 	sbpcd_init();
-#endif CONFIG_SBPCD
+#endif
 #ifdef CONFIG_AZTCD
 	aztcd_init();
-#endif CONFIG_AZTCD
+#endif
 #ifdef CONFIG_CDU535
 	sony535_init();
-#endif CONFIG_CDU535
+#endif
 #ifdef CONFIG_GSCD
 	gscd_init();
-#endif CONFIG_GSCD
+#endif
 #ifdef CONFIG_CM206
 	cm206_init();
 #endif
 #ifdef CONFIG_OPTCD
 	optcd_init();
-#endif CONFIG_OPTCD
+#endif
 #ifdef CONFIG_SJCD
 	sjcd_init();
-#endif CONFIG_SJCD
+#endif
 #ifdef CONFIG_APBLOCK
 	ap_init();
 #endif
@@ -1150,7 +1149,7 @@ int __init blk_dev_init(void)
 #endif
 #ifdef CONFIG_BLK_DEV_LVM
 	lvm_init();
-#endif 
+#endif
 	return 0;
 };
 

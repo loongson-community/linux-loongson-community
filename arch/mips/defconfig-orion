@@ -24,8 +24,10 @@ CONFIG_ORION=y
 # CONFIG_OLIVETTI_M700 is not set
 # CONFIG_SGI_IP22 is not set
 # CONFIG_SNI_RM200_PCI is not set
+# CONFIG_MCA is not set
 # CONFIG_SBUS is not set
 # CONFIG_ISA is not set
+# CONFIG_EISA is not set
 # CONFIG_PCI is not set
 # CONFIG_I8259 is not set
 

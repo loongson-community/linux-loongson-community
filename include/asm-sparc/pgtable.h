@@ -1,4 +1,4 @@
-/* $Id: pgtable.h,v 1.105 2000/10/30 21:01:41 davem Exp $ */
+/* $Id: pgtable.h,v 1.106 2000/11/08 04:49:24 davem Exp $ */
 #ifndef _SPARC_PGTABLE_H
 #define _SPARC_PGTABLE_H
 
@@ -437,8 +437,6 @@ __get_iospace (unsigned long addr)
 	}
 }
 
-#define module_map      vmalloc
-#define module_unmap    vfree
 extern unsigned long *sparc_valid_addr_bitmap;
 
 /* Needs to be defined here and not in linux/mm.h, as it is arch dependent */

@@ -54,9 +54,9 @@ static int minolduid;
 
 #ifdef CONFIG_KMOD
 extern char modprobe_path[];
+#endif
 #ifdef CONFIG_HOTPLUG
 extern char hotplug_path[];
-#endif
 #endif
 #ifdef CONFIG_CHR_DEV_SG
 extern int sg_big_buff;
@@ -188,10 +188,10 @@ static ctl_table kern_table[] = {
 #ifdef CONFIG_KMOD
 	{KERN_MODPROBE, "modprobe", &modprobe_path, 256,
 	 0644, NULL, &proc_dostring, &sysctl_string },
+#endif
 #ifdef CONFIG_HOTPLUG
 	{KERN_HOTPLUG, "hotplug", &hotplug_path, 256,
 	 0644, NULL, &proc_dostring, &sysctl_string },
-#endif
 #endif
 #ifdef CONFIG_CHR_DEV_SG
 	{KERN_SG_BIG_BUFF, "sg-big-buff", &sg_big_buff, sizeof (int),
@@ -571,7 +571,7 @@ static void unregister_proc_table(ctl_table * table, struct proc_dir_entry *root
 		}
 
 		/* Don't unregister proc entries that are still being used.. */
-		if (de->count)
+		if (atomic_read(&de->count))
 			continue;
 
 		table->de = NULL;
@@ -1234,6 +1234,13 @@ int sysctl_string(ctl_table *table, int *name, int nlen,
 }
 
 int sysctl_intvec(ctl_table *table, int *name, int nlen,
+		void *oldval, size_t *oldlenp,
+		void *newval, size_t newlen, void **context)
+{
+	return -ENOSYS;
+}
+
+int sysctl_jiffies(ctl_table *table, int *name, int nlen,
 		void *oldval, size_t *oldlenp,
 		void *newval, size_t newlen, void **context)
 {

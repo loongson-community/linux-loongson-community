@@ -54,6 +54,10 @@ ifdef CONFIG_M686FXSR
 CFLAGS += -march=i686
 endif
 
+ifdef CONFIG_MPENTIUM4
+CFLAGS += -march=i686
+endif
+
 ifdef CONFIG_MK6
 CFLAGS += $(shell if $(CC) -march=k6 -S -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo "-march=k6"; else echo "-march=i586"; fi)
 endif
@@ -63,7 +67,7 @@ CFLAGS += $(shell if $(CC) -march=athlon -S -o /dev/null -xc /dev/null >/dev/nul
 endif
 
 ifdef CONFIG_MCRUSOE
-CFLAGS += -march=i586
+CFLAGS += -march=i686 -malign-functions=0 -malign-jumps=0 -malign-loops=0
 endif
 
 ifdef CONFIG_MWINCHIPC6

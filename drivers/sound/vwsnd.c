@@ -135,6 +135,10 @@
  *	For AFMT_S8, AFMT_MU_LAW and AFMT_A_LAW output, we have to XOR
  *	the 0x80 bit in software to compensate for Lithium's XOR.
  *	This happens in pcm_copy_{in,out}().
+ *
+ * Changes:
+ * 11-10-2000	Bartlomiej Zolnierkiewicz <bkz@linux-ide.org>
+ *		Added some __init/__exit
  */
 
 #include <linux/module.h>
@@ -1330,7 +1334,7 @@ static void ad1843_shutdown_adc(lithium_t *lith)
  *
  * return 0 on success, -errno on failure.  */
 
-static int ad1843_init(lithium_t *lith)
+static int __init ad1843_init(lithium_t *lith)
 {
 	unsigned long later;
 	int err;
@@ -1822,8 +1826,8 @@ static void pcm_shutdown_port(vwsnd_dev_t *devc,
 
 	aport->swstate = SW_INITIAL;
 	add_wait_queue(&aport->queue, &wait);
-	current->state = TASK_UNINTERRUPTIBLE;
 	while (1) {
+		set_current_state(TASK_UNINTERRUPTIBLE);
 		spin_lock_irqsave(&aport->lock, flags);
 		{
 			hwstate = aport->hwstate;
@@ -2192,8 +2196,8 @@ static void pcm_write_sync(vwsnd_dev_t *devc)
 
 	DBGEV("(devc=0x%p)\n", devc);
 	add_wait_queue(&wport->queue, &wait);
-	current->state = TASK_UNINTERRUPTIBLE;
 	while (1) {
+		set_current_state(TASK_UNINTERRUPTIBLE);
 		spin_lock_irqsave(&wport->lock, flags);
 		{
 			hwstate = wport->hwstate;
@@ -2280,9 +2284,9 @@ static ssize_t vwsnd_audio_do_read(struct file *file,
 	while (count) {
 		DECLARE_WAITQUEUE(wait, current);
 		add_wait_queue(&rport->queue, &wait);
-		current->state = TASK_INTERRUPTIBLE;
 		while ((nb = swb_inc_u(rport, 0)) == 0) {
 			DBGPV("blocking\n");
+			set_current_state(TASK_INTERRUPTIBLE);
 			if (rport->flags & DISABLED ||
 			    file->f_flags & O_NONBLOCK) {
 				current->state = TASK_RUNNING;
@@ -2356,8 +2360,8 @@ static ssize_t vwsnd_audio_do_write(struct file *file,
 	while (count) {
 		DECLARE_WAITQUEUE(wait, current);
 		add_wait_queue(&wport->queue, &wait);
-		current->state = TASK_INTERRUPTIBLE;
 		while ((nb = swb_inc_u(wport, 0)) == 0) {
+			set_current_state(TASK_INTERRUPTIBLE);
 			if (wport->flags & DISABLED ||
 			    file->f_flags & O_NONBLOCK) {
 				current->state = TASK_RUNNING;
@@ -3239,7 +3243,7 @@ static struct file_operations vwsnd_mixer_fops = {
 
 /* driver probe routine.  Return nonzero if hardware is found. */
 
-static int probe_vwsnd(struct address_info *hw_config)
+static int __init probe_vwsnd(struct address_info *hw_config)
 {
 	lithium_t lith;
 	int w;
@@ -3291,7 +3295,7 @@ static int probe_vwsnd(struct address_info *hw_config)
  * Return +minor_dev on success, -errno on failure.
  */
 
-static int attach_vwsnd(struct address_info *hw_config)
+static int __init attach_vwsnd(struct address_info *hw_config)
 {
 	vwsnd_dev_t *devc = NULL;
 	int err = -ENOMEM;
@@ -3417,7 +3421,7 @@ static int attach_vwsnd(struct address_info *hw_config)
 	return err;
 }
 
-static int unload_vwsnd(struct address_info *hw_config)
+static int __exit unload_vwsnd(struct address_info *hw_config)
 {
 	vwsnd_dev_t *devc, **devcp;
 
@@ -3481,10 +3485,3 @@ static void __exit cleanup_vwsnd(void)
 
 module_init(init_vwsnd);
 module_exit(cleanup_vwsnd);
-
-/*
- * Local variables:
- * compile-command: "cd ../..; make modules SUBDIRS=drivers/sound"
- * c-basic-offset: 8
- * End:
- */

@@ -93,6 +93,7 @@
 #include <net/profile.h>
 #include <linux/init.h>
 #include <linux/kmod.h>
+#include <linux/module.h>
 #if defined(CONFIG_NET_RADIO) || defined(CONFIG_NET_PCMCIA_RADIO)
 #include <linux/wireless.h>		/* Note : will define WIRELESS_EXT */
 #endif	/* CONFIG_NET_RADIO || CONFIG_NET_PCMCIA_RADIO */
@@ -666,9 +667,15 @@ int dev_open(struct net_device *dev)
 	/*
 	 *	Call device private open method
 	 */
-	 
-	if (dev->open) 
-  		ret = dev->open(dev);
+	if (try_inc_mod_count(dev->owner)) {
+		if (dev->open) {
+			ret = dev->open(dev);
+			if (ret != 0 && dev->owner)
+				__MOD_DEC_USE_COUNT(dev->owner);
+		}
+	} else {
+		ret = -ENODEV;
+	}
 
 	/*
 	 *	If it went open OK then:
@@ -783,6 +790,12 @@ int dev_close(struct net_device *dev)
 	 *	Tell people we are down
 	 */
 	notifier_call_chain(&netdev_chain, NETDEV_DOWN, dev);
+
+	/*
+	 * Drop the module refcount
+	 */
+	if (dev->owner)
+		__MOD_DEC_USE_COUNT(dev->owner);
 
 	return(0);
 }
@@ -2056,8 +2069,9 @@ static int dev_ifsioc(struct ifreq *ifr, unsigned int cmd)
 		 */
 
 		default:
-			if (cmd >= SIOCDEVPRIVATE &&
-			    cmd <= SIOCDEVPRIVATE + 15) {
+			if ((cmd >= SIOCDEVPRIVATE &&
+			    cmd <= SIOCDEVPRIVATE + 15) ||
+			    cmd == SIOCETHTOOL) {
 				if (dev->do_ioctl) {
 					if (!netif_device_present(dev))
 						return -ENODEV;
@@ -2178,6 +2192,7 @@ int dev_ioctl(unsigned int cmd, void *arg)
 		case SIOCSIFHWBROADCAST:
 		case SIOCSIFTXQLEN:
 		case SIOCSIFNAME:
+		case SIOCETHTOOL:
 			if (!capable(CAP_NET_ADMIN))
 				return -EPERM;
 			dev_load(ifr.ifr_name);
@@ -2688,3 +2703,67 @@ int __init net_dev_init(void)
 
 	return 0;
 }
+
+#ifdef CONFIG_HOTPLUG
+
+/* Notify userspace when a netdevice event occurs,
+ * by running '/sbin/hotplug net' with certain
+ * environment variables set.
+ *
+ * Currently reported events are listed in netdev_event_names[].
+ */
+
+/* /sbin/hotplug ONLY executes for events named here */
+static char *netdev_event_names[] = {
+	[NETDEV_REGISTER]	= "register",
+	[NETDEV_UNREGISTER]	= "unregister",
+};
+
+static int run_sbin_hotplug(struct notifier_block *this,
+			    unsigned long event, void *ptr)
+{
+	struct net_device *dev = (struct net_device *) ptr;
+	char *argv[3], *envp[5], ifname[12 + IFNAMSIZ], action[32];
+	int i;
+
+	if ((event >= ARRAY_SIZE(netdev_event_names)) ||
+	    !netdev_event_names[event])
+		return NOTIFY_DONE;
+
+	sprintf(ifname, "INTERFACE=%s", dev->name);
+	sprintf(action, "ACTION=%s", netdev_event_names[event]);
+
+        i = 0;
+        argv[i++] = hotplug_path;
+        argv[i++] = "net";
+        argv[i] = 0;
+
+	i = 0;
+	/* minimal command environment */
+	envp [i++] = "HOME=/";
+	envp [i++] = "PATH=/sbin:/bin:/usr/sbin:/usr/bin";
+	envp [i++] = ifname;
+	envp [i++] = action;
+	envp [i] = 0;
+	
+	call_usermodehelper (argv [0], argv, envp);
+
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block sbin_hotplug = {
+	notifier_call: run_sbin_hotplug,
+};
+
+/*
+ * called from init/main.c, -after- all the initcalls are complete.
+ * Registers a hook that calls /sbin/hotplug on every netdev
+ * addition and removal.
+ */
+void __init net_notifier_init (void)
+{
+	if (register_netdevice_notifier(&sbin_hotplug))
+		printk (KERN_WARNING "unable to register netdev notifier\n"
+			KERN_WARNING "/sbin/hotplug will not be run.\n");
+}
+#endif

@@ -7,6 +7,9 @@
  * (C) Copyright Gregory P. Smith 1999
  * (C) Copyright Deti Fliegl 1999 (new USB architecture)
  * (C) Copyright Randy Dunlap 2000
+ * (C) Copyright David Brownell 2000 (kernel hotplug, usb_device_id)
+ * (C) Copyright Yggdrasil Computing, Inc. 2000
+ *     (usb_device_id matching changes by Adam J. Richter)
  *
  * NOTE! This is not actually a driver at all, rather this is
  * just a collection of helper routines that implement the
@@ -460,6 +463,124 @@ void usb_driver_release_interface(struct usb_driver *driver, struct usb_interfac
 	iface->private_data = NULL;
 }
 
+
+/* usb_match_id searches an array of usb_device_id's and returns
+   the first one that matches the device and interface.
+
+   Parameters:
+   	"id" is an array of usb_device_id's is terminated by an entry
+	 containing all zeroes.
+
+	 "dev" and "interface" are the device and interface for which
+	 a match is sought.
+
+   If no match is found or if the "id" pointer is NULL, then
+   usb_match_id returns NULL.
+
+
+   What constitutes a match:
+
+   A zero in any element of a usb_device_id entry is a wildcard
+   (i.e., that field always matches).  For there to be a match,
+   *every* nonzero element of the usb_device_id must match the
+   provided device and interface in.  The comparison is for equality,
+   except for one pair of fields: usb_match_id.bcdDevice_{lo,hi} define
+   an inclusive range that dev->descriptor.bcdDevice must be in.
+
+   If interface->altsettings does not exist (i.e., there are no
+   interfaces defined), then bInterface{Class,SubClass,Protocol}
+   only match if they are all zeroes.
+
+
+   What constitutes a good "usb_device_id"?
+
+   The match algorithm is very simple, so that intelligence in
+   driver selection must come from smart driver id records.
+   Unless you have good reasons to use another selection policy,
+   provide match elements only in related groups:
+
+    * device specifiers (vendor and product IDs; and maybe
+      a revision range for that product);
+    * generic device specs (class/subclass/protocol);
+    * interface specs (class/subclass/protocol).
+    
+   Within those groups, work from least specific to most specific.
+   For example, don't give a product version range without vendor
+   and product IDs.
+
+   "driver_info" is not considered by the kernel matching algorithm,
+   but you can create a wildcard "matches anything" usb_device_id
+   as your driver's "modules.usbmap" entry if you provide only an
+   id with a nonzero "driver_info" field.
+*/   
+
+const struct usb_device_id *
+usb_match_id(struct usb_device *dev, struct usb_interface *interface,
+	     const struct usb_device_id *id)
+{
+	struct usb_interface_descriptor	*intf = 0;
+
+	/* proc_connectinfo in devio.c may call us with id == NULL. */
+	if (id == NULL)
+		return NULL;
+
+	/* It is important to check that id->driver_info is nonzero,
+	   since an entry that is all zeroes except for a nonzero
+	   id->driver_info is the way to create an entry that
+	   indicates that the driver want to examine every
+	   device and interface. */
+	for (; id->idVendor || id->bDeviceClass || id->bInterfaceClass ||
+	       id->driver_info; id++) {
+
+		if (id->idVendor &&
+		    id->idVendor != dev->descriptor.idVendor)
+			continue;
+
+		if (id->idProduct &&
+		    id->idProduct != dev->descriptor.idProduct)
+			continue;
+
+		/* No need to test id->bcdDevice_lo != 0, since 0 is never
+		   greater than any unsigned number. */
+		if (id->bcdDevice_lo > dev->descriptor.bcdDevice)
+			continue;
+
+		if (id->bcdDevice_hi &&
+		    id->bcdDevice_hi < dev->descriptor.bcdDevice)
+			continue;
+
+		if (id->bDeviceClass &&
+		    id->bDeviceClass != dev->descriptor.bDeviceClass)
+			continue;
+
+		if (id->bDeviceSubClass &&
+		    id->bDeviceSubClass!= dev->descriptor.bDeviceClass)
+			continue;
+
+		if (id->bDeviceProtocol &&
+		    id->bDeviceProtocol != dev->descriptor.bDeviceProtocol)
+			continue;
+
+		intf = &interface->altsetting [interface->act_altsetting];
+
+		if (id->bInterfaceClass
+		    && id->bInterfaceClass != intf->bInterfaceClass)
+			continue;
+
+		if (id->bInterfaceSubClass &&
+		    id->bInterfaceSubClass != intf->bInterfaceSubClass)
+		    continue;
+
+		if (id->bInterfaceProtocol
+		    && id->bInterfaceProtocol != intf->bInterfaceProtocol)
+		    continue;
+
+		return id;
+	}
+
+	return NULL;
+}
+
 /*
  * This entrypoint gets called for each new device.
  *
@@ -478,8 +599,12 @@ void usb_driver_release_interface(struct usb_driver *driver, struct usb_interfac
  */
 static int usb_find_interface_driver(struct usb_device *dev, unsigned ifnum)
 {
-	struct list_head *tmp = usb_driver_list.next;
+	struct list_head *tmp;
 	struct usb_interface *interface;
+	void *private;
+	const struct usb_device_id *id;
+	struct usb_driver *driver;
+	int i;
 	
 	if ((!dev) || (ifnum >= dev->actconfig->bNumInterfaces)) {
 		err("bad find_interface_driver params");
@@ -491,141 +616,52 @@ static int usb_find_interface_driver(struct usb_device *dev, unsigned ifnum)
 	if (usb_interface_claimed(interface))
 		return -1;
 
-	while (tmp != &usb_driver_list) {
-		void *private;
-		struct usb_driver *driver = list_entry(tmp, struct usb_driver,
-		  				       driver_list);
-			
+	private = NULL;
+	for (tmp = usb_driver_list.next; tmp != &usb_driver_list;) {
+
+		driver = list_entry(tmp, struct usb_driver, driver_list);
 		tmp = tmp->next;
+
 		down(&driver->serialize);
-
+		id = driver->id_table;
 		/* new style driver? */
-		if (driver->bind) {
-		    const struct usb_device_id	*id = driver->id_table;
+		if (id) {
+			for (i = 0; i < interface->num_altsetting; i++) {
+			  	interface->act_altsetting = i;
+				id = usb_match_id(dev, interface, id);
+				if (id) {
+					private = driver->probe(dev,ifnum,id);
+					if (private != NULL)
+						break;
+				}
+			}
+			/* if driver not bound, leave defaults unchanged */
+			if (private == NULL)
+				interface->act_altsetting = 0;
+		}
+		else /* "old style" driver */
+			private = driver->probe(dev, ifnum, NULL);
 
-		    if (id) {
-			/* scan device ids for a match */
-			for (;; id++) {
-			    struct usb_interface_descriptor	*intf = 0;
-
-			    /* done? */
-			    if (!id->idVendor && !id->bDeviceClass && !id->bInterfaceClass) {
-				id = 0;
-				break;
-			    }
-
-			    /* Vendor match, possibly product-specific? */
-			    if (id->idVendor && id->idVendor == dev->descriptor.idVendor) {
-				if (id->idProduct && id->idProduct != dev->descriptor.idProduct)
-				    continue;
-				break;
-			    }
-
-			    /* Device class match? */
-			    if (id->bDeviceClass
-				    && id->bDeviceClass == dev->descriptor.bDeviceClass) {
-				if (id->bDeviceSubClass && id->bDeviceSubClass
-					!= dev->descriptor.bDeviceClass)
-				    continue;
-				if (id->bDeviceProtocol && id->bDeviceProtocol
-					!= dev->descriptor.bDeviceProtocol)
-				    continue;
-				break;
-			    }
-
-			    /* Interface class match? */
-			    if (!interface->altsetting || interface->num_altsetting < 1)
-				continue;
-			    intf = &interface->altsetting [0];
-			    if (id->bInterfaceClass
-				    && id->bInterfaceClass == intf->bInterfaceClass) {
-				if (id->bInterfaceSubClass && id->bInterfaceSubClass
-					!= intf->bInterfaceClass)
-				    continue;
-				if (id->bInterfaceProtocol && id->bInterfaceProtocol
-					!= intf->bInterfaceProtocol)
-				    continue;
-				break;
-			    }
-			} 
-			
-			/* is this driver interested in this interface? */
-			if (id)
-			    private = driver->bind(dev, ifnum, id);
-			else
-			    private = 0;
-		    } else {
-			/* "old style" driver, but using new interface */
-			private = driver->bind(dev, ifnum, 0);
-		    }
-
-		/* "old style" driver */
-		} else
-		    private = driver->probe(dev, ifnum);
 		up(&driver->serialize);
-		if (!private)
-			continue;
-		usb_driver_claim_interface(driver, interface, private);
-
-		return 0;
+		if (private) {
+			usb_driver_claim_interface(driver, interface, private);
+			return 0;
+		}
 	}
-	
+
 	return -1;
 }
 
 
-#if	defined(CONFIG_KMOD) && defined(CONFIG_HOTPLUG)
+#ifdef	CONFIG_HOTPLUG
 
 /*
  * USB hotplugging invokes what /proc/sys/kernel/hotplug says
  * (normally /sbin/hotplug) when USB devices get added or removed.
- */
-
-static int to_bcd (char *buf, __u16 *bcdValue)
-{
-	int	retval = 0;
-	char	*value = (char *) bcdValue;
-	int	temp;
-
-	/* digits are 0-9 then ":;<=>?" for devices using
-	 * non-bcd (non-standard!) values here ... */
-
-	/* No leading (or later, trailing) zeroes since scripts do
-	 * literal matches, and that's how they're doing them. */
-	if ((temp = value [1] & 0xf0) != 0) {
-		temp >>= 4;
-		temp += '0';
-		*buf++ = (char) temp;
-		retval++;
-	}
-
-	temp = value [1] & 0x0f;
-	temp += '0';
-	*buf++ = (char) temp;
-	retval++;
-
-	*buf++ = '.';
-	retval++;
-
-	temp = value [0] & 0xf0;
-	temp >>= 4;
-	temp += '0';
-	*buf++ = (char) temp;
-	retval++;
-
-	if ((temp = value [0] & 0x0f) != 0) {
-		temp += '0';
-		*buf++ = (char) temp;
-		retval++;
-	}
-	*buf++ = 0;
-
-	return retval;
-}
-
-/*
+ *
  * This invokes a user mode policy agent, typically helping to load driver
- * or other modules, configure the device, or both.
+ * or other modules, configure the device, and more.  Drivers can provide
+ * a MODULE_DEVICE_TABLE to help with module loading subtasks.
  *
  * Some synchronization is important: removes can't start processing
  * before the add-device processing completes, and vice versa.  That keeps
@@ -696,9 +732,7 @@ static void call_policy (char *verb, struct usb_device *dev)
 	 * all the device descriptors we don't tell them about.  Or
 	 * even act as usermode drivers.
 	 *
-	 * XXX how little intelligence can we hardwire?
-	 * (a) mount point: /devfs, /dev, /proc/bus/usb etc.
-	 * (b) naming convention: bus1/device3, 001/003 etc.
+	 * FIXME reduce hardwired intelligence here
 	 */
 	envp [i++] = "DEVFS=/proc/bus/usb";
 	envp [i++] = scratch;
@@ -706,33 +740,34 @@ static void call_policy (char *verb, struct usb_device *dev)
 		dev->bus->busnum, dev->devnum) + 1;
 #endif
 
-	/* per-device configuration hacks are often necessary */
+	/* per-device configuration hacks are common */
 	envp [i++] = scratch;
-	scratch += sprintf (scratch, "PRODUCT=%x/%x/",
+	scratch += sprintf (scratch, "PRODUCT=%x/%x/%x",
 		dev->descriptor.idVendor,
-		dev->descriptor.idProduct);
-	scratch += to_bcd (scratch, &dev->descriptor.bcdDevice) + 1;
+		dev->descriptor.idProduct,
+		dev->descriptor.bcdDevice) + 1;
 
-	/* otherwise, use a simple (so far) generic driver binding model */
+	/* class-based driver binding models */
 	envp [i++] = scratch;
+	scratch += sprintf (scratch, "TYPE=%d/%d/%d",
+			    dev->descriptor.bDeviceClass,
+			    dev->descriptor.bDeviceSubClass,
+			    dev->descriptor.bDeviceProtocol) + 1;
 	if (dev->descriptor.bDeviceClass == 0) {
 		int alt = dev->actconfig->interface [0].act_altsetting;
 
-		/* simple/common case: one config, one interface, one driver
-		 * unsimple cases:  everything else
+		/* a simple/common case: one config, one interface, one driver
+		 * with current altsetting being a reasonable setting.
+		 * everything needs a smart agent and usbdevfs; or can rely on
+		 * device-specific binding policies.
 		 */
+		envp [i++] = scratch;
 		scratch += sprintf (scratch, "INTERFACE=%d/%d/%d",
 			dev->actconfig->interface [0].altsetting [alt].bInterfaceClass,
 			dev->actconfig->interface [0].altsetting [alt].bInterfaceSubClass,
 			dev->actconfig->interface [0].altsetting [alt].bInterfaceProtocol)
 			+ 1;
 		/* INTERFACE-0, INTERFACE-1, ... ? */
-	} else {
-		/* simple/common case: generic device, handled generically */
-		scratch += sprintf (scratch, "TYPE=%d/%d/%d",
-			dev->descriptor.bDeviceClass,
-			dev->descriptor.bDeviceSubClass,
-			dev->descriptor.bDeviceProtocol) + 1;
 	}
 	envp [i++] = 0;
 	/* assert: (scratch - buf) < sizeof buf */
@@ -753,7 +788,7 @@ static inline void
 call_policy (char *verb, struct usb_device *dev)
 { } 
 
-#endif	/* KMOD && HOTPLUG */
+#endif	/* KMOD */
 
 
 /*
@@ -916,6 +951,7 @@ static int usb_start_wait_urb(urb_t *urb, int timeout, int* actual_length)
 	if (status) {
 		// something went wrong
 		usb_free_urb(urb);
+		current->state = TASK_RUNNING;
 		remove_wait_queue(&wqh, &wait);
 		return status;
 	}
@@ -926,6 +962,7 @@ static int usb_start_wait_urb(urb_t *urb, int timeout, int* actual_length)
 	} else
 		status = 1;
 
+	current->state = TASK_RUNNING;
 	remove_wait_queue(&wqh, &wait);
 
 	if (!status) {
@@ -968,6 +1005,11 @@ int usb_internal_control_msg(struct usb_device *usb_dev, unsigned int pipe,
 }
 
 /*-------------------------------------------------------------------*/
+/* usb_control_msg() -  builds control urb, and waits for completion */
+/* Synchronous behavior - don't use this function  from within an    */
+/* interrupt context, (like a bottom half handler.)  In this case,   */
+/* use usb_submit_urb() directly instead.                            */
+
 int usb_control_msg(struct usb_device *dev, unsigned int pipe, __u8 request, __u8 requesttype,
 			 __u16 value, __u16 index, void *data, __u16 size, int timeout)
 {
@@ -993,8 +1035,10 @@ int usb_control_msg(struct usb_device *dev, unsigned int pipe, __u8 request, __u
 }
 
 /*-------------------------------------------------------------------*/
-/* compatibility wrapper, builds bulk urb, and waits for completion */
-/* synchronous behavior */
+/* usb_bulk_msg() Builds a bulk urb, and waits for completion.       */
+/* Synchronous behavior - don't use this function  from within an    */
+/* interrupt context, (like a bottom half handler.)  In this case,   */
+/* use usb_submit_urb() directly instead.                            */
 
 int usb_bulk_msg(struct usb_device *usb_dev, unsigned int pipe, 
 			void *data, int len, int *actual_length, int timeout)
@@ -2149,6 +2193,7 @@ EXPORT_SYMBOL(usb_inc_dev_use);
 EXPORT_SYMBOL(usb_driver_claim_interface);
 EXPORT_SYMBOL(usb_interface_claimed);
 EXPORT_SYMBOL(usb_driver_release_interface);
+EXPORT_SYMBOL(usb_match_id);
 
 EXPORT_SYMBOL(usb_root_hub_string);
 EXPORT_SYMBOL(usb_new_device);

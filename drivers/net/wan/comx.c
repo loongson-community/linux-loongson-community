@@ -46,6 +46,9 @@
  * Version 0.85 (00/08/15):
  * 		- resource release on failure in comx_mkdir
  * 		- fix return value on failure at comx_write_proc
+ *
+ * Changed      (00/10/29, Henner Eisen):
+ * 		- comx_rx() / comxlapb_data_indication() return status.
  */
 
 #define VERSION "0.85"
@@ -852,7 +855,7 @@ cleanup_filename_protocol:
 cleanup_filename_hardware:
 	remove_proc_entry(FILENAME_HARDWARE, new_dir);
 cleanup_new_dir:
-	remove_proc_entry(dentry->d_name.name, &comx_root_dir);
+	remove_proc_entry(dentry->d_name.name, comx_root_dir);
 cleanup_dev:
 	kfree(dev);
 	return ret;

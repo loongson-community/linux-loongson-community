@@ -66,6 +66,8 @@ mainmenu_option next_comment
 comment 'General setup'
 
 define_bool CONFIG_ISA n
+define_bool CONFIG_EISA n
+define_bool CONFIG_MCA n
 define_bool CONFIG_SBUS n
 
 bool 'Networking support' CONFIG_NET

@@ -77,6 +77,19 @@ bad_area:
 	return 0;
 }
 
+extern spinlock_t console_lock, timerlist_lock;
+
+/*
+ * Unlock any spinlocks which will prevent us from getting the
+ * message out (timerlist_lock is aquired through the
+ * console unblank code)
+ */
+void bust_spinlocks(void)
+{
+	spin_lock_init(&console_lock);
+	spin_lock_init(&timerlist_lock);
+}
+
 asmlinkage void do_invalid_op(struct pt_regs *, unsigned long);
 extern unsigned long idt;
 
@@ -250,6 +263,8 @@ no_context:
  * Oops. The kernel tried to access some bad page. We'll have to
  * terminate things with extreme prejudice.
  */
+
+	bust_spinlocks();
 
 	if (address < PAGE_SIZE)
 		printk(KERN_ALERT "Unable to handle kernel NULL pointer dereference");

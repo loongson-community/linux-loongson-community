@@ -11,7 +11,9 @@
  * The IP-over-USB protocol here may be of interest.  Embedded devices
  * could implement it at the cost of two bulk endpoints, and whatever
  * other system resources the desired IP-based applications need.
- * Some Linux palmtops could support that today.
+ * Some Linux palmtops could support that today.  (Devices that don't
+ * support the TTL-driven data mangling of the net1080 chip won't need
+ * the header/trailer support though.)
  * 
  * STATUS:
  *
@@ -22,6 +24,15 @@
  * should handle static and dynamic ("pump") setups.
  *
  * RX/TX queue sizes currently fixed at one due to URB unlink problems.
+ *
+ * 10-oct-2000
+ * usb_device_id table created. 
+ *
+ * 28-oct-2000
+ * misc fixes; mostly, discard more TTL-mangled rx packets.
+ *
+ * 01-nov-2000
+ * usb_device_id table support added by Adam J. Richter <adam@yggdrasil.com>.
  * 
  *-------------------------------------------------------------------------*/
 
@@ -642,6 +653,7 @@ static int net1080_stop (struct net_device *net)
 		dbg ("waited for %d urb completions", temp);
 	}
 	dev->wait = 0;
+	current->state = TASK_RUNNING;
 	remove_wait_queue (&unlink_wakeup, &wait); 
 
 	mutex_unlock (&dev->mutex);
@@ -989,7 +1001,7 @@ static void net1080_disconnect (struct usb_device *udev, void *ptr)
 // precondition: never called in_interrupt
 
 static void *
-net1080_bind (struct usb_device *udev, unsigned ifnum, const struct usb_device_id *prod)
+net1080_probe (struct usb_device *udev, unsigned ifnum, const struct usb_device_id *prod)
 {
 	struct net1080		*dev;
 	struct net_device 	*net;
@@ -1073,7 +1085,7 @@ net1080_bind (struct usb_device *udev, unsigned ifnum, const struct usb_device_i
 static struct usb_driver net1080_driver = {
 	name:		"net1080",
 	id_table:	products,
-	bind:		net1080_bind,
+	probe:		net1080_probe,
 	disconnect:	net1080_disconnect,
 };
 

@@ -77,15 +77,13 @@ struct inode * udf_new_inode (const struct inode *dir, int mode, int * err)
 	int block;
 	Uint32 start = UDF_I_LOCATION(dir).logicalBlockNum;
 
-	inode = get_empty_inode();
+	sb = dir->i_sb;
+	inode = new_inode(sb);
 	if (!inode)
 	{
 		*err = -ENOMEM;
 		return NULL;
 	}
-	sb = dir->i_sb;
-	inode->i_sb = sb;
-	inode->i_flags = 0;
 	*err = -ENOSPC;
 
 	block = udf_new_block(dir, UDF_I_LOCATION(dir).partitionReferenceNum,
@@ -115,9 +113,6 @@ struct inode * udf_new_inode (const struct inode *dir, int mode, int * err)
 		mark_buffer_dirty(UDF_SB_LVIDBH(sb));
 	}
 	inode->i_mode = mode;
-	inode->i_sb = sb;
-	inode->i_nlink = 1;
-	inode->i_dev = sb->s_dev;
 	inode->i_uid = current->fsuid;
 	if (dir->i_mode & S_ISGID) {
 		inode->i_gid = dir->i_gid;
@@ -132,7 +127,6 @@ struct inode * udf_new_inode (const struct inode *dir, int mode, int * err)
 	inode->i_ino = udf_get_lb_pblock(sb, UDF_I_LOCATION(inode), 0);
 	inode->i_blksize = PAGE_SIZE;
 	inode->i_blocks = 0;
-	inode->i_size = 0;
 	UDF_I_LENEATTR(inode) = 0;
 	UDF_I_LENALLOC(inode) = 0;
 	if (UDF_QUERY_FLAG(inode->i_sb, UDF_FLAG_USE_EXTENDED_FE))

@@ -63,6 +63,7 @@ struct desc_struct default_ldt[] = { { 0, 0 }, { 0, 0 }, { 0, 0 },
 struct desc_struct idt_table[256] __attribute__((__section__(".data.idt"))) = { {0, 0}, };
 
 extern int console_loglevel;
+extern void bust_spinlocks(void);
 
 static inline void console_silent(void)
 {
@@ -92,7 +93,6 @@ asmlinkage void general_protection(void);
 asmlinkage void page_fault(void);
 asmlinkage void coprocessor_error(void);
 asmlinkage void simd_coprocessor_error(void);
-asmlinkage void reserved(void);
 asmlinkage void alignment_check(void);
 asmlinkage void spurious_interrupt_bug(void);
 asmlinkage void machine_check(void);
@@ -312,7 +312,6 @@ DO_ERROR(10, SIGSEGV, "invalid TSS", invalid_TSS)
 DO_ERROR(11, SIGBUS,  "segment not present", segment_not_present)
 DO_ERROR(12, SIGBUS,  "stack segment", stack_segment)
 DO_ERROR_INFO(17, SIGBUS, "alignment check", alignment_check, BUS_ADRALN, get_cr2())
-DO_ERROR(18, SIGSEGV, "reserved", reserved)
 
 asmlinkage void do_general_protection(struct pt_regs * regs, long error_code)
 {
@@ -396,7 +395,6 @@ static int __init setup_nmi_watchdog(char *str)
 
 __setup("nmi_watchdog=", setup_nmi_watchdog);
 
-extern spinlock_t console_lock;
 static spinlock_t nmi_print_lock = SPIN_LOCK_UNLOCKED;
 
 inline void nmi_watchdog_tick(struct pt_regs * regs)
@@ -439,8 +437,7 @@ inline void nmi_watchdog_tick(struct pt_regs * regs)
 			 * We are in trouble anyway, lets at least try
 			 * to get a message out.
 			 */
-			spin_trylock(&console_lock);
-			spin_unlock(&console_lock);
+			bust_spinlocks();
 			printk("NMI Watchdog detected LOCKUP on CPU%d, registers:\n", cpu);
 			show_registers(regs);
 			printk("console shuts up ...\n");
@@ -954,8 +951,10 @@ cobalt_init(void)
 #endif
 void __init trap_init(void)
 {
+#ifdef CONFIG_EISA
 	if (isa_readl(0x0FFFD9) == 'E'+('I'<<8)+('S'<<16)+('A'<<24))
 		EISA_bus = 1;
+#endif
 
 	set_trap_gate(0,&divide_error);
 	set_trap_gate(1,&debug);
