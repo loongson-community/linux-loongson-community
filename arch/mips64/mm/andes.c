@@ -398,6 +398,7 @@ andes_user_mode(struct pt_regs *regs)
 
 static void andes_show_regs(struct pt_regs *regs)
 {
+	printk("Cpu %d\n", smp_processor_id());
 	/* Saved main processor registers. */
 	printk("$0      : %016lx %016lx %016lx %016lx\n",
 	       0UL, regs->regs[1], regs->regs[2], regs->regs[3]);

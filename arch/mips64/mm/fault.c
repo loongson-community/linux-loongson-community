@@ -158,7 +158,6 @@ no_context:
 	printk(KERN_ALERT "Cpu %d Unable to handle kernel paging request at "
 	       "address %08lx, epc == %08lx, ra == %08lx\n",
 	       smp_processor_id(), address, regs->cp0_epc, regs->regs[31]);
-while(1);
 	die("Oops", regs, write);
 	do_exit(SIGKILL);
 
