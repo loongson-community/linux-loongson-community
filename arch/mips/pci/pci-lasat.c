@@ -152,7 +152,7 @@ static int lasat_pcibios_config_access_200(unsigned char access_type,
 		/* Error occured */
 #ifdef DEBUG_PCI
 		printk("\terror %x at adr %x\n", err,
-		       vrc_pciregs[LO(PCIERR)]);
+		       vrc_pciregs[LO(NILE4_PCIERR)]);
 #endif
 		return -1;
 	}
@@ -204,6 +204,8 @@ static int lasat_pcibios_write(struct pci_bus *bus, unsigned int devfn,
 	else if (size == 2)
 		data = (data & ~(0xffff << ((where & 3) << 3))) |
 		    (val << ((where & 3) << 3));
+	else
+		data = val;
 
 	if (lasat_pcibios_config_access
 	    (PCI_ACCESS_WRITE, bus, devfn, where, &data))
@@ -216,11 +218,6 @@ struct pci_ops lasat_pci_ops = {
 	.read = lasat_pcibios_read,
 	.write = lasat_pcibios_write,
 };
-
-char *__init pcibios_setup(char *str)
-{
-	return str;
-}
 
 static int __init pcibios_init(void)
 {
@@ -242,29 +239,7 @@ static int __init pcibios_init(void)
 	return 0;
 }
 
-subsys_initcall(pcibios_init);
-
-void __init pcibios_fixup_bus(struct pci_bus *b)
-{
-	Dprintk("pcibios_fixup_bus()\n");
-}
-
-int __init pcibios_enable_device(struct pci_dev *dev, int mask)
-{
-	/* Not needed, since we enable all devices at startup.  */
-	return 0;
-}
-
-void __init pcibios_align_resource(void *data, struct resource *res,
-				   unsigned long size, unsigned long align)
-{
-}
-
 unsigned __init int pcibios_assign_all_busses(void)
 {
 	return 1;
 }
-
-struct pci_fixup pcibios_fixups[] = {
-	{0}
-};

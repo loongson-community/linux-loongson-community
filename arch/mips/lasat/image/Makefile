@@ -27,15 +27,17 @@ head.o: $(KERNEL_IMAGE)
 
 obj-y = head.o kImage.o
 
-rom.sw:	rom.bin
+rom.sw:	$(obj)/rom.sw
+
+$(obj)/rom.sw:	$(obj)/rom.bin
 	$(MKLASATIMG) -o $@ -k $^ -m $(MKLASATIMG_ARCH)
 
-rom.bin: $(obj)/rom
-	$(OBJCOPY) -O binary -S rom rom.bin
+$(obj)/rom.bin: $(obj)/rom
+	$(OBJCOPY) -O binary -S $^ $@
 
 # Rule to make the bootloader
 $(obj)/rom: $(addprefix $(obj)/,$(obj-y))
-	$(LD) $(LDFLAGS) $(LDSCRIPT) -o rom $^
+	$(LD) $(LDFLAGS) $(LDSCRIPT) -o $@ $^
 
 $(obj)/%.o: $(obj)/%.gz
 	$(LD) -r -o $@ -b binary $<

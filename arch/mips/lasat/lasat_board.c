@@ -24,6 +24,7 @@
  * Routines specific to the LASAT boards
  */
 #include <linux/types.h>
+#include <linux/crc32.h>
 #include <asm/lasat/lasat.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
@@ -33,9 +34,11 @@
 #include "at93c.h"
 /* New model description table */
 #include "lasat_models.h"
+
+#define EEPROM_CRC(data, len) (~0 ^ crc32(~0, data, len))
+
 struct lasat_info lasat_board_info;
 
-unsigned long crc32(unsigned long, unsigned char *, int);
 void update_bcastaddr(void);
 
 int EEPROMRead(unsigned int pos, unsigned char *data, int len)
@@ -109,7 +112,7 @@ int lasat_init_board_info(void)
 		   sizeof(struct lasat_eeprom_struct));
 
 	/* Check the CRC */
-	crc = crc32(0x0, (unsigned char *)(&lasat_board_info.li_eeprom_info),
+	crc = EEPROM_CRC((unsigned char *)(&lasat_board_info.li_eeprom_info),
 		    sizeof(struct lasat_eeprom_struct) - 4);
 
 	if (crc != lasat_board_info.li_eeprom_info.crc32) {
@@ -268,7 +271,7 @@ void lasat_write_eeprom_info(void)
 	unsigned long crc;
 
 	/* Generate the CRC */
-	crc = crc32(0x0, (unsigned char *)(&lasat_board_info.li_eeprom_info),
+	crc = EEPROM_CRC((unsigned char *)(&lasat_board_info.li_eeprom_info),
 		    sizeof(struct lasat_eeprom_struct) - 4);
 	lasat_board_info.li_eeprom_info.crc32 = crc;
 
