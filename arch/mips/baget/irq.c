@@ -27,7 +27,7 @@
 
 #include <asm/baget/baget.h>
 
-unsigned long spurious_count = 0;
+volatile unsigned long irq_err_count;
 
 /*
  * This table is a correspondence between IRQ numbers and CPU PILs

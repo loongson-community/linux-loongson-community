@@ -95,12 +95,12 @@ LEAF(spurious_interrupt)
 		 * Someone tried to fool us by sending an interrupt but we
 		 * couldn't find a cause for it.
 		 */
-		lui     t1,%hi(spurious_count)
+		lui     t1,%hi(irq_err_count)
 		.set	reorder
-		lw      t0,%lo(spurious_count)(t1)
+		lw      t0,%lo(irq_err_count)(t1)
 		.set	noreorder
 		addiu   t0,1
-		sw      t0,%lo(spurious_count)(t1)
+		sw      t0,%lo(irq_err_count)(t1)
 		j	ret_from_irq
 		END(spurious_interrupt)
 

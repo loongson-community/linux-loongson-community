@@ -65,7 +65,5 @@ NESTED(au1000_IRQ, PT_SIZE, sp)
 
 5:	
 	move	a0, sp
-	jal	mips_spurious_interrupt
-done:
-	j	ret_from_irq
+	j	spurious_interrupt
 END(au1000_IRQ)

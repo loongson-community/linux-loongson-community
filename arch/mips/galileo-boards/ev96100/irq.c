@@ -64,7 +64,7 @@ extern void mips_timer_interrupt(int irq, struct pt_regs *regs);
 extern asmlinkage void ev96100IRQ(void);
 unsigned int local_bh_count[NR_CPUS];
 unsigned int local_irq_count[NR_CPUS];
-unsigned long spurious_count = 0;
+volatile unsigned long irq_err_count;
 irq_desc_t irq_desc[NR_IRQS];
 irq_desc_t *irq_desc_base=&irq_desc[0];
 
@@ -153,7 +153,7 @@ int get_irq_list(char *buf)
                 }
                 len += sprintf(buf+len, "\n");
         }
-        len += sprintf(buf+len, "BAD: %10lu\n", spurious_count);
+        len += sprintf(buf+len, "BAD: %10lu\n", irq_err_count);
         return len;
 }
 
@@ -210,7 +210,7 @@ asmlinkage void do_IRQ(unsigned long cause, struct pt_regs * regs)
 	}
 	else
 	{
-		spurious_count++;
+		irq_err_count++;
 		printk("Unhandled interrupt %x, cause %x, disabled\n", 
 				(unsigned)irq, (unsigned)cause);
 		disable_irq(1<<irq);

@@ -45,7 +45,7 @@ extern asmlinkage void mipsIRQ(void);
 
 unsigned int local_bh_count[NR_CPUS];
 unsigned int local_irq_count[NR_CPUS];
-unsigned long spurious_count = 0;
+volatile unsigned long irq_err_count;
 
 static struct irqaction *hw0_irq_action[MALTAINT_END] = {
 	NULL, NULL, NULL, NULL,

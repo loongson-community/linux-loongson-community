@@ -188,12 +188,12 @@ static irq_desc_t irq_desc[NR_IRQS] =
 /* Defined in arch/mips/sibyte/sb1250/irq_handler.S */
 extern void sb1250_irq_handler(void);
 /* 
- *  spurious_count is used in arch/mips/kernel/entry.S to record the 
+ *  irq_err_count is used in arch/mips/kernel/entry.S to record the 
  *  number of spurious interrupts we see before the handler is installed. 
  *  It doesn't provide any particularly relevant information for us, so
  *  we basically ignore it.
  */ 
-unsigned long spurious_count = 0;
+volatile unsigned long irq_err_count;
 
 /*
  * The interrupt handler calls this once for every unmasked interrupt

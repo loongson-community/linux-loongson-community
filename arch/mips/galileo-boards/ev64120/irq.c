@@ -189,7 +189,7 @@ struct hw_interrupt_type no_irq_type = {
  */
 irq_desc_t irq_desc[NR_IRQS];
 
-unsigned long spurious_count = 0;
+volatile unsigned long irq_err_count;
 
 int get_irq_list(char *buf)
 {
@@ -219,7 +219,7 @@ int get_irq_list(char *buf)
 		}
 		len += sprintf(buf + len, "\n");
 	}
-	len += sprintf(buf + len, "BAD: %10lu\n", spurious_count);
+	len += sprintf(buf + len, "BAD: %10lu\n", irq_err_count);
 	return len;
 }
 

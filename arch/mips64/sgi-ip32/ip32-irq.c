@@ -116,7 +116,7 @@ struct irqaction cpuerr_irq = { crime_cpuerr_intr, SA_INTERRUPT,
 			       0, "CRIME CPU error", NULL,
 			       NULL };
 
-unsigned long spurious_count = 0;
+volatile unsigned long irq_err_count;
 extern void ip32_handle_int (void);
 asmlinkage unsigned int do_IRQ(int irq, struct pt_regs *regs);
 
@@ -605,7 +605,7 @@ void ip32_irq5(struct pt_regs *regs)
 	do_IRQ (CLOCK_IRQ, regs);
 }
 
-volatile unsigned long irq_err_count, spurious_count;
+volatile unsigned long irq_err_count;
 
 /*
  * Generic, controller-independent functions:

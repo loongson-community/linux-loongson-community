@@ -73,7 +73,7 @@ extern int irq_to_bus[], irq_to_slot[], bus_to_cpu[];
 int intr_connect_level(int cpu, int bit);
 int intr_disconnect_level(int cpu, int bit);
 
-unsigned long spurious_count = 0;
+volatile unsigned long irq_err_count;
 
 /*
  * There is a single intpend register per node, and we want to have

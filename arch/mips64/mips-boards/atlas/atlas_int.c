@@ -43,7 +43,7 @@ struct atlas_ictrl_regs *atlas_hw0_icregs
 extern asmlinkage void mipsIRQ(void);
 extern void do_IRQ(int irq, struct pt_regs *regs);
 
-unsigned long spurious_count = 0;
+volatile unsigned long irq_err_count;
 irq_desc_t irq_desc[NR_IRQS];
 
 #if 0
@@ -192,7 +192,7 @@ void atlas_hw0_irqdispatch(struct pt_regs *regs)
 	/* if action == NULL, then we don't have a handler for the irq */
 	if ( action == NULL ) {
 	        printk("No handler for hw0 irq: %i\n", irq);
-		spurious_count++;
+		irq_err_count++;
 		return;
 	}
 

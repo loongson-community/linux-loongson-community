@@ -68,7 +68,7 @@ extern asmlinkage void indyIRQ(void);
 extern void rs_kgdb_hook(int);
 #endif
 
-unsigned long spurious_count = 0;
+volatile unsigned long irq_err_count;
 
 /* Local IRQ's are layed out logically like this:
  *

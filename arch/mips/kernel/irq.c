@@ -64,7 +64,7 @@ struct hw_interrupt_type no_irq_type = {
 	end_none
 };
 
-volatile unsigned long irq_err_count, spurious_count;
+volatile unsigned long irq_err_count;
 
 /*
  * Generic, controller-independent functions:
