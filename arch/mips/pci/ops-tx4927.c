@@ -44,7 +44,6 @@
 #include <asm/addrspace.h>
 #include <asm/byteorder.h>
 #include <asm/tx4927/tx4927_pci.h>
-#include <asm/debug.h>
 
 /* initialize in setup */
 struct resource pci_io_resource = {
