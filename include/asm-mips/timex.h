@@ -17,6 +17,7 @@
 	(1000000/CLOCK_TICK_FACTOR) / (CLOCK_TICK_RATE/CLOCK_TICK_FACTOR)) \
 		<< (SHIFT_SCALE-SHIFT_HZ)) / HZ)
 
+#ifdef __KERNEL__
 /*
  * Standard way to access the cycle counter.
  * Currently only used on SMP for scheduling.
@@ -35,5 +36,6 @@ static inline cycles_t get_cycles (void)
 {
 	return read_32bit_cp0_register(CP0_COUNT);
 }
+#endif /* __KERNEL__ */
 
 #endif /*  __ASM_MIPS_TIMEX_H */
