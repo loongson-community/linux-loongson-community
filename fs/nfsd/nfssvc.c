@@ -255,7 +255,6 @@ nfsd_dispatch(struct svc_rqst *rqstp, u32 *statp)
 		return 1;
 	case RC_DOIT:;
 		/* do it */
-		break;
 	}
 
 	/* Decode arguments */
