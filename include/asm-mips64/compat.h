@@ -129,5 +129,12 @@ static inline void *compat_ptr(compat_uptr_t uptr)
 	return (void *)(long)uptr;
 }
 
+static inline void *compat_alloc_user_space(long len)
+{
+	unsigned long sp = (unsigned long) current_thread_info() +
+	                    KERNEL_STACK_SIZE - 32;
+
+	return (void *) (sp - len);
+}
 
 #endif /* _ASM_COMPAT_H */

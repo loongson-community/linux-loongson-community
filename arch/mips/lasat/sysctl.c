@@ -1,10 +1,6 @@
 /*
- * sysctl.c
- *
  * Thomas Horsten <thh@lasat.com>
  * Copyright (C) 2000 LASAT Networks A/S.
- *
- * ########################################################################
  *
  *  This program is free software; you can distribute it and/or modify it
  *  under the terms of the GNU General Public License (Version 2) as
@@ -18,8 +14,6 @@
  *  You should have received a copy of the GNU General Public License along
  *  with this program; if not, write to the Free Software Foundation, Inc.,
  *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
- *
- * ########################################################################
  *
  * Routines specific to the LASAT boards
  */
@@ -140,7 +134,7 @@ int sysctl_lasat_intvec(ctl_table *table, int *name, int nlen,
 	return 1;
 }
 
-#if CONFIG_DS1603
+#ifdef CONFIG_DS1603
 /* Same for RTC */
 int sysctl_lasat_rtc(ctl_table *table, int *name, int nlen,
 		    void *oldval, size_t *oldlenp,
@@ -329,7 +323,7 @@ static ctl_table lasat_table[] = {
 	 0600, NULL, &proc_dolasatstring, &sysctl_lasatstring},
 	{LASAT_SBOOT, "boot-service", &lasat_boot_to_service, sizeof(int),
 	 0644, NULL, &proc_dointvec, &sysctl_intvec},
-#if CONFIG_DS1603
+#ifdef CONFIG_DS1603
 	{LASAT_RTC, "rtc", &rtctmp, sizeof(int),
 	 0644, NULL, &proc_dolasatrtc, &sysctl_lasat_rtc},
 #endif

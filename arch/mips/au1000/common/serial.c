@@ -2687,8 +2687,8 @@ static int __init rs_init(void)
 		       (state->flags & ASYNC_FOURPORT) ? " FourPort" : "",
 		       state->port, state->irq,
 		       uart_config[state->type].name);
-		tty_register_device(&serial_driver, state->line);
-		tty_register_device(&callout_driver, state->line);
+		tty_register_device(&serial_driver, state->line, NULL);
+		tty_register_device(&callout_driver, state->line, NULL);
 	}
 	return 0;
 }

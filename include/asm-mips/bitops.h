@@ -613,7 +613,7 @@ static __inline__ int __test_and_change_bit(int nr,
  * @nr: bit number to test
  * @addr: Address to start counting from
  */
-static inline int test_bit(int nr, volatile unsigned long *addr)
+static inline int test_bit(int nr, const volatile unsigned long *addr)
 {
 	return 1UL & (((const volatile unsigned long *) addr)[nr >> SZLONG_LOG] >> (nr & SZLONG_MASK));
 }

@@ -439,16 +439,7 @@ out:
 	return err;
 }
 
-static inline void *alloc_user_space(long len)
-{
-	unsigned long sp = (unsigned long) current_thread_info() +
-			    KERNEL_STACK_SIZE - 32;
-
-	return (void *) (sp - len);
-}
-
-int siocdevprivate_ioctl(struct pt_regs *regs, unsigned int fd,
-	unsigned int cmd, unsigned long arg)
+int siocdevprivate_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg)
 {
 	struct ifreq *u_ifreq64;
 	struct ifreq32 *u_ifreq32 = (struct ifreq32 *) arg;
@@ -463,7 +454,7 @@ int siocdevprivate_ioctl(struct pt_regs *regs, unsigned int fd,
 		return -EFAULT;
 	data64 = (void *) A(data32);
 
-	u_ifreq64 = alloc_user_space(sizeof(*u_ifreq64));
+	u_ifreq64 = compat_alloc_user_space(sizeof(*u_ifreq64));
 
 	/* Don't check these user accesses, just let that get trapped
 	 * in the ioctl handler instead.

@@ -1,6 +1,4 @@
 /*
- * setup.c
- *
  * Carsten Langgaard, carstenl@mips.com
  * Copyright (C) 1999 MIPS Technologies, Inc.  All rights reserved.
  *
@@ -8,8 +6,6 @@
  * Copyright (C) 2000 LASAT Networks A/S.
  *
  * Brian Murphy <brian@murphy.dk>
- *
- * ########################################################################
  *
  *  This program is free software; you can distribute it and/or modify it
  *  under the terms of the GNU General Public License (Version 2) as
@@ -23,8 +19,6 @@
  *  You should have received a copy of the GNU General Public License along
  *  with this program; if not, write to the Free Software Foundation, Inc.,
  *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
- *
- * ########################################################################
  *
  * Lasat specific setup.
  */
@@ -46,7 +40,7 @@
 #include <asm/serial.h>
 #include <asm/lasat/serial.h>
 
-#if CONFIG_PICVUE
+#ifdef CONFIG_PICVUE
 #include <linux/notifier.h>
 #endif
 

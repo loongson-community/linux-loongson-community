@@ -186,7 +186,6 @@ void iounmap(void *addr)
 		return;
 	}
 
-	unmap_vm_area(p);
         kfree(p);
 }
 

@@ -36,7 +36,8 @@
 #include <asm/sections.h>
 #include <asm/tlb.h>
 
-struct mmu_gather mmu_gathers[NR_CPUS];
+DEFINE_PER_CPU(struct mmu_gather, mmu_gathers);
+
 unsigned long highstart_pfn, highend_pfn;
 static unsigned long totalram_pages;
 static unsigned long totalhigh_pages;
@@ -78,7 +79,7 @@ static inline unsigned long setup_zero_pages(void)
 	return 1UL << order;
 }
 
-#if CONFIG_HIGHMEM
+#ifdef CONFIG_HIGHMEM
 pte_t *kmap_pte;
 pgprot_t kmap_prot;
 

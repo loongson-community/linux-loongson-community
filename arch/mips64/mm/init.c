@@ -34,7 +34,7 @@
 #include <asm/tlb.h>
 #include <asm/cpu.h>
 
-struct mmu_gather mmu_gathers[NR_CPUS];
+DEFINE_PER_CPU(struct mmu_gather, mmu_gathers);
 
 void pgd_init(unsigned long page)
 {

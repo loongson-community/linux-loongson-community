@@ -34,8 +34,6 @@ static int rs_get_CD (void * ptr);
 static void rs_shutdown_port (void * ptr); 
 static int rs_set_real_termios (void *ptr);
 static int rs_chars_in_buffer (void * ptr); 
-static void rs_hungup (void *ptr);
-static void rs_close (void *ptr);
 
 /*
  * Used by generic serial driver to access hardware
@@ -49,8 +47,6 @@ static struct real_driver rs_real_driver = {
 	.shutdown_port         = rs_shutdown_port,  
 	.set_real_termios      = rs_set_real_termios,  
 	.chars_in_buffer       = rs_chars_in_buffer, 
-	.close                 = rs_close, 
-	.hungup                = rs_hungup,
 }; 
 
 /*
@@ -430,16 +426,12 @@ static int rs_open(struct tty_struct * tty, struct file * filp)
 	}
 
 	rs_port->gs.flags |= GS_ACTIVE;
-	if(rs_port->gs.count == 1) {
-		MOD_INC_USE_COUNT;
-	}
 
 	rs_enable_rx_interrupts(rs_port);
 	rs_enable_tx_interrupts(rs_port);
 
 	retval = gs_block_til_ready(&rs_port->gs, filp);
 	if(retval) {
-		MOD_DEC_USE_COUNT;
 		rs_port->gs.count--;
 		return retval;
 	}
@@ -458,26 +450,6 @@ static int rs_open(struct tty_struct * tty, struct file * filp)
 	func_exit();
 
 	return 0;
-}
-
-/*
- * Close the serial port
- */
-static void rs_close(void *ptr)
-{
-	func_enter();
-	MOD_DEC_USE_COUNT;
-	func_exit();
-}
-
-/*
- * Hang up the serial port
- */
-static void rs_hungup(void *ptr)
-{
-	func_enter();
-	MOD_DEC_USE_COUNT;
-	func_exit();
 }
 
 /*
@@ -634,6 +606,7 @@ void __init tx3912_rs_init(void)
 
 	/* Fill in generic serial driver structures */
 	rs_driver.magic = TTY_DRIVER_MAGIC;
+	rs_driver.owner = THIS_MODULE;
 	rs_driver.driver_name = "serial";
 	rs_driver.name = "ttyS";
 	rs_driver.major = TTY_MAJOR;

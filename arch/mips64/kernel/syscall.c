@@ -206,13 +206,15 @@ asmlinkage int sys_sysmips(int cmd, long arg1, int arg2, int arg3)
 
 		name = (char *) arg1;
 
-		len = strncpy_from_user(nodename, name, sizeof(nodename));
+		len = strncpy_from_user(nodename, name, __NEW_UTS_LEN);
 		if (len < 0)
 			return -EFAULT;
 
 		down_write(&uts_sem);
 		strncpy(system_utsname.nodename, nodename, len);
-		system_utsname.nodename[len] = '\0';
+		nodename[__NEW_UTS_LEN] = '\0';
+		strlcpy(system_utsname.nodename, nodename,
+		        sizeof(system_utsname.nodename));
 		up_write(&uts_sem);
 		return 0;
 	}

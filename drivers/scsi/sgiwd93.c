@@ -13,6 +13,7 @@
  *
  */
 #include <linux/init.h>
+#include <linux/interrupt.h>
 #include <linux/types.h>
 #include <linux/mm.h>
 #include <linux/blk.h>
@@ -42,8 +43,8 @@ struct hpc_chunk {
 	u32 _padding;	/* align to quadword boundary */
 };
 
-struct Scsi_Host *sgiwd93_host = NULL;
-struct Scsi_Host *sgiwd93_host1 = NULL;
+struct Scsi_Host *sgiwd93_host;
+struct Scsi_Host *sgiwd93_host1;
 
 /* Wuff wuff, wuff, wd33c93.c, wuff wuff, object oriented, bow wow. */
 static inline void write_wd33c93_count(const wd33c93_regs regs,
@@ -70,7 +71,7 @@ static inline unsigned long read_wd33c93_count(const wd33c93_regs regs)
 	return value;
 }
 
-static void sgiwd93_intr(int irq, void *dev_id, struct pt_regs *regs)
+static irqreturn_t sgiwd93_intr(int irq, void *dev_id, struct pt_regs *regs)
 {
 	struct Scsi_Host * host = (struct Scsi_Host *) dev_id;
 	unsigned long flags;
@@ -78,6 +79,8 @@ static void sgiwd93_intr(int irq, void *dev_id, struct pt_regs *regs)
 	spin_lock_irqsave(&host->host_lock, flags);
 	wd33c93_intr(host);
 	spin_unlock_irqrestore(&host->host_lock, flags);
+
+	return IRQ_HANDLED;
 }
 
 #undef DEBUG_DMA
@@ -105,8 +108,10 @@ void fill_hpc_entries (struct hpc_chunk **hcp, char *addr, unsigned long len)
 
 static int dma_setup(Scsi_Cmnd *cmd, int datainp)
 {
-	struct WD33C93_hostdata *hdata = (struct WD33C93_hostdata *)cmd->device->host->hostdata;
-	struct hpc3_scsiregs *hregs = (struct hpc3_scsiregs *) cmd->device->host->base;
+	struct WD33C93_hostdata *hdata =
+		(struct WD33C93_hostdata *)cmd->device->host->hostdata;
+	struct hpc3_scsiregs *hregs =
+		(struct hpc3_scsiregs *) cmd->device->host->base;
 	struct hpc_chunk *hcp = (struct hpc_chunk *) hdata->dma_bounce_buffer;
 
 #ifdef DEBUG_DMA
@@ -249,15 +254,13 @@ int __init sgiwd93_detect(Scsi_Host_Template *SGIblows)
 
 	if (request_irq(SGI_WD93_0_IRQ, sgiwd93_intr, 0, "SGI WD93", (void *) sgiwd93_host)) {
 		printk(KERN_WARNING "sgiwd93: Could not register IRQ %d (for host 0).\n", SGI_WD93_0_IRQ);
-#ifdef MODULE
 		wd33c93_release();
-#endif
 		free_page((unsigned long)buf);
 		scsi_unregister(sgiwd93_host);
 		return 0;
 	}
         /* set up second controller on the Indigo2 */
-	if(ip22_is_fullhouse()) {
+	if (ip22_is_fullhouse()) {
 		sgiwd93_host1 = scsi_register(SGIblows, sizeof(struct WD33C93_hostdata));
 		if(sgiwd93_host1 != NULL)
 		{
@@ -285,9 +288,7 @@ int __init sgiwd93_detect(Scsi_Host_Template *SGIblows)
 	
 			if (request_irq(SGI_WD93_1_IRQ, sgiwd93_intr, 0, "SGI WD93", (void *) sgiwd93_host1)) {
 				printk(KERN_WARNING "sgiwd93: Could not allocate irq %d (for host1).\n", SGI_WD93_1_IRQ);
-#ifdef MODULE
 				wd33c93_release();
-#endif
 				free_page((unsigned long)buf);
 				scsi_unregister(sgiwd93_host1);
 				/* Fall through since host0 registered OK */
@@ -300,25 +301,41 @@ int __init sgiwd93_detect(Scsi_Host_Template *SGIblows)
 	return 1; /* Found one. */
 }
 
-#define HOSTS_C
-
-#include "sgiwd93.h"
-
-static Scsi_Host_Template driver_template = SGIWD93_SCSI;
-
-#include "scsi_module.c"
-
 int sgiwd93_release(struct Scsi_Host *instance)
 {
-#ifdef MODULE
-	free_irq(SGI_WD93_0_IRQ, sgiwd93_intr);
+	struct WD33C93_hostdata *hdata =
+		(struct WD33C93_hostdata *)instance->hostdata;
+	int irq = 0;
+
+	if (sgiwd93_host && sgiwd93_host == instance)
+		irq = SGI_WD93_0_IRQ;
+	else if (sgiwd93_host1 && sgiwd93_host1 == instance)
+		irq = SGI_WD93_1_IRQ;
+
+	free_irq(irq, sgiwd93_intr);
 	free_page(KSEG0ADDR(hdata->dma_bounce_buffer));
 	wd33c93_release();
-	if(ip22_is_fullhouse()) {
-		free_irq(SGI_WD93_1_IRQ, sgiwd93_intr);
-		free_page(KSEG0ADDR(hdata1->dma_bounce_buffer));
-		wd33c93_release();
-	}
-#endif
+
 	return 1;
 }
+
+/*
+ * Kludge alert - the SCSI code calls the abort and reset method with int
+ * arguments not with pointers.  So this is going to blow up beautyfully
+ * on 64-bit systems with memory outside the compat address spaces.
+ */
+static Scsi_Host_Template driver_template = {
+	.proc_name	     = "SGIWD93",
+	.name                = "SGI WD93",
+	.detect              = sgiwd93_detect,
+	.release             = sgiwd93_release,
+	.queuecommand        = wd33c93_queuecommand,
+	.abort               = wd33c93_abort,
+	.reset               = wd33c93_host_reset,
+	.can_queue           = CAN_QUEUE,
+	.this_id             = 7,
+	.sg_tablesize        = SG_ALL,
+	.cmd_per_lun	     = CMD_PER_LUN,
+	.use_clustering      = DISABLE_CLUSTERING,
+};
+#include "scsi_module.c"

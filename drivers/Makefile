@@ -36,6 +36,7 @@ obj-$(CONFIG_MAC)		+= macintosh/
 obj-$(CONFIG_PARIDE) 		+= block/paride/
 obj-$(CONFIG_TC)		+= tc/
 obj-$(CONFIG_USB)		+= usb/
+obj-$(CONFIG_USB_GADGET)	+= usb/gadget/
 obj-$(CONFIG_INPUT)		+= input/
 obj-$(CONFIG_GAMEPORT)		+= input/gameport/
 obj-$(CONFIG_SERIO)		+= input/serio/

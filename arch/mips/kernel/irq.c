@@ -119,7 +119,7 @@ skip:
 	return 0;
 }
 
-#if CONFIG_SMP
+#ifdef CONFIG_SMP
 inline void synchronize_irq(void)
 {
 	while (irq_desc[irq].status & IRQ_INPROGRESS)
@@ -767,7 +767,7 @@ out:
 	return 0;
 }
 
-#if CONFIG_SMP
+#ifdef CONFIG_SMP
 
 static struct proc_dir_entry * smp_affinity_entry [NR_IRQS];
 
@@ -846,7 +846,7 @@ static void register_irq_proc (unsigned int irq)
 	/* create /proc/irq/1234 */
 	irq_dir[irq] = proc_mkdir(name, root_irq_dir);
 
-#if CONFIG_SMP
+#ifdef CONFIG_SMP
 	{
 		struct proc_dir_entry *entry;
 

@@ -227,7 +227,12 @@ static void hvc_poll(int index)
 	spin_unlock_irqrestore(&hp->lock, flags);
 }
 
+#if defined (CONFIG_XMON)
 extern unsigned long cpus_in_xmon;
+#else
+unsigned long cpus_in_xmon=0;
+#endif
+
 
 int khvcd(void *unused)
 {
@@ -252,6 +257,7 @@ int __init hvc_init(void)
 	memset(&hvc_driver, 0, sizeof(struct tty_driver));
 
 	hvc_driver.magic = TTY_DRIVER_MAGIC;
+	hvc_driver.owner = THIS_MODULE;
 	hvc_driver.driver_name = "hvc";
 	hvc_driver.name = "hvc/";
 	hvc_driver.major = HVC_MAJOR;
@@ -277,7 +283,7 @@ int __init hvc_init(void)
 	for (i = 0; i < hvc_driver.num; i++) {
 		hvc_struct[i].lock = SPIN_LOCK_UNLOCKED;
 		hvc_struct[i].index = i;
-		tty_register_device(&hvc_driver, i);
+		tty_register_device(&hvc_driver, i, NULL);
 	}
 
 	if (tty_register_driver(&hvc_driver))
