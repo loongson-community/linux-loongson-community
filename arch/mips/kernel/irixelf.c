@@ -31,9 +31,10 @@
 #include <linux/elfcore.h>
 #include <linux/smp_lock.h>
 
-#include <asm/uaccess.h>
 #include <asm/mipsregs.h>
+#include <asm/namei.h>
 #include <asm/prctl.h>
+#include <asm/uaccess.h>
 
 #define DLINFO_ITEMS 12
 
@@ -399,22 +400,16 @@ static int verify_binary(struct elfhdr *ehp, struct linux_binprm *bprm)
 		return -ENOEXEC;
 	}
 
-	/* Only support MIPS ARCH2 or greater IRIX binaries for now. */
-	if(!(ehp->e_flags & EF_MIPS_ARCH) && !(ehp->e_flags & 0x04)) {
-		return -ENOEXEC;
-	}
-
 	/* XXX Don't support N32 or 64bit binaries yet because they can
 	 * XXX and do execute 64 bit instructions and expect all registers
 	 * XXX to be 64 bit as well.  We need to make the kernel save
 	 * XXX all registers as 64bits on cpu's capable of this at
 	 * XXX exception time plus frob the XTLB exception vector.
 	 */
-	if((ehp->e_flags & EF_MIPS_ABI2)) {
+	if((ehp->e_flags & EF_MIPS_ABI2))
 		return -ENOEXEC;
-	}
 
-	return 0; /* It's ok. */
+	return 0;
 }
 
 /*
@@ -422,47 +417,53 @@ static int verify_binary(struct elfhdr *ehp, struct linux_binprm *bprm)
  * use interpreters with 'libc.so' in the name, so this function
  * can differentiate between Linux and Irix binaries.
  */
-#define IRIX_INTERP_PREFIX "/usr/gnemul/irix"
-
 static inline int look_for_irix_interpreter(char **name,
 					    struct file **interpreter,
 					    struct elfhdr *interp_elf_ex,
-					    struct elf_phdr *ihdr,
-					    struct linux_binprm *bprm)
+					    struct elf_phdr *epp,
+					    struct linux_binprm *bprm, int pnum)
 {
+	int i;
 	int retval = -EINVAL;
 	struct file *file = NULL;
 
-	*name = kmalloc((ihdr->p_filesz + strlen(IRIX_INTERP_PREFIX)),
-			GFP_KERNEL);
-	if (!*name)
-		return -ENOMEM;
+	*name = NULL;
+	for(i = 0; i < pnum; i++, epp++) {
+		if (epp->p_type != PT_INTERP)
+			continue;
 
-	strcpy(*name, IRIX_INTERP_PREFIX);
-	retval = kernel_read(bprm->file, ihdr->p_offset, (*name + 16),
-	                     ihdr->p_filesz);
-	if (retval < 0)
-		goto out;
+		/* It is illegal to have two interpreters for one executable. */
+		if (*name != NULL)
+			goto out;
 
-	file = open_exec(*name);
-	if (IS_ERR(file)) {
-		retval = PTR_ERR(file);
-		goto out;
+		*name = (char *) kmalloc((epp->p_filesz +
+					  strlen(IRIX_EMUL)),
+					 GFP_KERNEL);
+		if (!*name)
+			return -ENOMEM;
+
+		strcpy(*name, IRIX_EMUL);
+		retval = kernel_read(bprm->file, epp->p_offset, (*name + 16),
+		                     epp->p_filesz);
+		if (retval < 0)
+			goto out;
+
+		file = open_exec(*name);
+		if (IS_ERR(file)) {
+			retval = PTR_ERR(file);
+			goto out;
+		}
+		retval = kernel_read(file, 0, bprm->buf, 128);
+		if (retval < 0)
+			goto dput_and_out;
+
+		*interp_elf_ex = *(struct elfhdr *) bprm->buf;
 	}
-
-	retval = kernel_read(file, 0, bprm->buf, 128);
-	if (retval < 0)
-		goto dput_and_out;
-
-	*interp_elf_ex = *(struct elfhdr *) bprm->buf;
-
 	*interpreter = file;
-
 	return 0;
 
 dput_and_out:
 	fput(file);
-
 out:
 	kfree(*name);
 	return retval;
@@ -601,16 +602,26 @@ static int load_irix_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 	elf_ex = *((struct elfhdr *) bprm->buf);
 	retval = -ENOEXEC;
 
-	/*
-	 * Here until I figure out why NFS filesystems are having
-	 * problems with this code. I suspect locking of some sort,
-	 * but for now we'll have to disable IRIX support.
-	 */
-#if 1
-	goto out;
-#endif
-
 	if (verify_binary(&elf_ex, bprm))
+		goto out;
+
+	/*
+	 * Telling -o32 static binaries from Linux and Irix apart from each
+	 * other is difficult. There are 2 differences to be noted for static
+	 * binaries from the 2 operating systems:
+	 *
+	 *    1) Irix binaries have their .text section before their .init
+	 *       section. Linux binaries are just the opposite.
+	 *
+	 *    2) Irix binaries usually have <= 12 sections and Linux
+	 *       binaries have > 20.
+	 *
+	 * We will use Method #2 since Method #1 would require us to read in
+	 * the section headers which is way too much overhead. This appears
+	 * to work for everything we have ran into so far. If anyone has a
+	 * better method to tell the binaries apart, I'm listening.
+	 */
+	if (elf_ex.e_shnum > 20)
 		goto out;
 
 #ifdef DEBUG_ELF
@@ -628,7 +639,6 @@ static int load_irix_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 	}
 
 	retval = kernel_read(bprm->file, elf_ex.e_phoff, (char *)elf_phdata, size);
-
 	if (retval < 0)
 		goto out_free_ph;
 
@@ -669,7 +679,8 @@ static int load_irix_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 	 * which should be the normal ELF binary handler.
 	 */
 	retval = look_for_irix_interpreter(&elf_interpreter, &interpreter,
-					   &interp_elf_ex, elf_ihdr, bprm);
+					   &interp_elf_ex, elf_phdata, bprm,
+					   elf_ex.e_phnum);
 	if (retval) {
 		retval = -ENOEXEC;
 		goto out_free_file;
@@ -826,13 +837,6 @@ static int load_irix_library(struct file *file)
 	if(elf_ex.e_type != ET_EXEC || elf_ex.e_phnum > 2 ||
 	   !file->f_op->mmap)
 		return -ENOEXEC;
-
-	/*
-	 * FIXME: We need to check the SGI_ONLY flag if possible,
-	 *        for now we will issue a warning when this occurs
-	 *        which should be investigated further.
-	 */
-	printk("%s: Check SGI_ONLY flag in this library!\n", __FUNCTION__);
 
 	/* Now read in all of the header information. */
 	if(sizeof(struct elf_phdr) * elf_ex.e_phnum > PAGE_SIZE)
@@ -1318,7 +1322,7 @@ end_coredump:
 
 static int __init init_irix_binfmt(void)
 {
-	int init_inventory(void);
+	extern int init_inventory(void);
 	extern asmlinkage unsigned long sys_call_table;
 	extern asmlinkage unsigned long sys_call_table_irix5;
 
@@ -1337,7 +1341,9 @@ static int __init init_irix_binfmt(void)
 
 static void __exit exit_irix_binfmt(void)
 {
-	/* Remove the IRIX ELF loaders. */
+	/*
+	 * Remove the Irix ELF loader.
+	 */
 	unregister_binfmt(&irix_format);
 }
 
