@@ -1,17 +1,16 @@
-/* $Id: r4k_fpu.S,v 1.1 1999/09/27 16:01:38 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
  * Save/restore floating point context for signal handlers.
  *
- * Copyright (C) 1996, 1998, 1999 by Ralf Baechle
+ * Copyright (C) 1996, 1998, 1999, 2001 by Ralf Baechle
  *
  * Multi-arch abstraction and asm macros for easier reading:
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * Copyright (C) 1999 Silicon Graphics, Inc.
+ * Copyright (C) 1999, 2001 Silicon Graphics, Inc.
  */
 #include <asm/asm.h>
 #include <asm/errno.h>
@@ -141,6 +140,7 @@ LEAF(restore_fp_context)
 	jr	ra
 	 li	v0, 0					# success
 	END(restore_fp_context)
+	.set	reorder
 
 	.type	fault@function
 	.ent	fault
