@@ -42,6 +42,7 @@
 #include <linux/init.h>
 #include <linux/irq.h>
 #include <linux/kernel.h>
+#include <linux/smp.h>
 #include <linux/types.h>
 
 #include <asm/cpu.h>

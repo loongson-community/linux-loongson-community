@@ -42,6 +42,7 @@
 #include <linux/init.h>
 #include <linux/types.h>
 #include <linux/serial.h>
+#include <linux/smp.h>
 
 #include <asm/addrspace.h>
 #include <asm/cpu.h>

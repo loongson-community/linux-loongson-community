@@ -40,6 +40,7 @@
  *  - Added support for NEC VR4133.
  */
 #include <linux/init.h>
+#include <linux/smp.h>
 #include <linux/types.h>
 
 #include <asm/cpu.h>
