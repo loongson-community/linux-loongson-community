@@ -155,9 +155,9 @@ void corehi_irqdispatch(struct pt_regs *regs)
         case MIPS_REVISION_CORID_CORE_FPGAR2:
                 data = GT_READ(GT_INTRCAUSE_OFS);
                 printk("GT_INTRCAUSE = %08x\n", data);
-                data = GT_READ(GT_BERRLO_OFS);
-                datahi = GT_READ(GT_BERRHI_OFS);
-                printk("GT_CPU_ERR_ADDR = %02x%08x\n", datahi, data);
+                data = GT_READ(GT_CPUERR_ADDRLO_OFS);
+                datahi = GT_READ(GT_CPUERR_ADDRHI_OFS);
+                printk("GT_CPUERR_ADDR = %02x%08x\n", datahi, data);
                 break;
         case MIPS_REVISION_CORID_BONITO64:
         case MIPS_REVISION_CORID_CORE_20K:

@@ -46,11 +46,7 @@
 #define GT_PCI0IOHD_OFS		0x050
 #define GT_PCI0M0LD_OFS		0x058
 #define GT_PCI0M0HD_OFS		0x060
-
 #define GT_ISD_OFS		0x068
-
-#define GT_BERRLO_OFS		0x070
-#define GT_BERRHI_OFS		0x078
 
 #define GT_PCI0M1LD_OFS		0x080
 #define GT_PCI0M1HD_OFS		0x088
@@ -74,6 +70,14 @@
 #define GT_PCI1IOREMAP_OFS	0x108
 #define GT_PCI1M0REMAP_OFS	0x110
 #define GT_PCI1M1REMAP_OFS	0x118
+
+/* CPU Error Report.  */
+#define GT_CPUERR_ADDRLO_OFS	0x070
+#define GT_CPUERR_ADDRHI_OFS	0x078
+
+#define GT_CPUERR_DATALO_OFS	0x128			/* GT-64120A only  */
+#define GT_CPUERR_DATAHI_OFS	0x130			/* GT-64120A only  */
+#define GT_CPUERR_PARITY_OFS	0x138			/* GT-64120A only  */
 
 /* CPU Sync Barrier.  */
 #define GT_PCI0SYNC_OFS		0x0c0
@@ -121,6 +125,13 @@
 #define GT_DEV_B3_OFS		0x468
 #define GT_DEV_BOOT_OFS		0x46c
 
+/* ECC.  */
+#define GT_ECC_ERRDATALO	0x480			/* GT-64120A only  */
+#define GT_ECC_ERRDATAHI	0x484			/* GT-64120A only  */
+#define GT_ECC_MEM		0x488			/* GT-64120A only  */
+#define GT_ECC_CALC		0x48c			/* GT-64120A only  */
+#define GT_ECC_ERRADDR		0x490			/* GT-64120A only  */
+
 /* DMA Record.  */
 #define GT_DMA0_CNT_OFS		0x800
 #define GT_DMA1_CNT_OFS		0x804
@@ -158,6 +169,7 @@
 #define GT_TC1_OFS		0x854
 #define GT_TC2_OFS		0x858
 #define GT_TC3_OFS		0x85c
+
 #define GT_TC_CONTROL_OFS	0x864
 
 /* PCI Internal.  */
@@ -170,14 +182,17 @@
 
 #define GT_PCI1_IACK_OFS	0xc30
 #define GT_PCI0_IACK_OFS	0xc34
+
 #define GT_PCI0_BARE_OFS	0xc3c
 #define GT_PCI0_PREFMBR_OFS	0xc40
+
 #define GT_PCI0_SCS10_BAR_OFS	0xc48
 #define GT_PCI0_SCS32_BAR_OFS	0xc4c
 #define GT_PCI0_CS20_BAR_OFS	0xc50
 #define GT_PCI0_CS3BT_BAR_OFS	0xc54
 #define GT_PCI0_SSCS10_BAR_OFS	0xc58
 #define GT_PCI0_SSCS32_BAR_OFS	0xc5c
+
 #define GT_PCI0_SCS3BT_BAR_OFS	0xc64
 
 #define GT_PCI1_CMD_OFS		0xc80
@@ -189,13 +204,16 @@
 
 #define GT_PCI1_BARE_OFS	0xcbc
 #define GT_PCI1_PREFMBR_OFS	0xcc0
+
 #define GT_PCI1_SCS10_BAR_OFS	0xcc8
 #define GT_PCI1_SCS32_BAR_OFS	0xccc
 #define GT_PCI1_CS20_BAR_OFS	0xcd0
 #define GT_PCI1_CS3BT_BAR_OFS	0xcd4
 #define GT_PCI1_SSCS10_BAR_OFS	0xcd8
 #define GT_PCI1_SSCS32_BAR_OFS	0xcdc
+
 #define GT_PCI1_SCS3BT_BAR_OFS	0xce4
+
 #define GT_PCI1_CFGADDR_OFS	0xcf0
 #define GT_PCI1_CFGDATA_OFS	0xcf4
 #define GT_PCI0_CFGADDR_OFS	0xcf8
@@ -204,16 +222,18 @@
 /* Interrupts.  */
 #define GT_INTRCAUSE_OFS	0xc18
 #define GT_INTRMASK_OFS		0xc1c
+
 #define GT_PCI0_ICMASK_OFS	0xc24
 #define GT_PCI0_SERR0MASK_OFS	0xc28
 
-#define GT_HINTRCAUSE_OFS	0xc98
-#define GT_HINTRMASK_OFS	0xc9c
-#define GT_PCI0_HICMASK_OFS	0xca4
-#define GT_PCI1_SERR1MASK_OFS	0xca8
-
 #define GT_CPU_INTSEL_OFS	0xc70
 #define GT_PCI0_INTSEL_OFS	0xc74
+
+#define GT_HINTRCAUSE_OFS	0xc98
+#define GT_HINTRMASK_OFS	0xc9c
+
+#define GT_PCI0_HICMASK_OFS	0xca4
+#define GT_PCI1_SERR1MASK_OFS	0xca8
 
 
 /*
@@ -276,6 +296,15 @@
 #define GT_CPU_WR_BIT		GT_CPU_WR_MSK
 #define GT_CPU_WR_DXDXDXDX	0
 #define GT_CPU_WR_DDDD		1
+
+
+#define GT_PCI_DCRM_SHF		21
+#define GT_PCI_LD_SHF		0
+#define GT_PCI_LD_MSK		(MSK(15) << GT_PCI_LD_SHF)
+#define GT_PCI_HD_SHF		0
+#define GT_PCI_HD_MSK		(MSK(7) << GT_PCI_LD_SHF)
+#define GT_PCI_REMAP_SHF	0
+#define GT_PCI_REMAP_MSK	(MSK(11) << GT_PCI_LD_SHF)
 
 
 #define GT_CFGADDR_CFGEN_SHF	31
