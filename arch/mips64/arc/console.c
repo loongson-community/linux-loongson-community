@@ -6,9 +6,10 @@
  * Copyright (C) 1996 David S. Miller (dm@sgi.com)
  */
 #include <linux/init.h>
+#include <linux/kernel.h>
 #include <asm/sgialib.h>
 
-void prom_putchar(char c)
+static inline void prom_putchar(char c)
 {
 	ULONG cnt;
 	CHAR it = c;
@@ -16,12 +17,25 @@ void prom_putchar(char c)
 	ArcWrite(1, &it, 1, &cnt);
 }
 
-char __init prom_getchar(void)
+static char ppbuf[1024];
+
+void prom_printf(char *fmt, ...)
 {
-	ULONG cnt;
-	CHAR c;
+	va_list args;
+	char ch, *bptr;
+	int i;
 
-	ArcRead(0, &c, 1, &cnt);
+	va_start(args, fmt);
+	i = vsprintf(ppbuf, fmt, args);
 
-	return c;
+	bptr = ppbuf;
+
+	while((ch = *(bptr++)) != 0) {
+		if(ch == '\n')
+			prom_putchar('\r');
+
+		prom_putchar(ch);
+	}
+	va_end(args);
+	return;
 }

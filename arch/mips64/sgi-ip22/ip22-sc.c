@@ -1,5 +1,4 @@
-/* $Id: ip22-sc.c,v 1.2 1999/12/04 03:59:01 ralf Exp $
- *
+/*
  * indy_sc.c: Indy cache management functions.
  *
  * Copyright (C) 1997 Ralf Baechle (ralf@gnu.org),
@@ -16,7 +15,6 @@
 #include <asm/pgtable.h>
 #include <asm/system.h>
 #include <asm/bootinfo.h>
-#include <asm/sgialib.h>
 #include <asm/mmu_context.h>
 
 /* Secondary cache size in bytes, if present.  */

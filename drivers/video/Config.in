@@ -408,5 +408,4 @@ if [ "$CONFIG_FB" = "y" ]; then
       fi
    fi
 fi
-
 endmenu

@@ -1,5 +1,4 @@
-/* $Id: ip22-mc.c,v 1.2 1999/10/19 20:51:52 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
@@ -7,6 +6,7 @@
  * indy_mc.c: Routines for manipulating the INDY memory controller.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
+ * Copyright (C) 2001 Ralf Baechle (ralf@gnu.org)
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -15,7 +15,6 @@
 #include <asm/ptrace.h>
 #include <asm/sgi/sgimc.h>
 #include <asm/sgi/sgihpc.h>
-#include <asm/sgialib.h>
 
 /* #define DEBUG_SGIMC */
 

@@ -227,7 +227,6 @@ CONFIG_NETDEVICES=y
 # CONFIG_DUMMY is not set
 # CONFIG_SLIP is not set
 # CONFIG_PPP is not set
-CONFIG_DECLANCE=y
 
 #
 # DECStation Character devices

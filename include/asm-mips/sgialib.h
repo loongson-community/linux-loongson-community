@@ -98,7 +98,7 @@ extern void prom_halt(void) __attribute__((noreturn));
 extern void prom_powerdown(void) __attribute__((noreturn));
 extern void prom_restart(void) __attribute__((noreturn));
 extern void prom_reboot(void) __attribute__((noreturn));
-extern void prom_imode(void) __attribute__((noreturn));
+extern void ArcEnterInteractiveMode(void) __attribute__((noreturn));
 extern long prom_cfgsave(void);
 extern struct linux_sysid *prom_getsysid(void);
 extern void prom_cacheflush(void);

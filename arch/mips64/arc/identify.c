@@ -46,10 +46,7 @@ string_to_mach(const char *s)
 		if(!strcmp(s, mach_table[i].name))
 			return &mach_table[i];
 	}
-	prom_printf("\nYeee, could not determine architecture type <%s>\n", s);
-	prom_printf("press a key to reboot\n");
-	prom_getchar();
-	ArcEnterInteractiveMode();
+	panic("\nYeee, could not determine architecture type <%s>", s);
 
 	return NULL;
 }

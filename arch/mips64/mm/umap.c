@@ -106,7 +106,8 @@ EXPORT_SYMBOL(remove_mapping);
 
 void *vmalloc_uncached (unsigned long size)
 {
-	return vmalloc_prot (size, PAGE_KERNEL_UNCACHED);
+	return __vmalloc (size, GFP_KERNEL | __GFP_HIGHMEM,
+				PAGE_KERNEL_UNCACHED);
 }
 
 static inline void free_pte(pte_t page)

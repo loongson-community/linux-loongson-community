@@ -173,6 +173,16 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
       tristate '    D-Link DE600 pocket adapter support' CONFIG_DE600
       tristate '    D-Link DE620 pocket adapter support' CONFIG_DE620
    fi
+   if [ "$CONFIG_SGI_IP22" = "y" ]; then
+      bool '  SGI Seeq ethernet controller support' CONFIG_SGISEEQ
+   fi
+   if [ "$CONFIG_DECSTATION" = "y" ]; then
+      bool '  DEC LANCE ethernet controller support' CONFIG_DECLANCE
+   fi 
+   if [ "$CONFIG_BAGET_MIPS" = "y" ]; then
+      tristate '  Baget AMD LANCE support' CONFIG_BAGETLANCE
+      tristate '  Baget Backplane Shared Memory support' CONFIG_BAGETBSM
+   fi
 fi
 
 endmenu

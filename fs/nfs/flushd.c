@@ -175,6 +175,7 @@ static void inode_append_flushd(struct inode *inode)
 	NFS_FLAGS(inode) |= NFS_INO_FLUSH;
 	atomic_inc(&inode->i_count);
  out:
+	return;
 }
 
 void inode_remove_flushd(struct inode *inode)

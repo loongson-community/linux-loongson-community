@@ -99,7 +99,9 @@ EXPORT_SYMBOL(__rwsem_wake);
 /*
  * Base address of ports for Intel style I/O.
  */
+#if defined (CONFIG_PCI) || defined (CONFIG_ISA)
 EXPORT_SYMBOL(mips_io_port_base);
+#endif
 
 /*
  * Kernel hacking ...

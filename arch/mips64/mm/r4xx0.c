@@ -1017,7 +1017,7 @@ r4k_flush_cache_range_s128d32i32(struct mm_struct *mm, unsigned long start,
 	struct vm_area_struct *vma;
 	unsigned long flags;
 
-	if (CPU_CONTEXT(smp_processor_id(), mm) != 0) {
+	if (CPU_CONTEXT(smp_processor_id(), mm) != 0)
 		return;
 
 	start &= PAGE_MASK;
@@ -2384,7 +2384,11 @@ void __init ld_mmu_r4xx0(void)
 
 	printk("CPU revision is: %08x\n", read_32bit_cp0_register(CP0_PRID));
 
+#ifdef CONFIG_MIPS_UNCACHED
+	set_cp0_config(CONF_CM_CMASK, CONF_CM_UNCACHED);
+#else
 	set_cp0_config(CONF_CM_CMASK, CONF_CM_CACHABLE_NONCOHERENT);
+#endif /* UNCACHED */
 
 	probe_icache(config);
 	probe_dcache(config);

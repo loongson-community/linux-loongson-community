@@ -325,7 +325,7 @@ static void rs_start(struct tty_struct *tty)
  */
 static void batten_down_hatches(void)
 {
-	prom_imode();
+	ArcEnterInteractiveMode();
 #if 0
 	/* If we are doing kadb, we call the debugger
 	 * else we just drop into the boot monitor.
@@ -1793,13 +1793,10 @@ static inline struct sgi_zslayout *get_zs(int chip)
 {
 	extern struct hpc3_miscregs *hpc3mregs;
 
-	if(chip > 0) {
-		prom_printf("Wheee, bogus zs chip number requested.\n");
-		prom_getchar();
-		romvec->imode();
-	}
-	return (struct sgi_zslayout *) (&hpc3mregs->ser1cmd);
+	if (chip > 0)
+		panic("Wheee, bogus zs chip number requested.");
 
+	return (struct sgi_zslayout *) (&hpc3mregs->ser1cmd);
 }
 
 
@@ -1829,12 +1826,8 @@ rs_cons_check(struct sgi_serial *ss, int channel)
 	}
 	if(o && i)
 		io = 1;
-	if(ss->zs_baud != 9562) { /* Don't ask... */
-		prom_printf("BAD console baud rate %d\n", ss->zs_baud);
-		prom_getchar();
-		prom_imode();
-		panic("Console baud rate weirdness");
-	}
+	if (ss->zs_baud != 9562)	/* Don't ask... */
+		panic("Bad console baud rate %d", ss->zs_baud);
 
 
 	/* Set flag variable for this port so that it cannot be
@@ -1843,7 +1836,7 @@ rs_cons_check(struct sgi_serial *ss, int channel)
 	ss->is_cons = 1;
 
 	if(io) {
-		if(!msg_printed) {
+		if (!msg_printed) {
 			printk("zs%d: console I/O\n", ((channel>>1)&1));
 			msg_printed = 1;
 		}
@@ -1851,7 +1844,6 @@ rs_cons_check(struct sgi_serial *ss, int channel)
 	} else {
 		printk("zs%d: console %s\n", ((channel>>1)&1),
 		       (i==1 ? "input" : (o==1 ? "output" : "WEIRD")));
-
 	}
 }
 

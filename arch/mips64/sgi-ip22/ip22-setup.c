@@ -145,7 +145,7 @@ void __init ip22_setup(void)
 	 * graphics console, it is set to "d" for the first serial
 	 * line and "d2" for the second serial line.
 	 */
-	ctype = ArcArcGetEnvironmentVariable("console");
+	ctype = ArcGetEnvironmentVariable("console");
 	if(*ctype == 'd') {
 		if(*(ctype+1)=='2')
 			console_setup ("ttyS1");
