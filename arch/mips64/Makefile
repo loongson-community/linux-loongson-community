@@ -106,7 +106,7 @@ SUBDIRS		+= arch/mips/mips-boards/malta arch/mips/mips-boards/generic
 LOADADDR	:= 0x80100000
 endif
 
- #
+#
 # MIPS SEAD board
 #
 ifdef CONFIG_MIPS_SEAD

@@ -14,7 +14,7 @@ dep_bool 'Support for Alchemy Semi PB1500 board' CONFIG_MIPS_PB1500 $CONFIG_MIPS
 dep_bool 'Support for Algorithmics P4032 (EXPERIMENTAL)' CONFIG_ALGOR_P4032 $CONFIG_EXPERIMENTAL
 dep_bool 'Support for BAGET MIPS series (EXPERIMENTAL)' CONFIG_BAGET_MIPS $CONFIG_MIPS32 $CONFIG_EXPERIMENTAL
 dep_bool 'Support for Cobalt Server (EXPERIMENTAL)' CONFIG_MIPS_COBALT $CONFIG_EXPERIMENTAL
-bool 'Support for DECstations' CONFIG_DECSTATION
+dep_bool 'Support for DECstations' CONFIG_DECSTATION $CONFIG_MIPS32
 dep_bool 'Support for Galileo EV64120 Evaluation board (EXPERIMENTAL)' CONFIG_MIPS_EV64120 $CONFIG_EXPERIMENTAL
 if [ "$CONFIG_MIPS_EV64120" = "y" ]; then
    bool '  Enable Second PCI (PCI1)' CONFIG_EVB_PCI1
