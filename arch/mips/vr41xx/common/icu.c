@@ -699,8 +699,6 @@ static inline void init_vr41xx_icu_irq(void)
 
 void __init arch_init_irq(void)
 {
-	memset(irq_desc, 0, sizeof(irq_desc));
-
 	mips_cpu_irq_init(MIPS_CPU_IRQ_BASE);
 	init_vr41xx_icu_irq();
 	init_vr41xx_giuint_irq();
