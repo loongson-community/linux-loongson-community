@@ -584,11 +584,11 @@ void __init setup_arch(char **cmdline_p)
 		printk("Initial ramdisk at: 0x%p (%lu bytes)\n",
 		       (void *)initrd_start,
 		       initrd_size);
-		if ((void *)initrd_end > phys_to_virt(PFN_PHYS(max_low_pfn))) {
+		if (PHYSADDR(initrd_end) > PFN_PHYS(max_low_pfn)) {
 			printk("initrd extends beyond end of memory "
 			       "(0x%lx > 0x%p)\ndisabling initrd\n",
-			       initrd_end,
-			       phys_to_virt(PFN_PHYS(max_low_pfn)));
+			       PHYSADDR(initrd_end),
+			       PFN_PHYS(max_low_pfn));
 			initrd_start = initrd_end = 0;
 		}
 	}
