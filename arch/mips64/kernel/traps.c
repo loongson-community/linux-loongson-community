@@ -144,7 +144,11 @@ void show_trace(unsigned long *sp)
 		if ((addr >= kernel_start && addr < kernel_end) ||
 		    (addr >= module_start && addr < module_end)) { 
 
-			printk(" [<%016lx>]", addr);
+			/* Since our kernel is still at KSEG0,
+			 * truncate the address so that ksymoops
+			 * understands it.
+			 */
+			printk(" [<%08x>]", (unsigned int) addr);
 			if (++i > 40) {
 				printk(" ...");
 				break;

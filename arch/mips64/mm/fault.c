@@ -182,8 +182,9 @@ no_context:
 	 * terminate things with extreme prejudice.
 	 */
 	printk(KERN_ALERT "Cpu %d Unable to handle kernel paging request at "
-	       "address %08lx, epc == %08lx, ra == %08lx\n",
-	       smp_processor_id(), address, regs->cp0_epc, regs->regs[31]);
+	       "address %08lx, epc == %08x, ra == %08x\n",
+	       smp_processor_id(), address, (unsigned int) regs->cp0_epc,
+               (unsigned int) regs->regs[31]);
 	die("Oops", regs, write);
 	do_exit(SIGKILL);
 
