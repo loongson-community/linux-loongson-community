@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.13 1998/08/17 10:16:23 ralf Exp $
+# $Id: Makefile,v 1.12 1998/08/25 09:14:34 ralf Exp $
 #
 # This file is subject to the terms and conditions of the GNU General Public
 # License.  See the file "COPYING" in the main directory of this archive
@@ -102,17 +102,19 @@ endif
 #
 ifdef CONFIG_MIPS_JAZZ
 CORE_FILES    += arch/mips/jazz/jazz.o
-SUBDIRS       += arch/mips/jazz
-LOADADDR      += 0x80000000
+SUBDIRS       += arch/mips/jazz arch/mips/arc
+LIBS          += arch/mips/arc/arclib.a
+LOADADDR      += 0x80080000
 endif
 ifdef CONFIG_SNI_RM200_PCI
 CORE_FILES    += arch/mips/sni/sni.o
-SUBDIRS       += arch/mips/sni
-LOADADDR      += 0x80000000
+SUBDIRS       += arch/mips/sni arch/mips/arc
+LIBS          += arch/mips/arc/arclib.a
+LOADADDR      += 0x80080000
 endif
 ifdef CONFIG_SGI
-LIBS          += arch/mips/sgi/kernel/sgikern.a arch/mips/sgi/prom/promlib.a
-SUBDIRS       += arch/mips/sgi/kernel arch/mips/sgi/prom
+LIBS          += arch/mips/sgi/kernel/sgikern.a arch/mips/arc/arclib.a
+SUBDIRS       += arch/mips/sgi/kernel arch/mips/arc
 #
 # Set LOADADDR to >= 0x88069000 if you want to leave space for symmon,
 # 0x88002000 for production kernels.  Note that the value must be
