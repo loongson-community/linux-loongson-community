@@ -207,9 +207,16 @@ source fs/Config.in
 if [ "$CONFIG_VT" = "y" ]; then
   mainmenu_option next_comment
   comment 'Console drivers'
-  bool 'VGA text console' CONFIG_VGA_CONSOLE
-  bool 'Support for frame buffer devices' CONFIG_FB
-  source drivers/video/Config.in
+  if [ "$CONFIG_SGI" = "y" ]; then
+    tristate 'SGI Newport Console support' CONFIG_SGI_NEWPORT_CONSOLE
+    if [ "$CONFIG_SGI_NEWPORT_CONSOLE" != "y" ]; then
+      define_bool CONFIG_DUMMY_CONSOLE y
+    fi
+  else
+    bool 'VGA text console' CONFIG_VGA_CONSOLE
+    bool 'Support for frame buffer devices' CONFIG_FB
+    source drivers/video/Config.in
+  fi
   endmenu
 fi
 

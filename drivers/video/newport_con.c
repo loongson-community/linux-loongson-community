@@ -27,12 +27,15 @@
 #include <asm/page.h>
 #include <asm/pgtable.h>
 #include <asm/newport.h>
+#define INCLUDE_LINUX_LOGO_DATA
 #include <asm/linux_logo.h>
+
+#define LOGO_W		80
+#define LOGO_H		80
 
 extern unsigned char vga_font[];
 extern struct newport_regs *npregs;
 
-static int logo_drawn;
 static int logo_active;
 static int topscan;
 static int xcurs_correction = 29;
@@ -99,11 +102,11 @@ static inline void newport_show_logo(void)
     npregs->set.drawmode0 = (NPORT_DMODE0_DRAW | NPORT_DMODE0_BLOCK |
 			     NPORT_DMODE0_CHOST);
     
-    npregs->set.xystarti = ((newport_xsize - 80) << 16) | (0);
+    npregs->set.xystarti = ((newport_xsize - LOGO_W) << 16) | (0);
     npregs->set.xyendi = ((newport_xsize - 1) << 16);
     newport_wait();
 
-    for (i = 0; i < 80 * 80; i++)
+    for (i = 0; i < LOGO_W * LOGO_H; i++)
 	npregs->go.hostrw0 = linux_logo[i] << 24;
 }
 
@@ -306,12 +309,6 @@ static void newport_clear(struct vc_data *vc, int sy, int sx, int height, int wi
 
     if (logo_active)
 	return;
-    if (!logo_drawn) {
-	newport_show_logo();
-	logo_drawn = 1;
-	logo_active = 1;
-	return;
-    }
     
     if (ystart < yend) {
 	newport_clear_screen(sx << 3, ystart, xend, yend,
@@ -415,8 +412,17 @@ static void newport_cursor(struct vc_data *vc, int mode)
 
 static int newport_switch(struct vc_data *vc)
 {
+    static int logo_drawn = 0;
+
     topscan = 0;
     npregs->cset.topscan = 0x3ff;
+
+    if (!logo_drawn) {
+	newport_show_logo();
+	logo_drawn = 1;
+	logo_active = 1;
+    }
+
     return 1;
 }
 
