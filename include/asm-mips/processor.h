@@ -16,6 +16,7 @@
 #include <linux/threads.h>
 
 #include <asm/cachectl.h>
+#include <asm/cpu.h>
 #include <asm/mipsregs.h>
 #include <asm/system.h>
 

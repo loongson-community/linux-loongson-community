@@ -35,9 +35,6 @@
 #include <asm/dec/ioasic_addrs.h>
 #include <asm/dec/machtype.h>
 
-#include <linux/mc146818rtc.h>
-#include <linux/timex.h>
-
 
 static unsigned long dec_rtc_get_time(void)
 {
