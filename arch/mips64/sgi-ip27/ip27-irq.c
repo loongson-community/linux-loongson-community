@@ -19,11 +19,11 @@
 #include <linux/smp_lock.h>
 #include <linux/kernel_stat.h>
 #include <linux/delay.h>
+#include <linux/irq.h>
 
 #include <asm/bitops.h>
 #include <asm/bootinfo.h>
 #include <asm/io.h>
-#include <asm/irq.h>
 #include <asm/mipsregs.h>
 #include <asm/system.h>
 
@@ -281,7 +281,6 @@ static unsigned int bridge_shutdown(unsigned int irq)
         bridge_t *bridge;
         int pin, swlevel;
         int real_irq = IRQ_FROM_IRQ(irq);
-        struct irqaction **p;
 
         bridge = (bridge_t *) NODE_SWIN_BASE(NASID_FROM_PCI_IRQ(irq), 
 							WID_FROM_PCI_IRQ(irq));
@@ -307,11 +306,7 @@ static unsigned int bridge_shutdown(unsigned int irq)
 static void bridge_init(void)
 {
 	bridge_t *bridge;
-	nasid_t   nasid;
-        char    wid;
         int     bus;
-
-        nasid = get_nasid();
 
         for (bus=0; bus<num_bridges; bus++) {
           bridge = (bridge_t *) NODE_SWIN_BASE(bus_to_nid[bus],bus_to_wid[bus]);          
@@ -349,6 +344,10 @@ int setup_irq(unsigned int irq, struct irqaction *new)
 	unsigned long flags;
 
 	DBG("setup_irq: 0x%x\n", irq);
+	if (IRQ_FROM_IRQ(irq) >= NR_IRQS) {
+		printk("IRQ array overflow %d\n", irq);
+		while(1);
+	}
 	if (new->flags & SA_SAMPLE_RANDOM)
 		rand_initialize_irq(irq);
 
@@ -414,7 +413,7 @@ void free_irq(unsigned int irq, void *dev_id)
 	struct irqaction * action, **p;
 	unsigned long flags;
 
-	if (IRQ_FROM_IRQ(irq) > 9) {
+	if (IRQ_FROM_IRQ(irq) >= NR_IRQS) {
 		printk("Trying to free IRQ%d\n", irq);
 		return;
 	}
@@ -425,7 +424,7 @@ void free_irq(unsigned int irq, void *dev_id)
 		/* Found it - now free it */
 		save_and_cli(flags);
 		*p = action->next;
-		if ((!irq[irq_action]) && (irq >= BASE_PCI_IRQ))
+		if (irq >= BASE_PCI_IRQ)
 			bridge_shutdown(irq);
 		restore_flags(flags);
 		kfree(action);
