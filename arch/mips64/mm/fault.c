@@ -225,9 +225,8 @@ no_context:
 	bust_spinlocks(1);
 
 	printk(KERN_ALERT "Cpu %d Unable to handle kernel paging request at "
-	       "address %08lx, epc == %08x, ra == %08x\n",
-	       smp_processor_id(), address, (unsigned int) regs->cp0_epc,
-               (unsigned int) regs->regs[31]);
+	       "address %016lx, epc == %016lx, ra == %016lx\n",
+	       smp_processor_id(), address, regs->cp0_epc, regs->regs[31]);
 	die("Oops", regs, write);
 	do_exit(SIGKILL);
 	bust_spinlocks(0);
