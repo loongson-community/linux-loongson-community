@@ -3,7 +3,8 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 2000   Ani Joshi <ajoshi@unixbox.com>
+ * Copyright (C) 2000  Ani Joshi <ajoshi@unixbox.com>
+ * Copyright (C) 2000  Ralf Baechle <ralf@gnu.org>
  * swiped from i386, and cloned for MIPS by Geert, polished by Ralf.
  */
 #include <linux/types.h>
@@ -25,7 +26,7 @@ void *pci_alloc_consistent(struct pci_dev *hwdev, size_t size,
 
 	if (ret != NULL) {
 		memset(ret, 0, size);
-		dma_cache_inv((unsigned long) ret, size);
+		dma_cache_wback_inv((unsigned long) ret, size);
 		*dma_handle = virt_to_bus(ret);
 		ret = KSEG1ADDR(ret);
 	}
