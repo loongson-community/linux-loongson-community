@@ -50,10 +50,6 @@ extern int m41t81_probe(void);
 extern int m41t81_set_time(unsigned long);
 extern unsigned long m41t81_get_time(void);
 
-#ifdef CONFIG_SMP
-extern void prom_build_cpu_map(void);
-#endif
-
 const char *get_system_type(void)
 {
 	return "SiByte " SIBYTE_BOARD_NAME;
