@@ -305,11 +305,11 @@ typedef struct {
 typedef struct {
   u16 cam_entry_pointer;
   u16 pad;
-  u16 cam_frag2;
+  u16 cam_cap0;
   u16 pad2;
-  u16 cam_frag1;
+  u16 cam_cap1;
   u16 pad1;
-  u16 cam_frag0;
+  u16 cam_cap2;
   u16 pad0;
 } sonic_cd_t;
 
