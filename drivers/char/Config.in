@@ -66,11 +66,6 @@ if [ "$CONFIG_SERIAL_NONSTANDARD" = "y" ]; then
          bool '        Enable Au1000 serial console' CONFIG_AU1000_SERIAL_CONSOLE
      fi
 fi
-if [ "$CONFIG_MIPS_ITE8172" = "y" -o "$CONFIG_MIPS_IVR" = "y" ]; then
-   bool 'Enable Qtronix 990P Keyboard Support' CONFIG_QTRONIX_KEYBOARD
-   bool 'Enable Smart Card Reader 0 Support ' CONFIG_IT8172_SCR0
-   bool 'Enable Smart Card Reader 1 Support ' CONFIG_IT8172_SCR1
-fi
 if [ "$CONFIG_EXPERIMENTAL" = "y" -a "$CONFIG_ZORRO" = "y" ]; then
    tristate 'Commodore A2232 serial support (EXPERIMENTAL)' CONFIG_A2232
 fi
@@ -91,7 +86,7 @@ if [ "$CONFIG_FOOTBRIDGE" = "y" ]; then
      fi
    fi
 fi
-if [ "$CONFIG_IT8712" = "y" ]; then
+if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
    bool 'Enable Qtronix 990P Keyboard Support' CONFIG_QTRONIX_KEYBOARD
    if [ "$CONFIG_QTRONIX_KEYBOARD" = "y" ]; then
      define_bool CONFIG_IT8172_CIR y
