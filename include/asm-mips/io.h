@@ -19,6 +19,7 @@
 #include <asm/pgtable-bits.h>
 #include <asm/processor.h>
 #include <asm/byteorder.h>
+#include <mangle-port.h>
 
 /*
  * Slowdown I/O port space accesses for antique hardware.
@@ -394,57 +395,84 @@ out:
  */
 #define isa_check_signature(io, s, l)	check_signature(i,s,l)
 
-#define outb(val,port)							\
-do {									\
-	*(volatile u8 *)(mips_io_port_base + (port)) = __ioswab8(val);	\
-} while(0)
+static inline void __outb(unsigned char val, unsigned long port)
+{
+	port = __swizzle_addr_b(port);
 
-#define outw(val,port)							\
-do {									\
-	*(volatile u16 *)(mips_io_port_base + (port)) = __ioswab16(val);\
-} while(0)
+	*(volatile u8 *)(mips_io_port_base + port) = __ioswab8(val);
+}
 
-#define outl(val,port)							\
-do {									\
-	*(volatile u32 *)(mips_io_port_base + (port)) = __ioswab32(val);\
-} while(0)
+static inline void __outw(unsigned short val, unsigned long port)
+{
+	port = __swizzle_addr_w(port);
 
-#define outb_p(val,port)						\
-do {									\
-	*(volatile u8 *)(mips_io_port_base + (port)) = __ioswab8(val);	\
-	SLOW_DOWN_IO;							\
-} while(0)
+	*(volatile u16 *)(mips_io_port_base + port) = __ioswab16(val);
+}
 
-#define outw_p(val,port)						\
-do {									\
-	*(volatile u16 *)(mips_io_port_base + (port)) = __ioswab16(val);\
-	SLOW_DOWN_IO;							\
-} while(0)
+static inline void __outl(unsigned int val, unsigned long port)
+{
+	port = __swizzle_addr_l(port);
 
-#define outl_p(val,port)						\
-do {									\
-	*(volatile u32 *)(mips_io_port_base + (port)) = __ioswab32(val);\
-	SLOW_DOWN_IO;							\
-} while(0)
+	*(volatile u32 *)(mips_io_port_base + port) = __ioswab32(val);
+}
+
+static inline void __outb_p(unsigned char val, unsigned long port)
+{
+	port = __swizzle_addr_b(port);
+
+	*(volatile u8 *)(mips_io_port_base + port) = __ioswab8(val);
+	SLOW_DOWN_IO;
+}
+
+static inline void __outw_p(unsigned short val, unsigned long port)
+{
+	port = __swizzle_addr_w(port);
+
+	*(volatile u16 *)(mips_io_port_base + port) = __ioswab16(val);
+	SLOW_DOWN_IO;
+}
+
+static inline void __outl_p(unsigned int val, unsigned long port)
+{
+	port = __swizzle_addr_l(port);
+
+	*(volatile u32 *)(mips_io_port_base + port) = __ioswab32(val);
+	SLOW_DOWN_IO;
+}
+
+#define outb(val, port)		__outb(val, port)
+#define outw(val, port)		__outw(val, port)
+#define outl(val, port)		__outl(val, port)
+#define outb_p(val, port)	__outb_p(val, port)
+#define outw_p(val, port)	__outw_p(val, port)
+#define outl_p(val, port)	__outl_p(val, port)
 
 static inline unsigned char __inb(unsigned long port)
 {
+	port = __swizzle_addr_b(port);
+
 	return __ioswab8(*(volatile u8 *)(mips_io_port_base + port));
 }
 
 static inline unsigned short __inw(unsigned long port)
 {
+	port = __swizzle_addr_w(port);
+
 	return __ioswab16(*(volatile u16 *)(mips_io_port_base + port));
 }
 
 static inline unsigned int __inl(unsigned long port)
 {
+	port = __swizzle_addr_l(port);
+
 	return __ioswab32(*(volatile u32 *)(mips_io_port_base + port));
 }
 
 static inline unsigned char __inb_p(unsigned long port)
 {
 	u8 __val;
+
+	port = __swizzle_addr_b(port);
 
 	__val = *(volatile u8 *)(mips_io_port_base + port);
 	SLOW_DOWN_IO;
@@ -456,6 +484,8 @@ static inline unsigned short __inw_p(unsigned long port)
 {
 	u16 __val;
 
+	port = __swizzle_addr_w(port);
+
 	__val = *(volatile u16 *)(mips_io_port_base + port);
 	SLOW_DOWN_IO;
 
@@ -466,8 +496,11 @@ static inline unsigned int __inl_p(unsigned long port)
 {
 	u32 __val;
 
+	port = __swizzle_addr_l(port);
+
 	__val = *(volatile u32 *)(mips_io_port_base + port);
 	SLOW_DOWN_IO;
+
 	return __ioswab32(__val);
 }
 
