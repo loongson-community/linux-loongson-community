@@ -34,7 +34,7 @@ extern void dec_init_kn03(void);
 
 extern asmlinkage void decstation_handle_int(void);
 
-volatile unsigned long irq_err_count;
+atomic_t irq_err_count;
 
 static inline void mask_irq(unsigned int irq_nr)
 {
