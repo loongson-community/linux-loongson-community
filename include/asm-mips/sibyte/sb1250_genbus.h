@@ -6,7 +6,7 @@
     *  This module contains constants and macros useful for 
     *  manipulating the SB1250's Generic Bus interface
     *  
-    *  SB1250 specification level:  0.2
+    *  SB1250 specification level:  01/02/2002
     *  
     *  Author:  Mitch Lichtenberg (mitch@sibyte.com)
     *  
@@ -127,15 +127,15 @@
 #define V_IO_IDLE_CYCLE(x)	_SB_MAKEVALUE(x,S_IO_IDLE_CYCLE)
 #define G_IO_IDLE_CYCLE(x)	_SB_GETVALUE(x,S_IO_IDLE_CYCLE,M_IO_IDLE_CYCLE)
 
-#define S_IO_CS_TO_OE		12
-#define M_IO_CS_TO_OE		_SB_MAKEMASK(2,S_IO_CS_TO_OE)
-#define V_IO_CS_TO_OE(x)	_SB_MAKEVALUE(x,S_IO_CS_TO_OE)
-#define G_IO_CS_TO_OE(x)	_SB_GETVALUE(x,S_IO_CS_TO_OE,M_IO_CS_TO_OE)
-
-#define S_IO_OE_TO_CS		14
+#define S_IO_OE_TO_CS		12
 #define M_IO_OE_TO_CS		_SB_MAKEMASK(2,S_IO_OE_TO_CS)
 #define V_IO_OE_TO_CS(x)	_SB_MAKEVALUE(x,S_IO_OE_TO_CS)
 #define G_IO_OE_TO_CS(x)	_SB_GETVALUE(x,S_IO_OE_TO_CS,M_IO_OE_TO_CS)
+
+#define S_IO_CS_TO_OE		14
+#define M_IO_CS_TO_OE		_SB_MAKEMASK(2,S_IO_CS_TO_OE)
+#define V_IO_CS_TO_OE(x)	_SB_MAKEVALUE(x,S_IO_CS_TO_OE)
+#define G_IO_CS_TO_OE(x)	_SB_GETVALUE(x,S_IO_CS_TO_OE,M_IO_CS_TO_OE)
 
 /*
  * Generic Bus Interrupt Status Register (Table 11-9)
