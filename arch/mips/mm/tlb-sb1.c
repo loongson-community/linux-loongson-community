@@ -323,6 +323,7 @@ void __update_tlb(struct vm_area_struct *vma, unsigned long address, pte_t pte)
 void tlb_init(void)
 {
 	write_c0_pagemask(PM_4K);
+	write_c0_wired(0);
 
 	/*
 	 * We don't know what state the firmware left the TLB's in, so this is

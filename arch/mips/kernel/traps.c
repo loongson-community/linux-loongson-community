@@ -872,8 +872,6 @@ void __init per_cpu_trap_init(void)
 #ifdef CONFIG_MIPS64
 	write_c0_context(((long)(&pgd_current[cpu])) << 23);
 #endif
-	write_c0_wired(0);
-
 	tlb_init();
 }
 
