@@ -32,6 +32,8 @@ extern int numa_debug(void);
 			(((p) - PLAT_NODE_DATA(n)->physstart) >> PAGE_SHIFT)
 #define PAGE_TO_PLAT_NODE(p)		(plat_pg_data_t *)((p)->zone->zone_pgdat)
 
+#ifdef CONFIG_DISCONTIGMEM
+
 /*
  * Following are macros that each numa implmentation must define.
  */
@@ -77,5 +79,7 @@ extern int numa_debug(void);
  * node's mem_map.
  */
 #define LOCAL_BASE_ADDR(kaddr)	((unsigned long)(kaddr) & ~(NODE_MAX_MEM_SIZE-1))
+
+#endif /* CONFIG_DISCONTIGMEM */
 
 #endif /* _ASM_MMZONE_H_ */

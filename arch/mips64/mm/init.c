@@ -1,4 +1,4 @@
-/* $Id: init.c,v 1.10 2000/01/29 01:41:59 ralf Exp $
+/* $Id: init.c,v 1.11 2000/02/04 07:40:24 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -38,7 +38,7 @@
 #endif
 #include <asm/mmu_context.h>
 
-static unsigned long totalram_pages = 0;
+unsigned long totalram_pages = 0;
 
 extern void show_net_buffers(void);
 
@@ -61,7 +61,7 @@ void __bad_pmd(pgd_t *pgd)
 	pgd_set(pgd, (pmd_t *) BAD_PAGETABLE);
 }
 
-extern inline void pgd_init(unsigned long page)
+void pgd_init(unsigned long page)
 {
 	unsigned long *p, *end;
 
@@ -93,7 +93,7 @@ pgd_t *get_pgd_slow(void)
 	return ret;
 }
 
-extern inline void pmd_init(unsigned long addr)
+void pmd_init(unsigned long addr)
 {
 	unsigned long *p, *end;
 
@@ -213,7 +213,7 @@ asmlinkage int sys_cacheflush(void *addr, int bytes, int cache)
  */
 unsigned long empty_zero_page, zero_page_mask;
 
-static inline unsigned long setup_zero_pages(void)
+unsigned long setup_zero_pages(void)
 {
 	unsigned long order, size, pg;
 
@@ -337,6 +337,7 @@ void show_mem(void)
 #endif
 }
 
+#ifndef CONFIG_DISCONTIGMEM
 /* References to section boundaries */
 
 extern char _ftext, _etext, _fdata, _edata;
@@ -399,6 +400,7 @@ void __init mem_init(void)
 	       datasize >> 10,
 	       initsize >> 10);
 }
+#endif /* !CONFIG_DISCONTIGMEM */
 
 #ifdef CONFIG_BLK_DEV_INITRD
 void free_initrd_mem(unsigned long start, unsigned long end)
