@@ -833,7 +833,7 @@ static unsigned int parse_hex_value (const char *buffer,
 		unsigned long count, unsigned long *ret)
 {
 	unsigned char hexnum [HEX_DIGITS];
-	unsigned long value;
+	cpumask_t value = CPU_MASK_NONE;
 	int i;
 
 	if (!count)
@@ -847,10 +847,10 @@ static unsigned int parse_hex_value (const char *buffer,
 	 * Parse the first HEX_DIGITS characters as a hex string, any non-hex
 	 * char is end-of-string. '00e1', 'e1', '00E1', 'E1' are all the same.
 	 */
-	value = 0;
 
 	for (i = 0; i < count; i++) {
-		unsigned int c = hexnum[i];
+		unsigned long c = hexnum[i];
+		int k;
 
 		switch (c) {
 			case '0' ... '9': c -= '0'; break;
@@ -859,7 +859,10 @@ static unsigned int parse_hex_value (const char *buffer,
 		default:
 			goto out;
 		}
-		value = (value << 4) | c;
+		cpus_shift_left(value, value, 4);
+		for (k = 0; k < 4; ++k)
+			if (test_bit(k, (unsigned long *)&c))
+				cpu_set(k, value);
 	}
 out:
 	*ret = value;
