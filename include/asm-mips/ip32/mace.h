@@ -43,10 +43,10 @@ typedef struct {
 } mace32_t;
 #endif
 
-#define __mace_read(reg)	\
-	(sizeof(reg) == 4 ? readl(&reg) : readq(&reg))
-#define __mace_write(val,reg)	\
-	(sizeof(reg) == 4 ? writel(val, &reg) : writeq(val, &reg))
+#define mace_read(r)	\
+	(sizeof(##r.reg) == 4 ? readl(&##r.reg) : readq(&##r.reg))
+#define mace_write(v,r)	\
+	(sizeof(##r.reg) == 4 ? writel(v,&##r.reg) : writeq(v,&##r.reg))
 
 /*
  * PCI interface
@@ -157,9 +157,9 @@ struct mace_ethernet {
 	mace32_t rx_fifo;
 };
 #define mace_eth_read(r)	\
-	__mace_read(mace->eth.##r.reg)
+	mace_read(mace->eth.##r)
 #define mace_eth_write(v,r)	\
-	__mace_write(v,mace->eth.##r.reg)
+	mace_write(v,mace->eth.##r)
 
 
 /* 
@@ -171,9 +171,9 @@ struct mace_audio {
 	mace32_t xxx;	/* later... */
 };
 #define mace_perif_audio_read(r)	\
-	__mace_read(mace->perif.audio.##r.reg)
+	mace_read(mace->perif.audio.##r)
 #define mace_perif_audio_write(v,r)	\
-	__mace_write(v,mace->perif.audio.##r.reg)
+	mace_write(v,mace->perif.audio.##r)
 
 /* ISA Control and DMA registers */
 struct mace_isactrl {
@@ -229,9 +229,9 @@ struct mace_isactrl {
 	mace64_t dp_ram[0x400];
 };
 #define mace_perif_ctrl_read(r)		\
-	__mace_read(mace->perif.ctrl.##r.reg)
+	mace_read(mace->perif.ctrl.##r)
 #define mace_perif_ctrl_write(v,r)	\
-	__mace_write(v,mace->perif.ctrl.##r.reg)
+	mace_write(v,mace->perif.ctrl.##r)
 
 /* Keyboard & Mouse registers
  * -> drivers/input/serio/maceps2.c */
