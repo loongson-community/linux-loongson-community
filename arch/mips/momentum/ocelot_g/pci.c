@@ -49,19 +49,26 @@
 void gt64240_board_pcibios_fixup_bus(struct pci_bus* c);
 
 /*  Functions to implement "pci ops"  */
-static int galileo_pcibios_read_config_word(struct pci_dev *dev,
+static int galileo_pcibios_read_config_word(int bus, int devfn,
 					    int offset, u16 * val);
-static int galileo_pcibios_read_config_byte(struct pci_dev *dev,
+static int galileo_pcibios_read_config_byte(int bus, int devfn,
 					    int offset, u8 * val);
-static int galileo_pcibios_read_config_dword(struct pci_dev *dev,
+static int galileo_pcibios_read_config_dword(int bus, int devfn,
 					     int offset, u32 * val);
-static int galileo_pcibios_write_config_byte(struct pci_dev *dev,
+static int galileo_pcibios_write_config_byte(int bus, int devfn,
 					     int offset, u8 val);
-static int galileo_pcibios_write_config_word(struct pci_dev *dev,
+static int galileo_pcibios_write_config_word(int bus, int devfn,
 					     int offset, u16 val);
-static int galileo_pcibios_write_config_dword(struct pci_dev *dev,
+static int galileo_pcibios_write_config_dword(int bus, int devfn,
 					      int offset, u32 val);
+#if 0
 static void galileo_pcibios_set_master(struct pci_dev *dev);
+#endif
+
+static int pci_read(struct pci_bus *bus, unsigned int devfs, int where,
+						int size, u32* val);
+static int pci_write(struct pci_bus *bus, unsigned int devfs, int where,
+						int size, u32 val);
 
 /*
  *  General-purpose PCI functions.
@@ -111,16 +118,15 @@ static __inline__ int pci_range_ck(unsigned char bus, unsigned char dev)
  * PCIBIOS_BAD_REGISTER_NUMBER when accessing non aligned
  */
 
-static int galileo_pcibios_read_config_dword(struct pci_dev *device,
+static int galileo_pcibios_read_config_dword(int bus, int devfn,
 					      int offset, u32* val)
 {
-	int dev, bus, func;
+	int dev, func;
 	uint32_t address_reg, data_reg;
 	uint32_t address;
 
-	bus = device->bus->number;
-	dev = PCI_SLOT(device->devfn);
-	func = PCI_FUNC(device->devfn);
+	dev = PCI_SLOT(devfn);
+	func = PCI_FUNC(devfn);
 
 	/* verify the range */
 	if (pci_range_ck(bus, dev))
@@ -152,16 +158,15 @@ static int galileo_pcibios_read_config_dword(struct pci_dev *device,
 }
 
 
-static int galileo_pcibios_read_config_word(struct pci_dev *device,
+static int galileo_pcibios_read_config_word(int bus, int devfn,
 					     int offset, u16* val)
 {
-	int dev, bus, func;
+	int dev, func;
 	uint32_t address_reg, data_reg;
 	uint32_t address;
 
-	bus = device->bus->number;
-	dev = PCI_SLOT(device->devfn);
-	func = PCI_FUNC(device->devfn);
+	dev = PCI_SLOT(devfn);
+	func = PCI_FUNC(devfn);
 
 	/* verify the range */
 	if (pci_range_ck(bus, dev))
@@ -192,16 +197,15 @@ static int galileo_pcibios_read_config_word(struct pci_dev *device,
 	return PCIBIOS_SUCCESSFUL;
 }
 
-static int galileo_pcibios_read_config_byte(struct pci_dev *device,
+static int galileo_pcibios_read_config_byte(int bus, int devfn,
 					     int offset, u8* val)
 {
-	int dev, bus, func;
+	int dev, func;
 	uint32_t address_reg, data_reg;
 	uint32_t address;
 
-	bus = device->bus->number;
-	dev = PCI_SLOT(device->devfn);
-	func = PCI_FUNC(device->devfn);
+	dev = PCI_SLOT(devfn);
+	func = PCI_FUNC(devfn);
 
 	/* verify the range */
 	if (pci_range_ck(bus, dev))
@@ -230,16 +234,15 @@ static int galileo_pcibios_read_config_byte(struct pci_dev *device,
 	return PCIBIOS_SUCCESSFUL;
 }
 
-static int galileo_pcibios_write_config_dword(struct pci_dev *device,
+static int galileo_pcibios_write_config_dword(int bus, int devfn,
 					      int offset, u32 val)
 {
-	int dev, bus, func;
+	int dev, func;
 	uint32_t address_reg, data_reg;
 	uint32_t address;
 
-	bus = device->bus->number;
-	dev = PCI_SLOT(device->devfn);
-	func = PCI_FUNC(device->devfn);
+	dev = PCI_SLOT(devfn);
+	func = PCI_FUNC(devfn);
 
 	/* verify the range */
 	if (pci_range_ck(bus, dev))
@@ -269,16 +272,15 @@ static int galileo_pcibios_write_config_dword(struct pci_dev *device,
 }
 
 
-static int galileo_pcibios_write_config_word(struct pci_dev *device,
+static int galileo_pcibios_write_config_word(int bus, int devfn,
 					     int offset, u16 val)
 {
-	int dev, bus, func;
+	int dev, func;
 	uint32_t address_reg, data_reg;
 	uint32_t address;
 
-	bus = device->bus->number;
-	dev = PCI_SLOT(device->devfn);
-	func = PCI_FUNC(device->devfn);
+	dev = PCI_SLOT(devfn);
+	func = PCI_FUNC(devfn);
 
 	/* verify the range */
 	if (pci_range_ck(bus, dev))
@@ -307,16 +309,15 @@ static int galileo_pcibios_write_config_word(struct pci_dev *device,
 	return PCIBIOS_SUCCESSFUL;
 }
 
-static int galileo_pcibios_write_config_byte(struct pci_dev *device,
+static int galileo_pcibios_write_config_byte(int bus, int devfn,
 					     int offset, u8 val)
 {
-	int dev, bus, func;
+	int dev, func;
 	uint32_t address_reg, data_reg;
 	uint32_t address;
 
-	bus = device->bus->number;
-	dev = PCI_SLOT(device->devfn);
-	func = PCI_FUNC(device->devfn);
+	dev = PCI_SLOT(devfn);
+	func = PCI_FUNC(devfn);
 
 	/* verify the range */
 	if (pci_range_ck(bus, dev))
@@ -345,6 +346,7 @@ static int galileo_pcibios_write_config_byte(struct pci_dev *device,
 	return PCIBIOS_SUCCESSFUL;
 }
 
+#if 0
 static void galileo_pcibios_set_master(struct pci_dev *dev)
 {
 	u16 cmd;
@@ -353,6 +355,7 @@ static void galileo_pcibios_set_master(struct pci_dev *dev)
 	cmd |= PCI_COMMAND_MASTER;
 	galileo_pcibios_write_config_word(dev, PCI_COMMAND, cmd);
 }
+#endif
 
 /*  Externally-expected functions.  Do not change function names  */
 
@@ -363,7 +366,7 @@ int pcibios_enable_resources(struct pci_dev *dev)
 	int idx;
 	struct resource *r;
 
-	galileo_pcibios_read_config_word(dev, PCI_COMMAND, &cmd);
+	pci_read(dev->bus, dev->devfn, PCI_COMMAND, 2, (u32*)&cmd);
 	old_cmd = cmd;
 	for (idx = 0; idx < 6; idx++) {
 		r = &dev->resource[idx];
@@ -379,7 +382,7 @@ int pcibios_enable_resources(struct pci_dev *dev)
 			cmd |= PCI_COMMAND_MEMORY;
 	}
 	if (cmd != old_cmd) {
-		galileo_pcibios_write_config_word(dev, PCI_COMMAND, cmd);
+		pci_write(dev->bus, dev->devfn, PCI_COMMAND, 2, cmd);
 	}
 
 	/*
@@ -387,19 +390,17 @@ int pcibios_enable_resources(struct pci_dev *dev)
 	 * line size = 32 bytes / sizeof dword (4) = 8.
 	 * Latency timer must be > 8.  32 is random but appears to work.
 	 */
-	galileo_pcibios_read_config_byte(dev, PCI_CACHE_LINE_SIZE, &tmp1);
+	pci_read(dev->bus, dev->devfn, PCI_CACHE_LINE_SIZE, 1, (u32*)&tmp1);
 	if (tmp1 != 8) {
 		printk(KERN_WARNING "PCI setting cache line size to 8 from "
 		       "%d\n", tmp1);
-		galileo_pcibios_write_config_byte(dev, PCI_CACHE_LINE_SIZE,
-						  8);
+		pci_write(dev->bus, dev->devfn, PCI_CACHE_LINE_SIZE, 1, 8);
 	}
-	galileo_pcibios_read_config_byte(dev, PCI_LATENCY_TIMER, &tmp1);
+	pci_read(dev->bus, dev->devfn, PCI_LATENCY_TIMER, 1, (u32*)&tmp1);
 	if (tmp1 < 32) {
 		printk(KERN_WARNING "PCI setting latency timer to 32 from %d\n",
 		       tmp1);
-		galileo_pcibios_write_config_byte(dev, PCI_LATENCY_TIMER,
-						  32);
+		pci_write(dev->bus, dev->devfn, PCI_LATENCY_TIMER, 1, 32);
 	}
 
 	return 0;
@@ -413,12 +414,12 @@ int pcibios_enable_device(struct pci_dev *dev, int mask)
 void pcibios_update_resource(struct pci_dev *dev, struct resource *root,
 			     struct resource *res, int resource)
 {
-	u32 new, check;
-	int reg;
-
 	return;
 
 #if 0
+	u32 new, check;
+	int reg;
+
 	new = res->start | (res->flags & PCI_REGION_FLAG_MASK);
 	if (resource < 6) {
 		reg = PCI_BASE_ADDRESS_0 + 4 * resource;
@@ -468,13 +469,43 @@ void pcibios_align_resource(void *data, struct resource *res,
 }
 
 struct pci_ops galileo_pci_ops = {
-	galileo_pcibios_read_config_byte,
-	galileo_pcibios_read_config_word,
-	galileo_pcibios_read_config_dword,
-	galileo_pcibios_write_config_byte,
-	galileo_pcibios_write_config_word,
-	galileo_pcibios_write_config_dword
+	.read = pci_read,
+	.write = pci_write
 };
+
+static int pci_read(struct pci_bus *bus, unsigned int devfn, int where,
+						int size, u32* val)
+{
+	switch (size) {
+		case 1:
+			return galileo_pcibios_read_config_byte(bus->number,
+					devfn, where, (u8*) val);
+		case 2:
+			return galileo_pcibios_read_config_word(bus->number,
+					devfn, where, (u16*) val);
+		case 4:
+			return galileo_pcibios_read_config_dword(bus->number,
+					devfn, where, (u32*) val);
+	}
+	return PCIBIOS_FUNC_NOT_SUPPORTED;
+}
+
+static int pci_write(struct pci_bus *bus, unsigned int devfn, int where,
+						int size, u32 val)
+{
+	switch (size) {
+		case 1:
+			return galileo_pcibios_write_config_byte(bus->number,
+					devfn, where, val);
+		case 2:
+			return galileo_pcibios_write_config_word(bus->number,
+					devfn, where, val);
+		case 4:
+			return galileo_pcibios_write_config_dword(bus->number,
+					devfn, where, val);
+	}
+	return PCIBIOS_FUNC_NOT_SUPPORTED;
+}
 
 struct pci_fixup pcibios_fixups[] = {
 	{0}

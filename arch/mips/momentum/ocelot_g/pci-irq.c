@@ -58,14 +58,17 @@ void __devinit gt64240_board_pcibios_fixup_bus(struct pci_bus *bus)
 		}
 
 		/* Assign an interrupt number for the device */
-		bus->ops->write_byte(devices, PCI_INTERRUPT_LINE, devices->irq);
+		bus->ops->write(current_bus, devices,
+			PCI_INTERRUPT_LINE, 1, devices->irq);
 
 		/* enable master for everything but the GT-64240 */
 		if (((current_bus->number != 0) && (current_bus->number != 1))
 				|| (PCI_SLOT(devices->devfn) != 0)) {
-			bus->ops->read_word(devices, PCI_COMMAND, &cmd);
+			bus->ops->read(current_bus, devices,
+					PCI_COMMAND, 2, &cmd);
 			cmd |= PCI_COMMAND_MASTER;
-			bus->ops->write_word(devices, PCI_COMMAND, cmd);
+			bus->ops->write(current_bus, devices,
+					PCI_COMMAND, 2, cmd);
 		}
 	}
 }
