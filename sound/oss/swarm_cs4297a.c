@@ -12,6 +12,7 @@
 *               BCM1250 Synchronous Serial interface
 *               (Kip Walker, Broadcom Corp.)
 *      Copyright (C) 2004  Maciej W. Rozycki
+*      Copyright (C) 2005 Ralf Baechle (ralf@linux-mips.org)
 *
 *      This program is free software; you can redistribute it and/or modify
 *      it under the terms of the GNU General Public License as published by
@@ -75,7 +76,6 @@
 #include <linux/init.h>
 #include <linux/poll.h>
 #include <linux/smp_lock.h>
-#include <linux/wrapper.h>
 
 #include <asm/byteorder.h>
 #include <asm/dma.h>
@@ -188,10 +188,6 @@ MODULE_PARM(cs_debugmask, "i");
 #define FRAME_TX_US             20
 
 #define SERDMA_NEXTBUF(d,f) (((d)->f+1) % (d)->ringsz)
-
-#ifdef CONFIG_SIBYTE_SB1250_DUART	
-extern char sb1250_duart_present[];
-#endif
 
 static const char invalid_magic[] =
     KERN_CRIT "cs4297a: invalid magic value\n";
@@ -626,7 +622,7 @@ static int init_serdma(serdma_t *dma)
         memset(dma->descrtab, 0, dma->ringsz * sizeof(serdma_descr_t));
         dma->descrtab_end = dma->descrtab + dma->ringsz;
 	/* XXX bloddy mess, use proper DMA API here ...  */
-	dma->descrtab_phys = PHYSADDR((long)dma->descrtab);
+	dma->descrtab_phys = CPHYSADDR((long)dma->descrtab);
         dma->descr_add = dma->descr_rem = dma->descrtab;
 
         /* Frame buffer area */
@@ -637,7 +633,7 @@ static int init_serdma(serdma_t *dma)
                 return -1;
         }
         memset(dma->dma_buf, 0, DMA_BUF_SIZE);
-        dma->dma_buf_phys = PHYSADDR((long)dma->dma_buf);
+        dma->dma_buf_phys = CPHYSADDR((long)dma->dma_buf);
 
         /* Samples buffer area */
         dma->sbufsz = SAMPLE_BUF_SIZE;
@@ -955,7 +951,7 @@ static void cs4297a_update_ptr(struct cs4297a_state *s, int intflag)
                                 u16 left, right;
                                 descr_a = descr->descr_a;
                                 descr->descr_a &= ~M_DMA_SERRX_SOP;
-                                if ((descr_a & M_DMA_DSCRA_A_ADDR) != PHYSADDR((long)s_ptr)) {
+                                if ((descr_a & M_DMA_DSCRA_A_ADDR) != CPHYSADDR((long)s_ptr)) {
                                         printk(KERN_ERR "cs4297a: RX Bad address (read)\n");
                                 }
                                 if (((data & 0x9800000000000000) != 0x9800000000000000) ||
@@ -1027,10 +1023,10 @@ static void cs4297a_update_ptr(struct cs4297a_state *s, int intflag)
                            be a buffer to process. */
                         do {
 				data = be64_to_cpu(*data_p);
-                                if ((descr->descr_a & M_DMA_DSCRA_A_ADDR) != PHYSADDR((long)data_p)) {
+                                if ((descr->descr_a & M_DMA_DSCRA_A_ADDR) != CPHYSADDR((long)data_p)) {
                                         printk(KERN_ERR "cs4297a: RX Bad address %d (%llx %lx)\n", d->swptr,
                                                (long long)(descr->descr_a & M_DMA_DSCRA_A_ADDR),
-                                               (long)PHYSADDR((long)data_p));
+                                               (long)CPHYSADDR((long)data_p));
                                 }
                                 if (!(data & (1LL << 63)) ||
                                     !(descr->descr_a & M_DMA_SERRX_SOP) ||
@@ -2000,7 +1996,7 @@ static int cs4297a_ioctl(struct inode *inode, struct file *file,
 			 "cs4297a: cs4297a_ioctl(): DSP_RESET\n"));
 		if (file->f_mode & FMODE_WRITE) {
 			stop_dac(s);
-			synchronize_irq();
+			synchronize_irq(s->irq);
                         s->dma_dac.count = s->dma_dac.total_bytes =
                                 s->dma_dac.blocks = s->dma_dac.wakeup = 0;
 			s->dma_dac.swptr = s->dma_dac.hwptr =
@@ -2009,7 +2005,7 @@ static int cs4297a_ioctl(struct inode *inode, struct file *file,
 		}
 		if (file->f_mode & FMODE_READ) {
 			stop_adc(s);
-			synchronize_irq();
+			synchronize_irq(s->irq);
                         s->dma_adc.count = s->dma_adc.total_bytes =
                                 s->dma_adc.blocks = s->dma_dac.wakeup = 0;
 			s->dma_adc.swptr = s->dma_adc.hwptr =
@@ -2672,6 +2668,8 @@ static int __init cs4297a_init(void)
         } while (!rval && (pwr != 0xf));
 
         if (!rval) {
+		char *sb1250_duart_present;
+
                 fs = get_fs();
                 set_fs(KERNEL_DS);
 #if 0
@@ -2693,10 +2691,10 @@ static int __init cs4297a_init(void)
 
                 cs4297a_read_ac97(s, AC97_VENDOR_ID1, &id);
 
-#ifdef CONFIG_SIBYTE_SB1250_DUART	
-		sb1250_duart_present[1] = 0;
-#endif
-                
+		sb1250_duart_present = symbol_get(sb1250_duart_present);
+		if (sb1250_duart_present)
+			sb1250_duart_present[1] = 0;
+
                 printk(KERN_INFO "cs4297a: initialized (vendor id = %x)\n", id);
 
                 CS_DBGOUT(CS_INIT | CS_FUNCTION, 2,
