@@ -8,7 +8,7 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  *
- * $Id: inode-v23.c,v 1.16 2000/07/06 14:38:10 dwmw2 Exp $
+ * $Id: inode-v23.c,v 1.17 2000/07/06 20:35:19 prumpf Exp $
  *
  *
  * Ported to Linux 2.3.x and MTD:
@@ -1453,7 +1453,6 @@ static struct inode_operations jffs_file_inode_operations =
 
 static struct file_operations jffs_dir_operations =
 {
-	read:		generic_read_dir,
 	readdir:	jffs_readdir,
 };
 
@@ -1533,16 +1532,19 @@ jffs_delete_inode(struct inode *inode)
 	
 	inode->i_size = 0;
 
-	unlock_kernel();
 	clear_inode(inode);
 
+	unlock_kernel();
 }
 
 void
 jffs_write_super(struct super_block *sb)
 {
 #ifdef USE_GC
-	jffs_garbage_collect((struct jffs_control *)sb->u.generic_sbp);
+	struct jffs_control *c = (struct jffs_control *)sb->u.generic_sbp;
+	
+	if(!c->fmc->no_call_gc)
+		jffs_garbage_collect(c);
 #endif
 }
 

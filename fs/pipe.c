@@ -8,7 +8,6 @@
 #include <linux/file.h>
 #include <linux/poll.h>
 #include <linux/malloc.h>
-#include <linux/smp_lock.h>
 #include <linux/module.h>
 #include <linux/init.h>
 
@@ -366,14 +365,12 @@ pipe_write_open(struct inode *inode, struct file *filp)
 static int
 pipe_rdwr_open(struct inode *inode, struct file *filp)
 {
-	lock_kernel();
 	down(PIPE_SEM(*inode));
 	if (filp->f_mode & FMODE_READ)
 		PIPE_READERS(*inode)++;
 	if (filp->f_mode & FMODE_WRITE)
 		PIPE_WRITERS(*inode)++;
 	up(PIPE_SEM(*inode));
-	unlock_kernel();
 
 	return 0;
 }

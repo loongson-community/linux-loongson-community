@@ -63,21 +63,16 @@ static int mtd_open(struct inode *inode, struct file *file)
 	if ((file->f_mode & 2) && (minor & 1))
 		return -EACCES;
 
-	MOD_INC_USE_COUNT;
-
 	mtd = get_mtd_device(NULL, devnum);
 		
-	if (!mtd) {
-		MOD_DEC_USE_COUNT;
+	if (!mtd)
 		return -ENODEV;
-	}
 	
 	file->private_data = mtd;
 		
 	/* You can't open it RW if it's not a writeable device */
 	if ((file->f_mode & 2) && !(mtd->flags & MTD_WRITEABLE)) {
 		put_mtd_device(mtd);
-		MOD_DEC_USE_COUNT;
 		return -EACCES;
 	}
 		
@@ -100,7 +95,6 @@ static release_t mtd_close(struct inode *inode,
 	
 	put_mtd_device(mtd);
 
-	MOD_DEC_USE_COUNT;
 	release_return(0);
 } /* mtd_close */
 
@@ -362,7 +356,7 @@ static int mtd_ioctl(struct inode *inode, struct file *file,
 } /* memory_ioctl */
 
 static struct file_operations mtd_fops = {
-
+	owner:		THIS_MODULE,
 	llseek:		mtd_lseek,     	/* lseek */
 	read:		mtd_read,	/* read */
 	write: 		mtd_write, 	/* write */

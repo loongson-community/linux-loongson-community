@@ -578,7 +578,6 @@ static inline void attempt_front_merge(request_queue_t * q,
 static inline void __make_request(request_queue_t * q, int rw,
 				  struct buffer_head * bh)
 {
-	int major = MAJOR(bh->b_rdev);
 	unsigned int sector, count;
 	int max_segments = MAX_SEGMENTS;
 	struct request * req = NULL;
@@ -589,26 +588,6 @@ static inline void __make_request(request_queue_t * q, int rw,
 
 	count = bh->b_size >> 9;
 	sector = bh->b_rsector;
-
-	if (blk_size[major]) {
-		unsigned long maxsector = (blk_size[major][MINOR(bh->b_rdev)] << 1) + 1;
-
-		if (maxsector < count || maxsector - count < sector) {
-			bh->b_state &= (1 << BH_Lock) | (1 << BH_Mapped);
-			if (!blk_size[major][MINOR(bh->b_rdev)])
-				goto end_io;
-			/* This may well happen - the kernel calls bread()
-			   without checking the size of the device, e.g.,
-			   when mounting a device. */
-			printk(KERN_INFO
-				"attempt to access beyond end of device\n");
-			printk(KERN_INFO "%s: rw=%d, want=%d, limit=%d\n",
-				kdevname(bh->b_rdev), rw,
-					(sector + count)>>1,
-					blk_size[major][MINOR(bh->b_rdev)]);
-			goto end_io;
-		}
-	}
 
 	rw_ahead = 0;	/* normal case; gets changed below for READA */
 	switch (rw) {
@@ -758,9 +737,35 @@ end_io:
 	bh->b_end_io(bh, test_bit(BH_Uptodate, &bh->b_state));
 }
 
-int generic_make_request (request_queue_t *q, int rw, struct buffer_head * bh)
+void generic_make_request (request_queue_t *q, int rw, struct buffer_head * bh)
 {
-	int ret;
+	int major = MAJOR(bh->b_rdev);
+
+	if (blk_size[major]) {
+		unsigned long maxsector = (blk_size[major][MINOR(bh->b_rdev)] << 1) + 1;
+		unsigned int sector, count;
+
+		count = bh->b_size >> 9;
+		sector = bh->b_rsector;
+
+		if (maxsector < count || maxsector - count < sector) {
+			bh->b_state &= (1 << BH_Lock) | (1 << BH_Mapped);
+			if (blk_size[major][MINOR(bh->b_rdev)]) {
+				
+				/* This may well happen - the kernel calls bread()
+				   without checking the size of the device, e.g.,
+				   when mounting a device. */
+				printk(KERN_INFO
+				       "attempt to access beyond end of device\n");
+				printk(KERN_INFO "%s: rw=%d, want=%d, limit=%d\n",
+				       kdevname(bh->b_rdev), rw,
+				       (sector + count)>>1,
+				       blk_size[major][MINOR(bh->b_rdev)]);
+			}
+			bh->b_end_io(bh, 0);
+			return;
+		}
+	}
 
 	/*
 	 * Resolve the mapping until finished. (drivers are
@@ -768,12 +773,9 @@ int generic_make_request (request_queue_t *q, int rw, struct buffer_head * bh)
 	 * by explicitly returning 0)
 	 */
 	while (q->make_request_fn) {
-		ret = q->make_request_fn(q, rw, bh);
-		if (ret > 0) {
-			q = blk_get_queue(bh->b_rdev);
-			continue;
-		}
-		return ret;
+		if (q->make_request_fn(q, rw, bh) == 0)
+			return;
+		q = blk_get_queue(bh->b_rdev);
 	}
 	/*
 	 * Does the block device want us to queue
@@ -784,16 +786,13 @@ int generic_make_request (request_queue_t *q, int rw, struct buffer_head * bh)
 	if (q && !q->plugged)
 		(q->request_fn)(q);
 	spin_unlock_irq(&io_request_lock);
-
-	return 0;
 }
 
 /* This function can be used to request a number of buffers from a block
    device. Currently the only restriction is that all buffers must belong to
    the same device */
 
-static void __ll_rw_block(int rw, int nr, struct buffer_head * bhs[],
-								int haslock)
+void ll_rw_block(int rw, int nr, struct buffer_head * bhs[])
 {
 	struct buffer_head *bh;
 	request_queue_t *q;
@@ -840,13 +839,9 @@ static void __ll_rw_block(int rw, int nr, struct buffer_head * bhs[],
 		bh = bhs[i];
 
 		/* Only one thread can actually submit the I/O. */
-		if (haslock) {
-			if (!buffer_locked(bh))
-				BUG();
-		} else {
-			if (test_and_set_bit(BH_Lock, &bh->b_state))
-				continue;
-		}
+		if (test_and_set_bit(BH_Lock, &bh->b_state))
+			continue;
+
 		set_bit(BH_Req, &bh->b_state);
 
 		/*
@@ -865,15 +860,6 @@ sorry:
 		buffer_IO_error(bhs[i]);
 }
 
-void ll_rw_block(int rw, int nr, struct buffer_head * bh[])
-{
-	__ll_rw_block(rw, nr, bh, 0);
-}
-
-void ll_rw_block_locked(int rw, int nr, struct buffer_head * bh[])
-{
-	__ll_rw_block(rw, nr, bh, 1);
-}
 
 #ifdef CONFIG_STRAM_SWAP
 extern int stram_device_init (void);
