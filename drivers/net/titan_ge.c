@@ -1387,6 +1387,7 @@ static int titan_ge_rx(struct net_device *netdev, int port_num,
 	 * port 0 only
 	 */
 	packet->checksum = ntohs((rx_desc->buffer & 0xffff0000) >> 16);
+	packet->cmd_sts = rx_desc->cmd_sts;
 
 	titan_ge_port->rx_curr_desc_q =
 	    (rx_curr_desc + 1) % TITAN_GE_RX_QUEUE;
@@ -1481,6 +1482,7 @@ static int titan_ge_receive_queue(struct net_device *netdev, unsigned int max)
 
 	while ((--max)
 	       && (titan_ge_rx(netdev, port_num, titan_ge_eth, &packet) == TITAN_OK)) {
+		skb = (struct sk_buff *) packet.skb;
 
 		titan_ge_eth->rx_ring_skbs--;
 
@@ -1516,8 +1518,6 @@ static int titan_ge_receive_queue(struct net_device *netdev, unsigned int max)
 				break;
 		}
 #endif
-		skb = (struct sk_buff *) packet.skb;
-
 		skb_put(skb, packet.len);
 
 		if (titan_ge_slowpath(skb, &packet, netdev) < 0) 
