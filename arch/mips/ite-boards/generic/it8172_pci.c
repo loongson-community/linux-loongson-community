@@ -217,6 +217,6 @@ struct pci_ops it8172_pci_ops = {
 
 unsigned __init int pcibios_assign_all_busses(void)
 {
-	eturn 1;
+	return 1;
 }
 #endif /* CONFIG_PCI */
