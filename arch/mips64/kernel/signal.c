@@ -598,11 +598,6 @@ asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 	}
 #endif
 
-#ifdef CONFIG_BINFMT_IRIX
-	if (current->personality != PER_LINUX)
-		return do_irix_signal(oldset, regs);
-#endif
-
 	if (!oldset)
 		oldset = &current->blocked;
 
