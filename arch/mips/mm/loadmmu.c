@@ -51,6 +51,7 @@ extern void ld_mmu_sb1(void);
 extern void ld_mmu_mips32(void);
 extern void r3k_tlb_init(void);
 extern void r4k_tlb_init(void);
+extern void sb1_tlb_init(void);
 
 void __init loadmmu(void)
 {
@@ -113,7 +114,7 @@ void __init loadmmu(void)
 #ifdef CONFIG_CPU_SB1
 	case CPU_SB1:
 		ld_mmu_sb1();
-		r4k_tlb_init();
+		sb1_tlb_init();
 		break;
 #endif
 	default:
