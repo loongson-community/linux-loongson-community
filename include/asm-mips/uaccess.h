@@ -1,4 +1,4 @@
-/* $Id: uaccess.h,v 1.11 2000/02/19 00:33:10 ralf Exp $
+/* $Id: uaccess.h,v 1.12 2000/02/21 18:05:07 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -407,7 +407,7 @@ __clear_user(void *addr, __kernel_size_t size)
 #define clear_user(addr,n) ({ \
 void * __cl_addr = (addr); \
 unsigned long __cl_size = (n); \
-if (__cl_size && __access_ok(VERIFY_WRITE, ((unsigned long)(__cl_addr)), __cl_size)) \
+if (__cl_size && access_ok(VERIFY_WRITE, ((unsigned long)(__cl_addr)), __cl_size)) \
 __cl_size = __clear_user(__cl_addr, __cl_size); \
 __cl_size; })
 
