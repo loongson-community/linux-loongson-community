@@ -102,7 +102,8 @@
 #define I2C_DRIVERID_ADV7170	54	/* video encoder		*/
 #define I2C_DRIVERID_SAA7114H	55     /* video decoder			*/
 #define I2C_DRIVERID_MAX1617	56     /* temp sensor			*/
-
+#define I2C_DRIVERID_SAA7191	57	/* video encoder                */
+#define I2C_DRIVERID_INDYCAM	50	/* SGI IndyCam                  */
 
 
 #define I2C_DRIVERID_EXP0	0xF0	/* experimental use id's	*/
@@ -184,7 +185,8 @@
 #define I2C_ALGO_BITHS	0x130000	/* enhanced bit style adapters	*/
 #define I2C_ALGO_OCP_IOP3XX  0x140000	/* XSCALE IOP3XX On-chip I2C alg */
 
-#define I2C_ALGO_SIBYTE 0x140000	/* Broadcom SiByte SOCs		*/
+#define I2C_ALGO_SIBYTE 0x150000	/* Broadcom SiByte SOCs		*/
+#define I2C_ALGO_SGI	0x160000        /* SGI algorithm                */
 
 #define I2C_ALGO_EXP	0x800000	/* experimental			*/
 
@@ -247,6 +249,10 @@
 
 /* --- Broadcom SiByte adapters						*/
 #define I2C_HW_SIBYTE	0x00
+
+/* --- SGI adapters							*/
+#define I2C_HW_SGI_VINO	0x00
+#define I2C_HW_SGI_MACE	0x01
 
 /* --- XSCALE on-chip adapters                          */
 #define I2C_HW_IOP321 0x00

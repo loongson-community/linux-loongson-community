@@ -19,4 +19,5 @@ obj-$(CONFIG_SCx200_ACB)	+= scx200_acb.o
 obj-$(CONFIG_I2C_SENSOR)	+= i2c-sensor.o
 obj-$(CONFIG_I2C_IOP3XX)	+= i2c-iop3xx.o
 obj-$(CONFIG_I2C_ALGO_SIBYTE)	+= i2c-algo-sibyte.o i2c-sibyte.o
+obj-$(CONFIG_I2C_ALGO_SGI)	+= i2c-algo-sgi.o
 obj-y				+= busses/ chips/
