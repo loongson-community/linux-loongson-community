@@ -333,7 +333,7 @@ if [ "$CONFIG_SGI_IP22" = "y" ]; then
       if [ "$CONFIG_SGI_NEWPORT_CONSOLE" != "y" ]; then
 	 define_bool CONFIG_DUMMY_CONSOLE y
       else
-         define_bool CONFIG_FONT_8x16 y
+	 define_bool CONFIG_FONT_8x16 y
       fi
       bool 'SGI PROM Console Support' CONFIG_SGI_PROM_CONSOLE
    fi
