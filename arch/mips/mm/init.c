@@ -1,4 +1,4 @@
-/* $Id: init.c,v 1.11 1998/08/20 14:38:41 ralf Exp $
+/* $Id: init.c,v 1.7 1998/08/25 09:14:45 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -126,6 +126,7 @@ static inline unsigned long setup_zero_pages(void)
 	case CPU_R4400SC:
 	case CPU_R4400MC:
 		order = 3;
+		break;
 	default:
 		order = 0;
 	}
