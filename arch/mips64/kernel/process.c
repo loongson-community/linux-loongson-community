@@ -33,6 +33,7 @@
 asmlinkage int cpu_idle(void)
 {
 	/* endless idle loop with no priority at all */
+	init_idle();
 	current->priority = 0;
 	current->counter = -100;
 	while (1) {

@@ -1,4 +1,4 @@
-/* $Id: system.h,v 1.4 1999/12/04 03:59:12 ralf Exp $
+/* $Id: system.h,v 1.5 2000/01/27 07:48:08 kanoj Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -105,14 +105,27 @@ __restore_flags(int flags)
 		: "$8", "$9", "memory");
 }
 
-/*
- * Non-SMP versions ...
- */
-#define sti() __sti()
+#ifdef __SMP__
+
+extern void __global_cli(void);
+extern void __global_sti(void);
+extern unsigned long __global_save_flags(void);
+extern void __global_restore_flags(unsigned long);
+#define cli() __global_cli()
+#define sti() __global_sti()
+#define save_flags(x) ((x)=__global_save_flags())
+#define restore_flags(x) __global_restore_flags(x)
+#define save_and_cli(x) do { save_flags(flags); cli(); } while(0)
+
+#else
+
 #define cli() __cli()
+#define sti() __sti()
 #define save_flags(x) __save_flags(x)
-#define save_and_cli(x) __save_and_cli(x)
 #define restore_flags(x) __restore_flags(x)
+#define save_and_cli(x) __save_and_cli(x)
+
+#endif /* __SMP__ */
 
 /* For spinlocks etc */
 #define local_irq_save(x)	__save_and_cli(x);

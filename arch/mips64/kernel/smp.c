@@ -3,18 +3,28 @@
 #include <linux/threads.h>
 #include <linux/time.h>
 #include <linux/timex.h>
+#include <linux/sched.h>
 
 #include <asm/atomic.h>
 #include <asm/processor.h>
 #include <asm/system.h>
+#include <asm/hardirq.h>
 
 /* The 'big kernel lock' */
 spinlock_t kernel_flag = SPIN_LOCK_UNLOCKED;
 
 int smp_threads_ready = 0;
 
+static void smp_tune_scheduling (void)
+{
+}
+
 void __init smp_boot_cpus(void)
 {
+	global_irq_holder = 0;
+	current->processor = 0;
+	init_idle();
+	smp_tune_scheduling();
 }
 
 static atomic_t smp_commenced = ATOMIC_INIT(0);
