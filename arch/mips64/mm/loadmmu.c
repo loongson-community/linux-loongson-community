@@ -17,7 +17,6 @@
 #include <asm/pgtable.h>
 #include <asm/system.h>
 #include <asm/bootinfo.h>
-#include <asm/sgialib.h>
 
 /* memory functions */
 void (*_clear_page)(void * page);
