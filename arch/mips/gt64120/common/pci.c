@@ -886,7 +886,7 @@ void pcibios_update_resource(struct pci_dev *dev, struct resource *root,
 }
 
 void pcibios_align_resource(void *data, struct resource *res,
-			    unsigned long size)
+			    unsigned long size, unsigned long align)
 {
 	struct pci_dev *dev = data;
 
@@ -920,7 +920,7 @@ struct pci_fixup pcibios_fixups[] = {
 	{0}
 };
 
-void __init pcibios_fixup_bus(struct pci_bus *c)
+void __devinit pcibios_fixup_bus(struct pci_bus *c)
 {
 	gt64120_board_pcibios_fixup_bus(c);
 }

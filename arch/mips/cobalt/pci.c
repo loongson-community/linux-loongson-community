@@ -416,20 +416,20 @@ int pcibios_enable_device(struct pci_dev *dev)
 }
 
 void pcibios_align_resource(void *data, struct resource *res,
-		unsigned long size)
+		unsigned long size, unsigned long align)
 {
 
 	panic("Uhhoh called pcibios_align_resource\n");
 }
 
 void pcibios_update_resource(struct pci_dev *dev, struct resource *root,
-		struct resource *res, int resource)
+	struct resource *res, int resource)
 {
 
 	panic("Uhhoh called pcibios_update_resource\n");
 }
 
-void __init pcibios_fixup_bus(struct pci_bus *bus)
+void __devinit pcibios_fixup_bus(struct pci_bus *bus)
 {
 	/* We don't have sub-busses to fixup here */
 }

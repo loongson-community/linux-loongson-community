@@ -297,7 +297,7 @@ int pcibios_enable_device(struct pci_dev *dev)
 }
 
 void pcibios_align_resource(void *data, struct resource *res,
-		       unsigned long size)
+	unsigned long size, unsigned long align)
 {
 }
 

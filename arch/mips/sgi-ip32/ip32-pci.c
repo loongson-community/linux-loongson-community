@@ -346,13 +346,13 @@ char * __init pcibios_setup (char *str)
 	return str;
 }
 
-void __init pcibios_align_resource (void *data, struct resource *res,
-				    unsigned long size)
+void pcibios_align_resource(void *data, struct resource *res,
+	unsigned long size, unsigned long align)
 {
 }
 
-void __init pcibios_update_resource (struct pci_dev *dev, struct resource *root,
-				     struct resource *res, int resource)
+void pcibios_update_resource (struct pci_dev *dev, struct resource *root,
+	struct resource *res, int resource)
 {
 }
 
@@ -361,7 +361,7 @@ void __init pcibios_update_irq (struct pci_dev *dev, int irq)
 	pci_write_config_byte (dev, PCI_INTERRUPT_LINE, irq);
 }
 
-void __init pcibios_fixup_bus (struct pci_bus *b)
+void __devinit pcibios_fixup_bus (struct pci_bus *b)
 {
 	pci_fixup_irqs (macepci_swizzle, macepci_map_irq);
 }
@@ -370,10 +370,6 @@ void __init pcibios_fixup_bus (struct pci_bus *b)
 void __init pcibios_fixup_pbus_ranges(struct pci_bus * bus,
 				      struct pbus_set_ranges_data * ranges)
 {
-	ranges->io_start -= bus->resource[0]->start;
-	ranges->io_end -= bus->resource[0]->start;
-	ranges->mem_start -= bus->resource[1]->start;
-	ranges->mem_end -= bus->resource[1]->start;
 }
 
 /*

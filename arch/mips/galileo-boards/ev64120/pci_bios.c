@@ -74,7 +74,7 @@ static void __init scan_and_initialize_pci(void);
 static u32 __init scan_pci_bus(struct pci_device *pci_devices);
 static void __init allocate_pci_space(struct pci_device *pci_devices);
 
-static void __init galileo_pcibios_fixup_bus(struct pci_bus *bus);
+static void __devinit galileo_pcibios_fixup_bus(struct pci_bus *bus);
 
 /*
  * The functions that actually read and write to the controller.
@@ -958,7 +958,7 @@ struct pci_ops galileo_pci_ops = {
  * Outpus :
  * return always mem_start
  */
-static void __init galileo_pcibios_fixup_bus(struct pci_bus *bus)
+static void __devinit galileo_pcibios_fixup_bus(struct pci_bus *bus)
 {
 	unsigned int Current_IRQ = 20;
 	struct pci_bus *current_bus = bus;
@@ -986,7 +986,7 @@ struct pci_fixup pcibios_fixups[] = {
 	{0}
 };
 
-void __init pcibios_fixup_bus(struct pci_bus *c)
+void __devinit pcibios_fixup_bus(struct pci_bus *c)
 {
 	DBG(KERN_INFO "rr: pcibios_fixup_bus\n");
 	galileo_pcibios_fixup_bus(c);

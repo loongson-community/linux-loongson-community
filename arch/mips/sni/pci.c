@@ -152,14 +152,12 @@ struct pci_ops sni_pci_ops = {
 	pcimt_write_config_dword
 };
 
-void __init
-pcibios_fixup_bus(struct pci_bus *b)
+void __devinit pcibios_fixup_bus(struct pci_bus *b)
 {
 }
 
-void
-pcibios_update_resource(struct pci_dev *dev, struct resource *root,
-			struct resource *res, int resource)
+void pcibios_update_resource(struct pci_dev *dev, struct resource *root,
+	struct resource *res, int resource)
 {
 	u32 new, check;
 	int reg;
@@ -198,8 +196,8 @@ int __init pcibios_enable_device(struct pci_dev *dev)
 	return 0;
 }
 
-void __init
-pcibios_align_resource(void *data, struct resource *res, unsigned long size)
+void pcibios_align_resource(void *data, struct resource *res,
+	unsigned long size, unsigned long align)
 {
 }
 

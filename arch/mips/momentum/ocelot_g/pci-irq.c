@@ -22,7 +22,7 @@
 #include <asm/pci.h>
 
 
-void __init gt64240_board_pcibios_fixup_bus(struct pci_bus *bus)
+void __devinit gt64240_board_pcibios_fixup_bus(struct pci_bus *bus)
 {
 	struct pci_bus *current_bus = bus;
 	struct pci_dev *devices;

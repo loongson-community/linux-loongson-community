@@ -42,250 +42,278 @@
 #include <asm/it8172/it8172_int.h>
 
 #include "ide_modes.h"
+#include "pcihost.h"
 
 /*
  * Prototypes
  */
-static void it8172_tune_drive (ide_drive_t *drive, byte pio);
+static void it8172_tune_drive(ide_drive_t * drive, byte pio);
 #if defined(CONFIG_BLK_DEV_IDEDMA) && defined(CONFIG_IT8172_TUNING)
-static byte it8172_dma_2_pio (byte xfer_rate);
-static int it8172_tune_chipset (ide_drive_t *drive, byte speed);
-static int it8172_config_chipset_for_dma (ide_drive_t *drive);
-static int it8172_dmaproc(ide_dma_action_t func, ide_drive_t *drive);
+static byte it8172_dma_2_pio(byte xfer_rate);
+static int it8172_tune_chipset(ide_drive_t * drive, byte speed);
+static int it8172_config_chipset_for_dma(ide_drive_t * drive);
+static int it8172_dmaproc(ide_dma_action_t func, ide_drive_t * drive);
 #endif
-unsigned int __init pci_init_it8172 (struct pci_dev *dev, const char *name);
-void __init ide_init_it8172 (ide_hwif_t *hwif);
+void __init pci_init_it8172(struct pci_dev *dev)
+void __init ide_init_it8172(struct ata_channel *hwif)
 
 
-static void it8172_tune_drive (ide_drive_t *drive, byte pio)
+static void it8172_tune_drive(ide_drive_t * drive, byte pio)
 {
-    unsigned long flags;
-    u16 drive_enables;
-    u32 drive_timing;
-    int is_slave	= (&HWIF(drive)->drives[1] == drive);
+	unsigned long flags;
+	u16 drive_enables;
+	u32 drive_timing;
+	int is_slave = (&HWIF(drive)->drives[1] == drive);
 
-    if (pio == 255)
-        pio = ata_timing_mode(drive, XFER_PIO | XFER_EPIO) - XFER_PIO_0;
-    else
-        pio = min_t(byte, pio, 4);
-    
-    pio = ide_get_best_pio_mode(drive, pio, 4, NULL);
-    pci_read_config_word(HWIF(drive)->pci_dev, 0x40, &drive_enables);
-    pci_read_config_dword(HWIF(drive)->pci_dev, 0x44, &drive_timing);
+	if (pio == 255)
+		pio =
+		    ata_timing_mode(drive,
+				    XFER_PIO | XFER_EPIO) - XFER_PIO_0;
+	else
+		pio = min_t(byte, pio, 4);
 
-    /*
-     * FIX! The DIOR/DIOW pulse width and recovery times in port 0x44
-     * are being left at the default values of 8 PCI clocks (242 nsec
-     * for a 33 MHz clock). These can be safely shortened at higher
-     * PIO modes. The DIOR/DIOW pulse width and recovery times only
-     * apply to PIO modes, not to the DMA modes.
-     */
-    
-    /*
-     * Enable port 0x44. The IT8172G spec is confused; it calls
-     * this register the "Slave IDE Timing Register", but in fact,
-     * it controls timing for both master and slave drives.
-     */
-    drive_enables |= 0x4000;
+	pio = ide_get_best_pio_mode(drive, pio, 4, NULL);
+	pci_read_config_word(HWIF(drive)->pci_dev, 0x40, &drive_enables);
+	pci_read_config_dword(HWIF(drive)->pci_dev, 0x44, &drive_timing);
 
-    if (is_slave) {
-	drive_enables &= 0xc006;
-	if (pio > 1)
-	    /* enable prefetch and IORDY sample-point */
-	    drive_enables |= 0x0060;
-    } else {
-	drive_enables &= 0xc060;
-	if (pio > 1)
-	    /* enable prefetch and IORDY sample-point */
-	    drive_enables |= 0x0006;
-    }
+	/*
+	 * FIX! The DIOR/DIOW pulse width and recovery times in port 0x44
+	 * are being left at the default values of 8 PCI clocks (242 nsec
+	 * for a 33 MHz clock). These can be safely shortened at higher
+	 * PIO modes. The DIOR/DIOW pulse width and recovery times only
+	 * apply to PIO modes, not to the DMA modes.
+	 */
 
-    save_flags(flags);
-    cli();
-    pci_write_config_word(HWIF(drive)->pci_dev, 0x40, drive_enables);
-    restore_flags(flags);
+	/*
+	 * Enable port 0x44. The IT8172G spec is confused; it calls
+	 * this register the "Slave IDE Timing Register", but in fact,
+	 * it controls timing for both master and slave drives.
+	 */
+	drive_enables |= 0x4000;
+
+	if (is_slave) {
+		drive_enables &= 0xc006;
+		if (pio > 1)
+			/* enable prefetch and IORDY sample-point */
+			drive_enables |= 0x0060;
+	} else {
+		drive_enables &= 0xc060;
+		if (pio > 1)
+			/* enable prefetch and IORDY sample-point */
+			drive_enables |= 0x0006;
+	}
+
+	save_flags(flags);
+	cli();
+	pci_write_config_word(HWIF(drive)->pci_dev, 0x40, drive_enables);
+	restore_flags(flags);
 }
 
 #if defined(CONFIG_BLK_DEV_IDEDMA) && defined(CONFIG_IT8172_TUNING)
 /*
  *
  */
-static byte it8172_dma_2_pio (byte xfer_rate)
+static byte it8172_dma_2_pio(byte xfer_rate)
 {
-    switch(xfer_rate) {
-    case XFER_UDMA_5:
-    case XFER_UDMA_4:
-    case XFER_UDMA_3:
-    case XFER_UDMA_2:
-    case XFER_UDMA_1:
-    case XFER_UDMA_0:
-    case XFER_MW_DMA_2:
-    case XFER_PIO_4:
-	return 4;
-    case XFER_MW_DMA_1:
-    case XFER_PIO_3:
-	return 3;
-    case XFER_SW_DMA_2:
-    case XFER_PIO_2:
-	return 2;
-    case XFER_MW_DMA_0:
-    case XFER_SW_DMA_1:
-    case XFER_SW_DMA_0:
-    case XFER_PIO_1:
-    case XFER_PIO_0:
-    case XFER_PIO_SLOW:
-    default:
-	return 0;
-    }
+	switch (xfer_rate) {
+	case XFER_UDMA_5:
+	case XFER_UDMA_4:
+	case XFER_UDMA_3:
+	case XFER_UDMA_2:
+	case XFER_UDMA_1:
+	case XFER_UDMA_0:
+	case XFER_MW_DMA_2:
+	case XFER_PIO_4:
+		return 4;
+	case XFER_MW_DMA_1:
+	case XFER_PIO_3:
+		return 3;
+	case XFER_SW_DMA_2:
+	case XFER_PIO_2:
+		return 2;
+	case XFER_MW_DMA_0:
+	case XFER_SW_DMA_1:
+	case XFER_SW_DMA_0:
+	case XFER_PIO_1:
+	case XFER_PIO_0:
+	case XFER_PIO_SLOW:
+	default:
+		return 0;
+	}
 }
 
-static int it8172_tune_chipset (ide_drive_t *drive, byte speed)
+static int it8172_tune_chipset(ide_drive_t * drive, byte speed)
 {
-    ide_hwif_t *hwif	= HWIF(drive);
-    struct pci_dev *dev	= hwif->pci_dev;
-    int a_speed		= 3 << (drive->dn * 4);
-    int u_flag		= 1 << drive->dn;
-    int u_speed		= 0;
-    int err		= 0;
-    byte reg48, reg4a;
+	ide_hwif_t *hwif = HWIF(drive);
+	struct pci_dev *dev = hwif->pci_dev;
+	int a_speed = 3 << (drive->dn * 4);
+	int u_flag = 1 << drive->dn;
+	int u_speed = 0;
+	int err = 0;
+	byte reg48, reg4a;
 
-    pci_read_config_byte(dev, 0x48, &reg48);
-    pci_read_config_byte(dev, 0x4a, &reg4a);
+	pci_read_config_byte(dev, 0x48, &reg48);
+	pci_read_config_byte(dev, 0x4a, &reg4a);
 
-    /*
-     * Setting the DMA cycle time to 2 or 3 PCI clocks (60 and 91 nsec
-     * at 33 MHz PCI clock) seems to cause BadCRC errors during DMA
-     * transfers on some drives, even though both numbers meet the minimum
-     * ATAPI-4 spec of 73 and 54 nsec for UDMA 1 and 2 respectively.
-     * So the faster times are just commented out here. The good news is
-     * that the slower cycle time has very little affect on transfer
-     * performance.
-     */
-    
-    switch(speed) {
-    case XFER_UDMA_4:
-    case XFER_UDMA_2:	//u_speed = 2 << (drive->dn * 4); break;
-    case XFER_UDMA_5:
-    case XFER_UDMA_3:
-    case XFER_UDMA_1:	//u_speed = 1 << (drive->dn * 4); break;
-    case XFER_UDMA_0:	u_speed = 0 << (drive->dn * 4); break;
-    case XFER_MW_DMA_2:
-    case XFER_MW_DMA_1:
-    case XFER_MW_DMA_0:
-    case XFER_SW_DMA_2:	break;
-    default:		return -1;
-    }
+	/*
+	 * Setting the DMA cycle time to 2 or 3 PCI clocks (60 and 91 nsec
+	 * at 33 MHz PCI clock) seems to cause BadCRC errors during DMA
+	 * transfers on some drives, even though both numbers meet the minimum
+	 * ATAPI-4 spec of 73 and 54 nsec for UDMA 1 and 2 respectively.
+	 * So the faster times are just commented out here. The good news is
+	 * that the slower cycle time has very little affect on transfer
+	 * performance.
+	 */
 
-    if (speed >= XFER_UDMA_0) {
-	pci_write_config_byte(dev, 0x48, reg48 | u_flag);
-	reg4a &= ~a_speed;
-	pci_write_config_byte(dev, 0x4a, reg4a | u_speed);
-    } else {
-	pci_write_config_byte(dev, 0x48, reg48 & ~u_flag);
-	pci_write_config_byte(dev, 0x4a, reg4a & ~a_speed);
-    }
+	switch (speed) {
+	case XFER_UDMA_4:
+	case XFER_UDMA_2:	//u_speed = 2 << (drive->dn * 4); break;
+	case XFER_UDMA_5:
+	case XFER_UDMA_3:
+	case XFER_UDMA_1:	//u_speed = 1 << (drive->dn * 4); break;
+	case XFER_UDMA_0:
+		u_speed = 0 << (drive->dn * 4);
+		break;
+	case XFER_MW_DMA_2:
+	case XFER_MW_DMA_1:
+	case XFER_MW_DMA_0:
+	case XFER_SW_DMA_2:
+		break;
+	default:
+		return -1;
+	}
 
-    it8172_tune_drive(drive, it8172_dma_2_pio(speed));
+	if (speed >= XFER_UDMA_0) {
+		pci_write_config_byte(dev, 0x48, reg48 | u_flag);
+		reg4a &= ~a_speed;
+		pci_write_config_byte(dev, 0x4a, reg4a | u_speed);
+	} else {
+		pci_write_config_byte(dev, 0x48, reg48 & ~u_flag);
+		pci_write_config_byte(dev, 0x4a, reg4a & ~a_speed);
+	}
 
-    if (!drive->init_speed)
-	drive->init_speed = speed;
-    err = ide_config_drive_speed(drive, speed);
-    drive->current_speed = speed;
-    return err;
+	it8172_tune_drive(drive, it8172_dma_2_pio(speed));
+
+	if (!drive->init_speed)
+		drive->init_speed = speed;
+	err = ide_config_drive_speed(drive, speed);
+	drive->current_speed = speed;
+	return err;
 }
 
-static int it8172_config_chipset_for_dma (ide_drive_t *drive)
+static int it8172_config_chipset_for_dma(ide_drive_t * drive)
 {
-    struct hd_driveid *id = drive->id;
-    byte speed;
+	struct hd_driveid *id = drive->id;
+	byte speed;
 
-    if (id->dma_ultra & 0x0010) {
-	speed = XFER_UDMA_2;
-    } else if (id->dma_ultra & 0x0008) {
-	speed = XFER_UDMA_1;
-    } else if (id->dma_ultra & 0x0004) {
-	speed = XFER_UDMA_2;
-    } else if (id->dma_ultra & 0x0002) {
-	speed = XFER_UDMA_1;
-    } else if (id->dma_ultra & 0x0001) {
-	speed = XFER_UDMA_0;
-    } else if (id->dma_mword & 0x0004) {
-	speed = XFER_MW_DMA_2;
-    } else if (id->dma_mword & 0x0002) {
-	speed = XFER_MW_DMA_1;
-    } else if (id->dma_mword & 0x0001) {
-	speed = XFER_MW_DMA_0;
-    } else if (id->dma_1word & 0x0004) {
-	speed = XFER_SW_DMA_2;
-    } else {
-	speed = XFER_PIO_0 + ide_get_best_pio_mode(drive, 255, 4, NULL);
-    }
+	if (id->dma_ultra & 0x0010) {
+		speed = XFER_UDMA_2;
+	} else if (id->dma_ultra & 0x0008) {
+		speed = XFER_UDMA_1;
+	} else if (id->dma_ultra & 0x0004) {
+		speed = XFER_UDMA_2;
+	} else if (id->dma_ultra & 0x0002) {
+		speed = XFER_UDMA_1;
+	} else if (id->dma_ultra & 0x0001) {
+		speed = XFER_UDMA_0;
+	} else if (id->dma_mword & 0x0004) {
+		speed = XFER_MW_DMA_2;
+	} else if (id->dma_mword & 0x0002) {
+		speed = XFER_MW_DMA_1;
+	} else if (id->dma_mword & 0x0001) {
+		speed = XFER_MW_DMA_0;
+	} else if (id->dma_1word & 0x0004) {
+		speed = XFER_SW_DMA_2;
+	} else {
+		speed =
+		    XFER_PIO_0 + ide_get_best_pio_mode(drive, 255, 4,
+						       NULL);
+	}
 
-    (void) it8172_tune_chipset(drive, speed);
+	(void) it8172_tune_chipset(drive, speed);
 
-    return ((int)((id->dma_ultra >> 11) & 7) ? ide_dma_on :
-	    ((id->dma_ultra >> 8) & 7) ? ide_dma_on :
-	    ((id->dma_mword >> 8) & 7) ? ide_dma_on :
-	    ((id->dma_1word >> 8) & 7) ? ide_dma_on :
-	    ide_dma_off_quietly);
+	return ((int) ((id->dma_ultra >> 11) & 7) ? ide_dma_on :
+		((id->dma_ultra >> 8) & 7) ? ide_dma_on :
+		((id->dma_mword >> 8) & 7) ? ide_dma_on :
+		((id->dma_1word >> 8) & 7) ? ide_dma_on :
+		ide_dma_off_quietly);
 }
 
-static int it8172_dmaproc(ide_dma_action_t func, ide_drive_t *drive)
+static int it8172_dmaproc(ide_dma_action_t func, ide_drive_t * drive)
 {
-    switch (func) {
-    case ide_dma_check:
-	return ide_dmaproc((ide_dma_action_t)it8172_config_chipset_for_dma(drive),
-			   drive);
-    default :
-	break;
-    }
-    /* Other cases are done by generic IDE-DMA code. */
-    return ide_dmaproc(func, drive);
+	switch (func) {
+	case ide_dma_check:
+		return ide_dmaproc((ide_dma_action_t)
+				   it8172_config_chipset_for_dma(drive),
+				   drive);
+	default:
+		break;
+	}
+	/* Other cases are done by generic IDE-DMA code. */
+	return ide_dmaproc(func, drive);
 }
 
-#endif /* defined(CONFIG_BLK_DEV_IDEDMA) && (CONFIG_IT8172_TUNING) */
+#endif				/* defined(CONFIG_BLK_DEV_IDEDMA) && (CONFIG_IT8172_TUNING) */
 
 
-unsigned int __init pci_init_it8172 (struct pci_dev *dev, const char *name)
+__init unsigned int pci_init_it8172(struct pci_dev *dev)
 {
-    unsigned char progif;
-    
-    /*
-     * Place both IDE interfaces into PCI "native" mode
-     */
-    (void)pci_read_config_byte(dev, PCI_CLASS_PROG, &progif);
-    (void)pci_write_config_byte(dev, PCI_CLASS_PROG, progif | 0x05);    
+	unsigned char progif;
 
-    return IT8172_IDE_IRQ;
+	/*
+	 * Place both IDE interfaces into PCI "native" mode
+	 */
+	pci_read_config_byte(dev, PCI_CLASS_PROG, &progif);
+	pci_write_config_byte(dev, PCI_CLASS_PROG, progif | 0x05);
+
+	return IT8172_IDE_IRQ;
 }
 
 
-void __init ide_init_it8172 (ide_hwif_t *hwif)
+static void __init ide_init_it8172(struct ata_channel *hwif)
 {
-    struct pci_dev* dev = hwif->pci_dev;
-    unsigned long cmdBase, ctrlBase;
-    
-    hwif->tuneproc = &it8172_tune_drive;
-    hwif->drives[0].autotune = 1;
-    hwif->drives[1].autotune = 1;
+	struct pci_dev *dev = hwif->pci_dev;
+	unsigned long cmdBase, ctrlBase;
 
-    if (!hwif->dma_base)
-	return;
+	hwif->tuneproc = &it8172_tune_drive;
+	hwif->drives[0].autotune = 1;
+	hwif->drives[1].autotune = 1;
+
+	if (!hwif->dma_base)
+		return;
 
 #ifndef CONFIG_BLK_DEV_IDEDMA
-    hwif->autodma = 0;
-#else /* CONFIG_BLK_DEV_IDEDMA */
-#ifdef CONFIG_IT8172_TUNING
-    hwif->autodma = 1;
-    hwif->dmaproc = &it8172_dmaproc;
-    hwif->speedproc = &it8172_tune_chipset;
-#endif /* CONFIG_IT8172_TUNING */
-#endif /* !CONFIG_BLK_DEV_IDEDMA */
+	hwif->autodma = 0;
+#else				/* CONFIG_BLK_DEV_IDEDMA */
+# ifdef CONFIG_IT8172_TUNING
+	hwif->autodma = 1;
+	hwif->dmaproc = &it8172_dmaproc;
+	hwif->speedproc = &it8172_tune_chipset;
+# endif
+#endif
 
-    cmdBase = dev->resource[0].start;
-    ctrlBase = dev->resource[1].start;
-    
-    ide_init_hwif_ports(&hwif->hw, cmdBase, ctrlBase | 2, NULL);
-    memcpy(hwif->io_ports, hwif->hw.io_ports, sizeof(hwif->io_ports));
-    hwif->noprobe = 0;
+	cmdBase = dev->resource[0].start;
+	ctrlBase = dev->resource[1].start;
+
+	ide_init_hwif_ports(&hwif->hw, cmdBase, ctrlBase | 2, NULL);
+	memcpy(hwif->io_ports, hwif->hw.io_ports, sizeof(hwif->io_ports));
+	hwif->noprobe = 0;
+}
+
+
+/* module data table */
+static struct ata_pci_device chipset __initdata = {
+	vendor:PCI_VENDOR_ID_ITE,
+	device:PCI_DEVICE_ID_ITE_IT8172G,
+	init_chipset:pci_init_it8172,
+	init_channel:ide_init_it8172,
+	exnablebits:{{0x00, 0x00, 0x00}, {0x40, 0x00, 0x01}},
+      bootable:ON_BOARD
+};
+
+int __init init_it8172(void)
+{
+	ata_register_chipset(&chipset);
+
+	return 0;
 }

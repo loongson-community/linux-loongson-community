@@ -504,8 +504,8 @@ pcibios_enable_device(struct pci_dev *dev)
 	return 0;
 }
 
-void __init
-pcibios_align_resource(void *data, struct resource *res, unsigned long size)
+void pcibios_align_resource(void *data, struct resource *res,
+	unsigned long size, unsigned long align)
 {
 }
 
@@ -521,9 +521,8 @@ struct pci_fixup pcibios_fixups[] = {
 	{ 0 }
 };
 
-void __init
-pcibios_update_resource(struct pci_dev *dev, struct resource *root,
-                        struct resource *res, int resource)
+void pcibios_update_resource(struct pci_dev *dev, struct resource *root,
+	struct resource *res, int resource)
 {
 	unsigned long where, size;
 	u32 reg;
@@ -539,7 +538,7 @@ pcibios_update_resource(struct pci_dev *dev, struct resource *root,
  *  Called after each bus is probed, but before its children
  *  are examined.
  */
-void __init pcibios_fixup_bus(struct pci_bus *b)
+void __devinit pcibios_fixup_bus(struct pci_bus *b)
 {
 	pci_read_bridge_bases(b);
 }

@@ -325,13 +325,16 @@ CONFIG_BLK_DEV_IDEDISK=y
 # CONFIG_BLK_DEV_IDESCSI is not set
 
 #
-# ATA host chipset support
+# ATA host chip set support
 #
 # CONFIG_BLK_DEV_CMD640 is not set
 # CONFIG_BLK_DEV_CMD640_ENHANCED is not set
 # CONFIG_BLK_DEV_ISAPNP is not set
 # CONFIG_BLK_DEV_RZ1000 is not set
-CONFIG_BLK_DEV_IDEPCI=y
+
+#
+#   PCI host chip set support
+#
 # CONFIG_BLK_DEV_OFFBOARD is not set
 CONFIG_IDEPCI_SHARE_IRQ=y
 CONFIG_BLK_DEV_IDEDMA_PCI=y
