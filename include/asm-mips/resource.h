@@ -26,7 +26,7 @@
 #define RLIMIT_SIGPENDING 11		/* max number of pending signals */
 #define RLIMIT_MSGQUEUE 12		/* maximum bytes in POSIX mqueues */
 
-#define RLIM_NLIMITS 13			/* Number of limit flavors.  */
+#define RLIM_NLIMITS 13
 
 #ifdef __KERNEL__
 
@@ -43,21 +43,21 @@
 #define RLIM_INFINITY	(~0UL)
 #endif
 
-#define INIT_RLIMITS					\
-{							\
-	{ RLIM_INFINITY, RLIM_INFINITY },		\
-	{ RLIM_INFINITY, RLIM_INFINITY },		\
-	{ RLIM_INFINITY, RLIM_INFINITY },		\
-	{ _STK_LIM,      RLIM_INFINITY },		\
-	{        0,      RLIM_INFINITY },		\
-	{ INR_OPEN,      INR_OPEN      },		\
-	{ RLIM_INFINITY, RLIM_INFINITY },		\
-	{ RLIM_INFINITY, RLIM_INFINITY },		\
-	{ MLOCK_LIMIT,     MLOCK_LIMIT },		\
-	{ RLIM_INFINITY, RLIM_INFINITY },		\
-	{ RLIM_INFINITY, RLIM_INFINITY },		\
-	{ MAX_SIGPENDING, MAX_SIGPENDING },		\
-	{ MQ_BYTES_MAX, MQ_BYTES_MAX },			\
+#define INIT_RLIMITS							\
+{									\
+	[RLIMIT_CPU]		= { RLIM_INFINITY, RLIM_INFINITY },	\
+	[RLIMIT_FSIZE]		= { RLIM_INFINITY, RLIM_INFINITY },	\
+	[RLIMIT_DATA]		= { RLIM_INFINITY, RLIM_INFINITY },	\
+	[RLIMIT_STACK]		= { _STK_LIM,      RLIM_INFINITY },	\
+	[RLIMIT_CORE]		= {        0,      RLIM_INFINITY },	\
+	[RLIMIT_NOFILE]		= { INR_OPEN,      INR_OPEN      },	\
+	[RLIMIT_AS]		= { RLIM_INFINITY, RLIM_INFINITY },	\
+	[RLIMIT_RSS]		= { RLIM_INFINITY, RLIM_INFINITY },	\
+	[RLIMIT_NPROC]		= {             0,             0 },	\
+	[RLIMIT_MEMLOCK]	= { MLOCK_LIMIT,   MLOCK_LIMIT   },	\
+	[RLIMIT_LOCKS]		= { RLIM_INFINITY, RLIM_INFINITY },	\
+	[RLIMIT_SIGPENDING]	= { MAX_SIGPENDING, MAX_SIGPENDING },	\
+	[RLIMIT_MSGQUEUE]	= { MQ_BYTES_MAX, MQ_BYTES_MAX },	\
 }
 
 #endif /* __KERNEL__ */
