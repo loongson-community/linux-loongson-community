@@ -8,16 +8,42 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@sgi.com)
  */
+#include <linux/config.h>
 #include <linux/init.h>
 #include <asm/sgialib.h>
 
-void __init prom_putchar(char c)
+#ifdef CONFIG_SGI_IP27
+
+#include <asm/sn/addrs.h>
+#include <asm/sn/sn0/hub.h>
+#include <asm/sn/klconfig.h>
+#include <asm/ioc3.h>
+
+void prom_putchar(char c)
+{
+	struct ioc3 *ioc3;
+	struct ioc3_uartregs *uart;
+	nasid_t nid;
+
+	nid = get_nasid();
+	ioc3 = (struct ioc3 *) KL_CONFIG_CH_CONS_INFO(nid)->memory_base;
+	uart = &ioc3->sregs.uarta;
+
+	while ((uart->iu_lsr & 0x20) == 0);
+	uart->iu_thr = c;
+}
+
+#else /* CONFIG_SGI_IP27 */
+
+void prom_putchar(char c)
 {
 	ULONG cnt;
 	CHAR it = c;
 
 	ArcWrite(1, &it, 1, &cnt);
 }
+
+#endif /* CONFIG_SGI_IP27 */
 
 char __init prom_getchar(void)
 {
