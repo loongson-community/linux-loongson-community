@@ -707,4 +707,7 @@ void __init init_generic_irq(void)
 	}
 }
 
+EXPORT_SYMBOL(disable_irq_nosync);
+EXPORT_SYMBOL(disable_irq);
+EXPORT_SYMBOL(enable_irq);
 EXPORT_SYMBOL(probe_irq_mask);
