@@ -16,12 +16,12 @@
 # Select the object file format to substitute into the linker script.
 #
 ifdef CONFIG_CPU_LITTLE_ENDIAN
-32bit-tool-prefix	= mips64el-linux-
+32bit-tool-prefix	= mipsel-linux-
 64bit-tool-prefix	= mips64el-linux-
 32bit-bfd		= elf32-tradlittlemips
 64bit-bfd		= elf64-tradlittlemips
 else
-32bit-tool-prefix	= mips64-linux-
+32bit-tool-prefix	= mips32-linux-
 64bit-tool-prefix	= mips64-linux-
 32bit-bfd		= elf32-tradbigmips
 64bit-bfd		= elf64-tradbigmips
