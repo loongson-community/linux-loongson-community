@@ -109,9 +109,11 @@ static __inline__ void atomic_sub(int i, atomic_t * v)
  */
 static __inline__ int atomic_add_return(int i, atomic_t * v)
 {
-	unsigned long temp, result;
+	unsigned long result;
 
 	if (cpu_has_llsc) {
+		unsigned long temp;
+
 		__asm__ __volatile__(
 		"1:	ll	%1, %2		# atomic_add_return	\n"
 		"	addu	%0, %1, %3				\n"
@@ -126,9 +128,9 @@ static __inline__ int atomic_add_return(int i, atomic_t * v)
 		unsigned long flags;
 
 		spin_lock_irqsave(&atomic_lock, flags);
-		temp = v->counter;
-		temp += i;
-		v->counter = temp;
+		result = v->counter;
+		result += i;
+		v->counter = result;
 		spin_unlock_irqrestore(&atomic_lock, flags);
 	}
 
@@ -137,9 +139,11 @@ static __inline__ int atomic_add_return(int i, atomic_t * v)
 
 static __inline__ int atomic_sub_return(int i, atomic_t * v)
 {
-	unsigned long temp, result;
+	unsigned long result;
 
 	if (cpu_has_llsc) {
+		unsigned long temp;
+
 		__asm__ __volatile__(
 		"1:	ll	%1, %2		# atomic_sub_return	\n"
 		"	subu	%0, %1, %3				\n"
@@ -154,9 +158,9 @@ static __inline__ int atomic_sub_return(int i, atomic_t * v)
 		unsigned long flags;
 
 		spin_lock_irqsave(&atomic_lock, flags);
-		temp = v->counter;
-		temp -= i;
-		v->counter = temp;
+		result = v->counter;
+		result -= i;
+		v->counter = result;
 		spin_unlock_irqrestore(&atomic_lock, flags);
 	}
 
@@ -172,9 +176,11 @@ static __inline__ int atomic_sub_return(int i, atomic_t * v)
  */
 static __inline__ int atomic_sub_if_positive(int i, atomic_t * v)
 {
-	unsigned long temp, result;
+	unsigned long result;
 
 	if (cpu_has_llsc) {
+		unsigned long temp;
+	
 		__asm__ __volatile__(
 		"1:	ll	%1, %2		# atomic_sub_if_positive\n"
 		"	subu	%0, %1, %3				\n"
@@ -190,10 +196,10 @@ static __inline__ int atomic_sub_if_positive(int i, atomic_t * v)
 		unsigned long flags;
 
 		spin_lock_irqsave(&atomic_lock, flags);
-		temp = v->counter;
-		temp -= i;
-		if (temp >= 0)
-			v->counter = temp;
+		result = v->counter;
+		result -= i;
+		if (result >= 0)
+			v->counter = result;
 		spin_unlock_irqrestore(&atomic_lock, flags);
 	}
 
@@ -348,9 +354,11 @@ static __inline__ void atomic64_sub(long i, atomic64_t * v)
  */
 static __inline__ long atomic64_add_return(long i, atomic64_t * v)
 {
-	unsigned long temp, result;
+	unsigned long result;
 
 	if (cpu_has_llsc) {
+		unsigned long temp;
+
 		__asm__ __volatile__(
 		"1:	lld	%1, %2		# atomic64_add_return	\n"
 		"	addu	%0, %1, %3				\n"
@@ -365,9 +373,9 @@ static __inline__ long atomic64_add_return(long i, atomic64_t * v)
 		unsigned long flags;
 
 		spin_lock_irqsave(&atomic_lock, flags);
-		temp = v->counter;
-		temp += i;
-		v->counter = temp;
+		result = v->counter;
+		result += i;
+		v->counter = result;
 		spin_unlock_irqrestore(&atomic_lock, flags);
 	}
 
@@ -376,9 +384,11 @@ static __inline__ long atomic64_add_return(long i, atomic64_t * v)
 
 static __inline__ long atomic64_sub_return(long i, atomic64_t * v)
 {
-	unsigned long temp, result;
+	unsigned long result;
 
 	if (cpu_has_llsc) {
+		unsigned long temp;
+
 		__asm__ __volatile__(
 		"1:	lld	%1, %2		# atomic64_sub_return	\n"
 		"	subu	%0, %1, %3				\n"
@@ -393,9 +403,9 @@ static __inline__ long atomic64_sub_return(long i, atomic64_t * v)
 		unsigned long flags;
 
 		spin_lock_irqsave(&atomic_lock, flags);
-		temp = v->counter;
-		temp -= i;
-		v->counter = temp;
+		result = v->counter;
+		result -= i;
+		v->counter = result;
 		spin_unlock_irqrestore(&atomic_lock, flags);
 	}
 
@@ -411,9 +421,10 @@ static __inline__ long atomic64_sub_return(long i, atomic64_t * v)
  */
 static __inline__ long atomic64_sub_if_positive(long i, atomic64_t * v)
 {
-	unsigned long temp, result;
+	unsigned long result;
 
 	if (cpu_has_llsc) {
+		unsigned long temp;
 		__asm__ __volatile__(
 		"1:	lld	%1, %2		# atomic64_sub_if_positive\n"
 		"	dsubu	%0, %1, %3				\n"
@@ -429,10 +440,10 @@ static __inline__ long atomic64_sub_if_positive(long i, atomic64_t * v)
 		unsigned long flags;
 
 		spin_lock_irqsave(&atomic_lock, flags);
-		temp = v->counter;
-		temp -= i;
-		if (temp >= 0)
-			v->counter = temp;
+		result = v->counter;
+		result -= i;
+		if (result >= 0)
+			v->counter = result;
 		spin_unlock_irqrestore(&atomic_lock, flags);
 	}
 
