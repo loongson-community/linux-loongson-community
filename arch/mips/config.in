@@ -210,7 +210,6 @@ if [ "$CONFIG_DDB5477" = "y" ]; then
    define_bool CONFIG_DUMMY_KEYB y
 fi
 if [ "$CONFIG_NEC_OSPREY" = "y" ]; then
-   define_bool CONFIG_CPU_VR41XX y
    define_bool CONFIG_VR4181 y
    define_bool CONFIG_SERIAL y
    define_bool CONFIG_SERIAL_MANY_PORTS y
@@ -326,10 +325,23 @@ choice 'CPU type' \
 	 MIPS32 CONFIG_CPU_MIPS32 \
 	 MIPS64 CONFIG_CPU_MIPS64" R4x00
 
+if [ "$CONFIG_CPU_MIPS32" = "y" ]; then
+   define_bool CONFIG_CPU_HAS_PREFETCH y
+fi
+
+if [ "$CONFIG_CPU_MIPS64" = "y" ]; then
+   define_bool CONFIG_CPU_HAS_PREFETCH y
+fi
+
+if [ "$CONFIG_CPU_RM7000" = "y" ]; then
+   define_bool CONFIG_CPU_HAS_PREFETCH y
+fi
+
 if [ "$CONFIG_CPU_SB1" = "y" ]; then
    bool '  Workarounds for pass 1 sb1 bugs' CONFIG_SB1_PASS_1_WORKAROUNDS
    bool '  Support for SB1 Cache Error handler' CONFIG_SB1_CACHE_ERROR
    define_bool CONFIG_VTAG_ICACHE y
+   define_bool CONFIG_CPU_HAS_PREFETCH y
 fi
 
 if [ "$CONFIG_CPU_R4X00"  = "y" -o \

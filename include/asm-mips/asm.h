@@ -144,15 +144,24 @@ symbol		=	value
  * MIPS IV implementations are free to treat this as a nop.  The R5000
  * is one of them.  So we should have an option not to use this instruction.
  */
-#if (_MIPS_ISA == _MIPS_ISA_MIPS4 ) || (_MIPS_ISA == _MIPS_ISA_MIPS5) || \
-    (_MIPS_ISA == _MIPS_ISA_MIPS64)
+#if CONFIG_CPU_HAS_PREFETCH
+
 #define PREF(hint,addr)                                 \
-		pref	hint,addr
+		.set	push;				\
+		.set	mips4;				\
+		pref	hint,addr;			\
+		.set	pop
+
 #define PREFX(hint,addr)                                \
-		prefx	hint,addr
+		.set	push;				\
+		.set	mips4;				\
+		prefx	hint,addr;			\
+		.set	pop
 #else
+
 #define PREF(hint,addr)
 #define PREFX(hint,addr)
+
 #endif
 
 /*
