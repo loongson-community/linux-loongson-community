@@ -15,10 +15,10 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
-
-#include <asm/sibyte/sb1250_defs.h>
-#include <asm/sibyte/sbmips.h>
 #include <asm/asm.h>
+#include <asm/addrspace.h>
+#include <asm/mipsregs.h>
+#include <asm/regdef.h>
 
 		 .set mips64
 
@@ -31,19 +31,19 @@
 
 
 LEAF(hs_read8)
-		mfc0	t2,C0_SR
-		or	t1,t2,M_SR_KX
-		mtc0	t1,C0_SR
+		mfc0	t2, CP0_STATUS
+		or	t1, t2, ST0_KX
+		mtc0	t1, CP0_STATUS
 		HAZARD
 
-		dli	v0,PHYS_TO_XKSEG_UNCACHED(0)
-		dsll	a0,a0,32
-		dsrl	a0,a0,32
-		or	a0,a0,v0
-		lb	v0,(a0)
-		and	v0,0xFF
+		dli	v0, PHYS_TO_XKSEG_UNCACHED(0)
+		dsll	a0, a0, 32
+		dsrl	a0, a0, 32
+		or	a0, a0,v0
+		lb	v0, (a0)
+		and	v0, 0xFF
 
-		mtc0	t2,C0_SR
+		mtc0	t2, CP0_STATUS
 		HAZARD
 		j	ra
 END(hs_read8)
@@ -53,19 +53,19 @@ END(hs_read8)
     ********************************************************************* */
 
 LEAF(hs_read16)
-		mfc0	t2,C0_SR
-		or	t1,t2,M_SR_KX
-		mtc0	t1,C0_SR
+		mfc0	t2, CP0_STATUS
+		or	t1, t2, ST0_KX
+		mtc0	t1, CP0_STATUS
 		HAZARD
 
-		dli	v0,PHYS_TO_XKSEG_UNCACHED(0)
-		dsll	a0,a0,32
-		dsrl	a0,a0,32
-		or	a0,a0,v0
-		lh	v0,(a0)
-		and	v0,0xFFFF
+		dli	v0, PHYS_TO_XKSEG_UNCACHED(0)
+		dsll	a0, a0, 32
+		dsrl	a0, a0, 32
+		or	a0, a0, v0
+		lh	v0, (a0)
+		and	v0, 0xFFFF
 
-		mtc0	t2,C0_SR
+		mtc0	t2, CP0_STATUS
 		HAZARD
 		j	ra
 END(hs_read16)
@@ -75,19 +75,19 @@ END(hs_read16)
     ********************************************************************* */
 
 LEAF(hs_read32)
-		mfc0	t2,C0_SR
-		or	t1,t2,M_SR_KX
-		mtc0	t1,C0_SR
+		mfc0	t2, CP0_STATUS
+		or	t1, t2, ST0_KX
+		mtc0	t1, CP0_STATUS
 		HAZARD
 
-		dli	v0,PHYS_TO_XKSEG_UNCACHED(0)
-		dsll	a0,a0,32
-		dsrl	a0,a0,32
-		or	a0,a0,v0
-		lw	v0,(a0)
-		and	v0,0xFFFFFFFF
+		dli	v0, PHYS_TO_XKSEG_UNCACHED(0)
+		dsll	a0, a0, 32
+		dsrl	a0, a0, 32
+		or	a0, a0, v0
+		lw	v0, (a0)
+		and	v0, 0xFFFFFFFF
 
-		mtc0	t2,C0_SR
+		mtc0	t2, CP0_STATUS
 		HAZARD
 		j	ra
 END(hs_read32)
@@ -97,18 +97,18 @@ END(hs_read32)
     ********************************************************************* */
 
 LEAF(hs_read64)
-		mfc0	t2,C0_SR
-		or	t1,t2,M_SR_KX
-		mtc0	t1,C0_SR
+		mfc0	t2, CP0_STATUS
+		or	t1, t2, ST0_KX
+		mtc0	t1, CP0_STATUS
 		HAZARD
 
-		dli	v0,PHYS_TO_XKSEG_UNCACHED(0)
-		dsll	a0,a0,32
-		dsrl	a0,a0,32
-		or	a0,a0,v0
-		ld	v0,(a0)
+		dli	v0, PHYS_TO_XKSEG_UNCACHED(0)
+		dsll	a0, a0, 32
+		dsrl	a0, a0, 32
+		or	a0, a0, v0
+		ld	v0, (a0)
 
-		mtc0	t2,C0_SR
+		mtc0	t2, CP0_STATUS
 		HAZARD
 		j	ra
 END(hs_read64)
@@ -118,18 +118,18 @@ END(hs_read64)
     ********************************************************************* */
 
 LEAF(hs_write8)
-		mfc0	t2,C0_SR
-		or	t1,t2,M_SR_KX
-		mtc0	t1,C0_SR
+		mfc0	t2, CP0_STATUS
+		or	t1, t2, ST0_KX
+		mtc0	t1, CP0_STATUS
 		HAZARD
 
-		dli	v0,PHYS_TO_XKSEG_UNCACHED(0)
-		dsll	a0,a0,32
-		dsrl	a0,a0,32
-		or	a0,a0,v0
-		sb	a1,(a0)
+		dli	v0, PHYS_TO_XKSEG_UNCACHED(0)
+		dsll	a0, a0, 32
+		dsrl	a0, a0, 32
+		or	a0, a0, v0
+		sb	a1, (a0)
 
-		mtc0	t2,C0_SR
+		mtc0	t2, CP0_STATUS
 		HAZARD
 		j	ra
 END(hs_write8)
@@ -139,18 +139,18 @@ END(hs_write8)
     ********************************************************************* */
 
 LEAF(hs_write16)
-		mfc0	t2,C0_SR
-		or	t1,t2,M_SR_KX
-		mtc0	t1,C0_SR
+		mfc0	t2, CP0_STATUS
+		or	t1, t2, ST0_KX
+		mtc0	t1, CP0_STATUS
 		HAZARD
 
-		dli	v0,PHYS_TO_XKSEG_UNCACHED(0)
-		dsll	a0,a0,32
-		dsrl	a0,a0,32
-		or	a0,a0,v0
-		sh	a1,(a0)
+		dli	v0, PHYS_TO_XKSEG_UNCACHED(0)
+		dsll	a0, a0, 32
+		dsrl	a0, a0, 32
+		or	a0, a0, v0
+		sh	a1, (a0)
 
-		mtc0	t2,C0_SR
+		mtc0	t2, CP0_STATUS
 		HAZARD
 		j	ra
 END(hs_write16)
@@ -160,18 +160,18 @@ END(hs_write16)
     ********************************************************************* */
 
 LEAF(hs_write32)
-		mfc0	t2,C0_SR
-		or	t1,t2,M_SR_KX
-		mtc0	t1,C0_SR
+		mfc0	t2, CP0_STATUS
+		or	t1, t2, ST0_KX
+		mtc0	t1, CP0_STATUS
 		HAZARD
 
-		dli	v0,PHYS_TO_XKSEG_UNCACHED(0)
-		dsll	a0,a0,32
-		dsrl	a0,a0,32
-		or	a0,a0,v0
-		sw	a1,(a0)
+		dli	v0, PHYS_TO_XKSEG_UNCACHED(0)
+		dsll	a0, a0, 32
+		dsrl	a0, a0, 32
+		or	a0, a0, v0
+		sw	a1, (a0)
 
-		mtc0	t2,C0_SR
+		mtc0	t2, CP0_STATUS
 		HAZARD
 		j	ra
 END(hs_write32)
@@ -181,18 +181,18 @@ END(hs_write32)
     ********************************************************************* */
 
 LEAF(hs_write64)
-		mfc0	t2,C0_SR
-		or	t1,t2,M_SR_KX
-		mtc0	t1,C0_SR
+		mfc0	t2, CP0_STATUS
+		or	t1, t2, ST0_KX
+		mtc0	t1, CP0_STATUS
 		HAZARD
 
-		dli	v0,PHYS_TO_XKSEG_UNCACHED(0)
-		dsll	a0,a0,32
-		dsrl	a0,a0,32
-		or	a0,a0,v0
-		sd	a1,(a0)
+		dli	v0, PHYS_TO_XKSEG_UNCACHED(0)
+		dsll	a0, a0, 32
+		dsrl	a0, a0, 32
+		or	a0, a0, v0
+		sd	a1, (a0)
 
-		mtc0	t2,C0_SR
+		mtc0	t2, CP0_STATUS
 		HAZARD
 		j	ra
 END(hs_write64)
