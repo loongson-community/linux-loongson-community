@@ -105,21 +105,7 @@ static inline int down_interruptible(struct semaphore * sem)
 	return ret;
 }
 
-#ifndef CONFIG_CPU_HAS_LLDSCD
-
-/*
- * Non-blockingly attempt to down() a semaphore.
- * Returns zero if we acquired it
- */
-static inline int down_trylock(struct semaphore * sem)
-{
-	int ret = 0;
-	if (atomic_dec_return(&sem->count) < 0)
-		ret = __down_trylock(sem);
-	return ret;
-}
-
-#else
+#ifdef CONFIG_CPU_HAS_LLDSCD
 
 /*
  * down_trylock returns 0 on success, 1 if we failed to get the lock.
@@ -171,6 +157,20 @@ static inline int down_trylock(struct semaphore * sem)
 	: "m"(*sem)
 	: "memory");
 
+	return ret;
+}
+
+#else
+
+/*
+ * Non-blockingly attempt to down() a semaphore.
+ * Returns zero if we acquired it
+ */
+static inline int down_trylock(struct semaphore * sem)
+{
+	int ret = 0;
+	if (atomic_dec_return(&sem->count) < 0)
+		ret = __down_trylock(sem);
 	return ret;
 }
 
