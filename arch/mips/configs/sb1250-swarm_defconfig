@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.10-rc1
-# Tue Oct 26 04:42:48 2004
+# Sun Nov  7 04:26:13 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -358,7 +358,6 @@ CONFIG_NETDEVICES=y
 #
 CONFIG_NET_ETHERNET=y
 CONFIG_MII=y
-CONFIG_NET_SB1250_MAC=y
 # CONFIG_HAPPYMEAL is not set
 # CONFIG_SUNGEM is not set
 # CONFIG_NET_VENDOR_3COM is not set
@@ -380,6 +379,7 @@ CONFIG_NET_SB1250_MAC=y
 # CONFIG_HAMACHI is not set
 # CONFIG_YELLOWFIN is not set
 # CONFIG_R8169 is not set
+CONFIG_NET_SB1250_MAC=y
 # CONFIG_SK98LIN is not set
 # CONFIG_TIGON3 is not set
 
