@@ -27,7 +27,7 @@ all: vmlinux.ecoff addinitrd
 vmlinux.rm200: vmlinux
 	$(OBJCOPY) \
 		--change-addresses=0xfffffffc \
-		-O elf32-littlemips \
+		-O elf32-tradlittlemips \
 		$(strip-flags) \
 		$< $@
 
