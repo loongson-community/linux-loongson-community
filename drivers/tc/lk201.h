@@ -68,22 +68,24 @@
 /*
  * Mappings between key groups and keycodes are as follows:
  *
- *  1: 0xbf - 0xfb -- alphanumeric,
- *  2: 0x92 - 0xa4 -- numeric keypad,
+ *  1: 0xbf - 0xff -- alphanumeric,
+ *  2: 0x91 - 0xa5 -- numeric keypad,
  *  3: 0xbc        -- Backspace,
  *  4: 0xbd - 0xbe -- Tab, Return,
- *  5: 0xb0 - 0xb1 -- Lock, Compose Character,
- *  6: 0xae - 0xaf -- Ctrl, Shift,
- *  7: 0xa7 - 0xa8 -- Left Arrow, Right Arrow,
- *  8: 0xa9 - 0xab -- Up Arrow, Down Arrow, Right Shift,
- *  9: 0x8a - 0x8f -- editor keypad,
- * 10: 0x56 - 0x5a -- F1 - F5,
- * 11: 0x64 - 0x68 -- F6 - F10,
- * 12: 0x71 - 0x74 -- F11 - F14,
- * 13: 0x7c - 0x7d -- Help, Do,
- * 14: 0x80 - 0x83 -- F17 - F20.
+ *  5: 0xb0 - 0xb2 -- Lock, Compose Character,
+ *  6: 0xad - 0xaf -- Ctrl, Shift,
+ *  7: 0xa6 - 0xa8 -- Left Arrow, Right Arrow,
+ *  8: 0xa9 - 0xac -- Up Arrow, Down Arrow, Right Shift,
+ *  9: 0x88 - 0x90 -- editor keypad,
+ * 10: 0x56 - 0x62 -- F1 - F5,
+ * 11: 0x63 - 0x6e -- F6 - F10,
+ * 12: 0x6f - 0x7a -- F11 - F14,
+ * 13: 0x7b - 0x7d -- Help, Do,
+ * 14: 0x7e - 0x87 -- F17 - F20.
  *
- * Others, i.e. 0x55, 0xac, 0xad, 0xb2, are undiscovered.
+ * Notes:
+ * 1. Codes in the 0x00 - 0x40 range are reserved.
+ * 2. The assignment of the 0x41 - 0x55 range is undiscovered, probably 10.
  */
 
 /* delay is 5 - 630 ms; 0x00 and 0x7f are reserved */

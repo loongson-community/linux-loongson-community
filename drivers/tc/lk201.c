@@ -5,7 +5,7 @@
  * for more details.
  *
  * Copyright (C) 1999-2002 Harald Koerfgen <hkoerfg@web.de>
- * Copyright (C) 2001, 2002  Maciej W. Rozycki <macro@ds2.pg.gda.pl>
+ * Copyright (C) 2001, 2002, 2003  Maciej W. Rozycki <macro@ds2.pg.gda.pl>
  */
 
 #include <linux/config.h>
@@ -159,6 +159,12 @@ static void lk201_id(unsigned char id[6])
 		break;
 	case 2:
 		printk(KERN_INFO "lk201: LK401 detected\n");
+		break;
+	case 3:
+		printk(KERN_INFO "lk201: LK443 detected\n");
+		break;
+	case 4:
+		printk(KERN_INFO "lk201: LK421 detected\n");
 		break;
 	default:
 		printk(KERN_WARNING
@@ -336,7 +342,7 @@ static void lk201_kbd_rx_char(unsigned char ch, unsigned char stat)
 				       "error, skipping initialization\n");
 			}
 		} else if (id_i == 6) {
-			/* We got the ID; report it and start an operation. */
+			/* We got the ID; report it and start operation. */
 			id_i = 0;
 			lk201_id(id);
 			lk201_reset(lk201kbd_info);
