@@ -87,6 +87,8 @@ SECTIONS
   __init_begin = .;
   /* /DISCARD/ doesn't work for .reginfo */
   .reginfo : { *(.reginfo) }
+  .options : { *(.options) }
+  .MIPS.options : { *(.MIPS.options) }
   .init.text : {
 	_sinittext = .;
 	*(.init.text)
