@@ -26,7 +26,8 @@
 /* For R3000 cores with R4000 style caches */
 static unsigned long icache_size, dcache_size;		/* Size in bytes */
 static unsigned long icache_way_size, dcache_way_size;	/* Size divided by ways */
-extern long scache_size;
+#define scache_size 0
+#define scache_way_size 0
 
 #include <asm/r4kcache.h>
 
