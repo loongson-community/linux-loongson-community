@@ -394,7 +394,7 @@ struct inode {
 		struct smb_inode_info		smbfs_i;
 		struct hfs_inode_info		hfs_i;
 		struct adfs_inode_info		adfs_i;
-		struct qnx4_inode_info		qnx4_i;
+		struct qnx4_inode_info		qnx4_i;	   
 		struct socket			socket_i;
 		void				*generic_ip;
 	} u;

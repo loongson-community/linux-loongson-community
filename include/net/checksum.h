@@ -40,6 +40,7 @@ static __inline__ unsigned short int csum_ipv6_magic(struct in6_addr *saddr,
 						     unsigned short proto,
 						     unsigned int csum) 
 {
+
 	int carry;
 	__u32 ulen;
 	__u32 uproto;

@@ -171,9 +171,6 @@ __initfunc(static int probe_list(struct device *dev, struct devprobe *plist))
  * list instead.
  */
 struct devprobe pci_probes[] __initdata = {
-#ifdef CONFIG_COBALT_TULIP
-	{tulip_probe, 0},
-#endif
 #ifdef CONFIG_DGRS
 	{dgrs_probe, 0},
 #endif
@@ -453,9 +450,6 @@ struct devprobe mips_probes[] __initdata = {
 #endif
 #ifdef CONFIG_BAGETLANCE        /* Lance-based Baget ethernet boards */
         {bagetlance_probe, 0},
-#endif
-#ifdef CONFIG_BAGETBSM         /* Baget backplane shared memory */
-        {bsm_probe, 0},
 #endif
 	{NULL, 0},
 };

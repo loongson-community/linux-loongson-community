@@ -59,6 +59,7 @@ if [ "$CONFIG_UFS_FS" != "n" ]; then
   bool '   UFS filesystem write support (experimental)' CONFIG_UFS_FS_WRITE
 fi
 
+
 if [ "$CONFIG_NET" = "y" ]; then
 
 mainmenu_option next_comment

@@ -218,10 +218,6 @@ ifdef CONFIG_FB_G364
 L_OBJS := $(L_OBJS) g364fb.o
 endif
 
-ifdef CONFIG_FB_G364
-L_OBJS := $(L_OBJS) g364fb.o
-endif
-
 ifdef CONFIG_FB_FM2
 L_OBJS := $(L_OBJS) fm2fb.o
 endif
@@ -499,16 +495,6 @@ L_OBJS += mdacon.o
 else
   ifeq ($(CONFIG_MDA_CONSOLE),m)
   M_OBJS += mdacon.o
-  endif
-endif
-
-# Newport Text Console
-
-ifeq ($(CONFIG_SGI_NEWPORT_CONSOLE),y)
-L_OBJS += newport_con.o vga_font.o
-else
-  ifeq ($(CONFIG_SGI_NEWPORT_CONSOLE),m)
-  M_OBJS += newport_con.o vga_font.o
   endif
 endif
 

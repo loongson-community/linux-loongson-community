@@ -1044,7 +1044,7 @@ static void csi_m(int currcons)
 				toggle_meta = 0;
 				break;
 			case 11: /* ANSI X3.64-1979 (SCO-ish?)
-				  * Select first alternate font, let's
+				  * Select first alternate font, lets
 				  * chars < 32 be displayed as ROM chars.
 				  */
 				translate = set_translate(IBMPC_MAP,currcons);
@@ -2346,7 +2346,7 @@ __initfunc(unsigned long con_init(unsigned long kmem_start))
 		screenbuf = (unsigned short *) kmem_start;
 		kmem_start += screenbuf_size;
 		kmalloced = 0;
-		vc_init(currcons, video_num_lines, video_num_columns,
+		vc_init(currcons, video_num_lines, video_num_columns, 
 			currcons || !sw->con_save_screen);
 		for (j=k=0; j<16; j++) {
 			vc_cons[currcons].d->vc_palette[k++] = default_red[j] ;
@@ -2354,7 +2354,6 @@ __initfunc(unsigned long con_init(unsigned long kmem_start))
 			vc_cons[currcons].d->vc_palette[k++] = default_blu[j] ;
 		}
 	}
-
 	currcons = fg_console = 0;
 	master_display_fg = vc_cons[currcons].d;
 	set_origin(currcons);

@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.16 1999/02/09 23:11:30 adevries Exp $
+# $Id: Makefile,v 1.13 1998/08/17 10:16:23 ralf Exp $
 #
 # This file is subject to the terms and conditions of the GNU General Public
 # License.  See the file "COPYING" in the main directory of this archive
