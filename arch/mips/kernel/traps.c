@@ -290,9 +290,6 @@ asmlinkage void do_ov(struct pt_regs *regs)
  */
 asmlinkage void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 {
-	if (!(mips_cpu.options & MIPS_CPU_FPU))
-		panic("Floating Point Exception with No FPU");
-
 	if (fcr31 & FPU_CSR_UNI_X) {
 		extern void save_fp(struct task_struct *);
 		extern void restore_fp(struct task_struct *);
@@ -813,7 +810,10 @@ void __init trap_init(void)
 	set_except_vector(12, handle_ov);
 	set_except_vector(13, handle_tr);
 	set_except_vector(15, handle_fpe);
-	
+
+	if (mips_cpu.options & MIPS_CPU_FPU)
+		set_except_vector(15, handle_fpe);
+
 	/*
 	 * Handling the following exceptions depends mostly of the cpu type
 	 */
