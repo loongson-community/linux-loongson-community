@@ -1,4 +1,4 @@
-/* $Id: newport_con.c,v 1.8 1999/03/14 15:23:51 tsbogend Exp $
+/* $Id: newport_con.c,v 1.9 1999/03/15 21:36:43 tsbogend Exp $
  *
  * newport_con.c: Abscon for newport hardware
  * 
@@ -118,9 +118,19 @@ void newport_reset (void)
     }
 
     newport_init_cmap();
+
+    /* turn off popup plane */
+    npregs->set.dcbmode = (DCB_XMAP0 | R_DCB_XMAP9_PROTOCOL |
+                           XM9_CRS_CONFIG | NPORT_DMODE_W1);
+    npregs->set.dcbdata0.bytes.b3 &= ~XM9_PUPMODE;
+    npregs->set.dcbmode = (DCB_XMAP1 | R_DCB_XMAP9_PROTOCOL |
+                           XM9_CRS_CONFIG | NPORT_DMODE_W1);
+    npregs->set.dcbdata0.bytes.b3 &= ~XM9_PUPMODE;
+    
     topscan = 0;
     npregs->cset.topscan = 0x3ff;
     npregs->cset.xywin = (4096 << 16) | 4096;
+
     /* Clear the screen. */
     newport_clear_screen(0,0,1280+63,1024);
 }
@@ -371,7 +381,7 @@ static int newport_scroll(struct vc_data *vc, int t, int b, int dir, int lines)
     unsigned short *s, *d;
     unsigned short chattr;
 
-    if (newport_ysize == 1024 && t == 0 && b == vc->vc_rows) {
+    if (t == 0 && b == vc->vc_rows) {
 	if (dir == SM_UP) {
 	    topscan = (topscan + (lines << 4)) & 0x3ff;
 	    newport_clear_lines (vc->vc_rows-lines,vc->vc_rows-1);		
