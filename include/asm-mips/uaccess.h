@@ -23,6 +23,8 @@
  */
 #ifdef CONFIG_MIPS32
 
+#define __UA_LIMIT	0x80000000UL
+
 #define __UA_ADDR	".word"
 #define __UA_LA		"la"
 #define __UA_ADDU	"addu"
@@ -33,6 +35,8 @@
 
 #ifdef CONFIG_MIPS64
 
+#define __UA_LIMIT	(- TASK_SIZE)
+
 #define __UA_ADDR	".dword"
 #define __UA_LA		"dla"
 #define __UA_ADDU	"daddu"
@@ -42,7 +46,7 @@
 #endif /* CONFIG_MIPS64 */
 
 #define KERNEL_DS	((mm_segment_t) { 0UL })
-#define USER_DS		((mm_segment_t) { -TASK_SIZE })
+#define USER_DS		((mm_segment_t) { __UA_LIMIT })
 
 #define VERIFY_READ    0
 #define VERIFY_WRITE   1
