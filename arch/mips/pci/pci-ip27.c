@@ -189,6 +189,7 @@ int __init bridge_probe(nasid_t nasid, int widget_id, int masterwid)
 	struct bridge_controller *bc;
 	static int num_bridges = 0;
 	bridge_t *bridge;
+	int slot;
 
 	printk("a bridge\n");
 
@@ -250,6 +251,10 @@ int __init bridge_probe(nasid_t nasid, int widget_id, int masterwid)
 	bridge->b_wid_int_lower = 0x01800090;	/* PI_INT_PEND_MOD off*/
 	bridge->b_dir_map = (masterwid << 20);	/* DMA */
 	bridge->b_int_enable = 0;
+
+	for (slot = 0; slot < 8; slot ++)
+		bridge->b_device[slot].reg |= BRIDGE_DEV_SWAP_DIR;
+	bridge->b_widget.w_tflush;	/* Flush */
 
 	bridge->b_wid_tflush;     /* wait until Bridge PIO complete */
 
@@ -319,19 +324,13 @@ static inline void pci_enable_swapping(struct pci_dev *dev)
 	bridge->b_widget.w_tflush;	/* Flush */
 }
 
-static void __init pci_fixup_qlogic_isp(struct pci_dev *d)
+static void __init pci_fixup_ioc3(struct pci_dev *d)
 {
-	printk("PCI: Fixing QLogic ISP in [bus:slot.fn] %s\n", pci_name(d));
-
-	pci_enable_swapping(d);
+	pci_disable_swapping(d);
 }
 
 struct pci_fixup pcibios_fixups[] = {
-	{PCI_FIXUP_HEADER, PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP1020,
-	 pci_fixup_qlogic_isp},
-	{PCI_FIXUP_HEADER, PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2100,
-	 pci_fixup_qlogic_isp},
-	{PCI_FIXUP_HEADER, PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2200,
-	 pci_fixup_qlogic_isp},
+	{PCI_FIXUP_HEADER, PCI_VENDOR_ID_SGI, PCI_DEVICE_ID_SGI_IOC3,
+	 pci_fixup_ioc3},
 	{0}
 };
