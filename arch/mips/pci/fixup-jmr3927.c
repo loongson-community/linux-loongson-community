@@ -115,9 +115,9 @@ int pci_get_irq(struct pci_dev *dev, int pin)
 void __init pcibios_fixup_irqs(void)
 {
 	unsigned char irq;
-	struct pci_dev *dev;
+	struct pci_dev *dev = NULL;
 
-	pci_for_each_dev(dev) {
+	while ((dev = pci_find_device(PCI_ANY_ID, PCI_ANY_ID, dev)) != NULL) {
 		pci_read_config_byte(dev, PCI_INTERRUPT_PIN, &irq);
 		if (irq == 0)
 			return;

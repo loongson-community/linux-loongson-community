@@ -24,7 +24,7 @@ tool-prefix	= mips64-linux-
 endif
 
 ifdef CONFIG_CROSSCOMPILE
-CROSS_COMPILE	= $(tool-prefix)
+CROSS_COMPILE	:= $(tool-prefix)
 endif
 
 #

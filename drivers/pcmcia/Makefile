@@ -3,9 +3,7 @@
 #
 
 obj-$(CONFIG_PCMCIA)			+= pcmcia_core.o ds.o
-ifeq ($(CONFIG_CARDBUS),y)
-  obj-$(CONFIG_PCMCIA)			+= yenta_socket.o
-endif
+obj-$(CONFIG_YENTA)			+= yenta.o
 
 obj-$(CONFIG_I82365)			+= i82365.o
 obj-$(CONFIG_I82092)			+= i82092.o
@@ -14,8 +12,6 @@ obj-$(CONFIG_HD64465_PCMCIA)		+= hd64465_ss.o
 obj-$(CONFIG_PCMCIA_SA1100)		+= sa1100_cs.o
 obj-$(CONFIG_PCMCIA_SA1111)		+= sa1111_cs.o
 obj-$(CONFIG_PCMCIA_VRC4173)		+= vrc4173_cardu.o
-
-yenta_socket-objs			:= pci_socket.o yenta.o
 
 pcmcia_core-objs-y				:= cistpl.o rsrc_mgr.o bulkmem.o cs.o
 pcmcia_core-objs-$(CONFIG_CARDBUS)		+= cardbus.o

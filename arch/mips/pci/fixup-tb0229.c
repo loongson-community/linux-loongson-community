@@ -30,10 +30,10 @@ void __init pcibios_fixup(void)
 void __init pcibios_fixup_irqs(void)
 {
 #ifdef CONFIG_TANBAC_TB0219
-	struct pci_dev *dev;
+	struct pci_dev *dev = NULL;
 	u8 slot;
 
-	pci_for_each_dev(dev) {
+	while ((dev = pci_find_device(PCI_ANY_ID, PCI_ANY_ID, dev)) != NULL) {
 		slot = PCI_SLOT(dev->devfn);
 		dev->irq = 0;
 

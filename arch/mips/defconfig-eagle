@@ -120,9 +120,8 @@ CONFIG_HOTPLUG=y
 # PCMCIA/CardBus support
 #
 CONFIG_PCMCIA=y
-CONFIG_CARDBUS=y
+# CONFIG_YENTA is not set
 # CONFIG_I82092 is not set
-# CONFIG_I82365 is not set
 # CONFIG_TCIC is not set
 # CONFIG_PCMCIA_VRC4173 is not set
 
@@ -153,6 +152,7 @@ CONFIG_MTD_CHAR=y
 CONFIG_MTD_BLOCK=y
 # CONFIG_FTL is not set
 # CONFIG_NFTL is not set
+# CONFIG_INFTL is not set
 
 #
 # RAM/ROM/Flash chip drivers
@@ -167,6 +167,7 @@ CONFIG_MTD_CFI_NOSWAP=y
 # CONFIG_MTD_CFI_GEOMETRY is not set
 CONFIG_MTD_CFI_INTELEXT=y
 # CONFIG_MTD_CFI_AMDSTD is not set
+# CONFIG_MTD_CFI_STAA is not set
 # CONFIG_MTD_RAM is not set
 # CONFIG_MTD_ROM is not set
 # CONFIG_MTD_ABSENT is not set
@@ -175,12 +176,11 @@ CONFIG_MTD_CFI_INTELEXT=y
 #
 # Mapping drivers for chip access
 #
+# CONFIG_MTD_COMPLEX_MAPPINGS is not set
 CONFIG_MTD_PHYSMAP=y
 CONFIG_MTD_PHYSMAP_START=0x1c000000
 CONFIG_MTD_PHYSMAP_LEN=0x2000000
 CONFIG_MTD_PHYSMAP_BUSWIDTH=4
-# CONFIG_MTD_PCI is not set
-# CONFIG_MTD_PCMCIA is not set
 
 #
 # Self-contained MTD device drivers
@@ -193,9 +193,9 @@ CONFIG_MTD_PHYSMAP_BUSWIDTH=4
 #
 # Disk-On-Chip Device Drivers
 #
-# CONFIG_MTD_DOC1000 is not set
 # CONFIG_MTD_DOC2000 is not set
 # CONFIG_MTD_DOC2001 is not set
+# CONFIG_MTD_DOC2001PLUS is not set
 
 #
 # NAND Flash Device Drivers
@@ -620,7 +620,6 @@ CONFIG_RAMFS=y
 # CONFIG_EFS_FS is not set
 CONFIG_JFFS_FS=y
 CONFIG_JFFS_FS_VERBOSE=0
-# CONFIG_JFFS_PROC_FS is not set
 CONFIG_JFFS2_FS=y
 CONFIG_JFFS2_FS_DEBUG=0
 # CONFIG_JFFS2_FS_NAND is not set

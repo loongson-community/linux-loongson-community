@@ -1,5 +1,3 @@
-L_TARGET			= lib.a
+lib-y				= setup.o cmdline.o rtc_xicor1241.o rtc_m41t81.o
 
-obj-y				= setup.o cmdline.o rtc_xicor1241.o rtc_m41t81.o
-
-obj-$(CONFIG_KGDB)		+= dbg_io.o
+lib-$(CONFIG_KGDB)		+= dbg_io.o

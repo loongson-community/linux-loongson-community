@@ -138,6 +138,7 @@ CONFIG_MTD_CHAR=y
 CONFIG_MTD_BLOCK=y
 # CONFIG_FTL is not set
 # CONFIG_NFTL is not set
+# CONFIG_INFTL is not set
 
 #
 # RAM/ROM/Flash chip drivers
@@ -148,6 +149,7 @@ CONFIG_MTD_GEN_PROBE=y
 # CONFIG_MTD_CFI_ADV_OPTIONS is not set
 CONFIG_MTD_CFI_INTELEXT=y
 CONFIG_MTD_CFI_AMDSTD=y
+# CONFIG_MTD_CFI_STAA is not set
 # CONFIG_MTD_RAM is not set
 # CONFIG_MTD_ROM is not set
 # CONFIG_MTD_ABSENT is not set
@@ -156,10 +158,12 @@ CONFIG_MTD_CFI_AMDSTD=y
 #
 # Mapping drivers for chip access
 #
+# CONFIG_MTD_COMPLEX_MAPPINGS is not set
 CONFIG_MTD_PHYSMAP=y
 CONFIG_MTD_PHYSMAP_START=0x10040000
 CONFIG_MTD_PHYSMAP_LEN=0x00fc0000
 CONFIG_MTD_PHYSMAP_BUSWIDTH=4
+# CONFIG_MTD_CSTM_MIPS_IXX is not set
 # CONFIG_MTD_UCLINUX is not set
 
 #
@@ -172,16 +176,16 @@ CONFIG_MTD_PHYSMAP_BUSWIDTH=4
 #
 # Disk-On-Chip Device Drivers
 #
-# CONFIG_MTD_DOC1000 is not set
 # CONFIG_MTD_DOC2000 is not set
 # CONFIG_MTD_DOC2001 is not set
+# CONFIG_MTD_DOC2001PLUS is not set
 
 #
 # NAND Flash Device Drivers
 #
 CONFIG_MTD_NAND=y
-# CONFIG_MTD_NAND_ECC is not set
 # CONFIG_MTD_NAND_VERIFY_WRITE is not set
+CONFIG_MTD_NAND_IDS=y
 
 #
 # Parallel port support

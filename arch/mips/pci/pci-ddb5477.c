@@ -145,7 +145,7 @@ static unsigned char rockhopperII_irq_map[MAX_SLOT_NUM] = {
 
 void __init pcibios_fixup_irqs(void)
 {
-	struct pci_dev *dev;
+	struct pci_dev *dev = NULL;
 	int slot_num;
 	unsigned char *slot_irq_map;
 	unsigned char irq;
@@ -156,7 +156,7 @@ void __init pcibios_fixup_irqs(void)
 		slot_irq_map = irq_map;
 
 
-	pci_for_each_dev(dev) {
+	while ((dev = pci_find_device(PCI_ANY_ID, PCI_ANY_ID, dev)) != NULL) {
 		slot_num = PCI_SLOT(dev->devfn);
 		irq = slot_irq_map[slot_num];
 
@@ -252,51 +252,48 @@ void __init fix_amd_lance(struct pci_dev *dev)
 
 void __init pcibios_fixup(void)
 {
-	if (mips_machtype == MACH_NEC_ROCKHOPPERII) {
-		struct pci_dev *dev;
+	struct pci_dev *dev = NULL;
+
+	if (mips_machtype != MACH_NEC_ROCKHOPPERII)
+		return;
+
 
 #define M1535_CONFIG_PORT 0x3f0
 #define M1535_INDEX_PORT  0x3f0
 #define M1535_DATA_PORT   0x3f1
 
-		printk("Configuring ALI M1535 Super I/O mouse irq.\n");
+	printk("Configuring ALI M1535 Super I/O mouse irq.\n");
 
-		request_region(M1535_CONFIG_PORT, 2,
-			       "M1535 Super I/O config");
+	request_region(M1535_CONFIG_PORT, 2, "M1535 Super I/O config");
 
-		/* Enter config mode. */
-		outb(0x51, M1535_CONFIG_PORT);
-		outb(0x23, M1535_CONFIG_PORT);
+	/* Enter config mode. */
+	outb(0x51, M1535_CONFIG_PORT);
+	outb(0x23, M1535_CONFIG_PORT);
 
-		/* Select device 0x07. */
-		outb(0x07, M1535_INDEX_PORT);
-		outb(0x07, M1535_DATA_PORT);
+	/* Select device 0x07. */
+	outb(0x07, M1535_INDEX_PORT);
+	outb(0x07, M1535_DATA_PORT);
 
-		/* Set mouse irq (register 0x72) to 12. */
-		outb(0x72, M1535_INDEX_PORT);
-		outb(0x0c, M1535_DATA_PORT);
+	/* Set mouse irq (register 0x72) to 12. */
+	outb(0x72, M1535_INDEX_PORT);
+	outb(0x0c, M1535_DATA_PORT);
 
-		/* Exit config mode. */
-		outb(0xbb, M1535_CONFIG_PORT);
+	/* Exit config mode. */
+	outb(0xbb, M1535_CONFIG_PORT);
 
-		pci_for_each_dev(dev) {
-			if (dev->vendor == PCI_VENDOR_ID_AL)
-				if (dev->device == PCI_DEVICE_ID_AL_M1535
-				    || dev->device ==
-				    PCI_DEVICE_ID_AL_M1533) {
-					u8 old;
-					printk
-					    ("Enabling ALI M1533/35 PS2 keyboard/mouse.\n");
-					pci_read_config_byte(dev, 0x41,
-							     &old);
-					pci_write_config_byte(dev, 0x41,
-							      old | 0xd0);
-				}
+	while ((dev = pci_find_device(PCI_ANY_ID, PCI_ANY_ID, dev)) != NULL) {
+		if (dev->vendor == PCI_VENDOR_ID_AL)
+			if (dev->device == PCI_DEVICE_ID_AL_M1535
+			    || dev->device == PCI_DEVICE_ID_AL_M1533) {
+				u8 old;
+				printk
+				    ("Enabling ALI M1533/35 PS2 keyboard/mouse.\n");
+				pci_read_config_byte(dev, 0x41, &old);
+				pci_write_config_byte(dev, 0x41, old | 0xd0);
+			}
 
-			if (dev->vendor == PCI_VENDOR_ID_AMD &&
-			    dev->device == PCI_DEVICE_ID_AMD_LANCE)
-				fix_amd_lance(dev);
-		}
-
+		if (dev->vendor == PCI_VENDOR_ID_AMD &&
+		    dev->device == PCI_DEVICE_ID_AMD_LANCE)
+			fix_amd_lance(dev);
 	}
 }

@@ -10,6 +10,4 @@
 # unless it's something special (ie not a .c file).
 #
 
-L_TARGET	= lib.a
-
-obj-y := init.o setup.o
+lib-y := init.o setup.o

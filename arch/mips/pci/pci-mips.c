@@ -363,7 +363,7 @@ int mips_pcibios_iack(void)
 static int __init pcibios_init(void)
 {
 #ifdef CONFIG_MIPS_MALTA
-	struct pci_dev *pdev;
+	struct pci_dev *pdev = NULL;
 	unsigned char reg_val;
 #endif
 
@@ -393,7 +393,7 @@ static int __init pcibios_init(void)
 	}
 
 #ifdef CONFIG_MIPS_MALTA
-	pci_for_each_dev(pdev) {
+	while ((pdev = pci_find_device(PCI_ANY_ID, PCI_ANY_ID, pdev)) != NULL) {
 		if ((pdev->vendor == PCI_VENDOR_ID_INTEL)
 		    && (pdev->device == PCI_DEVICE_ID_INTEL_82371AB)
 		    && (PCI_SLOT(pdev->devfn) == 0x0a)) {

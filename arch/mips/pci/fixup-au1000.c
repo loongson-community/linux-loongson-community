@@ -94,9 +94,9 @@ void __init pcibios_fixup_irqs(void)
 #ifdef CONFIG_SOC_AU1500
 	unsigned int slot, func;
 	unsigned char pin;
-	struct pci_dev *dev;
+	struct pci_dev *dev = NULL;
 
-	pci_for_each_dev(dev) {
+	while ((dev = pci_find_device(PCI_ANY_ID, PCI_ANY_ID, dev)) != NULL) {
 		if (dev->bus->number != 0)
 			return;
 

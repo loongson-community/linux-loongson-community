@@ -48,7 +48,7 @@ void __init pcibios_fixup(void)
 
 void __init pcibios_fixup_irqs(void)
 {
-	struct pci_dev *dev;
+	struct pci_dev *dev = NULL;
 	unsigned int slot;
 	u32 vendor;
 	unsigned short gt_devid = get_gt_devid();
@@ -60,7 +60,7 @@ void __init pcibios_fixup_irqs(void)
 	 ** for EV96100 compatibility.
 	 */
 
-	pci_for_each_dev(dev) {
+	while ((dev = pci_find_device(PCI_ANY_ID, PCI_ANY_ID, dev)) != NULL) {
 		if (dev->bus->number != 0)
 			return;
 

@@ -26,7 +26,7 @@ LDFLAGS_BLOB   := --format binary --oformat elf32-tradbigmips
 endif
 
 ifdef CONFIG_CROSSCOMPILE
-CROSS_COMPILE	= $(tool-prefix)
+CROSS_COMPILE	:= $(tool-prefix)
 endif
 
 #

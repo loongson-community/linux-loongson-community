@@ -52,12 +52,8 @@ static struct real_driver rs_real_driver = {
 /*
  * Structures and usage counts
  */
-static struct tty_driver rs_driver, rs_callout_driver;
-static struct tty_struct **rs_tty;
-static struct termios **rs_termios;
-static struct termios **rs_termios_locked;
+static struct tty_driver *rs_driver;
 static struct rs_port *rs_port;
-static int rs_refcount;
 static int rs_initialized;
 
 
@@ -436,17 +432,6 @@ static int rs_open(struct tty_struct * tty, struct file * filp)
 		return retval;
 	}
 
-	if((rs_port->gs.count == 1) &&
-		(rs_port->gs.flags & ASYNC_SPLIT_TERMIOS)) {
-		if (tty->driver->subtype == SERIAL_TYPE_NORMAL)
-			*tty->termios = rs_port->gs.normal_termios;
-		else 
-			*tty->termios = rs_port->gs.callout_termios;
-		rs_set_real_termios(rs_port);
-	}
-
-	rs_port->gs.session = current->session;
-	rs_port->gs.pgrp = current->pgrp;
 	func_exit();
 
 	return 0;
@@ -553,12 +538,35 @@ static void rs_unthrottle(struct tty_struct * tty)
 	func_exit();
 }
 
+static struct tty_operations rs_ops = {
+	.open   = rs_open,
+	.close = gs_close,
+	.write = gs_write,
+	.put_char = gs_put_char,
+	.flush_chars = gs_flush_chars,
+	.write_room = gs_write_room,
+	.chars_in_buffer = gs_chars_in_buffer,
+	.flush_buffer = gs_flush_buffer,
+	.ioctl = rs_ioctl,
+	.throttle = rs_throttle,
+	.unthrottle = rs_unthrottle,
+	.set_termios = gs_set_termios,
+	.stop = gs_stop,
+	.start = gs_start,
+	.hangup = gs_hangup,
+};
+
 /*
  * Initialize the serial port
  */
 void __init tx3912_rs_init(void)
 {
 	func_enter();
+
+	rs_driver = alloc_tty_driver(TX3912_UART_NPORTS);
+	if (!rs_driver)
+		return -ENOMEM;
+
 	rs_dprintk(TX3912_UART_DEBUG_INIT, "Initializing serial...\n");
 
 	/* Allocate critical structures */
@@ -604,50 +612,20 @@ void __init tx3912_rs_init(void)
 	init_waitqueue_head(&rs_port->gs.close_wait);
 #endif
 
-	/* Fill in generic serial driver structures */
-	rs_driver.magic = TTY_DRIVER_MAGIC;
-	rs_driver.owner = THIS_MODULE;
-	rs_driver.driver_name = "serial";
-	rs_driver.name = "ttyS";
-	rs_driver.major = TTY_MAJOR;
-	rs_driver.minor_start = 64;
-	rs_driver.num = 1;
-	rs_driver.type = TTY_DRIVER_TYPE_SERIAL;
-	rs_driver.subtype = SERIAL_TYPE_NORMAL;
-	rs_driver.init_termios = tty_std_termios;
-	rs_driver.init_termios.c_cflag = B115200 | CS8 | CREAD | HUPCL | CLOCAL;
-	rs_driver.refcount = &rs_refcount;
-	rs_driver.table = rs_tty;
-	rs_driver.termios = rs_termios;
-	rs_driver.termios_locked = rs_termios_locked;
-	rs_driver.open	= rs_open;
-	rs_driver.close = gs_close;
-	rs_driver.write = gs_write;
-	rs_driver.put_char = gs_put_char; 
-	rs_driver.flush_chars = gs_flush_chars;
-	rs_driver.write_room = gs_write_room;
-	rs_driver.chars_in_buffer = gs_chars_in_buffer;
-	rs_driver.flush_buffer = gs_flush_buffer;
-	rs_driver.ioctl = rs_ioctl;
-	rs_driver.throttle = rs_throttle;
-	rs_driver.unthrottle = rs_unthrottle;
-	rs_driver.set_termios = gs_set_termios;
-	rs_driver.stop = gs_stop;
-	rs_driver.start = gs_start;
-	rs_driver.hangup = gs_hangup;
-	rs_callout_driver = rs_driver;
-	rs_callout_driver.name = "cua";
-	rs_callout_driver.major = TTYAUX_MAJOR;
-	rs_callout_driver.subtype = SERIAL_TYPE_CALLOUT;
-
-	/* Register serial and callout drivers */
-	if(tty_register_driver(&rs_driver)) {
+	rs_driver->owner = THIS_MODULE;
+	rs_driver->driver_name = "serial";
+	rs_driver->name = "ttyS";
+	rs_driver->major = TTY_MAJOR;
+	rs_driver->minor_start = 64;
+	rs_driver->type = TTY_DRIVER_TYPE_SERIAL;
+	rs_driver->subtype = SERIAL_TYPE_NORMAL;
+	rs_driver->init_termios = tty_std_termios;
+	rs_driver->init_termios.c_cflag =
+		B115200 | CS8 | CREAD | HUPCL | CLOCAL;
+	tty_set_operations(rs_driver, &rs_ops);
+	if ((error = tty_register_driver(rs_driver))) {
 		printk(KERN_ERR "Unable to register serial driver\n");
-		goto error;
-	}
-	if(tty_register_driver(&rs_callout_driver)) {
-		tty_unregister_driver(&rs_driver);
-		printk(KERN_ERR "Unable to register callout driver\n");
+		put_tty_driver(rs_driver);
 		goto error;
 	}
 
@@ -737,7 +715,7 @@ static void serial_console_write(struct console *co, const char *s,
 static struct tty_driver *serial_console_device(struct console *c, int *index)
 {
 	*index = c->index;
-	return &rs_driver;
+	return rs_driver;
 }
 
 static __init int serial_console_setup(struct console *co, char *options)

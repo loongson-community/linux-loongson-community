@@ -116,7 +116,6 @@ CONFIG_HOTPLUG=y
 # PCMCIA/CardBus support
 #
 CONFIG_PCMCIA=m
-# CONFIG_I82365 is not set
 # CONFIG_TCIC is not set
 
 #
@@ -147,6 +146,7 @@ CONFIG_MTD_CHAR=y
 CONFIG_MTD_BLOCK=y
 # CONFIG_FTL is not set
 # CONFIG_NFTL is not set
+# CONFIG_INFTL is not set
 
 #
 # RAM/ROM/Flash chip drivers
@@ -157,6 +157,7 @@ CONFIG_MTD_GEN_PROBE=y
 # CONFIG_MTD_CFI_ADV_OPTIONS is not set
 CONFIG_MTD_CFI_INTELEXT=y
 # CONFIG_MTD_CFI_AMDSTD is not set
+# CONFIG_MTD_CFI_STAA is not set
 # CONFIG_MTD_RAM is not set
 # CONFIG_MTD_ROM is not set
 # CONFIG_MTD_ABSENT is not set
@@ -165,8 +166,8 @@ CONFIG_MTD_CFI_INTELEXT=y
 #
 # Mapping drivers for chip access
 #
+# CONFIG_MTD_COMPLEX_MAPPINGS is not set
 # CONFIG_MTD_PHYSMAP is not set
-# CONFIG_MTD_PCMCIA is not set
 # CONFIG_MTD_UCLINUX is not set
 
 #
@@ -179,9 +180,9 @@ CONFIG_MTD_CFI_INTELEXT=y
 #
 # Disk-On-Chip Device Drivers
 #
-# CONFIG_MTD_DOC1000 is not set
 # CONFIG_MTD_DOC2000 is not set
 # CONFIG_MTD_DOC2001 is not set
+# CONFIG_MTD_DOC2001PLUS is not set
 
 #
 # NAND Flash Device Drivers
@@ -633,7 +634,6 @@ CONFIG_RAMFS=y
 # CONFIG_EFS_FS is not set
 CONFIG_JFFS_FS=m
 CONFIG_JFFS_FS_VERBOSE=0
-CONFIG_JFFS_PROC_FS=y
 CONFIG_JFFS2_FS=m
 CONFIG_JFFS2_FS_DEBUG=0
 # CONFIG_JFFS2_FS_NAND is not set

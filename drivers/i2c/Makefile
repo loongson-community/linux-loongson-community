@@ -16,5 +16,6 @@ obj-$(CONFIG_ITE_I2C_ADAP)	+= i2c-adap-ite.o
 obj-$(CONFIG_SCx200_I2C)	+= scx200_i2c.o
 obj-$(CONFIG_SCx200_ACB)	+= scx200_acb.o
 obj-$(CONFIG_I2C_SENSOR)	+= i2c-sensor.o
+obj-$(CONFIG_I2C_IOP3XX)	+= i2c-iop3xx.o
 obj-$(CONFIG_I2C_ALGO_SIBYTE)	+= i2c-algo-sibyte.o i2c-sibyte.o
 obj-y				+= busses/ chips/

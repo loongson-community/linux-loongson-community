@@ -127,7 +127,6 @@ CONFIG_HOTPLUG=y
 # PCMCIA/CardBus support
 #
 CONFIG_PCMCIA=m
-# CONFIG_I82365 is not set
 # CONFIG_TCIC is not set
 
 #

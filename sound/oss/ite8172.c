@@ -2193,8 +2193,6 @@ static struct pci_driver it8172_driver = {
 
 static int __init init_it8172(void)
 {
-	if (!pci_present())   /* No PCI bus in this machine! */
-		return -ENODEV;
 	info("version v0.5 time " __TIME__ " " __DATE__);
 	return pci_module_init(&it8172_driver);
 }

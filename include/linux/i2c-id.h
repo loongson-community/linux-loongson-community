@@ -97,9 +97,10 @@
 #define I2C_DRIVERID_ZR36067	49     /* Zoran 36067 video encoder	*/
 #define I2C_DRIVERID_ZR36120	50     /* Zoran 36120 video encoder	*/
 #define I2C_DRIVERID_24LC32A	51     /* Microchip 24LC32A 32k EEPROM */
-#define I2C_DRIVERID_STM41T00	52     /* real time clock              */
-#define I2C_DRIVERID_SAA7114H	53     /* video decoder			*/
-#define I2C_DRIVERID_MAX1617	54     /* temp sensor			*/
+#define I2C_DRIVERID_STM41T00	52     /* real time clock	       */
+#define I2C_DRIVERID_UDA1342	53     /* UDA1342 audio codec	       */
+#define I2C_DRIVERID_SAA7114H	54     /* video decoder			*/
+#define I2C_DRIVERID_MAX1617	55     /* temp sensor			*/
 
 
 
@@ -180,6 +181,7 @@
 #define I2C_ALGO_MPC8XX 0x110000	/* MPC8xx PowerPC I2C algorithm */
 #define I2C_ALGO_OCP    0x120000	/* IBM or otherwise On-chip I2C algorithm */
 #define I2C_ALGO_BITHS	0x130000	/* enhanced bit style adapters	*/
+#define I2C_ALGO_OCP_IOP3XX  0x140000	/* XSCALE IOP3XX On-chip I2C alg */
 
 #define I2C_ALGO_SIBYTE 0x140000	/* Broadcom SiByte SOCs		*/
 
@@ -217,6 +219,9 @@
 #define I2C_HW_B_FRODO  0x13    /* 2d3D, Inc. SA-1110 Development Board */
 #define I2C_HW_B_OMAHA  0x14    /* Omaha I2C interface (ARM)		*/
 #define I2C_HW_B_GUIDE  0x15    /* Guide bit-basher			*/
+#define I2C_HW_B_IXP2000 0x16	/* GPIO on IXP2000 systems              */
+#define I2C_HW_B_IXP425 0x17	/* GPIO on IXP425 systems		*/
+#define I2C_HW_B_S3VIA	0x18	/* S3Via ProSavage adapter		*/
 
 /* --- PCF 8584 based algorithms					*/
 #define I2C_HW_P_LP	0x00	/* Parallel port interface		*/
@@ -241,6 +246,8 @@
 /* --- Broadcom SiByte adapters						*/
 #define I2C_HW_SIBYTE	0x00
 
+/* --- XSCALE on-chip adapters                          */
+#define I2C_HW_IOP321 0x00
 
 /* --- SMBus only adapters						*/
 #define I2C_HW_SMBUS_PIIX4	0x00

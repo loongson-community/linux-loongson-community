@@ -56,7 +56,7 @@ obj-$(CONFIG_FB_MAXINE)           += maxinefb.o  cfbfillrect.o cfbcopyarea.o cfb
 obj-$(CONFIG_FB_TX3912)           += tx3912fb.o  cfbfillrect.o cfbcopyarea.o cfbimgblt.o
 obj-$(CONFIG_FB_AU1100)		  += au1100fb.o fbgen.o
 
-obj-$(CONFIG_FB_MATROX)		  += matrox/
+obj-$(CONFIG_FB_MATROX)		  += matrox/ cfbfillrect.o cfbcopyarea.o cfbimgblt.o
 obj-$(CONFIG_FB_RIVA)		  += riva/ cfbimgblt.o vgastate.o
 obj-$(CONFIG_FB_SIS)		  += sis/ cfbcopyarea.o cfbfillrect.o cfbimgblt.o
 obj-$(CONFIG_FB_ATY)		  += aty/ cfbcopyarea.o cfbfillrect.o cfbimgblt.o

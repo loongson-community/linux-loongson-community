@@ -138,6 +138,7 @@ CONFIG_MTD_CHAR=y
 # CONFIG_MTD_BLOCK_RO is not set
 # CONFIG_FTL is not set
 # CONFIG_NFTL is not set
+# CONFIG_INFTL is not set
 
 #
 # RAM/ROM/Flash chip drivers
@@ -148,6 +149,7 @@ CONFIG_MTD_GEN_PROBE=y
 # CONFIG_MTD_CFI_ADV_OPTIONS is not set
 CONFIG_MTD_CFI_INTELEXT=y
 # CONFIG_MTD_CFI_AMDSTD is not set
+# CONFIG_MTD_CFI_STAA is not set
 # CONFIG_MTD_RAM is not set
 # CONFIG_MTD_ROM is not set
 # CONFIG_MTD_ABSENT is not set
@@ -156,6 +158,7 @@ CONFIG_MTD_CFI_INTELEXT=y
 #
 # Mapping drivers for chip access
 #
+# CONFIG_MTD_COMPLEX_MAPPINGS is not set
 CONFIG_MTD_PHYSMAP=y
 CONFIG_MTD_PHYSMAP_START=0x8000000
 CONFIG_MTD_PHYSMAP_LEN=0x2000000
@@ -171,9 +174,9 @@ CONFIG_MTD_PHYSMAP_BUSWIDTH=4
 #
 # Disk-On-Chip Device Drivers
 #
-# CONFIG_MTD_DOC1000 is not set
 # CONFIG_MTD_DOC2000 is not set
 # CONFIG_MTD_DOC2001 is not set
+# CONFIG_MTD_DOC2001PLUS is not set
 
 #
 # NAND Flash Device Drivers

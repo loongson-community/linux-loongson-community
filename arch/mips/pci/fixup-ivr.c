@@ -48,7 +48,8 @@ void __init pcibios_fixup_irqs(void)
 {
 	unsigned int slot, func;
 	unsigned char pin;
-	struct pci_dev *dev;
+	struct pci_dev *dev = NULL;
+
 	const int internal_func_irqs[7] = {
 		IT8172_AC97_IRQ,
 		IT8172_DMA_IRQ,
@@ -59,7 +60,7 @@ void __init pcibios_fixup_irqs(void)
 		IT8172_MC68K_IRQ
 	};
 
-	pci_for_each_dev(dev) {
+	while ((dev = pci_find_device(PCI_ANY_ID, PCI_ANY_ID, dev)) != NULL) {
 		if (dev->bus->number != 0)
 			return;
 

@@ -367,11 +367,6 @@ static inline void pci_dac_dma_sync_single(struct pci_dev *pdev,
 }
 
 /*
- * Return the index of the PCI controller for device.
- */
-#define pci_controller_num(pdev)	(0)
-
-/*
  * These macros should be used after a pci_map_sg call has been done
  * to get bus addresses of each of the SG entries and their lengths.
  * You should only work with the number of sg entries pci_map_sg
