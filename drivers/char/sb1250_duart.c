@@ -58,34 +58,6 @@
 #define DEFAULT_CFLAGS          (CS8 | B115200)
 
 
-#ifdef FORCED_INPUT
-static struct timer_list inp_timer;
-static unsigned char inp_cmds[] =
-"";
-"foo\n";
-"export LD_DEBUG=all\nfoo\n";
-
-static unsigned char *next_inp;
-struct tty_struct *stuff_char_tty;
-
-
-static void stuff_char(unsigned long arg) 
-{
-	int was_newline = 0;
-	tty_insert_flip_char(stuff_char_tty, *next_inp, 0);
-	tty_flip_buffer_push(stuff_char_tty);
-	if (*next_inp == '\n') {
-		was_newline = 1;
-	}
-	next_inp++;
-	del_timer(&inp_timer);
-	if (*next_inp) {
-		inp_timer.expires = jiffies + (was_newline?20:2);
-		add_timer(&inp_timer);
-	}
-}
-#endif
-
 /*
   Still not sure what the termios structures set up here are for, 
    but we have to supply pointers to them to register the tty driver
@@ -222,7 +194,8 @@ static void duart_int(int irq, void *dev_id, struct pt_regs *regs)
 			us->outp_count--;
 		} while ((get_status_reg(line) & M_DUART_TX_RDY) && us->outp_count);
 
-		if ((us->flags & SD_WRITE_WAKE) && (us->outp_count < (CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE/2))) {
+		if (us->open && (us->flags & SD_WRITE_WAKE) &&
+		    (us->outp_count < (CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE/2))) {
 			/* We told the discipline at one point that we had no space, so it went
 			   to sleep.  Wake it up when we hit half empty */
 			wake_up_interruptible(&us->tty->write_wait);
@@ -370,10 +343,10 @@ static void duart_flush_buffer(struct tty_struct *tty)
 	duart_mask_ints(line, M_DUART_IMR_TX);
 	spin_lock_irqsave(&us->outp_lock, flags);
 	us->outp_head = us->outp_tail = us->outp_count = 0;
-	spin_unlock_irqrestore(&us->outp_lock, flags);
 	if (us->flags & SD_WRITE_WAKE) {
 		wake_up_interruptible(&us->tty->write_wait);
 	}	
+	spin_unlock_irqrestore(&us->outp_lock, flags);
 }
 
 
@@ -698,14 +671,20 @@ static int __init sb1250_duart_init(void)
 	sb1250_duart_driver.wait_until_sent  = duart_wait_until_sent;
 
 	sb1250_duart_callout_driver          = sb1250_duart_driver;
+#ifdef CONFIG_DEVFS_FS
 	sb1250_duart_callout_driver.name     = "cua/%d";
+#else
+	sb1250_duart_callout_driver.name     = "cua";
+#endif
 	sb1250_duart_callout_driver.major    = TTYAUX_MAJOR;
 	sb1250_duart_callout_driver.subtype  = SERIAL_TYPE_CALLOUT;
 
+	duart_mask_ints(0, 0xf);
 	if (request_irq(K_INT_UART_0, duart_int, 0, "uart0", &uart_states[0])) {
 		panic("Couldn't get uart0 interrupt line");
 	}
 #ifndef CONFIG_SIBYTE_SB1250_DUART_NO_PORT_1
+	duart_mask_ints(1, 0xf);
 	if (request_irq(K_INT_UART_1, duart_int, 0, "uart1", &uart_states[1])) {
 		panic("Couldn't get uart1 interrupt line");
 	}
@@ -809,25 +788,18 @@ static int ser_console_setup(struct console *cons, char *str)
 }
 
 static struct console sb1250_ser_cons = {
-        "ttyS",
-        ser_console_write,       /* write */
-        NULL,                   /* read */
-        ser_console_device,      /* device */
-        ser_console_wait_key,    /* wait_key */
-        NULL,                   /* unblank */
-        ser_console_setup,       /* setup */
-        CON_PRINTBUFFER | CON_ENABLED,
-        -1,
-        0,
-        NULL
+	name:		"ttyS",
+	write:		ser_console_write,
+	device:		ser_console_device,
+	wait_key:	ser_console_wait_key,
+	setup:		ser_console_setup,
+	flags:		CON_PRINTBUFFER,
+	index:		-1,
 };
 
 void __init sb1250_serial_console_init(void)
 {
 	register_console(&sb1250_ser_cons);
-	
-	/*JDCXXX - this should be called from console_setup...but isn't.  Why? */
-	ser_console_setup(NULL, NULL);  
 }
 
 #endif /* CONFIG_SERIAL_CONSOLE */
