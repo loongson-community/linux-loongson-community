@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.9 1998/08/25 09:14:40 ralf Exp $
+/* $Id: setup.c,v 1.10 1998/10/18 13:25:32 tsbogend Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -91,6 +91,9 @@ struct ide_ops *ide_ops;
 extern struct rtc_ops no_rtc_ops;
 struct rtc_ops *rtc_ops;
 
+extern struct kbd_ops no_kbd_ops;
+struct kbd_ops *kbd_ops;
+
 /*
  * Setup information
  *
@@ -170,6 +173,7 @@ __initfunc(void setup_arch(char **cmdline_p,
 #endif
 
 	rtc_ops = &no_rtc_ops;
+	kbd_ops = &no_kbd_ops;
 
 	switch(mips_machgroup)
 	{

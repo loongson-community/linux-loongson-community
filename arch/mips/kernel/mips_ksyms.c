@@ -1,4 +1,4 @@
-/* $Id: mips_ksyms.c,v 1.8 1998/06/30 00:21:50 ralf Exp $
+/* $Id: mips_ksyms.c,v 1.9 1998/09/19 19:16:16 ralf Exp $
  *
  * Export MIPS-specific functions needed for loadable modules.
  *
@@ -55,16 +55,19 @@ EXPORT_SYMBOL(clear_page);
 EXPORT_SYMBOL(__mips_bh_counter);
 EXPORT_SYMBOL(local_bh_count);
 EXPORT_SYMBOL(local_irq_count);
+//EXPORT_SYMBOL(enable_irq);
+//EXPORT_SYMBOL(disable_irq);
+EXPORT_SYMBOL(kernel_thread);
 
 /*
  * Userspace access stuff.
  */
-EXPORT_SYMBOL(__copy_user);
-EXPORT_SYMBOL(__bzero);
-EXPORT_SYMBOL(__strncpy_from_user_nocheck_asm);
-EXPORT_SYMBOL(__strncpy_from_user_asm);
-EXPORT_SYMBOL(__strlen_user_nocheck_asm);
-EXPORT_SYMBOL(__strlen_user_asm);
+EXPORT_SYMBOL_NOVERS(__copy_user);
+EXPORT_SYMBOL_NOVERS(__bzero);
+EXPORT_SYMBOL_NOVERS(__strncpy_from_user_nocheck_asm);
+EXPORT_SYMBOL_NOVERS(__strncpy_from_user_asm);
+EXPORT_SYMBOL_NOVERS(__strlen_user_nocheck_asm);
+EXPORT_SYMBOL_NOVERS(__strlen_user_asm);
 
 
 /* Networking helper routines. */
@@ -108,8 +111,4 @@ EXPORT_SYMBOL(force_sig);
 EXPORT_SYMBOL(__compute_return_epc);
 EXPORT_SYMBOL(register_fpe);
 EXPORT_SYMBOL(unregister_fpe);
-#endif
-
-#if CONFIG_PCI
-EXPORT_SYMBOL(pci_devices);
 #endif

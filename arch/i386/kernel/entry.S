@@ -107,12 +107,16 @@ ENOSYS = 38
 2:	popl %es;	\
 	addl $4,%esp;	\
 3:	iret;		\
-.section fixup,"ax";	\
+.section .fixup,"ax";	\
 4:	movl $0,(%esp);	\
 	jmp 1b;		\
 5:	movl $0,(%esp);	\
 	jmp 2b;		\
-6:	pushl $11;	\
+6:	pushl %ss;	\
+	popl %ds;	\
+	pushl %ss;	\
+	popl %es;	\
+	pushl $11;	\
 	call do_exit;	\
 .previous;		\
 .section __ex_table,"a";\
@@ -146,14 +150,14 @@ ENTRY(lcall7)
 	jmp ret_from_sys_call
 
 
-#ifdef __SMP__
 	ALIGN
-	.globl	ret_from_smpfork
-ret_from_smpfork:
+	.globl	ret_from_fork
+ret_from_fork:
 	GET_CURRENT(%ebx)
+#ifdef __SMP__
 	btrl	$0, SYMBOL_NAME(scheduler_lock)
-	jmp	ret_from_sys_call
 #endif /* __SMP__ */
+	jmp	ret_from_sys_call
 
 /*
  * Return to user mode is not as complex as all this looks,
@@ -184,25 +188,26 @@ ret_with_reschedule:
 	jne reschedule
 	cmpl $0,sigpending(%ebx)
 	jne signal_return
+restore_all:
 	RESTORE_ALL
+
 	ALIGN
 signal_return:
 	testl $(VM_MASK),EFLAGS(%esp)
-	pushl %esp
+	movl %esp,%eax
 	jne v86_signal_return
-	pushl $0
+	xorl %edx,%edx
 	call SYMBOL_NAME(do_signal)
-	addl $8,%esp
-	RESTORE_ALL
+	jmp restore_all
+
 	ALIGN
 v86_signal_return:
 	call SYMBOL_NAME(save_v86_state)
 	movl %eax,%esp
-	pushl %eax
-	pushl $0
+	xorl %edx,%edx
 	call SYMBOL_NAME(do_signal)
-	addl $8,%esp
-	RESTORE_ALL
+	jmp restore_all
+
 	ALIGN
 tracesys:
 	movl $-ENOSYS,EAX(%esp)
@@ -228,18 +233,17 @@ ret_from_intr:
 	movb CS(%esp),%al
 	testl $(VM_MASK | 3),%eax	# return to VM86 mode or non-supervisor?
 	jne ret_with_reschedule
-	RESTORE_ALL
+	jmp restore_all
 
 	ALIGN
 handle_bottom_half:
-	pushl $ret_from_intr
-	jmp SYMBOL_NAME(do_bottom_half)
+	call SYMBOL_NAME(do_bottom_half)
+	jmp ret_from_intr
 
 	ALIGN
 reschedule:
-	pushl $ret_from_sys_call
-	jmp SYMBOL_NAME(schedule)    # test
-
+	call SYMBOL_NAME(schedule)    # test
+	jmp ret_from_sys_call
 
 ENTRY(divide_error)
 	pushl $0		# no error code

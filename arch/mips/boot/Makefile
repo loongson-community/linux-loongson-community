@@ -1,11 +1,10 @@
-#
-# arch/mips/boot/Makefile
+# $Id: Makefile,v 1.3 1998/11/02 09:15:59 ralf Exp $
 #
 # This file is subject to the terms and conditions of the GNU General Public
 # License.  See the file "COPYING" in the main directory of this archive
 # for more details.
 #
-# Copyright (C) 1995 by Ralf Baechle
+# Copyright (C) 1995, 1998 by Ralf Baechle
 #
 
 .S.s:
@@ -34,11 +33,12 @@ mkboot: mkboot.c
 	$(HOSTCC) -o $@ $^
 
 zdisk:	zImage
-	if [ -f /etc/remote-mcopy ]; then \
-		ssh rio mcopy -o - a:vmlinux <zImage; \
-	else \
-		mcopy -o zImage a:vmlinux; \
-	fi
+#	if [ -f /etc/remote-mcopy ]; then \
+#		ssh rio mcopy -o - a:vmlinux <zImage; \
+#	else \
+#		mcopy -o zImage a:vmlinux; \
+#	fi
+	cp zImage /boot/vmlinux
 
 # Don't build dependencies, this may die if $(CC) isn't gcc
 dep:

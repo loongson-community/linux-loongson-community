@@ -1,4 +1,5 @@
-/*
+/* $Id: irixelf.c,v 1.16 1998/10/28 12:38:11 ralf Exp $
+ *
  * irixelf.c: Code to load IRIX ELF executables which conform to
  *            the MIPS ABI.
  *
@@ -1197,12 +1198,16 @@ static int irix_core_dump(long signr, struct pt_regs * regs)
 #else
 	corefile[4] = '\0';
 #endif
-	dentry = open_namei(corefile, O_CREAT | 2 | O_TRUNC, 0600);
+	dentry = open_namei(corefile, O_CREAT | 2 | O_TRUNC | O_NOFOLLOW, 0600);
 	if (IS_ERR(dentry)) {
 		inode = NULL;
 		goto end_coredump;
 	}
 	inode = dentry->d_inode;
+
+	if(inode->i_nlink > 1)
+		goto end_coredump;	/* multiple links - don't dump */
+
 	if (!S_ISREG(inode->i_mode))
 		goto end_coredump;
 	if (!inode->i_op || !inode->i_op->default_file_ops)

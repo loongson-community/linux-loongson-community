@@ -22,14 +22,6 @@ endmenu
 mainmenu_option next_comment
 comment 'General setup'
 
-unset CONFIG_CROSSCOMPILE CONFIG_NATIVE
-
-if [ "`uname`" != "Linux" ]; then
-  define_bool CONFIG_CROSSCOMPILE y
-else
-  define_bool CONFIG_NATIVE y
-fi
-
 choice 'Alpha system type' \
 	"Generic		CONFIG_ALPHA_GENERIC		\
 	 Alcor/Alpha-XLT	CONFIG_ALPHA_ALCOR		\
@@ -174,8 +166,6 @@ if [ "$CONFIG_ALPHA_XL" = "y" ]
 then
 	define_bool CONFIG_ALPHA_AVANTI y
 fi
-
-#bool 'Echo console messages on /dev/ttyS0 (COM1)' CONFIG_SERIAL_ECHO
 
 if [ "$CONFIG_PCI" = "y" ]; then
   bool 'PCI quirks' CONFIG_PCI_QUIRKS

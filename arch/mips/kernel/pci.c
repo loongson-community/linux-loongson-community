@@ -1,4 +1,4 @@
-/* $Id: pci.c,v 1.5 1998/05/07 23:44:00 ralf Exp $
+/* $Id: pci.c,v 1.6 1998/08/25 09:14:40 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -42,7 +42,7 @@ int pcibios_present (void)
  */
 void pcibios_fixup (void)
 {
-	return pci_ops->pcibios_fixup();
+	pci_ops->pcibios_fixup();
 }
 
 int pcibios_read_config_byte (unsigned char bus, unsigned char dev_fn,
@@ -88,11 +88,6 @@ __initfunc(char *pcibios_setup(char *str))
 
 __initfunc(void pcibios_fixup_bus(struct pci_bus *bus))
 {
-}
-
-__initfunc(char *pcibios_setup(char *str))
-{
-	return str;
 }
 
 #endif /* defined(CONFIG_PCI) */

@@ -81,18 +81,18 @@ extern int rd_image_start;	/* starting block # of image */
 
 extern int root_mountflags;
 extern int _etext, _edata, _end;
+extern unsigned long cpu_hz;
 
 /*
  * This is set up by the setup-routine at boot-time
  */
 #define PARAM	((unsigned char *)empty_zero_page)
+#define SCREEN_INFO (*(struct screen_info *) (PARAM+0))
 #define EXT_MEM_K (*(unsigned short *) (PARAM+2))
 #define ALT_MEM_K (*(unsigned long *) (PARAM+0x1e0))
-#ifdef CONFIG_APM
-#define APM_BIOS_INFO (*(struct apm_bios_info *) (PARAM+64))
-#endif
+#define APM_BIOS_INFO (*(struct apm_bios_info *) (PARAM+0x40))
 #define DRIVE_INFO (*(struct drive_info_struct *) (PARAM+0x80))
-#define SCREEN_INFO (*(struct screen_info *) (PARAM+0))
+#define SYS_DESC_TABLE (*(struct sys_desc_table_struct*)(PARAM+0xa0))
 #define MOUNT_ROOT_RDONLY (*(unsigned short *) (PARAM+0x1F2))
 #define RAMDISK_FLAGS (*(unsigned short *) (PARAM+0x1F8))
 #define ORIG_ROOT_DEV (*(unsigned short *) (PARAM+0x1FC))
@@ -101,7 +101,6 @@ extern int _etext, _edata, _end;
 #define KERNEL_START (*(unsigned long *) (PARAM+0x214))
 #define INITRD_START (*(unsigned long *) (PARAM+0x218))
 #define INITRD_SIZE (*(unsigned long *) (PARAM+0x21c))
-#define SYS_DESC_TABLE (*(struct sys_desc_table_struct*)(PARAM+0x220))
 #define COMMAND_LINE ((char *) (PARAM+2048))
 #define COMMAND_LINE_SIZE 256
 
@@ -433,9 +432,9 @@ static struct cpu_model_info cpu_models[] __initdata = {
 	    "486 SX/2", NULL, "486 DX/2-WB", "486 DX/4", "486 DX/4-WB", NULL, 
 	    NULL, NULL, NULL, NULL, NULL }},
 	{ X86_VENDOR_INTEL,	5,
-	  { "Pentium 60/66 A-step", "Pentium 60/66", "Pentium 75+",
+	  { "Pentium 60/66 A-step", "Pentium 60/66", "Pentium 75 - 200",
 	    "OverDrive PODP5V83", "Pentium MMX", NULL, NULL,
-	    "Mobile Pentium 75+", "Mobile Pentium MMX", NULL, NULL, NULL,
+	    "Mobile Pentium 75 - 200", "Mobile Pentium MMX", NULL, NULL, NULL,
 	    NULL, NULL, NULL, NULL }},
 	{ X86_VENDOR_INTEL,	6,
 	  { "Pentium Pro A-step", "Pentium Pro", NULL, "Pentium II (Klamath)", 
@@ -493,6 +492,7 @@ __initfunc(void identify_cpu(struct cpuinfo_x86 *c))
 			switch (edx) {
 				case 0x40:
 					cache_size = 0;
+					break;
 
 				case 0x41:
 					cache_size = 128;
@@ -532,7 +532,7 @@ __initfunc(void identify_cpu(struct cpuinfo_x86 *c))
 			    && (cpu_models[i].x86 == 6) 
 			    && (c->x86_model == 5)
 			    && (c->x86_cache_size == 0)) {
-				p = "Celeron";
+				p = "Celeron (Covington)";
 			}
 		}
 			
@@ -618,6 +618,11 @@ int get_cpuinfo(char * buffer)
 				p += sprintf(p, "stepping\t: %d\n", c->x86_mask);
 		} else
 			p += sprintf(p, "stepping\t: unknown\n");
+
+		if (c->x86_capability & X86_FEATURE_TSC) {
+			p += sprintf(p, "cpu MHz\t\t: %lu.%06lu\n",
+				cpu_hz / 1000000, (cpu_hz % 1000000));
+		}
 
 		/* Cache size */
 		if (c->x86_cache_size >= 0)

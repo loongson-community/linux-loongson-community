@@ -25,12 +25,14 @@
 #include <asm/pci.h>
 #include <asm/pgtable.h>
 #include <asm/core_tsunami.h>
+#include <asm/hwrpb.h>
 
 #include "proto.h"
 #include "irq.h"
 #include "bios32.h"
 #include "machvec.h"
 
+#define dev2hose(d) (bus2hose[(d)->bus->number]->pci_hose_index)
 
 /*
  * HACK ALERT! only CPU#0 is used currently
@@ -217,9 +219,72 @@ dp264_map_irq(struct pci_dev *dev, int slot, int pin)
 	};
 	const long min_idsel = 5, max_idsel = 10, irqs_per_slot = 5;
 	int irq = COMMON_TABLE_LOOKUP;
+
 	if (irq >= 0)
-		irq += 16 * bus2hose[dev->bus->number]->pci_hose_index;
+		irq += 16 * dev2hose(dev);
+
 	return irq;
+}
+
+static int __init
+monet_map_irq(struct pci_dev *dev, int slot, int pin)
+{
+	static char irq_tab[13][5] __initlocaldata = {
+		/*INT    INTA   INTB   INTC   INTD */
+		{    45,    45,    45,    45,    45}, /* IdSel 3 21143 PCI1 */
+		{    -1,    -1,    -1,    -1,    -1}, /* IdSel 4 unused */
+		{    -1,    -1,    -1,    -1,    -1}, /* IdSel 5 unused */
+		{    47,    47,    47,    47,    47}, /* IdSel 6 SCSI PCI1 */
+		{    -1,    -1,    -1,    -1,    -1}, /* IdSel 7 ISA Bridge */
+		{    -1,    -1,    -1,    -1,    -1}, /* IdSel 8 P2P PCI1 */
+#if 1
+		{    28,    28,    29,    30,    31}, /* IdSel 14 slot 4 PCI2*/
+		{    24,    24,    25,    26,    27}, /* IdSel 15 slot 5 PCI2*/
+#else
+		{    -1,    -1,    -1,    -1,    -1}, /* IdSel 9 unused */
+		{    -1,    -1,    -1,    -1,    -1}, /* IdSel 10 unused */
+#endif
+		{    40,    40,    41,    42,    43}, /* IdSel 11 slot 1 PCI0*/
+		{    36,    36,    37,    38,    39}, /* IdSel 12 slot 2 PCI0*/
+		{    32,    32,    33,    34,    35}, /* IdSel 13 slot 3 PCI0*/
+		{    28,    28,    29,    30,    31}, /* IdSel 14 slot 4 PCI2*/
+		{    24,    24,    25,    26,    27}  /* IdSel 15 slot 5 PCI2*/
+};
+	const long min_idsel = 3, max_idsel = 15, irqs_per_slot = 5;
+	int irq = COMMON_TABLE_LOOKUP;
+
+	return irq;
+}
+
+static int __init
+monet_swizzle(struct pci_dev *dev, int *pinp)
+{
+        int slot, pin = *pinp;
+
+        /* Check first for the built-in bridge on hose 1. */
+        if (dev2hose(dev) == 1 && PCI_SLOT(dev->bus->self->devfn) == 8) {
+	  slot = PCI_SLOT(dev->devfn);
+        }
+        else
+        {
+                /* Must be a card-based bridge.  */
+                do {
+			/* Check for built-in bridge on hose 1. */
+                        if (dev2hose(dev) == 1 &&
+			    PCI_SLOT(dev->bus->self->devfn) == 8) {
+				slot = PCI_SLOT(dev->devfn);
+				break;
+                        }
+                        pin = bridge_swizzle(pin, PCI_SLOT(dev->devfn)) ;
+
+                        /* Move up the chain of bridges.  */
+                        dev = dev->bus->self;
+                        /* Slot of the next bridge.  */
+                        slot = PCI_SLOT(dev->devfn);
+                } while (dev->bus->self);
+        }
+        *pinp = pin;
+        return slot;
 }
 
 static void __init
@@ -230,9 +295,18 @@ dp264_pci_fixup(void)
 	SMC669_Init();
 }
 
+static void __init
+monet_pci_fixup(void)
+{
+	layout_all_busses(DEFAULT_IO_BASE, DEFAULT_MEM_BASE);
+	common_pci_fixup(monet_map_irq, monet_swizzle);
+	/* es1888_init(); */ /* later? */
+	SMC669_Init();
+}
+
 
 /*
- * The System Vector
+ * The System Vectors
  */
 
 struct alpha_machine_vector dp264_mv __initmv = {
@@ -257,3 +331,27 @@ struct alpha_machine_vector dp264_mv __initmv = {
 	kill_arch:		generic_kill_arch,
 };
 ALIAS_MV(dp264)
+
+struct alpha_machine_vector monet_mv __initmv = {
+	vector_name:		"Monet",
+	DO_EV6_MMU,
+	DO_DEFAULT_RTC,
+	DO_TSUNAMI_IO,
+	DO_TSUNAMI_BUS,
+	machine_check:		tsunami_machine_check,
+	max_dma_address:	ALPHA_MAX_DMA_ADDRESS,
+
+	nr_irqs:		64,
+	irq_probe_mask:		_PROBE_MASK(64),
+	update_irq_hw:		dp264_update_irq_hw,
+	ack_irq:		generic_ack_irq,
+	device_interrupt:	dp264_device_interrupt,
+
+	init_arch:		tsunami_init_arch,
+	init_irq:		dp264_init_irq,
+	init_pit:		generic_init_pit,
+	pci_fixup:		monet_pci_fixup,
+	kill_arch:		generic_kill_arch,
+};
+/* No alpha_mv alias for monet, since we compile it in unconditionally
+   with DP264; setup_arch knows how to cope.  */

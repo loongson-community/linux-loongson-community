@@ -10,11 +10,11 @@
 ----------
 
 N: Matti Aarnio
-E: mea@utu.fi
-D: LILO for AHA1542, modularized several of drivers/net/,
-D: dynamic SLIP devices, dynamic /proc/net/, true size /proc/ksyms,
-D: and other hacks..
-D: Documenting various parts of network subsystem (kernel side)
+E: mea@nic.funet.fi
+D: Alpha systems hacking, IPv6 and other network related stuff
+D: One of assisting postmasters for vger.rutgers.edu's lists
+S: (ask for current address)
+S: Finland
 
 N: Werner Almesberger
 E: werner.almesberger@lrc.di.epfl.ch
@@ -93,7 +93,7 @@ S: Calgary, Alberta
 S: Canada
 
 N: Ralf Baechle
-E: ralf@gnu.ai.mit.edu
+E: ralf@gnu.org
 P: 1024/AF7B30C1 CF 97 C2 CC 6D AE A7 FE  C8 BA 9C FC 88 DE 32 C3
 D: Linux/MIPS port
 D: Linux/68k hacker
@@ -210,9 +210,11 @@ S: Marrickville NSW 2204
 S: Australia
 
 N: Philip Blundell
-E: Philip.Blundell@pobox.com
-D: Device driver hacking 
-D: Some Linux/ARM stuff
+E: philb@gnu.org
+D: Linux/ARM hacker
+D: Device driver hacker (eexpress, 3c505, c-qcam, ...)
+D: m68k port to HP9000/300
+D: AUN network protocols
 D: Co-architect of the parallel port sharing system
 S: Nexus Electronics Ltd
 S: 10 St Barnabas Road, Cambridge CB1 2BY
@@ -427,7 +429,7 @@ S: Belgium
 N: Cort Dougan
 E: cort@cs.nmt.edu
 W: http://www.cs.nmt.edu/~cort/
-D: PowerPC PReP port
+D: PowerPC
 S: Computer Science Department
 S: New Mexico Tech
 S: Socorro, New Mexico 87801
@@ -566,15 +568,11 @@ S: Oak Park, Illinois 60302
 S: USA
 
 N: Jim Freeman
-E: jfree@caldera.com
+E: jfree@sovereign.org
 W: http://www.sovereign.org/
 D: Initial GPL'd Frame Relay driver
 D: Dynamic PPP devices
 D: Sundry modularizations (PPP, IPX, ...) and fixes
-S: Caldera, Inc.
-S: 240 West Center Street
-S: Orem, Utah 84059-1920
-S: USA
 
 N: Bob Frey
 E: bobf@advansys.com
@@ -943,8 +941,8 @@ S: L-1148 Luxembourg-City
 S: Luxembourg
 
 N: Gerd Knorr
-E: kraxel@cs.tu-berlin.de
-D: SCSI CD-ROM driver hacking, minor bug fixes
+E: kraxel@goldbach.in-berlin.de
+D: SCSI CD-ROM driver hacking, vesafb, v4l, minor bug fixes
 
 N: Harald Koenig
 E: koenig@tat.physik.uni-tuebingen.de
@@ -1118,11 +1116,11 @@ E: Kai.Makisara@metla.fi
 D: SCSI Tape Driver
 
 N: Hamish Macdonald
-E: hamish@border.ocunix.on.ca
+E: hamish_macdonald@westendsys.com
 D: Linux/68k port
-S: 102-B Valleystream Drive
-S: Nepean, Ontario
-S: Canada K2H-9E1
+S: 32 Clydesdale Avenue
+S: Kanata, Ontario
+S: Canada K2M-2G7
 
 N: Peter MacDonald
 D: SLS distribution
@@ -1308,7 +1306,7 @@ S: Lafayette, Indiana 47905
 S: USA
 
 N: Johan Myreen
-E: jem@vipunen.hut.fi
+E: jem@iki.fi
 D: PS/2 mouse driver writer etc.
 S: Dragonvagen 1 A 13
 S: FIN-00330 Helsingfors
@@ -1383,7 +1381,7 @@ E: orc@pell.chi.il.us
 D: improved memory detection code.
 
 N: Vojtech Pavlik
-E: vojtech@atrey.karlin.mff.cuni.cz
+E: vojtech@ucw.cz
 D: Joystick driver
 D: arcnet-hardware readme
 D: Minor ARCnet hacking
@@ -1403,7 +1401,8 @@ S: Albuquerque, New Mexico 87131
 S: USA
 
 N: Avery Pennarun
-E: apenwarr@bond.net
+E: apenwarr@worldvisions.ca
+W: http://www.worldvisions.ca/~apenwarr/
 D: ARCnet driver
 D: "make xconfig" improvements
 D: Various minor hacking
@@ -1423,6 +1422,10 @@ E: kirk@speakeasy.org
 W: http://www.speakeasy.org/~kirk/
 D: implemented kmod
 D: modularized BSD Unix domain sockets
+
+N: Reed H. Petty
+E: rhp@draper.net
+D: Loop device driver extensions
 
 N: Kai Petzke
 E: wpp@marie.physik.tu-berlin.de
@@ -1615,14 +1618,12 @@ S: Beaverton, Oregon 97008
 S: USA
 
 N: Mike Shaver
-E: shaver@ingenia.com
-W: http://neon.ingenia.com/~shaver/
-D: Network hacking, /proc/sys/net
-S: c/o Ingenia Communications Corporation
-S: Suite 4200, CTTC Building
-S: 1125 Colonel By Drive
+E: shaver@netscape.com
+W: http://people.netscape.com/shaver/
+D: MIPS work, /proc/sys/net, misc net hacking
+S: 149 Union St.
 S: Ottawa, Ontario
-S: Canada K1S 5R1
+S: Canada K7L 2P4
 
 N: John Shifflett
 E: john@geolog.com
@@ -1680,11 +1681,12 @@ S: Cliffwood, New Jersey 07721
 S: USA
 
 N: Henrik Storner
-E: storner@osiris.ping.dk
-E: storner@olicom.dk
-W: http://eolicom.olicom.dk/~storner/
-D: Configure script: tristate, bugfixes
+E: storner@image.dk
+W: http://www.image.dk/~storner/
+W: http://www.sslug.dk/
+D: Configure script: Invented tristate for module-configuration
 D: vfat/msdos integration, kerneld docs, Linux promotion
+D: Miscellaneous bug-fixes
 S: Chr. Winthersvej 1 B, st.th.
 S: DK-1860 Frederiksberg C
 S: Denmark
@@ -1697,6 +1699,14 @@ D: iBCS2 developer
 S: 22 Irvington Cres.
 S: Willowdale, Ontario
 S: Canada M2N 2Z1
+
+N: Adrian Sun
+E: asun@u.washington.edu
+D: hfs support
+D: alpha rtc port, random appletalk fixes
+S: Department of Zoology, University of Washington
+S: Seattle, WA  98195-1800
+S: USA
 
 N: Tommy Thorn
 E: Tommy.Thorn@irisa.fr
@@ -1849,6 +1859,18 @@ S: Schleiermacherstrasse 12
 S: 90491 Nuernberg
 S: Germany
 
+N: Geert Uytterhoeven
+E: geert@linux-m68k.org
+W: http://www.cs.kuleuven.ac.be/~geert/
+P: 1024/EC4A1EE1 8B 88 38 35 88 1E 95 A1  CD 9E AE DC 4B 4A 2F 41
+D: m68k/Amiga and PPC/CHRP Longtrail coordinator
+D: Frame buffer device and XF68_FBDev maintainer
+D: m68k IDE maintainer
+D: Amiga Zorro maintainer
+S: C. Huysmansstraat 12
+S: B-3128 Baal
+S: Belgium
+
 N: Petr Vandrovec
 E: vandrove@vc.cvut.cz
 D: Small contributions to ncpfs
@@ -1885,14 +1907,19 @@ S: The Netherlands
 N: Tim Waugh
 E: tim@cyberelk.demon.co.uk
 D: Co-architect of the parallel-port sharing system
-S: 110 Twyford Road
-S: EASTLEIGH
-S: SO50 4HN
+S: 4 Fox Close
+S: Bishopstoke
+S: SO50 8NB
 S: United Kingdom
 
 N: Juergen Weigert
 E: jnweiger@immd4.informatik.uni-erlangen.de
 D: The Linux Support Team Erlangen
+
+N: David Weinehall
+E: tao@acc.umu.se
+D: NE/2-driver maintainer
+D: Miscellaneous MCA-support
 
 N: Matt Welsh
 E: mdw@sunsite.unc.edu
@@ -1988,14 +2015,15 @@ S: 2612 XV Delft
 S: The Netherlands
 
 N: David Woodhouse
+E: David.Woodhouse@mvhi.com
 E: Dave@imladris.demon.co.uk
 D: Extensive ARCnet rewrite
 D: ARCnet COM20020, COM90xx IO-MAP drivers
 D: SO_BINDTODEVICE in 2.1.x (from Elliot Poger's code in 2.0.31)
 D: Contributed to NCPFS rewrite for 2.1.x dcache
 D: Alpha platforms: SX164, LX164 and Ruffian ported to 2.1.x
-S: Robinson College, Grange Road
-S: Cambridge. CB3 9AN
+S: 29, David Bull Way
+S: Milton, Cambridge. CB4 6DP
 S: England
 
 N: Frank Xia
@@ -2046,7 +2074,7 @@ S: San Jose, California 95148
 S: USA
 
 N: Marc Zyngier
-E: maz@gloups.fdn.fr
+E: maz@wild-wind.fr.eu.org
 D: MD driver
 S: 11 rue Victor HUGO
 S: 95560 Montsoult

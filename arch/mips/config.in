@@ -40,7 +40,6 @@ if [ "$CONFIG_ACER_PICA_61" = "y" ]; then
 	define_bool CONFIG_MIPS_JAZZ y
 fi
 if [ "$CONFIG_SNI_RM200_PCI" = "y" ]; then
-	define_bool CONFIG_VGA_CONSOLE y
 	define_bool CONFIG_PCI y
 fi
 endmenu
@@ -61,6 +60,15 @@ endmenu
 
 mainmenu_option next_comment
 comment 'General setup'
+
+if [ "$CONFIG_PCI" = "y" ]; then
+  bool '   PCI quirks' CONFIG_PCI_QUIRKS
+  if [ "$CONFIG_PCI_QUIRKS" = "y" -a "$CONFIG_EXPERIMENTAL" = "y" ]; then
+    bool '   PCI bridge optimization (experimental)' CONFIG_PCI_OPTIMIZE
+  fi
+  bool '   Backward-compatible /proc/pci' CONFIG_PCI_OLD_PROC
+fi
+
 if [ "$CONFIG_DECSTATION" = "y" ]; then
   bool 'Compile the kernel into the ECOFF object format' CONFIG_ECOFF_KERNEL
   define_bool CONFIG_CPU_LITTLE_ENDIAN y
@@ -194,7 +202,14 @@ source fs/Config.in
 
 source fs/nls/Config.in
 
-source drivers/video/Config.in
+if [ "$CONFIG_VT" = "y" ]; then
+  mainmenu_option next_comment
+  comment 'Console drivers'
+  bool 'VGA text console' CONFIG_VGA_CONSOLE
+  bool 'Support for frame buffer devices' CONFIG_FB
+  source drivers/video/Config.in
+  endmenu
+fi
 
 mainmenu_option next_comment
 comment 'Sound'

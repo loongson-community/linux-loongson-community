@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.17 1998/09/20 21:12:19 tsbogend Exp $
+/* $Id: setup.c,v 1.18 1998/10/18 13:19:46 tsbogend Exp $
  *
  * Setup pointers to hardware-dependent routines.
  *
@@ -39,7 +39,6 @@ static void no_action(int cpl, void *dev_id, struct pt_regs *regs) { }
 static struct irqaction irq2  = { no_action, 0, 0, "cascade", NULL, NULL};
 
 extern asmlinkage void jazz_handle_int(void);
-extern void jazz_keyboard_setup(void);
 
 extern void jazz_machine_restart(char *command);
 extern void jazz_machine_halt(void);
@@ -47,6 +46,7 @@ extern void jazz_machine_power_off(void);
 
 extern struct ide_ops std_ide_ops;
 extern struct rtc_ops jazz_rtc_ops;
+extern struct kbd_ops jazz_kbd_ops;
 extern struct fd_ops *fd_ops;
 extern struct fd_ops jazz_fd_ops;
 
@@ -56,7 +56,7 @@ __initfunc(static void jazz_time_init(struct irqaction *irq))
 {
         /* set the clock to 100 Hz */
         r4030_write_reg32(JAZZ_TIMER_INTERVAL, 9);
-        setup_x86_irq(JAZZ_TIMER_IRQ, irq);
+        i8259_setup_irq(JAZZ_TIMER_IRQ, irq);
 }
 
 __initfunc(static void jazz_irq_setup(void))
@@ -76,7 +76,7 @@ __initfunc(static void jazz_irq_setup(void))
 	r4030_write_reg32(JAZZ_TIMER_INTERVAL, 9);
 	request_region(0x20, 0x20, "pic1");
 	request_region(0xa0, 0x20, "pic2");
-	setup_x86_irq(2, &irq2);
+	i8259_setup_irq(2, &irq2);
 }
 
 __initfunc(void jazz_setup(void))
@@ -86,7 +86,6 @@ __initfunc(void jazz_setup(void))
 	add_wired_entry (0x01800017, 0x01000017, 0xe4000000, PM_4M);
 
 	irq_setup = jazz_irq_setup;
-	keyboard_setup = jazz_keyboard_setup;
 	mips_io_port_base = JAZZ_PORT_BASE;
 	isa_slot_offset = 0xe3000000;
 	request_region(0x00,0x20,"dma1");
@@ -105,5 +104,9 @@ __initfunc(void jazz_setup(void))
 #endif
 	conswitchp = &dummy_con;
 	rtc_ops = &jazz_rtc_ops;
-    	fd_ops = &jazz_fd_ops;
+	kbd_ops = &jazz_kbd_ops;
+#ifdef CONFIG_PSMOUSE
+	aux_device_present = 0xaa;
+#endif
+	fd_ops = &jazz_fd_ops;
 }

@@ -1,4 +1,4 @@
-/* $Id: sysirix.c,v 1.12 1998/08/17 10:16:27 ralf Exp $
+/* $Id: sysirix.c,v 1.12 1998/08/25 09:14:42 ralf Exp $
  *
  * sysirix.c: IRIX system call emulation.
  *
@@ -1081,13 +1081,8 @@ out:
 
 asmlinkage int irix_sginap(int ticks)
 {
-	lock_kernel();
-	if(ticks) {
-		current->timeout = ticks + jiffies;
-		current->state = TASK_INTERRUPTIBLE;
-	}
-	schedule();
-	unlock_kernel();
+	current->state = TASK_INTERRUPTIBLE;
+	schedule_timeout(ticks);
 	return 0;
 }
 

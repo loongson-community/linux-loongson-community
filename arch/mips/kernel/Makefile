@@ -26,7 +26,8 @@ endif
 # SGI's have very different interrupt/timer hardware.
 #
 ifndef CONFIG_SGI
-O_OBJS += irq.o time.o
+O_OBJS += time.o
+OX_OBJS += irq.o
 endif
 
 #

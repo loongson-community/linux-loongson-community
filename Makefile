@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 1
-SUBLEVEL = 121
+SUBLEVEL = 131
 
 ARCH = mips
 
@@ -157,6 +157,10 @@ endif
 
 ifdef CONFIG_ZORRO
 DRIVERS := $(DRIVERS) drivers/zorro/zorro.a
+endif
+
+ifeq ($(CONFIG_FC4),y)
+DRIVERS := $(DRIVERS) drivers/fc4/fc4.a
 endif
 
 ifdef CONFIG_PPC
@@ -324,10 +328,10 @@ modules_install:
 	if [ -f VIDEO_MODULES ]; then inst_mod VIDEO_MODULES video; fi; \
 	if [ -f FC4_MODULES   ]; then inst_mod FC4_MODULES   fc4;   fi; \
 	\
-	ls *.o > .allmods; \
-	echo $$MODULES | tr ' ' '\n' | sort | comm -23 .allmods - > .misc; \
-	if [ -s .misc ]; then inst_mod .misc misc; fi; \
-	rm -f .misc .allmods; \
+	ls *.o > $$MODLIB/.allmods; \
+	echo $$MODULES | tr ' ' '\n' | sort | comm -23 $$MODLIB/.allmods - > $$MODLIB/.misc; \
+	if [ -s $$MODLIB/.misc ]; then inst_mod $$MODLIB/.misc misc; fi; \
+	rm -f $$MODLIB/.misc $$MODLIB/.allmods; \
 	)
 
 # modules disabled....
@@ -393,7 +397,7 @@ sums:
 
 dep-files: scripts/mkdep archdep include/linux/version.h
 	scripts/mkdep init/*.c > .depend
-	find $(FINDHPATH) -follow -name \*.h ! -name modversions.h -print | env -i xargs scripts/mkdep > .hdepend
+	find $(FINDHPATH) -follow -name \*.h ! -name modversions.h -print | xargs scripts/mkdep > .hdepend
 #	set -e; for i in $(SUBDIRS); do $(MAKE) -C $$i fastdep; done
 # let this be made through the fastdep rule in Rules.make
 	$(MAKE) $(patsubst %,_sfdep_%,$(SUBDIRS)) _FASTDEP_ALL_SUB_DIRS="$(SUBDIRS)"

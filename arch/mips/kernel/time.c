@@ -1,12 +1,10 @@
-/*
- *  linux/arch/mips/kernel/time.c
+/* $Id: time.c,v 1.7 1998/08/28 23:29:33 tsbogend Exp $
  *
  *  Copyright (C) 1991, 1992, 1995  Linus Torvalds
+ *  Copyright (C) 1996, 1997, 1998  Ralf Baechle
  *
  * This file contains the time handling details for PC-style clocks as
  * found in some MIPS systems.
- *
- * $Id: time.c,v 1.6 1998/08/25 09:14:43 ralf Exp $
  */
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -463,7 +461,7 @@ void (*board_time_init)(struct irqaction *irq);
 
 __initfunc(void time_init(void))
 {
-	unsigned int year, mon, day, hour, min, sec;
+	unsigned int epoch, year, mon, day, hour, min, sec;
 	int i;
 
 	/* The Linux interpretation of the CMOS clock register contents:
@@ -495,13 +493,17 @@ __initfunc(void time_init(void))
 	    BCD_TO_BIN(mon);
 	    BCD_TO_BIN(year);
 	  }
-#if 0	/* the IBM way */
-	if ((year += 1900) < 1970)
-		year += 100;
-#else
-	/* Acer PICA clock starts from 1980.  True for all MIPS machines?  */
-	year += 1980;
-#endif
+
+	/* Attempt to guess the epoch.  This is the same heuristic as in rtc.c so
+	   no stupid things will happen to timekeeping.  Who knows, maybe Ultrix
+  	   also uses 1952 as epoch ...  */
+	if (year > 10 && year < 44) {
+		epoch = 1980;
+	} else if (year < 96) {
+		epoch = 1952;
+	}
+	year += epoch;
+
 	xtime.tv_sec = mktime(year, mon, day, hour, min, sec);
 	xtime.tv_usec = 0;
 

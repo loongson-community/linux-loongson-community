@@ -21,14 +21,18 @@
 #include <linux/init.h>
 #include <linux/delay.h>
 
+#ifdef CONFIG_MCA
+#include <linux/mca.h>
+#include <asm/processor.h>
+#endif
+
 #include <asm/system.h>
 #include <asm/uaccess.h>
 #include <asm/io.h>
 #include <asm/spinlock.h>
 #include <asm/atomic.h>
 #include <asm/debugreg.h>
-
-#include "desc.h"
+#include <asm/desc.h>
 
 asmlinkage int system_call(void);
 asmlinkage void lcall7(void);
@@ -192,7 +196,7 @@ void die(const char * str, struct pt_regs * regs, long err)
 	do_exit(SIGSEGV);
 }
 
-static void die_if_kernel(const char * str, struct pt_regs * regs, long err)
+static inline void die_if_kernel(const char * str, struct pt_regs * regs, long err)
 {
 	if (!(regs->eflags & VM_MASK) && !(3 & regs->xcs))
 		die(str, regs, err);
@@ -296,6 +300,14 @@ static void io_check_error(unsigned char reason, struct pt_regs * regs)
 
 static void unknown_nmi_error(unsigned char reason, struct pt_regs * regs)
 {
+#ifdef CONFIG_MCA
+	/* Might actually be able to figure out what the guilty party
+	* is. */
+	if( MCA_bus ) {
+		mca_handle_nmi();
+		return;
+	}
+#endif
 	printk("Uhhuh. NMI received for unknown reason %02x.\n", reason);
 	printk("Dazed and confused, but trying to continue\n");
 	printk("Do you have a strange power saving mode enabled?\n");
@@ -340,7 +352,16 @@ asmlinkage void do_debug(struct pt_regs * regs, long error_code)
 
 	/* Mask out spurious TF errors due to lazy TF clearing */
 	if (condition & DR_STEP) {
-		if ((tsk->flags & PF_PTRACED) == 0)
+		/*
+		 * The TF error should be masked out only if the current
+		 * process is not traced and if the TRAP flag has been set
+		 * previously by a tracing process (condition detected by
+		 * the PF_DTRACE flag); remember that the i386 TRAP flag
+		 * can be modified by the process itself in user mode,
+		 * allowing programs to debug themselves without the ptrace()
+		 * interface.
+		 */
+		if ((tsk->flags & (PF_DTRACE|PF_PTRACED)) == PF_DTRACE)
 			goto clear_TF;
 	}
 
@@ -386,20 +407,15 @@ void math_error(void)
 {
 	struct task_struct * task;
 
-	lock_kernel();
-	clts();
-	task = current;
 	/*
-	 *	Save the info for the exception handler
+	 * Save the info for the exception handler
+	 * (this will also clear the error)
 	 */
-	__asm__ __volatile__("fnsave %0":"=m" (task->tss.i387.hard));
-	task->flags&=~PF_USEDFPU;
-	stts();
-
+	task = current;
+	save_fpu(task);
 	task->tss.trap_no = 16;
 	task->tss.error_code = 0;
 	force_sig(SIGFPE, task);
-	unlock_kernel();
 }
 
 asmlinkage void do_coprocessor_error(struct pt_regs * regs, long error_code)
@@ -424,19 +440,9 @@ asmlinkage void do_spurious_interrupt_bug(struct pt_regs * regs,
  * Careful.. There are problems with IBM-designed IRQ13 behaviour.
  * Don't touch unless you *really* know how it works.
  */
-asmlinkage void math_state_restore(void)
+asmlinkage void math_state_restore(struct pt_regs regs)
 {
 	__asm__ __volatile__("clts");		/* Allow maths ops (or we recurse) */
-
-/*
- *	SMP is actually simpler than uniprocessor for once. Because
- *	we can't pull the delayed FPU switching trick Linus does
- *	we simply have to do the restore each context switch and
- *	set the flag. switch_to() will always save the state in
- *	case we swap processors. We also don't use the coprocessor
- *	timer - IRQ 13 mode isn't used with SMP machines (thank god).
- */
-
 	if(current->used_math)
 		__asm__("frstor %0": :"m" (current->tss.i387));
 	else

@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: irixsig.c,v 1.11 1998/03/26 07:39:09 ralf Exp $
+ * $Id: irixsig.c,v 1.9 1998/03/27 04:47:54 ralf Exp $
  */
 
 #include <linux/kernel.h>
@@ -568,7 +568,7 @@ static inline unsigned long timespectojiffies(struct timespec *value)
 asmlinkage int irix_sigpoll_sys(unsigned long *set, struct irix5_siginfo *info,
 				struct timespec *tp)
 {
-	unsigned long expire = 0;
+	long expire = MAX_SCHEDULE_TIMEOUT;
 	sigset_t kset;
 	int i, sig, error, timeo = 0;
 
@@ -603,21 +603,21 @@ asmlinkage int irix_sigpoll_sys(unsigned long *set, struct irix5_siginfo *info,
 			error = -EINVAL;
 			goto out;
 		}
-		expire = timespectojiffies(tp)+(tp->tv_sec||tp->tv_nsec)+jiffies;
-		current->timeout = expire;
+		expire = timespectojiffies(tp)+(tp->tv_sec||tp->tv_nsec);
 	}
 
 	while(1) {
 		long tmp = 0;
 
-		current->state = TASK_INTERRUPTIBLE; schedule();
+		current->state = TASK_INTERRUPTIBLE;
+		expire = schedule_timeout(expire);
 
 		for (i=0; i<=4; i++)
 			tmp |= (current->signal.sig[i] & kset.sig[i]);
 
 		if (tmp)
 			break;
-		if (tp && expire <= jiffies) {
+		if (!expire) {
 			timeo = 1;
 			break;
 		}

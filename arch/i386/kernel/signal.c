@@ -28,7 +28,7 @@
 
 asmlinkage int sys_wait4(pid_t pid, unsigned long *stat_addr,
 			 int options, unsigned long *ru);
-asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs);
+asmlinkage int FASTCALL(do_signal(struct pt_regs *regs, sigset_t *oldset));
 
 /*
  * Atomically swap in the new signal mask, and wait for a signal.
@@ -50,7 +50,7 @@ sys_sigsuspend(int history0, int history1, old_sigset_t mask)
 	while (1) {
 		current->state = TASK_INTERRUPTIBLE;
 		schedule();
-		if (do_signal(&saveset, regs))
+		if (do_signal(regs, &saveset))
 			return -EINTR;
 	}
 }
@@ -79,7 +79,7 @@ sys_rt_sigsuspend(sigset_t *unewset, size_t sigsetsize)
 	while (1) {
 		current->state = TASK_INTERRUPTIBLE;
 		schedule();
-		if (do_signal(&saveset, regs))
+		if (do_signal(regs, &saveset))
 			return -EINTR;
 	}
 }
@@ -153,11 +153,9 @@ struct rt_sigframe
 
 static inline int restore_i387_hard(struct _fpstate *buf)
 {
-	if (current->flags & PF_USEDFPU) {
-		current->flags &= ~PF_USEDFPU;
-		stts();
-	}
-	return __copy_from_user(&current->tss.i387.hard, buf, sizeof(*buf));
+	struct task_struct *tsk = current;
+	clear_fpu(tsk);
+	return __copy_from_user(&tsk->tss.i387.hard, buf, sizeof(*buf));
 }
 
 static inline int restore_i387(struct _fpstate *buf)
@@ -307,14 +305,11 @@ badframe:
 
 static inline int save_i387_hard(struct _fpstate * buf)
 {
-	if (current->flags & PF_USEDFPU) {
-		current->flags &= ~PF_USEDFPU;
-		__asm__ __volatile__("fnsave %0":"=m"(current->tss.i387.hard));
-		stts();
-	}
-	asm volatile("fwait");
-	current->tss.i387.hard.status = current->tss.i387.hard.swd;
-	if (__copy_to_user(buf, &current->tss.i387.hard, sizeof(*buf)))
+	struct task_struct *tsk = current;
+
+	unlazy_fpu(tsk);
+	tsk->tss.i387.hard.status = tsk->tss.i387.hard.swd;
+	if (__copy_to_user(buf, &tsk->tss.i387.hard, sizeof(*buf)))
 		return -1;
 	return 1;
 }
@@ -597,7 +592,7 @@ handle_signal(unsigned long sig, struct k_sigaction *ka,
  * the kernel can handle, and then we build all the user-level signal handling
  * stack-frames in one go after that.
  */
-asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
+int do_signal(struct pt_regs *regs, sigset_t *oldset)
 {
 	siginfo_t info;
 	struct k_sigaction *ka;

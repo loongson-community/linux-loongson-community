@@ -253,9 +253,11 @@ asmlinkage unsigned long osf_mmap(unsigned long addr, unsigned long len,
 	unsigned long ret = -EBADF;
 
 	lock_kernel();
+#if 0
 	if (flags & (_MAP_HASSEMAPHORE | _MAP_INHERIT | _MAP_UNALIGNED))
 		printk("%s: unimplemented OSF mmap flags %04lx\n", 
 			current->comm, flags);
+#endif
 	if (!(flags & MAP_ANONYMOUS)) {
 		file = fget(fd);
 		if (!file)
@@ -1134,7 +1136,7 @@ osf_select(int n, fd_set *inp, fd_set *outp, fd_set *exp,
 	unsigned long timeout;
 	int ret;
 
-	timeout = ~0UL;
+	timeout = MAX_SCHEDULE_TIMEOUT;
 	if (tvp) {
 		time_t sec, usec;
 
@@ -1145,8 +1147,6 @@ osf_select(int n, fd_set *inp, fd_set *outp, fd_set *exp,
 
 		timeout = (usec + 1000000/HZ - 1) / (1000000/HZ);
 		timeout += sec * HZ;
-		if (timeout)
-			timeout += jiffies + 1;
 	}
 
 	ret = -ENOMEM;
@@ -1166,7 +1166,7 @@ osf_select(int n, fd_set *inp, fd_set *outp, fd_set *exp,
 	zero_fd_set(n, fds->res_out);
 	zero_fd_set(n, fds->res_ex);
 
-	ret = do_select(n, fds, timeout);
+	ret = do_select(n, fds, &timeout);
 
 	/* OSF does not copy back the remaining time.  */
 
@@ -1304,6 +1304,7 @@ asmlinkage int osf_usleep_thread(struct timeval32 *sleep, struct timeval32 *rema
 {
 	struct timeval tmp;
 	unsigned long ticks;
+	unsigned long tmp_timeout;
 
 	if (get_tv32(&tmp, sleep))
 		goto fault;
@@ -1311,18 +1312,11 @@ asmlinkage int osf_usleep_thread(struct timeval32 *sleep, struct timeval32 *rema
 	ticks = tmp.tv_usec;
 	ticks = (ticks + (1000000 / HZ) - 1) / (1000000 / HZ);
 	ticks += tmp.tv_sec * HZ;
-	current->timeout = ticks + jiffies;
-	current->state = TASK_INTERRUPTIBLE;
 
-	schedule();
+	current->state = TASK_INTERRUPTIBLE;
+	ticks = schedule_timeout(ticks);
 
 	if (remain) {
-		ticks = jiffies;
-		if (ticks < current->timeout)
-			ticks = current->timeout - ticks;
-		else
-			ticks = 0;
-		current->timeout = 0;
 		tmp.tv_sec = ticks / HZ;
 		tmp.tv_usec = ticks % HZ;
 		if (put_tv32(remain, &tmp))

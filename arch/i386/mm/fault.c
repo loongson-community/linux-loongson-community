@@ -103,8 +103,13 @@ asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long error_code)
 
 	tsk = current;
 	mm = tsk->mm;
-	if (in_interrupt())
-		die("page fault from irq handler",regs,error_code);
+
+	/*
+	 * If we're in an interrupt or have no user
+	 * context, we must not take the fault..
+	 */
+	if (in_interrupt() || mm == &init_mm)
+		goto no_context;
 
 	down(&mm->mmap_sem);
 
@@ -119,7 +124,7 @@ asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long error_code)
 		/*
 		 * accessing the stack below %esp is always a bug.
 		 * The "+ 32" is there due to some instructions (like
-		 * pusha) doing pre-decrement on the stack and that
+		 * pusha) doing post-decrement on the stack and that
 		 * doesn't show up until later..
 		 */
 		if (address + 32 < regs->esp)
@@ -151,7 +156,14 @@ good_area:
 			if (!(vma->vm_flags & (VM_READ | VM_EXEC)))
 				goto bad_area;
 	}
-	handle_mm_fault(tsk, vma, address, write);
+
+	/*
+	 * If for any reason at all we couldn't handle the fault,
+	 * make sure we exit gracefully rather than endlessly redo
+	 * the fault.
+	 */
+	if (!handle_mm_fault(tsk, vma, address, write))
+		goto do_sigbus;
 
 	/*
 	 * Did it hit the DOS screen memory VA from vm86 mode?
@@ -194,6 +206,7 @@ bad_area:
 		}
 	}
 
+no_context:
 	/* Are we prepared to handle this kernel fault?  */
 	if ((fixup = search_exception_table(regs->eip)) != 0) {
 		regs->eip = fixup;
@@ -235,8 +248,26 @@ bad_area:
 		page = ((unsigned long *) __va(page))[address >> PAGE_SHIFT];
 		printk(KERN_ALERT "*pte = %08lx\n", page);
 	}
-	lock_kernel();
 	die("Oops", regs, error_code);
 	do_exit(SIGKILL);
-	unlock_kernel();
+
+/*
+ * We ran out of memory, or some other thing happened to us that made
+ * us unable to handle the page fault gracefully.
+ */
+do_sigbus:
+	up(&mm->mmap_sem);
+
+	/*
+	 * Send a sigbus, regardless of whether we were in kernel
+	 * or user mode.
+	 */
+	tsk->tss.cr2 = address;
+	tsk->tss.error_code = error_code;
+	tsk->tss.trap_no = 14;
+	force_sig(SIGBUS, tsk);
+
+	/* Kernel mode? Handle exceptions or die */
+	if (!(error_code & 4))
+		goto no_context;
 }

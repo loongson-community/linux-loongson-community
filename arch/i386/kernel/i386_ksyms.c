@@ -39,6 +39,7 @@ EXPORT_SYMBOL(local_bh_count);
 EXPORT_SYMBOL(local_irq_count);
 EXPORT_SYMBOL(enable_irq);
 EXPORT_SYMBOL(disable_irq);
+EXPORT_SYMBOL(kernel_thread);
 
 EXPORT_SYMBOL_NOVERS(__down_failed);
 EXPORT_SYMBOL_NOVERS(__down_failed_interruptible);
@@ -98,6 +99,9 @@ EXPORT_SYMBOL(mca_get_adapter_name);
 EXPORT_SYMBOL(mca_set_adapter_procfn);
 EXPORT_SYMBOL(mca_isenabled);
 EXPORT_SYMBOL(mca_isadapter);
+EXPORT_SYMBOL(mca_mark_as_used);
+EXPORT_SYMBOL(mca_mark_as_unused);
+EXPORT_SYMBOL(mca_find_unused_adapter);
 #endif
 
 #ifdef CONFIG_VT

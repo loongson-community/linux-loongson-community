@@ -41,20 +41,16 @@
 #include <asm/io.h>
 #include <asm/ldt.h>
 #include <asm/processor.h>
+#include <asm/desc.h>
 #ifdef CONFIG_MATH_EMULATION
 #include <asm/math_emu.h>
 #endif
 
 #include "irq.h"
-#include "desc.h"
 
 spinlock_t semaphore_wake_lock = SPIN_LOCK_UNLOCKED;
 
-#ifdef __SMP__
-asmlinkage void ret_from_fork(void) __asm__("ret_from_smpfork");
-#else
-asmlinkage void ret_from_fork(void) __asm__("ret_from_sys_call");
-#endif
+asmlinkage void ret_from_fork(void) __asm__("ret_from_fork");
 
 #ifdef CONFIG_APM
 extern int  apm_do_idle(void);
@@ -106,44 +102,25 @@ static void hard_idle(void)
 
 /*
  * The idle loop on a uniprocessor i386..
- */
- 
-asmlinkage int sys_idle(void)
+ */ 
+static int cpu_idle(void *unused)
 {
-        unsigned long start_idle = 0;
-	int ret = -EPERM;
+	unsigned long start_idle = jiffies;
 
-	lock_kernel();
-	if (current->pid != 0)
-		goto out;
 	/* endless idle loop with no priority at all */
-	current->priority = 0;
-	current->counter = 0;
 	for (;;) {
-		/*
-		 *	We are locked at this point. So we can safely call
-		 *	the APM bios knowing only one CPU at a time will do
-		 *	so.
-		 */
-		if (!start_idle) {
-			check_pgt_cache();
-			start_idle = jiffies;
-		}
 		if (jiffies - start_idle > HARD_IDLE_TIMEOUT) 
 			hard_idle();
 		else  {
 			if (boot_cpu_data.hlt_works_ok && !hlt_counter && !current->need_resched)
 		        	__asm__("hlt");
 		}
-		run_task_queue(&tq_scheduler);
 		if (current->need_resched) 
-			start_idle = 0;
+			start_idle = jiffies;
+		current->policy = SCHED_YIELD;
 		schedule();
+		check_pgt_cache();
 	}
-	ret = 0;
-out:
-	unlock_kernel();
-	return ret;
 }
 
 #else
@@ -154,20 +131,18 @@ out:
 
 int cpu_idle(void *unused)
 {
-	current->priority = 0;
-	while(1)
-	{
-		if(current_cpu_data.hlt_works_ok &&
-		 		!hlt_counter && !current->need_resched)
-			__asm("hlt");
-		check_pgt_cache();
-		run_task_queue(&tq_scheduler);
 
-		/* endless idle loop with no priority at all */
-		current->counter = 0;
+	/* endless idle loop with no priority at all */
+	while(1) {
+		if (current_cpu_data.hlt_works_ok && !hlt_counter && !current->need_resched)
+			__asm__("hlt");
+		current->policy = SCHED_YIELD;
 		schedule();
+		check_pgt_cache();
 	}
 }
+
+#endif
 
 asmlinkage int sys_idle(void)
 {
@@ -176,8 +151,6 @@ asmlinkage int sys_idle(void)
 	cpu_idle(NULL);
 	return 0;
 }
-
-#endif
 
 /*
  * This routine reboots the machine by asking the keyboard
@@ -398,7 +371,7 @@ void machine_halt(void)
 void machine_power_off(void)
 {
 #if defined(CONFIG_APM) && defined(CONFIG_APM_POWER_OFF)
-	apm_set_power_state(APM_STATE_OFF);
+	apm_power_off();
 #endif
 }
 
@@ -509,6 +482,35 @@ void release_segments(struct mm_struct *mm)
 }
 
 /*
+ * Create a kernel thread
+ */
+int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
+{
+	long retval, d0;
+
+	__asm__ __volatile__(
+		"movl %%esp,%%esi\n\t"
+		"int $0x80\n\t"		/* Linux/i386 system call */
+		"cmpl %%esp,%%esi\n\t"	/* child or parent? */
+		"je 1f\n\t"		/* parent - jump */
+		/* Load the argument into eax, and push it.  That way, it does
+		 * not matter whether the called function is compiled with
+		 * -mregparm or not.  */
+		"movl %4,%%eax\n\t"
+		"pushl %%eax\n\t"		
+		"call *%5\n\t"		/* call fn */
+		"movl %3,%0\n\t"	/* exit */
+		"int $0x80\n"
+		"1:\t"
+		:"=&a" (retval), "=&S" (d0)
+		:"0" (__NR_clone), "i" (__NR_exit),
+		 "r" (arg), "r" (fn),
+		 "b" (flags | CLONE_VM)
+		: "memory");
+	return retval;
+}
+
+/*
  * Free current thread data structures etc..
  */
 void exit_thread(void)
@@ -519,32 +521,20 @@ void exit_thread(void)
 void flush_thread(void)
 {
 	int i;
+	struct task_struct *tsk = current;
 
 	for (i=0 ; i<8 ; i++)
-		current->tss.debugreg[i] = 0;
+		tsk->tss.debugreg[i] = 0;
 
 	/*
 	 * Forget coprocessor state..
 	 */
-	if (current->flags & PF_USEDFPU) {
-		current->flags &= ~PF_USEDFPU;
-		stts();
-	}
-	current->used_math = 0;
+	clear_fpu(tsk);
+	tsk->used_math = 0;
 }
 
 void release_thread(struct task_struct *dead_task)
 {
-}
-
-static inline void unlazy_fpu(struct task_struct *tsk)
-{
-	if (tsk->flags & PF_USEDFPU) {
-		tsk->flags &= ~PF_USEDFPU;
-		__asm__("fnsave %0":"=m" (tsk->tss.i387));
-		stts();
-		asm volatile("fwait");
-	}
 }
 
 /*
@@ -621,11 +611,12 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long esp,
 int dump_fpu (struct pt_regs * regs, struct user_i387_struct* fpu)
 {
 	int fpvalid;
+	struct task_struct *tsk = current;
 
-	fpvalid = current->used_math;
+	fpvalid = tsk->used_math;
 	if (fpvalid) {
-		unlazy_fpu(current);
-		memcpy(fpu,&current->tss.i387.hard,sizeof(*fpu));
+		unlazy_fpu(tsk);
+		memcpy(fpu,&tsk->tss.i387.hard,sizeof(*fpu));
 	}
 
 	return fpvalid;
@@ -737,8 +728,11 @@ void __switch_to(struct task_struct *prev, struct task_struct *next)
 		asm volatile("lldt %0": :"g" (*(unsigned short *)&next->tss.ldt));
 
 	/* Re-load page tables */
-	if (next->tss.cr3 != prev->tss.cr3)
-		asm volatile("movl %0,%%cr3": :"r" (next->tss.cr3));
+	{
+		unsigned long new_cr3 = next->tss.cr3;
+		if (new_cr3 != prev->tss.cr3) 
+			asm volatile("movl %0,%%cr3": :"r" (new_cr3));
+	}
 
 	/*
 	 * Restore %fs and %gs.
@@ -790,6 +784,8 @@ asmlinkage int sys_execve(struct pt_regs regs)
 	if (IS_ERR(filename))
 		goto out;
 	error = do_execve(filename, (char **) regs.ecx, (char **) regs.edx, &regs);
+	if (error == 0)
+		current->flags &= ~PF_DTRACE;
 	putname(filename);
 out:
 	unlock_kernel();

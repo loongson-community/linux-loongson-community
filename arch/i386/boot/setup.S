@@ -145,7 +145,7 @@ start_of_setup:
 	jne	bad_sig
 	jmp	good_sig1
 
-! Routine to print ASCII string at DS:SI
+! Routine to print ASCIIz string at DS:SI
 
 prtstr:	lodsb
 	and	al,al
@@ -345,7 +345,7 @@ is_disk1:
 	mov ds,ax
 	mov ds,ax
 	xor ax,ax
-	mov [0x220], ax		! set table length to 0
+	mov [0xa0], ax		! set table length to 0
 	mov ah, #0xc0
 	stc
 	int 0x15		! puts feature table at es:bx
@@ -357,9 +357,13 @@ is_disk1:
 	sub ax, #DELTA_INITSEG	! aka #INITSEG
 	mov es,ax
 	mov si,bx
-	mov di,#0x220
+	mov di,#0xa0
 	mov cx,(si)
 	add cx,#2		! table length is a short
+	cmp cx,#0x10
+	jc sysdesc_ok
+	mov cx,#0x10		! we keep only first 16 bytes
+sysdesc_ok:
 	rep
 	movsb
 	pop ds
@@ -392,8 +396,6 @@ no_psmouse:
 	cmp	bx,#0x0504d	! check for "PM" signature
 	jne	done_apm_bios	! no signature -> no APM BIOS
 
-	mov	[64],ax		! record the APM BIOS version
-	mov	[76],cx		!	and flags
 	and	cx,#0x02	! Is 32 bit supported?
 	je	done_apm_bios	!	no ...
 
@@ -412,6 +414,26 @@ no_psmouse:
 	mov	[74],dx		! BIOS data segment
 	mov	[78],esi	! BIOS code segment length
 	mov	[82],di		! BIOS data segment length
+!
+! Redo the installation check as the 32 bit connect
+! modifies the flags returned on some BIOSs
+!
+	mov	ax,#0x05300	! APM BIOS installation check
+	xor	bx,bx
+	int	0x15
+	jc	apm_disconnect	! error -> should not happen, tidy up
+
+	cmp	bx,#0x0504d	! check for "PM" signature
+	jne	apm_disconnect	! no signature -> should not happen, tidy up
+
+	mov	[64],ax		! record the APM BIOS version
+	mov	[76],cx		!	and flags
+	jmp	done_apm_bios
+
+apm_disconnect:
+	mov	ax,#0x05304	! Disconnect
+	xor	bx,bx
+	int	0x15		! ignore return code
 	jmp	done_apm_bios
 
 no_32_apm_bios:

@@ -15,6 +15,7 @@
 #include <linux/in6.h>
 #include <linux/pci.h>
 #include <linux/tty.h>
+#include <linux/mm.h>
 
 #include <asm/io.h>
 #include <asm/hwrpb.h>
@@ -26,6 +27,7 @@
 #include <asm/fpu.h>
 #include <asm/irq.h>
 #include <asm/machvec.h>
+#include <asm/pgtable.h>
 
 #define __KERNEL_SYSCALLS__
 #include <asm/unistd.h>
@@ -135,6 +137,37 @@ EXPORT_SYMBOL_NOVERS(__copy_user);
 EXPORT_SYMBOL_NOVERS(__do_clear_user);
 EXPORT_SYMBOL(__strncpy_from_user);
 EXPORT_SYMBOL(__strlen_user);
+
+/* 
+ * SMP-specific symbols.
+ */
+
+#ifdef __SMP__
+EXPORT_SYMBOL(synchronize_irq);
+EXPORT_SYMBOL(flush_tlb_all);
+EXPORT_SYMBOL(flush_tlb_mm);
+EXPORT_SYMBOL(flush_tlb_page);
+EXPORT_SYMBOL(flush_tlb_range);
+EXPORT_SYMBOL(cpu_data);
+EXPORT_SYMBOL(cpu_number_map);
+EXPORT_SYMBOL(global_bh_lock);
+EXPORT_SYMBOL(global_bh_count);
+EXPORT_SYMBOL(synchronize_bh);
+EXPORT_SYMBOL(global_irq_holder);
+EXPORT_SYMBOL(__global_cli);
+EXPORT_SYMBOL(__global_sti);
+EXPORT_SYMBOL(__global_save_flags);
+EXPORT_SYMBOL(__global_restore_flags);
+#if DEBUG_SPINLOCK
+EXPORT_SYMBOL(spin_unlock);
+EXPORT_SYMBOL(spin_lock);
+EXPORT_SYMBOL(spin_trylock);
+#endif
+#if DEBUG_RWLOCK
+EXPORT_SYMBOL(write_lock);
+EXPORT_SYMBOL(read_lock);
+#endif
+#endif /* __SMP__ */
 
 /*
  * The following are special because they're not called
