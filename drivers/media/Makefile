@@ -16,6 +16,6 @@ MOD_SUB_DIRS := $(SUB_DIRS)
 ALL_SUB_DIRS := $(SUB_DIRS)
 
 O_TARGET     := media.o
-O_OBJS       := happy.o $(MEDIAS)
+O_OBJS       := $(MEDIAS)
 
 include $(TOPDIR)/Rules.make
