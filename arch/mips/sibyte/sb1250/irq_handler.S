@@ -38,7 +38,6 @@
 #include <asm/sibyte/sb1250_defs.h>
 #include <asm/sibyte/sb1250_regs.h>
 #include <asm/sibyte/sb1250_int.h>
-#include "asm/sibyte/sbmips.h"
 
 /* 
  *  What a pain. We have to be really careful saving
@@ -68,11 +67,11 @@
         
 #ifdef CONFIG_SIBYTE_SB1250_PROF
 	/* Set compare to count to silence count/compare timer interrupts */
-	mfc0	 t1, C0_COUNT
-	mtc0	 t1, C0_COMPARE /* pause to clear IP[7] bit of cause ? */
+	mfc0	 t1, CP0_COUNT
+	mtc0	 t1, CP0_COMPARE /* pause to clear IP[7] bit of cause ? */
 #endif
 	/* Read cause */
-	mfc0     s0, C0_CAUSE
+	mfc0     s0, CP0_CAUSE
 	
 #ifdef CONFIG_SIBYTE_SB1250_PROF
 	/* Cpu performance counter interrupt is routed to IP[7] */
@@ -80,7 +79,7 @@
 	beqz	 t1, 0f
 	 srl	 t1, s0, (CAUSEB_BD-2)  /* Shift BD bit to bit 2 */
 	and	 t1, t1, 0x4	/* mask to get just BD bit */
-	mfc0	 a0, C0_EPC
+	mfc0	 a0, CP0_EPC
 	jal	 sbprof_cpu_intr
 	 addu	 a0, a0, t1	/* a0 = EPC + (BD ? 4 :	0) */
 	j	ret_from_irq
