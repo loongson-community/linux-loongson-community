@@ -1342,7 +1342,10 @@ static inline int get_flock(struct flock *kfl, struct flock32 *ufl)
 {
 	int err;
 
-	err = get_user(kfl->l_type, &ufl->l_type);
+	if (!access_ok(VERIFY_READ, ufl, sizeof(*ufl)))
+		return -EFAULT;
+
+	err = __get_user(kfl->l_type, &ufl->l_type);
 	err |= __get_user(kfl->l_whence, &ufl->l_whence);
 	err |= __get_user(kfl->l_start, &ufl->l_start);
 	err |= __get_user(kfl->l_len, &ufl->l_len);
@@ -1354,6 +1357,9 @@ static inline int get_flock(struct flock *kfl, struct flock32 *ufl)
 static inline int put_flock(struct flock *kfl, struct flock32 *ufl)
 {
 	int err;
+
+	if (!access_ok(VERIFY_WRITE, ufl, sizeof(*ufl)))
+		return -EFAULT;
 
 	err = __put_user(kfl->l_type, &ufl->l_type);
 	err |= __put_user(kfl->l_whence, &ufl->l_whence);
