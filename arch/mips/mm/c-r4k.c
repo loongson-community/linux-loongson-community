@@ -334,9 +334,6 @@ static inline void local_r4k_flush_cache_mm(void * args)
 {
 	struct mm_struct *mm = args;
 
-	if (!cpu_has_dc_aliases)
-		return;
-
 	if (!cpu_context(smp_processor_id(), mm))
 		return;
 
@@ -356,6 +353,9 @@ static inline void local_r4k_flush_cache_mm(void * args)
 
 static void r4k_flush_cache_mm(struct mm_struct *mm)
 {
+	if (!cpu_has_dc_aliases)
+		return;
+
 	on_each_cpu(local_r4k_flush_cache_mm, mm, 1, 1);
 }
 
@@ -374,13 +374,6 @@ static inline void local_r4k_flush_cache_page(void *args)
 	pgd_t *pgdp;
 	pmd_t *pmdp;
 	pte_t *ptep;
-
-	/*
-	 * If ownes no valid ASID yet, cannot possibly have gotten
-	 * this page into the cache.
-	 */
-	if (cpu_context(smp_processor_id(), mm) == 0)
-		return;
 
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
@@ -437,6 +430,13 @@ static void r4k_flush_cache_page(struct vm_area_struct *vma,
 	unsigned long page)
 {
 	struct flush_cache_page_args args;
+
+	/*
+	 * If ownes no valid ASID yet, cannot possibly have gotten
+	 * this page into the cache.
+	 */
+	if (cpu_context(smp_processor_id(), vma->vm_mm) == 0)
+		return;
 
 	args.vma = vma;
 	args.page = page;
@@ -711,6 +711,7 @@ static void local_r4k_flush_cache_sigtramp(void * arg)
 {
 	unsigned long ic_lsize = current_cpu_data.icache.linesz;
 	unsigned long dc_lsize = current_cpu_data.dcache.linesz;
+	unsigned long sc_lsize = current_cpu_data.scache.linesz;
 	unsigned long addr = (unsigned long) arg;
 
 	R4600_HIT_CACHEOP_WAR_IMPL;
