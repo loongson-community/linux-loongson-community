@@ -209,8 +209,8 @@ int __init bridge_probe(nasid_t nasid, int widget_id, int masterwid)
 	bc->mem.flags		= IORESOURCE_MEM;
 
 	bc->io.name		= "Bridge IO MEM";
+	bc->pc.io_offset	= offset;
 	bc->io.start		= 0UL;
-	bc->pc.io_offset	= 0UL;
 	bc->io.end		= ~0UL;
 	bc->io.flags		= IORESOURCE_IO;
 
