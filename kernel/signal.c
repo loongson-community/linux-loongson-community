@@ -12,6 +12,7 @@
 #include <linux/smp_lock.h>
 #include <linux/init.h>
 #include <linux/sched.h>
+#include <linux/param.h>
 
 #include <asm/uaccess.h>
 
@@ -585,8 +586,8 @@ notify_parent(struct task_struct *tsk, int sig)
 	info.si_pid = tsk->pid;
 
 	/* FIXME: find out whether or not this is supposed to be c*time. */
-	info.si_utime = tsk->times.tms_utime;
-	info.si_stime = tsk->times.tms_stime;
+	info.si_utime = HZ_TO_STD(tsk->times.tms_utime);
+	info.si_stime = HZ_TO_STD(tsk->times.tms_stime);
 
 	why = SI_KERNEL;	/* shouldn't happen */
 	switch (tsk->state) {

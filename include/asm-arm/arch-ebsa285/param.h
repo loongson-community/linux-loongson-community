@@ -6,3 +6,4 @@
  */
 
 #define HZ 100
+#define HZ_TO_STD(a) (a)

@@ -233,7 +233,7 @@ static int get_kstat(char * buffer)
 	extern unsigned long total_forks;
 	unsigned long ticks;
 
-	ticks = jiffies * smp_num_cpus;
+	ticks = HZ_TO_STD(jiffies) * smp_num_cpus;
 	for (i = 0 ; i < NR_IRQS ; i++)
 		sum += kstat_irqs(i);
 
@@ -273,10 +273,10 @@ static int get_kstat(char * buffer)
 		"page %u %u\n"
 		"swap %u %u\n"
 		"intr %u",
-		kstat.cpu_user,
-		kstat.cpu_nice,
-		kstat.cpu_system,
-		ticks - (kstat.cpu_user + kstat.cpu_nice + kstat.cpu_system),
+		HZ_TO_STD(kstat.cpu_user),
+		HZ_TO_STD(kstat.cpu_nice),
+		HZ_TO_STD(kstat.cpu_system),
+		ticks - HZ_TO_STD(kstat.cpu_user + kstat.cpu_nice + kstat.cpu_system),
 #endif
 		kstat.dk_drive[0], kstat.dk_drive[1],
 		kstat.dk_drive[2], kstat.dk_drive[3],
@@ -932,10 +932,10 @@ static int get_stat(int pid, char * buffer)
 		tsk->cmin_flt,
 		tsk->maj_flt,
 		tsk->cmaj_flt,
-		tsk->times.tms_utime,
-		tsk->times.tms_stime,
-		tsk->times.tms_cutime,
-		tsk->times.tms_cstime,
+		HZ_TO_STD(tsk->times.tms_utime),
+		HZ_TO_STD(tsk->times.tms_stime),
+		HZ_TO_STD(tsk->times.tms_cutime),
+		HZ_TO_STD(tsk->times.tms_cstime),
 		priority,
 		nice,
 		0UL /* removed */,
@@ -1251,14 +1251,14 @@ static int get_pidcpu(int pid, char * buffer)
 
 	len = sprintf(buffer,
 		"cpu  %lu %lu\n",
-		tsk->times.tms_utime,
-		tsk->times.tms_stime);
+		HZ_TO_STD(tsk->times.tms_utime),
+		HZ_TO_STD(tsk->times.tms_stime));
 		
 	for (i = 0 ; i < smp_num_cpus; i++)
 		len += sprintf(buffer + len, "cpu%d %lu %lu\n",
 			i,
-			tsk->per_cpu_utime[cpu_logical_map(i)],
-			tsk->per_cpu_stime[cpu_logical_map(i)]);
+			HZ_TO_STD(tsk->per_cpu_utime[cpu_logical_map(i)]),
+			HZ_TO_STD(tsk->per_cpu_stime[cpu_logical_map(i)]));
 
 	return len;
 }
