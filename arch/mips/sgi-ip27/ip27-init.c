@@ -526,7 +526,7 @@ void __init smp_boot_cpus(void)
 
 	init_new_context(current, &init_mm);
 	current_thread_info()->cpu = 0;
-	/* smp_tune_scheduling();  XXX */
+	smp_tune_scheduling();
 
 	sn_mp_setup();
 	/* Master has already done per_cpu_init() */
