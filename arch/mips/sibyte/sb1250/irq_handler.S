@@ -52,8 +52,7 @@
 	.set	push
 	.set	noreorder
 	.set	noat
-	#.set	mips64
-	.set	mips4
+	.set	mips64
 	.align	5
 	NESTED(sb1250_irq_handler, PT_SIZE, sp)
 	SAVE_ALL

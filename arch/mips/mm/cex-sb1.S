@@ -26,7 +26,7 @@
 
 	.text
 	.set	noat
-	.set	mips4
+	.set	mips64
 
         __INIT
 
