@@ -16,14 +16,13 @@
 #include <linux/ds17287rtc.h>
 #include <linux/interrupt.h>
 
+#include <asm/addrspace.h>
 #include <asm/irq.h>
 #include <asm/reboot.h>
-#include <asm/sgialib.h>
-#include <asm/addrspace.h>
-#include <asm/types.h>
 #include <asm/system.h>
 #include <asm/wbflush.h>
 #include <asm/ip32/mace.h>
+#include <asm/ip32/crime.h>
 #include <asm/ip32/ip32_ints.h>
 
 #define POWERDOWN_TIMEOUT	120
@@ -34,7 +33,7 @@
 #define PANIC_FREQ		(HZ / 8)
 
 static struct timer_list power_timer, blink_timer, debounce_timer;
-static int shuting_down = 0, has_paniced = 0;
+static int has_paniced, shuting_down;
 
 static void ip32_machine_restart(char *command) __attribute__((noreturn));
 static void ip32_machine_halt(void) __attribute__((noreturn));
@@ -42,16 +41,13 @@ static void ip32_machine_power_off(void) __attribute__((noreturn));
 
 static void ip32_machine_restart(char *cmd)
 {
-	if (shuting_down)
-		ip32_machine_power_off();
-	ArcReboot();
+	crime_write(CRIME_CONTROL_HARD_RESET, CRIME_CONTROL);
+	while (1);
 }
 
 static inline void ip32_machine_halt(void)
 {
-	if (shuting_down)
-		ip32_machine_power_off();
-	ArcEnterInteractiveMode();
+	ip32_machine_power_off();
 }
 
 static void ip32_machine_power_off(void)
@@ -77,10 +73,7 @@ static void ip32_machine_power_off(void)
 	CMOS_WRITE(xctrl_a | DS_XCTRL4A_PAB, DS_B1_XCTRL4A);
 	CMOS_WRITE(reg_a, RTC_REG_A);
 	wbflush();
-
-	while(1) {
-	  	printk(KERN_DEBUG "Power off!\n");
-	}
+	while (1);
 }
 
 static void power_timeout(unsigned long data)
@@ -116,7 +109,7 @@ static void debounce(unsigned long data)
 	CMOS_WRITE(reg_a & ~DS_REGA_DV0, RTC_REG_A);
 
 	if (has_paniced)
-		ArcReboot();
+		ip32_machine_restart(NULL);
 
 	enable_irq(MACEISA_RTC_IRQ);
 }
