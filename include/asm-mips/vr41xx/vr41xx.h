@@ -130,8 +130,71 @@ extern void vr41xx_mask_clock(vr41xx_clock_t clock);
 extern int vr41xx_set_intassign(unsigned int irq, unsigned char intassign);
 extern int vr41xx_cascade_irq(unsigned int irq, int (*get_irq_number)(int irq));
 
-extern void vr41xx_enable_dsiuint(void);
-extern void vr41xx_disable_dsiuint(void);
+#define PIUINT_COMMAND		0x0040
+#define PIUINT_DATA		0x0020
+#define PIUINT_PAGE1		0x0010
+#define PIUINT_PAGE0		0x0008
+#define PIUINT_DATALOST		0x0004
+#define PIUINT_STATUSCHANGE	0x0001
+
+extern void vr41xx_enable_piuint(uint16_t mask);
+extern void vr41xx_disable_piuint(uint16_t mask);
+
+#define AIUINT_INPUT_DMAEND	0x0800
+#define AIUINT_INPUT_DMAHALT	0x0400
+#define AIUINT_INPUT_DATALOST	0x0200
+#define AIUINT_INPUT_DATA	0x0100
+#define AIUINT_OUTPUT_DMAEND	0x0008
+#define AIUINT_OUTPUT_DMAHALT	0x0004
+#define AIUINT_OUTPUT_NODATA	0x0002
+
+extern void vr41xx_enable_aiuint(uint16_t mask);
+extern void vr41xx_disable_aiuint(uint16_t mask);
+
+#define KIUINT_DATALOST		0x0004
+#define KIUINT_DATAREADY	0x0002
+#define KIUINT_SCAN		0x0001
+
+extern void vr41xx_enable_kiuint(uint16_t mask);
+extern void vr41xx_disable_kiuint(uint16_t mask);
+
+#define DSIUINT_CTS		0x0800
+#define DSIUINT_RXERR		0x0400
+#define DSIUINT_RX		0x0200
+#define DSIUINT_TX		0x0100
+#define DSIUINT_ALL		0x0f00
+
+extern void vr41xx_enable_dsiuint(uint16_t mask);
+extern void vr41xx_disable_dsiuint(uint16_t mask);
+
+#define FIRINT_UNIT		0x0010
+#define FIRINT_RX_DMAEND	0x0008
+#define FIRINT_RX_DMAHALT	0x0004
+#define FIRINT_TX_DMAEND	0x0002
+#define FIRINT_TX_DMAHALT	0x0001
+
+extern void vr41xx_enable_firint(uint16_t mask);
+extern void vr41xx_disable_firint(uint16_t mask);
+
+extern void vr41xx_enable_pciint(void);
+extern void vr41xx_disable_pciint(void);
+
+extern void vr41xx_enable_scuint(void);
+extern void vr41xx_disable_scuint(void);
+
+#define CSIINT_TX_DMAEND	0x0040
+#define CSIINT_TX_DMAHALT	0x0020
+#define CSIINT_TX_DATA		0x0010
+#define CSIINT_TX_FIFOEMPTY	0x0008
+#define CSIINT_RX_DMAEND	0x0004
+#define CSIINT_RX_DMAHALT	0x0002
+#define CSIINT_RX_FIFOEMPTY	0x0001
+
+extern void vr41xx_enable_csiint(uint16_t mask);
+extern void vr41xx_disable_csiint(uint16_t mask);
+
+extern void vr41xx_enable_bcuint(void);
+extern void vr41xx_disable_bcuint(void);
 
 /*
  * Power Management Unit
