@@ -52,6 +52,8 @@ struct pcmcia_irq_info {
 	unsigned int irq;
 };
 
+typedef u_int memaddr_t;	/* fix me */
+
 struct au1000_pcmcia_socket {
 	socket_state_t        cs_state;
 	struct pcmcia_state   k_state;
@@ -61,7 +63,7 @@ struct au1000_pcmcia_socket {
 	pccard_io_map         io_map[MAX_IO_WIN];
 	pccard_mem_map        mem_map[MAX_WIN];
 	u32                   virt_io;
-	memaddr_t             phys_attr, phys_mem;
+	memaddr_t             phys_attr, phys_mem;	/*FIX ME*/
 	unsigned short        speed_io, speed_attr, speed_mem;
 };
 
@@ -77,10 +79,10 @@ struct pcmcia_low_level {
 	int (*configure_socket)(const struct pcmcia_configure *);
 };
 
-#ifdef CONFIG_MIPS_PB1000
-extern struct pcmcia_low_level pb1000_pcmcia_ops;
-#elif defined (CONFIG_MIPS_PB1500)
-extern struct pcmcia_low_level pb1500_pcmcia_ops;
+#if defined(CONFIG_MIPS_PB1000) || defined(CONFIG_MIPS_PB1100) || defined(CONFIG_MIPS_PB1500)
+extern struct pcmcia_low_level pb1x00_pcmcia_ops;
+#else
+error unknown Au1000 board
 #endif
 
 #endif /* __ASM_AU1000_PCMCIA_H */
