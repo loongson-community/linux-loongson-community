@@ -16,8 +16,8 @@
  *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
  *
  * MIPS boards specific PCI support.
- *
  */
+#include <linux/config.h>
 #include <linux/types.h>
 #include <linux/pci.h>
 #include <linux/kernel.h>
@@ -56,6 +56,13 @@ static int bonito64_pcibios_config_access(unsigned char access_type,
 		/* We number bus 0 devices from 0..21 */
 		return -1;
 	}
+
+#ifdef CONFIG_MIPS_BOARDS_GEN
+	if ((busnum == 0) && (PCI_SLOT(devfn) == 17)) {
+		/* MIPS Core boards have Bonito connected as device 17 */
+		return -1;
+	}
+#endif
 
 	/* Clear cause register bits */
 	BONITO_PCICMD |= (BONITO_PCICMD_MABORT_CLR |
