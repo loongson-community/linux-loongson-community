@@ -99,10 +99,10 @@ void sb1250_time_init(void)
 
 void sb1250_timer_interrupt(struct pt_regs *regs)
 {
+	extern asmlinkage void ll_local_timer_interrupt(int irq, struct pt_regs *regs);
 	int cpu = smp_processor_id();
 	int irq = K_INT_TIMER_0 + cpu;
 
-	kstat_cpu(cpu).irqs[irq]++;
 	/* Reset the timer */
 	____raw_writeq(M_SCD_TIMER_ENABLE|M_SCD_TIMER_MODE_CONTINUOUS,
 		       KSEG1 + A_SCD_TIMER_REGISTER(cpu, R_SCD_TIMER_CFG));
