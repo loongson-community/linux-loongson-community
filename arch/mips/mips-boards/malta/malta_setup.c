@@ -22,6 +22,11 @@
 #include <linux/pci.h>
 #include <linux/tty.h>
 
+#ifdef CONFIG_MTD
+#include <linux/mtd/partitions.h>
+#include <linux/mtd/physmap.h>
+#endif
+
 #include <asm/cpu.h>
 #include <asm/bootinfo.h>
 #include <asm/irq.h>
@@ -52,6 +57,30 @@ struct resource standard_io_resources[] = {
 	{ "dma page reg", 0x80, 0x8f, IORESOURCE_BUSY },
 	{ "dma2", 0xc0, 0xdf, IORESOURCE_BUSY },
 };
+
+#ifdef CONFIG_MTD
+static struct mtd_partition malta_mtd_partitions[] = {
+	{
+		.name =		"YAMON",
+		.offset =	0x0,
+		.size =		0x100000,
+		.mask_flags =	MTD_WRITEABLE
+	},
+	{
+		.name =		"User FS",
+		.offset = 	0x100000,
+		.size =		0x2e0000
+	},
+	{
+		.name =		"Board Config",
+		.offset =	0x3e0000,
+		.size =		0x020000,
+		.mask_flags =	MTD_WRITEABLE
+	}
+};
+
+#define number_partitions	(sizeof(malta_mtd_partitions)/sizeof(struct mtd_partition))
+#endif
 
 const char *get_system_type(void)
 {
@@ -179,6 +208,15 @@ static int __init malta_setup(void)
 	};
 #endif
 #endif
+
+#ifdef CONFIG_MTD
+	/*
+	 * Support for MTD on Malta. Use the generic physmap driver
+	 */
+	physmap_configure(0x1e000000, 0x400000, 4, NULL);
+	physmap_set_partitions(malta_mtd_partitions, number_partitions);
+#endif
+
 	mips_reboot_setup();
 
 	board_time_init = mips_time_init;
