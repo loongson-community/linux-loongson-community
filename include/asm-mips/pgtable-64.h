@@ -65,7 +65,7 @@
  */
 #ifdef CONFIG_PAGE_SIZE_4KB
 #define PGD_ORDER		1
-#define PMD_ORDER		1
+#define PMD_ORDER		0
 #define PTE_ORDER		0
 #endif
 #ifdef CONFIG_PAGE_SIZE_8KB
