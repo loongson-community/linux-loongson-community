@@ -731,8 +731,7 @@ void __init trap_init(void)
 		else
 			memcpy((void *)KSEG0, &except_vec0_r4000, 0x80);
 
-		/* Cache error vector  */
-		memcpy((void *)(KSEG0 + 0x100), (void *) KSEG0, 0x80);
+		/* Cache error vector already set above.  */
 
 		if (vce_available) {
 			memcpy((void *)(KSEG0 + 0x180), &except_vec3_r4000,
@@ -741,7 +740,6 @@ void __init trap_init(void)
 			memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic,
 			       0x80);
 		}
-
 		break;
 
 	case CPU_R6000:
