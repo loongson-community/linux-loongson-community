@@ -14,7 +14,7 @@
 #include <asm/pci/bridge.h>
 #include <asm/pci_channel.h>
 #include <asm/paccess.h>
-#include <asm/sn/sn0/ip27.h>
+#include <asm/sn/intr.h>
 #include <asm/sn/sn0/hub.h>
 
 /*
@@ -203,17 +203,17 @@ int __init bridge_probe(nasid_t nasid, int widget_id, int masterwid)
 
 	bc->pc.pci_ops		= &bridge_pci_ops;
 	bc->pc.mem_resource	= &bc->mem;
-	bc->pc.mem_offset	= 0UL;
 	bc->pc.io_resource	= &bc->io;
-	bc->pc.io_offset	= 0UL;
 
 	bc->mem.name		= "Bridge PCI MEM";
-	bc->mem.start		= 0UL;
+	bc->pc.mem_offset	= 0;
+	bc->mem.start		= 0;
 	bc->mem.end		= ~0UL;
 	bc->mem.flags		= IORESOURCE_MEM;
 
 	bc->io.name		= "Bridge IO MEM";
 	bc->io.start		= 0UL;
+	bc->pc.io_offset	= 0UL;
 	bc->io.end		= ~0UL;
 	bc->io.flags		= IORESOURCE_IO;
 
@@ -232,7 +232,7 @@ int __init bridge_probe(nasid_t nasid, int widget_id, int masterwid)
 	/*
  	 * Clear all pending interrupts.
  	 */
-	bridge->b_int_rst_stat = (BRIDGE_IRR_ALL_CLR);
+	bridge->b_int_rst_stat = BRIDGE_IRR_ALL_CLR;
 
 	/*
  	 * Until otherwise set up, assume all interrupts are from slot 0
@@ -242,8 +242,8 @@ int __init bridge_probe(nasid_t nasid, int widget_id, int masterwid)
 	/*
  	 * swap pio's to pci mem and io space (big windows)
  	 */
-	bridge->b_wid_control |= BRIDGE_CTRL_IO_SWAP;
-	bridge->b_wid_control |= BRIDGE_CTRL_MEM_SWAP;
+	bridge->b_wid_control |= BRIDGE_CTRL_IO_SWAP |
+	                         BRIDGE_CTRL_MEM_SWAP;
 
 	/*
 	 * Hmm...  IRIX sets additional bits in the address which
