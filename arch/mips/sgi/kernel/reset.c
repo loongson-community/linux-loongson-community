@@ -1,4 +1,4 @@
-/* $Id: reset.c,v 1.6 1998/07/09 19:57:47 ralf Exp $
+/* $Id: reset.c,v 1.4 1998/07/10 01:14:50 ralf Exp $
  *
  * Reset a SGI.
  *
@@ -129,14 +129,20 @@ static inline void power_button(void)
 	add_timer(&power_timer);
 }
 
+unsigned char current_volume = 0x7f;
+
 static inline void volume_up_button(void)
 {
-	/* Later when we have sound support ... */
+	current_volume = (current_volume < 0xe1) ? current_volume + 0x1e : 0xff;
+	hpc3c0->pbus_extregs[2][0] = current_volume;
+	hpc3c0->pbus_extregs[2][1] = current_volume;
 }
 
 static inline void volume_down_button(void)
 {
-	/* Later when we have sound support ... */
+	current_volume = (current_volume > 0x1e) ? current_volume - 0x1e : 0;
+	hpc3c0->pbus_extregs[2][0] = current_volume;
+	hpc3c0->pbus_extregs[2][1] = current_volume;
 }
 
 static void panel_int(int irq, void *dev_id, struct pt_regs *regs)
