@@ -47,7 +47,6 @@
 #include <asm/uaccess.h>
 #include <asm/sibyte/swarm.h>
 #include <asm/sibyte/sb1250.h>
-#include <asm/sibyte/sbmips.h>
 #include <asm/sibyte/sb1250_regs.h>
 #include <asm/sibyte/sb1250_uart.h>
 #include <asm/sibyte/sb1250_int.h>
