@@ -162,6 +162,7 @@ void show_code(unsigned int *pc)
 void show_regs(struct pt_regs *regs)
 {
 	const int field = 2 * sizeof(unsigned long);
+	unsigned int cause = regs->cause;
 	int i;
 
 	printk("Cpu %d\n", smp_processor_id());
@@ -221,7 +222,12 @@ void show_regs(struct pt_regs *regs)
 		printk("IE ");
 	printk("\n");
 
-	printk("Cause : %08lx\n", regs->cp0_cause);
+	printk("Cause : %08lx\n", cause);
+
+	cause = (cause & CAUSEF_EXCCODE) >> CAUSEB_EXCCODE;
+	if (1 <= cause && cause <= 5)
+		printk("BadVA : %0*lx\n", field, regs->cp0_badvaddr);
+
 	printk("PrId  : %08x\n", read_c0_prid());
 }
 
