@@ -247,7 +247,7 @@ void update_mmu_cache(struct vm_area_struct * vma, unsigned long address,
 
 	__save_and_cli(flags);
 	address &= (PAGE_MASK << 1);
-	set_entryhi(address | (pid));
+	set_entryhi(address | pid);
 	pgdp = pgd_offset(vma->vm_mm, address);
 	BARRIER;
 	tlb_probe();
@@ -258,7 +258,7 @@ void update_mmu_cache(struct vm_area_struct * vma, unsigned long address,
 	BARRIER;
 	set_entrylo0(pte_val(*ptep++) >> 6);
 	set_entrylo1(pte_val(*ptep) >> 6);
-	set_entryhi(address | (pid));
+	set_entryhi(address | pid);
 	BARRIER;
 	if (idx < 0) {
 		tlb_write_random();
