@@ -46,7 +46,7 @@ extern char *prom_getenv(char *envname);
 
 const char *get_system_type(void)
 {
-	return "Alchemy PB1000";
+	return "Alchemy Pb1000";
 }
 
 int __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
