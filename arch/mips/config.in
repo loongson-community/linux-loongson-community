@@ -22,6 +22,7 @@ bool 'Support for Mips Magnum 4000' CONFIG_MIPS_MAGNUM_4000
 bool 'Support for Olivetti M700-10' CONFIG_OLIVETTI_M700
 bool 'Support for SGI IP22' CONFIG_SGI_IP22
 bool 'Support for SNI RM200 PCI' CONFIG_SNI_RM200_PCI
+bool 'Support for Cobalt Server' CONFIG_COBALT_MICRO_SERVER
 
 #
 # Select some configuration options automatically for certain systems.
@@ -53,6 +54,22 @@ if [ "$CONFIG_ACER_PICA_61" = "y" ]; then
    define_bool CONFIG_MIPS_JAZZ y
    define_bool CONFIG_PC_KEYB y
 fi
+if [ "${CONFIG_COBALT_MICRO_SERVER}" = "y" ]; then
+       # Let's set up some basic stuff if cobalt is selected.
+       define_bool COBALT_MICRO_SERVER y
+       define_bool CONFIG_NO_SWAPPER y
+       define_bool CONFIG_COBALT_27 y
+       define_bool CONFIG_NO_KEYBOARD y
+       define_bool CONFIG_NO_VIDEO_CONSOLE y
+       define_bool CONFIG_COBALT_LCD y
+       define_bool CONFIG_COBALT_SERIAL y
+fi
+if [ "${CONFIG_COBALT_27}" = "y" ]; then
+       echo "Cobalt 27 board is selected "
+       define_bool CONFIG_PCI y
+       bool 'Support for 2800 (note: only works on 2800)' CONFIG_COBALT_28 n
+fi
+
 if [ "$CONFIG_SGI_IP22" = "y" ]; then
    define_bool CONFIG_ARC32 y
    define_bool CONFIG_PC_KEYB y
