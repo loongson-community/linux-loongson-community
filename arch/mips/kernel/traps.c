@@ -491,10 +491,16 @@ asmlinkage void do_be(struct pt_regs *regs)
 
 asmlinkage void do_ov(struct pt_regs *regs)
 {
+	siginfo_t info;
+
 	if (compute_return_epc(regs))
 		return;
 
-	force_sig(SIGFPE, current);
+	info.si_code = FPE_INTOVF;
+	info.si_signo = SIGFPE;
+	info.si_errno = 0;
+	info.si_addr = (void *)regs->cp0_epc;
+	force_sig_info(SIGFPE, &info, current);
 }
 
 /*
