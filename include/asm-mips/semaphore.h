@@ -33,29 +33,24 @@ struct semaphore {
 } __attribute__((aligned(8)));
 
 #if WAITQUEUE_DEBUG
-# define __SEM_DEBUG_INIT(name) \
-		, (long)&(name).__magic
+# define __SEM_DEBUG_INIT(name) , .__magic = (long)&(name).__magic
 #else
 # define __SEM_DEBUG_INIT(name)
 #endif
 
-#ifdef __MIPSEB__
-#define __SEMAPHORE_INITIALIZER(name,count) \
-{ ATOMIC_INIT(count), ATOMIC_INIT(0), __WAIT_QUEUE_HEAD_INITIALIZER((name).wait) \
-	__SEM_DEBUG_INIT(name) }
-#else
-#define __SEMAPHORE_INITIALIZER(name,count) \
-{ ATOMIC_INIT(0), ATOMIC_INIT(count), __WAIT_QUEUE_HEAD_INITIALIZER((name).wait) \
-	__SEM_DEBUG_INIT(name) }
-#endif
+#define __SEMAPHORE_INITIALIZER(name,_count) {				\
+	.count	= ATOMIC_INIT(_count),					\
+	.waking	= ATOMIC_INIT(0),					\
+	.wait	= __WAIT_QUEUE_HEAD_INITIALIZER((name).wait)		\
+	__SEM_DEBUG_INIT(name)						\
+}
 
-#define __MUTEX_INITIALIZER(name) \
-	__SEMAPHORE_INITIALIZER(name,1)
+#define __MUTEX_INITIALIZER(name) __SEMAPHORE_INITIALIZER(name, 1)
 
 #define __DECLARE_SEMAPHORE_GENERIC(name,count) \
-	struct semaphore name = __SEMAPHORE_INITIALIZER(name,count)
+	struct semaphore name = __SEMAPHORE_INITIALIZER(name, count)
 
-#define DECLARE_MUTEX(name) __DECLARE_SEMAPHORE_GENERIC(name,1)
+#define DECLARE_MUTEX(name) __DECLARE_SEMAPHORE_GENERIC(name, 1)
 #define DECLARE_MUTEX_LOCKED(name) __DECLARE_SEMAPHORE_GENERIC(name,0)
 
 static inline void sema_init (struct semaphore *sem, int val)
@@ -156,21 +151,22 @@ static inline int down_trylock(struct semaphore * sem)
 #endif
 
 	__asm__ __volatile__(
-	".set\tmips3\t\t\t# down_trylock\n"
-	"0:\tlld\t%1, %4\n\t"
-	"dli\t%3, 0x0000000100000000\n\t"
-	"dsubu\t%1, %3\n\t"
-	"li\t%0, 0\n\t"
-	"bgez\t%1, 2f\n\t"
-	"sll\t%2, %1, 0\n\t"
-	"blez\t%2, 1f\n\t"
-	"daddiu\t%1, %1, -1\n\t"
-	"b\t2f\n"
-	"1:\tdaddu\t%1, %1, %3\n\t"
-	"li\t%0, 1\n"
-	"2:\tscd\t%1, %4\n\t"
-	"beqz\t%1, 0b\n\t"
-	".set\tmips0"
+	"	.set	mips3			# down_trylock	\n"
+	"0:	lld	%1, %4					\n"
+	"	dli	%3, 0x0000000100000000			\n"
+	"	dsubu	%1, %3					\n"
+	"	li	%0, 0					\n"
+	"	bgez	%1, 2f					\n"
+	"	sll	%2, %1, 0				\n"
+	"	blez	%2, 1f					\n"
+	"	daddiu	%1, %1, -1				\n"
+	"	b	2f					\n"
+	"1:	daddu	%1, %1, %3				\n"
+	"	li	%0, 1					\n"
+	"2:	scd	%1, %4					\n"
+	"	beqz	%1, 0b					\n"
+	"	sync						\n"
+	"	.set	mips0					\n"
 	: "=&r"(ret), "=&r"(tmp), "=&r"(tmp2), "=&r"(sub)
 	: "m"(*sem)
 	: "memory");
