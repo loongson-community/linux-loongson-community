@@ -325,7 +325,7 @@ out_file:
 /*
  * sys_execve() executes a new program.
  */
-asmlinkage int sys32_execve(abi64_no_regargs, struct pt_regs regs)
+asmlinkage int sys32_execve(nabi_no_regargs struct pt_regs regs)
 {
 	int error;
 	char * filename;

@@ -94,15 +94,6 @@
 
 	__INIT
 
-	.align	5
-LEAF(except_vec0_generic)
-	.set	noat
-	PANIC("Unused vector called")
-1:	b	1b
-	 nop
-END(except_vec0_generic)
-
-
 	/*
 	 * TLB refill handlers for the R4000 and SB1.
 	 * Attention:  We may only use 32 instructions / 128 bytes.

@@ -107,7 +107,7 @@ FEXPORT(syscall_exit_work)
 	LONG_L	t0, TI_FLAGS($28)
 	li	t1, _TIF_SYSCALL_TRACE
 	and	t0, t1
-	bgez	t0, work_pending	# trace bit is set
+	bnez	t0, work_pending	# trace bit is set
 	local_irq_enable		# could let do_syscall_trace()
 					# call schedule() instead
 	jal	do_syscall_trace

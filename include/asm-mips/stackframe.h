@@ -61,11 +61,22 @@
                 lw      k1, %lo(kernelsp)(k1)
 		.endm
 
+		.macro	set_saved_sp stackp temp temp2
+		mfc0	\temp, CP0_CONTEXT
+		srl	\temp, 23
+		sll	\temp, 2
+		sw	\stackp, kernelsp(temp)
+		.endm
 #else
 		.macro	get_saved_sp
 		lui	k1, %hi(kernelsp)
 		lw	k1, %lo(kernelsp)(k1)
 		.endm
+
+		.macro	set_saved_sp stackp temp temp2
+		sw	\stackp, kernelsp
+		.endm
+
 #endif
 
 #ifdef CONFIG_PREEMPT

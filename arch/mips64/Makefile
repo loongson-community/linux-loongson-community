@@ -3,6 +3,8 @@
 # License.  See the file "COPYING" in the main directory of this archive
 # for more details.
 #
+# Copyright (C) 1994, 1995, 1996 by Ralf Baechle
+# DECStation modifications by Paul M. Antoine, 1996
 # Copyright (C) 2002  Maciej W. Rozycki
 #
 # This file is included by the global makefile so that you can add your own
@@ -28,17 +30,18 @@ CROSS_COMPILE	:= $(tool-prefix)
 endif
 
 #
-# The ELF GCC uses -G 0 -mabicalls -fpic as default.  We don't need PIC
-# code in the kernel since it only slows down the whole thing.  For the
-# old GCC these options are just the defaults.  At some point we might
-# make use of global pointer optimizations.
+# GCC uses -G 0 -mabicalls -fpic as default.  We don't want PIC in the kernel
+# code since it only slows down the whole thing.  At some point we might make
+# use of global pointer optimizations but their use of $28 conflicts with
+# the current pointer optimization.
 #
 # The DECStation requires an ECOFF kernel for remote booting, other MIPS
 # machines may also.  Since BFD is incredibly buggy with respect to
 # crossformat linking we rely on the elf2ecoff tool for format conversion.
 #
 cflags-y			:= -I $(TOPDIR)/include/asm/gcc
-cflags-y			+= -mabi=64 -G 0 -mno-abicalls -fno-pic -Wa,--trap -pipe
+cflags-y			+= -G 0 -mno-abicalls -fno-pic -Wa,--trap -pipe
+cflags-$(CONFIG_MIPS64)		+= -mabi=64 -Wa,--trap
 LDFLAGS_vmlinux			+= -G 0 -static # -N
 MODFLAGS			+= -mlong-calls
 
@@ -91,14 +94,70 @@ libs-$(CONFIG_SIBYTE_CFE)	+= arch/mips/sibyte/cfe/
 #
 
 #
+# Acer PICA 61, Mips Magnum 4000 and Olivetti M700.
+#
+core-$(CONFIG_MIPS_JAZZ)	+= arch/mips/jazz/
+load-$(CONFIG_MIPS_JAZZ)	+= 0x80080000
+
+
+#
+# Au1500 (Alchemy Semi PB1500) eval board
+#
+core-$(CONFIG_MIPS_PB1500)	+= arch/mips/au1000/common/
+libs-$(CONFIG_MIPS_PB1500)	+= arch/mips/au1000/pb1500/
+load-$(CONFIG_MIPS_PB1500)	+= 0x80100000
+
+#
+# Baget/MIPS
+#
+libs-$(CONFIG_BAGET_MIPS)	+= arch/mips/baget/ arch/mips/baget/prom/
+load-$(CONFIG_BAGET_MIPS)	+= 0x80001000
+
+#
+# Cobalt Server
+#
+core-$(CONFIG_MIPS_COBALT)	+= arch/mips/cobalt/
+load-$(CONFIG_MIPS_COBALT)	+= 0x80080000
+
+#
 # DECstation family
 #
-ifdef CONFIG_DECSTATION
-CORE_FILES	+= arch/mips/dec/dec.o
-SUBDIRS		+= arch/mips/dec arch/mips/dec/prom
-LIBS		+= arch/mips/dec/prom/rexlib.a
-LOADADDR	:= 0x80040000
-endif
+core-$(CONFIG_DECSTATION)	+= arch/mips/dec/
+libs-$(CONFIG_DECSTATION)	+= arch/mips/dec/prom/
+load-$(CONFIG_DECSTATION)	+= 0x80040000
+CLEAN_FILES			+= drivers/tc/lk201-map.c
+
+#
+# Galileo EV64120 Board
+#
+core-$(CONFIG_MIPS_EV64120)	+= arch/mips/galileo-boards/ev64120/
+load-$(CONFIG_MIPS_EV64120)	+= 0x80100000
+
+#
+# Galileo EV96100 Board
+#
+core-$(CONFIG_MIPS_EV96100)	+= arch/mips/galileo-boards/generic/ \
+				   arch/mips/galileo-boards/ev96100/
+load-$(CONFIG_MIPS_EV96100)	+= 0x80100000
+
+#
+# Globespan IVR eval board with QED 5231 CPU
+#
+core-$(CONFIG_ITE_BOARD_GEN)	+= arch/mips/ite-boards/generic/
+core-$(CONFIG_MIPS_IVR)		+= arch/mips/ite-boards/ivr/
+load-$(CONFIG_MIPS_IVR)		+= 0x80100000
+
+#
+# HP LaserJet
+#
+core-$(CONFIG_HP_LASERJET)	+= arch/mips/hp-lj/
+load-$(CONFIG_HP_LASERJET)	+= 0x80030000
+
+#
+# ITE 8172 eval board with QED 5231 CPU
+#
+core-$(CONFIG_MIPS_ITE8172)	+= arch/mips/ite-boards/qed-4n-s01b/
+load-$(CONFIG_MIPS_ITE8172)	+= 0x80100000
 
 #
 # MIPS Atlas board
@@ -145,6 +204,78 @@ load-$(CONFIG_MOMENCO_OCELOT_G)	+= 0x80100000
 # mips_io_port_base.
 core-$(CONFIG_MOMENCO_OCELOT_C)	+= arch/mips/momentum/ocelot_c/
 load-$(CONFIG_MOMENCO_OCELOT_C)	+= 0x80100000
+
+#
+# NEC DDB Vrc-5074
+#
+core-$(CONFIG_DDB5XXX_COMMON)	+= arch/mips/ddb5xxx/common/
+core-$(CONFIG_DDB5074)		+= arch/mips/ddb5xxx/ddb5074/
+load-$(CONFIG_DDB5074)		+= 0x80080000
+
+#
+# NEC DDB Vrc-5476
+#
+core-$(CONFIG_DDB5476)		+= arch/mips/ddb5xxx/ddb5476/
+load-$(CONFIG_DDB5476)		+= 0x80080000
+
+#
+# NEC DDB Vrc-5477
+#
+core-$(CONFIG_DDB5477)		+= arch/mips/ddb5xxx/ddb5477/
+load-$(CONFIG_DDB5477)		+= 0x80100000
+
+core-$(CONFIG_LASAT)		+= arch/mips/lasat/
+load-$(CONFIG_LASAT)		+= 0x80000000
+
+#
+# NEC Osprey (vr4181) board
+#
+core-$(CONFIG_NEC_OSPREY)	+= arch/mips/vr4181/common/ \
+				   arch/mips/vr4181/osprey/
+load-$(CONFIG_NEC_OSPREY)	+= 0x80002000
+
+#
+# NEC Eagle/Hawk (VR4122/VR4131) board
+#
+core-$(CONFIG_VR41XX_COMMON)	+= arch/mips/vr41xx/common/
+core-$(CONFIG_NEC_EAGLE)	+= arch/mips/vr41xx/nec-eagle/
+load-$(CONFIG_NEC_EAGLE)	+= 0x80000000
+
+#
+# ZAO Networks Capcella (VR4131)
+#
+core-$(CONFIG_ZAO_CAPCELLA)	+= arch/mips/vr41xx/zao-capcella/
+load-$(CONFIG_ZAO_CAPCELLA)	+= 0x80000000
+
+#
+# Victor MP-C303/304 (VR4122)
+#
+core-$(CONFIG_VICTOR_MPC30X)	+= arch/mips/vr41xx/victor-mpc30x/
+load-$(CONFIG_VICTOR_MPC30X)	+= 0x80001000
+
+#
+# IBM WorkPad z50 (VR4121)
+#
+core-$(CONFIG_IBM_WORKPAD)	+= arch/mips/vr41xx/ibm-workpad/
+load-$(CONFIG_IBM_WORKPAD)	+= 0x80004000
+
+#
+# CASIO CASSIPEIA E-55/65 (VR4111)
+#
+core-$(CONFIG_CASIO_E55)	+= arch/mips/vr41xx/casio-e55/
+load-$(CONFIG_CASIO_E55)	+= 0x80004000
+
+#
+# TANBAC TB0226 Mbase (VR4131)
+#
+core-$(CONFIG_TANBAC_TB0226)	+= arch/mips/vr41xx/tanbac-tb0226/
+load-$(CONFIG_TANBAC_TB0226)	+= 0x80000000
+
+#
+# TANBAC TB0229 VR4131DIMM (VR4131)
+#
+core-$(CONFIG_TANBAC_TB0229)	+= arch/mips/vr41xx/tanbac-tb0229/
+load-$(CONFIG_TANBAC_TB0229)	+= 0x80000000
 
 #
 # SGI IP22 (Indy/Indigo2)
@@ -232,6 +363,21 @@ load-$(CONFIG_SIBYTE_SWARM)	:= 0x80100000
 core-$(CONFIG_SNI_RM200_PCI)	+= arch/mips/sni/
 load-$(CONFIG_SNI_RM200_PCI)	+= 0x80080000
 
+#
+# Toshiba JMR-TX3927 board
+#
+core-$(CONFIG_TOSHIBA_JMR3927)	+= arch/mips/jmr3927/rbhma3100/ \
+				   arch/mips/jmr3927/common/
+load-$(CONFIG_TOSHIBA_JMR3927)	+= 0x80050000
+
+#
+# Toshiba RBTX4927 board or
+# Toshiba RBTX4937 board
+#
+core-$(CONFIG_TOSHIBA_RBTX4927)	+= arch/mips/tx4927/toshiba_rbtx4927/
+core-$(CONFIG_TOSHIBA_RBTX4927)	+= arch/mips/tx4927/common/
+load-$(CONFIG_TOSHIBA_RBTX4927)	+= 0x80020000
+
 drivers-$(CONFIG_PCI)		+= arch/mips/pci/
 
 #
@@ -260,15 +406,29 @@ CFLAGS		+= $(cflags-y)
 LDFLAGS		+= --oformat $(32bit-bfd)
 LDFLAGS_BLOB	:= --format binary --oformat $(64bit-bfd)
 
-head-y := arch/mips64/kernel/head.o arch/mips64/kernel/init_task.o
+head-y := arch/mips/kernel/head.o arch/mips/kernel/init_task.o
 
 libs-y			+= arch/mips/lib/
 libs-$(CONFIG_MIPS32)	+= arch/mips/lib-32/
 libs-$(CONFIG_MIPS64)	+= arch/mips/lib-64/
 
-core-y			+= arch/mips64/kernel/ arch/mips/mm/ arch/mips/math-emu/
+core-y			+= arch/mips/kernel/ arch/mips/mm/ arch/mips/math-emu/
 core-$(CONFIG_MIPS32)	+= arch/mips/mm-32/
 core-$(CONFIG_MIPS64)	+= arch/mips/mm-64/
+
+ifdef CONFIG_BAGET_MIPS
+
+BAGETBOOT = $(MAKE) -C arch/$(ARCH)/baget
+
+balo: vmlinux
+	$(BAGETBOOT) balo
+
+endif
+
+ifdef CONFIG_LASAT
+rom.bin rom.sw: vmlinux
+	$(call descend,arch/mips/lasat/image,$@)
+endif
 
 ifdef CONFIG_MAPPED_KERNEL
 vmlinux.64: vmlinux
@@ -323,10 +483,10 @@ endef
 
 prepare: include/asm-$(ARCH)/offset.h
 
-arch/$(ARCH)/kernel/offset.s: include/asm include/linux/version.h \
+arch/mips/kernel/offset.s: include/asm include/linux/version.h \
 				   include/config/MARKER
 
-include/asm-$(ARCH)/offset.h: arch/$(ARCH)/kernel/offset.s
+include/asm-$(ARCH)/offset.h: arch/mips/kernel/offset.s
 	$(call filechk,gen-asm-offset.h)
 
 CLEAN_FILES += include/asm-$(ARCH)/offset.h.tmp \

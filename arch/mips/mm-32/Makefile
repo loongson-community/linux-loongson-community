@@ -2,7 +2,7 @@
 # Makefile for the Linux/MIPS-specific parts of the memory manager.
 #
 
-obj-y				+= cex-gen.o init.o
+obj-y				+= init.o
 
 obj-$(CONFIG_CPU_TX49XX)	+= pg-r4k.o tlbex-r4k.o
 obj-$(CONFIG_CPU_R4300)		+= pg-r4k.o tlbex-r4k.o

@@ -124,6 +124,13 @@ static __inline__ int get_order(unsigned long size)
 #define UNCAC_ADDR(addr)	((addr) - PAGE_OFFSET + UNCAC_BASE)
 #define CAC_ADDR(addr)		((addr) - UNCAC_BASE + PAGE_OFFSET)
 
+/*
+ * Memory above this physical address will be considered highmem.
+ * Fixme: 59 bits is a fictive number and makes assumptions about processors
+ * in the distant future.  Nobody will care for a few years :-)
+ */
+#define HIGHMEM_START		(1UL << 59UL)
+
 #endif /* defined (__KERNEL__) */
 
 #endif /* _ASM_PAGE_H */

@@ -15,8 +15,9 @@
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
 #include <asm/offset.h>
-#include <asm/unistd.h>
+#include <asm/sysmips.h>
 #include <asm/thread_info.h>
+#include <asm/unistd.h>
 
 #ifndef CONFIG_BINFMT_ELF32
 /* Neither O32 nor N32, so define handle_sys here */
@@ -37,6 +38,7 @@ NESTED(handle_sys64, PT_SIZE, sp)
 #endif
 	ld	t1, PT_EPC(sp)		# skip syscall on return
 
+FEXPORT(__handle_sys64)
 	subu	t0, v0, __NR_Linux	# check syscall number
 	sltiu	t0, t0,	__NR_Linux_syscalls + 1
 	daddiu	t1, 4			# skip to next instruction
@@ -69,7 +71,7 @@ syscall_exit:
 					# signals dont change between
 					# sampling and return
 	LONG_L	a2, TI_FLAGS($28)	# current->work
-	bnez	a2, syscall_exit_work
+	bnez	a2, n64_syscall_exit_work
 
 	j	restore_all
 
@@ -82,13 +84,8 @@ work_notifysig:				# deal with pending signals and
 	RESTORE_STATIC
 	j	restore_all
 
-syscall_exit_work:
-	LONG_L	t0, TI_FLAGS($28)	# current->work.syscall_trace
-	bgez	t0, work_pending
-
-	local_irq_enable
-	jal	do_syscall_trace
-	j	resume_userspace
+n64_syscall_exit_work:
+	j	syscall_exit_work
 
 /* ------------------------------------------------------------------------ */
 
@@ -124,6 +121,95 @@ illegal_syscall:
 	j	syscall_exit
 	END(handle_sys64)
 
+	LEAF(mips_atomic_set)
+	andi	v0, a1, 3			# must be word aligned
+	bnez	v0, bad_alignment
+
+	LONG_L	v1, TI_ADDR_LIMIT($28)		# in legal address range?
+	LONG_ADDIU	a0, a1, 4
+	or	a0, a0, a1
+	and	a0, a0, v1
+	bltz	a0, bad_address
+
+#ifdef CONFIG_CPU_HAS_LLSC
+	/* Ok, this is the ll/sc case.  World is sane :-)  */
+1:	ll	v0, (a1)
+	move	a0, a2
+2:	sc	a0, (a1)
+	beqz	a0, 1b
+
+	.section __ex_table,"a"
+	PTR	1b, bad_stack
+	PTR	2b, bad_stack
+	.previous
+#else
+	sw	a1, 16(sp)
+	sw	a2, 20(sp)
+
+	move	a0, sp
+	move	a2, a1
+	li	a1, 1
+	jal	do_page_fault
+
+	lw	a1, 16(sp)
+	lw	a2, 20(sp)
+
+	/*
+	 * At this point the page should be readable and writable unless
+	 * there was no more memory available.
+	 */
+1:	lw	v0, (a1)
+2:	sw	a2, (a1)
+
+	.section __ex_table,"a"
+	PTR	1b, no_mem
+	PTR	2b, no_mem
+	.previous
+#endif
+
+	sw	v0, PT_R2(sp)		# result
+1:
+
+	/* Success, so skip usual error handling garbage.  */
+	LONG_L	a2, TI_FLAGS($28)	# syscall tracing enabled?
+	li	t0, _TIF_SYSCALL_TRACE
+	and	t0, a2, t0
+	bnez	t0, 1f
+
+	b	syscall_exit
+
+1:	SAVE_STATIC
+	jal	do_syscall_trace
+	j	syscall_exit
+
+no_mem:	li	v0, -ENOMEM
+	jr	ra
+
+bad_address:
+	li	v0, -EFAULT
+	jr	ra
+
+bad_alignment:
+	li	v0, -EINVAL
+	jr	ra
+	END(mips_atomic_set)
+
+	LEAF(sys_sysmips)
+	beq	a0, MIPS_ATOMIC_SET, mips_atomic_set
+	j	_sys_sysmips
+	END(sys_sysmips)
+
+	LEAF(sys_syscall)			/* Quick'n'dirty ... */
+	move	v0, a0
+	move	a0, a1
+	move	a1, a2
+	move	a2, a3
+	move	a3, a4
+	move	a4, a5
+	move	a5, a6
+	j	__handle_sys64
+	END(sys_syscall)
+
 	.align	3
 sys_call_table:
 	PTR	sys_read			/* 5000 */
@@ -135,7 +221,7 @@ sys_call_table:
 	PTR	sys_newlstat
 	PTR	sys_poll
 	PTR	sys_lseek
-	PTR	sys_mmap
+	PTR	sys_mmap2
 	PTR	sys_mprotect			/* 5010 */
 	PTR	sys_munmap
 	PTR	sys_brk

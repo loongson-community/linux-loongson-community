@@ -41,13 +41,14 @@ endif
 #
 cflags-y			:= -I $(TOPDIR)/include/asm/gcc
 cflags-y			+= -G 0 -mno-abicalls -fno-pic -pipe
-LDFLAGS_vmalinux		+= -G 0 -static # -N
+LDFLAGS_vmlinux			+= -G 0 -static # -N
 MODFLAGS			+= -mlong-calls
 
 cflags-$(CONFIG_KGDB)		+= -g
 cflags-$(CONFIG_SB1XXX_CORELIS)	+= -mno-sched-prolog -fno-omit-frame-pointer
 
 check_gcc = $(shell if $(CC) $(1) -S -o /dev/null -xc /dev/null > /dev/null 2>&1; then echo "$(1)"; else echo "$(2)"; fi)
+check_warning = $(shell if $(CC) $(1) -c -o /dev/null -xc /dev/null > /dev/null 2>&1; then echo "$(1)"; else echo "$(2)"; fi)
 
 #
 # CPU-dependent compiler/assembler options for optimization.
@@ -177,7 +178,7 @@ load-$(CONFIG_MIPS_ATLAS)	+= 0x80100000
 # MIPS Malta board
 #
 core-$(CONFIG_MIPS_MALTA)	+= arch/mips/mips-boards/malta/
-load-$(CONFIG_MIPS_MALTA)	:= 0x80100000
+load-$(CONFIG_MIPS_MALTA)	+= 0x80100000
 
 #
 # MIPS SEAD board
@@ -295,6 +296,32 @@ core-$(CONFIG_SGI_IP22)		+= arch/mips/sgi-ip22/
 load-$(CONFIG_SGI_IP22)		+= 0x88002000
 
 #
+# SGI-IP27 (Origin200/2000)
+#
+# Set the load address to >= 0xc000000000300000 if you want to leave space for
+# symmon, 0xc00000000001c000 for production kernels.  Note that the value
+# must be 16kb aligned or the handling of the current variable will break.
+#
+ifdef CONFIG_SGI_IP27
+core-$(CONFIG_SGI_IP27)		+= arch/mips/sgi-ip27/
+#load-$(CONFIG_SGI_IP27)	+= 0xa80000000001c000
+ifdef CONFIG_MAPPED_KERNEL
+load-$(CONFIG_SGI_IP27)		+= 0xc001c000
+else
+load-$(CONFIG_SGI_IP27)		+= 0x8001c000
+endif
+endif
+
+#
+# SGI-IP32 (O2)
+#
+# Set the load address to >= 0x????????? if you want to leave space for symmon,+# 0x80002000 for production kernels.  Note that the value must be 16kb aligned
+# or the handling of the current variable will break.
+#
+core-$(CONFIG_SGI_IP32)		+= arch/mips/sgi-ip32/
+load-$(CONFIG_SGI_IP32)		+= 0x80002000
+
+#
 # Sibyte SB1250 SOC
 #
 # This is a LIB so that it links at the end, and initcalls are later
@@ -341,9 +368,9 @@ load-$(CONFIG_TOSHIBA_JMR3927)	+= 0x80050000
 # Toshiba RBTX4927 board or
 # Toshiba RBTX4937 board
 #
-core-$(CONFIG_TOSHIBA_RBTX4927)	+= arch/mips/tx4927/toshiba_rbtx4927/ 
+core-$(CONFIG_TOSHIBA_RBTX4927)	+= arch/mips/tx4927/toshiba_rbtx4927/
 core-$(CONFIG_TOSHIBA_RBTX4927)	+= arch/mips/tx4927/common/
-load-$(CONFIG_TOSHIBA_RBTX4927)	:= 0x80020000
+load-$(CONFIG_TOSHIBA_RBTX4927)	+= 0x80020000
 
 drivers-$(CONFIG_PCI)		+= arch/mips/pci/
 
@@ -378,6 +405,14 @@ endif
 ifdef CONFIG_LASAT
 rom.bin rom.sw: vmlinux
 	$(call descend,arch/mips/lasat/image,$@)
+endif
+
+ifdef CONFIG_MAPPED_KERNEL
+vmlinux.64: vmlinux
+	$(OBJCOPY) -O $(64bit-bfd) --change-addresses=0xbfffffff40000000 $< $@
+else
+vmlinux.64: vmlinux
+	$(OBJCOPY) -O $(64bit-bfd) --change-addresses=0xa7ffffff80000000 $< $@
 endif
 
 makeboot =$(Q)$(MAKE) -f scripts/Makefile.build obj=arch/mips/boot $(1)

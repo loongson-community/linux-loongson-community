@@ -24,6 +24,7 @@
 #define FPC_EIR		70
 
 #ifndef __ASSEMBLY__
+
 /*
  * This struct defines the way the registers are stored on the stack during a
  * system call/exception. As usual the registers k0/k1 aren't being saved.
@@ -47,6 +48,9 @@ struct pt_regs {
 	unsigned long cp0_status;
 	unsigned long cp0_cause;
 };
+
+/* Used in declaration of save_static functions.  */
+#define static_unused static __attribute__((unused))
 
 #define __str2(x) #x
 #define __str(x) __str2(x)
@@ -72,8 +76,9 @@ __asm__ (                                                               \
         ".end\t" #symbol "\n\t"                                         \
         ".size\t" #symbol",. - " #symbol)
 
-/* Used in declaration of save_static functions.  */
-#define static_unused static __attribute__((unused))
+#define save_static(frame)	do { } while (0)
+
+#define nabi_no_regargs
 
 #endif /* !__ASSEMBLY__ */
 

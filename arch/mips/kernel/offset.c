@@ -2,12 +2,13 @@
  * offset.c: Calculate pt_regs and task_struct offsets.
  *
  * Copyright (C) 1996 David S. Miller
- * Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002 Ralf Baechle
+ * Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003 Ralf Baechle
  * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  *
  * Kevin Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
  * Copyright (C) 2000 MIPS Technologies, Inc.
  */
+#include <linux/compat.h>
 #include <linux/types.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
@@ -230,6 +231,17 @@ void output_sc_defines(void)
 	offset("#define SC_BADVADDR   ", struct sigcontext, sc_badvaddr);
 	linefeed;
 }
+
+#ifdef CONFIG_MIPS32_COMPAT
+void output_sc32_defines(void)
+{
+	text("/* Linux 32-bit sigcontext offsets. */");
+	offset("#define SC32_FPREGS     ", struct sigcontext32, sc_fpregs);
+	offset("#define SC32_FPC_CSR    ", struct sigcontext32, sc_fpc_csr);
+	offset("#define SC32_FPC_EIR    ", struct sigcontext32, sc_fpc_eir);
+	linefeed;
+}
+#endif
 
 void output_signal_defined(void)
 {

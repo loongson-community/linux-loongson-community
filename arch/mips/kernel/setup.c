@@ -12,7 +12,6 @@
  */
 #include <linux/config.h>
 #include <linux/errno.h>
-#include <linux/hdreg.h>
 #include <linux/init.h>
 #include <linux/ioport.h>
 #include <linux/sched.h>
@@ -29,22 +28,21 @@
 #include <linux/tty.h>
 #include <linux/bootmem.h>
 #include <linux/initrd.h>
-#include <linux/ide.h>
-#include <linux/timex.h>
 #include <linux/major.h>
 #include <linux/kdev_t.h>
 #include <linux/root_dev.h>
 
-#include <asm/asm.h>
+#include <asm/addrspace.h>
 #include <asm/bootinfo.h>
-#include <asm/cachectl.h>
 #include <asm/cpu.h>
-#include <asm/io.h>
-#include <asm/ptrace.h>
 #include <asm/sections.h>
 #include <asm/system.h>
 
 struct cpuinfo_mips cpu_data[NR_CPUS];
+
+#ifdef CONFIG_VT
+struct screen_info screen_info;
+#endif
 
 /*
  * Set if box has EISA slots.
@@ -55,8 +53,10 @@ int EISA_bus;
 EXPORT_SYMBOL(EISA_bus);
 #endif
 
+#if defined(CONFIG_BLK_DEV_FD) || defined(CONFIG_BLK_DEV_FD_MODULE)
 extern struct fd_ops no_fd_ops;
 struct fd_ops *fd_ops;
+#endif
 
 #if defined(CONFIG_BLK_DEV_IDE) || defined(CONFIG_BLK_DEV_IDE_MODULE)
 extern struct ide_ops no_ide_ops;
@@ -121,9 +121,20 @@ asmlinkage void __init init_arch(int argc, char **argv, char **envp,
 	 */
 	load_mmu();
 
+#ifdef CONFIG_MIPS32
 	/* Disable coprocessors and set FPU for 16/32 FPR register model */
 	clear_c0_status(ST0_CU1|ST0_CU2|ST0_CU3|ST0_KX|ST0_SX|ST0_FR);
 	set_c0_status(ST0_CU0);
+#endif
+#ifdef CONFIG_MIPS64
+	/*
+	 * On IP27, I am seeing the TS bit set when the kernel is loaded.
+	 * Maybe because the kernel is in ckseg0 and not xkphys? Clear it
+	 * anyway ...
+	 */
+	clear_c0_status(ST0_BEV|ST0_TS|ST0_CU1|ST0_CU2|ST0_CU3);
+	set_c0_status(ST0_CU0|ST0_KX|ST0_SX|ST0_FR);
+#endif
 
 	start_kernel();
 }
@@ -149,9 +160,9 @@ static void __init print_memory_map(void)
 	int i;
 
 	for (i = 0; i < boot_mem_map.nr_map; i++) {
-		printk(" memory: %08Lx @ %08Lx ",
-			(u64) boot_mem_map.map[i].size,
-		        (u64) boot_mem_map.map[i].addr);
+		printk(" memory: %0*Lx @ %0*Lx ",
+		       sizeof(long) * 2, (u64) boot_mem_map.map[i].size,
+		       sizeof(long) * 2, (u64) boot_mem_map.map[i].addr);
 
 		switch (boot_mem_map.map[i].type) {
 		case BOOT_MEM_RAM:
@@ -248,15 +259,16 @@ static inline void bootmem_init(void)
 		initrd_start = (unsigned long)&initrd_header[2];
 		initrd_end = initrd_start + initrd_header[1];
 	}
-	start_pfn = PFN_UP(__pa((&_end)+(initrd_end - initrd_start) + PAGE_SIZE));
+	start_pfn = PFN_UP(CPHYSADDR((&_end)+(initrd_end - initrd_start) + PAGE_SIZE));
 #else
 	/*
 	 * Partially used pages are not usable - thus
 	 * we are rounding upwards.
 	 */
-	start_pfn = PFN_UP(__pa(&_end));
+	start_pfn = PFN_UP(CPHYSADDR(&_end));
 #endif	/* CONFIG_BLK_DEV_INITRD */
 
+#ifndef CONFIG_SGI_IP27
 	/* Find the highest page frame number we have available.  */
 	max_pfn = 0;
 	first_usable_pfn = -1UL;
@@ -367,6 +379,7 @@ static inline void bootmem_init(void)
 
 	/* Reserve the bootmap memory.  */
 	reserve_bootmem(PFN_PHYS(first_usable_pfn), bootmap_size);
+#endif
 
 #ifdef CONFIG_BLK_DEV_INITRD
 	/* Board specific code should have set up initrd_start and initrd_end */
@@ -381,13 +394,16 @@ static inline void bootmem_init(void)
 		printk("Initial ramdisk at: 0x%p (%lu bytes)\n",
 		       (void *)initrd_start,
 		       initrd_size);
-		if (PHYSADDR(initrd_end) > PFN_PHYS(max_low_pfn)) {
+/* FIXME: is this right? */
+#ifndef CONFIG_SGI_IP27
+		if (CPHYSADDR(initrd_end) > PFN_PHYS(max_low_pfn)) {
 			printk("initrd extends beyond end of memory "
-			       "(0x%08lx > 0x%08lx)\ndisabling initrd\n",
-			       PHYSADDR(initrd_end),
-			       PFN_PHYS(max_low_pfn));
+			       "(0x%0*Lx > 0x%0*Lx)\ndisabling initrd\n",
+			       sizeof(long) * 2, CPHYSADDR(initrd_end),
+			       sizeof(long) * 2, PFN_PHYS(max_low_pfn));
 			initrd_start = initrd_end = 0;
 		}
+#endif /* !CONFIG_SGI_IP27 */
 	}
 #endif /* CONFIG_BLK_DEV_INITRD  */
 }

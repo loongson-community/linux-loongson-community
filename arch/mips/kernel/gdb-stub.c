@@ -140,8 +140,6 @@
 #include <asm/gdb-stub.h>
 #include <asm/inst.h>
 
-#include <asm/debug.h>
-
 /*
  * external low-level support routines
  */
@@ -168,6 +166,7 @@ static void putpacket(char *buffer);
 static int computeSignal(int tt);
 static int hex(unsigned char ch);
 static int hexToInt(char **ptr, int *intValue);
+static int hexToLong(char **ptr, long *longValue);
 static unsigned char *mem2hex(char *mem, char *buf, int count, int may_fault);
 void handle_exception(struct gdb_regs *regs);
 
@@ -460,6 +459,27 @@ static int hexToInt(char **ptr, int *intValue)
 	return (numChars);
 }
 
+static int hexToLong(char **ptr, long *longValue)
+{
+	int numChars = 0;
+	int hexValue;
+
+	*longValue = 0;
+
+	while (**ptr) {
+		hexValue = hex(**ptr);
+		if (hexValue < 0)
+			break;
+
+		*longValue = (*longValue << 4) | hexValue;
+		numChars ++;
+
+		(*ptr)++;
+	}
+
+	return numChars;
+}
+
 
 #if 0
 /*
@@ -500,8 +520,8 @@ void show_gdbregs(struct gdb_regs * regs)
  * This is where we save the original instructions.
  */
 static struct gdb_bp_save {
-	unsigned int addr;
-        unsigned int val;
+	unsigned long addr;
+	unsigned int val;
 } step_bp[2];
 
 #define BP 0x0000000d  /* break opcode */
@@ -512,7 +532,7 @@ static struct gdb_bp_save {
 static void single_step(struct gdb_regs *regs)
 {
 	union mips_instruction insn;
-	unsigned int targ;
+	unsigned long targ;
 	int is_branch, is_cond, i;
 
 	targ = regs->cp0_epc;
@@ -644,7 +664,7 @@ void handle_exception (struct gdb_regs *regs)
 {
 	int trap;			/* Trap type */
 	int sigval;
-	int addr;
+	long addr;
 	int length;
 	char *ptr;
 	unsigned long *stack;
@@ -676,7 +696,8 @@ void handle_exception (struct gdb_regs *regs)
 	 * acquire the CPU spinlocks
 	 */
 	for (i=0; i< smp_num_cpus; i++) 
-		db_verify(spin_trylock(&kgdb_cpulock[i]), != 0);
+		if (spin_trylock(&kgdb_cpulock[i]) == 0)
+			panic("kgdb: couldn't get cpulock %d\n", i);
 
 	/*
 	 * force other cpus to enter kgdb
@@ -725,7 +746,7 @@ void handle_exception (struct gdb_regs *regs)
 	*ptr++ = hexchars[REG_EPC >> 4];
 	*ptr++ = hexchars[REG_EPC & 0xf];
 	*ptr++ = ':';
-	ptr = mem2hex((char *)&regs->cp0_epc, ptr, 4, 0);
+	ptr = mem2hex((char *)&regs->cp0_epc, ptr, sizeof(long), 0);
 	*ptr++ = ';';
 
 	/*
@@ -734,7 +755,7 @@ void handle_exception (struct gdb_regs *regs)
 	*ptr++ = hexchars[REG_FP >> 4];
 	*ptr++ = hexchars[REG_FP & 0xf];
 	*ptr++ = ':';
-	ptr = mem2hex((char *)&regs->reg30, ptr, 4, 0);
+	ptr = mem2hex((char *)&regs->reg30, ptr, sizeof(long), 0);
 	*ptr++ = ';';
 
 	/*
@@ -743,7 +764,7 @@ void handle_exception (struct gdb_regs *regs)
 	*ptr++ = hexchars[REG_SP >> 4];
 	*ptr++ = hexchars[REG_SP & 0xf];
 	*ptr++ = ':';
-	ptr = mem2hex((char *)&regs->reg29, ptr, 4, 0);
+	ptr = mem2hex((char *)&regs->reg29, ptr, sizeof(long), 0);
 	*ptr++ = ';';
 
 	*ptr++ = 0;
@@ -782,12 +803,12 @@ void handle_exception (struct gdb_regs *regs)
 		 */
 		case 'g':
 			ptr = output_buffer;
-			ptr = mem2hex((char *)&regs->reg0, ptr, 32*4, 0); /* r0...r31 */
-			ptr = mem2hex((char *)&regs->cp0_status, ptr, 6*4, 0); /* cp0 */
-			ptr = mem2hex((char *)&regs->fpr0, ptr, 32*4, 0); /* f0...31 */
-			ptr = mem2hex((char *)&regs->cp1_fsr, ptr, 2*4, 0); /* cp1 */
-			ptr = mem2hex((char *)&regs->frame_ptr, ptr, 2*4, 0); /* frp */
-			ptr = mem2hex((char *)&regs->cp0_index, ptr, 16*4, 0); /* cp0 */
+			ptr = mem2hex((char *)&regs->reg0, ptr, 32*sizeof(long), 0); /* r0...r31 */
+			ptr = mem2hex((char *)&regs->cp0_status, ptr, 6*sizeof(long), 0); /* cp0 */
+			ptr = mem2hex((char *)&regs->fpr0, ptr, 32*sizeof(long), 0); /* f0...31 */
+			ptr = mem2hex((char *)&regs->cp1_fsr, ptr, 2*sizeof(long), 0); /* cp1 */
+			ptr = mem2hex((char *)&regs->frame_ptr, ptr, 2*sizeof(long), 0); /* frp */
+			ptr = mem2hex((char *)&regs->cp0_index, ptr, 16*sizeof(long), 0); /* cp0 */
 			break;
 
 		/*
@@ -796,17 +817,17 @@ void handle_exception (struct gdb_regs *regs)
 		case 'G':
 		{
 			ptr = &input_buffer[1];
-			hex2mem(ptr, (char *)&regs->reg0, 32*4, 0);
-			ptr += 32*8;
-			hex2mem(ptr, (char *)&regs->cp0_status, 6*4, 0);
-			ptr += 6*8;
-			hex2mem(ptr, (char *)&regs->fpr0, 32*4, 0);
-			ptr += 32*8;
-			hex2mem(ptr, (char *)&regs->cp1_fsr, 2*4, 0);
-			ptr += 2*8;
-			hex2mem(ptr, (char *)&regs->frame_ptr, 2*4, 0);
-			ptr += 2*8;
-			hex2mem(ptr, (char *)&regs->cp0_index, 16*4, 0);
+			hex2mem(ptr, (char *)&regs->reg0, 32*sizeof(long), 0);
+			ptr += 32*(2*sizeof(long));
+			hex2mem(ptr, (char *)&regs->cp0_status, 6*sizeof(long), 0);
+			ptr += 6*(2*sizeof(long));
+			hex2mem(ptr, (char *)&regs->fpr0, 32*sizeof(long), 0);
+			ptr += 32*(2*sizeof(long));
+			hex2mem(ptr, (char *)&regs->cp1_fsr, 2*sizeof(long), 0);
+			ptr += 2*(2*sizeof(long));
+			hex2mem(ptr, (char *)&regs->frame_ptr, 2*sizeof(long), 0);
+			ptr += 2*(2*sizeof(long));
+			hex2mem(ptr, (char *)&regs->cp0_index, 16*sizeof(long), 0);
 			strcpy(output_buffer,"OK");
 		 }
 		break;
@@ -817,7 +838,7 @@ void handle_exception (struct gdb_regs *regs)
 		case 'm':
 			ptr = &input_buffer[1];
 
-			if (hexToInt(&ptr, &addr)
+			if (hexToLong(&ptr, &addr)
 				&& *ptr++ == ','
 				&& hexToInt(&ptr, &length)) {
 				if (mem2hex((char *)addr, output_buffer, length, 1))
@@ -833,7 +854,7 @@ void handle_exception (struct gdb_regs *regs)
 		case 'M':
 			ptr = &input_buffer[1];
 
-			if (hexToInt(&ptr, &addr)
+			if (hexToLong(&ptr, &addr)
 				&& *ptr++ == ','
 				&& hexToInt(&ptr, &length)
 				&& *ptr++ == ':') {
@@ -853,7 +874,7 @@ void handle_exception (struct gdb_regs *regs)
 			/* try to read optional parameter, pc unchanged if no parm */
 
 			ptr = &input_buffer[1];
-			if (hexToInt(&ptr, &addr))
+			if (hexToLong(&ptr, &addr))
 				regs->cp0_epc = addr;
 	  
 			goto exit_kgdb_exception;
@@ -988,8 +1009,8 @@ void adel(void)
 {
 	__asm__ __volatile__(
 			".globl\tadel\n\t"
-			"la\t$8,0x80000001\n\t"
-			"lw\t$9,0($8)\n\t"
+			"lui\t$8,0x8000\n\t"
+			"lw\t$9,1($8)\n\t"
 			);
 }
 

@@ -21,16 +21,6 @@
 
 #ifndef __ASSEMBLY__
 
-#define abi64_no_regargs						\
-	unsigned long __dummy0,						\
-	unsigned long __dummy1,						\
-	unsigned long __dummy2,						\
-	unsigned long __dummy3,						\
-	unsigned long __dummy4,						\
-	unsigned long __dummy5,						\
-	unsigned long __dummy6,						\
-	unsigned long __dummy7
-
 /*
  * This struct defines the way the registers are stored on the stack during a
  * system call/exception. As usual the registers k0/k1 aren't being saved.
@@ -51,6 +41,48 @@ struct pt_regs {
 	unsigned long cp0_status;
 	unsigned long cp0_cause;
 };
+
+#define __str2(x) #x
+#define __str(x) __str2(x)
+
+/* Used in declaration of save_static functions.  */
+#define static_unused static __attribute__((unused))
+
+#define save_static_function(symbol)                                    \
+__asm__ (                                                               \
+	".text\n\t"							\
+        ".globl\t" #symbol "\n\t"                                       \
+        ".align\t2\n\t"                                                 \
+        ".type\t" #symbol ", @function\n\t"                             \
+        ".ent\t" #symbol ", 0\n"                                        \
+        #symbol":\n\t"                                                  \
+        ".frame\t$29, 0, $31\n\t"                                       \
+        ".end\t" #symbol "\n\t"                                         \
+        ".size\t" #symbol",. - " #symbol)
+
+#define save_static(frame)                               \
+	__asm__ __volatile__(                            \
+		"sd\t$16,"__str(PT_R16)"(%0)\n\t"        \
+		"sd\t$17,"__str(PT_R17)"(%0)\n\t"        \
+		"sd\t$18,"__str(PT_R18)"(%0)\n\t"        \
+		"sd\t$19,"__str(PT_R19)"(%0)\n\t"        \
+		"sd\t$20,"__str(PT_R20)"(%0)\n\t"        \
+		"sd\t$21,"__str(PT_R21)"(%0)\n\t"        \
+		"sd\t$22,"__str(PT_R22)"(%0)\n\t"        \
+		"sd\t$23,"__str(PT_R23)"(%0)\n\t"        \
+		"sd\t$30,"__str(PT_R30)"(%0)\n\t"        \
+		: /* No outputs */                       \
+		: "r" (frame))
+
+#define nabi_no_regargs							\
+	unsigned long __dummy0,						\
+	unsigned long __dummy1,						\
+	unsigned long __dummy2,						\
+	unsigned long __dummy3,						\
+	unsigned long __dummy4,						\
+	unsigned long __dummy5,						\
+	unsigned long __dummy6,						\
+	unsigned long __dummy7,
 
 #endif /* !__ASSEMBLY__ */
 

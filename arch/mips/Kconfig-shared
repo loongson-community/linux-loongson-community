@@ -1135,6 +1135,10 @@ config KCORE_AOUT
 
 source "fs/Kconfig.binfmt"
 
+config TRAD_SIGNALS
+	bool
+	default y if MIPS32
+
 config BINFMT_IRIX
 	bool "Include IRIX binary compatibility"
 	depends on !CPU_LITTLE_ENDIAN && MIPS32

@@ -121,6 +121,7 @@ CONFIG_MMU=y
 CONFIG_KCORE_ELF=y
 CONFIG_BINFMT_ELF=y
 # CONFIG_BINFMT_MISC is not set
+CONFIG_TRAD_SIGNALS=y
 
 #
 # Memory Technology Devices (MTD)

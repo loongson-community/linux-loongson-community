@@ -120,7 +120,7 @@ static inline int get_sigset(sigset_t *kbuf, const compat_sigset_t *ubuf)
 /*
  * Atomically swap in the new signal mask, and wait for a signal.
  */
-asmlinkage inline int sys32_sigsuspend(abi64_no_regargs, struct pt_regs regs)
+asmlinkage inline int sys32_sigsuspend(nabi_no_regargs struct pt_regs regs)
 {
 	compat_sigset_t *uset;
 	sigset_t newset, saveset;
@@ -147,7 +147,7 @@ asmlinkage inline int sys32_sigsuspend(abi64_no_regargs, struct pt_regs regs)
 	}
 }
 
-asmlinkage int sys32_rt_sigsuspend(abi64_no_regargs, struct pt_regs regs)
+asmlinkage int sys32_rt_sigsuspend(nabi_no_regargs struct pt_regs regs)
 {
 	compat_sigset_t *uset;
 	sigset_t newset, saveset;
@@ -221,7 +221,7 @@ asmlinkage int sys32_sigaction(int sig, const struct sigaction32 *act,
 	return ret;
 }
 
-asmlinkage int sys32_sigaltstack(abi64_no_regargs, struct pt_regs regs)
+asmlinkage int sys32_sigaltstack(nabi_no_regargs struct pt_regs regs)
 {
 	const stack32_t *uss = (const stack32_t *) regs.regs[4];
 	stack32_t *uoss = (stack32_t *) regs.regs[5];
@@ -354,7 +354,7 @@ static int copy_siginfo_to_user32(siginfo_t32 *to, siginfo_t *from)
 	return err;
 }
 
-asmlinkage void sys32_sigreturn(abi64_no_regargs, struct pt_regs regs)
+asmlinkage void sys32_sigreturn(nabi_no_regargs struct pt_regs regs)
 {
 	struct sigframe *frame;
 	sigset_t blocked;
@@ -390,7 +390,7 @@ badframe:
 	force_sig(SIGSEGV, current);
 }
 
-asmlinkage void sys32_rt_sigreturn(abi64_no_regargs, struct pt_regs regs)
+asmlinkage void sys32_rt_sigreturn(nabi_no_regargs struct pt_regs regs)
 {
 	struct rt_sigframe32 *frame;
 	sigset_t set;

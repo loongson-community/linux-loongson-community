@@ -36,16 +36,10 @@
 #include <asm/bootinfo.h>
 
 /*
- * Called by kernel/ptrace.c when detaching..
- *
- * Make sure single step bits etc are not set.
+ * Tracing a 32-bit process with a 64-bit strace and vice versa will not
+ * work.  I don't know how to fix this.
  */
-void ptrace_disable(struct task_struct *child)
-{
-	/* Nothing to do.. */
-}
-
-asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
+asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 {
 	struct task_struct *child;
 	int ret;
@@ -94,21 +88,21 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 	/* when I and D space are separate, these will need to be fixed. */
 	case PTRACE_PEEKTEXT: /* read word at location addr. */
 	case PTRACE_PEEKDATA: {
-		unsigned long tmp;
+		unsigned int tmp;
 		int copied;
 
 		copied = access_process_vm(child, addr, &tmp, sizeof(tmp), 0);
 		ret = -EIO;
 		if (copied != sizeof(tmp))
 			break;
-		ret = put_user(tmp,(unsigned long *) data);
+		ret = put_user(tmp, (unsigned int *) (unsigned long) data);
 		break;
 	}
 
 	/* Read the word at location addr in the USER area. */
 	case PTRACE_PEEKUSR: {
 		struct pt_regs *regs;
-		unsigned long tmp;
+		unsigned int tmp;
 
 		regs = (struct pt_regs *) ((unsigned long) child->thread_info +
 		       THREAD_SIZE - 32 - sizeof(struct pt_regs));
@@ -122,7 +116,6 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			if (child->used_math) {
 				fpureg_t *fregs = get_fpu_regs(child);
 
-#ifdef CONFIG_MIPS32
 				/*
 				 * The odd registers are actually the high
 				 * order bits of the values stored in the even
@@ -132,10 +125,6 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 					tmp = (unsigned long) (fregs[((addr & ~1) - 32)] >> 32);
 				else
 					tmp = (unsigned long) (fregs[(addr - 32)] & 0xffffffff);
-#endif
-#ifdef CONFIG_MIPS64
-				tmp = fregs[addr - FPR_BASE];
-#endif
 			} else {
 				tmp = -1;	/* FP not yet used  */
 			}
@@ -178,7 +167,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			ret = -EIO;
 			goto out_tsk;
 		}
-		ret = put_user(tmp, (unsigned long *) data);
+		ret = put_user(tmp, (unsigned *) (unsigned long) data);
 		break;
 	}
 
@@ -211,7 +200,6 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 				       sizeof(child->thread.fpu.hard));
 				child->thread.fpu.hard.fcr31 = 0;
 			}
-#ifdef CONFIG_MIPS32
 			/*
 			 * The odd registers are actually the high order bits
 			 * of the values stored in the even registers - unless
@@ -222,12 +210,10 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 				fregs[(addr & ~1) - FPR_BASE] |= ((unsigned long long) data) << 32;
 			} else {
 				fregs[addr - FPR_BASE] &= ~0xffffffffLL;
-				fregs[addr - FPR_BASE] |= data;
+				/* Must cast, lest sign extension fill upper
+				   bits!  */
+				fregs[addr - FPR_BASE] |= (unsigned int)data;
 			}
-#endif
-#ifdef CONFIG_MIPS64
-			fregs[addr - FPR_BASE] = data;
-#endif
 			break;
 		}
 		case PC:
@@ -256,7 +242,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 	case PTRACE_SYSCALL: /* continue and stop at next (return from) syscall */
 	case PTRACE_CONT: { /* restart after signal. */
 		ret = -EIO;
-		if ((unsigned long) data > _NSIG)
+		if ((unsigned int) data > _NSIG)
 			break;
 		if (request == PTRACE_SYSCALL) {
 			set_tsk_thread_flag(child, TIF_SYSCALL_TRACE);
@@ -297,35 +283,4 @@ out_tsk:
 out:
 	unlock_kernel();
 	return ret;
-}
-
-/*
- * Notification of system call entry/exit
- * - triggered by current->work.syscall_trace
- */
-asmlinkage void do_syscall_trace(void)
-{
-	if (!test_thread_flag(TIF_SYSCALL_TRACE))
-		return;
-	if (!(current->ptrace & PT_PTRACED))
-		return;
-
-	/* The 0x80 provides a way for the tracing parent to distinguish
-	   between a syscall stop and SIGTRAP delivery */
-	current->exit_code = SIGTRAP | ((current->ptrace & PT_TRACESYSGOOD)
-	                                ? 0x80 : 0);
-	preempt_disable();
-	current->state = TASK_STOPPED;
-	notify_parent(current, SIGCHLD);
-	schedule();
-	preempt_enable();
-	/*
-	 * this isn't the same as continuing with a signal, but it will do
-	 * for normal use.  strace only continues with a signal if the
-	 * stopping signal is not SIGTRAP.  -brl
-	 */
-	if (current->exit_code) {
-		send_sig(current->exit_code, current, 1);
-		current->exit_code = 0;
-	}
 }

@@ -360,7 +360,6 @@ void per_cpu_init(void)
 	int cpu = smp_processor_id();
 	cnodeid_t cnode = get_compact_nodeid();
 
-	TLBMISS_HANDLER_SETUP();
 #if 0
 	intr_init();
 #endif

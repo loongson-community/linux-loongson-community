@@ -186,52 +186,6 @@ illegal_syscall:
 	j	o32_syscall_exit
 	END(handle_sys)
 
-LEAF(mips_atomic_set)
-	andi	v0, a1, 3		# must be word aligned
-	bnez	v0, bad_alignment
-
-	ld	v1, TI_ADDR_LIMIT($28)	# in legal address range?
-	daddiu	a0, a1, 4
-	or	a0, a0, a1
-	and	a0, a0, v1
-	bnez	a0, bad_address
-
-	/* Ok, this is the ll/sc case.  World is sane :-)  */
-1:	ll	v0, (a1)
-	move	a0, a2
-2:	sc	a0, (a1)
-	beqz	a0, 1b
-
-	.section __ex_table,"a"
-	PTR	1b, bad_stack
-	PTR	2b, bad_stack
-	.previous
-
-1:	sd	v0, PT_R2(sp)		# result
-
-	/* Success, so skip usual error handling garbage.  */
-	LONG_L	t0, TI_FLAGS($28)	# syscall tracing enabled?
-	bltz	t0, 1f
-	b	o32_syscall_exit
-
-1:	SAVE_STATIC
-	jal	do_syscall_trace
-	j	syscall_exit
-
-bad_address:
-	li	v0, -EFAULT
-	jr	ra
-
-bad_alignment:
-	li	v0, -EINVAL
-	jr	ra
-	END(mips_atomic_set)
-
-LEAF(sys32_sysmips)
-	beq	a0, MIPS_ATOMIC_SET, mips_atomic_set
-	j	sys_sysmips
-	END(sys32_sysmips)
-
 LEAF(sys32_syscall)
 	ld	t0, PT_R29(sp)		# user sp
 
@@ -358,7 +312,7 @@ out:	jr	ra
 	sys	sys_ni_syscall	2
 	sys	sys_setpgid	2
 	sys	sys_ni_syscall, 0
-	sys	sys_ni_syscall	0	/* was sys_olduname  */
+	sys	sys_olduname	1
 	sys	sys_umask	1			/* 4060 */
 	sys	sys_chroot	1
 	sys	sys_ustat	2
@@ -389,7 +343,7 @@ out:	jr	ra
 	sys	sys_swapon	2
 	sys	sys_reboot	3
 	sys	sys32_readdir	3
-	sys	sys_mmap	6			/* 4090 */
+	sys	old_mmap	6			/* 4090 */
 	sys	sys_munmap	2
 	sys	sys_truncate	2
 	sys	sys_ftruncate	2
@@ -408,7 +362,7 @@ out:	jr	ra
 	sys	compat_sys_newstat	2
 	sys	compat_sys_newlstat	2
 	sys	compat_sys_newfstat	2
-	sys	sys_ni_syscall		0	/* was sys_uname */
+	sys	sys_uname		1
 	sys	sys_ni_syscall		0	/* sys_ioperm  *//* 4110 */
 	sys	sys_vhangup		0
 	sys	sys_ni_syscall		0	/* was sys_idle	 */
@@ -448,7 +402,7 @@ out:	jr	ra
 	sys	sys32_writev	3
 	sys	sys_cacheflush	3
 	sys	sys_cachectl	3
-	sys	sys32_sysmips	4
+	sys	sys_sysmips	4
 	sys	sys_ni_syscall	0			/* 4150 */
 	sys	sys_getsid	1
 	sys	sys_fdatasync	0
