@@ -8,7 +8,7 @@
 #include <asm/sn/addrs.h>
 #include <asm/sn/sn0/hub.h>
 #include <asm/sn/klconfig.h>
-#include <asm/ioc3.h>
+#include <asm/sn/ioc3.h>
 #include <asm/sgialib.h>
 #include <asm/sn/sn_private.h>
 

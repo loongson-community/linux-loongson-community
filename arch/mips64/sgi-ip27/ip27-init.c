@@ -11,7 +11,7 @@
 #include <asm/sn/sn0/hubni.h>
 #include <asm/sn/sn0/hubio.h>
 #include <asm/sn/klconfig.h>
-#include <asm/ioc3.h>
+#include <asm/sn/ioc3.h>
 #include <asm/mipsregs.h>
 #include <asm/sn/gda.h>
 #include <asm/sn/intr.h>

@@ -14,7 +14,7 @@
 
 #include <asm/pgtable.h>
 #include <asm/sgialib.h>
-#include <asm/ioc3.h>
+#include <asm/sn/ioc3.h>
 #include <asm/m48t35.h>
 #include <asm/sn/klconfig.h>
 #include <asm/sn/arch.h>
