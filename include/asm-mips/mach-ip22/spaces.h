@@ -7,8 +7,8 @@
  * Copyright (C) 2000, 2002  Maciej W. Rozycki
  * Copyright (C) 1990, 1999, 2000 Silicon Graphics, Inc.
  */
-#ifndef _ASM_MACH_SPACES_H
-#define _ASM_MACH_SPACES_H
+#ifndef _ASM_MACH_IP22_SPACES_H
+#define _ASM_MACH_IP22_SPACES_H
 
 #include <linux/config.h>
 
@@ -35,7 +35,7 @@
 #endif /* CONFIG_MIPS32 */
 
 #ifdef CONFIG_MIPS64
-#define PAGE_OFFSET	0xffffffff80000000UL
+#define PAGE_OFFSET		0xffffffff80000000UL
 
 #ifndef HIGHMEM_START
 #define HIGHMEM_START		(1UL << 59UL)
@@ -52,4 +52,4 @@
 
 #endif /* CONFIG_MIPS64 */
 
-#endif /* __ASM_MACH_GENERIC_SPACES_H */
+#endif /* __ASM_MACH_IP22_SPACES_H */
