@@ -90,7 +90,7 @@ void au1000_restart(char *command)
 		au_writel(0x00, 0xb017fffc); /* usbh_enable */
 		au_writel(0x00, 0xb0200058); /* usbd_enable */
 		au_writel(0x00, 0xb0300040); /* ir_enable */
-		au_writel(0x00, 0xb0520000); /* macen0 */	   
+		au_writel(0x00, 0xb0520000); /* macen0 */
 		au_writel(0x00, 0xb1000008); /* i2s_enable  */
 		au_writel(0x00, 0xb1100100); /* uart0_enable */
 		au_writel(0x00, 0xb1200100); /* uart1_enable */

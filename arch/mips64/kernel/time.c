@@ -510,10 +510,10 @@ void __init time_init(void)
 		sll32_usecs_per_cycle = 0xffffffff / sll32_usecs_per_cycle;
 		sll32_usecs_per_cycle *= 10;
 
-		/* 
-		 * For those using cpu counter as timer,  this sets up the 
-		 * first interrupt 
-		 */ 
+		/*
+		 * For those using cpu counter as timer,  this sets up the
+		 * first interrupt
+		 */
 		count = read_32bit_cp0_register(CP0_COUNT);
 		write_32bit_cp0_register (CP0_COMPARE,
 					  count + cycles_per_jiffy);

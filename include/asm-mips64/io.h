@@ -92,7 +92,7 @@ extern unsigned long bus_to_baddr[256];
  * make bus memory CPU accessible via the readb/readw/readl/writeb/
  * writew/writel functions and the other mmio helpers. The returned
  * address is not guaranteed to be usable directly as a virtual
- * address. 
+ * address.
  */
 static inline void * ioremap(unsigned long offset, unsigned long size)
 {
@@ -108,11 +108,11 @@ static inline void * ioremap(unsigned long offset, unsigned long size)
  * make bus memory CPU accessible via the readb/readw/readl/writeb/
  * writew/writel functions and the other mmio helpers. The returned
  * address is not guaranteed to be usable directly as a virtual
- * address. 
+ * address.
  *
  * This version of ioremap ensures that the memory is marked uncachable
  * on the CPU as well as honouring existing caching rules from things like
- * the PCI bus. Note that there are other caches and buffers on many 
+ * the PCI bus. Note that there are other caches and buffers on many
  * busses. In paticular driver authors should read up on PCI writes
  *
  * It's useful if some control registers are in such an area and
@@ -183,7 +183,7 @@ extern const unsigned long mips_io_port_base;
  *
  *     The returned physical address is the physical (CPU) mapping for
  *     the memory address given. It is only valid to use this function on
- *     addresses directly mapped or allocated via kmalloc. 
+ *     addresses directly mapped or allocated via kmalloc.
  *
  *     This function does not give bus mappings for DMA transfers. In
  *     almost all conceivable cases a device driver should not be using
@@ -258,7 +258,7 @@ extern unsigned long isa_slot_offset;
 
 /**
  *     check_signature         -       find BIOS signatures
- *     @io_addr: mmio address to check 
+ *     @io_addr: mmio address to check
  *     @signature:  signature block
  *     @length: length of signature
  *
@@ -284,7 +284,7 @@ out:
 
 /*
  *     isa_check_signature             -       find BIOS signatures
- *     @io_addr: mmio address to check 
+ *     @io_addr: mmio address to check
  *     @signature:  signature block
  *     @length: length of signature
  *

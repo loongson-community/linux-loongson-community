@@ -291,12 +291,12 @@ void __init init_IRQ(void)
 		/* Setup uart 1 settings, mapper */
 		out64(M_DUART_IMR_BRK, KSEG1 + A_DUART + R_DUART_IMR_B);
 
-		out64(IMR_IP6_VAL, 
+		out64(IMR_IP6_VAL,
 			KSEG1 + A_IMR_REGISTER(0, R_IMR_INTERRUPT_MAP_BASE) + (K_INT_UART_1<<3));
 		tmp = in64(KSEG1 + A_IMR_REGISTER(0, R_IMR_INTERRUPT_MASK));
 		tmp &= ~(1<<K_INT_UART_1);
 		out64(tmp, KSEG1 + A_IMR_REGISTER(0, R_IMR_INTERRUPT_MASK));
-	
+
 		set_debug_traps();
 		breakpoint();
 	}
@@ -314,13 +314,13 @@ extern void set_async_breakpoint(unsigned int epc);
 
 void sb1250_kgdb_interrupt(struct pt_regs *regs)
 {
-	/* 
+	/*
 	 * Clear break-change status (allow some time for the remote
 	 * host to stop the break, since we would see another
-	 * interrupt on the end-of-break too) 
-	 */ 
+	 * interrupt on the end-of-break too)
+	 */
 	mdelay(500);
-	duart_out(R_DUART_CMD, V_DUART_MISC_CMD_RESET_BREAK_INT | 
+	duart_out(R_DUART_CMD, V_DUART_MISC_CMD_RESET_BREAK_INT |
 				M_DUART_RX_EN | M_DUART_TX_EN);
 	if (!user_mode(regs))
 		set_async_breakpoint(regs->cp0_epc);

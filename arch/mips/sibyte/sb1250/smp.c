@@ -109,7 +109,7 @@ void __init smp_boot_cpus(void)
 	atomic_set(&cpus_booted, 1);  /* Master CPU is already booted... */
 	init_idle();
 
-	/* 
+	/*
 	 * This loop attempts to compensate for "holes" in the CPU
 	 * numbering.  It's overkill, but general.
 	 */

@@ -10,7 +10,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
@@ -57,7 +57,7 @@ phys_t board_mem_region_addrs[SIBYTE_MAX_MEM_REGIONS];
 phys_t board_mem_region_sizes[SIBYTE_MAX_MEM_REGIONS];
 unsigned int board_mem_region_count;
 
-/* This is the kernel command line.  Actually, it's 
+/* This is the kernel command line.  Actually, it's
    copied, eventually, to command_line, and looks to be
    quite redundant.  But not something to fix just now */
 extern char arcs_cmdline[];
@@ -65,7 +65,7 @@ extern char arcs_cmdline[];
 #ifdef CONFIG_EMBEDDED_RAMDISK
 /* These are symbols defined by the ramdisk linker script */
 extern unsigned char __rd_start;
-extern unsigned char __rd_end;  
+extern unsigned char __rd_end;
 #endif
 
 #ifdef CONFIG_SMP
@@ -100,8 +100,8 @@ static __init void prom_meminit(void)
 	unsigned int idx;
 	int rd_flag;
 #ifdef CONFIG_BLK_DEV_INITRD
-	unsigned long initrd_pstart; 
-	unsigned long initrd_pend; 
+	unsigned long initrd_pstart;
+	unsigned long initrd_pend;
 
 #ifdef CONFIG_EMBEDDED_RAMDISK
 	/* If we're using an embedded ramdisk, then __rd_start and __rd_end
@@ -121,7 +121,7 @@ static __init void prom_meminit(void)
 	     || (initrd_pend > MAX_RAM_SIZE))) {
 		panic("initrd out of addressable memory");
 	}
-       
+
 #endif /* INITRD */
 
 	for (idx = 0; cfe_enummem(idx, &addr, &size, &type) != CFE_ERR_NOMORE;
@@ -189,7 +189,7 @@ static __init void prom_meminit(void)
 #ifdef CONFIG_BLK_DEV_INITRD
 static int __init initrd_setup(char *str)
 {
-	/* 
+	/*
 	 *Initrd location comes in the form "<hex size of ramdisk in bytes>@<location in memory>"
 	 *  e.g. initrd=3abfd@80010000.  This is set up by the loader.
 	 */
@@ -236,11 +236,11 @@ __init int prom_init(int argc, char **argv, char **envp, int *prom_vec)
 	_machine_halt      = cfe_linux_exit;
 	_machine_power_off = cfe_linux_exit;
 
-	/* 
+	/*
 	 * This should go away.  Detect if we're booting
 	 * straight from cfe without a loader.  If we
 	 * are, then we've got a prom vector in a0.  Otherwise,
-	 * argc (and argv and envp, for that matter) will be 0) 
+	 * argc (and argv and envp, for that matter) will be 0)
 	 */
 	if (argc < 0) {
 		prom_vec = (int *)argc;
@@ -262,7 +262,7 @@ __init int prom_init(int argc, char **argv, char **envp, int *prom_vec)
 			panic("LINUX_CMDLINE not defined in cfe.");
 		}
 	}
-	
+
 #ifdef CONFIG_BLK_DEV_INITRD
 	{
 		char *ptr;
@@ -303,7 +303,7 @@ int page_is_ram(unsigned long pagenr)
 	phys_t addr = pagenr << PAGE_SHIFT;
 	int i;
 	for (i = 0; i < board_mem_region_count; i++) {
-		if ((addr >= board_mem_region_addrs[i]) 
+		if ((addr >= board_mem_region_addrs[i])
 		    && (addr < (board_mem_region_addrs[i] + board_mem_region_sizes[i]))) {
 			return 1;
 		}

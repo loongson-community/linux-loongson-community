@@ -25,7 +25,7 @@ asmlinkage void via_irq(struct pt_regs *regs)
 	/* Read Master Status */
 	outb(0x0C, 0x20);
 	mstat = inb(0x20);
- 
+
 	if (mstat < 0) {
 		mstat &= 0x7f;
 		if (mstat != 2) {
@@ -37,7 +37,7 @@ asmlinkage void via_irq(struct pt_regs *regs)
 			/* Slave interrupt */
 			outb(0x0C, 0xA0);
 			sstat = inb(0xA0);
- 
+
 			if (sstat < 0) {
 				do_IRQ((sstat + 8) & 0x7f, regs);
 				outb(0x22, 0x20);

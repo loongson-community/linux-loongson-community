@@ -72,7 +72,7 @@ static void galileo_pcibios_set_master(struct pci_dev *dev);
  * pci_range_ck -
  *
  * Check if the pci device that are trying to access does really exists
- * on the evaluation board.  
+ * on the evaluation board.
  *
  * Inputs :
  * bus - bus number (0 for PCI 0 ; 1 for PCI 1)
@@ -497,7 +497,7 @@ void __init pcibios_fixup_bus(struct pci_bus *c)
 *          unsigned int busNum - The CPI bus number to which the PCI interface
 *                                      is connected.
 *          unsigned int devNum - The PCI interface's device number.
-*  
+*
 * Returns:  true.
 */
 void pci0P2PConfig(unsigned int SecondBusLow,unsigned int SecondBusHigh,

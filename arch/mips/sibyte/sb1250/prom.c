@@ -10,7 +10,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
@@ -32,7 +32,7 @@ extern char arcs_cmdline[];
 #ifdef CONFIG_EMBEDDED_RAMDISK
 /* These are symbols defined by the ramdisk linker script */
 extern unsigned char __rd_start;
-extern unsigned char __rd_end;  
+extern unsigned char __rd_end;
 #endif
 
 #define MAX_RAM_SIZE ((CONFIG_SIBYTE_STANDALONE_RAM_SIZE * 1024 * 1024) - 1)
@@ -40,8 +40,8 @@ extern unsigned char __rd_end;
 static __init void prom_meminit(void)
 {
 #ifdef CONFIG_BLK_DEV_INITRD
-	unsigned long initrd_pstart; 
-	unsigned long initrd_pend; 
+	unsigned long initrd_pstart;
+	unsigned long initrd_pend;
 
 #ifdef CONFIG_EMBEDDED_RAMDISK
 	/* If we're using an embedded ramdisk, then __rd_start and __rd_end
@@ -61,7 +61,7 @@ static __init void prom_meminit(void)
 	     || (initrd_pend > MAX_RAM_SIZE))) {
 		panic("initrd out of addressable memory");
 	}
-       
+
 	add_memory_region(0, initrd_pstart,
 			  BOOT_MEM_RAM);
 	add_memory_region(initrd_pstart, initrd_pend - initrd_pstart,

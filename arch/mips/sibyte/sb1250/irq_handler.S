@@ -77,7 +77,7 @@
 	jal	sbprof_cpu_intr
 	 addu	a0, a0, t1		/* a0 = EPC + (BD ? 4 :	0) */
 	/* Re-enable interrupts here so that events due to sbprof_cpu_intr
-	   get charged to ret_from_irq (via a recursive interrupt) 
+	   get charged to ret_from_irq (via a recursive interrupt)
 	   rather than the restart pc. */
 	mfc0	t0, CP0_STATUS
 	or	t0, ST0_IE

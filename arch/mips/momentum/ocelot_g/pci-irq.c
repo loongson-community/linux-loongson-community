@@ -1,6 +1,6 @@
 /*
  * Copyright 2002 Momentum Computer Inc.
- * Author: Matthew Dharm <mdharm@momenco.com> 
+ * Author: Matthew Dharm <mdharm@momenco.com>
  *
  * Based on work for the Linux port to the Ocelot board, which is
  * Copyright 2001 MontaVista Software Inc.

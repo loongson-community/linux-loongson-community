@@ -39,7 +39,7 @@
 	 */
 	move	$28, a2
 	cpu_restore_nonscratch a1
-	
+
 	daddiu	t1, $28, KERNEL_STACK_SIZE-32
 	set_saved_sp	t1 t0
 

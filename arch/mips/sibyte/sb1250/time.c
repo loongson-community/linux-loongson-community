@@ -157,6 +157,6 @@ unsigned long sb1250_gettimeoffset(void)
 {
 	unsigned long count =
 		in64(KSEG1 + A_SCD_TIMER_REGISTER(0, R_SCD_TIMER_CNT));
-	
+
 	return 1000000/HZ - count;
  }

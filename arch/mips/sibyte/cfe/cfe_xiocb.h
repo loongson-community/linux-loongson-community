@@ -10,7 +10,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
@@ -18,14 +18,14 @@
 
 /*  *********************************************************************
     *  Broadcom Common Firmware Environment (CFE)
-    *  
+    *
     *  IOCB definitions				File: cfe_iocb.h
-    *  
+    *
     *  This module describes CFE's IOCB structure, the main
     *  data structure used to communicate API requests with CFE.
-    *  
+    *
     *  Author:  Mitch Lichtenberg (mpl@broadcom.com)
-    *  
+    *
     ********************************************************************* */
 
 /*  *********************************************************************

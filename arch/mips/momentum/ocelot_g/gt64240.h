@@ -2,7 +2,7 @@
 
 /* Copyright - Galileo technology. */
 
-#ifndef __INCgt64240rh 
+#ifndef __INCgt64240rh
 #define __INCgt64240rh
 
 #define GTREG(v)        (((v) & 0xff) << 24) | (((v) & 0xff00) << 8) | \
@@ -136,7 +136,7 @@
 #define CPU_LOW_PROTECT_ADDRESS_7                           0X1f0
 #define CPU_HIGH_PROTECT_ADDRESS_7                          0X1f8
 
-                                                                  
+
 /****************************************/
 /*          Snoop Control          		*/
 /****************************************/
@@ -181,7 +181,7 @@
 /****************************************/
 /* SDRAM and Device Address Space	*/
 /****************************************/
-	
+
 
 /****************************************/
 /* SDRAM Configuration			*/
@@ -200,7 +200,7 @@
 /****************************************/
 /* SDRAM Parameters			*/
 /****************************************/
-			
+
 #define SDRAM_BANK0PARAMETERS				0x44C
 #define SDRAM_BANK1PARAMETERS				0x450
 #define SDRAM_BANK2PARAMETERS				0x454
@@ -210,7 +210,7 @@
 /****************************************/
 /* SDRAM Error Report 			*/
 /****************************************/
-			
+
 #define SDRAM_ERROR_DATA_LOW                            0x484
 #define SDRAM_ERROR_DATA_HIGH                           0x480
 #define SDRAM_AND_DEVICE_ERROR_ADDRESS                  0x490
@@ -432,7 +432,7 @@
 /****************************************/
 /* PCI Slave Address Decoding           */
 /****************************************/
-        
+
 #define PCI_0SCS_0_BANK_SIZE					0xc08
 #define PCI_1SCS_0_BANK_SIZE					0xc88
 #define PCI_0SCS_1_BANK_SIZE					0xd08
@@ -804,7 +804,7 @@
 /****************************************/
 /* Interrupts	  			*/
 /****************************************/
-			
+
 #define LOW_INTERRUPT_CAUSE_REGISTER   				0xc18
 #define HIGH_INTERRUPT_CAUSE_REGISTER				0xc68
 #define CPU_INTERRUPT_MASK_REGISTER_LOW				0xc1c
@@ -921,7 +921,7 @@
 /* Communication Unit Registers         */
 /****************************************/
 
-#define ETHERNET_0_ADDRESS_CONTROL_LOW                       
+#define ETHERNET_0_ADDRESS_CONTROL_LOW
 #define ETHERNET_0_ADDRESS_CONTROL_HIGH                     0xf204
 #define ETHERNET_0_RECEIVE_BUFFER_PCI_HIGH_ADDRESS          0xf208
 #define ETHERNET_0_TRANSMIT_BUFFER_PCI_HIGH_ADDRESS         0xf20c
@@ -968,7 +968,7 @@
 #define COMM_UNIT_INTERRUPT_CAUSE                           0xf310
 #define COMM_UNIT_INTERRUPT_MASK                            0xf314
 #define COMM_UNIT_ERROR_ADDRESS                             0xf314
-           
+
 /****************************************/
 /* Cunit Debug  (for internal use)     */
 /****************************************/
@@ -1015,7 +1015,7 @@
 #define ETHERNET0_CURRENT_RX_DESCRIPTOR_POINTER3            0x24ac
 #define ETHERNET0_CURRENT_TX_DESCRIPTOR_POINTER0            0x24e0
 #define ETHERNET0_CURRENT_TX_DESCRIPTOR_POINTER1            0x24e4
-#define ETHERNET0_MIB_COUNTER_BASE                          0x2500 
+#define ETHERNET0_MIB_COUNTER_BASE                          0x2500
 
 /* Ethernet 1 */
 
@@ -1041,7 +1041,7 @@
 #define ETHERNET1_CURRENT_RX_DESCRIPTOR_POINTER3            0x28ac
 #define ETHERNET1_CURRENT_TX_DESCRIPTOR_POINTER0            0x28e0
 #define ETHERNET1_CURRENT_TX_DESCRIPTOR_POINTER1            0x28e4
-#define ETHERNET1_MIB_COUNTER_BASE                          0x2900 
+#define ETHERNET1_MIB_COUNTER_BASE                          0x2900
 
 /* Ethernet 2 */
 
@@ -1067,7 +1067,7 @@
 #define ETHERNET2_CURRENT_RX_DESCRIPTOR_POINTER3            0x2cac
 #define ETHERNET2_CURRENT_TX_DESCRIPTOR_POINTER0            0x2ce0
 #define ETHERNET2_CURRENT_TX_DESCRIPTOR_POINTER1            0x2ce4
-#define ETHERNET2_MIB_COUNTER_BASE                          0x2d00 
+#define ETHERNET2_MIB_COUNTER_BASE                          0x2d00
 
 /****************************************/
 /* SDMA Registers                       */
@@ -1190,9 +1190,9 @@
 #define I2C_STATUS_BAUDE_RATE                               0xc00C
 #define I2C_SOFT_RESET                                      0xc01c
 
-/****************************************/ 
-/* MPSC Registers                       */ 
-/****************************************/ 
+/****************************************/
+/* MPSC Registers                       */
+/****************************************/
 
 /* MPSC0  */
 
@@ -1200,15 +1200,15 @@
 #define MPSC0_MAIN_CONFIGURATION_HIGH                       0x8004
 #define MPSC0_PROTOCOL_CONFIGURATION                        0x8008
 #define CHANNEL0_REGISTER1                                  0x800c
-#define CHANNEL0_REGISTER2                                  0x8010 
-#define CHANNEL0_REGISTER3                                  0x8014 
-#define CHANNEL0_REGISTER4                                  0x8018 
-#define CHANNEL0_REGISTER5                                  0x801c 
-#define CHANNEL0_REGISTER6                                  0x8020 
-#define CHANNEL0_REGISTER7                                  0x8024 
-#define CHANNEL0_REGISTER8                                  0x8028 
-#define CHANNEL0_REGISTER9                                  0x802c 
-#define CHANNEL0_REGISTER10                                 0x8030 
+#define CHANNEL0_REGISTER2                                  0x8010
+#define CHANNEL0_REGISTER3                                  0x8014
+#define CHANNEL0_REGISTER4                                  0x8018
+#define CHANNEL0_REGISTER5                                  0x801c
+#define CHANNEL0_REGISTER6                                  0x8020
+#define CHANNEL0_REGISTER7                                  0x8024
+#define CHANNEL0_REGISTER8                                  0x8028
+#define CHANNEL0_REGISTER9                                  0x802c
+#define CHANNEL0_REGISTER10                                 0x8030
 #define CHANNEL0_REGISTER11                                 0x8034
 
 /* MPSC1  */
@@ -1217,21 +1217,21 @@
 #define MPSC1_MAIN_CONFIGURATION_HIGH                       0x9004
 #define MPSC1_PROTOCOL_CONFIGURATION                        0x9008
 #define CHANNEL1_REGISTER1                                  0x900c
-#define CHANNEL1_REGISTER2                                  0x9010 
-#define CHANNEL1_REGISTER3                                  0x9014 
-#define CHANNEL1_REGISTER4                                  0x9018 
-#define CHANNEL1_REGISTER5                                  0x901c 
-#define CHANNEL1_REGISTER6                                  0x9020 
-#define CHANNEL1_REGISTER7                                  0x9024 
-#define CHANNEL1_REGISTER8                                  0x9028 
-#define CHANNEL1_REGISTER9                                  0x902c 
-#define CHANNEL1_REGISTER10                                 0x9030 
+#define CHANNEL1_REGISTER2                                  0x9010
+#define CHANNEL1_REGISTER3                                  0x9014
+#define CHANNEL1_REGISTER4                                  0x9018
+#define CHANNEL1_REGISTER5                                  0x901c
+#define CHANNEL1_REGISTER6                                  0x9020
+#define CHANNEL1_REGISTER7                                  0x9024
+#define CHANNEL1_REGISTER8                                  0x9028
+#define CHANNEL1_REGISTER9                                  0x902c
+#define CHANNEL1_REGISTER10                                 0x9030
 #define CHANNEL1_REGISTER11                                 0x9034
 
 /* MPSCs Interupts  */
 
-#define MPSC0_CAUSE                                         0xb804                                                             
-#define MPSC0_MASK                                          0xb884                                                             
+#define MPSC0_CAUSE                                         0xb804
+#define MPSC0_MASK                                          0xb884
 #define MPSC1_CAUSE                                         0xb80c
 #define MPSC1_MASK                                          0xb88c
 
