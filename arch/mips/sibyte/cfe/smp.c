@@ -59,19 +59,15 @@ void prom_prepare_cpus(void)
  * Setup the PC, SP, and GP of a secondary processor and start it
  * running!
  */
-int prom_boot_secondary(int cpu, struct task_struct *idle)
+void prom_boot_secondary(int cpu, struct task_struct *idle)
 {
 	int retval;
 	
 	retval = cfe_cpu_start(cpu_logical_map(cpu), &smp_bootstrap,
 			       __KSTK_TOS(idle),
 			       (unsigned long)idle->thread_info, 0);
-	if (retval != 0) {
+	if (retval != 0)
 		printk("cfe_start_cpu(%i) returned %i\n" , cpu, retval);
-		return 0;
-	} else {
-		return 1;
-	}
 }
 
 /*

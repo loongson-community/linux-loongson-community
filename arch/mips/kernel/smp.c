@@ -47,40 +47,6 @@ int __cpu_logical_map[NR_CPUS];		/* Map logical to physical */
 
 EXPORT_SYMBOL(cpu_online_map);
 
-/*
- * SMP support routines
- * These are defined by the board-specific code.
- */
-
-/* Callout to firmware before smp_init */
-void prom_prepare_cpus(void);
-
-/* Firmware CPU startup hook */
-void prom_boot_secondary(int cpu, struct task_struct *idle);
-
-/*
- *  After we've done initial boot, this function is called to allow the
- *  board code to clean up state, if needed
- */
-void prom_init_secondary(void);
-
-/*
- * Last chance for the board code to finish SMP initialization before
- * the CPU is "online".
- */
-void prom_smp_finish(void);
-
-/* Hook for after all CPUs are online */
-void prom_cpus_done(void);
-
-/*
- * Cause the function described by call_data to be executed on the passed
- * cpu.  When the function has finished, increment the finished field of
- * call_data.
- */
-void core_send_ipi(int cpu, unsigned int action);
-
-
 cycles_t cacheflush_time;
 unsigned long cache_decay_ticks;
 
