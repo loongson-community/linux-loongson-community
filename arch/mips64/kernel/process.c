@@ -263,7 +263,7 @@ unsigned long get_wchan(struct task_struct *p)
 
 	if (!mips_frame_info_initialized)
 		return 0;
-	pc = thread_saved_pc(&p->thread);
+	pc = thread_saved_pc(p);
 	if (pc < first_sched || pc >= last_sched)
 		goto out;
 
