@@ -73,13 +73,13 @@ struct stat {
 	 * Actually this should be timestruc_t st_atime, st_mtime and st_ctime
 	 * but we don't have it under Linux.
 	 */
-	time_t		st_atime;
+	unsigned int	st_atime;
 	unsigned int	reserved0;	/* Reserved for st_atime expansion  */
 
-	time_t		st_mtime;
+	unsigned int	st_mtime;
 	unsigned int	reserved1;	/* Reserved for st_mtime expansion  */
 
-	time_t		st_ctime;
+	unsigned int	st_ctime;
 	unsigned int	reserved2;	/* Reserved for st_ctime expansion  */
 
 	unsigned int	st_blksize;
