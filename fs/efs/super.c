@@ -144,9 +144,8 @@ static int efs_validate_super(struct efs_sb_info *sb, struct efs_super *super) {
 	return 0;    
 }
 
-struct super_block *efs_read_super(struct super_block *s, void *d, int verbose) {
+struct super_block *efs_read_super(struct super_block *s, void *d, int silent) {
 	kdev_t dev = s->s_dev;
-	struct inode *root_inode;
 	struct efs_sb_info *sb;
 	struct buffer_head *bh;
 
@@ -188,7 +187,8 @@ struct super_block *efs_read_super(struct super_block *s, void *d, int verbose) 
 		brelse(bh);
 		goto out_no_fs_ul;
 	}
-  
+	brelse(bh);
+ 
 	s->s_magic		= EFS_SUPER_MAGIC;
 	s->s_blocksize		= EFS_BLOCKSIZE;
 	s->s_blocksize_bits	= EFS_BLOCKSIZE_BITS;
@@ -198,25 +198,17 @@ struct super_block *efs_read_super(struct super_block *s, void *d, int verbose) 
 #endif
 		s->s_flags |= MS_RDONLY;
 	}
-	s->s_op			= &efs_superblock_operations;
-	s->s_dev		= dev;
-	s->s_root		= NULL;
-
-	root_inode = iget(s, EFS_ROOTINODE);
-	if (root_inode) {
-		s->s_root = d_alloc_root(root_inode, NULL);
-		if (!(s->s_root)) {
-			iput(root_inode);
-		}
-	}
+	s->s_op   = &efs_superblock_operations;
+	s->s_dev  = dev;
+	s->s_root = d_alloc_root(iget(s, EFS_ROOTINODE), NULL);
 	unlock_super(s);
-  
-	if(!(s->s_root)) {
-		printk("EFS: not mounted\n");
+ 
+	if (!(s->s_root)) {
+		printk("EFS: get root inode failed\n");
 		goto out_no_fs;
 	}
 
-	if(check_disk_change(s->s_dev)) {
+	if (check_disk_change(s->s_dev)) {
 		printk("EFS: device changed\n");
 		goto out_no_fs;
 	}
@@ -232,7 +224,6 @@ out_no_fs:
 }
 
 void efs_put_super(struct super_block *s) {
-	s->s_dev = 0;
 	MOD_DEC_USE_COUNT;
 }
 
