@@ -1519,6 +1519,7 @@ E: davej@codemonkey.org.uk
 E: davej@suse.de
 W: http://www.codemonkey.org.uk
 D: x86 errata/setup maintenance.
+D: AGPGART driver.
 D: Backport/Forwardport merge monkey.
 D: Various Janitor work.
 S: c/o SuSE Linux UK Ltd
@@ -2248,6 +2249,15 @@ D: Ziatech ZT5550 and generic CompactPCI hotplug drivers
 S: Toronto, Ontario
 S: Canada
 
+N: Zwane Mwaikambo
+E: zwane@linuxpower.ca
+W: http://function.linuxpower.ca
+D: Various driver hacking
+D: Lowlevel x86 kernel hacking
+D: General debugging
+S: (ask for current address)
+S: Tanzania
+
 N: Trond Myklebust
 E: trond.myklebust@fys.uio.no
 D: current NFS client hacker.
@@ -2480,13 +2490,10 @@ E: ken@halcyon.com
 D: CDROM driver "sonycd535" (Sony CDU-535/531)
 
 N: Stelian Pop
-E: stelian.pop@fr.alcove.com
+E: stelian@popies.net
 P: 1024D/EDBB6147 7B36 0E07 04BC 11DC A7A0  D3F7 7185 9E7A EDBB 6147
 D: sonypi, meye drivers, mct_u232 usb serial hacks
-S: Alcôve
-S: 153, bd. Anatole France 
-S: 93200 Saint Denis
-S: France
+S: Paris, France
 
 N: Frederic Potter 
 E: fpotter@cirpack.com
@@ -2722,7 +2729,7 @@ S: Finland
 N: Thomas Sailer
 E: t.sailer@alumni.ethz.ch
 E: HB9JNX@HB9W.CHE.EU (packet radio)
-D: hfmodem, Baycom and sound card radio modem driver
+D: Baycom driver
 S: Markusstrasse 18
 S: 8006 Zuerich
 S: Switzerland
@@ -2835,6 +2842,16 @@ D: miroSOUND PCM20 radio RDS driver, ACI rewrite
 S: Klosterweg 28 / i309
 S: 76131 Karlsruhe
 S: Germany
+
+N: James Simmons 
+E: jsimmons@users.sf.net 
+D: Frame buffer device maintainer
+D: input layer developement 
+D: tty/console layer
+D: various mipsel devices 
+S: 115 Carmel Avenue 
+S: El Cerrito CA 94530
+S: USA 
 
 N: Jaspreet Singh
 E: jaspreet@sangoma.com
@@ -3093,8 +3110,14 @@ S: 97078 Wuerzburg
 S: Germany
 
 N: Greg Ungerer
-E: gerg@moreton.com.au
+E: gerg@snapgear.com
+D: uClinux kernel hacker
+D: Port uClinux to the Motorola ColdFire CPU
 D: Author of Stallion multiport serial drivers
+S: SnapGear Inc.
+S: 825 Stanley St
+S: Woolloongabba. QLD. 4102
+S: Australia
 
 N: Jeffrey A. Uphoff
 E: juphoff@transmeta.com

@@ -37,6 +37,8 @@
 #define PARANOIA
 #include <linux/major.h>
 
+#include <linux/blk.h>
+#include <linux/blkdev.h>
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/sched.h>
@@ -46,6 +48,8 @@
 #include <linux/errno.h>
 #include <linux/file.h>
 #include <linux/ioctl.h>
+#include <linux/blkdev.h>
+#include <linux/blk.h>
 #include <net/sock.h>
 
 #include <linux/devfs_fs_kernel.h>
@@ -53,13 +57,11 @@
 #include <asm/uaccess.h>
 #include <asm/types.h>
 
-#define MAJOR_NR NBD_MAJOR
 #include <linux/nbd.h>
 
 #define LO_MAGIC 0x68797548
 
 static struct nbd_device nbd_dev[MAX_NBD];
-static devfs_handle_t devfs_handle;
 
 static spinlock_t nbd_lock = SPIN_LOCK_UNLOCKED;
 
@@ -69,6 +71,29 @@ static spinlock_t nbd_lock = SPIN_LOCK_UNLOCKED;
 
 static int requests_in;
 static int requests_out;
+
+static void nbd_end_request(struct request *req)
+{
+	int uptodate = (req->errors == 0) ? 1 : 0;
+	request_queue_t *q = req->q;
+	struct bio *bio;
+	unsigned nsect;
+	unsigned long flags;
+
+#ifdef PARANOIA
+	requests_out++;
+#endif
+	spin_lock_irqsave(q->queue_lock, flags);
+	while((bio = req->bio) != NULL) {
+		nsect = bio_sectors(bio);
+		blk_finished_io(nsect);
+		req->bio = bio->bi_next;
+		bio->bi_next = NULL;
+		bio_endio(bio, nsect << 9, uptodate ? 0 : -EIO);
+	}
+	blk_put_request(req);
+	spin_unlock_irqrestore(q->queue_lock, flags);
+}
 
 static int nbd_open(struct inode *inode, struct file *file)
 {
@@ -170,7 +195,8 @@ void nbd_send_req(struct nbd_device *lo, struct request *req)
 	down(&lo->tx_lock);
 
 	if (!sock || !lo->sock) {
-		FAIL("Attempted sendmsg to closed socket\n");
+		printk(KERN_ERR "NBD: Attempted sendmsg to closed socket\n");
+		goto error_out;
 	}
 
 	result = nbd_xmit(1, sock, (char *) &request, sizeof(request), nbd_cmd(req) == NBD_CMD_WRITE ? MSG_MORE : 0);
@@ -538,18 +564,20 @@ static int __init nbd_init(void)
 		nbd_dev[i].disk = disk;
 	}
 
-	if (register_blkdev(MAJOR_NR, "nbd", &nbd_fops)) {
+	if (register_blkdev(NBD_MAJOR, "nbd", &nbd_fops)) {
 		printk("Unable to get major number %d for NBD\n",
-		       MAJOR_NR);
+		       NBD_MAJOR);
 		err = -EIO;
 		goto out;
 	}
 #ifdef MODULE
-	printk("nbd: registered device at major %d\n", MAJOR_NR);
+	printk("nbd: registered device at major %d\n", NBD_MAJOR);
 #endif
 	blk_init_queue(&nbd_queue, do_nbd_request, &nbd_lock);
+	devfs_mk_dir (NULL, "nbd", NULL);
 	for (i = 0; i < MAX_NBD; i++) {
 		struct gendisk *disk = nbd_dev[i].disk;
+		char name[16];
 		nbd_dev[i].refcnt = 0;
 		nbd_dev[i].file = NULL;
 		nbd_dev[i].magic = LO_MAGIC;
@@ -560,19 +588,19 @@ static int __init nbd_init(void)
 		nbd_dev[i].blksize = 1024;
 		nbd_dev[i].blksize_bits = 10;
 		nbd_dev[i].bytesize = ((u64)0x7ffffc00) << 10; /* 2TB */
-		disk->major = MAJOR_NR;
+		disk->major = NBD_MAJOR;
 		disk->first_minor = i;
 		disk->fops = &nbd_fops;
 		disk->private_data = &nbd_dev[i];
 		sprintf(disk->disk_name, "nbd%d", i);
 		set_capacity(disk, 0x3ffffe);
 		add_disk(disk);
-	}
-	devfs_handle = devfs_mk_dir (NULL, "nbd", NULL);
-	devfs_register_series (devfs_handle, "%u", MAX_NBD,
-			       DEVFS_FL_DEFAULT, MAJOR_NR, 0,
+		sprintf(name, "nbd/%d", i);
+		devfs_register(NULL, name, DEVFS_FL_DEFAULT,
+			       disk->major, disk->first_minor,
 			       S_IFBLK | S_IRUSR | S_IWUSR,
-			       &nbd_fops, NULL);
+			       disk->fops, NULL);
+	}
 
 	return 0;
 out:
@@ -587,14 +615,11 @@ static void __exit nbd_cleanup(void)
 	for (i = 0; i < MAX_NBD; i++) {
 		del_gendisk(nbd_dev[i].disk);
 		put_disk(nbd_dev[i].disk);
+		devfs_remove("nbd/%d", i);
 	}
-	devfs_unregister (devfs_handle);
+	devfs_remove("nbd");
 	blk_cleanup_queue(&nbd_queue);
-
-	if (unregister_blkdev(MAJOR_NR, "nbd") != 0)
-		printk("nbd: cleanup_module failed\n");
-	else
-		printk("nbd: module cleaned up.\n");
+	unregister_blkdev(NBD_MAJOR, "nbd");
 }
 
 module_init(nbd_init);

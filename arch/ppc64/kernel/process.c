@@ -103,43 +103,50 @@ __switch_to(struct task_struct *prev, struct task_struct *new)
 	local_irq_restore(flags);
 }
 
+static void show_tsk_stack(struct task_struct *p, unsigned long sp);
+static char *ppc_find_proc_name(unsigned *p, char *buf, unsigned buflen);
+
 void show_regs(struct pt_regs * regs)
 {
 	int i;
+	char name_buf[256];
 
-	printk("NIP: %016lX XER: %016lX LR: %016lX REGS: %p TRAP: %04lx    %s\n",
-	       regs->nip, regs->xer, regs->link, regs,regs->trap, print_tainted());
+	printk("NIP: %016lX XER: %016lX LR: %016lX\n",
+	       regs->nip, regs->xer, regs->link);
+	printk("REGS: %p TRAP: %04lx    %s\n",
+	       regs, regs->trap, print_tainted());
 	printk("MSR: %016lx EE: %01x PR: %01x FP: %01x ME: %01x IR/DR: %01x%01x\n",
 	       regs->msr, regs->msr&MSR_EE ? 1 : 0, regs->msr&MSR_PR ? 1 : 0,
 	       regs->msr & MSR_FP ? 1 : 0,regs->msr&MSR_ME ? 1 : 0,
 	       regs->msr&MSR_IR ? 1 : 0,
 	       regs->msr&MSR_DR ? 1 : 0);
+	if (regs->trap == 0x300 || regs->trap == 0x380 || regs->trap == 0x600)
+		printk("DAR: %016lx, DSISR: %016lx\n", regs->dar, regs->dsisr);
 	printk("TASK = %p[%d] '%s' ",
 	       current, current->pid, current->comm);
-	printk("\nlast math %p ", last_task_used_math);
-	
+
 #ifdef CONFIG_SMP
-	/* printk(" CPU: %d last CPU: %d", current->processor,current->last_processor); */
+	printk(" CPU: %d", smp_processor_id());
 #endif /* CONFIG_SMP */
-	
-	printk("\n");
-	for (i = 0;  i < 32;  i++)
-	{
+
+	for (i = 0; i < 32; i++) {
 		long r;
-		if ((i % 4) == 0)
-		{
-			printk("GPR%02d: ", i);
+		if ((i % 4) == 0) {
+			printk("\n" KERN_INFO "GPR%02d: ", i);
 		}
-
-		if ( __get_user(r, &(regs->gpr[i])) )
+		if (__get_user(r, &(regs->gpr[i])))
 		    return;
-
 		printk("%016lX ", r);
-		if ((i % 4) == 3)
-		{
-			printk("\n");
-		}
 	}
+	printk("\n");
+	/*
+	 * Lookup NIP late so we have the best change of getting the
+	 * above info out without failing
+	 */
+	printk("NIP [%016lx] ", regs->nip);
+	printk("%s\n", ppc_find_proc_name((unsigned *)regs->nip,
+	       name_buf, 256));
+	show_tsk_stack(current, regs->gpr[1]);
 }
 
 void exit_thread(void)
@@ -170,7 +177,7 @@ copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 	extern void ret_from_fork(void);
 	unsigned long sp = (unsigned long)p->thread_info + THREAD_SIZE;
 
-	p->user_tid = NULL;
+	p->set_child_tid = p->clear_child_tid = NULL;
 
 	/* Copy registers */
 	sp -= sizeof(struct pt_regs);
@@ -184,8 +191,10 @@ copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 #ifdef CONFIG_PPC_ISERIES
 		set_ti_thread_flag(p->thread_info, TIF_RUN_LIGHT);
 #endif
-	} else
+	} else {
+		childregs->gpr[1] = usp;
 		p->thread.regs = childregs;
+	}
 	childregs->gpr[3] = 0;  /* Result from fork() */
 	sp -= STACK_FRAME_OVERHEAD;
 
@@ -259,27 +268,37 @@ int get_fpexc_mode(struct task_struct *tsk, unsigned long adr)
 	return put_user(val, (unsigned int *) adr);
 }
 
-int sys_clone(unsigned long clone_flags, u32 p2, u32 p3, u32 p4, u32 p5,
-	      u32 p6, struct pt_regs *regs)
+int sys_clone(unsigned long clone_flags, unsigned long p2, unsigned long p3,
+	      unsigned long p4, unsigned long p5, unsigned long p6,
+	      struct pt_regs *regs)
 {
 	struct task_struct *p;
-	unsigned long tid_ptr = 0;
+	unsigned long parent_tidptr = 0;
+	unsigned long child_tidptr = 0;
 
-	if (clone_flags & (CLONE_SETTID | CLONE_CLEARTID)) {
-		tid_ptr = p3;
-		if (test_thread_flag(TIF_32BIT))
-			tid_ptr &= 0xffffffff;
+	if (p2 == 0)
+		p2 = regs->gpr[1];	/* stack pointer for child */
+
+	if (clone_flags & (CLONE_PARENT_SETTID | CLONE_CHILD_SETTID |
+			   CLONE_CHILD_CLEARTID)) {
+		parent_tidptr = p3;
+		child_tidptr = p4;
+		if (test_thread_flag(TIF_32BIT)) {
+			parent_tidptr &= 0xffffffff;
+			child_tidptr &= 0xffffffff;
+		}
 	}
 
 	if (regs->msr & MSR_FP)
 		giveup_fpu(current);
 
-	p = do_fork(clone_flags & ~CLONE_IDLETASK, regs->gpr[1], regs, 0,
-		    (int *)tid_ptr);
+	p = do_fork(clone_flags & ~CLONE_IDLETASK, p2, regs, 0,
+		    (int *)parent_tidptr, (int *)child_tidptr);
 	return IS_ERR(p) ? PTR_ERR(p) : p->pid;
 }
 
-int sys_fork(u32 p1, u32 p2, u32 p3, u32 p4, u32 p5, u32 p6,
+int sys_fork(unsigned long p1, unsigned long p2, unsigned long p3,
+	     unsigned long p4, unsigned long p5, unsigned long p6,
 	     struct pt_regs *regs)
 {
 	struct task_struct *p;
@@ -287,11 +306,12 @@ int sys_fork(u32 p1, u32 p2, u32 p3, u32 p4, u32 p5, u32 p6,
 	if (regs->msr & MSR_FP)
 		giveup_fpu(current);
 
-	p = do_fork(SIGCHLD, regs->gpr[1], regs, 0, NULL);
+	p = do_fork(SIGCHLD, regs->gpr[1], regs, 0, NULL, NULL);
 	return IS_ERR(p) ? PTR_ERR(p) : p->pid;
 }
 
-int sys_vfork(u32 p1, u32 p2, u32 p3, u32 p4, u32 p5, u32 p6,
+int sys_vfork(unsigned long p1, unsigned long p2, unsigned long p3,
+	      unsigned long p4, unsigned long p5, unsigned long p6,
 	      struct pt_regs *regs)
 {
 	struct task_struct *p;
@@ -300,7 +320,7 @@ int sys_vfork(u32 p1, u32 p2, u32 p3, u32 p4, u32 p5, u32 p6,
 		giveup_fpu(current);
 
 	p = do_fork(CLONE_VFORK | CLONE_VM | SIGCHLD, regs->gpr[1], regs, 0,
-	            NULL);
+	            NULL, NULL);
 	return IS_ERR(p) ? PTR_ERR(p) : p->pid;
 }
 
@@ -338,7 +358,7 @@ void initialize_paca_hardware_interrupt_stack(void)
 		if (!cpu_possible(i))
 			continue;
 		/* Carve out storage for the hardware interrupt stack */
-		stack = __get_free_pages(GFP_KERNEL, get_order(8*PAGE_SIZE));
+		stack = __get_free_pages(GFP_ATOMIC, get_order(8*PAGE_SIZE));
 
 		if ( !stack ) {     
 			printk("ERROR, cannot find space for hardware stack.\n");
@@ -368,69 +388,62 @@ void initialize_paca_hardware_interrupt_stack(void)
 	}
 }
 
-extern char _stext[], _etext[];
+extern char _stext[], _etext[], __init_begin[], __init_end[];
 
-char * ppc_find_proc_name( unsigned * p, char * buf, unsigned buflen )
+static char *ppc_find_proc_name(unsigned *p, char *buf, unsigned buflen)
 {
 	unsigned long tb_flags;
 	unsigned short name_len;
 	unsigned long tb_start, code_start, code_ptr, code_offset;
-	unsigned code_len;
-	strcpy( buf, "Unknown" );
+	unsigned int code_len;
+	unsigned long end;
+
+	strcpy(buf, "Unknown");
 	code_ptr = (unsigned long)p;
 	code_offset = 0;
-	if ( ( (unsigned long)p >= (unsigned long)_stext ) && ( (unsigned long)p <= (unsigned long)_etext ) ) {
-		while ( (unsigned long)p <= (unsigned long)_etext ) {
-			if ( *p == 0 ) {
-				tb_start = (unsigned long)p;
-				++p;	/* Point to traceback flags */
-				tb_flags = *((unsigned long *)p);
-				p += 2;	/* Skip over traceback flags */
-				if ( tb_flags & TB_NAME_PRESENT ) {
-					if ( tb_flags & TB_PARMINFO )
-						++p;	/* skip over parminfo data */
-					if ( tb_flags & TB_HAS_TBOFF ) {
-						code_len = *p;	/* get code length */
-						code_start = tb_start - code_len;
-						code_offset = code_ptr - code_start + 1;
-						if ( code_offset > 0x100000 )
-							break;
-						++p;		/* skip over code size */
-					}
-					name_len = *((unsigned short *)p);
-					if ( name_len > (buflen-20) )
-						name_len = buflen-20;
-					memcpy( buf, ((char *)p)+2, name_len );
-					buf[name_len] = 0;
-					if ( code_offset )
-						sprintf( buf+name_len, "+0x%lx", code_offset-1 ); 
+
+	/* handle functions in text and init sections */
+	if (((unsigned long)p >= (unsigned long)_stext) && 
+	    ((unsigned long)p < (unsigned long)_etext))
+		end = (unsigned long)_etext;
+	else if (((unsigned long)p >= (unsigned long)__init_begin) && 
+		 ((unsigned long)p < (unsigned long)__init_end))
+		end = (unsigned long)__init_end;
+	else
+		return buf;
+
+	while ((unsigned long)p < end) {
+		if (*p == 0) {
+			tb_start = (unsigned long)p;
+			++p;	/* Point to traceback flags */
+			tb_flags = *((unsigned long *)p);
+			p += 2;	/* Skip over traceback flags */
+			if (tb_flags & TB_NAME_PRESENT) {
+				if (tb_flags & TB_PARMINFO)
+					++p;	/* skip over parminfo data */
+				if (tb_flags & TB_HAS_TBOFF) {
+					code_len = *p;	/* get code length */
+					code_start = tb_start - code_len;
+					code_offset = code_ptr - code_start + 1;
+					if (code_offset > 0x100000)
+						break;
+					++p;	/* skip over code size */
 				}
-				break;
+				name_len = *((unsigned short *)p);
+				if (name_len > (buflen-20))
+					name_len = buflen-20;
+				memcpy(buf, ((char *)p)+2, name_len);
+				buf[name_len] = 0;
+				if (code_offset)
+					sprintf(buf+name_len, "+0x%lx",
+						code_offset-1); 
 			}
-			++p;
+			break;
 		}
+		++p;
 	}
+
 	return buf;
-}
-
-void
-print_backtrace(unsigned long *sp)
-{
-	int cnt = 0;
-	unsigned long i;
-	char name_buf[256];
-
-	printk("Call backtrace: \n");
-	while (sp) {
-		if (__get_user( i, &sp[2] ))
-			break;
-		printk("%016lX ", i);
-		printk("%s\n", ppc_find_proc_name( (unsigned *)i, name_buf, 256 ));
-		if (cnt > 32) break;
-		if (__get_user(sp, (unsigned long **)sp))
-			break;
-	}
-	printk("\n");
 }
 
 /*
@@ -467,31 +480,39 @@ unsigned long get_wchan(struct task_struct *p)
 	return 0;
 }
 
-void show_trace_task(struct task_struct *p)
+static void show_tsk_stack(struct task_struct *p, unsigned long sp)
 {
-	unsigned long ip, sp;
+	unsigned long ip;
 	unsigned long stack_page = (unsigned long)p->thread_info;
 	int count = 0;
+	char name_buf[256];
 
 	if (!p)
 		return;
 
-	printk("Call Trace: ");
-	sp = p->thread.ksp;
+	printk("Call Trace:\n");
 	do {
-		sp = *(unsigned long *)sp;
+		if (__get_user(sp, (unsigned long *)sp))
+			break;
 		if (sp < (stack_page + sizeof(struct thread_struct)) ||
 		    sp >= (stack_page + THREAD_SIZE))
 			break;
-		if (count > 0) {
-			ip = *(unsigned long *)(sp + 16);
-			printk("[%016lx] ", ip);
-		}
-	} while (count++ < 16);
-	printk("\n");
+		if (__get_user(ip, (unsigned long *)(sp + 16)))
+			break;
+		printk("[%016lx] ", ip);
+		printk("%s\n", ppc_find_proc_name((unsigned *)ip,
+		       name_buf, 256));
+	} while (count++ < 32);
 }
+
+extern unsigned long *_get_SP(void);
 
 void dump_stack(void)
 {
-	show_stack(NULL);
+	show_tsk_stack(current, (unsigned long)_get_SP());
+}
+
+void show_trace_task(struct task_struct *tsk)
+{
+	show_tsk_stack(tsk, tsk->thread.ksp);
 }

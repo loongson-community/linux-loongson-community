@@ -10,6 +10,7 @@
  * 2 of the License, or (at your option) any later version.
  */
 
+#define __NR_restart_syscall	  0
 #define __NR_exit		  1
 #define __NR_fork		  2
 #define __NR_read		  3
@@ -231,7 +232,7 @@
 #define __NR_lremovexattr	219
 #define __NR_fremovexattr	220
 #define __NR_futex		221
-#define __NR_sched_setaffinity	222     
+#define __NR_sched_setaffinity	222
 #define __NR_sched_getaffinity	223
 /* 224 currently unused */
 #define __NR_tuxcall		225
@@ -244,6 +245,11 @@
 #define __NR_alloc_hugepages	232
 #define __NR_free_hugepages	233
 #define __NR_exit_group		234
+#define __NR_lookup_dcookie	235
+#define __NR_sys_epoll_create	236
+#define __NR_sys_epoll_ctl	237
+#define __NR_sys_epoll_wait	238
+#define __NR_remap_file_pages	239
 
 #define __NR(n)	#n
 

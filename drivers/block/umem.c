@@ -97,14 +97,9 @@ MODULE_PARM_DESC(pci_write_cmd, "PCI write command");
 static int pci_cmds;
 
 static int major_nr;
-#define MAJOR_NR	(major_nr)
 
 #include <linux/blk.h>
 #include <linux/blkpg.h>
-
-
-static devfs_handle_t devfs_handle;      /*  For the directory */
-
 
 struct cardinfo {
 	int		card_number;
@@ -1160,7 +1155,7 @@ int __init mm_init(void)
 		if (!mm_gendisk[i])
 			goto out;
 	}
-	devfs_handle = devfs_mk_dir(NULL, "umem", NULL);
+	devfs_mk_dir(NULL, "umem", NULL);
 
 	for (i = 0; i < num_cards; i++) {
 		struct gendisk *disk = mm_gendisk[i];
@@ -1181,7 +1176,7 @@ int __init mm_init(void)
 	return 0;
 
 out:
-	unregister_blkdev(MAJOR_NR, "umem");
+	unregister_blkdev(major_nr, "umem");
 	while (i--)
 		put_disk(mm_gendisk[i]);
 	return -ENOMEM;
@@ -1201,13 +1196,11 @@ void __exit mm_cleanup(void)
 		del_gendisk(mm_gendisk[i]);
 		put_disk(mm_gendisk[i]);
 	}
-	if (devfs_handle)
-		devfs_unregister(devfs_handle);
-	devfs_handle = NULL;
+	devfs_remove("umem");
 
 	pci_unregister_driver(&mm_pci_driver);
 
-	unregister_blkdev(MAJOR_NR, "umem");
+	unregister_blkdev(major_nr, "umem");
 }
 
 module_init(mm_init);

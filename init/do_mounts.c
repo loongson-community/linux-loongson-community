@@ -597,7 +597,7 @@ static int __init rd_load_image(char *from)
 #ifdef CONFIG_BLK_DEV_RAM
 	int in_fd, out_fd;
 	unsigned long rd_blocks, devblocks;
-	int nblocks, i;
+	int nblocks, i, disk;
 	char *buf;
 	unsigned short rotate = 0;
 #if !defined(CONFIG_ARCH_S390) && !defined(CONFIG_PPC_ISERIES)
@@ -640,7 +640,7 @@ static int __init rd_load_image(char *from)
 		rd_blocks >>= 1;
 
 	if (nblocks > rd_blocks) {
-		printk("RAMDISK: image too big! (%d/%d blocks)\n",
+		printk("RAMDISK: image too big! (%d/%ld blocks)\n",
 		       nblocks, rd_blocks);
 		goto done;
 	}
@@ -667,23 +667,23 @@ static int __init rd_load_image(char *from)
 		goto done;
 	}
 
-	printk(KERN_NOTICE "RAMDISK: Loading %d blocks [%d disk%s] into ram disk... ", 
+	printk(KERN_NOTICE "RAMDISK: Loading %d blocks [%ld disk%s] into ram disk... ", 
 		nblocks, ((nblocks-1)/devblocks)+1, nblocks>devblocks ? "s" : "");
-	for (i=0; i < nblocks; i++) {
+	for (i = 0, disk = 1; i < nblocks; i++) {
 		if (i && (i % devblocks == 0)) {
-			printk("done disk #%d.\n", i/devblocks);
+			printk("done disk #%d.\n", disk++);
 			rotate = 0;
 			if (close(in_fd)) {
 				printk("Error closing the disk.\n");
 				goto noclose_input;
 			}
-			change_floppy("disk #%d", i/devblocks+1);
+			change_floppy("disk #%d", disk);
 			in_fd = open(from, O_RDONLY, 0);
 			if (in_fd < 0)  {
 				printk("Error opening disk.\n");
 				goto noclose_input;
 			}
-			printk("Loading disk #%d... ", i/devblocks+1);
+			printk("Loading disk #%d... ", disk);
 		}
 		read(in_fd, buf, BLOCK_SIZE);
 		write(out_fd, buf, BLOCK_SIZE);
@@ -920,6 +920,7 @@ static unsigned insize;  /* valid bytes in inbuf */
 static unsigned inptr;   /* index of next byte to be processed in inbuf */
 static unsigned outcnt;  /* bytes in output buffer */
 static int exit_code;
+static int unzip_error;
 static long bytes_out;
 static int crd_infd, crd_outfd;
 
@@ -967,13 +968,17 @@ static void __init gzip_release(void **ptr)
 /* ===========================================================================
  * Fill the input buffer. This is called only when the buffer is empty
  * and at least one byte is really needed.
+ * Returning -1 does not guarantee that gunzip() will ever return.
  */
 static int __init fill_inbuf(void)
 {
 	if (exit_code) return -1;
 	
 	insize = read(crd_infd, inbuf, INBUFSIZ);
-	if (insize == 0) return -1;
+	if (insize == 0) {
+		error("RAMDISK: ran out of compressed data\n");
+		return -1;
+	}
 
 	inptr = 1;
 
@@ -987,10 +992,15 @@ static int __init fill_inbuf(void)
 static void __init flush_window(void)
 {
     ulg c = crc;         /* temporary variable */
-    unsigned n;
+    unsigned n, written;
     uch *in, ch;
     
-    write(crd_outfd, window, outcnt);
+    written = write(crd_outfd, window, outcnt);
+    if (written != outcnt && unzip_error == 0) {
+	printk(KERN_ERR "RAMDISK: incomplete write (%d != %d) %ld\n",
+	       written, outcnt, bytes_out);
+	unzip_error = 1;
+    }
     in = window;
     for (n = 0; n < outcnt; n++) {
 	    ch = *in++;
@@ -1005,6 +1015,7 @@ static void __init error(char *x)
 {
 	printk(KERN_ERR "%s", x);
 	exit_code = 1;
+	unzip_error = 1;
 }
 
 static int __init crd_load(int in_fd, int out_fd)
@@ -1033,6 +1044,8 @@ static int __init crd_load(int in_fd, int out_fd)
 	}
 	makecrc();
 	result = gunzip();
+	if (unzip_error)
+		result = 1;
 	kfree(inbuf);
 	kfree(window);
 	return result;

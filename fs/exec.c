@@ -358,11 +358,11 @@ int setup_arg_pages(struct linux_binprm *bprm)
 		memmove(to, to + offset, PAGE_SIZE - offset);
 		from = kmap(bprm->page[j]);
 		memcpy(to + PAGE_SIZE - offset, from, offset);
-		kunmap(bprm[j - 1]);
+		kunmap(bprm->page[j - 1]);
 		to = from;
 	}
 	memmove(to, to + offset, PAGE_SIZE - offset);
-	kunmap(bprm[j - 1]);
+	kunmap(bprm->page[j - 1]);
 
 	/* Adjust bprm->p to point to the end of the strings. */
 	bprm->p = PAGE_SIZE * i - offset;
@@ -841,7 +841,8 @@ int prepare_binprm(struct linux_binprm *bprm)
 	}
 
 	/* fill in binprm security blob */
-	if ((retval = security_bprm_set(bprm)))
+	retval = security_bprm_set(bprm);
+	if (retval)
 		return retval;
 
 	memset(bprm->buf,0,BINPRM_BUF_SIZE);
@@ -958,7 +959,8 @@ int search_binary_handler(struct linux_binprm *bprm,struct pt_regs *regs)
 	    }
 	}
 #endif
-	if ((retval = security_bprm_check(bprm)))
+	retval = security_bprm_check(bprm);
+	if (retval)
 		return retval;
 
 	/* kernel module loader fixup */
@@ -1054,7 +1056,8 @@ int do_execve(char * filename, char ** argv, char ** envp, struct pt_regs * regs
 	if ((retval = bprm.envc) < 0)
 		goto out_mm;
 
-	if ((retval = security_bprm_alloc(&bprm)))
+	retval = security_bprm_alloc(&bprm);
+	if (retval)
 		goto out;
 
 	retval = prepare_binprm(&bprm);
@@ -1235,49 +1238,58 @@ static void zap_threads (struct mm_struct *mm)
 {
 	struct task_struct *g, *p;
 
-	/* give other threads a chance to run: */
-	yield();
-
 	read_lock(&tasklist_lock);
 	do_each_thread(g,p)
-		if (mm == p->mm && !p->core_waiter)
+		if (mm == p->mm && p != current) {
 			force_sig_specific(SIGKILL, p);
+			mm->core_waiters++;
+		}
 	while_each_thread(g,p);
+
 	read_unlock(&tasklist_lock);
 }
 
 static void coredump_wait(struct mm_struct *mm)
 {
-	DECLARE_WAITQUEUE(wait, current);
+	DECLARE_COMPLETION(startup_done);
 
-	atomic_inc(&mm->core_waiters);
-	add_wait_queue(&mm->core_wait, &wait);
+	mm->core_waiters++; /* let other threads block */
+	mm->core_startup_done = &startup_done;
+
+	/* give other threads a chance to run: */
+	yield();
+
 	zap_threads(mm);
-	current->state = TASK_UNINTERRUPTIBLE;
-	if (atomic_read(&mm->core_waiters) != atomic_read(&mm->mm_users))
-		schedule();
-	else
-		current->state = TASK_RUNNING;
+	if (--mm->core_waiters) {
+		up_write(&mm->mmap_sem);
+		wait_for_completion(&startup_done);
+	} else
+		up_write(&mm->mmap_sem);
+	BUG_ON(mm->core_waiters);
 }
 
 int do_coredump(long signr, struct pt_regs * regs)
 {
-	struct linux_binfmt * binfmt;
 	char corename[CORENAME_MAX_SIZE + 1];
-	struct file * file;
+	struct mm_struct *mm = current->mm;
+	struct linux_binfmt * binfmt;
 	struct inode * inode;
+	struct file * file;
 	int retval = 0;
 
 	lock_kernel();
 	binfmt = current->binfmt;
 	if (!binfmt || !binfmt->core_dump)
 		goto fail;
-	if (!current->mm->dumpable)
+	down_write(&mm->mmap_sem);
+	if (!mm->dumpable) {
+		up_write(&mm->mmap_sem);
 		goto fail;
-	current->mm->dumpable = 0;
-	if (down_trylock(&current->mm->core_sem))
-		BUG();
-	coredump_wait(current->mm);
+	}
+	mm->dumpable = 0;
+	init_completion(&mm->core_done);
+	coredump_wait(mm);
+
 	if (current->rlim[RLIMIT_CORE].rlim_cur < binfmt->min_coredump)
 		goto fail_unlock;
 
@@ -1305,7 +1317,7 @@ int do_coredump(long signr, struct pt_regs * regs)
 close_fail:
 	filp_close(file, NULL);
 fail_unlock:
-	up(&current->mm->core_sem);
+	complete_all(&mm->core_done);
 fail:
 	unlock_kernel();
 	return retval;

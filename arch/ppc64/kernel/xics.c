@@ -12,8 +12,9 @@
 #include <linux/types.h>
 #include <linux/threads.h>
 #include <linux/kernel.h>
-#include <linux/sched.h>
 #include <linux/irq.h>
+#include <linux/smp.h>
+#include <linux/interrupt.h>
 #include <asm/prom.h>
 #include <asm/io.h>
 #include <asm/pgtable.h>
@@ -90,6 +91,7 @@ unsigned int default_distrib_server = 0;
 /* RTAS service tokens */
 int ibm_get_xive;
 int ibm_set_xive;
+int ibm_int_on;
 int ibm_int_off;
 
 struct xics_interrupt_node {
@@ -159,6 +161,14 @@ xics_enable_irq(
 	if( call_status != 0 ) {
 		printk("xics_enable_irq: irq=%x: rtas_call failed; retn=%lx, status=%lx\n",
 		       irq, call_status, status);
+		return;
+	}
+	/* Now unmask the interrupt (often a no-op) */
+	call_status = rtas_call(ibm_int_on, 1, 1, (unsigned long*)&status, 
+				irq);
+	if( call_status != 0 ) {
+		printk("xics_disable_irq on: irq=%x: rtas_call failed, retn=%lx\n",
+		       irq, call_status);
 		return;
 	}
 }
@@ -301,6 +311,7 @@ xics_init_IRQ( void )
 
 	ibm_get_xive = rtas_token("ibm,get-xive");
 	ibm_set_xive = rtas_token("ibm,set-xive");
+	ibm_int_on  = rtas_token("ibm,int-on");
 	ibm_int_off = rtas_token("ibm,int-off");
 
 	np = find_type_devices("PowerPC-External-Interrupt-Presentation");

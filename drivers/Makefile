@@ -20,7 +20,7 @@ obj-$(CONFIG_FC4)		+= fc4/
 obj-$(CONFIG_SCSI)		+= scsi/
 obj-$(CONFIG_FUSION)		+= message/
 obj-$(CONFIG_IEEE1394)		+= ieee1394/
-obj-y				+= cdrom/
+obj-y				+= cdrom/ video/
 obj-$(CONFIG_MTD)		+= mtd/
 obj-$(CONFIG_PCMCIA)		+= pcmcia/
 obj-$(CONFIG_DIO)		+= dio/
@@ -29,7 +29,6 @@ obj-$(CONFIG_ZORRO)		+= zorro/
 obj-$(CONFIG_ALL_PPC)		+= macintosh/
 obj-$(CONFIG_MAC)		+= macintosh/
 obj-$(CONFIG_PNP)		+= pnp/
-obj-$(CONFIG_VT)		+= video/
 obj-$(CONFIG_PARIDE) 		+= block/paride/
 obj-$(CONFIG_TC)		+= tc/
 obj-$(CONFIG_USB)		+= usb/
@@ -43,5 +42,6 @@ obj-$(CONFIG_MD)		+= md/
 obj-$(CONFIG_BT)		+= bluetooth/
 obj-$(CONFIG_HOTPLUG_PCI)	+= hotplug/
 obj-$(CONFIG_ISDN_BOOL)		+= isdn/
+obj-$(CONFIG_MCA)		+= mca/
 
 include $(TOPDIR)/Rules.make

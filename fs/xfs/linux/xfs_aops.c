@@ -101,7 +101,6 @@ map_buffer_at_offset(
 
 	ASSERT(!(mp->pbm_flags & PBMF_HOLE));
 	ASSERT(!(mp->pbm_flags & PBMF_DELAY));
-	ASSERT(!(mp->pbm_flags & PBMF_UNWRITTEN));
 	ASSERT(mp->pbm_bn != PAGE_BUF_DADDR_NULL);
 
 	delta = page->index;
@@ -135,17 +134,14 @@ probe_unmapped_page(
 	struct page		*page;
 	int			ret = 0;
 
-	page = find_get_page(mapping, index);
+	page = find_trylock_page(mapping, index);
 	if (!page)
 		return 0;
-	if (PageWriteback(page) || TestSetPageLocked(page)) {
-		page_cache_release(page);
-		return 0;
-	}
+	if (PageWriteback(page))
+		goto out;
+
 	if (page->mapping && PageDirty(page)) {
-		if (!page_has_buffers(page)) {
-			ret = PAGE_CACHE_SIZE;
-		} else {
+		if (page_has_buffers(page)) {
 			struct buffer_head	*bh, *head;
 			bh = head = page_buffers(page);
 			do {
@@ -156,11 +152,12 @@ probe_unmapped_page(
 				if (ret >= pg_offset)
 					break;
 			} while ((bh = bh->b_this_page) != head);
-		}
+		} else
+			ret = PAGE_CACHE_SIZE;
 	}
 
+out:
 	unlock_page(page);
-	page_cache_release(page);
 	return ret;
 }
 
@@ -214,13 +211,12 @@ probe_page(
 {
 	struct page		*page;
 
-	page = find_get_page(inode->i_mapping, index);
+	page = find_trylock_page(inode->i_mapping, index);
 	if (!page)
 		return NULL;
-	if (PageWriteback(page) || TestSetPageLocked(page)) {
-		page_cache_release(page);
-		return NULL;
-	}
+	if (PageWriteback(page))
+		goto out;
+
 	if (page->mapping && page_has_buffers(page)) {
 		struct buffer_head	*bh, *head;
 
@@ -230,8 +226,9 @@ probe_page(
 				return page;
 		} while ((bh = bh->b_this_page) != head);
 	}
+
+out:
 	unlock_page(page);
-	page_cache_release(page);
 	return NULL;
 }
 
@@ -319,8 +316,6 @@ convert_page(
 	} else {
 		unlock_page(page);
 	}
-
-	page_cache_release(page);
 }
 
 /*
@@ -352,15 +347,15 @@ cluster_write(
  * page ready for freeing it's buffers.  When called with startio set then
  * we are coming from writepage. 
  *
- * When called with startio e.g. from
- * write page it is important that we write WHOLE page if possible. The
- * bh->b_state's can not know of any of the blocks or which block for
- * that matter are dirty due to map writes, and therefore bh uptodate is
- * only vaild if the pagei itself isn't completely uptodate. Some layers
- * may clear the page dirty flag prior to calling write page under the
- * assumption the entire page will be written out, by not writing out the
- * whole page the page can be reused before all vaild dirty data is
- * written out. Note: in the case of a page that has been dirty'd by
+ * When called with startio set it is important that we write the WHOLE
+ * page if possible.
+ * The bh->b_state's cannot know if any of the blocks or which block for
+ * that matter are dirty due to mmap writes, and therefore bh uptodate is
+ * only vaild if the page itself isn't completely uptodate.  Some layers
+ * may clear the page dirty flag prior to calling write page, under the
+ * assumption the entire page will be written out; by not writing out the
+ * whole page the page can be reused before all valid dirty data is
+ * written out.  Note: in the case of a page that has been dirty'd by
  * mapwrite and but partially setup by block_prepare_write the
  * bh->b_states's will not agree and only ones setup by BPW/BCW will have
  * valid state, thus the whole page must be written out thing.
@@ -392,7 +387,7 @@ delalloc_convert(
 	end_offset = offset + PAGE_CACHE_SIZE;
 	if (end_offset > inode->i_size)
 		end_offset = inode->i_size;
-	
+
 	if (startio && !page_has_buffers(page))
 		create_empty_buffers(page, 1 << inode->i_blkbits, 0);
 

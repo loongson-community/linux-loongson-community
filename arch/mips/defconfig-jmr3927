@@ -124,7 +124,7 @@ CONFIG_BINFMT_ELF=y
 # CONFIG_PARPORT is not set
 
 #
-# Plug and Play configuration
+# Plug and Play support
 #
 # CONFIG_PNP is not set
 
@@ -284,6 +284,7 @@ CONFIG_TC35815=y
 # CONFIG_NS83820 is not set
 # CONFIG_HAMACHI is not set
 # CONFIG_YELLOWFIN is not set
+# CONFIG_R8169 is not set
 # CONFIG_SK98LIN is not set
 # CONFIG_TIGON3 is not set
 # CONFIG_FDDI is not set
@@ -494,24 +495,17 @@ CONFIG_LOCKD=y
 CONFIG_MSDOS_PARTITION=y
 
 #
-# Console drivers
+# Graphics support
 #
-# CONFIG_VGA_CONSOLE is not set
-CONFIG_FONT_8x16=y
-# CONFIG_MDA_CONSOLE is not set
-
-#
-# Frame-buffer support
-#
-CONFIG_DUMMY_CONSOLE=y
 # CONFIG_FB_CLGEN is not set
 # CONFIG_FB_PM2 is not set
 # CONFIG_FB_CYBER2000 is not set
-# CONFIG_FB_ATY is not set
+# CONFIG_FB_IMSTT is not set
 # CONFIG_FB_RIVA is not set
 # CONFIG_FB_MATROX is not set
 # CONFIG_FB_RADEON is not set
 # CONFIG_FB_ATY128 is not set
+# CONFIG_FB_ATY is not set
 # CONFIG_FB_SIS is not set
 # CONFIG_FB_NEOMAGIC is not set
 # CONFIG_FB_3DFX is not set
@@ -520,25 +514,14 @@ CONFIG_DUMMY_CONSOLE=y
 # CONFIG_FB_PM3 is not set
 # CONFIG_FB_E1356 is not set
 # CONFIG_FB_VIRTUAL is not set
-CONFIG_FBCON_ADVANCED=y
-CONFIG_FBCON_MFB=y
-# CONFIG_FBCON_CFB2 is not set
-# CONFIG_FBCON_CFB4 is not set
-CONFIG_FBCON_CFB8=y
-CONFIG_FBCON_CFB16=y
-# CONFIG_FBCON_CFB24 is not set
-# CONFIG_FBCON_CFB32 is not set
-# CONFIG_FBCON_ACCEL is not set
-# CONFIG_FBCON_AFB is not set
-# CONFIG_FBCON_ILBM is not set
-# CONFIG_FBCON_IPLAN2P2 is not set
-# CONFIG_FBCON_IPLAN2P4 is not set
-# CONFIG_FBCON_IPLAN2P8 is not set
-# CONFIG_FBCON_VGA_PLANES is not set
-# CONFIG_FBCON_HGA is not set
-# CONFIG_FBCON_FONTWIDTH8_ONLY is not set
-# CONFIG_FBCON_FONTS is not set
-CONFIG_FONT_8x8=y
+
+#
+# Console display driver support
+#
+# CONFIG_VGA_CONSOLE is not set
+# CONFIG_MDA_CONSOLE is not set
+CONFIG_DUMMY_CONSOLE=y
+# CONFIG_FRAMEBUFFER_CONSOLE is not set
 
 #
 # Sound

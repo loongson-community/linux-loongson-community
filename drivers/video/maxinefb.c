@@ -34,7 +34,6 @@
 #include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/fb.h>
-#include <video/fbcon.h>
 #include "maxinefb.h"
 
 /* bootinfo.h defines the machine type values, needed when checking */
@@ -42,30 +41,26 @@
 #include <asm/bootinfo.h>
 
 static struct fb_info fb_info;
-static struct display disp;
 
 static struct fb_var_screeninfo maxinefb_defined = {
-	.xres		= 1024,
-	.yres		= 768,
-	.xres_virtual	= 1024,
-	.yres_virtual	= 768,
-	.bits_per_pixel	= 8,
-	.red.length	= 8,
-	.green.length	= 8,
-	.blue.length	= 8,
-	.activate	= FB_ACTIVATE_NOW,
-	.height		= -1,
-	.width		= -1,
-	.vmode		= FB_VMODE_NONINTERLACED,
+	.xres =		1024,
+	.yres =		768,
+	.xres_virtual =	1024,
+	.yres_virtual =	768,
+	.bits_per_pixel =8,
+	.activate =	FB_ACTIVATE_NOW,
+	.height =	-1,
+	.width =	-1,
+	.vmode =	FB_VMODE_NONINTERLACED,
 };
 
 static struct fb_fix_screeninfo maxinefb_fix = {
-	.id		= "Maxine onboard graphics 1024x768x8",
-	.smem_len	= (1024*768),
-	.type		= FB_TYPE_PACKED_PIXELS,
-	.visual		= FB_VISUAL_PSEUDOCOLOR,
-	.line_length	= 1024,
-}
+	.id =		"Maxine onboard graphics 1024x768x8",
+	.smem_len =	(1024*768),
+	.type =		FB_TYPE_PACKED_PIXELS,
+	.visual =	FB_VISUAL_PSEUDOCOLOR,
+	.line_length =	1024,
+};
 
 /* Handle the funny Inmos RamDAC/video controller ... */
 
@@ -114,13 +109,11 @@ static struct fb_ops maxinefb_ops = {
 	.owner		= THIS_MODULE,
 	.fb_get_fix	= gen_get_fix,
 	.fb_get_var	= gen_get_var,
-	.fb_set_var	= gen_set_var,
-	.fb_get_cmap	= gen_get_cmap,
-	.fb_set_cmap	= gen_set_cmap,
 	.fb_setcolreg	= maxinefb_setcolreg,     
 	.fb_fillrect	= cfb_fillrect,
 	.fb_copyarea	= cfb_copyarea,
 	.fb_imageblit	= cfb_imageblit,
+	.fb_cursor	= soft_cursor,
 };
 
 int __init maxinefb_init(void)
@@ -158,23 +151,14 @@ int __init maxinefb_init(void)
 		 */
 	}
 
-	/* Let there be consoles... */
-
-	strcpy(fb_info.modename, "Maxine onboard graphics 1024x768x8");
-	fb_info.changevar = NULL;
 	fb_info.node = NODEV;
 	fb_info.fbops = &maxinefb_ops;
 	fb_info.screen_base = (char *)maxinefb_fix.smem_start;
 	fb_info.var = maxinefb_defined;
 	fb_info.fix = maxinefb_fix;
-	fb_info.disp = &disp;
-	fb_info.currcon = -1;
-	fb_info.switch_con = gen_switch;
-	fb_info.updatevar = gen_update_var;
 	fb_info.flags = FBINFO_FLAG_DEFAULT;
 
 	fb_alloc_cmap(&fb_info.cmap, 256, 0);
-	gen_set_disp(-1, &fb_info);
 
 	if (register_framebuffer(&fb_info) < 0)
 		return 1;

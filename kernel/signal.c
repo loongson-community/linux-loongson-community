@@ -739,7 +739,8 @@ specific_send_sig_info(int sig, struct siginfo *info, struct task_struct *t, int
 	ret = -EPERM;
 	if (bad_signal(sig, info, t))
 		goto out;
-	if ((ret = security_task_kill(t, info, sig)))
+	ret = security_task_kill(t, info, sig);
+	if (ret)
 		goto out;
 
 	/* The null signal is a permissions and process existence probe.
@@ -1352,6 +1353,18 @@ EXPORT_SYMBOL(unblock_all_signals);
 /*
  * System call entry points.
  */
+
+asmlinkage long sys_restart_syscall(void)
+{
+	struct restart_block *restart = &current_thread_info()->restart_block;
+	return restart->fn(restart);
+}
+
+long do_no_restart_syscall(struct restart_block *param)
+{
+	return -EINTR;
+}
+
 
 /*
  * We don't need to get the kernel lock - this is all local to this

@@ -30,6 +30,7 @@
 #include <linux/errno.h>
 #include <linux/ptrace.h>
 #include <linux/user.h>
+#include <linux/security.h>
 
 #include <asm/segment.h>
 #include <asm/page.h>
@@ -323,7 +324,8 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 		ret = -EPERM;
 		if (current->ptrace & PT_PTRACED)
 			goto out;
-		if ((ret = security_ptrace(current->parent, current)))
+		ret = security_ptrace(current->parent, current);
+		if (ret)
 			goto out;
 		/* set the ptrace bit in the process flags. */
 		current->ptrace |= PT_PTRACED;

@@ -75,6 +75,7 @@ CONFIG_MIPS_BOARDS_GEN=y
 CONFIG_SWAP_IO_SPACE=y
 CONFIG_BOOT_ELF32=y
 CONFIG_L1_CACHE_SHIFT=5
+# CONFIG_FB is not set
 CONFIG_HAVE_STD_PC_SERIAL_PORT=y
 
 #
@@ -131,7 +132,7 @@ CONFIG_BINFMT_ELF=y
 # CONFIG_PARPORT is not set
 
 #
-# Plug and Play configuration
+# Plug and Play support
 #
 # CONFIG_PNP is not set
 
@@ -349,6 +350,7 @@ CONFIG_PCNET32=y
 # CONFIG_NS83820 is not set
 # CONFIG_HAMACHI is not set
 # CONFIG_YELLOWFIN is not set
+# CONFIG_R8169 is not set
 # CONFIG_SK98LIN is not set
 # CONFIG_TIGON3 is not set
 # CONFIG_FDDI is not set
@@ -545,6 +547,17 @@ CONFIG_EXPORTFS=y
 #
 # CONFIG_PARTITION_ADVANCED is not set
 CONFIG_MSDOS_PARTITION=y
+
+#
+# Graphics support
+#
+
+#
+# Console display driver support
+#
+# CONFIG_VGA_CONSOLE is not set
+# CONFIG_MDA_CONSOLE is not set
+CONFIG_DUMMY_CONSOLE=y
 
 #
 # Sound

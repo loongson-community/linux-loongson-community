@@ -67,16 +67,16 @@
  * If CONFIG_SMP is unset, declare the _raw_* definitions as nops
  */
 #define spin_lock_init(lock)	do { (void)(lock); } while(0)
-#define _raw_spin_lock(lock)	(void)(lock)
+#define _raw_spin_lock(lock)	do { (void)(lock); } while(0)
 #define spin_is_locked(lock)	((void)(lock), 0)
 #define _raw_spin_trylock(lock)	((void)(lock), 1)
 #define spin_unlock_wait(lock)	do { (void)(lock); } while(0)
 #define _raw_spin_unlock(lock)	do { (void)(lock); } while(0)
-#define rwlock_init(lock)	do { } while(0)
-#define _raw_read_lock(lock)	(void)(lock)
-#define _raw_read_unlock(lock)	do { } while(0)
-#define _raw_write_lock(lock)	(void)(lock)
-#define _raw_write_unlock(lock)	do { } while(0)
+#define rwlock_init(lock)	do { (void)(lock); } while(0)
+#define _raw_read_lock(lock)	do { (void)(lock); } while(0)
+#define _raw_read_unlock(lock)	do { (void)(lock); } while(0)
+#define _raw_write_lock(lock)	do { (void)(lock); } while(0)
+#define _raw_write_unlock(lock)	do { (void)(lock); } while(0)
 
 #endif /* !SMP */
 

@@ -198,6 +198,11 @@ P:	Roman Zippel
 M:	zippel@linux-m68k.org
 S:	Maintained
 
+AGPGART DRIVER
+P:	Dave Jones
+M:	davej@codemonkey.org.uk
+S:	Maintained
+
 AHA152X SCSI DRIVER
 P:	Juergen E. Fischer
 M:	Juergen Fischer <fischer@norbit.de>
@@ -261,11 +266,11 @@ M:	ralf@linux-mips.org
 L:	linux-hams@vger.kernel.org
 S:	Maintained
 
-BAYCOM/HDLCDRV/SOUNDMODEM DRIVERS FOR AX.25
+BAYCOM/HDLCDRV DRIVERS FOR AX.25
 P:	Thomas Sailer
-M:	sailer@ife.ee.ethz.ch
+M:	t.sailer@alumni.ethz.ch
 L:	linux-hams@vger.kernel.org
-W:	http://www.ife.ee.ethz.ch/~sailer/ham/ham.html
+W:	http://www.baycom.org/~tom/ham/ham.html
 S:	Maintained
 
 BERKSHIRE PRODUCTS PC WATCHDOG DRIVER
@@ -635,6 +640,13 @@ P:	Kevin Curtis
 M:	kevin.curtis@farsite.co.uk
 M:	kevin.curtis@farsite.co.uk
 W:	http://www.farsite.co.uk/
+S:	Supported
+
+FRAMEBUFFER LAYER
+P:	James Simmons, Geert Uytterhoeven	
+M:	jsimmons@users.sf.net, geert@linux-m68k.org	
+L:	linux-fbdev-devel@lists.sourceforge.net	
+W:	http://www.linux-fbdev.org
 S:	Supported
 
 FILE LOCKING (flock() and fcntl()/lockf())
@@ -1112,6 +1124,12 @@ W:	http://www.acc.umu.se/~mcalinux/
 L:	linux-kernel@vger.kernel.org
 S:	Maintained
 
+MOTION EYE VAIO PICTUREBOOK CAMERA DRIVER
+P:	Stelian Pop
+M:	stelian@popies.net
+W:	http://popies.net/meye/
+S:	Maintained
+
 MOUSE AND MISC DEVICES [GENERAL]
 P:	Alessandro Rubini
 M:	rubini@ipvvis.unipv.it
@@ -1572,6 +1590,12 @@ M:	tsbogend@alpha.franken.de
 L:	linux-net@vger.kernel.org
 S:	Maintained
 
+SONY VAIO CONTROL DEVICE DRIVER
+P:	Stelian Pop
+M:	stelian@popies.net
+W:	http://popies.net/sonypi/
+S:	Maintained
+
 SOUND
 P:	Jaroslav Kysela
 M:	perex@suse.cz
@@ -1592,7 +1616,8 @@ L:	ultralinux@vger.kernel.org
 S:	Maintained
 
 SPARC (sparc32):
-S:	Unmaintained
+L:	sparclinux@vger.kernel.org
+S:	Unmaintained - please send patches to mailing list
 
 SPECIALIX IO8+ MULTIPORT SERIAL CARD DRIVER
 P:	Roger Wolff

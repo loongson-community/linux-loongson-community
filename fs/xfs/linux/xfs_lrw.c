@@ -205,6 +205,67 @@ xfs_read(
 	return ret;
 }
 
+ssize_t
+xfs_sendfile(
+	bhv_desc_t		*bdp,
+	struct file		*filp,
+	loff_t			*offp,
+	size_t			count,
+	read_actor_t		actor,
+	void			*target,
+	cred_t			*credp)
+{
+	size_t			size = 0;
+	ssize_t			ret;
+	xfs_fsize_t		n;
+	xfs_inode_t		*ip;
+	xfs_mount_t		*mp;
+	vnode_t			*vp;
+
+	ip = XFS_BHVTOI(bdp);
+	vp = BHV_TO_VNODE(bdp);
+	mp = ip->i_mount;
+	vn_trace_entry(vp, "xfs_sendfile", (inst_t *)__return_address);
+
+	XFS_STATS_INC(xfsstats.xs_read_calls);
+
+	n = XFS_MAX_FILE_OFFSET - *offp;
+	if ((n <= 0) || (size == 0))
+		return 0;
+
+	if (n < size)
+		size = n;
+
+	if (XFS_FORCED_SHUTDOWN(mp)) {
+		return -EIO;
+	}
+
+	xfs_ilock(ip, XFS_IOLOCK_SHARED);
+
+	if (DM_EVENT_ENABLED(vp->v_vfsp, ip, DM_EVENT_READ) &&
+	    !(filp->f_mode & FINVIS)) {
+		int error;
+		vrwlock_t locktype = VRWLOCK_READ;
+
+		error = xfs_dm_send_data_event(DM_EVENT_READ, bdp, *offp,
+				size, FILP_DELAY_FLAG(filp), &locktype);
+		if (error) {
+			xfs_iunlock(ip, XFS_IOLOCK_SHARED);
+			return -error;
+		}
+	}
+
+	ret = generic_file_sendfile(filp, offp, count, actor, target);
+	xfs_iunlock(ip, XFS_IOLOCK_SHARED);
+
+	XFS_STATS_ADD(xfsstats.xs_read_bytes, ret);
+
+	if (!(filp->f_mode & FINVIS))
+		xfs_ichgtime(ip, XFS_ICHGTIME_ACC);
+
+	return ret;
+}
+
 /*
  * This routine is called to handle zeroing any space in the last
  * block of the file that is beyond the EOF.  We do this since the
@@ -260,10 +321,9 @@ xfs_zero_last_block(
 		return 0;
 	}
 	/*
-	 * Get a pagebuf for the last block, zero the part beyond the
-	 * EOF, and write it out sync.	We need to drop the ilock
-	 * while we do this so we don't deadlock when the buffer cache
-	 * calls back to us.
+	 * Zero the part of the last block beyond the EOF, and write it
+	 * out sync.  We need to drop the ilock while we do this so we
+	 * don't deadlock when the buffer cache calls back to us.
 	 */
 	XFS_IUNLOCK(mp, io, XFS_ILOCK_EXCL| XFS_EXTSIZE_RD);
 	loff = XFS_FSB_TO_B(mp, last_fsb);
@@ -340,7 +400,6 @@ xfs_zero_eof(
 	last_fsb = isize ? XFS_B_TO_FSBT(mp, isize - 1) : (xfs_fileoff_t)-1;
 	start_zero_fsb = XFS_B_TO_FSB(mp, (xfs_ufsize_t)isize);
 	end_zero_fsb = XFS_B_TO_FSBT(mp, offset - 1);
-
 	ASSERT((xfs_sfiloff_t)last_fsb < (xfs_sfiloff_t)start_zero_fsb);
 	if (last_fsb == end_zero_fsb) {
 		/*
@@ -353,10 +412,6 @@ xfs_zero_eof(
 	ASSERT(start_zero_fsb <= end_zero_fsb);
 	prev_zero_fsb = NULLFILEOFF;
 	prev_zero_count = 0;
-	/*
-	 * Maybe change this loop to do the bmapi call and
-	 * loop while we split the mappings into pagebufs?
-	 */
 	while (start_zero_fsb <= end_zero_fsb) {
 		nimaps = 1;
 		zero_count_fsb = end_zero_fsb - start_zero_fsb + 1;
@@ -731,7 +786,6 @@ retry:
 	return(ret);
 }
 
-
 /*
  * All xfs metadata buffers except log state machine buffers
  * get this attached as their b_bdstrat callback function.
@@ -761,6 +815,7 @@ xfs_bdstrat_cb(struct xfs_buf *bp)
 			return (xfs_bioerror(bp));
 	}
 }
+
 /*
  * Wrapper around bdstrat so that we can stop data
  * from going to disk in case we are shutting down the filesystem.

@@ -10,7 +10,7 @@
 #define _ASM_UACCESS_H
 
 #include <linux/errno.h>
-#include <linux/sched.h>
+#include <linux/thread_info.h>
 
 #define STR(x)  __STR(x)
 #define __STR(x)  #x

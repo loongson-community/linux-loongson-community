@@ -52,17 +52,9 @@
 #include <linux/devfs_fs_kernel.h>
 #include <linux/buffer_head.h>		/* for invalidate_bdev() */
 #include <linux/backing-dev.h>
-#include <asm/uaccess.h>
-
-/*
- * 35 has been officially registered as the RAMDISK major number, but
- * so is the original MAJOR number of 1.  We're using 1 in
- * include/linux/major.h for now
- */
-#define MAJOR_NR RAMDISK_MAJOR
-#define DEVICE_NR(device) (minor(device))
 #include <linux/blk.h>
 #include <linux/blkpg.h>
+#include <asm/uaccess.h>
 
 /* The RAM disk size is now a parameter */
 #define NUM_RAMDISKS 16		/* This cannot be overridden (yet) */ 
@@ -78,7 +70,6 @@ int initrd_below_start_ok;
  */
 
 static struct gendisk *rd_disks[NUM_RAMDISKS];
-static devfs_handle_t devfs_handle;
 static struct block_device *rd_bdev[NUM_RAMDISKS];/* Protected device data */
 
 /*
@@ -380,13 +371,14 @@ static void __exit rd_cleanup (void)
 		}
 		del_gendisk(rd_disks[i]);
 		put_disk(rd_disks[i]);
+		devfs_remove("rd/%d", i);
 	}
 #ifdef CONFIG_BLK_DEV_INITRD
 	put_disk(initrd_disk);
+	devfs_remove("rd/initrd");
 #endif
-
-	devfs_unregister (devfs_handle);
-	unregister_blkdev( MAJOR_NR, "ramdisk" );
+	devfs_remove("rd");
+	unregister_blkdev(RAMDISK_MAJOR, "ramdisk" );
 }
 
 static struct request_queue rd_queue;
@@ -407,7 +399,7 @@ static int __init rd_init (void)
 	initrd_disk = alloc_disk(1);
 	if (!initrd_disk)
 		return -ENOMEM;
-	initrd_disk->major = MAJOR_NR;
+	initrd_disk->major = RAMDISK_MAJOR;
 	initrd_disk->first_minor = INITRD_MINOR;
 	initrd_disk->fops = &rd_bd_op;	
 	sprintf(initrd_disk->disk_name, "initrd");
@@ -418,29 +410,32 @@ static int __init rd_init (void)
 			goto out;
 	}
 
-	if (register_blkdev(MAJOR_NR, "ramdisk", &rd_bd_op)) {
-		printk("RAMDISK: Could not get major %d", MAJOR_NR);
+	if (register_blkdev(RAMDISK_MAJOR, "ramdisk", &rd_bd_op)) {
+		printk("RAMDISK: Could not get major %d", RAMDISK_MAJOR);
 		err = -EIO;
 		goto out;
 	}
 
 	blk_queue_make_request(&rd_queue, &rd_make_request);
 
+	devfs_mk_dir (NULL, "rd", NULL);
+
 	for (i = 0; i < NUM_RAMDISKS; i++) {
 		struct gendisk *disk = rd_disks[i];
+		char name[16];
 		/* rd_size is given in kB */
-		disk->major = MAJOR_NR;
+		disk->major = RAMDISK_MAJOR;
 		disk->first_minor = i;
 		disk->fops = &rd_bd_op;
 		disk->queue = &rd_queue;
 		sprintf(disk->disk_name, "ram%d", i);
 		set_capacity(disk, rd_size * 2);
-	}
-	devfs_handle = devfs_mk_dir (NULL, "rd", NULL);
-	devfs_register_series (devfs_handle, "%u", NUM_RAMDISKS,
-			       DEVFS_FL_DEFAULT, MAJOR_NR, 0,
+		sprintf(name, "rd/%d", i);
+		devfs_register(NULL, name, DEVFS_FL_DEFAULT,
+			       disk->major, disk->first_minor,
 			       S_IFBLK | S_IRUSR | S_IWUSR,
-			       &rd_bd_op, NULL);
+			       disk->fops, NULL);
+	}
 
 	for (i = 0; i < NUM_RAMDISKS; i++)
 		add_disk(rd_disks[i]);
@@ -449,7 +444,7 @@ static int __init rd_init (void)
 	/* We ought to separate initrd operations here */
 	set_capacity(initrd_disk, (initrd_end-initrd_start+511)>>9);
 	add_disk(initrd_disk);
-	devfs_register(devfs_handle, "initrd", DEVFS_FL_DEFAULT, MAJOR_NR,
+	devfs_register(NULL, "rd/initrd", DEVFS_FL_DEFAULT, RAMDISK_MAJOR,
 			INITRD_MINOR, S_IFBLK | S_IRUSR, &rd_bd_op, NULL);
 #endif
 

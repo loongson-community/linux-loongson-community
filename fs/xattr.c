@@ -8,7 +8,6 @@
  */
 #include <linux/fs.h>
 #include <linux/slab.h>
-#include <linux/vmalloc.h>
 #include <linux/smp_lock.h>
 #include <linux/file.h>
 #include <linux/xattr.h>
@@ -19,7 +18,7 @@
 /*
  * Extended attribute memory allocation wrappers, originally
  * based on the Intermezzo PRESTO_ALLOC/PRESTO_FREE macros.
- * The vmalloc use here is very uncommon - extended attributes
+ * Values larger than a page are uncommon - extended attributes
  * are supposed to be small chunks of metadata, and it is quite
  * unusual to have very many extended attributes, so lists tend
  * to be quite short as well.  The 64K upper limit is derived
@@ -36,10 +35,8 @@ xattr_alloc(size_t size, size_t limit)
 
 	if (!size)	/* size request, no buffer is needed */
 		return NULL;
-	else if (size <= PAGE_SIZE)
-		ptr = kmalloc((unsigned long) size, GFP_KERNEL);
-	else
-		ptr = vmalloc((unsigned long) size);
+
+	ptr = kmalloc((unsigned long) size, GFP_KERNEL);
 	if (!ptr)
 		return ERR_PTR(-ENOMEM);
 	return ptr;
@@ -48,12 +45,8 @@ xattr_alloc(size_t size, size_t limit)
 static void
 xattr_free(void *ptr, size_t size)
 {
-	if (!size)	/* size request, no buffer was needed */
-		return;
-	else if (size <= PAGE_SIZE)
+	if (size)	/* for a size request, no buffer was needed */
 		kfree(ptr);
-	else
-		vfree(ptr);
 }
 
 /*
@@ -86,7 +79,8 @@ setxattr(struct dentry *d, char *name, void *value, size_t size, int flags)
 
 	error = -EOPNOTSUPP;
 	if (d->d_inode->i_op && d->d_inode->i_op->setxattr) {
-		if ((error = security_inode_setxattr(d, kname, kvalue, size, flags)))
+		error = security_inode_setxattr(d, kname, kvalue, size, flags);
+		if (error)
 			goto out;
 		down(&d->d_inode->i_sem);
 		error = d->d_inode->i_op->setxattr(d, kname, kvalue, size, flags);
@@ -162,7 +156,8 @@ getxattr(struct dentry *d, char *name, void *value, size_t size)
 
 	error = -EOPNOTSUPP;
 	if (d->d_inode->i_op && d->d_inode->i_op->getxattr) {
-		if ((error = security_inode_getxattr(d, kname)))
+		error = security_inode_getxattr(d, kname);
+		if (error)
 			goto out;
 		down(&d->d_inode->i_sem);
 		error = d->d_inode->i_op->getxattr(d, kname, kvalue, size);
@@ -234,7 +229,8 @@ listxattr(struct dentry *d, char *list, size_t size)
 
 	error = -EOPNOTSUPP;
 	if (d->d_inode->i_op && d->d_inode->i_op->listxattr) {
-		if ((error = security_inode_listxattr(d)))
+		error = security_inode_listxattr(d);
+		if (error)
 			goto out;
 		down(&d->d_inode->i_sem);
 		error = d->d_inode->i_op->listxattr(d, klist, size);
@@ -308,7 +304,8 @@ removexattr(struct dentry *d, char *name)
 
 	error = -EOPNOTSUPP;
 	if (d->d_inode->i_op && d->d_inode->i_op->removexattr) {
-		if ((error = security_inode_removexattr(d, kname)))
+		error = security_inode_removexattr(d, kname);
+		if (error)
 			goto out;
 		down(&d->d_inode->i_sem);
 		error = d->d_inode->i_op->removexattr(d, kname);

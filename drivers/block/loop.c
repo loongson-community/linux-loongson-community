@@ -79,12 +79,9 @@
 
 #include <asm/uaccess.h>
 
-#define MAJOR_NR LOOP_MAJOR
-
 static int max_loop = 8;
 static struct loop_device *loop_dev;
 static struct gendisk **disks;
-static devfs_handle_t devfs_handle;      /*  For the directory */
 
 /*
  * Transfer functions
@@ -1016,17 +1013,13 @@ int __init loop_init(void)
 		max_loop = 8;
 	}
 
-	if (register_blkdev(MAJOR_NR, "loop", &lo_fops)) {
+	if (register_blkdev(LOOP_MAJOR, "loop", &lo_fops)) {
 		printk(KERN_WARNING "Unable to get major number %d for loop"
-				    " device\n", MAJOR_NR);
+				    " device\n", LOOP_MAJOR);
 		return -EIO;
 	}
 
-	devfs_handle = devfs_mk_dir(NULL, "loop", NULL);
-	devfs_register_series(devfs_handle, "%u", max_loop, DEVFS_FL_DEFAULT,
-			      MAJOR_NR, 0,
-			      S_IFBLK | S_IRUSR | S_IWUSR | S_IRGRP,
-			      &lo_fops, NULL);
+	devfs_mk_dir(NULL, "loop", NULL);
 
 	loop_dev = kmalloc(max_loop * sizeof(struct loop_device), GFP_KERNEL);
 	if (!loop_dev)
@@ -1043,6 +1036,7 @@ int __init loop_init(void)
 	}
 
 	for (i = 0; i < max_loop; i++) {
+		char name[16];
 		struct loop_device *lo = &loop_dev[i];
 		struct gendisk *disk = disks[i];
 		memset(lo, 0, sizeof(*lo));
@@ -1058,6 +1052,11 @@ int __init loop_init(void)
 		disk->private_data = lo;
 		disk->queue = &lo->lo_queue;
 		add_disk(disk);
+		sprintf(name, "loop/%d", i);
+		devfs_register(NULL, name, DEVFS_FL_DEFAULT,
+			      disk->major, disk->first_minor,
+			      S_IFBLK | S_IRUSR | S_IWUSR | S_IRGRP,
+			      disk->fops, NULL);
 	}
 	printk(KERN_INFO "loop: loaded (max %d devices)\n", max_loop);
 	return 0;
@@ -1078,9 +1077,10 @@ void loop_exit(void)
 	for (i = 0; i < max_loop; i++) {
 		del_gendisk(disks[i]);
 		put_disk(disks[i]);
+		devfs_remove("loop/%d", i);
 	}
-	devfs_unregister(devfs_handle);
-	if (unregister_blkdev(MAJOR_NR, "loop"))
+	devfs_remove("loop");
+	if (unregister_blkdev(LOOP_MAJOR, "loop"))
 		printk(KERN_WARNING "loop: cannot unregister blkdev\n");
 
 	kfree(disks);

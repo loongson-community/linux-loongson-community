@@ -68,6 +68,32 @@ config CRYPTO_BLOWFISH
 	  See also:
 	  http://www.counterpane.com/blowfish.html
 
+config CRYPTO_TWOFISH
+	tristate "Twofish cipher algorithm"
+	depends on CRYPTO
+	help
+	  Twofish cipher algorithm.
+	  
+	  Twofish was submitted as an AES (Advanced Encryption Standard)
+	  candidate cipher by researchers at CounterPane Systems.  It is a
+	  16 round block cipher supporting key sizes of 128, 192, and 256
+	  bits.
+	  
+	  See also:
+	  http://www.counterpane.com/twofish.html
+
+config CRYPTO_SERPENT
+	tristate "Serpent cipher algorithm"
+	depends on CRYPTO
+	help
+	  Serpent cipher algorithm, by Anderson, Biham & Knudsen.
+
+	  Keys are allowed to be from 0 to 256 bits in length, in steps
+	  of 8 bits.
+
+	  See also:
+	  http://www.cl.cam.ac.uk/~rja14/serpent.html
+
 config CRYPTO_TEST
 	tristate "Testing module"
 	depends on CRYPTO

@@ -46,15 +46,13 @@
 #include <linux/init.h>
 #include <linux/wait.h>
 #include <linux/devfs_fs_kernel.h>
+#include <linux/blk.h>
+#include <linux/blkpg.h>
 
 #include <asm/system.h>
 #include <asm/io.h>
 #include <asm/uaccess.h>
 #include <asm/dma.h>
-
-#define MAJOR_NR XT_DISK_MAJOR
-#include <linux/blk.h>
-#include <linux/blkpg.h>
 
 #include "xd.h"
 
@@ -146,8 +144,6 @@ static int nodma = XD_DONT_USE_DMA;
 
 static struct request_queue xd_queue;
 
-static devfs_handle_t devfs_handle = NULL;
-
 /* xd_init: register the block device number and set up pointer tables */
 static int __init xd_init(void)
 {
@@ -174,11 +170,11 @@ static int __init xd_init(void)
 	}
 
 	err = -EBUSY;
-	if (register_blkdev(MAJOR_NR,"xd",&xd_fops)) {
-		printk("xd: Unable to get major number %d\n",MAJOR_NR);
+	if (register_blkdev(XT_DISK_MAJOR,"xd",&xd_fops)) {
+		printk("xd: Unable to get major number %d\n",XT_DISK_MAJOR);
 		goto out1;
 	}
-	devfs_handle = devfs_mk_dir (NULL, "xd", NULL);
+	devfs_mk_dir(NULL, "xd", NULL);
 	blk_init_queue(&xd_queue, do_xd_request, &xd_lock);
 	if (xd_detect(&controller,&address)) {
 
@@ -207,7 +203,7 @@ static int __init xd_init(void)
 		if (!disk)
 			goto Enomem;
 		p->unit = i;
-		disk->major = MAJOR_NR;
+		disk->major = XT_DISK_MAJOR;
 		disk->first_minor = i<<6;
 		sprintf(disk->disk_name, "xd%c", i+'a');
 		disk->fops = &xd_fops;
@@ -246,8 +242,9 @@ out4:
 out3:
 	release_region(xd_iobase,4);
 out2:
+	devfs_remove("xd");
 	blk_cleanup_queue(&xd_queue);
-	unregister_blkdev(MAJOR_NR, "xd");
+	unregister_blkdev(XT_DISK_MAJOR, "xd");
 out1:
 	if (xd_dma_buffer)
 		xd_dma_mem_free((unsigned long)xd_dma_buffer,
@@ -1048,14 +1045,14 @@ MODULE_LICENSE("GPL");
 void cleanup_module(void)
 {
 	int i;
-	unregister_blkdev(MAJOR_NR, "xd");
+	unregister_blkdev(XT_DISK_MAJOR, "xd");
 	for (i = 0; i < xd_drives; i++) {
 		del_gendisk(xd_gendisk[i]);
 		put_disk(xd_gendisk[i]);
 	}
 	blk_cleanup_queue(&xd_queue);
 	release_region(xd_iobase,4);
-	devfs_unregister (devfs_handle);
+	devfs_remove("xd");
 	if (xd_drives) {
 		free_irq(xd_irq, NULL);
 		free_dma(xd_dma);

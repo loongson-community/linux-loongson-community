@@ -33,7 +33,7 @@ static char *verstr = "20021015";
 #include <linux/ioctl.h>
 #include <linux/fcntl.h>
 #include <linux/spinlock.h>
-#include <linux/smp_lock.h>
+#include <linux/blk.h>
 #include <asm/uaccess.h>
 #include <asm/dma.h>
 #include <asm/system.h>
@@ -54,9 +54,6 @@ static char *verstr = "20021015";
 #define DEBC(a)
 #endif
 
-#define MAJOR_NR SCSI_TAPE_MAJOR
-#define DEVICE_NR(device) (minor(device) & 0x7f)
-#include <linux/blk.h>
 
 #include "scsi.h"
 #include "hosts.h"
@@ -176,10 +173,12 @@ static struct Scsi_Device_Template st_template = {
 	.module =	THIS_MODULE,
 	.list =		LIST_HEAD_INIT(st_template.list),
 	.name =		"tape", 
-	.tag =		"st", 
 	.scsi_type =	TYPE_TAPE,
 	.attach =	st_attach, 
-	.detach =	st_detach
+	.detach =	st_detach,
+	.scsi_driverfs_driver = {
+		.name = "st",
+	},
 };
 
 static int st_compression(Scsi_Tape *, int);
@@ -991,9 +990,9 @@ static int st_open(struct inode *inode, struct file *filp)
 		DEB( printk(ST_DEB_MSG "%s: Device already in use.\n", name); )
 		return (-EBUSY);
 	}
-	if(!try_module_get(STp->device->host->hostt->module))
+
+	if(!scsi_device_get(STp->device))
 		return (-ENXIO);
-	STp->device->access_count++;
 	STp->in_use = 1;
 	write_unlock(&st_dev_arr_lock);
 	STp->rew_at_close = STp->autorew_dev = (minor(inode->i_rdev) & 0x80) == 0;
@@ -1038,8 +1037,7 @@ static int st_open(struct inode *inode, struct file *filp)
  err_out:
 	normalize_buffer(STp->buffer);
 	STp->in_use = 0;
-	STp->device->access_count--;
-	module_put(STp->device->host->hostt->module);
+	scsi_device_put(STp->device);
 	return retval;
 
 }
@@ -1172,8 +1170,7 @@ static int st_release(struct inode *inode, struct file *filp)
 	write_lock(&st_dev_arr_lock);
 	STp->in_use = 0;
 	write_unlock(&st_dev_arr_lock);
-	STp->device->access_count--;
-	module_put(STp->device->host->hostt->module);
+	scsi_device_put(STp->device);
 
 	return result;
 }
@@ -3768,13 +3765,14 @@ static int st_attach(Scsi_Device * SDp)
 	tpnt->try_dio = try_direct_io && !SDp->host->unchecked_isa_dma;
 	bounce_limit = BLK_BOUNCE_HIGH; /* Borrowed from scsi_merge.c */
 	if (SDp->host->highmem_io) {
+		struct device *dev = scsi_get_device(SDp->host);
 		if (!PCI_DMA_BUS_IS_PHYS)
 			/* Platforms with virtual-DMA translation
 			 * hardware have no practical limit.
 			 */
 			bounce_limit = BLK_BOUNCE_ANY;
-		else if (SDp->host->pci_dev)
-			bounce_limit = SDp->host->pci_dev->dma_mask;
+		else if (dev && dev->dma_mask)
+			bounce_limit = *dev->dma_mask;
 	} else if (SDp->host->unchecked_isa_dma)
 		bounce_limit = BLK_BOUNCE_ISA;
 	bounce_limit >>= PAGE_SHIFT;
@@ -3826,7 +3824,7 @@ static int st_attach(Scsi_Device * SDp)
 	    sprintf(tpnt->driverfs_dev_r[mode].name, "%s%s", 
 		    SDp->sdev_driverfs_dev.name, name);
 	    tpnt->driverfs_dev_r[mode].parent = &SDp->sdev_driverfs_dev;
-	    tpnt->driverfs_dev_r[mode].bus = &scsi_driverfs_bus_type;
+	    tpnt->driverfs_dev_r[mode].bus = SDp->sdev_driverfs_dev.bus;
 	    tpnt->driverfs_dev_r[mode].driver_data =
 			(void *)(long)__mkdev(SCSI_TAPE_MAJOR, dev_num + (mode << 5));
 	    device_register(&tpnt->driverfs_dev_r[mode]);
@@ -3845,7 +3843,7 @@ static int st_attach(Scsi_Device * SDp)
 	    sprintf(tpnt->driverfs_dev_n[mode].name, "%s%s", 
 		    SDp->sdev_driverfs_dev.name, name);
 	    tpnt->driverfs_dev_n[mode].parent= &SDp->sdev_driverfs_dev;
-	    tpnt->driverfs_dev_n[mode].bus = &scsi_driverfs_bus_type;
+	    tpnt->driverfs_dev_n[mode].bus = SDp->sdev_driverfs_dev.bus;
 	    tpnt->driverfs_dev_n[mode].driver_data =
 			(void *)(long)__mkdev(SCSI_TAPE_MAJOR, dev_num + (mode << 5) + 128);
 	    device_register(&tpnt->driverfs_dev_n[mode]);

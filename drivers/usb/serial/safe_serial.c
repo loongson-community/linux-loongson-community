@@ -132,13 +132,13 @@ MODULE_PARM_DESC (padded, "Pad to full wMaxPacketSize On/Off");
 
 
 #define MY_USB_DEVICE(vend,prod,dc,ic,isc) \
-        match_flags: USB_DEVICE_ID_MATCH_DEVICE | USB_DEVICE_ID_MATCH_DEV_CLASS | \
+        .match_flags = USB_DEVICE_ID_MATCH_DEVICE | USB_DEVICE_ID_MATCH_DEV_CLASS | \
                 USB_DEVICE_ID_MATCH_INT_CLASS | USB_DEVICE_ID_MATCH_INT_SUBCLASS, \
-        idVendor: (vend), \
-        idProduct: (prod),\
-        bDeviceClass: (dc),\
-        bInterfaceClass: (ic), \
-        bInterfaceSubClass: (isc),
+        .idVendor = (vend), \
+        .idProduct = (prod),\
+        .bDeviceClass = (dc),\
+        .bInterfaceClass = (ic), \
+        .bInterfaceSubClass = (isc),
 
 static struct usb_device_id id_table[] = {
 	{MY_USB_DEVICE (0x49f, 0xffff, CDC_DEVICE_CLASS, LINEO_INTERFACE_CLASS, LINEO_INTERFACE_SUBCLASS_SAFESERIAL)},	// Itsy
@@ -206,7 +206,7 @@ static __u16 __inline__ fcs_compute10 (unsigned char *sp, int len, __u16 fcs)
 	return fcs;
 }
 
-static void safe_read_bulk_callback (struct urb *urb)
+static void safe_read_bulk_callback (struct urb *urb, struct pt_regs *regs)
 {
 	struct usb_serial_port *port = (struct usb_serial_port *) urb->context;
 	struct usb_serial *serial = get_usb_serial (port, __FUNCTION__);

@@ -34,6 +34,8 @@
  * Note if you know that you won't have an fpu, then you'll get much
  * better performance by compiling with -msoft-float!
  */
+#include <linux/sched.h>
+
 #include <asm/inst.h>
 #include <asm/bootinfo.h>
 #include <asm/cpu.h>

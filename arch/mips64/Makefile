@@ -247,7 +247,7 @@ vmlinux.64: vmlinux
 	$(OBJCOPY) -O $(64bit-bfd) --change-addresses=0xa7ffffff80000000 $< $@
 endif
 
-makeboot = $(call descend,arch/mips/boot,$(1))
+makeboot =$(Q)$(MAKE) -f scripts/Makefile.build obj=arch/mips/boot $(1)
 
 #
 # SNI firmware is f*cked in interesting ways ...

@@ -79,6 +79,7 @@ CONFIG_RWSEM_GENERIC_SPINLOCK=y
 CONFIG_DUMMY_KEYB=y
 CONFIG_SWAP_IO_SPACE=y
 CONFIG_BOOT_ELF32=y
+# CONFIG_FB is not set
 
 #
 # CPU selection
@@ -145,7 +146,7 @@ CONFIG_BINFMT_ELF=y
 # CONFIG_PARPORT is not set
 
 #
-# Plug and Play configuration
+# Plug and Play support
 #
 # CONFIG_PNP is not set
 
@@ -471,6 +472,17 @@ CONFIG_FS_POSIX_ACL=y
 CONFIG_MSDOS_PARTITION=y
 
 #
+# Graphics support
+#
+
+#
+# Console display driver support
+#
+# CONFIG_VGA_CONSOLE is not set
+# CONFIG_MDA_CONSOLE is not set
+CONFIG_DUMMY_CONSOLE=y
+
+#
 # Sound
 #
 # CONFIG_SOUND is not set
@@ -507,6 +519,8 @@ CONFIG_CRYPTO_SHA1=y
 CONFIG_CRYPTO_SHA256=y
 CONFIG_CRYPTO_DES=y
 CONFIG_CRYPTO_BLOWFISH=y
+CONFIG_CRYPTO_TWOFISH=y
+# CONFIG_CRYPTO_SERPENT is not set
 # CONFIG_CRYPTO_TEST is not set
 
 #

@@ -166,6 +166,11 @@ int bcm_5201_init(struct net_device *dev, int phy_addr)
 	data &= ~MII_FDX_LED;
 	mdio_write(dev, phy_addr, MII_INT, data);
 
+	/* Enable TX LED instead of FDX */
+	data = mdio_read(dev, phy_addr, MII_INT);
+	data &= ~MII_FDX_LED;
+	mdio_write(dev, phy_addr, MII_INT, data);
+
 	if (au1000_debug > 4) dump_mii(dev, phy_addr);
 	return 0;
 }
@@ -639,10 +644,10 @@ static int __init au1000_init_module(void)
 		}
 		// check for valid entries, au1100 only has one entry
 		if (base_addr && irq) {
-		if (au1000_probe1(NULL, base_addr, irq, i) != 0) {
-			return -ENODEV;
+			if (au1000_probe1(NULL, base_addr, irq, i) != 0) {
+				return -ENODEV;
+			}
 		}
-	}
 	}
 	return 0;
 }
@@ -661,7 +666,8 @@ au1000_probe1(struct net_device *dev, long ioaddr, int irq, int port_num)
 		 return -ENODEV;
 	}
 
-	if (version_printed++ == 0) printk(version);
+	if (version_printed++ == 0)
+		printk(version);
 
 	if (!dev) {
 		dev = init_etherdev(0, sizeof(struct au1000_private));
@@ -672,7 +678,7 @@ au1000_probe1(struct net_device *dev, long ioaddr, int irq, int port_num)
 	}
 
 	printk("%s: Au1xxx ethernet found at 0x%lx, irq %d\n", 
-			dev->name, ioaddr, irq);
+	       dev->name, ioaddr, irq);
 
 	/* Initialize our private structure */
 	if (dev->priv == NULL) {

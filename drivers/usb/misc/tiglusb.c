@@ -15,16 +15,11 @@
  * for more info.
  *
  * History :
- *  16/07/2002 : v1.04 -- Julien BLACHE <jb@jblache.org>
- *    + removed useless usblp_cleanup()
- *    + removed {un,}lock_kernel() as suggested on lkml
- *    + inlined clear_pipes() (used once)
- *    + inlined clear_device() (small, used twice)
- *    + removed tiglusb_find_struct() (used once, simple code)
- *    + replaced down() with down_interruptible() wherever possible
- *    + fixed double unregistering wrt devfs, causing devfs
- *      to force an oops when the device is deconnected
- *    + removed unused fields from struct tiglusb_t
+ *   1.0x, Romain & Julien: initial submit.
+ *   1.03, Greg Kroah: modifications.
+ *   1.04, Julien: clean-up & fixes; Romain: 2.4 backport.
+ *   1.05, Randy Dunlap: bug fix with the timeout parameter (divide-by-zero).
+ *   1.06, Romain: synched with 2.5, version/firmware changed (confusing).
  */
 
 #include <linux/module.h>
@@ -44,7 +39,7 @@
 /*
  * Version Information
  */
-#define DRIVER_VERSION "1.04"
+#define DRIVER_VERSION "1.06"
 #define DRIVER_AUTHOR  "Romain Lievin <roms@lpg.ticalc.org> & Julien Blache <jb@jblache.org>"
 #define DRIVER_DESC    "TI-GRAPH LINK USB (aka SilverLink) driver"
 #define DRIVER_LICENSE "GPL"
@@ -53,8 +48,6 @@
 
 static tiglusb_t tiglusb[MAXTIGL];
 static int timeout = TIMAXTIME;	/* timeout in tenth of seconds     */
-
-static devfs_handle_t devfs_handle;
 
 /*---------- misc functions ------------------------------------------- */
 
@@ -334,7 +327,7 @@ tiglusb_probe (struct usb_interface *intf,
 	int minor = -1;
 	int i;
 	ptiglusb_t s;
-	char name[8];
+	char name[32];
 
 	dbg ("probing vendor id 0x%x, device id 0x%x",
 	     dev->descriptor.idVendor, dev->descriptor.idProduct);
@@ -378,16 +371,15 @@ tiglusb_probe (struct usb_interface *intf,
 	up (&s->mutex);
 	dbg ("bound to interface");
 
-	sprintf (name, "%d", s->minor);
+	sprintf (name, "ticables/usb/%d", s->minor);
 	dbg ("registering to devfs : major = %d, minor = %d, node = %s",
 	     TIUSB_MAJOR, (TIUSB_MINOR + s->minor), name);
-	s->devfs =
-	    devfs_register (devfs_handle, name, DEVFS_FL_DEFAULT, TIUSB_MAJOR,
-			    TIUSB_MINOR + s->minor, S_IFCHR | S_IRUGO | S_IWUGO,
-			    &tiglusb_fops, NULL);
+	devfs_register(NULL, name, DEVFS_FL_DEFAULT, TIUSB_MAJOR,
+		       TIUSB_MINOR + s->minor, S_IFCHR | S_IRUGO | S_IWUGO,
+		       &tiglusb_fops, NULL);
 
 	/* Display firmware version */
-	info ("link cable version %i.%02x",
+	info ("firmware revision %i.%02x",
 		dev->descriptor.bcdDevice >> 8,
 		dev->descriptor.bcdDevice & 0xff);
 
@@ -398,6 +390,8 @@ tiglusb_probe (struct usb_interface *intf,
 static void
 tiglusb_disconnect (struct usb_interface *intf)
 {
+	char name[32];
+
 	ptiglusb_t s = dev_get_drvdata (&intf->dev);
 
 	dev_set_drvdata (&intf->dev, NULL);
@@ -414,8 +408,7 @@ tiglusb_disconnect (struct usb_interface *intf)
 	s->dev = NULL;
 	s->opened = 0;
 
-	devfs_unregister (s->devfs);
-	s->devfs = NULL;
+	devfs_remove (name, "ticables/usb/%d", s->minor);
 
 	info ("device %d removed", s->minor);
 
@@ -453,7 +446,7 @@ tiglusb_setup (char *str)
 	if (ints[0] > 0) {
 		timeout = ints[1];
 	}
-	if (!timeout)
+	if (timeout <= 0)
 		timeout = TIMAXTIME;
 
 	return 1;
@@ -485,7 +478,7 @@ tiglusb_init (void)
 	}
 
 	/* Use devfs, tree: /dev/ticables/usb/[0..3] */
-	devfs_handle = devfs_mk_dir (NULL, "ticables/usb", NULL);
+	devfs_mk_dir (NULL, "ticables/usb", NULL);
 
 	/* register USB module */
 	result = usb_register (&tiglusb_driver);
@@ -494,9 +487,9 @@ tiglusb_init (void)
 		return -1;
 	}
 
-	info (DRIVER_DESC ", " DRIVER_VERSION);
+	info (DRIVER_DESC ", version " DRIVER_VERSION);
 
-	if (!timeout)
+	if (timeout <= 0)
 		timeout = TIMAXTIME;
 
 	return 0;
@@ -506,7 +499,7 @@ static void __exit
 tiglusb_cleanup (void)
 {
 	usb_deregister (&tiglusb_driver);
-	devfs_unregister (devfs_handle);
+	devfs_remove("ticables/usb");
 	unregister_chrdev (TIUSB_MAJOR, "tiglusb");
 }
 

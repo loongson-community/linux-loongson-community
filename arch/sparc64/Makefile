@@ -19,6 +19,7 @@ CC		:= $(shell if gcc -m64 -S -o /dev/null -xc /dev/null >/dev/null 2>&1; then e
 NEW_GCC := $(shell if $(CC) -m64 -mcmodel=medlow -S -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo y; else echo n; fi; )
 NEW_GAS := $(shell if $(LD) -V 2>&1 | grep 'elf64_sparc' > /dev/null; then echo y; else echo n; fi)
 UNDECLARED_REGS := $(shell if $(CC) -c -x assembler /dev/null -Wa,--help | grep undeclared-regs > /dev/null; then echo y; else echo n; fi; )
+INLINE_LIMIT := $(shell if $(CC) -m64 -finline-limit=100000 -S -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo y; else echo n; fi; )
 
 export NEW_GCC
 
@@ -51,6 +52,10 @@ else
   AFLAGS += -m64 -mcpu=ultrasparc $(CC_UNDECL)
 endif
 
+ifeq ($(INLINE_LIMIT),y)
+  CFLAGS := $(CFLAGS) -finline-limit=100000
+endif
+
 ifeq ($(CONFIG_MCOUNT),y)
   CFLAGS := $(subst -fomit-frame-pointer,,$(CFLAGS))
   CFLAGS := $(CFLAGS) -pg
@@ -62,6 +67,9 @@ core-y				+= arch/sparc64/kernel/ arch/sparc64/mm/
 core-$(CONFIG_SOLARIS_EMUL)	+= arch/sparc64/solaris/
 core-y				+= arch/sparc64/math-emu/
 libs-y				+= arch/sparc64/prom/ arch/sparc64/lib/
+
+# FIXME: is drivers- right?
+drivers-$(CONFIG_OPROFILE)	+= arch/sparc64/oprofile/
 
 makeboot =$(Q)$(MAKE) -f scripts/Makefile.build obj=arch/sparc64/boot $(1)
 

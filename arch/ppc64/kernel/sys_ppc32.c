@@ -22,7 +22,6 @@
 #include <linux/mm.h> 
 #include <linux/file.h> 
 #include <linux/signal.h>
-#include <linux/utime.h>
 #include <linux/resource.h>
 #include <linux/times.h>
 #include <linux/utsname.h>
@@ -51,9 +50,14 @@
 #include <linux/highmem.h>
 #include <linux/highuid.h>
 #include <linux/mman.h>
+#include <linux/ipv6.h>
+#include <linux/in.h>
+#include <linux/icmpv6.h>
 #include <linux/sysctl.h>
 #include <linux/binfmts.h>
+#include <linux/dnotify.h>
 #include <linux/security.h>
+#include <linux/compat.h>
 
 #include <asm/types.h>
 #include <asm/ipc.h>
@@ -69,117 +73,107 @@
 #include <asm/ppc32.h>
 #include <asm/mmu_context.h>
 
-extern asmlinkage long sys_utime(char * filename, struct utimbuf * times);
+struct iovec32 { u32 iov_base; compat_size_t iov_len; };
 
-struct utimbuf32 {
-	__kernel_time_t32 actime, modtime;
-};
-
-asmlinkage long sys32_utime(char * filename, struct utimbuf32 *times)
-{
-	struct utimbuf t;
-	mm_segment_t old_fs;
-	int ret;
-	char *filenam;
-	
-	if (!times)
-		return sys_utime(filename, NULL);
-	if (get_user(t.actime, &times->actime) || __get_user(t.modtime, &times->modtime))
-		return -EFAULT;
-	filenam = getname(filename);
-
-	ret = PTR_ERR(filenam);
-	if (!IS_ERR(filenam)) {
-		old_fs = get_fs();
-		set_fs (KERNEL_DS); 
-		ret = sys_utime(filenam, &t);
-		set_fs (old_fs);
-		putname (filenam);
-	}
-
-	return ret;
-}
-
-
-
-struct iovec32 { u32 iov_base; __kernel_size_t32 iov_len; };
-
-typedef ssize_t (*IO_fn_t)(struct file *, char *, size_t, loff_t *);
+typedef ssize_t (*io_fn_t)(struct file *, char *, size_t, loff_t *);
+typedef ssize_t (*iov_fn_t)(struct file *, const struct iovec *, unsigned long, loff_t *);
 
 static long do_readv_writev32(int type, struct file *file,
 			      const struct iovec32 *vector, u32 count)
 {
-	unsigned long tot_len;
+	compat_ssize_t tot_len;
 	struct iovec iovstack[UIO_FASTIOV];
 	struct iovec *iov=iovstack, *ivp;
 	struct inode *inode;
 	long retval, i;
-	IO_fn_t fn;
+	io_fn_t fn;
+	iov_fn_t fnv;
+
+	/*
+	 * SuS says "The readv() function *may* fail if the iovcnt argument
+	 * was less than or equal to 0, or greater than {IOV_MAX}.  Linux has
+	 * traditionally returned zero for zero segments, so...
+	 */
+	retval = 0;
+	if (count == 0)
+		goto out;
 
 	/* First get the "struct iovec" from user memory and
 	 * verify all the pointers
 	 */
-	if (!count)
-		return 0;
-	if(verify_area(VERIFY_READ, vector, sizeof(struct iovec32)*count))
-		return -EFAULT;
+	retval = -EINVAL;
 	if (count > UIO_MAXIOV)
-		return -EINVAL;
+		goto out;
+	if (!file->f_op)
+		goto out;
 	if (count > UIO_FASTIOV) {
+		retval = -ENOMEM;
 		iov = kmalloc(count*sizeof(struct iovec), GFP_KERNEL);
 		if (!iov)
-			return -ENOMEM;
+			goto out;
 	}
+	retval = -EFAULT;
+	if (verify_area(VERIFY_READ, vector, sizeof(struct iovec32)*count))
+		goto out;
 
+	/*
+	 * Single unix specification:
+	 * We should -EINVAL if an element length is not >= 0 and fitting an
+	 * ssize_t.  The total length is fitting an ssize_t
+	 *
+	 * Be careful here because iov_len is a size_t not an ssize_t
+	 */
 	tot_len = 0;
 	i = count;
 	ivp = iov;
+	retval = -EINVAL;
 	while(i > 0) {
-		u32 len;
+		compat_ssize_t tmp = tot_len;
+		compat_ssize_t len;
 		u32 buf;
 
-		__get_user(len, &vector->iov_len);
-		__get_user(buf, &vector->iov_base);
+		if (__get_user(len, &vector->iov_len) ||
+		    __get_user(buf, &vector->iov_base)) {
+			retval = -EFAULT;
+			goto out;
+		}
+		if (len < 0)	/* size_t not fitting an compat_ssize_t .. */
+			goto out;
 		tot_len += len;
+		if (tot_len < tmp) /* maths overflow on the compat_ssize_t */
+			goto out;
 		ivp->iov_base = (void *)A(buf);
 		ivp->iov_len = (__kernel_size_t) len;
 		vector++;
 		ivp++;
 		i--;
 	}
+	if (tot_len == 0) {
+		retval = 0;
+		goto out;
+	}
 
 	inode = file->f_dentry->d_inode;
 	/* VERIFY_WRITE actually means a read, as we write to user space */
-	retval = locks_verify_area((type == VERIFY_WRITE
+	retval = locks_verify_area((type == READ
 				    ? FLOCK_VERIFY_READ : FLOCK_VERIFY_WRITE),
 				   inode, file, file->f_pos, tot_len);
-	if (retval) {
-		if (iov != iovstack)
-			kfree(iov);
-		return retval;
+	if (retval)
+		goto out;
+
+	if (type == READ) {
+		fn = file->f_op->read;
+		fnv = file->f_op->readv;
+	} else {
+		fn = (io_fn_t)file->f_op->write;
+		fnv = file->f_op->writev;
+	}
+	if (fnv) {
+		retval = fnv(file, iov, count, &file->f_pos);
+		goto out;
 	}
 
-	/* Then do the actual IO.  Note that sockets need to be handled
-	 * specially as they have atomicity guarantees and can handle
-	 * iovec's natively
-	 */
-	if (inode->i_sock) {
-		int err;
-		err = sock_readv_writev(type, inode, file, iov, count, tot_len);
-		if (iov != iovstack)
-			kfree(iov);
-		return err;
-	}
-
-	if (!file->f_op) {
-		if (iov != iovstack)
-			kfree(iov);
-		return -EINVAL;
-	}
-	/* VERIFY_WRITE actually means a read, as we write to user space */
-	fn = file->f_op->read;
-	if (type == VERIFY_READ)
-		fn = (IO_fn_t) file->f_op->write;		
+	/* Do it by hand, with file-ops */
 	ivp = iov;
 	while (count > 0) {
 		void * base;
@@ -189,54 +183,67 @@ static long do_readv_writev32(int type, struct file *file,
 		len = ivp->iov_len;
 		ivp++;
 		count--;
+
 		nr = fn(file, base, len, &file->f_pos);
+
 		if (nr < 0) {
-			if (retval)
-				break;
-			retval = nr;
+			if (!retval)
+				retval = nr;
 			break;
 		}
 		retval += nr;
 		if (nr != len)
 			break;
 	}
+out:
 	if (iov != iovstack)
 		kfree(iov);
+	if ((retval + (type == READ)) > 0)
+		dnotify_parent(file->f_dentry,
+			       (type == READ) ? DN_ACCESS : DN_MODIFY);
+
 	return retval;
 }
 
-asmlinkage long sys32_readv(u32 fd, struct iovec32 *vector, u32 count)
-{
-	struct file *file;
-	long ret = -EBADF;
-	
-	file = fget(fd);
-	if(!file)
-		goto bad_file;
-
-	if (file->f_op && (file->f_mode & FMODE_READ) &&
-	    (file->f_op->readv || file->f_op->read))
-		ret = do_readv_writev32(VERIFY_WRITE, file, vector, count);
-	fput(file);
-
-bad_file:
-	return ret;
-}
-
-asmlinkage long sys32_writev(u32 fd, struct iovec32 *vector, u32 count)
+asmlinkage long sys32_readv(int fd, struct iovec32 *vector, u32 count)
 {
 	struct file *file;
 	int ret = -EBADF;
-	
-	file = fget(fd);
-	if(!file)
-		goto bad_file;
-	if (file->f_op && (file->f_mode & FMODE_WRITE) &&
-	   (file->f_op->writev || file->f_op->write))
-		ret = do_readv_writev32(VERIFY_READ, file, vector, count);
-	fput(file);
 
-bad_file:
+	file = fget(fd);
+	if (!file || !(file->f_mode & FMODE_READ))
+		goto out; 
+
+	ret = -EINVAL;
+	if (!file->f_op || (!file->f_op->readv && !file->f_op->read))
+		goto out;
+
+	ret = do_readv_writev32(READ, file, vector, count);
+
+out:
+	if (file)
+		fput(file);
+	return ret;
+}
+
+asmlinkage long sys32_writev(int fd, struct iovec32 *vector, u32 count)
+{
+	struct file *file;
+	int ret = -EBADF;
+
+	file = fget(fd);
+	if (!file || !(file->f_mode & FMODE_WRITE))
+		goto out;
+
+	ret = -EINVAL;
+	if (!file->f_op || (!file->f_op->writev && !file->f_op->write))
+		goto out;
+
+	ret = do_readv_writev32(WRITE, file, vector, count);
+
+out:
+	if (file)
+		fput(file);
 	return ret;
 }
 
@@ -290,7 +297,7 @@ asmlinkage long sys32_fcntl(unsigned int fd, unsigned int cmd, unsigned long arg
 	}
 }
 
-struct ncp_mount_data32 {
+struct ncp_mount_data32_v3 {
         int version;
         unsigned int ncp_fd;
         __kernel_uid_t32 mounted_uid;
@@ -305,18 +312,69 @@ struct ncp_mount_data32 {
         __kernel_mode_t32 dir_mode;
 };
 
+struct ncp_mount_data32_v4 {
+	int version;
+	/* all members below are "long" in ABI ... i.e. 32bit on sparc32, while 64bits on sparc64 */
+	unsigned int flags;
+	unsigned int mounted_uid;
+	int wdog_pid;
+
+	unsigned int ncp_fd;
+	unsigned int time_out;
+	unsigned int retry_count;
+
+	unsigned int uid;
+	unsigned int gid;
+	unsigned int file_mode;
+	unsigned int dir_mode;
+};
+
 static void *do_ncp_super_data_conv(void *raw_data)
 {
-	struct ncp_mount_data *n = (struct ncp_mount_data *)raw_data;
-	struct ncp_mount_data32 *n32 = (struct ncp_mount_data32 *)raw_data;
+	switch (*(int*)raw_data) {
+		case NCP_MOUNT_VERSION:
+			{
+				struct ncp_mount_data news, *n = &news; 
+				struct ncp_mount_data32_v3 *n32 = (struct ncp_mount_data32_v3 *)raw_data;
 
-	n->dir_mode = n32->dir_mode;
-	n->file_mode = n32->file_mode;
-	n->gid = n32->gid;
-	n->uid = n32->uid;
-	memmove (n->mounted_vol, n32->mounted_vol, (sizeof (n32->mounted_vol) + 3 * sizeof (unsigned int)));
-	n->wdog_pid = n32->wdog_pid;
-	n->mounted_uid = n32->mounted_uid;
+				n->version = n32->version;
+				n->ncp_fd = n32->ncp_fd;
+				n->mounted_uid = n32->mounted_uid;
+				n->wdog_pid = n32->wdog_pid;
+				memmove (n->mounted_vol, n32->mounted_vol, sizeof (n32->mounted_vol));
+				n->time_out = n32->time_out;
+				n->retry_count = n32->retry_count;
+				n->flags = n32->flags;
+				n->uid = n32->uid;
+				n->gid = n32->gid;
+				n->file_mode = n32->file_mode;
+				n->dir_mode = n32->dir_mode;
+				memcpy(raw_data, n, sizeof(*n)); 
+			}
+			break;
+		case NCP_MOUNT_VERSION_V4:
+			{
+				struct ncp_mount_data_v4 news, *n = &news; 
+				struct ncp_mount_data32_v4 *n32 = (struct ncp_mount_data32_v4 *)raw_data;
+
+				n->version = n32->version;
+				n->flags = n32->flags;
+				n->mounted_uid = n32->mounted_uid;
+				n->wdog_pid = n32->wdog_pid;
+				n->ncp_fd = n32->ncp_fd;
+				n->time_out = n32->time_out;
+				n->retry_count = n32->retry_count;
+				n->uid = n32->uid;
+				n->gid = n32->gid;
+				n->file_mode = n32->file_mode;
+				n->dir_mode = n32->dir_mode;
+				memcpy(raw_data, n, sizeof(*n)); 
+			}
+			break;
+		default:
+			/* do not touch unknown structures */
+			break;
+	}
 	return raw_data;
 }
 
@@ -331,7 +389,7 @@ struct smb_mount_data32 {
 
 static void *do_smb_super_data_conv(void *raw_data)
 {
-	struct smb_mount_data *s = (struct smb_mount_data *)raw_data;
+	struct smb_mount_data news, *s = &news;
 	struct smb_mount_data32 *s32 = (struct smb_mount_data32 *)raw_data;
 
 	if (s32->version != SMB_MOUNT_OLDVERSION)
@@ -342,6 +400,7 @@ static void *do_smb_super_data_conv(void *raw_data)
 	s->gid = s32->gid;
 	s->file_mode = s32->file_mode;
 	s->dir_mode = s32->dir_mode;
+	memcpy(raw_data, s, sizeof(struct smb_mount_data)); 
 out:
 	return raw_data;
 }
@@ -576,20 +635,6 @@ asmlinkage long sys32_getdents(unsigned int fd, struct linux_dirent32 *dirent, u
 
 /* 32-bit timeval and related flotsam.  */
 
-struct timeval32
-{
-	int tv_sec, tv_usec;
-};
-
-struct itimerval32
-{
-	struct timeval32 it_interval;
-	struct timeval32 it_value;
-};
-
-
-
-
 /*
  * Ooo, nasty.  We need here to frob 32-bit unsigned longs to
  * 64-bit unsigned longs.
@@ -655,7 +700,7 @@ set_fd_set32(unsigned long n, u32 *ufdset, unsigned long *fdset)
 asmlinkage long sys32_select(int n, u32 *inp, u32 *outp, u32 *exp, u32 tvp_x)
 {
 	fd_set_bits fds;
-	struct timeval32 *tvp = (struct timeval32 *)AA(tvp_x);
+	struct compat_timeval *tvp = (struct compat_timeval *)AA(tvp_x);
 	char *bits;
 	unsigned long nn;
 	long timeout;
@@ -771,11 +816,11 @@ static int cp_new_stat32(struct kstat *stat, struct stat32 *statbuf)
 	if (stat->size > MAX_NON_LFS)
 		return -EOVERFLOW;
 	err |= put_user(stat->size, &statbuf->st_size);
-	err |= put_user(stat->atime, &statbuf->st_atime);
+	err |= put_user(stat->atime.tv_sec, &statbuf->st_atime);
 	err |= put_user(0, &statbuf->__unused1);
-	err |= put_user(stat->mtime, &statbuf->st_mtime);
+	err |= put_user(stat->mtime.tv_sec, &statbuf->st_mtime);
 	err |= put_user(0, &statbuf->__unused2);
-	err |= put_user(stat->ctime, &statbuf->st_ctime);
+	err |= put_user(stat->ctime.tv_sec, &statbuf->st_ctime);
 	err |= put_user(0, &statbuf->__unused3);
 	err |= put_user(stat->blksize, &statbuf->st_blksize);
 	err |= put_user(stat->blocks, &statbuf->st_blocks);
@@ -933,7 +978,7 @@ struct timex32 {
 	u32 modes;
 	s32 offset, freq, maxerror, esterror;
 	s32 status, constant, precision, tolerance;
-	struct timeval32 time;
+	struct compat_timeval time;
 	s32 tick;
 	s32 ppsfreq, jitter, shift, stabil;
 	s32 jitcnt, calcnt, errcnt, stbcnt;
@@ -1010,7 +1055,7 @@ asmlinkage long sys32_adjtimex(struct timex32 *utp)
 
 extern asmlinkage unsigned long sys_create_module(const char *name_user, size_t size);
 
-asmlinkage unsigned long sys32_create_module(const char *name_user, __kernel_size_t32 size)
+asmlinkage unsigned long sys32_create_module(const char *name_user, compat_size_t size)
 {
 	return sys_create_module(name_user, (size_t)size);
 }
@@ -1093,7 +1138,7 @@ static __inline__ struct module *find_module(const char *name)
 }
 
 static int
-qm_modules(char *buf, size_t bufsize, __kernel_size_t32 *ret)
+qm_modules(char *buf, size_t bufsize, compat_size_t *ret)
 {
 	struct module *mod;
 	size_t nmod, space, len;
@@ -1128,7 +1173,7 @@ calc_space_needed:
 }
 
 static int
-qm_deps(struct module *mod, char *buf, size_t bufsize, __kernel_size_t32 *ret)
+qm_deps(struct module *mod, char *buf, size_t bufsize, compat_size_t *ret)
 {
 	size_t i, space, len;
 
@@ -1165,7 +1210,7 @@ calc_space_needed:
 }
 
 static int
-qm_refs(struct module *mod, char *buf, size_t bufsize, __kernel_size_t32 *ret)
+qm_refs(struct module *mod, char *buf, size_t bufsize, compat_size_t *ret)
 {
 	size_t nrefs, space, len;
 	struct module_ref *ref;
@@ -1209,7 +1254,7 @@ calc_space_needed:
 }
 
 static inline int
-qm_symbols(struct module *mod, char *buf, size_t bufsize, __kernel_size_t32 *ret)
+qm_symbols(struct module *mod, char *buf, size_t bufsize, compat_size_t *ret)
 {
 	size_t i, space, len;
 	struct module_symbol *s;
@@ -1268,7 +1313,7 @@ calc_space_needed:
 }
 
 static inline int
-qm_info(struct module *mod, char *buf, size_t bufsize, __kernel_size_t32 *ret)
+qm_info(struct module *mod, char *buf, size_t bufsize, compat_size_t *ret)
 {
 	int error = 0;
 
@@ -1301,7 +1346,7 @@ qm_info(struct module *mod, char *buf, size_t bufsize, __kernel_size_t32 *ret)
  * proper conversion (sign extension) between the register representation of a signed int (msr in 32-bit mode)
  * and the register representation of a signed int (msr in 64-bit mode) is performed.
  */
-asmlinkage long sys32_query_module(char *name_user, u32 which, char *buf, __kernel_size_t32 bufsize, u32 ret)
+asmlinkage long sys32_query_module(char *name_user, u32 which, char *buf, compat_size_t bufsize, u32 ret)
 {
 	struct module *mod;
 	int err;
@@ -1337,19 +1382,19 @@ asmlinkage long sys32_query_module(char *name_user, u32 which, char *buf, __kern
 		err = 0;
 		break;
 	case QM_MODULES:
-		err = qm_modules(buf, bufsize, (__kernel_size_t32 *)AA(ret));
+		err = qm_modules(buf, bufsize, (compat_size_t *)AA(ret));
 		break;
 	case QM_DEPS:
-		err = qm_deps(mod, buf, bufsize, (__kernel_size_t32 *)AA(ret));
+		err = qm_deps(mod, buf, bufsize, (compat_size_t *)AA(ret));
 		break;
 	case QM_REFS:
-		err = qm_refs(mod, buf, bufsize, (__kernel_size_t32 *)AA(ret));
+		err = qm_refs(mod, buf, bufsize, (compat_size_t *)AA(ret));
 		break;
 	case QM_SYMBOLS:
-		err = qm_symbols(mod, buf, bufsize, (__kernel_size_t32 *)AA(ret));
+		err = qm_symbols(mod, buf, bufsize, (compat_size_t *)AA(ret));
 		break;
 	case QM_INFO:
-		err = qm_info(mod, buf, bufsize, (__kernel_size_t32 *)AA(ret));
+		err = qm_info(mod, buf, bufsize, (compat_size_t *)AA(ret));
 		break;
 	default:
 		err = -EINVAL;
@@ -1775,37 +1820,6 @@ done:
 
 
 
-struct timespec32 {
-	s32    tv_sec;
-	s32    tv_nsec;
-};
-
-extern asmlinkage long sys_nanosleep(struct timespec *rqtp, struct timespec *rmtp);
-
-asmlinkage long sys32_nanosleep(struct timespec32 *rqtp, struct timespec32 *rmtp)
-{
-	struct timespec t;
-	int ret;
-	mm_segment_t old_fs = get_fs ();
-	
-	if (get_user (t.tv_sec, &rqtp->tv_sec) ||
-	    __get_user (t.tv_nsec, &rqtp->tv_nsec))
-		return -EFAULT;
-	set_fs (KERNEL_DS);
-	ret = sys_nanosleep(&t, rmtp ? &t : NULL);
-	set_fs (old_fs);
-	if (rmtp && ret == -EINTR) {
-		if (__put_user (t.tv_sec, &rmtp->tv_sec) ||
-	    	    __put_user (t.tv_nsec, &rmtp->tv_nsec))
-			return -EFAULT;
-	}
-	
-	return ret;
-}
-
-
-
-
 /* These are here just in case some old sparc32 binary calls it. */
 asmlinkage long sys32_pause(void)
 {
@@ -1817,32 +1831,14 @@ asmlinkage long sys32_pause(void)
 
 
 
-static inline long get_it32(struct itimerval *o, struct itimerval32 *i)
-{
-	return (!access_ok(VERIFY_READ, i, sizeof(*i)) ||
-		(__get_user(o->it_interval.tv_sec, &i->it_interval.tv_sec) |
-		 __get_user(o->it_interval.tv_usec, &i->it_interval.tv_usec) |
-		 __get_user(o->it_value.tv_sec, &i->it_value.tv_sec) |
-		 __get_user(o->it_value.tv_usec, &i->it_value.tv_usec)));
-}
-
-static inline long put_it32(struct itimerval32 *o, struct itimerval *i)
-{
-	return (!access_ok(VERIFY_WRITE, o, sizeof(*o)) ||
-		(__put_user(i->it_interval.tv_sec, &o->it_interval.tv_sec) |
-		 __put_user(i->it_interval.tv_usec, &o->it_interval.tv_usec) |
-		 __put_user(i->it_value.tv_sec, &o->it_value.tv_sec) |
-		 __put_user(i->it_value.tv_usec, &o->it_value.tv_usec)));
-}
-
-static inline long get_tv32(struct timeval *o, struct timeval32 *i)
+static inline long get_tv32(struct timeval *o, struct compat_timeval *i)
 {
 	return (!access_ok(VERIFY_READ, i, sizeof(*i)) ||
 		(__get_user(o->tv_sec, &i->tv_sec) |
 		 __get_user(o->tv_usec, &i->tv_usec)));
 }
 
-static inline long put_tv32(struct timeval32 *o, struct timeval *i)
+static inline long put_tv32(struct compat_timeval *o, struct timeval *i)
 {
 	return (!access_ok(VERIFY_WRITE, o, sizeof(*o)) ||
 		(__put_user(i->tv_sec, &o->tv_sec) |
@@ -1851,54 +1847,6 @@ static inline long put_tv32(struct timeval32 *o, struct timeval *i)
 
 
 
-
-extern int do_getitimer(int which, struct itimerval *value);
-
-/* Note: it is necessary to treat which as an unsigned int, 
- * with the corresponding cast to a signed int to insure that the 
- * proper conversion (sign extension) between the register representation of a signed int (msr in 32-bit mode)
- * and the register representation of a signed int (msr in 64-bit mode) is performed.
- */
-asmlinkage long sys32_getitimer(u32 which, struct itimerval32 *it)
-{
-	struct itimerval kit;
-	int error;
-	
-	error = do_getitimer((int)which, &kit);
-	if (!error && put_it32(it, &kit))
-		error = -EFAULT;
-
-	return error;
-}
-
-
-
-extern int do_setitimer(int which, struct itimerval *, struct itimerval *);
-
-/* Note: it is necessary to treat which as an unsigned int, 
- * with the corresponding cast to a signed int to insure that the 
- * proper conversion (sign extension) between the register representation of a signed int (msr in 32-bit mode)
- * and the register representation of a signed int (msr in 64-bit mode) is performed.
- */
-asmlinkage long sys32_setitimer(u32 which, struct itimerval32 *in, struct itimerval32 *out)
-{
-	struct itimerval kin, kout;
-	int error;
-	
-	if (in) {
-		if (get_it32(&kin, in))
-			return -EFAULT;
-	} else
-		memset(&kin, 0, sizeof(kin));
-
-	error = do_setitimer((int)which, &kin, out ? &kout : NULL);
-	if (error || !out)
-		return error;
-	if (put_it32(out, &kout))
-		return -EFAULT;
-
-	return 0;
-}
 
 #define RLIM_INFINITY32	0xffffffff
 #define RESOURCE32(x) ((x > RLIM_INFINITY32) ? RLIM_INFINITY32 : x)
@@ -1974,8 +1922,8 @@ asmlinkage long sys32_setrlimit(unsigned int resource, struct rlimit32 *rlim)
 
 
 struct rusage32 {
-        struct timeval32 ru_utime;
-        struct timeval32 ru_stime;
+        struct compat_timeval ru_utime;
+        struct compat_timeval ru_stime;
         s32    ru_maxrss;
         s32    ru_ixrss;
         s32    ru_idrss;
@@ -2092,7 +2040,7 @@ asmlinkage long sys32_sysinfo(struct sysinfo32 *info)
 extern struct timezone sys_tz;
 extern int do_sys_settimeofday(struct timeval *tv, struct timezone *tz);
 
-asmlinkage long sys32_gettimeofday(struct timeval32 *tv, struct timezone *tz)
+asmlinkage long sys32_gettimeofday(struct compat_timeval *tv, struct timezone *tz)
 {
 	if (tv) {
 		struct timeval ktv;
@@ -2110,7 +2058,7 @@ asmlinkage long sys32_gettimeofday(struct timeval32 *tv, struct timezone *tz)
 
 
 
-asmlinkage long sys32_settimeofday(struct timeval32 *tv, struct timezone *tz)
+asmlinkage long sys32_settimeofday(struct compat_timeval *tv, struct timezone *tz)
 {
 	struct timeval ktv;
 	struct timezone ktz;
@@ -2163,8 +2111,8 @@ struct msgbuf32 { s32 mtype; char mtext[1]; };
 
 struct semid_ds32 {
 	struct ipc_perm sem_perm;
-	__kernel_time_t32 sem_otime;
-	__kernel_time_t32 sem_ctime;
+	compat_time_t sem_otime;
+	compat_time_t sem_ctime;
 	u32 sem_base;
 	u32 sem_pending;
 	u32 sem_pending_last;
@@ -2175,9 +2123,9 @@ struct semid_ds32 {
 struct semid64_ds32 {
 	struct ipc64_perm sem_perm;
 	unsigned int __unused1;
-	__kernel_time_t32 sem_otime;
+	compat_time_t sem_otime;
 	unsigned int __unused2;
-	__kernel_time_t32 sem_ctime;
+	compat_time_t sem_ctime;
 	u32 sem_nsems;
 	u32 __unused3;
 	u32 __unused4;
@@ -2188,9 +2136,9 @@ struct msqid_ds32
 	struct ipc_perm msg_perm;
 	u32 msg_first;
 	u32 msg_last;
-	__kernel_time_t32 msg_stime;
-	__kernel_time_t32 msg_rtime;
-	__kernel_time_t32 msg_ctime;
+	compat_time_t msg_stime;
+	compat_time_t msg_rtime;
+	compat_time_t msg_ctime;
 	u32 msg_lcbytes;
 	u32 msg_lqbytes;
 	unsigned short msg_cbytes;
@@ -2203,11 +2151,11 @@ struct msqid_ds32
 struct msqid64_ds32 {
 	struct ipc64_perm msg_perm;
 	unsigned int __unused1;
-	__kernel_time_t32 msg_stime;
+	compat_time_t msg_stime;
 	unsigned int __unused2;
-	__kernel_time_t32 msg_rtime;
+	compat_time_t msg_rtime;
 	unsigned int __unused3;
-	__kernel_time_t32 msg_ctime;
+	compat_time_t msg_ctime;
 	unsigned int msg_cbytes;
 	unsigned int msg_qnum;
 	unsigned int msg_qbytes;
@@ -2220,9 +2168,9 @@ struct msqid64_ds32 {
 struct shmid_ds32 {
 	struct ipc_perm shm_perm;
 	int shm_segsz;
-	__kernel_time_t32 shm_atime;
-	__kernel_time_t32 shm_dtime;
-	__kernel_time_t32 shm_ctime;
+	compat_time_t shm_atime;
+	compat_time_t shm_dtime;
+	compat_time_t shm_ctime;
 	__kernel_ipc_pid_t32 shm_cpid;
 	__kernel_ipc_pid_t32 shm_lpid;
 	unsigned short shm_nattch;
@@ -2234,13 +2182,13 @@ struct shmid_ds32 {
 struct shmid64_ds32 {
 	struct ipc64_perm shm_perm;
 	unsigned int __unused1;
-	__kernel_time_t32 shm_atime;
+	compat_time_t shm_atime;
 	unsigned int __unused2;
-	__kernel_time_t32 shm_dtime;
+	compat_time_t shm_dtime;
 	unsigned int __unused3;
-	__kernel_time_t32 shm_ctime;
+	compat_time_t shm_ctime;
 	unsigned int __unused4;
-	__kernel_size_t32 shm_segsz;
+	compat_size_t shm_segsz;
 	__kernel_pid_t32 shm_cpid;
 	__kernel_pid_t32 shm_lpid;
 	unsigned int shm_nattch;
@@ -2806,46 +2754,146 @@ asmlinkage int sys32_sendfile64(int out_fd, int in_fd, __kernel_loff_t32 *offset
 
 extern asmlinkage int sys_setsockopt(int fd, int level, int optname, char *optval, int optlen);
 
+static int do_set_attach_filter(int fd, int level, int optname,
+				char *optval, int optlen)
+{
+	struct sock_fprog32 {
+		__u16 len;
+		__u32 filter;
+	} *fprog32 = (struct sock_fprog32 *)optval;
+	struct sock_fprog kfprog;
+	struct sock_filter *kfilter;
+	unsigned int fsize;
+	mm_segment_t old_fs;
+	__u32 uptr;
+	int ret;
+
+	if (get_user(kfprog.len, &fprog32->len) ||
+	    __get_user(uptr, &fprog32->filter))
+		return -EFAULT;
+
+	kfprog.filter = (struct sock_filter *)A(uptr);
+	fsize = kfprog.len * sizeof(struct sock_filter);
+
+	kfilter = (struct sock_filter *)kmalloc(fsize, GFP_KERNEL);
+	if (kfilter == NULL)
+		return -ENOMEM;
+
+	if (copy_from_user(kfilter, kfprog.filter, fsize)) {
+		kfree(kfilter);
+		return -EFAULT;
+	}
+
+	kfprog.filter = kfilter;
+
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+	ret = sys_setsockopt(fd, level, optname,
+			     (char *)&kfprog, sizeof(kfprog));
+	set_fs(old_fs);
+
+	kfree(kfilter);
+
+	return ret;
+}
+
+static int do_set_icmpv6_filter(int fd, int level, int optname,
+				char *optval, int optlen)
+{
+	struct icmp6_filter kfilter;
+	mm_segment_t old_fs;
+	int ret, i;
+
+	if (copy_from_user(&kfilter, optval, sizeof(kfilter)))
+		return -EFAULT;
+
+
+	for (i = 0; i < 8; i += 2) {
+		u32 tmp = kfilter.data[i];
+
+		kfilter.data[i] = kfilter.data[i + 1];
+		kfilter.data[i + 1] = tmp;
+	}
+
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+	ret = sys_setsockopt(fd, level, optname,
+			     (char *) &kfilter, sizeof(kfilter));
+	set_fs(old_fs);
+
+	return ret;
+}
+
+static int do_set_sock_timeout(int fd, int level, int optname, char *optval, int optlen)
+{
+	struct compat_timeval *up = (struct compat_timeval *) optval;
+	struct timeval ktime;
+	mm_segment_t old_fs;
+	int err;
+
+	if (optlen < sizeof(*up))
+		return -EINVAL;
+	if (get_user(ktime.tv_sec, &up->tv_sec) ||
+	    __get_user(ktime.tv_usec, &up->tv_usec))
+		return -EFAULT;
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+	err = sys_setsockopt(fd, level, optname, (char *) &ktime, sizeof(ktime));
+	set_fs(old_fs);
+
+	return err;
+}
+
 asmlinkage long sys32_setsockopt(int fd, int level, int optname, char* optval, int optlen)
 {
-	if (optname == SO_ATTACH_FILTER) {
-		struct sock_fprog32 {
-			__u16 len;
-			__u32 filter;
-		} *fprog32 = (struct sock_fprog32 *)optval;
-		struct sock_fprog kfprog;
-		struct sock_filter *kfilter;
-		unsigned int fsize;
-		mm_segment_t old_fs;
-		__u32 uptr;
-		int ret;
+	if (optname == SO_ATTACH_FILTER)
+		return do_set_attach_filter(fd, level, optname,
+					    optval, optlen);
+	if (optname == SO_RCVTIMEO || optname == SO_SNDTIMEO)
+		return do_set_sock_timeout(fd, level, optname, optval, optlen);
+	if (level == SOL_ICMPV6 && optname == ICMPV6_FILTER)
+		return do_set_icmpv6_filter(fd, level, optname,
+					    optval, optlen);
 
-		if (get_user(kfprog.len, &fprog32->len) ||
-		    __get_user(uptr, &fprog32->filter))
-			return -EFAULT;
-		kfprog.filter = (struct sock_filter *)A(uptr);
-		fsize = kfprog.len * sizeof(struct sock_filter);
-		kfilter = (struct sock_filter *)kmalloc(fsize, GFP_KERNEL);
-		if (kfilter == NULL)
-			return -ENOMEM;
-		if (copy_from_user(kfilter, kfprog.filter, fsize)) {
-			kfree(kfilter);
-			return -EFAULT;
-		}
-		kfprog.filter = kfilter;
-		old_fs = get_fs();
-		set_fs(KERNEL_DS);
-		ret = sys_setsockopt(fd, level, optname,
-				     (char *)&kfprog, sizeof(kfprog));
-		set_fs(old_fs);
-		kfree(kfilter);
-		return ret;
-	}
 	return sys_setsockopt(fd, level, optname, optval, optlen);
 }
 
+extern asmlinkage long sys_getsockopt(int fd, int level, int optname,
+				      char *optval, int *optlen);
 
+static int do_get_sock_timeout(int fd, int level, int optname, char *optval, int *optlen)
+{
+	struct compat_timeval *up = (struct compat_timeval *) optval;
+	struct timeval ktime;
+	mm_segment_t old_fs;
+	int len, err;
 
+	if (get_user(len, optlen))
+		return -EFAULT;
+	if (len < sizeof(*up))
+		return -EINVAL;
+	len = sizeof(ktime);
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+	err = sys_getsockopt(fd, level, optname, (char *) &ktime, &len);
+	set_fs(old_fs);
+
+	if (!err) {
+		if (put_user(sizeof(*up), optlen) ||
+		    put_user(ktime.tv_sec, &up->tv_sec) ||
+		    __put_user(ktime.tv_usec, &up->tv_usec))
+			err = -EFAULT;
+	}
+	return err;
+}
+
+asmlinkage int sys32_getsockopt(int fd, int level, int optname,
+				char *optval, int *optlen)
+{
+	if (optname == SO_RCVTIMEO || optname == SO_SNDTIMEO)
+		return do_get_sock_timeout(fd, level, optname, optval, optlen);
+	return sys_getsockopt(fd, level, optname, optval, optlen);
+}
 
 #define MAX_SOCK_ADDR	128		/* 108 for Unix domain -  16 for IP, 16 for IPX, 24 for IPv6, about 80 for AX.25 */
 #define __CMSG32_NXTHDR(ctl, len, cmsg, cmsglen) __cmsg32_nxthdr((ctl),(len),(cmsg),(cmsglen))
@@ -2866,15 +2914,15 @@ struct msghdr32
 	u32               msg_name;
 	int               msg_namelen;
 	u32               msg_iov;
-	__kernel_size_t32 msg_iovlen;
+	compat_size_t msg_iovlen;
 	u32               msg_control;
-	__kernel_size_t32 msg_controllen;
+	compat_size_t msg_controllen;
 	unsigned          msg_flags;
 };
 
 struct cmsghdr32
 {
-	__kernel_size_t32 cmsg_len;
+	compat_size_t cmsg_len;
 	int               cmsg_level;
 	int               cmsg_type;
 };
@@ -2992,7 +3040,7 @@ static int cmsghdr_from_user32_to_kern(struct msghdr *kmsg,
 {
 	struct cmsghdr32 *ucmsg;
 	struct cmsghdr *kcmsg, *kcmsg_base;
-	__kernel_size_t32 ucmlen;
+	compat_size_t ucmlen;
 	__kernel_size_t kcmlen, tmp;
 
 	kcmlen = 0;
@@ -3259,12 +3307,12 @@ static void cmsg32_recvmsg_fixup(struct msghdr *kmsg, unsigned long orig_cmsg_up
 			 * from 64-bit time values to 32-bit time values
 			 */
 		case SO_TIMESTAMP: {
-			__kernel_time_t32* ptr_time32 = CMSG32_DATA(kcmsg32);
+			compat_time_t* ptr_time32 = CMSG32_DATA(kcmsg32);
 			__kernel_time_t*   ptr_time   = CMSG_DATA(ucmsg);
 			*ptr_time32     = *ptr_time;
 			*(ptr_time32+1) = *(ptr_time+1);
 			kcmsg32->cmsg_len -= 2*(sizeof(__kernel_time_t) -
-						sizeof(__kernel_time_t32));
+						sizeof(compat_time_t));
 		}
 		default:;
 		}
@@ -3375,7 +3423,7 @@ asmlinkage long sys32_recvmsg(int fd, struct msghdr32* user_msg, unsigned int us
 		err = move_addr_to_user(addr, kern_msg.msg_namelen, uaddr, uaddr_len);
 	if(cmsg_ptr != 0 && err >= 0) {
 		unsigned long ucmsg_ptr = ((unsigned long)kern_msg.msg_control);
-		__kernel_size_t32 uclen = (__kernel_size_t32) (ucmsg_ptr - cmsg_ptr);
+		compat_size_t uclen = (compat_size_t) (ucmsg_ptr - cmsg_ptr);
 		err |= __put_user(uclen, &user_msg->msg_controllen);
 	}
 	if(err >= 0)
@@ -3521,7 +3569,8 @@ static int do_execve32(char * filename, u32 * argv, u32 * envp, struct pt_regs *
 	if ((retval = bprm.envc) < 0)
 		goto out_mm;
 
-	if ((retval = security_bprm_alloc(&bprm)))
+	retval = security_bprm_alloc(&bprm);
+	if (retval)
 		goto out;
 
 	retval = prepare_binprm(&bprm);
@@ -3632,7 +3681,7 @@ extern asmlinkage int sys_sched_rr_get_interval(pid_t pid, struct timespec *inte
  * proper conversion (sign extension) between the register representation of a signed int (msr in 32-bit mode)
  * and the register representation of a signed int (msr in 64-bit mode) is performed.
  */
-asmlinkage int sys32_sched_rr_get_interval(u32 pid, struct timespec32 *interval)
+asmlinkage int sys32_sched_rr_get_interval(u32 pid, struct compat_timespec *interval)
 {
 	struct timespec t;
 	int ret;
@@ -4134,15 +4183,13 @@ extern ssize_t sys_pread64(unsigned int fd, char *buf, size_t count,
 extern ssize_t sys_pwrite64(unsigned int fd, const char *buf, size_t count,
 			    loff_t pos);
 
-typedef __kernel_ssize_t32 ssize_t32;
-
-ssize_t32 sys32_pread64(unsigned int fd, char *ubuf, __kernel_size_t32 count,
+compat_ssize_t sys32_pread64(unsigned int fd, char *ubuf, compat_size_t count,
 			u32 reg6, u32 poshi, u32 poslo)
 {
 	return sys_pread64(fd, ubuf, count, ((loff_t)AA(poshi) << 32) | AA(poslo));
 }
 
-ssize_t32 sys32_pwrite64(unsigned int fd, char *ubuf, __kernel_size_t32 count,
+compat_ssize_t sys32_pwrite64(unsigned int fd, char *ubuf, compat_size_t count,
 			 u32 reg6, u32 poshi, u32 poslo)
 {
 	return sys_pwrite64(fd, ubuf, count, ((loff_t)AA(poshi) << 32) | AA(poslo));
@@ -4150,7 +4197,7 @@ ssize_t32 sys32_pwrite64(unsigned int fd, char *ubuf, __kernel_size_t32 count,
 
 extern ssize_t sys_readahead(int fd, loff_t offset, size_t count);
 
-ssize_t32 sys32_readahead(int fd, u32 r4, u32 offhi, u32 offlo, u32 count)
+compat_ssize_t sys32_readahead(int fd, u32 r4, u32 offhi, u32 offlo, u32 count)
 {
         return sys_readahead(fd, ((loff_t)offhi << 32) | offlo, AA(count));
 }
@@ -4174,17 +4221,12 @@ asmlinkage int sys32_ftruncate64(unsigned int fd, u32 reg4, unsigned long high, 
 		return sys_ftruncate(fd, (high << 32) | low);
 }
 
-
-
 asmlinkage long sys32_fcntl64(unsigned int fd, unsigned int cmd, unsigned long arg)
 {
-     	if (cmd >= F_GETLK64 && cmd <= F_SETLKW64)
+	if (cmd >= F_GETLK64 && cmd <= F_SETLKW64)
 		return sys_fcntl(fd, cmd + F_GETLK - F_GETLK64, arg);
 	return sys32_fcntl(fd, cmd, arg);
 }
-
-
-
 
 struct __sysctl_args32 {
 	u32 name;
@@ -4234,9 +4276,9 @@ extern asmlinkage long sys32_sysctl(struct __sysctl_args32 *args)
 	return error;
 }
 
-asmlinkage long sys32_time(__kernel_time_t32* tloc)
+asmlinkage long sys32_time(compat_time_t* tloc)
 {
-	__kernel_time_t32 secs;
+	compat_time_t secs;
 
 	struct timeval tv;
 
@@ -4293,7 +4335,7 @@ asmlinkage int sys32_sched_getaffinity(__kernel_pid_t32 pid, unsigned int len,
 				    &kernel_mask);
 	set_fs(old_fs);
 
-	if (ret == 0) {
+	if (ret > 0) {
 		if (put_user(kernel_mask, user_mask_ptr))
 			ret = -EFAULT;
 	}
@@ -4337,4 +4379,13 @@ unsigned long sys32_mmap2(unsigned long addr, size_t len,
 {
 	/* This should remain 12 even if PAGE_SIZE changes */
 	return sys_mmap(addr, len, prot, flags, fd, pgoff << 12);
+}
+
+extern int sys_lookup_dcookie(u64 cookie64, char *buf, size_t len);
+
+long sys32_lookup_dcookie(u32 cookie_high, u32 cookie_low, char *buf,
+			  size_t len)
+{
+	return sys_lookup_dcookie((u64)cookie_high << 32 | cookie_low,
+				  buf, len);
 }

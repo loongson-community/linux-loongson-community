@@ -9,7 +9,6 @@
 #include <linux/threads.h>	/* NR_CPUS */
 
 #include <asm/segment.h>
-#include <asm/thread_info.h>
 #include <asm/page.h>
 #include <asm/openprom.h>	/* romvec. XXX will be dealt later. Promise. */
 #include <asm/psr.h>
@@ -52,9 +51,6 @@ extern struct thread_info *current_set[NR_CPUS];
 extern unsigned long empty_bad_page;
 extern unsigned long empty_bad_page_table;
 extern unsigned long empty_zero_page;
-
-extern struct linux_romvec *romvec;
-#define halt() romvec->pv_halt()
 
 extern void sun_do_break(void);
 extern int serial_console;

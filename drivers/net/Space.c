@@ -48,7 +48,6 @@ extern int ne2_probe(struct net_device *dev);
 extern int hp100_probe(struct net_device *dev);
 extern int ultra_probe(struct net_device *dev);
 extern int ultra32_probe(struct net_device *dev);
-extern int ultramca_probe(struct net_device *dev);
 extern int wd_probe(struct net_device *dev);
 extern int el2_probe(struct net_device *dev);
 extern int ne_probe(struct net_device *dev);
@@ -104,7 +103,6 @@ extern int mac89x0_probe(struct net_device *dev);
 extern int mc32_probe(struct net_device *dev);
   
 /* Detachable devices ("pocket adaptors") */
-extern int de600_probe(struct net_device *);
 extern int de620_probe(struct net_device *);
 
 /* FDDI adapters */
@@ -191,9 +189,6 @@ static struct devprobe eisa_probes[] __initdata = {
 
 
 static struct devprobe mca_probes[] __initdata = {
-#ifdef CONFIG_ULTRAMCA 
-	{ultramca_probe, 0},
-#endif
 #ifdef CONFIG_NE2_MCA
 	{ne2_probe, 0},
 #endif
@@ -314,9 +309,6 @@ static struct devprobe isa_probes[] __initdata = {
 };
 
 static struct devprobe parport_probes[] __initdata = {
-#ifdef CONFIG_DE600		/* D-Link DE-600 adapter */
-	{de600_probe, 0},
-#endif
 #ifdef CONFIG_DE620		/* D-Link DE-620 adapter */
 	{de620_probe, 0},
 #endif

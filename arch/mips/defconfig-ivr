@@ -127,7 +127,7 @@ CONFIG_BINFMT_ELF=y
 # CONFIG_PARPORT is not set
 
 #
-# Plug and Play configuration
+# Plug and Play support
 #
 # CONFIG_PNP is not set
 
@@ -312,6 +312,7 @@ CONFIG_8139TOO=y
 # CONFIG_NS83820 is not set
 # CONFIG_HAMACHI is not set
 # CONFIG_YELLOWFIN is not set
+# CONFIG_R8169 is not set
 # CONFIG_SK98LIN is not set
 # CONFIG_TIGON3 is not set
 # CONFIG_FDDI is not set
@@ -513,14 +514,15 @@ CONFIG_LOCKD=y
 CONFIG_MSDOS_PARTITION=y
 
 #
-# Console drivers
+# Graphics support
+#
+
+#
+# Console display driver support
 #
 # CONFIG_VGA_CONSOLE is not set
 # CONFIG_MDA_CONSOLE is not set
-
-#
-# Frame-buffer support
-#
+CONFIG_DUMMY_CONSOLE=y
 
 #
 # Sound

@@ -128,7 +128,7 @@ CONFIG_BINFMT_ELF=y
 # CONFIG_PARPORT is not set
 
 #
-# Plug and Play configuration
+# Plug and Play support
 #
 # CONFIG_PNP is not set
 
@@ -410,6 +410,7 @@ CONFIG_EEPRO100=y
 # CONFIG_NS83820 is not set
 # CONFIG_HAMACHI is not set
 # CONFIG_YELLOWFIN is not set
+# CONFIG_R8169 is not set
 # CONFIG_SK98LIN is not set
 # CONFIG_TIGON3 is not set
 # CONFIG_FDDI is not set
@@ -668,20 +669,12 @@ CONFIG_NLS_ISO8859_1=m
 # CONFIG_NLS_UTF8 is not set
 
 #
-# Console drivers
+# Graphics support
 #
-# CONFIG_VGA_CONSOLE is not set
-CONFIG_FONT_8x16=y
-# CONFIG_MDA_CONSOLE is not set
-
-#
-# Frame-buffer support
-#
-CONFIG_DUMMY_CONSOLE=y
 # CONFIG_FB_CLGEN is not set
 # CONFIG_FB_PM2 is not set
 # CONFIG_FB_CYBER2000 is not set
-# CONFIG_FB_ATY is not set
+# CONFIG_FB_IMSTT is not set
 # CONFIG_FB_RIVA is not set
 CONFIG_FB_MATROX=y
 # CONFIG_FB_MATROX_MILLENIUM is not set
@@ -691,6 +684,7 @@ CONFIG_FB_MATROX=y
 # CONFIG_FB_MATROX_MULTIHEAD is not set
 # CONFIG_FB_RADEON is not set
 # CONFIG_FB_ATY128 is not set
+# CONFIG_FB_ATY is not set
 # CONFIG_FB_SIS is not set
 # CONFIG_FB_NEOMAGIC is not set
 # CONFIG_FB_3DFX is not set
@@ -699,31 +693,14 @@ CONFIG_FB_MATROX=y
 # CONFIG_FB_PM3 is not set
 # CONFIG_FB_E1356 is not set
 # CONFIG_FB_VIRTUAL is not set
-CONFIG_FBCON_ADVANCED=y
-# CONFIG_FBCON_MFB is not set
-# CONFIG_FBCON_CFB2 is not set
-# CONFIG_FBCON_CFB4 is not set
-CONFIG_FBCON_CFB8=y
-CONFIG_FBCON_CFB16=y
-CONFIG_FBCON_CFB24=y
-CONFIG_FBCON_CFB32=y
-# CONFIG_FBCON_ACCEL is not set
-# CONFIG_FBCON_AFB is not set
-# CONFIG_FBCON_ILBM is not set
-# CONFIG_FBCON_IPLAN2P2 is not set
-# CONFIG_FBCON_IPLAN2P4 is not set
-# CONFIG_FBCON_IPLAN2P8 is not set
-# CONFIG_FBCON_VGA_PLANES is not set
-# CONFIG_FBCON_HGA is not set
-# CONFIG_FBCON_FONTWIDTH8_ONLY is not set
-# CONFIG_FONT_SUN8x16 is not set
-# CONFIG_FONT_SUN12x22 is not set
-CONFIG_FBCON_FONTS=y
-CONFIG_FONT_8x8=y
-# CONFIG_FONT_6x11 is not set
-# CONFIG_FONT_PEARL_8x8 is not set
-# CONFIG_FONT_ACORN_8x8 is not set
-# CONFIG_FONT_MINI_4x6 is not set
+
+#
+# Console display driver support
+#
+# CONFIG_VGA_CONSOLE is not set
+# CONFIG_MDA_CONSOLE is not set
+CONFIG_DUMMY_CONSOLE=y
+# CONFIG_FRAMEBUFFER_CONSOLE is not set
 
 #
 # Sound
@@ -855,6 +832,7 @@ CONFIG_USB_SERIAL_KEYSPAN=m
 # CONFIG_USB_SERIAL_KEYSPAN_USA19QI is not set
 # CONFIG_USB_SERIAL_KEYSPAN_USA49W is not set
 CONFIG_USB_SERIAL_KLSI=m
+# CONFIG_USB_SERIAL_KOBIL_SCT is not set
 CONFIG_USB_SERIAL_MCT_U232=m
 CONFIG_USB_SERIAL_PL2303=m
 # CONFIG_USB_SERIAL_SAFE is not set

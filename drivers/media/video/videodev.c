@@ -288,8 +288,6 @@ static void videodev_proc_create(void)
 	video_dev_proc_entry->owner = THIS_MODULE;
 }
 
-#ifdef MODULE
-#ifdef CONFIG_VIDEO_PROC_FS
 static void videodev_proc_destroy(void)
 {
 	if (video_dev_proc_entry != NULL)
@@ -298,8 +296,6 @@ static void videodev_proc_destroy(void)
 	if (video_proc_entry != NULL)
 		remove_proc_entry("video", &proc_root);
 }
-#endif
-#endif
 
 static void videodev_proc_create_dev (struct video_device *vfd, char *name)
 {
@@ -472,9 +468,9 @@ void video_unregister_device(struct video_device *vfd)
 
 static struct file_operations video_fops=
 {
-	owner:		THIS_MODULE,
-	llseek:		no_llseek,
-	open:		video_open,
+	.owner		= THIS_MODULE,
+	.llseek		= no_llseek,
+	.open		= video_open,
 };
 
 /*

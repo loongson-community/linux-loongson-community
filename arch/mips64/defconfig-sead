@@ -63,6 +63,7 @@ CONFIG_NONCOHERENT_IO=y
 CONFIG_CPU_LITTLE_ENDIAN=y
 CONFIG_MIPS_BOARDS_GEN=y
 CONFIG_L1_CACHE_SHIFT=5
+# CONFIG_FB is not set
 
 #
 # CPU selection
@@ -118,7 +119,7 @@ CONFIG_BINFMT_ELF32=y
 # CONFIG_PARPORT is not set
 
 #
-# Plug and Play configuration
+# Plug and Play support
 #
 # CONFIG_PNP is not set
 
@@ -306,6 +307,17 @@ CONFIG_FS_POSIX_ACL=y
 #
 # CONFIG_PARTITION_ADVANCED is not set
 CONFIG_MSDOS_PARTITION=y
+
+#
+# Graphics support
+#
+
+#
+# Console display driver support
+#
+# CONFIG_VGA_CONSOLE is not set
+# CONFIG_MDA_CONSOLE is not set
+CONFIG_DUMMY_CONSOLE=y
 
 #
 # Sound

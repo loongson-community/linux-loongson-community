@@ -22,6 +22,7 @@
 #include <linux/signal.h>
 #include <linux/errno.h>
 #include <linux/elf.h>
+#include <linux/compat.h>
 #include <asm/ppc32.h>
 #include <asm/uaccess.h>
 #include <asm/ppcdebug.h>
@@ -52,11 +53,6 @@
  */
 #define MSR_USERCHANGE	0
 #endif
-
-struct timespec32 {
-	s32    tv_sec;
-	s32    tv_nsec;
-};
 
 struct sigregs32 {
 	/*
@@ -635,8 +631,7 @@ long sys32_rt_sigprocmask(u32 how, sigset32_t *set,
 extern long sys_rt_sigpending(sigset_t *set, size_t sigsetsize);
 
 
-long sys32_rt_sigpending(sigset32_t *set,
-		__kernel_size_t32 sigsetsize)
+long sys32_rt_sigpending(sigset32_t *set, compat_size_t sigsetsize)
 {
 	sigset_t s;
 	sigset32_t s32;
@@ -708,7 +703,7 @@ extern long sys_rt_sigtimedwait(const sigset_t *uthese,
 		size_t sigsetsize);
 
 long sys32_rt_sigtimedwait(sigset32_t *uthese, siginfo_t32 *uinfo,
-		struct timespec32 *uts, __kernel_size_t32 sigsetsize)
+		struct compat_timespec *uts, compat_size_t sigsetsize)
 {
 	sigset_t s;
 	sigset32_t s32;
@@ -973,9 +968,14 @@ static void handle_signal32(unsigned long sig, siginfo_t *info,
 
 	if (regs->trap == 0x0C00 /* System Call! */
 	    && ((int)regs->result == -ERESTARTNOHAND ||
+		(int)regs->result == -ERESTART_RESTARTBLOCK ||
 		((int)regs->result == -ERESTARTSYS &&
-		 !(ka->sa.sa_flags & SA_RESTART))))
+		 !(ka->sa.sa_flags & SA_RESTART)))) {
+		if ((int)regs->result == -ERESTART_RESTARTBLOCK)
+			current_thread_info()->restart_block.fn
+				= do_no_restart_syscall;
 		regs->result = -EINTR;
+	}
 
 	/*
 	 * Set up the signal frame
@@ -1137,13 +1137,18 @@ int do_signal32(sigset_t *oldset, struct pt_regs *regs)
 		handle_signal32(signr, &info, oldset, regs, &newsp, frame);
 	}
 
-	if (regs->trap == 0x0C00 /* System Call! */ &&
-	    ((int)regs->result == -ERESTARTNOHAND ||
-	     (int)regs->result == -ERESTARTSYS ||
-	     (int)regs->result == -ERESTARTNOINTR)) {
-		regs->gpr[3] = regs->orig_gpr3;
-		regs->nip -= 4;		/* Back up & retry system call */
-		regs->result = 0;
+	if (regs->trap == 0x0C00) {	/* System Call! */
+		if ((int)regs->result == -ERESTARTNOHAND ||
+		    (int)regs->result == -ERESTARTSYS ||
+		    (int)regs->result == -ERESTARTNOINTR) {
+			regs->gpr[3] = regs->orig_gpr3;
+			regs->nip -= 4; /* Back up & retry system call */
+			regs->result = 0;
+		} else if ((int)regs->result == -ERESTART_RESTARTBLOCK) {
+			regs->gpr[0] = __NR_restart_syscall;
+			regs->nip -= 4;
+			regs->result = 0;
+		}
 	}
 
 	if (newsp == frame)

@@ -40,14 +40,14 @@ _GLOBAL(sys32_recvfrom)
 	clrldi		r8, r8, 32	/* int *addr_len parm */
 	b		.sys_recvfrom
 
-_GLOBAL(sys32_getsockopt)
-	clrldi		r7, r7, 32	/* int *optlen parm */
-	b		.sys_getsockopt
-
 _GLOBAL(ppc32_mmap2)
 	clrldi		r7, r7, 32	/* unsigned long fd parm */
 	clrldi		r8, r8, 32	/* unsigned long pgoff */
 	b		.sys32_mmap2
+
+_GLOBAL(ppc32_remap_file_pages)
+	clrldi		r7, r7, 32
+	b		.sys_remap_file_pages
 
 _GLOBAL(sys32_socketcall)	/* r3=call, r4=args */
 	cmpwi		r3, 1
@@ -134,7 +134,7 @@ _STATIC(do_sys_recv) /* sys_recv(int, void *, size_t, unsigned int) */
 	lwz		r6,12(r10)
 	b		.sys_recv
 
-_STATIC(do_sys_sendto) /* sys32_sendto(int, u32, __kernel_size_t32, unsigned int, u32, int) */
+_STATIC(do_sys_sendto) /* sys32_sendto(int, u32, compat_size_t, unsigned int, u32, int) */
 	mr		r10,r4
 	lwa		r3,0(r10)
 	lwz		r4,4(r10)
@@ -144,7 +144,7 @@ _STATIC(do_sys_sendto) /* sys32_sendto(int, u32, __kernel_size_t32, unsigned int
 	lwa		r8,20(r10)
 	b		.sys32_sendto
 
-_STATIC(do_sys_recvfrom) /* sys32_recvfrom(int, u32, __kernel_size_t32, unsigned int, u32, u32) */
+_STATIC(do_sys_recvfrom) /* sys32_recvfrom(int, u32, compat_size_t, unsigned int, u32, u32) */
 	mr		r10,r4
 	lwa		r3,0(r10)
 	lwz		r4,4(r10)

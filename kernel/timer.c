@@ -25,6 +25,7 @@
 #include <linux/init.h>
 #include <linux/mm.h>
 #include <linux/notifier.h>
+#include <linux/thread_info.h>
 
 #include <asm/uaccess.h>
 
@@ -862,8 +863,8 @@ asmlinkage long sys_getpid(void)
 }
 
 /*
- * This is not strictly SMP safe: p_opptr could change
- * from under us. However, rather than getting any lock
+ * Accessing ->group_leader->real_parent is not SMP-safe, it could
+ * change from under us. However, rather than getting any lock
  * we can use an optimistic algorithm: get the parent
  * pid, and go back and check that the parent is still
  * the same. If it has changed (which is extremely unlikely
@@ -871,33 +872,31 @@ asmlinkage long sys_getpid(void)
  *
  * NOTE! This depends on the fact that even if we _do_
  * get an old value of "parent", we can happily dereference
- * the pointer: we just can't necessarily trust the result
+ * the pointer (it was and remains a dereferencable kernel pointer
+ * no matter what): we just can't necessarily trust the result
  * until we know that the parent pointer is valid.
  *
- * The "mb()" macro is a memory barrier - a synchronizing
- * event. It also makes sure that gcc doesn't optimize
- * away the necessary memory references.. The barrier doesn't
- * have to have all that strong semantics: on x86 we don't
- * really require a synchronizing instruction, for example.
- * The barrier is more important for code generation than
- * for any real memory ordering semantics (even if there is
- * a small window for a race, using the old pointer is
- * harmless for a while).
+ * NOTE2: ->group_leader never changes from under us.
  */
 asmlinkage long sys_getppid(void)
 {
 	int pid;
-	struct task_struct * me = current;
-	struct task_struct * parent;
+	struct task_struct *me = current;
+	struct task_struct *parent;
 
-	parent = me->real_parent;
+	parent = me->group_leader->real_parent;
 	for (;;) {
-		pid = parent->pid;
+		pid = parent->tgid;
 #if CONFIG_SMP
 {
 		struct task_struct *old = parent;
-		mb();
-		parent = me->real_parent;
+
+		/*
+		 * Make sure we read the pid before re-reading the
+		 * parent pointer:
+		 */
+		rmb();
+		parent = me->group_leader->real_parent;
 		if (old != parent)
 			continue;
 }
@@ -1022,31 +1021,62 @@ asmlinkage long sys_gettid(void)
 	return current->pid;
 }
 
+static long nanosleep_restart(struct restart_block *restart)
+{
+	unsigned long expire = restart->arg0, now = jiffies;
+	struct timespec *rmtp = (struct timespec *) restart->arg1;
+	long ret;
+
+	/* Did it expire while we handled signals? */
+	if (!time_after(expire, now))
+		return 0;
+
+	current->state = TASK_INTERRUPTIBLE;
+	expire = schedule_timeout(expire - now);
+
+	ret = 0;
+	if (expire) {
+		struct timespec t;
+		jiffies_to_timespec(expire, &t);
+
+		ret = -ERESTART_RESTARTBLOCK;
+		if (copy_to_user(rmtp, &t, sizeof(t)))
+			ret = -EFAULT;
+		/* The 'restart' block is already filled in */
+	}
+	return ret;
+}
+
 asmlinkage long sys_nanosleep(struct timespec *rqtp, struct timespec *rmtp)
 {
 	struct timespec t;
 	unsigned long expire;
+	long ret;
 
-	if(copy_from_user(&t, rqtp, sizeof(struct timespec)))
+	if (copy_from_user(&t, rqtp, sizeof(t)))
 		return -EFAULT;
 
-	if (t.tv_nsec >= 1000000000L || t.tv_nsec < 0 || t.tv_sec < 0)
+	if ((t.tv_nsec >= 1000000000L) || (t.tv_nsec < 0) || (t.tv_sec < 0))
 		return -EINVAL;
 
 	expire = timespec_to_jiffies(&t) + (t.tv_sec || t.tv_nsec);
-
 	current->state = TASK_INTERRUPTIBLE;
 	expire = schedule_timeout(expire);
 
+	ret = 0;
 	if (expire) {
-		if (rmtp) {
-			jiffies_to_timespec(expire, &t);
-			if (copy_to_user(rmtp, &t, sizeof(struct timespec)))
-				return -EFAULT;
-		}
-		return -EINTR;
+		struct restart_block *restart;
+		jiffies_to_timespec(expire, &t);
+		if (copy_to_user(rmtp, &t, sizeof(t)))
+			return -EFAULT;
+
+		restart = &current_thread_info()->restart_block;
+		restart->fn = nanosleep_restart;
+		restart->arg0 = jiffies + expire;
+		restart->arg1 = (unsigned long) rmtp;
+		ret = -ERESTART_RESTARTBLOCK;
 	}
-	return 0;
+	return ret;
 }
 
 /*

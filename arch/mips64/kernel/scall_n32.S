@@ -326,4 +326,4 @@ EXPORT(sysn32_call_table)
 	PTR	sys_remap_file_pages		/* 6210 */
 	PTR	sys_ni_syscall
 	PTR	sys_fcntl
-	PTR	sys32_set_tid_address
+	PTR	sys_set_tid_address

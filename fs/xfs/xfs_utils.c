@@ -32,10 +32,6 @@
 
 #include <xfs.h>
 
-#ifdef CONFIG_PROC_FS
-struct xfsstats xfsstats;
-#endif
-
 /*
  * xfs_get_dir_entry is used to get a reference to an inode given
  * its parent directory inode and the name of the file.	 It does
@@ -45,11 +41,11 @@ struct xfsstats xfsstats;
  */
 int
 xfs_get_dir_entry(
-	struct dentry		*dentry,
-	xfs_inode_t		**ipp)
+	vname_t		*dentry,
+	xfs_inode_t	**ipp)
 {
-	vnode_t			*vp;
-	bhv_desc_t		*bdp;
+	vnode_t		*vp;
+	bhv_desc_t	*bdp;
 
 	ASSERT(dentry->d_inode);
 
@@ -66,24 +62,23 @@ xfs_get_dir_entry(
 
 int
 xfs_dir_lookup_int(
-	bhv_desc_t		*dir_bdp,
-	uint			lock_mode,
-	struct dentry		*dentry,
-	xfs_ino_t		*inum,
-	xfs_inode_t		**ipp)
+	bhv_desc_t	*dir_bdp,
+	uint		lock_mode,
+	vname_t		*dentry,
+	xfs_ino_t	*inum,
+	xfs_inode_t	**ipp)
 {
 	vnode_t		*dir_vp;
 	xfs_inode_t	*dp;
 	int		error;
 
 	dir_vp = BHV_TO_VNODE(dir_bdp);
-	vn_trace_entry(dir_vp, "xfs_dir_lookup_int",
-		       (inst_t *)__return_address);
+	vn_trace_entry(dir_vp, __FUNCTION__, (inst_t *)__return_address);
 
 	dp = XFS_BHVTOI(dir_bdp);
 
 	error = XFS_DIR_LOOKUP(dp->i_mount, NULL, dp,
-			(char *)dentry->d_name.name, dentry->d_name.len, inum);
+				VNAME(dentry), VNAMELEN(dentry), inum);
 	if (!error) {
 		/*
 		 * Unlock the directory. We do this because we can't

@@ -135,7 +135,7 @@ CONFIG_BINFMT_IRIX=y
 # CONFIG_PARPORT is not set
 
 #
-# Plug and Play configuration
+# Plug and Play support
 #
 # CONFIG_PNP is not set
 
@@ -535,17 +535,17 @@ CONFIG_SGI_PARTITION=y
 # CONFIG_EFI_PARTITION is not set
 
 #
-# Console drivers
+# Graphics support
 #
-# CONFIG_VGA_CONSOLE is not set
-CONFIG_SGI_NEWPORT_CONSOLE=y
-CONFIG_FONT_8x16=y
-# CONFIG_MDA_CONSOLE is not set
 
 #
-# Frame-buffer support
+# Console display driver support
 #
+# CONFIG_VGA_CONSOLE is not set
+# CONFIG_MDA_CONSOLE is not set
+CONFIG_SGI_NEWPORT_CONSOLE=y
 CONFIG_DUMMY_CONSOLE=y
+CONFIG_FONT_8x16=y
 
 #
 # Sound
@@ -584,6 +584,8 @@ CONFIG_CRYPTO_SHA1=y
 CONFIG_CRYPTO_SHA256=y
 CONFIG_CRYPTO_DES=y
 CONFIG_CRYPTO_BLOWFISH=y
+CONFIG_CRYPTO_TWOFISH=y
+CONFIG_CRYPTO_SERPENT=y
 # CONFIG_CRYPTO_TEST is not set
 
 #

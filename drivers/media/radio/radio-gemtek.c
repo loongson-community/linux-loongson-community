@@ -229,20 +229,20 @@ static int gemtek_ioctl(struct inode *inode, struct file *file,
 static struct gemtek_device gemtek_unit;
 
 static struct file_operations gemtek_fops = {
-	owner:		THIS_MODULE,
-	open:           video_exclusive_open,
-	release:        video_exclusive_release,
-	ioctl:		gemtek_ioctl,
-	llseek:         no_llseek,
+	.owner		= THIS_MODULE,
+	.open           = video_exclusive_open,
+	.release        = video_exclusive_release,
+	.ioctl		= gemtek_ioctl,
+	.llseek         = no_llseek,
 };
 
 static struct video_device gemtek_radio=
 {
-	owner:		THIS_MODULE,
-	name:		"GemTek radio",
-	type:		VID_TYPE_TUNER,
-	hardware:	VID_HARDWARE_GEMTEK,
-	fops:           &gemtek_fops,
+	.owner		= THIS_MODULE,
+	.name		= "GemTek radio",
+	.type		= VID_TYPE_TUNER,
+	.hardware	= VID_HARDWARE_GEMTEK,
+	.fops           = &gemtek_fops,
 };
 
 static int __init gemtek_init(void)
@@ -269,13 +269,13 @@ static int __init gemtek_init(void)
 	printk(KERN_INFO "GemTek Radio Card driver.\n");
 
 	spin_lock_init(&lock);
- 	/* mute card - prevents noisy bootups */
-	outb(0x10, io);
-	udelay(5);
-	gemtek_unit.muted = 1;
 
 	/* this is _maybe_ unnecessary */
 	outb(0x01, io);
+
+ 	/* mute card - prevents noisy bootups */
+	gemtek_unit.muted = 0;
+	gemtek_mute(&gemtek_unit);
 
 	return 0;
 }

@@ -107,7 +107,7 @@ static struct cpia_camera_ops cpia_usb_ops = {
 static struct cam_data *cam_list;
 static spinlock_t cam_list_lock_usb;
 
-static void cpia_usb_complete(struct urb *urb)
+static void cpia_usb_complete(struct urb *urb, struct pt_regs *regs)
 {
 	int i;
 	char *cdata;
@@ -582,10 +582,10 @@ MODULE_LICENSE("GPL");
 
 
 static struct usb_driver cpia_driver = {
-	name:		"cpia",
-	probe:		cpia_probe,
-	disconnect:	cpia_disconnect,
-	id_table:	cpia_id_table,
+	.name		= "cpia",
+	.probe		= cpia_probe,
+	.disconnect	= cpia_disconnect,
+	.id_table	= cpia_id_table,
 };
 
 /* don't use dev, it may be NULL! (see usb_cpia_cleanup) */

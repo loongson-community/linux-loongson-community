@@ -61,6 +61,7 @@ CONFIG_ARC=y
 CONFIG_GENERIC_ISA_DMA=y
 # CONFIG_CPU_LITTLE_ENDIAN is not set
 CONFIG_L1_CACHE_SHIFT=7
+# CONFIG_FB is not set
 CONFIG_ARC64=y
 CONFIG_BOOT_ELF64=y
 CONFIG_QL_ISP_A64=y
@@ -123,7 +124,7 @@ CONFIG_BINFMT_ELF32=y
 # CONFIG_PARPORT is not set
 
 #
-# Plug and Play configuration
+# Plug and Play support
 #
 # CONFIG_PNP is not set
 
@@ -298,6 +299,7 @@ CONFIG_SGI_IOC3_ETH=y
 # CONFIG_E1000 is not set
 # CONFIG_NS83820 is not set
 # CONFIG_HAMACHI is not set
+# CONFIG_R8169 is not set
 # CONFIG_SK98LIN is not set
 # CONFIG_TIGON3 is not set
 # CONFIG_FDDI is not set
@@ -494,6 +496,17 @@ CONFIG_SGI_PARTITION=y
 # CONFIG_ULTRIX_PARTITION is not set
 # CONFIG_SUN_PARTITION is not set
 # CONFIG_EFI_PARTITION is not set
+
+#
+# Graphics support
+#
+
+#
+# Console display driver support
+#
+# CONFIG_VGA_CONSOLE is not set
+# CONFIG_MDA_CONSOLE is not set
+CONFIG_DUMMY_CONSOLE=y
 
 #
 # Sound

@@ -30,12 +30,8 @@
  *
  * http://oss.sgi.com/projects/GenInfo/SGIGPLNoticeExplan/
  */
-#ifndef _LINUX_XFS_FS_H
-#define _LINUX_XFS_FS_H
-
-#include <linux/types.h>
-#include <asm/ioctl.h>
-
+#ifndef __XFS_FS_H__
+#define __XFS_FS_H__
 
 /*
  * SGI's XFS filesystem's major stuff (constants, structures)
@@ -229,15 +225,16 @@ typedef struct xfs_fsop_resblks {
 
 #define XFS_FSOP_GEOM_VERSION	0
 
-#define XFS_FSOP_GEOM_FLAGS_ATTR	0x01	/* attributes in use	*/
-#define XFS_FSOP_GEOM_FLAGS_NLINK	0x02	/* 32-bit nlink values	*/
-#define XFS_FSOP_GEOM_FLAGS_QUOTA	0x04	/* quotas enabled	*/
-#define XFS_FSOP_GEOM_FLAGS_IALIGN	0x08	/* inode alignment	*/
-#define XFS_FSOP_GEOM_FLAGS_DALIGN	0x10	/* large data alignment */
-#define XFS_FSOP_GEOM_FLAGS_SHARED	0x20	/* read-only shared	*/
-#define XFS_FSOP_GEOM_FLAGS_EXTFLG	0x40	/* special extent flag	*/
-#define XFS_FSOP_GEOM_FLAGS_DIRV2	0x80	/* directory version 2	*/
-#define XFS_FSOP_GEOM_FLAGS_LOGV2      0x100	/* log format version 2 */
+#define XFS_FSOP_GEOM_FLAGS_ATTR	0x0001	/* attributes in use	*/
+#define XFS_FSOP_GEOM_FLAGS_NLINK	0x0002	/* 32-bit nlink values	*/
+#define XFS_FSOP_GEOM_FLAGS_QUOTA	0x0004	/* quotas enabled	*/
+#define XFS_FSOP_GEOM_FLAGS_IALIGN	0x0008	/* inode alignment	*/
+#define XFS_FSOP_GEOM_FLAGS_DALIGN	0x0010	/* large data alignment */
+#define XFS_FSOP_GEOM_FLAGS_SHARED	0x0020	/* read-only shared	*/
+#define XFS_FSOP_GEOM_FLAGS_EXTFLG	0x0040	/* special extent flag	*/
+#define XFS_FSOP_GEOM_FLAGS_DIRV2	0x0080	/* directory version 2	*/
+#define XFS_FSOP_GEOM_FLAGS_LOGV2	0x0100	/* log format version 2	*/
+#define XFS_FSOP_GEOM_FLAGS_SECTOR	0x0200	/* sector sizes >1BB	*/
 
 
 /*
@@ -394,11 +391,13 @@ typedef struct {
  * This is typically called by a stateless file server in order to generate
  * "file handles".
  */
+#ifndef MAXFIDSZ
 #define MAXFIDSZ	46
 typedef struct fid {
 	__u16		fid_len;		/* length of data in bytes */
 	unsigned char	fid_data[MAXFIDSZ];	/* data (variable length)  */
 } fid_t;
+#endif
 
 typedef struct xfs_fid {
 	__u16	xfs_fid_len;		/* length of remainder	*/
@@ -499,4 +498,4 @@ typedef struct xfs_handle {
 #define BTOBBT(bytes)	((__u64)(bytes) >> BBSHIFT)
 #define BBTOB(bbs)	((bbs) << BBSHIFT)
 
-#endif	/* _LINUX_XFS_FS_H */
+#endif	/* __XFS_FS_H__ */

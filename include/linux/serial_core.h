@@ -189,6 +189,7 @@ struct uart_port {
 	unsigned int		timeout;		/* character-based timeout */
 	unsigned int		type;			/* port type */
 	struct uart_ops		*ops;
+	unsigned int		custom_divisor;
 	unsigned int		line;			/* port index */
 	unsigned long		mapbase;		/* for ioremap */
 	unsigned char		hub6;			/* this should be in the 8250 driver */
@@ -206,8 +207,6 @@ struct uart_state {
 
 #define USF_CLOSING_WAIT_INF	(0)
 #define USF_CLOSING_WAIT_NONE	(65535)
-
-	unsigned int		custom_divisor;
 
 	int			count;
 	struct uart_info	*info;

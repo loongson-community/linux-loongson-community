@@ -65,6 +65,7 @@ CONFIG_CPU_LITTLE_ENDIAN=y
 CONFIG_IRQ_CPU=y
 CONFIG_BOOT_ELF32=y
 CONFIG_L1_CACHE_SHIFT=4
+# CONFIG_FB is not set
 
 #
 # CPU selection
@@ -121,7 +122,7 @@ CONFIG_BINFMT_ELF32=y
 # CONFIG_PARPORT is not set
 
 #
-# Plug and Play configuration
+# Plug and Play support
 #
 # CONFIG_PNP is not set
 
@@ -501,6 +502,17 @@ CONFIG_MSDOS_PARTITION=y
 CONFIG_ULTRIX_PARTITION=y
 # CONFIG_SUN_PARTITION is not set
 # CONFIG_EFI_PARTITION is not set
+
+#
+# Graphics support
+#
+
+#
+# Console display driver support
+#
+# CONFIG_VGA_CONSOLE is not set
+# CONFIG_MDA_CONSOLE is not set
+CONFIG_DUMMY_CONSOLE=y
 
 #
 # Sound

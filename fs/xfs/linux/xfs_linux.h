@@ -71,6 +71,7 @@
 #define restricted_chown	xfs_params.restrict_chown
 #define irix_sgid_inherit	xfs_params.sgid_inherit
 #define irix_symlink_mode	xfs_params.symlink_mode
+#define xfs_panic_mask		xfs_params.panic_mask
 
 typedef struct xfs_dirent {		/* data from readdir() */
 	xfs_ino_t	d_ino;		/* inode number of entry */
@@ -153,7 +154,6 @@ typedef struct xfs_dirent {		/* data from readdir() */
 #define EFSCORRUPTED	990		/* Filesystem is corrupted */
 
 #define SYNCHRONIZE()	barrier()
-#define rootdev		ROOT_DEV
 #define __return_address __builtin_return_address(0)
 
 /* IRIX uses a dynamic sizing algorithm (ndquot = 200 + numprocs*2) */

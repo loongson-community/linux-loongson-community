@@ -46,7 +46,6 @@
  */
 
 #include <linux/module.h>
-#include <linux/compiler.h>
 #include <linux/stddef.h>
 #include <linux/errno.h>
 #include <linux/slab.h>
@@ -57,16 +56,15 @@
 #include <linux/bio.h>
 #include <linux/sysctl.h>
 #include <linux/proc_fs.h>
+#include <linux/workqueue.h>
 
 #include <support/debug.h>
 #include <support/kmem.h>
 
 #include "page_buf_internal.h"
 
-#define SECTOR_SHIFT	9
-#define SECTOR_SIZE	(1<<SECTOR_SHIFT)
-#define SECTOR_MASK	(SECTOR_SIZE - 1)
-#define BN_ALIGN_MASK	((1 << (PAGE_CACHE_SHIFT - SECTOR_SHIFT)) - 1)
+#define BBSHIFT		9
+#define BN_ALIGN_MASK	((1 << (PAGE_CACHE_SHIFT - BBSHIFT)) - 1)
 
 #ifndef GFP_READAHEAD
 #define GFP_READAHEAD	0
@@ -115,45 +113,6 @@ pb_trace_func(
 }
 #endif	/* PAGEBUF_TRACE */
 
-#ifdef PAGEBUF_TRACKING
-#define MAX_PB	10000
-page_buf_t	*pb_array[MAX_PB];
-EXPORT_SYMBOL(pb_array);
-
-void
-pb_tracking_get(
-	page_buf_t	*pb)
-{
-	int		i;
-
-	for (i = 0; (pb_array[i] != 0) && (i < MAX_PB); i++) { }
-	if (i == MAX_PB)
-		printk("pb 0x%p not recorded in pb_array\n", pb);
-	else {
-		//printk("pb_get 0x%p in pb_array[%d]\n", pb, i);
-		pb_array[i] = pb;
-	}
-}
-
-void
-pb_tracking_free(
-	page_buf_t	*pb)
-{
-	int		i;
-
-	for (i = 0; (pb_array[i] != pb) && (i < MAX_PB); i++) { }
-	if (i < MAX_PB) {
-		//printk("pb_free 0x%p from pb_array[%d]\n", pb, i);
-		pb_array[i] = NULL;
-	}
-	else
-		printk("Freed unmonitored pagebuf 0x%p\n", pb);
-}
-#else
-#define pb_tracking_get(pb)	do { } while (0)
-#define pb_tracking_free(pb)	do { } while (0)
-#endif	/* PAGEBUF_TRACKING */
-
 /*
  *	File wide globals
  */
@@ -161,6 +120,8 @@ pb_tracking_free(
 STATIC kmem_cache_t *pagebuf_cache;
 STATIC pagebuf_daemon_t *pb_daemon;
 STATIC void pagebuf_daemon_wakeup(int);
+STATIC struct workqueue_struct *pagebuf_workqueue;
+
 
 /*
  * Pagebuf module configuration parameters, exported via
@@ -177,11 +138,6 @@ pagebuf_param_t pb_params = {{ HZ, 15 * HZ, 0, 0 }};
  */
 
 struct pbstats pbstats;
-
-/*
- * Queue for delayed I/O completion.
- */
-struct workqueue_struct *pagebuf_workqueue;
 
 /*
  * Pagebuf allocation / freeing.
@@ -245,19 +201,27 @@ typedef struct a_list {
 STATIC	a_list_t	*as_free_head;
 STATIC	int		as_list_len;
 
+
+/*
+ * Try to batch vunmaps because they are costly.
+ */
 STATIC void
 free_address(
 	void		*addr)
 {
 	a_list_t	*aentry;
 
-	spin_lock(&as_lock);
 	aentry = kmalloc(sizeof(a_list_t), GFP_ATOMIC);
-	aentry->next = as_free_head;
-	aentry->vm_addr = addr;
-	as_free_head = aentry;
-	as_list_len++;
-	spin_unlock(&as_lock);
+	if (aentry) {
+		spin_lock(&as_lock);
+		aentry->next = as_free_head;
+		aentry->vm_addr = addr;
+		as_free_head = aentry;
+		as_list_len++;
+		spin_unlock(&as_lock);
+	} else {
+		vunmap(addr);
+	}
 }
 
 STATIC void
@@ -265,7 +229,8 @@ purge_addresses(void)
 {
 	a_list_t	*aentry, *old;
 
-	if (as_free_head == NULL) return;
+	if (as_free_head == NULL)
+		return;
 
 	spin_lock(&as_lock);
 	aentry = as_free_head;
@@ -306,8 +271,6 @@ _pagebuf_initialize(
 	 * We don't want certain flags to appear in pb->pb_flags.
 	 */
 	flags &= ~(PBF_LOCK|PBF_MAPPED|PBF_DONT_BLOCK|PBF_READ_AHEAD);
-
-	pb_tracking_get(pb);
 
 	memset(pb, 0, sizeof(page_buf_private_t));
 	atomic_set(&pb->pb_hold, 1);
@@ -437,7 +400,6 @@ _pagebuf_free_object(
 		}
 	}
 
-	pb_tracking_free(pb);
 	pagebuf_deallocate(pb);
 }
 
@@ -462,7 +424,8 @@ _pagebuf_lookup_pages(
 	struct page		*page;
 	int			gfp_mask, retry_count = 5, rval = 0;
 	int			all_mapped, good_pages, nbytes;
-	size_t			blocksize, size, offset;
+	unsigned int		blocksize, sectorshift;
+	size_t			size, offset;
 
 
 	/* For pagebufs where we want to map an address, do not use
@@ -508,7 +471,8 @@ _pagebuf_lookup_pages(
 		return rval;
 
 	rval = pi = 0;
-	blocksize = pb->pb_target->pbr_blocksize;
+	blocksize = pb->pb_target->pbr_bsize;
+	sectorshift = pb->pb_target->pbr_sshift;
 	size = pb->pb_count_desired;
 	offset = pb->pb_offset;
 
@@ -549,15 +513,15 @@ _pagebuf_lookup_pages(
 					pb->pb_locked = 1;
 				good_pages--;
 			} else if (!PagePrivate(page)) {
-				unsigned long i, range = (offset + nbytes) >> SECTOR_SHIFT;
+				unsigned long	i, range;
 
-				ASSERT(blocksize < PAGE_CACHE_SIZE);
-				ASSERT(!(pb->pb_flags & _PBF_PRIVATE_BH));
 				/*
 				 * In this case page->private holds a bitmap
-				 * of uptodate sectors (512) within the page
+				 * of uptodate sectors within the page
 				 */
-				for (i = offset >> SECTOR_SHIFT; i < range; i++)
+				ASSERT(blocksize < PAGE_CACHE_SIZE);
+				range = (offset + nbytes) >> sectorshift;
+				for (i = offset >> sectorshift; i < range; i++)
 					if (!test_bit(i, &page->private))
 						break;
 				if (i != range)
@@ -611,7 +575,6 @@ mapit:
 	return rval;
 }
 
-
 /*
  *	Finding and Reading Buffers
  */
@@ -642,8 +605,14 @@ _pagebuf_find(				/* find buffer for block	*/
 	page_buf_t		*pb;
 	int			not_locked;
 
-	range_base = (ioff << SECTOR_SHIFT);
-	range_length = (isize << SECTOR_SHIFT);
+	range_base = (ioff << BBSHIFT);
+	range_length = (isize << BBSHIFT);
+
+	/* Ensure we never do IOs smaller than the sector size */
+	BUG_ON(range_length < (1 << target->pbr_sshift));
+
+	/* Ensure we never do IOs that are not sector aligned */
+	BUG_ON(range_base & (loff_t)target->pbr_smask);
 
 	hval = _bhash(target->pbr_bdev->bd_dev, range_base);
 	h = &pbhash[hval];
@@ -851,8 +820,20 @@ pagebuf_readahead(
 	size_t			isize,
 	page_buf_flags_t	flags)
 {
+	struct backing_dev_info *bdi;
+
+	bdi = target->pbr_mapping->backing_dev_info;
+	if (bdi_read_congested(bdi))
+		return;
+	if (bdi_write_congested(bdi))
+		return;
+
 	flags |= (PBF_TRYLOCK|PBF_READ|PBF_ASYNC|PBF_MAPPABLE|PBF_READ_AHEAD);
+
+	/* don't complain on allocation failure, it's fine with us */
+	current->flags |= PF_NOWARN;
 	pagebuf_get(target, ioff, isize, flags);
+	current->flags &= ~PF_NOWARN;
 }
 
 page_buf_t *
@@ -956,18 +937,12 @@ pagebuf_get_no_daddr(
 		} else {
 			kfree(rmem); /* free the mem from the previous try */
 			tlen <<= 1; /* double the size and try again */
-			/*
-			printk(
-			"pb_get_no_daddr NOT block 0x%p mask 0x%p len %d\n",
-				rmem, ((size_t)rmem & (size_t)~SECTOR_MASK),
-				len);
-			*/
 		}
 		if ((rmem = kmalloc(tlen, GFP_KERNEL)) == 0) {
 			pagebuf_free(pb);
 			return NULL;
 		}
-	} while ((size_t)rmem != ((size_t)rmem & (size_t)~SECTOR_MASK));
+	} while ((size_t)rmem != ((size_t)rmem & ~target->pbr_smask));
 
 	if ((rval = pagebuf_associate_memory(pb, rmem, len)) != 0) {
 		kfree(rmem);
@@ -1145,7 +1120,7 @@ _pagebuf_wait_unpin(
 		if (atomic_read(&PBP(pb)->pb_pin_count) == 0) {
 			break;
 		}
-		blk_run_queues();
+		pagebuf_run_queues(pb);
 		schedule();
 	}
 	remove_wait_queue(&PBP(pb)->pb_waiters, &wait);
@@ -1183,7 +1158,8 @@ pagebuf_iodone_work(
 
 void
 pagebuf_iodone(
-	page_buf_t		*pb)
+	page_buf_t		*pb,
+	int			schedule)
 {
 	pb->pb_flags &= ~(PBF_READ | PBF_WRITE);
 	if (pb->pb_error == 0) {
@@ -1193,8 +1169,12 @@ pagebuf_iodone(
 	PB_TRACE(pb, PB_TRACE_REC(done), pb->pb_iodone);
 
 	if ((pb->pb_iodone) || (pb->pb_flags & PBF_ASYNC)) {
-		INIT_WORK(&pb->pb_iodone_work, pagebuf_iodone_work, pb);
-		queue_work(pagebuf_workqueue, &pb->pb_iodone_work);
+		if (schedule) {
+			INIT_WORK(&pb->pb_iodone_work, pagebuf_iodone_work, pb);
+			queue_work(pagebuf_workqueue, &pb->pb_iodone_work);
+		} else {
+			pagebuf_iodone_work(pb);
+		}
 	} else {
 		up(&pb->pb_iodonesema);
 	}
@@ -1248,9 +1228,7 @@ pagebuf_iostart(			/* start I/O on a buffer	  */
 	pb->pb_flags &= ~(PBF_READ|PBF_WRITE|PBF_ASYNC|PBF_DELWRI|PBF_READ_AHEAD);
 	pb->pb_flags |= flags & (PBF_READ|PBF_WRITE|PBF_ASYNC|PBF_SYNC|PBF_READ_AHEAD);
 
-	if (pb->pb_bn == PAGE_BUF_DADDR_NULL) {
-		BUG();
-	}
+	BUG_ON(pb->pb_bn == PAGE_BUF_DADDR_NULL);
 
 	/* For writes call internal function which checks for
 	 * filesystem specific callout function and execute it.
@@ -1279,7 +1257,8 @@ bio_end_io_pagebuf(
 	int			error)
 {
 	page_buf_t		*pb = (page_buf_t *)bio->bi_private;
-	unsigned int		i, blocksize = pb->pb_target->pbr_blocksize;
+	unsigned int		i, blocksize = pb->pb_target->pbr_bsize;
+	unsigned int		sectorshift = pb->pb_target->pbr_sshift;
 	struct bio_vec		*bvec = bio->bi_io_vec;
 
 	if (bio->bi_size)
@@ -1299,10 +1278,8 @@ bio_end_io_pagebuf(
 			unsigned int	j, range;
 
 			ASSERT(blocksize < PAGE_CACHE_SIZE);
-			ASSERT(!(pb->pb_flags & _PBF_PRIVATE_BH));
-
-			range = (bvec->bv_offset + bvec->bv_len)>>SECTOR_SHIFT;
-			for (j = bvec->bv_offset>>SECTOR_SHIFT; j < range; j++)
+			range = (bvec->bv_offset + bvec->bv_len) >> sectorshift;
+			for (j = bvec->bv_offset >> sectorshift; j < range; j++)
 				set_bit(j, &page->private);
 			if (page->private == (unsigned long)(PAGE_CACHE_SIZE-1))
 				SetPageUptodate(page);
@@ -1315,9 +1292,9 @@ bio_end_io_pagebuf(
 		}
 	}
 
-	if (atomic_dec_and_test(&PBP(pb)->pb_io_remaining)) {
+	if (atomic_dec_and_test(&pb->pb_io_remaining) == 1) {
 		pb->pb_locked = 0;
-		pagebuf_iodone(pb);
+		pagebuf_iodone(pb, 1);
 	}
 
 	bio_put(bio);
@@ -1353,7 +1330,7 @@ pagebuf_iorequest(			/* start real I/O		*/
 	int			offset = pb->pb_offset;
 	int			size = pb->pb_count_desired;
 	sector_t		sector = pb->pb_bn;
-	size_t			blocksize = pb->pb_target->pbr_blocksize;
+	unsigned int		blocksize = pb->pb_target->pbr_bsize;
 	int			locking;
 
 	locking = (pb->pb_flags & _PBF_LOCKABLE) == 0 && (pb->pb_locked == 0);
@@ -1369,7 +1346,7 @@ pagebuf_iorequest(			/* start real I/O		*/
 	 * completion callout which happens before we have started
 	 * all the I/O from calling iodone too early
 	 */
-	atomic_set(&PBP(pb)->pb_io_remaining, 1);
+	atomic_set(&pb->pb_io_remaining, 1);
 
 	/* Special code path for reading a sub page size pagebuf in --
 	 * we populate up the whole page, and hence the other metadata
@@ -1382,7 +1359,7 @@ pagebuf_iorequest(			/* start real I/O		*/
 		bio = bio_alloc(GFP_NOIO, 1);
 
 		bio->bi_bdev = pb->pb_target->pbr_bdev;
-		bio->bi_sector = sector - (offset >> SECTOR_SHIFT);
+		bio->bi_sector = sector - (offset >> BBSHIFT);
 		bio->bi_end_io = bio_end_io_pagebuf;
 		bio->bi_private = pb;
 		bio->bi_vcnt++;
@@ -1393,7 +1370,7 @@ pagebuf_iorequest(			/* start real I/O		*/
 		bvec->bv_len = PAGE_CACHE_SIZE;
 		bvec->bv_offset = 0;
 
-		atomic_inc(&PBP(pb)->pb_io_remaining);
+		atomic_inc(&pb->pb_io_remaining);
 		submit_bio(READ, bio);
 
 		goto io_submitted;
@@ -1426,8 +1403,8 @@ pagebuf_iorequest(			/* start real I/O		*/
 	map_i = 0;
 
 next_chunk:
-	atomic_inc(&PBP(pb)->pb_io_remaining);
-	nr_pages = BIO_MAX_SECTORS >> (PAGE_SHIFT - SECTOR_SHIFT);
+	atomic_inc(&pb->pb_io_remaining);
+	nr_pages = BIO_MAX_SECTORS >> (PAGE_SHIFT - BBSHIFT);
 	if (nr_pages > total_nr_pages)
 		nr_pages = total_nr_pages;
 
@@ -1452,7 +1429,7 @@ next_chunk:
 
 		offset = 0;
 
-		sector += nbytes >> SECTOR_SHIFT;
+		sector += nbytes >> BBSHIFT;
 		size -= nbytes;
 		total_nr_pages--;
 	}
@@ -1468,10 +1445,8 @@ next_chunk:
 
 io_submitted:
 
-	if (atomic_dec_and_test(&PBP(pb)->pb_io_remaining) == 1) {
-		pagebuf_iodone(pb);
-	} else if ((pb->pb_flags & (PBF_SYNC|PBF_ASYNC)) == PBF_SYNC)  {
-		blk_run_queues();
+	if (atomic_dec_and_test(&pb->pb_io_remaining) == 1) {
+		pagebuf_iodone(pb, 0);
 	}
 
 	return status < 0 ? status : 0;
@@ -1489,7 +1464,7 @@ pagebuf_iowait(
 	page_buf_t		*pb)
 {
 	PB_TRACE(pb, PB_TRACE_REC(iowait), 0);
-	blk_run_queues();
+	pagebuf_run_queues(pb);
 	down(&pb->pb_iodonesema);
 	PB_TRACE(pb, PB_TRACE_REC(iowaited), (int)pb->pb_error);
 	return pb->pb_error;
@@ -1622,9 +1597,8 @@ pagebuf_delwri_queue(
 			atomic_dec(&pb->pb_hold);
 		}
 		list_del(&pb->pb_list);
-	} else {
-		pb_daemon->pb_delwri_cnt++;
 	}
+
 	list_add_tail(&pb->pb_list, &pb_daemon->pb_delwrite_l);
 	PBP(pb)->pb_flushtime = jiffies + pb_params.p_un.age_buffer;
 	spin_unlock(&pb_daemon->pb_delwrite_lock);
@@ -1642,7 +1616,6 @@ pagebuf_delwri_dequeue(
 	spin_lock(&pb_daemon->pb_delwrite_lock);
 	list_del_init(&pb->pb_list);
 	pb->pb_flags &= ~PBF_DELWRI;
-	pb_daemon->pb_delwri_cnt--;
 	spin_unlock(&pb_daemon->pb_delwrite_lock);
 }
 
@@ -1725,8 +1698,7 @@ pagebuf_daemon(
 
 		spin_unlock(&pb_daemon->pb_delwrite_lock);
 		while (!list_empty(&tmp)) {
-			pb = list_entry(tmp.next,
-							page_buf_t, pb_list);
+			pb = list_entry(tmp.next, page_buf_t, pb_list);
 			list_del_init(&pb->pb_list);
 			pb->pb_flags &= ~PBF_DELWRI;
 			pb->pb_flags |= PBF_WRITE;
@@ -1734,10 +1706,10 @@ pagebuf_daemon(
 			__pagebuf_iorequest(pb);
 		}
 
-		if (count)
-			blk_run_queues();
 		if (as_list_len > 0)
 			purge_addresses();
+		if (count)
+			pagebuf_run_queues(NULL);
 
 		force_flush = 0;
 	} while (pb_daemon->active == 1);
@@ -1808,7 +1780,7 @@ pagebuf_delwri_flush(
 
 	spin_unlock(&pb_daemon->pb_delwrite_lock);
 
-	blk_run_queues();
+	pagebuf_run_queues(NULL);
 
 	if (pinptr)
 		*pinptr = pincount;
@@ -1838,8 +1810,6 @@ pagebuf_daemon_start(void)
 		}
 
 		pb_daemon->active = 1;
-		pb_daemon->io_active = 1;
-		pb_daemon->pb_delwri_cnt = 0;
 		pb_daemon->pb_delwrite_lock = SPIN_LOCK_UNLOCKED;
 
 		INIT_LIST_HEAD(&pb_daemon->pb_delwrite_l);
@@ -1866,7 +1836,6 @@ pagebuf_daemon_stop(void)
 		destroy_workqueue(pagebuf_workqueue);
 
 		pb_daemon->active = 0;
-		pb_daemon->io_active = 0;
 
 		wake_up_interruptible(&pbd_waitq);
 		while (pb_daemon->active == 0) {
@@ -2011,14 +1980,8 @@ pagebuf_init(void)
 	}
 
 #ifdef PAGEBUF_TRACE
-# if 1
 	pb_trace.buf = (pagebuf_trace_t *)kmalloc(
 			PB_TRACE_BUFSIZE * sizeof(pagebuf_trace_t), GFP_KERNEL);
-# else
-	/* Alternatively, for really really long trace bufs */
-	pb_trace.buf = (pagebuf_trace_t *)vmalloc(
-			PB_TRACE_BUFSIZE * sizeof(pagebuf_trace_t));
-# endif
 	memset(pb_trace.buf, 0, PB_TRACE_BUFSIZE * sizeof(pagebuf_trace_t));
 	pb_trace.start = 0;
 	pb_trace.end = PB_TRACE_BUFSIZE - 1;

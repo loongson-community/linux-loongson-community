@@ -485,8 +485,10 @@ _GLOBAL(cvt_df)
 _GLOBAL(kernel_thread)
 	/* XXX fix this when we optimise syscall entry to not save volatiles */
 	mr	r6,r3		/* function */
+	mr	r7,r4		/* arg */
 	ori	r3,r5,CLONE_VM	/* flags */
 	oris	r3,r3,(CLONE_UNTRACED>>16)
+	li	r4,0		/* new sp (unused) */
 	li	r0,__NR_clone
 	sc
 	cmpi	0,r3,0		/* parent or child? */
@@ -496,7 +498,7 @@ _GLOBAL(kernel_thread)
 	ld	r2,8(r6)
 	ld	r6,0(r6)
 	mtlr	r6              /* fn addr in lr */
-	mr	r3,r4	        /* load arg and call fn */
+	mr	r3,r7	        /* load arg and call fn */
 	blrl
 	li	r0,__NR_exit	/* exit after child exits */
         li	r3,0
@@ -506,7 +508,7 @@ _GLOBAL(kernel_thread)
 /* Why isn't this a) automatic, b) written in 'C'? */	
 	.balign 8
 _GLOBAL(sys_call_table32)
-	.llong .sys_ni_syscall		/* 0 - old setup syscall */
+	.llong .sys_restart_syscall	/* 0 */
 	.llong .sys_exit
 	.llong .sys_fork
 	.llong .sys_read
@@ -536,7 +538,7 @@ _GLOBAL(sys_call_table32)
 	.llong .sys_alarm
 	.llong .sys_ni_syscall		/* old fstat syscall */
 	.llong .sys32_pause
-	.llong .sys32_utime		/* 30 */
+	.llong .compat_sys_utime		/* 30 */
 	.llong .sys_ni_syscall		/* old stty syscall */
 	.llong .sys_ni_syscall		/* old gtty syscall */
 	.llong .sys32_access
@@ -610,8 +612,8 @@ _GLOBAL(sys_call_table32)
 	.llong .sys_ioperm
 	.llong .sys32_socketcall
 	.llong .sys32_syslog
-	.llong .sys32_setitimer
-	.llong .sys32_getitimer		/* 105 */
+	.llong .compat_sys_setitimer
+	.llong .compat_sys_getitimer		/* 105 */
 	.llong .sys32_newstat
 	.llong .sys32_newlstat
 	.llong .sys32_newfstat
@@ -633,10 +635,10 @@ _GLOBAL(sys_call_table32)
 	.llong .sys32_adjtimex
 	.llong .sys_mprotect		/* 125 */
 	.llong .sys32_sigprocmask
-	.llong .sys32_create_module
+	.llong .sys_ni_syscall		/* old create_module syscall */
 	.llong .sys32_init_module
 	.llong .sys32_delete_module
-	.llong .sys32_get_kernel_syms	/* 130 */
+	.llong .sys_ni_syscall		/* 130 old get_kernel_syms syscall */
 	.llong .sys_quotactl
 	.llong .sys32_getpgid
 	.llong .sys_fchdir
@@ -668,11 +670,11 @@ _GLOBAL(sys_call_table32)
 	.llong .sys32_sched_get_priority_max
 	.llong .sys32_sched_get_priority_min  /* 160 */
 	.llong .sys32_sched_rr_get_interval
-	.llong .sys32_nanosleep
+	.llong .compat_sys_nanosleep
 	.llong .sys32_mremap
 	.llong .sys_setresuid
 	.llong .sys_getresuid	        /* 165 */
-	.llong .sys32_query_module
+	.llong .sys_ni_syscall		/* old query_module syscall */
 	.llong .sys_poll
 	.llong .sys32_nfsservctl
 	.llong .sys_setresgid
@@ -741,15 +743,20 @@ _GLOBAL(sys_call_table32)
 	.llong .sys_ni_syscall		/* reserved for alloc_hugepages */
 	.llong .sys_ni_syscall		/* reserved for free_hugepages */
 	.llong .sys_exit_group
+	.llong .sys32_lookup_dcookie	/* 245 */
+	.llong .sys_epoll_create
+	.llong .sys_epoll_ctl
+	.llong .sys_epoll_wait
+	.llong .ppc32_remap_file_pages
 
-	.rept NR_syscalls-234
+	.rept NR_syscalls-239
 		.llong .sys_ni_syscall
 	.endr
 #endif
 
 	.balign 8
 _GLOBAL(sys_call_table)
-	.llong .sys_ni_syscall		/* 0 - old setup syscall */
+	.llong .sys_restart_syscall	/* 0 */
 	.llong .sys_exit
 	.llong .sys_fork
 	.llong .sys_read
@@ -876,10 +883,10 @@ _GLOBAL(sys_call_table)
 	.llong .sys_adjtimex
 	.llong .sys_mprotect		/* 125 */
 	.llong .sys_sigprocmask
-	.llong .sys_create_module
+	.llong .sys_ni_syscall		/* old create_module syscall */
 	.llong .sys_init_module
 	.llong .sys_delete_module
-	.llong .sys_get_kernel_syms	/* 130 */
+	.llong .sys_ni_syscall		/* 130 old get_kernel_syms syscall */
 	.llong .sys_quotactl
 	.llong .sys_getpgid
 	.llong .sys_fchdir
@@ -915,7 +922,7 @@ _GLOBAL(sys_call_table)
 	.llong .sys_mremap
 	.llong .sys_setresuid
 	.llong .sys_getresuid	        /* 165 */
-	.llong .sys_query_module
+	.llong .sys_ni_syscall		/* old query_module syscall */
 	.llong .sys_poll
 	.llong .sys_nfsservctl
 	.llong .sys_setresgid
@@ -984,7 +991,12 @@ _GLOBAL(sys_call_table)
 	.llong .sys_ni_syscall		/* reserved for alloc_hugepages */
 	.llong .sys_ni_syscall		/* reserved for free_hugepages */
 	.llong .sys_exit_group
+	.llong .sys_lookup_dcookie	/* 245 */
+	.llong .sys_epoll_create
+	.llong .sys_epoll_ctl
+	.llong .sys_epoll_wait
+	.llong .sys_remap_file_pages
 
-	.rept NR_syscalls-234
+	.rept NR_syscalls-239
 		.llong .sys_ni_syscall
 	.endr

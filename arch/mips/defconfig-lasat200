@@ -75,6 +75,7 @@ CONFIG_PCI=y
 CONFIG_RWSEM_GENERIC_SPINLOCK=y
 CONFIG_NONCOHERENT_IO=y
 CONFIG_CPU_LITTLE_ENDIAN=y
+# CONFIG_FB is not set
 CONFIG_BOARD_SCACHE=y
 
 #
@@ -187,7 +188,7 @@ CONFIG_MTD_LASAT=y
 # CONFIG_PARPORT is not set
 
 #
-# Plug and Play configuration
+# Plug and Play support
 #
 # CONFIG_PNP is not set
 
@@ -364,6 +365,7 @@ CONFIG_PCNET32=y
 # CONFIG_NS83820 is not set
 # CONFIG_HAMACHI is not set
 # CONFIG_YELLOWFIN is not set
+# CONFIG_R8169 is not set
 # CONFIG_SK98LIN is not set
 # CONFIG_TIGON3 is not set
 # CONFIG_FDDI is not set
@@ -562,6 +564,17 @@ CONFIG_FS_MBCACHE=y
 #
 # CONFIG_PARTITION_ADVANCED is not set
 CONFIG_MSDOS_PARTITION=y
+
+#
+# Graphics support
+#
+
+#
+# Console display driver support
+#
+# CONFIG_VGA_CONSOLE is not set
+# CONFIG_MDA_CONSOLE is not set
+CONFIG_DUMMY_CONSOLE=y
 
 #
 # Sound

@@ -143,8 +143,6 @@ static int	stli_nrbrds = sizeof(stli_brdconf) / sizeof(stlconf_t);
  */
 #define	STLI_EISAPROBE	0
 
-static devfs_handle_t devfs_handle;
-
 /*****************************************************************************/
 
 /*
@@ -798,7 +796,6 @@ static struct file_operations	stli_fsiomem = {
  *	not increase character latency by much either...
  */
 static struct timer_list stli_timerlist = TIMER_INITIALIZER(stli_poll, 0, 0);
-};
 
 static int	stli_timeron;
 
@@ -815,7 +812,7 @@ static int	stli_timeron;
  *	Loadable module initialization stuff.
  */
 
-int init_module()
+static int __init istallion_module_init(void)
 {
 	unsigned long	flags;
 
@@ -833,7 +830,7 @@ int init_module()
 
 /*****************************************************************************/
 
-void cleanup_module()
+static void __exit istallion_module_exit(void)
 {
 	stlibrd_t	*brdp;
 	stliport_t	*portp;
@@ -867,7 +864,9 @@ void cleanup_module()
 		restore_flags(flags);
 		return;
 	}
-	devfs_unregister (devfs_handle);
+	for (i = 0; i < 4; i++)
+		devfs_remove("staliomem/%d", i);
+	devfs_remove("staliomem");
 	if ((i = unregister_chrdev(STL_SIOMEMMAJOR, "staliomem")))
 		printk("STALLION: failed to un-register serial memory device, "
 			"errno=%d\n", -i);
@@ -897,6 +896,9 @@ void cleanup_module()
 
 	restore_flags(flags);
 }
+
+module_init(istallion_module_init);
+module_exit(istallion_module_exit);
 
 /*****************************************************************************/
 
@@ -5307,6 +5309,7 @@ static int stli_memioctl(struct inode *ip, struct file *fp, unsigned int cmd, un
 
 int __init stli_init(void)
 {
+	int i;
 	printk(KERN_INFO "%s: version %s\n", stli_drvtitle, stli_drvversion);
 
 	stli_initbrds();
@@ -5331,11 +5334,15 @@ int __init stli_init(void)
 		printk(KERN_ERR "STALLION: failed to register serial memory "
 				"device\n");
 
-	devfs_handle = devfs_mk_dir (NULL, "staliomem", NULL);
-	devfs_register_series (devfs_handle, "%u", 4, DEVFS_FL_DEFAULT,
-			       STL_SIOMEMMAJOR, 0,
+	devfs_mk_dir (NULL, "staliomem", NULL);
+	for (i = 0; i < 4; i++) {
+		char name[16];
+		sprintf(name, "staliomem/%d", i);
+		devfs_register(NULL, name, DEVFS_FL_DEFAULT,
+			       STL_SIOMEMMAJOR, i,
 			       S_IFCHR | S_IRUSR | S_IWUSR,
 			       &stli_fsiomem, NULL);
+	}
 
 /*
  *	Set up the tty driver structure and register us as a driver.

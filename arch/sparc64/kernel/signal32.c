@@ -19,6 +19,7 @@
 #include <linux/tty.h>
 #include <linux/smp_lock.h>
 #include <linux/binfmts.h>
+#include <linux/compat.h>
 
 #include <asm/uaccess.h>
 #include <asm/bitops.h>
@@ -181,7 +182,7 @@ asmlinkage void do_rt_sigsuspend32(u32 uset, size_t sigsetsize, struct pt_regs *
 	sigset_t32 set32;
         
 	/* XXX: Don't preclude handling different sized sigset_t's.  */
-	if (((__kernel_size_t32)sigsetsize) != sizeof(sigset_t)) {
+	if (((compat_size_t)sigsetsize) != sizeof(sigset_t)) {
 		regs->tstate |= TSTATE_ICARRY;
 		regs->u_regs[UREG_I0] = EINVAL;
 		return;
@@ -1252,19 +1253,22 @@ static inline void syscall_restart32(unsigned long orig_i0, struct pt_regs *regs
 				     struct sigaction *sa)
 {
 	switch (regs->u_regs[UREG_I0]) {
-		case ERESTARTNOHAND:
-		no_system_call_restart:
-			regs->u_regs[UREG_I0] = EINTR;
-			regs->tstate |= TSTATE_ICARRY;
-			break;
-		case ERESTARTSYS:
-			if (!(sa->sa_flags & SA_RESTART))
-				goto no_system_call_restart;
+	case ERESTART_RESTARTBLOCK:
+		current_thread_info()->restart_block.fn = do_no_restart_syscall;
 		/* fallthrough */
-		case ERESTARTNOINTR:
-			regs->u_regs[UREG_I0] = orig_i0;
-			regs->tpc -= 4;
-			regs->tnpc -= 4;
+	case ERESTARTNOHAND:
+	no_system_call_restart:
+		regs->u_regs[UREG_I0] = EINTR;
+		regs->tstate |= TSTATE_ICARRY;
+		break;
+	case ERESTARTSYS:
+		if (!(sa->sa_flags & SA_RESTART))
+			goto no_system_call_restart;
+		/* fallthrough */
+	case ERESTARTNOINTR:
+		regs->u_regs[UREG_I0] = orig_i0;
+		regs->tpc -= 4;
+		regs->tnpc -= 4;
 	}
 }
 
@@ -1301,6 +1305,13 @@ int do_signal32(sigset_t *oldset, struct pt_regs * regs,
 			     regs->u_regs[UREG_I0] == ERESTARTNOINTR)) {
 				/* replay the system call when we are done */
 				regs->u_regs[UREG_I0] = orig_i0;
+				regs->tpc -= 4;
+				regs->tnpc -= 4;
+				restart_syscall = 0;
+			}
+			if (restart_syscall &&
+			    regs->u_regs[UREG_I0] == ERESTART_RESTARTBLOCK) {
+				regs->u_regs[UREG_G1] = __NR_restart_syscall;
 				regs->tpc -= 4;
 				regs->tnpc -= 4;
 				restart_syscall = 0;
@@ -1394,6 +1405,12 @@ int do_signal32(sigset_t *oldset, struct pt_regs * regs,
 	     regs->u_regs[UREG_I0] == ERESTARTNOINTR)) {
 		/* replay the system call when we are done */
 		regs->u_regs[UREG_I0] = orig_i0;
+		regs->tpc -= 4;
+		regs->tnpc -= 4;
+	}
+	if (restart_syscall &&
+	    regs->u_regs[UREG_I0] == ERESTART_RESTARTBLOCK) {
+		regs->u_regs[UREG_G1] = __NR_restart_syscall;
 		regs->tpc -= 4;
 		regs->tnpc -= 4;
 	}

@@ -377,7 +377,7 @@ rom.bin rom.sw: vmlinux
 	$(call descend,arch/mips/lasat/image,$@)
 endif
 
-makeboot = $(call descend,arch/mips/boot,$(1))
+makeboot =$(Q)$(MAKE) -f scripts/Makefile.build obj=arch/mips/boot $(1)
 
 #
 # SNI firmware is f*cked in interesting ways ...

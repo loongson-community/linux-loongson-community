@@ -33,17 +33,11 @@
 #include <linux/completion.h>
 #include <asm/semaphore.h>
 #include <asm/uaccess.h>
-#define MAJOR_NR SCSI_DISK0_MAJOR	/* For DEVICE_NR() */
 #include <linux/blk.h>
 #include "scsi.h"
 #include "hosts.h"
 
 #include "aacraid.h"
-
-#warning this is broken
-#define N_SD_MAJORS	8
-#define SD_MAJOR_MASK	(N_SD_MAJORS - 1)
-#define DEVICE_NR(device) (((major(device) & SD_MAJOR_MASK) << (8 - 4)) + (minor(device) >> 4))
 
 /*	SCSI Commands */
 /*	TODO:  dmb - use the ones defined in include/scsi/scsi.h */
@@ -567,7 +561,7 @@ static void read_callback(void *context, struct fib * fibptr)
 			scsicmd->use_sg,
 			scsi_to_pci_dma_dir(scsicmd->sc_data_direction));
 	else if(scsicmd->request_bufflen)
-		pci_unmap_single(dev->pdev, (dma_addr_t)(unsigned long)scsicmd->SCp.ptr,
+		pci_unmap_single(dev->pdev, scsicmd->SCp.dma_handle,
 				 scsicmd->request_bufflen,
 				 scsi_to_pci_dma_dir(scsicmd->sc_data_direction));
 	readreply = (struct aac_read_reply *)fib_data(fibptr);
@@ -611,7 +605,7 @@ static void write_callback(void *context, struct fib * fibptr)
 			scsicmd->use_sg,
 			scsi_to_pci_dma_dir(scsicmd->sc_data_direction));
 	else if(scsicmd->request_bufflen)
-		pci_unmap_single(dev->pdev, (dma_addr_t)(unsigned long)scsicmd->SCp.ptr,
+		pci_unmap_single(dev->pdev, scsicmd->SCp.dma_handle,
 				 scsicmd->request_bufflen,
 				 scsi_to_pci_dma_dir(scsicmd->sc_data_direction));
 
@@ -1113,12 +1107,12 @@ static int query_disk(struct aac_dev *dev, void *arg)
 	qd.locked = fsa_dev_ptr->locked[qd.cnum];
 	qd.deleted = fsa_dev_ptr->deleted[qd.cnum];
 
-	if (fsa_dev_ptr->devno[qd.cnum][0] == '\0')
+	if (fsa_dev_ptr->devname[qd.cnum][0] == '\0')
 		qd.unmapped = 1;
 	else
 		qd.unmapped = 0;
 
-	strncpy(dq.name, fsa_dev_ptr->devname[qd.cnum], 8);
+	strncpy(qd.name, fsa_dev_ptr->devname[qd.cnum], 8);
 
 	if (copy_to_user(arg, &qd, sizeof (struct aac_query_disk)))
 		return -EFAULT;
@@ -1170,7 +1164,7 @@ static int delete_disk(struct aac_dev *dev, void *arg)
 		 *	Mark the container as no longer being valid.
 		 */
 		fsa_dev_ptr->valid[dd.cnum] = 0;
-		fsa_dev_ptr->devno[dd.cnum][0] = '\0';
+		fsa_dev_ptr->devname[dd.cnum][0] = '\0';
 		return 0;
 	}
 }
@@ -1225,7 +1219,8 @@ static void aac_srb_callback(void *context, struct fib * fibptr)
 			scsicmd->use_sg,
 			scsi_to_pci_dma_dir(scsicmd->sc_data_direction));
 	else if(scsicmd->request_bufflen)
-		pci_unmap_single(dev->pdev, (ulong)scsicmd->SCp.ptr, scsicmd->request_bufflen,
+		pci_unmap_single(dev->pdev, scsicmd->SCp.dma_handle,
+			scsicmd->request_bufflen,
 			scsi_to_pci_dma_dir(scsicmd->sc_data_direction));
 
 	/*
@@ -1516,7 +1511,7 @@ static unsigned long aac_build_sg(Scsi_Cmnd* scsicmd, struct sgmap* psg)
 		psg->count = cpu_to_le32(1);
 		psg->sg[0].addr = cpu_to_le32(addr);
 		psg->sg[0].count = cpu_to_le32(scsicmd->request_bufflen);  
-		scsicmd->SCp.ptr = (void *)addr;
+		scsicmd->SCp.dma_handle = addr;
 		byte_count = scsicmd->request_bufflen;
 	}
 	return byte_count;
@@ -1577,7 +1572,7 @@ static unsigned long aac_build_sg64(Scsi_Cmnd* scsicmd, struct sgmap64* psg)
 		psg->sg[0].addr[1] = (u32)(le_addr>>32);
 		psg->sg[0].addr[0] = (u32)(le_addr & 0xffffffff);
 		psg->sg[0].count = cpu_to_le32(scsicmd->request_bufflen);  
-		scsicmd->SCp.ptr = (void *)addr;
+		scsicmd->SCp.dma_handle = addr;
 		byte_count = scsicmd->request_bufflen;
 	}
 	return byte_count;

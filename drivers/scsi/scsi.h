@@ -401,9 +401,6 @@ typedef struct scsi_request Scsi_Request;
 
 extern unsigned int scsi_logging_level;		/* What do we log? */
 
-extern struct bus_type scsi_driverfs_bus_type;
-
-
 /*
  * These are the error handling functions defined in scsi_error.c
  */
@@ -424,12 +421,6 @@ extern int  scsi_partsize(unsigned char *buf, unsigned long capacity,
                     unsigned int *secs);
 
 /*
- * sg list allocations
- */
-struct scatterlist *scsi_alloc_sgtable(Scsi_Cmnd *SCpnt, int gfp_mask);
-void scsi_free_sgtable(struct scatterlist *sgl, int index);
-
-/*
  * Prototypes for functions in scsi_lib.c
  */
 extern int scsi_maybe_unblock_host(Scsi_Device * SDpnt);
@@ -440,19 +431,21 @@ extern void scsi_io_completion(Scsi_Cmnd * SCpnt, int good_sectors,
 extern void scsi_queue_next_request(request_queue_t * q, Scsi_Cmnd * SCpnt);
 extern int scsi_prep_fn(struct request_queue *q, struct request *req);
 extern void scsi_request_fn(request_queue_t * q);
-extern int scsi_starvation_completion(Scsi_Device * SDpnt);
+extern int scsi_init_queue(void);
+extern void scsi_exit_queue(void);
 
 /*
  * Prototypes for functions in scsi.c
  */
 extern int scsi_dispatch_cmd(Scsi_Cmnd * SCpnt);
-extern void scsi_bottom_half_handler(void);
 extern void scsi_release_commandblocks(Scsi_Device * SDpnt);
 extern void scsi_build_commandblocks(Scsi_Device * SDpnt);
 extern void scsi_adjust_queue_depth(Scsi_Device *, int, int);
 extern int scsi_track_queue_full(Scsi_Device *, int);
-extern int scsi_slave_attach(struct scsi_device *sdev);
-extern void scsi_slave_detach(struct scsi_device *sdev);
+extern int scsi_slave_attach(struct scsi_device *);
+extern void scsi_slave_detach(struct scsi_device *);
+extern int scsi_device_get(struct scsi_device *);
+extern void scsi_device_put(struct scsi_device *);
 extern void scsi_done(Scsi_Cmnd * SCpnt);
 extern void scsi_finish_command(Scsi_Cmnd *);
 extern int scsi_retry_command(Scsi_Cmnd *);
@@ -463,7 +456,6 @@ extern void scsi_do_cmd(Scsi_Cmnd *, const void *cmnd,
 			void *buffer, unsigned bufflen,
 			void (*done) (struct scsi_cmnd *),
 			int timeout, int retries);
-extern int scsi_dev_init(void);
 extern int scsi_mlqueue_insert(struct scsi_cmnd *, int);
 extern int scsi_attach_device(struct scsi_device *);
 extern void scsi_detach_device(struct scsi_device *);
@@ -509,9 +501,6 @@ static inline void scsi_proc_host_rm(struct Scsi_Host *);
 /*
  * Prototypes for functions in scsi_scan.c
  */
-extern struct scsi_device *scsi_alloc_sdev(struct Scsi_Host *,
-			uint, uint, uint);
-extern void scsi_free_sdev(struct scsi_device *);
 extern int scsi_add_single_device(uint, uint, uint, uint);
 extern int scsi_remove_single_device(uint, uint, uint, uint);
 
@@ -991,5 +980,11 @@ static inline Scsi_Cmnd *scsi_find_tag(Scsi_Device *SDpnt, int tag) {
 #define SCSI_SENSE_VALID(scmd) ((scmd->sense_buffer[0] & 0x70) == 0x70)
 
 int scsi_set_medium_removal(Scsi_Device *dev, char state);
+
+extern int scsi_device_register(struct scsi_device *);
+extern void scsi_device_unregister(struct scsi_device *);
+
+extern int scsi_sysfs_register(void);
+extern void scsi_sysfs_unregister(void);
 
 #endif

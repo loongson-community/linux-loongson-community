@@ -36,8 +36,6 @@
 #include <asm/dec/tc.h>
 #include "pmag-ba-fb.h"
 
-#include <video/fbcon.h>
-
 struct pmag_ba_ramdac_regs {
 	unsigned char addr_low;
 	unsigned char pad0[3];
@@ -52,7 +50,6 @@ struct pmag_ba_ramdac_regs {
  * Max 3 TURBOchannel slots -> max 3 PMAG-BA :)
  */
 static struct fb_info pmagba_fb_info[3];
-static struct display pmagba_disp[3];
 
 static struct fb_var_screeninfo pmagbafb_defined = {
 	.xres		= 1024,
@@ -63,13 +60,13 @@ static struct fb_var_screeninfo pmagbafb_defined = {
 	.red.length	= 8,
 	.green.length	= 8,
 	.blue.length	= 8,
-	.activate	= FB_ACTIVATE_NOW, 
-	.height		= 274,    
+	.activate	= FB_ACTIVATE_NOW,
+	.height		= 274,
 	.width		= 195,
 	.accel		= FB_ACCEL_NONE,
 	.vmode		= FB_VMODE_NONINTERLACED,
-}
-
+};
+                                                                                
 static struct fb_fix_screeninfo pmagbafb_fix = {
 	.id		= "PMAG-BA",
 	.smem_len	= (1024 * 864),
@@ -116,13 +113,11 @@ static struct fb_ops pmagbafb_ops = {
 	.owner		= THIS_MODULE,
 	.fb_get_fix	= gen_get_fix,
 	.fb_get_var	= gen_get_var,
-	.fb_set_var	= gen_set_var,
-	.fb_get_cmap	= gen_get_cmap,
-	.fb_set_cmap	= gen_set_cmap,
 	.fb_setcolreg	= pmagbafb_setcolreg,
 	.fb_fillrect	= cfb_fillrect,
 	.fb_copyarea	= cfb_copyarea,
 	.fb_imageblit	= cfb_imageblit,
+	.fb_cursor	= soft_cursor,
 };
 
 int __init pmagbafb_init_one(int slot)
@@ -146,21 +141,14 @@ int __init pmagbafb_init_one(int slot)
 	/*
 	 *      Let there be consoles..
 	 */
-	strcpy(info->modename, pmagbafb_fix.id);
-	info->changevar = NULL;
 	info->node = NODEV;
 	info->fbops = &pmagbafb_ops;
 	info->var = pmagbafb_defined;
 	info->fix = pmagbafb_fix; 
 	info->screen_base = pmagbafb_fix.smem_start;
-	info->disp = &disp;
-	info->currcon = -1;
-	info->switch_con = gen_switch;
-	info->updatevar = gen_update_var;
 	info->flags = FBINFO_FLAG_DEFAULT;
 
 	fb_alloc_cmap(&fb_info.cmap, 256, 0);
-	gen_set_disp(-1, info);
 
 	if (register_framebuffer(info) < 0)
 		return 1;

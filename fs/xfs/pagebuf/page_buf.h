@@ -47,7 +47,6 @@
 #include <linux/fs.h>
 #include <linux/buffer_head.h>
 #include <linux/uio.h>
-#include <linux/workqueue.h>
 
 enum xfs_buffer_state { BH_Delay = BH_PrivateStart };
 BUFFER_FNS(Delay, delay);
@@ -132,11 +131,12 @@ typedef enum page_buf_flags_e {		/* pb_flags values */
 #define PBR_ALIGNED_ONLY 2	/* only use aligned I/O */
 
 typedef struct pb_target {
-	int			pbr_flags;
 	dev_t			pbr_dev;
 	struct block_device	*pbr_bdev;
 	struct address_space	*pbr_mapping;
-	unsigned int		pbr_blocksize;
+	unsigned int		pbr_bsize;
+	unsigned int		pbr_sshift;
+	size_t			pbr_smask;
 } pb_target_t;
 
 /*
@@ -175,7 +175,7 @@ typedef page_buf_bmap_t pb_bmap_t;
  * This buffer structure is used by the page cache buffer management routines
  * to refer to an assembly of pages forming a logical buffer.  The actual
  * I/O is performed with buffer_head or bio structures, as required by drivers,
- * for drivers which do not understand this structure.  The buffer structure is
+ * for drivers which do not understand this structure. The buffer structure is
  * used on temporary basis only, and discarded when released.  
  *
  * The real data storage is recorded in the page cache.	 Metadata is
@@ -206,6 +206,7 @@ typedef struct page_buf_s {
 	size_t			pb_count_desired; /* desired transfer size */
 	void			*pb_addr;	/* virtual address of buffer */
 	struct work_struct	pb_iodone_work;
+	atomic_t		pb_io_remaining;/* #outstanding I/O requests */
 	page_buf_iodone_t	pb_iodone;	/* I/O completion function */
 	page_buf_relse_t	pb_relse;	/* releasing function */
 	page_buf_bdstrat_t	pb_strat;	/* pre-write function */
@@ -295,8 +296,6 @@ extern int pagebuf_lock_value(		/* return count on lock		*/
 extern int pagebuf_lock(		/* lock buffer			*/
 		page_buf_t *);		/* buffer to lock		*/
 
-extern void pagebuf_target_clear(struct pb_target *);
-
 extern void pagebuf_unlock(		/* unlock buffer		*/
 		page_buf_t *);		/* buffer to unlock		*/
 
@@ -307,7 +306,9 @@ static inline int pagebuf_geterror(page_buf_t *pb)
 }
 
 extern void pagebuf_iodone(		/* mark buffer I/O complete	*/
-		page_buf_t *);		/* buffer to mark		*/
+		page_buf_t *,		/* buffer to mark		*/
+		int);			/* run completion locally, or in
+					 * a helper thread. 		*/
 
 extern void pagebuf_ioerror(		/* mark buffer in error (or not) */
 		page_buf_t *,		/* buffer to mark		*/
@@ -376,6 +377,10 @@ static __inline__ int __pagebuf_iorequest(page_buf_t *pb)
 	return pagebuf_iorequest(pb);
 }
 
-extern struct workqueue_struct *pagebuf_workqueue;
+static __inline__ void pagebuf_run_queues(page_buf_t *pb)
+{
+	if (!pb || atomic_read(&pb->pb_io_remaining))
+		blk_run_queues();
+}
 
 #endif /* __PAGE_BUF_H__ */
