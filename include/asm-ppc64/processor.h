@@ -173,6 +173,11 @@
 #define	SPRN_DEC	0x016	/* Decrement Register */
 #define	SPRN_DMISS	0x3D0	/* Data TLB Miss Register */
 #define	SPRN_DSISR	0x012	/* Data Storage Interrupt Status Register */
+#define   DSISR_NOHPTE		0x40000000	/* no translation found */
+#define   DSISR_PROTFAULT	0x08000000	/* protection fault */
+#define   DSISR_ISSTORE		0x02000000	/* access was a store */
+#define   DSISR_DABRMATCH	0x00400000	/* hit data breakpoint */
+#define   DSISR_NOSEGMENT	0x00200000	/* STAB/SLB miss */
 #define	SPRN_EAR	0x11A	/* External Address Register */
 #define	SPRN_ESR	0x3D4	/* Exception Syndrome Register */
 #define	  ESR_IMCP	0x80000000	/* Instr. Machine Check - Protection */
@@ -544,8 +549,8 @@ extern struct task_struct *last_task_used_altivec;
 /* This decides where the kernel will search for a free chunk of vm
  * space during mmap's.
  */
-#define TASK_UNMAPPED_BASE_USER32 (PAGE_ALIGN(STACK_TOP_USER32 / 4))
-#define TASK_UNMAPPED_BASE_USER64 (PAGE_ALIGN(STACK_TOP_USER64 / 4))
+#define TASK_UNMAPPED_BASE_USER32 (PAGE_ALIGN(TASK_SIZE_USER32 / 4))
+#define TASK_UNMAPPED_BASE_USER64 (PAGE_ALIGN(TASK_SIZE_USER64 / 4))
 
 #define TASK_UNMAPPED_BASE ((test_thread_flag(TIF_32BIT)||(ppcdebugset(PPCDBG_BINFMT_32ADDR))) ? \
 		TASK_UNMAPPED_BASE_USER32 : TASK_UNMAPPED_BASE_USER64 )
@@ -562,7 +567,9 @@ struct thread_struct {
 	double		fpr[32];	/* Complete floating point set */
 	unsigned long	fpscr;		/* Floating point status (plus pad) */
 	unsigned long	fpexc_mode;	/* Floating-point exception mode */
-	unsigned long	pad[3];		/* was saved_msr, saved_softe */
+	unsigned long	start_tb;	/* Start purr when proc switched in */
+	unsigned long	accum_tb;	/* Total accumilated purr for process */
+	unsigned long	vdso_base;	/* base of the vDSO library */
 #ifdef CONFIG_ALTIVEC
 	/* Complete AltiVec register set */
 	vector128	vr[32] __attribute((aligned(16)));

@@ -2007,8 +2007,7 @@ static int __devinit ns83820_init_one(struct pci_dev *pci_dev, const struct pci_
 	if (reset_phy) {
 		printk(KERN_INFO "%s: resetting phy\n", ndev->name);
 		writel(dev->CFG_cache | CFG_PHY_RST, dev->base + CFG);
-		set_current_state(TASK_UNINTERRUPTIBLE);
-		schedule_timeout((HZ+99)/100);
+		msleep(10);
 		writel(dev->CFG_cache, dev->base + CFG);
 	}
 
@@ -2204,7 +2203,7 @@ static void __exit ns83820_exit(void)
 	pci_unregister_driver(&driver);
 }
 
-MODULE_AUTHOR("Benjamin LaHaise <bcrl@redhat.com>");
+MODULE_AUTHOR("Benjamin LaHaise <bcrl@kvack.org>");
 MODULE_DESCRIPTION("National Semiconductor DP83820 10/100/1000 driver");
 MODULE_LICENSE("GPL");
 

@@ -23,9 +23,9 @@
 #include <asm/hpet.h>
 #include <linux/hpet.h>
 
-unsigned long hpet_period;	/* fsecs / HPET clock */
-unsigned long hpet_tick;	/* hpet clks count per tick */
-unsigned long hpet_address;	/* hpet memory map physical address */
+static unsigned long hpet_period;	/* fsecs / HPET clock */
+unsigned long hpet_tick;		/* hpet clks count per tick */
+unsigned long hpet_address;		/* hpet memory map physical address */
 
 static int use_hpet; 		/* can be used for runtime check of hpet */
 static int boot_hpet_disable; 	/* boottime override for HPET timer */
@@ -38,7 +38,7 @@ int hpet_readl(unsigned long a)
 	return readl(hpet_virt_address + a);
 }
 
-void hpet_writel(unsigned long d, unsigned long a)
+static void hpet_writel(unsigned long d, unsigned long a)
 {
 	writel(d, hpet_virt_address + a);
 }
@@ -49,7 +49,7 @@ void hpet_writel(unsigned long d, unsigned long a)
  * comparator value and continue. Next tick can be caught by checking
  * for a change in the comparator value. Used in apic.c.
  */
-void __init wait_hpet_tick(void)
+static void __init wait_hpet_tick(void)
 {
 	unsigned int start_cmp_val, end_cmp_val;
 
@@ -81,9 +81,10 @@ static int hpet_timer_stop_set_go(unsigned long tick)
 	cfg |= HPET_TN_ENABLE | HPET_TN_PERIODIC |
 	       HPET_TN_SETVAL | HPET_TN_32BIT;
 	hpet_writel(cfg, HPET_T0_CFG);
+
 	/*
-	 * Some systems seems to need two writes to HPET_T0_CMP,
-	 * to get interrupts working
+	 * The first write after writing TN_SETVAL to the config register sets
+	 * the counter value, the second write sets the threshold.
 	 */
 	hpet_writel(tick, HPET_T0_CMP);
 	hpet_writel(tick, HPET_T0_CMP);
@@ -121,11 +122,16 @@ int __init hpet_enable(void)
 	id = hpet_readl(HPET_ID);
 
 	/*
-	 * We are checking for value '1' or more in number field.
-	 * So, we are OK with HPET_EMULATE_RTC part too, where we need
-	 * to have atleast 2 timers.
+	 * We are checking for value '1' or more in number field if
+	 * CONFIG_HPET_EMULATE_RTC is set because we will need an
+	 * additional timer for RTC emulation.
+	 * However, we can do with one timer otherwise using the
+	 * the single HPET timer for system time.
 	 */
-	if (!(id & HPET_ID_NUMBER) ||
+	if (
+#ifdef CONFIG_HPET_EMULATE_RTC
+		!(id & HPET_ID_NUMBER) ||
+#endif
 	    !(id & HPET_ID_LEGSUP))
 		return -1;
 

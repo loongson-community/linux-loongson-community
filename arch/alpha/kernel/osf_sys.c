@@ -437,11 +437,10 @@ asmlinkage int
 osf_getdomainname(char __user *name, int namelen)
 {
 	unsigned len;
-	int i, error;
+	int i;
 
-	error = verify_area(VERIFY_WRITE, name, namelen);
-	if (error)
-		goto out;
+	if (!access_ok(VERIFY_WRITE, name, namelen))
+		return -EFAULT;
 
 	len = namelen;
 	if (namelen > 32)
@@ -454,8 +453,8 @@ osf_getdomainname(char __user *name, int namelen)
 			break;
 	}
 	up_read(&uts_sem);
- out:
-	return error;
+
+	return 0;
 }
 
 asmlinkage long
@@ -990,18 +989,19 @@ osf_select(int n, fd_set __user *inp, fd_set __user *outp, fd_set __user *exp,
 	char *bits;
 	size_t size;
 	long timeout;
-	int ret;
+	int ret = -EINVAL;
 
 	timeout = MAX_SCHEDULE_TIMEOUT;
 	if (tvp) {
 		time_t sec, usec;
 
-		if ((ret = verify_area(VERIFY_READ, tvp, sizeof(*tvp)))
-		    || (ret = __get_user(sec, &tvp->tv_sec))
-		    || (ret = __get_user(usec, &tvp->tv_usec)))
+		if (!access_ok(VERIFY_READ, tvp, sizeof(*tvp))
+		    || __get_user(sec, &tvp->tv_sec)
+		    || __get_user(usec, &tvp->tv_usec)) {
+		    	ret = -EFAULT;
 			goto out_nofds;
+		}
 
-		ret = -EINVAL;
 		if (sec < 0 || usec < 0)
 			goto out_nofds;
 
@@ -1011,7 +1011,6 @@ osf_select(int n, fd_set __user *inp, fd_set __user *outp, fd_set __user *exp,
 		}
 	}
 
-	ret = -EINVAL;
 	if (n < 0 || n > current->files->max_fdset)
 		goto out_nofds;
 

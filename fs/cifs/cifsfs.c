@@ -59,27 +59,19 @@ unsigned int ntlmv2_support = 0;
 unsigned int sign_CIFS_PDUs = 1;
 struct task_struct * oplockThread = NULL;
 unsigned int CIFSMaxBufSize = CIFS_MAX_MSGSIZE;
-module_param(CIFSMaxBufSize, int, CIFS_MAX_MSGSIZE);
+module_param(CIFSMaxBufSize, int, 0);
 MODULE_PARM_DESC(CIFSMaxBufSize,"Network buffer size (not including header). Default: 16384 Range: 8192 to 130048");
 unsigned int cifs_min_rcv = CIFS_MIN_RCV_POOL;
-module_param(cifs_min_rcv, int, CIFS_MIN_RCV_POOL);
+module_param(cifs_min_rcv, int, 0);
 MODULE_PARM_DESC(cifs_min_rcv,"Network buffers in pool. Default: 4 Range: 1 to 64");
 unsigned int cifs_min_small = 30;
-module_param(cifs_min_small, int, 30);
+module_param(cifs_min_small, int, 0);
 MODULE_PARM_DESC(cifs_small_rcv,"Small network buffers in pool. Default: 30 Range: 2 to 256");
 unsigned int cifs_max_pending = CIFS_MAX_REQ;
-module_param(cifs_max_pending, int, CIFS_MAX_REQ);
+module_param(cifs_max_pending, int, 0);
 MODULE_PARM_DESC(cifs_max_pending,"Simultaneous requests to server. Default: 50 Range: 2 to 256");
 
-
-extern int cifs_mount(struct super_block *, struct cifs_sb_info *, char *,
-			const char *);
-extern int cifs_umount(struct super_block *, struct cifs_sb_info *);
-void cifs_proc_init(void);
-void cifs_proc_clean(void);
-
 static DECLARE_COMPLETION(cifs_oplock_exited);
-
 
 static int
 cifs_read_super(struct super_block *sb, void *data,
@@ -170,7 +162,7 @@ cifs_put_super(struct super_block *sb)
 static int
 cifs_statfs(struct super_block *sb, struct kstatfs *buf)
 {
-	int xid, rc;
+	int xid, rc = -EOPNOTSUPP;
 	struct cifs_sb_info *cifs_sb;
 	struct cifsTconInfo *pTcon;
 
@@ -189,6 +181,15 @@ cifs_statfs(struct super_block *sb, struct kstatfs *buf)
 	buf->f_files = 0;	/* undefined */
 	buf->f_ffree = 0;	/* unlimited */
 
+#ifdef CONFIG_CIFS_EXPERIMENTAL
+/* BB we could add a second check for a QFS Unix capability bit */
+    if (pTcon->ses->capabilities & CAP_UNIX)
+	    rc = CIFSSMBQFSPosixInfo(xid, pTcon, buf, cifs_sb->local_nls);
+
+    /* Only need to call the old QFSInfo if failed
+    on newer one */
+    if(rc)
+#endif /* CIFS_EXPERIMENTAL */
 	rc = CIFSSMBQFSInfo(xid, pTcon, buf, cifs_sb->local_nls);
 
 	/*     

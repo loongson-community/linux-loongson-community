@@ -289,8 +289,7 @@ static ssize_t rtas_log_read(struct file * file, char __user * buf,
 
 	count = rtas_error_log_buffer_max;
 
-	error = verify_area(VERIFY_WRITE, buf, count);
-	if (error)
+	if (!access_ok(VERIFY_WRITE, buf, count))
 		return -EFAULT;
 
 	tmp = kmalloc(count, GFP_KERNEL);
@@ -347,7 +346,7 @@ static int enable_surveillance(int timeout)
 	if (error == 0)
 		return 0;
 
-	if (error == RTAS_NO_SUCH_INDICATOR) {
+	if (error == -EINVAL) {
 		printk(KERN_INFO "rtasd: surveillance not supported\n");
 		return 0;
 	}

@@ -153,7 +153,7 @@ struct in_device *inetdev_init(struct net_device *dev)
 	dev_hold(dev);
 #ifdef CONFIG_SYSCTL
 	neigh_sysctl_register(dev, in_dev->arp_parms, NET_IPV4,
-			      NET_IPV4_NEIGH, "ipv4", NULL);
+			      NET_IPV4_NEIGH, "ipv4", NULL, NULL);
 #endif
 
 	/* Account for reference dev->ip_ptr */
@@ -187,6 +187,10 @@ static void inetdev_destroy(struct in_device *in_dev)
 
 	ASSERT_RTNL();
 
+	dev = in_dev->dev;
+	if (dev == &loopback_dev)
+		return;
+
 	in_dev->dead = 1;
 
 	ip_mc_destroy_dev(in_dev);
@@ -200,7 +204,6 @@ static void inetdev_destroy(struct in_device *in_dev)
 	devinet_sysctl_unregister(&in_dev->cnf);
 #endif
 
-	dev = in_dev->dev;
 	dev->ip_ptr = NULL;
 
 #ifdef CONFIG_SYSCTL
@@ -386,6 +389,7 @@ static int inet_rtm_deladdr(struct sk_buff *skb, struct nlmsghdr *nlh, void *arg
 	struct in_device *in_dev;
 	struct ifaddrmsg *ifm = NLMSG_DATA(nlh);
 	struct in_ifaddr *ifa, **ifap;
+	int real_prefixlen = IFA_REAL_DEL_PREFIX(ifm->ifa_prefixlen);
 
 	ASSERT_RTNL();
 
@@ -396,12 +400,13 @@ static int inet_rtm_deladdr(struct sk_buff *skb, struct nlmsghdr *nlh, void *arg
 	for (ifap = &in_dev->ifa_list; (ifa = *ifap) != NULL;
 	     ifap = &ifa->ifa_next) {
 		if ((rta[IFA_LOCAL - 1] &&
+		    (!inet_ifa_match_local_prefixlen(ifm, ifa) ||
 		     memcmp(RTA_DATA(rta[IFA_LOCAL - 1]),
-			    &ifa->ifa_local, 4)) ||
+			    &ifa->ifa_local, 4))) ||
 		    (rta[IFA_LABEL - 1] &&
 		     rtattr_strcmp(rta[IFA_LABEL - 1], ifa->ifa_label)) ||
 		    (rta[IFA_ADDRESS - 1] &&
-		     (ifm->ifa_prefixlen != ifa->ifa_prefixlen ||
+		     (real_prefixlen != ifa->ifa_prefixlen ||
 		      !inet_ifa_match(*(u32*)RTA_DATA(rta[IFA_ADDRESS - 1]),
 			      	      ifa))))
 			continue;
@@ -943,8 +948,16 @@ static int inetdev_event(struct notifier_block *this, unsigned long event,
 
 	ASSERT_RTNL();
 
-	if (!in_dev)
+	if (!in_dev) {
+		if (event == NETDEV_REGISTER && dev == &loopback_dev) {
+			in_dev = inetdev_init(dev);
+			if (!in_dev)
+				panic("devinet: Failed to create loopback\n");
+			in_dev->cnf.no_xfrm = 1;
+			in_dev->cnf.no_policy = 1;
+		}
 		goto out;
+	}
 
 	switch (event) {
 	case NETDEV_REGISTER:
@@ -967,8 +980,6 @@ static int inetdev_event(struct notifier_block *this, unsigned long event,
 				memcpy(ifa->ifa_label, dev->name, IFNAMSIZ);
 				inet_insert_ifa(ifa);
 			}
-			in_dev->cnf.no_xfrm = 1;
-			in_dev->cnf.no_policy = 1;
 		}
 		ip_mc_up(in_dev);
 		break;
@@ -992,7 +1003,7 @@ static int inetdev_event(struct notifier_block *this, unsigned long event,
 		devinet_sysctl_unregister(&in_dev->cnf);
 		neigh_sysctl_unregister(in_dev->arp_parms);
 		neigh_sysctl_register(dev, in_dev->arp_parms, NET_IPV4,
-				      NET_IPV4_NEIGH, "ipv4", NULL);
+				      NET_IPV4_NEIGH, "ipv4", NULL, NULL);
 		devinet_sysctl_register(in_dev, &in_dev->cnf);
 #endif
 		break;
@@ -1212,7 +1223,7 @@ int ipv4_doint_and_flush_strategy(ctl_table *table, int __user *name, int nlen,
 
 static struct devinet_sysctl_table {
 	struct ctl_table_header *sysctl_header;
-	ctl_table		devinet_vars[20];
+	ctl_table		devinet_vars[__NET_IPV4_CONF_MAX];
 	ctl_table		devinet_dev[2];
 	ctl_table		devinet_conf_dir[2];
 	ctl_table		devinet_proto_dir[2];

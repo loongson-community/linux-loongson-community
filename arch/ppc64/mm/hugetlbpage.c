@@ -149,7 +149,8 @@ static pte_t *huge_pte_alloc(struct mm_struct *mm, unsigned long addr)
 }
 
 static void set_huge_pte(struct mm_struct *mm, struct vm_area_struct *vma,
-			 struct page *page, pte_t *ptep, int write_access)
+			 unsigned long addr, struct page *page,
+			 pte_t *ptep, int write_access)
 {
 	pte_t entry;
 
@@ -163,7 +164,7 @@ static void set_huge_pte(struct mm_struct *mm, struct vm_area_struct *vma,
 	entry = pte_mkyoung(entry);
 	entry = pte_mkhuge(entry);
 
-	set_pte(ptep, entry);
+	set_pte_at(mm, addr, ptep, entry);
 }
 
 /*
@@ -316,7 +317,7 @@ int copy_hugetlb_page_range(struct mm_struct *dst, struct mm_struct *src,
 		ptepage = pte_page(entry);
 		get_page(ptepage);
 		dst->rss += (HPAGE_SIZE / PAGE_SIZE);
-		set_pte(dst_pte, entry);
+		set_pte_at(dst, addr, dst_pte, entry);
 
 		addr += HPAGE_SIZE;
 	}
@@ -421,7 +422,7 @@ void unmap_hugepage_range(struct vm_area_struct *vma,
 
 		pte = *ptep;
 		page = pte_page(pte);
-		pte_clear(ptep);
+		pte_clear(mm, addr, ptep);
 
 		put_page(page);
 	}
@@ -486,7 +487,7 @@ int hugetlb_prefault(struct address_space *mapping, struct vm_area_struct *vma)
 				goto out;
 			}
 		}
-		set_huge_pte(mm, vma, page, pte, vma->vm_flags & VM_WRITE);
+		set_huge_pte(mm, vma, addr, page, pte, vma->vm_flags & VM_WRITE);
 	}
 out:
 	spin_unlock(&mm->page_table_lock);
@@ -709,7 +710,7 @@ unsigned long hugetlb_get_unmapped_area(struct file *file, unsigned long addr,
 	if (len & ~HPAGE_MASK)
 		return -EINVAL;
 
-	if (!(cur_cpu_spec->cpu_features & CPU_FTR_16M_PAGE))
+	if (!cpu_has_feature(CPU_FTR_16M_PAGE))
 		return -EINVAL;
 
 	if (test_thread_flag(TIF_32BIT)) {
@@ -781,7 +782,6 @@ int hash_huge_page(struct mm_struct *mm, unsigned long access,
 {
 	pte_t *ptep;
 	unsigned long va, vpn;
-	int is_write;
 	pte_t old_pte, new_pte;
 	unsigned long hpteflags, prpn;
 	long slot;
@@ -808,8 +808,7 @@ int hash_huge_page(struct mm_struct *mm, unsigned long access,
 	 * Check the user's access rights to the page.  If access should be
 	 * prevented then send the problem up to do_page_fault.
 	 */
-	is_write = access & _PAGE_RW;
-	if (unlikely(is_write && !(pte_val(*ptep) & _PAGE_RW)))
+	if (unlikely(access & ~pte_val(*ptep)))
 		goto out;
 	/*
 	 * At this point, we have a pte (old_pte) which can be used to build
@@ -828,6 +827,8 @@ int hash_huge_page(struct mm_struct *mm, unsigned long access,
 	new_pte = old_pte;
 
 	hpteflags = 0x2 | (! (pte_val(new_pte) & _PAGE_RW));
+ 	/* _PAGE_EXEC -> HW_NO_EXEC since it's inverted */
+	hpteflags |= ((pte_val(new_pte) & _PAGE_EXEC) ? 0 : HW_NO_EXEC);
 
 	/* Check if pte already has an hpte (case 2) */
 	if (unlikely(pte_val(old_pte) & _PAGE_HASHPTE)) {

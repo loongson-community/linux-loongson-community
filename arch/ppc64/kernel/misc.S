@@ -292,6 +292,26 @@ _GLOBAL(flush_dcache_phys_range)
 	isync
 	blr
 
+_GLOBAL(flush_inval_dcache_range)
+ 	ld	r10,PPC64_CACHES@toc(r2)
+	lwz	r7,DCACHEL1LINESIZE(r10)	/* Get dcache line size */
+	addi	r5,r7,-1
+	andc	r6,r3,r5		/* round low to line bdy */
+	subf	r8,r6,r4		/* compute length */
+	add	r8,r8,r5		/* ensure we get enough */
+	lwz	r9,DCACHEL1LOGLINESIZE(r10)/* Get log-2 of dcache line size */
+	srw.	r8,r8,r9		/* compute line count */
+	beqlr				/* nothing to do? */
+	sync
+	isync
+	mtctr	r8
+0:	dcbf	0,r6
+	add	r6,r6,r7
+	bdnz	0b
+	sync
+	isync
+	blr
+
 
 /*
  * Flush a particular page from the data cache to RAM.
@@ -939,6 +959,7 @@ _GLOBAL(sys_call_table32)
 	.llong .sys32_add_key
 	.llong .sys32_request_key
 	.llong .compat_sys_keyctl
+	.llong .compat_sys_waitid
 
 	.balign 8
 _GLOBAL(sys_call_table)
@@ -1214,3 +1235,4 @@ _GLOBAL(sys_call_table)
 	.llong .sys_add_key
 	.llong .sys_request_key		/* 270 */
 	.llong .sys_keyctl
+	.llong .sys_waitid

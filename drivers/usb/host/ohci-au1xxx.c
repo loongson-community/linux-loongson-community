@@ -70,19 +70,6 @@ static void au1xxx_stop_hc(struct platform_device *dev)
 
 /*-------------------------------------------------------------------------*/
 
-
-static irqreturn_t usb_hcd_au1xxx_hcim_irq (int irq, void *__hcd,
-					     struct pt_regs * r)
-{
-	struct usb_hcd *hcd = __hcd;
-
-	return usb_hcd_irq(irq, hcd, r);
-}
-
-/*-------------------------------------------------------------------------*/
-
-void usb_hcd_au1xxx_remove (struct usb_hcd *, struct platform_device *);
-
 /* configure so an HC device and id are always provided */
 /* always called with process context; sleeping is OK */
 
@@ -120,20 +107,20 @@ int usb_hcd_au1xxx_probe (const struct hc_driver *driver,
 	if (!addr) {
 		pr_debug("ioremap failed");
 		retval = -ENOMEM;
-		goto err1;
+		goto out_release;
 	}
 
-	if(dev->resource[1].flags != IORESOURCE_IRQ) {
+	if (dev->resource[1].flags != IORESOURCE_IRQ) {
 		pr_debug ("resource[1] is not IORESOURCE_IRQ");
 		retval = -ENOMEM;
-		goto err1;
+		goto out_iounmap;
 	}
 
 	hcd = usb_create_hcd(driver);
 	if (hcd == NULL) {
 		pr_debug ("usb_create_hcd failed");
 		retval = -ENOMEM;
-		goto err1;
+		goto out_iounmap;
 	}
 	ohci_hcd_init(hcd_to_ohci(hcd));
 
@@ -144,7 +131,7 @@ int usb_hcd_au1xxx_probe (const struct hc_driver *driver,
 	retval = hcd_buffer_create (hcd);
 	if (retval != 0) {
 		pr_debug ("pool alloc fail");
-		goto err2;
+		goto out_put_hcd;
 	}
 
 	retval = request_irq (hcd->irq, usb_hcd_au1xxx_hcim_irq, SA_INTERRUPT,
@@ -152,7 +139,7 @@ int usb_hcd_au1xxx_probe (const struct hc_driver *driver,
 	if (retval != 0) {
 		pr_debug("request_irq failed");
 		retval = -EBUSY;
-		goto err3;
+		goto out_free_buffer;
 	}
 
 	pr_debug ("%s (Au1xxx) at 0x%p, irq %d",
@@ -160,23 +147,30 @@ int usb_hcd_au1xxx_probe (const struct hc_driver *driver,
 
 	hcd->self.bus_name = "au1xxx";
 
-	usb_register_bus (&hcd->self);
+	if ((retval = usb_register_bus(&hcd->self)))
+		goto out_free_irq;
 
-	if ((retval = driver->start (hcd)) < 0)
-	{
+	if ((retval = driver->start(hcd)) < 0) {
 		usb_hcd_au1xxx_remove(hcd, dev);
 		printk("bad driver->start\n");
 		return retval;
 	}
 
 	*hcd_out = hcd;
+
 	return 0;
 
- err3:
+out_unregister_bus:
+	usb_deregister_bus(&hcd->self);
+out_free_irq:
+	free_irq(hcd->irq, hcd);
+out_free_buffer:
 	hcd_buffer_destroy (hcd);
- err2:
+out_put_hcd:
 	usb_put_hcd(hcd);
- err1:
+out_iounmap:
+	iounmap(addr);
+out_release:
 	au1xxx_stop_hc(dev);
 	release_mem_region(dev->resource[0].start,
 				dev->resource[0].end
@@ -200,28 +194,11 @@ int usb_hcd_au1xxx_probe (const struct hc_driver *driver,
  */
 void usb_hcd_au1xxx_remove (struct usb_hcd *hcd, struct platform_device *dev)
 {
-	pr_debug ("remove: %s, state %x", hcd->self.bus_name, hcd->state);
-
-	if (in_interrupt ())
-		BUG ();
-
-	hcd->state = USB_STATE_QUIESCING;
-
-	pr_debug ("%s: roothub graceful disconnect", hcd->self.bus_name);
-	usb_disconnect (&hcd->self.root_hub);
-
-	hcd->driver->stop (hcd);
-	hcd->state = USB_STATE_HALT;
-
-	free_irq (hcd->irq, hcd);
-	hcd_buffer_destroy (hcd);
-
-	usb_deregister_bus (&hcd->self);
-
+	usb_remove_hcd(hcd);
 	au1xxx_stop_hc(dev);
-	release_mem_region(dev->resource[0].start,
-			   dev->resource[0].end
-			   - dev->resource[0].start + 1);
+	iounmap(hcd->regs);
+	release_mem_region(hcd->rsrc_start, hcd->rsrc_len);
+	usb_put_hcd(hcd);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -257,7 +234,7 @@ static const struct hc_driver ohci_au1xxx_hc_driver = {
 	 * generic hardware linkage
 	 */
 	.irq =			ohci_irq,
-	.flags =		HCD_USB11,
+	.flags =		HCD_USB11 | HCD_MEMORY,
 
 	/*
 	 * basic lifecycle operations
@@ -293,7 +270,6 @@ static const struct hc_driver ohci_au1xxx_hc_driver = {
 static int ohci_hcd_au1xxx_drv_probe(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
-	struct usb_hcd *hcd = NULL;
 	int ret;
 
 	pr_debug ("In ohci_hcd_au1xxx_drv_probe");
@@ -301,11 +277,7 @@ static int ohci_hcd_au1xxx_drv_probe(struct device *dev)
 	if (usb_disabled())
 		return -ENODEV;
 
-	ret = usb_hcd_au1xxx_probe(&ohci_au1xxx_hc_driver, &hcd, pdev);
-
-	if (ret == 0)
-		dev_set_drvdata(dev, hcd);
-
+	ret = usb_hcd_au1xxx_probe(&ohci_au1xxx_hc_driver, pdev);
 	return ret;
 }
 
@@ -315,7 +287,6 @@ static int ohci_hcd_au1xxx_drv_remove(struct device *dev)
 	struct usb_hcd *hcd = dev_get_drvdata(dev);
 
 	usb_hcd_au1xxx_remove(hcd, pdev);
-	dev_set_drvdata(dev, NULL);
 	return 0;
 }
 	/*TBD*/

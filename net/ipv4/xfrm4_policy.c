@@ -22,26 +22,6 @@ static int xfrm4_dst_lookup(struct xfrm_dst **dst, struct flowi *fl)
 	return __ip_route_output_key((struct rtable**)dst, fl);
 }
 
-/* Check that the bundle accepts the flow and its components are
- * still valid.
- */
-
-static int __xfrm4_bundle_ok(struct xfrm_dst *xdst, struct flowi *fl)
-{
-	do {
-		if (xdst->u.dst.ops != &xfrm4_dst_ops)
-			return 1;
-
-		if (!xfrm_selector_match(&xdst->u.dst.xfrm->sel, fl, AF_INET))
-			return 0;
-		if (xdst->u.dst.xfrm->km.state != XFRM_STATE_VALID ||
-		    xdst->u.dst.path->obsolete > 0)
-			return 0;
-		xdst = (struct xfrm_dst*)xdst->u.dst.child;
-	} while (xdst);
-	return 0;
-}
-
 static struct dst_entry *
 __xfrm4_find_bundle(struct flowi *fl, struct xfrm_policy *policy)
 {
@@ -53,7 +33,7 @@ __xfrm4_find_bundle(struct flowi *fl, struct xfrm_policy *policy)
 		if (xdst->u.rt.fl.oif == fl->oif &&	/*XXX*/
 		    xdst->u.rt.fl.fl4_dst == fl->fl4_dst &&
 	    	    xdst->u.rt.fl.fl4_src == fl->fl4_src &&
-		    __xfrm4_bundle_ok(xdst, fl)) {
+		    xfrm_bundle_ok(xdst, fl, AF_INET)) {
 			dst_clone(dst);
 			break;
 		}
@@ -75,18 +55,30 @@ __xfrm4_bundle_create(struct xfrm_policy *policy, struct xfrm_state **xfrm, int 
 	struct rtable *rt = rt0;
 	u32 remote = fl->fl4_dst;
 	u32 local  = fl->fl4_src;
+	struct flowi fl_tunnel = {
+		.nl_u = {
+			.ip4_u = {
+				.saddr = local,
+				.daddr = remote
+			}
+		}
+	};
 	int i;
 	int err;
 	int header_len = 0;
 	int trailer_len = 0;
 
 	dst = dst_prev = NULL;
+	dst_hold(&rt->u.dst);
 
 	for (i = 0; i < nx; i++) {
 		struct dst_entry *dst1 = dst_alloc(&xfrm4_dst_ops);
+		struct xfrm_dst *xdst;
+		int tunnel = 0;
 
 		if (unlikely(dst1 == NULL)) {
 			err = -ENOBUFS;
+			dst_release(&rt->u.dst);
 			goto error;
 		}
 
@@ -97,30 +89,40 @@ __xfrm4_bundle_create(struct xfrm_policy *policy, struct xfrm_state **xfrm, int 
 			dst1->flags |= DST_NOHASH;
 			dst_clone(dst1);
 		}
+
+		xdst = (struct xfrm_dst *)dst1;
+		xdst->route = &rt->u.dst;
+
+		dst1->next = dst_prev;
 		dst_prev = dst1;
 		if (xfrm[i]->props.mode) {
 			remote = xfrm[i]->id.daddr.a4;
 			local  = xfrm[i]->props.saddr.a4;
+			tunnel = 1;
 		}
 		header_len += xfrm[i]->props.header_len;
 		trailer_len += xfrm[i]->props.trailer_len;
+
+		if (tunnel) {
+			fl_tunnel.fl4_src = local;
+			fl_tunnel.fl4_dst = remote;
+			err = xfrm_dst_lookup((struct xfrm_dst **)&rt,
+					      &fl_tunnel, AF_INET);
+			if (err)
+				goto error;
+		} else
+			dst_hold(&rt->u.dst);
 	}
 
-	if (remote != fl->fl4_dst) {
-		struct flowi fl_tunnel = { .nl_u = { .ip4_u =
-						     { .daddr = remote,
-						       .saddr = local }
-					           }
-				         };
-		err = xfrm_dst_lookup((struct xfrm_dst**)&rt, &fl_tunnel, AF_INET);
-		if (err)
-			goto error;
-	} else {
-		dst_hold(&rt->u.dst);
-	}
 	dst_prev->child = &rt->u.dst;
+	dst->path = &rt->u.dst;
+
+	*dst_p = dst;
+	dst = dst_prev;
+
+	dst_prev = *dst_p;
 	i = 0;
-	for (dst_prev = dst; dst_prev != &rt->u.dst; dst_prev = dst_prev->child) {
+	for (; dst_prev != &rt->u.dst; dst_prev = dst_prev->child) {
 		struct xfrm_dst *x = (struct xfrm_dst*)dst_prev;
 		x->u.rt.fl = *fl;
 
@@ -133,8 +135,7 @@ __xfrm4_bundle_create(struct xfrm_policy *policy, struct xfrm_state **xfrm, int 
 		dst_prev->lastuse	= jiffies;
 		dst_prev->header_len	= header_len;
 		dst_prev->trailer_len	= trailer_len;
-		memcpy(&dst_prev->metrics, &rt->u.dst.metrics, sizeof(dst_prev->metrics));
-		dst_prev->path		= &rt->u.dst;
+		memcpy(&dst_prev->metrics, &x->route->metrics, sizeof(dst_prev->metrics));
 
 		/* Copy neighbout for reachability confirmation */
 		dst_prev->neighbour	= neigh_clone(rt->u.dst.neighbour);
@@ -154,7 +155,8 @@ __xfrm4_bundle_create(struct xfrm_policy *policy, struct xfrm_state **xfrm, int 
 		header_len -= x->u.dst.xfrm->props.header_len;
 		trailer_len -= x->u.dst.xfrm->props.trailer_len;
 	}
-	*dst_p = dst;
+
+	xfrm_init_pmtu(dst);
 	return 0;
 
 error:
@@ -235,10 +237,8 @@ static inline int xfrm4_garbage_collect(void)
 
 static void xfrm4_update_pmtu(struct dst_entry *dst, u32 mtu)
 {
-	struct dst_entry *path = dst->path;
-
-	if (mtu < 68 + dst->header_len)
-		return;
+	struct xfrm_dst *xdst = (struct xfrm_dst *)dst;
+	struct dst_entry *path = xdst->route;
 
 	path->ops->update_pmtu(path, mtu);
 }

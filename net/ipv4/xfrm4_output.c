@@ -78,11 +78,11 @@ static int xfrm4_tunnel_check_size(struct sk_buff *skb)
 
 	IPCB(skb)->flags |= IPSKB_XFRM_TUNNEL_SIZE;
 	
-	if (!(iph->frag_off & htons(IP_DF)))
+	if (!(iph->frag_off & htons(IP_DF)) || skb->local_df)
 		goto out;
 
 	dst = skb->dst;
-	mtu = dst_pmtu(dst) - dst->header_len - dst->trailer_len;
+	mtu = dst_mtu(dst);
 	if (skb->len > mtu) {
 		icmp_send(skb, ICMP_DEST_UNREACH, ICMP_FRAG_NEEDED, htonl(mtu));
 		ret = -EMSGSIZE;
@@ -103,20 +103,20 @@ int xfrm4_output(struct sk_buff *skb)
 			goto error_nolock;
 	}
 
+	if (x->props.mode) {
+		err = xfrm4_tunnel_check_size(skb);
+		if (err)
+			goto error_nolock;
+	}
+
 	spin_lock_bh(&x->lock);
 	err = xfrm_state_check(x, skb);
 	if (err)
 		goto error;
 
-	if (x->props.mode) {
-		err = xfrm4_tunnel_check_size(skb);
-		if (err)
-			goto error;
-	}
-
 	xfrm4_encap(skb);
 
-	err = x->type->output(skb);
+	err = x->type->output(x, skb);
 	if (err)
 		goto error;
 

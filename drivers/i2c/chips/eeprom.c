@@ -32,6 +32,7 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/sched.h>
+#include <linux/jiffies.h>
 #include <linux/i2c.h>
 #include <linux/i2c-sensor.h>
 
@@ -86,8 +87,7 @@ static void eeprom_update_client(struct i2c_client *client, u8 slice)
 	down(&data->update_lock);
 
 	if (!(data->valid & (1 << slice)) ||
-	    (jiffies - data->last_updated[slice] > 300 * HZ) ||
-	    (jiffies < data->last_updated[slice])) {
+	    time_after(jiffies, data->last_updated[slice] + 300 * HZ)) {
 		dev_dbg(&client->dev, "Starting eeprom update, slice %u\n", slice);
 
 		if (i2c_check_functionality(client->adapter, I2C_FUNC_SMBUS_READ_I2C_BLOCK)) {
@@ -130,7 +130,8 @@ static ssize_t eeprom_read(struct kobject *kobj, char *buf, loff_t off, size_t c
 
 	/* Hide Vaio security settings to regular users (16 first bytes) */
 	if (data->nature == VAIO && off < 16 && !capable(CAP_SYS_ADMIN)) {
-		int in_row1 = 16 - off;
+		size_t in_row1 = 16 - off;
+		in_row1 = min(in_row1, count);
 		memset(buf, 0, in_row1);
 		if (count - in_row1 > 0)
 			memcpy(buf + in_row1, &data->data[16], count - in_row1);

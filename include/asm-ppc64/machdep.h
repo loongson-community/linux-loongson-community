@@ -30,6 +30,7 @@ struct smp_ops_t {
 	void  (*setup_cpu)(int nr);
 	void  (*take_timebase)(void);
 	void  (*give_timebase)(void);
+	int   (*cpu_enable)(unsigned int nr);
 	int   (*cpu_disable)(void);
 	void  (*cpu_die)(unsigned int nr);
 };
@@ -133,6 +134,23 @@ struct machdep_calls {
 
 extern struct machdep_calls ppc_md;
 extern char cmd_line[COMMAND_LINE_SIZE];
+
+#ifdef CONFIG_PPC_PMAC
+/*
+ * Power macintoshes have either a CUDA, PMU or SMU controlling
+ * system reset, power, NVRAM, RTC.
+ */
+typedef enum sys_ctrler_kind {
+	SYS_CTRLER_UNKNOWN = 0,
+	SYS_CTRLER_CUDA = 1,
+	SYS_CTRLER_PMU = 2,
+	SYS_CTRLER_SMU = 3,
+} sys_ctrler_t;
+extern sys_ctrler_t sys_ctrler;
+
+#endif /* CONFIG_PPC_PMAC */
+
+
 
 /* Functions to produce codes on the leds.
  * The SRC code should be unique for the message category and should

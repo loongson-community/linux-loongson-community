@@ -65,7 +65,6 @@
 struct cpuinfo_x86 boot_cpu_data;
 
 unsigned long mmu_cr4_features;
-EXPORT_SYMBOL_GPL(mmu_cr4_features);
 
 int acpi_disabled;
 EXPORT_SYMBOL(acpi_disabled);
@@ -102,8 +101,6 @@ struct sys_desc_table_struct {
 
 struct edid_info edid_info;
 struct e820map e820;
-
-unsigned char aux_device_present;
 
 extern int root_mountflags;
 extern char _text, _etext, _edata, _end;
@@ -505,7 +502,6 @@ void __init setup_arch(char **cmdline_p)
  	drive_info = DRIVE_INFO;
  	screen_info = SCREEN_INFO;
 	edid_info = EDID_INFO;
-	aux_device_present = AUX_DEVICE_INFO;
 	saved_video_mode = SAVED_VIDEO_MODE;
 	bootloader_type = LOADER_TYPE;
 

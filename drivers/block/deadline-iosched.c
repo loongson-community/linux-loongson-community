@@ -19,7 +19,7 @@
 #include <linux/rbtree.h>
 
 /*
- * See Documentation/deadline-iosched.txt
+ * See Documentation/block/deadline-iosched.txt
  */
 static int read_expire = HZ / 2;  /* max time before a read is submitted. */
 static int write_expire = 5 * HZ; /* ditto for writes, these limits are SOFT! */
@@ -909,7 +909,7 @@ static struct sysfs_ops deadline_sysfs_ops = {
 	.store	= deadline_attr_store,
 };
 
-struct kobj_type deadline_ktype = {
+static struct kobj_type deadline_ktype = {
 	.sysfs_ops	= &deadline_sysfs_ops,
 	.default_attrs	= default_attrs,
 };

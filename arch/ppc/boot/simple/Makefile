@@ -65,6 +65,7 @@ zimageinitrd-$(CONFIG_IBM_OPENBIOS)	:= zImage.initrd-TREE
 zimageinitrd-$(CONFIG_EBONY)		:= zImage.initrd-TREE
          end-$(CONFIG_EBONY)		:= ebony
   entrypoint-$(CONFIG_EBONY)		:= 0x01000000
+     extra.o-$(CONFIG_EBONY)		:= openbios.o
 
       zimage-$(CONFIG_LUAN)		:= zImage-TREE
 zimageinitrd-$(CONFIG_LUAN)		:= zImage.initrd-TREE
@@ -96,6 +97,10 @@ zimageinitrd-$(CONFIG_GEMINI)		:= zImage.initrd-STRIPELF
      extra.o-$(CONFIG_KATANA)		:= misc-katana.o mv64x60_stub.o
          end-$(CONFIG_KATANA)		:= katana
    cacheflag-$(CONFIG_KATANA)		:= -include $(clear_L2_L3)
+
+     extra.o-$(CONFIG_RADSTONE_PPC7D)	:= misc-radstone_ppc7d.o mv64x60_stub.o
+         end-$(CONFIG_RADSTONE_PPC7D)	:= radstone_ppc7d
+   cacheflag-$(CONFIG_RADSTONE_PPC7D)	:= -include $(clear_L2_L3)
 
 # kconfig 'feature', only one of these will ever be 'y' at a time.
 # The rest will be unset.

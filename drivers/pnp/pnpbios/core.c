@@ -12,7 +12,7 @@
  * Minor reorganizations by David Hinds <dahinds@users.sourceforge.net>
  * Further modifications (C) 2001, 2002 by:
  *   Alan Cox <alan@redhat.com>
- *   Thomas Hood <jdthood@mail.com>
+ *   Thomas Hood
  *   Brian Gerst <bgerst@didntduck.org>
  *
  * Ported to the PnP Layer and several additional improvements (C) 2002
@@ -454,7 +454,7 @@ __setup("pnpbios=", pnpbios_setup);
 /* PnP BIOS signature: "$PnP" */
 #define PNP_SIGNATURE   (('$' << 0) + ('P' << 8) + ('n' << 16) + ('P' << 24))
 
-int __init pnpbios_probe_system(void)
+static int __init pnpbios_probe_system(void)
 {
 	union pnp_bios_install_struct *check;
 	u8 sum;
@@ -530,7 +530,7 @@ static struct dmi_system_id pnpbios_dmi_table[] = {
 	{ }
 };
 
-int __init pnpbios_init(void)
+static int __init pnpbios_init(void)
 {
 	int ret;
 

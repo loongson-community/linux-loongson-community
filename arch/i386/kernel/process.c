@@ -36,6 +36,7 @@
 #include <linux/module.h>
 #include <linux/kallsyms.h>
 #include <linux/ptrace.h>
+#include <linux/random.h>
 
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
@@ -55,7 +56,7 @@
 
 asmlinkage void ret_from_fork(void) __asm__("ret_from_fork");
 
-int hlt_counter;
+static int hlt_counter;
 
 unsigned long boot_option_idle_override = 0;
 EXPORT_SYMBOL(boot_option_idle_override);
@@ -828,3 +829,9 @@ asmlinkage int sys_get_thread_area(struct user_desc __user *u_info)
 	return 0;
 }
 
+unsigned long arch_align_stack(unsigned long sp)
+{
+	if (randomize_va_space)
+		sp -= get_random_int() % 8192;
+	return sp & ~0xf;
+}

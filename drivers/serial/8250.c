@@ -642,6 +642,7 @@ static int broken_efr(struct uart_8250_port *up)
 static void autoconfig_16550a(struct uart_8250_port *up)
 {
 	unsigned char status1, status2;
+	unsigned int iersave;
 
 	up->port.type = PORT_16550A;
 	up->capabilities |= UART_CAP_FIFO;
@@ -728,6 +729,7 @@ static void autoconfig_16550a(struct uart_8250_port *up)
 	serial_outp(up, UART_FCR, UART_FCR_ENABLE_FIFO | UART_FCR7_64BYTE);
 	status2 = serial_in(up, UART_IIR) >> 5;
 	serial_outp(up, UART_FCR, UART_FCR_ENABLE_FIFO);
+	serial_outp(up, UART_LCR, 0);
 
 	DEBUG_AUTOCONF("iir1=%d iir2=%d ", status1, status2);
 
@@ -736,6 +738,40 @@ static void autoconfig_16550a(struct uart_8250_port *up)
 		up->capabilities |= UART_CAP_AFE | UART_CAP_SLEEP;
 		return;
 	}
+
+	/*
+	 * Try writing and reading the UART_IER_UUE bit (b6).
+	 * If it works, this is probably one of the Xscale platform's
+	 * internal UARTs.
+	 * We're going to explicitly set the UUE bit to 0 before
+	 * trying to write and read a 1 just to make sure it's not
+	 * already a 1 and maybe locked there before we even start start.
+	 */
+	iersave = serial_in(up, UART_IER);
+	serial_outp(up, UART_IER, iersave & ~UART_IER_UUE);
+	if (!(serial_in(up, UART_IER) & UART_IER_UUE)) {
+		/*
+		 * OK it's in a known zero state, try writing and reading
+		 * without disturbing the current state of the other bits.
+		 */
+		serial_outp(up, UART_IER, iersave | UART_IER_UUE);
+		if (serial_in(up, UART_IER) & UART_IER_UUE) {
+			/*
+			 * It's an Xscale.
+			 * We'll leave the UART_IER_UUE bit set to 1 (enabled).
+			 */
+			DEBUG_AUTOCONF("Xscale ");
+			up->port.type = PORT_XSCALE;
+			return;
+		}
+	} else {
+		/*
+		 * If we got here we couldn't force the IER_UUE bit to 0.
+		 * Log it and continue.
+		 */
+		DEBUG_AUTOCONF("Couldn't force IER_UUE to 0 ");
+	}
+	serial_outp(up, UART_IER, iersave);
 }
 
 /*

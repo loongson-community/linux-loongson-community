@@ -429,6 +429,8 @@ static void __init quirk_ioapic_rmw(struct pci_dev *dev)
 }
 DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_SI,	PCI_ANY_ID,			quirk_ioapic_rmw );
 
+int pci_msi_quirk;
+
 #define AMD8131_revA0        0x01
 #define AMD8131_revB0        0x11
 #define AMD8131_MISC         0x40
@@ -437,6 +439,9 @@ static void __init quirk_amd_8131_ioapic(struct pci_dev *dev)
 { 
         unsigned char revid, tmp;
         
+	pci_msi_quirk = 1;
+	printk(KERN_WARNING "PCI: MSI quirk detected. pci_msi_quirk set.\n");
+
         if (nr_ioapics == 0) 
                 return;
 
@@ -786,6 +791,7 @@ static void __init asus_hides_smbus_hostbridge(struct pci_dev *dev)
 			}
 		if (dev->device == PCI_DEVICE_ID_INTEL_82855PM_HB)
 			switch (dev->subsystem_device) {
+			case 0x184b: /* W1N notebook */
 			case 0x186a: /* M6Ne notebook */
 				asus_hides_smbus = 1;
 			}
@@ -801,6 +807,18 @@ static void __init asus_hides_smbus_hostbridge(struct pci_dev *dev)
 			case 0x12bc: /* HP D330L */
 				asus_hides_smbus = 1;
 			}
+	} else if (unlikely(dev->subsystem_vendor == PCI_VENDOR_ID_TOSHIBA)) {
+		if (dev->device == PCI_DEVICE_ID_INTEL_82855GM_HB)
+			switch(dev->subsystem_device) {
+			case 0x0001: /* Toshiba Satellite A40 */
+				asus_hides_smbus = 1;
+			}
+       } else if (unlikely(dev->subsystem_vendor == PCI_VENDOR_ID_SAMSUNG)) {
+               if (dev->device ==  PCI_DEVICE_ID_INTEL_82855PM_HB)
+                       switch(dev->subsystem_device) {
+                       case 0xC00C: /* Samsung P35 notebook */
+                               asus_hides_smbus = 1;
+                       }
 	}
 }
 DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_INTEL,	PCI_DEVICE_ID_INTEL_82845_HB,	asus_hides_smbus_hostbridge );

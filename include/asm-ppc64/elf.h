@@ -226,6 +226,13 @@ do {								\
 	else if (current->personality != PER_LINUX32)		\
 		set_personality(PER_LINUX);			\
 } while (0)
+
+/*
+ * An executable for which elf_read_implies_exec() returns TRUE will
+ * have the READ_IMPLIES_EXEC personality flag set automatically.
+ */
+#define elf_read_implies_exec(ex, exec_stk)	(exec_stk != EXSTACK_DISABLE_X)
+
 #endif
 
 /*
@@ -238,9 +245,19 @@ do {								\
 /* A special ignored type value for PPC, for glibc compatibility.  */
 #define AT_IGNOREPPC		22
 
+/* The vDSO location. We have to use the same value as x86 for glibc's
+ * sake :-)
+ */
+#define AT_SYSINFO_EHDR		33
+
 extern int dcache_bsize;
 extern int icache_bsize;
 extern int ucache_bsize;
+
+/* We do have an arch_setup_additional_pages for vDSO matters */
+#define ARCH_HAS_SETUP_ADDITIONAL_PAGES
+struct linux_binprm;
+extern int arch_setup_additional_pages(struct linux_binprm *bprm, int executable_stack);
 
 /*
  * The requirements here are:
@@ -260,6 +277,8 @@ do {									\
 	NEW_AUX_ENT(AT_DCACHEBSIZE, dcache_bsize);			\
 	NEW_AUX_ENT(AT_ICACHEBSIZE, icache_bsize);			\
 	NEW_AUX_ENT(AT_UCACHEBSIZE, ucache_bsize);			\
+	/* vDSO base */							\
+	NEW_AUX_ENT(AT_SYSINFO_EHDR, current->thread.vdso_base);       	\
  } while (0)
 
 /* PowerPC64 relocations defined by the ABIs */

@@ -52,17 +52,17 @@ choice
 	default 6xx
 
 config 6xx
-	bool "6xx/7xx/74xx/52xx/8260"
+	bool "6xx/7xx/74xx/52xx/82xx/83xx"
 	help
 	  There are four types of PowerPC chips supported.  The more common
 	  types (601, 603, 604, 740, 750, 7400), the Motorola embedded
-	  versions (821, 823, 850, 855, 860, 52xx, 8260), the IBM embedded
+	  versions (821, 823, 850, 855, 860, 52xx, 82xx, 83xx), the IBM embedded
 	  versions (403 and 405) and the high end 64 bit Power processors
 	  (POWER 3, POWER4, and IBM 970 also known as G5)
 	  Unless you are building a kernel for one of the embedded processor
 	  systems, 64 bit IBM RS/6000 or an Apple G5, choose 6xx.
 	  Note that the kernel runs in 32-bit mode even on 64-bit chips.
-	  Also note that because the 52xx & 82xx family has a 603e core,
+	  Also note that because the 52xx, 82xx, & 83xx family has a 603e core,
 	  specific support for that chipset is asked later on.
 
 config 40x
@@ -109,7 +109,7 @@ config PHYS_64BIT
 config ALTIVEC
 	bool "AltiVec Support"
 	depends on 6xx || POWER4
-	depends on !8260
+	depends on !8260 && !83xx
 	---help---
 	  This option enables kernel support for the Altivec extensions to the
 	  PowerPC processor. The kernel currently supports saving and restoring
@@ -140,7 +140,7 @@ config SPE
 
 config TAU
 	bool "Thermal Management Support"
-	depends on 6xx && !8260
+	depends on 6xx && !8260 && !83xx
 	help
 	  G3 and G4 processors have an on-chip temperature sensor called the
 	  'Thermal Assist Unit (TAU)', which, in theory, can measure the on-die
@@ -209,7 +209,7 @@ config CPU_FREQ_PMAC
 	  PowerBook.
 
 config CPU_FREQ_TABLE
-	bool
+	tristate
 	depends on CPU_FREQ_PMAC
 	default y
 
@@ -568,6 +568,10 @@ config SANDPOINT
 	  Select SANDPOINT if configuring for a Motorola Sandpoint X3
 	  (any flavor).
 
+config RADSTONE_PPC7D
+	bool "Radstone Technology PPC7D board"
+	select MV64360
+
 config ADIR
 	bool "SBS-Adirondack"
 
@@ -638,6 +642,11 @@ config LITE5200
 	  much but it's only been tested on this board version. I think this
 	  board is also known as IceCube.
 
+config MPC834x_SYS
+	bool "Freescale MPC834x SYS"
+	help
+	  This option enables support for the MPC 834x SYS evaluation board.
+
 endchoice
 
 config PQ2ADS
@@ -675,6 +684,14 @@ config 8272
 	help
 	  The MPC8272 CPM has a different internal dpram setup than other CPM2
 	  devices
+
+config 83xx
+	bool
+	default y if MPC834x_SYS
+
+config MPC834x
+	bool
+	default y if MPC834x_SYS
 
 config CPM2
 	bool
@@ -715,7 +732,8 @@ config PPC_GEN550
 	bool
 	depends on SANDPOINT || MCPN765 || SPRUCE || PPLUS || PCORE || \
 		PRPMC750 || K2 || PRPMC800 || LOPEC || \
-		(EV64260 && !SERIAL_MPSC) || CHESTNUT
+		(EV64260 && !SERIAL_MPSC) || CHESTNUT || RADSTONE_PPC7D || \
+		MPC834x_SYS
 	default y
 
 config FORCE
@@ -730,7 +748,7 @@ config GT64260
 
 config MV64360
 	bool
-	depends on KATANA
+	depends on KATANA || RADSTONE_PPC7D
 	default y
 
 config MV64360
@@ -1046,6 +1064,8 @@ config PROC_HARDWARE
 
 source "drivers/zorro/Kconfig"
 
+source kernel/power/Kconfig
+
 endmenu
 
 menu "Bus options"
@@ -1079,8 +1099,8 @@ config MCA
 	bool
 
 config PCI
-	bool "PCI support" if 40x || CPM2 || 85xx
-	default y if !40x && !CPM2 && !8xx && !APUS && !85xx
+	bool "PCI support" if 40x || CPM2 || 83xx || 85xx
+	default y if !40x && !CPM2 && !8xx && !APUS && !83xx && !85xx
 	default PCI_PERMEDIA if !4xx && !CPM2 && !8xx && APUS
 	default PCI_QSPAN if !4xx && !CPM2 && 8xx
 	help

@@ -60,8 +60,8 @@
 
 #define DRV_MODULE_NAME		"tg3"
 #define PFX DRV_MODULE_NAME	": "
-#define DRV_MODULE_VERSION	"3.23"
-#define DRV_MODULE_RELDATE	"February 15, 2005"
+#define DRV_MODULE_VERSION	"3.24"
+#define DRV_MODULE_RELDATE	"March 4, 2005"
 
 #define TG3_DEF_MAC_MODE	0
 #define TG3_DEF_RX_MODE		0
@@ -3110,6 +3110,12 @@ static int tg3_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	    (mss = skb_shinfo(skb)->tso_size) != 0) {
 		int tcp_opt_len, ip_tcp_len;
 
+		if (skb_header_cloned(skb) &&
+		    pskb_expand_head(skb, 0, 0, GFP_ATOMIC)) {
+			dev_kfree_skb(skb);
+			goto out_unlock;
+		}
+
 		tcp_opt_len = ((skb->h.th->doff - 5) * 4);
 		ip_tcp_len = (skb->nh.iph->ihl * 4) + sizeof(struct tcphdr);
 
@@ -3697,8 +3703,9 @@ static void tg3_nvram_unlock(struct tg3 *tp)
 /* tp->lock is held. */
 static void tg3_write_sig_pre_reset(struct tg3 *tp, int kind)
 {
-	tg3_write_mem(tp, NIC_SRAM_FIRMWARE_MBOX,
-		      NIC_SRAM_FIRMWARE_MBOX_MAGIC1);
+	if (!(tp->tg3_flags2 & TG3_FLG2_SUN_570X))
+		tg3_write_mem(tp, NIC_SRAM_FIRMWARE_MBOX,
+			      NIC_SRAM_FIRMWARE_MBOX_MAGIC1);
 
 	if (tp->tg3_flags2 & TG3_FLG2_ASF_NEW_HANDSHAKE) {
 		switch (kind) {
@@ -3902,19 +3909,20 @@ static int tg3_chip_reset(struct tg3 *tp)
 		tw32_f(MAC_MODE, 0);
 	udelay(40);
 
-	/* Wait for firmware initialization to complete. */
-	for (i = 0; i < 100000; i++) {
-		tg3_read_mem(tp, NIC_SRAM_FIRMWARE_MBOX, &val);
-		if (val == ~NIC_SRAM_FIRMWARE_MBOX_MAGIC1)
-			break;
-		udelay(10);
-	}
-	if (i >= 100000 &&
-	    !(tp->tg3_flags2 & TG3_FLG2_SUN_570X)) {
-		printk(KERN_ERR PFX "tg3_reset_hw timed out for %s, "
-		       "firmware will not restart magic=%08x\n",
-		       tp->dev->name, val);
-		return -ENODEV;
+	if (!(tp->tg3_flags2 & TG3_FLG2_SUN_570X)) {
+		/* Wait for firmware initialization to complete. */
+		for (i = 0; i < 100000; i++) {
+			tg3_read_mem(tp, NIC_SRAM_FIRMWARE_MBOX, &val);
+			if (val == ~NIC_SRAM_FIRMWARE_MBOX_MAGIC1)
+				break;
+			udelay(10);
+		}
+		if (i >= 100000) {
+			printk(KERN_ERR PFX "tg3_reset_hw timed out for %s, "
+			       "firmware will not restart magic=%08x\n",
+			       tp->dev->name, val);
+			return -ENODEV;
+		}
 	}
 
 	if ((tp->tg3_flags2 & TG3_FLG2_PCI_EXPRESS) &&
@@ -7829,6 +7837,19 @@ static int __devinit tg3_is_sun_570X(struct tg3 *tp)
 
 static int __devinit tg3_get_invariants(struct tg3 *tp)
 {
+	static struct pci_device_id write_reorder_chipsets[] = {
+		{ PCI_DEVICE(PCI_VENDOR_ID_INTEL,
+		             PCI_DEVICE_ID_INTEL_82801AA_8) },
+		{ PCI_DEVICE(PCI_VENDOR_ID_INTEL,
+		             PCI_DEVICE_ID_INTEL_82801AB_8) },
+		{ PCI_DEVICE(PCI_VENDOR_ID_INTEL,
+		             PCI_DEVICE_ID_INTEL_82801BA_11) },
+		{ PCI_DEVICE(PCI_VENDOR_ID_INTEL,
+		             PCI_DEVICE_ID_INTEL_82801BA_6) },
+		{ PCI_DEVICE(PCI_VENDOR_ID_AMD,
+		             PCI_DEVICE_ID_AMD_FE_GATE_700C) },
+		{ },
+	};
 	u32 misc_ctrl_reg;
 	u32 cacheline_sz_reg;
 	u32 pci_state_reg, grc_misc_cfg;
@@ -7847,16 +7868,7 @@ static int __devinit tg3_get_invariants(struct tg3 *tp)
 	 * every mailbox register write to force the writes to be
 	 * posted to the chip in order.
 	 */
-	if (pci_find_device(PCI_VENDOR_ID_INTEL,
-			    PCI_DEVICE_ID_INTEL_82801AA_8, NULL) ||
-	    pci_find_device(PCI_VENDOR_ID_INTEL,
-			    PCI_DEVICE_ID_INTEL_82801AB_8, NULL) ||
-	    pci_find_device(PCI_VENDOR_ID_INTEL,
-			    PCI_DEVICE_ID_INTEL_82801BA_11, NULL) ||
-	    pci_find_device(PCI_VENDOR_ID_INTEL,
-			    PCI_DEVICE_ID_INTEL_82801BA_6, NULL) ||
-	    pci_find_device(PCI_VENDOR_ID_AMD,
-			    PCI_DEVICE_ID_AMD_FE_GATE_700C, NULL))
+	if (pci_dev_present(write_reorder_chipsets))
 		tp->tg3_flags |= TG3_FLAG_MBOX_WRITE_REORDER;
 
 	/* Force memory write invalidate off.  If we leave it on,
@@ -8940,7 +8952,7 @@ static void __devexit tg3_remove_one(struct pci_dev *pdev)
 	}
 }
 
-static int tg3_suspend(struct pci_dev *pdev, u32 state)
+static int tg3_suspend(struct pci_dev *pdev, pm_message_t state)
 {
 	struct net_device *dev = pci_get_drvdata(pdev);
 	struct tg3 *tp = netdev_priv(dev);
@@ -8967,7 +8979,7 @@ static int tg3_suspend(struct pci_dev *pdev, u32 state)
 	spin_unlock(&tp->tx_lock);
 	spin_unlock_irq(&tp->lock);
 
-	err = tg3_set_power_state(tp, state);
+	err = tg3_set_power_state(tp, pci_choose_state(pdev, state));
 	if (err) {
 		spin_lock_irq(&tp->lock);
 		spin_lock(&tp->tx_lock);

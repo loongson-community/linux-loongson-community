@@ -129,6 +129,7 @@ extern int dir_notify_enable;
 #define S_DIRSYNC	64	/* Directory modifications are synchronous */
 #define S_NOCMTIME	128	/* Do not update file c/mtime */
 #define S_SWAPFILE	256	/* Do not truncate: swapon got its bmaps */
+#define S_PRIVATE	512	/* Inode is fs-internal */
 
 /*
  * Note that nosuid etc flags are inode-specific: setting some file-system
@@ -162,6 +163,7 @@ extern int dir_notify_enable;
 #define IS_DEADDIR(inode)	((inode)->i_flags & S_DEAD)
 #define IS_NOCMTIME(inode)	((inode)->i_flags & S_NOCMTIME)
 #define IS_SWAPFILE(inode)	((inode)->i_flags & S_SWAPFILE)
+#define IS_PRIVATE(inode)	((inode)->i_flags & S_PRIVATE)
 
 /* the read-only stuff doesn't really belong here, but any other place is
    probably as bad and I don't want to create yet another include file. */
@@ -210,7 +212,6 @@ extern int dir_notify_enable;
 #include <linux/list.h>
 #include <linux/radix-tree.h>
 #include <linux/prio_tree.h>
-#include <linux/audit.h>
 #include <linux/init.h>
 
 #include <asm/atomic.h>
@@ -335,7 +336,7 @@ struct backing_dev_info;
 struct address_space {
 	struct inode		*host;		/* owner: inode, block_device */
 	struct radix_tree_root	page_tree;	/* radix tree of all pages */
-	spinlock_t		tree_lock;	/* and spinlock protecting it */
+	rwlock_t		tree_lock;	/* and rwlock protecting it */
 	unsigned int		i_mmap_writable;/* count VM_SHARED mappings */
 	struct prio_tree_root	i_mmap;		/* tree of private and shared mappings */
 	struct list_head	i_mmap_nonlinear;/*list VM_NONLINEAR mappings */
@@ -647,6 +648,8 @@ struct lock_manager_operations {
 	void (*fl_copy_lock)(struct file_lock *, struct file_lock *);
 	void (*fl_release_private)(struct file_lock *);
 	void (*fl_break)(struct file_lock *);
+	int (*fl_mylease)(struct file_lock *, struct file_lock *);
+	int (*fl_change)(struct file_lock **, int);
 };
 
 /* that will die - we need it for nfs_lock_info */
@@ -713,7 +716,7 @@ extern int flock_lock_file_wait(struct file *filp, struct file_lock *fl);
 extern int __break_lease(struct inode *inode, unsigned int flags);
 extern void lease_get_mtime(struct inode *, struct timespec *time);
 extern int setlease(struct file *, long, struct file_lock **);
-extern void remove_lease(struct file_lock *);
+extern int lease_modify(struct file_lock **, int);
 extern int lock_may_read(struct inode *, loff_t start, unsigned long count);
 extern int lock_may_write(struct inode *, loff_t start, unsigned long count);
 extern void steal_locks(fl_owner_t from);
@@ -1268,13 +1271,7 @@ extern void __init vfs_caches_init(unsigned long);
 #ifndef CONFIG_AUDITSYSCALL
 #define putname(name)   __putname(name)
 #else
-#define putname(name)							\
-	do {								\
-		if (unlikely(current->audit_context))			\
-			audit_putname(name);				\
-		else							\
-			__putname(name);				\
-	} while (0)
+extern void putname(const char *name);
 #endif
 
 extern int register_blkdev(unsigned int, const char *);
@@ -1353,11 +1350,15 @@ static inline void invalidate_remote_inode(struct inode *inode)
 		invalidate_inode_pages(inode->i_mapping);
 }
 extern int invalidate_inode_pages2(struct address_space *mapping);
+extern int invalidate_inode_pages2_range(struct address_space *mapping,
+					 pgoff_t start, pgoff_t end);
 extern int write_inode_now(struct inode *, int);
 extern int filemap_fdatawrite(struct address_space *);
 extern int filemap_flush(struct address_space *);
 extern int filemap_fdatawait(struct address_space *);
 extern int filemap_write_and_wait(struct address_space *mapping);
+extern int filemap_write_and_wait_range(struct address_space *mapping,
+				        loff_t lstart, loff_t lend);
 extern void sync_supers(void);
 extern void sync_filesystems(int wait);
 extern void emergency_sync(void);

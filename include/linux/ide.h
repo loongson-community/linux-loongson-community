@@ -718,6 +718,7 @@ typedef struct ide_drive_s {
 					 */
 	unsigned scsi		: 1;	/* 0=default, 1=ide-scsi emulation */
 	unsigned sleeping	: 1;	/* 1=sleeping & sleep field valid */
+	unsigned post_reset	: 1;
 
         u8	quirk_list;	/* considered quirky, set for a specific host */
         u8	init_speed;	/* transfer rate set at boot */
@@ -740,7 +741,6 @@ typedef struct ide_drive_s {
 	u8	sect;		/* "real" sectors per track */
 	u8	bios_head;	/* BIOS/fdisk/LILO number of heads */
 	u8	bios_sect;	/* BIOS/fdisk/LILO sectors per track */
-	u8	doing_barrier;	/* state, 1=currently doing flush */
 
 	unsigned int	bios_cyl;	/* BIOS/fdisk/LILO number of cyls */
 	unsigned int	cyl;		/* "real" number of cyls */
@@ -1098,15 +1098,10 @@ typedef struct ide_driver_s {
 	ide_startstop_t	(*error)(ide_drive_t *, struct request *rq, u8, u8);
 	ide_startstop_t	(*abort)(ide_drive_t *, struct request *rq);
 	int		(*ioctl)(ide_drive_t *, struct inode *, struct file *, unsigned int, unsigned long);
-	void		(*pre_reset)(ide_drive_t *);
-	sector_t	(*capacity)(ide_drive_t *);
-	ide_startstop_t	(*special)(ide_drive_t *);
 	ide_proc_entry_t	*proc;
 	int		(*attach)(ide_drive_t *);
 	void		(*ata_prebuilder)(ide_drive_t *);
 	void		(*atapi_prebuilder)(ide_drive_t *);
-	ide_startstop_t	(*start_power_step)(ide_drive_t *, struct request *);
-	void		(*complete_power_step)(ide_drive_t *, struct request *, u8, u8);
 	struct device_driver	gen_driver;
 	struct list_head drives;
 	struct list_head drivers;
@@ -1130,6 +1125,7 @@ extern	ide_hwif_t	ide_hwifs[];		/* master data repository */
 extern int noautodma;
 
 extern int ide_end_request (ide_drive_t *drive, int uptodate, int nrsecs);
+extern int __ide_end_request (ide_drive_t *drive, struct request *rq, int uptodate, int nrsecs);
 
 /*
  * This is used on exit from the driver to designate the next irq handler

@@ -20,6 +20,7 @@
 #include <asm/io.h>
 #include <asm/smp.h>
 
+#include "pci.h"
 #include "msi.h"
 
 static DEFINE_SPINLOCK(msi_lock);
@@ -372,6 +373,13 @@ static int msi_init(void)
 	if (!status)
 		return status;
 
+	if (pci_msi_quirk) {
+		pci_msi_enable = 0;
+		printk(KERN_WARNING "PCI: MSI quirk detected. MSI disabled.\n");
+		status = -EINVAL;
+		return status;
+	}
+
 	if ((status = msi_cache_init()) < 0) {
 		pci_msi_enable = 0;
 		printk(KERN_WARNING "PCI: MSI cache init failed\n");
@@ -616,15 +624,10 @@ static int msix_capability_init(struct pci_dev *dev,
 	bir = (u8)(table_offset & PCI_MSIX_FLAGS_BIRMASK);
 	phys_addr = pci_resource_start (dev, bir);
 	phys_addr += (u32)(table_offset & ~PCI_MSIX_FLAGS_BIRMASK);
-	if (!request_mem_region(phys_addr,
-		nr_entries * PCI_MSIX_ENTRY_SIZE,
-		"MSI-X vector table"))
-		return -ENOMEM;
 	base = ioremap_nocache(phys_addr, nr_entries * PCI_MSIX_ENTRY_SIZE);
-	if (base == NULL) {
-		release_mem_region(phys_addr, nr_entries * PCI_MSIX_ENTRY_SIZE);
+	if (base == NULL)
 		return -ENOMEM;
-	}
+
 	/* MSI-X Table Initialization */
 	for (i = 0; i < nvec; i++) {
 		entry = alloc_msi_entry();
@@ -859,8 +862,6 @@ static int msi_free_vector(struct pci_dev* dev, int vector, int reassign)
 			phys_addr += (u32)(table_offset &
 				~PCI_MSIX_FLAGS_BIRMASK);
 			iounmap(base);
-			release_mem_region(phys_addr,
-				nr_entries * PCI_MSIX_ENTRY_SIZE);
 		}
 	}
 
@@ -1133,8 +1134,6 @@ void msi_remove_pci_irq_vectors(struct pci_dev* dev)
 			phys_addr += (u32)(table_offset &
 				~PCI_MSIX_FLAGS_BIRMASK);
 			iounmap(base);
-			release_mem_region(phys_addr, PCI_MSIX_ENTRY_SIZE *
-				multi_msix_capable(control));
 			printk(KERN_WARNING "PCI: %s: msi_remove_pci_irq_vectors() "
 			       "called without free_irq() on all MSI-X vectors\n",
 			       pci_name(dev));

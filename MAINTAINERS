@@ -80,7 +80,7 @@ S:	Maintained
 
 3C505 NETWORK DRIVER
 P:	Philip Blundell
-M:	Philip.Blundell@pobox.com
+M:	philb@gnu.org
 L:	linux-net@vger.kernel.org
 S:	Maintained
 
@@ -155,7 +155,7 @@ S:	Maintained
 
 AIO
 P:	Benjamin LaHaise
-M:	bcrl@redhat.com
+M:	bcrl@kvack.org
 L:	linux-aio@kvack.org
 S:	Supported
 
@@ -457,6 +457,11 @@ P:	Marcel Holtmann
 M:	marcel@holtmann.org
 S:	Maintained
 
+BLUETOOTH HCI BPA10X DRIVER
+P:	Marcel Holtmann
+M:	marcel@holtmann.org
+S:	Maintained
+
 BLUETOOTH HCI BFUSB DRIVER
 P:	Marcel Holtmann
 M:	marcel@holtmann.org
@@ -501,7 +506,7 @@ P:	Gerd Knorr
 M:	kraxel@bytesex.org
 L:	video4linux-list@redhat.com
 W:	http://bytesex.org/bttv/
-S:	Maintained
+S:	Orphan
 
 BUSLOGIC SCSI DRIVER
 P:	Leonard N. Zubkoff
@@ -596,11 +601,10 @@ W:	http://developer.axis.com
 S:	Maintained
 
 CRYPTO API
-P:	James Morris
-M:	jmorris@redhat.com
+P:	Herbert Xu
+M:	herbert@gondor.apana.org.au
 P:	David S. Miller
 M:	davem@davemloft.net
-W	http://samba.org/~jamesm/crypto/
 L:	linux-kernel@vger.kernel.org
 S:	Maintained
 
@@ -708,13 +712,6 @@ L:	linux-net@vger.kernel.org
 W:	http://www.digi.com
 S:	Orphaned
 
-DIGIBOARD PC/XE AND PC/XI DRIVER
-P:	Christoph Lameter
-M:	christoph@lameter.com
-W:	http://www.digi.com
-L:	digilnux@digi.com
-S:	Obsolete
-
 DIRECTORY NOTIFICATION
 P:	Stephen Rothwell
 M:	sfr@canb.auug.org.au
@@ -754,8 +751,10 @@ L:	linux-kernel@vger.kernel.org
 S:	Supported
 
 DRM DRIVERS
+P:	David Airlie
+M:	airlied@linux.ie
 L:	dri-devel@lists.sourceforge.net
-S:	Supported
+S:	Maintained
 
 DSCC4 DRIVER
 P:	François Romieu
@@ -814,7 +813,7 @@ S:	Maintained
 
 ETHEREXPRESS-16 NETWORK DRIVER
 P:	Philip Blundell
-M:	Philip.Blundell@pobox.com
+M:	philb@gnu.org
 L:	linux-net@vger.kernel.org
 S:	Maintained
 
@@ -910,10 +909,17 @@ L:	linux-scsi@vger.kernel.org
 W:	http://www.icp-vortex.com/
 S:	Supported
 
-GENERIC HDLC DRIVER, N2 AND C101 DRIVERS
+GENERIC HDLC DRIVER, N2, C101, PCI200SYN and WANXL DRIVERS
 P:	Krzysztof Halasa
 M:	khc@pm.waw.pl
-W:	http://hq.pm.waw.pl/hdlc/
+W:	http://www.kernel.org/pub/linux/utils/net/hdlc/
+S:	Maintained
+
+HARMONY SOUND DRIVER
+P:	Kyle McMartin
+M:	kyle@parisc-linux.org
+W:	http://www.parisc-linux.org/~kyle/harmony/
+L:	parisc-linux@lists.parisc-linux.org
 S:	Maintained
 
 HAYES ESP SERIAL DRIVER
@@ -991,8 +997,8 @@ S:	Maintained
 I2C AND SENSORS DRIVERS
 P:	Greg Kroah-Hartman
 M:	greg@kroah.com
-P:	Philip Edelbrock
-M:	phil@netroedge.com
+P:	Jean Delvare
+M:	khali@linux-fr.org
 L:	sensors@stimpy.netroedge.com
 W:	http://www.lm-sensors.nu/
 S:	Maintained
@@ -1082,9 +1088,21 @@ M:	Gadi Oxman <gadio@netvision.net.il>
 L:	linux-kernel@vger.kernel.org
 S:	Maintained
 
+IEEE 1394 ETHERNET (eth1394)
+L:	linux1394-devel@lists.sourceforge.net
+W:	http://www.linux1394.org/
+S:	Orphan
+
+IEEE 1394 SBP2
+L:	linux1394-devel@lists.sourceforge.net
+W:	http://www.linux1394.org/
+S:	Orphan
+
 IEEE 1394 SUBSYSTEM
 P:	Ben Collins
 M:	bcollins@debian.org
+P:	Jody McIntyre
+M:	scjody@steamballoon.com
 L:	linux1394-devel@lists.sourceforge.net
 W:	http://www.linux1394.org/
 S:	Maintained
@@ -1092,13 +1110,15 @@ S:	Maintained
 IEEE 1394 OHCI DRIVER
 P:	Ben Collins
 M:	bcollins@debian.org
+P:	Jody McIntyre
+M:	scjody@steamballoon.com
 L:	linux1394-devel@lists.sourceforge.net
 W:	http://www.linux1394.org/
 S:	Maintained
 
 IEEE 1394 PCILYNX DRIVER
-P:	Andreas Bombe
-M:	andreas.bombe@munich.netsurf.de
+P:	Jody McIntyre
+M:	scjody@steamballoon.com
 L:	linux1394-devel@lists.sourceforge.net
 W:	http://www.linux1394.org/
 S:	Maintained
@@ -1106,6 +1126,8 @@ S:	Maintained
 IEEE 1394 RAW I/O DRIVER
 P:	Ben Collins
 M:	bcollins@debian.org
+P:	Dan Dennedy
+M:	dan@dennedy.org
 L:	linux1394-devel@lists.sourceforge.net
 W:	http://www.linux1394.org/
 S:	Maintained
@@ -1247,8 +1269,8 @@ S:	Maintained
 JFS FILESYSTEM
 P:	Dave Kleikamp
 M:	shaggy@austin.ibm.com
-L:	jfs-discussion@oss.software.ibm.com
-W:	http://oss.software.ibm.com/jfs/
+L:	jfs-discussion@lists.sourceforge.net
+W:	http://jfs.sourceforge.net/
 S:	Supported
 
 KCONFIG
@@ -1372,7 +1394,7 @@ W:	http://www.penguinppc.org/
 L:	linuxppc-embedded@ozlabs.org
 S:	Maintained
 
-LINUX FOR POWERPC EMBEDDED PPC85XX
+LINUX FOR POWERPC EMBEDDED PPC83XX AND PPC85XX
 P:     Kumar Gala
 M:     kumar.gala@freescale.com
 W:     http://www.penguinppc.org/
@@ -1695,13 +1717,13 @@ S:	Maintained
 
 PARALLEL PORT SUPPORT
 P:	Phil Blundell
-M:	Philip.Blundell@pobox.com
+M:	philb@gnu.org
 P:	Tim Waugh
 M:	tim@cyberelk.net
 P:	David Campbell
 M:	campbell@torque.net
 P:	Andrea Arcangeli
-M:	andrea@e-mind.com
+M:	andrea@suse.de
 L:	linux-parport@lists.infradead.org
 W:	http://people.redhat.com/twaugh/parport/
 S:	Maintained
@@ -1966,6 +1988,11 @@ M:	christer@weinigel.se
 W:	http://www.weinigel.se
 S:	Supported
 
+SECURITY CONTACT
+P:	Security Officers
+M:	security@kernel.org
+S:	Supported
+
 SELINUX SECURITY MODULE
 P:	Stephen Smalley
 M:	sds@epoch.ncsc.mil
@@ -2027,6 +2054,12 @@ P:	Thomas Winischhofer
 M:	thomas@winischhofer.net
 W:	http://www.winischhofer.net/linuxsisvga.shtml
 S:	Maintained	
+
+SIS USB2VGA DRIVER
+P:	Thomas Winischhofer
+M:	thomas@winischhofer.net
+W:	http://www.winischhofer.at/linuxsisusbvga.shtml
+S:	Maintained
 
 SMSC47M1 HARDWARE MONITOR DRIVER
 P:	Jean Delvare
@@ -2162,9 +2195,10 @@ SUPERH64 (sh64)
 P:	Paul Mundt
 M:	lethal@linux-sh.org
 P:	Richard Curnow
-M:	richard.curnow@superh.com
+M:	rc@rc0.org.uk
 L:	linuxsh-shmedia-dev@lists.sourceforge.net
 W:	http://www.linux-sh.org
+W:	http://www.rc0.org.uk/sh64
 S:	Maintained
 
 SUN3/3X
@@ -2376,6 +2410,12 @@ L:	linux-usb-devel@lists.sourceforge.net
 W:	http://www.chello.nl/~j.vreeken/se401/
 S:	Maintained
 
+USB SERIAL CYBERJACK DRIVER
+P:	Matthias Bruestle and Harald Welte
+M:	support@reiner-sct.com
+W:	http://www.reiner-sct.de/support/treiber_cyberjack.php
+S:	Maintained
+
 USB SERIAL DIGI ACCELEPORT DRIVER
 P:	Peter Berger and Al Borchers
 M:	pberger@brimson.com
@@ -2477,6 +2517,14 @@ L:	linux-usb-devel@lists.sourceforge.net
 W:	http://www.linux-projects.org
 S:	Maintained
 
+USB ZD1201 DRIVER
+P:	Jeroen Vreeken
+M:	pe1rxq@amsat.org
+L:	linux-usb-users@lists.sourceforge.net
+L:	linux-usb-devel@lists.sourceforge.net
+W:	http://linux-lc100020.sourceforge.net
+S:	Maintained
+
 USER-MODE LINUX
 P:	Jeff Dike
 M:	jdike@karaya.com
@@ -2534,7 +2582,8 @@ S:	Maintained
 VIDEO FOR LINUX
 P:	Gerd Knorr
 M:	kraxel@bytesex.org
-S:	Maintained
+L:	video4linux-list@redhat.com
+S:	Orphan
 
 W1 DALLAS'S 1-WIRE BUS
 P:	Evgeniy Polyakov

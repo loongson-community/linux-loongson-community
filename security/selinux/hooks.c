@@ -10,6 +10,8 @@
  *
  *  Copyright (C) 2001,2002 Networks Associates Technology, Inc.
  *  Copyright (C) 2003 Red Hat, Inc., James Morris <jmorris@redhat.com>
+ *  Copyright (C) 2004-2005 Trusted Computer Solutions, Inc.
+ *                          <dgoeddel@trustedcs.com>
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License version 2,
@@ -589,7 +591,8 @@ next_inode:
 		spin_unlock(&sbsec->isec_lock);
 		inode = igrab(inode);
 		if (inode) {
-			inode_doinit(inode);
+			if (!IS_PRIVATE (inode))
+				inode_doinit(inode);
 			iput(inode);
 		}
 		spin_lock(&sbsec->isec_lock);
@@ -1855,6 +1858,13 @@ static void selinux_bprm_post_apply_creds(struct linux_binprm *bprm)
 			initrlim = init_task.signal->rlim+i;
 			rlim->rlim_cur = min(rlim->rlim_max,initrlim->rlim_cur);
 		}
+		if (current->signal->rlim[RLIMIT_CPU].rlim_cur != RLIM_INFINITY) {
+			/*
+			 * This will cause RLIMIT_CPU calculations
+			 * to be refigured.
+			 */
+			current->it_prof_expires = jiffies_to_cputime(1);
+		}
 	}
 
 	/* Wake up the parent if it is waiting so that it can
@@ -2203,6 +2213,11 @@ static int selinux_inode_setxattr(struct dentry *dentry, char *name, void *value
 	if (rc)
 		return rc;
 
+	rc = security_validate_transition(isec->sid, newsid, tsec->sid,
+	                                  isec->sclass);
+	if (rc)
+		return rc;
+
 	return avc_has_perm(newsid,
 			    sbsec->sid,
 			    SECCLASS_FILESYSTEM,
@@ -2407,6 +2422,7 @@ static int selinux_file_ioctl(struct file *file, unsigned int cmd,
 
 static int file_map_prot_check(struct file *file, unsigned long prot, int shared)
 {
+#ifndef CONFIG_PPC32
 	if ((prot & PROT_EXEC) && (!file || (!shared && (prot & PROT_WRITE)))) {
 		/*
 		 * We are making executable an anonymous mapping or a
@@ -2417,6 +2433,7 @@ static int file_map_prot_check(struct file *file, unsigned long prot, int shared
 		if (rc)
 			return rc;
 	}
+#endif
 
 	if (file) {
 		/* read access is always possible with a mapping */
@@ -2434,27 +2451,36 @@ static int file_map_prot_check(struct file *file, unsigned long prot, int shared
 	return 0;
 }
 
-static int selinux_file_mmap(struct file *file, unsigned long prot, unsigned long flags)
+static int selinux_file_mmap(struct file *file, unsigned long reqprot,
+			     unsigned long prot, unsigned long flags)
 {
 	int rc;
 
-	rc = secondary_ops->file_mmap(file, prot, flags);
+	rc = secondary_ops->file_mmap(file, reqprot, prot, flags);
 	if (rc)
 		return rc;
+
+	if (selinux_checkreqprot)
+		prot = reqprot;
 
 	return file_map_prot_check(file, prot,
 				   (flags & MAP_TYPE) == MAP_SHARED);
 }
 
 static int selinux_file_mprotect(struct vm_area_struct *vma,
+				 unsigned long reqprot,
 				 unsigned long prot)
 {
 	int rc;
 
-	rc = secondary_ops->file_mprotect(vma, prot);
+	rc = secondary_ops->file_mprotect(vma, reqprot, prot);
 	if (rc)
 		return rc;
 
+	if (selinux_checkreqprot)
+		prot = reqprot;
+
+#ifndef CONFIG_PPC32
 	if (vma->vm_file != NULL && vma->anon_vma != NULL && (prot & PROT_EXEC)) {
 		/*
 		 * We are making executable a file mapping that has
@@ -2466,6 +2492,7 @@ static int selinux_file_mprotect(struct vm_area_struct *vma,
 		if (rc)
 			return rc;
 	}
+#endif
 
 	return file_map_prot_check(vma->vm_file, prot, vma->vm_flags&VM_SHARED);
 }
@@ -4079,6 +4106,7 @@ static int selinux_setprocattr(struct task_struct *p,
 	struct task_security_struct *tsec;
 	u32 sid = 0;
 	int error;
+	char *str = value;
 
 	if (current != p) {
 		/* SELinux only allows a process to change its own
@@ -4103,8 +4131,11 @@ static int selinux_setprocattr(struct task_struct *p,
 		return error;
 
 	/* Obtain a SID for the context, if one was specified. */
-	if (size) {
-		int error;
+	if (size && str[1] && str[1] != '\n') {
+		if (str[size-1] == '\n') {
+			str[size-1] = 0;
+			size--;
+		}
 		error = security_context_to_sid(value, size, &sid);
 		if (error)
 			return error;

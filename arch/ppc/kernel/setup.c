@@ -56,7 +56,6 @@ extern void ppc6xx_idle(void);
 extern void power4_idle(void);
 
 extern boot_infos_t *boot_infos;
-unsigned char aux_device_present;
 struct ide_machdep_calls ppc_ide_md;
 char *sysmap;
 unsigned long sysmap_size;
@@ -179,7 +178,7 @@ int show_cpuinfo(struct seq_file *m, void *v)
 	pvr = cpu_data[i].pvr;
 	lpj = cpu_data[i].loops_per_jiffy;
 #else
-	pvr = mfspr(PVR);
+	pvr = mfspr(SPRN_PVR);
 	lpj = loops_per_jiffy;
 #endif
 
@@ -226,6 +225,10 @@ int show_cpuinfo(struct seq_file *m, void *v)
 	case 0x1008:	/* 740P/750P ?? */
 		maj = ((pvr >> 8) & 0xFF) - 1;
 		min = pvr & 0xFF;
+		break;
+	case 0x8083:	/* e300 */
+		maj = PVR_MAJ(pvr);
+		min = PVR_MIN(pvr);
 		break;
 	case 0x8020:	/* e500 */
 		maj = PVR_MAJ(pvr);
@@ -619,7 +622,7 @@ machine_init(unsigned long r3, unsigned long r4, unsigned long r5,
 /* Checks "l2cr=xxxx" command-line option */
 int __init ppc_setup_l2cr(char *str)
 {
-	if (cur_cpu_spec[0]->cpu_features & CPU_FTR_L2CR) {
+	if (cpu_has_feature(CPU_FTR_L2CR)) {
 		unsigned long val = simple_strtoul(str, NULL, 0);
 		printk(KERN_INFO "l2cr set to %lx\n", val);
 		_set_L2CR(0);		/* force invalidate by disable cache */
@@ -720,7 +723,7 @@ void __init setup_arch(char **cmdline_p)
 	 * Systems with OF can look in the properties on the cpu node(s)
 	 * for a possibly more accurate value.
 	 */
-	if (cur_cpu_spec[0]->cpu_features & CPU_FTR_SPLIT_ID_CACHE) {
+	if (cpu_has_feature(CPU_FTR_SPLIT_ID_CACHE)) {
 		dcache_bsize = cur_cpu_spec[0]->dcache_bsize;
 		icache_bsize = cur_cpu_spec[0]->icache_bsize;
 		ucache_bsize = 0;

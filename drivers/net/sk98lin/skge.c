@@ -3058,7 +3058,7 @@ fault_gen:
 		*/
 		* ((SK_U32 *)pMemBuf) = 0;
 		* ((SK_U32 *)pMemBuf + 1) = pdev->bus->number;
-		* ((SK_U32 *)pMemBuf + 2) = ParseDeviceNbrFromSlotName(pdev->slot_name);
+		* ((SK_U32 *)pMemBuf + 2) = ParseDeviceNbrFromSlotName(pci_name(pdev));
 		if(copy_to_user(Ioctl.pData, pMemBuf, Length) ) {
 			Err = -EFAULT;
 			goto fault_diag;
@@ -5152,8 +5152,10 @@ static struct pci_device_id skge_pci_tbl[] = {
 	{ 0, }
 };
 
+MODULE_DEVICE_TABLE(pci, skge_pci_tbl);
+
 static struct pci_driver skge_driver = {
-	.name		= "skge",
+	.name		= "sk98lin",
 	.id_table	= skge_pci_tbl,
 	.probe		= skge_probe_one,
 	.remove		= __devexit_p(skge_remove_one),

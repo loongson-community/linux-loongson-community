@@ -2424,6 +2424,11 @@ static int sbmac_init(struct net_device *dev, int idx)
 			sc->sbm_dev->name);
 	}
 
+	if (periph_rev >= 2) {
+		printk(KERN_INFO "%s: enabling TCP rcv checksum\n",
+			sc->sbm_dev->name);
+	}
+
 	/*
 	 * Display Ethernet address (this is called during the config
 	 * process so we need to finish off the config message that

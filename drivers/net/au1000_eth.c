@@ -1002,6 +1002,66 @@ found:
 		for (i = 0; mii_chip_table[i].phy_id1; i++) {
 			if (phy_id0 == mii_chip_table[i].phy_id0 &&
 			    phy_id1 == mii_chip_table[i].phy_id1) {
+				struct mii_phy * mii_phy = aup->mii;
+
+				printk(KERN_INFO "%s: %s at phy address %d\n",
+				       dev->name, mii_chip_table[i].name, 
+				       phy_addr);
+#ifdef CONFIG_MIPS_BOSPORUS
+				phy_found = 1;
+#endif
+				mii_phy->chip_info = mii_chip_table+i;
+				aup->phy_addr = phy_addr;
+				aup->want_autoneg = 1;
+				aup->phy_ops = mii_chip_table[i].phy_ops;
+				aup->phy_ops->phy_init(dev,phy_addr);
+
+				// Check for dual-phy and then store required 
+				// values and set indicators. We need to do 
+				// this now since mdio_{read,write} need the 
+				// control and data register addresses.
+				#ifdef CONFIG_BCM5222_DUAL_PHY
+				if ( mii_chip_table[i].dual_phy) {
+
+					/* assume both phys are controlled 
+					 * through MAC0. Board specific? */
+					
+					/* sanity check */
+					if (!au_macs[0] || !au_macs[0]->mii)
+						return -1;
+					aup->mii->mii_control_reg = (u32 *)
+						&au_macs[0]->mac->mii_control;
+					aup->mii->mii_data_reg = (u32 *)
+						&au_macs[0]->mac->mii_data;
+				}
+				#endif
+				goto found;
+			}
+		}
+	}
+found:
+
+#ifdef CONFIG_MIPS_BOSPORUS
+	/* This is a workaround for the Micrel/Kendin 5 port switch
+	   The second MAC doesn't see a PHY connected... so we need to
+	   trick it into thinking we have one.
+		
+	   If this kernel is run on another Au1500 development board
+	   the stub will be found as well as the actual PHY. However,
+	   the last found PHY will be used... usually at Addr 31 (Db1500).	
+	*/
+	if ( (!phy_found) )
+	{
+		u16 phy_id0, phy_id1;
+		int i;
+
+		phy_id0 = 0x1234;
+		phy_id1 = 0x5678;
+
+		/* search our mii table for the current mii */ 
+		for (i = 0; mii_chip_table[i].phy_id1; i++) {
+			if (phy_id0 == mii_chip_table[i].phy_id0 &&
+			    phy_id1 == mii_chip_table[i].phy_id1) {
 				struct mii_phy * mii_phy;
 
 				printk(KERN_INFO "%s: %s at phy address %d\n",
@@ -1781,6 +1841,7 @@ static int au1000_open(struct net_device *dev)
 
 static int au1000_close(struct net_device *dev)
 {
+	int i;
 	u32 flags;
 	struct au1000_private *aup = (struct au1000_private *) dev->priv;
 
@@ -2079,6 +2140,23 @@ static void au1000_tx_timeout(struct net_device *dev)
 	au1000_init(dev);
 	dev->trans_start = jiffies;
 	netif_wake_queue(dev);
+}
+
+
+static unsigned const ethernet_polynomial = 0x04c11db7U;
+static inline u32 ether_crc(int length, unsigned char *data)
+{
+    int crc = -1;
+
+    while(--length >= 0) {
+		unsigned char current_octet = *data++;
+		int bit;
+		for (bit = 0; bit < 8; bit++, current_octet >>= 1)
+			crc = (crc << 1) ^
+				((crc < 0) ^ (current_octet & 1) ? 
+				 ethernet_polynomial : 0);
+    }
+    return crc;
 }
 
 

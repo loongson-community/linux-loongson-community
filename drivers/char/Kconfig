@@ -148,25 +148,8 @@ config DIGIEPCA
 	  you have a card like this, say Y here and read the file
 	  <file:Documentation/digiepca.txt>.
 
-	  NOTE: There is another, separate driver for the Digiboard PC boards:
-	  "Digiboard PC/Xx Support" below. You should (and can) only select
-	  one of the two drivers.
-
 	  To compile this driver as a module, choose M here: the
 	  module will be called epca.
-
-config DIGI
-	tristate "Digiboard PC/Xx Support"
-	depends on SERIAL_NONSTANDARD && DIGIEPCA=n && BROKEN_ON_SMP
-	help
-	  This is a driver for the Digiboard PC/Xe, PC/Xi, and PC/Xeve cards
-	  that give you many serial ports. You would need something like this
-	  to connect more than two modems to your Linux box, for instance in
-	  order to become a dial-in server. If you have a card like that, say
-	  Y here and read the file <file:Documentation/digiboard.txt>.
-
-	  To compile this driver as a module, choose M here: the
-	  module will be called pcxx.
 
 config ESPSERIAL
 	tristate "Hayes ESP serial port support"
@@ -853,6 +836,10 @@ config SONYPI
 	  To compile this driver as a module, choose M here: the
 	  module will be called sonypi.
 
+config TANBAC_TB0219
+	tristate "TANBAC TB0219 base board support"
+	depends TANBAC_TB0229
+
 
 menu "Ftape, the floppy tape device driver"
 
@@ -1004,6 +991,8 @@ config MMTIMER
 	help
 	  The mmtimer device allows direct userspace access to the
 	  Altix system timer.
+
+source "drivers/char/tpm/Kconfig"
 
 endmenu
 

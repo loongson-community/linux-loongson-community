@@ -444,33 +444,23 @@ static int x25_listen(struct socket *sock, int backlog)
 
 static struct sock *x25_alloc_socket(void)
 {
-	struct x25_opt *x25;
-	struct sock *sk = sk_alloc(AF_X25, GFP_ATOMIC, 1, NULL);
+	struct x25_sock *x25;
+	struct sock *sk = sk_alloc(AF_X25, GFP_ATOMIC,
+				   sizeof(struct x25_sock), NULL);
 
 	if (!sk)
 		goto out;
 
-	x25 = sk->sk_protinfo = kmalloc(sizeof(*x25), GFP_ATOMIC);
-	if (!x25)
-		goto frees;
-
-	memset(x25, 0, sizeof(*x25));
-
-	x25->sk = sk;
-
 	sock_init_data(NULL, sk);
 	sk_set_owner(sk, THIS_MODULE);
 
+	x25 = x25_sk(sk);
 	skb_queue_head_init(&x25->ack_queue);
 	skb_queue_head_init(&x25->fragment_queue);
 	skb_queue_head_init(&x25->interrupt_in_queue);
 	skb_queue_head_init(&x25->interrupt_out_queue);
 out:
 	return sk;
-frees:
-	sk_free(sk);
-	sk = NULL;
-	goto out;
 }
 
 void x25_init_timers(struct sock *sk);
@@ -478,7 +468,7 @@ void x25_init_timers(struct sock *sk);
 static int x25_create(struct socket *sock, int protocol)
 {
 	struct sock *sk;
-	struct x25_opt *x25;
+	struct x25_sock *x25;
 	int rc = -ESOCKTNOSUPPORT;
 
 	if (sock->type != SOCK_SEQPACKET || protocol)
@@ -519,7 +509,7 @@ out:
 static struct sock *x25_make_new(struct sock *osk)
 {
 	struct sock *sk = NULL;
-	struct x25_opt *x25, *ox25;
+	struct x25_sock *x25, *ox25;
 
 	if (osk->sk_type != SOCK_SEQPACKET)
 		goto out;
@@ -535,11 +525,15 @@ static struct sock *x25_make_new(struct sock *osk)
 	sk->sk_protocol    = osk->sk_protocol;
 	sk->sk_rcvbuf      = osk->sk_rcvbuf;
 	sk->sk_sndbuf      = osk->sk_sndbuf;
-	sk->sk_debug       = osk->sk_debug;
 	sk->sk_state       = TCP_ESTABLISHED;
 	sk->sk_sleep       = osk->sk_sleep;
-	sk->sk_zapped      = osk->sk_zapped;
 	sk->sk_backlog_rcv = osk->sk_backlog_rcv;
+
+	if (sock_flag(osk, SOCK_ZAPPED))
+		sock_set_flag(sk, SOCK_ZAPPED);
+	
+	if (sock_flag(osk, SOCK_DBG))
+		sock_set_flag(sk, SOCK_DBG);
 
 	ox25 = x25_sk(osk);
 	x25->t21        = ox25->t21;
@@ -557,7 +551,7 @@ out:
 static int x25_release(struct socket *sock)
 {
 	struct sock *sk = sock->sk;
-	struct x25_opt *x25;
+	struct x25_sock *x25;
 
 	if (!sk)
 		goto out;
@@ -598,14 +592,14 @@ static int x25_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 	struct sock *sk = sock->sk;
 	struct sockaddr_x25 *addr = (struct sockaddr_x25 *)uaddr;
 
-	if (!sk->sk_zapped ||
+	if (!sock_flag(sk, SOCK_ZAPPED) ||
 	    addr_len != sizeof(struct sockaddr_x25) ||
 	    addr->sx25_family != AF_X25)
 		return -EINVAL;
 
 	x25_sk(sk)->source_addr = addr->sx25_addr;
 	x25_insert_socket(sk);
-	sk->sk_zapped = 0;
+	sock_reset_flag(sk, SOCK_ZAPPED);
 	SOCK_DEBUG(sk, "x25_bind: socket is bound\n");
 
 	return 0;
@@ -644,7 +638,7 @@ static int x25_connect(struct socket *sock, struct sockaddr *uaddr,
 		       int addr_len, int flags)
 {
 	struct sock *sk = sock->sk;
-	struct x25_opt *x25 = x25_sk(sk);
+	struct x25_sock *x25 = x25_sk(sk);
 	struct sockaddr_x25 *addr = (struct sockaddr_x25 *)uaddr;
 	struct x25_route *rt;
 	int rc = 0;
@@ -689,7 +683,7 @@ static int x25_connect(struct socket *sock, struct sockaddr *uaddr,
 		goto out_put_neigh;
 
 	rc = -EINVAL;
-	if (sk->sk_zapped) /* Must bind first - autobinding does not work */
+	if (sock_flag(sk, SOCK_ZAPPED)) /* Must bind first - autobinding does not work */
 		goto out_put_neigh;
 
 	if (!strcmp(x25->source_addr.x25_addr, null_x25_address.x25_addr))
@@ -802,7 +796,7 @@ static int x25_getname(struct socket *sock, struct sockaddr *uaddr,
 {
 	struct sockaddr_x25 *sx25 = (struct sockaddr_x25 *)uaddr;
 	struct sock *sk = sock->sk;
-	struct x25_opt *x25 = x25_sk(sk);
+	struct x25_sock *x25 = x25_sk(sk);
 
 	if (peer) {
 		if (sk->sk_state != TCP_ESTABLISHED)
@@ -822,7 +816,7 @@ int x25_rx_call_request(struct sk_buff *skb, struct x25_neigh *nb,
 {
 	struct sock *sk;
 	struct sock *make;
-	struct x25_opt *makex25;
+	struct x25_sock *makex25;
 	struct x25_address source_addr, dest_addr;
 	struct x25_facilities facilities;
 	struct x25_calluserdata calluserdata;
@@ -935,7 +929,7 @@ static int x25_sendmsg(struct kiocb *iocb, struct socket *sock,
 		       struct msghdr *msg, size_t len)
 {
 	struct sock *sk = sock->sk;
-	struct x25_opt *x25 = x25_sk(sk);
+	struct x25_sock *x25 = x25_sk(sk);
 	struct sockaddr_x25 *usx25 = (struct sockaddr_x25 *)msg->msg_name;
 	struct sockaddr_x25 sx25;
 	struct sk_buff *skb;
@@ -952,7 +946,7 @@ static int x25_sendmsg(struct kiocb *iocb, struct socket *sock,
 		goto out;
 
 	rc = -EADDRNOTAVAIL;
-	if (sk->sk_zapped)
+	if (sock_flag(sk, SOCK_ZAPPED))
 		goto out;
 
 	rc = -EPIPE;
@@ -1112,7 +1106,7 @@ static int x25_recvmsg(struct kiocb *iocb, struct socket *sock,
 		       int flags)
 {
 	struct sock *sk = sock->sk;
-	struct x25_opt *x25 = x25_sk(sk);
+	struct x25_sock *x25 = x25_sk(sk);
 	struct sockaddr_x25 *sx25 = (struct sockaddr_x25 *)msg->msg_name;
 	size_t copied;
 	int qbit;
@@ -1201,7 +1195,7 @@ out:
 static int x25_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 {
 	struct sock *sk = sock->sk;
-	struct x25_opt *x25 = x25_sk(sk);
+	struct x25_sock *x25 = x25_sk(sk);
 	void __user *argp = (void __user *)arg;
 	int rc;
 

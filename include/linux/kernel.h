@@ -48,10 +48,20 @@ extern int console_printk[];
 
 struct completion;
 
+/**
+ * might_sleep - annotation for functions that can sleep
+ *
+ * this macro will print a stack trace if it is executed in an atomic
+ * context (spinlock, irq-handler, ...).
+ *
+ * This is a useful debugging help to be able to catch problems early and not
+ * be biten later when the calling function happens to sleep when it is not
+ * supposed to.
+ */
 #ifdef CONFIG_DEBUG_SPINLOCK_SLEEP
-void __might_sleep(char *file, int line);
 #define might_sleep() __might_sleep(__FILE__, __LINE__)
 #define might_sleep_if(cond) do { if (unlikely(cond)) might_sleep(); } while (0)
+void __might_sleep(char *file, int line);
 #else
 #define might_sleep() do {} while(0)
 #define might_sleep_if(cond) do {} while (0)
@@ -277,6 +287,12 @@ struct sysinfo {
 
 extern void BUILD_BUG(void);
 #define BUILD_BUG_ON(condition) do { if (condition) BUILD_BUG(); } while(0)
+
+#ifdef CONFIG_SYSCTL
+extern int randomize_va_space;
+#else
+#define randomize_va_space 1
+#endif
 
 /* Trap pasters of __FUNCTION__ at compile-time */
 #if __GNUC__ > 2 || __GNUC_MINOR__ >= 95

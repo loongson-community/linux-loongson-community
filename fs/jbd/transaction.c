@@ -522,7 +522,7 @@ static void jbd_unexpected_dirty_buffer(struct journal_head *jh)
  */
 static int
 do_get_write_access(handle_t *handle, struct journal_head *jh,
-			int force_copy, int *credits) 
+			int force_copy)
 {
 	struct buffer_head *bh;
 	transaction_t *transaction;
@@ -604,11 +604,6 @@ repeat:
 		JBUFFER_TRACE(jh, "has frozen data");
 		J_ASSERT_JH(jh, jh->b_next_transaction == NULL);
 		jh->b_next_transaction = transaction;
-
-		J_ASSERT_JH(jh, handle->h_buffer_credits > 0);
-		handle->h_buffer_credits--;
-		if (credits)
-			(*credits)++;
 		goto done;
 	}
 
@@ -688,10 +683,6 @@ repeat:
 		jh->b_next_transaction = transaction;
 	}
 
-	J_ASSERT(handle->h_buffer_credits > 0);
-	handle->h_buffer_credits--;
-	if (credits)
-		(*credits)++;
 
 	/*
 	 * Finally, if the buffer is not journaled right now, we need to make
@@ -742,6 +733,7 @@ out:
  * int journal_get_write_access() - notify intent to modify a buffer for metadata (not data) update.
  * @handle: transaction to add buffer modifications to
  * @bh:     bh to be used for metadata writes
+ * @credits: variable that will receive credits for the buffer
  *
  * Returns an error code or 0 on success.
  *
@@ -749,8 +741,7 @@ out:
  * because we're write()ing a buffer which is also part of a shared mapping.
  */
 
-int journal_get_write_access(handle_t *handle,
-			struct buffer_head *bh, int *credits)
+int journal_get_write_access(handle_t *handle, struct buffer_head *bh)
 {
 	struct journal_head *jh = journal_add_journal_head(bh);
 	int rc;
@@ -758,7 +749,7 @@ int journal_get_write_access(handle_t *handle,
 	/* We do not want to get caught playing with fields which the
 	 * log thread also manipulates.  Make sure that the buffer
 	 * completes any outstanding IO before proceeding. */
-	rc = do_get_write_access(handle, jh, 0, credits);
+	rc = do_get_write_access(handle, jh, 0);
 	journal_put_journal_head(jh);
 	return rc;
 }
@@ -814,9 +805,6 @@ int journal_get_create_access(handle_t *handle, struct buffer_head *bh)
 	J_ASSERT_JH(jh, jh->b_next_transaction == NULL);
 	J_ASSERT_JH(jh, buffer_locked(jh2bh(jh)));
 
-	J_ASSERT_JH(jh, handle->h_buffer_credits > 0);
-	handle->h_buffer_credits--;
-
 	if (jh->b_transaction == NULL) {
 		jh->b_transaction = transaction;
 		JBUFFER_TRACE(jh, "file as BJ_Reserved");
@@ -869,8 +857,7 @@ out:
  *
  * Returns error number or 0 on success.
  */
-int journal_get_undo_access(handle_t *handle, struct buffer_head *bh,
-				int *credits)
+int journal_get_undo_access(handle_t *handle, struct buffer_head *bh)
 {
 	int err;
 	struct journal_head *jh = journal_add_journal_head(bh);
@@ -883,7 +870,7 @@ int journal_get_undo_access(handle_t *handle, struct buffer_head *bh,
 	 * make sure that obtaining the committed_data is done
 	 * atomically wrt. completion of any outstanding commits.
 	 */
-	err = do_get_write_access(handle, jh, 1, credits);
+	err = do_get_write_access(handle, jh, 1);
 	if (err)
 		goto out;
 
@@ -1111,6 +1098,17 @@ int journal_dirty_metadata(handle_t *handle, struct buffer_head *bh)
 
 	jbd_lock_bh_state(bh);
 
+	if (jh->b_modified == 0) {
+		/*
+		 * This buffer's got modified and becoming part
+		 * of the transaction. This needs to be done
+		 * once a transaction -bzzz
+		 */
+		jh->b_modified = 1;
+		J_ASSERT_JH(jh, handle->h_buffer_credits > 0);
+		handle->h_buffer_credits--;
+	}
+
 	/*
 	 * fastpath, to avoid expensive locking.  If this buffer is already
 	 * on the running transaction's metadata list there is nothing to do.
@@ -1161,24 +1159,11 @@ out:
  * journal_release_buffer: undo a get_write_access without any buffer
  * updates, if the update decided in the end that it didn't need access.
  *
- * The caller passes in the number of credits which should be put back for
- * this buffer (zero or one).
- *
- * We leave the buffer attached to t_reserved_list because even though this
- * handle doesn't want it, some other concurrent handle may want to journal
- * this buffer.  If that handle is curently in between get_write_access() and
- * journal_dirty_metadata() then it expects the buffer to be reserved.  If
- * we were to rip it off t_reserved_list here, the other handle will explode
- * when journal_dirty_metadata is presented with a non-reserved buffer.
- *
- * If nobody really wants to journal this buffer then it will be thrown
- * away at the start of commit.
  */
 void
-journal_release_buffer(handle_t *handle, struct buffer_head *bh, int credits)
+journal_release_buffer(handle_t *handle, struct buffer_head *bh)
 {
 	BUFFER_TRACE(bh, "entry");
-	handle->h_buffer_credits += credits;
 }
 
 /** 
@@ -1203,6 +1188,7 @@ int journal_forget (handle_t *handle, struct buffer_head *bh)
 	transaction_t *transaction = handle->h_transaction;
 	journal_t *journal = transaction->t_journal;
 	struct journal_head *jh;
+	int drop_reserve = 0;
 	int err = 0;
 
 	BUFFER_TRACE(bh, "entry");
@@ -1222,6 +1208,12 @@ int journal_forget (handle_t *handle, struct buffer_head *bh)
 		goto not_jbd;
 	}
 
+	/*
+	 * The buffer's going from the transaction, we must drop
+	 * all references -bzzz
+	 */
+	jh->b_modified = 0;
+
 	if (jh->b_transaction == handle->h_transaction) {
 		J_ASSERT_JH(jh, !jh->b_frozen_data);
 
@@ -1234,6 +1226,7 @@ int journal_forget (handle_t *handle, struct buffer_head *bh)
 		JBUFFER_TRACE(jh, "belongs to current transaction: unfile");
 
 		__journal_unfile_buffer(jh);
+		drop_reserve = 1;
 
 		/* 
 		 * We are no longer going to journal this buffer.
@@ -1256,7 +1249,7 @@ int journal_forget (handle_t *handle, struct buffer_head *bh)
 				spin_unlock(&journal->j_list_lock);
 				jbd_unlock_bh_state(bh);
 				__bforget(bh);
-				return 0;
+				goto drop;
 			}
 		}
 	} else if (jh->b_transaction) {
@@ -1271,6 +1264,7 @@ int journal_forget (handle_t *handle, struct buffer_head *bh)
 		if (jh->b_next_transaction) {
 			J_ASSERT(jh->b_next_transaction == transaction);
 			jh->b_next_transaction = NULL;
+			drop_reserve = 1;
 		}
 	}
 
@@ -1278,6 +1272,11 @@ not_jbd:
 	spin_unlock(&journal->j_list_lock);
 	jbd_unlock_bh_state(bh);
 	__brelse(bh);
+drop:
+	if (drop_reserve) {
+		/* no need to reserve log space for this block -bzzz */
+		handle->h_buffer_credits++;
+	}
 	return err;
 }
 
@@ -1578,7 +1577,7 @@ out:
  * int journal_try_to_free_buffers() - try to free page buffers.
  * @journal: journal for operation
  * @page: to try and free
- * @gfp_mask: 'IO' mode for try_to_free_buffers()
+ * @unused_gfp_mask: unused
  *
  * 
  * For all the buffers on this page,

@@ -105,6 +105,7 @@ Revision History:
 MODULE_AUTHOR("Advanced Micro Devices, Inc.");
 MODULE_DESCRIPTION ("AMD8111 based 10/100 Ethernet Controller. Driver Version 3.0.3");
 MODULE_LICENSE("GPL");
+MODULE_DEVICE_TABLE(pci, amd8111e_pci_tbl);
 module_param_array(speed_duplex, int, NULL, 0);
 MODULE_PARM_DESC(speed_duplex, "Set device speed and duplex modes, 0: Auto Negotitate, 1: 10Mbps Half Duplex, 2: 10Mbps Full Duplex, 3: 100Mbps Half Duplex, 4: 100Mbps Full Duplex");
 module_param_array(coalesce, bool, NULL, 0);
@@ -1381,6 +1382,8 @@ static int amd8111e_open(struct net_device * dev )
 
 	if(amd8111e_restart(dev)){
 		spin_unlock_irq(&lp->lock);
+		if (dev->irq)
+			free_irq(dev->irq, dev);
 		return -ENOMEM;
 	}
 	/* Start ipg timer */
@@ -1487,7 +1490,7 @@ static void amd8111e_read_regs(struct amd8111e_priv *lp, u32 *buf)
 amd8111e crc generator implementation is different from the kernel
 ether_crc() function.
 */
-int amd8111e_ether_crc(int len, char* mac_addr)
+static int amd8111e_ether_crc(int len, char* mac_addr)
 {
 	int i,byte;
 	unsigned char octet;
@@ -1715,7 +1718,7 @@ static int amd8111e_set_mac_address(struct net_device *dev, void *p)
 /* 
 This function changes the mtu of the device. It restarts the device  to initialize the descriptor with new receive buffers.
 */  
-int amd8111e_change_mtu(struct net_device *dev, int new_mtu)
+static int amd8111e_change_mtu(struct net_device *dev, int new_mtu)
 {
 	struct amd8111e_priv *lp = netdev_priv(dev);
 	int err;
@@ -1797,7 +1800,7 @@ static void amd8111e_tx_timeout(struct net_device *dev)
 	if(!err)
 		netif_wake_queue(dev);
 }
-static int amd8111e_suspend(struct pci_dev *pci_dev, u32 state)
+static int amd8111e_suspend(struct pci_dev *pci_dev, pm_message_t state)
 {	
 	struct net_device *dev = pci_get_drvdata(pci_dev);
 	struct amd8111e_priv *lp = netdev_priv(dev);

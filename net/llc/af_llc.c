@@ -113,7 +113,7 @@ static __inline__ u8 llc_ui_header_len(struct sock *sk,
  */
 static int llc_ui_send_data(struct sock* sk, struct sk_buff *skb, int noblock)
 {
-	struct llc_opt* llc = llc_sk(sk);
+	struct llc_sock* llc = llc_sk(sk);
 	int rc = 0;
 
 	if (llc_data_accept_state(llc->state) || llc->p_flag) {
@@ -169,7 +169,7 @@ static int llc_ui_create(struct socket *sock, int protocol)
 static int llc_ui_release(struct socket *sock)
 {
 	struct sock *sk = sock->sk;
-	struct llc_opt *llc;
+	struct llc_sock *llc;
 
 	if (!sk)
 		goto out;
@@ -180,7 +180,7 @@ static int llc_ui_release(struct socket *sock)
 		llc->laddr.lsap, llc->daddr.lsap);
 	if (!llc_send_disc(sk))
 		llc_ui_wait_for_disc(sk, sk->sk_rcvtimeo);
-	if (!sk->sk_zapped)
+	if (!sock_flag(sk, SOCK_ZAPPED))
 		llc_sap_remove_socket(llc->sap, sk);
 	release_sock(sk);
 	if (llc->sap && hlist_empty(&llc->sap->sk_list.list)) {
@@ -244,11 +244,11 @@ out:
 static int llc_ui_autobind(struct socket *sock, struct sockaddr_llc *addr)
 {
 	struct sock *sk = sock->sk;
-	struct llc_opt *llc = llc_sk(sk);
+	struct llc_sock *llc = llc_sk(sk);
 	struct llc_sap *sap;
 	int rc = -EINVAL;
 
-	if (!sk->sk_zapped)
+	if (!sock_flag(sk, SOCK_ZAPPED))
 		goto out;
 	rc = -ENODEV;
 	llc->dev = dev_getfirstbyhwtype(addr->sllc_arphrd);
@@ -266,7 +266,8 @@ static int llc_ui_autobind(struct socket *sock, struct sockaddr_llc *addr)
 	memcpy(&llc->addr, addr, sizeof(llc->addr));
 	/* assign new connection to its SAP */
 	llc_sap_add_socket(sap, sk);
-	rc = sk->sk_zapped = 0;
+	sock_reset_flag(sk, SOCK_ZAPPED);
+	rc = 0;
 out:
 	return rc;
 }
@@ -293,12 +294,12 @@ static int llc_ui_bind(struct socket *sock, struct sockaddr *uaddr, int addrlen)
 {
 	struct sockaddr_llc *addr = (struct sockaddr_llc *)uaddr;
 	struct sock *sk = sock->sk;
-	struct llc_opt *llc = llc_sk(sk);
+	struct llc_sock *llc = llc_sk(sk);
 	struct llc_sap *sap;
 	int rc = -EINVAL;
 
 	dprintk("%s: binding %02X\n", __FUNCTION__, addr->sllc_sap);
-	if (!sk->sk_zapped || addrlen != sizeof(*addr))
+	if (!sock_flag(sk, SOCK_ZAPPED) || addrlen != sizeof(*addr))
 		goto out;
 	rc = -EAFNOSUPPORT;
 	if (addr->sllc_family != AF_LLC)
@@ -339,7 +340,8 @@ static int llc_ui_bind(struct socket *sock, struct sockaddr *uaddr, int addrlen)
 	memcpy(&llc->addr, addr, sizeof(llc->addr));
 	/* assign new connection to its SAP */
 	llc_sap_add_socket(sap, sk);
-	rc = sk->sk_zapped = 0;
+	sock_reset_flag(sk, SOCK_ZAPPED);
+	rc = 0;
 out:
 	return rc;
 }
@@ -394,7 +396,7 @@ static int llc_ui_connect(struct socket *sock, struct sockaddr *uaddr,
 			  int addrlen, int flags)
 {
 	struct sock *sk = sock->sk;
-	struct llc_opt *llc = llc_sk(sk);
+	struct llc_sock *llc = llc_sk(sk);
 	struct sockaddr_llc *addr = (struct sockaddr_llc *)uaddr;
 	struct net_device *dev;
 	int rc = -EINVAL;
@@ -406,7 +408,7 @@ static int llc_ui_connect(struct socket *sock, struct sockaddr *uaddr,
 	if (addr->sllc_family != AF_LLC)
 		goto out;
 	/* bind connection to sap if user hasn't done it. */
-	if (sk->sk_zapped) {
+	if (sock_flag(sk, SOCK_ZAPPED)) {
 		/* bind to sap with null dev, exclusive */
 		rc = llc_ui_autobind(sock, addr);
 		if (rc)
@@ -459,7 +461,7 @@ static int llc_ui_listen(struct socket *sock, int backlog)
 	if (sk->sk_type != SOCK_STREAM)
 		goto out;
 	rc = -EAGAIN;
-	if (sk->sk_zapped)
+	if (sock_flag(sk, SOCK_ZAPPED))
 		goto out;
 	rc = 0;
 	if (!(unsigned)backlog)	/* BSDism */
@@ -571,7 +573,7 @@ static int llc_ui_wait_for_data(struct sock *sk, int timeout)
 static int llc_ui_wait_for_busy_core(struct sock *sk, int timeout)
 {
 	DECLARE_WAITQUEUE(wait, current);
-	struct llc_opt *llc = llc_sk(sk);
+	struct llc_sock *llc = llc_sk(sk);
 	int rc;
 
 	add_wait_queue_exclusive(sk->sk_sleep, &wait);
@@ -612,7 +614,7 @@ static int llc_ui_wait_for_busy_core(struct sock *sk, int timeout)
 static int llc_ui_accept(struct socket *sock, struct socket *newsock, int flags)
 {
 	struct sock *sk = sock->sk, *newsk;
-	struct llc_opt *llc, *newllc;
+	struct llc_sock *llc, *newllc;
 	struct sk_buff *skb;
 	int rc = -EOPNOTSUPP;
 
@@ -638,7 +640,7 @@ static int llc_ui_accept(struct socket *sock, struct socket *newsock, int flags)
 	newsk = skb->sk;
 	/* attach connection to a new socket. */
 	llc_ui_sk_init(newsock, newsk);
-	newsk->sk_zapped	= 0;
+	sock_reset_flag(newsk, SOCK_ZAPPED);
 	newsk->sk_state		= TCP_ESTABLISHED;
 	newsock->state		= SS_CONNECTED;
 	llc			= llc_sk(sk);
@@ -728,7 +730,7 @@ static int llc_ui_sendmsg(struct kiocb *iocb, struct socket *sock,
 			  struct msghdr *msg, size_t len)
 {
 	struct sock *sk = sock->sk;
-	struct llc_opt *llc = llc_sk(sk);
+	struct llc_sock *llc = llc_sk(sk);
 	struct sockaddr_llc *addr = (struct sockaddr_llc *)msg->msg_name;
 	int flags = msg->msg_flags;
 	int noblock = flags & MSG_DONTWAIT;
@@ -749,7 +751,7 @@ static int llc_ui_sendmsg(struct kiocb *iocb, struct socket *sock,
 		addr = &llc->addr;
 	}
 	/* must bind connection to sap if user hasn't done it. */
-	if (sk->sk_zapped) {
+	if (sock_flag(sk, SOCK_ZAPPED)) {
 		/* bind to sap with null dev, exclusive. */
 		rc = llc_ui_autobind(sock, addr);
 		if (rc)
@@ -819,11 +821,11 @@ static int llc_ui_getname(struct socket *sock, struct sockaddr *uaddr,
 {
 	struct sockaddr_llc sllc;
 	struct sock *sk = sock->sk;
-	struct llc_opt *llc = llc_sk(sk);
+	struct llc_sock *llc = llc_sk(sk);
 	int rc = 0;
 
 	lock_sock(sk);
-	if (sk->sk_zapped)
+	if (sock_flag(sk, SOCK_ZAPPED))
 		goto out;
 	*uaddrlen = sizeof(sllc);
 	memset(uaddr, 0, *uaddrlen);
@@ -883,7 +885,7 @@ static int llc_ui_setsockopt(struct socket *sock, int level, int optname,
 			     char __user *optval, int optlen)
 {
 	struct sock *sk = sock->sk;
-	struct llc_opt *llc = llc_sk(sk);
+	struct llc_sock *llc = llc_sk(sk);
 	int rc = -EINVAL, opt;
 
 	lock_sock(sk);
@@ -958,7 +960,7 @@ static int llc_ui_getsockopt(struct socket *sock, int level, int optname,
 			     char __user *optval, int __user *optlen)
 {
 	struct sock *sk = sock->sk;
-	struct llc_opt *llc = llc_sk(sk);
+	struct llc_sock *llc = llc_sk(sk);
 	int val = 0, len = 0, rc = -EINVAL;
 
 	lock_sock(sk);

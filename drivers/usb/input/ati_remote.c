@@ -94,6 +94,7 @@
 #include <linux/moduleparam.h>
 #include <linux/input.h>
 #include <linux/usb.h>
+#include <linux/wait.h>
 
 /*
  * Module and Version Information, Module Parameters
@@ -174,7 +175,6 @@ struct ati_remote {
 	dma_addr_t outbuf_dma;
 
 	int open;                   /* open counter */
-	int present;                /* device plugged in? */
 	
 	unsigned char old_data[2];  /* Detect duplicate events */
 	unsigned long old_jiffies;
@@ -252,8 +252,8 @@ static struct
 	{KIND_FILTERED, 0xdd, 0x18, EV_KEY, KEY_KPENTER, 1},    /* "check" */
 	{KIND_FILTERED, 0xdb, 0x16, EV_KEY, KEY_MENU, 1},       /* "menu" */
 	{KIND_FILTERED, 0xc7, 0x02, EV_KEY, KEY_POWER, 1},      /* Power */
-	{KIND_FILTERED, 0xc8, 0x03, EV_KEY, KEY_PROG1, 1},      /* TV */
-	{KIND_FILTERED, 0xc9, 0x04, EV_KEY, KEY_PROG2, 1},      /* DVD */
+	{KIND_FILTERED, 0xc8, 0x03, EV_KEY, KEY_TV, 1},         /* TV */
+	{KIND_FILTERED, 0xc9, 0x04, EV_KEY, KEY_DVD, 1},        /* DVD */
 	{KIND_FILTERED, 0xca, 0x05, EV_KEY, KEY_WWW, 1},        /* WEB */
 	{KIND_FILTERED, 0xcb, 0x06, EV_KEY, KEY_BOOKMARKS, 1},  /* "book" */
 	{KIND_FILTERED, 0xcc, 0x07, EV_KEY, KEY_EDIT, 1},       /* "hand" */
@@ -263,14 +263,14 @@ static struct
 	{KIND_FILTERED, 0xe4, 0x1f, EV_KEY, KEY_RIGHT, 1},      /* right */
 	{KIND_FILTERED, 0xe7, 0x22, EV_KEY, KEY_DOWN, 1},       /* down */
 	{KIND_FILTERED, 0xdf, 0x1a, EV_KEY, KEY_UP, 1},         /* up */
-	{KIND_FILTERED, 0xe3, 0x1e, EV_KEY, KEY_ENTER, 1},      /* "OK" */
+	{KIND_FILTERED, 0xe3, 0x1e, EV_KEY, KEY_OK, 1},         /* "OK" */
 	{KIND_FILTERED, 0xce, 0x09, EV_KEY, KEY_VOLUMEDOWN, 1}, /* VOL + */
 	{KIND_FILTERED, 0xcd, 0x08, EV_KEY, KEY_VOLUMEUP, 1},   /* VOL - */
 	{KIND_FILTERED, 0xcf, 0x0a, EV_KEY, KEY_MUTE, 1},       /* MUTE  */
-	{KIND_FILTERED, 0xd1, 0x0c, EV_KEY, KEY_CHANNELUP, 1},  /* CH + */
-	{KIND_FILTERED, 0xd0, 0x0b, EV_KEY, KEY_CHANNELDOWN, 1},/* CH - */
+	{KIND_FILTERED, 0xd0, 0x0b, EV_KEY, KEY_CHANNELUP, 1},  /* CH + */
+	{KIND_FILTERED, 0xd1, 0x0c, EV_KEY, KEY_CHANNELDOWN, 1},/* CH - */
 	{KIND_FILTERED, 0xec, 0x27, EV_KEY, KEY_RECORD, 1},     /* ( o) red */
-	{KIND_FILTERED, 0xea, 0x25, EV_KEY, KEY_PLAYCD, 1},     /* ( >) */
+	{KIND_FILTERED, 0xea, 0x25, EV_KEY, KEY_PLAY, 1},       /* ( >) */
 	{KIND_FILTERED, 0xe9, 0x24, EV_KEY, KEY_REWIND, 1},     /* (<<) */
 	{KIND_FILTERED, 0xeb, 0x26, EV_KEY, KEY_FORWARD, 1},    /* (>>) */
 	{KIND_FILTERED, 0xed, 0x28, EV_KEY, KEY_STOP, 1},       /* ([]) */ 
@@ -356,19 +356,8 @@ static void ati_remote_close(struct input_dev *inputdev)
 {
 	struct ati_remote *ati_remote = inputdev->private;
 	
-	if (ati_remote == NULL) {
-		err("ati_remote: %s: object is NULL!\n", __FUNCTION__);
-		return;
-	}
-	
-	if (ati_remote->open <= 0)
-		dev_dbg(&ati_remote->interface->dev, "%s: Not open.\n", __FUNCTION__);
-	else
-		--ati_remote->open;
-	
-	/* If still present, disconnect will call delete. */
-	if (!ati_remote->present && !ati_remote->open)
-		ati_remote_delete(ati_remote);
+	if (!--ati_remote->open)
+		usb_kill_urb(ati_remote->irq_urb);
 }
 
 /*
@@ -396,8 +385,6 @@ static void ati_remote_irq_out(struct urb *urb, struct pt_regs *regs)
  */
 static int ati_remote_sendpacket(struct ati_remote *ati_remote, u16 cmd, unsigned char *data)
 {
-	DECLARE_WAITQUEUE(wait, current);
-	int timeout = HZ;	/* 1 second */
 	int retval = 0;
 	
 	/* Set up out_urb */
@@ -415,18 +402,10 @@ static int ati_remote_sendpacket(struct ati_remote *ati_remote, u16 cmd, unsigne
 		return retval;
 	}
 
-	set_current_state(TASK_INTERRUPTIBLE);
-	add_wait_queue(&ati_remote->wait, &wait);
-
-	while (timeout && (ati_remote->out_urb->status == -EINPROGRESS) 
-	       && !(ati_remote->send_flags & SEND_FLAG_COMPLETE)) {
-		set_current_state(TASK_INTERRUPTIBLE);
-		timeout = schedule_timeout(timeout);
-		rmb();
-	}
-
-	set_current_state(TASK_RUNNING);
-	remove_wait_queue(&ati_remote->wait, &wait);
+	wait_event_timeout(ati_remote->wait,
+		((ati_remote->out_urb->status != -EINPROGRESS) ||
+		 	(ati_remote->send_flags & SEND_FLAG_COMPLETE)),
+		HZ);
 	usb_kill_urb(ati_remote->out_urb);
 	
 	return retval;
@@ -727,7 +706,6 @@ static int ati_remote_probe(struct usb_interface *interface, const struct usb_de
 	struct usb_host_interface *iface_host;
 	int retval = -ENOMEM;
 	char path[64];
-	char *buf = NULL;
 
 	/* Allocate and clear an ati_remote struct */
 	if (!(ati_remote = kmalloc(sizeof (struct ati_remote), GFP_KERNEL)))
@@ -761,8 +739,6 @@ static int ati_remote_probe(struct usb_interface *interface, const struct usb_de
 		retval = -ENODEV;
 		goto error;
 	}
-	if (!(buf = kmalloc(NAME_BUFSIZE, GFP_KERNEL)))
-		goto error;
 
 	/* Allocate URB buffers, URBs */
 	ati_remote->inbuf = usb_buffer_alloc(udev, DATA_BUFSIZE, SLAB_ATOMIC,
@@ -785,14 +761,11 @@ static int ati_remote_probe(struct usb_interface *interface, const struct usb_de
 
 	usb_make_path(udev, path, NAME_BUFSIZE);
 	sprintf(ati_remote->phys, "%s/input%d", path, ATI_INPUTNUM);
-	if (udev->descriptor.iManufacturer && 
-	    (usb_string(udev, udev->descriptor.iManufacturer, buf, 
-			NAME_BUFSIZE) > 0))
-		strcat(ati_remote->name, buf);
+	if (udev->manufacturer)
+		strcat(ati_remote->name, udev->manufacturer);
 
-	if (udev->descriptor.iProduct && 
-	    (usb_string(udev, udev->descriptor.iProduct, buf, NAME_BUFSIZE) > 0))
-		sprintf(ati_remote->name, "%s %s", ati_remote->name, buf);
+	if (udev->product)
+		sprintf(ati_remote->name, "%s %s", ati_remote->name, udev->product);
 
 	if (!strlen(ati_remote->name))
 		sprintf(ati_remote->name, DRIVER_DESC "(%04x,%04x)",
@@ -812,12 +785,8 @@ static int ati_remote_probe(struct usb_interface *interface, const struct usb_de
 		 ati_remote->name, path);
 
 	usb_set_intfdata(interface, ati_remote);
-	ati_remote->present = 1;	
 	
 error:
-	if (buf)
-		kfree(buf);
-
 	if (retval)
 		ati_remote_delete(ati_remote);
 
@@ -840,12 +809,7 @@ static void ati_remote_disconnect(struct usb_interface *interface)
 		return;
 	}
 	
-	/* Mark device as unplugged */
-	ati_remote->present = 0;
-
-	/* If device is still open, ati_remote_close will call delete. */
-	if (!ati_remote->open)
-		ati_remote_delete(ati_remote);
+	ati_remote_delete(ati_remote);
 
 	up(&disconnect_sem);
 }

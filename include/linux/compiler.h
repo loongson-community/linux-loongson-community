@@ -34,8 +34,10 @@ extern void __chk_io_ptr(void __iomem *);
 
 #ifdef __KERNEL__
 
-#if __GNUC__ > 3
-# include <linux/compiler-gcc+.h>	/* catch-all for GCC 4, 5, etc. */
+#if __GNUC__ > 4
+#error no compiler-gcc.h file for this gcc version
+#elif __GNUC__ == 4
+# include <linux/compiler-gcc4.h>
 #elif __GNUC__ == 3
 # include <linux/compiler-gcc3.h>
 #elif __GNUC__ == 2
@@ -72,9 +74,9 @@ extern void __chk_io_ptr(void __iomem *);
     (typeof(ptr)) (__ptr + (off)); })
 #endif
 
-#endif /* __ASSEMBLY__ */
-
 #endif /* __KERNEL__ */
+
+#endif /* __ASSEMBLY__ */
 
 /*
  * Allow us to mark functions as 'deprecated' and have gcc emit a nice

@@ -156,7 +156,7 @@ static int __pmac dfs_set_cpu_speed(int low_speed)
 
 static unsigned int __pmac dfs_get_cpu_speed(unsigned int cpu)
 {
-	if (mfspr(HID1) & HID1_DFS)
+	if (mfspr(SPRN_HID1) & HID1_DFS)
 		return low_freq;
 	else
 		return hi_freq;
@@ -230,7 +230,7 @@ static int __pmac pmu_set_cpu_speed(int low_speed)
 	enable_kernel_fp();
 
 #ifdef CONFIG_ALTIVEC
-	if (cur_cpu_spec[0]->cpu_features & CPU_FTR_ALTIVEC)
+	if (cpu_has_feature(CPU_FTR_ALTIVEC))
 		enable_kernel_altivec();
 #endif /* CONFIG_ALTIVEC */
 
@@ -542,7 +542,7 @@ static int __init pmac_cpufreq_setup(void)
 		set_speed_proc = pmu_set_cpu_speed;
 	}
 	/* Else check for 750FX */
-	else if (PVR_VER(mfspr(PVR)) == 0x7000) {
+	else if (PVR_VER(mfspr(SPRN_PVR)) == 0x7000) {
 		if (get_property(cpunode, "dynamic-power-step", NULL) == NULL)
 			goto out;
 		hi_freq = cur_freq;

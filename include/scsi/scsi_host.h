@@ -4,6 +4,7 @@
 #include <linux/device.h>
 #include <linux/list.h>
 #include <linux/types.h>
+#include <linux/workqueue.h>
 
 struct block_device;
 struct module;
@@ -363,6 +364,12 @@ struct scsi_host_template {
 	unsigned skip_settle_delay:1;
 
 	/*
+	 * ordered write support
+	 */
+	unsigned ordered_flush:1;
+	unsigned ordered_tag:1;
+
+	/*
 	 * Countdown for host blocking with no commands outstanding
 	 */
 	unsigned int max_host_blocked;
@@ -416,6 +423,7 @@ struct Scsi_Host {
 	 * access this list directly from a driver.
 	 */
 	struct list_head	__devices;
+	struct list_head	__targets;
 	
 	struct scsi_host_cmd_pool *cmd_pool;
 	spinlock_t		free_list_lock;
@@ -483,7 +491,12 @@ struct Scsi_Host {
 	short unsigned int sg_tablesize;
 	short unsigned int max_sectors;
 	unsigned long dma_boundary;
-
+	/* 
+	 * Used to assign serial numbers to the cmds.
+	 * Protected by the host lock.
+	 */
+	unsigned long cmd_serial_number, cmd_pid; 
+	
 	unsigned unchecked_isa_dma:1;
 	unsigned use_clustering:1;
 	unsigned use_blk_tcq:1;
@@ -500,6 +513,18 @@ struct Scsi_Host {
 	 * the spec ;)
 	 */
 	unsigned reverse_ordering:1;
+
+	/*
+	 * ordered write support
+	 */
+	unsigned ordered_flush:1;
+	unsigned ordered_tag:1;
+
+	/*
+	 * Optional work queue to be utilized by the transport
+	 */
+	char work_q_name[KOBJ_NAME_LEN];
+	struct workqueue_struct *work_q;
 
 	/*
 	 * Host has rejected a command because it was busy.
@@ -548,11 +573,23 @@ struct Scsi_Host {
 	unsigned long hostdata[0]  /* Used for storage of host specific stuff */
 		__attribute__ ((aligned (sizeof(unsigned long))));
 };
-#define		dev_to_shost(d)		\
-	container_of(d, struct Scsi_Host, shost_gendev)
+
 #define		class_to_shost(d)	\
 	container_of(d, struct Scsi_Host, shost_classdev)
 
+int scsi_is_host_device(const struct device *);
+
+static inline struct Scsi_Host *dev_to_shost(struct device *dev)
+{
+	while (!scsi_is_host_device(dev)) {
+		if (!dev->parent)
+			return NULL;
+		dev = dev->parent;
+	}
+	return container_of(dev, struct Scsi_Host, shost_gendev);
+}
+
+extern int scsi_queue_work(struct Scsi_Host *, struct work_struct *);
 
 extern struct Scsi_Host *scsi_host_alloc(struct scsi_host_template *, int);
 extern int __must_check scsi_add_host(struct Scsi_Host *, struct device *);
@@ -596,8 +633,6 @@ struct class_container;
  */
 extern void scsi_free_host_dev(struct scsi_device *);
 extern struct scsi_device *scsi_get_host_dev(struct Scsi_Host *);
-int scsi_is_host_device(const struct device *);
-
 
 /* legacy interfaces */
 extern struct Scsi_Host *scsi_register(struct scsi_host_template *, int);

@@ -169,7 +169,11 @@ asmlinkage int sys_ipc(uint call, int first, int second, int third,
 
 	switch (call) {
 	case SEMOP:
-		return sys_semop(first, (struct sembuf __user *)ptr, second);
+		return sys_semtimedop (first, (struct sembuf __user *)ptr, second, NULL);
+	case SEMTIMEDOP:
+		return sys_semtimedop(first, (struct sembuf __user *)ptr, second,
+					(const struct timespec __user *)fifth);
+
 	case SEMGET:
 		return sys_semget (first, second, third);
 	case SEMCTL: {
@@ -228,6 +232,18 @@ asmlinkage int sys_ipc(uint call, int first, int second, int third,
 	default:
 		return -ENOSYS;
 	}
+}
+
+asmlinkage long sys_shmat(int shmid, char __user *shmaddr, int shmflg,
+			  unsigned long __user *addr)
+{
+	unsigned long ret;
+	long err;
+
+	err = do_shmat(shmid, shmaddr, shmflg, &ret);
+	if (err == 0)
+		err = put_user(ret, addr);
+	return err;
 }
 
 /* Fork a new task - this creates a new program thread.

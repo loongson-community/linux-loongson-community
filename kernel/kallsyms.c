@@ -145,14 +145,22 @@ unsigned long kallsyms_lookup_name(const char *name)
 	}
 	return module_kallsyms_lookup_name(name);
 }
+EXPORT_SYMBOL_GPL(kallsyms_lookup_name);
 
-/* Lookup an address.  modname is set to NULL if it's in the kernel. */
+/*
+ * Lookup an address
+ * - modname is set to NULL if it's in the kernel
+ * - we guarantee that the returned name is valid until we reschedule even if
+ *   it resides in a module
+ * - we also guarantee that modname will be valid until rescheduled
+ */
 const char *kallsyms_lookup(unsigned long addr,
 			    unsigned long *symbolsize,
 			    unsigned long *offset,
 			    char **modname, char *namebuf)
 {
 	unsigned long i, low, high, mid;
+	const char *msym;
 
 	/* This kernel should never had been booted. */
 	BUG_ON(!kallsyms_addresses);
@@ -204,7 +212,12 @@ const char *kallsyms_lookup(unsigned long addr,
 		return namebuf;
 	}
 
-	return module_address_lookup(addr, symbolsize, offset, modname);
+	/* see if it's in a module */
+	msym = module_address_lookup(addr, symbolsize, offset, modname);
+	if (msym)
+		return strncpy(namebuf, msym, KSYM_NAME_LEN);
+
+	return NULL;
 }
 
 /* Replace "%s" in format with address, or returns -errno. */
@@ -342,7 +355,7 @@ static int s_show(struct seq_file *m, void *p)
 	return 0;
 }
 
-struct seq_operations kallsyms_op = {
+static struct seq_operations kallsyms_op = {
 	.start = s_start,
 	.next = s_next,
 	.stop = s_stop,
@@ -384,7 +397,7 @@ static struct file_operations kallsyms_operations = {
 	.release = kallsyms_release,
 };
 
-int __init kallsyms_init(void)
+static int __init kallsyms_init(void)
 {
 	struct proc_dir_entry *entry;
 

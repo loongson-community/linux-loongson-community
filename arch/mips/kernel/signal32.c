@@ -32,11 +32,6 @@
 
 #define SI_PAD_SIZE32   ((SI_MAX_SIZE/sizeof(int)) - 3)
 
-typedef union sigval32 {
-	int sival_int;
-	s32 sival_ptr;
-} sigval_t32;
-
 typedef struct compat_siginfo {
 	int si_signo;
 	int si_code;
@@ -83,7 +78,7 @@ typedef struct compat_siginfo {
 		struct {
 			timer_t _tid;		/* timer id */
 			int _overrun;		/* overrun count */
-			sigval_t32 _sigval;	/* same as below */
+			compat_sigval_t _sigval;/* same as below */
 			int _sys_private;       /* not to be passed to user */
 		} _timer;
 
@@ -91,7 +86,7 @@ typedef struct compat_siginfo {
 		struct {
 			compat_pid_t _pid;	/* sender's pid */
 			compat_uid_t _uid;	/* sender's uid */
-			sigval_t32 _sigval;
+			compat_sigval_t _sigval;
 		} _rt;
 
 	} _sifields;

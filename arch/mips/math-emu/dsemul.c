@@ -139,7 +139,6 @@ int do_dsemulret(struct pt_regs *xcp)
 
 	if (unlikely(err || (insn != BADINST) || (cookie != BD_COOKIE))) {
 		fpuemuprivate.stats.errors++;
-
 		return 0;
 	}
 

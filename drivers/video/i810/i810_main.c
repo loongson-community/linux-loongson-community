@@ -635,7 +635,7 @@ static void i810_save_vga_state(struct i810fb_par *par)
  * DESCRIPTION:
  * Calculates buffer pitch in bytes.  
  */
-u32 get_line_length(struct i810fb_par *par, int xres_virtual, int bpp)
+static u32 get_line_length(struct i810fb_par *par, int xres_virtual, int bpp)
 {
    	u32 length;
 	
@@ -724,7 +724,7 @@ static void i810_calc_dclk(u32 freq, u32 *m, u32 *n, u32 *p)
  * Description:
  * Shows or hides the hardware cursor
  */
-void i810_enable_cursor(u8 __iomem *mmio, int mode)
+static void i810_enable_cursor(u8 __iomem *mmio, int mode)
 {
 	u32 temp;
 	
@@ -1591,40 +1591,41 @@ static int __devinit i810_alloc_agp_mem(struct fb_info *info)
 {
 	struct i810fb_par *par = (struct i810fb_par *) info->par;
 	int size;
+	struct agp_bridge_data *bridge;
 	
 	i810_fix_offsets(par);
 	size = par->fb.size + par->iring.size;
 
-	if (agp_backend_acquire()) {
+	if (!(bridge = agp_backend_acquire(par->dev))) {
 		printk("i810fb_alloc_fbmem: cannot acquire agpgart\n");
 		return -ENODEV;
 	}
 	if (!(par->i810_gtt.i810_fb_memory = 
-	      agp_allocate_memory(size >> 12, AGP_NORMAL_MEMORY))) {
+	      agp_allocate_memory(bridge, size >> 12, AGP_NORMAL_MEMORY))) {
 		printk("i810fb_alloc_fbmem: can't allocate framebuffer "
 		       "memory\n");
-		agp_backend_release();
+		agp_backend_release(bridge);
 		return -ENOMEM;
 	}
 	if (agp_bind_memory(par->i810_gtt.i810_fb_memory,
 			    par->fb.offset)) {
 		printk("i810fb_alloc_fbmem: can't bind framebuffer memory\n");
-		agp_backend_release();
+		agp_backend_release(bridge);
 		return -EBUSY;
 	}	
 	
 	if (!(par->i810_gtt.i810_cursor_memory = 
-	      agp_allocate_memory(par->cursor_heap.size >> 12,
+	      agp_allocate_memory(bridge, par->cursor_heap.size >> 12,
 				  AGP_PHYSICAL_MEMORY))) {
 		printk("i810fb_alloc_cursormem:  can't allocate" 
 		       "cursor memory\n");
-		agp_backend_release();
+		agp_backend_release(bridge);
 		return -ENOMEM;
 	}
 	if (agp_bind_memory(par->i810_gtt.i810_cursor_memory,
 			    par->cursor_heap.offset)) {
 		printk("i810fb_alloc_cursormem: cannot bind cursor memory\n");
-		agp_backend_release();
+		agp_backend_release(bridge);
 		return -EBUSY;
 	}	
 
@@ -1632,7 +1633,7 @@ static int __devinit i810_alloc_agp_mem(struct fb_info *info)
 
 	i810_fix_pointers(par);
 
-	agp_backend_release();
+	agp_backend_release(bridge);
 
 	return 0;
 }
@@ -1804,8 +1805,9 @@ i810_allocate_pci_resource(struct i810fb_par *par,
 
 	return 0;
 }
-	
-int __init i810fb_setup(char *options)
+
+#ifndef MODULE
+static int __init i810fb_setup(char *options)
 {
 	char *this_opt, *suffix = NULL;
 
@@ -1850,6 +1852,7 @@ int __init i810fb_setup(char *options)
 	}
 	return 0;
 }
+#endif
 
 static int __devinit i810fb_init_pci (struct pci_dev *dev, 
 				   const struct pci_device_id *entry)
@@ -1976,7 +1979,7 @@ static void __exit i810fb_remove_pci(struct pci_dev *dev)
 }                                                	
 
 #ifndef MODULE
-int __init i810fb_init(void)
+static int __init i810fb_init(void)
 {
 	char *option = NULL;
 
@@ -1994,7 +1997,7 @@ int __init i810fb_init(void)
 
 #ifdef MODULE
 
-int __init i810fb_init(void)
+static int __init i810fb_init(void)
 {
 	hsync1 *= 1000;
 	hsync2 *= 1000;

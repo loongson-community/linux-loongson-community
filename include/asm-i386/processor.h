@@ -103,7 +103,6 @@ extern char ignore_fpu_irq;
 extern void identify_cpu(struct cpuinfo_x86 *);
 extern void print_cpu_info(struct cpuinfo_x86 *);
 extern unsigned int init_intel_cacheinfo(struct cpuinfo_x86 *c);
-extern void dodgy_tsc(void);
 
 #ifdef CONFIG_X86_HT
 extern void detect_ht(struct cpuinfo_x86 *c);
@@ -137,7 +136,7 @@ static inline void detect_ht(struct cpuinfo_x86 *c) {}
  * clear %ecx since some cpus (Cyrix MII) do not set or clear %ecx
  * resulting in stale register contents being returned.
  */
-static inline void cpuid(int op, int *eax, int *ebx, int *ecx, int *edx)
+static inline void cpuid(unsigned int op, unsigned int *eax, unsigned int *ebx, unsigned int *ecx, unsigned int *edx)
 {
 	__asm__("cpuid"
 		: "=a" (*eax),

@@ -998,7 +998,7 @@ static int irda_usb_net_close(struct net_device *netdev)
 		struct urb *urb = self->rx_urb[i];
 		struct sk_buff *skb = (struct sk_buff *) urb->context;
 		/* Cancel the receive command */
-		usb_unlink_urb(urb);
+		usb_kill_urb(urb);
 		/* The skb is ours, free it */
 		if(skb) {
 			dev_kfree_skb(skb);
@@ -1308,7 +1308,7 @@ static inline struct irda_class_desc *irda_usb_find_class_desc(struct usb_interf
 		IU_REQ_GET_CLASS_DESC,
 		USB_DIR_IN | USB_TYPE_CLASS | USB_RECIP_INTERFACE,
 		0, intf->altsetting->desc.bInterfaceNumber, desc,
-		sizeof(*desc), msecs_to_jiffies(500));
+		sizeof(*desc), 500);
 	
 	IRDA_DEBUG(1, "%s(), ret=%d\n", __FUNCTION__, ret);
 	if (ret < sizeof(*desc)) {
@@ -1367,11 +1367,11 @@ static int irda_usb_probe(struct usb_interface *intf,
 	if (!net) 
 		goto err_out;
 
+	SET_MODULE_OWNER(net);
+	SET_NETDEV_DEV(net, &intf->dev);
 	self = net->priv;
 	self->netdev = net;
 	spin_lock_init(&self->lock);
-
-	SET_MODULE_OWNER(net);
 
 	/* Create all of the needed urbs */
 	for (i = 0; i < IU_MAX_RX_URBS; i++) {
@@ -1516,7 +1516,7 @@ static void irda_usb_disconnect(struct usb_interface *intf)
 		netif_stop_queue(self->netdev);
 		/* Stop all the receive URBs */
 		for (i = 0; i < IU_MAX_RX_URBS; i++)
-			usb_unlink_urb(self->rx_urb[i]);
+			usb_kill_urb(self->rx_urb[i]);
 		/* Cancel Tx and speed URB.
 		 * Toggle flags to make sure it's synchronous. */
 		self->tx_urb->transfer_flags &= ~URB_ASYNC_UNLINK;

@@ -39,6 +39,7 @@
 #include <linux/notifier.h>
 #include <linux/cpu.h>
 #include <linux/bitops.h>
+#include <linux/mpage.h>
 
 static int fsync_buffers_list(spinlock_t *lock, struct list_head *list);
 static void invalidate_bh_lrus(void);
@@ -875,7 +876,7 @@ int __set_page_dirty_buffers(struct page *page)
 	spin_unlock(&mapping->private_lock);
 
 	if (!TestSetPageDirty(page)) {
-		spin_lock_irq(&mapping->tree_lock);
+		write_lock_irq(&mapping->tree_lock);
 		if (page->mapping) {	/* Race with truncate? */
 			if (!mapping->backing_dev_info->memory_backed)
 				inc_page_state(nr_dirty);
@@ -883,7 +884,7 @@ int __set_page_dirty_buffers(struct page *page)
 						page_index(page),
 						PAGECACHE_TAG_DIRTY);
 		}
-		spin_unlock_irq(&mapping->tree_lock);
+		write_unlock_irq(&mapping->tree_lock);
 		__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 	}
 	
@@ -2507,6 +2508,61 @@ int nobh_commit_write(struct file *file, struct page *page,
 	return 0;
 }
 EXPORT_SYMBOL(nobh_commit_write);
+
+/*
+ * nobh_writepage() - based on block_full_write_page() except
+ * that it tries to operate without attaching bufferheads to
+ * the page.
+ */
+int nobh_writepage(struct page *page, get_block_t *get_block,
+			struct writeback_control *wbc)
+{
+	struct inode * const inode = page->mapping->host;
+	loff_t i_size = i_size_read(inode);
+	const pgoff_t end_index = i_size >> PAGE_CACHE_SHIFT;
+	unsigned offset;
+	void *kaddr;
+	int ret;
+
+	/* Is the page fully inside i_size? */
+	if (page->index < end_index)
+		goto out;
+
+	/* Is the page fully outside i_size? (truncate in progress) */
+	offset = i_size & (PAGE_CACHE_SIZE-1);
+	if (page->index >= end_index+1 || !offset) {
+		/*
+		 * The page may have dirty, unmapped buffers.  For example,
+		 * they may have been added in ext3_writepage().  Make them
+		 * freeable here, so the page does not leak.
+		 */
+#if 0
+		/* Not really sure about this  - do we need this ? */
+		if (page->mapping->a_ops->invalidatepage)
+			page->mapping->a_ops->invalidatepage(page, offset);
+#endif
+		unlock_page(page);
+		return 0; /* don't care */
+	}
+
+	/*
+	 * The page straddles i_size.  It must be zeroed out on each and every
+	 * writepage invocation because it may be mmapped.  "A file is mapped
+	 * in multiples of the page size.  For a file that is not a multiple of
+	 * the  page size, the remaining memory is zeroed when mapped, and
+	 * writes to that region are not written out to the file."
+	 */
+	kaddr = kmap_atomic(page, KM_USER0);
+	memset(kaddr + offset, 0, PAGE_CACHE_SIZE - offset);
+	flush_dcache_page(page);
+	kunmap_atomic(kaddr, KM_USER0);
+out:
+	ret = mpage_writepage(page, get_block, wbc);
+	if (ret == -EAGAIN)
+		ret = __block_write_full_page(inode, page, get_block, wbc);
+	return ret;
+}
+EXPORT_SYMBOL(nobh_writepage);
 
 /*
  * This function assumes that ->prepare_write() uses nobh_prepare_write().

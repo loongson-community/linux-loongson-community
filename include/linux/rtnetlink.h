@@ -346,6 +346,7 @@ enum
 #define RTAX_FEATURE_ECN	0x00000001
 #define RTAX_FEATURE_SACK	0x00000002
 #define RTAX_FEATURE_TIMESTAMP	0x00000004
+#define RTAX_FEATURE_ALLFRAG	0x00000008
 
 struct rta_session
 {
@@ -395,6 +396,19 @@ enum
 };
 
 #define IFA_MAX (__IFA_MAX - 1)
+
+/*
+ * Quirk for IPv4 address deletion to allow exact deletion of equal
+ * addresses varying only in prefix length. A explicit exact comparison
+ * of the prefix length will only be done if IFA_PREFIX_EXACT_DEL is
+ * ORed to ifa_prefixlen.
+ *
+ * Note: This special treatment is only understood while deleting
+ *       addresses and will lead to unexpected behaviour if used
+ *       otherwise.
+ */
+#define IFA_PREFIX_EXACT_DEL	0x40
+#define IFA_REAL_DEL_PREFIX(l)	((l) & 0x3f)
 
 /* ifa_flags */
 
@@ -446,6 +460,7 @@ enum
 	NDA_DST,
 	NDA_LLADDR,
 	NDA_CACHEINFO,
+	NDA_PROBES,
 	__NDA_MAX
 };
 
@@ -779,6 +794,11 @@ extern void __rta_fill(struct sk_buff *skb, int attrtype, int attrlen, const voi
 		 goto rtattr_failure; \
    	__rta_fill(skb, attrtype, attrlen, data); }) 
 
+#define RTA_PUT_NOHDR(skb, attrlen, data) \
+({	if (unlikely(skb_tailroom(skb) < (int)(attrlen))) \
+		goto rtattr_failure; \
+	memcpy(skb_put(skb, RTA_ALIGN(attrlen)), data, attrlen); })
+		
 static inline struct rtattr *
 __rta_reserve(struct sk_buff *skb, int attrtype, int attrlen)
 {

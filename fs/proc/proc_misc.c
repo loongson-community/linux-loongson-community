@@ -189,7 +189,7 @@ static int meminfo_read_proc(char *page, char **start, off_t off,
 		K(allowed),
 		K(committed),
 		K(ps.nr_page_table_pages),
-		VMALLOC_TOTAL >> 10,
+		(unsigned long)VMALLOC_TOTAL >> 10,
 		vmi.used >> 10,
 		vmi.largest_chunk >> 10
 		);
@@ -524,7 +524,7 @@ static ssize_t write_sysrq_trigger(struct file *file, const char __user *buf,
 
 		if (get_user(c, buf))
 			return -EFAULT;
-		__handle_sysrq(c, NULL, NULL);
+		__handle_sysrq(c, NULL, NULL, 0);
 	}
 	return count;
 }

@@ -32,6 +32,8 @@
 #include <linux/delay.h>
 #include <linux/initrd.h>
 #include <linux/bitops.h>
+#include <linux/module.h>
+
 #include <asm/prom.h>
 #include <asm/rtas.h>
 #include <asm/lmb.h>
@@ -333,7 +335,8 @@ static unsigned long __init interpret_pci_props(struct device_node *np,
 		while ((l -= sizeof(struct pci_reg_property)) >= 0) {
 			if (!measure_only) {
 				adr[i].space = pci_addrs[i].addr.a_hi;
-				adr[i].address = pci_addrs[i].addr.a_lo;
+				adr[i].address = pci_addrs[i].addr.a_lo |
+					((u64)pci_addrs[i].addr.a_mid << 32);
 				adr[i].size = pci_addrs[i].size_lo;
 			}
 			++i;
@@ -1138,6 +1141,7 @@ find_devices(const char *name)
 	*prevp = NULL;
 	return head;
 }
+EXPORT_SYMBOL(find_devices);
 
 /**
  * Construct and return a list of the device_nodes with a given type.
@@ -1157,6 +1161,7 @@ find_type_devices(const char *type)
 	*prevp = NULL;
 	return head;
 }
+EXPORT_SYMBOL(find_type_devices);
 
 /**
  * Returns all nodes linked together
@@ -1174,6 +1179,7 @@ find_all_nodes(void)
 	*prevp = NULL;
 	return head;
 }
+EXPORT_SYMBOL(find_all_nodes);
 
 /** Checks if the given "compat" string matches one of the strings in
  * the device's "compatible" property
@@ -1197,6 +1203,7 @@ device_is_compatible(struct device_node *device, const char *compat)
 
 	return 0;
 }
+EXPORT_SYMBOL(device_is_compatible);
 
 
 /**
@@ -1216,6 +1223,7 @@ machine_is_compatible(const char *compat)
 	}
 	return rc;
 }
+EXPORT_SYMBOL(machine_is_compatible);
 
 /**
  * Construct and return a list of the device_nodes with a given type
@@ -1239,6 +1247,7 @@ find_compatible_devices(const char *type, const char *compat)
 	*prevp = NULL;
 	return head;
 }
+EXPORT_SYMBOL(find_compatible_devices);
 
 /**
  * Find the device_node with a given full_name.
@@ -1253,6 +1262,7 @@ find_path_device(const char *path)
 			return np;
 	return NULL;
 }
+EXPORT_SYMBOL(find_path_device);
 
 /*******
  *
@@ -1712,7 +1722,8 @@ static int of_finish_dynamic_node(struct device_node *node)
 			}
 			while ((l -= sizeof(struct pci_reg_property)) >= 0) {
 				adr[i].space = pci_addrs[i].addr.a_hi;
-				adr[i].address = pci_addrs[i].addr.a_lo;
+				adr[i].address = pci_addrs[i].addr.a_lo |
+					((u64)pci_addrs[i].addr.a_mid << 32);
 				adr[i].size = pci_addrs[i].size_lo;
 				++i;
 			}
@@ -1872,6 +1883,7 @@ get_property(struct device_node *np, const char *name, int *lenp)
 		}
 	return NULL;
 }
+EXPORT_SYMBOL(get_property);
 
 /*
  * Add a property to a node

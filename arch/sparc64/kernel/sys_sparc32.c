@@ -268,7 +268,7 @@ asmlinkage long compat_sys_ipc(u32 call, u32 first, u32 second, u32 third, compa
 			/* sign extend semid */
 			return compat_sys_semtimedop((int)first,
 						     compat_ptr(ptr), second,
-						     compat_ptr(third));
+						     compat_ptr(fifth));
 		/* else fall through for normal semop() */
 	case SEMOP:
 		/* struct sembuf is the same on 32 and 64bit :)) */
@@ -1087,7 +1087,7 @@ sys_timer_create(clockid_t which_clock,
 		 timer_t __user *created_timer_id);
 
 long
-sys32_timer_create(u32 clock, struct sigevent32 __user *se32,
+sys32_timer_create(u32 clock, struct compat_sigevent __user *se32,
 		   timer_t __user *timer_id)
 {
 	struct sigevent se;
@@ -1098,12 +1098,7 @@ sys32_timer_create(u32 clock, struct sigevent32 __user *se32,
 	if (se32 == NULL)
 		return sys_timer_create(clock, NULL, timer_id);
 
-	memset(&se, 0, sizeof(struct sigevent));
-	if (get_user(se.sigev_value.sival_int,  &se32->sigev_value.sival_int) ||
-	    __get_user(se.sigev_signo, &se32->sigev_signo) ||
-	    __get_user(se.sigev_notify, &se32->sigev_notify) ||
-	    __copy_from_user(&se._sigev_un._pad, &se32->_sigev_un._pad,
-	    sizeof(se._sigev_un._pad)))
+	if (get_compat_sigevent(&se, se32))
 		return -EFAULT;
 
 	if (!access_ok(VERIFY_WRITE,timer_id,sizeof(timer_t)))
@@ -1120,35 +1115,4 @@ sys32_timer_create(u32 clock, struct sigevent32 __user *se32,
 		err = __put_user (t, timer_id);
 
 	return err;
-}
-
-asmlinkage long compat_sys_waitid(u32 which, u32 pid,
-				  struct compat_siginfo __user *uinfo,
-				  u32 options, struct compat_rusage __user *uru)
-{
-	siginfo_t info;
-	struct rusage ru;
-	long ret;
-	mm_segment_t old_fs = get_fs();
-
-	memset(&info, 0, sizeof(info));
-
-	set_fs (KERNEL_DS);
-	ret = sys_waitid(which, pid, (siginfo_t __user *) &info,
-			 options,
-			 uru ? (struct rusage __user *) &ru : NULL);
-	set_fs (old_fs);
-
-	if (ret < 0 || info.si_signo == 0)
-		return ret;
-
-	if (uru) {
-		ret = put_compat_rusage(&ru, uru);
-		if (ret)
-			return ret;
-	}
-
-	BUG_ON(info.si_code & __SI_MASK);
-	info.si_code |= __SI_CHLD;
-	return copy_siginfo_to_user32(uinfo, &info);
 }

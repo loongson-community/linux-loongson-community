@@ -25,7 +25,6 @@ obj-$(CONFIG_SERIAL167)		+= serial167.o
 obj-$(CONFIG_CYCLADES)		+= cyclades.o
 obj-$(CONFIG_STALLION)		+= stallion.o
 obj-$(CONFIG_ISTALLION)		+= istallion.o
-obj-$(CONFIG_DIGI)		+= pcxx.o
 obj-$(CONFIG_DIGIEPCA)		+= epca.o
 obj-$(CONFIG_SPECIALIX)		+= specialix.o
 obj-$(CONFIG_MOXA_INTELLIO)	+= moxa.o
@@ -74,7 +73,6 @@ obj-$(CONFIG_TOSHIBA) += toshiba.o
 obj-$(CONFIG_I8K) += i8k.o
 obj-$(CONFIG_DS1620) += ds1620.o
 obj-$(CONFIG_HW_RANDOM) += hw_random.o
-obj-$(CONFIG_QIC02_TAPE) += tpqic02.o
 obj-$(CONFIG_FTAPE) += ftape/
 obj-$(CONFIG_COBALT_LCD) += lcd.o
 obj-$(CONFIG_ITE_GPIO) += ite_gpio.o
@@ -94,7 +92,7 @@ obj-$(CONFIG_PCMCIA) += pcmcia/
 obj-$(CONFIG_IPMI_HANDLER) += ipmi/
 
 obj-$(CONFIG_HANGCHECK_TIMER) += hangcheck-timer.o
-
+obj-$(CONFIG_TCG_TPM) += tpm/
 # Files generated that shall be removed upon make clean
 clean-files := consolemap_deftbl.c defkeymap.c qtronixmap.c ibm_workpad_keymap.c
 

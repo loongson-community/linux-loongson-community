@@ -9,14 +9,15 @@
 #include "linux/smp_lock.h"
 #include "linux/security.h"
 #include "linux/ptrace.h"
+#include "linux/audit.h"
 #ifdef CONFIG_PROC_MM
 #include "linux/proc_mm.h"
 #endif
 #include "asm/ptrace.h"
 #include "asm/uaccess.h"
 #include "kern_util.h"
-#include "ptrace_user.h"
 #include "skas_ptrace.h"
+#include "sysdep/ptrace.h"
 
 /*
  * Called by kernel/ptrace.c when detaching..
@@ -336,11 +337,15 @@ void syscall_trace(union uml_pt_regs *regs, int entryexit)
 
 	if (unlikely(current->audit_context)) {
 		if (!entryexit)
-			audit_syscall_entry(current, regs->orig_eax,
-					    regs->ebx, regs->ecx,
-					    regs->edx, regs->esi);
+			audit_syscall_entry(current, 
+					    UPT_SYSCALL_NR(&regs->regs),
+					    UPT_SYSCALL_ARG1(&regs->regs),
+					    UPT_SYSCALL_ARG2(&regs->regs),
+					    UPT_SYSCALL_ARG3(&regs->regs),
+					    UPT_SYSCALL_ARG4(&regs->regs));
 		else
-			audit_syscall_exit(current, regs->eax);
+			audit_syscall_exit(current, 
+					   UPT_SYSCALL_RET(&regs->regs));
 	}
 
 	/* Fake a debug trap */

@@ -103,7 +103,6 @@ EXPORT_SYMBOL(pci_free_consistent);
 #endif
 
 #ifdef CONFIG_PCI
-EXPORT_SYMBOL(pcibios_penalize_isa_irq);
 EXPORT_SYMBOL(pci_mem_start);
 #endif
 
@@ -217,7 +216,6 @@ EXPORT_SYMBOL(__supported_pte_mask);
 
 #ifdef CONFIG_SMP
 EXPORT_SYMBOL(flush_tlb_page);
-EXPORT_SYMBOL_GPL(flush_tlb_all);
 #endif
 
 EXPORT_SYMBOL(cpu_khz);

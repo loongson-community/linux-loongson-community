@@ -67,7 +67,7 @@
 #define HAVE_ARCH_HUGETLB_UNMAPPED_AREA
 
 #define in_hugepage_area(context, addr) \
-	((cur_cpu_spec->cpu_features & CPU_FTR_16M_PAGE) && \
+	(cpu_has_feature(CPU_FTR_16M_PAGE) && \
 	 ( (((addr) >= TASK_HPAGE_BASE) && ((addr) < TASK_HPAGE_END)) || \
 	   ( ((addr) < 0x100000000L) && \
 	     ((1 << GET_ESID(addr)) & (context).htlb_segs) ) ) )
@@ -185,6 +185,9 @@ extern int page_is_ram(unsigned long pfn);
 
 extern u64 ppc64_pft_size;		/* Log 2 of page table size */
 
+/* We do define AT_SYSINFO_EHDR but don't use the gate mecanism */
+#define __HAVE_ARCH_GATE_AREA		1
+
 #endif /* __ASSEMBLY__ */
 
 #ifdef MODULE
@@ -232,7 +235,26 @@ extern u64 ppc64_pft_size;		/* Log 2 of page table size */
 
 #define virt_addr_valid(kaddr)	pfn_valid(__pa(kaddr) >> PAGE_SHIFT)
 
-#define VM_DATA_DEFAULT_FLAGS	(VM_READ | VM_WRITE | VM_EXEC | \
+/*
+ * Unfortunately the PLT is in the BSS in the PPC32 ELF ABI,
+ * and needs to be executable.  This means the whole heap ends
+ * up being executable.
+ */
+#define VM_DATA_DEFAULT_FLAGS32	(VM_READ | VM_WRITE | VM_EXEC | \
+				 VM_MAYREAD | VM_MAYWRITE | VM_MAYEXEC)
+
+#define VM_DATA_DEFAULT_FLAGS64	(VM_READ | VM_WRITE | \
+				 VM_MAYREAD | VM_MAYWRITE | VM_MAYEXEC)
+
+#define VM_DATA_DEFAULT_FLAGS \
+	(test_thread_flag(TIF_32BIT) ? \
+	 VM_DATA_DEFAULT_FLAGS32 : VM_DATA_DEFAULT_FLAGS64)
+
+/*
+ * This is the default if a program doesn't have a PT_GNU_STACK
+ * program header entry.
+ */
+#define VM_STACK_DEFAULT_FLAGS	(VM_READ | VM_WRITE | VM_EXEC | \
 				 VM_MAYREAD | VM_MAYWRITE | VM_MAYEXEC)
 
 #endif /* __KERNEL__ */

@@ -148,10 +148,21 @@ char * getname(const char __user * filename)
 			result = ERR_PTR(retval);
 		}
 	}
-	if (unlikely(current->audit_context) && !IS_ERR(result) && result)
-		audit_getname(result);
+	audit_getname(result);
 	return result;
 }
+
+#ifdef CONFIG_AUDITSYSCALL
+void putname(const char *name)
+{
+	if (unlikely(current->audit_context))
+		audit_putname(name);
+	else
+		__putname(name);
+}
+EXPORT_SYMBOL(putname);
+#endif
+
 
 /**
  * generic_permission  -  check for access rights on a Posix-like filesystem
@@ -681,7 +692,7 @@ fail:
  *
  * We expect 'base' to be positive and a directory.
  */
-int fastcall link_path_walk(const char * name, struct nameidata *nd)
+static fastcall int __link_path_walk(const char * name, struct nameidata *nd)
 {
 	struct path next;
 	struct inode *inode;
@@ -881,6 +892,37 @@ return_err:
 	return err;
 }
 
+/*
+ * Wrapper to retry pathname resolution whenever the underlying
+ * file system returns an ESTALE.
+ *
+ * Retry the whole path once, forcing real lookup requests
+ * instead of relying on the dcache.
+ */
+int fastcall link_path_walk(const char *name, struct nameidata *nd)
+{
+	struct nameidata save = *nd;
+	int result;
+
+	/* make sure the stuff we saved doesn't go away */
+	dget(save.dentry);
+	mntget(save.mnt);
+
+	result = __link_path_walk(name, nd);
+	if (result == -ESTALE) {
+		*nd = save;
+		dget(nd->dentry);
+		mntget(nd->mnt);
+		nd->flags |= LOOKUP_REVAL;
+		result = __link_path_walk(name, nd);
+	}
+
+	dput(save.dentry);
+	mntput(save.mnt);
+
+	return result;
+}
+
 int fastcall path_walk(const char * name, struct nameidata *nd)
 {
 	current->total_link_count = 0;
@@ -981,9 +1023,7 @@ int fastcall path_lookup(const char *name, unsigned int flags, struct nameidata 
 	retval = link_path_walk(name, nd);
 	if (unlikely(current->audit_context
 		     && nd && nd->dentry && nd->dentry->d_inode))
-		audit_inode(name,
-			    nd->dentry->d_inode->i_ino,
-			    nd->dentry->d_inode->i_rdev);
+		audit_inode(name, nd->dentry->d_inode);
 	return retval;
 }
 
@@ -1685,17 +1725,13 @@ out:
 void dentry_unhash(struct dentry *dentry)
 {
 	dget(dentry);
-	spin_lock(&dcache_lock);
-	switch (atomic_read(&dentry->d_count)) {
-	default:
-		spin_unlock(&dcache_lock);
+	if (atomic_read(&dentry->d_count))
 		shrink_dcache_parent(dentry);
-		spin_lock(&dcache_lock);
-		if (atomic_read(&dentry->d_count) != 2)
-			break;
-	case 2:
+	spin_lock(&dcache_lock);
+	spin_lock(&dentry->d_lock);
+	if (atomic_read(&dentry->d_count) == 2)
 		__d_drop(dentry);
-	}
+	spin_unlock(&dentry->d_lock);
 	spin_unlock(&dcache_lock);
 }
 

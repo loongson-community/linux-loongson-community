@@ -267,7 +267,7 @@ unsigned long iSeries_process_mainstore_vpd(struct MemoryBlock *mb_array,
 	unsigned long i;
 	unsigned long mem_blocks = 0;
 
-	if (cur_cpu_spec->cpu_features & CPU_FTR_SLB)
+	if (cpu_has_feature(CPU_FTR_SLB))
 		mem_blocks = iSeries_process_Regatta_mainstore_vpd(mb_array,
 				max_entries);
 	else
@@ -632,6 +632,10 @@ static void __init iSeries_bolt_kernel(unsigned long saddr, unsigned long eaddr)
 		unsigned long va = (vsid << 28) | (pa & 0xfffffff);
 		unsigned long vpn = va >> PAGE_SHIFT;
 		unsigned long slot = HvCallHpt_findValid(&hpte, vpn);
+
+		/* Make non-kernel text non-executable */
+		if (!in_kernel_text(ea))
+			mode_rw |= HW_NO_EXEC;
 
 		if (hpte.dw0.dw0.v) {
 			/* HPTE exists, so just bolt it */

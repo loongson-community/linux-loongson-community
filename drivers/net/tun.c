@@ -229,7 +229,7 @@ static __inline__ ssize_t tun_get_user(struct tun_struct *tun, struct iovec *iv,
 	size_t len = count;
 
 	if (!(tun->flags & TUN_NO_PI)) {
-		if ((len -= sizeof(pi)) > len)
+		if ((len -= sizeof(pi)) > count)
 			return -EINVAL;
 
 		if(memcpy_fromiovec((void *)&pi, iv, sizeof(pi)))
@@ -843,7 +843,7 @@ static struct ethtool_ops tun_ethtool_ops = {
 	.set_rx_csum	= tun_set_rx_csum
 };
 
-int __init tun_init(void)
+static int __init tun_init(void)
 {
 	int ret = 0;
 
@@ -856,7 +856,7 @@ int __init tun_init(void)
 	return ret;
 }
 
-void tun_cleanup(void)
+static void tun_cleanup(void)
 {
 	struct tun_struct *tun, *nxt;
 

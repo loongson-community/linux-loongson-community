@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.11
-# Wed Mar  2 18:07:37 2005
+# Linux kernel version: 2.6.12-rc1
+# Fri Mar 18 15:41:51 2005
 #
 CONFIG_MIPS=y
 
@@ -22,13 +22,14 @@ CONFIG_SYSVIPC=y
 # CONFIG_BSD_PROCESS_ACCT is not set
 CONFIG_SYSCTL=y
 # CONFIG_AUDIT is not set
-CONFIG_LOG_BUF_SHIFT=15
 # CONFIG_HOTPLUG is not set
 CONFIG_KOBJECT_UEVENT=y
 # CONFIG_IKCONFIG is not set
+CONFIG_CPUSETS=y
 CONFIG_EMBEDDED=y
 CONFIG_KALLSYMS=y
 # CONFIG_KALLSYMS_EXTRA_PASS is not set
+CONFIG_BASE_FULL=y
 CONFIG_FUTEX=y
 CONFIG_EPOLL=y
 # CONFIG_CC_OPTIMIZE_FOR_SIZE is not set
@@ -38,6 +39,7 @@ CONFIG_CC_ALIGN_LABELS=0
 CONFIG_CC_ALIGN_LOOPS=0
 CONFIG_CC_ALIGN_JUMPS=0
 # CONFIG_TINY_SHMEM is not set
+CONFIG_BASE_SMALL=0
 
 #
 # Loadable module support
@@ -189,10 +191,6 @@ CONFIG_MMU=y
 # PCCARD (PCMCIA/CardBus) support
 #
 # CONFIG_PCCARD is not set
-
-#
-# PC-card bridges
-#
 
 #
 # PCI Hotplug Support
@@ -470,25 +468,16 @@ CONFIG_NET_SB1250_MAC=y
 # CONFIG_INPUT is not set
 
 #
-# Userland interfaces
+# Hardware I/O ports
 #
-
-#
-# Input I/O drivers
-#
-# CONFIG_GAMEPORT is not set
-CONFIG_SOUND_GAMEPORT=y
 CONFIG_SERIO=y
 # CONFIG_SERIO_I8042 is not set
 CONFIG_SERIO_SERPORT=y
-# CONFIG_SERIO_CT82C710 is not set
 # CONFIG_SERIO_PCIPS2 is not set
 # CONFIG_SERIO_LIBPS2 is not set
 CONFIG_SERIO_RAW=m
-
-#
-# Input Device Drivers
-#
+# CONFIG_GAMEPORT is not set
+CONFIG_SOUND_GAMEPORT=y
 
 #
 # Character devices
@@ -540,6 +529,11 @@ CONFIG_LEGACY_PTY_COUNT=256
 # CONFIG_RAW_DRIVER is not set
 
 #
+# TPM devices
+#
+# CONFIG_TCG_TPM is not set
+
+#
 # I2C support
 #
 # CONFIG_I2C is not set
@@ -576,13 +570,9 @@ CONFIG_LEGACY_PTY_COUNT=256
 #
 # USB support
 #
-# CONFIG_USB is not set
 CONFIG_USB_ARCH_HAS_HCD=y
 CONFIG_USB_ARCH_HAS_OHCI=y
-
-#
-# NOTE: USB_STORAGE enables SCSI, and 'SCSI disk support' may also be needed; see USB_STORAGE Help for more information
-#
+# CONFIG_USB is not set
 
 #
 # USB Gadget Support
@@ -705,7 +695,9 @@ CONFIG_MSDOS_PARTITION=y
 #
 # Kernel hacking
 #
+# CONFIG_PRINTK_TIME is not set
 # CONFIG_DEBUG_KERNEL is not set
+CONFIG_LOG_BUF_SHIFT=15
 CONFIG_CROSSCOMPILE=y
 CONFIG_CMDLINE=""
 # CONFIG_SB1XXX_CORELIS is not set
@@ -729,6 +721,7 @@ CONFIG_CRYPTO_SHA1=y
 CONFIG_CRYPTO_SHA256=y
 CONFIG_CRYPTO_SHA512=y
 CONFIG_CRYPTO_WP512=m
+CONFIG_CRYPTO_TGR192=m
 CONFIG_CRYPTO_DES=y
 CONFIG_CRYPTO_BLOWFISH=y
 CONFIG_CRYPTO_TWOFISH=y

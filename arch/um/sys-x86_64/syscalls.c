@@ -29,22 +29,18 @@ long sys_modify_ldt_tt(int func, void *ptr, unsigned long bytecount)
 	/* XXX This should check VERIFY_WRITE depending on func, check this
 	 * in i386 as well.
 	 */
-	if(verify_area(VERIFY_READ, ptr, bytecount))
-		return(-EFAULT);
+	if (!access_ok(VERIFY_READ, ptr, bytecount))
+		return -EFAULT;
 	return(modify_ldt(func, ptr, bytecount));
 }
 #endif
 
 #ifdef CONFIG_MODE_SKAS
-extern int userspace_pid;
-
-#ifndef __NR_mm_indirect
-#define __NR_mm_indirect 241
-#endif
+extern int userspace_pid[];
 
 long sys_modify_ldt_skas(int func, void *ptr, unsigned long bytecount)
 {
-	unsigned long args[6];
+	struct ptrace_ldt ldt;
         void *buf;
         int res, n;
 
@@ -66,12 +62,11 @@ long sys_modify_ldt_skas(int func, void *ptr, unsigned long bytecount)
                 goto out;
         }
 
-	args[0] = func;
-	args[1] = (unsigned long) buf;
-	args[2] = bytecount;
-	res = syscall(__NR_mm_indirect, &current->mm->context.u,
-		      __NR_modify_ldt, args);
-
+	ldt = ((struct ptrace_ldt) { .func	= func,
+				     .ptr	= buf,
+				     .bytecount = bytecount });
+#warning Need to look up userspace_pid by cpu
+	res = ptrace(PTRACE_LDT, userspace_pid[0], 0, (unsigned long) &ldt);
         if(res < 0)
                 goto out;
 

@@ -285,17 +285,17 @@ asmlinkage void do_ptrace(struct pt_regs *regs)
 			       s, (int) request, (int) pid, addr, data, addr2);
 	}
 #endif
-	if(request == PTRACE_TRACEME) {
-		int ret;
+	if (request == PTRACE_TRACEME) {
+		int my_ret;
 
 		/* are we already being traced? */
 		if (current->ptrace & PT_PTRACED) {
 			pt_error_return(regs, EPERM);
 			goto out;
 		}
-		ret = security_ptrace(current->parent, current);
-		if (ret) {
-			pt_error_return(regs, -ret);
+		my_ret = security_ptrace(current->parent, current);
+		if (my_ret) {
+			pt_error_return(regs, -my_ret);
 			goto out;
 		}
 
@@ -305,7 +305,7 @@ asmlinkage void do_ptrace(struct pt_regs *regs)
 		goto out;
 	}
 #ifndef ALLOW_INIT_TRACING
-	if(pid == 1) {
+	if (pid == 1) {
 		/* Can't dork with init. */
 		pt_error_return(regs, EPERM);
 		goto out;
@@ -374,8 +374,8 @@ asmlinkage void do_ptrace(struct pt_regs *regs)
 		struct pt_regs *cregs = child->thread.kregs;
 		int rval;
 
-		rval = verify_area(VERIFY_WRITE, pregs, sizeof(struct pt_regs));
-		if(rval) {
+		if (!access_ok(VERIFY_WRITE, pregs, sizeof(struct pt_regs))) {
+			rval = -EFAULT;
 			pt_error_return(regs, -rval);
 			goto out_tsk;
 		}
@@ -401,9 +401,8 @@ asmlinkage void do_ptrace(struct pt_regs *regs)
 		/* Must be careful, tracing process can only set certain
 		 * bits in the psr.
 		 */
-		i = verify_area(VERIFY_READ, pregs, sizeof(struct pt_regs));
-		if(i) {
-			pt_error_return(regs, -i);
+		if (!access_ok(VERIFY_READ, pregs, sizeof(struct pt_regs))) {
+			pt_error_return(regs, EFAULT);
 			goto out_tsk;
 		}
 		__get_user(psr, (&pregs->psr));
@@ -413,7 +412,7 @@ asmlinkage void do_ptrace(struct pt_regs *regs)
 		psr &= PSR_ICC;
 		cregs->psr &= ~PSR_ICC;
 		cregs->psr |= psr;
-		if(!((pc | npc) & 3)) {
+		if (!((pc | npc) & 3)) {
 			cregs->pc = pc;
 			cregs->npc =npc;
 		}
@@ -439,8 +438,8 @@ asmlinkage void do_ptrace(struct pt_regs *regs)
 		struct fps __user *fps = (struct fps __user *) addr;
 		int i;
 
-		i = verify_area(VERIFY_WRITE, fps, sizeof(struct fps));
-		if(i) {
+		if (!access_ok(VERIFY_WRITE, fps, sizeof(struct fps))) {
+			i = -EFAULT;
 			pt_error_return(regs, -i);
 			goto out_tsk;
 		}
@@ -474,8 +473,8 @@ asmlinkage void do_ptrace(struct pt_regs *regs)
 		struct fps __user *fps = (struct fps __user *) addr;
 		int i;
 
-		i = verify_area(VERIFY_READ, fps, sizeof(struct fps));
-		if(i) {
+		if (!access_ok(VERIFY_READ, fps, sizeof(struct fps))) {
+			i = -EFAULT;
 			pt_error_return(regs, -i);
 			goto out_tsk;
 		}

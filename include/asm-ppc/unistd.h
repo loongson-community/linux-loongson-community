@@ -276,8 +276,9 @@
 #define __NR_add_key		269
 #define __NR_request_key	270
 #define __NR_keyctl		271
+#define __NR_waitid		272
 
-#define __NR_syscalls		272
+#define __NR_syscalls		273
 
 #define __NR(n)	#n
 
@@ -468,7 +469,7 @@ long sys_rt_sigaction(int sig,
  * but it doesn't work on all toolchains, so we just do it by hand
  */
 #ifndef cond_syscall
-#define cond_syscall(x) asm(".weak\t" #x "\n\t.set\t" #x ",sys_ni_syscall");
+#define cond_syscall(x) asm(".weak\t" #x "\n\t.set\t" #x ",sys_ni_syscall")
 #endif
 
 #endif /* __KERNEL__ */

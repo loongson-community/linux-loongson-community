@@ -23,13 +23,9 @@
 /* F/W TLB mapping used in bootloader glue to reset EMAC */
 #define PPC44x_EMAC0_MR0	0xE0000800
 
-/* Macros to get at Ebony VPD info */
-#define EBONY_VPD_BASE		0x00000001fffffe00ULL
-#define EBONY_VPD_SIZE		0x24
-#define EBONY_NA0_OFFSET	0x0c
-#define EBONY_NA1_OFFSET	0x18
-#define EBONY_NA0_ADDR(base)	(base + EBONY_NA0_OFFSET)
-#define EBONY_NA1_ADDR(base)	(base + EBONY_NA1_OFFSET)
+/* Where to find the MAC info */
+#define EBONY_OPENBIOS_MAC_BASE   0xfffffe0c
+#define EBONY_OPENBIOS_MAC_OFFSET 0x0c
 
 /* Default clock rates for Rev. B and Rev. C silicon */
 #define EBONY_440GP_RB_SYSCLK	33000000
@@ -61,8 +57,8 @@
  */
 
 /* OpenBIOS defined UART mappings, used before early_serial_setup */
-#define UART0_IO_BASE	(u8 *) 0xE0000200
-#define UART1_IO_BASE	(u8 *) 0xE0000300
+#define UART0_IO_BASE	0xE0000200
+#define UART1_IO_BASE	0xE0000300
 
 /* external Epson SG-615P */
 #define BASE_BAUD	691200

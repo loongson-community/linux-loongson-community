@@ -136,6 +136,7 @@ static __inline__ void set_pte(pte_t *pteptr, pte_t pteval)
 	 */
 	*(xp) = (x & NPHYS_SIGN) ? (x | NPHYS_MASK) : x;
 }
+#define set_pte_at(mm,addr,ptep,pteval) set_pte(ptep,pteval)
 
 static __inline__ void pmd_set(pmd_t *pmdp,pte_t *ptep)
 {
@@ -280,8 +281,6 @@ static inline pmd_t * pmd_offset(pgd_t * dir, unsigned long address)
 
 /* Mask which drops software flags */
 #define _PAGE_FLAGS_HARDWARE_MASK	0xfffffffffffff3dbLL
-/* Flags default: 4KB, Read, Not write, Not execute, Not user */
-#define _PAGE_FLAGS_HARDWARE_DEFAULT	0x0000000000000040LL
 
 /*
  * HugeTLB support
@@ -383,7 +382,7 @@ extern void __handle_bad_pmd_kernel(pmd_t * pmd);
  */
 #define _PTE_EMPTY	0x0
 #define pte_present(x)	(pte_val(x) & _PAGE_PRESENT)
-#define pte_clear(xp)	(set_pte(xp, __pte(_PTE_EMPTY)))
+#define pte_clear(mm,addr,xp)	(set_pte_at(mm, addr, xp, __pte(_PTE_EMPTY)))
 #define pte_none(x)	(pte_val(x) == _PTE_EMPTY)
 
 /*

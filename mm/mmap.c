@@ -21,7 +21,6 @@
 #include <linux/hugetlb.h>
 #include <linux/profile.h>
 #include <linux/module.h>
-#include <linux/acct.h>
 #include <linux/mount.h>
 #include <linux/mempolicy.h>
 #include <linux/rmap.h>
@@ -873,7 +872,7 @@ unsigned long do_mmap_pgoff(struct file * file, unsigned long addr,
 	int error;
 	struct rb_node ** rb_link, * rb_parent;
 	int accountable = 1;
-	unsigned long charged = 0;
+	unsigned long charged = 0, reqprot = prot;
 
 	if (file) {
 		if (is_file_hugepages(file))
@@ -991,7 +990,7 @@ unsigned long do_mmap_pgoff(struct file * file, unsigned long addr,
 		}
 	}
 
-	error = security_file_mmap(file, prot, flags);
+	error = security_file_mmap(file, reqprot, prot, flags);
 	if (error)
 		return error;
 		
@@ -1121,8 +1120,6 @@ out:
 					pgoff, flags & MAP_NONBLOCK);
 		down_write(&mm->mmap_sem);
 	}
-	acct_update_integrals();
-	update_mem_hiwater();
 	return addr;
 
 unmap_and_free_vma:
@@ -1221,18 +1218,13 @@ arch_get_unmapped_area_topdown(struct file *filp, const unsigned long addr0,
 			  const unsigned long len, const unsigned long pgoff,
 			  const unsigned long flags)
 {
-	struct vm_area_struct *vma, *prev_vma;
+	struct vm_area_struct *vma;
 	struct mm_struct *mm = current->mm;
-	unsigned long base = mm->mmap_base, addr = addr0;
-	int first_time = 1;
+	unsigned long addr = addr0;
 
 	/* requested length too big for entire address space */
 	if (len > TASK_SIZE)
 		return -ENOMEM;
-
-	/* dont allow allocations above current base */
-	if (mm->free_area_cache > base)
-		mm->free_area_cache = base;
 
 	/* requesting a specific address */
 	if (addr) {
@@ -1243,48 +1235,34 @@ arch_get_unmapped_area_topdown(struct file *filp, const unsigned long addr0,
 			return addr;
 	}
 
-try_again:
-	/* make sure it can fit in the remaining address space */
-	if (mm->free_area_cache < len)
-		goto fail;
+	/* either no address requested or can't fit in requested address hole */
+	addr = mm->free_area_cache;
 
-	/* either no address requested or cant fit in requested address hole */
-	addr = (mm->free_area_cache - len) & PAGE_MASK;
+	/* make sure it can fit in the remaining address space */
+	if (addr >= len) {
+		vma = find_vma(mm, addr-len);
+		if (!vma || addr <= vma->vm_start)
+			/* remember the address as a hint for next time */
+			return (mm->free_area_cache = addr-len);
+	}
+
+	addr = mm->mmap_base-len;
+
 	do {
 		/*
 		 * Lookup failure means no vma is above this address,
-		 * i.e. return with success:
+		 * else if new region fits below vma->vm_start,
+		 * return with success:
 		 */
- 	 	if (!(vma = find_vma_prev(mm, addr, &prev_vma)))
-			return addr;
-
-		/*
-		 * new region fits between prev_vma->vm_end and
-		 * vma->vm_start, use it:
-		 */
-		if (addr+len <= vma->vm_start &&
-				(!prev_vma || (addr >= prev_vma->vm_end)))
+		vma = find_vma(mm, addr);
+		if (!vma || addr+len <= vma->vm_start)
 			/* remember the address as a hint for next time */
 			return (mm->free_area_cache = addr);
-		else
-			/* pull free_area_cache down to the first hole */
-			if (mm->free_area_cache == vma->vm_end)
-				mm->free_area_cache = vma->vm_start;
 
 		/* try just below the current vma->vm_start */
 		addr = vma->vm_start-len;
 	} while (len <= vma->vm_start);
 
-fail:
-	/*
-	 * if hint left us with no space for the requested
-	 * mapping then try again:
-	 */
-	if (first_time) {
-		mm->free_area_cache = base;
-		first_time = 0;
-		goto try_again;
-	}
 	/*
 	 * A failed mmap() very likely causes application failure,
 	 * so fall back to the bottom-up function here. This scenario
@@ -1296,7 +1274,7 @@ fail:
 	/*
 	 * Restore the topdown base:
 	 */
-	mm->free_area_cache = base;
+	mm->free_area_cache = mm->mmap_base;
 
 	return addr;
 }
@@ -1309,6 +1287,10 @@ void arch_unmap_area_topdown(struct vm_area_struct *area)
 	 */
 	if (area->vm_end > area->vm_mm->free_area_cache)
 		area->vm_mm->free_area_cache = area->vm_end;
+
+	/* dont allow allocations above current base */
+	if (area->vm_mm->free_area_cache > area->vm_mm->mmap_base)
+		area->vm_mm->free_area_cache = area->vm_mm->mmap_base;
 }
 
 unsigned long
@@ -1463,8 +1445,6 @@ static int acct_stack_growth(struct vm_area_struct * vma, unsigned long size, un
 	if (vma->vm_flags & VM_LOCKED)
 		mm->locked_vm += grow;
 	__vm_stat_account(mm, vma->vm_flags, vma->vm_file, grow);
-	acct_update_integrals();
-	update_mem_hiwater();
 	return 0;
 }
 
@@ -1968,8 +1948,6 @@ out:
 		mm->locked_vm += len >> PAGE_SHIFT;
 		make_pages_present(addr, addr + len);
 	}
-	acct_update_integrals();
-	update_mem_hiwater();
 	return addr;
 }
 

@@ -34,8 +34,10 @@
 #include <linux/root_dev.h>
 #include <linux/seq_file.h>
 #include <linux/serial.h>
+#include <linux/initrd.h>
 #include <linux/module.h>
 #include <linux/fsl_devices.h>
+#include <linux/interrupt.h>
 
 #include <asm/system.h>
 #include <asm/pgtable.h>
@@ -261,31 +263,21 @@ gp3_show_cpuinfo(struct seq_file *m)
 	/* get the core frequency */
 	freq = binfo->bi_intfreq;
 
-	pvid = mfspr(PVR);
-	svid = mfspr(SVR);
+	pvid = mfspr(SPRN_PVR);
+	svid = mfspr(SPRN_SVR);
 
 	memsize = total_memory;
 
+	seq_printf(m, "chip\t\t: MPC%s\n", cur_ppc_sys_spec->ppc_sys_name);
 	seq_printf(m, "Vendor\t\t: RPC Electronics STx \n");
-
-	switch (svid & 0xffff0000) {
-	case SVR_8540:
-		seq_printf(m, "Machine\t\t: GP3 - MPC8540\n");
-		break;
-	case SVR_8560:
-		seq_printf(m, "Machine\t\t: GP3 - MPC8560\n");
-		break;
-	default:
-		seq_printf(m, "Machine\t\t: unknown\n");
-		break;
-	}
+	seq_printf(m, "Machine\t\t: GP3 - MPC%s\n", cur_ppc_sys_spec->ppc_sys_name);
 	seq_printf(m, "bus freq\t: %u.%.6u MHz\n", freq / 1000000,
 		   freq % 1000000);
 	seq_printf(m, "PVR\t\t: 0x%x\n", pvid);
 	seq_printf(m, "SVR\t\t: 0x%x\n", svid);
 
 	/* Display cpu Pll setting */
-	phid1 = mfspr(HID1);
+	phid1 = mfspr(SPRN_HID1);
 	seq_printf(m, "PLL setting\t: 0x%x\n", ((phid1 >> 24) & 0x3f));
 
 	/* Display the amount of memory */
@@ -357,7 +349,7 @@ platform_init(unsigned long r3, unsigned long r4, unsigned long r5,
 		strcpy(cmd_line, (char *) (r6 + KERNELBASE));
 	}
 
-	identify_ppc_sys_by_id(mfspr(SVR));
+	identify_ppc_sys_by_id(mfspr(SPRN_SVR));
 
 	/* setup the PowerPC module struct */
 	ppc_md.setup_arch = gp3_setup_arch;

@@ -47,16 +47,13 @@ config BONDING
 	---help---
 	  Say 'Y' or 'M' if you wish to be able to 'bond' multiple Ethernet
 	  Channels together. This is called 'Etherchannel' by Cisco,
-	  'Trunking' by Sun, and 'Bonding' in Linux.
+	  'Trunking' by Sun, 802.3ad by the IEEE, and 'Bonding' in Linux.
 
-	  If you have two Ethernet connections to some other computer, you can
-	  make them behave like one double speed connection using this driver.
-	  Naturally, this has to be supported at the other end as well, either
-	  with a similar Bonding Linux driver, a Cisco 5500 switch or a
-	  SunTrunking SunSoft driver.
+	  The driver supports multiple bonding modes to allow for both high
+	  perfomance and high availability operation.
 
-	  This is similar to the EQL driver, but it merges Ethernet segments
-	  instead of serial lines.
+	  Refer to <file:Documentation/networking/bonding.txt> for more
+	  information.
 
 	  To compile this driver as a module, choose M here: the module
 	  will be called bonding.
@@ -823,7 +820,7 @@ config SMC91X
 	tristate "SMC 91C9x/91C1xxx support"
 	select CRC32
 	select MII
-	depends on NET_ETHERNET && (ARM || REDWOOD_5 || REDWOOD_6 || M32R)
+	depends on NET_ETHERNET && (ARM || REDWOOD_5 || REDWOOD_6 || M32R || SUPERH)
 	help
 	  This is a driver for SMC's 91x series of Ethernet chipsets,
 	  including the SMC91C94 and the SMC91C111. Say Y if you want it
@@ -1431,23 +1428,6 @@ config E100
 	  To compile this driver as a module, choose M here and read
 	  <file:Documentation/networking/net-modules.txt>.  The module
 	  will be called e100.
-
-config E100_NAPI
-	bool "Use Rx Polling (NAPI)"
-	depends on E100
-	help
-	  NAPI is a new driver API designed to reduce CPU and interrupt load
-	  when the driver is receiving lots of packets from the card. It is
-	  still somewhat experimental and thus not yet enabled by default.
-
-	  If your estimated Rx load is 10kpps or more, or if the card will be
-	  deployed on potentially unfriendly networks (e.g. in a firewall),
-	  then say Y here.
-
-	  See <file:Documentation/networking/NAPI_HOWTO.txt> for more
-	  information.
-
-	  If in doubt, say N.
 
 config LNE390
 	tristate "Mylex EISA LNE390A/B support (EXPERIMENTAL)"
@@ -2083,7 +2063,7 @@ config TIGON3
 
 config GIANFAR
 	tristate "Gianfar Ethernet"
-	depends on 85xx
+	depends on 85xx || 83xx
 	help
 	  This driver supports the Gigabit TSEC on the MPC85xx 
 	  family of chips, and the FEC on the 8540
@@ -2094,10 +2074,11 @@ config GFAR_NAPI
 
 config MV643XX_ETH
 	tristate "MV-643XX Ethernet support"
-	depends on MOMENCO_OCELOT_C || MOMENCO_JAGUAR_ATX || MOMENCO_OCELOT_3
+	depends on MOMENCO_OCELOT_C || MOMENCO_JAGUAR_ATX || MV64360 || MOMENCO_OCELOT_3
 	help
 	  This driver supports the gigabit Ethernet on the Marvell MV643XX
-	  chipset which is used in the Momenco Ocelot C and Jaguar ATX.
+	  chipset which is used in the Momenco Ocelot C Ocelot, Jaguar ATX
+	  and Pegasos II, amongst other PPC and MIPS boards.
 
 config MV643XX_ETH_0
 	bool "MV-643XX Port 0"
@@ -2568,15 +2549,6 @@ config NET_FC
 	  adaptor card in your computer; say Y here and to the driver for your
 	  adaptor below. You also should have said Y to "SCSI support" and
 	  "SCSI generic support".
-
-config IPHASE5526
-	tristate "Interphase 5526 Tachyon chipset based adapter support"
-	depends on NET_FC && SCSI && PCI && BROKEN
-	help
-	  Say Y here if you have a Fibre Channel adaptor of this kind.
-
-	  To compile this driver as a module, choose M here: the module
-	  will be called iph5526.
 
 config SHAPER
 	tristate "Traffic Shaper (EXPERIMENTAL)"

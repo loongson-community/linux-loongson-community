@@ -155,7 +155,8 @@ static void vsc_sata_tf_read(struct ata_port *ap, struct ata_taskfile *tf)
  *
  * Read the interrupt register and process for the devices that have them pending.
  */
-irqreturn_t vsc_sata_interrupt (int irq, void *dev_instance, struct pt_regs *regs)
+static irqreturn_t vsc_sata_interrupt (int irq, void *dev_instance,
+				       struct pt_regs *regs)
 {
 	struct ata_host_set *host_set = dev_instance;
 	unsigned int i;
@@ -204,6 +205,7 @@ static Scsi_Host_Template vsc_sata_sht = {
 	.dma_boundary		= ATA_DMA_BOUNDARY,
 	.slave_configure	= ata_scsi_slave_config,
 	.bios_param		= ata_std_bios_param,
+	.ordered_flush		= 1,
 };
 
 
@@ -285,10 +287,10 @@ static int __devinit vsc_sata_init_one (struct pci_dev *pdev, const struct pci_d
 	/*
 	 * Use 32 bit DMA mask, because 64 bit address support is poor.
 	 */
-	rc = pci_set_dma_mask(pdev, 0xFFFFFFFFULL);
+	rc = pci_set_dma_mask(pdev, DMA_32BIT_MASK);
 	if (rc)
 		goto err_out_regions;
-	rc = pci_set_consistent_dma_mask(pdev, 0xFFFFFFFFULL);
+	rc = pci_set_consistent_dma_mask(pdev, DMA_32BIT_MASK);
 	if (rc)
 		goto err_out_regions;
 

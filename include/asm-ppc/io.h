@@ -30,6 +30,8 @@
 #include <asm/mpc8xx.h>
 #elif defined(CONFIG_8260)
 #include <asm/mpc8260.h>
+#elif defined(CONFIG_83xx)
+#include <asm/mpc83xx.h>
 #elif defined(CONFIG_85xx)
 #include <asm/mpc85xx.h>
 #elif defined(CONFIG_APUS)
@@ -549,5 +551,16 @@ extern void pci_iounmap(struct pci_dev *dev, void __iomem *);
 #ifdef CONFIG_8260_PCI9
 #include <asm/mpc8260_pci9.h>
 #endif
+
+/*
+ * Convert a physical pointer to a virtual kernel pointer for /dev/mem
+ * access
+ */
+#define xlate_dev_mem_ptr(p)	__va(p)
+
+/*
+ * Convert a virtual cached pointer to an uncached pointer
+ */
+#define xlate_dev_kmem_ptr(p)	p
 
 #endif /* __KERNEL__ */

@@ -241,7 +241,7 @@ int cp_compat_stat(struct kstat *stat, struct compat_stat __user *statbuf)
 	    !new_valid_dev(stat->rdev))
 		return -EOVERFLOW;
 
-	err  = verify_area(VERIFY_WRITE, statbuf, sizeof(*statbuf));
+	err  = access_ok(VERIFY_WRITE, statbuf, sizeof(*statbuf)) ? 0 : -EFAULT;
 	err |= __put_user(new_encode_dev(stat->dev), &statbuf->st_dev);
 	err |= __put_user(stat->ino, &statbuf->st_ino);
 	err |= __put_user(stat->mode, &statbuf->st_mode);
@@ -1195,7 +1195,7 @@ unsigned long sys32_mmap2(unsigned long addr, size_t len,
 
 int get_compat_timeval(struct timeval *tv, struct compat_timeval __user *ctv)
 {
-	return (verify_area(VERIFY_READ, ctv, sizeof(*ctv)) ||
+	return (!access_ok(VERIFY_READ, ctv, sizeof(*ctv)) ||
 		__get_user(tv->tv_sec, &ctv->tv_sec) ||
 		__get_user(tv->tv_usec, &ctv->tv_usec)) ? -EFAULT : 0;
 }
@@ -1290,14 +1290,7 @@ long ppc32_timer_create(clockid_t clock,
 	if (ev32 == NULL)
 		return sys_timer_create(clock, NULL, timer_id);
 
-	memset(&event, 0, sizeof(event));
-	if (!access_ok(VERIFY_READ, ev32, sizeof(struct compat_sigevent))
-	    || __get_user(event.sigev_value.sival_int,
-			  &ev32->sigev_value.sival_int)
-	    || __get_user(event.sigev_signo, &ev32->sigev_signo)
-	    || __get_user(event.sigev_notify, &ev32->sigev_notify)
-	    || __get_user(event.sigev_notify_thread_id,
-			  &ev32->sigev_notify_thread_id))
+	if (get_compat_sigevent(&event, ev32))
 		return -EFAULT;
 
 	if (!access_ok(VERIFY_WRITE, timer_id, sizeof(timer_t)))

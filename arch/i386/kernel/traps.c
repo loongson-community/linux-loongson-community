@@ -345,8 +345,7 @@ void die(const char * str, struct pt_regs * regs, long err)
 
 	if (panic_on_oops) {
 		printk(KERN_EMERG "Fatal exception: panic in 5 seconds\n");
-		set_current_state(TASK_UNINTERRUPTIBLE);
-		schedule_timeout(5 * HZ);
+		ssleep(5);
 		panic("Fatal exception");
 	}
 	do_exit(SIGSEGV);
@@ -707,8 +706,6 @@ fastcall void do_debug(struct pt_regs * regs, long error_code)
 	/*
 	 * Single-stepping through TF: make sure we ignore any events in
 	 * kernel space (but re-enable TF when returning to user mode).
-	 * And if the event was due to a debugger (PT_DTRACE), clear the
-	 * TF flag so that register information is correct.
 	 */
 	if (condition & DR_STEP) {
 		/*
@@ -718,11 +715,6 @@ fastcall void do_debug(struct pt_regs * regs, long error_code)
 		 */
 		if ((regs->xcs & 3) == 0)
 			goto clear_TF_reenable;
-
-		if (likely(tsk->ptrace & PT_DTRACE)) {
-			tsk->ptrace &= ~PT_DTRACE;
-			regs->eflags &= ~TF_MASK;
-		}
 	}
 
 	/* Ok, finally something we can handle */
@@ -814,7 +806,7 @@ fastcall void do_coprocessor_error(struct pt_regs * regs, long error_code)
 	math_error((void __user *)regs->eip);
 }
 
-void simd_math_error(void __user *eip)
+static void simd_math_error(void __user *eip)
 {
 	struct task_struct * task;
 	siginfo_t info;

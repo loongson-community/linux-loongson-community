@@ -609,7 +609,7 @@ static struct xfrm_state *__xfrm_find_acq_byseq(u32 seq)
 
 	for (i = 0; i < XFRM_DST_HSIZE; i++) {
 		list_for_each_entry(x, xfrm_state_bydst+i, bydst) {
-			if (x->km.seq == seq) {
+			if (x->km.seq == seq && x->km.state == XFRM_STATE_ACQ) {
 				xfrm_state_hold(x);
 				return x;
 			}
@@ -966,6 +966,36 @@ void xfrm_state_delete_tunnel(struct xfrm_state *x)
 }
 EXPORT_SYMBOL(xfrm_state_delete_tunnel);
 
+int xfrm_state_mtu(struct xfrm_state *x, int mtu)
+{
+	int res = mtu;
+
+	res -= x->props.header_len;
+
+	for (;;) {
+		int m = res;
+
+		if (m < 68)
+			return 68;
+
+		spin_lock_bh(&x->lock);
+		if (x->km.state == XFRM_STATE_VALID &&
+		    x->type && x->type->get_max_size)
+			m = x->type->get_max_size(x, m);
+		else
+			m += x->props.header_len;
+		spin_unlock_bh(&x->lock);
+
+		if (m <= mtu)
+			break;
+		res -= (m - mtu);
+	}
+
+	return res;
+}
+
+EXPORT_SYMBOL(xfrm_state_mtu);
+ 
 void __init xfrm_state_init(void)
 {
 	int i;

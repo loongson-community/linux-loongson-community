@@ -38,7 +38,7 @@
  * 03-06-24 Cleanup PARANOIA usage & code. <ldl@aros.net>
  * 04-02-19 Remove PARANOIA, plus various cleanups (Paul Clements)
  * possible FIXME: make set_sock / set_blksize / set_size / do_it one syscall
- * why not: would need verify_area and friends, would share yet another 
+ * why not: would need access_ok and friends, would share yet another
  *          structure with userland
  */
 
@@ -315,7 +315,7 @@ static inline int sock_recv_bvec(struct socket *sock, struct bio_vec *bvec)
 }
 
 /* NULL returned = something went wrong, inform userspace */
-struct request *nbd_read_stat(struct nbd_device *lo)
+static struct request *nbd_read_stat(struct nbd_device *lo)
 {
 	int result;
 	struct nbd_reply reply;
@@ -377,7 +377,7 @@ harderror:
 	return NULL;
 }
 
-void nbd_do_it(struct nbd_device *lo)
+static void nbd_do_it(struct nbd_device *lo)
 {
 	struct request *req;
 
@@ -388,7 +388,7 @@ void nbd_do_it(struct nbd_device *lo)
 	return;
 }
 
-void nbd_clear_que(struct nbd_device *lo)
+static void nbd_clear_que(struct nbd_device *lo)
 {
 	struct request *req;
 

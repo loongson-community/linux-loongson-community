@@ -75,7 +75,7 @@
 #define PG_mappedtodisk		17	/* Has blocks allocated on-disk */
 #define PG_reclaim		18	/* To be reclaimed asap */
 #define PG_nosave_free		19	/* Free, should not be written */
-
+#define PG_uncached		20	/* Page has been mapped as uncached */
 
 /*
  * Global page accounting.  One instance per CPU.  Only unsigned longs are
@@ -301,10 +301,13 @@ extern void __mod_page_state(unsigned offset, unsigned long delta);
 #define PageSwapCache(page)	0
 #endif
 
+#define PageUncached(page)	test_bit(PG_uncached, &(page)->flags)
+#define SetPageUncached(page)	set_bit(PG_uncached, &(page)->flags)
+#define ClearPageUncached(page)	clear_bit(PG_uncached, &(page)->flags)
+
 struct page;	/* forward declaration */
 
 int test_clear_page_dirty(struct page *page);
-int __clear_page_dirty(struct page *page);
 int test_clear_page_writeback(struct page *page);
 int test_set_page_writeback(struct page *page);
 

@@ -167,6 +167,7 @@ MODULE_LICENSE("GPL");
 #include "53c700_d.h"
 
 
+STATIC irqreturn_t NCR_700_intr(int irq, void *dev_id, struct pt_regs *regs);
 STATIC int NCR_700_queuecommand(struct scsi_cmnd *, void (*done)(struct scsi_cmnd *));
 STATIC int NCR_700_abort(struct scsi_cmnd * SCpnt);
 STATIC int NCR_700_bus_reset(struct scsi_cmnd * SCpnt);
@@ -824,6 +825,7 @@ process_extended_message(struct Scsi_Host *host,
 	switch(hostdata->msgin[2]) {
 	case A_SDTR_MSG:
 		if(SCp != NULL && NCR_700_is_flag_set(SCp->device, NCR_700_DEV_BEGIN_SYNC_NEGOTIATION)) {
+			struct scsi_target *starget = SCp->device->sdev_target;
 			__u8 period = hostdata->msgin[3];
 			__u8 offset = hostdata->msgin[4];
 
@@ -831,22 +833,15 @@ process_extended_message(struct Scsi_Host *host,
 				offset = 0;
 				period = 0;
 			}
+
+			spi_offset(starget) = offset;
+			spi_period(starget) = period;
 			
 			if(NCR_700_is_flag_set(SCp->device, NCR_700_DEV_PRINT_SYNC_NEGOTIATION)) {
-				if(spi_offset(SCp->device->sdev_target) != 0)
-					printk(KERN_INFO "scsi%d: (%d:%d) Synchronous at offset %d, period %dns\n",
-					       host->host_no, pun, lun,
-					       offset, period*4);
-				else
-					printk(KERN_INFO "scsi%d: (%d:%d) Asynchronous\n",
-					       host->host_no, pun, lun);
+				spi_display_xfer_agreement(starget);
 				NCR_700_clear_flag(SCp->device, NCR_700_DEV_PRINT_SYNC_NEGOTIATION);
 			}
-				
-			spi_offset(SCp->device->sdev_target) = offset;
-			spi_period(SCp->device->sdev_target) = period;
 			
-
 			NCR_700_set_flag(SCp->device, NCR_700_DEV_NEGOTIATED_SYNC);
 			NCR_700_clear_flag(SCp->device, NCR_700_DEV_BEGIN_SYNC_NEGOTIATION);
 			
@@ -1494,7 +1489,7 @@ NCR_700_start_command(struct scsi_cmnd *SCp)
 	return 1;
 }
 
-irqreturn_t
+STATIC irqreturn_t
 NCR_700_intr(int irq, void *dev_id, struct pt_regs *regs)
 {
 	struct Scsi_Host *host = (struct Scsi_Host *)dev_id;
@@ -2169,7 +2164,6 @@ STATIC struct device_attribute *NCR_700_dev_attrs[] = {
 
 EXPORT_SYMBOL(NCR_700_detect);
 EXPORT_SYMBOL(NCR_700_release);
-EXPORT_SYMBOL(NCR_700_intr);
 
 static struct spi_function_template NCR_700_transport_functions =  {
 	.set_period	= NCR_700_set_period,

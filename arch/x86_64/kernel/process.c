@@ -33,6 +33,7 @@
 #include <linux/irq.h>
 #include <linux/ptrace.h>
 #include <linux/utsname.h>
+#include <linux/random.h>
 
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
@@ -52,7 +53,7 @@ asmlinkage extern void ret_from_fork(void);
 
 unsigned long kernel_thread_flags = CLONE_VM | CLONE_UNTRACED;
 
-atomic_t hlt_counter = ATOMIC_INIT(0);
+static atomic_t hlt_counter = ATOMIC_INIT(0);
 
 unsigned long boot_option_idle_override = 0;
 EXPORT_SYMBOL(boot_option_idle_override);
@@ -748,4 +749,11 @@ int dump_task_regs(struct task_struct *tsk, elf_gregset_t *regs)
 	elf_core_copy_regs(regs, &ptregs);
  
 	return 1;
+}
+
+unsigned long arch_align_stack(unsigned long sp)
+{
+	if (randomize_va_space)
+		sp -= get_random_int() % 8192;
+	return sp & ~0xf;
 }

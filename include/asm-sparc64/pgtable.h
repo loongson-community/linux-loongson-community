@@ -15,6 +15,7 @@
 #include <asm-generic/pgtable-nopud.h>
 
 #include <linux/config.h>
+#include <linux/compiler.h>
 #include <asm/spitfire.h>
 #include <asm/asi.h>
 #include <asm/system.h>
@@ -333,18 +334,23 @@ static inline pte_t pte_modify(pte_t orig_pte, pgprot_t new_prot)
 #define pte_unmap_nested(pte)		do { } while (0)
 
 /* Actual page table PTE updates.  */
-extern void tlb_batch_add(pte_t *ptep, pte_t orig);
+extern void tlb_batch_add(struct mm_struct *mm, unsigned long vaddr, pte_t *ptep, pte_t orig);
 
-static inline void set_pte(pte_t *ptep, pte_t pte)
+static inline void set_pte_at(struct mm_struct *mm, unsigned long addr, pte_t *ptep, pte_t pte)
 {
 	pte_t orig = *ptep;
 
 	*ptep = pte;
-	if (pte_present(orig))
-		tlb_batch_add(ptep, orig);
+
+	/* It is more efficient to let flush_tlb_kernel_range()
+	 * handle init_mm tlb flushes.
+	 */
+	if (likely(mm != &init_mm) && (pte_val(orig) & _PAGE_VALID))
+		tlb_batch_add(mm, addr, ptep, orig);
 }
 
-#define pte_clear(ptep)		set_pte((ptep), __pte(0UL))
+#define pte_clear(mm,addr,ptep)		\
+	set_pte_at((mm), (addr), (ptep), __pte(0UL))
 
 extern pgd_t swapper_pg_dir[1];
 
@@ -425,6 +431,21 @@ extern unsigned long *sparc64_valid_addr_bitmap;
 extern int io_remap_page_range(struct vm_area_struct *vma, unsigned long from,
 			       unsigned long offset,
 			       unsigned long size, pgprot_t prot, int space);
+
+/* Override for {pgd,pmd}_addr_end() to deal with the virtual address
+ * space hole.  We simply sign extend bit 43.
+ */
+#define pgd_addr_end(addr, end)						\
+({	unsigned long __boundary = ((addr) + PGDIR_SIZE) & PGDIR_MASK;	\
+	__boundary = ((long) (__boundary << 20)) >> 20;			\
+	(__boundary - 1 < (end) - 1)? __boundary: (end);		\
+})
+
+#define pmd_addr_end(addr, end)						\
+({	unsigned long __boundary = ((addr) + PMD_SIZE) & PMD_MASK;	\
+	__boundary = ((long) (__boundary << 20)) >> 20;			\
+	(__boundary - 1 < (end) - 1)? __boundary: (end);		\
+})
 
 #include <asm-generic/pgtable.h>
 

@@ -79,7 +79,7 @@ static int xfrm6_tunnel_check_size(struct sk_buff *skb)
 	int mtu, ret = 0;
 	struct dst_entry *dst = skb->dst;
 
-	mtu = dst_pmtu(dst) - dst->header_len - dst->trailer_len;
+	mtu = dst_mtu(dst);
 	if (mtu < IPV6_MIN_MTU)
 		mtu = IPV6_MIN_MTU;
 
@@ -103,20 +103,20 @@ int xfrm6_output(struct sk_buff *skb)
 			goto error_nolock;
 	}
 
+	if (x->props.mode) {
+		err = xfrm6_tunnel_check_size(skb);
+		if (err)
+			goto error_nolock;
+	}
+
 	spin_lock_bh(&x->lock);
 	err = xfrm_state_check(x, skb);
 	if (err)
 		goto error;
 
-	if (x->props.mode) {
-		err = xfrm6_tunnel_check_size(skb);
-		if (err)
-			goto error;
-	}
-
 	xfrm6_encap(skb);
 
-	err = x->type->output(skb);
+	err = x->type->output(x, skb);
 	if (err)
 		goto error;
 

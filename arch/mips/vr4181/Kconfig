@@ -59,9 +59,3 @@ config TANBAC_TB0229
 	  The TANBAC TB0229 (VR4131DIMM) is a MIPS-based platform manufactured
 	  by TANBAC.  Please refer to <http://www.tanbac.co.jp/> about
 	  VR4131DIMM.
-
-config TANBAC_TB0219
-	bool "Added TANBAC TB0219 Base board support"
-	depends on TANBAC_TB0229
-	select SYS_SUPPORTS_32BIT_KERNEL
-	select SYS_SUPPORTS_64BIT_KERNEL if EXPERIMENTAL

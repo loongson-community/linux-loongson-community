@@ -3137,8 +3137,7 @@ mpt_diag_reset(MPT_ADAPTER *ioc, int ignore, int sleepFlag)
 
 				/* wait 1 sec */
 				if (sleepFlag == CAN_SLEEP) {
-					set_current_state(TASK_INTERRUPTIBLE);
-					schedule_timeout(1000 * HZ / 1000);
+					ssleep(1);
 				} else {
 					mdelay (1000);
 				}
@@ -5914,7 +5913,7 @@ fusion_init(void)
 #ifdef CONFIG_PROC_FS
 	(void) procmpt_create();
 #endif
-	r = pci_module_init(&mptbase_driver);
+	r = pci_register_driver(&mptbase_driver);
 	if(r)
 		return(r);
 

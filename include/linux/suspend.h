@@ -1,7 +1,7 @@
 #ifndef _LINUX_SWSUSP_H
 #define _LINUX_SWSUSP_H
 
-#if defined(CONFIG_X86) || defined(CONFIG_FRV)
+#if defined(CONFIG_X86) || defined(CONFIG_FRV) || defined(CONFIG_PPC32)
 #include <asm/suspend.h>
 #endif
 #include <linux/swap.h>
@@ -15,15 +15,28 @@ typedef struct pbe {
 	unsigned long address;		/* address of the copy */
 	unsigned long orig_address;	/* original address of page */
 	swp_entry_t swap_address;	
-	swp_entry_t dummy;		/* we need scratch space at 
-					 * end of page (see link, diskpage)
-					 */
+
+	struct pbe *next;	/* also used as scratch space at
+				 * end of page (see link, diskpage)
+				 */
 } suspend_pagedir_t;
+
+#define for_each_pbe(pbe, pblist) \
+	for (pbe = pblist ; pbe ; pbe = pbe->next)
+
+#define PBES_PER_PAGE      (PAGE_SIZE/sizeof(struct pbe))
+#define PB_PAGE_SKIP       (PBES_PER_PAGE-1)
+
+#define for_each_pb_page(pbe, pblist) \
+	for (pbe = pblist ; pbe ; pbe = (pbe+PB_PAGE_SKIP)->next)
+
 
 #define SWAP_FILENAME_MAXLENGTH	32
 
 
 #define SUSPEND_PD_PAGES(x)     (((x)*sizeof(struct pbe))/PAGE_SIZE+1)
+
+extern dev_t swsusp_resume_device;
    
 /* mm/vmscan.c */
 extern int shrink_mem(void);

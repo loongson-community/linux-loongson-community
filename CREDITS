@@ -34,8 +34,9 @@ N: Dave Airlie
 E: airlied@linux.ie
 W: http://www.csn.ul.ie/~airlied
 D: NFS over TCP patches
-S: University of Limerick
-S: Ireland
+D: in-kernel DRM Maintainer
+S: Longford, Ireland
+S: Sydney, Australia
 
 N: Tigran A. Aivazian
 E: tigran@veritas.com
@@ -328,8 +329,6 @@ S: Brimson, MN  55602
 S: USA
 
 N: Hennus Bergman
-E: hennus@cybercomm.nl
-W: http://www.cybercomm.nl/~hennus/
 P: 1024/77D50909 76 99 FD 31 91 E1 96 1C  90 BB 22 80 62 F6 BD 63
 D: Author and maintainer of the QIC-02 tape driver
 S: The Netherlands
@@ -841,6 +840,11 @@ E: cort@fsmlabs.com
 W: http://www.fsmlabs.com/linuxppcbk.html
 D: PowerPC
 
+N: Daniel Drake
+E: dsd@gentoo.org
+D: USBAT02 CompactFlash support in usb-storage
+S: UK
+
 N: Oleg Drokin
 E: green@ccssu.crimea.ua
 W: http://www.ccssu.crimea.ua/~green
@@ -1095,7 +1099,7 @@ S: Brazil
 
 N: Kumar Gala
 E: kumar.gala@freescale.com
-D: Embedded PowerPC 6xx/7xx/74xx/82xx/85xx support
+D: Embedded PowerPC 6xx/7xx/74xx/82xx/83xx/85xx support
 S: Austin, Texas 78729
 S: USA
 
@@ -3351,10 +3355,11 @@ S: Santa Clara, CA 95054
 S: USA
 
 N: Matthias Urlichs
-E: urlichs@noris.de
-E: urlichs@smurf.sub.org
+E: smurf@smurf.noris.de
+E: smurf@debian.org
+E: matthias@urlichs.de
 D: Consultant, developer, kernel hacker
-D: Playing with Streams, ISDN, and BSD networking code for Linux
+D: In a previous life, worked on Streams/ISDN/BSD networking code for Linux
 S: Schleiermacherstrasse 12
 S: 90491 Nuernberg
 S: Germany
@@ -3426,6 +3431,7 @@ N: Jeroen Vreeken
 E: pe1rxq@amsat.org
 W: http://www.chello.nl/~j.vreeken/
 D: SE401 usb webcam driver
+D: ZD1201 usb wireless lan driver
 S: Maastrichterweg 63
 S: 5554 GG Valkenswaard
 S: The Netherlands
