@@ -977,9 +977,6 @@ static void get_rtc_time(struct rtc_time *rtc_tm)
 static void get_rtc_alm_time(struct rtc_time *alm_tm)
 {
 	unsigned char ctrl;
-#ifdef CONFIG_DECSTATION
-	unsigned int real_year;
-#endif
 
 	/*
 	 * Only the values that we read from the RTC are set. That
