@@ -16,7 +16,7 @@
 #include <asm/fpregdef.h>
 #include <asm/mipsregs.h>
 #include <asm/stackframe.h>
-#include <asm/cacheops.h>
+#include <asm/r4kcacheops.h>
 
 	.macro	__build_clear_none
 	.endm
@@ -72,8 +72,8 @@
 	__BUILD_clear_\clear
 	.set	at
 	__BUILD_\verbose \exception
+	move	a0, sp
 	jal	do_\handler
-	 move	a0, sp
 	j	ret_from_sys_call
 	 nop
 	END(handle_\exception)
