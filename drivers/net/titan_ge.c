@@ -166,16 +166,14 @@ extern unsigned char titan_ge_mac_addr_base[6];
 })
 
 /*
- * Configure the GMII block of the Titan based 
- * on what the PHY tells us
+ * Configure the GMII block of the Titan based on what the PHY tells us
  */
 static void titan_ge_gmii_config(int port_num)
 {
-	volatile unsigned int reg_data = 0, phy_reg;
+	unsigned int reg_data = 0, phy_reg;
 	int err;
 
-	err = titan_ge_mdio_read(port_num,
-                               TITAN_GE_MDIO_PHY_STATUS, &phy_reg);
+	err = titan_ge_mdio_read(port_num, TITAN_GE_MDIO_PHY_STATUS, &phy_reg);
 
 	if (err == TITAN_GE_MDIO_ERROR) {
                 printk(KERN_ERR
@@ -186,8 +184,7 @@ static void titan_ge_gmii_config(int port_num)
 		return TITAN_ERROR;
         }
 
-	err = titan_ge_mdio_write(port_num,
-			TITAN_GE_MDIO_PHY_IE, 0);
+	err = titan_ge_mdio_write(port_num, TITAN_GE_MDIO_PHY_IE, 0);
 
 	if (phy_reg & 0x8000) {
 		if (phy_reg & 0x2000) {
@@ -381,24 +378,6 @@ static int titan_ge_change_mtu(struct net_device *netdev, int new_mtu)
 
 	spin_unlock_irqrestore(&titan_ge_eth->lock, flags);
 	return 0;
-}
-
-/*
- * Reset the XDMA unit due to errors
- */
-static void titan_ge_xdma_reset(void)
-{
-       unsigned long   reg_data;
-
-       reg_data = TITAN_GE_READ(TITAN_GE_XDMA_CONFIG);
-       reg_data |= 0x80000000;
-       TITAN_GE_WRITE(TITAN_GE_XDMA_CONFIG, reg_data);
-
-       mdelay(2);
-
-       reg_data = TITAN_GE_READ(TITAN_GE_XDMA_CONFIG);
-       reg_data &= ~(0x80000000);
-       TITAN_GE_WRITE(TITAN_GE_XDMA_CONFIG, reg_data);
 }
 
 /*
@@ -1109,7 +1088,8 @@ static void titan_ge_tx_queue(titan_ge_port_info * titan_ge_eth,
 	titan_ge_eth->tx_curr_desc_q = (curr_desc + 1) % TITAN_GE_TX_QUEUE;
 
 	/* Prefetch the next descriptor */
-	prefetch(&(titan_ge_eth->tx_desc_area[titan_ge_eth->tx_curr_desc_q]));
+	prefetch((const void *)
+	         &titan_ge_eth->tx_desc_area[titan_ge_eth->tx_curr_desc_q]);
 }
 
 #ifndef TITAN_RX_NAPI
@@ -1460,7 +1440,8 @@ static int titan_ge_rx(struct net_device *netdev, int port_num,
 	    (rx_curr_desc + 1) % TITAN_GE_RX_QUEUE;
 	
 	/* Prefetch the next descriptor */
-	prefetch(&(titan_ge_port->rx_desc_area[titan_ge_port->rx_curr_desc_q + 1]));
+	prefetch((const void *)
+	       &titan_ge_port->rx_desc_area[titan_ge_port->rx_curr_desc_q + 1]);
 
 	return TITAN_OK;
 }
