@@ -450,6 +450,8 @@ int __init prom_boot_secondary(int cpu, struct task_struct *idle)
 		(launch_proc_t)MAPPED_KERN_RW_TO_K0(smp_bootstrap),
 		0, (void *)((unsigned long)idle->thread_info +
 		THREAD_SIZE - 32), (void *)idle);
+
+	return 0;
 }
 
 /* XXXKW implement prom_init_secondary() and prom_smp_finish to share
