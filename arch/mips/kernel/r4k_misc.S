@@ -7,6 +7,7 @@
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  */
 #include <asm/asm.h>
+#include <asm/current.h>
 #include <asm/offset.h>
 #include <asm/bootinfo.h>
 #include <asm/cachectl.h>
@@ -31,7 +32,7 @@
 #define LOAD_PTE(pte, ptr) \
 	mfc0	pte, CP0_BADVADDR; \
 	srl	pte, pte, 22; \
-	GET_CURRENT(ptr); \
+	_GET_CURRENT(ptr); \
 	sll	pte, pte, 2; \
 	lw	ptr, THREAD_PGDIR(ptr); \
 	addu	ptr, pte, ptr; \

@@ -29,6 +29,20 @@ static inline struct task_struct *__get_current(void)
 	ori	reg, 8191;			\
 	xori	reg, 8191
 
+/*
+ * Special variant for use by exception handlers when the stack pointer
+ * is not loaded.
+ */
+#define _GET_CURRENT(reg)			\
+	lui	reg, %hi(kernelsp);		\
+	.set	push;				\
+	.set	noreorder;			\
+	lw	reg, %lo(kernelsp)(reg);	\
+	.set	pop;				\
+	ori	reg, 8191;			\
+	xori	reg, 8191
+
+
 #endif
 
 #endif /* __ASM_MIPS_CURRENT_H */

@@ -12,6 +12,7 @@
 #include <linux/tasks.h>
 
 #include <asm/asm.h>
+#include <asm/current.h>
 #include <asm/offset.h>
 #include <asm/processor.h>
 #include <asm/regdef.h>
@@ -21,18 +22,6 @@
 #include <asm/stackframe.h>
 #include <asm/bootinfo.h>
 #include <asm/cpu.h>
-
-/*
- * Get current task pointer
- */
-#define GET_CURRENT(reg)			\
-	lui	reg, %hi(kernelsp);		\
-	.set	push;				\
-	.set	noreorder;			\
-	lw	reg, %lo(kernelsp)(reg);	\
-	.set	pop;				\
-	ori	reg, 8191;			\
-	xori	reg, 8191
 
 	.text
 	/*
@@ -55,7 +44,7 @@
 	LEAF(except_vec0_r4000)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR		# Get faulting address
-	GET_CURRENT(k1)				# get current task ptr
+	_GET_CURRENT(k1)			# get current task ptr
 	srl	k0, k0, 22			# get pgd only bits
 	lw	k1, THREAD_PGDIR(k1)		# get task pg_dir
 	sll	k0, k0, 2
@@ -82,7 +71,7 @@
 	LEAF(except_vec0_r4600)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
-	GET_CURRENT(k1)				# get current task ptr
+	_GET_CURRENT(k1)			# get current task ptr
 	srl	k0, k0, 22
 	lw	k1, THREAD_PGDIR(k1)
 	sll	k0, k0, 2
@@ -108,7 +97,7 @@
 	LEAF(except_vec0_r45k_bvahwbug)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
-	GET_CURRENT(k1)				# get current task ptr
+	_GET_CURRENT(k1)			# get current task ptr
 	srl	k0, k0, 22
 	lw	k1, THREAD_PGDIR(k1)
 	sll	k0, k0, 2
@@ -138,7 +127,7 @@
 	LEAF(except_vec0_r4k_mphwbug)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
-	GET_CURRENT(k1)				# get current task ptr
+	_GET_CURRENT(k1)			# get current task ptr
 	srl	k0, k0, 22
 	lw	k1, THREAD_PGDIR(k1)
 	sll	k0, k0, 2
@@ -168,7 +157,7 @@
 	LEAF(except_vec0_r4k_250MHZhwbug)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
-	GET_CURRENT(k1)				# get current task ptr
+	_GET_CURRENT(k1)			# get current task ptr
 	srl	k0, k0, 22
 	lw	k1, THREAD_PGDIR(k1)
 	sll	k0, k0, 2
@@ -198,7 +187,7 @@
 	LEAF(except_vec0_r4k_MP250MHZhwbug)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
-	GET_CURRENT(k1)				# get current task ptr
+	_GET_CURRENT(k1)			# get current task ptr
 	srl	k0, k0, 22
 	lw	k1, THREAD_PGDIR(k1)
 	sll	k0, k0, 2
@@ -230,7 +219,7 @@
 	LEAF(except_vec0_r2300)
 	.set	mips1
 	mfc0	k0, CP0_BADVADDR
-	GET_CURRENT(k1)				# get current task ptr
+	_GET_CURRENT(k1)			# get current task ptr
 	srl	k0, k0, 22
 	lw	k1, THREAD_PGDIR(k1)
 	sll	k0, k0, 2
@@ -408,12 +397,9 @@ probe_done:
 
 	/*
 	 * Stack for kernel and init
-	 *
-	 * Kernelsp will never be referenced for process 0.
 	 */
 9:	la	sp, init_task_union+(KERNEL_STACK_SIZE-4*SZREG)
-	la	t0, init_task_union+(KERNEL_STACK_SIZE)
-	sw	t0, kernelsp
+	sw	sp, kernelsp
 
 	/* Disable coprocessors */
 	mfc0	t0, CP0_STATUS
