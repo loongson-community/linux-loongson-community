@@ -1,4 +1,4 @@
-/* $Id: vino.c,v 1.2 1999/02/09 23:03:52 ulfc Exp $
+/* $Id: vino.c,v 1.3 1999/02/09 23:54:24 ulfc Exp $
  * drivers/char/vino.c
  *
  * (incomplete) Driver for the Vino Video input system found in SGI Indys.
@@ -163,29 +163,29 @@ static int vino_init(void)
 	printk("Vino: ID:%02hx Rev:%02hx\n", id, rev);
 
 	foo = vino_reg_read(VINO_A_DESC_DATA0);
-	printk("0x%x", bar[0]);
-	printk("%x ", bar[1]);
+	printk("0x%lx", bar[0]);
+	printk("%lx ", bar[1]);
 	foo = vino_reg_read(VINO_A_DESC_DATA1);
-	printk("0x%x", bar[0]);
-	printk("%x ", bar[1]);
+	printk("0x%lx", bar[0]);
+	printk("%lx ", bar[1]);
 	foo = vino_reg_read(VINO_A_DESC_DATA2);
-	printk("0x%x", bar[0]);
-	printk("%x ", bar[1]);
+	printk("0x%lx", bar[0]);
+	printk("%lx ", bar[1]);
 	foo = vino_reg_read(VINO_A_DESC_DATA3);
-	printk("0x%x", bar[0]);
-	printk("%x\n", bar[1]);
+	printk("0x%lx", bar[0]);
+	printk("%lx\n", bar[1]);
 	foo = vino_reg_read(VINO_B_DESC_DATA0);
-	printk("0x%x", bar[0]);
-	printk("%x ", bar[1]);
+	printk("0x%lx", bar[0]);
+	printk("%lx ", bar[1]);
 	foo = vino_reg_read(VINO_B_DESC_DATA1);
-	printk("0x%x", bar[0]);
-	printk("%x ", bar[1]);
+	printk("0x%lx", bar[0]);
+	printk("%lx ", bar[1]);
 	foo = vino_reg_read(VINO_B_DESC_DATA2);
-	printk("0x%x", bar[0]);
-	printk("%x ", bar[1]);
+	printk("0x%lx", bar[0]);
+	printk("%lx ", bar[1]);
 	foo = vino_reg_read(VINO_B_DESC_DATA3);
-	printk("0x%x", bar[0]);
-	printk("%x\n", bar[1]);
+	printk("0x%lx", bar[0]);
+	printk("%lx\n", bar[1]);
 
 	return 0;
 }
