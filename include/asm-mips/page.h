@@ -15,6 +15,8 @@
 
 #include <spaces.h>
 
+#endif
+
 /*
  * PAGE_SHIFT determines the page size
  */
@@ -33,6 +35,7 @@
 #define PAGE_SIZE	(1UL << PAGE_SHIFT)
 #define PAGE_MASK	(~(PAGE_SIZE-1))
 
+#ifdef __KERNEL__
 #ifndef __ASSEMBLY__
 
 extern void clear_page(void * page);
