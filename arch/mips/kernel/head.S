@@ -28,14 +28,14 @@
 #include <asm/mipsregs.h>
 #include <asm/stackframe.h>
 
-		__INIT
-
 		.text
 		/*
 		 * Reserved space for exception handlers.
 		 * Necessary for machines which link their kernels at KSEG0.
 		 */
 		.fill	0x400
+
+		__INIT
 
 		/* Cache Error */
 		LEAF(except_vec2_generic)
