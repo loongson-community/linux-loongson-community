@@ -168,7 +168,7 @@ badframe:
 	force_sig(SIGSEGV, current);
 }
 
-static inline int setup_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
+int inline setup_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 {
 	int err = 0;
 
@@ -306,6 +306,9 @@ give_sigsegv:
 	force_sig(SIGSEGV, current);
 }
 
+extern void setup_rt_frame_n32(struct k_sigaction * ka,
+	struct pt_regs *regs, int signr, sigset_t *set, siginfo_t *info);
+
 static inline void handle_signal(unsigned long sig, siginfo_t *info,
 	sigset_t *oldset, struct pt_regs *regs)
 {
@@ -330,7 +333,12 @@ static inline void handle_signal(unsigned long sig, siginfo_t *info,
 
 	regs->regs[0] = 0;		/* Don't deal with this again.  */
 
-	setup_rt_frame(ka, regs, sig, oldset, info);
+#ifdef CONFIG_MIPS32_N32
+	if ((current->thread.mflags & MF_ABI_MASK) == MF_N32)
+		setup_rt_frame_n32 (ka, regs, sig, oldset, info);
+        else
+#endif
+		setup_rt_frame(ka, regs, sig, oldset, info);
 
 	if (ka->sa.sa_flags & SA_ONESHOT)
 		ka->sa.sa_handler = SIG_DFL;
@@ -353,7 +361,7 @@ asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 	int signr;
 
 #ifdef CONFIG_BINFMT_ELF32
-	if (current->thread.mflags & MF_32BIT_REGS) {
+	if ((current->thread.mflags & MF_ABI_MASK) == MF_O32) {
 		return do_signal32(oldset, regs);
 	}
 #endif
@@ -398,7 +406,7 @@ asmlinkage void do_notify_resume(struct pt_regs *regs, sigset_t *oldset,
 	/* deal with pending signal delivery */
 	if (thread_info_flags & _TIF_SIGPENDING) {
 #ifdef CONFIG_BINFMT_ELF32
-		if (likely((current->thread.mflags & MF_32BIT_REGS))) {
+		if (likely((current->thread.mflags & MF_ABI_MASK) == MF_O32)) {
 			do_signal32(oldset, regs);
 			return;
 		}
