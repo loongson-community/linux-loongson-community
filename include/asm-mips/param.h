@@ -22,9 +22,10 @@
 #  define HZ_TO_STD(a)                            \
    ({ int __res;                                  \
         __asm__(                                  \
-           "multu\t%0,%2\n\t"			  \
+	   "multu\t%0,%2\n\t"			  \
            "mfhi\t%0"				  \
-        : "=r" (__res): "0" (a), "r" (QUOTIENT)); \
+        : "=r" (__res): "0" (a), "r" (QUOTIENT)	  \
+	: "hi", "lo" );				  \
         __res;})
 #else
 #  define HZ 100
