@@ -95,7 +95,7 @@ long long ieee754dp_tlong(ieee754dp x)
 		if ((xm >> 63) != 0) {
 			/* This can happen after rounding */
 			SETCX(IEEE754_INVALID_OPERATION);
-			return ieee754si_xcpt(ieee754di_indef(), "dp_tlong", x);
+			return ieee754di_xcpt(ieee754di_indef(), "dp_tlong", x);
 		}
 		if (round || sticky)
 			SETCX(IEEE754_INEXACT);
