@@ -67,7 +67,7 @@ typedef void *vaddr_t;
 
 /* Function which emulates the instruction in a branch delay slot. */
 
-static int mips_dsemul(struct pt_regs *, mips_instruction, vaddr_t);
+static int mips_dsemul(struct pt_regs *, mips_instruction, unsigned long);
 
 /* Function which emulates a floating point instruction. */
 
@@ -244,7 +244,7 @@ emul:
 #ifndef SINGLE_ONLY_FPU
 	case ldc1_op:
 		{
-			u32 *va = REG_TO_VA(regs->regs[MIPSInst_RS(ir)]) +
+			u64 *va = REG_TO_VA(regs->regs[MIPSInst_RS(ir)]) +
 			          MIPSInst_SIMM(ir);
 			int ft = MIPSInst_RT(ir);
 
@@ -311,8 +311,8 @@ emul:
 
 	case swc1_op:
 		{
-			fpureg_t *va = REG_TO_VA(regs->regs[MIPSInst_RS(ir)]) +
-			               MIPSInst_SIMM(ir);
+			u32 *va = REG_TO_VA(regs->regs[MIPSInst_RS(ir)]) +
+			          MIPSInst_SIMM(ir);
 			unsigned int val;
 			int ft = MIPSInst_RT(ir);
 
@@ -341,8 +341,8 @@ emul:
 #else				/* old 32-bit fpu registers */
 	case lwc1_op:
 		{
-			fpureg_t *va = REG_TO_VA(regs->regs[MIPSInst_RS(ir)]) +
-			               MIPSInst_SIMM(ir);
+			u32 *va = REG_TO_VA(regs->regs[MIPSInst_RS(ir)]) +
+			          MIPSInst_SIMM(ir);
 			err = get_user(ctx->regs[MIPSInst_RT(ir)], va);
 
 			fpuemuprivate.stats.loads++;
@@ -366,17 +366,17 @@ emul:
 		break;
 	case ldc1_op:
 		{
-			void *va = REG_TO_VA(regs->regs[MIPSInst_RS(ir)])
+			u32 *va = REG_TO_VA(regs->regs[MIPSInst_RS(ir)])
 			    + MIPSInst_SIMM(ir);
 			unsigned int rt = MIPSInst_RT(ir) & ~1;
 			int errs = 0;
 			fpuemuprivate.stats.loads++;
 #if (defined(BYTE_ORDER) && BYTE_ORDER == BIG_ENDIAN) || defined(__MIPSEB__)
 			err = get_user(ctx->regs[rt + 1], va + 0);
-			err |= get_user(ctx->regs[rt + 0], va + 4);
+			err |= get_user(ctx->regs[rt + 0], va + 1);
 #else
 			err = get_user(ctx->regs[rt + 0], va + 0);
-			err |= get_user(ctx->regs[rt + 1], va + 4);
+			err |= get_user(ctx->regs[rt + 1], va + 1);
 #endif
 			if (err)
 				return SIGBUS;
@@ -713,38 +713,48 @@ emul:
  */
 
 /* Instruction inserted following delay slot instruction to force trap */
-#define AdELOAD 0x8c000001    /* lw $0,1($0) */
+#define AdELOAD 0x8c000001	/* lw $0,1($0) */
 
 /* Instruction inserted following the AdELOAD to further tag the sequence */
-#define BD_COOKIE 0x0000bd36 /* tne $0,$0 with baggage */
+#define BD_COOKIE 0x0000bd36	/* tne $0,$0 with baggage */
+
+struct emuframe {
+	mips_instruction	emul;
+	mips_instruction	adel;
+	mips_instruction	cookie;
+	unsigned long	epc;
+};
 
 int do_dsemulret(struct pt_regs *xcp)
 {
-	mips_instruction *pinst;
-	unsigned long stackitem;
+	struct emuframe *fr;
+	unsigned long epc;
+	u32 insn, cookie;
 	int err = 0;
 
-	/* See if this trap was deliberate. First check the instruction */
-
-	pinst = (mips_instruction *) REG_TO_VA(xcp->cp0_epc);
+	fr = (struct emuframe *) (xcp->cp0_epc - sizeof(mips_instruction));
 
 	/* 
 	 * If we can't even access the area, something is very wrong, but we'll
 	 * leave that to the default handling
 	 */
-	if (verify_area(VERIFY_READ, pinst, sizeof(unsigned long) * 3))
+	if (verify_area(VERIFY_READ, fr, sizeof(struct emuframe)))
 		return 0;
 
-	/* Is the instruction pointed to by the EPC an AdELOAD? */
-	err = get_user(stackitem, pinst);
-	if (err || (stackitem != AdELOAD))
-		return 0;
+	/*
+	 * Do some sanity checking on the stackframe:
+	 *
+	 *  - Is the instruction pointed to by the EPC an AdELOAD?
+	 *  - Is the following memory word the BD_COOKIE?
+	 */
+	err = __get_user(insn, &fr->adel);
+	err |= __get_user(cookie, &fr->cookie);
 
-	/* Is the following memory word the BD_COOKIE? */
+	if (unlikely(err || (insn != AdELOAD) || (cookie != BD_COOKIE))) {
+		fpuemuprivate.stats.errors++;
 
-	err = get_user(stackitem, pinst + 1);
-	if (err || (stackitem != BD_COOKIE))
 		return 0;
+	}
 
 	/* 
 	 * At this point, we are satisfied that it's a BD emulation trap.  Yes,
@@ -759,40 +769,37 @@ int do_dsemulret(struct pt_regs *xcp)
 #ifdef DSEMUL_TRACE
 	printk("desemulret\n");
 #endif
-	/* Fetch the Saved EPC to Resume */
-
-	err = get_user(stackitem, pinst + 2);
-	if (err) {
+	if (__get_user(epc, &fr->epc)) {		/* Saved EPC */
 		/* This is not a good situation to be in */
-		fpuemuprivate.stats.errors++;
 		force_sig(SIGBUS, current);
+
 		return 1;
 	}
 
 	/* Set EPC to return to post-branch instruction */
-	xcp->cp0_epc = stackitem;
+	xcp->cp0_epc = epc;
 
 	return 1;
 }
 
-
-#define AdELOAD 0x8c000001	/* lw $0,1($0) */
-
-static int mips_dsemul(struct pt_regs *regs, mips_instruction ir, vaddr_t cpc)
+static int mips_dsemul(struct pt_regs *regs, mips_instruction ir,
+	unsigned long cpc)
 {
 	extern asmlinkage void handle_dsemulret(void);
 	mips_instruction *dsemul_insns;
+	struct emuframe *fr;
 	int err;
 
 	if (ir == 0) {		/* a nop is easy */
-		regs->cp0_epc = VA_TO_REG(cpc);
+		regs->cp0_epc = cpc;
 		regs->cp0_cause &= ~CAUSEF_BD;
 		return 0;
 	}
 #ifdef DSEMUL_TRACE
-	printk("desemul %p %p\n", REG_TO_VA(regs->cp0_epc), cpc);
-#endif
+	printk("desemul %lx %lx\n", regs->cp0_epc, cpc);
 
+#endif
+ 
 	/* 
 	 * The strategy is to push the instruction onto the user stack 
 	 * and put a trap after it which we can catch and jump to 
@@ -810,16 +817,17 @@ static int mips_dsemul(struct pt_regs *regs, mips_instruction ir, vaddr_t cpc)
 	/* Ensure that the two instructions are in the same cache line */
 	dsemul_insns = (mips_instruction *) (regs->regs[29] & ~0xf);
 	dsemul_insns -= 4;	/* Retain 16-byte alignment */
+	fr = (struct emuframe *) dsemul_insns;
 
 	/* Verify that the stack pointer is not competely insane */
-	if (unlikely(verify_area(VERIFY_WRITE, dsemul_insns,
-	                         sizeof(mips_instruction) * 4)))
+	if (unlikely(verify_area(VERIFY_WRITE, fr, sizeof(struct emuframe))))
 		return SIGBUS;
 
 	err = __put_user(ir, &dsemul_insns[0]);
-	err |= __put_user((mips_instruction)AdELOAD, &dsemul_insns[1]);
-	err |= __put_user((mips_instruction)BD_COOKIE, &dsemul_insns[2]);
-	err |= __put_user((mips_instruction)cpc, &dsemul_insns[3]);
+	err |= __put_user((mips_instruction)AdELOAD, &fr->adel);
+	err |= __put_user((mips_instruction)BD_COOKIE, &fr->epc);
+	err |= __put_user(cpc, &fr->epc);
+
 	if (unlikely(err)) {
 		fpuemuprivate.stats.errors++;
 		return SIGBUS;
@@ -827,7 +835,8 @@ static int mips_dsemul(struct pt_regs *regs, mips_instruction ir, vaddr_t cpc)
 
 	regs->cp0_epc = VA_TO_REG & dsemul_insns[0];
 
-	flush_cache_sigtramp((unsigned long)dsemul_insns);
+	flush_cache_sigtramp((unsigned long)&fr->adel);
+
 	return SIGILL;		/* force out of emulation loop */
 }
 
@@ -938,21 +947,18 @@ static int fpux_emu(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx,
 			switch (MIPSInst_FUNC(ir)) {
 			case lwxc1_op:
 				{
-					void *va = REG_TO_VA(
+					u32 *va = REG_TO_VA(
 						xcp->regs[MIPSInst_FR(ir)] +
 						xcp->regs[MIPSInst_FT(ir)]);
 					fpureg_t val;
-					int err = 0;
 
-					err = get_user(val, (fpureg_t *)va);
-					if (err) {
+					if (get_user(val, va)) {
 						fpuemuprivate.stats.errors++;
 						return SIGBUS;
 					}
 					if (xcp->cp0_status & ST0_FR) {
 						/* load whole register */
-						ctx->
-						    regs[MIPSInst_FD(ir)] =
+						ctx->regs[MIPSInst_FD(ir)] =
 						    val;
 					} else if (MIPSInst_FD(ir) & 1) {
 						/* load to m.s. 32 bits */
@@ -1076,29 +1082,28 @@ static int fpux_emu(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx,
 			switch (MIPSInst_FUNC(ir)) {
 			case ldxc1_op:
 				{
-					void *va = REG_TO_VA(
+					u64 *va = REG_TO_VA(
 						xcp->regs[MIPSInst_FR(ir)] +
 						xcp->regs[MIPSInst_FT(ir)]);
-					int err;
+					u64 val;
 
-					err=get_user(ctx->regs[MIPSInst_FD(ir)],
-					         (unsigned int *)va);
-					if (err) {
-						fpuemuprivate.stats.
-						    errors++;
+					if (get_user(val, va)) {
+						fpuemuprivate.stats.errors++;
 						return SIGBUS;
 					}
+					ctx->regs[MIPSInst_FD(ir)] = val;
 				}
 				break;
 
 			case sdxc1_op:
 				{
-					void *va = REG_TO_VA(
+					u64 *va = REG_TO_VA(
 						xcp->regs[MIPSInst_FR(ir)] +
 						xcp->regs[MIPSInst_FT(ir)]);
+					u64 val;
 
-					if (put_user(ctx->regs[MIPSInst_FS(ir)],
-					             (unsigned int *)va)) {
+					val = ctx->regs[MIPSInst_FS(ir)];
+					if (put_user(val, va)) {
 						fpuemuprivate.stats.errors++;
 						return SIGBUS;
 					}
@@ -1636,7 +1641,7 @@ int fpu_emulator_cop1Handler(struct pt_regs *xcp)
 {
 	struct mips_fpu_soft_struct *ctx = &current->thread.fpu.soft;
 	unsigned long oldepc, prevepc;
-	unsigned int insn;
+	mips_instruction insn;
 	int sig = 0;
 	int err = 0;
 
@@ -1646,7 +1651,7 @@ int fpu_emulator_cop1Handler(struct pt_regs *xcp)
 			schedule();
 
 		prevepc = xcp->cp0_epc;
-		err = get_user(insn, (unsigned int *) xcp->cp0_epc);
+		err = get_user(insn, (mips_instruction *) xcp->cp0_epc);
 		if (err) {
 			fpuemuprivate.stats.errors++;
 			return SIGBUS;
