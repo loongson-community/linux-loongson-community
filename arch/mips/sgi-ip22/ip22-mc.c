@@ -82,6 +82,14 @@ void __init sgimc_init(void)
 	 * interrupts are first enabled etc.
 	 */
 
+	/* Step 0: Make sure we turn off the watchdog in case it's
+	 *         still running (which might be the case after a
+	 *         soft reboot).
+	 */
+	tmpreg = mcmisc_regs->cpuctrl0; 
+	tmpreg &= ~SGIMC_CCTRL0_WDOG;
+	mcmisc_regs->cpuctrl0 = tmpreg;
+
 	/* Step 1: The CPU/GIO error status registers will not latch
 	 *         up a new error status until the register has been
 	 *         cleared by the cpu.  These status registers are
