@@ -1,4 +1,4 @@
-/* $Id: traps.c,v 1.25 1999/08/21 22:19:11 ralf Exp $
+/* $Id: traps.c,v 1.26 1999/12/04 03:59:00 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -25,6 +25,7 @@
 #include <asm/watch.h>
 #include <asm/system.h>
 #include <asm/uaccess.h>
+#include <asm/mmu_context.h>
 
 extern int console_loglevel;
 
@@ -605,6 +606,9 @@ void __init trap_init(void)
 	   mips_machtype == MACH_SNI_RM200_PCI)
 		EISA_bus = 1;
 
+	/* Some firmware leaves the BEV flag set, clear it.  */
+	set_cp0_status(ST0_BEV, 0);
+
 	/* Copy the generic exception handler code to it's final destination. */
 	memcpy((void *)(KSEG0 + 0x80), &except_vec1_generic, 0x80);
 	memcpy((void *)(KSEG0 + 0x100), &except_vec2_generic, 0x80);
@@ -736,4 +740,5 @@ void __init trap_init(void)
 
 	atomic_inc(&init_mm.mm_count);	/* XXX  UP?  */
 	current->active_mm = &init_mm;
+	current_pgd = init_mm.pgd;
 }

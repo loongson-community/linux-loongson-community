@@ -25,6 +25,7 @@
 #include <asm/watch.h>
 #include <asm/system.h>
 #include <asm/uaccess.h>
+#include <asm/mmu_context.h>
 
 extern int console_loglevel;
 
@@ -486,6 +487,9 @@ void __init trap_init(void)
 	extern char except_vec3_generic, except_vec3_r4000;
 	unsigned long i;
 
+	/* Some firmware leaves the BEV flag set, clear it.  */
+	set_cp0_status(ST0_BEV, 0);
+
 	/* Copy the generic exception handler code to it's final destination. */
 	memcpy((void *)(KSEG0 + 0x100), &except_vec2_generic, 0x80);
 	memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic, 0x80);
@@ -516,12 +520,8 @@ void __init trap_init(void)
 		 */
 		write_32bit_cp0_register(CP0_FRAMEMASK, 0);
 		set_cp0_status(ST0_XX, ST0_XX);
-		/*
-		 * The R10k might even work for Linux/MIPS - but we're paranoid
-		 * and refuse to run until this is tested on real silicon
-		 */
-		panic("CPU too expensive - making holiday in the ANDES!");
-		break;
+		goto r4k;
+
 	case CPU_R4000MC:
 	case CPU_R4400MC:
 	case CPU_R4000SC:
@@ -535,6 +535,7 @@ void __init trap_init(void)
 	case CPU_R4600:
 	case CPU_R5000:
 	case CPU_NEVADA:
+r4k:
 		/* Debug TLB refill handler.  */
 		memcpy((void *)KSEG0, &__tlb_refill_debug_tramp, 0x80);
 		memcpy((void *)KSEG0 + 0x080, &__xtlb_refill_debug_tramp, 0x80);
@@ -585,4 +586,5 @@ void __init trap_init(void)
 
 	atomic_inc(&init_mm.mm_count);	/* XXX UP?  */
 	current->active_mm = &init_mm;
+	current_pgd = init_mm.pgd;
 }
