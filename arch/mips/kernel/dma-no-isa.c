@@ -12,7 +12,7 @@
 #include <linux/module.h>
 #include <linux/spinlock.h>
 
-spinlock_t dma_spin_lock = SPIN_LOCK_UNLOCKED;
+DEFINE_SPINLOCK(dma_spin_lock);
 
 int request_dma(unsigned int dmanr, const char * device_id)
 {
