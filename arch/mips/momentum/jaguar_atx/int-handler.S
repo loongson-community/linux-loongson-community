@@ -120,7 +120,7 @@ ll_uart_irq:
 ll_cputimer_irq:
 		li	a0, 7
 		move	a1, sp
-		jal	do_IRQ
+		jal	ll_timer_interrupt
 		j	ret_from_irq
 	
 ll_mv64340_decode_irq:
