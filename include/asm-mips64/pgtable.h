@@ -36,21 +36,7 @@ extern void (*_flush_page_to_ram)(struct page * page);
 #define flush_cache_all()		do { } while(0)
 #define flush_dcache_page(page)		do { } while (0)
 
-#ifndef CONFIG_CPU_R10000
-#define flush_cache_mm(mm)		_flush_cache_mm(mm)
-#define flush_cache_range(mm,start,end)	_flush_cache_range(mm,start,end)
-#define flush_cache_page(vma,page)	_flush_cache_page(vma, page)
-#define flush_page_to_ram(page)		_flush_page_to_ram(page)
-
-#define flush_icache_range(start, end)	_flush_cache_l1()
-
-#define flush_icache_page(vma, page)					\
-do {									\
-	unsigned long addr;						\
-	addr = (unsigned long) page_address(page);			\
-	_flush_cache_page(vma, addr);					\
-} while (0)                                                              
-#else /* !CONFIG_CPU_R10000 */
+#ifdef CONFIG_CPU_R10000
 /*
  * Since the r10k handles VCEs in hardware, most of the flush cache
  * routines are not needed. Only the icache on a processor is not
@@ -71,6 +57,22 @@ do {									\
 	if ((vma)->vm_flags & VM_EXEC)					\
 		andes_flush_icache_page(page_address(page));		\
 } while (0)
+
+#else
+
+#define flush_cache_mm(mm)		_flush_cache_mm(mm)
+#define flush_cache_range(mm,start,end)	_flush_cache_range(mm,start,end)
+#define flush_cache_page(vma,page)	_flush_cache_page(vma, page)
+#define flush_page_to_ram(page)		_flush_page_to_ram(page)
+
+#define flush_icache_range(start, end)	_flush_cache_l1()
+
+#define flush_icache_page(vma, page)					\
+do {									\
+	unsigned long addr;						\
+	addr = (unsigned long) page_address(page);			\
+	_flush_cache_page(vma, addr);					\
+} while (0)                                                              
 #endif /* !CONFIG_CPU_R10000 */
 
 /*
