@@ -58,13 +58,16 @@ extern void *l3info;
 /* Max ram addressable in 32-bit segments */
 #ifdef CONFIG_HIGHMEM
 #ifdef CONFIG_64BIT_PHYS_ADDR
-/* #define MAX_RAM_SIZE (0xffffffffffffffff) */
 #define MAX_RAM_SIZE (~0ULL)
 #else
 #define MAX_RAM_SIZE (0xffffffffULL)
 #endif
 #else
+#ifdef CONFIG_MIPS64
+#define MAX_RAM_SIZE (~0ULL)
+#else
 #define MAX_RAM_SIZE (0x1fffffffULL)
+#endif
 #endif
 
 
@@ -400,9 +403,6 @@ static int __init initrd_setup(char *str)
  */
 __init int prom_init(int argc, char **argv, char **envp, int *prom_vec)
 {
-#ifdef CONFIG_SWARM_STANDALONE
-	strcpy(arcs_cmdline, "root=/dev/ram0 ");
-#else	
 	/* 
 	 * This should go away.  Detect if we're booting
 	 * straight from cfe without a loader.  If we
@@ -427,7 +427,7 @@ __init int prom_init(int argc, char **argv, char **envp, int *prom_vec)
 			panic("LINUX_CMDLINE not defined in cfe.");
 		}
 	}
-	
+
 #ifdef CONFIG_BLK_DEV_INITRD
 	{
 		char *ptr;
@@ -448,7 +448,6 @@ __init int prom_init(int argc, char **argv, char **envp, int *prom_vec)
 		}
 	}
 #endif /* CONFIG_BLK_DEV_INITRD */
-#endif /* CONFIG_SWARM_STANDALONE */
 
 	/* Not sure this is needed, but it's the safe way. */
 	arcs_cmdline[CL_SIZE-1] = 0;
