@@ -14,9 +14,6 @@
 #include <asm/isadep.h>
 #include <linux/types.h>
 
-/* MIPS specific ptrace option.  */
-#define PTRACE_SETOPTIONS
-
 /* 0 - 31 are integer registers, 32 - 63 are fp registers.  */
 #define FPR_BASE	32
 #define PC		64
