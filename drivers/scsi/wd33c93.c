@@ -292,7 +292,6 @@ int wd33c93_queuecommand (Scsi_Cmnd *cmd, void (*done)(Scsi_Cmnd *))
 	Scsi_Cmnd *tmp;
 	unsigned long flags;
 
-	disable_irq(cmd->host->irq);
 	DB(DB_QCMD,printk("Q-%d-%02x-%ld( ",cmd->target,cmd->cmnd[0],cmd->pid));
 
 	/* Set up a few fields in the Scsi_Cmnd structure for our own use:
