@@ -65,7 +65,7 @@ unsigned long arch_get_unmapped_area(struct file *filp, unsigned long addr,
 	int do_color_align;
 	unsigned long task_size;
 
-#if CONFIG_MIPS32
+#ifdef CONFIG_MIPS32
 	task_size = TASK_SIZE;
 #else
 	task_size = (current->thread.mflags & MF_32BIT_ADDR) ? TASK_SIZE32 : TASK_SIZE;

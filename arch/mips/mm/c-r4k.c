@@ -588,10 +588,10 @@ static void r4k_flush_cache_sigtramp(unsigned long addr)
 			".set push\n\t"
 			".set noat\n\t"
 			".set mips3\n\t"
-#if CONFIG_MIPS32
+#ifdef CONFIG_MIPS32
 			"la	$at,1f\n\t"
 #endif
-#if CONFIG_MIPS64
+#ifdef CONFIG_MIPS64
 			"dla	$at,1f\n\t"
 #endif
 			"cache	%0,($at)\n\t"
