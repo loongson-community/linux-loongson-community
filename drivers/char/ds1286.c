@@ -38,6 +38,7 @@
 #include <linux/rtc.h>
 #include <linux/spinlock.h>
 #include <linux/bcd.h>
+#include <linux/proc_fs.h>
 
 #include <asm/uaccess.h>
 #include <asm/system.h>
@@ -61,16 +62,16 @@ static int ds1286_ioctl(struct inode *inode, struct file *file,
 
 static unsigned int ds1286_poll(struct file *file, poll_table *wait);
 
-void ds1286_get_alm_time (struct rtc_time *alm_tm);
-void ds1286_get_time(struct rtc_time *rtc_tm);
-int ds1286_set_time(struct rtc_time *rtc_tm);
-
-void set_rtc_irq_bit(unsigned char bit);
-void clear_rtc_irq_bit(unsigned char bit);
+static void ds1286_get_alm_time (struct rtc_time *alm_tm);
+static void ds1286_get_time(struct rtc_time *rtc_tm);
+static int ds1286_set_time(struct rtc_time *rtc_tm);
 
 static inline unsigned char ds1286_is_updating(void);
 
 static spinlock_t ds1286_lock = SPIN_LOCK_UNLOCKED;
+
+static int ds1286_read_proc(char *page, char **start, off_t off,
+                            int count, int *eof, void *data);
 
 /*
  *	Bits in rtc_status. (7 bits of room for future expansion)
@@ -79,11 +80,11 @@ static spinlock_t ds1286_lock = SPIN_LOCK_UNLOCKED;
 #define RTC_IS_OPEN		0x01	/* means /dev/rtc is in use	*/
 #define RTC_TIMER_ON		0x02	/* missed irq timer active	*/
 
-unsigned char ds1286_status;		/* bitmapped status byte.	*/
-unsigned long ds1286_freq;		/* Current periodic IRQ rate	*/
+static unsigned char ds1286_status;	/* bitmapped status byte.	*/
 
-unsigned char days_in_mo[] =
-{0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+static unsigned char days_in_mo[] = {
+	0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
+};
 
 /*
  *	Now all the various file operations that we export.
@@ -296,10 +297,35 @@ static struct miscdevice ds1286_dev=
 	.fops	= &ds1286_fops,
 };
 
-int __init ds1286_init(void)
+static int __init ds1286_init(void)
 {
+	int err;
+
 	printk(KERN_INFO "DS1286 Real Time Clock Driver v%s\n", DS1286_VERSION);
-	return misc_register(&ds1286_dev);
+
+	err = misc_register(&ds1286_dev);
+	if (err)
+		goto out;
+
+	if (!create_proc_read_entry("driver/rtc", 0, 0, ds1286_read_proc, NULL)) {
+		err = -ENOMEM;
+
+		goto out_deregister;
+	}
+
+	return 0;
+
+out_deregister:
+	misc_deregister(&ds1286_dev);
+
+out:
+	return err;
+}
+
+static void __exit ds1286_exit(void)
+{
+	remove_proc_entry("driver/rtc", NULL);
+	misc_deregister(&ds1286_dev);
 }
 
 static char *days[] = {
@@ -309,7 +335,7 @@ static char *days[] = {
 /*
  *	Info exported via "/proc/rtc".
  */
-int get_ds1286_status(char *buf)
+static int ds1286_proc_output(char *buf)
 {
 	char *p, *s;
 	struct rtc_time tm;
@@ -381,6 +407,21 @@ int get_ds1286_status(char *buf)
 	return  p - buf;
 }
 
+static int ds1286_read_proc(char *page, char **start, off_t off,
+                         int count, int *eof, void *data)
+{
+	int len = ds1286_proc_output (page);
+	if (len <= off+count) *eof = 1;
+	*start = page + off;
+	len -= off;
+	if (len>count)
+		len = count;
+	if (len<0)
+		len = 0;
+
+	return len;
+}
+
 /*
  * Returns true if a clock update is in progress
  */
@@ -390,7 +431,7 @@ static inline unsigned char ds1286_is_updating(void)
 }
 
 
-void ds1286_get_time(struct rtc_time *rtc_tm)
+static void ds1286_get_time(struct rtc_time *rtc_tm)
 {
 	unsigned char save_control;
 	unsigned int flags;
@@ -449,7 +490,7 @@ void ds1286_get_time(struct rtc_time *rtc_tm)
 	rtc_tm->tm_mon--;
 }
 
-int ds1286_set_time(struct rtc_time *rtc_tm)
+static int ds1286_set_time(struct rtc_time *rtc_tm)
 {
 	unsigned char mon, day, hrs, min, sec, leap_yr;
 	unsigned char save_control;
@@ -508,7 +549,7 @@ int ds1286_set_time(struct rtc_time *rtc_tm)
 	return 0;
 }
 
-void ds1286_get_alm_time(struct rtc_time *alm_tm)
+static void ds1286_get_alm_time(struct rtc_time *alm_tm)
 {
 	unsigned char cmd;
 	unsigned int flags;
@@ -528,3 +569,10 @@ void ds1286_get_alm_time(struct rtc_time *alm_tm)
 	BCD_TO_BIN(alm_tm->tm_hour);
 	alm_tm->tm_sec = 0;
 }
+
+module_init(ds1286_init);
+module_exit(ds1286_exit);
+
+MODULE_AUTHOR("Ralf Baechle");
+MODULE_LICENSE("GPL");
+MODULE_ALIAS_MISCDEV(RTC_MINOR);
