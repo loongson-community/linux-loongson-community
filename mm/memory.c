@@ -856,7 +856,7 @@ static inline void handle_pte_fault(struct task_struct *tsk,
 	if (!write_access)
 		return;
 	if (pte_write(entry)) {
-		set_pte(pte, pte_mkdirty(entry));
+		set_pte(pte, pte_mkdirty(*pte));
 		flush_tlb_page(vma, address);
 		return;
 	}
