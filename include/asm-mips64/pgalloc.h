@@ -192,9 +192,9 @@ extern inline pmd_t *pmd_alloc(pgd_t * pgd, unsigned long address)
 }
 
 extern pte_t kptbl[(PAGE_SIZE<<KPTBL_PAGE_ORDER)/sizeof(pte_t)];
+extern pmd_t kpmdtbl[PTRS_PER_PMD];
 
-#define MAGIC_PMD_VAL		((pmd_t *)0x1234)
-#define pmd_alloc_kernel(d,a)	MAGIC_PMD_VAL
+#define pmd_alloc_kernel(d,a)	(pmd_t *)kpmdtbl
 
 extern inline pte_t * pte_alloc_kernel(pmd_t * pmd, unsigned long address)
 {

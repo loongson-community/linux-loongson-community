@@ -64,6 +64,11 @@ do {									\
  * that the failure is recognized later on. Linux does not seem to 
  * handle these failures very well though. The empty_bad_page_table has
  * invalid pte entries in it, to force page faults.
+ * Vmalloc handling: vmalloc uses swapper_pg_dir[0] (returned by 
+ * pgd_offset_k), which is initalized to point to kpmdtbl. kpmdtbl is 
+ * the only single page pmd in the system. kpmdtbl entries point into 
+ * kptbl[] array. We reserve 1<<KPTBL_PAGE_ORDER pages to hold the
+ * vmalloc range translations, which the fault handler looks at.
  */
 
 #endif /* !defined (_LANGUAGE_ASSEMBLY) */
@@ -442,7 +447,7 @@ extern inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
 #define page_pte(page) page_pte_prot(page, __pgprot(0))
 
 /* to find an entry in a kernel page-table-directory */
-#define pgd_offset_k(address) pgd_offset(&init_mm, address)
+#define pgd_offset_k(address) pgd_offset(&init_mm, 0)
 
 #define pgd_index(address)	((address >> PGDIR_SHIFT) & (PTRS_PER_PGD - 1))
 

@@ -154,8 +154,10 @@ void __init setup_arch(char **cmdline_p)
 	unsigned long tmp;
 	unsigned long *initrd_header;
 #endif
+	int i;
+	pmd_t *pmd = kpmdtbl;
+	pte_t *pte = kptbl;
 
-	memset((void *)kptbl, 0, PAGE_SIZE << KPTBL_PAGE_ORDER);
 	cpu_probe();
 	load_mmu();
 
@@ -193,4 +195,10 @@ void __init setup_arch(char **cmdline_p)
 #endif
 
 	paging_init();
+
+	memset((void *)kptbl, 0, PAGE_SIZE << KPTBL_PAGE_ORDER);
+	memset((void *)kpmdtbl, 0, PAGE_SIZE);
+	pgd_set(swapper_pg_dir, kpmdtbl);
+	for (i = 0; i < (1 << KPTBL_PAGE_ORDER); pmd++,i++,pte+=PTRS_PER_PTE)
+		pmd_val(*pmd) = (unsigned long)pte;
 }

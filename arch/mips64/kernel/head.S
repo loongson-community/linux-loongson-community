@@ -173,4 +173,5 @@ NESTED(bootstrap, 16, sp)
 	page	empty_bad_pmd_table, 1
 	page	kptbl, KPTBL_PAGE_ORDER
 	.globl	ekptbl
+	page	kpmdtbl, 0
 ekptbl:
