@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: vino.c,v 1.1 1999/02/08 18:29:31 ulfc Exp $
  * drivers/char/vino.c
  *
  * (incomplete) Driver for the Vino Video input system found in SGI Indys.
@@ -150,6 +150,7 @@ static int vino_init(void)
 {
 	unsigned long ret;
 	unsigned short rev, id;
+	unsigned long long foo;
 
 	ret = vino_reg_read(VINO_REVID);
 
@@ -157,6 +158,23 @@ static int vino_init(void)
 	id = (ret & VINO_REVID_ID_MASK) >> 4;
 
 	printk("Vino: ID:%02hx Rev:%02hx\n", id, rev);
+
+	foo = vino_reg_read(VINO_A_DESC_DATA0);
+	printk("%Lu ", foo);
+	foo = vino_reg_read(VINO_A_DESC_DATA1);
+	printk("%Lu ", foo);
+	foo = vino_reg_read(VINO_A_DESC_DATA2);
+	printk("%Lu ", foo);
+	foo = vino_reg_read(VINO_A_DESC_DATA3);
+	printk("%Lu\n", foo);
+	foo = vino_reg_read(VINO_B_DESC_DATA0);
+	printk("%Lu ", foo);
+	foo = vino_reg_read(VINO_B_DESC_DATA1);
+	printk("%Lu ", foo);
+	foo = vino_reg_read(VINO_B_DESC_DATA2);
+	printk("%Lu ", foo);
+	foo = vino_reg_read(VINO_B_DESC_DATA3);
+	printk("%Lu\n", foo);
 
 	return 0;
 }

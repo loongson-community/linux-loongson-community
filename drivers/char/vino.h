@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: vino.h,v 1.1 1999/02/08 18:29:32 ulfc Exp $
  * drivers/sgi/vino.h
  *
  * Copyright (C) 1999 Ulf Carlsson (ulfc@bun.falkenberg.se)
@@ -24,7 +24,7 @@
 #define VINO_A_DESC_DATA0	0x0078	/* Descriptor data 0 */
 #define VINO_A_DESC_DATA1	0x0080	/* ... */
 #define VINO_A_DESC_DATA2	0x0088
-#define VINO_A_DESC_DATE3	0x0090
+#define VINO_A_DESC_DATA3	0x0090
 #define VINO_A_FIFO_THRESHOLD	0x0098	/* FIFO threshold */
 #define VINO_A_FIFO_RP		0x00a0
 #define VINO_A_FIFO_WP		0x00a8
@@ -41,7 +41,7 @@
 #define VINO_B_DESC_DATA0	0x0100
 #define VINO_B_DESC_DATA1	0x0108
 #define VINO_B_DESC_DATA2	0x0110
-#define VINO_B_DESC_DATE3	0x0118
+#define VINO_B_DESC_DATA3	0x0118
 #define VINO_B_FIFO_THRESHOLD	0x0120
 #define VINO_B_FIFO_RP		0x0128
 #define VINO_B_FIFO_WP		0x0130
