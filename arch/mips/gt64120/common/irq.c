@@ -61,6 +61,7 @@
 #define DBG(x...)
 #endif
 
+void (*irq_setup)(void);
 
 /*
  * Generic no controller code
