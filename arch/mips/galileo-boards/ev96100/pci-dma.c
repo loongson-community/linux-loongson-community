@@ -28,7 +28,6 @@ void *pci_alloc_consistent(struct pci_dev *hwdev, size_t size,
 	void *ret;
 	int gfp = GFP_ATOMIC;
 
-        printk("pci_alloc_consistent\n");
 	if (hwdev == NULL || hwdev->dma_mask != 0xffffffff)
 		gfp |= GFP_DMA;
 	ret = (void *)__get_free_pages(gfp, get_order(size));
@@ -38,7 +37,6 @@ void *pci_alloc_consistent(struct pci_dev *hwdev, size_t size,
 		*dma_handle = virt_to_bus(ret);
 	}
         ret = (void*) ((unsigned long)ret | 0xA0000000);
-        printk("ret %x dma_handle %x\n", ret, *dma_handle);
 
 	return ret;
 }
