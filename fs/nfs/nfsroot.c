@@ -1,5 +1,5 @@
 /*
- *  $Id: nfsroot.c,v 1.4 1997/07/20 14:59:57 ralf Exp $
+ *  $Id: nfsroot.c,v 1.5 1997/08/06 19:16:18 miguel Exp $
  *
  *  Copyright (C) 1995, 1996  Gero Kuhlmann <gero@gkminix.han.de>
  *
@@ -1254,7 +1254,6 @@ __initfunc(static void root_nfs_addrs(char *addrs))
 	system_utsname.domainname[0] = '\0';
 	user_dev_name[0] = '\0';
 	bootp_flag = rarp_flag = 1;
-	servaddr = (132 << 24) | (248 << 16) | (29 << 8) | 5;
 	
 	/* The following is just a shortcut for automatic IP configuration */
 	if (!strcmp(addrs, "bootp")) {
