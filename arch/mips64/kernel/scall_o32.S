@@ -318,7 +318,7 @@ illegal_syscall:
 	sys	sys32_wait4	4
 	sys	sys_swapoff	1			/* 4115 */
 	sys	sys_sysinfo	1
-	sys	sys_ipc		6
+	sys	sys32_ipc		6
 	sys	sys_fsync	1
 	sys	sys32_sigreturn	0
 	sys	sys_clone	0			/* 4120 */
