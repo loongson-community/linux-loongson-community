@@ -49,8 +49,8 @@
 #include <asm/io.h>
 #include <asm/vr41xx/vr41xx.h>
 
-#define VR4111_GIUIOSELL	KSEG1ADDR(0x0b000100)
-#define VR4122_GIUIOSELL	KSEG1ADDR(0x0f000140)
+#define GIUIOSELL_TYPE1	KSEG1ADDR(0x0b000100)
+#define GIUIOSELL_TYPE2	KSEG1ADDR(0x0f000140)
 
 #define GIUIOSELL	0x00
 #define GIUIOSELH	0x02
@@ -281,12 +281,12 @@ void __init vr41xx_giuint_init(void)
 	switch (current_cpu_data.cputype) {
 	case CPU_VR4111:
 	case CPU_VR4121:
-		giu_base = VR4111_GIUIOSELL;
+		giu_base = GIUIOSELL_TYPE1;
 		break;
 	case CPU_VR4122:
 	case CPU_VR4131:
 	case CPU_VR4133:
-		giu_base = VR4122_GIUIOSELL;
+		giu_base = GIUIOSELL_TYPE2;
 		break;
 	default:
 		panic("GIU: Unexpected CPU of NEC VR4100 series");

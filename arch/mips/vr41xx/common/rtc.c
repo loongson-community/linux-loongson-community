@@ -39,11 +39,11 @@ static unsigned long epoch_time;
 #define REMAINDER_PER_SEC	(CLOCK_TICK_RATE - (CYCLES_PER_JIFFY * HZ))
 #define CYCLES_PER_100USEC	((CLOCK_TICK_RATE + (10000 / 2)) / 10000)
 
-#define VR4111_ETIMELREG	KSEG1ADDR(0x0b0000c0)
-#define VR4111_TCLKLREG		KSEG1ADDR(0x0b0001c0)
+#define ETIMELREG_TYPE1		KSEG1ADDR(0x0b0000c0)
+#define TCLKLREG_TYPE1		KSEG1ADDR(0x0b0001c0)
 
-#define VR4122_ETIMELREG	KSEG1ADDR(0x0f000100)
-#define VR4122_TCLKLREG		KSEG1ADDR(0x0f000120)
+#define ETIMELREG_TYPE2		KSEG1ADDR(0x0f000100)
+#define TCLKLREG_TYPE2		KSEG1ADDR(0x0f000120)
 
 /* RTC 1 registers */
 #define ETIMELREG		0x00
@@ -264,14 +264,14 @@ void __init vr41xx_time_init(void)
 	switch (current_cpu_data.cputype) {
 	case CPU_VR4111:
 	case CPU_VR4121:
-		rtc1_base = VR4111_ETIMELREG;
-		rtc2_base = VR4111_TCLKLREG;
+		rtc1_base = ETIMELREG_TYPE1;
+		rtc2_base = TCLKLREG_TYPE1;
 		break;
 	case CPU_VR4122:
 	case CPU_VR4131:
 	case CPU_VR4133:
-		rtc1_base = VR4122_ETIMELREG;
-		rtc2_base = VR4122_TCLKLREG;
+		rtc1_base = ETIMELREG_TYPE2;
+		rtc2_base = TCLKLREG_TYPE2;
 		break;
 	default:
 		panic("Unexpected CPU of NEC VR4100 series");

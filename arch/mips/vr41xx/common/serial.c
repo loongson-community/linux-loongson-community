@@ -50,12 +50,12 @@
 #include <asm/vr41xx/vr41xx.h>
 
 /* VR4111 and VR4121 SIU Registers */
-#define VR4111_SIURB		KSEG1ADDR(0x0c000000)
-#define VR4111_SIUIRSEL		KSEG1ADDR(0x0c000008)
+#define SIURB_TYPE1		KSEG1ADDR(0x0c000000)
+#define SIUIRSEL_TYPE1		KSEG1ADDR(0x0c000008)
 
-/* VR4122 and VR4131 SIU Registers */
-#define VR4122_SIURB		KSEG1ADDR(0x0f000800)
-#define VR4122_SIUIRSEL		KSEG1ADDR(0x0f000808)
+/* VR4122, VR4131 and VR4133 SIU Registers */
+#define SIURB_TYPE2		KSEG1ADDR(0x0f000800)
+#define SIUIRSEL_TYPE2		KSEG1ADDR(0x0f000808)
 
  #define USE_RS232C		0x00
  #define USE_IRDA		0x01
@@ -102,12 +102,12 @@ void vr41xx_siu_ifselect(int interface, int module)
 	switch (current_cpu_data.cputype) {
 	case CPU_VR4111:
 	case CPU_VR4121:
-		writew(val, VR4111_SIUIRSEL);
+		writew(val, SIUIRSEL_TYPE1);
 		break;
 	case CPU_VR4122:
 	case CPU_VR4131:
 	case CPU_VR4133:
-		writew(val, VR4122_SIUIRSEL);
+		writew(val, SIUIRSEL_TYPE2);
 		break;
 	default:
 		printk(KERN_INFO "Unexpected CPU of NEC VR4100 series\n");
@@ -130,12 +130,12 @@ void __init vr41xx_siu_init(int interface, int module)
 	switch (current_cpu_data.cputype) {
 	case CPU_VR4111:
 	case CPU_VR4121:
-		s.iomem_base = (unsigned char *)VR4111_SIURB;
+		s.iomem_base = (unsigned char *)SIURB_TYPE1;
 		break;
 	case CPU_VR4122:
 	case CPU_VR4131:
 	case CPU_VR4133:
-		s.iomem_base = (unsigned char *)VR4122_SIURB;
+		s.iomem_base = (unsigned char *)SIURB_TYPE2;
 		break;
 	default:
 		panic("Unexpected CPU of NEC VR4100 series");

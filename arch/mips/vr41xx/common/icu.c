@@ -68,11 +68,11 @@ static unsigned char sysint1_assign[16] = {
 static unsigned char sysint2_assign[16] = {
 	2, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
-#define VR4111_SYSINT1REG	KSEG1ADDR(0x0b000080)
-#define VR4111_SYSINT2REG	KSEG1ADDR(0x0b000200)
+#define SYSINT1REG_TYPE1	KSEG1ADDR(0x0b000080)
+#define SYSINT2REG_TYPE1	KSEG1ADDR(0x0b000200)
 
-#define VR4122_SYSINT1REG	KSEG1ADDR(0x0f000080)
-#define VR4122_SYSINT2REG	KSEG1ADDR(0x0f0000a0)
+#define SYSINT1REG_TYPE2	KSEG1ADDR(0x0f000080)
+#define SYSINT2REG_TYPE2	KSEG1ADDR(0x0f0000a0)
 
 #define SYSINT1REG	0x00
 #define INTASSIGN0	0x04
@@ -293,14 +293,14 @@ static void __init vr41xx_icu_init(void)
 	switch (current_cpu_data.cputype) {
 	case CPU_VR4111:
 	case CPU_VR4121:
-		icu1_base = VR4111_SYSINT1REG;
-		icu2_base = VR4111_SYSINT2REG;
+		icu1_base = SYSINT1REG_TYPE1;
+		icu2_base = SYSINT2REG_TYPE1;
 		break;
 	case CPU_VR4122:
 	case CPU_VR4131:
 	case CPU_VR4133:
-		icu1_base = VR4122_SYSINT1REG;
-		icu2_base = VR4122_SYSINT2REG;
+		icu1_base = SYSINT1REG_TYPE2;
+		icu2_base = SYSINT2REG_TYPE2;
 		break;
 	default:
 		panic("Unexpected CPU of NEC VR4100 series");

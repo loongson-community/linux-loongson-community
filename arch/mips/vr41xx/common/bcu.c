@@ -46,8 +46,8 @@
 #include <asm/cpu.h>
 #include <asm/io.h>
 
-#define VR4111_CLKSPEEDREG	KSEG1ADDR(0x0b000014)
-#define VR4122_CLKSPEEDREG	KSEG1ADDR(0x0f000014)
+#define CLKSPEEDREG_TYPE1	KSEG1ADDR(0x0b000014)
+#define CLKSPEEDREG_TYPE2	KSEG1ADDR(0x0f000014)
  #define CLKSP(x)		((x) & 0x001f)
  #define CLKSP_VR4133(x)	((x) & 0x0007)
 
@@ -78,10 +78,10 @@ static inline uint16_t read_clkspeed(void)
 {
 	switch (current_cpu_data.cputype) {
 	case CPU_VR4111:
-	case CPU_VR4121: return readw(VR4111_CLKSPEEDREG);
+	case CPU_VR4121: return readw(CLKSPEEDREG_TYPE1);
 	case CPU_VR4122:
 	case CPU_VR4131:
-	case CPU_VR4133: return readw(VR4122_CLKSPEEDREG);
+	case CPU_VR4133: return readw(CLKSPEEDREG_TYPE2);
 	default:
 		printk(KERN_INFO "Unexpected CPU of NEC VR4100 series\n");
 		break;

@@ -47,33 +47,33 @@
 #include <asm/io.h>
 #include <asm/vr41xx/vr41xx.h>
 
-#define VR4111_CMUCLKMSK	KSEG1ADDR(0x0b000060)
-#define VR4122_CMUCLKMSK	KSEG1ADDR(0x0f000060)
- #define MSKPIU			0x0001
- #define MSKSIU			0x0002
- #define MSKAIU			0x0004
- #define MSKKIU			0x0008
- #define MSKFIR			0x0010
- #define MSKDSIU		0x0820
- #define MSKCSI			0x0040
- #define MSKPCIU		0x0080
- #define MSKSSIU		0x0100
- #define MSKSHSP		0x0200
- #define MSKFFIR		0x0400
- #define MSKSCSI		0x1000
- #define MSKPPCIU		0x2000
-#define VR4133_CMUCLKMSK2	KSEG1ADDR(0x0f000064)
- #define MSKCEU			0x0001
- #define MSKMAC0		0x0002
- #define MSKMAC1		0x0004
+#define CMUCLKMSK_TYPE1	KSEG1ADDR(0x0b000060)
+#define CMUCLKMSK_TYPE2	KSEG1ADDR(0x0f000060)
+ #define MSKPIU		0x0001
+ #define MSKSIU		0x0002
+ #define MSKAIU		0x0004
+ #define MSKKIU		0x0008
+ #define MSKFIR		0x0010
+ #define MSKDSIU	0x0820
+ #define MSKCSI		0x0040
+ #define MSKPCIU	0x0080
+ #define MSKSSIU	0x0100
+ #define MSKSHSP	0x0200
+ #define MSKFFIR	0x0400
+ #define MSKSCSI	0x1000
+ #define MSKPPCIU	0x2000
+#define CMUCLKMSK2	KSEG1ADDR(0x0f000064)
+ #define MSKCEU		0x0001
+ #define MSKMAC0	0x0002
+ #define MSKMAC1	0x0004
 
 static u32 vr41xx_cmu_base;
 static u16 cmuclkmsk, cmuclkmsk2;
 
 #define read_cmuclkmsk()	readw(vr41xx_cmu_base)
-#define read_cmuclkmsk2()	readw(VR4133_CMUCLKMSK2)
+#define read_cmuclkmsk2()	readw(CMUCLKMSK2)
 #define write_cmuclkmsk()	writew(cmuclkmsk, vr41xx_cmu_base)
-#define write_cmuclkmsk2()	writew(cmuclkmsk2, VR4133_CMUCLKMSK2)
+#define write_cmuclkmsk2()	writew(cmuclkmsk2, CMUCLKMSK2)
 
 void vr41xx_clock_supply(unsigned int clock)
 {
@@ -206,14 +206,14 @@ void __init vr41xx_cmu_init(void)
 	switch (current_cpu_data.cputype) {
         case CPU_VR4111:
         case CPU_VR4121:
-                vr41xx_cmu_base = VR4111_CMUCLKMSK;
+                vr41xx_cmu_base = CMUCLKMSK_TYPE1;
                 break;
         case CPU_VR4122:
         case CPU_VR4131:
-                vr41xx_cmu_base = VR4122_CMUCLKMSK;
+                vr41xx_cmu_base = CMUCLKMSK_TYPE2;
                 break;
         case CPU_VR4133:
-                vr41xx_cmu_base = VR4122_CMUCLKMSK;
+                vr41xx_cmu_base = CMUCLKMSK_TYPE2;
 		cmuclkmsk2 = read_cmuclkmsk2();
                 break;
 	default:
