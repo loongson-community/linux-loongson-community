@@ -26,6 +26,7 @@ void (*_flush_cache_range)(struct mm_struct *mm, unsigned long start,
 void (*_flush_cache_page)(struct vm_area_struct *vma, unsigned long page);
 void (*_flush_cache_sigtramp)(unsigned long addr);
 void (*_flush_page_to_ram)(struct page * page);
+void (*_flush_icache_range)(unsigned long start, unsigned long end);
 void (*_flush_icache_page)(struct vm_area_struct *vma, struct page *page,
                            unsigned long addr);
 
