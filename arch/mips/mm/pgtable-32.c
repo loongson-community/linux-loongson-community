@@ -7,12 +7,9 @@
  */
 #include <linux/init.h>
 #include <linux/mm.h>
-#include <asm/pgtable.h>
-
-#ifdef CONFIG_HIGHMEM
 #include <linux/bootmem.h>
-#include <asm/highmem.h>
-#endif
+#include <linux/highmem.h>
+#include <asm/pgtable.h>
 
 void pgd_init(unsigned long page)
 {
