@@ -380,7 +380,7 @@ void per_cpu_init(void)
 		if (current_cpu_data.isa_level == MIPS_CPU_ISA_IV)
 			set_c0_status(ST0_XX);
 		set_c0_status(ST0_KX|ST0_SX|ST0_UX);
-		sti();
+		local_irq_enable();
 		load_mmu();
 		atomic_inc(&numstarted);
 	} else {
