@@ -92,16 +92,10 @@ unsigned long setup_zero_pages(void)
 	unsigned long order, size;
 	struct page *page;
 
-	switch (current_cpu_data.cputype) {
-	case CPU_R4000SC:
-	case CPU_R4000MC:
-	case CPU_R4400SC:
-	case CPU_R4400MC:
+	if (cpu_has_vce)
 		order = 3;
-		break;
-	default:
+	else
 		order = 0;
-	}
 
 	empty_zero_page = __get_free_pages(GFP_KERNEL, order);
 	if (!empty_zero_page)
