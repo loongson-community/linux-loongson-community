@@ -197,11 +197,11 @@ dump16(unsigned long *p)
 {
 	int i;
 
-	for(i=0;i<8;i++)
-	{
+	for (i=0;i<8;i++) {
 		printk("*%08lx == %08lx, ",
-		       (unsigned long)p, (unsigned long)*p++);
+		       (unsigned long)p, (unsigned long)p[0]);
 		printk("*%08lx == %08lx\n",
-		       (unsigned long)p, (unsigned long)*p++);
+		       (unsigned long)p, (unsigned long)*p[1]);
+		p += 2;
 	}
 }
