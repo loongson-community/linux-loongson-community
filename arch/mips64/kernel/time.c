@@ -438,7 +438,7 @@ asmlinkage void ll_local_timer_interrupt(int irq, struct pt_regs *regs)
 	int cpu = smp_processor_id();
 
 	irq_enter();
-	kstat_cpu(cpu)[irq]++;
+	kstat_cpu(cpu).irqs[irq]++;
 
 	/* we keep interrupt disabled all the time */
 	local_timer_interrupt(irq, NULL, regs);
