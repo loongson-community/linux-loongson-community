@@ -33,6 +33,10 @@
 	LK1.1.4 (jgarzik):
 	* Merge becker test version 1.09 (5/29/2000)
 
+	LK1.1.5:
+	* Fix locking (jgarzik)
+	* Limit 83c175 probe to ethernet-class PCI devices (rgooch)
+
 */
 
 /* These identify the driver base version and may not be removed. */
@@ -41,7 +45,7 @@ static const char version[] =
 static const char version2[] =
 "  http://www.scyld.com/network/epic100.html\n";
 static const char version3[] =
-" (unofficial 2.4.x kernel port, version 1.1.4, August 10, 2000)\n";
+" (unofficial 2.4.x kernel port, version 1.1.5, September 7, 2000)\n";
 
 /* The user-configurable values.
    These may be modified when a driver module is loaded.*/
@@ -199,7 +203,8 @@ static struct epic_chip_info epic_chip_info[] __devinitdata = {
 static struct pci_device_id epic_pci_tbl[] __devinitdata = {
 	{ 0x10B8, 0x0005, 0x1092, 0x0AB4, 0, 0, SMSC_83C170_0 },
 	{ 0x10B8, 0x0005, PCI_ANY_ID, PCI_ANY_ID, 0, 0, SMSC_83C170 },
-	{ 0x10B8, 0x0006, PCI_ANY_ID, PCI_ANY_ID, 0, 0, SMSC_83C175 },
+	{ 0x10B8, 0x0006, PCI_ANY_ID, PCI_ANY_ID,
+	  PCI_CLASS_NETWORK_ETHERNET << 8, 0xffff00, SMSC_83C175 },
 	{ 0,}
 };
 MODULE_DEVICE_TABLE (pci, epic_pci_tbl);
@@ -401,6 +406,12 @@ static int __devinit epic_init_one (struct pci_dev *pdev,
 
 	dev->base_addr = ioaddr;
 	dev->irq = pdev->irq;
+
+	ep = dev->priv;
+	ep->pci_dev = pdev;
+	ep->chip_flags = ci->drv_flags;
+	spin_lock_init (&ep->lock);
+
 	printk(KERN_INFO "%s: %s at %#lx, IRQ %d, ",
 		   dev->name, ci->name, ioaddr, dev->irq);
 
@@ -429,10 +440,6 @@ static int __devinit epic_init_one (struct pci_dev *pdev,
 			printk(" %4.4x%s", read_eeprom(ioaddr, i),
 				   i % 16 == 15 ? "\n" : "");
 	}
-
-	ep = dev->priv;
-	ep->pci_dev = pdev;
-	ep->chip_flags = ci->drv_flags;
 
 	/* Find the connected MII xcvrs.
 	   Doing this in open() would allow detecting external xcvrs later, but
@@ -936,8 +943,7 @@ static void epic_interrupt(int irq, void *dev_instance, struct pt_regs *regs)
 	long ioaddr = dev->base_addr;
 	int status, boguscnt = max_interrupt_work;
 
-	if (!spin_trylock(&ep->lock))
-		return;
+	spin_lock(&ep->lock);
 
 	do {
 		status = inl(ioaddr + INTSTAT);

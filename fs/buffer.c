@@ -35,6 +35,7 @@
 #include <linux/locks.h>
 #include <linux/errno.h>
 #include <linux/swap.h>
+#include <linux/swapctl.h>
 #include <linux/smp_lock.h>
 #include <linux/vmalloc.h>
 #include <linux/blkdev.h>
@@ -409,8 +410,9 @@ out:
  */
 #define _hashfn(dev,block)	\
 	((((dev)<<(bh_hash_shift - 6)) ^ ((dev)<<(bh_hash_shift - 9))) ^ \
-	 (((block)<<(bh_hash_shift - 6)) ^ ((block) >> 13) ^ ((block) << (bh_hash_shift - 12))))
-#define hash(dev,block) hash_table[(_hashfn(dev,block) & bh_hash_mask)]
+	 (((block)<<(bh_hash_shift - 6)) ^ ((block) >> 13) ^ \
+	  ((block) << (bh_hash_shift - 12))))
+#define hash(dev,block) hash_table[(_hashfn(HASHDEV(dev),block) & bh_hash_mask)]
 
 static __inline__ void __hash_link(struct buffer_head *bh, struct buffer_head **head)
 {
@@ -856,23 +858,35 @@ repeat:
 /* -1 -> no need to flush
     0 -> async flush
     1 -> sync flush (wait for I/O completation) */
-static int balance_dirty_state(kdev_t dev)
+int balance_dirty_state(kdev_t dev)
 {
 	unsigned long dirty, tot, hard_dirty_limit, soft_dirty_limit;
+	int shortage;
 
 	dirty = size_buffers_type[BUF_DIRTY] >> PAGE_SHIFT;
 	tot = nr_free_buffer_pages();
-	tot -= size_buffers_type[BUF_PROTECTED] >> PAGE_SHIFT;
 
 	dirty *= 200;
 	soft_dirty_limit = tot * bdf_prm.b_un.nfract;
 	hard_dirty_limit = soft_dirty_limit * 2;
 
+	/* First, check for the "real" dirty limit. */
 	if (dirty > soft_dirty_limit) {
 		if (dirty > hard_dirty_limit)
 			return 1;
 		return 0;
 	}
+
+	/*
+	 * If we are about to get low on free pages and
+	 * cleaning the inactive_dirty pages would help
+	 * fix this, wake up bdflush.
+	 */
+	shortage = free_shortage();
+	if (shortage && nr_inactive_dirty_pages > shortage &&
+			nr_inactive_dirty_pages > freepages.high)
+		return 0;
+
 	return -1;
 }
 
@@ -892,7 +906,7 @@ void balance_dirty(kdev_t dev)
 	wakeup_bdflush(state);
 }
 
-static __inline__ void __mark_dirty(struct buffer_head *bh, int flag)
+static __inline__ void __mark_dirty(struct buffer_head *bh)
 {
 	bh->b_flushtime = jiffies + bdf_prm.b_un.age_buffer;
 	refile_buffer(bh);
@@ -900,15 +914,15 @@ static __inline__ void __mark_dirty(struct buffer_head *bh, int flag)
 
 /* atomic version, the user must call balance_dirty() by hand
    as soon as it become possible to block */
-void __mark_buffer_dirty(struct buffer_head *bh, int flag)
+void __mark_buffer_dirty(struct buffer_head *bh)
 {
 	if (!atomic_set_buffer_dirty(bh))
-		__mark_dirty(bh, flag);
+		__mark_dirty(bh);
 }
 
-void mark_buffer_dirty(struct buffer_head *bh, int flag)
+void mark_buffer_dirty(struct buffer_head *bh)
 {
-	__mark_buffer_dirty(bh, flag);
+	__mark_buffer_dirty(bh);
 	balance_dirty(bh->b_dev);
 }
 
@@ -1380,6 +1394,19 @@ static void unmap_underlying_metadata(struct buffer_head * bh)
 }
 
 /*
+ * NOTE! All mapped/uptodate combinations are valid:
+ *
+ *	Mapped	Uptodate	Meaning
+ *
+ *	No	No		"unknown" - must do get_block()
+ *	No	Yes		"hole" - zero-filled
+ *	Yes	No		"allocated" - allocated on disk, not read in
+ *	Yes	Yes		"valid" - allocated and up-to-date in memory.
+ *
+ * "Dirty" is valid only with the last case (mapped+uptodate).
+ */
+
+/*
  * block_write_full_page() is SMP-safe - currently it's still
  * being called with the kernel lock held, but the code is ready.
  */
@@ -1419,7 +1446,7 @@ static int __block_write_full_page(struct inode *inode, struct page *page, get_b
 		}
 		set_bit(BH_Uptodate, &bh->b_state);
 		if (!atomic_set_buffer_dirty(bh)) {
-			__mark_dirty(bh, 0);
+			__mark_dirty(bh);
 			need_balance_dirty = 1;
 		}
 
@@ -1471,6 +1498,10 @@ static int __block_prepare_write(struct inode *inode, struct page *page,
 				goto out;
 			if (buffer_new(bh)) {
 				unmap_underlying_metadata(bh);
+				if (Page_Uptodate(page)) {
+					set_bit(BH_Uptodate, &bh->b_state);
+					continue;
+				}
 				if (block_end > to)
 					memset(kaddr+to, 0, block_end-to);
 				if (block_start < from)
@@ -1479,6 +1510,10 @@ static int __block_prepare_write(struct inode *inode, struct page *page,
 					flush_dcache_page(page);
 				continue;
 			}
+		}
+		if (Page_Uptodate(page)) {
+			set_bit(BH_Uptodate, &bh->b_state);
+			continue; 
 		}
 		if (!buffer_uptodate(bh) &&
 		     (block_start < from || block_end > to)) {
@@ -1520,7 +1555,7 @@ static int __block_commit_write(struct inode *inode, struct page *page,
 		} else {
 			set_bit(BH_Uptodate, &bh->b_state);
 			if (!atomic_set_buffer_dirty(bh)) {
-				__mark_dirty(bh, 0);
+				__mark_dirty(bh);
 				need_balance_dirty = 1;
 			}
 		}
@@ -1574,8 +1609,10 @@ int block_read_full_page(struct page *page, get_block_t *get_block)
 			continue;
 
 		if (!buffer_mapped(bh)) {
-			if (iblock < lblock)
-				get_block(inode, iblock, bh, 0);
+			if (iblock < lblock) {
+				if (get_block(inode, iblock, bh, 0))
+					continue;
+			}
 			if (!buffer_mapped(bh)) {
 				if (!kaddr)
 					kaddr = kmap(page);
@@ -1719,6 +1756,82 @@ int generic_commit_write(struct file *file, struct page *page,
 		mark_inode_dirty(inode);
 	}
 	return 0;
+}
+
+int block_truncate_page(struct address_space *mapping, loff_t from, get_block_t *get_block)
+{
+	unsigned long index = from >> PAGE_CACHE_SHIFT;
+	unsigned offset = from & (PAGE_CACHE_SIZE-1);
+	unsigned blocksize, iblock, length, pos;
+	struct inode *inode = (struct inode *)mapping->host;
+	struct page *page;
+	struct buffer_head *bh;
+	int err;
+
+	blocksize = inode->i_sb->s_blocksize;
+	length = offset & (blocksize - 1);
+
+	/* Block boundary? Nothing to do */
+	if (!length)
+		return 0;
+
+	length = blocksize - length;
+	iblock = index << (PAGE_CACHE_SHIFT - inode->i_sb->s_blocksize_bits);
+	
+	page = grab_cache_page(mapping, index);
+	err = PTR_ERR(page);
+	if (IS_ERR(page))
+		goto out;
+
+	if (!page->buffers)
+		create_empty_buffers(page, inode, blocksize);
+
+	/* Find the buffer that contains "offset" */
+	bh = page->buffers;
+	pos = blocksize;
+	while (offset >= pos) {
+		bh = bh->b_this_page;
+		iblock++;
+		pos += blocksize;
+	}
+
+	err = 0;
+	if (!buffer_mapped(bh)) {
+		/* Hole? Nothing to do */
+		if (buffer_uptodate(bh))
+			goto unlock;
+		get_block(inode, iblock, bh, 0);
+		/* Still unmapped? Nothing to do */
+		if (!buffer_mapped(bh))
+			goto unlock;
+	}
+
+	/* Ok, it's mapped. Make sure it's up-to-date */
+	if (Page_Uptodate(page))
+		set_bit(BH_Uptodate, &bh->b_state);
+
+	bh->b_end_io = end_buffer_io_sync;
+	if (!buffer_uptodate(bh)) {
+		err = -EIO;
+		ll_rw_block(READ, 1, &bh);
+		wait_on_buffer(bh);
+		/* Uhhuh. Read error. Complain and punt. */
+		if (!buffer_uptodate(bh))
+			goto unlock;
+	}
+
+	memset((char *) kmap(page) + offset, 0, length);
+	flush_dcache_page(page);
+	kunmap(page);
+
+	mark_buffer_dirty(bh);
+	err = 0;
+
+unlock:
+	UnlockPage(page);
+	page_cache_release(page);
+out:
+	return err;
 }
 
 int block_write_full_page(struct page *page, get_block_t *get_block)
@@ -2086,6 +2199,7 @@ static int grow_buffers(int size)
 	page = alloc_page(GFP_BUFFER);
 	if (!page)
 		goto out;
+	LockPage(page);
 	bh = create_buffers(page, size, 0);
 	if (!bh)
 		goto no_buffer_head;
@@ -2118,10 +2232,12 @@ static int grow_buffers(int size)
 	page->buffers = bh;
 	page->flags &= ~(1 << PG_referenced);
 	lru_cache_add(page);
+	UnlockPage(page);
 	atomic_inc(&buffermem_pages);
 	return 1;
 
 no_buffer_head:
+	UnlockPage(page);
 	page_cache_release(page);
 out:
 	return 0;
@@ -2178,7 +2294,9 @@ int try_to_free_buffers(struct page * page, int wait)
 {
 	struct buffer_head * tmp, * bh = page->buffers;
 	int index = BUFSIZE_INDEX(bh->b_size);
+	int loop = 0;
 
+cleaned_buffers_try_again:
 	spin_lock(&lru_list_lock);
 	write_lock(&hash_table_lock);
 	spin_lock(&free_list[index].lock);
@@ -2224,8 +2342,14 @@ busy_buffer_page:
 	spin_unlock(&free_list[index].lock);
 	write_unlock(&hash_table_lock);
 	spin_unlock(&lru_list_lock);
-	if (wait)
+	if (wait) {
 		sync_page_buffers(bh, wait);
+		/* We waited synchronously, so we can free the buffers. */
+		if (wait > 1 && !loop) {
+			loop = 1;
+			goto cleaned_buffers_try_again;
+		}
+	}
 	return 0;
 }
 
@@ -2543,6 +2667,8 @@ int bdflush(void *sem)
 		CHECK_EMERGENCY_SYNC
 
 		flushed = flush_dirty_buffers(0);
+		if (free_shortage())
+			flushed += page_launder(GFP_BUFFER, 0);
 
 		/* If wakeup_bdflush will wakeup us
 		   after our bdflush_done wakeup, then
@@ -2553,14 +2679,16 @@ int bdflush(void *sem)
 		   (as we would be sleeping) and so it would
 		   deadlock in SMP. */
 		__set_current_state(TASK_INTERRUPTIBLE);
-		wake_up(&bdflush_done);
+		wake_up_all(&bdflush_done);
 		/*
 		 * If there are still a lot of dirty buffers around,
 		 * skip the sleep and flush some more. Otherwise, we
 		 * go to sleep waiting a wakeup.
 		 */
-		if (!flushed || balance_dirty_state(NODEV) < 0)
+		if (!flushed || balance_dirty_state(NODEV) < 0) {
+			run_task_queue(&tq_disk);
 			schedule();
+		}
 		/* Remember to mark us as running otherwise
 		   the next schedule will block. */
 		__set_current_state(TASK_RUNNING);
@@ -2606,8 +2734,8 @@ int kupdate(void *sem)
 		if (signal_pending(tsk)) {
 			int stopped = 0;
 			spin_lock_irq(&tsk->sigmask_lock);
-			if (sigismember(&tsk->signal, SIGSTOP)) {
-				sigdelset(&tsk->signal, SIGSTOP);
+			if (sigismember(&tsk->pending.signal, SIGSTOP)) {
+				sigdelset(&tsk->pending.signal, SIGSTOP);
 				stopped = 1;
 			}
 			recalc_sigpending(tsk);
@@ -2625,9 +2753,9 @@ int kupdate(void *sem)
 static int __init bdflush_init(void)
 {
 	DECLARE_MUTEX_LOCKED(sem);
-	kernel_thread(bdflush, &sem, CLONE_FS | CLONE_FILES | CLONE_SIGHAND);
+	kernel_thread(bdflush, &sem, CLONE_FS | CLONE_FILES | CLONE_SIGNAL);
 	down(&sem);
-	kernel_thread(kupdate, &sem, CLONE_FS | CLONE_FILES | CLONE_SIGHAND);
+	kernel_thread(kupdate, &sem, CLONE_FS | CLONE_FILES | CLONE_SIGNAL);
 	down(&sem);
 	return 0;
 }

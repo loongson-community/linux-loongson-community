@@ -459,7 +459,6 @@ extern void build_proc_dir_entries(Scsi_Host_Template  *);
 
 extern int next_scsi_host;
 
-extern int scsi_loadable_module_flag;
 unsigned int scsi_init(void);
 extern struct Scsi_Host * scsi_register(Scsi_Host_Template *, int j);
 extern void scsi_unregister(struct Scsi_Host * i);
@@ -505,11 +504,6 @@ struct Scsi_Device_Template
 };
 
 void  scsi_initialize_queue(Scsi_Device * SDpnt, struct Scsi_Host * SHpnt);
-
-extern struct Scsi_Device_Template sd_template;
-extern struct Scsi_Device_Template st_template;
-extern struct Scsi_Device_Template sr_template;
-extern struct Scsi_Device_Template sg_template;
 
 int scsi_register_device(struct Scsi_Device_Template * sdpnt);
 

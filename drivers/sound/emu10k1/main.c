@@ -121,14 +121,14 @@ static void __devinit audio_init(struct emu10k1_card *card)
 
 	/* stereo voice */
 	card->waveout.send_a[1] = 0x00;
-        card->waveout.send_b[1] = 0xff;
-        card->waveout.send_c[1] = 0x00;
+        card->waveout.send_b[1] = 0x00;
+        card->waveout.send_c[1] = 0xff;
         card->waveout.send_d[1] = 0x00;
         card->waveout.send_routing[1] = 0xd01c;
 
 	card->waveout.send_a[2] = 0x00;
-        card->waveout.send_b[2] = 0x00;
-        card->waveout.send_c[2] = 0xff;
+        card->waveout.send_b[2] = 0xff;
+        card->waveout.send_c[2] = 0x00;
         card->waveout.send_d[2] = 0x00;
         card->waveout.send_routing[2] = 0xd01c;
 
@@ -641,7 +641,7 @@ static int __devinit emu10k1_probe(struct pci_dev *pci_dev, const struct pci_dev
 		return -ENODEV;
 	}
 
-	PCI_SET_DRIVER_DATA(pci_dev, card);
+	pci_set_drvdata(pci_dev, card);
 	PCI_SET_DMA_MASK(pci_dev, EMU10K1_DMA_MASK);
 
 	card->irq = pci_dev->irq;
@@ -736,7 +736,7 @@ static int __devinit emu10k1_probe(struct pci_dev *pci_dev, const struct pci_dev
 
 static void __devexit emu10k1_remove(struct pci_dev *pci_dev)
 {
-	struct emu10k1_card *card = PCI_GET_DRIVER_DATA(pci_dev);
+	struct emu10k1_card *card = pci_get_drvdata(pci_dev);
 
 	midi_exit(card);
 	emu10k1_exit(card);
@@ -755,7 +755,7 @@ static void __devexit emu10k1_remove(struct pci_dev *pci_dev)
 
 	kfree(card);
 
-	return;
+	pci_set_drvdata(pci_dev, NULL);
 }
 
 MODULE_AUTHOR("Bertrand Lee, Cai Ying. (Email to: emu10k1-devel@opensource.creative.com)");

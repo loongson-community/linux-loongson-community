@@ -19,6 +19,7 @@
  */
 
 #include <linux/fs.h>
+#include <linux/ext2_fs.h>
 #include <linux/locks.h>
 #include <linux/quotaops.h>
 
@@ -298,7 +299,7 @@ int ext2_add_entry (struct inode * dir, const char * name, int namelen,
 			dir->u.ext2_i.i_flags &= ~EXT2_BTREE_FL;
 			mark_inode_dirty(dir);
 			dir->i_version = ++event;
-			mark_buffer_dirty(bh, 1);
+			mark_buffer_dirty(bh);
 			if (IS_SYNC(dir)) {
 				ll_rw_block (WRITE, 1, &bh);
 				wait_on_buffer (bh);
@@ -339,7 +340,7 @@ static int ext2_delete_entry (struct inode * dir,
 			else
 				de->inode = 0;
 			dir->i_version = ++event;
-			mark_buffer_dirty(bh, 1);
+			mark_buffer_dirty(bh);
 			if (IS_SYNC(dir)) {
 				ll_rw_block (WRITE, 1, &bh);
 				wait_on_buffer (bh);
@@ -366,12 +367,9 @@ static int ext2_create (struct inode * dir, struct dentry * dentry, int mode)
 	struct inode * inode;
 	int err;
 
-	/*
-	 * N.B. Several error exits in ext2_new_inode don't set err.
-	 */
 	inode = ext2_new_inode (dir, mode, &err);
 	if (!inode)
-		return -EIO;
+		return err;
 
 	inode->i_op = &ext2_file_inode_operations;
 	inode->i_fop = &ext2_file_operations;
@@ -397,7 +395,7 @@ static int ext2_mknod (struct inode * dir, struct dentry *dentry, int mode, int 
 
 	inode = ext2_new_inode (dir, mode, &err);
 	if (!inode)
-		return -EIO;
+		return err;
 
 	inode->i_uid = current->fsuid;
 	init_special_inode(inode, mode, rdev);
@@ -428,7 +426,7 @@ static int ext2_mkdir(struct inode * dir, struct dentry * dentry, int mode)
 
 	inode = ext2_new_inode (dir, S_IFDIR, &err);
 	if (!inode)
-		return -EIO;
+		return err;
 
 	inode->i_op = &ext2_dir_inode_operations;
 	inode->i_fop = &ext2_dir_operations;
@@ -454,7 +452,7 @@ static int ext2_mkdir(struct inode * dir, struct dentry * dentry, int mode)
 	strcpy (de->name, "..");
 	ext2_set_de_type(dir->i_sb, de, S_IFDIR);
 	inode->i_nlink = 2;
-	mark_buffer_dirty(dir_block, 1);
+	mark_buffer_dirty(dir_block);
 	brelse (dir_block);
 	inode->i_mode = S_IFDIR | mode;
 	if (dir->i_mode & S_ISGID)
@@ -634,7 +632,7 @@ static int ext2_symlink (struct inode * dir, struct dentry *dentry, const char *
 		return -ENAMETOOLONG;
 
 	if (!(inode = ext2_new_inode (dir, S_IFLNK, &err)))
-		return -EIO;
+		return err;
 
 	inode->i_mode = S_IFLNK | S_IRWXUGO;
 
@@ -760,7 +758,7 @@ static int ext2_rename (struct inode * old_dir, struct dentry *old_dentry,
 					      EXT2_FEATURE_INCOMPAT_FILETYPE))
 			new_de->file_type = old_de->file_type;
 		new_dir->i_version = ++event;
-		mark_buffer_dirty(new_bh, 1);
+		mark_buffer_dirty(new_bh);
 		if (IS_SYNC(new_dir)) {
 			ll_rw_block (WRITE, 1, &new_bh);
 			wait_on_buffer (new_bh);
@@ -791,7 +789,7 @@ static int ext2_rename (struct inode * old_dir, struct dentry *old_dentry,
 	mark_inode_dirty(old_dir);
 	if (dir_bh) {
 		PARENT_INO(dir_bh->b_data) = le32_to_cpu(new_dir->i_ino);
-		mark_buffer_dirty(dir_bh, 1);
+		mark_buffer_dirty(dir_bh);
 		old_dir->i_nlink--;
 		mark_inode_dirty(old_dir);
 		if (new_inode) {

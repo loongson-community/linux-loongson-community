@@ -56,7 +56,7 @@ extern int get_module_list(char *);
 extern int get_ksyms_list(char *, char **, off_t, int);
 #endif
 extern int get_device_list(char *);
-extern int get_partition_list(char *);
+extern int get_partition_list(char *, char **, off_t, int);
 extern int get_filesystem_list(char *);
 extern int get_filesystem_info(char *);
 extern int get_exec_domain_list(char *);
@@ -156,22 +156,30 @@ static int meminfo_read_proc(char *page, char **start, off_t off,
          * have been updated.
          */
         len += sprintf(page+len,
-                "MemTotal:  %8lu kB\n"
-                "MemFree:   %8lu kB\n"
-                "MemShared: %8lu kB\n"
-                "Buffers:   %8lu kB\n"
-                "Cached:    %8u kB\n"
-                "HighTotal: %8lu kB\n"
-                "HighFree:  %8lu kB\n"
-                "LowTotal:  %8lu kB\n"
-                "LowFree:   %8lu kB\n"
-                "SwapTotal: %8lu kB\n"
-                "SwapFree:  %8lu kB\n",
+                "MemTotal:     %8lu kB\n"
+                "MemFree:      %8lu kB\n"
+                "MemShared:    %8lu kB\n"
+                "Buffers:      %8lu kB\n"
+                "Cached:       %8u kB\n"
+		"Active:       %8u kB\n"
+		"Inact_dirty:  %8u kB\n"
+		"Inact_clean:  %8u kB\n"
+		"Inact_target: %8lu kB\n"
+                "HighTotal:    %8lu kB\n"
+                "HighFree:     %8lu kB\n"
+                "LowTotal:     %8lu kB\n"
+                "LowFree:      %8lu kB\n"
+                "SwapTotal:    %8lu kB\n"
+                "SwapFree:     %8lu kB\n",
                 K(i.totalram),
                 K(i.freeram),
                 K(i.sharedram),
                 K(i.bufferram),
                 K(atomic_read(&page_cache_size)),
+		K(nr_active_pages),
+		K(nr_inactive_dirty_pages),
+		K(nr_inactive_clean_pages()),
+		K(inactive_target),
                 K(i.totalhigh),
                 K(i.freehigh),
                 K(i.totalram-i.totalhigh),
@@ -328,14 +336,14 @@ static int kstat_read_proc(char *page, char **start, off_t off,
 
 	for (major = 0; major < DK_MAX_MAJOR; major++) {
 		for (disk = 0; disk < DK_MAX_DISK; disk++) {
-			int active = kstat.dk_drive_rio[major][disk] +
+			int active = kstat.dk_drive[major][disk] +
 				kstat.dk_drive_rblk[major][disk] +
-				kstat.dk_drive_wio[major][disk] +
 				kstat.dk_drive_wblk[major][disk];
 			if (active)
 				len += sprintf(page + len,
-					"(%u,%u):(%u,%u,%u,%u) ",
+					"(%u,%u):(%u,%u,%u,%u,%u) ",
 					major, disk,
+					kstat.dk_drive[major][disk],
 					kstat.dk_drive_rio[major][disk],
 					kstat.dk_drive_rblk[major][disk],
 					kstat.dk_drive_wio[major][disk],
@@ -375,12 +383,8 @@ static int devices_read_proc(char *page, char **start, off_t off,
 static int partitions_read_proc(char *page, char **start, off_t off,
 				 int count, int *eof, void *data)
 {
-	int len = get_partition_list(page);
-	if (len <= off+count) *eof = 1;
-	*start = page + off;
-	len -= off;
-	if (len>count) len = count;
-	if (len<0) len = 0;
+	int len = get_partition_list(page, start, off, count);
+	if (len < count) *eof = 1;
 	return len;
 }
 

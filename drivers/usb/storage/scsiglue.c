@@ -1,7 +1,7 @@
 /* Driver for USB Mass Storage compliant devices
  * SCSI layer glue code
  *
- * $Id: scsiglue.c,v 1.9 2000/08/25 00:13:51 mdharm Exp $
+ * $Id: scsiglue.c,v 1.13 2000/09/28 21:54:30 mdharm Exp $
  *
  * Current development and maintenance by:
  *   (c) 1999, 2000 Matthew Dharm (mdharm-usb@one-eyed-alien.net)
@@ -112,7 +112,7 @@ static int release(struct Scsi_Host *psh)
 {
 	struct us_data *us = (struct us_data *)psh->hostdata[0];
 
-	US_DEBUGP("us_release() called for host %s\n", us->htmplt.name);
+	US_DEBUGP("release() called for host %s\n", us->htmplt.name);
 
 	/* Kill the control threads
 	 *
@@ -124,9 +124,7 @@ static int release(struct Scsi_Host *psh)
 	wake_up(&(us->wqh));
 	down(&(us->notify));
 	
-	/* free the data structure we were using */
-	US_DEBUGP("-- freeing URB\n");
-	kfree(us->current_urb);
+	/* remove the pointer to the data structure we were using */
 	(struct us_data*)psh->hostdata[0] = NULL;
 
 	/* we always have a successful release */
@@ -189,12 +187,6 @@ static int command_abort( Scsi_Cmnd *srb )
 		return SUCCESS;
 	}
 
-	/* This is a sanity check that we should never hit */
-	if (in_interrupt()) {
-		printk(KERN_ERR "usb-storage: command_abort() called from an interrupt!!! BAD!!! BAD!! BAD!!\n");
-		return FAILED;
-	}
-
 	/* if we have an urb pending, let's wake the control thread up */
 	if (us->current_urb->status == -EINPROGRESS) {
 		/* cancel the URB */
@@ -213,18 +205,62 @@ static int command_abort( Scsi_Cmnd *srb )
 	return FAILED;
 }
 
-/* FIXME: this doesn't do anything right now */
-static int bus_reset( Scsi_Cmnd *srb )
+/* This invokes the transport reset mechanism to reset the state of the
+ * device */
+static int device_reset( Scsi_Cmnd *srb )
 {
-	// struct us_data *us = (struct us_data *)srb->host->hostdata[0];
+	struct us_data *us = (struct us_data *)srb->host->hostdata[0];
 
-	printk(KERN_CRIT "usb-storage: bus_reset() requested but not implemented\n" );
-	US_DEBUGP("Bus reset requested\n");
-	//  us->transport_reset(us);
-	return FAILED;
+	US_DEBUGP("device_reset() called\n" );
+	return us->transport_reset(us);
 }
 
-/* FIXME: This doesn't actually reset anything */
+/* This resets the device port, and simulates the device
+ * disconnect/reconnect for all drivers which have claimed other
+ * interfaces. */
+static int bus_reset( Scsi_Cmnd *srb )
+{
+	struct us_data *us = (struct us_data *)srb->host->hostdata[0];
+	int i;
+
+	/* we use the usb_reset_device() function to handle this for us */
+	US_DEBUGP("bus_reset() called\n");
+
+	/* attempt to reset the port */
+	if (usb_reset_device(us->pusb_dev) < 0)
+		return FAILED;
+
+	/* FIXME: This needs to lock out driver probing while it's working
+	 * or we can have race conditions */
+        for (i = 0; i < us->pusb_dev->actconfig->bNumInterfaces; i++) {
+ 		struct usb_interface *intf =
+			&us->pusb_dev->actconfig->interface[i];
+
+		/* if this is an unclaimed interface, skip it */
+		if (!intf->driver) {
+			continue;
+		}
+
+		US_DEBUGP("Examinging driver %s...", intf->driver->name);
+		/* skip interfaces which we've claimed */
+		if (intf->driver == &usb_storage_driver) {
+			US_DEBUGPX("skipping ourselves.\n");
+			continue;
+		}
+		
+		/* simulate a disconnect and reconnect for all interfaces */
+		US_DEBUGPX("simulating disconnect/reconnect.\n");
+		down(&intf->driver->serialize);
+		intf->driver->disconnect(us->pusb_dev, intf->private_data);
+		intf->driver->probe(us->pusb_dev, i);
+		up(&intf->driver->serialize);
+	}
+
+	US_DEBUGP("bus_reset() complete\n");
+	return SUCCESS;
+}
+
+/* FIXME: This doesn't do anything right now */
 static int host_reset( Scsi_Cmnd *srb )
 {
 	printk(KERN_CRIT "usb-storage: host_reset() requested but not implemented\n" );
@@ -261,9 +297,11 @@ static int proc_info (char *buffer, char **start, off_t offset, int length,
 		us = us->next;
 	}
 
+	/* release our lock on the data structures */
+	up(&us_list_semaphore);
+
 	/* if we couldn't find it, we return an error */
 	if (!us) {
-		up(&us_list_semaphore);
 		return -ESRCH;
 	}
 	
@@ -281,9 +319,6 @@ static int proc_info (char *buffer, char **start, off_t offset, int length,
 
 	/* show the GUID of the device */
 	SPRINTF("         GUID: " GUID_FORMAT "\n", GUID_ARGS(us->guid));
-
-	/* release our lock on the data structures */
-	up(&us_list_semaphore);
 
 	/*
 	 * Calculate start of next buffer, and return value.
@@ -313,7 +348,7 @@ Scsi_Host_Template usb_stor_host_template = {
 	queuecommand:		queuecommand,
 
 	eh_abort_handler:	command_abort,
-	eh_device_reset_handler:bus_reset,
+	eh_device_reset_handler:device_reset,
 	eh_bus_reset_handler:	bus_reset,
 	eh_host_reset_handler:	host_reset,
 

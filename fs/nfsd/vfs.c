@@ -1,3 +1,4 @@
+#define MSNFS	/* HACK HACK */
 /*
  * linux/fs/nfsd/vfs.c
  *
@@ -142,6 +143,7 @@ nfsd_lookup(struct svc_rqst *rqstp, struct svc_fh *fhp, const char *name,
 		} else
 			dentry = dget(dparent->d_parent);
 	} else {
+		fh_lock(fhp);
 		dentry = lookup_one(name, dparent);
 		err = PTR_ERR(dentry);
 		if (IS_ERR(dentry))
@@ -248,6 +250,15 @@ nfsd_setattr(struct svc_rqst *rqstp, struct svc_fh *fhp, struct iattr *iap)
 			if (err)
 				goto out;
 		}
+
+		/*
+		 * If we are changing the size of the file, then
+		 * we need to break all leases.
+		 */
+		err = get_lease(inode, FMODE_WRITE);
+		if (err)
+			goto out_nfserr;
+
 		err = get_write_access(inode);
 		if (err)
 			goto out_nfserr;
@@ -442,6 +453,14 @@ nfsd_open(struct svc_rqst *rqstp, struct svc_fh *fhp, int type,
 	if (!inode->i_fop)
 		goto out;
 
+	/*
+	 * Check to see if there are any leases on this file.
+	 * This may block while leases are broken.
+	 */
+	err = get_lease(inode, (access & MAY_WRITE) ? FMODE_WRITE : 0);
+	if (err)
+		goto out_nfserr;
+
 	if ((access & MAY_WRITE) && (err = get_write_access(inode)) != 0)
 		goto out_nfserr;
 
@@ -450,11 +469,11 @@ nfsd_open(struct svc_rqst *rqstp, struct svc_fh *fhp, int type,
 	atomic_set(&filp->f_count, 1);
 	filp->f_dentry = dentry;
 	if (access & MAY_WRITE) {
-		filp->f_flags = O_WRONLY;
+		filp->f_flags = O_WRONLY|O_LARGEFILE;
 		filp->f_mode  = FMODE_WRITE;
 		DQUOT_INIT(inode);
 	} else {
-		filp->f_flags = O_RDONLY;
+		filp->f_flags = O_RDONLY|O_LARGEFILE;
 		filp->f_mode  = FMODE_READ;
 	}
 
@@ -576,6 +595,11 @@ nfsd_read(struct svc_rqst *rqstp, struct svc_fh *fhp, loff_t offset,
 	err = nfserr_perm;
 	if (!file.f_op->read)
 		goto out_close;
+#ifdef MSNFS
+	if ((fhp->fh_export->ex_flags & NFSEXP_MSNFS) &&
+		(!lock_may_read(file.f_dentry->d_inode, offset, *count)))
+		goto out_close;
+#endif
 
 	/* Get readahead parameters */
 	ra = nfsd_get_raparms(fhp->fh_export->ex_dev, fhp->fh_dentry->d_inode->i_ino);
@@ -642,6 +666,11 @@ nfsd_write(struct svc_rqst *rqstp, struct svc_fh *fhp, loff_t offset,
 	err = nfserr_perm;
 	if (!file.f_op->write)
 		goto out_close;
+#ifdef MSNFS
+	if ((fhp->fh_export->ex_flags & NFSEXP_MSNFS) &&
+		(!lock_may_write(file.f_dentry->d_inode, offset, cnt)))
+		goto out_close;
+#endif
 
 	dentry = file.f_dentry;
 	inode = dentry->d_inode;
@@ -1249,6 +1278,13 @@ nfsd_rename(struct svc_rqst *rqstp, struct svc_fh *ffhp, char *fname, int flen,
 		goto out_dput_old;
 
 
+#ifdef MSNFS
+	if ((ffhp->fh_export->ex_flags & NFSEXP_MSNFS) &&
+		((atomic_read(&odentry->d_count) > 1)
+		 || (atomic_read(&ndentry->d_count) > 1))) {
+			err = nfserr_perm;
+	} else
+#endif
 	err = vfs_rename(fdir, odentry, tdir, ndentry);
 	if (!err && EX_ISSYNC(tfhp->fh_export)) {
 		nfsd_sync_dir(tdentry);
@@ -1310,6 +1346,12 @@ nfsd_unlink(struct svc_rqst *rqstp, struct svc_fh *fhp, int type,
 	}
 
 	if (type != S_IFDIR) { /* It's UNLINK */
+#ifdef MSNFS
+		if ((fhp->fh_export->ex_flags & NFSEXP_MSNFS) &&
+			(atomic_read(&rdentry->d_count) > 1)) {
+			err = nfserr_perm;
+		} else
+#endif
 		err = vfs_unlink(dirp, rdentry);
 	} else { /* It's RMDIR */
 		err = vfs_rmdir(dirp, rdentry);

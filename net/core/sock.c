@@ -7,7 +7,7 @@
  *		handler for protocols to use and generic option handler.
  *
  *
- * Version:	$Id: sock.c,v 1.98 2000/08/16 16:09:15 davem Exp $
+ * Version:	$Id: sock.c,v 1.100 2000/09/18 05:59:48 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -609,7 +609,9 @@ void __init sk_init(void)
 {
 	sk_cachep = kmem_cache_create("sock", sizeof(struct sock), 0,
 				      SLAB_HWCACHE_ALIGN, 0, 0);
-	
+	if (!sk_cachep)
+		printk(KERN_CRIT "sk_init: Cannot create sock SLAB cache!");
+
 	if (num_physpages <= 4096) {
 		sysctl_wmem_max = 32767;
 		sysctl_rmem_max = 32767;
@@ -1142,6 +1144,7 @@ void sock_init_data(struct socket *sock, struct sock *sk)
 	} else
 		sk->sleep	=	NULL;
 
+	sk->dst_lock		=	RW_LOCK_UNLOCKED;
 	sk->callback_lock	=	RW_LOCK_UNLOCKED;
 
 	sk->state_change	=	sock_def_wakeup;

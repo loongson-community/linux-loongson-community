@@ -2,7 +2,7 @@
 
     PCMCIA Card Services -- core services
 
-    cs.c 1.249 2000/02/10 23:26:11
+    cs.c 1.267 2000/08/30 22:07:31
     
     The contents of this file are subject to the Mozilla Public
     License Version 1.1 (the "License"); you may not use this file
@@ -15,7 +15,7 @@
     rights and limitations under the License.
 
     The initial developer of the original code is David A. Hinds
-    <dhinds@pcmcia.sourceforge.org>.  Portions created by David A. Hinds
+    <dahinds@users.sourceforge.net>.  Portions created by David A. Hinds
     are Copyright (C) 1999 David A. Hinds.  All Rights Reserved.
 
     Alternatively, the contents of this file may be used under the
@@ -66,7 +66,7 @@
 int pc_debug = PCMCIA_DEBUG;
 MODULE_PARM(pc_debug, "i");
 static const char *version =
-"cs.c 1.249 2000/02/10 23:26:11 (David Hinds)";
+"cs.c 1.267 2000/08/30 22:07:31 (David Hinds)";
 #endif
 
 #ifdef CONFIG_PCI
@@ -93,7 +93,7 @@ static const char *version =
 static const char *release = "Linux PCMCIA Card Services " CS_RELEASE;
 static const char *options = "options: " OPTIONS;
 
-MODULE_AUTHOR("David Hinds <dhinds@pcmcia.sourceforge.org>");
+MODULE_AUTHOR("David Hinds <dahinds@users.sourceforge.net>");
 MODULE_DESCRIPTION("Linux PCMCIA Card Services " CS_RELEASE
 		   "\n  options:" OPTIONS);
 
@@ -103,13 +103,13 @@ MODULE_DESCRIPTION("Linux PCMCIA Card Services " CS_RELEASE
 
 #define INT_MODULE_PARM(n, v) static int n = v; MODULE_PARM(n, "i")
 
-INT_MODULE_PARM(setup_delay,	HZ/20);		/* ticks */
-INT_MODULE_PARM(resume_delay,	HZ/5);		/* ticks */
-INT_MODULE_PARM(shutdown_delay,	HZ/40);		/* ticks */
-INT_MODULE_PARM(vcc_settle,	400);		/* msecs */
+INT_MODULE_PARM(setup_delay,	10);		/* centiseconds */
+INT_MODULE_PARM(resume_delay,	20);		/* centiseconds */
+INT_MODULE_PARM(shutdown_delay,	3);		/* centiseconds */
+INT_MODULE_PARM(vcc_settle,	40);		/* centiseconds */
 INT_MODULE_PARM(reset_time,	10);		/* usecs */
-INT_MODULE_PARM(unreset_delay,	100);		/* msecs */
-INT_MODULE_PARM(unreset_check,	100);		/* msecs */
+INT_MODULE_PARM(unreset_delay,	10);		/* centiseconds */
+INT_MODULE_PARM(unreset_check,	10);		/* centiseconds */
 INT_MODULE_PARM(unreset_limit,	30);		/* unreset_check's */
 
 /* Access speed for attribute memory windows */
@@ -303,7 +303,7 @@ static int proc_read_clients(char *buf, char **start, off_t pos,
     
 ======================================================================*/
 
-static void setup_socket(socket_info_t *);
+static int setup_socket(socket_info_t *);
 static void shutdown_socket(socket_info_t *);
 static void reset_socket(socket_info_t *);
 static void unreset_socket(socket_info_t *);
@@ -446,10 +446,13 @@ static void free_regions(memory_handle_t *list)
 
 static int send_event(socket_info_t *s, event_t event, int priority);
 
-static void msleep(unsigned int msec)
+/*
+ * Sleep for n_cs centiseconds (1 cs = 1/100th of a second)
+ */
+static void cs_sleep(unsigned int n_cs)
 {
 	current->state = TASK_INTERRUPTIBLE;
-	schedule_timeout( (msec * HZ + 999) / 1000);
+	schedule_timeout( (n_cs * HZ + 99) / 100);
 }
 
 static void shutdown_socket(socket_info_t *s)
@@ -490,9 +493,12 @@ static void shutdown_socket(socket_info_t *s)
     free_regions(&s->c_region);
 } /* shutdown_socket */
 
-static void setup_socket(socket_info_t *s)
+/*
+ * Return zero if we think the card isn't actually present
+ */
+static int setup_socket(socket_info_t *s)
 {
-	int val;
+	int val, ret;
 	int setup_timeout = 100;
 
 	/* Wait for "not pending" */
@@ -501,18 +507,19 @@ static void setup_socket(socket_info_t *s)
 		if (!(val & SS_PENDING))
 			break;
 		if (--setup_timeout) {
-			msleep(100);
+			cs_sleep(10);
 			continue;
 		}
 		printk(KERN_NOTICE "cs: socket %p voltage interrogation"
 			" timed out\n", s);
-		return;
+		ret = 0;
+		goto out;
 	}
 
 	if (val & SS_DETECT) {
 		DEBUG(1, "cs: setup_socket(%p): applying power\n", s);
 		s->state |= SOCKET_PRESENT;
-		s->socket.flags = 0;
+		s->socket.flags &= SS_DEBOUNCED;
 		if (val & SS_3VCARD)
 		    s->socket.Vcc = s->socket.Vpp = 33;
 		else if (!(val & SS_XVCARD))
@@ -529,10 +536,15 @@ static void setup_socket(socket_info_t *s)
 #endif
 		}
 		set_socket(s, &s->socket);
-		msleep(vcc_settle);
+		cs_sleep(vcc_settle);
 		reset_socket(s);
-	} else
+		ret = 1;
+	} else {
 		DEBUG(0, "cs: setup_socket(%p): no card!\n", s);
+		ret = 0;
+	}
+out:
+	return ret;
 } /* setup_socket */
 
 /*======================================================================
@@ -552,7 +564,7 @@ static void reset_socket(socket_info_t *s)
     udelay((long)reset_time);
     s->socket.flags &= ~SS_RESET;
     set_socket(s, &s->socket);
-    msleep(unreset_delay);
+    cs_sleep(unreset_delay);
     unreset_socket(s);
 } /* reset_socket */
 
@@ -569,13 +581,13 @@ static void unreset_socket(socket_info_t *s)
 		get_socket_status(s, &val);
 		if (val & SS_READY)
 			break;
-		DEBUG(2, "cs: socket %ld not ready yet\n", i);
+		DEBUG(2, "cs: socket %d not ready yet\n", s->sock);
 		if (--setup_timeout) {
-			msleep(unreset_check);
+			cs_sleep(unreset_check);
 			continue;
 		}
 		printk(KERN_NOTICE "cs: socket %p timed out during"
-			" reset\n", s);
+			" reset.  Try increasing setup_delay.\n", s);
 		s->state &= ~EVENT_MASK;
 		return;
 	}
@@ -647,7 +659,7 @@ static void do_shutdown(socket_info_t *s)
 	DEBUG(0, "cs: flushing pending setup\n");
 	s->state &= ~EVENT_MASK;
     }
-    msleep(shutdown_delay);
+    cs_sleep(shutdown_delay);
     s->state &= ~SOCKET_PRESENT;
     shutdown_socket(s);
 }
@@ -670,10 +682,13 @@ static void parse_events(void *info, u_int events)
 	    }
 	    s->state |= SOCKET_SETUP_PENDING;
 	    if (s->state & SOCKET_SUSPEND)
-		msleep(resume_delay);
+		cs_sleep(resume_delay);
 	    else
-		msleep(setup_delay);
-	    setup_socket(s);
+		cs_sleep(setup_delay);
+	    s->socket.flags |= SS_DEBOUNCED;
+	    if (setup_socket(s) == 0)
+		s->state &= ~SOCKET_SETUP_PENDING;
+	    s->socket.flags &= ~SS_DEBOUNCED;
 	}
     }
     if (events & SS_BATDEAD)
@@ -773,6 +788,13 @@ static int alloc_io_space(socket_info_t *s, u_int attr, ioaddr_t *base,
 	      *base, align);
 	align = 0;
     }
+    /* Check for an already-allocated window that must conflict with
+       what was asked for.  It is a hack because it does not catch all
+       potential conflicts, just the most obvious ones. */
+    for (i = 0; i < MAX_IO_WIN; i++)
+	if ((s->io[i].NumPorts != 0) &&
+	    ((s->io[i].BasePort & (align-1)) == *base))
+	    return 1;
     for (i = 0; i < MAX_IO_WIN; i++) {
 	if (s->io[i].NumPorts == 0) {
 	    if (find_io_region(base, num, align, name) == 0) {
@@ -1408,7 +1430,8 @@ int pcmcia_register_client(client_handle_t *handle, client_reg_t *req)
 	if ((status & SS_DETECT) &&
 	    !(s->state & SOCKET_SETUP_PENDING)) {
 	    s->state |= SOCKET_SETUP_PENDING;
-	    setup_socket(s);
+	    if (setup_socket(s) == 0)
+		    s->state &= ~SOCKET_SETUP_PENDING;
 	}
     }
 
@@ -1676,11 +1699,13 @@ int pcmcia_request_configuration(client_handle_t handle,
 	write_cis_mem(s, 1, (base + CISREG_SCR)>>1, 1, &c->Copy);
     }
     if (req->Present & PRESENT_OPTION) {
-	if (s->functions == 1)
+	if (s->functions == 1) {
 	    c->Option = req->ConfigIndex & COR_CONFIG_MASK;
-	else {
+	} else {
 	    c->Option = req->ConfigIndex & COR_MFC_CONFIG_MASK;
-	    c->Option |= COR_FUNC_ENA|COR_ADDR_DECODE|COR_IREQ_ENA;
+	    c->Option |= COR_FUNC_ENA|COR_IREQ_ENA;
+	    if (req->Present & PRESENT_IOBASE_0)
+		c->Option |= COR_ADDR_DECODE;
 	}
 	if (c->state & CONFIG_IRQ_REQ)
 	    if (!(c->irq.Attributes & IRQ_FORCED_PULSE))
@@ -1829,8 +1854,8 @@ int pcmcia_request_irq(client_handle_t handle, irq_req_t *req)
     if (c->state & CONFIG_IRQ_REQ)
 	return CS_IN_USE;
     
-    /* Short cut: if the interrupt is PCI, there are no options */
-    if (s->cap.irq_mask == (1 << s->cap.pci_irq))
+    /* Short cut: if there are no ISA interrupts, then it is PCI */
+    if (!s->cap.irq_mask)
 	irq = s->cap.pci_irq;
 #ifdef CONFIG_ISA
     else if (s->irq.AssignedIRQ != 0) {
@@ -1845,7 +1870,6 @@ int pcmcia_request_irq(client_handle_t handle, irq_req_t *req)
 	ret = CS_IN_USE;
 	if (req->IRQInfo1 & IRQ_INFO2_VALID) {
 	    mask = req->IRQInfo2 & s->cap.irq_mask;
-	    mask &= ~(1 << s->cap.pci_irq);
 	    for (try = 0; try < 2; try++) {
 		for (irq = 0; irq < 32; irq++)
 		    if ((mask >> irq) & 1) {
@@ -1910,11 +1934,12 @@ int pcmcia_request_window(client_handle_t *handle, win_req_t *req, window_handle
 	     req->Size : s->cap.map_size);
     if (req->Size & (s->cap.map_size-1))
 	return CS_BAD_SIZE;
-    if (req->Base & (align-1))
+    if ((req->Base && (s->cap.features & SS_CAP_STATIC_MAP)) ||
+	(req->Base & (align-1)))
 	return CS_BAD_BASE;
     if (req->Base)
 	align = 0;
-    
+
     /* Allocate system memory window */
     for (w = 0; w < MAX_WIN; w++)
 	if (!(s->state & SOCKET_WIN_REQ(w))) break;
@@ -1928,13 +1953,13 @@ int pcmcia_request_window(client_handle_t *handle, win_req_t *req, window_handle
     win->sock = s;
     win->base = req->Base;
     win->size = req->Size;
-	
-    if (find_mem_region(&win->base, win->size, align,
+
+    if (!(s->cap.features & SS_CAP_STATIC_MAP) &&
+	find_mem_region(&win->base, win->size, align,
 			(req->Attributes & WIN_MAP_BELOW_1MB) ||
 			!(s->cap.features & SS_CAP_PAGE_REGS),
 			(*handle)->dev_info))
 	return CS_IN_USE;
-    req->Base = win->base;
     (*handle)->state |= CLIENT_WIN_REQ(w);
 
     /* Configure the socket controller */
@@ -1949,14 +1974,15 @@ int pcmcia_request_window(client_handle_t *handle, win_req_t *req, window_handle
 	win->ctl.flags |= MAP_16BIT;
     if (req->Attributes & WIN_USE_WAIT)
 	win->ctl.flags |= MAP_USE_WAIT;
-    win->ctl.sys_start = req->Base;
-    win->ctl.sys_stop = req->Base + req->Size-1;
+    win->ctl.sys_start = win->base;
+    win->ctl.sys_stop = win->base + win->size-1;
     win->ctl.card_start = 0;
     if (set_mem_map(s, &win->ctl) != 0)
 	return CS_BAD_ARGS;
     s->state |= SOCKET_WIN_REQ(w);
 
     /* Return window handle */
+    req->Base = win->ctl.sys_start;
     *wh = win;
     
     return CS_SUCCESS;
@@ -2096,9 +2122,7 @@ int pcmcia_insert_card(client_handle_t handle, client_req_t *req)
 	s->state |= SOCKET_SETUP_PENDING;
 	spin_unlock_irqrestore(&s->lock, flags);
 	get_socket_status(s, &status);
-	if (status & SS_DETECT)
-	    setup_socket(s);
-	else {
+	if ((status & SS_DETECT) == 0 || (setup_socket(s) == 0)) {
 	    s->state &= ~SOCKET_SETUP_PENDING;
 	    return CS_NO_CARD;
 	}
@@ -2168,7 +2192,7 @@ int CardServices(int func, void *a1, void *a2, void *a3)
 {
 
 #ifdef PCMCIA_DEBUG
-    if (pc_debug > 1) {
+    if (pc_debug > 2) {
 	int i;
 	for (i = 0; i < SERVICE_COUNT; i++)
 	    if (service_table[i].key == func) break;

@@ -138,6 +138,8 @@
  */
 
 #include <linux/module.h>
+#include <linux/init.h>
+
 #include <linux/stddef.h>
 #include <linux/spinlock.h>
 #include <linux/smp_lock.h>
@@ -2476,7 +2478,8 @@ static int vwsnd_audio_do_ioctl(struct inode *inode,
 		return put_user(ival, (int *) arg);
 
 	case SNDCTL_DSP_SPEED:		/* _SIOWR('P', 2, int) */
-		get_user_ret(ival, (int *) arg, -EFAULT);
+		if (get_user(ival, (int *) arg))
+			return -EFAULT;
 		DBGX("SNDCTL_DSP_SPEED %d\n", ival);
 		if (ival) {
 			if (aport->swstate != SW_INITIAL) {
@@ -2497,7 +2500,8 @@ static int vwsnd_audio_do_ioctl(struct inode *inode,
 		return put_user(ival, (int *) arg);
 
 	case SNDCTL_DSP_STEREO:		/* _SIOWR('P', 3, int) */
-		get_user_ret(ival, (int *) arg, -EFAULT);
+		if (get_user(ival, (int *) arg))
+			return -EFAULT;
 		DBGX("SNDCTL_DSP_STEREO %d\n", ival);
 		if (ival != 0 && ival != 1)
 			return -EINVAL;
@@ -2510,7 +2514,8 @@ static int vwsnd_audio_do_ioctl(struct inode *inode,
 		return put_user(ival, (int *) arg);
 
 	case SNDCTL_DSP_CHANNELS:	/* _SIOWR('P', 6, int) */
-		get_user_ret(ival, (int *) arg, -EFAULT);
+		if (get_user(ival, (int *) arg))
+			return -EFAULT;
 		DBGX("SNDCTL_DSP_CHANNELS %d\n", ival);
 		if (ival != 1 && ival != 2)
 			return -EINVAL;
@@ -2533,7 +2538,8 @@ static int vwsnd_audio_do_ioctl(struct inode *inode,
 		return put_user(ival, (int *) arg);
 
 	case SNDCTL_DSP_SETFRAGMENT:	/* _SIOWR('P',10, int) */
-		get_user_ret(ival, (int *) arg, -EFAULT);
+		if (get_user(ival, (int *) arg))
+			return -EFAULT;
 		DBGX("SNDCTL_DSP_SETFRAGMENT %d:%d\n",
 		     ival >> 16, ival & 0xFFFF);
 		if (aport->swstate != SW_INITIAL)
@@ -2571,7 +2577,8 @@ static int vwsnd_audio_do_ioctl(struct inode *inode,
 		return put_user(ival, (int *) arg);
 
 	case SNDCTL_DSP_SUBDIVIDE:	/* _SIOWR('P', 9, int) */
-                get_user_ret(ival, (int *) arg, -EFAULT);
+                if (get_user(ival, (int *) arg))
+			return -EFAULT;
 		DBGX("SNDCTL_DSP_SUBDIVIDE %d\n", ival);
 		if (aport->swstate != SW_INITIAL)
 			return -EINVAL;
@@ -2601,7 +2608,8 @@ static int vwsnd_audio_do_ioctl(struct inode *inode,
 		return 0;
 
 	case SNDCTL_DSP_SETFMT:		/* _SIOWR('P',5, int) */
-		get_user_ret(ival, (int *) arg, -EFAULT);
+		if (get_user(ival, (int *) arg))
+			return -EFAULT;
 		DBGX("SNDCTL_DSP_SETFMT %d\n", ival);
 		if (ival != AFMT_QUERY) {
 			if (aport->swstate != SW_INITIAL) {
@@ -2809,7 +2817,8 @@ static int vwsnd_audio_do_ioctl(struct inode *inode,
 		return put_user(ival, (int *) arg);
 
 	case SNDCTL_DSP_SETTRIGGER:	/* _SIOW ('P',16, int) */
-		get_user_ret(ival, (int *) arg, -EFAULT);
+		if (get_user(ival, (int *) arg))
+			return -EFAULT;
 		DBGX("SNDCTL_DSP_SETTRIGGER %d\n", ival);
 
 		/*
@@ -3445,12 +3454,10 @@ static struct address_info the_hw_config = {
 	CO_IRQ(CO_APIC_LI_AUDIO)	/* irq */
 };
 
-#ifdef MODULE
-
 MODULE_DESCRIPTION("SGI Visual Workstation sound module");
 MODULE_AUTHOR("Bob Miller <kbob@sgi.com>");
 
-extern int init_module(void)
+static int __init init_vwsnd(void)
 {
 	int err;
 
@@ -3465,23 +3472,15 @@ extern int init_module(void)
 	return 0;
 }
 
-extern void cleanup_module(void)
+static void __exit cleanup_vwsnd(void)
 {
 	DBGX("sound::vwsnd::cleanup_module()\n");
 
 	unload_vwsnd(&the_hw_config);
 }
 
-#else
-
-extern void init_vwsnd(void)
-{
-	DBGX("sound::vwsnd::init_vwsnd()\n");
-	if (probe_vwsnd(&the_hw_config))
-		(void) attach_vwsnd(&the_hw_config);
-}
-
-#endif /* !MODULE */
+module_init(init_vwsnd);
+module_exit(cleanup_vwsnd);
 
 /*
  * Local variables:

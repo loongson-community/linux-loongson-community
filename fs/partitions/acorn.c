@@ -1,12 +1,17 @@
 /*
- * linux/arch/arm/drivers/block/adfspart.c
+ *  linux/fs/partitions/acorn.c
  *
- * Copyright (c) 1996-2000 Russell King.
+ *  Copyright (c) 1996-2000 Russell King.
  *
- * Scan ADFS partitions on hard disk drives.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ *  Scan ADFS partitions on hard disk drives.
  */
 #include <linux/config.h>
 #include <linux/kernel.h>
+#include <linux/types.h>
 #include <linux/kdev_t.h>
 #include <linux/major.h>
 #include <linux/string.h>

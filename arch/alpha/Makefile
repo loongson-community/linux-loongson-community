@@ -8,7 +8,7 @@
 # Copyright (C) 1994 by Linus Torvalds
 #
 
-NM := nm -B
+NM := $(NM) -B
 
 LINKFLAGS = -static -T arch/alpha/vmlinux.lds -N #-relax
 CFLAGS := $(CFLAGS) -pipe -mno-fp-regs -ffixed-8
@@ -22,6 +22,8 @@ have_mcpu := $(shell if $(CC) -mcpu=ev5 -S -o /dev/null -xc /dev/null > /dev/nul
 have_mcpu_pca56 := $(shell if $(CC) -mcpu=pca56 -S -o /dev/null -xc /dev/null > /dev/null 2>&1; then echo y; else echo n; fi)
 
 have_mcpu_ev6 := $(shell if $(CC) -mcpu=ev6 -S -o /dev/null -xc /dev/null > /dev/null 2>&1; then echo y; else echo n; fi)
+
+have_mcpu_ev67 := $(shell if $(CC) -mcpu=ev67 -S -o /dev/null -xc /dev/null > /dev/null 2>&1; then echo y; else echo n; fi)
 
 # Turn on the proper cpu optimizations.
 ifeq ($(have_mcpu),y)
@@ -117,6 +119,10 @@ archmrproper:
 
 archdep:
 	@$(MAKEBOOT) dep
+
+vmlinux: arch/alpha/vmlinux.lds
+
+arch/alpha/vmlinux.lds: arch/alpha/vmlinux.lds.in
 	$(CPP) $(CPPFLAGS) -xc -P arch/alpha/vmlinux.lds.in -o arch/alpha/vmlinux.lds
 
 bootpfile:

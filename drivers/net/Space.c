@@ -440,7 +440,7 @@ static int __init fddiif_probe(struct net_device *dev)
 #endif
 
 
-/* Pad device name to IFNAMSIZ=16. F.e. __PAD6 is tring of 9 zeros. */
+/* Pad device name to IFNAMSIZ=16. F.e. __PAD6 is string of 9 zeros. */
 #define __PAD6 "\0\0\0\0\0\0\0\0\0"
 #define __PAD5 __PAD6 "\0"
 #define __PAD4 __PAD5 "\0"
@@ -677,14 +677,6 @@ static struct net_device tr0_dev = {
 #undef  NEXT_DEV
 #define NEXT_DEV        (&escon0_dev)                                  
 #endif  
-
-#ifdef CONFIG_TUN
-    extern int tun_init(struct net_device *dev);
-    static struct net_device tun_dev = {
-        "tun", 0, 0, 0, 0, 0, 0, 0, 0, 0, NEXT_DEV, tun_init };
-#   undef       NEXT_DEV
-#   define      NEXT_DEV        (&tun_dev)
-#endif    
 
 /*
  *	The loopback device is global so it can be directly referenced

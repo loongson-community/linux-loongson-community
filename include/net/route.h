@@ -94,12 +94,13 @@ struct ip_rt_acct
 
 extern struct ip_rt_acct *ip_rt_acct;
 
+struct in_device;
 extern void		ip_rt_init(void);
 extern void		ip_rt_redirect(u32 old_gw, u32 dst, u32 new_gw,
 				       u32 src, u8 tos, struct net_device *dev);
 extern void		ip_rt_advice(struct rtable **rp, int advice);
 extern void		rt_cache_flush(int how);
-extern int		ip_route_output(struct rtable **, u32 dst, u32 src, u32 tos, int oif);
+extern int		ip_route_output_key(struct rtable **, const struct rt_key *key);
 extern int		ip_route_input(struct sk_buff*, u32 dst, u32 src, u8 tos, struct net_device *devin);
 extern unsigned short	ip_rt_frag_needed(struct iphdr *iph, unsigned short new_mtu);
 extern void		ip_rt_update_pmtu(struct dst_entry *dst, unsigned mtu);
@@ -111,8 +112,17 @@ extern int		ip_rt_ioctl(unsigned int cmd, void *arg);
 extern void		ip_rt_get_source(u8 *src, struct rtable *rt);
 extern int		ip_rt_dump(struct sk_buff *skb,  struct netlink_callback *cb);
 
+/* Deprecated: use ip_route_output_key directly */
+static inline int ip_route_output(struct rtable **rp,
+				      u32 daddr, u32 saddr, u32 tos, int oif)
+{
+	struct rt_key key = { dst:daddr, src:saddr, oif:oif, tos:tos };
 
-extern __inline__ void ip_rt_put(struct rtable * rt)
+	return ip_route_output_key(rp, &key);
+}
+
+
+static inline void ip_rt_put(struct rtable * rt)
 {
 	if (rt)
 		dst_release(&rt->u.dst);
@@ -127,12 +137,12 @@ extern __inline__ void ip_rt_put(struct rtable * rt)
 
 extern __u8 ip_tos2prio[16];
 
-extern __inline__ char rt_tos2priority(u8 tos)
+static inline char rt_tos2priority(u8 tos)
 {
 	return ip_tos2prio[IPTOS_TOS(tos)>>1];
 }
 
-extern __inline__ int ip_route_connect(struct rtable **rp, u32 dst, u32 src, u32 tos, int oif)
+static inline int ip_route_connect(struct rtable **rp, u32 dst, u32 src, u32 tos, int oif)
 {
 	int err;
 	err = ip_route_output(rp, dst, src, tos, oif);
@@ -147,7 +157,7 @@ extern __inline__ int ip_route_connect(struct rtable **rp, u32 dst, u32 src, u32
 
 extern void rt_bind_peer(struct rtable *rt, int create);
 
-extern __inline__ struct inet_peer *rt_get_peer(struct rtable *rt)
+static inline struct inet_peer *rt_get_peer(struct rtable *rt)
 {
 	if (rt->peer)
 		return rt->peer;

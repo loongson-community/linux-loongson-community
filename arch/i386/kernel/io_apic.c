@@ -38,7 +38,7 @@ static spinlock_t ioapic_lock = SPIN_LOCK_UNLOCKED;
 /*
  * # of IO-APICs and # of IRQ routing registers
  */
-int nr_ioapics = 0;
+int nr_ioapics;
 int nr_ioapic_registers[MAX_IO_APICS];
 
 /* I/O APIC entries */
@@ -48,7 +48,7 @@ struct mpc_config_ioapic mp_ioapics[MAX_IO_APICS];
 struct mpc_config_intsrc mp_irqs[MAX_IRQ_SOURCES];
 
 /* MP IRQ source entries */
-int mp_irq_entries = 0;
+int mp_irq_entries;
 
 #if CONFIG_SMP
 # define TARGET_CPUS cpu_online_map
@@ -172,8 +172,8 @@ static void clear_IO_APIC (void)
 
 #define MAX_PIRQS 8
 int pirq_entries [MAX_PIRQS];
-int pirqs_enabled = 0;
-int skip_ioapic_setup = 0;
+int pirqs_enabled;
+int skip_ioapic_setup;
 
 static int __init ioapic_setup(char *str)
 {
@@ -219,10 +219,10 @@ static int __init find_irq_entry(int apic, int pin, int type)
 	int i;
 
 	for (i = 0; i < mp_irq_entries; i++)
-		if ( (mp_irqs[i].mpc_irqtype == type) &&
-			(mp_irqs[i].mpc_dstapic == mp_ioapics[apic].mpc_apicid) &&
-			(mp_irqs[i].mpc_dstirq == pin))
-
+		if (mp_irqs[i].mpc_irqtype == type &&
+		    (mp_irqs[i].mpc_dstapic == mp_ioapics[apic].mpc_apicid ||
+		     mp_irqs[i].mpc_dstapic == MP_APIC_ALL) &&
+		    mp_irqs[i].mpc_dstirq == pin)
 			return i;
 
 	return -1;
@@ -262,7 +262,8 @@ int IO_APIC_get_PCI_irq_vector(int bus, int slot, int pci_pin)
 		int lbus = mp_irqs[i].mpc_srcbus;
 
 		for (apic = 0; apic < nr_ioapics; apic++)
-			if (mp_ioapics[apic].mpc_apicid == mp_irqs[i].mpc_dstapic)
+			if (mp_ioapics[apic].mpc_apicid == mp_irqs[i].mpc_dstapic ||
+			    mp_irqs[i].mpc_dstapic == MP_APIC_ALL)
 				break;
 
 		if ((mp_bus_id_to_type[lbus] == MP_BUS_PCI) &&
@@ -982,7 +983,10 @@ void disable_IO_APIC(void)
 static void __init setup_ioapic_ids_from_mpc (void)
 {
 	struct IO_APIC_reg_00 reg_00;
+	unsigned long phys_id_present_map = phys_cpu_present_map;
 	int apic;
+	int i;
+	unsigned char old_id;
 
 	/*
 	 * Set the IOAPIC ID to the value stored in the MPC table.
@@ -992,6 +996,8 @@ static void __init setup_ioapic_ids_from_mpc (void)
 		/* Read the register 0 value */
 		*(int *)&reg_00 = io_apic_read(apic, 0);
 		
+		old_id = mp_ioapics[apic].mpc_apicid;
+
 		if (mp_ioapics[apic].mpc_apicid >= 0xf) {
 			printk(KERN_ERR "BIOS bug, IO-APIC#%d ID is %d in the MPC table!...\n",
 				apic, mp_ioapics[apic].mpc_apicid);
@@ -1001,20 +1007,40 @@ static void __init setup_ioapic_ids_from_mpc (void)
 		}
 
 		/*
+		 * Sanity check, is the ID really free? Every APIC in a
+		 * system must have a unique ID or we get lots of nice
+		 * 'stuck on smp_invalidate_needed IPI wait' messages.
+		 */
+		if (phys_id_present_map & (1 << mp_ioapics[apic].mpc_apicid)) {
+			printk(KERN_ERR "BIOS bug, IO-APIC#%d ID %d is already used!...\n",
+				apic, mp_ioapics[apic].mpc_apicid);
+			for (i = 0; i < 0xf; i++)
+				if (!(phys_id_present_map & (1 << i)))
+					break;
+			if (i >= 0xf)
+				panic("Max APIC ID exceeded!\n");
+			printk(KERN_ERR "... fixing up to %d. (tell your hw vendor)\n",
+				i);
+			phys_id_present_map |= 1 << i;
+			mp_ioapics[apic].mpc_apicid = i;
+		}
+
+		/*
+		 * We need to adjust the IRQ routing table
+		 * if the ID changed.
+		 */
+		if (old_id != mp_ioapics[apic].mpc_apicid)
+			for (i = 0; i < mp_irq_entries; i++)
+				if (mp_irqs[i].mpc_dstapic == old_id)
+					mp_irqs[i].mpc_dstapic
+						= mp_ioapics[apic].mpc_apicid;
+
+		/*
 		 * Read the right value from the MPC table and
 		 * write it into the ID register.
 	 	 */
 		printk(KERN_INFO "...changing IO-APIC physical APIC ID to %d ...",
 					mp_ioapics[apic].mpc_apicid);
-
-		/*
-		 * Sanity check, is the ID really free? Every APIC in the
-		 * system must have a unique ID or we get lots of nice
-		 * 'stuck on smp_invalidate_needed IPI wait' messages.
-		 */
-		if (phys_cpu_present_map & (1<<mp_ioapics[apic].mpc_apicid))
-			panic("APIC ID %d already used",
-				mp_ioapics[apic].mpc_apicid);
 
 		reg_00.ID = mp_ioapics[apic].mpc_apicid;
 		io_apic_write(apic, 0, *(int *)&reg_00);

@@ -45,7 +45,7 @@ static void minix_delete_inode(struct inode *inode)
 
 static void minix_commit_super(struct super_block * sb)
 {
-	mark_buffer_dirty(sb->u.minix_sb.s_sbh, 1);
+	mark_buffer_dirty(sb->u.minix_sb.s_sbh);
 	sb->s_dirt = 0;
 }
 
@@ -70,7 +70,7 @@ static void minix_put_super(struct super_block *sb)
 
 	if (!(sb->s_flags & MS_RDONLY)) {
 		sb->u.minix_sb.s_ms->s_state = sb->u.minix_sb.s_mount_state;
-		mark_buffer_dirty(sb->u.minix_sb.s_sbh, 1);
+		mark_buffer_dirty(sb->u.minix_sb.s_sbh);
 	}
 	for (i = 0; i < sb->u.minix_sb.s_imap_blocks; i++)
 		brelse(sb->u.minix_sb.s_imap[i]);
@@ -105,7 +105,7 @@ static int minix_remount (struct super_block * sb, int * flags, char * data)
 			return 0;
 		/* Mounting a rw partition read-only. */
 		ms->s_state = sb->u.minix_sb.s_mount_state;
-		mark_buffer_dirty(sb->u.minix_sb.s_sbh, 1);
+		mark_buffer_dirty(sb->u.minix_sb.s_sbh);
 		sb->s_dirt = 1;
 		minix_commit_super(sb);
 	}
@@ -113,7 +113,7 @@ static int minix_remount (struct super_block * sb, int * flags, char * data)
 	  	/* Mount a partition which is read-only, read-write. */
 		sb->u.minix_sb.s_mount_state = ms->s_state;
 		ms->s_state &= ~MINIX_VALID_FS;
-		mark_buffer_dirty(sb->u.minix_sb.s_sbh, 1);
+		mark_buffer_dirty(sb->u.minix_sb.s_sbh);
 		sb->s_dirt = 1;
 
 		if (!(sb->u.minix_sb.s_mount_state & MINIX_VALID_FS))
@@ -279,7 +279,7 @@ static struct super_block *minix_read_super(struct super_block *s, void *data,
 
 	if (!(s->s_flags & MS_RDONLY)) {
 		ms->s_state &= ~MINIX_VALID_FS;
-		mark_buffer_dirty(bh, 1);
+		mark_buffer_dirty(bh);
 		s->s_dirt = 1;
 	}
 	if (!(s->u.minix_sb.s_mount_state & MINIX_VALID_FS))
@@ -348,573 +348,13 @@ static int minix_statfs(struct super_block *sb, struct statfs *buf)
 	return 0;
 }
 
-/*
- * The minix V1 fs bmap functions.
- */
-#define V1_inode_bmap(inode,nr) (((unsigned short *)(inode)->u.minix_i.u.i1_data)[(nr)])
-
-static int V1_block_bmap(struct buffer_head * bh, int nr)
-{
-	int tmp;
-
-	if (!bh)
-		return 0;
-	tmp = ((unsigned short *) bh->b_data)[nr];
-	brelse(bh);
-	return tmp;
-}
-
-static int V1_minix_block_map(struct inode * inode, long block)
-{
-	int i, ret;
-
-	ret = 0;
-	lock_kernel();
-	if (block < 0) {
-		printk("minix_bmap: block<0");
-		goto out;
-	}
-	if (block >= (inode->i_sb->u.minix_sb.s_max_size/BLOCK_SIZE)) {
-		printk("minix_bmap: block>big");
-		goto out;
-	}
-	if (block < 7) {
-		ret = V1_inode_bmap(inode,block);
-		goto out;
-	}
-	block -= 7;
-	if (block < 512) {
-		i = V1_inode_bmap(inode,7);
-		if (!i)
-			goto out;
-		ret = V1_block_bmap(bread(inode->i_dev, i,
-					  BLOCK_SIZE), block);
-		goto out;
-	}
-	block -= 512;
-	i = V1_inode_bmap(inode,8);
-	if (!i)
-		goto out;
-	i = V1_block_bmap(bread(inode->i_dev,i,BLOCK_SIZE),block>>9);
-	if (!i)
-		goto out;
-	ret = V1_block_bmap(bread(inode->i_dev, i, BLOCK_SIZE),
-			    block & 511);
-out:
-	unlock_kernel();
-	return ret;
-}
-
-/*
- * The minix V2 fs bmap functions.
- */
-#define V2_inode_bmap(inode,nr) (((unsigned int *)(inode)->u.minix_i.u.i2_data)[(nr)])
-static int V2_block_bmap(struct buffer_head * bh, int nr)
-{
-	int tmp;
-
-	if (!bh)
-		return 0;
-	tmp = ((unsigned int *) bh->b_data)[nr];
-	brelse(bh);
-	return tmp;
-}
-
-static int V2_minix_block_map(struct inode * inode, int block)
-{
-	int i, ret;
-
-	ret = 0;
-	lock_kernel();
-	if (block < 0) {
-		printk("minix_bmap: block<0");
-		goto out;
-	}
-	if (block >= (inode->i_sb->u.minix_sb.s_max_size/BLOCK_SIZE)) {
-		printk("minix_bmap: block>big");
-		goto out;
-	}
-	if (block < 7) {
-		ret = V2_inode_bmap(inode,block);
-		goto out;
-	}
-	block -= 7;
-	if (block < 256) {
-		i = V2_inode_bmap(inode, 7);
-		if (!i)
-			goto out;
-		ret = V2_block_bmap(bread(inode->i_dev, i,
-					  BLOCK_SIZE), block);
-		goto out;
-	}
-	block -= 256;
-	if (block < (256 * 256)) {
-		i = V2_inode_bmap(inode, 8);
-		if (!i)
-			goto out;
-		i = V2_block_bmap(bread(inode->i_dev, i, BLOCK_SIZE),
-				  block >> 8);
-		if (!i)
-			goto out;
-		ret = V2_block_bmap(bread(inode->i_dev, i, BLOCK_SIZE),
-				    block & 255);
-		goto out;
-	}
-	block -= (256 * 256);
-	i = V2_inode_bmap(inode, 9);
-	if (!i)
-		goto out;
-	i = V2_block_bmap(bread(inode->i_dev, i, BLOCK_SIZE),
-			  block >> 16);
-	if (!i)
-		goto out;
-	i = V2_block_bmap(bread(inode->i_dev, i, BLOCK_SIZE),
-			  (block >> 8) & 255);
-	if (!i)
-		goto out;
-	ret = V2_block_bmap(bread(inode->i_dev, i, BLOCK_SIZE),
-			    block & 255);
-out:
-	unlock_kernel();
-	return ret;
-}
-
-/*
- * The minix V1 fs getblk functions.
- */
-static struct buffer_head * V1_inode_getblk(struct inode * inode, int nr,
-					    int new_block, int *err,
-					    int metadata, int *phys, int *new)
-{
-	int tmp;
-	unsigned short *p;
-	struct buffer_head * result;
-
-	p = inode->u.minix_i.u.i1_data + nr;
-repeat:
-	tmp = *p;
-	if (tmp) {
-		if (metadata) {
-			result = getblk(inode->i_dev, tmp, BLOCK_SIZE);
-			if (tmp == *p)
-				return result;
-			brelse(result);
-			goto repeat;
-		} else {
-			*phys = tmp;
-			return NULL;
-		}
-	}
-
-	tmp = minix_new_block(inode);
-	if (!tmp) {
-		*err = -ENOSPC;
-		return NULL;
-	}
-	if (metadata) {
-		result = getblk(inode->i_dev, tmp, BLOCK_SIZE);
-		if (*p) {
-			minix_free_block(inode, tmp);
-			brelse(result);
-			goto repeat;
-		}
-		memset(result->b_data, 0, BLOCK_SIZE);
-		mark_buffer_uptodate(result, 1);
-		mark_buffer_dirty(result, 1);
-	} else {
-		if (*p) {
-			/*
-			 * Nobody is allowed to change block allocation
-			 * state from under us:
-			 */
-			BUG();
-			minix_free_block(inode, tmp);
-			goto repeat;
-		}
-		*phys = tmp;
-		result = NULL;
-		*err = 0;
-		*new = 1;
-	}
-	*p = tmp;
-
-	inode->i_ctime = CURRENT_TIME;
-	mark_inode_dirty(inode);
-	return result;
-}
-
-static struct buffer_head * V1_block_getblk(struct inode * inode,
-	struct buffer_head * bh, int nr, int new_block, int *err,
-	int metadata, int *phys, int *new)
-{
-	int tmp;
-	unsigned short *p;
-	struct buffer_head * result;
-
-	result = NULL;
-	if (!bh)
-		goto out;
-	if (!buffer_uptodate(bh)) {
-		ll_rw_block(READ, 1, &bh);
-		wait_on_buffer(bh);
-		if (!buffer_uptodate(bh))
-			goto out;
-	}
-	p = nr + (unsigned short *) bh->b_data;
-repeat:
-	tmp = *p;
-	if (tmp) {
-		if (metadata) {
-			result = getblk(bh->b_dev, tmp, BLOCK_SIZE);
-			if (tmp == *p)
-				goto out;
-			brelse(result);
-			goto repeat;
-		} else {
-			*phys = tmp;
-			goto out;
-		}
-	}
-
-	tmp = minix_new_block(inode);
-	if (!tmp)
-		goto out;
-	if (metadata) {
-		result = getblk(bh->b_dev, tmp, BLOCK_SIZE);
-		if (*p) {
-			minix_free_block(inode, tmp);
-			brelse(result);
-			goto repeat;
-		}
-		memset(result->b_data, 0, BLOCK_SIZE);
-		mark_buffer_uptodate(result, 1);
-		mark_buffer_dirty(result, 1);
-	} else {
-		*phys = tmp;
-		*new = 1;
-	}
-	if (*p) {
-		minix_free_block(inode, tmp);
-		brelse(result);
-		goto repeat;
-	}
-
-	*p = tmp;
-	mark_buffer_dirty(bh, 1);
-	*err = 0;
-out:
-	brelse(bh);
-	return result;
-}
-
-static int V1_get_block(struct inode * inode, long block,
-			struct buffer_head *bh_result, int create)
-{
-	int ret, err, new, phys, ptr;
-	struct buffer_head *bh;
-
-	if (!create) {
-		phys = V1_minix_block_map(inode, block);
-		if (phys) {
-			bh_result->b_dev = inode->i_dev;
-			bh_result->b_blocknr = phys;
-			bh_result->b_state |= (1UL << BH_Mapped);
-		}
-		return 0;
-	}
-
-	err = -EIO;
-	new = 0;
-	ret = 0;
-	bh = NULL;
-
-	lock_kernel();
-	if (block < 0)
-		goto abort_negative;
-	if (block >= inode->i_sb->u.minix_sb.s_max_size/BLOCK_SIZE)
-		goto abort_too_big;
-
-	err = 0;
-	ptr = block;
-	/*
-	 * ok, these macros clean the logic up a bit and make
-	 * it much more readable:
-	 */
-#define GET_INODE_DATABLOCK(x) \
-		V1_inode_getblk(inode, x, block, &err, 0, &phys, &new)
-#define GET_INODE_PTR(x) \
-		V1_inode_getblk(inode, x, block, &err, 1, NULL, NULL)
-#define GET_INDIRECT_DATABLOCK(x) \
-		V1_block_getblk(inode, bh, x, block, &err, 0, &phys, &new)
-#define GET_INDIRECT_PTR(x) \
-		V1_block_getblk(inode, bh, x, block, &err, 1, NULL, NULL)
-
-	if (ptr < 7) {
-		bh = GET_INODE_DATABLOCK(ptr);
-		goto out;
-	}
-	ptr -= 7;
-	if (ptr < 512) {
-		bh = GET_INODE_PTR(7);
-		goto get_indirect;
-	}
-	ptr -= 512;
-	bh = GET_INODE_PTR(8);
-	bh = GET_INDIRECT_PTR((ptr >> 9) & 511);
-get_indirect:
-	bh = GET_INDIRECT_DATABLOCK(ptr & 511);
-
-#undef GET_INODE_DATABLOCK
-#undef GET_INODE_PTR
-#undef GET_INDIRECT_DATABLOCK
-#undef GET_INDIRECT_PTR
-
-out:
-	if (err)
-		goto abort;
-	bh_result->b_dev = inode->i_dev;
-	bh_result->b_blocknr = phys;
-	bh_result->b_state |= (1UL << BH_Mapped);
-	if (new)
-		bh_result->b_state |= (1UL << BH_New);
-abort:
-	unlock_kernel();
-	return err;
-
-abort_negative:
-	printk("minix_getblk: block<0");
-	goto abort;
-
-abort_too_big:
-	printk("minix_getblk: block>big");
-	goto abort;
-}
-
-/*
- * The minix V2 fs getblk functions.
- */
-static struct buffer_head * V2_inode_getblk(struct inode * inode, int nr,
-					    int new_block, int *err,
-					    int metadata, int *phys, int *new)
-{
-	int tmp;
-	unsigned int *p;
-	struct buffer_head * result;
-
-	p = (unsigned int *) inode->u.minix_i.u.i2_data + nr;
-repeat:
-	tmp = *p;
-	if (tmp) {
-		if (metadata) {
-			result = getblk(inode->i_dev, tmp, BLOCK_SIZE);
-			if (tmp == *p)
-				return result;
-			brelse(result);
-			goto repeat;
-		} else {
-			*phys = tmp;
-			return NULL;
-		}
-	}
-
-	tmp = minix_new_block(inode);
-	if (!tmp) {
-		*err = -ENOSPC;
-		return NULL;
-	}
-	if (metadata) {
-		result = getblk(inode->i_dev, tmp, BLOCK_SIZE);
-		if (*p) {
-			minix_free_block(inode, tmp);
-			brelse(result);
-			goto repeat;
-		}
-		memset(result->b_data, 0, BLOCK_SIZE);
-		mark_buffer_uptodate(result, 1);
-		mark_buffer_dirty(result, 1);
-	} else {
-		if (*p) {
-			/*
-			 * Nobody is allowed to change block allocation
-			 * state from under us:
-			 */
-			BUG();
-			minix_free_block(inode, tmp);
-			goto repeat;
-		}
-		*phys = tmp;
-		result = NULL;
-		*err = 0;
-		*new = 1;
-	}
-	*p = tmp;
-
-	inode->i_ctime = CURRENT_TIME;
-	mark_inode_dirty(inode);
-	return result;
-}
-
-static struct buffer_head * V2_block_getblk(struct inode * inode,
-	struct buffer_head * bh, int nr, int new_block, int *err,
-	int metadata, int *phys, int *new)
-{
-	int tmp;
-	unsigned int *p;
-	struct buffer_head * result;
-
-	result = NULL;
-	if (!bh)
-		goto out;
-	if (!buffer_uptodate(bh)) {
-		ll_rw_block(READ, 1, &bh);
-		wait_on_buffer(bh);
-		if (!buffer_uptodate(bh))
-			goto out;
-	}
-	p = nr + (unsigned int *) bh->b_data;
-repeat:
-	tmp = *p;
-	if (tmp) {
-		if (metadata) {
-			result = getblk(bh->b_dev, tmp, BLOCK_SIZE);
-			if (tmp == *p)
-				goto out;
-			brelse(result);
-			goto repeat;
-		} else {
-			*phys = tmp;
-			goto out;
-		}
-	}
-
-	tmp = minix_new_block(inode);
-	if (!tmp)
-		goto out;
-	if (metadata) {
-		result = getblk(bh->b_dev, tmp, BLOCK_SIZE);
-		if (*p) {
-			minix_free_block(inode, tmp);
-			brelse(result);
-			goto repeat;
-		}
-		memset(result->b_data, 0, BLOCK_SIZE);
-		mark_buffer_uptodate(result, 1);
-		mark_buffer_dirty(result, 1);
-	} else {
-		*phys = tmp;
-		*new = 1;
-	}
-	if (*p) {
-		minix_free_block(inode, tmp);
-		brelse(result);
-		goto repeat;
-	}
-
-	*p = tmp;
-	mark_buffer_dirty(bh, 1);
-	*err = 0;
-out:
-	brelse(bh);
-	return result;
-}
-
-static int V2_get_block(struct inode * inode, long block,
-			struct buffer_head *bh_result, int create)
-{
-	int ret, err, new, phys, ptr;
-	struct buffer_head * bh;
-
-	if (!create) {
-		phys = V2_minix_block_map(inode, block);
-		if (phys) {
-			bh_result->b_dev = inode->i_dev;
-			bh_result->b_blocknr = phys;
-			bh_result->b_state |= (1UL << BH_Mapped);
-		}
-		return 0;
-	}
-
-	err = -EIO;
-	new = 0;
-	ret = 0;
-	bh = NULL;
-
-	lock_kernel();
-	if (block < 0)
-		goto abort_negative;
-	if (block >= inode->i_sb->u.minix_sb.s_max_size/BLOCK_SIZE)
-		goto abort_too_big;
-
-	err = 0;
-	ptr = block;
-	/*
-	 * ok, these macros clean the logic up a bit and make
-	 * it much more readable:
-	 */
-#define GET_INODE_DATABLOCK(x) \
-		V2_inode_getblk(inode, x, block, &err, 0, &phys, &new)
-#define GET_INODE_PTR(x) \
-		V2_inode_getblk(inode, x, block, &err, 1, NULL, NULL)
-#define GET_INDIRECT_DATABLOCK(x) \
-		V2_block_getblk(inode, bh, x, block, &err, 0, &phys, &new)
-#define GET_INDIRECT_PTR(x) \
-		V2_block_getblk(inode, bh, x, block, &err, 1, NULL, NULL)
-
-	if (ptr < 7) {
-		bh = GET_INODE_DATABLOCK(ptr);
-		goto out;
-	}
-	ptr -= 7;
-	if (ptr < 256) {
-		bh = GET_INODE_PTR(7);
-		goto get_indirect;
-	}
-	ptr -= 256;
-	if (ptr < 256*256) {
-		bh = GET_INODE_PTR(8);
-		goto get_double;
-	}
-	ptr -= 256*256;
-	bh = GET_INODE_PTR(9);
-	bh = GET_INDIRECT_PTR((ptr >> 16) & 255);
-get_double:
-	bh = GET_INDIRECT_PTR((ptr >> 8) & 255);
-get_indirect:
-	bh = GET_INDIRECT_DATABLOCK(ptr & 255);
-
-#undef GET_INODE_DATABLOCK
-#undef GET_INODE_PTR
-#undef GET_INDIRECT_DATABLOCK
-#undef GET_INDIRECT_PTR
-
-out:
-	if (err)
-		goto abort;
-	bh_result->b_dev = inode->i_dev;
-	bh_result->b_blocknr = phys;
-	bh_result->b_state |= (1UL << BH_Mapped);
-	if (new)
-		bh_result->b_state |= (1UL << BH_New);
-abort:
-	unlock_kernel();
-	return err;
-
-abort_negative:
-	printk("minix_getblk: block<0");
-	goto abort;
-
-abort_too_big:
-	printk("minix_getblk: block>big");
-	goto abort;
-}
-
 static int minix_get_block(struct inode *inode, long block,
 		    struct buffer_head *bh_result, int create)
 {
 	if (INODE_VERSION(inode) == MINIX_V1)
-		return V1_get_block(inode, block, bh_result, create);
+		return V1_minix_get_block(inode, block, bh_result, create);
 	else
-		return V2_get_block(inode, block, bh_result, create);
+		return V2_minix_get_block(inode, block, bh_result, create);
 }
 
 /*
@@ -934,7 +374,7 @@ struct buffer_head *minix_getblk(struct inode *inode, int block, int create)
 		if (buffer_new(&dummy)) {
 			memset(bh->b_data, 0, BLOCK_SIZE);
 			mark_buffer_uptodate(bh, 1);
-			mark_buffer_dirty(bh, 1);
+			mark_buffer_dirty(bh);
 		}
 		return bh;
 	}
@@ -1130,7 +570,7 @@ static struct buffer_head * V1_minix_update_inode(struct inode * inode)
 		raw_inode->i_zone[0] = kdev_t_to_nr(inode->i_rdev);
 	else for (block = 0; block < 9; block++)
 		raw_inode->i_zone[block] = inode->u.minix_i.u.i1_data[block];
-	mark_buffer_dirty(bh, 1);
+	mark_buffer_dirty(bh);
 	return bh;
 }
 
@@ -1170,7 +610,7 @@ static struct buffer_head * V2_minix_update_inode(struct inode * inode)
 		raw_inode->i_zone[0] = kdev_t_to_nr(inode->i_rdev);
 	else for (block = 0; block < 10; block++)
 		raw_inode->i_zone[block] = inode->u.minix_i.u.i2_data[block];
-	mark_buffer_dirty(bh, 1);
+	mark_buffer_dirty(bh);
 	return bh;
 }
 
@@ -1214,6 +654,17 @@ int minix_sync_inode(struct inode * inode)
 		err = -1;
 	brelse (bh);
 	return err;
+}
+
+/*
+ * The function that is called for file truncation.
+ */
+void minix_truncate(struct inode * inode)
+{
+	if (INODE_VERSION(inode) == MINIX_V1)
+		V1_minix_truncate(inode);
+	else
+		V2_minix_truncate(inode);
 }
 
 static DECLARE_FSTYPE_DEV(minix_fs_type,"minix",minix_read_super);

@@ -5,7 +5,7 @@
  *
  *		The User Datagram Protocol (UDP).
  *
- * Version:	$Id: udp.c,v 1.85 2000/08/09 11:59:04 davem Exp $
+ * Version:	$Id: udp.c,v 1.87 2000/09/20 02:11:34 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -126,7 +126,7 @@ struct sock *udp_hash[UDP_HTABLE_SIZE];
 rwlock_t udp_hash_lock = RW_LOCK_UNLOCKED;
 
 /* Shared by v4/v6 udp. */
-int udp_port_rover = 0;
+int udp_port_rover;
 
 static int udp_v4_get_port(struct sock *sk, unsigned short snum)
 {
@@ -188,6 +188,15 @@ gotit:
 		}
 	}
 	sk->num = snum;
+	if (sk->pprev == NULL) {
+		struct sock **skp = &udp_hash[snum & (UDP_HTABLE_SIZE - 1)];
+		if ((sk->next = *skp) != NULL)
+			(*skp)->pprev = &sk->next;
+		*skp = sk;
+		sk->pprev = skp;
+		sock_prot_inc_use(sk->prot);
+		sock_hold(sk);
+	}
 	write_unlock_bh(&udp_hash_lock);
 	return 0;
 
@@ -198,16 +207,7 @@ fail:
 
 static void udp_v4_hash(struct sock *sk)
 {
-	struct sock **skp = &udp_hash[sk->num & (UDP_HTABLE_SIZE - 1)];
-
-	write_lock_bh(&udp_hash_lock);
-	if ((sk->next = *skp) != NULL)
-		(*skp)->pprev = &sk->next;
-	*skp = sk;
-	sk->pprev = skp;
-	sock_prot_inc_use(sk->prot);
- 	sock_hold(sk);
-	write_unlock_bh(&udp_hash_lock);
+	BUG();
 }
 
 static void udp_v4_unhash(struct sock *sk)
@@ -218,6 +218,7 @@ static void udp_v4_unhash(struct sock *sk)
 			sk->next->pprev = sk->pprev;
 		*sk->pprev = sk->next;
 		sk->pprev = NULL;
+		sk->num = 0;
 		sock_prot_dec_use(sk->prot);
 		__sock_put(sk);
 	}
@@ -493,8 +494,6 @@ int udp_sendmsg(struct sock *sk, struct msghdr *msg, int len)
 		if (usin->sin_family != AF_INET) {
 			if (usin->sin_family != AF_UNSPEC)
 				return -EINVAL;
-			if (net_ratelimit())
-				printk("Remind Kuznetsov, he has to repair %s eventually\n", current->comm);
 		}
 
 		ufh.daddr = usin->sin_addr.s_addr;
@@ -678,6 +677,8 @@ int udp_recvmsg(struct sock *sk, struct msghdr *msg, int len,
 	if (flags & MSG_ERRQUEUE)
 		return ip_recv_error(sk, msg, len);
 
+
+ retry:
 	/*
 	 *	From here the generic datagram does a lot of the work. Come
 	 *	the finished NET3, it will do _ALL_ the work!
@@ -733,26 +734,21 @@ out:
 csum_copy_err:
 	UDP_INC_STATS_BH(UdpInErrors);
 
-	/* Clear queue. */
-	if (flags&MSG_PEEK) {
-		int clear = 0;
+	if (flags&(MSG_PEEK|MSG_DONTWAIT)) {
+		struct sk_buff *skb2; 
+
 		spin_lock_irq(&sk->receive_queue.lock);
-		if (skb == skb_peek(&sk->receive_queue)) {
+		skb2 = skb_peek(&sk->receive_queue); 
+		if ((flags & MSG_PEEK) && skb == skb2) { 
 			__skb_unlink(skb, &sk->receive_queue);
-			clear = 1;
 		}
 		spin_unlock_irq(&sk->receive_queue.lock);
-		if (clear)
-			kfree_skb(skb);
-	}
-
-	skb_free_datagram(sk, skb);
-
-	/* 
-	 * Error for blocking case is chosen to masquerade
-   	 * as some normal condition.
-	 */
-	return (flags&MSG_DONTWAIT) ? -EAGAIN : -EHOSTUNREACH;	
+		skb_free_datagram(sk, skb); 
+		if ((flags & MSG_DONTWAIT) && !skb2) 
+			return -EAGAIN; 
+	} else 
+		skb_free_datagram(sk, skb);
+	goto retry; 		
 }
 
 int udp_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
@@ -797,10 +793,21 @@ int udp_disconnect(struct sock *sk, int flags)
 	 */
 	 
 	sk->state = TCP_CLOSE;
-	sk->rcv_saddr = 0;
 	sk->daddr = 0;
 	sk->dport = 0;
 	sk->bound_dev_if = 0;
+	if (!(sk->userlocks&SOCK_BINDADDR_LOCK)) {
+		sk->rcv_saddr = 0;
+		sk->saddr = 0;
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
+		memset(&sk->net_pinfo.af_inet6.saddr, 0, 16);
+		memset(&sk->net_pinfo.af_inet6.rcv_saddr, 0, 16);
+#endif
+	}
+	if (!(sk->userlocks&SOCK_BINDPORT_LOCK)) {
+		sk->prot->unhash(sk);
+		sk->sport = 0;
+	}
 	sk_dst_reset(sk);
 	return 0;
 }

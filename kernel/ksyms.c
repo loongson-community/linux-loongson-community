@@ -55,9 +55,6 @@
 
 extern int console_loglevel;
 extern void set_device_ro(kdev_t dev,int flag);
-#if !defined(CONFIG_NFSD) && defined(CONFIG_NFSD_MODULE)
-extern long (*do_nfsservctl)(int, void *, void *);
-#endif
 
 extern void *sys_call_table;
 
@@ -79,6 +76,7 @@ EXPORT_SYMBOL(request_module);
 EXPORT_SYMBOL(exec_usermodehelper);
 #ifdef CONFIG_HOTPLUG
 EXPORT_SYMBOL(hotplug_path);
+EXPORT_SYMBOL(call_usermodehelper);
 #endif
 #endif
 
@@ -206,6 +204,7 @@ EXPORT_SYMBOL(block_prepare_write);
 EXPORT_SYMBOL(block_sync_page);
 EXPORT_SYMBOL(cont_prepare_write);
 EXPORT_SYMBOL(generic_commit_write);
+EXPORT_SYMBOL(block_truncate_page);
 EXPORT_SYMBOL(generic_block_bmap);
 EXPORT_SYMBOL(generic_file_read);
 EXPORT_SYMBOL(do_generic_file_read);
@@ -216,6 +215,9 @@ EXPORT_SYMBOL(generic_buffer_fdatasync);
 EXPORT_SYMBOL(page_hash_bits);
 EXPORT_SYMBOL(page_hash_table);
 EXPORT_SYMBOL(file_lock_list);
+EXPORT_SYMBOL(file_lock_sem);
+EXPORT_SYMBOL(locks_init_lock);
+EXPORT_SYMBOL(locks_copy_lock);
 EXPORT_SYMBOL(posix_lock_file);
 EXPORT_SYMBOL(posix_test_lock);
 EXPORT_SYMBOL(posix_block_lock);
@@ -255,6 +257,10 @@ EXPORT_SYMBOL(page_follow_link);
 EXPORT_SYMBOL(page_symlink_inode_operations);
 EXPORT_SYMBOL(block_symlink);
 EXPORT_SYMBOL(vfs_readdir);
+EXPORT_SYMBOL(__get_lease);
+EXPORT_SYMBOL(lease_get_mtime);
+EXPORT_SYMBOL(lock_may_read);
+EXPORT_SYMBOL(lock_may_write);
 EXPORT_SYMBOL(dcache_readdir);
 
 /* for stackable file systems (lofs, wrapfs, cryptfs, etc.) */
@@ -264,10 +270,6 @@ EXPORT_SYMBOL(filemap_nopage);
 EXPORT_SYMBOL(filemap_swapout);
 EXPORT_SYMBOL(filemap_sync);
 EXPORT_SYMBOL(lock_page);
-
-#if !defined(CONFIG_NFSD) && defined(CONFIG_NFSD_MODULE)
-EXPORT_SYMBOL(do_nfsservctl);
-#endif
 
 /* device registration */
 EXPORT_SYMBOL(register_chrdev);
@@ -367,8 +369,6 @@ EXPORT_SYMBOL(remove_wait_queue);
 #if !defined(CONFIG_ARCH_S390)
 EXPORT_SYMBOL(probe_irq_on);
 EXPORT_SYMBOL(probe_irq_off);
-EXPORT_SYMBOL(autoirq_setup);
-EXPORT_SYMBOL(autoirq_report);
 #endif
 
 #ifdef CONFIG_SMP

@@ -170,6 +170,9 @@ obj-$(CONFIG_AIRONET4500_NONCS)  += aironet4500_card.o
 obj-$(CONFIG_AIRONET4500_PROC)	+= aironet4500_proc.o
 obj-$(CONFIG_AIRONET4500_CS)	+= aironet4500_proc.o
 
+obj-$(CONFIG_WINBOND_840) += winbond-840.o
+obj-$(CONFIG_SUNDANCE) += sundance.o
+obj-$(CONFIG_HAMACHI) += hamachi.o
 obj-$(CONFIG_NET) += Space.o setup.o net_init.o loopback.o
 obj-$(CONFIG_SEEQ8005) += seeq8005.o
 obj-$(CONFIG_ETHERTAP) += ethertap.o
@@ -304,7 +307,7 @@ M_OBJS          := $(sort $(filter-out $(export-objs), $(obj-m)))
 MX_OBJS         := $(sort $(filter     $(export-objs), $(obj-m)))
 
 ifneq ($(ARCH),s390)
-O_OBJS += auto_irq.o
+OX_OBJS += auto_irq.o
 endif
 
 include $(TOPDIR)/Rules.make

@@ -35,6 +35,10 @@
 #define F_SETSIG	10	/*  for sockets. */
 #define F_GETSIG	11	/*  for sockets. */
 
+#define F_GETLK64	12	/*  using 'struct flock64' */
+#define F_SETLK64	13
+#define F_SETLKW64	14
+
 /* for F_[GET|SET]FL */
 #define FD_CLOEXEC	1	/* actually anything with low bit set goes */
 
@@ -47,12 +51,20 @@
 #define F_EXLCK		4	/* or 3 */
 #define F_SHLCK		8	/* or 4 */
 
+/* for leases */
+#define F_INPROGRESS	16
+
 /* operations for bsd flock(), also used by the kernel implementation */
 #define LOCK_SH		1	/* shared lock */
 #define LOCK_EX		2	/* exclusive lock */
 #define LOCK_NB		4	/* or'd with one of the above to prevent
 				   blocking */
 #define LOCK_UN		8	/* remove lock */
+
+#define LOCK_MAND	32	/* This is a mandatory flock */
+#define LOCK_READ	64	/* ... Which allows concurrent read operations */
+#define LOCK_WRITE	128	/* ... Which allows concurrent write operations */
+#define LOCK_RW		192	/* ... Which allows concurrent read & write ops */
 
 struct flock {
 	short l_type;
@@ -62,5 +74,14 @@ struct flock {
 	pid_t l_pid;
 };
 
+struct flock64 {
+	short  l_type;
+	short  l_whence;
+	loff_t l_start;
+	loff_t l_len;
+	pid_t  l_pid;
+};
+
+#define F_LINUX_SPECIFIC_BASE	1024
 #endif /* __ASM_SH_FCNTL_H */
 

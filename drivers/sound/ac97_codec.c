@@ -35,6 +35,7 @@
 #include <linux/string.h>
 #include <linux/errno.h>
 #include <linux/bitops.h>
+#include <linux/delay.h>
 #include <linux/ac97_codec.h>
 #include <asm/uaccess.h>
 
@@ -48,6 +49,7 @@ static int ac97_mixer_ioctl(struct ac97_codec *codec, unsigned int cmd, unsigned
 static int ac97_init_mixer(struct ac97_codec *codec);
 
 static int sigmatel_init(struct ac97_codec *codec);
+static int enable_eapd(struct ac97_codec *codec);
 
 #define arraysize(x)   (sizeof(x)/sizeof((x)[0]))
 
@@ -58,11 +60,14 @@ static struct {
 } ac97_codec_ids[] = {
 	{0x414B4D00, "Asahi Kasei AK4540"     , NULL},
 	{0x41445340, "Analog Devices AD1881"  , NULL},
+	{0x41445360, "Analog Devices AD1885"  , enable_eapd},
 	{0x43525900, "Cirrus Logic CS4297"    , NULL},
 	{0x43525903, "Cirrus Logic CS4297"  ,	NULL},
 	{0x43525913, "Cirrus Logic CS4297A"   , NULL},
 	{0x43525923, "Cirrus Logic CS4298"    , NULL},
+	{0x4352592B, "Cirrus Logic CS4294"    , NULL},
 	{0x43525931, "Cirrus Logic CS4299"    , NULL},
+	{0x43525934, "Cirrus Logic CS4299"    , NULL},
 	{0x4e534331, "National Semiconductor LM4549" ,	NULL},
 	{0x53494c22, "Silicon Laboratory Si3036"     ,	NULL},
 	{0x53494c23, "Silicon Laboratory Si3038"     ,  NULL},
@@ -71,8 +76,10 @@ static struct {
 	{0x83847605, "SigmaTel STAC9704"      , NULL},
 	{0x83847608, "SigmaTel STAC9708"      , NULL},
 	{0x83847609, "SigmaTel STAC9721/23"   , sigmatel_init},
+	{0x54524103, "TriTech TR?????"	      , NULL},
 	{0x54524106, "TriTech TR28026"        , NULL},
 	{0x54524108, "TriTech TR28028"        , NULL},
+	{0x54524123, "TriTech TR?????"	      , NULL},	
 	{0x574D4C00, "Wolfson WM9704"         , NULL},
 	{0x00000000, NULL, NULL}
 };
@@ -119,20 +126,20 @@ static struct mixer_defaults {
 	unsigned int value;
 } mixer_defaults[SOUND_MIXER_NRDEVICES] = {
 	/* all values 0 -> 100 in bytes */
-	{SOUND_MIXER_VOLUME,	0x3232},
-	{SOUND_MIXER_BASS,	0x3232},
-	{SOUND_MIXER_TREBLE,	0x3232},
-	{SOUND_MIXER_PCM,	0x3232},
-	{SOUND_MIXER_SPEAKER,	0x3232},
-	{SOUND_MIXER_LINE,	0x3232},
-	{SOUND_MIXER_MIC,	0x3232},
-	{SOUND_MIXER_CD,	0x3232},
-	{SOUND_MIXER_ALTPCM,	0x3232},
-	{SOUND_MIXER_IGAIN,	0x3232},
-	{SOUND_MIXER_LINE1,	0x3232},
-	{SOUND_MIXER_PHONEIN,	0x3232},
-	{SOUND_MIXER_PHONEOUT,	0x3232},
-	{SOUND_MIXER_VIDEO,	0x3232},
+	{SOUND_MIXER_VOLUME,	0x4343},
+	{SOUND_MIXER_BASS,	0x4343},
+	{SOUND_MIXER_TREBLE,	0x4343},
+	{SOUND_MIXER_PCM,	0x4343},
+	{SOUND_MIXER_SPEAKER,	0x4343},
+	{SOUND_MIXER_LINE,	0x4343},
+	{SOUND_MIXER_MIC,	0x4343},
+	{SOUND_MIXER_CD,	0x4343},
+	{SOUND_MIXER_ALTPCM,	0x4343},
+	{SOUND_MIXER_IGAIN,	0x4343},
+	{SOUND_MIXER_LINE1,	0x4343},
+	{SOUND_MIXER_PHONEIN,	0x4343},
+	{SOUND_MIXER_PHONEOUT,	0x4343},
+	{SOUND_MIXER_VIDEO,	0x4343},
 	{-1,0}
 };
 
@@ -141,20 +148,20 @@ static struct ac97_mixer_hw {
 	unsigned char offset;
 	int scale;
 } ac97_hw[SOUND_MIXER_NRDEVICES]= {
-	[SOUND_MIXER_VOLUME]	=	{AC97_MASTER_VOL_STEREO,63},
-	[SOUND_MIXER_BASS]	=	{AC97_MASTER_TONE,	15},
-	[SOUND_MIXER_TREBLE]	=	{AC97_MASTER_TONE,	15},
-	[SOUND_MIXER_PCM]	=	{AC97_PCMOUT_VOL,	31},
-	[SOUND_MIXER_SPEAKER]	=	{AC97_PCBEEP_VOL,	15},
-	[SOUND_MIXER_LINE]	=	{AC97_LINEIN_VOL,	31},
-	[SOUND_MIXER_MIC]	=	{AC97_MIC_VOL,		31},
-	[SOUND_MIXER_CD]	=	{AC97_CD_VOL,		31},
-	[SOUND_MIXER_ALTPCM]	=	{AC97_HEADPHONE_VOL,	63},
-	[SOUND_MIXER_IGAIN]	=	{AC97_RECORD_GAIN,	31},
-	[SOUND_MIXER_LINE1]	=	{AC97_AUX_VOL,		31},
-	[SOUND_MIXER_PHONEIN]	= 	{AC97_PHONE_VOL,	15},
-	[SOUND_MIXER_PHONEOUT]	= 	{AC97_MASTER_VOL_MONO,	63},
-	[SOUND_MIXER_VIDEO]	=	{AC97_VIDEO_VOL,	31},
+	[SOUND_MIXER_VOLUME]	=	{AC97_MASTER_VOL_STEREO,64},
+	[SOUND_MIXER_BASS]	=	{AC97_MASTER_TONE,	16},
+	[SOUND_MIXER_TREBLE]	=	{AC97_MASTER_TONE,	16},
+	[SOUND_MIXER_PCM]	=	{AC97_PCMOUT_VOL,	32},
+	[SOUND_MIXER_SPEAKER]	=	{AC97_PCBEEP_VOL,	16},
+	[SOUND_MIXER_LINE]	=	{AC97_LINEIN_VOL,	32},
+	[SOUND_MIXER_MIC]	=	{AC97_MIC_VOL,		32},
+	[SOUND_MIXER_CD]	=	{AC97_CD_VOL,		32},
+	[SOUND_MIXER_ALTPCM]	=	{AC97_HEADPHONE_VOL,	64},
+	[SOUND_MIXER_IGAIN]	=	{AC97_RECORD_GAIN,	16},
+	[SOUND_MIXER_LINE1]	=	{AC97_AUX_VOL,		32},
+	[SOUND_MIXER_PHONEIN]	= 	{AC97_PHONE_VOL,	32},
+	[SOUND_MIXER_PHONEOUT]	= 	{AC97_MASTER_VOL_MONO,	64},
+	[SOUND_MIXER_VIDEO]	=	{AC97_VIDEO_VOL,	32},
 };
 
 /* the following tables allow us to go from OSS <-> ac97 quickly. */
@@ -196,11 +203,14 @@ static int ac97_read_mixer(struct ac97_codec *codec, int oss_channel)
 {
 	u16 val;
 	int ret = 0;
+	int scale;
 	struct ac97_mixer_hw *mh = &ac97_hw[oss_channel];
 
 	val = codec->codec_read(codec , mh->offset);
 
-	if (AC97_STEREO_MASK & (1 << oss_channel)) {
+	if (val & AC97_MUTE) {
+		ret = 0;
+	} else if (AC97_STEREO_MASK & (1 << oss_channel)) {
 		/* nice stereo mixers .. */
 		int left,right;
 
@@ -211,8 +221,14 @@ static int ac97_read_mixer(struct ac97_codec *codec, int oss_channel)
 			right = (right * 100) / mh->scale;
 			left = (left * 100) / mh->scale;
 		} else {
-			right = 100 - ((right * 100) / mh->scale);
-			left = 100 - ((left * 100) / mh->scale);
+			/* these may have 5 or 6 bit resolution */
+			if(oss_channel == SOUND_MIXER_VOLUME || oss_channel == SOUND_MIXER_ALTPCM)
+				scale = (1 << codec->bit_resolution);
+			else
+				scale = mh->scale;
+
+			right = 100 - ((right * 100) / scale);
+			left = 100 - ((left * 100) / scale);
 		}
 		ret = left | (right << 8);
 	} else if (oss_channel == SOUND_MIXER_SPEAKER) {
@@ -220,7 +236,8 @@ static int ac97_read_mixer(struct ac97_codec *codec, int oss_channel)
 	} else if (oss_channel == SOUND_MIXER_PHONEIN) {
 		ret = 100 - (((val & 0x1f) * 100) / mh->scale);
 	} else if (oss_channel == SOUND_MIXER_PHONEOUT) {
-		ret = 100 - (((val & 0x1f) * 100) / mh->scale);
+		scale = (1 << codec->bit_resolution);
+		ret = 100 - (((val & 0x1f) * 100) / scale);
 	} else if (oss_channel == SOUND_MIXER_MIC) {
 		ret = 100 - (((val & 0x1f) * 100) / mh->scale);
 		/*  the low bit is optional in the tone sliders and masking
@@ -247,6 +264,7 @@ static void ac97_write_mixer(struct ac97_codec *codec, int oss_channel,
 		      unsigned int left, unsigned int right)
 {
 	u16 val = 0;
+	int scale;
 	struct ac97_mixer_hw *mh = &ac97_hw[oss_channel];
 
 #ifdef DEBUG
@@ -258,31 +276,45 @@ static void ac97_write_mixer(struct ac97_codec *codec, int oss_channel,
 
 	if (AC97_STEREO_MASK & (1 << oss_channel)) {
 		/* stereo mixers */
-		if (oss_channel == SOUND_MIXER_IGAIN) {
-			right = (right * mh->scale) / 100;
-			left = (left * mh->scale) / 100;
+		if (left == 0 && right == 0) {
+			val = AC97_MUTE;
 		} else {
-			right = ((100 - right) * mh->scale) / 100;
-			left = ((100 - left) * mh->scale) / 100;
-		}			
-		val = (left << 8) | right;
-	} else if (oss_channel == SOUND_MIXER_SPEAKER) {
-		val = (((100 - left) * mh->scale) / 100) << 1;
-	} else if (oss_channel == SOUND_MIXER_PHONEIN) {
-		val = (((100 - left) * mh->scale) / 100);
-	} else if (oss_channel == SOUND_MIXER_PHONEOUT) {
-		val = (((100 - left) * mh->scale) / 100);
-	} else if (oss_channel == SOUND_MIXER_MIC) {
-		val = codec->codec_read(codec , mh->offset) & ~0x801f;
-		val |= (((100 - left) * mh->scale) / 100);
-		/*  the low bit is optional in the tone sliders and masking
-		    it lets us avoid the 0xf 'bypass'.. */
+			if (oss_channel == SOUND_MIXER_IGAIN) {
+				right = (right * mh->scale) / 100;
+				left = (left * mh->scale) / 100;
+			} else {
+				/* these may have 5 or 6 bit resolution */
+				if (oss_channel == SOUND_MIXER_VOLUME ||
+				    oss_channel == SOUND_MIXER_ALTPCM)
+					scale = (1 << codec->bit_resolution);
+				else
+					scale = mh->scale;
+
+				right = ((100 - right) * scale) / 100;
+				left = ((100 - left) * scale) / 100;
+			}			
+			val = (left << 8) | right;
+		}
 	} else if (oss_channel == SOUND_MIXER_BASS) {
 		val = codec->codec_read(codec , mh->offset) & ~0x0f00;
 		val |= ((((100 - left) * mh->scale) / 100) << 8) & 0x0e00;
 	} else if (oss_channel == SOUND_MIXER_TREBLE) {
 		val = codec->codec_read(codec , mh->offset) & ~0x000f;
 		val |= (((100 - left) * mh->scale) / 100) & 0x000e;
+	} else if(left == 0) {
+		val = AC97_MUTE;
+	} else if (oss_channel == SOUND_MIXER_SPEAKER) {
+		val = (((100 - left) * mh->scale) / 100) << 1;
+	} else if (oss_channel == SOUND_MIXER_PHONEIN) {
+		val = (((100 - left) * mh->scale) / 100);
+	} else if (oss_channel == SOUND_MIXER_PHONEOUT) {
+		scale = (1 << codec->bit_resolution);
+		val = (((100 - left) * scale) / 100);
+	} else if (oss_channel == SOUND_MIXER_MIC) {
+		val = codec->codec_read(codec , mh->offset) & ~0x801f;
+		val |= (((100 - left) * mh->scale) / 100);
+		/*  the low bit is optional in the tone sliders and masking
+		    it lets us avoid the 0xf 'bypass'.. */
 	}
 #ifdef DEBUG
 	printk(" 0x%04x", val);
@@ -419,7 +451,8 @@ static int ac97_mixer_ioctl(struct ac97_codec *codec, unsigned int cmd, unsigned
 
 	if (_IOC_DIR(cmd) == (_IOC_WRITE|_IOC_READ)) {
 		codec->modcnt++;
-		get_user_ret(val, (int *)arg, -EFAULT);
+		if (get_user(val, (int *)arg))
+			return -EFAULT;
 
 		switch (_IOC_NR(cmd)) {
 		case SOUND_MIXER_RECSRC: /* Arg contains a bit for each recording source */
@@ -562,7 +595,7 @@ int ac97_probe_codec(struct ac97_codec *codec)
 	if (codec->codec_wait)
 		codec->codec_wait(codec);
 	else
-		schedule_timeout(5);
+		udelay(10);
 
 	if ((audio = codec->codec_read(codec, AC97_RESET)) & 0x8000) {
 		printk(KERN_ERR "ac97_codec: %s ac97 codec not present\n",
@@ -581,6 +614,7 @@ int ac97_probe_codec(struct ac97_codec *codec)
 	id2 = codec->codec_read(codec, AC97_VENDOR_ID2);
 	for (i = 0; i < arraysize(ac97_codec_ids); i++) {
 		if (ac97_codec_ids[i].id == ((id1 << 16) | id2)) {
+			codec->type = ac97_codec_ids[i].id;
 			codec->name = ac97_codec_ids[i].name;
 			codec->codec_init = ac97_codec_ids[i].init;
 			break;
@@ -588,8 +622,8 @@ int ac97_probe_codec(struct ac97_codec *codec)
 	}
 	if (codec->name == NULL)
 		codec->name = "Unknown";
-	printk(KERN_INFO "ac97_codec: AC97%s codec, id: 0x%04x:0x%04x (%s)\n",
-	       audio ? " audio" : (modem ? " modem" : ""),
+	printk(KERN_INFO "ac97_codec: AC97 %s codec, vendor id1: 0x%04x, "
+	       "id2: 0x%04x (%s)\n", audio ? "Audio" : (modem ? "Modem" : ""),
 	       id1, id2, codec->name);
 
 	return ac97_init_mixer(codec);
@@ -611,18 +645,21 @@ static int ac97_init_mixer(struct ac97_codec *codec)
 	if (!(cap & 0x10))
 		codec->supported_mixers &= ~SOUND_MASK_ALTPCM;
 
+	/* detect bit resolution */
+	codec->codec_write(codec, AC97_MASTER_VOL_STEREO, 0x2020);
+	if(codec->codec_read(codec, AC97_MASTER_VOL_STEREO) == 0x1f1f)
+		codec->bit_resolution = 5;
+	else
+		codec->bit_resolution = 6;
+
 	/* generic OSS to AC97 wrapper */
 	codec->read_mixer = ac97_read_mixer;
 	codec->write_mixer = ac97_write_mixer;
 	codec->recmask_io = ac97_recmask_io;
 	codec->mixer_ioctl = ac97_mixer_ioctl;
 
-	/* initialize volume level */
-	codec->codec_write(codec, AC97_MASTER_VOL_STEREO, 0L);
-	codec->codec_write(codec, AC97_PCMOUT_VOL, 0L);
-
 	/* codec specific initialization for 4-6 channel output or secondary codec stuff */
-	if (codec->id != 0 && codec->codec_init != NULL) {
+	if (codec->codec_init != NULL) {
 		codec->codec_init(codec);
 	}
 
@@ -641,6 +678,10 @@ static int ac97_init_mixer(struct ac97_codec *codec)
 
 static int sigmatel_init(struct ac97_codec * codec)
 {
+	/* Only set up secondary codec */
+	if (codec->id == 0)
+		return 1;
+
 	codec->codec_write(codec, AC97_SURROUND_MASTER, 0L);
 
 	/* initialize SigmaTel STAC9721/23 as secondary codec, decoding AC link
@@ -658,6 +699,18 @@ static int sigmatel_init(struct ac97_codec * codec)
 
 	return 1;
 }
+
+/*
+ *	Bring up an AD1885
+ */
+ 
+static int enable_eapd(struct ac97_codec * codec)
+{
+	codec->codec_write(codec, AC97_POWER_CONTROL,
+		codec->codec_read(codec, AC97_POWER_CONTROL)|0x8000);
+	return 0;
+}
+	
 
 EXPORT_SYMBOL(ac97_read_proc);
 EXPORT_SYMBOL(ac97_probe_codec);

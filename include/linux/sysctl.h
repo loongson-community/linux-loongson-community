@@ -186,7 +186,8 @@ enum
 	NET_CORE_MSG_COST=8,
 	NET_CORE_MSG_BURST=9,
 	NET_CORE_OPTMEM_MAX=10,
-	NET_CORE_HOT_LIST_LENGTH=11
+	NET_CORE_HOT_LIST_LENGTH=11,
+	NET_CORE_DIVERT_VERSION=12
 };
 
 /* /proc/sys/net/ethernet */
@@ -512,7 +513,10 @@ enum
 	FS_NRSUPER=9,	/* int:current number of allocated super_blocks */
 	FS_MAXSUPER=10,	/* int:maximum number of super_blocks that can be allocated */
 	FS_OVERFLOWUID=11,	/* int: overflow UID */
-	FS_OVERFLOWGID=12	/* int: overflow GID */
+	FS_OVERFLOWGID=12,	/* int: overflow GID */
+	FS_LEASES=13,	/* int: leases enabled */
+	FS_DIR_NOTIFY=14,	/* int: directory notification enabled */
+	FS_LEASE_TIME=15,	/* int: maximum time to wait for a lease break */
 };
 
 /* CTL_DEBUG names: */
@@ -522,7 +526,8 @@ enum {
 	DEV_CDROM=1,
 	DEV_HWMON=2,
 	DEV_PARPORT=3,
-	DEV_RAID=4
+	DEV_RAID=4,
+	DEV_MAC_HID=5
 };
 
 /* /proc/sys/dev/cdrom */
@@ -571,6 +576,16 @@ enum {
 /* /proc/sys/dev/parport/parport n/devices/device n */
 enum {
 	DEV_PARPORT_DEVICE_TIMESLICE=1,
+};
+
+/* /proc/sys/dev/mac_hid */
+enum {
+	DEV_MAC_HID_KEYBOARD_SENDS_LINUX_KEYCODES=1,
+	DEV_MAC_HID_KEYBOARD_LOCK_KEYCODES=2,
+	DEV_MAC_HID_MOUSE_BUTTON_EMULATION=3,
+	DEV_MAC_HID_MOUSE_BUTTON2_KEYCODE=4,
+	DEV_MAC_HID_MOUSE_BUTTON3_KEYCODE=5,
+	DEV_MAC_HID_ADB_MOUSE_SENDS_KEYCODES=6
 };
 
 #ifdef __KERNEL__

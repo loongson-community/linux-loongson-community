@@ -107,6 +107,7 @@
 
 #define LinuxVersionCode(v, p, s) (((v)<<16)+((p)<<8)+(s))
 
+#include <linux/config.h>
 #ifdef MODULE
 #include <linux/module.h>
 #endif
@@ -697,6 +698,9 @@ spinlock_t sym53c8xx_lock = SPIN_LOCK_UNLOCKED;
 #  define memcpy_to_pci(a, b, c)	memcpy_toio((a), (b), (c))
 #elif defined(__alpha__)
 #  define pcivtobus(p)			((p) & 0xfffffffful)
+#  define memcpy_to_pci(a, b, c)	memcpy_toio((a), (b), (c))
+#elif defined(CONFIG_PPC)
+#  define pcivtobus(p)			phys_to_bus(p)
 #  define memcpy_to_pci(a, b, c)	memcpy_toio((a), (b), (c))
 #else	/* others */
 #  define pcivtobus(p)			(p)
@@ -15059,7 +15063,5 @@ sym_read_Tekram_nvram (ncr_slot *np, u_short device_id, Tekram_nvram *nvram)
 **	Module stuff
 */
 
-#ifdef MODULE
-Scsi_Host_Template driver_template = SYM53C8XX;
+static Scsi_Host_Template driver_template = SYM53C8XX;
 #include "scsi_module.c"
-#endif

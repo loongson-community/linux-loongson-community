@@ -1,14 +1,17 @@
 /*
- * linux/arch/arm/kernel/sys_arm.c
+ *  linux/arch/arm/kernel/sys_arm.c
  *
- * Copyright (C) People who wrote linux/arch/i386/kernel/sys_i386.c
- * Copyright (C) 1995, 1996 Russell King.
- * 
- * This file contains various random system calls that
- * have a non-standard calling sequence on the Linux/arm
- * platform.
+ *  Copyright (C) People who wrote linux/arch/i386/kernel/sys_i386.c
+ *  Copyright (C) 1995, 1996 Russell King.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ *  This file contains various random system calls that
+ *  have a non-standard calling sequence on the Linux/arm
+ *  platform.
  */
-
 #include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/malloc.h>
@@ -203,7 +206,7 @@ asmlinkage int sys_ipc (uint call, int first, int second, int third, void *ptr, 
  */
 asmlinkage int sys_fork(struct pt_regs *regs)
 {
-	return do_fork(SIGCHLD, regs->ARM_sp, regs);
+	return do_fork(SIGCHLD, regs->ARM_sp, regs, 0);
 }
 
 /* Clone a task - this clones the calling program thread.
@@ -213,12 +216,12 @@ asmlinkage int sys_clone(unsigned long clone_flags, unsigned long newsp, struct 
 {
 	if (!newsp)
 		newsp = regs->ARM_sp;
-	return do_fork(clone_flags, newsp, regs);
+	return do_fork(clone_flags, newsp, regs, 0);
 }
 
 asmlinkage int sys_vfork(struct pt_regs *regs)
 {
-	return do_fork(CLONE_VFORK | CLONE_VM | SIGCHLD, regs->ARM_sp, regs);
+	return do_fork(CLONE_VFORK | CLONE_VM | SIGCHLD, regs->ARM_sp, regs, 0);
 }
 
 /* sys_execve() executes a new program.

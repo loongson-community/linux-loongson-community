@@ -50,7 +50,6 @@
 
 #include <linux/module.h>
 #include <linux/kernel.h>
-#include <linux/config.h>
 #include <linux/string.h>
 #include <linux/malloc.h>
 #include <linux/mm.h>
@@ -58,11 +57,6 @@
 #include <linux/ioport.h>
 #include <asm/irq.h>
 #include <asm/io.h>
-
-#ifndef PCMCIA_DEBUG
-#define PCMCIA_DEBUG 1
-#endif
-static int pc_debug = PCMCIA_DEBUG;
 
 #define IN_CARD_SERVICES
 #include <pcmcia/version.h>
@@ -73,6 +67,10 @@ static int pc_debug = PCMCIA_DEBUG;
 #include <pcmcia/cistpl.h>
 #include "cs_internal.h"
 #include "rsrc_mgr.h"
+
+#ifdef PCMCIA_DEBUG
+static int pc_debug = PCMCIA_DEBUG;
+#endif
 
 /*====================================================================*/
 
@@ -232,21 +230,6 @@ fail:
     
 =====================================================================*/
 
-static int cb_assign_irq(u32 mask)
-{
-	int irq, try;
-
-	for (try = 0; try < 2; try++) {
-		for (irq = 1; irq < 32; irq++) {
-			if ((mask >> irq) & 1) {
-				if (try_irq(IRQ_TYPE_EXCLUSIVE, irq, try) == 0)
-					return irq;
-			}
-		}
-	}
-	return 0;
-}
-
 int cb_alloc(socket_info_t * s)
 {
 	struct pci_bus *bus;
@@ -310,8 +293,6 @@ int cb_alloc(socket_info_t * s)
 		/* Does this function have an interrupt at all? */
 		pci_readb(dev, PCI_INTERRUPT_PIN, &irq_pin);
 		if (irq_pin) {
-			if (!irq)
-				irq = cb_assign_irq(s->cap.irq_mask);
 			dev->irq = irq;
 			pci_writeb(dev, PCI_INTERRUPT_LINE, irq);
 		}
@@ -369,14 +350,7 @@ int cb_config(socket_info_t * s)
 
 void cb_release(socket_info_t * s)
 {
-	cb_config_t *c = s->cb_config;
-
 	DEBUG(0, "cs: cb_release(bus %d)\n", s->cap.cb_dev->subordinate->number);
-
-#ifdef CONFIG_ISA
-	if ((c[0].dev.irq != 0) && (c[0].dev.irq != s->cap.pci_irq))
-		undo_irq(IRQ_TYPE_EXCLUSIVE, c[0].dev.irq);
-#endif
 }
 
 /*=====================================================================
@@ -397,9 +371,9 @@ void cb_release(socket_info_t * s)
 void cb_enable(socket_info_t * s)
 {
 	struct pci_dev *dev;
-	u_char i, bus = s->cap.cb_dev->subordinate->number;
+	u_char i;
 
-	DEBUG(0, "cs: cb_enable(bus %d)\n", bus);
+	DEBUG(0, "cs: cb_enable(bus %d)\n", s->cap.cb_dev->subordinate->number);
 
 	/* Configure bridge */
 	cb_release_cis_mem(s);

@@ -14,7 +14,6 @@
  *              phone_register_device now works with unit!=PHONE_UNIT_ANY
  */
 
-#include <linux/config.h>
 #include <linux/version.h>
 #include <linux/module.h>
 #include <linux/types.h>
@@ -24,6 +23,7 @@
 #include <linux/string.h>
 #include <linux/errno.h>
 #include <linux/phonedev.h>
+#include <linux/init.h>
 #include <asm/uaccess.h>
 #include <asm/system.h>
 
@@ -143,40 +143,29 @@ static struct file_operations phone_fops =
  *	Board init functions
  */
  
-extern int ixj_init(void);
 
 /*
  *    Initialise Telephony for linux
  */
 
-int telephony_init(void)
+static int __init telephony_init(void)
 {
 	printk(KERN_INFO "Linux telephony interface: v1.00\n");
 	if (register_chrdev(PHONE_MAJOR, "telephony", &phone_fops)) {
 		printk("phonedev: unable to get major %d\n", PHONE_MAJOR);
 		return -EIO;
 	}
-	/*
-	 *    Init kernel installed drivers
-	 */
-#ifdef CONFIG_PHONE_IXJ
-	ixj_init();	 
-#endif
+
 	return 0;
 }
 
-#ifdef MODULE
-int init_module(void)
-{
-	return telephony_init();
-}
-
-void cleanup_module(void)
+static void __exit telephony_exit(void)
 {
 	unregister_chrdev(PHONE_MAJOR, "telephony");
 }
 
-#endif
+module_init(telephony_init);
+module_exit(telephony_exit);
 
 EXPORT_SYMBOL(phone_register_device);
 EXPORT_SYMBOL(phone_unregister_device);

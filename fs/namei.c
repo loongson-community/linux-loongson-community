@@ -21,6 +21,7 @@
 #include <linux/quotaops.h>
 #include <linux/pagemap.h>
 #include <linux/dcache.h>
+#include <linux/dnotify.h>
 
 #include <asm/uaccess.h>
 #include <asm/unaligned.h>
@@ -107,7 +108,7 @@
 static inline int do_getname(const char *filename, char *page)
 {
 	int retval;
-	unsigned long len = PAGE_SIZE;
+	unsigned long len = PATH_MAX + 1;
 
 	if ((unsigned long) filename >= TASK_SIZE) {
 		if (!segment_eq(get_fs(), KERNEL_DS))
@@ -180,7 +181,7 @@ int permission(struct inode * inode,int mask)
 
 	/* read and search access */
 	if ((mask == S_IROTH) ||
-	    (S_ISDIR(mode)  && !(mask & ~(S_IROTH | S_IXOTH))))
+	    (S_ISDIR(inode->i_mode)  && !(mask & ~(S_IROTH | S_IXOTH))))
 		if (capable(CAP_DAC_READ_SEARCH))
 			return 0;
 
@@ -683,7 +684,7 @@ walk_init_root(const char *name, struct nameidata *nd)
 }
 
 /* SMP-safe */
-int path_init(const char *name,unsigned int flags,struct nameidata *nd)
+int path_init(const char *name, unsigned int flags, struct nameidata *nd)
 {
 	nd->last_type = LAST_ROOT; /* if there are only slashes... */
 	nd->flags = flags;
@@ -912,6 +913,8 @@ int vfs_create(struct inode *dir, struct dentry *dentry, int mode)
 	unlock_kernel();
 exit_lock:
 	up(&dir->i_zombie);
+	if (!error)
+		inode_dir_notify(dir, DN_CREATE);
 	return error;
 }
 
@@ -1066,6 +1069,13 @@ ok:
 			goto exit;
 	}
 
+	/*
+	 * Ensure there are no outstanding leases on the file.
+	 */
+	error = get_lease(inode, flag);
+	if (error)
+		goto exit;
+
 	if (flag & O_TRUNC) {
 		error = get_write_access(inode);
 		if (error)
@@ -1183,6 +1193,8 @@ int vfs_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t dev)
 	unlock_kernel();
 exit_lock:
 	up(&dir->i_zombie);
+	if (!error)
+		inode_dir_notify(dir, DN_CREATE);
 	return error;
 }
 
@@ -1250,6 +1262,8 @@ int vfs_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 
 exit_lock:
 	up(&dir->i_zombie);
+	if (!error)
+		inode_dir_notify(dir, DN_CREATE);
 	return error;
 }
 
@@ -1338,8 +1352,10 @@ int vfs_rmdir(struct inode *dir, struct dentry *dentry)
 			dentry->d_inode->i_flags |= S_DEAD;
 	}
 	double_up(&dir->i_zombie, &dentry->d_inode->i_zombie);
-	if (!error)
+	if (!error) {
+		inode_dir_notify(dir, DN_DELETE);
 		d_delete(dentry);
+	}
 	dput(dentry);
 
 	return error;
@@ -1406,6 +1422,8 @@ int vfs_unlink(struct inode *dir, struct dentry *dentry)
 		}
 	}
 	up(&dir->i_zombie);
+	if (!error)
+		inode_dir_notify(dir, DN_DELETE);
 	return error;
 }
 
@@ -1472,6 +1490,8 @@ int vfs_symlink(struct inode *dir, struct dentry *dentry, const char *oldname)
 
 exit_lock:
 	up(&dir->i_zombie);
+	if (!error)
+		inode_dir_notify(dir, DN_CREATE);
 	return error;
 }
 
@@ -1544,6 +1564,8 @@ int vfs_link(struct dentry *old_dentry, struct inode *dir, struct dentry *new_de
 
 exit_lock:
 	up(&dir->i_zombie);
+	if (!error)
+		inode_dir_notify(dir, DN_CREATE);
 	return error;
 }
 
@@ -1749,10 +1771,20 @@ int vfs_rename_other(struct inode *old_dir, struct dentry *old_dentry,
 int vfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 	       struct inode *new_dir, struct dentry *new_dentry)
 {
+	int error;
 	if (S_ISDIR(old_dentry->d_inode->i_mode))
-		return vfs_rename_dir(old_dir,old_dentry,new_dir,new_dentry);
+		error = vfs_rename_dir(old_dir,old_dentry,new_dir,new_dentry);
 	else
-		return vfs_rename_other(old_dir,old_dentry,new_dir,new_dentry);
+		error = vfs_rename_other(old_dir,old_dentry,new_dir,new_dentry);
+	if (!error) {
+		if (old_dir == new_dir)
+			inode_dir_notify(old_dir, DN_RENAME);
+		else {
+			inode_dir_notify(old_dir, DN_DELETE);
+			inode_dir_notify(new_dir, DN_CREATE);
+		}
+	}
+	return error;
 }
 
 static inline int do_rename(const char * oldname, const char * newname)

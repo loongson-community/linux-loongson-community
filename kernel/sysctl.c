@@ -235,7 +235,7 @@ static ctl_table kern_table[] = {
 
 static ctl_table vm_table[] = {
 	{VM_FREEPG, "freepages", 
-	 &freepages, sizeof(freepages_t), 0644, NULL, &proc_dointvec},
+	 &freepages, sizeof(freepages_t), 0444, NULL, &proc_dointvec},
 	{VM_BDFLUSH, "bdflush", &bdf_prm, 9*sizeof(int), 0644, NULL,
 	 &proc_dointvec_minmax, &sysctl_intvec, NULL,
 	 &bdflush_min, &bdflush_max},
@@ -283,6 +283,12 @@ static ctl_table fs_table[] = {
 	{FS_OVERFLOWGID, "overflowgid", &fs_overflowgid, sizeof(int), 0644, NULL,
 	 &proc_dointvec_minmax, &sysctl_intvec, NULL,
 	 &minolduid, &maxolduid},
+	{FS_LEASES, "leases-enable", &leases_enable, sizeof(int),
+	 0644, NULL, &proc_dointvec},
+	{FS_DIR_NOTIFY, "dir-notify-enable", &dir_notify_enable,
+	 sizeof(int), 0644, NULL, &proc_dointvec},
+	{FS_LEASE_TIME, "lease-break-time", &lease_break_time, sizeof(int),
+	 0644, NULL, &proc_dointvec},
 	{0}
 };
 

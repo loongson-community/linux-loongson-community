@@ -42,6 +42,13 @@ INITRD_PHYS	 = 0x00800000
 INITRD_VIRT	 = 0xc0800000
 endif
 
+ifeq ($(CONFIG_ARCH_INTEGRATOR),y)
+ZTEXTADDR	 = 0x00008000
+PARAMS		 = 0x00000100
+INITRD_PHYS	 = 0x00800000
+INITRD_VIRT	 = 0xc0800000
+endif
+
 ifeq ($(CONFIG_ARCH_NEXUSPCI),y)
 ZTEXTADDR	 = 0x40200000
 ZRELADDR	 = 0x40008000
@@ -105,10 +112,10 @@ initrd:
 	@test "$(INITRD)" != "" || (echo You must specify INITRD; exit -1)
 
 install: $(CONFIGURE) Image
-	sh ./install.sh $(VERSION).$(PATCHLEVEL).$(SUBLEVEL) Image $(TOPDIR)/System.map "$(INSTALL_PATH)"
+	sh ./install.sh $(VERSION).$(PATCHLEVEL).$(SUBLEVEL)$(EXTRAVERSION) Image $(TOPDIR)/System.map "$(INSTALL_PATH)"
 
 zinstall: $(CONFIGURE) zImage
-	sh ./install.sh $(VERSION).$(PATCHLEVEL).$(SUBLEVEL) zImage $(TOPDIR)/System.map "$(INSTALL_PATH)"
+	sh ./install.sh $(VERSION).$(PATCHLEVEL).$(SUBLEVEL)$(EXTRAVERSION) zImage $(TOPDIR)/System.map "$(INSTALL_PATH)"
 
 clean:
 	$(RM) Image zImage bootpImage

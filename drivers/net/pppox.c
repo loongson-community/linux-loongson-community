@@ -17,7 +17,6 @@
  *
  */
 
-#include <linux/config.h>
 #include <linux/string.h>
 #include <linux/module.h>
 
@@ -141,22 +140,22 @@ struct net_proto_family pppox_proto_family = {
 	pppox_create
 };
 
+extern int pppoe_init (void);
+
 #ifdef MODULE
 int init_module(void)
 #else
-void __init pppox_proto_init(struct net_proto *pro)
+int __init pppox_proto_init(struct net_proto *pro)
 #endif
 {
 	int err = 0;
 
 	err = sock_register(&pppox_proto_family);
 
-	if (err == 0)
+	if (err == 0) {
 		printk(KERN_INFO "Registered PPPoX v0.5\n");
-
-#ifdef CONFIG_PPPOE
-	pppoe_init();
-#endif
+		pppoe_init();
+	}
 
 	return err;
 }

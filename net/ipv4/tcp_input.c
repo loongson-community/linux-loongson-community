@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp_input.c,v 1.198 2000/08/15 20:15:23 davem Exp $
+ * Version:	$Id: tcp_input.c,v 1.202 2000/09/21 01:05:38 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -58,6 +58,7 @@
  *		J Hadi Salim:		ECN support
  */
 
+#include <linux/config.h>
 #include <linux/mm.h>
 #include <linux/sysctl.h>
 #include <net/tcp.h>
@@ -73,7 +74,11 @@ int sysctl_tcp_window_scaling = 1;
 int sysctl_tcp_sack = 1;
 int sysctl_tcp_fack = 1;
 int sysctl_tcp_reordering = TCP_FASTRETRANS_THRESH;
+#ifdef CONFIG_INET_ECN
 int sysctl_tcp_ecn = 1;
+#else
+int sysctl_tcp_ecn = 0;
+#endif
 int sysctl_tcp_dsack = 1;
 int sysctl_tcp_app_win = 31;
 int sysctl_tcp_adv_win_scale = 2;
@@ -1488,10 +1493,8 @@ tcp_fastretrans_alert(struct sock *sk, u32 prior_snd_una,
 
 		case TCP_CA_Disorder:
 			tcp_try_undo_dsack(sk, tp);
-			if (IsReno(tp) || !tp->undo_marker) {
-				tp->undo_marker = 0;
-				tp->ca_state = TCP_CA_Open;
-			}
+			tp->undo_marker = 0;
+			tp->ca_state = TCP_CA_Open;
 			break;
 
 		case TCP_CA_Recovery:
@@ -1819,7 +1822,9 @@ static int tcp_ack_update_window(struct sock *sk, struct tcp_opt *tp,
 #ifdef TCP_DEBUG
 	if (before(tp->snd_una + tp->snd_wnd, tp->snd_nxt)) {
 		if (net_ratelimit())
-			printk(KERN_DEBUG "TCP: peer shrinks window. Bad, what else can I say?\n");
+			printk(KERN_DEBUG "TCP: peer %u.%u.%u.%u:%u/%u shrinks window %u:%u:%u. Bad, what else can I say?\n",
+			       NIPQUAD(sk->daddr), htons(sk->dport), sk->num,
+			       tp->snd_una, tp->snd_wnd, tp->snd_nxt);
 	}
 #endif
 
@@ -1948,7 +1953,7 @@ void tcp_parse_options(struct sk_buff *skb, struct tcp_opt *tp)
 				if (opsize < 2) /* "silly options" */
 					return;
 				if (opsize > length)
-					break;	/* don't parse partial options */
+					return;	/* don't parse partial options */
 	  			switch(opcode) {
 				case TCPOPT_MSS:
 					if(opsize==TCPOLEN_MSS && th->syn) {

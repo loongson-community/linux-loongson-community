@@ -100,12 +100,6 @@ struct cs_channel
 /* maxinum number of AC97 codecs connected, AC97 2.0 defined 4 */
 #define NR_AC97		2
 
-/* minor number of /dev/dspW */
-#define SND_DEV_DSP8	1
-
-/* minor number of /dev/dspW */
-#define SND_DEV_DSP16	1 
-
 static const unsigned sample_size[] = { 1, 2, 2, 4 };
 static const unsigned sample_shift[] = { 0, 1, 1, 2 };
 
@@ -1233,7 +1227,8 @@ static int cs_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 		return 0;
 
 	case SNDCTL_DSP_SPEED: /* set smaple rate */
-		get_user_ret(val, (int *)arg, -EFAULT);
+		if (get_user(val, (int *)arg))
+			return -EFAULT;
 		if (val >= 0) {
 			if (file->f_mode & FMODE_WRITE) {
 				stop_dac(state);
@@ -1249,7 +1244,8 @@ static int cs_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 		return put_user(dmabuf->rate, (int *)arg);
 
 	case SNDCTL_DSP_STEREO: /* set stereo or mono channel */
-		get_user_ret(val, (int *)arg, -EFAULT);
+		if (get_user(val, (int *)arg))
+			return -EFAULT;
 		if (file->f_mode & FMODE_WRITE) {
 			stop_dac(state);
 			dmabuf->ready = 0;
@@ -1291,7 +1287,8 @@ static int cs_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 		return put_user(AFMT_S16_LE, (int *)arg);
 
 	case SNDCTL_DSP_SETFMT: /* Select sample format */
-		get_user_ret(val, (int *)arg, -EFAULT);
+		if (get_user(val, (int *)arg))
+			return -EFAULT;
 		if (val != AFMT_QUERY) {
 			if(val==AFMT_S16_LE/* || val==AFMT_U8*/)
 			{
@@ -1315,7 +1312,8 @@ static int cs_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 			return put_user(AFMT_U8, (int *)arg);
 
 	case SNDCTL_DSP_CHANNELS:
-		get_user_ret(val, (int *)arg, -EFAULT);
+		if (get_user(val, (int *)arg))
+			return -EFAULT;
 		if (val != 0) {
 			if (file->f_mode & FMODE_WRITE) {
 				stop_dac(state);
@@ -1340,14 +1338,16 @@ static int cs_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 	case SNDCTL_DSP_SUBDIVIDE:
 		if (dmabuf->subdivision)
 			return -EINVAL;
-		get_user_ret(val, (int *)arg, -EFAULT);
+		if (get_user(val, (int *)arg))
+			return -EFAULT;
 		if (val != 1 && val != 2)
 			return -EINVAL;
 		dmabuf->subdivision = val;
 		return 0;
 
 	case SNDCTL_DSP_SETFRAGMENT:
-		get_user_ret(val, (int *)arg, -EFAULT);
+		if (get_user(val, (int *)arg))
+			return -EFAULT;
 
 		dmabuf->ossfragshift = val & 0xffff;
 		dmabuf->ossmaxfrags = (val >> 16) & 0xffff;
@@ -1408,7 +1408,8 @@ static int cs_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 		return put_user(val, (int *)arg);
 
 	case SNDCTL_DSP_SETTRIGGER:
-		get_user_ret(val, (int *)arg, -EFAULT);
+		if (get_user(val, (int *)arg))
+			return -EFAULT;
 		if (file->f_mode & FMODE_READ) {
 			if (val & PCM_ENABLE_INPUT) {
 				if (!dmabuf->ready && (ret = prog_dmabuf(state, 1)))
@@ -2478,7 +2479,7 @@ struct cs_card_type
 	void (*active)(struct cs_card *, int);
 };
 
-static struct cs_card_type __init cards[]={
+static struct cs_card_type __initdata cards[]={
 	{0x1489, 0x7001, "Genius Soundmaker 128 value", amp_none, NULL},
 	{0x5053, 0x3357, "Voyetra", amp_voyetra, NULL},
 	/* MI6020/21 use the same chipset as the Thinkpads, maybe needed */
@@ -2487,7 +2488,7 @@ static struct cs_card_type __init cards[]={
 	{PCI_VENDOR_ID_IBM, 0x0132, "Thinkpad 570", amp_none, clkrun_hack},
 	{PCI_VENDOR_ID_IBM, 0x0153, "Thinkpad 600X/A20/T20", amp_none, clkrun_hack},
 	{PCI_VENDOR_ID_IBM, 0x1010, "Thinkpad 600E (unsupported)", NULL, NULL},
-	{0, 0, NULL, NULL}
+	{0, 0, NULL, NULL, NULL}
 };
 
 static int __init cs_install(struct pci_dev *pci_dev)

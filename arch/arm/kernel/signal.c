@@ -2,8 +2,11 @@
  *  linux/arch/arm/kernel/signal.c
  *
  *  Copyright (C) 1995, 1996 Russell King
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
-
 #include <linux/config.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
@@ -587,7 +590,7 @@ asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs, int syscall)
 				/* FALLTHRU */
 
 			default:
-				sigaddset(&current->signal, signr);
+				sigaddset(&current->pending.signal, signr);
 				recalc_sigpending(current);
 				current->flags |= PF_SIGNALED;
 				do_exit(exit_code);

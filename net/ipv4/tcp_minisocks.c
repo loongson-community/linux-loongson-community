@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp_minisocks.c,v 1.1 2000/08/09 11:59:04 davem Exp $
+ * Version:	$Id: tcp_minisocks.c,v 1.4 2000/09/18 05:59:48 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -662,6 +662,7 @@ struct sock *tcp_create_openreq_child(struct sock *sk, struct open_request *req,
 		sock_lock_init(newsk);
 		bh_lock_sock(newsk);
 
+		newsk->dst_lock	= RW_LOCK_UNLOCKED;
 		atomic_set(&newsk->rmem_alloc, 0);
 		skb_queue_head_init(&newsk->receive_queue);
 		atomic_set(&newsk->wmem_alloc, 0);
@@ -671,8 +672,10 @@ struct sock *tcp_create_openreq_child(struct sock *sk, struct open_request *req,
 		newsk->forward_alloc = 0;
 
 		newsk->done = 0;
+		newsk->userlocks = sk->userlocks & ~SOCK_BINDPORT_LOCK;
 		newsk->proc = 0;
 		newsk->backlog.head = newsk->backlog.tail = NULL;
+		newsk->callback_lock = RW_LOCK_UNLOCKED;
 		skb_queue_head_init(&newsk->error_queue);
 		newsk->write_space = tcp_write_space;
 #ifdef CONFIG_FILTER
@@ -742,7 +745,7 @@ struct sock *tcp_create_openreq_child(struct sock *sk, struct open_request *req,
 		/* Back to base struct sock members. */
 		newsk->err = 0;
 		newsk->priority = 0;
-		atomic_set(&newsk->refcnt, 1);
+		atomic_set(&newsk->refcnt, 2);
 #ifdef INET_REFCNT_DEBUG
 		atomic_inc(&inet_sock_nr);
 #endif
@@ -966,5 +969,6 @@ int tcp_child_process(struct sock *parent, struct sock *child,
 	}
 
 	bh_unlock_sock(child);
+	sock_put(child);
 	return ret;
 }

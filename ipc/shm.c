@@ -206,7 +206,6 @@ static int shm_swp; /* number of shared memory pages that are in swap */
 /* some statistics */
 static ulong swap_attempts;
 static ulong swap_successes;
-static ulong used_segs;
 
 void __init shm_init (void)
 {
@@ -364,7 +363,9 @@ static int shm_statfs(struct super_block *sb, struct statfs *buf)
 	buf->f_blocks = shm_ctlall;
 	buf->f_bavail = buf->f_bfree = shm_ctlall - shm_tot;
 	buf->f_files = shm_ctlmni;
-	buf->f_ffree = shm_ctlmni - used_segs;
+	shm_lockall();
+	buf->f_ffree = shm_ctlmni - shm_ids.in_use + 1;
+	shm_unlockall();
 	buf->f_namelen = SHM_NAME_LEN;
 	return 0;
 }
@@ -593,7 +594,6 @@ static pte_t **shm_alloc(unsigned long pages, int doacc)
 	if (doacc) {
 		shm_lockall();
 		shm_tot += pages;
-		used_segs++;
 		shm_unlockall();
 	}
 	return ret;
@@ -646,7 +646,6 @@ static void shm_free(pte_t** dir, unsigned long pages, int doacc)
 		shm_rss -= rss;
 		shm_swp -= swp;
 		shm_tot -= pages;
-		used_segs--;
 		shm_unlockall();
 	}
 }
@@ -970,7 +969,7 @@ asmlinkage long sys_shmctl (int shmid, int cmd, struct shmid_ds *buf)
 
 		memset(&shm_info,0,sizeof(shm_info));
 		shm_lockall();
-		shm_info.used_ids = shm_ids.in_use;
+		shm_info.used_ids = shm_ids.in_use - 1; /* correct the /dev/zero hack */
 		shm_info.shm_rss = shm_rss;
 		shm_info.shm_tot = shm_tot;
 		shm_info.shm_swp = shm_swp;
@@ -1201,6 +1200,7 @@ asmlinkage long sys_shmat (int shmid, char *shmaddr, int shmflg, ulong *raddr)
 	int acc_mode;
 	struct dentry *dentry;
 	char   name[SHM_FMT_LEN+1];
+	void *user_addr;
 
 	if (!shm_sb || (shmid % SEQ_MULTIPLIER) == zero_id)
 		return -EINVAL;
@@ -1254,13 +1254,12 @@ asmlinkage long sys_shmat (int shmid, char *shmaddr, int shmflg, ulong *raddr)
 	if (IS_ERR (file))
 		goto bad_file1;
 	down(&current->mm->mmap_sem);
-	*raddr = do_mmap (file, addr, file->f_dentry->d_inode->i_size,
-			  prot, flags, 0);
+	user_addr = (void *) do_mmap (file, addr, file->f_dentry->d_inode->i_size, prot, flags, 0);
 	up(&current->mm->mmap_sem);
-	if (IS_ERR(*raddr))
-		err = PTR_ERR(*raddr);
-	else
-		err = 0;
+	*raddr = (unsigned long) user_addr;
+	err = 0;
+	if (IS_ERR(user_addr))
+		err = PTR_ERR(user_addr);
 	fput (file);
 	return err;
 
@@ -1522,7 +1521,7 @@ static int shm_swap_preop(swp_entry_t *swap_entry)
 }
 
 /*
- * Goes through counter = (shm_rss / (prio + 1)) present shm pages.
+ * Goes through counter = (shm_rss >> prio) present shm pages.
  */
 static unsigned long swap_id; /* currently being swapped */
 static unsigned long swap_idx; /* next to swap */
@@ -1536,8 +1535,14 @@ int shm_swap (int prio, int gfp_mask)
 	int counter;
 	struct page * page_map;
 
+	/*
+	 * Push this inside:
+	 */
+	if (!(gfp_mask & __GFP_IO))
+		return 0;
+
 	zshm_swap(prio, gfp_mask);
-	counter = shm_rss / (prio + 1);
+	counter = shm_rss >> prio;
 	if (!counter)
 		return 0;
 	if (shm_swap_preop(&swap_entry))
@@ -1863,7 +1868,7 @@ static void zshm_swap (int prio, int gfp_mask)
 	int counter;
 	struct page * page_map;
 
-	counter = zshm_rss / (prio + 1);
+	counter = zshm_rss >> prio;
 	if (!counter)
 		return;
 next:

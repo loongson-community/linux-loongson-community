@@ -13,6 +13,7 @@
 
 #include <linux/config.h>
 #include <linux/fs.h>
+#include <linux/ext2_fs.h>
 #include <linux/locks.h>
 #include <linux/quotaops.h>
 
@@ -325,10 +326,10 @@ do_more:
 		}
 	}
 	
-	mark_buffer_dirty(bh2, 1);
-	mark_buffer_dirty(sb->u.ext2_sb.s_sbh, 1);
+	mark_buffer_dirty(bh2);
+	mark_buffer_dirty(sb->u.ext2_sb.s_sbh);
 
-	mark_buffer_dirty(bh, 1);
+	mark_buffer_dirty(bh);
 	if (sb->s_flags & MS_SYNCHRONOUS) {
 		ll_rw_block (WRITE, 1, &bh);
 		wait_on_buffer (bh);
@@ -582,7 +583,7 @@ got_block:
 
 	j = tmp;
 
-	mark_buffer_dirty(bh, 1);
+	mark_buffer_dirty(bh);
 	if (sb->s_flags & MS_SYNCHRONOUS) {
 		ll_rw_block (WRITE, 1, &bh);
 		wait_on_buffer (bh);
@@ -600,9 +601,9 @@ got_block:
 		    "Goal hits %d of %d.\n", j, goal_hits, goal_attempts);
 
 	gdp->bg_free_blocks_count = cpu_to_le16(le16_to_cpu(gdp->bg_free_blocks_count) - 1);
-	mark_buffer_dirty(bh2, 1);
+	mark_buffer_dirty(bh2);
 	es->s_free_blocks_count = cpu_to_le32(le32_to_cpu(es->s_free_blocks_count) - 1);
-	mark_buffer_dirty(sb->u.ext2_sb.s_sbh, 1);
+	mark_buffer_dirty(sb->u.ext2_sb.s_sbh);
 	sb->s_dirt = 1;
 	unlock_super (sb);
 	*err = 0;

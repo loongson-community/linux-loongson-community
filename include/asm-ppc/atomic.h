@@ -5,13 +5,7 @@
 #ifndef _ASM_PPC_ATOMIC_H_ 
 #define _ASM_PPC_ATOMIC_H_
 
-#include <linux/config.h>
-
-#ifdef CONFIG_SMP
 typedef struct { volatile int counter; } atomic_t;
-#else
-typedef struct { int counter; } atomic_t;
-#endif
 
 #define ATOMIC_INIT(i)	{ (i) }
 
@@ -21,7 +15,7 @@ typedef struct { int counter; } atomic_t;
 extern void atomic_clear_mask(unsigned long mask, unsigned long *addr);
 extern void atomic_set_mask(unsigned long mask, unsigned long *addr);
 
-extern __inline__ int atomic_add_return(int a, atomic_t *v)
+static __inline__ int atomic_add_return(int a, atomic_t *v)
 {
 	int t;
 
@@ -30,14 +24,14 @@ extern __inline__ int atomic_add_return(int a, atomic_t *v)
 	add	%0,%2,%0\n\
 	stwcx.	%0,0,%3\n\
 	bne-	1b"
-	: "=&r" (t), "=m" (*v)
-	: "r" (a), "r" (v), "m" (*v)
+	: "=&r" (t), "=m" (v->counter)
+	: "r" (a), "r" (v), "m" (v->counter)
 	: "cc");
 
 	return t;
 }
 
-extern __inline__ int atomic_sub_return(int a, atomic_t *v)
+static __inline__ int atomic_sub_return(int a, atomic_t *v)
 {
 	int t;
 
@@ -46,14 +40,14 @@ extern __inline__ int atomic_sub_return(int a, atomic_t *v)
 	subf	%0,%2,%0\n\
 	stwcx.	%0,0,%3\n\
 	bne-	1b"
-	: "=&r" (t), "=m" (*v)
-	: "r" (a), "r" (v), "m" (*v)
+	: "=&r" (t), "=m" (v->counter)
+	: "r" (a), "r" (v), "m" (v->counter)
 	: "cc");
 
 	return t;
 }
 
-extern __inline__ int atomic_inc_return(atomic_t *v)
+static __inline__ int atomic_inc_return(atomic_t *v)
 {
 	int t;
 
@@ -62,14 +56,14 @@ extern __inline__ int atomic_inc_return(atomic_t *v)
 	addic	%0,%0,1\n\
 	stwcx.	%0,0,%2\n\
 	bne-	1b"
-	: "=&r" (t), "=m" (*v)
-	: "r" (v), "m" (*v)
+	: "=&r" (t), "=m" (v->counter)
+	: "r" (v), "m" (v->counter)
 	: "cc");
 
 	return t;
 }
 
-extern __inline__ int atomic_dec_return(atomic_t *v)
+static __inline__ int atomic_dec_return(atomic_t *v)
 {
 	int t;
 
@@ -78,8 +72,8 @@ extern __inline__ int atomic_dec_return(atomic_t *v)
 	addic	%0,%0,-1\n\
 	stwcx.	%0,0,%2\n\
 	bne	1b"
-	: "=&r" (t), "=m" (*v)
-	: "r" (v), "m" (*v)
+	: "=&r" (t), "=m" (v->counter)
+	: "r" (v), "m" (v->counter)
 	: "cc");
 
 	return t;

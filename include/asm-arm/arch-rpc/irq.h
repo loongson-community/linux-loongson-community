@@ -1,13 +1,17 @@
 /*
- * include/asm-arm/arch-rpc/irq.h
+ *  linux/include/asm-arm/arch-rpc/irq.h
  *
- * Copyright (C) 1996 Russell King
+ *  Copyright (C) 1996 Russell King
  *
- * Changelog:
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ *  Changelog:
  *   10-10-1996	RMK	Brought up to date with arch-sa110eval
  *   22-08-1998	RMK	Restructured IRQ routines
  */
-#include <asm/iomd.h>
+#include <asm/hardware/iomd.h>
 
 #define fixup_irq(x) (x)
 
@@ -152,21 +156,22 @@ static __inline__ void irq_init_irq(void)
 			irq_desc[irq].unmask   = rpc_unmask_irq_b;
 			break;
 
-		case 16 ... 22:
+		case 16 ... 21:
 			irq_desc[irq].valid    = 1;
+			irq_desc[irq].noautoenable = 1;
 			irq_desc[irq].mask_ack = rpc_mask_irq_dma;
 			irq_desc[irq].mask     = rpc_mask_irq_dma;
 			irq_desc[irq].unmask   = rpc_unmask_irq_dma;
 			break;
 
-		case 32 ... 40:
+		case 32 ... 39:
 			irq_desc[irq].valid    = 1;
 			irq_desc[irq].mask_ack = ecard_disableirq;
 			irq_desc[irq].mask     = ecard_disableirq;
 			irq_desc[irq].unmask   = ecard_enableirq;
 			break;
 
-		case 64 ... 72:
+		case 64 ... 71:
 			irq_desc[irq].valid    = 1;
 			irq_desc[irq].mask_ack = rpc_mask_irq_fiq;
 			irq_desc[irq].mask     = rpc_mask_irq_fiq;
@@ -174,6 +179,8 @@ static __inline__ void irq_init_irq(void)
 			break;
 		}
 	}
+
+	irq_desc[IRQ_KEYBOARDTX].noautoenable = 1;
 
 	init_FIQ();
 }

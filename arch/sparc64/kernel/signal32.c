@@ -1,4 +1,4 @@
-/*  $Id: signal32.c,v 1.66 2000/07/27 01:05:15 davem Exp $
+/*  $Id: signal32.c,v 1.67 2000/09/05 21:44:54 davem Exp $
  *  arch/sparc64/kernel/signal32.c
  *
  *  Copyright (C) 1991, 1992  Linus Torvalds
@@ -1420,7 +1420,7 @@ asmlinkage int do_signal32(sigset_t *oldset, struct pt_regs * regs,
 #endif
 				/* fall through */
 			default:
-				sigaddset(&current->signal, signr);
+				sigaddset(&current->pending.signal, signr);
 				recalc_sigpending(current);
 				current->flags |= PF_SIGNALED;
 				do_exit(exit_code);

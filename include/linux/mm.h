@@ -15,7 +15,9 @@ extern unsigned long max_mapnr;
 extern unsigned long num_physpages;
 extern void * high_memory;
 extern int page_cluster;
-extern struct list_head lru_cache;
+/* The inactive_clean lists are per zone. */
+extern struct list_head active_list;
+extern struct list_head inactive_dirty_list;
 
 #include <asm/page.h>
 #include <asm/pgtable.h>
@@ -52,7 +54,8 @@ struct vm_area_struct {
 	struct vm_area_struct * vm_avl_left;
 	struct vm_area_struct * vm_avl_right;
 
-	/* For areas with inode, the list inode->i_mapping->i_mmap, 
+	/* For areas with an address space and backing store,
+	 * one of the address_space->i_mmap{,shared} lists,
 	 * for shm areas, the list of attaches, otherwise unused.
 	 */
 	struct vm_area_struct *vm_next_share;
@@ -91,6 +94,7 @@ struct vm_area_struct {
 #define VM_RAND_READ	0x00010000	/* App will not benefit from clustered reads */
 
 #define VM_DONTCOPY	0x00020000      /* Do not copy this vma on fork */
+#define VM_DONTEXPAND	0x00040000	/* Cannot expand with mremap() */
 
 #define VM_STACK_FLAGS	0x00000177
 
@@ -148,6 +152,7 @@ typedef struct page {
 	atomic_t count;
 	unsigned long flags;	/* atomic flags, some possibly updated asynchronously */
 	struct list_head lru;
+	unsigned long age;
 	wait_queue_head_t wait;
 	struct page **pprev_hash;
 	struct buffer_head * buffers;
@@ -168,12 +173,12 @@ typedef struct page {
 #define PG_uptodate		 3
 #define PG_dirty		 4
 #define PG_decr_after		 5
-#define PG_unused_01		 6
-#define PG__unused_02		 7
+#define PG_active		 6
+#define PG_inactive_dirty	 7
 #define PG_slab			 8
 #define PG_swap_cache		 9
 #define PG_skip			10
-#define PG_unused_03		11
+#define PG_inactive_clean	11
 #define PG_highmem		12
 				/* bits 21-30 unused */
 #define PG_reserved		31
@@ -189,15 +194,25 @@ typedef struct page {
 #define PageLocked(page)	test_bit(PG_locked, &(page)->flags)
 #define LockPage(page)		set_bit(PG_locked, &(page)->flags)
 #define TryLockPage(page)	test_and_set_bit(PG_locked, &(page)->flags)
+/*
+ * The first mb is necessary to safely close the critical section opened by the
+ * TryLockPage(), the second mb is necessary to enforce ordering between
+ * the clear_bit and the read of the waitqueue (to avoid SMP races with a
+ * parallel wait_on_page).
+ */
 #define UnlockPage(page)	do { \
+					smp_mb__before_clear_bit(); \
 					clear_bit(PG_locked, &(page)->flags); \
-					wake_up(&page->wait); \
+					smp_mb__after_clear_bit(); \
+					if (waitqueue_active(&page->wait)) \
+						wake_up(&page->wait); \
 				} while (0)
 #define PageError(page)		test_bit(PG_error, &(page)->flags)
 #define SetPageError(page)	set_bit(PG_error, &(page)->flags)
 #define ClearPageError(page)	clear_bit(PG_error, &(page)->flags)
 #define PageReferenced(page)	test_bit(PG_referenced, &(page)->flags)
 #define SetPageReferenced(page)	set_bit(PG_referenced, &(page)->flags)
+#define ClearPageReferenced(page)	clear_bit(PG_referenced, &(page)->flags)
 #define PageTestandClearReferenced(page)	test_and_clear_bit(PG_referenced, &(page)->flags)
 #define PageDecrAfter(page)	test_bit(PG_decr_after, &(page)->flags)
 #define SetPageDecrAfter(page)	set_bit(PG_decr_after, &(page)->flags)
@@ -215,6 +230,18 @@ typedef struct page {
 #define PageClearSwapCache(page)	clear_bit(PG_swap_cache, &(page)->flags)
 
 #define PageTestandClearSwapCache(page)	test_and_clear_bit(PG_swap_cache, &(page)->flags)
+
+#define PageActive(page)	test_bit(PG_active, &(page)->flags)
+#define SetPageActive(page)	set_bit(PG_active, &(page)->flags)
+#define ClearPageActive(page)	clear_bit(PG_active, &(page)->flags)
+
+#define PageInactiveDirty(page)	test_bit(PG_inactive_dirty, &(page)->flags)
+#define SetPageInactiveDirty(page)	set_bit(PG_inactive_dirty, &(page)->flags)
+#define ClearPageInactiveDirty(page)	clear_bit(PG_inactive_dirty, &(page)->flags)
+
+#define PageInactiveClean(page)	test_bit(PG_inactive_clean, &(page)->flags)
+#define SetPageInactiveClean(page)	set_bit(PG_inactive_clean, &(page)->flags)
+#define ClearPageInactiveClean(page)	clear_bit(PG_inactive_clean, &(page)->flags)
 
 #ifdef CONFIG_HIGHMEM
 #define PageHighMem(page)		test_bit(PG_highmem, &(page)->flags)
@@ -375,7 +402,7 @@ extern int pgt_cache_water[2];
 extern int check_pgt_cache(void);
 
 extern void free_area_init(unsigned long * zones_size);
-extern void free_area_init_node(int nid, pg_data_t *pgdat, 
+extern void free_area_init_node(int nid, pg_data_t *pgdat, struct page *pmap,
 	unsigned long * zones_size, unsigned long zone_start_paddr, 
 	unsigned long *zholes_size);
 extern void mem_init(void);
@@ -415,7 +442,6 @@ struct zone_t;
 /* filemap.c */
 extern void remove_inode_page(struct page *);
 extern unsigned long page_unuse(struct page *);
-extern int shrink_mmap(int, int);
 extern void truncate_inode_pages(struct address_space *, loff_t);
 
 /* generic vm_area_ops exported for stackable file systems */
@@ -443,11 +469,11 @@ extern struct page *filemap_nopage(struct vm_area_struct * area,
 
 #define GFP_BUFFER	(__GFP_HIGH | __GFP_WAIT)
 #define GFP_ATOMIC	(__GFP_HIGH)
-#define GFP_USER	(__GFP_WAIT | __GFP_IO)
-#define GFP_HIGHUSER	(GFP_USER | __GFP_HIGHMEM)
+#define GFP_USER	(             __GFP_WAIT | __GFP_IO)
+#define GFP_HIGHUSER	(             __GFP_WAIT | __GFP_IO | __GFP_HIGHMEM)
 #define GFP_KERNEL	(__GFP_HIGH | __GFP_WAIT | __GFP_IO)
 #define GFP_NFS		(__GFP_HIGH | __GFP_WAIT | __GFP_IO)
-#define GFP_KSWAPD	(__GFP_IO)
+#define GFP_KSWAPD	(                          __GFP_IO)
 
 /* Flag - indicates that the buffer will be suitable for DMA.  Ignored on some
    platforms, used as appropriate on others */

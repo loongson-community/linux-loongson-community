@@ -7,11 +7,16 @@
 #ifndef _PPC_PROM_H
 #define _PPC_PROM_H
 
+#include <linux/config.h>
+
 typedef void *phandle;
 typedef void *ihandle;
 
 extern char *prom_display_paths[];
 extern unsigned int prom_num_displays;
+#ifndef CONFIG_MACH_SPECIFIC
+extern int have_of;
+#endif
 
 struct address_range {
 	unsigned int space;

@@ -295,37 +295,20 @@ int netdev_boot_setup_add(char *name, struct ifmap *map)
  *	netdev_boot_setup_check	- check boot time settings
  *	@dev: the netdevice
  *
- * 	Check boot time settings for the device.  If device's name is a
- *	mask (eg. eth%d) and settings are found then this will allocate 
- *	name for the device.  The found settings are set for the device
- *	to be used later in the device probing.  Returns 0 if no settings
- *	found, 1 if they are.
+ * 	Check boot time settings for the device.
+ *	The found settings are set for the device to be used
+ *	later in the device probing.
+ *	Returns 0 if no settings found, 1 if they are.
  */
 int netdev_boot_setup_check(struct net_device *dev)
 {
 	struct netdev_boot_setup *s;
-	char buf[IFNAMSIZ + 1];
-	int i, mask = 0;
-
-	memset(buf, 0, sizeof(buf));
-	strcpy(buf, dev->name);
-	if (strchr(dev->name, '%')) {
-		*strchr(buf, '%') = '\0';
-		mask = 1;
-	}
+	int i;
 
 	s = dev_boot_setup;
 	for (i = 0; i < NETDEV_BOOT_SETUP_MAX; i++) {
 		if (s[i].name[0] != '\0' && s[i].name[0] != ' ' &&
-		    !strncmp(buf, s[i].name, mask ? strlen(buf) :
-						    strlen(s[i].name))) {
-			if (__dev_get_by_name(s[i].name)) {
-				if (!mask)
-					return 0;
-				continue;
-			}
-			memset(dev->name, 0, IFNAMSIZ);
-			strcpy(dev->name, s[i].name);
+		    !strncmp(dev->name, s[i].name, strlen(s[i].name))) {
 			dev->irq 	= s[i].map.irq;
 			dev->base_addr 	= s[i].map.base_addr;
 			dev->mem_start 	= s[i].map.mem_start;
@@ -333,7 +316,6 @@ int netdev_boot_setup_check(struct net_device *dev)
 			return 1;
 		}
 	}
-
 	return 0;
 }
 
@@ -868,25 +850,6 @@ void dev_queue_xmit_nit(struct sk_buff *skb, struct net_device *dev)
 	br_read_unlock(BR_NETPROTO_LOCK);
 }
 
-/*
- *	Fast path for loopback frames.
- */
- 
-void dev_loopback_xmit(struct sk_buff *skb)
-{
-	struct sk_buff *newskb=skb_clone(skb, GFP_ATOMIC);
-	if (newskb==NULL)
-		return;
-
-	newskb->mac.raw = newskb->data;
-	skb_pull(newskb, newskb->nh.raw - newskb->data);
-	newskb->pkt_type = PACKET_LOOPBACK;
-	newskb->ip_summed = CHECKSUM_UNNECESSARY;
-	if (newskb->dst==NULL)
-		printk(KERN_DEBUG "BUG: packet without dst looped back 1\n");
-	netif_rx(newskb);
-}
-
 /**
  *	dev_queue_xmit - transmit a buffer
  *	@skb: buffer to transmit
@@ -1178,6 +1141,7 @@ static void net_tx_action(struct softirq_action *h)
 			struct net_device *dev = head;
 			head = head->next_sched;
 
+			smp_mb__before_clear_bit();
 			clear_bit(__LINK_STATE_SCHED, &dev->state);
 
 			if (spin_trylock(&dev->queue_lock)) {
@@ -2482,27 +2446,26 @@ int __init net_dev_init(void)
 		dev->iflink = -1;
 		dev_hold(dev);
 
+		/*
+		 * Allocate name. If the init() fails
+		 * the name will be reissued correctly.
+		 */
+		if (strchr(dev->name, '%'))
+			dev_alloc_name(dev, dev->name);
+
 		/* 
 		 * Check boot time settings for the device.
 		 */
-		if (!netdev_boot_setup_check(dev)) {
-			/*
-			 * No settings found - allocate name. If the init()
-			 * fails the name will be reissued correctly.
-			 */
-			if (strchr(dev->name, '%'))
-				dev_alloc_name(dev, dev->name);
-		}
+		netdev_boot_setup_check(dev);
 
 		if (dev->init && dev->init(dev)) {
 			/*
-			 *	It failed to come up. Unhook it.
+			 * It failed to come up. It will be unhooked later.
+			 * dev_alloc_name can now advance to next suitable
+			 * name that is checked next.
 			 */
-			write_lock_bh(&dev_base_lock);
-			*dp = dev->next;
 			dev->deadbeaf = 1;
-			write_unlock_bh(&dev_base_lock);
-			dev_put(dev);
+			dp = &dev->next;
 		} else {
 			dp = &dev->next;
 			dev->ifindex = dev_new_index();
@@ -2512,6 +2475,21 @@ int __init net_dev_init(void)
 				dev->rebuild_header = default_rebuild_header;
 			dev_init_scheduler(dev);
 			set_bit(__LINK_STATE_PRESENT, &dev->state);
+		}
+	}
+
+	/*
+	 * Unhook devices that failed to come up
+	 */
+	dp = &dev_base;
+	while ((dev = *dp) != NULL) {
+		if (dev->deadbeaf) {
+			write_lock_bh(&dev_base_lock);
+			*dp = dev->next;
+			write_unlock_bh(&dev_base_lock);
+			dev_put(dev);
+		} else {
+			dp = &dev->next;
 		}
 	}
 

@@ -138,7 +138,7 @@ skip_uart:
 		@ The machine type is passed in r0
 		mov	r0, r3
 #ifdef CONFIG_SA1100_NANOENGINE
-		teq	r0, #32			@ MACH_TYPE_NANOENGINE
+		teq	r0, #MACH_TYPE_NANOENGINE
 		beq	SYMBOL_NAME(bse_setup)
 #endif
 

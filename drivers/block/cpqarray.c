@@ -46,6 +46,12 @@
 
 #define DRIVER_NAME "Compaq SMART2 Driver (v 2.4.0)"
 #define DRIVER_VERSION SMART2_DRIVER_VERSION(2,4,0)
+
+/* Embedded module documentation macros - see modules.h */
+/* Original author Chris Frantz - Compaq Computer Corporation */
+MODULE_AUTHOR("Compaq Computer Corporation");
+MODULE_DESCRIPTION("Driver for Compaq Smart2 Array Controllers");
+
 #define MAJOR_NR COMPAQ_SMART2_MAJOR
 #include <linux/blk.h>
 #include <linux/blkdev.h>
@@ -85,6 +91,7 @@ static struct board_type products[] = {
 	{ 0x40330E11, "Smart Array 3100ES",	&smart2_access },
 	{ 0x40340E11, "Smart Array 221",	&smart2_access },
 	{ 0x40400E11, "Integrated Array",	&smart4_access },
+	{ 0x40480E11, "Compaq Raid LC2",        &smart4_access },
 	{ 0x40500E11, "Smart Array 4200",	&smart4_access },
 	{ 0x40510E11, "Smart Array 4250ES",	&smart4_access },
 	{ 0x40580E11, "Smart Array 431",	&smart4_access },
@@ -109,8 +116,8 @@ static struct proc_dir_entry *proc_array = NULL;
 
 int cpqarray_init(void);
 static int cpqarray_pci_detect(void);
-static int cpqarray_pci_init(ctlr_info_t *c, unchar bus, unchar device_fn);
-static ulong remap_pci_mem(ulong base, ulong size);
+static int cpqarray_pci_init(ctlr_info_t *c, struct pci_dev *pdev);
+static void *remap_pci_mem(ulong base, ulong size);
 static int cpqarray_eisa_detect(void);
 static int pollcomplete(int ctlr);
 static void getgeometry(int ctlr);
@@ -328,7 +335,7 @@ void cleanup_module(void)
 	for(i=0; i<nr_ctlr; i++) {
 		hba[i]->access.set_intr_mask(hba[i], 0);
 		free_irq(hba[i]->intr, hba[i]);
-		iounmap((void*)hba[i]->vaddr);
+		iounmap(hba[i]->vaddr);
 		unregister_blkdev(MAJOR_NR+i, hba[i]->devname);
 		del_timer(&hba[i]->timer);
 		blk_cleanup_queue(BLK_DEFAULT_QUEUE(MAJOR_NR + i));
@@ -535,8 +542,7 @@ int __init cpqarray_init(void)
  */
 static int cpqarray_pci_detect(void)
 {
-	int index;
-	unchar bus=0, dev_fn=0;
+	struct pci_dev *pdev;
 
 #define IDA_BOARD_TYPES 3
 	static int ida_vendor_id[IDA_BOARD_TYPES] = { PCI_VENDOR_ID_DEC, 
@@ -547,29 +553,22 @@ static int cpqarray_pci_detect(void)
 	/* search for all PCI board types that could be for this driver */
 	for(brdtype=0; brdtype<IDA_BOARD_TYPES; brdtype++)
 	{
-		for(index=0; ; index++) {
-			if (pcibios_find_device(ida_vendor_id[brdtype],
-			 	ida_device_id[brdtype], index, &bus, &dev_fn))
-				break;
+		pdev = pci_find_device(ida_vendor_id[brdtype],
+				       ida_device_id[brdtype], NULL);
+		while (pdev) {
 			printk(KERN_DEBUG "cpqarray: Device %x has been found at %x %x\n",
-				ida_vendor_id[brdtype], bus, dev_fn);
-			if (index == 1000000) break;
+				ida_vendor_id[brdtype],
+				pdev->bus->number, pdev->devfn);
 			if (nr_ctlr == 8) {
 				printk(KERN_WARNING "cpqarray: This driver"
 				" supports a maximum of 8 controllers.\n");
 				break;
 			}
-
+			
 /* if it is a PCI_DEVICE_ID_NCR_53C1510, make sure it's 				the Compaq version of the chip */ 
 
 			if (ida_device_id[brdtype] == PCI_DEVICE_ID_NCR_53C1510)			{	
-				unsigned short subvendor=0;
-				if(pcibios_read_config_word(bus, dev_fn, 
-                        		PCI_SUBSYSTEM_VENDOR_ID, &subvendor))
-                		{
-                        		printk(KERN_DEBUG "cpqarray: failed to read subvendor\n");
-                        		continue;
-                		}
+				unsigned short subvendor=pdev->subsystem_vendor;
 				if(subvendor !=  PCI_VENDOR_ID_COMPAQ)
 				{
 					printk(KERN_DEBUG 
@@ -584,7 +583,7 @@ static int cpqarray_pci_detect(void)
 				continue;
 			}
 			memset(hba[nr_ctlr], 0, sizeof(ctlr_info_t));
-			if (cpqarray_pci_init(hba[nr_ctlr], bus, dev_fn) != 0)
+			if (cpqarray_pci_init(hba[nr_ctlr], pdev) != 0)
 			{
 				kfree(hba[nr_ctlr]);
 				continue;
@@ -593,6 +592,8 @@ static int cpqarray_pci_detect(void)
 			hba[nr_ctlr]->ctlr = nr_ctlr;
 			nr_ctlr++;
 
+			pdev = pci_find_device(ida_vendor_id[brdtype],
+					       ida_device_id[brdtype], pdev);
 		}
 	}
 
@@ -603,24 +604,23 @@ static int cpqarray_pci_detect(void)
  * Find the IO address of the controller, its IRQ and so forth.  Fill
  * in some basic stuff into the ctlr_info_t structure.
  */
-static int cpqarray_pci_init(ctlr_info_t *c, unchar bus, unchar device_fn)
+static int cpqarray_pci_init(ctlr_info_t *c, struct pci_dev *pdev)
 {
 	ushort vendor_id, device_id, command;
 	unchar cache_line_size, latency_timer;
 	unchar irq, revision;
-	uint addr[6];
+	unsigned long addr[6];
 	__u32 board_id;
-	struct pci_dev *pdev;
 
 	int i;
 
-	pdev = pci_find_slot(bus, device_fn);
+	c->pci_dev = pdev;
 	vendor_id = pdev->vendor;
 	device_id = pdev->device;
 	irq = pdev->irq;
 
 	for(i=0; i<6; i++)
-		addr[i] = pdev->resource[i].flags;
+		addr[i] = pci_resource_start(pdev, i);
 
 	if (pci_enable_device(pdev))
 		return -1;
@@ -637,7 +637,7 @@ DBGINFO(
 	printk("device_id = %x\n", device_id);
 	printk("command = %x\n", command);
 	for(i=0; i<6; i++)
-		printk("addr[%d] = %x\n", i, addr[i]);
+		printk("addr[%d] = %lx\n", i, addr[i]);
 	printk("revision = %x\n", revision);
 	printk("irq = %x\n", irq);
 	printk("cache_line_size = %x\n", cache_line_size);
@@ -646,17 +646,19 @@ DBGINFO(
 );
 
 	c->intr = irq;
-	c->ioaddr = addr[0] & ~0x1;
+	c->ioaddr = addr[0];
 
-	/*
-	 * Memory base addr is first addr with the first bit _not_ set
-	 */
+	c->paddr = 0;
 	for(i=0; i<6; i++)
-		if (!(addr[i] & 0x1)) {
+		if (pci_resource_flags(pdev, i) & IORESOURCE_MEM) {
 			c->paddr = pci_resource_start (pdev, i);
 			break;
 		}
+	if (!c->paddr)
+		return -1;
 	c->vaddr = remap_pci_mem(c->paddr, 128);
+	if (!c->vaddr)
+		return -1;
 	c->board_id = board_id;
 
 	for(i=0; i<NR_PRODUCTS; i++) {
@@ -679,13 +681,13 @@ DBGINFO(
 /*
  * Map (physical) PCI mem into (virtual) kernel space
  */
-static ulong remap_pci_mem(ulong base, ulong size)
+static void *remap_pci_mem(ulong base, ulong size)
 {
         ulong page_base        = ((ulong) base) & PAGE_MASK;
         ulong page_offs        = ((ulong) base) - page_base;
-        ulong page_remapped    = (ulong) ioremap(page_base, page_offs+size);
+        void *page_remapped    = ioremap(page_base, page_offs+size);
 
-        return (ulong) (page_remapped ? (page_remapped + page_offs) : 0UL);
+        return (page_remapped ? (page_remapped + page_offs) : NULL);
 }
 
 #ifndef MODULE
@@ -769,6 +771,7 @@ static int cpqarray_eisa_detect(void)
 		hba[nr_ctlr]->access = *(products[j].access);
 		hba[nr_ctlr]->ctlr = nr_ctlr;
 		hba[nr_ctlr]->board_id = board_id;
+		hba[nr_ctlr]->pci_dev = NULL; /* not PCI */
 
 DBGINFO(
 	printk("i = %d, j = %d\n", i, j);
@@ -898,7 +901,7 @@ static void do_ida_request(int ctlr)
 	if (ctlr != MAJOR(creq->rq_dev)-MAJOR_NR ||
 		ctlr > nr_ctlr || h == NULL) 
 	{
-		printk("doreq cmd for %d, %x at %p\n",
+		printk(KERN_WARNING "doreq cmd for %d, %x at %p\n",
 				ctlr, creq->rq_dev, creq);
 		complete_buffers(creq->bh, 0);
 		start_io(h);
@@ -1188,6 +1191,20 @@ static int ida_ioctl(struct inode *inode, struct file *filep, unsigned int cmd, 
 		if (!arg) return -EINVAL;
 		put_user(DRIVER_VERSION, (unsigned long*)arg);
 		return 0;
+	case IDAGETPCIINFO:
+	{
+		
+		ida_pci_info_struct pciinfo;
+
+		if (!arg) return -EINVAL;
+		pciinfo.bus = hba[ctlr]->pci_dev->bus->number;
+		pciinfo.dev_fn = hba[ctlr]->pci_dev->devfn;
+		pciinfo.board_id = hba[ctlr]->board_id;
+		if(copy_to_user((void *) arg, &pciinfo,  
+			sizeof( ida_pci_info_struct)))
+				return -EFAULT;
+		return(0);
+	}	
 
 	case BLKFLSBUF:
 	case BLKROSET:
@@ -1198,7 +1215,7 @@ static int ida_ioctl(struct inode *inode, struct file *filep, unsigned int cmd, 
 		return blk_ioctl(inode->i_rdev, cmd, arg);
 
 	default:
-		return -EBADRQC;
+		return -EINVAL;
 	}
 		
 }
@@ -1378,6 +1395,8 @@ static int sendcmd(
 	ctlr_info_t *info_p = hba[ctlr];
 
 	c = cmd_alloc(info_p);
+	if(!c)
+		return IO_ERROR;
 	c->ctlr = ctlr;
 	c->hdr.unit = log_unit;
 	c->hdr.prio = 0;

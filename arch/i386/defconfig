@@ -26,8 +26,8 @@ CONFIG_KMOD=y
 # CONFIG_M586 is not set
 # CONFIG_M586TSC is not set
 # CONFIG_M586MMX is not set
-CONFIG_M686=y
-# CONFIG_M686FXSR is not set
+# CONFIG_M686 is not set
+CONFIG_M686FXSR=y
 # CONFIG_MK6 is not set
 # CONFIG_MK7 is not set
 # CONFIG_MCRUSOE is not set
@@ -44,13 +44,15 @@ CONFIG_X86_TSC=y
 CONFIG_X86_GOOD_APIC=y
 CONFIG_X86_PGE=y
 CONFIG_X86_USE_PPRO_CHECKSUM=y
+CONFIG_X86_FXSR=y
+CONFIG_X86_XMM=y
+# CONFIG_TOSHIBA is not set
 # CONFIG_MICROCODE is not set
 # CONFIG_X86_MSR is not set
 # CONFIG_X86_CPUID is not set
 CONFIG_NOHIGHMEM=y
 # CONFIG_HIGHMEM4G is not set
 # CONFIG_HIGHMEM64G is not set
-# CONFIG_MATH_EMULATION is not set
 # CONFIG_MTRR is not set
 CONFIG_SMP=y
 CONFIG_HAVE_DEC_LOCK=y
@@ -112,17 +114,24 @@ CONFIG_BLK_DEV_FD=y
 # CONFIG_BLK_DEV_XD is not set
 # CONFIG_PARIDE is not set
 # CONFIG_BLK_CPQ_DA is not set
+# CONFIG_BLK_CPQ_CISS_DA is not set
 # CONFIG_BLK_DEV_DAC960 is not set
 # CONFIG_BLK_DEV_LOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
-# CONFIG_BLK_DEV_LVM is not set
+# CONFIG_BLK_DEV_RAM is not set
+# CONFIG_BLK_DEV_INITRD is not set
+
+#
+# Multi-device support (RAID and LVM)
+#
+# CONFIG_MD is not set
 # CONFIG_BLK_DEV_MD is not set
 # CONFIG_MD_LINEAR is not set
 # CONFIG_MD_RAID0 is not set
 # CONFIG_MD_RAID1 is not set
 # CONFIG_MD_RAID5 is not set
-# CONFIG_BLK_DEV_RAM is not set
-# CONFIG_BLK_DEV_INITRD is not set
+# CONFIG_BLK_DEV_LVM is not set
+# CONFIG_LVM_PROC_FS is not set
 
 #
 # Networking options
@@ -224,7 +233,6 @@ CONFIG_IDEPCI_SHARE_IRQ=y
 # CONFIG_BLK_DEV_SIS5513 is not set
 # CONFIG_BLK_DEV_TRM290 is not set
 # CONFIG_BLK_DEV_VIA82CXXX is not set
-# CONFIG_VIA82CXXX_TUNING is not set
 # CONFIG_IDE_CHIPSETS is not set
 # CONFIG_IDEDMA_AUTO is not set
 # CONFIG_DMA_NONPCI is not set
@@ -262,12 +270,12 @@ CONFIG_SCSI_CONSTANTS=y
 # CONFIG_SCSI_AHA1542 is not set
 # CONFIG_SCSI_AHA1740 is not set
 # CONFIG_SCSI_AIC7XXX is not set
-# CONFIG_SCSI_IPS is not set
 # CONFIG_SCSI_ADVANSYS is not set
 # CONFIG_SCSI_IN2000 is not set
 # CONFIG_SCSI_AM53C974 is not set
 # CONFIG_SCSI_MEGARAID is not set
 # CONFIG_SCSI_BUSLOGIC is not set
+# CONFIG_SCSI_CPQFCTS is not set
 # CONFIG_SCSI_DMX3191D is not set
 # CONFIG_SCSI_DTC3280 is not set
 # CONFIG_SCSI_EATA is not set
@@ -276,11 +284,10 @@ CONFIG_SCSI_CONSTANTS=y
 # CONFIG_SCSI_FUTURE_DOMAIN is not set
 # CONFIG_SCSI_GDTH is not set
 # CONFIG_SCSI_GENERIC_NCR5380 is not set
+# CONFIG_SCSI_IPS is not set
 # CONFIG_SCSI_INITIO is not set
 # CONFIG_SCSI_INIA100 is not set
 # CONFIG_SCSI_NCR53C406A is not set
-# CONFIG_SCSI_SYM53C416 is not set
-# CONFIG_SCSI_SIM710 is not set
 # CONFIG_SCSI_NCR53C7xx is not set
 # CONFIG_SCSI_NCR53C8XX is not set
 CONFIG_SCSI_SYM53C8XX=y
@@ -299,6 +306,8 @@ CONFIG_SCSI_NCR53C8XX_SYNC=20
 # CONFIG_SCSI_QLOGIC_FC is not set
 # CONFIG_SCSI_QLOGIC_1280 is not set
 # CONFIG_SCSI_SEAGATE is not set
+# CONFIG_SCSI_SIM710 is not set
+# CONFIG_SCSI_SYM53C416 is not set
 # CONFIG_SCSI_DC390T is not set
 # CONFIG_SCSI_T128 is not set
 # CONFIG_SCSI_U14_34F is not set
@@ -357,14 +366,18 @@ CONFIG_EEPRO100=y
 # CONFIG_NE2K_PCI is not set
 # CONFIG_8139TOO is not set
 # CONFIG_SIS900 is not set
+# CONFIG_EPIC100 is not set
+# CONFIG_SUNDANCE is not set
 # CONFIG_TLAN is not set
 # CONFIG_VIA_RHINE is not set
+# CONFIG_WINBOND_840 is not set
 # CONFIG_NET_POCKET is not set
 
 #
 # Ethernet (1000 Mbit)
 #
 # CONFIG_ACENIC is not set
+# CONFIG_HAMACHI is not set
 # CONFIG_SK98LIN is not set
 # CONFIG_FDDI is not set
 # CONFIG_PPP is not set
@@ -501,10 +514,6 @@ CONFIG_PCMCIA_SERIAL=y
 #
 # Multimedia devices
 #
-
-#
-# Video For Linux
-#
 # CONFIG_VIDEO_DEV is not set
 
 #
@@ -588,12 +597,64 @@ CONFIG_VGA_CONSOLE=y
 #
 # Sound
 #
-# CONFIG_SOUND is not set
+CONFIG_SOUND=y
+# CONFIG_SOUND_CMPCI is not set
+# CONFIG_SOUND_EMU10K1 is not set
+# CONFIG_SOUND_FUSION is not set
+# CONFIG_SOUND_CS4281 is not set
+# CONFIG_SOUND_ES1370 is not set
+CONFIG_SOUND_ES1371=y
+# CONFIG_SOUND_ESSSOLO1 is not set
+# CONFIG_SOUND_MAESTRO is not set
+# CONFIG_SOUND_SONICVIBES is not set
+# CONFIG_SOUND_TRIDENT is not set
+# CONFIG_SOUND_MSNDCLAS is not set
+# CONFIG_SOUND_MSNDPIN is not set
+# CONFIG_SOUND_VIA82CXXX is not set
+# CONFIG_SOUND_OSS is not set
+# CONFIG_SOUND_TVMIXER is not set
 
 #
 # USB support
 #
-# CONFIG_USB is not set
+CONFIG_USB=y
+# CONFIG_USB_DEBUG is not set
+
+#
+# Miscellaneous USB options
+#
+# CONFIG_USB_DEVICEFS is not set
+# CONFIG_USB_BANDWIDTH is not set
+
+#
+# USB Controllers
+#
+CONFIG_USB_UHCI_ALT=y
+# CONFIG_USB_OHCI is not set
+
+#
+# USB Devices
+#
+# CONFIG_USB_PRINTER is not set
+# CONFIG_USB_SCANNER is not set
+# CONFIG_USB_AUDIO is not set
+# CONFIG_USB_ACM is not set
+# CONFIG_USB_SERIAL is not set
+# CONFIG_USB_IBMCAM is not set
+# CONFIG_USB_OV511 is not set
+# CONFIG_USB_DC2XX is not set
+CONFIG_USB_STORAGE=y
+# CONFIG_USB_STORAGE_DEBUG is not set
+# CONFIG_USB_USS720 is not set
+# CONFIG_USB_DABUSB is not set
+
+#
+# USB Human Interface Devices (HID)
+#
+
+#
+#   Input core support is needed for USB HID
+#
 
 #
 # Kernel hacking

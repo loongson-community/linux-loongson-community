@@ -81,17 +81,24 @@ CONFIG_TC=y
 # CONFIG_BLK_DEV_XD is not set
 # CONFIG_PARIDE is not set
 # CONFIG_BLK_CPQ_DA is not set
+# CONFIG_BLK_CPQ_CISS_DA is not set
 # CONFIG_BLK_DEV_DAC960 is not set
 # CONFIG_BLK_DEV_LOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
-# CONFIG_BLK_DEV_LVM is not set
+# CONFIG_BLK_DEV_RAM is not set
+# CONFIG_BLK_DEV_INITRD is not set
+
+#
+# Multi-device support (RAID and LVM)
+#
+# CONFIG_MD is not set
 # CONFIG_BLK_DEV_MD is not set
 # CONFIG_MD_LINEAR is not set
 # CONFIG_MD_RAID0 is not set
 # CONFIG_MD_RAID1 is not set
 # CONFIG_MD_RAID5 is not set
-# CONFIG_BLK_DEV_RAM is not set
-# CONFIG_BLK_DEV_INITRD is not set
+# CONFIG_BLK_DEV_LVM is not set
+# CONFIG_LVM_PROC_FS is not set
 
 #
 # Networking options
@@ -173,14 +180,14 @@ CONFIG_SCSI_DECNCR=y
 # CONFIG_SCSI_INITIO is not set
 # CONFIG_SCSI_INIA100 is not set
 # CONFIG_SCSI_NCR53C406A is not set
-# CONFIG_SCSI_SYM53C416 is not set
-# CONFIG_SCSI_SIM710 is not set
 # CONFIG_SCSI_NCR53C7xx is not set
 # CONFIG_SCSI_PAS16 is not set
 # CONFIG_SCSI_PCI2000 is not set
 # CONFIG_SCSI_PCI2220I is not set
 # CONFIG_SCSI_PSI240I is not set
 # CONFIG_SCSI_QLOGIC_FAS is not set
+# CONFIG_SCSI_SIM710 is not set
+# CONFIG_SCSI_SYM53C416 is not set
 # CONFIG_SCSI_T128 is not set
 # CONFIG_SCSI_U14_34F is not set
 # CONFIG_SCSI_DEBUG is not set

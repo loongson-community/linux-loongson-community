@@ -44,9 +44,8 @@
 atomic_t page_cache_size = ATOMIC_INIT(0);
 unsigned int page_hash_bits;
 struct page **page_hash_table;
-struct list_head lru_cache;
 
-static spinlock_t pagecache_lock = SPIN_LOCK_UNLOCKED;
+spinlock_t pagecache_lock = SPIN_LOCK_UNLOCKED;
 /*
  * NOTE: to avoid deadlocking you must never acquire the pagecache_lock with
  *       the pagemap_lru_lock held.
@@ -92,7 +91,7 @@ static inline int sync_page(struct page *page)
  * sure the page is locked and that nobody else uses it - or that usage
  * is safe.
  */
-static inline void __remove_inode_page(struct page *page)
+void __remove_inode_page(struct page *page)
 {
 	remove_page_from_inode_queue(page);
 	remove_page_from_hash_queue(page);
@@ -146,9 +145,40 @@ void invalidate_inode_pages(struct inode * inode)
 	spin_unlock(&pagecache_lock);
 }
 
-/*
+static inline void truncate_partial_page(struct page *page, unsigned partial)
+{
+	memclear_highpage_flush(page, partial, PAGE_CACHE_SIZE-partial);
+				
+	if (page->buffers)
+		block_flushpage(page, partial);
+
+}
+
+static inline void truncate_complete_page(struct page *page)
+{
+	if (!page->buffers || block_flushpage(page, 0))
+		lru_cache_del(page);
+
+	/*
+	 * We remove the page from the page cache _after_ we have
+	 * destroyed all buffer-cache references to it. Otherwise some
+	 * other process might think this inode page is not in the
+	 * page cache and creates a buffer-cache alias to it causing
+	 * all sorts of fun problems ...  
+	 */
+	ClearPageDirty(page);
+	remove_inode_page(page);
+	page_cache_release(page);
+}
+
+/**
+ * truncate_inode_pages - truncate *all* the pages from an offset
+ * @mapping: mapping to truncate
+ * @lstart: offset from with to truncate
+ *
  * Truncate the page cache at a set offset, removing the pages
  * that are beyond that offset (and zeroing out partial pages).
+ * If any page is locked we wait for it to become unlocked.
  */
 void truncate_inode_pages(struct address_space * mapping, loff_t lstart)
 {
@@ -168,11 +198,10 @@ repeat:
 
 		page = list_entry(curr, struct page, list);
 		curr = curr->next;
-
 		offset = page->index;
 
-		/* page wholly truncated - free it */
-		if (offset >= start) {
+		/* Is one of the pages to truncate? */
+		if ((offset >= start) || (partial && (offset + 1) == start)) {
 			if (TryLockPage(page)) {
 				page_cache_get(page);
 				spin_unlock(&pagecache_lock);
@@ -183,22 +212,13 @@ repeat:
 			page_cache_get(page);
 			spin_unlock(&pagecache_lock);
 
-			if (!page->buffers || block_flushpage(page, 0))
-				lru_cache_del(page);
-
-			/*
-			 * We remove the page from the page cache
-			 * _after_ we have destroyed all buffer-cache
-			 * references to it. Otherwise some other process
-			 * might think this inode page is not in the
-			 * page cache and creates a buffer-cache alias
-			 * to it causing all sorts of fun problems ...
-			 */
-			remove_inode_page(page);
-			ClearPageDirty(page);
+			if (partial && (offset + 1) == start) {
+				truncate_partial_page(page, partial);
+				partial = 0;
+			} else 
+				truncate_complete_page(page);
 
 			UnlockPage(page);
-			page_cache_release(page);
 			page_cache_release(page);
 
 			/*
@@ -210,174 +230,8 @@ repeat:
 			 */
 			goto repeat;
 		}
-		/*
-		 * there is only one partial page possible.
-		 */
-		if (!partial)
-			continue;
-
-		/* and it's the one preceeding the first wholly truncated page */
-		if ((offset + 1) != start)
-			continue;
-
-		/* partial truncate, clear end of page */
-		if (TryLockPage(page)) {
-			spin_unlock(&pagecache_lock);
-			goto repeat;
-		}
-		page_cache_get(page);
-		spin_unlock(&pagecache_lock);
-
-		memclear_highpage_flush(page, partial, PAGE_CACHE_SIZE-partial);
-		if (page->buffers)
-			block_flushpage(page, partial);
-
-		partial = 0;
-
-		/*
-		 * we have dropped the spinlock so we have to
-		 * restart.
-		 */
-		UnlockPage(page);
-		page_cache_release(page);
-		goto repeat;
 	}
 	spin_unlock(&pagecache_lock);
-}
-
-/*
- * nr_dirty represents the number of dirty pages that we will write async
- * before doing sync writes.  We can only do sync writes if we can
- * wait for IO (__GFP_IO set).
- */
-int shrink_mmap(int priority, int gfp_mask)
-{
-	int ret = 0, count, nr_dirty;
-	struct list_head * page_lru;
-	struct page * page = NULL;
-	
-	count = nr_lru_pages / (priority + 1);
-	nr_dirty = priority;
-
-	/* we need pagemap_lru_lock for list_del() ... subtle code below */
-	spin_lock(&pagemap_lru_lock);
-	while (count > 0 && (page_lru = lru_cache.prev) != &lru_cache) {
-		page = list_entry(page_lru, struct page, lru);
-		list_del(page_lru);
-
-		if (PageTestandClearReferenced(page))
-			goto dispose_continue;
-
-		count--;
-		/*
-		 * Avoid unscalable SMP locking for pages we can
-		 * immediate tell are untouchable..
-		 */
-		if (!page->buffers && page_count(page) > 1)
-			goto dispose_continue;
-
-		if (TryLockPage(page))
-			goto dispose_continue;
-
-		/* Release the pagemap_lru lock even if the page is not yet
-		   queued in any lru queue since we have just locked down
-		   the page so nobody else may SMP race with us running
-		   a lru_cache_del() (lru_cache_del() always run with the
-		   page locked down ;). */
-		spin_unlock(&pagemap_lru_lock);
-
-		/* avoid freeing the page while it's locked */
-		page_cache_get(page);
-
-		/*
-		 * Is it a buffer page? Try to clean it up regardless
-		 * of zone - it's old.
-		 */
-		if (page->buffers) {
-			int wait;
-			/*
-			 * 0 - free it if can do so without IO
-			 * 1 - start write-out of dirty buffers
-			 * 2 - wait for locked buffers
-			 */
-			wait = (gfp_mask & __GFP_IO) ? (nr_dirty-- < 0) ? 2 : 1 : 0;
-			if (!try_to_free_buffers(page, wait))
-				goto unlock_continue;
-			/* page was locked, inode can't go away under us */
-			if (!page->mapping) {
-				atomic_dec(&buffermem_pages);
-				goto made_buffer_progress;
-			}
-		}
-
-		/* Take the pagecache_lock spinlock held to avoid
-		   other tasks to notice the page while we are looking at its
-		   page count. If it's a pagecache-page we'll free it
-		   in one atomic transaction after checking its page count. */
-		spin_lock(&pagecache_lock);
-
-		/*
-		 * We can't free pages unless there's just one user
-		 * (count == 2 because we added one ourselves above).
-		 */
-		if (page_count(page) != 2)
-			goto cache_unlock_continue;
-
-		/*
-		 * Is it a page swap page? If so, we want to
-		 * drop it if it is no longer used, even if it
-		 * were to be marked referenced..
-		 */
-		if (PageSwapCache(page)) {
-			spin_unlock(&pagecache_lock);
-			__delete_from_swap_cache(page);
-			goto made_inode_progress;
-		}	
-
-		/*
-		 * Page is from a zone we don't care about.
-		 * Don't drop page cache entries in vain.
-		 */
-		if (page->zone->free_pages > page->zone->pages_high)
-			goto cache_unlock_continue;
-
-		/* is it a page-cache page? */
-		if (page->mapping) {
-			if (!PageDirty(page) && !pgcache_under_min()) {
-				__remove_inode_page(page);
-				spin_unlock(&pagecache_lock);
-				goto made_inode_progress;
-			}
-			goto cache_unlock_continue;
-		}
-
-		printk(KERN_ERR "shrink_mmap: unknown LRU page!\n");
-
-cache_unlock_continue:
-		spin_unlock(&pagecache_lock);
-unlock_continue:
-		spin_lock(&pagemap_lru_lock);
-		UnlockPage(page);
-		page_cache_release(page);
-dispose_continue:
-		list_add(page_lru, &lru_cache);
-	}
-	goto out;
-
-made_inode_progress:
-	page_cache_release(page);
-made_buffer_progress:
-	UnlockPage(page);
-	page_cache_release(page);
-	ret = 1;
-	spin_lock(&pagemap_lru_lock);
-	/* nr_lru_pages needs the spinlock */
-	nr_lru_pages--;
-
-out:
-	spin_unlock(&pagemap_lru_lock);
-
-	return ret;
 }
 
 static inline struct page * __find_page_nolock(struct address_space *mapping, unsigned long offset, struct page *page)
@@ -394,7 +248,14 @@ inside:
 		if (page->index == offset)
 			break;
 	}
-	SetPageReferenced(page);
+	/*
+	 * Touching the page may move it to the active list.
+	 * If we end up with too few inactive pages, we wake
+	 * up kswapd.
+	 */
+	age_page_up(page);
+	if (inactive_shortage() > inactive_target / 2 && free_shortage())
+			wakeup_kswapd(0);
 not_found:
 	return page;
 }
@@ -626,6 +487,7 @@ void ___wait_on_page(struct page *page)
 		set_task_state(tsk, TASK_UNINTERRUPTIBLE);
 		if (!PageLocked(page))
 			break;
+		run_task_queue(&tq_disk);
 		schedule();
 	} while (PageLocked(page));
 	tsk->state = TASK_RUNNING;
@@ -747,6 +609,53 @@ repeat:
 #define PROFILE_READAHEAD
 #define DEBUG_READAHEAD
 #endif
+
+/*
+ * We combine this with read-ahead to deactivate pages when we
+ * think there's sequential IO going on. Note that this is
+ * harmless since we don't actually evict the pages from memory
+ * but just move them to the inactive list.
+ *
+ * TODO:
+ * - make the readahead code smarter
+ * - move readahead to the VMA level so we can do the same
+ *   trick with mmap()
+ *
+ * Rik van Riel, 2000
+ */
+static void drop_behind(struct file * file, unsigned long index)
+{
+	struct inode *inode = file->f_dentry->d_inode;
+	struct address_space *mapping = inode->i_mapping;
+	struct page **hash;
+	struct page *page;
+	unsigned long start;
+
+	/* Nothing to drop-behind if we're on the first page. */
+	if (!index)
+		return;
+
+	if (index > file->f_rawin)
+		start = index - file->f_rawin;
+	else
+		start = 0;
+
+	/*
+	 * Go backwards from index-1 and drop all pages in the
+	 * readahead window. Since the readahead window may have
+	 * been increased since the last time we were called, we
+	 * stop when the page isn't there.
+	 */
+	spin_lock(&pagecache_lock);
+	while (--index >= start) {
+		hash = page_hash(mapping, index);
+		page = __find_page_nolock(mapping, index, *hash);
+		if (!page)
+			break;
+		deactivate_page(page);
+	}
+	spin_unlock(&pagecache_lock);
+}
 
 /*
  * Read-ahead profiling information
@@ -971,6 +880,12 @@ static void generic_file_readahead(int reada_ok,
 		if (filp->f_ramax > max_readahead)
 			filp->f_ramax = max_readahead;
 
+		/*
+		 * Move the pages that have already been passed
+		 * to the inactive list.
+		 */
+		drop_behind(filp, index);
+
 #ifdef PROFILE_READAHEAD
 		profile_readahead((reada_ok == 2), filp);
 #endif
@@ -1074,6 +989,13 @@ found_page:
 			goto page_not_up_to_date;
 		generic_file_readahead(reada_ok, filp, inode, page);
 page_ok:
+		/* If users can be writing to this page using arbitrary
+		 * virtual addresses, take care about potential aliasing
+		 * before reading the page on the kernel side.
+		 */
+		if (page->mapping->i_mmap_shared != NULL)
+			flush_dcache_page(page);
+
 		/*
 		 * Ok, we have the page, and it's up-to-date, so
 		 * now we can copy it to user space...
@@ -2002,10 +1924,10 @@ static long madvise_willneed(struct vm_area_struct * vma,
  * Application no longer needs these pages.  If the pages are dirty,
  * it's OK to just throw them away.  The app will be more careful about
  * data it wants to keep.  Be sure to free swap resources too.  The
- * zap_page_range call sets things up for shrink_mmap to actually free
+ * zap_page_range call sets things up for refill_inactive to actually free
  * these pages later if no one else has touched them in the meantime,
  * although we could add these pages to a global reuse list for
- * shrink_mmap to pick up before reclaiming other pages.
+ * refill_inactive to pick up before reclaiming other pages.
  *
  * NB: This interface discards data rather than pushes it out to swap,
  * as some implementations do.  This has performance implications for
@@ -2530,6 +2452,7 @@ generic_file_write(struct file *file,const char *buf,size_t count,loff_t *ppos)
 unlock:
 		/* Mark it unlocked again and drop the page.. */
 		UnlockPage(page);
+		deactivate_page(page);
 		page_cache_release(page);
 
 		if (status < 0)

@@ -45,11 +45,12 @@
  * sum := addr + size;  carry? --> flag = true;
  * if (sum >= addr_limit) flag = true;
  */
-#define __range_ok(addr,size) ({ \
-	unsigned long flag,sum; \
-	__asm__("clrt; addc %3, %1; movt %0; cmp/hi %4, %1; rotcl %0" \
-		:"=&r" (flag), "=r" (sum) \
-		:"1" (addr), "r" ((int)(size)), "r" (current->addr_limit.seg)); \
+#define __range_ok(addr,size) ({					      \
+	unsigned long flag,sum; 					      \
+	__asm__("clrt; addc %3, %1; movt %0; cmp/hi %4, %1; rotcl %0"	      \
+		:"=&r" (flag), "=r" (sum) 				      \
+		:"1" (addr), "r" ((int)(size)), "r" (current->addr_limit.seg) \
+		:"t"); 							      \
 	flag; })
 
 #define access_ok(type,addr,size) (__range_ok(addr,size) == 0)
@@ -82,24 +83,6 @@ extern inline int verify_area(int type, const void * addr, unsigned long size)
  */
 #define __put_user(x,ptr) __put_user_nocheck((x),(ptr),sizeof(*(ptr)))
 #define __get_user(x,ptr) __get_user_nocheck((x),(ptr),sizeof(*(ptr)))
-
-/*
- * The "xxx_ret" versions return constant specified in third argument, if
- * something bad happens. These macros can be optimized for the
- * case of just returning from the function xxx_ret is used.
- */
-
-#define put_user_ret(x,ptr,ret) ({ \
-if (put_user(x,ptr)) return ret; })
-
-#define get_user_ret(x,ptr,ret) ({ \
-if (get_user(x,ptr)) return ret; })
-
-#define __put_user_ret(x,ptr,ret) ({ \
-if (__put_user(x,ptr)) return ret; })
-
-#define __get_user_ret(x,ptr,ret) ({ \
-if (__get_user(x,ptr)) return ret; })
 
 struct __large_struct { unsigned long buf[100]; };
 #define __m(x) (*(struct __large_struct *)(x))
@@ -204,7 +187,8 @@ __asm__ __volatile__( \
 	".long	1b, 3b\n\t" \
 	".previous" \
 	:"=&r" (__pu_err) \
-	:"r" (__pu_val), "m" (__m(__pu_addr)), "i" (-EFAULT)); })
+	:"r" (__pu_val), "m" (__m(__pu_addr)), "i" (-EFAULT) \
+        :"memory"); })
 
 extern void __put_user_unknown(void);
 
@@ -242,7 +226,7 @@ __copy_user(void *__to, const void *__from, __kernel_size_t __n)
 		".previous"
 		: "=r" (res), "=&z" (__dummy), "=r" (_f), "=r" (_t)
 		: "2" (__from), "3" (__to), "0" (res)
-		: "memory");
+		: "memory", "t");
 
 	return res;
 }
@@ -256,19 +240,9 @@ __copy_res = __copy_user(__copy_to, (void *) (from), __copy_size); \
 } else __copy_res = __copy_size; \
 __copy_res; })
 
-#define copy_to_user_ret(to,from,n,retval) ({ \
-if (copy_to_user(to,from,n)) \
-	return retval; \
-})
-
 #define __copy_to_user(to,from,n)		\
 	__copy_user((void *)(to),		\
 		    (void *)(from), n)
-
-#define __copy_to_user_ret(to,from,n,retval) ({ \
-if (__copy_to_user(to,from,n)) \
-	return retval; \
-})
 
 #define copy_from_user(to,from,n) ({ \
 void *__copy_to = (void *) (to); \
@@ -280,19 +254,9 @@ __copy_res = __copy_user(__copy_to, __copy_from, __copy_size); \
 } else __copy_res = __copy_size; \
 __copy_res; })
 
-#define copy_from_user_ret(to,from,n,retval) ({ \
-if (copy_from_user(to,from,n)) \
-	return retval; \
-})
-
 #define __copy_from_user(to,from,n)		\
 	__copy_user((void *)(to),		\
 		    (void *)(from), n)
-
-#define __copy_from_user_ret(to,from,n,retval) ({ \
-if (__copy_from_user(to,from,n)) \
-	return retval; \
-})
 
 /* XXX: Not sure it works well..
    should be such that: 4byte clear and the rest. */
@@ -322,7 +286,8 @@ __clear_user(void *addr, __kernel_size_t size)
 		"	.long 1b,3b\n"
 		".previous"
 		: "=r" (size), "=r" (__a)
-		: "0" (size), "1" (addr), "r" (0));
+		: "0" (size), "1" (addr), "r" (0)
+		: "memory", "t");
 
 	return size;
 }
@@ -368,7 +333,7 @@ __strncpy_from_user(unsigned long __dest, unsigned long __src, int __count)
 		: "=r" (res), "=&z" (__dummy), "=r" (_s), "=r" (_d)
 		: "0" (__count), "2" (__src), "3" (__dest), "r" (__count),
 		  "i" (-EFAULT)
-		: "memory");
+		: "memory", "t");
 
 	return res;
 }
@@ -414,7 +379,8 @@ extern __inline__ long __strnlen_user(const char *__s, long __n)
 		"	.long 1b,3b\n"
 		".previous"
 		: "=z" (res), "=&r" (__dummy)
-		: "0" (0), "r" (__s), "r" (__n), "i" (-EFAULT));
+		: "0" (0), "r" (__s), "r" (__n), "i" (-EFAULT)
+		: "t");
 	return res;
 }
 

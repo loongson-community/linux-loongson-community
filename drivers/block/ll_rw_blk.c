@@ -600,6 +600,8 @@ static inline void add_request(request_queue_t * q, struct request * req,
 	major = MAJOR(req->rq_dev);
 	if (major >= COMPAQ_SMART2_MAJOR+0 && major <= COMPAQ_SMART2_MAJOR+7)
 		(q->request_fn)(q);
+	if (major >= COMPAQ_CISS_MAJOR+0 && major <= COMPAQ_CISS_MAJOR+7)
+                (q->request_fn)(q);
 	if (major >= DAC960_MAJOR+0 && major <= DAC960_MAJOR+7)
 		(q->request_fn)(q);
 }
@@ -1128,9 +1130,6 @@ int __init blk_dev_init(void)
 #ifdef CONFIG_SJCD
 	sjcd_init();
 #endif CONFIG_SJCD
-#ifdef CONFIG_BLK_DEV_MD
-	md_init();
-#endif CONFIG_BLK_DEV_MD
 #ifdef CONFIG_APBLOCK
 	ap_init();
 #endif

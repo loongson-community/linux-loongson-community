@@ -31,7 +31,6 @@
 
 #define IDESCSI_VERSION "0.9"
 
-#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/types.h>
 #include <linux/string.h>
@@ -582,16 +581,6 @@ int idescsi_init (void)
 		failed = 0;
 		while ((drive = ide_scan_devices (media[i], idescsi_driver.name, NULL, failed++)) != NULL) {
 
-#ifndef CONFIG_BLK_DEV_IDETAPE
-			/*
-			 * The Onstream DI-30 does not handle clean emulation, yet.
-			 */
-			if (strstr(drive->id->model, "OnStream DI-30")) {
-				printk("ide-tape: ide-scsi emulation is not supported for %s.\n", drive->id->model);
-				continue;
-			}
-#endif /* CONFIG_BLK_DEV_IDETAPE */
-
 			if ((scsi = (idescsi_scsi_t *) kmalloc (sizeof (idescsi_scsi_t), GFP_KERNEL)) == NULL) {
 				printk (KERN_ERR "ide-scsi: %s: Can't allocate a scsi structure\n", drive->name);
 				continue;
@@ -827,18 +816,17 @@ int idescsi_bios (Disk *disk, kdev_t dev, int *parm)
 	return 0;
 }
 
-#ifdef MODULE
-Scsi_Host_Template idescsi_template = IDESCSI;
+static Scsi_Host_Template idescsi_template = IDESCSI;
 
-int init_module (void)
+static int __init init_idescsi_module(void)
 {
-	idescsi_init ();
-	idescsi_template.module = &__this_module;
+	idescsi_init();
+	idescsi_template.module = THIS_MODULE;
 	scsi_register_module (MODULE_SCSI_HA, &idescsi_template);
 	return 0;
 }
 
-void cleanup_module (void)
+static void __exit exit_idescsi_module(void)
 {
 	ide_drive_t *drive;
 	byte media[] = {TYPE_DISK, TYPE_TAPE, TYPE_PROCESSOR, TYPE_WORM, TYPE_ROM, TYPE_SCANNER, TYPE_MOD, 255};
@@ -855,4 +843,6 @@ void cleanup_module (void)
 	}
 	ide_unregister_module(&idescsi_module);
 }
-#endif /* MODULE */
+
+module_init(init_idescsi_module);
+module_exit(exit_idescsi_module);

@@ -21,7 +21,6 @@
 #include <linux/delay.h>
 #include <linux/sched.h>
 #include <asm/io.h>
-#include <asm/delay.h>
 
 struct JEDECTable mtd_JEDEC_table[] = 
   {{0x01AD,"AMD Am29F016",2*1024*1024,64*1024,MTD_CAP_NORFLASH},

@@ -485,7 +485,7 @@ S: Stanford, California 94305
 S: USA
 
 N: Juan Jose Ciarlante
-W: http://juanjox.linuxhq.com/
+W: http://juanjox.kernelnotes.org/
 E: jjciarla@raiz.uncu.edu.ar
 E: jjo@mendoza.gov.ar
 D: Network driver alias support
@@ -513,6 +513,14 @@ W: http://www.eecs.umich.edu/~mcorner/
 D: USB Bluetooth Driver
 S: University of Michigan
 S: Ann Arbor, MI
+
+N: Kees Cook
+E: cook@cpoint.net
+W: http://outflux.net/
+P: 1024D/17063E6D 9FA3 C49C 23C9 D1BC 2E30  1975 1FFF 4BA9 1706 3E6D
+D: Minor updates to SCSI code for the Communications type
+S: (ask for current address)
+S: USA
 
 N: Alan Cox
 W: http://roadrunner.swansea.linux.org.uk/alan.shtml
@@ -726,6 +734,7 @@ S: USA
 
 N: Johannes Erdfelt
 E: jerdfelt@valinux.com
+E: johannes@erdfelt.com
 D: Linux/IA-64 bootloader and kernel goop, USB
 S: 6350 Stoneridge Mall Road
 S: Pleasanton, CA 94588
@@ -1720,7 +1729,7 @@ S: 64289 Darmstadt
 S: Germany 
 
 N: Mark W. McClelland
-E: mmcclelland@delphi.com
+E: mwm@i.am
 E: mark@alpha.dyndns.org
 W: http://alpha.dyndns.org/ov511/
 D: OV511 driver
@@ -2084,7 +2093,7 @@ E: ken@halcyon.com
 D: CDROM driver "sonycd535" (Sony CDU-535/531)
 
 N: Frederic Potter 
-E: Frederic.Potter@masi.ibp.fr 
+E: fpotter@cirpack.com
 D: Some PCI kernel support
 
 N: Rui Prior
@@ -2117,6 +2126,16 @@ D: random Linux documentation, patches, and hacks
 S: 4390 Albany Drive #41A
 S: San Jose, California 95129
 S: USA
+
+N: Juan Quintela
+E: quintela@fi.udc.es
+D: Memory Management hacking
+S: LFCIA
+S: Departamento de Computación
+S: Universidade da Coruña
+S: E-15071
+S: A Coruña
+S: Spain
 
 N: Augusto Cesar Radtke
 E: bishop@sekure.org

@@ -1,4 +1,4 @@
-/*  $Id: process.c,v 1.111 2000/08/16 11:13:12 davem Exp $
+/*  $Id: process.c,v 1.112 2000/09/06 00:45:01 davem Exp $
  *  arch/sparc64/kernel/process.c
  *
  *  Copyright (C) 1995, 1996 David S. Miller (davem@caip.rutgers.edu)
@@ -573,6 +573,7 @@ barf:
  *       do_fork().
  */
 int copy_thread(int nr, unsigned long clone_flags, unsigned long sp,
+		unsigned long unused,
 		struct task_struct *p, struct pt_regs *regs)
 {
 	struct thread_struct *t = &p->thread;

@@ -12,7 +12,7 @@
  * (C) Copyright 1999 Johannes Erdfelt
  * (C) Copyright 1999 Randy Dunlap
  *
- * $Id: usb-uhci.c,v 1.237 2000/08/08 14:58:17 acher Exp $
+ * $Id: usb-uhci.c,v 1.239 2000/09/19 20:15:12 acher Exp $
  */
 
 #include <linux/config.h>
@@ -48,7 +48,7 @@
 /* This enables an extra UHCI slab for memory debugging */
 #define DEBUG_SLAB
 
-#define VERSTR "$Revision: 1.237 $ time " __TIME__ " " __DATE__
+#define VERSTR "$Revision: 1.239 $ time " __TIME__ " " __DATE__
 
 #include <linux/usb.h>
 #include "usb-uhci.h"
@@ -141,6 +141,9 @@ _static void enable_desc_loop(uhci_t *s, urb_t *urb)
 {
 	int flags;
 
+	if (urb->transfer_flags & USB_NO_FSBR)
+		return;
+
 	spin_lock_irqsave (&s->qh_lock, flags);
 	s->chain_end->hw.qh.head&=~UHCI_PTR_TERM; 
 	mb();
@@ -153,8 +156,10 @@ _static void disable_desc_loop(uhci_t *s, urb_t *urb)
 {
 	int flags;
 
-	spin_lock_irqsave (&s->qh_lock, flags);
+	if (urb->transfer_flags & USB_NO_FSBR)
+		return;
 
+	spin_lock_irqsave (&s->qh_lock, flags);
 	if (((urb_priv_t*)urb->hcpriv)->use_loop) {
 		s->loop_usage--;
 
@@ -1029,12 +1034,30 @@ _static void uhci_clean_transfer (uhci_t *s, urb_t *urb, uhci_desc_t *qh, int mo
 	}
 }
 /*-------------------------------------------------------------------*/
+// Release bandwidth for Interrupt or Isoc. transfers 
+_static void uhci_release_bandwidth(urb_t *urb)
+{       
+	if (urb->bandwidth) {
+		switch (usb_pipetype(urb->pipe)) {
+		case PIPE_INTERRUPT:
+			usb_release_bandwidth (urb->dev, urb, 0);
+			break;
+		case PIPE_ISOCHRONOUS:
+			usb_release_bandwidth (urb->dev, urb, 1);
+			break;
+		default:
+			break;
+		}
+	}	
+}
+/*-------------------------------------------------------------------*/
 // unlinks an urb by dequeuing its qh, waits some frames and forgets it
 _static int uhci_unlink_urb_sync (uhci_t *s, urb_t *urb)
 {
 	uhci_desc_t *qh;
 	urb_priv_t *urb_priv;
 	unsigned long flags=0;
+	struct usb_device *usb_dev;
 
 	spin_lock_irqsave (&s->urb_list_lock, flags);
 
@@ -1050,6 +1073,7 @@ _static int uhci_unlink_urb_sync (uhci_t *s, urb_t *urb)
 		if (!in_interrupt())	
 			spin_unlock(&urb->lock); 
 
+		uhci_release_bandwidth(urb);
 		spin_unlock_irqrestore (&s->urb_list_lock, flags);		
 		
 		urb->status = -ENOENT;	// mark urb as killed		
@@ -1080,11 +1104,13 @@ _static int uhci_unlink_urb_sync (uhci_t *s, urb_t *urb)
 #else
 		kfree (urb->hcpriv);
 #endif
+		usb_dev = urb->dev;
 		if (urb->complete) {
 			dbg("unlink_urb: calling completion");
+			urb->dev = NULL;
 			urb->complete ((struct urb *) urb);
 		}
-		usb_dec_dev_use (urb->dev);
+		usb_dec_dev_use (usb_dev);
 	}
 	else {
 		if (!in_interrupt())	
@@ -1148,6 +1174,7 @@ _static void uhci_cleanup_unlink(uhci_t *s, int force)
 
 			if (urb->complete) {
 				spin_unlock(&s->urb_list_lock);
+				urb->dev = NULL;
 				urb->complete ((struct urb *) urb);
 				spin_lock(&s->urb_list_lock);
 			}
@@ -1242,6 +1269,7 @@ _static int uhci_unlink_urb (urb_t *urb)
 		if (!in_interrupt())
 			spin_lock(&urb->lock);
 
+		uhci_release_bandwidth(urb);
 		ret = uhci_unlink_urb_async(s, urb);
 
 		if (!in_interrupt())
@@ -1543,6 +1571,7 @@ _static int uhci_submit_urb (urb_t *urb)
 	int ret = 0;
 	unsigned long flags;
 	urb_t *bulk_urb=NULL;
+	int bustime;
 		
 	if (!urb->dev || !urb->dev->bus)
 		return -ENODEV;
@@ -1612,11 +1641,39 @@ _static int uhci_submit_urb (urb_t *urb)
 	else {
 		spin_unlock_irqrestore (&s->urb_list_lock, flags);
 		switch (usb_pipetype (urb->pipe)) {
-		case PIPE_ISOCHRONOUS:
-			ret = uhci_submit_iso_urb (urb);
+		case PIPE_ISOCHRONOUS:			
+			if (urb->bandwidth == 0) {      /* not yet checked/allocated */
+				if (urb->number_of_packets <= 0) {
+					ret = -EINVAL;
+					break;
+				}
+
+				bustime = usb_check_bandwidth (urb->dev, urb);
+				if (bustime < 0) {
+					ret = bustime;
+					break;
+				}
+
+				ret = uhci_submit_iso_urb(urb);
+				if (ret == 0)
+					usb_claim_bandwidth (urb->dev, urb, bustime, 1);
+			} else {        /* bandwidth is already set */
+				ret = uhci_submit_iso_urb(urb);
+			}
 			break;
 		case PIPE_INTERRUPT:
-			ret = uhci_submit_int_urb (urb);
+			if (urb->bandwidth == 0) {      /* not yet checked/allocated */
+				bustime = usb_check_bandwidth (urb->dev, urb);
+				if (bustime < 0)
+					ret = bustime;
+				else {
+					ret = uhci_submit_int_urb(urb);
+					if (ret == 0)
+						usb_claim_bandwidth (urb->dev, urb, bustime, 0);
+				}
+			} else {        /* bandwidth is already set */
+				ret = uhci_submit_int_urb(urb);
+			}
 			break;
 		case PIPE_CONTROL:
 			ret = uhci_submit_control_urb (urb);
@@ -2029,6 +2086,7 @@ _static int rh_submit_urb (urb_t *urb)
 
 	urb->actual_length = len;
 	urb->status = stat;
+	urb->dev=NULL;
 	if (urb->complete)
 		urb->complete (urb);
 	return 0;
@@ -2431,7 +2489,6 @@ _static int process_urb (uhci_t *s, struct list_head *p)
 	int ret = 0;
 	urb_t *urb;
 
-
 	urb=list_entry (p, urb_t, urb_list);
 	//dbg("process_urb: found queued urb: %p", urb);
 
@@ -2455,6 +2512,17 @@ _static int process_urb (uhci_t *s, struct list_head *p)
 
 	if (urb->status != -EINPROGRESS) {
 		int proceed = 0;
+		struct usb_device *usb_dev;
+		
+		usb_dev=urb->dev;
+
+		/* Release bandwidth for Interrupt or Iso transfers */
+		if (urb->bandwidth) {
+			if (usb_pipetype(urb->pipe)==PIPE_ISOCHRONOUS)
+				usb_release_bandwidth (urb->dev, urb, 1);
+			else if (usb_pipetype(urb->pipe)==PIPE_INTERRUPT && urb->interval)
+				usb_release_bandwidth (urb->dev, urb, 0);
+		}
 
 		dbg("dequeued urb: %p", urb);
 		dequeue_urb (s, urb);
@@ -2488,9 +2556,12 @@ _static int process_urb (uhci_t *s, struct list_head *p)
 			// In case you need the current URB status for your completion handler (before resubmit)
 			if (urb->complete && (!proceed )) {
 				dbg("process_transfer: calling early completion");
+				urb->dev = NULL;
 				urb->complete ((struct urb *) urb);
-				if (!proceed && is_ring && (urb->status != -ENOENT))
+				if (!proceed && is_ring && (urb->status != -ENOENT)) {
+					urb->dev=usb_dev;
 					uhci_submit_urb (urb);
+				}
 			}
 
 			if (proceed && urb->next) {
@@ -2506,11 +2577,13 @@ _static int process_urb (uhci_t *s, struct list_head *p)
 
 				if (urb->complete) {
 					dbg("process_transfer: calling completion");
+					urb->dev=NULL;
 					urb->complete ((struct urb *) urb);
 				}
 			}
-
-			usb_dec_dev_use (urb->dev);
+			
+			urb->dev=NULL; // Just in case no completion was called
+			usb_dec_dev_use (usb_dev);
 			spin_unlock(&urb->lock);		
 			spin_lock(&s->urb_list_lock);
 		}
@@ -2822,7 +2895,7 @@ _static int __init start_uhci (struct pci_dev *dev)
 	return -1;
 }
 
-int __init uhci_init (void)
+static int __init uhci_init (void)
 {
 	int retval = -ENODEV;
 	struct pci_dev *dev = NULL;
@@ -2842,6 +2915,7 @@ int __init uhci_init (void)
 	
 	if(!urb_priv_kmem) {
 		err("kmem_cache_create for urb_priv_t failed (out of memory)");
+		kmem_cache_destroy(uhci_desc_kmem);
 		return -ENOMEM;
 	}
 #endif	
@@ -2876,10 +2950,19 @@ int __init uhci_init (void)
 			i++;
 	}
 
+#ifdef DEBUG_SLAB
+	if (retval < 0 ) {
+		if (kmem_cache_destroy(urb_priv_kmem))
+			err("urb_priv_kmem remained");
+		if (kmem_cache_destroy(uhci_desc_kmem))
+			err("uhci_desc_kmem remained");
+	}
+#endif
+	
 	return retval;
 }
 
-void __exit uhci_cleanup (void)
+static void __exit uhci_cleanup (void)
 {
 	uhci_t *s;
 	while ((s = devs)) {
@@ -2895,18 +2978,15 @@ void __exit uhci_cleanup (void)
 #endif
 }
 
-#ifdef MODULE
-int init_module (void)
-{
-	return uhci_init ();
-}
-
-void cleanup_module (void)
+static void __exit uhci_exit (void)
 {
 	pm_unregister_all (handle_pm_event);
 	uhci_cleanup ();
 }
 
+module_init(uhci_init);
+module_exit(uhci_exit);
+
 MODULE_AUTHOR("Georg Acher, Deti Fliegl, Thomas Sailer, Roman Weissgaerber");
 MODULE_DESCRIPTION("USB Universal Host Controller Interface driver");
-#endif //MODULE
+

@@ -1,5 +1,5 @@
 /*
- * $Id: hid.c,v 1.14 2000/08/14 21:05:26 vojtech Exp $
+ * $Id: hid.c,v 1.16 2000/09/18 21:38:55 vojtech Exp $
  *
  *  Copyright (c) 1999 Andreas Gal
  *  Copyright (c) 2000 Vojtech Pavlik
@@ -924,6 +924,8 @@ static void hid_configure_usage(struct hid_device *device, struct hid_field *fie
 		usage->code = find_next_zero_bit(bit, max + 1, usage->code);
 	}
 
+	if (usage->code > max) return;
+
 	if (usage->type == EV_ABS) {
 		int a = field->logical_minimum;
 		int b = field->logical_maximum;
@@ -936,7 +938,7 @@ static void hid_configure_usage(struct hid_device *device, struct hid_field *fie
 
 	if (usage->hat) {
 		int i;
-		for (i = usage->code; i < usage->code + 2; i++) {
+		for (i = usage->code; i < usage->code + 2 && i <= max; i++) {
 			input->absmax[i] = 1;
 			input->absmin[i] = -1;
 			input->absfuzz[i] = 0;
@@ -1229,6 +1231,7 @@ static int hid_submit_out(struct hid_device *hid)
 	hid->urbout.transfer_buffer_length = hid->out[hid->outtail].dr.length;
 	hid->urbout.transfer_buffer = hid->out[hid->outtail].buffer;
 	hid->urbout.setup_packet = (void *) &(hid->out[hid->outtail].dr);
+	hid->urbout.dev = hid->dev;
 
 	if (usb_submit_urb(&hid->urbout)) {
 		err("usb_submit_urb(out) failed");
@@ -1286,7 +1289,9 @@ static int hid_open(struct input_dev *dev)
 	if (hid->open++)
 		return 0;
 
-	 if (usb_submit_urb(&hid->urb))
+	hid->urb.dev = hid->dev;
+
+	if (usb_submit_urb(&hid->urb))
 		return -EIO;
 
 	return 0;

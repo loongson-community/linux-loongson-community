@@ -1030,7 +1030,8 @@ static int matroxfb_ioctl(struct inode *inode, struct file *file,
 				err = matroxfb_get_vblank(PMINFO &vblank);
 				if (err)
 					return err;
-				copy_to_user_ret((struct fb_vblank*)arg, &vblank, sizeof(vblank), -EFAULT);
+				if (copy_to_user((struct fb_vblank*)arg, &vblank, sizeof(vblank)))
+					return -EFAULT;
 				return 0;
 			}
 		case MATROXFB_SET_OUTPUT_MODE:
@@ -1038,7 +1039,8 @@ static int matroxfb_ioctl(struct inode *inode, struct file *file,
 				struct matroxioc_output_mode mom;
 				int val;
 
-				copy_from_user_ret(&mom, (struct matroxioc_output_mode*)arg, sizeof(mom), -EFAULT);
+				if (copy_from_user(&mom, (struct matroxioc_output_mode*)arg, sizeof(mom)))
+					return -EFAULT;
 				if (mom.output >= sizeof(u_int32_t))
 					return -EINVAL;
 				switch (mom.output) {
@@ -1084,7 +1086,8 @@ static int matroxfb_ioctl(struct inode *inode, struct file *file,
 				struct matroxioc_output_mode mom;
 				int val;
 
-				copy_from_user_ret(&mom, (struct matroxioc_output_mode*)arg, sizeof(mom), -EFAULT);
+				if (copy_from_user(&mom, (struct matroxioc_output_mode*)arg, sizeof(mom)))
+					return -EFAULT;
 				if (mom.output >= sizeof(u_int32_t))
 					return -EINVAL;
 				switch (mom.output) {
@@ -1108,14 +1111,16 @@ static int matroxfb_ioctl(struct inode *inode, struct file *file,
 					default:
 						return -EINVAL;
 				}
-				copy_to_user_ret((struct matroxioc_output_mode*)arg, &mom, sizeof(mom), -EFAULT);
+				if (copy_to_user((struct matroxioc_output_mode*)arg, &mom, sizeof(mom)))
+					return -EFAULT;
 				return 0;
 			}
 		case MATROXFB_SET_OUTPUT_CONNECTION:
 			{
 				u_int32_t tmp;
 
-				copy_from_user_ret(&tmp, (u_int32_t*)arg, sizeof(tmp), -EFAULT);
+				if (copy_from_user(&tmp, (u_int32_t*)arg, sizeof(tmp)))
+					return -EFAULT;
 				if (tmp & ~ACCESS_FBINFO(output.all))
 					return -EINVAL;
 				if (tmp & ACCESS_FBINFO(output.sh))
@@ -1134,7 +1139,8 @@ static int matroxfb_ioctl(struct inode *inode, struct file *file,
 			}
 		case MATROXFB_GET_OUTPUT_CONNECTION:
 			{
-				put_user_ret(ACCESS_FBINFO(output.ph), (u_int32_t*)arg, -EFAULT);
+				if (put_user(ACCESS_FBINFO(output.ph), (u_int32_t*)arg))
+					return -EFAULT;
 				return 0;
 			}
 		case MATROXFB_GET_AVAILABLE_OUTPUTS:
@@ -1146,12 +1152,14 @@ static int matroxfb_ioctl(struct inode *inode, struct file *file,
 					tmp &= ~MATROXFB_OUTPUT_CONN_SECONDARY;
 				if (ACCESS_FBINFO(output.ph) & MATROXFB_OUTPUT_CONN_SECONDARY)
 					tmp &= ~MATROXFB_OUTPUT_CONN_DFP;
-				put_user_ret(tmp, (u_int32_t*)arg, -EFAULT);
+				if (put_user(tmp, (u_int32_t*)arg))
+					return -EFAULT;
 				return 0;
 			}
 		case MATROXFB_GET_ALL_OUTPUTS:
 			{
-				put_user_ret(ACCESS_FBINFO(output.all), (u_int32_t*)arg, -EFAULT);
+				if (put_user(ACCESS_FBINFO(output.all), (u_int32_t*)arg))
+					return -EFAULT;
 				return 0;
 			}
 	}
@@ -1278,43 +1286,43 @@ static struct { struct fb_bitfield red, green, blue, transp; int bits_per_pixel;
 };
 
 /* initialized by setup, see explanation at end of file (search for MODULE_PARM_DESC) */
-static unsigned int mem = 0;		/* "matrox:mem:xxxxxM" */
+static unsigned int mem;		/* "matrox:mem:xxxxxM" */
 static int option_precise_width = 1;	/* cannot be changed, option_precise_width==0 must imply noaccel */
-static int inv24 = 0;			/* "matrox:inv24" */
+static int inv24;			/* "matrox:inv24" */
 static int cross4MB = -1;		/* "matrox:cross4MB" */
-static int disabled = 0;		/* "matrox:disabled" */
-static int noaccel = 0;			/* "matrox:noaccel" */
-static int nopan = 0;			/* "matrox:nopan" */
-static int no_pci_retry = 0;		/* "matrox:nopciretry" */
-static int novga = 0;			/* "matrox:novga" */
-static int nobios = 0;			/* "matrox:nobios" */
+static int disabled;			/* "matrox:disabled" */
+static int noaccel;			/* "matrox:noaccel" */
+static int nopan;			/* "matrox:nopan" */
+static int no_pci_retry;		/* "matrox:nopciretry" */
+static int novga;			/* "matrox:novga" */
+static int nobios;			/* "matrox:nobios" */
 static int noinit = 1;			/* "matrox:init" */
-static int inverse = 0;			/* "matrox:inverse" */
+static int inverse;			/* "matrox:inverse" */
 static int hwcursor = 1;		/* "matrox:nohwcursor" */
 static int blink = 1;			/* "matrox:noblink" */
-static int sgram = 0;			/* "matrox:sgram" */
+static int sgram;			/* "matrox:sgram" */
 #ifdef CONFIG_MTRR
 static int mtrr = 1;			/* "matrox:nomtrr" */
 #endif
-static int grayscale = 0;		/* "matrox:grayscale" */
-static unsigned int fastfont = 0;	/* "matrox:fastfont:xxxxx" */
+static int grayscale;			/* "matrox:grayscale" */
+static unsigned int fastfont;		/* "matrox:fastfont:xxxxx" */
 static int dev = -1;			/* "matrox:dev:xxxxx" */
 static unsigned int vesa = ~0;		/* "matrox:vesa:xxxxx" */
 static int depth = -1;			/* "matrox:depth:xxxxx" */
-static unsigned int xres = 0;		/* "matrox:xres:xxxxx" */
-static unsigned int yres = 0;		/* "matrox:yres:xxxxx" */
+static unsigned int xres;		/* "matrox:xres:xxxxx" */
+static unsigned int yres;		/* "matrox:yres:xxxxx" */
 static unsigned int upper = ~0;		/* "matrox:upper:xxxxx" */
 static unsigned int lower = ~0;		/* "matrox:lower:xxxxx" */
-static unsigned int vslen = 0;		/* "matrox:vslen:xxxxx" */
+static unsigned int vslen;		/* "matrox:vslen:xxxxx" */
 static unsigned int left = ~0;		/* "matrox:left:xxxxx" */
 static unsigned int right = ~0;		/* "matrox:right:xxxxx" */
-static unsigned int hslen = 0;		/* "matrox:hslen:xxxxx" */
-static unsigned int pixclock = 0;	/* "matrox:pixclock:xxxxx" */
+static unsigned int hslen;		/* "matrox:hslen:xxxxx" */
+static unsigned int pixclock;		/* "matrox:pixclock:xxxxx" */
 static int sync = -1;			/* "matrox:sync:xxxxx" */
-static unsigned int fv = 0;		/* "matrox:fv:xxxxx" */
-static unsigned int fh = 0;		/* "matrox:fh:xxxxxk" */
-static unsigned int maxclk = 0;		/* "matrox:maxclk:xxxxM" */
-static int dfp = 0;			/* "matrox:dfp */
+static unsigned int fv;			/* "matrox:fv:xxxxx" */
+static unsigned int fh;			/* "matrox:fh:xxxxxk" */
+static unsigned int maxclk;		/* "matrox:maxclk:xxxxM" */
+static int dfp;				/* "matrox:dfp */
 static int memtype = -1;		/* "matrox:memtype:xxx" */
 static char fontname[64];		/* "matrox:font:xxxxx" */
 

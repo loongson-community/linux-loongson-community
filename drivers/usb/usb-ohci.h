@@ -1,10 +1,10 @@
- /*
+/*
  * URB OHCI HCD (Host Controller Driver) for USB.
  * 
- *(C) Copyright 1999 Roman Weissgaerber <weissg@vienna.at>
+ * (C) Copyright 1999 Roman Weissgaerber <weissg@vienna.at>
+ * (C) Copyright 2000 David Brownell <david-b@pacbell.net>
  * 
  * usb-ohci.h
- * 
  */
 
  
@@ -40,7 +40,7 @@ struct td;
 #define ED_UNLINK 	0x01
 #define ED_OPER		0x02
 #define ED_DEL		0x04
-#define ED_URB_DEL  0x08
+#define ED_URB_DEL  	0x08
 
 /* usb_ohci_ed */
 typedef struct ed {
@@ -107,24 +107,12 @@ typedef struct td {
   	__u32 hwBE;		/* Memory Buffer End Pointer */
   	__u16 hwPSW[MAXPSW];
 
-  	__u8 type;
+  	__u8 unused;
   	__u8 index;
   	struct ed * ed;
   	struct td * next_dl_td;
   	urb_t * urb;
 } td_t;
-
-
-/* TD types */
-#define BULK		0x03
-#define INT			0x01
-#define CTRL		0x02
-#define ISO			0x00
- 
-#define SEND            0x01
-#define ST_ADDR         0x02
-#define ADD_LEN         0x04
-#define DEL             0x08
 
 
 #define OHCI_ED_SKIP	(1 << 14)
@@ -347,7 +335,7 @@ typedef struct
 	__u16 length;	// number of tds associated with this request
 	__u16 td_cnt;	// number of tds already serviced
 	int   state;
-	void * wait;
+	wait_queue_head_t * wait;
 	td_t * td[0];	// list pointer to all corresponding TDs associated with this request
 
 } urb_priv_t;
@@ -372,8 +360,8 @@ typedef struct ohci {
 	struct list_head ohci_hcd_list;	/* list of all ohci_hcd */
 
 	struct ohci * next; 		// chain of uhci device contexts
-	struct list_head urb_list; 	// list of all pending urbs
-	spinlock_t urb_list_lock; 	// lock to keep consistency 
+	// struct list_head urb_list; 	// list of all pending urbs
+	// spinlock_t urb_list_lock; 	// lock to keep consistency 
   
 	int ohci_int_load[32];		/* load of the 32 Interrupt Chains (for load balancing)*/
 	ed_t * ed_rm_list[2];     /* lists of all endpoints to be removed */
@@ -398,7 +386,7 @@ typedef struct ohci {
 struct ohci_device {
 	ed_t 	ed[NUM_EDS];
 	int ed_cnt;
-	void  * wait;
+	wait_queue_head_t * wait;
 };
 
 // #define ohci_to_usb(ohci)	((ohci)->usb)
@@ -418,7 +406,7 @@ static int rh_submit_urb(urb_t * urb);
 static int rh_unlink_urb(urb_t * urb);
 static int rh_init_int_timer(urb_t * urb);
 
-#ifdef DEBUG
+#ifdef OHCI_VERBOSE_DEBUG
 #define OHCI_FREE(x) kfree(x); printk("OHCI FREE: %d: %4x\n", -- __ohci_free_cnt, (unsigned int) x)
 #define OHCI_ALLOC(x,size) (x) = kmalloc(size, in_interrupt() ? GFP_ATOMIC : GFP_KERNEL); printk("OHCI ALLO: %d: %4x\n", ++ __ohci_free_cnt,(unsigned int) x)
 static int __ohci_free_cnt = 0;

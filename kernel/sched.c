@@ -141,58 +141,51 @@ static inline int goodness(struct task_struct * p, int this_cpu, struct mm_struc
 	int weight;
 
 	/*
-	 * Realtime process, select the first one on the
-	 * runqueue (taking priorities within processes
-	 * into account).
+	 * select the current process after every other
+	 * runnable process, but before the idle thread.
+	 * Also, dont trigger a counter recalculation.
 	 */
-	if (p->policy != SCHED_OTHER) {
-		weight = 1000 + p->rt_priority;
+	weight = -1;
+	if (p->policy & SCHED_YIELD)
+		goto out;
+
+	/*
+	 * Non-RT process - normal case first.
+	 */
+	if (p->policy == SCHED_OTHER) {
+		/*
+		 * Give the process a first-approximation goodness value
+		 * according to the number of clock-ticks it has left.
+		 *
+		 * Don't do any other calculations if the time slice is
+		 * over..
+		 */
+		weight = p->counter;
+		if (!weight)
+			goto out;
+			
+#ifdef CONFIG_SMP
+		/* Give a largish advantage to the same processor...   */
+		/* (this is equivalent to penalizing other processors) */
+		if (p->processor == this_cpu)
+			weight += PROC_CHANGE_PENALTY;
+#endif
+
+		/* .. and a slight advantage to the current MM */
+		if (p->mm == this_mm || !p->mm)
+			weight += 1;
+		weight += 20 - p->nice;
 		goto out;
 	}
 
 	/*
-	 * Give the process a first-approximation goodness value
-	 * according to the number of clock-ticks it has left.
-	 *
-	 * Don't do any other calculations if the time slice is
-	 * over..
+	 * Realtime process, select the first one on the
+	 * runqueue (taking priorities within processes
+	 * into account).
 	 */
-	weight = p->counter;
-	if (!weight)
-		goto out;
-			
-#ifdef CONFIG_SMP
-	/* Give a largish advantage to the same processor...   */
-	/* (this is equivalent to penalizing other processors) */
-	if (p->processor == this_cpu)
-		weight += PROC_CHANGE_PENALTY;
-#endif
-
-	/* .. and a slight advantage to the current MM */
-	if (p->mm == this_mm || !p->mm)
-		weight += 1;
-	weight += 20 - p->nice;
-
+	weight = 1000 + p->rt_priority;
 out:
 	return weight;
-}
-
-/*
- * subtle. We want to discard a yielded process only if it's being
- * considered for a reschedule. Wakeup-time 'queries' of the scheduling
- * state do not count. Another optimization we do: sched_yield()-ed
- * processes are runnable (and thus will be considered for scheduling)
- * right when they are calling schedule(). So the only place we need
- * to care about SCHED_YIELD is when we calculate the previous process'
- * goodness ...
- */
-static inline int prev_goodness(struct task_struct * p, int this_cpu, struct mm_struct *this_mm)
-{
-	if (p->policy & SCHED_YIELD) {
-		p->policy &= ~SCHED_YIELD;
-		return 0;
-	}
-	return goodness(p, this_cpu, this_mm);
 }
 
 /*
@@ -213,7 +206,9 @@ static inline int preemption_goodness(struct task_struct * prev, struct task_str
  * This function must be inline as anything that saves and restores
  * flags has to do so within the same register window on sparc (Anton)
  */
-static inline void reschedule_idle(struct task_struct * p, unsigned long flags)
+static FASTCALL(void reschedule_idle(struct task_struct * p));
+
+static void reschedule_idle(struct task_struct * p)
 {
 #ifdef CONFIG_SMP
 	int this_cpu = smp_processor_id();
@@ -284,7 +279,6 @@ static inline void reschedule_idle(struct task_struct * p, unsigned long flags)
 		goto preempt_now;
 	}
 
-	spin_unlock_irqrestore(&runqueue_lock, flags);
 	return;
 		
 send_now_idle:
@@ -296,12 +290,10 @@ send_now_idle:
 	if ((tsk->processor != current->processor) && !tsk->need_resched)
 		smp_send_reschedule(tsk->processor);
 	tsk->need_resched = 1;
-	spin_unlock_irqrestore(&runqueue_lock, flags);
 	return;
 
 preempt_now:
 	tsk->need_resched = 1;
-	spin_unlock_irqrestore(&runqueue_lock, flags);
 	/*
 	 * the APIC stuff can go outside of the lock because
 	 * it uses no task information, only CPU#.
@@ -316,7 +308,6 @@ preempt_now:
 	tsk = cpu_curr(this_cpu);
 	if (preemption_goodness(tsk, p, this_cpu) > 1)
 		tsk->need_resched = 1;
-	spin_unlock_irqrestore(&runqueue_lock, flags);
 #endif
 }
 
@@ -365,9 +356,7 @@ inline void wake_up_process(struct task_struct * p)
 	if (task_on_runqueue(p))
 		goto out;
 	add_to_runqueue(p);
-	reschedule_idle(p, flags); // spin_unlocks runqueue
-
-	return;
+	reschedule_idle(p);
 out:
 	spin_unlock_irqrestore(&runqueue_lock, flags);
 }
@@ -455,6 +444,7 @@ signed long schedule_timeout(signed long timeout)
 static inline void __schedule_tail(struct task_struct *prev)
 {
 #ifdef CONFIG_SMP
+	int yield;
 	unsigned long flags;
 
 	/*
@@ -466,6 +456,8 @@ static inline void __schedule_tail(struct task_struct *prev)
 	 * cache.
 	 */
 	spin_lock_irqsave(&runqueue_lock, flags);
+	yield = prev->policy & SCHED_YIELD;
+	prev->policy &= ~SCHED_YIELD;
 	prev->has_cpu = 0;
 	if (prev->state == TASK_RUNNING)
 		goto running_again;
@@ -480,10 +472,11 @@ out_unlock:
 	 * current process as well.)
 	 */
 running_again:
-	if (prev == idle_task(smp_processor_id()))
-		goto out_unlock;
-	reschedule_idle(prev, flags); // spin_unlocks runqueue
-	return;
+	if ((prev != idle_task(smp_processor_id())) && !yield)
+		reschedule_idle(prev);
+	goto out_unlock;
+#else
+	prev->policy &= ~SCHED_YIELD;
 #endif /* CONFIG_SMP */
 }
 
@@ -656,6 +649,9 @@ still_running_back:
 
 same_process:
 	reacquire_kernel_lock(current);
+	if (current->need_resched)
+		goto tq_scheduler_back;
+
 	return;
 
 recalculate:
@@ -671,7 +667,7 @@ recalculate:
 	goto repeat_schedule;
 
 still_running:
-	c = prev_goodness(prev, this_cpu, prev->active_mm);
+	c = goodness(prev, this_cpu, prev->active_mm);
 	next = prev;
 	goto still_running_back;
 
@@ -1032,12 +1028,13 @@ out_unlock:
 
 asmlinkage long sys_sched_yield(void)
 {
-	spin_lock_irq(&runqueue_lock);
+	/*
+	 * This process can only be rescheduled by us,
+	 * so this is safe without any locking.
+	 */
 	if (current->policy == SCHED_OTHER)
 		current->policy |= SCHED_YIELD;
 	current->need_resched = 1;
-	move_last_runqueue(current);
-	spin_unlock_irq(&runqueue_lock);
 	return 0;
 }
 
@@ -1142,13 +1139,13 @@ static void show_task(struct task_struct * p)
 		printk("\n");
 
 	{
-		struct signal_queue *q;
+		struct sigqueue *q;
 		char s[sizeof(sigset_t)*2+1], b[sizeof(sigset_t)*2+1]; 
 
-		render_sigset_t(&p->signal, s);
+		render_sigset_t(&p->pending.signal, s);
 		render_sigset_t(&p->blocked, b);
 		printk("   sig: %d %s %s :", signal_pending(p), s, b);
-		for (q = p->sigqueue; q ; q = q->next)
+		for (q = p->pending.head; q ; q = q->next)
 			printk(" %d", q->info.si_signo);
 		printk(" X\n");
 	}

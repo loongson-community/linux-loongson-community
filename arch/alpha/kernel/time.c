@@ -36,6 +36,7 @@
 #include <linux/ioport.h>
 #include <linux/irq.h>
 #include <linux/interrupt.h>
+#include <linux/init.h>
 
 #include <asm/uaccess.h>
 #include <asm/io.h>
@@ -135,38 +136,6 @@ void timer_interrupt(int irq, void *dev, struct pt_regs * regs)
 	write_unlock(&xtime_lock);
 }
 
-/*
- * Converts Gregorian date to seconds since 1970-01-01 00:00:00.
- * Assumes input in normal date format, i.e. 1980-12-31 23:59:59
- * => year=1980, mon=12, day=31, hour=23, min=59, sec=59.
- *
- * [For the Julian calendar (which was used in Russia before 1917,
- * Britain & colonies before 1752, anywhere else before 1582,
- * and is still in use by some communities) leave out the
- * -year/100+year/400 terms, and add 10.]
- *
- * This algorithm was first published by Gauss (I think).
- *
- * WARNING: this function will overflow on 2106-02-07 06:28:16 on
- * machines were long is 32-bit! (However, as time_t is signed, we
- * will already get problems at other places on 2038-01-19 03:14:08)
- */
-static inline unsigned long mktime(unsigned int year, unsigned int mon,
-	unsigned int day, unsigned int hour,
-	unsigned int min, unsigned int sec)
-{
-	if (0 >= (int) (mon -= 2)) {	/* 1..12 -> 11,12,1..10 */
-		mon += 12;	/* Puts Feb last since it has leap day */
-		year -= 1;
-	}
-	return (((
-	    (unsigned long)(year/4 - year/100 + year/400 + 367*mon/12 + day) +
-	      year*365 - 719499
-	    )*24 + hour /* now have hours */
-	   )*60 + min /* now have minutes */
-	  )*60 + sec; /* finally seconds */
-}
-
 void
 common_init_rtc(void)
 {
@@ -200,7 +169,7 @@ common_init_rtc(void)
 	init_rtc_irq();
 }
 
-void
+void __init
 time_init(void)
 {
 	unsigned int year, mon, day, hour, min, sec, cc1, cc2, epoch;
@@ -267,17 +236,14 @@ time_init(void)
 		BCD_TO_BIN(year);
 	}
 
-	/* PC-like is standard; used for year <= 20 || year >= 100 */
+	/* PC-like is standard; used for year < 20 || year >= 70 */
 	epoch = 1900;
-	if (year > 20 && year < 48)
-		/* ARC console, used on some not so old boards */
+	if (year >= 20 && year < 48)
+		/* NT epoch */
 		epoch = 1980;
 	else if (year >= 48 && year < 70)
-		/* Digital UNIX, used on older boards (eg. AXPpxi33) */
+		/* Digital UNIX epoch */
 		epoch = 1952;
-	else if (year >= 70 && year < 100)
-		/* Digital DECstations, very old... */
-		epoch = 1928;
 
 	printk(KERN_INFO "Using epoch = %d\n", epoch);
 

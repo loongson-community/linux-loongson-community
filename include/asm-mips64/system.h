@@ -65,9 +65,7 @@ __asm__ __volatile__(                    \
 	".set\tnoreorder\n\t"            \
 	"mfc0\t%0,$12\n\t"               \
 	".set\treorder"                  \
-	: "=r" (x)                       \
-	: /* no inputs */                \
-	: "memory")
+	: "=r" (x))
 
 #define __save_and_cli(x)                \
 __asm__ __volatile__(                    \
@@ -142,14 +140,23 @@ extern void __global_restore_flags(unsigned long);
 __asm__ __volatile__(					\
 	"# prevent instructions being moved around\n\t"	\
 	".set\tnoreorder\n\t"				\
-	"# 8 nops to fool the R4400 pipeline\n\t"	\
-	"nop;nop;nop;nop;nop;nop;nop;nop\n\t"		\
+	"sync\n\t"					\
 	".set\treorder"					\
 	: /* no output */				\
 	: /* no input */				\
 	: "memory")
 #define rmb() mb()
 #define wmb() mb()
+
+#ifdef CONFIG_SMP
+#define smp_mb()	mb()
+#define smp_rmb()	rmb()
+#define smp_wmb()	wmb()
+#else
+#define smp_mb()	barrier()
+#define smp_rmb()	barrier()
+#define smp_wmb()	barrier()
+#endif
 
 #define set_mb(var, value) \
 do { var = value; mb(); } while (0)

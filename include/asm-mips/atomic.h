@@ -9,20 +9,14 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1996, 1997 by Ralf Baechle
- *
- * $Id: atomic.h,v 1.6 1999/07/26 19:42:42 harald Exp $
+ * Copyright (C) 1996, 1997, 2000 by Ralf Baechle
  */
 #ifndef __ASM_ATOMIC_H
 #define __ASM_ATOMIC_H
 
 #include <linux/config.h>
 
-#ifdef CONFIG_SMP
 typedef struct { volatile int counter; } atomic_t;
-#else
-typedef struct { int counter; } atomic_t;
-#endif
 
 #ifdef __KERNEL__
 #define ATOMIC_INIT(i)    { (i) }
@@ -38,7 +32,7 @@ typedef struct { int counter; } atomic_t;
  * The MIPS I implementation is only atomic with respect to
  * interrupts.  R3000 based multiprocessor machines are rare anyway ...
  */
-extern __inline__ void atomic_add(int i, volatile atomic_t * v)
+extern __inline__ void atomic_add(int i, atomic_t * v)
 {
 	int	flags;
 
@@ -48,7 +42,7 @@ extern __inline__ void atomic_add(int i, volatile atomic_t * v)
 	restore_flags(flags);
 }
 
-extern __inline__ void atomic_sub(int i, volatile atomic_t * v)
+extern __inline__ void atomic_sub(int i, atomic_t * v)
 {
 	int	flags;
 
@@ -108,41 +102,30 @@ extern __inline__ void atomic_clear_mask(unsigned long mask, unsigned long * v)
  * implementation is SMP safe ...
  */
 
-/*
- * Make sure gcc doesn't try to be clever and move things around
- * on us. We need to use _exactly_ the address the user gave us,
- * not some alias that contains the same information.
- */
-#define __atomic_fool_gcc(x) (*(volatile struct { int a[100]; } *)x)
-
-extern __inline__ void atomic_add(int i, volatile atomic_t * v)
+extern __inline__ void atomic_add(int i, atomic_t * v)
 {
 	unsigned long temp;
 
 	__asm__ __volatile__(
-		"1:\tll\t%0,%1\n\t"
-		"addu\t%0,%2\n\t"
-		"sc\t%0,%1\n\t"
-		"beqz\t%0,1b"
-		:"=&r" (temp),
-		 "=m" (__atomic_fool_gcc(v))
-		:"Ir" (i),
-		 "m" (__atomic_fool_gcc(v)));
+		"1:\tll\t%0, %1\t\t\t# atomic_add\n\t"
+		"addu\t%0, %2\n\t"
+		"sc\t%0, %1\n\t"
+		"beqz\t%0, 1b"
+		: "=&r" (temp), "=m" (v->counter)
+		: "Ir" (i), "m" (v->counter));
 }
 
-extern __inline__ void atomic_sub(int i, volatile atomic_t * v)
+extern __inline__ void atomic_sub(int i, atomic_t * v)
 {
 	unsigned long temp;
 
 	__asm__ __volatile__(
-		"1:\tll\t%0,%1\n\t"
-		"subu\t%0,%2\n\t"
-		"sc\t%0,%1\n\t"
-		"beqz\t%0,1b"
-		:"=&r" (temp),
-		 "=m" (__atomic_fool_gcc(v))
-		:"Ir" (i),
-		 "m" (__atomic_fool_gcc(v)));
+		"1:\tll\t%0, %1\t\t\t# atomic_sub\n\t"
+		"subu\t%0, %2\n\t"
+		"sc\t%0, %1\n\t"
+		"beqz\t%0, 1b"
+		: "=&r" (temp), "=m" (v->counter)
+		: "Ir" (i), "m" (v->counter));
 }
 
 /*
@@ -153,18 +136,15 @@ extern __inline__ int atomic_add_return(int i, atomic_t * v)
 	unsigned long temp, result;
 
 	__asm__ __volatile__(
-		".set\tnoreorder\n"
+		".set\tnoreorder\t\t\t# atomic_add_return\n"
 		"1:\tll\t%1,%2\n\t"
 		"addu\t%0,%1,%3\n\t"
 		"sc\t%0,%2\n\t"
 		"beqz\t%0,1b\n\t"
 		"addu\t%0,%1,%3\n\t"
 		".set\treorder"
-		:"=&r" (result),
-		 "=&r" (temp),
-		 "=m" (__atomic_fool_gcc(v))
-		:"Ir" (i),
-		 "m" (__atomic_fool_gcc(v)));
+		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
+		: "Ir" (i), "m" (v->counter));
 
 	return result;
 }
@@ -174,18 +154,15 @@ extern __inline__ int atomic_sub_return(int i, atomic_t * v)
 	unsigned long temp, result;
 
 	__asm__ __volatile__(
-		".set\tnoreorder\n"
+		".set\tnoreorder\t\t\t# atomic_sub_return\n"
 		"1:\tll\t%1,%2\n\t"
 		"subu\t%0,%1,%3\n\t"
 		"sc\t%0,%2\n\t"
 		"beqz\t%0,1b\n\t"
 		"subu\t%0,%1,%3\n\t"
 		".set\treorder"
-		:"=&r" (result),
-		 "=&r" (temp),
-		 "=m" (__atomic_fool_gcc(v))
-		:"Ir" (i),
-		 "m" (__atomic_fool_gcc(v)));
+		: "=&r" (result), "=&r" (temp), "=m" (v->counter)
+		: "Ir" (i), "m" (v->counter));
 
 	return result;
 }
@@ -201,4 +178,4 @@ extern __inline__ int atomic_sub_return(int i, atomic_t * v)
 #define atomic_dec(v) atomic_sub(1,(v))
 #endif /* defined(__KERNEL__) */
 
-#endif /* __ASM_MIPS_ATOMIC_H */
+#endif /* __ASM_ATOMIC_H */

@@ -3,7 +3,11 @@
  *
  * Copyright (C) 1997-1999 Russell King
  *
- * E and F format directory handling
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ *  E and F format directory handling
  */
 #include <linux/version.h>
 #include <linux/errno.h>
@@ -437,7 +441,7 @@ adfs_f_update(struct adfs_dir *dir, struct object_info *obj)
 	}
 #endif
 	for (i = dir->nr_buffers - 1; i >= 0; i--)
-		mark_buffer_dirty(dir->bh[i], 1);
+		mark_buffer_dirty(dir->bh[i]);
 
 	ret = 0;
 out:

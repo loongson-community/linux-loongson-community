@@ -252,16 +252,15 @@ static int i810_dma_get_buffer(drm_device_t *dev, drm_i810_dma_t *d,
 	buf = i810_freelist_get(dev);
 	if (!buf) {
 		retcode = -ENOMEM;
-	   	DRM_DEBUG("%s retcode %d\n", __FUNCTION__, retcode);
-		goto out_get_buf;
+	   	DRM_DEBUG("retcode=%d\n", retcode);
+		return retcode;
 	}
    
 	retcode = i810_map_buffer(buf, filp);
 	if(retcode) {
 		i810_freelist_put(dev, buf);
-	   	DRM_DEBUG("mapbuf failed in %s retcode %d\n", 
-			  __FUNCTION__, retcode);
-	   	goto out_get_buf;
+	   	DRM_DEBUG("mapbuf failed, retcode %d\n", retcode);
+		return retcode;
 	}
 	buf->pid     = priv->pid;
 	buf_priv = buf->dev_private;	
@@ -270,7 +269,6 @@ static int i810_dma_get_buffer(drm_device_t *dev, drm_i810_dma_t *d,
    	d->request_size = buf->total;
    	d->virtual = buf_priv->virtual;
 
-out_get_buf:
 	return retcode;
 }
 
@@ -490,8 +488,8 @@ int i810_dma_init(struct inode *inode, struct file *filp,
    	drm_i810_init_t init;
    	int retcode = 0;
 	
-   	copy_from_user_ret(&init, (drm_i810_init_t *)arg, 
-			   sizeof(init), -EFAULT);
+  	if (copy_from_user(&init, (drm_i810_init_t *)arg, sizeof(init)))
+		return -EFAULT;
 	
    	switch(init.func) {
 	 	case I810_INIT_DMA:
@@ -1005,7 +1003,8 @@ int i810_control(struct inode *inode, struct file *filp, unsigned int cmd,
    
    	DRM_DEBUG(  "i810_control\n");
 
-	copy_from_user_ret(&ctl, (drm_control_t *)arg, sizeof(ctl), -EFAULT);
+	if (copy_from_user(&ctl, (drm_control_t *)arg, sizeof(ctl)))
+		return -EFAULT;
 	
 	switch (ctl.func) {
 	case DRM_INST_HANDLER:
@@ -1068,11 +1067,11 @@ static void i810_dma_quiescent(drm_device_t *dev)
 	   	return;
 	}
       	atomic_set(&dev_priv->flush_done, 0);
-   	current->state = TASK_INTERRUPTIBLE;
    	add_wait_queue(&dev_priv->flush_queue, &entry);
    	end = jiffies + (HZ*3);
    
    	for (;;) {
+		current->state = TASK_INTERRUPTIBLE;
 	      	i810_dma_quiescent_emit(dev);
 	   	if (atomic_read(&dev_priv->flush_done) == 1) break;
 		if((signed)(end - jiffies) <= 0) {
@@ -1103,10 +1102,10 @@ static int i810_flush_queue(drm_device_t *dev)
 	   	return 0;
 	}
       	atomic_set(&dev_priv->flush_done, 0);
-   	current->state = TASK_INTERRUPTIBLE;
    	add_wait_queue(&dev_priv->flush_queue, &entry);
    	end = jiffies + (HZ*3);
    	for (;;) {
+		current->state = TASK_INTERRUPTIBLE;
 	      	i810_dma_emit_flush(dev);
 	   	if (atomic_read(&dev_priv->flush_done) == 1) break;
 		if((signed)(end - jiffies) <= 0) {
@@ -1178,7 +1177,8 @@ int i810_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 	int		  ret	= 0;
 	drm_lock_t	  lock;
 
-	copy_from_user_ret(&lock, (drm_lock_t *)arg, sizeof(lock), -EFAULT);
+	if (copy_from_user(&lock, (drm_lock_t *)arg, sizeof(lock)))
+		return -EFAULT;
 
 	if (lock.context == DRM_KERNEL_CONTEXT) {
 		DRM_ERROR("Process %d using kernel context %d\n",
@@ -1199,6 +1199,7 @@ int i810_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 	if (!ret) {
 		add_wait_queue(&dev->lock.lock_queue, &entry);
 		for (;;) {
+			current->state = TASK_INTERRUPTIBLE;
 			if (!dev->lock.hw_lock) {
 				/* Device has been unregistered */
 				ret = -EINTR;
@@ -1214,7 +1215,6 @@ int i810_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 			
 				/* Contention */
 			atomic_inc(&dev->total_sleeps);
-			current->state = TASK_INTERRUPTIBLE;
 		   	DRM_DEBUG("Calling lock schedule\n");
 			schedule();
 			if (signal_pending(current)) {
@@ -1227,6 +1227,15 @@ int i810_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 	}
 	
 	if (!ret) {
+		sigemptyset(&dev->sigmask);
+		sigaddset(&dev->sigmask, SIGSTOP);
+		sigaddset(&dev->sigmask, SIGTSTP);
+		sigaddset(&dev->sigmask, SIGTTIN);
+		sigaddset(&dev->sigmask, SIGTTOU);
+		dev->sigdata.context = lock.context;
+		dev->sigdata.lock    = dev->lock.hw_lock;
+		block_all_signals(drm_notifier, &dev->sigdata, &dev->sigmask);
+
 		if (lock.flags & _DRM_LOCK_QUIESCENT) {
 		   DRM_DEBUG("_DRM_LOCK_QUIESCENT\n");
 		   DRM_DEBUG("fred\n");
@@ -1266,8 +1275,8 @@ int i810_dma_vertex(struct inode *inode, struct file *filp,
      					dev_priv->sarea_priv; 
 	drm_i810_vertex_t vertex;
 
-	copy_from_user_ret(&vertex, (drm_i810_vertex_t *)arg, sizeof(vertex),
-			   -EFAULT);
+	if (copy_from_user(&vertex, (drm_i810_vertex_t *)arg, sizeof(vertex)))
+		return -EFAULT;
 
    	if(!_DRM_LOCK_IS_HELD(dev->lock.hw_lock->lock)) {
 		DRM_ERROR("i810_dma_vertex called without lock held\n");
@@ -1298,8 +1307,8 @@ int i810_clear_bufs(struct inode *inode, struct file *filp,
 	drm_device_t *dev = priv->dev;
 	drm_i810_clear_t clear;
 
-   	copy_from_user_ret(&clear, (drm_i810_clear_t *)arg, sizeof(clear), 
-			   -EFAULT);
+   	if (copy_from_user(&clear, (drm_i810_clear_t *)arg, sizeof(clear)))
+		return -EFAULT;
    
    	if(!_DRM_LOCK_IS_HELD(dev->lock.hw_lock->lock)) {
 		DRM_ERROR("i810_clear_bufs called without lock held\n");
@@ -1356,7 +1365,8 @@ int i810_getbuf(struct inode *inode, struct file *filp, unsigned int cmd,
      					dev_priv->sarea_priv; 
 
 	DRM_DEBUG("getbuf\n");
-   	copy_from_user_ret(&d, (drm_i810_dma_t *)arg, sizeof(d), -EFAULT);
+   	if (copy_from_user(&d, (drm_i810_dma_t *)arg, sizeof(d)))
+		return -EFAULT;
    
 	if(!_DRM_LOCK_IS_HELD(dev->lock.hw_lock->lock)) {
 		DRM_ERROR("i810_dma called without lock held\n");
@@ -1370,7 +1380,8 @@ int i810_getbuf(struct inode *inode, struct file *filp, unsigned int cmd,
 	DRM_DEBUG("i810_dma: %d returning %d, granted = %d\n",
 		  current->pid, retcode, d.granted);
 
-	copy_to_user_ret((drm_dma_t *)arg, &d, sizeof(d), -EFAULT);   
+	if (copy_to_user((drm_dma_t *)arg, &d, sizeof(d)))
+		return -EFAULT;
    	sarea_priv->last_dispatch = (int) hw_status[5];
 
 	return retcode;
@@ -1395,14 +1406,16 @@ int i810_copybuf(struct inode *inode, struct file *filp, unsigned int cmd,
 		return -EINVAL;
 	}
    
-   	copy_from_user_ret(&d, (drm_i810_copy_t *)arg, sizeof(d), -EFAULT);
+   	if (copy_from_user(&d, (drm_i810_copy_t *)arg, sizeof(d)))
+		return -EFAULT;
 
 	if(d.idx > dma->buf_count) return -EINVAL;
 	buf = dma->buflist[ d.idx ];
    	buf_priv = buf->dev_private;
 	if (buf_priv->currently_mapped != I810_BUF_MAPPED) return -EPERM;
 
-   	copy_from_user_ret(buf_priv->virtual, d.address, d.used, -EFAULT);
+   	if (copy_from_user(buf_priv->virtual, d.address, d.used))
+		return -EFAULT;
 
    	sarea_priv->last_dispatch = (int) hw_status[5];
 

@@ -62,17 +62,24 @@ CONFIG_BINFMT_ELF=y
 # CONFIG_BLK_DEV_XD is not set
 # CONFIG_PARIDE is not set
 # CONFIG_BLK_CPQ_DA is not set
+# CONFIG_BLK_CPQ_CISS_DA is not set
 # CONFIG_BLK_DEV_DAC960 is not set
 # CONFIG_BLK_DEV_LOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
-# CONFIG_BLK_DEV_LVM is not set
+# CONFIG_BLK_DEV_RAM is not set
+# CONFIG_BLK_DEV_INITRD is not set
+
+#
+# Multi-device support (RAID and LVM)
+#
+# CONFIG_MD is not set
 # CONFIG_BLK_DEV_MD is not set
 # CONFIG_MD_LINEAR is not set
 # CONFIG_MD_RAID0 is not set
 # CONFIG_MD_RAID1 is not set
 # CONFIG_MD_RAID5 is not set
-# CONFIG_BLK_DEV_RAM is not set
-# CONFIG_BLK_DEV_INITRD is not set
+# CONFIG_BLK_DEV_LVM is not set
+# CONFIG_LVM_PROC_FS is not set
 
 #
 # Networking options
@@ -152,6 +159,7 @@ CONFIG_NETDEVICES=y
 # Ethernet (1000 Mbit)
 #
 # CONFIG_ACENIC is not set
+# CONFIG_HAMACHI is not set
 # CONFIG_SK98LIN is not set
 # CONFIG_FDDI is not set
 # CONFIG_PLIP is not set

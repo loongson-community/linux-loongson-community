@@ -551,20 +551,29 @@ void shrink_dcache_parent(struct dentry * parent)
  *  ...
  *   6 - base-level: try to shrink a bit.
  */
-int shrink_dcache_memory(int priority, unsigned int gfp_mask)
+void shrink_dcache_memory(int priority, unsigned int gfp_mask)
 {
 	int count = 0;
+
+	/*
+	 * Nasty deadlock avoidance.
+	 *
+	 * ext2_new_block->getblk->GFP->shrink_dcache_memory->prune_dcache->
+	 * prune_one_dentry->dput->dentry_iput->iput->inode->i_sb->s_op->
+	 * put_inode->ext2_discard_prealloc->ext2_free_blocks->lock_super->
+	 * DEADLOCK.
+	 *
+	 * We should make sure we don't hold the superblock lock over
+	 * block allocations, but for now:
+	 */
+	if (!(gfp_mask & __GFP_IO))
+		return;
+
 	if (priority)
 		count = dentry_stat.nr_unused / priority;
-	prune_dcache(count);
-	/* FIXME: kmem_cache_shrink here should tell us
-	   the number of pages freed, and it should
-	   work in a __GFP_DMA/__GFP_HIGHMEM behaviour
-	   to free only the interesting pages in
-	   function of the needs of the current allocation. */
-	kmem_cache_shrink(dentry_cache);
 
-	return 0;
+	prune_dcache(count);
+	kmem_cache_shrink(dentry_cache);
 }
 
 #define NAME_ALLOC_LEN(len)	((len+16) & ~15)
@@ -1248,7 +1257,7 @@ void __init vfs_caches_init(unsigned long mempages)
 		panic("Cannot create buffer head SLAB cache");
 
 	names_cachep = kmem_cache_create("names_cache", 
-			PAGE_SIZE, 0, 
+			PATH_MAX + 1, 0, 
 			SLAB_HWCACHE_ALIGN, NULL, NULL);
 	if (!names_cachep)
 		panic("Cannot create names SLAB cache");

@@ -108,6 +108,15 @@
 #define SPECIALIX_NORMAL_MAJOR 75
 #define SPECIALIX_CALLOUT_MAJOR 76
 
+#define COMPAQ_CISS_MAJOR 	104
+#define COMPAQ_CISS_MAJOR1	105
+#define COMPAQ_CISS_MAJOR2      106
+#define COMPAQ_CISS_MAJOR3      107
+#define COMPAQ_CISS_MAJOR4      108
+#define COMPAQ_CISS_MAJOR5      109
+#define COMPAQ_CISS_MAJOR6      110
+#define COMPAQ_CISS_MAJOR7      111
+
 #define DASD_MAJOR      94	/* Official assignations from Peter */
 
 #define MDISK_MAJOR     95	/* Official assignations from Peter */
@@ -134,11 +143,13 @@
 #define USB_ACM_AUX_MAJOR	167
 #define USB_CHAR_MAJOR		180
 
-#define TUN_MAJOR               195 
-
 #define UNIX98_PTY_MASTER_MAJOR	128
 #define UNIX98_PTY_MAJOR_COUNT	8
 #define UNIX98_PTY_SLAVE_MAJOR	(UNIX98_PTY_MASTER_MAJOR+UNIX98_PTY_MAJOR_COUNT)
+
+#define VXVM_MAJOR		199	/* VERITAS volume i/o driver    */
+#define VXSPEC_MAJOR		200	/* VERITAS volume config driver */
+#define VXDMP_MAJOR		201	/* VERITAS volume multipath driver */
 
 #define MSR_MAJOR		202
 #define CPUID_MAJOR		203

@@ -96,7 +96,8 @@ static struct net_device *init_alloc_dev(int sizeof_priv)
  *	setup.
  */
 
-static struct net_device *init_netdev(struct net_device *dev, int sizeof_priv, char *mask, void (*setup)(struct net_device *))
+static struct net_device *init_netdev(struct net_device *dev, int sizeof_priv,
+				      char *mask, void (*setup)(struct net_device *))
 {
 	int new_device = 0;
 
@@ -117,16 +118,14 @@ static struct net_device *init_netdev(struct net_device *dev, int sizeof_priv, c
 	 
 	if (dev->name[0] == '\0' || dev->name[0] == ' ') {
 		strcpy(dev->name, mask);
-		if (!netdev_boot_setup_check(dev)) {
-			if (dev_alloc_name(dev, mask)<0) {
-				if (new_device)
-					kfree(dev);
-				return NULL;
-			}
+		if (dev_alloc_name(dev, mask)<0) {
+			if (new_device)
+				kfree(dev);
+			return NULL;
 		}
-	} else {
-		netdev_boot_setup_check(dev);
 	}
+
+	netdev_boot_setup_check(dev);
 	
 	/*
 	 *	Configure via the caller provided setup function then
@@ -198,7 +197,7 @@ static int fddi_change_mtu(struct net_device *dev, int new_mtu)
 	return(0);
 }
 
-#endif
+#endif /* CONFIG_FDDI */
 
 #ifdef CONFIG_HIPPI
 
@@ -256,7 +255,7 @@ static int hippi_neigh_setup_dev(struct net_device *dev, struct neigh_parms *p)
 	return 0;
 }
 
-#endif
+#endif /* CONFIG_HIPPI */
 
 void ether_setup(struct net_device *dev)
 {
@@ -314,7 +313,7 @@ void fddi_setup(struct net_device *dev)
 	return;
 }
 
-#endif
+#endif /* CONFIG_FDDI */
 
 #ifdef CONFIG_HIPPI
 void hippi_setup(struct net_device *dev)
@@ -350,7 +349,7 @@ void hippi_setup(struct net_device *dev)
 
 	dev_init_buffers(dev);
 }
-#endif
+#endif /* CONFIG_HIPPI */
 
 #if defined(CONFIG_ATALK) || defined(CONFIG_ATALK_MODULE)
 
@@ -389,7 +388,7 @@ void ltalk_setup(struct net_device *dev)
 	dev_init_buffers(dev);
 }
 
-#endif
+#endif /* CONFIG_ATALK || CONFIG_ATALK_MODULE */
 
 int ether_config(struct net_device *dev, struct ifmap *map)
 {
@@ -506,7 +505,7 @@ void unregister_trdev(struct net_device *dev)
 	unregister_netdevice(dev);
 	rtnl_unlock();
 }
-#endif
+#endif /* CONFIG_TR */
 
 
 #ifdef CONFIG_NET_FC
@@ -555,10 +554,3 @@ void unregister_fcdev(struct net_device *dev)
 
 #endif /* CONFIG_NET_FC */
 
-/*
- * Local variables:
- *  compile-command: "gcc -D__KERNEL__ -I/usr/src/linux/net/inet -Wall -Wstrict-prototypes -O6 -m486 -c net_init.c"
- *  version-control: t
- *  kept-new-versions: 5
- * End:
- */

@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp_ipv4.c,v 1.212 2000/08/18 17:10:04 davem Exp $
+ * Version:	$Id: tcp_ipv4.c,v 1.213 2000/09/18 05:59:48 davem Exp $
  *
  *		IPv4 specific functions
  *
@@ -82,21 +82,21 @@ void tcp_v4_send_check(struct sock *sk, struct tcphdr *th, int len,
  * First half of the table is for sockets not in TIME_WAIT, second half
  * is for TIME_WAIT sockets only.
  */
-struct tcp_ehash_bucket *tcp_ehash = NULL;
+struct tcp_ehash_bucket *tcp_ehash;
 
 /* Ok, let's try this, I give up, we do need a local binding
  * TCP hash as well as the others for fast bind/connect.
  */
-struct tcp_bind_hashbucket *tcp_bhash = NULL;
+struct tcp_bind_hashbucket *tcp_bhash;
 
-int tcp_bhash_size = 0;
-int tcp_ehash_size = 0;
+int tcp_bhash_size;
+int tcp_ehash_size;
 
 /* All sockets in TCP_LISTEN state will be in here.  This is the only table
  * where wildcard'd TCP sockets can exist.  Hash function here is just local
  * port number.
  */
-struct sock *tcp_listening_hash[TCP_LHTABLE_SIZE] = { NULL, };
+struct sock *tcp_listening_hash[TCP_LHTABLE_SIZE];
 char __tcp_clean_cacheline_pad[(SMP_CACHE_BYTES -
 				(((sizeof(void *) * (TCP_LHTABLE_SIZE + 2)) +
 				  (sizeof(int) * 2)) % SMP_CACHE_BYTES))] = { 0, };
@@ -300,6 +300,7 @@ __inline__ void __tcp_put_port(struct sock *sk)
 		sk->bind_next->bind_pprev = sk->bind_pprev;
 	*(sk->bind_pprev) = sk->bind_next;
 	sk->prev = NULL;
+	sk->num = 0;
 	if (tb->owners == NULL) {
 		if (tb->next)
 			tb->next->pprev = tb->pprev;

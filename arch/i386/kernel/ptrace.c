@@ -99,6 +99,7 @@ static int putreg(struct task_struct *child,
 		case EFL:
 			value &= FLAG_MASK;
 			value |= get_stack_long(child, EFL_OFFSET) & ~FLAG_MASK;
+			break;
 	}
 	if (regno > GS*4)
 		regno -= 2*4;

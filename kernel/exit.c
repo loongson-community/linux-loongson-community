@@ -229,6 +229,7 @@ void exit_files(struct task_struct *tsk)
 {
 	__exit_files(tsk);
 }
+
 static inline void __put_fs_struct(struct fs_struct *fs)
 {
 	/* No need to hold fs->lock if we are killing it */
@@ -265,26 +266,6 @@ static inline void __exit_fs(struct task_struct *tsk)
 void exit_fs(struct task_struct *tsk)
 {
 	__exit_fs(tsk);
-}
-
-static inline void __exit_sighand(struct task_struct *tsk)
-{
-	struct signal_struct * sig = tsk->sig;
-
-	if (sig) {
-		spin_lock_irq(&tsk->sigmask_lock);
-		tsk->sig = NULL;
-		spin_unlock_irq(&tsk->sigmask_lock);
-		if (atomic_dec_and_test(&sig->count))
-			kmem_cache_free(sigact_cachep, sig);
-	}
-
-	flush_signals(tsk);
-}
-
-void exit_sighand(struct task_struct *tsk)
-{
-	__exit_sighand(tsk);
 }
 
 /*
@@ -461,7 +442,7 @@ fake_volatile:
 	__exit_mm(tsk);
 	__exit_files(tsk);
 	__exit_fs(tsk);
-	__exit_sighand(tsk);
+	exit_sighand(tsk);
 	exit_thread();
 	tsk->state = TASK_ZOMBIE;
 	tsk->exit_code = code;

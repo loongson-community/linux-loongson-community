@@ -1,8 +1,14 @@
-/* ptrace.c */
-/* By Ross Biro 1/23/92 */
-/* edited by Linus Torvalds */
-/* edited for ARM by Russell King */
-
+/*
+ *  linux/arch/arm/kernel/ptrace.c
+ *
+ *  By Ross Biro 1/23/92
+ * edited by Linus Torvalds
+ * ARM modifications Copyright (C) 2000 Russell King
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
@@ -61,9 +67,18 @@ static inline long get_stack_long(struct task_struct *task, int offset)
 static inline int
 put_stack_long(struct task_struct *task, int offset, long data)
 {
-	get_user_regs(task)->uregs[offset] = data;
+	struct pt_regs newregs, *regs = get_user_regs(task);
+	int ret = -EINVAL;
 
-	return 0;
+	newregs = *regs;
+	newregs.uregs[offset] = data;
+	
+	if (valid_user_regs(&newregs)) {
+		regs->uregs[offset] = data;
+		ret = 0;
+	}
+
+	return ret;
 }
 
 static inline int
@@ -406,7 +421,7 @@ static int do_ptrace(int request, struct task_struct *child, long addr, long dat
 			if ((addr & 3) || addr < 0 || addr >= sizeof(struct user))
 				break;
 
-			if (addr < sizeof (struct pt_regs))
+			if (addr < sizeof(struct pt_regs))
 				ret = put_stack_long(child, (int)addr >> 2, data);
 			break;
 
@@ -499,12 +514,19 @@ static int do_ptrace(int request, struct task_struct *child, long addr, long dat
 		 * Set all gp regs in the child.
 		 */
 		case PTRACE_SETREGS: {
-			struct pt_regs *regs = get_user_regs(child);
+			struct pt_regs newregs;
 
-			ret = 0;
-			if (copy_from_user(regs, (void *)data,
-					   sizeof(struct pt_regs)))
-				ret = -EFAULT;
+			ret = -EFAULT;
+			if (copy_from_user(&newregs, (void *)data,
+					   sizeof(struct pt_regs)) == 0) {
+				struct pt_regs *regs = get_user_regs(child);
+
+				ret = -EINVAL;
+				if (valid_user_regs(&newregs)) {
+					*regs = newregs;
+					ret = 0;
+				}
+			}
 			break;
 		}
 

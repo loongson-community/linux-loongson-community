@@ -397,10 +397,10 @@ int drm_dma_enqueue(drm_device_t *dev, drm_dma_t *d)
 
 	atomic_inc(&q->use_count);
 	if (atomic_read(&q->block_write)) {
-		current->state = TASK_INTERRUPTIBLE;
 		add_wait_queue(&q->write_queue, &entry);
 		atomic_inc(&q->block_count);
 		for (;;) {
+			current->state = TASK_INTERRUPTIBLE;
 			if (!atomic_read(&q->block_write)) break;
 			schedule();
 			if (signal_pending(current)) {
@@ -486,14 +486,16 @@ static int drm_dma_get_buffers_of_order(drm_device_t *dev, drm_dma_t *d,
 				  buf->pending);
 		}
 		buf->pid     = current->pid;
-		copy_to_user_ret(&d->request_indices[i],
+		if (copy_to_user(&d->request_indices[i],
 				 &buf->idx,
-				 sizeof(buf->idx),
-				 -EFAULT);
-		copy_to_user_ret(&d->request_sizes[i],
+				 sizeof(buf->idx)))
+			return -EFAULT;
+
+		if (copy_to_user(&d->request_sizes[i],
 				 &buf->total,
-				 sizeof(buf->total),
-				 -EFAULT);
+				 sizeof(buf->total)))
+			return -EFAULT;
+
 		++d->granted_count;
 	}
 	return 0;

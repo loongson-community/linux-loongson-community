@@ -1,4 +1,4 @@
-/* $Id: time.c,v 1.28 2000/07/11 02:21:12 davem Exp $
+/* $Id: time.c,v 1.32 2000/09/22 23:02:13 davem Exp $
  * time.c: UltraSparc timer and TOD clock support.
  *
  * Copyright (C) 1997 David S. Miller (davem@caip.rutgers.edu)
@@ -30,6 +30,7 @@
 #include <asm/fhc.h>
 #include <asm/pbm.h>
 #include <asm/ebus.h>
+#include <asm/starfire.h>
 
 extern rwlock_t xtime_lock;
 
@@ -177,37 +178,6 @@ void timer_tick_interrupt(struct pt_regs *regs)
 }
 #endif
 
-/* Converts Gregorian date to seconds since 1970-01-01 00:00:00.
- * Assumes input in normal date format, i.e. 1980-12-31 23:59:59
- * => year=1980, mon=12, day=31, hour=23, min=59, sec=59.
- *
- * [For the Julian calendar (which was used in Russia before 1917,
- * Britain & colonies before 1752, anywhere else before 1582,
- * and is still in use by some communities) leave out the
- * -year/100+year/400 terms, and add 10.]
- *
- * This algorithm was first published by Gauss (I think).
- *
- * WARNING: this function will overflow on 2106-02-07 06:28:16 on
- * machines were long is 32-bit! (However, as time_t is signed, we
- * will already get problems at other places on 2038-01-19 03:14:08)
- */
-static inline unsigned long mktime(unsigned int year, unsigned int mon,
-	unsigned int day, unsigned int hour,
-	unsigned int min, unsigned int sec)
-{
-	if (0 >= (int) (mon -= 2)) {	/* 1..12 -> 11,12,1..10 */
-		mon += 12;	/* Puts Feb last since it has leap day */
-		year -= 1;
-	}
-	return (((
-	    (unsigned long)(year/4 - year/100 + year/400 + 367*mon/12 + day) +
-	      year*365 - 719499
-	    )*24 + hour /* now have hours */
-	   )*60 + min /* now have minutes */
-	  )*60 + sec; /* finally seconds */
-}
-
 /* Kick start a stopped clock (procedure from the Sun NVRAM/hostid FAQ). */
 static void __init kick_start_clock(void)
 {
@@ -335,6 +305,20 @@ void __init clock_probe(void)
 #ifdef CONFIG_PCI
 	struct linux_ebus *ebus = NULL;
 #endif
+
+
+	if (this_is_starfire) {
+		/* davem suggests we keep this within the 4M locked kernel image */
+		static char obp_gettod[256];
+		static u32 unix_tod;
+
+		sprintf(obp_gettod, "h# %08x unix-gettod",
+			(unsigned int) (long) &unix_tod);
+		prom_feval(obp_gettod);
+		xtime.tv_sec = unix_tod;
+		xtime.tv_usec = 0;
+		return;
+	}
 
 	__save_and_cli(flags);
 
@@ -504,6 +488,9 @@ static __inline__ unsigned long do_gettimeoffset(void)
 
 void do_settimeofday(struct timeval *tv)
 {
+	if (this_is_starfire)
+		return;
+
 	write_lock_irq(&xtime_lock);
 
 	tv->tv_usec -= do_gettimeoffset();
@@ -527,7 +514,10 @@ static int set_rtc_mmss(unsigned long nowtime)
 	unsigned long regs = mstk48t02_regs;
 	u8 tmp;
 
-	/* Not having a register set can lead to trouble. */
+	/* 
+	 * Not having a register set can lead to trouble.
+	 * Also starfire doesnt have a tod clock.
+	 */
 	if (!regs) 
 		return -1;
 

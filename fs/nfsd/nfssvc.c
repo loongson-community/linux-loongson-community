@@ -41,9 +41,9 @@
 
 extern struct svc_program	nfsd_program;
 static void			nfsd(struct svc_rqst *rqstp);
-struct timeval			nfssvc_boot = { 0, 0 };
-static struct svc_serv 		*nfsd_serv = NULL;
-static int			nfsd_busy = 0;
+struct timeval			nfssvc_boot;
+static struct svc_serv 		*nfsd_serv;
+static int			nfsd_busy;
 static unsigned long		nfsd_last_call;
 
 struct nfsd_list {
@@ -155,6 +155,8 @@ nfsd(struct svc_rqst *rqstp)
 	sprintf(current->comm, "nfsd");
 	current->fs->umask = 0;
 
+	current->rlim[RLIMIT_FSIZE].rlim_cur = RLIM_INFINITY; 
+
 	nfsdstats.th_cnt++;
 	/* Let svc_process check client's authentication. */
 	rqstp->rq_auth = 1;
@@ -213,7 +215,7 @@ nfsd(struct svc_rqst *rqstp)
 		unsigned int	signo;
 
 		for (signo = 1; signo <= _NSIG; signo++)
-			if (sigismember(&current->signal, signo) &&
+			if (sigismember(&current->pending.signal, signo) &&
 			    !sigismember(&current->blocked, signo))
 				break;
 		printk(KERN_WARNING "nfsd: terminating on signal %d\n", signo);

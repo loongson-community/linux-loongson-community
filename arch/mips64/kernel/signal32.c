@@ -773,7 +773,7 @@ printk("%s: delivering signal.\n", current->comm);
 				/* FALLTHRU */
 
 			default:
-				sigaddset(&current->signal, signr);
+				sigaddset(&current->pending.signal, signr);
 				recalc_sigpending(current);
 				current->flags |= PF_SIGNALED;
 				do_exit(exit_code);
@@ -879,12 +879,12 @@ asmlinkage int sys32_rt_sigaction(int sig, const struct sigaction32 *act,
 		if (!access_ok(VERIFY_WRITE, oact, sizeof(*oact)))
 			return -EFAULT;
 
-		err |= __put_user((u32)(u64)new_sa.sa.sa_handler,
+		err |= __put_user((u32)(u64)old_sa.sa.sa_handler,
 		                   &oact->sa_handler);
-		err |= __put_user(new_sa.sa.sa_flags, &oact->sa_flags);
-		err |= __put_user((u32)(u64)new_sa.sa.sa_restorer,
+		err |= __put_user(old_sa.sa.sa_flags, &oact->sa_flags);
+		err |= __put_user((u32)(u64)old_sa.sa.sa_restorer,
 		                  &oact->sa_restorer);
-		err |= put_sigset(&new_sa.sa.sa_mask, &oact->sa_mask);
+		err |= put_sigset(&old_sa.sa.sa_mask, &oact->sa_mask);
 		if (err)
 			return -EFAULT;
 	}

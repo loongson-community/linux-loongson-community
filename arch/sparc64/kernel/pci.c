@@ -1,4 +1,4 @@
-/* $Id: pci.c,v 1.16 2000/03/01 02:53:33 davem Exp $
+/* $Id: pci.c,v 1.17 2000/09/05 06:49:44 anton Exp $
  * pci.c: UltraSparc PCI controller support.
  *
  * Copyright (C) 1997, 1998, 1999 David S. Miller (davem@redhat.com)
@@ -24,7 +24,6 @@ unsigned long pci_memspace_mask = 0xffffffffUL;
 
 #ifndef CONFIG_PCI
 /* A "nop" PCI implementation. */
-int pcibios_present(void) { return 0; }
 asmlinkage int sys_pciconfig_read(unsigned long bus, unsigned long dfn,
 				  unsigned long off, unsigned long len,
 				  unsigned char *buf)
@@ -274,7 +273,6 @@ asmlinkage int sys_pciconfig_read(unsigned long bus,
 		goto out;
 	}
 
-	lock_kernel();
 	switch(len) {
 	case 1:
 		pci_read_config_byte(dev, off, &byte);
@@ -293,7 +291,6 @@ asmlinkage int sys_pciconfig_read(unsigned long bus,
 		err = -EINVAL;
 		break;
 	};
-	unlock_kernel();
 out:
 	return err;
 }
@@ -318,7 +315,6 @@ asmlinkage int sys_pciconfig_write(unsigned long bus,
 		goto out;
 	}
 
-	lock_kernel();
 	switch(len) {
 	case 1:
 		err = get_user(byte, (u8 *)buf);
@@ -346,7 +342,6 @@ asmlinkage int sys_pciconfig_write(unsigned long bus,
 		break;
 
 	};
-	unlock_kernel();
 
 out:
 	return err;

@@ -23,6 +23,7 @@
 
 #include <linux/module.h>
 #include <linux/kernel.h>
+#include <linux/init.h>
 #include <linux/wait.h>
 #include <linux/sched.h>
 #include <linux/list.h>
@@ -186,7 +187,7 @@ static int cpia_usb_open(void *privdata)
 	if (ret < 0) {
 		printk(KERN_ERR "cpia_usb_open: usb_set_interface error (ret = %d)\n", ret);
 		retval = -EBUSY;
-		goto error_all;
+		goto error_1;
 	}
 
 	ucpia->buffers[0]->status = FRAME_EMPTY;
@@ -203,7 +204,7 @@ static int cpia_usb_open(void *privdata)
 	if (!urb) {
 		printk(KERN_ERR "cpia_init_isoc: usb_alloc_urb 0\n");
 		retval = -ENOMEM;
-		goto error_all;
+		goto error_1;
 	}
 
 	ucpia->sbuf[0].urb = urb;
@@ -222,9 +223,9 @@ static int cpia_usb_open(void *privdata)
 
 	urb = usb_alloc_urb(FRAMES_PER_DESC);
 	if (!urb) {
-		printk(KERN_ERR "cpia_init_isoc: usb_alloc_urb 0\n");
+		printk(KERN_ERR "cpia_init_isoc: usb_alloc_urb 1\n");
 		retval = -ENOMEM;
-		goto error_all;
+		goto error_urb0;
 	}
 
 	ucpia->sbuf[1].urb = urb;
@@ -245,20 +246,30 @@ static int cpia_usb_open(void *privdata)
 	ucpia->sbuf[0].urb->next = ucpia->sbuf[1].urb;
 	
 	err = usb_submit_urb(ucpia->sbuf[0].urb);
-	if (err)
+	if (err) {
 		printk(KERN_ERR "cpia_init_isoc: usb_submit_urb 0 ret %d\n",
 			err);
+		goto error_urb1;
+	}
 	err = usb_submit_urb(ucpia->sbuf[1].urb);
-	if (err)
+	if (err) {
 		printk(KERN_ERR "cpia_init_isoc: usb_submit_urb 1 ret %d\n",
 			err);
+		goto error_urb1;
+	}
 
 	ucpia->streaming = 1;
 	ucpia->open = 1;
 
 	return 0;
 
-error_all:
+error_urb1:		/* free urb 1 */
+	usb_free_urb(ucpia->sbuf[1].urb);
+
+error_urb0:		/* free urb 0 */
+	usb_free_urb(ucpia->sbuf[0].urb);
+
+error_1:
 	kfree (ucpia->sbuf[1].data);
 error_0:
 	kfree (ucpia->sbuf[0].data);
@@ -594,14 +605,14 @@ static void cpia_disconnect(struct usb_device *udev, void *ptr)
 		kfree(ucpia);
 }
 
-int usb_cpia_init(void)
+static int __init usb_cpia_init(void)
 {
 	cam_list = NULL;
 
 	return usb_register(&cpia_driver);
 }
 
-void usb_cpia_cleanup(void)
+static void __exit usb_cpia_cleanup(void)
 {
 /*
 	struct cam_data *cam;
@@ -613,14 +624,7 @@ void usb_cpia_cleanup(void)
 	usb_deregister(&cpia_driver);
 }
 
-#ifdef MODULE
-int init_module(void)
-{
-	return usb_cpia_init();
-}
 
-void cleanup_module(void)
-{
-	usb_cpia_cleanup();
-}
-#endif /* !MODULE */
+module_init (usb_cpia_init);
+module_exit (usb_cpia_cleanup);
+

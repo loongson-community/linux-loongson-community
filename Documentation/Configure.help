@@ -1088,22 +1088,25 @@ CONFIG_BLK_DEV_IDEDOUBLER
 
 Support for PowerMac IDE devices (must also enable IDE)
 CONFIG_BLK_DEV_IDE_PMAC
-  No help for CONFIG_BLK_DEV_IDE_PMAC
+  This driver provides support for the built-in IDE controller on most
+  of the recent Apple Power Macintoshes and PowerBooks.
+  If unsure, say Y.
 
 PowerMac IDE DMA support
 CONFIG_BLK_DEV_IDEDMA_PMAC
-  No help for CONFIG_BLK_DEV_IDEDMA_PMAC
+  This option allows the driver for the built-in IDE controller on
+  Power Macintoshes and PowerBooks to use DMA (direct memory access)
+  to transfer data to and from memory.  Saying Y is safe and improves
+  performance.
 
 Use DMA by default
-CONFIG_IDEDMA_PMAC_AUTO
-  Prior to kernel version 2.1.112, Linux used to automatically use
-  DMA for IDE drives and chipsets which support it. Due to concerns
-  about a couple of cases where buggy hardware may have caused damage,
-  the default is now to NOT use DMA automatically. To revert to the
-  previous behaviour, say Y to this question.
-
-  If you suspect your hardware is at all flakey, say N here.
-  Do NOT email the IDE kernel people regarding this issue!
+CONFIG_BLK_DEV_IDEDMA_PMAC_AUTO
+  This option allows the driver for the built-in IDE controller on
+  Power Macintoshes and PowerBooks to use DMA automatically, without
+  it having to be explicitly enabled.  This option is provided because
+  of concerns about a couple of cases where using DMA on buggy PC
+  hardware may have caused damage.  Saying Y should be safe on all
+  Apple machines.
 
 Macintosh Quadra/Powerbook IDE interface support
 CONFIG_BLK_DEV_MAC_IDE
@@ -4910,6 +4913,14 @@ CONFIG_PHONE
   it as a module, say M here and read Documentation/modules.txt. The
   module will be called phonedev.o.
 
+Compaq Smart Array support
+CONFIG_BLK_CPQ_CISS_DA
+   This is the driver for Compaq Smart Array controllers.
+   Everyone using these boards should say Y here.
+   See "linux/Documentation/cciss.txt" for the current list of
+   boards supported by this driver, and for further information
+   on the use of this driver.
+
 QuickNet Internet LineJack/PhoneJack support
 CONFIG_PHONE_IXJ
   Say M if you have a telephony card manufactured by Quicknet
@@ -5358,9 +5369,10 @@ CONFIG_AIC7XXX_RESET_DELAY
 IBM ServeRAID Support
 CONFIG_SCSI_IPS
   This is support for the IBM ServeRAID hardware RAID controllers.
-  
-  Please consult the SCSI-HOWTO, available from
-  http://www.linuxdoc.org/docs.html#howto . 
+  See http://www.developer.ibm.com/welcome/netfinity/serveraid.html
+  for more information.  If this driver does not work correctly
+  without modification please contact the author by email at
+  ipslinux@us.ibm.com.
 
   You can build this driver as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want),
@@ -7864,6 +7876,9 @@ CONFIG_COMX
   and using COMX interfaces. Further info on these cards can be found
   at http://www.itc.hu or <info@itc.hu>.
 
+  You must say Y to "/proc file system support" (CONFIG_PROC_FS) to
+  use this driver.
+
   If you want to compile this as a module, say M and read
   Documentation/modules.txt. The module will be called comx.o.
 
@@ -7903,6 +7918,25 @@ CONFIG_COMX_HW_MIXCOM
   Documentation/modules.txt. The module will be called
   comx-hw-mixcom.o.
 
+i810 TCO support
+CONFIG_I810_TCO
+  Hardware driver for the TCO timer built into the Intel i810 and i815
+  chipset family. The TCO (Total Cost of Ownership) timer is a watchdog
+  timer that will reboot the machine after it's second expiration. The
+  expiration time can be configured by commandline argument
+  "i810_margin=<n>" where <n> is the counter initial value. It is
+  decremented every 0.6 secs, the default is 50 which gives a timeout
+  of 30 seconds and one minute until reset.
+
+  On some motherboards the driver may fail to reset the chipset's
+  NO_REBOOT flag which prevents the watchdog from rebooting the machine.
+  If this is the case you will get a kernel message like
+  "i810tco init: failed to reset NO_REBOOT flag".
+
+  If you want to compile this as a module, say M and read
+  Documentation/modules.txt. The module will be called
+  i810-tco.o.
+  
 MultiGate Cisco-HDLC and synchronous PPP protocol support
 CONFIG_COMX_PROTO_PPP
   Cisco-HDLC and synchronous PPP protocol driver for all MultiGate
@@ -8133,8 +8167,10 @@ CONFIG_NI65
   module, say M here and read Documentation/modules.txt as well as
   Documentation/networking/net-modules.txt.
 
-RealTek 8129 (not 8019/8029!) support (EXPERIMENTAL)
+RealTek 8129 (not 8019/8029/8139!) support (EXPERIMENTAL)
 CONFIG_RTL8129
+  This is NOT for RTL-8139 cards.  Instead, select the 8139too driver
+  (CONFIG_8139TOO).
   This is a driver for the Fast Ethernet PCI network cards based on
   the RTL8129 chip. If you have one of those, say Y and
   read the Ethernet-HOWTO, available from
@@ -8257,6 +8293,11 @@ CONFIG_SK98LIN
   - SK-9844 (dual link   1000Base-SX)
   - SK-9821 (single link 1000Base-T)
   - SK-9822 (dual link   1000Base-T)
+  - SK-9861 (single link Volition connector)
+  - SK-9862 (dual link   Volition connector)
+  The driver also supports the following adapters from Allied Telesyn:
+  - AT2970...
+
   The dual link adapters support a link-failover feature.
   Read Documentation/networking/sk98lin.txt for information about
   optional driver parameters.
@@ -8663,6 +8704,18 @@ CONFIG_EEXPRESS
   Documentation/networking/net-modules.txt. The module will be called
   eexpress.o.
 
+Packet Engines Hamachi GNIC-II support
+CONFIG_HAMACHI
+  If you have a Gigabit Ethernet card of this type, say Y and read
+  the Ethernet-HOWTO, available from
+  http://www.linuxdoc.org/docs.html#howto .
+
+  If you want to compile this as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want),
+  say M here and read Documentation/modules.txt as well as
+  Documentation/networking/net-modules.txt. The module will be called
+  hamachi.o.
+
 HP PCLAN+ (27247B and 27252A) support
 CONFIG_HPLAN_PLUS
   If you have a network (Ethernet) card of this type, say Y and read
@@ -8986,22 +9039,30 @@ CONFIG_ES3210
   module, say M here and read Documentation/modules.txt as well as
   Documentation/networking/net-modules.txt.
 
-SMC EtherPower II (EXPERIMENTAL)
+SMC EtherPower II
 CONFIG_EPIC100
-  If you have an SMC EtherPower II 9432 PCI Ethernet network card
-  which is based on the SMC83c170, say Y and read the Ethernet-HOWTO,
-  available from http://www.linuxdoc.org/docs.html#howto .
-
-  This driver is also available as a module ( = code which can be
-  inserted in and removed from the running kernel whenever you want).
-  The module will be called epic100.o. If you want to compile it as a
-  module, say M here and read Documentation/modules.txt as well as
-  Documentation/networking/net-modules.txt.
+  This driver is for the SMC EtherPower II 9432 PCI Ethernet NIC,
+  which is based on the SMC83c17x (EPIC/100).
+  More specific information and updates are available from
+  http://www.scyld.com/network/epic100.html
 
 SGI Seeq ethernet controller support
 CONFIG_SGISEEQ
   Say Y here if you have an Seeq based Ethernet network card. This is
   used in many Silicon Graphics machines.
+
+Sundance "Alta" PCI Ethernet support
+CONFIG_SUNDANCE
+  This driver is for the Sundance "Alta" chip.
+  More specific information and updates are available from
+  http://www.scyld.com/network/sundance.html
+
+Winbond W89c840 PCI Ethernet support
+CONFIG_WINBOND_840
+  This driver is for the Winbond W89c840 chip.  It also works with
+  the TX9882 chip on the Compex RL100-ATX board.
+  More specific information and updates are available from
+  http://www.scyld.com/network/drivers.html
 
 Zenith Z-Note support (EXPERIMENTAL)
 CONFIG_ZNET
@@ -9960,10 +10021,24 @@ CONFIG_USB_WMFORCE
   The module will be called wmforce.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt.
 
+Use input layer for ADB devices
+CONFIG_INPUT_ADBHID
+  Say Y here if you want to have ADB (Apple Desktop Bus) HID devices
+  such as keyboards, mice, joysticks, or graphic tablets handled by the
+  input layer.  If you say Y here, make sure to say Y to the
+  corresponding drivers "Keyboard support" (CONFIG_INPUT_KEYBDEV),
+  "Mouse Support" (CONFIG_INPUT_MOUSEDEV) and "Event interface support"
+  (CONFIG_INPUT_EVDEV) as well.
+
+  If you say N here, you still have the option of using the old ADB
+  keyboard and mouse drivers.
+
+  If unsure, say Y.
+
 Keyboard support
 CONFIG_INPUT_KEYBDEV
-  Say Y here if you want your USB HID keyboard to be able to serve as
-  a system keyboard.
+  Say Y here if you want your USB HID keyboard (or an ADB keyboard
+  handled by the input layer) to be able to serve as a system keyboard.
 
   This driver is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
@@ -9972,10 +10047,11 @@ CONFIG_INPUT_KEYBDEV
 
 Mouse support
 CONFIG_INPUT_MOUSEDEV
-  Say Y here if you want your USB HID mouse to be accessible as
-  char devices 13:32+ - /dev/input/mouseX and 13:63 - /dev/input/mice
-  as an emulated PS/2 mouse.  That way, all user space programs will
-  be able to use your mouse.
+  Say Y here if you want your USB HID mouse (or ADB mouse handled by
+  the input layer) to be accessible as char devices 13:32+ -
+  /dev/input/mouseX and 13:63 - /dev/input/mice as an emulated ImPS/2
+  mouse.  That way, all user space programs will be able to use your
+  mouse.
   
   If unsure, say Y.
 
@@ -10010,8 +10086,8 @@ CONFIG_INPUT_JOYDEV
 
 Event interface support
 CONFIG_INPUT_EVDEV
-  Say Y here if you want your USB HID device events be accessible
-  under char device 13:64+ - /dev/inputX in a generic way.
+  Say Y here if you want your USB or ADB HID device events be accessible
+  under char device 13:64+ - /dev/input/eventX in a generic way.
   This is the future ...
 
 USB Scanner support
@@ -10226,7 +10302,8 @@ USB ADMtek Pegasus-based ethernet device support
 CONFIG_USB_PEGASUS
   Say Y if you want to use your USB ethernet device. Supported
   cards until now are:
-    ADMtek AN986 (eval. board)
+    ADMtek AN986 Pegasus (eval. board)
+    ADMtek ADM8511 Pegasus II (eval. board)
     Accton 10/100
     Billington USB-100
     Corega FEter USB-TX
@@ -10236,6 +10313,8 @@ CONFIG_USB_PEGASUS
     LANEED Ethernet LD-USB/TX
     SMC 202
     SOHOware NUB Ethernet
+    
+  Any Pegasus II based board also are supported.
   If you have devices with vendor IDs other than noted above
   you should add them in the driver code and send a message
   to me (petkan@dce.bg) for update.
@@ -11289,6 +11368,21 @@ CONFIG_SMB_FS
   can be inserted in and removed from the running kernel whenever you
   want), say M here and read Documentation/modules.txt. The module
   will be called smbfs.o. Most people say N, however.
+
+use nls by default
+CONFIG_SMB_NLS_DEFAULT
+  Enabling this will make smbfs use nls translations by default. You
+  need to specify the local charset (CONFIG_NLS_DEFAULT) in the nls
+  settings and you need to give the default nls for the SMB server as
+  CONFIG_SMB_NLS_REMOTE.
+
+  The nls settings can be changed at mount time, if your smbmount
+  supports that, using the codepage and iocharset parameters.
+
+  Currently no smbmount distributed with samba supports this, it is
+  assumed future versions will. In the meantime you can get an
+  unofficial patch for samba 2.0.7 from:
+  http://www.hojdpunkten.ac.se/054/samba/index.html
 
 nls support setting
 CONFIG_SMB_NLS_REMOTE
@@ -15406,6 +15500,42 @@ CONFIG_PMAC_PBOOK
   have it autoloaded. The act of removing the module shuts down the
   sound hardware for more power savings.
 
+Mac-on-Linux support
+CONFIG_MOL
+  This option enables low-level support for Mac-on-Linux.
+  MOL lets you run MacOS and Linux simultaneously. Please
+  visit <http://www.maconlinux.org> for more information.
+  If unsure, say Y.
+
+ADB raw keycode support
+CONFIG_MAC_ADBKEYCODES
+  This provides support for sending raw ADB keycodes to console
+  devices.  This is the default up to 2.4.0, but in future this may be
+  phased out in favor of generic Linux keycodes. If you say Y here, you
+  can dynamically switch via the
+      /proc/sys/dev/mac_hid/keyboard_sends_linux_keycodes
+  sysctl and with the "keyboard_sends_linux_keycodes=" kernel argument.
+  
+  If unsure, say Y here.
+
+Mouse button 2+3 emulation support
+CONFIG_MAC_EMUMOUSEBTN
+  This provides generic support for emulating the 2nd and 3rd mouse
+  button with keypresses. If you say Y here, the emulation is still
+  disabled by default. The emulation is controlled by these sysctl entries:
+      /proc/sys/dev/mac_hid/mouse_button_emulation
+      /proc/sys/dev/mac_hid/mouse_button2_keycode
+      /proc/sys/dev/mac_hid/mouse_button3_keycode
+
+Enhanced Real Time Clock Support
+CONFIG_PPC_RTC
+  If you say Y here and create a character special file /dev/rtc with
+  major number 10 and minor number 135 using mknod ("man mknod"), you
+  will get access to the real time clock (or hardware clock) built 
+  into your computer.
+  
+  If unsure, say Y here.
+
 Support for Open Firmware device tree in /proc
 CONFIG_PROC_DEVICETREE
   This option adds a device-tree directory under /proc which contains
@@ -15896,11 +16026,17 @@ CONFIG_BLK_CPQ_DA
 # ARM options
 #
 ARM System type
-CONFIG_ARCH_ARC
+CONFIG_ARCH_ARCA5K
   This selects what ARM system you wish to build the kernel for. It
   also selects to some extent the CPU type. If you are unsure what
   to set this option to, please consult any information supplied with
   your system.
+
+2MB physical memory
+CONFIG_PAGESIZE_16
+  Say Y here if your Archimedes or A5000 system has only 2MB of
+  memory, otherwise say N.  The resulting kernel will not run on a
+  machine with 4MB of memory.
 
 Include support for the CATS
 CONFIG_ARCH_CATS
@@ -16000,6 +16136,27 @@ CONFIG_SA1100_VICTOR
   SA-1100 based Victor Digital Talking Book Reader.  See
   http://www.visuaide.com/pagevictor.en.html for information on
   this system.
+
+Support ARM610 processor
+CONFIG_CPU_ARM6
+  Say Y here if you wish to include support for the ARM610 processor.
+
+Support ARM710 processor
+CONFIG_CPU_ARM7
+  Say Y here if you wish to include support for the ARM710 processor.
+
+Support StrongARM(R) SA-110 processor
+CONFIG_CPU_SA110
+  Say Y here if you wish to include support for the Intel(R)
+  StrongARM(R) SA-110 processor.
+
+Support ARM720 processor
+CONFIG_CPU_ARM720
+  Say Y here if you wish to include support for the ARM720 processor.
+
+Support ARM920
+CONFIG_CPU_ARM920
+  Say Y here if you wish to include support for the ARM920 processor.
 
 Math emulation
 CONFIG_NWFPE
@@ -16115,8 +16272,8 @@ CONFIG_ALIGNMENT_TRAP
 
 21285 serial port support
 CONFIG_SERIAL_21285
-  If you have a machine based on a 21285 (Footbridge) StrongARM/PCI
-  bridge you can enable its onboard serial port by enabling this
+  If you have a machine based on a 21285 (Footbridge) StrongARM(R)/
+  PCI bridge you can enable its onboard serial port by enabling this
   option. The device has major ID 4, minor 64.
 
 Console on 21285 serial port

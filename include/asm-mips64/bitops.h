@@ -21,6 +21,12 @@
 #include <asm/mipsregs.h>
 
 /*
+ * clear_bit() doesn't provide any barrier for the compiler.
+ */
+#define smp_mb__before_clear_bit()	barrier()
+#define smp_mb__after_clear_bit()	barrier()
+
+/*
  * These functions for MIPS ISA > 1 are interrupt and SMP proof and
  * interrupt friendly
  */
@@ -36,8 +42,17 @@ set_bit(unsigned long nr, volatile void *addr)
 		"or\t%0, %2\n\t"
 		"scd\t%0, %1\n\t"
 		"beqz\t%0, 1b"
-		:"=&r" (temp), "=m" (*m)
-		:"ir" (1UL << (nr & 0x3f)), "m" (*m));
+		: "=&r" (temp), "=m" (*m)
+		: "ir" (1UL << (nr & 0x3f)), "m" (*m)
+		: "memory");
+}
+
+/* WARNING: non atomic and it can be reordered! */
+extern __inline__ void __set_bit(int nr, volatile void * addr)
+{
+	unsigned long * m = ((unsigned long *) addr) + (nr >> 6);
+
+	*m |= 1UL << (nr & 0x3f);
 }
 
 extern __inline__ void
@@ -51,9 +66,10 @@ clear_bit(unsigned long nr, volatile void *addr)
 		"and\t%0, %2\n\t"
 		"scd\t%0, %1\n\t"
 		"beqz\t%0, 1b\n\t"
-		:"=&r" (temp), "=m" (*m)
-		:"ir" (~(1UL << (nr & 0x3f))), "m" (*m));
+		: "=&r" (temp), "=m" (*m)
+		: "ir" (~(1UL << (nr & 0x3f))), "m" (*m));
 }
+
 
 extern __inline__ void
 change_bit(unsigned long nr, volatile void *addr)
@@ -84,10 +100,24 @@ test_and_set_bit(unsigned long nr, volatile void *addr)
 		"beqz\t%2, 1b\n\t"
 		" and\t%2, %0, %3\n\t"
 		".set\treorder"
-		:"=&r" (temp), "=m" (*m), "=&r" (res)
-		:"r" (1UL << (nr & 0x3f)), "m" (*m));
+		: "=&r" (temp), "=m" (*m), "=&r" (res)
+		: "r" (1UL << (nr & 0x3f)), "m" (*m)
+		: "memory");
 
 	return res != 0;
+}
+
+extern __inline__ int __test_and_set_bit(int nr, volatile void * addr)
+{
+	int mask, retval;
+	volatile long *a = addr;
+
+	a += nr >> 6;
+	mask = 1 << (nr & 0x3f);
+	retval = (mask & *a) != 0;
+	*a |= mask;
+
+	return retval;
 }
 
 extern __inline__ unsigned long
@@ -105,10 +135,24 @@ test_and_clear_bit(unsigned long nr, volatile void *addr)
 		"beqz\t%2, 1b\n\t"
 		" and\t%2, %0, %3\n\t"
 		".set\treorder"
-		:"=&r" (temp), "=m" (*m), "=&r" (res)
-		:"r" (1UL << (nr & 0x3f)), "m" (*m));
+		: "=&r" (temp), "=m" (*m), "=&r" (res)
+		: "r" (1UL << (nr & 0x3f)), "m" (*m)
+		: "memory");
 
 	return res != 0;
+}
+
+extern __inline__ int __test_and_clear_bit(int nr, volatile void * addr)
+{
+	int     mask, retval;
+	volatile long    *a = addr;
+
+	a += nr >> 6;
+	mask = 1 << (nr & 0x3f);
+	retval = (mask & *a) != 0;
+	*a &= ~mask;
+
+	return retval;
 }
 
 extern __inline__ unsigned long
@@ -125,8 +169,9 @@ test_and_change_bit(unsigned long nr, volatile void *addr)
 		"beqz\t%2, 1b\n\t"
 		" and\t%2, %0, %3\n\t"
 		".set\treorder"
-		:"=&r" (temp), "=m" (*m), "=&r" (res)
-		:"r" (1UL << (nr & 0x3f)), "m" (*m));
+		: "=&r" (temp), "=m" (*m), "=&r" (res)
+		: "r" (1UL << (nr & 0x3f)), "m" (*m)
+		: "memory");
 
 	return res != 0;
 }
@@ -175,13 +220,9 @@ find_first_zero_bit (void *addr, unsigned size)
 		".set\tat\n\t"
 		".set\treorder\n"
 		"2:"
-		: "=r" (res),
-		  "=r" (dummy),
-		  "=r" (addr)
-		: "0" ((signed int) 0),
-		  "1" ((unsigned int) 0xffffffff),
-		  "2" (addr),
-		  "r" (size)
+		: "=r" (res), "=r" (dummy), "=r" (addr)
+		: "0" ((signed int) 0), "1" ((unsigned int) 0xffffffff),
+		  "2" (addr), "r" (size)
 		: "$1");
 
 	return res;
@@ -208,11 +249,8 @@ find_next_zero_bit (void * addr, int size, int offset)
 			".set\tat\n\t"
 			".set\treorder\n"
 			"1:"
-			: "=r" (set),
-			  "=r" (dummy)
-			: "0" (0),
-			  "1" (1 << bit),
-			  "r" (*p)
+			: "=r" (set), "=r" (dummy)
+			: "0" (0), "1" (1 << bit), "r" (*p)
 			: "$1");
 		if (set < (32 - bit))
 			return set + offset;

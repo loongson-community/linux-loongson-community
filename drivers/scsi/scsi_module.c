@@ -30,22 +30,26 @@
  */
 
 #include <linux/module.h>
+#include <linux/init.h>
 
-int init_module(void)
+static int __init init_this_scsi_driver(void)
 {
-	driver_template.module = &__this_module;
+	driver_template.module = THIS_MODULE;
 	scsi_register_module(MODULE_SCSI_HA, &driver_template);
 	if (driver_template.present)
 		return 0;
 
 	scsi_unregister_module(MODULE_SCSI_HA, &driver_template);
-	return -1;
+	return -ENODEV;
 }
 
-void cleanup_module(void)
+static void __exit exit_this_scsi_driver(void)
 {
 	scsi_unregister_module(MODULE_SCSI_HA, &driver_template);
 }
+
+module_init(init_this_scsi_driver);
+module_exit(exit_this_scsi_driver);
 
 /*
  * Overrides for Emacs so that we almost follow Linus's tabbing style.

@@ -414,6 +414,11 @@ ENTRY(page_fault)
 	pushl $ SYMBOL_NAME(do_page_fault)
 	jmp error_code
 
+ENTRY(machine_check)
+	pushl $0
+	pushl $ SYMBOL_NAME(mcheck_fault)
+	jmp error_code
+
 ENTRY(spurious_interrupt_bug)
 	pushl $0
 	pushl $ SYMBOL_NAME(do_spurious_interrupt_bug)
@@ -643,6 +648,7 @@ ENTRY(sys_call_table)
 	.long SYMBOL_NAME(sys_madvise)
 	.long SYMBOL_NAME(sys_getdents64)	/* 220 */
 	.long SYMBOL_NAME(sys_fcntl64)
+	.long SYMBOL_NAME(sys_ni_syscall)	/* reserved for TUX */
 
 	/*
 	 * NOTE!! This doesn't have to be exact - we just have

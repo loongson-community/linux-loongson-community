@@ -87,12 +87,13 @@ struct ctlr_info {
 	int	log_drives;
 	int	phys_drives;
 
+	struct pci_dev *pci_dev;    /* NULL if EISA */
 	__u32	board_id;
 	char	*product_name;	
 
-	__u32	vaddr;
-	__u32	paddr;
-	__u32	ioaddr;
+	void *vaddr;
+	unsigned long paddr;
+	unsigned long ioaddr;
 	int	intr;
 	int	usage_count;
 	drv_info_t	drv[NWD];

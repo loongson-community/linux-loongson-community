@@ -210,12 +210,26 @@ M:	jgarzik@mandrakesoft.com
 L:	linux-fbdev@vuser.vu.union.edu
 S:	Maintained
 
+COMPAQ FIBRE CHANNEL 64-bit/66MHz PCI non-intelligent HBA
+P:      Amy Vanzant-Hodge 
+M:      Amy Vanzant-Hodge (fibrechannel@compaq.com)
+L:	compaqandlinux@cpqlin.van-dijk.net
+W:	ftp.compaq.com/pub/products/drivers/linux
+S:      Supported
+
 COMPAQ SMART2 RAID DRIVER
 P:	Charles White	
 M:	Charles White <arrays@compaq.com>
 L:	compaqandlinux@cpqlin.van-dijk.net
 W:	ftp.compaq.com/pub/products/drivers/linux
 S:	Supported	
+
+COMPAQ SMART CISS RAID DRIVER 
+P:	Charles White
+M:	Charles White <arrays@compaq.com>
+L:	compaqandlinux@cpqlin.van-dijk.net
+W:	ftp.compaq.com/pub/products/drivers/linux	
+S:	Supported 
 
 COMPUTONE INTELLIPORT MULTIPORT CARD
 P:     Doug McNash
@@ -236,6 +250,7 @@ CONFIGURE, MENUCONFIG, XCONFIG
 P:	Michael Elizabeth Chastain
 M:	mec@shout.net
 L:	linux-kbuild@torque.net
+W:	http://www.kernel.org/pub/linux/kernel/projects/kbuild/
 S:	Maintained
 
 CONFIGURE.HELP
@@ -471,6 +486,15 @@ L:	linux-hams@vger.kernel.org
 W:	http://www.nt.tuwien.ac.at/~kkudielk/Linux/
 S:	Maintained
 
+KERNEL BUILD (Makefile, Rules.make, scripts/*)
+P:	Keith Owens
+M:	kaos@ocs.com.au
+P:	Michael Elizabeth Chastain
+M:	mec@shout.net
+L:	linux-kbuild@torque.net
+W:	http://www.kernel.org/pub/linux/kernel/projects/kbuild/
+S:	Maintained 
+
 LOGICAL VOLUME MANAGER
 P:     Heinz Mauelshagen
 M:     linux-LVM@EZ-Darmstadt.Telekom.de
@@ -540,7 +564,7 @@ S:	Supported
 
 IDE/ATAPI CDROM DRIVER
 P:	Jens Axboe
-M:	axboe@image.dk
+M:	axboe@suse.de
 L:	linux-kernel@vger.kernel.org
 W:	http://www.kernel.dk
 S:	Maintained
@@ -655,10 +679,12 @@ L:	autofs@linux.kernel.org
 S:	Maintained
 
 KERNEL NFSD
-P:	G. Allen Morris III
-M:	gam3@acm.org
+P:	Neil Brown
+M:	neilb@cse.unsw.edu.au
 L:	nfs-devel@linux.kernel.org (Linux NFS)
-W:	http://csua.berkeley.edu/~gam3/knfsd
+L:	nfs@lists.sourceforge.net
+W:	http://nfs.sourceforge.net/
+W:	http://www.cse.unsw.edu.au/~neilb/oss/knfsd/
 S:	Maintained
 
 LANMEDIA WAN CARD DRIVER
@@ -894,7 +920,7 @@ PCMCIA SUBSYSTEM
 P:	David Hinds
 M:	dhinds@zen.stanford.edu
 L:	linux-kernel@vger.kernel.org
-W:	http://pcmcia.sourceforge.org
+W:	http://pcmcia-cs.sourceforge.net
 S:	Maintained
 
 PCNET32 NETWORK DRIVER
@@ -986,7 +1012,7 @@ S:	Maintained
 
 SCSI CDROM DRIVER
 P:	Jens Axboe
-M:	axboe@image.dk
+M:	axboe@suse.de
 L:	linux-scsi@vger.kernel.org
 W:	http://www.kernel.dk
 S:	Maintained
@@ -1094,6 +1120,13 @@ STARMODE RADIO IP (STRIP) PROTOCOL DRIVER
 W:	http://mosquitonet.Stanford.EDU/strip.html
 S:	Unsupported ?
 
+STRADIS MPEG-2 DECODER DRIVER
+P:	Nathan Laredo
+M:	laredo@gnu.org
+W:	http://mpeg.openprojects.net/
+W:	http://www.stradis.com/
+S:	Maintained
+
 SUPERH
 P:	Niibe Yutaka
 M:	gniibe@chroot.org
@@ -1150,6 +1183,13 @@ M:	jgarzik@mandrakesoft.com
 L:	linux-tulip@cesdis.gsfc.nasa.gov
 S:	Maintained
 
+TUN/TAP driver
+P:	Maxim Krasnyansky
+M:	maxk@qualcomm.com, max_mk@yahoo.com
+L:	vtun@office.satix.net
+W:	http://vtun.sourceforge.net/tun
+S:	Maintained
+
 U14-34F SCSI DRIVER
 P:	Dario Ballabio
 M:	dario@milano.europe.dg.com
@@ -1174,7 +1214,7 @@ S:	Maintained
 
 UNIFORM CDROM DRIVER
 P:	Jens Axboe
-M:	axboe@image.dk
+M:	axboe@suse.de
 L:	linux-kernel@vger.kernel.org
 W:	http://www.kernel.dk
 S:	Maintained
@@ -1212,7 +1252,8 @@ S:	Supported
 
 USB HUB
 P:	Johannes Erdfelt
-M:	jerdfelt@sventech.com
+M:	jerdfelt@valinux.com
+M:	johannes@erdfelt.com
 L:	linux-usb-users@lists.sourceforge.net
 L:	linux-usb-devel@lists.sourceforge.net
 S:	Maintained
@@ -1226,7 +1267,7 @@ S:	Maintained
 
 USB OV511 DRIVER
 P:     Mark McClelland
-M:     mmcclelland@delphi.com
+M:     mwm@i.am
 L:     linux-usb-users@lists.sourceforge.net
 L:     linux-usb-devel@lists.sourceforge.net
 W:     http://alpha.dyndns.org/ov511/

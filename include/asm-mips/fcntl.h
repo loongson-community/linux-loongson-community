@@ -1,13 +1,12 @@
-/* $Id: fcntl.h,v 1.4 1998/09/19 19:19:36 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
  * Copyright (C) 1995, 1996, 1997, 1998 by Ralf Baechle
  */
-#ifndef __ASM_MIPS_FCNTL_H
-#define __ASM_MIPS_FCNTL_H
+#ifndef __ASM_FCNTL_H
+#define __ASM_FCNTL_H
 
 /* open/fcntl - O_SYNC is only implemented on blocks devices and on files
    located on an ext2 file system */
@@ -60,12 +59,20 @@
 #define F_EXLCK		4	/* or 3 */
 #define F_SHLCK		8	/* or 4 */
 
+/* for leases */
+#define F_INPROGRESS	16
+
 /* operations for bsd flock(), also used by the kernel implementation */
 #define LOCK_SH		1	/* shared lock */
 #define LOCK_EX		2	/* exclusive lock */
 #define LOCK_NB		4	/* or'd with one of the above to prevent		XXXXXXXXXXXXXXXXXX
 				   blocking */
 #define LOCK_UN		8	/* remove lock */
+
+#define LOCK_MAND	32	/* This is a mandatory flock */
+#define LOCK_READ	64	/* ... Which allows concurrent read operations */
+#define LOCK_WRITE	128	/* ... Which allows concurrent write operations */
+#define LOCK_RW		192	/* ... Which allows concurrent read & write ops */
 
 typedef struct flock {
 	short l_type;
@@ -85,4 +92,6 @@ typedef struct flock64 {
 	pid_t	l_pid;
 } flock64_t;
 
-#endif /* __ASM_MIPS_FCNTL_H */
+#define F_LINUX_SPECIFIC_BASE	1024
+
+#endif /* __ASM_FCNTL_H */

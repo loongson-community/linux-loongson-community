@@ -4,15 +4,20 @@
  *  Copyright (C) 1991, 1992, 1995  Linus Torvalds
  *  Modifications for ARM (C) 1994, 1995, 1996,1997 Russell King
  *
- * This file contains the ARM-specific time handling details:
- * reading the RTC at bootup, etc...
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
- * 1994-07-02  Alan Modra
- *             fixed set_rtc_mmss, fixed time.year for >= 2000, new mktime
- * 1998-12-20  Updated NTP code according to technical memorandum Jan '96
- *             "A Kernel Model for Precision Timekeeping" by Dave Mills
+ *  This file contains the ARM-specific time handling details:
+ *  reading the RTC at bootup, etc...
+ *
+ *  1994-07-02  Alan Modra
+ *              fixed set_rtc_mmss, fixed time.year for >= 2000, new mktime
+ *  1998-12-20  Updated NTP code according to technical memorandum Jan '96
+ *              "A Kernel Model for Precision Timekeeping" by Dave Mills
  */
 #include <linux/config.h>
+#include <linux/module.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
@@ -63,37 +68,6 @@ static unsigned long dummy_gettimeoffset(void)
  * always called with interrupts disabled.
  */
 unsigned long (*gettimeoffset)(void) = dummy_gettimeoffset;
-
-/* Converts Gregorian date to seconds since 1970-01-01 00:00:00.
- * Assumes input in normal date format, i.e. 1980-12-31 23:59:59
- * => year=1980, mon=12, day=31, hour=23, min=59, sec=59.
- *
- * [For the Julian calendar (which was used in Russia before 1917,
- * Britain & colonies before 1752, anywhere else before 1582,
- * and is still in use by some communities) leave out the
- * -year/100+year/400 terms, and add 10.]
- *
- * This algorithm was first published by Gauss (I think).
- *
- * WARNING: this function will overflow on 2106-02-07 06:28:16 on
- * machines were long is 32-bit! (However, as time_t is signed, we
- * will already get problems at other places on 2038-01-19 03:14:08)
- */
-unsigned long
-mktime(unsigned int year, unsigned int mon, unsigned int day,
-       unsigned int hour, unsigned int min, unsigned int sec)
-{
-	if (0 >= (int) (mon -= 2)) {	/* 1..12 -> 11,12,1..10 */
-		mon += 12;	/* Puts Feb last since it has leap day */
-		year -= 1;
-	}
-	return (((
-		    (unsigned long)(year/4 - year/100 + year/400 + 367*mon/12 + day) +
-		      year*365 - 719499
-		    )*24 + hour /* now have hours */
-		   )*60 + min /* now have minutes */
-		  )*60 + sec; /* finally seconds */
-}
 
 /*
  * Handle kernel profile stuff...
@@ -150,6 +124,16 @@ static inline void do_set_rtc(void)
 #ifdef CONFIG_LEDS
 
 #include <asm/leds.h>
+
+static void dummy_leds_event(led_event_t evt)
+{
+}
+
+void (*leds_event)(led_event_t) = dummy_leds_event;
+
+#ifdef CONFIG_MODULES
+EXPORT_SYMBOL(leds_event);
+#endif
 
 static void do_leds(void)
 {
@@ -234,7 +218,7 @@ void do_settimeofday(struct timeval *tv)
 }
 
 static struct irqaction timer_irq = {
-	NULL, 0, 0, "timer", NULL, NULL
+	name: "timer",
 };
 
 /*

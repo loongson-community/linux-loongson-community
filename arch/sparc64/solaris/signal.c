@@ -1,4 +1,4 @@
-/* $Id: signal.c,v 1.5 1997/12/15 15:04:59 jj Exp $
+/* $Id: signal.c,v 1.7 2000/09/05 21:44:54 davem Exp $
  * signal.c: Signal emulation for Solaris
  *
  * Copyright (C) 1997 Jakub Jelinek (jj@sunsite.mff.cuni.cz)
@@ -311,7 +311,7 @@ asmlinkage int solaris_sigpending(int which, u32 set)
 	switch (which) {
 	case 1: /* sigpending */
 		spin_lock_irq(&current->sigmask_lock);
-		sigandsets(&s, &current->blocked, &current->signal);
+		sigandsets(&s, &current->blocked, &current->pending.signal);
 		recalc_sigpending(current);
 		spin_unlock_irq(&current->sigmask_lock);
 		break;
@@ -368,9 +368,13 @@ asmlinkage int solaris_waitid(int idtype, s32 pid, u32 info, int options)
 	if (info) {
 		struct sol_siginfo *s = (struct sol_siginfo *)A(info);
 	
-		if (get_user (status, (unsigned int *)A(info))) return -EFAULT;
-		__put_user_ret (SOLARIS_SIGCLD, &s->si_signo, -EFAULT);
-		__put_user_ret (ret, &s->_data._proc._pid, -EFAULT);
+		if (get_user (status, (unsigned int *)A(info)))
+			return -EFAULT;
+
+		if (__put_user (SOLARIS_SIGCLD, &s->si_signo) ||
+		    __put_user (ret, &s->_data._proc._pid))
+			return -EFAULT;
+
 		switch (status & 0xff) {
 		case 0: ret = SOLARIS_CLD_EXITED;
 			status = (status >> 8) & 0xff;
@@ -390,8 +394,10 @@ asmlinkage int solaris_waitid(int idtype, s32 pid, u32 info, int options)
 			status = linux_to_solaris_signals[status & 0x7f];
 			break;
 		}
-		__put_user_ret (ret, &s->si_code, -EFAULT);
-		__put_user_ret (status, &s->_data._proc._pdata._cld._status, -EFAULT);
+
+		if (__put_user (ret, &s->si_code) ||
+		    __put_user (status, &s->_data._proc._pdata._cld._status))
+			return -EFAULT;
 	}
 	return 0;
 }

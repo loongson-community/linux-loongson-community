@@ -10,10 +10,13 @@
 #include <linux/file.h>
 #include <linux/smp_lock.h>
 #include <linux/quotaops.h>
+#include <linux/dnotify.h>
 #include <linux/module.h>
 #include <linux/slab.h>
 
 #include <asm/uaccess.h>
+
+#define special_file(m) (S_ISCHR(m)||S_ISBLK(m)||S_ISFIFO(m)||S_ISSOCK(m))
 
 int vfs_statfs(struct super_block *sb, struct statfs *buf)
 {
@@ -113,6 +116,13 @@ static inline long do_sys_truncate(const char * path, loff_t length)
 
 	error = -EPERM;
 	if (IS_IMMUTABLE(inode) || IS_APPEND(inode))
+		goto dput_and_out;
+
+	/*
+	 * Make sure that there are no leases.
+	 */
+	error = get_lease(inode, FMODE_WRITE);
+	if (error)
 		goto dput_and_out;
 
 	error = get_write_access(inode);
@@ -314,7 +324,8 @@ asmlinkage long sys_access(const char * filename, int mode)
 	if (!res) {
 		res = permission(nd.dentry->d_inode, mode);
 		/* SuS v2 requires we report a read only fs too */
-		if(!res && (mode & S_IWOTH) && IS_RDONLY(nd.dentry->d_inode))
+		if(!res && (mode & S_IWOTH) && IS_RDONLY(nd.dentry->d_inode)
+		   && !special_file(nd.dentry->d_inode->i_mode))
 			res = -EROFS;
 		path_release(&nd);
 	}
@@ -790,6 +801,7 @@ int filp_close(struct file *filp, fl_owner_t id)
 		retval = filp->f_op->flush(filp);
 		unlock_kernel();
 	}
+	fcntl_dirnotify(0, filp, 0);
 	locks_remove_posix(filp, id);
 	fput(filp);
 	return retval;

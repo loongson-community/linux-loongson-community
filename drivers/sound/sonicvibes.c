@@ -1051,7 +1051,8 @@ static int mixer_ioctl(struct sv_state *s, unsigned int cmd, unsigned long arg)
 	if (cmd == OSS_GETVERSION)
 		return put_user(SOUND_VERSION, (int *)arg);
 	if (cmd == SOUND_MIXER_PRIVATE1) {  /* SRS settings */
-		get_user_ret(val, (int *)arg, -EFAULT);
+		if (get_user(val, (int *)arg))
+			return -EFAULT;
 		spin_lock_irqsave(&s->lock, flags);
 		if (val & 1) {
 			if (val & 2) {
@@ -1119,7 +1120,8 @@ static int mixer_ioctl(struct sv_state *s, unsigned int cmd, unsigned long arg)
 	s->mix.modcnt++;
 	switch (_IOC_NR(cmd)) {
 	case SOUND_MIXER_RECSRC: /* Arg contains a bit for each recording source */
-		get_user_ret(val, (int *)arg, -EFAULT);
+		if (get_user(val, (int *)arg))
+			return -EFAULT;
 		i = hweight32(val);
 		if (i == 0)
 			return 0; /*val = mixer_recmask(s);*/
@@ -1143,7 +1145,8 @@ static int mixer_ioctl(struct sv_state *s, unsigned int cmd, unsigned long arg)
 		i = _IOC_NR(cmd);
 		if (i >= SOUND_MIXER_NRDEVICES || !mixtable[i].type)
 			return -EINVAL;
-		get_user_ret(val, (int *)arg, -EFAULT);
+		if (get_user(val, (int *)arg))
+			return -EFAULT;
 		l = val & 0xff;
 		r = (val >> 8) & 0xff;
 		if (mixtable[i].type == MT_4MUTEMONO)
@@ -1582,7 +1585,8 @@ static int sv_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 		return 0;
 
         case SNDCTL_DSP_SPEED:
-                get_user_ret(val, (int *)arg, -EFAULT);
+                if (get_user(val, (int *)arg))
+			return -EFAULT;
 		if (val >= 0) {
 			if (file->f_mode & FMODE_READ) {
 				stop_adc(s);
@@ -1598,7 +1602,8 @@ static int sv_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 		return put_user((file->f_mode & FMODE_READ) ? s->rateadc : s->ratedac, (int *)arg);
 		
         case SNDCTL_DSP_STEREO:
-                get_user_ret(val, (int *)arg, -EFAULT);
+                if (get_user(val, (int *)arg))
+			return -EFAULT;
 		fmtd = 0;
 		fmtm = ~0;
 		if (file->f_mode & FMODE_READ) {
@@ -1621,7 +1626,8 @@ static int sv_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 		return 0;
 
         case SNDCTL_DSP_CHANNELS:
-                get_user_ret(val, (int *)arg, -EFAULT);
+                if (get_user(val, (int *)arg))
+			return -EFAULT;
 		if (val != 0) {
 			fmtd = 0;
 			fmtm = ~0;
@@ -1650,7 +1656,8 @@ static int sv_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
                 return put_user(AFMT_S16_LE|AFMT_U8, (int *)arg);
 		
 	case SNDCTL_DSP_SETFMT: /* Selects ONE fmt*/
-		get_user_ret(val, (int *)arg, -EFAULT);
+		if (get_user(val, (int *)arg))
+			return -EFAULT;
 		if (val != AFMT_QUERY) {
 			fmtd = 0;
 			fmtm = ~0;
@@ -1687,7 +1694,8 @@ static int sv_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 		return put_user(val, (int *)arg);
 		
 	case SNDCTL_DSP_SETTRIGGER:
-		get_user_ret(val, (int *)arg, -EFAULT);
+		if (get_user(val, (int *)arg))
+			return -EFAULT;
 		if (file->f_mode & FMODE_READ) {
 			if (val & PCM_ENABLE_INPUT) {
 				if (!s->dma_adc.ready && (ret =  prog_dmabuf(s, 1)))
@@ -1798,7 +1806,8 @@ static int sv_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 		return put_user(s->dma_adc.fragsize, (int *)arg);
 
         case SNDCTL_DSP_SETFRAGMENT:
-                get_user_ret(val, (int *)arg, -EFAULT);
+                if (get_user(val, (int *)arg))
+			return -EFAULT;
 		if (file->f_mode & FMODE_READ) {
 			s->dma_adc.ossfragshift = val & 0xffff;
 			s->dma_adc.ossmaxfrags = (val >> 16) & 0xffff;
@@ -1825,7 +1834,8 @@ static int sv_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 		if ((file->f_mode & FMODE_READ && s->dma_adc.subdivision) ||
 		    (file->f_mode & FMODE_WRITE && s->dma_dac.subdivision))
 			return -EINVAL;
-                get_user_ret(val, (int *)arg, -EFAULT);
+                if (get_user(val, (int *)arg))
+			return -EFAULT;
 		if (val != 1 && val != 2 && val != 4)
 			return -EINVAL;
 		if (file->f_mode & FMODE_READ)
@@ -2579,7 +2589,7 @@ static int __devinit sv_probe(struct pci_dev *pcidev, const struct pci_device_id
 	}
 	set_fs(fs);
        /* store it in the driver field */
-	pcidev->driver_data = s;
+	pci_set_drvdata(pcidev, s);
 	pcidev->dma_mask = 0x00ffffff;
 	/* put it into driver list */
 	list_add_tail(&s->devs, &devs);
@@ -2614,7 +2624,7 @@ static int __devinit sv_probe(struct pci_dev *pcidev, const struct pci_device_id
 
 static void __devinit sv_remove(struct pci_dev *dev)
 {
-       struct sv_state *s = (struct sv_state *)dev->driver_data;
+       struct sv_state *s = pci_get_drvdata(dev);
 
        if (!s)
                return;
@@ -2636,7 +2646,7 @@ static void __devinit sv_remove(struct pci_dev *dev)
        unregister_sound_midi(s->dev_midi);
        unregister_sound_special(s->dev_dmfm);
        kfree(s);
-       dev->driver_data = NULL;
+       pci_set_drvdata(dev, NULL);
 }
 
 static struct pci_device_id id_table[] __devinitdata = {

@@ -1,7 +1,11 @@
 /*
- * linux/include/asm-arm/arch-ebsa110/time.h
+ *  linux/include/asm-arm/arch-ebsa110/time.h
  *
- * Copyright (c) 1996,1997,1998 Russell King.
+ *  Copyright (C) 1996,1997,1998 Russell King.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
  * No real time clock on the evalulation board!
  *
@@ -46,6 +50,7 @@ static void timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 #endif
 	do_leds();
 	do_timer(regs);
+	do_profile(regs);
 }
 
 /*

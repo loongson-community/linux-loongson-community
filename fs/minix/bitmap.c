@@ -83,9 +83,7 @@ void minix_free_block(struct inode * inode, int block)
 	if (!minix_test_and_clear_bit(bit,bh->b_data))
 		printk("free_block (%s:%d): bit already cleared\n",
 		       kdevname(sb->s_dev), block);
-	else
-		DQUOT_FREE_BLOCK(sb, inode, 1);
-	mark_buffer_dirty(bh, 1);
+	mark_buffer_dirty(bh);
 	return;
 }
 
@@ -100,9 +98,6 @@ int minix_new_block(struct inode * inode)
 		return 0;
 	}
 repeat:
-	if(DQUOT_ALLOC_BLOCK(sb, inode, 1))
-		return -EDQUOT;
-
 	j = 8192;
 	bh = NULL;
 	for (i = 0; i < sb->u.minix_sb.s_zmap_blocks; i++) {
@@ -114,10 +109,9 @@ repeat:
 		return 0;
 	if (minix_test_and_set_bit(j,bh->b_data)) {
 		printk("new_block: bit already set");
-		DQUOT_FREE_BLOCK(sb, inode, 1);
 		goto repeat;
 	}
-	mark_buffer_dirty(bh, 1);
+	mark_buffer_dirty(bh);
 	j += i*8192 + sb->u.minix_sb.s_firstdatazone-1;
 	if (j < sb->u.minix_sb.s_firstdatazone ||
 	    j >= sb->u.minix_sb.s_nzones)
@@ -156,7 +150,7 @@ static struct buffer_head *V1_minix_clear_inode(struct inode *inode)
 		     (ino - 1) % MINIX_INODES_PER_BLOCK);
 	raw_inode->i_nlinks = 0;
 	raw_inode->i_mode = 0;
-	mark_buffer_dirty(bh, 1);
+	mark_buffer_dirty(bh);
 	return bh;
 }
 
@@ -184,7 +178,7 @@ static struct buffer_head *V2_minix_clear_inode(struct inode *inode)
 		     (ino - 1) % MINIX2_INODES_PER_BLOCK);
 	raw_inode->i_nlinks = 0;
 	raw_inode->i_mode = 0;
-	mark_buffer_dirty(bh, 1);
+	mark_buffer_dirty(bh);
 	return bh;
 }
 
@@ -215,15 +209,12 @@ void minix_free_inode(struct inode * inode)
 		return;
 	}
 
-	DQUOT_FREE_INODE(inode->i_sb, inode);
-	DQUOT_DROP(inode);
-
 	bh = inode->i_sb->u.minix_sb.s_imap[ino >> 13];
 	minix_clear_inode(inode);
 	clear_inode(inode);
 	if (!minix_test_and_clear_bit(ino & 8191, bh->b_data))
 		printk("free_inode: bit %lu already cleared.\n",ino);
-	mark_buffer_dirty(bh, 1);
+	mark_buffer_dirty(bh);
 }
 
 struct inode * minix_new_inode(const struct inode * dir, int * error)
@@ -258,7 +249,7 @@ struct inode * minix_new_inode(const struct inode * dir, int * error)
 		unlock_super(sb);
 		return NULL;
 	}
-	mark_buffer_dirty(bh, 1);
+	mark_buffer_dirty(bh);
 	j += i*8192;
 	if (!j || j > inode->i_sb->u.minix_sb.s_ninodes) {
 		iput(inode);
@@ -276,14 +267,6 @@ struct inode * minix_new_inode(const struct inode * dir, int * error)
 	mark_inode_dirty(inode);
 
 	unlock_super(sb);
-	if(DQUOT_ALLOC_INODE(sb, inode)) {
-		sb->dq_op->drop(inode);
-		inode->i_nlink = 0;
-		iput(inode);
-		*error = -EDQUOT;
-		return NULL;
-	}
-
 	*error = 0;
 	return inode;
 }

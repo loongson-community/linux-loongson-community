@@ -1066,16 +1066,13 @@ static int arp_get_info(char *buffer, char **start, off_t offset, int length)
 			{
 				char tbuf[16];
 				sprintf(tbuf, "%u.%u.%u.%u", NIPQUAD(*(u32*)n->primary_key));
-
-				size = sprintf(buffer+len, "%-16s 0x%-10x0x%-10x%s",
+				size = sprintf(buffer+len, "%-16s 0x%-10x0x%-10x%s"
+							"     *        %s\n",
 					tbuf,
 					hatype,
 					arp_state_to_flags(n), 
-					hbuffer);
-
-				size += sprintf(buffer+len+size,
-					 "     %-8s %s\n",
-					 "*", dev->name);
+					hbuffer,
+					dev->name);
 			}
 
 			read_unlock(&n->lock);
@@ -1099,15 +1096,17 @@ static int arp_get_info(char *buffer, char **start, off_t offset, int length)
 			struct net_device *dev = n->dev;
 			int hatype = dev ? dev->type : 0;
 
-			size = sprintf(buffer+len,
-				"%u.%u.%u.%u0x%-10x0x%-10x%s",
-				NIPQUAD(*(u32*)n->key),
-				hatype,
- 				ATF_PUBL|ATF_PERM,
-				"00:00:00:00:00:00");
-			size += sprintf(buffer+len+size,
-				 "     %-17s %s\n",
-				 "*", dev ? dev->name : "*");
+			{
+				char tbuf[16];
+				sprintf(tbuf, "%u.%u.%u.%u", NIPQUAD(*(u32*)n->key));
+				size = sprintf(buffer+len, "%-16s 0x%-10x0x%-10x%s"
+							"     *        %s\n",
+					tbuf,
+					hatype,
+ 					ATF_PUBL|ATF_PERM,
+					"00:00:00:00:00:00",
+					dev ? dev->name : "*");
+			}
 
 			len += size;
 			pos += size;

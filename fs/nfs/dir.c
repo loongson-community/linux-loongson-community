@@ -606,16 +606,8 @@ static void nfs_dentry_release(struct dentry *dentry)
 static void nfs_dentry_iput(struct dentry *dentry, struct inode *inode)
 {
 	if (dentry->d_flags & DCACHE_NFSFS_RENAMED) {
-		struct dentry *dir = dentry->d_parent;
-		struct inode *dir_i = dir->d_inode;
-		int error;
-		
 		lock_kernel();
-		dir = dentry->d_parent;
-		dir_i = dir->d_inode;
-		nfs_zap_caches(dir_i);
-		NFS_CACHEINV(inode);
-		error = NFS_PROTO(dir_i)->remove(dir, &dentry->d_name);
+		nfs_complete_unlink(dentry);
 		unlock_kernel();
 	}
 	iput(inode);
@@ -817,14 +809,9 @@ static int nfs_sillyrename(struct inode *dir_i, struct dentry *dentry)
 		dentry->d_parent->d_name.name, dentry->d_name.name, 
 		atomic_read(&dentry->d_count));
 
-	/*
-	 * Note that a silly-renamed file can be deleted once it's
-	 * no longer in use -- it's just an ordinary file now.
-	 */
-	if (atomic_read(&dentry->d_count) == 1) {
-		dentry->d_flags &= ~DCACHE_NFSFS_RENAMED;
+	if (atomic_read(&dentry->d_count) == 1)
 		goto out;  /* No need to silly rename. */
-	}
+
 
 #ifdef NFS_PARANOIA
 if (!dentry->d_inode)
@@ -868,7 +855,7 @@ dentry->d_parent->d_name.name, dentry->d_name.name);
 	if (!error) {
 		nfs_renew_times(dentry);
 		d_move(dentry, sdentry);
-		dentry->d_flags |= DCACHE_NFSFS_RENAMED;
+		error = nfs_async_unlink(dentry);
  		/* If we return 0 we don't unlink */
 	}
 	dput(sdentry);
@@ -908,12 +895,21 @@ static int nfs_safe_remove(struct dentry *dentry)
 #endif
 		goto out;
 	}
+
+	/* If the dentry was sillyrenamed, we simply call d_delete() */
+	if (dentry->d_flags & DCACHE_NFSFS_RENAMED) {
+		error = 0;
+		goto out_delete;
+	}
+
 	nfs_zap_caches(dir_i);
 	if (inode)
 		NFS_CACHEINV(inode);
 	error = NFS_PROTO(dir_i)->remove(dir, &dentry->d_name);
 	if (error < 0)
 		goto out;
+
+ out_delete:
 	/*
 	 * Free the inode
 	 */

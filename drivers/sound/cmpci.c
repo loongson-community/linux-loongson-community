@@ -1038,7 +1038,8 @@ static int mixer_ioctl(struct cm_state *s, unsigned int cmd, unsigned long arg)
 	s->mix.modcnt++;
 	switch (_IOC_NR(cmd)) {
 	case SOUND_MIXER_RECSRC: /* Arg contains a bit for each recording source */
-		get_user_ret(val, (int *)arg, -EFAULT);
+		if (get_user(val, (int *)arg))
+			return -EFAULT;
 		i = hweight32(val);
 		for (j = i = 0; i < SOUND_MIXER_NRDEVICES; i++) {
 			if (!(val & (1 << i)))
@@ -1056,7 +1057,8 @@ static int mixer_ioctl(struct cm_state *s, unsigned int cmd, unsigned long arg)
 		return 0;
 
 	case SOUND_MIXER_OUTSRC: /* Arg contains a bit for each recording source */
-		get_user_ret(val, (int *)arg, -EFAULT);
+		if (get_user(val, (int *)arg))
+			return -EFAULT;
 		for (j = i = 0; i < SOUND_MIXER_NRDEVICES; i++) {
 			if (!(val & (1 << i)))
 				continue;
@@ -1075,7 +1077,8 @@ static int mixer_ioctl(struct cm_state *s, unsigned int cmd, unsigned long arg)
 		i = _IOC_NR(cmd);
 		if (i >= SOUND_MIXER_NRDEVICES || !mixtable[i].type)
 			return -EINVAL;
-		get_user_ret(val, (int *)arg, -EFAULT);
+		if (get_user(val, (int *)arg))
+			return -EFAULT;
 		l = val & 0xff;
 		r = (val >> 8) & 0xff;
 		if (l > 100)
@@ -1469,7 +1472,8 @@ static int cm_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 		return 0;
 
         case SNDCTL_DSP_SPEED:
-                get_user_ret(val, (int *)arg, -EFAULT);
+                if (get_user(val, (int *)arg))
+			return -EFAULT;
 		if (val >= 0) {
 			if (file->f_mode & FMODE_READ) {
 				stop_adc(s);
@@ -1485,7 +1489,8 @@ static int cm_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 		return put_user((file->f_mode & FMODE_READ) ? s->rateadc : s->ratedac, (int *)arg);
 		
         case SNDCTL_DSP_STEREO:
-                get_user_ret(val, (int *)arg, -EFAULT);
+                if (get_user(val, (int *)arg))
+			return -EFAULT;
 		fmtd = 0;
 		fmtm = ~0;
 		if (file->f_mode & FMODE_READ) {
@@ -1508,7 +1513,8 @@ static int cm_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 		return 0;
 
         case SNDCTL_DSP_CHANNELS:
-                get_user_ret(val, (int *)arg, -EFAULT);
+                if (get_user(val, (int *)arg))
+			return -EFAULT;
 		if (val != 0) {
 			fmtd = 0;
 			fmtm = ~0;
@@ -1537,7 +1543,8 @@ static int cm_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
                 return put_user(AFMT_S16_LE|AFMT_U8, (int *)arg);
 		
 	case SNDCTL_DSP_SETFMT: /* Selects ONE fmt*/
-		get_user_ret(val, (int *)arg, -EFAULT);
+		if (get_user(val, (int *)arg))
+			return -EFAULT;
 		if (val != AFMT_QUERY) {
 			fmtd = 0;
 			fmtm = ~0;
@@ -1574,7 +1581,8 @@ static int cm_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 		return put_user(val, (int *)arg);
 		
 	case SNDCTL_DSP_SETTRIGGER:
-		get_user_ret(val, (int *)arg, -EFAULT);
+		if (get_user(val, (int *)arg))
+			return -EFAULT;
 		if (file->f_mode & FMODE_READ) {
 			if (val & PCM_ENABLE_INPUT) {
 				if (!s->dma_adc.ready && (ret =  prog_dmabuf(s, 1)))
@@ -1671,7 +1679,8 @@ static int cm_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 		return put_user(s->dma_adc.fragsize, (int *)arg);
 
         case SNDCTL_DSP_SETFRAGMENT:
-                get_user_ret(val, (int *)arg, -EFAULT);
+                if (get_user(val, (int *)arg))
+			return -EFAULT;
 		if (file->f_mode & FMODE_READ) {
 			s->dma_adc.ossfragshift = val & 0xffff;
 			s->dma_adc.ossmaxfrags = (val >> 16) & 0xffff;
@@ -1698,7 +1707,8 @@ static int cm_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 		if ((file->f_mode & FMODE_READ && s->dma_adc.subdivision) ||
 		    (file->f_mode & FMODE_WRITE && s->dma_dac.subdivision))
 			return -EINVAL;
-                get_user_ret(val, (int *)arg, -EFAULT);
+                if (get_user(val, (int *)arg))
+			return -EFAULT;
 		if (val != 1 && val != 2 && val != 4)
 			return -EINVAL;
 		if (file->f_mode & FMODE_READ)
@@ -2277,8 +2287,6 @@ static int	rear_out = 0;
 MODULE_PARM(spdif_loop, "i");
 MODULE_PARM(four_ch, "i");
 MODULE_PARM(rear_out, "i");
-
-int  __init init_module(void)
 #else
 #ifdef CONFIG_SOUND_CMPCI_SPDIFLOOP
 static int	spdif_loop = 1;
@@ -2295,9 +2303,9 @@ static int	rear_out = 1;
 #else
 static int	rear_out = 0;
 #endif
-
-int __init init_cmpci(void)
 #endif
+
+static int __init init_cmpci(void)
 {
 	struct cm_state *s;
 	struct pci_dev *pcidev = NULL;
@@ -2362,28 +2370,25 @@ int __init init_cmpci(void)
 			continue;
 		s->irq = pcidev->irq;
 
-		if (check_region(s->iobase, CM_EXTENT_CODEC)) {
+		if (!request_region(s->iobase, CM_EXTENT_CODEC, "cmpci")) {
 			printk(KERN_ERR "cmpci: io ports %#x-%#x in use\n", s->iobase, s->iobase+CM_EXTENT_CODEC-1);
 			goto err_region5;
 		}
-		request_region(s->iobase, CM_EXTENT_CODEC, "cmpci");
-		if (check_region(s->iomidi, CM_EXTENT_MIDI)) {
+		if (!request_region(s->iomidi, CM_EXTENT_MIDI, "cmpci Midi")) {
 			printk(KERN_WARNING "cmpci: io ports %#x-%#x in use, midi disabled.\n", s->iomidi, s->iomidi+CM_EXTENT_MIDI-1);
 			s->iomidi = 0;
 		}
 		else
 		{
-			request_region(s->iomidi, CM_EXTENT_MIDI, "cmpci Midi");
 			/* set IO based at 0x330 */
 			outb(inb(s->iobase + CODEC_CMI_LEGACY_CTRL + 3) & ~0x60, s->iobase + CODEC_CMI_LEGACY_CTRL + 3);
 		}
-		if (check_region(s->iosynth, CM_EXTENT_SYNTH)) {
+		if (!request_region(s->iosynth, CM_EXTENT_SYNTH, "cmpci FM")) {
 			printk(KERN_WARNING "cmpci: io ports %#x-%#x in use, synth disabled.\n", s->iosynth, s->iosynth+CM_EXTENT_SYNTH-1);
 			s->iosynth = 0;
 		}
 		else
 		{
-			request_region(s->iosynth, CM_EXTENT_SYNTH, "cmpci FM");
 			/* enable FM */
 			outb(inb(s->iobase + CODEC_CMI_MISC_CTRL + 2) | 8, s->iobase + CODEC_CMI_MISC_CTRL);
 		}
@@ -2489,12 +2494,10 @@ int __init init_cmpci(void)
 
 /* --------------------------------------------------------------------- */
 
-#ifdef MODULE
-
 MODULE_AUTHOR("ChenLi Tien, cltien@home.com");
 MODULE_DESCRIPTION("CMPCI Audio Driver");
 
-void cleanup_module(void)
+static void __exit cleanup_cmpci(void)
 {
 	struct cm_state *s;
 
@@ -2528,4 +2531,5 @@ void cleanup_module(void)
 	printk(KERN_INFO "cmpci: unloading\n");
 }
 
-#endif /* MODULE */
+module_init(init_cmpci);
+module_exit(cleanup_cmpci);

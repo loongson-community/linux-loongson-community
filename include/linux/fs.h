@@ -54,6 +54,7 @@ struct files_stat_struct {
 };
 extern struct files_stat_struct files_stat;
 extern int max_super_blocks, nr_super_blocks;
+extern int leases_enable, dir_notify_enable, lease_break_time;
 
 #define NR_FILE  8192	/* this can well be larger on a larger system */
 #define NR_RESERVED_FILES 10 /* reserved for root */
@@ -93,7 +94,7 @@ extern int max_super_blocks, nr_super_blocks;
 				  * as nfs_rename() will be cleaned up
 				  */
 /*
- * These are the fs-independent mount-flags: up to 16 flags are supported
+ * These are the fs-independent mount-flags: up to 32 flags are supported
  */
 #define MS_RDONLY	 1	/* Mount read-only */
 #define MS_NOSUID	 2	/* Ignore suid and sgid bits */
@@ -104,6 +105,7 @@ extern int max_super_blocks, nr_super_blocks;
 #define MS_MANDLOCK	64	/* Allow mandatory locks on an FS */
 #define MS_NOATIME	1024	/* Do not update access times. */
 #define MS_NODIRATIME	2048	/* Do not update directory access times */
+#define MS_BIND		4096
 
 /*
  * Flags that can be altered by MS_REMOUNT
@@ -361,7 +363,8 @@ struct address_space {
 	unsigned long		nrpages;	/* number of pages */
 	struct address_space_operations *a_ops;	/* methods */
 	void			*host;		/* owner: inode, block_device */
-	struct vm_area_struct	*i_mmap;	/* list of mappings */
+	struct vm_area_struct	*i_mmap;	/* list of private mappings */
+	struct vm_area_struct	*i_mmap_shared; /* list of shared mappings */
 	spinlock_t		i_shared_lock;  /* and spinlock protecting it */
 };
 
@@ -407,6 +410,9 @@ struct inode {
 	struct dquot		*i_dquot[MAXQUOTAS];
 	struct pipe_inode_info	*i_pipe;
 	struct block_device	*i_bdev;
+
+	unsigned long		i_dnotify_mask; /* Directory notify events */
+	struct dnotify_struct	*i_dnotify; /* for directory notifications */
 
 	unsigned long		i_state;
 
@@ -497,6 +503,7 @@ extern int init_private_file(struct file *, struct dentry *, int);
 #define FL_BROKEN	4	/* broken flock() emulation */
 #define FL_ACCESS	8	/* for processes suspended by mandatory locking */
 #define FL_LOCKD	16	/* lock held by rpc.lockd */
+#define FL_LEASE	32	/* lease held on this file */
 
 /*
  * The POSIX file lock owner is determined by
@@ -511,6 +518,7 @@ struct file_lock {
 	struct file_lock *fl_next;	/* singly linked list for this inode  */
 	struct list_head fl_link;	/* doubly linked list of all locks */
 	struct list_head fl_block; /* circular list of blocked processes */
+	struct list_head fl_list;	/* block list member */
 	fl_owner_t fl_owner;
 	unsigned int fl_pid;
 	wait_queue_head_t fl_wait;
@@ -523,6 +531,8 @@ struct file_lock {
 	void (*fl_notify)(struct file_lock *);	/* unblock callback */
 	void (*fl_insert)(struct file_lock *);	/* lock insertion callback */
 	void (*fl_remove)(struct file_lock *);	/* lock removal callback */
+
+	struct fasync_struct *	fl_fasync; /* for lease break notifications */
 
 	union {
 		struct nfs_lock_info	nfs_fl;
@@ -537,6 +547,7 @@ struct file_lock {
 #endif
 
 extern struct list_head file_lock_list;
+extern struct semaphore file_lock_sem;
 
 #include <linux/fcntl.h>
 
@@ -547,12 +558,18 @@ extern int fcntl_getlk64(unsigned int, struct flock64 *);
 extern int fcntl_setlk64(unsigned int, unsigned int, struct flock64 *);
 
 /* fs/locks.c */
+extern void locks_init_lock(struct file_lock *);
+extern void locks_copy_lock(struct file_lock *, struct file_lock *);
 extern void locks_remove_posix(struct file *, fl_owner_t);
 extern void locks_remove_flock(struct file *);
 extern struct file_lock *posix_test_lock(struct file *, struct file_lock *);
 extern int posix_lock_file(struct file *, struct file_lock *, unsigned int);
 extern void posix_block_lock(struct file_lock *, struct file_lock *);
 extern void posix_unblock_lock(struct file_lock *);
+extern int __get_lease(struct inode *inode, unsigned int flags);
+extern time_t lease_get_mtime(struct inode *);
+extern int lock_may_read(struct inode *, loff_t start, unsigned long count);
+extern int lock_may_write(struct inode *, loff_t start, unsigned long count);
 
 struct fasync_struct {
 	int	magic;
@@ -885,6 +902,12 @@ static inline int locks_verify_truncate(struct inode *inode,
 	return 0;
 }
 
+extern inline int get_lease(struct inode *inode, unsigned int mode)
+{
+	if (inode->i_flock && (inode->i_flock->fl_flags & FL_LEASE))
+		return __get_lease(inode, mode);
+	return 0;
+}
 
 /* fs/open.c */
 
@@ -984,8 +1007,8 @@ static inline void mark_buffer_protected(struct buffer_head * bh)
 		__mark_buffer_protected(bh);
 }
 
-extern void FASTCALL(__mark_buffer_dirty(struct buffer_head *bh, int flag));
-extern void FASTCALL(mark_buffer_dirty(struct buffer_head *bh, int flag));
+extern void FASTCALL(__mark_buffer_dirty(struct buffer_head *bh));
+extern void FASTCALL(mark_buffer_dirty(struct buffer_head *bh));
 
 #define atomic_set_buffer_dirty(bh) test_and_set_bit(BH_Dirty, &(bh)->b_state)
 
@@ -1049,9 +1072,20 @@ extern ino_t find_inode_number(struct dentry *, struct qstr *);
  * This should be a per-architecture thing, to allow different
  * error and pointer decisions.
  */
-#define ERR_PTR(err)	((void *)((long)(err)))
-#define PTR_ERR(ptr)	((long)(ptr))
-#define IS_ERR(ptr)	((unsigned long)(ptr) > (unsigned long)(-1000))
+static inline void *ERR_PTR(long error)
+{
+	return (void *) error;
+}
+
+static inline long PTR_ERR(const void *ptr)
+{
+	return (long) ptr;
+}
+
+static inline long IS_ERR(const void *ptr)
+{
+	return (unsigned long)ptr > (unsigned long)-1000L;
+}
 
 /*
  * The bitmask for a lookup event:
@@ -1161,6 +1195,7 @@ extern int block_sync_page(struct page *);
 
 int generic_block_bmap(struct address_space *, long, get_block_t *);
 int generic_commit_write(struct file *, struct page *, unsigned, unsigned);
+int block_truncate_page(struct address_space *, loff_t, get_block_t *);
 
 extern int generic_file_mmap(struct file *, struct vm_area_struct *);
 extern ssize_t generic_file_read(struct file *, char *, size_t, loff_t *);

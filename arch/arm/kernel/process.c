@@ -3,8 +3,11 @@
  *
  *  Copyright (C) 1996-2000 Russell King - Converted to ARM.
  *  Origional Copyright (C) 1995  Linus Torvalds
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
-
 #include <stdarg.h>
 
 #include <linux/config.h>
@@ -173,10 +176,11 @@ void show_regs(struct pt_regs * regs)
 		flags & CC_Z_BIT ? 'Z' : 'z',
 		flags & CC_C_BIT ? 'C' : 'c',
 		flags & CC_V_BIT ? 'V' : 'v');
-	printk("  IRQs %s  FIQs %s  Mode %s  Segment %s\n",
+	printk("  IRQs %s  FIQs %s  Mode %s%s  Segment %s\n",
 		interrupts_enabled(regs) ? "on" : "off",
 		fast_interrupts_enabled(regs) ? "on" : "off",
 		processor_modes[processor_mode(regs)],
+		thumb_mode(regs) ? " (T)" : "",
 		get_fs() == get_ds() ? "kernel" : "user");
 #if defined(CONFIG_CPU_32)
 	{
@@ -280,8 +284,8 @@ void exit_thread(void)
 
 void flush_thread(void)
 {
-	memset(&current->thread.debug, 0, sizeof(current->thread.debug));
-	memset(&current->thread.fpstate, 0, sizeof(current->thread.fpstate));
+	memset(&current->thread.debug, 0, sizeof(struct debug_info));
+	memset(&current->thread.fpstate, 0, sizeof(union fp_state));
 	current->used_math = 0;
 	current->flags &= ~PF_USEDFPU;
 }
@@ -291,6 +295,7 @@ void release_thread(struct task_struct *dead_task)
 }
 
 int copy_thread(int nr, unsigned long clone_flags, unsigned long esp,
+	unsigned long unused,
 	struct task_struct * p, struct pt_regs * regs)
 {
 	struct pt_regs * childregs;
@@ -326,19 +331,21 @@ int dump_fpu (struct pt_regs *regs, struct user_fp *fp)
  */
 void dump_thread(struct pt_regs * regs, struct user * dump)
 {
+	struct task_struct *tsk = current;
+
 	dump->magic = CMAGIC;
-	dump->start_code = current->mm->start_code;
+	dump->start_code = tsk->mm->start_code;
 	dump->start_stack = regs->ARM_sp & ~(PAGE_SIZE - 1);
 
-	dump->u_tsize = (current->mm->end_code - current->mm->start_code) >> PAGE_SHIFT;
-	dump->u_dsize = (current->mm->brk - current->mm->start_data + PAGE_SIZE - 1) >> PAGE_SHIFT;
+	dump->u_tsize = (tsk->mm->end_code - tsk->mm->start_code) >> PAGE_SHIFT;
+	dump->u_dsize = (tsk->mm->brk - tsk->mm->start_data + PAGE_SIZE - 1) >> PAGE_SHIFT;
 	dump->u_ssize = 0;
 
-	dump->u_debugreg[0] = current->thread.debug.bp[0].address;
-	dump->u_debugreg[1] = current->thread.debug.bp[1].address;
-	dump->u_debugreg[2] = current->thread.debug.bp[0].insn;
-	dump->u_debugreg[3] = current->thread.debug.bp[1].insn;
-	dump->u_debugreg[4] = current->thread.debug.nsaved;
+	dump->u_debugreg[0] = tsk->thread.debug.bp[0].address;
+	dump->u_debugreg[1] = tsk->thread.debug.bp[1].address;
+	dump->u_debugreg[2] = tsk->thread.debug.bp[0].insn;
+	dump->u_debugreg[3] = tsk->thread.debug.bp[1].insn;
+	dump->u_debugreg[4] = tsk->thread.debug.nsaved;
 
 	if (dump->start_stack < 0x04000000)
 		dump->u_ssize = (0x04000000 - dump->start_stack) >> PAGE_SHIFT;

@@ -1,5 +1,4 @@
-/* $Id: system.h,v 1.20 1999/12/06 23:13:21 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
@@ -61,32 +60,30 @@ __cli(void)
 		: "$1", "memory");
 }
 
-#define __save_flags(x)                  \
-__asm__ __volatile__(                    \
-	".set\tpush\n\t"		 \
-	".set\treorder\n\t"              \
-	"mfc0\t%0,$12\n\t"               \
-	".set\tpop\n\t"                      \
-	: "=r" (x)                       \
-	: /* no inputs */                \
-	: "memory")
+#define __save_flags(x)			\
+__asm__ __volatile__(			\
+	".set\tpush\n\t"		\
+	".set\treorder\n\t"		\
+	"mfc0\t%0,$12\n\t"		\
+	".set\tpop\n\t"			\
+	: "=r" (x))
 
-#define __save_and_cli(x)                \
-__asm__ __volatile__(                    \
-	".set\tpush\n\t"		 \
-	".set\treorder\n\t"              \
-	".set\tnoat\n\t"                 \
-	"mfc0\t%0,$12\n\t"               \
-	"ori\t$1,%0,1\n\t"               \
-	"xori\t$1,1\n\t"                 \
-	".set\tnoreorder\n\t"		 \
-	"mtc0\t$1,$12\n\t"               \
-	"nop\n\t"                        \
-	"nop\n\t"                        \
-	"nop\n\t"                        \
-	".set\tpop\n\t"                  \
-	: "=r" (x)                       \
-	: /* no inputs */                \
+#define __save_and_cli(x)		\
+__asm__ __volatile__(			\
+	".set\tpush\n\t"		\
+	".set\treorder\n\t"		\
+	".set\tnoat\n\t"		\
+	"mfc0\t%0,$12\n\t"		\
+	"ori\t$1,%0,1\n\t"		\
+	"xori\t$1,1\n\t"		\
+	".set\tnoreorder\n\t"		\
+	"mtc0\t$1,$12\n\t"		\
+	"nop\n\t"			\
+	"nop\n\t"			\
+	"nop\n\t"			\
+	".set\tpop\n\t"			\
+	: "=r" (x)			\
+	: /* no inputs */		\
 	: "$1", "memory")
 
 extern void __inline__
@@ -131,11 +128,14 @@ __restore_flags(int flags)
  * These are probably defined overly paranoid ...
  */
 #ifdef CONFIG_CPU_HAS_WB
+
 #include <asm/wbflush.h>
 #define rmb()
 #define wmb() wbflush()
 #define mb() wbflush()
-#else
+
+#else /* CONFIG_CPU_HAS_WB  */
+
 #define mb()						\
 __asm__ __volatile__(					\
 	"# prevent instructions being moved around\n\t"	\
@@ -148,6 +148,17 @@ __asm__ __volatile__(					\
 	: "memory")
 #define rmb() mb()
 #define wmb() mb()
+
+#endif /* CONFIG_CPU_HAS_WB  */
+
+#ifdef CONFIG_SMP
+#define smp_mb()	mb()
+#define smp_rmb()	rmb()
+#define smp_wmb()	wmb()
+#else
+#define smp_mb()	barrier()
+#define smp_rmb()	barrier()
+#define smp_wmb()	barrier()
 #endif
 
 #define set_mb(var, value) \

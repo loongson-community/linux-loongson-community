@@ -1,10 +1,14 @@
 /*
- * linux/asm-arm/proc-armo/assembler.h
+ *  linux/asm-arm/proc-armo/assembler.h
  *
- * Copyright (C) 1996 Russell King
+ *  Copyright (C) 1996 Russell King
  *
- * This file contains arm architecture specific defines
- * for the different processors
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ *  This file contains arm architecture specific defines
+ *  for the different processors
  */
 #define MODE_USR	USR26_MODE
 #define MODE_FIQ	FIQ26_MODE
@@ -78,3 +82,25 @@
 	.macro	restore_irqs, oldcpsr
   @ This be restore_irqs
   .endm
+
+/*
+ * These two are used to save LR/restore PC over a user-based access.
+ * The old 26-bit architecture requires that we do.  On 32-bit
+ * architecture, we can safely ignore this requirement.
+ */
+	.macro	save_lr
+	str	lr, [sp, #-4]!
+	.endm
+
+	.macro	restore_pc
+	ldmfd	sp!, {pc}^
+	.endm
+
+#define USER(x...)				\
+9999:	x;					\
+	.section __ex_table,"a";		\
+	.align	3;				\
+	.long	9999b,9001f;			\
+	.previous
+
+

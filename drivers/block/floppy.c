@@ -118,6 +118,12 @@
  * being used to store jiffies, which are unsigned longs).
  */
 
+/*
+ * 2000/08/28 -- Arnaldo Carvalho de Melo <acme@conectiva.com.br>
+ * - get rid of check_region
+ * - s/suser/capable/
+ */
+
 #define FLOPPY_SANITY_CHECK
 #undef  FLOPPY_SILENT_DCL_CLEAR
 
@@ -162,7 +168,7 @@ static int print_unex=1;
  * It's been recommended that take about 1/4 of the default speed
  * in some more extreme cases.
  */
-static int slow_floppy = 0;
+static int slow_floppy;
 
 #include <asm/dma.h>
 #include <asm/irq.h>
@@ -197,7 +203,7 @@ static unsigned short virtual_dma_port=0x3f0;
 void floppy_interrupt(int irq, void *dev_id, struct pt_regs * regs);
 static int set_dor(int fdc, char mask, char data);
 static void register_devfs_entries (int drive) __init;
-static devfs_handle_t devfs_handle = NULL;
+static devfs_handle_t devfs_handle;
 
 #define K_64	0x10000		/* 64KB */
 
@@ -215,7 +221,7 @@ static int allowed_drive_mask = 0x33;
 
 #include <asm/floppy.h>
 
-static int irqdma_allocated = 0;
+static int irqdma_allocated;
 
 #define MAJOR_NR FLOPPY_MAJOR
 
@@ -253,7 +259,7 @@ static inline void fallback_on_nodma_alloc(char **addr, size_t l)
 
 /* End dma memory related stuff */
 
-static unsigned long fake_change = 0;
+static unsigned long fake_change;
 static int initialising=1;
 
 static inline int TYPE(kdev_t x) {
@@ -454,10 +460,7 @@ static struct floppy_struct floppy_type[32] = {
 #define SECTSIZE (_FD_SECTSIZE(*floppy))
 
 /* Auto-detection: Disk type used until the next media change occurs. */
-static struct floppy_struct *current_type[N_DRIVE] = {
-	NULL, NULL, NULL, NULL,
-	NULL, NULL, NULL, NULL
-};
+static struct floppy_struct *current_type[N_DRIVE];
 
 /*
  * User-provided type information. current_type points to
@@ -466,14 +469,14 @@ static struct floppy_struct *current_type[N_DRIVE] = {
 static struct floppy_struct user_params[N_DRIVE];
 
 static int floppy_sizes[256];
-static int floppy_blocksizes[256] = { 0, };
+static int floppy_blocksizes[256];
 
 /*
  * The driver is trying to determine the correct media format
  * while probing is set. rw_interrupt() clears it after a
  * successful access.
  */
-static int probing = 0;
+static int probing;
 
 /* Synchronization of FDC access. */
 #define FD_COMMAND_NONE -1
@@ -481,7 +484,7 @@ static int probing = 0;
 #define FD_COMMAND_OKAY 3
 
 static volatile int command_status = FD_COMMAND_NONE;
-static unsigned long fdc_busy = 0;
+static unsigned long fdc_busy;
 static DECLARE_WAIT_QUEUE_HEAD(fdc_wait);
 static DECLARE_WAIT_QUEUE_HEAD(command_done);
 
@@ -552,9 +555,7 @@ static void reset_fdc(void);
 #define NEED_1_RECAL -2
 #define NEED_2_RECAL -3
 
-/* */
-static int usage_count = 0;
-
+static int usage_count;
 
 /* buffer related variables */
 static int buffer_track = -1;
@@ -567,8 +568,8 @@ static struct floppy_fdc_state fdc_state[N_FDC];
 static int fdc; /* current fdc */
 
 static struct floppy_struct *_floppy = floppy_type;
-static unsigned char current_drive = 0;
-static long current_count_sectors = 0;
+static unsigned char current_drive;
+static long current_count_sectors;
 static unsigned char sector_t; /* sector in track */
 static unsigned char in_sector_offset;	/* offset within physical sector,
 					 * expressed in units of 512 bytes */
@@ -619,7 +620,7 @@ static void is_alive(const char *message)
 
 #define OLOGSIZE 20
 
-static void (*lasthandler)(void) = NULL;
+static void (*lasthandler)(void);
 static unsigned long interruptjiffies;
 static unsigned long resultjiffies;
 static int resultsize;
@@ -985,8 +986,7 @@ static void empty(void)
 {
 }
 
-static struct tq_struct floppy_tq =
-{ 0, 0, 0, 0 };
+static struct tq_struct floppy_tq;
 
 static void schedule_bh( void (*handler)(void*) )
 {
@@ -1263,7 +1263,7 @@ static inline void perpendicular_mode(void)
 } /* perpendicular_mode */
 
 static int fifo_depth = 0xa;
-static int no_fifo = 0;
+static int no_fifo;
 
 static int fdc_configure(void)
 {
@@ -2282,6 +2282,7 @@ static int do_format(kdev_t device, struct format_descr *tmp_format_req)
 static void request_done(int uptodate)
 {
 	int block;
+	unsigned long flags;
 
 	probing = 0;
 	reschedule_timeout(MAXTIMEOUT, "request done %d", uptodate);
@@ -2300,6 +2301,7 @@ static void request_done(int uptodate)
 			DRS->maxtrack = 1;
 
 		/* unlock chained buffers */
+		spin_lock_irqsave(&io_request_lock, flags);
 		while (current_count_sectors && !QUEUE_EMPTY &&
 		       current_count_sectors >= CURRENT->current_nr_sectors){
 			current_count_sectors -= CURRENT->current_nr_sectors;
@@ -2307,6 +2309,8 @@ static void request_done(int uptodate)
 			CURRENT->sector += CURRENT->current_nr_sectors;
 			end_request(1);
 		}
+		spin_unlock_irqrestore(&io_request_lock, flags);
+
 		if (current_count_sectors && !QUEUE_EMPTY){
 			/* "unlock" last subsector */
 			CURRENT->buffer += current_count_sectors <<9;
@@ -2330,7 +2334,9 @@ static void request_done(int uptodate)
 			DRWE->last_error_sector = CURRENT->sector;
 			DRWE->last_error_generation = DRS->generation;
 		}
+		spin_lock_irqsave(&io_request_lock, flags);
 		end_request(0);
+		spin_unlock_irqrestore(&io_request_lock, flags);
 	}
 }
 
@@ -3497,7 +3503,7 @@ static int fd_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
 
 	/* permission checks */
 	if (((cmd & 0x40) && !(filp->f_mode & 2)) ||
-	    ((cmd & 0x80) && !suser()))
+	    ((cmd & 0x80) && !capable(CAP_SYS_ADMIN)))
 		return -EPERM;
 
 	/* copyin */
@@ -4299,23 +4305,14 @@ static int floppy_grab_irq_and_dma(void)
 
 	for (fdc=0; fdc< N_FDC; fdc++){
 		if (FDCS->address != -1){
-			if (check_region(FDCS->address, 6) < 0 ||
-			    check_region(FDCS->address+7, 1) < 0) {
+			if (!request_region(FDCS->address, 6, "floppy")) {
 				DPRINT("Floppy io-port 0x%04lx in use\n", FDCS->address);
-				fd_free_irq();
-				fd_free_dma();
-				while(--fdc >= 0) {
-					release_region(FDCS->address, 6);
-					release_region(FDCS->address+7, 1);
-				}
-				MOD_DEC_USE_COUNT;
-				spin_lock_irqsave(&floppy_usage_lock, flags);
-				usage_count--;
-				spin_unlock_irqrestore(&floppy_usage_lock, flags);
-				return -1;
+				goto cleanup1;
 			}
-			request_region(FDCS->address, 6, "floppy");
-			request_region(FDCS->address+7, 1, "floppy DIR");
+			if (!request_region(FDCS->address + 7, 1, "floppy DIR")) {
+				DPRINT("Floppy io-port 0x%04lx in use\n", FDCS->address + 7);
+				goto cleanup2;
+			}
 			/* address + 6 is reserved, and may be taken by IDE.
 			 * Unfortunately, Adaptec doesn't know this :-(, */
 		}
@@ -4339,6 +4336,20 @@ static int floppy_grab_irq_and_dma(void)
 	fdc = 0;
 	irqdma_allocated = 1;
 	return 0;
+cleanup2:
+	release_region(FDCS->address, 6);
+cleanup1:
+	fd_free_irq();
+	fd_free_dma();
+	while(--fdc >= 0) {
+		release_region(FDCS->address, 6);
+		release_region(FDCS->address + 7, 1);
+	}
+	MOD_DEC_USE_COUNT;
+	spin_lock_irqsave(&floppy_usage_lock, flags);
+	usage_count--;
+	spin_unlock_irqrestore(&floppy_usage_lock, flags);
+	return -1;
 }
 
 static void floppy_release_irq_and_dma(void)

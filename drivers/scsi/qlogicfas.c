@@ -643,8 +643,10 @@ int	qlogicfas_biosparam(Disk * disk, kdev_t dev, int ip[])
 		ip[0] = 0xff;
 		ip[1] = 0x3f;
 		ip[2] = disk->capacity / (ip[0] * ip[1]);
+#if 0
 		if (ip[2] > 1023)
 			ip[2] = 1023;
+#endif
 	}
 	return 0;
 }
@@ -674,10 +676,7 @@ const char	*qlogicfas_info(struct Scsi_Host * host)
 	return qinfo;
 }
 
-#ifdef MODULE
 /* Eventually this will go into an include file, but this will be later */
-Scsi_Host_Template driver_template = QLOGICFAS;
-
+static Scsi_Host_Template driver_template = QLOGICFAS;
 #include "scsi_module.c"
-#endif
 

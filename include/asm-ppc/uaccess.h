@@ -57,7 +57,7 @@ struct exception_table_entry
 
 /* Returns 0 if exception not found and fixup otherwise.  */
 extern unsigned long search_exception_table(unsigned long);
-
+extern void sort_exception_table(void);
 
 /*
  * These are the main single-value transfer routines.  They automatically
@@ -86,25 +86,6 @@ extern unsigned long search_exception_table(unsigned long);
   __get_user_nocheck((x),(ptr),sizeof(*(ptr)))
 #define __put_user(x,ptr) \
   __put_user_nocheck((__typeof__(*(ptr)))(x),(ptr),sizeof(*(ptr)))
-
-/*
- * The "xxx_ret" versions return constant specified in third argument, if
- * something bad happens. These macros can be optimized for the
- * case of just returning from the function xxx_ret is used.
- */
-
-#define put_user_ret(x,ptr,ret) ({ \
-if (put_user(x,ptr)) return ret; })
-
-#define get_user_ret(x,ptr,ret) ({ \
-if (get_user(x,ptr)) return ret; })
-
-#define __put_user_ret(x,ptr,ret) ({ \
-if (__put_user(x,ptr)) return ret; })
-
-#define __get_user_ret(x,ptr,ret) ({ \
-if (__get_user(x,ptr)) return ret; })
-
 
 extern long __put_user_bad(void);
 
@@ -150,10 +131,11 @@ struct __large_struct { unsigned long buf[100]; };
 		".section .fixup,\"ax\"\n"			\
 		"3:	li %0,%3\n"				\
 		"	b 2b\n"					\
+		".previous\n"					\
 		".section __ex_table,\"a\"\n"			\
 		"	.align 2\n"				\
 		"	.long 1b,3b\n"				\
-		".text"						\
+		".previous"					\
 		: "=r"(err)					\
 		: "r"(x), "b"(addr), "i"(-EFAULT), "0"(err))
 
@@ -197,10 +179,11 @@ do {								\
 		"3:	li %0,%3\n"			\
 		"	li %1,0\n"			\
 		"	b 2b\n"				\
+		".previous\n"				\
 		".section __ex_table,\"a\"\n"		\
 		"	.align 2\n"			\
 		"	.long 1b,3b\n"			\
-		".text"					\
+		".previous"				\
 		: "=r"(err), "=r"(x)			\
 		: "b"(addr), "i"(-EFAULT), "0"(err))
 
@@ -235,10 +218,6 @@ copy_to_user(void *to, const void *from, unsigned long n)
 	}
 	return n;
 }
-
-#define copy_to_user_ret(to,from,n,retval) ({ if (copy_to_user(to,from,n)) return retval; })
-
-#define copy_from_user_ret(to,from,n,retval) ({ if (copy_from_user(to,from,n)) return retval; })
 
 #define __copy_from_user(to, from, size) \
 	__copy_tofrom_user((to), (from), (size))

@@ -25,19 +25,7 @@
 #include <linux/bitops.h>
 #include <linux/malloc.h>
 #include <linux/interrupt.h>  /* for in_interrupt() */
-
-
-#if	defined(CONFIG_KMOD) && defined(CONFIG_HOTPLUG)
 #include <linux/kmod.h>
-#include <linux/sched.h>
-#include <asm/uaccess.h>
-
-#define __KERNEL_SYSCALLS__
-#include <linux/unistd.h>
-
-/* waitpid() call glue uses this */
-static int errno;
-#endif
 
 
 #ifdef CONFIG_USB_DEBUG
@@ -46,6 +34,11 @@ static int errno;
 	#undef DEBUG
 #endif
 #include <linux/usb.h>
+
+#define DEVNUM_ROUND_ROBIN	/***** OPTION *****/
+#ifdef DEVNUM_ROUND_ROBIN
+static int devnum_next = 1;
+#endif
 
 static const int usb_bandwidth_option =
 #ifdef CONFIG_USB_BANDWIDTH
@@ -187,6 +180,19 @@ struct usb_interface *usb_ifnum_to_if(struct usb_device *dev, unsigned ifnum)
 	return NULL;
 }
 
+struct usb_endpoint_descriptor *usb_epnum_to_ep_desc(struct usb_device *dev, unsigned epnum)
+{
+	int i, j, k;
+
+	for (i = 0; i < dev->actconfig->bNumInterfaces; i++)
+		for (j = 0; j < dev->actconfig->interface[i].num_altsetting; j++)
+			for (k = 0; k < dev->actconfig->interface[i].altsetting[j].bNumEndpoints; k++)
+				if (epnum == dev->actconfig->interface[i].altsetting[j].endpoint[k].bEndpointAddress)
+					return &dev->actconfig->interface[i].altsetting[j].endpoint[k];
+
+	return NULL;
+}
+
 /*
  * usb_calc_bus_time:
  *
@@ -284,7 +290,7 @@ void usb_claim_bandwidth (struct usb_device *dev, struct urb *urb, int bustime, 
 		dev->bus->bandwidth_int_reqs++;
 	urb->bandwidth = bustime;
 	
-	dbg("bw_alloc increased by %d to %d for %d requesters",
+	dbg("bandwidth alloc increased by %d to %d for %d requesters",
 		bustime,
 		dev->bus->bandwidth_allocated,
 		dev->bus->bandwidth_int_reqs + dev->bus->bandwidth_isoc_reqs);
@@ -303,7 +309,7 @@ void usb_release_bandwidth(struct usb_device *dev, struct urb *urb, int isoc)
 	else
 		dev->bus->bandwidth_int_reqs--;
 
-	dbg("bw_alloc reduced by %d to %d for %d requesters",
+	dbg("bandwidth alloc reduced by %d to %d for %d requesters",
 		urb->bandwidth,
 		dev->bus->bandwidth_allocated,
 		dev->bus->bandwidth_int_reqs + dev->bus->bandwidth_isoc_reqs);
@@ -504,40 +510,6 @@ static int usb_find_interface_driver(struct usb_device *dev, unsigned ifnum)
  * (normally /sbin/hotplug) when USB devices get added or removed.
  */
 
-static int exec_helper (void *arg)
-{
-	void **params = (void **) arg;
-	char *path = (char *) params [0];
-	char **argv = (char **) params [1];
-	char **envp = (char **) params [2];
-	return exec_usermodehelper (path, argv, envp);
-}
-
-int call_usermodehelper (char *path, char **argv, char **envp)
-{
-	void *params [3] = { path, argv, envp };
-	int pid, pid2, retval;
-	mm_segment_t fs;
-
-	if ((pid = kernel_thread (exec_helper, (void *) params, 0)) < 0) {
-		err ("failed fork of %s, errno = %d", argv [0], -pid);
-		return -1;
-	}
-
-	/* set signal mask? */
-	fs = get_fs ();
-	set_fs (KERNEL_DS);				/* retval is in kernel space. */
-	pid2 = waitpid (pid, &retval, __WCLONE);	/* "errno" gets assigned */
-	set_fs (fs);
-	/* restore signal mask? */
-
-	if (pid2 != pid) {
-		err ("waitpid(%d) failed, returned %d\n", pid, pid2);
-			return -1;
-	}
-	return retval;
-}
-
 static int to_bcd (char *buf, __u16 *bcdValue)
 {
 	int	retval = 0;
@@ -700,7 +672,8 @@ static void call_policy (char *verb, struct usb_device *dev)
 	value = call_usermodehelper (argv [0], argv, envp);
 	kfree (buf);
 	kfree (envp);
-	dbg ("kusbd policy returned 0x%x", value);
+	if (value != 0)
+		dbg ("kusbd policy returned 0x%x", value);
 }
 
 #else
@@ -737,7 +710,7 @@ static void usb_find_drivers(struct usb_device *dev)
 		dbg("unhandled interfaces on device");
 
 	if (!claimed) {
-		warn("USB device %d (prod/vend 0x%x/0x%x) is not claimed by any active driver.",
+		warn("USB device %d (vend/prod 0x%x/0x%x) is not claimed by any active driver.",
 			dev->devnum,
 			dev->descriptor.idVendor,
 			dev->descriptor.idProduct);
@@ -1237,7 +1210,7 @@ int usb_parse_configuration(struct usb_device *dev, struct usb_config_descriptor
 	config->interface = (struct usb_interface *)
 		kmalloc(config->bNumInterfaces *
 		sizeof(struct usb_interface), GFP_KERNEL);
-	dbg("kmalloc IF %p, numif %i",config->interface,config->bNumInterfaces);
+	dbg("kmalloc IF %p, numif %i", config->interface, config->bNumInterfaces);
 	if (!config->interface) {
 		err("out of memory");
 		return -1;	
@@ -1455,8 +1428,6 @@ void usb_disconnect(struct usb_device **pdev)
 
 	info("USB disconnect on device %d", dev->devnum);
 
-	call_policy ("remove", dev);
-
 	if (dev->actconfig) {
 		for (i = 0; i < dev->actconfig->bNumInterfaces; i++) {
 			struct usb_interface *interface = &dev->actconfig->interface[i];
@@ -1476,6 +1447,9 @@ void usb_disconnect(struct usb_device **pdev)
 		if (*child)
 			usb_disconnect(child);
 	}
+
+	/* Let policy agent unload modules etc */
+	call_policy ("remove", dev);
 
 	/* Free the device number and remove the /proc/bus/usb entry */
 	if (dev->devnum > 0) {
@@ -1498,10 +1472,22 @@ void usb_connect(struct usb_device *dev)
 	int devnum;
 	// FIXME needs locking for SMP!!
 	/* why? this is called only from the hub thread, 
-	 * which hopefully doesn't run on multiple CPU's simulatenously 8-)
+	 * which hopefully doesn't run on multiple CPU's simultaneously 8-)
 	 */
 	dev->descriptor.bMaxPacketSize0 = 8;  /* Start off at 8 bytes  */
+#ifndef DEVNUM_ROUND_ROBIN
 	devnum = find_next_zero_bit(dev->bus->devmap.devicemap, 128, 1);
+#else	/* round_robin alloc of devnums */
+	/* Try to allocate the next devnum beginning at devnum_next. */
+	devnum = find_next_zero_bit(dev->bus->devmap.devicemap, 128, devnum_next);
+	if (devnum >= 128)
+		devnum = find_next_zero_bit(dev->bus->devmap.devicemap, 128, 1);
+
+	devnum_next = devnum + 1;
+	if (devnum_next >= 128)
+		devnum_next = 1;
+#endif	/* round_robin alloc of devnums */
+
 	if (devnum < 128) {
 		set_bit(devnum, dev->bus->devmap.devicemap);
 		dev->devnum = devnum;
@@ -1898,8 +1884,6 @@ int usb_new_device(struct usb_device *dev)
 {
 	int err;
 
-	info("USB new device connect, assigned device number %d", dev->devnum);
- 
 	/* USB v1.1 5.5.3 */
 	/* We read the first 8 bytes from the device descriptor to get to */
 	/*  the bMaxPacketSize0 field. Then we set the maximum packet size */
@@ -1909,7 +1893,8 @@ int usb_new_device(struct usb_device *dev)
 
 	err = usb_set_address(dev);
 	if (err < 0) {
-		err("USB device not accepting new address (error=%d)", err);
+		err("USB device not accepting new address=%d (error=%d)",
+			dev->devnum, err);
 		clear_bit(dev->devnum, &dev->bus->devmap.devicemap);
 		dev->devnum = -1;
 		return 1;
@@ -1922,7 +1907,7 @@ int usb_new_device(struct usb_device *dev)
 		if (err < 0)
 			err("USB device not responding, giving up (error=%d)", err);
 		else
-			err("USB device descriptor short read (expected %i, got %i)",8,err);
+			err("USB device descriptor short read (expected %i, got %i)", 8, err);
 		clear_bit(dev->devnum, &dev->bus->devmap.devicemap);
 		dev->devnum = -1;
 		return 1;
@@ -1935,7 +1920,8 @@ int usb_new_device(struct usb_device *dev)
 		if (err < 0)
 			err("unable to get device descriptor (error=%d)", err);
 		else
-			err("USB device descriptor short read (expected %i, got %i)", sizeof(dev->descriptor), err);
+			err("USB device descriptor short read (expected %i, got %i)",
+				sizeof(dev->descriptor), err);
 	
 		clear_bit(dev->devnum, &dev->bus->devmap.devicemap);
 		dev->devnum = -1;
@@ -1944,7 +1930,9 @@ int usb_new_device(struct usb_device *dev)
 
 	err = usb_get_configuration(dev);
 	if (err < 0) {
-		err("unable to get configuration (error=%d)", err);
+		err("unable to get device %d configuration (error=%d)",
+			dev->devnum, err);
+		usb_destroy_configuration(dev);
 		clear_bit(dev->devnum, &dev->bus->devmap.devicemap);
 		dev->devnum = -1;
 		return 1;
@@ -1953,7 +1941,8 @@ int usb_new_device(struct usb_device *dev)
 	/* we set the default configuration here */
 	err = usb_set_configuration(dev, dev->config[0].bConfigurationValue);
 	if (err) {
-		err("failed to set default configuration (error=%d)", err);
+		err("failed to set device %d default configuration (error=%d)",
+			dev->devnum, err);
 		clear_bit(dev->devnum, &dev->bus->devmap.devicemap);
 		dev->devnum = -1;
 		return 1;
@@ -2047,6 +2036,7 @@ struct list_head *usb_bus_get_list(void)
  * then these symbols need to be exported for the modules to use.
  */
 EXPORT_SYMBOL(usb_ifnum_to_if);
+EXPORT_SYMBOL(usb_epnum_to_ep_desc);
 
 EXPORT_SYMBOL(usb_register);
 EXPORT_SYMBOL(usb_deregister);

@@ -24,6 +24,7 @@
 #include <linux/blkdev.h>
 #include <linux/elevator.h>
 #include <linux/auto_fs.h>
+#include <linux/ext2_fs.h>
 #include <asm/types.h>
 #include <asm/uaccess.h>
 

@@ -98,6 +98,12 @@
  *	20000603 Version 0.2.1
  *	20000620 minor cosmetic changes
  *	20000620 Version 0.2.2
+ *	20000822 Hopefully fixed deadlock in mts_remove_nolock()
+ *	20000822 Fixed minor race in mts_transfer_cleanup()
+ *	20000822 Fixed deadlock on submission error in queuecommand
+ *	20000822 Version 0.2.3
+ *	20000913 Reduced module size if debugging is off
+ *	20000913 Version 0.2.4
  */
 
 #include <linux/module.h>
@@ -129,7 +135,7 @@
 
 /* Should we do debugging? */
 
-#define MTS_DO_DEBUG
+// #define MTS_DO_DEBUG
 
 
 /* USB layer driver interface */
@@ -147,7 +153,7 @@ static struct usb_driver mts_usb_driver = {
 
 /* Internal driver stuff */
 
-#define MTS_VERSION	"0.2.2"
+#define MTS_VERSION	"0.2.4"
 #define MTS_NAME	"microtek usb (rev " MTS_VERSION "): "
 
 #define MTS_WARNING(x...) \
@@ -193,6 +199,8 @@ static struct usb_driver mts_usb_driver = {
 	}\
 	MTS_DEBUG_INT();\
 	} while (0)
+
+#ifdef MTS_DO_DEBUG
 
 static inline void mts_debug_dump(struct mts_desc* desc) {
 	MTS_DEBUG("desc at 0x%x: halted = %x%x, toggle = %x%x\n",
@@ -289,6 +297,23 @@ static inline void mts_show_command(Scsi_Cmnd *srb)
 	       srb->cmnd[6], srb->cmnd[7], srb->cmnd[8], srb->cmnd[9]);
 }
 
+#else
+
+static inline void mts_show_command(Scsi_Cmnd *srb)
+{
+	while (0) {}
+}
+
+static inline void mts_debug_dump(struct mts_desc* desc)
+{
+	while (0) {}
+}
+
+#endif
+
+
+
+
 static inline int mts_is_aborting(struct mts_desc* desc) {
 	return (atomic_read(&desc->context.do_abort));
 }
@@ -332,9 +357,8 @@ void mts_remove_nolock( struct mts_desc* to_remove )
 	MTS_DEBUG( "removing 0x%x from list\n",
 		   (int)to_remove );
 
+	lock_kernel();
 	mts_wait_abort(to_remove);
-	
-	down( &to_remove->lock );
 
 	MTS_DEBUG_GOT_HERE();
 	
@@ -358,6 +382,7 @@ void mts_remove_nolock( struct mts_desc* to_remove )
 
 	MTS_DEBUG_GOT_HERE();
 	scsi_unregister_module(MODULE_SCSI_HA, &(to_remove->ctempl));
+	unlock_kernel();
 	
 	kfree( to_remove );
 }
@@ -391,7 +416,7 @@ static int mts_scsi_release(struct Scsi_Host *psh)
 }
 
 static int mts_scsi_abort (Scsi_Cmnd *srb)
-/* interrupt context (!) */
+/* interrupt context (!) */ /* FIXME this is about to become task context */
 {
 	struct mts_desc* desc = (struct mts_desc*)(srb->host->hostdata[0]);
 
@@ -508,9 +533,9 @@ static void mts_transfer_cleanup( struct urb *transfer )
 {
 	struct mts_transfer_context* context = (struct mts_transfer_context*)transfer->context;
 	
-	up( &context->instance->lock );
 	if ( context->final_callback )
 		context->final_callback(context->srb);
+	up( &context->instance->lock );
 
 }
 
@@ -708,6 +733,7 @@ int mts_scsi_queuecommand( Scsi_Cmnd *srb, mts_scsi_cmnd_callback callback )
 
 		if(callback)
 			callback(srb);
+	up(&desc->lock); /* no further cleanup is done */
 
 		goto out;
 	}	

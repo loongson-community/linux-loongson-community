@@ -14,6 +14,7 @@
 
 #include <linux/config.h>
 #include <linux/fs.h>
+#include <linux/ext2_fs.h>
 #include <linux/locks.h>
 #include <linux/quotaops.h>
 
@@ -230,12 +231,12 @@ void ext2_free_inode (struct inode * inode)
 				gdp->bg_used_dirs_count =
 					cpu_to_le16(le16_to_cpu(gdp->bg_used_dirs_count) - 1);
 		}
-		mark_buffer_dirty(bh2, 1);
+		mark_buffer_dirty(bh2);
 		es->s_free_inodes_count =
 			cpu_to_le32(le32_to_cpu(es->s_free_inodes_count) + 1);
-		mark_buffer_dirty(sb->u.ext2_sb.s_sbh, 1);
+		mark_buffer_dirty(sb->u.ext2_sb.s_sbh);
 	}
-	mark_buffer_dirty(bh, 1);
+	mark_buffer_dirty(bh);
 	if (sb->s_flags & MS_SYNCHRONOUS) {
 		ll_rw_block (WRITE, 1, &bh);
 		wait_on_buffer (bh);
@@ -388,7 +389,7 @@ repeat:
 				      "bit already set for inode %d", j);
 			goto repeat;
 		}
-		mark_buffer_dirty(bh, 1);
+		mark_buffer_dirty(bh);
 		if (sb->s_flags & MS_SYNCHRONOUS) {
 			ll_rw_block (WRITE, 1, &bh);
 			wait_on_buffer (bh);
@@ -398,9 +399,13 @@ repeat:
 			ext2_error (sb, "ext2_new_inode",
 				    "Free inodes count corrupted in group %d",
 				    i);
-			unlock_super (sb);
-			iput (inode);
-			return NULL;
+			if (sb->s_flags & MS_RDONLY) {
+				unlock_super (sb);
+				iput (inode);
+				return NULL;
+			}
+			gdp->bg_free_inodes_count = 0;
+			mark_buffer_dirty(bh2);
 		}
 		goto repeat;
 	}
@@ -411,6 +416,7 @@ repeat:
 			    "block_group = %d,inode=%d", i, j);
 		unlock_super (sb);
 		iput (inode);
+		*err = -EIO;
 		return NULL;
 	}
 	gdp->bg_free_inodes_count =
@@ -418,10 +424,10 @@ repeat:
 	if (S_ISDIR(mode))
 		gdp->bg_used_dirs_count =
 			cpu_to_le16(le16_to_cpu(gdp->bg_used_dirs_count) + 1);
-	mark_buffer_dirty(bh2, 1);
+	mark_buffer_dirty(bh2);
 	es->s_free_inodes_count =
 		cpu_to_le32(le32_to_cpu(es->s_free_inodes_count) - 1);
-	mark_buffer_dirty(sb->u.ext2_sb.s_sbh, 1);
+	mark_buffer_dirty(sb->u.ext2_sb.s_sbh);
 	sb->s_dirt = 1;
 	inode->i_mode = mode;
 	inode->i_sb = sb;

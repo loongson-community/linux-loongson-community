@@ -11,7 +11,6 @@
 
 typedef struct kmem_cache_s kmem_cache_t;
 
-#include	<linux/config.h>
 #include	<linux/mm.h>
 #include	<linux/cache.h>
 
@@ -75,14 +74,6 @@ extern kmem_cache_t	*dquot_cachep;
 extern kmem_cache_t	*bh_cachep;
 extern kmem_cache_t	*fs_cachep;
 extern kmem_cache_t	*sigact_cachep;
-
-#ifdef CONFIG_SMP
-extern unsigned long slab_cache_drain_mask;
-extern void slab_drain_local_cache(void);
-#else
-#define slab_cache_drain_mask 0
-#define slab_drain_local_cache()	do { } while (0)
-#endif
 
 #endif	/* __KERNEL__ */
 

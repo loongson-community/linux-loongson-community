@@ -64,7 +64,7 @@
 #include <linux/irq.h>
 
 
-unsigned long cpu_hz;	/* Detected as we calibrate the TSC */
+unsigned long cpu_khz;	/* Detected as we calibrate the TSC */
 
 /* Number of usecs that the last interrupt was delayed */
 static int delay_at_last_interrupt;
@@ -504,37 +504,6 @@ static void timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 
 }
 
-/* Converts Gregorian date to seconds since 1970-01-01 00:00:00.
- * Assumes input in normal date format, i.e. 1980-12-31 23:59:59
- * => year=1980, mon=12, day=31, hour=23, min=59, sec=59.
- *
- * [For the Julian calendar (which was used in Russia before 1917,
- * Britain & colonies before 1752, anywhere else before 1582,
- * and is still in use by some communities) leave out the
- * -year/100+year/400 terms, and add 10.]
- *
- * This algorithm was first published by Gauss (I think).
- *
- * WARNING: this function will overflow on 2106-02-07 06:28:16 on
- * machines were long is 32-bit! (However, as time_t is signed, we
- * will already get problems at other places on 2038-01-19 03:14:08)
- */
-static inline unsigned long mktime(unsigned int year, unsigned int mon,
-	unsigned int day, unsigned int hour,
-	unsigned int min, unsigned int sec)
-{
-	if (0 >= (int) (mon -= 2)) {	/* 1..12 -> 11,12,1..10 */
-		mon += 12;	/* Puts Feb last since it has leap day */
-		year -= 1;
-	}
-	return (((
-	    (unsigned long)(year/4 - year/100 + year/400 + 367*mon/12 + day) +
-	      year*365 - 719499
-	    )*24 + hour /* now have hours */
-	   )*60 + min /* now have minutes */
-	  )*60 + sec; /* finally seconds */
-}
-
 /* not static: needed by APM */
 unsigned long get_cmos_time(void)
 {
@@ -707,12 +676,12 @@ void __init time_init(void)
 			 * The formula is (10^6 * 2^32) / (2^32 * 1 / (clocks/us)) =
 			 * clock/second. Our precision is about 100 ppm.
 			 */
-			{	unsigned long eax=0, edx=1000000;
+			{	unsigned long eax=0, edx=1000;
 				__asm__("divl %2"
-		       		:"=a" (cpu_hz), "=d" (edx)
+		       		:"=a" (cpu_khz), "=d" (edx)
         	       		:"r" (tsc_quotient),
 	                	"0" (eax), "1" (edx));
-				printk("Detected %ld Hz processor.\n", cpu_hz);
+				printk("Detected %lu.%03lu MHz processor.\n", cpu_khz / 1000, cpu_khz % 1000);
 			}
 		}
 	}

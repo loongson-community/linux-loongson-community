@@ -2205,6 +2205,9 @@ void __init console_init(void)
 #ifdef CONFIG_ARC_CONSOLE
 	arc_console_init();
 #endif
+#ifdef CONFIG_SERIAL_AMBA_CONSOLE
+	ambauart_console_init();
+#endif
 }
 
 static struct tty_driver dev_tty_driver, dev_syscons_driver;
