@@ -259,6 +259,29 @@
 	END(except_vec0_r4k_MP250MHZhwbug)
 #endif
 
+#ifdef CONFIG_MIPS_AU1000
+	/* TLB refill, EXL == 0, Au1000 version */
+        /* we'll worry about smp later */
+	.set	noreorder
+	.set	noat
+	LEAF(except_vec0_au1000)
+	.set	mips3
+	mfc0	k0, CP0_BADVADDR		# Get faulting address
+	srl	k0, k0, 22			# get pgd only bits
+	lw	k1, pgd_current			# get pgd pointer
+	sll	k0, k0, 2
+	addu	k1, k1, k0			# add in pgd offset
+	mfc0	k0, CP0_CONTEXT			# get context reg
+	lw	k1, (k1)
+	srl	k0, k0, 1			# get pte offset
+	and	k0, k0, 0xff8
+	addu	k1, k1, k0			# add in offset
+	j	translate_pte
+	nop
+	END(except_vec0_au1000)
+#endif
+
+
 	__FINIT
 
 /*
@@ -467,3 +490,132 @@ nopage_tlbs:
 nowrite_mod:
 	DO_FAULT(1)
 	END(handle_mod)
+
+#ifdef CONFIG_MIPS_AU1000
+/*
+ * On entry k0 contains the pte with the pseudo address.
+ * On exit, k0 contains the "real" address, which is a
+ * 36 bit physicall address.
+ * This function is called only after it has been 
+ * determined that the pte is a pseudo physical address.
+ *
+ * Destroys k0, k1, and at. It's assumed that the calling
+ * function will preserve those.
+ */
+LEAF(get_real_pte)
+	.set	mips3
+
+	li	k1, 0xe0000000          # check lcd 
+	bltu	k0, k1, check_pcmcia_socket_1
+	nop
+	# lcd pseudo access
+	li	k1, 0x0fffffff
+	and	k0, k0, k1              # get offset
+	srl	k0, k0, 6
+	lui	k1, 0xe000>>2
+	or	k0, k0, k1
+	j	ra
+	nop
+check_pcmcia_socket_1:
+	li	k1, 0xD0000000
+	bltu	k0, k1, pcmcia_socket_0
+	nop
+	# famous last words, should not happen ...
+1:	
+	b 1b       # fixme -- to something a little more useful
+	# pcmcia socket 1 pseudo access
+
+pcmcia_socket_0:
+	# check mem access
+	li	k1, 0xC8000000
+	bltu	k0, k1, check_attr
+	# handle pseudo memory access
+	li	k1, 0x00ffffff
+	and	k1, k0, k1              # get access offset
+	lui	k0, 0x8000
+	or	k0, k0, k1              
+	# now we have the correct even pte ... bits 31:0
+	srl	k0, k0, 6
+	lui	k1, 0xf000>>2
+	or	k0, k0, k1
+	j	ra                      # done
+	nop
+check_attr:
+	li	k1, 0xC4000000
+	bltu	k0, k1, io_access
+	# handle pseudo attribute access
+	li	k1, 0x00ffffff
+	and	k1, k0, k1              # get access offset
+	lui	k0, 0x4000
+	or	k0, k0, k1              
+	# now we have the correct even pte ... bits 31:0
+	srl	k0, k0, 6
+	lui	k1, 0xf000>>2
+	or	k0, k0, k1
+	j	ra                      # done
+	nop
+io_access:
+	# handle pseudo io access
+	li	k1, 0x00ffffff
+	and	k0, k0, k1              # get access offset
+	# now we have the correct even pte ... bits 31:0
+	srl	k0, k0, 6
+	lui	k1, 0xf000>>2
+	or	k0, k0, k1
+	j	ra                      # done
+	nop
+END(get_real_pte)
+
+/*
+ * On entry k1 contains pte pointer. Clobbers only k0 and k1.
+ */
+	LEAF(translate_pte)
+	.set	mips3
+	lui	k0, %hi(__saved_at)
+	sw	$at, %lo(__saved_at)(k0)	# save at
+	sw	k1, %lo(__saved_pte)(k0)	# save pte pointer
+	sw	ra, %lo(__saved_ra)(k0)		# save ra
+	lw	k0, 0(k1)			# get even pte
+
+	li	k1, 0xC0000000   		# check pseudo addr
+	bltu	k0, k1, 1f
+	nop
+	bal	get_real_pte
+	nop
+	b	2f
+	nop
+1:
+	srl	k0, k0, 6
+2:
+	mtc0	k0, CP0_ENTRYLO0		# load it
+
+	lui	k1, %hi(__saved_pte)
+	lw	k1, %lo(__saved_pte)(k1)	# recover pte pointer
+	lw	k0, 4(k1)			# get odd pte
+
+	li	k1, 0xC0000000   		# check pseudo addr
+	bltu	k0, k1, 1f
+	nop
+	bal	get_real_pte
+	nop
+	b	2f
+	nop
+
+1:
+	srl	k0, k0, 6			# convert to entrylo0
+2:
+	mtc0	k0, CP0_ENTRYLO1		# load it
+	nop
+	b	1f
+	tlbwr					# write random tlb entry
+1:
+	lui	k0, %hi(__saved_at)
+	lw	$at, %lo(__saved_at)(k0)	# restore at
+	lw	ra, %lo(__saved_ra)(k0)		# restore ra
+	eret					# return from trap
+	END(translate_pte)
+
+__saved_at:	PTR	0
+__saved_pte:	PTR	0
+__saved_ra:	PTR	0
+#endif	
