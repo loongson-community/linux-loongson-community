@@ -11,8 +11,6 @@ obj-$(CONFIG_VAC_RTC)	+= vacrtc.o
 
 EXTRA_AFLAGS := $(CFLAGS)
 
-include $(TOPDIR)/Rules.make
-
 bagetIRQ.o : bagetIRQ.S
 	$(CC) $(CFLAGS) -c -o $@ $<
 

@@ -25,6 +25,4 @@ initrd.o: romfs.bin
 
 EXTRA_AFLAGS := $(CFLAGS)
 
-include $(TOPDIR)/Rules.make
-
 .PHONY: forceit

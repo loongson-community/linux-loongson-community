@@ -7,5 +7,3 @@ obj-$(CONFIG_MIPS32)		+= lib_hssubr.o
 obj-$(CONFIG_SIBYTE_STANDALONE)	+= prom.o
 
 EXTRA_AFLAGS := $(CFLAGS)
-
-include $(TOPDIR)/Rules.make

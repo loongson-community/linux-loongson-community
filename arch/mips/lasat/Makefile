@@ -18,7 +18,5 @@ endif
 
 EXTRA_AFLAGS := $(CFLAGS)
 
-include $(TOPDIR)/Rules.make
-
 clean:
 	make -C image clean

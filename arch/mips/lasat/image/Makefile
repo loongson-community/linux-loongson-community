@@ -52,5 +52,3 @@ clean:
 	rm -f rom rom.bin rom.sw kImage.bin
 
 EXTRA_AFLAGS := $(CFLAGS)
-
-include $(TOPDIR)/Rules.make

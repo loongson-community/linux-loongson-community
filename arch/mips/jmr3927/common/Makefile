@@ -3,5 +3,3 @@
 #
 
 obj-y	 += prom.o puts.o rtc_ds1742.o
-
-include $(TOPDIR)/Rules.make

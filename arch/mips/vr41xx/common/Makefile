@@ -12,5 +12,3 @@ obj-$(CONFIG_VR41XX_TIME_C)	+= time.o
 obj-$(CONFIG_VRC4173)		+= vrc4173.o
 
 EXTRA_AFLAGS := $(CFLAGS)
-
-include $(TOPDIR)/Rules.make

@@ -46,5 +46,3 @@ obj-y				+= pci-dma.o
 endif
 
 EXTRA_AFLAGS := $(CFLAGS)
-
-include $(TOPDIR)/Rules.make

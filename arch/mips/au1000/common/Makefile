@@ -17,5 +17,3 @@ obj-$(CONFIG_REMOTE_DEBUG) += dbg_io.o
 obj-$(CONFIG_RTC) += rtc.o
 
 EXTRA_AFLAGS := $(CFLAGS)
-
-include $(TOPDIR)/Rules.make

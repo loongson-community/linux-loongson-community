@@ -5,5 +5,3 @@
 obj-y	 := irq.o int_handler.o serial.o time.o
 
 EXTRA_AFLAGS := $(CFLAGS)
-
-include $(TOPDIR)/Rules.make

@@ -13,5 +13,3 @@ obj-$(CONFIG_IT8172_CIR) += it8172_cir.o
 obj-$(CONFIG_REMOTE_DEBUG) += dbg_io.o
 
 EXTRA_AFLAGS := $(CFLAGS)
-
-include $(TOPDIR)/Rules.make

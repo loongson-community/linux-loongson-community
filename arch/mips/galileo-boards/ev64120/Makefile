@@ -12,5 +12,3 @@ obj-y		:= serialGT.o int-handler.o promcon.o reset.o setup.o irq.o \
 		   irq-handler.o i2o.o pci_bios.o
 
 EXTRA_AFLAGS := $(CFLAGS)
-
-include $(TOPDIR)/Rules.make

@@ -11,5 +11,3 @@ obj-$(CONFIG_MIPS32)	+= locore.o
 obj-$(CONFIG_MIPS64)	+= call_o32.o
 
 EXTRA_AFLAGS := $(CFLAGS)
-
-include $(TOPDIR)/Rules.make

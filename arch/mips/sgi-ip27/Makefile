@@ -9,5 +9,3 @@ obj-y	:= ip27-berr.o ip27-console.o ip27-irq.o ip27-init.o ip27-irq-glue.o \
 	   ip27-reset.o ip27-setup.o ip27-timer.o
 
 EXTRA_AFLAGS := $(CFLAGS)
-
-include $(TOPDIR)/Rules.make

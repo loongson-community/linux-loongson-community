@@ -11,5 +11,3 @@ obj-y	:= init.o irq.o setup.o
 
 obj-$(CONFIG_IDE)	+= ide-eagle.o
 obj-$(CONFIG_PCI)	+= pci_fixup.o vrc4173.o
-
-include $(TOPDIR)/Rules.make

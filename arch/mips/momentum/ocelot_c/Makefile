@@ -6,5 +6,3 @@ obj-y	 += mv-irq.o cpci-irq.o uart-irq.o int-handler.o irq.o
 obj-y    += pci-irq.o pci.o prom.o reset.o setup.o 
 
 obj-$(CONFIG_REMOTE_DEBUG) += dbg_io.o
-
-include $(TOPDIR)/Rules.make

@@ -9,5 +9,3 @@ obj-$(CONFIG_REMOTE_DEBUG)	+= kgdb_io.o
 obj-$(CONFIG_BLK_DEV_INITRD)	+= ramdisk.o
 
 EXTRA_AFLAGS := $(CFLAGS)
-
-include $(TOPDIR)/Rules.make

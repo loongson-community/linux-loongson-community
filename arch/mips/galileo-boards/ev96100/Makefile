@@ -10,5 +10,3 @@ obj-y	:= init.o pci_ops.o pci_fixups.o time.o irq.o int-handler.o setup.o \
 	   puts.o
 
 EXTRA_AFLAGS := $(CFLAGS)
-
-include $(TOPDIR)/Rules.make

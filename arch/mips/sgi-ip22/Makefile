@@ -12,5 +12,3 @@ obj-$(CONFIG_BOARD_SCACHE)	+= ip22-sc.o
 obj-$(CONFIG_IP22_EISA)		+= ip22-eisa.o
 
 EXTRA_AFLAGS := $(CFLAGS)
-
-include $(TOPDIR)/Rules.make

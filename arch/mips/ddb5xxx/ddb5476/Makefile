@@ -8,5 +8,3 @@ obj-y				+= setup.o irq.o int-handler.o pci.o pci_ops.o \
 obj-$(CONFIG_REMOTE_DEBUG)	+= dbg_io.o
 
 EXTRA_AFLAGS := $(CFLAGS)
-
-include $(TOPDIR)/Rules.make

@@ -32,5 +32,3 @@ obj-$(CONFIG_SGI_IP22)		+= umap.o
 obj-$(CONFIG_BAGET_MIPS)	+= umap.o
 
 EXTRA_AFLAGS := $(CFLAGS)
-
-include $(TOPDIR)/Rules.make

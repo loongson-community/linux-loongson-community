@@ -26,5 +26,3 @@ obj-$(CONFIG_SGI_IP22)		+= umap.o
 AFLAGS_tlb-glue-r4k.o := -P
 
 EXTRA_AFLAGS := $(CFLAGS)
-
-include $(TOPDIR)/Rules.make

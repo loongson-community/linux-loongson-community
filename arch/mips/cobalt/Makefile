@@ -5,5 +5,3 @@
 obj-y	 := irq.o int-handler.o pci.o reset.o setup.o via.o promcon.o
 
 EXTRA_AFLAGS := $(CFLAGS)
-
-include $(TOPDIR)/Rules.make

@@ -23,5 +23,3 @@
 #
 
 obj-y := reset.o
-
-include $(TOPDIR)/Rules.make

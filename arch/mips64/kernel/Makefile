@@ -27,5 +27,3 @@ endif
 AFLAGS_r4k_genex.o := -P
 
 EXTRA_AFLAGS := $(CFLAGS)
-
-include $(TOPDIR)/Rules.make

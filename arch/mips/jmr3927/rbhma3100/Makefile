@@ -8,5 +8,3 @@ obj-$(CONFIG_LL_DEBUG) 		+= debug.o
 obj-$(CONFIG_REMOTE_DEBUG)	+= kgdb_io.o
 
 EXTRA_AFLAGS := $(CFLAGS)
-
-include $(TOPDIR)/Rules.make

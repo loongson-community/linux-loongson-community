@@ -49,5 +49,3 @@ CLEAN_FILES += addinitrd \
 	       vmlinux.rm200 \
 	       zImage.tmp \
 	       zImage
-
-include $(TOPDIR)/Rules.make
