@@ -118,24 +118,33 @@ static const char ioc3_str[] = "IOC3 Ethernet";
 static struct ethtool_ops ioc3_ethtool_ops;
 
 /* We use this to acquire receive skb's that we can DMA directly into. */
-#define ALIGNED_RX_SKB_ADDR(addr) \
-	((((unsigned long)(addr) + (128 - 1)) & ~(128 - 1)) - (unsigned long)(addr))
 
-#define ioc3_alloc_skb(__length, __gfp_flags) \
-({	struct sk_buff *__skb; \
-	__skb = alloc_skb((__length) + 128, (__gfp_flags)); \
-	if (__skb) { \
-		int __offset = ALIGNED_RX_SKB_ADDR(__skb->data); \
-		if(__offset) \
-			skb_reserve(__skb, __offset); \
-	} \
-	__skb; \
-})
+#define IOC3_CACHELINE	128UL
+
+static inline unsigned long aligned_rx_skb_addr(unsigned long addr)
+{
+	return (~addr + 1) & (IOC3_CACHELINE - 1UL);
+}
+
+static inline struct sk_buff * ioc3_alloc_skb(unsigned long length,
+	unsigned int gfp_mask)
+{
+	struct sk_buff *skb;
+
+	skb = alloc_skb(length + IOC3_CACHELINE - 1, gfp_mask);
+	if (likely(skb)) {
+		int offset = aligned_rx_skb_addr((unsigned long) skb->data);
+		if (offset)
+			skb_reserve(skb, offset);
+	}
+
+	return skb;
+}
 
 /* BEWARE: The IOC3 documentation documents the size of rx buffers as
    1644 while it's actually 1664.  This one was nasty to track down ...  */
 #define RX_OFFSET		10
-#define RX_BUF_ALLOC_SIZE	(1664 + RX_OFFSET + 128)
+#define RX_BUF_ALLOC_SIZE	(1664 + RX_OFFSET + IOC3_CACHELINE)
 
 /* DMA barrier to separate cached and uncached accesses.  */
 #define BARRIER()							\
