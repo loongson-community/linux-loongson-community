@@ -509,8 +509,7 @@ asmlinkage void do_tr(struct pt_regs *regs)
 
 asmlinkage void do_ri(struct pt_regs *regs)
 {
-	if (!user_mode(regs))
-		BUG();
+	die_if_kernel("Reserved instruction in kernel code", regs);
 
 	if (compute_return_epc(regs))
 		return;
