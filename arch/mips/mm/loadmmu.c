@@ -52,7 +52,7 @@ void __init loadmmu(void)
 {
 
 	if (mips_cpu.options & MIPS_CPU_4KTLB) {
-#if defined(CONFIG_CPU_R4X00) || defined(CONFIG_CPU_R41XX) || \
+#if defined(CONFIG_CPU_R4X00) || defined(CONFIG_CPU_VR41XX) || \
     defined(CONFIG_CPU_R4300) || defined(CONFIG_CPU_R5000) || \
     defined(CONFIG_CPU_NEVADA)
 		printk("Loading R4000 MMU routines.\n");

@@ -56,7 +56,7 @@ endif
 ifdef CONFIG_CPU_R4300
 GCCFLAGS	+= -mcpu=r4300 -mips2 -Wa,--trap
 endif
-ifdef CONFIG_CPU_R41XX
+ifdef CONFIG_CPU_VR41XX
 GCCFLAGS	+= -mcpu=r4600 -mips2 -Wa,--trap
 endif
 ifdef CONFIG_CPU_R4X00
