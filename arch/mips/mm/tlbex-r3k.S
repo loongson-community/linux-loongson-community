@@ -23,7 +23,6 @@
 #include <asm/pgtable.h>
 #include <asm/processor.h>
 #include <asm/regdef.h>
-#include <asm/segment.h>
 #include <asm/stackframe.h>
 
 #define TLB_OPTIMIZE /* If you are paranoid, disable this. */
