@@ -33,11 +33,6 @@ typedef u64	nic_t;
 #define CPUS_PER_NODE_SHFT	1	/* Bits to shift in the node number */
 #define CPUS_PER_SUBNODE	2	/* CPUs on a single hub PI */
 #endif
-#ifdef CONFIG_SGI_IP35
-#define CPUS_PER_NODE		4	/* CPUs on a single hub */
-#define CPUS_PER_NODE_SHFT	2	/* Bits to shift in the node number */
-#define CPUS_PER_SUBNODE	2	/* CPUs on a single hub PI */
-#endif
 #define CNODE_NUM_CPUS(_cnode)		(NODEPDA(_cnode)->node_num_cpus)
 
 #define CNODE_TO_CPU_BASE(_cnode)	(NODEPDA(_cnode)->node_first_cpu)
@@ -50,39 +45,6 @@ typedef u64	nic_t;
 #define makespnum(_nasid, _slice)					\
 		(((_nasid) << CPUS_PER_NODE_SHFT) | (_slice))
 
-#ifdef CONFIG_SGI_IP35
-
-/*
- * There are 2 very similar macros for dealing with "slices". Make sure
- * you use the right one. 
- * Unfortunately, on all platforms except IP35 (currently), the 2 macros 
- * are interchangible. 
- *
- * On IP35, there are 4 cpus per node. Each cpu is refered to by it's slice.
- * The slices are numbered 0 thru 3. 
- *
- * There are also 2 PI interfaces per node. Each PI interface supports 2 cpus.
- * The term "local slice" specifies the cpu number relative to the PI.
- *
- * The cpus on the node are numbered:
- *	slice	localslice
- *	  0          0
- *	  1          1
- *	  2          0
- *	  3          1
- *
- *	cputoslice - returns a number 0..3 that is the slice of the specified cpu.
- *	cputolocalslice - returns a number 0..1 that identifies the local slice of
- *			the cpu within it's PI interface.
- */
-#define cputoslice(cpu)				\
-               (ASSERT(pdaindr[(cpu)].pda), (pdaindr[(cpu)].pda->p_slice))
-#define cputolocalslice(cpu)			\
-               (ASSERT(pdaindr[(cpu)].pda), (LOCALCPU(pdaindr[(cpu)].pda->p_slice)))
-#define cputosubnode(cpu)			\
-		(ASSERT(pdaindr[(cpu)].pda), (SUBNODE(pdaindr[(cpu)].pda->p_slice)))
-#endif	/* CONFIG_SGI_IP35 */
-
 #if defined(_LANGUAGE_C) || defined(_LANGUAGE_C_PLUS_PLUS)
 
 #define INVALID_NASID		(nasid_t)-1
@@ -90,17 +52,6 @@ typedef u64	nic_t;
 #define INVALID_PNODEID		(pnodeid_t)-1
 #define INVALID_MODULE		(moduleid_t)-1
 #define	INVALID_PARTID		(partid_t)-1
-
-#ifdef CONFIG_SGI_IP35
-extern int     get_slice(void);
-extern cpuid_t get_cnode_cpu(cnodeid_t);
-extern int get_cpu_slice(cpuid_t);
-extern cpuid_t cnodetocpu(cnodeid_t);
-extern cpuid_t cnode_slice_to_cpuid(cnodeid_t, int);
-
-extern int cnode_exists(cnodeid_t cnode);
-extern cnodeid_t cpuid_to_compact_node[MAXCPUS];
-#endif	/* CONFIG_IP35 */
 
 extern nasid_t get_nasid(void);
 extern cnodeid_t get_cpu_cnode(int);

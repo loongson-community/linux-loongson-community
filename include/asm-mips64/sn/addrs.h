@@ -51,8 +51,6 @@
 #define NASID_GET_META(_n)	((_n) >> NASID_LOCAL_BITS)
 #ifdef CONFIG_SGI_IP27
 #define NASID_GET_LOCAL(_n)	((_n) & 0xf)
-#elif defined CONFIG_SGI_IP35
-#define NASID_GET_LOCAL(_n)	((_n) & 0x7f)
 #endif
 #define NASID_MAKE(_m, _l)	(((_m) << NASID_LOCAL_BITS) | (_l))
 
@@ -157,14 +155,6 @@
 #define LBOOT_LIMIT		(LBOOT_BASE + LBOOT_SIZE)
 #define LBOOT_STRIDE		0		/* IP27 has only one CPU PROM */
 
-#elif defined CONFIG_SGI_IP35
-#define LREG_BASE		(HSPEC_BASE + 0x10000000)
-#define LREG_SIZE		0x8000000  /* 128 MB */
-#define LREG_LIMIT		(LREG_BASE + LREG_SIZE)
-#define LBOOT_BASE		(LREG_LIMIT)
-#define LBOOT_SIZE		0x8000000   /* 128 MB */
-#define LBOOT_LIMIT		(LBOOT_BASE + LBOOT_SIZE)
-#define LBOOT_STRIDE		0x2000000    /* two PROMs, on 32M boundaries */
 #endif
 
 #define	HUB_REGISTER_WIDGET	1
@@ -180,16 +170,6 @@
 #ifdef CONFIG_SGI_IP27
 #define RBOOT_SIZE		0x10000000	/* 256 Megabytes */
 #define NODE_RBOOT_BASE(_n)	(NODE_HSPEC_BASE(_n) + 0x30000000)
-#define NODE_RBOOT_LIMIT(_n)	(NODE_RBOOT_BASE(_n) + RBOOT_SIZE)
-
-#elif defined CONFIG_SGI_IP35
-
-#define NODE_LREG_BASE(_n)	(NODE_HSPEC_BASE(_n) + 0x30000000)
-#define NODE_LREG_LIMIT(_n)	(NODE_LREG_BASE(_n) + LREG_SIZE)
-#define RREG_BASE(_n)		(NODE_LREG_BASE(_n))
-#define RREG_LIMIT(_n)		(NODE_LREG_LIMIT(_n))
-#define RBOOT_SIZE		0x8000000	/* 128 Megabytes */
-#define NODE_RBOOT_BASE(_n)	(NODE_HSPEC_BASE(_n) + 0x38000000)
 #define NODE_RBOOT_LIMIT(_n)	(NODE_RBOOT_BASE(_n) + RBOOT_SIZE)
 
 #endif
@@ -263,146 +243,7 @@
 #define BDECC_TO_MEM(_ba)	(UINT64_CAST  (_ba) & NASID_MASK	    | \
 				 (UINT64_CAST (_ba) & BDECC_UPPER_MASK)<<2  | \
 				 (UINT64_CAST (_ba) & 3) << 3)
-
-#elif defined CONFIG_SGI_IP35
-/*
- * Bedrock's directory entries are a single word:  no low/high
- */
-
-#define BDDIR_ENTRY(_pa)	(HSPEC_BASE +				      \
-				  NODE_ADDRSPACE_SIZE * 7 / 8  		    | \
-				 UINT64_CAST (_pa)	& NASID_MASK	    | \
-				 UINT64_CAST (_pa) >> 3 & BDDIR_UPPER_MASK)
-
-#ifdef BRINGUP
-        /* minimize source changes by mapping *_LO() & *_HI()   */
-#define BDDIR_ENTRY_LO(_pa)     BDDIR_ENTRY(_pa)
-#define BDDIR_ENTRY_HI(_pa)     BDDIR_ENTRY(_pa)
-#endif /* BRINGUP */
-
-#define BDDIR_PAGE_MASK		(BDDIR_UPPER_MASK & 0x7ffff << 11)
-#define BDDIR_PAGE_BASE_MASK	(UINT64_CAST 0xfffffffffffff800)
-
-#ifdef _LANGUAGE_C
-
-#define BDPRT_ENTRY_ADDR(_pa, _rgn)      ((__uint64_t *) ( (HSPEC_BASE +       \
-                                 NODE_ADDRSPACE_SIZE * 7 / 8 + 0x408)       | \
-                                (UINT64_CAST (_pa)      & NASID_MASK)        | \
-                                (UINT64_CAST (_pa) >> 3 & BDDIR_PAGE_MASK)   | \
-                                (UINT64_CAST (_pa) >> 3 & 0x3 << 4)          | \
-                                ((_rgn) & 0x1e) << 5))
-
-static __inline __uint64_t BDPRT_ENTRY_L(paddr_t pa,__uint32_t rgn) {
-	__uint64_t word=*BDPRT_ENTRY_ADDR(pa,rgn);
-
-	if(rgn&0x20)			/*If the region is > 32, move it down*/
-		word = word >> 32;
-	if(rgn&0x1)			/*If the region is odd, get that part */
-		word = word >> 16;
-	word = word & 0xffff;		/*Get the 16 bits we are interested in*/
-
-	return word;
-}
-
-static __inline void BDPRT_ENTRY_S(paddr_t pa,__uint32_t rgn,__uint64_t val) {
-        __uint64_t *addr=(__uint64_t *)BDPRT_ENTRY_ADDR(pa,rgn);
-        __uint64_t word,mask;
-
-        word=*addr;
-	mask=0;
-	if(rgn&0x1) {
-		mask|=0x0000ffff0000ffff;
-		val=val<<16;
-	}
-	else
-		mask|=0xffff0000ffff0000;
-	if(rgn&0x20) {
-		mask|=0x00000000ffffffff;
-		val=val<<32;
-	}
-	else
-		mask|=0xffffffff00000000;
-	word &= mask;
-	word |= val;
-
-	*(addr++)=word;
-	addr++;
-        *(addr++)=word;
-        addr++;
-        *(addr++)=word;
-        addr++;
-        *addr=word;
-}
-#endif	/*_LANGUAGE_C*/
-
-#define BDCNT_ENTRY(_pa)	(HSPEC_BASE +				      \
-				  NODE_ADDRSPACE_SIZE * 7 / 8 + 0x8    	    | \
-				 UINT64_CAST (_pa)	& NASID_MASK	    | \
-				 UINT64_CAST (_pa) >> 3 & BDDIR_PAGE_MASK   | \
-				 UINT64_CAST (_pa) >> 3 & 0x3 << 4)
-
-
-#ifdef    BRINGUP
-  /* little endian packing of ecc bytes requires a swizzle */ 
-  /* this is problemmatic for memory_init_ecc              */
-#endif /* BRINGUP */
-#define BDECC_ENTRY(_pa)	(HSPEC_BASE +				      \
-				  NODE_ADDRSPACE_SIZE * 5 / 8 		    | \
-				 UINT64_CAST (_pa)	& NASID_MASK	    | \
-				 UINT64_CAST (_pa) >> 3 & BDECC_UPPER_MASK    \
-				   		        ^ 0x7ULL)
-
-#define BDECC_SCRUB(_pa)	(HSPEC_BASE +				      \
-				  NODE_ADDRSPACE_SIZE / 2 		    | \
-				 UINT64_CAST (_pa)	& NASID_MASK	    | \
-				 UINT64_CAST (_pa) >> 3 & BDECC_UPPER_MASK    \
-				   		        ^ 0x7ULL)
-
-  /* address for Halfword backdoor ecc access. Note that   */
-  /* ecc bytes are packed in little endian order           */
-#define BDECC_ENTRY_H(_pa)	(HSPEC_BASE +                                 \
-				  NODE_ADDRSPACE_SIZE * 5 / 8		    | \
-				 UINT64_CAST (_pa)	 & NASID_MASK	    | \
-				 UINT64_CAST (_pa) >> 3 & BDECC_UPPER_MASK    \
-				   		        ^ 0x6ULL)
-
-/*
- * Macro to convert a back door directory, protection, page counter, or ecc
- * address into the raw physical address of the associated cache line
- * or protection page.
- */
-
-#define BDDIR_TO_MEM(_ba)	(UINT64_CAST  (_ba) & NASID_MASK            | \
-				 (UINT64_CAST (_ba) & BDDIR_UPPER_MASK) << 3)
-
-#ifdef BRINGUP
-/*
- * This can't be done since there are 4 entries per address so you'd end up
- * mapping back to 4 different physical addrs.
- */
-  
-#define BDPRT_TO_MEM(_ba) 	(UINT64_CAST  (_ba) & NASID_MASK	    | \
-				 (UINT64_CAST (_ba) & BDDIR_PAGE_MASK) << 3 | \
-				 (UINT64_CAST (_ba) & 0x3 << 4) << 3)
-#endif
-
-#define BDCNT_TO_MEM(_ba) 	(UINT64_CAST  (_ba) & NASID_MASK	    | \
-				 (UINT64_CAST (_ba) & BDDIR_PAGE_MASK) << 3 | \
-				 (UINT64_CAST (_ba) & 0x3 << 4) << 3)
-
-#define BDECC_TO_MEM(_ba)	(UINT64_CAST  (_ba) & NASID_MASK	    | \
-				 ((UINT64_CAST (_ba) ^ 0x7ULL)                \
-				                    & BDECC_UPPER_MASK) << 3 )
-
-#define BDECC_H_TO_MEM(_ba)	(UINT64_CAST  (_ba) & NASID_MASK	    | \
-				 ((UINT64_CAST (_ba) ^ 0x6ULL)                \
-				                    & BDECC_UPPER_MASK) << 3 )
-
-#define BDADDR_IS_DIR(_ba)	((UINT64_CAST  (_ba) & 0x8) == 0)
-#define BDADDR_IS_PRT(_ba)	((UINT64_CAST  (_ba) & 0x408) == 0x408)
-#define BDADDR_IS_CNT(_ba)	((UINT64_CAST  (_ba) & 0x8) == 0x8)
-
-#endif /* CONFIG_SGI_IP35 */
+#endif /* CONFIG_SGI_IP27 */
 
 
 /*
@@ -420,11 +261,6 @@ static __inline void BDPRT_ENTRY_S(paddr_t pa,__uint32_t rgn,__uint64_t val) {
 #define LOCAL_HUB(_x)		(HUBREG_CAST (IALIAS_BASE + (_x)))
 #define REMOTE_HUB(_n, _x)	(HUBREG_CAST (NODE_SWIN_BASE(_n, 1) +	\
 					      0x800000 + (_x)))
-#ifdef CONFIG_SGI_IP35
-#define LOCAL_HSPEC(_x)		(HUBREG_CAST (LREG_BASE + (_x)))
-#define REMOTE_HSPEC(_n, _x)		(HUBREG_CAST (RREG_BASE(_n) + (_x)))
-#endif /* CONFIG_SGI_IP35 */
-
 #endif /* _STANDALONE */
 
 /*
@@ -441,11 +277,7 @@ static __inline void BDPRT_ENTRY_S(paddr_t pa,__uint32_t rgn,__uint64_t val) {
 #ifdef CONFIG_SGI_IP27
 #define REMOTE_HUB_PI_ADDR(_n, _sn, _x)	(HUBREG_CAST (NODE_SWIN_BASE(_n, 1) +	\
 					      0x800000 + (_x)))
-#elif CONFIG_SGI_IP35
-#define REMOTE_HUB_PI_ADDR(_n, _sn, _x)	(HUBREG_CAST (NODE_SWIN_BASE(_n, 1) +	\
-#define LOCAL_HSPEC_ADDR(_x)		(HUBREG_CAST (LREG_BASE + (_x)))
-#define REMOTE_HSPEC_ADDR(_n, _x)	(HUBREG_CAST (RREG_BASE(_n) + (_x)))
-#endif /* CONFIG_SGI_IP35 */
+#endif /* CONFIG_SGI_IP27 */
 
 #if _LANGUAGE_C
 
@@ -458,13 +290,6 @@ static __inline void BDPRT_ENTRY_S(paddr_t pa,__uint32_t rgn,__uint64_t val) {
 #define REMOTE_HUB_S(_n, _r, _d)	HUB_S(REMOTE_HUB_ADDR((_n), (_r)), (_d))
 #define REMOTE_HUB_PI_L(_n, _sn, _r)	HUB_L(REMOTE_HUB_PI_ADDR((_n), (_sn), (_r)))
 #define REMOTE_HUB_PI_S(_n, _sn, _r, _d) HUB_S(REMOTE_HUB_PI_ADDR((_n), (_sn), (_r)), (_d))
-
-#ifdef CONFIG_SGI_IP35
-#define LOCAL_HSPEC_L(_r)	     HUB_L(LOCAL_HSPEC_ADDR(_r))
-#define LOCAL_HSPEC_S(_r, _d)	     HUB_S(LOCAL_HSPEC_ADDR(_r), (_d))
-#define REMOTE_HSPEC_L(_n, _r)	     HUB_L(REMOTE_HSPEC_ADDR((_n), (_r)))
-#define REMOTE_HSPEC_S(_n, _r, _d)   HUB_S(REMOTE_HSPEC_ADDR((_n), (_r)), (_d))
-#endif /* CONFIG_SGI_IP35 */
 
 #endif /* _LANGUAGE_C */
 
@@ -594,15 +419,7 @@ static __inline void BDPRT_ENTRY_S(paddr_t pa,__uint32_t rgn,__uint64_t val) {
 /* loading symmon 4k below UNIX. the arcs loader needs the topaddr for a
  * relocatable program
  */
-#if defined(CONFIG_SGI_IP35)
-/* update master.d/sn1_elspec.dbg, SN1/addrs.h/DEBUGUNIX_ADDR, and
- * DBGLOADADDR in symmon's Makefile when changing this */
-#define UNIX_DEBUG_LOADADDR     0x310000
-#elif defined(SN0XXL)
-#define UNIX_DEBUG_LOADADDR     0x360000
-#else
 #define	UNIX_DEBUG_LOADADDR	0x300000
-#endif
 #define	SYMMON_LOADADDR(nasid)						\
 	TO_NODE(nasid, PHYS_TO_K0(UNIX_DEBUG_LOADADDR - 0x1000))
 

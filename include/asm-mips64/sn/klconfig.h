@@ -84,20 +84,11 @@ typedef s32 klconf_off_t;
 
 #define	MAX_MODULE_ID		255
 #define SIZE_PAD		4096 /* 4k padding for structures */
-#if defined(CONFIG_SGI_IP35) && defined(BRINGUP) /* MAX_SLOTS_PER_NODE??? */
-/* 
- * 1 NODE brick, 2 Router bricks (1 local, 1 meta), 6 XIO Widgets, 
- * 1 Midplane (midplane will likely become IO brick when Bruce cleans
- * up IP35 klconfig)
- */
-#define MAX_SLOTS_PER_NODE	(1 + 2 + 6 + 1) 
-#else
 /* 
  * 1 NODE brd, 2 Router brd (1 8p, 1 meta), 6 Widgets, 
  * 2 Midplanes assuming no pci card cages 
  */
 #define MAX_SLOTS_PER_NODE	(1 + 2 + 6 + 2) 
-#endif
 
 /* XXX if each node is guranteed to have some memory */
 
@@ -374,8 +365,6 @@ typedef struct kl_config_hdr {
 					 * hw ifc to xtalk and are not gfx
 					 * class for sw purposes */
 
-#define KLCLASS_IOBRICK	0x70		/* IP35 iobrick */
-
 #define KLCLASS_MAX	7		/* Bump this if a new CLASS is added */
 #define KLTYPE_MAX	10		/* Bump this if a new CLASS is added */
 
@@ -393,9 +382,6 @@ typedef struct kl_config_hdr {
 
 #define KLTYPE_WEIRDCPU (KLCLASS_CPU | 0x0)
 #define KLTYPE_IP27	(KLCLASS_CPU | 0x1) /* 2 CPUs(R10K) per board */
-#ifdef CONFIG_SGI_IP35
-#define KLTYPE_IP35	KLTYPE_IP27
-#endif
 
 #define KLTYPE_WEIRDIO	(KLCLASS_IO  | 0x0)
 #define KLTYPE_BASEIO	(KLCLASS_IO  | 0x1) /* IOC3, SuperIO, Bridge, SCSI */

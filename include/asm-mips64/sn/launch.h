@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: launch.h,v 1.2 2000/04/11 15:21:07 pfg Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -33,10 +33,6 @@
 #ifdef CONFIG_SGI_IP27
 #define LAUNCH_SIZEOF		0x100
 #define LAUNCH_PADSZ		0xa0
-#elif defined(CONFIG_SGI_IP35)
-/* IP35 puts four launch structures in the space IP27 used for two */
-#define LAUNCH_SIZEOF		0x80
-#define LAUNCH_PADSZ		0x30
 #endif
 
 #define LAUNCH_OFF_MAGIC	0x00	/* Struct offsets for assembly      */

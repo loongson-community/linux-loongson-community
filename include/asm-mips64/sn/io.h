@@ -67,8 +67,6 @@
 
 #if defined (CONFIG_SGI_IP27)
 #include <asm/sn/sn0/hubio.h>
-#elif defined (CONFIG_SGI_IP35)
-#include <asm/sn/sn1/hubio.h>
 #endif
 
 #endif	/* CONFIG_SGI_IO */

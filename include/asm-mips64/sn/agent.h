@@ -30,10 +30,6 @@
 #define HUB_NIC_ADDR(_cpuid) 						   \
 	REMOTE_HUB_ADDR(COMPACT_TO_NASID_NODEID(cputocnode(_cpuid)),       \
 		MD_MLAN_CTL)
-#elif CONFIG_SGI_IP35
-#define HUB_NIC_ADDR(_cpuid) 						   \
-	REMOTE_HUB_ADDR(COMPACT_TO_NASID_NODEID(cputocnode(_cpuid)),       \
-		LB_MICROLAN_CTL)
 #endif
 
 #define SET_HUB_NIC(_my_cpuid, _val) 				  	   \
