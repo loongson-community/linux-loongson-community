@@ -167,6 +167,7 @@ static void __init ic_close_devs(void)
 	struct ic_device *d, *next;
 	struct net_device *dev;
 
+	rtnl_shlock();
 	next = ic_first_dev;
 	while ((d = next)) {
 		next = d->next;
@@ -177,6 +178,7 @@ static void __init ic_close_devs(void)
 		}
 		kfree_s(d, sizeof(struct ic_device));
 	}
+	rtnl_shunlock();
 }
 
 /*
