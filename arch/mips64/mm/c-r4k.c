@@ -961,12 +961,13 @@ static void r4k_flush_icache_page_p(struct vm_area_struct *vma,
 static void r4k_dma_cache_wback_inv_pc(unsigned long addr, unsigned long size)
 {
 	unsigned long end, a;
-	unsigned int flags;
 
 	if (size >= dcache_size) {
 		flush_cache_l1();
 	} else {
 #ifdef R4600_V2_HIT_CACHEOP_WAR
+		unsigned int flags;
+
 		/* Workaround for R4600 bug.  See comment in <asm/war>. */
 		local_irq_save(flags);
 		*(volatile unsigned long *)KSEG1;
@@ -1007,12 +1008,13 @@ static void r4k_dma_cache_wback_inv_sc(unsigned long addr, unsigned long size)
 static void r4k_dma_cache_inv_pc(unsigned long addr, unsigned long size)
 {
 	unsigned long end, a;
-	unsigned int flags;
 
 	if (size >= dcache_size) {
 		flush_cache_l1();
 	} else {
 #ifdef R4600_V2_HIT_CACHEOP_WAR
+		unsigned int flags;
+
 		/* Workaround for R4600 bug.  See comment in <asm/war>. */
 		local_irq_save(flags);
 		*(volatile unsigned long *)KSEG1;

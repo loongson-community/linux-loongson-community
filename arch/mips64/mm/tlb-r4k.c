@@ -290,7 +290,7 @@ void dump_mm_page(unsigned long addr)
 	pmd = pmd_offset(pgd, addr);
 	pte = pte_offset(pmd, addr);
 	page = *pte;
-	printk("Memory Mapping: VA = %08x, PA = %08x ", addr, (unsigned int) pte_val(page));
+	printk("Memory Mapping: VA = %08lx, PA = %08lx ", addr, pte_val(page));
 	val = pte_val(page);
 	if (val & _PAGE_PRESENT) printk("present ");
 	if (val & _PAGE_READ) printk("read ");
@@ -305,8 +305,8 @@ void dump_mm_page(unsigned long addr)
 
 void show_tlb(void)
 {
-        unsigned int flags;
-        unsigned int old_ctx;
+	unsigned long flags;
+	unsigned int old_ctx;
 	unsigned int entry;
 	unsigned int entrylo0, entrylo1, entryhi;
 
