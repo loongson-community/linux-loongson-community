@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.12 1998/08/18 20:45:06 ralf Exp $
+/* $Id: setup.c,v 1.9 1998/08/25 09:14:40 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -76,7 +76,6 @@ int EISA_bus = 0;
  * information is being use to continue the screen output just below
  * the BIOS printed text and with the same text resolution.
  */
-struct drive_info_struct drive_info = DEFAULT_DRIVE_INFO;
 struct screen_info screen_info = DEFAULT_SCREEN_INFO;
 
 #ifdef CONFIG_BLK_DEV_FD
@@ -102,10 +101,8 @@ unsigned long mips_cputype = CPU_UNKNOWN;
 unsigned long mips_machtype = MACH_UNKNOWN;
 unsigned long mips_machgroup = MACH_GROUP_UNKNOWN;
 unsigned long mips_tlb_entries = 48; /* Guess which CPU I've got :) */
-unsigned long mips_vram_base = KSEG0;
 
 unsigned char aux_device_present;
-extern int root_mountflags;
 extern int _end;
 
 extern char empty_zero_page[PAGE_SIZE];
@@ -125,6 +122,7 @@ extern char empty_zero_page[PAGE_SIZE];
 
 static char command_line[CL_SIZE] = { 0, };
        char saved_command_line[CL_SIZE];
+extern char arcs_cmdline[CL_SIZE];
 
 /*
  * The board specific setup routine sets irq_setup to point to a board
@@ -153,25 +151,12 @@ __initfunc(void setup_arch(char **cmdline_p,
            unsigned long * memory_start_p, unsigned long * memory_end_p))
 {
 	unsigned long memory_end;
-	tag* atag;
 	void cobalt_setup(void);
 	void decstation_setup(void);
 	void deskstation_setup(void);
 	void jazz_setup(void);
 	void sni_rm200_pci_setup(void);
 	void sgi_setup(void);
-
-	/* Perhaps a lot of tags are not getting 'snarfed' - */
-	/* please help yourself */
-
-	atag = bi_TagFind(tag_machtype);
-	memcpy(&mips_machtype, TAGVALPTR(atag), atag->size);
-
-	atag = bi_TagFind(tag_machgroup);
-	memcpy(&mips_machgroup, TAGVALPTR(atag), atag->size);
-
-	atag = bi_TagFind(tag_vram_base);
-	memcpy(&mips_vram_base, TAGVALPTR(atag), atag->size);
 
 	/* Save defaults for configuration-dependent routines.  */
 	irq_setup = default_irq_setup;
@@ -212,9 +197,6 @@ __initfunc(void setup_arch(char **cmdline_p,
 		panic("Unsupported architecture");
 	}
 
-	atag = bi_TagFind(tag_drive_info);
-	memcpy(&drive_info, TAGVALPTR(atag), atag->size);
-
 	memory_end = mips_memory_upper;
 	/*
 	 * Due to prefetching and similar mechanism the CPU sometimes
@@ -231,14 +213,7 @@ __initfunc(void setup_arch(char **cmdline_p,
 	rd_doload = ((RAMDISK_FLAGS & RAMDISK_LOAD_FLAG) != 0);
 #endif
 
-	atag = bi_TagFind(tag_mount_root_rdonly);
-	if (atag)
-	  root_mountflags |= MS_RDONLY;
-
-	atag = bi_TagFind(tag_command_line);
-	if (atag)
-		memcpy(&command_line, TAGVALPTR(atag), atag->size);	  
-
+        strncpy (command_line, arcs_cmdline, CL_SIZE);
 	memcpy(saved_command_line, command_line, CL_SIZE);
 	saved_command_line[CL_SIZE-1] = '\0';
 

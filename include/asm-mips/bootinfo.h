@@ -1,4 +1,4 @@
-/* $Id: bootinfo.h,v 1.5 1998/08/19 21:58:10 ralf Exp $
+/* $Id: bootinfo.h,v 1.4 1998/08/25 09:21:55 ralf Exp $
  *
  * bootinfo.h -- Definition of the Linux/MIPS boot information structure
  *
@@ -151,126 +151,6 @@ typedef struct mips_arc_DisplayInfo {	/* video adapter information */
 	unsigned short lines;
 } mips_arc_DisplayInfo;
 
-/*
- * New style bootinfo
- *
- * Add new tags only at the end of the enum; *never* remove any tags
- * or you'll break compatibility!
- */
-enum bi_tag {
- 	/*
- 	 * not a real tag
- 	 */
-	tag_dummy,
- 
- 	/*
- 	 * machine type
- 	 */
-	tag_machtype,
- 
- 	/*
- 	 * system CPU & FPU
- 	 */
-	tag_cputype,
- 
- 	/*
- 	 * Installed RAM
- 	 */
-	tag_memlower,
-	tag_memupper,
- 
- 	/*
- 	 * Cache Sizes (0xffffffff = unknown)
- 	 */
-	tag_icache_size,
-	tag_icache_linesize,
-	tag_dcache_size,
-	tag_dcache_linesize,
-	tag_scache_size,
-	tag_scache_linesize,
- 
- 	/*
- 	 * TLB Info
- 	 */
-	tag_tlb_entries,
- 
- 	/*
- 	 * DMA buffer size (Deskstation only)
- 	 */
-	tag_dma_cache_size,
-	tag_dma_cache_base,
- 
- 	/*
-	 * Ramdisk Info 
- 	 */
-	tag_ramdisk_size,		/* ramdisk size in 1024 byte blocks */
-	tag_ramdisk_base,		/* address of the ram disk in mem */
- 
- 	/*
- 	 * Boot flags for the kernel
- 	 */
-	tag_mount_root_rdonly,
-	tag_drive_info,
- 
- 	/*
- 	 * Video ram info (not in tty.h)
- 	 */
-	tag_vram_base,			/* video ram base address */
-       
-	tag_command_line,		/* kernel command line parameters */
-
-        /*
-         * machine group
-         */
-	tag_machgroup,
-
-	/*
-	 * info on the display from the ARC BIOS
-	 */
-	tag_arcdisplayinfo,
-
-	/*
-	 * tag to pass a complete struct screen_info
-	 */
-	tag_screen_info
-};
-
-/* struct defining a tag */
-typedef struct {
-	enum bi_tag tag;
-	unsigned long size;
-} tag;
-
-/* struct to define a tag and it's data */
-typedef struct {
-	tag t;
-	void* d;
-} tag_def;
-
-/* macros for parsing tag list */
-#define TAGVALPTR(t) ((void*)(((void*)(t)) - ((t)->size)))
-#define NEXTTAGPTR(t) ((void*)(TAGVALPTR(t) - (sizeof(tag))))
-
-/* size macros for tag size field */
-#define UCHARSIZE (sizeof(unsigned char))
-#define ULONGSIZE (sizeof(unsigned long))
-#define UINTSIZE  (sizeof(unsigned int))
-#define DRVINFOSIZE (sizeof(struct drive_info_struct))
-#define CMDLINESIZE (sizeof(char[CL_SIZE])
-
-/*
- * For tag readers aka the kernel
- */
-tag *bi_TagFind(enum bi_tag type);
-void bi_EarlySnarf(void);
-
-/* For tag creators aka bootloaders */
-/* Now implemented in Milo 0.26 */
-int bi_TagAdd(enum bi_tag type, unsigned long size, void *data);
-int bi_TagAddList(tag_def* taglist);
-void bi_TagWalk(void); 
-
-
 #ifdef CONFIG_SGI
 /* screen info will dissapear... soon */
 //#define DEFAULT_SCREEN_INFO {0, 0, 0, 0, 0, 158, 0, 0, 0, 62, 0, 16}
@@ -296,9 +176,6 @@ extern unsigned long mips_cputype;
 extern unsigned long mips_machtype;
 extern unsigned long mips_machgroup;
 extern unsigned long mips_tlb_entries;
-extern unsigned long mips_vram_base;
-extern unsigned long mips_dma_cache_size;
-extern unsigned long mips_dma_cache_base;
 
 #endif /* _LANGUAGE_ASSEMBLY */
 
