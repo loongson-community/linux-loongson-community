@@ -378,9 +378,9 @@ illegal_syscall:
 	sys	sys_listen	2
 	sys	sys_recv	4			/* 4175 */
 	sys	sys_recvfrom	6
-	sys	sys_recvmsg	3
+	sys	sys32_recvmsg	3
 	sys	sys_send	4
-	sys	sys_sendmsg	3
+	sys	sys32_sendmsg	3
 	sys	sys_sendto	6			/* 4180 */
 	sys	sys32_setsockopt	5
 	sys	sys_shutdown	2

@@ -27,6 +27,7 @@
 #include <linux/personality.h>
 #include <linux/timex.h>
 #include <linux/dnotify.h>
+#include <net/sock.h>
 
 #include <asm/uaccess.h>
 #include <asm/mman.h>
@@ -2068,4 +2069,266 @@ asmlinkage int sys32_adjtimex(struct timex32 *utp)
 		ret = -EFAULT;
 
 	return ret;
+}
+
+/*
+ *  Declare the 32-bit version of the msghdr
+ */
+ 
+struct msghdr32 {
+	unsigned int    msg_name;	/* Socket name			*/
+	int		msg_namelen;	/* Length of name		*/
+	unsigned int    msg_iov;	/* Data blocks			*/
+	unsigned int	msg_iovlen;	/* Number of blocks		*/
+	unsigned int    msg_control;	/* Per protocol magic (eg BSD file descriptor passing) */
+	unsigned int	msg_controllen;	/* Length of cmsg list */
+	unsigned	msg_flags;
+};
+
+static inline int
+shape_msg(struct msghdr *mp, struct msghdr32 *mp32)
+{
+	int ret;
+	unsigned int i;
+
+	if (!access_ok(VERIFY_READ, mp32, sizeof(*mp32)))
+		return(-EFAULT);
+	ret = __get_user(i, &mp32->msg_name);
+	mp->msg_name = (void *)A(i);
+	ret |= __get_user(mp->msg_namelen, &mp32->msg_namelen);
+	ret |= __get_user(i, &mp32->msg_iov);
+	mp->msg_iov = (struct iovec *)A(i);
+	ret |= __get_user(mp->msg_iovlen, &mp32->msg_iovlen);
+	ret |= __get_user(i, &mp32->msg_control);
+	mp->msg_control = (void *)A(i);
+	ret |= __get_user(mp->msg_controllen, &mp32->msg_controllen);
+	ret |= __get_user(mp->msg_flags, &mp32->msg_flags);
+	return(ret ? -EFAULT : 0);
+}
+
+/*
+ *	Verify & re-shape IA32 iovec. The caller must ensure that the
+ *      iovec is big enough to hold the re-shaped message iovec.
+ *
+ *	Save time not doing verify_area. copy_*_user will make this work
+ *	in any case.
+ *
+ *	Don't need to check the total size for overflow (cf net/core/iovec.c),
+ *	32-bit sizes can't overflow a 64-bit count.
+ */
+
+static inline int
+verify_iovec32(struct msghdr *m, struct iovec *iov, char *address, int mode)
+{
+	int size, err, ct;
+	struct iovec32 *iov32;
+	
+	if(m->msg_namelen)
+	{
+		if(mode==VERIFY_READ)
+		{
+			err=move_addr_to_kernel(m->msg_name, m->msg_namelen, address);
+			if(err<0)
+				goto out;
+		}
+		
+		m->msg_name = address;
+	} else
+		m->msg_name = NULL;
+
+	err = -EFAULT;
+	size = m->msg_iovlen * sizeof(struct iovec32);
+	if (copy_from_user(iov, m->msg_iov, size))
+		goto out;
+	m->msg_iov=iov;
+
+	err = 0;
+	iov32 = (struct iovec32 *)iov;
+	for (ct = m->msg_iovlen; ct-- > 0; ) {
+		iov[ct].iov_len = (__kernel_size_t)iov32[ct].iov_len;
+		iov[ct].iov_base = (void *) A(iov32[ct].iov_base);
+		err += iov[ct].iov_len;
+	}
+out:
+	return err;
+}
+
+extern __inline__ void
+sockfd_put(struct socket *sock)
+{
+	fput(sock->file);
+}
+
+/* XXX This really belongs in some header file... -DaveM */
+#define MAX_SOCK_ADDR	128		/* 108 for Unix domain - 
+					   16 for IP, 16 for IPX,
+					   24 for IPv6,
+					   about 80 for AX.25 */
+
+extern struct socket *sockfd_lookup(int fd, int *err);
+
+/*
+ *	BSD sendmsg interface
+ */
+
+int sys32_sendmsg(int fd, struct msghdr32 *msg, unsigned flags)
+{
+	struct socket *sock;
+	char address[MAX_SOCK_ADDR];
+	struct iovec iovstack[UIO_FASTIOV], *iov = iovstack;
+	unsigned char ctl[sizeof(struct cmsghdr) + 20];	/* 20 is size of ipv6_pktinfo */
+	unsigned char *ctl_buf = ctl;
+	struct msghdr msg_sys;
+	int err, ctl_len, iov_size, total_len;
+	
+	err = -EFAULT;
+	if (shape_msg(&msg_sys, msg))
+		goto out; 
+
+	sock = sockfd_lookup(fd, &err);
+	if (!sock) 
+		goto out;
+
+	/* do not move before msg_sys is valid */
+	err = -EINVAL;
+	if (msg_sys.msg_iovlen > UIO_MAXIOV)
+		goto out_put;
+
+	/* Check whether to allocate the iovec area*/
+	err = -ENOMEM;
+	iov_size = msg_sys.msg_iovlen * sizeof(struct iovec32);
+	if (msg_sys.msg_iovlen > UIO_FASTIOV) {
+		iov = sock_kmalloc(sock->sk, iov_size, GFP_KERNEL);
+		if (!iov)
+			goto out_put;
+	}
+
+	/* This will also move the address data into kernel space */
+	err = verify_iovec32(&msg_sys, iov, address, VERIFY_READ);
+	if (err < 0) 
+		goto out_freeiov;
+	total_len = err;
+
+	err = -ENOBUFS;
+
+	if (msg_sys.msg_controllen > INT_MAX)
+		goto out_freeiov;
+	ctl_len = msg_sys.msg_controllen; 
+	if (ctl_len) 
+	{
+		if (ctl_len > sizeof(ctl))
+		{
+			err = -ENOBUFS;
+			ctl_buf = sock_kmalloc(sock->sk, ctl_len, GFP_KERNEL);
+			if (ctl_buf == NULL) 
+				goto out_freeiov;
+		}
+		err = -EFAULT;
+		if (copy_from_user(ctl_buf, msg_sys.msg_control, ctl_len))
+			goto out_freectl;
+		msg_sys.msg_control = ctl_buf;
+	}
+	msg_sys.msg_flags = flags;
+
+	if (sock->file->f_flags & O_NONBLOCK)
+		msg_sys.msg_flags |= MSG_DONTWAIT;
+	err = sock_sendmsg(sock, &msg_sys, total_len);
+
+out_freectl:
+	if (ctl_buf != ctl)    
+		sock_kfree_s(sock->sk, ctl_buf, ctl_len);
+out_freeiov:
+	if (iov != iovstack)
+		sock_kfree_s(sock->sk, iov, iov_size);
+out_put:
+	sockfd_put(sock);
+out:       
+	return err;
+}
+
+/*
+ *	BSD recvmsg interface
+ */
+
+int
+sys32_recvmsg (int fd, struct msghdr32 *msg, unsigned int flags)
+{
+	struct socket *sock;
+	struct iovec iovstack[UIO_FASTIOV];
+	struct iovec *iov=iovstack;
+	struct msghdr msg_sys;
+	unsigned long cmsg_ptr;
+	int err, iov_size, total_len, len;
+
+	/* kernel mode address */
+	char addr[MAX_SOCK_ADDR];
+
+	/* user mode address pointers */
+	struct sockaddr *uaddr;
+	int *uaddr_len;
+	
+	err=-EFAULT;
+	if (shape_msg(&msg_sys, msg))
+		goto out;
+
+	sock = sockfd_lookup(fd, &err);
+	if (!sock)
+		goto out;
+
+	err = -EINVAL;
+	if (msg_sys.msg_iovlen > UIO_MAXIOV)
+		goto out_put;
+	
+	/* Check whether to allocate the iovec area*/
+	err = -ENOMEM;
+	iov_size = msg_sys.msg_iovlen * sizeof(struct iovec);
+	if (msg_sys.msg_iovlen > UIO_FASTIOV) {
+		iov = sock_kmalloc(sock->sk, iov_size, GFP_KERNEL);
+		if (!iov)
+			goto out_put;
+	}
+
+	/*
+	 *	Save the user-mode address (verify_iovec will change the
+	 *	kernel msghdr to use the kernel address space)
+	 */
+	 
+	uaddr = msg_sys.msg_name;
+	uaddr_len = &msg->msg_namelen;
+	err = verify_iovec32(&msg_sys, iov, addr, VERIFY_WRITE);
+	if (err < 0)
+		goto out_freeiov;
+	total_len=err;
+
+	cmsg_ptr = (unsigned long)msg_sys.msg_control;
+	msg_sys.msg_flags = 0;
+	
+	if (sock->file->f_flags & O_NONBLOCK)
+		flags |= MSG_DONTWAIT;
+	err = sock_recvmsg(sock, &msg_sys, total_len, flags);
+	if (err < 0)
+		goto out_freeiov;
+	len = err;
+
+	if (uaddr != NULL) {
+		err = move_addr_to_user(addr, msg_sys.msg_namelen, uaddr, uaddr_len);
+		if (err < 0)
+			goto out_freeiov;
+	}
+	err = __put_user(msg_sys.msg_flags, &msg->msg_flags);
+	if (err)
+		goto out_freeiov;
+	err = __put_user((unsigned long)msg_sys.msg_control-cmsg_ptr, 
+							 &msg->msg_controllen);
+	if (err)
+		goto out_freeiov;
+	err = len;
+
+out_freeiov:
+	if (iov != iovstack)
+		sock_kfree_s(sock->sk, iov, iov_size);
+out_put:
+	sockfd_put(sock);
+out:
+	return err;
 }
