@@ -50,6 +50,9 @@ static void enable_sb1250_irq(unsigned int irq);
 static void disable_sb1250_irq(unsigned int irq);
 static unsigned int startup_sb1250_irq(unsigned int irq);
 static void ack_sb1250_irq(unsigned int irq);
+#ifdef CONFIG_SMP
+static void sb1250_set_affinity(unsigned int irq, unsigned long mask);
+#endif
 
 #ifdef CONFIG_SIBYTE_HAS_LDT
 extern unsigned long ldt_eoi_space;
@@ -76,8 +79,15 @@ static struct hw_interrupt_type sb1250_irq_type = {
 	disable_sb1250_irq,
 	ack_sb1250_irq,
 	end_sb1250_irq,
+#ifdef CONFIG_SMP
+	sb1250_set_affinity
+#else
 	NULL
+#endif
 };
+
+/* Store the CPU id (not the logical number) */
+int sb1250_irq_owner[SB1250_NR_IRQS];
 
 spinlock_t sb1250_imr_lock = SPIN_LOCK_UNLOCKED;
 
@@ -87,9 +97,9 @@ void sb1250_mask_irq(int cpu, int irq)
 	u64 cur_ints;
 
 	spin_lock_irqsave(&sb1250_imr_lock, flags);
-	cur_ints = in64(KSEG1 + A_IMR_MAPPER(cpu) + R_IMR_INTERRUPT_MASK);
+	cur_ints = __in64(KSEG1 + A_IMR_MAPPER(cpu) + R_IMR_INTERRUPT_MASK);
 	cur_ints |= (((u64) 1) << irq);
-	out64(cur_ints, KSEG1 + A_IMR_MAPPER(cpu) + R_IMR_INTERRUPT_MASK);
+	__out64(cur_ints, KSEG1 + A_IMR_MAPPER(cpu) + R_IMR_INTERRUPT_MASK);
 	spin_unlock_irqrestore(&sb1250_imr_lock, flags);
 }
 
@@ -99,12 +109,61 @@ void sb1250_unmask_irq(int cpu, int irq)
 	u64 cur_ints;
 
 	spin_lock_irqsave(&sb1250_imr_lock, flags);
-	cur_ints = in64(KSEG1 + A_IMR_MAPPER(cpu) + R_IMR_INTERRUPT_MASK);
+	cur_ints = __in64(KSEG1 + A_IMR_MAPPER(cpu) + R_IMR_INTERRUPT_MASK);
 	cur_ints &= ~(((u64) 1) << irq);
-	out64(cur_ints, KSEG1 + A_IMR_MAPPER(cpu) + R_IMR_INTERRUPT_MASK);
+	__out64(cur_ints, KSEG1 + A_IMR_MAPPER(cpu) + R_IMR_INTERRUPT_MASK);
 	spin_unlock_irqrestore(&sb1250_imr_lock, flags);
 }
 
+#ifdef CONFIG_SMP
+static void sb1250_set_affinity(unsigned int irq, unsigned long mask)
+{
+	int i = 0, old_cpu, cpu, int_on;
+	u64 cur_ints;
+	irq_desc_t *desc = irq_desc + irq;
+	unsigned int flags;
+
+	while (mask) {
+		if (mask & 1) {
+			mask >>= 1;
+			break;
+		}
+		mask >>= 1;
+		i++;
+	}
+
+	if (mask) {
+		printk("attempted to set irq affinity for irq %d to multiple CPUs\n", irq);
+		return;
+	}
+
+	/* Convert logical CPU to physical CPU */
+	cpu = cpu_logical_map(i);
+
+	/* Protect against other affinity changers and IMR manipulation */
+	spin_lock_irqsave(&desc->lock, flags);
+	spin_lock(&sb1250_imr_lock);
+
+	/* Swizzle each CPU's IMR (but leave the IP selection alone) */
+	old_cpu = sb1250_irq_owner[irq];
+	cur_ints = __in64(KSEG1 + A_IMR_MAPPER(old_cpu) + R_IMR_INTERRUPT_MASK);
+	int_on = !(cur_ints & (((u64) 1) << irq));
+	if (int_on) {
+		/* If it was on, mask it */
+		cur_ints |= (((u64) 1) << irq);
+		__out64(cur_ints, KSEG1 + A_IMR_MAPPER(old_cpu) + R_IMR_INTERRUPT_MASK);
+	}
+	sb1250_irq_owner[irq] = cpu;
+	if (int_on) {
+		/* unmask for the new CPU */
+		cur_ints = __in64(KSEG1 + A_IMR_MAPPER(cpu) + R_IMR_INTERRUPT_MASK);
+		cur_ints &= ~(((u64) 1) << irq);
+		__out64(cur_ints, KSEG1 + A_IMR_MAPPER(cpu) + R_IMR_INTERRUPT_MASK);
+	}
+	spin_unlock(&sb1250_imr_lock);
+	spin_unlock_irqrestore(&desc->lock, flags);
+}
+#endif
 
 
 /* Defined in arch/mips/sibyte/sb1250/irq_handler.S */
@@ -114,7 +173,7 @@ extern void sb1250_irq_handler(void);
 
 static unsigned int startup_sb1250_irq(unsigned int irq)
 {
-	sb1250_unmask_irq(0, irq);
+	sb1250_unmask_irq(sb1250_irq_owner[irq], irq);
 
 	return 0;		/* never anything pending */
 }
@@ -122,12 +181,12 @@ static unsigned int startup_sb1250_irq(unsigned int irq)
 
 static void disable_sb1250_irq(unsigned int irq)
 {
-	sb1250_mask_irq(0, irq);
+	sb1250_mask_irq(sb1250_irq_owner[irq], irq);
 }
 
 static void enable_sb1250_irq(unsigned int irq)
 {
-	sb1250_unmask_irq(0, irq);
+	sb1250_unmask_irq(sb1250_irq_owner[irq], irq);
 }
 
 
@@ -137,13 +196,25 @@ static void ack_sb1250_irq(unsigned int irq)
 	u64 pending;
 
 	/*
-	 * If the interrupt was an LDT interrupt, now is the time
-	 * to clear it.
+	 * If the interrupt was an HT interrupt, now is the time to
+	 * clear it.  NOTE: we assume the HT bridge was set up to
+	 * deliver the interrupts to all CPUs (which makes affinity
+	 * changing easier for us)
 	 */
-	pending = in64(KSEG1 + A_IMR_REGISTER(0,R_IMR_LDT_INTERRUPT));
+	pending = in64(KSEG1 + A_IMR_REGISTER(sb1250_irq_owner[irq],
+					      R_IMR_LDT_INTERRUPT));
 	pending &= ((u64)1 << (irq));
 	if (pending) {
-		out64(pending, KSEG1+A_IMR_REGISTER(0,R_IMR_LDT_INTERRUPT_CLR));
+		int i;
+		for (i=0; i<smp_num_cpus; i++) {
+			/*
+			 * Clear for all CPUs so an affinity switch
+			 * doesn't find an old status
+			 */
+			out64(pending, 
+			      KSEG1+A_IMR_REGISTER(cpu_logical_map(i),
+						   R_IMR_LDT_INTERRUPT_CLR));
+		}
 
 		/*
 		 * Generate EOI.  For Pass 1 parts, EOI is a nop.  For
@@ -154,14 +225,14 @@ static void ack_sb1250_irq(unsigned int irq)
 		*(uint32_t *)(ldt_eoi_space+(irq<<16)+(7<<2)) = 0;
 	}
 #endif
-	sb1250_mask_irq(0, irq);
+	sb1250_mask_irq(sb1250_irq_owner[irq], irq);
 }
 
 
 static void end_sb1250_irq(unsigned int irq)
 {
 	if (!(irq_desc[irq].status & (IRQ_DISABLED | IRQ_INPROGRESS))) {
-		sb1250_unmask_irq(0, irq);
+		sb1250_unmask_irq(sb1250_irq_owner[irq], irq);
 	}
 }
 
@@ -174,10 +245,12 @@ void __init init_sb1250_irqs(void)
 		irq_desc[i].status = IRQ_DISABLED;
 		irq_desc[i].action = 0;
 		irq_desc[i].depth = 1;
-		if (i < SB1250_NR_IRQS)
+		if (i < SB1250_NR_IRQS) {
 			irq_desc[i].handler = &sb1250_irq_type;
-		else
+			sb1250_irq_owner[i] = 0;
+		} else {
 			irq_desc[i].handler = &no_irq_type;
+		}
 	}
 }
 
