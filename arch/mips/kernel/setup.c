@@ -281,12 +281,12 @@ static inline void bootmem_init(void)
 		initrd_reserve_bootmem = 1;
 	} else {
 		unsigned long tmp;
-		unsigned long *initrd_header;
+		u32 *initrd_header;
 
-		tmp = ((reserved_end + PAGE_SIZE-1) & PAGE_MASK) - 8;
+		tmp = ((reserved_end + PAGE_SIZE-1) & PAGE_MASK) - sizeof(u32) * 2;
 		if (tmp < reserved_end)
 			tmp += PAGE_SIZE;
-		initrd_header = (unsigned long *)tmp;
+		initrd_header = (u32 *)tmp;
 		if (initrd_header[0] == 0x494E5244) {
 			initrd_start = (unsigned long)&initrd_header[2];
 			initrd_end = initrd_start + initrd_header[1];
