@@ -24,6 +24,4 @@ extern void sb1250_mask_irq(int cpu, int irq);
 extern void sb1250_unmask_irq(int cpu, int irq);
 extern void sb1250_smp_finish(void);
 
-#define IO_SPACE_BASE 0xa0000000UL
-
 #endif
