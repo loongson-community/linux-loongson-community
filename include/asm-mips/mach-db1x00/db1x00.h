@@ -174,5 +174,29 @@ typedef volatile struct
 		} \
 	} while (0)
 
+
+/* NAND defines */
+/* Timing values as described in databook, * ns value stripped of
+ * lower 2 bits.
+ * These defines are here rather than an SOC1550 generic file because
+ * the parts chosen on another board may be different and may require
+ * different timings.
+ */
+#define NAND_T_H			(18 >> 2)
+#define NAND_T_PUL			(30 >> 2)
+#define NAND_T_SU			(30 >> 2)
+#define NAND_T_WH			(30 >> 2)
+
+/* Bitfield shift amounts */
+#define NAND_T_H_SHIFT		0
+#define NAND_T_PUL_SHIFT	4
+#define NAND_T_SU_SHIFT		8
+#define NAND_T_WH_SHIFT		12
+
+#define NAND_TIMING	((NAND_T_H   & 0xF)	<< NAND_T_H_SHIFT)   | \
+			((NAND_T_PUL & 0xF)	<< NAND_T_PUL_SHIFT) | \
+			((NAND_T_SU  & 0xF)	<< NAND_T_SU_SHIFT)  | \
+			((NAND_T_WH  & 0xF)	<< NAND_T_WH_SHIFT)
+
 #endif /* __ASM_DB1X00_H */
 
