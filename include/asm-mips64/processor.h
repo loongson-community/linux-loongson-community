@@ -27,6 +27,7 @@
 
 #if (defined(CONFIG_SGI_IP27))
 #include <asm/sn/types.h>
+#include <asm/sn/intr_public.h>
 #endif
 
 struct cpuinfo_mips {
@@ -41,6 +42,7 @@ struct cpuinfo_mips {
 	cnodeid_t	p_nodeid;	/* my node ID in compact-id-space */
 	nasid_t		p_nasid;	/* my node ID in numa-as-id-space */
 	unsigned char	p_slice;	/* Physical position on node board */
+	hub_intmasks_t	p_intmasks;	/* SN0 per-CPU interrupt masks */
 #endif
 } __attribute__((aligned(128)));
 

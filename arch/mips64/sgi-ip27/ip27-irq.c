@@ -204,10 +204,17 @@ static unsigned int bridge_startup(unsigned int irq)
 	 * "map" irq to a swlevel greater than 6 since the first 6 bits
 	 * of INT_PEND0 are taken
 	 */
+#if 0
+	/* Get this to work */
+	intr_connect_level(smp_processor_id(), swlevel);
+#else
 	swlevel = IRQ_TO_SWLEVEL(irq);
 	br = LOCAL_HUB_L(PI_INT_MASK0_A);
 	LOCAL_HUB_S(PI_INT_MASK0_A, br | (1 << swlevel));
 	LOCAL_HUB_L(PI_INT_MASK0_A);			/* Flush */
+	cpu_data[smp_processor_id()].p_intmasks.intpend0_masks[0] |= 
+						(1 << swlevel);
+#endif
 
 	bridge->b_int_addr[pin].addr = 0x20000 | swlevel;
 	bridge->b_int_enable |= (1 << pin);
@@ -264,11 +271,17 @@ static unsigned int bridge_shutdown(unsigned int irq)
 	 * map irq to a swlevel greater than 6 since the first 6 bits
 	 * of INT_PEND0 are taken
 	 */
+#if 0
+	/* Get this to work */
+	intr_disconnect_level(smp_processor_id(), swlevel);
+#else
 	swlevel = IRQ_TO_SWLEVEL(irq);
-	br = LOCAL_HUB_L(PI_INT_MASK0_A);
 	br = LOCAL_HUB_L(PI_INT_MASK0_A);
 	LOCAL_HUB_S(PI_INT_MASK0_A, br & ~(1 << swlevel));
 	LOCAL_HUB_L(PI_INT_MASK0_A);			/* Flush */
+	cpu_data[smp_processor_id()].p_intmasks.intpend0_masks[0] &= 
+						~(1 << swlevel);
+#endif
 
 	bridge->b_int_enable &= ~(1 << pin);
 	bridge->b_widget.w_tflush;			/* Flush */
@@ -610,8 +623,6 @@ void __global_restore_flags(unsigned long flags)
 
 #endif /* CONFIG_SMP */
 
-hub_intmasks_t per_hub_intmasks[MAX_COMPACT_NODES];
-
 /*
  * Get values that vary depending on which CPU and bit we're operating on.
  */
@@ -620,7 +631,7 @@ static hub_intmasks_t *intr_get_ptrs(cpuid_t cpu, int bit, int *new_bit,
 {
 	hub_intmasks_t *hub_intmasks;
 
-	hub_intmasks = &per_hub_intmasks[cputocnode(cpu)];
+	hub_intmasks = &cpu_data[cpu].p_intmasks;
 	if (bit < N_INTPEND_BITS) {
 		*intpend_masks = hub_intmasks->intpend0_masks;
 		*ip = 0;
