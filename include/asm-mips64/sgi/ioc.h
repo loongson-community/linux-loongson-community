@@ -201,7 +201,7 @@ struct sgioc_regs {
 #define SGIOC_WRITE_MHI		0x80	/* 1=5.25V 0=+5V */
 	u32 _unused6;
 	struct sgint_regs int3;
-	u32 _unused7[15];
+	u32 _unused7[16];
 	volatile u32 extio;		/* FullHouse only */
 #define EXTIO_S0_IRQ_3		0x8000	/* S0: vid.vsync */
 #define EXTIO_S0_IRQ_2		0x4000	/* S0: gfx.fifofull */
