@@ -265,8 +265,6 @@ head-y := arch/mips64/kernel/head.o arch/mips64/kernel/init_task.o
 libs-y		+= arch/mips64/lib/
 core-y		+= arch/mips64/kernel/ arch/mips64/mm/ arch/mips/math-emu/
 
-MAKEBOOT = $(MAKE) -C arch/$(ARCH)/boot
-
 ifdef CONFIG_MAPPED_KERNEL
 vmlinux.64: vmlinux
 	$(OBJCOPY) -O $(64bit-bfd) --change-addresses=0xbfffffff40000000 $< $@
@@ -295,9 +293,6 @@ archclean:
 	@$(MAKE) -f scripts/Makefile.clean obj=arch/mips/boot
 	@$(MAKE) -f scripts/Makefile.clean obj=arch/mips/baget
 	@$(MAKE) -f scripts/Makefile.clean obj=arch/mips/lasat
-
-archmrproper:
-	@$(MAKEBOOT) mrproper
 
 # Generate <asm/offset.h 
 #
