@@ -38,7 +38,6 @@ static unsigned int dcache_assoc;
 
 static unsigned int icache_sets;
 static unsigned int dcache_sets;
-static unsigned int tlb_entries;
 
 void pgd_init(unsigned long page)
 {
@@ -486,7 +485,6 @@ static __init void probe_cache_sizes(void)
 	icache_size = icache_line_size * icache_sets * icache_assoc;
 	dcache_size = dcache_line_size * dcache_sets * dcache_assoc;
 	icache_index_mask = (icache_sets - 1) * icache_line_size;
-	tlb_entries = ((config1 >> 25) & 0x3f) + 1;
 }
 
 /*

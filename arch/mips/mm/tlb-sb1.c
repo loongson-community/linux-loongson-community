@@ -27,19 +27,7 @@
 #include <asm/cpu.h>
 
 /* These are probed at ld_mmu time */
-static unsigned int icache_size;
-static unsigned int dcache_size;
 
-static unsigned int icache_line_size;
-static unsigned int dcache_line_size;
-
-static unsigned int icache_index_mask;
-
-static unsigned int icache_assoc;
-static unsigned int dcache_assoc;
-
-static unsigned int icache_sets;
-static unsigned int dcache_sets;
 static unsigned int tlb_entries;
 
 /* Dump the current entry* and pagemask registers */
@@ -305,6 +293,11 @@ void update_mmu_cache(struct vm_area_struct *vma, unsigned long address,
  */
 void sb1_tlb_init(void)
 {
+	u32 config1;
+
+	config1 = read_mips32_cp0_config1();
+	tlb_entries = ((config1 >> 25) & 0x3f) + 1;
+
 	/*
 	 * We don't know what state the firmware left the TLB's in, so this is
 	 * the ultra-conservative way to flush the TLB's and avoid machine
