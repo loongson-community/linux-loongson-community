@@ -8,6 +8,7 @@
  * Copyright (C) 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001 Ralf Baechle
  * Copyright (C) 1996 Stoned Elipot
  * Copyright (C) 1999 Silicon Graphics, Inc.
+ * Copyright (C) 2002  Maciej W. Rozycki
  */
 #include <linux/config.h>
 #include <linux/errno.h>
@@ -180,6 +181,20 @@ static inline int cpu_has_confreg(void)
 #else
 	return 0;
 #endif
+}
+
+/*
+ * Get the FPU Implementation/Revision.
+ */
+static inline unsigned long cpu_get_fpu_id(void)
+{
+	unsigned long tmp, fpu_id;
+
+	tmp = read_32bit_cp0_register(CP0_STATUS);
+	__enable_fpu();
+	fpu_id = read_32bit_cp1_register(CP1_REVISION);
+	write_32bit_cp0_register(CP0_STATUS, tmp);
+	return fpu_id;
 }
 
 /* declaration of the global struct */
@@ -459,6 +474,8 @@ static inline void cpu_probe(void)
 	default:
 		mips_cpu.cputype = CPU_UNKNOWN;
 	}
+	if (mips_cpu.options & MIPS_CPU_FPU)
+		mips_cpu.fpu_id = cpu_get_fpu_id();
 }
 
 static inline void cpu_report(void)

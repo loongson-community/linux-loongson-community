@@ -300,8 +300,6 @@ static void andes_update_mmu_cache(struct vm_area_struct * vma,
 
 void __init ld_mmu_andes(void)
 {
-	printk("CPU revision is: %08x\n", read_32bit_cp0_register(CP0_PRID));
-
 	printk("Primary instruction cache %dkb, linesize %d bytes\n",
 	       icache_size >> 10, ic_lsize);
 	printk("Primary data cache %dkb, linesize %d bytes\n",
