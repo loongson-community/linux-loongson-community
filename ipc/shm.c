@@ -52,7 +52,7 @@ static struct super_block *shm_read_super(struct super_block *,void *, int);
 static void	      shm_put_super  (struct super_block *);
 static int	      shm_remount_fs (struct super_block *, int *, char *);
 static void	      shm_read_inode (struct inode *);
-static void	      shm_write_inode(struct inode *);
+static void	      shm_write_inode(struct inode *, int);
 static int	      shm_statfs   (struct super_block *, struct statfs *);
 static int	      shm_create   (struct inode *,struct dentry *,int);
 static struct dentry *shm_lookup   (struct inode *,struct dentry *);
@@ -371,7 +371,7 @@ static int shm_statfs(struct super_block *sb, struct statfs *buf)
 	return 0;
 }
 
-static void shm_write_inode(struct inode * inode)
+static void shm_write_inode(struct inode * inode, int sync)
 {
 }
 
@@ -1490,7 +1490,7 @@ static int shm_swap_core(struct shmid_kernel *shp, unsigned long idx, swp_entry_
 		return RETRY;
 	if (shp->id != zero_id) swap_attempts++;
 
-	if (--counter < 0) /* failed */
+	if (--*counter < 0) /* failed */
 		return FAILED;
 	if (page_count(page_map) != 1)
 		return RETRY;

@@ -950,7 +950,7 @@ S: London SE16 1GD
 S: United Kingdom
 
 N: Kai Harrekilde-Petersen
-E: khp@olicom.dk
+E: kai.harrekilde@get2net.dk
 D: Original author of the ftape-HOWTO, i82078 fdc detection code.
 
 N: Bart Hartgers
@@ -1215,6 +1215,10 @@ S: 28, Laura Street,
 S: Treforest, Pontypridd,
 S: Mid Glamorgan, CF37 1NW,
 S: Wales, United Kingdom
+
+N: Ani Joshi
+E: ajoshi@shell.unixbox.com
+D: fbdev hacking
 
 N: Bernhard Kaindl
 E: bkaindl@netway.at
@@ -2662,10 +2666,10 @@ S: USA
 N: Tim Waugh
 E: tim@cyberelk.demon.co.uk
 D: Co-architect of the parallel-port sharing system
-S: 34 Bladon Close
+S: 17 Curling Vale
 S: GUILDFORD
 S: Surrey
-S: GU1 1TY
+S: GU2 7PJ
 S: United Kingdom
 
 N: Juergen Weigert

@@ -408,6 +408,7 @@ static int proc_pid_follow_link(struct dentry *dentry, struct nameidata *nd)
 		goto out;
 
 	error = inode->u.proc_i.op.proc_get_link(inode, &nd->dentry, &nd->mnt);
+	nd->last_type = LAST_BIND;
 out:
 #ifdef NULL_VFSMNT
 	mntput(dummy);
@@ -706,6 +707,7 @@ static struct dentry_operations pid_base_dentry_operations =
 };
 
 /* Lookups */
+#define MAX_MULBY10	((~0U-9)/10)
 
 static struct dentry *proc_lookupfd(struct inode * dir, struct dentry * dentry)
 {
@@ -726,10 +728,10 @@ static struct dentry *proc_lookupfd(struct inode * dir, struct dentry * dentry)
 		name++;
 		if (c > 9)
 			goto out;
+		if (fd >= MAX_MULBY10)
+			goto out;
 		fd *= 10;
 		fd += c;
-		if (fd & 0xffff8000)
-			goto out;
 	}
 
 	inode = proc_pid_make_inode(dir->i_sb, task, PROC_PID_FD_DIR+fd);
@@ -940,11 +942,11 @@ struct dentry *proc_pid_lookup(struct inode *dir, struct dentry * dentry)
 		name++;
 		if (c > 9)
 			goto out;
+		if (pid >= MAX_MULBY10)
+			goto out;
 		pid *= 10;
 		pid += c;
 		if (!pid)
-			goto out;
-		if (pid & 0xffff0000)
 			goto out;
 	}
 

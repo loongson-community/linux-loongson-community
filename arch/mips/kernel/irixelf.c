@@ -778,9 +778,8 @@ out:
 	return retval;
 
 out_free_dentry:
-	lock_kernel();
+	allow_write_access(interpreter);
 	fput(interpreter);
-	unlock_kernel();
 out_free_interp:
 	if (elf_interpreter)
 		kfree(elf_interpreter);

@@ -130,6 +130,7 @@ EXPORT_SYMBOL(highmem_start_page);
 /* filesystem internal functions */
 EXPORT_SYMBOL(def_blk_fops);
 EXPORT_SYMBOL(update_atime);
+EXPORT_SYMBOL(get_fs_type);
 EXPORT_SYMBOL(get_super);
 EXPORT_SYMBOL(get_empty_super);
 EXPORT_SYMBOL(getname);
@@ -205,7 +206,7 @@ EXPORT_SYMBOL(generic_ro_fops);
 EXPORT_SYMBOL(generic_buffer_fdatasync);
 EXPORT_SYMBOL(page_hash_bits);
 EXPORT_SYMBOL(page_hash_table);
-EXPORT_SYMBOL(file_lock_table);
+EXPORT_SYMBOL(file_lock_list);
 EXPORT_SYMBOL(posix_lock_file);
 EXPORT_SYMBOL(posix_test_lock);
 EXPORT_SYMBOL(posix_block_lock);
@@ -213,7 +214,6 @@ EXPORT_SYMBOL(posix_unblock_lock);
 EXPORT_SYMBOL(locks_mandatory_area);
 EXPORT_SYMBOL(dput);
 EXPORT_SYMBOL(have_submounts);
-EXPORT_SYMBOL(d_genocide);
 EXPORT_SYMBOL(d_find_alias);
 EXPORT_SYMBOL(d_prune_aliases);
 EXPORT_SYMBOL(prune_dcache);
@@ -502,7 +502,6 @@ EXPORT_SYMBOL(disk_name);	/* for md.c */
 
 /* binfmt_aout */
 EXPORT_SYMBOL(get_write_access);
-EXPORT_SYMBOL(put_write_access);
 
 /* dynamic registering of consoles */
 EXPORT_SYMBOL(register_console);

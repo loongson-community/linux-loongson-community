@@ -47,7 +47,12 @@ struct poll_table_struct;
 #define BLOCK_SIZE (1<<BLOCK_SIZE_BITS)
 
 /* And dynamically-tunable limits and defaults: */
-extern int max_files, nr_files, nr_free_files;
+struct files_stat_struct {
+	int nr_files;		/* read only */
+	int nr_free_files;	/* read only */
+	int max_files;		/* tunable */
+};
+extern struct files_stat_struct files_stat;
 extern int max_super_blocks, nr_super_blocks;
 
 #define NR_FILE  8192	/* this can well be larger on a larger system */
@@ -84,6 +89,7 @@ extern int max_super_blocks, nr_super_blocks;
 			   * kernel-wide vfsmnt is kept in ->kern_mnt.
 			   */
 #define FS_NOMOUNT	16 /* Never mount from userland */
+#define FS_LITTER	32 /* Keeps the tree in dcache */
 /*
  * These are the fs-independent mount-flags: up to 16 flags are supported
  */
@@ -504,10 +510,8 @@ typedef struct files_struct *fl_owner_t;
 
 struct file_lock {
 	struct file_lock *fl_next;	/* singly linked list for this inode  */
-	struct file_lock *fl_nextlink;	/* doubly linked list of all locks */
-	struct file_lock *fl_prevlink;	/* used to simplify lock removal */
-	struct file_lock *fl_nextblock; /* circular list of blocked processes */
-	struct file_lock *fl_prevblock;
+	struct list_head fl_link;	/* doubly linked list of all locks */
+	struct list_head fl_block; /* circular list of blocked processes */
 	fl_owner_t fl_owner;
 	unsigned int fl_pid;
 	wait_queue_head_t fl_wait;
@@ -532,7 +536,7 @@ struct file_lock {
 #define OFFSET_MAX	INT_LIMIT(loff_t)
 #endif
 
-extern struct file_lock			*file_lock_table;
+extern struct list_head file_lock_list;
 
 #include <linux/fcntl.h>
 
@@ -721,7 +725,7 @@ struct file_operations {
 	int (*open) (struct inode *, struct file *);
 	int (*flush) (struct file *);
 	int (*release) (struct inode *, struct file *);
-	int (*fsync) (struct file *, struct dentry *);
+	int (*fsync) (struct file *, struct dentry *, int datasync);
 	int (*fasync) (int, struct file *, int);
 	int (*lock) (struct file *, int, struct file_lock *);
 	ssize_t (*readv) (struct file *, const struct iovec *, unsigned long, loff_t *);
@@ -754,7 +758,7 @@ struct inode_operations {
  */
 struct super_operations {
 	void (*read_inode) (struct inode *);
-	void (*write_inode) (struct inode *);
+	void (*write_inode) (struct inode *, int);
 	void (*put_inode) (struct inode *);
 	void (*delete_inode) (struct inode *);
 	void (*put_super) (struct super_block *);
@@ -859,7 +863,8 @@ static inline int locks_verify_truncate(struct inode *inode,
 		return locks_mandatory_area(
 			FLOCK_VERIFY_WRITE, inode, filp,
 			size < inode->i_size ? size : inode->i_size,
-			abs(inode->i_size - size)
+			(size < inode->i_size ? inode->i_size - size
+			 : size - inode->i_size)
 		);
 	return 0;
 }
@@ -989,7 +994,7 @@ extern void invalidate_inode_pages(struct inode *);
 #define destroy_buffers(dev)	__invalidate_buffers((dev), 1)
 extern void __invalidate_buffers(kdev_t dev, int);
 extern void sync_inodes(kdev_t);
-extern void write_inode_now(struct inode *);
+extern void write_inode_now(struct inode *, int);
 extern void sync_dev(kdev_t);
 extern int fsync_dev(kdev_t);
 extern void sync_supers(kdev_t);
@@ -997,7 +1002,16 @@ extern int bmap(struct inode *, int);
 extern int notify_change(struct dentry *, struct iattr *);
 extern int permission(struct inode *, int);
 extern int get_write_access(struct inode *);
-extern void put_write_access(struct inode *);
+extern int deny_write_access(struct file *);
+static inline void put_write_access(struct inode * inode)
+{
+	atomic_dec(&inode->i_writecount);
+}
+static inline void allow_write_access(struct file *file)
+{
+	if (file)
+		atomic_inc(&file->f_dentry->d_inode->i_writecount);
+}
 extern int do_pipe(int *);
 
 extern int open_namei(const char *, int, int, struct nameidata *);
@@ -1037,7 +1051,7 @@ extern ino_t find_inode_number(struct dentry *, struct qstr *);
 /*
  * Type of the last component on LOOKUP_PARENT
  */
-enum {LAST_NORM, LAST_ROOT, LAST_DOT, LAST_DOTDOT };
+enum {LAST_NORM, LAST_ROOT, LAST_DOT, LAST_DOTDOT, LAST_BIND};
 
 /*
  * "descriptor" for what we're up to with a read for sendfile().
@@ -1148,6 +1162,7 @@ extern struct inode_operations page_symlink_inode_operations;
 extern int vfs_readdir(struct file *, filldir_t, void *);
 extern int dcache_readdir(struct file *, void *, filldir_t);
 
+extern struct file_system_type *get_fs_type(const char *name);
 extern struct super_block *get_super(kdev_t);
 struct super_block *get_empty_super(void);
 extern void put_super(kdev_t);
@@ -1172,7 +1187,7 @@ extern int read_ahead[];
 extern ssize_t char_write(struct file *, const char *, size_t, loff_t *);
 extern ssize_t block_write(struct file *, const char *, size_t, loff_t *);
 
-extern int file_fsync(struct file *, struct dentry *);
+extern int file_fsync(struct file *, struct dentry *, int);
 extern int generic_buffer_fdatasync(struct inode *inode, unsigned long start_idx, unsigned long end_idx);
 
 extern int inode_change_ok(struct inode *, struct iattr *);
@@ -1184,20 +1199,6 @@ extern void inode_setattr(struct inode *, struct iattr *);
  * functions were in linux/fs/ C (VFS) files.
  *
  */
-
-/*
- * We need to do a check-parent every time
- * after we have locked the parent - to verify
- * that the parent is still our parent and
- * that we are still hashed onto it..
- *
- * This is required in case two processes race
- * on removing (or moving) the same entry: the
- * parent lock will serialize them, but the
- * other process will be too late..
- */
-#define check_parent(dir, dentry) \
-	((dir) == (dentry)->d_parent && !d_unhashed(dentry))
 
 /*
  * Locking the parent is needed to:
