@@ -178,6 +178,9 @@ endif
 
 MAKEBOOT = $(MAKE) -C arch/$(ARCH)/boot
 
+$(TOPDIR)/include/asm/offset.h:
+	$(MAKE) -C arch/$(ARCH)/tools
+
 zImage: vmlinux
 	@$(MAKEBOOT) zImage
 
