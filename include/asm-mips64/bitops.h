@@ -18,7 +18,6 @@
 
 #include <asm/system.h>
 #include <asm/sgidefs.h>
-#include <asm/mipsregs.h>
 
 /*
  * set_bit - Atomically set a bit in memory

@@ -43,8 +43,6 @@
 
 #ifdef CONFIG_CPU_HAS_LLSC
 
-#include <asm/mipsregs.h>
-
 /*
  * These functions for MIPS ISA > 1 are interrupt and SMP proof and
  * interrupt friendly
