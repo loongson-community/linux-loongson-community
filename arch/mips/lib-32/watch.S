@@ -21,16 +21,16 @@
  * Results  : none
  */
 		LEAF(__watch_set)
-		li	t0,0x80000000
-		subu	a0,t0
-		ori	a0,7
-		xori	a0,7
-		or	a0,a1
-		mtc0	a0,CP0_WATCHLO
-		sw	a0,watch_savelo
+		li	t0, 0x80000000
+		subu	a0, t0
+		ori	a0, 7
+		xori	a0, 7
+		or	a0, a1
+		mtc0	a0, CP0_WATCHLO
+		sw	a0, watch_savelo
 
 		jr	ra
-		 mtc0	zero,CP0_WATCHHI
+		 mtc0	zero, CP0_WATCHHI
 		END(__watch_set)
 
 /*
@@ -39,7 +39,7 @@
  */
 		LEAF(__watch_clear)
 		jr	ra
-		 mtc0	zero,CP0_WATCHLO
+		 mtc0	zero, CP0_WATCHLO
 		END(__watch_clear)
 
 /*
@@ -47,9 +47,9 @@
  * Results  : none
  */
 		LEAF(__watch_reenable)
-		lw	t0,watch_savelo
+		lw	t0, watch_savelo
 		jr	ra
-		 mtc0	t0,CP0_WATCHLO
+		 mtc0	t0, CP0_WATCHLO
 		END(__watch_reenable)
 
 /*
