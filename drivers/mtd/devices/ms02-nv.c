@@ -31,7 +31,7 @@
 static char version[] __initdata =
 	"ms02-nv.c: v.1.0.0  13 Aug 2001  Maciej W. Rozycki.\n";
 
-MODULE_AUTHOR("Maciej W. Rozycki <macro@ds2.pg.gda.pl>");
+MODULE_AUTHOR("Maciej W. Rozycki <macro@linux-mips.org>");
 MODULE_DESCRIPTION("DEC MS02-NV NVRAM module driver");
 MODULE_LICENSE("GPL");
 
