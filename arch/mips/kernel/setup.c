@@ -474,8 +474,6 @@ void __init setup_arch(char **cmdline_p)
 	set_c0_status(ST0_CU0|ST0_KX|ST0_SX|ST0_FR);
 #endif
 
-	frame_info_init();
-
 #ifdef CONFIG_BLK_DEV_FD
 	fd_ops = &no_fd_ops;
 #endif
