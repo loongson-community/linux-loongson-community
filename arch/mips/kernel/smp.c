@@ -224,7 +224,6 @@ void smp_call_function_interrupt(void)
 	void *info = call_data->info;
 	int wait = call_data->wait;
 
-	irq_enter();
 	/*
 	 * Notify initiating CPU that I've grabbed the data and am
 	 * about to execute the function.
