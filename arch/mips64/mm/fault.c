@@ -44,6 +44,19 @@ dodebug(abi64_no_regargs, struct pt_regs regs)
 	printk("Got syscall %d, cpu %d proc %s:%d epc 0x%lx\n", regs.regs[2], smp_processor_id(), current->comm, current->pid, regs.cp0_epc);
 }
 
+asmlinkage void
+dodebug2(abi64_no_regargs, struct pt_regs regs)
+{
+	unsigned long retaddr;
+
+	__asm__ __volatile__(
+		".set noreorder\n\t"
+		"add %0,$0,$31\n\t"
+		".set reorder"
+		: "=r" (retaddr));
+	printk("Got exception 0x%lx at 0x%lx\n", retaddr, regs.cp0_epc);
+}
+
 /*
  * This routine handles page faults.  It determines the address,
  * and the problem, and then passes it off to one of the appropriate
