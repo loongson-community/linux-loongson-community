@@ -380,15 +380,17 @@ void __init init_IRQ(void)
 	set_except_vector(0, au1000_IRQ);
 
 	init_generic_irq();
-	
+
 	for (i = 0; i <= NR_IRQS; i++) {
 		switch (i) {
-			case AU1000_GPIO_15:
-				setup_local_irq(i, INTC_INT_LOW_LEVEL, 0);
-				irq_desc[i].handler = &level_irq_type;
-				break;
-			case AU1000_MAC0_DMA_INT:
-			case AU1000_MAC1_DMA_INT:
+			case AU1000_UART0_INT:
+			case AU1000_UART1_INT:
+			case AU1000_UART2_INT:
+			case AU1000_UART3_INT:
+
+			case AU1000_SSI0_INT:
+			case AU1000_SSI1_INT:
+
 		        case AU1000_DMA_INT_BASE:
 		        case AU1000_DMA_INT_BASE+1:
 		        case AU1000_DMA_INT_BASE+2:
@@ -397,22 +399,40 @@ void __init init_IRQ(void)
 		        case AU1000_DMA_INT_BASE+5:
 		        case AU1000_DMA_INT_BASE+6:
 		        case AU1000_DMA_INT_BASE+7:
+
+			case AU1000_IRDA_TX_INT:
+			case AU1000_IRDA_RX_INT:
+
+			case AU1000_MAC0_DMA_INT:
+			case AU1000_MAC1_DMA_INT:
 				setup_local_irq(i, INTC_INT_HIGH_LEVEL, 0);
 				irq_desc[i].handler = &level_irq_type;
 				break;
+
+			case AU1000_GPIO_15:
 		        case AU1000_USB_HOST_INT:
 				setup_local_irq(i, INTC_INT_LOW_LEVEL, 0);
 				irq_desc[i].handler = &level_irq_type;
                                 break;
+			case AU1000_ACSYNC_INT:
+			case AU1000_AC97C_INT:
 		        case AU1000_USB_DEV_REQ_INT:
 		        case AU1000_USB_DEV_SUS_INT:
+			case AU1000_PC0_INT:
+			case AU1000_PC0_MATCH0_INT:
+			case AU1000_PC0_MATCH1_INT:
+			case AU1000_PC1_INT:
+			case AU1000_PC1_MATCH0_INT:
+			case AU1000_PC1_MATCH1_INT:
+			case AU1000_PC1_MATCH2_INT:
 			        setup_local_irq(i, INTC_INT_RISE_EDGE, 0);
                                 irq_desc[i].handler = &rise_edge_irq_type;
                                 break;
+
 				 // Careful if you change match 2 request!
 				 // The interrupt handler is called directly
 				 // from the low level dispatch code.
-			 case AU1000_PC0_MATCH2_INT:
+			case AU1000_PC0_MATCH2_INT:
 				 setup_local_irq(i, INTC_INT_RISE_EDGE, 1);
 				 irq_desc[i].handler = &rise_edge_irq_type;
 				  break;
