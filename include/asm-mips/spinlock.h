@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: spinlock.h,v 1.8 2000/01/23 21:15:52 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -46,7 +46,8 @@ static inline void spin_lock(spinlock_t *lock)
 	" sync\n\t"
 	".set\treorder"
 	: "=o" (__dummy_lock(lock)), "=&r" (tmp)
-	: "o" (__dummy_lock(lock)));
+	: "o" (__dummy_lock(lock))
+	: "memory");
 }
 
 static inline void spin_unlock(spinlock_t *lock)
@@ -92,7 +93,8 @@ static inline void read_lock(rwlock_t *rw)
 	" sync\n\t"
 	".set\treorder"	
 	: "=o" (__dummy_lock(rw)), "=&r" (tmp)
-	: "o" (__dummy_lock(rw)));
+	: "o" (__dummy_lock(rw))
+	: "memory");
 }
 
 /* Note the use of sub, not subu which will make the kernel die with an
@@ -110,7 +112,8 @@ static inline void read_unlock(rwlock_t *rw)
 	"beqz\t%1, 1b\n\t"
 	".set\treorder"	
 	: "=o" (__dummy_lock(rw)), "=&r" (tmp)
-	: "o" (__dummy_lock(rw)));
+	: "o" (__dummy_lock(rw))
+	: "memory");
 }
 
 static inline void write_lock(rwlock_t *rw)
@@ -127,7 +130,8 @@ static inline void write_lock(rwlock_t *rw)
 	" sync\n\t"
 	".set\treorder"	
 	: "=o" (__dummy_lock(rw)), "=&r" (tmp)
-	: "o" (__dummy_lock(rw)));
+	: "o" (__dummy_lock(rw))
+	: "memory");
 }
 
 static inline void write_unlock(rwlock_t *rw)
