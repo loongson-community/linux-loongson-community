@@ -27,6 +27,7 @@
 
 
 extern void asmlinkage smp_bootstrap(void);
+
 /* Boot all other cpus in the system, initialize them, and
    bring them into the boot fn */
 int prom_boot_secondary(int cpu, unsigned long sp, unsigned long gp)
