@@ -209,7 +209,7 @@ static char rcsid[] =
  * board type.
  *  
  * Revision 1.36.4.30  1997/05/16 15:30:00  daniel
- * Changes to suport new cycladesZ boards.
+ * Changes to support new cycladesZ boards.
  *
  * Revision 1.36.4.29  1997/05/12 11:30:00  daniel
  * Merge of Bentson's and Daniel's version 1.36.4.28.
@@ -241,7 +241,7 @@ static char rcsid[] =
  * varying too fast.
  *
  * Revision 1.36.4.27  1997/03/26 10:30:00  daniel
- * Changed for suport linux versions 2.1.X.
+ * Changed for support linux versions 2.1.X.
  * Backward compatible with linux versions 2.0.X.
  * Corrected illegal use of filler field in
  * CH_CTRL struct.

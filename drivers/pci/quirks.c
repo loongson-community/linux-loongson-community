@@ -85,6 +85,29 @@ static void __init quirk_triton(struct pci_dev *dev)
 }
 
 /*
+ *	VIA Apollo KT133 needs PCI latency patch
+ *	Made according to a windows driver based patch by George E. Breese
+ *	see PCI Latency Adjust on http://www.viahardware.com/download/viatweak.shtm
+ */
+static void __init quirk_vialatency(struct pci_dev *dev)
+{
+	u8 r70;
+
+	printk(KERN_INFO "Applying VIA PCI latency patch.\n");
+	/*
+	 *    In register 0x70, mask off bit 2 (PCI Master read caching)
+	 *    and 1 (Delay Transaction)
+	 */
+	pci_read_config_byte(dev, 0x70, &r70);
+	r70 &= 0xf9;
+	pci_write_config_byte(dev, 0x70, r70);
+	/*
+	 *    Turn off PCI Latency timeout (set to 0 clocks)
+	 */
+	pci_write_config_byte(dev, 0x75, 0x80);
+}
+
+/*
  *	VIA Apollo VP3 needs ETBF on BT848/878
  */
  
@@ -248,6 +271,20 @@ static void __init quirk_vt82c598_id(struct pci_dev *dev)
 }
 
 /*
+ * CardBus controllers have a legacy base address that enables them
+ * to respond as i82365 pcmcia controllers.  We don't want them to
+ * do this even if the Linux CardBus driver is not loaded, because
+ * the Linux i82365 driver does not (and should not) handle CardBus.
+ */
+static void __init quirk_cardbus_legacy(struct pci_dev *dev)
+{
+	if ((PCI_CLASS_BRIDGE_CARDBUS << 8) ^ dev->class)
+		return;
+	pci_write_config_dword(dev, PCI_CB_LEGACY_MODE_BASE, 0);
+}
+
+
+/*
  *  The main table of quirks.
  */
 
@@ -275,6 +312,7 @@ static struct pci_fixup pci_fixups[] __initdata = {
 	{ PCI_FIXUP_FINAL,	PCI_VENDOR_ID_INTEL, 	PCI_DEVICE_ID_INTEL_82443BX_2, 	quirk_natoma },
 	{ PCI_FIXUP_FINAL,	PCI_VENDOR_ID_SI,	PCI_DEVICE_ID_SI_5597,		quirk_nopcipci },
 	{ PCI_FIXUP_FINAL,	PCI_VENDOR_ID_SI,	PCI_DEVICE_ID_SI_496,		quirk_nopcipci },
+	{ PCI_FIXUP_FINAL,	PCI_VENDOR_ID_VIA,	PCI_DEVICE_ID_VIA_8363_0,	quirk_vialatency },
 	{ PCI_FIXUP_FINAL,	PCI_VENDOR_ID_VIA,	PCI_DEVICE_ID_VIA_82C597_0,	quirk_viaetbf },
 	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_VIA,	PCI_DEVICE_ID_VIA_82C597_0,	quirk_vt82c598_id },
 	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_VIA,	PCI_DEVICE_ID_VIA_82C586_3,	quirk_vt82c586_acpi },
@@ -283,6 +321,7 @@ static struct pci_fixup pci_fixups[] __initdata = {
 	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_AL,	PCI_DEVICE_ID_AL_M7101,		quirk_ali7101_acpi },
  	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_INTEL,	PCI_DEVICE_ID_INTEL_82371SB_2,	quirk_piix3_usb },
 	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_INTEL,	PCI_DEVICE_ID_INTEL_82371AB_2,	quirk_piix3_usb },
+	{ PCI_FIXUP_FINAL,	PCI_ANY_ID,		PCI_ANY_ID,			quirk_cardbus_legacy },
 	{ 0 }
 };
 

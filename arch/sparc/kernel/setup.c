@@ -1,8 +1,8 @@
-/*  $Id: setup.c,v 1.123 2001/02/13 01:16:43 davem Exp $
+/*  $Id: setup.c,v 1.124 2001/04/14 21:13:46 davem Exp $
  *  linux/arch/sparc/kernel/setup.c
  *
  *  Copyright (C) 1995  David S. Miller (davem@caip.rutgers.edu)
- *  Copyright (C) 2000  Anton Blanchard (anton@linuxcare.com)
+ *  Copyright (C) 2000  Anton Blanchard (anton@samba.org)
  */
 
 #include <linux/errno.h>

@@ -11,6 +11,7 @@
  * Cleaned up include files - Russell King <linux@arm.uk.linux.org>
  * DMA support - Bert De Jonghe <bert@sophis.be>
  * Many ECP bugs fixed.  Fred Barnes & Jamie Lokier, 1999
+ * More PCI support now conditional on CONFIG_PCI, 03/2001, Paul G. 
  */
 
 /* This driver should work with any hardware that is broadly compatible
@@ -347,15 +348,16 @@ void parport_pc_init_state(struct pardevice *dev, struct parport_state *s)
 void parport_pc_save_state(struct parport *p, struct parport_state *s)
 {
 	const struct parport_pc_private *priv = p->physport->private_data;
-	s->u.pc.ctr = inb (CONTROL (p));
+	s->u.pc.ctr = priv->ctr;
 	if (priv->ecr)
 		s->u.pc.ecr = inb (ECONTROL (p));
 }
 
 void parport_pc_restore_state(struct parport *p, struct parport_state *s)
 {
-	const struct parport_pc_private *priv = p->physport->private_data;
+	struct parport_pc_private *priv = p->physport->private_data;
 	outb (s->u.pc.ctr, CONTROL (p));
+	priv->ctr = s->u.pc.ctr;
 	if (priv->ecr)
 		outb (s->u.pc.ecr, ECONTROL (p));
 }
@@ -939,13 +941,11 @@ size_t parport_pc_ecp_read_block_pio (struct parport *port,
 			/* Can't yield the port. */
 			schedule ();
 
-		/* At this point, the FIFO may already be full.
-		 * Ideally, we'd be able to tell the port to hold on
-		 * for a second while we empty the FIFO, and we'd be
-		 * able to ensure that no data is lost.  I'm not sure
-		 * that's the case. :-(  It might be that you can play
-		 * games with STB, as in the forward case; someone should
-		 * look at a datasheet. */
+		/* At this point, the FIFO may already be full. In
+                 * that case ECP is already holding back the
+                 * peripheral (assuming proper design) with a delayed
+                 * handshake.  Work fast to avoid a peripheral
+                 * timeout.  */
 
 		if (ecrval & 0x01) {
 			/* FIFO is empty. Wait for interrupt. */
@@ -977,6 +977,10 @@ size_t parport_pc_ecp_read_block_pio (struct parport *port,
 				goto false_alarm;
 			}
 
+			/* Depending on how the FIFO threshold was
+                         * set, how long interrupt service took, and
+                         * how fast the peripheral is, we might be
+                         * lucky and have a just filled FIFO. */
 			continue;
 		}
 
@@ -988,6 +992,9 @@ size_t parport_pc_ecp_read_block_pio (struct parport *port,
 			continue;
 		}
 
+		/* FIFO not filled.  We will cycle this loop for a while
+                 * and either the peripheral will fill it faster,
+                 * tripping a fast empty with insb, or we empty it. */
 		*bufp++ = inb (fifo);
 		left--;
 	}
@@ -1982,10 +1989,10 @@ static int __devinit parport_dma_probe (struct parport *p)
 
 /* --- Initialisation code -------------------------------- */
 
-struct parport *__devinit parport_pc_probe_port (unsigned long int base,
-						 unsigned long int base_hi,
-						 int irq, int dma,
-						 struct pci_dev *dev)
+struct parport *parport_pc_probe_port (unsigned long int base,
+				       unsigned long int base_hi,
+				       int irq, int dma,
+				       struct pci_dev *dev)
 {
 	struct parport_pc_private *priv;
 	struct parport_operations *ops;
@@ -2178,8 +2185,10 @@ struct parport *__devinit parport_pc_probe_port (unsigned long int base,
 }
 
 
+#ifdef CONFIG_PCI
 /* Via support maintained by Jeff Garzik <jgarzik@mandrakesoft.com> */
-static int __devinit sio_via_686a_probe (struct pci_dev *pdev)
+static int __devinit sio_via_686a_probe (struct pci_dev *pdev, int autoirq,
+					 int autodma)
 {
 	u8 tmp;
 	int dma, irq;
@@ -2214,7 +2223,7 @@ static int __devinit sio_via_686a_probe (struct pci_dev *pdev)
 	case 0x378: port2 = 0x778; break;
 	case 0x278: port2 = 0x678; break;
 	default:
-		printk (KERN_INFO "parport_pc: Via 686A weird parport base 0x%X, ignoring\n",
+		printk (KERN_INFO "parport_pc: Weird Via 686A parport base 0x%X, ignoring\n",
 			port1);
 		return 0;
 	}
@@ -2259,6 +2268,14 @@ static int __devinit sio_via_686a_probe (struct pci_dev *pdev)
 	if (!have_eppecp)
 		dma = PARPORT_DMA_NONE;
 
+	/* Let the user (or defaults) steer us away from interrupts and DMA */
+	if (autoirq != PARPORT_IRQ_AUTO) {
+		irq = PARPORT_IRQ_NONE;
+		dma = PARPORT_DMA_NONE;
+	}
+	if (autodma != PARPORT_DMA_AUTO)
+		dma = PARPORT_DMA_NONE;
+
 	/* finally, do the probe with values obtained */
 	if (parport_pc_probe_port (port1, port2, irq, dma, NULL)) {
 		printk (KERN_INFO
@@ -2284,7 +2301,7 @@ enum parport_pc_sio_types {
 
 /* each element directly indexed from enum list, above */
 static struct parport_pc_superio {
-	int (*probe) (struct pci_dev *pdev);
+	int (*probe) (struct pci_dev *pdev, int autoirq, int autodma);
 } parport_pc_superio_info[] __devinitdata = {
 	{ sio_via_686a_probe, },
 };
@@ -2541,9 +2558,8 @@ static struct pci_driver parport_pc_pci_driver = {
 	probe:		parport_pc_pci_probe,
 };
 
-static int __init parport_pc_init_superio (void)
+static int __init parport_pc_init_superio (int autoirq, int autodma)
 {
-#ifdef CONFIG_PCI
 	const struct pci_device_id *id;
 	struct pci_dev *pdev;
 
@@ -2552,12 +2568,16 @@ static int __init parport_pc_init_superio (void)
 		if (id == NULL || id->driver_data >= last_sio)
 			continue;
 
-		return parport_pc_superio_info[id->driver_data].probe (pdev);
+		return parport_pc_superio_info[id->driver_data].probe
+			(pdev, autoirq, autodma);
 	}
-#endif /* CONFIG_PCI */
 
 	return 0; /* zero devices found */
 }
+#else
+static struct pci_driver parport_pc_pci_driver;
+static int __init parport_pc_init_superio(void) {return 0;}
+#endif /* CONFIG_PCI */
 
 /* This is called by parport_pc_find_nonpci_ports (in asm/parport.h) */
 static int __init __attribute__((unused))
@@ -2595,7 +2615,7 @@ static int __init parport_pc_find_ports (int autoirq, int autodma)
 #endif
 
 	/* Onboard SuperIO chipsets that show themselves on the PCI bus. */
-	count += parport_pc_init_superio ();
+	count += parport_pc_init_superio (autoirq, autodma);
 
 	/* ISA ports and whatever (see asm/parport.h). */
 	count += parport_pc_find_nonpci_ports (autoirq, autodma);
@@ -2630,16 +2650,7 @@ int __init parport_pc_init (int *io, int *io_hi, int *irq, int *dma)
 }
 
 /* Exported symbols. */
-#ifdef CONFIG_PARPORT_PC_PCMCIA
-
-/* parport_cs needs this in order to dyncamically get us to find ports. */
 EXPORT_SYMBOL (parport_pc_probe_port);
-
-#else
-
-EXPORT_NO_SYMBOLS;
-
-#endif
 
 #ifdef MODULE
 static int io[PARPORT_PC_MAX_PORTS+1] = { [0 ... PARPORT_PC_MAX_PORTS] = 0 };

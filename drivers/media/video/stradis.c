@@ -54,8 +54,8 @@
 #include "cs8420.h"
 
 #define DEBUG(x) 		/* debug driver */
-#undef  IDEBUG(x) 		/* debug irq handler */
-#undef  MDEBUG(x) 		/* debug memory management */
+#undef  IDEBUG	 		/* debug irq handler */
+#undef  MDEBUG	 		/* debug memory management */
 
 #define SAA7146_MAX 6
 
@@ -2196,9 +2196,9 @@ static void release_saa(void)
 
 		/* disable PCI bus-mastering */
 		pci_read_config_byte(saa->dev, PCI_COMMAND, &command);
-		/* Should this be &=~ ?? */
 		command &= ~PCI_COMMAND_MASTER;
 		pci_write_config_byte(saa->dev, PCI_COMMAND, command);
+
 		/* unmap and free memory */
 		saa->audhead = saa->audtail = saa->osdhead = 0;
 		saa->vidhead = saa->vidtail = saa->osdtail = 0;

@@ -99,10 +99,6 @@ EXPORT_SYMBOL(__down_interruptible);
 EXPORT_SYMBOL(__down_trylock);
 EXPORT_SYMBOL(__up);
 
-EXPORT_SYMBOL(__down_read);
-EXPORT_SYMBOL(__down_write);
-EXPORT_SYMBOL(__rwsem_wake);
-
 /*
  * Base address of ports for Intel style I/O.
  */

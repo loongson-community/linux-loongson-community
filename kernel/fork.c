@@ -39,7 +39,7 @@ void add_wait_queue(wait_queue_head_t *q, wait_queue_t * wait)
 	unsigned long flags;
 
 	wq_write_lock_irqsave(&q->lock, flags);
-	wait->flags = 0;
+	wait->flags &= ~WQ_FLAG_EXCLUSIVE;
 	__add_wait_queue(q, wait);
 	wq_write_unlock_irqrestore(&q->lock, flags);
 }
@@ -49,7 +49,7 @@ void add_wait_queue_exclusive(wait_queue_head_t *q, wait_queue_t * wait)
 	unsigned long flags;
 
 	wq_write_lock_irqsave(&q->lock, flags);
-	wait->flags = WQ_FLAG_EXCLUSIVE;
+	wait->flags |= WQ_FLAG_EXCLUSIVE;
 	__add_wait_queue_tail(q, wait);
 	wq_write_unlock_irqrestore(&q->lock, flags);
 }
@@ -203,7 +203,7 @@ static struct mm_struct * mm_init(struct mm_struct * mm)
 	atomic_set(&mm->mm_count, 1);
 	init_rwsem(&mm->mmap_sem);
 	mm->page_table_lock = SPIN_LOCK_UNLOCKED;
-	mm->pgd = pgd_alloc();
+	mm->pgd = pgd_alloc(mm);
 	if (mm->pgd)
 		return mm;
 	free_mm(mm);
@@ -652,7 +652,7 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 		goto bad_fork_cleanup_sighand;
 	retval = copy_thread(0, clone_flags, stack_start, stack_size, p, regs);
 	if (retval)
-		goto bad_fork_cleanup_sighand;
+		goto bad_fork_cleanup_mm;
 	p->semundo = NULL;
 	
 	/* Our parent execution domain becomes current domain
@@ -666,15 +666,17 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 	p->pdeath_signal = 0;
 
 	/*
-	 * "share" dynamic priority between parent and child, thus the
-	 * total amount of dynamic priorities in the system doesnt change,
-	 * more scheduling fairness. This is only important in the first
-	 * timeslice, on the long run the scheduling behaviour is unchanged.
+	 * Give the parent's dynamic priority entirely to the child.  The
+	 * total amount of dynamic priorities in the system doesn't change
+	 * (more scheduling fairness), but the child will run first, which
+	 * is especially useful in avoiding a lot of copy-on-write faults
+	 * if the child for a fork() just wants to do a few simple things
+	 * and then exec(). This is only important in the first timeslice.
+	 * In the long run, the scheduling behavior is unchanged.
 	 */
-	p->counter = (current->counter + 1) >> 1;
-	current->counter >>= 1;
-	if (!current->counter)
-		current->need_resched = 1;
+	p->counter = current->counter;
+	current->counter = 0;
+	current->need_resched = 1;
 
 	/*
 	 * Ok, add it to the run-queues and make it
@@ -706,6 +708,8 @@ fork_out:
 		down(&sem);
 	return retval;
 
+bad_fork_cleanup_mm:
+	exit_mm(p);
 bad_fork_cleanup_sighand:
 	exit_sighand(p);
 bad_fork_cleanup_fs:

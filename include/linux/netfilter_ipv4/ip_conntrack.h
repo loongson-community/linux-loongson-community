@@ -32,6 +32,7 @@ enum ip_conntrack_info
 #include <linux/types.h>
 #include <linux/skbuff.h>
 #include <linux/netfilter_ipv4/ip_conntrack_tcp.h>
+#include <linux/netfilter_ipv4/ip_conntrack_icmp.h>
 
 #ifdef CONFIG_NF_DEBUG
 #define IP_NF_ASSERT(x)							\
@@ -56,12 +57,8 @@ enum ip_conntrack_status {
 	IPS_SEEN_REPLY_BIT = 1,
 	IPS_SEEN_REPLY = (1 << IPS_SEEN_REPLY_BIT),
 
-	/* Packet seen leaving box: bit 2 set.  Can be set, not unset. */
-	IPS_CONFIRMED_BIT = 2,
-	IPS_CONFIRMED = (1 << IPS_CONFIRMED_BIT),
-
 	/* Conntrack should never be early-expired. */
-	IPS_ASSURED_BIT = 4,
+	IPS_ASSURED_BIT = 2,
 	IPS_ASSURED = (1 << IPS_ASSURED_BIT),
 };
 
@@ -84,16 +81,11 @@ struct ip_conntrack_expect
 #include <linux/netfilter_ipv4/ip_nat.h>
 #endif
 
-#if defined(CONFIG_IP_NF_FTP) || defined(CONFIG_IP_NF_FTP_MODULE)
 #include <linux/netfilter_ipv4/ip_conntrack_ftp.h>
-#ifdef CONFIG_IP_NF_NAT_NEEDED
-#include <linux/netfilter_ipv4/ip_nat_ftp.h>
-#endif
-#endif
 
 struct ip_conntrack
 {
-	/* Usage count in here is 1 for destruct timer, 1 per skb,
+	/* Usage count in here is 1 for hash table/destruct timer, 1 per skb,
            plus 1 for any connection(s) we are `master' for */
 	struct nf_conntrack ct_general;
 
@@ -124,21 +116,18 @@ struct ip_conntrack
 
 	union {
 		struct ip_ct_tcp tcp;
+		struct ip_ct_icmp icmp;
 	} proto;
 
 	union {
-#if defined(CONFIG_IP_NF_FTP) || defined(CONFIG_IP_NF_FTP_MODULE)
 		struct ip_ct_ftp ct_ftp_info;
-#endif
 	} help;
 
 #ifdef CONFIG_IP_NF_NAT_NEEDED
 	struct {
 		struct ip_nat_info info;
 		union {
-#if defined(CONFIG_IP_NF_FTP) || defined(CONFIG_IP_NF_FTP_MODULE)
-			struct ip_nat_ftp_info ftp_info[IP_CT_DIR_MAX];
-#endif
+			/* insert nat helper private data here */
 		} help;
 #if defined(CONFIG_IP_NF_TARGET_MASQUERADE) || \
 	defined(CONFIG_IP_NF_TARGET_MASQUERADE_MODULE)
@@ -186,5 +175,13 @@ ip_ct_gather_frags(struct sk_buff *skb);
 extern void
 ip_ct_selective_cleanup(int (*kill)(const struct ip_conntrack *i, void *data),
 			void *data);
+
+/* It's confirmed if it is, or has been in the hash table. */
+static inline int is_confirmed(struct ip_conntrack *ct)
+{
+	return ct->tuplehash[IP_CT_DIR_ORIGINAL].list.next != NULL;
+}
+
+extern unsigned int ip_conntrack_htable_size;
 #endif /* __KERNEL__ */
 #endif /* _IP_CONNTRACK_H */

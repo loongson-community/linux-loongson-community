@@ -38,7 +38,7 @@
  *	Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  *****************************************************************************/
-static const char *version =
+static const char version[] =
 	"de620.c: $Revision: 1.40 $,  Bjorn Ekwall <bj0rn@blox.se>\n";
 
 /***********************************************************************
@@ -183,8 +183,8 @@ typedef unsigned char byte;
  * Make a clone skip the Ethernet-address range check:
  *	insmod de620.o clone=1
  */
-static int bnc = 0;
-static int utp = 0;
+static int bnc;
+static int utp;
 static int io  = DE620_IO;
 static int irq = DE620_IRQ;
 static int clone = DE620_CLONE;
@@ -690,7 +690,6 @@ static int de620_rx_intr(struct net_device *dev)
 		else { /* Yep! Go get it! */
 			skb_reserve(skb,2);	/* Align */
 			skb->dev = dev;
-			skb->used = 0;
 			/* skb->data points to the start of sk_buff data area */
 			buffer = skb_put(skb,size);
 			/* copy the packet into the buffer */
@@ -722,7 +721,7 @@ static int de620_rx_intr(struct net_device *dev)
 static int adapter_init(struct net_device *dev)
 {
 	int i;
-	static int was_down = 0;
+	static int was_down;
 
 	if ((nic_data.Model == 3) || (nic_data.Model == 0)) { /* CT */
 		EIPRegister = NCTL0;

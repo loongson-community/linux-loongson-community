@@ -3,7 +3,7 @@
  * Copyright (C) 1996, 1999 David S. Miller (davem@redhat.com)
  */
 
-static char *version =
+static char version[] =
         "myri_sbus.c:v1.9 12/Sep/99 David S. Miller (davem@redhat.com)\n";
 
 #include <linux/module.h>
@@ -89,7 +89,7 @@ static char *version =
 #endif
 
 #ifdef MODULE
-static struct myri_eth *root_myri_dev = NULL;
+static struct myri_eth *root_myri_dev;
 #endif
 
 static void myri_reset_off(unsigned long lp, unsigned long cregs)
@@ -886,7 +886,7 @@ static void dump_eeprom(struct myri_eth *mp)
 
 static int __init myri_ether_init(struct net_device *dev, struct sbus_dev *sdev, int num)
 {
-	static unsigned version_printed = 0;
+	static unsigned version_printed;
 	struct myri_eth *mp;
 	unsigned char prop_buf[32];
 	int i;
@@ -1109,7 +1109,7 @@ static int __init myri_sbus_probe(void)
 	struct net_device *dev = NULL;
 	struct sbus_bus *bus;
 	struct sbus_dev *sdev = 0;
-	static int called = 0;
+	static int called;
 	int cards = 0, v;
 
 #ifdef MODULE

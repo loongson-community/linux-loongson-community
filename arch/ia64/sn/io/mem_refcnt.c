@@ -9,7 +9,6 @@
  */
 
 #include <linux/types.h>
-#include <linux/config.h>
 #include <asm/sn/sgi.h>
 #include <asm/sn/invent.h>
 #include <asm/sn/hcl.h>
@@ -58,15 +57,8 @@ int
 mem_refcnt_open(devfs_handle_t *devp, mode_t oflag, int otyp, cred_t *crp)
 {
         cnodeid_t node;
-#ifndef CONFIG_IA64_SGI_SN1
-	extern int numnodes;
-#endif
-        
-        ASSERT( (hubspc_subdevice_t)(ulong)device_info_get(*devp) == HUBSPC_REFCOUNTERS );
 
-        if (!cap_able(CAP_MEMORY_MGT)) {
-                return (EPERM);
-        }
+        ASSERT( (hubspc_subdevice_t)(ulong)device_info_get(*devp) == HUBSPC_REFCOUNTERS );
 
         node = master_node_get(*devp);
 
@@ -97,9 +89,6 @@ mem_refcnt_mmap(devfs_handle_t dev, vhandl_t *vt, off_t off, size_t len, uint pr
         int errcode;
         char* buffer;
         size_t blen;
-#ifndef CONFIG_IA64_SGI_SN1
-	extern int numnodes;
-#endif
         
         ASSERT( (hubspc_subdevice_t)(ulong)device_info_get(dev) == HUBSPC_REFCOUNTERS );
 
@@ -186,7 +175,7 @@ mem_refcnt_ioctl(devfs_handle_t dev,
                 
                 rcb.rcb_cnodeid = node;
                 rcb.rcb_granularity = MD_PAGE_SIZE;
-#ifdef notyet
+#ifdef LATER
                 rcb.rcb_hw_counter_max = MIGR_COUNTER_MAX_GET(node);
                 rcb.rcb_diff_threshold = MIGR_THRESHOLD_DIFF_GET(node);
 #endif
@@ -209,7 +198,7 @@ mem_refcnt_ioctl(devfs_handle_t dev,
                 ASSERT(nslots <= MAX_MEM_SLOTS);
                 for (s = 0; s < nslots; s++) {
                         slot[s].base = (uint64_t)ctob(slot_getbasepfn(node, s));
-#ifdef notyet
+#ifdef LATER
                         slot[s].size  = (uint64_t)ctob(slot_getsize(node, s));
 #else
                         slot[s].size  = (uint64_t)1;

@@ -41,6 +41,9 @@ extern void prom_con_init(void);
 #ifdef CONFIG_MDA_CONSOLE
 extern void mda_console_init(void);
 #endif
+#if defined(CONFIG_S390_TAPE) && defined(CONFIG_S390_TAPE_CHAR)
+extern void tapechar_init(void);
+#endif
 #if defined(CONFIG_ADB)
 extern void adbdev_init(void);
 #endif
@@ -615,7 +618,6 @@ int __init chr_dev_init(void)
 		printk("unable to get major %d for memory devs\n", MEM_MAJOR);
 	memory_devfs_register();
 	rand_initialize();
-	raw_init();
 #ifdef CONFIG_I2C
 	i2c_init_all();
 #endif

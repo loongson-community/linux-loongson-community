@@ -77,6 +77,7 @@ void reiserfs_write_super_lockfs (struct super_block * s)
   lock_kernel() ;
   if (!(s->s_flags & MS_RDONLY)) {
     journal_begin(&th, s, 1) ;
+    reiserfs_prepare_for_journal(s, SB_BUFFER_WITH_SB(s), 1);
     journal_mark_dirty(&th, s, SB_BUFFER_WITH_SB (s));
     reiserfs_block_writes(&th) ;
     journal_end(&th, s, 1) ;
@@ -492,7 +493,11 @@ static int read_super_block (struct super_block * s, int size)
     SB_BUFFER_WITH_SB (s) = bh;
     SB_DISK_SUPER_BLOCK (s) = rs;
     s->s_op = &reiserfs_sops;
-    s->s_maxbytes = 0xFFFFFFFF;	/* 4Gig */
+
+    /* new format is limited by the 32 bit wide i_blocks field, want to
+    ** be one full block below that.
+    */
+    s->s_maxbytes = (512LL << 32) - s->s_blocksize ;
     return 0;
 }
 

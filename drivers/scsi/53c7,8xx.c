@@ -175,7 +175,7 @@
  * Architecture : 
  * This driver is built around a Linux queue of commands waiting to 
  * be executed, and a shared Linux/NCR array of commands to start.  Commands
- * are transfered to the array  by the run_process_issue_queue() function 
+ * are transferred to the array  by the run_process_issue_queue() function 
  * which is called whenever a command completes.
  *
  * As commands are completed, the interrupt routine is triggered,
@@ -1155,7 +1155,7 @@ NCR53c7x0_init (struct Scsi_Host *host) {
  * Function : static int normal_init(Scsi_Host_Template *tpnt, int board, 
  *	int chip, u32 base, int io_port, int irq, int dma, int pcivalid,
  *	unsigned char pci_bus, unsigned char pci_device_fn,
- *	long long options);
+ *      struct pci_dev *pci_dev, long long options);
  *
  * Purpose : initializes a NCR53c7,8x0 based on base addresses,
  *	IRQ, and DMA channel.	
@@ -1175,7 +1175,9 @@ NCR53c7x0_init (struct Scsi_Host *host) {
 static int  __init 
 normal_init (Scsi_Host_Template *tpnt, int board, int chip, 
     u32 base, int io_port, int irq, int dma, int pci_valid, 
-    unsigned char pci_bus, unsigned char pci_device_fn, long long options){
+    unsigned char pci_bus, unsigned char pci_device_fn,
+    struct pci_dev *pci_dev, long long options)
+{
     struct Scsi_Host *instance;
     struct NCR53c7x0_hostdata *hostdata;
     char chip_str[80];
@@ -1319,6 +1321,7 @@ normal_init (Scsi_Host_Template *tpnt, int board, int chip,
     }
     instance->irq = irq;
     instance->dma_channel = dma;
+    scsi_set_pci_device(instance, pci_dev);
 
     hostdata->options = options;
     hostdata->dsa_len = dsa_len;
@@ -1509,7 +1512,7 @@ ncr_pci_init (Scsi_Host_Template *tpnt, int board, int chip,
     }
 
     return normal_init (tpnt, board, chip, (int) base, io_port, 
-	(int) irq, DMA_NONE, 1, bus, device_fn, options);
+	(int) irq, DMA_NONE, 1, bus, device_fn, pdev, options);
 }
 
 
@@ -1553,6 +1556,7 @@ NCR53c7xx_detect(Scsi_Host_Template *tpnt){
 		overrides[current_override].data.normal.dma,
 		0 /* PCI data invalid */, 0 /* PCI bus place holder */,  
 		0 /* PCI device_function place holder */,
+                NULL /* PCI pci_dev place holder */,
     	    	overrides[current_override].options)) {
     	    ++count;
 	} 
@@ -1899,7 +1903,6 @@ NCR53c8xx_run_tests (struct Scsi_Host *host) {
 		hostdata->script, start);
 	    printk ("scsi%d : DSPS = 0x%x\n", host->host_no,
 		NCR53c7x0_read32(DSPS_REG));
-	    restore_flags(flags);
 	    return -1;
 	}
     	hostdata->test_running = 0;
@@ -5272,7 +5275,7 @@ intr_dma (struct Scsi_Host *host, struct NCR53c7x0_cmd *cmd) {
      * chances of this happening, and handle it if it occurs anyway.
      *
      * Simply continue with what we were doing, and control should
-     * be transfered to the schedule routine which will ultimately
+     * be transferred to the schedule routine which will ultimately
      * pass control onto the reselection or selection (not yet)
      * code.
      */

@@ -19,9 +19,9 @@
 
 static const char *version = "hermes.c: 12 Dec 2000 David Gibson <hermes@gibson.dropbear.id.au>";
 
-#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/types.h>
+#include <linux/threads.h>
 #include <linux/smp.h>
 #include <asm/io.h>
 #include <linux/ptrace.h>

@@ -1,10 +1,10 @@
-/* $Id: sun4c.c,v 1.205 2001/03/16 06:57:41 davem Exp $
+/* $Id: sun4c.c,v 1.206 2001/04/14 21:13:45 davem Exp $
  * sun4c.c: Doing in software what should be done in hardware.
  *
  * Copyright (C) 1996 David S. Miller (davem@caip.rutgers.edu)
  * Copyright (C) 1996 Eddie C. Dost (ecd@skynet.be)
  * Copyright (C) 1996 Andrew Tridgell (Andrew.Tridgell@anu.edu.au)
- * Copyright (C) 1997-2000 Anton Blanchard (anton@linuxcare.com)
+ * Copyright (C) 1997-2000 Anton Blanchard (anton@samba.org)
  * Copyright (C) 1998 Jakub Jelinek (jj@sunsite.mff.cuni.cz)
  */
 

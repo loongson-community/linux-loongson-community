@@ -78,16 +78,15 @@
 #include <linux/tty_flip.h>
 #include <linux/module.h>
 #include <linux/spinlock.h>
-
-#ifdef CONFIG_USB_SERIAL_DEBUG
-	#define DEBUG
-#else
-	#undef DEBUG
-#endif
 #include <linux/usb.h>
 
-#include "usb-serial.h"
+#ifdef CONFIG_USB_SERIAL_DEBUG
+	static int debug = 1;
+#else
+	static int debug;
+#endif
 
+#include "usb-serial.h"
 #include "ftdi_sio.h"
 
 
@@ -423,7 +422,7 @@ static int ftdi_sio_write (struct usb_serial_port *port, int from_user,
 		unsigned char *first_byte = port->write_urb->transfer_buffer;
 
 		/* Was seeing a race here, got a read callback, then write callback before
-		   hitting interuptible_sleep_on  - so wrapping in a wait_queue */
+		   hitting interruptible_sleep_on  - so wrapping in a wait_queue */
 
 		add_wait_queue(&port->write_wait, &wait);
 		set_current_state (TASK_INTERRUPTIBLE);
@@ -881,3 +880,7 @@ module_exit(ftdi_sio_exit);
 
 MODULE_AUTHOR("Greg Kroah-Hartman <greg@kroah.com>, Bill Ryder <bryder@sgi.com>");
 MODULE_DESCRIPTION("USB FTDI RS232 converters driver");
+
+MODULE_PARM(debug, "i");
+MODULE_PARM_DESC(debug, "Debug enabled or not");
+

@@ -50,6 +50,16 @@
  * interrupt friendly
  */
 
+/*
+ * set_bit - Atomically set a bit in memory
+ * @nr: the bit to set
+ * @addr: the address to start counting from
+ *
+ * This function is atomic and may not be reordered.  See __set_bit()
+ * if you do not require the atomic guarantees.
+ * Note that @nr may be almost arbitrarily large; this function is not
+ * restricted to acting on a single-word quantity.
+ */
 extern __inline__ void
 set_bit(int nr, volatile void *addr)
 {
@@ -65,7 +75,15 @@ set_bit(int nr, volatile void *addr)
 		: "ir" (1UL << (nr & 0x1f)), "m" (*m));
 }
 
-/* WARNING: non atomic and it can be reordered! */
+/*
+ * __set_bit - Set a bit in memory
+ * @nr: the bit to set
+ * @addr: the address to start counting from
+ *
+ * Unlike set_bit(), this function is non-atomic and may be reordered.
+ * If it's called on the same region of memory simultaneously, the effect
+ * may be that only one operation succeeds.
+ */
 extern __inline__ void __set_bit(int nr, volatile void * addr)
 {
 	unsigned long * m = ((unsigned long *) addr) + (nr >> 5);
@@ -73,6 +91,16 @@ extern __inline__ void __set_bit(int nr, volatile void * addr)
 	*m |= 1UL << (nr & 31);
 }
 
+/*
+ * clear_bit - Clears a bit in memory
+ * @nr: Bit to clear
+ * @addr: Address to start counting from
+ *
+ * clear_bit() is atomic and may not be reordered.  However, it does
+ * not contain a memory barrier, so if it is used for locking purposes,
+ * you should call smp_mb__before_clear_bit() and/or smp_mb__after_clear_bit()
+ * in order to ensure changes are visible on other processors.
+ */
 extern __inline__ void
 clear_bit(int nr, volatile void *addr)
 {
@@ -88,6 +116,15 @@ clear_bit(int nr, volatile void *addr)
 		: "ir" (~(1UL << (nr & 0x1f))), "m" (*m));
 }
 
+/*
+ * change_bit - Toggle a bit in memory
+ * @nr: Bit to clear
+ * @addr: Address to start counting from
+ *
+ * change_bit() is atomic and may not be reordered.
+ * Note that @nr may be almost arbitrarily large; this function is not
+ * restricted to acting on a single-word quantity.
+ */
 extern __inline__ void
 change_bit(int nr, volatile void *addr)
 {
@@ -104,9 +141,12 @@ change_bit(int nr, volatile void *addr)
 }
 
 /*
- * It will also imply a memory barrier, thus it must clobber memory
- * to make sure to reload anything that was cached into registers
- * outside _this_ critical section.
+ * test_and_set_bit - Set a bit and return its old value
+ * @nr: Bit to set
+ * @addr: Address to count from
+ *
+ * This operation is atomic and cannot be reordered.  
+ * It also implies a memory barrier.
  */
 extern __inline__ int
 test_and_set_bit(int nr, volatile void *addr)
@@ -129,7 +169,15 @@ test_and_set_bit(int nr, volatile void *addr)
 	return res != 0;
 }
 
-/* WARNING: non atomic and it can be reordered! */
+/*
+ * __test_and_set_bit - Set a bit and return its old value
+ * @nr: Bit to set
+ * @addr: Address to count from
+ *
+ * This operation is non-atomic and can be reordered.  
+ * If two examples of this operation race, one can appear to succeed
+ * but actually fail.  You must protect multiple accesses with a lock.
+ */
 extern __inline__ int __test_and_set_bit(int nr, volatile void * addr)
 {
 	int mask, retval;
@@ -143,6 +191,14 @@ extern __inline__ int __test_and_set_bit(int nr, volatile void * addr)
 	return retval;
 }
 
+/*
+ * test_and_clear_bit - Clear a bit and return its old value
+ * @nr: Bit to set
+ * @addr: Address to count from
+ *
+ * This operation is atomic and cannot be reordered.  
+ * It also implies a memory barrier.
+ */
 extern __inline__ int
 test_and_clear_bit(int nr, volatile void *addr)
 {
@@ -165,7 +221,15 @@ test_and_clear_bit(int nr, volatile void *addr)
 	return res != 0;
 }
 
-/* WARNING: non atomic and it can be reordered! */
+/*
+ * __test_and_clear_bit - Clear a bit and return its old value
+ * @nr: Bit to set
+ * @addr: Address to count from
+ *
+ * This operation is non-atomic and can be reordered.  
+ * If two examples of this operation race, one can appear to succeed
+ * but actually fail.  You must protect multiple accesses with a lock.
+ */
 extern __inline__ int __test_and_clear_bit(int nr, volatile void * addr)
 {
 	int	mask, retval;
@@ -179,6 +243,14 @@ extern __inline__ int __test_and_clear_bit(int nr, volatile void * addr)
 	return retval;
 }
 
+/*
+ * test_and_change_bit - Change a bit and return its new value
+ * @nr: Bit to set
+ * @addr: Address to count from
+ *
+ * This operation is atomic and cannot be reordered.  
+ * It also implies a memory barrier.
+ */
 extern __inline__ int
 test_and_change_bit(int nr, volatile void *addr)
 {
@@ -202,6 +274,16 @@ test_and_change_bit(int nr, volatile void *addr)
 
 #else /* MIPS I */
 
+/*
+ * set_bit - Atomically set a bit in memory
+ * @nr: the bit to set
+ * @addr: the address to start counting from
+ *
+ * This function is atomic and may not be reordered.  See __set_bit()
+ * if you do not require the atomic guarantees.
+ * Note that @nr may be almost arbitrarily large; this function is not
+ * restricted to acting on a single-word quantity.
+ */
 extern __inline__ void set_bit(int nr, volatile void * addr)
 {
 	int	mask;
@@ -215,7 +297,15 @@ extern __inline__ void set_bit(int nr, volatile void * addr)
 	__bi_restore_flags(flags);
 }
 
-/* WARNING: non atomic and it can be reordered! */
+/*
+ * __set_bit - Set a bit in memory
+ * @nr: the bit to set
+ * @addr: the address to start counting from
+ *
+ * Unlike set_bit(), this function is non-atomic and may be reordered.
+ * If it's called on the same region of memory simultaneously, the effect
+ * may be that only one operation succeeds.
+ */
 extern __inline__ void __set_bit(int nr, volatile void * addr)
 {
 	int	mask;
@@ -226,7 +316,16 @@ extern __inline__ void __set_bit(int nr, volatile void * addr)
 	*a |= mask;
 }
 
-/* WARNING: non atomic and it can be reordered! */
+/*
+ * clear_bit - Clears a bit in memory
+ * @nr: Bit to clear
+ * @addr: Address to start counting from
+ *
+ * clear_bit() is atomic and may not be reordered.  However, it does
+ * not contain a memory barrier, so if it is used for locking purposes,
+ * you should call smp_mb__before_clear_bit() and/or smp_mb__after_clear_bit()
+ * in order to ensure changes are visible on other processors.
+ */
 extern __inline__ void clear_bit(int nr, volatile void * addr)
 {
 	int	mask;
@@ -240,6 +339,15 @@ extern __inline__ void clear_bit(int nr, volatile void * addr)
 	__bi_restore_flags(flags);
 }
 
+/*
+ * change_bit - Toggle a bit in memory
+ * @nr: Bit to clear
+ * @addr: Address to start counting from
+ *
+ * change_bit() is atomic and may not be reordered.
+ * Note that @nr may be almost arbitrarily large; this function is not
+ * restricted to acting on a single-word quantity.
+ */
 extern __inline__ void change_bit(int nr, volatile void * addr)
 {
 	int	mask;
@@ -253,6 +361,14 @@ extern __inline__ void change_bit(int nr, volatile void * addr)
 	__bi_restore_flags(flags);
 }
 
+/*
+ * test_and_set_bit - Set a bit and return its old value
+ * @nr: Bit to set
+ * @addr: Address to count from
+ *
+ * This operation is atomic and cannot be reordered.  
+ * It also implies a memory barrier.
+ */
 extern __inline__ int test_and_set_bit(int nr, volatile void * addr)
 {
 	int	mask, retval;
@@ -269,7 +385,15 @@ extern __inline__ int test_and_set_bit(int nr, volatile void * addr)
 	return retval;
 }
 
-/* WARNING: non atomic and it can be reordered! */
+/*
+ * __test_and_set_bit - Set a bit and return its old value
+ * @nr: Bit to set
+ * @addr: Address to count from
+ *
+ * This operation is non-atomic and can be reordered.  
+ * If two examples of this operation race, one can appear to succeed
+ * but actually fail.  You must protect multiple accesses with a lock.
+ */
 extern __inline__ int __test_and_set_bit(int nr, volatile void * addr)
 {
 	int	mask, retval;
@@ -283,6 +407,14 @@ extern __inline__ int __test_and_set_bit(int nr, volatile void * addr)
 	return retval;
 }
 
+/*
+ * test_and_clear_bit - Clear a bit and return its old value
+ * @nr: Bit to set
+ * @addr: Address to count from
+ *
+ * This operation is atomic and cannot be reordered.  
+ * It also implies a memory barrier.
+ */
 extern __inline__ int test_and_clear_bit(int nr, volatile void * addr)
 {
 	int	mask, retval;
@@ -299,7 +431,15 @@ extern __inline__ int test_and_clear_bit(int nr, volatile void * addr)
 	return retval;
 }
 
-/* WARNING: non atomic and it can be reordered! */
+/*
+ * __test_and_clear_bit - Clear a bit and return its old value
+ * @nr: Bit to set
+ * @addr: Address to count from
+ *
+ * This operation is non-atomic and can be reordered.  
+ * If two examples of this operation race, one can appear to succeed
+ * but actually fail.  You must protect multiple accesses with a lock.
+ */
 extern __inline__ int __test_and_clear_bit(int nr, volatile void * addr)
 {
 	int	mask, retval;
@@ -313,6 +453,14 @@ extern __inline__ int __test_and_clear_bit(int nr, volatile void * addr)
 	return retval;
 }
 
+/*
+ * test_and_change_bit - Change a bit and return its new value
+ * @nr: Bit to set
+ * @addr: Address to count from
+ *
+ * This operation is atomic and cannot be reordered.  
+ * It also implies a memory barrier.
+ */
 extern __inline__ int test_and_change_bit(int nr, volatile void * addr)
 {
 	int	mask, retval;
@@ -336,6 +484,11 @@ extern __inline__ int test_and_change_bit(int nr, volatile void * addr)
 
 #endif /* MIPS I */
 
+/*
+ * test_bit - Determine whether a bit is set
+ * @nr: bit number to test
+ * @addr: Address to start counting from
+ */
 extern __inline__ int test_bit(int nr, volatile void *addr)
 {
 	return ((1UL << (nr & 31)) & (((const unsigned int *) addr)[nr >> 5])) != 0;
@@ -345,6 +498,14 @@ extern __inline__ int test_bit(int nr, volatile void *addr)
 
 /* Little endian versions. */
 
+/*
+ * find_first_zero_bit - find the first zero bit in a memory region
+ * @addr: The address to start the search at
+ * @size: The maximum size to search
+ *
+ * Returns the bit-number of the first zero bit, not the number of the byte
+ * containing a bit.
+ */
 extern __inline__ int find_first_zero_bit (void *addr, unsigned size)
 {
 	unsigned long dummy;
@@ -389,6 +550,12 @@ extern __inline__ int find_first_zero_bit (void *addr, unsigned size)
 	return res;
 }
 
+/*
+ * find_next_zero_bit - find the first zero bit in a memory region
+ * @addr: The address to base the search on
+ * @offset: The bitnumber to start searching at
+ * @size: The maximum size to search
+ */
 extern __inline__ int find_next_zero_bit (void * addr, int size, int offset)
 {
 	unsigned int *p = ((unsigned int *) addr) + (offset >> 5);
@@ -430,8 +597,10 @@ extern __inline__ int find_next_zero_bit (void * addr, int size, int offset)
 #endif /* !(__MIPSEB__) */
 
 /*
- * ffz = Find First Zero in word. Undefined if no zero exists,
- * so code should check against ~0UL first..
+ * ffz - find first zero in word.
+ * @word: The word to search
+ *
+ * Undefined if no zero exists, so code should check against ~0UL first.
  */
 extern __inline__ unsigned long ffz(unsigned long word)
 {
@@ -459,8 +628,11 @@ extern __inline__ unsigned long ffz(unsigned long word)
 
 #ifdef __KERNEL__
 
-/*
- * ffs: find first bit set. This is defined the same way as
+/**
+ * ffs - find first bit set
+ * @x: the word to search
+ *
+ * This is defined the same way as
  * the libc and compiler builtin ffs routines, therefore
  * differs in spirit from the above ffz (man ffs).
  */
@@ -468,8 +640,10 @@ extern __inline__ unsigned long ffz(unsigned long word)
 #define ffs(x) generic_ffs(x)
 
 /*
- * hweightN: returns the hamming weight (i.e. the number
- * of bits set) of a N-bit word
+ * hweightN - returns the hamming weight of a N-bit word
+ * @x: the word to weigh
+ *
+ * The Hamming Weight of a number is the total number of bits set in it.
  */
 
 #define hweight32(x) generic_hweight32(x)
@@ -479,14 +653,12 @@ extern __inline__ unsigned long ffz(unsigned long word)
 #endif /* __KERNEL__ */
 
 #ifdef __MIPSEB__
-/* For now I steal the Sparc C versions, no need for speed, just need to
- * get it working.
+/*
+ * find_next_zero_bit - find the first zero bit in a memory region
+ * @addr: The address to base the search on
+ * @offset: The bitnumber to start searching at
+ * @size: The maximum size to search
  */
-/* find_next_zero_bit() finds the first zero bit in a bit string of length
- * 'size' bits, starting the search at bit 'offset'. This is largely based
- * on Linus's ALPHA routines, which are pretty portable BTW.
- */
-
 extern __inline__ int find_next_zero_bit(void *addr, int size, int offset)
 {
 	unsigned long *p = ((unsigned long *) addr) + (offset >> 5);
@@ -527,6 +699,18 @@ found_middle:
  * holds on the Sparc as it does for the ALPHA.
  */
 
+#if 0 /* Fool kernel-doc since it doesn't do macros yet */
+/*
+ * find_first_zero_bit - find the first zero bit in a memory region
+ * @addr: The address to start the search at
+ * @size: The maximum size to search
+ *
+ * Returns the bit-number of the first zero bit, not the number of the byte
+ * containing a bit.
+ */
+extern int find_first_zero_bit (void *addr, unsigned size);
+#endif
+
 #define find_first_zero_bit(addr, size) \
         find_next_zero_bit((addr), (size), 0)
 
@@ -540,7 +724,6 @@ extern __inline__ int ext2_set_bit(int nr,void * addr)
 	int		mask, retval, flags;
 	unsigned char	*ADDR = (unsigned char *) addr;
 
-	ADDR += nr >> 3;
 	mask = 1 << (nr & 0x07);
 	save_and_cli(flags);
 	retval = (mask & *ADDR) != 0;

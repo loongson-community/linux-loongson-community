@@ -2,14 +2,15 @@
 	drivers/net/tulip/interrupt.c
 
 	Maintained by Jeff Garzik <jgarzik@mandrakesoft.com>
-	Copyright 2000  The Linux Kernel Team
-	Written/copyright 1994-1999 by Donald Becker.
+	Copyright 2000,2001  The Linux Kernel Team
+	Written/copyright 1994-2001 by Donald Becker.
 
 	This software may be used and distributed according to the terms
 	of the GNU General Public License, incorporated herein by reference.
 
-	Please refer to Documentation/networking/tulip.txt for more
-	information on this driver.
+	Please refer to Documentation/DocBook/tulip.{pdf,ps,html}
+	for more information on this driver, or visit the project
+	Web page at http://sourceforge.net/projects/tulip/
 
 */
 
@@ -300,6 +301,12 @@ void tulip_interrupt(int irq, void *dev_instance, struct pt_regs *regs)
 				tulip_restart_rxtx(tp, tp->csr6);
 				outl(0, ioaddr + CSR1);
 			}
+			if (csr5 & (RxDied | RxNoBuf)) {
+				if (tp->flags & COMET_MAC_ADDR) {
+					outl(tp->mc_filter[0], ioaddr + 0xAC);
+					outl(tp->mc_filter[1], ioaddr + 0xB0);
+				}
+			}
 			if (csr5 & RxDied) {		/* Missed a Rx frame. */
 				tp->stats.rx_errors++;
 				tp->stats.rx_missed_errors += inl(ioaddr + CSR8) & 0xffff;
@@ -314,7 +321,19 @@ void tulip_interrupt(int irq, void *dev_instance, struct pt_regs *regs)
 					(tp->link_change)(dev, csr5);
 			}
 			if (csr5 & SytemError) {
-				printk(KERN_ERR "%s: (%lu) System Error occured\n", dev->name, tp->nir);
+				int error = (csr5 >> 23) & 7;
+				/* oops, we hit a PCI error.  The code produced corresponds
+				 * to the reason:
+				 *  0 - parity error
+				 *  1 - master abort
+				 *  2 - target abort
+				 * Note that on parity error, we should do a software reset
+				 * of the chip to get it back into a sane state (according
+				 * to the 21142/3 docs that is).
+				 *   -- rmk
+				 */
+				printk(KERN_ERR "%s: (%lu) System Error occured (%d)\n",
+					dev->name, tp->nir, error);
 			}
 			/* Clear all error sources, included undocumented ones! */
 			outl(0x0800f7ba, ioaddr + CSR5);

@@ -178,14 +178,14 @@ static void inode_append_flushd(struct inode *inode)
 	return;
 }
 
+/* Protect me using the BKL */
 void inode_remove_flushd(struct inode *inode)
 {
 	struct nfs_reqlist	*cache = NFS_REQUESTLIST(inode);
 	struct inode		**q;
 
-	lock_kernel();
 	if (!(NFS_FLAGS(inode) & NFS_INO_FLUSH))
-		goto out;
+		return;
 
 	q = &cache->inodes;
 	while (*q && *q != inode)
@@ -195,8 +195,6 @@ void inode_remove_flushd(struct inode *inode)
 		NFS_FLAGS(inode) &= ~NFS_INO_FLUSH;
 		iput(inode);
 	}
- out:
-	unlock_kernel();
 }
 
 void inode_schedule_scan(struct inode *inode, unsigned long time)

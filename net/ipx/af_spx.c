@@ -31,8 +31,6 @@
  *	This material is provided "as is" and at no charge.
  */
 
-#include <linux/config.h>
-#if defined(CONFIG_SPX) || defined(CONFIG_SPX_MODULE)
 #include <linux/module.h>
 #include <net/ipx.h>
 #include <net/spx.h>
@@ -440,7 +438,7 @@ static int spx_transmit(struct sock *sk, struct sk_buff *skb, int type, int len)
 
 		save_flags(flags);
 		cli();
-        	skb = sock_alloc_send_skb(sk, size, 1, 0, &err);
+        	skb = sock_alloc_send_skb(sk, size, 0, &err);
         	if(skb == NULL) {
 			restore_flags(flags);
                 	return (-ENOMEM);
@@ -742,7 +740,7 @@ static int spx_sendmsg(struct socket *sock, struct msghdr *msg, int len,
         size 	= offset + sizeof(struct ipxspxhdr) + len;
 
 	cli();
-        skb  	= sock_alloc_send_skb(sk, size, 0, flags&MSG_DONTWAIT, &err);
+        skb  	= sock_alloc_send_skb(sk, size, flags&MSG_DONTWAIT, &err);
 	sti();
         if(skb == NULL)
                 return (err);
@@ -901,20 +899,20 @@ static struct proto_ops SOCKOPS_WRAPPED(spx_ops) = {
 	sendmsg:	spx_sendmsg,
 	recvmsg:	spx_recvmsg,
 	mmap:		sock_no_mmap,
+	sendpage:	sock_no_sendpage,
 };
 
 #include <linux/smp_lock.h>
 SOCKOPS_WRAP(spx, PF_IPX);
 
-
-static struct net_proto_family spx_family_ops=
-{
-	PF_IPX,
-	spx_create
+static struct net_proto_family spx_family_ops = {
+	family:		PF_IPX,
+	create:		spx_create,
 };
 
+static const char banner[] __initdata = KERN_INFO "NET4: Sequenced Packet eXchange (SPX) 0.02 for Linux NET4.0\n";
 
-void spx_proto_init(void)
+static int __init spx_proto_init(void)
 {
 	int error;
 
@@ -926,29 +924,14 @@ void spx_proto_init(void)
 
 	/* route socket(PF_IPX, SOCK_SEQPACKET) calls through spx_create() */
 
-	printk(KERN_INFO "NET4: Sequenced Packet eXchange (SPX) 0.02 for Linux NET4.0\n");
-	return;
+	printk(banner);
+	return 0;
 }
+module_init(spx_proto_init);
 
-void spx_proto_finito(void)
+static void __exit spx_proto_finito(void)
 {
 	ipx_unregister_spx();
 	return;
 }
-
-#ifdef MODULE
-
-int init_module(void)
-{
-        spx_proto_init();
-        return 0;
-}
-
-void cleanup_module(void)
-{
-        spx_proto_finito();
-        return;
-}
-
-#endif /* MODULE */
-#endif /* CONFIG_SPX || CONFIG_SPX_MODULE */
+module_exit(spx_proto_finito);

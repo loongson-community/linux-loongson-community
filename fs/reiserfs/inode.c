@@ -374,9 +374,11 @@ research:
     ** sure we need to.  But, this means the item might move if
     ** kmap schedules
     */
-    p = (char *)kmap(bh_result->b_page) ;
-    if (fs_changed (fs_gen, inode->i_sb) && item_moved (&tmp_ih, &path)) {
-        goto research;
+    if (!p) {
+	p = (char *)kmap(bh_result->b_page) ;
+	if (fs_changed (fs_gen, inode->i_sb) && item_moved (&tmp_ih, &path)) {
+	    goto research;
+	}
     }
     p += offset ;
     memset (p, 0, inode->i_sb->s_blocksize);
@@ -420,14 +422,15 @@ research:
 	ih = get_ih (&path);
     } while (1);
 
+    flush_dcache_page(bh_result->b_page) ;
+    kunmap(bh_result->b_page) ;
+
 finished:
     pathrelse (&path);
     bh_result->b_blocknr = 0 ;
     bh_result->b_dev = inode->i_dev;
     mark_buffer_uptodate (bh_result, 1);
     bh_result->b_state |= (1UL << BH_Mapped);
-    flush_dcache_page(bh_result->b_page) ;
-    kunmap(bh_result->b_page) ;
     return 0;
 }
 
@@ -1182,11 +1185,17 @@ struct inode * reiserfs_iget (struct super_block * s, struct cpu_key * key)
     if (!inode) 
       return inode ;
 
-    //    if (comp_short_keys (INODE_PKEY (inode), key)) {
     if (is_bad_inode (inode)) {
 	reiserfs_warning ("vs-13048: reiserfs_iget: "
 			  "bad_inode. Stat data of (%lu %lu) not found\n",
 			  key->on_disk_key.k_dir_id, key->on_disk_key.k_objectid);
+	iput (inode);
+	inode = 0;
+    } else if (comp_short_keys (INODE_PKEY (inode), key)) {
+	reiserfs_warning ("vs-13049: reiserfs_iget: "
+			  "Looking for (%lu %lu), found inode of (%lu %lu)\n",
+			  key->on_disk_key.k_dir_id, key->on_disk_key.k_objectid,
+			  INODE_PKEY (inode)->k_dir_id, INODE_PKEY (inode)->k_objectid);
 	iput (inode);
 	inode = 0;
     }

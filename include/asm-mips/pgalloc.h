@@ -3,7 +3,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1994 - 2000 by Ralf Baechle at alii
+ * Copyright (C) 1994 - 2001 by Ralf Baechle
  * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  */
 #ifndef _ASM_PGALLOC_H
@@ -42,6 +42,11 @@ extern inline void flush_tlb_pgtables(struct mm_struct *mm,
 #define pgtable_cache_size (current_cpu_data.pgtable_cache_sz)
 
 #define pmd_populate(mm, pmd, pte)	pmd_set(pmd, pte)
+
+/*
+ * Initialize new page directory with pointers to invalid ptes
+ */
+extern void pgd_init(unsigned long page);
 
 extern __inline__ pgd_t *get_pgd_slow(void)
 {
@@ -159,7 +164,7 @@ extern __inline__ void pte_free_slow(pte_t *pte)
 
 #define pte_free(pte)           pte_free_slow(pte)
 #define pgd_free(pgd)           free_pgd_fast(pgd)
-#define pgd_alloc()             get_pgd_fast()
+#define pgd_alloc(mm)           get_pgd_fast()
 
 /*
  * allocating and freeing a pmd is trivial: the 1-entry pmd is

@@ -691,7 +691,7 @@ out:
  *	the request.
  */
  
-struct super_block *get_empty_super(void)
+static struct super_block *get_empty_super(void)
 {
 	struct super_block *s;
 
@@ -712,10 +712,12 @@ struct super_block *get_empty_super(void)
 		nr_super_blocks++;
 		memset(s, 0, sizeof(struct super_block));
 		INIT_LIST_HEAD(&s->s_dirty);
+		INIT_LIST_HEAD(&s->s_locked_inodes);
 		list_add (&s->s_list, super_blocks.prev);
 		init_waitqueue_head(&s->s_wait);
 		INIT_LIST_HEAD(&s->s_files);
 		INIT_LIST_HEAD(&s->s_mounts);
+		init_rwsem(&s->s_umount);
 	}
 	return s;
 }
@@ -738,6 +740,7 @@ static struct super_block * read_super(kdev_t dev, struct block_device *bdev,
 	sema_init(&s->s_dquot.dqio_sem, 1);
 	sema_init(&s->s_dquot.dqoff_sem, 1);
 	s->s_dquot.flags = 0;
+	s->s_maxbytes = MAX_NON_LFS;
 	lock_super(s);
 	if (!type->read_super(s, data, silent))
 		goto out_fail;
@@ -894,13 +897,14 @@ static void kill_super(struct super_block *sb, int umount_root)
 	struct file_system_type *fs = sb->s_type;
 	struct super_operations *sop = sb->s_op;
 
+	down_write(&sb->s_umount);
 	sb->s_root = NULL;
 	/* Need to clean after the sucker */
 	if (fs->fs_flags & FS_LITTER)
 		d_genocide(root);
-	if (fs->fs_flags & (FS_SINGLE|FS_LITTER))
-		shrink_dcache_parent(root);
+	shrink_dcache_parent(root);
 	dput(root);
+	fsync_super(sb);
 	lock_super(sb);
 	if (sop) {
 		if (sop->write_super && sb->s_dirt)
@@ -922,6 +926,7 @@ static void kill_super(struct super_block *sb, int umount_root)
 	put_filesystem(fs);
 	sb->s_type = NULL;
 	unlock_super(sb);
+	up_write(&sb->s_umount);
 	if (umount_root) {
 		/* special: the old device driver is going to be
 		   a ramdisk and the point of this call is to free its
@@ -1073,20 +1078,6 @@ static int do_umount(struct vfsmount *mnt, int umount_root, int flags)
 
 	if( (flags&MNT_FORCE) && sb->s_op->umount_begin)
 		sb->s_op->umount_begin(sb);
-
-	/*
-	 * Shrink dcache, then fsync. This guarantees that if the
-	 * filesystem is quiescent at this point, then (a) only the
-	 * root entry should be in use and (b) that root entry is
-	 * clean.
-	 */
-	shrink_dcache_sb(sb);
-	fsync_dev(sb->s_dev);
-
-	if (sb->s_root->d_inode->i_state) {
-		mntput(mnt);
-		return -EBUSY;
-	}
 
 	/* Something might grab it again - redo checks */
 
@@ -1297,16 +1288,12 @@ static int copy_mount_options (const void *data, unsigned long *where)
 }
 
 /*
- * Flags is a 16-bit value that allows up to 16 non-fs dependent flags to
+ * Flags is a 32-bit value that allows up to 32 non-fs dependent flags to
  * be given to the mount() call (ie: read-only, no-dev, no-suid etc).
  *
  * data is a (void *) that can point to any structure up to
  * PAGE_SIZE-1 bytes, which can contain arbitrary fs-dependent
  * information (or be NULL).
- *
- * NOTE! As pre-0.97 versions of mount() didn't use this setup, the
- * flags used to have a special 16-bit magic number in the high word:
- * 0xC0ED. If this magic number is present, the high word is discarded.
  */
 long do_mount(char * dev_name, char * dir_name, char *type_page,
 		  unsigned long flags, void *data_page)
@@ -1317,10 +1304,6 @@ long do_mount(char * dev_name, char * dir_name, char *type_page,
 	struct super_block *sb;
 	int retval = 0;
 
-	/* Discard magic */
-	if ((flags & MS_MGC_MSK) == MS_MGC_VAL)
-		flags &= ~MS_MGC_MSK;
- 
 	/* Basic sanity checks */
 
 	if (!dir_name || !*dir_name || !memchr(dir_name, 0, PAGE_SIZE))
@@ -1344,12 +1327,6 @@ long do_mount(char * dev_name, char * dir_name, char *type_page,
 
 	if (!type_page || !memchr(type_page, 0, PAGE_SIZE))
 		return -EINVAL;
-
-#if 0	/* Can be deleted again. Introduced in patch-2.3.99-pre6 */
-	/* loopback mount? This is special - requires fewer capabilities */
-	if (strcmp(type_page, "bind")==0)
-		return do_loopback(dev_name, dir_name);
-#endif
 
 	/* for the rest we _really_ need capabilities... */
 	if (!capable(CAP_SYS_ADMIN))

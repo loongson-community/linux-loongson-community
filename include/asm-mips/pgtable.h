@@ -451,14 +451,6 @@ extern inline pte_t *pte_offset(pmd_t * dir, unsigned long address)
 	       ((address >> PAGE_SHIFT) & (PTRS_PER_PTE - 1));
 }
 
-/*
- * Initialize new page directory with pointers to invalid ptes
- */
-extern void pgd_init(unsigned long page);
-
-#define pgd_free(pgd)           free_pgd_fast(pgd)
-#define pgd_alloc()             get_pgd_fast()
-
 extern int do_check_pgt_cache(int, int);
 
 extern pgd_t swapper_pg_dir[1024];

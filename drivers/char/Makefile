@@ -47,6 +47,13 @@ ifeq ($(ARCH),mips)
   endif
 endif
 
+ifeq ($(ARCH),s390x)
+  KEYMAP   =
+  KEYBD    =
+  CONSOLE  =
+  SERIAL   =
+endif
+
 ifeq ($(ARCH),m68k)
    ifdef CONFIG_AMIGA
       KEYBD = amikeyb.o
@@ -72,6 +79,23 @@ ifeq ($(ARCH),sh)
   ifeq ($(CONFIG_SH_HP600),y)
   KEYMAP   = defkeymap.o
   KEYBD    = scan_keyb.o hp600_keyb.o
+  CONSOLE  = console.o
+  endif
+  ifeq ($(CONFIG_SH_DMIDA),y)
+  # DMIDA does not connect the HD64465 PS/2 keyboard port
+  # but we allow for USB keyboards to be plugged in.
+  KEYMAP   = defkeymap.o
+  KEYBD    = # hd64465_keyb.o pc_keyb.o
+  CONSOLE  = console.o
+  endif
+  ifeq ($(CONFIG_SH_EC3104),y)
+  KEYMAP   = defkeymap.o
+  KEYBD    = ec3104_keyb.o
+  CONSOLE  = console.o
+  endif
+  ifeq ($(CONFIG_SH_DREAMCAST),y)
+  KEYMAP   = defkeymap.o
+  KEYBD    =
   CONSOLE  = console.o
   endif
 endif

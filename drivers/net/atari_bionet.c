@@ -79,7 +79,7 @@
 
 #define MAX_POLL_TIME	10
 
-static char *version =
+static char version[] =
 	"bionet.c:v1.0 06-feb-96 (c) Hartmut Laue.\n";
 
 #include <linux/module.h>
@@ -327,8 +327,8 @@ end:
 int __init 
 bionet_probe(struct net_device *dev){
 	unsigned char station_addr[6];
-	static unsigned version_printed = 0;
-	static int no_more_found = 0; /* avoid "Probing for..." printed 4 times */
+	static unsigned version_printed;
+	static int no_more_found;	/* avoid "Probing for..." printed 4 times */
 	int i;
 
 	if (!MACH_IS_ATARI || no_more_found)

@@ -7,7 +7,7 @@
  * http://www.pap-philips.de
  * -----------------------------------------------------------
  * This software may be used and distributed according to the terms of
- * the GNU Public License, incorporated herein by reference.
+ * the GNU General Public License, incorporated herein by reference.
  *
  * Author:
  * L. Haag
@@ -65,7 +65,7 @@
 
 //#define DEBUG_QUEUE
 
-/* Log successfull handshake and protocol operations  */
+/* Log successful handshake and protocol operations  */
 //#define DEBUG_PROTO_S
 
 /* Log handshake and protocol errors: */
@@ -983,13 +983,14 @@ static void add_msg(struct r3964_client_info *pClient, int msg_id, int arg,
    {
 queue_the_message:
 
-      save_flags(flags);
-      cli();
-
       pMsg = kmalloc(sizeof(struct r3964_message), GFP_KERNEL);
       TRACE_M("add_msg - kmalloc %x",(int)pMsg);
-      if(pMsg==NULL)
+      if(pMsg==NULL) {
          return;
+      }
+
+      save_flags(flags);
+      cli();
 
       pMsg->msg_id = msg_id;
       pMsg->arg    = arg;

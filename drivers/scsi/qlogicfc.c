@@ -195,8 +195,8 @@ struct {
 #define FLASH_BIOS_ADDR	0x00
 #define FLASH_BIOS_DATA	0x02
 #define ISP_CTRL_STATUS	0x06	/* configuration register #1 */
-#define PCI_INTER_CTL	0x08	/* pci interupt control */
-#define PCI_INTER_STS	0x0a	/* pci interupt status */
+#define PCI_INTER_CTL	0x08	/* pci interrupt control */
+#define PCI_INTER_STS	0x0a	/* pci interrupt status */
 #define PCI_SEMAPHORE	0x0c	/* pci semaphore */
 #define PCI_NVRAM	0x0e	/* pci nvram interface */
 
@@ -227,7 +227,7 @@ struct {
 #define REQUEST_TRANSFER_ERROR		0x8003
 #define RESPONSE_TRANSFER_ERROR		0x8004
 #define REQUEST_QUEUE_WAKEUP		0x8005
-#define LIP_OCCURED                     0x8010
+#define LIP_OCCURRED                     0x8010
 #define LOOP_UP                         0x8011
 #define LOOP_DOWN                       0x8012
 #define LIP_RECEIVED                    0x8013
@@ -369,7 +369,7 @@ struct Status_Entry {
 #define STF_ABORTED			0x0020
 #define STF_TIMEOUT			0x0040
 
-/* interupt control commands */
+/* interrupt control commands */
 #define ISP_EN_INT			0x8000
 #define ISP_EN_RISC			0x0008
 
@@ -757,6 +757,11 @@ int isp2x00_detect(Scsi_Host_Template * tmpt)
 				continue;
 
 		        host = scsi_register(tmpt, sizeof(struct isp2x00_hostdata));
+			if (!host) {
+			        printk("qlogicfc%d : could not register host.\n", hosts);
+				continue;
+			}
+ 			scsi_set_pci_device(host, pdev);
 			host->max_id = QLOGICFC_MAX_ID + 1;
 			host->max_lun = QLOGICFC_MAX_LUN;
 			host->hostt->use_new_eh_code = 1;
@@ -767,7 +772,8 @@ int isp2x00_detect(Scsi_Host_Template * tmpt)
 			hostdata->res = pci64_alloc_consistent(pdev, RES_SIZE + REQ_SIZE, &busaddr);
 
 			if (!hostdata->res){
-			        printk("qlogicfc%d : could not allocate memory for request and response queue.\n", hostdata->host_id);
+			        printk("qlogicfc%d : could not allocate memory for request and response queue.\n", hosts);
+				pci64_free_consistent(pdev, RES_SIZE + REQ_SIZE, hostdata->res, busaddr);
 			        scsi_unregister(host);
 				continue;
 			}
@@ -813,7 +819,7 @@ int isp2x00_detect(Scsi_Host_Template * tmpt)
 				scsi_unregister(host);
 				continue;
 			}
-			if (check_region(host->io_port, 0xff)) {
+			if (!request_region(host->io_port, 0xff, "qlogicfc")) {
 			        printk("qlogicfc%d : i/o region 0x%lx-0x%lx already "
 				       "in use\n",
 				       hostdata->host_id, host->io_port, host->io_port + 0xff);
@@ -822,7 +828,6 @@ int isp2x00_detect(Scsi_Host_Template * tmpt)
 				scsi_unregister(host);
 				continue;
 			}
-			request_region(host->io_port, 0xff, "qlogicfc");
 
 			outw(0x0, host->io_port + PCI_SEMAPHORE);
 			outw(HCCR_CLEAR_RISC_INTR, host->io_port + HOST_HCCR);
@@ -1520,7 +1525,7 @@ void isp2x00_intr_handler(int irq, void *dev_id, struct pt_regs *regs)
 			if (hostdata->adapter_state == AS_LOOP_GOOD)
 				hostdata->adapter_state = AS_REDO_FABRIC_PORTDB;
 			break;		        
-		case LIP_OCCURED:
+		case LIP_OCCURRED:
 		case LIP_RECEIVED:
 		        printk("qlogicfc%d : Loop Reinitialized\n", hostdata->host_id);
 			if (hostdata->adapter_state == AS_LOOP_GOOD)
@@ -1866,7 +1871,9 @@ static int isp2x00_reset_hardware(struct Scsi_Host *host)
 	hostdata = (struct isp2x00_hostdata *) host->hostdata;
 
 	outw(0x01, host->io_port + ISP_CTRL_STATUS);
+	udelay(100);
 	outw(HCCR_RESET, host->io_port + HOST_HCCR);
+	udelay(100);
 	outw(HCCR_RELEASE, host->io_port + HOST_HCCR);
 	outw(HCCR_BIOS_DISABLE, host->io_port + HOST_HCCR);
 

@@ -187,7 +187,7 @@ static u_int  scramble_key = 0x0;
  * This timing should be provided by the HBA. If it becomes a 
  * problem, try setting mem_speed to 400. 
  */
-static int mem_speed = 0;
+static int mem_speed;
 
 /* Bit map of interrupts to choose from */
 /* This means pick from 15, 14, 12, 11, 10, 9, 7, 5, 4, and 3 */
@@ -250,7 +250,7 @@ static void set_multicast_list(struct net_device *dev);
    memory card driver uses an array of dev_link_t pointers, where minor
    device numbers are used to derive the corresponding array index.
 */
-static dev_link_t *dev_list = NULL;
+static dev_link_t *dev_list;
 
 /*
    A dev_link_t structure has fields for most things that are needed
@@ -710,8 +710,17 @@ static int netwave_ioctl(struct net_device *dev, /* ioctl device */
        if(wrq->u.data.pointer != (caddr_t) 0) {
 	   struct iw_range	range;
 		   
-	   /* Set the length (useless : its constant...) */
+	   /* Set the length (very important for backward compatibility) */
 	   wrq->u.data.length = sizeof(struct iw_range);
+
+	   /* Set all the info we don't care or don't know about to zero */
+	   memset(&range, 0, sizeof(range));
+
+#if WIRELESS_EXT > 10
+	   /* Set the Wireless Extension versions */
+	   range.we_version_compiled = WIRELESS_EXT;
+	   range.we_version_source = 9;	/* Nothing for us in v10 and v11 */
+#endif /* WIRELESS_EXT > 10 */
 		   
 	   /* Set information in the range struct */
 	   range.throughput = 450 * 1000;	/* don't argue on this ! */
@@ -1554,7 +1563,7 @@ static void set_multicast_list(struct net_device *dev)
    
 #ifdef PCMCIA_DEBUG
     if (pc_debug > 2) {
-	static int old = 0;
+	static int old;
 	if (old != dev->mc_count) {
 	    old = dev->mc_count;
 	    DEBUG(0, "%s: setting Rx mode to %d addresses.\n",

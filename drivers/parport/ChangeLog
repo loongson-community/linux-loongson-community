@@ -1,3 +1,42 @@
+2001-04-20  Paul Gortmaker  <p_gortmaker@yahoo.com>
+
+	* parport_pc.c: Cut down the size quite a bit (more than 4k off
+	the object, about 1k off the zImage) for the older non-PCI
+	machines which are typically resource starved anyway...
+
+2001-03-26  R Horn  <rjh@world.std.com>
+
+	* parport_pc.c: Some commentary changes.
+
+2001-04-19  Tim Waugh  <twaugh@redhat.com>
+
+	* parport_pc.c (parport_pc_probe_port): Remove __devinit
+	attribute.  Export unconditionally.
+
+2001-04-14  Jeff Garzik  <jgarzik@mandrakesoft.com>
+
+	Merged:  2001-03-30  Tim Waugh  <twaugh@redhat.com>
+
+        * drivers/parport/parport_pc.c: Make Via SuperIO chipsets behave
+        like everything else with respect to irq= and dma= parameters.
+
+2001-04-08  Tim Waugh  <twaugh@redhat.com>
+
+      * parport_pc.c (parport_pc_save_state): Read from the soft copy of
+      the control port.
+      (parport_pc_restore_state): Update the soft copy of the control
+      port.
+
+2001-03-26  Tim Waugh  <twaugh@redhat.com>
+
+	* share.c (parport_find_number, parport_find_base): Trigger
+	a lowlevel driver load if there are no ports yet.
+
+2001-03-26  Tim Waugh  <twaugh@redhat.com>
+
+	* parport_pc.c (parport_ECP_supported): Remove the IRQ conflict
+	check since it seems totally unreliable.
+
 2001-03-02  Tim Waugh  <twaugh@redhat.com>
 
 	* ieee1284_ops.c (parport_ieee1284_read_nibble): Reset nAutoFd

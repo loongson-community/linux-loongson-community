@@ -49,6 +49,7 @@
 */
 
 
+#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/signal.h>
@@ -62,12 +63,13 @@
 #include <linux/tty_flip.h>
 #include <linux/module.h>
 #include <linux/spinlock.h>
-
-#define DEBUG
-/*  #ifdef CONFIG_USB_SERIAL_DEBUG */
-	#define DEBUG
-/*  #endif */
 #include <linux/usb.h>
+
+#ifdef CONFIG_USB_SERIAL_DEBUG
+	static int debug = 1;
+#else
+	static int debug;
+#endif
 
 #include "usb-serial.h"
 #include "keyspan.h"
@@ -1671,3 +1673,7 @@ static void keyspan_shutdown (struct usb_serial *serial)
 		kfree(port->private);
 	}
 }
+
+MODULE_PARM(debug, "i");
+MODULE_PARM_DESC(debug, "Debug enabled or not");
+

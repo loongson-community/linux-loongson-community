@@ -31,7 +31,7 @@
 	If this happens, you must power down the machine for about 30 seconds.
 */
 
-static const char *version =
+static const char version[] =
 	"e2100.c:v1.01 7/21/94 Donald Becker (becker@cesdis.gsfc.nasa.gov)\n";
 
 #include <linux/module.h>
@@ -140,7 +140,7 @@ static int __init e21_probe1(struct net_device *dev, int ioaddr)
 {
 	int i, status, retval;
 	unsigned char *station_addr = dev->dev_addr;
-	static unsigned version_printed = 0;
+	static unsigned version_printed;
 
 	if (!request_region(ioaddr, E21_IO_EXTENT, dev->name))
 		return -EBUSY;

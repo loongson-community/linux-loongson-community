@@ -82,7 +82,7 @@ typedef u_char	mac_addr[ETH_ALEN];	/* Hardware address */
 #define PCMCIA_DEBUG RAYLINK_DEBUG
 #endif
 #ifdef PCMCIA_DEBUG
-static int ray_debug = 0;
+static int ray_debug;
 static int pc_debug = PCMCIA_DEBUG;
 MODULE_PARM(pc_debug, "i");
 /* #define DEBUG(n, args...) if (pc_debug>(n)) printk(KERN_DEBUG args); */
@@ -172,19 +172,19 @@ static int hop_dwell = 128;
 static int beacon_period = 256;
 
 /* power save mode (0 = off, 1 = save power) */
-static int psm = 0;
+static int psm;
 
 /* String for network's Extended Service Set ID. 32 Characters max */
-static char *essid = NULL;
+static char *essid;
 
 /* Default to encapsulation unless translation requested */
 static int translate = 1;
 
 static int country = USA;
 
-static int sniffer = 0;
+static int sniffer;
 
-static int bc = 0;
+static int bc;
 
 /* 48 bit physical card address if overriding card's real physical
  * address is required.  Since IEEE 802.11 addresses are 48 bits
@@ -1332,8 +1332,14 @@ static int ray_dev_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 	  struct iw_range	range;
 	  memset((char *) &range, 0, sizeof(struct iw_range));
 
-	  /* Set the length (useless : its constant...) */
+	  /* Set the length (very important for backward compatibility) */
 	  wrq->u.data.length = sizeof(struct iw_range);
+
+#if WIRELESS_EXT > 10
+	  /* Set the Wireless Extension versions */
+	  range.we_version_compiled = WIRELESS_EXT;
+	  range.we_version_source = 9;
+#endif /* WIRELESS_EXT > 10 */
 
 	  /* Set information in the range struct */
 	  range.throughput = 1.1 * 1000 * 1000;	/* Put the right number here */

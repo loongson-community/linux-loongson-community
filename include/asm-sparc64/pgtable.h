@@ -1,4 +1,4 @@
-/* $Id: pgtable.h,v 1.138 2001/03/08 09:55:56 davem Exp $
+/* $Id: pgtable.h,v 1.140 2001/04/12 22:41:15 davem Exp $
  * pgtable.h: SpitFire page table operations.
  *
  * Copyright 1996,1997 David S. Miller (davem@caip.rutgers.edu)
@@ -254,12 +254,13 @@ extern inline pte_t mk_pte_io(unsigned long page, pgprot_t prot, int space)
 }
 
 /* Encode and de-code a swap entry */
-#define SWP_TYPE(entry)		(((entry).val >> PAGE_SHIFT) & 0xff)
-#define SWP_OFFSET(entry)	((entry).val >> (PAGE_SHIFT + 8))
+#define SWP_TYPE(entry)		(((entry).val >> PAGE_SHIFT) & 0xffUL)
+#define SWP_OFFSET(entry)	((entry).val >> (PAGE_SHIFT + 8UL))
 #define SWP_ENTRY(type, offset)	\
 	( (swp_entry_t) \
 	  { \
-		((type << PAGE_SHIFT) | (offset << (PAGE_SHIFT + 8))) \
+		(((long)(type) << PAGE_SHIFT) | \
+                 ((long)(offset) << (PAGE_SHIFT + 8UL))) \
 	  } )
 #define pte_to_swp_entry(pte)		((swp_entry_t) { pte_val(pte) })
 #define swp_entry_to_pte(x)		((pte_t) { (x).val })
@@ -302,9 +303,15 @@ extern int io_remap_page_range(unsigned long from, unsigned long offset,
 
 #include <asm-generic/pgtable.h>
 
-#endif /* !(__ASSEMBLY__) */
-
 /* We provide our own get_unmapped_area to cope with VA holes for userland */
 #define HAVE_ARCH_UNMAPPED_AREA
+
+/* We provide a special get_unmapped_area for framebuffer mmaps to try and use
+ * the largest alignment possible such that larget PTEs can be used.
+ */
+extern unsigned long get_fb_unmapped_area(struct file *filp, unsigned long, unsigned long, unsigned long, unsigned long);
+#define HAVE_ARCH_FB_UNMAPPED_AREA
+
+#endif /* !(__ASSEMBLY__) */
 
 #endif /* !(_SPARC64_PGTABLE_H) */

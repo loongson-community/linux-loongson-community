@@ -148,6 +148,9 @@
  *                 procfs is always supported now. (JT)
  *    12/01/2001 - avoided flushing logical volume in case of shrinking
  *                 because of unecessary overhead in case of heavy updates
+ *    05/04/2001 - lvm_map bugs: don't use b_blocknr/b_dev in lvm_map, it
+ *		   destroys stacking devices. call b_end_io on failed maps.
+ *		   (Jens Axboe)
  *
  */
 
@@ -163,13 +166,6 @@ static char *lvm_short_version = "version 0.9.1_beta2 (18/01/2001)";
 
 #include <linux/config.h>
 #include <linux/version.h>
-
-#ifdef MODVERSIONS
-#undef MODULE
-#define MODULE
-#include <linux/modversions.h>
-#endif
-
 #include <linux/module.h>
 
 #include <linux/kernel.h>
@@ -1480,14 +1476,14 @@ int lvm_proc_read_pv_info(char *page, char **start, off_t off,
  */
 static int lvm_map(struct buffer_head *bh, int rw)
 {
-	int minor = MINOR(bh->b_dev);
+	int minor = MINOR(bh->b_rdev);
 	int ret = 0;
 	ulong index;
 	ulong pe_start;
 	ulong size = bh->b_size >> 9;
-	ulong rsector_tmp = bh->b_blocknr * size;
+	ulong rsector_tmp = bh->b_rsector;
 	ulong rsector_sav;
-	kdev_t rdev_tmp = bh->b_dev;
+	kdev_t rdev_tmp = bh->b_rdev;
 	kdev_t rdev_sav;
 	vg_t *vg_this = vg[VG_BLK(minor)];
 	lv_t *lv = vg_this->lv[LV_BLK(minor)];
@@ -1676,8 +1672,13 @@ void lvm_hd_name(char *buf, int minor)
  */
 static int lvm_make_request_fn(request_queue_t *q,
 			       int rw,
-			       struct buffer_head *bh) {
-	return (lvm_map(bh, rw) < 0) ? 0 : 1;
+			       struct buffer_head *bh)
+{
+	if (lvm_map(bh, rw) >= 0)
+		return 1;
+
+	buffer_IO_error(bh);
+	return 0;
 }
 
 

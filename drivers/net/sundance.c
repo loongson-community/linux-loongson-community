@@ -18,19 +18,13 @@
 	http://www.scyld.com/network/sundance.html
 */
 
-/* These identify the driver base version and may not be removed. */
-static const char version1[] =
-"sundance.c:v1.01 4/09/00  Written by Donald Becker\n";
-static const char version2[] =
-"  http://www.scyld.com/network/sundance.html\n";
-
 /* The user-configurable values.
    These may be modified when a driver module is loaded.*/
 
 static int debug = 1;			/* 1 normal messages, 0 quiet .. 7 verbose. */
 /* Maximum events (Rx packets, etc.) to handle at each interrupt. */
 static int max_interrupt_work = 20;
-static int mtu = 0;
+static int mtu;
 /* Maximum number of multicast addresses to filter (vs. rx-all-multicast).
    Typical is a 64 element hash table based on the Ethernet CRC.  */
 static int multicast_filter_limit = 32;
@@ -39,7 +33,7 @@ static int multicast_filter_limit = 32;
    Setting to > 1518 effectively disables this feature.
    This chip can receive into offset buffers, so the Alpha does not
    need a copy-align. */
-static int rx_copybreak = 0;
+static int rx_copybreak;
 
 /* Used to pass the media type, etc.
    Both 'options[]' and 'full_duplex[]' should exist for driver
@@ -97,6 +91,10 @@ static int full_duplex[MAX_UNITS] = {-1, -1, -1, -1, -1, -1, -1, -1};
 
 #include <linux/spinlock.h>
 
+/* These identify the driver base version and may not be removed. */
+static char version[] __devinitdata =
+KERN_INFO "sundance.c:v1.01 4/09/00  Written by Donald Becker\n"
+KERN_INFO "  http://www.scyld.com/network/sundance.html\n";
 
 /* Condensed operations for readability. */
 #define virt_to_le32desc(addr)  cpu_to_le32(virt_to_bus(addr))
@@ -384,6 +382,13 @@ static int __devinit sundance_probe1 (struct pci_dev *pdev,
 	int i, option = card_idx < MAX_UNITS ? options[card_idx] : 0;
 	long ioaddr;
 
+/* when built into the kernel, we only print version if device is found */
+#ifndef MODULE
+	static int printed_version;
+	if (!printed_version++)
+		printk(version);
+#endif
+
 	if (pci_enable_device(pdev))
 		return -EIO;
 	pci_set_master(pdev);
@@ -404,7 +409,7 @@ static int __devinit sundance_probe1 (struct pci_dev *pdev,
 	ioaddr = pci_resource_start(pdev, 1);
 	ioaddr = (long) ioremap (ioaddr, pci_id_tbl[chip_idx].io_size);
 	if (!ioaddr)
-		goto err_out_iomem;
+		goto err_out_res;
 #endif
 
 	for (i = 0; i < 3; i++)
@@ -445,6 +450,7 @@ static int __devinit sundance_probe1 (struct pci_dev *pdev,
 	dev->do_ioctl = &mii_ioctl;
 	dev->tx_timeout = &tx_timeout;
 	dev->watchdog_timeo = TX_TIMEOUT;
+	pci_set_drvdata(pdev, dev);
 
 	if (mtu)
 		dev->mtu = mtu;
@@ -493,7 +499,7 @@ err_out_cleardev:
 	pci_set_drvdata(pdev, NULL);
 #ifndef USE_IO_OPS
 	iounmap((void *)ioaddr);
-err_out_iomem:
+err_out_res:
 #endif
 	pci_release_regions(pdev);
 err_out_netdev:
@@ -527,7 +533,7 @@ static int eeprom_read(long ioaddr, int location)
 /* Set iff a MII transceiver on any interface requires mdio preamble.
    This only set with older tranceivers, so the extra
    code size of a per-interface flag is not worthwhile. */
-static char mii_preamble_required = 0;
+static char mii_preamble_required;
 
 enum mii_reg_bits {
 	MDIO_ShiftClk=0x0001, MDIO_Data=0x0002, MDIO_EnbOutput=0x0004,
@@ -1239,7 +1245,7 @@ static void __devexit sundance_remove1 (struct pci_dev *pdev)
 	struct net_device *dev = pci_get_drvdata(pdev);
 	
 	/* No need to check MOD_IN_USE, as sys_delete_module() checks. */
-	while (dev) {
+	if (dev) {
 		unregister_netdev(dev);
 		pci_release_regions(pdev);
 #ifndef USE_IO_OPS
@@ -1260,6 +1266,10 @@ static struct pci_driver sundance_driver = {
 
 static int __init sundance_init(void)
 {
+/* when a module, this is printed whether or not devices are found in probe */
+#ifdef MODULE
+	printk(version);
+#endif
 	return pci_module_init(&sundance_driver);
 }
 

@@ -196,8 +196,9 @@ struct ccs_modesel_head
  * Here are some scsi specific ioctl commands which are sometimes useful.
  */
 /* These are a few other constants  only used by scsi  devices */
+/* Note that include/linux/cdrom.h also defines IOCTL 0x5300 - 0x5395 */
 
-#define SCSI_IOCTL_GET_IDLUN 0x5382
+#define SCSI_IOCTL_GET_IDLUN 0x5382	/* conflicts with CDROMAUDIOBUFSIZ */
 
 /* Used to turn on and off tagged queuing for scsi devices */
 
@@ -209,6 +210,9 @@ struct ccs_modesel_head
 
 /* Used to get the bus number for a device */
 #define SCSI_IOCTL_GET_BUS_NUMBER 0x5386
+
+/* Used to get the PCI location of a device */
+#define SCSI_IOCTL_GET_PCI 0x5387
 
 /*
  * Overrides for Emacs so that we follow Linus's tabbing style.

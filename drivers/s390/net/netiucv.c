@@ -489,7 +489,7 @@ message_pending (iucv_MessagePending * mpi, ulong pgm_data)
 	pr_debug ("message_pending: ID=%p Length=%u\n", (void *) mpi->ipmsgid,
 		  buffer_length);
 
-	buffer = kmalloc (buffer_length, GFP_KERNEL | GFP_DMA);
+	buffer = kmalloc (buffer_length, GFP_ATOMIC | GFP_DMA);
 	if (buffer == NULL) {
 		p->stats.rx_dropped++;
 		return;
@@ -707,7 +707,6 @@ iucv_init (net_device * dev)
 	dev->flags = IFF_NOARP | IFF_POINTOPOINT;
 	dev->mtu = 9216;
 
-	dev_init_buffers (dev);
 	pr_debug ("%s: iucv_init  dev@=%p\n", dev->name, dev);
 	return 0;
 }

@@ -1,4 +1,4 @@
-static const char *version =
+static const char version[] =
 	"de600.c: $Revision: 1.40 $,  Bjorn Ekwall (bj0rn@blox.se)\n";
 /*
  *	de600.c
@@ -265,14 +265,14 @@ static int	adapter_init(struct net_device *dev);
 /*
  * D-Link driver variables:
  */
-static volatile int		rx_page		= 0;
+static volatile int		rx_page;
 
 #define TX_PAGES 2
 static volatile int		tx_fifo[TX_PAGES];
-static volatile int		tx_fifo_in = 0;
-static volatile int		tx_fifo_out = 0;
+static volatile int		tx_fifo_in;
+static volatile int		tx_fifo_out;
 static volatile int		free_tx_pages = TX_PAGES;
-static int			was_down = 0;
+static int			was_down;
 
 /*
  * Convenience macros/functions for D-Link adapter
@@ -597,7 +597,6 @@ de600_rx_intr(struct net_device *dev)
 	}
 
 	skb = dev_alloc_skb(size+2);
-	restore_flags(flags);
 	if (skb == NULL) {
 		printk("%s: Couldn't allocate a sk_buff of size %d.\n",
 			dev->name, size);

@@ -12,6 +12,7 @@
 #include <linux/skbuff.h>
 #include <linux/netfilter_ipv4.h>
 #include <linux/brlock.h>
+#include <linux/vmalloc.h>
 #include <net/checksum.h>
 #include <net/icmp.h>
 #include <net/ip.h>
@@ -34,12 +35,13 @@
 
 DECLARE_RWLOCK(ip_nat_lock);
 
-#define IP_NAT_HTABLE_SIZE 64
+/* Calculated at init based on memory size */
+static unsigned int ip_nat_htable_size;
 
-static struct list_head bysource[IP_NAT_HTABLE_SIZE];
-static struct list_head byipsproto[IP_NAT_HTABLE_SIZE];
+static struct list_head *bysource;
+static struct list_head *byipsproto;
 LIST_HEAD(protos);
-static LIST_HEAD(helpers);
+LIST_HEAD(helpers);
 
 extern struct ip_nat_protocol unknown_nat_protocol;
 
@@ -49,14 +51,14 @@ hash_by_ipsproto(u_int32_t src, u_int32_t dst, u_int16_t proto)
 {
 	/* Modified src and dst, to ensure we don't create two
            identical streams. */
-	return (src + dst + proto) % IP_NAT_HTABLE_SIZE;
+	return (src + dst + proto) % ip_nat_htable_size;
 }
 
 static inline size_t
 hash_by_src(const struct ip_conntrack_manip *manip, u_int16_t proto)
 {
 	/* Original src, to ensure we map it consistently if poss. */
-	return (manip->ip + manip->u.all + proto) % IP_NAT_HTABLE_SIZE;
+	return (manip->ip + manip->u.all + proto) % ip_nat_htable_size;
 }
 
 /* Noone using conntrack by the time this called. */
@@ -270,6 +272,7 @@ find_best_ips_proto(struct ip_conntrack_tuple *tuple,
 		struct ip_conntrack_tuple tuple;
 	} best = { NULL,  0xFFFFFFFF };
 	u_int32_t *var_ipp, *other_ipp, saved_ip, orig_dstip;
+	static unsigned int randomness = 0;
 
 	if (HOOK2MANIP(hooknum) == IP_NAT_MANIP_SRC) {
 		var_ipp = &tuple->src.ip;
@@ -286,7 +289,8 @@ find_best_ips_proto(struct ip_conntrack_tuple *tuple,
 
 	IP_NF_ASSERT(mr->rangesize >= 1);
 	for (i = 0; i < mr->rangesize; i++) {
-		u_int32_t minip, maxip;
+		/* Host order */
+		u_int32_t minip, maxip, j;
 
 		/* Don't do ranges which are already eliminated. */
 		if (mr->range[i].flags & IP_NAT_RANGE_FULL) {
@@ -294,15 +298,17 @@ find_best_ips_proto(struct ip_conntrack_tuple *tuple,
 		}
 
 		if (mr->range[i].flags & IP_NAT_RANGE_MAP_IPS) {
-			minip = mr->range[i].min_ip;
-			maxip = mr->range[i].max_ip;
+			minip = ntohl(mr->range[i].min_ip);
+			maxip = ntohl(mr->range[i].max_ip);
 		} else
-			minip = maxip = *var_ipp;
+			minip = maxip = ntohl(*var_ipp);
 
-		for (*var_ipp = minip;
-		     ntohl(*var_ipp) <= ntohl(maxip);
-		     *var_ipp = htonl(ntohl(*var_ipp) + 1)) {
+		randomness++;
+		for (j = 0; j < maxip - minip + 1; j++) {
 			unsigned int score;
+
+			*var_ipp = htonl(minip + (randomness + j) 
+					 % (maxip - minip + 1));
 
 			/* Reset the other ip in case it was mangled by
 			 * do_extra_mangle last time. */
@@ -850,59 +856,19 @@ icmp_reply_translation(struct sk_buff *skb,
 	return NF_ACCEPT;
 }
 
-int ip_nat_helper_register(struct ip_nat_helper *me)
-{
-	int ret = 0;
-
-	WRITE_LOCK(&ip_nat_lock);
-	if (LIST_FIND(&helpers, helper_cmp, struct ip_nat_helper *,&me->tuple))
-		ret = -EBUSY;
-	else {
-		list_prepend(&helpers, me);
-		MOD_INC_USE_COUNT;
-	}
-	WRITE_UNLOCK(&ip_nat_lock);
-
-	return ret;
-}
-
-static int
-kill_helper(const struct ip_conntrack *i, void *helper)
-{
-	int ret;
-
-	READ_LOCK(&ip_nat_lock);
-	ret = (i->nat.info.helper == helper);
-	READ_UNLOCK(&ip_nat_lock);
-
-	return ret;
-}
-
-void ip_nat_helper_unregister(struct ip_nat_helper *me)
-{
-	WRITE_LOCK(&ip_nat_lock);
-	LIST_DELETE(&helpers, me);
-	WRITE_UNLOCK(&ip_nat_lock);
-
-	/* Someone could be still looking at the helper in a bh. */
-	br_write_lock_bh(BR_NETPROTO_LOCK);
-	br_write_unlock_bh(BR_NETPROTO_LOCK);
-
-	/* Find anything using it, and umm, kill them.  We can't turn
-	   them into normal connections: if we've adjusted SYNs, then
-	   they'll ackstorm.  So we just drop it.  We used to just
-	   bump module count when a connection existed, but that
-	   forces admins to gen fake RSTs or bounce box, either of
-	   which is just a long-winded way of making things
-	   worse. --RR */
-	ip_ct_selective_cleanup(kill_helper, me);
-
-	MOD_DEC_USE_COUNT;
-}
-
 int __init ip_nat_init(void)
 {
 	size_t i;
+
+	/* Leave them the same for the moment. */
+	ip_nat_htable_size = ip_conntrack_htable_size;
+
+	/* One vmalloc for both hash tables */
+	bysource = vmalloc(sizeof(struct list_head) * ip_nat_htable_size*2);
+	if (!bysource) {
+		return -ENOMEM;
+	}
+	byipsproto = bysource + ip_nat_htable_size;
 
 	/* Sew in builtin protocols. */
 	WRITE_LOCK(&ip_nat_lock);
@@ -911,7 +877,7 @@ int __init ip_nat_init(void)
 	list_append(&protos, &ip_nat_protocol_icmp);
 	WRITE_UNLOCK(&ip_nat_lock);
 
-	for (i = 0; i < IP_NAT_HTABLE_SIZE; i++) {
+	for (i = 0; i < ip_nat_htable_size; i++) {
 		INIT_LIST_HEAD(&bysource[i]);
 		INIT_LIST_HEAD(&byipsproto[i]);
 	}
@@ -923,7 +889,15 @@ int __init ip_nat_init(void)
 	return 0;
 }
 
-void ip_nat_cleanup(void)
+/* Clear NAT section of all conntracks, in case we're loaded again. */
+static int __exit clean_nat(const struct ip_conntrack *i, void *data)
 {
+	memset((void *)&i->nat, 0, sizeof(i->nat));
+	return 0;
+}
+
+void __exit ip_nat_cleanup(void)
+{
+	ip_ct_selective_cleanup(&clean_nat, NULL);
 	ip_conntrack_destroyed = NULL;
 }

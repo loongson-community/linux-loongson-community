@@ -36,15 +36,6 @@
 	- Merge Becker version 1.03
 */
 
-/* These identify the driver base version and may not be removed. */
-static const char version1[] =
-"starfire.c:v1.03 7/26/2000  Written by Donald Becker <becker@scyld.com>\n";
-static const char version2[] =
-" Updates and info at http://www.scyld.com/network/starfire.html\n";
-
-static const char version3[] =
-" (unofficial 2.4.x kernel port, version 1.1.4, August 10, 2000)\n";
-
 /* The user-configurable values.
    These may be modified when a driver module is loaded.*/
 
@@ -53,7 +44,7 @@ static int interrupt_mitigation = 0x0;
 
 static int debug = 1;			/* 1 normal messages, 0 quiet .. 7 verbose. */
 static int max_interrupt_work = 20;
-static int mtu = 0;
+static int mtu;
 /* Maximum number of multicast addresses to filter (vs. rx-all-multicast).
    The Starfire has a 512 element hash table based on the Ethernet CRC.  */
 static int multicast_filter_limit = 32;
@@ -88,25 +79,31 @@ static int full_duplex[MAX_UNITS] = {-1, -1, -1, -1, -1, -1, -1, -1};
 
 #define PKT_BUF_SZ		1536			/* Size of each temporary Rx buffer.*/
 
+/*
+ * The ia64 doesn't allow for unaligned loads even of integers being
+ * misaligned on a 2 byte boundary. Thus always force copying of
+ * packets as the starfire doesn't allow for misaligned DMAs ;-(
+ * 23/10/2000 - Jes
+ */
+#ifdef __ia64__
+#define PKT_SHOULD_COPY(pkt_len)	1
+#else
+#define PKT_SHOULD_COPY(pkt_len)	(pkt_len < rx_copybreak)
+#endif
+
 #if !defined(__OPTIMIZE__)
 #warning  You must compile this file with the correct options!
 #warning  See the last lines of the source file.
 #error You must compile this driver with "-O".
 #endif
 
-/* Include files, designed to support most kernel versions 2.0.0 and later. */
-#include <linux/version.h>
 #include <linux/module.h>
-#if LINUX_VERSION_CODE < 0x20300  &&  defined(MODVERSIONS)
-#include <linux/modversions.h>
-#endif
-
 #include <linux/kernel.h>
 #include <linux/string.h>
 #include <linux/timer.h>
 #include <linux/errno.h>
 #include <linux/ioport.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/interrupt.h>
 #include <linux/pci.h>
 #include <linux/netdevice.h>
@@ -116,6 +113,12 @@ static int full_duplex[MAX_UNITS] = {-1, -1, -1, -1, -1, -1, -1, -1};
 #include <asm/processor.h>		/* Processor type for cache alignment. */
 #include <asm/bitops.h>
 #include <asm/io.h>
+
+/* These identify the driver base version and may not be removed. */
+static char version[] __devinitdata =
+KERN_INFO "starfire.c:v1.03 7/26/2000  Written by Donald Becker <becker@scyld.com>\n"
+KERN_INFO " Updates and info at http://www.scyld.com/network/starfire.html\n"
+KERN_INFO " (unofficial 2.4.x kernel port, version 1.1.4a, April 17, 2001)\n";
 
 MODULE_AUTHOR("Donald Becker <becker@scyld.com>");
 MODULE_DESCRIPTION("Adaptec Starfire Ethernet driver");
@@ -323,6 +326,7 @@ struct ring_info {
 	dma_addr_t mapping;
 };
 
+#define MII_CNT		4
 struct netdev_private {
 	/* Descriptor rings first for alignment. */
 	struct starfire_rx_desc *rx_ring;
@@ -359,7 +363,7 @@ struct netdev_private {
 	/* MII transceiver section. */
 	int mii_cnt;						/* MII device addresses. */
 	u16 advertising;					/* NWay media advertisement */
-	unsigned char phys[2];				/* MII device addresses. */
+	unsigned char phys[MII_CNT];		/* MII device addresses, only first one used. */
 };
 
 static int  mdio_read(struct net_device *dev, int phy_id, int location);
@@ -388,16 +392,21 @@ static int __devinit starfire_init_one (struct pci_dev *pdev,
 	int i, irq, option, chip_idx = ent->driver_data;
 	struct net_device *dev;
 	static int card_idx = -1;
-	static int printed_version = 0;
 	long ioaddr;
 	int drv_flags, io_size = netdrv_tbl[chip_idx].io_size;
 
+/* when built into the kernel, we only print version if device is found */
+#ifndef MODULE
+	static int printed_version;
+	if (!printed_version++)
+		printk(version);
+#endif
+
 	card_idx++;
 	option = card_idx < MAX_UNITS ? options[card_idx] : 0;
-	
-	if (!printed_version++)
-		printk(KERN_INFO "%s" KERN_INFO "%s" KERN_INFO "%s",
-		       version1, version2, version3);
+
+	if (pci_enable_device (pdev))
+		return -EIO;
 
 	ioaddr = pci_resource_start (pdev, 0);
 	if (!ioaddr || ((pci_resource_flags (pdev, 0) & IORESOURCE_MEM) == 0)) {
@@ -405,23 +414,18 @@ static int __devinit starfire_init_one (struct pci_dev *pdev,
 		return -ENODEV;
 	}
 	
-	dev = init_etherdev(NULL, sizeof(*np));
+	dev = alloc_etherdev(sizeof(*np));
 	if (!dev) {
 		printk (KERN_ERR "starfire %d: cannot alloc etherdev, aborting\n", card_idx);
 		return -ENOMEM;
 	}
+	SET_MODULE_OWNER(dev);
 	
 	irq = pdev->irq; 
 
-	if (request_mem_region (ioaddr, io_size, dev->name) == NULL) {
-		printk (KERN_ERR "starfire %d: resource 0x%x @ 0x%lx busy, aborting\n",
-			card_idx, io_size, ioaddr);
+	if (pci_request_regions (pdev, "starfire"))
 		goto err_out_free_netdev;
-	}
-	
-	if (pci_enable_device (pdev))
-		goto err_out_free_res;
-	
+
 	ioaddr = (long) ioremap (ioaddr, io_size);
 	if (!ioaddr) {
 		printk (KERN_ERR "starfire %d: cannot remap 0x%x @ 0x%lx, aborting\n",
@@ -431,15 +435,9 @@ static int __devinit starfire_init_one (struct pci_dev *pdev,
 
 	pci_set_master (pdev);
 	
-	printk(KERN_INFO "%s: %s at 0x%lx, ",
-		   dev->name, netdrv_tbl[chip_idx].name, ioaddr);
-
 	/* Serial EEPROM reads are hidden by the hardware. */
 	for (i = 0; i < 6; i++)
 		dev->dev_addr[i] = readb(ioaddr + EEPROMCtrl + 20-i);
-	for (i = 0; i < 5; i++)
-			printk("%2.2x:", dev->dev_addr[i]);
-	printk("%2.2x, IRQ %d.\n", dev->dev_addr[i], irq);
 
 #if ! defined(final_version) /* Dump the EEPROM contents during development. */
 	if (debug > 4)
@@ -455,7 +453,7 @@ static int __devinit starfire_init_one (struct pci_dev *pdev,
 	dev->irq = irq;
 
 	np = dev->priv;
-	pdev->driver_data = dev;
+	pci_set_drvdata(pdev, dev);
 
 	np->pci_dev = pdev;
 	drv_flags = netdrv_tbl[chip_idx].drv_flags;
@@ -490,9 +488,19 @@ static int __devinit starfire_init_one (struct pci_dev *pdev,
 	if (mtu)
 		dev->mtu = mtu;
 
+	i = register_netdev(dev);
+	if (i)
+		goto err_out_cleardev;
+
+	printk(KERN_INFO "%s: %s at 0x%lx, ",
+		   dev->name, netdrv_tbl[chip_idx].name, ioaddr);
+	for (i = 0; i < 5; i++)
+			printk("%2.2x:", dev->dev_addr[i]);
+	printk("%2.2x, IRQ %d.\n", dev->dev_addr[i], irq);
+
 	if (drv_flags & CanHaveMII) {
 		int phy, phy_idx = 0;
-		for (phy = 0; phy < 32 && phy_idx < 4; phy++) {
+		for (phy = 0; phy < 32 && phy_idx < MII_CNT; phy++) {
 			int mii_status = mdio_read(dev, phy, 1);
 			if (mii_status != 0xffff  &&  mii_status != 0x0000) {
 				np->phys[phy_idx++] = phy;
@@ -507,8 +515,11 @@ static int __devinit starfire_init_one (struct pci_dev *pdev,
 
 	return 0;
 
+err_out_cleardev:
+	pci_set_drvdata(pdev, NULL);
+	iounmap((void *)ioaddr);
 err_out_free_res:
-	release_mem_region (ioaddr, io_size);
+	pci_release_regions (pdev);
 err_out_free_netdev:
 	unregister_netdev (dev);
 	kfree (dev);
@@ -540,19 +551,15 @@ static void mdio_write(struct net_device *dev, int phy_id, int location, int val
 
 static int netdev_open(struct net_device *dev)
 {
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	long ioaddr = dev->base_addr;
 	int i, retval;
 
 	/* Do we ever need to reset the chip??? */
 
-	MOD_INC_USE_COUNT;
-
 	retval = request_irq(dev->irq, &intr_handler, SA_SHIRQ, dev->name, dev);
-	if (retval) {
-		MOD_DEC_USE_COUNT;
+	if (retval)
 		return retval;
-	}
 
 	/* Disable the Rx and Tx, and reset the chip. */
 	writel(0, ioaddr + GenCtrl);
@@ -583,7 +590,6 @@ static int netdev_open(struct net_device *dev)
 		if (np->rx_ring)
 			pci_free_consistent(np->pci_dev, PAGE_SIZE,
 								np->rx_ring, np->rx_ring_dma);
-		MOD_DEC_USE_COUNT;
 		return -ENOMEM;
 	}
 
@@ -669,7 +675,7 @@ static int netdev_open(struct net_device *dev)
 
 static void check_duplex(struct net_device *dev, int startup)
 {
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	long ioaddr = dev->base_addr;
 	int new_tx_mode ;
 
@@ -702,7 +708,7 @@ static void check_duplex(struct net_device *dev, int startup)
 static void netdev_timer(unsigned long data)
 {
 	struct net_device *dev = (struct net_device *)data;
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	long ioaddr = dev->base_addr;
 	int next_tick = 60*HZ;		/* Check before driver release. */
 
@@ -730,7 +736,7 @@ static void netdev_timer(unsigned long data)
 
 static void tx_timeout(struct net_device *dev)
 {
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	long ioaddr = dev->base_addr;
 
 	printk(KERN_WARNING "%s: Transmit timed out, status %8.8x,"
@@ -812,8 +818,8 @@ static void init_ring(struct net_device *dev)
 
 static int start_tx(struct sk_buff *skb, struct net_device *dev)
 {
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
-	unsigned entry;
+	struct netdev_private *np = dev->priv;
+	unsigned int entry;
 
 	/* Caution: the write order is important here, set the field
 	   with the "ownership" bits last. */
@@ -843,6 +849,9 @@ static int start_tx(struct sk_buff *skb, struct net_device *dev)
 #endif
 
 	/* Non-x86: explicitly flush descriptor cache lines here. */
+	/* Ensure everything is written back above before the transmit is
+	   initiated. - Jes */
+	wmb();
 
 	/* Update the producer index. */
 	writel(++entry, dev->base_addr + TxProducerIdx);
@@ -977,7 +986,7 @@ static void intr_handler(int irq, void *dev_instance, struct pt_regs *rgs)
    for clarity and better register allocation. */
 static int netdev_rx(struct net_device *dev)
 {
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	int boguscnt = np->dirty_rx + RX_RING_SIZE - np->cur_rx;
 	u32 desc_status;
 
@@ -1015,7 +1024,7 @@ static int netdev_rx(struct net_device *dev)
 #endif
 			/* Check if the packet is long enough to accept without copying
 			   to a minimally-sized skbuff. */
-			if (pkt_len < rx_copybreak
+			if (PKT_SHOULD_COPY(pkt_len)
 				&& (skb = dev_alloc_skb(pkt_len + 2)) != NULL) {
 				skb->dev = dev;
 				skb_reserve(skb, 2);	/* 16 byte align the IP header */
@@ -1037,14 +1046,6 @@ static int netdev_rx(struct net_device *dev)
 				temp = skb_put(skb, pkt_len);
 				np->rx_info[entry].skb = NULL;
 				np->rx_info[entry].mapping = 0;
-#ifndef final_version				/* Remove after testing. */
-				if (le32_to_cpu(np->rx_ring[entry].rxaddr & ~3) != ((unsigned long) temp))
-					printk(KERN_ERR "%s: Internal fault: The skbuff addresses "
-						   "do not match in netdev_rx: %d vs. %p / %p.\n",
-						   dev->name,
-						   le32_to_cpu(np->rx_ring[entry].rxaddr),
-						   skb->head, temp);
-#endif
 			}
 #ifndef final_version				/* Remove after testing. */
 			/* You will want this info for the initial debug. */
@@ -1107,7 +1108,7 @@ static int netdev_rx(struct net_device *dev)
 
 static void netdev_error(struct net_device *dev, int intr_status)
 {
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 
 	if (intr_status & LinkChange) {
 		printk(KERN_NOTICE "%s: Link changed: Autonegotiation advertising"
@@ -1136,7 +1137,7 @@ static void netdev_error(struct net_device *dev, int intr_status)
 static struct net_device_stats *get_stats(struct net_device *dev)
 {
 	long ioaddr = dev->base_addr;
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 
 	/* This adapter architecture needs no SMP locks. */
 	np->stats.tx_bytes = readl(ioaddr + 0x57010);
@@ -1241,7 +1242,7 @@ static void set_rx_mode(struct net_device *dev)
 
 static int mii_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	u16 *data = (u16 *)&rq->ifr_data;
 
 	switch(cmd) {
@@ -1279,7 +1280,7 @@ static int mii_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 static int netdev_close(struct net_device *dev)
 {
 	long ioaddr = dev->base_addr;
-	struct netdev_private *np = (struct netdev_private *)dev->priv;
+	struct netdev_private *np = dev->priv;
 	int i;
 
 	netif_stop_queue(dev);
@@ -1341,15 +1342,13 @@ static int netdev_close(struct net_device *dev)
 		np->tx_info[i].mapping = 0;
 	}
 
-	MOD_DEC_USE_COUNT;
-
 	return 0;
 }
 
 
 static void __devexit starfire_remove_one (struct pci_dev *pdev)
 {
-	struct net_device *dev = pdev->driver_data;
+	struct net_device *dev = pci_get_drvdata(pdev);
 	struct netdev_private *np;
 	
 	if (!dev)
@@ -1359,6 +1358,7 @@ static void __devexit starfire_remove_one (struct pci_dev *pdev)
 
 	unregister_netdev(dev);
 	iounmap((char *)dev->base_addr);
+	pci_release_regions (pdev);
 
 	if (np->tx_done_q)
 		pci_free_consistent(np->pci_dev, PAGE_SIZE,
@@ -1374,6 +1374,8 @@ static void __devexit starfire_remove_one (struct pci_dev *pdev)
 				    np->rx_ring, np->rx_ring_dma);
 
 	kfree(dev);
+
+	pci_set_drvdata(pdev, NULL);
 }
 
 
@@ -1387,6 +1389,10 @@ static struct pci_driver starfire_driver = {
 
 static int __init starfire_init (void)
 {
+/* when a module, this is printed whether or not devices are found in probe */
+#ifdef MODULE
+	printk(version);
+#endif
 	return pci_module_init (&starfire_driver);
 }
 

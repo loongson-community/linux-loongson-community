@@ -64,8 +64,8 @@
  *        Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
  */
 
-static char *serial_version = "5.05";
-static char *serial_revdate = "2000-12-13";
+static char *serial_version = "5.05a";
+static char *serial_revdate = "2001-03-20";
 
 /*
  * Serial driver configuration section.  Here are the various options:
@@ -3947,11 +3947,6 @@ static void __devinit start_pci_pnp_board(struct pci_dev *dev,
 	       return;
        }
 
-       if (!(board->flags & SPCI_FL_ISPNP) && pci_enable_device(dev)) {
-	       printk("serial: PCI device enable failed\n");
-	       return;
-       }
-
 	/*
 	 * Run the initialization function, if any
 	 */
@@ -4633,7 +4628,8 @@ static int _INLINE_ serial_pci_guess_board(struct pci_dev *dev,
 	 * (Should we try to make guesses for multiport serial devices
 	 * later?) 
 	 */
-	if ((dev->class >> 8) != PCI_CLASS_COMMUNICATION_SERIAL ||
+	if ((((dev->class >> 8) != PCI_CLASS_COMMUNICATION_SERIAL) &&
+	    ((dev->class >> 8) != PCI_CLASS_COMMUNICATION_MODEM)) ||
 	    (dev->class & 0xff) > 6)
 		return 1;
 
@@ -4662,6 +4658,7 @@ static int __devinit serial_init_one(struct pci_dev *dev,
 				     const struct pci_device_id *ent)
 {
 	struct pci_board *board, tmp;
+	int rc;
 
 	for (board = pci_boards; board->vendor; board++) {
 		if (board->vendor != (unsigned short) PCI_ANY_ID &&
@@ -4678,6 +4675,9 @@ static int __devinit serial_init_one(struct pci_dev *dev,
 			continue;
 		break;
 	}
+
+	rc = pci_enable_device(dev);
+	if (rc) return rc;
 
 	if (board->vendor == 0 && serial_pci_guess_board(dev, board))
 		return -ENODEV;
@@ -4731,6 +4731,8 @@ static void __devexit serial_remove_one(struct pci_dev *dev)
 static struct pci_device_id serial_pci_tbl[] __devinitdata = {
        { PCI_ANY_ID, PCI_ANY_ID, PCI_ANY_ID, PCI_ANY_ID,
 	 PCI_CLASS_COMMUNICATION_SERIAL << 8, 0xffff00, },
+       { PCI_ANY_ID, PCI_ANY_ID, PCI_ANY_ID, PCI_ANY_ID,
+	 PCI_CLASS_COMMUNICATION_MODEM << 8, 0xffff00, },
        { 0, }
 };
 
@@ -5747,6 +5749,10 @@ static int __init serial_console_setup(struct console *co, char *options)
 		case 9600:
 		default:
 			cflag |= B9600;
+			/*
+			 * Set this to a sane value to prevent a divide error
+			 */
+			baud  = 9600;
 			break;
 	}
 	switch(bits) {

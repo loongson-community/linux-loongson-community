@@ -63,7 +63,7 @@
 #include "smctr_firmware.h"      /* SMC adapter firmware */
 
 static char version[] __initdata = KERN_INFO "smctr.c: v1.4 7/12/00 by jschlst@turbolinux.com\n";
-static const char *cardname = "smctr";
+static const char cardname[] = "smctr";
 
 
 #define SMCTR_IO_EXTENT   20
@@ -82,7 +82,7 @@ static unsigned int smctr_posid = 0x6ec6;
 static int ringspeed;
 
 /* SMC Name of the Adapter. */
-static char *smctr_name = "SMC TokenCard";
+static char smctr_name[] = "SMC TokenCard";
 char *smctr_model = "Unknown";
 
 /* Use 0 for production, 1 for verification, 2 for debug, and
@@ -5269,7 +5269,7 @@ static int smctr_set_phy_drop(struct net_device *dev, MAC_SUB_VECTOR *rsv)
         return (POSITIVE_ACK);
 }
 
-/* Reset the ring speed to the oposite of what it was. This auto-pilot
+/* Reset the ring speed to the opposite of what it was. This auto-pilot
  * mode requires a complete reset and re-init of the adapter.
  */
 static int smctr_set_ring_speed(struct net_device *dev)

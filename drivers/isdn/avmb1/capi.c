@@ -1,11 +1,14 @@
 /*
- * $Id: capi.c,v 1.44.6.8 2001/03/21 08:52:21 kai Exp $
+ * $Id: capi.c,v 1.44.6.9 2001/04/08 17:51:42 kai Exp $
  *
  * CAPI 2.0 Interface for Linux
  *
  * Copyright 1996 by Carsten Paeth (calle@calle.in-berlin.de)
  *
  * $Log: capi.c,v $
+ * Revision 1.44.6.9  2001/04/08 17:51:42  kai
+ * merge various fixes from HEAD (found by the CHECKER project)
+ *
  * Revision 1.44.6.8  2001/03/21 08:52:21  kai
  * merge from main branch: fix buffer for revision string (calle)
  *
@@ -268,7 +271,7 @@
 #include "capifs.h"
 #endif
 
-static char *revision = "$Revision: 1.44.6.8 $";
+static char *revision = "$Revision: 1.44.6.9 $";
 
 MODULE_AUTHOR("Carsten Paeth (calle@calle.in-berlin.de)");
 
@@ -533,9 +536,6 @@ static struct capincci *capincci_alloc(struct capidev *cdev, __u32 ncci)
 	memset(np, 0, sizeof(struct capincci));
 	np->ncci = ncci;
 	np->cdev = cdev;
-	for (pp=&cdev->nccis; *pp; pp = &(*pp)->next)
-		;
-	*pp = np;
 #ifdef CONFIG_ISDN_CAPI_MIDDLEWARE
 	mp = 0;
 	if (cdev->userflags & CAPIFLAG_HIGHJACKING)
@@ -553,6 +553,9 @@ static struct capincci *capincci_alloc(struct capidev *cdev, __u32 ncci)
 #endif
 	}
 #endif /* CONFIG_ISDN_CAPI_MIDDLEWARE */
+	for (pp=&cdev->nccis; *pp; pp = &(*pp)->next)
+		;
+	*pp = np;
         return np;
 }
 
@@ -1001,6 +1004,8 @@ capi_write(struct file *file, const char *buf, size_t count, loff_t *ppos)
 		return -ENODEV;
 
 	skb = alloc_skb(count, GFP_USER);
+	if (!skb)
+		return -ENOMEM;
 
 	if ((retval = copy_from_user(skb_put(skb, count), buf, count))) {
 		kfree_skb(skb);
@@ -1332,6 +1337,7 @@ capinc_raw_open(struct inode *inode, struct file *file)
 #ifdef _DEBUG_REFCOUNT
 	printk(KERN_DEBUG "capi_raw_open %d\n", GET_USE_COUNT(THIS_MODULE));
 #endif
+
 	mp->datahandle = 0;
 	mp->file = file;
 	file->private_data = (void *)mp;
@@ -1417,6 +1423,8 @@ capinc_raw_write(struct file *file, const char *buf, size_t count, loff_t *ppos)
 		return -EINVAL;
 
 	skb = alloc_skb(CAPI_DATA_B3_REQ_LEN+count, GFP_USER);
+	if (!skb)
+		return -ENOMEM;
 
 	skb_reserve(skb, CAPI_DATA_B3_REQ_LEN);
 	if ((retval = copy_from_user(skb_put(skb, count), buf, count))) {
@@ -2116,6 +2124,7 @@ static char rev[32];
 static int __init capi_init(void)
 {
 	char *p;
+	char *compileinfo;
 
 	MOD_INC_USE_COUNT;
 
@@ -2196,8 +2205,17 @@ static int __init capi_init(void)
 
 	(void)proc_init();
 
-	printk(KERN_NOTICE "capi20: Rev%s: started up with major %d\n",
-				rev, capi_major);
+#ifdef CONFIG_ISDN_CAPI_MIDDLEWARE
+#if defined(CONFIG_ISDN_CAPI_CAPIFS) || defined(CONFIG_ISDN_CAPI_CAPIFS_MODULE)
+        compileinfo = " (middleware+capifs)";
+#else
+        compileinfo = " (no capifs)";
+#endif
+#else
+        compileinfo = " (no middleware)";
+#endif
+	printk(KERN_NOTICE "capi20: Rev %s: started up with major %d%s\n",
+				rev, capi_major, compileinfo);
 
 	MOD_DEC_USE_COUNT;
 	return 0;

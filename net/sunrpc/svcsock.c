@@ -381,10 +381,17 @@ svc_udp_recvfrom(struct svc_rqst *rqstp)
 		dprintk("svc: recvfrom returned error %d\n", -err);
 	}
 
+	/* Sorry. */
+	if (skb_is_nonlinear(skb)) {
+		if (skb_linearize(skb, GFP_ATOMIC) != 0) {
+			kfree_skb(skb);
+			svc_sock_received(svsk, 0);
+			return 0;
+		}
+	}
+
 	if (skb->ip_summed != CHECKSUM_UNNECESSARY) {
-		unsigned int csum = skb->csum;
-		csum = csum_partial(skb->h.raw, skb->len, csum);
-		if ((unsigned short)csum_fold(csum)) {
+		if ((unsigned short)csum_fold(skb_checksum(skb, 0, skb->len, skb->csum))) {
 			skb_free_datagram(svsk->sk_sk, skb);
 			svc_sock_received(svsk, 0);
 			return 0;
@@ -395,7 +402,7 @@ svc_udp_recvfrom(struct svc_rqst *rqstp)
 	svsk->sk_data = 1;
 
 	len  = skb->len - sizeof(struct udphdr);
-	data = (u32 *) (skb->h.raw + sizeof(struct udphdr));
+	data = (u32 *) (skb->data + sizeof(struct udphdr));
 
 	rqstp->rq_skbuff      = skb;
 	rqstp->rq_argbuf.base = data;
@@ -455,11 +462,11 @@ svc_udp_init(struct svc_sock *svsk)
 }
 
 /*
- * A state change on a listening socket means there's a connection
- * pending.
+ * A data_ready event on a listening socket means there's a connection
+ * pending. Do not use state_change as a substitute for it.
  */
 static void
-svc_tcp_state_change1(struct sock *sk)
+svc_tcp_listen_data_ready(struct sock *sk, int count_unused)
 {
 	struct svc_sock	*svsk;
 
@@ -487,7 +494,7 @@ svc_tcp_state_change1(struct sock *sk)
  * A state change on a connected socket means it's dying or dead.
  */
 static void
-svc_tcp_state_change2(struct sock *sk)
+svc_tcp_state_change(struct sock *sk)
 {
 	struct svc_sock	*svsk;
 
@@ -770,10 +777,10 @@ svc_tcp_init(struct svc_sock *svsk)
 
 	if (sk->state == TCP_LISTEN) {
 		dprintk("setting up TCP socket for listening\n");
-		sk->state_change = svc_tcp_state_change1;
+		sk->data_ready = svc_tcp_listen_data_ready;
 	} else {
 		dprintk("setting up TCP socket for reading\n");
-		sk->state_change = svc_tcp_state_change2;
+		sk->state_change = svc_tcp_state_change;
 		sk->data_ready = svc_tcp_data_ready;
 
 		svsk->sk_reclen = 0;

@@ -451,6 +451,19 @@ int nf_hook_slow(int pf, unsigned int hook, struct sk_buff *skb,
 	unsigned int verdict;
 	int ret = 0;
 
+	/* This stopgap cannot be removed until all the hooks are audited. */
+	if (skb_is_nonlinear(skb) && skb_linearize(skb, GFP_ATOMIC) != 0) {
+		kfree_skb(skb);
+		return -ENOMEM;
+	}
+	if (skb->ip_summed == CHECKSUM_HW) {
+		if (outdev == NULL) {
+			skb->ip_summed = CHECKSUM_NONE;
+		} else {
+			skb_checksum_help(skb);
+		}
+	}
+
 	/* We may already have this, but read-locks nest anyway */
 	br_read_lock_bh(BR_NETPROTO_LOCK);
 
@@ -539,6 +552,12 @@ void nf_reinject(struct sk_buff *skb, struct nf_info *info,
 	kfree(info);
 	return;
 }
+
+/* This does not belong here, but ipt_REJECT needs it if connection
+   tracking in use: without this, connection may not be in hash table,
+   and hence manufactured ICMP or RST packets will not be associated
+   with it. */
+void (*ip_ct_attach)(struct sk_buff *, struct nf_ct_info *);
 
 void __init netfilter_init(void)
 {

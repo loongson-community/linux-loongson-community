@@ -1217,7 +1217,7 @@ err_out:
 static int __init dec_lance_probe(void)
 {
 	struct net_device *dev = NULL;
-	static int called = 0;
+	static int called;
 
 #ifdef MODULE
 	root_lance_dev = NULL;

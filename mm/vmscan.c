@@ -563,7 +563,7 @@ dirty_page_rescan:
 
 			/*
 			 * Unlock the page and drop the extra reference.
-			 * We can only do it here because we ar accessing
+			 * We can only do it here because we are accessing
 			 * the page struct above.
 			 */
 			UnlockPage(page);
@@ -912,7 +912,7 @@ int kswapd(void *unused)
 	 * Kswapd main loop.
 	 */
 	for (;;) {
-		static int recalc = 0;
+		static long recalc = 0;
 
 		/* If needed, try to free some memory. */
 		if (inactive_shortage() || free_shortage()) 

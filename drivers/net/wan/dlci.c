@@ -57,8 +57,8 @@
 
 #include <net/sock.h>
 
-static const char *devname = "dlci";
-static const char *version = "DLCI driver v0.35, 4 Jan 1997, mike.mclagan@linux.org";
+static const char devname[] = "dlci";
+static const char version[] = "DLCI driver v0.35, 4 Jan 1997, mike.mclagan@linux.org";
 
 static struct net_device *open_dev[CONFIG_DLCI_COUNT];
 
@@ -575,8 +575,6 @@ int dlci_init(struct net_device *dev)
 	dev->addr_len		= sizeof(short);
 	memset(dev->dev_addr, 0, sizeof(dev->dev_addr));
 
-	dev_init_buffers(dev);
-	
 	return(0);
 }
 

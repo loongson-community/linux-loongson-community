@@ -355,7 +355,7 @@ typedef elf_fpreg_t elf_fpregset_t[ELF_NFPREG];
 		(granularity << IA32_SEG_G)		       |       \
 		(((base >> 24) & 0xFF) << IA32_SEG_HIGH_BASE)) 
 
-#define IA32_IOBASE    0x2000000000000000 /* Virtual addres for I/O space */
+#define IA32_IOBASE    0x2000000000000000 /* Virtual address for I/O space */
 
 #define IA32_CR0       0x80000001      /* Enable PG and PE bits */
 #define IA32_CR4       0	       /* No architectural extensions */
@@ -378,9 +378,10 @@ typedef elf_fpreg_t elf_fpregset_t[ELF_NFPREG];
 	ia64_psr(regs)->ri = 0;		/* clear return slot number */		\
 	ia64_psr(regs)->is = 1;		/* IA-32 instruction set */		\
 	regs->cr_iip = new_ip;							\
-	regs->r12 = new_sp;							\
+	regs->ar_rsc = 0xc;		/* enforced lazy mode, priv. level 3 */	\
 	regs->ar_rnat = 0;							\
 	regs->loadrs = 0;							\
+	regs->r12 = new_sp;							\
 } while (0)
 
 extern void ia32_gdt_init (void);

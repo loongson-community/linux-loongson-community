@@ -22,16 +22,16 @@
 #define COLOR_ALIGN(addr)	(((addr) + SHMLBA - 1) & ~(SHMLBA - 1))
 
 unsigned long
-get_unmapped_area (unsigned long addr, unsigned long len)
+arch_get_unmapped_area (struct file *filp, unsigned long addr, unsigned long len, unsigned long pgoff, unsigned long flags)
 {
 	struct vm_area_struct * vmm;
 
 	if (len > RGN_MAP_LIMIT)
-		return 0;
+		return -ENOMEM;
 	if (!addr)
 		addr = TASK_UNMAPPED_BASE;
 
-	if (current->thread.flags & IA64_THREAD_MAP_SHARED)
+	if (flags & MAP_SHARED)
 		addr = COLOR_ALIGN(addr);
 	else
 		addr = PAGE_ALIGN(addr);
@@ -39,17 +39,19 @@ get_unmapped_area (unsigned long addr, unsigned long len)
 	for (vmm = find_vma(current->mm, addr); ; vmm = vmm->vm_next) {
 		/* At this point:  (!vmm || addr < vmm->vm_end). */
 		if (TASK_SIZE - len < addr)
-			return 0;
+			return -ENOMEM;
 		if (rgn_offset(addr) + len > RGN_MAP_LIMIT)	/* no risk of overflow here... */
-			return 0;
+			return -ENOMEM;
 		if (!vmm || addr + len <= vmm->vm_start)
 			return addr;
 		addr = vmm->vm_end;
+		if (flags & MAP_SHARED)
+			addr = COLOR_ALIGN(addr);
 	}
 }
 
 asmlinkage long
-ia64_getpriority (int which, int who, long arg2, long arg3, long arg4, long arg5, long arg6, 
+ia64_getpriority (int which, int who, long arg2, long arg3, long arg4, long arg5, long arg6,
 		  long arg7, long stack)
 {
 	struct pt_regs *regs = (struct pt_regs *) &stack;
@@ -197,14 +199,9 @@ do_mmap2 (unsigned long addr, unsigned long len, int prot, int flags, int fd, un
 			return -EBADF;
 	}
 
-	if (flags & MAP_SHARED)
-		current->thread.flags |= IA64_THREAD_MAP_SHARED;
-
 	down_write(&current->mm->mmap_sem);
 	addr = do_mmap_pgoff(file, addr, len, prot, flags, pgoff);
 	up_write(&current->mm->mmap_sem);
-
-	current->thread.flags &= ~IA64_THREAD_MAP_SHARED;
 
 	if (file)
 		fput(file);
@@ -246,15 +243,15 @@ sys_mmap (unsigned long addr, unsigned long len, int prot, int flags,
 asmlinkage long
 sys_vm86 (long arg0, long arg1, long arg2, long arg3)
 {
-        printk(KERN_ERR "sys_vm86(%lx, %lx, %lx, %lx)!\n", arg0, arg1, arg2, arg3);
-        return -ENOSYS;
+	printk(KERN_ERR "sys_vm86(%lx, %lx, %lx, %lx)!\n", arg0, arg1, arg2, arg3);
+	return -ENOSYS;
 }
 
 asmlinkage long
 sys_modify_ldt (long arg0, long arg1, long arg2, long arg3)
 {
-        printk(KERN_ERR "sys_modify_ldt(%lx, %lx, %lx, %lx)!\n", arg0, arg1, arg2, arg3);
-        return -ENOSYS;
+	printk(KERN_ERR "sys_modify_ldt(%lx, %lx, %lx, %lx)!\n", arg0, arg1, arg2, arg3);
+	return -ENOSYS;
 }
 
 asmlinkage unsigned long
@@ -392,7 +389,7 @@ ia64_oldfstat (unsigned int fd, struct ia64_oldstat *statbuf)
 	}
 	return err;
 }
- 
+
 #endif
 
 #ifndef CONFIG_PCI

@@ -1814,16 +1814,14 @@ static void commit_flush_async(struct super_block *p_s_sb, int jindex) {
 ** then run the per filesystem commit task queue when we wakeup.
 */
 static int reiserfs_journal_commit_thread(void *nullp) {
-  exit_files(current);
-  exit_mm(current);
+
+  daemonize() ;
 
   spin_lock_irq(&current->sigmask_lock);
   sigfillset(&current->blocked);
   recalc_sigpending(current);
   spin_unlock_irq(&current->sigmask_lock);
 
-  current->session = 1;
-  current->pgrp = 1;
   sprintf(current->comm, "kreiserfsd") ;
   lock_kernel() ;
   while(1) {
@@ -1927,8 +1925,11 @@ int journal_init(struct super_block *p_s_sb) {
     free_journal_ram(p_s_sb) ;
     return 1 ;
   }
-  SB_JOURNAL_LIST_INDEX(p_s_sb) = 0 ; /* once the read is done, we can set this where it belongs */
+  SB_JOURNAL_LIST_INDEX(p_s_sb) = 0 ; /* once the read is done, we can set this
+                                         where it belongs */
 
+  INIT_LIST_HEAD (&SB_JOURNAL(p_s_sb)->j_prealloc_list);
+  
   if (reiserfs_dont_log (p_s_sb))
     return 0;
 
@@ -2052,7 +2053,7 @@ relock:
 	sleep_on(&(SB_JOURNAL(p_s_sb)->j_join_wait)) ;
       }
     }
-    lock_journal(p_s_sb) ; /* relock to continue */
+    goto relock ;
   }
 
   if (SB_JOURNAL(p_s_sb)->j_trans_start_time == 0) { /* we are the first writer, set trans_id */
@@ -2985,6 +2986,11 @@ static int do_journal_end(struct reiserfs_transaction_handle *th, struct super_b
     flush = 1 ;
   }
 
+#ifdef REISERFS_PREALLOCATE
+  reiserfs_discard_all_prealloc(th); /* it should not involve new blocks into
+				      * the transaction */
+#endif
+  
   rs = SB_DISK_SUPER_BLOCK(p_s_sb) ;
   /* setup description block */
   d_bh = getblk(p_s_sb->s_dev, reiserfs_get_journal_block(p_s_sb) + SB_JOURNAL(p_s_sb)->j_start, p_s_sb->s_blocksize) ; 

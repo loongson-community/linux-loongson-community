@@ -1,4 +1,4 @@
-/* $Id: sparc64_ksyms.c,v 1.102 2001/03/24 09:36:01 davem Exp $
+/* $Id: sparc64_ksyms.c,v 1.105 2001/04/14 01:12:02 davem Exp $
  * arch/sparc64/kernel/sparc64_ksyms.c: Sparc64 specific ksyms support.
  *
  * Copyright (C) 1996 David S. Miller (davem@caip.rutgers.edu)
@@ -149,6 +149,8 @@ EXPORT_SYMBOL(_do_write_lock);
 EXPORT_SYMBOL(_do_write_unlock);
 #endif
 
+EXPORT_SYMBOL(smp_call_function);
+
 #endif
 
 /* semaphores */
@@ -157,21 +159,16 @@ EXPORT_SYMBOL(__down_interruptible);
 EXPORT_SYMBOL(__down_trylock);
 EXPORT_SYMBOL(__up);
 
-/* rw semaphores */
-EXPORT_SYMBOL_NOVERS(__down_read_failed);
-EXPORT_SYMBOL_NOVERS(__down_write_failed);
-EXPORT_SYMBOL_NOVERS(__rwsem_wake);
-
 /* Atomic counter implementation. */
 EXPORT_SYMBOL(__atomic_add);
 EXPORT_SYMBOL(__atomic_sub);
 
 /* Atomic bit operations. */
-EXPORT_SYMBOL(__test_and_set_bit);
-EXPORT_SYMBOL(__test_and_clear_bit);
-EXPORT_SYMBOL(__test_and_change_bit);
-EXPORT_SYMBOL(__test_and_set_le_bit);
-EXPORT_SYMBOL(__test_and_clear_le_bit);
+EXPORT_SYMBOL(___test_and_set_bit);
+EXPORT_SYMBOL(___test_and_clear_bit);
+EXPORT_SYMBOL(___test_and_change_bit);
+EXPORT_SYMBOL(___test_and_set_le_bit);
+EXPORT_SYMBOL(___test_and_clear_le_bit);
 
 EXPORT_SYMBOL(ivector_table);
 EXPORT_SYMBOL(enable_irq);
@@ -180,7 +177,7 @@ EXPORT_SYMBOL(disable_irq);
 EXPORT_SYMBOL(__flushw_user);
 
 EXPORT_SYMBOL(tlb_type);
-
+EXPORT_SYMBOL(get_fb_unmapped_area);
 EXPORT_SYMBOL(flush_icache_range);
 EXPORT_SYMBOL(__flush_dcache_page);
 

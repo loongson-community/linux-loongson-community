@@ -326,21 +326,24 @@ char * strtok(char * s,const char * ct)
  * @ct: The characters to search for
  *
  * strsep() updates @s to point after the token, ready for the next call.
+ *
+ * It returns empty tokens, too, behaving exactly like the libc function
+ * of that name. In fact, it was stolen from glibc2 and de-fancy-fied.
+ * Same semantics, slimmer shape. ;)
  */
-char * strsep(char **s, const char * ct)
+char * strsep(char **s, const char *ct)
 {
-	char *sbegin=*s;
-	if (!sbegin) 
+	char *sbegin = *s, *end;
+
+	if (sbegin == NULL)
 		return NULL;
-	
-	sbegin += strspn(sbegin,ct);
-	if (*sbegin == '\0') 
-		return NULL;
-	
-	*s = strpbrk( sbegin, ct);
-	if (*s && **s != '\0')
-		*(*s)++ = '\0';
-	return (sbegin);
+
+	end = strpbrk(sbegin, ct);
+	if (end)
+		*end++ = '\0';
+	*s = end;
+
+	return sbegin;
 }
 #endif
 
@@ -350,6 +353,8 @@ char * strsep(char **s, const char * ct)
  * @s: Pointer to the start of the area.
  * @c: The byte to fill the area with
  * @count: The size of the area.
+ *
+ * Do not use memset() to access IO space, use memset_io() instead.
  */
 void * memset(void * s,int c, size_t count)
 {
@@ -369,11 +374,11 @@ void * memset(void * s,int c, size_t count)
  * @dest: Where to copy to
  * @count: The size of the area.
  *
- * When using copies for I/O remember that bcopy and memcpy are entitled
- * to do out of order writes and may well exactly that.
+ * Note that this is the same as memcpy(), with the arguments reversed.
+ * memcpy() is the standard, bcopy() is a legacy BSD function.
  *
- * Note that this is the same as memcpy, with the arguments reversed. memcpy
- * is the standard, bcopy is a legacy BSD function.
+ * You should not use this function to access IO space, use memcpy_toio()
+ * or memcpy_fromio() instead.
  */
 char * bcopy(const char * src, char * dest, int count)
 {
@@ -393,8 +398,8 @@ char * bcopy(const char * src, char * dest, int count)
  * @src: Where to copy from
  * @count: The size of the area.
  *
- * When using copies for I/O remember that bcopy and memcpy are entitled
- * to do out of order writes and may well exactly that.
+ * You should not use this function to access IO space, use memcpy_toio()
+ * or memcpy_fromio() instead.
  */
 void * memcpy(void * dest,const void *src,size_t count)
 {
@@ -414,7 +419,7 @@ void * memcpy(void * dest,const void *src,size_t count)
  * @src: Where to copy from
  * @count: The size of the area.
  *
- * memmove copes with overlapping areas.
+ * Unlike memcpy(), memmove() copes with overlapping areas.
  */
 void * memmove(void * dest,const void *src,size_t count)
 {
@@ -439,7 +444,7 @@ void * memmove(void * dest,const void *src,size_t count)
 
 #ifndef __HAVE_ARCH_MEMCMP
 /**
- * memmove - Compare two areas of memory
+ * memcmp - Compare two areas of memory
  * @cs: One area of memory
  * @ct: Another area of memory
  * @count: The size of the area.

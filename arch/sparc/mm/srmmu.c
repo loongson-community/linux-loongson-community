@@ -1,11 +1,11 @@
-/* $Id: srmmu.c,v 1.228 2001/03/16 06:56:20 davem Exp $
+/* $Id: srmmu.c,v 1.229 2001/04/14 21:13:45 davem Exp $
  * srmmu.c:  SRMMU specific routines for memory management.
  *
  * Copyright (C) 1995 David S. Miller  (davem@caip.rutgers.edu)
  * Copyright (C) 1995 Pete Zaitcev
  * Copyright (C) 1996 Eddie C. Dost    (ecd@skynet.be)
  * Copyright (C) 1997,1998 Jakub Jelinek (jj@sunsite.mff.cuni.cz)
- * Copyright (C) 1999,2000 Anton Blanchard (anton@linuxcare.com)
+ * Copyright (C) 1999,2000 Anton Blanchard (anton@samba.org)
  */
 
 #include <linux/config.h>

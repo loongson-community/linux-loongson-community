@@ -108,7 +108,6 @@ void __remove_inode_page(struct page *page)
 	if (PageDirty(page)) BUG();
 	remove_page_from_inode_queue(page);
 	remove_page_from_hash_queue(page);
-	page->mapping = NULL;
 }
 
 void remove_inode_page(struct page *page)
@@ -679,6 +678,34 @@ struct page * __find_get_page(struct address_space *mapping,
 }
 
 /*
+ * Find a swapcache page (and get a reference) or return NULL.
+ * The SwapCache check is protected by the pagecache lock.
+ */
+struct page * __find_get_swapcache_page(struct address_space *mapping,
+			      unsigned long offset, struct page **hash)
+{
+	struct page *page;
+
+	/*
+	 * We need the LRU lock to protect against page_launder().
+	 */
+
+	spin_lock(&pagecache_lock);
+	page = __find_page_nolock(mapping, offset, *hash);
+	if (page) {
+		spin_lock(&pagemap_lru_lock);
+		if (PageSwapCache(page)) 
+			page_cache_get(page);
+		else
+			page = NULL;
+		spin_unlock(&pagemap_lru_lock);
+	}
+	spin_unlock(&pagecache_lock);
+
+	return page;
+}
+
+/*
  * Same as the above, but lock the page too, verifying that
  * it's still valid once we own it.
  */
@@ -1062,7 +1089,7 @@ void do_generic_file_read(struct file * filp, loff_t *ppos, read_descriptor_t * 
 
 	for (;;) {
 		struct page *page, **hash;
-		unsigned long end_index, nr;
+		unsigned long end_index, nr, ret;
 
 		end_index = inode->i_size >> PAGE_CACHE_SHIFT;
 		if (index > end_index)
@@ -1110,13 +1137,13 @@ page_ok:
 		 * "pos" here (the actor routine has to update the user buffer
 		 * pointers and the remaining count).
 		 */
-		nr = actor(desc, page, offset, nr);
-		offset += nr;
+		ret = actor(desc, page, offset, nr);
+		offset += ret;
 		index += offset >> PAGE_CACHE_SHIFT;
 		offset &= ~PAGE_CACHE_MASK;
 	
 		page_cache_release(page);
-		if (nr && desc->count)
+		if (ret == nr && desc->count)
 			continue;
 		break;
 
@@ -1209,7 +1236,7 @@ no_cached_page:
 	UPDATE_ATIME(inode);
 }
 
-static int file_read_actor(read_descriptor_t * desc, struct page *page, unsigned long offset, unsigned long size)
+int file_read_actor(read_descriptor_t * desc, struct page *page, unsigned long offset, unsigned long size)
 {
 	char *kaddr;
 	unsigned long left, count = desc->count;
@@ -1262,21 +1289,29 @@ ssize_t generic_file_read(struct file * filp, char * buf, size_t count, loff_t *
 
 static int file_send_actor(read_descriptor_t * desc, struct page *page, unsigned long offset , unsigned long size)
 {
-	char *kaddr;
 	ssize_t written;
 	unsigned long count = desc->count;
 	struct file *file = (struct file *) desc->buf;
-	mm_segment_t old_fs;
 
 	if (size > count)
 		size = count;
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
 
-	kaddr = kmap(page);
-	written = file->f_op->write(file, kaddr + offset, size, &file->f_pos);
-	kunmap(page);
-	set_fs(old_fs);
+ 	if (file->f_op->sendpage) {
+ 		written = file->f_op->sendpage(file, page, offset,
+					       size, &file->f_pos, size<count);
+	} else {
+		char *kaddr;
+		mm_segment_t old_fs;
+
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+
+		kaddr = kmap(page);
+		written = file->f_op->write(file, kaddr + offset, size, &file->f_pos);
+		kunmap(page);
+
+		set_fs(old_fs);
+	}
 	if (written < 0) {
 		desc->error = written;
 		written = 0;
@@ -2408,7 +2443,7 @@ struct page *grab_cache_page(struct address_space *mapping, unsigned long index)
 	return page;
 }
 
-static inline void remove_suid(struct inode *inode)
+inline void remove_suid(struct inode *inode)
 {
 	unsigned int mode;
 
@@ -2449,9 +2484,13 @@ generic_file_write(struct file *file,const char *buf,size_t count,loff_t *ppos)
 	unsigned long	written;
 	long		status;
 	int		err;
+	unsigned	bytes;
 
 	cached_page = NULL;
 
+	if (!access_ok(VERIFY_READ, buf, count))
+		return -EFAULT;
+		
 	down(&inode->i_sem);
 
 	pos = *ppos;
@@ -2474,26 +2513,64 @@ generic_file_write(struct file *file,const char *buf,size_t count,loff_t *ppos)
 	 * Check whether we've reached the file size limit.
 	 */
 	err = -EFBIG;
+	
 	if (limit != RLIM_INFINITY) {
 		if (pos >= limit) {
 			send_sig(SIGXFSZ, current, 0);
 			goto out;
 		}
-		if (count > limit - pos) {
-			send_sig(SIGXFSZ, current, 0);
-			count = limit - pos;
+		if (pos > 0xFFFFFFFFULL || count > limit - (u32)pos) {
+			/* send_sig(SIGXFSZ, current, 0); */
+			count = limit - (u32)pos;
 		}
 	}
 
-	status  = 0;
-	if (count) {
-		remove_suid(inode);
-		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
-		mark_inode_dirty_sync(inode);
+	/*
+	 *	LFS rule 
+	 */
+	if ( pos + count > MAX_NON_LFS && !(file->f_flags&O_LARGEFILE)) {
+		if (pos >= MAX_NON_LFS) {
+			send_sig(SIGXFSZ, current, 0);
+			goto out;
+		}
+		if (count > MAX_NON_LFS - (u32)pos) {
+			/* send_sig(SIGXFSZ, current, 0); */
+			count = MAX_NON_LFS - (u32)pos;
+		}
 	}
 
+	/*
+	 *	Are we about to exceed the fs block limit ?
+	 *
+	 *	If we have written data it becomes a short write
+	 *	If we have exceeded without writing data we send
+	 *	a signal and give them an EFBIG.
+	 *
+	 *	Linus frestrict idea will clean these up nicely..
+	 */
+	 
+	if (pos > inode->i_sb->s_maxbytes)
+	{
+		send_sig(SIGXFSZ, current, 0);
+		err = -EFBIG;
+		goto out;	
+	}
+
+	if (pos + count > inode->i_sb->s_maxbytes)
+		count = inode->i_sb->s_maxbytes - pos;
+
+	if (count == 0) {
+		err = 0;
+		goto out;
+	}
+
+	status  = 0;
+	remove_suid(inode);
+	inode->i_ctime = inode->i_mtime = CURRENT_TIME;
+	mark_inode_dirty_sync(inode);
+
 	while (count) {
-		unsigned long bytes, index, offset;
+		unsigned long index, offset;
 		char *kaddr;
 		int deactivate = 1;
 
@@ -2534,7 +2611,7 @@ generic_file_write(struct file *file,const char *buf,size_t count,loff_t *ppos)
 		if (status)
 			goto unlock;
 		kaddr = page_address(page);
-		status = copy_from_user(kaddr+offset, buf, bytes);
+		status = __copy_from_user(kaddr+offset, buf, bytes);
 		flush_dcache_page(page);
 		if (status)
 			goto fail_write;

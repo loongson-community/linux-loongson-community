@@ -429,11 +429,17 @@
                            <mporter@eng.mcd.mot.com>
                           Remove double checking for DEBUG_RX in de4x5_dbg_rx()
 			   from report by <geert@linux-m68k.org>
- 
+      0.546  22-Feb-01    Fixes Alpha XP1000 oops.  The srom_search function
+                           was causing a page fault when initializing the
+                           variable 'pb', on a non de4x5 PCI device, in this
+                           case a PCI bridge (DEC chip 21152). The value of
+                           'pb' is now only initialized if a de4x5 chip is
+                           present. 
+                           <france@handhelds.org>  
     =========================================================================
 */
 
-static const char *version = "de4x5.c:V0.545 1999/11/28 davies@maniac.ultranet.com\n";
+static const char *version = "de4x5.c:V0.546 2001/02/22 davies@maniac.ultranet.com\n";
 
 #include <linux/config.h>
 #include <linux/module.h>
@@ -585,7 +591,7 @@ static int de4x5_debug = (DEBUG_MEDIA | DEBUG_VERSION);
 #ifdef DE4X5_PARM
 static char *args = DE4X5_PARM;
 #else
-static char *args = NULL;
+static char *args;
 #endif
 
 struct parameters {
@@ -666,7 +672,7 @@ struct parameters {
 #define DESC_ALIGN
 
 #ifndef DEC_ONLY                        /* See README.de4x5 for using this */
-static int dec_only = 0;
+static int dec_only;
 #else
 static int dec_only = 1;
 #endif
@@ -1039,24 +1045,24 @@ MODULE_PARM(de4x5_debug, "i");
 MODULE_PARM(dec_only, "i");
 MODULE_PARM(args, "s");
 # else
-static int loading_module = 0;
+static int loading_module;
 #endif /* MODULE */
 
 static char name[DE4X5_NAME_LENGTH + 1];
 #if !defined(__sparc_v9__) && !defined(__powerpc__) && !defined(__alpha__)
 static u_char de4x5_irq[] = EISA_ALLOWED_IRQ_LIST;
-static int lastEISA = 0;
+static int lastEISA;
 #  ifdef DE4X5_FORCE_EISA                 /* Force an EISA bus probe or not */
 static int forceEISA = 1;
 #  else
-static int forceEISA = 0;
+static int forceEISA;
 #  endif
 #endif
-static int num_de4x5s = 0;
-static int cfrv = 0, useSROM = 0;
+static int num_de4x5s;
+static int cfrv, useSROM;
 static int lastPCI = -1;
-static struct net_device *lastModule = NULL;
-static struct pci_dev *pdev = NULL;
+static struct net_device *lastModule;
+static struct pci_dev *pdev;
 
 /*
 ** List the SROM infoleaf functions and chipsets
@@ -2304,12 +2310,12 @@ srom_search(struct pci_dev *dev)
 	/* Skip the pci_bus list entry */
 	if (list_entry(walk, struct pci_bus, devices) == dev->bus) continue;
 
-	pb = this_dev->bus->number;
 	vendor = this_dev->vendor;
 	device = this_dev->device << 8;
 	if (!(is_DC21040 || is_DC21041 || is_DC21140 || is_DC2114x)) continue;
 
 	/* Get the chip configuration revision register */
+	pb = this_dev->bus->number;
 	pcibios_read_config_dword(pb, this_dev->devfn, PCI_REVISION_ID, &cfrv);
 
 	/* Set the device number information */

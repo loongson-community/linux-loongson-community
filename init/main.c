@@ -27,9 +27,15 @@
 #include <linux/hdreg.h>
 #include <linux/iobuf.h>
 #include <linux/bootmem.h>
+#include <linux/tty.h>
 
 #include <asm/io.h>
 #include <asm/bugs.h>
+
+#if defined(CONFIG_ARCH_S390)
+#include <asm/s390mach.h>
+#include <asm/ccwcache.h>
+#endif
 
 #ifdef CONFIG_PCI
 #include <linux/pci.h>
@@ -45,10 +51,6 @@
 
 #ifdef CONFIG_MTRR
 #  include <asm/mtrr.h>
-#endif
-
-#ifdef CONFIG_3215_CONSOLE
-extern int con3215_activate(void);
 #endif
 
 #ifdef CONFIG_NUBUS
@@ -97,7 +99,6 @@ extern int init_pcmcia_ds(void);
 extern void net_notifier_init(void);
 
 extern void free_initmem(void);
-extern void filesystem_setup(void);
 
 #ifdef CONFIG_TC
 extern void tc_init(void);
@@ -216,17 +217,7 @@ static struct dev_name_struct {
 	{ "apblock", APBLOCK_MAJOR << 8},
 	{ "ddv", DDV_MAJOR << 8},
 	{ "jsfd",    JSFD_MAJOR << 8},
-#ifdef CONFIG_MDISK
-        { "mnda", (MDISK_MAJOR << MINORBITS)},
-        { "mndb", (MDISK_MAJOR << MINORBITS) + 1},
-        { "mndc", (MDISK_MAJOR << MINORBITS) + 2},
-        { "mndd", (MDISK_MAJOR << MINORBITS) + 3},
-        { "mnde", (MDISK_MAJOR << MINORBITS) + 4},
-        { "mndf", (MDISK_MAJOR << MINORBITS) + 5},
-        { "mndg", (MDISK_MAJOR << MINORBITS) + 6},
-        { "mndh", (MDISK_MAJOR << MINORBITS) + 7},
-#endif
-#ifdef CONFIG_DASD
+#if defined(CONFIG_ARCH_S390)
 	{ "dasda", (DASD_MAJOR << MINORBITS) },
 	{ "dasdb", (DASD_MAJOR << MINORBITS) + (1 << 2) },
 	{ "dasdc", (DASD_MAJOR << MINORBITS) + (2 << 2) },
@@ -574,9 +565,6 @@ asmlinkage void __init start_kernel(void)
 #endif
 	mem_init();
 	kmem_cache_sizes_init();
-#ifdef CONFIG_3215_CONSOLE
-        con3215_activate();
-#endif
 #ifdef CONFIG_PROC_FS
 	proc_root_init();
 #endif
@@ -587,7 +575,9 @@ asmlinkage void __init start_kernel(void)
 	vfs_caches_init(mempages);
 	buffer_init(mempages);
 	page_cache_init(mempages);
-	kiobuf_setup();
+#if defined(CONFIG_ARCH_S390)
+	ccwcache_init();
+#endif
 	signals_init();
 	bdev_init();
 	inode_init(mempages);
@@ -683,6 +673,10 @@ static void __init do_basic_setup(void)
 	 * Ok, at this point all CPU's should be initialized, so
 	 * we can start looking into devices..
 	 */
+#if defined(CONFIG_ARCH_S390)
+	s390_init_machine_check();
+#endif
+
 #ifdef CONFIG_PCI
 	pci_init();
 #endif
@@ -726,9 +720,6 @@ static void __init do_basic_setup(void)
 
 	start_context_thread();
 	do_initcalls();
-
-	/* .. filesystems .. */
-	filesystem_setup();
 
 #ifdef CONFIG_IRDA
 	irda_device_init(); /* Must be done after protocol initialization */

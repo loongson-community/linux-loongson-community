@@ -1,4 +1,4 @@
-/*  $Id: init.c,v 1.172 2001/03/24 09:36:01 davem Exp $
+/*  $Id: init.c,v 1.175 2001/04/24 01:09:12 davem Exp $
  *  arch/sparc64/mm/init.c
  *
  *  Copyright (C) 1996-1999 David S. Miller (davem@caip.rutgers.edu)
@@ -1126,6 +1126,7 @@ unsigned long __init bootmem_init(unsigned long *pages_avail)
 /* paging_init() sets up the page tables */
 
 extern void sun_serial_setup(void);
+extern void cheetah_ecache_flush_init(void);
 
 static unsigned long last_valid_pfn;
 
@@ -1148,56 +1149,56 @@ void __init paging_init(void)
 	pt |= _PAGE_CP | _PAGE_CV | _PAGE_P | _PAGE_L | _PAGE_W;
 	__save_and_cli(flags);
 	if (tlb_type == spitfire) {
-		__asm__ __volatile__("
-		stxa	%1, [%0] %3
-		stxa	%2, [%5] %4
-		membar	#Sync
-		flush	%%g6
-		nop
-		nop
-		nop"
+		__asm__ __volatile__(
+	"	stxa	%1, [%0] %3\n"
+	"	stxa	%2, [%5] %4\n"
+	"	membar	#Sync\n"
+	"	flush	%%g6\n"
+	"	nop\n"
+	"	nop\n"
+	"	nop\n"
 		: /* No outputs */
 		: "r" (TLB_TAG_ACCESS), "r" (alias_base), "r" (pt),
 		  "i" (ASI_DMMU), "i" (ASI_DTLB_DATA_ACCESS), "r" (61 << 3)
 		: "memory");
 		if (((unsigned long)&_end) >= KERNBASE + 0x340000) {
 			second_alias_page = alias_base + 0x400000;
-			__asm__ __volatile__("
-			stxa	%1, [%0] %3
-			stxa	%2, [%5] %4
-			membar	#Sync
-			flush	%%g6
-			nop
-			nop
-			nop"
+			__asm__ __volatile__(
+		"	stxa	%1, [%0] %3\n"
+		"	stxa	%2, [%5] %4\n"
+		"	membar	#Sync\n"
+		"	flush	%%g6\n"
+		"	nop\n"
+		"	nop\n"
+		"	nop\n"
 			: /* No outputs */
 			: "r" (TLB_TAG_ACCESS), "r" (second_alias_page), "r" (pt + 0x400000),
 			  "i" (ASI_DMMU), "i" (ASI_DTLB_DATA_ACCESS), "r" (60 << 3)
 			: "memory");
 		}
 	} else if (tlb_type == cheetah) {
-		__asm__ __volatile__("
-		stxa	%1, [%0] %3
-		stxa	%2, [%5] %4
-		membar	#Sync
-		flush	%%g6
-		nop
-		nop
-		nop"
+		__asm__ __volatile__(
+	"	stxa	%1, [%0] %3\n"
+	"	stxa	%2, [%5] %4\n"
+	"	membar	#Sync\n"
+	"	flush	%%g6\n"
+	"	nop\n"
+	"	nop\n"
+	"	nop\n"
 		: /* No outputs */
 		: "r" (TLB_TAG_ACCESS), "r" (alias_base), "r" (pt),
 		  "i" (ASI_DMMU), "i" (ASI_DTLB_DATA_ACCESS), "r" ((0<<16) | (13<<3))
 		: "memory");
 		if (((unsigned long)&_end) >= KERNBASE + 0x340000) {
 			second_alias_page = alias_base + 0x400000;
-			__asm__ __volatile__("
-			stxa	%1, [%0] %3
-			stxa	%2, [%5] %4
-			membar	#Sync
-			flush	%%g6
-			nop
-			nop
-			nop"
+			__asm__ __volatile__(
+		"	stxa	%1, [%0] %3\n"
+		"	stxa	%2, [%5] %4\n"
+		"	membar	#Sync\n"
+		"	flush	%%g6\n"
+		"	nop\n"
+		"	nop\n"
+		"	nop\n"
 			: /* No outputs */
 			: "r" (TLB_TAG_ACCESS), "r" (second_alias_page), "r" (pt + 0x400000),
 			  "i" (ASI_DMMU), "i" (ASI_DTLB_DATA_ACCESS), "r" ((0<<16) | (12<<3))
@@ -1466,6 +1467,9 @@ void __init mem_init(void)
 	       datapages << (PAGE_SHIFT-10), 
 	       initpages << (PAGE_SHIFT-10), 
 	       PAGE_OFFSET, (last_valid_pfn << PAGE_SHIFT));
+
+	if (tlb_type == cheetah)
+		cheetah_ecache_flush_init();
 }
 
 void free_initmem (void)

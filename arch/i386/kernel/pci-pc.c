@@ -843,6 +843,8 @@ static void __init pci_fixup_i450gx(struct pci_dev *d)
 	pcibios_last_bus = -1;
 }
 
+#if 0
+/* Until we get proper handling pray the BIOS gets it right */
 /*
  * ServerWorks host bridges -- Find and scan all secondary buses.
  * Register 0x44 contains first, 0x45 last bus number routed there.
@@ -860,6 +862,7 @@ static void __init pci_fixup_serverworks(struct pci_dev *d)
 		printk("PCI: ServerWorks host bridge: last bus %02x\n", pcibios_last_bus);
 	}
 }
+#endif
 
 #if 0
 /* Our bus code shouldnt need this fixup any more. Delete once verified */
@@ -957,34 +960,6 @@ static void __init pci_fixup_piix4_acpi(struct pci_dev *d)
 	d->irq = 9;
 }
 
-static void __init pci_fixup_vt8363(struct pci_dev *d)
-{
-	/*
-	 * The VIA bridge will corrupt disks without these settings.
-	 */
-	u8 tmp;
-	pci_read_config_byte(d, 0x54, &tmp);
-	if(tmp & (1<<2)) {
-		printk("PCI: Bus master Pipeline request disabled\n");
-		pci_write_config_byte(d, 0x54, tmp & ~(1<<2));
-	}
-	pci_read_config_byte(d, 0x70, &tmp);
-	if(tmp & (1<<3)) {
-		printk("PCI: Disabled enhanced CPU to PCI writes\n");
-		pci_write_config_byte(d, 0x70, tmp & ~(1<<3));
-	}
-	pci_read_config_byte(d, 0x71, &tmp);
-	if((tmp & (1<<3)) == 0) {
-		printk("PCI: Bursting cornercase bug worked around\n");
-		pci_write_config_byte(d, 0x71, tmp | (1<<3));
-	}
-	pci_read_config_byte(d, 0x76, &tmp);
-	if(tmp & (1<<7)) {
-		printk("PCI: Post Write Fail set to Retry\n");
-		pci_write_config_byte(d, 0x76, tmp & ~(1<<7));
-	}
-}
-
 static void __init pci_fixup_via691(struct pci_dev *d)
 {
 	/*
@@ -1033,7 +1008,6 @@ struct pci_fixup pcibios_fixups[] = {
 	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_SI,	PCI_DEVICE_ID_SI_5598,		pci_fixup_latency },
 	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_VIA,	PCI_DEVICE_ID_VIA_82C586_3,	pci_fixup_via_acpi },
 	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_VIA,	PCI_DEVICE_ID_VIA_82C686_4,	pci_fixup_via_acpi },
- 	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_VIA,	PCI_DEVICE_ID_VIA_8363_0,	pci_fixup_vt8363 },
  	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_VIA,	PCI_DEVICE_ID_VIA_82C691,	pci_fixup_via691 },
  	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_VIA,	PCI_DEVICE_ID_VIA_82C598_1,	pci_fixup_via691_2 },
  	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_INTEL,	PCI_DEVICE_ID_INTEL_82371AB_3,	pci_fixup_piix4_acpi },

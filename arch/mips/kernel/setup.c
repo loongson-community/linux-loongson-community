@@ -37,7 +37,6 @@
 #include <asm/io.h>
 #include <asm/stackframe.h>
 #include <asm/system.h>
-#include <asm/cpu.h>
 #ifdef CONFIG_SGI_IP22
 #include <asm/sgialib.h>
 #endif

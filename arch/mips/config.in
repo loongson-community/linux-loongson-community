@@ -68,6 +68,9 @@ bool 'Support for ITE 8172G board' CONFIG_MIPS_ITE8172
    fi
 bool 'Support for Alchemy Semi PB1000 board' CONFIG_MIPS_PB1000
 
+define_bool CONFIG_RWSEM_GENERIC_SPINLOCK y
+define_bool CONFIG_RWSEM_XCHGADD_ALGORITHM n
+
 #
 # Select some configuration options automatically for certain systems.
 #
@@ -426,6 +429,7 @@ if [ "$CONFIG_DECSTATION" = "y" ]; then
 #      bool 'MAXINE Access.Bus mouse (VSXXX-BB/GB) support' CONFIG_DTOP_MOUSE
 #   fi
    bool 'Enhanced Real Time Clock Support' CONFIG_RTC
+
    endmenu
 fi
 

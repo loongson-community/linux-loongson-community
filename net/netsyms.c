@@ -130,15 +130,27 @@ EXPORT_SYMBOL(sock_no_setsockopt);
 EXPORT_SYMBOL(sock_no_sendmsg);
 EXPORT_SYMBOL(sock_no_recvmsg);
 EXPORT_SYMBOL(sock_no_mmap);
+EXPORT_SYMBOL(sock_no_sendpage);
 EXPORT_SYMBOL(sock_rfree);
 EXPORT_SYMBOL(sock_wfree);
 EXPORT_SYMBOL(sock_wmalloc);
 EXPORT_SYMBOL(sock_rmalloc);
+EXPORT_SYMBOL(skb_linearize);
+EXPORT_SYMBOL(skb_checksum);
+EXPORT_SYMBOL(skb_checksum_help);
 EXPORT_SYMBOL(skb_recv_datagram);
 EXPORT_SYMBOL(skb_free_datagram);
 EXPORT_SYMBOL(skb_copy_datagram);
 EXPORT_SYMBOL(skb_copy_datagram_iovec);
+EXPORT_SYMBOL(skb_copy_and_csum_datagram_iovec);
+EXPORT_SYMBOL(skb_copy_bits);
+EXPORT_SYMBOL(skb_copy_and_csum_bits);
 EXPORT_SYMBOL(skb_copy_expand);
+EXPORT_SYMBOL(___pskb_trim);
+EXPORT_SYMBOL(__pskb_pull_tail);
+EXPORT_SYMBOL(pskb_expand_head);
+EXPORT_SYMBOL(pskb_copy);
+EXPORT_SYMBOL(skb_realloc_headroom);
 EXPORT_SYMBOL(datagram_poll);
 EXPORT_SYMBOL(put_cmsg);
 EXPORT_SYMBOL(sock_kmalloc);
@@ -146,6 +158,7 @@ EXPORT_SYMBOL(sock_kfree_s);
 
 #ifdef CONFIG_FILTER
 EXPORT_SYMBOL(sk_run_filter);
+EXPORT_SYMBOL(sk_chk_filter);
 #endif
 
 EXPORT_SYMBOL(neigh_table_init);
@@ -190,7 +203,6 @@ EXPORT_SYMBOL(__scm_send);
 EXPORT_SYMBOL(scm_fp_dup);
 EXPORT_SYMBOL(files_stat);
 EXPORT_SYMBOL(memcpy_toiovec);
-EXPORT_SYMBOL(csum_partial);
 
 #ifdef CONFIG_IPX_MODULE
 EXPORT_SYMBOL(make_8023_client);
@@ -225,7 +237,6 @@ EXPORT_SYMBOL(inet_del_protocol);
 EXPORT_SYMBOL(ip_route_output_key);
 EXPORT_SYMBOL(ip_route_input);
 EXPORT_SYMBOL(icmp_send);
-EXPORT_SYMBOL(icmp_reply);
 EXPORT_SYMBOL(ip_options_compile);
 EXPORT_SYMBOL(ip_options_undo);
 EXPORT_SYMBOL(arp_send);
@@ -295,7 +306,6 @@ EXPORT_SYMBOL(tcp_destroy_sock);
 EXPORT_SYMBOL(ip_queue_xmit);
 EXPORT_SYMBOL(memcpy_fromiovecend);
 EXPORT_SYMBOL(csum_partial_copy_fromiovecend);
-EXPORT_SYMBOL(copy_and_csum_toiovec);
 EXPORT_SYMBOL(tcp_v4_lookup_listener);
 /* UDP/TCP exported functions for TCPv6 */
 EXPORT_SYMBOL(udp_ioctl);
@@ -362,8 +372,7 @@ EXPORT_SYMBOL(sysctl_tcp_rmem);
 EXPORT_SYMBOL(sysctl_tcp_wmem);
 EXPORT_SYMBOL(sysctl_tcp_ecn);
 EXPORT_SYMBOL(tcp_cwnd_application_limited);
-
-EXPORT_SYMBOL(xrlim_allow);
+EXPORT_SYMBOL(tcp_sendpage);
 
 EXPORT_SYMBOL(tcp_write_xmit);
 
@@ -423,6 +432,7 @@ EXPORT_SYMBOL(dev_open);
 
 /* Used by other modules */
 EXPORT_SYMBOL(in_ntoa);
+EXPORT_SYMBOL(xrlim_allow);
 
 EXPORT_SYMBOL(ip_rcv);
 EXPORT_SYMBOL(arp_rcv);
@@ -550,6 +560,7 @@ EXPORT_SYMBOL(nf_hook_slow);
 EXPORT_SYMBOL(nf_hooks);
 EXPORT_SYMBOL(nf_setsockopt);
 EXPORT_SYMBOL(nf_getsockopt);
+EXPORT_SYMBOL(ip_ct_attach);
 #endif
 
 EXPORT_SYMBOL(register_gifconf);

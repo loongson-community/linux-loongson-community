@@ -78,19 +78,28 @@ int smp_bogo(char *buf)
 	for (i = 0; i < NR_CPUS; i++)
 		if (cpu_present_map & (1UL << i))
 			len += sprintf(buf + len,
-				       "Cpu%dBogo\t: %lu.%02lu\n",
+				       "Cpu%dBogo\t: %lu.%02lu\n"
+				       "Cpu%dClkTck\t: %016lx\n",
 				       i, cpu_data[i].udelay_val / (500000/HZ),
-				       (cpu_data[i].udelay_val / (5000/HZ)) % 100);
+				       (cpu_data[i].udelay_val / (5000/HZ)) % 100,
+				       i, cpu_data[i].clock_tick);
 	return len;
 }
 
 void __init smp_store_cpu_info(int id)
 {
-	int i;
+	int i, no;
 
 	/* multiplier and counter set by
 	   smp_setup_percpu_timer()  */
 	cpu_data[id].udelay_val			= loops_per_jiffy;
+
+	for (no = 0; no < linux_num_cpus; no++)
+		if (linux_cpus[no].mid == id)
+			break;
+
+	cpu_data[id].clock_tick = prom_getintdefault(linux_cpus[no].prom_node,
+						     "clock-frequency", 0);
 
 	cpu_data[id].pgcache_size		= 0;
 	cpu_data[id].pte_cache[0]		= NULL;
@@ -415,9 +424,7 @@ retry:
 
 	/* Setup the dispatch data registers. */
 	__asm__ __volatile__("stxa	%0, [%3] %6\n\t"
-			     "membar	#Sync\n\t"
 			     "stxa	%1, [%4] %6\n\t"
-			     "membar	#Sync\n\t"
 			     "stxa	%2, [%5] %6\n\t"
 			     "membar	#Sync\n\t"
 			     : /* no outputs */
@@ -994,6 +1001,8 @@ static inline unsigned long find_flush_base(unsigned long size)
 
 cycles_t cacheflush_time;
 
+extern unsigned long cheetah_tune_scheduling(void);
+
 static void __init smp_tune_scheduling (void)
 {
 	unsigned long orig_flush_base, flush_base, flags, *p;
@@ -1011,6 +1020,11 @@ static void __init smp_tune_scheduling (void)
 	 * of moving a process from one cpu to another).
 	 */
 	printk("SMP: Calibrating ecache flush... ");
+	if (tlb_type == cheetah) {
+		cacheflush_time = cheetah_tune_scheduling();
+		goto report;
+	}
+
 	ecache_size = prom_getintdefault(linux_cpus[0].prom_node,
 					 "ecache-size", (512 * 1024));
 	if (ecache_size > (4 * 1024 * 1024))
@@ -1063,7 +1077,7 @@ static void __init smp_tune_scheduling (void)
 		cacheflush_time = ((ecache_size << 2) +
 				   (ecache_size << 1));
 	}
-
+report:
 	printk("Using heuristic of %d cycles.\n",
 	       (int) cacheflush_time);
 }

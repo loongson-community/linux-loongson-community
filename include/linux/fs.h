@@ -121,12 +121,6 @@ extern int leases_enable, dir_notify_enable, lease_break_time;
 #define MS_RMT_MASK	(MS_RDONLY|MS_NOSUID|MS_NODEV|MS_NOEXEC|\
 			MS_SYNCHRONOUS|MS_MANDLOCK|MS_NOATIME|MS_NODIRATIME)
 
-/*
- * Magic mount flag number. Has to be or-ed to the flag values.
- */
-#define MS_MGC_VAL 0xC0ED0000	/* magic flag number to indicate "new" flags */
-#define MS_MGC_MSK 0xffff0000	/* magic flag number mask */
-
 /* Inode flags - they have nothing to superblock flags now */
 
 #define S_SYNC		1	/* Writes are synced at once */
@@ -661,9 +655,11 @@ struct super_block {
 	unsigned long		s_flags;
 	unsigned long		s_magic;
 	struct dentry		*s_root;
+	struct rw_semaphore	s_umount;
 	wait_queue_head_t	s_wait;
 
 	struct list_head	s_dirty;	/* dirty inodes */
+	struct list_head	s_locked_inodes;/* inodes being synced */
 	struct list_head	s_files;
 
 	struct block_device	*s_bdev;
@@ -774,6 +770,8 @@ struct file_operations {
 	int (*lock) (struct file *, int, struct file_lock *);
 	ssize_t (*readv) (struct file *, const struct iovec *, unsigned long, loff_t *);
 	ssize_t (*writev) (struct file *, const struct iovec *, unsigned long, loff_t *);
+	ssize_t (*sendpage) (struct file *, struct page *, int, size_t, loff_t *, int);
+	unsigned long (*get_unmapped_area)(struct file *, unsigned long, unsigned long, unsigned long, unsigned long);
 };
 
 struct inode_operations {
@@ -1094,9 +1092,12 @@ extern void invalidate_inode_buffers(struct inode *);
 #define destroy_buffers(dev)	__invalidate_buffers((dev), 1)
 extern void __invalidate_buffers(kdev_t dev, int);
 extern void sync_inodes(kdev_t);
+extern void sync_unlocked_inodes(void);
 extern void write_inode_now(struct inode *, int);
 extern void sync_dev(kdev_t);
 extern int fsync_dev(kdev_t);
+extern int fsync_super(struct super_block *);
+extern void sync_inodes_sb(struct super_block *);
 extern int fsync_inode_buffers(struct inode *);
 extern int osync_inode_buffers(struct inode *);
 extern int inode_has_buffers(struct inode *);
@@ -1225,6 +1226,7 @@ static inline struct inode * new_inode(struct super_block *sb)
 	}
 	return inode;
 }
+extern void remove_suid(struct inode *inode);
 
 extern void insert_inode_hash(struct inode *);
 extern void remove_inode_hash(struct inode *);
@@ -1249,7 +1251,6 @@ static inline void bforget(struct buffer_head *buf)
 		__bforget(buf);
 }
 extern void set_blocksize(kdev_t, int);
-extern unsigned int get_hardblocksize(kdev_t);
 extern struct buffer_head * bread(kdev_t, int, int);
 extern void wakeup_bdflush(int wait);
 
@@ -1272,6 +1273,7 @@ int generic_commit_write(struct file *, struct page *, unsigned, unsigned);
 int block_truncate_page(struct address_space *, loff_t, get_block_t *);
 
 extern int generic_file_mmap(struct file *, struct vm_area_struct *);
+extern int file_read_actor(read_descriptor_t * desc, struct page *page, unsigned long offset, unsigned long size);
 extern ssize_t generic_file_read(struct file *, char *, size_t, loff_t *);
 extern ssize_t generic_file_write(struct file *, const char *, size_t, loff_t *);
 extern void do_generic_file_read(struct file *, loff_t *, read_descriptor_t *, read_actor_t);
@@ -1291,7 +1293,6 @@ extern int dcache_readdir(struct file *, void *, filldir_t);
 
 extern struct file_system_type *get_fs_type(const char *name);
 extern struct super_block *get_super(kdev_t);
-struct super_block *get_empty_super(void);
 extern void put_super(kdev_t);
 unsigned long generate_cluster(kdev_t, int b[], int);
 unsigned long generate_cluster_swab32(kdev_t, int b[], int);

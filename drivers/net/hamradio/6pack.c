@@ -711,10 +711,6 @@ static int __init sixpack_init_driver(void)
 	/* Do sanity checks on maximum device parameter. */
 	if (sixpack_maxdev < 4)
 		sixpack_maxdev = 4;
-	if (sixpack_maxdev * sizeof(void*) >= KMALLOC_MAXSIZE) {
-	        printk(msg_invparm);
-		return -ENFILE;
-	}
 
 	printk(msg_banner, sixpack_maxdev);
 
@@ -797,8 +793,6 @@ static int sixpack_init(struct net_device *dev)
 
 	memcpy(dev->broadcast, ax25_bcast, AX25_ADDR_LEN);	/* Only activated in AX.25 mode */
 	memcpy(dev->dev_addr, ax25_test, AX25_ADDR_LEN);	/*    ""      ""       ""    "" */
-
-	dev_init_buffers(dev);
 
 	/* New-style flags. */
 	dev->flags		= 0;

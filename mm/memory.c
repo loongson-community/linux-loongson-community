@@ -274,7 +274,7 @@ static inline int free_pte(pte_t pte)
 		 */
 		if (pte_dirty(pte) && page->mapping)
 			set_page_dirty(page);
-		free_page_and_swap_cache(page);
+		page_cache_release(page);
 		return 1;
 	}
 	swap_free(pte_to_swp_entry(pte));
@@ -389,20 +389,33 @@ void zap_page_range(struct mm_struct *mm, unsigned long address, unsigned long s
 /*
  * Do a quick page-table lookup for a single page. 
  */
-static struct page * follow_page(unsigned long address) 
+static struct page * follow_page(unsigned long address, int write) 
 {
 	pgd_t *pgd;
 	pmd_t *pmd;
+	pte_t *ptep, pte;
 
 	pgd = pgd_offset(current->mm, address);
+	if (pgd_none(*pgd) || pgd_bad(*pgd))
+		goto out;
+
 	pmd = pmd_offset(pgd, address);
-	if (pmd) {
-		pte_t * pte = pte_offset(pmd, address);
-		if (pte && pte_present(*pte))
-			return pte_page(*pte);
+	if (pmd_none(*pmd) || pmd_bad(*pmd))
+		goto out;
+
+	ptep = pte_offset(pmd, address);
+	if (!ptep)
+		goto out;
+
+	pte = *ptep;
+	if (pte_present(pte)) {
+		if (!write ||
+		    (pte_write(pte) && pte_dirty(pte)))
+			return pte_page(pte);
 	}
-	
-	return NULL;
+
+out:
+	return 0;
 }
 
 /* 
@@ -476,15 +489,22 @@ int map_user_kiobuf(int rw, struct kiobuf *iobuf, unsigned long va, size_t len)
 				goto out_unlock;
 			}
 		}
-		if (handle_mm_fault(current->mm, vma, ptr, datain) <= 0) 
-			goto out_unlock;
 		spin_lock(&mm->page_table_lock);
-		map = follow_page(ptr);
-		if (!map) {
+		while (!(map = follow_page(ptr, datain))) {
+			int ret;
+
 			spin_unlock(&mm->page_table_lock);
-			dprintk (KERN_ERR "Missing page in map_user_kiobuf\n");
-			goto out_unlock;
-		}
+			ret = handle_mm_fault(current->mm, vma, ptr, datain);
+			if (ret <= 0) {
+				if (!ret)
+					goto out_unlock;
+				else {
+					err = -ENOMEM;
+					goto out_unlock;
+				}
+			}
+			spin_lock(&mm->page_table_lock);
+		}			
 		map = get_page_map(map);
 		if (map) {
 			flush_dcache_page(map);
@@ -509,6 +529,37 @@ int map_user_kiobuf(int rw, struct kiobuf *iobuf, unsigned long va, size_t len)
 	return err;
 }
 
+/*
+ * Mark all of the pages in a kiobuf as dirty 
+ *
+ * We need to be able to deal with short reads from disk: if an IO error
+ * occurs, the number of bytes read into memory may be less than the
+ * size of the kiobuf, so we have to stop marking pages dirty once the
+ * requested byte count has been reached.
+ */
+
+void mark_dirty_kiobuf(struct kiobuf *iobuf, int bytes)
+{
+	int index, offset, remaining;
+	struct page *page;
+	
+	index = iobuf->offset >> PAGE_SHIFT;
+	offset = iobuf->offset & ~PAGE_MASK;
+	remaining = bytes;
+	if (remaining > iobuf->length)
+		remaining = iobuf->length;
+	
+	while (remaining > 0 && index < iobuf->nr_pages) {
+		page = iobuf->maplist[index];
+		
+		if (!PageReserved(page))
+			SetPageDirty(page);
+
+		remaining -= (PAGE_SIZE - offset);
+		offset = 0;
+		index++;
+	}
+}
 
 /*
  * Unmap all of the pages referenced by a kiobuf.  We release the pages,
@@ -559,7 +610,6 @@ int lock_kiovec(int nr, struct kiobuf *iovec[], int wait)
 
 		if (iobuf->locked)
 			continue;
-		iobuf->locked = 1;
 
 		ppage = iobuf->maplist;
 		for (j = 0; j < iobuf->nr_pages; ppage++, j++) {
@@ -567,9 +617,16 @@ int lock_kiovec(int nr, struct kiobuf *iovec[], int wait)
 			if (!page)
 				continue;
 			
-			if (TryLockPage(page))
+			if (TryLockPage(page)) {
+				while (j--) {
+					page = *(--ppage);
+					if (page)
+						UnlockPage(page);
+				}
 				goto retry;
+			}
 		}
+		iobuf->locked = 1;
 	}
 
 	return 0;
@@ -815,6 +872,24 @@ static inline void break_cow(struct vm_area_struct * vma, struct page *	old_page
 }
 
 /*
+ * Work out if there are any other processes sharing this
+ * swap cache page. Never mind the buffers.
+ */
+static inline int exclusive_swap_page(struct page *page)
+{
+	unsigned int count;
+
+	if (!PageLocked(page))
+		BUG();
+	if (!PageSwapCache(page))
+		return 0;
+	count = page_count(page) - !!page->buffers;	/*  2: us + swap cache */
+	count += swap_count(page);			/* +1: just swap cache */
+	return count == 3;				/* =3: total */
+}
+
+
+/*
  * This routine handles present pages, when users try to write
  * to a shared page. It is done by copying the page to a new address
  * and decrementing the shared-page counter for the old page.
@@ -853,19 +928,21 @@ static int do_wp_page(struct mm_struct *mm, struct vm_area_struct * vma,
 	 *   marked dirty).
 	 */
 	switch (page_count(old_page)) {
+	int can_reuse;
+	case 3:
+		if (!old_page->buffers)
+			break;
+		/* FallThrough */
 	case 2:
-		/*
-		 * Lock the page so that no one can look it up from
-		 * the swap cache, grab a reference and start using it.
-		 * Can not do lock_page, holding page_table_lock.
-		 */
-		if (!PageSwapCache(old_page) || TryLockPage(old_page))
+		if (!PageSwapCache(old_page))
 			break;
-		if (is_page_shared(old_page)) {
-			UnlockPage(old_page);
+		if (TryLockPage(old_page))
 			break;
-		}
+		/* Recheck swapcachedness once the page is locked */
+		can_reuse = exclusive_swap_page(old_page);
 		UnlockPage(old_page);
+		if (!can_reuse)
+			break;
 		/* FallThrough */
 	case 1:
 		if (PageReserved(old_page))
@@ -903,8 +980,7 @@ bad_wp_page:
 	return -1;
 }
 
-static void vmtruncate_list(struct vm_area_struct *mpnt,
-			    unsigned long pgoff, unsigned long partial)
+static void vmtruncate_list(struct vm_area_struct *mpnt, unsigned long pgoff)
 {
 	do {
 		struct mm_struct *mm = mpnt->vm_mm;
@@ -947,7 +1023,7 @@ static void vmtruncate_list(struct vm_area_struct *mpnt,
  */
 void vmtruncate(struct inode * inode, loff_t offset)
 {
-	unsigned long partial, pgoff;
+	unsigned long pgoff;
 	struct address_space *mapping = inode->i_mapping;
 	unsigned long limit;
 
@@ -959,19 +1035,15 @@ void vmtruncate(struct inode * inode, loff_t offset)
 		goto out_unlock;
 
 	pgoff = (offset + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
-	partial = (unsigned long)offset & (PAGE_CACHE_SIZE - 1);
-
 	if (mapping->i_mmap != NULL)
-		vmtruncate_list(mapping->i_mmap, pgoff, partial);
+		vmtruncate_list(mapping->i_mmap, pgoff);
 	if (mapping->i_mmap_shared != NULL)
-		vmtruncate_list(mapping->i_mmap_shared, pgoff, partial);
+		vmtruncate_list(mapping->i_mmap_shared, pgoff);
 
 out_unlock:
 	spin_unlock(&mapping->i_shared_lock);
 	truncate_inode_pages(mapping, offset);
-	if (inode->i_op && inode->i_op->truncate)
-		inode->i_op->truncate(inode);
-	return;
+	goto out_truncate;
 
 do_expand:
 	limit = current->rlim[RLIMIT_FSIZE].rlim_cur;
@@ -986,8 +1058,13 @@ do_expand:
 		}
 	}
 	inode->i_size = offset;
-	if (inode->i_op && inode->i_op->truncate)
+
+out_truncate:
+	if (inode->i_op && inode->i_op->truncate) {
+		lock_kernel();
 		inode->i_op->truncate(inode);
+		unlock_kernel();
+	}
 out:
 	return;
 }
@@ -1020,7 +1097,7 @@ void swapin_readahead(swp_entry_t entry)
 			break;
 		}
 		/* Ok, do the async read-ahead now */
-		new_page = read_swap_cache_async(SWP_ENTRY(SWP_TYPE(entry), offset), 0);
+		new_page = read_swap_cache_async(SWP_ENTRY(SWP_TYPE(entry), offset));
 		if (new_page != NULL)
 			page_cache_release(new_page);
 		swap_free(SWP_ENTRY(SWP_TYPE(entry), offset));
@@ -1043,13 +1120,13 @@ static int do_swap_page(struct mm_struct * mm,
 	if (!page) {
 		lock_kernel();
 		swapin_readahead(entry);
-		page = read_swap_cache(entry);
+		page = read_swap_cache_async(entry);
 		unlock_kernel();
 		if (!page) {
 			spin_lock(&mm->page_table_lock);
 			return -1;
 		}
-
+		wait_on_page(page);
 		flush_page_to_ram(page);
 		flush_icache_page(vma, page);
 	}
@@ -1077,7 +1154,7 @@ static int do_swap_page(struct mm_struct * mm,
 	pte = mk_pte(page, vma->vm_page_prot);
 
 	swap_free(entry);
-	if (write_access && !is_page_shared(page))
+	if (write_access && exclusive_swap_page(page))
 		pte = pte_mkwrite(pte_mkdirty(pte));
 	UnlockPage(page);
 

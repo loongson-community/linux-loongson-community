@@ -301,6 +301,23 @@ void sync_dev(kdev_t dev)
 	 */
 }
 
+int fsync_super(struct super_block *sb)
+{
+	kdev_t dev = sb->s_dev;
+	sync_buffers(dev, 0);
+
+	lock_kernel();
+	sync_inodes_sb(sb);
+	lock_super(sb);
+	if (sb->s_dirt && sb->s_op && sb->s_op->write_super)
+		sb->s_op->write_super(sb);
+	unlock_super(sb);
+	DQUOT_SYNC(dev);
+	unlock_kernel();
+
+	return sync_buffers(dev, 1);
+}
+
 int fsync_dev(kdev_t dev)
 {
 	sync_buffers(dev, 0);
@@ -553,25 +570,6 @@ struct buffer_head * get_hash_table(kdev_t dev, int block, int size)
 	read_unlock(&hash_table_lock);
 
 	return bh;
-}
-
-unsigned int get_hardblocksize(kdev_t dev)
-{
-	/*
-	 * Get the hard sector size for the given device.  If we don't know
-	 * what it is, return 0.
-	 */
-	if (hardsect_size[MAJOR(dev)] != NULL) {
-		int blksize = hardsect_size[MAJOR(dev)][MINOR(dev)];
-		if (blksize != 0)
-			return blksize;
-	}
-
-	/*
-	 * We don't know what the hardware sector size for this device is.
-	 * Return 0 indicating that we don't know.
-	 */
-	return 0;
 }
 
 void buffer_insert_inode_queue(struct buffer_head *bh, struct inode *inode)
@@ -1200,10 +1198,10 @@ static __inline__ void __put_unused_buffer_head(struct buffer_head * bh)
 		kmem_cache_free(bh_cachep, bh);
 	} else {
 		bh->b_blocknr = -1;
-		init_waitqueue_head(&bh->b_wait);
+		bh->b_this_page = NULL;
+
 		nr_unused_buffer_heads++;
 		bh->b_next_free = unused_list;
-		bh->b_this_page = NULL;
 		unused_list = bh;
 	}
 }
@@ -1232,8 +1230,8 @@ static struct buffer_head * get_unused_buffer_head(int async)
 	 * more buffer-heads itself.  Thus SLAB_BUFFER.
 	 */
 	if((bh = kmem_cache_alloc(bh_cachep, SLAB_BUFFER)) != NULL) {
-		memset(bh, 0, sizeof(*bh));
-		init_waitqueue_head(&bh->b_wait);
+		bh->b_blocknr = -1;
+		bh->b_this_page = NULL;
 		return bh;
 	}
 
@@ -1367,11 +1365,12 @@ static void unmap_buffer(struct buffer_head * bh)
 {
 	if (buffer_mapped(bh)) {
 		mark_buffer_clean(bh);
-		wait_on_buffer(bh);
+		lock_buffer(bh);
 		clear_bit(BH_Uptodate, &bh->b_state);
 		clear_bit(BH_Mapped, &bh->b_state);
 		clear_bit(BH_Req, &bh->b_state);
 		clear_bit(BH_New, &bh->b_state);
+		unlock_buffer(bh);
 	}
 }
 
@@ -1994,7 +1993,6 @@ static void end_buffer_io_kiobuf(struct buffer_head *bh, int uptodate)
 	end_kio_request(kiobuf, uptodate);
 }
 
-
 /*
  * For brw_kiovec: submit a set of buffer_head temporary IOs and wait
  * for them to complete.  Clean up the buffer_heads afterwards.  
@@ -2002,21 +2000,18 @@ static void end_buffer_io_kiobuf(struct buffer_head *bh, int uptodate)
 
 static int wait_kio(int rw, int nr, struct buffer_head *bh[], int size)
 {
-	int iosize;
+	int iosize, err;
 	int i;
 	struct buffer_head *tmp;
 
-
 	iosize = 0;
-	spin_lock(&unused_list_lock);
+	err = 0;
 
 	for (i = nr; --i >= 0; ) {
 		iosize += size;
 		tmp = bh[i];
 		if (buffer_locked(tmp)) {
-			spin_unlock(&unused_list_lock);
 			wait_on_buffer(tmp);
-			spin_lock(&unused_list_lock);
 		}
 		
 		if (!buffer_uptodate(tmp)) {
@@ -2024,13 +2019,13 @@ static int wait_kio(int rw, int nr, struct buffer_head *bh[], int size)
                            clearing iosize on error calculates the
                            amount of IO before the first error. */
 			iosize = 0;
+			err = -EIO;
 		}
-		__put_unused_buffer_head(tmp);
 	}
 	
-	spin_unlock(&unused_list_lock);
-
-	return iosize;
+	if (iosize)
+		return iosize;
+	return err;
 }
 
 /*
@@ -2059,7 +2054,7 @@ int brw_kiovec(int rw, int nr, struct kiobuf *iovec[],
 	unsigned long	blocknr;
 	struct kiobuf *	iobuf = NULL;
 	struct page *	map;
-	struct buffer_head *tmp, *bh[KIO_MAX_SECTORS];
+	struct buffer_head *tmp, **bhs = NULL;
 
 	if (!nr)
 		return 0;
@@ -2085,22 +2080,20 @@ int brw_kiovec(int rw, int nr, struct kiobuf *iovec[],
 		offset = iobuf->offset;
 		length = iobuf->length;
 		iobuf->errno = 0;
+		if (!bhs)
+			bhs = iobuf->bh;
 		
 		for (pageind = 0; pageind < iobuf->nr_pages; pageind++) {
 			map  = iobuf->maplist[pageind];
 			if (!map) {
 				err = -EFAULT;
-				goto error;
+				goto finished;
 			}
 			
 			while (length > 0) {
 				blocknr = b[bufind++];
-				tmp = get_unused_buffer_head(0);
-				if (!tmp) {
-					err = -ENOMEM;
-					goto error;
-				}
-				
+				tmp = bhs[bhind++];
+
 				tmp->b_dev = B_FREE;
 				tmp->b_size = size;
 				set_bh_page(tmp, map, offset);
@@ -2114,9 +2107,9 @@ int brw_kiovec(int rw, int nr, struct kiobuf *iovec[],
 				if (rw == WRITE) {
 					set_bit(BH_Uptodate, &tmp->b_state);
 					clear_bit(BH_Dirty, &tmp->b_state);
-				}
+				} else
+					set_bit(BH_Uptodate, &tmp->b_state);
 
-				bh[bhind++] = tmp;
 				length -= size;
 				offset += size;
 
@@ -2127,7 +2120,8 @@ int brw_kiovec(int rw, int nr, struct kiobuf *iovec[],
 				 * Wait for IO if we have got too much 
 				 */
 				if (bhind >= KIO_MAX_SECTORS) {
-					err = wait_kio(rw, bhind, bh, size);
+					kiobuf_wait_for_io(iobuf); /* wake-one */
+					err = wait_kio(rw, bhind, bhs, size);
 					if (err >= 0)
 						transferred += err;
 					else
@@ -2145,7 +2139,8 @@ int brw_kiovec(int rw, int nr, struct kiobuf *iovec[],
 
 	/* Is there any IO still left to submit? */
 	if (bhind) {
-		err = wait_kio(rw, bhind, bh, size);
+		kiobuf_wait_for_io(iobuf); /* wake-one */
+		err = wait_kio(rw, bhind, bhs, size);
 		if (err >= 0)
 			transferred += err;
 		else
@@ -2156,16 +2151,6 @@ int brw_kiovec(int rw, int nr, struct kiobuf *iovec[],
 	if (transferred)
 		return transferred;
 	return err;
-
- error:
-	/* We got an error allocating the bh'es.  Just free the current
-           buffer_heads and exit. */
-	spin_lock(&unused_list_lock);
-	for (i = bhind; --i >= 0; ) {
-		__put_unused_buffer_head(bh[i]);
-	}
-	spin_unlock(&unused_list_lock);
-	goto finished;
 }
 
 /*
@@ -2617,7 +2602,7 @@ static int sync_old_buffers(void)
 {
 	lock_kernel();
 	sync_supers(0);
-	sync_inodes(0);
+	sync_unlocked_inodes();
 	unlock_kernel();
 
 	flush_dirty_buffers(1);

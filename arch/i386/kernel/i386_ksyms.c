@@ -61,7 +61,6 @@ EXPORT_SYMBOL(dump_fpu);
 EXPORT_SYMBOL(dump_extended_fpu);
 EXPORT_SYMBOL(__ioremap);
 EXPORT_SYMBOL(iounmap);
-EXPORT_SYMBOL(__io_virt_debug);
 EXPORT_SYMBOL(enable_irq);
 EXPORT_SYMBOL(disable_irq);
 EXPORT_SYMBOL(disable_irq_nosync);
@@ -73,13 +72,14 @@ EXPORT_SYMBOL(get_cmos_time);
 EXPORT_SYMBOL(apm_info);
 EXPORT_SYMBOL(gdt);
 
+#ifdef CONFIG_IO_DEBUG
+EXPORT_SYMBOL(__io_virt_debug);
+#endif
+
 EXPORT_SYMBOL_NOVERS(__down_failed);
 EXPORT_SYMBOL_NOVERS(__down_failed_interruptible);
 EXPORT_SYMBOL_NOVERS(__down_failed_trylock);
 EXPORT_SYMBOL_NOVERS(__up_wakeup);
-EXPORT_SYMBOL_NOVERS(__down_write_failed);
-EXPORT_SYMBOL_NOVERS(__down_read_failed);
-EXPORT_SYMBOL_NOVERS(__rwsem_wake);
 /* Networking helper routines. */
 EXPORT_SYMBOL(csum_partial_copy_generic);
 /* Delay loops */
@@ -97,6 +97,7 @@ EXPORT_SYMBOL_NOVERS(__put_user_4);
 EXPORT_SYMBOL(strtok);
 EXPORT_SYMBOL(strpbrk);
 EXPORT_SYMBOL(simple_strtol);
+EXPORT_SYMBOL(strstr);
 
 EXPORT_SYMBOL(strncpy_from_user);
 EXPORT_SYMBOL(__strncpy_from_user);

@@ -1,4 +1,4 @@
-/* $Id: pgalloc.h,v 1.11 2000/10/16 14:32:49 anton Exp $ */
+/* $Id: pgalloc.h,v 1.12 2001/04/26 02:36:35 davem Exp $ */
 #ifndef _SPARC_PGALLOC_H
 #define _SPARC_PGALLOC_H
 
@@ -137,6 +137,6 @@ BTFIXUPDEF_CALL(void,    pgd_free, pgd_t *)
 BTFIXUPDEF_CALL(pgd_t *, pgd_alloc, void)
 
 #define pgd_free(pgd) BTFIXUP_CALL(pgd_free)(pgd)
-#define pgd_alloc() BTFIXUP_CALL(pgd_alloc)()
+#define pgd_alloc(mm) BTFIXUP_CALL(pgd_alloc)()
 
 #endif /* _SPARC64_PGALLOC_H */

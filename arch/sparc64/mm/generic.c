@@ -1,4 +1,4 @@
-/* $Id: generic.c,v 1.16 2001/03/25 04:40:05 davem Exp $
+/* $Id: generic.c,v 1.17 2001/04/09 04:08:06 davem Exp $
  * generic.c: Generic Sparc mm routines that are not dependent upon
  *            MMU type but are Sparc specific.
  *
@@ -8,6 +8,7 @@
 #include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/swap.h>
+#include <linux/pagemap.h>
 
 #include <asm/pgalloc.h>
 #include <asm/pgtable.h>
@@ -21,11 +22,7 @@ static inline void forget_pte(pte_t page)
 		struct page *ptpage = pte_page(page);
 		if ((!VALID_PAGE(ptpage)) || PageReserved(ptpage))
 			return;
-		/* 
-		 * free_page() used to be able to clear swap cache
-		 * entries.  We may now have to do it manually.  
-		 */
-		free_page_and_swap_cache(ptpage);
+		page_cache_release(ptpage);
 		return;
 	}
 	swap_free(pte_to_swp_entry(page));

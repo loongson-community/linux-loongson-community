@@ -8,9 +8,12 @@
 
 L_TARGET := lib.a
 
-export-objs := cmdline.o
+export-objs := cmdline.o rwsem-spinlock.o rwsem.o
 
 obj-y := errno.o ctype.o string.o vsprintf.o brlock.o cmdline.o
+
+obj-$(CONFIG_RWSEM_GENERIC_SPINLOCK) += rwsem-spinlock.o
+obj-$(CONFIG_RWSEM_XCHGADD_ALGORITHM) += rwsem.o
 
 ifneq ($(CONFIG_HAVE_DEC_LOCK),y) 
   obj-y += dec_and_lock.o

@@ -119,7 +119,7 @@ extern __inline__ int atomic_sub_return(int i, atomic_t * v)
 #define atomic_inc_return(v) atomic_add_return(1,(v))
 
 /*
- * atomic_sub_and_test - test variable then subtract
+ * atomic_sub_and_test - subtract value from variable and test result
  * @i: integer value to subtract
  * @v: pointer of type atomic_t
  *
@@ -131,7 +131,7 @@ extern __inline__ int atomic_sub_return(int i, atomic_t * v)
 #define atomic_sub_and_test(i,v) (atomic_sub_return((i), (v)) == 0)
 
 /*
- * atomic_inc_and_test - increment by 1 and test
+ * atomic_inc_and_test - increment and test
  * @v: pointer of type atomic_t
  *
  * Atomically increments @v by 1
@@ -162,7 +162,7 @@ extern __inline__ int atomic_sub_return(int i, atomic_t * v)
 #define atomic_inc(v) atomic_add(1,(v))
 
 /*
- * atomic_dec - decrement the atomic variable
+ * atomic_dec - decrement and test
  * @v: pointer of type atomic_t
  *
  * Atomically decrements @v by 1.  Note that the guaranteed

@@ -119,13 +119,13 @@
  *
  *********************************************************/
 
-static const char *filename = __FILE__;
+static const char filename[] = __FILE__;
 
-static const char *timeout_msg = "*** timeout at %s:%s (line %d) ***\n";
+static const char timeout_msg[] = "*** timeout at %s:%s (line %d) ***\n";
 #define TIMEOUT_MSG(lineno) \
 	printk(timeout_msg, filename,__FUNCTION__,(lineno))
 
-static const char *invalid_pcb_msg =
+static const char invalid_pcb_msg[] =
 "*** invalid pcb length %d at %s:%s (line %d) ***\n";
 #define INVALID_PCB_MSG(len) \
 	printk(invalid_pcb_msg, (len),filename,__FUNCTION__,__LINE__)
@@ -149,7 +149,7 @@ static char couldnot_msg[] __initdata = "%s: 3c505 not found\n";
 #ifdef ELP_DEBUG
 static const int elp_debug = ELP_DEBUG;
 #else
-static const int elp_debug = 0;
+static const int elp_debug;
 #endif
 
 /*

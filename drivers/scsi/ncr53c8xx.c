@@ -3715,6 +3715,7 @@ ncr_attach (Scsi_Host_Template *tpnt, int unit, ncr_device *device)
 	instance->cmd_per_lun	= MAX_TAGS;
 	instance->can_queue	= (MAX_START-4);
 	instance->select_queue_depths = ncr53c8xx_select_queue_depths;
+	scsi_set_pci_device(instance, device->pdev);
 
 #ifdef SCSI_NCR_INTEGRITY_CHECKING
 	np->check_integrity	  = 0;
@@ -9271,9 +9272,9 @@ const char *ncr53c8xx_info (struct Scsi_Host *host)
 */
 
 #if LINUX_VERSION_CODE >= LinuxVersionCode(2,4,0)
-static Scsi_Host_Template driver_template = NCR53C8XX;
-#include "scsi_module.c"
-#elif defined(MODULE)
+static
+#endif
+#if LINUX_VERSION_CODE >= LinuxVersionCode(2,4,0) || defined(MODULE)
 Scsi_Host_Template driver_template = NCR53C8XX;
 #include "scsi_module.c"
 #endif

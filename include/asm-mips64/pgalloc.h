@@ -190,7 +190,7 @@ extern inline void free_pmd_slow(pmd_t *pmd)
 #define pte_free(pte)           free_pte_fast(pte)
 #define pmd_free(pte)           free_pmd_fast(pte)
 #define pgd_free(pgd)           free_pgd_fast(pgd)
-#define pgd_alloc()             get_pgd_fast()
+#define pgd_alloc(mm)           get_pgd_fast()
 
 extern pte_t kptbl[(PAGE_SIZE<<KPTBL_PAGE_ORDER)/sizeof(pte_t)];
 extern pmd_t kpmdtbl[PTRS_PER_PMD];
