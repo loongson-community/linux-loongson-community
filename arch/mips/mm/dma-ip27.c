@@ -188,7 +188,7 @@ dma64_addr_t pci_dac_page_to_dma(struct pci_dev *pdev,
 	return (dma64_addr_t) pdev_to_baddr(pdev, addr);
 }
 
-EXPORT_SYMBOL(dma_cache_sync);
+EXPORT_SYMBOL(pci_dac_page_to_dma);
 
 struct page *pci_dac_dma_to_page(struct pci_dev *pdev,
 	dma64_addr_t dma_addr)
