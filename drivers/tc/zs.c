@@ -1869,18 +1869,6 @@ int __init zs_init(void)
 	if (tty_register_driver(serial_driver))
 		panic("Couldn't register serial driver");
 
-	save_flags(flags); cli();
-
-	for (channel = 0; channel < zs_channels_found; ++channel) {
-		if (request_irq(zs_soft[channel].irq, rs_interrupt, SA_SHIRQ,
-				"scc", &zs_soft[channel]))
-			printk(KERN_ERR "decserial: can't get irq %d\n",
-			       zs_soft[channel].irq);
-
-		zs_soft[channel].clk_divisor = 16;
-		zs_soft[channel].zs_baud = get_zsbaud(&zs_soft[channel]);
-	}
-
 	for (info = zs_chain, i = 0; info; info = info->zs_next, i++) {
 
 		/* Needed before interrupts are enabled. */
@@ -1903,15 +1891,21 @@ int __init zs_init(void)
 		info->tqueue.data = info;
 		init_waitqueue_head(&info->open_wait);
 		init_waitqueue_head(&info->close_wait);
-		printk("ttyS%02d at 0x%08x (irq = %d)", info->line,
-		       info->port, info->irq);
-		printk(" is a Z85C30 SCC\n");
+		printk("ttyS%02d at 0x%08x (irq = %d) is a Z85C30 SCC\n",
+		       info->line, info->port, info->irq);
 		tty_register_device(serial_driver, info->line, NULL);
+
 	}
 
-	restore_flags(flags);
-
 	for (channel = 0; channel < zs_channels_found; ++channel) {
+		zs_soft[channel].clk_divisor = 16;
+		zs_soft[channel].zs_baud = get_zsbaud(&zs_soft[channel]);
+
+		if (request_irq(zs_soft[channel].irq, rs_interrupt, SA_SHIRQ,
+				"scc", &zs_soft[channel]))
+			printk(KERN_ERR "decserial: can't get irq %d\n",
+			       zs_soft[channel].irq);
+
 		if (zs_soft[channel].hook &&
 		    zs_soft[channel].hook->init_channel)
 			(*zs_soft[channel].hook->init_channel)
