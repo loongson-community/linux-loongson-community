@@ -21,6 +21,7 @@
 #include <linux/kernel_stat.h>
 #include <linux/spinlock.h>
 #include <linux/interrupt.h>
+#include <linux/module.h>
 
 #include <asm/bootinfo.h>
 #include <asm/cpu.h>
@@ -41,6 +42,8 @@ u64 jiffies_64;
  */
 extern rwlock_t xtime_lock;
 extern volatile unsigned long wall_jiffies;
+
+spinlock_t rtc_lock = SPIN_LOCK_UNLOCKED;
 
 /*
  * whether we emulate local_timer_interrupts for SMP machines.
@@ -588,3 +591,5 @@ void to_tm(unsigned long tim, struct rtc_time * tm)
 	 */
 	tm->tm_wday = (gday + 4) % 7; /* 1970/1/1 was Thursday */
 }
+
+EXPORT_SYMBOL(rtc_lock);
