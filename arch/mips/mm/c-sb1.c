@@ -20,10 +20,13 @@
  */
 #include <linux/config.h>
 #include <linux/init.h>
-#include <asm/mmu_context.h>
+
+#include <asm/asm.h>
 #include <asm/bootinfo.h>
 #include <asm/cacheops.h>
 #include <asm/cpu.h>
+#include <asm/mipsregs.h>
+#include <asm/mmu_context.h>
 #include <asm/uaccess.h>
 
 extern void sb1_dma_init(void);
@@ -538,15 +541,14 @@ void ld_mmu_sb1(void)
 	 * before subsequent instruction fetch.
 	 */
 	__asm__ __volatile__(
+		".set	push			\n"
 	"	.set	noat			\n"
 	"	.set	noreorder		\n"
-	"	.set	mips3\n\t		\n"
-	"	la	$1, 1f			\n"
-	"	mtc0	$1, $14			\n"
+	"	.set	mips3			\n"
+	"	" STR(PTR_LA) "	$1, 1f		\n"
+	"	" STR(MTC0) "	$1, $14		\n"
 	"	eret				\n"
-	"1:	.set	mips0\n\t		\n"
-	"	.set	at			\n"
-	"	.set	reorder"
+	"1:	.set	pop"
 	:
 	:
 	: "memory");
