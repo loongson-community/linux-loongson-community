@@ -40,7 +40,8 @@ extern void die(char *, struct pt_regs *, unsigned long write);
 asmlinkage void
 dodebug(abi64_no_regargs, struct pt_regs regs)
 {
-	printk("Got syscall %d, cpu %d proc %s:%d epc 0x%lx\n", regs.regs[2], smp_processor_id(), current->comm, current->pid, regs.cp0_epc);
+	printk("Got syscall %ld, cpu %d proc %s:%d epc 0x%lx\n", regs.regs[2],
+	       smp_processor_id(), current->comm, current->pid, regs.cp0_epc);
 }
 
 asmlinkage void
@@ -142,7 +143,6 @@ bad_area:
 		while(1);
 	}
 	if (user_mode(regs)) {
-		struct siginfo si;
 		tsk->thread.cp0_badvaddr = address;
 		tsk->thread.error_code = write;
 #if 0

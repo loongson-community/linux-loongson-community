@@ -408,7 +408,7 @@ int __init rd_init (void)
 		rd_blocksizes[i] = rd_blocksize;
 		rd_kbsize[i] = rd_size;
 	}
-	devfs_handle = devfs_mk_dir (NULL, "rd", 0, NULL);
+	devfs_handle = devfs_mk_dir (NULL, "rd", NULL);
 	devfs_register_series (devfs_handle, "%u", NUM_RAMDISKS,
 			       DEVFS_FL_DEFAULT, MAJOR_NR, 0,
 			       S_IFBLK | S_IRUSR | S_IWUSR,
@@ -436,8 +436,8 @@ int __init rd_init (void)
 
 #ifdef MODULE
 module_init(rd_init);
-#endif
 module_exit(rd_cleanup);
+#endif
 
 /* loadable module support */
 MODULE_PARM     (rd_size, "1i");

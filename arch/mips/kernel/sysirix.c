@@ -1,12 +1,10 @@
-/* $Id: sysirix.c,v 1.26 2000/03/12 23:15:33 ralf Exp $
- *
+/*
  * sysirix.c: IRIX system call emulation.
  *
  * Copyright (C) 1996 David S. Miller
  * Copyright (C) 1997 Miguel de Icaza
  * Copyright (C) 1997, 1998 Ralf Baechle
  */
-
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/pagemap.h>
@@ -32,7 +30,7 @@
 #include <asm/sgialib.h>
 #include <asm/inventory.h>
 
-/* 2,526 lines of complete and utter shit coming up... */
+/* 2,191 lines of complete and utter shit coming up... */
 
 extern int max_threads;
 
@@ -91,11 +89,10 @@ asmlinkage int irix_prctl(struct pt_regs *regs)
 	unsigned long cmd;
 	int error = 0, base = 0;
 
-	lock_kernel();
-	if(regs->regs[2] == 1000)
+	if (regs->regs[2] == 1000)
 		base = 1;
 	cmd = regs->regs[base + 4];
-	switch(cmd) {
+	switch (cmd) {
 	case PR_MAXPROCS:
 		printk("irix_prctl[%s:%d]: Wants PR_MAXPROCS\n",
 		       current->comm, current->pid);
@@ -107,12 +104,12 @@ asmlinkage int irix_prctl(struct pt_regs *regs)
 
 		printk("irix_prctl[%s:%d]: Wants PR_ISBLOCKED\n",
 		       current->comm, current->pid);
+		read_lock(&tasklist_lock);
 		task = find_task_by_pid(regs->regs[base + 5]);
-		if(!task) {
-			error = -ESRCH;
-			break;
-		}
-		error = (task->run_list.next != NULL);
+		error = -ESRCH;
+		if (error)
+			error = (task->run_list.next != NULL);
+		read_unlock(&tasklist_lock);
 		/* Can _your_ OS find this out that fast? */ 
 		break;
 	}
@@ -122,15 +119,15 @@ asmlinkage int irix_prctl(struct pt_regs *regs)
 
 		printk("irix_prctl[%s:%d]: Wants PR_SETSTACKSIZE<%08lx>\n",
 		       current->comm, current->pid, (unsigned long) value);
-		if(value > RLIM_INFINITY)
+		if (value > RLIM_INFINITY)
 			value = RLIM_INFINITY;
-		if(capable(CAP_SYS_ADMIN)) {
+		if (capable(CAP_SYS_ADMIN)) {
 			current->rlim[RLIMIT_STACK].rlim_max =
 				current->rlim[RLIMIT_STACK].rlim_cur = value;
 			error = value;
 			break;
 		}
-		if(value > current->rlim[RLIMIT_STACK].rlim_max) {
+		if (value > current->rlim[RLIMIT_STACK].rlim_max) {
 			error = -EINVAL;
 			break;
 		}
@@ -226,7 +223,6 @@ asmlinkage int irix_prctl(struct pt_regs *regs)
 		break;
 	}
 
-	unlock_kernel();
 	return error;
 }
 
@@ -267,78 +263,80 @@ extern long prom_setenv(char *name, char *value);
 
 asmlinkage int irix_syssgi(struct pt_regs *regs)
 {
-        unsigned long cmd;
-        int retval, base = 0;
+	unsigned long cmd;
+	int retval, base = 0;
 
-        lock_kernel();
-        if(regs->regs[2] == 1000)
-                base = 1;
+	if (regs->regs[2] == 1000)
+		base = 1;
 
-        cmd = regs->regs[base + 4];
-        switch(cmd) {
-        case SGI_SYSID: {
-                char *buf = (char *) regs->regs[base + 5];
+	cmd = regs->regs[base + 4];
+	switch(cmd) {
+	case SGI_SYSID: {
+		char *buf = (char *) regs->regs[base + 5];
 
-                /* XXX Use ethernet addr.... */
-                retval = clear_user(buf, 64);
-                break;
-        }
+		/* XXX Use ethernet addr.... */
+		retval = clear_user(buf, 64);
+		break;
+	}
 #if 0
-        case SGI_RDNAME: {
-                int pid = (int) regs->regs[base + 5];
-                char *buf = (char *) regs->regs[base + 6];
-                struct task_struct *p;
+	case SGI_RDNAME: {
+		int pid = (int) regs->regs[base + 5];
+		char *buf = (char *) regs->regs[base + 6];
+		struct task_struct *p;
+		char comm[16];
 
-                retval = verify_area(VERIFY_WRITE, buf, 16);
-                if(retval)
-                        break;
-                for_each_task(p) {
-                        if(p->pid == pid)
-                                goto found0;
-                }
-                retval = -ESRCH;
+		retval = verify_area(VERIFY_WRITE, buf, 16);
+		if (retval)
+			break;
+		read_lock(&tasklist_lock);
+		p = find_task_by_pid(pid);
+		if (!p) {
+			read_unlock(&tasklist_lock);
+			retval = -ESRCH;
+			break;
+		}
+		memcpy(comm, p->comm, 16);
+		read_unlock(&tasklist_lock);
 
-        found0:
-                /* XXX Need to check sizes. */
-                copy_to_user(buf, p->comm, 16);
-                retval = 0;
-                break;
-        }
+		/* XXX Need to check sizes. */
+		copy_to_user(buf, p->comm, 16);
+		retval = 0;
+		break;
+	}
 
-        case SGI_GETNVRAM: {
-                char *name = (char *) regs->regs[base+5];
-                char *buf = (char *) regs->regs[base+6];
-                char *value;
+	case SGI_GETNVRAM: {
+		char *name = (char *) regs->regs[base+5];
+		char *buf = (char *) regs->regs[base+6];
+		char *value;
 		return -EINVAL;	/* til I fix it */
-                retval = verify_area(VERIFY_WRITE, buf, 128);
-                if (retval)
-                        break;
-                value = prom_getenv(name);
-                if (!value) {
-                        retval = -EINVAL;
-                        break;
-                }
-                /* Do I strlen() for the length? */
-                copy_to_user(buf, value, 128);
-                retval = 0;
-                break;
-        }
+		retval = verify_area(VERIFY_WRITE, buf, 128);
+		if (retval)
+			break;
+		value = prom_getenv(name);	/* PROM lock?  */
+		if (!value) {
+			retval = -EINVAL;
+			break;
+		}
+		/* Do I strlen() for the length? */
+		copy_to_user(buf, value, 128);
+		retval = 0;
+		break;
+	}
 
-        case SGI_SETNVRAM: {
-                char *name = (char *) regs->regs[base+5];
-                char *value = (char *) regs->regs[base+6];
+	case SGI_SETNVRAM: {
+		char *name = (char *) regs->regs[base+5];
+		char *value = (char *) regs->regs[base+6];
 		return -EINVAL;	/* til I fix it */
-                retval = prom_setenv(name, value);
+		retval = prom_setenv(name, value);
 		/* XXX make sure retval conforms to syssgi(2) */
 		printk("[%s:%d] setnvram(\"%s\", \"%s\"): retval %d",
-		       current->comm, current->pid,
-		       name, value, retval);
+		       current->comm, current->pid, name, value, retval);
 /*		if (retval == PROM_ENOENT)
 		  	retval = -ENOENT; */
 		break;				   
 	}
 #endif
-	
+
 	case SGI_SETPGID: {
 #ifdef DEBUG_PROCGRPS
 		printk("[%s:%d] setpgid(%d, %d) ",
@@ -463,25 +461,31 @@ asmlinkage int irix_syssgi(struct pt_regs *regs)
 		break;
 
 	case SGI_PHYSP: {
+		unsigned long addr = regs->regs[base + 5];
+		int *pageno = (int *) (regs->regs[base + 6]);
+		struct mm_struct *mm = current->mm;
 		pgd_t *pgdp;
 		pmd_t *pmdp;
 		pte_t *ptep;
-		unsigned long addr = regs->regs[base + 5];
-		int *pageno = (int *) (regs->regs[base + 6]);
 
 		retval = verify_area(VERIFY_WRITE, pageno, sizeof(int));
-		if(retval)
+		if (retval)
 			return retval;
-		pgdp = pgd_offset(current->mm, addr);
+
+		down(&mm->mmap_sem);
+		pgdp = pgd_offset(mm, addr);
 		pmdp = pmd_offset(pgdp, addr);
 		ptep = pte_offset(pmdp, addr);
-		if(ptep) {
-			if(pte_val(*ptep) & (_PAGE_VALID | _PAGE_PRESENT)) {
-				return put_user((pte_val(*ptep) & PAGE_MASK)>>PAGE_SHIFT, pageno);
-				return 0;
+		retval = -EINVAL;
+		if (ptep) {
+			pte_t pte = *ptep;
+
+			if (pte_val(pte) & (_PAGE_VALID | _PAGE_PRESENT)) {
+				retval =  put_user((pte_val(pte) & PAGE_MASK) >>
+				                   PAGE_SHIFT, pageno);
 			}
 		}
-		retval = -EINVAL;
+		up(&mm->mmap_sem);
 		break;
 	}
 
@@ -490,7 +494,7 @@ asmlinkage int irix_syssgi(struct pt_regs *regs)
 		void *buffer = (void *) regs->regs [base + 6];
 		int  count   = (int)    regs->regs [base + 7];
 
-		switch (arg1){
+		switch (arg1) {
 		case SGI_INV_SIZEOF:
 			retval = sizeof (inventory_t);
 			break;
@@ -510,7 +514,6 @@ asmlinkage int irix_syssgi(struct pt_regs *regs)
 	};
 
 out:
-	unlock_kernel();
 	return retval;
 }
 
@@ -532,7 +535,7 @@ asmlinkage int irix_brk(unsigned long brk)
 	struct mm_struct *mm = current->mm;
 	int ret;
 
-	lock_kernel();
+	down(&mm->mmap_sem);
 	if (brk < mm->end_code) {
 		ret = -ENOMEM;
 		goto out;
@@ -590,7 +593,7 @@ asmlinkage int irix_brk(unsigned long brk)
 	ret = 0;
 
 out:
-	unlock_kernel();
+	up(&mm->mmap_sem);
 	return ret;
 }
 
@@ -612,26 +615,21 @@ asmlinkage int irix_getgid(struct pt_regs *regs)
 	return current->gid;
 }
 
+extern rwlock_t xtime_lock;
+
 asmlinkage int irix_stime(int value)
 {
-	int ret;
+	if (!capable(CAP_SYS_TIME))
+		return -EPERM;
 
-	lock_kernel();
-	if(!capable(CAP_SYS_TIME)) {
-		ret = -EPERM;
-		goto out;
-	}
-	cli();
+	write_lock_irq(&xtime_lock);
 	xtime.tv_sec = value;
 	xtime.tv_usec = 0;
 	time_maxerror = MAXPHASE;
 	time_esterror = MAXPHASE;
-	sti();
-	ret = 0;
+	write_unlock_irq(&xtime_lock);
 
-out:
-	unlock_kernel();
-	return ret;
+	return 0;
 }
 
 extern int do_setitimer(int which, struct itimerval *value,
@@ -641,7 +639,6 @@ static inline void jiffiestotv(unsigned long jiffies, struct timeval *value)
 {
 	value->tv_usec = (jiffies % HZ) * (1000000 / HZ);
 	value->tv_sec = jiffies / HZ;
-	return;
 }
 
 static inline void getitimer_real(struct itimerval *value)
@@ -668,8 +665,7 @@ asmlinkage unsigned int irix_alarm(unsigned int seconds)
 	struct itimerval it_new, it_old;
 	unsigned int oldalarm;
 
-	lock_kernel();
-	if(!seconds) {
+	if (!seconds) {
 		getitimer_real(&it_old);
 		del_timer(&current->real_timer);
 	} else {
@@ -679,20 +675,21 @@ asmlinkage unsigned int irix_alarm(unsigned int seconds)
 		do_setitimer(ITIMER_REAL, &it_new, &it_old);
 	}
 	oldalarm = it_old.it_value.tv_sec;
-	/* ehhh.. We can't return 0 if we have an alarm pending.. */
-	/* And we'd better return too much than too little anyway */
+	/*
+	 * ehhh.. We can't return 0 if we have an alarm pending ...
+	 * And we'd better return too much than too little anyway
+	 */
 	if (it_old.it_value.tv_usec)
 		oldalarm++;
-	unlock_kernel();
+
 	return oldalarm;
 }
 
 asmlinkage int irix_pause(void)
 {
-	lock_kernel();
 	current->state = TASK_INTERRUPTIBLE;
 	schedule();
-	unlock_kernel();
+
 	return -EINTR;
 }
 
@@ -703,16 +700,11 @@ extern asmlinkage long sys_mount(char * dev_name, char * dir_name, char * type,
 asmlinkage int irix_mount(char *dev_name, char *dir_name, unsigned long flags,
 			  char *type, void *data, int datalen)
 {
-	int ret;
-
-	lock_kernel();
 	printk("[%s:%d] irix_mount(%p,%p,%08lx,%p,%p,%d)\n",
 	       current->comm, current->pid,
 	       dev_name, dir_name, flags, type, data, datalen);
-	ret = sys_mount(dev_name, dir_name, type, flags, data);
 
-	unlock_kernel();
-	return ret;
+	return sys_mount(dev_name, dir_name, type, flags, data);
 }
 
 struct irix_statfs {
@@ -728,10 +720,8 @@ asmlinkage int irix_statfs(const char *path, struct irix_statfs *buf,
 	struct statfs kbuf;
 	int error, i;
 
-	lock_kernel();
-
 	/* We don't support this feature yet. */
-	if(fs_type) {
+	if (fs_type) {
 		error = -EINVAL;
 		goto out;
 	}
@@ -753,7 +743,7 @@ asmlinkage int irix_statfs(const char *path, struct irix_statfs *buf,
 	__put_user(kbuf.f_bfree, &buf->f_bfree);
 	__put_user(kbuf.f_files, &buf->f_files);
 	__put_user(kbuf.f_ffree, &buf->f_ffree);
-	for(i = 0; i < 6; i++) {
+	for (i = 0; i < 6; i++) {
 		__put_user(0, &buf->f_fname[i]);
 		__put_user(0, &buf->f_fpack[i]);
 	}
@@ -762,7 +752,6 @@ asmlinkage int irix_statfs(const char *path, struct irix_statfs *buf,
 dput_and_out:
 	path_release(&nd);
 out:
-	unlock_kernel();
 	return error;
 }
 
@@ -772,7 +761,6 @@ asmlinkage int irix_fstatfs(unsigned int fd, struct irix_statfs *buf)
 	struct file *file;
 	int error, i;
 
-	lock_kernel();
 	error = verify_area(VERIFY_WRITE, buf, sizeof(struct irix_statfs));
 	if (error)
 		goto out;
@@ -800,7 +788,6 @@ asmlinkage int irix_fstatfs(unsigned int fd, struct irix_statfs *buf)
 out_f:
 	fput(file);
 out:
-	unlock_kernel();
 	return error;
 }
 
@@ -811,7 +798,6 @@ asmlinkage int irix_setpgrp(int flags)
 {
 	int error;
 
-	lock_kernel();
 #ifdef DEBUG_PROCGRPS
 	printk("[%s:%d] setpgrp(%d) ", current->comm, current->pid, flags);
 #endif
@@ -823,29 +809,24 @@ asmlinkage int irix_setpgrp(int flags)
 	printk("returning %d\n", current->pgrp);
 #endif
 
-	unlock_kernel();
 	return error;
 }
 
 asmlinkage int irix_times(struct tms * tbuf)
 {
-	int error;
+	int err = 0;
 
-	lock_kernel();
 	if (tbuf) {
-		error = verify_area(VERIFY_WRITE,tbuf,sizeof *tbuf);
-		if (error)
-			goto out;
-		__put_user(current->times.tms_utime,&tbuf->tms_utime);
-		__put_user(current->times.tms_stime,&tbuf->tms_stime);
-		__put_user(current->times.tms_cutime,&tbuf->tms_cutime);
-		__put_user(current->times.tms_cstime,&tbuf->tms_cstime);
+		err = verify_area(VERIFY_WRITE,tbuf,sizeof *tbuf);
+		if (err)
+			return err;
+		err |= __put_user(current->times.tms_utime,&tbuf->tms_utime);
+		err |= __put_user(current->times.tms_stime,&tbuf->tms_stime);
+		err |= __put_user(current->times.tms_cutime,&tbuf->tms_cutime);
+		err |= __put_user(current->times.tms_cstime,&tbuf->tms_cstime);
 	}
-	error = 0;
 
-out:
-	unlock_kernel();
-	return error;
+	return err;
 }
 
 asmlinkage int irix_exec(struct pt_regs *regs)
@@ -858,12 +839,12 @@ asmlinkage int irix_exec(struct pt_regs *regs)
 	filename = getname((char *) (long)regs->regs[base + 4]);
 	error = PTR_ERR(filename);
 	if (IS_ERR(filename))
-		goto out;
+		return error;
+
 	error = do_execve(filename, (char **) (long)regs->regs[base + 5],
 	                  (char **) 0, regs);
 	putname(filename);
 
-out:
 	return error;
 }
 
@@ -872,37 +853,32 @@ asmlinkage int irix_exece(struct pt_regs *regs)
 	int error, base = 0;
 	char *filename;
 
-	lock_kernel();
-	if(regs->regs[2] == 1000)
+	if (regs->regs[2] == 1000)
 		base = 1;
 	filename = getname((char *) (long)regs->regs[base + 4]);
 	error = PTR_ERR(filename);
 	if (IS_ERR(filename))
-		goto out;
+		return error;
 	error = do_execve(filename, (char **) (long)regs->regs[base + 5],
 	                  (char **) (long)regs->regs[base + 6], regs);
 	putname(filename);
 
-out:
-	unlock_kernel();
 	return error;
 }
 
 asmlinkage unsigned long irix_gethostid(void)
 {
-	lock_kernel();
 	printk("[%s:%d]: irix_gethostid() called...\n",
 	       current->comm, current->pid);
-	unlock_kernel();
+
 	return -EINVAL;
 }
 
 asmlinkage unsigned long irix_sethostid(unsigned long val)
 {
-	lock_kernel();
 	printk("[%s:%d]: irix_sethostid(%08lx) called...\n",
 	       current->comm, current->pid, val);
-	unlock_kernel();
+
 	return -EINVAL;
 }
 
@@ -946,20 +922,18 @@ asmlinkage int irix_getdomainname(char *name, int len)
 {
 	int error;
 
-	lock_kernel();
+	error = verify_area(VERIFY_WRITE, name, len);
+	if (error)
+		return error;
+
+	down_read(&uts_sem);
 	if(len > (__NEW_UTS_LEN - 1))
 		len = __NEW_UTS_LEN - 1;
-	error = verify_area(VERIFY_WRITE, name, len);
-	if(error)
-		goto out;
-	if(copy_to_user(name, system_utsname.domainname, len)) {
-		error = -EFAULT;
-		goto out;
-	}
 	error = 0;
+	if (copy_to_user(name, system_utsname.domainname, len))
+		error = -EFAULT;
+	up_read(&uts_sem);
 
-out:
-	unlock_kernel();
 	return error;
 }
 
@@ -972,7 +946,7 @@ asmlinkage int irix_msgsys(int opcode, unsigned long arg0, unsigned long arg1,
 			   unsigned long arg2, unsigned long arg3,
 			   unsigned long arg4)
 {
-	switch(opcode) {
+	switch (opcode) {
 	case 0:
 		return sys_msgget((key_t) arg0, (int) arg1);
 	case 1:
@@ -991,7 +965,7 @@ asmlinkage int irix_msgsys(int opcode, unsigned long arg0, unsigned long arg1,
 asmlinkage int irix_shmsys(int opcode, unsigned long arg0, unsigned long arg1,
 			   unsigned long arg2, unsigned long arg3)
 {
-	switch(opcode) {
+	switch (opcode) {
 	case 0:
 		return sys_shmat((int) arg0, (char *)arg1, (int) arg2,
 				 (unsigned long *) arg3);
@@ -1009,7 +983,7 @@ asmlinkage int irix_shmsys(int opcode, unsigned long arg0, unsigned long arg1,
 asmlinkage int irix_semsys(int opcode, unsigned long arg0, unsigned long arg1,
 			   unsigned long arg2, int arg3)
 {
-	switch(opcode) {
+	switch (opcode) {
 	case 0:
 		return sys_semctl((int) arg0, (int) arg1, (int) arg2,
 				  (union semun) arg3);
@@ -1023,27 +997,42 @@ asmlinkage int irix_semsys(int opcode, unsigned long arg0, unsigned long arg1,
 	}
 }
 
-extern asmlinkage int sys_llseek(unsigned int fd, unsigned long offset_high,
-				 unsigned long offset_low, loff_t * result,
-				 unsigned int origin);
-
-asmlinkage int irix_lseek64(int fd, int _unused, int offhi, int offlow, int base)
+static inline loff_t llseek(struct file *file, loff_t offset, int origin)
 {
-	mm_segment_t old_fs;
-	loff_t junk;
-	int error;
+	loff_t (*fn)(struct file *, loff_t, int);
+	loff_t retval;
 
+	fn = default_llseek;
+	if (file->f_op && file->f_op->llseek)
+        fn = file->f_op->llseek;
 	lock_kernel();
-	old_fs = get_fs(); set_fs(get_ds());
-	error = sys_llseek(fd, offhi, offlow, &junk, base);
-	set_fs(old_fs);
-
-	if(error)
-		goto out;
-	error = (int) junk;
-out:
+	retval = fn(file, offset, origin);
 	unlock_kernel();
-	return error;
+	return retval;
+}
+
+asmlinkage int irix_lseek64(int fd, int _unused, int offhi, int offlow,
+                            int origin)
+{
+	int retval;
+	struct file * file;
+	loff_t offset;
+
+	retval = -EBADF;
+	file = fget(fd);
+	if (!file)
+		goto bad;
+	retval = -EINVAL;
+	if (origin > 2)
+		goto out_putf;
+
+	offset = llseek(file, ((loff_t) offhi << 32) | offlow, origin);
+	retval = (int) offset;
+
+out_putf:
+	fput(file);
+bad:
+	return retval;
 }
 
 asmlinkage int irix_sginap(int ticks)
@@ -1062,9 +1051,7 @@ asmlinkage int irix_gettimeofday(struct timeval *tv)
 {
 	int retval;
 
-	lock_kernel();
 	retval = copy_to_user(tv, &xtime, sizeof(*tv)) ? -EFAULT : 0;
-	unlock_kernel();
 	return retval;
 }
 
@@ -1076,12 +1063,9 @@ asmlinkage unsigned long irix_mmap32(unsigned long addr, size_t len, int prot,
 	struct file *file = NULL;
 	unsigned long retval;
 
-	lock_kernel();
 	if (!(flags & MAP_ANONYMOUS)) {
-		if (!(file = fget(fd))) {
-			retval = -EBADF;
-			goto out;
-		}
+		if (!(file = fget(fd)))
+			return -EBADF;
 
 		/* Ok, bad taste hack follows, try to think in something else
 		 * when reading this.  */
@@ -1105,36 +1089,30 @@ asmlinkage unsigned long irix_mmap32(unsigned long addr, size_t len, int prot,
 	if (file)
 		fput(file);
 
-out:
-	unlock_kernel();
-
 	return retval;
 }
 
 asmlinkage int irix_madvise(unsigned long addr, int len, int behavior)
 {
-	lock_kernel();
 	printk("[%s:%d] Wheee.. irix_madvise(%08lx,%d,%d)\n",
 	       current->comm, current->pid, addr, len, behavior);
-	unlock_kernel();
+
 	return -EINVAL;
 }
 
 asmlinkage int irix_pagelock(char *addr, int len, int op)
 {
-	lock_kernel();
 	printk("[%s:%d] Wheee.. irix_pagelock(%p,%d,%d)\n",
 	       current->comm, current->pid, addr, len, op);
-	unlock_kernel();
+
 	return -EINVAL;
 }
 
 asmlinkage int irix_quotactl(struct pt_regs *regs)
 {
-	lock_kernel();
 	printk("[%s:%d] Wheee.. irix_quotactl()\n",
 	       current->comm, current->pid);
-	unlock_kernel();
+
 	return -EINVAL;
 }
 
@@ -1142,7 +1120,6 @@ asmlinkage int irix_BSDsetpgrp(int pid, int pgrp)
 {
 	int error;
 
-	lock_kernel();
 #ifdef DEBUG_PROCGRPS
 	printk("[%s:%d] BSDsetpgrp(%d, %d) ", current->comm, current->pid,
 	       pid, pgrp);
@@ -1151,7 +1128,7 @@ asmlinkage int irix_BSDsetpgrp(int pid, int pgrp)
 		pid = current->pid;
 
 	/* Wheee, weird sysv thing... */
-	if((pgrp == 0) && (pid == current->pid))
+	if ((pgrp == 0) && (pid == current->pid))
 		error = sys_setsid();
 	else
 		error = sys_setpgid(pid, pgrp);
@@ -1160,16 +1137,14 @@ asmlinkage int irix_BSDsetpgrp(int pid, int pgrp)
 	printk("error = %d\n", error);
 #endif
 
-	unlock_kernel();
 	return error;
 }
 
 asmlinkage int irix_systeminfo(int cmd, char *buf, int cnt)
 {
-	lock_kernel();
 	printk("[%s:%d] Wheee.. irix_systeminfo(%d,%p,%d)\n",
 	       current->comm, current->pid, cmd, buf, cnt);
-	unlock_kernel();
+
 	return -EINVAL;
 }
 
@@ -1183,22 +1158,17 @@ struct iuname {
 
 asmlinkage int irix_uname(struct iuname *buf)
 {
-	int retval;
-
-	lock_kernel();
-	if(copy_to_user(system_utsname.sysname, buf->sysname, 65)
-	   || copy_to_user(system_utsname.nodename, buf->nodename, 65)
-	   || copy_to_user(system_utsname.release, buf->release, 65)
-	   || copy_to_user(system_utsname.version, buf->version, 65)
-	   || copy_to_user(system_utsname.machine, buf->machine, 65)) {
-		retval = -EFAULT;
-		goto out;
+	down_read(&uts_sem);
+	if (copy_to_user(system_utsname.sysname, buf->sysname, 65)
+	    || copy_to_user(system_utsname.nodename, buf->nodename, 65)
+	    || copy_to_user(system_utsname.release, buf->release, 65)
+	    || copy_to_user(system_utsname.version, buf->version, 65)
+	    || copy_to_user(system_utsname.machine, buf->machine, 65)) {
+		return -EFAULT;
 	}
-	retval = 1;
+	up_read(&uts_sem);
 
-out:
-	unlock_kernel();
-	return retval;
+	return 1;
 }
 
 #undef DEBUG_XSTAT
@@ -1293,7 +1263,6 @@ asmlinkage int irix_xstat(int version, char *filename, struct stat *statbuf)
 {
 	int retval;
 
-	lock_kernel();
 #ifdef DEBUG_XSTAT
 	printk("[%s:%d] Wheee.. irix_xstat(%d,%s,%p) ",
 	       current->comm, current->pid, version, filename, statbuf);
@@ -1334,7 +1303,6 @@ asmlinkage int irix_xstat(int version, char *filename, struct stat *statbuf)
 	}
 
 out:
-	unlock_kernel();
 	return retval;
 }
 
@@ -1344,7 +1312,6 @@ asmlinkage int irix_lxstat(int version, char *filename, struct stat *statbuf)
 {
 	int error;
 
-	lock_kernel();
 #ifdef DEBUG_XSTAT
 	printk("[%s:%d] Wheee.. irix_lxstat(%d,%s,%p) ",
 	       current->comm, current->pid, version, filename, statbuf);
@@ -1385,7 +1352,6 @@ asmlinkage int irix_lxstat(int version, char *filename, struct stat *statbuf)
 	}
 
 out:
-	unlock_kernel();
 	return error;
 }
 
@@ -1395,7 +1361,6 @@ asmlinkage int irix_fxstat(int version, int fd, struct stat *statbuf)
 {
 	int error;
 
-	lock_kernel();
 #ifdef DEBUG_XSTAT
 	printk("[%s:%d] Wheee.. irix_fxstat(%d,%d,%p) ",
 	       current->comm, current->pid, version, fd, statbuf);
@@ -1436,7 +1401,6 @@ asmlinkage int irix_fxstat(int version, int fd, struct stat *statbuf)
 	}
 
 out:
-	unlock_kernel();
 	return error;
 }
 
@@ -1446,30 +1410,27 @@ asmlinkage int irix_xmknod(int ver, char *filename, int mode, dev_t dev)
 {
 	int retval;
 
-	lock_kernel();
 	printk("[%s:%d] Wheee.. irix_xmknod(%d,%s,%x,%x)\n",
 	       current->comm, current->pid, ver, filename, mode, (int) dev);
+
 	switch(ver) {
 	case 2:
 		retval = sys_mknod(filename, mode, dev);
-		goto out;
+		break;
 
 	default:
 		retval = -EINVAL;
-		goto out;
+		break;
 	};
 
-out:
-	unlock_kernel();
 	return retval;
 }
 
 asmlinkage int irix_swapctl(int cmd, char *arg)
 {
-	lock_kernel();
 	printk("[%s:%d] Wheee.. irix_swapctl(%d,%p)\n",
 	       current->comm, current->pid, cmd, arg);
-	unlock_kernel();
+
 	return -EINVAL;
 }
 
@@ -1487,7 +1448,6 @@ asmlinkage int irix_statvfs(char *fname, struct irix_statvfs *buf)
 	struct statfs kbuf;
 	int error, i;
 
-	lock_kernel();
 	printk("[%s:%d] Wheee.. irix_statvfs(%s,%p)\n",
 	       current->comm, current->pid, fname, buf);
 	error = verify_area(VERIFY_WRITE, buf, sizeof(struct irix_statvfs));
@@ -1513,11 +1473,11 @@ asmlinkage int irix_statvfs(char *fname, struct irix_statvfs *buf)
 #else
 	__put_user(kbuf.f_fsid.val[0], &buf->f_fsid);
 #endif
-	for(i = 0; i < 16; i++)
+	for (i = 0; i < 16; i++)
 		__put_user(0, &buf->f_basetype[i]);
 	__put_user(0, &buf->f_flag);
 	__put_user(kbuf.f_namelen, &buf->f_namemax);
-	for(i = 0; i < 32; i++)
+	for (i = 0; i < 32; i++)
 		__put_user(0, &buf->f_fstr[i]);
 
 	error = 0;
@@ -1525,7 +1485,6 @@ asmlinkage int irix_statvfs(char *fname, struct irix_statvfs *buf)
 dput_and_out:
 	path_release(&nd);
 out:
-	unlock_kernel();
 	return error;
 }
 
@@ -1535,7 +1494,6 @@ asmlinkage int irix_fstatvfs(int fd, struct irix_statvfs *buf)
 	struct file *file;
 	int error, i;
 
-	lock_kernel();
 	printk("[%s:%d] Wheee.. irix_fstatvfs(%d,%p)\n",
 	       current->comm, current->pid, fd, buf);
 
@@ -1572,25 +1530,22 @@ asmlinkage int irix_fstatvfs(int fd, struct irix_statvfs *buf)
 out_f:
 	fput(file);
 out:
-	unlock_kernel();
 	return error;
 }
 
 asmlinkage int irix_priocntl(struct pt_regs *regs)
 {
-	lock_kernel();
 	printk("[%s:%d] Wheee.. irix_priocntl()\n",
 	       current->comm, current->pid);
-	unlock_kernel();
+
 	return -EINVAL;
 }
 
 asmlinkage int irix_sigqueue(int pid, int sig, int code, int val)
 {
-	lock_kernel();
 	printk("[%s:%d] Wheee.. irix_sigqueue(%d,%d,%d,%d)\n",
 	       current->comm, current->pid, pid, sig, code, val);
-	unlock_kernel();
+
 	return -EINVAL;
 }
 
@@ -1601,15 +1556,13 @@ asmlinkage int irix_truncate64(char *name, int pad, int size1, int size2)
 {
 	int retval;
 
-	lock_kernel();
-	if(size1) {
+	if (size1) {
 		retval = -EINVAL;
 		goto out;
 	}
 	retval = sys_truncate(name, size2);
 
 out:
-	unlock_kernel();
 	return retval;
 }
 
@@ -1617,15 +1570,13 @@ asmlinkage int irix_ftruncate64(int fd, int pad, int size1, int size2)
 {
 	int retval;
 
-	lock_kernel();
-	if(size1) {
+	if (size1) {
 		retval = -EINVAL;
 		goto out;
 	}
 	retval = sys_ftruncate(fd, size2);
 
 out:
-	unlock_kernel();
 	return retval;
 }
 
@@ -1639,7 +1590,6 @@ asmlinkage int irix_mmap64(struct pt_regs *regs)
 	unsigned long addr, pgoff, *sp;
 	struct file *file = NULL;
 
-	lock_kernel();
 	if (regs->regs[2] == 1000)
 		base = 1;
 	sp = (unsigned long *) (regs->regs[29] + 16);
@@ -1701,8 +1651,6 @@ asmlinkage int irix_mmap64(struct pt_regs *regs)
 		fput(file);
 
 out:
-	unlock_kernel();
-
 	return error;
 }
 
@@ -1761,7 +1709,6 @@ asmlinkage int irix_statvfs64(char *fname, struct irix_statvfs64 *buf)
 	struct statfs kbuf;
 	int error, i;
 
-	lock_kernel();
 	printk("[%s:%d] Wheee.. irix_statvfs(%s,%p)\n",
 	       current->comm, current->pid, fname, buf);
 	error = verify_area(VERIFY_WRITE, buf, sizeof(struct irix_statvfs));
@@ -1799,7 +1746,6 @@ asmlinkage int irix_statvfs64(char *fname, struct irix_statvfs64 *buf)
 dput_and_out:
 	path_release(&nd);
 out:
-	unlock_kernel();
 	return error;
 }
 
@@ -1809,7 +1755,6 @@ asmlinkage int irix_fstatvfs64(int fd, struct irix_statvfs *buf)
 	struct file *file;
 	int error, i;
 
-	lock_kernel();
 	printk("[%s:%d] Wheee.. irix_fstatvfs(%d,%p)\n",
 	       current->comm, current->pid, fd, buf);
 
@@ -1846,20 +1791,18 @@ asmlinkage int irix_fstatvfs64(int fd, struct irix_statvfs *buf)
 out_f:
 	fput(file);
 out:
-	unlock_kernel();
 	return error;
 }
 
 asmlinkage int irix_getmountid(char *fname, unsigned long *midbuf)
 {
-	int error;
+	int err;
 
-	lock_kernel();
 	printk("[%s:%d] irix_getmountid(%s, %p)\n",
 	       current->comm, current->pid, fname, midbuf);
-	error = verify_area(VERIFY_WRITE, midbuf, (sizeof(unsigned long) * 4));
-	if(error)
-		goto out;
+	err = verify_area(VERIFY_WRITE, midbuf, (sizeof(unsigned long) * 4));
+	if (err)
+		return err;
 
 	/*
 	 * The idea with this system call is that when trying to determine
@@ -1867,24 +1810,20 @@ asmlinkage int irix_getmountid(char *fname, unsigned long *midbuf)
 	 * fsid of the filesystem to try and make the right decision, but
 	 * we don't have this so for now. XXX
 	 */
-	__put_user(0, &midbuf[0]);
-	__put_user(0, &midbuf[1]);
-	__put_user(0, &midbuf[2]);
-	__put_user(0, &midbuf[3]);
-	error = 0;
+	err |= __put_user(0, &midbuf[0]);
+	err |= __put_user(0, &midbuf[1]);
+	err |= __put_user(0, &midbuf[2]);
+	err |= __put_user(0, &midbuf[3]);
 
-out:
-	unlock_kernel();
-	return error;
+	return err;
 }
 
 asmlinkage int irix_nsproc(unsigned long entry, unsigned long mask,
 			   unsigned long arg, unsigned long sp, int slen)
 {
-	lock_kernel();
 	printk("[%s:%d] Wheee.. irix_nsproc(%08lx,%08lx,%08lx,%08lx,%d)\n",
 	       current->comm, current->pid, entry, mask, arg, sp, slen);
-	unlock_kernel();
+
 	return -EINVAL;
 }
 
@@ -1954,8 +1893,6 @@ asmlinkage int irix_ngetdents(unsigned int fd, void * dirent, unsigned int count
 	if (!file)
 		goto out;
 
-	lock_kernel();
-
 	buf.current_dir = (struct irix_dirent32 *) dirent;
 	buf.previous = NULL;
 	buf.count = count;
@@ -1983,7 +1920,6 @@ asmlinkage int irix_ngetdents(unsigned int fd, void * dirent, unsigned int count
 	error = count - buf.count;
 
 out_putf:
-	unlock_kernel();
 	fput(file);
 out:
 	return error;
@@ -2048,14 +1984,12 @@ asmlinkage int irix_getdents64(int fd, void *dirent, int cnt)
 	if (!(file = fget(fd)))
 		goto out;
 
-	lock_kernel();
-
 	error = -EFAULT;
-	if(!access_ok(VERIFY_WRITE, dirent, cnt))
+	if (!access_ok(VERIFY_WRITE, dirent, cnt))
 		goto out_f;
 
 	error = -EINVAL;
-	if(cnt < (sizeof(struct irix_dirent64) + 255))
+	if (cnt < (sizeof(struct irix_dirent64) + 255))
 		goto out_f;
 
 	buf.curr = (struct irix_dirent64 *) dirent;
@@ -2077,7 +2011,6 @@ asmlinkage int irix_getdents64(int fd, void *dirent, int cnt)
 	error = cnt - buf.count;
 
 out_f:
-	unlock_kernel();
 	fput(file);
 out:
 	return error;
@@ -2098,15 +2031,13 @@ asmlinkage int irix_ngetdents64(int fd, void *dirent, int cnt, int *eob)
 	if (!(file = fget(fd)))
 		goto out;
 
-	lock_kernel();
-
 	error = -EFAULT;
-	if(!access_ok(VERIFY_WRITE, dirent, cnt) ||
-	   !access_ok(VERIFY_WRITE, eob, sizeof(*eob)))
+	if (!access_ok(VERIFY_WRITE, dirent, cnt) ||
+	    !access_ok(VERIFY_WRITE, eob, sizeof(*eob)))
 		goto out_f;
 
 	error = -EINVAL;
-	if(cnt < (sizeof(struct irix_dirent64) + 255))
+	if (cnt < (sizeof(struct irix_dirent64) + 255))
 		goto out_f;
 
 	*eob = 0;
@@ -2129,7 +2060,6 @@ asmlinkage int irix_ngetdents64(int fd, void *dirent, int cnt, int *eob)
 	error = cnt - buf.count;
 
 out_f:
-	unlock_kernel();
 	fput(file);
 out:
 	return error;
@@ -2139,8 +2069,7 @@ asmlinkage int irix_uadmin(unsigned long op, unsigned long func, unsigned long a
 {
 	int retval;
 
-	lock_kernel();
-	switch(op) {
+	switch (op) {
 	case 1:
 		/* Reboot */
 		printk("[%s:%d] irix_uadmin: Wants to reboot...\n",
@@ -2184,7 +2113,6 @@ asmlinkage int irix_uadmin(unsigned long op, unsigned long func, unsigned long a
 	};
 
 out:
-	unlock_kernel();
 	return retval;
 }
 
@@ -2192,7 +2120,6 @@ asmlinkage int irix_utssys(char *inbuf, int arg, int type, char *outbuf)
 {
 	int retval;
 
-	lock_kernel();
 	switch(type) {
 	case 0:
 		/* uname() */
@@ -2221,7 +2148,6 @@ asmlinkage int irix_utssys(char *inbuf, int arg, int type, char *outbuf)
 	}
 
 out:
-	unlock_kernel();
 	return retval;
 }
 
@@ -2236,7 +2162,6 @@ asmlinkage int irix_fcntl(int fd, int cmd, int arg)
 {
 	int retval;
 
-	lock_kernel();
 #ifdef DEBUG_FCNTL
 	printk("[%s:%d] irix_fcntl(%d, %d, %d) ", current->comm,
 	       current->pid, fd, cmd, arg);
@@ -2248,7 +2173,6 @@ asmlinkage int irix_fcntl(int fd, int cmd, int arg)
 #ifdef DEBUG_FCNTL
 	printk("%d\n", retval);
 #endif
-	unlock_kernel();
 	return retval;
 }
 
@@ -2256,7 +2180,6 @@ asmlinkage int irix_ulimit(int cmd, int arg)
 {
 	int retval;
 
-	lock_kernel();
 	switch(cmd) {
 	case 1:
 		printk("[%s:%d] irix_ulimit: Wants to get file size limit.\n",
@@ -2299,7 +2222,6 @@ asmlinkage int irix_ulimit(int cmd, int arg)
 		goto out;
 	}
 out:
-	unlock_kernel();
 	return retval;
 }
 

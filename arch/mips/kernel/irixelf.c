@@ -1284,7 +1284,7 @@ static int __init init_irix_binfmt(void)
 	return register_binfmt(&irix_format);
 }
 
-static void __exit cleanup_module(void)
+static void __exit exit_irix_binfmt(void)
 {
 	/* Remove the IRIX ELF loaders. */
 	unregister_binfmt(&irix_format);

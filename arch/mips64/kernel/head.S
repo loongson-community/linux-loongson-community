@@ -154,6 +154,7 @@ NESTED(bootstrap, 16, sp)
 
 	.comm	kernelsp, 8, 8			# current stackpointer
 
+#undef PAGE_SIZE
 #define PAGE_SIZE	0x1000
 
 	.macro	page name, order=0

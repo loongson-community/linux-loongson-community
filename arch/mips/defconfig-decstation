@@ -64,6 +64,11 @@ CONFIG_TC=y
 # CONFIG_PCMCIA is not set
 
 #
+# Memory Technology Devices (MTD)
+#
+# CONFIG_MTD is not set
+
+#
 # Block devices
 #
 # CONFIG_BLK_DEV_FD is not set
@@ -228,6 +233,7 @@ CONFIG_SERIAL_CONSOLE=y
 # CONFIG_UMSDOS_FS is not set
 # CONFIG_VFAT_FS is not set
 # CONFIG_EFS_FS is not set
+# CONFIG_JFFS_FS is not set
 # CONFIG_CRAMFS is not set
 # CONFIG_RAMFS is not set
 # CONFIG_ISO9660_FS is not set

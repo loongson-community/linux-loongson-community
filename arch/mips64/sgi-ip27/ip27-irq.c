@@ -1,9 +1,8 @@
-/* $Id: ip27-irq.c,v 1.9 2000/03/14 01:39:27 ralf Exp $
- *
+/*
  * ip27-irq.c: Highlevel interrupt handling for IP27 architecture.
  *
- * Copyright (C) 1999 Ralf Baechle (ralf@gnu.org)
- * Copyright (C) 1999 Silicon Graphics, Inc.
+ * Copyright (C) 1999, 2000 Ralf Baechle (ralf@gnu.org)
+ * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  */
 #include <linux/init.h>
 
@@ -285,8 +284,8 @@ void irq_debug(void)
 
 	printk("bridge->b_int_status = 0x%x\n", bridge->b_int_status);
 	printk("bridge->b_int_enable = 0x%x\n", bridge->b_int_enable);
-	printk("PI_INT_PEND0   = 0x%x\n", LOCAL_HUB_L(PI_INT_PEND0));
-	printk("PI_INT_MASK0_A = 0x%x\n", LOCAL_HUB_L(PI_INT_MASK0_A));
+	printk("PI_INT_PEND0   = 0x%lx\n", LOCAL_HUB_L(PI_INT_PEND0));
+	printk("PI_INT_MASK0_A = 0x%lx\n", LOCAL_HUB_L(PI_INT_MASK0_A));
 }
 
 int setup_irq(unsigned int irq, struct irqaction *new)
@@ -668,11 +667,14 @@ void handle_resched_intr(int irq, void *dev_id, struct pt_regs *regs)
 	/* Nothing, the return from intr will work for us */
 }
 
+extern void smp_call_function_interrupt(void);
+
 void install_cpuintr(int cpu)
 {
-	int irq;
-	extern void smp_call_function_interrupt(void);
+#ifdef CONFIG_SMP
+#if (CPUS_PER_NODE == 2)
 	static int done = 0;
+	int irq;
 
 	/*
 	 * This is a hack till we have a pernode irqlist. Currently,
@@ -680,8 +682,6 @@ void install_cpuintr(int cpu)
 	 * cpu irqs.
 	 */
 
-#ifdef CONFIG_SMP
-#if (CPUS_PER_NODE == 2)
 	irq = CPU_RESCHED_A_IRQ + cputoslice(cpu);
 	intr_connect_level(cpu, IRQ_TO_SWLEVEL(cpu, irq));
 	if (done == 0)

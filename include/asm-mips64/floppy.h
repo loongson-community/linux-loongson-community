@@ -76,7 +76,14 @@ extern struct fd_ops *fd_ops;
 #define FLOPPY1_TYPE			fd_drive_type(1)
 
 #define FDC1			fd_ops->fd_getfdaddr1();
+
+/*
+ * Hack: The floppy drivrer defines this, before including fdreg.h.  We use
+ * to define FDC2 only one and keep it a static variable in floppy.c.
+ */
+#ifdef FDPATCHES
 static int FDC2=-1;
+#endif
 
 #define N_FDC 1			/* do you *really* want a second controller? */
 #define N_DRIVE 8
