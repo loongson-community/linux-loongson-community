@@ -89,7 +89,7 @@ static inline u16 clear_giuint(u16 offset, u16 clear)
 	return res;
 }
 
-void vr41xx_enable_giuint(u8 pin)
+void vr41xx_enable_giuint(int pin)
 {
 	if (pin < 16)
 		set_giuint(GIUINTENL, (u16)1 << pin);
@@ -97,7 +97,7 @@ void vr41xx_enable_giuint(u8 pin)
 		set_giuint(GIUINTENH, (u16)1 << (pin - 16));
 }
 
-void vr41xx_disable_giuint(u8 pin)
+void vr41xx_disable_giuint(int pin)
 {
 	if (pin < 16)
 		clear_giuint(GIUINTENL, (u16)1 << pin);
@@ -105,7 +105,7 @@ void vr41xx_disable_giuint(u8 pin)
 		clear_giuint(GIUINTENH, (u16)1 << (pin - 16));
 }
 
-void vr41xx_clear_giuint(u8 pin)
+void vr41xx_clear_giuint(int pin)
 {
 	if (pin < 16)
 		write_giuint(GIUINTSTATL, (u16)1 << pin);
@@ -113,7 +113,7 @@ void vr41xx_clear_giuint(u8 pin)
 		write_giuint(GIUINTSTATH, (u16)1 << (pin - 16));
 }
 
-void vr41xx_set_irq_trigger(u8 pin, u8 trigger, u8 hold)
+void vr41xx_set_irq_trigger(int pin, int trigger, int hold)
 {
 	u16 mask;
 
@@ -146,7 +146,7 @@ void vr41xx_set_irq_trigger(u8 pin, u8 trigger, u8 hold)
 	vr41xx_clear_giuint(pin);
 }
 
-void vr41xx_set_irq_level(u8 pin, u8 level)
+void vr41xx_set_irq_level(int pin, int level)
 {
 	u16 mask;
 

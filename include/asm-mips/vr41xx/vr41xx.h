@@ -38,7 +38,6 @@
 #define PRID_VR4131_REV2_1	0x00000c82
 #define PRID_VR4131_REV2_2	0x00000c83
 
-
 /*
  * Bus Control Uint
  */
@@ -64,6 +63,10 @@ extern int vr41xx_cascade_irq(unsigned int irq, int (*get_irq_number)(int irq));
 /*
  * Gegeral-Purpose I/O Unit
  */
+extern void vr41xx_enable_giuint(int pin);
+extern void vr41xx_disable_giuint(int pin);
+extern void vr41xx_clear_giuint(int pin);
+
 enum {
 	TRIGGER_LEVEL,
 	TRIGGER_EDGE
@@ -74,14 +77,14 @@ enum {
 	SIGNAL_HOLD
 };
 
-extern void vr41xx_set_irq_trigger(u8 pin, u8 trigger, u8 hold);
+extern void vr41xx_set_irq_trigger(int pin, int trigger, int hold);
 
 enum {
 	LEVEL_LOW,
 	LEVEL_HIGH
 };
 
-extern void vr41xx_set_irq_level(u8 pin, u8 level);
+extern void vr41xx_set_irq_level(int pin, int level);
 
 enum {
 	PIO_INPUT,

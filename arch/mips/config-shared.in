@@ -13,6 +13,7 @@ dep_bool 'Support for Alchemy Semi PB1100 board' CONFIG_MIPS_PB1100 $CONFIG_MIPS
 dep_bool 'Support for Alchemy Semi PB1500 board' CONFIG_MIPS_PB1500 $CONFIG_MIPS32
 dep_bool 'Support for Algorithmics P4032 (EXPERIMENTAL)' CONFIG_ALGOR_P4032 $CONFIG_EXPERIMENTAL
 dep_bool 'Support for BAGET MIPS series (EXPERIMENTAL)' CONFIG_BAGET_MIPS $CONFIG_MIPS32 $CONFIG_EXPERIMENTAL
+bool 'Support for CASIO CASSIOPEIA E-10/15/55/65' CONFIG_CASIO_E55
 dep_bool 'Support for Cobalt Server (EXPERIMENTAL)' CONFIG_MIPS_COBALT $CONFIG_EXPERIMENTAL
 dep_bool 'Support for DECstations' CONFIG_DECSTATION $CONFIG_MIPS32
 dep_bool 'Support for Galileo EV64120 Evaluation board (EXPERIMENTAL)' CONFIG_MIPS_EV64120 $CONFIG_EXPERIMENTAL
@@ -26,6 +27,7 @@ fi
 dep_bool 'Support for Galileo EV96100 Evaluation board (EXPERIMENTAL)' CONFIG_MIPS_EV96100 $CONFIG_EXPERIMENTAL
 bool 'Support for Globespan IVR board' CONFIG_MIPS_IVR
 bool 'Support for Hewlett Packard LaserJet board' CONFIG_HP_LASERJET
+bool 'Support for IBM WorkPad z50' CONFIG_IBM_WORKPAD
 bool 'Support for ITE 8172G board' CONFIG_MIPS_ITE8172
 if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
    bool '  Support for older IT8172 (Rev C)' CONFIG_IT8172_REVC
@@ -94,6 +96,7 @@ if [ "$CONFIG_SIBYTE_SB1xxx_SOC" = "y" ]; then
 fi
 bool 'Support for SNI RM200 PCI' CONFIG_SNI_RM200_PCI
 dep_bool 'Support for Toshiba JMR-TX3927 board' CONFIG_TOSHIBA_JMR3927 $CONFIG_MIPS32
+bool 'Support for Victor MP-C303/304' CONFIG_VICTOR_MPC30X
 bool 'Support for ZAO Networks Capcella' CONFIG_ZAO_CAPCELLA
 
 dep_bool 'High Memory Support' CONFIG_HIGHMEM $CONFIG_MIPS32
@@ -114,6 +117,20 @@ if [ "$CONFIG_ACER_PICA_61" = "y" ]; then
    define_bool CONFIG_NONCOHERENT_IO y
    define_bool CONFIG_PC_KEYB y
    define_bool CONFIG_OLD_TIME_C y
+fi
+if [ "$CONFIG_CASIO_E55" = "y" ]; then
+   define_bool CONFIG_CPU_VR41XX y
+   define_bool CONFIG_CPU_LITTLE_ENDIAN y
+   define_bool CONFIG_NEW_IRQ y
+   define_bool CONFIG_IRQ_CPU y
+   define_bool CONFIG_NEW_TIME_C y
+   define_bool CONFIG_VR41XX_TIME_C y
+   define_bool CONFIG_NONCOHERENT_IO y
+   define_bool CONFIG_ISA y
+   define_bool CONFIG_SERIAL y
+   define_bool CONFIG_SERIAL_MANY_PORTS y
+   define_bool CONFIG_DUMMY_KEYB y
+   define_bool CONFIG_SCSI n
 fi
 if [ "$CONFIG_MIPS_PB1000" = "y" ]; then
    define_bool CONFIG_MIPS_AU1000 y
@@ -190,6 +207,20 @@ if [ "$CONFIG_HP_LASERJET" = "y" ]; then
    define_bool CONFIG_NONCOHERENT_IO y
    define_bool CONFIG_PCI y
    #not yet define_bool CONFIG_PCI_AUTO y
+fi
+if [ "$CONFIG_IBM_WORKPAD" = "y" ]; then
+   define_bool CONFIG_CPU_VR41XX y
+   define_bool CONFIG_CPU_LITTLE_ENDIAN y
+   define_bool CONFIG_NEW_IRQ y
+   define_bool CONFIG_IRQ_CPU y
+   define_bool CONFIG_NEW_TIME_C y
+   define_bool CONFIG_VR41XX_TIME_C y
+   define_bool CONFIG_NONCOHERENT_IO y
+   define_bool CONFIG_ISA y
+   define_bool CONFIG_SERIAL y
+   define_bool CONFIG_SERIAL_MANY_PORTS y
+   define_bool CONFIG_DUMMY_KEYB y
+   define_bool CONFIG_SCSI n
 fi
 if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
    define_bool CONFIG_PCI y
@@ -376,6 +407,21 @@ if [ "$CONFIG_TOSHIBA_JMR3927" = "y" ]; then
    define_bool CONFIG_NONCOHERENT_IO y
    define_bool CONFIG_SWAP_IO_SPACE y
    define_bool CONFIG_PC_KEYB y
+fi
+if [ "$CONFIG_VICTOR_MPC30X" = "y" ]; then
+   define_bool CONFIG_CPU_VR41XX y
+   define_bool CONFIG_CPU_LITTLE_ENDIAN y
+   define_bool CONFIG_NEW_IRQ y
+   define_bool CONFIG_IRQ_CPU y
+   define_bool CONFIG_NEW_TIME_C y
+   define_bool CONFIG_VR41XX_TIME_C y
+   define_bool CONFIG_NONCOHERENT_IO y
+   define_bool CONFIG_ISA n
+   define_bool CONFIG_PCI y
+   define_bool CONFIG_NEW_PCI y
+   define_bool CONFIG_PCI_AUTO y
+   define_bool CONFIG_DUMMY_KEYB y
+   define_bool CONFIG_SCSI n
 fi
 if [ "$CONFIG_ZAO_CAPCELLA" = "y" ]; then
    define_bool CONFIG_CPU_VR41XX y

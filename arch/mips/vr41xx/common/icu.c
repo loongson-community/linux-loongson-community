@@ -224,13 +224,9 @@ static struct hw_interrupt_type sysint2_irq_type = {
 
 /*=======================================================================*/
 
-extern void vr41xx_enable_giuint(u8 pin);
-extern void vr41xx_disable_giuint(u8 pin);
-extern void vr41xx_clear_giuint(u8 pin);
-
 static void enable_giuint_irq(unsigned int irq)
 {
-	u8 pin;
+	int pin;
 
 	pin = irq - GIUINT_IRQ_BASE;
 	if (pin < 16)
@@ -243,7 +239,7 @@ static void enable_giuint_irq(unsigned int irq)
 
 static void disable_giuint_irq(unsigned int irq)
 {
-	u8 pin;
+	int pin;
 
 	pin = irq - GIUINT_IRQ_BASE;
 	vr41xx_disable_giuint(pin);

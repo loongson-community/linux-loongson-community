@@ -81,7 +81,7 @@
 #define FPGA_CASCADE_IRQ		GIU_IRQ(FPGA_PIN)
 #define DCD_IRQ				GIU_IRQ(DCD_PIN)
 
-#define SDBINT_IRQ_BASE			89
+#define SDBINT_IRQ_BASE			88
 #define DEG_IRQ				(SDBINT_IRQ_BASE + 1)
 #define ENUM_IRQ			(SDBINT_IRQ_BASE + 2)
 #define SIO1INT_IRQ			(SDBINT_IRQ_BASE + 3)
@@ -89,14 +89,13 @@
 #define PARINT_IRQ			(SDBINT_IRQ_BASE + 5)
 #define SDBINT_IRQ_LAST			PARINT_IRQ
 
-#define PCIINT_IRQ_BASE			97
+#define PCIINT_IRQ_BASE			96
 #define CP_INTA_IRQ			(PCIINT_IRQ_BASE + 0)
 #define CP_INTB_IRQ			(PCIINT_IRQ_BASE + 1)
 #define CP_INTC_IRQ			(PCIINT_IRQ_BASE + 2)
 #define CP_INTD_IRQ			(PCIINT_IRQ_BASE + 3)
 #define LANINTA_IRQ			(PCIINT_IRQ_BASE + 4)
 #define PCIINT_IRQ_LAST			LANINTA_IRQ
-
 
 /*
  * On board Devices I/O Mapping
@@ -134,7 +133,6 @@
 #define NEC_EAGLE_PIOECP_CONFIG		KSEG1ADDR(0x0DFFFEF2)
 #define NEC_EAGLE_PIOECP_EXTCNT		KSEG1ADDR(0x0DFFFEF4)
 
-
 /*
  *  FLSHCNT Register
  */
@@ -142,7 +140,6 @@
 #define NEC_EAGLE_FLSHCNT_FRDY		0x80
 #define NEC_EAGLE_FLSHCNT_VPPE		0x40
 #define NEC_EAGLE_FLSHCNT_WP2		0x01
-
 
 /*
  * FLSHBANK Register
@@ -156,7 +153,6 @@
 #define NEC_EAGLE_FLSHBANK_BNKQ1	0x02
 #define NEC_EAGLE_FLSHBANK_BNKQ0	0x01
 
-
 /*
  * SWITCH Setting Register
  */
@@ -169,7 +165,6 @@
 #define NEC_EAGLE_SWTCHSET_DP1SW3	0x04
 #define NEC_EAGLE_SWTCHSET_DP1SW2	0x02
 #define NEC_EAGLE_SWTCHSET_DP1SW1	0x01
-
 
 /*
  * PPT Parallel Port Device Controller
@@ -196,13 +191,11 @@
 #define NEC_EAGLE_PPT_SELECT		0x02
 #define NEC_EAGLE_PPT_FAULT		0x01
 
-
 /*
  * LEDWR Register
  */
 #define NEC_EAGLE_LEDWR1		KSEG1ADDR(0x0DFFFFC0)
 #define NEC_EAGLE_LEDWR2		KSEG1ADDR(0x0DFFFFC4)
-
 
 /*
  * SDBINT Register
@@ -214,7 +207,6 @@
 #define NEC_EAGLE_SDBINT_ENUM		0x04
 #define NEC_EAGLE_SDBINT_DEG		0x02
 
-
 /*
  * SDB INTMSK Register
  */
@@ -225,14 +217,12 @@
 #define NEC_EAGLE_SDBINTMSK_MSKENUM	0x04
 #define NEC_EAGLE_SDBINTMSK_MSKDEG	0x02
 
-
 /*
  * RSTREG Register
  */
 #define NEC_EAGLE_RSTREG		KSEG1ADDR(0x0DFFFFD8)
 #define NEC_EAGLE_RST_RSTSW		0x02
 #define NEC_EAGLE_RST_LEDOFF		0x01
-
 
 /*
  * PCI INT Rgister
@@ -244,7 +234,6 @@
 #define NEC_EAGLE_PCIINT_CP_INTB	0x02
 #define NEC_EAGLE_PCIINT_CP_INTA	0x01
 
-
 /*
  * PCI INT Mask Register
  */
@@ -255,7 +244,6 @@
 #define NEC_EAGLE_PCIINTMSK_MSKCP_INTB	0x02
 #define NEC_EAGLE_PCIINTMSK_MSKCP_INTA	0x01
 
-
 /*
  * CLK Division Register
  */
@@ -265,7 +253,6 @@
 #define NEC_EAGLE_CLKDIV_VTDIV2		0x04
 #define NEC_EAGLE_CLKDIV_VTDIV1		0x02
 #define NEC_EAGLE_CLKDIV_VTDIV0		0x01
-
 
 /*
  * Source Revision Register

@@ -137,7 +137,20 @@ void __init pcibios_fixup_irqs(void)
 			dev->irq = LANINTA_IRQ;
 			break;
 		case 29:
-			dev->irq = PCISLOT_IRQ;
+			switch (pin) {
+			case 1:
+				dev->irq = PCISLOT_IRQ;
+				break;
+			case 2:
+				dev->irq = CP_INTB_IRQ;
+				break;
+			case 3:
+				dev->irq = CP_INTC_IRQ;
+				break;
+			case 4:
+				dev->irq = CP_INTD_IRQ;
+				break;
+			}
 			break;
 #ifdef CONFIG_VRC4173
 		case 30:

@@ -363,6 +363,39 @@ LOADADDR	:= 0x80000000
 endif
 
 #
+# Victor MP-C303/304 (VR4122)
+#
+ifdef CONFIG_VICTOR_MPC30X
+SUBDIRS		+= arch/mips/vr41xx/common \
+		   arch/mips/vr41xx/victor-mpc30x
+LIBS		+= arch/mips/vr41xx/common/vr41xx.o \
+		   arch/mips/vr41xx/victor-mpc30x/mpc30x.o
+LOADADDR	:= 0x80001000
+endif
+
+#
+# IBM WorkPad z50 (VR4121)
+#
+ifdef CONFIG_IBM_WORKPAD
+SUBDIRS		+= arch/mips/vr41xx/common \
+		   arch/mips/vr41xx/ibm-workpad
+LIBS		+= arch/mips/vr41xx/common/vr41xx.o \
+		   arch/mips/vr41xx/ibm-workpad/workpad.o
+LOADADDR	+= 0x80004000
+endif
+
+#
+# CASIO CASSIPEIA E-55/65 (VR4111)
+#
+ifdef CONFIG_CASIO_E55
+SUBDIRS		+= arch/mips/vr41xx/common \
+		   arch/mips/vr41xx/casio-e55
+LIBS		+= arch/mips/vr41xx/common/vr41xx.o \
+		   arch/mips/vr41xx/casio-e55/e55.o
+LOADADDR	+= 0x80004000
+endif
+
+#
 # Philips Nino
 #
 ifdef CONFIG_NINO

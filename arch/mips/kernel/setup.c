@@ -486,6 +486,9 @@ void __init setup_arch(char **cmdline_p)
 	void nec_osprey_setup(void);
 	void nec_eagle_setup(void);
 	void zao_capcella_setup(void);
+	void victor_mpc30x_setup(void);
+	void ibm_workpad_setup(void);
+	void casio_e55_setup(void);
 	void jmr3927_setup(void);
  	void it8172_setup(void);
 	void swarm_setup(void);
@@ -597,6 +600,21 @@ void __init setup_arch(char **cmdline_p)
 #ifdef CONFIG_ZAO_CAPCELLA
 		case MACH_ZAO_CAPCELLA:
 			zao_capcella_setup();
+			break;
+#endif
+#ifdef CONFIG_VICTOR_MPC30X
+		case MACH_VICTOR_MPC30X:
+			victor_mpc30x_setup();
+			break;
+#endif
+#ifdef CONFIG_IBM_WORKPAD
+		case MACH_IBM_WORKPAD:
+			ibm_workpad_setup();
+			break;
+#endif
+#ifdef CONFIG_CASIO_E55
+		case MACH_CASIO_E55:
+			casio_e55_setup();
 			break;
 #endif
 		}
