@@ -443,10 +443,10 @@ static inline void resource_init(void)
 {
 	int i;
 
-	code_resource.start = virt_to_phys(&_text);
-	code_resource.end = virt_to_phys(&_etext) - 1;
-	data_resource.start = virt_to_phys(&_etext);
-	data_resource.end = virt_to_phys(&_edata) - 1;
+	code_resource.start = CPHYSADDR(&_text);
+	code_resource.end = CPHYSADDR(&_etext) - 1;
+	data_resource.start = CPHYSADDR(&_etext);
+	data_resource.end = CPHYSADDR(&_edata) - 1;
 
 	/*
 	 * Request address space for all standard RAM.
