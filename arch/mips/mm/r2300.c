@@ -113,7 +113,7 @@ unsigned long __init r3k_cache_size(unsigned long ca_flags)
 
 	p = (volatile unsigned long *) KSEG0;
 
-	save_and_cli(flags);
+	flags = read_32bit_cp0_register(CP0_STATUS);
 
 	/* isolate cache space */
 	write_32bit_cp0_register(CP0_STATUS, (ca_flags|flags)&~ST0_IEC);
@@ -135,7 +135,8 @@ unsigned long __init r3k_cache_size(unsigned long ca_flags)
 		if (size > 0x40000)
 			size = 0;
 	}
-	restore_flags(flags);
+
+	write_32bit_cp0_register(CP0_STATUS, flags);
 
 	return size * sizeof(*p);
 }
@@ -162,7 +163,7 @@ static void r3k_flush_icache_range(unsigned long start, unsigned long size)
 	if (size > icache_size)
 		size = icache_size;
 
-	save_and_cli(flags);
+	flags = read_32bit_cp0_register(CP0_STATUS);
 
 	/* isolate cache space */
 	write_32bit_cp0_register(CP0_STATUS, (ST0_ISC|ST0_SWC|flags)&~ST0_IEC);
@@ -204,7 +205,7 @@ static void r3k_flush_icache_range(unsigned long start, unsigned long size)
 		p += 0x080;
 	}
 
-	restore_flags(flags);
+	write_32bit_cp0_register(CP0_STATUS, flags);
 }
 
 static void r3k_flush_dcache_range(unsigned long start, unsigned long size)
@@ -215,7 +216,7 @@ static void r3k_flush_dcache_range(unsigned long start, unsigned long size)
 	if (size > dcache_size)
 		size = dcache_size;
 
-	save_and_cli(flags);
+	flags = read_32bit_cp0_register(CP0_STATUS);
 
 	/* isolate cache space */
 	write_32bit_cp0_register(CP0_STATUS, (ST0_ISC|flags)&~ST0_IEC);
@@ -257,7 +258,7 @@ static void r3k_flush_dcache_range(unsigned long start, unsigned long size)
 		p += 0x080;
 	}
 
-	restore_flags(flags);
+	write_32bit_cp0_register(CP0_STATUS, flags);
 }
 
 static inline unsigned long get_phys_page (unsigned long addr,
@@ -382,7 +383,7 @@ static void r3k_flush_cache_sigtramp(unsigned long addr)
 	printk("csigtramp[%08lx]", addr);
 #endif
 
-	save_and_cli(flags);
+	flags = read_32bit_cp0_register(CP0_STATUS);
 
 	write_32bit_cp0_register(CP0_STATUS, (ST0_ISC|ST0_SWC|flags)&~ST0_IEC);
 
@@ -391,7 +392,7 @@ static void r3k_flush_cache_sigtramp(unsigned long addr)
 		"sb\t$0,0x008(%0)\n\t"
 		: : "r" (addr) );
 
-	restore_flags(flags);
+	write_32bit_cp0_register(CP0_STATUS, flags);
 }
 
 static void r3k_dma_cache_wback_inv(unsigned long start, unsigned long size)
