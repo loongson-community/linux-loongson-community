@@ -159,6 +159,7 @@ static void local_sb1_flush_icache_range(unsigned long start, unsigned long end)
 	unsigned long flags;
 	local_irq_save(flags);
 #endif
+
 	__asm__ __volatile__ (
 		".set push                  \n"
 		".set noreorder             \n"
@@ -177,7 +178,9 @@ static void local_sb1_flush_icache_range(unsigned long start, unsigned long end)
 		"      addu  $1, $1, %2     \n" /* next line */
 		".set pop                   \n"
 		:
-		: "r" (start), "r" (end), "r" (dcache_line_size));
+		: "r" (start  & ~(dcache_line_size - 1)),
+		  "r" ((end + dcache_line_size - 1) & ~(dcache_line_size - 1)),
+		  "r" (dcache_line_size));
 	__asm__ __volatile__ (
 		".set push                  \n"
 		".set noreorder             \n"
@@ -191,22 +194,17 @@ static void local_sb1_flush_icache_range(unsigned long start, unsigned long end)
 		local_irq_restore(flags);
 #endif
 
-	/* XXXKW Guess what: these Kseg0 addressese aren't
-	   enough to let us figure out what may be in the
-	   cache under mapped Useg tags.  The situation is
-	   even worse, because bit 12 belongs to both the page
-	   number AND the cache index, which means the Kseg0
-	   page number may have a different cache index than
-	   the Useg address.  For these two reasons, we have
-	   to flush the entire thing.  Since the Dcache is
-	   physically tagged, we *can* use hit operations, */
-#if 0
-	start &= icache_index_mask;
-	end   &= icache_index_mask;
-#else
+	/* Guess what: these Kseg0 addressese aren't enough to let us figure
+	 * out what may be in the cache under mapped Useg tags.  The situation
+	 * is even worse, because bit 12 belongs to both the page number AND
+	 * the cache index, which means the Kseg0 page number may have a
+	 * different cache index than the Useg address.  For these two reasons,
+	 * we have to flush the entire thing.  Since the Dcache is physically
+	 * tagged, we *can* use hit operations.
+	 */
 	start = 0;
 	end = icache_index_mask;
-#endif
+
 	__asm__ __volatile__ (
 		".set push                  \n"
 		".set noreorder             \n"
@@ -222,7 +220,9 @@ static void local_sb1_flush_icache_range(unsigned long start, unsigned long end)
 		"      addu  $1, $1, %2     \n" /* next line */
 		".set pop                   \n"
 		:
-		: "r" (start), "r" (end), "r" (icache_line_size));
+		: "r" (start & ~(icache_line_size - 1)),
+		  "r" (end + (icache_line_size - 1) & ~(dcache_line_size - 1)),
+		  "r" (icache_line_size));
 }
 
 #ifdef CONFIG_SMP
@@ -505,19 +505,17 @@ void ld_mmu_sb1(void)
 	_flush_cache_all = sb1_flush_cache_all;
 	___flush_cache_all = sb1___flush_cache_all;
 	_flush_cache_mm = (void (*)(struct mm_struct *))sb1_nop;
-	_flush_cache_range = (void (*)(struct mm_struct *, unsigned long, unsigned long))sb1_nop;
+	_flush_cache_range = (void *) sb1_nop;
 	_flush_page_to_ram = sb1_flush_page_to_ram;
 	_flush_icache_page = sb1_flush_icache_page;
 	_flush_icache_range = sb1_flush_icache_range;
 
 	/* None of these are needed for the sb1 */
-	_flush_cache_page = (void (*)(struct vm_area_struct *, unsigned long))sb1_nop;
+	_flush_cache_page = (void *) sb1_nop;
 
 	_flush_cache_sigtramp = sb1_flush_cache_sigtramp;
 	_flush_icache_all = sb1_flush_icache_all;
 
-	/* JDCXXX I'm not sure whether these are necessary: is this the right 
-	   place to initialize the tlb?  If it is, why is it done 
-	   at this level instead of as common code in loadmmu()?  */
+	change_cp0_config(CONF_CM_CMASK, CONF_CM_CACHABLE_COW);
 	flush_cache_all();
 }
