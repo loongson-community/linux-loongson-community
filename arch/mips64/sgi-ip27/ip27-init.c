@@ -462,7 +462,7 @@ void allowboot(void)
 	}
 
 	/* while(atomic_read(&numstarted) != (maxcpus - num_cpus)) */
-	while(atomic_read(&numstarted) == 0);
+	if (maxcpus > 1) while(atomic_read(&numstarted) == 0);
 	printk("Holding %d cpus slave\n", atomic_read(&numstarted));
 
 #ifdef LATER
