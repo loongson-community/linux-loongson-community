@@ -13,6 +13,8 @@
 #include <linux/interrupt.h>
 #include <linux/pci.h>
 #include <linux/init.h>
+#include <linux/serial.h>
+#include <linux/serial_core.h>
 
 #include <asm/bootinfo.h>
 #include <asm/time.h>
@@ -21,6 +23,7 @@
 #include <asm/processor.h>
 #include <asm/reboot.h>
 #include <asm/gt64120.h>
+#include <asm/serial.h>
 
 #include <asm/cobalt/cobalt.h>
 
@@ -89,6 +92,7 @@ static struct pci_controller cobalt_pci_controller = {
 
 static int __init cobalt_setup(void)
 {
+	static struct uart_port uart;
 	unsigned int devfn = PCI_DEVFN(COBALT_PCICONF_VIA, 0);
 	int i;
 
@@ -125,6 +129,21 @@ static int __init cobalt_setup(void)
 
 #ifdef CONFIG_PCI
 	register_pci_controller(&cobalt_pci_controller);
+#endif
+
+#ifdef CONFIG_SERIAL_8250
+	if (cobalt_board_id > COBALT_BRD_ID_RAQ1) {
+
+		uart.line	= 0;
+		uart.type	= PORT_UNKNOWN;
+		uart.uartclk	= 18432000;
+		uart.irq	= COBALT_SERIAL_IRQ;
+		uart.flags	= STD_COM_FLAGS;
+		uart.iobase	= 0xc800000;
+		uart.iotype	= UPIO_PORT;
+
+		early_serial_setup(&uart);
+	}
 #endif
 
 	return 0;

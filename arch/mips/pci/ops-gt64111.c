@@ -20,13 +20,21 @@
 /*
  * Accessing device 31 hangs the GT64120.  Not sure if this will also hang
  * the GT64111, let's be paranoid for now.
+ *
+ * Accessing device COBALT_PCICONF_CPU hangs early units.
  */
 static inline int pci_range_ck(struct pci_bus *bus, unsigned int devfn)
 {
-	if (bus->number == 0 && devfn == PCI_DEVFN(31, 0))
-		return -1;
+	unsigned slot;
 
-	return 0;
+	if (bus->number == 0) {
+
+		slot = PCI_SLOT(devfn);
+		if (slot != COBALT_PCICONF_CPU && slot < 31)
+			return 0;
+	}
+
+	return -1;
 }
 
 static int gt64111_pci_read_config(struct pci_bus *bus, unsigned int devfn,

@@ -109,6 +109,15 @@ static void qube_raq_galileo_fixup(struct pci_dev *dev)
 DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_MARVELL, PCI_DEVICE_ID_MARVELL_GT64111,
 	 qube_raq_galileo_fixup);
 
+static char irq_tab_qube1[] __initdata = {
+  [COBALT_PCICONF_CPU]     = 0,
+  [COBALT_PCICONF_ETH0]    = COBALT_QUBE1_ETH0_IRQ,
+  [COBALT_PCICONF_RAQSCSI] = COBALT_SCSI_IRQ,
+  [COBALT_PCICONF_VIA]     = 0,
+  [COBALT_PCICONF_PCISLOT] = COBALT_QUBE_SLOT_IRQ,
+  [COBALT_PCICONF_ETH1]    = 0
+};
+
 static char irq_tab_cobalt[] __initdata = {
   [COBALT_PCICONF_CPU]     = 0,
   [COBALT_PCICONF_ETH0]    = COBALT_ETH0_IRQ,
@@ -129,6 +138,9 @@ static char irq_tab_raq2[] __initdata = {
 
 int __init pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 {
+	if (cobalt_board_id < COBALT_BRD_ID_QUBE2)
+		return irq_tab_qube1[slot];
+
 	if (cobalt_board_id == COBALT_BRD_ID_RAQ2)
 		return irq_tab_raq2[slot];
 

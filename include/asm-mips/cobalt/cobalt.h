@@ -29,6 +29,7 @@
 #define COBALT_SCC_IRQ          19		/* pre-production has 85C30 */
 #define COBALT_RAQ_SCSI_IRQ	19
 #define COBALT_ETH0_IRQ		19
+#define COBALT_QUBE1_ETH0_IRQ	20
 #define COBALT_ETH1_IRQ		20
 #define COBALT_SERIAL_IRQ	21
 #define COBALT_SCSI_IRQ         21
