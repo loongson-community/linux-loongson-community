@@ -80,8 +80,8 @@ void __init ip32_time_init(void)
 {
 	printk(KERN_INFO "Calibrating system timer... ");
 	write_c0_count(0);
-	crime_write(0, CRIME_TIMER);
-	while (crime_read(CRIME_TIMER) < CRIME_MASTER_FREQ * WAIT_MS / 1000) ;
+	crime->timer = 0;
+	while (crime->timer < CRIME_MASTER_FREQ * WAIT_MS / 1000) ;
 	mips_hpt_frequency = read_c0_count() * 1000 / WAIT_MS;
 	printk("%d MHz CPU detected\n", mips_hpt_frequency * 2 / 1000000);
 }
