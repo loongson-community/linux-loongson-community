@@ -286,7 +286,7 @@ static int kstat_read_proc(char *page, char **start, off_t off,
 {
 	int i, len;
 	extern unsigned long total_forks;
-	unsigned long jif = HZ_TO_STD(jiffies);
+	unsigned long jif = hz_to_std(jiffies);
 	unsigned sum = 0;
 	int major, disk;
 
@@ -295,17 +295,17 @@ static int kstat_read_proc(char *page, char **start, off_t off,
 
 	len = sprintf(page,
 		"cpu  %u %u %u %lu\n",
-		HZ_TO_STD(kstat.cpu_user),
-		HZ_TO_STD(kstat.cpu_nice),
-		HZ_TO_STD(kstat.cpu_system),
-		jif*smp_num_cpus - HZ_TO_STD(kstat.cpu_user + kstat.cpu_nice + kstat.cpu_system));
+		hz_to_std(kstat.cpu_user),
+		hz_to_std(kstat.cpu_nice),
+		hz_to_std(kstat.cpu_system),
+		jif*smp_num_cpus - hz_to_std(kstat.cpu_user + kstat.cpu_nice + kstat.cpu_system));
 	for (i = 0 ; i < smp_num_cpus; i++)
 		len += sprintf(page + len, "cpu%d %u %u %u %lu\n",
 			i,
-			HZ_TO_STD(kstat.per_cpu_user[cpu_logical_map(i)]),
-			HZ_TO_STD(kstat.per_cpu_nice[cpu_logical_map(i)]),
-			HZ_TO_STD(kstat.per_cpu_system[cpu_logical_map(i)]),
-			jif - HZ_TO_STD(  kstat.per_cpu_user[cpu_logical_map(i)] \
+			hz_to_std(kstat.per_cpu_user[cpu_logical_map(i)]),
+			hz_to_std(kstat.per_cpu_nice[cpu_logical_map(i)]),
+			hz_to_std(kstat.per_cpu_system[cpu_logical_map(i)]),
+			jif - hz_to_std(  kstat.per_cpu_user[cpu_logical_map(i)] \
 			           + kstat.per_cpu_nice[cpu_logical_map(i)] \
 			           + kstat.per_cpu_system[cpu_logical_map(i)]));
 	len += sprintf(page + len,
