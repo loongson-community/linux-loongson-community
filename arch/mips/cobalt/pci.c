@@ -193,7 +193,10 @@ static void qube_raq_scsi_fixup(struct pci_dev *dev)
 		/* And finally, a usable I/O space allocation, right after what
 		 * the second Tulip uses.
 		 */
-		pci_write_config_dword(dev, PCI_BASE_ADDRESS_0, 0x10102001);
+		dev->resource[0].start = 0x102000;
+		dev->resource[0].end = dev->resource[0].start + 0xff;
+		pci_write_config_dword(dev, PCI_BASE_ADDRESS_0, 0x10102000);
+
 		pci_write_config_dword(dev, PCI_BASE_ADDRESS_1, 0x00002000);
 		pci_write_config_dword(dev, PCI_BASE_ADDRESS_2, 0x00100000);
 	}
