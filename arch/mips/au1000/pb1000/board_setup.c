@@ -40,14 +40,6 @@
 #include <asm/au1000.h>
 #include <asm/pb1000.h>
 
-#ifdef CONFIG_USB_OHCI
-// Enable the workaround for the OHCI DoneHead
-// register corruption problem.
-#define CONFIG_AU1000_OHCI_FIX
-        ^^^^^^^^^^^^^^^^^^^^^^
-    !!! I shall not define symbols starting with CONFIG_ !!!
-#endif
-
 void board_reset (void)
 {
 }

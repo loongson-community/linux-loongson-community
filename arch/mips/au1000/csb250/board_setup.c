@@ -45,12 +45,6 @@
 #include <asm/au1000.h>
 #include <asm/csb250.h>
 
-#ifdef CONFIG_USB_OHCI
-// Enable the workaround for the OHCI DoneHead
-// register corruption problem.
-#define CONFIG_AU1000_OHCI_FIX
-#endif
-
 #ifdef CONFIG_RTC
 extern struct rtc_ops csb250_rtc_ops;
 #endif
