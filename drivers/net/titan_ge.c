@@ -133,18 +133,6 @@ int titan_ge_receive_queue(struct net_device *, unsigned int);
 /* MAC Address */
 extern unsigned char titan_ge_mac_addr_base[6];
 
-/* Support for Rx NAPI */
-#ifdef TITAN_RX_NAPI
-static inline void __netif_rx_complete(struct net_device *dev)
-{
-        if (!test_bit(__LINK_STATE_RX_SCHED, &dev->state)) 
-		BUG();
-        list_del(&dev->poll_list);
-	mb();
-        clear_bit(__LINK_STATE_RX_SCHED, &dev->state);
-}
-#endif
-
 /* 
  * The Titan GE has two alignment requirements:
  * -> skb->data to be cacheline aligned (32 byte)
