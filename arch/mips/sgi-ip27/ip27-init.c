@@ -438,7 +438,7 @@ void __init prom_prepare_cpus(void)
 	alloc_cpupda(cpu, 0);
 }
 
-int __init prom_boot_secondary(int cpu, struct *task_struct idle)
+int __init prom_boot_secondary(int cpu, struct task_struct *idle)
 {
 	/*
  	 * Launch a slave into smp_bootstrap().  It doesn't take an
