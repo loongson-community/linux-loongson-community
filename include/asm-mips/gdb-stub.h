@@ -14,7 +14,7 @@
  * important register numbers
  */
 
-#define REG_EPC			37
+#define REG_EPC			34
 #define REG_FP			72
 #define REG_SP			29
 
@@ -26,7 +26,7 @@
  */
 #define NUMREGS			90
 
-#define GDB_FR_REG0		(PTRSIZE*5)			/* 0 */
+#define GDB_FR_REG0		(PTRSIZE*6)			/* 0 */
 #define GDB_FR_REG1		((GDB_FR_REG0) + LONGSIZE)	/* 1 */
 #define GDB_FR_REG2		((GDB_FR_REG1) + LONGSIZE)	/* 2 */
 #define GDB_FR_REG3		((GDB_FR_REG2) + LONGSIZE)	/* 3 */
@@ -62,12 +62,12 @@
 /*
  * Saved special registers
  */
-#define GDB_FR_STATUS		((GDB_FR_REG31) + LONGSIZE)	/* 32 */
-#define GDB_FR_LO		((GDB_FR_STATUS) + LONGSIZE)	/* 33 */
-#define GDB_FR_HI		((GDB_FR_LO) + LONGSIZE)	/* 34 */
-#define GDB_FR_BADVADDR		((GDB_FR_HI) + LONGSIZE)	/* 35 */
-#define GDB_FR_CAUSE		((GDB_FR_BADVADDR) + LONGSIZE)	/* 36 */
-#define GDB_FR_EPC		((GDB_FR_CAUSE) + LONGSIZE)	/* 37 */
+#define GDB_FR_LO		((GDB_FR_REG31) + LONGSIZE)	/* 32 */
+#define GDB_FR_HI		((GDB_FR_LO) + LONGSIZE)	/* 33 */
+#define GDB_FR_EPC		((GDB_FR_HI) + LONGSIZE)	/* 34 */
+#define GDB_FR_BADVADDR		((GDB_FR_EPC) + LONGSIZE)	/* 35 */
+#define GDB_FR_STATUS		((GDB_FR_BADVADDR) + LONGSIZE)	/* 36 */
+#define GDB_FR_CAUSE		((GDB_FR_STATUS) + LONGSIZE)	/* 37 */
 
 /*
  * Saved floating point registers
@@ -143,9 +143,9 @@
 struct gdb_regs {
 	/*
 	 * Pad bytes for argument save space on the stack
-	 * 20/40 Bytes for 32/64 bit code
+	 * 24/48 Bytes for 32/64 bit code
 	 */
-	unsigned long pad0[5];
+	unsigned long pad0[6];
 
 	/*
 	 * saved main processor registers
@@ -158,12 +158,12 @@ struct gdb_regs {
 	/*
 	 * Saved special registers
 	 */
-	long	cp0_status;
 	long	lo;
 	long	hi;
-	long	cp0_badvaddr;
-	long	cp0_cause;
 	long	cp0_epc;
+	long	cp0_badvaddr;
+	long	cp0_status;
+	long	cp0_cause;
 
 	/*
 	 * Saved floating point registers
