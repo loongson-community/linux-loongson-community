@@ -326,7 +326,6 @@ static __init void tx39_probe_cache(void)
 		break;
 
 	case CPU_TX3922:
-	case CPU_TX39XX:
 	default:
 		current_cpu_data.icache.ways = 1;
 		current_cpu_data.dcache.ways = 1;

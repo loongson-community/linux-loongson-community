@@ -73,7 +73,6 @@ static inline void check_wait(void)
 		printk(" available.\n");
 		break;
 	case CPU_TX3927:
-	case CPU_TX39XX:
 		cpu_wait = r39xx_wait;
 		printk(" available.\n");
 		break;

@@ -702,7 +702,6 @@ bad_cid:
 #ifndef CONFIG_CPU_HAS_LLSC
 	switch (current_cpu_data.cputype) {
 	case CPU_TX3927:
-	case CPU_TX39XX:
 		do_ri(regs);
 		return;
 	}

@@ -97,7 +97,6 @@ void __init load_mmu(void)
 	case CPU_TX3912:
 	case CPU_TX3922:
 	case CPU_TX3927:
-	case CPU_TX39XX:
 		ld_mmu_tx39();
 		r3k_tlb_init();
 		break;

@@ -149,17 +149,16 @@
 #define CPU_VR41XX		41
 #define CPU_R5500		42
 #define CPU_TX49XX		43
-#define CPU_TX39XX		44
-#define CPU_AU1500		45
-#define CPU_20KC		46
-#define CPU_VR4111		47
-#define CPU_VR4121		48
-#define CPU_VR4122		49
-#define CPU_VR4131		50
-#define CPU_VR4181		51
-#define CPU_VR4181A		52
-#define CPU_AU1100		53
-#define CPU_LAST		53
+#define CPU_AU1500		44
+#define CPU_20KC		45
+#define CPU_VR4111		46
+#define CPU_VR4121		47
+#define CPU_VR4122		48
+#define CPU_VR4131		49
+#define CPU_VR4181		50
+#define CPU_VR4181A		51
+#define CPU_AU1100		52
+#define CPU_LAST		52
 
 /*
  * ISA Level encodings
