@@ -290,6 +290,7 @@ symbol		=	value
 
 #define LONG		.word
 #define LONGSIZE	4
+#define LONGMASK	3
 #define LONGLOG		2
 #endif
 
@@ -311,6 +312,7 @@ symbol		=	value
 
 #define LONG		.dword
 #define LONGSIZE	8
+#define LONGMASK	7
 #define LONGLOG		3
 #endif
 
