@@ -28,3 +28,6 @@ extern void gfx_init (const char **name);
 extern void __set_origin (unsigned short offset);
 extern void hide_cursor (void);
 extern unsigned char vga_font[];
+
+extern void disable_gconsole (void);
+extern void enable_gconsole (void);

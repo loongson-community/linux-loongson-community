@@ -118,6 +118,7 @@ sgi_graphics_ioctl (struct inode *inode, struct file *file, unsigned int cmd, un
 		 * Ok, we now call mmap on this file, which will end up calling
 		 * sgi_graphics_mmap
 		 */
+		disable_gconsole ();
 		r = do_mmap (file, (unsigned long)vaddr, cards [board].g_regs_size,
 			 PROT_READ|PROT_WRITE, MAP_FIXED|MAP_PRIVATE, 0);
 		if (r)
@@ -151,9 +152,10 @@ sgi_graphics_close (struct inode *inode, struct file *file)
 	rrm_close (inode, file);
 
 	/* Was this file handle from the board owner?, clear it */
-	if (current == cards [minor].g_owner)
+	if (current == cards [minor].g_owner){
 		cards [minor].g_owner = 0;
-	
+		enable_gconsole ();
+	}
 	return 0;
 }
 
