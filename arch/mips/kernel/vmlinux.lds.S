@@ -98,8 +98,8 @@ SECTIONS
   __param : { *(__param) }
   __stop___param = .;
 
+  .early_initcall.init : {
   __earlyinitcall_start = .;
-  .initcall.init : {
 	*(.initcall.early1.init)
   }
   __earlyinitcall_end = .;
