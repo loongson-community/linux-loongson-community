@@ -16,7 +16,8 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
-#ifndef BCM1250_TBPROF_H
+#ifndef __ASM_SIBYTE_TRACE_PROF_H
+#define __ASM_SIBYTE_TRACE_PROF_H
 
 #if SBPROF_TB_DEBUG
 #define DBG(a) a
@@ -25,10 +26,12 @@
 #endif
 
 #define SBPROF_TB_MAJOR 240
+#define DEVNAME "bcm1250_tbprof"
 
 typedef u_int64_t tb_sample_t[6*256];
 
 struct sbprof_tb {
+	int          open;
 	tb_sample_t *sbprof_tbbuf;
 	int          next_tb_sample;
 
@@ -36,6 +39,7 @@ struct sbprof_tb {
 	volatile int tb_armed;
 
 	wait_queue_head_t tb_sync;
+	wait_queue_head_t tb_read;
 };
 
 #define MAX_SAMPLE_BYTES (24*1024*1024)
@@ -44,6 +48,11 @@ struct sbprof_tb {
 #define MAX_SAMPLES (MAX_SAMPLE_BYTES/sizeof(u_int32_t))
 #define TB_SAMPLE_SIZE (sizeof(tb_sample_t))
 #define MAX_TB_SAMPLES (MAX_TBSAMPLE_BYTES/TB_SAMPLE_SIZE)
+
+/* IOCTLs */
+#define SBPROF_ZBSTART		_IOW('s', 0, int)
+#define SBPROF_ZBSTOP		_IOW('s', 1, int)
+#define SBPROF_ZBWAITFULL	_IOW('s', 2, int)
 
 /***************************************************************************
  * Routines for gathering ZBbus profiles using trace buffer
@@ -97,4 +106,4 @@ unsigned long long val; */
 			: /* inputs */ \
 			: /* modifies */ "$8" )
 
-#endif
+#endif /* __ASM_SIBYTE_TRACE_PROF_H */

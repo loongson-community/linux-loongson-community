@@ -407,7 +407,7 @@ config SIBYTE_SB1250_PROF
 	bool "Support for SB1/SOC profiling - SB1/SCD perf counters"
 	depends on SIBYTE_SB1xxx_SOC
 
-config BCM1250_TBPROF
+config SIBYTE_TBPROF
 	bool "Support for ZBbus profiling"
 	depends on SIBYTE_SB1xxx_SOC
 

@@ -55,6 +55,10 @@
 
 #include <linux/rtc.h>
 
+#ifdef CONFIG_SIBYTE_TBPROF
+#include <asm/sibyte/trace_prof.h>
+#endif
+
 long sys_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg);
 
 static int w_long(unsigned int fd, unsigned int cmd, unsigned long arg)
@@ -1122,6 +1126,12 @@ COMPATIBLE_IOCTL(STOP_ARRAY)
 COMPATIBLE_IOCTL(STOP_ARRAY_RO)
 COMPATIBLE_IOCTL(RESTART_ARRAY_RW)
 #endif /* CONFIG_MD */
+
+#ifdef CONFIG_SIBYTE_TBPROF
+COMPATIBLE_IOCTL(SBPROF_ZBSTART),
+COMPATIBLE_IOCTL(SBPROF_ZBSTOP),
+COMPATIBLE_IOCTL(SBPROF_ZBWAITFULL),
+#endif /* CONFIG_SIBYTE_TBPROF */
 
 #if defined(CONFIG_BLK_DEV_DM) || defined(CONFIG_BLK_DEV_DM_MODULE)
 	IOCTL32_DEFAULT(DM_VERSION),

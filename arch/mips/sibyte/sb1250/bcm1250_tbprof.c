@@ -34,11 +34,11 @@
 #include <asm/sibyte/sb1250_scd.h>
 #include <asm/sibyte/sb1250_int.h>
 #include <asm/sibyte/64bit.h>
-#include "bcm1250_tbprof.h"
+#include <asm/sibyte/trace_prof.h>
 
-#define DEVNAME "sb1250_tbprof"
+static struct sbprof_tb sbp;
 
-static struct sbprof_tb *sbp;
+#define TB_FULL (sbp.next_tb_sample == MAX_TB_SAMPLES)
 
 /************************************************************************
  * Support for ZBbus sampling using the trace buffer
@@ -53,13 +53,13 @@ static struct sbprof_tb *sbp;
  *
  ************************************************************************/
 
-/* 100 samples per second on a 500 Mhz 1250 */
-#define TB_PERIOD 2500000ULL
+/* 100 samples per second on a 500 Mhz 1250 (default) */
+static u_int64_t tb_period = 2500000ULL;
 
 static void arm_tb(void)
 {
-        unsigned long long scdperfcnt;
-	unsigned long long next = (1ULL << 40) - TB_PERIOD;
+        u_int64_t scdperfcnt;
+	u_int64_t next = (1ULL << 40) - tb_period;
 	/* Generate an SCD_PERFCNT interrupt in TB_PERIOD Zclks to
 	   trigger start of trace.  XXX vary sampling period */
 	out64(0, KSEG1 + A_SCD_PERF_CNT_1);
@@ -75,17 +75,22 @@ static void arm_tb(void)
 	out64(next, KSEG1 + A_SCD_PERF_CNT_1);
 	/* Reset the trace buffer */
 	out64(M_SCD_TRACE_CFG_RESET, KSEG1 + A_SCD_TRACE_CFG);
-	out64(M_SCD_TRACE_CFG_FREEZE_FULL, KSEG1 + A_SCD_TRACE_CFG);
-	sbp->tb_armed = 1;
+	out64(M_SCD_TRACE_CFG_FREEZE_FULL
+#if 0 && defined(M_SCD_TRACE_CFG_FORCECNT)
+	      /* XXXKW may want to expose control to the data-collector */
+	      | M_SCD_TRACE_CFG_FORCECNT
+#endif
+	      , KSEG1 + A_SCD_TRACE_CFG);
+	sbp.tb_armed = 1;
 }
 
 static void sbprof_tb_intr(int irq, void *dev_id, struct pt_regs *regs)
 {
 	int i;
 	DBG(printk(DEVNAME ": tb_intr\n"));
-	if (sbp->next_tb_sample < MAX_TB_SAMPLES) {
+	if (sbp.next_tb_sample < MAX_TB_SAMPLES) {
 		/* XXX should use XKPHYS to make writes bypass L2 */
-		unsigned long long *p = sbp->sbprof_tbbuf[sbp->next_tb_sample++];
+		u_int64_t *p = sbp.sbprof_tbbuf[sbp.next_tb_sample++];
 		/* Read out trace */
 		out64(M_SCD_TRACE_CFG_START_READ, KSEG1 + A_SCD_TRACE_CFG);
 		__asm__ __volatile__ ("sync" : : : "memory");
@@ -100,11 +105,11 @@ static void sbprof_tb_intr(int irq, void *dev_id, struct pt_regs *regs)
 			p[i-5] = in64(KSEG1 + A_SCD_TRACE_READ); // read t0 hi
 			p[i-6] = in64(KSEG1 + A_SCD_TRACE_READ); // read t0 lo
 		}
-		if (!sbp->tb_enable) {
+		if (!sbp.tb_enable) {
 			DBG(printk(DEVNAME ": tb_intr shutdown\n"));
 			out64(M_SCD_TRACE_CFG_RESET, KSEG1 + A_SCD_TRACE_CFG);
-			sbp->tb_armed = 0;
-			wake_up(&sbp->tb_sync);
+			sbp.tb_armed = 0;
+			wake_up(&sbp.tb_sync);
 		} else {
 			arm_tb();	// knock down current interrupt and get another one later
 		}
@@ -112,36 +117,51 @@ static void sbprof_tb_intr(int irq, void *dev_id, struct pt_regs *regs)
 		/* No more trace buffer samples */
 		DBG(printk(DEVNAME ": tb_intr full\n"));
 		out64(M_SCD_TRACE_CFG_RESET, KSEG1 + A_SCD_TRACE_CFG);
-		sbp->tb_armed = 0;
-		if (!sbp->tb_enable) {
-			wake_up(&sbp->tb_sync);
+		sbp.tb_armed = 0;
+		if (!sbp.tb_enable) {
+			wake_up(&sbp.tb_sync);
 		}
+		wake_up(&sbp.tb_read);
 	}
 }
 
 static void sbprof_pc_intr(int irq, void *dev_id, struct pt_regs *regs)
 {
-	panic(DEVNAME ": pc_intr");
+	printk(DEVNAME ": unexpected pc_intr");
 }
 
 static int sbprof_zbprof_start(struct file *filp)
 {
-	if (sbp->tb_enable)
+	u_int64_t scdperfcnt;
+
+	if (sbp.tb_enable)
 		return -EBUSY;
 
 	DBG(printk(DEVNAME ": starting\n"));
 
-	sbp->tb_enable = 1;
-	sbp->next_tb_sample = 0;
+	sbp.tb_enable = 1;
+	sbp.next_tb_sample = 0;
 	filp->f_pos = 0;
 
 	if (request_irq
-	    (K_INT_TRACE_FREEZE, sbprof_tb_intr, 0, "sbprof_tb trace freeze", sbp)) {
+	    (K_INT_TRACE_FREEZE, sbprof_tb_intr, 0, DEVNAME " trace freeze", &sbp)) {
 		return -EBUSY;
 	}
+	/* Make sure there isn't a perf-cnt interrupt waiting */
+	scdperfcnt = in64(KSEG1 + A_SCD_PERF_CNT_CFG);
+	/* Disable and clear counters, override SRC_1 */
+	out64((scdperfcnt & ~(M_SPC_CFG_SRC1 | M_SPC_CFG_ENABLE)) |
+		   M_SPC_CFG_ENABLE |
+		   M_SPC_CFG_CLEAR |
+		   V_SPC_CFG_SRC1(1),
+	      KSEG1 + A_SCD_PERF_CNT_CFG);
+
+	/* We grab this interrupt to prevent others from trying to use
+           it, even though we don't want to service the interrupts
+           (they only feed into the trace-on-interrupt mechanism) */
 	if (request_irq
-	    (K_INT_PERF_CNT, sbprof_pc_intr, 0, "sbprof_tb scd perfcnt", sbp)) {
-		free_irq(K_INT_TRACE_FREEZE, sbp);
+	    (K_INT_PERF_CNT, sbprof_pc_intr, 0, DEVNAME " scd perfcnt", &sbp)) {
+		free_irq(K_INT_TRACE_FREEZE, &sbp);
 		return -EBUSY;
 	}
 
@@ -206,18 +226,18 @@ static int sbprof_zbprof_stop(void)
 {
 	DBG(printk(DEVNAME ": stopping\n"));
 
-	if (sbp->tb_enable) {
-		sbp->tb_enable = 0;
+	if (sbp.tb_enable) {
+		sbp.tb_enable = 0;
 		/* XXXKW there is a window here where the intr handler
 		   may run, see the disable, and do the wake_up before
 		   this sleep happens. */
-		if (sbp->tb_armed) {
+		if (sbp.tb_armed) {
 			DBG(printk(DEVNAME ": wait for disarm\n"));
-			interruptible_sleep_on(&sbp->tb_sync);
+			interruptible_sleep_on(&sbp.tb_sync);
 			DBG(printk(DEVNAME ": disarm complete\n"));
 		}
-		free_irq(K_INT_TRACE_FREEZE, sbp);
-		free_irq(K_INT_PERF_CNT, sbp);
+		free_irq(K_INT_TRACE_FREEZE, &sbp);
+		free_irq(K_INT_PERF_CNT, &sbp);
 	}
 
 	DBG(printk(DEVNAME ": done stopping\n"));
@@ -233,24 +253,19 @@ static int sbprof_tb_open(struct inode *inode, struct file *filp)
 	if (minor != 0) {
 		return -ENODEV;
 	}
-	if (sbp != NULL) {
+	if (sbp.open) {
 		return -EBUSY;
 	}
 
-	/* XXXKW spinlock? */
-	sbp = kmalloc(sizeof(struct sbprof_tb), GFP_KERNEL);
-	if (!sbp) {
+	memset(&sbp, 0, sizeof(struct sbprof_tb));
+	sbp.sbprof_tbbuf = vmalloc(MAX_TBSAMPLE_BYTES);
+	if (!sbp.sbprof_tbbuf) {
 		return -ENOMEM;
 	}
-	memset(sbp, 0, sizeof(struct sbprof_tb));
-	sbp->sbprof_tbbuf = vmalloc(MAX_TBSAMPLE_BYTES);
-	if (!sbp->sbprof_tbbuf) {
-		kfree(sbp);
-		sbp = NULL;
-		return -ENOMEM;
-	}
-	memset(sbp->sbprof_tbbuf, 0, MAX_TBSAMPLE_BYTES);
-	init_waitqueue_head(&sbp->tb_sync);
+	memset(sbp.sbprof_tbbuf, 0, MAX_TBSAMPLE_BYTES);
+	init_waitqueue_head(&sbp.tb_sync);
+	init_waitqueue_head(&sbp.tb_read);
+	sbp.open = 1;
 
 	return 0;
 }
@@ -260,23 +275,22 @@ static int sbprof_tb_release(struct inode *inode, struct file *filp)
 	int minor;
 
 	minor = MINOR(inode->i_rdev);
-	if (minor != 0 || sbp == NULL) {
+	if (minor != 0 || !sbp.open) {
 		return -ENODEV;
 	}
 
-	if (sbp->tb_armed || sbp->tb_enable) {
+	if (sbp.tb_armed || sbp.tb_enable) {
 		sbprof_zbprof_stop();
 	}
 
-	vfree(sbp->sbprof_tbbuf);
-	kfree(sbp);
-	sbp = NULL;
+	vfree(sbp.sbprof_tbbuf);
+	sbp.open = 0;
 
 	return 0;
 }
 
 static ssize_t sbprof_tb_read(struct file *filp, char *buf,
-			   size_t size, loff_t *offp)
+			      size_t size, loff_t *offp)
 {
 	int cur_sample, sample_off, cur_count, sample_left;
 	char *src;
@@ -288,9 +302,9 @@ static ssize_t sbprof_tb_read(struct file *filp, char *buf,
 	cur_sample = cur_off / TB_SAMPLE_SIZE;
 	sample_off = cur_off % TB_SAMPLE_SIZE;
 	sample_left = TB_SAMPLE_SIZE - sample_off;
-	while (size && (cur_sample < sbp->next_tb_sample)) {
+	while (size && (cur_sample < sbp.next_tb_sample)) {
 		cur_count = size < sample_left ? size : sample_left;
-		src = (char *)(((long)sbp->sbprof_tbbuf[cur_sample])+sample_off);
+		src = (char *)(((long)sbp.sbprof_tbbuf[cur_sample])+sample_off);
 		copy_to_user(dest, src, cur_count);
 		DBG(printk(DEVNAME ": read from sample %d, %d bytes\n", cur_sample, cur_count));
 		size -= cur_count;
@@ -311,17 +325,12 @@ static ssize_t sbprof_tb_read(struct file *filp, char *buf,
 	return count;
 }
 
-#define SBPROF_ZBSTART	_IOW('s', 0, int)
-#define SBPROF_ZBSTOP	_IOW('s', 1, int)
-#define SBPROF_ZBFULL	_IOW('s', 2, int)
-
 static int sbprof_tb_ioctl(struct inode *inode,
-			struct file *filp,
-			unsigned int command,
-			unsigned long arg)
+			   struct file *filp,
+			   unsigned int command,
+			   unsigned long arg)
 {
 	int error = 0;
-	int full;
 
 	switch (command) {
 	case SBPROF_ZBSTART:
@@ -330,9 +339,10 @@ static int sbprof_tb_ioctl(struct inode *inode,
 	case SBPROF_ZBSTOP:
 		error = sbprof_zbprof_stop();
 		break;
-	case SBPROF_ZBFULL:
-		full = (sbp->next_tb_sample == MAX_TB_SAMPLES);
-		return put_user(full, (int *) arg);
+	case SBPROF_ZBWAITFULL:
+		interruptible_sleep_on(&sbp.tb_read);
+		/* XXXKW check if interrupted? */
+		return put_user(TB_FULL, (int *) arg);
 	default:
 		error = -EINVAL;
 		break;
@@ -352,8 +362,46 @@ static struct file_operations sbprof_tb_fops = {
 
 static devfs_handle_t devfs_handle;
 
+#define UNDEF 0
+static unsigned long long pll_div_to_mhz[32] = {
+  UNDEF,
+  UNDEF,
+  UNDEF,
+  UNDEF,
+  200,
+  250,
+  300,
+  350,
+  400,
+  450,
+  500,
+  550,
+  600,
+  650,
+  700,
+  750,
+  800, 
+  850, 
+  900,
+  950,
+  1000,
+  1050,
+  1100,
+  UNDEF,
+  UNDEF,
+  UNDEF,
+  UNDEF, 
+  UNDEF, 
+  UNDEF,
+  UNDEF,
+  UNDEF,
+  UNDEF
+};
+
 static int __init sbprof_tb_init(void)
 {
+	unsigned int pll_div;
+
 	if (devfs_register_chrdev(SBPROF_TB_MAJOR, DEVNAME, &sbprof_tb_fops)) {
 		printk(KERN_WARNING DEVNAME ": initialization failed (dev %d)\n",
 		       SBPROF_TB_MAJOR);
@@ -363,8 +411,14 @@ static int __init sbprof_tb_init(void)
 				      DEVFS_FL_DEFAULT, SBPROF_TB_MAJOR, 0,
 				      S_IFCHR | S_IRUGO | S_IWUGO,
 				      &sbprof_tb_fops, NULL);
-	sbp = NULL;
-	printk(KERN_INFO DEVNAME ": initialized\n");
+	sbp.open = 0;
+	pll_div = pll_div_to_mhz[G_SYS_PLL_DIV(in64(KSEG1 + A_SCD_SYSTEM_CFG))];
+	if (pll_div != UNDEF) {
+		tb_period = (pll_div / 2) * 10000;
+	} else {
+		printk(KERN_INFO DEVNAME ": strange PLL divide\n");
+	}
+	printk(KERN_INFO DEVNAME ": initialized - tb_period = %lld\n", tb_period);
 	return 0;
 }
 
