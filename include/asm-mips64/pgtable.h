@@ -215,7 +215,7 @@ extern pmd_t empty_bad_pmd_table[2*PAGE_SIZE/sizeof(pmd_t)];
 #define page_pte(page)		page_pte_prot(page, __pgprot(0))
 #define pmd_phys(pmd)		(pmd_val(pmd) - PAGE_OFFSET)
 #define pmd_page(pmd)		(pfn_to_page(pmd_phys(pmd) >> PAGE_SHIFT))
-#define pmd_page_kernel(pmd)	(pfn_to_page(pmd_phys(pmd) >> PAGE_SHIFT))
+#define pmd_page_kernel(pmd)	pmd_val(pmd)
 
 static inline unsigned long pgd_page(pgd_t pgd)
 {

@@ -156,7 +156,7 @@ extern pmd_t invalid_pte_table[PAGE_SIZE/sizeof(pmd_t)];
 #define page_pte(page)		page_pte_prot(page, __pgprot(0))
 #define pmd_phys(pmd)		(pmd_val(pmd) - PAGE_OFFSET)
 #define pmd_page(pmd)		(pfn_to_page(pmd_phys(pmd) >> PAGE_SHIFT))
-#define pmd_page_kernel(pmd)	(pfn_to_page(pmd_phys(pmd) >> PAGE_SHIFT))
+#define pmd_page_kernel(pmd)	pmd_val(pmd)
 
 #define pte_none(pte)		(!(pte_val(pte) & ~_PAGE_GLOBAL))
 #define pte_present(pte)	(pte_val(pte) & _PAGE_PRESENT)
