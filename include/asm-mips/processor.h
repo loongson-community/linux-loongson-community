@@ -79,42 +79,6 @@ struct cpuinfo_mips {
 	struct cache_desc	tcache;	/* Tertiary/split secondary cache */
 } __attribute__((aligned(SMP_CACHE_BYTES)));
 
-/*
- * Assumption: Options of CPU 0 are a superset of all processors.
- * This is true for all known MIPS systems.
- */
-#define cpu_has_tlb		(cpu_data[0].options & MIPS_CPU_TLB)
-#define cpu_has_4kex		(cpu_data[0].options & MIPS_CPU_4KEX)
-#define cpu_has_4ktlb		(cpu_data[0].options & MIPS_CPU_4KTLB)
-#define cpu_has_fpu		(cpu_data[0].options & MIPS_CPU_FPU)
-#define cpu_has_32fpr		(cpu_data[0].options & MIPS_CPU_32FPR)
-#define cpu_has_counter		(cpu_data[0].options & MIPS_CPU_COUNTER)
-#define cpu_has_watch		(cpu_data[0].options & MIPS_CPU_WATCH)
-#define cpu_has_mips16		(cpu_data[0].options & MIPS_CPU_MIPS16)
-#define cpu_has_divec		(cpu_data[0].options & MIPS_CPU_DIVEC)
-#define cpu_has_vce		(cpu_data[0].options & MIPS_CPU_VCE)
-#define cpu_has_cache_cdex	(cpu_data[0].options & MIPS_CPU_CACHE_CDEX)
-#define cpu_has_mcheck		(cpu_data[0].options & MIPS_CPU_MCHECK)
-#define cpu_has_ejtag		(cpu_data[0].options & MIPS_CPU_EJTAG)
-/* no FPU exception; never set on 64-bit */
-#ifdef CONFIG_MIPS64
-#define cpu_has_nofpuex		0
-#else
-#define cpu_has_nofpuex		(cpu_data[0].options & MIPS_CPU_NOFPUEX)
-#endif
-#define cpu_has_llsc		(cpu_data[0].options & MIPS_CPU_LLSC)
-#define cpu_has_vtag_icache	(cpu_data[0].icache.flags & MIPS_CACHE_VTAG)
-#define cpu_has_dc_aliases	(cpu_data[0].dcache.flags & MIPS_CACHE_ALIASES)
-#define cpu_has_ic_fills_f_dc	(cpu_data[0].dcache.flags & MIPS_CACHE_IC_F_DC)
-#ifdef CONFIG_MIPS64
-#define cpu_has_64bits		1
-#define cpu_has_64bit_addresses	1
-#else
-#define cpu_has_64bits		(cpu_data[0].isa_level & MIPS_CPU_ISA_64BIT)
-#define cpu_has_64bit_addresses	0
-#endif
-#define cpu_has_subset_pcaches	(cpu_data[0].options & MIPS_CPU_SUBSET_CACHES)
-
 extern struct cpuinfo_mips cpu_data[];
 #define current_cpu_data cpu_data[smp_processor_id()]
 
