@@ -56,8 +56,6 @@ To add: #define SO_REUSEPORT 0x0200	/* Allow local address and port reuse.  */
 #define SO_ATTACH_FILTER        26
 #define SO_DETACH_FILTER        27
 
-#ifdef __KERNEL__
-
 #define SO_PEERNAME             28
 
 /* Nast libc5 fixup - bletch */
