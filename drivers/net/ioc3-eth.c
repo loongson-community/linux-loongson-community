@@ -1513,7 +1513,7 @@ static void __devexit ioc3_remove_one (struct pci_dev *pdev)
 	struct ioc3 *ioc3 = ip->regs;
 
 	iounmap(ioc3);
-	/* pci_release_regions(pdev);  Will be used in 2.4.3 */
+	pci_release_regions(pdev);
 	kfree(dev);
 }
 
