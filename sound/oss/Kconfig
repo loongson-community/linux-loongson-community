@@ -282,10 +282,6 @@ config SOUND_IT8172
 	tristate "IT8172G Sound"
 	depends on SOUND_PRIME!=n && (MIPS_ITE8172 || MIPS_IVR) && SOUND
 
-config SOUND_HAL2
-	tristate "SGI HAL2 sound (EXPERIMENTAL)"
-	depends on SGI_IP22 && SOUND && EXPERIMENTAL
-
 config SOUND_VRC5477
 	tristate "NEC Vrc5477 AC97 sound"
 	depends on SOUND_PRIME!=n && DDB5477 && SOUND
