@@ -467,14 +467,8 @@ endif
 #LDFLAGS += -m elf64bmip
 
 ifdef CONFIG_MIPS64
-#
-# We use an unusual code model for building 64-bit kernels.  64-bit ELF,
-# squeezed into 32-bit ELF files.  Later version of gas throw silly warnings
-# which requires the use of -mgp64 which not all gas versions have ...
-#
-GRRR=-Wa,-mgp64
-cflags-$(CONFIG_BOOT_ELF32)	+= -Wa,-32 $(call check_warning, $(GRRR),)
-cflags-$(CONFIG_BOOT_ELF64)	+= -Wa,-32 $(call check_warning, $(GRRR),)
+cflags-$(CONFIG_BOOT_ELF32)	+= -Wa,-32 -Wa,-mgp64
+cflags-$(CONFIG_BOOT_ELF64)	+= -Wa,-32 -Wa,-mgp64
 endif
 
 #
