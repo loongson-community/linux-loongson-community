@@ -542,29 +542,29 @@
 #define PCI_DEVICE_ID_MIRO_DC30PLUS	0xd801
 
 #define PCI_VENDOR_ID_NEC		0x1033
-#define PCI_DEVICE_ID_NEC_CBUS_1	0x0001	/* PCI-Cbus Bridge */
-#define PCI_DEVICE_ID_NEC_LOCAL		0x0002	/* Local Bridge */
-#define PCI_DEVICE_ID_NEC_ATM		0x0003	/* ATM LAN Controller */
-#define PCI_DEVICE_ID_NEC_R4000		0x0004	/* R4000 Bridge */
-#define PCI_DEVICE_ID_NEC_486		0x0005	/* 486 Like Peripheral Bus Bridge */
-#define PCI_DEVICE_ID_NEC_ACCEL_1	0x0006	/* Graphic Accelerator */
-#define PCI_DEVICE_ID_NEC_UXBUS		0x0007	/* UX-Bus Bridge */
-#define PCI_DEVICE_ID_NEC_ACCEL_2	0x0008	/* Graphic Accelerator */
-#define PCI_DEVICE_ID_NEC_GRAPH		0x0009	/* PCI-CoreGraph Bridge */
-#define PCI_DEVICE_ID_NEC_VL		0x0016	/* PCI-VL Bridge */
-#define PCI_DEVICE_ID_NEC_STARALPHA2	0x002c	/* STAR ALPHA2 */
-#define PCI_DEVICE_ID_NEC_CBUS_2	0x002d	/* PCI-Cbus Bridge */
-#define PCI_DEVICE_ID_NEC_USB		0x0035	/* PCI-USB Host */
+#define PCI_DEVICE_ID_NEC_CBUS_1	0x0001 /* PCI-Cbus Bridge */
+#define PCI_DEVICE_ID_NEC_LOCAL		0x0002 /* Local Bridge */
+#define PCI_DEVICE_ID_NEC_ATM		0x0003 /* ATM LAN Controller */
+#define PCI_DEVICE_ID_NEC_R4000		0x0004 /* R4000 Bridge */
+#define PCI_DEVICE_ID_NEC_486		0x0005 /* 486 Like Peripheral Bus Bridge */
+#define PCI_DEVICE_ID_NEC_ACCEL_1	0x0006 /* Graphic Accelerator */
+#define PCI_DEVICE_ID_NEC_UXBUS		0x0007 /* UX-Bus Bridge */
+#define PCI_DEVICE_ID_NEC_ACCEL_2	0x0008 /* Graphic Accelerator */
+#define PCI_DEVICE_ID_NEC_GRAPH		0x0009 /* PCI-CoreGraph Bridge */
+#define PCI_DEVICE_ID_NEC_VL		0x0016 /* PCI-VL Bridge */
+#define PCI_DEVICE_ID_NEC_STARALPHA2	0x002c /* STAR ALPHA2 */
+#define PCI_DEVICE_ID_NEC_CBUS_2	0x002d /* PCI-Cbus Bridge */
+#define PCI_DEVICE_ID_NEC_USB		0x0035 /* PCI-USB Host */
 #define PCI_DEVICE_ID_NEC_CBUS_3	0x003b
-#define PCI_DEVICE_ID_NEC_PCX2		0x0046	/* PowerVR */
+#define PCI_DEVICE_ID_NEC_PCX2		0x0046 /* PowerVR */
 #define PCI_DEVICE_ID_NEC_NAPCCARD	0x003e
 #define PCI_DEVICE_ID_NEC_PCX2		0x0046
 #define PCI_DEVICE_ID_NEC_NILE4		0x005a
 #define PCI_DEVICE_ID_NEC_VRC5476       0x009b
 #define PCI_DEVICE_ID_NEC_VRC4173	0x00a5
-#define PCI_DEVICE_ID_NEC_VRC5477_AC97	0x00a6
-#define PCI_DEVICE_ID_NEC_PC9821CS01	0x800c	/* PC-9821-CS01 */
-#define PCI_DEVICE_ID_NEC_PC9821NRB06	0x800d	/* PC-9821NR-B06 */
+#define PCI_DEVICE_ID_NEC_VRC5477_AC97  0x00a6
+#define PCI_DEVICE_ID_NEC_PC9821CS01    0x800c /* PC-9821-CS01 */
+#define PCI_DEVICE_ID_NEC_PC9821NRB06   0x800d /* PC-9821NR-B06 */
 
 #define PCI_VENDOR_ID_FD		0x1036
 #define PCI_DEVICE_ID_FD_36C70		0x0000
