@@ -19,6 +19,7 @@
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
 #include <linux/version.h>
+#include <linux/vt_kern.h>		/* For unblank_screen() */
 
 #include <asm/branch.h>
 #include <asm/hardirq.h>
