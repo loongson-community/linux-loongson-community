@@ -19,7 +19,7 @@
  * [07-SEP-99] Bugfixes 
  */
 
-#define DEBUG_DZ 1
+/* #define DEBUG_DZ 1 */
 
 #include <linux/version.h>
 #ifdef MODULE
@@ -272,12 +272,18 @@ static inline void receive_chars (struct dz_serial *info_in)
 
 			if (tmp & DZ_PERR) {
 				*tty->flip.flag_buf_ptr = TTY_PARITY;
+#ifdef DEBUG_DZ
 				debug_console("PERR\n",5);
+#endif /* DEBUG_DZ */
 			} else if (tmp & DZ_FERR) {
 				*tty->flip.flag_buf_ptr = TTY_FRAME;
+#ifdef DEBUG_DZ
 				debug_console("FERR\n",5);
+#endif /* DEBUG_DZ */
 			} if (tmp & DZ_OERR) { 
+#ifdef DEBUG_DZ
 				debug_console("OERR\n",5);
+#endif /* DEBUG_DZ */
 				if (tty->flip.count < TTY_FLIPBUF_SIZE) {
 					tty->flip.count++;
 					tty->flip.flag_buf_ptr++;
