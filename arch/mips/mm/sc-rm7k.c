@@ -38,6 +38,9 @@ static void rm7k_sc_wback_inv(unsigned long addr, unsigned long size)
 	printk("rm7k_sc_wback_inv[%08lx,%08lx]", addr, size);
 #endif
 
+	/* Catch bad driver code */
+	BUG_ON(size == 0);
+
 	a = addr & ~(sc_lsize - 1);
 	end = (addr + size - 1) & ~(sc_lsize - 1);
 	while (1) {
@@ -67,6 +70,9 @@ static void rm7k_sc_inv(unsigned long addr, unsigned long size)
 #ifdef DEBUG_CACHE
 	printk("rm7k_sc_inv[%08lx,%08lx]", addr, size);
 #endif
+
+	/* Catch bad driver code */
+	BUG_ON(size == 0);
 
 	a = addr & ~(sc_lsize - 1);
 	end = (addr + size - 1) & ~(sc_lsize - 1);
