@@ -3,7 +3,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1994, 1995, 1996, 1998, 1999 by Ralf Baechle
+ * Copyright (C) 1994, 1995, 1996, 1998, 1999, 2002 by Ralf Baechle
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  * Copyright (C) 1994, 1995, 1996, by Andreas Busse
  * Copyright (C) 1999 Silicon Graphics, Inc.
@@ -21,16 +21,16 @@
 #include <asm/processor.h>
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
+#include <asm/thread_info.h>
 
 #include <asm/asmmacro.h>
 
-#define PF_USEDFPU      0x00100000      /* task used FPU this quantum (SMP) */
 #define ST_OFF (KERNEL_STACK_SIZE - 32 - PT_SIZE + PT_STATUS)
 
 /*
- * [jsun] FPU context is saved if and only if the process has used FPU in 
- * the current run (PF_USEDFPU).  In any case, the CU1 bit for user space 
- * STATUS register should be 0, so that a process *always* starts its 
+ * FPU context is saved iff the process has used it's FPU in the current
+ * time slice as indicated by TIF_USEDFPU.  In any case, the CU1 bit for user
+ * space STATUS register should be 0, so that a process *always* starts its 
  * userland with FPU disabled after each context switch.
  *
  * FPU will be enabled as soon as the process accesses FPU again, through 
@@ -54,17 +54,15 @@
 	/* 
 	 * check if we need to save FPU registers
 	 */
-	lw	t0, TASK_FLAGS(a0)
-	li	t1, PF_USEDFPU
+	lw	t3, TASK_THREAD_INFO(a0)
+	lw	t0, TI_FLAGS(a3)
+	li	t1, _TIF_USEDFPU
 	and	t2, t0, t1
 	beqz	t2, 1f
 	nor	t1, zero, t1
 
-	/*
-	 * clear PF_USEDFPU bit in task flags
-	 */
 	and	t0, t0, t1
-	sw	t0, TASK_FLAGS(a0)
+	sw	t0, TI_FLAGS(t3)
 
 	/*
 	 * clear saved user stack CU1 bit
@@ -119,7 +117,7 @@ LEAF(_save_fp)
 /*
  * Restore a thread's fp context.
  */
-LEAF(restore_fp)
+LEAF(_restore_fp)
 	FPU_RESTORE_DOUBLE(a0, t1)		# clobbers t1
 	jr	ra
 	END(_restore_fp)

@@ -20,19 +20,19 @@
 #include <asm/processor.h>
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
+#include <asm/thread_info.h>
 
 #include <asm/asmmacro.h>
 
 	.set	mips1
 	.align	5
 
-#define PF_USEDFPU      0x00100000      /* task used FPU this quantum (SMP) */
 #define ST_OFF (KERNEL_STACK_SIZE - 32 - PT_SIZE + PT_STATUS)
 
 /*
- * [jsun] FPU context is saved if and only if the process has used FPU in 
- * the current run (PF_USEDFPU).  In any case, the CU1 bit for user space 
- * STATUS register should be 0, so that a process *always* starts its 
+ * FPU context is saved iff the process has used it's FPU in the current
+ * time slice as indicated by TIF_USEDFPU.  In any case, the CU1 bit for user
+ * space STATUS register should be 0, so that a process *always* starts its 
  * userland with FPU disabled after each context switch.
  *
  * FPU will be enabled as soon as the process accesses FPU again, through
@@ -55,17 +55,15 @@ LEAF(resume)
 	/* 
 	 * check if we need to save FPU registers
 	 */
-	lw	t0, TASK_FLAGS(a0)
-	li	t1, PF_USEDFPU
+	lw	t3, TASK_THREAD_INFO(a0)
+	lw	t0, TI_FLAGS(a3)
+	li	t1, TIF_USEDFPU
 	and	t2, t0, t1
 	beqz	t2, 1f
 	nor	t1, zero, t1
 
-	/*
-	 * clear PF_USEDFPU bit in task flags
-	 */
 	and	t0, t0, t1
-	sw	t0, TASK_FLAGS(a0)
+	sw	t0, TI_FLAGS(t3)
 
 	/*
 	 * clear user-saved stack CU1 bit
@@ -114,7 +112,7 @@ LEAF(_save_fp)
 LEAF(_restore_fp)
 	FPU_RESTORE_SINGLE(a0, t1)		# clobbers t1
 	jr	ra
-	END(_estore_fp)
+	END(_restore_fp)
 
 /*
  * Load the FPU with signalling NANS.  This bit pattern we're using has
