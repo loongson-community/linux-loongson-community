@@ -152,8 +152,6 @@ void yosemite_time_init(void)
 mips_hpt_frequency = 33000000 * 3 * 5;
 }
 
-unsigned long uart_base = 0xfd000000L;
-
 /* No other usable initialization hook than this ...  */
 extern void (*late_time_init)(void);
 
