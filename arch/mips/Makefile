@@ -155,7 +155,7 @@ cflags-$(CONFIG_CPU_R5432)	+= \
 			-Wa,--trap
 
 cflags-$(CONFIG_CPU_NEVADA)	+= \
-			$(call set_gccflags,rm5200,mips4,r5000,mips4,mips2)
+			$(call set_gccflags,rm5200,mips4,r5000,mips4,mips2) \
 			-Wa,--trap
 #			$(call check_gcc,-mmad,)
 
