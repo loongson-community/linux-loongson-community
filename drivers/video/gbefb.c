@@ -9,7 +9,6 @@
  *  more details.
  */
 
-#include <linux/bootmem.h>
 #include <linux/config.h>
 #include <linux/delay.h>
 #include <linux/device.h>
@@ -77,6 +76,7 @@ struct gbefb_par {
 static unsigned int gbe_mem_size = CONFIG_FB_GBE_MEM * 1024*1024;
 static void *gbe_mem;
 static dma_addr_t gbe_dma_addr;
+unsigned long gbe_mem_phys;
 
 static struct {
 	uint16_t *cpu;
@@ -263,8 +263,7 @@ void gbe_turn_off(void)
 		y = GET_GBE_FIELD(VT_XY, Y, val);
 		if (y < vpixen_off)
 			break;
-		else
-			udelay(1);
+		udelay(1);
 	}
 	if (i == 100000)
 		printk(KERN_ERR
@@ -275,8 +274,7 @@ void gbe_turn_off(void)
 		y = GET_GBE_FIELD(VT_XY, Y, val);
 		if (y > vpixen_off)
 			break;
-		else
-			udelay(1);
+		udelay(1);
 	}
 	if (i == 10000)
 		printk(KERN_ERR "gbefb: wait for vpixen_off timed out\n");
@@ -323,10 +321,15 @@ static void gbe_turn_on(void)
 {
 	unsigned int val, i;
 
-	/* check if pixel counter is off */
-	val = gbe->vt_xy;
-	if (GET_GBE_FIELD(VT_XY, FREEZE, val) == 0)
-		return;
+	/*
+	 * Check if pixel counter is off, for unknown reason this 
+	 * code hangs Visual Workstations 
+	 */
+	if (gbe_revision < 2) {
+		val = gbe->vt_xy;
+		if (GET_GBE_FIELD(VT_XY, FREEZE, val) == 0)
+			return;
+	}
 
 	/* turn on dot clock */
 	val = gbe->dotclock;
@@ -492,7 +495,7 @@ static int compute_gbe_timing(struct fb_var_screeninfo *var,
 		(best_n << best_p) / best_m;
 
 	/* set video timing information */
-	if(timing) {
+	if (timing) {
 		timing->width = var->xres;
 		timing->height = var->yres;
 		timing->pll_m = best_m;
@@ -574,7 +577,7 @@ static void gbe_set_timing_info(struct gbe_timing_info *timing)
 	if (temp > 0)
 		temp = -temp;
 
-	if(flat_panel_enabled)
+	if (flat_panel_enabled)
 		gbefb_setup_flatpanel(timing);
 
 	SET_GBE_FIELD(DID_START_XY, DID_STARTY, val, (u32) temp);
@@ -741,26 +744,13 @@ static int gbefb_set_par(struct fb_info *info)
 	/*             [ tile 2 ] -> FB mem */
 	/*               ...                */
 	val = 0;
-        SET_GBE_FIELD(FRM_CONTROL, FRM_DMA_ENABLE, val, 0); /* do not start */
-	if (gbe_revision < 2)
-		SET_GBE_FIELD(FRM_CONTROL, FRM_TILE_PTR, val,
-			      gbe_tiles.dma >> 9);
-	else {
-		/* rev. 2 and above spports linear framebuffer */
-		SET_GBE_FIELD(FRM_CONTROL, FRM_LINEAR, val, 1);
-		SET_GBE_FIELD(FRM_CONTROL, FRM_TILE_PTR, val,
-			      gbe_dma_addr >> 9);
-	}	
+	SET_GBE_FIELD(FRM_CONTROL, FRM_TILE_PTR, val, gbe_tiles.dma >> 9);
+	SET_GBE_FIELD(FRM_CONTROL, FRM_DMA_ENABLE, val, 0); /* do not start */
+	SET_GBE_FIELD(FRM_CONTROL, FRM_LINEAR, val, 0);
 	gbe->frm_control = val;
 
 	maxPixelsPerTileX = 512 / bytesPerPixel;
-	if (gbe_revision < 2)
-		wholeTilesX = 1;
-	else {
-		wholeTilesX = xpmax / maxPixelsPerTileX;
-		if (wholeTilesX * maxPixelsPerTileX < xpmax)
-			wholeTilesX++;
-	}
+	wholeTilesX = 1;
 	partTilesX = 0;
 
 	/* Initialize the framebuffer */
@@ -785,10 +775,7 @@ static int gbefb_set_par(struct fb_info *info)
 	gbe->frm_size_tile = val;
 
 	/* compute tweaked height */
-	if (gbe_revision < 2)
-		height_pix = xpmax * ypmax / maxPixelsPerTileX;
-	else
-		height_pix = ypmax;
+	height_pix = xpmax * ypmax / maxPixelsPerTileX;
 
 	val = 0;
 	SET_GBE_FIELD(FRM_SIZE_PIXEL, FB_HEIGHT_PIX, val, height_pix);
@@ -920,12 +907,12 @@ static int gbefb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 
 	/* Check the mode can be mapped linearly with the tile table trick. */
 	/* This requires width x height x bytes/pixel be a multiple of 512 */
-	if((var->xres * var->yres * var->bits_per_pixel) & 4095)
+	if ((var->xres * var->yres * var->bits_per_pixel) & 4095)
 		return -EINVAL;
 
 	var->grayscale = 0;	/* No grayscale for now */
 
-	if((var->pixclock = compute_gbe_timing(var, &timing)) < 0)
+	if ((var->pixclock = compute_gbe_timing(var, &timing)) < 0)
 		return(-EINVAL);
 
 	/* Adjust virtual resolution, if necessary */
@@ -1051,11 +1038,6 @@ static struct fb_ops gbefb_ops = {
 	.fb_setcolreg	= gbefb_setcolreg,
 	.fb_mmap	= gbefb_mmap,
 	.fb_blank	= gbefb_blank,
-#if 0
-	.fb_fillrect	= gbefb_fillrect,
-	.fb_copyarea	= gbefb_copyarea,
-	.fb_imageblit	= gbefb_imagebilt,
-#endif
 	.fb_fillrect	= cfb_fillrect,
 	.fb_copyarea	= cfb_copyarea,
 	.fb_imageblit	= cfb_imageblit,
@@ -1101,41 +1083,54 @@ int __init gbefb_init(void)
 {
 	int i, ret = 0;
 
-	if (!request_mem_region(GBE_BASE, sizeof(struct sgi_gbe), "GBE"))
+	if (!request_mem_region(GBE_BASE, sizeof(struct sgi_gbe), "GBE")) {
+		printk(KERN_ERR "gbefb: couldn't reserve mmio region\n");
 		return -EBUSY;
+	}
 
 	gbe = (struct sgi_gbe *) ioremap(GBE_BASE, sizeof(struct sgi_gbe));
 	if (!gbe) {
+		printk(KERN_ERR "gbefb: couldn't map mmio region\n");
 		ret = -ENXIO;
 		goto out_release_mem_region;
 	}
 	gbe_revision = gbe->ctrlstat & 15;
 
-	if (gbe_revision < 2) {
-		gbe_tiles.cpu =
-			dma_alloc_coherent(NULL, GBE_TLB_SIZE*sizeof(uint16_t),
-					   &gbe_tiles.dma, GFP_KERNEL);
-		if (!gbe_tiles.cpu) {
-			ret = -ENOMEM;
-			goto out_unmap;
-		}
+	gbe_tiles.cpu =
+		dma_alloc_coherent(NULL, GBE_TLB_SIZE * sizeof(uint16_t),
+				   &gbe_tiles.dma, GFP_KERNEL);
+	if (!gbe_tiles.cpu) {
+		printk(KERN_ERR "gbefb: couldn't allocate tiles table\n");
+		ret = -ENOMEM;
+		goto out_unmap;
 	}
 
-	gbe_mem = dma_alloc_coherent(NULL, gbe_mem_size, &gbe_dma_addr,
-				     GFP_KERNEL);
-	
+
+	if (gbe_mem_phys) {
+		/* memory was allocated at boot time */
+		gbe_mem = ioremap_nocache(gbe_mem_phys, gbe_mem_size);
+		gbe_dma_addr = 0;
+	} else {
+		/* try to allocate memory with the classical allocator
+		 * this has high chance to fail on low memory machines */
+		gbe_mem = dma_alloc_coherent(NULL, gbe_mem_size, &gbe_dma_addr,
+					     GFP_KERNEL);
+		gbe_mem_phys = (unsigned long) gbe_dma_addr;
+	}
+
 #ifdef CONFIG_X86
-	mtrr_add(gbe_dma_addr, gbe_mem_size, MTRR_TYPE_WRCOMB, 1);
+	mtrr_add(gbe_mem_phys, gbe_mem_size, MTRR_TYPE_WRCOMB, 1);
 #endif
 
 	if (!gbe_mem) {
+		printk(KERN_ERR "gbefb: couldn't map framebuffer\n");
 		ret = -ENXIO;
 		goto out_tiles_free;
 	}
 
 	/* map framebuffer memory into tiles table */
 	for (i = 0; i < (gbe_mem_size >> TILE_SHIFT); i++)
-		gbe_tiles.cpu[i] = (gbe_dma_addr >> TILE_SHIFT) + i;
+		gbe_tiles.cpu[i] = (gbe_mem_phys >> TILE_SHIFT) + i;
 
 	fb_info.currcon = -1;
 	fb_info.fbops = &gbefb_ops;
@@ -1158,21 +1153,24 @@ int __init gbefb_init(void)
 
 	if (register_framebuffer(&fb_info) < 0) {
 		ret = -ENXIO;
-		goto out_gbe_free;
+		printk(KERN_ERR "gbefb: couldn't register framebuffer\n");
+		goto out_gbe_unmap;
 	}
 	
-	printk(KERN_INFO "fb%d: %s rev %d @ 0x%08x using %ldkB memory\n",
+	printk(KERN_INFO "fb%d: %s rev %d @ 0x%08x using %dkB memory\n",
 	       fb_info.node, fb_info.fix.id, gbe_revision, (unsigned) GBE_BASE,
 	       gbe_mem_size >> 10);
 
 	return 0;
 
-out_gbe_free:
-	dma_free_coherent(NULL, gbe_mem_size, gbe_mem, gbe_dma_addr);
+out_gbe_unmap:
+	if (gbe_dma_addr)
+		dma_free_coherent(NULL, gbe_mem_size, gbe_mem, gbe_mem_phys);
+	else	       
+		iounmap(gbe_mem);
 out_tiles_free:
-	if (gbe_revision < 2)
-		dma_free_coherent(NULL, GBE_TLB_SIZE * sizeof(uint16_t),
-				  (void *)gbe_tiles.cpu, gbe_tiles.dma);
+	dma_free_coherent(NULL, GBE_TLB_SIZE * sizeof(uint16_t),
+			  (void *)gbe_tiles.cpu, gbe_tiles.dma);
 out_unmap:
 	iounmap(gbe);
 out_release_mem_region:
@@ -1184,11 +1182,12 @@ void __exit gbefb_exit(void)
 {
 	unregister_framebuffer(&fb_info);
 	gbe_turn_off();
-	iounmap(gbe_mem);
-	if (gbe_revision < 2)
-		dma_free_coherent(NULL, GBE_TLB_SIZE * sizeof(uint16_t),
-				  (void *)gbe_tiles.cpu, gbe_tiles.dma);
-	dma_free_coherent(NULL, gbe_mem_size, gbe_mem, gbe_dma_addr);
+	if (gbe_dma_addr)
+		dma_free_coherent(NULL, gbe_mem_size, gbe_mem, gbe_mem_phys);
+	else	       
+		iounmap(gbe_mem);
+	dma_free_coherent(NULL, GBE_TLB_SIZE * sizeof(uint16_t),
+			  (void *)gbe_tiles.cpu, gbe_tiles.dma);
 	release_mem_region(GBE_BASE, sizeof(struct sgi_gbe));
 	iounmap(gbe);
 }
