@@ -3,8 +3,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * MIPS64 specific IP/TCP/UDP checksumming routines
- *
+ * Copyright (C) 1994, 1995 Waldorf Electronics GmbH
  * Copyright (C) 1998, 1999 Ralf Baechle
  */
 #include <net/checksum.h>
@@ -34,8 +33,7 @@ unsigned int csum_partial_copy_nocheck(const char *src, char *dst,
  * then zero the rest of the buffer.
  */
 unsigned int csum_partial_copy_from_user (const char *src, char *dst,
-                                          int len, unsigned int sum,
-                                          int *err_ptr)
+	int len, unsigned int sum, int *err_ptr)
 {
 	int missing;
 
