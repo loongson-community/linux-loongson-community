@@ -140,6 +140,18 @@ typedef struct {
 
 #define rwlock_init(x)  do { *(x) = RW_LOCK_UNLOCKED; } while(0)
 
+/*
+ * read_can_lock - would read_trylock() succeed?
+ * @lock: the rwlock in question.
+ */
+#define read_can_lock(rw)	((rw)->lock >= 0)
+
+/*
+ * write_can_lock - would write_trylock() succeed?
+ * @lock: the rwlock in question.
+ */
+#define write_can_lock(rw)	(!(rw)->lock)
+
 static inline void _raw_read_lock(rwlock_t *rw)
 {
 	unsigned int tmp;
