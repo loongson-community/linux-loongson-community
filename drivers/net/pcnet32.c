@@ -12,6 +12,14 @@
  *
  *	This driver is for PCnet32 and PCnetPCI based ethercards
  */
+/**************************************************************************
+ *  23 Oct, 2000.
+ *  Fixed a few bugs, related to running the controller in 32bit mode.
+ *
+ *  Carsten Langgaard, carstenl@mips.com
+ *  Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
+ *
+ *************************************************************************/
 
 static const char *version = "pcnet32.c:v1.25kf 26.9.1999 tsbogend@alpha.franken.de\n";
 
@@ -421,7 +429,7 @@ static void pcnet32_dwio_reset (unsigned long addr)
 static int pcnet32_dwio_check (unsigned long addr)
 {
     outl (88, addr+PCNET32_DWIO_RAP);
-    return (inl (addr+PCNET32_DWIO_RAP) == 88);
+    return ((inl (addr+PCNET32_DWIO_RAP) & 0xffff) == 88);
 }
 
 static struct pcnet32_access pcnet32_dwio = {
@@ -528,11 +536,13 @@ pcnet32_probe1(unsigned long ioaddr, unsigned char irq_line, int shared, int car
     pcnet32_dwio_reset(ioaddr);
     pcnet32_wio_reset(ioaddr);
 
-    if (pcnet32_wio_read_csr (ioaddr, 0) == 4 && pcnet32_wio_check (ioaddr)) {
-	a = &pcnet32_wio;
+    /* Important to do the check for dwio mode first. */
+    if (pcnet32_dwio_read_csr(ioaddr, 0) == 4 && pcnet32_dwio_check(ioaddr)) {
+        a = &pcnet32_dwio;
     } else {
-	if (pcnet32_dwio_read_csr (ioaddr, 0) == 4 && pcnet32_dwio_check(ioaddr)) {
-	    a = &pcnet32_dwio;
+        if (pcnet32_wio_read_csr(ioaddr, 0) == 4 && 
+	    pcnet32_wio_check(ioaddr)) {
+	    a = &pcnet32_wio;
 	} else
 	    return -ENODEV;
     }

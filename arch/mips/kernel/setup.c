@@ -237,6 +237,8 @@ static inline void cpu_probe(void)
 		mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU | MIPS_CPU_32FPR | 
 		                   MIPS_CPU_DIVEC;
 		mips_cpu.tlbsize = 48;
+		mips_cpu.icache.ways = 2;
+		mips_cpu.dcache.ways = 2;
 		break;
 	case PRID_IMP_R6000:
 		mips_cpu.cputype = CPU_R6000;

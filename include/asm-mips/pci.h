@@ -202,6 +202,16 @@ extern inline void pci_dma_sync_sg(struct pci_dev *hwdev,
 #endif
 }
 
+/* Return whether the given PCI device DMA address mask can
+ * be supported properly.  For example, if your device can
+ * only drive the low 24-bits during PCI bus mastering, then
+ * you would pass 0x00ffffff as the mask to this function.
+ */
+extern inline int pci_dma_supported(struct pci_dev *hwdev, dma_addr_t mask)
+{
+	return 1;
+}
+
 /*
  * These macros should be used after a pci_map_sg call has been done
  * to get bus addresses of each of the SG entries and their lengths.

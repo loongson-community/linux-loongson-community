@@ -5,6 +5,14 @@
  * This file contains the time handling details for PC-style clocks as
  * found in some MIPS systems.
  */
+/**************************************************************************
+ *  9 Nov, 2000.
+ *  Changed init_cycle_counter() routine, use the mips_cpu structure.
+ *
+ *  Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips
+ *  Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
+ *************************************************************************/
+
 #include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -449,42 +457,8 @@ char cyclecounter_available;
 
 static inline void init_cycle_counter(void)
 {
-	switch(mips_cpu.cputype) {
-	case CPU_UNKNOWN:
-	case CPU_R2000:
-	case CPU_R3000:
-	case CPU_R3000A:
-	case CPU_R3041:
-	case CPU_R3051:
-	case CPU_R3052:
-	case CPU_R3081:
-	case CPU_R3081E:
-	case CPU_R6000:
-	case CPU_R6000A:
-	case CPU_R8000:		/* Not shure about that one, play safe */
-		cyclecounter_available = 0;
-		break;
-	case CPU_R4000PC:
-	case CPU_R4000SC:
-	case CPU_R4000MC:
-	case CPU_R4200:
-	case CPU_R4400PC:
-	case CPU_R4400SC:
-	case CPU_R4400MC:
-	case CPU_R4600:
-	case CPU_R10000:
-	case CPU_R4300:
-	case CPU_R4650:
-	case CPU_R4700:
-	case CPU_R5000:
-	case CPU_R5432:
-	case CPU_R5000A:
-	case CPU_R4640:
-	case CPU_NEVADA:
-	case CPU_RM7000:
-		cyclecounter_available = 1;
-		break;
-	}
+	if(mips_cpu.options & MIPS_CPU_COUNTER) cyclecounter_available = 1;
+	else cyclecounter_available = 0;
 }
 
 struct irqaction irq0  = { timer_interrupt, SA_INTERRUPT, 0,

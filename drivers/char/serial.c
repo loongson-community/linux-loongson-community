@@ -86,6 +86,16 @@ static char *serial_revdate = "2000-08-09";
  * 		Check the magic number for the async_structure where
  * 		ever possible.
  */
+/**************************************************************************
+ *  23 Oct, 2000.
+ *  Added suport for MIPS Atlas board.
+ *  
+ *  23 Nov, 2000.
+ *  Hooks for serial kernel debug port support added.
+ *
+ *  Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
+ *  Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
+ *************************************************************************/
 
 #include <linux/config.h>
 #include <linux/version.h>
@@ -402,6 +412,22 @@ static inline int serial_paranoia_check(struct async_struct *info,
 	return 0;
 }
 
+#ifdef CONFIG_MIPS_ATLAS 
+extern unsigned int atlas_serial_in(struct async_struct *info, int offset);
+extern void atlas_serial_out(struct async_struct *info, int offset, int value);
+
+static _INLINE_ unsigned int serial_in(struct async_struct *info, int offset)
+{
+        return (atlas_serial_in(info, offset) & 0xff);   
+}
+
+static _INLINE_ void serial_out(struct async_struct *info, int offset, int value)
+{
+        atlas_serial_out(info, offset, value);
+}
+
+#else
+
 static _INLINE_ unsigned int serial_in(struct async_struct *info, int offset)
 {
 	switch (info->io_type) {
@@ -445,6 +471,8 @@ static _INLINE_ void serial_out(struct async_struct *info, int offset,
 		outb(value, info->port+offset);
 	}
 }
+#endif
+
 
 /*
  * We used to support using pause I/O for certain machines.  We

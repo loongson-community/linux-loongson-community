@@ -22,7 +22,11 @@
 #include <linux/string.h>
 #include <linux/kernel.h>
 
+#include <asm/io.h>
 #include <asm/mips-boards/prom.h>
+#include <asm/mips-boards/generic.h>
+#include <asm/gt64120.h>
+#include <asm/mips-boards/malta.h>
 
 /* Environment variable */
 typedef struct
@@ -110,11 +114,25 @@ int __init prom_init(int argc, char **argv, char **envp)
 
 	mips_display_message("LINUX");
 
-	setup_prom_printf();
+	/*
+	 * Setup the North bridge to do Master byte-lane swapping when 
+	 * running in bigendian.
+	 */
+#if defined(__MIPSEL__)
+	GT_WRITE(GT_PCI0_CMD_OFS, GT_PCI0_CMD_MBYTESWAP_BIT |
+		 GT_PCI0_CMD_SBYTESWAP_BIT);
+#else
+	GT_WRITE(GT_PCI0_CMD_OFS, 0);
+#endif
+
+#if defined(CONFIG_MIPS_MALTA)
+	mips_io_port_base = MALTA_PORT_BASE;
+#else
+	mips_io_port_base = KSEG1;
+#endif
+	setup_prom_printf(0);
 	prom_printf("\nLINUX started...\n");
-
 	prom_init_cmdline();
-
 	prom_meminit();
 
 	return 0;

@@ -6,6 +6,14 @@
  * Copyright (C) 1994 - 2000 by Ralf Baechle
  * Copyright (C) 2000 Silicon Graphics, Inc.
  */
+/**************************************************************************
+ *  9 Nov, 2000.
+ *  Use mips_cpu structure.
+ *
+ *  Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
+ *  Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
+ *************************************************************************/
+
 #include <linux/config.h>
 #include <linux/init.h>
 #include <linux/signal.h>
@@ -121,17 +129,9 @@ static inline unsigned long setup_zero_pages(void)
 {
 	unsigned long order, size;
 	struct page *page;
-
-	switch (mips_cpu.cputype) {
-	case CPU_R4000SC:
-	case CPU_R4000MC:
-	case CPU_R4400SC:
-	case CPU_R4400MC:
-		order = 3;
-		break;
-	default:
-		order = 0;
-	}
+	
+	if(mips_cpu.options & MIPS_CPU_VCE) order = 3;
+	else order = 0;
 
 	empty_zero_page = __get_free_pages(GFP_KERNEL, order);
 	if (!empty_zero_page)

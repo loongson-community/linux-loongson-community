@@ -75,6 +75,16 @@
 #define JAZZ_SERIAL_PORT_DEFNS
 #endif
 
+#ifdef CONFIG_MIPS_ATLAS
+#include <asm/mips-boards/atlas.h>
+#include <asm/mips-boards/atlasint.h>
+#define ATLAS_SERIAL_PORT_DEFNS			\
+	/* UART CLK   PORT IRQ     FLAGS        */			\
+	{ 0, ATLAS_BASE_BAUD, ATLAS_UART_REGS_BASE, ATLASINT_UART, STD_COM_FLAGS },     /* ttyS0 */
+#else
+#define ATLAS_SERIAL_PORT_DEFNS
+#endif
+
 /*
  * Both Galileo boards have the same UART mappings.
  */
@@ -92,8 +102,7 @@
 #define EV96100_SERIAL_PORT_DEFNS
 #endif
 
-
-#ifdef CONFIG_HAVE_STD_PC_SERIAL_PORTS
+#ifdef CONFIG_HAVE_STD_PC_SERIAL_PORT
 #define STD_SERIAL_PORT_DEFNS			\
 	/* UART CLK   PORT IRQ     FLAGS        */			\
 	{ 0, BASE_BAUD, 0x3F8, 4, STD_COM_FLAGS },	/* ttyS0 */	\
@@ -195,6 +204,7 @@
 #endif
 
 #define SERIAL_PORT_DFNS		\
+	ATLAS_SERIAL_PORT_DEFNS		\
 	EV96100_SERIAL_PORT_DEFNS	\
 	JAZZ_SERIAL_PORT_DEFNS		\
 	STD_SERIAL_PORT_DEFNS		\

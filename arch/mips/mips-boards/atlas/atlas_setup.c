@@ -40,8 +40,7 @@ char serial_console[20];
 extern void rs_kgdb_hook(int);
 extern void saa9730_kgdb_hook(void);
 extern void breakpoint(void);
-static int remote_debug = 0;
-static int kgdb_on_pci = 0;
+int remote_debug = 0;
 #endif
 
 extern struct rtc_ops atlas_rtc_ops;
@@ -60,7 +59,6 @@ void __init atlas_setup(void)
 #endif
 	char *argptr;
 
-	mips_io_port_base = KSEG1;
 	ioport_resource.end = 0x7fffffff;
 
 #ifdef CONFIG_SERIAL_CONSOLE
@@ -97,7 +95,6 @@ void __init atlas_setup(void)
 			saa9730_kgdb_hook();
 			putDebugChar = saa9730_putDebugChar;
 			getDebugChar = saa9730_getDebugChar;
-			kgdb_on_pci = 1;
 		}
 
 		prom_printf("KGDB: Using serial line /dev/ttyS%d for session, "
@@ -109,19 +106,10 @@ void __init atlas_setup(void)
 #endif
 	argptr = prom_getcmdline();
 
+	if ((argptr = strstr(argptr, "nofpu")) != NULL)
+		mips_cpu.options &= ~MIPS_CPU_FPU;
+
 	rtc_ops = &atlas_rtc_ops;
 
 	mips_reboot_setup();
-
-	/*
-	 * Setup the North bridge to do Master byte-lane swapping when
-	 * running in bigendian.
-	 * Be careful to use prom_printf after this.
-	 */
-#if defined(__MIPSEL__)
-	GT_WRITE(GT_PCI0_CMD_OFS, GT_PCI0_CMD_MBYTESWAP_BIT |
-	         GT_PCI0_CMD_SBYTESWAP_BIT);
-#else
-	GT_WRITE(GT_PCI0_CMD_OFS, 0);
-#endif
 }

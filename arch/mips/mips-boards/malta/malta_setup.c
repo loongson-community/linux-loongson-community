@@ -39,9 +39,6 @@
 #include <asm/mips-boards/prom.h>
 #include <asm/mips-boards/malta.h>
 #include <asm/mips-boards/maltaint.h>
-#ifdef CONFIG_BLK_DEV_IDE
-#include <asm/ide.h>
-#endif
 #ifdef CONFIG_BLK_DEV_FD
 #include <asm/floppy.h>
 #endif
@@ -57,7 +54,6 @@ extern void set_debug_traps(void);
 extern void rs_kgdb_hook(int);
 extern void breakpoint(void);
 static int remote_debug = 0;
-static int kgdb_on_pci = 0;
 #endif
 
 #ifdef CONFIG_BLK_DEV_IDE
@@ -86,7 +82,7 @@ static void __init malta_irq_setup(void)
   	maltaint_init();
 
 #ifdef CONFIG_REMOTE_DEBUG
-	if (remote_debug && !kgdb_on_pci) {
+	if (remote_debug) {
 		set_debug_traps();
 		breakpoint(); 
 	}
@@ -106,7 +102,6 @@ void __init malta_setup(void)
 	int i;
 
 	irq_setup = malta_irq_setup;
-	mips_io_port_base = MALTA_PORT_BASE;
 
 	/* Request I/O space for devices used on the Malta board. */
 	for (i = 0; i < STANDARD_IO_RESOURCES; i++)
@@ -155,6 +150,10 @@ void __init malta_setup(void)
 		/* Breakpoints and stuff are in malta_irq_setup() */
 	}
 #endif
+
+	argptr = prom_getcmdline();
+	if ((argptr = strstr(argptr, "nofpu")) != NULL)
+		mips_cpu.options &= ~MIPS_CPU_FPU;
 		
 	rtc_ops = &malta_rtc_ops;
 #ifdef CONFIG_BLK_DEV_IDE
@@ -164,16 +163,4 @@ void __init malta_setup(void)
         fd_ops = &std_fd_ops;
 #endif
 	mips_reboot_setup();
-
-	/*
-	 * Setup the North bridge to do Master byte-lane swapping when
-	 * running in bigendian.
-	 * Be careful to use prom_printf after this.
-	 */
-#if defined(__MIPSEL__)
-	GT_WRITE(GT_PCI0_CMD_OFS, GT_PCI0_CMD_MBYTESWAP_BIT |
-	         GT_PCI0_CMD_SBYTESWAP_BIT);
-#else
-	GT_WRITE(GT_PCI0_CMD_OFS, 0);
-#endif
 }

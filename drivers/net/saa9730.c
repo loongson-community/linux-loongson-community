@@ -23,6 +23,7 @@
  *
  */
 
+#include <linux/init.h>
 #include <linux/netdevice.h>
 #include <linux/delay.h>
 #include <linux/etherdevice.h>
@@ -45,8 +46,8 @@ int lan_saa9730_debug;
 /* Non-zero only if the current card is a PCI with BIOS-set IRQ. */
 static unsigned int pci_irq_line = 0;
 
-#define INL(a)     le32_to_cpu(inl((unsigned long)a))
-#define OUTL(x,a)  outl(cpu_to_le32(x),(unsigned long)a)
+#define INL(a)     inl((unsigned long)a)
+#define OUTL(x,a)  outl(x,(unsigned long)a)
 
 static void evm_saa9730_enable_lan_int(struct lan_saa9730_private *lp)
 {
@@ -1003,12 +1004,7 @@ static int lan_saa9730_init(struct net_device *dev, int ioaddr, int irq)
 	/* Set SAA9730 EVM base address. */
 	lp->evm_saa9730_regs = (t_evm_saa9730_regmap *) (ioaddr +
 							 SAA9730_EVM_REGS_ADDR);
-#ifdef CONFIG_REMOTE_DEBUG
-	if (saa9730_kgdb_active)
-		saa9730_kgdb_setup((t_uart_saa9730_regmap *) (ioaddr
-							      +
-							      SAA9730_UART_REGS_ADDR));
-#endif
+
 	/* Allocate LAN RX/TX frame buffer space. */
 	if (lan_saa9730_allocate_buffers(lp))
 		return -1;

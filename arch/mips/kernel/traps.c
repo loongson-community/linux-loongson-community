@@ -790,6 +790,7 @@ void __init trap_init(void)
 	extern char except_vec0_r4600, except_vec0_r2300;
 	extern char except_vec1_generic, except_vec2_generic;
 	extern char except_vec3_generic, except_vec3_r4000;
+	extern char except_vec_ejtag_debug;
 	unsigned long i;
 
 	if(mips_machtype == MACH_MIPS_MAGNUM_4000 ||
@@ -809,6 +810,12 @@ void __init trap_init(void)
 	 */
 	for(i = 0; i <= 31; i++)
 		(void)set_except_vector(i, handle_reserved);
+
+	/* 
+	 * Copy the EJTAG debug exception vector handler code to it's final 
+	 * destination.
+	 */
+	memcpy((void *)(KSEG0 + 0x300), &except_vec_ejtag_debug, 0x80);
 
 	/*
 	 * Only some CPUs have the watch exceptions or a dedicated

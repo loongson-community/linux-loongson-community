@@ -28,7 +28,7 @@
 
 extern char *prom_getcmdline(void);
 extern char *prom_getenv(char *name);
-extern void setup_prom_printf(void);
+extern void setup_prom_printf(int tty_no);
 extern void prom_printf(char *fmt, ...);
 extern void prom_init_cmdline(void);
 extern void prom_meminit(void);

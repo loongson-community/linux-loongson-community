@@ -53,6 +53,13 @@
 **
 *******************************************************************************
 */
+/**************************************************************************
+ *  23 Oct, 2000.
+ *  Added support for MIPS big endian systems.
+ *
+ *  Carsten Langgaard, carstenl@mips.com
+ *  Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
+ *************************************************************************/
 
 #ifndef SYM53C8XX_DEFS_H
 #define SYM53C8XX_DEFS_H
@@ -399,8 +406,17 @@
 #define	readl_l2b	readl
 #define	writew_b2l	writew
 #define	writel_b2l	writel
+#elif defined(__mips__)
+#define readw_l2b	readw
+#define readl_l2b	readl
+#define writew_b2l	writew
+#define writel_b2l	writel
+#define inw_l2b 	inw
+#define inl_l2b 	inl
+#define outw_b2l	outw
+#define outl_b2l	outl
 #else
-#error	"Support for BIG ENDIAN is only available for PowerPC and SPARC"
+#error	"Support for BIG ENDIAN is only available for PowerPC, SPARC and MIPS"
 #endif
 
 #else	/* little endian */

@@ -203,7 +203,7 @@
 	"move\t%0,$1\n\t"                                       \
 	".set\tat\n\t"                                          \
 	".set\treorder"                                         \
-:"=r" (__res));                                         \
+	:"=r" (__res));                                         \
         __res;})
 #endif
 

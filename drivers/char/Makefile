@@ -54,6 +54,12 @@ ifeq ($(ARCH),s390)
   SERIAL   =
 endif
 
+ifeq ($(ARCH),mips)
+  ifneq ($(CONFIG_PC_KEYB),y)
+    KEYBD    =
+  endif
+endif
+
 ifeq ($(ARCH),m68k)
    ifdef CONFIG_AMIGA
       KEYBD = amikeyb.o

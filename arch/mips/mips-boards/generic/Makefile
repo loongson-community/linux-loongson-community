@@ -39,4 +39,8 @@ O_TARGET := mipsboards.o
 O_OBJS := mipsIRQ.o pci.o reset.o display.o init.o memory.o printf.o \
 	  cmdline.o time.o
 
+ifdef CONFIG_REMOTE_DEBUG
+O_OBJS += gdb_hook.o
+endif
+
 include $(TOPDIR)/Rules.make

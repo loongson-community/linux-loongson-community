@@ -154,7 +154,7 @@ int get_irq_list(char *buf)
 }
 
 
-static int setup_irq(int irq, struct irqaction * new)
+static int setup_irq(unsigned int irq, struct irqaction * new)
 {
 	int shared = 0;
 	struct irqaction *old, **p;
@@ -316,7 +316,7 @@ void malta_hw0_irqdispatch(struct pt_regs *regs)
 	if ( action == NULL )
 		return;
 
-	irq_enter(cpu);
+	irq_enter(cpu, irq);
 	kstat.irqs[0][irq + 8]++;
 	do {
 	        action->handler(irq, action->dev_id, regs);
@@ -324,7 +324,7 @@ void malta_hw0_irqdispatch(struct pt_regs *regs)
 	} while (action);
 
 	enable_irq(irq);
-	irq_exit(cpu);
+	irq_exit(cpu, irq);
 }
 
 
