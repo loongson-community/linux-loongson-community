@@ -100,8 +100,7 @@ static void serial_throttle(struct tty_struct *tty);
 static void serial_unthrottle(struct tty_struct *tty);
 static int serial_ioctl(struct tty_struct *tty, struct file *file,
 			unsigned int cmd, unsigned long arg);
-static void serial_set_termios(struct tty_struct *tty,
-			       struct termios *old);
+static void serial_set_termios (struct tty_struct *tty, struct termios * old);
 
 typedef struct {
 	int read_fifo;
@@ -150,7 +149,7 @@ struct usb_serial_port {
 
 	/* task queue for line discipline waking up on send packet complete */
 	struct tq_struct send_complete_tq;
-	/* task queue for line discipline waking up on receive packet complete */
+	/* task queue for line discipline wakeup on receive packet complete */
 	struct tq_struct receive_complete_tq;
 
 	int open_count;		/* number of times this port has been opened */
@@ -283,19 +282,15 @@ static endpoint_reg_t ep_reg[] = {
 	{USB_DEV_EP0_READ_FIFO, USB_DEV_EP0_WRITE_FIFO,
 	 USB_DEV_EP0_CS, USB_DEV_FIFO0_STATUS, USB_DEV_FIFO1_STATUS},
 	// FIFO 2 is EP2, Port 0, bulk IN
-	
-	    {-1, USB_DEV_EP2_WRITE_FIFO, USB_DEV_EP2_CS, -1,
-	 USB_DEV_FIFO2_STATUS},
+	{ -1, USB_DEV_EP2_WRITE_FIFO, USB_DEV_EP2_CS,
+	  -1, USB_DEV_FIFO2_STATUS },
 	// FIFO 4 is EP4, Port 0, bulk OUT
-	
 	    {USB_DEV_EP4_READ_FIFO, -1, USB_DEV_EP4_CS,
 	 USB_DEV_FIFO4_STATUS, -1},
 	// FIFO 3 is EP3, Port 1, bulk IN
-	
-	    {-1, USB_DEV_EP3_WRITE_FIFO, USB_DEV_EP3_CS, -1,
-	 USB_DEV_FIFO3_STATUS},
+	{ -1, USB_DEV_EP3_WRITE_FIFO, USB_DEV_EP3_CS,
+	  -1, USB_DEV_FIFO3_STATUS },
 	// FIFO 5 is EP5, Port 1, bulk OUT
-	
 	    {USB_DEV_EP5_READ_FIFO, -1, USB_DEV_EP5_CS,
 	 USB_DEV_FIFO5_STATUS, -1}
 };
@@ -304,13 +299,12 @@ static struct {
 	unsigned int id;
 	const char *str;
 } ep_dma_id[] = {
-	{
-	DMA_ID_USBDEV_EP0_TX, "USBDev EP0 IN"}, {
-	DMA_ID_USBDEV_EP0_RX, "USBDev EP0 OUT"}, {
-	DMA_ID_USBDEV_EP2_TX, "USBDev EP2 IN"}, {
-	DMA_ID_USBDEV_EP4_RX, "USBDev EP4 OUT"}, {
-	DMA_ID_USBDEV_EP3_TX, "USBDev EP3 IN"}, {
-	DMA_ID_USBDEV_EP5_RX, "USBDev EP5 OUT"}
+	{ DMA_ID_USBDEV_EP0_TX, "USBDev EP0 IN" },
+	{ DMA_ID_USBDEV_EP0_RX, "USBDev EP0 OUT" },
+	{ DMA_ID_USBDEV_EP2_TX, "USBDev EP2 IN" },
+	{ DMA_ID_USBDEV_EP4_RX, "USBDev EP4 OUT" },
+	{ DMA_ID_USBDEV_EP3_TX, "USBDev EP3 IN" },
+	{ DMA_ID_USBDEV_EP5_RX, "USBDev EP5 OUT" }
 };
 
 static int serial_refcount;
@@ -323,9 +317,8 @@ static struct usb_serial usbserial;
 #define DIR_OUT 0
 #define DIR_IN  (1<<3)
 
-static const u32 au1000_config_table[25] = {
+static const u32 au1000_config_table[25] __devinitdata = {
 	0x00,
-	
 	    ((EP0_MAX_PACKET_SIZE & 0x380) >> 7) |
 	    (USB_ENDPOINT_XFER_CONTROL << 4),
 	(EP0_MAX_PACKET_SIZE & 0x7f) << 1,
@@ -333,7 +326,6 @@ static const u32 au1000_config_table[25] = {
 	0x01,
 
 	0x10,
-	
 	    ((EP2_MAX_PACKET_SIZE & 0x380) >> 7) | DIR_IN |
 	    (USB_ENDPOINT_XFER_BULK << 4),
 	(EP2_MAX_PACKET_SIZE & 0x7f) << 1,
@@ -341,7 +333,6 @@ static const u32 au1000_config_table[25] = {
 	0x02,
 
 	0x20,
-	
 	    ((EP3_MAX_PACKET_SIZE & 0x380) >> 7) | DIR_IN |
 	    (USB_ENDPOINT_XFER_BULK << 4),
 	(EP3_MAX_PACKET_SIZE & 0x7f) << 1,
@@ -349,7 +340,6 @@ static const u32 au1000_config_table[25] = {
 	0x03,
 
 	0x30,
-	
 	    ((EP4_MAX_PACKET_SIZE & 0x380) >> 7) | DIR_OUT |
 	    (USB_ENDPOINT_XFER_BULK << 4),
 	(EP4_MAX_PACKET_SIZE & 0x7f) << 1,
@@ -357,7 +347,6 @@ static const u32 au1000_config_table[25] = {
 	0x04,
 
 	0x40,
-	
 	    ((EP5_MAX_PACKET_SIZE & 0x380) >> 7) | DIR_OUT |
 	    (USB_ENDPOINT_XFER_BULK << 4),
 	(EP5_MAX_PACKET_SIZE & 0x7f) << 1,
@@ -365,8 +354,8 @@ static const u32 au1000_config_table[25] = {
 	0x05
 };
 
-static inline endpoint_t *fifonum_to_ep(struct usb_serial *serial,
-					int fifo_num)
+static inline endpoint_t *
+fifonum_to_ep(struct usb_serial* serial, int fifo_num)
 {
 	switch (fifo_num) {
 	case 0:
@@ -385,9 +374,8 @@ static inline endpoint_t *fifonum_to_ep(struct usb_serial *serial,
 	return NULL;
 }
 
-static inline struct usb_serial_port *fifonum_to_port(struct usb_serial
-						      *serial,
-						      int fifo_num)
+static inline struct usb_serial_port *
+fifonum_to_port(struct usb_serial* serial, int fifo_num)
 {
 	switch (fifo_num) {
 	case 2:
@@ -401,8 +389,8 @@ static inline struct usb_serial_port *fifonum_to_port(struct usb_serial
 	return NULL;
 }
 
-static inline endpoint_t *epnum_to_ep(struct usb_serial *serial,
-				      int ep_num)
+static inline endpoint_t *
+epnum_to_ep(struct usb_serial* serial, int ep_num)
 {
 	switch (ep_num) {
 	case 0:
@@ -440,14 +428,13 @@ port_paranoia_check(struct usb_serial_port *port, const char *function)
 	return 0;
 }
 
-static inline struct usb_serial *get_usb_serial(struct usb_serial_port
-						*port,
-						const char *function)
+static inline struct usb_serial*
+get_usb_serial (struct usb_serial_port *port, const char *function)
 {
 	/* if no port was specified, or it fails a paranoia check */
 	if (!port || port_paranoia_check(port, function)) {
-		/* then say that we dont have a valid usb_serial thing, which will
-		 * end up genrating -ENODEV return values */
+		/* then say that we dont have a valid usb_serial thing,
+		 * which will end up genrating -ENODEV return values */
 		return NULL;
 	}
 
@@ -455,10 +442,10 @@ static inline struct usb_serial *get_usb_serial(struct usb_serial_port
 }
 
 
-static inline pkt_t *alloc_packet(int data_size)
+static inline pkt_t *
+alloc_packet(int data_size)
 {
-	pkt_t *pkt =
-	    (pkt_t *) kmalloc(sizeof(pkt_t) + data_size, ALLOC_FLAGS);
+	pkt_t* pkt = (pkt_t *)kmalloc(sizeof(pkt_t) + data_size, ALLOC_FLAGS);
 	if (!pkt)
 		return NULL;
 	pkt->size = data_size;
@@ -474,7 +461,8 @@ static inline pkt_t *alloc_packet(int data_size)
 /*
  * Link a packet to the tail of the enpoint's packet list.
  */
-static void link_packet(endpoint_t * ep, pkt_list_t * list, pkt_t * pkt)
+static void
+link_packet(endpoint_t * ep, pkt_list_t * list, pkt_t * pkt)
 {
 	unsigned long flags;
 
@@ -495,7 +483,8 @@ static void link_packet(endpoint_t * ep, pkt_list_t * list, pkt_t * pkt)
 /*
  * Unlink and return a packet from the head of the enpoint's packet list.
  */
-static pkt_t *unlink_packet(endpoint_t * ep, pkt_list_t * list)
+static pkt_t *
+unlink_packet(endpoint_t * ep, pkt_list_t * list)
 {
 	unsigned long flags;
 	pkt_t *pkt;
@@ -524,7 +513,8 @@ static pkt_t *unlink_packet(endpoint_t * ep, pkt_list_t * list)
  * Create and attach a new packet to the tail of the enpoint's
  * packet list.
  */
-static pkt_t *add_packet(endpoint_t * ep, pkt_list_t * list, int size)
+static pkt_t *
+add_packet(endpoint_t * ep, pkt_list_t * list, int size)
 {
 	pkt_t *pkt = alloc_packet(size);
 	if (!pkt)
@@ -539,19 +529,22 @@ static pkt_t *add_packet(endpoint_t * ep, pkt_list_t * list, int size)
  * Unlink and free a packet from the head of the enpoint's
  * packet list.
  */
-static inline void free_packet(endpoint_t * ep, pkt_list_t * list)
+static inline void
+free_packet(endpoint_t * ep, pkt_list_t * list)
 {
 	kfree(unlink_packet(ep, list));
 }
 
-static inline void flush_pkt_list(endpoint_t * ep, pkt_list_t * list)
+static inline void
+flush_pkt_list(endpoint_t * ep, pkt_list_t * list)
 {
 	while (list->count)
 		free_packet(ep, list);
 }
 
 
-static inline void flush_write_fifo(endpoint_t * ep)
+static inline void
+flush_write_fifo(endpoint_t * ep)
 {
 	if (ep->reg->write_fifo_status >= 0) {
 		outl_sync(USBDEV_FSTAT_FLUSH, ep->reg->write_fifo_status);
@@ -562,7 +555,8 @@ static inline void flush_write_fifo(endpoint_t * ep)
 }
 
 
-static inline void flush_read_fifo(endpoint_t * ep)
+static inline void
+flush_read_fifo(endpoint_t * ep)
 {
 	if (ep->reg->read_fifo_status >= 0) {
 		outl_sync(USBDEV_FSTAT_FLUSH, ep->reg->read_fifo_status);
@@ -573,7 +567,8 @@ static inline void flush_read_fifo(endpoint_t * ep)
 }
 
 
-static void endpoint_flush(endpoint_t * ep)
+static void
+endpoint_flush(endpoint_t * ep)
 {
 	unsigned long flags;
 
@@ -591,7 +586,8 @@ static void endpoint_flush(endpoint_t * ep)
 }
 
 
-static void endpoint_stall(endpoint_t * ep)
+static void
+endpoint_stall(endpoint_t * ep)
 {
 	unsigned long flags;
 	u32 cs;
@@ -606,7 +602,8 @@ static void endpoint_stall(endpoint_t * ep)
 	spin_unlock_irqrestore(&ep->lock, flags);
 }
 
-static void endpoint_unstall(endpoint_t * ep)
+static void
+endpoint_unstall(endpoint_t * ep)
 {
 	unsigned long flags;
 	u32 cs;
@@ -621,14 +618,16 @@ static void endpoint_unstall(endpoint_t * ep)
 	spin_unlock_irqrestore(&ep->lock, flags);
 }
 
-static void endpoint_reset_datatoggle(endpoint_t * ep)
+static void
+endpoint_reset_datatoggle(endpoint_t * ep)
 {
 	// FIXME: is this possible?
 }
 
 
 #ifdef USBDEV_PIO
-static int endpoint_fifo_read(endpoint_t * ep)
+static int
+endpoint_fifo_read(endpoint_t * ep)
 {
 	unsigned long flags;
 	int read_count = 0;
@@ -653,7 +652,8 @@ static int endpoint_fifo_read(endpoint_t * ep)
 }
 
 
-static int endpoint_fifo_write(endpoint_t * ep)
+static int
+endpoint_fifo_write(endpoint_t * ep)
 {
 	unsigned long flags;
 	int write_count = 0;
@@ -687,7 +687,8 @@ static int endpoint_fifo_write(endpoint_t * ep)
  * The endpoint's TSIZE must be set to the new packet's size,
  * and DMA to the write FIFO needs to be restarted.
  */
-static void kickstart_send_packet(endpoint_t * ep)
+static void
+kickstart_send_packet(endpoint_t * ep)
 {
 	u32 cs;
 	pkt_t *pkt = ep->inlist.head;
@@ -728,7 +729,8 @@ static void kickstart_send_packet(endpoint_t * ep)
  * completed. Frees the completed packet and starts sending the
  * next.
  */
-static void send_packet_complete(endpoint_t * ep)
+static void
+send_packet_complete(endpoint_t * ep)
 {
 	if (ep->inlist.head)
 		dbg(__FUNCTION__ ": pkt=%p, ab=%d",
@@ -749,7 +751,8 @@ static void send_packet_complete(endpoint_t * ep)
  * outlist. It is the responsibility of the caller to free the packet.
  * The receive complete interrupt adds packets to the tail of this list. 
  */
-static pkt_t *receive_packet(endpoint_t * ep)
+static pkt_t *
+receive_packet(endpoint_t * ep)
 {
 	pkt_t *pkt = unlink_packet(ep, &ep->outlist);
 	//dma_cache_inv((unsigned long)pkt->buf, pkt->size);
@@ -759,7 +762,8 @@ static pkt_t *receive_packet(endpoint_t * ep)
 /*
  * This routine is called to restart reception of a packet.
  */
-static void kickstart_receive_packet(endpoint_t * ep)
+static void
+kickstart_receive_packet(endpoint_t * ep)
 {
 	pkt_t *pkt;
 
@@ -797,7 +801,8 @@ static void kickstart_receive_packet(endpoint_t * ep)
  * and restarts DMA. FIXME: what if another packet comes in
  * on top of the completed packet? Counter would be wrong.
  */
-static void receive_packet_complete(endpoint_t * ep)
+static void
+receive_packet_complete(endpoint_t * ep)
 {
 	pkt_t *pkt = ep->outlist.tail;
 
@@ -848,8 +853,7 @@ send_packet(endpoint_t * ep, u8 * data, int data_len, int from_user)
 
 	spin_lock_irqsave(&ep->lock, flags);
 
-	dbg(__FUNCTION__ ": size=%d, list count=%d", pkt->size,
-	    list->count);
+	dbg(__FUNCTION__ ": size=%d, list count=%d", pkt->size, list->count);
 
 	if (list->count == 1) {
 		/*
@@ -866,7 +870,8 @@ send_packet(endpoint_t * ep, u8 * data, int data_len, int from_user)
 
 
 // SETUP packet request parser
-static void process_setup(struct usb_serial *serial, devrequest * setup)
+static void
+process_setup (struct usb_serial* serial, devrequest* setup)
 {
 	int desc_len, strnum;
 
@@ -894,22 +899,21 @@ static void process_setup(struct usb_serial *serial, devrequest * setup)
 			desc_len = desc_len > serial->dev_desc->bLength ?
 			    serial->dev_desc->bLength : desc_len;
 			dbg("sending device desc, size=%d", desc_len);
-			send_packet(&serial->ep_ctrl,
-				    (u8 *) serial->dev_desc, desc_len, 0);
+			send_packet(&serial->ep_ctrl, (u8*)serial->dev_desc,
+				    desc_len, 0);
 			break;
 		case USB_DT_CONFIG:
-			// If the config descr index in low-byte of setup->value
-			// is valid, send config descr, otherwise stall ep0.
+			// If the config descr index in low-byte of
+			// setup->value	is valid, send config descr,
+			// otherwise stall ep0.
 			if ((le16_to_cpu(setup->value) & 0xff) == 0) {
 				// send config descriptor!
 				if (desc_len <= USB_DT_CONFIG_SIZE) {
-					dbg
-					    ("sending partial config desc, size=%d",
+					dbg("sending partial config desc, size=%d",
 					     desc_len);
 					send_packet(&serial->ep_ctrl,
-						    (u8 *) serial->
-						    conf_desc, desc_len,
-						    0);
+						    (u8*)serial->conf_desc,
+						    desc_len, 0);
 				} else {
 					u8 full_conf_desc[CONFIG_DESC_LEN];
 					int i, index = 0;
@@ -922,34 +926,24 @@ static void process_setup(struct usb_serial *serial, devrequest * setup)
 					       USB_DT_INTERFACE_SIZE);
 					index += USB_DT_INTERFACE_SIZE;
 					for (i = 0; i < NUM_PORTS; i++) {
-						memcpy(&full_conf_desc
-						       [index],
-						       serial->port[i].
-						       ep_bulkin.desc,
+						memcpy(&full_conf_desc[index],
+						       serial->port[i].ep_bulkin.desc,
 						       USB_DT_ENDPOINT_SIZE);
-						index +=
-						    USB_DT_ENDPOINT_SIZE;
-						memcpy(&full_conf_desc
-						       [index],
-						       serial->port[i].
-						       ep_bulkout.desc,
+						index += USB_DT_ENDPOINT_SIZE;
+						memcpy(&full_conf_desc[index],
+						       serial->port[i].ep_bulkout.desc,
 						       USB_DT_ENDPOINT_SIZE);
-						index +=
-						    USB_DT_ENDPOINT_SIZE;
+						index += USB_DT_ENDPOINT_SIZE;
 					}
-					dbg
-					    ("sending whole config desc, size=%d, our size=%d",
+					dbg("sending whole config desc, size=%d, our size=%d",
 					     desc_len, CONFIG_DESC_LEN);
-					desc_len =
-					    desc_len >
-					    CONFIG_DESC_LEN ?
+					desc_len = desc_len > CONFIG_DESC_LEN ?
 					    CONFIG_DESC_LEN : desc_len;
 					send_packet(&serial->ep_ctrl,
-						    full_conf_desc,
-						    desc_len, 0);
+						    full_conf_desc, desc_len, 0);
 				}
 			} else
-				endpoint_stall(&serial->ep_ctrl);	// Stall endpoint 0
+				endpoint_stall(&serial->ep_ctrl);
 			break;
 		case USB_DT_STRING:
 			// If the string descr index in low-byte of setup->value
@@ -958,15 +952,13 @@ static void process_setup(struct usb_serial *serial, devrequest * setup)
 			if (strnum >= 0 && strnum < 6) {
 				struct usb_string_descriptor *desc =
 				    serial->str_desc[strnum];
-				desc_len =
-				    desc_len >
-				    desc->bLength ? desc->
-				    bLength : desc_len;
+				desc_len = desc_len > desc->bLength ?
+					desc->bLength : desc_len;
 				dbg("sending string desc %d", strnum);
 				send_packet(&serial->ep_ctrl, (u8 *) desc,
 					    desc_len, 0);
 			} else
-				endpoint_stall(&serial->ep_ctrl);	// Stall endpoint 0
+				endpoint_stall(&serial->ep_ctrl);
 			break;
 		default:	// Invalid request
 			dbg("invalid get desc=%d, stalled",
@@ -980,8 +972,8 @@ static void process_setup(struct usb_serial *serial, devrequest * setup)
 		break;
 	case USB_REQ_GET_INTERFACE:
 		// interface must be zero.
-		if ((le16_to_cpu(setup->index) & 0xff)
-		    || serial->state == ADDRESS) {
+		if ((le16_to_cpu(setup->index) & 0xff) ||
+		    serial->state == ADDRESS) {
 			// FIXME: respond with "request error". how?
 		} else if (serial->state == CONFIGURED) {
 			// send serial->alternate_setting
@@ -994,8 +986,7 @@ static void process_setup(struct usb_serial *serial, devrequest * setup)
 		if (serial->state == ADDRESS) {
 			// FIXME: respond with "request error". how?
 		} else if (serial->state == CONFIGURED) {
-			serial->interface =
-			    le16_to_cpu(setup->index) & 0xff;
+			serial->interface = le16_to_cpu(setup->index) & 0xff;
 			serial->alternate_setting =
 			    le16_to_cpu(setup->value) & 0xff;
 			// interface and alternate_setting must be zero
@@ -1019,8 +1010,7 @@ static void process_setup(struct usb_serial *serial, devrequest * setup)
 	case USB_REQ_GET_CONFIGURATION:
 		// send serial->configuration
 		dbg("sending config");
-		send_packet(&serial->ep_ctrl, &serial->configuration, 1,
-			    0);
+		send_packet(&serial->ep_ctrl, &serial->configuration, 1, 0);
 		break;
 	case USB_REQ_GET_STATUS:
 		// FIXME: looks like the h/w handles this one
@@ -1043,21 +1033,20 @@ static void process_setup(struct usb_serial *serial, devrequest * setup)
 		switch (setup->requesttype) {
 		case 0x00:	// Device
 			if ((le16_to_cpu(setup->value) & 0xff) == 1)
-				serial->remote_wakeup_en = 0;	// Disable Remote Wakeup
+				serial->remote_wakeup_en = 0;
 			else
-				endpoint_stall(&serial->ep_ctrl);	// Stall End Point 0
+				endpoint_stall(&serial->ep_ctrl);
 			break;
 		case 0x02:	// End Point
 			if ((le16_to_cpu(setup->value) & 0xff) == 0) {
 				endpoint_t *ep =
 				    epnum_to_ep(serial,
-						le16_to_cpu(setup->
-							    index) & 0xff);
+						    le16_to_cpu(setup->index) & 0xff);
 
 				endpoint_unstall(ep);
 				endpoint_reset_datatoggle(ep);
 			} else
-				endpoint_stall(&serial->ep_ctrl);	// Stall End Point 0
+				endpoint_stall(&serial->ep_ctrl);
 			break;
 		}
 		break;
@@ -1065,20 +1054,19 @@ static void process_setup(struct usb_serial *serial, devrequest * setup)
 		switch (setup->requesttype) {
 		case 0x00:	// Device
 			if ((le16_to_cpu(setup->value) & 0xff) == 1)
-				serial->remote_wakeup_en = 1;	// Enable Remote Wakeup
+				serial->remote_wakeup_en = 1;
 			else
-				endpoint_stall(&serial->ep_ctrl);	// Stall End Point 0
+				endpoint_stall(&serial->ep_ctrl);
 			break;
 		case 0x02:	// End Point
 			if ((le16_to_cpu(setup->value) & 0xff) == 0) {
 				endpoint_t *ep =
 				    epnum_to_ep(serial,
-						le16_to_cpu(setup->
-							    index) & 0xff);
+						    le16_to_cpu(setup->index) & 0xff);
 
 				endpoint_stall(ep);
 			} else
-				endpoint_stall(&serial->ep_ctrl);	// Stall End Point 0
+				endpoint_stall(&serial->ep_ctrl);
 			break;
 		}
 		break;
@@ -1093,7 +1081,8 @@ static void process_setup(struct usb_serial *serial, devrequest * setup)
  * A complete packet (SETUP, DATA0, or DATA1) has been received
  * on the given endpoint's fifo.
  */
-static void process_complete(struct usb_serial *serial, int fifo_num)
+static void
+process_complete (struct usb_serial* serial, int fifo_num)
 {
 	endpoint_t *ep = fifonum_to_ep(serial, fifo_num);
 	struct usb_serial_port *port = NULL;
@@ -1113,24 +1102,24 @@ static void process_complete(struct usb_serial *serial, int fifo_num)
 			spin_unlock(&ep->lock);
 			return;
 		}
+	
 		// SETUP packet received ?
-		if (cs & USBDEV_CS_SU) {
+		//if (cs & USBDEV_CS_SU) { FIXME: uncomment!
 			if (pkt->size == sizeof(devrequest)) {
 				devrequest setup;
-				if ((cs & (USBDEV_CS_NAK | USBDEV_CS_ACK))
-				    == USBDEV_CS_ACK)
+			if ((cs & (USBDEV_CS_NAK | USBDEV_CS_ACK)) ==
+			    USBDEV_CS_ACK)
 					dbg("got SETUP");
 				else
 					dbg("got NAK SETUP, cs=%08x", cs);
-				memcpy(&setup, pkt->bufptr,
-				       sizeof(devrequest));
+			memcpy(&setup, pkt->bufptr, sizeof(devrequest));
 				process_setup(serial, &setup);
-			} else
-				dbg(__FUNCTION__
-				    ": wrong size SETUP received");
+			//} else  FIXME: uncomment!
+			//dbg(__FUNCTION__ ": wrong size SETUP received");
 		} else {
 			// DATAx packet received on endpoint 0
-			// FIXME: will need a state machine for control OUT transactions
+			// FIXME: will need a state machine for control
+			// OUT transactions
 			dbg("got DATAx on EP0, size=%d, cs=%08x",
 			    pkt->size, cs);
 		}
@@ -1160,7 +1149,8 @@ static void process_complete(struct usb_serial *serial, int fifo_num)
 
 
 // This ISR needs to ack both the complete and suspend events
-static void req_sus_intr(int irq, void *dev_id, struct pt_regs *regs)
+static void
+req_sus_intr (int irq, void *dev_id, struct pt_regs *regs)
 {
 	struct usb_serial *serial = (struct usb_serial *) dev_id;
 	int i;
@@ -1189,20 +1179,20 @@ static void req_sus_intr(int irq, void *dev_id, struct pt_regs *regs)
 }
 
 
-static void dma_done_ctrl(struct usb_serial *serial)
+static void
+dma_done_ctrl(struct usb_serial* serial)
 {
 	endpoint_t *ep = &serial->ep_ctrl;
-	int buff_done;
-	u32 cs0;
+	u32 cs0, buff_done;
 
 	spin_lock(&ep->lock);
 	cs0 = inl(ep->reg->ctrl_stat);
 
 	// first check packet transmit done
-	if ((buff_done = get_dma_buffer_done(ep->indma)) >= 0) {
+	if ((buff_done = get_dma_buffer_done(ep->indma)) != 0) {
 		// transmitted a DATAx packet on control endpoint 0
 		// clear DMA done bit
-		if (buff_done == 0)
+		if (buff_done == DMA_D0)
 			clear_dma_done0(ep->indma);
 		else
 			clear_dma_done1(ep->indma);
@@ -1215,9 +1205,9 @@ static void dma_done_ctrl(struct usb_serial *serial)
 	 * the receive packet complete intr should happen
 	 * before the DMA done intr occurs.
 	 */
-	if ((buff_done = get_dma_buffer_done(ep->outdma)) >= 0) {
+	if ((buff_done = get_dma_buffer_done(ep->outdma)) != 0) {
 		// clear DMA done bit
-		if (buff_done == 0)
+		if (buff_done == DMA_D0)
 			clear_dma_done0(ep->outdma);
 		else
 			clear_dma_done1(ep->outdma);
@@ -1226,18 +1216,19 @@ static void dma_done_ctrl(struct usb_serial *serial)
 	spin_unlock(&ep->lock);
 }
 
-static void dma_done_port(struct usb_serial_port *port)
+static void
+dma_done_port(struct usb_serial_port * port)
 {
 	endpoint_t *ep;
-	int buff_done;
+	u32 buff_done;
 
 	// first check packet transmit done (bulk IN ep)
 	ep = &port->ep_bulkin;
 	spin_lock(&ep->lock);
-	if ((buff_done = get_dma_buffer_done(ep->indma)) >= 0) {
+	if ((buff_done = get_dma_buffer_done(ep->indma)) != 0) {
 		// transmitted a DATAx packet on the port's bulk IN endpoint
 		// clear DMA done bit
-		if (buff_done == 0)
+		if (buff_done == DMA_D0)
 			clear_dma_done0(ep->indma);
 		else
 			clear_dma_done1(ep->indma);
@@ -1256,10 +1247,10 @@ static void dma_done_port(struct usb_serial_port *port)
 	 */
 	ep = &port->ep_bulkout;
 	spin_lock(&ep->lock);
-	if ((buff_done = get_dma_buffer_done(ep->outdma)) >= 0) {
+	if ((buff_done = get_dma_buffer_done(ep->outdma)) != 0) {
 		// received a DATAx packet on the port's bulk OUT endpoint
 		// clear DMA done bit
-		if (buff_done == 0)
+		if (buff_done == DMA_D0)
 			clear_dma_done0(ep->outdma);
 		else
 			clear_dma_done1(ep->outdma);
@@ -1269,7 +1260,8 @@ static void dma_done_port(struct usb_serial_port *port)
 
 
 // This ISR needs to handle dma done events for ALL endpoints!
-static void dma_done_intr(int irq, void *dev_id, struct pt_regs *regs)
+static void
+dma_done_intr (int irq, void *dev_id, struct pt_regs *regs)
 {
 	struct usb_serial *serial = (struct usb_serial *) dev_id;
 	int i;
@@ -1316,9 +1308,10 @@ static int serial_open(struct tty_struct *tty, struct file *filp)
 	if (!port->active) {
 		port->active = 1;
 
-		/* force low_latency on so that our tty_push actually forces the
-		 * data through, otherwise it is scheduled, and with high data
-		 * rates (like with OHCI) data can get lost.
+		/*
+		 * force low_latency on so that our tty_push actually forces
+		 * the data through, otherwise it is scheduled, and with high
+		 * data rates (like with OHCI) data can get lost.
 		 */
 		port->tty->low_latency = 1;
 
@@ -1537,8 +1530,8 @@ static void port_send_complete(void *private)
 	}
 
 	tty = port->tty;
-	if ((tty->flags & (1 << TTY_DO_WRITE_WAKEUP))
-	    && tty->ldisc.write_wakeup) {
+	if ((tty->flags & (1 << TTY_DO_WRITE_WAKEUP)) &&
+	    tty->ldisc.write_wakeup) {
 		dbg(__FUNCTION__ " - write wakeup call.");
 		(tty->ldisc.write_wakeup) (tty);
 	}
@@ -1623,8 +1616,8 @@ void usbdev_serial_exit(void)
 	free_irq(AU1000_USB_DEV_SUS_INT, &usbserial);
 	free_irq(ep->inirq, &usbserial);
 	//free_irq(ep->outirq, &usbserial);
-	free_dma(ep->indma);
-	free_dma(ep->outdma);
+	free_au1000_dma(ep->indma);
+	free_au1000_dma(ep->outdma);
 	endpoint_flush(ep);
 
 	// now free all port resources
@@ -1632,18 +1625,17 @@ void usbdev_serial_exit(void)
 		// free port's bulk IN endpoint resources
 		ep = &usbserial.port[i].ep_bulkin;
 		free_irq(ep->inirq, &usbserial);
-		free_dma(ep->indma);
+		free_au1000_dma(ep->indma);
 		endpoint_flush(ep);
 
 		// free port's bulk OUT endpoint resources
 		ep = &usbserial.port[i].ep_bulkout;
 		//free_irq(ep->outirq, &usbserial);
-		free_dma(ep->outdma);
+		free_au1000_dma(ep->outdma);
 		endpoint_flush(ep);
 
 		tty_unregister_devfs(&serial_tty_driver, i);
-		info
-		    ("usbdev serial converter now disconnected from ttyUSBdev%d",
+		info("usbdev serial converter now disconnected from ttyUSBdev%d",
 		     i);
 	}
 
@@ -1692,8 +1684,7 @@ int usbdev_serial_init(void)
 		return -1;
 	}
 
-	usbserial.str_desc[0] =
-	    (struct usb_string_descriptor *) str_desc_buf;
+	usbserial.str_desc[0] = (struct usb_string_descriptor *)str_desc_buf;
 	memcpy(usbserial.str_desc[0], &string_desc0, string_desc0.bLength);
 	usbserial.str_desc[1] = (struct usb_string_descriptor *)
 	    (str_desc_buf + string_desc0.bLength);
@@ -1733,13 +1724,13 @@ int usbdev_serial_init(void)
 	ep->reg = &ep_reg[0];
 	ep->max_pkt_size = usbserial.dev_desc->bMaxPacketSize0;
 	ep->indma = ep->outdma = -1;
-	if ((ep->indma = request_dma(ep_dma_id[0].id, ep_dma_id[0].str)) <
-	    0) {
+	if ((ep->indma = request_au1000_dma(ep_dma_id[0].id,
+					    ep_dma_id[0].str)) < 0) {
 		err("Can't get %s DMA\n", ep_dma_id[0].str);
 		goto err_out;
 	}
-	if ((ep->outdma = request_dma(ep_dma_id[1].id, ep_dma_id[1].str)) <
-	    0) {
+	if ((ep->outdma = request_au1000_dma(ep_dma_id[1].id,
+					     ep_dma_id[1].str)) < 0) {
 		err("Can't get %s DMA\n", ep_dma_id[1].str);
 		goto err_out;
 	}
@@ -1763,8 +1754,7 @@ int usbdev_serial_init(void)
 	   know what ports we are bound to */
 	for (i = 0; i < NUM_PORTS; ++i) {
 		tty_register_devfs(&serial_tty_driver, 0, i);
-		info
-		    ("usbdev serial attached to ttyUSBdev%d (or devfs usb/ttsdev/%d)",
+		info("usbdev serial attached to ttyUSBdev%d (or devfs usb/ttsdev/%d)", 
 		     i, i);
 		port = &usbserial.port[i];
 		port->serial = &usbserial;
@@ -1782,9 +1772,8 @@ int usbdev_serial_init(void)
 		ep->reg = &ep_reg[1 + NUM_PORTS * i];
 		ep->max_pkt_size = ep->desc->wMaxPacketSize;
 		ep->indma = ep->outdma = -1;
-		if (
-		    (ep->indma =
-		     request_dma(ep_dma_id[2 + NUM_PORTS * i].id,
+		if ((ep->indma =
+		     request_au1000_dma(ep_dma_id[2+NUM_PORTS*i].id,
 				 ep_dma_id[2 + NUM_PORTS * i].str)) < 0) {
 			err("Can't get %s DMA\n",
 			    ep_dma_id[2 + NUM_PORTS * i].str);
@@ -1803,11 +1792,9 @@ int usbdev_serial_init(void)
 		ep->reg = &ep_reg[1 + NUM_PORTS * i + 1];
 		ep->max_pkt_size = ep->desc->wMaxPacketSize;
 		ep->indma = ep->outdma = -1;
-		if (
-		    (ep->outdma =
-		     request_dma(ep_dma_id[2 + NUM_PORTS * i + 1].id,
-				 ep_dma_id[2 + NUM_PORTS * i + 1].str)) <
-		    0) {
+		if ((ep->outdma =
+		     request_au1000_dma(ep_dma_id[2+NUM_PORTS*i + 1].id,
+					ep_dma_id[2+NUM_PORTS*i + 1].str)) < 0) {
 			err("Can't get %s DMA\n",
 			    ep_dma_id[2 + NUM_PORTS * i + 1].str);
 			goto err_out;
@@ -1816,8 +1803,7 @@ int usbdev_serial_init(void)
 #if 0
 		if (request_irq(ep->outirq, dma_done_intr, SA_INTERRUPT,
 				"USBdev bulk OUT", &usbserial)) {
-			err("Can't get port %d bulk OUT dma done irq\n",
-			    i);
+			err("Can't get port %d bulk OUT dma done irq\n", i);
 			goto err_out;
 		}
 #endif

@@ -340,19 +340,13 @@ static __inline__ void set_dma_count(unsigned int dmanr,
  * Returns which buffer has its done bit set in the mode register.
  * Returns -1 if neither or both done bits set.
  */
-static __inline__ int get_dma_buffer_done(unsigned int dmanr)
+static __inline__ unsigned int get_dma_buffer_done(unsigned int dmanr)
 {
-	unsigned int mode;
 	struct dma_chan *chan = get_dma_chan(dmanr);
 	if (!chan)
 		return 0;
 
-	mode = inl(chan->io + DMA_MODE_SET);
-	if (!(mode & (DMA_D0 | DMA_D1)) ||
-	    (mode & (DMA_D0 | DMA_D1)) == (DMA_D0 | DMA_D1))
-		return -1;
-
-	return (mode & DMA_D0) ? 0 : 1;
+    return inl(chan->io + DMA_MODE_SET) & (DMA_D0 | DMA_D1);
 }
 
 
