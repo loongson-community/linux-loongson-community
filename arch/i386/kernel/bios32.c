@@ -1,12 +1,7 @@
 /*
  * bios32.c - Low-Level PCI Access
  *
- * $Id: bios32.c,v 1.32 1998/05/02 12:03:05 davem Exp $
- *
- * Sponsored by
- *	iX Multiuser Multitasking Magazine
- *	Hannover, Germany
- *	hm@ix.de
+ * $Id: bios32.c,v 1.44 1998/08/04 14:54:56 mj Exp $
  *
  * Copyright 1993, 1994 Drew Eckhardt
  *      Visionary Computing
@@ -14,21 +9,20 @@
  *      Drew@Colorado.EDU
  *      +1 (303) 786-7975
  *
- * For more information, please consult
+ * Drew's work was sponsored by:
+ *	iX Multiuser Multitasking Magazine
+ *	Hannover, Germany
+ *	hm@ix.de
  *
- * PCI BIOS Specification Revision
+ * Copyright 1997, 1998 Martin Mares <mj@atrey.karlin.mff.cuni.cz>
+ *
+ * For more information, please consult the following manuals (look at
+ * http://www.pcisig.com/ for how to get them):
+ *
+ * PCI BIOS Specification
  * PCI Local Bus Specification
+ * PCI to PCI Bridge Specification
  * PCI System Design Guide
- *
- * PCI Special Interest Group
- * M/S HF3-15A
- * 5200 N.E. Elam Young Parkway
- * Hillsboro, Oregon 97124-6497
- * +1 (503) 696-2000
- * +1 (800) 433-5177
- *
- * Manuals are $25 each or $50 for all three, plus $7 shipping
- * within the United States, $35 abroad.
  *
  *
  * CHANGELOG :
@@ -68,6 +62,15 @@
  * Feb 6,  1998 : No longer using BIOS to find devices and device classes. [mj]
  *
  * May 1,  1998 : Support for peer host bridges. [mj]
+ *
+ * Jun 19, 1998 : Changed to use spinlocks, so that PCI configuration space
+ *	can be accessed from interrupts even on SMP systems. [mj]
+ *
+ * August  1998 : Better support for peer host bridges and more paranoid
+ *	checks for direct hardware access. Ugh, this file starts to look as
+ *	a large gallery of common hardware bug workarounds (watch the comments)
+ *	-- the PCI specs themselves are sane, but most implementors should be
+ *	hit hard with \hammer scaled \magstep5. [mj]
  */
 
 #include <linux/config.h>
@@ -77,16 +80,14 @@
 #include <linux/init.h>
 #include <linux/ioport.h>
 #include <linux/malloc.h>
+#include <linux/smp_lock.h>
 
 #include <asm/page.h>
 #include <asm/segment.h>
 #include <asm/system.h>
 #include <asm/io.h>
-
-#include <linux/smp_lock.h>
-#include <asm/irq.h>
-#include <asm/bitops.h>
 #include <asm/smp.h>
+#include <asm/spinlock.h>
 
 #include "irq.h"
 
@@ -97,6 +98,13 @@
 #else
 #define DBG(x...)
 #endif
+
+/*
+ * This interrupt-safe spinlock protects all accesses to PCI
+ * configuration space.
+ */
+
+spinlock_t pci_lock = SPIN_LOCK_UNLOCKED;
 
 /*
  * Generic PCI access -- indirect calls according to detected HW.
@@ -134,41 +142,28 @@ int pcibios_present(void)
 	return access_pci->pci_present;
 }
 
-int pcibios_read_config_byte (unsigned char bus,
-	unsigned char device_fn, unsigned char where, unsigned char *value)
-{
-	return access_pci->read_config_byte(bus, device_fn, where, value);
+#define PCI_byte_BAD 0
+#define PCI_word_BAD (pos & 1)
+#define PCI_dword_BAD (pos & 3)
+
+#define PCI_STUB(rw,size,type) \
+int pcibios_##rw##_config_##size (u8 bus, u8 dfn, u8 pos, type value) \
+{									\
+	int res;							\
+	unsigned long flags;						\
+	if (PCI_##size##_BAD) return PCIBIOS_BAD_REGISTER_NUMBER;	\
+	spin_lock_irqsave(&pci_lock, flags);				\
+	res = access_pci->rw##_config_##size(bus, dfn, pos, value);	\
+	spin_unlock_irqrestore(&pci_lock, flags);			\
+	return res;							\
 }
 
-int pcibios_read_config_word (unsigned char bus,
-	unsigned char device_fn, unsigned char where, unsigned short *value)
-{
-	return access_pci->read_config_word(bus, device_fn, where, value);
-}
-
-int pcibios_read_config_dword (unsigned char bus,
-	unsigned char device_fn, unsigned char where, unsigned int *value)
-{
-	return access_pci->read_config_dword(bus, device_fn, where, value);
-}
-
-int pcibios_write_config_byte (unsigned char bus,
-	unsigned char device_fn, unsigned char where, unsigned char value)
-{
-	return access_pci->write_config_byte(bus, device_fn, where, value);
-}
-
-int pcibios_write_config_word (unsigned char bus,
-	unsigned char device_fn, unsigned char where, unsigned short value)
-{
-	return access_pci->write_config_word(bus, device_fn, where, value);
-}
-
-int pcibios_write_config_dword (unsigned char bus,
-	unsigned char device_fn, unsigned char where, unsigned int value)
-{
-	return access_pci->write_config_dword(bus, device_fn, where, value);
-}
+PCI_STUB(read, byte, u8 *)
+PCI_STUB(read, word, u16 *)
+PCI_STUB(read, dword, u32 *)
+PCI_STUB(write, byte, u8)
+PCI_STUB(write, word, u16)
+PCI_STUB(write, dword, u32)
 
 #define PCI_PROBE_BIOS 1
 #define PCI_PROBE_CONF1 2
@@ -193,76 +188,48 @@ static unsigned int pci_probe = PCI_PROBE_BIOS | PCI_PROBE_CONF1 | PCI_PROBE_CON
 static int pci_conf1_read_config_byte(unsigned char bus, unsigned char device_fn,
 			       unsigned char where, unsigned char *value)
 {
-    unsigned long flags;
-
-    save_flags(flags); cli();
     outl(CONFIG_CMD(bus,device_fn,where), 0xCF8);
     *value = inb(0xCFC + (where&3));
-    restore_flags(flags);
     return PCIBIOS_SUCCESSFUL;
 }
 
 static int pci_conf1_read_config_word (unsigned char bus,
     unsigned char device_fn, unsigned char where, unsigned short *value)
 {
-    unsigned long flags;
-
-    if (where&1) return PCIBIOS_BAD_REGISTER_NUMBER;
-    save_flags(flags); cli();
     outl(CONFIG_CMD(bus,device_fn,where), 0xCF8);    
     *value = inw(0xCFC + (where&2));
-    restore_flags(flags);
     return PCIBIOS_SUCCESSFUL;    
 }
 
 static int pci_conf1_read_config_dword (unsigned char bus, unsigned char device_fn, 
 				 unsigned char where, unsigned int *value)
 {
-    unsigned long flags;
-
-    if (where&3) return PCIBIOS_BAD_REGISTER_NUMBER;
-    save_flags(flags); cli();
     outl(CONFIG_CMD(bus,device_fn,where), 0xCF8);
     *value = inl(0xCFC);
-    restore_flags(flags);
     return PCIBIOS_SUCCESSFUL;    
 }
 
 static int pci_conf1_write_config_byte (unsigned char bus, unsigned char device_fn, 
 				 unsigned char where, unsigned char value)
 {
-    unsigned long flags;
-
-    save_flags(flags); cli();
     outl(CONFIG_CMD(bus,device_fn,where), 0xCF8);    
     outb(value, 0xCFC + (where&3));
-    restore_flags(flags);
     return PCIBIOS_SUCCESSFUL;
 }
 
 static int pci_conf1_write_config_word (unsigned char bus, unsigned char device_fn, 
 				 unsigned char where, unsigned short value)
 {
-    unsigned long flags;
-
-    if (where&1) return PCIBIOS_BAD_REGISTER_NUMBER;
-    save_flags(flags); cli();
     outl(CONFIG_CMD(bus,device_fn,where), 0xCF8);
     outw(value, 0xCFC + (where&2));
-    restore_flags(flags);
     return PCIBIOS_SUCCESSFUL;
 }
 
 static int pci_conf1_write_config_dword (unsigned char bus, unsigned char device_fn, 
 				  unsigned char where, unsigned int value)
 {
-    unsigned long flags;
-
-    if (where&3) return PCIBIOS_BAD_REGISTER_NUMBER;
-    save_flags(flags); cli();
     outl(CONFIG_CMD(bus,device_fn,where), 0xCF8);
     outl(value, 0xCFC);
-    restore_flags(flags);
     return PCIBIOS_SUCCESSFUL;
 }
 
@@ -288,90 +255,72 @@ static struct pci_access pci_direct_conf1 = {
 static int pci_conf2_read_config_byte(unsigned char bus, unsigned char device_fn, 
 			       unsigned char where, unsigned char *value)
 {
-    unsigned long flags;
-
     if (device_fn & 0x80)
 	return PCIBIOS_DEVICE_NOT_FOUND;
-    save_flags(flags); cli();
     outb (FUNC(device_fn), 0xCF8);
     outb (bus, 0xCFA);
     *value = inb(IOADDR(device_fn,where));
     outb (0, 0xCF8);
-    restore_flags(flags);
     return PCIBIOS_SUCCESSFUL;
 }
 
 static int pci_conf2_read_config_word (unsigned char bus, unsigned char device_fn, 
 				unsigned char where, unsigned short *value)
 {
-    unsigned long flags;
-
     if (device_fn & 0x80)
 	return PCIBIOS_DEVICE_NOT_FOUND;
-    save_flags(flags); cli();
     outb (FUNC(device_fn), 0xCF8);
     outb (bus, 0xCFA);
     *value = inw(IOADDR(device_fn,where));
     outb (0, 0xCF8);
-    restore_flags(flags);
     return PCIBIOS_SUCCESSFUL;
 }
 
 static int pci_conf2_read_config_dword (unsigned char bus, unsigned char device_fn, 
 				 unsigned char where, unsigned int *value)
 {
-    unsigned long flags;
-
     if (device_fn & 0x80)
 	return PCIBIOS_DEVICE_NOT_FOUND;
-    save_flags(flags); cli();
     outb (FUNC(device_fn), 0xCF8);
     outb (bus, 0xCFA);
     *value = inl (IOADDR(device_fn,where));    
     outb (0, 0xCF8);    
-    restore_flags(flags);
     return PCIBIOS_SUCCESSFUL;
 }
 
 static int pci_conf2_write_config_byte (unsigned char bus, unsigned char device_fn, 
 				 unsigned char where, unsigned char value)
 {
-    unsigned long flags;
-
-    save_flags(flags); cli();
+    if (device_fn & 0x80)
+	return PCIBIOS_DEVICE_NOT_FOUND;
     outb (FUNC(device_fn), 0xCF8);
     outb (bus, 0xCFA);
     outb (value, IOADDR(device_fn,where));
     outb (0, 0xCF8);    
-    restore_flags(flags);
     return PCIBIOS_SUCCESSFUL;
 }
 
 static int pci_conf2_write_config_word (unsigned char bus, unsigned char device_fn, 
 				 unsigned char where, unsigned short value)
 {
-    unsigned long flags;
-
-    save_flags(flags); cli();
+    if (device_fn & 0x80)
+	return PCIBIOS_DEVICE_NOT_FOUND;
     outb (FUNC(device_fn), 0xCF8);
     outb (bus, 0xCFA);
     outw (value, IOADDR(device_fn,where));
     outb (0, 0xCF8);    
-    restore_flags(flags);
     return PCIBIOS_SUCCESSFUL;
 }
 
 static int pci_conf2_write_config_dword (unsigned char bus, unsigned char device_fn, 
 				  unsigned char where, unsigned int value)
 {
-    unsigned long flags;
-
-    save_flags(flags); cli();
+    if (device_fn & 0x80)
+	return PCIBIOS_DEVICE_NOT_FOUND;
     outb (FUNC(device_fn), 0xCF8);
     outb (bus, 0xCFA);
     outl (value, IOADDR(device_fn,where));    
     outb (0, 0xCF8);    
-    restore_flags(flags);
     return PCIBIOS_SUCCESSFUL;
 }
 
@@ -388,12 +337,31 @@ static struct pci_access pci_direct_conf2 = {
       pci_conf2_write_config_dword
 };
 
+/*
+ * Before we decide to use direct hardware access mechanisms, we try to do some
+ * trivial checks to ensure it at least _seems_ to be working -- we just test
+ * whether bus 00 contains a host bridge (this is similar to checking
+ * techniques used in XFree86, but ours should be more reliable since we
+ * attempt to make use of direct access hints provided by the PCI BIOS).
+ */
+__initfunc(int pci_sanity_check(struct pci_access *a))
+{
+	u16 dfn, class;
+
+	for(dfn=0; dfn < 0x100; dfn++)
+		if (!a->read_config_word(0, dfn, PCI_CLASS_DEVICE, &class) &&
+		    class == PCI_CLASS_BRIDGE_HOST)
+			return 1;
+	DBG("PCI: Sanity check failed\n");
+	return 0;
+}
+
 __initfunc(static struct pci_access *pci_check_direct(void))
 {
 	unsigned int tmp;
 	unsigned long flags;
 
-	save_flags(flags); cli();
+	__save_flags(flags); __cli();
 
 	/*
 	 * Check if configuration type 1 works.
@@ -402,9 +370,10 @@ __initfunc(static struct pci_access *pci_check_direct(void))
 		outb (0x01, 0xCFB);
 		tmp = inl (0xCF8);
 		outl (0x80000000, 0xCF8);
-		if (inl (0xCF8) == 0x80000000) {
+		if (inl (0xCF8) == 0x80000000 &&
+		    pci_sanity_check(&pci_direct_conf1)) {
 			outl (tmp, 0xCF8);
-			restore_flags(flags);
+			__restore_flags(flags);
 			printk("PCI: Using configuration type 1\n");
 			return &pci_direct_conf1;
 		}
@@ -418,14 +387,15 @@ __initfunc(static struct pci_access *pci_check_direct(void))
 		outb (0x00, 0xCFB);
 		outb (0x00, 0xCF8);
 		outb (0x00, 0xCFA);
-		if (inb (0xCF8) == 0x00 && inb (0xCFA) == 0x00) {
-			restore_flags(flags);
+		if (inb (0xCF8) == 0x00 && inb (0xCFA) == 0x00 &&
+		    pci_sanity_check(&pci_direct_conf2)) {
+			__restore_flags(flags);
 			printk("PCI: Using configuration type 2\n");
 			return &pci_direct_conf2;
 		}
 	}
 
-	restore_flags(flags);
+	__restore_flags(flags);
 	return NULL;
 }
 
@@ -458,6 +428,12 @@ __initfunc(static struct pci_access *pci_check_direct(void))
 /* PCI service signature: "$PCI" */
 #define PCI_SERVICE		(('$' << 0) + ('P' << 8) + ('C' << 16) + ('I' << 24))
 
+/* PCI BIOS hardware mechanism flags */
+#define PCIBIOS_HW_TYPE1		0x01
+#define PCIBIOS_HW_TYPE2		0x02
+#define PCIBIOS_HW_TYPE1_SPEC		0x10
+#define PCIBIOS_HW_TYPE2_SPEC		0x20
+
 /*
  * This is the standard structure used to identify the entry point
  * to the BIOS32 Service Directory, as documented in
@@ -487,7 +463,6 @@ union bios32 {
  * the array there.
  */
 
-static unsigned long bios32_entry = 0;
 static struct {
 	unsigned long address;
 	unsigned short segment;
@@ -505,7 +480,7 @@ static unsigned long bios32_service(unsigned long service)
 	unsigned long entry;		/* %edx */
 	unsigned long flags;
 
-	save_flags(flags); cli();
+	spin_lock_irqsave(&pci_lock, flags);
 	__asm__("lcall (%%edi)"
 		: "=a" (return_code),
 		  "=b" (address),
@@ -514,7 +489,7 @@ static unsigned long bios32_service(unsigned long service)
 		: "0" (service),
 		  "1" (0),
 		  "D" (&bios32_indirect));
-	restore_flags(flags);
+	spin_unlock_irqrestore(&pci_lock, flags);
 
 	switch (return_code) {
 		case 0:
@@ -529,7 +504,6 @@ static unsigned long bios32_service(unsigned long service)
 	}
 }
 
-static long pcibios_entry = 0;
 static struct {
 	unsigned long address;
 	unsigned short segment;
@@ -537,49 +511,49 @@ static struct {
 
 __initfunc(static int check_pcibios(void))
 {
-	unsigned long signature;
-	unsigned char present_status;
-	unsigned char major_revision;
-	unsigned char minor_revision;
-	unsigned long flags;
-	int pack;
+	u32 signature, eax, ebx, ecx;
+	u8 status, major_ver, minor_ver, hw_mech, last_bus;
+	unsigned long flags, pcibios_entry;
 
 	if ((pcibios_entry = bios32_service(PCI_SERVICE))) {
-		pci_indirect.address = pcibios_entry | PAGE_OFFSET;
+		pci_indirect.address = pcibios_entry + PAGE_OFFSET;
 
-		save_flags(flags); cli();
-		__asm__("lcall (%%edi)\n\t"
+		__save_flags(flags); __cli();
+		__asm__(
+			"lcall (%%edi)\n\t"
 			"jc 1f\n\t"
 			"xor %%ah, %%ah\n"
-			"1:\tshl $8, %%eax\n\t"
-			"movw %%bx, %%ax"
+			"1:"
 			: "=d" (signature),
-			  "=a" (pack)
+			  "=a" (eax),
+			  "=b" (ebx),
+			  "=c" (ecx)
 			: "1" (PCIBIOS_PCI_BIOS_PRESENT),
 			  "D" (&pci_indirect)
-			: "bx", "cx");
-		restore_flags(flags);
+			: "memory");
+		__restore_flags(flags);
 
-		present_status = (pack >> 16) & 0xff;
-		major_revision = (pack >> 8) & 0xff;
-		minor_revision = pack & 0xff;
-		if (present_status || (signature != PCI_SIGNATURE)) {
-			printk ("PCI: %s: BIOS32 Service Directory says PCI BIOS is present,\n"
-				"	but PCI_BIOS_PRESENT subfunction fails with present status of 0x%x\n"
-				"	and signature of 0x%08lx (%c%c%c%c).  Report to <mj@ucw.cz>.\n",
-				(signature == PCI_SIGNATURE) ?  "WARNING" : "ERROR",
-				present_status, signature,
-				(char) (signature >>  0), (char) (signature >>  8),
-				(char) (signature >> 16), (char) (signature >> 24));
-
-			if (signature != PCI_SIGNATURE)
-				pcibios_entry = 0;
+		status = (eax >> 8) & 0xff;
+		hw_mech = eax & 0xff;
+		major_ver = (ebx >> 8) & 0xff;
+		minor_ver = ebx & 0xff;
+		last_bus = ecx & 0xff;
+		DBG("PCI: BIOS probe returned s=%02x hw=%02x ver=%02x.%02x l=%02x\n",
+			status, hw_mech, major_ver, minor_ver, last_bus);
+		if (status || signature != PCI_SIGNATURE) {
+			printk (KERN_ERR "PCI: BIOS BUG #%x[%08x] found, report to <mj@ucw.cz>\n",
+				status, signature);
+			return 0;
 		}
-		if (pcibios_entry) {
-			printk ("PCI: PCI BIOS revision %x.%02x entry at 0x%lx\n",
-				major_revision, minor_revision, pcibios_entry);
-			return 1;
-		}
+		printk("PCI: PCI BIOS revision %x.%02x entry at 0x%lx\n",
+			major_ver, minor_ver, pcibios_entry);
+#ifdef CONFIG_PCI_DIRECT
+		if (!(hw_mech & PCIBIOS_HW_TYPE1))
+			pci_probe &= ~PCI_PROBE_CONF1;
+		if (!(hw_mech & PCIBIOS_HW_TYPE2))
+			pci_probe &= ~PCI_PROBE_CONF2;
+#endif
+		return 1;
 	}
 	return 0;
 }
@@ -591,9 +565,7 @@ static int pci_bios_find_class (unsigned int class_code, unsigned short index,
 {
 	unsigned long bx;
 	unsigned long ret;
-	unsigned long flags;
 
-	save_flags(flags); cli();
 	__asm__ ("lcall (%%edi)\n\t"
 		"jc 1f\n\t"
 		"xor %%ah, %%ah\n"
@@ -604,7 +576,6 @@ static int pci_bios_find_class (unsigned int class_code, unsigned short index,
 		  "c" (class_code),
 		  "S" ((int) index),
 		  "D" (&pci_indirect));
-	restore_flags(flags);
 	*bus = (bx >> 8) & 0xff;
 	*device_fn = bx & 0xff;
 	return (int) (ret & 0xff00) >> 8;
@@ -617,9 +588,7 @@ __initfunc(static int pci_bios_find_device (unsigned short vendor, unsigned shor
 {
 	unsigned short bx;
 	unsigned short ret;
-	unsigned long flags;
 
-	save_flags(flags); cli();
 	__asm__("lcall (%%edi)\n\t"
 		"jc 1f\n\t"
 		"xor %%ah, %%ah\n"
@@ -631,7 +600,6 @@ __initfunc(static int pci_bios_find_device (unsigned short vendor, unsigned shor
 		  "d" (vendor),
 		  "S" ((int) index),
 		  "D" (&pci_indirect));
-	restore_flags(flags);
 	*bus = (bx >> 8) & 0xff;
 	*device_fn = bx & 0xff;
 	return (int) (ret & 0xff00) >> 8;
@@ -642,9 +610,7 @@ static int pci_bios_read_config_byte(unsigned char bus,
 {
 	unsigned long ret;
 	unsigned long bx = (bus << 8) | device_fn;
-	unsigned long flags;
 
-	save_flags(flags); cli();
 	__asm__("lcall (%%esi)\n\t"
 		"jc 1f\n\t"
 		"xor %%ah, %%ah\n"
@@ -655,7 +621,6 @@ static int pci_bios_read_config_byte(unsigned char bus,
 		  "b" (bx),
 		  "D" ((long) where),
 		  "S" (&pci_indirect));
-	restore_flags(flags);
 	return (int) (ret & 0xff00) >> 8;
 }
 
@@ -664,9 +629,7 @@ static int pci_bios_read_config_word (unsigned char bus,
 {
 	unsigned long ret;
 	unsigned long bx = (bus << 8) | device_fn;
-	unsigned long flags;
 
-	save_flags(flags); cli();
 	__asm__("lcall (%%esi)\n\t"
 		"jc 1f\n\t"
 		"xor %%ah, %%ah\n"
@@ -677,7 +640,6 @@ static int pci_bios_read_config_word (unsigned char bus,
 		  "b" (bx),
 		  "D" ((long) where),
 		  "S" (&pci_indirect));
-	restore_flags(flags);
 	return (int) (ret & 0xff00) >> 8;
 }
 
@@ -686,9 +648,7 @@ static int pci_bios_read_config_dword (unsigned char bus,
 {
 	unsigned long ret;
 	unsigned long bx = (bus << 8) | device_fn;
-	unsigned long flags;
 
-	save_flags(flags); cli();
 	__asm__("lcall (%%esi)\n\t"
 		"jc 1f\n\t"
 		"xor %%ah, %%ah\n"
@@ -699,7 +659,6 @@ static int pci_bios_read_config_dword (unsigned char bus,
 		  "b" (bx),
 		  "D" ((long) where),
 		  "S" (&pci_indirect));
-	restore_flags(flags);
 	return (int) (ret & 0xff00) >> 8;
 }
 
@@ -708,9 +667,7 @@ static int pci_bios_write_config_byte (unsigned char bus,
 {
 	unsigned long ret;
 	unsigned long bx = (bus << 8) | device_fn;
-	unsigned long flags;
 
-	save_flags(flags); cli();
 	__asm__("lcall (%%esi)\n\t"
 		"jc 1f\n\t"
 		"xor %%ah, %%ah\n"
@@ -721,7 +678,6 @@ static int pci_bios_write_config_byte (unsigned char bus,
 		  "b" (bx),
 		  "D" ((long) where),
 		  "S" (&pci_indirect));
-	restore_flags(flags);
 	return (int) (ret & 0xff00) >> 8;
 }
 
@@ -730,9 +686,7 @@ static int pci_bios_write_config_word (unsigned char bus,
 {
 	unsigned long ret;
 	unsigned long bx = (bus << 8) | device_fn;
-	unsigned long flags;
 
-	save_flags(flags); cli();
 	__asm__("lcall (%%esi)\n\t"
 		"jc 1f\n\t"
 		"xor %%ah, %%ah\n"
@@ -743,7 +697,6 @@ static int pci_bios_write_config_word (unsigned char bus,
 		  "b" (bx),
 		  "D" ((long) where),
 		  "S" (&pci_indirect));
-	restore_flags(flags);
 	return (int) (ret & 0xff00) >> 8;
 }
 
@@ -752,9 +705,7 @@ static int pci_bios_write_config_dword (unsigned char bus,
 {
 	unsigned long ret;
 	unsigned long bx = (bus << 8) | device_fn;
-	unsigned long flags;
 
-	save_flags(flags); cli();
 	__asm__("lcall (%%esi)\n\t"
 		"jc 1f\n\t"
 		"xor %%ah, %%ah\n"
@@ -765,7 +716,6 @@ static int pci_bios_write_config_dword (unsigned char bus,
 		  "b" (bx),
 		  "D" ((long) where),
 		  "S" (&pci_indirect));
-	restore_flags(flags);
 	return (int) (ret & 0xff00) >> 8;
 }
 
@@ -822,7 +772,7 @@ __initfunc(static struct pci_access *pci_find_bios(void))
 			printk("PCI: BIOS32 entry (0x%p) in high memory, cannot use.\n", check);
 			return NULL;
 		} else {
-			bios32_entry = check->fields.entry;
+			unsigned long bios32_entry = check->fields.entry;
 			DBG("PCI: BIOS32 Service Directory entry at 0x%lx\n", bios32_entry);
 			bios32_indirect.address = bios32_entry + PAGE_OFFSET;
 			if (check_pcibios())
@@ -862,10 +812,16 @@ __initfunc(void pcibios_sort(void))
 					break;
 				}
 			}
-			if (!d)
+			if (!d) {
 				printk("PCI: BIOS reporting unknown device %02x:%02x\n", bus, devfn);
+				/*
+				 * We must not continue scanning as several buggy BIOSes
+				 * return garbage after the last device. Grr.
+				 */
+				break;
+			}
 		}
-		if (!idx) {
+		if (e == dev) {
 			printk("PCI: Device %02x:%02x not found by BIOS\n",
 				dev->bus->number, dev->devfn);
 			d = dev;
@@ -900,6 +856,16 @@ __initfunc(void pcibios_fixup_io_addr(struct pci_dev *dev, int idx))
 		printk("PCI: Unassigned I/O space for %02x:%02x\n", bus, devfn);
 		return;
 	}
+	if ((dev->class >> 8) == PCI_CLASS_STORAGE_IDE && idx < 4) {
+		/*
+		 * In case the BIOS didn't assign an address 0--3 to an IDE
+		 * controller, we don't try to fix it as it means "use default
+		 * addresses" at least with several broken chips and the IDE
+		 * driver needs the original settings to recognize which devices
+		 * correspond to the primary controller.
+		 */
+		return;
+	}
 	pcibios_read_config_word(bus, devfn, PCI_COMMAND, &cmd);
 	pcibios_write_config_word(bus, devfn, PCI_COMMAND, cmd & ~PCI_COMMAND_IO);
 	pcibios_write_config_dword(bus, devfn, reg, ~0);
@@ -930,33 +896,84 @@ __initfunc(void pcibios_fixup_io_addr(struct pci_dev *dev, int idx))
 }
 
 /*
+ * Several buggy motherboards address only 16 devices and mirror
+ * them to next 16 IDs. We try to detect this `feature' on all
+ * primary busses (those containing host bridges as they are
+ * expected to be unique) and remove the ghost devices.
+ */
+
+__initfunc(void pcibios_fixup_ghosts(struct pci_bus *b))
+{
+	struct pci_dev *d, *e, **z;
+	int mirror = PCI_DEVFN(16,0);
+	int seen_host_bridge = 0;
+
+	DBG("PCI: Scanning for ghost devices on bus %d\n", b->number);
+	for(d=b->devices; d && d->devfn < mirror; d=d->sibling) {
+		if ((d->class >> 8) == PCI_CLASS_BRIDGE_HOST)
+			seen_host_bridge++;
+		for(e=d->next; e; e=e->sibling)
+			if (e->devfn == d->devfn + mirror &&
+			    e->vendor == d->vendor &&
+			    e->device == d->device &&
+			    e->class == d->class &&
+			    !memcmp(e->base_address, d->base_address, sizeof(e->base_address)))
+				break;
+		if (!e)
+			return;
+	}
+	if (!seen_host_bridge)
+		return;
+	printk("PCI: Ignoring ghost devices on bus %d\n", b->number);
+	for(e=b->devices; e->sibling != d; e=e->sibling);
+	e->sibling = NULL;
+	for(z=&pci_devices; (d=*z);)
+		if (d->bus == b && d->devfn >= mirror) {
+			*z = d->next;
+			kfree_s(d, sizeof(*d));
+		} else
+			z = &d->next;
+}
+
+/*
  * In case there are peer host bridges, scan bus behind each of them.
  * Although several sources claim that the host bridges should have
  * header type 1 and be assigned a bus number as for PCI2PCI bridges,
  * the reality doesn't pass this test and the bus number is usually
- * hard-wired to 1.
+ * set by BIOS to the first free value.
  */
 __initfunc(void pcibios_fixup_peer_bridges(void))
 {
-	struct pci_dev *dev;
-	int cnt = 0;
+	struct pci_bus *b = &pci_root;
+	int i;
 
-	for(dev=pci_root.devices; dev; dev=dev->sibling)
-		if ((dev->class >> 8) == PCI_CLASS_BRIDGE_HOST) {
-			DBG("PCI: Host bridge at %02x\n", dev->devfn);
-			if (cnt) {
-				struct pci_bus *b = kmalloc(sizeof(struct pci_bus), GFP_KERNEL);
+#ifdef CONFIG_PCI_DIRECT
+	/*
+	 * Don't search for peer host bridges if we use config type 2
+	 * since it reads bogus values for non-existent busses and
+	 * chipsets supporting multiple primary busses use conf1 anyway.
+	 */
+	if (access_pci == &pci_direct_conf2)
+		return;
+#endif
+	do {
+		int n = b->subordinate+1;
+		u16 l;
+		for(i=0; i<256; i += 8)
+			if (!pcibios_read_config_word(n, i, PCI_VENDOR_ID, &l) &&
+			    l != 0x0000 && l != 0xffff) {
+				DBG("Found device at %02x:%02x\n", n, i);
+				printk("PCI: Discovered primary peer bus %02x\n", n);
+				b = kmalloc(sizeof(*b), GFP_KERNEL);
 				memset(b, 0, sizeof(*b));
-				b->parent = &pci_root;
 				b->next = pci_root.next;
 				pci_root.next = b;
-				b->self = dev;
-				b->number = b->secondary = cnt;
+				b->number = b->secondary = n;
 				b->subordinate = 0xff;
 				b->subordinate = pci_scan_bus(b);
+				break;
 			}
-			cnt++;
-		}
+	} while (i < 256);
 }
 
 /*
@@ -988,18 +1005,29 @@ __initfunc(void pcibios_fixup_devices(void))
 			} else if (a & PCI_BASE_ADDRESS_MEM_MASK)
 				has_mem = 1;
 		}
-		pci_read_config_word(dev, PCI_COMMAND, &cmd);
-		if (has_io && !(cmd & PCI_COMMAND_IO)) {
-			printk("PCI: Enabling I/O for device %02x:%02x\n",
-				dev->bus->number, dev->devfn);
-			cmd |= PCI_COMMAND_IO;
-			pci_write_config_word(dev, PCI_COMMAND, cmd);
-		}
-		if (has_mem && !(cmd & PCI_COMMAND_MEMORY)) {
-			printk("PCI: Enabling memory for device %02x:%02x\n",
-				dev->bus->number, dev->devfn);
-			cmd |= PCI_COMMAND_MEMORY;
-			pci_write_config_word(dev, PCI_COMMAND, cmd);
+		/*
+		 * Don't enable VGA-compatible cards since they have
+		 * fixed I/O and memory space.
+		 * 
+		 * Don't enabled disabled IDE interfaces either because
+		 * some BIOSes may reallocate the same address when they
+		 * find that no devices are attached. 
+		 */
+		if (((dev->class >> 8) != PCI_CLASS_DISPLAY_VGA) &&
+		    ((dev->class >> 8) != PCI_CLASS_STORAGE_IDE)) {
+			pci_read_config_word(dev, PCI_COMMAND, &cmd);
+			if (has_io && !(cmd & PCI_COMMAND_IO)) {
+				printk("PCI: Enabling I/O for device %02x:%02x\n",
+					dev->bus->number, dev->devfn);
+				cmd |= PCI_COMMAND_IO;
+				pci_write_config_word(dev, PCI_COMMAND, cmd);
+			}
+			if (has_mem && !(cmd & PCI_COMMAND_MEMORY)) {
+				printk("PCI: Enabling memory for device %02x:%02x\n",
+					dev->bus->number, dev->devfn);
+				cmd |= PCI_COMMAND_MEMORY;
+				pci_write_config_word(dev, PCI_COMMAND, cmd);
+			}
 		}
 #ifdef __SMP__
 		/*
@@ -1022,7 +1050,7 @@ __initfunc(void pcibios_fixup_devices(void))
 		}
 #endif
 		/*
-		 * Fix out-of-range IRQ numbers and report bogus IRQ.
+		 * Fix out-of-range IRQ numbers
 		 */
 		if (dev->irq >= NR_IRQS)
 			dev->irq = 0;
@@ -1042,6 +1070,11 @@ __initfunc(void pcibios_fixup(void))
 	if ((pci_probe & PCI_BIOS_SORT) && !(pci_probe & PCI_NO_SORT))
 		pcibios_sort();
 #endif
+}
+
+__initfunc(void pcibios_fixup_bus(struct pci_bus *b))
+{
+	pcibios_fixup_ghosts(b);
 }
 
 /*

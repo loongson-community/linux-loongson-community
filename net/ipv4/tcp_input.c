@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp_input.c,v 1.116 1998/05/02 14:50:11 davem Exp $
+ * Version:	$Id: tcp_input.c,v 1.121 1998/07/15 04:39:12 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -156,8 +156,8 @@ static __inline__ void tcp_rtt_estimator(struct tcp_opt *tp, __u32 mrtt)
 	}
 }
 
-/* Calculate rto without backoff. This is the second half of Van Jacobsons
- * routine refered to above.
+/* Calculate rto without backoff.  This is the second half of Van Jacobson's
+ * routine referred to above.
  */
 
 static __inline__ void tcp_set_rto(struct tcp_opt *tp)
@@ -186,13 +186,21 @@ static __inline__ void tcp_bound_rto(struct tcp_opt *tp)
 }
 
 /* WARNING: this must not be called if tp->saw_timestamp was false. */
-extern __inline__ void tcp_replace_ts_recent(struct tcp_opt *tp, __u32 end_seq)
+extern __inline__ void tcp_replace_ts_recent(struct sock *sk, struct tcp_opt *tp,
+					     __u32 start_seq, __u32 end_seq)
 {
 	/* From draft-ietf-tcplw-high-performance: the correct
 	 * test is last_ack_sent <= end_seq.
 	 * (RFC1323 stated last_ack_sent < end_seq.)
+	 *
+	 * HOWEVER: The current check contradicts the draft statements.
+	 * It has been done for good reasons.
+	 * The implemented check improves security and eliminates
+	 * unnecessary RTT overestimation.
+	 *		1998/06/27  Andrey V. Savochkin <saw@msu.ru>
 	 */
-	if (!before(end_seq, tp->last_ack_sent)) {
+	if (!before(end_seq, tp->last_ack_sent - sk->rcvbuf) &&
+	    !after(start_seq, tp->rcv_wup + tp->rcv_wnd)) {
 		/* PAWS bug workaround wrt. ACK frames, the PAWS discard
 		 * extra check below makes sure this can only happen
 		 * for pure ACK frames.  -DaveM
@@ -593,7 +601,7 @@ static int tcp_clean_rtx_queue(struct sock *sk, __u32 ack,
 		 * connection startup slow start one packet too
 		 * quickly.  This is severely frowned upon behavior.
 		 */
-		if(sacked & TCPCB_SACKED_RETRANS && tp->retrans_out)
+		if((sacked & TCPCB_SACKED_RETRANS) && tp->retrans_out)
 			tp->retrans_out--;
 		if(!(scb->flags & TCPCB_FLAG_SYN)) {
 			acked |= FLAG_DATA_ACKED;
@@ -968,7 +976,7 @@ void tcp_time_wait(struct sock *sk)
 		tw->af_specific	= sk->tp_pinfo.af_tcp.af_specific;
 
 #if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
-		if(tw->family == AF_INET6) {
+		if(tw->family == PF_INET6) {
 			memcpy(&tw->v6_daddr,
 			       &sk->net_pinfo.af_inet6.daddr,
 			       sizeof(struct in6_addr));
@@ -1657,7 +1665,9 @@ int tcp_rcv_established(struct sock *sk, struct sk_buff *skb,
 					goto discard;
 				}
 			}
-			tcp_replace_ts_recent(tp, TCP_SKB_CB(skb)->end_seq);
+			tcp_replace_ts_recent(sk, tp,
+					      TCP_SKB_CB(skb)->seq,
+					      TCP_SKB_CB(skb)->end_seq);
 		}
 	}
 
@@ -1686,8 +1696,13 @@ int tcp_rcv_established(struct sock *sk, struct sk_buff *skb,
 			}
 		} else if (TCP_SKB_CB(skb)->ack_seq == tp->snd_una) {
 			/* Bulk data transfer: receiver */
-			if (atomic_read(&sk->rmem_alloc) > sk->rcvbuf) 
+			if (atomic_read(&sk->rmem_alloc) > sk->rcvbuf) {
+				/* We must send an ACK for zero window probes. */
+				if (!before(TCP_SKB_CB(skb)->seq,
+						tp->rcv_wup + tp->rcv_wnd))
+					tcp_send_ack(sk);
 				goto discard;
+			}
 			
 			skb_pull(skb,th->doff*4);
 
@@ -1714,15 +1729,21 @@ int tcp_rcv_established(struct sock *sk, struct sk_buff *skb,
 	}
 
 	if (!tcp_sequence(tp, TCP_SKB_CB(skb)->seq, TCP_SKB_CB(skb)->end_seq)) {
-		if (!th->rst) {
-			if (after(TCP_SKB_CB(skb)->seq, tp->rcv_nxt)) {
-				SOCK_DEBUG(sk, "seq:%d end:%d wup:%d wnd:%d\n",
-					   TCP_SKB_CB(skb)->seq, TCP_SKB_CB(skb)->end_seq,
-					   tp->rcv_wup, tp->rcv_wnd);
-			}
-			tcp_send_ack(sk);
+		/* RFC793, page 37: "In all states except SYN-SENT, all reset
+		 * (RST) segments are validated by checking their SEQ-fields."
+		 * And page 69: "If an incoming segment is not acceptable,
+		 * an acknowledgment should be sent in reply (unless the RST bit
+		 * is set, if so drop the segment and return)".
+		 */
+		if (th->rst)
 			goto discard;
+		if (after(TCP_SKB_CB(skb)->seq, tp->rcv_nxt)) {
+			SOCK_DEBUG(sk, "seq:%d end:%d wup:%d wnd:%d\n",
+				   TCP_SKB_CB(skb)->seq, TCP_SKB_CB(skb)->end_seq,
+				   tp->rcv_wup, tp->rcv_wnd);
 		}
+		tcp_send_ack(sk);
+		goto discard;
 	}
 
 	if(th->syn && TCP_SKB_CB(skb)->seq != tp->syn_seq) {
@@ -2020,7 +2041,9 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 					goto discard;
 				}
 			}
-			tcp_replace_ts_recent(tp, TCP_SKB_CB(skb)->end_seq);
+			tcp_replace_ts_recent(sk, tp,
+					      TCP_SKB_CB(skb)->seq,
+					      TCP_SKB_CB(skb)->end_seq);
 		}
 	}
 

@@ -1,9 +1,13 @@
-/* $Id: r4xx0.c,v 1.17 1998/05/04 09:12:55 ralf Exp $
+/* $Id: r4xx0.c,v 1.28 1998/08/18 20:45:08 ralf Exp $
+ *
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
  *
  * r4xx0.c: R4000 processor variant specific MMU/Cache routines.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
- * Copyright (C) 1997, 1998 Ralf Baechle (ralf@gnu.org)
+ * Copyright (C) 1997, 1998 Ralf Baechle ralf@gnu.org
  *
  * To do:
  *
@@ -37,7 +41,7 @@ static int icache_size, dcache_size; /* Size in bytes */
 static int ic_lsize, dc_lsize;       /* LineSize in bytes */
 
 /* Secondary cache (if present) parameters. */
-static scache_size, sc_lsize;        /* Again, in bytes */
+static unsigned long scache_size, sc_lsize;	/* Again, in bytes */
 
 #include <asm/cacheops.h>
 #include <asm/r4kcache.h>
@@ -2287,7 +2291,7 @@ static void r4k_pgd_init(unsigned long page)
 	unsigned long *p = (unsigned long *) page;
 	int i;
 
-	for(i = 0; i < 1024; i+=8) {
+	for(i = 0; i < USER_PTRS_PER_PGD; i+=8) {
 		p[i + 0] = (unsigned long) invalid_pte_table;
 		p[i + 1] = (unsigned long) invalid_pte_table;
 		p[i + 2] = (unsigned long) invalid_pte_table;
@@ -2344,32 +2348,9 @@ static void r4k_update_mmu_cache(struct vm_area_struct * vma,
 	BARRIER;
 	if(idx < 0) {
 		tlb_write_random();
-#if 0
-		BARRIER;
-		printk("[MISS]");
-#endif
 	} else {
 		tlb_write_indexed();
-#if 0
-		BARRIER;
-		printk("[HIT]");
-#endif
 	}
-#if 0
-	if(!strcmp(current->comm, "args")) {
-		printk("<");
-		for(idx = 0; idx < NTLB_ENTRIES; idx++) {
-			BARRIER;
-			set_index(idx);	BARRIER;
-			tlb_read(); BARRIER;
-			address = get_entryhi(); BARRIER;
-			if((address & 0xff) != 0)
-				printk("[%08lx]", address);
-		}
-		printk(">");
-	}
-	BARRIER;
-#endif
 	BARRIER;
 	set_entryhi(pid);
 	BARRIER;
@@ -2718,7 +2699,7 @@ __initfunc(void ld_mmu_r4xx0(void))
 
 	printk("CPU revision is: %08x\n", read_32bit_cp0_register(CP0_PRID));
 
-	set_cp0_config(CONFIG_CM_CMASK, CONFIG_CM_CACHABLE_NONCOHERENT);
+	set_cp0_config(CONF_CM_CMASK, CONF_CM_CACHABLE_NONCOHERENT);
 
 	probe_icache(config);
 	probe_dcache(config);

@@ -56,6 +56,8 @@ struct mac_model
 #define MAC_ADB_II		1
 #define MAC_ADB_IISI		2
 #define MAC_ADB_CUDA		3
+#define MAC_ADB_PB1		4
+#define MAC_ADB_PB2		5
 
 #define MAC_VIA_II		1
 #define MAC_VIA_IIci		2
@@ -74,6 +76,7 @@ struct mac_model
 #define MAC_SCC_II		1
 #define MAC_SCC_QUADRA		2
 #define MAC_SCC_QUADRA2		3
+#define MAC_SCC_IOP		4
 
 #define MAC_ETHER_NONE		0	
 #define MAC_ETHER_SONIC		1
@@ -92,8 +95,9 @@ struct mac_model
 #define MAC_MODEL_IICI		11
 #define MAC_MODEL_IIFX		13	/* And well numbered it is too */
 #define MAC_MODEL_IISI		18
+#define MAC_MODEL_LC		19
 #define MAC_MODEL_Q900		20
-#define MAC_MODEL_PB170		25
+#define MAC_MODEL_PB170		21
 #define MAC_MODEL_Q700		22
 #define MAC_MODEL_CLII		23
 #define MAC_MODEL_PB140		25
@@ -109,6 +113,7 @@ struct mac_model
 #define MAC_MODEL_LCII		37	/* aka: P400/405/410/430 */
 #define MAC_MODEL_PB250		38
 #define MAC_MODEL_IIVI		44
+#define MAC_MODEL_P600		45
 #define MAC_MODEL_IIVX		48
 #define MAC_MODEL_CCL		49
 #define MAC_MODEL_PB165C	50
@@ -123,13 +128,16 @@ struct mac_model
 #define MAC_MODEL_PB270C	77
 #define MAC_MODEL_Q840		78
 #define MAC_MODEL_P550		80
+#define MAC_MODEL_CCLII		83
 #define MAC_MODEL_PB165		84
 #define MAC_MODEL_PB190 	85
 #define MAC_MODEL_TV		88
 #define MAC_MODEL_P475		89	/* aka: LC475, P476 */
+#define MAC_MODEL_P475F		90	/* aka: P475 w/ FPU (no LC040) */
 #define MAC_MODEL_P575		92	/* aka: LC575/580, P577/578/508 */
 #define MAC_MODEL_Q605		94
 #define MAC_MODEL_Q630		98	/* aka: LC630, P630/631/636/640 */
+#define MAC_MODEL_P588		99	/* aka: ?? */
 #define MAC_MODEL_PB280		102
 #define MAC_MODEL_PB280C	103
 #define MAC_MODEL_PB150		115

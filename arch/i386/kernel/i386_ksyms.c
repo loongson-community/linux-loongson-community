@@ -16,10 +16,10 @@
 #include <asm/io.h>
 #include <asm/hardirq.h>
 #include <asm/delay.h>
+#include <asm/irq.h>
 
 extern void dump_thread(struct pt_regs *, struct user *);
 extern int dump_fpu(elf_fpregset_t *);
-extern void __lock_kernel(void);
 
 #if defined(CONFIG_BLK_DEV_IDE) || defined(CONFIG_BLK_DEV_HD) || defined(CONFIG_BLK_DEV_IDE_MODULE) || defined(CONFIG_BLK_DEV_HD_MODULE)
 extern struct drive_info_struct drive_info;
@@ -37,6 +37,9 @@ EXPORT_SYMBOL(__ioremap);
 EXPORT_SYMBOL(iounmap);
 EXPORT_SYMBOL(local_bh_count);
 EXPORT_SYMBOL(local_irq_count);
+EXPORT_SYMBOL(enable_irq);
+EXPORT_SYMBOL(disable_irq);
+
 EXPORT_SYMBOL_NOVERS(__down_failed);
 EXPORT_SYMBOL_NOVERS(__down_failed_interruptible);
 EXPORT_SYMBOL_NOVERS(__up_wakeup);
@@ -64,11 +67,8 @@ EXPORT_SYMBOL(strlen_user);
 
 #ifdef __SMP__
 EXPORT_SYMBOL(cpu_data);
-EXPORT_SYMBOL_NOVERS(kernel_flag);
-EXPORT_SYMBOL_NOVERS(active_kernel_processor);
+EXPORT_SYMBOL(kernel_flag);
 EXPORT_SYMBOL(smp_invalidate_needed);
-EXPORT_SYMBOL_NOVERS(__lock_kernel);
-EXPORT_SYMBOL(lk_lockmsg);
 EXPORT_SYMBOL(__cpu_logical_map);
 EXPORT_SYMBOL(smp_num_cpus);
 
@@ -98,4 +98,8 @@ EXPORT_SYMBOL(mca_get_adapter_name);
 EXPORT_SYMBOL(mca_set_adapter_procfn);
 EXPORT_SYMBOL(mca_isenabled);
 EXPORT_SYMBOL(mca_isadapter);
+#endif
+
+#ifdef CONFIG_VT
+EXPORT_SYMBOL(screen_info);
 #endif

@@ -31,6 +31,7 @@ enum root_directory_inos {
 	PROC_MODULES,
 	PROC_STAT,
 	PROC_DEVICES,
+	PROC_PARTITIONS,
 	PROC_INTERRUPTS,
 	PROC_FILESYSTEMS,
 	PROC_KSYMS,
@@ -44,11 +45,11 @@ enum root_directory_inos {
 	PROC_MD,
 	PROC_RTC,
 	PROC_LOCKS,
-	PROC_ZORRO,
 	PROC_HARDWARE,
 	PROC_SLABINFO,
 	PROC_PARPORT,
 	PROC_PPC_HTAB,
+	PROC_STRAM,
 	PROC_SOUND,
 	PROC_MTRR, /* whether enabled or not */
 	PROC_FS
@@ -74,7 +75,7 @@ enum pid_directory_inos {
 };
 
 enum pid_subdirectory_inos {
-	PROC_PID_FD_DIR = 1
+	PROC_PID_FD_DIR = 0x8000,	/* 0x8000-0xffff */
 };
 
 enum net_directory_inos {
@@ -108,6 +109,7 @@ enum net_directory_inos {
 	PROC_NET_AX25_ROUTE,
 	PROC_NET_AX25,
 	PROC_NET_AX25_CALLS,
+	PROC_NET_BMAC,
 	PROC_NET_NR_NODES,
 	PROC_NET_NR_NEIGH,
 	PROC_NET_NR,
@@ -135,8 +137,11 @@ enum net_directory_inos {
 	PROC_NET_DN_ADJ,
 	PROC_NET_DN_L1,
 	PROC_NET_DN_L2,
+	PROC_NET_DN_CACHE,
 	PROC_NET_DN_SKT,
 	PROC_NET_NETSTAT,
+	PROC_NET_IPFW_CHAINS,
+	PROC_NET_IPFW_CHAIN_NAMES,
 	PROC_NET_LAST
 };
 
@@ -177,10 +182,13 @@ enum scsi_directory_inos {
 	PROC_SCSI_ESP,
 	PROC_SCSI_QLOGICPTI,
 	PROC_SCSI_AMIGA7XX,
+	PROC_SCSI_MVME16x,
+	PROC_SCSI_BVME6000,
 	PROC_SCSI_A3000,
 	PROC_SCSI_A2091,
 	PROC_SCSI_GVP11,
 	PROC_SCSI_ATARI,
+	PROC_SCSI_MAC,
 	PROC_SCSI_IDESCSI,
 	PROC_SCSI_SGIWD93,
 	PROC_SCSI_MESH,
@@ -204,16 +212,18 @@ enum mca_directory_inos {
 enum bus_directory_inos {
 	PROC_BUS_PCI = PROC_MCA_LAST,
 	PROC_BUS_PCI_DEVICES,
+	PROC_BUS_ZORRO,
+	PROC_BUS_ZORRO_DEVICES,
 	PROC_BUS_LAST
 };
 
 enum fs_directory_inos {
-	PROC_FS_CODA = PROC_MCA_LAST,
+	PROC_FS_CODA = PROC_BUS_LAST,
 	PROC_FS_LAST
 };
 
 enum fs_coda_directory_inos {
-	PROC_VFS_STATS = PROC_MCA_LAST,
+	PROC_VFS_STATS = PROC_FS_LAST,
 	PROC_UPCALL_STATS,
 	PROC_PERMISSION_STATS,
 	PROC_CACHE_INV_STATS,
@@ -279,6 +289,7 @@ extern int (* dispatch_scsi_info_ptr) (int ino, char *buffer, char **start,
 				off_t offset, int length, int inout);
 
 extern struct proc_dir_entry proc_root;
+extern struct proc_dir_entry proc_root_fs;
 extern struct proc_dir_entry *proc_net;
 extern struct proc_dir_entry *proc_scsi;
 extern struct proc_dir_entry proc_sys;

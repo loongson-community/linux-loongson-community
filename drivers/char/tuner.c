@@ -7,13 +7,13 @@
 #include <linux/errno.h>
 #include <linux/malloc.h>
 
-#include "i2c.h"
+#include <linux/i2c.h>
 #include <linux/videodev.h>
 
 #include "tuner.h"
 
-int debug = 0; /* insmod parameter */
-int type  = 0; /* tuner type */
+static int debug = 0; /* insmod parameter */
+static int type  = 0; /* tuner type */
 
 #define dprintk     if (debug) printk
 
@@ -243,10 +243,12 @@ struct i2c_driver i2c_driver_tuner =
 	tuner_command
 };
 
+EXPORT_NO_SYMBOLS;
+
 #ifdef MODULE
 int init_module(void)
 #else
-int msp3400c_init(void)
+int i2c_tuner_init(void)
 #endif
 {
 	i2c_register_driver(&i2c_driver_tuner);

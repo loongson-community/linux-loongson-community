@@ -46,7 +46,7 @@
  */
 static inline long get_reg(struct task_struct *task, int regno)
 {
-	if (regno <= PT_MQ)
+	if (regno < sizeof(struct pt_regs) / sizeof(unsigned long))
 		return ((unsigned long *)task->tss.regs)[regno];
 	return (0);
 }
@@ -430,11 +430,11 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			}
 			if (addr >= PT_FPR0 && addr < PT_FPR0 + 64) {
 #ifndef __SMP__
-				if (child->tss.regs->msr & MSR_FP )
-					smp_giveup_fpu(child);
-#else	
 				if (last_task_used_math == child)
 					giveup_fpu();
+#else	
+				if (child->tss.regs->msr & MSR_FP )
+					smp_giveup_fpu(child);
 #endif				
 				((long *)child->tss.fpr)[addr - PT_FPR0] = data;
 				ret = 0;

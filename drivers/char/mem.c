@@ -27,19 +27,22 @@
 #include <asm/pgtable.h>
 
 #ifdef CONFIG_SOUND
+void soundcore_init(void);
+#ifdef CONFIG_SOUND_OSS
 void soundcard_init(void);
+#endif
+#ifdef CONFIG_DMASOUND
+void dmasound_init(void);
+#endif
 #endif
 #ifdef CONFIG_ISDN
 int isdn_init(void);
 #endif
-#ifdef CONFIG_PCWATCHDOG
-int pcwatchdog_init(void);
-#endif
 #ifdef CONFIG_VIDEO_DEV
 extern int videodev_init(void);
 #endif
-#if defined(CONFIG_FB)
-extern void fbmem_init( void );
+#ifdef CONFIG_FB
+extern void fbmem_init(void);
 #endif
 
 static ssize_t do_write_mem(struct file * file, void *p, unsigned long realp,
@@ -60,7 +63,7 @@ static ssize_t do_write_mem(struct file * file, void *p, unsigned long realp,
 		written+=sz;
 	}
 #endif
-	if (copy_from_user(p, buf, count) < 0) 
+	if (copy_from_user(p, buf, count)) 
 		return -EFAULT;
 	written += count;
 	*ppos += written;
@@ -101,7 +104,7 @@ static ssize_t read_mem(struct file * file, char * buf,
 		}
 	}
 #endif
-	if (copy_to_user(buf, __va(p), count) < 0)
+	if (copy_to_user(buf, __va(p), count))
 		return -EFAULT;
 	read += count;
 	*ppos += read;
@@ -260,44 +263,54 @@ static ssize_t write_null(struct file * file, const char * buf,
  */
 static inline size_t read_zero_pagealigned(char * buf, size_t size)
 {
+	struct mm_struct *mm;
 	struct vm_area_struct * vma;
 	unsigned long addr=(unsigned long)buf;
 
+	mm = current->mm;
+	/* Oops, this was forgotten before. -ben */
+	down(&mm->mmap_sem);
+
 	/* For private mappings, just map in zero pages. */
-	for (vma = find_vma(current->mm, addr); vma; vma = vma->vm_next) {
+	for (vma = find_vma(mm, addr); vma; vma = vma->vm_next) {
 		unsigned long count;
 
 		if (vma->vm_start > addr || (vma->vm_flags & VM_WRITE) == 0)
-			return size;
+			goto out_up;
 		if (vma->vm_flags & VM_SHARED)
 			break;
 		count = vma->vm_end - addr;
 		if (count > size)
 			count = size;
 
-		flush_cache_range(current->mm, addr, addr + count);
-		zap_page_range(current->mm, addr, count);
+		flush_cache_range(mm, addr, addr + count);
+		zap_page_range(mm, addr, count);
         	zeromap_page_range(addr, count, PAGE_COPY);
-        	flush_tlb_range(current->mm, addr, addr + count);
+        	flush_tlb_range(mm, addr, addr + count);
 
 		size -= count;
 		buf += count;
 		addr += count;
 		if (size == 0)
-			return 0;
+			goto out_up;
 	}
+
+	up(&mm->mmap_sem);
 	
-	/* The shared case is hard. Lets do the conventional zeroing. */ 
+	/* The shared case is hard. Let's do the conventional zeroing. */ 
 	do {
 		unsigned long unwritten = clear_user(buf, PAGE_SIZE);
 		if (unwritten)
 			return size + unwritten - PAGE_SIZE;
-		if (need_resched)
+		if (current->need_resched)
 			schedule();
 		buf += PAGE_SIZE;
 		size -= PAGE_SIZE;
 	} while (size);
 
+	return size;
+out_up:
+	up(&mm->mmap_sem);
 	return size;
 }
 
@@ -533,18 +546,24 @@ __initfunc(int chr_dev_init(void))
     defined (CONFIG_PSMOUSE) || defined (CONFIG_MS_BUSMOUSE) || \
     defined (CONFIG_ATIXL_BUSMOUSE) || defined(CONFIG_SOFT_WATCHDOG) || \
     defined (CONFIG_AMIGAMOUSE) || defined (CONFIG_ATARIMOUSE) || \
-    defined (CONFIG_PCWATCHDOG) || \
+    defined (CONFIG_MACMOUSE) || defined (CONFIG_PCWATCHDOG) || \
     defined (CONFIG_APM) || defined (CONFIG_RTC) || \
     defined (CONFIG_SGI_DS1286) || defined (CONFIG_SUN_MOUSE) || \
     defined (CONFIG_NVRAM)
 	misc_init();
 #endif
 #ifdef CONFIG_SOUND
+	soundcore_init();
+#ifdef CONFIG_SOUND_OSS	
 	soundcard_init();
+#endif	
+#ifdef CONFIG_DMASOUND
+	dmasound_init();
+#endif	
 #endif
 #ifdef CONFIG_JOYSTICK
 	/*
-	 *	Some joysticks only appear when the soundcard they are
+	 *	Some joysticks only appear when the sound card they are
 	 *	connected to is configured. Keep the sound/joystick ordering.
 	 */
 	js_init();
@@ -557,6 +576,9 @@ __initfunc(int chr_dev_init(void))
 #endif
 #ifdef CONFIG_FTAPE
 	ftape_init();
+#endif
+#ifdef CONFIG_VIDEO_BT848
+	i2c_init();
 #endif
 #ifdef CONFIG_VIDEO_DEV
 	videodev_init();

@@ -9,9 +9,6 @@
  * Authors:	Alexey Kuznetsov, <kuznet@ms2.inr.ac.ru>
  */
 
-#include <asm/uaccess.h>
-#include <asm/system.h>
-#include <asm/bitops.h>
 #include <linux/config.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
@@ -28,9 +25,14 @@
 #include <linux/rtnetlink.h>
 #include <linux/init.h>
 #include <linux/proc_fs.h>
+
 #include <net/sock.h>
 #include <net/pkt_sched.h>
 
+#include <asm/processor.h>
+#include <asm/uaccess.h>
+#include <asm/system.h>
+#include <asm/bitops.h>
 
 #define BUG_TRAP(x) if (!(x)) { printk("Assertion (" #x ") failed at " __FILE__ "(%d):" __FUNCTION__ "\n", __LINE__); }
 
@@ -881,7 +883,7 @@ __initfunc(int psched_calibrate_clock(void))
 	unsigned long stop;
 
 #if CPU == 586 || CPU == 686
-	if (!(boot_cpu_data.x86_capability & 16))
+	if (!(boot_cpu_data.x86_capability & X86_FEATURE_TSC)
 		return -1;
 #endif
 
@@ -928,7 +930,7 @@ __initfunc(int pktsched_init(void))
 #endif
 
 #ifdef CONFIG_RTNETLINK
-	struct rtnetlink_link *link_p = rtnetlink_links[AF_UNSPEC];
+	struct rtnetlink_link *link_p = rtnetlink_links[PF_UNSPEC];
 
 	/* Setup rtnetlink links. It is made here to avoid
 	   exporting large number of public symbols.

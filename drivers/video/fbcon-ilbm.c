@@ -102,12 +102,10 @@ void fbcon_ilbm_putc(struct vc_data *conp, struct display *p, int c, int yy,
     u8 d;
     int fg0, bg0, fg, bg;
 
-    c &= 0xff;
-
     dest = p->screen_base+yy*p->fontheight*p->next_line+xx;
-    cdat = p->fontdata+c*p->fontheight;
-    fg0 = attr_fgcol(p,conp);
-    bg0 = attr_bgcol(p,conp);
+    cdat = p->fontdata+(c&p->charmask)*p->fontheight;
+    fg0 = attr_fgcol(p,c);
+    bg0 = attr_bgcol(p,c);
 
     for (rows = p->fontheight; rows--;) {
 	d = *cdat++;
@@ -146,22 +144,22 @@ void fbcon_ilbm_putc(struct vc_data *conp, struct display *p, int c, int yy,
      *  -- Geert
      */
 
-void fbcon_ilbm_putcs(struct vc_data *conp, struct display *p, const char *s,
-		      int count, int yy, int xx)
+void fbcon_ilbm_putcs(struct vc_data *conp, struct display *p, 
+		      const unsigned short *s, int count, int yy, int xx)
 {
     u8 *dest0, *dest, *cdat1, *cdat2, *cdat3, *cdat4;
     u_int rows, i;
-    u8 c1, c2, c3, c4;
+    u16 c1, c2, c3, c4;
     u32 d;
     int fg0, bg0, fg, bg;
 
     dest0 = p->screen_base+yy*p->fontheight*p->next_line+xx;
-    fg0 = attr_fgcol(p,conp);
-    bg0 = attr_bgcol(p,conp);
+    fg0 = attr_fgcol(p,*s);
+    bg0 = attr_bgcol(p,*s);
 
     while (count--)
 	if (xx&3 || count < 3) {	/* Slow version */
-	    c1 = *s++;
+	    c1 = *s++ & p->charmask;
 	    dest = dest0++;
 	    xx++;
 
@@ -187,10 +185,10 @@ void fbcon_ilbm_putcs(struct vc_data *conp, struct display *p, const char *s,
 		}
 	    }
 	} else {		/* Fast version */
-	    c1 = s[0];
-	    c2 = s[1];
-	    c3 = s[2];
-	    c4 = s[3];
+	    c1 = s[0] & p->charmask;
+	    c2 = s[1] & p->charmask;
+	    c3 = s[2] & p->charmask;
+	    c4 = s[3] & p->charmask;
 
 	    dest = dest0;
 	    cdat1 = p->fontdata+c1*p->fontheight;
@@ -201,7 +199,7 @@ void fbcon_ilbm_putcs(struct vc_data *conp, struct display *p, const char *s,
 #if defined(__BIG_ENDIAN)
 		d = *cdat1++<<24 | *cdat2++<<16 | *cdat3++<<8 | *cdat4++;
 #elif defined(__LITTLE_ENDIAN)
-		d = *cdat1++ | *cdat2++<<8 | *cdat3++<<16 | *cdat4++<<32);
+		d = *cdat1++ | *cdat2++<<8 | *cdat3++<<16 | *cdat4++<<24;
 #else
 #error FIXME: No endianness??
 #endif
@@ -262,8 +260,19 @@ void fbcon_ilbm_revc(struct display *p, int xx, int yy)
 
 struct display_switch fbcon_ilbm = {
     fbcon_ilbm_setup, fbcon_ilbm_bmove, fbcon_ilbm_clear, fbcon_ilbm_putc,
-    fbcon_ilbm_putcs, fbcon_ilbm_revc
+    fbcon_ilbm_putcs, fbcon_ilbm_revc, NULL, NULL, NULL, FONTWIDTH(8)
 };
+
+
+#ifdef MODULE
+int init_module(void)
+{
+    return 0;
+}
+
+void cleanup_module(void)
+{}
+#endif /* MODULE */
 
 
     /*

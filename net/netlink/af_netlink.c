@@ -147,7 +147,7 @@ static int netlink_create(struct socket *sock, int protocol)
 
 	sock->ops = &netlink_ops;
 
-	sk = sk_alloc(AF_NETLINK, GFP_KERNEL, 1);
+	sk = sk_alloc(PF_NETLINK, GFP_KERNEL, 1);
 	if (!sk)
 		return -ENOMEM;
 
@@ -720,7 +720,7 @@ void netlink_ack(struct sk_buff *in_skb, struct nlmsghdr *nlh, int err)
 	if (err == 0)
 		size = NLMSG_SPACE(sizeof(struct nlmsgerr));
 	else
-		size = NLMSG_SPACE(4 + nlh->nlmsg_len);
+		size = NLMSG_SPACE(4 + NLMSG_ALIGN(nlh->nlmsg_len));
 
 	skb = alloc_skb(size, GFP_KERNEL);
 	if (!skb)
@@ -980,28 +980,28 @@ done:
 #endif
 
 struct proto_ops netlink_ops = {
-	AF_NETLINK,
+	PF_NETLINK,
 
 	sock_no_dup,
 	netlink_release,
 	netlink_bind,
 	netlink_connect,
-	NULL,
-	NULL,
+	sock_no_socketpair,
+	sock_no_accept,
 	netlink_getname,
 	datagram_poll,
 	sock_no_ioctl,
 	sock_no_listen,
 	sock_no_shutdown,
-	NULL,
-	NULL,
+	sock_no_setsockopt,
+	sock_no_getsockopt,
 	sock_no_fcntl,
 	netlink_sendmsg,
 	netlink_recvmsg
 };
 
 struct net_proto_family netlink_family_ops = {
-	AF_NETLINK,
+	PF_NETLINK,
 	netlink_create
 };
 

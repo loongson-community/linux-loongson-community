@@ -5,22 +5,21 @@
  *
  *		Holds initial configuration information for devices.
  *
- * NOTE:	This file is a nice idea, but its current format does not work
- *		well for drivers that support multiple units, like the SLIP
- *		driver.  We should actually have only one pointer to a driver
- *		here, with the driver knowing how many units it supports.
- *		Currently, the SLIP driver abuses the "base_addr" integer
- *		field of the 'device' structure to store the unit number...
- *		-FvK
- *
  * Version:	@(#)Space.c	1.0.7	08/12/93
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
  *		Donald J. Becker, <becker@super.org>
  *
+ * Changelog:
+ *		Paul Gortmaker (06/98): 
+ *		 - sort probes in a sane way, make sure all (safe) probes
+ *		   get run once & failed autoprobes don't autoprobe again.
+ *
  *	FIXME:
- *		Sort the device chain fastest first.
+ *		Phase out placeholder dev entries put in the linked list
+ *		here in favour of drivers using init_etherdev(NULL, ...)
+ *		combined with a single find_all_devs() function (for 2.3)
  *
  *		This program is free software; you can redistribute it and/or
  *		modify it under the terms of the GNU General Public License
@@ -47,6 +46,7 @@ extern int ultra32_probe(struct device *dev);
 extern int ultramca_probe(struct device *dev);
 extern int wd_probe(struct device *dev);
 extern int el2_probe(struct device *dev);
+extern int ne2k_pci_probe(struct device *dev);
 extern int ne_probe(struct device *dev);
 extern int hp_probe(struct device *dev);
 extern int hp_plus_probe(struct device *dev);
@@ -61,7 +61,7 @@ extern int at1700_probe(struct device *);
 extern int fmv18x_probe(struct device *);
 extern int eth16i_probe(struct device *);
 extern int depca_probe(struct device *);
-extern int apricot_probe(struct device *);
+extern int i82596_probe(struct device *);
 extern int ewrk3_probe(struct device *);
 extern int de4x5_probe(struct device *);
 extern int el1_probe(struct device *);
@@ -71,6 +71,7 @@ extern int elmc_probe(struct device *);
 extern int elplus_probe(struct device *);
 extern int ac3200_probe(struct device *);
 extern int es_probe(struct device *);
+extern int lne390_probe(struct device *);
 extern int e2100_probe(struct device *);
 extern int ni5010_probe(struct device *);
 extern int ni52_probe(struct device *);
@@ -90,11 +91,24 @@ extern int atarilance_probe(struct device *);
 extern int a2065_probe(struct device *);
 extern int ariadne_probe(struct device *);
 extern int hydra_probe(struct device *);
+extern int apne_probe(struct device *);
+extern int bionet_probe(struct device *);
+extern int pamsnet_probe(struct device *);
 extern int tlan_probe(struct device *);
 extern int mace_probe(struct device *);
+extern int bmac_probe(struct device *);
 extern int cs89x0_probe(struct device *dev);
 extern int ethertap_probe(struct device *dev);
+extern int ether1_probe (struct device *dev);
+extern int ether3_probe (struct device *dev);
+extern int etherh_probe (struct device *dev);
+extern int am79c961_probe(struct device *dev);
 extern int epic100_probe(struct device *dev);
+extern int rtl8139_probe(struct device *dev);
+extern int hplance_probe(struct device *dev);
+
+/* Gigabit Ethernet adapters */
+extern int yellowfin_probe(struct device *dev);
 
 /* Detachable devices ("pocket adaptors") */
 extern int atp_init(struct device *);
@@ -105,205 +119,369 @@ extern int de620_probe(struct device *);
 extern int dfx_probe(struct device *dev);
 extern int apfddi_init(struct device *dev);
 
+/* HIPPI boards */
+extern int cern_hippi_probe(struct device *);
 
-__initfunc(static int ethif_probe(struct device *dev))
+struct devprobe
 {
-    u_long base_addr = dev->base_addr;
+	int (*probe)(struct device *dev);
+	int status;	/* non-zero if autoprobe has failed */
+};
 
-    if ((base_addr == 0xffe0)  ||  (base_addr == 1))
-	return 1;		/* ENXIO */
+/*
+ * probe_list walks a list of probe functions and calls each so long
+ * as a non-zero ioaddr is given, or as long as it hasn't already failed 
+ * to find a card in the past (as recorded by "status") when asked to
+ * autoprobe (i.e. a probe that fails to find a card when autoprobing
+ * will not be asked to autoprobe again).  It exits when a card is found.
+ */
+__initfunc(static int probe_list(struct device *dev, struct devprobe *plist))
+{
+	struct devprobe *p = plist;
+	unsigned long base_addr = dev->base_addr;
 
-    if (1
-#ifdef CONFIG_HAPPYMEAL
-	/* Please keep this one first, we'd like the on-board ethernet
-	 * to be probed first before other PCI cards on Ultra/PCI.  -DaveM
-	 */
-	&& happy_meal_probe(dev)
-#endif
-#ifdef CONFIG_DGRS
-	&& dgrs_probe(dev)
-#endif
-#if defined(CONFIG_VORTEX)
-	&& tc59x_probe(dev)
-#endif
-#if defined(CONFIG_SEEQ8005)
-	&& seeq8005_probe(dev)
-#endif
-#if defined(CONFIG_DEC_ELCP)
-	&& tulip_probe(dev)
-#endif
-#if defined(CONFIG_HP100)
-	&& hp100_probe(dev)
-#endif	
-#if defined(CONFIG_ULTRA)
-	&& ultra_probe(dev)
-#endif
-#if defined(CONFIG_ULTRAMCA)
-        && ultramca_probe(dev)
-#endif
-#if defined(CONFIG_ULTRA32)
-	&& ultra32_probe(dev)
-#endif
-#if defined(CONFIG_SMC9194)
-	&& smc_init(dev)
-#endif
-#if defined(CONFIG_WD80x3) || defined(WD80x3)
-	&& wd_probe(dev)
-#endif
-#if defined(CONFIG_EL2) || defined(EL2)	/* 3c503 */
-	&& el2_probe(dev)
-#endif
-#if defined(CONFIG_HPLAN) || defined(HPLAN)
-	&& hp_probe(dev)
-#endif
-#if defined(CONFIG_HPLAN_PLUS)
-	&& hp_plus_probe(dev)
-#endif
-#ifdef CONFIG_AC3200		/* Ansel Communications EISA 3200. */
-	&& ac3200_probe(dev)
-#endif
-#ifdef CONFIG_ES3210
-	&& es_probe(dev)
-#endif
-#ifdef CONFIG_E2100		/* Cabletron E21xx series. */
-	&& e2100_probe(dev)
-#endif
-#if defined(CONFIG_NE2000) || defined(NE2000)
-	&& ne_probe(dev)
-#endif
-#ifdef CONFIG_AT1500
-	&& at1500_probe(dev)
-#endif
-#ifdef CONFIG_CS89x0
- 	&& cs89x0_probe(dev)
-#endif
-#ifdef CONFIG_PCNET32
-	&& pcnet32_probe(dev)
-#endif	
-#ifdef CONFIG_AT1700
-	&& at1700_probe(dev)
-#endif
-#ifdef CONFIG_FMV18X		/* Fujitsu FMV-181/182 */
-	&& fmv18x_probe(dev)
-#endif
-#ifdef CONFIG_ETH16I
-	&& eth16i_probe(dev)	/* ICL EtherTeam 16i/32 */
-#endif
-#ifdef CONFIG_EL3		/* 3c509 */
-	&& el3_probe(dev)
-#endif
-#ifdef CONFIG_ZNET		/* Zenith Z-Note and some IBM Thinkpads. */
-	&& znet_probe(dev)
-#endif
-#ifdef CONFIG_EEXPRESS		/* Intel EtherExpress */
-	&& express_probe(dev)
-#endif
-#ifdef CONFIG_EEXPRESS_PRO	/* Intel EtherExpress Pro/10 */
-	&& eepro_probe(dev)
-#endif
-#ifdef CONFIG_EEXPRESS_PRO100	/* Intel EtherExpress Pro/100 */
-	&& eepro100_probe(dev)
-#endif
-#ifdef CONFIG_DEPCA		/* DEC DEPCA */
-	&& depca_probe(dev)
-#endif
-#ifdef CONFIG_EWRK3             /* DEC EtherWORKS 3 */
-        && ewrk3_probe(dev)
-#endif
-#ifdef CONFIG_DE4X5             /* DEC DE425, DE434, DE435 adapters */
-        && de4x5_probe(dev)
-#endif
-#ifdef CONFIG_APRICOT		/* Apricot I82596 */
-	&& apricot_probe(dev)
-#endif
-#ifdef CONFIG_EL1		/* 3c501 */
-	&& el1_probe(dev)
-#endif
-#if	defined(CONFIG_WAVELAN)	/* WaveLAN */
-	&& wavelan_probe(dev)
-#endif	/* defined(CONFIG_WAVELAN) */
-#ifdef CONFIG_EL16		/* 3c507 */
-	&& el16_probe(dev)
-#endif
-#ifdef CONFIG_ELMC		/* 3c523 */
-	&& elmc_probe(dev)
-#endif
-#ifdef CONFIG_ELPLUS		/* 3c505 */
-	&& elplus_probe(dev)
-#endif
-#ifdef CONFIG_DE600		/* D-Link DE-600 adapter */
-	&& de600_probe(dev)
-#endif
-#ifdef CONFIG_DE620		/* D-Link DE-620 adapter */
-	&& de620_probe(dev)
-#endif
-#if defined(CONFIG_SK_G16)
-	&& SK_init(dev)
-#endif
-#ifdef CONFIG_NI5010
-        && ni5010_probe(dev)
-#endif
-#ifdef CONFIG_NI52
-	&& ni52_probe(dev)
-#endif
-#ifdef CONFIG_NI65
-        && ni65_probe(dev)
-#endif
-#ifdef CONFIG_ATARILANCE	/* Lance-based Atari ethernet boards */
-	&& atarilance_probe(dev)
-#endif
-#ifdef CONFIG_A2065		/* Commodore/Ameristar A2065 Ethernet Board */
-	&& a2065_probe(dev)
-#endif
-#ifdef CONFIG_ARIADNE		/* Village Tronic Ariadne Ethernet Board */
-	&& ariadne_probe(dev)
-#endif
-#ifdef CONFIG_HYDRA		/* Hydra Systems Amiganet Ethernet board */
-	&& hydra_probe(dev)
-#endif
-#ifdef CONFIG_SUNLANCE
-	&& sparc_lance_probe(dev)
-#endif
-#ifdef CONFIG_TLAN
-	&& tlan_probe(dev)
-#endif
-#ifdef CONFIG_SUNQE
-	&& qec_probe(dev)
-#endif
-#ifdef CONFIG_MYRI_SBUS
-	&& myri_sbus_probe(dev)
-#endif
-#ifdef CONFIG_MACE
-	&& mace_probe(dev)
-#endif
-#ifdef CONFIG_SGISEEQ
-	&& sgiseeq_probe(dev)
-#endif
-#ifdef CONFIG_MIPS_JAZZ_SONIC
-	&& sonic_probe(dev)
-#endif	
-#ifdef CONFIG_ARCH_ACORN
-	&& acorn_ethif_probe(dev)
-#endif
-#ifdef CONFIG_ARM_AM79C961A
-	&& am79c961_probe(dev)
-#endif
-#ifdef CONFIG_EPIC100
-	&& epic100_probe(dev)
-#endif
-	&& 1 ) {
-	return 1;	/* -ENODEV or -EAGAIN would be more accurate. */
-    }
-    return 0;
+	while (p->probe != NULL) {
+		if (base_addr && p->probe(dev) == 0)	/* probe given addr */
+			return 0;
+		else if (p->status == 0) {		/* has autoprobe failed yet? */
+			p->status = p->probe(dev);	/* no, try autoprobe */
+			if (p->status == 0)
+				return 0;
+		}
+		p++;
+	}
+	return -ENODEV;
 }
 
+/*
+ * If your probe touches ISA ports (<0x400) in addition to
+ * looking for PCI cards, then put it in the isa_probes
+ * list instead.
+ */
+struct devprobe pci_probes[] __initdata = {
+#ifdef CONFIG_COBALT_TULIP
+	{tulip_probe, 0},
+#endif
+#ifdef CONFIG_DGRS
+	{dgrs_probe, 0},
+#endif
+#ifdef CONFIG_VORTEX
+	{tc59x_probe, 0},
+#endif
+#ifdef CONFIG_DEC_ELCP 
+	{tulip_probe, 0},
+#endif
+#ifdef CONFIG_NE2K_PCI
+	{ne2k_pci_probe, 0},
+#endif
+#ifdef CONFIG_PCNET32
+	{pcnet32_probe, 0},
+#endif	
+#ifdef CONFIG_EEXPRESS_PRO100	/* Intel EtherExpress Pro/100 */
+	{eepro100_probe, 0},
+#endif
+#ifdef CONFIG_DE4X5             /* DEC DE425, DE434, DE435 adapters */
+	{de4x5_probe, 0},
+#endif
+#ifdef CONFIG_TLAN
+	{tlan_probe, 0},
+#endif
+#ifdef CONFIG_EPIC100
+	{epic100_probe, 0},
+#endif
+#ifdef CONFIG_RTL8139
+	{rtl8139_probe, 0},
+#endif
+#ifdef CONFIG_YELLOWFIN
+	{yellowfin_probe, 0},
+#endif
+	{NULL, 0},
+};
+
+/*
+ * This is a bit of an artificial separation as there are PCI drivers
+ * that also probe for EISA cards (in the PCI group) and there are ISA
+ * drivers that probe for EISA cards (in the ISA group).  These are the
+ * EISA only driver probes.
+ */
+struct devprobe eisa_probes[] __initdata = {
+#ifdef CONFIG_ULTRA32 
+	{ultra32_probe, 0},	
+#endif
+#ifdef CONFIG_AC3200	
+	{ac3200_probe, 0},
+#endif
+#ifdef CONFIG_ES3210
+	{es_probe, 0},
+#endif
+#ifdef CONFIG_LNE390
+	{lne390_probe, 0},
+#endif
+	{NULL, 0},
+};
+
+struct devprobe sparc_probes[] __initdata = {
+#ifdef CONFIG_HAPPYMEAL
+	{happy_meal_probe, 0},
+#endif
+#ifdef CONFIG_SUNLANCE
+	{sparc_lance_probe, 0},
+#endif
+#ifdef CONFIG_SUNQE
+	{qec_probe, 0},
+#endif
+#ifdef CONFIG_MYRI_SBUS
+	{myri_sbus_probe, 0},
+#endif
+	{NULL, 0},
+};
+
+struct devprobe mca_probes[] __initdata = {
+#ifdef CONFIG_ULTRAMCA 
+	{ultramca_probe, 0},
+#endif
+#ifdef CONFIG_ELMC		/* 3c523 */
+	{elmc_probe, 0},
+#endif
+	{NULL, 0},
+};
+
+/*
+ * ISA probes that touch addresses < 0x400 (including those that also
+ * look for EISA/PCI cards in addition to ISA cards).
+ */
+struct devprobe isa_probes[] __initdata = {
+#ifdef CONFIG_EL3		/* ISA, EISA (MCA someday) 3c5x9 */
+	{el3_probe, 0},
+#endif
+#ifdef CONFIG_HP100 		/* ISA, EISA & PCI */
+	{hp100_probe, 0},
+#endif	
+#ifdef CONFIG_ULTRA 
+	{ultra_probe, 0},
+#endif
+#ifdef CONFIG_WD80x3 
+	{wd_probe, 0},
+#endif
+#ifdef CONFIG_EL2 		/* 3c503 */
+	{el2_probe, 0},
+#endif
+#ifdef CONFIG_HPLAN
+	{hp_probe, 0},
+#endif
+#ifdef CONFIG_HPLAN_PLUS
+	{hp_plus_probe, 0},
+#endif
+#ifdef CONFIG_E2100		/* Cabletron E21xx series. */
+	{e2100_probe, 0},
+#endif
+#ifdef CONFIG_NE2000		/* ISA (use ne2k-pci for PCI cards) */
+	{ne_probe, 0},
+#endif
+#ifdef CONFIG_SMC9194
+	{smc_init, 0},
+#endif
+#ifdef CONFIG_SEEQ8005 
+	{seeq8005_probe, 0},
+#endif
+#ifdef CONFIG_AT1500
+	{at1500_probe, 0},
+#endif
+#ifdef CONFIG_CS89x0
+ 	{cs89x0_probe, 0},
+#endif
+#ifdef CONFIG_AT1700
+	{at1700_probe, 0},
+#endif
+#ifdef CONFIG_FMV18X		/* Fujitsu FMV-181/182 */
+	{fmv18x_probe, 0},
+#endif
+#ifdef CONFIG_ETH16I
+	{eth16i_probe, 0},	/* ICL EtherTeam 16i/32 */
+#endif
+#ifdef CONFIG_ZNET		/* Zenith Z-Note and some IBM Thinkpads. */
+	{znet_probe, 0},
+#endif
+#ifdef CONFIG_EEXPRESS		/* Intel EtherExpress */
+	{express_probe, 0},
+#endif
+#ifdef CONFIG_EEXPRESS_PRO	/* Intel EtherExpress Pro/10 */
+	{eepro_probe, 0},
+#endif
+#ifdef CONFIG_DEPCA		/* DEC DEPCA */
+	{depca_probe, 0},
+#endif
+#ifdef CONFIG_EWRK3             /* DEC EtherWORKS 3 */
+    	{ewrk3_probe, 0},
+#endif
+#if defined(CONFIG_APRICOT) || defined(CONFIG_MVME16x_NET) || defined(CONFIG_BVME6000_NET)	/* Intel I82596 */
+	{i82596_probe, 0},
+#endif
+#ifdef CONFIG_EL1		/* 3c501 */
+	{el1_probe, 0},
+#endif
+#ifdef CONFIG_WAVELAN		/* WaveLAN */
+	{wavelan_probe, 0},
+#endif
+#ifdef CONFIG_EL16		/* 3c507 */
+	{el16_probe, 0},
+#endif
+#ifdef CONFIG_ELPLUS		/* 3c505 */
+	{elplus_probe, 0},
+#endif
+#ifdef CONFIG_SK_G16
+	{SK_init, 0},
+#endif
+#ifdef CONFIG_NI5010
+	{ni5010_probe, 0},
+#endif
+#ifdef CONFIG_NI52
+	{ni52_probe, 0},
+#endif
+#ifdef CONFIG_NI65
+	{ni65_probe, 0},
+#endif
+	{NULL, 0},
+};
+
+struct devprobe parport_probes[] __initdata = {
+#ifdef CONFIG_DE600		/* D-Link DE-600 adapter */
+	{de600_probe, 0},
+#endif
+#ifdef CONFIG_DE620		/* D-Link DE-620 adapter */
+	{de620_probe, 0},
+#endif
+#ifdef CONFIG_ATP		/* AT-LAN-TEC (RealTek) pocket adaptor. */
+	{atp_init, 0},
+#endif
+	{NULL, 0},
+};
+
+struct devprobe m68k_probes[] __initdata = {
+#ifdef CONFIG_ATARILANCE	/* Lance-based Atari ethernet boards */
+	{atarilance_probe, 0},
+#endif
+#ifdef CONFIG_A2065		/* Commodore/Ameristar A2065 Ethernet Board */
+	{a2065_probe, 0},
+#endif
+#ifdef CONFIG_ARIADNE		/* Village Tronic Ariadne Ethernet Board */
+	{ariadne_probe, 0},
+#endif
+#ifdef CONFIG_HYDRA		/* Hydra Systems Amiganet Ethernet board */
+	{hydra_probe, 0},
+#endif
+#ifdef CONFIG_APNE		/* A1200 PCMCIA NE2000 */
+	{apne_probe, 0},
+#endif
+#ifdef CONFIG_ATARI_BIONET	/* Atari Bionet Ethernet board */
+	{bionet_probe, 0},
+#endif
+#ifdef CONFIG_ATARI_PAMSNET	/* Atari PAMsNet Ethernet board */
+	{pamsnet_probe, 0},
+#endif
+#ifdef CONFIG_HPLANCE		/* HP300 internal Ethernet */
+	{hplance_probe, 0},
+#endif
+	{NULL, 0},
+};
+
+struct devprobe ppc_probes[] __initdata = {
+#ifdef CONFIG_MACE
+	{mace_probe, 0},
+#endif
+#ifdef CONFIG_BMAC
+	{bmac_probe, 0},
+#endif
+	{NULL, 0},
+};
+
+struct devprobe sgi_probes[] __initdata = {
+#ifdef CONFIG_SGISEEQ
+	{sgiseeq_probe, 0},
+#endif
+	{NULL, 0},
+};
+
+struct devprobe mips_probes[] __initdata = {
+#ifdef CONFIG_MIPS_JAZZ_SONIC
+	{sonic_probe, 0},
+#endif
+	{NULL, 0},
+};
+
+struct devprobe arm_probes[] __initdata = {
+#ifdef CONFIG_ARM_ETHERH
+	{etherh_probe , 0},
+#endif
+#ifdef CONFIG_ARM_ETHER3
+	{ether3_probe , 0},
+#endif
+#ifdef CONFIG_ARM_ETHER1
+	{ether1_probe , 0},
+#endif
+#ifdef CONFIG_ARM_AM79C961A
+	{am79c961_probe, 0},
+#endif
+	{NULL, 0},
+};
+
+/*
+ * Unified ethernet device probe, segmented per architecture and
+ * per bus interface.
+ */
+__initfunc(static int ethif_probe(struct device *dev))
+{
+	unsigned long base_addr = dev->base_addr;
+
+	/* 
+	 * Backwards compatibility - historically an I/O base of 1 was 
+	 * used to indicate not to probe for this ethN interface 
+	 */
+	if (base_addr == 1)
+		return 1;		/* ENXIO */
+
+	/* 
+	 * The arch specific probes are 1st so that any on-board ethernet
+	 * will be probed before other ISA/EISA/MCA/PCI bus cards.
+	 */
+	if (probe_list(dev, arm_probes) == 0)
+		return 0;
+	if (probe_list(dev, m68k_probes) == 0)
+		return 0;
+	if (probe_list(dev, mips_probes) == 0)
+		return 0;
+	if (probe_list(dev, ppc_probes) == 0)
+		return 0;
+	if (probe_list(dev, sgi_probes) == 0)
+		return 0;
+	if (probe_list(dev, sparc_probes) == 0)
+		return 0;
+	if (probe_list(dev, pci_probes) == 0)
+		return 0;
+	if (probe_list(dev, eisa_probes) == 0)
+		return 0;
+	if (probe_list(dev, mca_probes) == 0)
+		return 0;
+        /*
+         * Backwards compatibility - an I/O of 0xffe0 was used to indicate
+         * that we shouldn't do a bunch of potentially risky ISA probes
+         * for ethN (N>1).  Since the widespread use of modules, *nobody*
+         * compiles a kernel with all the ISA drivers built in anymore,
+         * and so we should delete this check in linux 2.3 - Paul G.
+         */
+	if (base_addr != 0xffe0 && probe_list(dev, isa_probes) == 0) 
+		return 0;
+	if (probe_list(dev, parport_probes) == 0)
+		return 0;
+	return -ENODEV;
+}
 
 #ifdef CONFIG_FDDI
 __initfunc(static int fddiif_probe(struct device *dev))
 {
     unsigned long base_addr = dev->base_addr;
 
-    if ((base_addr == 0xffe0)  ||  (base_addr == 1))
+    if (base_addr == 1)
 	    return 1;		/* ENXIO */
 
     if (1
@@ -320,6 +498,28 @@ __initfunc(static int fddiif_probe(struct device *dev))
 }
 #endif
 
+#ifdef CONFIG_HIPPI
+static int hippi_probe(struct device *dev)
+{
+	/*
+	 * Damn this is ugly.
+	 *
+	 * Why the heck would we want to determine this from the base
+	 * address? Stupid PC'ism .... grrrrr.
+	 */
+	if (dev->base_addr == -1)
+		return 1;
+
+	if (1
+#ifdef CONFIG_CERN_HIPPI
+	    && cern_hippi_probe(dev)
+#endif
+	    && 1 ) {
+		return 1; /* -ENODEV or -EAGAIN would be more accurate. */
+	}
+	return 0;
+}
+#endif
 
 #ifdef CONFIG_ETHERTAP
     static struct device tap0_dev = { "tap0", 0, 0, 0, 0, NETLINK_TAPBASE, 0, 0, 0, 0, NEXT_DEV, ethertap_probe, };
@@ -333,14 +533,6 @@ __initfunc(static int fddiif_probe(struct device *dev))
 
 #   undef NEXT_DEV
 #   define NEXT_DEV	(&sdla0_dev)
-#endif
-
-/* Run-time ATtachable (Pocket) devices have a different (not "eth#") name. */
-#ifdef CONFIG_ATP		/* AT-LAN-TEC (RealTek) pocket adaptor. */
-static struct device atp_dev = {
-    "atp0", 0, 0, 0, 0, 0, 0, 0, 0, 0, NEXT_DEV, atp_init, /* ... */ };
-#   undef NEXT_DEV
-#   define NEXT_DEV	(&atp_dev)
 #endif
 
 #if defined(CONFIG_LTPC)
@@ -382,15 +574,11 @@ static struct device atp_dev = {
 # define ETH0_IRQ 0
 #endif
 
-#ifndef __sparc__
-#define ETH_NOPROBE_ADDR 0xffe0
-#else
-#define ETH_NOPROBE_ADDR 0
-#endif
-
 /* "eth0" defaults to autoprobe (== 0), other use a base of 0xffe0 (== -0x20),
-   which means "don't probe".  These entries exist to only to provide empty
-   slots which may be enabled at boot-time. */
+   which means "don't do ISA probes".  Distributions don't ship kernels with
+   all ISA drivers compiled in anymore, so its probably no longer an issue. */
+
+#define ETH_NOPROBE_ADDR 0xffe0
 
 static struct device eth7_dev = {
     "eth7", 0,0,0,0,ETH_NOPROBE_ADDR /* I/O base*/, 0,0,0,0, NEXT_DEV, ethif_probe };
@@ -494,6 +682,9 @@ trif_probe(struct device *dev)
 #ifdef CONFIG_IBMTR
 	&& ibmtr_probe(dev)
 #endif
+#ifdef CONFIG_SKTR
+	&& sktr_probe(dev)
+#endif
 	&& 1 ) {
 	return 1;	/* -ENODEV or -EAGAIN would be more accurate. */
     }
@@ -539,6 +730,20 @@ static struct device tr0_dev = {
 		{"fddi0", 0, 0, 0, 0, 0, 0, 0, 0, 0, &fddi1_dev, fddiif_probe};
 #undef	NEXT_DEV
 #define	NEXT_DEV	(&fddi0_dev)
+#endif 
+
+#ifdef CONFIG_HIPPI
+	static struct device hip3_dev =
+		{"hip3", 0, 0, 0, 0, -1, 0, 0, 0, 0, NEXT_DEV, hippi_probe};
+	static struct device hip2_dev =
+		{"hip2", 0, 0, 0, 0, -1, 0, 0, 0, 0, &hip3_dev, hippi_probe};
+	static struct device hip1_dev =
+		{"hip1", 0, 0, 0, 0, -1, 0, 0, 0, 0, &hip2_dev, hippi_probe};
+	static struct device hip0_dev =
+		{"hip0", 0, 0, 0, 0, 0, 0, 0, 0, 0, &hip1_dev, hippi_probe};
+
+#undef	NEXT_DEV
+#define	NEXT_DEV	(&hip0_dev)
 #endif 
 
 #ifdef CONFIG_APBIF

@@ -40,7 +40,11 @@
 #include <linux/nls.h>
 
 #ifdef CONFIG_CODA_FS
-extern int init_coda_fs(void);
+extern int init_coda(void);
+#endif
+
+#ifdef CONFIG_DEVPTS_FS
+extern int init_devpts_fs(void);
 #endif
 
 extern void device_setup(void);
@@ -94,7 +98,7 @@ __initfunc(static void do_sys_setup(void))
 #endif
 
 #ifdef CONFIG_CODA_FS
-	init_coda_fs();
+	init_coda();
 #endif
 
 #ifdef CONFIG_SMB_FS

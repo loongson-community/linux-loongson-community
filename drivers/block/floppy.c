@@ -3,6 +3,7 @@
  *
  *  Copyright (C) 1991, 1992  Linus Torvalds
  *  Copyright (C) 1993, 1994  Alain Knaff
+ *  Copyright (C) 1998 Alan Cox
  */
 /*
  * 02.12.91 - Changed to static variables to indicate need for reset
@@ -95,7 +96,11 @@
  * 1995/10/18 -- Ralf Baechle -- Portability cleanup; move machine dependent
  * features to asm/floppy.h.
  */
-
+ 
+/*
+ * 1998/06/07 -- Alan Cox -- Merged the 2.0.34 fixes for resource allocation
+ * failures.
+ */
 
 #define FLOPPY_SANITY_CHECK
 #undef  FLOPPY_SILENT_DCL_CLEAR
@@ -114,9 +119,11 @@ static int print_unex=1;
  * motor of these drives causes system hangs on some PCI computers. drive
  * 0 is the low bit (0x1), and drive 7 is the high bit (0x80). Bits are on if
  * a drive is allowed. */
+ 
 static int FLOPPY_IRQ=6;
 static int FLOPPY_DMA=2;
 static int allowed_drive_mask = 0x33;
+static int irqdma_allocated = 0;
  
 
 #include <linux/sched.h>
@@ -694,7 +701,7 @@ static int disk_change(int drive)
 		DPRINT("checking disk change line for drive %d\n",drive);
 		DPRINT("jiffies=%ld\n", jiffies);
 		DPRINT("disk change line=%x\n",fd_inb(FD_DIR)&0x80);
-		DPRINT("flags=%x\n",UDRS->flags);
+		DPRINT("flags=%lx\n",UDRS->flags);
 	}
 #endif
 	if (UDP->flags & FD_BROKEN_DCL)
@@ -759,6 +766,11 @@ static int set_dor(int fdc, char mask, char data)
 			UDRS->select_date = jiffies;
 		}
 	}
+	/*
+	 *	We should propogate failures to grab the resources back
+	 *	nicely from here. Actually we ought to rewrite the fd
+	 *	driver some day too.
+	 */
 	if (newdor & FLOPPY_MOTOR_MASK)
 		floppy_grab_irq_and_dma();
 	if (olddor & FLOPPY_MOTOR_MASK)
@@ -818,10 +830,11 @@ static int lock_fdc(int drive, int interruptible)
 	unsigned long flags;
 
 	if (!usage_count){
-		printk("trying to lock fdc while usage count=0\n");
+		printk(KERN_ERR "Trying to lock fdc while usage count=0\n");
 		return -1;
 	}
-	floppy_grab_irq_and_dma();
+	if(floppy_grab_irq_and_dma()==-1)
+		return -EBUSY;
 	INT_OFF;
 	while (fdc_busy && NO_SIGNAL)
 		interruptible_sleep_on(&fdc_wait);
@@ -3950,7 +3963,7 @@ __initfunc(static void set_cmos(int *ints, int dummy, int dummy2))
 	int current_drive=0;
 
 	if (ints[0] != 2){
-		DPRINT("wrong number of parameter for cmos\n");
+		DPRINT("wrong number of parameters for CMOS\n");
 		return;
 	}
 	current_drive = ints[1];
@@ -3962,11 +3975,11 @@ __initfunc(static void set_cmos(int *ints, int dummy, int dummy2))
 		FDC2 = 0x370;
 	if (ints[2] <= 0 || 
 	    (ints[2] >= NUMBER(default_drive_params) && ints[2] != 16)){
-		DPRINT("bad cmos code %d\n", ints[2]);
+		DPRINT("bad CMOS code %d\n", ints[2]);
 		return;
 	}
 	DP->cmos = ints[2];
-	DPRINT("setting cmos code to %d\n", ints[2]);
+	DPRINT("setting CMOS code to %d\n", ints[2]);
 }
 
 static struct param_table {
@@ -4210,8 +4223,12 @@ static int floppy_grab_irq_and_dma(void)
 	for (fdc = 0; fdc < N_FDC; fdc++)
 		if (FDCS->address != -1)
 			fd_outb(FDCS->dor, FD_DOR);
+	/*
+	 *	The driver will try and free resources and relies on us
+	 *	to know if they were allocated or not.
+	 */
 	fdc = 0;
-	fd_enable_irq(FLOPPY_IRQ);
+	irqdma_allocated = 1;
 	return 0;
 }
 
@@ -4233,11 +4250,13 @@ static void floppy_release_irq_and_dma(void)
 		return;
 	}
 	INT_ON;
-	fd_disable_dma(FLOPPY_DMA);
-	fd_free_dma(FLOPPY_DMA);
-	fd_disable_irq(FLOPPY_IRQ);
-	fd_free_irq(FLOPPY_IRQ);
-
+	if(irqdma_allocated)
+	{
+		fd_disable_dma(FLOPPY_DMA);
+		fd_free_dma(FLOPPY_DMA);
+		fd_free_irq(FLOPPY_IRQ);
+		irqdma_allocated=0;
+	}
 	set_dor(0, ~0, 8);
 #if N_FDC > 1
 	set_dor(1, ~8, 0);
@@ -4388,10 +4407,12 @@ void floppy_eject(void)
 	int dummy;
 	if(have_no_fdc)
 		return;
-	floppy_grab_irq_and_dma();
-	lock_fdc(MAXTIMEOUT,0);
-	dummy=fd_eject(0);
-	process_fd_request();
-	floppy_release_irq_and_dma();
+	if(floppy_grab_irq_and_dma()==0)
+	{
+		lock_fdc(MAXTIMEOUT,0);
+		dummy=fd_eject(0);
+		process_fd_request();
+		floppy_release_irq_and_dma();
+	}
 }
 #endif

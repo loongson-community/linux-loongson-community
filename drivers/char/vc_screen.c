@@ -7,7 +7,8 @@
  *            [minor: N]
  *
  * /dev/vcsaN: idem, but including attributes, and prefixed with
- *	the 4 bytes lines,columns,x,y (as screendump used to give)
+ *	the 4 bytes lines,columns,x,y (as screendump used to give).
+ *	Attribute/character pair is in native endianity.
  *            [minor: N+128]
  *
  * This replaces screendump and part of selection, so that the system
@@ -20,8 +21,6 @@
  *	 - making it shorter - scr_readw are macros which expand in PRETTY long code
  */
 
-#include <linux/config.h>
-
 #include <linux/kernel.h>
 #include <linux/major.h>
 #include <linux/errno.h>
@@ -31,42 +30,29 @@
 #include <linux/mm.h>
 #include <linux/init.h>
 #include <linux/vt_kern.h>
+#include <linux/console_struct.h>
 #include <linux/selection.h>
 #include <asm/uaccess.h>
+#include <asm/byteorder.h>
 
 #undef attr
 #undef org
 #undef addr
 #define HEADER_SIZE	4
 
-static unsigned short
-func_scr_readw(unsigned short *org)
-{
-return scr_readw( org );
-}
-
-static void
-func_scr_writew(unsigned short val, unsigned short *org)
-{
-scr_writew( val, org );
-}
-
 static int
 vcs_size(struct inode *inode)
 {
 	int size;
-#ifdef CONFIG_FB_CONSOLE
-	int cons = MINOR(inode->i_rdev) & 127;
-
-	if (cons == 0)
-		cons = fg_console;
+   	int currcons = MINOR(inode->i_rdev) & 127;
+	if (currcons == 0)
+		currcons = fg_console;
 	else
-		cons--;
-	if (!vc_cons_allocated(cons))
+		currcons--;
+	if (!vc_cons_allocated(currcons))
 		return -ENXIO;
-#endif
 
-	size = get_video_num_lines(cons) * get_video_num_columns(cons);
+	size = video_num_lines * video_num_columns;
 
 	if (MINOR(inode->i_rdev) & 128)
 		size = 2*size + HEADER_SIZE;
@@ -94,7 +80,7 @@ static long long vcs_lseek(struct file *file, long long offset, int orig)
 	return file->f_pos;
 }
 
-#define RETURN( x ) { enable_bh( CONSOLE_BH ); return x; }
+#define RETURN(x) { enable_bh(CONSOLE_BH); return x; }
 static ssize_t
 vcs_read(struct file *file, char *buf, size_t count, loff_t *ppos)
 {
@@ -107,7 +93,7 @@ vcs_read(struct file *file, char *buf, size_t count, loff_t *ppos)
 
 	attr = (currcons & 128);
 	currcons = (currcons & 127);
-	disable_bh( CONSOLE_BH );
+	disable_bh(CONSOLE_BH);
 	if (currcons == 0) {
 		currcons = fg_console;
 		viewed = 1;
@@ -128,12 +114,12 @@ vcs_read(struct file *file, char *buf, size_t count, loff_t *ppos)
 	if (!attr) {
 		org = screen_pos(currcons, p, viewed);
 		while (count-- > 0)
-			put_user(func_scr_readw(org++) & 0xff, buf++);
+			put_user(vcs_scr_readw(currcons, org++) & 0xff, buf++);
 	} else {
 		if (p < HEADER_SIZE) {
 			char header[HEADER_SIZE];
-			header[0] = (char) get_video_num_lines(currcons);
-			header[1] = (char) get_video_num_columns(currcons);
+			header[0] = (char) video_num_lines;
+			header[1] = (char) video_num_columns;
 			getconsxy(currcons, header+2);
 			while (p < HEADER_SIZE && count > 0)
 			    { count--; put_user(header[p++], buf++); }
@@ -142,15 +128,23 @@ vcs_read(struct file *file, char *buf, size_t count, loff_t *ppos)
 		    p -= HEADER_SIZE;
 		    org = screen_pos(currcons, p/2, viewed);
 		    if ((p & 1) && count > 0)
-			    { count--; put_user(func_scr_readw(org++) >> 8, buf++); }
+#ifdef __BIG_ENDIAN
+			    { count--; put_user(vcs_scr_readw(currcons, org++) & 0xff, buf++); }
+#else
+			    { count--; put_user(vcs_scr_readw(currcons, org++) >> 8, buf++); }
+#endif
 		}
 		while (count > 1) {
-			put_user(func_scr_readw(org++), (unsigned short *) buf);
+			put_user(vcs_scr_readw(currcons, org++), (unsigned short *) buf);
 			buf += 2;
 			count -= 2;
 		}
 		if (count > 0)
-			put_user(func_scr_readw(org) & 0xff, buf++);
+#ifdef __BIG_ENDIAN
+			put_user(vcs_scr_readw(currcons, org) >> 8, buf++);
+#else
+			put_user(vcs_scr_readw(currcons, org) & 0xff, buf++);
+#endif
 	}
 	read = buf - buf0;
 	*ppos += read;
@@ -165,11 +159,11 @@ vcs_write(struct file *file, const char *buf, size_t count, loff_t *ppos)
 	long p = *ppos;
 	long viewed, attr, size, written;
 	const char *buf0;
-	unsigned short *org = NULL;
+	u16 *org0 = NULL, *org = NULL;
 
 	attr = (currcons & 128);
 	currcons = (currcons & 127);
-	disable_bh( CONSOLE_BH );
+	disable_bh(CONSOLE_BH);
 	if (currcons == 0) {
 		currcons = fg_console;
 		viewed = 1;
@@ -188,12 +182,12 @@ vcs_write(struct file *file, const char *buf, size_t count, loff_t *ppos)
 
 	buf0 = buf;
 	if (!attr) {
-		org = screen_pos(currcons, p, viewed);
+		org0 = org = screen_pos(currcons, p, viewed);
 		while (count > 0) {
 			unsigned char c;
 			count--;
 			get_user(c, (const unsigned char*)buf++);
-			func_scr_writew((func_scr_readw(org) & 0xff00) | c, org);
+			vcs_scr_writew(currcons, (vcs_scr_readw(currcons, org) & 0xff00) | c, org);
 			org++;
 		}
 	} else {
@@ -206,35 +200,41 @@ vcs_write(struct file *file, const char *buf, size_t count, loff_t *ppos)
 				putconsxy(currcons, header+2);
 		}
 		if (count > 0) {
-		    p -= HEADER_SIZE;
-			org = screen_pos(currcons, p/2, viewed);
+			p -= HEADER_SIZE;
+			org0 = org = screen_pos(currcons, p/2, viewed);
 			if ((p & 1) && count > 0) {
 			    char c;
 				count--;
 				get_user(c,buf++);
-				func_scr_writew((c << 8) |
-				     (func_scr_readw(org) & 0xff), org);
+#ifdef __BIG_ENDIAN
+				vcs_scr_writew(currcons, c |
+				     (vcs_scr_readw(currcons, org) & 0xff00), org);
+#else
+				vcs_scr_writew(currcons, (c << 8) |
+				     (vcs_scr_readw(currcons, org) & 0xff), org);
+#endif
 				org++;
 			}
 		}
 		while (count > 1) {
 			unsigned short w;
 			get_user(w, (const unsigned short *) buf);
-			func_scr_writew(w, org++);
+			vcs_scr_writew(currcons, w, org++);
 			buf += 2;
 			count -= 2;
 		}
 		if (count > 0) {
 			unsigned char c;
 			get_user(c, (const unsigned char*)buf++);
-			func_scr_writew((func_scr_readw(org) & 0xff00) | c, org);
+#ifdef __BIG_ENDIAN
+			vcs_scr_writew(currcons, (vcs_scr_readw(currcons, org) & 0xff) | (c << 8), org);
+#else
+			vcs_scr_writew(currcons, (vcs_scr_readw(currcons, org) & 0xff00) | c, org);
+#endif
 		}
 	}
-#ifdef CONFIG_FB_CONSOLE
-	if (currcons == fg_console)
-		/* Horribly inefficient if count < screen size.  */
-		update_screen(currcons);
-#endif
+	if (org0)
+		update_region(currcons, (unsigned long)(org0), org-org0);
 	written = buf - buf0;
 	*ppos += written;
 	RETURN( written );

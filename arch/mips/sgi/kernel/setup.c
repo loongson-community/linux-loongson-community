@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.11 1998/07/10 01:14:50 ralf Exp $
+/* $Id: setup.c,v 1.12 1998/07/16 20:32:30 tsbogend Exp $
  *
  * setup.c: SGI specific setup, including init of the feature struct.
  *
@@ -7,6 +7,9 @@
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
+#include <linux/kdev_t.h>
+#include <linux/types.h>
+#include <linux/console.h>
 #include <linux/sched.h>
 #include <linux/mc146818rtc.h>
 
@@ -21,7 +24,7 @@
 #include <asm/sgihpc.h>
 #include <asm/sgint23.h>
 
-extern int serial_console; /* in console.c, of course */
+extern int serial_console; /* in sgiserial.c  */
 
 extern struct rtc_ops indy_rtc_ops;
 void indy_reboot_setup(void);
@@ -82,7 +85,9 @@ __initfunc(static void sgi_irq_setup(void))
 
 __initfunc(void sgi_setup(void))
 {
+#ifdef CONFIG_SERIAL_CONSOLE
 	char *ctype;
+#endif
 
 	irq_setup = sgi_irq_setup;
 	keyboard_setup = sgi_keyboard_setup;
@@ -99,6 +104,7 @@ __initfunc(void sgi_setup(void))
 	/* Now enable boardcaches, if any. */
 	indy_sc_init();
 
+#ifdef CONFIG_SERIAL_CONSOLE
 	/* ARCS console environment variable is set to "g?" for
 	 * graphics console, it is set to "d" for the first serial
 	 * line and "d2" for the second serial line.
@@ -117,6 +123,11 @@ __initfunc(void sgi_setup(void))
 			prom_imode();
 		}
 	}
+#endif
 
+#ifdef CONFIG_VT
+	conswitchp = &newport_con;
+#endif
 	rtc_ops = &indy_rtc_ops;
+
 }

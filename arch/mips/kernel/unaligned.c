@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1996, 1998 by Ralf Baechle
  *
- * $Id: unaligned.c,v 1.4 1998/05/03 00:24:48 ralf Exp $
+ * $Id: unaligned.c,v 1.3 1998/05/04 09:12:51 ralf Exp $
  *
  * This file contains exception handler for address error exception with the
  * special capability to execute faulting instructions in software.  The
@@ -65,7 +65,7 @@
  *         printf("\n");
  * }
  *
- * Coprozessor loads are not supported; I think this case is unimportant
+ * Coprocessor loads are not supported; I think this case is unimportant
  * in the practice.
  *
  * TODO: Handle ndc (attempted store to doubleword in uncached memory)
@@ -338,7 +338,7 @@ emulate_load_store_insn(struct pt_regs *regs,
 	case swc2_op:
 	case sdc2_op:
 		/*
-		 * These are the coprozessor 2 load/stores.  The current
+		 * These are the coprocessor 2 load/stores.  The current
 		 * implementations don't use cp2 and cp2 should always be
 		 * disabled in c0_status.  So send SIGILL.
                  * (No longer true: The Sony Praystation uses cp2 for

@@ -1,12 +1,18 @@
-/* paride.h	(c) 1997  Grant R. Guenther <grant@torque.net>
-   		          Under the terms of the GPL.
+/* 
+	paride.h	(c) 1997-8  Grant R. Guenther <grant@torque.net>
+   		                    Under the terms of the GPL.
 
    This file defines the interface between the high-level parallel
    IDE device drivers (pd, pf, pcd, pt) and the adapter chips.
 
 */
 
-#define PARIDE_H_VERSION 	"1.0"
+/* Changes:
+
+	1.01	GRG 1998.05.05	init_proto, release_proto
+*/
+
+#define PARIDE_H_VERSION 	"1.01"
 
 /* Some adapters need to know what kind of device they are in
 
@@ -17,6 +23,7 @@
 #define PI_PCD	1	/* ATAPI CDrom */
 #define PI_PF   2	/* ATAPI disk */
 #define PI_PT	3	/* ATAPI tape */
+#define PI_PG   4       /* ATAPI generic */
 
 /* The paride module contains no state, instead the drivers allocate
    a pi_adapter data structure and pass it to paride in every operation.
@@ -145,8 +152,8 @@ struct pi_protocol {
 	int  (*test_proto)(PIA *,char *,int);
 	void (*log_adapter)(PIA *,char *,int);
 	
-	void (*inc_use)(void);
-	void (*dec_use)(void);
+	void (*init_proto)(PIA *);
+	void (*release_proto)(PIA *);
 };
 
 typedef struct pi_protocol PIP;

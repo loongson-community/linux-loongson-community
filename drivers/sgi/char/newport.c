@@ -10,7 +10,7 @@
 #include <asm/gfx.h>
 #include <asm/ng1.h>
 #include <asm/uaccess.h>
-#include "newport.h"
+#include <asm/newport.h>
 
 /* Kernel routines for supporting graphics context switching */
 

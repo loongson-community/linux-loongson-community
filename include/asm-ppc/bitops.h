@@ -1,5 +1,5 @@
 /*
- * $Id: bitops.h,v 1.7 1997/08/03 00:12:07 paulus Exp $
+ * $Id: bitops.h,v 1.9 1998/07/26 03:05:28 davem Exp $
  * bitops.h: Bit string operations on the ppc
  */
 
@@ -95,6 +95,38 @@ extern __inline__ int ffz(unsigned int x)
 	__asm__ ("cntlzw %0,%1" : "=r" (n) : "r" (x));
 	return 31 - n;
 }
+
+#ifdef __KERNEL__
+
+/*
+ * ffs: find first bit set. This is defined the same way as
+ * the libc and compiler builtin ffs routines, therefore
+ * differs in spirit from the above ffz (man ffs).
+ */
+
+#define ffs(x) generic_ffs(x)
+
+#if 0
+/* untested, someone with PPC knowledge? */
+/* From Alexander Kjeldaas <astor@guardian.no> */
+extern __inline__ int ffs(int x)
+{
+        int result;
+        asm ("cntlzw %0,%1" : "=r" (result) : "r" (x));
+        return 32 - result; /* IBM backwards ordering of bits */
+}
+#endif
+
+/*
+ * hweightN: returns the hamming weight (i.e. the number
+ * of bits set) of a N-bit word
+ */
+
+#define hweight32(x) generic_hweight32(x)
+#define hweight16(x) generic_hweight16(x)
+#define hweight8(x) generic_hweight8(x)
+
+#endif /* __KERNEL__ */
 
 /*
  * This implementation of find_{first,next}_zero_bit was stolen from

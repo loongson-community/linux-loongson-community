@@ -56,8 +56,6 @@ if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
   tristate 'Kernel support for JAVA binaries (obsolete)' CONFIG_BINFMT_JAVA
 fi
 
-bool 'Video mode selection support' CONFIG_VIDEO_SELECT
-
 tristate 'Parallel port support' CONFIG_PARPORT
 if [ "$CONFIG_PARPORT" != "n" ]; then
   dep_tristate '   PC-style hardware' CONFIG_PARPORT_PC $CONFIG_PARPORT
@@ -117,11 +115,23 @@ if [ "$CONFIG_CD_NO_IDESCSI" != "n" ]; then
 fi
 endmenu
 
+source drivers/char/Config.in
+
 source fs/Config.in
 
 source fs/nls/Config.in
 
-source drivers/char/Config.in
+if [ "$CONFIG_VT" = "y" ]; then
+  mainmenu_option next_comment
+  comment 'Console drivers'
+  bool 'VGA text console' CONFIG_VGA_CONSOLE
+  if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+    bool 'Video mode selection support' CONFIG_VIDEO_SELECT
+    bool 'Support for frame buffer devices (EXPERIMENTAL)' CONFIG_FB
+  fi
+  source drivers/video/Config.in
+  endmenu
+fi
 
 mainmenu_option next_comment
 comment 'Sound'
@@ -136,11 +146,6 @@ mainmenu_option next_comment
 comment 'Kernel hacking'
 
 #bool 'Debug kmalloc/kfree' CONFIG_DEBUG_MALLOC
-bool 'Kernel profiling support' CONFIG_PROFILE
-if [ "$CONFIG_PROFILE" = "y" ]; then
-  int ' Profile shift count' CONFIG_PROFILE_SHIFT 2
-fi
 bool 'Magic SysRq key' CONFIG_MAGIC_SYSRQ
 endmenu
 
-define_bool CONFIG_VGA_CONSOLE y

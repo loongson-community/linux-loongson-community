@@ -740,21 +740,20 @@ static inline void handle_bridge(struct sk_buff *skb, unsigned short type)
 		 *	recovering the MAC header first.
 		 */
 		
-		int offset=skb->data-skb->mac.raw;
-		cli();
-		skb_push(skb,offset);	/* Put header back on for bridge */
-		if(br_receive_frame(skb))
-		{
-			sti();
+		int offset;
+
+		skb=skb_clone(skb, GFP_ATOMIC);
+		if(skb==NULL)		
 			return;
-		}
-		/*
-		 *	Pull the MAC header off for the copy going to
-		 *	the upper layers.
-		 */
-		skb_pull(skb,offset);
-		sti();
+			
+		offset=skb->data-skb->mac.raw;
+		skb_push(skb,offset);	/* Put header back on for bridge */
+
+		if(br_receive_frame(skb))
+			return;
+		kfree_skb(skb, FREE_READ);
 	}
+	return;
 }
 #endif
 
@@ -809,7 +808,7 @@ void net_bh(void)
 
 	while (!skb_queue_empty(&backlog)) 
 	{
-		struct sk_buff * skb = backlog.next;
+		struct sk_buff * skb;
 
 		/* Give chance to other bottom halves to run */
 		if (jiffies - start_time > 1)
@@ -818,9 +817,7 @@ void net_bh(void)
 		/*
 		 *	We have a packet. Therefore the queue has shrunk
 		 */
-		cli();
-		__skb_unlink(skb, &backlog);
-		sti();
+		skb = skb_dequeue(&backlog);
 
 #ifdef CONFIG_CPU_IS_SLOW
 		if (ave_busy > 128*16) {
@@ -1097,7 +1094,7 @@ static int sprintf_stats(char *buffer, struct device *dev)
 	int size;
 	
 	if (stats)
-		size = sprintf(buffer, "%6s:%8lu %7lu %4lu %4lu %4lu %5lu %10lu %9lu %8lu %8lu %4lu %4lu %4lu %5lu %4lu %4lu\n",
+		size = sprintf(buffer, "%6s:%8lu %7lu %4lu %4lu %4lu %5lu %10lu %9lu %8lu %7lu %4lu %4lu %4lu %5lu %7lu %10lu\n",
  		   dev->name,
 		   stats->rx_bytes,
 		   stats->rx_packets, stats->rx_errors,
@@ -1325,7 +1322,7 @@ int dev_change_flags(struct device *dev, unsigned flags)
 	dev->flags = (flags & (IFF_DEBUG|IFF_NOTRAILERS|IFF_RUNNING|IFF_NOARP|
 			       IFF_SLAVE|IFF_MASTER|
 			       IFF_MULTICAST|IFF_PORTSEL|IFF_AUTOMEDIA)) |
-				       (dev->flags & (IFF_UP|IFF_VOLATILE|IFF_PROMISC));
+				       (dev->flags & (IFF_UP|IFF_VOLATILE|IFF_PROMISC|IFF_ALLMULTI));
 
 	/*
 	 *	Load in the correct multicast list now the flags have changed.
@@ -1346,18 +1343,26 @@ int dev_change_flags(struct device *dev, unsigned flags)
 
 		if (ret == 0) 
 			dev_mc_upload(dev);
-	}       
+	}
 
 	if (dev->flags&IFF_UP &&
-	    ((old_flags^dev->flags)&~(IFF_UP|IFF_RUNNING|IFF_PROMISC|IFF_VOLATILE))) {
-		printk(KERN_DEBUG "SIFFL %s(%s)\n", dev->name, current->comm);
+	    ((old_flags^dev->flags)&~(IFF_UP|IFF_RUNNING|IFF_PROMISC|IFF_ALLMULTI|IFF_VOLATILE)))
 		notifier_call_chain(&netdev_chain, NETDEV_CHANGE, dev);
-	}
 
 	if ((flags^dev->gflags)&IFF_PROMISC) {
 		int inc = (flags&IFF_PROMISC) ? +1 : -1;
 		dev->gflags ^= IFF_PROMISC;
 		dev_set_promiscuity(dev, inc);
+	}
+
+	/* NOTE: order of synchronization of IFF_PROMISC and IFF_ALLMULTI
+	   is important. Some (broken) drivers set IFF_PROMISC, when
+	   IFF_ALLMULTI is requested not asking us and not reporting.
+	 */
+	if ((flags^dev->gflags)&IFF_ALLMULTI) {
+		int inc = (flags&IFF_ALLMULTI) ? +1 : -1;
+		dev->gflags ^= IFF_ALLMULTI;
+		dev_set_allmulti(dev, inc);
 	}
 
 	return ret;
@@ -1378,7 +1383,8 @@ static int dev_ifsioc(struct ifreq *ifr, unsigned int cmd)
 	switch(cmd) 
 	{
 		case SIOCGIFFLAGS:	/* Get interface flags */
-			ifr->ifr_flags = (dev->flags&~IFF_PROMISC)|(dev->gflags&IFF_PROMISC);
+			ifr->ifr_flags = (dev->flags&~(IFF_PROMISC|IFF_ALLMULTI))
+				|(dev->gflags&(IFF_PROMISC|IFF_ALLMULTI));
 			return 0;
 
 		case SIOCSIFFLAGS:	/* Set interface flags */
@@ -1660,6 +1666,7 @@ static int dev_boot_phase = 1;
 int register_netdevice(struct device *dev)
 {
 	struct device *d, **dp;
+printk("register_netdevice #1\n");
 
 	if (dev_boot_phase) {
 		printk(KERN_INFO "early initialization of device %s is deferred\n", dev->name);
@@ -1673,27 +1680,32 @@ int register_netdevice(struct device *dev)
 		*dp = dev;
 		return 0;
 	}
+printk("register_netdevice #2\n");
 
 	dev->iflink = -1;
 
 	/* Init, if this function is available */
 	if (dev->init && dev->init(dev) != 0)
 		return -EIO;
+printk("register_netdevice #3\n");
 
 	/* Check for existence, and append to tail of chain */
 	for (dp=&dev_base; (d=*dp) != NULL; dp=&d->next) {
 		if (d == dev || strcmp(d->name, dev->name) == 0)
 			return -EEXIST;
 	}
+printk("register_netdevice #4\n");
 	dev->next = NULL;
 	dev_init_scheduler(dev);
 	dev->ifindex = dev_new_index();
 	if (dev->iflink == -1)
 		dev->iflink = dev->ifindex;
 	*dp = dev;
+printk("register_netdevice #5\n");
 
 	/* Notify protocols, that a new device appeared. */
 	notifier_call_chain(&netdev_chain, NETDEV_REGISTER, dev);
+printk("register_netdevice #6\n");
 
 	return 0;
 }

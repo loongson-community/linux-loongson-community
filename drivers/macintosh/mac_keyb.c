@@ -20,6 +20,7 @@
 #include <asm/bitops.h>
 #include <asm/adb.h>
 #include <asm/cuda.h>
+#include <asm/init.h>
 
 #include <linux/kbd_kern.h>
 #include <linux/kbd_ll.h>
@@ -28,7 +29,7 @@
 #define KEYB_LEDREG	2	/* register # for leds on ADB keyboard */
 #define MOUSE_DATAREG	0	/* reg# for movement/button codes from mouse */
 
-static u_short macplain_map[NR_KEYS] = __initdata {
+static u_short macplain_map[NR_KEYS] __initdata = {
 	0xfb61,	0xfb73,	0xfb64,	0xfb66,	0xfb68,	0xfb67,	0xfb7a,	0xfb78,
 	0xfb63,	0xfb76,	0xf200,	0xfb62,	0xfb71,	0xfb77,	0xfb65,	0xfb72,
 	0xfb79,	0xfb74,	0xf031,	0xf032,	0xf033,	0xf034,	0xf036,	0xf035,
@@ -194,6 +195,8 @@ static unsigned char dont_repeat[128] = {
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, /* scroll lock */
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
+
+__openfirmware
 
 int mackbd_setkeycode(unsigned int scancode, unsigned int keycode)
 {
@@ -457,7 +460,7 @@ mouse_input(unsigned char *data, int nb, struct pt_regs *regs, int autopoll)
 
 	/* Only send mouse codes when keyboard is in raw mode. */
 	if (kbd->kbdmode == VC_RAW) {
-		static unsigned char uch_ButtonStateSecond = 0;
+		static unsigned char uch_ButtonStateSecond = 0x80;
 		unsigned char uchButtonSecond;
 
 		/* Send first button, second button and movement. */
@@ -477,8 +480,8 @@ mouse_input(unsigned char *data, int nb, struct pt_regs *regs, int autopoll)
 		}
 
 		/* Macintosh 3-button mouse (handler 4). */
-		if ((nb == 6) && autopoll /*?*/) {
-			static unsigned char uch_ButtonStateThird = 0;
+		if ((nb == 4) && autopoll /*?*/) {
+			static unsigned char uch_ButtonStateThird = 0x80;
 			unsigned char uchButtonThird;
 
 			/* Store the button state for speed. */
@@ -560,13 +563,13 @@ __initfunc(void mackbd_init_hw(void))
 	    return;
 
 	/* setup key map */
-	memcpy(plain_map, macplain_map, sizeof(plain_map));
-	memcpy(shift_map, macshift_map, sizeof(shift_map));
-	memcpy(altgr_map, macaltgr_map, sizeof(altgr_map));
-	memcpy(ctrl_map, macctrl_map, sizeof(ctrl_map));
-	memcpy(shift_ctrl_map, macshift_ctrl_map, sizeof(shift_ctrl_map));
-	memcpy(alt_map, macalt_map, sizeof(alt_map));
-	memcpy(ctrl_alt_map, macctrl_alt_map, sizeof(ctrl_alt_map));
+	memcpy(key_maps[0], macplain_map, sizeof(plain_map));
+	memcpy(key_maps[1], macshift_map, sizeof(plain_map));
+	memcpy(key_maps[2], macaltgr_map, sizeof(plain_map));
+	memcpy(key_maps[4], macctrl_map, sizeof(plain_map));
+	memcpy(key_maps[5], macshift_ctrl_map, sizeof(plain_map));
+	memcpy(key_maps[8], macalt_map, sizeof(plain_map));
+	memcpy(key_maps[12], macctrl_alt_map, sizeof(plain_map));
 
 	/* initialize mouse interrupt hook */
 	adb_mouse_interrupt_hook = NULL;

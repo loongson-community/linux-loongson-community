@@ -1891,7 +1891,7 @@ NCR53c8xx_run_tests (struct Scsi_Host *host) {
 	printk ("scsi%d : test 1", host->host_no);
 	NCR53c7x0_write32 (DSP_REG, start);
 	printk (" started\n");
-	sti();
+	restore_flags(flags);
 
 	/* 
 	 * This is currently a .5 second timeout, since (in theory) no slow 
@@ -1983,7 +1983,7 @@ NCR53c8xx_run_tests (struct Scsi_Host *host) {
 	    hostdata->state = STATE_RUNNING;
 	    NCR53c7x0_write32 (DSA_REG, virt_to_bus(dsa));
 	    NCR53c7x0_write32 (DSP_REG, start);
-	    sti();
+	    restore_flags(flags);
 
 	    timeout = jiffies + 5 * HZ;	/* arbitrary */
 	    while ((hostdata->test_completed == -1) && jiffies < timeout)
@@ -2202,10 +2202,10 @@ abnormal_finished (struct NCR53c7x0_cmd *cmd, int result) {
 	ncr_prev = (u32*) ((char*)bus_to_virt(ncr_search) + 
 	    hostdata->dsa_next), ncr_search = le32_to_cpu(*ncr_prev), --left);
 
-    if (left < 0) 
+    if (left < 0) {
 	printk("scsi%d: loop detected in ncr reconnect list\n",
 	    host->host_no);
-    else if (ncr_search) 
+    } else if (ncr_search) {
 	if (found)
 	    printk("scsi%d: scsi %ld in ncr issue array and reconnect lists\n",
 		host->host_no, c->pid);
@@ -2216,6 +2216,7 @@ abnormal_finished (struct NCR53c7x0_cmd *cmd, int result) {
 /* If we're at the tail end of the issue queue, update that pointer too. */
 	    found = 1;
 	}
+    }
 
     /*
      * Traverse the host running list until we find this command or discover
@@ -5737,7 +5738,7 @@ NCR53c7xx_reset (Scsi_Cmnd *cmd, unsigned int reset_flags) {
 	disable(host);
     else if (hostdata->resets != -1)
 	--hostdata->resets;
-    sti();
+    restore_flags(flags);
     for (; nuke_list; nuke_list = tmp) {
 	tmp = (Scsi_Cmnd *) nuke_list->SCp.buffer;
     	nuke_list->result = DID_RESET << 16;
@@ -6193,7 +6194,7 @@ return_outstanding_commands (struct Scsi_Host *host, int free, int issue) {
 	    printk ("scsi%d : loop detected in running list!\n", host->host_no);
 	    break;
 	} else {
-	    printk ("The sti() implicit in a printk() prevents hangs\n");
+	    printk ("Duh? Bad things happening in the NCR driver\n");
 	    break;
 	}
 
@@ -6325,11 +6326,12 @@ ncr_halt (struct Scsi_Host *host) {
 	    	}
     	    }
 	}
-	if (!(istat & (ISTAT_SIP|ISTAT_DIP))) 
+	if (!(istat & (ISTAT_SIP|ISTAT_DIP))) {
 	    if (stage == 0)
 	    	++stage;
 	    else if (stage == 3)
 		break;
+	}
     }
     hostdata->state = STATE_HALTED;
     restore_flags(flags);

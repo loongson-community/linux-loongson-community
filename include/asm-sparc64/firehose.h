@@ -1,4 +1,4 @@
-/* $Id: firehose.h,v 1.2 1997/08/08 04:26:31 davem Exp $
+/* $Id: firehose.h,v 1.3 1998/06/10 07:28:43 davem Exp $
  * firehose.h: Defines for the Fire Hose Controller (FHC) found
  *             on Sunfire/Starfire/Wildfire systems.
  *
@@ -29,7 +29,7 @@ struct fhc_internal_regs {
 /*0x0100*/	u32	fhc_jtag_cmd;	/* FHC JTAG Command Register		*/
 };
 
-/* Part of same space of regs, but mapped seperately in PROM reg property
+/* Part of same space of regs, but mapped separately in PROM reg property
  * for the FHC, thus we have the following few structs...
  */
 struct fhc_ign_reg {

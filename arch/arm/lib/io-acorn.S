@@ -3,8 +3,7 @@
  *
  * Copyright (C) 1995, 1996 Russell King
  */
-#include <linux/config.h> /* for CONFIG_CPU_ARM2 and CONFIG_CPU_ARM3 */
-#include <linux/autoconf.h>
+#include <linux/config.h> /* for CONFIG_CPU_nn */
 #include <linux/linkage.h>
 #include <asm/assembler.h>
 #include <asm/hardware.h>
@@ -171,7 +170,7 @@ ENTRY(outswb)
 @ Proto  : void memc_write(int register, int value);
 @ Returns: nothing
 
-#if defined(CONFIG_CPU_ARM2) || defined(CONFIG_CPU_ARM3)
+#if defined(CONFIG_CPU_26)
 ENTRY(memc_write)
 		cmp	r0, #7
 		RETINSTR(movgt,pc,lr)

@@ -1,174 +1,448 @@
-A Brief Overview of the Virtual File System
-===========================================
-	by Benjamin LaHaise (blah@dot.superaje.com)
+/* -*- auto-fill -*-                                                         */
 
-Noone else seems to be writing this, so here's a quick description of what
-I've learned while writing lofs...
+		Overview of the Virtual File System
 
-The VFS is relatively simple, but it is nice not to have to browse through
-pages of code to determine what is expected when writing a filesystem.
-Hopefully this helps anyone attempting such a feat, as well as clearing up
-a few important points/dependencies.
+		Richard Gooch <rgooch@atnf.csiro.au>
 
-register_filesystem (struct file_system_type *fstype)
-=====================================================
-
-All filesystems are created equal... or at least they start out that way.
-A filesystem, be it in module form, or linked into the kernel, needs to add
-itself to the table of filesystems by calling register_filesystem with an
-initialized file_system_type structure.  Any further functions of the
-filesystem are accessed through the following function tables...
+			      27-JUN-1998
 
 
-struct file_system_type
+Conventions used in this document                                     <section>
+=================================
+
+Each section in this document will have the string "<section>" at the
+right-hand side of the section title. Each subsection will have
+"<subsection>" at the right-hand side. These strings are meant to make
+it easier to search through the document.
+
+NOTE that the master copy of this document is available online at:
+http://www.atnf.csiro.au/~rgooch/linux/docs/vfs.txt
+
+
+What is it?                                                           <section>
+===========
+
+The Virtual File System (otherwise known as the Virtual Filesystem
+Switch) is the software layer in the kernel that provides the
+filesystem interface to userspace programmes. It also provides an
+abstraction within the kernel which allows different filesystem
+implementations to co-exist.
+
+
+A Quick Look At How It Works                                          <section>
+============================
+
+In this section I'll briefly describe how things work, before
+launching into the details. I'll start with describing what happens
+when user programmes open and manipulate files, and then look from the
+other view which is how a filesystem is supported and subsequently
+mounted.
+
+Opening a File                                                     <subsection>
+--------------
+
+The VFS implements the open(2) system call. The pathname argument is
+used by the VFS to search through the directory entry cache (dentry
+cache or "dcache"). This provides a very fast lookup mechanism to
+translate a pathname (filename) into a specific dentry.
+
+An individual dentry usually has a pointer to an inode. Inodes are the
+things that live on disc drives, and can be regular files (you know:
+those things that you write data into), directories, FIFOs and other
+beasts. Dentries live in RAM and are never saved to disc: they exist
+only for performance. Inodes live on disc and are copied into memory
+when required. Later any changes are written back to disc. The inode
+that lives in RAM is a VFS inode, and it is this which the dentry
+points to.
+
+The dcache is meant to be a view into your entire filespace. Unlike
+Linus, most of us losers can't fit enough dentries into RAM to cover
+all of our filespace, so the dcache has bits missing. In order to
+resolve your pathname into a dentry, the VFS may have to resort to
+creating dentries along the way, and then loading the inode. This is
+done by looking up the inode.
+
+To lookup an inode (usually read from disc) requires that the VFS
+calls the lookup() method of the parent directory inode. This method
+is installed by the specific filesystem implementation that the inode
+lives in. There will be more on this later.
+
+Once the VFS has the required dentry (and hence the inode), we can do
+all those boring things like open(2) the file, or stat(2) it to peek
+at the inode data. The stat(2) operation is fairly simple: once the
+VFS has the dentry, it peeks at the inode data and passes some of it
+back to userspace.
+
+Opening a file requires another operation: allocation of a file
+structure (this is the kernel-side implementation of file
+descriptors). The freshly allocated file structure is initialised with
+a pointer to the dentry and a set of file operation member
+functions. These are taken from the inode data. The open() file method
+is then called so the specific filesystem implementation can do it's
+work. You can see that this is another switch performed by the VFS.
+
+The file structure is placed into the file descriptor table for the
+process.
+
+Reading, writing and closing files (and other assorted VFS operations)
+is done by using the userspace file descriptor to grab the appropriate
+file structure, and then calling the required file structure method
+function to do whatever is required.
+
+For as long as the file is open, it keeps the dentry "open" (in use),
+which in turn means that the VFS inode is still in use.
+
+Registering and Mounting a Filesystem                              <subsection>
+-------------------------------------
+
+If you want to support a new kind of filesystem in the kernel, all you
+need to do is call register_filesystem(). You pass a structure
+describing the filesystem implementation (struct file_system_type)
+which is then added to an internal table of supported filesystems. You
+can do:
+
+% cat /proc/filesystems
+
+to see what filesystems are currently available on your system.
+
+When a request is made to mount a block device onto a directory in
+your filespace the VFS will call the appropriate method for the
+specific filesystem. The dentry for the mount point will then be
+updated to point to the root inode for the new filesystem.
+
+It's now time to look at things in more detail.
+
+
+struct file_system_type                                               <section>
 =======================
 
-	struct super_block *(*read_super) (struct super_block *sb, void *options, int silent);
+This describes the filesystem. As of kernel 2.1.99, the following
+members are defined:
 
-		This is the entry point of all filesystems.  If the filesystem succeeds
-		in mounting itself, sb should be returned, otherwise NULL.  options is
-		a pointer to a maximum of PAGE_SIZE-1 bytes of options, typically a zero
-		terminated string passed from mount.  This page is freed after read_super
-		returns, so do not use any pointers into it.
-
-		This routine _must_ set the s_op member of sb to point to a valid
-		super_operations structure.
-
+struct file_system_type {
 	const char *name;
-
-		Name points to a string that the system will know the filesystem by.
-
-	int requires_dev;
-
-		Set this flag to 1 if the filesystem requires a block device to be mounted
-		on.
-
+	int fs_flags;
+	struct super_block *(*read_super) (struct super_block *, void *, int);
 	struct file_system_type * next;
+};
 
-		This field points to the next file_system_type that is present in the system,
-		and should be initialized to NULL.
+  name: the name of the filesystem type, such as "ext2", "iso9660",
+	"msdos" and so on
 
-struct super_operations
+  fs_flags: various flags (i.e. if it is a read-only FS)
+
+  read_super: the method to call when a new instance of this
+	filesystem should be mounted
+
+  next: for internal VFS use: you should initialise this to NULL
+
+The read_super() method has the following arguments:
+
+  struct super_block *sb: the superblock structure. This is partially
+	initialised by the VFS and the rest must be initialised by the
+	read_super() method
+
+  void *data: arbitrary mount options, usually comes as an ASCII
+	string
+
+  int silent: whether or not to be silent on error
+
+The read_super() method must determine if the block device specified
+in the superblock contains a filesystem of the type the method
+supports. On success the method returns the superblock pointer, on
+failure it returns NULL.
+
+The most interesting member of the superblock structure that the
+read_super() method fills in is the "s_op" field. This is a pointer to
+a "struct super_operations" which describes the next level of the
+filesystem implementation.
+
+
+struct super_operations                                               <section>
 =======================
 
-The super_operations structure is found through the s_op member of the
-super_block structure.
+This describes how the VFS can manipulate the superblock of your
+filesystem. As of kernel 2.1.99, the following members are defined:
 
-	void (*read_inode) (struct inode *inode);
-	[optional - doesn't quite make sense]
-		read_inode is called by the VFS when iget is called requesting an inode
-		not already present in the inode table.  i_ino is set to the number of the
-		inode requested.
-
-		The i_op member of inode should be set to a valid inode_operations
-		structure.  Typically filesystems have separate inode_operations for
-		directories, files and symlinks.  i_op can be NULL.
-
-	int (*notify_change) (struct inode *, struct iattr *);
-	[optional]
+struct super_operations {
+	void (*read_inode) (struct inode *);
 	void (*write_inode) (struct inode *);
-	[optional]
-
-	int (*put_inode) (struct inode *inode);
-	[optional]
-		put_inode is called by the VFS when the last instance of inode is released
-		with a call to iput.  The only special consideration that should be made
-		is that iget may reuse inode without calling read_inode unless clear_inode
-		is called.  put_inode MUST return 1 if it called clear_inode on the inode,
-		otherwise zero.
-
+	void (*put_inode) (struct inode *);
+	void (*delete_inode) (struct inode *);
+	int (*notify_change) (struct dentry *, struct iattr *);
 	void (*put_super) (struct super_block *);
-	[optional]
 	void (*write_super) (struct super_block *);
-	[optional]
-	void (*statfs) (struct super_block *, struct statfs *, int);
-	[optional]
+	int (*statfs) (struct super_block *, struct statfs *, int);
 	int (*remount_fs) (struct super_block *, int *, char *);
-	[optional]
+	void (*clear_inode) (struct inode *);
+};
+
+All methods are called without any locks being held, unless otherwise
+noted. This means that most methods can block safely. All methods are
+only called from a process context (i.e. not from an interrupt handler
+or bottom half).
+
+  read_inode: this method is called to read a specific inode from the
+	mounted filesystem. The "i_ino" member in the "struct inode"
+	will be initialised by the VFS to indicate which inode to
+	read. Other members are filled in by this method
+
+  write_inode: this method is called when the VFS needs to write an
+	inode to disc
+
+  put_inode: called when the VFS inode is removed from the inode
+	cache. This method is optional
+
+  delete_inode: called when the VFS wants to delete an inode
+
+  notify_change: called when VFS inode attributes are changed. If this
+	is NULL the VFS falls back to the write_inode() method. This
+	is called with the kernel lock held
+
+  put_super: called when the VFS wishes to free the superblock
+	(i.e. unmount). This is called with the superblock lock held
+
+  write_super: called when the VFS superblock needs to be written to
+	disc. This method is optional
+
+  statfs: called when the VFS needs to get filesystem statistics. This
+	is called with the kernel lock held
+
+  remount_fs: called when the filesystem is remounted. This is called
+	with the kernel lock held
+
+  clear_inode: called then the VFS clears the inode. Optional
+
+The read_inode() method is responsible for filling in the "i_op"
+field. This is a pointer to a "struct inode_operations" which
+describes the methods that can be performed on individual inodes.
 
 
-struct inode_operations
+struct inode_operations                                               <section>
 =======================
 
+This describes how the VFS can manipulate an inode in your
+filesystem. As of kernel 2.1.99, the following members are defined:
+
+struct inode_operations {
 	struct file_operations * default_file_ops;
-	[mandatory]
-		All inode_operations structures must have default_file_ops pointing to
-		a valid file_operations structure.
-
-	int (*create) (struct inode *,const char *,int,int,struct inode **);
-	[optional]
-
-	int (*lookup) (struct inode *dir, const char *name, int len, struct inode **result);
-	[optional]
-		lookup is called when the VFS wishes to have the filesystem resolve a name
-		into an inode.  Dir is a directory on the filesystem that [hopefully] contains
-		the zero terminated string name (length len).  A return value of zero indicates
-		that there is a valid inode stored in *result.
-
-***		Note: lofs assumes that any filesystem returns an inode within the filesystem
-		for all directory inodes.  Therefore, __iget(sb,ino,0) should be used to fetch
-		the inode in a filesystem's lookup routine.
-
-	int (*link) (struct inode *,struct inode *,const char *,int);
-	[optional]
-	int (*unlink) (struct inode *,const char *,int);
-	[optional]
-	int (*symlink) (struct inode *,const char *,int,const char *);
-	[optional]
-	int (*mkdir) (struct inode *,const char *,int,int);
-	[optional]
-	int (*rmdir) (struct inode *,const char *,int);
-	[optional]
-	int (*mknod) (struct inode *,const char *,int,int,int);
-	[optional]
-	int (*rename) (struct inode *,const char *,int,struct inode *,const char *,int, int);
-	[optional]
-
-	int (*readlink) (struct inode *inode, char *buf, int len);
-	[optional]
-		readlink is called by the VFS to read the contents of a symbolic link.
-		inode is an inode that meets the S_ISLNK test, and buf points to a buffer
-		of len bytes.
-
-	int (*follow_link) (struct inode *,struct inode *,int,int,struct inode **);
-	[optional]
-		follow_link must be implemented if readlink is implemented.
-		Note that follow_link can return a different inode than a
-		lookup_dentry() on the result of readlink() would return.
-		The proc filesystem, in particular, uses this feature heavily.
-		For most user filesystems, however, follow_link() and readlink()
-		should return consistent results.
-
-	int (*readpage) (struct inode *, struct page *);	[optional]
-	int (*writepage) (struct inode *, struct page *);	[mandatory with readpage]
-
-		In order for files to be mmap'd, readpage and writepage are required.
-		A filesystem can use generic_readpage/writepage if it supports the bmap
-		function.  Otherwise, a custom version must be written. 
-
+	int (*create) (struct inode *,struct dentry *,int);
+	int (*lookup) (struct inode *,struct dentry *);
+	int (*link) (struct dentry *,struct inode *,struct dentry *);
+	int (*unlink) (struct inode *,struct dentry *);
+	int (*symlink) (struct inode *,struct dentry *,const char *);
+	int (*mkdir) (struct inode *,struct dentry *,int);
+	int (*rmdir) (struct inode *,struct dentry *);
+	int (*mknod) (struct inode *,struct dentry *,int,int);
+	int (*rename) (struct inode *, struct dentry *,
+			struct inode *, struct dentry *);
+	int (*readlink) (struct dentry *, char *,int);
+	struct dentry * (*follow_link) (struct dentry *, struct dentry *);
+	int (*readpage) (struct file *, struct page *);
+	int (*writepage) (struct file *, struct page *);
 	int (*bmap) (struct inode *,int);
-	[optional]
 	void (*truncate) (struct inode *);
-	[optional]
 	int (*permission) (struct inode *, int);
-	[optional]
 	int (*smap) (struct inode *,int);
-	[optional]
+	int (*updatepage) (struct file *, struct page *, const char *,
+				unsigned long, unsigned int, int);
+	int (*revalidate) (struct dentry *);
+};
 
-struct file_operations
+  default_file_ops: this is a pointer to a "struct file_operations"
+	which describes how to manipulate open files
+
+  create: called by the open(2) and creat(2) system calls. Only
+	required if you want to support regular files. The dentry you
+	get should not have an inode (i.e. it should be a negative
+	dentry). Here you will probably call d_instantiate() with the
+	dentry and the newly created inode
+
+  lookup: called when the VFS needs to lookup an inode in a parent
+	directory. The name to look for is found in the dentry. This
+	method must call d_add() to insert the found inode into the
+	dentry. The "i_count" field in the inode structure should be
+	incremented. If the named inode does not exist a NULL inode
+	should be inserted into the dentry (this is called a negative
+	dentry). Returning an error code from this routine must only
+	be done on a real error, otherwise creating inodes with system
+	calls like create(2), mknod(2), mkdir(2) and so on will fail.
+	If you wish to overload the dentry methods then you should
+	initialise the "d_dop" field in the dentry; this is a pointer
+	to a struct "dentry_operations".
+	This method is called with the directory semaphore held
+
+  link: called by the link(2) system call. Only required if you want
+	to support hard links. You will probably need to call
+	d_instantiate() just as you would in the create() method
+
+  unlink: called by the unlink(2) system call. Only required if you
+	want to support deleting inodes
+
+  symlink: called by the symlink(2) system call. Only required if you
+	want to support symlinks. You will probably need to call
+	d_instantiate() just as you would in the create() method
+
+  mkdir: called by the mkdir(2) system call. Only required if you want
+	to support creating subdirectories. You will probably need to
+	call d_instantiate() just as you would in the create() method
+
+  rmdir: called by the rmdir(2) system call. Only required if you want
+	to support deleting subdirectories
+
+  mknod: called by the mknod(2) system call to create a device (char,
+	block) inode or a named pipe (FIFO) or socket. Only required
+	if you want to support creating these types of inodes. You
+	will probably need to call d_instantiate() just as you would
+	in the create() method
+
+  readlink: called by the readlink(2) system call. Only required if
+	you want to support reading symbolic links
+
+  follow_link: called by the VFS to follow a symbolic link to the
+	inode it points to. Only required if you want to support
+	symbolic links
+
+
+struct file_operations                                                <section>
 ======================
 
-	int (*lseek) (struct inode *, struct file *, off_t, int);
-	int (*read) (struct inode *, struct file *, char *, int);
-	int (*write) (struct inode *, struct file *, const char *, int);
-	int (*readdir) (struct inode *, struct file *, void *, filldir_t);
-	unsigned int (*poll) (struct file *, poll_table *);
+This describes how the VFS can manipulate an open file. As of kernel
+2.1.99, the following members are defined:
+
+struct file_operations {
+	loff_t (*llseek) (struct file *, loff_t, int);
+	ssize_t (*read) (struct file *, char *, size_t, loff_t *);
+	ssize_t (*write) (struct file *, const char *, size_t, loff_t *);
+	int (*readdir) (struct file *, void *, filldir_t);
+	unsigned int (*poll) (struct file *, struct poll_table_struct *);
 	int (*ioctl) (struct inode *, struct file *, unsigned int, unsigned long);
-	int (*mmap) (struct inode *, struct file *, struct vm_area_struct *);
+	int (*mmap) (struct file *, struct vm_area_struct *);
 	int (*open) (struct inode *, struct file *);
-	void (*release) (struct inode *, struct file *);
-	int (*fsync) (struct inode *, struct file *);
-	int (*fasync) (struct inode *, struct file *, int);
+	int (*release) (struct inode *, struct file *);
+	int (*fsync) (struct file *, struct dentry *);
+	int (*fasync) (struct file *, int);
 	int (*check_media_change) (kdev_t dev);
 	int (*revalidate) (kdev_t dev);
+	int (*lock) (struct file *, int, struct file_lock *);
+};
 
+  llseek: called when the VFS needs to move the file position index
+
+  read: called by the read(2) system call
+
+  write: called by the write(2) system call
+
+  readdir: called when the VFS needs to read the directory contents
+
+  poll: called by the VFS when a process wants to check if there is
+	activity on this file and (optionally) go to sleep until there
+	is activity
+
+  ioctl: called by the ioctl(2) system call
+
+  mmap: called by the mmap(2) system call
+
+  open: called by the VFS when an inode should be opened. When the VFS
+	opens a file, it creates a new "struct file" and initialises
+	the "f_op" file operations member with the "default_file_ops"
+	field in the inode structure. It then calls the open method
+	for the newly allocated file structure. You might think that
+	the open method really belongs in "struct inode_operations",
+	and you may be right. I think it's done the way it is because
+	it makes filesystems simpler to implement. The open() method
+	is a good place to initialise the "private_data" member in the
+	file structure if you want to point to a device structure
+
+  release: called when the last reference to an open file is closed
+
+  fsync: called by the fsync(2) system call
+
+  fasync: called by the fcntl(2) system call when asynchronous
+	(non-blocking) mode is enabled for a file
+
+Note that the file operations are implemented by the specific
+filesystem in which the inode resides. When opening a device node
+(character or block special) most filesystems will call special
+support routines in the VFS which will locate the required device
+driver information. These support routines replace the filesystem file
+operations with those for the device driver, and then proceed to call
+the new open() method for the file. This is how opening a device file
+in the filesystem eventually ends up calling the device driver open()
+method. Note the devfs (the Device FileSystem) has a more direct path
+from device node to device driver (this is an unofficial kernel
+patch).
+
+
+struct dentry_operations                                              <section>
+========================
+
+This describes how a filesystem can overload the standard dentry
+operations. Dentries and the dcache are the domain of the VFS and the
+individual filesystem implementations. Device drivers have no business
+here. As of kernel 2.1.99, the following members are defined:
+
+struct dentry_operations {
+	int (*d_revalidate)(struct dentry *);
+	int (*d_hash) (struct dentry *, struct qstr *);
+	int (*d_compare) (struct dentry *, struct qstr *, struct qstr *);
+	void (*d_delete)(struct dentry *);
+	void (*d_release)(struct dentry *);
+	void (*d_iput)(struct dentry *, struct inode *);
+};
+
+  d_revalidate: called when the VFS needs to revalidate a dentry
+
+  d_hash: called when the VFS adds a dentry to the hash table
+
+  d_compare: called when a dentry should be compared with another
+
+  d_delete: called when the last reference to a dentry is
+	deleted. This means no-one is using the dentry, however it is
+	still valid and in the dcache
+
+  d_release: called when a dentry is deallocated
+
+  d_iput: called when a dentry looses its inode (just prior to its
+	being deallocated). The default when this is NULL is that the
+	VFS calls iput(). If you define this method, you must call
+	iput() yourself
+
+Each dentry has a pointer to its parent dentry, as well as a hash list
+of child dentries. Child dentries are basically like files in a
+directory.
+
+There are a number of functions defined which permit a filesystem to
+manipulate dentries:
+
+  dget: open a new handle for an existing dentry (this just increments
+	the usage count)
+
+  dput: close a handle for a dentry (decrements the usage count). If
+	the usage count drops to 0, the "d_delete" method is called
+	and the dentry is placed on the unused list if the dentry is
+	still in its parents hash list. Putting the dentry on the
+	unused list just means that if the system needs some RAM, it
+	goes through the unused list of dentries and deallocates them.
+	If the dentry has already been unhashed and the usage count
+	drops to 0, in this case the dentry is deallocated after the
+	"d_delete" method is called
+
+  d_drop: this unhashes a dentry from its parents hash list. A
+	subsequent call to dput() will dellocate the dentry if its
+	usage count drops to 0
+
+  d_delete: delete a dentry. If there are no other open references to
+	the dentry then the dentry is turned into a negative dentry
+	(the d_iput() method is called). If there are other
+	references, then d_drop() is called instead
+
+  d_add: add a dentry to its parents hash list and then calls
+	d_instantiate()
+
+  d_instantiate: add a dentry to the alias hash list for the inode and
+	updates the "d_inode" member. The "i_count" member in the
+	inode structure should be set/incremented. If the inode
+	pointer is NULL, the dentry is called a "negative
+	dentry". This function is commonly called when an inode is
+	created for an existing negative dentry

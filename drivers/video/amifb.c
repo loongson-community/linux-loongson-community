@@ -52,6 +52,7 @@
 #include <linux/interrupt.h>
 #include <linux/fb.h>
 #include <linux/init.h>
+#include <linux/console.h>
 
 #include <asm/uaccess.h>
 #include <asm/system.h>
@@ -579,8 +580,14 @@ static u_short maxfmode, chipset;
 #define modx(x,v)	((v) & ((x)-1))
 
 /* if x1 is not a constant, this macro won't make real sense :-) */
+#ifdef __mc68000__
 #define DIVUL(x1, x2) ({int res; asm("divul %1,%2,%3": "=d" (res): \
 	"d" (x2), "d" ((long)((x1)/0x100000000ULL)), "0" ((long)(x1))); res;})
+#else
+/* We know a bit about the numbers, so we can do it this way */
+#define DIVUL(x1, x2) ((((long)((unsigned long long)x1 >> 8) / x2) << 8) + \
+	((((long)((unsigned long long)x1 >> 8) % x2) << 8) / x2))
+#endif
 
 #define min(a, b)	((a) < (b) ? (a) : (b))
 #define max(a, b)	((a) > (b) ? (a) : (b))
@@ -1153,8 +1160,8 @@ static u_short sprfetchmode[3] = {
 
 void amifb_setup(char *options, int *ints);
 
-static int amifb_open(struct fb_info *info);
-static int amifb_release(struct fb_info *info);
+static int amifb_open(struct fb_info *info, int user);
+static int amifb_release(struct fb_info *info, int user);
 static int amifb_get_fix(struct fb_fix_screeninfo *fix, int con,
 			 struct fb_info *info);
 static int amifb_get_var(struct fb_var_screeninfo *var, int con,
@@ -1182,7 +1189,7 @@ static int amifb_set_cursorstate(struct fb_cursorstate *state, int con);
 	 * Interface to the low level console driver
 	 */
 
-unsigned long amifb_init(unsigned long mem_start);
+void amifb_init(void);
 static int amifbcon_switch(int con, struct fb_info *info);
 static int amifbcon_updatevar(int con, struct fb_info *info);
 static void amifbcon_blank(int blank, struct fb_info *info);
@@ -1245,7 +1252,7 @@ extern unsigned short ami_intena_vals[];
 static struct fb_ops amifb_ops = {
 	amifb_open, amifb_release, amifb_get_fix, amifb_get_var,
 	amifb_set_var, amifb_get_cmap, amifb_set_cmap,
-	amifb_pan_display, NULL, amifb_ioctl
+	amifb_pan_display, amifb_ioctl
 };
 
 
@@ -1370,7 +1377,7 @@ cap_invalid:
 	 * Open/Release the frame buffer device
 	 */
 
-static int amifb_open(struct fb_info *info)
+static int amifb_open(struct fb_info *info, int user)
 {
 	/*
 	 * Nothing, only a usage count for the moment
@@ -1380,7 +1387,7 @@ static int amifb_open(struct fb_info *info)
 	return(0);
 }
 
-static int amifb_release(struct fb_info *info)
+static int amifb_release(struct fb_info *info, int user)
 {
 	MOD_DEC_USE_COUNT;
 	return(0);
@@ -1479,17 +1486,17 @@ static int amifb_set_var(struct fb_var_screeninfo *var, int con,
 			display->can_soft_blank = 1;
 			display->inverse = amifb_inverse;
 			switch (fix.type) {
-#ifdef CONFIG_FBCON_ILBM
+#ifdef FBCON_HAS_ILBM
 			    case FB_TYPE_INTERLEAVED_PLANES:
 				display->dispsw = &fbcon_ilbm;
 				break;
 #endif
-#ifdef CONFIG_FBCON_AFB
+#ifdef FBCON_HAS_AFB
 			    case FB_TYPE_PLANES:
 				display->dispsw = &fbcon_afb;
 				break;
 #endif
-#ifdef CONFIG_FBCON_MFB
+#ifdef FBCON_HAS_MFB
 			    case FB_TYPE_PACKED_PIXELS:	/* depth == 1 */
 				display->dispsw = &fbcon_mfb;
 				break;
@@ -1706,13 +1713,13 @@ static int amifb_set_cursorstate(struct fb_cursorstate *state, int con)
 	 * Initialisation
 	 */
 
-__initfunc(unsigned long amifb_init(unsigned long mem_start))
+__initfunc(void amifb_init(void))
 {
-	int err, tag, i;
+	int tag, i;
 	u_long chipptr;
 
 	if (!MACH_IS_AMIGA || !AMIGAHW_PRESENT(AMI_VIDEO))
-		return mem_start;
+		return;
 
 	/*
 	 * TODO: where should we put this? The DMI Resolver doesn't have a
@@ -1723,7 +1730,7 @@ __initfunc(unsigned long amifb_init(unsigned long mem_start))
 	if (amifb_resolver){
 		custom.dmacon = DMAF_MASTER | DMAF_RASTER | DMAF_COPPER |
 				DMAF_BLITTER | DMAF_SPRITE;
-		return mem_start;
+		return;
 	}
 #endif
 
@@ -1794,7 +1801,7 @@ default_chipset:
 			strcat(amifb_name, "Unknown");
 			goto default_chipset;
 #else /* CONFIG_FB_AMIGA_OCS */
-			return mem_start;
+			return;
 #endif /* CONFIG_FB_AMIGA_OCS */
 			break;
 	}
@@ -1803,9 +1810,13 @@ default_chipset:
 	 * Calculate the Pixel Clock Values for this Machine
 	 */
 
-	pixclock[TAG_SHRES] = DIVUL(25E9, amiga_eclock);	/* SHRES:  35 ns / 28 MHz */
-	pixclock[TAG_HIRES] = DIVUL(50E9, amiga_eclock);	/* HIRES:  70 ns / 14 MHz */
-	pixclock[TAG_LORES] = DIVUL(100E9, amiga_eclock); 	/* LORES: 140 ns /  7 MHz */
+	{
+	u_long tmp = DIVUL(200E9, amiga_eclock);
+
+	pixclock[TAG_SHRES] = (tmp + 4) / 8;	/* SHRES:  35 ns / 28 MHz */
+	pixclock[TAG_HIRES] = (tmp + 2) / 4;	/* HIRES:  70 ns / 14 MHz */
+	pixclock[TAG_LORES] = (tmp + 1) / 2;	/* LORES: 140 ns /  7 MHz */
+	}
 
 	/*
 	 * Replace the Tag Values with the Real Pixel Clock Values
@@ -1847,10 +1858,6 @@ default_chipset:
 	fb_info.switch_con = &amifbcon_switch;
 	fb_info.updatevar = &amifbcon_updatevar;
 	fb_info.blank = &amifbcon_blank;
-
-	err = register_framebuffer(&fb_info);
-	if (err < 0)
-		return mem_start;
 
 	chipptr = chipalloc(videomemorysize+
 	                    SPRITEMEMSIZE+
@@ -1894,14 +1901,15 @@ default_chipset:
 
 	amifb_set_var(&amifb_default, -1, &fb_info);
 
+	if (register_framebuffer(&fb_info) < 0)
+		return;
+
 	printk("fb%d: %s frame buffer device, using %ldK of video memory\n",
 	       GET_FB_IDX(fb_info.node), fb_info.modename,
 	       videomemorysize>>10);
 
 	/* TODO: This driver cannot be unloaded yet */
 	MOD_INC_USE_COUNT;
-
-	return mem_start;
 }
 
 static int amifbcon_switch(int con, struct fb_info *info)
@@ -2121,7 +2129,7 @@ static int ami_encode_fix(struct fb_fix_screeninfo *fix,
 	fix->smem_start = (char *)videomemory;
 	fix->smem_len = videomemorysize;
 
-#ifdef CONFIG_FBCON_MFB
+#ifdef FBCON_HAS_MFB
 	if (par->bpp == 1) {
 		fix->type = FB_TYPE_PACKED_PIXELS;
 		fix->type_aux = 0;
@@ -2543,7 +2551,8 @@ static int ami_encode_var(struct fb_var_screeninfo *var,
                           struct amifb_par *par)
 {
 	u_short clk_shift, line_shift;
-	int i;
+
+	memset(var, 0, sizeof(struct fb_var_screeninfo));
 
 	clk_shift = par->clk_shift;
 	line_shift = par->line_shift;
@@ -2625,9 +2634,6 @@ static int ami_encode_var(struct fb_var_screeninfo *var,
 		var->sync |= FB_SYNC_EXT;
 	if (par->vmode & FB_VMODE_YWRAP)
 		var->vmode |= FB_VMODE_YWRAP;
-
-	for (i = 0; i < arraysize(var->reserved); i++)
-		var->reserved[i] = 0;
 
 	return 0;
 }
@@ -2927,20 +2933,20 @@ static void ami_do_blank(void)
 		custom.dmacon = DMAF_RASTER | DMAF_SPRITE;
 		red = green = blue = 0;
 		if (!IS_OCS && do_blank > 1) {
-			switch (do_blank) {
-				case 2 : /* suspend vsync */
+			switch (do_blank-1) {
+				case VESA_VSYNC_SUSPEND:
 					custom.hsstrt = hsstrt2hw(par->hsstrt);
 					custom.hsstop = hsstop2hw(par->hsstop);
 					custom.vsstrt = vsstrt2hw(par->vtotal+4);
 					custom.vsstop = vsstop2hw(par->vtotal+4);
 					break;
-				case 3 : /* suspend hsync */
+				case VESA_HSYNC_SUSPEND:
 					custom.hsstrt = hsstrt2hw(par->htotal+16);
 					custom.hsstop = hsstop2hw(par->htotal+16);
 					custom.vsstrt = vsstrt2hw(par->vsstrt);
 					custom.vsstop = vsstrt2hw(par->vsstop);
 					break;
-				case 4 : /* powerdown */
+				case VESA_POWERDOWN:
 					custom.hsstrt = hsstrt2hw(par->htotal+16);
 					custom.hsstop = hsstop2hw(par->htotal+16);
 					custom.vsstrt = vsstrt2hw(par->vtotal+4);
@@ -3486,7 +3492,8 @@ static void ami_rebuild_copper(void)
 #ifdef MODULE
 int init_module(void)
 {
-	return(amifb_init(NULL));
+	amifb_init();
+	return 0;
 }
 
 void cleanup_module(void)

@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: r2300.c,v 1.4 1998/03/22 23:27:15 ralf Exp $
+ * $Id: r2300.c,v 1.5 1998/04/05 11:23:55 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -199,7 +199,7 @@ static void r2300_pgd_init(unsigned long page)
 		 "=r" (dummy2)
 		:"r" ((unsigned long) invalid_pte_table),
 		 "0" (page),
-		 "1" (PAGE_SIZE/(sizeof(pmd_t)*8)));
+		 "1" (USER_PTRS_PER_PGD/8));
 }
 
 static void r2300_update_mmu_cache(struct vm_area_struct * vma,

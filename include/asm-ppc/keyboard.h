@@ -3,7 +3,7 @@
  *
  *  Created 3 Nov 1996 by Geert Uytterhoeven
  *
- * $Id: keyboard.h,v 1.5 1998/05/04 12:43:22 ralf Exp $
+ * $Id: keyboard.h,v 1.6 1998/08/20 14:41:03 ralf Exp $
  * Modified for Power Macintosh by Paul Mackerras
  */
 
@@ -21,6 +21,10 @@
 
 #include <linux/config.h>
 #include <asm/adb.h>
+
+#ifdef CONFIG_APUS
+#include <asm-m68k/keyboard.h>
+#else
 
 #define KEYBOARD_IRQ			1
 #define DISABLE_KBD_DURING_INTERRUPTS	0
@@ -171,6 +175,8 @@ static inline void kbd_init_hw(void)
 	else
 		mackbd_init_hw();
 }
+
+#endif /* CONFIG_APUS */
 
 /* How to access the keyboard macros on this platform.  */
 #define kbd_read_input() inb(KBD_DATA_REG)

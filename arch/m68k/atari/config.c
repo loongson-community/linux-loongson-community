@@ -38,6 +38,7 @@
 #include <asm/atari_stram.h>
 #include <asm/system.h>
 #include <asm/machdep.h>
+#include <asm/hwtest.h>
 
 u_long atari_mch_cookie;
 u_long atari_mch_type = 0;
@@ -58,6 +59,7 @@ static int atari_get_hardware_list(char *buffer);
 extern int atari_keyb_init(void);
 extern int atari_kbdrate (struct kbd_repeat *);
 extern void atari_kbd_leds (unsigned int);
+extern void atari_kbd_reset_setup(char*, int);
 /* atari specific irq functions */
 extern void atari_init_IRQ (void);
 extern int atari_request_irq (unsigned int irq, void (*handler)(int, void *, struct pt_regs *),
@@ -70,7 +72,6 @@ extern void atari_mksound( unsigned int count, unsigned int ticks );
 #ifdef CONFIG_HEARTBEAT
 static void atari_heartbeat( int on );
 #endif
-extern struct consw fb_con;
 
 /* atari specific timer functions (in time.c) */
 extern void atari_sched_init(void (*)(int, void *, struct pt_regs *));
@@ -99,39 +100,15 @@ static char atari_sysrq_xlate[128] =
 
 extern void (*kd_mksound)(unsigned int, unsigned int);
 
-/* This function tests for the presence of an address, specially a
- * hardware register address. It is called very early in the kernel
- * initialization process, when the VBR register isn't set up yet. On
- * an Atari, it still points to address 0, which is unmapped. So a bus
- * error would cause another bus error while fetching the exception
- * vector, and the CPU would do nothing at all. So we needed to set up
- * a temporary VBR and a vector table for the duration of the test.
+/* I've moved hwreg_present() and hwreg_present_bywrite() out into
+ * mm/hwtest.c, to avoid having multiple copies of the same routine
+ * in the kernel [I wanted them in hp300 and they were already used
+ * in the nubus code. NB: I don't have an Atari so this might (just
+ * conceivably) break something.
+ * I've preserved the #if 0 version of hwreg_present_bywrite() here
+ * for posterity.
+ *   -- Peter Maydell <pmaydell@chiark.greenend.org.uk>, 05/1998
  */
-
-__initfunc(static int hwreg_present( volatile void *regp ))
-{
-    int	ret = 0;
-    long	save_sp, save_vbr;
-    long	tmp_vectors[3];
-
-    __asm__ __volatile__
-	(	"movec	%/vbr,%2\n\t"
-		"movel	#Lberr1,%4@(8)\n\t"
-                "movec	%4,%/vbr\n\t"
-		"movel	%/sp,%1\n\t"
-		"moveq	#0,%0\n\t"
-		"tstb	%3@\n\t"  
-		"nop\n\t"
-		"moveq	#1,%0\n"
-                "Lberr1:\n\t"
-		"movel	%1,%/sp\n\t"
-		"movec	%2,%/vbr"
-		: "=&d" (ret), "=&r" (save_sp), "=&r" (save_vbr)
-		: "a" (regp), "a" (tmp_vectors)
-                );
-
-    return( ret );
-}
   
 #if 0
 __initfunc(static int
@@ -164,35 +141,6 @@ hwreg_present_bywrite(volatile void *regp, unsigned char val))
 }
 #endif
 
-/* Basically the same, but writes a value into a word register, protected
- * by a bus error handler */
-
-__initfunc(static int hwreg_write( volatile void *regp, unsigned short val ))
-{
-	int		ret;
-	long	save_sp, save_vbr;
-	long	tmp_vectors[3];
-
-	__asm__ __volatile__
-	(	"movec	%/vbr,%2\n\t"
-		"movel	#Lberr2,%4@(8)\n\t"
-		"movec	%4,%/vbr\n\t"
-		"movel	%/sp,%1\n\t"
-		"moveq	#0,%0\n\t"
-		"movew	%5,%3@\n\t"  
-		"nop	\n\t"	/* If this nop isn't present, 'ret' may already be
-				 * loaded with 1 at the time the bus error
-				 * happens! */
-		"moveq	#1,%0\n"
-	"Lberr2:\n\t"
-		"movel	%1,%/sp\n\t"
-		"movec	%2,%/vbr"
-		: "=&d" (ret), "=&r" (save_sp), "=&r" (save_vbr)
-		: "a" (regp), "a" (tmp_vectors), "g" (val)
-	);
-
-	return( ret );
-}
 
 /* ++roman: This is a more elaborate test for an SCC chip, since the plain
  * Medusa board generates DTACK at the SCC's standard addresses, but a SCC
@@ -302,6 +250,7 @@ __initfunc(void config_atari(void))
     mach_keyb_init       = atari_keyb_init;
     mach_kbdrate         = atari_kbdrate;
     mach_kbd_leds        = atari_kbd_leds;
+    kbd_reset_setup      = atari_kbd_reset_setup;
     mach_init_IRQ        = atari_init_IRQ;
     mach_request_irq     = atari_request_irq;
     mach_free_irq        = atari_free_irq;
@@ -315,7 +264,9 @@ __initfunc(void config_atari(void))
 #ifdef CONFIG_ATARI_FLOPPY
     mach_floppy_setup	 = atari_floppy_setup;
 #endif
-    conswitchp	         = &fb_con;
+#ifdef CONFIG_DUMMY_CONSOLE
+    conswitchp	         = &dummy_con;
+#endif
     mach_max_dma_address = 0xffffff;
     kd_mksound		 = atari_mksound;
 #ifdef CONFIG_MAGIC_SYSRQ

@@ -34,6 +34,7 @@
 #include <linux/inet.h>
 #include <linux/etherdevice.h>
 #include <linux/if_arp.h>
+#include <linux/wireless.h>
 #include <linux/skbuff.h>
 #include <net/sock.h>
 #include <net/inet_common.h>
@@ -47,6 +48,8 @@
 
 static struct proto_ops econet_ops;
 static struct sock *econet_sklist;
+
+static spinlock_t aun_queue_lock;
 
 #ifdef CONFIG_ECONET_AUNUDP
 static struct socket *udpsock;
@@ -343,7 +346,7 @@ static int econet_sendmsg(struct socket *sock, struct msghdr *msg, int len,
 		
 		eb->cookie = saddr->cookie;
 		eb->sec = *saddr;
-		eb->sent - ec_tx_done;
+		eb->sent = ec_tx_done;
 
 		if (dev->hard_header) {
 			int res;
@@ -557,7 +560,7 @@ static int econet_create(struct socket *sock, int protocol)
 	MOD_INC_USE_COUNT;
 
 	err = -ENOBUFS;
-	sk = sk_alloc(AF_ECONET, GFP_KERNEL, 1);
+	sk = sk_alloc(PF_ECONET, GFP_KERNEL, 1);
 	if (sk == NULL)
 		goto out;
 
@@ -570,7 +573,7 @@ static int econet_create(struct socket *sock, int protocol)
 		goto out_free;
 	memset(sk->protinfo.af_econet, 0, sizeof(struct econet_opt));
 	sk->zapped=0;
-	sk->family = AF_ECONET;
+	sk->family = PF_ECONET;
 	sk->num = protocol;
 
 	sklist_insert_socket(&econet_sklist, sk);
@@ -727,19 +730,19 @@ static int econet_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg
 }
 
 static struct net_proto_family econet_family_ops = {
-	AF_ECONET,
+	PF_ECONET,
 	econet_create
 };
 
 static struct proto_ops econet_ops = {
-	AF_ECONET,
+	PF_ECONET,
 
 	sock_no_dup,
 	econet_release,
 	econet_bind,
 	sock_no_connect,
-	NULL,
-	NULL,
+	sock_no_socketpair,
+	sock_no_accept,
 	econet_getname, 
 	datagram_poll,
 	econet_ioctl,
@@ -965,7 +968,6 @@ static void aun_data_available(struct sock *sk, int slen)
  *	drop the packet.
  */
 
-static spinlock_t aun_queue_lock;
 
 static void ab_cleanup(unsigned long h)
 {
@@ -1008,7 +1010,7 @@ __initfunc(static int aun_udp_initialise(void))
 
 	/* We can count ourselves lucky Acorn machines are too dim to
 	   speak IPv6. :-) */
-	if ((error = sock_create(AF_INET, SOCK_DGRAM, 0, &udpsock)) < 0)
+	if ((error = sock_create(PF_INET, SOCK_DGRAM, 0, &udpsock)) < 0)
 	{
 		printk("AUN: socket error %d\n", -error);
 		return error;

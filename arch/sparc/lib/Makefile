@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.25 1998/01/30 10:58:43 jj Exp $
+# $Id: Makefile,v 1.26 1998/07/26 03:02:43 davem Exp $
 # Makefile for Sparc library files..
 #
 
@@ -45,8 +45,6 @@ blockops.o: blockops.S
 memset.o: memset.S
 	$(CC) -D__ASSEMBLY__ -ansi -c -o memset.o memset.S
 
-ifdef SMP
-
 locks.o: locks.S
 	$(CC) -D__ASSEMBLY__ $(AFLAGS) -ansi -c -o locks.o locks.S
 
@@ -56,20 +54,9 @@ atomic.o: atomic.S
 bitops.o: bitops.S
 	$(CC) -D__ASSEMBLY__ $(AFLAGS) -ansi -c -o bitops.o bitops.S
 
+ifdef SMP
 irqlock.o: irqlock.S
 	$(CC) -D__ASSEMBLY__ $(AFLAGS) -ansi -c -o irqlock.o irqlock.S
-
-else
-
-locks.o: locks.S
-	$(CC) -D__ASSEMBLY__ -ansi -c -o locks.o locks.S
-
-atomic.o: atomic.S
-	$(CC) -D__ASSEMBLY__ -ansi -c -o atomic.o atomic.S
-
-bitops.o: bitops.S
-	$(CC) -D__ASSEMBLY__ -ansi -c -o bitops.o bitops.S
-
 endif
 
 strlen.o: strlen.S

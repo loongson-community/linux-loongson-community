@@ -38,7 +38,7 @@
  *         Linux 1.3.85
  *    1.1: support user-space standby and suspend, power off after system
  *         halted, Linux 1.3.98
- *    1.2: When resetting RTC after resume, take care so that the the time
+ *    1.2: When resetting RTC after resume, take care so that the time
  *         is only incorrect by 30-60mS (vs. 1S previously) (Gabor J. Toth
  *         <jtoth@princeton.edu>); improve interaction between
  *         screen-blanking and gpm (Stephen Rothwell); Linux 1.99.4
@@ -515,6 +515,8 @@ static int apm_get_power_status(u_short *status, u_short *bat, u_short *life)
 	return APM_SUCCESS;
 }
 
+#if 0
+/* not used anywhere */
 static int apm_get_battery_status(u_short which, 
 				  u_short *bat, u_short *life, u_short *nbat)
 {
@@ -532,6 +534,7 @@ static int apm_get_battery_status(u_short which,
 		return (error >> 8);
 	return APM_SUCCESS;
 }
+#endif
 
 static inline int apm_engage_power_management(u_short device)
 {

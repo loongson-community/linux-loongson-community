@@ -7,12 +7,14 @@
  */
 
 #ifdef __SMP__
+
 #include <asm/smp.h>
 
 /*
- * main IPI interface, handles INIT, TLB flush, STOP, etc.:
+ * main IPI interface, handles INIT, TLB flush, STOP, etc. (defined in asm header):
+ *
+ * extern void smp_message_pass(int target, int msg, unsigned long data, int wait);
  */ 
-extern void smp_message_pass(int target, int msg, unsigned long data, int wait);
 
 /*
  * Boot processor call to load the other CPU's
@@ -62,6 +64,7 @@ extern volatile int smp_msg_id;
 #define smp_message_pass(t,m,d,w)	
 #define smp_threads_ready		1
 #define kernel_lock()
+#define cpu_logical_map(cpu)		0
 
 #endif
 #endif

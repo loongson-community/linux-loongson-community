@@ -1,4 +1,4 @@
-/* $Id: sun4c.c,v 1.163 1998/03/11 04:08:21 tdyas Exp $
+/* $Id: sun4c.c,v 1.166 1998/08/04 20:49:05 davem Exp $
  * sun4c.c: Doing in software what should be done in hardware.
  *
  * Copyright (C) 1996 David S. Miller (davem@caip.rutgers.edu)
@@ -611,9 +611,8 @@ __initfunc(static void sun4c_probe_mmu(void))
 			break;
 
 		case (SM_SUN4|SM_4_260):
-			prom_printf("No support for 4200 yet\n");
-			prom_halt();
-			num_segmaps = 512;
+			/* should be 512 segmaps. when it get fixed */
+			num_segmaps = 256;
 			num_contexts = 16;
 			break;
 
@@ -658,7 +657,7 @@ __initfunc(void sun4c_probe_memerr_reg(void))
 	struct linux_prom_registers regs[1];
 
 	if (ARCH_SUN4) {
-		sun4c_memerr_reg = sparc_alloc_io(SUN4_MEMREG_PHYSADDR, 0,
+		sun4c_memerr_reg = sparc_alloc_io(sun4_memreg_physaddr, 0,
 					  	PAGE_SIZE,
 					  	"memory parity error",
 					  	0x0, 0);
@@ -756,11 +755,13 @@ static inline void fix_permissions(unsigned long vaddr, unsigned long bits_on,
 				      ~bits_off);
 }
 
+/* the 4/260 dies real hard on the prom_putsegment line.
+    not sure why, but it seems to work without it cgd */
 static inline void sun4c_init_map_kernelprom(unsigned long kernel_end)
 {
 	unsigned long vaddr;
 	unsigned char pseg, ctx;
-
+#ifndef CONFIG_SUN4
 	for(vaddr = KADB_DEBUGGER_BEGVM;
 	    vaddr < LINUX_OPPROM_ENDVM;
 	    vaddr += SUN4C_REAL_PGDIR_SIZE) {
@@ -772,6 +773,7 @@ static inline void sun4c_init_map_kernelprom(unsigned long kernel_end)
 			fix_permissions(vaddr, _SUN4C_PAGE_PRIV, 0);
 		}
 	}
+#endif
 	for(vaddr = KERNBASE; vaddr < kernel_end; vaddr += SUN4C_REAL_PGDIR_SIZE) {
 		pseg = sun4c_get_segmap(vaddr);
 		mmu_entry_pool[pseg].locked = 1;
@@ -2536,6 +2538,22 @@ extern __inline__ pgd_t *sun4c_get_pgd_fast(void)
 	return (pgd_t *)ret;
 }
 
+static int sun4c_check_pgt_cache(int low, int high)
+{
+	int freed = 0;
+	if(pgtable_cache_size > high) {
+		do {
+			if(pgd_quicklist)
+				free_pgd_slow(get_pgd_fast()), freed++;
+			if(pmd_quicklist)
+				free_pmd_slow(get_pmd_fast()), freed++;
+			if(pte_quicklist)
+				free_pte_slow(get_pte_fast()), freed++;
+		} while(pgtable_cache_size > low);
+	}
+	return freed;
+}
+
 static void sun4c_set_pgdir(unsigned long address, pgd_t entry)
 {
 	/* Nothing to do */
@@ -2803,6 +2821,7 @@ __initfunc(void ld_mmu_sun4c(void))
 	BTFIXUPSET_CALL(get_pgd_fast, sun4c_pgd_alloc, BTFIXUPCALL_NORM);
 	BTFIXUPSET_CALL(free_pte_slow, sun4c_free_pte_slow, BTFIXUPCALL_NORM);
 	BTFIXUPSET_CALL(free_pgd_slow, sun4c_free_pgd_slow, BTFIXUPCALL_NORM);
+	BTFIXUPSET_CALL(do_check_pgt_cache, sun4c_check_pgt_cache, BTFIXUPCALL_NORM);
 	
 	BTFIXUPSET_CALL(set_pgdir, sun4c_set_pgdir, BTFIXUPCALL_NOP);
 

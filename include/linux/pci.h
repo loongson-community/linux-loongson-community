@@ -1,25 +1,17 @@
 /*
- *	$Id: pci.h,v 1.70 1998/05/02 19:20:03 mj Exp $
+ *	$Id: pci.h,v 1.80 1998/07/21 10:06:40 mj Exp $
  *
  *	PCI defines and function prototypes
  *	Copyright 1994, Drew Eckhardt
- *	Copyright 1997, Martin Mares <mj@atrey.karlin.mff.cuni.cz>
+ *	Copyright 1997, 1998 Martin Mares <mj@atrey.karlin.mff.cuni.cz>
  *
- *	For more information, please consult 
- * 
- *	PCI BIOS Specification Revision
+ *	For more information, please consult the following manuals (look at
+ *	http://www.pcisig.com/ for how to get them):
+ *
+ *	PCI BIOS Specification
  *	PCI Local Bus Specification
+ *	PCI to PCI Bridge Specification
  *	PCI System Design Guide
- *
- *	PCI Special Interest Group
- *	M/S HF3-15A
- *	5200 N.E. Elam Young Parkway
- *	Hillsboro, Oregon 97124-6497
- *	+1 (503) 696-2000 
- *	+1 (800) 433-5177
- * 
- *	Manuals are $25 each or $50 for all three, plus $7 shipping 
- *	within the United States, $35 abroad.
  */
 
 #ifndef LINUX_PCI_H
@@ -84,7 +76,7 @@
  * 1 bits are decoded.
  */
 #define PCI_BASE_ADDRESS_0	0x10	/* 32 bits */
-#define PCI_BASE_ADDRESS_1	0x14	/* 32 bits */
+#define PCI_BASE_ADDRESS_1	0x14	/* 32 bits [htype 0,1 only] */
 #define PCI_BASE_ADDRESS_2	0x18	/* 32 bits [htype 0 only] */
 #define PCI_BASE_ADDRESS_3	0x1c	/* 32 bits */
 #define PCI_BASE_ADDRESS_4	0x20	/* 32 bits */
@@ -153,17 +145,13 @@
 #define  PCI_BRIDGE_CTL_BUS_RESET 0x40	/* Secondary bus reset */
 #define  PCI_BRIDGE_CTL_FAST_BACK 0x80	/* Fast Back2Back enabled on secondary interface */
 
-/* Header type 2 (CardBus bridges) -- detailed info welcome */
-#define PCI_CB_CARDBUS_BASE	0x10	/* CardBus Socket/ExCa base address */
-#define  PCI_CB_CARDBUS_BASE_TYPE_MASK 0xfff
-#define  PCI_CB_CARDBUS_BASE_MASK ~0xfff
-#define PCI_CB_CAPABILITIES	0x14	/* Offset of list of capabilities in cfg space */
-/* 0x15 reserved */
+/* Header type 2 (CardBus bridges) */
+/* 0x14-0x15 reserved */
 #define PCI_CB_SEC_STATUS	0x16	/* Secondary status */
-#define PCI_CB_BUS_NUMBER	0x18	/* PCI bus number */
-#define PCI_CB_CARDBUS_NUMBER	0x19	/* CardBus bus number */
+#define PCI_CB_PRIMARY_BUS	0x18	/* PCI bus number */
+#define PCI_CB_CARD_BUS		0x19	/* CardBus bus number */
 #define PCI_CB_SUBORDINATE_BUS	0x1a	/* Subordinate bus number */
-#define PCI_CB_CARDBUS_LATENCY	0x1b	/* CardBus latency timer */
+#define PCI_CB_LATENCY_TIMER	0x1b	/* CardBus latency timer */
 #define PCI_CB_MEMORY_BASE_0	0x1c
 #define PCI_CB_MEMORY_LIMIT_0	0x20
 #define PCI_CB_MEMORY_BASE_1	0x24
@@ -176,8 +164,19 @@
 #define PCI_CB_IO_BASE_1_HI	0x36
 #define PCI_CB_IO_LIMIT_1	0x38
 #define PCI_CB_IO_LIMIT_1_HI	0x3a
+#define  PCI_CB_IO_RANGE_MASK	~0x03
 /* 0x3c-0x3d are same as for htype 0 */
-/* 0x3e-0x3f are same as for htype 1 */
+#define PCI_CB_BRIDGE_CONTROL	0x3e
+#define  PCI_CB_BRIDGE_CTL_PARITY	0x01	/* Similar to standard bridge control register */
+#define  PCI_CB_BRIDGE_CTL_SERR		0x02
+#define  PCI_CB_BRIDGE_CTL_ISA		0x04
+#define  PCI_CB_BRIDGE_CTL_VGA		0x08
+#define  PCI_CB_BRIDGE_CTL_MASTER_ABORT	0x20
+#define  PCI_CB_BRIDGE_CTL_CB_RESET	0x40	/* CardBus reset */
+#define  PCI_CB_BRIDGE_CTL_16BIT_INT	0x80	/* Enable interrupt for 16-bit cards */
+#define  PCI_CB_BRIDGE_CTL_PREFETCH_MEM0 0x100	/* Prefetch enable for both memory regions */
+#define  PCI_CB_BRIDGE_CTL_PREFETCH_MEM1 0x200
+#define  PCI_CB_BRIDGE_CTL_POST_WRITES	0x400
 #define PCI_CB_SUBSYSTEM_VENDOR_ID 0x40
 #define PCI_CB_SUBSYSTEM_ID	0x42
 #define PCI_CB_LEGACY_MODE_BASE	0x44	/* 16-bit PC Card legacy mode base address (ExCa) */
@@ -573,6 +572,7 @@
 #define PCI_DEVICE_ID_CMD_640		0x0640
 #define PCI_DEVICE_ID_CMD_643		0x0643
 #define PCI_DEVICE_ID_CMD_646		0x0646
+#define PCI_DEVICE_ID_CMD_647		0x0647
 #define PCI_DEVICE_ID_CMD_670		0x0670
 
 #define PCI_VENDOR_ID_VISION		0x1098
@@ -603,6 +603,7 @@
 
 #define PCI_VENDOR_ID_MADGE		0x10b6
 #define PCI_DEVICE_ID_MADGE_MK2		0x0002
+#define PCI_DEVICE_ID_MADGE_C155S	0x1001
 
 #define PCI_VENDOR_ID_3COM		0x10b7
 #define PCI_DEVICE_ID_3COM_3C339	0x3390
@@ -772,6 +773,11 @@
 #define PCI_DEVICE_ID_ALLIANCE_AT24	0x6424
 #define PCI_DEVICE_ID_ALLIANCE_AT3D	0x643d
 
+#define PCI_VENDOR_ID_SK		0x1148
+#define PCI_DEVICE_ID_SK_FP		0x4000
+#define PCI_DEVICE_ID_SK_TR		0x4200
+#define PCI_DEVICE_ID_SK_GE		0x4300
+
 #define PCI_VENDOR_ID_VMIC		0x114a
 #define PCI_DEVICE_ID_VMIC_VME		0x7587
 
@@ -845,10 +851,15 @@
 #define PCI_DEVICE_ID_COMPEX_RL2000	0x1401
 
 #define PCI_VENDOR_ID_RP               0x11fe
-#define PCI_DEVICE_ID_RP8OCTA          0x0001
+#define PCI_DEVICE_ID_RP32INTF         0x0001
 #define PCI_DEVICE_ID_RP8INTF          0x0002
 #define PCI_DEVICE_ID_RP16INTF         0x0003
-#define PCI_DEVICE_ID_RP32INTF         0x0004
+#define PCI_DEVICE_ID_RP4QUAD	       0x0004
+#define PCI_DEVICE_ID_RP8OCTA          0x0005
+#define PCI_DEVICE_ID_RP8J	       0x0006
+#define PCI_DEVICE_ID_RPP4	       0x000A
+#define PCI_DEVICE_ID_RPP8	       0x000B
+#define PCI_DEVICE_ID_RP8M	       0x000C
 
 #define PCI_VENDOR_ID_CYCLADES		0x120e
 #define PCI_DEVICE_ID_CYCLOM_Y_Lo	0x0100
@@ -894,6 +905,9 @@
 
 #define PCI_VENDOR_ID_ENSONIQ		0x1274
 #define PCI_DEVICE_ID_ENSONIQ_AUDIOPCI	0x5000
+
+#define PCI_VENDOR_ID_ALTEON		0x12ae
+#define PCI_DEVICE_ID_ALTEON_ACENIC	0x0001
 
 #define PCI_VENDOR_ID_PICTUREL		0x12c5
 #define PCI_DEVICE_ID_PICTUREL_PCIVST	0x0081
@@ -1036,43 +1050,7 @@
 #ifdef __KERNEL__
 
 #include <linux/types.h>
-
-/*
- * Error values that may be returned by the PCI bios.
- */
-#define PCIBIOS_SUCCESSFUL		0x00
-#define PCIBIOS_FUNC_NOT_SUPPORTED	0x81
-#define PCIBIOS_BAD_VENDOR_ID		0x83
-#define PCIBIOS_DEVICE_NOT_FOUND	0x86
-#define PCIBIOS_BAD_REGISTER_NUMBER	0x87
-#define PCIBIOS_SET_FAILED		0x88
-#define PCIBIOS_BUFFER_TOO_SMALL	0x89
-
-/* Direct configuration space access */
-
-int pcibios_present (void);
-void pcibios_init(void);
-void pcibios_fixup(void);
-char *pcibios_setup (char *str);
-int pcibios_read_config_byte (unsigned char bus, unsigned char dev_fn,
-			      unsigned char where, unsigned char *val);
-int pcibios_read_config_word (unsigned char bus, unsigned char dev_fn,
-			      unsigned char where, unsigned short *val);
-int pcibios_read_config_dword (unsigned char bus, unsigned char dev_fn,
-			       unsigned char where, unsigned int *val);
-int pcibios_write_config_byte (unsigned char bus, unsigned char dev_fn,
-			       unsigned char where, unsigned char val);
-int pcibios_write_config_word (unsigned char bus, unsigned char dev_fn,
-			       unsigned char where, unsigned short val);
-int pcibios_write_config_dword (unsigned char bus, unsigned char dev_fn,
-				unsigned char where, unsigned int val);
-
-/* Don't use these in new code, use pci_find_... instead */
-
-int pcibios_find_class (unsigned int class_code, unsigned short index, unsigned char *bus, unsigned char *dev_fn);
-int pcibios_find_device (unsigned short vendor, unsigned short dev_id,
-			 unsigned short index, unsigned char *bus,
-			 unsigned char *dev_fn);
+#include <linux/config.h>
 
 /*
  * There is one pci_dev structure for each slot-number/function-number
@@ -1084,6 +1062,7 @@ struct pci_dev {
 	struct pci_dev	*next;		/* chain of all devices */
 
 	void		*sysdata;	/* hook for sys-specific extension */
+	struct proc_dir_entry *procent;	/* device entry in /proc/bus/pci */
 
 	unsigned int	devfn;		/* encoded device & function index */
 	unsigned short	vendor;
@@ -1120,6 +1099,7 @@ struct pci_bus {
 	struct pci_dev	*devices;	/* devices behind this bridge */
 
 	void		*sysdata;	/* hook for sys-specific extension */
+	struct proc_dir_entry *procdir;	/* directory entry in /proc/bus/pci */
 
 	unsigned char	number;		/* bus number */
 	unsigned char	primary;	/* number of primary bridge */
@@ -1130,6 +1110,46 @@ struct pci_bus {
 extern struct pci_bus	pci_root;	/* root bus */
 extern struct pci_dev	*pci_devices;	/* list of all devices */
 
+/*
+ * Error values that may be returned by the PCI bios.
+ */
+#define PCIBIOS_SUCCESSFUL		0x00
+#define PCIBIOS_FUNC_NOT_SUPPORTED	0x81
+#define PCIBIOS_BAD_VENDOR_ID		0x83
+#define PCIBIOS_DEVICE_NOT_FOUND	0x86
+#define PCIBIOS_BAD_REGISTER_NUMBER	0x87
+#define PCIBIOS_SET_FAILED		0x88
+#define PCIBIOS_BUFFER_TOO_SMALL	0x89
+
+/* Low-level architecture-dependent routines */
+
+int pcibios_present (void);
+void pcibios_init(void);
+void pcibios_fixup(void);
+void pcibios_fixup_bus(struct pci_bus *);
+char *pcibios_setup (char *str);
+int pcibios_read_config_byte (unsigned char bus, unsigned char dev_fn,
+			      unsigned char where, unsigned char *val);
+int pcibios_read_config_word (unsigned char bus, unsigned char dev_fn,
+			      unsigned char where, unsigned short *val);
+int pcibios_read_config_dword (unsigned char bus, unsigned char dev_fn,
+			       unsigned char where, unsigned int *val);
+int pcibios_write_config_byte (unsigned char bus, unsigned char dev_fn,
+			       unsigned char where, unsigned char val);
+int pcibios_write_config_word (unsigned char bus, unsigned char dev_fn,
+			       unsigned char where, unsigned short val);
+int pcibios_write_config_dword (unsigned char bus, unsigned char dev_fn,
+				unsigned char where, unsigned int val);
+
+/* Don't use these in new code, use pci_find_... instead */
+
+int pcibios_find_class (unsigned int class_code, unsigned short index, unsigned char *bus, unsigned char *dev_fn);
+int pcibios_find_device (unsigned short vendor, unsigned short dev_id,
+			 unsigned short index, unsigned char *bus,
+			 unsigned char *dev_fn);
+
+/* Generic PCI interface functions */
+
 void pci_init(void);
 void pci_setup(char *str, int *ints);
 void pci_quirks_init(void);
@@ -1137,6 +1157,8 @@ unsigned int pci_scan_bus(struct pci_bus *bus);
 void pci_proc_init(void);
 void proc_old_pci_init(void);
 int get_pci_list(char *buf);
+int pci_proc_attach_device(struct pci_dev *dev);
+int pci_proc_detach_device(struct pci_dev *dev);
 
 struct pci_dev *pci_find_device (unsigned int vendor, unsigned int device, struct pci_dev *from);
 struct pci_dev *pci_find_class (unsigned int class, struct pci_dev *from);
@@ -1150,6 +1172,33 @@ int pci_write_config_byte(struct pci_dev *dev, u8 where, u8 val);
 int pci_write_config_word(struct pci_dev *dev, u8 where, u16 val);
 int pci_write_config_dword(struct pci_dev *dev, u8 where, u32 val);
 void pci_set_master(struct pci_dev *dev);
+
+#ifndef CONFIG_PCI
+/* If the system does not have PCI, clearly these return errors.  Define
+   these as simple inline functions to avoid hair in drivers.  */
+extern inline int pcibios_present(void) { return 0; }
+
+#define _PCI_NOP(o,s,t) \
+	extern inline int pcibios_##o##_config_##s## (u8 bus, u8 dfn, u8 where, t val) \
+		{ return PCIBIOS_FUNC_NOT_SUPPORTED; } \
+	extern inline int pci_##o##_config_##s## (struct pci_dev *dev, u8 where, t val) \
+		{ return PCIBIOS_FUNC_NOT_SUPPORTED; }
+#define _PCI_NOP_ALL(o,x)	_PCI_NOP(o,byte,u8 x) \
+				_PCI_NOP(o,word,u16 x) \
+				_PCI_NOP(o,dword,u32 x)
+_PCI_NOP_ALL(read, *)
+_PCI_NOP_ALL(write,)
+
+extern inline struct pci_dev *pci_find_device(unsigned int vendor, unsigned int device, struct pci_dev *from)
+{ return NULL; }
+
+extern inline struct pci_dev *pci_find_class(unsigned int class, struct pci_dev *from)
+{ return NULL; }
+
+extern inline struct pci_dev *pci_find_slot(unsigned int bus, unsigned int devfn)
+{ return NULL; }
+
+#endif /* !CONFIG_PCI */
 
 #endif /* __KERNEL__ */
 #endif /* LINUX_PCI_H */

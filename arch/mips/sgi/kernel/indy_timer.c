@@ -1,9 +1,9 @@
-/* $Id: indy_timer.c,v 1.8 1998/04/05 11:23:59 ralf Exp $
+/* $Id: indy_timer.c,v 1.9 1998/06/25 20:15:02 ralf Exp $
  *
  * indy_timer.c: Setting up the clock on the INDY 8254 controller.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
- * Copyright (C) 1998 Ralf Baechle (ralf@gnu.org)
+ * Copytight (C) 1997, 1998 Ralf Baechle (ralf@gnu.org)
  */
 #include <linux/errno.h>
 #include <linux/init.h>

@@ -1,4 +1,4 @@
-/* $Id: fs.c,v 1.8 1998/03/29 10:11:02 davem Exp $
+/* $Id: fs.c,v 1.10 1998/05/09 06:15:45 davem Exp $
  * fs.c: fs related syscall emulation for Solaris
  *
  * Copyright (C) 1997 Jakub Jelinek (jj@sunsite.mff.cuni.cz)
@@ -523,7 +523,7 @@ static int chown_common(struct dentry * dentry, uid_t user, gid_t group)
 		newattrs.ia_mode &= ~S_ISGID;
 		newattrs.ia_valid |= ATTR_MODE;
 	}
-	DQUOT_TRANSFER(dentry, newattrs);
+	error = DQUOT_TRANSFER(dentry, &newattrs);
 out:
 	return error;
 }

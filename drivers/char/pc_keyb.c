@@ -37,7 +37,7 @@
  */
 
 /*
- * Some x86 BIOSes do not correctly initializes the keyboard, so the
+ * Some x86 BIOSes do not correctly initialize the keyboard, so the
  * "kbd-reset" command line options can be given to force a reset.
  * [Ranger]
  */
@@ -155,6 +155,19 @@ static char *initialize_kbd2(void)
 		              | KBD_MODE_DISABLE_MOUSE
 		              | KBD_MODE_KCC);
 
+	/* ibm powerpc portables need this to use scan-code set 1 -- Cort */
+	kbd_write_command(KBD_CCMD_READ_MODE);
+	if (!(kbd_wait_for_input() & KBD_MODE_KCC)) {
+		/*
+		 * If the controller does not support conversion,
+		 * Set the keyboard to scan-code set 1.
+		 */
+		kbd_write_output(0xF0);
+		kbd_wait_for_input();
+		kbd_write_output(0x01);
+		kbd_wait_for_input();
+	}
+
 	kbd_write_output(KBD_CMD_ENABLE);
 	if (kbd_wait_for_input() != KBD_REPLY_ACK)
 		return "Enable keyboard: no ACK";
@@ -187,7 +200,7 @@ void initialize_kbd(void)
 
 
 
-unsigned char kbd_read_mask = KBD_STAT_OBF; /* Modified by psaux.c */
+unsigned char pckbd_read_mask = KBD_STAT_OBF; /* Modified by psaux.c */
 
 /* used only by send_data - set by keyboard_interrupt */
 static volatile unsigned char reply_expected = 0;
@@ -208,7 +221,7 @@ static inline void kb_wait(void)
 	do {
 		if (! (kbd_read_status() & KBD_STAT_IBF))
 			return;
-		udelay(1000);
+		mdelay(1);
 		timeout--;
 	} while (timeout);
 #ifdef KBD_REPORT_TIMEOUTS
@@ -522,7 +535,7 @@ static void keyboard_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		unsigned char scancode;
 
 		/* mouse data? */
-		if (status & kbd_read_mask & KBD_STAT_MOUSE_OBF) {
+		if (status & pckbd_read_mask & KBD_STAT_MOUSE_OBF) {
 #if defined(CONFIG_SGI) && defined(CONFIG_PSMOUSE)
 			scancode = kbd_read_input();
 			aux_interrupt(status, scancode);
@@ -566,7 +579,7 @@ static int send_data(unsigned char data)
 				return 1;
 			if (resend)
 				break;
-			udelay(1000);
+			mdelay(1);
 			if (!--timeout) {
 #ifdef KBD_REPORT_TIMEOUTS
 				printk(KERN_WARNING "Keyboard timeout\n");

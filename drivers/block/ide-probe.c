@@ -45,8 +45,8 @@ static inline void do_identify (ide_drive_t *drive, byte cmd)
 	int bswap = 1;
 	struct hd_driveid *id;
 
-	id = drive->id = kmalloc (SECTOR_WORDS*4, GFP_KERNEL);
-	ide_input_data(drive, id, SECTOR_WORDS);	/* read 512 bytes of id info */
+	id = drive->id = kmalloc (SECTOR_WORDS*4, GFP_ATOMIC);	/* called with interrupts disabled! */
+	ide_input_data(drive, id, SECTOR_WORDS);		/* read 512 bytes of id info */
 	ide__sti();	/* local CPU only */
 	ide_fix_driveid(id);
 
@@ -568,14 +568,23 @@ static int init_irq (ide_hwif_t *hwif)
 	hwgroup->hwif = HWIF(hwgroup->drive);
 	restore_flags(flags);	/* all CPUs; safe now that hwif->hwgroup is set up */
 
-#ifndef __mc68000__
+#if !defined(__mc68000__) && !defined(CONFIG_APUS) && !defined(__sparc__)
 	printk("%s at 0x%03x-0x%03x,0x%03x on irq %d", hwif->name,
-		hwif->io_ports[IDE_DATA_OFFSET], hwif->io_ports[IDE_DATA_OFFSET]+7, hwif->io_ports[IDE_CONTROL_OFFSET], hwif->irq);
+		hwif->io_ports[IDE_DATA_OFFSET],
+		hwif->io_ports[IDE_DATA_OFFSET]+7,
+		hwif->io_ports[IDE_CONTROL_OFFSET], hwif->irq);
+#elif defined(__sparc__)
+	printk("%s at 0x%03x-0x%03x,0x%03x on irq %s", hwif->name,
+		hwif->io_ports[IDE_DATA_OFFSET],
+		hwif->io_ports[IDE_DATA_OFFSET]+7,
+		hwif->io_ports[IDE_CONTROL_OFFSET], __irq_itoa(hwif->irq));
 #else
-	printk("%s at %p on irq 0x%08x", hwif->name, hwif->io_ports[IDE_DATA_OFFSET], hwif->irq);
-#endif /* __mc68000__ */
+	printk("%s at %p on irq 0x%08x", hwif->name,
+		hwif->io_ports[IDE_DATA_OFFSET], hwif->irq);
+#endif /* __mc68000__ && CONFIG_APUS */
 	if (match)
-		printk(" (%sed with %s)", hwif->sharing_irq ? "shar" : "serializ", match->name);
+		printk(" (%sed with %s)",
+			hwif->sharing_irq ? "shar" : "serializ", match->name);
 	printk("\n");
 	return 0;
 }

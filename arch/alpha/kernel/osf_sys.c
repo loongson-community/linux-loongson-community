@@ -30,6 +30,7 @@
 #include <linux/mman.h>
 #include <linux/shm.h>
 #include <linux/poll.h>
+#include <linux/file.h>
 
 #include <asm/fpu.h>
 #include <asm/io.h>
@@ -46,7 +47,7 @@ extern struct file_operations *get_chrfops(unsigned int);
 extern kdev_t get_unnamed_dev(void);
 extern void put_unnamed_dev(kdev_t);
 
-extern asmlinkage int sys_umount(char *);
+extern asmlinkage int sys_umount(char *, int);
 extern asmlinkage int sys_swapon(const char *specialfile, int swap_flags);
 extern asmlinkage unsigned long sys_brk(unsigned long);
 
@@ -137,13 +138,11 @@ asmlinkage int osf_getdirentries(unsigned int fd, struct osf_dirent *dirent,
 {
 	int error;
 	struct file *file;
+	struct inode *inode;
 	struct osf_dirent_callback buf;
 
 	error = -EBADF;
-	if (fd >= NR_OPEN)
-		goto out;
-
-	file = current->files->fd[fd];
+	file = fget(fd);
 	if (!file)
 		goto out;
 
@@ -154,17 +153,25 @@ asmlinkage int osf_getdirentries(unsigned int fd, struct osf_dirent *dirent,
 
 	error = -ENOTDIR;
 	if (!file->f_op || !file->f_op->readdir)
-		goto out;
+		goto out_putf;
 
+	/*
+	 * Get the inode's semaphore to prevent changes
+	 * to the directory while we read it.
+	 */
+	inode = file->f_dentry->d_inode;
+	down(&inode->i_sem);
 	error = file->f_op->readdir(file, &buf, osf_filldir);
+	up(&inode->i_sem);
 	if (error < 0)
-		goto out;
+		goto out_putf;
 
 	error = buf.error;
-	if (count == buf.count)
-		goto out;
+	if (count != buf.count)
+		error = count - buf.count;
 
-	error = count - buf.count;
+out_putf:
+	fput(file);
 out:
 	return error;
 }
@@ -248,13 +255,17 @@ asmlinkage unsigned long osf_mmap(unsigned long addr, unsigned long len,
 
 	lock_kernel();
 	if (flags & (_MAP_HASSEMAPHORE | _MAP_INHERIT | _MAP_UNALIGNED))
-		printk("%s: unimplemented OSF mmap flags %04lx\n", current->comm, flags);
+		printk("%s: unimplemented OSF mmap flags %04lx\n", 
+			current->comm, flags);
 	if (!(flags & MAP_ANONYMOUS)) {
-		if (fd >= NR_OPEN || !(file = current->files->fd[fd]))
+		file = fget(fd);
+		if (!file)
 			goto out;
 	}
 	flags &= ~(MAP_EXECUTABLE | MAP_DENYWRITE);
 	ret = do_mmap(file, addr, len, prot, flags, off);
+	if (file)
+		fput(file);
 out:
 	unlock_kernel();
 	return ret;
@@ -340,11 +351,13 @@ asmlinkage int osf_fstatfs(unsigned long fd, struct osf_statfs *buffer, unsigned
 
 	lock_kernel();
 	retval = -EBADF;
-	if (fd >= NR_OPEN || !(file = current->files->fd[fd]))
+	file = fget(fd);
+	if (!file)
 		goto out;
 	dentry = file->f_dentry;
 	if (dentry)
 		retval = do_osf_statfs(dentry, buffer, bufsiz);
+	fput(file);
 out:
 	unlock_kernel();
 	return retval;
@@ -366,8 +379,8 @@ struct cdfs_args {
 	int flags;
 	uid_t exroot;
 /*
- * this has lots more here, which linux handles with the option block
- * but I'm too lazy to do the translation into ascii..
+ * This has lots more here, which Linux handles with the option block
+ * but I'm too lazy to do the translation into ASCII.
  */
 };
 
@@ -390,38 +403,41 @@ static int getdev(const char *name, int rdonly, struct dentry **dp)
 	if (IS_ERR(dentry))
 		return retval;
 
+	retval = -ENOTBLK;
 	inode = dentry->d_inode;
-	if (!S_ISBLK(inode->i_mode)) {
-		dput(dentry);
-		return -ENOTBLK;
-	}
-	if (IS_NODEV(inode)) {
-		dput(dentry);
-		return -EACCES;
-	}
+	if (!S_ISBLK(inode->i_mode))
+		goto out_dput;
+
+	retval = -EACCES;
+	if (IS_NODEV(inode))
+		goto out_dput;
+
+	retval = -ENXIO;
 	dev = inode->i_rdev;
-	if (MAJOR(dev) >= MAX_BLKDEV) {
-		dput(dentry);
-		return -ENXIO;
-	}
+	if (MAJOR(dev) >= MAX_BLKDEV)
+		goto out_dput;
+
+	retval = -ENODEV;
 	fops = get_blkfops(MAJOR(dev));
-	if (!fops) {
-		dput(dentry);
-		return -ENODEV;
-	}
+	if (!fops)
+		goto out_dput;
 	if (fops->open) {
 		struct file dummy;
 		memset(&dummy, 0, sizeof(dummy));
 		dummy.f_dentry = dentry;
 		dummy.f_mode = rdonly ? 1 : 3;
 		retval = fops->open(inode, &dummy);
-		if (retval) {
-			dput(dentry);
-			return retval;
-		}
+		if (retval)
+			goto out_dput;
 	}
 	*dp = dentry;
-	return 0;
+	retval = 0;
+out:
+	return retval;
+
+out_dput:
+	dput(dentry);
+	goto out;
 }
 
 static void putdev(struct dentry *dentry)
@@ -435,8 +451,8 @@ static void putdev(struct dentry *dentry)
 
 /*
  * We can't actually handle ufs yet, so we translate UFS mounts to
- * ext2fs mounts... I wouldn't mind a UFS filesystem, but the UFS
- * layout is so braindead it's a major headache doing it..
+ * ext2fs mounts. I wouldn't mind a UFS filesystem, but the UFS
+ * layout is so braindead it's a major headache doing it.
  */
 static int osf_ufs_mount(char *dirname, struct ufs_args *args, int flags)
 {
@@ -444,17 +460,19 @@ static int osf_ufs_mount(char *dirname, struct ufs_args *args, int flags)
 	struct dentry *dentry;
 	struct cdfs_args tmp;
 
-	retval = verify_area(VERIFY_READ, args, sizeof(*args));
-	if (retval)
-		return retval;
-	copy_from_user(&tmp, args, sizeof(tmp));
+	retval = -EFAULT;
+	if (copy_from_user(&tmp, args, sizeof(tmp)))
+		goto out;
+
 	retval = getdev(tmp.devname, 0, &dentry);
 	if (retval)
-		return retval;
-	retval = do_mount(dentry->d_inode->i_rdev, tmp.devname, dirname, "ext2", flags, NULL);
+		goto out;
+	retval = do_mount(dentry->d_inode->i_rdev, tmp.devname, dirname, 
+				"ext2", flags, NULL);
 	if (retval)
 		putdev(dentry);
 	dput(dentry);
+out:
 	return retval;
 }
 
@@ -464,17 +482,19 @@ static int osf_cdfs_mount(char *dirname, struct cdfs_args *args, int flags)
 	struct dentry * dentry;
 	struct cdfs_args tmp;
 
-	retval = verify_area(VERIFY_READ, args, sizeof(*args));
-	if (retval)
-		return retval;
-	copy_from_user(&tmp, args, sizeof(tmp));
+	retval = -EFAULT;
+	if (copy_from_user(&tmp, args, sizeof(tmp)))
+		goto out;
+
 	retval = getdev(tmp.devname, 1, &dentry);
 	if (retval)
-		return retval;
-	retval = do_mount(dentry->d_inode->i_rdev, tmp.devname, dirname, "iso9660", flags, NULL);
+		goto out;
+	retval = do_mount(dentry->d_inode->i_rdev, tmp.devname, dirname, 
+				"iso9660", flags, NULL);
 	if (retval)
 		putdev(dentry);
 	dput(dentry);
+out:
 	return retval;
 }
 
@@ -484,10 +504,8 @@ static int osf_procfs_mount(char *dirname, struct procfs_args *args, int flags)
 	int retval;
 	struct procfs_args tmp;
 
-	retval = verify_area(VERIFY_READ, args, sizeof(*args));
-	if (retval)
-		return retval;
-	copy_from_user(&tmp, args, sizeof(tmp));
+	if (copy_from_user(&tmp, args, sizeof(tmp)))
+		return -EFAULT;
 	dev = get_unnamed_dev();
 	if (!dev)
 		return -ENODEV;
@@ -524,7 +542,7 @@ asmlinkage int osf_umount(char *path, int flag)
 	int ret;
 
 	lock_kernel();
-	ret = sys_umount(path);
+	ret = sys_umount(path,flag);
 	unlock_kernel();
 	return ret;
 }
@@ -533,17 +551,22 @@ asmlinkage int osf_utsname(char *name)
 {
 	int error;
 
-	lock_kernel();
-	error = verify_area(VERIFY_WRITE, name, 5 * 32);
-	if (error)
+	down(&uts_sem);
+	error = -EFAULT;
+	if (copy_to_user(name + 0, system_utsname.sysname, 32))
 		goto out;
-	copy_to_user(name + 0, system_utsname.sysname, 32);
-	copy_to_user(name + 32, system_utsname.nodename, 32);
-	copy_to_user(name + 64, system_utsname.release, 32);
-	copy_to_user(name + 96, system_utsname.version, 32);
-	copy_to_user(name + 128, system_utsname.machine, 32);
+	if (copy_to_user(name + 32, system_utsname.nodename, 32))
+		goto out;
+	if (copy_to_user(name + 64, system_utsname.release, 32))
+		goto out;
+	if (copy_to_user(name + 96, system_utsname.version, 32))
+		goto out;
+	if (copy_to_user(name + 128, system_utsname.machine, 32))
+		goto out;
+
+	error = 0;
 out:
-	unlock_kernel();
+	up(&uts_sem);	
 	return error;
 }
 
@@ -602,11 +625,13 @@ asmlinkage int osf_getdomainname(char *name, int namelen)
 	if (namelen > 32)
 		len = 32;
 
+	down(&uts_sem);
 	for (i = 0; i < len; ++i) {
-		put_user(system_utsname.domainname[i], name + i);
+		__put_user(system_utsname.domainname[i], name + i);
 		if (system_utsname.domainname[i] == '\0')
 			break;
 	}
+	up(&uts_sem);
 out:
 	unlock_kernel();
 	return error;
@@ -743,6 +768,50 @@ asmlinkage long osf_proplist_syscall(enum pl_code code, union pl_args *args)
 	return error;
 }
 
+asmlinkage int osf_sigstack(struct sigstack *uss, struct sigstack *uoss)
+{
+	unsigned long usp = rdusp();
+	unsigned long oss_sp, oss_os;
+	int error;
+
+	if (uoss) {
+		oss_sp = current->sas_ss_sp + current->sas_ss_size;
+		oss_os = on_sig_stack(usp);
+	}
+
+	if (uss) {
+		void *ss_sp;
+
+		error = -EFAULT;
+		if (get_user(ss_sp, &uss->ss_sp))
+			goto out;
+
+		/* If the current stack was set with sigaltstack, don't
+		   swap stacks while we are on it.  */
+		error = -EPERM;
+		if (current->sas_ss_sp && on_sig_stack(usp))
+			goto out;
+
+		/* Since we don't know the extent of the stack, and we don't
+		   track onstack-ness, but rather calculate it, we must 
+		   presume a size.  Ho hum this interface is lossy.  */
+		current->sas_ss_sp = (unsigned long)ss_sp - SIGSTKSZ;
+		current->sas_ss_size = SIGSTKSZ;
+	}
+
+	if (uoss) {
+		error = -EFAULT;
+		if (! access_ok(VERIFY_WRITE, uoss, sizeof(*uoss))
+		    || __put_user(oss_sp, &uoss->ss_sp)
+		    || __put_user(oss_os, &uoss->ss_onstack))
+			goto out;
+	}
+
+	error = 0;
+out:
+	return error;
+}
+
 /*
  * The Linux kernel isn't good at returning values that look
  * like negative longs (they are mistaken as error values).
@@ -795,10 +864,12 @@ asmlinkage long osf_sysinfo(int command, char *buf, long count)
 	lock_kernel();
 	offset = command-1;
 	if (offset >= sizeof(sysinfo_table)/sizeof(char *)) {
-		/* Digital unix has a few unpublished interfaces here */
+		/* Digital UNIX has a few unpublished interfaces here */
 		printk("sysinfo(%d)", command);
 		goto out;
 	}
+	
+	down(&uts_sem);
 	res = sysinfo_table[offset];
 	len = strlen(res)+1;
 	if (len > count)
@@ -807,6 +878,7 @@ asmlinkage long osf_sysinfo(int command, char *buf, long count)
 		err = -EFAULT;
 	else
 		err = 0;
+	up(&uts_sem);
 out:
 	unlock_kernel();
 	return err;

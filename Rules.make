@@ -53,7 +53,7 @@ first_rule: sub_dirs
 %.o: %.c
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) $(CFLAGS_$@) -c -o $@ $<
 	@ ( \
-	    echo 'ifeq ($(strip $(CFLAGS) $(EXTRA_CFLAGS) $(CFLAGS_$@)),$$(strip $$(CFLAGS) $$(EXTRA_CFLAGS) $$(CFLAGS_$@)))' ; \
+	    echo 'ifeq ($(strip $(subst $(comma),:,$(CFLAGS) $(EXTRA_CFLAGS) $(CFLAGS_$@))),$$(strip $$(subst $$(comma),:,$$(CFLAGS) $$(EXTRA_CFLAGS) $$(CFLAGS_$@))))' ; \
 	    echo 'FILES_FLAGS_UP_TO_DATE += $@' ; \
 	    echo 'endif' \
 	) > $(dir $@)/.$(notdir $@).flags
@@ -79,7 +79,7 @@ else
 	$(AR) rcs $@
 endif
 	@ ( \
-	    echo 'ifeq ($(strip $(EXTRA_LDFLAGS) $(ALL_O)),$$(strip $$(EXTRA_LDFLAGS) $$(ALL_O)))' ; \
+	    echo 'ifeq ($(strip $(subst $(comma),:,$(EXTRA_LDFLAGS) $(ALL_O))),$$(strip $$(subst $$(comma),:,$$(EXTRA_LDFLAGS) $$(ALL_O))))' ; \
 	    echo 'FILES_FLAGS_UP_TO_DATE += $@' ; \
 	    echo 'endif' \
 	) > $(dir $@)/.$(notdir $@).flags
@@ -93,7 +93,7 @@ $(L_TARGET): $(LX_OBJS) $(L_OBJS)
 	rm -f $@
 	$(AR) $(EXTRA_ARFLAGS) rcs $@ $(LX_OBJS) $(L_OBJS)
 	@ ( \
-	    echo 'ifeq ($(strip $(EXTRA_ARFLAGS) $(LX_OBJS) $(L_OBJS)),$$(strip $$(EXTRA_ARFLAGS) $$(LX_OBJS) $$(L_OBJS)))' ; \
+	    echo 'ifeq ($(strip $(subst $(comma),:,$(EXTRA_ARFLAGS) $(LX_OBJS) $(L_OBJS))),$$(strip $$(subst $$(comma),:,$$(EXTRA_ARFLAGS) $$(LX_OBJS) $$(L_OBJS))))' ; \
 	    echo 'FILES_FLAGS_UP_TO_DATE += $@' ; \
 	    echo 'endif' \
 	) > $(dir $@)/.$(notdir $@).flags
@@ -105,15 +105,23 @@ endif
 fastdep: dummy
 	$(TOPDIR)/scripts/mkdep $(wildcard *.[chS] local.h.master) > .depend
 ifdef ALL_SUB_DIRS
-	set -e; for i in $(ALL_SUB_DIRS); do $(MAKE) -C $$i fastdep; done
+	$(MAKE) $(patsubst %,_sfdep_%,$(ALL_SUB_DIRS)) _FASTDEP_ALL_SUB_DIRS="$(ALL_SUB_DIRS)"
 endif
 
+ifdef _FASTDEP_ALL_SUB_DIRS
+$(patsubst %,_sfdep_%,$(_FASTDEP_ALL_SUB_DIRS)):
+	$(MAKE) -C $(patsubst _sfdep_%,%,$@) fastdep
+endif
+
+	
 #
 # A rule to make subdirectories
 #
-sub_dirs: dummy
+sub_dirs: dummy $(patsubst %,_subdir_%,$(SUB_DIRS))
+
 ifdef SUB_DIRS
-	set -e; for i in $(SUB_DIRS); do $(MAKE) -C $$i; done
+$(patsubst %,_subdir_%,$(SUB_DIRS)) : dummy
+	$(MAKE) -C $(patsubst _subdir_%,%,$@)
 endif
 
 #
@@ -123,13 +131,20 @@ ALL_MOBJS = $(MX_OBJS) $(M_OBJS)
 ifneq "$(strip $(ALL_MOBJS))" ""
 PDWN=$(shell $(CONFIG_SHELL) $(TOPDIR)/scripts/pathdown.sh)
 endif
-modules: $(ALL_MOBJS) $(MIX_OBJS) $(MI_OBJS) dummy
+
 ifdef MOD_SUB_DIRS
-	set -e; for i in $(MOD_SUB_DIRS); do $(MAKE) -C $$i modules; done
+$(patsubst %,_modsubdir_%,$(MOD_SUB_DIRS)) : dummy
+	$(MAKE) -C $(patsubst _modsubdir_%,%,$@) modules
 endif
+
 ifdef MOD_IN_SUB_DIRS
-	set -e; for i in $(MOD_IN_SUB_DIRS); do $(MAKE) -C $$i modules; done
+$(patsubst %,_modinsubdir_%,$(MOD_IN_SUB_DIRS)) : dummy
+	$(MAKE) -C $(patsubst _modinsubdir_%,%,$@) modules
 endif
+
+modules: $(ALL_MOBJS) $(MIX_OBJS) $(MI_OBJS) dummy \
+	 $(patsubst %,_modsubdir_%,$(MOD_SUB_DIRS)) \
+	 $(patsubst %,_modinsubdir_%,$(MOD_IN_SUB_DIRS))
 ifneq "$(strip $(MOD_LIST_NAME))" ""
 	rm -f $$TOPDIR/modules/$(MOD_LIST_NAME)
 ifdef MOD_SUB_DIRS
@@ -176,10 +191,10 @@ ifneq "$(strip $(SYMTAB_OBJS))" ""
 MODINCL = $(TOPDIR)/include/linux/modules
 
 # The -w option (enable warnings) for genksyms will return here in 2.1
-# So where has it gone ???
+# So where has it gone?
 #
-# Added the SMP seperator to stop module accidents between uniproc/smp
-# intel boxes - AC - from bits by Michael Chastain
+# Added the SMP separator to stop module accidents between uniprocessor
+# and SMP Intel boxes - AC - from bits by Michael Chastain
 #
 
 ifdef SMP
@@ -189,9 +204,14 @@ else
 endif
 
 $(MODINCL)/%.ver: %.c
-	$(CC) $(CFLAGS) -E -D__GENKSYMS__ $<\
-	| $(GENKSYMS) $(genksyms_smp_prefix) -k $(VERSION).$(PATCHLEVEL).$(SUBLEVEL) > $@.tmp
-	mv $@.tmp $@
+	@if [ ! -r $(MODINCL)/$*.stamp -o $(MODINCL)/$*.stamp -ot $< ]; then \
+		echo '$(CC) $(CFLAGS) -E -D__GENKSYMS__ $<'; \
+		echo '| $(GENKSYMS) $(genksyms_smp_prefix) -k $(VERSION).$(PATCHLEVEL).$(SUBLEVEL) > $@.tmp'; \
+		$(CC) $(CFLAGS) -E -D__GENKSYMS__ $< \
+		| $(GENKSYMS) $(genksyms_smp_prefix) -k $(VERSION).$(PATCHLEVEL).$(SUBLEVEL) > $@.tmp; \
+		if [ -r $@ ] && cmp -s $@ $@.tmp; then echo $@ is unchanged; rm -f $@.tmp; \
+		else echo mv $@.tmp $@; mv -f $@.tmp $@; fi; \
+	fi; touch $(MODINCL)/$*.stamp
 	
 $(addprefix $(MODINCL)/,$(SYMTAB_OBJS:.o=.ver)): $(TOPDIR)/include/linux/autoconf.h
 
@@ -227,7 +247,7 @@ ifneq "$(strip $(SYMTAB_OBJS))" ""
 $(SYMTAB_OBJS): $(TOPDIR)/include/linux/modversions.h $(SYMTAB_OBJS:.o=.c)
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) $(CFLAGS_$@) -DEXPORT_SYMTAB -c $(@:.o=.c)
 	@ ( \
-	    echo 'ifeq ($(strip $(CFLAGS) $(EXTRA_CFLAGS) $(CFLAGS_$@) -DEXPORT_SYMTAB),$$(strip $$(CFLAGS) $$(EXTRA_CFLAGS) $$(CFLAGS_$@) -DEXPORT_SYMTAB))' ; \
+	    echo 'ifeq ($(strip $(subst $(comma),:,$(CFLAGS) $(EXTRA_CFLAGS) $(CFLAGS_$@) -DEXPORT_SYMTAB)),$$(strip $$(subst $$(comma),:,$$(CFLAGS) $$(EXTRA_CFLAGS) $$(CFLAGS_$@) -DEXPORT_SYMTAB)))' ; \
 	    echo 'FILES_FLAGS_UP_TO_DATE += $@' ; \
 	    echo 'endif' \
 	) > $(dir $@)/.$(notdir $@).flags
@@ -253,6 +273,9 @@ endif
 #   every file is forced, except those whose flags are positively up-to-date.
 #
 FILES_FLAGS_UP_TO_DATE :=
+
+# For use in expunging commas from flags, which mung our checking.
+comma = ,
 
 FILES_FLAGS_EXIST := $(wildcard .*.flags)
 ifneq ($(FILES_FLAGS_EXIST),)

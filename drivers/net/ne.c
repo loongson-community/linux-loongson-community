@@ -25,6 +25,9 @@
     Paul Gortmaker	: Support for PCI ne2k clones, similar to lance.c
     Paul Gortmaker	: Allow users with bad cards to avoid full probe.
     Paul Gortmaker	: PCI probe changes, more PCI cards supported.
+    rjohnson@analogic.com : Changed init order so an interrupt will only
+    occur after memory is allocated for dev->priv. Deallocated memory
+    last in cleanup_modue()
 
 */
 
@@ -79,6 +82,7 @@ pci_clone_list[] __initdata = {
 	{PCI_VENDOR_ID_KTI,		PCI_DEVICE_ID_KTI_ET32P2,		"KTI ET32P2" },
 	{PCI_VENDOR_ID_NETVIN,		PCI_DEVICE_ID_NETVIN_NV5000SC,		"NetVin NV5000" },
 	{PCI_VENDOR_ID_VIA,		PCI_DEVICE_ID_VIA_82C926,		"VIA 82C926 Amazon" },
+	{PCI_VENDOR_ID_SURECOM,		PCI_DEVICE_ID_SURECOM_NE34,		"SureCom NE34"},
 	{0,}
 };
 #endif
@@ -222,6 +226,7 @@ __initfunc(static int ne_probe_pci(struct device *dev))
 		printk("ne.c: PCI BIOS reports %s at i/o %#x, irq %d.\n",
 				pci_clone_list[i].name,
 				pci_ioaddr, pci_irq_line);
+		printk("*\n* Use of the PCI-NE2000 driver with this card is recommended!\n*\n");
 		if (ne_probe1(dev, pci_ioaddr) != 0) {	/* Shouldn't happen. */
 			printk(KERN_ERR "ne.c: Probe of PCI card at %#x failed.\n", pci_ioaddr);
 			pci_irq_line = 0;
@@ -261,6 +266,9 @@ __initfunc(static int ne_probe1(struct device *dev, int ioaddr))
 	    return ENODEV;
 	}
     }
+
+    if (load_8390_module("ne.c"))
+	return -ENOSYS;
 
     /* We should have a "dev" from Space.c or the static module table. */
     if (dev == NULL) {
@@ -401,7 +409,7 @@ __initfunc(static int ne_probe1(struct device *dev, int ioaddr))
 	outb_p(0x00, ioaddr + EN0_RCNTLO);
 	outb_p(0x00, ioaddr + EN0_RCNTHI);
 	outb_p(E8390_RREAD+E8390_START, ioaddr); /* Trigger it... */
-	udelay(10000);		/* wait 10ms for interrupt to propagate */
+	mdelay(10);		/* wait 10ms for interrupt to propagate */
 	outb_p(0x00, ioaddr + EN0_IMR); 		/* Mask it again. */
 	dev->irq = autoirq_report(0);
 	if (ei_debug > 2)
@@ -416,6 +424,12 @@ __initfunc(static int ne_probe1(struct device *dev, int ioaddr))
 	return EAGAIN;
     }
 
+    /* Allocate dev->priv and fill in 8390 specific dev fields. */
+    if (ethdev_init(dev)) {
+        printk (" unable to get memory for dev->priv.\n");
+        return -ENOMEM;
+    }
+   
     /* Snarf the interrupt now.  There's no point in waiting since we cannot
        share and the board will usually be enabled. */
     {
@@ -423,19 +437,13 @@ __initfunc(static int ne_probe1(struct device *dev, int ioaddr))
 				 pci_irq_line ? SA_SHIRQ : 0, name, dev);
 	if (irqval) {
 	    printk (" unable to get IRQ %d (irqval=%d).\n", dev->irq, irqval);
+
+            kfree(dev->priv);
+	    dev->priv = NULL;
 	    return EAGAIN;
 	}
     }
-
     dev->base_addr = ioaddr;
-
-    /* Allocate dev->priv and fill in 8390 specific dev fields. */
-    if (ethdev_init(dev)) {
-	printk (" unable to get memory for dev->priv.\n");
-	free_irq(dev->irq, dev);
-	return -ENOMEM;
-    }
-
     request_region(ioaddr, NE_IO_EXTENT, name);
 
     for(i = 0; i < ETHER_ADDR_LEN; i++) {
@@ -522,7 +530,7 @@ ne_get_8390_hdr(struct device *dev, struct e8390_pkt_hdr *hdr, int ring_page)
     /* This *shouldn't* happen. If it does, it's the last thing you'll see */
     if (ei_status.dmaing) {
 	printk("%s: DMAing conflict in ne_get_8390_hdr "
-	   "[DMAstat:%d][irqlock:%d][intr:%d].\n",
+	   "[DMAstat:%d][irqlock:%d][intr:%ld].\n",
 	   dev->name, ei_status.dmaing, ei_status.irqlock,
 	   dev->interrupt);
 	return;
@@ -562,7 +570,7 @@ ne_block_input(struct device *dev, int count, struct sk_buff *skb, int ring_offs
     /* This *shouldn't* happen. If it does, it's the last thing you'll see */
     if (ei_status.dmaing) {
 	printk("%s: DMAing conflict in ne_block_input "
-	   "[DMAstat:%d][irqlock:%d][intr:%d].\n",
+	   "[DMAstat:%d][irqlock:%d][intr:%ld].\n",
 	   dev->name, ei_status.dmaing, ei_status.irqlock,
 	   dev->interrupt);
 	return;
@@ -631,7 +639,7 @@ ne_block_output(struct device *dev, int count,
     /* This *shouldn't* happen. If it does, it's the last thing you'll see */
     if (ei_status.dmaing) {
 	printk("%s: DMAing conflict in ne_block_output."
-	   "[DMAstat:%d][irqlock:%d][intr:%d]\n",
+	   "[DMAstat:%d][irqlock:%d][intr:%ld]\n",
 	   dev->name, ei_status.dmaing, ei_status.irqlock,
 	   dev->interrupt);
 	return;
@@ -753,15 +761,17 @@ init_module(void)
 			found++;
 			continue;
 		}
-		if (found != 0) 	/* Got at least one. */
+		if (found != 0) { 	/* Got at least one. */
+			lock_8390_module();
 			return 0;
+		}
 		if (io[this_dev] != 0)
 			printk(KERN_WARNING "ne.c: No NE*000 card found at i/o = %#x\n", io[this_dev]);
 		else
 			printk(KERN_NOTICE "ne.c: No PCI cards found. Use \"io=0xNNN\" value(s) for ISA cards.\n");
 		return -ENXIO;
 	}
-
+	lock_8390_module();
 	return 0;
 }
 
@@ -773,13 +783,15 @@ cleanup_module(void)
 	for (this_dev = 0; this_dev < MAX_NE_CARDS; this_dev++) {
 		struct device *dev = &dev_ne[this_dev];
 		if (dev->priv != NULL) {
-			unregister_netdev(dev);
-			kfree(dev->priv);
-			dev->priv = NULL;
+			void *priv = dev->priv;
 			free_irq(dev->irq, dev);
 			release_region(dev->base_addr, NE_IO_EXTENT);
+			dev->priv = NULL;
+			unregister_netdev(dev);
+			kfree(priv);
 		}
 	}
+	unlock_8390_module();
 }
 #endif /* MODULE */
 

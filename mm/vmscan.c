@@ -42,7 +42,7 @@ int swapout_interval = HZ / 4;
 /* 
  * The wait queue for waking up the pageout daemon:
  */
-static struct wait_queue * kswapd_wait = NULL;
+struct wait_queue * kswapd_wait = NULL;
 
 static void init_swap_timer(void);
 
@@ -88,7 +88,7 @@ static inline int try_to_swap_out(struct task_struct * tsk, struct vm_area_struc
 	 * pages, then delete the swap cache.  We can only do this if
 	 * the swap page's reference count is one: ie. there are no
 	 * other references to it beyond the swap cache (as there must
-	 * still be pte's pointing to it if count > 1).
+	 * still be PTEs pointing to it if count > 1).
 	 * 
 	 * If the page has NOT been touched, and its age reaches zero,
 	 * then we are swapping it out:
@@ -107,7 +107,17 @@ static inline int try_to_swap_out(struct task_struct * tsk, struct vm_area_struc
 
 	if (PageSwapCache(page_map)) {
 		if (pte_write(pte)) {
+			struct page *found;
 			printk ("VM: Found a writable swap-cached page!\n");
+			/* Try to diagnose the problem ... */
+			found = find_page(&swapper_inode, page_map->offset);
+			if (found) {
+				printk("page=%p@%08lx, found=%p, count=%d\n",
+					page_map, page_map->offset,
+					found, atomic_read(&found->count));
+				__free_page(found);
+			} else 
+				printk ("Spurious, page not in cache\n");
 			return 0;
 		}
 	}
@@ -144,9 +154,8 @@ static inline int try_to_swap_out(struct task_struct * tsk, struct vm_area_struc
 			 * we have the swap cache set up to associate the
 			 * page with that swap entry.
 			 */
-			if (PageSwapCache(page_map)) {
-				entry = page_map->offset;
-			} else {
+        		entry = in_swap_cache(page_map);
+			if (!entry) {
 				entry = get_swap_page();
 				if (!entry)
 					return 0; /* No swap space left */
@@ -219,8 +228,8 @@ static inline int try_to_swap_out(struct task_struct * tsk, struct vm_area_struc
 	flush_cache_page(vma, address);
 	pte_clear(page_table);
 	flush_tlb_page(vma, address);
-	entry = page_unuse(page);
-	free_page(page);
+	entry = page_unuse(page_map);
+	__free_page(page_map);
 	return entry;
 }
 
@@ -435,7 +444,7 @@ out:
  * to be.  This works out OK, because we now do proper aging on page
  * contents. 
  */
-static inline int do_try_to_free_page(int gfp_mask)
+static int do_try_to_free_page(int gfp_mask)
 {
 	static int state = 0;
 	int i=6;
@@ -448,9 +457,10 @@ static inline int do_try_to_free_page(int gfp_mask)
 	stop = 3;
 	if (gfp_mask & __GFP_WAIT)
 		stop = 0;
+
 	if (((buffermem >> PAGE_SHIFT) * 100 > buffer_mem.borrow_percent * num_physpages)
 		   || (page_cache_size * 100 > page_cache.borrow_percent * num_physpages))
-		state = 0;
+		shrink_mmap(i, gfp_mask);
 
 	switch (state) {
 		do {
@@ -459,7 +469,7 @@ static inline int do_try_to_free_page(int gfp_mask)
 				return 1;
 			state = 1;
 		case 1:
-			if ((gfp_mask & __GFP_IO) && shm_swap(i, gfp_mask))
+			if (shm_swap(i, gfp_mask))
 				return 1;
 			state = 2;
 		case 2:
@@ -473,23 +483,6 @@ static inline int do_try_to_free_page(int gfp_mask)
 		} while ((i - stop) >= 0);
 	}
 	return 0;
-}
-
-/*
- * This is REALLY ugly.
- *
- * We need to make the locks finer granularity, but right
- * now we need this so that we can do page allocations
- * without holding the kernel lock etc.
- */
-int try_to_free_page(int gfp_mask)
-{
-	int retval;
-
-	lock_kernel();
-	retval = do_try_to_free_page(gfp_mask);
-	unlock_kernel();
-	return retval;
 }
 
 /*
@@ -532,7 +525,7 @@ int kswapd(void *unused)
 
 	/* Give kswapd a realtime priority. */
 	current->policy = SCHED_FIFO;
-	current->priority = 32;  /* Fixme --- we need to standardise our
+	current->rt_priority = 32;  /* Fixme --- we need to standardise our
 				    namings for POSIX.4 realtime scheduling
 				    priorities.  */
 
@@ -540,7 +533,6 @@ int kswapd(void *unused)
 	add_wait_queue(&kswapd_wait, &wait);
 	while (1) {
 		int tries;
-		int tried = 0;
 
 		current->state = TASK_INTERRUPTIBLE;
 		flush_signals(current);
@@ -564,27 +556,54 @@ int kswapd(void *unused)
 		 * woken up more often and the rate will be even
 		 * higher).
 		 */
-		tries = pager_daemon.tries_base >> free_memory_available(3);
-	
-		while (tries--) {
-			int gfp_mask;
+		tries = pager_daemon.tries_base;
+		tries >>= 4*free_memory_available();
 
-			if (++tried > pager_daemon.tries_min && free_memory_available(0))
-				break;
-			gfp_mask = __GFP_IO;
-			try_to_free_page(gfp_mask);
+		do {
+			do_try_to_free_page(0);
 			/*
 			 * Syncing large chunks is faster than swapping
 			 * synchronously (less head movement). -- Rik.
 			 */
 			if (atomic_read(&nr_async_pages) >= pager_daemon.swap_cluster)
 				run_task_queue(&tq_disk);
-
-		}
+			if (free_memory_available() > 1)
+				break;
+		} while (--tries > 0);
 	}
 	/* As if we could ever get here - maybe we want to make this killable */
 	remove_wait_queue(&kswapd_wait, &wait);
+	unlock_kernel();
 	return 0;
+}
+
+/*
+ * We need to make the locks finer granularity, but right
+ * now we need this so that we can do page allocations
+ * without holding the kernel lock etc.
+ *
+ * The "PF_MEMALLOC" flag protects us against recursion:
+ * if we need more memory as part of a swap-out effort we
+ * will just silently return "success" to tell the page
+ * allocator to accept the allocation.
+ */
+int try_to_free_pages(unsigned int gfp_mask, int count)
+{
+	int retval = 1;
+
+	lock_kernel();
+	if (current->flags & PF_MEMALLOC) {
+		current->flags |= PF_MEMALLOC;
+		do {
+			retval = do_try_to_free_page(gfp_mask);
+			if (!retval)
+				break;
+			count--;
+		} while (count > 0);
+		current->flags &= PF_MEMALLOC;
+	}
+	unlock_kernel();
+	return retval;
 }
 
 /* 
@@ -606,11 +625,11 @@ void swap_tick(void)
 	 * Schedule for wakeup if there isn't lots
 	 * of free memory.
 	 */
-	switch (free_memory_available(3)) {
+	switch (free_memory_available()) {
 	case 0:
 		want = now;
 		/* Fall through */
-	case 1 ... 3:
+	case 1:
 		want_wakeup = 1;
 	default:
 	}

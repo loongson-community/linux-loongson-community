@@ -20,6 +20,7 @@
  *			reconnect race condition causing a warning message.
  *  12-Oct-1997	RMK	Added catch for re-entering interrupt routine.
  *  15-Oct-1997	RMK	Improved handling of commands.
+ *  27-Jun-1998	RMK	Changed asm/delay.h to linux/delay.h.
  */
 #define DEBUG_NO_WRITE	1
 #define DEBUG_QUEUES	2
@@ -136,8 +137,9 @@
 #include <linux/stat.h>
 #include <linux/ioport.h>
 #include <linux/blk.h>
+#include <linux/delay.h>
+
 #include <asm/bitops.h>
-#include <asm/delay.h>
 #include <asm/system.h>
 #include <asm/io.h>
 #include <asm/ecard.h>
@@ -2726,7 +2728,7 @@ char *acornscsi_info(struct Scsi_Host *host)
 
     p = string;
     
-    p += sprintf (string, "%s at port %X irq %d v%d.%d.%d"
+    p += sprintf (string, "%s at port %lX irq %d v%d.%d.%d"
 #ifdef CONFIG_SCSI_ACORNSCSI_SYNC
     " SYNC"
 #endif
@@ -2784,12 +2786,12 @@ int acornscsi_proc_info(char *buffer, char **start, off_t offset,
 			host->dma.io_port, host->scsi.irq);
 #endif
 
-    p += sprintf (p,	"Statistics:\n",
-			"Queued commands: %-10d    Issued commands: %-10d\n"
-			"Done commands  : %-10d    Reads          : %-10d\n"
-			"Writes         : %-10d    Others         : %-10d\n"
-			"Disconnects    : %-10d    Aborts         : %-10d\n"
-			"Resets         : %-10d\n\nLast phases:",
+    p += sprintf (p,	"Statistics:\n"
+			"Queued commands: %-10u    Issued commands: %-10u\n"
+			"Done commands  : %-10u    Reads          : %-10u\n"
+			"Writes         : %-10u    Others         : %-10u\n"
+			"Disconnects    : %-10u    Aborts         : %-10u\n"
+			"Resets         : %-10u\n\nLast phases:",
 			host->stats.queues,		host->stats.removes,
 			host->stats.fins,		host->stats.reads,
 			host->stats.writes,		host->stats.miscs,

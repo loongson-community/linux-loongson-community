@@ -765,6 +765,7 @@ static int find_output_space(int dev, char **buf, int *size)
 
 	offs = (dmap->user_counter % dmap->bytes_in_use) & ~SAMPLE_ROUNDUP;
 	if (offs < 0 || offs >= dmap->bytes_in_use) {
+		restore_flags(flags);
 		printk(KERN_ERR "Sound: Got unexpected offs %ld. Giving up.\n", offs);
 		printk("Counter = %ld, bytes=%d\n", dmap->user_counter, dmap->bytes_in_use);
 		return 0;
@@ -1130,6 +1131,12 @@ void DMAbuf_init(int dev, int dma1, int dma2)
 	/*
 	 * NOTE! This routine could be called several times.
 	 */
+
+	/* drag in audio_syms.o */
+	{
+		extern char audio_syms_symbol;
+		audio_syms_symbol = 0;
+	}
 
 	if (adev && adev->dmap_out == NULL) {
 		if (adev->d == NULL)

@@ -26,21 +26,14 @@
 #include <linux/types.h>
 #include <linux/wait.h>
 
-#include "i2c.h"
+#include <linux/i2c.h>
 #include "msp3400.h"
 #include "bt848.h"
 #include <linux/videodev.h>
 
 #define MAX_CLIPRECS	100
 #define RISCMEM_LEN	(32744*2)
-#define MAX_FBUF	0x144000
-
-struct riscprog 
-{
-	unsigned int length;  
-	u32 *busadr;
-	u32 *prog;
-};
+#define BTTV_MAX_FBUF	0x144000
 
 
 /* clipping rectangle */
@@ -48,29 +41,6 @@ struct cliprec
 {
 	int x, y, x2, y2;
 	struct cliprec *next;
-};
-
-
-/* grab buffer */
-struct gbuffer 
-{
-	struct gbuffer *next;
-	struct gbuffer *next_active;
-	void *adr;
-	int x, y;
-	int width, height;
-	unsigned int bpl;
-	unsigned int fmt;
-	int flags;
-#define GBUF_ODD  1
-#define GBUF_EVEN 2
-#define GBUF_LFB  4
-#define GBUF_INT  8
-	unsigned int length;
-	void *ro;
-	void *re;
-	u32 bro;
-	u32 bre;
 };
 
 
@@ -84,11 +54,12 @@ struct bttv_window
 	ushort swidth, sheight;
 	short cropx, cropy;
 	ushort cropwidth, cropheight;
-	unsigned int vidadr;
+	unsigned long vidadr;
 	ushort freq;
 	int norm;
 	int interlace;
 	int color_fmt;
+	ushort depth;
 };
 
 
@@ -103,12 +74,11 @@ struct bttv
 	struct i2c_bus i2c;
 	int have_msp3400;
 	int have_tuner;
+        int tuner_type;
 
 	unsigned short id;
-	unsigned char bus;          /* PCI bus the Bt848 is on */
-	unsigned char devfn;
+	struct pci_dev *dev;
 	unsigned char revision;
-	unsigned char irq;          /* IRQ used by Bt848 card */
 	unsigned int bt848_adr;      /* bus address of IO mem returned by PCI BIOS */
 	unsigned char *bt848_mem;   /* pointer to mapped IO memory */
 	unsigned long busriscmem; 
@@ -119,7 +89,7 @@ struct bttv
 	int type;            /* card type  */
 	int audio;           /* audio mode */
 	int user;
-	int dbx;
+	int audio_chip;
 	int radio;
 
 	u32 *risc_jmp;
@@ -145,12 +115,15 @@ struct bttv
 	u32 *grisc;
 	unsigned long gro;
 	unsigned long gre;
+	unsigned long gro_next;
+	unsigned long gre_next;
 	char *fbuffer;
 	int gmode;
 	int grabbing;
 	int lastgrab;
 	int grab;
 	int grabcount;
+	int pll;
 };
 
 #endif
@@ -184,6 +157,8 @@ struct bttv
 #define BTTV_INTEL         0x04
 #define BTTV_DIAMOND       0x05 
 #define BTTV_AVERMEDIA     0x06 
+#define BTTV_MATRIX_VISION 0x07 
+#define BTTV_FLYVIDEO      0x08
 
 #define AUDIO_TUNER        0x00
 #define AUDIO_RADIO        0x01
@@ -194,8 +169,12 @@ struct bttv
 #define AUDIO_MUTE         0x80
 #define AUDIO_UNMUTE       0x81
 
+#define TDA9850            0x01
+#define TDA8425            0x02
+
 #define I2C_TSA5522        0xc2
 #define I2C_TDA9850        0xb6
+#define I2C_TDA8425        0x82
 #define I2C_HAUPEE         0xa0
 #define I2C_STBEE          0xae
 
@@ -206,5 +185,13 @@ struct bttv
 #define TDA9850_ALI1       0x08
 #define TDA9850_ALI2       0x09
 #define TDA9850_ALI3       0x0a
+
+
+#define TDA8425_VL         0x00
+#define TDA8425_VR         0x01
+#define TDA8425_BA         0x02
+#define TDA8425_TR         0x03
+#define TDA8425_S1         0x08
+ 
 
 #endif

@@ -1,6 +1,8 @@
 #ifndef _LINUX_SOCKET_H
 #define _LINUX_SOCKET_H
 
+#if defined(__KERNEL__) || !defined(__GLIBC__) || (__GLIBC__ < 2)
+
 #include <asm/socket.h>			/* arch-dependent defines	*/
 #include <linux/sockios.h>		/* the SIOCxxx I/O controls	*/
 #include <linux/uio.h>			/* iovec support		*/
@@ -114,9 +116,9 @@ __KINLINE struct cmsghdr * cmsg_nxthdr (struct msghdr *__msg, struct cmsghdr *__
 #define SCM_CONNECT	0x03		/* rw: struct scm_connect	*/
 
 struct ucred {
-	__kernel_pid_t  pid;
-	__kernel_uid_t  uid;
-	__kernel_gid_t  gid;
+	__u32  pid;
+	__u32  uid;
+	__u32  gid;
 };
 
 
@@ -127,7 +129,7 @@ struct ucred {
 #define AF_INET		2	/* Internet IP Protocol 	*/
 #define AF_AX25		3	/* Amateur Radio AX.25 		*/
 #define AF_IPX		4	/* Novell IPX 			*/
-#define AF_APPLETALK	5	/* Appletalk DDP 		*/
+#define AF_APPLETALK	5	/* AppleTalk DDP 		*/
 #define AF_NETROM	6	/* Amateur Radio NET/ROM 	*/
 #define AF_BRIDGE	7	/* Multiprotocol bridge 	*/
 #define AF_ATMPVC	8	/* ATM PVCs			*/
@@ -144,6 +146,7 @@ struct ucred {
 #define AF_ASH		18	/* Ash				*/
 #define AF_ECONET	19	/* Acorn Econet			*/
 #define AF_ATMSVC	20	/* ATM SVCs			*/
+#define AF_SNA		22	/* Linux SNA Project (nutters!) */
 #define AF_MAX		32	/* For now.. */
 
 /* Protocol families, same as address families. */
@@ -168,7 +171,9 @@ struct ucred {
 #define PF_ROUTE	AF_ROUTE
 #define PF_PACKET	AF_PACKET
 #define PF_ASH		AF_ASH
+#define PF_ECONET	AF_ECONET
 #define PF_ATMSVC	AF_ATMSVC
+#define PF_SNA		AF_SNA
 
 #define PF_MAX		AF_MAX
 
@@ -242,4 +247,5 @@ extern int move_addr_to_user(void *kaddr, int klen, void *uaddr, int *ulen);
 extern int move_addr_to_kernel(void *uaddr, int ulen, void *kaddr);
 extern int put_cmsg(struct msghdr*, int level, int type, int len, void *data);
 #endif
+#endif /* not kernel and not glibc */
 #endif /* _LINUX_SOCKET_H */

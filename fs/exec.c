@@ -394,9 +394,9 @@ end_readexec:
 static int exec_mmap(void)
 {
 	struct mm_struct * mm, * old_mm;
-	int retval;
+	int retval, nr;
 
-	if (current->mm->count == 1) {
+	if (atomic_read(&current->mm->count) == 1) {
 		flush_cache_mm(current->mm);
 		exit_mmap(current->mm);
 		clear_page_tables(current);
@@ -413,9 +413,16 @@ static int exec_mmap(void)
 	mm = mm_alloc();
 	if (!mm)
 		goto fail_nomem;
+
 	mm->cpu_vm_mask = (1UL << smp_processor_id());
 	mm->total_vm = 0;
 	mm->rss = 0;
+	/*
+	 * Make sure we have a private ldt if needed ...
+	 */
+	nr = current->tarray_ptr - &task[0]; 
+	copy_segments(nr, current, mm);
+
 	old_mm = current->mm;
 	current->mm = mm;
 	retval = new_page_tables(current);
@@ -430,7 +437,11 @@ static int exec_mmap(void)
 	 * Failure ... restore the prior mm_struct.
 	 */
 fail_restore:
+	/* The pgd belongs to the parent ... don't free it! */
+	mm->pgd = NULL;
 	current->mm = old_mm;
+	/* restore the ldt for this task */
+	copy_segments(nr, current, NULL);
 	mmput(mm);
 
 fail_nomem:
@@ -653,9 +664,11 @@ int prepare_binprm(struct linux_binprm *bprm)
 		/* (current->mm->count > 1 is ok, as we'll get a new mm anyway)   */
 		if (IS_NOSUID(inode)
 		    || (current->flags & PF_PTRACED)
-		    || (current->fs->count > 1)
+		    || (atomic_read(&current->fs->count) > 1)
 		    || (atomic_read(&current->sig->count) > 1)
-		    || (current->files->count > 1)) {
+		    || (atomic_read(&current->files->count) > 1)) {
+			if (id_change && !capable(CAP_SETUID))
+				return -EPERM;
 			if (!suser())
 				return -EPERM;
 		}

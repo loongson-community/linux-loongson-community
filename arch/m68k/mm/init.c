@@ -31,6 +31,20 @@ extern void die_if_kernel(char *,struct pt_regs *,long);
 extern void init_kpointer_table(void);
 extern void show_net_buffers(void);
 
+int do_check_pgt_cache(int low, int high)
+{
+	int freed = 0;
+	if(pgtable_cache_size > high) {
+		do {
+			if(pmd_quicklist)
+				freed += free_pmd_slow(get_pmd_fast());
+			if(pte_quicklist)
+				free_pte_slow(get_pte_fast()), freed++;
+		} while(pgtable_cache_size > low);
+	}
+	return freed;
+}
+
 /*
  * BAD_PAGE is the page that is used for page faults when linux
  * is out-of-memory. Older versions of linux just did a
@@ -76,7 +90,7 @@ void show_mem(void)
 	total++;
 	if (PageReserved(mem_map+i))
 	    reserved++;
-	if (PageSwapCache(mem_map+i))
+	else if (PageSwapCache(mem_map+i))
 	    cached++;
 	else if (!atomic_read(&mem_map[i].count))
 	    free++;
@@ -91,6 +105,7 @@ void show_mem(void)
     printk("%d pages nonshared\n",nonshared);
     printk("%d pages shared\n",shared);
     printk("%d pages swap cached\n",cached);
+    printk("%ld pages in page table cache\n",pgtable_cache_size);
     show_buffers();
 #ifdef CONFIG_NET
     show_net_buffers();
@@ -231,7 +246,7 @@ map_chunk (unsigned long addr, unsigned long size, unsigned long *memavailp))
 			 */
 			for (i = 0; i < 64; i++) {
 				pte_val(ktablep[i]) = physaddr | _PAGE_PRESENT
-					| _PAGE_CACHE040 | _PAGE_GLOBAL040
+				  | m68k_supervisor_cachemode | _PAGE_GLOBAL040
 					| _PAGE_ACCESSED;
 				physaddr += PAGE_SIZE;
 			}

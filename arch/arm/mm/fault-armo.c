@@ -5,6 +5,7 @@
  *  Modifications for ARM processor (c) 1995, 1996 Russell King
  */
 
+#include <linux/config.h>
 #include <linux/signal.h>
 #include <linux/sched.h>
 #include <linux/head.h>
@@ -29,9 +30,21 @@
 
 struct pgtable_cache_struct quicklists;
 
-void __bad_pte(pmd_t *pmd)
+void __bad_pmd(pmd_t *pmd)
 {
 	printk("Bad pmd in pte_alloc: %08lx\n", pmd_val(*pmd));
+#ifdef CONFIG_DEBUG_ERRORS
+	__backtrace();
+#endif
+	set_pmd(pmd, mk_pmd(BAD_PAGETABLE));
+}
+
+void __bad_pmd_kernel(pmd_t *pmd)
+{
+	printk("Bad pmd in pte_alloc_kernel: %08lx\n", pmd_val(*pmd));
+#ifdef CONFIG_DEBUG_ERRORS
+	__backtrace();
+#endif
 	set_pmd(pmd, mk_pmd(BAD_PAGETABLE));
 }
 
@@ -65,7 +78,7 @@ pte_t *get_pte_slow(pmd_t *pmd, unsigned long offset)
 	}
 	kfree (pte);
 	if (pmd_bad(*pmd)) {
-		__bad_pte(pmd);
+		__bad_pmd(pmd);
 		return NULL;
 	}
 	return (pte_t *) pmd_page(*pmd) + offset;
@@ -145,11 +158,11 @@ good_area:
 bad_area:
 	up(&mm->mmap_sem);
 	if (mode & FAULT_CODE_USER) {
-extern int console_loglevel;
-cli();
+//extern int console_loglevel;
+//cli();
 		tsk->tss.error_code = mode;
 		tsk->tss.trap_no = 14;
-console_loglevel = 9;
+//console_loglevel = 9;
 		printk ("%s: memory violation at pc=0x%08lx, lr=0x%08lx (bad address=0x%08lx, code %d)\n",
 			tsk->comm, regs->ARM_pc, regs->ARM_lr, addr, mode);
 //#ifdef DEBUG
@@ -157,7 +170,7 @@ console_loglevel = 9;
 		c_backtrace (regs->ARM_fp, 0);
 //#endif
 		force_sig(SIGSEGV, tsk);
-while (1);
+//while (1);
 		goto out;
 	}
 

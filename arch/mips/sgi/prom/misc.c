@@ -1,9 +1,8 @@
-/*
+/* $Id: misc.c,v 1.6 1998/07/08 15:59:13 ralf Exp $
+ *
  * misc.c: Miscellaneous ARCS PROM routines.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
- *
- * $Id: misc.c,v 1.3 1998/04/05 11:24:03 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/init.h>

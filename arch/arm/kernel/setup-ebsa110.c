@@ -18,7 +18,6 @@
 #include <linux/unistd.h>
 #include <linux/ptrace.h>
 #include <linux/malloc.h>
-#include <linux/ldt.h>
 #include <linux/user.h>
 #include <linux/a.out.h>
 #include <linux/tty.h>
@@ -27,9 +26,11 @@
 #include <linux/major.h>
 #include <linux/utsname.h>
 #include <linux/init.h>
+#include <linux/console.h>
 
 #include <asm/hardware.h>
 #include <asm/pgtable.h>
+#include <asm/procinfo.h>
 #include <asm/segment.h>
 #include <asm/setup.h>
 #include <asm/system.h>
@@ -41,17 +42,25 @@
 
 #define MEM_SIZE	(16*1024*1024)
 
-static char command_line[COMMAND_LINE_SIZE] = { 0, };
-       char saved_command_line[COMMAND_LINE_SIZE];
-
-struct processor processor;
 struct screen_info screen_info;
+struct processor processor;
 unsigned char aux_device_present;
+
+extern const struct processor sa110_processor_functions;
+
+struct armversions armidlist[] = {
+	{ 0x4401a100, 0xfffffff0, F_MMU|F_32BIT	, "DEC",	"sa110"		, &sa110_processor_functions  , "sa1x"},
+	{ 0x00000000, 0x00000000, 0		, "***",	"*unknown*"	, NULL			      , NULL  }
+};
+
 unsigned long arm_id;
+int armidindex;
 
 extern int root_mountflags;
 extern int _etext, _edata, _end;
-extern const struct processor sa110_processor_functions;
+
+static char command_line[COMMAND_LINE_SIZE] __initdata = { 0, };
+       char saved_command_line[COMMAND_LINE_SIZE];
 
 #ifdef CONFIG_BLK_DEV_RAM
 extern int rd_doload;		/* 1 = load ramdisk, 0 = don't load */
@@ -111,6 +120,8 @@ __initfunc(void setup_arch(char **cmdline_p,
 
 	memory_start = (unsigned long)&_end;
 
+	armidindex = 0;
+
 	processor = sa110_processor_functions;
 	processor._proc_init();
 
@@ -154,6 +165,10 @@ __initfunc(void setup_arch(char **cmdline_p,
 	*memory_start_p = memory_start;
 	*memory_end_p = memory_end;
 	strcpy (system_utsname.machine, "sa110");
+
+#ifdef CONFIG_FB
+	conswitchp = &fb_con;
+#endif
 }
 
 int get_cpuinfo(char * buffer)

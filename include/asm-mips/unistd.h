@@ -1,6 +1,4 @@
-/* $Id: unistd.h,v 1.13 1998/05/07 15:21:41 ralf Exp $
- *
- * This file contains the system call numbers.
+/* $Id: unistd.h,v 1.18 1998/08/20 16:34:48 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -1010,7 +1008,7 @@
 #define __NR_lseek			(__NR_Linux +  19)
 #define __NR_getpid			(__NR_Linux +  20)
 #define __NR_mount			(__NR_Linux +  21)
-#define __NR_umount			(__NR_Linux +  22)
+#define __NR_oldumount			(__NR_Linux +  22)
 #define __NR_setuid			(__NR_Linux +  23)
 #define __NR_getuid			(__NR_Linux +  24)
 #define __NR_stime			(__NR_Linux +  25)
@@ -1040,7 +1038,7 @@
 #define __NR_geteuid			(__NR_Linux +  49)
 #define __NR_getegid			(__NR_Linux +  50)
 #define __NR_acct			(__NR_Linux +  51)
-#define __NR_phys			(__NR_Linux +  52)
+#define __NR_umount			(__NR_Linux +  52)
 #define __NR_lock			(__NR_Linux +  53)
 #define __NR_ioctl			(__NR_Linux +  54)
 #define __NR_fcntl			(__NR_Linux +  55)
@@ -1194,13 +1192,17 @@
 #define __NR_getcwd			(__NR_Linux + 203)
 #define __NR_capget			(__NR_Linux + 204)
 #define __NR_capset			(__NR_Linux + 205)
+#define __NR_sigaltstack		(__NR_Linux + 206)
+#define __NR_sendfile			(__NR_Linux + 207)
+#define __NR_streams1			(__NR_Linux + 208)
+#define __NR_streams2			(__NR_Linux + 209)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		205
+#define __NR_Linux_syscalls		209
 
-#ifndef __LANGUAGE_ASSEMBLY__
+#ifndef _LANGUAGE_ASSEMBLY
 
 /* XXX - _foo needs to be __foo, while __NR_bar could be _NR_bar. */
 #define _syscall0(type,name) \
@@ -1479,6 +1481,6 @@ static inline pid_t kernel_thread(int (*fn)(void *), void * arg, unsigned long f
 }
 
 #endif /* !defined (__KERNEL_SYSCALLS__) */
-#endif /* !defined (__LANGUAGE_ASSEMBLY__) */
+#endif /* !defined (_LANGUAGE_ASSEMBLY) */
 
 #endif /* __ASM_MIPS_UNISTD_H */

@@ -58,6 +58,70 @@ static struct happy_meal *root_happy_dev = NULL;
 #undef SXDEBUG
 #undef RXDEBUG
 #undef TXDEBUG
+#undef TXLOGGING
+
+#ifdef TXLOGGING
+struct hme_tx_logent {
+	unsigned int tstamp;
+	int tx_new, tx_old;
+	unsigned int action;
+#define TXLOG_ACTION_IRQ	0x01
+#define TXLOG_ACTION_TXMIT	0x02
+#define TXLOG_ACTION_TBUSY	0x04
+#define TXLOG_ACTION_NBUFS	0x08
+	unsigned int status;
+};
+#define TX_LOG_LEN	128
+static struct hme_tx_logent tx_log[TX_LOG_LEN];
+static int txlog_cur_entry = 0;
+static __inline__ void tx_add_log(struct happy_meal *hp, unsigned int a, unsigned int s)
+{
+	struct hme_tx_logent *tlp;
+	unsigned long flags;
+
+	save_and_cli(flags);
+	tlp = &tx_log[txlog_cur_entry];
+	tlp->tstamp = (unsigned int)jiffies;
+	tlp->tx_new = hp->tx_new;
+	tlp->tx_old = hp->tx_old;
+	tlp->action = a;
+	tlp->status = s;
+	txlog_cur_entry = (txlog_cur_entry + 1) & (TX_LOG_LEN - 1);
+	restore_flags(flags);
+}
+static __inline__ void tx_dump_log(void)
+{
+	int i, this;
+
+	this = txlog_cur_entry;
+	for(i = 0; i < TX_LOG_LEN; i++) {
+		printk("TXLOG[%d]: j[%08x] tx[N(%d)O(%d)] action[%08x] stat[%08x]\n", i,
+		       tx_log[this].tstamp,
+		       tx_log[this].tx_new, tx_log[this].tx_old,
+		       tx_log[this].action, tx_log[this].status);
+		this = (this + 1) & (TX_LOG_LEN - 1);
+	}
+}
+static __inline__ void tx_dump_ring(struct happy_meal *hp)
+{
+	struct hmeal_init_block *hb = hp->happy_block;
+	struct happy_meal_txd *tp = &hb->happy_meal_txd[0];
+	int i;
+
+	for(i = 0; i < TX_RING_SIZE; i+=4) {
+		printk("TXD[%d..%d]: [%08x:%08x] [%08x:%08x] [%08x:%08x] [%08x:%08x]\n",
+		       i, i + 4,
+		       le32_to_cpu(tp[i].tx_flags), le32_to_cpu(tp[i].tx_addr),
+		       le32_to_cpu(tp[i + 1].tx_flags), le32_to_cpu(tp[i + 1].tx_addr),
+		       le32_to_cpu(tp[i + 2].tx_flags), le32_to_cpu(tp[i + 2].tx_addr),
+		       le32_to_cpu(tp[i + 3].tx_flags), le32_to_cpu(tp[i + 3].tx_addr));
+	}
+}
+#else
+#define tx_add_log(hp, a, s)		do { } while(0)
+#define tx_dump_log()			do { } while(0)
+#define tx_dump_ring(hp)		do { } while(0)
+#endif
 
 #ifdef HMEDEBUG
 #define HMD(x)  printk x
@@ -73,7 +137,7 @@ static struct happy_meal *root_happy_dev = NULL;
 #define ASD(x)
 #endif
 
-#define DEFAULT_IPG0      32 /* For lance-mode only */
+#define DEFAULT_IPG0      16 /* For lance-mode only */
 #define DEFAULT_IPG1       8 /* For all modes */
 #define DEFAULT_IPG2       4 /* For all modes */
 #define DEFAULT_JAMSIZE    4 /* Toe jam */
@@ -376,18 +440,33 @@ static int set_happy_link_modes(struct happy_meal *hp, struct hmeal_tcvregs *tre
 			full = 0;
 	}
 
-	/* XXX This may not be enough, we may need to reinit the entire
-	 * XXX Happy Meal front end for this to work every time.
+	/* Before changing other bits in the tx_cfg register, and in
+	 * general any of other the TX config registers too, you
+	 * must:
+	 * 1) Clear Enable
+	 * 2) Poll with reads until that bit reads back as zero
+	 * 3) Make TX configuration changes
+	 * 4) Set Enable once more
 	 */
-	if(full)
+	hme_write32(hp, &hp->bigmacregs->tx_cfg,
+		    hme_read32(hp, &hp->bigmacregs->tx_cfg) &
+		    ~(BIGMAC_TXCFG_ENABLE));
+	while(hme_read32(hp, &hp->bigmacregs->tx_cfg) & BIGMAC_TXCFG_ENABLE)
+		barrier();
+	if(full) {
+		hp->happy_flags |= HFLAG_FULL;
 		hme_write32(hp, &hp->bigmacregs->tx_cfg,
 			    hme_read32(hp, &hp->bigmacregs->tx_cfg) |
 			    BIGMAC_TXCFG_FULLDPLX);
-	else
+	} else {
+		hp->happy_flags &= ~(HFLAG_FULL);
 		hme_write32(hp, &hp->bigmacregs->tx_cfg,
 			    hme_read32(hp, &hp->bigmacregs->tx_cfg) &
 			    ~(BIGMAC_TXCFG_FULLDPLX));
-
+	}
+	hme_write32(hp, &hp->bigmacregs->tx_cfg,
+		    hme_read32(hp, &hp->bigmacregs->tx_cfg) |
+		    BIGMAC_TXCFG_ENABLE);
 	return 0;
 no_response:
 	return 1;
@@ -1220,8 +1299,8 @@ static int happy_meal_init(struct happy_meal *hp, int from_irq)
 	/* Load up the MAC address and random seed. */
 	HMD(("rseed/macaddr, "));
 
-	/* XXX use something less deterministic... */
-	hme_write32(hp, &bregs->rand_seed, 0xbd);
+	/* The docs recommend to use the 10LSB of our MAC here. */
+	hme_write32(hp, &bregs->rand_seed, ((e[5] | e[4]<<8)&0x3ff));
 
 	hme_write32(hp, &bregs->mac_addr2, ((e[4] << 8) | e[5]));
 	hme_write32(hp, &bregs->mac_addr1, ((e[2] << 8) | e[3]));
@@ -2013,12 +2092,13 @@ static void pci_happy_meal_interrupt(int irq, void *dev_id, struct pt_regs *regs
 		hp->dev->tbusy = 0;
 		mark_bh(NET_BH);
 	}
-
+	tx_add_log(hp, TXLOG_ACTION_IRQ, happy_status);
 	dev->interrupt = 0;
 	HMD(("done\n"));
 }
 #endif
 
+#ifndef __sparc_v9__
 static void sun4c_happy_meal_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	struct device *dev            = (struct device *) dev_id;
@@ -2062,6 +2142,7 @@ static void sun4c_happy_meal_interrupt(int irq, void *dev_id, struct pt_regs *re
 	dev->interrupt = 0;
 	HMD(("done\n"));
 }
+#endif
 
 static int happy_meal_open(struct device *dev)
 {
@@ -2069,6 +2150,7 @@ static int happy_meal_open(struct device *dev)
 	int res;
 
 	HMD(("happy_meal_open: "));
+#ifndef __sparc_v9__
 	if(sparc_cpu_model == sun4c) {
 		if(request_irq(dev->irq, &sun4c_happy_meal_interrupt,
 			       SA_SHIRQ, "HAPPY MEAL", (void *) dev)) {
@@ -2076,47 +2158,26 @@ static int happy_meal_open(struct device *dev)
 			printk("happy meal: Can't order irq %d to go.\n", dev->irq);
 			return -EAGAIN;
 		}
-	}
-#ifdef __sparc_v9__
-	else if(sparc_cpu_model == sun4u) {
-		struct devid_cookie dcookie;
-
+	} else
+#else
 #ifdef CONFIG_PCI
-		if(hp->happy_flags & HFLAG_PCI) {
-			if(request_irq(dev->irq, &pci_happy_meal_interrupt,
-				       SA_SHIRQ, "HAPPY MEAL (PCI)", dev)) {
-				HMD(("EAGAIN\n"));
-				printk("happy_meal(PCI: Can't order irq %d to go.\n",
-				       dev->irq);
-				return -EAGAIN;
-			}
-			goto v9_done;
-		}
-#endif
-		dcookie.real_dev_id = dev;
-		dcookie.imap = dcookie.iclr = 0;
-		dcookie.pil = -1;
-		dcookie.bus_cookie = hp->happy_sbus_dev->my_bus;
-		if(request_irq(dev->irq, &happy_meal_interrupt,
-			       (SA_SHIRQ | SA_SBUS | SA_DCOOKIE),
-			       "HAPPY MEAL", &dcookie)) {
-			HMD(("EAGAIN\n"));
-			printk("happy_meal(SBUS): Can't order irq %d to go.\n",
-			       dev->irq);
+	if(hp->happy_flags & HFLAG_PCI) {
+		if(request_irq(dev->irq, &pci_happy_meal_interrupt,
+			       SA_SHIRQ, "HAPPY MEAL (PCI)", dev)) {
+		HMD(("EAGAIN\n"));
+		printk("happy_meal(PCI: Can't order irq %s to go.\n",
+		       __irq_itoa(dev->irq));
 			return -EAGAIN;
 		}
-#ifdef CONFIG_PCI
-	v9_done:
+	} else
 #endif
-	}
 #endif
-	else {
-		if(request_irq(dev->irq, &happy_meal_interrupt,
-			       SA_SHIRQ, "HAPPY MEAL", (void *) dev)) {
-			HMD(("EAGAIN\n"));
-			printk("happy meal: Can't order irq %d to go.\n", dev->irq);
-			return -EAGAIN;
-		}
+	if(request_irq(dev->irq, &happy_meal_interrupt,
+		       SA_SHIRQ, "HAPPY MEAL", (void *)dev)) {
+		HMD(("EAGAIN\n"));
+		printk("happy_meal(SBUS): Can't order irq %s to go.\n",
+		       __irq_itoa(dev->irq));
+		return -EAGAIN;
 	}
 	HMD(("Init happy timer\n"));
 	init_timer(&hp->happy_timer);
@@ -2154,29 +2215,29 @@ static int happy_meal_start_xmit(struct sk_buff *skb, struct device *dev)
 	struct happy_meal *hp = (struct happy_meal *) dev->priv;
 	int len, entry;
 
-	if(dev->tbusy) {
+	if(test_and_set_bit(0, (void *) &dev->tbusy) != 0) {
 		int tickssofar = jiffies - dev->trans_start;
 	    
-		if (tickssofar < 40) {
-			return 1;
-		} else {
+		if (tickssofar >= 40) {
 			printk ("%s: transmit timed out, resetting\n", dev->name);
 			hp->net_stats.tx_errors++;
+			tx_dump_log();
+			printk ("%s: Happy Status %08x TX[%08x:%08x]\n", dev->name,
+				hme_read32(hp, &hp->gregs->stat),
+				hme_read32(hp, &hp->etxregs->cfg),
+				hme_read32(hp, &hp->bigmacregs->tx_cfg));
 			happy_meal_init(hp, 0);
 			dev->tbusy = 0;
 			dev->trans_start = jiffies;
-			return 0;
-		}
-	}
-
-	if(test_and_set_bit(0, (void *) &dev->tbusy) != 0) {
-		printk("happy meal: Transmitter access conflict.\n");
+		} else
+			tx_add_log(hp, TXLOG_ACTION_TXMIT|TXLOG_ACTION_TBUSY, 0);
 		return 1;
 	}
 
-	if(!TX_BUFFS_AVAIL(hp))
+	if(!TX_BUFFS_AVAIL(hp)) {
+		tx_add_log(hp, TXLOG_ACTION_TXMIT|TXLOG_ACTION_NBUFS, 0);
 		return 1;
-
+	}
 	len = skb->len;
 	entry = hp->tx_new;
 
@@ -2194,6 +2255,7 @@ static int happy_meal_start_xmit(struct sk_buff *skb, struct device *dev)
 	if(TX_BUFFS_AVAIL(hp))
 		dev->tbusy = 0;
 
+	tx_add_log(hp, TXLOG_ACTION_TXMIT, 0);
 	return 0;
 }
 
@@ -2203,29 +2265,32 @@ static int pci_happy_meal_start_xmit(struct sk_buff *skb, struct device *dev)
 	struct happy_meal *hp = (struct happy_meal *) dev->priv;
 	int len, entry;
 
-	if(dev->tbusy) {
+	if(test_and_set_bit(0, (void *) &dev->tbusy) != 0) {
 		int tickssofar = jiffies - dev->trans_start;
 	    
-		if (tickssofar < 40) {
-			return 1;
-		} else {
+		if (tickssofar >= 40) {
+			unsigned long flags;
+
 			printk ("%s: transmit timed out, resetting\n", dev->name);
+
+			save_and_cli(flags);
+			tx_dump_log();
+			tx_dump_ring(hp);
+			restore_flags(flags);
+
 			hp->net_stats.tx_errors++;
 			happy_meal_init(hp, 0);
 			dev->tbusy = 0;
 			dev->trans_start = jiffies;
-			return 0;
-		}
-	}
-
-	if(test_and_set_bit(0, (void *) &dev->tbusy) != 0) {
-		printk("happy meal: Transmitter access conflict.\n");
+		} else
+			tx_add_log(hp, TXLOG_ACTION_TXMIT|TXLOG_ACTION_TBUSY, 0);
 		return 1;
 	}
 
-	if(!TX_BUFFS_AVAIL(hp))
+	if(!TX_BUFFS_AVAIL(hp)) {
+		tx_add_log(hp, TXLOG_ACTION_TXMIT|TXLOG_ACTION_NBUFS, 0);
 		return 1;
-
+	}
 	len = skb->len;
 	entry = hp->tx_new;
 
@@ -2243,6 +2308,7 @@ static int pci_happy_meal_start_xmit(struct sk_buff *skb, struct device *dev)
 	if(TX_BUFFS_AVAIL(hp))
 		dev->tbusy = 0;
 
+	tx_add_log(hp, TXLOG_ACTION_TXMIT, 0);
 	return 0;
 }
 #endif
@@ -2510,7 +2576,7 @@ static inline int happy_meal_ether_init(struct device *dev, struct linux_sbus_de
 	dev->get_stats = &happy_meal_get_stats;
 	dev->set_multicast_list = &happy_meal_set_multicast;
 
-	dev->irq = sdev->irqs[0].pri;
+	dev->irq = sdev->irqs[0];
 	dev->dma = 0;
 	ether_setup(dev);
 #ifdef MODULE
@@ -2629,6 +2695,11 @@ __initfunc(int happy_meal_pci_init(struct device *dev, struct pci_dev *pdev))
 	pcibios_write_config_word(pdev->bus->number,
 				  pdev->devfn,
 				  PCI_COMMAND, pci_command);
+
+	/* Set the latency timer as well, PROM leaves it at zero. */
+	pcibios_write_config_byte(pdev->bus->number,
+				  pdev->devfn,
+				  PCI_LATENCY_TIMER, 240);
 
 #ifdef MODULE
 	/* We are home free at this point, link us in to the happy

@@ -1,4 +1,4 @@
-/* $Revision: 2.3 $$Date: 1998/03/16 18:01:12 $
+/* $Revision: 2.6 $$Date: 1998/08/10 16:57:01 $
  * linux/include/linux/cyclades.h
  *
  * This file is maintained by Ivan Passos <ivan@cyclades.com>, 
@@ -7,10 +7,17 @@
  *
  * This file contains the general definitions for the cyclades.c driver
  *$Log: cyclades.h,v $
+ *Revision 2.5  1998/08/03 16:57:01  ivan
+ *added cyclades_idle_stats structure;
+ * 
+ *Revision 2.4  1998/06/01 12:09:53  ivan
+ *removed closing_wait2 from cyclades_port structure;
+ *
  *Revision 2.3  1998/03/16 18:01:12  ivan
  *changes in the cyclades_port structure to get it closer to the 
  *standard serial port structure;
  *added constants for new ioctls;
+ *
  *Revision 2.2  1998/02/17 16:50:00  ivan
  *changes in the cyclades_port structure (addition of shutdown_wait and 
  *chip_rev variables);
@@ -56,6 +63,22 @@ struct cyclades_monitor {
         unsigned long           char_last;
 };
 
+/*
+ * These stats all reflect activity since the device was last initialized.
+ * (i.e., since the port was opened with no other processes already having it
+ * open)
+ */
+struct cyclades_idle_stats {
+    time_t	   in_use;	/* Time device has been in use (secs) */
+    time_t	   recv_idle;	/* Time since last char received (secs) */
+    time_t	   xmit_idle;	/* Time since last char transmitted (secs) */
+    unsigned long  recv_bytes;	/* Bytes received */
+    unsigned long  xmit_bytes;	/* Bytes transmitted */
+    unsigned long  overruns;	/* Input overruns */
+    unsigned long  frame_errs;	/* Input framing errors */
+    unsigned long  parity_errs;	/* Input parity errors */
+};
+
 #define CYCLADES_MAGIC  0x4359
 
 #define CYGETMON                0x435901
@@ -71,11 +94,12 @@ struct cyclades_monitor {
 #define CYGETRFLOW		0x43590b
 #define CYSETRTSDTR_INV		0x43590c
 #define CYGETRTSDTR_INV		0x43590d
-#define CYZPOLLCYCLE		0x43590e
-#define CYGETCD1400VER		0x43590f
-#define CYGETCARDINFO		0x435910
-#define	CYSETWAIT		0x435911
-#define	CYGETWAIT		0x435912
+#define CYZSETPOLLCYCLE		0x43590e
+#define CYZGETPOLLCYCLE		0x43590f
+#define CYGETCD1400VER		0x435910
+#define CYGETCARDINFO		0x435911
+#define	CYSETWAIT		0x435912
+#define	CYGETWAIT		0x435913
 
 /*************** CYCLOM-Z ADDITIONS ***************/
 
@@ -89,8 +113,8 @@ struct cyclades_monitor {
 #define CZ_DEF_POLL	(HZ/25)
 
 #define MAX_BOARD       4       /* Max number of boards */
-#define MAX_PORT        128     /* Max number of ports per board */
 #define MAX_DEV         256     /* Max number of ports total */
+#define	CYZ_MAX_SPEED	921600
 
 #define	CYZ_FIFO_SIZE	16
 
@@ -468,7 +492,7 @@ struct cyclades_card {
     long base_addr;
     long ctl_addr;
     int irq;
-    int num_chips;	/* 0 if card absent, 1 if Z/PCI, else Y */
+    int num_chips;	/* 0 if card absent, -1 if Z/PCI, else Y */
     int first_line;	/* minor number of first channel on card */
     int bus_index;	/* address shift - 0 for ISA, 1 for PCI */
     int	inact_ctrl;	/* FW Inactivity control - 0 disabled, 1 enabled */
@@ -508,7 +532,6 @@ struct cyclades_port {
 	int                     x_char; /* to be pushed out ASAP */
 	int			close_delay;
 	unsigned short		closing_wait;
-	unsigned short		closing_wait2;
 	unsigned long		event;
 	unsigned long		last_active;
 	int			count;	/* # of fd on device */
@@ -531,6 +554,7 @@ struct cyclades_port {
         struct cyclades_monitor mon;
 	unsigned long		jiffies[3];
 	unsigned long		rflush_count;
+	struct cyclades_idle_stats   idle_stats;
 };
 
 /*
@@ -544,11 +568,15 @@ struct cyclades_port {
 #define Cy_EVENT_OPEN_WAKEUP		4
 #define Cy_EVENT_SHUTDOWN_WAKEUP	5
 
-#define	CLOSING_WAIT_DELAY	30
+#define	CLOSING_WAIT_DELAY	30*HZ
+#define CY_CLOSING_WAIT_NONE	65535
+#define CY_CLOSING_WAIT_INF	0
+
 
 #define CyMAX_CHIPS_PER_CARD	8
 #define CyMAX_CHAR_FIFO		12
 #define CyPORTS_PER_CHIP	4
+#define	CD1400_MAX_SPEED	115200
 
 #define	CyISA_Ywin	0x2000
 

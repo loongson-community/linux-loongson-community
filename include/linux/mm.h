@@ -137,6 +137,7 @@ typedef struct page {
 #define PG_DMA			 7
 #define PG_Slab			 8
 #define PG_swap_cache		 9
+#define PG_skip			10
 #define PG_reserved		31
 
 /* Make it prettier to test the above... */
@@ -254,21 +255,10 @@ extern inline unsigned long get_free_page(int gfp_mask)
 /* memory.c & swap.c*/
 
 /*
- * This traverses "nr" memory size lists,
- * and returns true if there is enough memory.
- *
- * For example, we want to keep on waking up
- * kswapd every once in a while until the highest
- * memory order has an entry (ie nr == 0), but
- * we want to do it in the background.
- *
- * We want to do it in the foreground only if
- * none of the three highest lists have enough
- * memory. Random number.
+ * Decide if we should try to do some swapout..
  */
-extern int free_memory_available(int nr);
-#define kswapd_continue()	(!free_memory_available(3))
-#define kswapd_wakeup()		(!free_memory_available(0))
+extern int free_memory_available(void);
+extern struct wait_queue * kswapd_wait;
 
 #define free_page(addr) free_pages((addr),0)
 extern void FASTCALL(free_pages(unsigned long addr, unsigned long order));
@@ -281,7 +271,6 @@ extern unsigned long put_dirty_page(struct task_struct * tsk,unsigned long page,
 extern void free_page_tables(struct mm_struct * mm);
 extern void clear_page_tables(struct task_struct * tsk);
 extern int new_page_tables(struct task_struct * tsk);
-extern int copy_page_tables(struct task_struct * to);
 
 extern void zap_page_range(struct mm_struct *mm, unsigned long address, unsigned long size);
 extern int copy_page_range(struct mm_struct *dst, struct mm_struct *src, struct vm_area_struct *vma);
@@ -290,6 +279,10 @@ extern int zeromap_page_range(unsigned long from, unsigned long size, pgprot_t p
 extern int vmap_page_range (unsigned long from, unsigned long size, unsigned long vaddr);
 extern void vmtruncate(struct inode * inode, unsigned long offset);
 extern void handle_mm_fault(struct task_struct *tsk,struct vm_area_struct *vma, unsigned long address, int write_access);
+extern void make_pages_present(unsigned long addr, unsigned long end);
+
+extern int pgt_cache_water[2];
+extern int check_pgt_cache(void);
 
 extern unsigned long paging_init(unsigned long start_mem, unsigned long end_mem);
 extern void mem_init(unsigned long start_mem, unsigned long end_mem);
@@ -299,16 +292,18 @@ extern void si_meminfo(struct sysinfo * val);
 
 /* mmap.c */
 extern void vma_init(void);
-extern unsigned long do_mmap(struct file * file, unsigned long addr, unsigned long len,
-	unsigned long prot, unsigned long flags, unsigned long off);
 extern void merge_segments(struct mm_struct *, unsigned long, unsigned long);
 extern void insert_vm_struct(struct mm_struct *, struct vm_area_struct *);
 extern void exit_mmap(struct mm_struct *);
-extern int do_munmap(unsigned long, size_t);
 extern unsigned long get_unmapped_area(unsigned long, unsigned long);
 
+extern unsigned long do_mmap(struct file *, unsigned long, unsigned long,
+	unsigned long, unsigned long, unsigned long);
+extern int do_munmap(unsigned long, size_t);
+
 /* filemap.c */
-extern unsigned long page_unuse(unsigned long);
+extern void remove_inode_page(struct page *);
+extern unsigned long page_unuse(struct page *);
 extern int shrink_mmap(int, int);
 extern void truncate_inode_pages(struct inode *, unsigned long);
 extern unsigned long get_cached_page(struct inode *, unsigned long, int);
@@ -318,8 +313,7 @@ extern void put_cached_page(unsigned long);
  * GFP bitmasks..
  */
 #define __GFP_WAIT	0x01
-#define __GFP_IO	0x02
-#define __GFP_LOW	0x00
+#define __GFP_LOW	0x02
 #define __GFP_MED	0x04
 #define __GFP_HIGH	0x08
 
@@ -328,9 +322,9 @@ extern void put_cached_page(unsigned long);
 
 #define GFP_BUFFER	(__GFP_LOW | __GFP_WAIT)
 #define GFP_ATOMIC	(__GFP_HIGH)
-#define GFP_USER	(__GFP_LOW | __GFP_WAIT | __GFP_IO)
-#define GFP_KERNEL	(__GFP_LOW | __GFP_WAIT | __GFP_IO)
-#define GFP_NFS		(__GFP_MED | __GFP_WAIT | __GFP_IO)
+#define GFP_USER	(__GFP_LOW | __GFP_WAIT)
+#define GFP_KERNEL	(__GFP_MED | __GFP_WAIT)
+#define GFP_NFS		(__GFP_HIGH | __GFP_WAIT)
 
 /* Flag - indicates that the buffer should be allocated uncached as for an
    architecture where the caches don't snoop DMA access.  This is a even

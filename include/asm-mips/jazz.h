@@ -1,15 +1,10 @@
-/*
- * Hardware info about Mips JAZZ and similar systems
+/* $Id: jazz.h,v 1.6 1998/08/18 20:46:39 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1995 by Andreas Busse and Ralf Baechle
- *
- * This file is a mess. It really needs some reorganisation!
- *
- * $Id: jazz.h,v 1.5 1997/12/01 21:26:48 ralf Exp $
+ * Copyright (C) 1995 - 1998 by Andreas Busse and Ralf Baechle
  */
 #ifndef __ASM_MIPS_JAZZ_H 
 #define __ASM_MIPS_JAZZ_H 
@@ -76,7 +71,7 @@
 #define LED_E                   0x9e
 #define LED_F                   0x8e
 
-#ifndef __LANGUAGE_ASSEMBLY__
+#ifndef _LANGUAGE_ASSEMBLY
 
 extern __inline__ void pica_set_led(unsigned int bits)
 {
@@ -106,7 +101,7 @@ extern __inline__ void pica_set_led(unsigned int bits)
 #define JAZZ_KEYBOARD_DATA      0xe0005000
 #define JAZZ_KEYBOARD_COMMAND   0xe0005001
 
-#ifndef __LANGUAGE_ASSEMBLY__
+#ifndef _LANGUAGE_ASSEMBLY
 
 typedef struct {
 	unsigned char data;
@@ -158,7 +153,7 @@ typedef struct {
 /*
  * DRAM configuration register
  */
-#ifndef __LANGUAGE_ASSEMBLY__
+#ifndef _LANGUAGE_ASSEMBLY
 #ifdef __MIPSEL__
 typedef struct {
 	unsigned int bank2 : 3;
@@ -178,7 +173,7 @@ typedef struct {
 	unsigned int bank2 : 3;
 } dram_configuration;
 #endif
-#endif /* __LANGUAGE_ASSEMBLY__ */
+#endif /* _LANGUAGE_ASSEMBLY */
 
 #define PICA_DRAM_CONFIG        0xe00fffe0
 
@@ -213,7 +208,6 @@ typedef struct {
 #define JAZZ_SERIAL1_IRQ        18
 #define JAZZ_SERIAL2_IRQ        19
 #define JAZZ_PARALLEL_IRQ       20
-#define JAZZ_MOUSE_IRQ          21
 
 /*
  * JAZZ DMA Channels
@@ -269,7 +263,7 @@ typedef struct {
 /*
  * Access the R4030 DMA and I/O Controller
  */
-#ifndef __LANGUAGE_ASSEMBLY__
+#ifndef _LANGUAGE_ASSEMBLY
 
 extern inline void r4030_delay(void)
 {
@@ -302,7 +296,7 @@ extern inline void r4030_write_reg16(unsigned addr, unsigned val)
 	r4030_delay();
 }
 
-extern inline unsigned int r4030_write_reg32(unsigned addr, unsigned val)
+extern inline void r4030_write_reg32(unsigned addr, unsigned val)
 {
 	*((volatile unsigned int *)addr) = val;
 	r4030_delay();

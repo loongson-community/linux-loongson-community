@@ -17,6 +17,10 @@
 #include <net/neighbour.h>
 #include <net/snmp.h>
 
+#ifdef CONFIG_BRIDGE
+#include <net/br.h>
+#endif
+
 #ifdef CONFIG_INET
 #include <linux/ip.h>
 #include <linux/etherdevice.h>
@@ -80,8 +84,8 @@ extern int sysctl_max_syn_backlog;
 EXPORT_SYMBOL(dev_lockct);
 
 /* Skbuff symbols. */
-EXPORT_SYMBOL(skb_push_errstr);
-EXPORT_SYMBOL(skb_put_errstr);
+EXPORT_SYMBOL(skb_over_panic);
+EXPORT_SYMBOL(skb_under_panic);
 
 /* Socket layer registration */
 EXPORT_SYMBOL(sock_register);
@@ -191,6 +195,10 @@ EXPORT_SYMBOL(sklist_insert_socket);
 
 EXPORT_SYMBOL(scm_detach_fds);
 
+#ifdef CONFIG_BRIDGE 
+EXPORT_SYMBOL(br_ioctl);
+#endif
+
 #ifdef CONFIG_INET
 /* Internet layer registration */
 EXPORT_SYMBOL(inet_add_protocol);
@@ -213,6 +221,7 @@ EXPORT_SYMBOL(ip_mc_inc_group);
 EXPORT_SYMBOL(ip_mc_dec_group);
 EXPORT_SYMBOL(__ip_finish_output);
 EXPORT_SYMBOL(inet_dgram_ops);
+EXPORT_SYMBOL(ip_cmsg_recv);
 EXPORT_SYMBOL(__release_sock);
 
 /* needed for ip_gre -cw */
@@ -353,7 +362,6 @@ EXPORT_SYMBOL(sock_rmalloc);
 /* If 8390 NIC support is built in, we will need these. */
 EXPORT_SYMBOL(ei_open);
 EXPORT_SYMBOL(ei_close);
-EXPORT_SYMBOL(ei_debug);
 EXPORT_SYMBOL(ei_interrupt);
 EXPORT_SYMBOL(ethdev_init);
 EXPORT_SYMBOL(NS8390_init);
@@ -366,7 +374,6 @@ EXPORT_SYMBOL(register_trdev);
 EXPORT_SYMBOL(unregister_trdev);
 EXPORT_SYMBOL(init_trdev);
 EXPORT_SYMBOL(tr_freedev);
-EXPORT_SYMBOL(tr_reformat);
 #endif
                   
 /* Used by at least ipip.c.  */
@@ -414,9 +421,6 @@ EXPORT_SYMBOL(dev_fastroute_stat);
 EXPORT_SYMBOL(netdev_register_fc);
 EXPORT_SYMBOL(netdev_unregister_fc);
 EXPORT_SYMBOL(netdev_fc_xoff);
-#endif
-#ifdef CONFIG_IP_ACCT
-EXPORT_SYMBOL(ip_acct_output);
 #endif
 EXPORT_SYMBOL(dev_base);
 EXPORT_SYMBOL(dev_close);

@@ -59,12 +59,15 @@ typedef __u64	Elf64_Word;
 #define EM_386          3
 #define EM_68K          4
 #define EM_88K          5
-#define EM_486          6   /* Perhaps disused */
+#define EM_486          6	/* Perhaps disused */
 #define EM_860          7
-#define EM_MIPS         8   /* MIPS R3000 (officially, big-endian only) */
-#define EM_MIPS_RS4_BE 10
-#define EM_SPARC64     11   /* SPARC v9 (not official) 64-bit */
-#define EM_PARISC      15
+#define EM_MIPS         8	/* MIPS R3000 (officially, big-endian only) */
+#define EM_MIPS_RS4_BE 10	/* MIPS R4000 big-endian */
+#define EM_PARISC      15	/* HPPA */
+#define EM_SPARC32PLUS 18	/* Sun's "v8plus" */
+#define EM_PPC	       20	/* PowerPC */
+#define EM_SPARCV9     43	/* SPARC v9 64-bit */
+
 
 /*
  * This is an interim value that we will use until the committee comes
@@ -151,8 +154,8 @@ typedef __u64	Elf64_Word;
 #define AT_EUID   12	/* effective uid */
 #define AT_GID    13	/* real gid */
 #define AT_EGID   14	/* effective gid */
-#define AT_PLATFORM 15  /* string identifying cpu for optimizations */
-#define AT_HWCAP  16    /* arch dependent hints at cpu capabilities */
+#define AT_PLATFORM 15  /* string identifying CPU for optimizations */
+#define AT_HWCAP  16    /* arch dependent hints at CPU capabilities */
 
 typedef struct dynamic{
   Elf32_Sword d_tag;
@@ -279,10 +282,11 @@ typedef struct {
 
 /* Bits present in AT_HWCAP, primarily for Sparc32.  */
 
-#define HWCAP_SPARC_FLUSH       1       /* The cpu supports flush insn.  */
+#define HWCAP_SPARC_FLUSH       1    /* CPU supports flush instruction. */
 #define HWCAP_SPARC_STBAR       2
 #define HWCAP_SPARC_SWAP        4
 #define HWCAP_SPARC_MULDIV      8
+#define HWCAP_SPARC_V9		16
 
 
 /*

@@ -1,7 +1,7 @@
 
 		Linux and parallel port IDE devices
 
-PARIDE v1.0   (c) 1997  Grant Guenther <grant@torque.net>
+PARIDE v1.02   (c) 1997-8  Grant Guenther <grant@torque.net>
 
 1. Introduction
 
@@ -12,7 +12,7 @@ host computer.  While some devices (notably scanners) use ad-hoc methods
 to pass commands and data through the parallel port interface, most 
 external devices are actually identical to an internal model, but with
 a parallel-port adapter chip added in.  Some of the original parallel port
-adapters were little more than mechanisms for mulitplexing a SCSI bus.
+adapters were little more than mechanisms for multiplexing a SCSI bus.
 (The Iomega PPA-3 adapter used in the ZIP drives is an example of this
 approach).  Most current designs, however, take a different approach.
 The adapter chip reproduces a small ISA or IDE bus in the external device
@@ -38,11 +38,13 @@ parallel port IDE subsystem, including:
 	MicroSolutions backpack CD-ROM
 	MicroSolutions backpack PD/CD
 	MicroSolutions backpack hard-drives
+	MicroSolutions backpack 8000t tape drive
 	SyQuest EZ-135, EZ-230 & SparQ drives
 	Avatar Shark
 	Imation Superdisk LS-120
 	FreeCom Power CD
 	Hewlett-Packard 5GB tape drive
+	Hewlett-Packard 7100 and 7200 CD-RW drives
 
 as well as most of the clone and no-name products on the market.
 
@@ -56,9 +58,9 @@ high-level drivers for each of the different type of supported device:
 	pcd	ATAPI CD-ROM
 	pf	ATAPI disk
 	pt	ATAPI tape
+	pg	ATAPI generic
 
-(Support for ATAPI CD-R and CD-RW drives is not yet in development,
-but this may change.)
+(Currently, the pg driver is only used with CD-R drives).
 
 The high-level drivers function according to the relevant standards.
 The third component of PARIDE is a set of low-level protocol drivers
@@ -72,13 +74,13 @@ support is available for almost all known adapter protocols:
         dstr    DataStor EP-2000                       (TW)
         epat    Shuttle EPAT                           (UK)
         epia    Shuttle EPIA                           (UK)
+	fit2    FIT TD-2000			       (US)
+	fit3    FIT TD-3000			       (US)
         frpw    Freecom Power                          (DE)
         kbic    KingByte KBIC-951A and KBIC-971A       (TW)
+	ktti    KT Technology PHd adapter              (SG)
         on20    OnSpec 90c20                           (US)
         on26    OnSpec 90c26                           (US)
-
-(A driver for some modes of the Noveca RAP// protocol is also under 
-development).	
 
 
 2. Using the PARIDE subsystem
@@ -106,11 +108,13 @@ and high-level drivers that you would use:
 	MicroSolutions		CD-ROM		pcd	bpck
 	MicroSolutions		PD drive	pf	bpck
 	MicroSolutions		hard-drive	pd	bpck
+	MicroSolutions          8000t tape      pt      bpck
 	SyQuest			EZ, SparQ	pd	epat
 	Imation			Superdisk	pf	epat
 	Avatar			Shark		pd	epat
 	FreeCom			CD-ROM		pcd	frpw
 	Hewlett-Packard		5GB Tape	pt	epat
+	Hewlett-Packard		7100/7200	pg	epat
 
 2.1  Configuring built-in drivers
 
@@ -258,6 +262,7 @@ for u in 0 1 2 3 ; do mkdev pcd$u b 46 $u ; done
 for u in 0 1 2 3 ; do mkdev pf$u  b 47 $u ; done 
 for u in 0 1 2 3 ; do mkdev pt$u  c 96 $u ; done 
 for u in 0 1 2 3 ; do mkdev npt$u c 96 $[ $u + 128 ] ; done 
+for u in 0 1 2 3 ; do mkdev pg$u  c 97 $u ; done 
 #
 # end of mkd
 
@@ -285,6 +290,11 @@ floppy that you could share with a DOS system:
 	mkdosfs /dev/pf0
 	mount /dev/pf0 /mnt
 
+2.4  Using the pg driver
+
+The pg driver can be used in conjunction with the cdrecord program
+to create CD-ROMs.  For more information, and the required patches 
+to cdrecord, please visit http://www.torque.net/parport/cdr.html .
 
 3. Troubleshooting
 
@@ -333,6 +343,6 @@ have in your mail headers, when sending mail to the list server.
 You might also find some useful information on the linux-parport
 web pages (although they are not always up to date) at
 
-	http://www.torque.net/linux-pp.html
+	http://www.torque.net/parport/
 
 

@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp_output.c,v 1.87 1998/04/26 01:11:35 davem Exp $
+ * Version:	$Id: tcp_output.c,v 1.92 1998/06/19 13:22:44 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -166,10 +166,10 @@ void tcp_send_skb(struct sock *sk, struct sk_buff *skb, int force_queue)
 	}
 }
 
-/* Function to create two new tcp segments.  Shrinks the given segment
+/* Function to create two new TCP segments.  Shrinks the given segment
  * to the specified size and appends a new segment with the rest of the
- * packet to the list. This won't be called frenquently, I hope... 
- * Remember, these are still header-less SKB's at this point.
+ * packet to the list.  This won't be called frequently, I hope. 
+ * Remember, these are still headerless SKBs at this point.
  */
 static int tcp_fragment(struct sock *sk, struct sk_buff *skb, u32 len)
 {
@@ -256,7 +256,7 @@ void tcp_write_xmit(struct sock *sk)
 		 *
 		 * a) following SWS avoidance [and Nagle algorithm]
 		 * b) not exceeding our congestion window.
-		 * c) not retransmiting [Nagle]
+		 * c) not retransmitting [Nagle]
 		 */
 		while((skb = tp->send_head) && tcp_snd_test(sk, skb)) {
 			if (skb->len > mss_now) {
@@ -288,14 +288,14 @@ void tcp_write_xmit(struct sock *sk)
  * 2. We limit memory per socket
  *
  * RFC 1122:
- * "the suggested [SWS] avoidance algoritm for the receiver is to keep
+ * "the suggested [SWS] avoidance algorithm for the receiver is to keep
  *  RECV.NEXT + RCV.WIN fixed until:
  *  RCV.BUFF - RCV.USER - RCV.WINDOW >= min(1/2 RCV.BUFF, MSS)"
  *
  * i.e. don't raise the right edge of the window until you can raise
  * it at least MSS bytes.
  *
- * Unfortunately, the recomended algorithm breaks header prediction,
+ * Unfortunately, the recommended algorithm breaks header prediction,
  * since header prediction assumes th->window stays fixed.
  *
  * Strictly speaking, keeping th->window fixed violates the receiver
@@ -331,16 +331,18 @@ void tcp_write_xmit(struct sock *sk)
  *
  * Note, we don't "adjust" for TIMESTAMP or SACK option bytes.
  */
-u32 __tcp_select_window(struct sock *sk)
+u32 __tcp_select_window(struct sock *sk, u32 cur_win)
 {
 	struct tcp_opt *tp = &sk->tp_pinfo.af_tcp;
 	unsigned int mss = sk->mss;
-	unsigned int free_space;
-	u32 window, cur_win;
+	int free_space;
+	u32 window;
 
+	/* Sometimes free_space can be < 0. */
 	free_space = (sk->rcvbuf - atomic_read(&sk->rmem_alloc)) / 2;
 	if (tp->window_clamp) {
-		free_space = min(tp->window_clamp, free_space);
+		if (free_space > ((int) tp->window_clamp))
+			free_space = tp->window_clamp;
 		mss = min(tp->window_clamp, mss);
 	} else {
 		printk("tcp_select_window: tp->window_clamp == 0.\n");
@@ -351,8 +353,7 @@ u32 __tcp_select_window(struct sock *sk)
 		printk("tcp_select_window: sk->mss fell to 0.\n");
 	}
 	
-	cur_win = tcp_receive_window(tp);
-	if (free_space < sk->rcvbuf/4 && free_space < mss/2) {
+	if ((free_space < (sk->rcvbuf/4)) && (free_space < ((int) (mss/2)))) {
 		window = 0;
 	} else {
 		/* Get the largest window that is a nice multiple of mss.
@@ -364,8 +365,9 @@ u32 __tcp_select_window(struct sock *sk)
 		 * is too small.
 		 */
 		window = tp->rcv_wnd;
-		if ((window <= (free_space - mss)) || (window > free_space))
-			window = (free_space/mss)*mss;
+		if ((((int) window) <= (free_space - ((int) mss))) ||
+				(((int) window) > free_space))
+			window = (((unsigned int) free_space)/mss)*mss;
 	}
 	return window;
 }
@@ -415,8 +417,7 @@ static void tcp_retrans_try_collapse(struct sock *sk, struct sk_buff *skb, int m
 		}
 	
 		/* Update sequence range on original skb. */
-		TCP_SKB_CB(skb)->end_seq +=
-			TCP_SKB_CB(next_skb)->end_seq - TCP_SKB_CB(next_skb)->seq;
+		TCP_SKB_CB(skb)->end_seq = TCP_SKB_CB(next_skb)->end_seq;
 
 		/* Merge over control information. */
 		flags |= TCP_SKB_CB(next_skb)->flags; /* This moves PSH/FIN etc. over */
@@ -453,7 +454,9 @@ void tcp_simple_retransmit(struct sock *sk)
 	 * and not use it for RTT calculation in the absence of
 	 * the timestamp option.
 	 */
-	for (skb = skb_peek(&sk->write_queue); skb != tp->send_head;
+	for (skb = skb_peek(&sk->write_queue);
+	     ((skb != tp->send_head) &&
+	      (skb != (struct sk_buff *)&sk->write_queue));
 	     skb = skb->next) 
 		if (skb->len > mss)
 			tcp_retransmit_skb(sk, skb); 
@@ -471,7 +474,7 @@ static __inline__ void update_retrans_head(struct sock *sk)
 
 /* This retransmits one SKB.  Policy decisions and retransmit queue
  * state updates are done by the caller.  Returns non-zero if an
- * error occured which prevented the send.
+ * error occurred which prevented the send.
  */
 int tcp_retransmit_skb(struct sock *sk, struct sk_buff *skb)
 {
@@ -502,7 +505,7 @@ int tcp_retransmit_skb(struct sock *sk, struct sk_buff *skb)
 	tp->retrans_out++;
 
 	/* Make a copy, if the first transmission SKB clone we made
-	 * is still in somebodies hands, else make a clone.
+	 * is still in somebody's hands, else make a clone.
 	 */
 	TCP_SKB_CB(skb)->when = jiffies;
 	if(skb_cloned(skb))
@@ -536,6 +539,10 @@ void tcp_xmit_retransmit_queue(struct sock *sk)
 	if (tp->retrans_head == tp->send_head)
 		tp->retrans_head = NULL;
 
+	/* Each time, advance the retrans_head if we got
+	 * a packet out or we skipped one because it was
+	 * SACK'd.  -DaveM
+	 */
 	while ((skb = tp->retrans_head) != NULL) {
 		/* If it has been ack'd by a SACK block, we don't
 		 * retransmit it.
@@ -544,14 +551,17 @@ void tcp_xmit_retransmit_queue(struct sock *sk)
 			/* Send it out, punt if error occurred. */
 			if(tcp_retransmit_skb(sk, skb))
 				break;
+
+			update_retrans_head(sk);
 		
 			/* Stop retransmitting if we've hit the congestion
 			 * window limit.
 			 */
 			if (tp->retrans_out >= (tp->snd_cwnd >> TCP_CWND_SHIFT))
 				break;
+		} else {
+			update_retrans_head(sk);
 		}
-		update_retrans_head(sk);
 	}
 }
 
@@ -732,8 +742,6 @@ struct sk_buff * tcp_make_synack(struct sock *sk, struct dst_entry *dst,
 		mss = min(mss, sk->user_mss);
 	if (req->tstamp_ok)
 		mss -= TCPOLEN_TSTAMP_ALIGNED;
-	else
-		req->mss += TCPOLEN_TSTAMP_ALIGNED;
 
 	/* Don't offer more than they did.
 	 * This way we don't have to memorize who said what.
@@ -819,7 +827,7 @@ void tcp_connect(struct sock *sk, struct sk_buff *buff, int mss)
 		mss = min(mss, sk->user_mss);
 
 	if (mss < 1) {
-		printk(KERN_DEBUG "intial sk->mss below 1\n");
+		printk(KERN_DEBUG "initial sk->mss below 1\n");
 		mss = 1;	/* Sanity limit */
 	}
 

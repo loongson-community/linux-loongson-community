@@ -1,4 +1,4 @@
-/* $Id: irq.h,v 1.22 1998/02/05 14:20:05 jj Exp $
+/* $Id: irq.h,v 1.25 1998/06/04 09:55:04 jj Exp $
  * irq.h: IRQ registers on the Sparc.
  *
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
@@ -12,16 +12,10 @@
 #include <asm/system.h>     /* For NCPUS */
 #include <asm/btfixup.h>
 
-/* This is used for sun4d */
-struct devid_cookie {
-        /* Caller specifies these. */
-        void            *real_dev_id;           /* What dev_id would usually contain. */
-        void            *bus_cookie;            /* linux_sbus_device *, etc. */
-        /* Return values. */
-        unsigned int    ret_ino;
-};
-
-#define SA_DCOOKIE      0x10000
+#define __irq_ino(irq) irq
+#define __irq_pil(irq) irq
+BTFIXUPDEF_CALL(char *, __irq_itoa, unsigned int)
+#define __irq_itoa(irq) BTFIXUP_CALL(__irq_itoa)(irq)
 
 #define NR_IRQS    15
 
@@ -66,11 +60,6 @@ extern __inline__ void irq_exit(int cpu, int irq)
 #define irq_enter(cpu, irq, regs)	(local_irq_count[cpu]++)
 #define irq_exit(cpu, irq)		(local_irq_count[cpu]--)
 #endif
-
-static __inline__ int irq_cannonicalize(int irq)
-{
-	return irq;
-}
 
 /* Dave Redman (djhr@tadpole.co.uk)
  * changed these to function pointers.. it saves cycles and will allow

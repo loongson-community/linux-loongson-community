@@ -29,12 +29,14 @@
  * Yves Arrouye      :  remove removal of trailing spaces in get_array.
  *			<Yves.Arrouye@marin.fdn.fr>
 
- * Jerome Forissier  :  added per-cpu time information to /proc/stat
+ * Jerome Forissier  :  added per-CPU time information to /proc/stat
  *                      and /proc/<pid>/cpu extension
  *                      <forissier@isia.cma.fr>
  *			- Incorporation and non-SMP safe operation
  *			of forissier patch in 2.1.78 by 
  *			Hans Marcus <crowbar@concepts.nl>
+ *
+ * aeb@cwi.nl        :  /proc/partitions
  */
 
 #include <linux/types.h>
@@ -559,6 +561,23 @@ static unsigned long get_wchan(struct task_struct *p)
 	}
 #elif defined(__powerpc__)
 	return (p->tss.wchan);
+#elif defined (CONFIG_ARM)
+	{
+		unsigned long fp, lr;
+		unsigned long stack_page;
+		int count = 0;
+
+		stack_page = 4096 + (unsigned long)p;
+		fp = get_css_fp (&p->tss);
+		do {
+			if (fp < stack_page || fp > 4092+stack_page)
+				return 0;
+			lr = pc_pointer (((unsigned long *)fp)[-1]);
+			if (lr < first_sched || lr > last_sched)
+				return lr;
+			fp = *(unsigned long *) (fp - 12);
+		} while (count ++ < 16);
+	}
 #endif
 
 	return 0;
@@ -576,6 +595,9 @@ static unsigned long get_wchan(struct task_struct *p)
 # define KSTK_EIP(tsk) \
     (*(unsigned long *)(PT_REG(pc) + PAGE_SIZE + (unsigned long)(tsk)))
 # define KSTK_ESP(tsk)	((tsk) == current ? rdusp() : (tsk)->tss.usp)
+#elif defined(CONFIG_ARM)
+# define KSTK_EIP(tsk)	(((unsigned long *)(4096+(unsigned long)(tsk)))[1022])
+# define KSTK_ESP(tsk)	(((unsigned long *)(4096+(unsigned long)(tsk)))[1020])
 #elif defined(__mc68000__)
 #define	KSTK_EIP(tsk)	\
     ({			\
@@ -729,21 +751,6 @@ static inline char * task_mem(struct task_struct *p, char *buffer)
 	return buffer;
 }
 
-char * render_sigset_t(sigset_t *set, char *buffer)
-{
-	int i = _NSIG, x;
-	do {
-		i -= 4, x = 0;
-		if (sigismember(set, i+1)) x |= 1;
-		if (sigismember(set, i+2)) x |= 2;
-		if (sigismember(set, i+3)) x |= 4;
-		if (sigismember(set, i+4)) x |= 8;
-		*buffer++ = (x < 10 ? '0' : 'a' - 10) + x;
-	} while (i >= 4);
-	*buffer = 0;
-	return buffer;
-}
-
 static void collect_sigign_sigcatch(struct task_struct *p, sigset_t *ign,
 				    sigset_t *catch)
 {
@@ -779,7 +786,7 @@ static inline char * task_sig(struct task_struct *p, char *buffer)
 	buffer += sprintf(buffer, "SigIgn:\t");
 	buffer = render_sigset_t(&ign, buffer);
 	*buffer++ = '\n';
-	buffer += sprintf(buffer, "SigCat:\t");
+	buffer += sprintf(buffer, "SigCgt:\t"); /* Linux 2.0 uses "SigCgt" */
 	buffer = render_sigset_t(&catch, buffer);
 	*buffer++ = '\n';
 
@@ -822,10 +829,6 @@ static int get_stat(int pid, char * buffer)
 	long priority, nice;
 	int tty_pgrp;
 	sigset_t sigign, sigcatch;
-	char signal_str[sizeof(sigset_t)*2+1];
-	char blocked_str[sizeof(sigset_t)*2+1];
-	char sigign_str[sizeof(sigset_t)*2+1];
-	char sigcatch_str[sizeof(sigset_t)*2+1];
 	char state;
 
 	read_lock(&tasklist_lock);
@@ -848,10 +851,6 @@ static int get_stat(int pid, char * buffer)
 	wchan = get_wchan(tsk);
 
 	collect_sigign_sigcatch(tsk, &sigign, &sigcatch);
-	render_sigset_t(&tsk->signal, signal_str);
-	render_sigset_t(&tsk->blocked, blocked_str);
-	render_sigset_t(&sigign, sigign_str);
-	render_sigset_t(&sigcatch, sigcatch_str);
 
 	if (tsk->tty)
 		tty_pgrp = tsk->tty->pgrp;
@@ -859,7 +858,7 @@ static int get_stat(int pid, char * buffer)
 		tty_pgrp = -1;
 
 	/* scale priority and nice values from timeslices to -20..20 */
-	/* to make it look like a "normal" unix priority/nice value  */
+	/* to make it look like a "normal" Unix priority/nice value  */
 	priority = tsk->counter;
 	priority = 20 - (priority * 10 + DEF_PRIORITY / 2) / DEF_PRIORITY;
 	nice = tsk->priority;
@@ -867,7 +866,7 @@ static int get_stat(int pid, char * buffer)
 
 	return sprintf(buffer,"%d (%s) %c %d %d %d %d %d %lu %lu \
 %lu %lu %lu %lu %lu %ld %ld %ld %ld %ld %ld %lu %lu %ld %lu %lu %lu %lu %lu \
-%lu %s %s %s %s %lu %lu %lu\n",
+%lu %lu %lu %lu %lu %lu %lu %lu\n",
 		pid,
 		tsk->comm,
 		state,
@@ -898,10 +897,14 @@ static int get_stat(int pid, char * buffer)
 		tsk->mm ? tsk->mm->start_stack : 0,
 		esp,
 		eip,
-		signal_str,
-		blocked_str,
-		sigign_str,
-		sigcatch_str,
+		/* The signal information here is obsolete.
+		 * It must be decimal for Linux 2.0 compatibility.
+		 * Use /proc/#/status for real-time signals.
+		 */
+		tsk->signal .sig[0] & 0x7fffffffUL,
+		tsk->blocked.sig[0] & 0x7fffffffUL,
+		sigign      .sig[0] & 0x7fffffffUL,
+		sigcatch    .sig[0] & 0x7fffffffUL,
 		wchan,
 		tsk->nswap,
 		tsk->cnswap);
@@ -982,7 +985,7 @@ static void statm_pgd_range(pgd_t * pgd, unsigned long address, unsigned long en
 
 static int get_statm(int pid, char * buffer)
 {
-	struct task_struct *tsk = find_task_by_pid(pid);
+	struct task_struct *tsk;
 	int size=0, resident=0, share=0, trs=0, lrs=0, drs=0, dt=0;
 
 	read_lock(&tasklist_lock);
@@ -1080,7 +1083,7 @@ static ssize_t read_maps (int pid, struct file * file, char * buf,
 		goto getlen_out;
 
 	/* Check whether the mmaps could change if we sleep */
-	volatile_task = (p != current || p->mm->count > 1);
+	volatile_task = (p != current || atomic_read(&p->mm->count) > 1);
 
 	/* decode f_pos */
 	lineno = *ppos >> MAPS_LINE_SHIFT;
@@ -1212,6 +1215,7 @@ extern int get_module_list(char *);
 extern int get_ksyms_list(char *, char **, off_t, int);
 #endif
 extern int get_device_list(char *);
+extern int get_partition_list(char *);
 extern int get_filesystem_list(char *);
 extern int get_filesystem_info( char * );
 extern int get_irq_list(char *);
@@ -1222,12 +1226,8 @@ extern int get_md_status (char *);
 extern int get_rtc_status (char *);
 extern int get_locks_status (char *, char **, off_t, int);
 extern int get_swaparea_info (char *);
-#ifdef CONFIG_ZORRO
-extern int zorro_get_list(char *);
-#endif
-#if defined (CONFIG_AMIGA) || defined (CONFIG_ATARI)
 extern int get_hardware_list(char *);
-#endif
+extern int get_stram_list(char *);
 
 static long get_root_array(char * page, int type, char **start,
 	off_t offset, unsigned long length)
@@ -1275,6 +1275,9 @@ static long get_root_array(char * page, int type, char **start,
 		case PROC_DEVICES:
 			return get_device_list(page);
 
+		case PROC_PARTITIONS:
+			return get_partition_list(page);
+
 		case PROC_INTERRUPTS:
 			return get_irq_list(page);
 
@@ -1308,13 +1311,13 @@ static long get_root_array(char * page, int type, char **start,
 #endif
 		case PROC_LOCKS:
 			return get_locks_status(page, start, offset, length);
-#ifdef CONFIG_ZORRO
-		case PROC_ZORRO:
-			return zorro_get_list(page);
-#endif
-#if defined (CONFIG_AMIGA) || defined (CONFIG_ATARI)
+#ifdef CONFIG_PROC_HARDWARE
 		case PROC_HARDWARE:
 			return get_hardware_list(page);
+#endif
+#ifdef CONFIG_STRAM_PROC
+		case PROC_STRAM:
+			return get_stram_list(page);
 #endif
 	}
 	return -EBADF;

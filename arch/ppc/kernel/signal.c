@@ -1,6 +1,8 @@
 /*
  *  linux/arch/ppc/kernel/signal.c
  *
+ *  $Id: signal.c,v 1.16 1998/06/16 23:34:10 cort Exp $
+ *
  *  PowerPC version 
  *    Copyright (C) 1995-1996 Gary Thomas (gdt@linuxppc.org)
  *
@@ -116,6 +118,14 @@ sys_rt_sigsuspend(sigset_t *unewset, size_t sigsetsize, int p3, int p4, int p6,
 		if (do_signal(&saveset, regs))
 			return regs->gpr[3];
 	}
+}
+
+
+asmlinkage int sys_rt_sigreturn(unsigned long __unused)
+{
+	printk("sys_rt_sigreturn(): %s/%d not yet implemented.\n",
+	       current->comm,current->pid);
+	do_exit(SIGSEGV);
 }
 
 int 

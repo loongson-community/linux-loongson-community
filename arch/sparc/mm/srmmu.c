@@ -1,4 +1,4 @@
-/* $Id: srmmu.c,v 1.170 1998/03/09 14:04:01 jj Exp $
+/* $Id: srmmu.c,v 1.173 1998/08/04 20:48:57 davem Exp $
  * srmmu.c:  SRMMU specific routines for memory management.
  *
  * Copyright (C) 1995 David S. Miller  (davem@caip.rutgers.edu)
@@ -512,7 +512,7 @@ static inline pgd_t *srmmu_get_pgd_fast(void)
 		pgd_cache_size--;
 	}
 	spin_unlock(&pgd_spinlock);
-	return (pte_t *)ret;
+	return (pgd_t *)ret;
 }
 
 static inline pgd_t *srmmu_get_pgd_slow(void)
@@ -1034,7 +1034,7 @@ static void cypress_flush_cache_mm(struct mm_struct *mm)
 
 	FLUSH_BEGIN(mm)
 	flush_user_windows();
-	save_and_cli(flags);
+	__save_and_cli(flags);
 	octx = srmmu_get_context();
 	srmmu_set_context(mm->context);
 	a = 0x20; b = 0x40; c = 0x60;
@@ -1058,7 +1058,7 @@ static void cypress_flush_cache_mm(struct mm_struct *mm)
 				     "r" (e), "r" (f), "r" (g));
 	} while(faddr);
 	srmmu_set_context(octx);
-	restore_flags(flags);
+	__restore_flags(flags);
 	FLUSH_END
 }
 
@@ -1070,7 +1070,7 @@ static void cypress_flush_cache_range(struct mm_struct *mm, unsigned long start,
 
 	FLUSH_BEGIN(mm)
 	flush_user_windows();
-	save_and_cli(flags);
+	__save_and_cli(flags);
 	octx = srmmu_get_context();
 	srmmu_set_context(mm->context);
 	a = 0x20; b = 0x40; c = 0x60;
@@ -1099,7 +1099,7 @@ static void cypress_flush_cache_range(struct mm_struct *mm, unsigned long start,
 		start += SRMMU_PMD_SIZE;
 	}
 	srmmu_set_context(octx);
-	restore_flags(flags);
+	__restore_flags(flags);
 	FLUSH_END
 }
 
@@ -1112,7 +1112,7 @@ static void cypress_flush_cache_page(struct vm_area_struct *vma, unsigned long p
 
 	FLUSH_BEGIN(mm)
 	flush_user_windows();
-	save_and_cli(flags);
+	__save_and_cli(flags);
 	octx = srmmu_get_context();
 	srmmu_set_context(mm->context);
 	a = 0x20; b = 0x40; c = 0x60;
@@ -1138,7 +1138,7 @@ static void cypress_flush_cache_page(struct vm_area_struct *vma, unsigned long p
 					     "r" (e), "r" (f), "r" (g));
 	} while(line != page);
 	srmmu_set_context(octx);
-	restore_flags(flags);
+	__restore_flags(flags);
 	FLUSH_END
 }
 
@@ -2019,7 +2019,7 @@ static void srmmu_vac_update_mmu_cache(struct vm_area_struct * vma,
 		pmd_t *pmdp;
 		pte_t *ptep;
 
-		save_and_cli(flags);
+		__save_and_cli(flags);
 
 		file = vma->vm_file;
 		if (!file)
@@ -2065,7 +2065,7 @@ static void srmmu_vac_update_mmu_cache(struct vm_area_struct * vma,
 			flush_tlb_page(vma, address);
 		}
 	done:
-		restore_flags(flags);
+		__restore_flags(flags);
 	}
 }
 
@@ -2722,16 +2722,12 @@ __initfunc(static void get_srmmu_type(void))
 	srmmu_is_bad();
 }
 
-/* Low and high watermarks for page table cache.
-   The system should try to have pgt_water[0] <= cache elements <= pgt_water[1]
- */
-extern int pgt_cache_water[2];
-
-void srmmu_check_pgt_cache(void)
+static int srmmu_check_pgt_cache(int low, int high)
 {
 	struct page *page, *page2;
+	int freed = 0;
 
-	if (pgtable_cache_size > pgt_cache_water[0]) {
+	if (pgtable_cache_size > high) {
 		spin_lock(&pte_spinlock);
 		for (page2 = NULL, page = (struct page *)pte_quicklist; page;) {
 			if ((unsigned int)page->pprev_hash == 0xffff) {
@@ -2743,11 +2739,12 @@ void srmmu_check_pgt_cache(void)
 				page->pprev_hash = NULL;
 				pgtable_cache_size -= 16;
 				free_page(PAGE_OFFSET + (page->map_nr << PAGE_SHIFT));
+				freed++;
 				if (page2)
 					page = page2->next_hash;
 				else
 					page = (struct page *)pte_quicklist;
-				if (pgtable_cache_size <= pgt_cache_water[1])
+				if (pgtable_cache_size <= low)
 					break;
 				continue;
 			}
@@ -2756,7 +2753,7 @@ void srmmu_check_pgt_cache(void)
 		}
 		spin_unlock(&pte_spinlock);
 	}
-	if (pgd_cache_size > pgt_cache_water[0] / 4) {
+	if (pgd_cache_size > high / 4) {
 		spin_lock(&pgd_spinlock);
 		for (page2 = NULL, page = (struct page *)pgd_quicklist; page;) {
 			if ((unsigned int)page->pprev_hash == 0xf) {
@@ -2768,11 +2765,12 @@ void srmmu_check_pgt_cache(void)
 				page->pprev_hash = NULL;
 				pgd_cache_size -= 4;
 				free_page(PAGE_OFFSET + (page->map_nr << PAGE_SHIFT));
+				freed++;
 				if (page2)
 					page = page2->next_hash;
 				else
 					page = (struct page *)pgd_quicklist;
-				if (pgd_cache_size <= pgt_cache_water[1] / 4)
+				if (pgd_cache_size <= low / 4)
 					break;
 				continue;
 			}
@@ -2781,6 +2779,7 @@ void srmmu_check_pgt_cache(void)
 		}
 		spin_unlock(&pgd_spinlock);
 	}
+	return freed;
 }
 
 extern unsigned long spwin_mmu_patchme, fwin_mmu_patchme,
@@ -2853,6 +2852,7 @@ __initfunc(void ld_mmu_srmmu(void))
 	BTFIXUPSET_CALL(get_pgd_fast, srmmu_get_pgd_fast, BTFIXUPCALL_RETINT(0));
 	BTFIXUPSET_CALL(free_pte_slow, srmmu_free_pte_slow, BTFIXUPCALL_NOP);
 	BTFIXUPSET_CALL(free_pgd_slow, srmmu_free_pgd_slow, BTFIXUPCALL_NOP);
+	BTFIXUPSET_CALL(do_check_pgt_cache, srmmu_check_pgt_cache, BTFIXUPCALL_NORM);
 	
 	BTFIXUPSET_CALL(set_pgdir, srmmu_set_pgdir, BTFIXUPCALL_NORM);
 	    

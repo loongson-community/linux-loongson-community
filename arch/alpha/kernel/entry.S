@@ -15,7 +15,7 @@
 #define osf_vfork sys_fork
 
 /*
- * These offsets must match with "struct hae" in io.h:
+ * These offsets must match with alpha_mv in <asm/machvec.h>.
  */
 #define HAE_CACHE	0
 #define HAE_REG		8
@@ -30,10 +30,12 @@
 /*
  * task structure offsets
  */
-#define TASK_STATE	 0
-#define TASK_FLAGS	 8
-#define TASK_SIGPENDING	16
-#define TASK_SIZE	24	
+#define TASK_STATE		0
+#define TASK_FLAGS		8
+#define TASK_SIGPENDING		16
+#define TASK_ADDR_LIMIT		24	
+#define TASK_EXEC_DOMAIN	32
+#define TASK_NEED_RESCHED	40
 
 /*
  * task flags (must match include/linux/sched.h):
@@ -107,7 +109,7 @@
 	stq	$3,24($30);		\
 	stq	$4,32($30);		\
 	stq	$28,144($30);		\
-	lda	$2,hae;			\
+	lda	$2,alpha_mv;		\
 	stq	$5,40($30);		\
 	stq	$6,48($30);		\
 	stq	$7,56($30);		\
@@ -128,7 +130,7 @@
 	stq	$18,176($30)
 
 #define RESTORE_ALL			\
-	lda	$19,hae;		\
+	lda	$19,alpha_mv;		\
 	ldq	$0,0($30);		\
 	ldq	$1,8($30);		\
 	ldq	$2,16($30);		\
@@ -264,7 +266,7 @@ kernel_clone:
 	stq $18,40($30)
 	bis $31,2,$0	/* Register v0: syscall nr for fork() */
 	SAVE_ALL
-	jsr $26,sys_clone
+	bsr $26,sys_clone
 	stq $0,0($30)
 	br $31,ret_from_sys_call
 .end	kernel_clone
@@ -559,6 +561,7 @@ sys_clone:
 .globl  alpha_switch_to
 .ent    alpha_switch_to
 alpha_switch_to:
+	.prologue 0
 	bsr $1,do_switch_stack
 	call_pal PAL_swpctx
 	lda $16,-2($31)
@@ -615,8 +618,7 @@ ret_from_handle_bh:
 	and	$0,8,$0
 	beq	$0,restore_all
 ret_from_reschedule:
-	lda	$0,need_resched
-	ldl	$2,0($0)
+	ldq	$2,TASK_NEED_RESCHED($8)
 	lda	$4,init_task_union
 	bne	$2,reschedule
 	xor	$4,$8,$4
@@ -923,7 +925,7 @@ sys_call_table:
 	.quad alpha_ni_syscall
 	.quad alpha_ni_syscall			/* 110 */
 	.quad sys_sigsuspend
-	.quad sys_ni_syscall
+	.quad osf_sigstack
 	.quad sys_recvmsg
 	.quad sys_sendmsg
 	.quad alpha_ni_syscall			/* 115 */
@@ -1046,7 +1048,7 @@ sys_call_table:
 	.quad alpha_ni_syscall
 	.quad sys_getpgid
 	.quad sys_getsid
-	.quad alpha_ni_syscall			/* 235 */
+	.quad sys_sigaltstack			/* 235 */
 	.quad alpha_ni_syscall
 	.quad alpha_ni_syscall
 	.quad alpha_ni_syscall
@@ -1133,7 +1135,7 @@ sys_call_table:
 	.quad sys_sysinfo
 	.quad sys_sysctl
 	.quad sys_idle				/* 320 */
-	.quad sys_umount
+	.quad sys_oldumount
 	.quad sys_swapon
 	.quad sys_times
 	.quad sys_personality
@@ -1179,6 +1181,7 @@ sys_call_table:
 	.quad sys_getrusage
 	.quad sys_wait4				/* 365 */
 	.quad sys_adjtimex
-	.quad sys_ni_syscall
-	.quad sys_ni_syscall
-	.quad sys_ni_syscall			/* 369 */
+	.quad sys_getcwd
+	.quad sys_capget
+	.quad sys_capset
+	.quad sys_ni_syscall			/* 370 */

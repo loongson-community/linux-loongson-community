@@ -65,6 +65,36 @@ int coda_fid_is_volroot(struct ViceFid *fid)
 {
 	return ( (fid->Vnode == 1) && (fid->Unique == 1 ) );
 }
+  
+int coda_fid_is_weird(struct ViceFid *fid)
+{
+        /* volume roots */
+        if ( (fid->Vnode == 1) && (fid->Unique == 1 ) )
+	        return 1;
+        /* tmpfid unique (simulate.cc) */
+	if ( fid->Unique == 0xffffffff )
+	        return 1;
+	/* LocalFakeVnode (local.h)  */
+	if ( fid->Vnode == 0xfffffffd )
+	        return 1;
+	/* LocalFileVnode (venus.private.h) */
+	if ( fid->Vnode == 0xfffffffe )
+	        return 1;
+	/* local fake vid (local.h) */
+	if ( fid->Volume == 0xffffffff )
+	        return 1;
+	/* local DirVnode (venus.private.h) */
+	if ( fid->Vnode == 0xffffffff )
+	        return 1;
+	/* FakeVnode (venus.private.h) */
+	if ( fid->Vnode == 0xfffffffc )
+	        return 1;
+
+	return 0;
+
+}
+
+
 
 /* put the current process credentials in the cred */
 void coda_load_creds(struct coda_cred *cred)
@@ -93,15 +123,31 @@ int coda_cred_eq(struct coda_cred *cred1, struct coda_cred *cred2)
 unsigned short coda_flags_to_cflags(unsigned short flags)
 {
 	unsigned short coda_flags = 0;
-
-	if ( flags & (O_RDONLY | O_RDWR) )
+	
+	if ( (flags & O_ACCMODE) == O_RDONLY ){ 
+		CDEBUG(D_FILE, "--> C_O_READ added\n");
 		coda_flags |= C_O_READ;
+	}
 
-	if ( flags & (O_WRONLY | O_RDWR) )
+	if ( (flags & O_ACCMODE) ==  O_RDWR ) { 
+		CDEBUG(D_FILE, "--> C_O_READ | C_O_WRITE added\n");
+		coda_flags |= C_O_READ | C_O_WRITE;
+	}
+
+	if ( (flags & O_ACCMODE) == O_WRONLY ){ 
+		CDEBUG(D_FILE, "--> C_O_WRITE added\n");
 		coda_flags |= C_O_WRITE;
+	}
 
-	if ( flags & O_TRUNC ) 
+	if ( flags & O_TRUNC )  { 
+		CDEBUG(D_FILE, "--> C_O_TRUNC added\n");
 		coda_flags |= C_O_TRUNC;
+	}
+
+	if ( flags & O_EXCL ) {
+		coda_flags |= C_O_EXCL;
+		CDEBUG(D_FILE, "--> C_O_EXCL added\n");
+	}
 
 	return coda_flags;
 }
@@ -142,12 +188,10 @@ void coda_vattr_to_iattr(struct inode *inode, struct coda_vattr *attr)
 	        inode->i_nlink = attr->va_nlink;
 	if (attr->va_size != -1)
 	        inode->i_size = attr->va_size;
-	/*  XXX This needs further study */
-	/*
-        inode->i_blksize = attr->va_blocksize;
-	inode->i_blocks = attr->va_size/attr->va_blocksize 
-	  + (attr->va_size % attr->va_blocksize ? 1 : 0); 
-	  */
+	if (attr->va_blocksize != -1)
+		inode->i_blksize = attr->va_blocksize;
+	if (attr->va_size != -1)
+		inode->i_blocks = (attr->va_size + 511) >> 9;
 	if (attr->va_atime.tv_sec != -1) 
 	        inode->i_atime = attr->va_atime.tv_sec;
 	if (attr->va_mtime.tv_sec != -1)

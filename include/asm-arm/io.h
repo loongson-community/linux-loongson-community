@@ -170,44 +170,20 @@ __IO(l,"",long)
 #undef ARCH_IO_DELAY
 #undef ARCH_IO_CONSTANT
 
-/*
- * Leftovers...
- */
-#if 0
-#define __outwc(value,port)						\
-({									\
-	if (port < 256)							\
-		__asm__ __volatile__(					\
-		"strh	%0, [%1, %2]"					\
-		: : "r" (value), "r" (PCIO_BASE), "J" (port << 2));	\
-	else if (__PORT_PCIO(port))					\
-		__asm__ __volatile__(					\
-		"strh	%0, [%1, %2]"					\
-		: : "r" (value), "r" (PCIO_BASE), "r" (port << 2));	\
-	else								\
-		__asm__ __volatile__(					\
-		"strh	%0, [%1, %2]"					\
-		: : "r" (value), "r" (IO_BASE), "r" (port << 2));	\
-})
+#ifdef __KERNEL__
 
-#define __inwc(port)							\
-({									\
-	unsigned short result;						\
-	if (port < 256)							\
-		__asm__ __volatile__(					\
-		"ldrh	%0, [%1, %2]"					\
-		: "=r" (result) : "r" (PCIO_BASE), "J" (port << 2));	\
-	else								\
-	if (__PORT_PCIO(port))						\
-		__asm__ __volatile__(					\
-		"ldrh	%0, [%1, %2]"					\
-		: "=r" (result) : "r" (PCIO_BASE), "r" (port << 2));	\
-	else								\
-		__asm__ __volatile__(					\
-		"ldrh	%0, [%1, %2]"					\
-		: "=r" (result) : "r" (IO_BASE), "r" (port << 2));	\
-	result;								\
-})
+/*
+ * String version of IO memory access ops:
+ */
+extern void _memcpy_fromio(void *, unsigned long, unsigned long);
+extern void _memcpy_toio(unsigned long, void *, unsigned long);
+extern void _memset_io(unsigned long, int, unsigned long);
+
+#define memcpy_fromio(to,from,len)	_memcpy_fromio((to),(unsigned long)(from),(len))
+#define memcpy_toio(to,from,len)	_memcpy_toio((unsigned long)(to),(from),(len))
+#define memset_io(addr,c,len)		_memset_io((unsigned long)(addr),(c),(len))
+
 #endif
+
 #endif
 

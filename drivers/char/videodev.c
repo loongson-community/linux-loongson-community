@@ -27,6 +27,10 @@
 #include <asm/uaccess.h>
 #include <asm/system.h>
 
+#ifdef CONFIG_KMOD
+#include <linux/kmod.h>
+#endif
+
 
 #define VIDEO_NUM_DEVICES	256 
 
@@ -38,6 +42,7 @@ static struct video_device *video_device[VIDEO_NUM_DEVICES];
 
 #ifdef CONFIG_VIDEO_BT848
 extern int init_bttv_cards(struct video_init *);
+extern int i2c_tuner_init(struct video_init *);
 #endif
 #ifdef CONFIG_VIDEO_SAA5249
 extern int init_saa_5249(struct video_init *);
@@ -48,9 +53,19 @@ extern int init_colour_qcams(struct video_init *);
 #ifdef CONFIG_VIDEO_BWQCAM
 extern int init_bw_qcams(struct video_init *);
 #endif
+#ifdef CONFIG_RADIO_AZTECH
+extern int aztech_init(struct video_init *);
+#endif
+#ifdef CONFIG_RADIO_RTRACK
+extern int rtrack_init(struct video_init *);
+#endif
+#ifdef CONFIG_RADIO_SF16FMI
+extern int fmi_init(struct video_init *);
+#endif
 
 static struct video_init video_init_list[]={
 #ifdef CONFIG_VIDEO_BT848
+	{"i2c-tuner", i2c_tuner_init},
 	{"bttv", init_bttv_cards},
 #endif	
 #ifdef CONFIG_VIDEO_SAA5249
@@ -65,6 +80,15 @@ static struct video_init video_init_list[]={
 #ifdef CONFIG_VIDEO_PMS
 	{"PMS", init_pms_cards}, 
 #endif	
+#ifdef CONFIG_RADIO_AZTECH
+	{"Aztech", aztech_init}, 
+#endif	
+#ifdef CONFIG_RADIO_RTRACK
+	{"RTrack", rtrack_init}, 
+#endif	
+#ifdef CONFIG_RADIO_SF16FMI
+	{"SF16FMI", fmi_init}, 
+#endif	
 	{"end", NULL}
 };
 
@@ -77,9 +101,11 @@ static ssize_t video_read(struct file *file,
 	char *buf, size_t count, loff_t *ppos)
 {
 	struct video_device *vfl=video_device[MINOR(file->f_dentry->d_inode->i_rdev)];
-	return vfl->read(vfl, buf, count, file->f_flags&O_NONBLOCK);
+	if(vfl->read)
+		return vfl->read(vfl, buf, count, file->f_flags&O_NONBLOCK);
+	else
+		return -EINVAL;
 }
-
 
 
 /*
@@ -91,7 +117,25 @@ static ssize_t video_write(struct file *file, const char *buf,
 	size_t count, loff_t *ppos)
 {
 	struct video_device *vfl=video_device[MINOR(file->f_dentry->d_inode->i_rdev)];
-	return vfl->write(vfl, buf, count, file->f_flags&O_NONBLOCK);
+	if(vfl->write)
+		return vfl->write(vfl, buf, count, file->f_flags&O_NONBLOCK);
+	else
+		return 0;
+}
+
+
+/*
+ *	Poll to see if we're readable, can probably be used for timing on incoming
+ *  frames, etc..
+ */
+
+static unsigned int video_poll(struct file *file, poll_table * wait)
+{
+	struct video_device *vfl=video_device[MINOR(file->f_dentry->d_inode->i_rdev)];
+	if(vfl->poll)
+		return vfl->poll(vfl, file, wait);
+	else
+		return 0;
 }
 
 /*
@@ -108,8 +152,17 @@ static int video_open(struct inode *inode, struct file *file)
 		return -ENODEV;
 		
 	vfl=video_device[minor];
-	if(vfl==NULL)
-		return -ENODEV;
+	if(vfl==NULL) {
+#ifdef CONFIG_KMOD
+		char modname[20];
+
+		sprintf (modname, "char-major-%d-%d", VIDEO_MAJOR, minor);
+		request_module(modname);
+		vfl=video_device[minor];
+		if (vfl==NULL)
+#endif
+			return -ENODEV;
+	}
 	if(vfl->busy)
 		return -EBUSY;
 	vfl->busy=1;		/* In case vfl->open sleeps */
@@ -223,12 +276,15 @@ int video_register_device(struct video_device *vfd, int type)
 			/* The init call may sleep so we book the slot out
 			   then call */
 			MOD_INC_USE_COUNT;
-			err=vfd->initialize(vfd);
-			if(err<0)
+			if(vfd->initialize)
 			{
-				video_device[i]=NULL;
-				MOD_DEC_USE_COUNT;
-				return err;
+				err=vfd->initialize(vfd);
+				if(err<0)
+				{
+					video_device[i]=NULL;
+					MOD_DEC_USE_COUNT;
+					return err;
+				}
 			}
 			return 0;
 		}
@@ -255,7 +311,7 @@ static struct file_operations video_fops=
 	video_read,
 	video_write,
 	NULL,	/* readdir */
-	NULL,	/* poll */
+	video_poll,	/* poll */
 	video_ioctl,
 	video_mmap,
 	video_open,

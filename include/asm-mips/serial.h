@@ -15,14 +15,9 @@
  */
 #define BASE_BAUD ( 1843200 / 16 )
 
-#ifndef CONFIG_OLIVETTI_M700
 /* Some Jazz machines seem to have an 8MHz crystal clock but I don't know
    exactly which ones ... XXX */
 #define JAZZ_BASE_BAUD ( 8000000 / 16 ) /* ( 3072000 / 16) */
-#else
-/* but the M700 isn't such a strange beast */
-#define JAZZ_BASE_BAUD BASE_BAUD
-#endif
 
 /* Standard COM flags (except for COM4, because of the 8514 problem) */
 #ifdef CONFIG_SERIAL_DETECT_IRQ

@@ -53,7 +53,7 @@
  * ++roman:
  * 
  * New version of ST-Ram buffer allocation. Instead of using the
- * 1 MB - 4 KB that remain when the the ST-Ram chunk starts at $1000
+ * 1 MB - 4 KB that remain when the ST-Ram chunk starts at $1000
  * (1 MB granularity!), such buffers are reserved like this:
  *
  *  - If the kernel resides in ST-Ram anyway, we can take the buffer
@@ -826,18 +826,23 @@ static int unswap_process( struct mm_struct * mm, unsigned long entry,
 						   unsigned long page, int isswap )
 {
 	struct vm_area_struct* vma;
+	int retval = 0;
 
 	/*
 	 * Go through process' page directory.
 	 */
 	if (!mm || mm == &init_mm)
 		return 0;
+	down(&mm->mmap_sem);
 	for( vma = mm->mmap; vma; vma = vma->vm_next ) {
 		pgd_t * pgd = pgd_offset(mm, vma->vm_start);
-		if (unswap_vma( vma, pgd, entry, page, isswap ))
-			return 1;
+		if (unswap_vma( vma, pgd, entry, page, isswap )) {
+			retval = 1;
+			break;
+		}
 	}
-	return 0;
+	up(&mm->mmap_sem);
+	return retval;
 }
 
 
@@ -954,7 +959,7 @@ static int unswap_by_read( unsigned char *map, unsigned long max,
 				return( -ENOMEM );
 			}
 			DPRINTK( "unswap: reading swap page %lu to %08lx\n", i, page );
-			read_swap_page( entry, (char *)page );
+			rw_swap_page( READ, entry, (char *)page, 1 );
 
 			for_each_task(p) {
 				if (unswap_process( p->mm, entry, page, 0 )) {
@@ -1160,7 +1165,7 @@ static unsigned long find_free_region( unsigned long n_pages,
 
 
 /* setup parameters from command line */
-void stram_swap_setup( char *str, int *ints )
+__initfunc(void stram_swap_setup(char *str, int *ints))
 {
 	if (ints[0] >= 1)
 		max_swap_size = ((ints[1] < 0 ? 0 : ints[1]) * 1024) & PAGE_MASK;
@@ -1256,7 +1261,7 @@ static struct file_operations stram_fops = {
         block_fsync             /* fsync */
 };
 
-int stram_device_init( void )
+__initfunc(int stram_device_init(void))
 {
 
     if (!MACH_IS_ATARI)

@@ -51,8 +51,9 @@
 #include <linux/ctype.h>
 #include <linux/file.h>
 #include <linux/console.h>
+#include <linux/time.h>
 
-extern unsigned char aux_device_present, kbd_read_mask;
+extern unsigned char aux_device_present, pckbd_read_mask;
 
 #if defined(CONFIG_PROC_FS)
 #include <linux/proc_fs.h>
@@ -121,7 +122,6 @@ EXPORT_SYMBOL(vfree);
 EXPORT_SYMBOL(mem_map);
 EXPORT_SYMBOL(remap_page_range);
 EXPORT_SYMBOL(max_mapnr);
-EXPORT_SYMBOL(num_physpages);
 EXPORT_SYMBOL(high_memory);
 EXPORT_SYMBOL(update_vm_cache);
 EXPORT_SYMBOL(vmtruncate);
@@ -147,6 +147,7 @@ EXPORT_SYMBOL(d_instantiate);
 EXPORT_SYMBOL(d_alloc);
 EXPORT_SYMBOL(d_lookup);
 EXPORT_SYMBOL(__mark_inode_dirty);
+EXPORT_SYMBOL(get_empty_filp);
 EXPORT_SYMBOL(init_private_file);
 EXPORT_SYMBOL(insert_file_free);
 EXPORT_SYMBOL(check_disk_change);
@@ -184,6 +185,7 @@ EXPORT_SYMBOL(locks_remove_flock);
 EXPORT_SYMBOL(dput);
 EXPORT_SYMBOL(get_cached_page);
 EXPORT_SYMBOL(put_cached_page);
+EXPORT_SYMBOL(is_root_busy);
 EXPORT_SYMBOL(prune_dcache);
 EXPORT_SYMBOL(shrink_dcache_sb);
 EXPORT_SYMBOL(shrink_dcache_parent);
@@ -269,8 +271,6 @@ EXPORT_SYMBOL(proc_dointvec_minmax);
 /* interrupt handling */
 EXPORT_SYMBOL(request_irq);
 EXPORT_SYMBOL(free_irq);
-EXPORT_SYMBOL(enable_irq);
-EXPORT_SYMBOL(disable_irq);
 EXPORT_SYMBOL(probe_irq_on);
 EXPORT_SYMBOL(probe_irq_off);
 EXPORT_SYMBOL(bh_active);
@@ -318,7 +318,6 @@ EXPORT_SYMBOL(jiffies);
 EXPORT_SYMBOL(xtime);
 EXPORT_SYMBOL(do_gettimeofday);
 EXPORT_SYMBOL(loops_per_sec);
-EXPORT_SYMBOL(need_resched);
 EXPORT_SYMBOL(kstat);
 
 /* misc */
@@ -328,7 +327,8 @@ EXPORT_SYMBOL(sprintf);
 EXPORT_SYMBOL(vsprintf);
 EXPORT_SYMBOL(kdevname);
 EXPORT_SYMBOL(simple_strtoul);
-EXPORT_SYMBOL(system_utsname);
+EXPORT_SYMBOL(system_utsname);	/* UTS data */
+EXPORT_SYMBOL(uts_sem);		/* UTS semaphore */
 EXPORT_SYMBOL(sys_call_table);
 EXPORT_SYMBOL(machine_restart);
 EXPORT_SYMBOL(machine_halt);
@@ -379,16 +379,18 @@ EXPORT_SYMBOL(__up);
 EXPORT_SYMBOL(add_mouse_randomness);
 EXPORT_SYMBOL(fasync_helper);
 
+#ifdef CONFIG_PSMOUSE_MODULE
 /* psaux mouse */
 EXPORT_SYMBOL(aux_device_present);
 #ifdef CONFIG_VT
-EXPORT_SYMBOL(kbd_read_mask);
+EXPORT_SYMBOL(pckbd_read_mask);
+#endif
 #endif
 
 #ifdef CONFIG_BLK_DEV_MD
 EXPORT_SYMBOL(disk_name);	/* for md.c */
 #endif
- 	
+
 /* binfmt_aout */
 EXPORT_SYMBOL(get_write_access);
 EXPORT_SYMBOL(put_write_access);
@@ -396,3 +398,6 @@ EXPORT_SYMBOL(put_write_access);
 /* dynamic registering of consoles */
 EXPORT_SYMBOL(register_console);
 EXPORT_SYMBOL(unregister_console);
+
+/* time */
+EXPORT_SYMBOL(get_fast_time);

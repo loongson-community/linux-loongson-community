@@ -1,4 +1,4 @@
-/* $Id: page.h,v 1.17 1998/01/14 17:16:28 jj Exp $ */
+/* $Id: page.h,v 1.23 1998/06/12 14:54:33 jj Exp $ */
 
 #ifndef _SPARC64_PAGE_H
 #define _SPARC64_PAGE_H
@@ -13,12 +13,12 @@
 
 #define PAGE_MASK    (~(PAGE_SIZE-1))
 
+
 #ifdef __KERNEL__
 
 #ifndef __ASSEMBLY__
 
-#define clear_page(page) memset((void *)(page), 0, PAGE_SIZE)
-
+#define clear_page(page)		memset((void *)(page), 0, PAGE_SIZE)
 extern void copy_page(unsigned long to, unsigned long from);
 
 /* GROSS, defining this makes gcc pass these types as aggregates,
@@ -82,8 +82,7 @@ typedef unsigned long iopgprot_t;
 #endif /* (STRICT_MM_TYPECHECKS) */
 
 #define TASK_UNMAPPED_BASE	((current->tss.flags & SPARC_FLAG_32BIT) ? \
-				 (0x0000000070000000UL) : \
-				 (0xfffff80000000000UL))
+				 (0x0000000070000000UL) : (PAGE_OFFSET))
 
 #endif /* !(__ASSEMBLY__) */
 

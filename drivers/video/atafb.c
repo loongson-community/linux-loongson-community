@@ -47,7 +47,6 @@
 #define ATAFB_EXT
 #define ATAFB_FALCON
 
-#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -71,24 +70,12 @@
 #include <linux/fb.h>
 #include <asm/atarikb.h>
 
-#ifdef CONFIG_FBCON_CFB8
 #include "fbcon-cfb8.h"
-#endif
-#ifdef CONFIG_FBCON_CFB16
 #include "fbcon-cfb16.h"
-#endif
-#ifdef CONFIG_FBCON_IPLAN2P2
 #include "fbcon-iplan2p2.h"
-#endif
-#ifdef CONFIG_FBCON_IPLAN2P4
 #include "fbcon-iplan2p4.h"
-#endif
-#ifdef CONFIG_FBCON_IPLAN2P8
 #include "fbcon-iplan2p8.h"
-#endif
-#ifdef CONFIG_FBCON_MFB
 #include "fbcon-mfb.h"
-#endif
 
 
 #define SWITCH_ACIA 0x01		/* modes for switch on OverScan */
@@ -492,6 +479,7 @@ static int tt_encode_fix( struct fb_fix_screeninfo *fix,
 	fix->ypanstep=1;
 	fix->ywrapstep=0;
 	fix->line_length = 0;
+	fix->accel = FB_ACCEL_ATARIBLITT;
 	return 0;
 }
 
@@ -580,7 +568,8 @@ static int tt_decode_var( struct fb_var_screeninfo *var,
 static int tt_encode_var( struct fb_var_screeninfo *var,
 						  struct atafb_par *par )
 {
-	int linelen, i;
+	int linelen;
+	memset(var, 0, sizeof(struct fb_var_screeninfo));
 	var->red.offset=0;
 	var->red.length=4;
 	var->red.msb_right=0;
@@ -668,8 +657,6 @@ static int tt_encode_var( struct fb_var_screeninfo *var,
 	var->nonstd=0;
 	var->activate=0;
 	var->vmode=FB_VMODE_NONINTERLACED;
-	for (i=0; i<arraysize(var->reserved); i++)
-		var->reserved[i]=0;
 	return 0;
 }
 
@@ -816,6 +803,7 @@ static int falcon_encode_fix( struct fb_fix_screeninfo *fix,
 		fix->xpanstep = 2;
 	}
 	fix->line_length = 0;
+	fix->accel = FB_ACCEL_ATARIBLITT;
 	return 0;
 }
 
@@ -1306,11 +1294,12 @@ static int falcon_encode_var( struct fb_var_screeninfo *var,
 							  struct atafb_par *par )
 {
 /* !!! only for VGA !!! */
-	int linelen, i;
+	int linelen;
 	int prescale, plen;
 	int hdb_off, hde_off, base_off;
 	struct falcon_hw *hw = &par->hw.falcon;
 
+	memset(var, 0, sizeof(struct fb_var_screeninfo));
 	/* possible frequencies: 25.175 or 32MHz */
 	var->pixclock = hw->sync & 0x1 ? fext.t :
 	                hw->vid_control & VCO_CLOCK25 ? f25.t : f32.t;
@@ -1461,8 +1450,6 @@ static int falcon_encode_var( struct fb_var_screeninfo *var,
 		var->yoffset=0;
 	var->nonstd=0;	/* what is this for? */
 	var->activate=0;
-	for (i=0; i<arraysize(var->reserved); i++)
-		var->reserved[i]=0;
 	return 0;
 }
 
@@ -1654,7 +1641,7 @@ static int falcon_setcolreg( unsigned regno, unsigned red,
 			(((red & 0xe) >> 1) | ((red & 1) << 3) << 8) |
 			(((green & 0xe) >> 1) | ((green & 1) << 3) << 4) |
 			((blue & 0xe) >> 1) | ((blue & 1) << 3);
-#ifdef CONFIG_FBCON_CFB16
+#ifdef FBCON_HAS_CFB16
 		fbcon_cfb16_cmap[regno] = (red << 11) | (green << 5) | blue;
 #endif
 	}
@@ -1773,6 +1760,7 @@ static int stste_encode_fix( struct fb_fix_screeninfo *fix,
 	}
 	fix->ywrapstep = 0;
 	fix->line_length = 0;
+	fix->accel = FB_ACCEL_ATARIBLITT;
 	return 0;
 }
 
@@ -1838,7 +1826,8 @@ static int stste_decode_var( struct fb_var_screeninfo *var,
 static int stste_encode_var( struct fb_var_screeninfo *var,
 						  struct atafb_par *par )
 {
-	int linelen, i;
+	int linelen;
+	memset(var, 0, sizeof(struct fb_var_screeninfo));
 	var->red.offset=0;
 	var->red.length = ATARIHW_PRESENT(EXTD_SHIFTER) ? 4 : 3;
 	var->red.msb_right=0;
@@ -1908,8 +1897,6 @@ static int stste_encode_var( struct fb_var_screeninfo *var,
 	var->nonstd=0;
 	var->activate=0;
 	var->vmode=FB_VMODE_NONINTERLACED;
-	for (i=0; i<arraysize(var->reserved); i++)
-		var->reserved[i]=0;
 	return 0;
 }
 
@@ -2145,8 +2132,7 @@ static int ext_decode_var( struct fb_var_screeninfo *var,
 static int ext_encode_var( struct fb_var_screeninfo *var,
 						   struct atafb_par *par )
 {
-	int i;
-
+	memset(var, 0, sizeof(struct fb_var_screeninfo));
 	var->red.offset=0;
 	var->red.length=(external_pmode == -1) ? external_depth/3 : 
 			(external_vgaiobase ? external_bitspercol : 0);
@@ -2181,8 +2167,6 @@ static int ext_encode_var( struct fb_var_screeninfo *var,
 	var->nonstd=0;
 	var->activate=0;
 	var->vmode=FB_VMODE_NONINTERLACED;
-	for (i=0; i<arraysize(var->reserved); i++)
-		var->reserved[i]=0;
 	return 0;
 }
 
@@ -2412,7 +2396,7 @@ do_install_cmap(int con, struct fb_info *info)
 	 * Open/Release the frame buffer device
 	 */
 
-static int atafb_open(struct fb_info *info)
+static int atafb_open(struct fb_info *info, int user)
 {
 	/*
 	 * Nothing, only a usage count for the moment
@@ -2422,7 +2406,7 @@ static int atafb_open(struct fb_info *info)
 	return(0);
 }
 
-static int atafb_release(struct fb_info *info)
+static int atafb_release(struct fb_info *info, int user)
 {
 	MOD_DEC_USE_COUNT;
 	return(0);
@@ -2470,7 +2454,7 @@ atafb_set_disp(int con, struct fb_info *info)
 	atafb_get_var(&var, con, info);
 	if (con == -1)
 		con=0;
-	display->screen_base = (u_char *)fix.smem_start;
+	display->screen_base = fix.smem_start;
 	display->visual = fix.visual;
 	display->type = fix.type;
 	display->type_aux = fix.type_aux;
@@ -2487,17 +2471,17 @@ atafb_set_disp(int con, struct fb_info *info)
 	switch (fix.type) {
 	    case FB_TYPE_INTERLEAVED_PLANES:
 		switch (var.bits_per_pixel) {
-#ifdef CONFIG_FBCON_IPLAN2P2
+#ifdef FBCON_HAS_IPLAN2P2
 		    case 2:
 			display->dispsw = &fbcon_iplan2p2;
 			break;
 #endif
-#ifdef CONFIG_FBCON_IPLAN2P4
+#ifdef FBCON_HAS_IPLAN2P4
 		    case 4:
 			display->dispsw = &fbcon_iplan2p4;
 			break;
 #endif
-#ifdef CONFIG_FBCON_IPLAN2P8
+#ifdef FBCON_HAS_IPLAN2P8
 		    case 8:
 			display->dispsw = &fbcon_iplan2p8;
 			break;
@@ -2506,17 +2490,17 @@ atafb_set_disp(int con, struct fb_info *info)
 		break;
 	    case FB_TYPE_PACKED_PIXELS:
 		switch (var.bits_per_pixel) {
-#ifdef CONFIG_FBCON_MFB
+#ifdef FBCON_HAS_MFB
 		    case 1:
 			display->dispsw = &fbcon_mfb;
 			break;
 #endif
-#ifdef CONFIG_FBCON_CFB8
+#ifdef FBCON_HAS_CFB8
 		    case 8:
 			display->dispsw = &fbcon_cfb8;
 			break;
 #endif
-#ifdef CONFIG_FBCON_CFB16
+#ifdef FBCON_HAS_CFB16
 		    case 16:
 			display->dispsw = &fbcon_cfb16;
 			break;
@@ -2642,7 +2626,7 @@ atafb_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 static struct fb_ops atafb_ops = {
 	atafb_open, atafb_release, atafb_get_fix, atafb_get_var,
 	atafb_set_var, atafb_get_cmap, atafb_set_cmap,
-	atafb_pan_display, NULL, atafb_ioctl	
+	atafb_pan_display, atafb_ioctl	
 };
 
 static void
@@ -2674,7 +2658,7 @@ check_default_par( int detected_mode )
 			sprintf(default_name,"default%d",i);
 			default_par=get_video_mode(default_name);
 			if (! default_par)
-				panic("can't set default video mode\n");
+				panic("can't set default video mode");
 			var=atafb_predefined[default_par-1];
 			var.activate = FB_ACTIVATE_TEST;
 			if (! do_fb_set_var(&var,1))
@@ -2730,15 +2714,14 @@ atafb_blank(int blank, struct fb_info *info)
 		do_install_cmap(currcon, info);
 }
 
-__initfunc(unsigned long atafb_init(unsigned long mem_start))
+__initfunc(void atafb_init(void))
 {
-	int err;
 	int pad;
 	int detected_mode;
 	unsigned long mem_req;
 
 	if (!MACH_IS_ATARI)
-	        return mem_start;
+	        return;
 
 	do {
 #ifdef ATAFB_EXT
@@ -2772,7 +2755,7 @@ __initfunc(unsigned long atafb_init(unsigned long mem_start))
 #else /* ATAFB_STE */
 		/* no default driver included */
 		/* Nobody will ever see this message :-) */
-		panic("Cannot initialize video hardware\n");
+		panic("Cannot initialize video hardware");
 #endif
 	} while (0);
 
@@ -2793,8 +2776,10 @@ __initfunc(unsigned long atafb_init(unsigned long mem_start))
 		mem_req = default_mem_req + ovsc_offset +
 			ovsc_addlen;
 		mem_req = ((mem_req + PAGE_SIZE - 1) & PAGE_MASK) + PAGE_SIZE;
-		screen_base = (unsigned long)atari_stram_alloc(mem_req, &mem_start,
-													   "atafb");
+		screen_base = (unsigned long)atari_stram_alloc(mem_req, NULL,
+							       "atafb");
+		if (!screen_base)
+			panic("Cannot allocate screen memory");
 		memset((char *) screen_base, 0, mem_req);
 		pad = ((screen_base + PAGE_SIZE-1) & PAGE_MASK) - screen_base;
 		screen_base+=pad;
@@ -2814,13 +2799,11 @@ __initfunc(unsigned long atafb_init(unsigned long mem_start))
 		/* Map the video memory (physical address given) to somewhere
 		 * in the kernel address space.
 		 */
-		mem_start = PAGE_ALIGN(mem_start);
 		external_addr = kernel_map(external_addr, external_len,
-					   KERNELMAP_NO_COPYBACK, &mem_start);
+					   KERNELMAP_NO_COPYBACK, NULL);
 		if (external_vgaiobase)
 			external_vgaiobase = kernel_map(external_vgaiobase,
-				0x10000, KERNELMAP_NOCACHE_SER, &mem_start);
-		mem_start += PAGE_SIZE;
+				0x10000, KERNELMAP_NOCACHE_SER, NULL);
 		screen_base      =
 		real_screen_base = external_addr;
 		screen_len       = external_len & PAGE_MASK;
@@ -2839,26 +2822,24 @@ __initfunc(unsigned long atafb_init(unsigned long mem_start))
 	do_fb_set_var(&atafb_predefined[default_par-1], 1);
 	strcat(fb_info.modename, fb_var_names[default_par-1][0]);
 
-	err=register_framebuffer(&fb_info);
-	if (err < 0)
-		return(err);
-
 	atafb_get_var(&disp.var, -1, &fb_info);
 	atafb_set_disp(-1, &fb_info);
+	do_install_cmap(0, &fb_info);
+
+	if (register_framebuffer(&fb_info) < 0)
+		return;
+
 	printk("Determined %dx%d, depth %d\n",
 	       disp.var.xres, disp.var.yres, disp.var.bits_per_pixel);
 	if ((disp.var.xres != disp.var.xres_virtual) ||
 	    (disp.var.yres != disp.var.yres_virtual))
 	   printk("   virtual %dx%d\n",
 			  disp.var.xres_virtual, disp.var.yres_virtual);
-	do_install_cmap(0, &fb_info);
 	printk("fb%d: %s frame buffer device, using %dK of video memory\n",
 	       GET_FB_IDX(fb_info.node), fb_info.modename, screen_len>>10);
 
 	/* TODO: This driver cannot be unloaded yet */
 	MOD_INC_USE_COUNT;
-
-	return mem_start;
 }
 
 /* a strtok which returns empty strings, too */
@@ -3139,7 +3120,8 @@ __initfunc(void atafb_setup( char *options, int *ints ))
 #ifdef MODULE
 int init_module(void)
 {
-	return(atafb_init(NULL));
+	atafb_init();
+	return 0;
 }
 
 void cleanup_module(void)

@@ -33,6 +33,11 @@
 
 /*
  * $Log: oak.c,v $
+ * Revision 1.3  1998/05/03 20:45:37  alan
+ * ARM SCSI update. This adds the eesox driver and massively updates the
+ * Cumana driver. The folks who bought cumana arent anal retentive all
+ * docs are secret weenies so now there are docs ..
+ *
  * Revision 1.2  1998/03/08 05:49:48  davem
  * Merge to 2.1.89
  *
@@ -111,7 +116,7 @@ int oakscsi_detect(Scsi_Host_Template * tpnt)
 	request_region (instance->io_port, instance->n_io_port, "Oak SCSI");
 
 	if (instance->irq != IRQ_NONE)
-	    if (request_irq(instance->irq, oakscsi_intr, SA_INTERRUPT, "Oak SCSI", NULL)) {
+	    if (request_irq(instance->irq, do_oakscsi_intr, SA_INTERRUPT, "Oak SCSI", NULL)) {
 		printk("scsi%d: IRQ%d not free, interrupts disabled\n",
 		    instance->host_no, instance->irq);
 		instance->irq = IRQ_NONE;
@@ -122,7 +127,7 @@ int oakscsi_detect(Scsi_Host_Template * tpnt)
 	    printk("scsi%d: that the board had an interrupt!\n", instance->host_no);
 	}
 
-	printk("scsi%d: at port %X irq", instance->host_no, instance->io_port);
+	printk("scsi%d: at port %lX irq", instance->host_no, instance->io_port);
 	if (instance->irq == IRQ_NONE)
 	    printk ("s disabled");
 	else

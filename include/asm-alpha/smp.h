@@ -1,8 +1,6 @@
 #ifndef __ASM_SMP_H
 #define __ASM_SMP_H
 
-#define cpu_logical_map(cpu)	(cpu)
-
 #ifdef __SMP__
 
 #include <linux/tasks.h>
@@ -10,6 +8,9 @@
 struct cpuinfo_alpha {
 	unsigned long loops_per_sec;
 	unsigned int next;
+	unsigned long *pgd_cache;
+	unsigned long *pte_cache;
+	unsigned long pgtable_cache_sz;
 };
 
 extern struct cpuinfo_alpha cpu_data[NR_CPUS];
@@ -44,7 +45,8 @@ extern __volatile__ int cpu_number_map[NR_CPUS];
 	__r0; \
 })
 
-#define smp_processor_id() hard_smp_processor_id()
+#define smp_processor_id()	hard_smp_processor_id()
+#define cpu_logical_map(cpu)	(cpu)
 
 #endif /* __SMP__ */
 

@@ -10,11 +10,11 @@
  *  more details.
  */
 
+#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/tty.h>
 #include <linux/console.h>
 #include <linux/string.h>
-#include <linux/config.h>
 #include <linux/fb.h>
 
 #include <asm/byteorder.h>
@@ -348,13 +348,11 @@ void fbcon_iplan2p8_putc(struct vc_data *conp, struct display *p, int c,
     int bytes = p->next_line;
     u32 eorx1, eorx2, fgx1, fgx2, bgx1, bgx2, fdx;
 
-    c &= 0xff;
-
     dest = p->screen_base + yy * p->fontheight * bytes + (xx>>1)*16 + (xx & 1);
-    cdat = p->fontdata + (c * p->fontheight);
+    cdat = p->fontdata + (c & p->charmask) * p->fontheight;
 
-    expand8dl(attr_fgcol(p,conp), &fgx1, &fgx2);
-    expand8dl(attr_bgcol(p,conp), &bgx1, &bgx2);
+    expand8dl(attr_fgcol(p,c), &fgx1, &fgx2);
+    expand8dl(attr_bgcol(p,c), &bgx1, &bgx2);
     eorx1 = fgx1 ^ bgx1; eorx2  = fgx2 ^ bgx2;
 
     for(rows = p->fontheight ; rows-- ; dest += bytes) {
@@ -364,10 +362,11 @@ void fbcon_iplan2p8_putc(struct vc_data *conp, struct display *p, int c,
 }
 
 void fbcon_iplan2p8_putcs(struct vc_data *conp, struct display *p,
-			  const char *s, int count, int yy, int xx)
+			  const unsigned short *s, int count, int yy, int xx)
 {
     u8 *dest, *dest0;
-    u8 *cdat, c;
+    u8 *cdat;
+    u16 c;
     int rows;
     int bytes;
     u32 eorx1, eorx2, fgx1, fgx2, bgx1, bgx2, fdx;
@@ -376,8 +375,8 @@ void fbcon_iplan2p8_putcs(struct vc_data *conp, struct display *p,
     dest0 = p->screen_base + yy * p->fontheight * bytes + (xx>>1)*16 +
 	    (xx & 1);
 
-    expand8dl(attr_fgcol(p,conp), &fgx1, &fgx2);
-    expand8dl(attr_bgcol(p,conp), &bgx1, &bgx2);
+    expand8dl(attr_fgcol(p,*s), &fgx1, &fgx2);
+    expand8dl(attr_bgcol(p,*s), &bgx1, &bgx2);
     eorx1 = fgx1 ^ bgx1; eorx2  = fgx2 ^ bgx2;
 
     while (count--) {
@@ -389,7 +388,7 @@ void fbcon_iplan2p8_putcs(struct vc_data *conp, struct display *p,
 	* cache :-(
 	*/
 
-	c = *s++;
+	c = *s++ & p->charmask;
 	cdat  = p->fontdata + (c * p->fontheight);
 
 	for(rows = p->fontheight, dest = dest0; rows-- ; dest += bytes) {
@@ -433,8 +432,20 @@ void fbcon_iplan2p8_revc(struct display *p, int xx, int yy)
 
 struct display_switch fbcon_iplan2p8 = {
     fbcon_iplan2p8_setup, fbcon_iplan2p8_bmove, fbcon_iplan2p8_clear,
-    fbcon_iplan2p8_putc, fbcon_iplan2p8_putcs, fbcon_iplan2p8_revc
+    fbcon_iplan2p8_putc, fbcon_iplan2p8_putcs, fbcon_iplan2p8_revc, NULL,
+    NULL, NULL, FONTWIDTH(8)
 };
+
+
+#ifdef MODULE
+int init_module(void)
+{
+    return 0;
+}
+
+void cleanup_module(void)
+{}
+#endif /* MODULE */
 
 
     /*

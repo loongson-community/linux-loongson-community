@@ -44,6 +44,8 @@
 #include <linux/mman.h>
 #include <linux/mm.h>
 #include <linux/swap.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
 
 #include <asm/system.h>
 #include <asm/uaccess.h>
@@ -67,8 +69,6 @@ static inline void copy_cow_page(unsigned long from, unsigned long to)
 	}
 	copy_page(to, from);
 }
-
-#define USER_PTRS_PER_PGD (TASK_SIZE / PGDIR_SIZE)
 
 mem_map_t * mem_map = NULL;
 
@@ -121,22 +121,41 @@ static inline void free_one_pgd(pgd_t * dir)
 	pmd_free(pmd);
 }
 
+/* Low and high watermarks for page table cache.
+   The system should try to have pgt_water[0] <= cache elements <= pgt_water[1]
+ */
+int pgt_cache_water[2] = { 25, 50 };
+
+/* Returns the number of pages freed */
+int check_pgt_cache(void)
+{
+	return do_check_pgt_cache(pgt_cache_water[0], pgt_cache_water[1]);
+}
+
+
 /*
  * This function clears all user-level page tables of a process - this
  * is needed by execve(), so that old pages aren't in the way.
  */
 void clear_page_tables(struct task_struct * tsk)
 {
+	pgd_t * page_dir = tsk->mm->pgd;
 	int i;
-	pgd_t * page_dir;
 
-	page_dir = tsk->mm->pgd;
-	if (!page_dir || page_dir == swapper_pg_dir) {
-		printk("%s trying to clear kernel page-directory: not good\n", tsk->comm);
-		return;
-	}
+	if (!page_dir || page_dir == swapper_pg_dir)
+		goto out_bad;
 	for (i = 0 ; i < USER_PTRS_PER_PGD ; i++)
 		free_one_pgd(page_dir + i);
+
+	/* keep the page table cache within bounds */
+	check_pgt_cache();
+	return;
+
+out_bad:
+	printk(KERN_ERR 
+		"clear_page_tables: %s trying to clear kernel pgd\n",
+		tsk->comm);
+	return;
 }
 
 /*
@@ -146,30 +165,34 @@ void clear_page_tables(struct task_struct * tsk)
  */
 void free_page_tables(struct mm_struct * mm)
 {
+	pgd_t * page_dir = mm->pgd;
 	int i;
-	pgd_t * page_dir;
 
-	page_dir = mm->pgd;
-	if (page_dir) {
-		if (page_dir == swapper_pg_dir) {
-			printk("free_page_tables: Trying to free kernel pgd\n");
-			return;
-		}
-		for (i = 0 ; i < USER_PTRS_PER_PGD ; i++)
-			free_one_pgd(page_dir + i);
-		pgd_free(page_dir);
-	}
+	if (!page_dir)
+		goto out;
+	if (page_dir == swapper_pg_dir)
+		goto out_bad;
+	for (i = 0 ; i < USER_PTRS_PER_PGD ; i++)
+		free_one_pgd(page_dir + i);
+	pgd_free(page_dir);
+
+	/* keep the page table cache within bounds */
+	check_pgt_cache();
+out:
+	return;
+
+out_bad:
+	printk(KERN_ERR
+		"free_page_tables: Trying to free kernel pgd\n");
+	return;
 }
 
 int new_page_tables(struct task_struct * tsk)
 {
-	pgd_t * page_dir, * new_pg;
+	pgd_t * new_pg;
 
 	if (!(new_pg = pgd_alloc()))
 		return -ENOMEM;
-	page_dir = pgd_offset(&init_mm, 0);
-	memcpy(new_pg + USER_PTRS_PER_PGD, page_dir + USER_PTRS_PER_PGD,
-	       (PTRS_PER_PGD - USER_PTRS_PER_PGD) * sizeof (pgd_t));
 	SET_PAGE_DIR(tsk, new_pg);
 	tsk->mm->pgd = new_pg;
 	return 0;
@@ -898,6 +921,9 @@ static inline void handle_pte_fault(struct task_struct *tsk,
 	do_wp_page(tsk, vma, address, write_access, pte);
 }
 
+/*
+ * By the time we get here, we already hold the mm semaphore
+ */
 void handle_mm_fault(struct task_struct *tsk, struct vm_area_struct * vma,
 	unsigned long address, int write_access)
 {
@@ -912,9 +938,27 @@ void handle_mm_fault(struct task_struct *tsk, struct vm_area_struct * vma,
 	pte = pte_alloc(pmd, address);
 	if (!pte)
 		goto no_memory;
+	lock_kernel();
 	handle_pte_fault(tsk, vma, address, write_access, pte);
+	unlock_kernel();
 	update_mmu_cache(vma, address, *pte);
 	return;
 no_memory:
 	oom(tsk);
+}
+
+/*
+ * Simplistic page force-in..
+ */
+void make_pages_present(unsigned long addr, unsigned long end)
+{
+	int write;
+	struct vm_area_struct * vma;
+
+	vma = find_vma(current->mm, addr);
+	write = (vma->vm_flags & VM_WRITE) != 0;
+	while (addr < end) {
+		handle_mm_fault(current, vma, addr, write);
+		addr += PAGE_SIZE;
+	}
 }

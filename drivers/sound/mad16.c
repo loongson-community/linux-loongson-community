@@ -16,7 +16,7 @@
  *      OAK OTI-601D    Mozart
  *      OPTi 82C929     MAD16 Pro
  *      OPTi 82C930
- *      OPTi 82C924     (in non PnP mode)
+ *      OPTi 82C924
  *
  * These audio interface chips don't produce sound themselves. They just
  * connect some other components (OPL-[234] and a WSS compatible codec)
@@ -60,6 +60,11 @@
  *	Changes
  *	
  *	Alan Cox		Clean up, added module selections.
+ *
+ *	A. Wik			Added support for Opti924 PnP.
+ *				Improved debugging support.	16-May-1998
+ *				Fixed bug.			16-Jun-1998
+ *
  */
 
 #include "sound_config.h"
@@ -74,7 +79,7 @@ static int      mad16_cdsel;
 
 #endif
 
-#if defined(CONFIG_MAD16) || defined(MODULE)
+#ifdef CONFIG_MAD16
 
 #include "sb.h"
 
@@ -116,11 +121,14 @@ static int      already_initialized = 0;
 static int      board_type = C928;
 
 static int     *mad16_osp;
-static int	c931_detected;	/* minor diferences from C930 */
+static int	c931_detected;	/* minor differences from C930 */
+static char	c924pnp = 0;	/* "     "           "    C924 */
+static int	debug = 0;	/* debugging output */
 
-#ifndef DDB
-#define DDB(x)
+#ifdef DDB
+#undef DDB
 #endif
+#define DDB(x) {if (debug) x;}
 
 static unsigned char mad_read(int port)
 {
@@ -146,7 +154,11 @@ static unsigned char mad_read(int port)
 			break;
 
 		case C924:
-			outb((0xE5), PASSWD_REG);
+			/* the c924 has its ports relocated by -128 if
+			   PnP is enabled  -aw */
+			if (!c924pnp)
+				outb((0xE5), PASSWD_REG); else
+				outb((0xE5), PASSWD_REG - 0x80);
 			break;
 	}
 
@@ -156,7 +168,9 @@ static unsigned char mad_read(int port)
 		tmp = inb(0xe0f);	/* Read from data reg */
 	}
 	else
-		tmp = inb(port);
+		if (!c924pnp)
+			tmp = inb(port); else
+			tmp = inb(port-0x80);
 	restore_flags(flags);
 
 	return tmp;
@@ -185,7 +199,9 @@ static void mad_write(int port, int value)
 			break;
 
 		case C924:
-			outb((0xE5), PASSWD_REG);
+			if (!c924pnp)
+				outb((0xE5), PASSWD_REG); else
+				outb((0xE5), PASSWD_REG - 0x80);
 			break;
 	}
 
@@ -195,7 +211,9 @@ static void mad_write(int port, int value)
 		outb(((unsigned char) (value & 0xff)), 0xe0f);
 	}
 	else
-		outb(((unsigned char) (value & 0xff)), port);
+		if (!c924pnp)
+			outb(((unsigned char) (value & 0xff)), port); else
+			outb(((unsigned char) (value & 0xff)), port-0x80);
 	restore_flags(flags);
 }
 
@@ -231,7 +249,7 @@ static int detect_c930(void)
 	}
 
 	tmp = mad_read(MC0_PORT+18);
-	if (tmp == 0xff)
+	if (tmp == 0xff || tmp == 0x00)
 		return 1;
 	/* We probably have a C931 */
 	DDB(printk("Detected C931 config=0x%02x\n", tmp));
@@ -261,7 +279,7 @@ static int detect_c930(void)
 	if ((mad_read(MC0_PORT+13) & 0x80) == 0)
 		return 1;
 	
-	/* Force off PnP mode, This is not recommended because
+	/* Force off PnP mode. This is not recommended because
 	 * the PnP bios will not recognize the chip on the next
 	 * warm boot and may assignd different resources to other
 	 * PnP/PCI cards.
@@ -278,8 +296,8 @@ static int detect_mad16(void)
 	/*
 	 * Check that reading a register doesn't return bus float (0xff)
 	 * when the card is accessed using password. This may fail in case
-	 * the card is in low power mode. Normally at least the power saving mode
-	 * bit should be 0.
+	 * the card is in low power mode. Normally at least the power saving
+	 * mode bit should be 0.
 	 */
 
 	if ((tmp = mad_read(MC1_PORT)) == 0xff)
@@ -288,7 +306,9 @@ static int detect_mad16(void)
 		return 0;
 	}
 	for (i = 0xf8d; i <= 0xf98; i++)
-		DDB(printk("Port %0x (init value) = %0x\n", i, mad_read(i)));
+		if (!c924pnp)
+			DDB(printk("Port %0x (init value) = %0x\n", i, mad_read(i))) else
+			DDB(printk("Port %0x (init value) = %0x\n", i-0x80, mad_read(i)));
 
 	if (board_type == C930)
 		return detect_c930();
@@ -405,13 +425,17 @@ static int init_c930(struct address_info *hw_config)
 	/* MC2 is CD configuration. Don't touch it. */
 
 	mad_write(MC3_PORT, 0);	/* Disable SB mode IRQ and DMA */
+
+	/* bit 2 of MC4 reverses it's meaning between the C930
+	   and the C931. */
+	cfg = c931_detected ? 0x04 : 0x00;
 #ifdef MAD16_CDSEL
 	if(MAD16_CDSEL & 0x20)
-		mad_write(MC4_PORT, 0x66);	/* opl4 */
+		mad_write(MC4_PORT, 0x62|cfg);	/* opl4 */
 	else
-		mad_write(MC4_PORT, 0x56);	/* opl3 */
+		mad_write(MC4_PORT, 0x52|cfg);	/* opl3 */
 #else
-	mad_write(MC4_PORT, 0x56);
+	mad_write(MC4_PORT, 0x52|cfg);
 #endif
 	mad_write(MC5_PORT, 0x3C);	/* Init it into mode2 */
 	mad_write(MC6_PORT, 0x02);	/* Enable WSS, Disable MPU and SB */
@@ -431,9 +455,15 @@ static int chip_detect(void)
 	board_type = C924;
 
 	DDB(printk("Detect using password = 0xE5\n"));
+	
+	if (!detect_mad16()) {
+		c924pnp++;
+		DDB(printk("Detect using password = 0xE5 (again), port offset -0x80\n"));
+	}
 
 	if (!detect_mad16())	/* No luck. Try different model */
 	{
+		c924pnp=0;
 		board_type = C928;
 
 		DDB(printk("Detect using password = 0xE2\n"));
@@ -467,23 +497,15 @@ static int chip_detect(void)
 					return 0;
 
 				DDB(printk("mad16.c: 82C930 detected\n"));
-			}
-			else
-			{
+			} else
 				DDB(printk("mad16.c: 82C929 detected\n"));
-			}
-		}
-		else
-		{
+		} else {
 			unsigned char model;
 
-			if (((model = mad_read(MC3_PORT)) & 0x03) == 0x03)
-			{
+			if (((model = mad_read(MC3_PORT)) & 0x03) == 0x03) {
 				DDB(printk("mad16.c: Mozart detected\n"));
 				board_type = MOZART;
-			}
-			else
-			{
+			} else {
 				DDB(printk("mad16.c: 82C928 detected???\n"));
 				board_type = C928;
 			}
@@ -523,7 +545,9 @@ int probe_mad16(struct address_info *hw_config)
 
 
 	for (i = 0xf8d; i <= 0xf93; i++)
-		DDB(printk("port %03x = %02x\n", i, mad_read(i)));
+		if (!c924pnp)
+			DDB(printk("port %03x = %02x\n", i, mad_read(i))) else
+			DDB(printk("port %03x = %02x\n", i-0x80, mad_read(i)));
 
 /*
  * Set the WSS address
@@ -592,9 +616,9 @@ int probe_mad16(struct address_info *hw_config)
 		mad_write(MC5_PORT, 0x30 | cs4231_mode);
 	}
 
-	for (i = 0xf8d; i <= 0xf93; i++)
-		DDB(printk("port %03x after init = %02x\n", i, mad_read(i)));
-
+	for (i = 0xf8d; i <= 0xf93; i++) if (!c924pnp)
+		DDB(printk("port %03x after init = %02x\n", i, mad_read(i))) else
+		DDB(printk("port %03x after init = %02x\n", i-0x80, mad_read(i)));
 	wss_init(hw_config);
 
 	return 1;
@@ -810,13 +834,13 @@ int probe_mad16_mpu(struct address_info *hw_config)
 
 void unload_mad16(struct address_info *hw_config)
 {
+	int mixer = audio_devs[hw_config->slots[0]]->mixer_dev;
 	ad1848_unload(hw_config->io_base + 4,
 			hw_config->irq,
 			hw_config->dma,
 			hw_config->dma2, 0);
 	release_region(hw_config->io_base, 4);
 	sound_unload_audiodev(hw_config->slots[0]);
-
 }
 
 void
@@ -863,6 +887,7 @@ MODULE_PARM(cdport,"i");
 MODULE_PARM(cddma,"i");
 MODULE_PARM(opl4,"i");
 MODULE_PARM(joystick,"i");
+MODULE_PARM(debug,"i");
 
 EXPORT_NO_SYMBOLS;
 
@@ -1005,9 +1030,9 @@ int init_module(void)
 
 	config_mpu.io_base = mpu_io;
 	config_mpu.irq = mpu_irq;
-	found_mpu = probe_mad16_mpu(&config_mpu);
-
 	attach_mad16(&config);
+
+	found_mpu = probe_mad16_mpu(&config_mpu);
 
 	if (found_mpu)
 		attach_mad16_mpu(&config_mpu);
@@ -1019,7 +1044,7 @@ int init_module(void)
 void cleanup_module(void)
 {
 	if (found_mpu)
-		unload_mad16_mpu(&config);
+		unload_mad16_mpu(&config_mpu);
 	unload_mad16(&config);
 	SOUND_LOCK_END;
 }

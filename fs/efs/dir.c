@@ -60,109 +60,78 @@ struct inode_operations efs_dir_in_ops = {
 
    return    - 0 ok, <0 error
 */
-static int
-efs_readdir(struct file *filp,
-	    void *dirent, filldir_t filldir)
+static int efs_readdir(struct file *filp,
+		       void *dirent, filldir_t filldir)
 {
-    struct inode *inode = filp->f_dentry->d_inode;
-    struct efs_inode_info *ini = (struct efs_inode_info *)&inode->u.efs_i;
-    struct buffer_head *bh;
-    struct efs_dirblk *dirblk;
-    __u32  iteminode;
-    __u16 namelen;
-    char *nameptr;
-    __u16 itemnum;
-    __u32  block;
-    int db_offset;
-    int error = 0;
-    struct efs_dent *de = NULL;
-    
-    /* some checks -- ISDIR should be done by upper layer */
-    if(!inode || !inode->i_sb || !S_ISDIR(inode->i_mode)) {
-	printk("EFS: bad inode for readdir!\n");
-	return -EBADF;
-    }
-    
-    if(ini->efs_total!=1) {
-	printk("EFS: directory %s has more than one extent.\n", 
-	       filp->f_dentry->d_name.name);
-	printk("EFS: Mike is lazy, so we can't handle this yet.  Sorry =(\n");
-	return -EBADF;
-    }
+	struct inode *inode = filp->f_dentry->d_inode;
+	struct efs_inode_info *ini = (struct efs_inode_info *)&inode->u.efs_i;
+	struct buffer_head *bh;
+	__u8  *rawdirblk;
+	__u32  iteminode;
+	__u16 namelen;
+	__u8  *nameptr;
+	__u32  numitems;
+	__u16 itemnum;
+	__u32  block;
+	__u16 rawdepos;  
 
-    /* Warnings */
-    if(inode->i_size & (EFS_BLOCK_SIZE-1)) 
-	printk("efs_readdir: dirsize != blocksize*n\n");
-    
-    /* f_pos contains: dirblock<<BLOCK_SIZE | # of item in dirblock */
-    block   = filp->f_pos >> EFS_BLOCK_SIZE_BITS;
-    itemnum = filp->f_pos & 0xff; 
-    
-    /* We found the last entry -> ready */
-    if(block == (inode->i_size>>EFS_BLOCK_SIZE_BITS)) {
-	printk("EFS: read all entries -- done\n");
+	/* some checks */
+	if(!inode || !inode->i_sb || !S_ISDIR(inode->i_mode)) 
+		return -EBADF;
+  
+	/* Warnings */
+	if(ini->tot!=1) {
+		printk("EFS: directory %s has more than one extent.\n", 
+		       filp->f_dentry->d_name.name);
+		printk("EFS: Mike is lazy, so we can't handle this yet.  Sorry =(\n");
+		return 0;
+	}
+	if(inode->i_size & (EFS_BLOCK_SIZE-1))
+		printk("efs_readdir: dirsize != blocksize*n\n");
+
+	/* f_pos contains: dirblock<<BLOCK_SIZE | # of item in dirblock */
+	block   = filp->f_pos >> EFS_BLOCK_SIZE_BITS;
+	itemnum = filp->f_pos & 0xff; 
+  
+	/* We found the last entry -> ready */
+	if(block == (inode->i_size>>EFS_BLOCK_SIZE_BITS))
+		return 0;
+
+	/* get disc block number from dir block num: 0..i_size/BLOCK_SIZE */ 
+	bh = bread(inode->i_dev,efs_bmap(inode,block),EFS_BLOCK_SIZE);
+	if(!bh) return 0;
+
+	/* dirblock */
+	rawdirblk = (__u8 *)bh->b_data; 
+	/* number of entries stored in this dirblock */
+	numitems = rawdirblk[EFS_DB_ENTRIES]; 
+	/* offset in block of #off diritem */
+	rawdepos = (__u16)rawdirblk[EFS_DB_FIRST+itemnum]<<1;
+
+	/* diritem first contains the inode number, the namelen and the name */
+	iteminode = ConvertLong(rawdirblk,rawdepos);
+	namelen = (__u16)rawdirblk[rawdepos+EFS_DI_NAMELEN];
+	nameptr = rawdirblk + rawdepos + EFS_DI_NAME;  
+
+#ifdef DEBUG_EFS
+	printk("efs: dir #%d @ %0#3x - inode %lx %s namelen %u\n",
+	       itemnum,rawdepos,iteminode,nameptr,namelen);
+#endif
+
+	/* copy filename and data in direntry */
+	filldir(dirent,nameptr,namelen,filp->f_pos,iteminode);
+
+	brelse(bh);
+
+  /* store pos of next item */
+	itemnum++;
+	if(itemnum==numitems) {
+		itemnum = 0;
+		block++;
+	}
+	filp->f_pos = (block<<EFS_BLOCK_SIZE_BITS) | itemnum;
+	UPDATE_ATIME(inode);
+  
 	return 0;
-    }
-    
-    /* get disc block number from dir block num: 0..i_size/BLOCK_SIZE */ 
-    bh = bread(inode->i_dev,efs_bmap(inode,block),EFS_BLOCK_SIZE);
-    if(!bh) {
-	/* XXX try next block? */
-	return -EBADF;
-    }
-
-    /* from here on, we must exit through out: to release bh */
-    
-    /* dirblock */
-    dirblk = (struct efs_dirblk *)bh->b_data;
-    if (dirblk->db_magic != EFS_DIRBLK_MAGIC) {
-	printk("EFS: bad dirblk magic %#xl\n", dirblk->db_magic);
-	error = -EBADF;
-	goto out;
-    }
-    db_offset = ((__u16)dirblk->db_space[itemnum] << 1) 
-	- EFS_DIRBLK_HEADERSIZE;
-    de = (struct efs_dent *)(&dirblk->db_space[db_offset]);
-    if (dirblk->db_slots == 0) {
-	error = 0;
-	goto out;
-    }
-
-#ifdef DEBUG_EFS_DIRS
-    if (itemnum == 0) {
-	printk("efs: readdir: db %d has %d entries, starting at offset %0#x\n",
-	       block, dirblk->db_slots, (__u16)dirblk->db_firstused << 1);
-    }
-#endif
-    
-    /* diritem first contains the inode number, the namelen and the name */
-    iteminode = EFS_DE_GET_INUM(de);
-    namelen = de->d_namelen;
-    nameptr = de->d_name;
-
-#ifdef DEBUG_EFS_DIRS
-    printk("efs: dir #%d @ %0#x - inode %#0x %*s namelen %u\n",
-	   itemnum,db_offset,iteminode, namelen, 
-	   nameptr ? nameptr : "(null)", namelen);
-#endif
-
-    /* copy filename and data in direntry */
-    error = filldir(dirent,nameptr,namelen,filp->f_pos,iteminode);
-    if (error)
-	goto out;
-
-    /* store pos of next item */
-    itemnum++;
-    if(itemnum == dirblk->db_slots) {
-	itemnum = 0;
-	block++;
-    }
-    filp->f_pos = (block<<EFS_BLOCK_SIZE_BITS) | itemnum;
-    UPDATE_ATIME(inode);
-    
- out:    
-    brelse(bh);
-
-    return error;
 }
 

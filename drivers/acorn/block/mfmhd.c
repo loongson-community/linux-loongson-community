@@ -87,6 +87,8 @@
  * 17/1/97:RMK:	Upgraded to 2.1 kernels.
  *
  *  4/3/98:RMK:	Changed major number to 21.
+ *
+ * 27/6/98:RMK:	Changed asm/delay.h to linux/delay.h for mdelay().
  */
 
 /*
@@ -109,15 +111,15 @@
 #include <linux/genhd.h>
 #include <linux/major.h>
 #include <linux/ioport.h>
+#include <linux/delay.h>
 
 #define MAJOR_NR	MFM_ACORN_MAJOR
 #include <linux/blk.h>
 
 #include <asm/system.h>
 #include <asm/io.h>
-#include <asm/irq-no.h>
+#include <asm/irq.h>
 #include <asm/uaccess.h>
-#include <asm/delay.h>
 #include <asm/dma.h>
 #include <asm/hardware.h>
 #include <asm/ecard.h>
@@ -447,7 +449,7 @@ static void mfm_rw_intr(void)
 
   /* Now don't handle the error until BSY drops */
 	if ((mfm_status & (STAT_DER | STAT_ABN)) && ((mfm_status&STAT_BSY)==0)) {
-		/* Something has gone wrong - lets try that again */
+		/* Something has gone wrong - let's try that again */
 		outw(CMD_RCAL, MFM_COMMAND);	/* Clear interrupt condition */
 		if (cont) {
 			DBG("mfm_rw_intr: DER/ABN err\n");
@@ -530,7 +532,7 @@ static void mfm_rw_intr(void)
 	old_status = mfm_status;
 	mfm_status = inw(MFM_STATUS);
 	if (mfm_status & (STAT_DER | STAT_ABN)) {
-		/* Something has gone wrong - lets try that again */
+		/* Something has gone wrong - let's try that again */
 		if (cont) {
 			DBG("mfm_rw_intr: DER/ABN error\n");
 			cont->error();
@@ -726,7 +728,7 @@ static void request_done(int uptodate)
 	if (uptodate) {
 		unsigned char block[2] = {0, 0};
 
-		/* Apparently worked - lets check bytes left to DMA */
+		/* Apparently worked - let's check bytes left to DMA */
 		if (hdc63463_dataleft != (PartFragRead_SectorsLeft * 256)) {
 			printk("mfm: request_done - dataleft=%d - should be %d - Eek!\n", hdc63463_dataleft, PartFragRead_SectorsLeft * 256);
 			end_request(0);
@@ -734,7 +736,7 @@ static void request_done(int uptodate)
 		};
 		/* Potentially this means that we've done; but we might be doing
 		   a partial access, (over two cylinders) or we may have a number
-		   of fragments in an image file.  First lets deal with partial accesss
+		   of fragments in an image file.  First let's deal with partial accesss
 		 */
 		if (PartFragRead) {
 			/* Yep - a partial access */

@@ -126,14 +126,7 @@ static int mlock_fixup(struct vm_area_struct * vma,
 		if (!(newflags & VM_LOCKED))
 			pages = -pages;
 		vma->vm_mm->locked_vm += pages;
-
-		if (newflags & VM_LOCKED)
-			while (start < end) {
-				char c;
-				get_user(c,(char *) start);
-				__asm__ __volatile__("": :"r" (c));
-				start += PAGE_SIZE;
-			}
+		make_pages_present(start, end);
 	}
 	return retval;
 }
@@ -192,6 +185,7 @@ asmlinkage int sys_mlock(unsigned long start, size_t len)
 	unsigned long lock_limit;
 	int error = -ENOMEM;
 
+	down(&current->mm->mmap_sem);
 	lock_kernel();
 	len = (len + (start & ~PAGE_MASK) + ~PAGE_MASK) & PAGE_MASK;
 	start &= PAGE_MASK;
@@ -214,6 +208,7 @@ asmlinkage int sys_mlock(unsigned long start, size_t len)
 	error = do_mlock(start, len, 1);
 out:
 	unlock_kernel();
+	up(&current->mm->mmap_sem);
 	return error;
 }
 
@@ -221,11 +216,13 @@ asmlinkage int sys_munlock(unsigned long start, size_t len)
 {
 	int ret;
 
+	down(&current->mm->mmap_sem);
 	lock_kernel();
 	len = (len + (start & ~PAGE_MASK) + ~PAGE_MASK) & PAGE_MASK;
 	start &= PAGE_MASK;
 	ret = do_mlock(start, len, 0);
 	unlock_kernel();
+	up(&current->mm->mmap_sem);
 	return ret;
 }
 
@@ -263,6 +260,7 @@ asmlinkage int sys_mlockall(int flags)
 	unsigned long lock_limit;
 	int ret = -EINVAL;
 
+	down(&current->mm->mmap_sem);
 	lock_kernel();
 	if (!flags || (flags & ~(MCL_CURRENT | MCL_FUTURE)))
 		goto out;
@@ -282,6 +280,7 @@ asmlinkage int sys_mlockall(int flags)
 	ret = do_mlockall(flags);
 out:
 	unlock_kernel();
+	up(&current->mm->mmap_sem);
 	return ret;
 }
 
@@ -289,8 +288,10 @@ asmlinkage int sys_munlockall(void)
 {
 	int ret;
 
+	down(&current->mm->mmap_sem);
 	lock_kernel();
 	ret = do_mlockall(0);
 	unlock_kernel();
+	up(&current->mm->mmap_sem);
 	return ret;
 }

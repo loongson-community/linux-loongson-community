@@ -36,6 +36,7 @@
 #ifdef CONFIG_KGDB
 #include <asm/kgdb.h>
 #endif
+#include <asm/init.h>
 
 #include "macserial.h"
 
@@ -79,9 +80,9 @@ static unsigned char scc_inittab[] = {
 #endif
 #define ZS_CLOCK         3686400 	/* Z8530 RTxC input clock rate */
 
-DECLARE_TASK_QUEUE(tq_serial);
+static DECLARE_TASK_QUEUE(tq_serial);
 
-struct tty_driver serial_driver, callout_driver;
+static struct tty_driver serial_driver, callout_driver;
 static int serial_refcount;
 
 /* serial subtype definitions */
@@ -126,6 +127,8 @@ static struct termios *serial_termios_locked[NUM_CHANNELS];
  */
 static unsigned char tmp_buf[4096]; /* This is cheating */
 static struct semaphore tmp_buf_sem = MUTEX;
+
+__openfirmware
 
 static inline int serial_paranoia_check(struct mac_serial *info,
 					dev_t device, const char *routine)
@@ -281,7 +284,7 @@ static _INLINE_ void rs_sched_event(struct mac_serial *info,
 {
 	info->event |= 1 << event;
 	queue_task(&info->tqueue, &tq_serial);
-	mark_bh(SERIAL_BH);
+	mark_bh(MACSERIAL_BH);
 }
 
 static _INLINE_ void receive_chars(struct mac_serial *info,
@@ -299,6 +302,8 @@ static _INLINE_ void receive_chars(struct mac_serial *info,
 		if (info->kgdb_channel) {
 			if (ch == 0x03 || ch == '$')
 				breakpoint();
+			if (stat & (Rx_OVR|FRM_ERR|PAR_ERR))
+				write_zsreg(info->zs_channel, 0, ERR_RES);
 			return;
 		}
 #endif
@@ -319,17 +324,15 @@ static _INLINE_ void receive_chars(struct mac_serial *info,
 		}
 		if (stat & Rx_OVR) {
 			flag = TTY_OVERRUN;
-			/* reset the error indication */
-			write_zsreg(info->zs_channel, 0, ERR_RES);
 		} else if (stat & FRM_ERR) {
-			/* this error is not sticky */
 			flag = TTY_FRAME;
 		} else if (stat & PAR_ERR) {
 			flag = TTY_PARITY;
-			/* reset the error indication */
-			write_zsreg(info->zs_channel, 0, ERR_RES);
 		} else
 			flag = 0;
+		if (flag)
+			/* reset the error indication */
+			write_zsreg(info->zs_channel, 0, ERR_RES);
 		*tty->flip.flag_buf_ptr++ = flag;
 		*tty->flip.char_buf_ptr++ = ch;
 	}
@@ -410,7 +413,7 @@ static _INLINE_ void status_handle(struct mac_serial *info)
 /*
  * This is the serial driver's generic interrupt routine
  */
-void rs_interrupt(int irq, void *dev_id, struct pt_regs * regs)
+static void rs_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 {
 	struct mac_serial *info = (struct mac_serial *) dev_id;
 	unsigned char zs_intreg;
@@ -1311,7 +1314,7 @@ static void rs_wait_until_sent(struct tty_struct *tty, int timeout)
 /*
  * rs_hangup() --- called by tty_hangup() when a hangup is signaled.
  */
-void rs_hangup(struct tty_struct *tty)
+static void rs_hangup(struct tty_struct *tty)
 {
 	struct mac_serial * info = (struct mac_serial *)tty->driver_data;
 
@@ -1464,7 +1467,7 @@ static int block_til_ready(struct tty_struct *tty, struct file * filp,
  * the IRQ chain.   It also performs the serial-specific
  * initialization for the tty structure.
  */
-int rs_open(struct tty_struct *tty, struct file * filp)
+static int rs_open(struct tty_struct *tty, struct file * filp)
 {
 	struct mac_serial	*info;
 	int 			retval, line;
@@ -1579,10 +1582,6 @@ probe_sccs()
 				+ ch->addrs[0].size / 2;
 			zs_soft[n].zs_channel = &zs_channels[n];
 			zs_soft[n].irq = ch->intrs[0].line;
-			if (request_irq(ch->intrs[0].line, rs_interrupt, 0,
-					"SCC", &zs_soft[n]))
-				printk(KERN_ERR "macserial: can't get irq %d\n",
-				       ch->intrs[0].line);
 			/* XXX this assumes the prom puts chan A before B */
 			if (n & 1)
 				zs_soft[n].zs_chan_a = &zs_channels[n-1];
@@ -1599,20 +1598,28 @@ probe_sccs()
 }
 
 /* rs_init inits the driver */
-int rs_init(void)
+int macserial_init(void)
 {
 	int channel, i;
 	unsigned long flags;
 	struct mac_serial *info;
 
 	/* Setup base handler, and timer table. */
-	init_bh(SERIAL_BH, do_serial_bh);
+	init_bh(MACSERIAL_BH, do_serial_bh);
 	timer_table[RS_TIMER].fn = rs_timer;
 	timer_table[RS_TIMER].expires = 0;
 
 	/* Find out how many Z8530 SCCs we have */
 	if (zs_chain == 0)
 		probe_sccs();
+
+	/* Register the interrupt handler for each one */
+	for (i = 0; i < zs_channels_found; ++i) {
+		if (request_irq(zs_soft[i].irq, rs_interrupt, 0,
+				"SCC", &zs_soft[i]))
+			printk(KERN_ERR "macserial: can't get irq %d\n",
+			       zs_soft[i].irq);
+	}
 
 	show_serial_version();
 
@@ -1673,6 +1680,7 @@ int rs_init(void)
 	for (channel = 0; channel < zs_channels_found; ++channel) {
 #ifdef CONFIG_KGDB
 		if (zs_soft[channel].kgdb_channel) {
+			kgdb_interruptible(1);
 			continue;
 		}
 #endif
@@ -1722,6 +1730,7 @@ int rs_init(void)
 	return 0;
 }
 
+#if 0
 /*
  * register_serial and unregister_serial allows for serial ports to be
  * configured at run-time, to support PCMCIA modems.
@@ -1736,6 +1745,7 @@ void unregister_serial(int line)
 {
 	return;
 }
+#endif
 
 /*
  * ------------------------------------------------------------
@@ -1864,12 +1874,12 @@ static struct console sercons = {
 /*
  *	Register console.
  */
-__initfunc (long serial_console_init(long kmem_start, long kmem_end))
+__initfunc (void serial_console_init(void))
 {
 	register_console(&sercons);
-	return kmem_start;
 }
 #endif /* ifdef CONFIG_SERIAL_CONSOLE */
+
 #ifdef CONFIG_KGDB
 /* These are for receiving and sending characters under the kgdb
  * source level kernel debugger.
@@ -1881,6 +1891,7 @@ void putDebugChar(char kgdb_char)
 		udelay(5);
 	write_zsdata(chan, kgdb_char);
 }
+
 char getDebugChar(void)
 {
 	struct mac_zschannel *chan = zs_kgdbchan;
@@ -1888,6 +1899,7 @@ char getDebugChar(void)
 		eieio(); /*barrier();*/
 	return read_zsdata(chan);
 }
+
 void kgdb_interruptible(int yes)
 {
 	struct mac_zschannel *chan = zs_kgdbchan;
@@ -1905,6 +1917,7 @@ void kgdb_interruptible(int yes)
 	write_zsreg(chan, 1, one);
 	write_zsreg(chan, 9, nine);
 }
+
 /* This sets up the serial port we're using, and turns on
  * interrupts for that channel, so kgdb is usable once we're done.
  */
@@ -1923,23 +1936,26 @@ static inline void kgdb_chaninit(struct mac_zschannel *ms, int intson, int bps)
 		i++;
 	}
 }
+
 /* This is called at boot time to prime the kgdb serial debugging
  * serial line.  The 'tty_num' argument is 0 for /dev/ttya and 1
  * for /dev/ttyb which is determined in setup_arch() from the
  * boot command line flags.
+ * XXX at the moment probably only channel A will work
  */
 __initfunc(void zs_kgdb_hook(int tty_num))
 {
 	/* Find out how many Z8530 SCCs we have */
 	if (zs_chain == 0)
 		probe_sccs();
-	zs_soft[tty_num].zs_channel = &zs_channels[tty_num];
+
 	zs_kgdbchan = zs_soft[tty_num].zs_channel;
 	zs_soft[tty_num].change_needed = 0;
 	zs_soft[tty_num].clk_divisor = 16;
 	zs_soft[tty_num].zs_baud = 38400;
 	zs_soft[tty_num].kgdb_channel = 1;     /* This runs kgdb */
 	zs_soft[tty_num ^ 1].kgdb_channel = 0; /* This does not */
+
 	/* Turn on transmitter/receiver at 8-bits/char */
         kgdb_chaninit(zs_soft[tty_num].zs_channel, 1, 38400);
 	printk("KGDB: on channel %d initialized\n", tty_num);

@@ -1,12 +1,19 @@
-/* $Id: head.S,v 1.7 1998/03/27 04:47:54 ralf Exp $
+/* $Id: head.S,v 1.12 1998/05/26 06:16:52 ralf Exp $
  *
- *  Copyright (C) 1994, 1995 Waldorf Electronics, 1996 Paul M. Antoine
- *  Written by Ralf Baechle and Andreas Busse
- *  Copyright (C) 1996, 1997, 1998 Ralf Baechle
- *  Modified for DECStation and hence R3000 support by Paul M. Antoine
- *  Further modifications by David S. Miller
+ * arch/mips/kernel/head.S
  *
- *  Head.S contains the MIPS exception handler and startup code.
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
+ *
+ * Copyright (C) 1994, 1995 Waldorf Electronics
+ * Written by Ralf Baechle and Andreas Busse
+ * Copyright (C) 1995, 1996, 1997, 1998 Ralf Baechle
+ * Copyright (C) 1996 Paul M. Antoine
+ * Modified for DECStation and hence R3000 support by Paul M. Antoine
+ * Further modifications by David S. Miller
+ *
+ * Head.S contains the MIPS exception handler and startup code.
  */
 #include <linux/config.h>
 #include <linux/tasks.h>

@@ -378,8 +378,8 @@ static unsigned int load_irix_interp(struct elfhdr * interp_elf_ex,
 
 	/* Now fill out the bss section.  First pad the last page up
 	 * to the page boundary, and then perform a mmap to make sure
-	 * that there are zeromapped pages up to and including the last
-	 * bss page.
+	 * that there are zero-mapped pages up to and including the
+	 * last bss page.
 	 */
 #ifdef DEBUG_ELF
 	printk("padzero(%08lx) ", (unsigned long) (elf_bss));
@@ -1286,7 +1286,7 @@ static int irix_core_dump(long signr, struct pt_regs * regs)
 	notes[2].datasz = sizeof(*current);
 	notes[2].data = current;
 	
-	/* Try to dump the fpu. */
+	/* Try to dump the FPU. */
 	prstatus.pr_fpvalid = dump_fpu (&fpu);
 	if (!prstatus.pr_fpvalid) {
 		numnote--;

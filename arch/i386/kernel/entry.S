@@ -75,6 +75,7 @@ flags		=  4
 sigpending	=  8
 addr_limit	= 12
 exec_domain	= 16
+need_resched	= 20
 
 ENOSYS = 38
 
@@ -94,18 +95,34 @@ ENOSYS = 38
 	movl %dx,%ds; \
 	movl %dx,%es;
 
-#define RESTORE_ALL \
-	popl %ebx; \
-	popl %ecx; \
-	popl %edx; \
-	popl %esi; \
-	popl %edi; \
-	popl %ebp; \
-	popl %eax; \
-	popl %ds; \
-	popl %es; \
-	addl $4,%esp; \
-	iret
+#define RESTORE_ALL	\
+	popl %ebx;	\
+	popl %ecx;	\
+	popl %edx;	\
+	popl %esi;	\
+	popl %edi;	\
+	popl %ebp;	\
+	popl %eax;	\
+1:	popl %ds;	\
+2:	popl %es;	\
+3:	addl $4,%esp;	\
+4:	iret;		\
+.section fixup,"ax";	\
+5:	pushl $0;	\
+	popl %ds;	\
+	jmp 2b;		\
+6:	pushl $0;	\
+	popl %es;	\
+	jmp 3b;		\
+7:	pushl $11;	\
+	call do_exit;	\
+.previous;		\
+.section __ex_table,"a";\
+	.align 4;	\
+	.long 1b,5b;	\
+	.long 2b,6b;	\
+	.long 4b,7b;	\
+.previous
 
 #define GET_CURRENT(reg) \
 	movl %esp, reg; \
@@ -165,7 +182,7 @@ ret_from_sys_call:
 	andl SYMBOL_NAME(bh_active),%eax
 	jne handle_bottom_half
 ret_with_reschedule:
-	cmpl $0,SYMBOL_NAME(need_resched)
+	cmpl $0,need_resched(%ebx)
 	jne reschedule
 	cmpl $0,sigpending(%ebx)
 	jne signal_return
@@ -241,19 +258,8 @@ error_code:
 	decl %eax			# eax = -1
 	pushl %ecx
 	pushl %ebx
-#if 1
-	xorl %ecx,%ecx			# zero ecx
 	cld
-	mov %es,%cx			# get the lower order bits of es
-#else
-	cld
-# Some older processors leave the top 16 bits of the 32 bit destination
-# register undefined, rather than zeroed in the following instruction.
-# This won't matter when restoring or loading a segment register from the
-# stack.  It may be a problem if any code reads the full 32 bit value.
-# dosemu? kernel?  Would somebody like to verify that this way is really OK?
 	movl %es,%cx
-#endif
 	xchgl %eax, ORIG_EAX(%esp)	# orig_eax (get the error code. )
 	movl %esp,%edx
 	xchgl %ecx, ES(%esp)		# get the address and save es.
@@ -382,7 +388,7 @@ ENTRY(sys_call_table)
 	.long SYMBOL_NAME(sys_lseek)
 	.long SYMBOL_NAME(sys_getpid)		/* 20 */
 	.long SYMBOL_NAME(sys_mount)
-	.long SYMBOL_NAME(sys_umount)
+	.long SYMBOL_NAME(sys_oldumount)
 	.long SYMBOL_NAME(sys_setuid)
 	.long SYMBOL_NAME(sys_getuid)
 	.long SYMBOL_NAME(sys_stime)		/* 25 */
@@ -412,7 +418,7 @@ ENTRY(sys_call_table)
 	.long SYMBOL_NAME(sys_geteuid)
 	.long SYMBOL_NAME(sys_getegid)		/* 50 */
 	.long SYMBOL_NAME(sys_acct)
-	.long SYMBOL_NAME(sys_ni_syscall)				/* old phys syscall holder */
+	.long SYMBOL_NAME(sys_umount)					/* recycled never used phys() */
 	.long SYMBOL_NAME(sys_ni_syscall)				/* old lock syscall holder */
 	.long SYMBOL_NAME(sys_ioctl)
 	.long SYMBOL_NAME(sys_fcntl)		/* 55 */
@@ -546,7 +552,11 @@ ENTRY(sys_call_table)
 	.long SYMBOL_NAME(sys_getcwd)
 	.long SYMBOL_NAME(sys_capget)
 	.long SYMBOL_NAME(sys_capset)           /* 185 */
+	.long SYMBOL_NAME(sys_sigaltstack)
+	.long SYMBOL_NAME(sys_sendfile)
+	.long SYMBOL_NAME(sys_ni_syscall)		/* streams1 */
+	.long SYMBOL_NAME(sys_ni_syscall)		/* streams2 */
 	
-	.rept NR_syscalls-184
+	.rept NR_syscalls-187
 		.long SYMBOL_NAME(sys_ni_syscall)
 	.endr

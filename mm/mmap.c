@@ -57,19 +57,19 @@ int vm_enough_memory(long pages)
 	 * simple, it hopefully works in most obvious cases.. Easy to
 	 * fool it, but this should catch most mistakes.
 	 */
-	long freepages;
+	long free;
 	
         /* Sometimes we want to use more memory than we have. */
 	if (sysctl_overcommit_memory)
 	    return 1;
 
-	freepages = buffermem >> PAGE_SHIFT;
-	freepages += page_cache_size;
-	freepages >>= 1;
-	freepages += nr_free_pages;
-	freepages += nr_swap_pages;
-	freepages -= num_physpages >> 4;
-	return freepages > pages;
+	free = buffermem >> PAGE_SHIFT;
+	free += page_cache_size;
+	free >>= 1;
+	free += nr_free_pages;
+	free += nr_swap_pages;
+	free -= num_physpages >> 4;
+	return free > pages;
 }
 
 /* Remove one vm structure from the inode's i_mmap ring. */
@@ -92,6 +92,7 @@ asmlinkage unsigned long sys_brk(unsigned long brk)
 	unsigned long newbrk, oldbrk;
 	struct mm_struct *mm = current->mm;
 
+	down(&mm->mmap_sem);
 	lock_kernel();
 	if (brk < mm->end_code)
 		goto out;
@@ -109,9 +110,7 @@ asmlinkage unsigned long sys_brk(unsigned long brk)
 
 	/* Check against rlimit and stack.. */
 	rlim = current->rlim[RLIMIT_DATA].rlim_cur;
-	if (rlim >= RLIM_INFINITY)
-		rlim = ~0;
-	if (brk - mm->end_code > rlim)
+	if (rlim < RLIM_INFINITY && brk - mm->end_code > rlim)
 		goto out;
 
 	/* Check against existing mmap mappings. */
@@ -132,6 +131,7 @@ set_brk:
 out:
 	retval = mm->brk;
 	unlock_kernel();
+	up(&mm->mmap_sem);
 	return retval;
 }
 
@@ -196,9 +196,14 @@ unsigned long do_mmap(struct file * file, unsigned long addr, unsigned long len,
 			if ((prot & PROT_WRITE) && !(file->f_mode & 2))
 				return -EACCES;
 
+			/* Make sure we don't allow writing to an append-only file.. */
+			if (IS_APPEND(file->f_dentry->d_inode) && (file->f_mode & 2))
+				return -EACCES;
+
 			/* make sure there are no mandatory locks on the file. */
 			if (locks_verify_locked(file->f_dentry->d_inode))
 				return -EAGAIN;
+
 			/* fall through */
 		case MAP_PRIVATE:
 			if (!(file->f_mode & 1))
@@ -316,16 +321,9 @@ unsigned long do_mmap(struct file * file, unsigned long addr, unsigned long len,
 	merge_segments(mm, vma->vm_start, vma->vm_end);
 	
 	mm->total_vm += len >> PAGE_SHIFT;
-	if ((flags & VM_LOCKED) && !(flags & VM_IO)) {
-		unsigned long start = addr;
+	if (flags & VM_LOCKED) {
 		mm->locked_vm += len >> PAGE_SHIFT;
-		do {
-			char c;
-			get_user(c,(char *) start);
-			len -= PAGE_SIZE;
-			start += PAGE_SIZE;
-			__asm__ __volatile__("": :"r" (c));
-		} while (len > 0);
+		make_pages_present(addr, addr + len);
 	}
 	return addr;
 
@@ -428,28 +426,8 @@ static int unmap_fixup(struct vm_area_struct *area, unsigned long addr,
 		insert_vm_struct(current->mm, mpnt);
 	}
 
-	/* Close the current area ... */
-	if (area->vm_ops && area->vm_ops->close) {
-		end = area->vm_end; /* save new end */
-		area->vm_end = area->vm_start;
-		area->vm_ops->close(area);
-		area->vm_end = end;
-	}
-	/* ... then reopen and reinsert. */
-	if (area->vm_ops && area->vm_ops->open)
-		area->vm_ops->open(area);
 	insert_vm_struct(current->mm, area);
 	return 1;
-}
-
-asmlinkage int sys_munmap(unsigned long addr, size_t len)
-{
-	int ret;
-
-	lock_kernel();
-	ret = do_munmap(addr, len);
-	unlock_kernel();
-	return ret;
 }
 
 /* Munmap is split into 2 main parts -- this part which finds
@@ -460,7 +438,7 @@ asmlinkage int sys_munmap(unsigned long addr, size_t len)
 int do_munmap(unsigned long addr, size_t len)
 {
 	struct mm_struct * mm;
-	struct vm_area_struct *mpnt, *next, *free, *extra;
+	struct vm_area_struct *mpnt, *free, *extra;
 	int freed;
 
 	if ((addr & ~PAGE_MASK) || addr > TASK_SIZE || len > TASK_SIZE-addr)
@@ -481,6 +459,11 @@ int do_munmap(unsigned long addr, size_t len)
 	if (!mpnt)
 		return 0;
 
+	/* If we'll make "hole", check the vm areas limit */
+	if ((mpnt->vm_start < addr && mpnt->vm_end > addr+len) &&
+	    mm->map_count > MAX_MAP_COUNT)
+		return -ENOMEM;
+
 	/*
 	 * We may need one additional vma to fix up the mappings ... 
 	 * and this is the last chance for an easy error exit.
@@ -489,9 +472,7 @@ int do_munmap(unsigned long addr, size_t len)
 	if (!extra)
 		return -ENOMEM;
 
-	next = mpnt->vm_next;
-
-	/* we have mpnt->vm_next = next and addr < mpnt->vm_end */
+	/* we have addr < mpnt->vm_end */
 	free = NULL;
 	for ( ; mpnt && mpnt->vm_start < addr+len; ) {
 		struct vm_area_struct *next = mpnt->vm_next;
@@ -503,13 +484,6 @@ int do_munmap(unsigned long addr, size_t len)
 		mpnt->vm_next = free;
 		free = mpnt;
 		mpnt = next;
-	}
-
-	if (free && (free->vm_start < addr) && (free->vm_end > addr+len)) {
-		if (mm->map_count > MAX_MAP_COUNT) {
-			kmem_cache_free(vm_area_cachep, extra);
-			return -ENOMEM;
-		}
 	}
 
 	/* Ok - we have the memory areas we should free on the 'free' list,
@@ -553,6 +527,18 @@ int do_munmap(unsigned long addr, size_t len)
 	if (freed)
 		mm->mmap_cache = NULL;	/* Kill the cache. */
 	return 0;
+}
+
+asmlinkage int sys_munmap(unsigned long addr, size_t len)
+{
+	int ret;
+
+	down(&current->mm->mmap_sem);
+	lock_kernel();
+	ret = do_munmap(addr, len);
+	unlock_kernel();
+	up(&current->mm->mmap_sem);
+	return ret;
 }
 
 /* Release all mmaps. */
@@ -630,12 +616,12 @@ void insert_vm_struct(struct mm_struct *mm, struct vm_area_struct *vmp)
  * This assumes that the list is ordered by address.
  * We don't need to traverse the entire list, only those segments
  * which intersect or are adjacent to a given interval.
+ *
+ * We must already hold the mm semaphore when we get here..
  */
 void merge_segments (struct mm_struct * mm, unsigned long start_addr, unsigned long end_addr)
 {
 	struct vm_area_struct *prev, *mpnt, *next;
-
-	down(&mm->mmap_sem);
 
 	prev = NULL;
 	mpnt = mm->mmap;
@@ -644,7 +630,7 @@ void merge_segments (struct mm_struct * mm, unsigned long start_addr, unsigned l
 		mpnt = mpnt->vm_next;
 	}
 	if (!mpnt)
-		goto no_vma;
+		return;
 
 	next = mpnt->vm_next;
 
@@ -700,8 +686,6 @@ void merge_segments (struct mm_struct * mm, unsigned long start_addr, unsigned l
 		mpnt = prev;
 	}
 	mm->mmap_cache = NULL;		/* Kill the cache. */
-no_vma:
-	up(&mm->mmap_sem);
 }
 
 __initfunc(void vma_init(void))

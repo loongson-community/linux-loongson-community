@@ -47,11 +47,9 @@ static char *version = "3c509.c:1.12 6/4/97 becker@cesdis.gsfc.nasa.gov\n";
 #include <linux/module.h>
 
 #include <linux/config.h>	/* for CONFIG_MCA */
-#include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/string.h>
 #include <linux/interrupt.h>
-#include <linux/ptrace.h>
 #include <linux/errno.h>
 #include <linux/in.h>
 #include <linux/malloc.h>
@@ -136,7 +134,7 @@ static ushort read_eeprom(short ioaddr, int index);
 static int el3_open(struct device *dev);
 static int el3_start_xmit(struct sk_buff *skb, struct device *dev);
 static void el3_interrupt(int irq, void *dev_id, struct pt_regs *regs);
-static void update_stats(int addr, struct device *dev);
+static void update_stats(struct device *dev);
 static struct enet_statistics *el3_get_stats(struct device *dev);
 static int el3_rx(struct device *dev);
 static int el3_close(struct device *dev);
@@ -180,6 +178,9 @@ int el3_probe(struct device *dev)
 	}
 
 #ifdef CONFIG_MCA
+#warning "The MCA code in drivers/net/3c509.c does not compile"
+#warning "See http://glycerine.itsmm.uni.edu/mca/ for patches."
+#if 0   
 	if (MCA_bus) {
 		mca_adaptor_select_mode(1);
 		for (i = 0; i < 8; i++)
@@ -197,6 +198,7 @@ int el3_probe(struct device *dev)
 
 	}
 #endif
+#endif
 
 	/* Reset the ISA PnP mechanism on 3c509b. */
 	outb(0x02, 0x279);           /* Select PnP config control register. */
@@ -210,7 +212,7 @@ int el3_probe(struct device *dev)
 		if (inb(id_port) & 0x01)
 			break;
 	}
-	if (id_port >= 0x200) {             /* GCC optimizes this test out. */
+	if (id_port >= 0x200) {
 		/* Rare -- do we really need a warning? */
 		printk(" WARNING: No I/O port available for 3c509 activation.\n");
 		return -ENODEV;
@@ -453,6 +455,8 @@ el3_start_xmit(struct sk_buff *skb, struct device *dev)
 		dev->tbusy = 0;
 	}
 
+	lp->stats.tx_bytes += skb->len;
+	
 	if (el3_debug > 4) {
 		printk("%s: el3_start_xmit(length = %u) called, status %4.4x.\n",
 			   dev->name, skb->len, inw(ioaddr + EL3_STATUS));
@@ -533,10 +537,11 @@ el3_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	dev->interrupt = 1;
 
 	ioaddr = dev->base_addr;
-	status = inw(ioaddr + EL3_STATUS);
 
-	if (el3_debug > 4)
+	if (el3_debug > 4) {
+		status = inw(ioaddr + EL3_STATUS);
 		printk("%s: interrupt, status %4.4x.\n", dev->name, status);
+	}
 
 	while ((status = inw(ioaddr + EL3_STATUS)) &
 		   (IntLatch | RxComplete | StatsFull)) {
@@ -555,7 +560,7 @@ el3_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		if (status & (AdapterFailure | RxEarly | StatsFull)) {
 			/* Handle all uncommon interrupts. */
 			if (status & StatsFull)				/* Empty statistics. */
-				update_stats(ioaddr, dev);
+				update_stats(dev);
 			if (status & RxEarly) {				/* Rx early is unused. */
 				el3_rx(dev);
 				outw(AckIntr | RxEarly, ioaddr + EL3_CMD);
@@ -602,7 +607,7 @@ el3_get_stats(struct device *dev)
 
 	save_flags(flags);
 	cli();
-	update_stats(dev->base_addr, dev);
+	update_stats(dev);
 	restore_flags(flags);
 	return &lp->stats;
 }
@@ -612,9 +617,10 @@ el3_get_stats(struct device *dev)
 	operation, and it's simpler for the rest of the driver to assume that
 	window 1 is always valid rather than use a special window-state variable.
 	*/
-static void update_stats(int ioaddr, struct device *dev)
+static void update_stats(struct device *dev)
 {
 	struct el3_private *lp = (struct el3_private *)dev->priv;
+	int ioaddr = dev->base_addr;
 
 	if (el3_debug > 5)
 		printk("   Updating the statistics.\n");
@@ -667,6 +673,7 @@ el3_rx(struct device *dev)
 			struct sk_buff *skb;
 
 			skb = dev_alloc_skb(pkt_len+5);
+			lp->stats.rx_bytes += pkt_len;
 			if (el3_debug > 4)
 				printk("Receiving packet size %d status %4.4x.\n",
 					   pkt_len, rx_status);
@@ -760,7 +767,7 @@ el3_close(struct device *dev)
 	/* But we explicitly zero the IRQ line select anyway. */
 	outw(0x0f00, ioaddr + WN0_IRQ);
 
-	update_stats(ioaddr, dev);
+	update_stats(dev);
 	MOD_DEC_USE_COUNT;
 	return 0;
 }
@@ -770,6 +777,10 @@ el3_close(struct device *dev)
 static int debug = -1;
 static int irq[] = {-1, -1, -1, -1, -1, -1, -1, -1};
 static int xcvr[] = {-1, -1, -1, -1, -1, -1, -1, -1};
+
+MODULE_PARM(debug,"i");
+MODULE_PARM(irq,"1-8i");
+MODULE_PARM(xcvr,"1-8i");
 
 int
 init_module(void)

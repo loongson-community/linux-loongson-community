@@ -122,9 +122,6 @@ int ppa_detect(Scsi_Host_Template * host)
     nhosts = 0;
     try_again = 0;
 
-    if (!pb)
-	pb = parport_enumerate();
-
     if (!pb) {
 	printk("ppa: parport reports no devices.\n");
 	return 0;
@@ -798,10 +795,10 @@ static int ppa_init(int host_no)
 	w_ctr(ppb, 0x08);
 	udelay(30);
 	w_ctr(ppb, 0x0c);
-	udelay(1000);		/* Allow devices to settle down */
+	mdelay(1);		/* Allow devices to settle down */
     }
     ppa_disconnect(host_no);
-    udelay(1000);		/* Another delay to allow devices to settle */
+    mdelay(1);		/* Another delay to allow devices to settle */
 
     if (!retv)
 	retv = device_check(host_no);
@@ -1035,7 +1032,7 @@ static int ppa_engine(ppa_struct * tmp, Scsi_Cmnd * cmd)
 	    if ((r_str(ppb) & 0x08) == 0x00)
 		retv--;
 
-	    if (retv)
+	    if (retv) {
 		if ((jiffies - tmp->jstart) > (1 * HZ)) {
 		    printk("ppa: Parallel port cable is unplugged!!\n");
 		    ppa_fail(host_no, DID_BUS_BUSY);
@@ -1044,6 +1041,7 @@ static int ppa_engine(ppa_struct * tmp, Scsi_Cmnd * cmd)
 		    ppa_disconnect(host_no);
 		    return 1;	/* Try again in a jiffy */
 		}
+	    }
 	    cmd->SCp.phase++;
 	}
 
@@ -1138,7 +1136,7 @@ int ppa_queuecommand(Scsi_Cmnd * cmd, void (*done) (Scsi_Cmnd *))
 }
 
 /*
- * Apparently the the disk->capacity attribute is off by 1 sector 
+ * Apparently the disk->capacity attribute is off by 1 sector 
  * for all disk drives.  We add the one here, but it should really
  * be done in sd.c.  Even if it gets fixed there, this will still
  * work.
@@ -1199,9 +1197,9 @@ int ppa_reset(Scsi_Cmnd * cmd, unsigned int x)
     w_ctr(ppb, 0x8);
     udelay(30);
     w_ctr(ppb, 0xc);
-    udelay(1000);		/* delay for devices to settle down */
+    mdelay(1);		/* delay for devices to settle down */
     ppa_disconnect(host_no);
-    udelay(1000);		/* Additional delay to allow devices to settle down */
+    mdelay(1);		/* Additional delay to allow devices to settle down */
 
     /*
      * PHASE2:
@@ -1263,9 +1261,9 @@ static int device_check(int host_no)
 	    w_ctr(ppb, 0x08);
 	    udelay(30);
 	    w_ctr(ppb, 0x0c);
-	    udelay(1000);
+	    mdelay(1);
 	    ppa_disconnect(host_no);
-	    udelay(1000);
+	    mdelay(1);
 	    if (ppa_hosts[host_no].mode == PPA_EPP_32) {
 		ppa_hosts[host_no].mode = old_mode;
 		goto second_pass;
@@ -1290,9 +1288,9 @@ static int device_check(int host_no)
 	    w_ctr(ppb, 0x08);
 	    udelay(30);
 	    w_ctr(ppb, 0x0c);
-	    udelay(1000);
+	    mdelay(1);
 	    ppa_disconnect(host_no);
-	    udelay(1000);
+	    mdelay(1);
 	    if (ppa_hosts[host_no].mode == PPA_EPP_32) {
 		ppa_hosts[host_no].mode = old_mode;
 		goto second_pass;

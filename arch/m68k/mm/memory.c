@@ -4,6 +4,7 @@
  *  Copyright (C) 1995  Hamish Macdonald
  */
 
+#include <linux/config.h>
 #include <linux/mm.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
@@ -16,38 +17,90 @@
 #include <asm/pgtable.h>
 #include <asm/system.h>
 #include <asm/traps.h>
+#ifdef CONFIG_AMIGA
 #include <asm/amigahw.h>
+#endif
 
-/* Strings for `extern inline' functions in <asm/pgtable.h>.  If put
-   directly into these functions, they are output for every file that
-   includes pgtable.h */
+struct pgtable_cache_struct quicklists;
 
-const char PgtabStr_bad_pmd[] = "Bad pmd in pte_alloc: %08lx\n";
-const char PgtabStr_bad_pgd[] = "Bad pgd in pmd_alloc: %08lx\n";
-const char PgtabStr_bad_pmdk[] = "Bad pmd in pte_alloc_kernel: %08lx\n";
-const char PgtabStr_bad_pgdk[] = "Bad pgd in pmd_alloc_kernel: %08lx\n";
+void __bad_pte(pmd_t *pmd)
+{
+	printk("Bad pmd in pte_alloc: %08lx\n", pmd_val(*pmd));
+	pmd_set(pmd, BAD_PAGETABLE);
+}
 
-static struct ptable_desc {
-	struct ptable_desc *prev;
-	struct ptable_desc *next;
-	unsigned long	   page;
-	unsigned char	   alloced;
-} ptable_list = { &ptable_list, &ptable_list, 0, 0xff };
+void __bad_pmd(pgd_t *pgd)
+{
+	printk("Bad pgd in pmd_alloc: %08lx\n", pgd_val(*pgd));
+	pgd_set(pgd, (pmd_t *)BAD_PAGETABLE);
+}
 
-#define PD_NONEFREE(dp) ((dp)->alloced == 0xff)
-#define PD_ALLFREE(dp) ((dp)->alloced == 0)
-#define PD_TABLEFREE(dp,i) (!((dp)->alloced & (1<<(i))))
-#define PD_MARKUSED(dp,i) ((dp)->alloced |= (1<<(i)))
-#define PD_MARKFREE(dp,i) ((dp)->alloced &= ~(1<<(i)))
+pte_t *get_pte_slow(pmd_t *pmd, unsigned long offset)
+{
+	pte_t *pte;
+
+	pte = (pte_t *) __get_free_page(GFP_KERNEL);
+	if (pmd_none(*pmd)) {
+		if (pte) {
+			clear_page((unsigned long)pte);
+			flush_page_to_ram((unsigned long)pte);
+			flush_tlb_kernel_page((unsigned long)pte);
+			nocache_page((unsigned long)pte);
+			pmd_set(pmd, pte);
+			return pte + offset;
+		}
+		pmd_set(pmd, BAD_PAGETABLE);
+		return NULL;
+	}
+	free_page((unsigned long)pte);
+	if (pmd_bad(*pmd)) {
+		__bad_pte(pmd);
+		return NULL;
+	}
+	return (pte_t *) pmd_page(*pmd) + offset;
+}
+
+pmd_t *get_pmd_slow(pgd_t *pgd, unsigned long offset)
+{
+	pmd_t *pmd;
+
+	pmd = get_pointer_table();
+	if (pgd_none(*pgd)) {
+		if (pmd) {
+			pgd_set(pgd, pmd);
+			return pmd + offset;
+		}
+		pgd_set(pgd, (pmd_t *)BAD_PAGETABLE);
+		return NULL;
+	}
+	free_pointer_table(pmd);
+	if (pgd_bad(*pgd)) {
+		__bad_pmd(pgd);
+		return NULL;
+	}
+	return (pmd_t *) pgd_page(*pgd) + offset;
+}
+
+
+/* ++andreas: {get,free}_pointer_table rewritten to use unused fields from
+   struct page instead of separately kmalloced struct.  Stolen from
+   arch/sparc/mm/srmmu.c ... */
+
+typedef struct page ptable_desc;
+static ptable_desc ptable_list = { &ptable_list, &ptable_list };
+
+#define PD_MARKBITS(dp) (*(unsigned char *)&(dp)->offset)
+#define PD_PAGE(dp) (PAGE_OFFSET + ((dp)->map_nr << PAGE_SHIFT))
+#define PAGE_PD(page) ((ptable_desc *)&mem_map[MAP_NR(page)])
 
 #define PTABLE_SIZE (PTRS_PER_PMD * sizeof(pmd_t))
 
 pmd_t *get_pointer_table (void)
 {
-	pmd_t *pmdp = NULL;
-	unsigned long flags;
-	struct ptable_desc *dp = ptable_list.next;
-	int i;
+	ptable_desc *dp = ptable_list.next;
+	unsigned char mask = PD_MARKBITS (dp);
+	unsigned char tmp;
+	unsigned int off;
 
 	/*
 	 * For a pointer table for a user process address space, a
@@ -55,102 +108,70 @@ pmd_t *get_pointer_table (void)
 	 * page can hold 8 pointer tables.  The page is remapped in
 	 * virtual address space to be noncacheable.
 	 */
-	if (PD_NONEFREE (dp)) {
+	if (mask == 0) {
+		unsigned long page;
+		ptable_desc *new;
 
-		if (!(dp = kmalloc (sizeof(struct ptable_desc),GFP_KERNEL))) {
+		if (!(page = get_free_page (GFP_KERNEL)))
 			return 0;
-		}
 
-		if (!(dp->page = get_free_page (GFP_KERNEL))) {
-			kfree (dp);
-			return 0;
-		}
+		flush_tlb_kernel_page(page);
+		nocache_page (page);
 
-		flush_tlb_kernel_page((unsigned long) dp->page);
-		nocache_page (dp->page);
-
-		dp->alloced = 0;
-		/* put at head of list */
-		save_flags(flags);
-		cli();
-		dp->next = ptable_list.next;
-		dp->prev = ptable_list.next->prev;
-		ptable_list.next->prev = dp;
-		ptable_list.next = dp;
-		restore_flags(flags);
+		new = PAGE_PD(page);
+		PD_MARKBITS(new) = 0xfe;
+		(new->prev = dp->prev)->next = new;
+		(new->next = dp)->prev = new;
+		return (pmd_t *)page;
 	}
 
-	for (i = 0; i < 8; i++)
-		if (PD_TABLEFREE (dp, i)) {
-			PD_MARKUSED (dp, i);
-			pmdp = (pmd_t *)(dp->page + PTABLE_SIZE*i);
-			break;
-		}
+	for (tmp = 1, off = 0; (mask & tmp) == 0; tmp <<= 1, off += PTABLE_SIZE);
+	PD_MARKBITS(dp) = mask & ~tmp;
+	if (!PD_MARKBITS(dp)) {
+		ptable_desc *last, *next;
 
-	if (PD_NONEFREE (dp)) {
 		/* move to end of list */
-		save_flags(flags);
-		cli();
-		dp->prev->next = dp->next;
-		dp->next->prev = dp->prev;
+		next = dp->next;
+		(next->prev = dp->prev)->next = next;
 
-		dp->next = ptable_list.next->prev;
-		dp->prev = ptable_list.prev;
-		ptable_list.prev->next = dp;
-		ptable_list.prev = dp;
-		restore_flags(flags);
+		last = ptable_list.prev;
+		(dp->next = last->next)->prev = dp;
+		(dp->prev = last)->next = dp;
 	}
-
-	memset (pmdp, 0, PTABLE_SIZE);
-
-	return pmdp;
+	return (pmd_t *) (PD_PAGE(dp) + off);
 }
 
-void free_pointer_table (pmd_t *ptable)
+int free_pointer_table (pmd_t *ptable)
 {
-	struct ptable_desc *dp;
+	ptable_desc *dp, *first;
 	unsigned long page = (unsigned long)ptable & PAGE_MASK;
-	int index = ((unsigned long)ptable - page)/PTABLE_SIZE;
-	unsigned long flags;
+	unsigned char mask = 1 << (((unsigned long)ptable - page)/PTABLE_SIZE);
 
-	for (dp = ptable_list.next; dp->page && dp->page != page; dp = dp->next)
-		;
-
-	if (!dp->page)
-		panic ("unable to find desc for ptable %p on list!", ptable);
-
-	if (PD_TABLEFREE (dp, index))
+	dp = PAGE_PD(page);
+	if (PD_MARKBITS (dp) & mask)
 		panic ("table already free!");
 
-	PD_MARKFREE (dp, index);
+	PD_MARKBITS (dp) |= mask;
 
-	if (PD_ALLFREE (dp)) {
+	if (PD_MARKBITS(dp) == 0xff) {
 		/* all tables in page are free, free page */
-		save_flags(flags);
-		cli();
-		dp->prev->next = dp->next;
-		dp->next->prev = dp->prev;
-		restore_flags(flags);
-		cache_page (dp->page);
-		free_page (dp->page);
-		kfree (dp);
-		return;
-	} else {
+		ptable_desc *next = dp->next;
+		(next->prev = dp->prev)->next = next;
+		cache_page (page);
+		free_page (page);
+		return 1;
+	} else if ((first = ptable_list.next) != dp) {
 		/*
-		 * move this descriptor the the front of the list, since
+		 * move this descriptor to the front of the list, since
 		 * it has one or more free tables.
 		 */
-		save_flags(flags);
-		cli();
-		dp->prev->next = dp->next;
-		dp->next->prev = dp->prev;
+		ptable_desc *next = dp->next;
+		(next->prev = dp->prev)->next = next;
 
-		dp->next = ptable_list.next;
-		dp->prev = ptable_list.next->prev;
-		ptable_list.next->prev = dp;
-		ptable_list.next = dp;
-		restore_flags(flags);
+		(dp->prev = first->prev)->next = dp;
+		(dp->next = first)->prev = dp;
 	}
+	return 0;
 }
 
 /* maximum pages used for kpointer tables */
@@ -451,12 +472,14 @@ unsigned long mm_ptov (unsigned long paddr)
 	 *
 	 */
 
+#ifdef CONFIG_AMIGA
 	/*
 	 * if on an amiga and address is in first 16M, move it 
 	 * to the ZTWO_VADDR range
 	 */
 	if (MACH_IS_AMIGA && paddr < 16*1024*1024)
 		return ZTWO_VADDR(paddr);
+#endif
 	return paddr;
 }
 

@@ -1,9 +1,9 @@
-/*
+/* $Id: indy_hpc.c,v 1.4 1998/07/14 09:12:27 ralf Exp $
+ *
  * indy_hpc.c: Routines for generic manipulation of the HPC controllers.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
- *
- * $Id: indy_hpc.c,v 1.3 1998/07/10 01:14:50 ralf Exp $
+ * Copyright (C) 1998 Ralf Baechle
  */
 #include <linux/init.h>
 

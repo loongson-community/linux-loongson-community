@@ -1,10 +1,12 @@
-/* $Id: setup.c,v 1.7 1998/05/04 09:12:50 ralf Exp $
+/* $Id: setup.c,v 1.12 1998/08/18 20:45:06 ralf Exp $
  *
- *  linux/arch/mips/kernel/setup.c
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
  *
- *  Copyright (C) 1995  Linus Torvalds
- *  Copyright (C) 1995, 1996, 1997, 1998  Ralf Baechle
- *  Copyright (C) 1996  Stoned Elipot
+ * Copyright (C) 1995  Linus Torvalds
+ * Copyright (C) 1995, 1996, 1997, 1998  Ralf Baechle
+ * Copyright (C) 1996  Stoned Elipot
  */
 #include <linux/config.h>
 #include <linux/errno.h>
@@ -41,6 +43,8 @@
 #ifdef CONFIG_SGI
 #include <asm/sgialib.h>
 #endif
+
+struct mips_cpuinfo boot_cpu_data = { NULL, NULL, 0 };
 
 /*
  * Not all of the MIPS CPUs have the "wait" instruction available.  This
@@ -89,7 +93,7 @@ extern struct rtc_ops no_rtc_ops;
 struct rtc_ops *rtc_ops;
 
 /*
- * setup informations
+ * Setup information
  *
  * These are intialized so they are in the .data section
  */
@@ -150,6 +154,7 @@ __initfunc(void setup_arch(char **cmdline_p,
 {
 	unsigned long memory_end;
 	tag* atag;
+	void cobalt_setup(void);
 	void decstation_setup(void);
 	void deskstation_setup(void);
 	void jazz_setup(void);
@@ -168,7 +173,7 @@ __initfunc(void setup_arch(char **cmdline_p,
 	atag = bi_TagFind(tag_vram_base);
 	memcpy(&mips_vram_base, TAGVALPTR(atag), atag->size);
 
-	/* Save defaults for configuration dependand routines.  */
+	/* Save defaults for configuration-dependent routines.  */
 	irq_setup = default_irq_setup;
 
 #ifdef CONFIG_BLK_DEV_FD
@@ -183,6 +188,11 @@ __initfunc(void setup_arch(char **cmdline_p,
 
 	switch(mips_machgroup)
 	{
+#ifdef CONFIG_COBALT_MICRO_SERVER
+	case MACH_GROUP_COBALT:
+		cobalt_setup();
+		break;
+#endif
 #ifdef CONFIG_MIPS_JAZZ
 	case MACH_GROUP_JAZZ:
 		jazz_setup();

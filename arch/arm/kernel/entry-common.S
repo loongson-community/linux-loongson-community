@@ -2,6 +2,8 @@
  * All exits to user mode from the kernel go through this code.
  */
 
+#include <linux/config.h>
+
 		.globl	ret_from_sys_call
 
 		.globl	SYMBOL_NAME(fpreturn)
@@ -71,7 +73,7 @@ vector_swi:	save_user_regs
 		
 		bic	r6, r6, #0xff000000	@ mask off SWI op-code
 		eor	r6, r6, #OS_NUMBER<<20	@ check OS number
-		cmp	r6, #NR_SYSCALLS	@ check upper syscall limit
+		cmp	r6, #NR_syscalls	@ check upper syscall limit
 		bcs	2f
 
 		get_current_task r5
@@ -131,7 +133,7 @@ vector_swi:	save_user_regs
 SYMBOL_NAME(sys_syscall):
 		mov	r6, r0
 		eor	r6, r6, #OS_NUMBER << 20
-		cmp	r6, #NR_SYSCALLS		@ check range
+		cmp	r6, #NR_syscalls		@ check range
 		movgt	r0, #-ENOSYS
 		movgt	pc, lr
 		add	sp, sp, #4			@ take of the save of our r4
@@ -191,6 +193,10 @@ sys_rt_sigreturn_wrapper:
 		add	r0, sp, #4
 		b	SYMBOL_NAME(sys_rt_sigreturn)
 
+sys_sigaltstack_wrapper:
+		ldr	r2, [sp, #4 + S_SP]
+		b	do_sigaltstack
+
 /*
  *=============================================================================
  *		Low-level interface code
@@ -207,6 +213,7 @@ sys_rt_sigreturn_wrapper:
  * 0x1c onwards is reserved for FIQ, so I think that I will allocate 0xe0 onwards for
  * the actuall address to jump to.
  */
+#if defined(CONFIG_CPU_32)
 /*
  * these go into 0x00
  */
@@ -237,13 +244,42 @@ ENTRY(trap_init)
 		initialise_traps_extra
 		mov	r0, #0xe4
 		adr	r1, .Ljump_addresses
-		ldmia	r1, {r1 - r6}
-		stmia	r0, {r1 - r6}
+		ldmia	r1, {r1 - r7}
+		stmia	r0, {r1 - r7}
 		mov	r0, #0
 		adr	r1, .Lbranches
 		ldmia	r1, {r1 - r7}
 		stmia	r0, {r1 - r7}
 		LOADREGS(fd, sp!, {r4 - r7, pc})
+#elif defined(CONFIG_CPU_26)
+.Ljump_addresses:
+		swi	SYS_ERROR0
+		.word	vector_undefinstr	- 12
+		.word	vector_swi		- 16
+		.word	vector_prefetch		- 20
+		.word	vector_data		- 24
+		.word	vector_addrexcptn	- 28
+		.word	vector_IRQ		- 32
+		.word	_unexp_fiq		- 36
+		b	. + 8
+/*
+ * initialise the trap system
+ */
+ENTRY(trap_init)
+		stmfd	sp!, {r4 - r7, lr}
+		adr	r1, .Ljump_addresses
+		ldmia	r1, {r1 - r7, ip, lr}
+		orr	r2, lr, r2, lsr #2
+		orr	r3, lr, r3, lsr #2
+		orr	r4, lr, r4, lsr #2
+		orr	r5, lr, r5, lsr #2
+		orr	r6, lr, r6, lsr #2
+		orr	r7, lr, r7, lsr #2
+		orr	ip, lr, ip, lsr #2
+		mov	r0, #0
+		stmia	r0, {r1 - r7, ip}
+		ldmfd	sp!, {r4 - r7, pc}^
+#endif
 
 /*============================================================================
  * FP support

@@ -28,26 +28,18 @@
 
 static struct super_block *mounts = NULL;
 
-static void devpts_put_inode(struct inode *inode)
-{
-}
-
-static void devpts_delete_inode(struct inode *inode)
-{
-	inode->i_size = 0;
-}
-
 static void devpts_put_super(struct super_block *sb)
 {
 	struct devpts_sb_info *sbi = SBI(sb);
 	struct inode *inode;
 	int i;
 
-	for ( i = 0 ; i < NR_PTYS ; i++ ) {
+	for ( i = 0 ; i < sbi->max_ptys ; i++ ) {
 		if ( (inode = sbi->inodes[i]) ) {
 			if ( inode->i_count != 1 )
 				printk("devpts_put_super: badness: entry %d count %d\n",
 				       i, inode->i_count);
+			inode->i_nlink--;
 			iput(inode);
 		}
 	}
@@ -56,6 +48,7 @@ static void devpts_put_super(struct super_block *sb)
 	if ( sbi->next )
 		SBI(sbi->next)->back = sbi->back;
 
+	kfree(sbi->inodes);
 	kfree(sbi);
 
 #ifdef MODULE
@@ -70,8 +63,8 @@ static void devpts_write_inode(struct inode *inode);
 static struct super_operations devpts_sops = {
 	devpts_read_inode,
 	devpts_write_inode,
-	devpts_put_inode,
-	devpts_delete_inode,
+	NULL,			/* put_inode */
+	NULL,			/* delete_inode */
 	NULL,			/* notify_change */
 	devpts_put_super,
 	NULL,			/* write_super */
@@ -146,8 +139,14 @@ struct super_block *devpts_read_super(struct super_block *s, void *data,
 	if ( !sbi )
 		goto fail_unlock;
 
-	sbi->magic = DEVPTS_SBI_MAGIC;
-	memset(sbi->inodes, 0, sizeof sbi->inodes);
+	sbi->magic  = DEVPTS_SBI_MAGIC;
+	sbi->max_ptys = unix98_max_ptys;
+	sbi->inodes = kmalloc(sizeof(struct inode *) * sbi->max_ptys, GFP_KERNEL);
+	if ( !sbi->inodes ) {
+		kfree(sbi);
+		goto fail_unlock;
+	}
+	memset(sbi->inodes, 0, sizeof(struct inode *) * sbi->max_ptys);
 
 	s->u.generic_sbp = (void *) sbi;
 	s->s_blocksize = 1024;
@@ -260,6 +259,7 @@ static int devpts_statfs(struct super_block *sb, struct statfs *buf, int bufsiz)
 static void devpts_read_inode(struct inode *inode)
 {
 	ino_t ino = inode->i_ino;
+	struct devpts_sb_info *sbi = SBI(inode->i_sb);
 
 	inode->i_op = NULL;
 	inode->i_mode = 0;
@@ -278,11 +278,9 @@ static void devpts_read_inode(struct inode *inode)
 	} 
 
 	ino -= 2;
-	if ( ino >= NR_PTYS )
+	if ( ino >= sbi->max_ptys )
 		return;		/* Bogus */
 	
-	inode->i_nlink = 1;
-
 	inode->i_mode = S_IFCHR;
 	inode->i_rdev = MKDEV(0,0); /* Gets filled in by devpts_pty_new() */
 
@@ -322,6 +320,7 @@ void devpts_pty_new(int number, kdev_t device)
 			inode->i_gid = sbi->setgid ? sbi->gid : current->fsgid;
 			inode->i_mode = sbi->mode | S_IFCHR;
 			inode->i_rdev = device;
+			inode->i_nlink++;
 			sbi->inodes[number] = inode;
 		}
 	}
@@ -340,7 +339,7 @@ void devpts_pty_kill(int number)
 
 		if ( inode ) {
 			sbi->inodes[number] = NULL;
-			inode->i_nlink = 0; /* Is this right? */
+			inode->i_nlink--;
 			iput(inode);
 		}
 	}

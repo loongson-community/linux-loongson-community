@@ -51,8 +51,8 @@
 #include <linux/vmalloc.h>
 #include <linux/wait.h>
 #include <linux/major.h>
+#include <linux/smp_lock.h>
 
-#include <asm/smp_lock.h>
 #include <asm/shmiq.h>
 #include <asm/mman.h>
 #include <asm/uaccess.h>
@@ -238,7 +238,7 @@ bad_file:
 	return -EBADF;
 }
 
-extern sys_munmap(unsigned long addr, size_t len);
+extern int sys_munmap(unsigned long addr, size_t len);
 
 static int
 qcntl_ioctl (struct inode *inode, struct file *filp, unsigned int cmd, unsigned long arg, int minor)

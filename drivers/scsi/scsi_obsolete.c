@@ -79,7 +79,7 @@ static int scsi_abort (Scsi_Cmnd *, int code);
 static int scsi_reset (Scsi_Cmnd *, unsigned int);
 
 extern void scsi_old_done (Scsi_Cmnd *SCpnt);
-static int update_timeout (Scsi_Cmnd *, int);
+int update_timeout (Scsi_Cmnd *, int);
 extern void scsi_old_times_out (Scsi_Cmnd * SCpnt);
 extern void internal_cmnd (Scsi_Cmnd * SCpnt);
 
@@ -146,6 +146,10 @@ void scsi_old_times_out (Scsi_Cmnd * SCpnt)
     unsigned long flags;
 
     spin_lock_irqsave(&io_request_lock, flags);
+
+    /* Set the serial_number_at_timeout to the current serial_number */
+    SCpnt->serial_number_at_timeout = SCpnt->serial_number;
+
     switch (SCpnt->internal_timeout & (IN_ABORT | IN_RESET | IN_RESET2 | IN_RESET3))
     {
     case NORMAL_TIMEOUT:
@@ -176,7 +180,8 @@ void scsi_old_times_out (Scsi_Cmnd * SCpnt)
         scsi_reset (SCpnt,
 		    SCSI_RESET_ASYNCHRONOUS | SCSI_RESET_SUGGEST_BUS_RESET);
         break;
-    case (IN_ABORT | IN_RESET | IN_RESET2):
+    case IN_RESET2:
+    case (IN_ABORT | IN_RESET2):
 	/* Obviously the bus reset didn't work.
 	 * Let's try even harder and call for an HBA reset.
          * Maybe the HBA itself crashed and this will shake it loose.
@@ -321,6 +326,7 @@ void scsi_old_done (Scsi_Cmnd * SCpnt)
     struct Scsi_Host * host = SCpnt->host;
     int result = SCpnt->result;
     SCpnt->serial_number = 0;
+    SCpnt->serial_number_at_timeout = 0;
     oldto = update_timeout(SCpnt, 0);
 
 #ifdef DEBUG_TIMEOUT
@@ -1053,7 +1059,7 @@ static int scsi_reset (Scsi_Cmnd * SCpnt, unsigned int reset_flags)
  * set the timer, we want to take this value into account.
  */
 
-static int update_timeout(Scsi_Cmnd * SCset, int timeout)
+int update_timeout(Scsi_Cmnd * SCset, int timeout)
 {
   int	rtn;
 

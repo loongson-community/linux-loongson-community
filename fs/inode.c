@@ -8,6 +8,7 @@
 #include <linux/string.h>
 #include <linux/mm.h>
 #include <linux/dcache.h>
+#include <linux/quotaops.h>
 
 /*
  * New inode.c implementation.
@@ -64,7 +65,7 @@ struct {
 	int dummy[4];
 } inodes_stat = {0, 0, 0,};
 
-int max_inodes = NR_INODE;
+int max_inodes;
 
 /*
  * Put the inode on the super block's dirty list.
@@ -190,6 +191,7 @@ void sync_inodes(kdev_t dev)
 			continue;
 
 		sync_list(&sb->s_dirty);
+
 		if (dev)
 			break;
 	}
@@ -223,8 +225,8 @@ void clear_inode(struct inode *inode)
 	if (inode->i_nrpages)
 		truncate_inode_pages(inode, 0);
 	wait_on_inode(inode);
-	if (IS_WRITABLE(inode) && inode->i_sb && inode->i_sb->dq_op)
-		inode->i_sb->dq_op->drop(inode);
+	if (IS_QUOTAINIT(inode))
+		DQUOT_DROP(inode);
 	if (inode->i_sb && inode->i_sb->s_op && inode->i_sb->s_op->clear_inode)
 		inode->i_sb->s_op->clear_inode(inode);
 
@@ -535,6 +537,7 @@ add_new_inode:
 		inode->i_sb = NULL;
 		inode->i_dev = 0;
 		inode->i_ino = ++last_ino;
+		inode->i_flags = 0;
 		inode->i_count = 1;
 		inode->i_state = 0;
 		spin_unlock(&inode_lock);
@@ -594,9 +597,9 @@ add_new_inode:
 	}
 
 	/*
-	 * Uhhuh.. We need to expand. Note that "grow_inodes()" will
-	 * release the spinlock, but will return with the lock held
-	 * again if the allocation succeeded.
+	 * We need to expand. Note that "grow_inodes()" will
+	 * release the spinlock, but will return with the lock 
+	 * held again if the allocation succeeded.
 	 */
 	inode = grow_inodes();
 	if (inode) {
@@ -731,11 +734,14 @@ int bmap(struct inode * inode, int block)
 }
 
 /*
- * Initialize the hash tables
+ * Initialize the hash tables and default
+ * value for max inodes..
  */
+#define MAX_INODE (8192)
+
 void inode_init(void)
 {
-	int i;
+	int i, max;
 	struct list_head *head = inode_hashtable;
 
 	i = HASH_SIZE;
@@ -744,6 +750,12 @@ void inode_init(void)
 		head++;
 		i--;
 	} while (i);
+
+	/* Initial guess at reasonable inode number */
+	max = num_physpages >> 1;
+	if (max > MAX_INODE)
+		max = MAX_INODE;
+	max_inodes = max;
 }
 
 /* This belongs in file_table.c, not here... */

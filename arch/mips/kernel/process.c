@@ -1,15 +1,11 @@
-/*
- * linux/arch/mips/kernel/process.c
+/* $Id: process.c,v 1.11 1998/08/17 12:14:53 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
  * Copyright (C) 1994 - 1998 by Ralf Baechle and others.
- *
- * $Id: process.c,v 1.8 1998/04/05 11:23:51 ralf Exp $
  */
-#include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
@@ -32,6 +28,8 @@
 #include <asm/uaccess.h>
 #include <asm/io.h>
 #include <asm/elf.h>
+
+struct task_struct *last_task_used_math = NULL;
 
 asmlinkage void ret_from_sys_call(void);
 

@@ -56,7 +56,7 @@ new_attr(ntfs_inode *ino,int type,void *name,int namelen,int *pos, int *found)
 		}
 	}
 	if(do_insert)
-		ntfs_memcpy(ino->attrs+i+1,ino->attrs+i,(ino->attr_count-i)*
+		ntfs_memmove(ino->attrs+i+1,ino->attrs+i,(ino->attr_count-i)*
 			    sizeof(ntfs_attribute));
 	ino->attr_count++;
 	ino->attrs[i].type=type;
@@ -95,7 +95,7 @@ ntfs_insert_run(ntfs_attribute *attr,int cnum,int cluster,int len)
 		}
 	}
 	if(attr->d.r.len>cnum)
-		ntfs_memcpy(attr->d.r.runlist+cnum+1,attr->d.r.runlist+cnum,
+		ntfs_memmove(attr->d.r.runlist+cnum+1,attr->d.r.runlist+cnum,
 			    (attr->d.r.len-cnum)*sizeof(ntfs_runlist));
 	attr->d.r.runlist[cnum].cluster=cluster;
 	attr->d.r.runlist[cnum].len=len;
@@ -399,7 +399,7 @@ int ntfs_read_compressed(ntfs_inode *ino, ntfs_attribute *attr, int offset,
 	clustersize=ino->vol->clustersize;
 	/* starting cluster of potential chunk
 	   there are three situations:
-	   a) in a large uncompressable or sparse chunk, 
+	   a) in a large uncompressible or sparse chunk, 
 	   s_vcn is in the middle of a run
 	   b) s_vcn is right on a run border
 	   c) when several runs make a chunk, s_vcn is before the chunks

@@ -8,7 +8,6 @@
  * for more details.
  */
 
-#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
@@ -60,8 +59,7 @@ struct xxxfb_par {
 
     /*
      *  If your driver supports multiple boards, you should make these arrays,
-     *  or allocate them dynamically (using mem_start for builtin drivers, and
-     *  kmalloc() for loaded modules).
+     *  or allocate them dynamically (using kmalloc()).
      */
 
 static struct xxxfb_info fb_info;
@@ -245,15 +243,15 @@ static struct display_switch *xxx_get_dispsw(const void *par,
      *  If you don't have any appropriate operations, simple fill in the NULL
      *  pointer, and there will be no text output.
      */
-#ifdef CONFIG_FBCON_CFB8
+#ifdef FBCON_HAS_CFB8
     if (is_cfb8)
 	return &fbcon_cfb8;
 #endif
-#ifdef CONFIG_FBCON_CFB16
+#ifdef FBCON_HAS_CFB16
     if (is_cfb16)
 	return &fbcon_cfb16;
 #endif
-#ifdef CONFIG_FBCON_CFB32
+#ifdef FBCON_HAS_CFB32
     if (is_cfb32)
 	return &fbcon_cfb32;
 #endif
@@ -271,16 +269,15 @@ struct fbgen_hwswitch xxx_switch = {
 
 
 
-/* ------------ Hardware Independant Functions ------------ */
+/* ------------ Hardware Independent Functions ------------ */
 
 
     /*
      *  Initialization
      */
 
-__initfunc(unsigned long xxxfb_init(unsigned long mem_start))
+__initfunc(void xxxfb_init(void))
 {
-    int err;
     struct fb_var_screeninfo var;
 
     fb_info.fbhw = &xxx_switch;
@@ -296,18 +293,15 @@ __initfunc(unsigned long xxxfb_init(unsigned long mem_start))
     /* This should give a reasonable default video mode */
     fbgen_get_var(&disp.var, -1, &fb_info.gen);
     fbgen_do_set_var(var, 1, &fbinfo.gen);
-    err = register_framebuffer(&fb_info.gen.info);
-    if (err < 0)
-	return err;
     fbgen_set_disp(-1, &fb_info.gen.info);
     fbgen_install_cmap(0, &fb_info.gen);
+    if (register_framebuffer(&fb_info.gen.info) < 0)
+	return;
     printk("fb%d: %s frame buffer device\n", GET_FB_IDX(fb_info.node),
 	   fb_info.modename);
 
     /* uncomment this if your driver cannot be unloaded */
     /* MOD_INC_USE_COUNT; */
-
-    return mem_start;
 }
 
 
@@ -344,14 +338,14 @@ __initfunc(void xxxfb_setup(char *options, int *ints))
      *  Frame buffer operations
      */
 
-static int xxxfb_open(const struct fb_info *info)
+static int xxxfb_open(const struct fb_info *info, int user)
 {
     /* Nothing, only a usage count for the moment */
     MOD_INC_USE_COUNT;
     return 0;
 }
 
-static int xxxfb_release(const struct fb_info *info)
+static int xxxfb_release(const struct fb_info *info, int user)
 {
     MOD_DEC_USE_COUNT;
     return 0;
@@ -365,7 +359,7 @@ static int xxxfb_release(const struct fb_info *info)
 
 static struct fb_ops xxxfb_ops = {
     xxxfb_open, xxxfb_release, fbgen_get_fix, fbgen_get_var, fbgen_set_var,
-    fbgen_get_cmap, fbgen_set_cmap, fbgen_pan_display, NULL, fbgen_ioctl
+    fbgen_get_cmap, fbgen_set_cmap, fbgen_pan_display, fbgen_ioctl
 };
 
 
@@ -379,7 +373,8 @@ static struct fb_ops xxxfb_ops = {
 #ifdef MODULE
 int init_module(void)
 {
-    return xxxfb_init(NULL);
+    xxxfb_init();
+    return 0;
 }
 
 void cleanup_module(void)

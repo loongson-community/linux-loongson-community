@@ -1,4 +1,4 @@
-/* $Id: pgtable.h,v 1.74 1998/03/11 04:08:37 tdyas Exp $ */
+/* $Id: pgtable.h,v 1.77 1998/08/04 20:51:19 davem Exp $ */
 #ifndef _SPARC_PGTABLE_H
 #define _SPARC_PGTABLE_H
 
@@ -91,6 +91,7 @@ BTFIXUPDEF_SIMM13(user_ptrs_per_pgd)
 #define VMALLOC_VMADDR(x) ((unsigned long)(x))
 /* This is the same accross all platforms */
 #define VMALLOC_START (0xfe300000)
+#define VMALLOC_END   ~0x0UL
 
 BTFIXUPDEF_INT(page_none)
 BTFIXUPDEF_INT(page_shared)
@@ -354,6 +355,7 @@ BTFIXUPDEF_CALL(pte_t *, get_pte_fast, void)
 BTFIXUPDEF_CALL(pgd_t *, get_pgd_fast, void)
 BTFIXUPDEF_CALL(void,    free_pte_slow, pte_t *)
 BTFIXUPDEF_CALL(void,    free_pgd_slow, pgd_t *)
+BTFIXUPDEF_CALL(int,	 do_check_pgt_cache, int, int)
 
 #define get_pte_fast() BTFIXUP_CALL(get_pte_fast)()
 extern __inline__ pmd_t *get_pmd_fast(void)
@@ -366,6 +368,7 @@ extern __inline__ void free_pmd_slow(pmd_t *pmd)
 {
 }
 #define free_pgd_slow(pgd) BTFIXUP_CALL(free_pgd_slow)(pgd)
+#define do_check_pgt_cache(low,high) BTFIXUP_CALL(do_check_pgt_cache)(low,high)
 
 /*
  * Allocate and free page tables. The xxx_kernel() versions are
@@ -571,7 +574,6 @@ __get_iospace (unsigned long addr)
 
 #define module_map      vmalloc
 #define module_unmap    vfree
-#define module_shrink	vshrink
 
 /* Needs to be defined here and not in linux/mm.h, as it is arch dependent */
 #define PageSkip(page)		(test_bit(PG_skip, &(page)->flags))

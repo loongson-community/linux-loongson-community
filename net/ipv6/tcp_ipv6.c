@@ -5,7 +5,7 @@
  *	Authors:
  *	Pedro Roque		<roque@di.fc.ul.pt>	
  *
- *	$Id: tcp_ipv6.c,v 1.80 1998/05/02 12:47:15 davem Exp $
+ *	$Id: tcp_ipv6.c,v 1.82 1998/06/11 03:15:52 davem Exp $
  *
  *	Based on: 
  *	linux/net/ipv4/tcp.c
@@ -64,9 +64,7 @@ static __inline__ int tcp_v6_hashfn(struct in6_addr *laddr, u16 lport,
 {
 	int hashent = (lport ^ fport);
 
-	hashent ^= (laddr->s6_addr32[0] ^ laddr->s6_addr32[1]);
-	hashent ^= (faddr->s6_addr32[0] ^ faddr->s6_addr32[1]);
-	hashent ^= (faddr->s6_addr32[2] ^ faddr->s6_addr32[3]);
+	hashent ^= (laddr->s6_addr32[3] ^ faddr->s6_addr32[3]);
 	return (hashent & ((TCP_HTABLE_SIZE/2) - 1));
 }
 
@@ -145,6 +143,13 @@ go_like_smoke:
 
 static void tcp_v6_hash(struct sock *sk)
 {
+	/* Well, I know that it is ugly...
+	   All this ->prot, ->af_specific etc. need LARGE cleanup --ANK
+	 */
+	if (sk->tp_pinfo.af_tcp.af_specific == &ipv6_mapped) {
+		tcp_prot.hash(sk);
+		return;
+	}
 	if(sk->state != TCP_CLOSE) {
 		struct sock **skp;
 
@@ -213,7 +218,7 @@ static struct sock *tcp_v6_lookup_listener(struct in6_addr *daddr, unsigned shor
 	hiscore=0;
 	sk = tcp_listening_hash[tcp_lhashfn(hnum)];
 	for(; sk; sk = sk->next) {
-		if((sk->num == hnum) && (sk->family == AF_INET6)) {
+		if((sk->num == hnum) && (sk->family == PF_INET6)) {
 			struct ipv6_pinfo *np = &sk->net_pinfo.af_inet6;
 			
 			score = 1;
@@ -272,7 +277,7 @@ static inline struct sock *__tcp_v6_lookup(struct tcphdr *th,
 	/* Must check for a TIME_WAIT'er before going to listener hash. */
 	for(sk = tcp_established_hash[hash+(TCP_HTABLE_SIZE/2)]; sk; sk = sk->next) {
 		if(*((__u32 *)&(sk->dport))	== ports	&&
-		   sk->family			== AF_INET6) {
+		   sk->family			== PF_INET6) {
 			struct tcp_tw_bucket *tw = (struct tcp_tw_bucket *)sk;
 			if(!ipv6_addr_cmp(&tw->v6_daddr, saddr)	&&
 			   !ipv6_addr_cmp(&tw->v6_rcv_saddr, daddr) &&
@@ -415,8 +420,14 @@ static int tcp_v6_connect(struct sock *sk, struct sockaddr *uaddr,
 		if (err) {
 			sk->tp_pinfo.af_tcp.af_specific = &ipv6_specific;
 			sk->backlog_rcv = tcp_v6_do_rcv;
+		} else {
+			/* Yuup... And it is not the only place... --ANK */
+			ipv6_addr_set(&np->saddr, 0, 0, __constant_htonl(0x0000FFFF),
+				      sk->saddr);
+			ipv6_addr_set(&np->rcv_saddr, 0, 0, __constant_htonl(0x0000FFFF),
+				      sk->rcv_saddr);
 		}
-		
+
 		return err;
 	}
 

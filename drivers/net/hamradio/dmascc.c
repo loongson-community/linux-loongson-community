@@ -1,5 +1,5 @@
 /*
- * $Id: dmascc.c,v 1.2.1.3 1997/12/19 13:40:15 oe1kib Exp $
+ * $Id: dmascc.c,v 1.2.1.4 1998/06/10 02:24:11 kudielka Exp $
  *
  * Driver for high-speed SCC boards (those with DMA support)
  * Copyright (C) 1997 Klaus Kudielka
@@ -381,7 +381,7 @@ __initfunc(int dmascc_init(void))
 
     /* Check valid I/O address regions */
     for (i = 0; i < hw[h].num_devs; i++)
-      if (base[i])
+      if (base[i]) {
 	if (check_region(base[i], hw[h].io_size))
 	  base[i] = 0;
 	else {
@@ -389,6 +389,7 @@ __initfunc(int dmascc_init(void))
 	  t0[i]   = base[i] + hw[h].tmr_offset + TMR_CNT0;
 	  t1[i]   = base[i] + hw[h].tmr_offset + TMR_CNT1;
 	}
+      }
 
     /* Start timers */
     for (i = 0; i < hw[h].num_devs; i++)

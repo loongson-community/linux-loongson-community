@@ -32,10 +32,19 @@
      */
 
 static u_char nibbletab_cfb2[]={
+#if defined(__BIG_ENDIAN)
 	0x00,0x03,0x0c,0x0f,
 	0x30,0x33,0x3c,0x3f,
 	0xc0,0xc3,0xcc,0xcf,
 	0xf0,0xf3,0xfc,0xff
+#elif defined(__LITTLE_ENDIAN)
+	0x00,0xc0,0x30,0xf0,
+	0x0c,0xcc,0x3c,0xfc,
+	0x03,0xc3,0x33,0xf3,
+	0x0f,0xcf,0x3f,0xff
+#else
+#error FIXME: No endianness??
+#endif
 };
  
 
@@ -119,13 +128,11 @@ void fbcon_cfb2_putc(struct vc_data *conp, struct display *p, int c, int yy,
 	int bytes=p->next_line,rows;
 	u32 eorx,fgx,bgx;
 
-	c &= 0xff;
-
 	dest = p->screen_base + yy * p->fontheight * bytes + xx * 2;
-	cdat = p->fontdata + c * p->fontheight;
+	cdat = p->fontdata + (c & p->charmask) * p->fontheight;
 
-	fgx=3;/*attr_fgcol(p,conp)&0x0F;*/
-	bgx=attr_bgcol(p,conp)&0x0F;
+	fgx=3;/*attr_fgcol(p,c);*/
+	bgx=attr_bgcol(p,c);
 	fgx |= (fgx << 2);	/* expand color to 8 bits */
 	fgx |= (fgx << 4);
 	bgx |= (bgx << 2);
@@ -140,23 +147,24 @@ void fbcon_cfb2_putc(struct vc_data *conp, struct display *p, int c, int yy,
 	}
 }
 
-void fbcon_cfb2_putcs(struct vc_data *conp, struct display *p, const char *s,
+void fbcon_cfb2_putcs(struct vc_data *conp, struct display *p, const unsigned short *s,
 		      int count, int yy, int xx)
 {
-	u8 *cdat, c, *dest, *dest0;
+	u8 *cdat, *dest, *dest0;
+	u16 c;
 	int rows,bytes=p->next_line;
 	u32 eorx, fgx, bgx;
 
 	dest0 = p->screen_base + yy * p->fontheight * bytes + xx * 2;
-	fgx=3/*attr_fgcol(p,conp)*/;
-	bgx=attr_bgcol(p,conp);
+	fgx=3/*attr_fgcol(p,*s)*/;
+	bgx=attr_bgcol(p,*s);
 	fgx |= (fgx << 2);
 	fgx |= (fgx << 4);
 	bgx |= (bgx << 2);
 	bgx |= (bgx << 4);
 	eorx = fgx ^ bgx;
 	while (count--) {
-		c = *s++;
+		c = *s++ & p->charmask;
 		cdat = p->fontdata + c * p->fontheight;
 
 		for (rows = p->fontheight, dest = dest0; rows-- ; dest += bytes) {
@@ -187,8 +195,19 @@ void fbcon_cfb2_revc(struct display *p, int xx, int yy)
 
 struct display_switch fbcon_cfb2 = {
     fbcon_cfb2_setup, fbcon_cfb2_bmove, fbcon_cfb2_clear, fbcon_cfb2_putc,
-    fbcon_cfb2_putcs, fbcon_cfb2_revc
+    fbcon_cfb2_putcs, fbcon_cfb2_revc, NULL, NULL, NULL, FONTWIDTH(8)
 };
+
+
+#ifdef MODULE
+int init_module(void)
+{
+    return 0;
+}
+
+void cleanup_module(void)
+{}
+#endif /* MODULE */
 
 
     /*

@@ -1,4 +1,4 @@
-/*  $Id: init.c,v 1.71 1998/03/27 07:00:08 davem Exp $
+/*  $Id: init.c,v 1.93 1998/08/04 20:49:25 davem Exp $
  *  arch/sparc64/mm/init.c
  *
  *  Copyright (C) 1996,1997 David S. Miller (davem@caip.rutgers.edu)
@@ -8,6 +8,8 @@
 #include <linux/config.h>
 #include <linux/string.h>
 #include <linux/init.h>
+#include <linux/mm.h>
+#include <linux/malloc.h>
 #include <linux/blk.h>
 #include <linux/swap.h>
 #include <linux/swapctl.h>
@@ -34,27 +36,54 @@ struct sparc_phys_banks sp_banks[SPARC_PHYS_BANKS];
 
 /* Ugly, but necessary... -DaveM */
 unsigned long phys_base;
-unsigned int null_pte_table;
-unsigned long two_null_pmd_table, two_null_pte_table;
-
-extern unsigned long empty_null_pmd_table;
-extern unsigned long empty_null_pte_table;
 
 unsigned long tlb_context_cache = CTX_FIRST_VERSION;
 
 /* References to section boundaries */
 extern char __init_begin, __init_end, etext, __bss_start;
 
-extern void __bfill64(void *, unsigned long *);
-
-static __inline__ void __init_pmd(pmd_t *pmdp)
+int do_check_pgt_cache(int low, int high)
 {
-	__bfill64((void *)pmdp, &two_null_pte_table);
-}
+        struct page *page, *page2;
+        int freed = 0;
 
-static __inline__ void __init_pgd(pgd_t *pgdp)
-{
-	__bfill64((void *)pgdp, &two_null_pmd_table);
+	if(pgtable_cache_size > high) {
+		do {
+#ifdef __SMP__
+			if(pgd_quicklist)
+				free_pgd_slow(get_pgd_fast()), freed++;
+#endif
+			if(pte_quicklist)
+				free_pte_slow(get_pte_fast()), freed++;
+		} while(pgtable_cache_size > low);
+	}
+#ifndef __SMP__ 
+        if (pgd_cache_size > high / 4) {
+                for (page2 = NULL, page = (struct page *)pgd_quicklist; page;) {
+                        if ((unsigned long)page->pprev_hash == 3) {
+                                if (page2)
+                                        page2->next_hash = page->next_hash;
+                                else
+                                        (struct page *)pgd_quicklist = page->next_hash;
+                                page->next_hash = NULL;
+                                page->pprev_hash = NULL;
+                                pgd_cache_size -= 2;
+                                free_page(PAGE_OFFSET + (page->map_nr << PAGE_SHIFT));
+                                freed++;
+                                if (page2)
+                                        page = page2->next_hash;
+                                else
+                                        page = (struct page *)pgd_quicklist;
+                                if (pgd_cache_size <= low / 4)
+                                        break;
+                                continue;
+                        }
+                        page2 = page;
+                        page = page->next_hash;
+                }
+        }
+#endif
+        return freed;
 }
 
 /*
@@ -70,21 +99,6 @@ static __inline__ void __init_pgd(pgd_t *pgdp)
  * ZERO_PAGE is a special page that is used for zero-initialized
  * data and COW.
  */
-pmd_t *__bad_pmd(void)
-{
-	pmd_t *pmdp = (pmd_t *) &empty_bad_pmd_table;
-
-	__init_pmd(pmdp);
-	return pmdp;
-}
-
-pte_t *__bad_pte(void)
-{
-	memset((void *) &empty_bad_pte_table, 0, PAGE_SIZE);
-	return (pte_t *) (((unsigned long)&empty_bad_pte_table) 
-		- ((unsigned long)&empty_zero_page) + phys_base + PAGE_OFFSET);
-}
-
 pte_t __bad_page(void)
 {
 	memset((void *) &empty_bad_page, 0, PAGE_SIZE);
@@ -125,6 +139,9 @@ void show_mem(void)
 	printk("%d pages shared\n",shared);
 	printk("%d pages swap cached\n",cached);
 	printk("%ld pages in page table cache\n",pgtable_cache_size);
+#ifndef __SMP__
+	printk("%ld entries in page dir cache\n",pgd_cache_size);
+#endif	
 	show_buffers();
 #ifdef CONFIG_NET
 	show_net_buffers();
@@ -135,27 +152,47 @@ void show_mem(void)
 
 /* This keeps track of pages used in sparc_alloc_dvma() invocations. */
 /* NOTE: All of these are inited to 0 in bss, don't need to make data segment bigger */
-static unsigned long dvma_map_pages[0x10000000 >> 16];
+#define DVMAIO_SIZE 0x2000000
+static unsigned long dvma_map_pages[DVMAIO_SIZE >> 16];
 static unsigned long dvma_pages_current_offset;
 static int dvma_pages_current_index;
+static unsigned long dvmaiobase = 0;
+static unsigned long dvmaiosz __initdata = 0;
 
 /* #define E3000_DEBUG */
 
-__initfunc(unsigned long iommu_init(int iommu_node, unsigned long memory_start,
-				    unsigned long memory_end, struct linux_sbus *sbus))
+__initfunc(void dvmaio_init(void))
+{
+	int i;
+	
+	if (!dvmaiobase) {
+		for (i = 0; sp_banks[i].num_bytes != 0; i++)
+			if (sp_banks[i].base_addr + sp_banks[i].num_bytes > dvmaiobase)
+				dvmaiobase = sp_banks[i].base_addr + sp_banks[i].num_bytes;
+		dvmaiobase = (dvmaiobase + DVMAIO_SIZE + 0x400000 - 1) & ~(0x400000 - 1);
+		for (i = 0; i < 6; i++)
+			if (dvmaiobase <= ((1024 * 64 * 1024) << i))
+				break;
+		dvmaiobase = ((1024 * 64 * 1024) << i) - DVMAIO_SIZE;
+		dvmaiosz = i;
+	}
+}
+
+__initfunc(void iommu_init(int iommu_node, struct linux_sbus *sbus))
 {
 	struct iommu_struct *iommu;
 	struct sysio_regs *sregs;
 	struct linux_prom64_registers rprop;
 	unsigned long impl, vers;
 	unsigned long control, tsbbase;
+	unsigned long tsbbases[32];
 	unsigned long *iopte;
-	u32 rlow, rhigh;
-	int err, i;
-
+	int err, i, j;
+	
+	dvmaio_init();
 #ifdef E3000_DEBUG
-	prom_printf("\niommu_init: [%x:%016lx:%016lx:%p] ",
-		    iommu_node, memory_start, memory_end, sbus);
+	prom_printf("\niommu_init: [%x:%p] ",
+		    iommu_node, sbus);
 #endif
 	err = prom_getproperty(iommu_node, "reg", (char *)&rprop,
 			       sizeof(rprop));
@@ -163,14 +200,8 @@ __initfunc(unsigned long iommu_init(int iommu_node, unsigned long memory_start,
 		prom_printf("iommu_init: Cannot map SYSIO control registers.\n");
 		prom_halt();
 	}
-	rlow  = (rprop.phys_addr & 0xffffffff);
-	rhigh = (rprop.phys_addr >> 32);
-#ifdef E3000_DEBUG
-	prom_printf("rlow[%08x] rhigh[%08x] ", rlow, rhigh);
-#endif
-	sregs = (struct sysio_regs *) sparc_alloc_io(rlow, (void *)0,
-						     sizeof(struct sysio_regs),
-						     "SYSIO Regs", rhigh, 0x0);
+	sregs = (struct sysio_regs *) __va(rprop.phys_addr);
+
 #ifdef E3000_DEBUG
 	prom_printf("sregs[%p]\n");
 #endif
@@ -179,9 +210,7 @@ __initfunc(unsigned long iommu_init(int iommu_node, unsigned long memory_start,
 		prom_halt();
 	}
 
-	memory_start = (memory_start + 7) & ~7;
-	iommu = (struct iommu_struct *) memory_start;
-	memory_start += sizeof(struct iommu_struct);
+	iommu = kmalloc(sizeof(struct iommu_struct), GFP_ATOMIC);
 
 #ifdef E3000_DEBUG
 	prom_printf("iommu_init: iommu[%p] ", iommu);
@@ -203,26 +232,54 @@ __initfunc(unsigned long iommu_init(int iommu_node, unsigned long memory_start,
 	       (unsigned int) impl, (unsigned int)vers, (unsigned long) sregs);
 	
 	control &= ~(IOMMU_CTRL_TSBSZ);
-	control |= (IOMMU_TSBSZ_64K | IOMMU_CTRL_TBWSZ | IOMMU_CTRL_ENAB);
+	control |= ((IOMMU_TSBSZ_2K * dvmaiosz) | IOMMU_CTRL_TBWSZ | IOMMU_CTRL_ENAB);
 
 	/* Use only 64k pages, things are layed out in the 32-bit SBUS
 	 * address space like this:
 	 *
-	 * 0x00000000	----------------------------------------
-	 *		| Direct physical mappings for most    |
-	 *              | DVMA to paddr's within this range    |
-	 * 0xf0000000   ----------------------------------------
-	 * 		| For mappings requested via           |
-	 *              | sparc_alloc_dvma()		       |
-	 * 0xffffffff	----------------------------------------
-	 */
-	tsbbase = PAGE_ALIGN(memory_start);
-	memory_start = (tsbbase + ((64 * 1024) * 8));
+	 * 0x00000000	  ----------------------------------------
+	 *		  | Direct physical mappings for most    |
+	 *                | DVMA to paddr's within this range    |
+	 * dvmaiobase     ----------------------------------------
+	 * 		  | For mappings requested via           |
+	 *                | sparc_alloc_dvma()		         |
+	 * dvmaiobase+32M ----------------------------------------
+	 *
+	 * NOTE: we need to order 2 contiguous order 5, that's the largest
+	 *       chunk page_alloc will give us.   -JJ */
+	tsbbase = 0;
+	if (dvmaiosz == 6) {
+		memset (tsbbases, 0, sizeof(tsbbases));
+		for (i = 0; i < 32; i++) {
+			tsbbases[i] = __get_free_pages(GFP_DMA, 5);
+			for (j = 0; j < i; j++)
+				if (tsbbases[j] == tsbbases[i] + 32768*sizeof(iopte_t)) {
+					tsbbase = tsbbases[i];
+					break;
+				} else if (tsbbases[i] == tsbbases[j] + 32768*sizeof(iopte_t)) {
+					tsbbase = tsbbases[j];
+					break;
+				}
+			if (tsbbase) {
+				tsbbases[i] = 0;
+				tsbbases[j] = 0;
+				break;
+			}
+		}
+		for (i = 0; i < 32; i++)
+			if (tsbbases[i])
+				free_pages(tsbbases[i], 5);
+	} else
+		tsbbase = __get_free_pages(GFP_DMA, dvmaiosz);
+	if (!tsbbase) {
+		prom_printf("Strange. Could not allocate 512K of contiguous RAM.\n");
+		prom_halt();
+	}
 	iommu->page_table = (iopte_t *) tsbbase;
 	iopte = (unsigned long *) tsbbase;
 
 	/* Setup aliased mappings... */
-	for(i = 0; i < (65536 - 4096); i++) {
+	for(i = 0; i < (dvmaiobase >> 16); i++) {
 		*iopte  = (IOPTE_VALID | IOPTE_64K | IOPTE_STBUF |
 			   IOPTE_CACHE | IOPTE_WRITE);
 		*iopte |= (i << 16);
@@ -230,7 +287,7 @@ __initfunc(unsigned long iommu_init(int iommu_node, unsigned long memory_start,
 	}
 
 	/* Clear all sparc_alloc_dvma() maps. */
-	for( ; i < 65536; i++)
+	for( ; i < ((dvmaiobase + DVMAIO_SIZE) >> 16); i++)
 		*iopte++ = 0;
 
 #ifdef E3000_DEBUG
@@ -252,23 +309,19 @@ __initfunc(unsigned long iommu_init(int iommu_node, unsigned long memory_start,
 #endif
 	printk("IOMMU: Streaming Buffer IMPL[%x] REV[%x] ",
 	       (unsigned int)impl, (unsigned int)vers);
-	printk("FlushFLAG[%p,%016lx] ... ",
-	       (iommu->sbuf_flushflag_va = (unsigned int *)memory_start),
-	       (iommu->sbuf_flushflag_pa = __pa(memory_start)));
+	iommu->sbuf_flushflag_va = kmalloc(sizeof(unsigned long), GFP_DMA);
+	printk("FlushFLAG[%016lx] ... ", (iommu->sbuf_flushflag_pa = __pa(iommu->sbuf_flushflag_va)));
 	*(iommu->sbuf_flushflag_va) = 0;
-	memory_start += sizeof(unsigned long); /* yes, unsigned long, for alignment */
 
 	sregs->sbuf_control = (control | SYSIO_SBUFCTRL_SB_EN);
 
 #ifdef E3000_DEBUG
-	prom_printf("done, returning %016lx\n", memory_start);
+	prom_printf("done, returning\n");
 #endif
 	printk("ENABLED\n");
 
 	/* Finally enable DVMA arbitration for all devices, just in case. */
 	sregs->sbus_control |= SYSIO_SBCNTRL_AEN;
-
-	return memory_start;
 }
 
 void mmu_map_dma_area(unsigned long addr, int len, __u32 *dvma_addr,
@@ -300,7 +353,7 @@ void mmu_map_dma_area(unsigned long addr, int len, __u32 *dvma_addr,
 		}
 
 		/* Stick it in the IOMMU. */
-		i = (65536 - 4096) + i;
+		i = (dvmaiobase >> 16) + i;
 		for_each_sbus(sbus) {
 			struct iommu_struct *iommu = sbus->iommu;
 			unsigned long flags;
@@ -314,7 +367,7 @@ void mmu_map_dma_area(unsigned long addr, int len, __u32 *dvma_addr,
 	}
 
 	/* Get this out of the way. */
-	*dvma_addr = (__u32) ((0xf0000000) +
+	*dvma_addr = (__u32) ((dvmaiobase) +
 			      (dvma_pages_current_index << 16) +
 			      (dvma_pages_current_offset));
 
@@ -345,13 +398,17 @@ __u32 mmu_get_scsi_one(char *vaddr, unsigned long len, struct linux_sbus *sbus)
 {
 	__u32 sbus_addr = (__u32) __pa(vaddr);
 
-	if((sbus_addr < 0xf0000000) &&
-	   ((sbus_addr + len) < 0xf0000000))
+#ifndef DEBUG_IOMMU
+	return sbus_addr;
+#else
+	if((sbus_addr < dvmaiobase) &&
+	   ((sbus_addr + len) < dvmaiobase))
 		return sbus_addr;
 
 	/* "can't happen"... GFP_DMA assures this. */
 	panic("Very high scsi_one mappings should never happen.");
         return (__u32)0;
+#endif        
 }
 
 void mmu_release_scsi_one(u32 vaddr, unsigned long len, struct linux_sbus *sbus)
@@ -385,13 +442,17 @@ void mmu_get_scsi_sgl(struct mmu_sglist *sg, int sz, struct linux_sbus *sbus)
 {
 	while(sz >= 0) {
 		__u32 page = (__u32) __pa(((unsigned long) sg[sz].addr));
-		if((page < 0xf0000000) &&
-		   (page + sg[sz].len) < 0xf0000000) {
+#ifndef DEBUG_IOMMU
+		sg[sz].dvma_addr = page;
+#else		
+		if((page < dvmaiobase) &&
+		   (page + sg[sz].len) < dvmaiobase) {
 			sg[sz].dvma_addr = page;
 		} else {
 			/* "can't happen"... GFP_DMA assures this. */
 			panic("scsi_sgl high mappings should never happen.");
 		}
+#endif
 		sz--;
 	}
 }
@@ -440,35 +501,42 @@ struct linux_prom_translation {
 	unsigned long data;
 };
 
-#define MAX_TRANSLATIONS 64
 static inline void inherit_prom_mappings(void)
 {
-	struct linux_prom_translation transl[MAX_TRANSLATIONS];
+	struct linux_prom_translation *trans;
 	pgd_t *pgdp;
 	pmd_t *pmdp;
 	pte_t *ptep;
 	int node, n, i;
 
 	node = prom_finddevice("/virtual-memory");
-	if ((n = prom_getproperty(node, "translations", (char *) transl,
-				  sizeof(transl))) == -1) {
+	n = prom_getproplen(node, "translations");
+	if (n == 0 || n == -1) {
 		prom_printf("Couldn't get translation property\n");
 		prom_halt();
 	}
-	n = n / sizeof(transl[0]);
+
+	for (i = 1; i < n; i <<= 1) /* empty */;
+	trans = sparc_init_alloc(&mempool, i);
+
+	if (prom_getproperty(node, "translations", (char *)trans, i) == -1) {
+		prom_printf("Couldn't get translation property\n");
+		prom_halt();
+	}
+	n = n / sizeof(*trans);
 
 	for (i = 0; i < n; i++) {
 		unsigned long vaddr;
 		
-		if (transl[i].virt >= 0xf0000000 && transl[i].virt < 0x100000000) {
-			for (vaddr = transl[i].virt;
-			     vaddr < transl[i].virt + transl[i].size;
+		if (trans[i].virt >= 0xf0000000 && trans[i].virt < 0x100000000) {
+			for (vaddr = trans[i].virt;
+			     vaddr < trans[i].virt + trans[i].size;
 			     vaddr += PAGE_SIZE) {
 				pgdp = pgd_offset(init_task.mm, vaddr);
 				if (pgd_none(*pgdp)) {
 					pmdp = sparc_init_alloc(&mempool,
 							 PMD_TABLE_SIZE);
-					__init_pmd(pmdp);
+					clear_page(pmdp);
 					pgd_set(pgdp, pmdp);
 				}
 				pmdp = pmd_offset(pgdp, vaddr);
@@ -478,16 +546,88 @@ static inline void inherit_prom_mappings(void)
 					pmd_set(pmdp, ptep);
 				}
 				ptep = pte_offset(pmdp, vaddr);
-				set_pte (ptep, __pte(transl[i].data | _PAGE_MODIFIED));
-				transl[i].data += PAGE_SIZE;
+				set_pte (ptep, __pte(trans[i].data | _PAGE_MODIFIED));
+				trans[i].data += PAGE_SIZE;
 			}
 		}
 	}
 }
 
+/* The OBP specifications for sun4u mark 0xfffffffc00000000 and
+ * upwards as reserved for use by the firmware (I wonder if this
+ * will be the same on Cheetah...).  We use this virtual address
+ * range for the VPTE table mappings of the nucleus so we need
+ * to zap them when we enter the PROM.  -DaveM
+ */
+static void __flush_nucleus_vptes(void)
+{
+	unsigned long pstate;
+	unsigned long prom_reserved_base = 0xfffffffc00000000UL;
+	int i;
+
+	__asm__ __volatile__("rdpr	%%pstate, %0\n\t"
+			     "wrpr	%0, %1, %%pstate\n\t"
+			     "flushw"
+			     : "=r" (pstate)
+			     : "i" (PSTATE_IE));
+
+	/* Only DTLB must be checked for VPTE entries. */
+	for(i = 0; i < 63; i++) {
+		unsigned long tag = spitfire_get_dtlb_tag(i);
+
+		if(((tag & ~(PAGE_MASK)) == 0) &&
+		   ((tag &  (PAGE_MASK)) >= prom_reserved_base)) {
+			__asm__ __volatile__("stxa %%g0, [%0] %1"
+					     : /* no outputs */
+					     : "r" (TLB_TAG_ACCESS), "i" (ASI_DMMU));
+			membar("#Sync");
+			spitfire_put_dtlb_data(i, 0x0UL);
+			membar("#Sync");
+		}
+	}
+	__asm__ __volatile__("wrpr	%0, 0, %%pstate"
+			     : : "r" (pstate));
+}
+
+static int prom_ditlb_set = 0;
 int prom_itlb_ent, prom_dtlb_ent;
 unsigned long prom_itlb_tag, prom_itlb_data;
 unsigned long prom_dtlb_tag, prom_dtlb_data;
+
+void prom_world(int enter)
+{
+	if (!prom_ditlb_set)
+		return;
+	if (enter) {
+		/* Kick out nucleus VPTEs. */
+		__flush_nucleus_vptes();
+
+		/* Install PROM world. */
+		__asm__ __volatile__("stxa %0, [%1] %2"
+					: : "r" (prom_dtlb_tag), "r" (TLB_TAG_ACCESS),
+					"i" (ASI_DMMU));
+		membar("#Sync");
+		spitfire_put_dtlb_data(62, prom_dtlb_data);
+		membar("#Sync");
+		__asm__ __volatile__("stxa %0, [%1] %2"
+					: : "r" (prom_itlb_tag), "r" (TLB_TAG_ACCESS),
+					"i" (ASI_IMMU));
+		membar("#Sync");
+		spitfire_put_itlb_data(62, prom_itlb_data);
+		membar("#Sync");
+	} else {
+		__asm__ __volatile__("stxa %%g0, [%0] %1"
+					: : "r" (TLB_TAG_ACCESS), "i" (ASI_DMMU));
+		membar("#Sync");
+		spitfire_put_dtlb_data(62, 0x0UL);
+		membar("#Sync");
+		__asm__ __volatile__("stxa %%g0, [%0] %1"
+					: : "r" (TLB_TAG_ACCESS), "i" (ASI_IMMU));
+		membar("#Sync");
+		spitfire_put_itlb_data(62, 0x0UL);
+		membar("#Sync");
+	}
+}
 
 void inherit_locked_prom_mappings(int save_p)
 {
@@ -500,8 +640,7 @@ void inherit_locked_prom_mappings(int save_p)
 	 * translations property.  The only ones that matter are
 	 * the locked PROM tlb entries, so we impose the following
 	 * irrecovable rule on the PROM, it is allowed 1 locked
-	 * entry in the ITLB and 1 in the DTLB.  We move those
-	 * (if necessary) up into tlb entry 62.
+	 * entry in the ITLB and 1 in the DTLB.
 	 *
 	 * Supposedly the upper 16GB of the address space is
 	 * reserved for OBP, BUT I WISH THIS WAS DOCUMENTED
@@ -510,7 +649,7 @@ void inherit_locked_prom_mappings(int save_p)
 	 * systems to coordinate mmu mappings is also COMPLETELY
 	 * UNDOCUMENTED!!!!!! Thanks S(t)un!
 	 */
-	for(i = 0; i < 62; i++) {
+	for(i = 0; i < 63; i++) {
 		unsigned long data;
 
 		data = spitfire_get_dtlb_data(i);
@@ -528,13 +667,6 @@ void inherit_locked_prom_mappings(int save_p)
 			spitfire_put_dtlb_data(i, 0x0UL);
 			membar("#Sync");
 
-			/* Re-install it. */
-			__asm__ __volatile__("stxa %0, [%1] %2"
-					     : : "r" (tag), "r" (TLB_TAG_ACCESS),
-					         "i" (ASI_DMMU));
-			membar("#Sync");
-			spitfire_put_dtlb_data(62, data);
-			membar("#Sync");
 			dtlb_seen = 1;
 			if(itlb_seen)
 				break;
@@ -566,6 +698,8 @@ void inherit_locked_prom_mappings(int save_p)
 				break;
 		}
 	}
+	if (save_p)
+		prom_ditlb_set = 1;
 }
 
 /* Give PROM back his world, done during reboots... */
@@ -628,44 +762,76 @@ void __flush_tlb_all(void)
 			     : : "r" (pstate));
 }
 
-/* We are always protected by scheduler_lock under SMP. */
-void get_new_mmu_context(struct mm_struct *mm, unsigned long *ctx)
-{
-	unsigned int new_ctx = *ctx;
+#define CTX_BMAP_SLOTS (1UL << (CTX_VERSION_SHIFT - 6))
+unsigned long mmu_context_bmap[CTX_BMAP_SLOTS];
 
-	if((new_ctx & ~(CTX_VERSION_MASK)) == 0) {
-		new_ctx += CTX_FIRST_VERSION;
-		if(new_ctx == 1)
-			new_ctx = CTX_FIRST_VERSION;
-		*ctx = new_ctx;
-		DO_LOCAL_FLUSH(smp_processor_id());
+/* We are always protected by scheduler_lock under SMP.
+ * Caller does TLB context flushing on local CPU if necessary.
+ *
+ * We must be careful about boundary cases so that we never
+ * let the user have CTX 0 (nucleus) or we ever use a CTX
+ * version of zero (and thus NO_CONTEXT would not be caught
+ * by version mis-match tests in mmu_context.h).
+ */
+void get_new_mmu_context(struct mm_struct *mm)
+{
+	unsigned long ctx = (tlb_context_cache + 1) & ~(CTX_VERSION_MASK);
+	unsigned long new_ctx;
+	
+	if (ctx == 0)
+		ctx = 1;
+	if ((mm->context != NO_CONTEXT) &&
+	    !((mm->context ^ tlb_context_cache) & CTX_VERSION_MASK))
+		clear_bit(mm->context & ~(CTX_VERSION_MASK), mmu_context_bmap);
+	new_ctx = find_next_zero_bit(mmu_context_bmap, 1UL << CTX_VERSION_SHIFT, ctx);
+	if (new_ctx >= (1UL << CTX_VERSION_SHIFT)) {
+		new_ctx = find_next_zero_bit(mmu_context_bmap, ctx, 1);
+		if (new_ctx >= ctx) {
+			int i;
+			new_ctx = (tlb_context_cache & CTX_VERSION_MASK) +
+				CTX_FIRST_VERSION;
+			if (new_ctx == 1)
+				new_ctx = CTX_FIRST_VERSION;
+
+			/* Don't call memset, for 16 entries that's just
+			 * plain silly...
+			 */
+			mmu_context_bmap[0] = 3;
+			mmu_context_bmap[1] = 0;
+			mmu_context_bmap[2] = 0;
+			mmu_context_bmap[3] = 0;
+			for(i = 4; i < CTX_BMAP_SLOTS; i += 4) {
+				mmu_context_bmap[i + 0] = 0;
+				mmu_context_bmap[i + 1] = 0;
+				mmu_context_bmap[i + 2] = 0;
+				mmu_context_bmap[i + 3] = 0;
+			}
+			goto out;
+		}
 	}
+	set_bit(new_ctx, mmu_context_bmap);
+	new_ctx |= (tlb_context_cache & CTX_VERSION_MASK);
+out:
+	tlb_context_cache = new_ctx;
 	mm->context = new_ctx;
-	mm->cpu_vm_mask = 0;	/* Callers sets it properly. */
-	(*ctx)++;
+	mm->cpu_vm_mask = 0;
 }
 
 #ifndef __SMP__
 struct pgtable_cache_struct pgt_quicklists;
 #endif
 
-pgd_t *get_pgd_slow(void)
-{
-	pgd_t *pgd;
-
-	pgd = (pgd_t *) __get_free_page(GFP_KERNEL);
-	if(pgd)
-		__init_pgd(pgd);
-	return pgd;
-}
-
+/* XXX Add __GFP_HIGH to these calls to "fool" page allocator
+ * XXX so we don't go to swap so quickly... then do the same
+ * XXX for get_user_page as well -DaveM
+ */
 pmd_t *get_pmd_slow(pgd_t *pgd, unsigned long offset)
 {
 	pmd_t *pmd;
 
 	pmd = (pmd_t *) __get_free_page(GFP_DMA|GFP_KERNEL);
 	if(pmd) {
-		__init_pmd(pmd);
+		clear_page(pmd);
 		pgd_set(pgd, pmd);
 		return pmd + offset;
 	}
@@ -678,7 +844,7 @@ pte_t *get_pte_slow(pmd_t *pmd, unsigned long offset)
 
 	pte = (pte_t *) __get_free_page(GFP_DMA|GFP_KERNEL);
 	if(pte) {
-		memset((void *)pte, 0, PTE_TABLE_SIZE);
+		clear_page(pte);
 		pmd_set(pmd, pte);
 		return pte + offset;
 	}
@@ -695,15 +861,14 @@ allocate_ptable_skeleton(unsigned long start, unsigned long end))
 	while (start < end) {
 		pgdp = pgd_offset(init_task.mm, start);
 		if (pgd_none(*pgdp)) {
-			pmdp = sparc_init_alloc(&mempool,
-						PMD_TABLE_SIZE);
-			__init_pmd(pmdp);
+			pmdp = sparc_init_alloc(&mempool, PAGE_SIZE);
+			clear_page(pmdp);
 			pgd_set(pgdp, pmdp);
 		}
 		pmdp = pmd_offset(pgdp, start);
 		if (pmd_none(*pmdp)) {
-			ptep = sparc_init_alloc(&mempool,
-						PTE_TABLE_SIZE);
+			ptep = sparc_init_alloc(&mempool, PAGE_SIZE);
+			clear_page(ptep);
 			pmd_set(pmdp, ptep);
 		}
 		start = (start + PMD_SIZE) & PMD_MASK;
@@ -733,6 +898,7 @@ void sparc_ultra_mapioaddr(unsigned long physaddr, unsigned long virt_addr,
 	set_pte(ptep, pte);
 }
 
+/* XXX no longer used, remove me... -DaveM */
 void sparc_ultra_unmapioaddr(unsigned long virt_addr)
 {
 	pgd_t *pgdp;
@@ -747,7 +913,7 @@ void sparc_ultra_unmapioaddr(unsigned long virt_addr)
 	pte_clear(ptep);
 }
 
-#if NOTUSED
+#ifdef NOTUSED
 void sparc_ultra_dump_itlb(void)
 {
         int slot;
@@ -767,11 +933,11 @@ void sparc_ultra_dump_dtlb(void)
 {
         int slot;
 
-        printk ("Contents of dtlb: ");
+        prom_printf ("Contents of dtlb: ");
 	for (slot = 0; slot < 14; slot++) printk ("    ");
-	printk ("%2x:%016lx,%016lx\n", 0, spitfire_get_dtlb_tag(0), spitfire_get_dtlb_data(0));
+	prom_printf ("%2x:%016lx,%016lx\n", 0, spitfire_get_dtlb_tag(0), spitfire_get_dtlb_data(0));
         for (slot = 1; slot < 64; slot+=3) {
-        	printk ("%2x:%016lx,%016lx %2x:%016lx,%016lx %2x:%016lx,%016lx\n", 
+        	prom_printf ("%2x:%016lx,%016lx %2x:%016lx,%016lx %2x:%016lx,%016lx\n", 
         		slot, spitfire_get_dtlb_tag(slot), spitfire_get_dtlb_data(slot),
         		slot+1, spitfire_get_dtlb_tag(slot+1), spitfire_get_dtlb_data(slot+1),
         		slot+2, spitfire_get_dtlb_tag(slot+2), spitfire_get_dtlb_data(slot+2));
@@ -786,16 +952,16 @@ extern unsigned long free_area_init(unsigned long, unsigned long);
 __initfunc(unsigned long 
 paging_init(unsigned long start_mem, unsigned long end_mem))
 {
-	extern unsigned long phys_base;
-	extern void setup_tba(unsigned long kpgdir);
-	extern void __bfill64(void *, unsigned long *);
-	pmd_t *pmdp;
-	int i;
+	extern void setup_tba(void);
+	extern pmd_t swapper_pmd_dir[1024];
+	extern unsigned long irq_init(unsigned long start_mem, unsigned long end_mem);
+	extern unsigned int sparc64_vpte_patchme[1];
 	unsigned long alias_base = phys_base + PAGE_OFFSET;
 	unsigned long pt;
 	unsigned long flags;
 	unsigned long shift = alias_base - ((unsigned long)&empty_zero_page);
-	
+
+	set_bit(0, mmu_context_bmap);
 	/* We assume physical memory starts at some 4mb multiple,
 	 * if this were not true we wouldn't boot up to this point
 	 * anyways.
@@ -821,44 +987,28 @@ paging_init(unsigned long start_mem, unsigned long end_mem))
 	 * work.
 	 */
 	init_mm.pgd += ((shift) / (sizeof(pgd_t)));
-
-	/* The funny offsets are to make page table operations much quicker and
-	 * requite less state, see pgtable.h for gory details.
-	 * pgtable.h assumes null_pmd_table is null_pte_table - PAGE_SIZE, lets
-	 * check it now.
-	 */
-	null_pte_table=__pa(((unsigned long)&empty_null_pte_table)+shift);
-	if (null_pmd_table != __pa(((unsigned long)&empty_null_pmd_table)+shift)) {
-		prom_printf("null_p{md|te}_table broken.\n");
-		prom_halt();
-	}
-	two_null_pmd_table = (((unsigned long)null_pmd_table) << 32) | null_pmd_table;
-	two_null_pte_table = (((unsigned long)null_pte_table) << 32) | null_pte_table;
-
-	pmdp = (pmd_t *) &empty_null_pmd_table;
-	for(i = 0; i < PTRS_PER_PMD; i++)
-		pmd_val(pmdp[i]) = null_pte_table;
-
-	memset((void *) &empty_null_pte_table, 0, PTE_TABLE_SIZE);
+	
+	memset(swapper_pmd_dir, 0, sizeof(swapper_pmd_dir));
 
 	/* Now can init the kernel/bad page tables. */
-	__bfill64((void *)swapper_pg_dir, &two_null_pmd_table);
-	__bfill64((void *)&empty_bad_pmd_table, &two_null_pte_table);
+	pgd_set(&swapper_pg_dir[0], swapper_pmd_dir + (shift / sizeof(pgd_t)));
+	
+	sparc64_vpte_patchme[0] |= (init_mm.pgd[0] >> 10);
+	
+	start_mem = irq_init(start_mem, end_mem);
 
 	/* We use mempool to create page tables, therefore adjust it up
 	 * such that __pa() macros etc. work.
 	 */
 	mempool = PAGE_ALIGN(start_mem) + shift;
 
-	/* FIXME: This should be done much nicer.
-	 * Just now we allocate 64M for each.
-	 */
-	allocate_ptable_skeleton(IOBASE_VADDR, IOBASE_VADDR + 0x4000000);
+	/* Allocate 64M for dynamic DVMA mapping area. */
 	allocate_ptable_skeleton(DVMA_VADDR, DVMA_VADDR + 0x4000000);
 	inherit_prom_mappings();
+	
 
 	/* Ok, we can use our TLB miss and window trap handlers safely. */
-	setup_tba((unsigned long)init_mm.pgd);
+	setup_tba();
 
 	/* Really paranoid. */
 	flushi((long)&empty_zero_page);
@@ -884,11 +1034,16 @@ paging_init(unsigned long start_mem, unsigned long end_mem))
 	return device_scan (PAGE_ALIGN (start_mem));
 }
 
+/* XXX Add also PG_Hole flag, set it in the page structs here,
+ * XXX remove FREE_UNUSED_MEM_MAP code, and the nfsd file handle
+ * problems will all be gone.  -DaveM
+ */
 __initfunc(static void taint_real_pages(unsigned long start_mem, unsigned long end_mem))
 {
 	unsigned long tmp = 0, paddr, endaddr;
 	unsigned long end = __pa(end_mem);
 
+	dvmaio_init();
 	for (paddr = __pa(start_mem); paddr < end; ) {
 		for (; sp_banks[tmp].num_bytes != 0; tmp++)
 			if (sp_banks[tmp].base_addr + sp_banks[tmp].num_bytes > paddr)
@@ -911,7 +1066,7 @@ __initfunc(static void taint_real_pages(unsigned long start_mem, unsigned long e
 		endaddr = sp_banks[tmp].base_addr + sp_banks[tmp].num_bytes;
 		while (paddr < endaddr) {
 			mem_map[paddr>>PAGE_SHIFT].flags &= ~(1<<PG_reserved);
-			if (paddr >= 0xf0000000)
+			if (paddr >= dvmaiobase)
 				mem_map[paddr>>PAGE_SHIFT].flags &= ~(1<<PG_DMA);
 			paddr += PAGE_SIZE;
 		}
@@ -926,6 +1081,7 @@ __initfunc(void mem_init(unsigned long start_mem, unsigned long end_mem))
 	unsigned long addr;
 	unsigned long alias_base = phys_base + PAGE_OFFSET - (long)(&empty_zero_page);
 	struct page *page, *end;
+	int i;
 
 	end_mem &= PAGE_MASK;
 	max_mapnr = MAP_NR(end_mem);
@@ -998,6 +1154,19 @@ __initfunc(void mem_init(unsigned long start_mem, unsigned long end_mem))
 #endif
 			free_page(addr);
 	}
+	
+#ifndef __SMP__
+	{
+		/* Put empty_pg_dir on pgd_quicklist */
+		extern pgd_t empty_pg_dir[1024];
+		unsigned long addr = (unsigned long)empty_pg_dir;
+		
+		memset(empty_pg_dir, 0, sizeof(empty_pg_dir));
+		addr += alias_base;
+		mem_map[MAP_NR(addr)].pprev_hash = 0;
+		free_pgd_fast((pgd_t *)addr);
+	}
+#endif
 
 	printk("Memory: %uk available (%dk kernel code, %dk data, %dk init) [%016lx,%016lx]\n",
 	       nr_free_pages << (PAGE_SHIFT-10),
@@ -1006,11 +1175,18 @@ __initfunc(void mem_init(unsigned long start_mem, unsigned long end_mem))
 	       initpages << (PAGE_SHIFT-10), 
 	       PAGE_OFFSET, end_mem);
 
-	freepages.low = nr_free_pages >> 7;
-	if(freepages.low < 48)
-		freepages.low = 48;
-	freepages.low = freepages.low + (freepages.low >> 1);
-	freepages.high = freepages.low + freepages.low;
+	/* NOTE NOTE NOTE NOTE
+	 * Please keep track of things and make sure this
+	 * always matches the code in mm/page_alloc.c -DaveM
+	 */
+	i = nr_free_pages >> 7;
+	if (i < 48)
+		i = 48;
+	if (i > 256)
+		i = 256;
+	freepages.min = i;
+	freepages.low = i << 1;
+	freepages.high = freepages.low + i;
 }
 
 void free_initmem (void)

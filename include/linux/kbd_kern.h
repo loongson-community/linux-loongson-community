@@ -138,4 +138,27 @@ extern inline void chg_vc_kbd_led(struct kbd_struct * kbd, int flag)
 
 #define U(x) ((x) ^ 0xf000)
 
+/* keyboard.c */
+
+struct console;
+
+int getkeycode(unsigned int scancode);
+int setkeycode(unsigned int scancode, unsigned int keycode);
+void compute_shiftstate(void);
+int keyboard_wait_for_keypress(struct console *);
+
+/* defkeymap.c */
+
+extern unsigned int keymap_count;
+
+/* console.c */
+
+extern task_queue con_task_queue;
+
+extern inline void con_schedule_flip(struct tty_struct *t)
+{
+	queue_task(&t->flip.tqueue, &con_task_queue);
+	mark_bh(CONSOLE_BH);
+}
+
 #endif

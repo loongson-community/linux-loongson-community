@@ -28,6 +28,7 @@
 #include <linux/stat.h>
 #include <linux/string.h>
 #include <linux/locks.h>
+#include <linux/quotaops.h>
 
 
 /*
@@ -40,13 +41,16 @@
 
 /*
  * NOTE! unlike strncmp, ext2_match returns 1 for success, 0 for failure.
+ *
+ * `len <= EXT2_NAME_LEN' is guaranteed by caller.
+ * `de != NULL' is guaranteed by caller.
  */
 static inline int ext2_match (int len, const char * const name,
 		       struct ext2_dir_entry_2 * de)
 {
-	if (!de || !le32_to_cpu(de->inode) || len > EXT2_NAME_LEN)
-		return 0;
 	if (len != de->name_len)
+		return 0;
+	if (!de->inode)
 		return 0;
 	return !memcmp(name, de->name, len);
 }
@@ -120,10 +124,17 @@ static struct buffer_head * ext2_find_entry (struct inode * dir,
 		de = (struct ext2_dir_entry_2 *) bh->b_data;
 		dlimit = bh->b_data + sb->s_blocksize;
 		while ((char *) de < dlimit) {
-			if (!ext2_check_dir_entry ("ext2_find_entry", dir,
-						   de, bh, offset))
-				goto failure;
-			if (ext2_match (namelen, name, de)) {
+			/* this code is executed quadratically often */
+			/* do minimal checking `by hand' */
+			int de_len;
+
+			if ((char *) de + namelen <= dlimit &&
+			    ext2_match (namelen, name, de)) {
+				/* found a match -
+				   just to be sure, do a full check */
+				if (!ext2_check_dir_entry("ext2_find_entry",
+							  dir, de, bh, offset))
+					goto failure;
 				for (i = 0; i < NAMEI_RA_SIZE; ++i) {
 					if (bh_use[i] != bh)
 						brelse (bh_use[i]);
@@ -131,9 +142,13 @@ static struct buffer_head * ext2_find_entry (struct inode * dir,
 				*res_dir = de;
 				return bh;
 			}
-			offset += le16_to_cpu(de->rec_len);
+			/* prevent looping on a bad block */
+			de_len = le16_to_cpu(de->rec_len);
+			if (de_len <= 0)
+				goto failure;
+			offset += de_len;
 			de = (struct ext2_dir_entry_2 *)
-				((char *) de + le16_to_cpu(de->rec_len));
+				((char *) de + de_len);
 		}
 
 		brelse (bh);
@@ -625,8 +640,7 @@ int ext2_rmdir (struct inode * dir, struct dentry *dentry)
 		goto end_rmdir;
 
 	inode = dentry->d_inode;
-	if (inode->i_sb->dq_op)
-		inode->i_sb->dq_op->initialize (inode, -1);
+	DQUOT_INIT(inode);
 
 	retval = -EPERM;
 	if ((dir->i_mode & S_ISVTX) && 
@@ -715,8 +729,7 @@ int ext2_unlink(struct inode * dir, struct dentry *dentry)
 		goto end_unlink;
 
 	inode = dentry->d_inode;
-	if (inode->i_sb->dq_op)
-		inode->i_sb->dq_op->initialize (inode, -1);
+	DQUOT_INIT(inode);
 
 	retval = -EPERM;
 	if (S_ISDIR(inode->i_mode))
@@ -936,8 +949,7 @@ static int do_ext2_rename (struct inode * old_dir, struct dentry *old_dentry,
 			brelse (new_bh);
 			new_bh = NULL;
 		} else {
-			if (new_inode->i_sb->dq_op)
-				new_inode->i_sb->dq_op->initialize (new_inode, -1);
+			DQUOT_INIT(new_inode);
 		}
 	}
 	retval = 0;

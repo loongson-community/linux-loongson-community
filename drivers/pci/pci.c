@@ -1,10 +1,12 @@
 /*
- *	$Id: pci.c,v 1.84 1998/05/02 19:22:06 mj Exp $
+ *	$Id: pci.c,v 1.86 1998/07/15 20:34:47 mj Exp $
  *
- *	PCI Bus Services
+ *	PCI Bus Services, see include/linux/pci.h for further explanation.
  *
- *	Copyright 1993 -- 1998 Drew Eckhardt, Frederic Potter,
- *	David Mosberger-Tang, Martin Mares
+ *	Copyright 1993 -- 1997 Drew Eckhardt, Frederic Potter,
+ *	David Mosberger-Tang
+ *
+ *	Copyright 1997 -- 1998 Martin Mares <mj@atrey.karlin.mff.cuni.cz>
  */
 
 #include <linux/config.h>
@@ -159,7 +161,6 @@ __initfunc(unsigned int pci_scan_bus(struct pci_bus *bus))
 	unsigned char cmd, irq, tmp, hdr_type, is_multi = 0;
 	struct pci_dev *dev, **bus_last;
 	struct pci_bus *child;
-	int reg;
 
 	DBG("pci_scan_bus for bus %d\n", bus->number);
 	bus_last = &bus->devices;
@@ -230,10 +231,7 @@ __initfunc(unsigned int pci_scan_bus(struct pci_bus *bus))
 		case PCI_HEADER_TYPE_CARDBUS:		    /* CardBus bridge header */
 			if (class != PCI_CLASS_BRIDGE_CARDBUS)
 				goto bad;
-			for (reg = 0; reg < 2; reg++) {
-				pcibios_read_config_dword(bus->number, devfn, PCI_CB_MEMORY_BASE_0 + (reg << 3), &l);
-				dev->base_address[reg] = (l == 0xffffffff) ? 0 : l;
-			}
+			pci_read_bases(dev, 1);
 			break;
 		default:				    /* unknown header */
 		bad:
@@ -272,12 +270,20 @@ __initfunc(unsigned int pci_scan_bus(struct pci_bus *bus))
 		if (tmp < 32)
 			pcibios_write_config_byte(bus->number, dev->devfn, PCI_LATENCY_TIMER, 32);
 #endif
+	}
 
+	/*
+	 * After performing arch-dependent fixup of the bus, look behind
+	 * all PCI-to-PCI bridges on this bus.
+	 */
+	pcibios_fixup_bus(bus);
+	for(dev=bus->devices; dev; dev=dev->sibling)
 		/*
 		 * If it's a bridge, scan the bus behind it.
 		 */
-		if (class == PCI_CLASS_BRIDGE_PCI) {
+		if ((dev->class >> 8) == PCI_CLASS_BRIDGE_PCI) {
 			unsigned int buses;
+			unsigned int devfn = dev->devfn;
 			unsigned short cr;
 
 			/*
@@ -348,7 +354,7 @@ __initfunc(unsigned int pci_scan_bus(struct pci_bus *bus))
 			  }
 			pcibios_write_config_word(bus->number, devfn, PCI_COMMAND, cr);
 		}
-	}
+
 	/*
 	 * We've scanned the bus and so we know all about what's on
 	 * the other side of any bridges that may be on this bus plus
@@ -370,7 +376,7 @@ __initfunc(void pci_init(void))
 		return;
 	}
 
-	printk("PCI: Probing PCI hardware.\n");
+	printk("PCI: Probing PCI hardware\n");
 
 	memset(&pci_root, 0, sizeof(pci_root));
 	pci_root.subordinate = pci_scan_bus(&pci_root);

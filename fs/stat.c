@@ -38,10 +38,15 @@ do_revalidate(struct dentry *dentry)
  */
 static int cp_old_stat(struct inode * inode, struct __old_kernel_stat * statbuf)
 {
+	static int warncount = 5;
 	struct __old_kernel_stat tmp;
 
-	printk("VFS: Warning: %s using old stat() call. Recompile your binary.\n",
-		current->comm);
+	if (warncount) {
+		warncount--;
+		printk("VFS: Warning: %s using old stat() call. Recompile your binary.\n",
+			current->comm);
+	}
+
 	tmp.st_dev = kdev_t_to_nr(inode->i_dev);
 	tmp.st_ino = inode->i_ino;
 	tmp.st_mode = inode->i_mode;
@@ -87,7 +92,7 @@ static int cp_new_stat(struct inode * inode, struct stat * statbuf)
 /*
  * Use minix fs values for the number of direct and indirect blocks.  The
  * count is now exact for the minix fs except that it counts zero blocks.
- * Everything is in BLOCK_SIZE'd units until the assignment to
+ * Everything is in units of BLOCK_SIZE until the assignment to
  * tmp.st_blksize.
  */
 #define D_B   7

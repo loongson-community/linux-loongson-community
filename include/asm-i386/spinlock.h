@@ -9,9 +9,16 @@
 
 /*
  * Your basic spinlocks, allowing only a single CPU anywhere
+ *
+ * Gcc-2.7.x has a nasty bug with empty initializers.
  */
-typedef struct { } spinlock_t;
-#define SPIN_LOCK_UNLOCKED { }
+#if (__GNUC__ > 2) || (__GNUC__ == 2 && __GNUC_MINOR__ >= 8)
+  typedef struct { } spinlock_t;
+  #define SPIN_LOCK_UNLOCKED { }
+#else
+  typedef struct { int gcc_is_buggy; } spinlock_t;
+  #define SPIN_LOCK_UNLOCKED { 0 }
+#endif
 
 #define spin_lock_init(lock)	do { } while(0)
 #define spin_lock(lock)		do { } while(0)
@@ -61,14 +68,14 @@ typedef struct {
 #define spin_lock_init(x)	do { (x)->lock = 0; } while (0)
 #define spin_trylock(lock)	(!test_and_set_bit(0,(lock)))
 
-#define spin_lock(x)		do {unsigned long __spinflags; save_flags(__spinflags); cli(); if ((x)->lock&&(x)->babble) {printk("%s: spin_lock(%s:%p) already locked\n", __BASE_FILE__, (x)->module, (x));(x)->babble--;} (x)->lock = 1; restore_flags(__spinflags);} while (0)
-#define spin_unlock_wait(x)	do {unsigned long __spinflags; save_flags(__spinflags); cli(); if ((x)->lock&&(x)->babble) {printk("%s: spin_unlock_wait(%s:%p) deadlock\n", __BASE_FILE__, (x)->module, (x));(x)->babble--;} restore_flags(__spinflags);} while (0)
-#define spin_unlock(x)		do {unsigned long __spinflags; save_flags(__spinflags); cli(); if (!(x)->lock&&(x)->babble) {printk("%s: spin_unlock(%s:%p) not locked\n", __BASE_FILE__, (x)->module, (x));(x)->babble--;} (x)->lock = 0; restore_flags(__spinflags);} while (0)
-#define spin_lock_irq(x)	do {cli(); if ((x)->lock&&(x)->babble) {printk("%s: spin_lock_irq(%s:%p) already locked\n", __BASE_FILE__, (x)->module, (x));(x)->babble--;} (x)->lock = 1;} while (0)
-#define spin_unlock_irq(x)	do {cli(); if ((x)->lock&&(x)->babble) {printk("%s: spin_lock(%s:%p) already locked\n", __BASE_FILE__, (x)->module, (x));(x)->babble--;} (x)->lock = 1; sti();} while (0)
+#define spin_lock(x)		do {unsigned long __spinflags; save_flags(__spinflags); cli(); if ((x)->lock&&(x)->babble) {printk("%s:%d: spin_lock(%s:%p) already locked\n", __BASE_FILE__,__LINE__, (x)->module, (x));(x)->babble--;} (x)->lock = 1; restore_flags(__spinflags);} while (0)
+#define spin_unlock_wait(x)	do {unsigned long __spinflags; save_flags(__spinflags); cli(); if ((x)->lock&&(x)->babble) {printk("%s:%d: spin_unlock_wait(%s:%p) deadlock\n", __BASE_FILE__,__LINE__, (x)->module, (x));(x)->babble--;} restore_flags(__spinflags);} while (0)
+#define spin_unlock(x)		do {unsigned long __spinflags; save_flags(__spinflags); cli(); if (!(x)->lock&&(x)->babble) {printk("%s:%d: spin_unlock(%s:%p) not locked\n", __BASE_FILE__,__LINE__, (x)->module, (x));(x)->babble--;} (x)->lock = 0; restore_flags(__spinflags);} while (0)
+#define spin_lock_irq(x)	do {cli(); if ((x)->lock&&(x)->babble) {printk("%s:%d: spin_lock_irq(%s:%p) already locked\n", __BASE_FILE__,__LINE__, (x)->module, (x));(x)->babble--;} (x)->lock = 1;} while (0)
+#define spin_unlock_irq(x)	do {cli(); if (!(x)->lock&&(x)->babble) {printk("%s:%d: spin_lock(%s:%p) not locked\n", __BASE_FILE__,__LINE__, (x)->module, (x));(x)->babble--;} (x)->lock = 0; sti();} while (0)
 
-#define spin_lock_irqsave(x,flags)      do {save_flags(flags); cli(); if ((x)->lock&&(x)->babble) {printk("%s: spin_lock_irqsave(%s:%p) already locked\n", __BASE_FILE__, (x)->module, (x));(x)->babble--;} (x)->lock = 1;} while (0)
-#define spin_unlock_irqrestore(x,flags) do {cli(); if (!(x)->lock&&(x)->babble) {printk("%s: spin_unlock_irqrestore(%s:%p) not locked\n", __BASE_FILE__, (x)->module, (x));(x)->babble--;} (x)->lock = 0; restore_flags(flags);} while (0)
+#define spin_lock_irqsave(x,flags)      do {save_flags(flags); cli(); if ((x)->lock&&(x)->babble) {printk("%s:%d: spin_lock_irqsave(%s:%p) already locked\n", __BASE_FILE__,__LINE__, (x)->module, (x));(x)->babble--;} (x)->lock = 1;} while (0)
+#define spin_unlock_irqrestore(x,flags) do {cli(); if (!(x)->lock&&(x)->babble) {printk("%s:%d: spin_unlock_irqrestore(%s:%p) not locked\n", __BASE_FILE__,__LINE__, (x)->module, (x));(x)->babble--;} (x)->lock = 0; restore_flags(flags);} while (0)
 
 #endif	/* DEBUG_SPINLOCKS */
 
@@ -128,8 +135,7 @@ typedef struct {
 typedef struct { unsigned long a[100]; } __dummy_lock_t;
 #define __dummy_lock(lock) (*(__dummy_lock_t *)(lock))
 
-#define spin_lock(lock) \
-__asm__ __volatile__( \
+#define spin_lock_string \
 	"\n1:\t" \
 	"lock ; btsl $0,%0\n\t" \
 	"jc 2f\n" \
@@ -138,12 +144,19 @@ __asm__ __volatile__( \
 	"testb $1,%0\n\t" \
 	"jne 2b\n\t" \
 	"jmp 1b\n" \
-	".previous" \
+	".previous"
+
+#define spin_unlock_string \
+	"lock ; btrl $0,%0"
+
+#define spin_lock(lock) \
+__asm__ __volatile__( \
+	spin_lock_string \
 	:"=m" (__dummy_lock(lock)))
 
 #define spin_unlock(lock) \
 __asm__ __volatile__( \
-	"lock ; btrl $0,%0" \
+	spin_unlock_string \
 	:"=m" (__dummy_lock(lock)))
 
 #define spin_trylock(lock) (!test_and_set_bit(0,(lock)))

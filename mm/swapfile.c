@@ -28,10 +28,7 @@
 
 unsigned int nr_swapfiles = 0;
 
-static struct {
-	int head;	/* head of priority-ordered swapfile list */
-	int next;	/* swapfile to be used next */
-} swap_list = {-1, -1};
+struct swap_list_t swap_list = {-1, -1};
 
 struct swap_info_struct swap_info[MAX_SWAPFILES];
 
@@ -180,7 +177,7 @@ bad_free:
  * that the page has been used or is no longer needed.
  *
  * Always set the resulting pte to be nowrite (the same as COW pages
- * after one process has exited).  We don't know just how many ptes will
+ * after one process has exited).  We don't know just how many PTEs will
  * share this swap entry, so be cautious and let do_wp_page work out
  * what to do if a write is requested later.
  */
@@ -535,6 +532,7 @@ asmlinkage int sys_swapon(const char * specialfile, int swap_flags)
 		error = blkdev_open(swap_dentry->d_inode, &filp);
 		if (error)
 			goto bad_swap_2;
+		set_blocksize(p->swap_device, PAGE_SIZE);
 		error = -ENODEV;
 		if (!p->swap_device ||
 		    (blk_size[MAJOR(p->swap_device)] &&
@@ -595,7 +593,7 @@ asmlinkage int sys_swapon(const char * specialfile, int swap_flags)
 	p->flags = SWP_WRITEOK;
 	p->pages = j;
 	nr_swap_pages += j;
-	printk("Adding Swap: %dk swap-space (priority %d)\n",
+	printk(KERN_INFO "Adding Swap: %dk swap-space (priority %d)\n",
 	       j<<(PAGE_SHIFT-10), p->prio);
 
 	/* insert swap space into swap_list: */

@@ -1,6 +1,7 @@
 #ifndef __ASM_SYSTEM_H
 #define __ASM_SYSTEM_H
 
+#include <linux/kernel.h>
 #include <asm/segment.h>
 
 /*
@@ -35,83 +36,36 @@ __asm__("str %%ax\n\t" \
 	:"=a" (n) \
 	:"0" (0),"i" (FIRST_TSS_ENTRY<<3))
 
-/* This special macro can be used to load a debugging register */
+#ifdef __KERNEL__
 
-#define loaddebug(tsk,register) \
-		__asm__("movl %0,%%db" #register  \
-			: /* no output */ \
-			:"r" (tsk->debugreg[register]))
-
+struct task_struct;	/* one of the stranger aspects of C forward declarations.. */
+extern void FASTCALL(__switch_to(struct task_struct *prev, struct task_struct *next));
 
 /*
- *	switch_to(n) should switch tasks to task nr n, first
- * checking that n isn't the current task, in which case it does nothing.
- * This also clears the TS-flag if the task we switched to has used
- * the math co-processor latest.
- *
- * It also reloads the debug regs if necessary..
+ * We do most of the task switching in C, but we need
+ * to do the EIP/ESP switch in assembly..
  */
-
- 
-#ifdef __SMP__
-	/*
-	 *	Keep the lock depth straight. If we switch on an interrupt from
-	 *	kernel->user task we need to lose a depth, and if we switch the
-	 *	other way we need to gain a depth. Same layer switches come out
-	 *	the same.
-	 *
-	 *	We spot a switch in user mode because the kernel counter is the
-	 *	same as the interrupt counter depth. (We never switch during the
-	 *	message/invalidate IPI).
-	 *
-	 *	We fsave/fwait so that an exception goes off at the right time
-	 *	(as a call from the fsave or fwait in effect) rather than to
-	 *	the wrong process.
-	 */
-
-#define switch_to(prev,next) do { \
-	if(prev->flags&PF_USEDFPU) \
-	{ \
-		__asm__ __volatile__("fnsave %0":"=m" (prev->tss.i387.hard)); \
-		__asm__ __volatile__("fwait"); \
-		prev->flags&=~PF_USEDFPU;	 \
-	} \
-__asm__("ljmp %0\n\t" \
-	: /* no output */ \
-	:"m" (*(((char *)&next->tss.tr)-4)), \
-	 "c" (next)); \
-	/* Now maybe reload the debug registers */ \
-	if(prev->debugreg[7]){ \
-		loaddebug(prev,0); \
-		loaddebug(prev,1); \
-		loaddebug(prev,2); \
-		loaddebug(prev,3); \
-		loaddebug(prev,6); \
-		loaddebug(prev,7); \
-	} \
+#define switch_to(prev,next) do {					\
+	unsigned long eax, edx, ecx;					\
+	asm volatile("pushl %%ebx\n\t"					\
+		     "pushl %%esi\n\t"					\
+		     "pushl %%edi\n\t"					\
+		     "pushl %%ebp\n\t"					\
+		     "movl %%esp,%0\n\t"	/* save ESP */		\
+		     "movl %5,%%esp\n\t"	/* restore ESP */	\
+		     "movl $1f,%1\n\t"		/* save EIP */		\
+		     "pushl %6\n\t"		/* restore EIP */	\
+		     "jmp __switch_to\n"				\
+		     "1:\t"						\
+		     "popl %%ebp\n\t"					\
+		     "popl %%edi\n\t"					\
+		     "popl %%esi\n\t"					\
+		     "popl %%ebx"					\
+		     :"=m" (prev->tss.esp),"=m" (prev->tss.eip),	\
+		      "=a" (eax), "=d" (edx), "=c" (ecx)		\
+		     :"m" (next->tss.esp),"m" (next->tss.eip),		\
+		      "a" (prev), "d" (next)); 				\
 } while (0)
-
-#else
-#define switch_to(prev,next) do { \
-__asm__("ljmp %0\n\t" \
-	"cmpl %1,"SYMBOL_NAME_STR(last_task_used_math)"\n\t" \
-	"jne 1f\n\t" \
-	"clts\n" \
-	"1:" \
-	: /* no outputs */ \
-	:"m" (*(((char *)&next->tss.tr)-4)), \
-	 "r" (prev), "r" (next)); \
-	/* Now maybe reload the debug registers */ \
-	if(prev->debugreg[7]){ \
-		loaddebug(prev,0); \
-		loaddebug(prev,1); \
-		loaddebug(prev,2); \
-		loaddebug(prev,3); \
-		loaddebug(prev,6); \
-		loaddebug(prev,7); \
-	} \
-} while (0)
-#endif
 
 #define _set_base(addr,base) \
 __asm__("movw %%dx,%0\n\t" \
@@ -157,15 +111,26 @@ static inline unsigned long _get_base(char * addr)
 
 #define get_base(ldt) _get_base( ((char *)&(ldt)) )
 
-static inline unsigned long get_limit(unsigned long segment)
-{
-	unsigned long __limit;
-	__asm__("lsll %1,%0"
-		:"=r" (__limit):"r" (segment));
-	return __limit+1;
-}
-
-#define nop() __asm__ __volatile__ ("nop")
+/*
+ * Load a segment. Fall back on loading the zero
+ * segment if something goes wrong..
+ */
+#define loadsegment(seg,value)			\
+	asm volatile("\n"			\
+		"1:\t"				\
+		"movl %0,%%" #seg "\n"		\
+		"2:\n"				\
+		".section fixup,\"ax\"\n"	\
+		"3:\t"				\
+		"pushl $0\n\t"			\
+		"popl %%" #seg "\n\t"		\
+		"jmp 2b\n"			\
+		".previous\n"			\
+		".section __ex_table,\"a\"\n\t"	\
+		".align 4\n\t"			\
+		".long 1b,3b\n"			\
+		".previous"			\
+		: :"m" (*(unsigned int *)&(value)))
 
 /*
  * Clear and set 'TS' bit respectively
@@ -180,6 +145,17 @@ __asm__ __volatile__ ( \
 	: /* no inputs */ \
 	:"ax")
 
+#endif	/* __KERNEL__ */
+
+static inline unsigned long get_limit(unsigned long segment)
+{
+	unsigned long __limit;
+	__asm__("lsll %1,%0"
+		:"=r" (__limit):"r" (segment));
+	return __limit+1;
+}
+
+#define nop() __asm__ __volatile__ ("nop")
 
 #define xchg(ptr,x) ((__typeof__(*(ptr)))__xchg((unsigned long)(x),(ptr),sizeof(*(ptr))))
 #define tas(ptr) (xchg((ptr),1))

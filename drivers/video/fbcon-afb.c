@@ -250,12 +250,10 @@ void fbcon_afb_putc(struct vc_data *conp, struct display *p, int c, int yy,
     u_short i, j;
     int fg, bg;
 
-    c &= 0xff;
-
     dest0 = p->screen_base+yy*p->fontheight*p->next_line+xx;
-    cdat0 = p->fontdata+c*p->fontheight;
-    fg = attr_fgcol(p,conp);
-    bg = attr_bgcol(p,conp);
+    cdat0 = p->fontdata+(c&p->charmask)*p->fontheight;
+    fg = attr_fgcol(p,c);
+    bg = attr_bgcol(p,c);
 
     i = p->var.bits_per_pixel;
     do {
@@ -282,22 +280,22 @@ void fbcon_afb_putc(struct vc_data *conp, struct display *p, int c, int yy,
      *  (cfr. fbcon_putcs_ilbm())
      */
 
-void fbcon_afb_putcs(struct vc_data *conp, struct display *p, const char *s,
-		     int count, int yy, int xx)
+void fbcon_afb_putcs(struct vc_data *conp, struct display *p, 
+		     const unsigned short *s, int count, int yy, int xx)
 {
     u8 *dest, *dest0, *dest1, *expand;
     u8 *cdat1, *cdat2, *cdat3, *cdat4, *cdat10, *cdat20, *cdat30, *cdat40;
     u_short i, j;
-    u8 c1, c2, c3, c4;
+    u16 c1, c2, c3, c4;
     int fg0, bg0, fg, bg;
 
     dest0 = p->screen_base+yy*p->fontheight*p->next_line+xx;
-    fg0 = attr_fgcol(p,conp);
-    bg0 = attr_bgcol(p,conp);
+    fg0 = attr_fgcol(p,*s);
+    bg0 = attr_bgcol(p,*s);
 
     while (count--)
 	if (xx&3 || count < 3) {	/* Slow version */
-	    c1 = *s++;
+	    c1 = *s++ & p->charmask;
 	    dest1 = dest0++;
 	    xx++;
 
@@ -324,10 +322,10 @@ void fbcon_afb_putcs(struct vc_data *conp, struct display *p, const char *s,
 		dest1 += p->next_plane;
 	    } while (--i);
 	} else {			/* Fast version */
-	    c1 = s[0];
-	    c2 = s[1];
-	    c3 = s[2];
-	    c4 = s[3];
+	    c1 = s[0] & p->charmask;
+	    c2 = s[1] & p->charmask;
+	    c3 = s[2] & p->charmask;
+	    c4 = s[3] & p->charmask;
 
 	    dest1 = dest0;
 	    cdat10 = p->fontdata+c1*p->fontheight;
@@ -414,8 +412,19 @@ void fbcon_afb_revc(struct display *p, int xx, int yy)
 
 struct display_switch fbcon_afb = {
     fbcon_afb_setup, fbcon_afb_bmove, fbcon_afb_clear, fbcon_afb_putc,
-    fbcon_afb_putcs, fbcon_afb_revc
+    fbcon_afb_putcs, fbcon_afb_revc, NULL, NULL, NULL, FONTWIDTH(8)
 };
+
+
+#ifdef MODULE
+int init_module(void)
+{
+    return 0;
+}
+
+void cleanup_module(void)
+{}
+#endif /* MODULE */
 
 
     /*

@@ -1,9 +1,24 @@
+/* $Id: hardirq.h,v 1.4 1998/08/20 11:26:19 ralf Exp $
+ *
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
+ *
+ * Copyright (C) 1997, 1998 by Ralf Baechle
+ */
 #ifndef __ASM_MIPS_HARDIRQ_H
 #define __ASM_MIPS_HARDIRQ_H
 
 #include <linux/tasks.h>
 
 extern unsigned int local_irq_count[NR_CPUS];
+
+/*
+ * Are we in an interrupt context? Either doing bottom half
+ * or hardware interrupt processing?
+ */
+#define in_interrupt() ({ int __cpu = smp_processor_id(); \
+	(local_irq_count[__cpu] + local_bh_count[__cpu] != 0); })
 
 #ifndef __SMP__
 

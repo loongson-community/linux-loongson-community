@@ -1,5 +1,5 @@
 /*
- *	Appletalk networking structures
+ *	AppleTalk networking structures
  *
  *	The following are directly referenced from the University Of Michigan
  *	netatalk for compatibility reasons.
@@ -54,7 +54,7 @@ struct atalk_iface
 {
 	struct device *dev;
 	struct at_addr address;		/* Our address */
-	int status;			/* What are we doing ?? */
+	int status;			/* What are we doing? */
 #define ATIF_PROBE	1		/* Probing for an address */
 #define ATIF_PROBE_FAIL	2		/* Probe collided */
 	struct netrange nets;		/* Associated direct netrange */
@@ -93,6 +93,20 @@ struct ddpehdr
 };
 
 /*
+ *	Don't drop the struct into the struct above.  You'll get some
+ *	surprise padding.
+ */
+ 
+struct ddpebits
+{
+#ifdef __LITTLE_ENDIAN_BITFIELD
+	__u16	deh_len:10, deh_hops:4, deh_pad:2;
+#else
+	__u16	deh_pad:2, deh_hops:4, deh_len:10;
+#endif
+};
+
+/*
  *	Short form header
  */
  
@@ -108,7 +122,7 @@ struct ddpshdr
 	/* And netatalk apps expect to stick the type in themselves */
 };
 
-/* Appletalk AARP headers */
+/* AppleTalk AARP headers */
 
 struct elapaarp
 {

@@ -1,4 +1,4 @@
-/* $Id: page.h,v 1.2 1998/06/30 00:23:11 ralf Exp $
+/* $Id: page.h,v 1.3 1998/07/13 23:29:09 tsbogend Exp $
  *
  * Definitions for page handling
  *
@@ -20,7 +20,7 @@
 
 #define STRICT_MM_TYPECHECKS
 
-#ifndef __LANGUAGE_ASSEMBLY__
+#ifndef _LANGUAGE_ASSEMBLY
 
 #ifdef __SMP__
 #define ULOCK_DECLARE extern spinlock_t user_page_lock;
@@ -117,7 +117,7 @@ typedef unsigned long pgprot_t;
 
 #endif /* !defined (STRICT_MM_TYPECHECKS) */
 
-#endif /* __LANGUAGE_ASSEMBLY__ */
+#endif /* _LANGUAGE_ASSEMBLY */
 
 /* to align the pointer to the (next) page boundary */
 #define PAGE_ALIGN(addr)	(((addr)+PAGE_SIZE-1)&PAGE_MASK)
@@ -129,7 +129,8 @@ typedef unsigned long pgprot_t;
 #define PAGE_OFFSET	0x80000000UL
 #define __pa(x)		((unsigned long) (x) - PAGE_OFFSET)
 #define __va(x)		((void *)((unsigned long) (x) + PAGE_OFFSET))
-#define MAP_NR(addr)	(__pa(addr) >> PAGE_SHIFT)
+#define MAP_MASK        0x1fffffffUL
+#define MAP_NR(addr)	((((unsigned long)(addr)) & MAP_MASK) >> PAGE_SHIFT)
 
 #endif /* defined (__KERNEL__) */
 

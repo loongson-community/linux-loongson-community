@@ -320,8 +320,8 @@ static unsigned long load_elf_interp(struct elfhdr * interp_elf_ex,
 	/*
 	 * Now fill out the bss section.  First pad the last page up
 	 * to the page boundary, and then perform a mmap to make sure
-	 * that there are zeromapped pages up to and including the last
-	 * bss page.
+	 * that there are zero-mapped pages up to and including the 
+	 * last bss page.
 	 */
 	padzero(elf_bss);
 	elf_bss = ELF_PAGESTART(elf_bss + ELF_EXEC_PAGESIZE - 1); /* What we have mapped so far */
@@ -1057,14 +1057,16 @@ static int elf_core_dump(long signr, struct pt_regs * regs)
 	struct vm_area_struct *vma;
 	struct elfhdr elf;
 	off_t offset = 0, dataoff;
-	int limit = current->rlim[RLIMIT_CORE].rlim_cur;
+	unsigned long limit = current->rlim[RLIMIT_CORE].rlim_cur;
 	int numnote = 4;
 	struct memelfnote notes[4];
 	struct elf_prstatus prstatus;	/* NT_PRSTATUS */
 	elf_fpregset_t fpu;		/* NT_PRFPREG */
 	struct elf_prpsinfo psinfo;	/* NT_PRPSINFO */
 
-	if (!current->dumpable || limit < ELF_EXEC_PAGESIZE || current->mm->count != 1)
+	if (!current->dumpable ||
+	    limit < ELF_EXEC_PAGESIZE ||
+	    atomic_read(&current->mm->count) != 1)
 		return 0;
 	current->dumpable = 0;
 
@@ -1078,7 +1080,7 @@ static int elf_core_dump(long signr, struct pt_regs * regs)
 	for(vma = current->mm->mmap; vma != NULL; vma = vma->vm_next) {
 		if (maydump(vma))
 		{
-			int sz = vma->vm_end-vma->vm_start;
+			unsigned long sz = vma->vm_end-vma->vm_start;
 
 			if (size+sz >= limit)
 				break;
@@ -1225,7 +1227,7 @@ static int elf_core_dump(long signr, struct pt_regs * regs)
 	notes[2].datasz = sizeof(*current);
 	notes[2].data = current;
 
-	/* Try to dump the fpu. */
+	/* Try to dump the FPU. */
 	prstatus.pr_fpvalid = dump_fpu (regs, &fpu);
 	if (!prstatus.pr_fpvalid)
 	{

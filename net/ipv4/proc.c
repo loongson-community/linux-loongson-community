@@ -7,7 +7,7 @@
  *		PROC file system.  It is mainly used for debugging and
  *		statistics.
  *
- * Version:	$Id: proc.c,v 1.4 1997/12/16 05:37:43 ralf Exp $
+ * Version:	$Id: proc.c,v 1.30 1998/04/16 16:29:05 freitag Exp $
  *
  * Authors:	Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
  *		Gerald J. Heim, <heim@peanuts.informatik.uni-tuebingen.de>

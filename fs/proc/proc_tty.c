@@ -6,6 +6,7 @@
 
 #include <asm/uaccess.h>
 
+#include <linux/init.h>
 #include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/proc_fs.h>
@@ -79,7 +80,7 @@ static int tty_drivers_read_proc(char *page, char **start, off_t off,
 			break;
 		}
 		len += sprintf(page+len, "%-20s /dev/%-8s %3d %7s %s\n",
-			       p->driver_name ? p->driver_name : "",
+			       p->driver_name ? p->driver_name : "unknown",
 			       p->name, p->major, range, type);
 		if (len+begin > off+count)
 			break;
@@ -169,7 +170,7 @@ void proc_tty_unregister_driver(struct tty_driver *driver)
 /*
  * Called by proc_root_init() to initialize the /proc/tty subtree
  */
-void proc_tty_init(void)
+__initfunc(void proc_tty_init(void))
 {
 	struct proc_dir_entry *ent;
 	

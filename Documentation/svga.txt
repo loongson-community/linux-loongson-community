@@ -60,7 +60,7 @@ absolutely insane PC design.
 
    "0  0F00  80x25" means that the first menu item (the menu items are numbered
 from "0" to "9" and from "a" to "z") is a 80x25 mode with ID=0x0f00 (see the
-next section for a description of mode ID's).
+next section for a description of mode IDs).
 
    <flashing-cursor-here> encourages you to enter the item number or mode ID
 you wish to set and press <RETURN>. If the computer complains something about
@@ -91,9 +91,9 @@ function.
 modes are not listed at all and the modes revealed by `scan' are shown before
 all VESA modes.
 
-3. Mode ID's
-~~~~~~~~~~~~
-   Because of the complexity of all the video stuff, the video mode ID's
+3. Mode IDs
+~~~~~~~~~~~
+   Because of the complexity of all the video stuff, the video mode IDs
 used here are also a bit complex. A video mode ID is a 16-bit number usually
 expressed in a hexadecimal notation (starting with "0x"). You can set a mode
 by entering its mode directly if you know it even if it isn't shown on the menu.
@@ -139,7 +139,7 @@ The ID numbers can be divided to three regions:
 
    If you add 0x8000 to the mode ID, the program will try to recalculate
 vertical display timing according to mode parameters, which can be used to
-eliminate some annoying bugs of certain VGA BIOS'es (usually those used for
+eliminate some annoying bugs of certain VGA BIOSes (usually those used for
 cards with S3 chipsets and old Cirrus Logic BIOSes) -- mainly extra lines at the
 end of the display.
 
@@ -179,7 +179,7 @@ of the table (which also includes a video card name to be displayed on the
 top of the menu).
 
    CONFIG_VIDEO_400_HACK - force setting of 400 scan lines for standard VGA
-modes. This option is intended to be used on certain buggy BIOS'es which draw
+modes. This option is intended to be used on certain buggy BIOSes which draw
 some useless logo using font download and then fail to reset the correct mode.
 Don't use unless needed as it forces resetting the video card.
 
@@ -233,7 +233,7 @@ force setting of the correct mode.
 2.2 (01-Feb-96)	EGA 80x43 fixed. VESA extended to 0x200-0x4ff (non-standard 02XX
 		VESA modes work now). Display end bug workaround supported.
 		Special modes renumbered to allow adding of the "recalculate"
-		flag, 0xffff and 0xfffe became aliases instead of real ID's.
+		flag, 0xffff and 0xfffe became aliases instead of real IDs.
 		Screen contents retained during mode changes.
 2.3 (15-Mar-96)	Changed to work with 1.3.74 kernel.
 2.4 (18-Mar-96)	Added patches by Hans Lermen fixing a memory overwrite problem
@@ -267,3 +267,4 @@ force setting of the correct mode.
 		  offered explicitly on the prompt line.
 		- Removed the doc section describing adding of new probing
 		  functions as I try to get rid of _all_ hardware probing here.
+2.12 (25-May-98)- Added support for VESA frame buffer graphics.

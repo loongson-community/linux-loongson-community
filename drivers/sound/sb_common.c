@@ -18,7 +18,7 @@
 #include "sound_config.h"
 #include "sound_firmware.h"
 
-#if defined(CONFIG_SBDSP) || defined(MODULE)
+#ifdef CONFIG_SBDSP
 
 #ifndef CONFIG_AUDIO
 #error You will need to configure the sound driver with CONFIG_AUDIO option.
@@ -57,6 +57,7 @@ static int      smw_ucodeLen = 0;
 
 #endif
 
+sb_devc *last_sb = NULL;		/* Last sb loaded */
 
 int sb_dsp_command(sb_devc * devc, unsigned char val)
 {
@@ -81,7 +82,7 @@ int sb_dsp_command(sb_devc * devc, unsigned char val)
 			return 1;
 		}
 	}
-	printk(KERN_WARNING "soundblaster: DSP Command(%x) Timeout.\n", val);
+	printk(KERN_WARNING "Sound Blaster:  DSP command(%x) timeout.\n", val);
 	return 0;
 }
 
@@ -131,9 +132,9 @@ static void sbintr(int irq, void *dev_id, struct pt_regs *dummy)
 	{
 		src = sb_getmixer(devc, IRQ_STAT);	/* Interrupt source register */
 
-#if defined(CONFIG_MIDI)&& (defined(CONFIG_UART401)||defined(CONFIG_UART401_MODULE))
+#if defined(CONFIG_MIDI)&& defined(CONFIG_UART401)
 		if (src & 4)
-			uart401intr(devc->irq, NULL, NULL);	/* MPU401 interrupt */
+			uart401intr(devc->irq, devc->midi_irq_cookie, NULL);	/* MPU401 interrupt */
 #endif
 
 		if (!(src & 3))
@@ -155,7 +156,7 @@ static void sbintr(int irq, void *dev_id, struct pt_regs *dummy)
 				break;
 
 			case IMODE_MIDI:
-#if  defined(CONFIG_MIDI)
+#ifdef CONFIG_MIDI
 				sb_midi_interrupt(devc);
 #endif
 				break;
@@ -698,7 +699,7 @@ void sb_dsp_init(struct address_info *hw_config)
 	sb_devc *devc;
 	char name[100];
 	extern int sb_be_quiet;
-	int	mixer3c, mixer4c;
+	int	mixer22, mixer30;
 	
 /*
  * Check if we had detected a SB device earlier
@@ -722,12 +723,7 @@ void sb_dsp_init(struct address_info *hw_config)
 	/*
 	 * Now continue initialization of the device
 	 */
-	devc->dev = sound_alloc_audiodev();
-	if (devc->dev == -1)
-	{
-		printk(KERN_WARNING "sb: too many audio devices.\n");
-		return;
-	}
+
 	devc->caps = hw_config->driver_use_1;
 
 	if (!(devc->caps & SB_NO_AUDIO && devc->caps & SB_NO_MIDI) && hw_config->irq > 0)
@@ -735,7 +731,6 @@ void sb_dsp_init(struct address_info *hw_config)
 		if (request_irq(hw_config->irq, sbintr, 0, "soundblaster", devc) < 0)
 		{
 			printk(KERN_ERR "SB: Can't allocate IRQ%d\n", hw_config->irq);
-			sound_unload_audiodev(devc->dev);
 			return;
 		}
 		devc->irq_ok = 0;
@@ -744,7 +739,6 @@ void sb_dsp_init(struct address_info *hw_config)
 			if (!sb16_set_irq_hw(devc, devc->irq))	/* Unsupported IRQ */
 			{
 				free_irq(devc->irq, devc);
-				sound_unload_audiodev(devc->dev);
 				return;
 			}
 		if ((devc->type == 0 || devc->type == MDL_ESS) &&
@@ -790,6 +784,8 @@ void sb_dsp_init(struct address_info *hw_config)
 	}			/* IRQ setup */
 	request_region(hw_config->io_base, 16, "soundblaster");
 
+	last_sb = devc;
+	
 	switch (devc->major)
 	{
 		case 1:		/* SB 1.0 or 1.5 */
@@ -814,21 +810,35 @@ void sb_dsp_init(struct address_info *hw_config)
 
 		case 4:
 			devc->model = hw_config->card_subtype = MDL_SB16;
-			/*
-			 *	The ALS007 seems to return DSP version 4.2.  In addition it has 2
-			 *	output control registers (at 0x3c and 0x4c).  Both of these should
-			 *	be !=0 after a reset which forms the basis of the ALS007 test
-			 *	since a "standard" SoundBlaster does not have a register at 0x4c.
+			/* 
+			 * ALS007 and ALS100 return DSP version 4.2 and have 2 post-reset !=0
+			 * registers at 0x3c and 0x4c (output ctrl registers on ALS007) whereas
+			 * a "standard" SB16 doesn't have a register at 0x4c.  ALS100 actively
+			 * updates register 0x22 whenever 0x30 changes, as per the SB16 spec.
+			 * Since ALS007 doesn't, this can be used to differentiate the 2 cards.
 			 */
-			mixer3c = sb_getmixer(devc,0x3c);
-			mixer4c = sb_getmixer(devc,0x4c);
-			if ((devc->minor == 2) && (mixer3c != 0) && (mixer4c != 0)) 
+			if ((devc->minor == 2) && sb_getmixer(devc,0x3c) && sb_getmixer(devc,0x4c)) 
 			{
-				sb_setmixer(devc,0x3c,0x1f);   /* Enable all inputs */
-				sb_setmixer(devc,0x4c,0x1f);
-				devc->submodel = SUBMDL_ALS007;
-				if (hw_config->name == NULL)
-					hw_config->name = "Sound Blaster (ALS-007)";
+				mixer30 = sb_getmixer(devc,0x30);
+				sb_setmixer(devc,0x22,(mixer22=sb_getmixer(devc,0x22)) & 0x0f);
+				sb_setmixer(devc,0x30,0xff);
+				/* ALS100 will force 0x30 to 0xf8 like SB16; ALS007 will allow 0xff. */
+				/* Register 0x22 & 0xf0 on ALS100 == 0xf0; on ALS007 it == 0x10.     */
+				if ((sb_getmixer(devc,0x30) != 0xff) || ((sb_getmixer(devc,0x22) & 0xf0) != 0x10)) 
+				{
+					if (hw_config->name == NULL)
+						hw_config->name = "Sound Blaster 16 (ALS-100)";
+        			}
+        			else
+        			{
+        				sb_setmixer(devc,0x3c,0x1f);    /* Enable all inputs */
+					sb_setmixer(devc,0x4c,0x1f);
+					sb_setmixer(devc,0x22,mixer22); /* Restore 0x22 to original value */
+					devc->submodel = SUBMDL_ALS007;
+					if (hw_config->name == NULL)
+						hw_config->name = "Sound Blaster 16 (ALS-007)";
+				}
+				sb_setmixer(devc,0x30,mixer30);
 			}
 			else if (hw_config->name == NULL)
 				hw_config->name = "Sound Blaster 16";
@@ -851,7 +861,7 @@ void sb_dsp_init(struct address_info *hw_config)
 		if (devc->major == 3 || devc->major == 4)
 			sb_mixer_init(devc);
 
-#if defined(CONFIG_MIDI)
+#ifdef CONFIG_MIDI
 	if (!(devc->caps & SB_NO_MIDI))
 		sb_dsp_midi_init(devc);
 #endif
@@ -863,8 +873,8 @@ void sb_dsp_init(struct address_info *hw_config)
 	conf_printf(name, hw_config);
 
 	/*
-	 * Assuming that a soundcard is Sound Blaster (compatible) is the most common
-	 * configuration error and the mother of all problems. Usually soundcards
+	 * Assuming that a sound card is Sound Blaster (compatible) is the most common
+	 * configuration error and the mother of all problems. Usually sound cards
 	 * emulate SB Pro but in addition they have a 16 bit native mode which should be
 	 * used in Unix. See Readme.cards for more information about configuring OSS/Free
 	 * properly.
@@ -873,7 +883,7 @@ void sb_dsp_init(struct address_info *hw_config)
 	{
 		if (devc->major == 3 && devc->minor != 1)	/* "True" SB Pro should have v3.1 (rare ones may have 3.2). */
 		{
-			printk(KERN_INFO "This soundcard may not be fully Sound Blaster Pro compatible.\n");
+			printk(KERN_INFO "This sound card may not be fully Sound Blaster Pro compatible.\n");
 			printk(KERN_INFO "In many cases there is another way to configure OSS so that\n");
 			printk(KERN_INFO "it works properly with OSS (for example in 16 bit mode).\n");
 			printk(KERN_INFO "Please ignore this message if you _really_ have a SB Pro.\n");
@@ -898,13 +908,14 @@ void sb_dsp_init(struct address_info *hw_config)
 		if (devc->dma16 >= 0 && devc->dma16 != devc->dma8)
 		{
 			if (sound_alloc_dma(devc->dma16, "SoundBlaster16"))
-				printk(KERN_WARNING "soundblaster: Can't allocate 16 bit DMA channel %d\n", devc->dma16);
+				printk(KERN_WARNING "Sound Blaster:  can't allocate 16 bit DMA channel %d.\n", devc->dma16);
 		}
 		sb_audio_init(devc, name);
+		hw_config->slots[0]=devc->dev;
 	}
 	else
 	{
-		MDB(printk("soundblaster: No audio devices found.\n"));
+		MDB(printk("Sound Blaster:  no audio devices found.\n"));
 	}
 }
 
@@ -936,7 +947,9 @@ void sb_dsp_unload(struct address_info *hw_config)
 		{
 			free_irq(devc->irq, devc);
 			sound_unload_mixerdev(devc->my_mixerdev);
-			sound_unload_mididev(devc->my_mididev);
+			/* We don't have to do this bit any more the UART401 is its own
+				master  -- Krzysztof Halasa */
+			/* sound_unload_mididev(devc->my_mididev); */
 			sound_unload_audiodev(devc->my_dev);
 		}
 		kfree(devc);
@@ -982,7 +995,7 @@ unsigned int sb_getmixer(sb_devc * devc, unsigned int port)
 	return val;
 }
 
-#if defined(CONFIG_MIDI)
+#ifdef CONFIG_MIDI
 
 /*
  *	MPU401 MIDI initialization.
@@ -1034,7 +1047,7 @@ static int smw_midi_init(sb_devc * devc, struct address_info *hw_config)
 	outb((control | 3), mpu_base + 7);	/* Set last two bits to 1 (?) */
 	outb(((control & 0xfe) | 2), mpu_base + 7);	/* xxxxxxx0 resets the mc */
 
-	udelay(3000);	/* Wait at least 1ms */
+	mdelay(3);	/* Wait at least 1ms */
 
 	outb((control & 0xfc), mpu_base + 7);	/* xxxxxx00 enables RAM */
 
@@ -1247,14 +1260,15 @@ static int init_Jazz16_midi(sb_devc * devc, struct address_info *hw_config)
 
 void attach_sbmpu(struct address_info *hw_config)
 {
-#if defined(CONFIG_MIDI) && (defined(CONFIG_UART401)||defined(CONFIG_UART401_MODULE))
+#if defined(CONFIG_MIDI) && defined(CONFIG_UART401)
 	attach_uart401(hw_config);
+	last_sb->midi_irq_cookie=midi_devs[hw_config->slots[4]]->devc;
 #endif
 }
 
 int probe_sbmpu(struct address_info *hw_config)
 {
-#if defined(CONFIG_MIDI) && (defined(CONFIG_UART401)||defined(CONFIG_UART401_MODULE))
+#if defined(CONFIG_MIDI) && defined(CONFIG_UART401)
 	sb_devc *devc = last_devc;
 
 	if (last_devc == NULL)
@@ -1275,7 +1289,7 @@ int probe_sbmpu(struct address_info *hw_config)
 		case MDL_SB16:
 			if (hw_config->io_base != 0x300 && hw_config->io_base != 0x330)
 			{
-				printk(KERN_ERR "SB16: Invalid MIDI port %x\n", hw_config->irq);
+				printk(KERN_ERR "SB16: Invalid MIDI port %x\n", hw_config->io_base);
 				return 0;
 			}
 			hw_config->name = "Sound Blaster 16";
@@ -1312,7 +1326,7 @@ int probe_sbmpu(struct address_info *hw_config)
 
 void unload_sbmpu(struct address_info *hw_config)
 {
-#if defined(CONFIG_MIDI) && (defined(CONFIG_UART401)||defined(CONFIG_UART401_MODULE))
+#if defined(CONFIG_MIDI) && defined(CONFIG_UART401)
 	unload_uart401(hw_config);
 #endif
 }

@@ -4,7 +4,6 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  */
 
-#include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
@@ -260,9 +259,9 @@ void ctrl_alt_del(void)
  *
  * The general idea is that a program which uses just setregid() will be
  * 100% compatible with BSD.  A program which uses just setgid() will be
- * 100% compatible with POSIX w/ Saved ID's. 
+ * 100% compatible with POSIX with saved IDs. 
  *
- * SMP: There are not races, the gid's are checked only by filesystem
+ * SMP: There are not races, the GIDs are checked only by filesystem
  *      operations (as far as semantic preservation is concerned).
  */
 asmlinkage int sys_setregid(gid_t rgid, gid_t egid)
@@ -367,7 +366,7 @@ extern inline void cap_emulate_setxuid(int old_ruid, int old_euid,
  *
  * The general idea is that a program which uses just setreuid() will be
  * 100% compatible with BSD.  A program which uses just setuid() will be
- * 100% compatible with POSIX w/ Saved ID's. 
+ * 100% compatible with POSIX with saved IDs. 
  */
 asmlinkage int sys_setreuid(uid_t ruid, uid_t euid)
 {
@@ -406,10 +405,9 @@ asmlinkage int sys_setreuid(uid_t ruid, uid_t euid)
 		 * cheaply with the new uid cache, so if it matters
 		 * we should be checking for it.  -DaveM
 		 */
-		charge_uid(current, -1);
+		free_uid(current);
 		current->uid = new_ruid;
-		if(new_ruid)
-			charge_uid(current, 1);
+		alloc_uid(current);
 	}
 	
 	if (!issecure(SECURE_NO_SETUID_FIXUP)) {
@@ -422,7 +420,7 @@ asmlinkage int sys_setreuid(uid_t ruid, uid_t euid)
 
 		
 /*
- * setuid() is implemented like SysV w/ SAVED_IDS 
+ * setuid() is implemented like SysV with SAVED_IDS 
  * 
  * Note that SAVED_ID's is deficient in that a setuid root program
  * like sendmail, for example, cannot set its uid to be a normal 
@@ -449,12 +447,11 @@ asmlinkage int sys_setuid(uid_t uid)
 	if (current->euid != old_euid)
 		current->dumpable = 0;
 
-	if(new_ruid != old_ruid) {
+       if (new_ruid != old_ruid) {
 		/* See comment above about NPROC rlimit issues... */
-		charge_uid(current, -1);
+		free_uid(current);
 		current->uid = new_ruid;
-		if(new_ruid)
-			charge_uid(current, 1);
+		alloc_uid(current);
 	}
 
 	if (!issecure(SECURE_NO_SETUID_FIXUP)) {
@@ -466,7 +463,7 @@ asmlinkage int sys_setuid(uid_t uid)
 
 
 /*
- * This function implementes a generic ability to update ruid, euid,
+ * This function implements a generic ability to update ruid, euid,
  * and suid.  This allows you to implement the 4.4 compatible seteuid().
  */
 asmlinkage int sys_setresuid(uid_t ruid, uid_t euid, uid_t suid)
@@ -474,7 +471,8 @@ asmlinkage int sys_setresuid(uid_t ruid, uid_t euid, uid_t suid)
 	int old_ruid = current->uid;
 	int old_euid = current->euid;
 	int old_suid = current->suid;
-	if (current->uid != 0 && current->euid != 0 && current->suid != 0) {
+
+	if (!capable(CAP_SETUID)) {
 		if ((ruid != (uid_t) -1) && (ruid != current->uid) &&
 		    (ruid != current->euid) && (ruid != current->suid))
 			return -EPERM;
@@ -487,10 +485,9 @@ asmlinkage int sys_setresuid(uid_t ruid, uid_t euid, uid_t suid)
 	}
 	if (ruid != (uid_t) -1) {
 		/* See above commentary about NPROC rlimit issues here. */
-		charge_uid(current, -1);
+		free_uid(current);
 		current->uid = ruid;
-		if(ruid)
-			charge_uid(current, 1);
+		alloc_uid(current);
 	}
 	if (euid != (uid_t) -1) {
 		if (euid != current->euid)
@@ -524,7 +521,7 @@ asmlinkage int sys_getresuid(uid_t *ruid, uid_t *euid, uid_t *suid)
  */
 asmlinkage int sys_setresgid(gid_t rgid, gid_t egid, gid_t sgid)
 {
-	if (current->uid != 0 && current->euid != 0 && current->suid != 0) {
+       if (!capable(CAP_SETGID)) {
 		if ((rgid != (gid_t) -1) && (rgid != current->gid) &&
 		    (rgid != current->egid) && (rgid != current->sgid))
 			return -EPERM;
@@ -579,13 +576,13 @@ asmlinkage int sys_setfsuid(uid_t uid)
 		current->dumpable = 0;
 
 	/* We emulate fsuid by essentially doing a scaled-down version
-         * of what we did in setresuid and friends. However, we only
-         * operate on the fs-specific bits of the process' effective
-         * capabilities 
-         *
-         * FIXME - is fsuser used for all CAP_FS_MASK capabilities?
-         *          if not, we might be a bit too harsh here.
-         */
+	 * of what we did in setresuid and friends. However, we only
+	 * operate on the fs-specific bits of the process' effective
+	 * capabilities 
+	 *
+	 * FIXME - is fsuser used for all CAP_FS_MASK capabilities?
+	 *          if not, we might be a bit too harsh here.
+	 */
 	
 	if (!issecure(SECURE_NO_SETUID_FIXUP)) {
 		if (old_fsuid == 0 && current->fsuid != 0) {
@@ -750,7 +747,7 @@ asmlinkage int sys_setsid(void)
 	read_lock(&tasklist_lock);
 	for_each_task(p) {
 		if (p->pgrp == current->pid)
-		        goto out;
+			goto out;
 	}
 
 	current->leader = 1;
@@ -764,7 +761,7 @@ out:
 }
 
 /*
- * Supplementary group ID's
+ * Supplementary group IDs
  */
 asmlinkage int sys_getgroups(int gidsetsize, gid_t *grouplist)
 {
@@ -780,7 +777,7 @@ asmlinkage int sys_getgroups(int gidsetsize, gid_t *grouplist)
 	i = current->ngroups;
 	if (gidsetsize) {
 		if (i > gidsetsize)
-		        return -EINVAL;
+			return -EINVAL;
 		if (copy_to_user(grouplist, current->groups, sizeof(gid_t)*i))
 			return -EFAULT;
 	}
@@ -823,40 +820,57 @@ out:
 	return 1;
 }
 
+/*
+ * This should really be a blocking read-write lock
+ * rather than a semaphore. Anybody want to implement
+ * one?
+ */
+struct semaphore uts_sem = MUTEX;
+
 asmlinkage int sys_newuname(struct new_utsname * name)
 {
-	if (!name)
-		return -EFAULT;
+	int errno = 0;
+
+	down(&uts_sem);
 	if (copy_to_user(name,&system_utsname,sizeof *name))
-		return -EFAULT;
-	return 0;
+		errno = -EFAULT;
+	up(&uts_sem);
+	return errno;
 }
 
 asmlinkage int sys_sethostname(char *name, int len)
 {
+	int errno;
+
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
 	if (len < 0 || len > __NEW_UTS_LEN)
 		return -EINVAL;
-	if(copy_from_user(system_utsname.nodename, name, len))
-		return -EFAULT;
-	system_utsname.nodename[len] = 0;
-#ifdef CONFIG_TRANS_NAMES
-	translations_dirty = 1;
-#endif
-	return 0;
+	down(&uts_sem);
+	errno = -EFAULT;
+	if (!copy_from_user(system_utsname.nodename, name, len)) {
+		system_utsname.nodename[len] = 0;
+		errno = 0;
+	}
+	up(&uts_sem);
+	return errno;
 }
 
 asmlinkage int sys_gethostname(char *name, int len)
 {
-	int i;
+	int i, errno;
 
 	if (len < 0)
 		return -EINVAL;
+	down(&uts_sem);
 	i = 1 + strlen(system_utsname.nodename);
 	if (i > len)
 		i = len;
-	return copy_to_user(name, system_utsname.nodename, i) ? -EFAULT : 0;
+	errno = 0;
+	if (copy_to_user(name, system_utsname.nodename, i))
+		errno = -EFAULT;
+	up(&uts_sem);
+	return errno;
 }
 
 /*
@@ -865,17 +879,21 @@ asmlinkage int sys_gethostname(char *name, int len)
  */
 asmlinkage int sys_setdomainname(char *name, int len)
 {
+	int errno;
+
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
 	if (len < 0 || len > __NEW_UTS_LEN)
 		return -EINVAL;
-	if(copy_from_user(system_utsname.domainname, name, len))
-		return -EFAULT;
-	system_utsname.domainname[len] = 0;
-#ifdef CONFIG_TRANS_NAMES
-	translations_dirty = 1;
-#endif
-	return 0;
+
+	down(&uts_sem);
+	errno = -EFAULT;
+	if (!copy_from_user(system_utsname.domainname, name, len)) {
+		errno = 0;
+		system_utsname.domainname[len] = 0;
+	}
+	up(&uts_sem);
+	return errno;
 }
 
 asmlinkage int sys_getrlimit(unsigned int resource, struct rlimit *rlim)
@@ -974,7 +992,7 @@ asmlinkage int sys_umask(int mask)
 }
     
 asmlinkage int sys_prctl(int option, unsigned long arg2, unsigned long arg3,
-                         unsigned long arg4, unsigned long arg5)
+			 unsigned long arg4, unsigned long arg5)
 {
 	int error = 0;
 	int sig;
@@ -983,15 +1001,15 @@ asmlinkage int sys_prctl(int option, unsigned long arg2, unsigned long arg3,
 		case PR_SET_PDEATHSIG:
 			sig = arg2;
 			if (sig > _NSIG) {
-                        	error = -EINVAL;
-                                break;
-                        }
-                        current->pdeath_signal = sig;
-                        break;
+				error = -EINVAL;
+				break;
+			}
+			current->pdeath_signal = sig;
+			break;
 		default:
 			error = -EINVAL;
 			break;
-        }
-        return error;
+	}
+	return error;
 }
 

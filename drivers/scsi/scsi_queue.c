@@ -23,7 +23,7 @@
 #include <linux/blk.h>
 #include <linux/interrupt.h>
 #include <linux/delay.h>
-#include <asm/smp_lock.h>
+#include <linux/smp_lock.h>
 
 #define __KERNEL_SYSCALLS__
 
@@ -58,7 +58,7 @@ static const char RCSid[] = "$Header: /mnt/ide/home/eric/CVSROOT/linux/drivers/s
 
 /*
  * Lock used to prevent more than one process from frobbing the list at the
- * same time.  FIXME(eric) - there should be seperate spinlocks for each host.
+ * same time.  FIXME(eric) - there should be separate spinlocks for each host.
  * This will reduce contention.
  */
 spinlock_t	scsi_mlqueue_lock        = SPIN_LOCK_UNLOCKED;

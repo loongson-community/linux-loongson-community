@@ -282,7 +282,7 @@ romfs_readdir(struct file *filp, void *dirent, filldir_t filldir)
 	/* Not really failsafe, but we are read-only... */
 	for(;;) {
 		if (!offset || offset >= maxoff) {
-			offset = 0xffffffff;
+			offset = maxoff;
 			filp->f_pos = offset;
 			return stored;
 		}
@@ -334,7 +334,7 @@ romfs_lookup(struct inode *dir, struct dentry *dentry)
 	maxoff = dir->i_sb->u.romfs_sb.s_maxsize;
 	offset = ntohl(ri.spec) & ROMFH_MASK;
 
-	/* ok, now find the file, whose name is in "dentry", in the
+	/* OK, now find the file whose name is in "dentry" in the
 	 * directory specified by "dir".  */
 
 	name = dentry->d_name.name;

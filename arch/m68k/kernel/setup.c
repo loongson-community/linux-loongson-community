@@ -61,6 +61,8 @@ void (*mach_sched_init) (void (*handler)(int, void *, struct pt_regs *)) __initd
 int (*mach_keyb_init) (void) __initdata;
 int (*mach_kbdrate) (struct kbd_repeat *) = NULL;
 void (*mach_kbd_leds) (unsigned int) = NULL;
+/* machine dependent "kbd-reset" setup function */
+void (*kbd_reset_setup) (char *, int) __initdata = NULL;
 /* machine dependent irq functions */
 void (*mach_init_IRQ) (void) __initdata;
 void (*(*mach_default_handler)[]) (int, void *, struct pt_regs *) = NULL;
@@ -102,6 +104,8 @@ extern void config_mac(void);
 extern void config_sun3(void);
 extern void config_apollo(void);
 extern void config_mvme16x(void);
+extern void config_bvme6000(void);
+extern void config_hp300(void);
 
 #define MASK_256K 0xfffc0000
 
@@ -249,6 +253,16 @@ __initfunc(void setup_arch(char **cmdline_p, unsigned long * memory_start_p,
 	    case MACH_MVME16x:
 	    	config_mvme16x();
 	    	break;
+#endif
+#ifdef CONFIG_BVME6000
+	    case MACH_BVME6000:
+	    	config_bvme6000();
+	    	break;
+#endif
+#ifdef CONFIG_HP300
+	    case MACH_HP300:
+		config_hp300();
+		break;
 #endif
 	    default:
 		panic ("No configuration setup");

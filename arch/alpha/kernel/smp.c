@@ -1,4 +1,3 @@
-#include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/kernel.h>
 #include <linux/kernel_stat.h>
@@ -9,12 +8,12 @@
 #include <linux/smp_lock.h>
 #include <linux/interrupt.h>
 #include <linux/init.h>
+#include <linux/delay.h>
 
 #include <asm/hwrpb.h>
 #include <asm/ptrace.h>
 #include <asm/atomic.h>
 
-#include <asm/delay.h>
 #include <asm/irq.h>
 #include <asm/bitops.h>
 #include <asm/pgtable.h>
@@ -24,6 +23,8 @@
 
 #define __KERNEL_SYSCALLS__
 #include <asm/unistd.h>
+
+#include "proto.h"
 
 struct ipi_msg_flush_tb_struct ipi_msg_flush_tb;
 
@@ -336,10 +337,8 @@ void smp_percpu_timer_interrupt(struct pt_regs *regs)
 
 #ifdef NOT_YET
         clear_profile_irq(mid_xlate[cpu]);
-#ifdef CONFIG_PROFILE
         if(!user_mode(regs))
-		sparc_do_profile(regs->pc);
-#endif
+		alpha_do_profile(regs->pc);
 #endif
 
         if (!--prof_counter[cpu]) {
@@ -349,7 +348,7 @@ void smp_percpu_timer_interrupt(struct pt_regs *regs)
 
                         if (--current->counter < 0) {
 				current->counter = 0;
-                                need_resched = 1;
+                                current->need_resched = 1;
                         }
 
                         spin_lock(&ticker_lock);
@@ -397,9 +396,8 @@ lier);
   return -EINVAL;
 }
 
-/* Only broken Intel needs this, thus it should not even be referenced
- * globally...
- */
+/* Only broken Intel needs this, thus it should not even be referenced globally.
+*/
 __initfunc(void initialize_secondary(void))
 {
 	printk("initialize_secondary: entry\n");
@@ -463,7 +461,7 @@ printk("Starting secondary cpu %d: state 0x%lx pal_flags 0x%lx\n",
 #endif
 			return;
 		}
-		udelay(1000);
+		mdelay(1);
 	}
 #if 0
 	printk("secondary_cpu_start: SUCCESS for CPU %d!!!\n", cpuid);
@@ -490,7 +488,7 @@ send_cpu_msg(char *str, int cpuid)
                         printk("Processor %x not ready\n", cpuid);
                         return;
                 }
-                udelay(1000);
+                mdelay(1);
         }
 
         cp1 = (char *) &cpu->ipc_buffer[1];
@@ -506,7 +504,7 @@ send_cpu_msg(char *str, int cpuid)
                         printk("Processor %x not ready\n", cpuid);
                         return;
                 }
-                udelay(1000);
+                mdelay(1);
         }
 }
 
@@ -673,7 +671,7 @@ wrapper_local_flush_tlb_page(unsigned int this_cpu)
 static int
 unknown_ipi(unsigned int this_cpu)
 {
-	printk("unknown_ipi() on cpu %d:  ", this_cpu);
+	printk("unknown_ipi() on CPU %d:  ", this_cpu);
 	return 1;
 }
 
@@ -739,15 +737,11 @@ send_ipi_message(long to_whom, enum ipi_message_type operation)
 	}
 }
 
-static char smp_buf[256];
-
-char *smp_info(void)
+int smp_info(char *buffer)
 {
-        sprintf(smp_buf, "CPUs probed %d active %d map 0x%x AKP %d\n",
-		smp_num_probed, smp_num_cpus, cpu_present_map,
-		klock_info.akp);
-
-        return smp_buf;
+        return sprintf(buffer, "CPUs probed %d active %d map 0x%x AKP %d\n",
+		       smp_num_probed, smp_num_cpus, cpu_present_map,
+		       klock_info.akp);
 }
 
 /* wrapper for call from panic() */
@@ -762,7 +756,7 @@ smp_message_pass(int target, int msg, unsigned long data, int wait)
 	send_ipi_message(CPU_STOP, cpu_present_map ^ (1 << me));
 	return;
 barf:
-	printk("Yeeee, trying to send SMP msg(%d) on cpu %d\n", msg, me);
+	printk("Yeeee, trying to send SMP msg(%d) on CPU %d\n", msg, me);
 	panic("Bogon SMP message pass.");
 }
 

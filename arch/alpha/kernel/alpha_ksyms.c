@@ -14,6 +14,7 @@
 #include <linux/in.h>
 #include <linux/in6.h>
 #include <linux/pci.h>
+#include <linux/tty.h>
 
 #include <asm/io.h>
 #include <asm/hwrpb.h>
@@ -23,6 +24,8 @@
 #include <linux/interrupt.h>
 #include <asm/softirq.h>
 #include <asm/fpu.h>
+#include <asm/irq.h>
+#include <asm/machvec.h>
 
 #define __KERNEL_SYSCALLS__
 #include <asm/unistd.h>
@@ -41,8 +44,12 @@ extern void __remlu (void);
 extern void __divqu (void);
 extern void __remqu (void);
 
+EXPORT_SYMBOL(alpha_mv);
 EXPORT_SYMBOL(local_bh_count);
 EXPORT_SYMBOL(local_irq_count);
+EXPORT_SYMBOL(enable_irq);
+EXPORT_SYMBOL(disable_irq);
+EXPORT_SYMBOL(screen_info);
 
 /* platform dependent support */
 EXPORT_SYMBOL(_inb);
@@ -59,7 +66,7 @@ EXPORT_SYMBOL(_writew);
 EXPORT_SYMBOL(_writel);
 EXPORT_SYMBOL(_memcpy_fromio);
 EXPORT_SYMBOL(_memcpy_toio);
-EXPORT_SYMBOL(_memset_io);
+EXPORT_SYMBOL(_memset_c_io);
 EXPORT_SYMBOL(insb);
 EXPORT_SYMBOL(insw);
 EXPORT_SYMBOL(insl);
@@ -82,6 +89,7 @@ EXPORT_SYMBOL(memcmp);
 EXPORT_SYMBOL(memmove);
 EXPORT_SYMBOL(__memcpy);
 EXPORT_SYMBOL(__memset);
+EXPORT_SYMBOL(__memsetw);
 EXPORT_SYMBOL(__constant_c_memset);
 
 EXPORT_SYMBOL(dump_thread);
@@ -115,7 +123,9 @@ EXPORT_SYMBOL(csum_ipv6_magic);
 
 #ifdef CONFIG_MATHEMU_MODULE
 extern long (*alpha_fp_emul_imprecise)(struct pt_regs *, unsigned long);
+extern long (*alpha_fp_emul) (unsigned long pc);
 EXPORT_SYMBOL(alpha_fp_emul_imprecise);
+EXPORT_SYMBOL(alpha_fp_emul);
 #endif
 
 /*

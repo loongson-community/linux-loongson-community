@@ -41,7 +41,7 @@
 /*
  * We have a mem map cache...
  */
-extern __inline__ void update_mm_cache_all(void)
+extern __inline__ void update_memc_all(void)
 {
 	struct task_struct *p;
 
@@ -54,7 +54,7 @@ extern __inline__ void update_mm_cache_all(void)
 	processor.u.armv2._remap_memc (current);
 }
 
-extern __inline__ void update_mm_cache_task(struct task_struct *tsk)
+extern __inline__ void update_memc_task(struct task_struct *tsk)
 {
 	processor.u.armv2._update_map(tsk);
 
@@ -62,7 +62,7 @@ extern __inline__ void update_mm_cache_task(struct task_struct *tsk)
 		processor.u.armv2._remap_memc (tsk);
 }
 
-extern __inline__ void update_mm_cache_mm(struct mm_struct *mm)
+extern __inline__ void update_memc_mm(struct mm_struct *mm)
 {
 	struct task_struct *p;
 
@@ -77,7 +77,7 @@ extern __inline__ void update_mm_cache_mm(struct mm_struct *mm)
 		processor.u.armv2._remap_memc (current);
 }
 
-extern __inline__ void update_mm_cache_mm_addr(struct mm_struct *mm, unsigned long addr, pte_t pte)
+extern __inline__ void update_memc_addr(struct mm_struct *mm, unsigned long addr, pte_t pte)
 {
 	struct task_struct *p;
 
@@ -117,7 +117,7 @@ extern __inline__ void update_mm_cache_mm_addr(struct mm_struct *mm, unsigned lo
 #define PTRS_PER_PTE    32
 #define PTRS_PER_PMD    1
 #define PTRS_PER_PGD    32
-#define USER_PTRS_PER_PGD	(TASK_SIZE / PGDIR_SHIFT)
+#define USER_PTRS_PER_PGD	(TASK_SIZE/PGDIR_SIZE)
 
 /* Just any arbitrary offset to the start of the vmalloc VM area: the
  * current 8MB value just means that there will be a 8MB "hole" after the
@@ -407,7 +407,8 @@ extern __inline__ void free_pmd_slow(pmd_t *pmd)
 {
 }
 
-extern void __bad_pte(pmd_t *pmd);
+extern void __bad_pmd(pmd_t *pmd);
+extern void __bad_pmd_kernel(pmd_t *pmd);
 
 #define pte_free_kernel(pte)    free_pte_fast(pte)
 #define pte_free(pte)           free_pte_fast(pte)
@@ -427,7 +428,7 @@ extern __inline__ pte_t *pte_alloc(pmd_t * pmd, unsigned long address)
 		return page + address;
 	}
 	if (pmd_bad (*pmd)) {
-		__bad_pte(pmd);
+		__bad_pmd(pmd);
 		return NULL;
 	}
 	return (pte_t *) pmd_page(*pmd) + address;
@@ -463,7 +464,7 @@ extern __inline__ void set_pgdir(unsigned long address, pgd_t entry)
 	}
 	read_unlock(&tasklist_lock);
 	for (pgd = (pgd_t *)pgd_quicklist; pgd; pgd = (pgd_t *)*(unsigned long *)pgd)
-		pgd[address >> PGDIR_SHIFT)] = entry;
+		pgd[address >> PGDIR_SHIFT] = entry;
 }
 
 extern pgd_t swapper_pg_dir[PTRS_PER_PGD];

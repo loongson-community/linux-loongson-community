@@ -1,6 +1,6 @@
-/* $Id: setup.c,v 1.7 1998/05/07 23:44:02 ralf Exp $
+/* $Id: setup.c,v 1.13 1998/08/17 13:57:45 ralf Exp $
  *
- * Setup pointers to hardware dependant routines.
+ * Setup pointers to hardware-dependent routines.
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive

@@ -12,6 +12,7 @@
  * Added decr/incr_console, dynamic keymaps, Unicode support,
  * dynamic function/string keys, led setting,  Sept 1994
  * `Sticky' modifier keys, 951006.
+ *
  * 11-11-96: SAK should now work in the raw mode (Martin Mares)
  * 
  * Modified to provide 'generic' keyboard support by Hamish Macdonald
@@ -19,6 +20,7 @@
  * parts by Geert Uytterhoeven, May 1997
  *
  * 27-05-97: Added support for the Magic SysRq Key (Martin Mares)
+ * 30-07-98: Dead keys redone, aeb@cwi.nl.
  */
 
 #include <linux/config.h>
@@ -58,9 +60,6 @@
 #endif
 
 extern void ctrl_alt_del(void);
-extern void reset_vc(unsigned int new_console);
-extern void scrollback(int);
-extern void scrollfront(int);
 
 struct wait_queue * keypress_wait = NULL;
 struct console;
@@ -104,12 +103,13 @@ typedef void (k_handfn)(unsigned char value, char up_flag);
 
 static k_handfn
 	do_self, do_fn, do_spec, do_pad, do_dead, do_cons, do_cur, do_shift,
-	do_meta, do_ascii, do_lock, do_lowercase, do_slock, do_ignore;
+	do_meta, do_ascii, do_lock, do_lowercase, do_slock, do_dead2,
+	do_ignore;
 
 static k_hand key_handler[16] = {
 	do_self, do_fn, do_spec, do_pad, do_dead, do_cons, do_cur, do_shift,
-	do_meta, do_ascii, do_lock, do_lowercase, do_slock,
-	do_ignore, do_ignore, do_ignore
+	do_meta, do_ascii, do_lock, do_lowercase, do_slock, do_dead2,
+	do_ignore, do_ignore
 };
 
 /* Key types processed even in raw modes */
@@ -138,12 +138,13 @@ const int max_vals[] = {
 	255, SIZE(func_table) - 1, SIZE(spec_fn_table) - 1, NR_PAD - 1,
 	NR_DEAD - 1, 255, 3, NR_SHIFT - 1,
 	255, NR_ASCII - 1, NR_LOCK - 1, 255,
-	NR_LOCK - 1
+	NR_LOCK - 1, 255
 };
 
 const int NR_TYPES = SIZE(max_vals);
 
-static void put_queue(int);
+/* N.B. drivers/macintosh/mac_keyb.c needs to call put_queue */
+void put_queue(int);
 static unsigned char handle_diacr(unsigned char);
 
 /* kbd_pt_regs - set by keyboard_interrupt(), used by show_ptregs() */
@@ -199,7 +200,7 @@ void handle_scancode(unsigned char scancode)
 	mark_bh(CONSOLE_BH);
 	add_keyboard_randomness(scancode);
 
-	tty = ttytab[fg_console];
+	tty = ttytab? ttytab[fg_console]: NULL;
  	kbd = kbd_table + fg_console;
 	if ((raw_mode = (kbd->kbdmode == VC_RAW))) {
  		put_queue(scancode);
@@ -315,7 +316,7 @@ void handle_scancode(unsigned char scancode)
 #ifdef CONFIG_FORWARD_KEYBOARD
 extern int forward_chars;
 
-static void put_queue(int ch)
+void put_queue(int ch)
 {
 	if (forward_chars == fg_console+1){
 		kbd_forward_char (ch);
@@ -323,17 +324,17 @@ static void put_queue(int ch)
 		wake_up(&keypress_wait);
 		if (tty) {
 			tty_insert_flip_char(tty, ch, 0);
-			tty_schedule_flip(tty);
+			con_schedule_flip(tty);
 		}
 	}
 }
 #else
-static void put_queue(int ch)
+void put_queue(int ch)
 {
 	wake_up(&keypress_wait);
 	if (tty) {
 		tty_insert_flip_char(tty, ch, 0);
-		tty_schedule_flip(tty);
+		con_schedule_flip(tty);
 	}
 }
 #endif
@@ -348,7 +349,7 @@ static void puts_queue(char *cp)
 		tty_insert_flip_char(tty, *cp, 0);
 		cp++;
 	}
-	tty_schedule_flip(tty);
+	con_schedule_flip(tty);
 }
 
 static void applkey(int key, char mode)
@@ -362,6 +363,10 @@ static void applkey(int key, char mode)
 
 static void enter(void)
 {
+	if (diacr) {
+		put_queue(diacr);
+		diacr = 0;
+	}
 	put_queue(13);
 	if (vc_kbd_mode(kbd,VC_CRLF))
 		put_queue(10);
@@ -460,7 +465,7 @@ static void send_intr(void)
 	if (!tty)
 		return;
 	tty_insert_flip_char(tty, 0, TTY_BREAK);
-	tty_schedule_flip(tty);
+	con_schedule_flip(tty);
 }
 
 static void scroll_forw(void)
@@ -558,40 +563,48 @@ static void do_self(unsigned char value, char up_flag)
 static unsigned char ret_diacr[NR_DEAD] =
 	{A_GRAVE, A_ACUTE, A_CFLEX, A_TILDE, A_DIAER, A_CEDIL };
 
-/* If a dead key pressed twice, output a character corresponding to it,	*/
-/* otherwise just remember the dead key.				*/
-
+/* Obsolete - for backwards compatibility only */
 static void do_dead(unsigned char value, char up_flag)
+{
+	value = ret_diacr[value];
+	do_dead2(value,up_flag);
+}
+
+/*
+ * Handle dead key. Note that we now may have several
+ * dead keys modifying the same character. Very useful
+ * for Vietnamese.
+ */
+static void do_dead2(unsigned char value, char up_flag)
 {
 	if (up_flag)
 		return;
 
-	value = ret_diacr[value];
-	if (diacr == value) {   /* pressed twice */
-		diacr = 0;
-		put_queue(value);
-		return;
-	}
-	diacr = value;
+	diacr = (diacr ? handle_diacr(value) : value);
 }
 
 
-/* If space is pressed, return the character corresponding the pending	*/
-/* dead key, otherwise try to combine the two.				*/
-
+/*
+ * We have a combining character DIACR here, followed by the character CH.
+ * If the combination occurs in the table, return the corresponding value.
+ * Otherwise, if CH is a space or equals DIACR, return DIACR.
+ * Otherwise, conclude that DIACR was not combining after all,
+ * queue it and return CH.
+ */
 unsigned char handle_diacr(unsigned char ch)
 {
 	int d = diacr;
 	int i;
 
 	diacr = 0;
-	if (ch == ' ')
-		return d;
 
 	for (i = 0; i < accent_table_size; i++) {
 		if (accent_table[i].diacr == d && accent_table[i].base == ch)
 			return accent_table[i].result;
 	}
+
+	if (ch == ' ' || ch == d)
+		return d;
 
 	put_queue(d);
 	return ch;

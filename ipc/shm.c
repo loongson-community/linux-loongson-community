@@ -136,6 +136,7 @@ asmlinkage int sys_shmget (key_t key, int size, int shmflg)
 	struct shmid_ds *shp;
 	int err, id = 0;
 
+	down(&current->mm->mmap_sem);
 	lock_kernel();
 	if (size < 0 || size > SHMMAX) {
 		err = -EINVAL;
@@ -160,6 +161,7 @@ asmlinkage int sys_shmget (key_t key, int size, int shmflg)
 			err = (int) shp->shm_perm.seq * SHMMNI + id;
 	}
 	unlock_kernel();
+	up(&current->mm->mmap_sem);
 	return err;
 }
 
@@ -484,6 +486,7 @@ asmlinkage int sys_shmat (int shmid, char *shmaddr, int shmflg, ulong *raddr)
 	unsigned long addr;
 	unsigned long len;
 
+	down(&current->mm->mmap_sem);
 	lock_kernel();
 	if (shmid < 0) {
 		/* printk("shmat() -> EINVAL because shmid = %d < 0\n",shmid); */
@@ -584,6 +587,7 @@ asmlinkage int sys_shmat (int shmid, char *shmaddr, int shmflg, ulong *raddr)
 	err = 0;
 out:
 	unlock_kernel();
+	up(&current->mm->mmap_sem);
 	return err;
 }
 
@@ -634,6 +638,7 @@ asmlinkage int sys_shmdt (char *shmaddr)
 {
 	struct vm_area_struct *shmd, *shmdnext;
 
+	down(&current->mm->mmap_sem);
 	lock_kernel();
 	for (shmd = current->mm->mmap; shmd; shmd = shmdnext) {
 		shmdnext = shmd->vm_next;
@@ -642,6 +647,7 @@ asmlinkage int sys_shmdt (char *shmaddr)
 			do_munmap(shmd->vm_start, shmd->vm_end - shmd->vm_start);
 	}
 	unlock_kernel();
+	up(&current->mm->mmap_sem);
 	return 0;
 }
 
@@ -720,7 +726,7 @@ done:	/* pte_val(pte) == shp->shm_pages[idx] */
 static unsigned long swap_id = 0; /* currently being swapped */
 static unsigned long swap_idx = 0; /* next to swap */
 
-int shm_swap (int prio, int dma)
+int shm_swap (int prio, int gfp_mask)
 {
 	pte_t page;
 	struct shmid_ds *shp;
@@ -757,7 +763,7 @@ int shm_swap (int prio, int dma)
 	page = __pte(shp->shm_pages[idx]);
 	if (!pte_present(page))
 		goto check_table;
-	if (dma && !PageDMA(&mem_map[MAP_NR(pte_page(page))]))
+	if ((gfp_mask & __GFP_DMA) && !PageDMA(&mem_map[MAP_NR(pte_page(page))]))
 		goto check_table;
 	swap_attempts++;
 

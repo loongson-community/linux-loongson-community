@@ -16,6 +16,8 @@
  * Parport sharing hacking by Andrea Arcangeli <arcangeli@mbox.queen.it>
  * Fixed kernel_(to/from)_user memory copy to check for errors
  * 				by Riccardo Facchetti <fizban@tin.it>
+ * Interrupt handling workaround for printers with buggy handshake
+ *				by Andrea Arcangeli, 11 May 98
  */
 
 /* This driver should, in theory, work with any parallel port that has an
@@ -62,6 +64,23 @@
  * can force it using the parameters described above.
  */
 
+/*
+ * The new interrupt handling code take care of the buggy handshake
+ * of some HP and Epson printer:
+ * ___
+ * ACK    _______________    ___________
+ *                       |__|
+ * ____
+ * BUSY   _________              _______
+ *                 |____________|
+ *
+ * I discovered this using the printer scanner that you can find at:
+ *
+ *	ftp://e-mind.com/pub/linux/pscan/
+ *
+ *					11 May 98, Andrea Arcangeli
+ */
+
 #include <linux/module.h>
 #include <linux/init.h>
 
@@ -93,7 +112,7 @@ struct lp_struct lp_table[LP_NO] =
 #ifdef LP_STATS
 			   0, 0, {0},
 #endif
-			   NULL, 0}
+			   NULL, 0, 0, 0}
 };
 
 /* Test if printer is ready (and optionally has no error conditions) */
@@ -135,8 +154,12 @@ static int lp_preempt(void *handle)
 
 static __inline__ void lp_yield (int minor)
 {
-	if (!parport_yield_blocking (lp_table[minor].dev) && need_resched)
-		schedule ();
+	if (!parport_yield_blocking (lp_table[minor].dev))
+	{
+		if (current->need_resched)
+			schedule ();
+	} else
+		lp_table[minor].irq_missed = 1;
 }
 
 static __inline__ void lp_schedule(int minor)
@@ -145,6 +168,7 @@ static __inline__ void lp_schedule(int minor)
 	register unsigned long int timeslip = (jiffies - dev->time);
 	if ((timeslip > dev->timeslice) && (dev->port->waithead != NULL)) {
 		lp_parport_release(minor);
+		lp_table[minor].irq_missed = 1;
 		schedule ();
 		lp_parport_claim(minor);
 	} else
@@ -165,7 +189,6 @@ static int lp_reset(int minor)
 
 static inline int lp_char(char lpchar, int minor)
 {
-	unsigned char status;
 	unsigned int wait = 0;
 	unsigned long count = 0;
 #ifdef LP_STATS
@@ -175,12 +198,10 @@ static inline int lp_char(char lpchar, int minor)
 	for (;;)
 	{
 		lp_yield(minor);
-		status = r_str (minor);
-		if (LP_READY(minor, status))
+		if (LP_READY(minor, r_str(minor)))
 			break;
-		if (!LP_POLLED(minor) || ++count == LP_CHAR(minor) ||
-		     signal_pending(current))
-			return 0;
+ 		if (++count == LP_CHAR(minor) || signal_pending(current))
+ 			return 0;
 	}
 
 	w_dtr(minor, lpchar);
@@ -205,7 +226,15 @@ static inline int lp_char(char lpchar, int minor)
 	udelay(1);
 #endif
 	/* take strobe low */
-	w_ctr(minor, LP_PSELECP | LP_PINITP);
+	if (LP_POLLED(minor))
+		/* take strobe low */
+		w_ctr(minor, LP_PSELECP | LP_PINITP);
+	else
+	{
+		lp_table[minor].irq_detected = 0;
+		lp_table[minor].irq_missed = 0;
+		w_ctr(minor, LP_PSELECP | LP_PINITP | LP_PINTEN);
+	}
 
 #ifdef LP_STATS
 	/* update waittime statistics */
@@ -231,6 +260,9 @@ static void lp_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 
 	if (waitqueue_active (&lp_dev->wait_q))
 		wake_up_interruptible(&lp_dev->wait_q);
+
+	lp_dev->irq_detected = 1;
+	lp_dev->irq_missed = 0;
 }
 
 static void lp_error(int minor)
@@ -241,10 +273,12 @@ static void lp_error(int minor)
 		lp_parport_release(minor);
 		schedule();
 		lp_parport_claim(minor);
+		lp_table[minor].irq_missed = 1;
 	}
 }
 
-static int lp_check_status(int minor) {
+static int lp_check_status(int minor)
+{
 	unsigned int last = lp_table[minor].last_error;
 	unsigned char status = r_str(minor);
 	if ((status & LP_POUTPA)) {
@@ -282,7 +316,6 @@ static int lp_write_buf(unsigned int minor, const char *buf, int count)
 	unsigned long total_bytes_written = 0;
 	unsigned long bytes_written;
 	struct lp_struct *lp = &lp_table[minor];
-	unsigned char status;
 
 	if (minor >= LP_NO)
 		return -ENXIO;
@@ -290,13 +323,20 @@ static int lp_write_buf(unsigned int minor, const char *buf, int count)
 		return -ENXIO;
 
 	lp_table[minor].last_error = 0;
+	lp_table[minor].irq_detected = 0;
+	lp_table[minor].irq_missed = 1;
+
+	w_ctr(minor, LP_PSELECP | LP_PINITP);
 
 	do {
 		bytes_written = 0;
 		copy_size = (count <= LP_BUFFER_SIZE ? count : LP_BUFFER_SIZE);
 
 		if (copy_from_user(lp->lp_buffer, buf, copy_size))
+		{
+			w_ctr(minor, LP_PSELECP | LP_PINITP);
 			return -EFAULT;
+		}
 
 		while (copy_size) {
 			if (lp_char(lp->lp_buffer[bytes_written], minor)) {
@@ -314,7 +354,9 @@ static int lp_write_buf(unsigned int minor, const char *buf, int count)
 				LP_STAT(minor).sleeps++;
 #endif
 
-				if (signal_pending(current)) {
+				if (signal_pending(current))
+				{
+					w_ctr(minor, LP_PSELECP | LP_PINITP);
 					if (total_bytes_written + bytes_written)
 						return total_bytes_written + bytes_written;
 					else
@@ -325,9 +367,15 @@ static int lp_write_buf(unsigned int minor, const char *buf, int count)
 				lp->runchars = 0;
 #endif
 
-				if (LP_POLLED(minor)) {
-					if (lp_check_status(minor))
-						return rc ? rc : -EIO;
+				if (lp_check_status(minor))
+				{
+					w_ctr(minor, LP_PSELECP | LP_PINITP);
+					return rc ? rc : -EIO;
+				}
+
+				if (LP_POLLED(minor) ||
+				    lp_table[minor].irq_missed)
+				{
 				lp_polling:
 #if defined(LP_DEBUG) && defined(LP_STATS)
 					printk(KERN_DEBUG "lp%d sleeping at %d characters for %d jiffies\n", minor, lp->runchars, LP_TIME(minor));
@@ -342,28 +390,19 @@ static int lp_write_buf(unsigned int minor, const char *buf, int count)
 						/*
 						 * We can' t sleep on the interrupt
 						 * since another pardevice need the port.
+						 * We must check this in a cli() protected
+						 * envinroment to avoid parport sharing
+						 * starvation.
 						 */
 						sti();
 						goto lp_polling;
 					}
-					w_ctr(minor, LP_PSELECP | LP_PINITP | LP_PINTEN);
-					status = r_str(minor);
-					if (!(status & LP_PACK) || (status & LP_PBUSY))
+					if (!lp_table[minor].irq_detected)
 					{
-						/*
-						 * The interrupt is happened in the
-						 * meantime so don' t wait for it.
-						 */
-						w_ctr(minor, LP_PSELECP | LP_PINITP);
-						sti();
-						continue;
+						current->timeout = jiffies + LP_TIMEOUT_INTERRUPT;
+						interruptible_sleep_on(&lp->wait_q);
 					}
-					current->timeout = jiffies + LP_TIMEOUT_INTERRUPT;
-					interruptible_sleep_on(&lp->wait_q);
-					w_ctr(minor, LP_PSELECP | LP_PINITP);
 					sti();
-					if (lp_check_status(minor))
-						return rc ? rc : -EIO;
 				}
 			}
 		}
@@ -374,6 +413,7 @@ static int lp_write_buf(unsigned int minor, const char *buf, int count)
 
 	} while (count > 0);
 
+	w_ctr(minor, LP_PSELECP | LP_PINITP);
 	return total_bytes_written;
 }
 
@@ -459,7 +499,7 @@ static ssize_t lp_read(struct file * file, char * buf,
 			status = (r_str(minor) & 0x40);
 			udelay(50);
 			counter++;
-			if (need_resched)
+			if (current->need_resched)
 				schedule ();
 		} while ((status == 0x40) && (counter < 20));
 		if (counter == 20) { 
@@ -479,7 +519,7 @@ static ssize_t lp_read(struct file * file, char * buf,
 			status=(r_str(minor) & 0x40);
 			udelay(20);
 			counter++;
-			if (need_resched)
+			if (current->need_resched)
 				schedule ();
 		} while ( (status == 0) && (counter < 20) );
 		if (counter == 20) { /* Timeout */
@@ -524,7 +564,7 @@ static int lp_open(struct inode * inode, struct file * file)
 		return -ENXIO;
 	if ((LP_F(minor) & LP_EXIST) == 0)
 		return -ENXIO;
-	if (test_and_set_bit(LP_BUSY_BIT_POS, &LP_F(minor)) & LP_BUSY)
+	if (test_and_set_bit(LP_BUSY_BIT_POS, &LP_F(minor)))
 		return -EBUSY;
 
 	MOD_INC_USE_COUNT;

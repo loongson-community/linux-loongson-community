@@ -10,8 +10,8 @@ kernel release will include these features.
 Please do not report inconsistencies on older Linux
 kernels.
 
-The OPTi 82C931 is supported in its non PnP mode.
-Usually you do not need to set jumpers etc... The sound driver
+The OPTi 82C931 is supported in its non-PnP mode.
+Usually you do not need to set jumpers, etc. The sound driver
 will check the card status and if it is required it will
 force the card into a mode in which it can be programmed.
 
@@ -34,7 +34,7 @@ Answer 'm' for  these items:
   Support for OPTi MAD16 and/or Mozart based cards	 	(CONFIG_MAD16)
   FM synthesizer (YM3812/OPL-3) support				(CONFIG_YM3812)
 
-The configuration menu may ask for addresses, irq lines or dma
+The configuration menu may ask for addresses, IRQ lines or DMA
 channels. If the card is used as a module the module loading
 options will override these values.
 
@@ -49,8 +49,8 @@ Go on and compile your kernel and modules. Install the modules. Run depmod -a.
 
 Using isapnptools
 -----------------
-In most systems with a PnP bios you do not need to use isapnp. The
-initialization provided by the bios is sufficient for the driver
+In most systems with a PnP BIOS you do not need to use isapnp. The
+initialization provided by the BIOS is sufficient for the driver
 to pick up the card and continue initialization.
 
 If that fails, or if you have other PnP cards, you need to use isapnp
@@ -61,8 +61,8 @@ about your PnP cards. Then edit the resulting file and select
 the options of your choice. This file is normally installed as
 /etc/isapnp.conf.
 
-The driver had one limitation WRT io port resources.
-IO3 base should be 0x0E0C. Isapnp allows other io ports but this
+The driver has one limitation with respect to I/O port resources:
+IO3 base must be 0x0E0C.  Although isapnp allows other ports, this
 address is hard-coded into the driver.
 
 Using kmod and autoloading the sound driver
@@ -81,6 +81,14 @@ options sb mad16=1
 options mad16 irq=10 dma=0 dma16=1 io=0x530 joystick=1 cdtype=0
 options opl3 io=0x388
 post-install mad16 /sbin/ad1848_mixer_reroute 14 8 15 3 16 6
+
+If you have an MPU daughtercard or onboard MPU you will want to add to the
+"options mad16" line - eg 
+
+options mad16 irq=5 dma=0 dma16=3 io=0x530 mpu_io=0x330 mpu_irq=9
+
+To set the I/O and IRQ of the MPU.
+
 
 Explain:
 
@@ -117,7 +125,7 @@ options opl3 io=0x388
 post-install mad16 /sbin/ad1848_mixer_reroute 14 8 15 3 16 6
 
 This sets resources and options for the mad16 and opl3 drivers.
-I use 2 dma channels (only one is required) to enable full duplex.
+I use two DMA channels (only one is required) to enable full duplex.
 joystick=1 enables the joystick port. cdtype=0 disables the cd port.
 You can also set mpu_io and mpu_irq in the mad16 options for the
 uart401 driver.
@@ -155,10 +163,10 @@ the mad16 driver (use "modprobe mad16" to prevent auto-unloading)
 before the cdrom is accessed the first time.
 
 Using the sound driver built-in to the kernel may help here, but...
-Most new systems have a PnP bios and also two IDE controllers.
+Most new systems have a PnP BIOS and also two IDE controllers.
 The IDE controller on the sound card may be needed only on older
 systems (which have only one IDE controller) but these systems
-also do not have a PnP bios - requiring isapnptools and a modularized
+also do not have a PnP BIOS - requiring isapnptools and a modularized
 driver.
 
 Known problems

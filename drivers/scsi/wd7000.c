@@ -666,7 +666,7 @@ void wd7000_setup (char *str, int *ints)
 	        configs[wd7000_card_num].bus_on = BUS_ON;
 	    }
 	    else
-	        configs[wd7000_card_num].bus_on = ints[4] / 125.0;
+	        configs[wd7000_card_num].bus_on = ints[4] / 125;
 	}
 	else
 	    configs[wd7000_card_num].bus_on = BUS_ON;
@@ -678,12 +678,12 @@ void wd7000_setup (char *str, int *ints)
 	        configs[wd7000_card_num].bus_off = BUS_OFF;
 	    }
 	    else
-	        configs[wd7000_card_num].bus_off = ints[5] / 125.0;
+	        configs[wd7000_card_num].bus_off = ints[5] / 125;
 	}
 	else
 	    configs[wd7000_card_num].bus_off = BUS_OFF;
 
-	if (wd7000_card_num)
+	if (wd7000_card_num) {
 	    for (i = 0; i < (wd7000_card_num - 1); i++)
 		for (j = i + 1; j < wd7000_card_num; j++)
 		    if (configs[i].irq == configs[j].irq) {
@@ -698,6 +698,7 @@ void wd7000_setup (char *str, int *ints)
 	                setup_error ("duplicated I/O base address!", ints);
 			return;
 		    }
+	}
 
 #ifdef WD7000_DEBUG
 	printk ("wd7000_setup: IRQ=%d, DMA=%d, I/O=0x%x, BUS_ON=%dns, BUS_OFF=%dns\n",
@@ -851,18 +852,18 @@ static inline Scb *alloc_scbs (int needed)
     save_flags (flags);
     cli ();
     while (busy) {		/* someone else is allocating */
-	sti ();			/* Yes this is really needed here */
+	spin_unlock_irq(&io_request_lock);
 	for (now = jiffies; now == jiffies; );	/* wait a jiffy */
-	cli ();
+	spin_lock_irq(&io_request_lock);
     }
     busy = 1;			/* not busy now; it's our turn */
 
     while (freescbs < needed) {
 	timeout = jiffies + WAITnexttimeout;
 	do {
-	    sti ();		/* Yes this is really needed here */
+	    spin_unlock_irq(&io_request_lock);
 	    for (now = jiffies; now == jiffies; );	/* wait a jiffy */
-	    cli ();
+	    spin_lock_irq(&io_request_lock);
 	} while (freescbs < needed && jiffies <= timeout);
 	/*
 	 *  If we get here with enough free Scbs, we can take them.
@@ -1119,7 +1120,7 @@ void wd7000_intr_handle (int irq, void *dev_id, struct pt_regs *regs)
 		return;
 	    }
 	    /* Aaaargh! (Zaga) */
-	    scb = (struct scb *) (scsi2int ((unchar *) icmbs[icmb].scbptr) | PAGE_OFFSET);
+	    scb = bus_to_virt(scsi2int ((unchar *) icmbs[icmb].scbptr));
 	    icmbs[icmb].status = 0;
 	    if (!(scb->op & ICB_OP_MASK)) {	/* an SCB is done */
 		SCpnt = scb->SCpnt;

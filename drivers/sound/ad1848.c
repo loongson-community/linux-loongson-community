@@ -105,7 +105,7 @@ static volatile char irq2dev[17] = {
 	-1, -1, -1, -1, -1, -1, -1, -1, -1
 };
 
-#if defined(CONFIG_SEQUENCER) && !defined(EXCLUDE_TIMERS)
+#if defined(CONFIG_SEQUENCER) && !defined(EXCLUDE_TIMERS) || defined(MODULE)
 
 static int timer_installed = -1;
 
@@ -141,7 +141,7 @@ static void     ad1848_halt_input(int dev);
 static void     ad1848_halt_output(int dev);
 static void     ad1848_trigger(int dev, int bits);
 
-#if (defined(CONFIG_SEQUENCER) && !defined(EXCLUDE_TIMERS)) || defined(MODULE)
+#if defined(CONFIG_SEQUENCER) && !defined(EXCLUDE_TIMERS)
 static int ad1848_tmr_install(int dev);
 static void ad1848_tmr_reprogram(int dev);
 
@@ -1048,7 +1048,7 @@ static int ad1848_prepare_for_output(int dev, int bsize, int bcount)
 	restore_flags(flags);
 	devc->xfer_count = 0;
 
-#if (defined(CONFIG_SEQUENCER) && !defined(EXCLUDE_TIMERS)) || defined(MODULE)
+#if defined(CONFIG_SEQUENCER) && !defined(EXCLUDE_TIMERS)
 	if (dev == timer_installed && devc->timer_running)
 		if ((fs & 0x01) != (old_fs & 0x01))
 		{
@@ -1492,7 +1492,7 @@ int ad1848_detect(int io_base, int *ad_flags, int *osp)
 	}
 
 	/*
-	 * The indirect register I12 has some read only bits. Lets
+	 * The indirect register I12 has some read only bits. Let's
 	 * try to change them.
 	 */
 
@@ -1781,6 +1781,7 @@ int ad1848_init(char *name, int io_base, int irq, int dma_playback, int dma_capt
 	}
 	
 	audio_devs[my_dev]->portc = portc;
+	audio_devs[my_dev]->mixer_dev = -1;
 	memset((char *) portc, 0, sizeof(*portc));
 
 	nr_ad1848_devs++;
@@ -1828,7 +1829,7 @@ int ad1848_init(char *name, int io_base, int irq, int dma_playback, int dma_capt
 	} else if (irq < 0)
 		irq2dev[-irq] = devc->dev_no = my_dev;
 
-#if (defined(CONFIG_SEQUENCER) && !defined(EXCLUDE_TIMERS)) || defined(MODULE)
+#if defined(CONFIG_SEQUENCER) && !defined(EXCLUDE_TIMERS)
 	if (devc->model != MD_1848 &&
 	    devc->model != MD_C930 && devc->irq_ok)
 		ad1848_tmr_install(my_dev);
@@ -1913,7 +1914,7 @@ int ad1848_control(int cmd, int arg)
 
 void ad1848_unload(int io_base, int irq, int dma_playback, int dma_capture, int share_dma)
 {
-	int i, dev = 0;
+	int i, mixer, dev = 0;
 	ad1848_info *devc = NULL;
 
 	for (i = 0; devc == NULL && i < nr_ad1848_devs; i++)
@@ -1941,6 +1942,9 @@ void ad1848_unload(int io_base, int irq, int dma_playback, int dma_capture, int 
 			if (audio_devs[dev]->dmap_in->dma != audio_devs[dev]->dmap_out->dma)
 				sound_free_dma(audio_devs[dev]->dmap_in->dma);
 		}
+		mixer = audio_devs[devc->dev_no]->mixer_dev;
+		if(mixer>=0)
+			sound_unload_mixerdev(mixer);
 	}
 	else
 		printk(KERN_ERR "ad1848: Can't find device to be unloaded. Base=%x\n", io_base);
@@ -2005,7 +2009,7 @@ interrupt_again:		/* Jump back here if int status doesn't reset */
 		if (devc->model != MD_1848 && alt_stat & 0x40)	/* Timer interrupt */
 		{
 			devc->timer_ticks++;
-#if (defined(CONFIG_SEQUENCER) && !defined(EXCLUDE_TIMERS)) || defined(MODULE)
+#if defined(CONFIG_SEQUENCER) && !defined(EXCLUDE_TIMERS)
 			if (timer_installed == dev && devc->timer_running)
 				sound_timer_interrupt();
 #endif
@@ -2279,7 +2283,10 @@ int probe_ms_sound(struct address_info *hw_config)
 		hw_config->card_subtype = 1;
 		return 1;
 	}
-	if (hw_config->irq > 11)
+	if ((hw_config->irq != 7)  &&
+	    (hw_config->irq != 9)  &&
+	    (hw_config->irq != 10) &&
+	    (hw_config->irq != 11))
 	{
 		printk(KERN_ERR "MSS: Bad IRQ %d\n", hw_config->irq);
 		return 0;
@@ -2399,13 +2406,11 @@ void unload_ms_sound(struct address_info *hw_config)
 		      hw_config->irq,
 		      hw_config->dma,
 		      hw_config->dma, 0);
-	if(mixer>=0)
-		sound_unload_mixerdev(mixer);
 	sound_unload_audiodev(hw_config->slots[0]);
 	release_region(hw_config->io_base, 4);
 }
 
-#if (defined(CONFIG_SEQUENCER) && !defined(EXCLUDE_TIMERS)) || defined(MODULE)
+#if defined(CONFIG_SEQUENCER) && !defined(EXCLUDE_TIMERS)
 
 /*
  * Timer stuff (for /dev/music).
@@ -2576,5 +2581,6 @@ void cleanup_module(void)
 	if(loaded)
 		unload_ms_sound(&hw_config);
 }
+
 #endif
 #endif

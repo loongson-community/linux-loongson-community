@@ -132,8 +132,49 @@ struct kbkeycode {
 
 #define KDSIGACCEPT	0x4B4E	/* accept kbd generated signals */
 
+struct hwclk_time {
+	unsigned	sec;	/* 0..59 */
+	unsigned	min;	/* 0..59 */
+	unsigned	hour;	/* 0..23 */
+	unsigned	day;	/* 1..31 */
+	unsigned	mon;	/* 0..11 */
+	unsigned	year;	/* 70... */
+	int		wday;	/* 0..6, 0 is Sunday, -1 means unknown/don't set */
+};
+
+#define KDGHWCLK        0x4B50	/* get hardware clock */
+#define KDSHWCLK        0x4B51  /* set hardware clock */
+
+struct kbd_repeat {
+	int delay;	/* in msec; <= 0: don't change */
+	int rate;	/* in msec; <= 0: don't change */
+};
+
+#define KDKBDREP        0x4B52  /* set keyboard delay/repeat rate;
+				 * actually used values are returned */
+
+#define KDFONTOP	0x4B72	/* font operations */
+
+struct console_font_op {
+	unsigned int op;	/* operation code KD_FONT_OP_* */
+	unsigned int flags;	/* KD_FONT_FLAG_* */
+	unsigned int width, height;	/* font size */
+	unsigned int charcount;
+	unsigned char *data;	/* font data with height fixed to 32 */
+};
+
+#define KD_FONT_OP_SET		0	/* Set font */
+#define KD_FONT_OP_GET		1	/* Get font */
+#define KD_FONT_OP_SET_DEFAULT	2	/* Set font to default, data points to name / NULL */
+#define KD_FONT_OP_COPY		3	/* Copy from another console */
+
+#define KD_FONT_FLAG_DONT_RECALC 	1	/* Don't recalculate hw charcell size [compat] */
+#ifdef __KERNEL__
+#define KD_FONT_FLAG_OLD		0x80000000	/* Invoked via old interface [compat] */
+#endif
+
 /* note: 0x4B00-0x4B4E all have had a value at some time;
    don't reuse for the time being */
-/* note: 0x4B60-0x4B6D, 0x4B70, 0x4B71 used above */
+/* note: 0x4B60-0x4B6D, 0x4B70-0x4B72 used above */
 
 #endif /* _LINUX_KD_H */

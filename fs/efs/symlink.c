@@ -16,8 +16,8 @@
 #include <linux/slab.h>
 #include <asm/uaccess.h>
 
-static int efs_readlink(struct dentry *, char *, int);
-static struct dentry * efs_follow_link(struct dentry *, struct dentry *);
+static int efs_readlink(struct inode *, char *, int);
+static struct dentry * efs_follow_link(struct inode *, struct dentry *);
 
 struct inode_operations efs_symlink_in_ops = {
 	NULL,			/* no file-operations */
@@ -50,10 +50,6 @@ static char *efs_getlinktarget(struct inode *in)
 	__u32 size = in->i_size;
 	__u32 block;
   
-#ifdef DEBUG_EFS_SYMLINK
-	printk("efs_getlinktarget: size of inode %#0lx is %d\n", in->i_ino,
-	       size);
-#endif
 	/* link data longer than 1024 not supported */
 	if(size>2*EFS_BLOCK_SIZE) {
 		printk("efs_getlinktarget: name too long: %lu\n",in->i_size);
@@ -68,7 +64,6 @@ static char *efs_getlinktarget(struct inode *in)
 	block = efs_bmap(in,0);
 	bh = bread(in->i_dev,block,EFS_BLOCK_SIZE);
 	if(!bh) {
-		printk("efs_getlinktarget: unable to read first block (%d)\n", block);
 		kfree(name);
 		return NULL;
 	}
@@ -79,9 +74,8 @@ static char *efs_getlinktarget(struct inode *in)
 	if(size>EFS_BLOCK_SIZE) {
 		bh = bread(in->i_dev,block+1,EFS_BLOCK_SIZE);
 		if(!bh) {
-		  printk("efs_getlinktarget: unable to read second block (%d)\n", block);
-		  kfree(name);
-		  return NULL;
+			kfree(name);
+			return NULL;
 		}
 		memcpy(name+EFS_BLOCK_SIZE,bh->b_data,size-EFS_BLOCK_SIZE);
 		brelse(bh);
@@ -96,14 +90,12 @@ static char *efs_getlinktarget(struct inode *in)
 /* ----- efs_follow_link -----
    get the inode of the link target
 */
-static struct dentry * efs_follow_link(struct dentry * dent,
-				       struct dentry *base)
+static struct dentry * efs_follow_link(struct inode * dir, struct dentry *base)
 {
-  struct inode * dir = dent->d_inode;
 	char * name;
 	UPDATE_ATIME(dir);
 	name = efs_getlinktarget(dir);
-#ifdef DEBUG_EFS_SYMLINK
+#ifdef DEBUG_EFS
 	printk("EFS: efs_getlinktarget(%d) returned \"%s\"\n",
 	       dir->i_ino, name);
 #endif
@@ -115,11 +107,10 @@ static struct dentry * efs_follow_link(struct dentry * dent,
 /* ----- efs_readlink -----
    read the target of a link and return the name
 */
-static int efs_readlink(struct dentry * dent, char * buffer, int buflen)
+static int efs_readlink(struct inode * dir, char * buffer, int buflen)
 {
 	int i;
 	struct buffer_head * bh;
-	struct inode * dir = dent->d_inode;
 
 	if (buflen > 1023)
 		buflen = 1023;
@@ -128,16 +119,16 @@ static int efs_readlink(struct dentry * dent, char * buffer, int buflen)
 		return 0;
 	/* copy the link target to the given buffer */
 	i = 0;
-#ifdef DEBUG_EFS_SYMLINK
+#ifdef DEBUG_EFS
 	printk("EFS: efs_readlink returning ");
 #endif
 	while (i<buflen && bh->b_data[i] && i < dir->i_size) {
-#ifdef DEBUG_EFS_SYMLINK
+#ifdef DEBUG_EFS
 		printk("%c", bh->b_data[i]);
 #endif
 		i++;
 	}
-#ifdef DEBUG_EFS_SYMLINK
+#ifdef DEBUG_EFS
 	printk("\n");
 #endif
 	if (copy_to_user(buffer, bh->b_data, i))

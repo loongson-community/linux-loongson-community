@@ -9,7 +9,7 @@
 #include "sound_config.h"
 #include "soundmodule.h"
 
-#if defined(CONFIG_PAS) || defined(MODULE)
+#ifdef CONFIG_PAS
 
 static unsigned char dma_bits[] = {
 	4, 1, 2, 3, 0, 5, 6, 7
@@ -41,6 +41,16 @@ static int      pas_sb_base = 0;
 static int	joystick = 0;
 #else
 static int 	joystick = 1;
+#endif
+#ifdef SYMPHONY_PAS
+static int 	symphony = 1;
+#else
+static int 	symphony = 0;
+#endif
+#ifdef BROKEN_BUS_CLOCK
+static int	broken_bus_clock = 1;
+#else
+static int	broken_bus_clock = 0;
 #endif
 
 
@@ -89,7 +99,7 @@ static void pasintr(int irq, void *dev_id, struct pt_regs *dummy)
 	}
 	if (status & 0x10)
 	{
-#if defined(CONFIG_MIDI)
+#ifdef CONFIG_MIDI
 		  pas_midi_interrupt();
 #endif
 		  status &= ~0x10;
@@ -199,19 +209,21 @@ static int config_pas_hw(struct address_info *hw_config)
 	 * This fixes the timing problems of the PAS due to the Symphony chipset
 	 * as per Media Vision.  Only define this if your PAS doesn't work correctly.
 	 */
-#ifdef SYMPHONY_PAS
-	outb((0x05), 0xa8);
-	outb((0x60), 0xa9);
-#endif
 
-#ifdef BROKEN_BUS_CLOCK
-	pas_write(0x01 | 0x10 | 0x20 | 0x04, 0x8388);
-#else
-	/*
-	 * pas_write(0x01, 0x8388);
-	 */
-	pas_write(0x01 | 0x10 | 0x20, 0x8388);
-#endif
+	if(symphony)
+	{
+		outb((0x05), 0xa8);
+		outb((0x60), 0xa9);
+	}
+
+	if(broken_bus_clock)
+		pas_write(0x01 | 0x10 | 0x20 | 0x04, 0x8388);
+	else
+		/*
+		 * pas_write(0x01, 0x8388);
+		 */
+		pas_write(0x01 | 0x10 | 0x20, 0x8388);
+
 	pas_write(0x18, 0x838A);	/* ??? */
 	pas_write(0x20 | 0x01, 0x0B8A);		/* Mute off, filter = 17.897 kHz */
 	pas_write(8, 0xBF8A);
@@ -219,7 +231,7 @@ static int config_pas_hw(struct address_info *hw_config)
 	mix_write(0x80 | 5, 0x078B);
 	mix_write(5, 0x078B);
 
-#if !defined(DISABLE_SB_EMULATION) && (defined(CONFIG_SB) || defined(CONFIG_SB_MODULE))
+#if !defined(DISABLE_SB_EMULATION) && defined(CONFIG_SB)
 
 	{
 		struct address_info *sb_config;
@@ -322,7 +334,7 @@ void attach_pas_card(struct address_info *hw_config)
 
 		if ((pas_model = pas_read(0xFF88)))
 		{
-			char temp[100];
+			char            temp[100];
 
 			sprintf(temp,
 			    "%s rev %d", pas_model_names[(int) pas_model],
@@ -335,12 +347,12 @@ void attach_pas_card(struct address_info *hw_config)
 			pas_pcm_init(hw_config);
 #endif
 
-#if !defined(DISABLE_SB_EMULATION) && (defined(CONFIG_SB) || defined(CONFIG_SB_MODULE))
+#if !defined(DISABLE_SB_EMULATION) && defined(CONFIG_SB)
 
 			sb_dsp_disable_midi(pas_sb_base);	/* No MIDI capability */
 #endif
 
-#if defined(CONFIG_MIDI)
+#ifdef CONFIG_MIDI
 			pas_midi_init();
 #endif
 			pas_init_mixer();
@@ -348,14 +360,12 @@ void attach_pas_card(struct address_info *hw_config)
 	}
 }
 
-int
-probe_pas(struct address_info *hw_config)
+int probe_pas(struct address_info *hw_config)
 {
 	return detect_pas_hw(hw_config);
 }
 
-void
-unload_pas(struct address_info *hw_config)
+void unload_pas(struct address_info *hw_config)
 {
 	sound_free_dma(hw_config->dma);
 	free_irq(hw_config->irq, NULL);
@@ -384,13 +394,15 @@ MODULE_PARM(sb_dma,"i");
 MODULE_PARM(sb_dma16,"i");
 
 MODULE_PARM(joystick,"i");
+MODULE_PARM(symphony,"i");
+MODULE_PARM(broken_bus_clock,"i");
 
 struct address_info config;
 struct address_info sbhw_config;
 
 int init_module(void)
 {
-	printk(KERN_INFO "MediaTrix audio driver Copyright (C) by Hannu Savolainen 1993-1996\n");
+	printk(KERN_INFO "Pro Audio Spectrum driver Copyright (C) by Hannu Savolainen 1993-1996\n");
 
 	if (io == -1 || dma == -1 || irq == -1)
 	{

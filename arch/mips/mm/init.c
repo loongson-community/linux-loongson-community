@@ -1,10 +1,10 @@
-/* $Id: init.c,v 1.5 1998/04/05 11:23:54 ralf Exp $
+/* $Id: init.c,v 1.11 1998/08/20 14:38:41 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1994, 1995, 1996, 1997, 1998 by Ralf Baechle
+ * Copyright (C) 1994 - 1998 by Ralf Baechle
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -43,7 +43,62 @@
 extern void deskstation_tyne_dma_init(void);
 extern void show_net_buffers(void);
 
-const char bad_pmd_string[] = "Bad pmd in pte_alloc: %08lx\n";
+void __bad_pte_kernel(pmd_t *pmd)
+{
+	printk("Bad pmd in pte_alloc_kernel: %08lx\n", pmd_val(*pmd));
+	pmd_val(*pmd) = BAD_PAGETABLE;
+}
+
+void __bad_pte(pmd_t *pmd)
+{
+	printk("Bad pmd in pte_alloc: %08lx\n", pmd_val(*pmd));
+	pmd_val(*pmd) = BAD_PAGETABLE;
+}
+
+pte_t *get_pte_kernel_slow(pmd_t *pmd, unsigned long offset)
+{
+	pte_t *page;
+
+	page = (pte_t *) __get_free_page(GFP_KERNEL);
+	if (pmd_none(*pmd)) {
+		if (page) {
+			clear_page((unsigned long)page);
+			pmd_val(*pmd) = (unsigned long)page;
+			return page + offset;
+		}
+		pmd_val(*pmd) = BAD_PAGETABLE;
+		return NULL;
+	}
+	free_page((unsigned long)page);
+	if (pmd_bad(*pmd)) {
+		__bad_pte_kernel(pmd);
+		return NULL;
+	}
+	return (pte_t *) pmd_page(*pmd) + offset;
+}
+
+pte_t *get_pte_slow(pmd_t *pmd, unsigned long offset)
+{
+	pte_t *page;
+
+	page = (pte_t *) __get_free_page(GFP_KERNEL);
+	if (pmd_none(*pmd)) {
+		if (page) {
+			clear_page((unsigned long)page);
+			pmd_val(*pmd) = (unsigned long)page;
+			return page + offset;
+		}
+		pmd_val(*pmd) = BAD_PAGETABLE;
+		return NULL;
+	}
+	free_page((unsigned long)page);
+	if (pmd_bad(*pmd)) {
+		__bad_pte(pmd);
+		return NULL;
+	}
+	return (pte_t *) pmd_page(*pmd) + offset;
+}
+
 
 asmlinkage int sys_cacheflush(void *addr, int bytes, int cache)
 {
@@ -90,6 +145,23 @@ static inline unsigned long setup_zero_pages(void)
 	memset((void *)empty_zero_page, 0, size);
 
 	return size;
+}
+
+int do_check_pgt_cache(int low, int high)
+{
+	int freed = 0;
+
+	if(pgtable_cache_size > high) {
+		do {
+			if(pgd_quicklist)
+				free_pgd_slow(get_pgd_fast()), freed++;
+			if(pmd_quicklist)
+				free_pmd_slow(get_pmd_fast()), freed++;
+			if(pte_quicklist)
+				free_pte_slow(get_pte_fast()), freed++;
+		} while(pgtable_cache_size > low);
+	}
+	return freed;
 }
 
 /*
@@ -251,7 +323,7 @@ static inline void user_page_setup(void)
 void show_mem(void)
 {
 	int i, free = 0, total = 0, reserved = 0;
-	int shared = 0;
+	int shared = 0, cached = 0;
 
 	printk("Mem-info:\n");
 	show_free_areas();
@@ -261,15 +333,19 @@ void show_mem(void)
 		total++;
 		if (PageReserved(mem_map+i))
 			reserved++;
+		else if (PageSwapCache(mem_map+i))
+			cached++;
 		else if (!atomic_read(&mem_map[i].count))
 			free++;
 		else
 			shared += atomic_read(&mem_map[i].count) - 1;
 	}
 	printk("%d pages of RAM\n", total);
-	printk("%d free pages\n", free);
 	printk("%d reserved pages\n", reserved);
 	printk("%d pages shared\n", shared);
+	printk("%d pages swap cached\n",cached);
+	printk("%ld pages in page table cache\n",pgtable_cache_size);
+	printk("%d free pages\n", free);
 	show_buffers();
 #ifdef CONFIG_NET
 	show_net_buffers();
@@ -280,7 +356,9 @@ extern unsigned long free_area_init(unsigned long, unsigned long);
 
 __initfunc(unsigned long paging_init(unsigned long start_mem, unsigned long end_mem))
 {
+	/* Initialize the entire pgd.  */
 	pgd_init((unsigned long)swapper_pg_dir);
+	pgd_init((unsigned long)swapper_pg_dir + PAGE_SIZE / 2);
 	return free_area_init(start_mem, end_mem);
 }
 

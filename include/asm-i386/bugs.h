@@ -2,6 +2,11 @@
  *  include/asm-i386/bugs.h
  *
  *  Copyright (C) 1994  Linus Torvalds
+ *
+ *  Cyrix stuff, June 1998 by:
+ *	- Rafael R. Reilova (moved everything from head.S),
+ *	- Channing Corn (tests & fixes),
+ *	- Andrew D. Balsa (code cleanup).
  */
 
 /*
@@ -13,10 +18,6 @@
 
 #include <linux/config.h>
 #include <asm/processor.h>
-
-#ifdef CONFIG_MTRR
-#  include <asm/mtrr.h>
-#endif
 
 #define CONFIG_BUGi386
 
@@ -41,7 +42,7 @@ __initfunc(static void copro_timeout(void))
 	timer_table[COPRO_TIMER].expires = jiffies+100;
 	timer_active |= 1<<COPRO_TIMER;
 	printk(KERN_ERR "387 failed: trying to reset\n");
-	send_sig(SIGFPE, last_task_used_math, 1);
+	send_sig(SIGFPE, current, 1);
 	outb_p(0,0xf1);
 	outb_p(0,0xf0);
 }
@@ -83,7 +84,7 @@ __initfunc(static void check_fpu(void))
 	if (fpu_error)
 		return;
 	if (!ignore_irq13) {
-		printk("Ok, fpu using old IRQ13 error reporting\n");
+		printk("OK, FPU using old IRQ 13 error reporting\n");
 		return;
 	}
 	__asm__("fninit\n\t"
@@ -98,9 +99,9 @@ __initfunc(static void check_fpu(void))
 		: "=m" (*&boot_cpu_data.fdiv_bug)
 		: "m" (*&x), "m" (*&y));
 	if (!boot_cpu_data.fdiv_bug)
-		printk("Ok, fpu using exception 16 error reporting.\n");
+		printk("OK, FPU using exception 16 error reporting.\n");
 	else
-		printk("Hmm, fpu using exception 16 error reporting with FDIV bug.\n");
+		printk("Hmm, FPU using exception 16 error reporting with FDIV bug.\n");
 }
 
 __initfunc(static void check_hlt(void))
@@ -111,7 +112,7 @@ __initfunc(static void check_hlt(void))
 		return;
 	}
 	__asm__ __volatile__("hlt ; hlt ; hlt ; hlt");
-	printk("Ok.\n");
+	printk("OK.\n");
 }
 
 __initfunc(static void check_tlb(void))
@@ -145,9 +146,9 @@ __initfunc(static void check_popad(void))
 	  : "=eax" (res)
 	  : "edx" (inp)
 	  : "eax", "ecx", "edx", "edi" );
-	/* If this fails, it means that any user program may lock CPU hard. Too bad. */
+	/* If this fails, it means that any user program may lock the CPU hard. Too bad. */
 	if (res != 12345678) printk( "Buggy.\n" );
-		        else printk( "Ok.\n" );
+		        else printk( "OK.\n" );
 #endif
 }
 
@@ -156,7 +157,7 @@ __initfunc(static void check_popad(void))
  *	misexecution of code under Linux. Owners of such processors should
  *	contact AMD for precise details and a CPU swap.
  *
- *	See	http://www.chorus.com/~poulot/k6bug.html
+ *	See	http://www.mygale.com/~poulot/k6bug.html
  *		http://www.amd.com/K6/k6docs/revgd.html
  *
  *	The following test is erm.. interesting. AMD neglected to up
@@ -202,7 +203,7 @@ __initfunc(static void check_amd_k6(void))
 			printk("system stability may be impaired when more than 32 MB are used.\n");
 		else 
 			printk("probably OK (after B9730xxxx).\n");
-		printk(KERN_INFO "Please see http://www.chorus.com/poulot/k6bug.html\n");
+		printk(KERN_INFO "Please see http://www.mygale.com/~poulot/k6bug.html\n");
 	}
 }
 
@@ -226,13 +227,102 @@ __initfunc(static void check_pentium_f00f(void))
 	}
 }
 
+/*
+ * Perform the Cyrix 5/2 test. A Cyrix won't change
+ * the flags, while other 486 chips will.
+ */
+
+static inline int test_cyrix_52div(void)
+{
+	unsigned int test;
+
+	__asm__ __volatile__(
+	     "sahf\n\t"		/* clear flags (%eax = 0x0005) */
+	     "div %b2\n\t"	/* divide 5 by 2 */
+	     "lahf"		/* store flags into %ah */
+	     : "=a" (test)
+	     : "0" (5), "q" (2)
+	     : "cc");
+
+	/* AH is 0x02 on Cyrix after the divide.. */
+	return (unsigned char) (test >> 8) == 0x02;
+}
+
+/*
+ * Cyrix CPUs without cpuid or with cpuid not yet enabled can be detected
+ * by the fact that they preserve the flags across the division of 5/2.
+ * PII and PPro exhibit this behavior too, but they have cpuid available.
+ */
+
+__initfunc(static void check_cyrix_cpu(void))
+{
+	if ((boot_cpu_data.cpuid_level == -1) && (boot_cpu_data.x86 == 4)
+	    && test_cyrix_52div()) {
+
+		/* default to an unknown Cx486, (we will differentiate later) */
+		/* NOTE:  using 0xff since 0x00 is a valid DIR0 value */
+		strcpy(boot_cpu_data.x86_vendor_id, "CyrixInstead");
+		boot_cpu_data.x86_model = 0xff;
+		boot_cpu_data.x86_mask = 0;
+	}
+}
+
+/*
+ * Fix two problems with the Cyrix 6x86 and 6x86L:
+ *   -- the cpuid is disabled on power up, enable it, use it.
+ *   -- the SLOP bit needs resetting on some motherboards due to old BIOS,
+ *      so that the udelay loop calibration works well.  Recalibrate.
+ */
+
+extern void calibrate_delay(void) __init;
+
+__initfunc(static void check_cx686_cpuid_slop(void))
+{
+	if (boot_cpu_data.x86_vendor == X86_VENDOR_CYRIX &&
+	    (boot_cpu_data.x86_model & 0xf0) == 0x30) {  /* 6x86(L) */
+		int dummy;
+		unsigned char ccr3, ccr4, ccr5;
+
+		cli();
+		ccr3 = getCx86(CX86_CCR3);
+		setCx86(CX86_CCR3, (ccr3 & 0x0f) | 0x10);      /* enable MAPEN  */
+		ccr4 = getCx86(CX86_CCR4);
+		setCx86(CX86_CCR4, ccr4 | 0x80);               /* enable cpuid  */
+		ccr5 = getCx86(CX86_CCR5);
+		if (ccr5 & 2)   /* reset SLOP if needed, old BIOS do this wrong */
+			setCx86(CX86_CCR5, ccr5 & 0xfd);
+		setCx86(CX86_CCR3, ccr3);                      /* disable MAPEN */
+		sti();
+
+		boot_cpu_data.cpuid_level = 1;  /* should cover all 6x86(L) */
+		boot_cpu_data.x86 = 5;
+
+		/* we know we have level 1 available on the 6x86(L) */
+		cpuid(1, &dummy, &dummy, &dummy,
+		      &boot_cpu_data.x86_capability);
+		/*
+		 * DON'T use the x86_mask and x86_model from cpuid, these are
+		 * not as accurate (or the same) as those from the DIR regs.
+		 * already in place after cyrix_model() in setup.c
+		 */
+
+		if (ccr5 & 2) { /* possible wrong calibration done */
+			printk(KERN_INFO "Recalibrating delay loop with SLOP bit reset\n");
+			calibrate_delay();
+			boot_cpu_data.loops_per_sec = loops_per_sec;
+		}
+	}
+}
+
 __initfunc(static void check_bugs(void))
 {
+	check_cyrix_cpu();
 	identify_cpu(&boot_cpu_data);
 #ifndef __SMP__
 	printk("CPU: ");
 	print_cpu_info(&boot_cpu_data);
 #endif
+	check_cx686_cpuid_slop();
 	check_tlb();
 	check_fpu();
 	check_hlt();
@@ -240,10 +330,4 @@ __initfunc(static void check_bugs(void))
 	check_amd_k6();
 	check_pentium_f00f();
 	system_utsname.machine[1] = '0' + boot_cpu_data.x86;
-#if !defined(__SMP__) && defined(CONFIG_MTRR)
-	/*  Must be done after other processors booted: at this point we are
-	    called before SMP initialisation, so this is for the non-SMP case
-	    only. The SMP case is handled in arch/i386/kernel/smp.c  */
-	mtrr_init ();
-#endif
 }

@@ -24,8 +24,11 @@ L_OBJS   := tty_io.o n_tty.o tty_ioctl.o mem.o random.o
 LX_OBJS  := pty.o
 
 ifdef CONFIG_VT
-L_OBJS += console.o vt.o vc_screen.o consolemap.o consolemap_deftbl.o
-LX_OBJS += selection.o
+L_OBJS += vt.o vc_screen.o consolemap.o consolemap_deftbl.o
+LX_OBJS += console.o selection.o
+endif
+ifdef CONFIG_FB
+  LX_OBJS += fbmem.o
 endif
 
 ifeq ($(CONFIG_SERIAL),y)
@@ -249,6 +252,16 @@ ifdef CONFIG_SGI_GRAPHICS
 M = y
 endif
 
+ifeq ($(CONFIG_MACMOUSE),y)
+M = y
+L_OBJS += macmouse.o
+else
+  ifeq ($(CONFIG_MACMOUSE),m)
+    M_OBJS += macmouse.o
+    MM = m
+  endif
+endif
+
 ifdef CONFIG_SUN_MOUSE
 M = y
 endif
@@ -309,26 +322,30 @@ else
 endif
 
 ifeq ($(CONFIG_BUS_I2C),y)
-	LX_OBJS += i2c.o
+	L_I2C=y
 else
   ifeq ($(CONFIG_BUS_I2C),m)
-	MX_OBJS += i2c.o
+	M_I2C=y
   endif
 endif
 
 ifeq ($(CONFIG_VIDEO_BT848),y)
 L_OBJS += bttv.o msp3400.o tuner.o
+L_I2C=y
 else
   ifeq ($(CONFIG_VIDEO_BT848),m)
     M_OBJS += bttv.o msp3400.o tuner.o
+    M_I2C=y
   endif
 endif
 
 ifeq ($(CONFIG_VIDEO_SAA5249),y)
 L_OBJS += saa5249.o
+L_I2C=y
 else
   ifeq ($(CONFIG_VIDEO_SAA5249),m)
     M_OBJS += saa5249.o
+    M_I2C=y
   endif
 endif
 
@@ -356,12 +373,37 @@ else
   endif
 endif
 
-ifeq ($(CONFIG_MISC_RADIO),y)
-L_OBJS += radio.o
-  ifeq ($(CONFIG_RADIO_RTRACK),y)
-  L_OBJS += rtrack.o
+ifeq ($(CONFIG_RADIO_AZTECH),y)
+L_OBJS += radio-aztech.o
+else
+  ifeq ($(CONFIG_RADIO_AZTECH),m)
+  M_OBJS += radio-aztech.o
   endif
-endif
+endif                                             
+
+ifeq ($(CONFIG_RADIO_SF16FMI),y)
+L_OBJS += radio-sf16fmi.o
+else
+  ifeq ($(CONFIG_RADIO_SF16FMI),m)
+  M_OBJS += radio-sf16fmi.o
+  endif
+endif                                             
+
+ifeq ($(CONFIG_RADIO_RTRACK),y)
+L_OBJS += radio-aimslab.o
+else
+  ifeq ($(CONFIG_RADIO_RTRACK),m)
+  M_OBJS += radio-aimslab.o
+  endif
+endif                                             
+
+ifeq ($(CONFIG_RADIO_ZOLTRIX),y)
+L_OBJS += radio-zoltrix.o
+else
+  ifeq ($(CONFIG_RADIO_ZOLTRIX),m)
+  M_OBJS += radio-zoltrix.o
+  endif
+endif                                             
 
 ifeq ($(CONFIG_QIC02_TAPE),y)
 L_OBJS += tpqic02.o
@@ -401,15 +443,14 @@ else
   endif
 endif
 
-ifdef CONFIG_VT
- ifdef CONFIG_TGA_CONSOLE
- L_OBJS += tga.o
- else
-   ifdef CONFIG_VGA_CONSOLE
-   L_OBJS += vga.o vesa_blank.o
-   endif
- endif
+ifeq ($(L_I2C),y)
+LX_OBJS += i2c.o
+else
+  ifeq ($(M_I2C),y)
+  MX_OBJS += i2c.o
+  endif
 endif
+
 
 ifeq ($(CONFIG_HFMODEM),y)
 ALL_SUB_DIRS += hfmodem
@@ -427,7 +468,7 @@ include $(TOPDIR)/Rules.make
 fastdep:
 
 conmakehash: conmakehash.c
-	$(HOSTCC) -o conmakehash conmakehash.c
+	$(HOSTCC) $(HOSTCFLAGS) -o conmakehash conmakehash.c
 
 consolemap_deftbl.c: $(FONTMAPFILE) conmakehash
 	./conmakehash $(FONTMAPFILE) > consolemap_deftbl.c

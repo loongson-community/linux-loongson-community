@@ -1,7 +1,7 @@
 /*
  *	NET3	IP device support routines.
  *
- *	Version: $Id: devinet.c,v 1.4 1998/03/17 22:18:21 ralf Exp $
+ *	Version: $Id: devinet.c,v 1.22 1998/05/08 21:06:26 davem Exp $
  *
  *		This program is free software; you can redistribute it and/or
  *		modify it under the terms of the GNU General Public License
@@ -1014,10 +1014,10 @@ __initfunc(void inet_del_bootp_addr(struct device *dev))
 
 __initfunc(void devinet_init(void))
 {
-	register_gifconf(AF_INET, inet_gifconf);
+	register_gifconf(PF_INET, inet_gifconf);
 	register_netdevice_notifier(&ip_netdev_notifier);
 #ifdef CONFIG_RTNETLINK
-	rtnetlink_links[AF_INET] = inet_rtnetlink_table;
+	rtnetlink_links[PF_INET] = inet_rtnetlink_table;
 #endif
 #ifdef CONFIG_SYSCTL
 	devinet_sysctl.sysctl_header =

@@ -112,7 +112,7 @@ static int qc_calibrate(struct qcam_device *q)
 	do {
 		qc_command(q, 33);
 		value = qc_readparam(q);
-		udelay(1000);
+		mdelay(1);
 		schedule();
 		count++;
 	} while (value == 0xff && count<2048);
@@ -296,7 +296,7 @@ static int qc_detect(struct qcam_device *q)
 		if (reg != lastreg)
 			count++;
 		lastreg = reg;
-		udelay(1000);
+		mdelay(1);
 	}
 
 	/* Be liberal in what you accept...  */
@@ -842,6 +842,7 @@ static struct video_device qcam_template=
 	qcam_close,
 	qcam_read,
 	qcam_write,
+	NULL,
 	qcam_ioctl,
 	NULL,
 	qcam_init_done,

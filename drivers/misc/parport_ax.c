@@ -1,4 +1,4 @@
-/* $Id: parport_ax.c,v 1.5 1998/01/10 18:28:39 ecd Exp $
+/* $Id: parport_ax.c,v 1.12 1998/07/26 03:03:31 davem Exp $
  * Parallel-port routines for Sun Ultra/AX architecture
  * 
  * Author: Eddie C. Dost <ecd@skynet.be>
@@ -27,6 +27,7 @@
 #include <asm/io.h>
 #include <asm/ebus.h>
 #include <asm/ns87303.h>
+#include <asm/irq.h>
 
 
 /*
@@ -39,7 +40,8 @@
 #define DATA		0x00
 #define STATUS		0x01
 #define CONTROL		0x02
-#define EPPREG		0x04
+#define EPPADDR		0x03
+#define EPPDATA		0x04
 
 #define CFIFO		0x400
 #define DFIFO		0x400
@@ -57,13 +59,36 @@ parport_ax_null_intr_func(int irq, void *dev_id, struct pt_regs *regs)
 void
 parport_ax_write_epp(struct parport *p, unsigned char d)
 {
-	outb(d, p->base + EPPREG);
+	outb(d, p->base + EPPDATA);
 }
 
 unsigned char
 parport_ax_read_epp(struct parport *p)
 {
-	return inb(p->base + EPPREG);
+	return inb(p->base + EPPDATA);
+}
+
+void
+parport_ax_write_epp_addr(struct parport *p, unsigned char d)
+{
+	outb(d, p->base + EPPADDR);
+}
+
+unsigned char
+parport_ax_read_epp_addr(struct parport *p)
+{
+	return inb(p->base + EPPADDR);
+}
+
+int parport_ax_epp_clear_timeout(struct parport *pb);
+
+int 
+parport_ax_check_epp_timeout(struct parport *p)
+{
+	if (!(inb(p->base+STATUS) & 1))
+		return 0;
+	parport_ax_epp_clear_timeout(p);
+	return 1;
 }
 
 unsigned char
@@ -208,6 +233,13 @@ parport_ax_claim_resources(struct parport *p)
 }
 
 void
+parport_ax_init_state(struct parport_state *s)
+{
+	s->u.pc.ctr = 0xc;
+	s->u.pc.ecr = 0x0;
+}
+
+void
 parport_ax_save_state(struct parport *p, struct parport_state *s)
 {
 	s->u.pc.ctr = parport_ax_read_control(p);
@@ -271,6 +303,16 @@ parport_ax_dec_use_count(void)
 #endif
 }
 
+static void parport_ax_fill_inode(struct inode *inode, int fill)
+{
+#ifdef MODULE
+	if (fill)
+		MOD_INC_USE_COUNT;
+	else
+		MOD_DEC_USE_COUNT;
+#endif
+}
+
 static struct parport_operations parport_ax_ops = 
 {
 	parport_ax_write_data,
@@ -295,12 +337,19 @@ static struct parport_operations parport_ax_ops =
 	parport_ax_release_resources,
 	parport_ax_claim_resources,
 	
+	parport_ax_write_epp,
+	parport_ax_read_epp,
+	parport_ax_write_epp_addr,
+	parport_ax_read_epp_addr,
+	parport_ax_check_epp_timeout,
+
 	parport_ax_epp_write_block,
 	parport_ax_epp_read_block,
 
 	parport_ax_ecp_write_block,
 	parport_ax_ecp_read_block,
 	
+	parport_ax_init_state,
 	parport_ax_save_state,
 	parport_ax_restore_state,
 
@@ -309,13 +358,34 @@ static struct parport_operations parport_ax_ops =
 	parport_ax_examine_irq,
 
 	parport_ax_inc_use_count,
-	parport_ax_dec_use_count
+	parport_ax_dec_use_count,
+	parport_ax_fill_inode
 };
 
 
 /******************************************************
  *  MODE detection section:
  */
+
+/*
+ * Clear TIMEOUT BIT in EPP MODE
+ */
+int parport_ax_epp_clear_timeout(struct parport *pb)
+{
+	unsigned char r;
+
+	if (!(parport_ax_read_status(pb) & 0x01))
+		return 1;
+
+	/* To clear timeout some chips require double read */
+	parport_ax_read_status(pb);
+	r = parport_ax_read_status(pb);
+	parport_ax_write_status(pb, r | 0x01); /* Some reset by writing 1 */
+	parport_ax_write_status(pb, r & 0xfe); /* Others by writing 0 */
+	r = parport_ax_read_status(pb);
+
+	return !(r & 0x01);
+}
 
 /* Check for ECP
  *
@@ -490,7 +560,7 @@ init_one_port(struct linux_ebus_device *dev)
 	if (!(p = parport_register_port(base, irq, dma, &parport_ax_ops)))
 		return 0;
 
-	/* Safe away pointer to our EBus DMA */
+	/* Save away pointer to our EBus DMA */
 	p->private_data = (void *)dev->base_address[2];
 
 	p->modes = PARPORT_MODE_PCSPP | parport_PS2_supported(p);
@@ -506,7 +576,7 @@ init_one_port(struct linux_ebus_device *dev)
 
 	printk(KERN_INFO "%s: PC-style at 0x%lx", p->name, p->base);
 	if (p->irq != PARPORT_IRQ_NONE)
-		printk(", irq %x", (unsigned int)p->irq);
+		printk(", irq %s", __irq_itoa(p->irq));
 	if (p->dma != PARPORT_DMA_NONE)
 		printk(", dma %d", p->dma);
 	printk(" [");
@@ -542,9 +612,12 @@ __initfunc(int parport_ax_init(void))
 	struct linux_ebus_device *edev;
 	int count = 0;
 
-	for_all_ebusdev(edev, ebus)
-		if (!strcmp(edev->prom_name, "ecpp"))
-			count += init_one_port(edev);
+	for_each_ebus(ebus) {
+		for_each_ebusdev(edev, ebus) {
+			if (!strcmp(edev->prom_name, "ecpp"))
+				count += init_one_port(edev);
+		}
+	}
 	return count ? 0 : -ENODEV;
 }
 

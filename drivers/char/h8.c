@@ -1,6 +1,4 @@
 /*
- */
-/*
  * Hitachi H8/337 Microcontroller driver
  *
  * The H8 is used to deal with the power and thermal environment
@@ -27,6 +25,7 @@
 #include <linux/miscdevice.h>
 #include <linux/lists.h>
 #include <linux/ioport.h>
+#include <linux/poll.h>
 
 #define __KERNEL_SYSCALLS__
 #include <asm/unistd.h>
@@ -54,12 +53,6 @@
 int          h8_init(void);
 int          h8_display_blank(void);
 int          h8_display_unblank(void);
-
-static int   h8_open(struct inode *, struct file *);
-static void  h8_release(struct inode *, struct file *);
-static long  h8_read(struct inode *, struct file *, char *, u_long);
-static int   h8_select(struct inode *, struct file *, int, select_table *);
-static int   h8_ioctl(struct inode *, struct file *, u_int, u_long);
 
 static void  h8_intr(int irq, void *dev_id, struct pt_regs *regs);
 
@@ -113,14 +106,14 @@ static char  driver_version[] = "X0.0";/* no spaces */
 
 static struct file_operations h8_fops = {
         NULL,           /* lseek */
-        h8_read,
+        NULL,
         NULL,           /* write */
         NULL,           /* readdir */
-        h8_select,
-        h8_ioctl,
+        NULL,
+        NULL,
         NULL,           /* mmap */
-        h8_open,
-        h8_release,
+        NULL,
+        NULL,
         NULL,           /* fsync */
         NULL            /* fasync */
 };
@@ -328,7 +321,7 @@ int init_module(void)
         request_region(h8_base, 8, "h8");
 
 #ifdef CONFIG_PROC_FS
-        proc_register_dynamic(&proc_root, &h8_proc_entry);
+        proc_register(&proc_root, &h8_proc_entry);
 #endif
 
 	QUEUE_INIT(&h8_actq, link, h8_cmd_q_t *);
@@ -362,7 +355,7 @@ int h8_init(void)
         printk("H8 at 0x%x IRQ %d\n", h8_base, h8_irq);
 
 #ifdef CONFIG_PROC_FS
-        proc_register_dynamic(&proc_root, &h8_proc_entry);
+        proc_register(&proc_root, &h8_proc_entry);
 #endif
 
         misc_register(&h8_device);
@@ -438,38 +431,6 @@ int h8_get_info(char *buf, char **start, off_t fpos, int length, int dummy)
         return p - buf;
 }
 #endif
-
-static long h8_read(struct inode *inode, struct file *fp, char *buf,
-		    u_long count)
-{
-	printk("h8_read: IMPDEL\n");
-	return 0;
-}
-
-static int h8_select(struct inode *inode, struct file *fp, int sel_type,
-                     select_table * wait)
-{
-	printk("h8_select: IMPDEL\n");
-	return 0;
-}
-
-static int h8_ioctl(struct inode * inode, struct file *filp,
-                    u_int cmd, u_long arg)
-{
-	printk("h8_ioctl: IMPDEL\n");
-	return 0;
-}
-
-static void h8_release(struct inode * inode, struct file * filp)
-{
-	printk("h8_release: IMPDEL\n");
-}
-
-static int h8_open(struct inode * inode, struct file * filp)
-{
-	printk("h8_open: IMPDEL\n");
-	return 0;
-}
 
 /* Called from console driver -- must make sure h8_enabled. */
 int h8_display_blank(void)
@@ -775,7 +736,7 @@ h8_cmd_done(h8_cmd_q_t *qp)
 
 	case H8_RD_SN:
 	case H8_RD_ENET_ADDR:
-	    printk("H8: Read ethernet addr - command done - address: %x - %x - %x - %x - %x - %x \n", 
+	    printk("H8: read Ethernet address: command done - address: %x - %x - %x - %x - %x - %x \n", 
 		   qp->rcvbuf[0], qp->rcvbuf[1], qp->rcvbuf[2],
 		   qp->rcvbuf[3], qp->rcvbuf[4], qp->rcvbuf[5]);
 	    QUEUE_ENTER(&h8_freeq, qp, link, h8_cmd_q_t *);
@@ -908,7 +869,7 @@ h8_cmd_done(h8_cmd_q_t *qp)
 }
 
 /*
- * Retrieve the current cpu temperature and case temperature.  Provides
+ * Retrieve the current CPU temperature and case temperature.  Provides
  * the feedback for the thermal control algorithm.  Synchcronized via 
  * sleep() for priority so that no other actions in the process will take
  * place before the data becomes available.
@@ -954,7 +915,7 @@ h8_get_max_temp(void)
 /*
  * Assigns an upper limit to the value of the H8 thermal interrupt.
  * As an example setting a value of 115 F here will cause the 
- * interrupt to trigger when the cpu temperature reaches 115 F.
+ * interrupt to trigger when the CPU temperature reaches 115 F.
  */
 static void
 h8_set_upper_therm_thold(int thold)
@@ -1072,7 +1033,7 @@ h8_monitor_thread(void * unused)
 
 		/*
 		 * If an external DC supply is removed or added make 
-		 * appropriate cpu speed adjustments.
+		 * appropriate CPU speed adjustments.
 		 */
                 if (h8_event_mask & H8_MANAGE_BATTERY) {
                           h8_run_level_3_manage(H8_RUN); 
@@ -1106,7 +1067,7 @@ h8_manage_therm(void)
 		h8_set_cpu_speed(h8_udamp); 
                 h8_clear_event_mask(H8_MANAGE_UTHERM);
                 h8_set_event_mask(H8_MANAGE_LTHERM);
-                /* Check again in 30 seconds for cpu temperature */
+                /* Check again in 30 seconds for CPU temperature */
                 h8_start_monitor_timer(H8_TIMEOUT_INTERVAL); 
         } else if (h8_event_mask & H8_MANAGE_LTHERM) {
 		/* See how cool the system has become as a result
@@ -1116,7 +1077,7 @@ h8_manage_therm(void)
                 if (curr_temp[0] < (h8_uthermal_threshold - h8_uthermal_window))
 		{
 			/* System cooling has progressed to a point
-			   that the cpu may be speeded up. */
+			   that the CPU may be sped up. */
                         h8_set_upper_therm_thold(h8_uthermal_threshold);
                         h8_set_cpu_speed(h8_ldamp); /* adjustable */ 
                         if(h8_debug & 0x10)
@@ -1144,7 +1105,7 @@ h8_set_cpu_speed(int speed_divisor)
 /*
  * global_rpb_counter is consumed by alpha_delay() in determining just
  * how much time to delay.  It is necessary that the number of microseconds
- * in DELAY(n) be kept consistent over a variety of cpu clock speeds.
+ * in DELAY(n) be kept consistent over a variety of CPU clock speeds.
  * To that end global_rpb_counter is here adjusted.
  */ 
         
@@ -1183,7 +1144,7 @@ h8_set_cpu_speed(int speed_divisor)
 }
 
 /*
- * Gets value stored in rpb representing cpu clock speed and adjusts this
+ * Gets value stored in rpb representing CPU clock speed and adjusts this
  * value based on the current clock speed divisor.
  */
 u_long

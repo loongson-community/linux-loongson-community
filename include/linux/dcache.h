@@ -50,6 +50,8 @@ static __inline__ unsigned int full_name_hash(const char * name, unsigned int le
 	return end_name_hash(hash);
 }
 
+#define DNAME_INLINE_LEN 16
+
 struct dentry {
 	int d_count;
 	unsigned int d_flags;
@@ -68,6 +70,7 @@ struct dentry {
 	struct super_block * d_sb;	/* The root of the dentry tree */
 	unsigned long d_reftime;	/* last time referenced */
 	void * d_fsdata;		/* fs-specific data */
+	unsigned char d_iname[DNAME_INLINE_LEN]; /* small names */
 };
 
 struct dentry_operations {
@@ -114,6 +117,11 @@ static __inline__ void d_drop(struct dentry * dentry)
 	INIT_LIST_HEAD(&dentry->d_hash);
 }
 
+static __inline__ int dname_external(struct dentry *d)
+{
+	return d->d_name.name != d->d_iname; 
+}
+
 /*
  * These are the low-level FS interfaces to the dcache..
  */
@@ -137,6 +145,9 @@ extern void free_inode_memory(int);	/* defined in fs/inode.c */
 
 /* only used at mount-time */
 extern struct dentry * d_alloc_root(struct inode * root_inode, struct dentry * old_root);
+
+/* test whether root is busy without destroying dcache */
+extern int is_root_busy(struct dentry *);
 
 /*
  * This adds the entry to the hash queues and initializes "d_inode".

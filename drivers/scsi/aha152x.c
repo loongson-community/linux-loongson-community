@@ -613,11 +613,12 @@ static inline Scsi_Cmnd *remove_SC(Scsi_Cmnd **SC, int target, int lun)
       prev = ptr, ptr = (Scsi_Cmnd *) ptr->host_scribble)
     ;
 
-  if(ptr)
+  if(ptr){
     if(prev)
       prev->host_scribble = ptr->host_scribble;
     else
       *SC= (Scsi_Cmnd *) ptr->host_scribble;
+  }
 
   return ptr;
 }
@@ -991,7 +992,7 @@ int aha152x_detect(Scsi_Host_Template * tpnt)
 
     aha152x_reset_ports(shpnt);
       
-    printk("aha152x%d: vital data: PORTBASE=0x%03x, IRQ=%d, SCSI ID=%d,"
+    printk("aha152x%d: vital data: PORTBASE=0x%03lx, IRQ=%d, SCSI ID=%d,"
            " reconnect=%s, parity=%s, synchronous=%s, delay=%d, extended translation=%s\n",
            i,
            shpnt->io_port,
@@ -1271,7 +1272,7 @@ int aha152x_abort(Scsi_Cmnd *SCpnt)
     HOSTDATA(shpnt)->aborting++;
     HOSTDATA(shpnt)->abortion_complete=0;
 
-    sti();  /* Hi Eric, guess what ;-) */
+    restore_flags(flags);
 
     /* sleep until the abortion is complete */
     while(!HOSTDATA(shpnt)->abortion_complete)
@@ -1556,7 +1557,7 @@ void aha152x_intr(int irqno, void *dev_id, struct pt_regs * regs)
      intr(). To avoid race conditions, we have to return
      immediately afterwards. */
   CLRBITS(DMACNTRL0, INTEN);
-  sti();  /* Yes, sti() really needs to be here */
+  /* sti();  FIXME!!! Yes, sti() really needs to be here if we want to lock up */
 
   /* disconnected target is trying to reconnect.
      Only possible, if we have disconnected nexuses and
@@ -1727,7 +1728,7 @@ void aha152x_intr(int irqno, void *dev_id, struct pt_regs * regs)
 
   /* we are waiting for the result of a selection attempt */
   if(CURRENT_SC->SCp.phase & in_selection) {
-    if(TESTLO(SSTAT1, SELTO))
+    if(TESTLO(SSTAT1, SELTO)) {
       /* no timeout */
       if(TESTHI(SSTAT0, SELDO)) {
         /* clear BUS FREE interrupt */
@@ -1803,7 +1804,7 @@ void aha152x_intr(int irqno, void *dev_id, struct pt_regs * regs)
         return;
       } else
         aha152x_panic(shpnt, "neither timeout nor selection\007");
-    else {
+    } else {
 #if defined(DEBUG_SELECTION) || defined(DEBUG_PHASES)
       if(HOSTDATA(shpnt)->debug & (debug_selection|debug_phases))
         printk("SELTO, ");
@@ -3175,7 +3176,7 @@ int aha152x_proc_info(char *buffer, char **start,
   save_flags(flags);
   cli();
   
-  SPRINTF("ioports 0x%04x to 0x%04x\n",
+  SPRINTF("ioports 0x%04lx to 0x%04lx\n",
           shpnt->io_port, shpnt->io_port+shpnt->n_io_port-1);
   SPRINTF("interrupt 0x%02x\n", shpnt->irq);
   SPRINTF("disconnection/reconnection %s\n", 

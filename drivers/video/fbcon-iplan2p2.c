@@ -1,7 +1,7 @@
 /*
- *  linux/drivers/video/iplan2p2.c -- Low level frame buffer operations for
- *				      interleaved bitplanes à la Atari (2
- *				      planes, 2 bytes interleave)
+ *  linux/drivers/video/fbcon-iplan2p2.c -- Low level frame buffer operations
+ *				  for interleaved bitplanes à la Atari (2
+ *				  planes, 2 bytes interleave)
  *
  *	Created 5 Apr 1997 by Geert Uytterhoeven
  *
@@ -10,11 +10,11 @@
  *  more details.
  */
 
+#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/tty.h>
 #include <linux/console.h>
 #include <linux/string.h>
-#include <linux/config.h>
 #include <linux/fb.h>
 
 #include <asm/byteorder.h>
@@ -52,7 +52,7 @@ static inline void movepw(u8 *d, u16 val)
 }
 
 /* Sets the bytes in the visible column at d, height h, to the value
- * val for a 2 plane screen. The the bis of the color in 'color' are
+ * val for a 2 plane screen. The bits of the color in 'color' are
  * moved (8 times) to the respective bytes. This means:
  *
  * for(h times; d += bpr)
@@ -306,13 +306,11 @@ void fbcon_iplan2p2_putc(struct vc_data *conp, struct display *p, int c,
     int bytes = p->next_line;
     u16 eorx, fgx, bgx, fdx;
 
-    c &= 0xff;
-
     dest = p->screen_base + yy * p->fontheight * bytes + (xx>>1)*4 + (xx & 1);
-    cdat = p->fontdata + (c * p->fontheight);
+    cdat = p->fontdata + (c & p->charmask) * p->fontheight;
 
-    fgx = expand2w(COLOR_2P(attr_fgcol(p,conp)));
-    bgx = expand2w(COLOR_2P(attr_bgcol(p,conp)));
+    fgx = expand2w(COLOR_2P(attr_fgcol(p,c)));
+    bgx = expand2w(COLOR_2P(attr_bgcol(p,c)));
     eorx = fgx ^ bgx;
 
     for (rows = p->fontheight ; rows-- ; dest += bytes) {
@@ -322,22 +320,23 @@ void fbcon_iplan2p2_putc(struct vc_data *conp, struct display *p, int c,
 }
 
 void fbcon_iplan2p2_putcs(struct vc_data *conp, struct display *p,
-			  const char *s, int count, int yy, int xx)
+			  const unsigned short *s, int count, int yy, int xx)
 {
     u8 *dest, *dest0;
-    u8 *cdat, c;
+    u8 *cdat;
+    u16 c;
     int rows;
     int bytes;
     u16 eorx, fgx, bgx, fdx;
 
     bytes = p->next_line;
     dest0 = p->screen_base + yy * p->fontheight * bytes + (xx>>1)*4 + (xx & 1);
-    fgx = expand2w(COLOR_2P(attr_fgcol(p,conp)));
-    bgx = expand2w(COLOR_2P(attr_bgcol(p,conp)));
+    fgx = expand2w(COLOR_2P(attr_fgcol(p,*s)));
+    bgx = expand2w(COLOR_2P(attr_bgcol(p,*s)));
     eorx = fgx ^ bgx;
 
     while (count--) {
-	c = *s++;
+	c = *s++ & p->charmask;
 	cdat  = p->fontdata + (c * p->fontheight);
 
 	for (rows = p->fontheight, dest = dest0; rows-- ; dest += bytes) {
@@ -376,8 +375,20 @@ void fbcon_iplan2p2_revc(struct display *p, int xx, int yy)
 
 struct display_switch fbcon_iplan2p2 = {
     fbcon_iplan2p2_setup, fbcon_iplan2p2_bmove, fbcon_iplan2p2_clear,
-    fbcon_iplan2p2_putc, fbcon_iplan2p2_putcs, fbcon_iplan2p2_revc
+    fbcon_iplan2p2_putc, fbcon_iplan2p2_putcs, fbcon_iplan2p2_revc, NULL,
+    NULL, NULL, FONTWIDTH(8)
 };
+
+
+#ifdef MODULE
+int init_module(void)
+{
+    return 0;
+}
+
+void cleanup_module(void)
+{}
+#endif /* MODULE */
 
 
     /*

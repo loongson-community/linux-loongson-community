@@ -1,6 +1,6 @@
 /* sound_config.h
  *
- * A driver for Soundcards, misc configuration parameters.
+ * A driver for sound cards, misc. configuration parameters.
  */
 /*
  * Copyright (C) by Hannu Savolainen 1993-1997
@@ -10,12 +10,17 @@
  * for more info.
  */
 
-#include <linux/fs.h>
-#include "local.h.master"
+
+#ifndef  _SOUND_CONFIG_H_
+#define  _SOUND_CONFIG_H_
+
 #include <linux/config.h>
+#include <linux/fs.h>
+#include <linux/sound.h>
+
+#include "legacy.h"
 #include "os.h"
 #include "soundvers.h"
-
 
 
 #ifndef SND_DEFAULT_ENABLE
@@ -181,3 +186,5 @@ extern __inline__ int translate_mode(struct file *file)
 
 #define TIMER_ARMED	121234
 #define TIMER_NOT_ARMED	1
+
+#endif

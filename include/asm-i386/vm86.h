@@ -60,7 +60,7 @@
 #define VM86_GET_AND_RESET_IRQ	6
 
 /*
- * This is the stack-layout seen by the user space programm when we have
+ * This is the stack-layout seen by the user space program when we have
  * done a translation of "SAVE_ALL" from vm86 mode. The real kernel layout
  * is 'kernel_vm86_regs' (see below).
  */
@@ -193,7 +193,7 @@ struct kernel_vm86_struct {
  * this way. In front of 'return-eip' may be some data, depending on
  * compilation, so we don't rely on this and save the pointer to 'oldregs'
  * in 'regs32' above.
- * However, with GCC-2.7.2 and the the current CFLAGS you see exactly this:
+ * However, with GCC-2.7.2 and the current CFLAGS you see exactly this:
 
 	long return-eip;        from call to vm86()
 	struct pt_regs oldregs;  user space registers as saved by syscall

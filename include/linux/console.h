@@ -14,9 +14,8 @@
 #ifndef _LINUX_CONSOLE_H_
 #define _LINUX_CONSOLE_H_ 1
 
-#define NPAR 16
-
 struct vc_data;
+struct console_font_op;
 
 /*
  * this is what the terminal answers to a ESC-Z or csi0c query.
@@ -24,26 +23,37 @@ struct vc_data;
 #define VT100ID "\033[?1;2c"
 #define VT102ID "\033[?6c"
 
-/* DPC: 1994-04-13 !!! con_putcs is new entry !!! */
-
 struct consw {
-	unsigned long (*con_startup)(unsigned long, const char **);
-	void   (*con_init)(struct vc_data *);
-	int    (*con_deinit)(struct vc_data *);
-	int    (*con_clear)(struct vc_data *, int, int, int, int);
-	int    (*con_putc)(struct vc_data *, int, int, int);
-	int    (*con_putcs)(struct vc_data *, const char *, int, int, int);
-	int    (*con_cursor)(struct vc_data *, int);
-	int    (*con_scroll)(struct vc_data *, int, int, int, int);
-	int    (*con_bmove)(struct vc_data *, int, int, int, int, int, int);
-	int    (*con_switch)(struct vc_data *);
-	int    (*con_blank)(int);
-	int    (*con_get_font)(struct vc_data *, int *, int *, char *);
-	int    (*con_set_font)(struct vc_data *, int, int, char *);
-	int    (*con_set_palette)(struct vc_data *, unsigned char *);
+	const char *(*con_startup)(void);
+	void	(*con_init)(struct vc_data *, int);
+	void	(*con_deinit)(struct vc_data *);
+	void	(*con_clear)(struct vc_data *, int, int, int, int);
+	void	(*con_putc)(struct vc_data *, int, int, int);
+	void	(*con_putcs)(struct vc_data *, const unsigned short *, int, int, int);
+	void	(*con_cursor)(struct vc_data *, int);
+	int	(*con_scroll)(struct vc_data *, int, int, int, int);
+	void	(*con_bmove)(struct vc_data *, int, int, int, int, int, int);
+	int	(*con_switch)(struct vc_data *);
+	int	(*con_blank)(struct vc_data *, int);
+	int	(*con_font_op)(struct vc_data *, struct console_font_op *);
+	int	(*con_set_palette)(struct vc_data *, unsigned char *);
+	int	(*con_scrolldelta)(struct vc_data *, int);
+	int	(*con_set_origin)(struct vc_data *);
+	void	(*con_save_screen)(struct vc_data *);
+	u8	(*con_build_attr)(struct vc_data *, u8, u8, u8, u8, u8);
+	void	(*con_invert_region)(struct vc_data *, u16 *, int);
 };
 
 extern struct consw *conswitchp;
+
+extern struct consw dummy_con;		/* dummy console buffer */
+extern struct consw fb_con;		/* frame buffer based console */
+extern struct consw vga_con;		/* VGA text console */
+extern struct consw newport_con;	/* SGI Newport console  */
+extern struct consw compat_con;		/* console wrapper */
+extern struct consw prom_con;		/* SPARC PROM console */
+
+void take_over_console(struct consw *sw, int first, int last, int deflt);
 
 /* flag bits */
 #define CON_INITED  (1)
@@ -58,9 +68,6 @@ extern struct consw *conswitchp;
 #define CM_DRAW     (1)
 #define CM_ERASE    (2)
 #define CM_MOVE     (3)
-
-struct tty_struct;
-int tioclinux(struct tty_struct *tty, unsigned long arg);
 
 /*
  *	Array of consoles built from command line options (console=)
@@ -102,4 +109,10 @@ extern void register_console(struct console *);
 extern int unregister_console(struct console *);
 extern struct console *console_drivers;
 
-#endif /* linux/console.h */
+/* VESA Blanking Levels */
+#define VESA_NO_BLANKING        0
+#define VESA_VSYNC_SUSPEND      1
+#define VESA_HSYNC_SUSPEND      2
+#define VESA_POWERDOWN          3
+
+#endif /* _LINUX_CONSOLE_H */

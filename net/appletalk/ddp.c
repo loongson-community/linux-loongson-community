@@ -1,6 +1,6 @@
 /*
- *	DDP:	An implementation of the Appletalk DDP protocol for
- *		ethernet 'ELAP'.
+ *	DDP:	An implementation of the AppleTalk DDP protocol for
+ *		Ethernet 'ELAP'.
  *
  *		Alan Cox  <Alan.Cox@linux.org>
  *
@@ -18,17 +18,17 @@
  *		Alan Cox		:	Added firewall hooks.
  *		Alan Cox		:	Supports new ARPHRD_LOOPBACK
  *		Christer Weinigel	: 	Routing and /proc fixes.
- *		Bradford Johnson	:	Localtalk.
+ *		Bradford Johnson	:	LocalTalk.
  *		Tom Dyas		:	Module support.
  *		Alan Cox		:	Hooks for PPP (based on the
- *						localtalk hook).
+ *						LocalTalk hook).
  *		Alan Cox		:	Posix bits
  *		Alan Cox/Mike Freeman	:	Possible fix to NBP problems
  *		Bradford Johnson	:	IP-over-DDP (experimental)
  *		Jay Schulist		:	Moved IP-over-DDP to its own
  *						driver file. (ipddp.c & ipddp.h)
  *		Jay Schulist		:	Made work as module with 
- *						Appletalk drivers, cleaned it.
+ *						AppleTalk drivers, cleaned it.
  *
  *		This program is free software; you can redistribute it and/or
  *		modify it under the terms of the GNU General Public License
@@ -197,7 +197,7 @@ int atalk_get_info(char *buffer, char **start, off_t offset, int length, int dum
 	off_t begin=0;
 
 	/*
-	 * Output the appletalk data for the /proc virtual fs.
+	 * Output the AppleTalk data for the /proc filesystem.
 	 */
 
 	len += sprintf(buffer,"Type local_addr  remote_addr tx_queue rx_queue st uid\n");
@@ -241,7 +241,7 @@ int atalk_get_info(char *buffer, char **start, off_t offset, int length, int dum
 
 /**************************************************************************\
 *                                                                          *
-* Routing tables for the Appletalk socket layer.                           *
+* Routing tables for the AppleTalk socket layer.                           *
 *                                                                          *
 \**************************************************************************/
 
@@ -250,11 +250,11 @@ static struct atalk_iface *atalk_iface_list  = NULL;
 static struct atalk_route atrtr_default; /* For probing devices or in a routerless network */
 
 /*
- * Appletalk interface control
+ * AppleTalk interface control
  */
 
 /*
- * Drop a device. Doesn't drop any of its routes - that is the the callers
+ * Drop a device. Doesn't drop any of its routes - that is the caller's
  * problem. Called when we down the interface or delete the address.
  */
 static void atif_drop_device(struct device *dev)
@@ -476,7 +476,7 @@ static struct atalk_iface *atalk_find_interface(int net, int node)
 
 
 /*
- * Find a route for an appletalk packet. This ought to get cached in
+ * Find a route for an AppleTalk packet. This ought to get cached in
  * the socket (later on...). We know about host routes and the fact
  * that a route must be direct to broadcast.
  */
@@ -504,7 +504,7 @@ static struct atalk_route *atrtr_find(struct at_addr *target)
 
 
 /*
- * Given an appletalk network find the device to use. This can be
+ * Given an AppleTalk network, find the device to use. This can be
  * a simple lookup.
  */
 struct device *atrtr_get_dev(struct at_addr *sa)
@@ -732,8 +732,8 @@ int atif_ioctl(int cmd, void *arg)
 			nr=(struct netrange *)&sa->sat_zero[0];
 
 			/*
-			 * Phase 1 is fine on Localtalk but we don't do
-			 * Ethertalk phase 1. Anyone wanting to add it go ahead.
+			 * Phase 1 is fine on LocalTalk but we don't do
+			 * EtherTalk phase 1. Anyone wanting to add it go ahead.
 			 */
 			if(dev->type == ARPHRD_ETHER && nr->nr_phase != 2)
 				return (-EPROTONOSUPPORT);
@@ -947,7 +947,7 @@ int atalk_rt_get_info(char *buffer, char **start, off_t offset, int length, int 
 /**************************************************************************\
 *                                                                          *
 * Handling for system calls applied via the various interfaces to an       *
-* Appletalk socket object.                                                 *
+* AppleTalk socket object.                                                 *
 *                                                                          *
 \**************************************************************************/
 
@@ -990,7 +990,7 @@ static int atalk_create(struct socket *sock, int protocol)
 {
 	struct sock *sk;
 
-	sk = sk_alloc(AF_APPLETALK, GFP_KERNEL, 1);
+	sk = sk_alloc(PF_APPLETALK, GFP_KERNEL, 1);
 	if(sk == NULL)
 		return (-ENOMEM);
 
@@ -1201,7 +1201,7 @@ static int atalk_accept(struct socket *sock, struct socket *newsock, int flags)
 }
 
 /*
- * Find the name of an appletalk socket. Just copy the right
+ * Find the name of an AppleTalk socket. Just copy the right
  * fields into the sockaddr.
  */
 static int atalk_getname(struct socket *sock, struct sockaddr *uaddr,
@@ -1254,6 +1254,7 @@ static int atalk_rcv(struct sk_buff *skb, struct device *dev, struct packet_type
 	struct atalk_iface *atif;
 	struct sockaddr_at tosat;
         int origlen;
+        struct ddpebits ddphv;
 
 	/* Size check */
 	if(skb->len < sizeof(*ddp))
@@ -1272,7 +1273,7 @@ static int atalk_rcv(struct sk_buff *skb, struct device *dev, struct packet_type
 	 *	run until we put it back)
 	 */
 
-	*((__u16 *)ddp) = ntohs(*((__u16 *)ddp));
+	*((__u16 *)&ddphv) = ntohs(*((__u16 *)ddp));
 
 	/*
 	 * Trim buffer in case of stray trailing data
@@ -1280,7 +1281,7 @@ static int atalk_rcv(struct sk_buff *skb, struct device *dev, struct packet_type
 
 	origlen = skb->len;
 
-	skb_trim(skb, min(skb->len, ddp->deh_len));
+	skb_trim(skb, min(skb->len, ddphv.deh_len));
 
 	/*
 	 * Size check to see if ddp->deh_len was crap
@@ -1297,14 +1298,14 @@ static int atalk_rcv(struct sk_buff *skb, struct device *dev, struct packet_type
 	 * Any checksums. Note we don't do htons() on this == is assumed to be
 	 * valid for net byte orders all over the networking code...
 	 */
-	if(ddp->deh_sum && atalk_checksum(ddp, ddp->deh_len) != ddp->deh_sum)
+	if(ddp->deh_sum && atalk_checksum(ddp, ddphv.deh_len) != ddp->deh_sum)
 	{
-		/* Not a valid appletalk frame - dustbin time */
+		/* Not a valid AppleTalk frame - dustbin time */
 		kfree_skb(skb);
 		return (0);
 	}
 
-	if(call_in_firewall(AF_APPLETALK, skb->dev, ddp, NULL,&skb)!=FW_ACCEPT)
+	if(call_in_firewall(PF_APPLETALK, skb->dev, ddp, NULL,&skb)!=FW_ACCEPT)
 	{
 		kfree_skb(skb);
 		return (0);
@@ -1318,7 +1319,7 @@ static int atalk_rcv(struct sk_buff *skb, struct device *dev, struct packet_type
 		atif = atalk_find_interface(ddp->deh_dnet, ddp->deh_dnode);
 
 	/* 
-	 * Not ours, so we route the packet via the correct Appletalk interface.
+	 * Not ours, so we route the packet via the correct AppleTalk interface.
 	 */
 	if(atif == NULL)
 	{
@@ -1338,7 +1339,7 @@ static int atalk_rcv(struct sk_buff *skb, struct device *dev, struct packet_type
 		/*
 		 * Check firewall allows this routing
 		 */
-		if(call_fw_firewall(AF_APPLETALK, skb->dev, ddp, NULL, &skb) != FW_ACCEPT)
+		if(call_fw_firewall(PF_APPLETALK, skb->dev, ddp, NULL, &skb) != FW_ACCEPT)
 		{
 			kfree_skb(skb);
 			return (0);
@@ -1349,12 +1350,12 @@ static int atalk_rcv(struct sk_buff *skb, struct device *dev, struct packet_type
 
 		/* Route the packet */
 		rt = atrtr_find(&ta);
-		if(rt == NULL || ddp->deh_hops == DDP_MAXHOPS)
+		if(rt == NULL || ddphv.deh_hops == DDP_MAXHOPS)
 		{
 			kfree_skb(skb);
 			return (0);
 		}
-		ddp->deh_hops++;
+		ddphv.deh_hops++;
 
 		/*
 		 * Route goes through another gateway, so
@@ -1368,16 +1369,16 @@ static int atalk_rcv(struct sk_buff *skb, struct device *dev, struct packet_type
 
                 /* Fix up skb->len field */
                 skb_trim(skb, min(origlen, rt->dev->hard_header_len +
-			ddp_dl->header_length + ddp->deh_len));
+			ddp_dl->header_length + ddphv.deh_len));
 
 		/* Mend the byte order */
-		*((__u16 *)ddp) = ntohs(*((__u16 *)ddp));
+		*((__u16 *)ddp) = ntohs(*((__u16 *)&ddphv));
 
 		/*
 		 * Send the buffer onwards
 		 *
 		 * Now we must always be careful. If it's come from 
-		 * localtalk to ethertalk it might not fit
+		 * LocalTalk to EtherTalk it might not fit
 		 *
 		 * Order matters here: If a packet has to be copied
 		 * to make a new headroom (rare hopefully) then it
@@ -1452,16 +1453,13 @@ static int atalk_rcv(struct sk_buff *skb, struct device *dev, struct packet_type
 	skb->sk = sock;
 
 	if(sock_queue_rcv_skb(sock, skb) < 0)
-	{
-		skb->sk = NULL;
 		kfree_skb(skb);
-	}
 
 	return (0);
 }
 
 /*
- * Receive a localtalk frame. We make some demands on the caller here.
+ * Receive a LocalTalk frame. We make some demands on the caller here.
  * Caller must provide enough headroom on the packet to pull the short
  * header and append a long one.
  */
@@ -1611,8 +1609,8 @@ static int atalk_sendmsg(struct socket *sock, struct msghdr *msg, int len,
 	skb = sock_alloc_send_skb(sk, size, 0, flags&MSG_DONTWAIT, &err);
 	if(skb == NULL)
 		return (err);
-
-	skb->sk  = sk;
+	
+	skb->sk = sk;
 	skb_reserve(skb, ddp_dl->header_length);
 	skb_reserve(skb, dev->hard_header_len);
 
@@ -1652,7 +1650,7 @@ static int atalk_sendmsg(struct socket *sock, struct msghdr *msg, int len,
 	else
 		ddp->deh_sum = atalk_checksum(ddp, len + sizeof(*ddp));
 
-	if(call_out_firewall(AF_APPLETALK, skb->dev, ddp, NULL, &skb) != FW_ACCEPT)
+	if(call_out_firewall(PF_APPLETALK, skb->dev, ddp, NULL, &skb) != FW_ACCEPT)
 	{
 		kfree_skb(skb);
 		return (-EPERM);
@@ -1714,18 +1712,22 @@ static int atalk_recvmsg(struct socket *sock, struct msghdr *msg, int size,
 	struct sock *sk=sock->sk;
 	struct sockaddr_at *sat=(struct sockaddr_at *)msg->msg_name;
 	struct ddpehdr	*ddp = NULL;
+        struct ddpebits ddphv;
 	int copied = 0;
 	struct sk_buff *skb;
 	int err = 0;
+
 
 	skb = skb_recv_datagram(sk,flags&~MSG_DONTWAIT,flags&MSG_DONTWAIT,&err);
 	if(skb == NULL)
 		return (err);
 
 	ddp = (struct ddpehdr *)(skb->h.raw);
+	*((__u16 *)&ddphv) = ntohs(*((__u16 *)ddp));
+
 	if(sk->type == SOCK_RAW)
 	{
-		copied = ddp->deh_len;
+		copied = ddphv.deh_len;
 		if(copied > size)
 		{
 			copied = size;
@@ -1736,7 +1738,7 @@ static int atalk_recvmsg(struct socket *sock, struct msghdr *msg, int size,
 	}
 	else
 	{
-		copied = ddp->deh_len - sizeof(*ddp);
+		copied = ddphv.deh_len - sizeof(*ddp);
 		if(copied > size)
 		{
 			copied = size;
@@ -1768,7 +1770,7 @@ static int atalk_shutdown(struct socket *sk,int how)
 }
 
 /*
- * Appletalk ioctl calls.
+ * AppleTalk ioctl calls.
  */
 static int atalk_ioctl(struct socket *sock,unsigned int cmd, unsigned long arg)
 {
@@ -1859,13 +1861,13 @@ static int atalk_ioctl(struct socket *sock,unsigned int cmd, unsigned long arg)
 
 static struct net_proto_family atalk_family_ops=
 {
-	AF_APPLETALK,
+	PF_APPLETALK,
 	atalk_create
 };
 
 static struct proto_ops atalk_dgram_ops=
 {
-	AF_APPLETALK,
+	PF_APPLETALK,
 
 	sock_no_dup,
 	atalk_release,
@@ -1913,7 +1915,7 @@ struct packet_type ppptalk_packet_type=
 static char ddp_snap_id[] = {0x08, 0x00, 0x07, 0x80, 0x9B};
 
 /*
- * Export symbols for use by drivers when Appletalk is a module.
+ * Export symbols for use by drivers when AppleTalk is a module.
  */
 EXPORT_SYMBOL(aarp_send_ddp);
 EXPORT_SYMBOL(atrtr_get_dev);
@@ -1972,7 +1974,7 @@ __initfunc(void atalk_proto_init(struct net_proto *pro))
 	atalk_register_sysctl();
 #endif /* CONFIG_SYSCTL */
 
-	printk(KERN_INFO "Appletalk 0.18 for Linux NET3.037\n");
+	printk(KERN_INFO "AppleTalk 0.18 for Linux NET3.037\n");
 }
 
 #ifdef MODULE
@@ -1989,10 +1991,10 @@ int init_module(void)
  * Use counts are incremented/decremented when
  * sockets are created/deleted.
  *
- * Appletalk interfaces are not incremented untill atalkd is run
+ * AppleTalk interfaces are not incremented untill atalkd is run
  * and are only decremented when they are downed.
  *
- * Ergo, before the appletalk module can be removed, all Appletalk
+ * Ergo, before the AppleTalk module can be removed, all AppleTalk
  * sockets be closed from user space.
  */
 
@@ -2014,7 +2016,7 @@ void cleanup_module(void)
 	dev_remove_pack(&ltalk_packet_type);
 	dev_remove_pack(&ppptalk_packet_type);
 	unregister_snap_client(ddp_snap_id);
-	sock_unregister(atalk_family_ops.family);
+	sock_unregister(PF_APPLETALK);
 
 	return;
 }

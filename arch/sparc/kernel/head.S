@@ -1,4 +1,4 @@
-/* $Id: head.S,v 1.90 1998/03/24 18:12:05 jj Exp $
+/* $Id: head.S,v 1.92 1998/06/10 07:21:55 davem Exp $
  * head.S: The initial boot code for the Sparc port of Linux.
  *
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
@@ -403,7 +403,7 @@ C_LABEL(trapbase_cpu3):
 	BAD_TRAP(0xfc) BAD_TRAP(0xfd) BAD_TRAP(0xfe) BAD_TRAP(0xff)
 
 #endif
-	.align 4096
+	.align PAGE_SIZE
 
 /* This was the only reasonable way I could think of to properly align
  * these page-table data structures.
@@ -585,7 +585,7 @@ srmmu_remap:
 		bnz	srmmu_nviking			! is in mbus mode
 		 nop
 		
-		rd	%psr, %g3			! DONT TOUCH %g3
+		rd	%psr, %g3			! DO NOT TOUCH %g3
 		andn	%g3, PSR_ET, %g2
 		wr	%g2, 0x0, %psr
 		WRITE_PAUSE
@@ -596,10 +596,10 @@ srmmu_remap:
 		set	AC_M_CTPR, %g4
 		lda	[%g4] ASI_M_MMUREGS, %g4
 		sll	%g4, 0x4, %g4			! We use this below
-							! DONT TOUCH %g4
+							! DO NOT TOUCH %g4
 
 		/* Set the AC bit in the Viking's MMU control reg. */
-		lda	[%g0] ASI_M_MMUREGS, %g5	! DONT TOUCH %g5
+		lda	[%g0] ASI_M_MMUREGS, %g5	! DO NOT TOUCH %g5
 		set	0x8000, %g6			! AC bit mask
 		or	%g5, %g6, %g6			! Or it in...
 		sta	%g6, [%g0] ASI_M_MMUREGS	! Close your eyes...
@@ -1040,7 +1040,7 @@ sun4c_continue_boot:
  * No, it doesn't work, have to play the save/readCWP/restore trick.
  */
 
-		wr	%g0, 0x0, %wim			! so we dont get a trap
+		wr	%g0, 0x0, %wim			! so we do not get a trap
 		WRITE_PAUSE
 
 		save

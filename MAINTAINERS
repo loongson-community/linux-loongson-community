@@ -84,7 +84,7 @@ S:	Maintained
 
 8390 NETWORK DRIVERS [WD80x3/SMC-ELITE, SMC-ULTRA, NE2000, 3C503, etc.]
 P:	Paul Gortmaker
-M	gpg109@rsphy1.anu.edu.au
+M:	gpg109@rsphy1.anu.edu.au
 L:	linux-net@vger.rutgers.edu
 S:	Maintained
 W:	http://rsphy1.anu.edu.au/~gpg109/ne2000.html
@@ -107,8 +107,8 @@ L:	linux-scsi@vger.rutgers.edu
 S:	Maintained
 
 APM DRIVER
-P:	Rik Faith & Stephen Rothwell
-M:	faith@cs.unc.edu, Stephen.Rothwell@canb.auug.org.au
+P:	Stephen Rothwell
+M:	Stephen.Rothwell@canb.auug.org.au
 L:	linux-laptop@vger.rutgers.edu
 S:	Maintained
 
@@ -277,7 +277,7 @@ S:	Maintainted
 
 HIGH-SPEED SCC DRIVER FOR AX.25
 P:	Klaus Kudielka
-M:	oe1kib@oe1xtu.ampr.org
+M:	oe1kib@oe1kib.ampr.org
 L:	linux-hams@vger.rutgers.edu
 S:	Maintained
 
@@ -290,7 +290,7 @@ IDE DRIVER [GENERAL]
 P:	Mark Lord
 M:	mlord@pobox.com
 L:	linux-kernel@vger.rutgers.edu
-S:	Maintained
+S:	Odd Fixes
 
 IDE/ATAPI CDROM DRIVER 
 P:	Erik Andersen
@@ -304,11 +304,23 @@ M:	Gadi Oxman <gadio@netvision.net.il>
 L:	linux-kernel@vger.rutgers.edu
 S:	Maintained
 
-IPX NETWORK LAYER
-P:	
-M:
-L:	
-S:	Orphan
+IP FIREWALL
+P:	Paul Russell
+M:	Paul.Russell@rustcorp.com.au
+W:	http://www.adelaide.net.au/~rustcorp/ipfwchains/ipfwchains.html
+S:	Maintained
+
+IP FIREWALL
+P:	Paul Russell
+M:	Paul.Russell@rustcorp.com.au
+W:	http://www.adelaide.net.au/~rustcorp/ipfwchains/ipfwchains.html
+S:	Maintained
+
+IPX/SPX NETWORK LAYER
+P:	Jay Schulist
+M:	Jay Schulist <Jay.Schulist@spacs.k12.wi.us>
+L:	linux-net@vger.rutgers.edu
+S:	Maintained
 
 ISDN SUBSYSTEM
 P:	Fritz Elfert
@@ -318,8 +330,9 @@ S:	Maintained
 
 JOYSTICK DRIVER
 P:	Vojtech Pavlik
-M:	vojtech@atrey.karlin.mff.cuni.cz
+M:	vojtech@ucw.cz
 L:	linux-joystick@atrey.karlin.mff.cuni.cz
+W:	http://atrey.karlin.mff.cuni.cz/~vojtech/joystick/
 S:	Maintained
 
 KERNEL AUTOMOUNTER (AUTOFS)
@@ -379,6 +392,11 @@ M:	rubini@ipvvis.unipv.it
 L:	linux-kernel@vger.rutgers.edu
 S:	Maintained
 
+MULTISOUND SOUND DRIVER
+P:	Andrew Veliath
+M:	andrewtv@usa.net
+S:	Maintained
+
 NCP FILESYSTEM:
 P:	Petr Vandrovec
 M:	vandrove@vc.cvut.cz
@@ -428,13 +446,15 @@ M:	emoenke@gwdg.de
 L:	linux-kernel@vger.rutgers.edu
 S:	Maintained
 
-PARALLEL PORT SHARING SUPPORT
+PARALLEL PORT SUPPORT
 P:	Phil Blundell
 M:	Philip.Blundell@pobox.com
 P:	Tim Waugh
 M:	tim@cyberelk.demon.co.uk
 P:	David Campbell
-M:	campbell@tirian.che.curtin.edu.au
+M:	campbell@torque.net
+P:	Andrea Arcangeli
+M:	arcangeli@mbox.queen.it
 L:	linux-parport@torque.net
 L:	pnp-list@redhat.com
 W:	http://www.cyberelk.demon.co.uk/parport.html
@@ -457,6 +477,13 @@ PCI SUBSYSTEM
 P:	Martin Mares
 M:	mj@atrey.karlin.mff.cuni.cz
 L:	linux-kernel@vger.rutgers.edu
+S:	Maintained
+
+PCI SOUND DRIVERS (ES1370, ES1371 and SONICVIBES)
+P:	Thomas Sailer
+M:	sailer@ife.ee.ethz.ch
+L:	linux-sound@vger.rutgers.edu
+W:	http://www.ife.ee.ethz.ch/~sailer/linux/pciaudio.html
 S:	Maintained
 
 PCNET32 NETWORK DRIVER
@@ -498,10 +525,8 @@ L:	linux-kernel@vger.rutgers.edu
 S:	Maintained
 
 SCSI SUBSYSTEM
-P:	Leonard N. Zubkoff
-M:	Leonard N. Zubkoff <lnz@dandelion.com>
 L:	linux-scsi@vger.rutgers.edu
-S:	Maintained
+S:	Unmaintained
 
 SCSI TAPE DRIVER
 P:	Kai Mdkisara
@@ -539,6 +564,18 @@ M:	io8-linux@specialix.co.uk
 L:	linux-kernel@vger.rutgers.edu ?
 S:	Supported
 
+SPX NETWORK LAYER
+P:	Jay Schulist
+M:	Jay.Schulist@spacs.k12.wi.us
+L:	linux-net@vger.rutgers.edu
+S:	Supported
+
+SPX NETWORK LAYER
+P:	Jay Schulist
+M:	Jay.Schulist@spacs.k12.wi.us
+L:	linux-net@vger.rutgers.edu
+S:	Supported
+
 STALLION TECHNOLOGIES MULTIPORT SERIAL BOARDS
 P:	Greg Ungerer
 M:	support@stallion.oz.au
@@ -565,20 +602,27 @@ S:	Maintained
 
 TLAN NETWORK DRIVER
 P:	James Banks
-M:	james.banks@caldera.com
-L:	linux-net@vger.rutgers.edu
-S:	Supported
+M:	james@sovereign.org
+L:	tlan@vuser.vu.union.edu
+S:	Maintained
 
 TOKEN-RING NETWORK DRIVER
 P:	Paul Norton
-M:	pnorton@cts.com
+M:	p.norton@computer.org
 L:	linux-net@vger.rutgers.edu
+L:	linux-tr@emissary.aus-etc.com
 S:	Maintained
 
 U14-34F SCSI DRIVER
 P:	Dario Ballabio
 M:	dario@milano.europe.dg.com
 L:	linux-scsi@vger.rutgers.edu
+S:	Maintained
+
+UMSDOS FILESYSTEM
+P:	Matija Nalis
+M:	mnalis@jagor.srce.hr
+L:	linux-kernel@vger.rutgers.edu
 S:	Maintained
 
 UNIFORM CDROM DRIVER 
@@ -623,6 +667,19 @@ M:	jreuter@poboxes.com
 W:	http://poboxes.com/jreuter/
 W:	http://qsl.net/dl1bke/
 L:	linux-hams@vger.rutgers.edu
+S:	Maintained
+
+ARM PORT
+P:	Russell King
+M:	linux@arm.uk.linux.org
+L:	linux-arm@vger.rutgers.edu
+L:	arm-linux@tardis.ed.ac.uk
+W:	http://www.arm.uk.linux.org/~rmk/armlinux.html
+S:	Maintained
+
+ARM MFM AND FLOPPY DRIVERS
+P:	Dave Gilbert
+M:	linux@treblig.org
 S:	Maintained
 
 REST:

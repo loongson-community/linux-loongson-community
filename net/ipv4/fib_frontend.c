@@ -5,7 +5,7 @@
  *
  *		IPv4 Forwarding Information Base: FIB frontend.
  *
- * Version:	$Id: fib_frontend.c,v 1.9 1998/03/08 20:52:36 davem Exp $
+ * Version:	$Id: fib_frontend.c,v 1.11 1998/06/11 03:15:40 davem Exp $
  *
  * Authors:	Alexey Kuznetsov, <kuznet@ms2.inr.ac.ru>
  *
@@ -271,6 +271,8 @@ int ip_rt_ioctl(unsigned int cmd, void *arg)
 				if (tb)
 					err = tb->tb_insert(tb, &req.rtm, &rta, &req.nlh, NULL);
 			}
+			if (rta.rta_mx)
+				kfree(rta.rta_mx);
 		}
 		rtnl_unlock();
 		return err;

@@ -1,12 +1,10 @@
-/* $Id: pci.h,v 1.2 1997/12/01 18:00:40 ralf Exp $
+/* $Id: pci.h,v 1.3 1998/05/07 14:18:11 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
  * Declarations for the MIPS specific implementation of the PCI BIOS32 services.
- *
- * Copyright (C) 1997, 1998 Ralf Baechle
  */
 #ifndef __ASM_MIPS_PCI_H
 #define __ASM_MIPS_PCI_H

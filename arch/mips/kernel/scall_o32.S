@@ -70,7 +70,7 @@ EXPORT(o32_ret_from_sys_call)
 
 9:	lw	t0,PT_STATUS(sp)	# returning to kernel mode?
 	andi	t1, t0, 0x10
-	lw	t2, need_resched
+	lw	t2, TASK_NEED_RESCHED($28)
 	beqz	t1, o32_return		# -> yes
 	bnez	t2, o32_reschedule
 	lw	v0, TASK_SIGPENDING($28)

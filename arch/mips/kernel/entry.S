@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1994, 1995 by Ralf Baechle
  *
- * $Id: entry.S,v 1.9 1998/04/05 11:23:50 ralf Exp $
+ * $Id: entry.S,v 1.10 1998/05/04 09:12:49 ralf Exp $
  */
 
 /*
@@ -59,7 +59,7 @@ EXPORT(ret_from_irq)
 
 		andi	t1, t0, 0x10
 		beqz	t1, return		# -> yes
-		 lw	t1, need_resched
+		 lw	t1, TASK_NEED_RESCHED($28)
 		bnez	t1, reschedule
 		lw	v0, TASK_SIGPENDING($28)
 		 move	a0, zero

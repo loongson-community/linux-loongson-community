@@ -104,11 +104,6 @@ startup_32:
  * in 16-bit mode for the "real" operations.
  */
 	call setup_idt
-	xorl %eax,%eax
-1:	incl %eax		# check that A20 really IS enabled
-	movl %eax,0x000000	# loop forever if it isn't
-	cmpl %eax,0x100000
-	je 1b
 /*
  * Initialize eflags.  Some BIOS's leave bits like NT set.  This would
  * confuse the debugger if this code is traced.
@@ -152,61 +147,8 @@ checkCPUtype:
  * apply at our cpl of 0 and the stack ought to be aligned already, and
  * we don't need to preserve eflags.
  */
-	/*
-	 * A Cyrix preserves flags in cases where other CPUs change
-	 * them in undefined ways. We need to know this since we may
-	 * need to enable the CPUID instruction at least. (Cyrix chips
-	 * prior to M2 have CPUID disabled by default, the Cx486s
-	 * didn't have it at all.)
-	 */
-	xor %ax,%ax
-	sahf
-	movb $5,%al
-	movb $2,%bl
-	div %bl
-	lahf
-	cmpb $2,%ah
-	jne ncyrix
 
-	/*
-	 * It behaves like a Cyrix so put "Cyrix" in the vendor id
-	 * field. It may be overwritten later with the real thing
-	 * if CPUID works.
-	 */
-	movl $0x69727943,X86_VENDOR_ID			# low 4 chars
-	movl $0x00000078,X86_VENDOR_ID+4		# next 4 chars
-
-	/*
-	 * N.B. The pattern of accesses to 0x22 and 0x23 is *important*
-	 *      so do not try and "optimise" it! For the same reason we
-	 *	do all this with interrupts off just to be sure.
-	 */
-#define setCx86(reg, val) \
-	movb reg,%al;	\
-	outb %al,$0x22;	\
-	movb val,%al;	\
-	outb %al,$0x23
-
-#define getCx86(reg) \
-	movb reg,%al;	\
-	outb %al,$0x22;	\
-	inb $0x23,%al
-
-	getCx86($0xc3)		# get CCR3
-	movb %al,%cl		# Save old value
-	movb %al,%bl
-	andb $0x0f,%bl		# Enable all config registers (for CCR4 access)
-	orb $0x10,%bl
-	setCx86($0xc3,%bl)
-
-	getCx86($0xe8)		# CCR4 |= CPUID
-	orb $0x80,%al
-	movb %al,%bl
-	setCx86($0xe8,%bl)
-
-	setCx86($0xc3,%cl)	# Restore old CCR3
-
-ncyrix:	movl $3,X86		# at least 386
+	movl $3,X86		# at least 386
 	pushfl			# push EFLAGS
 	popl %eax		# get EFLAGS
 	movl %eax,%ecx		# save original EFLAGS
@@ -230,7 +172,7 @@ ncyrix:	movl $3,X86		# at least 386
 	pushl %ecx		# restore original EFLAGS
 	popfl
 	andl $0x200000,%eax
-	je nocpuid
+	je is486
 
 	/* get vendor info */
 	xorl %eax,%eax			# call CPUID with 0 -> return vendor ID
@@ -241,7 +183,7 @@ ncyrix:	movl $3,X86		# at least 386
 	movl %ecx,X86_VENDOR_ID+8	# last 4 chars
 
 	orl %eax,%eax			# do we have processor info as well?
-	je nocpuid
+	je is486
 
 	movl $1,%eax		# Use the CPUID instruction to get CPU type
 	cpuid
@@ -255,42 +197,8 @@ ncyrix:	movl $3,X86		# at least 386
 	movb %cl,X86_MASK
 	movl %edx,X86_CAPABILITY
 
-nocpuid:
-	/*
-	 * Even if we had CPUID Cyrix tries to look compatible with
-	 * Intel so we have to go elsewhere for the nitty gritty.
-	 */
-	cmpl $0x69727943,X86_VENDOR_ID		# "Cyri[x.*]"?
-	jne is486				# maybe ...
-
-	movb $0xfe,X86_MODEL			# Generic Cx486?
-	movb $0,X86_MASK
-
-	getCx86($0xc3)		# Test for DEVID by writing CCR3
-	movb %al,%cl
-	movb %al,%bl
-	orb $0x80,%bl
-	setCx86($0xc3,%bl)
-	getCx86($0xc0)		# dummy to change bus
-	getCx86($0xc3)
-	cmpb %al,%cl
-	je is486		# not writable == no DEVID
-
-	setCx86($0xc3,%cl)	# restore CCR3
-
-	getCx86($0xff)		# get DEVID in preference to any CPUID
-	movb %al,X86_MASK
-	getCx86($0xfe)
-	movb %al,X86_MODEL
-	andb $0xf0,%al		# Check for 6x86(L)
-	cmp $0x30,%al
-	jnz is486
-	getCx86($0xe9)		# CCR5: reset SLOP bit, so that the udelay loop
-	andb $0xfd,%al		# works well on 6x86(L) CPU's.
-	movb %al,%bl
-	setCx86($0xe9,%bl)
-
-is486:	movl %cr0,%eax		# 486 or better
+is486:
+	movl %cr0,%eax		# 486 or better
 	andl $0x80000011,%eax	# Save PG,PE,ET
 	orl $0x50022,%eax	# set AM, WP, NE and MP
 	jmp 2f
@@ -333,9 +241,6 @@ is386:	pushl %ecx		# restore original EFLAGS
 #endif
 	xorl %eax,%eax
 	lldt %ax
-	pushl %eax		# These are the parameters to main :-)
-	pushl %eax
-	pushl %eax
 	cld			# gcc2 wants the direction flag cleared at all times
 	call SYMBOL_NAME(start_kernel)
 L6:

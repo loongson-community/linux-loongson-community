@@ -34,6 +34,9 @@ struct cpuinfo_x86 {
 	int	fdiv_bug;
 	int	f00f_bug;
 	unsigned long loops_per_sec;
+	unsigned long *pgd_quick;
+	unsigned long *pte_quick;
+	unsigned long pgtable_cache_sz;
 };
 
 #define X86_VENDOR_INTEL 0
@@ -43,6 +46,43 @@ struct cpuinfo_x86 {
 #define X86_VENDOR_NEXGEN 4
 #define X86_VENDOR_CENTAUR 5
 #define X86_VENDOR_UNKNOWN 0xff
+
+/*
+ * capabilities of CPUs
+ */
+
+#define X86_FEATURE_FPU		0x00000001	/* onboard FPU */
+#define X86_FEATURE_VME		0x00000002	/* Virtual Mode Extensions */
+#define X86_FEATURE_DE		0x00000004	/* Debugging Extensions */
+#define X86_FEATURE_PSE		0x00000008	/* Page Size Extensions */
+#define X86_FEATURE_TSC		0x00000010	/* Time Stamp Counter */
+#define X86_FEATURE_MSR		0x00000020	/* Model-Specific Registers, RDMSR, WRMSR */
+#define X86_FEATURE_PAE		0x00000040	/* Physical Address Extensions */
+#define X86_FEATURE_MCE		0x00000080	/* Machine Check Exceptions */
+#define X86_FEATURE_CX8		0x00000100	/* CMPXCHG8 instruction */
+#define X86_FEATURE_APIC	0x00000200	/* onboard APIC */
+#define X86_FEATURE_10		0x00000400
+#define X86_FEATURE_SEP		0x00000800	/* Fast System Call */ 
+#define X86_FEATURE_MTRR	0x00001000	/* Memory Type Range Registers */
+#define X86_FEATURE_PGE		0x00002000	/* Page Global Enable */
+#define X86_FEATURE_MCA		0x00004000	/* Machine Check Architecture */
+#define X86_FEATURE_CMOV	0x00008000	/* CMOV instruction (FCMOVCC and FCOMI too if FPU present) */
+#define X86_FEATURE_PAT	0x00010000	/* Page Attribute Table */
+#define X86_FEATURE_PSE36	0x00020000	/* 36-bit PSEs */
+#define X86_FEATURE_18		0x00040000
+#define X86_FEATURE_19		0x00080000
+#define X86_FEATURE_20		0x00100000
+#define X86_FEATURE_21		0x00200000
+#define X86_FEATURE_22		0x00400000
+#define X86_FEATURE_MMX		0x00800000	/* multimedia extensions */
+#define X86_FEATURE_FXSR	0x01000000	/* FXSAVE and FXRSTOR instructions (fast save and restore of FPU context), and CR4.OSFXSR (OS uses these instructions) available */
+#define X86_FEATURE_25		0x02000000
+#define X86_FEATURE_26		0x04000000
+#define X86_FEATURE_27		0x08000000
+#define X86_FEATURE_28		0x10000000
+#define X86_FEATURE_29		0x20000000
+#define X86_FEATURE_30		0x40000000
+#define X86_FEATURE_AMD3D	0x80000000
 
 extern struct cpuinfo_x86 boot_cpu_data;
 
@@ -58,6 +98,41 @@ extern char ignore_irq13;
 
 extern void identify_cpu(struct cpuinfo_x86 *);
 extern void print_cpu_info(struct cpuinfo_x86 *);
+
+/*
+ *	Generic CPUID function
+ */
+extern inline void cpuid(int op, int *eax, int *ebx, int *ecx, int *edx)
+{
+	__asm__("cpuid"
+		: "=a" (*eax),
+		  "=b" (*ebx),
+		  "=c" (*ecx),
+		  "=d" (*edx)
+		: "a" (op)
+		: "cc");
+}
+
+/*
+ *      Cyrix CPU configuration register indexes
+ */
+#define CX86_CCR2 0xc2
+#define CX86_CCR3 0xc3
+#define CX86_CCR4 0xe8
+#define CX86_CCR5 0xe9
+#define CX86_DIR0 0xfe
+#define CX86_DIR1 0xff
+
+/*
+ *      Cyrix CPU indexed register access macros
+ */
+
+#define getCx86(reg) ({ outb((reg), 0x22); inb(0x23); })
+
+#define setCx86(reg, data) do { \
+	outb((reg), 0x22); \
+	outb((data), 0x23); \
+} while (0)
 
 /*
  * Bus types (default is ISA, but people can check others with these..)
@@ -149,6 +224,8 @@ struct thread_struct {
 	unsigned long	tr;
 	unsigned long	cr2, trap_no, error_code;
 	mm_segment_t	segment;
+/* debug registers */
+	long debugreg[8];  /* Hardware debugging registers */
 /* floating point info */
 	union i387_union i387;
 /* virtual 86 mode info */
@@ -160,33 +237,35 @@ struct thread_struct {
 #define INIT_MMAP \
 { &init_mm, 0, 0, PAGE_SHARED, VM_READ | VM_WRITE | VM_EXEC, NULL, &init_mm.mmap }
 
-#define INIT_TSS  { \
-	0,0, \
-	sizeof(init_stack) + (long) &init_stack, \
-	__KERNEL_DS, 0, \
-	0,0,0,0,0,0, \
-	(long) &swapper_pg_dir - PAGE_OFFSET, \
-	0,0,0,0,0,0,0,0,0,0, \
-	__USER_DS,0,__USER_DS,0,__USER_DS,0, \
-	__USER_DS,0,__USER_DS,0,__USER_DS,0, \
-	_LDT(0),0, \
-	0, 0x8000, \
-	{~0, }, /* ioperm */ \
-	_TSS(0), 0, 0, 0, (mm_segment_t) { 0 } /* obsolete */ , \
-	{ { 0, }, },  /* 387 state */ \
-	NULL, 0, 0, 0, 0, 0 /* vm86_info */, \
+#define INIT_TSS  {						\
+	0,0, /* back_link, __blh */				\
+	sizeof(init_stack) + (long) &init_stack, /* esp0 */	\
+	__KERNEL_DS, 0, /* ss0 */				\
+	0,0,0,0,0,0, /* stack1, stack2 */			\
+	(long) &swapper_pg_dir - PAGE_OFFSET, /* cr3 */		\
+	0,0, /* eip,eflags */					\
+	0,0,0,0, /* eax,ecx,edx,ebx */				\
+	0,0,0,0, /* esp,ebp,esi,edi */				\
+	0,0,0,0,0,0, /* es,cs,ss */				\
+	0,0,0,0,0,0, /* ds,fs,gs */				\
+	_LDT(0),0, /* ldt */					\
+	0, 0x8000, /* tace, bitmap */				\
+	{~0, }, /* ioperm */					\
+	_TSS(0), 0, 0, 0, (mm_segment_t) { 0 }, /* obsolete */	\
+	{ 0, },							\
+	{ { 0, }, },  /* 387 state */				\
+	NULL, 0, 0, 0, 0, 0, /* vm86_info */			\
 }
 
-#define start_thread(regs, new_eip, new_esp) do {\
-	unsigned long seg = __USER_DS; \
-	__asm__("movl %w0,%%fs ; movl %w0,%%gs":"=r" (seg) :"0" (seg)); \
-	set_fs(USER_DS); \
-	regs->xds = seg; \
-	regs->xes = seg; \
-	regs->xss = seg; \
-	regs->xcs = __USER_CS; \
-	regs->eip = new_eip; \
-	regs->esp = new_esp; \
+#define start_thread(regs, new_eip, new_esp) do {		\
+	__asm__("movl %w0,%%fs ; movl %w0,%%gs": :"r" (0));	\
+	set_fs(USER_DS);					\
+	regs->xds = __USER_DS;					\
+	regs->xes = __USER_DS;					\
+	regs->xss = __USER_DS;					\
+	regs->xcs = __USER_CS;					\
+	regs->eip = new_eip;					\
+	regs->esp = new_esp;					\
 } while (0)
 
 /* Forward declaration, a strange C thing */
@@ -207,13 +286,8 @@ extern inline unsigned long thread_saved_pc(struct thread_struct *t)
 	return ((unsigned long *)t->esp)[3];
 }
 
-/* Allocation and freeing of basic task resources. */
-/*
- * NOTE! The task struct and the stack go together
- */
-#define alloc_task_struct() \
-	((struct task_struct *) __get_free_pages(GFP_KERNEL,1))
-#define free_task_struct(p)	free_pages((unsigned long)(p),1)
+extern struct task_struct * alloc_task_struct(void);
+extern void free_task_struct(struct task_struct *);
 
 #define init_task	(init_task_union.task)
 #define init_stack	(init_task_union.stack)

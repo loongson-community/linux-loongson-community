@@ -435,7 +435,7 @@ void make_request(int major,int rw, struct buffer_head * bh)
 /* look for a free request. */
        /* Loop uses two requests, 1 for loop and 1 for the real device.
         * Cut max_req in half to avoid running out and deadlocking. */
-        if (major == LOOP_MAJOR)
+	 if ((major == LOOP_MAJOR) || (major == NBD_MAJOR))
 	     max_req >>= 1;
 
 	/*
@@ -452,7 +452,7 @@ void make_request(int major,int rw, struct buffer_head * bh)
 	if (!req) {
 		/* MD and loop can't handle plugging without deadlocking */
 		if (major != MD_MAJOR && major != LOOP_MAJOR && 
-		    major != DDV_MAJOR)
+		    major != DDV_MAJOR && major != NBD_MAJOR)
 			plug_device(blk_dev + major); /* is atomic */
 	} else switch (major) {
 	     case IDE0_MAJOR:	/* same as HD_MAJOR */
@@ -463,6 +463,7 @@ void make_request(int major,int rw, struct buffer_head * bh)
 	     case IDE4_MAJOR:
 	     case IDE5_MAJOR:
 	     case ACSI_MAJOR:
+	     case MFM_ACORN_MAJOR:
 		/*
 		 * The scsi disk and cdrom drivers completely remove the request
 		 * from the queue when they start processing an entry.  For this
@@ -669,7 +670,7 @@ void ll_rw_swap_file(int rw, kdev_t dev, unsigned int *b, int nb, char *buf)
 	}
 	buffersize = PAGE_SIZE / nb;
 
-	if (major == LOOP_MAJOR)
+	if ((major == LOOP_MAJOR) || (major == NBD_MAJOR))
 	     max_req >>= 1;
 	for (j=0, i=0; i<nb;)
 	{
@@ -715,6 +716,61 @@ void ll_rw_swap_file(int rw, kdev_t dev, unsigned int *b, int nb, char *buf)
 		}
 	}
 }
+#ifdef CONFIG_STRAM_SWAP
+extern int stram_device_init( void );
+#endif
+
+/*
+ * First step of what used to be end_request
+ *
+ * 0 means continue with end_that_request_last,
+ * 1 means we are done
+ */
+
+int 
+end_that_request_first( struct request *req, int uptodate, char *name ) 
+{
+	struct buffer_head * bh;
+	int nsect;
+
+	req->errors = 0;
+	if (!uptodate) {
+		printk("end_request: I/O error, dev %s (%s), sector %lu\n",
+			kdevname(req->rq_dev), name, req->sector);
+		if ((bh = req->bh) != NULL) {
+			nsect = bh->b_size >> 9;
+			req->nr_sectors--;
+			req->nr_sectors &= ~(nsect - 1);
+			req->sector += nsect;
+			req->sector &= ~(nsect - 1);
+		}
+	}
+
+	if ((bh = req->bh) != NULL) {
+		req->bh = bh->b_reqnext;
+		bh->b_reqnext = NULL;
+		bh->b_end_io(bh, uptodate);
+		if ((bh = req->bh) != NULL) {
+			req->current_nr_sectors = bh->b_size >> 9;
+			if (req->nr_sectors < req->current_nr_sectors) {
+				req->nr_sectors = req->current_nr_sectors;
+				printk("end_request: buffer-list destroyed\n");
+			}
+			req->buffer = bh->b_data;
+			return 1;
+		}
+	}
+	return 0;
+}
+
+void
+end_that_request_last( struct request *req ) 
+{
+	if (req->sem != NULL)
+		up(req->sem);
+	req->rq_status = RQ_INACTIVE;
+	wake_up(&wait_for_request);
+}
 
 __initfunc(int blk_dev_init(void))
 {
@@ -744,6 +800,9 @@ __initfunc(int blk_dev_init(void))
 #ifdef CONFIG_AMIGA_Z2RAM
 	z2_init();
 #endif
+#ifdef CONFIG_STRAM_SWAP
+	stram_device_init();
+#endif
 #ifdef CONFIG_BLK_DEV_RAM
 	rd_init();
 #endif
@@ -765,17 +824,26 @@ __initfunc(int blk_dev_init(void))
 #ifdef CONFIG_BLK_DEV_XD
 	xd_init();
 #endif
+#ifdef CONFIG_BLK_DEV_MFM
+	mfm_init();
+#endif
 #ifdef CONFIG_PARIDE
 	{ extern void paride_init(void); paride_init(); };
 #endif
 #ifdef CONFIG_MAC_FLOPPY
 	swim3_init();
 #endif
+#ifdef CONFIG_AMIGA_FLOPPY
+	amiga_floppy_init();
+#endif
+#ifdef CONFIG_ATARI_FLOPPY
+	atari_floppy_init();
+#endif
 #ifdef CONFIG_BLK_DEV_FD
 	floppy_init();
 #else
-#if !defined(CONFIG_SGI) && !defined (__mc68000__) \
-    && !defined(CONFIG_PMAC) && !defined(__sparc__)
+#if !defined(CONFIG_SGI) && !defined (__mc68000__) && !defined(CONFIG_PMAC)
+    && !defined(__sparc__) && !defined(CONFIG_APUS)
 	outb_p(0xc, 0x3f2);
 #endif
 #endif
@@ -821,7 +889,12 @@ __initfunc(int blk_dev_init(void))
 #ifdef CONFIG_DDV
 	ddv_init();
 #endif
+#ifdef CONFIG_BLK_DEV_NBD
+	nbd_init();
+#endif
 	return 0;
 };
 
 EXPORT_SYMBOL(io_request_lock);
+EXPORT_SYMBOL(end_that_request_first);
+EXPORT_SYMBOL(end_that_request_last);

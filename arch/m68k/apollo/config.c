@@ -14,7 +14,6 @@
 #include <asm/irq.h>
 #include <asm/machdep.h>
 
-extern struct consw fb_con;
 extern void dn_sched_init(void (*handler)(int,void *,struct pt_regs *));
 extern int dn_keyb_init(void);
 extern int dn_dummy_kbdrate(struct kbd_repeat *);
@@ -110,7 +109,9 @@ void config_apollo(void) {
 	mach_floppy_setup    = dn_dummy_floppy_setup;
 #endif
 	mach_reset	     = dn_dummy_reset;  /* */
-	conswitchp	     = &fb_con;
+#ifdef CONFIG_DUMMY_CONSOLE
+	conswitchp	     = &dummy_con;
+#endif
 #if 0
 	mach_fb_init 	     = dn_fb_init; 
 	mach_video_setup     = dn_dummy_video_setup; 

@@ -6,7 +6,7 @@
  * This file contains the time handling details for PC-style clocks as
  * found in some MIPS systems.
  *
- * $Id: time.c,v 1.4 1997/12/01 17:57:32 ralf Exp $
+ * $Id: time.c,v 1.5 1998/06/06 12:41:48 tsbogend Exp $
  */
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -191,7 +191,7 @@ static unsigned long do_slow_gettimeoffset(void)
 			if (inb(0x20) & 0x01) {
 				/*
 				 * We cannot detect lost timer interrupts ... 
-				 * well, thats why we call them lost, dont we? :)
+				 * well, that's why we call them lost, don't we? :)
 				 * [hmm, on the Pentium and Alpha we can ... sort of]
 				 */
 				count -= LATCH;
@@ -329,25 +329,6 @@ static long last_rtc_update = 0;
 static void inline
 timer_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 {
-#ifdef CONFIG_PROFILE
-	if(!user_mode(regs)) {
-		if (prof_buffer && current->pid) {
-			extern int _stext;
-			unsigned long pc = regs->cp0_epc;
-
-			pc -= (unsigned long) &_stext;
-			pc >>= prof_shift;
-			/*
-			 * Dont ignore out-of-bounds pc values silently,
-			 * put them into the last histogram slot, so if
-			 * present, they will show up as a sharp peak.
-			 */
-			if (pc > prof_len-1)
-				pc = prof_len-1;
-			atomic_inc((atomic_t *)&prof_buffer[pc]);
-		}
-	}
-#endif
 	do_timer(regs);
 
 	/*

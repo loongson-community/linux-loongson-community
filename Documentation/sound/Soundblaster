@@ -1,17 +1,16 @@
-
-insmod sound
+modprobe sound
 insmod uart401
 insmod sb ...
 
-This loads the driver for the soundblaster and assorted clones. Cards that
+This loads the driver for the Sound Blaster and assorted clones. Cards that
 are covered by other drivers should not be using this driver.
 
-The soundblaster module takes the following arguments
+The Sound Blaster module takes the following arguments
 
-io		I/O address of the soundblaster chip
-irq		IRQ of the soundblaster chip
-dma     	8bit DMA channel for the soundblaster
-dma16   	16bit DMA channel for SB16 and equivalent cards
+io		I/O address of the Sound Blaster chip
+irq		IRQ of the Sound Blaster chip
+dma     	8-bit DMA channel for the Sound Blaster
+dma16   	16-bit DMA channel for SB16 and equivalent cards
 mpu_io		I/O for MPU chip if present
 
 mad16=1 	Set when loading this as part of the MAD16 setup only
@@ -29,10 +28,14 @@ insmod opl3 io=0x388
 Using Mwave
 
 To make this driver work with Mwave you must set mwave_bug. You also need
-to warmboot from DOS/Windows with the required firmware loaded under this
+to warm boot from DOS/Windows with the required firmware loaded under this
 OS. IBM are being difficult about documenting how to load this firmware.
 
 Avance Logic ALS007
 
-This card isn't currently supported. I have patches to merge however that
-add limited support.
+This card is supported; see the separate file ALS007 for full details.
+
+Avance Logic ALS100
+
+This card is supported; setup should be as for a standard Sound Blaster 16.
+The driver will identify the audio device as a "Sound Blaster 16 (ALS-100)".

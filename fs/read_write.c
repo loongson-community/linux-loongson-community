@@ -79,7 +79,7 @@ bad:
 	return retval;
 }
 
-#if !defined(__alpha__) && !defined(__sparc_v9__)
+#if !defined(__alpha__)
 asmlinkage int sys_llseek(unsigned int fd, unsigned long offset_high,
 			  unsigned long offset_low, loff_t * result,
 			  unsigned int origin)
@@ -106,7 +106,7 @@ asmlinkage int sys_llseek(unsigned int fd, unsigned long offset_high,
 	offset = llseek(file, ((loff_t) offset_high << 32) | offset_low,
 			origin);
 
-	retval = (int)offset & INT_MAX;
+	retval = (int)offset;
 	if (offset >= 0) {
 		retval = -EFAULT;
 		if (!copy_to_user(result, &offset, sizeof(offset)))
@@ -132,7 +132,6 @@ asmlinkage ssize_t sys_read(unsigned int fd, char * buf, size_t count)
 	file = fget(fd);
 	if (!file)
 		goto bad_file;
-	ret = -EBADF;
 	if (!(file->f_mode & FMODE_READ))
 		goto out;
 	ret = locks_verify_area(FLOCK_VERIFY_READ, file->f_dentry->d_inode,

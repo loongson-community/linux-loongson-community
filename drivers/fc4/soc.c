@@ -304,14 +304,17 @@ update_out:
 static void soc_intr(int irq, void *dev_id, struct pt_regs *regs)
 {
 	u32 cmd;
+	unsigned long flags;
 	register struct soc *s = (struct soc *)dev_id;
 
+	spin_lock_irqsave(&io_request_lock, flags);
 	cmd = s->regs->cmd;
 	for (; (cmd = SOC_INTR (s, cmd)); cmd = s->regs->cmd) {
 		if (cmd & SOC_CMD_RSP_Q1) soc_unsolicited (s);
 		if (cmd & SOC_CMD_RSP_Q0) soc_solicited (s);
 		if (cmd & SOC_CMD_REQ_QALL) soc_request (s, cmd);
 	}
+	spin_unlock_irqrestore(&io_request_lock, flags);
 }
 
 #define TOKEN(proto, port, token) (((proto)<<12)|(token)|(port))
@@ -498,7 +501,6 @@ static inline void soc_init_bursts(struct soc *s, struct linux_sbus_device *sdev
 
 static inline void soc_init(struct linux_sbus_device *sdev, int no)
 {
-        struct devid_cookie dcookie;
 	unsigned char tmp[60];
 	int propl;
 	struct soc *s;
@@ -596,40 +598,15 @@ static inline void soc_init(struct linux_sbus_device *sdev, int no)
 	
 	soc_disable (s);
 	
-	irq = sdev->irqs[0].pri;
+	irq = sdev->irqs[0];
 
-#ifndef __sparc_v9__	
-	if (sparc_cpu_model != sun4d) {
-		if (request_irq (irq, soc_intr, SA_SHIRQ, "SOC", (void *)s)) {
-			soc_printk ("Cannot order irq %d to go\n", irq);
-			socs = s->next;
-			return;
-		}
-	} else {
-	        dcookie.real_dev_id = s;
-	        dcookie.bus_cookie = sdev;
-	        if (request_irq(irq, soc_intr, (SA_SHIRQ | SA_DCOOKIE), "SOC", &dcookie)) {
-			soc_printk ("Cannot order irq %d to go\n", irq);
-			socs = s->next;
-			return;
-		}
-		SOD(("IRQ %d %x\n", irq, dcookie.ret_ino))
-		irq = dcookie.ret_ino;
-	}
-#else
-	dcookie.real_dev_id = s;
-	dcookie.imap = dcookie.iclr = 0;
-	dcookie.pil = -1;
-	dcookie.bus_cookie = sdev->my_bus;
-	if (request_irq (irq, soc_intr, (SA_SHIRQ | SA_SBUS | SA_DCOOKIE), "SOC", &dcookie)) {
+	if (request_irq (irq, soc_intr, SA_SHIRQ, "SOC", (void *)s)) {
 		soc_printk ("Cannot order irq %d to go\n", irq);
 		socs = s->next;
 		return;
 	}
-	irq = dcookie.ret_ino;
-#endif
 
-	SOD(("SOC uses IRQ%d\n", irq))
+	SOD(("SOC uses IRQ%s\n", __irq_itoa(irq)))
 	
 	s->port[0].fc.irq = irq;
 	s->port[1].fc.irq = irq;

@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 1
-SUBLEVEL = 100
+SUBLEVEL = 116
 
 ARCH = mips
 
@@ -91,17 +91,13 @@ SVGA_MODE=	-DSVGA_MODE=NORMAL_VGA
 
 CFLAGS = -Wall -Wstrict-prototypes -O2 -fomit-frame-pointer
 
-ifdef CONFIG_CPP
-CFLAGS := $(CFLAGS) -x c++
-endif
-
 ifdef SMP
 CFLAGS += -D__SMP__
 AFLAGS += -D__SMP__
 endif
 
 #
-# if you want the ram-disk device, define this to be the
+# if you want the RAM disk device, define this to be the
 # size in blocks.
 #
 
@@ -118,6 +114,10 @@ DRIVERS		=drivers/block/block.a \
 	         drivers/misc/misc.a
 LIBS		=$(TOPDIR)/lib/lib.a
 SUBDIRS		=kernel drivers mm fs net ipc lib
+
+ifdef CONFIG_NUBUS
+DRIVERS := $(DRIVERS) drivers/nubus/nubus.a
+endif
 
 ifeq ($(CONFIG_ISDN),y)
 DRIVERS := $(DRIVERS) drivers/isdn/isdn.a
@@ -141,8 +141,16 @@ ifdef CONFIG_PCI
 DRIVERS := $(DRIVERS) drivers/pci/pci.a
 endif
 
+ifdef CONFIG_DIO
+DRIVERS := $(DRIVERS) drivers/dio/dio.a
+endif
+
 ifdef CONFIG_SBUS
 DRIVERS := $(DRIVERS) drivers/sbus/sbus.a
+endif
+
+ifdef CONFIG_ZORRO
+DRIVERS := $(DRIVERS) drivers/zorro/zorro.a
 endif
 
 ifdef CONFIG_PPC
@@ -157,6 +165,10 @@ ifdef CONFIG_SGI
 DRIVERS := $(DRIVERS) drivers/sgi/sgi.a
 endif
 
+ifdef CONFIG_VT
+DRIVERS := $(DRIVERS) drivers/video/video.a
+endif
+
 ifeq ($(CONFIG_PARIDE),y)
 DRIVERS := $(DRIVERS) drivers/block/paride/paride.a
 endif
@@ -167,21 +179,10 @@ endif
 
 include arch/$(ARCH)/Makefile
 
-ifdef SMP
-
 .S.s:
 	$(CC) -D__ASSEMBLY__ $(AFLAGS) -traditional -E -o $*.s $<
 .S.o:
 	$(CC) -D__ASSEMBLY__ $(AFLAGS) -traditional -c -o $*.o $<
-
-else
-
-.S.s:
-	$(CC) -D__ASSEMBLY__ -traditional -E -o $*.s $<
-.S.o:
-	$(CC) -D__ASSEMBLY__ -traditional -c -o $*.o $<
-
-endif
 
 Version: dummy
 	@rm -f include/linux/compile.h
@@ -235,8 +236,10 @@ config: symlinks scripts/split-include
 	    scripts/split-include include/linux/autoconf.h include/config; \
 	fi
 
-linuxsubdirs: dummy
-	set -e; for i in $(SUBDIRS); do $(MAKE) -C $$i; done
+linuxsubdirs: $(patsubst %, _dir_%, $(SUBDIRS))
+
+$(patsubst %, _dir_%, $(SUBDIRS)) : dummy
+	$(MAKE) -C $(patsubst _dir_%, %, $@)
 
 $(TOPDIR)/include/linux/version.h: include/linux/version.h
 $(TOPDIR)/include/linux/compile.h: include/linux/compile.h
@@ -278,26 +281,8 @@ init/version.o: init/version.c include/linux/compile.h
 init/main.o: init/main.c
 	$(CC) $(CFLAGS) $(PROFILING) -c -o $*.o $<
 
-fs: dummy
-	$(MAKE) linuxsubdirs SUBDIRS=fs
-
-lib: dummy
-	$(MAKE) linuxsubdirs SUBDIRS=lib
-
-mm: dummy
-	$(MAKE) linuxsubdirs SUBDIRS=mm
-
-ipc: dummy
-	$(MAKE) linuxsubdirs SUBDIRS=ipc
-
-kernel: dummy
-	$(MAKE) linuxsubdirs SUBDIRS=kernel
-
-drivers: dummy
-	$(MAKE) linuxsubdirs SUBDIRS=drivers
-
-net: dummy
-	$(MAKE) linuxsubdirs SUBDIRS=net
+fs lib mm ipc kernel drivers net: dummy
+	$(MAKE) $(subst $@, _dir_$@, $@)
 
 MODFLAGS += -DMODULE
 ifdef CONFIG_MODULES
@@ -305,11 +290,10 @@ ifdef CONFIG_MODVERSIONS
 MODFLAGS += -DMODVERSIONS -include $(HPATH)/linux/modversions.h
 endif
 
-modules: include/linux/version.h
-	@set -e; \
-	for i in $(SUBDIRS); \
-	do $(MAKE) -C $$i CFLAGS="$(CFLAGS) $(MODFLAGS)" MAKING_MODULES=1 modules; \
-	done
+modules: $(patsubst %, _mod_%, $(SUBDIRS))
+
+$(patsubst %, _mod_%, $(SUBDIRS)) : include/linux/version.h
+	$(MAKE) -C $(patsubst _mod_%, %, $@) CFLAGS="$(CFLAGS) $(MODFLAGS)" MAKING_MODULES=1 modules
 
 modules_install:
 	@( \
@@ -317,7 +301,7 @@ modules_install:
 	cd modules; \
 	MODULES=""; \
 	inst_mod() { These="`cat $$1`"; MODULES="$$MODULES $$These"; \
-		mkdir -p $$MODLIB/$$2; cp -p $$These $$MODLIB/$$2; \
+		mkdir -p $$MODLIB/$$2; cp $$These $$MODLIB/$$2; \
 		echo Installing modules under $$MODLIB/$$2; \
 	}; \
 	\
@@ -330,6 +314,9 @@ modules_install:
 	if [ -f NLS_MODULES   ]; then inst_mod NLS_MODULES   fs;    fi; \
 	if [ -f CDROM_MODULES ]; then inst_mod CDROM_MODULES cdrom; fi; \
 	if [ -f HAM_MODULES   ]; then inst_mod HAM_MODULES   net;   fi; \
+	if [ -f SOUND_MODULES ]; then inst_mod SOUND_MODULES sound; fi; \
+	if [ -f VIDEO_MODULES ]; then inst_mod VIDEO_MODULES video; fi; \
+	if [ -f FC4_MODULES   ]; then inst_mod FC4_MODULES   fc4;   fi; \
 	\
 	ls *.o > .allmods; \
 	echo $$MODULES | tr ' ' '\n' | sort | comm -23 .allmods - > .misc; \
@@ -356,14 +343,15 @@ clean:	archclean
 	rm -f core `find . -name '.*.flags' -print`
 	rm -f vmlinux System.map
 	rm -f .tmp*
-	rm -f drivers/char/consolemap_deftbl.c drivers/char/conmakehash
+	rm -f drivers/char/consolemap_deftbl.c drivers/video/promcon_tbl.c
+	rm -f drivers/char/conmakehash
 	rm -f drivers/sound/bin2hex drivers/sound/hex2hex
 	if [ -d modules ]; then \
 		rm -f core `find modules/ -type f -print`; \
 	fi
 	rm -f submenu*
 
-mrproper: clean
+mrproper: clean archmrproper
 	rm -f include/linux/autoconf.h include/linux/version.h
 	rm -f drivers/net/hamradio/soundmodem/sm_tbl_{afsk1200,afsk2666,fsk9600}.h
 	rm -f drivers/net/hamradio/soundmodem/sm_tbl_{hapn4800,psk4800}.h
@@ -400,7 +388,9 @@ sums:
 dep-files: scripts/mkdep archdep include/linux/version.h
 	scripts/mkdep init/*.c > .depend
 	find $(FINDHPATH) -follow -name \*.h ! -name modversions.h -print | env -i xargs scripts/mkdep > .hdepend
-	set -e; for i in $(SUBDIRS); do $(MAKE) -C $$i fastdep; done
+#	set -e; for i in $(SUBDIRS); do $(MAKE) -C $$i fastdep; done
+# let this be made through the fastdep rule in Rules.make
+	$(MAKE) $(patsubst %,_sfdep_%,$(SUBDIRS)) _FASTDEP_ALL_SUB_DIRS="$(SUBDIRS)"
 
 MODVERFILE :=
 

@@ -1,9 +1,8 @@
 /*
- *  linux/drivers/block/ide.c	Version 6.13  March 29, 1998
+ *  linux/drivers/block/ide.c	Version 6.18  August 16, 1998
  *
  *  Copyright (C) 1994-1998  Linus Torvalds & authors (see below)
  */
-#define _IDE_C		/* needed by <linux/blk.h> */
 
 /*
  *  Maintained by Mark Lord  <mlord@pobox.com>
@@ -89,6 +88,8 @@
  * Version 6.14		fixed IRQ sharing among PCI devices
  * Version 6.15		added SMP awareness to IDE drivers
  * Version 6.16		fixed various bugs; even more SMP friendly
+ * Version 6.17		fix for newest EZ-Drive problem
+ * Version 6.18		default unpartitioned-disk translation now "BIOS LBA"
  *
  *  Some additional driver compile-time options are in ide.h
  *
@@ -97,6 +98,8 @@
 */
 
 #undef REALLY_SLOW_IO		/* most systems can safely undef this */
+
+#define _IDE_C			/* Tell ide.h it's really us */
 
 #include <linux/config.h>
 #include <linux/module.h>
@@ -405,69 +408,26 @@ static inline int drive_is_ready (ide_drive_t *drive)
 	return 1;		/* drive ready: *might* be interrupting */
 }
 
-#if !defined(__SMP__) && defined(DEBUG_SPINLOCKS) && (DEBUG_SPINLOCKS > 1)
-
-static const char *ide_lock_name(spinlock_t *spinlock)
+/*
+ * This is our end_request replacement function.
+ */
+void ide_end_request(byte uptodate, ide_hwgroup_t *hwgroup)
 {
-	int index;
+	struct request *rq;
+	unsigned long flags;
 
-	if (spinlock == &io_request_lock)
-		return "io_request_lock";
-	for (index = 0; index < MAX_HWIFS; index++) {
-		ide_hwif_t	*hwif    = &ide_hwifs[index];
-		ide_hwgroup_t	*hwgroup = hwif->hwgroup;
-		if (spinlock == &hwgroup->spinlock)
-			return hwif->name;
+	spin_lock_irqsave(&io_request_lock, flags);
+	rq = hwgroup->rq;
+
+	if (!end_that_request_first(rq, uptodate, hwgroup->drive->name)) {
+		add_blkdev_randomness(MAJOR(rq->rq_dev));
+		hwgroup->drive->queue = rq->next;
+        	blk_dev[MAJOR(rq->rq_dev)].current_request = NULL;
+        	hwgroup->rq = NULL;
+		end_that_request_last(rq);
 	}
-	return "?";
+	spin_unlock_irqrestore(&io_request_lock, flags);
 }
-
-#define IDE_SPIN_LOCK_IRQ(msg,spinlock)				\
-{								\
-	static int __babble = 20;				\
-	__cli();							\
-	if ((spinlock)->lock && __babble) {			\
-		__babble--;					\
-		printk("ide_lock: %s: already locked (%s)\n", msg, ide_lock_name(spinlock)); \
-	}							\
-	/* spin_lock_irq(spinlock); */				\
-	(spinlock)->lock = 1;					\
-}
-
-#define IDE_SPIN_LOCK_IRQSAVE(msg,spinlock,flags)		\
-{								\
-	__save_flags(flags);					\
-	IDE_SPIN_LOCK_IRQ(msg,spinlock);			\
-}
-
-#define IDE_SPIN_UNLOCK_IRQRESTORE(msg,spinlock,flags)		\
-{								\
-	static int __babble = 20;				\
-	__cli();							\
-	if (!((spinlock)->lock) && __babble) {			\
-		__babble--;					\
-		printk("ide_unlock: %s: not locked (%s)\n", msg, ide_lock_name(spinlock)); \
-	}							\
-	/* spin_unlock_irqrestore(msg,spinlock,flags); */	\
-	(spinlock)->lock = 0;					\
-	restore_flags(flags);					\
-}
-
-#define IDE_SPIN_UNLOCK(msg,spinlock)				\
-{								\
-	unsigned long __flags;					\
-	__save_flags(__flags);					\
-	IDE_SPIN_UNLOCK_IRQRESTORE(msg,spinlock,__flags);	\
-}
-
-#else	/* DEBUG_SPINLOCKS */
-
-#define IDE_SPIN_LOCK_IRQ(msg,spinlock)			spin_lock_irq(spinlock)
-#define IDE_SPIN_LOCK_IRQSAVE(msg,spinlock,flags)	spin_lock_irqsave(spinlock,flags)
-#define IDE_SPIN_UNLOCK(msg,spinlock)			spin_unlock(spinlock)
-#define IDE_SPIN_UNLOCK_IRQRESTORE(msg,spinlock,flags)	spin_unlock_irqrestore(spinlock,flags)
-
-#endif	/* DEBUG_SPINLOCKS */
 
 /*
  * This should get invoked any time we exit the driver to
@@ -481,7 +441,7 @@ void ide_set_handler (ide_drive_t *drive, ide_handler_t *handler, unsigned int t
 	unsigned long flags;
 	ide_hwgroup_t *hwgroup = HWGROUP(drive);
 
-	IDE_SPIN_LOCK_IRQSAVE("ide_set_handler", &hwgroup->spinlock, flags);
+	spin_lock_irqsave(&hwgroup->spinlock, flags);
 #ifdef DEBUG
 	if (hwgroup->handler != NULL) {
 		printk("%s: ide_set_handler: handler not null; old=%p, new=%p\n",
@@ -491,7 +451,7 @@ void ide_set_handler (ide_drive_t *drive, ide_handler_t *handler, unsigned int t
 	hwgroup->handler       = handler;
 	hwgroup->timer.expires = jiffies + timeout;
 	add_timer(&(hwgroup->timer));
-	IDE_SPIN_UNLOCK_IRQRESTORE("ide_set_handler", &hwgroup->spinlock, flags);
+	spin_unlock_irqrestore(&hwgroup->spinlock, flags);
 }
 
 /*
@@ -707,12 +667,12 @@ void ide_end_drive_cmd (ide_drive_t *drive, byte stat, byte err)
 			args[2] = IN_BYTE(IDE_NSECTOR_REG);
 		}
 	}
-	IDE_SPIN_LOCK_IRQSAVE("ide_end_drive_cmd", &io_request_lock, flags);
+	spin_lock_irqsave(&io_request_lock, flags);
 	drive->queue = rq->next;
 	blk_dev[MAJOR(rq->rq_dev)].current_request = NULL;
 	HWGROUP(drive)->rq = NULL;
 	rq->rq_status = RQ_INACTIVE;
-	IDE_SPIN_UNLOCK_IRQRESTORE("ide_end_drive_cmd", &io_request_lock, flags);
+	spin_unlock_irqrestore(&io_request_lock, flags);
 	save_flags(flags);	/* all CPUs; overkill? */
 	cli();			/* all CPUs; overkill? */
 	if (rq->sem != NULL)
@@ -1115,22 +1075,7 @@ repeat:
 }
 
 /*
- * The driver enables interrupts as much as possible.  In order to do this,
- * (a) the device-interrupt is always masked before entry, and
- * (b) the timeout-interrupt is always disabled before entry.
- *
- * If we enter here from, say irq14, and then start a new request for irq15,
- * (possible with "serialize" option) then we cannot ensure that we exit
- * before the irq15 hits us. So, we must be careful not to let this bother us.
- *
- * Interrupts are still masked (by default) whenever we are exchanging
- * data/cmds with a drive, because some drives seem to have very poor
- * tolerance for latency during I/O.  For devices which don't suffer from
- * this problem (most don't), the unmask flag can be set using the "hdparm"
- * utility, to permit other interrupts during data/cmd transfers.
- *
  * Caller must have already acquired spinlock using *spinflags 
- *
  */
 static void ide_do_request (ide_hwgroup_t *hwgroup, unsigned long *hwgroup_flags, int masked_irq)
 {
@@ -1141,7 +1086,7 @@ static void ide_do_request (ide_hwgroup_t *hwgroup, unsigned long *hwgroup_flags
 
 	hwgroup->busy = 1;
 	while (hwgroup->handler == NULL) {
-		IDE_SPIN_LOCK_IRQSAVE("ide_do_request1", &io_request_lock, io_flags);
+		spin_lock_irqsave(&io_request_lock, io_flags);
 		drive = choose_drive(hwgroup);
 		if (drive == NULL) {
 			unsigned long sleep = 0;
@@ -1155,7 +1100,7 @@ static void ide_do_request (ide_hwgroup_t *hwgroup, unsigned long *hwgroup_flags
 				if (drive->sleep && (!sleep || 0 < (signed long)(sleep - drive->sleep)))
 					sleep = drive->sleep;
 			} while ((drive = drive->next) != hwgroup->drive);
-			IDE_SPIN_UNLOCK_IRQRESTORE("ide_do_request2", &io_request_lock, io_flags);
+			spin_unlock_irqrestore(&io_request_lock, io_flags);
 			if (sleep) {
 				if (0 < (signed long)(jiffies + WAIT_MIN_SLEEP - sleep)) 
 					sleep = jiffies + WAIT_MIN_SLEEP;
@@ -1180,13 +1125,13 @@ static void ide_do_request (ide_hwgroup_t *hwgroup, unsigned long *hwgroup_flags
 		if (bdev->current_request == &bdev->plug)	/* FIXME: paranoia */
 			printk("%s: Huh? nuking plugged queue\n", drive->name);
 		bdev->current_request = hwgroup->rq = drive->queue;
-		IDE_SPIN_UNLOCK_IRQRESTORE("ide_do_request3", &io_request_lock, io_flags);
+		spin_unlock_irqrestore(&io_request_lock, io_flags);
 
 		if (hwif->irq != masked_irq)
 			disable_irq(hwif->irq);
-		IDE_SPIN_UNLOCK_IRQRESTORE("ide_do_request4", &hwgroup->spinlock, *hwgroup_flags);
+		spin_unlock_irqrestore(&hwgroup->spinlock, *hwgroup_flags);
 		start_request(drive);
-		IDE_SPIN_LOCK_IRQSAVE("ide_do_request5", &hwgroup->spinlock, *hwgroup_flags);
+		spin_lock_irqsave(&hwgroup->spinlock, *hwgroup_flags);
 		if (hwif->irq != masked_irq)
 			enable_irq(hwif->irq);
 	}
@@ -1205,36 +1150,35 @@ struct request **ide_get_queue (kdev_t dev)
 /*
  * do_hwgroup_request() invokes ide_do_request() after claiming hwgroup->busy.
  */
-static void do_hwgroup_request (const char *msg, ide_hwgroup_t *hwgroup)
+static void do_hwgroup_request (ide_hwgroup_t *hwgroup)
 {
 	unsigned long flags;
 
-	IDE_SPIN_LOCK_IRQSAVE(msg, &hwgroup->spinlock, flags);
+	spin_lock_irqsave(&hwgroup->spinlock, flags);
 	if (hwgroup->busy) {
-		IDE_SPIN_UNLOCK_IRQRESTORE(msg, &hwgroup->spinlock, flags);
+		spin_unlock_irqrestore(&hwgroup->spinlock, flags);
 		return;
 	}
 	del_timer(&hwgroup->timer);
 	ide_get_lock(&ide_lock, ide_intr, hwgroup);	/* for atari only */
 	ide_do_request(hwgroup, &flags, 0);
-	IDE_SPIN_UNLOCK_IRQRESTORE(msg, &hwgroup->spinlock, flags);
+	spin_unlock_irqrestore(&hwgroup->spinlock, flags);
 }
 
 /*
- * As of linux-2.1.95, ll_rw_blk.c invokes our do_idex_request()
- * functions with the io_request_spinlock already grabbed.
+ * ll_rw_blk.c invokes our do_idex_request() function
+ * with the io_request_spinlock already grabbed.
  * Since we need to do our own spinlock's internally,
  * on paths that don't necessarily originate through the
- * do_idex_request() path.
- *
- * We have to undo the spinlock on entry, and restore it again on exit.
+ * do_idex_request() path, we have to undo the spinlock on entry,
+ * and restore it again on exit.
  * Fortunately, this is mostly a nop for non-SMP kernels.
  */
 static inline void unlock_do_hwgroup_request (ide_hwgroup_t *hwgroup)
 {
-	IDE_SPIN_UNLOCK("unlock_do_hwgroup_request", &io_request_lock);
-	do_hwgroup_request ("from unlock_do_hwgroup_request", hwgroup);
-	IDE_SPIN_LOCK_IRQ("unlock_do_hwgroup_request", &io_request_lock);
+	spin_unlock(&io_request_lock);
+	do_hwgroup_request (hwgroup);
+	spin_lock_irq(&io_request_lock);
 }
 
 void do_ide0_request (void)
@@ -1282,16 +1226,16 @@ static void start_next_request (ide_hwgroup_t *hwgroup, int masked_irq)
 	unsigned long	flags;
 	ide_drive_t	*drive;
 
-	IDE_SPIN_LOCK_IRQSAVE("start_next_request", &hwgroup->spinlock, flags);
+	spin_lock_irqsave(&hwgroup->spinlock, flags);
 	if (hwgroup->handler != NULL) {
-		IDE_SPIN_UNLOCK_IRQRESTORE("start_next_request", &hwgroup->spinlock, flags);
+		spin_unlock_irqrestore(&hwgroup->spinlock, flags);
 		return;
 	}
 	drive = hwgroup->drive;
 	set_recovery_timer(HWIF(drive));
 	drive->service_time = jiffies - drive->service_start;
 	ide_do_request(hwgroup, &flags, masked_irq);
-	IDE_SPIN_UNLOCK_IRQRESTORE("start_next_request", &hwgroup->spinlock, flags);
+	spin_unlock_irqrestore(&hwgroup->spinlock, flags);
 }
 
 void ide_timer_expiry (unsigned long data)
@@ -1301,31 +1245,31 @@ void ide_timer_expiry (unsigned long data)
 	ide_handler_t *handler;
 	unsigned long flags;
 
-	IDE_SPIN_LOCK_IRQSAVE("ide_timer_expiry1", &hwgroup->spinlock, flags);
+	spin_lock_irqsave(&hwgroup->spinlock, flags);
 	drive = hwgroup->drive;
 	if ((handler = hwgroup->handler) == NULL) {
-		IDE_SPIN_UNLOCK_IRQRESTORE("ide_timer_expiry2", &hwgroup->spinlock, flags);
-		do_hwgroup_request("timer do_hwgroup_request", hwgroup);
+		spin_unlock_irqrestore(&hwgroup->spinlock, flags);
+		do_hwgroup_request(hwgroup);
 		return;
 	}
 	hwgroup->busy = 1;	/* should already be "1" */
 	hwgroup->handler = NULL;
+	del_timer(&hwgroup->timer);
 	if (hwgroup->poll_timeout != 0) {	/* polling in progress? */
-		IDE_SPIN_UNLOCK_IRQRESTORE("ide_timer_expiry3", &hwgroup->spinlock, flags);
+		spin_unlock_irqrestore(&hwgroup->spinlock, flags);
 		handler(drive);
 	} else if (drive_is_ready(drive)) {
 		printk("%s: lost interrupt\n", drive->name);
-		IDE_SPIN_UNLOCK_IRQRESTORE("ide_timer_expiry4", &hwgroup->spinlock, flags);
+		spin_unlock_irqrestore(&hwgroup->spinlock, flags);
 		handler(drive);
 	} else {
 		if (drive->waiting_for_dma) {
 			(void) hwgroup->hwif->dmaproc(ide_dma_end, drive);
 			printk("%s: timeout waiting for DMA\n", drive->name);
 		}
-		IDE_SPIN_UNLOCK_IRQRESTORE("ide_timer_expiry5", &hwgroup->spinlock, flags);
+		spin_unlock_irqrestore(&hwgroup->spinlock, flags);
 		ide_error(drive, "irq timeout", GET_STAT());
 	}
-	del_timer(&hwgroup->timer);
 	start_next_request(hwgroup, 0);
 }
 
@@ -1388,7 +1332,7 @@ void ide_intr (int irq, void *dev_id, struct pt_regs *regs)
 	ide_handler_t *handler;
 
 	__cli();	/* local CPU only */
-	IDE_SPIN_LOCK_IRQSAVE("ide_intr1", &hwgroup->spinlock, flags);
+	spin_lock_irqsave(&hwgroup->spinlock, flags);
 	hwif = hwgroup->hwif;
 	if ((handler = hwgroup->handler) == NULL || hwgroup->poll_timeout != 0) {
 		/*
@@ -1414,18 +1358,18 @@ void ide_intr (int irq, void *dev_id, struct pt_regs *regs)
 			(void)ide_ack_intr(hwif->io_ports[IDE_STATUS_OFFSET], hwif->io_ports[IDE_IRQ_OFFSET]);
 			unexpected_intr(irq, hwgroup);
 		}
-		IDE_SPIN_UNLOCK_IRQRESTORE("ide_intr2", &hwgroup->spinlock, flags);
+		spin_unlock_irqrestore(&hwgroup->spinlock, flags);
 		return;
 	}
 	drive = hwgroup->drive;
 	if (!drive || !drive_is_ready(drive)) {
-		IDE_SPIN_UNLOCK_IRQRESTORE("ide_intr3", &hwgroup->spinlock, flags);
+		spin_unlock_irqrestore(&hwgroup->spinlock, flags);
 		return;
 	}
 	hwgroup->handler = NULL;
 	(void)ide_ack_intr(hwif->io_ports[IDE_STATUS_OFFSET], hwif->io_ports[IDE_IRQ_OFFSET]);
 	del_timer(&(hwgroup->timer));
-	IDE_SPIN_UNLOCK_IRQRESTORE("ide_intr4", &hwgroup->spinlock, flags);
+	spin_unlock_irqrestore(&hwgroup->spinlock, flags);
 	if (drive->unmask)
 		ide__sti();	/* local CPU only */
 	handler(drive);		/* service this interrupt, may set handler for next interrupt */
@@ -1520,7 +1464,7 @@ int ide_do_drive_cmd (ide_drive_t *drive, struct request *rq, ide_action_t actio
 	if (action == ide_wait)
 		rq->sem = &sem;
 
-	IDE_SPIN_LOCK_IRQSAVE("ide_do_drive_cmd", &io_request_lock, flags);
+	spin_lock_irqsave(&io_request_lock, flags);
 	cur_rq = drive->queue;
 	if (cur_rq == NULL || action == ide_preempt) {
 		rq->next = cur_rq;
@@ -1535,8 +1479,8 @@ int ide_do_drive_cmd (ide_drive_t *drive, struct request *rq, ide_action_t actio
 		rq->next = cur_rq->next;
 		cur_rq->next = rq;
 	}
-	IDE_SPIN_UNLOCK_IRQRESTORE("ide_do_drive_cmd", &io_request_lock, flags);
-	do_hwgroup_request("drive_cmd do_hwgroup_request", hwgroup);
+	spin_unlock_irqrestore(&io_request_lock, flags);
+	do_hwgroup_request(hwgroup);
 	save_flags(flags);	/* all CPUs; overkill? */
 	cli();			/* all CPUs; overkill? */
 	if (action == ide_wait && rq->rq_status != RQ_INACTIVE)
@@ -1565,14 +1509,14 @@ int ide_revalidate_disk(kdev_t i_rdev)
 	major = MAJOR(i_rdev);
 	minor = drive->select.b.unit << PARTN_BITS;
 	hwgroup = HWGROUP(drive);
-	IDE_SPIN_LOCK_IRQSAVE("ide_revalidate_disk", &hwgroup->spinlock, flags);
+	spin_lock_irqsave(&hwgroup->spinlock, flags);
 	if (drive->busy || (drive->usage > 1)) {
-		IDE_SPIN_UNLOCK_IRQRESTORE("ide_revalidate_disk", &hwgroup->spinlock, flags);
+		spin_unlock_irqrestore(&hwgroup->spinlock, flags);
 		return -EBUSY;
 	};
 	drive->busy = 1;
 	MOD_INC_USE_COUNT;
-	IDE_SPIN_UNLOCK_IRQRESTORE("ide_revalidate_disk", &hwgroup->spinlock, flags);
+	spin_unlock_irqrestore(&hwgroup->spinlock, flags);
 
 	for (p = 0; p < (1<<PARTN_BITS); ++p) {
 		if (drive->part[p].nr_sects > 0) {
@@ -1582,6 +1526,7 @@ int ide_revalidate_disk(kdev_t i_rdev)
 			if (sb)
 				invalidate_inodes(sb);
 			invalidate_buffers (devp);
+			set_blocksize(devp, 1024);
 		}
 		drive->part[p].start_sect = 0;
 		drive->part[p].nr_sects   = 0;
@@ -1931,7 +1876,7 @@ int ide_read_setting(ide_drive_t *drive, ide_settings_t *setting)
 	unsigned long	flags;
 
 	if ((setting->rw & SETTING_READ)) {
-		IDE_SPIN_LOCK_IRQSAVE("ide_read_setting", &HWGROUP(drive)->spinlock, flags);
+		spin_lock_irqsave(&HWGROUP(drive)->spinlock, flags);
 		switch(setting->data_type) {
 			case TYPE_BYTE:
 				val = *((u8 *) setting->data);
@@ -1944,25 +1889,25 @@ int ide_read_setting(ide_drive_t *drive, ide_settings_t *setting)
 				val = *((u32 *) setting->data);
 				break;
 		}
-		IDE_SPIN_UNLOCK_IRQRESTORE("ide_read_setting", &HWGROUP(drive)->spinlock, flags);
+		spin_unlock_irqrestore(&HWGROUP(drive)->spinlock, flags);
 	}
 	return val;
 }
 
-int ide_spin_wait_hwgroup (const char *msg, ide_drive_t *drive, unsigned long *flags)
+int ide_spin_wait_hwgroup (ide_drive_t *drive, unsigned long *flags)
 {
 	ide_hwgroup_t *hwgroup = HWGROUP(drive);
 	unsigned long timeout = jiffies + (3 * HZ);
 
-	IDE_SPIN_LOCK_IRQSAVE(msg, &hwgroup->spinlock, *flags);
+	spin_lock_irqsave(&hwgroup->spinlock, *flags);
 	while (hwgroup->busy) {
-		IDE_SPIN_UNLOCK_IRQRESTORE(msg, &hwgroup->spinlock, *flags);
+		spin_unlock_irqrestore(&hwgroup->spinlock, *flags);
 		__sti();	/* local CPU only; needed for jiffies */
 		if (0 < (signed long)(jiffies - timeout)) {
-			printk("%s: %s: channel busy\n", drive->name, msg);
+			printk("%s: channel busy\n", drive->name);
 			return -EBUSY;
 		}
-		IDE_SPIN_LOCK_IRQSAVE(msg, &hwgroup->spinlock, *flags);
+		spin_lock_irqsave(&hwgroup->spinlock, *flags);
 	}
 	return 0;
 }
@@ -1981,7 +1926,7 @@ int ide_write_setting(ide_drive_t *drive, ide_settings_t *setting, int val)
 		return -EINVAL;
 	if (setting->set)
 		return setting->set(drive, val);
-	if (ide_spin_wait_hwgroup("ide_write_settings", drive, &flags))
+	if (ide_spin_wait_hwgroup(drive, &flags))
 		return -EBUSY;
 	switch (setting->data_type) {
 		case TYPE_BYTE:
@@ -1999,7 +1944,7 @@ int ide_write_setting(ide_drive_t *drive, ide_settings_t *setting, int val)
 				*p = val;
 			break;
 	}
-	IDE_SPIN_UNLOCK_IRQRESTORE("ide_write_setting4", &HWGROUP(drive)->spinlock, flags);
+	spin_unlock_irqrestore(&HWGROUP(drive)->spinlock, flags);
 	return 0;
 }
 
@@ -2345,7 +2290,7 @@ __initfunc(static int match_parm (char *s, const char *keywords[], int vals[], i
  * "idex=serialize"	: do not overlap operations on idex and ide(x^1)
  * "idex=four"		: four drives on idex and ide(x^1) share same ports
  * "idex=reset"		: reset interface before first use
- * "idex=nodma"		: do not enable DMA by default on either drive
+ * "idex=dma"		: enable DMA by default on both drives if possible
  *
  * The following are valid ONLY on ide0,
  * and the defaults for the base,ctl ports must not be altered.
@@ -2447,7 +2392,7 @@ __initfunc(void ide_setup (char *s))
 		/*
 		 * Be VERY CAREFUL changing this: note hardcoded indexes below
 		 */
-		const char *ide_words[] = {"noprobe", "serialize", "autotune", "noautotune", "reset", "nodma", "four",
+		const char *ide_words[] = {"noprobe", "serialize", "autotune", "noautotune", "reset", "dma", "four",
 			"qd6580", "ht6560b", "cmd640_vlb", "dtc2278", "umc8672", "ali14xx", "dc4030", NULL};
 		hw = s[3] - '0';
 		hwif = &ide_hwifs[hw];
@@ -2535,8 +2480,8 @@ __initfunc(void ide_setup (char *s))
 				goto do_serialize;
 			}
 #endif /* CONFIG_BLK_DEV_4DRIVES */
-			case -6: /* nodma */
-				hwif->no_autodma = 1;
+			case -6: /* dma */
+				hwif->autodma = 1;
 				goto done;
 			case -5: /* "reset" */
 				hwif->reset = 1;
@@ -2618,7 +2563,7 @@ int ide_xlate_1024 (kdev_t i_rdev, int xparm, const char *msg)
 
 	printk("%s ", msg);
 
-	if (xparm == -1 && drive->bios_cyl < 1024)
+	if (xparm < 0 && (drive->bios_cyl * drive->bios_head * drive->bios_sect) < (1024 * 16 * 63))
 		return 0;		/* small disk: no translation needed */
 
 	if (drive->id) {
@@ -2646,15 +2591,14 @@ int ide_xlate_1024 (kdev_t i_rdev, int xparm, const char *msg)
 #if FAKE_FDISK_FOR_EZDRIVE
 		if (xparm == -1) {
 			drive->remap_0_to_1 = 1;
-			msg = "0->1";
+			printk("[remap 0->1] ");
 		} else
 #endif /* FAKE_FDISK_FOR_EZDRIVE */
 		if (xparm == 1) {
 			drive->sect0 = 63;
 			drive->bios_cyl = (tracks - 1) / drive->bios_head;
-			msg = "+63";
+			printk("[remap +63] ");
 		}
-		printk("[remap %s] ", msg);
 	}
 	drive->part[0].nr_sects = current_capacity(drive);
 	printk("[%d/%d/%d]", drive->bios_cyl, drive->bios_head, drive->bios_sect);
@@ -2935,6 +2879,7 @@ struct file_operations ide_fops[] = {{
 EXPORT_SYMBOL(ide_hwifs);
 EXPORT_SYMBOL(ide_register_module);
 EXPORT_SYMBOL(ide_unregister_module);
+EXPORT_SYMBOL(ide_spin_wait_hwgroup);
 
 /*
  * Probe module

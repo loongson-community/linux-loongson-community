@@ -20,10 +20,9 @@
  * usema(7m), usinit(3p), usnewsema(3p)
  * /usr/include/sys/usioctl.h 
  *
- * $Id$
- */
+*/
+
 #include <linux/fs.h>
-#include <linux/init.h>
 #include <linux/miscdevice.h>
 #include <linux/sched.h>
 #include <linux/file.h>
@@ -33,8 +32,8 @@
 #include <linux/dcache.h>
 #include <linux/mm.h>
 #include <linux/slab.h>
+#include <linux/smp_lock.h>
 
-#include <asm/smp_lock.h>
 #include <asm/usioctl.h>
 #include <asm/mman.h>
 #include <asm/uaccess.h>
@@ -187,7 +186,8 @@ static struct miscdevice dev_usemaclone = {
 	SGI_USEMACLONE, "usemaclone", &sgi_usemaclone_fops
 };
 
-__initfunc(void usema_init(void))
+void
+usema_init(void)
 {
 	printk("usemaclone misc device registered (minor: %d)\n",
 	       SGI_USEMACLONE);

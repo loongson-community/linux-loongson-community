@@ -105,6 +105,7 @@
 #include <linux/slab.h>
 #include <linux/interrupt.h>
 #include <linux/poll.h>
+#include <linux/init.h>
 
 #include <asm/uaccess.h>
 #include <asm/system.h>
@@ -206,18 +207,14 @@ int sock_setsockopt(struct socket *sock, int level, int optname,
 			sk->broadcast=valbool;
 			break;
 		case SO_SNDBUF:
-			/*
-			 *	The spec isnt clear if ENOBUFS or EINVAL
-			 *	is best
-			 */
-			 
-			/* printk(KERN_DEBUG "setting SO_SNDBUF %d\n", val); */
+			/* Don't error on this BSD doesn't and if you think
+			   about it this is right. Otherwise apps have to
+			   play 'guess the biggest size' games. RCVBUF/SNDBUF
+			   are treated in BSD as hints */
+			   
 			if (val > sysctl_wmem_max)
-				return -EINVAL;
+				val = sysctl_wmem_max;
 
-			/* FIXME: the tcp code should be made to work even
-			 * with small sndbuf values.
-			 */
 			sk->sndbuf = max(val*2,2048);
 
 			/*
@@ -228,10 +225,13 @@ int sock_setsockopt(struct socket *sock, int level, int optname,
 			break;
 
 		case SO_RCVBUF:
-			/* printk(KERN_DEBUG "setting SO_RCVBUF %d\n", val); */
-
+			/* Don't error on this BSD doesn't and if you think
+			   about it this is right. Otherwise apps have to
+			   play 'guess the biggest size' games. RCVBUF/SNDBUF
+			   are treated in BSD as hints */
+			  
 			if (val > sysctl_rmem_max)
-				return -EINVAL;
+				val = sysctl_rmem_max;
 
 			/* FIXME: is this lower bound the right one? */
 			sk->rcvbuf = max(val*2,256);
@@ -480,8 +480,8 @@ struct sock *sk_alloc(int family, int priority, int zero_it)
 {
 	struct sock *sk = kmem_cache_alloc(sk_cachep, priority);
 
-	if(sk && zero_it) {
-		memset(sk, 0, sizeof(struct sock));
+	if(sk) {
+		if (zero_it) memset(sk, 0, sizeof(struct sock));
 		sk->family = family;
 	}
 
@@ -496,10 +496,11 @@ void sk_free(struct sock *sk)
 	kmem_cache_free(sk_cachep, sk);
 }
 
-void sk_init(void)
+__initfunc(void sk_init(void))
 {
 	sk_cachep = kmem_cache_create("sock", sizeof(struct sock), 0,
 				      SLAB_HWCACHE_ALIGN, 0, 0);
+
 }
 
 /*
@@ -542,8 +543,8 @@ struct sk_buff *sock_wmalloc(struct sock *sk, unsigned long size, int force, int
 			atomic_add(skb->truesize, &sk->wmem_alloc);
 			skb->destructor = sock_wfree;
 			skb->sk = sk;
+			return skb;
 		}
-		return skb;
 	}
 	return NULL;
 }
@@ -556,23 +557,26 @@ struct sk_buff *sock_rmalloc(struct sock *sk, unsigned long size, int force, int
 			atomic_add(skb->truesize, &sk->rmem_alloc);
 			skb->destructor = sock_rfree;
 			skb->sk = sk;
+			return skb;
 		}
-		return skb;
 	}
 	return NULL;
 }
 
 void *sock_kmalloc(struct sock *sk, int size, int priority)
 {
-	void *mem = NULL;
 	if (atomic_read(&sk->omem_alloc)+size < sysctl_optmem_max) {
+		void *mem;
 		/* First do the add, to avoid the race if kmalloc
  		 * might sleep.
 		 */
 		atomic_add(size, &sk->omem_alloc);
 		mem = kmalloc(size, priority);
+		if (mem)
+			return mem;
+		atomic_sub(size, &sk->omem_alloc);
 	}
-	return mem;
+	return NULL;
 }
 
 void sock_kfree_s(struct sock *sk, void *mem, int size)
@@ -880,7 +884,7 @@ int sock_no_getname(struct socket *sock, struct sockaddr *saddr,
 
 unsigned int sock_no_poll(struct file * file, struct socket *sock, poll_table *pt)
 {
-	return -EOPNOTSUPP;
+	return 0;
 }
 
 int sock_no_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)

@@ -14,8 +14,6 @@
 
 #include <stdarg.h>
 
-#include <asm/system.h>
-
 #include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
@@ -27,9 +25,10 @@
 #include <linux/console.h>
 #include <linux/init.h>
 
+#include <asm/system.h>
 #include <asm/uaccess.h>
 
-#define LOG_BUF_LEN	8192
+#define LOG_BUF_LEN	(16384)
 
 static char buf[1024];
 

@@ -2,29 +2,17 @@
 #define __ALPHA_IO_H
 
 #include <linux/config.h>
-
 #include <asm/system.h>
+#include <asm/machvec.h>
 
-/* We don't use IO slowdowns on the alpha, but.. */
+/* We don't use IO slowdowns on the Alpha, but.. */
 #define __SLOW_DOWN_IO	do { } while (0)
 #define SLOW_DOWN_IO	do { } while (0)
 
 /*
- * The hae (hardware address extension) register is used to
- * access high IO addresses. To avoid doing an external cycle
- * every time we need to set the hae, we have a hae cache in
- * memory. The kernel entry code makes sure that the hae is
- * preserved across interrupts, so it is safe to set the hae
- * once and then depend on it staying the same in kernel code.
- */
-extern struct hae {
-	unsigned long	cache;
-	unsigned long	*reg;
-} hae;
-
-/*
  * Virtual -> physical identity mapping starts at this offset
  */
+/* XXX: Do we need to conditionalize on this?  */
 #ifdef USE_48_BIT_KSEG
 #define IDENT_ADDR	(0xffff800000000000UL)
 #else
@@ -40,25 +28,34 @@ extern struct hae {
  * register not being up-to-date with respect to the hardware
  * value.
  */
-extern inline void set_hae(unsigned long new_hae)
+static inline void __set_hae(unsigned long new_hae)
 {
 	unsigned long ipl = swpipl(7);
-	hae.cache = new_hae;
-	*hae.reg = new_hae;
+
+	alpha_mv.hae_cache = new_hae;
+	*alpha_mv.hae_register = new_hae;
 	mb();
-	new_hae = *hae.reg; /* read to make sure it was written */
+
+	/* Re-read to make sure it was written.  */
+	new_hae = *alpha_mv.hae_register;
 	setipl(ipl);
+}
+
+static inline void set_hae(unsigned long new_hae)
+{
+	if (new_hae != alpha_mv.hae_cache)
+		__set_hae(new_hae);
 }
 
 /*
  * Change virtual addresses to physical addresses and vv.
  */
-extern inline unsigned long virt_to_phys(volatile void * address)
+static inline unsigned long virt_to_phys(volatile void * address)
 {
 	return 0xffffffffUL & (unsigned long) address;
 }
 
-extern inline void * phys_to_virt(unsigned long address)
+static inline void * phys_to_virt(unsigned long address)
 {
 	return (void *) (address + IDENT_ADDR);
 }
@@ -78,23 +75,76 @@ extern void _sethae (unsigned long addr);	/* cached version */
 /*
  * There are different chipsets to interface the Alpha CPUs to the world.
  */
-#if defined(CONFIG_ALPHA_LCA)
-# include <asm/lca.h>		/* get chip-specific definitions */
-#elif defined(CONFIG_ALPHA_APECS)
-# include <asm/apecs.h>		/* get chip-specific definitions */
-#elif defined(CONFIG_ALPHA_CIA)
-# include <asm/cia.h>		/* get chip-specific definitions */
-#elif defined(CONFIG_ALPHA_T2)
-# include <asm/t2.h>		/* get chip-specific definitions */
-#elif defined(CONFIG_ALPHA_PYXIS)
-# include <asm/pyxis.h>		/* get chip-specific definitions */
-#elif defined(CONFIG_ALPHA_TSUNAMI)
-# include <asm/tsunami.h>	/* get chip-specific definitions */
-#elif defined(CONFIG_ALPHA_MCPCIA)
-# include <asm/mcpcia.h>	/* get chip-specific definitions */
+
+#ifdef CONFIG_ALPHA_GENERIC
+
+/* In a generic kernel, we always go through the machine vector.  */
+
+# define virt_to_bus(a)	alpha_mv.mv_virt_to_bus(a)
+# define bus_to_virt(a)	alpha_mv.mv_bus_to_virt(a)
+
+# define __inb		alpha_mv.mv_inb
+# define __inw		alpha_mv.mv_inw
+# define __inl		alpha_mv.mv_inl
+# define __outb		alpha_mv.mv_outb
+# define __outw		alpha_mv.mv_outw
+# define __outl		alpha_mv.mv_outl
+
+# define __readb(a)	alpha_mv.mv_readb((unsigned long)(a))
+# define __readw(a)	alpha_mv.mv_readw((unsigned long)(a))
+# define __readl(a)	alpha_mv.mv_readl((unsigned long)(a))
+# define __readq(a)	alpha_mv.mv_readq((unsigned long)(a))
+# define __writeb(v,a)	alpha_mv.mv_writeb((v),(unsigned long)(a))
+# define __writew(v,a)	alpha_mv.mv_writew((v),(unsigned long)(a))
+# define __writel(v,a)	alpha_mv.mv_writel((v),(unsigned long)(a))
+# define __writeq(v,a)	alpha_mv.mv_writeq((v),(unsigned long)(a))
+
+# define inb		__inb
+# define inw		__inw
+# define inl		__inl
+# define outb		__outb
+# define outw		__outw
+# define outl		__outl
+
+# define readb		__readb
+# define readw		__readw
+# define readl		__readl
+# define readq		__readq
+# define writeb		__writeb
+# define writew		__writew
+# define writel		__writel
+# define writeq		__writeq
+
+# define dense_mem(a)	alpha_mv.mv_dense_mem(a)
+
 #else
+
+/* Control how and what gets defined within the core logic headers.  */
+#define __WANT_IO_DEF
+
+#if defined(CONFIG_ALPHA_APECS)
+# include <asm/core_apecs.h>
+#elif defined(CONFIG_ALPHA_CIA)
+# include <asm/core_cia.h>
+#elif defined(CONFIG_ALPHA_LCA)
+# include <asm/core_lca.h>
+#elif defined(CONFIG_ALPHA_MCPCIA)
+# include <asm/core_mcpcia.h>
+#elif defined(CONFIG_ALPHA_PYXIS)
+# include <asm/core_pyxis.h>
+#elif defined(CONFIG_ALPHA_T2)
+# include <asm/core_t2.h>
+#elif defined(CONFIG_ALPHA_TSUNAMI)
+# include <asm/core_tsunami.h>
+#elif defined(CONFIG_ALPHA_JENSEN)
 # include <asm/jensen.h>
+#else
+#error "What system is this?"
 #endif
+
+#undef __WANT_IO_DEF
+
+#endif /* GENERIC */
 
 /*
  * The convention used for inb/outb etc. is that names starting with
@@ -114,9 +164,11 @@ extern void		_outl (unsigned int l,unsigned long port);
 extern unsigned long	_readb(unsigned long addr);
 extern unsigned long	_readw(unsigned long addr);
 extern unsigned long	_readl(unsigned long addr);
+extern unsigned long	_readq(unsigned long addr);
 extern void		_writeb(unsigned char b, unsigned long addr);
 extern void		_writew(unsigned short b, unsigned long addr);
 extern void		_writel(unsigned int b, unsigned long addr);
+extern void		_writeq(unsigned long b, unsigned long addr);
 
 /*
  * The platform header files may define some of these macros to use
@@ -169,12 +221,12 @@ extern void		_writel(unsigned int b, unsigned long addr);
  * On the alpha, we have the whole physical address space mapped at all
  * times, so "ioremap()" and "iounmap()" do not need to do anything.
  */
-extern inline void * ioremap(unsigned long offset, unsigned long size)
+static inline void * ioremap(unsigned long offset, unsigned long size)
 {
 	return (void *) offset;
 } 
 
-extern inline void iounmap(void *addr)
+static inline void iounmap(void *addr)
 {
 }
 
@@ -187,6 +239,9 @@ extern inline void iounmap(void *addr)
 #ifndef readl
 # define readl(a)	_readl((unsigned long)(a))
 #endif
+#ifndef readq
+# define readq(a)	_readq((unsigned long)(a))
+#endif
 #ifndef writeb
 # define writeb(v,a)	_writeb((v),(unsigned long)(a))
 #endif
@@ -196,19 +251,29 @@ extern inline void iounmap(void *addr)
 #ifndef writel
 # define writel(v,a)	_writel((v),(unsigned long)(a))
 #endif
+#ifndef writeq
+# define writeq(v,a)	_writeq((v),(unsigned long)(a))
+#endif
 
 #ifdef __KERNEL__
 
 /*
  * String version of IO memory access ops:
  */
-extern void _memcpy_fromio(void *, unsigned long, unsigned long);
-extern void _memcpy_toio(unsigned long, void *, unsigned long);
-extern void _memset_io(unsigned long, int, unsigned long);
+extern void _memcpy_fromio(void *, unsigned long, long);
+extern void _memcpy_toio(unsigned long, void *, long);
+extern void _memset_c_io(unsigned long, unsigned long, long);
 
-#define memcpy_fromio(to,from,len)	_memcpy_fromio((to),(unsigned long)(from),(len))
-#define memcpy_toio(to,from,len)	_memcpy_toio((unsigned long)(to),(from),(len))
-#define memset_io(addr,c,len)		_memset_io((unsigned long)(addr),(c),(len))
+#define memcpy_fromio(to,from,len) \
+  _memcpy_fromio((to),(unsigned long)(from),(len))
+#define memcpy_toio(to,from,len) \
+  _memcpy_toio((unsigned long)(to),(from),(len))
+#define memset_io(addr,c,len) \
+  _memset_c_io((unsigned long)(addr),0x0101010101010101UL*(u8)(c),(len))
+
+#define __HAVE_ARCH_MEMSETW_IO
+#define memsetw_io(addr,c,len) \
+  _memset_c_io((unsigned long)(addr),0x0001000100010001UL*(u16)(c),(len))
 
 /*
  * String versions of in/out ops:
@@ -223,13 +288,15 @@ extern void outsl (unsigned long port, const void *src, unsigned long count);
 /*
  * XXX - We don't have csum_partial_copy_fromio() yet, so we cheat here and 
  * just copy it. The net code will then do the checksum later. Presently 
- * only used by some shared memory 8390 ethernet cards anyway.
+ * only used by some shared memory 8390 Ethernet cards anyway.
  */
 
-#define eth_io_copy_and_sum(skb,src,len,unused)	memcpy_fromio((skb)->data,(src),(len))
+#define eth_io_copy_and_sum(skb,src,len,unused) \
+  memcpy_fromio((skb)->data,(src),(len))
 
-static inline int check_signature(unsigned long io_addr,
-	const unsigned char *signature, int length)
+static inline int
+check_signature(unsigned long io_addr, const unsigned char *signature,
+		int length)
 {
 	int retval = 0;
 	do {
@@ -244,6 +311,29 @@ out:
 	return retval;
 }
 
+/*
+ * The Alpha Jensen hardware for some rather strange reason puts
+ * the RTC clock at 0x170 instead of 0x70. Probably due to some
+ * misguided idea about using 0x70 for NMI stuff.
+ *
+ * These defines will override the defaults when doing RTC queries
+ */
+
+#ifdef CONFIG_ALPHA_GENERIC
+# define RTC_PORT(x)	((x) + alpha_mv.rtc_port)
+# define RTC_ADDR(x)	((x) | alpha_mv.rtc_addr)
+#else
+# ifdef CONFIG_ALPHA_JENSEN
+#  define RTC_PORT(x)	(0x170+(x))
+#  define RTC_ADDR(x)	(x)
+# else
+#  define RTC_PORT(x)	(0x70 + (x))
+#  define RTC_ADDR(x)	(0x80 | (x))
+# endif
+#endif
+
+#define RTC_ALWAYS_BCD	0
+
 #endif /* __KERNEL__ */
 
-#endif
+#endif /* __ALPHA_IO_H */

@@ -1503,17 +1503,18 @@ void wd33c93_setup (char *str, int *ints)
 
 	/* The kernel does some processing of the command-line before calling
 	 * this function: If it begins with any decimal or hex number arguments,
-	 * ints[0] = how many numbers found and ints[1] through [n] are the values
-	 * themselves. str points to where the non-numeric arguments (if any)
-	 * start: We do our own parsing of those. We construct synthetic 'nosync'
-	 * keywords out of numeric args (to maintain compatibility with older
-	 * versions) and then add the rest of the arguments.
+	 * ints[0] = how many numbers found and ints[1] through [n] are the
+	 * values themselves. str points to where the non-numeric arguments
+	 * (if any)
+	 * start: We do our own parsing of those. We construct synthetic
+	 * 'nosync' keywords out of numeric args (to maintain compatibility
+	 * with older versions) and then add the rest of the arguments.
 	 */
 	p1 = setup_buffer;
 	*p1 = '\0';
 	if (ints[0]) {
 		for (i = 0; i < ints[0]; i++) {
-			x = vsprintf(p1, "nosync:0x%02x,", &(ints[i+1]));
+			x = vsprintf(p1, "nosync:0x%02x,", ints[i+1]);
 			p1 += x;
 		}
 	}
@@ -1666,9 +1667,13 @@ void wd33c93_init (struct Scsi_Host *instance, wd33c93_regs *regs,
 		hostdata->proc = val;
 #endif
 
-	cli();
-	reset_wd33c93(instance);
-	sti();
+	{
+		unsigned long flags;
+		save_flags(flags);
+		cli();
+		reset_wd33c93(instance);
+		restore_flags(flags);
+	}
 
 	if(!shown++) {
 		printk("WD93: Driver version %s ", WD33C93_VERSION);

@@ -22,15 +22,87 @@
 #include <linux/blk.h>
 #endif
 
+#include <asm/processor.h>
 #include <asm/system.h>
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
 #include <asm/dma.h>
+#include <asm/fixmap.h>
 
-const char bad_pmd_string[] = "Bad pmd in pte_alloc: %08lx\n";
-
-extern void die_if_kernel(char *,struct pt_regs *,long);
 extern void show_net_buffers(void);
+extern unsigned long init_smp_mappings(unsigned long);
+
+void __bad_pte_kernel(pmd_t *pmd)
+{
+	printk("Bad pmd in pte_alloc: %08lx\n", pmd_val(*pmd));
+	pmd_val(*pmd) = _KERNPG_TABLE + __pa(BAD_PAGETABLE);
+}
+
+void __bad_pte(pmd_t *pmd)
+{
+	printk("Bad pmd in pte_alloc: %08lx\n", pmd_val(*pmd));
+	pmd_val(*pmd) = _PAGE_TABLE + __pa(BAD_PAGETABLE);
+}
+
+pte_t *get_pte_kernel_slow(pmd_t *pmd, unsigned long offset)
+{
+	pte_t *pte;
+
+	pte = (pte_t *) __get_free_page(GFP_KERNEL);
+	if (pmd_none(*pmd)) {
+		if (pte) {
+			clear_page((unsigned long)pte);
+			pmd_val(*pmd) = _KERNPG_TABLE + __pa(pte);
+			return pte + offset;
+		}
+		pmd_val(*pmd) = _KERNPG_TABLE + __pa(BAD_PAGETABLE);
+		return NULL;
+	}
+	free_page((unsigned long)pte);
+	if (pmd_bad(*pmd)) {
+		__bad_pte_kernel(pmd);
+		return NULL;
+	}
+	return (pte_t *) pmd_page(*pmd) + offset;
+}
+
+pte_t *get_pte_slow(pmd_t *pmd, unsigned long offset)
+{
+	unsigned long pte;
+
+	pte = (unsigned long) __get_free_page(GFP_KERNEL);
+	if (pmd_none(*pmd)) {
+		if (pte) {
+			clear_page(pte);
+			pmd_val(*pmd) = _PAGE_TABLE + __pa(pte);
+			return (pte_t *)(pte + offset);
+		}
+		pmd_val(*pmd) = _PAGE_TABLE + __pa(BAD_PAGETABLE);
+		return NULL;
+	}
+	free_page(pte);
+	if (pmd_bad(*pmd)) {
+		__bad_pte(pmd);
+		return NULL;
+	}
+	return (pte_t *) (pmd_page(*pmd) + offset);
+}
+
+int do_check_pgt_cache(int low, int high)
+{
+	int freed = 0;
+	if(pgtable_cache_size > high) {
+		do {
+			if(pgd_quicklist)
+				free_pgd_slow(get_pgd_fast()), freed++;
+			if(pmd_quicklist)
+				free_pmd_slow(get_pmd_fast()), freed++;
+			if(pte_quicklist)
+				free_pte_slow(get_pte_fast()), freed++;
+		} while(pgtable_cache_size > low);
+	}
+	return freed;
+}
 
 /*
  * BAD_PAGE is the page that is used for page faults when linux
@@ -82,7 +154,7 @@ void show_mem(void)
 		total++;
 		if (PageReserved(mem_map+i))
 			reserved++;
-		if (PageSwapCache(mem_map+i))
+		else if (PageSwapCache(mem_map+i))
 			cached++;
 		else if (!atomic_read(&mem_map[i].count))
 			free++;
@@ -93,6 +165,7 @@ void show_mem(void)
 	printk("%d reserved pages\n",reserved);
 	printk("%d pages shared\n",shared);
 	printk("%d pages swap cached\n",cached);
+	printk("%ld pages in page table cache\n",pgtable_cache_size);
 	show_buffers();
 #ifdef CONFIG_NET
 	show_net_buffers();
@@ -116,23 +189,6 @@ extern char __init_begin, __init_end;
 #define X86_CR4_PGE		0x0080		/* enable global pages */
 #define X86_CR4_PCE		0x0100		/* enable performance counters at ipl 3 */
 
-#define X86_FEATURE_FPU		0x0001		/* internal FPU */
-#define X86_FEATURE_VME		0x0002		/* vm86 extensions */
-#define X86_FEATURE_DE		0x0004		/* debugging extensions */
-#define X86_FEATURE_PSE		0x0008		/* Page size extensions */
-#define X86_FEATURE_TSC		0x0010		/* Time stamp counter */
-#define X86_FEATURE_MSR		0x0020		/* RDMSR/WRMSR */
-#define X86_FEATURE_PAE		0x0040		/* Physical address extension */
-#define X86_FEATURE_MCE		0x0080		/* Machine check exception */
-#define X86_FEATURE_CXS		0x0100		/* cmpxchg8 available */
-#define X86_FEATURE_APIC	0x0200		/* internal APIC */
-#define X86_FEATURE_10		0x0400
-#define X86_FEATURE_11		0x0800
-#define X86_FEATURE_MTRR	0x1000		/* memory type registers */
-#define X86_FEATURE_PGE		0x2000		/* Global page */
-#define X86_FEATURE_MCA		0x4000		/* Machine Check Architecture */
-#define X86_FEATURE_CMOV	0x8000		/* Cmov/fcomi */
-
 /*
  * Save the cr4 feature set we're using (ie
  * Pentium 4MB enable and PPro Global page
@@ -149,6 +205,50 @@ static inline void set_in_cr4(unsigned long mask)
 		"movl %%eax,%%cr4\n"
 		: : "irg" (mask)
 		:"ax");
+}
+
+/*
+ * allocate page table(s) for compile-time fixed mappings
+ */
+static unsigned long __init fixmap_init(unsigned long start_mem)
+{
+	pgd_t * pg_dir;
+	unsigned int idx;
+	unsigned long address;
+
+	start_mem = PAGE_ALIGN(start_mem);
+
+	for (idx=1; idx <= __end_of_fixed_addresses; idx += PTRS_PER_PTE)
+	{
+		address = fix_to_virt(__end_of_fixed_addresses-idx);
+		pg_dir = swapper_pg_dir + (address >> PGDIR_SHIFT);
+		memset((void *)start_mem, 0, PAGE_SIZE);
+		pgd_val(*pg_dir) = _PAGE_TABLE | __pa(start_mem);
+		start_mem += PAGE_SIZE;
+	}
+
+	return start_mem;
+}
+
+static void set_pte_phys (unsigned long vaddr, unsigned long phys)
+{
+	pgprot_t prot;
+	pte_t * pte;
+
+	pte = pte_offset(pmd_offset(pgd_offset_k(vaddr), vaddr), vaddr);
+	prot = PAGE_KERNEL;
+	if (boot_cpu_data.x86_capability & X86_FEATURE_PGE)
+		pgprot_val(prot) |= _PAGE_GLOBAL;
+	set_pte(pte, mk_pte_phys(phys, prot));
+
+	local_flush_tlb();
+}
+
+void set_fixmap (enum fixed_addresses idx, unsigned long phys)
+{
+	unsigned long address = fix_to_virt(idx);
+
+	set_pte_phys (address,phys);
 }
 
 /*
@@ -254,49 +354,9 @@ __initfunc(unsigned long paging_init(unsigned long start_mem, unsigned long end_
 			address += PAGE_SIZE;
 		}
 	}
+	start_mem = fixmap_init(start_mem);
 #ifdef __SMP__
-{
-	extern unsigned long mp_lapic_addr;
-	pte_t pte;
-	unsigned long apic_area = (unsigned long)APIC_BASE;
-
-	pg_dir = swapper_pg_dir + ((apic_area) >> PGDIR_SHIFT);
-	memset((void *)start_mem, 0, PAGE_SIZE);
-	pgd_val(*pg_dir) = _PAGE_TABLE | __pa(start_mem);
-	start_mem += PAGE_SIZE;
-
-	if (smp_found_config) {
-		/*
-		 * Map the local APIC to FEE00000. (it's only the default
-		 * value, thanks to Steve Hsieh for finding this out. We
-		 * now save the real local-APIC physical address in smp_scan(),
-		 * and use it here)
-		 */
-		pg_table = pte_offset((pmd_t *)pg_dir, apic_area);
-		pte = mk_pte(__va(mp_lapic_addr), PAGE_KERNEL);
-		set_pte(pg_table, pte);
-
-		/*
-		 * Map the IO-APIC to FEC00000.
-		 */
-		apic_area = 0xFEC00000; /*(unsigned long)IO_APIC_BASE;*/
-		pg_table = pte_offset((pmd_t *)pg_dir, apic_area);
-		pte = mk_pte(__va(apic_area), PAGE_KERNEL);
-		set_pte(pg_table, pte);
-	} else {
-		/*
-		 * No local APIC but we are compiled SMP ... set up a
-		 * fake all zeroes page to simulate the local APIC.
-		 */
-		pg_table = pte_offset((pmd_t *)pg_dir, apic_area);
-		pte = mk_pte(start_mem, PAGE_KERNEL);
-		memset((void *)start_mem, 0, PAGE_SIZE);
-		start_mem += PAGE_SIZE;
-		set_pte(pg_table, pte);
-	}
-
-	local_flush_tlb();
-}
+	start_mem = init_smp_mappings(start_mem);
 #endif
 	local_flush_tlb();
 

@@ -2,13 +2,12 @@
 #define _LINUX_KERNEL_STAT_H
 
 #include <asm/irq.h>
-#include <asm/smp.h>
 #include <linux/smp.h>
 #include <linux/tasks.h>
 
 /*
  * 'kernel_stat.h' contains the definitions needed for doing
- * some kernel statistics (cpu usage, context switches ...),
+ * some kernel statistics (CPU usage, context switches ...),
  * used by rstatd/perfmeter
  */
 

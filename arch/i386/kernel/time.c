@@ -25,6 +25,7 @@
 #include <linux/init.h>
 #include <linux/smp.h>
 
+#include <asm/processor.h>
 #include <asm/uaccess.h>
 #include <asm/io.h>
 #include <asm/irq.h>
@@ -203,7 +204,7 @@ static unsigned long do_slow_gettimeoffset(void)
 	 *     (see c't 95/10 page 335 for Neptun bug.)
 	 */
 
-/* you can safely undefine this if you dont have the Neptun chipset */
+/* you can safely undefine this if you don't have the Neptune chipset */
 
 #define BUGGY_NEPTUN_TIMER
 
@@ -217,7 +218,7 @@ static unsigned long do_slow_gettimeoffset(void)
 			if( inb(0x20) & 0x01 ) {
 				/*
 				 * We cannot detect lost timer interrupts ... 
-				 * well, thats why we call them lost, dont we? :)
+				 * well, that's why we call them lost, don't we? :)
 				 * [hmm, on the Pentium and Alpha we can ... sort of]
 				 */
 				count -= LATCH;
@@ -399,11 +400,12 @@ static inline void timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	 */
 	if (time_state != TIME_BAD && xtime.tv_sec > last_rtc_update + 660 &&
 	    xtime.tv_usec > 500000 - (tick >> 1) &&
-	    xtime.tv_usec < 500000 + (tick >> 1))
-	  if (set_rtc_mmss(xtime.tv_sec) == 0)
-	    last_rtc_update = xtime.tv_sec;
-	  else
-	    last_rtc_update = xtime.tv_sec - 600; /* do it again in 60 s */
+	    xtime.tv_usec < 500000 + (tick >> 1)) {
+		if (set_rtc_mmss(xtime.tv_sec) == 0)
+			last_rtc_update = xtime.tv_sec;
+		else
+			last_rtc_update = xtime.tv_sec - 600; /* do it again in 60 s */
+	}
 #if 0
 	/* As we return to user mode fire off the other CPU schedulers.. this is 
 	   basically because we don't yet share IRQ's around. This message is
@@ -524,12 +526,16 @@ __initfunc(void time_init(void))
 	xtime.tv_sec = get_cmos_time();
 	xtime.tv_usec = 0;
 
-	/* If we have the CPU hardware time counters, use them */
+/*
+ * If we have APM enabled we can't currently depend
+ * on the cycle counter, because a suspend to disk
+ * will reset it. Somebody should come up with a
+ * better solution than to just disable the fast time
+ * code..
+ */
 #ifndef CONFIG_APM
-				/* Don't use them if a suspend/resume could
-                                   corrupt the timer value.  This problem
-                                   needs more debugging. */
-	if (boot_cpu_data.x86_capability & 16) {
+	/* If we have the CPU hardware time counters, use them */
+	if (boot_cpu_data.x86_capability & X86_FEATURE_TSC) { 
 		do_gettimeoffset = do_fast_gettimeoffset;
 		do_get_fast_time = do_x86_get_fast_time;
 

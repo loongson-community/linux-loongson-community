@@ -32,6 +32,8 @@
  *  tasks that rely on callbacks.
  *
  *  Copyright (C) 1995, 1996, Olaf Kirch <okir@monad.swb.de>
+ *
+ *  TCP callback races fixes (C) 1998 Red Hat Software <alan@redhat.com>
  */
 
 #define __KERNEL_SYSCALLS__
@@ -322,6 +324,12 @@ xprt_close(struct rpc_xprt *xprt)
 		fput(xprt->file);
 	else
 		sock_release(xprt->sock);
+	/*
+	 *	TCP doesnt require the rpciod now - other things may
+	 *	but rpciod handles that not us.
+	 */
+	if(xprt->stream)
+		rpciod_down();
 }
 
 /*
@@ -693,40 +701,102 @@ done:
 }
 
 /*
- * data_ready callback for TCP.
+ *	TCP task queue stuff
  */
-static void
-tcp_data_ready(struct sock *sk, int len)
+ 
+static struct rpc_xprt *rpc_xprt_pending = NULL;	/* Chain by rx_pending of rpc_xprt's */
+
+/*
+ *	This is protected from tcp_data_ready and the stack as its run
+ *	inside of the RPC I/O daemon
+ */
+
+void rpciod_tcp_dispatcher(void)
+{
+	struct rpc_xprt *xprt;
+	int result;
+
+	dprintk("rpciod_tcp_dispatcher: Queue Running\n");
+	
+	/*
+	 *	Empty each pending socket
+	 */
+	 
+	while((xprt=rpc_xprt_pending)!=NULL)
+	{
+		int safe_retry=0;
+		
+		rpc_xprt_pending=xprt->rx_pending;
+		xprt->rx_pending_flag=0;
+		
+		dprintk("rpciod_tcp_dispatcher: Processing %p\n", xprt);
+		
+		do 
+		{
+			if (safe_retry++ > 50)
+				break;
+			result = tcp_input_record(xprt);
+		}
+		while (result >= 0);
+	
+		switch (result) {
+			case -EAGAIN:
+				continue;
+			case -ENOTCONN:
+			case -EPIPE:
+				xprt_disconnect(xprt);
+				continue;
+			default:
+				printk(KERN_WARNING "RPC: unexpected error %d from tcp_input_record\n",
+					result);
+		}
+	}
+}
+
+
+extern inline void tcp_rpciod_queue(void)
+{
+	rpciod_wake_up();
+}
+
+/*
+ *	data_ready callback for TCP. We can't just jump into the
+ *	tcp recvmsg functions inside of the network receive bh or
+ * 	bad things occur. We queue it to pick up after networking
+ *	is done.
+ */
+ 
+static void tcp_data_ready(struct sock *sk, int len)
 {
 	struct rpc_xprt	*xprt;
-	int		result, safe_retry = 0;
 
 	dprintk("RPC:      tcp_data_ready...\n");
 	if (!(xprt = xprt_from_sock(sk)))
+	{
+		printk("Not a socket with xprt %p\n", sk);
 		return;
+	}
 	dprintk("RPC:      tcp_data_ready client %p\n", xprt);
 	dprintk("RPC:      state %x conn %d dead %d zapped %d\n",
 				sk->state, xprt->connected,
 				sk->dead, sk->zapped);
-
-	do {
-		if (safe_retry++ > 20)
-			return;
-		result = tcp_input_record(xprt);
-	} while (result >= 0);
-
-	switch (result) {
-	case -EAGAIN:
-		return;
-	case -ENOTCONN:
-	case -EPIPE:
-		xprt_disconnect(xprt);
-		return;
-	default:
-		printk("RPC: unexpected error %d from tcp_input_record\n",
-			result);
+	/*
+	 *	If we are not waiting for the RPC bh run then
+	 *	we are now
+	 */
+	if (!xprt->rx_pending_flag)
+	{
+		dprintk("RPC:     xprt queue\n");
+		if(rpc_xprt_pending==NULL)
+			tcp_rpciod_queue();
+		xprt->rx_pending_flag=1;
+		xprt->rx_pending=rpc_xprt_pending;
+		rpc_xprt_pending=xprt;
 	}
+	else
+		dprintk("RPC:     xprt queued already %p\n", xprt);
 }
+
 
 static void
 tcp_state_change(struct sock *sk)
@@ -1210,6 +1280,12 @@ xprt_setup(struct socket *sock, int proto,
 	xprt->free = xprt->slot;
 
 	dprintk("RPC:      created transport %p\n", xprt);
+	
+	/*
+	 *	TCP requires the rpc I/O daemon is present
+	 */
+	if(proto==IPPROTO_TCP)
+		rpciod_up();
 	return xprt;
 }
 
@@ -1231,7 +1307,7 @@ xprt_create(struct file *file, struct sockaddr_in *ap, struct rpc_timeout *to)
 	}
 
 	sock = &file->f_inode->u.socket_i;
-	if (sock->ops->family != AF_INET) {
+	if (sock->ops->family != PF_INET) {
 		printk(KERN_WARNING "RPC: only INET sockets supported\n");
 		return NULL;
 	}
@@ -1284,7 +1360,7 @@ xprt_create_socket(int proto, struct sockaddr_in *sap, struct rpc_timeout *to)
 			   (proto == IPPROTO_UDP)? "udp" : "tcp", proto);
 
 	type = (proto == IPPROTO_UDP)? SOCK_DGRAM : SOCK_STREAM;
-	if ((err = sock_create(AF_INET, type, proto, &sock)) < 0) {
+	if ((err = sock_create(PF_INET, type, proto, &sock)) < 0) {
 		printk("RPC: can't create socket (%d).\n", -err);
 		goto failed;
 	}

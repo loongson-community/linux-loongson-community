@@ -22,6 +22,7 @@
 #include <linux/malloc.h>
 #include <linux/major.h>
 #include <linux/fs.h>
+#include <linux/config.h>
 
 #include <asm/io.h>
 #include <asm/uaccess.h>
@@ -30,6 +31,10 @@
 #include <linux/vt_kern.h>
 #include <linux/kbd_diacr.h>
 #include <linux/selection.h>
+
+#ifdef CONFIG_FB_COMPAT_XPMAC
+#include <asm/vc_ioctl.h>
+#endif /* CONFIG_FB_COMPAT_XPMAC */
 
 char vt_dont_switch = 0;
 extern struct tty_driver console_driver;
@@ -56,39 +61,9 @@ struct vt_struct *vt_cons[MAX_NR_CONSOLES];
 asmlinkage int sys_ioperm(unsigned long from, unsigned long num, int on);
 #endif
 
-extern int getkeycode(unsigned int scancode);
-extern int setkeycode(unsigned int scancode, unsigned int keycode);
-extern void compute_shiftstate(void);
-extern void complete_change_console(unsigned int new_console);
-extern int vt_waitactive(int vt);
-extern void do_blank_screen(int nopowersave);
-
-extern unsigned int keymap_count;
-
-/*
- * routines to load custom translation table, EGA/VGA font and
- * VGA colour palette from console.c
- */
-extern int con_set_trans_old(unsigned char * table);
-extern int con_get_trans_old(unsigned char * table);
-extern int con_set_trans_new(unsigned short * table);
-extern int con_get_trans_new(unsigned short * table);
-extern void con_clear_unimap(struct unimapinit *ui);
-extern int con_set_unimap(ushort ct, struct unipair *list);
-extern int con_get_unimap(ushort ct, ushort *uct, struct unipair *list);
-extern void con_set_default_unimap(void);
-extern int con_set_font(char * fontmap, int ch512);
-extern int con_get_font(char * fontmap);
-extern int con_set_cmap(unsigned char *cmap);
-extern int con_get_cmap(unsigned char *cmap);
-extern void reset_palette(int currcons);
-extern void set_palette(void) ;
-extern int con_adjust_height(unsigned long fontheight);
-
-extern int video_mode_512ch;
-extern unsigned long video_font_height;
-extern unsigned long default_font_height;
-extern unsigned long video_scan_lines;
+unsigned int video_font_height;
+unsigned int default_font_height;
+unsigned int video_scan_lines;
 
 /*
  * these are the valid i/o ports we're allowed to change. they map all the
@@ -138,20 +113,19 @@ kd_size_changed(int row, int col)
 }
 
 /*
- * Generates sound of some count for some number of clock ticks
- * [count = 1193180 / frequency]
+ * Generates sound of some frequency for some number of clock ticks
  *
  * If freq is 0, will turn off sound, else will turn it on for that time.
  * If msec is 0, will return immediately, else will sleep for msec time, then
  * turn sound off.
  *
- * We use the BEEP_TIMER vector since we're using the same method to
- * generate sound, and we'll overwrite any beep in progress. That may
- * be something to fix later, if we like.
- *
  * We also return immediately, which is what was implied within the X
  * comments - KDMKTONE doesn't put the process to sleep.
  */
+
+#if defined(__i386__) || defined(__alpha__) || defined(__powerpc__)
+    || (defined(__mips__) && !defined(CONFIG_SGI))
+
 static void
 kd_nosound(unsigned long ignored)
 {
@@ -192,12 +166,16 @@ _kd_mksound(unsigned int hz, unsigned int ticks)
 	return;
 }
 
-#ifdef CONFIG_SGI
-void _kd_nullsound(unsigned int hz, unsigned int ticks) { }
-void (*kd_mksound)(unsigned int hz, unsigned int ticks) = _kd_nullsound;
 #else
-void (*kd_mksound)(unsigned int hz, unsigned int ticks) = _kd_mksound;
+
+void
+_kd_mksound(unsigned int hz, unsigned int ticks)
+{
+}
+
 #endif
+
+void (*kd_mksound)(unsigned int hz, unsigned int ticks) = _kd_mksound;
 
 
 #define i (tmp.kb_index)
@@ -247,9 +225,12 @@ do_kdsk_ioctl(int cmd, struct kbentry *user_kbe, int perm, struct kbd_struct *kb
 		    if (kbd->kbdmode != VC_UNICODE)
 				return -EINVAL;
 
+		/* ++Geert: non-PC keyboards may generate keycode zero */
+#if !defined(__mc68000__) && !defined(__powerpc__)
 		/* assignment to entry 0 only tests validity of args */
 		if (!i)
 			break;
+#endif
 
 		if (!(key_map = key_maps[s])) {
 			int j;
@@ -401,44 +382,42 @@ do_kdgkb_ioctl(int cmd, struct kbsentry *user_kdgkb, int perm)
 static inline int 
 do_fontx_ioctl(int cmd, struct consolefontdesc *user_cfd, int perm)
 {
-	int nchar;
 	struct consolefontdesc cfdarg;
-	int i = 0;
+	struct console_font_op op;
+	int i;
 
 	if (copy_from_user(&cfdarg, user_cfd, sizeof(struct consolefontdesc))) 
 		return -EFAULT;
-	if (vt_cons[fg_console]->vc_mode != KD_TEXT)
-		return -EINVAL;
  	
 	switch (cmd) {
 	case PIO_FONTX:
 		if (!perm)
 			return -EPERM;
-		if ( cfdarg.charcount == 256 ||
-		     cfdarg.charcount == 512 ) {
-			i = con_set_font(cfdarg.chardata,
-				cfdarg.charcount == 512);
-			if (i)
-				return i;
-			i = con_adjust_height(cfdarg.charheight);
-			return (i <= 0) ? i : kd_size_changed(i, 0);
-		} else
-			return -EINVAL;
-	case GIO_FONTX:
-		i = cfdarg.charcount;
-		cfdarg.charcount = nchar = video_mode_512ch ? 512 : 256;
-		cfdarg.charheight = video_font_height;
-		__copy_to_user(user_cfd, &cfdarg,
-			    sizeof(struct consolefontdesc)); 
-		if ( cfdarg.chardata )
-		{
-			if ( i < nchar )
-				return -ENOMEM;
-			return con_get_font(cfdarg.chardata);
-		} else
-			return 0;
+		op.op = KD_FONT_OP_SET;
+		op.flags = KD_FONT_FLAG_OLD;
+		op.width = 8;
+		op.height = cfdarg.charheight;
+		op.charcount = cfdarg.charcount;
+		op.data = cfdarg.chardata;
+		return con_font_op(fg_console, &op);
+	case GIO_FONTX: {
+		op.op = KD_FONT_OP_GET;
+		op.flags = KD_FONT_FLAG_OLD;
+		op.width = 8;
+		op.height = cfdarg.charheight;
+		op.charcount = cfdarg.charcount;
+		op.data = cfdarg.chardata;
+		i = con_font_op(fg_console, &op);
+		if (i)
+			return i;
+		cfdarg.charheight = op.height;
+		cfdarg.charcount = op.charcount;
+		if (copy_to_user(user_cfd, &cfdarg, sizeof(struct consolefontdesc)))
+			return -EFAULT;
+		return 0;
+		}
 	}
-	return 0;
+	return -EINVAL;
 }
 
 static inline int 
@@ -458,9 +437,9 @@ do_unimap_ioctl(int cmd, struct unimapdesc *user_ud,int perm)
 	case PIO_UNIMAP:
 		if (!perm)
 			return -EPERM;
-		return con_set_unimap(tmp.entry_ct, tmp.entries);
+		return con_set_unimap(fg_console, tmp.entry_ct, tmp.entries);
 	case GIO_UNIMAP:
-		return con_get_unimap(tmp.entry_ct, &(user_ud->entry_ct), tmp.entries);
+		return con_get_unimap(fg_console, tmp.entry_ct, &(user_ud->entry_ct), tmp.entries);
 	}
 	return 0;
 }
@@ -803,7 +782,7 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		if (arg == 0 || arg > MAX_NR_CONSOLES)
 			return -ENXIO;
 		arg--;
-		i = vc_allocate(arg);
+		i = vc_allocate(arg, 0);
 		if (i)
 			return i;
 		set_console(arg);
@@ -855,7 +834,7 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 				 */
 				int newvt = vt_cons[console]->vt_newvt;
 				vt_cons[console]->vt_newvt = -1;
-				i = vc_allocate(newvt);
+				i = vc_allocate(newvt, 0);
 				if (i)
 					return i;
 				/*
@@ -915,7 +894,7 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 			return i;
 		__get_user(ll, &vtsizes->v_rows);
 		__get_user(cc, &vtsizes->v_cols);
-		i = vc_resize(ll, cc);
+		i = vc_resize_all(ll, cc);
 		return i ? i : 	kd_size_changed(ll, cc);
 	}
 
@@ -964,7 +943,7 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		if ( clin )
 		  video_font_height = clin;
 		
-		i = vc_resize(ll, cc);
+		i = vc_resize_all(ll, cc);
 		if (i)
 			return i;
 
@@ -972,30 +951,37 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		return 0;
   	}
 
-	case PIO_FONT:
+	case PIO_FONT: {
+		struct console_font_op op;
 		if (!perm)
 			return -EPERM;
-		if (vt_cons[fg_console]->vc_mode != KD_TEXT)
-			return -EINVAL;
-		return con_set_font((char *)arg, 0);
-		/* con_set_font() defined in console.c */
+		op.op = KD_FONT_OP_SET;
+		op.flags = KD_FONT_FLAG_OLD | KD_FONT_FLAG_DONT_RECALC;	/* Compatibility */
+		op.width = 8;
+		op.height = 0;
+		op.charcount = 256;
+		op.data = (char *) arg;
+		return con_font_op(fg_console, &op);
+	}
 
-	case GIO_FONT:
-		if (vt_cons[fg_console]->vc_mode != KD_TEXT ||
-		    video_mode_512ch)
-			return -EINVAL;
-		return con_get_font((char *)arg);
-		/* con_get_font() defined in console.c */
+	case GIO_FONT: {
+		struct console_font_op op;
+		op.op = KD_FONT_OP_GET;
+		op.flags = KD_FONT_FLAG_OLD;
+		op.width = 8;
+		op.height = 32;
+		op.charcount = 256;
+		op.data = (char *) arg;
+		return con_font_op(fg_console, &op);
+	}
 
 	case PIO_CMAP:
                 if (!perm)
 			return -EPERM;
                 return con_set_cmap((char *)arg);
-                /* con_set_cmap() defined in console.c */
 
 	case GIO_CMAP:
                 return con_get_cmap((char *)arg);
-                /* con_get_cmap() defined in console.c */
 
 	case PIO_FONTX:
 	case GIO_FONTX:
@@ -1005,24 +991,35 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 	{
 		if (!perm)
 			return -EPERM;
-		if (vt_cons[fg_console]->vc_mode != KD_TEXT)
-			return -EINVAL;
 
 #ifdef BROKEN_GRAPHICS_PROGRAMS
 		/* With BROKEN_GRAPHICS_PROGRAMS defined, the default
 		   font is not saved. */
 		return -ENOSYS;
 #else
-
-		i = con_set_font(NULL, 0);	/* Set font to default */
+		{
+		struct console_font_op op;
+		op.op = KD_FONT_OP_SET_DEFAULT;
+		op.data = NULL;
+		i = con_font_op(fg_console, &op);
 		if (i) return i;
-
-		i = con_adjust_height(default_font_height);
-		if ( i > 0 ) kd_size_changed(i, 0);
-		con_set_default_unimap();
-
+		con_set_default_unimap(fg_console);
 		return 0;
+		}
 #endif
+	}
+
+	case KDFONTOP: {
+		struct console_font_op op;
+		if (copy_from_user(&op, (void *) arg, sizeof(op)))
+			return -EFAULT;
+		if (!perm && op.op != KD_FONT_OP_GET)
+			return -EPERM;
+		i = con_font_op(console, &op);
+		if (i) return i;
+		if (copy_to_user((void *) arg, &op, sizeof(op)))
+			return -EFAULT;
+		return 0;
 	}
 
 	case PIO_SCRNMAP:
@@ -1047,7 +1044,7 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 			return -EPERM;
 		i = copy_from_user(&ui, (void *)arg, sizeof(struct unimapinit));
 		if (i) return -EFAULT;
-		con_clear_unimap(&ui);
+		con_clear_unimap(fg_console, &ui);
 		return 0;
 	      }
 
@@ -1065,6 +1062,76 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		   return -EPERM;
 		vt_dont_switch = 0;
 		return 0;
+#ifdef CONFIG_FB_COMPAT_XPMAC
+	case VC_GETMODE:
+		{
+			struct vc_mode mode;
+
+			i = verify_area(VERIFY_WRITE, (void *) arg,
+					sizeof(struct vc_mode));
+			if (i == 0)
+				i = console_getmode(&mode);
+			if (i)
+				return i;
+			if (copy_to_user((void *) arg, &mode, sizeof(mode)))
+				return -EFAULT;
+			return 0;
+		}
+	case VC_SETMODE:
+	case VC_INQMODE:
+		{
+			struct vc_mode mode;
+
+			if (!perm)
+				return -EPERM;
+			i = verify_area(VERIFY_READ, (void *) arg,
+					sizeof(struct vc_mode));
+			if (i)
+				return i;
+			if (copy_from_user(&mode, (void *) arg, sizeof(mode)))
+				return -EFAULT;
+			return console_setmode(&mode, cmd == VC_SETMODE);
+		}
+	case VC_SETCMAP:
+		{
+			unsigned char cmap[3][256], *p;
+			int n_entries, cmap_size, i, j;
+
+			if (!perm)
+				return -EPERM;
+			if (arg == (unsigned long) VC_POWERMODE_INQUIRY
+			    || arg <= VESA_POWERDOWN) {
+				/* compatibility hack: VC_POWERMODE
+				   was changed from 0x766a to 0x766c */
+				return console_powermode((int) arg);
+			}
+			i = verify_area(VERIFY_READ, (void *) arg,
+					sizeof(int));
+			if (i)
+				return i;
+			if (get_user(cmap_size, (int *) arg))
+				return -EFAULT;
+			if (cmap_size % 3)
+				return -EINVAL;
+			n_entries = cmap_size / 3;
+			if ((unsigned) n_entries > 256)
+				return -EINVAL;
+			p = (unsigned char *) (arg + sizeof(int));
+			for (j = 0; j < n_entries; ++j)
+				for (i = 0; i < 3; ++i)
+					if (get_user(cmap[i][j], p++))
+						return -EFAULT;
+			return console_setcmap(n_entries, cmap[0],
+					       cmap[1], cmap[2]);
+		}
+	case VC_GETCMAP:
+		/* not implemented yet */
+		return -ENOIOCTLCMD;
+	case VC_POWERMODE:
+		if (!perm)
+			return -EPERM;
+		return console_powermode((int) arg);
+#endif /* CONFIG_FB_COMPAT_XPMAC */
 	default:
 		return -ENOIOCTLCMD;
 	}
@@ -1127,10 +1194,6 @@ void complete_change_console(unsigned int new_console)
 {
 	unsigned char old_vc_mode;
 
-        if ((new_console == fg_console) || (vt_dont_switch))
-                return;
-        if (!vc_cons_allocated(new_console))
-                return;
 	last_console = fg_console;
 
 	/*
@@ -1185,21 +1248,8 @@ void complete_change_console(unsigned int new_console)
 	/* Set the colour palette for this VT */
 	if (vt_cons[new_console]->vc_mode == KD_TEXT)
 		set_palette() ;
-	
-#ifdef CONFIG_SUN_CONSOLE
-	if (old_vc_mode != vt_cons[new_console]->vc_mode)
-	{
-	 	if (old_vc_mode == KD_GRAPHICS)
-		{
-			suncons_ops.clear_margin();
-			suncons_ops.render_screen();
-			suncons_ops.set_cursor(fg_console);
-		}
-		else
-			suncons_ops.hide_cursor();
-	}
-#endif		
-      /*
+
+	/*
 	 * Wake anyone waiting for their VT to activate
 	 */
 	vt_wake_waitactive();

@@ -16,13 +16,14 @@
 #include <linux/mm.h>
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
+#include <linux/interrupt.h>
 
 #include <asm/system.h>
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
 #include <asm/hardirq.h>
 
-extern void die_if_kernel(const char *,struct pt_regs *,long);
+extern void die(const char *,struct pt_regs *,long);
 
 /*
  * Ugly, ugly, but the goto's result in better assembly..
@@ -100,13 +101,13 @@ asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long error_code)
 	/* get the address */
 	__asm__("movl %%cr2,%0":"=r" (address));
 
-	if (local_irq_count[smp_processor_id()])
-		die_if_kernel("page fault from irq handler",regs,error_code);
-	lock_kernel();
 	tsk = current;
 	mm = tsk->mm;
+	if (in_interrupt())
+		die("page fault from irq handler",regs,error_code);
 
 	down(&mm->mmap_sem);
+
 	vma = find_vma(mm, address);
 	if (!vma)
 		goto bad_area;
@@ -151,7 +152,7 @@ good_area:
 				goto bad_area;
 	}
 	handle_mm_fault(tsk, vma, address, write);
-	up(&mm->mmap_sem);
+
 	/*
 	 * Did it hit the DOS screen memory VA from vm86 mode?
 	 */
@@ -160,7 +161,8 @@ good_area:
 		if (bit < 32)
 			tsk->tss.screen_bitmap |= 1 << bit;
 	}
-	goto out;
+	up(&mm->mmap_sem);
+	return;
 
 /*
  * Something tried to access memory that isn't in our memory map..
@@ -175,7 +177,7 @@ bad_area:
 		tsk->tss.error_code = error_code;
 		tsk->tss.trap_no = 14;
 		force_sig(SIGSEGV, tsk);
-		goto out;
+		return;
 	}
 
 	/*
@@ -187,7 +189,6 @@ bad_area:
 		nr = (address - (unsigned long) idt) >> 3;
 
 		if (nr == 6) {
-			unlock_kernel();
 			do_invalid_op(regs, 0);
 			return;
 		}
@@ -196,7 +197,7 @@ bad_area:
 	/* Are we prepared to handle this kernel fault?  */
 	if ((fixup = search_exception_table(regs->eip)) != 0) {
 		regs->eip = fixup;
-		goto out;
+		return;
 	}
 
 /*
@@ -215,7 +216,7 @@ bad_area:
 		 * CPU state on certain buggy processors.
 		 */
 		printk("Ok");
-		goto out;
+		return;
 	}
 
 	if (address < PAGE_SIZE)
@@ -234,8 +235,8 @@ bad_area:
 		page = ((unsigned long *) __va(page))[address >> PAGE_SHIFT];
 		printk(KERN_ALERT "*pte = %08lx\n", page);
 	}
-	die_if_kernel("Oops", regs, error_code);
+	lock_kernel();
+	die("Oops", regs, error_code);
 	do_exit(SIGKILL);
-out:
 	unlock_kernel();
 }

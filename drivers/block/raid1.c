@@ -164,7 +164,7 @@ void raid1_end_request (struct buffer_head *bh, int uptodate)
 	PRINTK(("raid1_end_request(), write branch.\n"));
 
 	/*
-	 * lets see if all mirrored write operations have finished 
+	 * Let's see if all mirrored write operations have finished 
 	 * already [we have irqs off, so we can decrease]:
 	 */
 
@@ -457,8 +457,8 @@ static int raid1_hot_add_disk (struct md_dev *mddev, kdev_t dev)
 	int n;
 
 	/*
-	 * The device has it's superblock already read and it was found
-	 * to be consistent for generic RAID usage, now we check wether
+	 * The device has its superblock already read and it was found
+	 * to be consistent for generic RAID usage.  Now we check whether
 	 * it's usable for RAID-1 hot addition.
 	 */
 

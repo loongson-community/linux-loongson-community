@@ -1,7 +1,7 @@
 /*
  * linux/fs/nfsd/nfsfh.c
  *
- * NFS server filehandle treatment.
+ * NFS server file handle treatment.
  *
  * Copyright (C) 1995, 1996 Olaf Kirch <okir@monad.swb.de>
  */
@@ -21,7 +21,7 @@
 #define NFSD_PARANOIA 1
 /* #define NFSD_DEBUG_VERBOSE 1 */
 
-extern unsigned long num_physpages;
+extern unsigned long max_mapnr;
 
 #define NFSD_FILE_CACHE 0
 #define NFSD_DIR_CACHE  1
@@ -29,7 +29,7 @@ struct fh_entry {
 	struct dentry * dentry;
 	unsigned long reftime;
 	ino_t	ino;
-	dev_t	dev;
+	kdev_t	dev;
 };
 
 #define NFSD_MAXFH PAGE_SIZE/sizeof(struct fh_entry)
@@ -42,7 +42,7 @@ static unsigned long nfsd_next_expire = 0;
 
 static int add_to_fhcache(struct dentry *, int);
 static int nfsd_d_validate(struct dentry *);
-struct dentry * lookup_inode(dev_t, ino_t, ino_t);
+struct dentry * lookup_inode(kdev_t, ino_t, ino_t);
 
 static LIST_HEAD(fixup_head);
 static LIST_HEAD(path_inuse);
@@ -55,7 +55,7 @@ struct nfsd_fixup {
 	struct list_head lru;
 	ino_t	dir;
 	ino_t	ino;
-	dev_t	dev;
+	kdev_t	dev;
 	struct dentry *dentry;
 	unsigned long reftime;
 };
@@ -65,11 +65,11 @@ struct nfsd_path {
 	unsigned long reftime;
 	int	users;
 	ino_t	ino;
-	dev_t	dev;
+	kdev_t	dev;
 	char	name[1];
 };
 
-static struct nfsd_fixup * find_cached_lookup(dev_t dev, ino_t dir, ino_t ino)
+static struct nfsd_fixup * find_cached_lookup(kdev_t dev, ino_t dir, ino_t ino)
 {
 	struct list_head *tmp = fixup_head.next;
 
@@ -98,7 +98,9 @@ static void add_to_lookup_cache(struct dentry *dentry, struct knfs_fh *fh)
 {
 	struct nfsd_fixup *fp;
 
-	fp = find_cached_lookup(fh->fh_dev, fh->fh_dirino, fh->fh_ino);
+	fp = find_cached_lookup(u32_to_kdev_t(fh->fh_dev), 
+				u32_to_ino_t(fh->fh_dirino),
+				u32_to_ino_t(fh->fh_ino));
 	if (fp) {
 		fp->dentry = dentry;
 		return;
@@ -111,9 +113,9 @@ static void add_to_lookup_cache(struct dentry *dentry, struct knfs_fh *fh)
 	 */
 	fp = kmalloc(sizeof(struct nfsd_fixup), GFP_KERNEL);
 	if (fp) {
-		fp->dir = fh->fh_dirino;
-		fp->ino = fh->fh_ino;
-		fp->dev = fh->fh_dev;
+		fp->dir = u32_to_kdev_t(fh->fh_dirino);
+		fp->ino = u32_to_ino_t(fh->fh_ino);
+		fp->dev = u32_to_ino_t(fh->fh_dev);
 		fp->dentry = dentry;
 		fp->reftime = jiffies;
 		list_add(&fp->lru, &fixup_head);
@@ -182,7 +184,7 @@ static int add_to_path_cache(struct dentry *dentry)
 	int len, result = 0;
 
 #ifdef NFSD_DEBUG_VERBOSE
-printk("add_to_path_cache: cacheing %s/%s\n",
+printk("add_to_path_cache: caching %s/%s\n",
 dentry->d_parent->d_name.name, dentry->d_name.name);
 #endif
 	/*
@@ -222,18 +224,18 @@ printk("add_to_path_cache: added %s, paths=%d\n", new->name, nfsd_nr_paths);
 	return result;
 
 	/*
-	 * If the dentry's path length changed, just try again ...
+	 * If the dentry's path length changed, just try again.
 	 */
 retry:
 	kfree(new);
-	printk("add_to_path_cache: path length changed, retrying\n");
+	printk(KERN_DEBUG "add_to_path_cache: path length changed, retrying\n");
 	goto restart;
 }
 
 /*
  * Search for a path entry for the specified (dev, inode).
  */
-struct nfsd_path *get_path_entry(dev_t dev, ino_t ino)
+struct nfsd_path *get_path_entry(kdev_t dev, ino_t ino)
 {
 	struct nfsd_path *pe;
 	struct list_head *tmp;
@@ -264,7 +266,7 @@ static void put_path(struct nfsd_path *pe)
 static void free_path_entry(struct nfsd_path *pe)
 {
 	if (pe->users)
-		printk("free_path_entry: %s in use, users=%d\n",
+		printk(KERN_DEBUG "free_path_entry: %s in use, users=%d\n",
 			pe->name, pe->users);
 	list_del(&pe->lru);
 	kfree(pe);
@@ -374,14 +376,14 @@ out:
 /*
  * Look up a dentry given inode and parent inode numbers.
  *
- * This relies on the ability of a unix-like filesystem to return
+ * This relies on the ability of a Unix-like filesystem to return
  * the parent inode of a directory as the ".." (second) entry.
  *
  * This could be further optimized if we had an efficient way of
  * searching for a dentry given the inode: as we walk up the tree,
  * it's likely that a dentry exists before we reach the root.
  */
-struct dentry * lookup_inode(dev_t dev, ino_t dirino, ino_t ino)
+struct dentry * lookup_inode(kdev_t dev, ino_t dirino, ino_t ino)
 {
 	struct super_block *sb;
 	struct dentry *root, *dentry, *result;
@@ -457,7 +459,8 @@ struct dentry * lookup_inode(dev_t dev, ino_t dirino, ino_t ino)
 		 * Make sure we can't get caught in a loop ...
 		 */
 		if (dirino == dirent.ino && dirino != root_ino) {
-			printk("lookup_inode: looping?? (ino=%ld, path=%s)\n",
+			printk(KERN_DEBUG 
+			       "lookup_inode: looping?? (ino=%ld, path=%s)\n",
 				dirino, name);	
 			goto out_root;
 		}
@@ -609,7 +612,7 @@ printk("expire_old: expiring %s older than %d\n",
 /*
  * Add a dentry to the file or dir cache.
  *
- * Note: As NFS filehandles must have an inode, we don't accept
+ * Note: As NFS file handles must have an inode, we don't accept
  * negative dentries.
  */
 static int add_to_fhcache(struct dentry *dentry, int cache)
@@ -649,7 +652,7 @@ repeat:
 /*
  * Find an entry in the dir cache for the specified inode number.
  */
-static struct fh_entry *find_fhe_by_ino(dev_t dev, ino_t ino)
+static struct fh_entry *find_fhe_by_ino(kdev_t dev, ino_t ino)
 {
 	struct fh_entry * fhe = &dirstable[0];
 	int i;
@@ -667,7 +670,7 @@ static struct fh_entry *find_fhe_by_ino(dev_t dev, ino_t ino)
  * Find the (directory) dentry with the specified (dev, inode) number.
  * Note: this leaves the dentry in the cache.
  */
-static struct dentry *find_dentry_by_ino(dev_t dev, ino_t ino)
+static struct dentry *find_dentry_by_ino(kdev_t dev, ino_t ino)
 {
 	struct fh_entry *fhe;
 	struct nfsd_path *pe;
@@ -762,7 +765,9 @@ dentry->d_parent->d_name.name, dentry->d_name.name);
 #endif
 			goto out;
 		}
-		if (inode->i_ino != fh->fh_ino || inode->i_dev != fh->fh_dev)
+		if (inode->i_ino != u32_to_ino_t(fh->fh_ino))
+			goto out;
+ 		if (inode->i_dev != u32_to_kdev_t(fh->fh_dev))
 			goto out;
 
 		fhe->dentry = NULL;
@@ -838,25 +843,27 @@ static struct dentry *nfsd_cached_lookup(struct knfs_fh *fh)
 {
 	struct nfsd_fixup *fp;
 
-	fp = find_cached_lookup(fh->fh_dev, fh->fh_dirino, fh->fh_ino);
+	fp = find_cached_lookup(u32_to_kdev_t(fh->fh_dev),
+				u32_to_ino_t(fh->fh_dirino),
+				u32_to_ino_t(fh->fh_ino));
 	if (fp)
 		return fp->dentry;
 	return NULL;
 }
 
 /*
- * The is the basic lookup mechanism for turning an NFS filehandle 
+ * The is the basic lookup mechanism for turning an NFS file handle 
  * into a dentry. There are several levels to the search:
  * (1) Look for the dentry pointer the short-term fhcache,
  *     and verify that it has the correct inode number.
  *
- * (2) Try to validate the dentry pointer in the filehandle,
+ * (2) Try to validate the dentry pointer in the file handle,
  *     and verify that it has the correct inode number. If this
  *     fails, check for a cached lookup in the fix-up list and
  *     repeat step (2) using the new dentry pointer.
  *
  * (3) Look up the dentry by using the inode and parent inode numbers
- *     to build the name string. This should succeed for any unix-like
+ *     to build the name string. This should succeed for any Unix-like
  *     filesystem.
  *
  * (4) Search for the parent dentry in the dir cache, and then
@@ -885,20 +892,21 @@ find_fh_dentry(struct knfs_fh *fh)
 	}
 
 	/*
-	 * Stage 2: Attempt to validate the dentry in the filehandle.
+	 * Stage 2: Attempt to validate the dentry in the file handle.
 	 */
 	dentry = fh->fh_dcookie;
 recheck:
 	if (nfsd_d_validate(dentry)) {
 		struct inode * dir = dentry->d_parent->d_inode;
 
-		if (dir->i_ino == fh->fh_dirino && dir->i_dev == fh->fh_dev) {
+		if (dir->i_ino == u32_to_ino_t(fh->fh_dirino) && 
+		    dir->i_dev == u32_to_kdev_t(fh->fh_dev)) {
 			struct inode * inode = dentry->d_inode;
 			/*
-			 * NFS filehandles must always have an inode,
+			 * NFS file handles must always have an inode,
 			 * so we won't accept a negative dentry.
 			 */
-			if (inode && inode->i_ino == fh->fh_ino) {
+			if (inode && inode->i_ino == u32_to_ino_t(fh->fh_ino)) {
 				dget(dentry);
 #ifdef NFSD_DEBUG_VERBOSE
 printk("find_fh_dentry: validated %s/%s, ino=%ld\n",
@@ -928,17 +936,19 @@ printk("find_fh_dentry: retried validation successful\n");
 
 	/*
 	 * Stage 3: Look up the dentry based on the inode and parent inode
-	 * numbers. This should work for all unix-like filesystems ...
+	 * numbers. This should work for all Unix-like filesystems.
 	 */
 	looked_up = 1;
-	dentry = lookup_inode(fh->fh_dev, fh->fh_dirino, fh->fh_ino);
+	dentry = lookup_inode(u32_to_kdev_t(fh->fh_dev),
+			      u32_to_ino_t(fh->fh_dirino),
+			      u32_to_ino_t(fh->fh_ino));
 	if (!IS_ERR(dentry)) {
 		struct inode * inode = dentry->d_inode;
 #ifdef NFSD_DEBUG_VERBOSE
 printk("find_fh_dentry: looked up %s/%s\n",
 dentry->d_parent->d_name.name, dentry->d_name.name);
 #endif
-		if (inode && inode->i_ino == fh->fh_ino) {
+		if (inode && inode->i_ino == u32_to_ino_t(fh->fh_ino)) {
 			nfsdstats.fh_lookup++;
 			goto out;
 		}
@@ -952,12 +962,13 @@ dentry->d_parent->d_name.name, dentry->d_name.name);
 	/*
 	 * Stage 4: Look for the parent dentry in the fhcache ...
 	 */
-	parent = find_dentry_by_ino(fh->fh_dev, fh->fh_dirino);
+	parent = find_dentry_by_ino(u32_to_kdev_t(fh->fh_dev),
+				    u32_to_ino_t(fh->fh_dirino));
 	if (parent) {
 		/*
 		 * ... then search for the inode in the parent directory.
 		 */
-		dentry = lookup_by_inode(parent, fh->fh_ino);
+		dentry = lookup_by_inode(parent, u32_to_ino_t(fh->fh_ino));
 		dput(parent);
 		if (dentry)
 			goto out;
@@ -967,8 +978,8 @@ dentry->d_parent->d_name.name, dentry->d_name.name);
 	 * Stage 5: Search the whole volume.
 	 */
 #ifdef NFSD_PARANOIA
-printk("find_fh_dentry: %s, %ld/%ld not found -- need full search!\n",
-kdevname(fh->fh_dev), fh->fh_dirino, fh->fh_ino);
+printk("find_fh_dentry: %s, %u/%u not found -- need full search!\n",
+kdevname(u32_to_kdev_t(fh->fh_dev)), fh->fh_dirino, fh->fh_ino);
 #endif
 	dentry = NULL;
 	nfsdstats.fh_stale++;
@@ -993,7 +1004,7 @@ out:
 /*
  * Perform sanity checks on the dentry in a client's file handle.
  *
- * Note that the filehandle dentry may need to be freed even after
+ * Note that the file handle dentry may need to be freed even after
  * an error return.
  */
 u32
@@ -1005,7 +1016,7 @@ fh_verify(struct svc_rqst *rqstp, struct svc_fh *fhp, int type, int access)
 	struct inode	*inode;
 	u32		error = 0;
 
-	dprintk("nfsd: fh_verify(exp %x/%ld cookie %p)\n",
+	dprintk("nfsd: fh_verify(exp %x/%u cookie %p)\n",
 		fh->fh_xdev, fh->fh_xino, fh->fh_dcookie);
 
 	if(fhp->fh_dverified)
@@ -1014,7 +1025,9 @@ fh_verify(struct svc_rqst *rqstp, struct svc_fh *fhp, int type, int access)
 	 * Look up the export entry.
 	 */
 	error = nfserr_stale;
-	exp = exp_get(rqstp->rq_client, fh->fh_xdev, fh->fh_xino);
+	exp = exp_get(rqstp->rq_client,
+			u32_to_kdev_t(fh->fh_xdev),
+			u32_to_ino_t(fh->fh_xino));
 	if (!exp) /* export entry revoked */
 		goto out;
 
@@ -1032,17 +1045,17 @@ fh_verify(struct svc_rqst *rqstp, struct svc_fh *fhp, int type, int access)
 	nfsd_setuser(rqstp, exp);
 
 	/*
-	 * Look up the dentry using the NFS fh.
+	 * Look up the dentry using the NFS file handle.
 	 */
 	error = nfserr_stale;
 	dentry = find_fh_dentry(fh);
 	if (!dentry)
 		goto out;
 	/*
-	 * Note: it's possible that the returned dentry won't be the
-	 * one in the filehandle.  We can correct the FH for our use,
-	 * but unfortunately the client will keep sending the broken
-	 * one.  Hopefully the lookup will keep patching things up..
+	 * Note:  it's possible the returned dentry won't be the one in the
+         * file handle.  We can correct the file handle for our use, but
+         * unfortunately the client will keep sending the broken one.  Let's
+         * hope the lookup will keep patching things up.
 	 */
 	fhp->fh_dentry = dentry;
 	fhp->fh_export = exp;
@@ -1080,7 +1093,7 @@ out:
 }
 
 /*
- * Compose a filehandle for an NFS reply.
+ * Compose a file handle for an NFS reply.
  *
  * Note that when first composed, the dentry may not yet have
  * an inode.  In this case a call to fh_update should be made
@@ -1090,6 +1103,7 @@ void
 fh_compose(struct svc_fh *fhp, struct svc_export *exp, struct dentry *dentry)
 {
 	struct inode * inode = dentry->d_inode;
+	struct dentry *parent = dentry->d_parent;
 
 	dprintk("nfsd: fh_compose(exp %x/%ld %s/%s, ino=%ld)\n",
 		exp->ex_dev, exp->ex_ino,
@@ -1104,12 +1118,12 @@ fh_compose(struct svc_fh *fhp, struct svc_export *exp, struct dentry *dentry)
 	fh_init(fhp);
 	fhp->fh_handle.fh_dcookie = dentry;
 	if (inode) {
-		fhp->fh_handle.fh_ino = inode->i_ino;
+		fhp->fh_handle.fh_ino = ino_t_to_u32(inode->i_ino);
 	}
-	fhp->fh_handle.fh_dirino = dentry->d_parent->d_inode->i_ino;
-	fhp->fh_handle.fh_dev = dentry->d_parent->d_inode->i_dev;
-	fhp->fh_handle.fh_xdev = exp->ex_dev;
-	fhp->fh_handle.fh_xino = exp->ex_ino;
+	fhp->fh_handle.fh_dirino = ino_t_to_u32(parent->d_inode->i_ino);
+	fhp->fh_handle.fh_dev	 = kdev_t_to_u32(parent->d_inode->i_dev);
+	fhp->fh_handle.fh_xdev	 = kdev_t_to_u32(exp->ex_dev);
+	fhp->fh_handle.fh_xino	 = ino_t_to_u32(exp->ex_ino);
 
 	fhp->fh_dentry = dentry; /* our internal copy */
 	fhp->fh_export = exp;
@@ -1120,7 +1134,7 @@ fh_compose(struct svc_fh *fhp, struct svc_export *exp, struct dentry *dentry)
 }
 
 /*
- * Update filehandle information after changing a dentry.
+ * Update file handle information after changing a dentry.
  */
 void
 fh_update(struct svc_fh *fhp)
@@ -1128,44 +1142,50 @@ fh_update(struct svc_fh *fhp)
 	struct dentry *dentry;
 	struct inode *inode;
 
-	if (!fhp->fh_dverified) {
-		printk("fh_update: fh not verified!\n");
-		goto out;
-	}
+	if (!fhp->fh_dverified)
+		goto out_bad;
 
 	dentry = fhp->fh_dentry;
 	inode = dentry->d_inode;
-	if (!inode) {
-		printk("fh_update: %s/%s still negative!\n",
-			dentry->d_parent->d_name.name, dentry->d_name.name);
-		goto out;
-	}
-	fhp->fh_handle.fh_ino = inode->i_ino;
+	if (!inode)
+		goto out_negative;
+	fhp->fh_handle.fh_ino = ino_t_to_u32(inode->i_ino);
 out:
 	return;
+
+out_bad:
+	printk(KERN_ERR "fh_update: fh not verified!\n");
+	goto out;
+out_negative:
+	printk(KERN_ERR "fh_update: %s/%s still negative!\n",
+		dentry->d_parent->d_name.name, dentry->d_name.name);
+	goto out;
 }
 
 /*
- * Release a filehandle.  If the filehandle carries a dentry count,
+ * Release a file handle.  If the file handle carries a dentry count,
  * we add the dentry to the short-term cache rather than release it.
  */
 void
 fh_put(struct svc_fh *fhp)
 {
+	struct dentry * dentry = fhp->fh_dentry;
 	if (fhp->fh_dverified) {
-		struct dentry * dentry = fhp->fh_dentry;
 		fh_unlock(fhp);
 		fhp->fh_dverified = 0;
-		if (!dentry->d_count) {
-			printk("fh_put: %s/%s has d_count 0!\n",
-			dentry->d_parent->d_name.name, dentry->d_name.name);
-			return;
-		}
+		if (!dentry->d_count)
+			goto out_bad;
 		if (!dentry->d_inode || !add_to_fhcache(dentry, 0)) {
 			dput(dentry);
 			nfsd_nr_put++;
 		}
 	}
+	return;
+
+out_bad:
+	printk(KERN_ERR "fh_put: %s/%s has d_count 0!\n",
+		dentry->d_parent->d_name.name, dentry->d_name.name);
+	return;
 }
 
 /*
@@ -1177,7 +1197,7 @@ static int nfsd_d_validate(struct dentry *dentry)
 {
 	unsigned long dent_addr = (unsigned long) dentry;
 	unsigned long min_addr = PAGE_OFFSET;
-	unsigned long max_addr = min_addr + (num_physpages << PAGE_SHIFT);
+	unsigned long max_addr = min_addr + (max_mapnr << PAGE_SHIFT);
 	unsigned long align_mask = 0x0F;
 	unsigned int len;
 	int valid = 0;
@@ -1188,6 +1208,11 @@ static int nfsd_d_validate(struct dentry *dentry)
 		goto bad_addr;
 	if ((dent_addr & ~align_mask) != dent_addr)
 		goto bad_align;
+	/* XXX: Should test here, whether the address doesn't belong to
+	        a physical memory hole on sparc32/sparc64. Then it is not
+	        safe to dereference it. On the other side, the previous
+	        use of num_physpages instead of max_mapnr caused the same
+	        to happen, plus some valid addresses could get rejected. -jj */
 	/*
 	 * Looks safe enough to dereference ...
 	 */
@@ -1204,10 +1229,10 @@ out:
 	return valid;
 
 bad_addr:
-	printk("nfsd_d_validate: invalid address %lx\n", dent_addr);
+	printk(KERN_DEBUG "nfsd_d_validate: invalid address %lx\n", dent_addr);
 	goto out;
 bad_align:
-	printk("nfsd_d_validate: unaligned address %lx\n", dent_addr);
+	printk(KERN_DEBUG "nfsd_d_validate: unaligned address %lx\n", dent_addr);
 	goto out;
 }
 
@@ -1218,7 +1243,7 @@ bad_align:
  * This is called when revoking the last export for a
  * device, so that it can be unmounted cleanly.
  */
-void nfsd_fh_flush(dev_t dev)
+void nfsd_fh_flush(kdev_t dev)
 {
 	struct fh_entry *fhe;
 	int i, pass = 2;
@@ -1260,7 +1285,7 @@ void nfsd_fh_free(void)
 		free_fixup_entry(fp);
 		i++;
 	}
-	printk("nfsd_fh_free: %d fixups freed\n", i);
+	printk(KERN_DEBUG "nfsd_fh_free: %d fixups freed\n", i);
 
 	i = 0;
 	while ((tmp = path_inuse.next) != &path_inuse) {
@@ -1269,18 +1294,31 @@ void nfsd_fh_free(void)
 		free_path_entry(pe);
 		i++;
 	}
-	printk("nfsd_fh_free: %d paths freed\n", i);
+	printk(KERN_DEBUG "nfsd_fh_free: %d paths freed\n", i);
 
-	printk("nfsd_fh_free: verified %d, put %d\n",
+	printk(KERN_DEBUG "nfsd_fh_free: verified %d, put %d\n",
 		nfsd_nr_verified, nfsd_nr_put);
 }
 
 void nfsd_fh_init(void)
 {
+	/* Sanity check */ 
+	extern void __my_nfsfh_is_too_big(void); 
+	if (sizeof(struct nfs_fhbase) > 32) 
+		__my_nfsfh_is_too_big(); 
+
 	memset(filetable, 0, NFSD_MAXFH*sizeof(struct fh_entry));
 	memset(dirstable, 0, NFSD_MAXFH*sizeof(struct fh_entry));
 	INIT_LIST_HEAD(&path_inuse);
 	INIT_LIST_HEAD(&fixup_head);
 
-	printk("nfsd_init: initialized fhcache, entries=%lu\n", NFSD_MAXFH);
+	printk(KERN_DEBUG 
+		"nfsd_init: initialized fhcache, entries=%lu\n", NFSD_MAXFH);
+	/*
+	 * Display a warning if the ino_t is larger than 32 bits.
+	 */
+	if (sizeof(ino_t) > sizeof(__u32))
+		printk(KERN_INFO 
+			"NFSD: ino_t is %d bytes, using lower 4 bytes\n",
+			sizeof(ino_t));
 }

@@ -1,12 +1,13 @@
-/* $Id: sysmips.c,v 1.4 1997/12/01 17:57:32 ralf Exp $
- *
+/*
  * MIPS specific syscalls
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1995, 1996, 1997, 1998 by Ralf Baechle
+ * Copyright (C) 1995, 1996, 1997 by Ralf Baechle
+ *
+ * $Id: sysmips.c,v 1.4 1998/05/07 15:20:05 ralf Exp $
  */
 #include <linux/errno.h>
 #include <linux/linkage.h>

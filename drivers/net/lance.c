@@ -276,6 +276,12 @@ static struct lance_chip_type {
         {0x2621, "PCnet/PCI-II 79C970A",        /* 79C970A PCInetPCI II. */
                 LANCE_ENABLE_AUTOSELECT + LANCE_MUST_REINIT_RING +
                         LANCE_HAS_MISSED_FRAME + PCNET32_POSSIBLE},
+        {0x2623, "PCnet/FAST 79C971",        /* 79C971 PCInetFAST. */
+                LANCE_ENABLE_AUTOSELECT + LANCE_MUST_REINIT_RING +
+                        LANCE_HAS_MISSED_FRAME + PCNET32_POSSIBLE},
+        {0x2624, "PCnet/FAST+ 79C972",       /* 79C972 PCInetFAST+. */
+                LANCE_ENABLE_AUTOSELECT + LANCE_MUST_REINIT_RING +
+                        LANCE_HAS_MISSED_FRAME + PCNET32_POSSIBLE},
 	{0x0, 	 "PCnet (unknown)",
 		LANCE_ENABLE_AUTOSELECT + LANCE_MUST_REINIT_RING +
 			LANCE_HAS_MISSED_FRAME},
@@ -315,13 +321,12 @@ __initfunc(int lance_init(void))
 	if (virt_to_bus(high_memory) <= 16*1024*1024)
 		lance_need_isa_bounce_buffers = 0;
 
-#if defined(CONFIG_PCI) && !defined(CONFIG_PCNET32)
+#if defined(CONFIG_PCI) && !(defined(CONFIG_PCNET32) || defined(CONFIG_PCNET32_MODULE))
     if (pci_present()) {
 	    struct pci_dev *pdev = NULL;
 		if (lance_debug > 1)
 			printk("lance.c: PCI is present, checking for devices...\n");
-		while (pdev = pci_find_device(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_LANCE, pdev)) {
-			unsigned char pci_bus, pci_device_fn;
+		while ((pdev = pci_find_device(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_LANCE, pdev))) {
 			unsigned int pci_ioaddr;
 			unsigned short pci_command;
 
@@ -421,7 +426,7 @@ __initfunc(void lance_probe1(int ioaddr))
 		}
 	}
     
-#ifdef CONFIG_PCNET32
+#if defined(CONFIG_PCNET32) || defined (CONFIG_PCNET32_MODULE)
         /*
 	 * if pcnet32 is configured and the chip is capable of 32bit mode
 	 * leave the card alone

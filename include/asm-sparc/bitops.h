@@ -1,4 +1,4 @@
-/* $Id: bitops.h,v 1.49 1998/02/23 01:46:44 rth Exp $
+/* $Id: bitops.h,v 1.51 1998/07/26 03:05:37 davem Exp $
  * bitops.h: Bit string operations on the Sparc.
  *
  * Copyright 1995 David S. Miller (davem@caip.rutgers.edu)
@@ -181,6 +181,27 @@ extern __inline__ unsigned long ffz(unsigned long word)
 	}
 	return result;
 }
+
+#ifdef __KERNEL__
+
+/*
+ * ffs: find first bit set. This is defined the same way as
+ * the libc and compiler builtin ffs routines, therefore
+ * differs in spirit from the above ffz (man ffs).
+ */
+
+#define ffs(x) generic_ffs(x)
+
+/*
+ * hweightN: returns the hamming weight (i.e. the number
+ * of bits set) of a N-bit word
+ */
+
+#define hweight32(x) generic_hweight32(x)
+#define hweight16(x) generic_hweight16(x)
+#define hweight8(x) generic_hweight8(x)
+
+#endif /* __KERNEL__ */
 
 /* find_next_zero_bit() finds the first zero bit in a bit string of length
  * 'size' bits, starting the search at bit 'offset'. This is largely based

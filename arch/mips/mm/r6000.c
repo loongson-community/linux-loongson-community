@@ -1,4 +1,4 @@
-/* $Id: r6000.c,v 1.4 1998/03/27 08:53:42 ralf Exp $
+/* $Id: r6000.c,v 1.4 1998/04/05 11:23:56 ralf Exp $
  * r6000.c: MMU and cache routines for the R6000 processors.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
@@ -109,7 +109,7 @@ static void r6000_pgd_init(unsigned long page)
 		 "=r" (dummy2)
 		:"r" ((unsigned long) invalid_pte_table),
 		 "0" (page),
-		 "1" (PAGE_SIZE/(sizeof(pmd_t)*8)),
+		 "1" (USER_PTRS_PER_PGD/8),
 		 "i" (Create_Dirty_Excl_D));
 }
 

@@ -1,7 +1,7 @@
 /*
  *  linux/fs/isofs/dir.c
  *
- *  (C) 1992, 1993, 1994  Eric Youngdale Modified for ISO9660 filesystem.
+ *  (C) 1992, 1993, 1994  Eric Youngdale Modified for ISO 9660 filesystem.
  *
  *  (C) 1991  Linus Torvalds - minix filesystem
  *
@@ -74,7 +74,7 @@ static int isofs_name_translate(char * old, int len, char * new)
 		if (c >= 'A' && c <= 'Z')
 			c |= 0x20;	/* lower case */
 
-		/* Drop trailing '.;1' (ISO9660:1988 7.5.1 requires period) */
+		/* Drop trailing '.;1' (ISO 9660:1988 7.5.1 requires period) */
 		if (c == '.' && i == len - 3 && old[i + 1] == ';' && old[i + 2] == '1')
 			break;
 
@@ -89,6 +89,32 @@ static int isofs_name_translate(char * old, int len, char * new)
 		new[i] = c;
 	}
 	return i;
+}
+
+/* Acorn extensions written by Matthew Wilcox <willy@bofh.ai> 1998 */
+int get_acorn_filename(struct iso_directory_record * de,
+			    char * retname, struct inode * inode)
+{
+	int std;
+	unsigned char * chr;
+	int retnamlen = isofs_name_translate(de->name,
+				de->name_len[0], retname);
+	if (retnamlen == 0) return 0;
+	std = sizeof(struct iso_directory_record) + de->name_len[0];
+	if (std & 1) std++;
+	if ((*((unsigned char *) de) - std) != 32) return retnamlen;
+	chr = ((unsigned char *) de) + std;
+	if (strncmp(chr, "ARCHIMEDES", 10)) return retnamlen;
+	if ((*retname == '_') && ((chr[19] & 1) == 1)) *retname = '!';
+	if (((de->flags[0] & 2) == 0) && (chr[13] == 0xff)
+		&& ((chr[12] & 0xf0) == 0xf0))
+	{
+		retname[retnamlen] = ',';
+		sprintf(retname+retnamlen+1, "%3.3x",
+			((chr[12] & 0xf) << 8) | chr[11]);
+		retnamlen += 4;
+	}
+	return retnamlen;
 }
 
 /*
@@ -230,15 +256,17 @@ static int do_isofs_readdir(struct inode *inode, struct file *filp,
 				p = tmpname;
 			} else
 #endif
-			{
-				if (inode->i_sb->u.isofs_sb.s_mapping == 'n') {
-					len = isofs_name_translate(de->name, de->name_len[0],
-								   tmpname);
-					p = tmpname;
-				} else {
-					p = de->name;
-					len = de->name_len[0];
-				}
+			if (inode->i_sb->u.isofs_sb.s_mapping == 'a') {
+				len = get_acorn_filename(de, tmpname, inode);
+				p = tmpname;
+			} else
+			if (inode->i_sb->u.isofs_sb.s_mapping == 'n') {
+				len = isofs_name_translate(de->name,
+					de->name_len[0], tmpname);
+				p = tmpname;
+			} else {
+				p = de->name;
+				len = de->name_len[0];
 			}
 		}
 		if (len > 0) {

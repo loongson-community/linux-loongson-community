@@ -116,7 +116,7 @@ typedef char floppy_drive_name[16];
  * Drive parameters (user modifiable)
  */
 struct floppy_drive_params {
-	signed char cmos;		/* cmos type */
+	signed char cmos;		/* CMOS type */
 	
 	/* Spec2 is (HLD<<1 | ND), where HLD is head load time (1=2ms, 2=4 ms 
 	 * etc) and ND is set means no DMA. Hardcoded to 6 (HLD=6ms, use DMA).
@@ -189,7 +189,7 @@ enum {
  * Current drive state (not directly modifiable by user, readonly)
  */
 struct floppy_drive_struct {
-	signed char flags;
+	unsigned long flags;
 /* values for these flags */
 #define FD_NEED_TWADDLE (1 << FD_NEED_TWADDLE_BIT)
 #define FD_VERIFY (1 << FD_VERIFY_BIT)

@@ -6,7 +6,7 @@
  *		Various kernel-resident INET utility functions; mainly
  *		for format conversion and debugging output.
  *
- * Version:	$Id: utils.c,v 1.3 1997/12/16 05:37:49 ralf Exp $
+ * Version:	$Id: utils.c,v 1.6 1997/12/13 21:53:03 kuznet Exp $
  *
  * Author:	Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
  *

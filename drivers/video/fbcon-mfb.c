@@ -70,13 +70,13 @@ void fbcon_mfb_clear(struct vc_data *conp, struct display *p, int sy, int sx,
     dest = p->screen_base+sy*p->fontheight*p->next_line+sx;
 
     if (sx == 0 && width == p->next_line) {
-	if (attr_reverse(p,conp))
+	if (attr_reverse(p,conp->vc_attr))
 	    mymemset(dest, height*p->fontheight*width);
 	else
 	    mymemclear(dest, height*p->fontheight*width);
     } else
 	for (rows = height*p->fontheight; rows--; dest += p->next_line)
-	    if (attr_reverse(p,conp))
+	    if (attr_reverse(p,conp->vc_attr))
 		mymemset(dest, width);
 	    else
 		mymemclear_small(dest, width);
@@ -89,13 +89,11 @@ void fbcon_mfb_putc(struct vc_data *conp, struct display *p, int c, int yy,
     u_int rows, bold, revs, underl;
     u8 d;
 
-    c &= 0xff;
-
     dest = p->screen_base+yy*p->fontheight*p->next_line+xx;
-    cdat = p->fontdata+c*p->fontheight;
-    bold = attr_bold(p,conp);
-    revs = attr_reverse(p,conp);
-    underl = attr_underline(p,conp);
+    cdat = p->fontdata+(c&p->charmask)*p->fontheight;
+    bold = attr_bold(p,c);
+    revs = attr_reverse(p,c);
+    underl = attr_underline(p,c);
 
     for (rows = p->fontheight; rows--; dest += p->next_line) {
 	d = *cdat++;
@@ -109,20 +107,21 @@ void fbcon_mfb_putc(struct vc_data *conp, struct display *p, int c, int yy,
     }
 }
 
-void fbcon_mfb_putcs(struct vc_data *conp, struct display *p, const char *s,
-		     int count, int yy, int xx)
+void fbcon_mfb_putcs(struct vc_data *conp, struct display *p, 
+		     const unsigned short *s, int count, int yy, int xx)
 {
     u8 *dest, *dest0, *cdat;
     u_int rows, bold, revs, underl;
-    u8 c, d;
+    u8 d;
+    u16 c;
 
     dest0 = p->screen_base+yy*p->fontheight*p->next_line+xx;
-    bold = attr_bold(p,conp);
-    revs = attr_reverse(p,conp);
-    underl = attr_underline(p,conp);
+    bold = attr_bold(p,*s);
+    revs = attr_reverse(p,*s);
+    underl = attr_underline(p,*s);
 
     while (count--) {
-	c = *s++;
+	c = *s++ & p->charmask;
 	dest = dest0++;
 	cdat = p->fontdata+c*p->fontheight;
 	for (rows = p->fontheight; rows--; dest += p->next_line) {
@@ -155,8 +154,19 @@ void fbcon_mfb_revc(struct display *p, int xx, int yy)
 
 struct display_switch fbcon_mfb = {
     fbcon_mfb_setup, fbcon_mfb_bmove, fbcon_mfb_clear, fbcon_mfb_putc,
-    fbcon_mfb_putcs, fbcon_mfb_revc
+    fbcon_mfb_putcs, fbcon_mfb_revc, NULL, NULL, NULL, FONTWIDTH(8)
 };
+
+
+#ifdef MODULE
+int init_module(void)
+{
+    return 0;
+}
+
+void cleanup_module(void)
+{}
+#endif /* MODULE */
 
 
     /*

@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp.c,v 1.114 1998/04/26 01:11:33 davem Exp $
+ * Version:	$Id: tcp.c,v 1.116 1998/07/26 03:06:54 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -580,7 +580,7 @@ unsigned int tcp_poll(struct file * file, struct socket *sock, poll_table *wait)
 		/* Always wake the user up when an error occurred */
 		if (sock_wspace(sk) >= space || sk->err)
 			mask |= POLLOUT | POLLWRNORM;
-		if (tp->urg_data)
+		if (tp->urg_data & URG_VALID)
 		    	mask |= POLLPRI;
 	}
 	return mask;
@@ -1069,6 +1069,13 @@ int tcp_recvmsg(struct sock *sk, struct msghdr *msg,
 
 	add_wait_queue(sk->sleep, &wait);
 	lock_sock(sk);
+	
+	/*
+	 *	BUG BUG BUG
+	 *	This violates 1003.1g compliance. We must wait for 
+	 *	data to exist even if we read none!
+	 */
+	 
 	while (len > 0) {
 		struct sk_buff * skb;
 		u32 offset;

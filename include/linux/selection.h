@@ -4,7 +4,10 @@
  * Interface between console.c, tty_io.c, vt.c, vc_screen.c and selection.c
  */
 
-#include <linux/config.h>
+#ifndef _LINUX_SELECTION_H_
+#define _LINUX_SELECTION_H_
+
+#include <linux/vt_buffer.h>
 
 extern int sel_cons;
 
@@ -15,275 +18,29 @@ extern int sel_loadlut(const unsigned long arg);
 extern int mouse_reporting(void);
 extern void mouse_report(struct tty_struct * tty, int butt, int mrx, int mry);
 
-#ifdef CONFIG_FB_CONSOLE
-extern unsigned long get_video_num_columns(unsigned int console);
-extern unsigned long get_video_num_lines(unsigned int console);
-extern unsigned long get_video_size_row(unsigned int console);
-#else
-#define get_video_num_columns(dummy) video_num_columns
-#define get_video_num_lines(dummy) video_num_lines
-#define get_video_size_row(dummy) video_size_row
-#endif
-
-extern unsigned long video_num_columns;
-extern unsigned long video_num_lines;
-extern unsigned long video_size_row;
-extern unsigned char video_type;
-extern unsigned long video_mem_base;
-extern unsigned long video_mem_term;
-extern unsigned long video_screen_size;
-extern unsigned short video_port_reg;
-extern unsigned short video_port_val;
+#define video_num_columns	(vc_cons[currcons].d->vc_cols)
+#define video_num_lines		(vc_cons[currcons].d->vc_rows)
+#define video_size_row		(vc_cons[currcons].d->vc_size_row)
+#define video_screen_size	(vc_cons[currcons].d->vc_screenbuf_size)
+#define can_do_color		(vc_cons[currcons].d->vc_can_do_color)
 
 extern int console_blanked;
-extern int can_do_color;
-
-extern unsigned long video_font_height;
-extern unsigned long video_scan_lines;
-extern unsigned long default_font_height;
-extern int video_font_is_default;
 
 extern unsigned char color_table[];
 extern int default_red[];
 extern int default_grn[];
 extern int default_blu[];
 
-extern unsigned short __real_origin;
-extern unsigned short __origin;
-extern unsigned char has_wrapped;
-
-extern unsigned short *vc_scrbuf[MAX_NR_CONSOLES];
-
 extern void do_unblank_screen(void);
 extern unsigned short *screen_pos(int currcons, int w_offset, int viewed);
-extern unsigned short screen_word(int currcons, int offset, int viewed);
-extern int scrw2glyph(unsigned short scr_word);
+extern u16 screen_glyph(int currcons, int offset);
 extern void complement_pos(int currcons, int offset);
 extern void invert_screen(int currcons, int offset, int count, int shift);
-
-#define reverse_video_char(a)	(((a) & 0x88) | ((((a) >> 4) | ((a) << 4)) & 0x77))
-#define reverse_video_short(a)	(((a) & 0x88ff) | \
-	(((a) & 0x7000) >> 4) | (((a) & 0x0700) << 4))
-/* this latter line used to have masks 0xf000 and 0x0f00, but selection
-   requires a self-inverse operation; moreover, the old version looks wrong */
 
 extern void getconsxy(int currcons, char *p);
 extern void putconsxy(int currcons, char *p);
 
+extern u16 vcs_scr_readw(int currcons, u16 *org);
+extern void vcs_scr_writew(int currcons, u16 val, u16 *org);
 
-/* how to access screen memory */
-
-#if defined(CONFIG_TGA_CONSOLE)
-
-extern int tga_blitc(unsigned int, unsigned long);
-extern unsigned long video_mem_term;
-
-/*
- * TGA console screen memory access
- * 
- * TGA is *not* a character/attribute cell device; font bitmaps must be rendered
- * to the screen pixels.
- *
- * We must test for an Alpha kernel virtual address that falls within
- *  the "shadow screen" memory. This condition indicates we really want 
- *  to write to the screen, so, we do... :-)
- *
- * NOTE also: there's only *TWO* operations: to put/get a character/attribute.
- *  All the others needed by VGA support go away, as Not Applicable for TGA.
- */
-static inline void scr_writew(unsigned short val, unsigned short * addr)
-{
-        /*
-         * always deposit the char/attr, then see if it was to "screen" mem.
-	 * if so, then render the char/attr onto the real screen.
-         */
-        *addr = val;
-        if ((unsigned long)addr < video_mem_term &&
-	    (unsigned long)addr >= video_mem_base) {
-                tga_blitc(val, (unsigned long) addr);
-        }
-}
-
-static inline unsigned short scr_readw(unsigned short * addr)
-{
-	return *addr;
-}
-
-#elif defined (CONFIG_SGI)
-
-#include <linux/vt_kern.h>
-#include <linux/kd.h>
-extern void blitc(unsigned short, unsigned long);
-extern void memsetw(void * s, unsigned short c, unsigned int count);
-extern void memcpyw(unsigned short *to, unsigned short *from, unsigned int count);
-extern unsigned long video_mem_term;
-
-static inline void scr_writew(unsigned short val, unsigned short * addr)
-{
-	/* always deposit the char/attr, then see if it was to "screen" mem.
-	 * if so, then render the char/attr onto the real screen.
-	 */
-	if(*addr != val) {
-		*addr = val;
-		if ((unsigned long)addr < video_mem_term &&
-		    (unsigned long)addr >= video_mem_base &&
-		    vt_cons [fg_console]->vc_mode == KD_TEXT)
-	                blitc(val, (unsigned long) addr);
-        }
-}
-
-static inline unsigned short scr_readw(unsigned short * addr)
-{
-	return *addr;
-}
-
-#elif defined (CONFIG_VIDEO_G364) /* The G364 cards: same as above. */
-
-extern void g364_blitc(unsigned short, unsigned long);
-extern void g364_blitc_colour(unsigned short, unsigned long);
-extern unsigned long video_mem_term;
-
-/*
- * G364 console screen memory access
- *
- * G364 is *not* a character/attribute cell device; font bitmaps must be
- * rendered to the screen pixels.
- *
- * The "unsigned short * addr" is *ALWAYS* a kernel virtual address, either
- * of the VC's backing store, or the "shadow screen" memory where the screen
- * contents are kept, as the G364 frame buffer is *not* char/attr cells.
- *
- * We must test for a Mips kernel virtual address that falls within
- *  the "shadow screen" memory. This condition indicates we really want
- *  to write to the screen, so, we do... :-)
- *
- * NOTE also: there's only *TWO* operations: to put/get a character/attribute.
- *  All the others needed by VGA support go away, as Not Applicable for G364.
- */
-static inline void scr_writew(unsigned short val, unsigned short * addr)
-{
-        /*
-         * always deposit the char/attr, then see if it was to "screen" mem.
-         * if so, then render the char/attr onto the real screen.
-         */
-        *addr = val;
-        if ((unsigned long)addr < video_mem_term &&
-            (unsigned long)addr >= video_mem_base) {
-		if ((val & 0xff00) == 0x0700)
-                	g364_blitc(val, (unsigned long) addr); /* B&W faster */
-		else
-                	g364_blitc_colour(val, (unsigned long) addr);
-	}
-}
-
-static inline unsigned short scr_readw(unsigned short * addr)
-{
-	return *addr;
-}
-
-#elif defined(CONFIG_SUN_CONSOLE)
-
-#include "vt_kern.h"
-#include <linux/kd.h>
-extern int sun_blitc(unsigned int, unsigned long);
-extern void memsetw(void * s, unsigned short c, unsigned int count);
-extern void memcpyw(unsigned short *to, unsigned short *from, unsigned int count);
-extern unsigned long video_mem_term;
-
-/* Basically the same as the TGA stuff. */
-static inline void scr_writew(unsigned short val, unsigned short * addr)
-{
-        /*
-         * always deposit the char/attr, then see if it was to "screen" mem.
-	 * if so, then render the char/attr onto the real screen.
-         */
-	if (*addr != val) {
-        	*addr = val;
-		if ((unsigned long)addr < video_mem_term &&
-		    (unsigned long)addr >= video_mem_base &&
-		    vt_cons [fg_console]->vc_mode == KD_TEXT)
-			sun_blitc(val, (unsigned long) addr);
-	}
-}
-
-static inline unsigned short scr_readw(unsigned short * addr)
-{
-	return *addr;
-}
-
-#else
-
-/*
- * normal VGA console access
- *
- */ 
-
-#include <asm/io.h>
-
-/*
- * NOTE: "(long) addr < 0" tests for an Alpha kernel virtual address; this
- *  indicates a VC's backing store; otherwise, it's a bus memory address, for
- *  the VGA's screen memory, so we do the Alpha "swizzle"... :-)
- */
-static inline void scr_writeb(unsigned char val, unsigned char * addr)
-{
-	if ((long) addr < 0)
-		*addr = val;
-	else
-		writeb(val, (unsigned long) addr);
-}
-
-static inline unsigned char scr_readb(unsigned char * addr)
-{
-	if ((long) addr < 0)
-		return *addr;
-	return readb((unsigned long) addr);
-}
-
-static inline void scr_writew(unsigned short val, unsigned short * addr)
-{
-#ifdef __powerpc__
-	st_le16(addr, val);
-#else
-	if ((long) addr < 0)
-		*addr = val;
-	else
-		writew(val, (unsigned long) addr);
-#endif /* !__powerpc__ */
-}
-
-static inline unsigned short scr_readw(unsigned short * addr)
-{
-#ifdef __powerpc__
-	return ld_le16(addr);
-#else
-	if ((long) addr < 0)
-		return *addr;
-	return readw((unsigned long) addr);
-#endif /* !__powerpc__ */	
-}
-
-#endif /* CONFIG_TGA_CONSOLE */
-
-#if !defined(CONFIG_SUN_CONSOLE) && !defined(CONFIG_SGI)
-static inline void memsetw(void * s, unsigned short c, unsigned int count)
-{
-	unsigned short * addr = (unsigned short *) s;
-
-	count /= 2;
-	while (count) {
-		count--;
-		scr_writew(c, addr++);
-	}
-}
-
-static inline void memcpyw(unsigned short *to, unsigned short *from,
-			   unsigned int count)
-{
-	count /= 2;
-	while (count) {
-		count--;
-		scr_writew(scr_readw(from++), to++);
-	}
-}
-#endif /* !defined(CONFIG_SUN_CONSOLE) && !defined(CONFIG_SGI) */
+#endif

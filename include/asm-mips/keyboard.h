@@ -5,7 +5,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * $Id: keyboard.h,v 1.7 1998/05/07 03:02:50 ralf Exp $
+ * $Id: keyboard.h,v 1.8 1998/07/13 23:27:07 tsbogend Exp $
  */
 #ifndef __ASM_MIPS_KEYBOARD_H
 #define __ASM_MIPS_KEYBOARD_H
@@ -52,13 +52,11 @@ void (*keyboard_setup)(void);
 #ifdef CONFIG_MIPS_JAZZ
 
 /* Not true for Jazz machines, we cheat a bit for 'em. */
-#define KEYBOARD_IRQ    1
+#define KEYBOARD_IRQ 1
 
-extern int jazz_ps2_request_irq(void);
-extern void jazz_ps2_free_irq(void);
-
-#define ps2_request_irq()      jazz_ps2_request_irq()
-#define ps2_free_irq(inode)    jazz_ps2_free_irq()
+/*
+ * No PS/2 style mouse support for Jazz machines
+ */
 
 #endif /* CONFIG_MIPS_JAZZ */
 
@@ -77,6 +75,10 @@ extern void jazz_ps2_free_irq(void);
 #define ps2_free_irq(void) do { } while(0);
 
 #endif /* CONFIG_SGI */
+
+#ifdef CONFIG_COBALT_MICRO_SERVER
+#define KEYBOARD_IRQ 1
+#endif
 
 #if defined(CONFIG_ACER_PICA_61) || defined(CONFIG_SNI_RM200_PCI)
 #define CONF_KEYBOARD_USES_IO_PORTS

@@ -113,7 +113,7 @@
 #define __NR_osf_old_sigblock	109	/* not implemented */
 #define __NR_osf_old_sigsetmask	110	/* not implemented */
 #define __NR_sigsuspend		111
-#define __NR_osf_sigstack	112	/* not implemented */
+#define __NR_osf_sigstack	112
 #define __NR_recvmsg		113
 #define __NR_sendmsg		114
 #define __NR_osf_old_vtrace	115	/* not implemented */
@@ -205,7 +205,7 @@
 
 #define __NR_getpgid		233
 #define __NR_getsid		234
-#define __NR_osf_sigaltstack	235	/* not implemented */
+#define __NR_sigaltstack	235
 #define __NR_osf_waitid		236	/* not implemented */
 #define __NR_osf_priocntlset	237	/* not implemented */
 #define __NR_osf_sigsendset	238	/* not implemented */
@@ -304,52 +304,188 @@
 #define __NR_getrusage			364
 #define __NR_wait4			365
 #define __NR_adjtimex			366
-
+#define __NR_getcwd			367
+#define __NR_capget			368
+#define __NR_capset			369
 
 #if defined(__LIBRARY__) && defined(__GNUC__)
 
-/* XXX - _foo needs to be __foo, while __NR_bar could be _NR_bar. */
+#define _syscall_return(type)						\
+	return (_sc_err ? errno = _sc_ret, _sc_ret = -1L : 0), (type) _sc_ret
+
+#define _syscall_clobbers						\
+	"$1", "$2", "$3", "$4", "$5", "$6", "$7", "$8",			\
+	"$22", "$23", "$24", "$25", "$27", "$28" 			\
+
 #define _syscall0(type, name)						\
 type name(void)								\
 {									\
-	extern long syscall (int, ...);					\
-	return syscall(__NR_##name));					\
+	long _sc_ret, _sc_err;						\
+	{								\
+		register long _sc_0 __asm__("$0");			\
+		register long _sc_19 __asm__("$19");			\
+									\
+		_sc_0 = __NR_##name;					\
+		__asm__("callsys # %0 %1 %2"				\
+			: "=r"(_sc_0), "=r"(_sc_19)			\
+			: "0"(_sc_0)					\
+			: _syscall_clobbers);				\
+		_sc_ret = _sc_0, _sc_err = _sc_19;			\
+	}								\
+	_syscall_return(type);						\
 }
 
 #define _syscall1(type,name,type1,arg1)					\
 type name(type1 arg1)							\
 {									\
-	extern long syscall (int, ...);					\
-	return syscall(__NR_##name, arg1);				\
+	long _sc_ret, _sc_err;						\
+	{								\
+		register long _sc_0 __asm__("$0");			\
+		register long _sc_16 __asm__("$16");			\
+		register long _sc_19 __asm__("$19");			\
+									\
+		_sc_0 = __NR_##name;					\
+		_sc_16 = (long) (arg1);					\
+		__asm__("callsys # %0 %1 %2 %3"				\
+			: "=r"(_sc_0), "=r"(_sc_19)			\
+			: "0"(_sc_0), "r"(_sc_16)			\
+			: _syscall_clobbers);				\
+		_sc_ret = _sc_0, _sc_err = _sc_19;			\
+	}								\
+	_syscall_return(type);						\
 }
 
 #define _syscall2(type,name,type1,arg1,type2,arg2)			\
 type name(type1 arg1,type2 arg2)					\
 {									\
-	extern long syscall (int, ...);					\
-	return syscall(__NR_##name, arg1, arg2);				\
+	long _sc_ret, _sc_err;						\
+	{								\
+		register long _sc_0 __asm__("$0");			\
+		register long _sc_16 __asm__("$16");			\
+		register long _sc_17 __asm__("$17");			\
+		register long _sc_19 __asm__("$19");			\
+									\
+		_sc_0 = __NR_##name;					\
+		_sc_16 = (long) (arg1);					\
+		_sc_17 = (long) (arg2);					\
+		__asm__("callsys # %0 %1 %2 %3 %4"			\
+			: "=r"(_sc_0), "=r"(_sc_19)			\
+			: "0"(_sc_0), "r"(_sc_16), "r"(_sc_17)		\
+			: _syscall_clobbers);				\
+		_sc_ret = _sc_0, _sc_err = _sc_19;			\
+	}								\
+	_syscall_return(type);						\
 }
 
 #define _syscall3(type,name,type1,arg1,type2,arg2,type3,arg3)		\
 type name(type1 arg1,type2 arg2,type3 arg3)				\
 {									\
-	extern long syscall (int, ...);					\
-	return syscall(__NR_##name, arg1, arg2, arg3);			\
+	long _sc_ret, _sc_err;						\
+	{								\
+		register long _sc_0 __asm__("$0");			\
+		register long _sc_16 __asm__("$16");			\
+		register long _sc_17 __asm__("$17");			\
+		register long _sc_18 __asm__("$18");			\
+		register long _sc_19 __asm__("$19");			\
+									\
+		_sc_0 = __NR_##name;					\
+		_sc_16 = (long) (arg1);					\
+		_sc_17 = (long) (arg2);					\
+		_sc_18 = (long) (arg3);					\
+		__asm__("callsys # %0 %1 %2 %3 %4 %5"			\
+			: "=r"(_sc_0), "=r"(_sc_19)			\
+			: "0"(_sc_0), "r"(_sc_16), "r"(_sc_17),		\
+			  "r"(_sc_18)					\
+			: _syscall_clobbers);				\
+		_sc_ret = _sc_0, _sc_err = _sc_19;			\
+	}								\
+	_syscall_return(type);						\
 }
 
 #define _syscall4(type,name,type1,arg1,type2,arg2,type3,arg3,type4,arg4) \
 type name (type1 arg1, type2 arg2, type3 arg3, type4 arg4)		 \
 {									 \
-	extern long syscall (int, ...);					 \
-	return syscall(__NR_##name, arg1, arg2, arg3, arg4);		 \
+	long _sc_ret, _sc_err;						\
+	{								\
+		register long _sc_0 __asm__("$0");			\
+		register long _sc_16 __asm__("$16");			\
+		register long _sc_17 __asm__("$17");			\
+		register long _sc_18 __asm__("$18");			\
+		register long _sc_19 __asm__("$19");			\
+									\
+		_sc_0 = __NR_##name;					\
+		_sc_16 = (long) (arg1);					\
+		_sc_17 = (long) (arg2);					\
+		_sc_18 = (long) (arg3);					\
+		_sc_19 = (long) (arg4);					\
+		__asm__("callsys # %0 %1 %2 %3 %4 %5 %6"		\
+			: "=r"(_sc_0), "=r"(_sc_19)			\
+			: "0"(_sc_0), "r"(_sc_16), "r"(_sc_17),		\
+			  "r"(_sc_18), "1"(_sc_19)			\
+			: _syscall_clobbers);				\
+		_sc_ret = _sc_0, _sc_err = _sc_19;			\
+	}								\
+	_syscall_return(type);						\
 } 
 
 #define _syscall5(type,name,type1,arg1,type2,arg2,type3,arg3,type4,arg4, \
 	  type5,arg5)							 \
-type name (type1 arg1,type2 arg2,type3 arg3,type4 arg4,type5 arg5)	 \
-{									 \
-	extern long syscall (int, ...);					 \
-	return syscall(__NR_##name, arg1, arg2, arg3, arg4, arg5);	 \
+type name (type1 arg1,type2 arg2,type3 arg3,type4 arg4,type5 arg5)	\
+{									\
+	long _sc_ret, _sc_err;						\
+	{								\
+		register long _sc_0 __asm__("$0");			\
+		register long _sc_16 __asm__("$16");			\
+		register long _sc_17 __asm__("$17");			\
+		register long _sc_18 __asm__("$18");			\
+		register long _sc_19 __asm__("$19");			\
+		register long _sc_20 __asm__("$20");			\
+									\
+		_sc_0 = __NR_##name;					\
+		_sc_16 = (long) (arg1);					\
+		_sc_17 = (long) (arg2);					\
+		_sc_18 = (long) (arg3);					\
+		_sc_19 = (long) (arg4);					\
+		_sc_20 = (long) (arg5);					\
+		__asm__("callsys # %0 %1 %2 %3 %4 %5 %6 %7"		\
+			: "=r"(_sc_0), "=r"(_sc_19)			\
+			: "0"(_sc_0), "r"(_sc_16), "r"(_sc_17),		\
+			  "r"(_sc_18), "1"(_sc_19), "r"(_sc_20)		\
+			: _syscall_clobbers);				\
+		_sc_ret = _sc_0, _sc_err = _sc_19;			\
+	}								\
+	_syscall_return(type);						\
+}
+
+#define _syscall6(type,name,type1,arg1,type2,arg2,type3,arg3,type4,arg4, \
+	  type5,arg5,type6,arg6)					 \
+type name (type1 arg1,type2 arg2,type3 arg3,type4 arg4,type5 arg5, type6 arg6)\
+{									\
+	long _sc_ret, _sc_err;						\
+	{								\
+		register long _sc_0 __asm__("$0");			\
+		register long _sc_16 __asm__("$16");			\
+		register long _sc_17 __asm__("$17");			\
+		register long _sc_18 __asm__("$18");			\
+		register long _sc_19 __asm__("$19");			\
+		register long _sc_20 __asm__("$20");			\
+		register long _sc_21 __asm__("$21");			\
+									\
+		_sc_0 = __NR_##name;					\
+		_sc_16 = (long) (arg1);					\
+		_sc_17 = (long) (arg2);					\
+		_sc_18 = (long) (arg3);					\
+		_sc_19 = (long) (arg4);					\
+		_sc_20 = (long) (arg5);					\
+		_sc_21 = (long) (arg6);					\
+		__asm__("callsys # %0 %1 %2 %3 %4 %5 %6 %7 %8"		\
+			: "=r"(_sc_0), "=r"(_sc_19)			\
+			: "0"(_sc_0), "r"(_sc_16), "r"(_sc_17),		\
+			  "r"(_sc_18), "1"(_sc_19), "r"(_sc_20), "r"(_sc_21) \
+			: _syscall_clobbers);				\
+		_sc_ret = _sc_0, _sc_err = _sc_19;			\
+	}								\
+	_syscall_return(type);						\
 }
 
 #endif /* __LIBRARY__ && __GNUC__ */

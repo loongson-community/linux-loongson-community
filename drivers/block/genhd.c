@@ -414,7 +414,8 @@ check_table:
 			 * This is necessary for drives for situations where
 			 * the translated geometry is unavailable from the BIOS.
 			 */
-			for (i = 0; i < 4 ; i++) {
+			int	xlate_done = 0;
+			for (i = 0; i < 4 && !xlate_done; i++) {
 				struct partition *q = &p[i];
 				if (NR_SECTS(q)
 				   && (q->sector & 63) == 1
@@ -423,9 +424,15 @@ check_table:
 					if (heads == 32 || heads == 64 || heads == 128 || heads == 255) {
 
 						(void) ide_xlate_1024(dev, heads, " [PTBL]");
-						break;
+						xlate_done = 1;
 					}
 				}
+			}
+			if (!xlate_done) {
+				/*
+				 * Default translation is equivalent of "BIOS LBA":
+				 */
+				ide_xlate_1024(dev, -2, " [LBA]");
 			}
 		}
 	}
@@ -1068,7 +1075,7 @@ static void check_partition(struct gendisk *hd, kdev_t dev)
 
 	/*
 	 * This is a kludge to allow the partition check to be
-	 * skipped for specific drives (e.g. IDE cd-rom drives)
+	 * skipped for specific drives (e.g. IDE CD-ROM drives)
 	 */
 	if ((int)first_sector == -1) {
 		hd->part[MINOR(dev)].start_sect = 0;
@@ -1169,8 +1176,10 @@ __initfunc(void device_setup(void))
 #ifdef CONFIG_MD_BOOT
         extern void md_setup_drive(void) __init;
 #endif
+#ifdef CONFIG_FC4_SOC
+	extern int soc_probe(void);
+#endif
 	struct gendisk *p;
-	int nr=0;
 
 #ifdef CONFIG_PARPORT
 	parport_init();
@@ -1178,6 +1187,10 @@ __initfunc(void device_setup(void))
 	chr_dev_init();
 	blk_dev_init();
 	sti();
+#ifdef CONFIG_FC4_SOC
+	/* This has to be done before scsi_dev_init */
+	soc_probe();
+#endif
 #ifdef CONFIG_SCSI
 	scsi_dev_init();
 #endif
@@ -1188,10 +1201,9 @@ __initfunc(void device_setup(void))
 	console_map_init();
 #endif
 
-	for (p = gendisk_head ; p ; p=p->next) {
+	for (p = gendisk_head ; p ; p=p->next)
 		setup_dev(p);
-		nr += p->nr_real;
-	}
+
 #ifdef CONFIG_BLK_DEV_RAM
 #ifdef CONFIG_BLK_DEV_INITRD
 	if (initrd_start && mount_initrd) initrd_load();
@@ -1203,3 +1215,25 @@ __initfunc(void device_setup(void))
         md_setup_drive();
 #endif
 }
+
+#ifdef CONFIG_PROC_FS
+int get_partition_list(char * page)
+{
+	struct gendisk *p;
+	char buf[8];
+	int n, len;
+
+	len = sprintf(page, "major minor  #blocks  name\n\n");
+	for (p = gendisk_head; p; p = p->next) {
+		for (n=0; n < (p->nr_real << p->minor_shift); n++) {
+			if (p->part[n].nr_sects && len < PAGE_SIZE - 80) {
+				len += sprintf(page+len,
+					       "%4d  %4d %10d %s\n",
+					       p->major, n, p->sizes[n],
+					       disk_name(p, n, buf));
+			}
+		}
+	}
+	return len;
+}
+#endif

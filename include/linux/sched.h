@@ -32,6 +32,7 @@ extern unsigned long event;
 #define CLONE_FILES	0x00000400	/* set if open files shared between processes */
 #define CLONE_SIGHAND	0x00000800	/* set if signal handlers shared */
 #define CLONE_PID	0x00001000	/* set if pid shared */
+#define CLONE_PTRACE	0x00002000	/* set if we want to let tracing continue on the child too */
 
 /*
  * These are the constant used to fake the fixed-point load-average
@@ -126,7 +127,7 @@ asmlinkage void schedule(void);
  * Open file table structure
  */
 struct files_struct {
-	int count;
+	atomic_t count;
 	int max_fds;
 	struct file ** fd;	/* current fd array */
 	fd_set close_on_exec;
@@ -134,7 +135,7 @@ struct files_struct {
 };
 
 #define INIT_FILES { \
-	1, \
+	ATOMIC_INIT(1), \
 	NR_OPEN, \
 	&init_fd_array[0], \
 	{ { 0, } }, \
@@ -142,13 +143,13 @@ struct files_struct {
 }
 
 struct fs_struct {
-	int count;
+	atomic_t count;
 	int umask;
 	struct dentry * root, * pwd;
 };
 
 #define INIT_FS { \
-	1, \
+	ATOMIC_INIT(1), \
 	0022, \
 	NULL, NULL \
 }
@@ -159,7 +160,8 @@ struct fs_struct {
 struct mm_struct {
 	struct vm_area_struct *mmap, *mmap_cache;
 	pgd_t * pgd;
-	int count, map_count;
+	atomic_t count;
+	int map_count;
 	struct semaphore mmap_sem;
 	unsigned long context;
 	unsigned long start_code, end_code, start_data, end_data;
@@ -176,7 +178,8 @@ struct mm_struct {
 };
 
 #define INIT_MM {					\
-		&init_mmap, NULL, swapper_pg_dir, 1, 1,	\
+		&init_mmap, NULL, swapper_pg_dir, 	\
+		ATOMIC_INIT(1), 1,			\
 		MUTEX,					\
 		0,					\
 		0, 0, 0, 0,				\
@@ -197,6 +200,13 @@ struct signal_struct {
 		{ {{0,}}, }, \
 		SPIN_LOCK_UNLOCKED }
 
+/*
+ * Some day this will be a full-fledged user tracking system..
+ * Right now it is only used to track how many processes a
+ * user has, but it has the potential to track memory usage etc.
+ */
+struct user_struct;
+
 struct task_struct {
 /* these are hardcoded - don't touch */
 	volatile long state;	/* -1 unrunnable, 0 runnable, >0 stopped */
@@ -207,14 +217,21 @@ struct task_struct {
 						0-0xFFFFFFFF for kernel-thread
 					 */
 	struct exec_domain *exec_domain;
+	long need_resched;
 
 /* various fields */
-	long debugreg[8];  /* Hardware debugging registers */
 	long counter;
 	long priority;
-	struct linux_binfmt *binfmt;
+/* SMP and runqueue state */
+	int has_cpu;
+	int processor;
+	int last_processor;
+	int lock_depth;		/* Lock depth. We can context switch in and out of holding a syscall kernel lock... */	
 	struct task_struct *next_task, *prev_task;
 	struct task_struct *next_run,  *prev_run;
+
+/* task state */
+	struct linux_binfmt *binfmt;
 	int exit_code, exit_signal;
 	int pdeath_signal;  /*  The signal sent when the parent dies  */
 	/* ??? */
@@ -262,6 +279,7 @@ struct task_struct {
 	int ngroups;
 	gid_t	groups[NGROUPS];
         kernel_cap_t   cap_effective, cap_inheritable, cap_permitted;
+	struct user_struct *user;
 /* limits */
 	struct rlimit rlim[RLIM_NLIMITS];
 	unsigned short used_math;
@@ -281,16 +299,12 @@ struct task_struct {
 /* memory management info */
 	struct mm_struct *mm;
 /* signal handlers */
+	spinlock_t sigmask_lock;	/* Protects signal and blocked */
 	struct signal_struct *sig;
 	sigset_t signal, blocked;
 	struct signal_queue *sigqueue, **sigqueue_tail;
-/* SMP state */
-	int has_cpu;
-	int processor;
-	int last_processor;
-	int lock_depth;		/* Lock depth. We can context switch in and out of holding a syscall kernel lock... */	
-	/* Spinlocks for various pieces or per-task state. */
-	spinlock_t sigmask_lock;	/* Protects signal and blocked */
+	unsigned long sas_ss_sp;
+	size_t sas_ss_size;
 };
 
 /*
@@ -306,10 +320,10 @@ struct task_struct {
 #define PF_SUPERPRIV	0x00000100	/* used super-user privileges */
 #define PF_DUMPCORE	0x00000200	/* dumped core */
 #define PF_SIGNALED	0x00000400	/* killed by a signal */
+#define PF_MEMALLOC	0x00000800	/* Allocating memory */
 
 #define PF_USEDFPU	0x00100000	/* task used FPU this quantum (SMP) */
 #define PF_DTRACE	0x00200000	/* delayed trace (used on m68k) */
-#define PF_ONSIGSTK	0x00400000	/* works on signal stack (m68k only) */
 
 /*
  * Limit the stack by to some sane default: root can always
@@ -319,26 +333,16 @@ struct task_struct {
 
 #define DEF_PRIORITY	(20*HZ/100)	/* 200 ms time slices */
 
-/* Note: This is very ugly I admit.  But some versions of gcc will
- *       dump core when an empty structure constant is parsed at
- *       the end of a large top level structure initialization. -DaveM
- */
-#ifdef __SMP__
-#define INIT_LOCKS	SPIN_LOCK_UNLOCKED
-#else
-#define INIT_LOCKS
-#endif
-
 /*
  *  INIT_TASK is used to set up the first task table, touch at
  * your own risk!. Base=0, limit=0x1fffff (=2MB)
  */
 #define INIT_TASK \
-/* state etc */	{ 0,0,0,KERNEL_DS,&default_exec_domain, \
-/* debugregs */ { 0, },            \
+/* state etc */	{ 0,0,0,KERNEL_DS,&default_exec_domain,0, \
 /* counter */	DEF_PRIORITY,DEF_PRIORITY, \
-/* binfmt */	NULL, \
+/* SMP */	0,0,0,-1, \
 /* schedlink */	&init_task,&init_task, &init_task, &init_task, \
+/* binfmt */	NULL, \
 /* ec,brk... */	0,0,0,0,0,0, \
 /* pid etc.. */	0,0,0,0,0, \
 /* proc links*/ &init_task,&init_task,NULL,NULL,NULL, \
@@ -348,13 +352,14 @@ struct task_struct {
 /* timeout */	0,SCHED_OTHER,0,0,0,0,0,0,0, \
 /* timer */	{ NULL, NULL, 0, 0, it_real_fn }, \
 /* utime */	{0,0,0,0},0, \
-/* per cpu times */ {0, }, {0, }, \
+/* per CPU times */ {0, }, {0, }, \
 /* flt */	0,0,0,0,0,0, \
 /* swp */	0,0,0,0,0, \
 /* process credentials */					\
 /* uid etc */	0,0,0,0,0,0,0,0,				\
 /* suppl grps*/ 0, {0,},					\
 /* caps */      CAP_INIT_EFF_SET,CAP_INIT_INH_SET,CAP_FULL_SET, \
+/* user */	NULL,						\
 /* rlimits */   INIT_RLIMITS, \
 /* math */	0, \
 /* comm */	"swapper", \
@@ -364,9 +369,7 @@ struct task_struct {
 /* fs */	&init_fs, \
 /* files */	&init_files, \
 /* mm */	&init_mm, \
-/* signals */	&init_signals, {{0}}, {{0}}, NULL, &init_task.sigqueue, \
-/* SMP */	0,0,0,0, \
-/* locks */	INIT_LOCKS \
+/* signals */	SPIN_LOCK_UNLOCKED, &init_signals, {{0}}, {{0}}, NULL, &init_task.sigqueue, 0, 0, \
 }
 
 union task_union {
@@ -378,7 +381,6 @@ extern union task_union init_task_union;
 
 extern struct   mm_struct init_mm;
 extern struct task_struct *task[NR_TASKS];
-extern struct task_struct *last_task_used_math;
 
 extern struct task_struct **tarray_freelist;
 extern spinlock_t taskslot_lock;
@@ -437,7 +439,8 @@ extern __inline__ struct task_struct *find_task_by_pid(int pid)
 }
 
 /* per-UID process charging. */
-extern int charge_uid(struct task_struct *p, int count);
+extern int alloc_uid(struct task_struct *p);
+void free_uid(struct task_struct *p);
 
 #include <asm/current.h>
 
@@ -445,7 +448,6 @@ extern unsigned long volatile jiffies;
 extern unsigned long itimer_ticks;
 extern unsigned long itimer_next;
 extern struct timeval xtime;
-extern int need_resched;
 extern void do_timer(struct pt_regs *);
 
 extern unsigned int * prof_buffer;
@@ -482,6 +484,7 @@ extern int kill_sl(pid_t, int, int);
 extern int kill_proc(pid_t, int, int);
 extern int do_sigaction(int sig, const struct k_sigaction *act,
 			struct k_sigaction *oact);
+extern int do_sigaltstack(const stack_t *ss, stack_t *oss, unsigned long sp);
 
 extern inline int signal_pending(struct task_struct *p)
 {
@@ -517,6 +520,20 @@ static inline void recalc_sigpending(struct task_struct *t)
 	}
 
 	t->sigpending = (ready != 0);
+}
+
+/* True if we are on the alternate signal stack.  */
+
+static inline int on_sig_stack(unsigned long sp)
+{
+	return (sp >= current->sas_ss_sp
+	        && sp < current->sas_ss_sp + current->sas_ss_size);
+}
+
+static inline int sas_ss_flags(unsigned long sp)
+{
+	return (current->sas_ss_size == 0 ? SS_DISABLE
+	       : on_sig_stack(sp) ? SS_ONSTACK : 0);
 }
 
 extern int request_irq(unsigned int irq,
@@ -566,7 +583,7 @@ extern inline int fsuser(void)
 
 extern inline int capable(int cap)
 {
-#if 0 /* not yet */
+#if 1 /* ok now */
 	if (cap_raised(current->cap_effective, cap))
 #else
 	if (cap_is_fs_cap(cap) ? current->fsuid == 0 : current->euid == 0)
@@ -584,7 +601,7 @@ extern inline int capable(int cap)
 extern struct mm_struct * mm_alloc(void);
 static inline void mmget(struct mm_struct * mm)
 {
-	mm->count++;
+	atomic_inc(&mm->count);
 }
 extern void mmput(struct mm_struct *);
 

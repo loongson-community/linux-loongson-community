@@ -1,10 +1,9 @@
-/*
+/* $Id: signal.c,v 1.22 1998/08/18 20:45:06 ralf Exp $
+ *
  *  linux/arch/mips/kernel/signal.c
  *
  *  Copyright (C) 1991, 1992  Linus Torvalds
- *  Copyright (C) 1994, 1995, 1996  Ralf Baechle
- *
- * $Id: signal.c,v 1.14 1998/07/04 00:49:51 ralf Exp $
+ *  Copyright (C) 1994, 1995, 1996, 1997, 1998  Ralf Baechle
  *
  * XXX Handle lazy fp context switches correctly.
  */
@@ -121,6 +120,14 @@ sys_sigaction(int sig, const struct sigaction *act,
 	}
 
 	return ret;
+}
+
+asmlinkage int
+sys_sigaltstack(const stack_t *uss, stack_t *uoss)
+{
+	struct pt_regs *regs = (struct pt_regs *) &uss;
+
+	return do_sigaltstack(uss, uoss, regs->regs[29]);
 }
 
 /*
@@ -290,14 +297,14 @@ setup_sigcontext(struct pt_regs *regs, struct sigcontext *sc, sigset_t *set)
 #if 0
 	if (current->used_math) {	/* fp is active.  */
 		set_cp0_status(ST0_CU1, ST0_CU1);
-		save_fp_context(sc);		/* cpu dependant */
+		save_fp_context(sc);		/* CPU-dependent */
 		last_task_used_math = NULL;
 		regs->cp0_status &= ~ST0_CU1;
 		current->used_math = 0;
 	}
 #endif
 set_cp0_status(ST0_CU1, ST0_CU1);
-save_fp_context(sc);		/* cpu dependant */
+save_fp_context(sc);		/* CPU-dependent */
 
 	__put_user(set->sig[0], &sc->sc_sigset[0]);
 	__put_user(set->sig[1], &sc->sc_sigset[1]);

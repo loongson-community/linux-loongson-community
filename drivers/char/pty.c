@@ -7,6 +7,7 @@
  *    -- C. Scott Ananian <cananian@alumni.princeton.edu>, 14-Jan-1998
  */
 
+#include <linux/config.h>
 #include <linux/module.h>	/* For EXPORT_SYMBOL */
 
 #include <linux/errno.h>
@@ -35,9 +36,9 @@ struct pty_struct {
 #define PTY_MAGIC 0x5001
 
 static struct tty_driver pty_driver, pty_slave_driver;
-static struct tty_driver old_pty_driver, old_pty_slave_driver;
 static int pty_refcount;
 
+/* Note: one set of tables for BSD and one for Unix98 */
 static struct tty_struct *pty_table[NR_PTYS];
 static struct termios *pty_termios[NR_PTYS];
 static struct termios *pty_termios_locked[NR_PTYS];
@@ -45,6 +46,20 @@ static struct tty_struct *ttyp_table[NR_PTYS];
 static struct termios *ttyp_termios[NR_PTYS];
 static struct termios *ttyp_termios_locked[NR_PTYS];
 static struct pty_struct pty_state[NR_PTYS];
+
+#ifdef CONFIG_UNIX98_PTYS
+/* These are global because they are accessed in tty_io.c */
+struct tty_driver ptm_driver[UNIX98_NR_MAJORS];
+struct tty_driver pts_driver[UNIX98_NR_MAJORS];
+
+static struct tty_struct *ptm_table[UNIX98_NR_MAJORS][NR_PTYS];
+static struct termios *ptm_termios[UNIX98_NR_MAJORS][NR_PTYS];
+static struct termios *ptm_termios_locked[UNIX98_NR_MAJORS][NR_PTYS];
+static struct tty_struct *pts_table[UNIX98_NR_MAJORS][NR_PTYS];
+static struct termios *pts_termios[UNIX98_NR_MAJORS][NR_PTYS];
+static struct termios *pts_termios_locked[UNIX98_NR_MAJORS][NR_PTYS];
+static struct pty_struct ptm_state[UNIX98_NR_MAJORS][NR_PTYS];
+#endif
 
 #define MIN(a,b)	((a) < (b) ? (a) : (b))
 
@@ -71,7 +86,15 @@ static void pty_close(struct tty_struct * tty, struct file * filp)
 	if (tty->driver.subtype == PTY_TYPE_MASTER) {
 		tty_hangup(tty->link);
 		set_bit(TTY_OTHER_CLOSED, &tty->flags);
-		devpts_pty_kill(MINOR(tty->device) - tty->driver.minor_start);
+#ifdef CONFIG_UNIX98_PTYS
+		{
+			unsigned int major = MAJOR(tty->device) - UNIX98_PTY_MASTER_MAJOR;
+			if ( major < UNIX98_NR_MAJORS ) {
+				devpts_pty_kill( MINOR(tty->device)
+			  - tty->driver.minor_start + tty->driver.name_base );
+			}
+		}
+#endif
 	}
 }
 
@@ -200,16 +223,20 @@ static int pty_chars_in_buffer(struct tty_struct *tty)
 	return ((count < N_TTY_BUF_SIZE/2) ? 0 : count);
 }
 
-/*
- * Return the minor device number of a given pty.  This lets us
- * open a master pty with the multi-headed ptmx device, then
- * find out which one we got after it is open, with an ioctl.
+/* 
+ * Return the device number of a Unix98 PTY (only!).  This lets us open a
+ * master pty with the multi-headed ptmx device, then find out which
+ * one we got after it is open, with an ioctl.
  */
-static int pty_get_device_minor(struct tty_struct *tty, unsigned int *value)
+#ifdef CONFIG_UNIX98_PTYS
+static int pty_get_device_number(struct tty_struct *tty, unsigned int *value)
 {
-	unsigned int result = MINOR(tty->device);
+	unsigned int result = MINOR(tty->device)
+		- tty->driver.minor_start + tty->driver.name_base;
 	return put_user(result, value);
 }
+#endif
+
 /* Set the lock flag on a pty */
 static int pty_set_lock(struct tty_struct *tty, int * arg)
 {
@@ -223,21 +250,36 @@ static int pty_set_lock(struct tty_struct *tty, int * arg)
 	return 0;
 }
 
-static int pty_ioctl(struct tty_struct *tty, struct file *file,
-		     unsigned int cmd, unsigned long arg)
+static int pty_bsd_ioctl(struct tty_struct *tty, struct file *file,
+			unsigned int cmd, unsigned long arg)
 {
 	if (!tty) {
 		printk("pty_ioctl called with NULL tty!\n");
 		return -EIO;
 	}
 	switch(cmd) {
-	case TIOCGPTN: /* Get PT Number */
-		return pty_get_device_minor(tty, (unsigned int *)arg);
 	case TIOCSPTLCK: /* Set PT Lock (disallow slave open) */
 		return pty_set_lock(tty, (int *) arg);
 	}
 	return -ENOIOCTLCMD;
 }
+
+#ifdef CONFIG_UNIX98_PTYS
+static int pty_unix98_ioctl(struct tty_struct *tty, struct file *file,
+			    unsigned int cmd, unsigned long arg)
+{
+	if (!tty) {
+		printk("pty_unix98_ioctl called with NULL tty!\n");
+		return -EIO;
+	}
+	switch(cmd) {
+	case TIOCGPTN: /* Get PT Number */
+		return pty_get_device_number(tty, (unsigned int *)arg);
+	}
+
+	return pty_bsd_ioctl(tty,file,cmd,arg);
+}
+#endif
 
 static void pty_flush_buffer(struct tty_struct *tty)
 {
@@ -267,7 +309,7 @@ static int pty_open(struct tty_struct *tty, struct file * filp)
 	line = MINOR(tty->device) - tty->driver.minor_start;
 	if ((line < 0) || (line >= NR_PTYS))
 		goto out;
-	pty = pty_state + line;
+	pty = (struct pty_struct *)(tty->driver.driver_state) + line;
 	tty->driver_data = pty;
 
 	retval = -EIO;
@@ -294,6 +336,10 @@ static void pty_set_termios(struct tty_struct *tty, struct termios *old_termios)
 
 __initfunc(int pty_init(void))
 {
+	int i;
+
+	/* Traditional BSD devices */
+
 	memset(&pty_state, 0, sizeof(pty_state));
 	memset(&pty_driver, 0, sizeof(struct tty_driver));
 	pty_driver.magic = TTY_DRIVER_MAGIC;
@@ -314,6 +360,7 @@ __initfunc(int pty_init(void))
 	pty_driver.table = pty_table;
 	pty_driver.termios = pty_termios;
 	pty_driver.termios_locked = pty_termios_locked;
+	pty_driver.driver_state = pty_state;
 	pty_driver.other = &pty_slave_driver;
 
 	pty_driver.open = pty_open;
@@ -337,37 +384,60 @@ __initfunc(int pty_init(void))
 	pty_slave_driver.table = ttyp_table;
 	pty_slave_driver.termios = ttyp_termios;
 	pty_slave_driver.termios_locked = ttyp_termios_locked;
+	pty_slave_driver.driver_state = pty_state;
 	pty_slave_driver.other = &pty_driver;
-
-	old_pty_driver = pty_driver;
-	old_pty_driver.driver_name = "compat_pty_master";
-	old_pty_driver.proc_entry = 0;
-	old_pty_driver.major = TTY_MAJOR;
-	old_pty_driver.minor_start = 128;
-	old_pty_driver.num = (NR_PTYS > 64) ? 64 : NR_PTYS;
-	old_pty_driver.other = &old_pty_slave_driver;
-	
-	old_pty_slave_driver = pty_slave_driver;
-	old_pty_slave_driver.driver_name = "compat_pty_slave";
-	old_pty_slave_driver.proc_entry = 0;
-	old_pty_slave_driver.major = TTY_MAJOR;
-	old_pty_slave_driver.minor_start = 192;
-	old_pty_slave_driver.num = (NR_PTYS > 64) ? 64 : NR_PTYS;
-	old_pty_slave_driver.other = &old_pty_driver;
-
-	/* only the master pty gets this ioctl (which is why we
-	 * assign it here, instead of up with the rest of the
-	 * pty_driver initialization. <cananian@alumni.princeton.edu>
-	 */
-	pty_driver.ioctl = pty_ioctl;
 
 	if (tty_register_driver(&pty_driver))
 		panic("Couldn't register pty driver");
 	if (tty_register_driver(&pty_slave_driver))
 		panic("Couldn't register pty slave driver");
-	if (tty_register_driver(&old_pty_driver))
-		panic("Couldn't register compat pty driver");
-	if (tty_register_driver(&old_pty_slave_driver))
-		panic("Couldn't register compat pty slave driver");
+
+	/* 
+	 * only the master pty gets this ioctl (which is why we
+	 * assign it here, instead of up with the rest of the
+	 * pty_driver initialization. <cananian@alumni.princeton.edu>
+	 */
+	pty_driver.ioctl = pty_bsd_ioctl;
+
+	/* Unix98 devices */
+#ifdef CONFIG_UNIX98_PTYS
+	printk("pty: %d Unix98 ptys configured\n", UNIX98_NR_MAJORS*NR_PTYS);
+	for ( i = 0 ; i < UNIX98_NR_MAJORS ; i++ ) {
+		ptm_driver[i] = pty_driver;
+		ptm_driver[i].name = "ptm";
+		ptm_driver[i].proc_entry = 0;
+		ptm_driver[i].major = UNIX98_PTY_MASTER_MAJOR+i;
+		ptm_driver[i].minor_start = 0;
+		ptm_driver[i].name_base = i*NR_PTYS;
+		ptm_driver[i].num = NR_PTYS;
+		ptm_driver[i].other = &pts_driver[i];
+		ptm_driver[i].table = ptm_table[i];
+		ptm_driver[i].termios = ptm_termios[i];
+		ptm_driver[i].termios_locked = ptm_termios_locked[i];
+		ptm_driver[i].driver_state = ptm_state[i];
+		
+		pts_driver[i] = pty_slave_driver;
+		pts_driver[i].name = "pts";
+		pts_driver[i].proc_entry = 0;
+		pts_driver[i].major = UNIX98_PTY_SLAVE_MAJOR+i;
+		pts_driver[i].minor_start = 0;
+		pts_driver[i].name_base = i*NR_PTYS;
+		pts_driver[i].num = ptm_driver[i].num;
+		pts_driver[i].other = &ptm_driver[i];
+		pts_driver[i].table = pts_table[i];
+		pts_driver[i].termios = pts_termios[i];
+		pts_driver[i].termios_locked = pts_termios_locked[i];
+		pts_driver[i].driver_state = ptm_state[i];
+		
+		ptm_driver[i].ioctl = pty_unix98_ioctl;
+		
+		if (tty_register_driver(&ptm_driver[i]))
+			panic("Couldn't register Unix98 ptm driver major %d",
+			      ptm_driver[i].major);
+		if (tty_register_driver(&pts_driver[i]))
+			panic("Couldn't register Unix98 pts driver major %d",
+			      pts_driver[i].major);
+	}
+#endif
 	return 0;
 }

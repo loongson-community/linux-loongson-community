@@ -123,7 +123,7 @@ Lconvertmemc:	mov	r3, r1, lsr #13			@
  *	     address  Address of fault.
  *	     pte      New PTE at address
  * Purpose : Update the mapping for this address.
- * Notes   : does the ARM3 run faster if you dont use the result in the next instruction?
+ * Notes   : does the ARM3 run faster if you do not use the result in the next instruction?
  */
 _arm2_3_update_cache:
 		tst	r2, #PAGE_PRESENT
@@ -383,13 +383,13 @@ _arm3_proc_init:
 		mov	r0, #0x001f0000
 		orr	r0, r0, #0x0000ff00
 		orr	r0, r0, #0x000000ff
-		mcr	p15, 0, r0, c3, c0
-		mcr     p15, 0, r0, c4, c0
+		mcr	p15, 0, r0, c3, c0		@ ARM3 Cacheable
+		mcr     p15, 0, r0, c4, c0		@ ARM3 Updateable
 		mov	r0, #0
-		mcr     p15, 0, r0, c5, c0
+		mcr     p15, 0, r0, c5, c0		@ ARM3 Disruptive
+		mcr     p15, 0, r0, c1, c0		@ ARM3 Flush
 		mov	r0, #3
-		mcr     p15, 0, r0, c1, c0
-		mcr     p15, 0, r0, c2, c0
+		mcr     p15, 0, r0, c2, c0		@ ARM3 Control
 		movs	pc, lr
 
 /*

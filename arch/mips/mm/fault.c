@@ -6,6 +6,7 @@
 #include <linux/signal.h>
 #include <linux/sched.h>
 #include <linux/head.h>
+#include <linux/interrupt.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
 #include <linux/string.h>
@@ -19,10 +20,11 @@
 #include <asm/hardirq.h>
 #include <asm/pgtable.h>
 #include <asm/mmu_context.h>
+#include <asm/softirq.h>
 #include <asm/system.h>
 #include <asm/uaccess.h>
 
-extern void die_if_kernel(char *, struct pt_regs *, long);
+extern void die(char *, struct pt_regs *, unsigned long write);
 
 unsigned long asid_cache = ASID_FIRST_VERSION;
 
@@ -44,8 +46,8 @@ asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long writeaccess,
 	struct mm_struct *mm = tsk->mm;
 	unsigned long fixup;
 
-	if (local_irq_count[smp_processor_id()] != 0)
-		die_if_kernel("page fault from irq handler", regs, writeaccess);
+	if (in_interrupt())
+		die("page fault from irq handler", regs, writeaccess);
 	lock_kernel();
 #if 0
 	printk("[%s:%d:%08lx:%ld:%08lx]\n", current->comm, current->pid,
@@ -121,7 +123,7 @@ bad_area:
 	printk(KERN_ALERT "Unable to handle kernel paging request at virtual "
 	       "address %08lx, epc == %08lx, ra == %08lx\n",
 	       address, regs->cp0_epc, regs->regs[31]);
-	die_if_kernel("Oops", regs, writeaccess);
+	die("Oops", regs, writeaccess);
 	do_exit(SIGKILL);
 out:
 	unlock_kernel();

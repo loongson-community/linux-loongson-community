@@ -2,13 +2,20 @@
 # Block device driver configuration
 #
 mainmenu_option next_comment
-comment 'Floppy, IDE, and other block devices'
+comment 'Block devices'
 
-tristate 'Normal floppy disk support' CONFIG_BLK_DEV_FD
+tristate 'Normal PC floppy disk support' CONFIG_BLK_DEV_FD
+if [ "$CONFIG_AMIGA" = "y" ]; then
+  tristate 'Amiga floppy support' CONFIG_AMIGA_FLOPPY
+fi
+if [ "$CONFIG_ATARI" = "y" ]; then
+  tristate 'Atari floppy support' CONFIG_ATARI_FLOPPY
+fi
+
 tristate 'Enhanced IDE/MFM/RLL disk/cdrom/tape/floppy support' CONFIG_BLK_DEV_IDE
 comment 'Please see Documentation/ide.txt for help/info on IDE drives'
 if [ "$CONFIG_BLK_DEV_IDE" = "n" ]; then
-  bool 'Old harddisk (MFM/RLL/IDE) driver' CONFIG_BLK_DEV_HD_ONLY
+  bool 'Old hard disk (MFM/RLL/IDE) driver' CONFIG_BLK_DEV_HD_ONLY
 else
   bool '   Use old disk-only driver on primary interface' CONFIG_BLK_DEV_HD_IDE
   dep_tristate '   Include IDE/ATA-2 DISK support' CONFIG_BLK_DEV_IDEDISK $CONFIG_BLK_DEV_IDE
@@ -16,7 +23,7 @@ else
   dep_tristate '   Include IDE/ATAPI TAPE support' CONFIG_BLK_DEV_IDETAPE $CONFIG_BLK_DEV_IDE
   dep_tristate '   Include IDE/ATAPI FLOPPY support' CONFIG_BLK_DEV_IDEFLOPPY $CONFIG_BLK_DEV_IDE
   dep_tristate '   SCSI emulation support' CONFIG_BLK_DEV_IDESCSI $CONFIG_BLK_DEV_IDE
-  if [ "$CONFIG_BLK_DEV_IDE" = "y" ]; then
+  if [ "$CONFIG_BLK_DEV_IDE" != "n" ]; then
     bool '   CMD640 chipset bugfix/support' CONFIG_BLK_DEV_CMD640
     if [ "$CONFIG_BLK_DEV_CMD640" = "y" ]; then
       bool '     CMD640 enhanced support' CONFIG_BLK_DEV_CMD640_ENHANCED
@@ -26,6 +33,9 @@ else
       bool '   Generic PCI IDE chipset support' CONFIG_BLK_DEV_IDEPCI
       if [ "$CONFIG_BLK_DEV_IDEPCI" = "y" ]; then
         bool '     Generic PCI bus-master DMA support' CONFIG_BLK_DEV_IDEDMA
+        if [ "$CONFIG_BLK_DEV_IDEDMA" = "y" ]; then
+          bool '     Use DMA by default when available' CONFIG_IDEDMA_AUTO
+        fi
         if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
           bool '     OPTi 82C621 chipset enhanced support (EXPERIMENTAL)' CONFIG_BLK_DEV_OPTI621
           if [ "$CONFIG_BLK_DEV_IDEDMA" = "y" ]; then
@@ -34,7 +44,7 @@ else
           fi
         fi
       fi
-      if [ "$CONFIG_CHRP" = "y" ]; then
+      if [ "$CONFIG_PPC" = "y" ]; then
           bool '   WInbond SL82c105 support' CONFIG_BLK_DEV_SL82C105
       fi
     fi
@@ -48,19 +58,32 @@ else
       bool '     QDI QD6580 support' CONFIG_BLK_DEV_QD6580
       bool '     UMC-8672 support' CONFIG_BLK_DEV_UMC8672
       if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+        if [ "$CONFIG_BLK_DEV_IDE" = "y" ]; then
         bool '     PROMISE DC4030 support (EXPERIMENTAL)' CONFIG_BLK_DEV_PDC4030
+	 fi
       fi
     fi
   fi
 fi
 if [ "$CONFIG_MCA" = "y" ]; then
-  bool 'PS/2 ESDI harddisk support' CONFIG_BLK_DEV_PS2
+  bool 'PS/2 ESDI hard disk support' CONFIG_BLK_DEV_PS2
+fi
+if [ "$CONFIG_ZORRO" = "y" ]; then
+  tristate 'Amiga Zorro II ramdisk support' CONFIG_AMIGA_Z2RAM
+fi
+if [ "$CONFIG_ATARI" = "y" ]; then
+  tristate 'Atari ACSI support' CONFIG_ATARI_ACSI
+  if [ "$CONFIG_ATARI_ACSI" != "n" ]; then
+    comment 'Some devices (e.g. CD jukebox) support multiple LUNs'
+    bool 'Probe all LUNs on each ACSI device' CONFIG_ACSI_MULTI_LUN
+    dep_tristate 'Atari SLM laser printer support' CONFIG_ATARI_SLM $CONFIG_ATARI_ACSI
+  fi
 fi
 
 comment 'Additional Block Devices'
 
 tristate 'Loopback device support' CONFIG_BLK_DEV_LOOP
-#tristate 'Network block device support' CONFIG_BLK_DEV_NBD
+tristate 'Network block device support' CONFIG_BLK_DEV_NBD
 bool 'Multiple devices driver support' CONFIG_BLK_DEV_MD
 if [ "$CONFIG_BLK_DEV_MD" = "y" ]; then
   tristate '   Linear (append) mode' CONFIG_MD_LINEAR
@@ -75,7 +98,7 @@ tristate 'RAM disk support' CONFIG_BLK_DEV_RAM
 if [ "$CONFIG_BLK_DEV_RAM" = "y" ]; then
   bool '   Initial RAM disk (initrd) support' CONFIG_BLK_DEV_INITRD
 fi
-tristate 'XT harddisk support' CONFIG_BLK_DEV_XD
+tristate 'XT hard disk support' CONFIG_BLK_DEV_XD
 
 # PARIDE doesn't need PARPORT, but if PARPORT is configured as a module,
 # PARIDE must also be a module.  The bogus CONFIG_PARIDE_PARPORT option

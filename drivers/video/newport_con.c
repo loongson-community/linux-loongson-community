@@ -1,4 +1,5 @@
-/*
+/* $Id: newport_con.c,v 1.1 1998/08/19 21:56:41 ralf Exp $
+ *
  * newport_con.c: Abscon for newport hardware
  * 
  * (C) 1998 Thomas Bogendoerfer (tsbogend@alpha.franken.de)
@@ -23,8 +24,7 @@
 #include <asm/system.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
-
-#include "newport.h"
+#include <asm/newport.h>
 
 struct newport_regs *npregs;
 int newport_num_lines;

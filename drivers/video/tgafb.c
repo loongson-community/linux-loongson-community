@@ -21,8 +21,6 @@
  *
  * KNOWN PROBLEMS/TO DO ==================================================== */
 
-
-#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
@@ -40,6 +38,7 @@
 #include <linux/selection.h>
 #include <asm/io.h>
 
+#include "fbcon.h"
 #include "fbcon-cfb8.h"
 #include "fbcon-cfb32.h"
 
@@ -252,8 +251,8 @@ static struct fb_var_screeninfo fb_var = { 0, };
      *  Interface used by the world
      */
 
-static int tgafb_open(struct fb_info *info);
-static int tgafb_release(struct fb_info *info);
+static int tgafb_open(struct fb_info *info, int user);
+static int tgafb_release(struct fb_info *info, int user);
 static int tgafb_get_fix(struct fb_fix_screeninfo *fix, int con,
 			 struct fb_info *info);
 static int tgafb_get_var(struct fb_var_screeninfo *var, int con,
@@ -274,7 +273,7 @@ static int tgafb_ioctl(struct inode *inode, struct file *file, u_int cmd,
      *  Interface to the low level console driver
      */
 
-unsigned long tgafb_init(unsigned long mem_start);
+void tgafb_init(void);
 static int tgafbcon_switch(int con, struct fb_info *info);
 static int tgafbcon_updatevar(int con, struct fb_info *info);
 static void tgafbcon_blank(int blank, struct fb_info *info);
@@ -296,7 +295,7 @@ static void do_install_cmap(int con, struct fb_info *info);
 
 static struct fb_ops tgafb_ops = {
     tgafb_open, tgafb_release, tgafb_get_fix, tgafb_get_var, tgafb_set_var,
-    tgafb_get_cmap, tgafb_set_cmap, tgafb_pan_display, NULL, tgafb_ioctl
+    tgafb_get_cmap, tgafb_set_cmap, tgafb_pan_display, tgafb_ioctl
 };
 
 
@@ -304,7 +303,7 @@ static struct fb_ops tgafb_ops = {
      *  Open/Release the frame buffer device
      */
 
-static int tgafb_open(struct fb_info *info)                                       
+static int tgafb_open(struct fb_info *info, int user)
 {
     /*                                                                     
      *  Nothing, only a usage count for the moment                          
@@ -314,7 +313,7 @@ static int tgafb_open(struct fb_info *info)
     return(0);                              
 }
         
-static int tgafb_release(struct fb_info *info)
+static int tgafb_release(struct fb_info *info, int user)
 {
     MOD_DEC_USE_COUNT;
     return(0);                                                    
@@ -453,15 +452,15 @@ static int tgafb_ioctl(struct inode *inode, struct file *file, u_int cmd,
      *  Initialisation
      */
 
-__initfunc(unsigned long tgafb_init(unsigned long mem_start))
+__initfunc(void tgafb_init(void))
 {
-    int i, j, temp, err;
+    int i, j, temp;
     unsigned char *cbp;
     struct pci_dev *pdev;
 
     pdev = pci_find_device(PCI_VENDOR_ID_DEC, PCI_DEVICE_ID_DEC_TGA, NULL);
     if (!pdev)
-	return mem_start;
+	return;
     tga_mem_base = pdev->base_address[0] & PCI_BASE_ADDRESS_MEM_MASK;
 #ifdef DEBUG
     printk("tgafb_init: mem_base 0x%x\n", tga_mem_base);
@@ -480,7 +479,7 @@ __initfunc(unsigned long tgafb_init(unsigned long mem_start))
 	    break;
 	default:
 	    printk("TGA type (0x%x) unrecognized!\n", tga_type);
-	    return mem_start;
+	    return;
     }
 
     tga_regs_base = ((unsigned long)tga_mem_base + TGA_REGS_OFFSET);
@@ -689,12 +688,13 @@ __initfunc(unsigned long tgafb_init(unsigned long mem_start))
     fb_var.xres = fb_var.xres_virtual = 640;
     fb_var.yres = fb_var.yres_virtual = 480;
     fb_fix.line_length = 80*fb_var.bits_per_pixel;
-    fb_fix.smem_start = (char *)(tga_fb_base + LCA_DENSE_MEM);
+    fb_fix.smem_start = (char *)__pa(tga_fb_base + dense_mem(tga_fb_base));
     fb_fix.smem_len = fb_fix.line_length*fb_var.yres;
     fb_fix.type = FB_TYPE_PACKED_PIXELS;
     fb_fix.type_aux = 0;
-    fb_fix.mmio_start = (unsigned char *)tga_regs_base;
+    fb_fix.mmio_start = (char *)__pa(tga_regs_base);
     fb_fix.mmio_len = 0x1000;		/* Is this sufficient? */
+    fb_fix.accel = FB_ACCEL_DEC_TGA;
 
     fb_var.xoffset = fb_var.yoffset = 0;
     fb_var.grayscale = 0;
@@ -714,7 +714,7 @@ __initfunc(unsigned long tgafb_init(unsigned long mem_start))
     fb_var.nonstd = 0;
     fb_var.activate = 0;
     fb_var.height = fb_var.width = -1;
-    fb_var.accel = FB_ACCEL_TGA;
+    fb_var.accel_flags = 0;
     fb_var.pixclock = 39722;
     fb_var.left_margin = 40;
     fb_var.right_margin = 24;
@@ -729,7 +729,7 @@ __initfunc(unsigned long tgafb_init(unsigned long mem_start))
     disp.cmap.start = 0;
     disp.cmap.len = 0;
     disp.cmap.red = disp.cmap.green = disp.cmap.blue = disp.cmap.transp = NULL;
-    disp.screen_base = fb_fix.smem_start;
+    disp.screen_base = (char *)tga_fb_base + dense_mem(tga_fb_base);
     disp.visual = fb_fix.visual;
     disp.type = fb_fix.type;
     disp.type_aux = fb_fix.type_aux;
@@ -739,12 +739,12 @@ __initfunc(unsigned long tgafb_init(unsigned long mem_start))
     disp.can_soft_blank = 1;
     disp.inverse = 0;
     switch (tga_type) {
-#ifdef CONFIG_FBCON_CFB8
+#ifdef FBCON_HAS_CFB8
 	case 0: /* 8-plane */
 	    disp.dispsw = &fbcon_cfb8;
 	    break;
 #endif
-#ifdef CONFIG_FBCON_CFB32
+#ifdef FBCON_HAS_CFB32
 	case 1: /* 24-plane */
 	case 3: /* 24plusZ */
 	    disp.dispsw = &fbcon_cfb32;
@@ -753,6 +753,7 @@ __initfunc(unsigned long tgafb_init(unsigned long mem_start))
 	default:
 	    disp.dispsw = NULL;
     }
+    disp.scrollmode = SCROLL_YREDRAW;
 
     strcpy(fb_info.modename, fb_fix.id);
     fb_info.node = -1;
@@ -764,15 +765,13 @@ __initfunc(unsigned long tgafb_init(unsigned long mem_start))
     fb_info.updatevar = &tgafbcon_updatevar;
     fb_info.blank = &tgafbcon_blank;
 
-    err = register_framebuffer(&fb_info);
-    if (err < 0)
-	return mem_start;
-
     tgafb_set_var(&fb_var, -1, &fb_info);
+
+    if (register_framebuffer(&fb_info) < 0)
+	return;
 
     printk("fb%d: %s frame buffer device\n", GET_FB_IDX(fb_info.node),
 	   fb_fix.id);
-    return mem_start;
 }
 
 
@@ -840,10 +839,10 @@ static int tgafb_setcolreg(u_int regno, u_int red, u_int green, u_int blue,
     palette[regno].green = green;
     palette[regno].blue = blue;
 
-#ifdef CONFIG_FBCON_CFB32
+#ifdef FBCON_HAS_CFB32
     if (regno < 16 && tga_type != 0)
 	fbcon_cfb32_cmap[regno] = (red << 16) | (green << 8) | blue;
-#endif /* CONFIG_FBCON_CFB32 */
+#endif
 
     /* How to set a single color register?? */
 
@@ -926,9 +925,6 @@ set_cursor(int currcons)
 
   if (currcons != fg_console || console_blanked || vcmode == KD_GRAPHICS)
     return;
-
-  if (__real_origin != __origin)
-    __set_origin(__real_origin);
 
   save_flags(flags); cli();
 

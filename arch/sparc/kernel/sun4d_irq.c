@@ -1,4 +1,4 @@
-/*  $Id: sun4d_irq.c,v 1.12 1998/03/19 15:36:36 jj Exp $
+/*  $Id: sun4d_irq.c,v 1.14 1998/06/04 09:54:47 jj Exp $
  *  arch/sparc/kernel/sun4d_irq.c:
  *			SS1000/SC2000 interrupt handling.
  *
@@ -237,41 +237,32 @@ void sun4d_handler_irq(int irq, struct pt_regs * regs)
 	irq_exit(cpu, irq);
 }
 
+unsigned int sun4d_build_irq(struct linux_sbus_device *sdev, int irq)
+{
+	int sbusl = pil_to_sbus[irq];
+	
+	if (sbusl)
+		return ((sdev->my_bus->board + 1) << 5) + (sbusl << 2) + sdev->slot;
+	else
+		return irq;
+}
+
 int sun4d_request_irq(unsigned int irq,
 		void (*handler)(int, void *, struct pt_regs *),
 		unsigned long irqflags, const char * devname, void *dev_id)
 {
 	struct irqaction *action, *tmp = NULL, **actionp;
 	unsigned long flags;
-	int sbusl;
-	unsigned int *ret = NULL;
-	struct linux_sbus_device *sdev = NULL;
 	
-	if(irq > 14)
+	if(irq > 14 && irq < (1 << 5))
 		return -EINVAL;
 
 	if (!handler)
 	    return -EINVAL;
-	    
-	if (irqflags & SA_DCOOKIE) {
-		struct devid_cookie *d = (struct devid_cookie *)dev_id;
-		
-		dev_id = d->real_dev_id;
-		sdev = (struct linux_sbus_device *)d->bus_cookie;
-		ret = &d->ret_ino;
-	}
-	
-	sbusl = pil_to_sbus[irq];
-	if (sbusl && !sdev) {
-		printk ("Attempt to register SBUS IRQ %d without DCOOKIE\n", irq);
-		return -EINVAL;
-	}
-	if (sbusl) {
-		actionp = &(sbus_actions[(sdev->my_bus->board << 5) + 
-				(sbusl << 2) + sdev->slot].action);
-		*ret = ((sdev->my_bus->board + 1) << 5) +
-				(sbusl << 2) + sdev->slot;
-	} else
+
+	if (irq >= (1 << 5))
+		actionp = &(sbus_actions[irq - (1 << 5)].action);
+	else
 		actionp = irq + irq_action;
 	action = *actionp;
 	
@@ -495,7 +486,7 @@ __initfunc(static void sun4d_init_timers(void (*counter_fn)(int, void *, struct 
 #endif
 }
 
-__initfunc(unsigned long sun4d_init_sbi_irq(unsigned long memory_start))
+__initfunc(void sun4d_init_sbi_irq(void))
 {
 	struct linux_sbus *sbus;
 	unsigned mask;
@@ -503,9 +494,7 @@ __initfunc(unsigned long sun4d_init_sbi_irq(unsigned long memory_start))
 	nsbi = 0;
 	for_each_sbus(sbus)
 		nsbi++;
-	memory_start = ((memory_start + 7) & ~7);
-	sbus_actions = (struct sbus_action *)memory_start;
-	memory_start += (nsbi * 8 * 4 * sizeof(struct sbus_action));
+	sbus_actions = (struct sbus_action *)kmalloc (nsbi * 8 * 4 * sizeof(struct sbus_action), GFP_ATOMIC);
 	memset (sbus_actions, 0, (nsbi * 8 * 4 * sizeof(struct sbus_action)));
 	for_each_sbus(sbus) {
 #ifdef __SMP__	
@@ -521,7 +510,17 @@ __initfunc(unsigned long sun4d_init_sbi_irq(unsigned long memory_start))
 			release_sbi(sbus->devid, mask);
 		}
 	}
-	return memory_start;
+}
+
+static char *sun4d_irq_itoa(unsigned int irq)
+{
+	static char buff[16];
+	
+	if (irq < (1 << 5))
+		sprintf(buff, "%d", irq);
+	else
+		sprintf(buff, "%d,%x", sbus_to_pil[(irq >> 2) & 7], irq);
+	return buff;
 }
 
 __initfunc(void sun4d_init_IRQ(void))
@@ -533,6 +532,7 @@ __initfunc(void sun4d_init_IRQ(void))
 	BTFIXUPSET_CALL(clear_clock_irq, sun4d_clear_clock_irq, BTFIXUPCALL_NORM);
 	BTFIXUPSET_CALL(clear_profile_irq, sun4d_clear_profile_irq, BTFIXUPCALL_NORM);
 	BTFIXUPSET_CALL(load_profile_irq, sun4d_load_profile_irq, BTFIXUPCALL_NORM);
+	BTFIXUPSET_CALL(__irq_itoa, sun4d_irq_itoa, BTFIXUPCALL_NORM);
 	init_timers = sun4d_init_timers;
 #ifdef __SMP__
 	BTFIXUPSET_CALL(set_cpu_int, sun4d_set_cpu_int, BTFIXUPCALL_NORM);

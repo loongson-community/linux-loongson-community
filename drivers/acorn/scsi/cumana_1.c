@@ -34,6 +34,11 @@
 
 /*
  * $Log: cumana_1.c,v $
+ * Revision 1.3  1998/05/03 20:45:32  alan
+ * ARM SCSI update. This adds the eesox driver and massively updates the
+ * Cumana driver. The folks who bought cumana arent anal retentive all
+ * docs are secret weenies so now there are docs ..
+ *
  * Revision 1.2  1998/03/08 05:49:46  davem
  * Merge to 2.1.89
  *
@@ -123,7 +128,7 @@ int cumanascsi_detect(Scsi_Host_Template * tpnt)
         outb(0x00, instance->io_port - 577);
 
 	if (instance->irq != IRQ_NONE)
-	    if (request_irq(instance->irq, cumanascsi_intr, SA_INTERRUPT, "CumanaSCSI-1", NULL)) {
+	    if (request_irq(instance->irq, do_cumanascsi_intr, SA_INTERRUPT, "CumanaSCSI-1", NULL)) {
 		printk("scsi%d: IRQ%d not free, interrupts disabled\n",
 		    instance->host_no, instance->irq);
 		instance->irq = IRQ_NONE;
@@ -134,7 +139,7 @@ int cumanascsi_detect(Scsi_Host_Template * tpnt)
 	    printk("scsi%d: please jumper the board for a free IRQ.\n", instance->host_no);
 	}
 
-	printk("scsi%d: at port %X irq", instance->host_no, instance->io_port);
+	printk("scsi%d: at port %lX irq", instance->host_no, instance->io_port);
 	if (instance->irq == IRQ_NONE)
 	    printk ("s disabled");
 	else

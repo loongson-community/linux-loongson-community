@@ -1,7 +1,9 @@
-/*
+/* $Id: graphics.c,v 1.5 1998/08/19 21:55:29 ralf Exp $
+ *
  * gfx.c: support for SGI's /dev/graphics, /dev/opengl
  *
  * Author: Miguel de Icaza (miguel@nuclecu.unam.mx)
+           Ralf Baechle (ralf@gnu.org)
  *
  * On IRIX, /dev/graphics is [10, 146]
  *          /dev/opengl   is [10, 147]
@@ -21,6 +23,7 @@
  * We implement those misterious things, and tried not to think about
  * the reasons behind them.
  */
+#include <linux/kernel.h>
 #include <linux/fs.h>
 #include <linux/init.h>
 #include <linux/miscdevice.h>
@@ -36,8 +39,7 @@
 #include <asm/pgtable.h>
 
 /* The boards */
-#include "newport.h"
-#include <asm/ng1.h>
+extern struct graphics_ops *newport_probe (int, const char **);
 
 #ifdef PRODUCTION_DRIVER
 #define enable_gconsole()
@@ -61,17 +63,16 @@ sgi_graphics_ioctl (struct inode *inode, struct file *file, unsigned int cmd, un
 	unsigned int board;
 	unsigned int devnum = GRAPHICS_CARD (inode->i_rdev);
 	int i;
-	
+
 	if ((cmd >= RRM_BASE) && (cmd <= RRM_CMD_LIMIT))
 		return rrm_command (cmd-RRM_BASE, (void *) arg);
-	
+
 	switch (cmd){
 	case GFX_GETNUM_BOARDS:
 		return boards;
 
 	case GFX_GETBOARD_INFO: {
 		struct gfx_getboardinfo_args *bia = (void *) arg;
-		struct ng1_info *bi;
 		void   *dest_buf;
 		int    max_len;
 		
@@ -84,28 +85,13 @@ sgi_graphics_ioctl (struct inode *inode, struct file *file, unsigned int cmd, un
 
 		if (board >= boards)
 			return -EINVAL;
-
-		if (max_len < sizeof (struct ng1_info))
+		if (max_len < sizeof (struct gfx_getboardinfo_args))
 			return -EINVAL;
-#if 0
-		/* So, g_board_info_len is being set to zero somewhere,
-		   and it's screwing stuff up.
-		   XXX security!
-		*/
-		if (cards[board].g_board_info_len &&
-		    max_len > cards [board].g_board_info_len)
+		if (max_len > cards [board].g_board_info_len)
 			max_len = cards [boards].g_board_info_len;
-#endif
 		i = verify_area (VERIFY_WRITE, dest_buf, max_len);
 		if (i) return i;
-		bi = cards[board].g_board_info;
-#ifdef DEBUG_GRAPHICS
-		printk(KERN_DEBUG "GFX_GETBOARD_INFO: "
-		       "copying data for board %d to %x: \"%s\" (%d/%d)\n",
-		       board, dest_buf,
-		       bi->gfx_info.name, bi->gfx_info.length, max_len);
-#endif
-		if (copy_to_user (dest_buf, bi, max_len))
+		if (copy_to_user (dest_buf, cards [board].g_board_info, max_len))
 			return -EFAULT;
 		return max_len;
 	}
@@ -116,12 +102,7 @@ sgi_graphics_ioctl (struct inode *inode, struct file *file, unsigned int cmd, un
 		int  r;
 
 		i = verify_area (VERIFY_READ, (void *)arg, sizeof (struct gfx_attach_board_args));
-		if (i) {
-		    printk(KERN_WARNING
-			   "GFX_ATTACH_BOARD: error %d, args %p\n", i,
-			   (void *)arg);
-		    return i;
-		}
+		if (i) return i;
 
 		__get_user_ret (board, &att->board, -EFAULT);
 		__get_user_ret (vaddr, &att->vaddr, -EFAULT);
@@ -133,60 +114,26 @@ sgi_graphics_ioctl (struct inode *inode, struct file *file, unsigned int cmd, un
 		 * below to find our board information.
 		 */
 		if (board != devnum){
-		    printk ("Parameter board does not match the current board\n");
-		    return -EINVAL;
+			printk ("Parameter board does not match the current board\n");
+			return -EINVAL;
 		}
-		
-		if (board >= boards) {
-		    printk(KERN_WARNING
-			   "GFX_ATTACH_BOARD: board %d >= max (%d)\n",
-			   board, boards);
-		    return -EINVAL;
-		}
+
+		if (board >= boards)
+			return -EINVAL;
 
 		/* If it is the first opening it, then make it the board owner */
 		if (!cards [board].g_owner)
-		    cards [board].g_owner = current;
+			cards [board].g_owner = current;
 
 		/*
 		 * Ok, we now call mmap on this file, which will end up calling
 		 * sgi_graphics_mmap
 		 */
-#ifdef DEBUG_GRAPHICS
-		if ((unsigned long)vaddr & ~PAGE_MASK) {
-		    printk(KERN_WARNING "GFX_ATTACH_BOARD: "
-			   "vaddr %0#lx isn't a PAGE_SIZE (%0#lx) multiple\n",
-			   vaddr, PAGE_SIZE);
-		    
-		    return -EINVAL;
-		}
-		if (!file->f_op || !file->f_op->mmap) {
-		    printk(KERN_WARNING "GFX_ATTACH_BOARD: "
-			   "mmap is going to suck: f_op = %x, mmap = %x\n",
-			   file->f_op, (file->f_op ? file->f_op->mmap : 0));
-		}
-#endif
-		/*  do we really need to disable before we know that
-		 *  everything worked OK?
-		 */
 		disable_gconsole ();
-		r = do_mmap (file, (unsigned long)vaddr,
-			     cards [board].g_regs_size,
-			     PROT_READ|PROT_WRITE, MAP_FIXED|MAP_PRIVATE, 0);
-		if (r) {
-		    if (r < 0) {
-#ifdef DEBUG_GRAPHICS
-			printk(KERN_WARNING "GFX_ATTACH_BOARD: "
-			       "mmap(/dev/graphics, %x, %lx) failed (%d)\n",
-			       vaddr, cards[board].g_regs_size,
-			       r);
-#endif
-			enable_gconsole();
-		    }
-		    return r;
-		}
-
-		return 0;
+		r = do_mmap (file, (unsigned long)vaddr, cards [board].g_regs_size,
+			 PROT_READ|PROT_WRITE, MAP_FIXED|MAP_PRIVATE, 0);
+		if (r)
+			return r;
 	}
 
 	/* Strange, the real mapping seems to be done at GFX_ATTACH_BOARD,
@@ -197,13 +144,13 @@ sgi_graphics_ioctl (struct inode *inode, struct file *file, unsigned int cmd, un
 
 	case GFX_LABEL:
 		return 0;
-			
+
 		/* Version check
 		 * for my IRIX 6.2 X server, this is what the kernel returns
 		 */
 	case 1:
 		return 3;
-		
+
 	/* Xsgi does not use this one, I assume minor is the board being queried */
 	case GFX_IS_MANAGED:
 		if (devnum > boards)
@@ -222,20 +169,15 @@ int
 sgi_graphics_close (struct inode *inode, struct file *file)
 {
 	int board = GRAPHICS_CARD (inode->i_rdev);
-	
+
 	/* Tell the rendering manager that one client is going away */
 	rrm_close (inode, file);
 
 	/* Was this file handle from the board owner?, clear it */
 	if (current == cards [board].g_owner){
-#ifdef DEBUG_GRAPHICS
-	    printk(KERN_WARNING "sgi_graphics_close: "
-		   "owner \"%s\" of board %d closed, resetting\n",
-		   current->comm, board);
-#endif
-	    cards [board].g_owner = 0;
-	    (*cards [board].g_reset_console)();
-	    enable_gconsole ();
+		cards [board].g_owner = 0;
+		(*cards [board].g_reset_console)();
+		enable_gconsole ();
 	}
 	return 0;
 }
@@ -259,13 +201,8 @@ sgi_graphics_nopage (struct vm_area_struct *vma, unsigned long address, int writ
 	 * and revoke the mapping in that case.
 	 */
 	if (cards [board].g_user && cards [board].g_user != current){
-	    /* FIXME: save graphics context here, dump it to rendering node? */
-#ifdef DEBUG_GRAPHICS
-	    printk(KERN_WARNING "sgi_graphics_nopage: "
-		   "need to remove mapping from process \"%s\"\n",
-		   cards[board].g_user->comm);
-#endif
-	    remove_mapping (cards [board].g_user, vma->vm_start, vma->vm_end);
+		/* FIXME: save graphics context here, dump it to rendering node? */
+		remove_mapping (cards [board].g_user, vma->vm_start, vma->vm_end);
 	}
 	cards [board].g_user = current;
 #if DEBUG_GRAPHICS
@@ -277,7 +214,7 @@ sgi_graphics_nopage (struct vm_area_struct *vma, unsigned long address, int writ
 	printk ("page/pfn:  0x%lx\n", page);
 	printk ("TLB entry: %lx\n", pte_val (mk_pte (page + PAGE_OFFSET, PAGE_USERIO)));
 #endif
-	
+
 	/* 2. Map this into the current process address space */
 	page = ((cards [board].g_regs) + (address - vma->vm_start));
 	return page + PAGE_OFFSET;
@@ -308,26 +245,21 @@ sgi_graphics_mmap (struct file *file, struct vm_area_struct *vma)
 	uint size;
 
 	size = vma->vm_end - vma->vm_start;
-	if (vma->vm_offset & ~PAGE_MASK) {
-#ifdef DEBUG_GRAPHICS
-	    printk(KERN_WARNING "sgi_graphics_mmap: "
-		   "vm_offset %0#lx doesn't fit with PAGE_SIZE %0#lx\n",
-		   vma->vm_offset, PAGE_SIZE);
-#endif
+	if (vma->vm_offset & ~PAGE_MASK)
 		return -ENXIO;
-	}
 
 	/* 1. Set our special graphic virtualizer  */
 	vma->vm_ops = &graphics_mmap;
 
 	/* 2. Set the special tlb permission bits */
 	vma->vm_page_prot = PAGE_USERIO;
-		
+
 	/* final setup */
 	vma->vm_file = file;
 	return 0;
 }
-	
+
+#if 0
 /* Do any post card-detection setup on graphics_ops */
 static void
 graphics_ops_post_init (int slot)
@@ -336,6 +268,7 @@ graphics_ops_post_init (int slot)
 	cards [slot].g_owner = (struct task_struct *) 0;
 	cards [slot].g_user  = (struct task_struct *) 0;
 }
+#endif
 
 struct file_operations sgi_graphics_fops = {
 	NULL,			/* llseek */
@@ -355,12 +288,12 @@ struct file_operations sgi_graphics_fops = {
 
 /* /dev/graphics */
 static struct miscdevice dev_graphics = {
-        SGI_GRAPHICS_MINOR, "sgi-graphics", &sgi_graphics_fops
+	SGI_GRAPHICS_MINOR, "sgi-graphics", &sgi_graphics_fops
 };
 
 /* /dev/opengl */
 static struct miscdevice dev_opengl = {
-        SGI_OPENGL_MINOR, "sgi-opengl", &sgi_graphics_fops
+	SGI_OPENGL_MINOR, "sgi-opengl", &sgi_graphics_fops
 };
 
 /* This is called later from the misc-init routine */
@@ -372,14 +305,17 @@ __initfunc(void gfx_register (void))
 
 __initfunc(void gfx_init (const char **name))
 {
+#if 0
 	struct console_ops *console;
 	struct graphics_ops *g;
+#endif
 
 	printk ("GFX INIT: ");
 	shmiq_init ();
 	usema_init ();
-	
-	if ((g = newport_probe (boards, name)) != 0){
+
+#if 0
+	if ((g = newport_probe (boards, name)) != 0) {
 		cards [boards] = *g;
 		graphics_ops_post_init (boards);
 		boards++;
@@ -387,9 +323,8 @@ __initfunc(void gfx_init (const char **name))
 	}
 	/* Add more graphic drivers here */
 	/* Keep passing console around */
-	
-	if (boards > MAXCARDS){
-		printk ("Too many cards found on the system\n");
-		prom_halt ();
-	}
+#endif
+
+	if (boards > MAXCARDS)
+		printk (KERN_WARNING "Too many cards found on the system\n");
 }

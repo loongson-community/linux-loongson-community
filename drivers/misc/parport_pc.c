@@ -3,7 +3,8 @@
  * Authors: Phil Blundell <Philip.Blundell@pobox.com>
  *          Tim Waugh <tim@cyberelk.demon.co.uk>
  *	    Jose Renau <renau@acm.org>
- *          David Campbell <campbell@tirian.che.curtin.edu.au>
+ *          David Campbell <campbell@torque.net>
+ *          Andrea Arcangeli <arcangeli@mbox.queen.it>
  *
  * based on work by Grant Guenther <grant@torque.net> and Phil Blundell.
  */
@@ -19,8 +20,8 @@
  *
  * In addition, there are some optional registers:
  *
- *	base+3		EPP command
- *	base+4		EPP
+ *	base+3		EPP address
+ *	base+4		EPP data
  *	base+0x400	ECP config A
  *	base+0x401	ECP config B
  *	base+0x402	ECP control
@@ -59,12 +60,30 @@ static void parport_pc_null_intr_func(int irq, void *dev_id, struct pt_regs *reg
 
 void parport_pc_write_epp(struct parport *p, unsigned char d)
 {
-	outb(d, p->base+EPPREG);
+	outb(d, p->base+EPPDATA);
 }
 
 unsigned char parport_pc_read_epp(struct parport *p)
 {
-	return inb(p->base+EPPREG);
+	return inb(p->base+EPPDATA);
+}
+
+void parport_pc_write_epp_addr(struct parport *p, unsigned char d)
+{
+	outb(d, p->base+EPPADDR);
+}
+
+unsigned char parport_pc_read_epp_addr(struct parport *p)
+{
+	return inb(p->base+EPPADDR);
+}
+
+int parport_pc_check_epp_timeout(struct parport *p)
+{
+	if (!(inb(p->base+STATUS) & 1))
+		return 0;
+	parport_pc_epp_clear_timeout(p);
+	return 1;
 }
 
 unsigned char parport_pc_read_configb(struct parport *p)
@@ -171,23 +190,31 @@ int parport_pc_claim_resources(struct parport *p)
 	return 0;
 }
 
+void parport_pc_init_state(struct parport_state *s)
+{
+	s->u.pc.ctr = 0xc;
+	s->u.pc.ecr = 0x0;
+}
+
 void parport_pc_save_state(struct parport *p, struct parport_state *s)
 {
 	s->u.pc.ctr = parport_pc_read_control(p);
-	s->u.pc.ecr = parport_pc_read_econtrol(p);
+	if (p->modes & PARPORT_MODE_PCECR)
+		s->u.pc.ecr = parport_pc_read_econtrol(p);
 }
 
 void parport_pc_restore_state(struct parport *p, struct parport_state *s)
 {
 	parport_pc_write_control(p, s->u.pc.ctr);
-	parport_pc_write_econtrol(p, s->u.pc.ecr);
+	if (p->modes & PARPORT_MODE_PCECR)
+		parport_pc_write_econtrol(p, s->u.pc.ecr);
 }
 
 size_t parport_pc_epp_read_block(struct parport *p, void *buf, size_t length)
 {
 	size_t got = 0;
 	for (; got < length; got++) {
-		*((char*)buf)++ = inb (p->base+EPPREG);
+		*((char*)buf)++ = inb (p->base+EPPDATA);
 		if (inb (p->base+STATUS) & 0x01)
 			break;
 	}
@@ -198,7 +225,7 @@ size_t parport_pc_epp_write_block(struct parport *p, void *buf, size_t length)
 {
 	size_t written = 0;
 	for (; written < length; written++) {
-		outb (*((char*)buf)++, p->base+EPPREG);
+		outb (*((char*)buf)++, p->base+EPPDATA);
 		if (inb (p->base+STATUS) & 0x01)
 			break;
 	}
@@ -234,6 +261,16 @@ void parport_pc_dec_use_count(void)
 #endif
 }
 
+static void parport_pc_fill_inode(struct inode *inode, int fill)
+{
+#ifdef MODULE
+	if (fill)
+		MOD_INC_USE_COUNT;
+	else
+		MOD_DEC_USE_COUNT;
+#endif
+}
+
 struct parport_operations parport_pc_ops = 
 {
 	parport_pc_write_data,
@@ -258,12 +295,19 @@ struct parport_operations parport_pc_ops =
 	parport_pc_release_resources,
 	parport_pc_claim_resources,
 	
+	parport_pc_write_epp,
+	parport_pc_read_epp,
+	parport_pc_write_epp_addr,
+	parport_pc_read_epp_addr,
+	parport_pc_check_epp_timeout,
+
 	parport_pc_epp_write_block,
 	parport_pc_epp_read_block,
 
 	parport_pc_ecp_write_block,
 	parport_pc_ecp_read_block,
 	
+	parport_pc_init_state,
 	parport_pc_save_state,
 	parport_pc_restore_state,
 
@@ -272,7 +316,8 @@ struct parport_operations parport_pc_ops =
 	parport_pc_examine_irq,
 
 	parport_pc_inc_use_count,
-	parport_pc_dec_use_count
+	parport_pc_dec_use_count,
+	parport_pc_fill_inode
 };
 
 /* --- Mode detection ------------------------------------- */
@@ -280,7 +325,7 @@ struct parport_operations parport_pc_ops =
 /*
  * Clear TIMEOUT BIT in EPP MODE
  */
-static int epp_clear_timeout(struct parport *pb)
+int parport_pc_epp_clear_timeout(struct parport *pb)
 {
 	unsigned char r;
 
@@ -303,8 +348,15 @@ static int epp_clear_timeout(struct parport *pb)
  */
 static int parport_SPP_supported(struct parport *pb)
 {
+	/*
+	 * first clear an eventually pending EPP timeout 
+	 * I (sailer@ife.ee.ethz.ch) have an SMSC chipset
+	 * that does not even respond to SPP cycles if an EPP
+	 * timeout is pending
+	 */
+	parport_pc_epp_clear_timeout(pb);
+
 	/* Do a simple read-write test to make sure the port exists. */
-	parport_pc_write_econtrol(pb, 0xc);
 	parport_pc_write_control(pb, 0xc);
 	parport_pc_write_data(pb, 0xaa);
 	if (parport_pc_read_data(pb) != 0xaa) return 0;
@@ -362,12 +414,13 @@ static int parport_ECR_present(struct parport *pb)
 static int parport_ECP_supported(struct parport *pb)
 {
 	int i;
-	unsigned char oecr = parport_pc_read_econtrol(pb);
+	unsigned char oecr;
 	
 	/* If there is no ECR, we have no hope of supporting ECP. */
 	if (!(pb->modes & PARPORT_MODE_PCECR))
 		return 0;
 
+	oecr = parport_pc_read_econtrol(pb);
 	/*
 	 * Using LGS chipset it uses ECR register, but
 	 * it doesn't support ECP or FIFO MODE
@@ -396,18 +449,18 @@ static int parport_ECP_supported(struct parport *pb)
 static int parport_EPP_supported(struct parport *pb)
 {
 	/* If EPP timeout bit clear then EPP available */
-	if (!epp_clear_timeout(pb))
+	if (!parport_pc_epp_clear_timeout(pb))
 		return 0;  /* No way to clear timeout */
 
 	parport_pc_write_control(pb, parport_pc_read_control(pb) | 0x20);
 	parport_pc_write_control(pb, parport_pc_read_control(pb) | 0x10);
-	epp_clear_timeout(pb);
+	parport_pc_epp_clear_timeout(pb);
 	
 	parport_pc_read_epp(pb);
 	udelay(30);  /* Wait for possible EPP timeout */
 	
 	if (parport_pc_read_status(pb) & 0x01) {
-		epp_clear_timeout(pb);
+		parport_pc_epp_clear_timeout(pb);
 		return PARPORT_MODE_PCEPP;
 	}
 
@@ -417,11 +470,12 @@ static int parport_EPP_supported(struct parport *pb)
 static int parport_ECPEPP_supported(struct parport *pb)
 {
 	int mode;
-	unsigned char oecr = parport_pc_read_econtrol(pb);
+	unsigned char oecr;
 
 	if (!(pb->modes & PARPORT_MODE_PCECR))
 		return 0;
-	
+
+	oecr = parport_pc_read_econtrol(pb);
 	/* Search for SMC style EPP+ECP mode */
 	parport_pc_write_econtrol(pb, 0x80);
 	
@@ -454,7 +508,7 @@ static int parport_PS2_supported(struct parport *pb)
 	int ok = 0;
 	unsigned char octr = parport_pc_read_control(pb);
   
-	epp_clear_timeout(pb);
+	parport_pc_epp_clear_timeout(pb);
 
 	parport_pc_write_control(pb, octr | 0x20);  /* try to tri-state the buffer */
 	
@@ -472,11 +526,12 @@ static int parport_PS2_supported(struct parport *pb)
 static int parport_ECPPS2_supported(struct parport *pb)
 {
 	int mode;
-	unsigned char oecr = parport_pc_read_econtrol(pb);
+	unsigned char oecr;
 
 	if (!(pb->modes & PARPORT_MODE_PCECR))
 		return 0;
-	
+
+	oecr = parport_pc_read_econtrol(pb);
 	parport_pc_write_econtrol(pb, 0x20);
 	
 	mode = parport_PS2_supported(pb);
@@ -536,22 +591,25 @@ static int irq_probe_EPP(struct parport *pb)
 {
 	int irqs;
 	unsigned char octr = parport_pc_read_control(pb);
-	unsigned char oecr = parport_pc_read_econtrol(pb);
+	unsigned char oecr;
 
 #ifndef ADVANCED_DETECT
 	return PARPORT_IRQ_NONE;
 #endif
-	
+
+	if (pb->modes & PARPORT_MODE_PCECR)
+		oecr = parport_pc_read_econtrol(pb);
+
 	sti();
 	irqs = probe_irq_on();
 
 	if (pb->modes & PARPORT_MODE_PCECR)
 		parport_pc_frob_econtrol (pb, 0x10, 0x10);
 	
-	epp_clear_timeout(pb);
+	parport_pc_epp_clear_timeout(pb);
 	parport_pc_frob_control (pb, 0x20, 0x20);
 	parport_pc_frob_control (pb, 0x10, 0x10);
-	epp_clear_timeout(pb);
+	parport_pc_epp_clear_timeout(pb);
 
 	/* Device isn't expecting an EPP read
 	 * and generates an IRQ.
@@ -560,7 +618,8 @@ static int irq_probe_EPP(struct parport *pb)
 	udelay(20);
 
 	pb->irq = probe_irq_off (irqs);
-	parport_pc_write_econtrol(pb, oecr);
+	if (pb->modes & PARPORT_MODE_PCECR)
+		parport_pc_write_econtrol(pb, oecr);
 	parport_pc_write_control(pb, octr);
 
 	if (pb->irq <= 0)
@@ -573,12 +632,14 @@ static int irq_probe_SPP(struct parport *pb)
 {
 	int irqs;
 	unsigned char octr = parport_pc_read_control(pb);
-	unsigned char oecr = parport_pc_read_econtrol(pb);
+	unsigned char oecr;
 
 #ifndef ADVANCED_DETECT
 	return PARPORT_IRQ_NONE;
 #endif
 
+	if (pb->modes & PARPORT_MODE_PCECR)
+		oecr = parport_pc_read_econtrol(pb);
 	probe_irq_off(probe_irq_on());	/* Clear any interrupts */
 	irqs = probe_irq_on();
 
@@ -602,7 +663,8 @@ static int irq_probe_SPP(struct parport *pb)
 	if (pb->irq <= 0)
 		pb->irq = PARPORT_IRQ_NONE;	/* No interrupt detected */
 	
-	parport_pc_write_econtrol(pb, oecr);
+	if (pb->modes & PARPORT_MODE_PCECR)
+		parport_pc_write_econtrol(pb, oecr);
 	parport_pc_write_control(pb, octr);
 	return pb->irq;
 }
@@ -616,8 +678,6 @@ static int irq_probe_SPP(struct parport *pb)
  */
 static int parport_irq_probe(struct parport *pb)
 {
-	unsigned char oecr = parport_pc_read_econtrol (pb);
-
 	if (pb->modes & PARPORT_MODE_PCECR) {
 		pb->irq = programmable_irq_support(pb);
 		if (pb->irq != PARPORT_IRQ_NONE)
@@ -628,23 +688,20 @@ static int parport_irq_probe(struct parport *pb)
 		pb->irq = irq_probe_ECP(pb);
 
 	if (pb->irq == PARPORT_IRQ_NONE && 
-	    (pb->modes & PARPORT_MODE_PCECPEPP)) {
+	    (pb->modes & PARPORT_MODE_PCECPEPP))
 		pb->irq = irq_probe_EPP(pb);
-		parport_pc_write_econtrol(pb, oecr);
-	}
 
-	epp_clear_timeout(pb);
+	parport_pc_epp_clear_timeout(pb);
 
 	if (pb->irq == PARPORT_IRQ_NONE && (pb->modes & PARPORT_MODE_PCEPP))
 		pb->irq = irq_probe_EPP(pb);
 
-	epp_clear_timeout(pb);
+	parport_pc_epp_clear_timeout(pb);
 
 	if (pb->irq == PARPORT_IRQ_NONE)
 		pb->irq = irq_probe_SPP(pb);
 
 out:
-	parport_pc_write_econtrol (pb, oecr);
 	return pb->irq;
 }
 
@@ -708,7 +765,11 @@ static int probe_one_port(unsigned long int base, int irq, int dma)
 	p->flags |= PARPORT_FLAG_COMA;
 
 	/* Done probing.  Now put the port into a sensible start-up state. */
-	parport_pc_write_econtrol(p, 0xc);
+	if (p->modes & PARPORT_MODE_PCECR)
+		/*
+		 * Put the ECP detected port in the more SPP like mode.
+		 */
+		parport_pc_write_econtrol(p, 0x0);
 	parport_pc_write_control(p, 0xc);
 	parport_pc_write_data(p, 0);
 
@@ -732,11 +793,6 @@ int parport_pc_init(int *io, int *irq, int *dma)
 		count += probe_one_port(0x378, irq[0], dma[0]);
 		count += probe_one_port(0x278, irq[0], dma[0]);
 	}
-
-	/* Give any attached devices a chance to gather their thoughts */
-	current->state = TASK_INTERRUPTIBLE;
-	current->timeout = jiffies + 75;
-	schedule ();
 
 	return count;
 }

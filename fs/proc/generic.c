@@ -154,14 +154,19 @@ proc_file_read(struct file * file, char * buf, size_t nbytes, loff_t *ppos)
 			break;
 		}
 		
-		n -= copy_to_user(buf, start, n);	/* BUG ??? */
+		/* This is a hack to allow mangling of file pos independent
+ 		 * of actual bytes read.  Simply place the data at page,
+ 		 * return the bytes, and set `start' to the desired offset
+ 		 * as an unsigned int. - Paul.Russell@rustcorp.com.au
+		 */
+ 		n -= copy_to_user(buf, start < page ? page : start, n);
 		if (n == 0) {
 			if (retval == 0)
 				retval = -EFAULT;
 			break;
 		}
-		
-		*ppos += n;	/* Move down the file */
+
+		*ppos += start < page ? (long)start : n; /* Move down the file */
 		nbytes -= n;
 		buf += n;
 		retval += n;
@@ -255,13 +260,16 @@ struct proc_dir_entry *create_proc_entry(const char *name, mode_t mode,
 	ent->name = ((char *) ent) + sizeof(*ent);
 	ent->namelen = len;
 
-	if (mode == S_IFDIR) {
+	if (S_ISDIR(mode)) {
+		if ((mode & S_IALLUGO) == 0)
 		mode |= S_IRUGO | S_IXUGO;
 		ent->ops = &proc_dyna_dir_inode_operations;
 		ent->nlink = 2;
-	}
-	else if (mode == 0) {
-		mode = S_IFREG | S_IRUGO;
+	} else {
+		if ((mode & S_IFMT) == 0)
+			mode |= S_IFREG;
+		if ((mode & S_IALLUGO) == 0)
+			mode |= S_IRUGO;
 		ent->nlink = 1;
 	}
 	ent->mode = mode;
@@ -275,7 +283,11 @@ out:
 extern void free_proc_entry(struct proc_dir_entry *);
 void free_proc_entry(struct proc_dir_entry *de)
 {
-	kfree(de);
+	int ino = de->low_ino;
+
+	if (ino >= PROC_DYNAMIC_FIRST &&
+	    ino < PROC_DYNAMIC_FIRST+PROC_NDYNAMIC)
+		kfree(de);
 }
 
 /*

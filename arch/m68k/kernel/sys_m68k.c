@@ -66,20 +66,25 @@ asmlinkage int old_mmap(struct mmap_arg_struct *arg)
 	struct file * file = NULL;
 	struct mmap_arg_struct a;
 
-	lock_kernel();
-	error = -EFAULT;
 	if (copy_from_user(&a, arg, sizeof(a)))
-		goto out;
+		return -EFAULT;
 
+	down(&current->mm->mmap_sem);
+	lock_kernel();
 	if (!(a.flags & MAP_ANONYMOUS)) {
 		error = -EBADF;
-		if (a.fd >= NR_OPEN || !(file = current->files->fd[a.fd]))
+		file = fget(a.fd);
+		if (!file)
 			goto out;
 	}
 	a.flags &= ~(MAP_EXECUTABLE | MAP_DENYWRITE);
+
 	error = do_mmap(file, a.addr, a.len, a.prot, a.flags, a.offset);
+	if (file)
+		fput(file);
 out:
 	unlock_kernel();
+	up(&current->mm->mmap_sem);
 	return error;
 }
 

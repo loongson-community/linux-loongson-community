@@ -45,7 +45,7 @@
 static const unsigned  BPP_MAJOR = LP_MAJOR;
 static const char* dev_name = "bpp";
 
-/* When switching from compatability to a mode where I can read, try
+/* When switching from compatibility to a mode where I can read, try
    the following mode first. */
 
 /* const unsigned char DEFAULT_ECP = 0x10; */
@@ -957,7 +957,7 @@ static volatile struct bpp_regs *map_bpp(struct linux_sbus_device *dev, int idx)
       areg = dev->reg_addrs[0];
       printk("bpp%d.map_bpp: 0x%x.%p[0x%x] i=%d\n", idx,
             areg.which_io, areg.phys_addr, areg.reg_size,
-            dev->irqs[0].pri);
+            dev->irqs[0]);
       /* IPC Zebra   1.fa200000[1c] i=2  */
       /** prom_apply_sbus_ranges (&areg, 1); **/
 

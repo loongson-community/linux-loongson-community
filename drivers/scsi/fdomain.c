@@ -1,6 +1,6 @@
 /* fdomain.c -- Future Domain TMC-16x0 SCSI driver
  * Created: Sun May  3 18:53:19 1992 by faith@cs.unc.edu
- * Revised: Wed Oct  2 11:10:55 1996 by r.faith@ieee.org
+ * Revised: Wed Oct  2 11:10:55 1996 by faith@acm.org
  * Author: Rickard E. Faith, faith@cs.unc.edu
  * Copyright 1992, 1993, 1994, 1995, 1996 Rickard E. Faith
  *
@@ -272,6 +272,7 @@
 #include <linux/proc_fs.h>
 #include <linux/pci.h>
 #include <linux/stat.h>
+#include <linux/delay.h>
 
 #include <linux/config.h>	/* for CONFIG_PCI */
 
@@ -553,9 +554,9 @@ void fdomain_setup( char *str, int *ints )
 
 static void do_pause( unsigned amount )	/* Pause for amount*10 milliseconds */
 {
-   unsigned long the_time = jiffies + amount; /* 0.01 seconds per jiffy */
-
-   while (jiffies < the_time);
+   do {
+	udelay(10*1000);
+   } while (--amount);
 }
 
 inline static void fdomain_make_bus_idle( void )
@@ -949,20 +950,20 @@ int fdomain_16x0_detect( Scsi_Host_Template *tpnt )
       /* Register the IRQ with the kernel */
 
       retcode = request_irq( interrupt_level,
-			     do_fdomain_16x0_intr, SA_INTERRUPT, "fdomain", NULL);
+			     do_fdomain_16x0_intr, 0, "fdomain", NULL);
 
       if (retcode < 0) {
 	 if (retcode == -EINVAL) {
 	    printk( "fdomain: IRQ %d is bad!\n", interrupt_level );
 	    printk( "         This shouldn't happen!\n" );
-	    printk( "         Send mail to faith@cs.unc.edu\n" );
+	    printk( "         Send mail to faith@acm.org\n" );
 	 } else if (retcode == -EBUSY) {
 	    printk( "fdomain: IRQ %d is already in use!\n", interrupt_level );
 	    printk( "         Please use another IRQ!\n" );
 	 } else {
 	    printk( "fdomain: Error getting IRQ %d\n", interrupt_level );
 	    printk( "         This shouldn't happen!\n" );
-	    printk( "         Send mail to faith@cs.unc.edu\n" );
+	    printk( "         Send mail to faith@acm.org\n" );
 	 }
 	 panic( "fdomain: Driver requires interruptions\n" );
       }
@@ -1101,12 +1102,13 @@ static int fdomain_arbitrate( void )
    outb( adapter_mask, port_base + SCSI_Data_NoACK ); /* Set our id bit */
    outb( 0x04 | PARITY_MASK, TMC_Cntl_port ); /* Start arbitration */
 
-   timeout = jiffies + 50;		      /* 500 mS */
-   while (jiffies < timeout) {
+   timeout = 500;
+   do {
       status = inb( TMC_Status_port );        /* Read adapter status */
       if (status & 0x02)		      /* Arbitration complete */
-	    return 0;	
-   }
+	    return 0;
+      mdelay(1);			/* Wait one millisecond */
+   } while (--timeout);
 
    /* Make bus idle */
    fdomain_make_bus_idle();
@@ -1134,17 +1136,17 @@ static int fdomain_select( int target )
    /* Stop arbitration and enable parity */
    outb( PARITY_MASK, TMC_Cntl_port ); 
 
-   timeout = jiffies + 35;		/* 350mS -- because of timeouts
-					   (was 250mS) */
+   timeout = 350;			/* 350 msec */
 
-   while (jiffies < timeout) {
+   do {
       status = inb( SCSI_Status_port ); /* Read adapter status */
       if (status & 1) {			/* Busy asserted */
 	 /* Enable SCSI Bus (on error, should make bus idle with 0) */
 	 outb( 0x80, SCSI_Cntl_port );
 	 return 0;
       }
-   }
+      mdelay(1);			/* wait one msec */
+   } while (--timeout);
    /* Make bus idle */
    fdomain_make_bus_idle();
 #if EVERY_ACCESS
@@ -1179,8 +1181,9 @@ void my_done( int error )
 #endif
 }
 
-void fdomain_16x0_intr( int irq, void *dev_id, struct pt_regs * regs )
+void do_fdomain_16x0_intr( int irq, void *dev_id, struct pt_regs * regs )
 {
+   unsigned long flags;
    int      status;
    int      done = 0;
    unsigned data_count;
@@ -1191,7 +1194,7 @@ void fdomain_16x0_intr( int irq, void *dev_id, struct pt_regs * regs )
 				   interruptions while this routine is
 				   running. */
 
-   sti();			/* Yes, we really want sti() here */
+   /* sti();			 Yes, we really want sti() here if we want to lock up our machine */
    
    outb( 0x00, Interrupt_Cntl_port );
 
@@ -1223,7 +1226,9 @@ void fdomain_16x0_intr( int irq, void *dev_id, struct pt_regs * regs )
 #if EVERY_ACCESS
 	 printk( " AFAIL " );
 #endif
+         spin_lock_irqsave(&io_request_lock, flags);
 	 my_done( DID_BUS_BUSY << 16 );
+         spin_unlock_irqrestore(&io_request_lock, flags);
 	 return;
       }
       current_SC->SCp.phase = in_selection;
@@ -1247,7 +1252,9 @@ void fdomain_16x0_intr( int irq, void *dev_id, struct pt_regs * regs )
 #if EVERY_ACCESS
 	    printk( " SFAIL " );
 #endif
+            spin_lock_irqsave(&io_request_lock, flags);
 	    my_done( DID_NO_CONNECT << 16 );
+            spin_unlock_irqrestore(&io_request_lock, flags);
 	    return;
 	 } else {
 #if EVERY_ACCESS
@@ -1591,8 +1598,10 @@ void fdomain_16x0_intr( int irq, void *dev_id, struct pt_regs * regs )
 #if EVERY_ACCESS
       printk( "BEFORE MY_DONE. . ." );
 #endif
+      spin_lock_irqsave(&io_request_lock, flags);
       my_done( (current_SC->SCp.Status & 0xff)
 	       | ((current_SC->SCp.Message & 0xff) << 8) | (DID_OK << 16) );
+      spin_unlock_irqrestore(&io_request_lock, flags);
 #if EVERY_ACCESS
       printk( "RETURNING.\n" );
 #endif
@@ -1609,15 +1618,6 @@ void fdomain_16x0_intr( int irq, void *dev_id, struct pt_regs * regs )
    in_interrupt_flag = 0;
 #endif
    return;
-}
-
-void do_fdomain_16x0_intr( int irq, void *dev_id, struct pt_regs * regs )
-{
-   unsigned long flags;
-
-   spin_lock_irqsave(&io_request_lock, flags);
-   fdomain_16x0_intr(irq, dev_id, regs);
-   spin_unlock_irqrestore(&io_request_lock, flags);
 }
 
 int fdomain_16x0_queue( Scsi_Cmnd * SCpnt, void (*done)(Scsi_Cmnd *))

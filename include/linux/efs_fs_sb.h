@@ -6,7 +6,7 @@
  *
  * Based on work Copyright (C) 1995, 1996 Christian Vogelgsang.
  *
- * $Id$
+ * $Id: efs_fs_sb.h,v 1.1 1997/12/02 02:28:29 ralf Exp $
  */
 
 #ifndef __LINUX_EFS_FS_SB_H

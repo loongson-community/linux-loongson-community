@@ -33,6 +33,7 @@
 #include <linux/vmalloc.h>
 #include <linux/fs.h>
 #include <linux/poll.h>
+#include <linux/init.h>
 #include <asm/io.h>
 #include <asm/segment.h>
 #include <asm/system.h>
@@ -64,7 +65,7 @@ extern int cfsnc_nc_info(char *buffer, char **start, off_t offset, int length, i
 
 /* statistics */
 struct coda_upcallstats coda_callstats;
-int           coda_hard = 0;  /* introduces a timeout on upcalls */
+int           coda_hard = 0;  /* allows signals during upcalls */
 unsigned long coda_timeout = 30; /* .. secs, then signals will dequeue */
 extern struct coda_sb_info coda_super_info[MAX_CODADEVS];
 struct vcomm psdev_vcomm[MAX_CODADEVS];
@@ -401,23 +402,7 @@ static struct file_operations coda_psdev_fops = {
 
 #ifdef CONFIG_PROC_FS
 
-struct proc_dir_entry proc_sys_root = {
-        PROC_SYS, 3, "sys",                     /* inode, name */
-        S_IFDIR | S_IRUGO | S_IXUGO, 2, 0, 0,   /* mode, nlink, uid, gid */
-        0, &proc_dir_inode_operations,          /* size, ops */
-        NULL, NULL,                             /* get_info, fill_inode */
-        NULL,                                   /* next */
-        NULL, NULL                              /* parent, subdir */
-};
-
-struct proc_dir_entry proc_fs_coda = {
-        PROC_FS_CODA, 4, "coda",
-        S_IFDIR | S_IRUGO | S_IXUGO, 2, 0, 0,
-        0, &proc_dir_inode_operations,
-	NULL, NULL,
-	NULL,
-	NULL, NULL
-};
+extern struct proc_dir_entry proc_sys_root;
 
 struct proc_dir_entry proc_sys_coda = {
         0, 4, "coda",
@@ -428,23 +413,23 @@ struct proc_dir_entry proc_sys_coda = {
 	NULL, NULL
 };
 
-struct proc_dir_entry proc_fs = {
-        PROC_FS, 2, "fs",
+/*
+ target directory structure:
+   /proc/fs  (see linux/fs/proc/root.c)
+   /proc/fs/coda
+   /proc/fs/coda/{vfs_stats,
+
+*/
+
+
+struct proc_dir_entry proc_fs_coda = {
+        PROC_FS_CODA, 4, "coda",
         S_IFDIR | S_IRUGO | S_IXUGO, 2, 0, 0,
         0, &proc_dir_inode_operations,
 	NULL, NULL,
 	NULL,
 	NULL, NULL
 };
-
-#if 0
-struct proc_dir_entry proc_coda_ncstats =  {
-                0 , 12, "coda-ncstats",
-                S_IFREG | S_IRUGO, 1, 0, 0,
-                0, &proc_net_inode_operations,
-                cfsnc_nc_info
-        };
-#endif
 
 struct proc_dir_entry proc_coda_vfs =  {
                 PROC_VFS_STATS , 9, "vfs_stats",
@@ -504,6 +489,23 @@ struct proc_dir_entry proc_coda_cache_inv_control =  {
 
 #endif
 
+__initfunc(int init_coda(void)) 
+{
+	int status;
+	printk(KERN_INFO "Coda Kernel/Venus communications, v4.6.0, braam@cs.cmu.edu\n");
+	
+	status = init_coda_psdev();
+	if ( status ) {
+		printk("Problem (%d) in init_coda_psdev\n", status);
+		return status;
+	}
+	
+	status = init_coda_fs();
+	if (status) {
+		printk("coda: failed in init_coda_fs!\n");
+	}
+	return status;
+}
 
 int init_coda_psdev(void)
 {
@@ -522,15 +524,14 @@ int init_coda_psdev(void)
 	reset_coda_cache_inv_stats();
 
 #ifdef CONFIG_PROC_FS
-	proc_register(&proc_root,&proc_fs);
-	proc_register(&proc_fs,&proc_fs_coda);
+	proc_register(&proc_root_fs,&proc_fs_coda);
 	proc_register(&proc_fs_coda,&proc_coda_vfs);
 	proc_register(&proc_fs_coda,&proc_coda_upcall);
 	proc_register(&proc_fs_coda,&proc_coda_permission);
 	proc_register(&proc_fs_coda,&proc_coda_cache_inv);
-#if 0
-	proc_register(&proc_fs_coda, &proc_coda_ncstats);
 #endif
+
+#ifdef CONFIG_SYSCTL
 	proc_register(&proc_sys_root,&proc_sys_coda);
 	proc_register(&proc_sys_coda,&proc_coda_vfs_control);
 	proc_register(&proc_sys_coda,&proc_coda_upcall_control);
@@ -551,20 +552,20 @@ MODULE_AUTHOR("Peter J. Braam <braam@cs.cmu.edu>");
 
 int init_module(void)
 {
-  int status;
-  printk(KERN_INFO "Coda Kernel/User communications module 2.0\n");
+	int status;
+	printk(KERN_INFO "Coda Kernel/Venus communications (module), v4.6.0, braam@cs.cmu.edu\n");
 
-  status = init_coda_psdev();
-  if ( status ) {
-	  printk("Problem (%d) in init_coda_psdev\n", status);
-	  return status;
-  }
+	status = init_coda_psdev();
+	if ( status ) {
+		printk("Problem (%d) in init_coda_psdev\n", status);
+		return status;
+	}
 
-  status = init_coda_fs();
-  if (status) {
-	  printk("coda: failed in init_coda_fs!\n");
-  }
-  return status;
+	status = init_coda_fs();
+	if (status) {
+		printk("coda: failed in init_coda_fs!\n");
+	}
+	return status;
 }
 
 
@@ -585,18 +586,16 @@ void cleanup_module(void)
         proc_unregister(&proc_sys_coda, proc_coda_cache_inv_control.low_ino);
         proc_unregister(&proc_sys_coda, proc_coda_permission_control.low_ino);
         proc_unregister(&proc_sys_coda, proc_coda_upcall_control.low_ino);
-	proc_unregister(&proc_sys_coda,proc_coda_vfs_control.low_ino);
+	proc_unregister(&proc_sys_coda, proc_coda_vfs_control.low_ino);
 	proc_unregister(&proc_sys_root, proc_sys_coda.low_ino);
-
-#if 0
-	proc_unregister(&proc_fs_coda, proc_coda_ncstats.low_ino);
 #endif
+
+#ifdef CONFIG_SYSCTL
         proc_unregister(&proc_fs_coda, proc_coda_cache_inv.low_ino);
         proc_unregister(&proc_fs_coda, proc_coda_permission.low_ino);
         proc_unregister(&proc_fs_coda, proc_coda_upcall.low_ino);
         proc_unregister(&proc_fs_coda, proc_coda_vfs.low_ino);
-	proc_unregister(&proc_fs, proc_fs_coda.low_ino);
-	proc_unregister(&proc_root, proc_fs.low_ino);
+	proc_unregister(&proc_root_fs, proc_fs_coda.low_ino);
 #endif 
 }
 

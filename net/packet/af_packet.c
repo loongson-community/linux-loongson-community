@@ -704,7 +704,7 @@ static int packet_create(struct socket *sock, int protocol)
 	MOD_INC_USE_COUNT;
 
 	err = -ENOBUFS;
-	sk = sk_alloc(AF_PACKET, GFP_KERNEL, 1);
+	sk = sk_alloc(PF_PACKET, GFP_KERNEL, 1);
 	if (sk == NULL)
 		goto out;
 
@@ -721,7 +721,7 @@ static int packet_create(struct socket *sock, int protocol)
 		goto out_free;
 	memset(sk->protinfo.af_packet, 0, sizeof(struct packet_opt));
 	sk->zapped=0;
-	sk->family = AF_PACKET;
+	sk->family = PF_PACKET;
 	sk->num = protocol;
 
 	/*
@@ -1176,14 +1176,14 @@ static int packet_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg
 
 #ifdef CONFIG_SOCK_PACKET
 struct proto_ops packet_ops_spkt = {
-	AF_PACKET,
+	PF_PACKET,
 
 	sock_no_dup,
 	packet_release,
 	packet_bind_spkt,
 	sock_no_connect,
-	NULL,
-	NULL,
+	sock_no_socketpair,
+	sock_no_accept,
 	packet_getname_spkt,
 	datagram_poll,
 	packet_ioctl,
@@ -1198,14 +1198,14 @@ struct proto_ops packet_ops_spkt = {
 #endif
 
 struct proto_ops packet_ops = {
-	AF_PACKET,
+	PF_PACKET,
 
 	sock_no_dup,
 	packet_release,
 	packet_bind,
 	sock_no_connect,
-	NULL,
-	NULL,
+	sock_no_socketpair,
+	sock_no_accept,
 	packet_getname, 
 	datagram_poll,
 	packet_ioctl,
@@ -1223,7 +1223,7 @@ struct proto_ops packet_ops = {
 };
 
 static struct net_proto_family packet_family_ops = {
-	AF_PACKET,
+	PF_PACKET,
 	packet_create
 };
 
@@ -1238,7 +1238,7 @@ struct notifier_block packet_netdev_notifier={
 void cleanup_module(void)
 {
 	unregister_netdevice_notifier(&packet_netdev_notifier);
-	sock_unregister(packet_family_ops.family);
+	sock_unregister(PF_PACKET);
 	return;
 }
 

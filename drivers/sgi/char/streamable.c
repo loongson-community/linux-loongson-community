@@ -1,14 +1,14 @@
-/*
+/* $Id: streamable.c,v 1.2 1998/08/19 21:55:31 ralf Exp $
+ *
  * streamable.c: streamable devices. /dev/gfx
  * (C) 1997 Miguel de Icaza (miguel@nuclecu.unam.mx)
  *
  * Major 10 is the streams clone device.  The IRIX Xsgi server just
  * opens /dev/gfx and closes it inmediately.
  *
- * $Id$
  */
+
 #include <linux/fs.h>
-#include <linux/init.h>
 #include <linux/miscdevice.h>
 #include <linux/sched.h>
 #include <linux/kbd_kern.h>
@@ -52,14 +52,14 @@ get_sioc (struct strioctl *sioc, unsigned long arg)
 static int
 sgi_gfx_open (struct inode *inode, struct file *file)
 {
-	printk ("GFX: Opened by %d\n", current->pid);
+	printk ("GFX: Opened by %ld\n", current->pid);
 	return 0;
 }
 
 static int
 sgi_gfx_close (struct inode *inode, struct file *file)
 {
-	printk ("GFX: Closed by %d\n", current->pid);
+	printk ("GFX: Closed by %ld\n", current->pid);
 	return 0;
 }
 
@@ -352,7 +352,8 @@ static struct miscdevice dev_input_mouse = {
 	SGI_STREAMS_KEYBOARD, "streams-mouse", &sgi_mouse_fops
 };
 
-__initfunc(void streamable_init (void))
+void
+streamable_init (void)
 {
 	printk ("streamable misc devices registered (keyb:%d, gfx:%d)\n",
 		SGI_STREAMS_KEYBOARD, SGI_GFX_MINOR);

@@ -6,7 +6,7 @@
  *
  * Based on work Copyright (C) 1995, 1996 Christian Vogelgsang.
  *
- * $Id: efs_fs.h,v 1.2 1998/05/23 17:11:25 shaver Exp $
+ * $Id: efs_fs.h,v 1.1 1997/12/02 02:28:29 ralf Exp $
  */
 
 #ifndef __LINUX_EFS_FS_H
@@ -87,7 +87,7 @@ union efs_extent {
 		__u32	ex_magic:4,	/* must be zero */
 			ex_bn:24;
 		__u32	ex_length:8,
-			ex_offset:24;
+			ex_offset;
 	} ex_ex;
 	__u32	ex_bytes[2];
 };
@@ -128,8 +128,6 @@ struct efs_dirblk {
 /* Offsets in DirItem */
 #define EFS_DI_NAMELEN      4
 #define EFS_DI_NAME         5
-/* XXX endian */
-#define EFS_DE_GET_INUM(de) (((de)->ud_inum.s[0] << 16) + (de)->ud_inum.s[1])
 
 struct efs_dent {
 	union {

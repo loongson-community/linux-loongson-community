@@ -31,12 +31,12 @@
 
 #include <linux/sunrpc/svc.h>
 #include <linux/nfsd/nfsd.h>
+#include <linux/nfsd/nfsfh.h>
+#include <linux/quotaops.h>
 
 #if LINUX_VERSION_CODE >= 0x020100
 #include <asm/uaccess.h>
 #endif
-
-extern void fh_update(struct svc_fh*);
 
 #define NFSDDBG_FACILITY		NFSDDBG_FILEOP
 
@@ -76,6 +76,41 @@ static struct raparms		raparms[FILECACHE_MAX];
 static struct raparms *		raparm_cache = 0;
 
 /*
+ * Lock a parent directory following the VFS locking protocol.
+ */
+int
+fh_lock_parent(struct svc_fh *parent_fh, struct dentry *dchild)
+{
+	int	nfserr = 0;
+
+	fh_lock(parent_fh);
+	/*
+	 * Make sure the parent->child relationship still holds,
+	 * and that the child is still hashed.
+	 */
+	if (dchild->d_parent != parent_fh->fh_dentry) 
+		goto out_not_parent;
+	if (list_empty(&dchild->d_hash))
+		goto out_not_hashed; 
+out:
+	return nfserr;
+
+out_not_parent:
+	printk(KERN_WARNING
+		"fh_lock_parent: %s/%s parent changed\n",
+		dchild->d_parent->d_name.name, dchild->d_name.name);
+	goto out_unlock;
+out_not_hashed:
+	printk(KERN_WARNING
+		"fh_lock_parent: %s/%s unhashed\n",
+		dchild->d_parent->d_name.name, dchild->d_name.name);
+out_unlock:
+	nfserr = nfserr_noent;
+	fh_unlock(parent_fh);
+	goto out;
+}
+
+/*
  * Deny access to certain file systems
  */
 static inline int
@@ -86,7 +121,7 @@ fs_off_limits(struct super_block *sb)
 }
 
 /*
- * Check whether directory is a mount point, but it is alright if
+ * Check whether directory is a mount point, but it is all right if
  * this is precisely the local mount point being exported.
  */
 static inline int
@@ -143,7 +178,7 @@ printk("nfsd_lookup: %s/%s crossed mount point!\n", dparent->d_name.name, name);
 	}
 
 	/*
-	 * Note: we compose the filehandle now, but as the
+	 * Note: we compose the file handle now, but as the
 	 * dentry may be negative, it may need to be updated.
 	 */
 	fh_compose(resfh, exp, dchild);
@@ -289,6 +324,9 @@ nfsd_open(struct svc_rqst *rqstp, struct svc_fh *fhp, int type,
 	filp->f_mode  = wflag? FMODE_WRITE : FMODE_READ;
 	filp->f_dentry = dentry;
 
+	if (wflag)
+		DQUOT_INIT(inode);
+
 	err = 0;
 	if (filp->f_op && filp->f_op->open) {
 		err = filp->f_op->open(inode, filp);
@@ -325,8 +363,10 @@ nfsd_close(struct file *filp)
 			dentry->d_parent->d_name.name, dentry->d_name.name);
 	if (filp->f_op && filp->f_op->release)
 		filp->f_op->release(inode, filp);
-	if (filp->f_mode & FMODE_WRITE)
+	if (filp->f_mode & FMODE_WRITE) {
 		put_write_access(inode);
+		DQUOT_DROP(inode);
+	}
 }
 
 /*
@@ -511,7 +551,7 @@ nfsd_write(struct svc_rqst *rqstp, struct svc_fh *fhp, loff_t offset,
 			interruptible_sleep_on(&inode->i_wait);
 #else
 			dprintk("nfsd: write defer %d\n", current->pid);
-			need_resched = 1;
+			current->need_resched = 1;
 			current->timeout = jiffies + HZ / 100;
 			schedule();
 			dprintk("nfsd: write resume %d\n", current->pid);
@@ -540,8 +580,11 @@ out:
 }
 
 /*
- * Create a file (regular, directory, device, fifo).
- * UNIX sockets not yet implemented.
+ * Create a file (regular, directory, device, fifo); UNIX sockets 
+ * not yet implemented.
+ * If the response fh has been verified, the parent directory should
+ * already be locked. Note that the parent directory is left locked.
+ *
  * N.B. Every call to nfsd_create needs an fh_put for _both_ fhp and resfhp
  */
 int
@@ -551,13 +594,12 @@ nfsd_create(struct svc_rqst *rqstp, struct svc_fh *fhp,
 {
 	struct dentry	*dentry, *dchild;
 	struct inode	*dirp;
+	nfsd_dirop_t	opfunc = NULL;
 	int		err;
 
 	err = nfserr_perm;
 	if (!flen)
 		goto out;
-	if (!(iap->ia_valid & ATTR_MODE))
-		iap->ia_mode = 0;
 	err = fh_verify(rqstp, fhp, S_IFDIR, MAY_CREATE);
 	if (err)
 		goto out;
@@ -565,67 +607,79 @@ nfsd_create(struct svc_rqst *rqstp, struct svc_fh *fhp,
 	dentry = fhp->fh_dentry;
 	dirp = dentry->d_inode;
 
-	/* Get all the sanity checks out of the way before we lock the parent. */
 	err = nfserr_notdir;
 	if(!dirp->i_op || !dirp->i_op->lookup)
 		goto out;
-	err = nfserr_perm;
-	if (type == S_IFREG) {
-		if(!dirp->i_op->create)
-			goto out;
-	} else if(type == S_IFDIR) {
-		if(!dirp->i_op->mkdir)
-			goto out;
-	} else if((type == S_IFCHR) || (type == S_IFBLK) || (type == S_IFIFO)) {
-		if(!dirp->i_op->mknod)
-			goto out;
-	} else {
-		goto out;
-	}
-
 	/*
-	 * The response filehandle may have been setup already ...
+	 * Check whether the response file handle has been verified yet.
+	 * If it has, the parent directory should already be locked.
 	 */
 	if (!resfhp->fh_dverified) {
 		dchild = lookup_dentry(fname, dget(dentry), 0);
 		err = PTR_ERR(dchild);
-		if(IS_ERR(dchild))
+		if (IS_ERR(dchild))
 			goto out_nfserr;
 		fh_compose(resfhp, fhp->fh_export, dchild);
-	} else
+		/* Lock the parent and check for errors ... */
+		err = fh_lock_parent(fhp, dchild);
+		if (err)
+			goto out;
+	} else {
 		dchild = resfhp->fh_dentry;
+		if (!fhp->fh_locked)
+			printk(KERN_ERR
+				"nfsd_create: parent %s/%s not locked!\n",
+				dentry->d_parent->d_name.name,
+				dentry->d_name.name);
+	}
 	/*
 	 * Make sure the child dentry is still negative ...
 	 */
+	err = nfserr_exist;
 	if (dchild->d_inode) {
-		printk("nfsd_create: dentry %s/%s not negative!\n",
-			dentry->d_parent->d_name.name, dentry->d_name.name);
+		printk(KERN_WARNING
+			"nfsd_create: dentry %s/%s not negative!\n",
+			dentry->d_name.name, dchild->d_name.name);
+		goto out; 
 	}
 
-	/* Looks good, lock the directory. */
-	fh_lock(fhp);
+	/*
+	 * Get the dir op function pointer.
+	 */
+	err = nfserr_perm;
 	switch (type) {
 	case S_IFREG:
-		err = dirp->i_op->create(dirp, dchild, iap->ia_mode);
+		opfunc = (nfsd_dirop_t) dirp->i_op->create;
 		break;
 	case S_IFDIR:
-		err = dirp->i_op->mkdir(dirp, dchild, iap->ia_mode);
+		opfunc = (nfsd_dirop_t) dirp->i_op->mkdir;
 		break;
 	case S_IFCHR:
 	case S_IFBLK:
 	case S_IFIFO:
-		err = dirp->i_op->mknod(dirp, dchild, iap->ia_mode, rdev);
+		opfunc = dirp->i_op->mknod;
 		break;
 	}
-	fh_unlock(fhp);
+	if (!opfunc)
+		goto out;
 
+	if (!(iap->ia_valid & ATTR_MODE))
+		iap->ia_mode = 0;
+
+	/*
+	 * Call the dir op function to create the object.
+	 */
+	DQUOT_INIT(dirp);
+	err = opfunc(dirp, dchild, iap->ia_mode, rdev);
+	DQUOT_DROP(dirp);
 	if (err < 0)
 		goto out_nfserr;
+
 	if (EX_ISSYNC(fhp->fh_export))
 		write_inode_now(dirp);
 
 	/*
-	 * Update the filehandle to get the new inode info.
+	 * Update the file handle to get the new inode info.
 	 */
 	fh_update(resfhp);
 
@@ -674,6 +728,7 @@ nfsd_truncate(struct svc_rqst *rqstp, struct svc_fh *fhp, unsigned long size)
 
 	/* Things look sane, lock and do it. */
 	fh_lock(fhp);
+	DQUOT_INIT(inode);
 	newattrs.ia_size = size;
 	newattrs.ia_valid = ATTR_SIZE | ATTR_CTIME;
 	err = notify_change(dentry, &newattrs);
@@ -683,6 +738,7 @@ nfsd_truncate(struct svc_rqst *rqstp, struct svc_fh *fhp, unsigned long size)
 			inode->i_op->truncate(inode);
 	}
 	put_write_access(inode);
+	DQUOT_DROP(inode);
 	fh_unlock(fhp);
 out_nfserr:
 	if (err)
@@ -768,19 +824,29 @@ nfsd_symlink(struct svc_rqst *rqstp, struct svc_fh *fhp,
 	if (IS_ERR(dnew))
 		goto out_nfserr;
 
-	err = -EEXIST;
+	/*
+	 * Lock the parent before checking for existence
+	 */
+	err = fh_lock_parent(fhp, dnew);
+	if (err)
+		goto out_compose;
+
+	err = nfserr_exist;
 	if (!dnew->d_inode) {
-		fh_lock(fhp);
+		DQUOT_INIT(dirp);
 		err = dirp->i_op->symlink(dirp, dnew, path);
-		fh_unlock(fhp);
+		DQUOT_DROP(dirp);
 		if (!err) {
 			if (EX_ISSYNC(fhp->fh_export))
 				write_inode_now(dirp);
-		}
+		} else
+			err = nfserrno(-err);
 	}
+	fh_unlock(fhp);
+
+	/* Compose the fh so the dentry will be freed ... */
+out_compose:
 	fh_compose(resfhp, fhp->fh_export, dnew);
-	if (err)
-		goto out_nfserr;
 out:
 	return err;
 
@@ -808,6 +874,10 @@ nfsd_link(struct svc_rqst *rqstp, struct svc_fh *ffhp,
 	if (err)
 		goto out;
 
+	err = nfserr_perm;
+	if (!len)
+		goto out;
+
 	ddir = ffhp->fh_dentry;
 	dirp = ddir->d_inode;
 
@@ -815,42 +885,48 @@ nfsd_link(struct svc_rqst *rqstp, struct svc_fh *ffhp,
 	err = PTR_ERR(dnew);
 	if (IS_ERR(dnew))
 		goto out_nfserr;
+	/*
+	 * Lock the parent before checking for existence
+	 */
+	err = fh_lock_parent(ffhp, dnew);
+	if (err)
+		goto out_dput;
 
-	err = -EEXIST;
+	err = nfserr_exist;
 	if (dnew->d_inode)
-		goto dput_and_out;
-
-	err = -EPERM;
-	if (!len)
-		goto dput_and_out;
+		goto out_unlock;
 
 	dold = tfhp->fh_dentry;
 	dest = dold->d_inode;
 
-	err = -EACCES;
+	err = nfserr_acces;
 	if (nfsd_iscovered(ddir, ffhp->fh_export))
-		goto dput_and_out;
+		goto out_unlock;
+	/* FIXME: nxdev for NFSv3 */
 	if (dirp->i_dev != dest->i_dev)
-		goto dput_and_out;	/* FIXME: nxdev for NFSv3 */
+		goto out_unlock;
 
-	err = -EPERM;
+	err = nfserr_perm;
 	if (IS_IMMUTABLE(dest) /* || IS_APPEND(dest) */ )
-		goto dput_and_out;
+		goto out_unlock;
 	if (!dirp->i_op || !dirp->i_op->link)
-		goto dput_and_out;
+		goto out_unlock;
 
-	fh_lock(ffhp);
+	DQUOT_INIT(dirp);
 	err = dirp->i_op->link(dold, dirp, dnew);
-	fh_unlock(ffhp);
+	DQUOT_DROP(dirp);
+	if (!err) {
+		if (EX_ISSYNC(ffhp->fh_export)) {
+			write_inode_now(dirp);
+			write_inode_now(dest);
+		}
+	} else
+		err = nfserrno(-err);
 
-	if (!err && EX_ISSYNC(ffhp->fh_export)) {
-		write_inode_now(dirp);
-		write_inode_now(dest);
-	}
-dput_and_out:
+out_unlock:
+	fh_unlock(ffhp);
+out_dput:
 	dput(dnew);
-	if (err)
-		goto out_nfserr;
 out:
 	return err;
 
@@ -938,11 +1014,16 @@ nfsd_rename(struct svc_rqst *rqstp, struct svc_fh *ffhp, char *fname, int flen,
 	nfsd_double_down(&tdir->i_sem, &fdir->i_sem);
 	/* N.B. check for parent changes after locking?? */
 
+	DQUOT_INIT(fdir);
+	DQUOT_INIT(tdir);
 	err = fdir->i_op->rename(fdir, odentry, tdir, ndentry);
 	if (!err && EX_ISSYNC(tfhp->fh_export)) {
 		write_inode_now(fdir);
 		write_inode_now(tdir);
 	}
+	DQUOT_DROP(fdir);
+	DQUOT_DROP(tdir);
+
 	nfsd_double_up(&tdir->i_sem, &fdir->i_sem);
 	dput(ndentry);
 
@@ -986,7 +1067,11 @@ nfsd_unlink(struct svc_rqst *rqstp, struct svc_fh *fhp, int type,
 	if (IS_ERR(rdentry))
 		goto out_nfserr;
 
-	fh_lock(fhp);
+	err = fh_lock_parent(fhp, rdentry);
+	if (err)
+		goto out;
+
+	DQUOT_INIT(dirp);
 	if (type == S_IFDIR) {
 		err = -ENOTDIR;
 		if (dirp->i_op && dirp->i_op->rmdir)
@@ -996,6 +1081,7 @@ nfsd_unlink(struct svc_rqst *rqstp, struct svc_fh *fhp, int type,
 		if (dirp->i_op && dirp->i_op->unlink)
 			err = dirp->i_op->unlink(dirp, rdentry);
 	}
+	DQUOT_DROP(dirp);
 	fh_unlock(fhp);
 
 	dput(rdentry);
@@ -1071,10 +1157,7 @@ nfsd_readdir(struct svc_rqst *rqstp, struct svc_fh *fhp, loff_t offset,
 	/* If we didn't fill the buffer completely, we're at EOF */
 	eof = !cd.eob;
 
-	/* Hewlett Packard ignores the eof flag on READDIR. Some
-	 * fs-specific readdir implementations seem to reset f_pos to 0
-	 * at EOF however, causing an endless loop. */
-	if (cd.offset && !eof)
+	if (cd.offset)
 		*cd.offset = htonl(file.f_pos);
 
 	p = cd.buffer;

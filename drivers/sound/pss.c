@@ -22,6 +22,8 @@
  *          Requested two regions for PSS (PSS mixer, PSS config)
  *          Modified pss_download_boot
  *          To probe_pss_mss added test for initialize AD1848
+ * 98-05-28: Vladimir Michl <vladimir.michl@upol.cz>
+ *          Fixed computation of mixer volumes
  */
 
 
@@ -32,7 +34,8 @@
 #include "sound_firmware.h"
 #include "soundmodule.h"
 
-#if (defined(CONFIG_PSS) && defined(CONFIG_AUDIO))||defined(MODULE)
+#ifdef CONFIG_PSS
+#ifdef CONFIG_AUDIO
 
 /*
  * PSS registers.
@@ -80,14 +83,21 @@
 
 #include "coproc.h"
 
-#ifdef CONFIG_PSS_HAVE_BOOT
+#ifdef PSS_HAVE_LD
 #include "pss_boot.h"
 #else
-static unsigned char *pss_synth = NULL;
 static int pss_synthLen = 0;
+static unsigned char *pss_synth =
+NULL;
 #endif
 
-unsigned char pss_mixer = 1;
+/* If compiled into kernel, it enable or disable pss mixer */
+#ifdef CONFIG_PSS_MIXER
+static unsigned char pss_mixer = 1;
+#else
+static unsigned char pss_mixer = 0;
+#endif
+
 
 typedef struct pss_mixerdata {
 	unsigned int volume_l;
@@ -375,12 +385,7 @@ static void set_master_volume(pss_confdata *devc, int left, int right)
 
 static void set_synth_volume(pss_confdata *devc, int volume)
 {
-	/* Should use:
-		int vol = (int)(0x8000/100.0 * (float)volume);
-		
-	  Fixme: integerise the above cleanly
-	*/
-	int vol = (0x8000/(100L*volume));
+	int vol = ((0x8000*volume)/100L);
 	pss_write(devc, 0x0080);
 	pss_write(devc, vol);
 	pss_write(devc, 0x0081);
@@ -389,32 +394,21 @@ static void set_synth_volume(pss_confdata *devc, int volume)
 
 static void set_bass(pss_confdata *devc, int level)
 {
-	/* Should use
-	   int vol = (int)((0xfd - 0xf0)/100.0 * (float)level) + 0xf0;     
-	   
-	   Fixme: integerise cleanly 
-	*/
-	int vol = (int)((0xfd - 0xf0)/100L * level) + 0xf0;
+	int vol = (int)(((0xfd - 0xf0) * level)/100L) + 0xf0;
 	pss_write(devc, 0x0010);
 	pss_write(devc, vol | 0x0200);
 };
 
 static void set_treble(pss_confdata *devc, int level)
 {	
-	/* Should use 
-	   int vol = (int)((0xfd - 0xf0)/100.0 * (float)level) + 0xf0;
-	   
-	   Fixme: integerise properly
-	*/
-	
-	int vol = ((0xfd - 0xf0)/100L * level) + 0xf0;
+	int vol = (((0xfd - 0xf0) * level)/100L) + 0xf0;
 	pss_write(devc, 0x0010);
 	pss_write(devc, vol | 0x0300);
 };
 
 static void pss_mixer_reset(pss_confdata *devc)
 {
-	set_master_volume(devc, 23, 23);
+	set_master_volume(devc, 33, 33);
 	set_bass(devc, 50);
 	set_treble(devc, 50);
 	set_synth_volume(devc, 30);
@@ -423,7 +417,7 @@ static void pss_mixer_reset(pss_confdata *devc)
 	
 	if(pss_mixer)
 	{
-		devc->mixer.volume_l = devc->mixer.volume_r = 23;
+		devc->mixer.volume_l = devc->mixer.volume_r = 33;
 		devc->mixer.bass = 50;
 		devc->mixer.treble = 50;
 		devc->mixer.synth = 30;
@@ -1059,7 +1053,7 @@ MODULE_PARM_DESC(mpu_io, "Set MIDI i/o base (0x330 or other. Address must be on 
 MODULE_PARM(mpu_irq, "i");
 MODULE_PARM_DESC(mpu_irq, "Set MIDI IRQ (3, 5, 7, 9, 10, 11, 12)");
 MODULE_PARM(pss_mixer, "b");
-MODULE_PARM_DESC(pss_mixer, "Enable (1) or disable (0) PSS mixer (controlling of output volume, bass, treble synth volume). The mixer is not available on all PSS cards.");
+MODULE_PARM_DESC(pss_mixer, "Enable (1) or disable (0) PSS mixer (controlling of output volume, bass, treble, synth volume). The mixer is not available on all PSS cards.");
 MODULE_AUTHOR("Hannu Savolainen, Vladimir Michl");
 MODULE_DESCRIPTION("Module for PSS sound cards (based on AD1848, ADSP-2115 and ESC614). This module includes control of output amplifier and synth volume of the Beethoven ADSP-16 card (this may work with other PSS cards).\n");
 
@@ -1120,5 +1114,6 @@ void cleanup_module(void)
 	unload_pss(&cfgpss);
 	SOUND_LOCK_END;
 }
+#endif
 #endif
 #endif

@@ -1,15 +1,21 @@
 /* Generic NS8390 register definitions. */
 /* This file is part of Donald Becker's 8390 drivers, and is distributed
-   under the same license.
+   under the same license. Auto-loading of 8390.o added by Paul Gortmaker.
    Some of these names and comments originated from the Crynwr
    packet drivers, which are distributed under the GPL. */
 
 #ifndef _8390_h
 #define _8390_h
 
+#include <linux/config.h>
 #include <linux/if_ether.h>
 #include <linux/ioport.h>
 #include <linux/skbuff.h>
+
+/* With kmod, drivers can now load the 8390 module themselves! */
+#if 0 /* def CONFIG_KMOD */
+#define LOAD_8390_BY_KMOD
+#endif
 
 #define TX_2X_PAGES 12
 #define TX_1X_PAGES 6
@@ -32,21 +38,117 @@ struct e8390_pkt_hdr {
   unsigned short count; /* header + packet length in bytes */
 };
 
-/* From 8390.c */
+#ifdef notdef
 extern int ei_debug;
-extern struct sigaction ei_sigaction;
+#else
+#define ei_debug 1
+#endif
 
-extern int ethif_init(struct device *dev);
+#ifndef HAVE_AUTOIRQ
+/* From auto_irq.c */
+extern void autoirq_setup(int waittime);
+extern unsigned long autoirq_report(int waittime);
+#endif
+
+#if defined(LOAD_8390_BY_KMOD) && defined(MODULE) && !defined(NS8390_CORE)
+
+/* Function pointers to be mapped onto the 8390 core support */
+static int (*S_ethdev_init)(struct device *dev);
+static void (*S_NS8390_init)(struct device *dev, int startp);
+static int (*S_ei_open)(struct device *dev);
+static int (*S_ei_close)(struct device *dev);
+static void (*S_ei_interrupt)(int irq, void *dev_id, struct pt_regs *regs);
+
+
+#define NS8390_KSYSMS_PRESENT	(			\
+	get_module_symbol(NULL, "ethdev_init") != 0 &&	\
+	get_module_symbol(NULL, "NS8390_init") != 0 &&	\
+	get_module_symbol(NULL, "ei_open") != 0 &&	\
+	get_module_symbol(NULL, "ei_close") != 0 &&	\
+	get_module_symbol(NULL, "ei_interrupt") != 0)
+
+extern __inline__ int load_8390_module(const char *driver)
+{
+
+	if (! NS8390_KSYSMS_PRESENT) {
+		int (*request_mod)(const char *module_name);
+
+		if (get_module_symbol("", "request_module") == 0) {
+			printk("%s: module auto-load (kmod) support not present.\n", driver);
+			printk("%s: unable to auto-load required 8390 module.\n", driver);
+			printk("%s: try \"modprobe 8390\" as root 1st.\n", driver);
+			return -ENOSYS;
+		}
+
+		request_mod = (void*)get_module_symbol("", "request_module");
+		if (request_mod("8390")) {
+			printk("%s: request to load the 8390 module failed.\n", driver);
+			return -ENOSYS;
+		}
+
+		/* Check if module really loaded and is valid */
+		if (! NS8390_KSYSMS_PRESENT) {
+			printk("%s: 8390.o not found/invalid or failed to load.\n", driver);
+			return -ENOSYS;
+		}
+
+		printk(KERN_INFO "%s: auto-loaded 8390 module.\n", driver);
+	}
+
+	/* Map the functions into place */
+	S_ethdev_init = (void*)get_module_symbol(0, "ethdev_init");
+	S_NS8390_init = (void*)get_module_symbol(0, "NS8390_init");
+	S_ei_open = (void*)get_module_symbol(0, "ei_open");
+	S_ei_close = (void*)get_module_symbol(0, "ei_close");
+	S_ei_interrupt = (void*)get_module_symbol(0, "ei_interrupt");
+
+	return 0;
+}
+
+/*
+ * Since a kmod aware driver won't explicitly show a dependence on the
+ * exported 8390 functions (due to the mapping above), the 8390 module
+ * (if present, and not in-kernel) needs to be protected from garbage
+ * collection.  NS8390_module is only defined for a modular 8390 core.
+ */
+
+extern __inline__  void lock_8390_module(void)
+{
+	struct module **mod = (struct module**)get_module_symbol(0, "NS8390_module");
+
+	if (mod != NULL && *mod != NULL)
+		__MOD_INC_USE_COUNT(*mod);
+}
+	
+extern __inline__  void unlock_8390_module(void)
+{
+	struct module **mod = (struct module**)get_module_symbol(0, "NS8390_module");
+
+	if (mod != NULL && *mod != NULL)
+		__MOD_DEC_USE_COUNT(*mod);
+}
+	
+/*
+ * These are last so they only have scope over the driver
+ * code (wd, ne, 3c503, etc.)  and not over the above code.
+ */
+#define ethdev_init S_ethdev_init
+#define NS8390_init S_NS8390_init
+#define ei_open S_ei_open
+#define ei_close S_ei_close
+#define ei_interrupt S_ei_interrupt
+
+#else	/* not a module or kmod support not wanted */
+
+#define load_8390_module(driver)	0
+#define lock_8390_module()		do { } while (0)
+#define unlock_8390_module()		do { } while (0)
 extern int ethdev_init(struct device *dev);
 extern void NS8390_init(struct device *dev, int startp);
 extern int ei_open(struct device *dev);
 extern int ei_close(struct device *dev);
 extern void ei_interrupt(int irq, void *dev_id, struct pt_regs *regs);
 
-#ifndef HAVE_AUTOIRQ
-/* From auto_irq.c */
-extern void autoirq_setup(int waittime);
-extern unsigned long autoirq_report(int waittime);
 #endif
 
 /* Most of these entries should be in 'struct device' (or most of the
@@ -75,6 +177,7 @@ struct ei_device {
   unsigned char saved_irq;	/* Original dev->irq value. */
   /* The new statistics table. */
   struct net_device_stats stat;
+  unsigned char *reg_offset;    /* Register mapping table */
 };
 
 /* The maximum number of 8390 interrupt service routines called per IRQ. */
@@ -104,34 +207,41 @@ struct ei_device {
 #define E8390_PAGE1	0x40	/* using the two high-order bits */
 #define E8390_PAGE2	0x80	/* Page 3 is invalid. */
 
-#define E8390_CMD	0x00	/* The command register (for all pages) */
+
+#ifndef CONFIG_MAC
+#define EI_SHIFT(x)	(x)
+#else
+#define EI_SHIFT(x)	(ei_local->reg_offset[x])
+#endif
+
+#define E8390_CMD	EI_SHIFT(0x00)  /* The command register (for all pages) */
 /* Page 0 register offsets. */
-#define EN0_CLDALO	0x01	/* Low byte of current local dma addr  RD */
-#define EN0_STARTPG	0x01	/* Starting page of ring bfr WR */
-#define EN0_CLDAHI	0x02	/* High byte of current local dma addr  RD */
-#define EN0_STOPPG	0x02	/* Ending page +1 of ring bfr WR */
-#define EN0_BOUNDARY	0x03	/* Boundary page of ring bfr RD WR */
-#define EN0_TSR		0x04	/* Transmit status reg RD */
-#define EN0_TPSR	0x04	/* Transmit starting page WR */
-#define EN0_NCR		0x05	/* Number of collision reg RD */
-#define EN0_TCNTLO	0x05	/* Low  byte of tx byte count WR */
-#define EN0_FIFO	0x06	/* FIFO RD */
-#define EN0_TCNTHI	0x06	/* High byte of tx byte count WR */
-#define EN0_ISR		0x07	/* Interrupt status reg RD WR */
-#define EN0_CRDALO	0x08	/* low byte of current remote dma address RD */
-#define EN0_RSARLO	0x08	/* Remote start address reg 0 */
-#define EN0_CRDAHI	0x09	/* high byte, current remote dma address RD */
-#define EN0_RSARHI	0x09	/* Remote start address reg 1 */
-#define EN0_RCNTLO	0x0a	/* Remote byte count reg WR */
-#define EN0_RCNTHI	0x0b	/* Remote byte count reg WR */
-#define EN0_RSR		0x0c	/* rx status reg RD */
-#define EN0_RXCR	0x0c	/* RX configuration reg WR */
-#define EN0_TXCR	0x0d	/* TX configuration reg WR */
-#define EN0_COUNTER0	0x0d	/* Rcv alignment error counter RD */
-#define EN0_DCFG	0x0e	/* Data configuration reg WR */
-#define EN0_COUNTER1	0x0e	/* Rcv CRC error counter RD */
-#define EN0_IMR		0x0f	/* Interrupt mask reg WR */
-#define EN0_COUNTER2	0x0f	/* Rcv missed frame error counter RD */
+#define EN0_CLDALO	EI_SHIFT(0x01)	/* Low byte of current local dma addr  RD */
+#define EN0_STARTPG	EI_SHIFT(0x01)	/* Starting page of ring bfr WR */
+#define EN0_CLDAHI	EI_SHIFT(0x02)	/* High byte of current local dma addr  RD */
+#define EN0_STOPPG	EI_SHIFT(0x02)	/* Ending page +1 of ring bfr WR */
+#define EN0_BOUNDARY	EI_SHIFT(0x03)	/* Boundary page of ring bfr RD WR */
+#define EN0_TSR		EI_SHIFT(0x04)	/* Transmit status reg RD */
+#define EN0_TPSR	EI_SHIFT(0x04)	/* Transmit starting page WR */
+#define EN0_NCR		EI_SHIFT(0x05)	/* Number of collision reg RD */
+#define EN0_TCNTLO	EI_SHIFT(0x05)	/* Low  byte of tx byte count WR */
+#define EN0_FIFO	EI_SHIFT(0x06)	/* FIFO RD */
+#define EN0_TCNTHI	EI_SHIFT(0x06)	/* High byte of tx byte count WR */
+#define EN0_ISR		EI_SHIFT(0x07)	/* Interrupt status reg RD WR */
+#define EN0_CRDALO	EI_SHIFT(0x08)	/* low byte of current remote dma address RD */
+#define EN0_RSARLO	EI_SHIFT(0x08)	/* Remote start address reg 0 */
+#define EN0_CRDAHI	EI_SHIFT(0x09)	/* high byte, current remote dma address RD */
+#define EN0_RSARHI	EI_SHIFT(0x09)	/* Remote start address reg 1 */
+#define EN0_RCNTLO	EI_SHIFT(0x0a)	/* Remote byte count reg WR */
+#define EN0_RCNTHI	EI_SHIFT(0x0b)	/* Remote byte count reg WR */
+#define EN0_RSR		EI_SHIFT(0x0c)	/* rx status reg RD */
+#define EN0_RXCR	EI_SHIFT(0x0c)	/* RX configuration reg WR */
+#define EN0_TXCR	EI_SHIFT(0x0d)	/* TX configuration reg WR */
+#define EN0_COUNTER0	EI_SHIFT(0x0d)	/* Rcv alignment error counter RD */
+#define EN0_DCFG	EI_SHIFT(0x0e)	/* Data configuration reg WR */
+#define EN0_COUNTER1	EI_SHIFT(0x0e)	/* Rcv CRC error counter RD */
+#define EN0_IMR		EI_SHIFT(0x0f)	/* Interrupt mask reg WR */
+#define EN0_COUNTER2	EI_SHIFT(0x0f)	/* Rcv missed frame error counter RD */
 
 /* Bits in EN0_ISR - Interrupt status register */
 #define ENISR_RX	0x01	/* Receiver, no error */
@@ -148,9 +258,11 @@ struct ei_device {
 #define ENDCFG_WTS	0x01	/* word transfer mode selection */
 
 /* Page 1 register offsets. */
-#define EN1_PHYS   0x01	/* This board's physical enet addr RD WR */
-#define EN1_CURPAG 0x07	/* Current memory page RD WR */
-#define EN1_MULT   0x08	/* Multicast filter mask array (8 bytes) RD WR */
+#define EN1_PHYS   EI_SHIFT(0x01)	/* This board's physical enet addr RD WR */
+#define EN1_PHYS_SHIFT(i)  EI_SHIFT(i+1) /* Get and set mac address */
+#define EN1_CURPAG EI_SHIFT(0x07)	/* Current memory page RD WR */
+#define EN1_MULT   EI_SHIFT(0x08)	/* Multicast filter mask array (8 bytes) RD WR */
+#define EN1_MULT_SHIFT(i)  EI_SHIFT(8+i) /* Get and set multicast filter */
 
 /* Bits in received packet status byte and EN0_RSR*/
 #define ENRSR_RXOK	0x01	/* Received a good packet */
@@ -158,7 +270,7 @@ struct ei_device {
 #define ENRSR_FAE	0x04	/* frame alignment error */
 #define ENRSR_FO	0x08	/* FIFO overrun */
 #define ENRSR_MPA	0x10	/* missed pkt */
-#define ENRSR_PHY	0x20	/* physical/multicase address */
+#define ENRSR_PHY	0x20	/* physical/multicast address */
 #define ENRSR_DIS	0x40	/* receiver disable. set in monitor mode */
 #define ENRSR_DEF	0x80	/* deferring */
 

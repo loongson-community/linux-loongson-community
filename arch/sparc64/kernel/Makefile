@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.36 1998/02/01 11:15:55 ecd Exp $
+# $Id: Makefile,v 1.38 1998/07/26 03:02:47 davem Exp $
 # Makefile for the linux kernel.
 #
 # Note! Dependencies are done automagically by 'make dep', which also
@@ -7,23 +7,11 @@
 #
 # Note 2! The CFLAGS definitions are now in the main makefile...
 
-ifdef SMP
-
 .S.s:
 	$(CPP) -D__ASSEMBLY__ $(AFLAGS) -ansi $< -o $*.s
 
 .S.o:
 	$(CC) -D__ASSEMBLY__ $(AFLAGS) -ansi -c $< -o $*.o
-
-else
-
-.S.s:
-	$(CPP) -D__ASSEMBLY__ -ansi $< -o $*.s
-
-.S.o:
-	$(CC) -D__ASSEMBLY__ -ansi -c $< -o $*.o
-
-endif
 
 all: kernel.o head.o init_task.o
 
@@ -51,8 +39,8 @@ ifdef CONFIG_BINFMT_AOUT32
   O_OBJS += binfmt_aout32.o
 endif
 
-head.o: head.S ttable.S itlb_miss.S dtlb_miss.S dtlb_prot.S etrap.S rtrap.S \
-	winfixup.S entry.S
+head.o: head.S ttable.S itlb_base.S dtlb_base.S dtlb_backend.S dtlb_prot.S \
+	etrap.S rtrap.S winfixup.S entry.S
 	$(CC) -D__ASSEMBLY__ $(AFLAGS) -ansi -c $*.S -o $*.o
 
 #

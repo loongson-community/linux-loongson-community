@@ -120,7 +120,7 @@ void define_config(int convert, const char * name, int len)
 /*
  * Clear the set of configuration strings.
  */
-void clear_config( )
+void clear_config(void)
 {
 	len_config = 0;
 	define_config(0, "", 0);
@@ -195,7 +195,7 @@ void use_config(const char * name, int len)
  * Thus, there is one memory access per sizeof(unsigned long) characters.
  */
 
-#if defined(__alpha__) || defined(__i386__) || defined(__MIPSEL__)
+#if defined(__alpha__) || defined(__i386__) || defined(__MIPSEL__) || defined(__arm__)
 #define LE_MACHINE
 #endif
 

@@ -5,8 +5,8 @@
  *
  *  super.c contains code to handle: - mount structures
  *                                   - super-block tables.
- *                                   - mount systemcall
- *                                   - umount systemcall
+ *                                   - mount system call
+ *                                   - umount system call
  *
  *  Added options to /proc/mounts
  *  Torbjörn Lindh (torbjorn.lindh@gopta.se), April 14, 1996.
@@ -32,6 +32,7 @@
 #include <linux/smp_lock.h>
 #include <linux/fd.h>
 #include <linux/init.h>
+#include <linux/quotaops.h>
 
 #include <asm/system.h>
 #include <asm/uaccess.h>
@@ -52,6 +53,10 @@
  * else).
  */
 static struct semaphore mount_sem = MUTEX;
+
+#ifdef CONFIG_BSD_PROCESS_ACCT
+extern void acct_auto_close(kdev_t);
+#endif
 
 extern void wait_for_keypress(void);
 extern struct file_operations * get_blkfops(unsigned int major);
@@ -109,7 +114,9 @@ static struct vfsmount *add_vfsmnt(struct super_block *sb,
 	lptr->mnt_sb = sb;
 	lptr->mnt_dev = sb->s_dev;
 	lptr->mnt_flags = sb->s_flags;
-	sema_init(&lptr->mnt_sem, 1);
+
+	sema_init(&lptr->mnt_dquot.semaphore, 1);
+	lptr->mnt_dquot.flags = 0;
 
 	/* N.B. Is it really OK to have a vfsmount without names? */
 	if (dev_name && !IS_ERR(tmp = getname(dev_name))) {
@@ -626,7 +633,7 @@ static void d_mount(struct dentry *covered, struct dentry *dentry)
 	dentry->d_covers = covered;
 }
 
-static int do_umount(kdev_t dev, int unmount_root)
+static int do_umount(kdev_t dev, int unmount_root, int flags)
 {
 	struct super_block * sb;
 	int retval;
@@ -638,11 +645,28 @@ static int do_umount(kdev_t dev, int unmount_root)
 
 	/*
 	 * Before checking whether the filesystem is still busy,
-	 * make sure the kernel doesn't hold any quotafiles open
+	 * make sure the kernel doesn't hold any quota files open
 	 * on the device. If the umount fails, too bad -- there
-	 * are no quotas running anymore. Just turn them on again.
+	 * are no quotas running any more. Just turn them on again.
 	 */
-	quota_off(dev, -1);
+	DQUOT_OFF(dev);
+
+#ifdef CONFIG_BSD_PROCESS_ACCT
+	(void) acct_auto_close(dev);
+#endif
+
+	/*
+	 * If we may have to abort operations to get out of this
+	 * mount, and they will themselves hold resources we must
+	 * allow the fs to do things. In the Unix tradition of
+	 * 'Gee thats tricky lets do it in userspace' the umount_begin
+	 * might fail to complete on the first run through as other tasks
+	 * must return, and the like. Thats for the mount program to worry
+	 * about for the moment.
+	 */
+	 
+	if( (flags&MNT_FORCE) && sb->s_op->umount_begin)
+		sb->s_op->umount_begin(sb);
 
 	/*
 	 * Shrink dcache, then fsync. This guarantees that if the
@@ -693,7 +717,7 @@ out:
 	return retval;
 }
 
-static int umount_dev(kdev_t dev)
+static int umount_dev(kdev_t dev, int flags)
 {
 	int retval;
 	struct inode * inode = get_empty_inode();
@@ -711,7 +735,7 @@ static int umount_dev(kdev_t dev)
 
 	down(&mount_sem);
 
-	retval = do_umount(dev,0);
+	retval = do_umount(dev, 0, flags);
 	if (!retval) {
 		fsync_dev(dev);
 		if (dev != ROOT_DEV) {
@@ -736,9 +760,12 @@ out:
  * we give them the info they need without using a real inode.
  * If any other fields are ever needed by any block device release
  * functions, they should be faked here.  -- jrs
+ *
+ * We now support a flag for forced unmount like the other 'big iron'
+ * unixes. Our API is identical to OSF/1 to avoid making a mess of AMD
  */
 
-asmlinkage int sys_umount(char * name)
+asmlinkage int sys_umount(char * name, int flags)
 {
 	struct dentry * dentry;
 	int retval;
@@ -768,10 +795,19 @@ asmlinkage int sys_umount(char * name)
 		dput(dentry);
 
 		if (!retval)
-			retval = umount_dev(dev);
+			retval = umount_dev(dev, flags);
 	}
 	unlock_kernel();
 	return retval;
+}
+
+/*
+ *	The 2.0 compatible umount. No flags. 
+ */
+ 
+asmlinkage int sys_oldumount(char * name)
+{
+	return sys_umount(name,0);
 }
 
 /*
@@ -799,12 +835,12 @@ int fs_may_mount(kdev_t dev)
  * [21-Mar-97] T.Schoebel-Theuer: Now this can be overridden when
  * supplying a leading "!" before the dir_name, allowing "stacks" of
  * mounted filesystems. The stacking will only influence any pathname lookups
- * _after_ the mount, but open filedescriptors or working directories that
+ * _after_ the mount, but open file descriptors or working directories that
  * are now covered remain valid. For example, when you overmount /home, any
  * process with old cwd /home/joe will continue to use the old versions,
  * as long as relative paths are used, but absolute paths like /home/joe/xxx
  * will go to the new "top of stack" version. In general, crossing a
- * mountpoint will always go to the top of stack element.
+ * mount point will always go to the top of stack element.
  * Anyone using this new feature must know what he/she is doing.
  */
 
@@ -1237,7 +1273,7 @@ __initfunc(static int do_change_root(kdev_t new_root_dev,const char *put_old))
 		int umount_error;
 
 		printk(KERN_NOTICE "Trying to unmount old root ... ");
-		umount_error = do_umount(old_root_dev,1);
+		umount_error = do_umount(old_root_dev,1, 0);
 		if (!umount_error) {
 			printk("okay\n");
 			invalidate_buffers(old_root_dev);

@@ -45,14 +45,21 @@ struct thread_struct {
 	unsigned long pal_flags;
 	unsigned long res1, res2;
 
-	/* the fields below are Linux-specific: */
-	/* bit 1..5: IEEE_TRAP_ENABLE bits (see fpu.h) */
-	/* bit 6..8: UAC bits (see sysinfo.h) */
-	/* bit 17..21: IEEE_STATUS_MASK bits (see fpu.h) */
-	/* bit 63: die_if_kernel recursion lock */
+	/*
+	 * The fields below are Linux-specific:
+	 *
+	 * bit 1..5: IEEE_TRAP_ENABLE bits (see fpu.h)
+	 * bit 6..8: UAC bits (see sysinfo.h)
+	 * bit 17..21: IEEE_STATUS_MASK bits (see fpu.h)
+	 * bit 63: die_if_kernel recursion lock
+	 */
 	unsigned long flags;
-	/* perform syscall argument validation (get/set_fs) */
+
+	/* Perform syscall argument validation (get/set_fs). */
 	mm_segment_t fs;
+
+	/* Breakpoint handling for ptrace.  */
+	long debugreg[8];
 };
 
 #define INIT_MMAP { &init_mm, 0xfffffc0000000000,  0xfffffc0010000000, \
@@ -75,13 +82,23 @@ struct thread_struct {
  * holds provided the thread blocked through a call to schedule() ($15
  * is the frame pointer in schedule() and $15 is saved at offset 48 by
  * entry.S:do_switch_stack).
+ *
+ * Under heavy swap load I've seen this loose in an ugly way.  So do
+ * some extra sanity checking on the ranges we expect these pointers
+ * to be in so that we can fail gracefully.  This is just for ps after
+ * all.  -- r~
  */
 extern inline unsigned long thread_saved_pc(struct thread_struct *t)
 {
-	unsigned long fp;
+	unsigned long fp, sp = t->ksp, base = (unsigned long)t;
+ 
+	if (sp > base && sp+6*8 < base + 16*1024) {
+		fp = ((unsigned long*)sp)[6];
+		if (fp > sp && fp < base + 16*1024)
+			return *(unsigned long *)fp;
+	}
 
-	fp = ((unsigned long*)t->ksp)[6];
-	return *(unsigned long*)fp;
+	return 0;
 }
 
 /*

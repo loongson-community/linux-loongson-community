@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.25 1998/04/06 16:10:31 jj Exp $
+# $Id: Makefile,v 1.27 1998/07/27 07:36:16 davem Exp $
 # sparc64/Makefile
 #
 # Makefile for the architecture dependent flags and dependencies on the
@@ -19,13 +19,20 @@ AR		= sparc64-linux-ar
 RANLIB		= sparc64-linux-ranlib
 ELFTOAOUT	= elftoaout
 
+IS_EGCS := $(shell if $(CC) --version 2>&1 | grep 'egcs' > /dev/null; then echo y; else echo n; fi)
+
 #
 # Uncomment the first CFLAGS if you are doing kgdb source level
 # debugging of the kernel to get the proper debugging information.
 
 #CFLAGS := $(CFLAGS) -g -pipe -fcall-used-g5 -fcall-used-g7 
-CFLAGS := $(CFLAGS) -pipe -mno-fpu -mtune=ultrasparc -mmedlow \
-	-ffixed-g4 -fcall-used-g5 -fcall-used-g7 -Wno-sign-compare
+ifneq ($(IS_EGCS),y)
+  CFLAGS := $(CFLAGS) -pipe -mno-fpu -mtune=ultrasparc -mmedlow \
+	    -ffixed-g4 -fcall-used-g5 -fcall-used-g7 -Wno-sign-compare
+else
+  CFLAGS := $(CFLAGS) -pipe -mno-fpu -mtune=ultrasparc -mcmodel=medlow \
+	    -ffixed-g4 -fcall-used-g5 -fcall-used-g7 -Wno-sign-compare
+endif
 
 LINKFLAGS = -T arch/sparc64/vmlinux.lds
 
@@ -56,6 +63,8 @@ vmlinux.aout: vmlinux
 
 archclean:
 	rm -f $(TOPDIR)/vmlinux.aout
+
+archmrproper:
 
 archdep:
 

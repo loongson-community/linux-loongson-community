@@ -152,7 +152,7 @@ asmlinkage long sys_fcntl(unsigned int fd, unsigned int cmd, unsigned long arg)
 			/*
 			 * XXX If f_owner is a process group, the
 			 * negative return value will get converted
-			 * into an error.  Oops.  If we keep the the
+			 * into an error.  Oops.  If we keep the
 			 * current syscall conventions, the only way
 			 * to fix this will be in libc.
 			 */
@@ -191,7 +191,7 @@ static void send_sigio(int pid, uid_t uid, uid_t euid)
 			match = -p->pgrp;
 		if (pid != match)
 			continue;
-		if (!euid &&
+		if ((euid != 0) &&
 		    (euid ^ p->suid) && (euid ^ p->uid) &&
 		    (uid ^ p->suid) && (uid ^ p->uid))
 			continue;

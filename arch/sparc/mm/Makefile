@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.30 1998/03/09 14:03:53 jj Exp $
+# $Id: Makefile,v 1.31 1998/07/26 03:02:45 davem Exp $
 # Makefile for the linux Sparc-specific parts of the memory manager.
 #
 # Note! Dependencies are done automagically by 'make dep', which also
@@ -22,8 +22,6 @@ endif
 
 include $(TOPDIR)/Rules.make
 
-ifdef SMP
-
 hypersparc.o: hypersparc.S
 	$(CC) -D__ASSEMBLY__ $(AFLAGS) -ansi -c -o hypersparc.o hypersparc.S
 
@@ -35,19 +33,3 @@ viking.o: viking.S
 
 tsunami.o: tsunami.S
 	$(CC) -D__ASSEMBLY__ $(AFLAGS) -ansi -c -o tsunami.o tsunami.S
-
-else
-
-hypersparc.o: hypersparc.S
-	$(CC) -D__ASSEMBLY__ -ansi -c -o hypersparc.o hypersparc.S
-
-turbosparc.o: turbosparc.S
-	$(CC) -D__ASSEMBLY__ -ansi -c -o turbosparc.o turbosparc.S
-
-viking.o: viking.S
-	$(CC) -D__ASSEMBLY__ -ansi -c -o viking.o viking.S
-
-tsunami.o: tsunami.S
-	$(CC) -D__ASSEMBLY__ -ansi -c -o tsunami.o tsunami.S
-
-endif

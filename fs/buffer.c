@@ -10,7 +10,6 @@
  * data, of course), but instead letting the caller do it.
  */
 
-/* Some bdflush() changes for the dynamic ramdisk - Paul Gortmaker, 12/94 */
 /* Start bdflush() with kernel_thread not syscall - Paul Gortmaker, 12/95 */
 
 /* Removed a lot of unnecessary code and simplified things now that
@@ -19,6 +18,10 @@
 
 /* Speed up hash, lru, and free list operations.  Use gfp() for allocating
  * hash table, use SLAB cache for buffer heads. -DaveM
+ */
+
+/* Added 32k buffer block sizes - these are required older ARM systems.
+ * - RMK
  */
 
 #include <linux/sched.h>
@@ -38,15 +41,21 @@
 #include <linux/blkdev.h>
 #include <linux/sysrq.h>
 #include <linux/file.h>
+#include <linux/init.h>
+#include <linux/quotaops.h>
 
 #include <asm/system.h>
 #include <asm/uaccess.h>
 #include <asm/io.h>
 #include <asm/bitops.h>
 
-#define NR_SIZES 5
-static char buffersize_index[17] =
-{-1,  0,  1, -1,  2, -1, -1, -1, 3, -1, -1, -1, -1, -1, -1, -1, 4};
+#define NR_SIZES 7
+static char buffersize_index[65] =
+{-1,  0,  1, -1,  2, -1, -1, -1, 3, -1, -1, -1, -1, -1, -1, -1,
+  4, -1, -1, -1, -1, -1, -1, -1, -1,-1, -1, -1, -1, -1, -1, -1,
+  5, -1, -1, -1, -1, -1, -1, -1, -1,-1, -1, -1, -1, -1, -1, -1,
+ -1, -1, -1, -1, -1, -1, -1, -1, -1,-1, -1, -1, -1, -1, -1, -1,
+  6};
 
 #define BUFSIZE_INDEX(X) ((int) buffersize_index[(X)>>9])
 #define MAX_BUF_PER_PAGE (PAGE_SIZE / 512)
@@ -266,9 +275,9 @@ void sync_dev(kdev_t dev)
 	sync_supers(dev);
 	sync_inodes(dev);
 	sync_buffers(dev, 0);
-	sync_dquots(dev, -1);
-	/* 
-	 * FIXME(eric) we need to sync the physical devices here. 
+	DQUOT_SYNC(dev);
+	/*
+	 * FIXME(eric) we need to sync the physical devices here.
 	 * This is because some (scsi) controllers have huge amounts of
 	 * cache onboard (hundreds of Mb), and we need to instruct
 	 * them to commit all of the dirty memory to disk, and we should
@@ -285,7 +294,7 @@ int fsync_dev(kdev_t dev)
 	sync_buffers(dev, 0);
 	sync_supers(dev);
 	sync_inodes(dev);
-	sync_dquots(dev, -1);
+	DQUOT_SYNC(dev);
 	return sync_buffers(dev, 1);
 }
 
@@ -635,13 +644,9 @@ void set_blocksize(kdev_t dev, int size)
 	if (!blksize_size[MAJOR(dev)])
 		return;
 
-	if (size > PAGE_SIZE)
-		size = 0;
-
-	switch (size) {
-		default: panic("Invalid blocksize passed to set_blocksize");
-		case 512: case 1024: case 2048: case 4096: case 8192: ;
-	}
+	/* Size must be a power of two, and between 512 and PAGE_SIZE */
+	if (size > PAGE_SIZE || size < 512 || (size & (size-1)))
+		panic("Invalid blocksize passed to set_blocksize");
 
 	if (blksize_size[MAJOR(dev)][MINOR(dev)] == 0 && size == BLOCK_SIZE) {
 		blksize_size[MAJOR(dev)][MINOR(dev)] = size;
@@ -1048,10 +1053,13 @@ void __bforget(struct buffer_head * buf)
 	wait_on_buffer(buf);
 	mark_buffer_clean(buf);
 	clear_bit(BH_Protected, &buf->b_state);
-	buf->b_count--;
 	remove_from_hash_queue(buf);
 	buf->b_dev = NODEV;
 	refile_buffer(buf);
+	if (!--buf->b_count)
+		return;
+	printk("VFS: forgot an in-use buffer! (count=%d)\n",
+		buf->b_count);
 }
 
 /*
@@ -1060,19 +1068,19 @@ void __bforget(struct buffer_head * buf)
  */
 struct buffer_head * bread(kdev_t dev, int block, int size)
 {
-	struct buffer_head * bh;
+	struct buffer_head * bh = getblk(dev, block, size);
 
-	if (!(bh = getblk(dev, block, size))) {
-		printk("VFS: bread: impossible error\n");
+	if (bh) {
+		if (buffer_uptodate(bh))
+			return bh;
+		ll_rw_block(READ, 1, &bh);
+		wait_on_buffer(bh);
+		if (buffer_uptodate(bh))
+			return bh;
+		brelse(bh);
 		return NULL;
 	}
-	if (buffer_uptodate(bh))
-		return bh;
-	ll_rw_block(READ, 1, &bh);
-	wait_on_buffer(bh);
-	if (buffer_uptodate(bh))
-		return bh;
-	brelse(bh);
+	printk("VFS: bread: impossible error\n");
 	return NULL;
 }
 
@@ -1303,7 +1311,7 @@ no_grow:
 	if (!async)
 		return NULL;
 
-	/* Uhhuh. We're _really_ low on memory. Now we just
+	/* We're _really_ low on memory. Now we just
 	 * wait for old buffer heads to become free due to
 	 * finishing IO.  Since this is an async request and
 	 * the reserve list is empty, we're sure there are 
@@ -1728,7 +1736,7 @@ void show_buffers(void)
  * Use gfp() for the hash table to decrease TLB misses, use
  * SLAB cache for buffer heads.
  */
-void buffer_init(void)
+__initfunc(void buffer_init(void))
 {
 	int order = 5;		/* Currently maximum order.. */
 	unsigned int nr_hash;

@@ -1,6 +1,4 @@
-/* $Id: syscalls.h,v 1.12 1998/05/07 02:57:18 ralf Exp $
- *
- * List of Linux/MIPS syscalls.
+/* $Id: syscalls.h,v 1.15 1998/08/20 16:33:17 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -15,7 +13,7 @@
  * accepts.  Syscalls that receive a pointer to the saved registers are
  * marked as having zero arguments.
  *
- * The binary compatibility calls are still missing in this list.
+ * The binary compatibility calls are in a separate list.
  */
 SYS(sys_syscall, 0)				/* 4000 */
 SYS(sys_exit, 1)
@@ -39,7 +37,7 @@ SYS(sys_stat, 2)
 SYS(sys_lseek, 3)
 SYS(sys_getpid, 0)				/* 4020 */
 SYS(sys_mount, 5)
-SYS(sys_umount, 1)
+SYS(sys_oldumount, 1)
 SYS(sys_setuid, 1)
 SYS(sys_getuid, 0)
 SYS(sys_stime, 1)				/* 4025 */
@@ -69,7 +67,7 @@ SYS(sys_ni_syscall, 0)	/* was signal(2) */
 SYS(sys_geteuid, 0)
 SYS(sys_getegid, 0)				/* 4050 */
 SYS(sys_acct, 0)
-SYS(sys_ni_syscall, 0)
+SYS(sys_umount, 2)
 SYS(sys_ni_syscall, 0)
 SYS(sys_ioctl, 3)
 SYS(sys_fcntl, 3)				/* 4055 */
@@ -223,3 +221,7 @@ SYS(sys_chown, 3)
 SYS(sys_getcwd, 2)
 SYS(sys_capget, 2)
 SYS(sys_capset, 2)				/* 4205 */
+SYS(sys_sigaltstack, 2)
+SYS(sys_sendfile, 3)
+SYS(sys_ni_syscall, 0)
+SYS(sys_ni_syscall, 0)

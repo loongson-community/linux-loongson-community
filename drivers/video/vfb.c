@@ -8,7 +8,6 @@
  *  more details.
  */
 
-#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
@@ -56,7 +55,7 @@ static struct fb_var_screeninfo vfb_default = {
     /* 640x480, 8 bpp */
     640, 480, 640, 480, 0, 0, 8, 0,
     {0, 8, 0}, {0, 8, 0}, {0, 8, 0}, {0, 0, 0},
-    0, 0, -1, -1, FB_ACCEL_NONE, 20000, 64, 64, 32, 32, 64, 2,
+    0, 0, -1, -1, 0, 20000, 64, 64, 32, 32, 64, 2,
     0, FB_VMODE_NONINTERLACED
 };
 
@@ -69,8 +68,8 @@ static int vfb_enable = 0;	/* disabled by default */
 
 void vfb_setup(char *options, int *ints);
 
-static int vfb_open(struct fb_info *info);
-static int vfb_release(struct fb_info *info);
+static int vfb_open(struct fb_info *info, int user);
+static int vfb_release(struct fb_info *info, int user);
 static int vfb_get_fix(struct fb_fix_screeninfo *fix, int con,
 		       struct fb_info *info);
 static int vfb_get_var(struct fb_var_screeninfo *var, int con,
@@ -91,7 +90,7 @@ static int vfb_ioctl(struct inode *inode, struct file *file, u_int cmd,
      *  Interface to the low level console driver
      */
 
-unsigned long vfb_init(unsigned long mem_start);
+void vfb_init(void);
 static int vfbcon_switch(int con, struct fb_info *info);
 static int vfbcon_updatevar(int con, struct fb_info *info);
 static void vfbcon_blank(int blank, struct fb_info *info);
@@ -114,7 +113,7 @@ static void do_install_cmap(int con, struct fb_info *info);
 
 static struct fb_ops vfb_ops = {
     vfb_open, vfb_release, vfb_get_fix, vfb_get_var, vfb_set_var, vfb_get_cmap,
-    vfb_set_cmap, vfb_pan_display, NULL, vfb_ioctl
+    vfb_set_cmap, vfb_pan_display, vfb_ioctl
 };
 
 
@@ -122,7 +121,7 @@ static struct fb_ops vfb_ops = {
      *  Open/Release the frame buffer device
      */
 
-static int vfb_open(struct fb_info *info)                                       
+static int vfb_open(struct fb_info *info, int user)
 {
     /*                                                                     
      *  Nothing, only a usage count for the moment                          
@@ -132,7 +131,7 @@ static int vfb_open(struct fb_info *info)
     return(0);                              
 }
         
-static int vfb_release(struct fb_info *info)
+static int vfb_release(struct fb_info *info, int user)
 {
     MOD_DEC_USE_COUNT;
     return(0);                                                    
@@ -250,7 +249,7 @@ static int vfb_set_var(struct fb_var_screeninfo *var, int con,
 	    struct fb_fix_screeninfo fix;
 
 	    vfb_encode_fix(&fix, var);
-	    display->screen_base = (u_char *)fix.smem_start;
+	    display->screen_base = (char *)videomemory;
 	    display->visual = fix.visual;
 	    display->type = fix.type;
 	    display->type_aux = fix.type_aux;
@@ -260,37 +259,37 @@ static int vfb_set_var(struct fb_var_screeninfo *var, int con,
 	    display->can_soft_blank = 1;
 	    display->inverse = 0;
 	    switch (var->bits_per_pixel) {
-#ifdef CONFIG_FBCON_MFB
+#ifdef FBCON_HAS_MFB
 		case 1:
 		    display->dispsw = &fbcon_mfb;
 		    break;
 #endif
-#ifdef CONFIG_FBCON_CFB2
+#ifdef FBCON_HAS_CFB2
 		case 2:
 		    display->dispsw = &fbcon_cfb2;
 		    break;
 #endif
-#ifdef CONFIG_FBCON_CFB4
+#ifdef FBCON_HAS_CFB4
 		case 4:
 		    display->dispsw = &fbcon_cfb4;
 		    break;
 #endif
-#ifdef CONFIG_FBCON_CFB8
+#ifdef FBCON_HAS_CFB8
 		case 8:
 		    display->dispsw = &fbcon_cfb8;
 		    break;
 #endif
-#ifdef CONFIG_FBCON_CFB16
+#ifdef FBCON_HAS_CFB16
 		case 16:
 		    display->dispsw = &fbcon_cfb16;
 		    break;
 #endif
-#ifdef CONFIG_FBCON_CFB24
+#ifdef FBCON_HAS_CFB24
 		case 24:
 		    display->dispsw = &fbcon_cfb24;
 		    break;
 #endif
-#ifdef CONFIG_FBCON_CFB32
+#ifdef FBCON_HAS_CFB32
 		case 32:
 		    display->dispsw = &fbcon_cfb32;
 		    break;
@@ -417,21 +416,13 @@ __initfunc(void vfb_setup(char *options, int *ints))
      *  Initialisation
      */
 
-__initfunc(unsigned long vfb_init(unsigned long mem_start))
+__initfunc(void vfb_init(void))
 {
-    int err;
-
     if (!vfb_enable)
-	return mem_start;
+	return;
 
-    if (mem_start) {
-	videomemory = mem_start;
-	mem_start += videomemorysize;
-    } else
-	videomemory = (u_long)vmalloc(videomemorysize);
-
-    if (!videomemory)
-	return mem_start;
+    if (!(videomemory = (u_long)vmalloc(videomemorysize)))
+	return;
 
     strcpy(fb_info.modename, vfb_name);
     fb_info.changevar = NULL;
@@ -442,15 +433,15 @@ __initfunc(unsigned long vfb_init(unsigned long mem_start))
     fb_info.updatevar = &vfbcon_updatevar;
     fb_info.blank = &vfbcon_blank;
 
-    err = register_framebuffer(&fb_info);
-    if (err < 0)
-	return mem_start;
-
     vfb_set_var(&vfb_default, -1, &fb_info);
+
+    if (register_framebuffer(&fb_info) < 0) {
+	vfree((void *)videomemory);
+	return;
+    }
 
     printk("fb%d: Virtual frame buffer device, using %ldK of video memory\n",
 	   GET_FB_IDX(fb_info.node), videomemorysize>>10);
-    return mem_start;
 }
 
 
@@ -501,7 +492,7 @@ static void vfb_encode_fix(struct fb_fix_screeninfo *fix,
 {
     memset(fix, 0, sizeof(struct fb_fix_screeninfo));
     strcpy(fix->id, vfb_name);
-    fix->smem_start = (caddr_t)videomemory;
+    fix->smem_start = (char *)videomemory;
     fix->smem_len = videomemorysize;
     fix->type = FB_TYPE_PACKED_PIXELS;
     fix->type_aux = 0;
@@ -629,13 +620,14 @@ static void do_install_cmap(int con, struct fb_info *info)
 #ifdef MODULE
 int init_module(void)
 {
-    return(vfb_init(NULL));
+    vfb_init();
+    return 0;
 }
 
 void cleanup_module(void)
 {
     unregister_framebuffer(&fb_info);
-    vfree(videomemory);
+    vfree((void *)videomemory);
 }
 
 #endif /* MODULE */

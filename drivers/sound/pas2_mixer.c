@@ -19,7 +19,7 @@
 
 #include "sound_config.h"
 
-#if defined(CONFIG_PAS) || defined(MODULE)
+#ifdef CONFIG_PAS
 
 #ifndef DEB
 #define DEB(what)		/* (what) */
@@ -125,11 +125,12 @@ pas_mixer_set(int whichDev, unsigned int level)
 	left = level & 0x7f;
 	right = (level & 0x7f00) >> 8;
 
-	if (whichDev < SOUND_MIXER_NRDEVICES)
+	if (whichDev < SOUND_MIXER_NRDEVICES) {
 		if ((1 << whichDev) & rec_devices)
 			mixer = 0x20;
 		else
 			mixer = 0x00;
+	}
 
 	switch (whichDev)
 	  {

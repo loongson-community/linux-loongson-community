@@ -62,6 +62,8 @@ message similar to:
 (If you are using kmod and have configured parport_probe as a module,
 this will just happen.)
 
+The probe information is available in /proc/parport/?/autoprobe.
+
 
 Parport linked into the kernel statically
 =========================================
@@ -103,6 +105,9 @@ File:				Contents:
                                 allow you to alter it by writing a new
 				value in (IRQ number or "none").
 
+/proc/parport/0/autoprobe	Any IEEE-1284 device ID information
+				that has been acquired.
+
 
 Device drivers
 ==============
@@ -125,7 +130,7 @@ with no lp device associated with the second port (parport1).  Note
 that this is different to the way older kernels worked; there used to
 be a static association between the I/O port address and the device
 name, so /dev/lp0 was always the port at 0x3bc.  This is no longer the
-case - if you only have one port, it will always be /dev/lp0,
+case - if you only have one port, it will default to being /dev/lp0,
 regardless of base address.
 
 Also:

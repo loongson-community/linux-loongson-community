@@ -21,12 +21,10 @@
 #include <linux/config.h>
 #include <linux/module.h>
 
-
-
 #include "sound_config.h"
 #include "soundmodule.h"
 
-#if defined(CONFIG_VMIDI) || defined(MODULE)
+#ifdef CONFIG_VMIDI
 
 #include "v_midi.h"
 

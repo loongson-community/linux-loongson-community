@@ -117,12 +117,100 @@ repeat:
 	}
 }
 
+/*
+ * Remove a page from the page cache and free it.
+ */
+void remove_inode_page(struct page *page)
+{
+	remove_page_from_hash_queue(page);
+	remove_page_from_inode_queue(page);
+	__free_page(page);
+}
+
+/*
+ * Check whether we can free this page.
+ */
+static inline int shrink_one_page(struct page *page, int gfp_mask)
+{
+	struct buffer_head *tmp, *bh;
+
+	if (PageLocked(page))
+		goto next;
+	if ((gfp_mask & __GFP_DMA) && !PageDMA(page))
+		goto next;
+	/* First of all, regenerate the page's referenced bit
+         * from any buffers in the page
+	 */
+	bh = page->buffers;
+	if (bh) {
+		tmp = bh;
+		do {
+			if (buffer_touched(tmp)) {
+				clear_bit(BH_Touched, &tmp->b_state);
+				set_bit(PG_referenced, &page->flags);
+			}
+			tmp = tmp->b_this_page;
+		} while (tmp != bh);
+
+		/* Refuse to swap out all buffer pages */
+		if ((buffermem >> PAGE_SHIFT) * 100 < (buffer_mem.min_percent * num_physpages))
+			goto next;
+	}
+
+	/* We can't throw away shared pages, but we do mark
+	   them as referenced.  This relies on the fact that
+	   no page is currently in both the page cache and the
+	   buffer cache; we'd have to modify the following
+	   test to allow for that case. */
+
+	switch (atomic_read(&page->count)) {
+	case 1:
+		/* is it a swap-cache or page-cache page? */
+		if (page->inode) {
+			if (test_and_clear_bit(PG_referenced, &page->flags)) {
+				touch_page(page);
+				break;
+			}
+			age_page(page);
+#if 0
+			if (page->age)
+				break;
+			if (page_cache_size * 100 < (page_cache.min_percent * num_physpages))
+				break;
+#endif
+			if (PageSwapCache(page)) {
+				delete_from_swap_cache(page);
+				return 1;
+			}
+			remove_inode_page(page);
+			return 1;
+		}
+		/* It's not a cache page, so we don't do aging.
+		 * If it has been referenced recently, don't free it */
+		if (test_and_clear_bit(PG_referenced, &page->flags))
+			break;
+
+		/* is it a buffer cache page? */
+		if (bh && try_to_free_buffer(bh, &bh, 6))
+			return 1;
+		break;
+
+	default:
+		/* more than one user: we can't throw it away */
+		set_bit(PG_referenced, &page->flags);
+		/* fall through */
+	case 0:
+		/* nothing */
+	}
+next:
+	return 0;
+}
+
 int shrink_mmap(int priority, int gfp_mask)
 {
 	static unsigned long clock = 0;
-	struct page * page;
 	unsigned long limit = num_physpages;
-	struct buffer_head *tmp, *bh;
+	struct page * page;
 	int count_max, count_min;
 
 	count_max = (limit<<1) >> (priority>>1);
@@ -130,79 +218,20 @@ int shrink_mmap(int priority, int gfp_mask)
 
 	page = mem_map + clock;
 	do {
+		if (PageSkip(page)) {
+			/* next_hash is overloaded for PageSkip */
+			page = page->next_hash;
+			clock = page->map_nr;
+		}
+		
+		if (shrink_one_page(page, gfp_mask))
+			return 1;
 		count_max--;
 		if (page->inode || page->buffers)
 			count_min--;
-
-		if (PageLocked(page))
-			goto next;
-		if ((gfp_mask & __GFP_DMA) && !PageDMA(page))
-			goto next;
-		/* First of all, regenerate the page's referenced bit
-                   from any buffers in the page */
-		bh = page->buffers;
-		if (bh) {
-			tmp = bh;
-			do {
-				if (buffer_touched(tmp)) {
-					clear_bit(BH_Touched, &tmp->b_state);
-					set_bit(PG_referenced, &page->flags);
-				}
-				tmp = tmp->b_this_page;
-			} while (tmp != bh);
-
-			/* Refuse to swap out all buffer pages */
-			if ((buffermem >> PAGE_SHIFT) * 100 < (buffer_mem.min_percent * num_physpages))
-				goto next;
-		}
-
-		/* We can't throw away shared pages, but we do mark
-		   them as referenced.  This relies on the fact that
-		   no page is currently in both the page cache and the
-		   buffer cache; we'd have to modify the following
-		   test to allow for that case. */
-
-		switch (atomic_read(&page->count)) {
-			case 1:
-				/* is it a swap-cache or page-cache page? */
-				if (page->inode) {
-					if (test_and_clear_bit(PG_referenced, &page->flags)) {
-						touch_page(page);
-						break;
-					}
-					age_page(page);
-					if (page->age || page_cache_size * 100 < (page_cache.min_percent * num_physpages))
-						break;
-					if (PageSwapCache(page)) {
-						delete_from_swap_cache(page);
-						return 1;
-					}
-					remove_page_from_hash_queue(page);
-					remove_page_from_inode_queue(page);
-					__free_page(page);
-					return 1;
-				}
-				/* It's not a cache page, so we don't do aging.
-				 * If it has been referenced recently, don't free it */
-				if (test_and_clear_bit(PG_referenced, &page->flags))
-					break;
-
-				/* is it a buffer cache page? */
-				if ((gfp_mask & __GFP_IO) && bh && try_to_free_buffer(bh, &bh, 6))
-					return 1;
-				break;
-
-			default:
-				/* more than one users: we can't throw it away */
-				set_bit(PG_referenced, &page->flags);
-				/* fall through */
-			case 0:
-				/* nothing */
-		}
-next:
 		page++;
 		clock++;
-		if (clock >= limit) {
+		if (clock >= max_mapnr) {
 			clock = 0;
 			page = mem_map;
 		}
@@ -216,20 +245,17 @@ next:
  * free it from the page hash-queues etc, as we don't want to keep it
  * in-core unnecessarily.
  */
-unsigned long page_unuse(unsigned long page)
+unsigned long page_unuse(struct page * page)
 {
-	struct page * p = mem_map + MAP_NR(page);
-	int count = atomic_read(&p->count);
+	int count = atomic_read(&page->count);
 
 	if (count != 2)
 		return count;
-	if (!p->inode)
+	if (!page->inode)
 		return count;
-	if (PageSwapCache(p))
+	if (PageSwapCache(page))
 		panic ("Doing a normal page_unuse of a swap cache page");
-	remove_page_from_hash_queue(p);
-	remove_page_from_inode_queue(p);
-	free_page(page);
+	remove_inode_page(page);
 	return 1;
 }
 
@@ -303,6 +329,7 @@ static unsigned long try_to_read_ahead(struct file * file,
 			 */
 			page = mem_map + MAP_NR(page_cache);
 			add_to_page_cache(page, inode, offset, hash);
+			set_bit(PG_referenced, &page->flags);
 			inode->i_op->readpage(file, page);
 			page_cache = 0;
 		}
@@ -568,6 +595,23 @@ static inline unsigned long generic_file_readahead(int reada_ok,
 	return page_cache;
 }
 
+/*
+ * "descriptor" for what we're up to with a read.
+ * This allows us to use the same read code yet
+ * have multiple different users of the data that
+ * we read from a file.
+ *
+ * The simplest case just copies the data to user
+ * mode.
+ */
+typedef struct {
+	size_t written;
+	size_t count;
+	char * buf;
+	int error;
+} read_descriptor_t;
+
+typedef int (*read_actor_t)(read_descriptor_t *, const char *, unsigned long);
 
 /*
  * This is a generic file read routine, and uses the
@@ -577,23 +621,14 @@ static inline unsigned long generic_file_readahead(int reada_ok,
  * This is really ugly. But the goto's actually try to clarify some
  * of the logic when it comes to error handling etc.
  */
-
-ssize_t generic_file_read(struct file * filp, char * buf,
-			  size_t count, loff_t *ppos)
+static void do_generic_file_read(struct file * filp, loff_t *ppos, read_descriptor_t * desc, read_actor_t actor)
 {
 	struct dentry *dentry = filp->f_dentry;
 	struct inode *inode = dentry->d_inode;
-	ssize_t error, read;
 	size_t pos, pgpos, page_cache;
 	int reada_ok;
 	int max_readahead = get_max_readahead(inode);
 
-	if (!access_ok(VERIFY_WRITE, buf, count))
-		return -EFAULT;
-	if (!count)
-		return 0;
-	error = 0;
-	read = 0;
 	page_cache = 0;
 
 	pos = *ppos;
@@ -621,12 +656,12 @@ ssize_t generic_file_read(struct file * filp, char * buf,
  * Then, at least MIN_READAHEAD if read ahead is ok,
  * and at most MAX_READAHEAD in all cases.
  */
-	if (pos + count <= (PAGE_SIZE >> 1)) {
+	if (pos + desc->count <= (PAGE_SIZE >> 1)) {
 		filp->f_ramax = 0;
 	} else {
 		unsigned long needed;
 
-		needed = ((pos + count) & PAGE_MASK) - pgpos;
+		needed = ((pos + desc->count) & PAGE_MASK) - pgpos;
 
 		if (filp->f_ramax < needed)
 			filp->f_ramax = needed;
@@ -679,20 +714,20 @@ success:
 
 		offset = pos & ~PAGE_MASK;
 		nr = PAGE_SIZE - offset;
-		if (nr > count)
-			nr = count;
 		if (nr > inode->i_size - pos)
 			nr = inode->i_size - pos;
-		nr -= copy_to_user(buf, (void *) (page_address(page) + offset), nr);
-		release_page(page);
-		error = -EFAULT;
-		if (!nr)
-			break;
-		buf += nr;
+
+		/*
+		 * The actor routine returns how many bytes were actually used..
+		 * NOTE! This may not be the same as how much of a user buffer
+		 * we filled up (we may be padding etc), so we can only update
+		 * "pos" here (the actor routine has to update the user buffer
+		 * pointers and the remaining count).
+		 */
+		nr = actor(desc, (const char *) (page_address(page) + offset), nr);
 		pos += nr;
-		read += nr;
-		count -= nr;
-		if (count)
+		release_page(page);
+		if (nr && desc->count)
 			continue;
 		break;
 	}
@@ -710,7 +745,7 @@ no_cached_page:
 			 */
 			if (page_cache)
 				continue;
-			error = -ENOMEM;
+			desc->error = -ENOMEM;
 			break;
 		}
 
@@ -739,11 +774,14 @@ no_cached_page:
 		if (reada_ok && filp->f_ramax > MIN_READAHEAD)
 			filp->f_ramax = MIN_READAHEAD;
 
-		error = inode->i_op->readpage(filp, page);
-		if (!error)
-			goto found_page;
-		release_page(page);
-		break;
+		{
+			int error = inode->i_op->readpage(filp, page);
+			if (!error)
+				goto found_page;
+			desc->error = error;
+			release_page(page);
+			break;
+		}
 
 page_read_error:
 		/*
@@ -751,15 +789,18 @@ page_read_error:
 		 * Try to re-read it _once_. We do this synchronously,
 		 * because this happens only if there were errors.
 		 */
-		error = inode->i_op->readpage(filp, page);
-		if (!error) {
-			wait_on_page(page);
-			if (PageUptodate(page) && !PageError(page))
-				goto success;
-			error = -EIO; /* Some unspecified error occurred.. */
+		{
+			int error = inode->i_op->readpage(filp, page);
+			if (!error) {
+				wait_on_page(page);
+				if (PageUptodate(page) && !PageError(page))
+					goto success;
+				error = -EIO; /* Some unspecified error occurred.. */
+			}
+			desc->error = error;
+			release_page(page);
+			break;
 		}
-		release_page(page);
-		break;
 	}
 
 	*ppos = pos;
@@ -767,9 +808,159 @@ page_read_error:
 	if (page_cache)
 		free_page(page_cache);
 	UPDATE_ATIME(inode);
-	if (!read)
-		read = error;
-	return read;
+}
+
+static int file_read_actor(read_descriptor_t * desc, const char *area, unsigned long size)
+{
+	unsigned long left;
+	unsigned long count = desc->count;
+
+	if (size > count)
+		size = count;
+	left = __copy_to_user(desc->buf, area, size);
+	if (left) {
+		size -= left;
+		desc->error = -EFAULT;
+	}
+	desc->count = count - size;
+	desc->written += size;
+	desc->buf += size;
+	return size;
+}
+
+/*
+ * This is the "read()" routine for all filesystems
+ * that can use the page cache directly.
+ */
+ssize_t generic_file_read(struct file * filp, char * buf, size_t count, loff_t *ppos)
+{
+	ssize_t retval;
+
+	retval = -EFAULT;
+	if (access_ok(VERIFY_WRITE, buf, count)) {
+		retval = 0;
+		if (count) {
+			read_descriptor_t desc;
+
+			desc.written = 0;
+			desc.count = count;
+			desc.buf = buf;
+			desc.error = 0;
+			do_generic_file_read(filp, ppos, &desc, file_read_actor);
+
+			retval = desc.written;
+			if (!retval)
+				retval = desc.error;
+		}
+	}
+	return retval;
+}
+
+static int file_send_actor(read_descriptor_t * desc, const char *area, unsigned long size)
+{
+	ssize_t written;
+	unsigned long count = desc->count;
+	struct file *file = (struct file *) desc->buf;
+	struct inode *inode = file->f_dentry->d_inode;
+	mm_segment_t old_fs;
+
+	if (size > count)
+		size = count;
+	down(&inode->i_sem);
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+	written = file->f_op->write(file, area, size, &file->f_pos);
+	set_fs(old_fs);
+	up(&inode->i_sem);
+	if (written < 0) {
+		desc->error = written;
+		written = 0;
+	}
+	desc->count = count - written;
+	desc->written += written;
+	return written;
+}
+
+asmlinkage ssize_t sys_sendfile(int out_fd, int in_fd, off_t *offset, size_t count)
+{
+	ssize_t retval;
+	struct file * in_file, * out_file;
+	struct inode * in_inode, * out_inode;
+
+	lock_kernel();
+
+	/*
+	 * Get input file, and verify that it is ok..
+	 */
+	retval = -EBADF;
+	in_file = fget(in_fd);
+	if (!in_file)
+		goto out;
+	if (!(in_file->f_mode & FMODE_READ))
+		goto fput_in;
+	retval = -EINVAL;
+	in_inode = in_file->f_dentry->d_inode;
+	if (!in_inode)
+		goto fput_in;
+	if (!in_inode->i_op || !in_inode->i_op->readpage)
+		goto fput_in;
+	retval = locks_verify_area(FLOCK_VERIFY_READ, in_inode, in_file, in_file->f_pos, count);
+	if (retval)
+		goto fput_in;
+
+	/*
+	 * Get output file, and verify that it is ok..
+	 */
+	retval = -EBADF;
+	out_file = fget(out_fd);
+	if (!out_file)
+		goto fput_in;
+	if (!(out_file->f_mode & FMODE_WRITE))
+		goto fput_out;
+	retval = -EINVAL;
+	if (!out_file->f_op || !out_file->f_op->write)
+		goto fput_out;
+	out_inode = out_file->f_dentry->d_inode;
+	if (!out_inode)
+		goto fput_out;
+	retval = locks_verify_area(FLOCK_VERIFY_WRITE, out_inode, out_file, out_file->f_pos, count);
+	if (retval)
+		goto fput_out;
+
+	retval = 0;
+	if (count) {
+		read_descriptor_t desc;
+		loff_t pos = 0, *ppos;
+
+		retval = -EFAULT;
+		ppos = &in_file->f_pos;
+		if (offset) {
+			if (get_user(pos, offset))
+				goto fput_out;
+			ppos = &pos;
+		}
+
+		desc.written = 0;
+		desc.count = count;
+		desc.buf = (char *) out_file;
+		desc.error = 0;
+		do_generic_file_read(in_file, ppos, &desc, file_send_actor);
+
+		retval = desc.written;
+		if (!retval)
+			retval = desc.error;
+		if (offset)
+			put_user(pos, offset);
+	}
+
+
+fput_out:
+	fput(out_file);
+fput_in:
+	fput(in_file);
+out:
+	unlock_kernel();
+	return retval;
 }
 
 /*
@@ -903,7 +1094,7 @@ page_read_error:
 		goto success;
 
 	/*
-	 * Uhhuh.. Things didn't work out. Return zero to tell the
+	 * Things didn't work out. Return zero to tell the
 	 * mm layer so, possibly freeing the page cache page first.
 	 */
 failure:
@@ -1257,6 +1448,7 @@ asmlinkage int sys_msync(unsigned long start, size_t len, int flags)
 	struct vm_area_struct * vma;
 	int unmapped_error, error = -EINVAL;
 
+	down(&current->mm->mmap_sem);
 	lock_kernel();
 	if (start & ~PAGE_MASK)
 		goto out;
@@ -1304,6 +1496,7 @@ asmlinkage int sys_msync(unsigned long start, size_t len, int flags)
 	}
 out:
 	unlock_kernel();
+	up(&current->mm->mmap_sem);
 	return error;
 }
 
@@ -1412,7 +1605,7 @@ page_wait:
 		set_bit(PG_uptodate, &page->flags);
 
 do_update_page:
-		/* Alright, the page is there.  Now update it. */
+		/* All right, the page is there.  Now update it. */
 		status = inode->i_op->updatepage(file, page, buf,
 							offset, bytes, sync);
 done_with_page:

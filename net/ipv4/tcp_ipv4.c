@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp_ipv4.c,v 1.145 1998/05/02 12:47:13 davem Exp $
+ * Version:	$Id: tcp_ipv4.c,v 1.150 1998/07/28 17:45:07 freitag Exp $
  *
  *		IPv4 specific functions
  *
@@ -690,7 +690,7 @@ static struct open_request *tcp_v4_search_req(struct tcp_opt *tp,
 
 
 /* 
- * This routine does path mtu discovery as defined in RFC1197.
+ * This routine does path mtu discovery as defined in RFC1191.
  */
 static inline void do_pmtu_discovery(struct sock *sk, struct iphdr *ip)
 {
@@ -771,10 +771,11 @@ void tcp_v4_err(struct sk_buff *skb, unsigned char *dp, int len)
 	tp = &sk->tp_pinfo.af_tcp;
 	seq = ntohl(th->seq);
 	if (sk->state != TCP_LISTEN && 
-   	    !between(seq, tp->snd_una, max(tp->snd_una+32768,tp->snd_nxt))) {
+   	    !between(seq, tp->snd_una-16384, max(tp->snd_una+32768,tp->snd_nxt))) {
 		if (net_ratelimit()) 
-			printk(KERN_DEBUG "icmp packet outside the tcp window:"
-					  " s:%d %u,%u,%u\n",
+			printk(KERN_WARNING 
+				"icmp packet outside the tcp window:"
+				" state:%d seq:%u win:%u,%u\n",
 			       (int)sk->state, seq, tp->snd_una, tp->snd_nxt); 
 		return; 
 	}
@@ -1033,7 +1034,14 @@ tcp_v4_save_options(struct sock *sk, struct sk_buff *skb,
 	return dopt;
 }
 
-int sysctl_max_syn_backlog = 1024; 
+/* 
+ * Maximum number of SYN_RECV sockets in queue per LISTEN socket.
+ * One SYN_RECV socket costs about 80bytes on a 32bit machine.
+ * It would be better to replace it with a global counter for all sockets
+ * but then some measure against one socket starving all other sockets
+ * would be needed.
+ */
+int sysctl_max_syn_backlog = 128; 
 
 struct or_calltable or_ipv4 = {
 	tcp_v4_send_synack,
@@ -1155,7 +1163,7 @@ drop:
 struct sock *tcp_create_openreq_child(struct sock *sk, struct open_request *req, struct sk_buff *skb,
 				      int snd_mss)
 {
-	struct sock *newsk = sk_alloc(AF_INET, GFP_ATOMIC, 0);
+	struct sock *newsk = sk_alloc(PF_INET, GFP_ATOMIC, 0);
 
 	if(newsk != NULL) {
 		struct tcp_opt *newtp;
@@ -1325,11 +1333,6 @@ struct sock * tcp_v4_syn_recv_sock(struct sock *sk, struct sk_buff *skb,
 	if (!newsk) 
 		goto exit;
 
-	if (newsk->rcvbuf < (3 * newsk->mtu))
-		newsk->rcvbuf = min ((3 * newsk->mtu), sysctl_rmem_max);
-	if (newsk->sndbuf < (3 * newsk->mtu))
-		newsk->sndbuf = min ((3 * newsk->mtu), sysctl_wmem_max);
- 
 	sk->tp_pinfo.af_tcp.syn_backlog--;
 	sk->ack_backlog++;
 
@@ -1346,6 +1349,11 @@ struct sock * tcp_v4_syn_recv_sock(struct sock *sk, struct sk_buff *skb,
 	newsk->opt = req->af.v4_req.opt;
 	newsk->mtu = mtu;
 
+	if (newsk->rcvbuf < (3 * newsk->mtu))
+		newsk->rcvbuf = min ((3 * newsk->mtu), sysctl_rmem_max);
+	if (newsk->sndbuf < (3 * newsk->mtu))
+		newsk->sndbuf = min ((3 * newsk->mtu), sysctl_wmem_max);
+ 
 	tcp_v4_hash(newsk);
 	add_to_prot_sklist(newsk);
 

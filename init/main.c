@@ -44,6 +44,14 @@
 #include <asm/sgialib.h>
 #endif
 
+#ifdef CONFIG_DIO
+#include <linux/dio.h>
+#endif
+
+#ifdef CONFIG_MTRR
+#  include <asm/mtrr.h>
+#endif
+
 /*
  * Versions of gcc older than that listed below may actually compile
  * and link okay, but the end product can have subtle run time bugs.
@@ -64,7 +72,6 @@ extern int bdflush(void *);
 extern int kswapd(void *);
 extern void kswapd_setup(void);
 
-extern void dquot_init(void);
 extern void init_IRQ(void);
 extern void init_modules(void);
 extern long console_init(long, long);
@@ -77,6 +84,10 @@ extern long powermac_init(unsigned long, unsigned long);
 extern void sysctl_init(void);
 extern void filescache_init(void);
 extern void signals_init(void);
+
+#ifdef CONFIG_ARCH_ACORN
+extern void ecard_init(void);
+#endif
 
 extern void smp_setup(char *str, int *ints);
 #ifdef __i386__
@@ -126,6 +137,9 @@ extern void pf_setup(char *str, int *ints);
 #ifdef CONFIG_PARIDE_PT
 extern void pt_setup(char *str, int *ints);
 #endif
+#ifdef CONFIG_PARIDE_PG
+extern void pg_setup(char *str, int *ints);
+#endif
 #ifdef CONFIG_PARIDE_PCD
 extern void pcd_setup(char *str, int *ints);
 #endif
@@ -138,6 +152,8 @@ extern void t128_setup(char *str, int *ints);
 extern void pas16_setup(char *str, int *ints);
 extern void generic_NCR5380_setup(char *str, int *intr);
 extern void generic_NCR53C400_setup(char *str, int *intr);
+extern void generic_NCR53C400A_setup(char *str, int *intr);
+extern void generic_DTC3181E_setup(char *str, int *intr);
 extern void aha152x_setup(char *str, int *ints);
 extern void aha1542_setup(char *str, int *ints);
 extern void gdth_setup(char *str, int *ints);
@@ -225,9 +241,13 @@ extern void dmasound_setup (char *str, int *ints);
 #ifdef CONFIG_ATARI_SCSI
 extern void atari_scsi_setup (char *str, int *ints);
 #endif
+extern void stram_swap_setup (char *str, int *ints);
 extern void wd33c93_setup (char *str, int *ints);
 extern void gvp11_setup (char *str, int *ints);
 extern void ncr53c7xx_setup (char *str, int *ints);
+#ifdef CONFIG_MAC_SCSI
+extern void mac_scsi_setup (char *str, int *ints);
+#endif
 
 #ifdef CONFIG_CYCLADES
 extern void cy_setup(char *str, int *ints);
@@ -280,6 +300,9 @@ extern void nfs_root_setup(char *str, int *ints);
 #endif
 #ifdef CONFIG_FTAPE
 extern void ftape_setup(char *str, int *ints);
+#endif
+#if defined(CONFIG_QUOTA)
+extern void dquot_init_hash(void);
 #endif
 
 #if defined(CONFIG_SYSVIPC)
@@ -345,19 +368,13 @@ char *get_options(char *str, int *ints)
 	return(cur);
 }
 
-#ifdef CONFIG_PROFILE
-__initfunc(static void profile_setup(char *str, int *ints))
+static void __init profile_setup(char *str, int *ints)
 {
 	if (ints[0] > 0)
 		prof_shift = (unsigned long) ints[1];
 	else
-#ifdef CONFIG_PROFILE_SHIFT
-		prof_shift = CONFIG_PROFILE_SHIFT;
-#else
 		prof_shift = 2;
-#endif
 }
-#endif
 
 #ifdef CONFIG_PCI
 #include <linux/pci.h>
@@ -386,6 +403,17 @@ static struct dev_name_struct {
 	{ "sdc",     0x0820 },
 	{ "sdd",     0x0830 },
 	{ "sde",     0x0840 },
+	{ "sdf",     0x0850 },
+	{ "sdg",     0x0860 },
+	{ "sdh",     0x0870 },
+	{ "sdi",     0x0880 },
+	{ "sdj",     0x0890 },
+	{ "sdk",     0x08a0 },
+	{ "sdl",     0x08b0 },
+	{ "sdm",     0x08c0 },
+	{ "sdn",     0x08d0 },
+	{ "sdo",     0x08e0 },
+	{ "sdp",     0x08f0 },
 #endif
 #ifdef CONFIG_ATARI_ACSI
 	{ "ada",     0x1c00 },
@@ -431,6 +459,18 @@ static struct dev_name_struct {
 #endif
 #ifdef CONFIG_BLK_DEV_PS2
 	{ "eda",     0x2400 },
+#endif
+#ifdef CONFIG_PARIDE_PD
+	{ "pda",	0x2d00 },
+	{ "pdb",	0x2d10 },
+	{ "pdc",	0x2d20 },
+	{ "pdd",	0x2d30 },
+#endif
+#ifdef CONFIG_PARIDE_PCD
+	{ "pcd",	0x2e00 },
+#endif
+#ifdef CONFIG_PARIDE_PF
+	{ "pf",		0x2f00 },
 #endif
 #if CONFIG_APBLOCK
 	{ "apblock", APBLOCK_MAJOR << 8},
@@ -484,9 +524,7 @@ static struct kernel_param cooked_params[] __initdata = {
 #else
 	{ "reserve=", pnp_reserve_setup },
 #endif
-#ifdef CONFIG_PROFILE
 	{ "profile=", profile_setup },
-#endif
 #ifdef __SMP__
 	{ "nosmp", smp_setup },
 	{ "maxcpus=", smp_setup },
@@ -504,13 +542,15 @@ static struct kernel_param cooked_params[] __initdata = {
 	{ "noinitrd", no_initrd },
 #endif
 #endif
-#if defined (CONFIG_AMIGA) || defined (CONFIG_ATARI)
+#ifdef CONFIG_FB
 	{ "video=", video_setup },
 #endif
 	{ "panic=", panic_setup },
 	{ "console=", console_setup },
 #ifdef CONFIG_VT
+#ifdef CONFIG_VGA_CONSOLE
 	{ "no-scroll", no_scroll },
+#endif
 	{ "kbd-reset", kbd_reset_setup },
 #endif
 #ifdef CONFIG_BUGi386
@@ -574,6 +614,8 @@ static struct kernel_param cooked_params[] __initdata = {
 #ifdef CONFIG_SCSI_GENERIC_NCR5380
 	{ "ncr5380=", generic_NCR5380_setup },
 	{ "ncr53c400=", generic_NCR53C400_setup },
+	{ "ncr53c400a=", generic_NCR53C400A_setup },
+	{ "dtc3181e=", generic_DTC3181E_setup },
 #endif
 #ifdef CONFIG_SCSI_AHA152X
 	{ "aha152x=", aha152x_setup},
@@ -661,7 +703,7 @@ static struct kernel_param cooked_params[] __initdata = {
 #ifdef CONFIG_ISP16_CDI
 	{ "isp16=", isp16_setup },
 #endif CONFIG_ISP16_CDI
-#ifdef CONFIG_SOUND
+#ifdef CONFIG_SOUND_OSS
 	{ "sound=", sound_setup },
 #endif
 #ifdef CONFIG_ISDN_DRV_ICN
@@ -683,7 +725,12 @@ static struct kernel_param cooked_params[] __initdata = {
 #ifdef CONFIG_ATARI_SCSI
 	{ "atascsi=", atari_scsi_setup },
 #endif
-#if defined(CONFIG_A4000T_SCSI) || defined(CONFIG_WARPENGINE_SCSI) || defined(CONFIG_A4091_SCSI)
+#ifdef CONFIG_STRAM_SWAP
+	{ "stram_swap=", stram_swap_setup },
+#endif
+#if defined(CONFIG_A4000T_SCSI) || defined(CONFIG_WARPENGINE_SCSI) \
+	    || defined(CONFIG_A4091_SCSI) || defined(CONFIG_MVME16x_SCSI) \
+	    || defined(CONFIG_BVME6000_SCSI)
         { "53c7xx=", ncr53c7xx_setup },
 #endif
 #if defined(CONFIG_A3000_SCSI) || defined(CONFIG_A2091_SCSI) \
@@ -692,6 +739,9 @@ static struct kernel_param cooked_params[] __initdata = {
 #endif
 #if defined(CONFIG_GVP11_SCSI)
 	{ "gvp11=", gvp11_setup },
+#endif
+#ifdef CONFIG_MAC_SCSI
+	{ "mac5380=", mac_scsi_setup },
 #endif
 #ifdef CONFIG_CYCLADES
 	{ "cyclades=", cy_setup },
@@ -735,15 +785,14 @@ static struct kernel_param cooked_params[] __initdata = {
 #ifdef CONFIG_HFMODEM
 	{ "hfmodem=", hfmodem_setup },
 #endif
-#ifdef CONFIG_PMAC_CONSOLE
-	{ "console=", pmac_cons_setup },
-	{ "vmode=", pmac_vmode_setup },
-#endif
 #ifdef CONFIG_FTAPE
 	{ "ftape=", ftape_setup},
 #endif
 #ifdef CONFIG_MD_BOOT
 	{ "md=", md_setup},
+#endif
+#ifdef CONFIG_MACMOUSE
+	{ "adb_buttons=", adb_mouse_setup },
 #endif
 	{ 0, 0 }
 };
@@ -771,6 +820,9 @@ static struct kernel_param raw_params[] __initdata = {
 #endif
 #ifdef CONFIG_PARIDE_PT
         { "pt.", pt_setup },
+#endif
+#ifdef CONFIG_PARIDE_PG
+        { "pg.", pg_setup },
 #endif
 	{ 0, 0 }
 };
@@ -1034,7 +1086,6 @@ __initfunc(asmlinkage void start_kernel(void))
 #ifdef CONFIG_MODULES
 	init_modules();
 #endif
-#ifdef CONFIG_PROFILE
 	if (prof_shift) {
 		prof_buffer = (unsigned int *) memory_start;
 		/* only text is profiled */
@@ -1043,7 +1094,6 @@ __initfunc(asmlinkage void start_kernel(void))
 		memory_start += prof_len * sizeof(unsigned int);
 		memset(prof_buffer, 0, prof_len * sizeof(unsigned int));
 	}
-#endif
 
 #ifdef CONFIG_REMOTE_DEBUG
 	set_debug_traps();
@@ -1075,19 +1125,35 @@ __initfunc(asmlinkage void start_kernel(void))
 	signals_init();
 	inode_init();
 	file_table_init();
-	sock_init();
 #if defined(CONFIG_SYSVIPC)
 	ipc_init();
 #endif
-	dquot_init();
-	check_bugs();
-
+#if defined(CONFIG_QUOTA)
+	dquot_init_hash();
+#endif
 	printk("POSIX conformance testing by UNIFIX\n");
+
 #ifdef __SMP__
 	smp_init();
 #endif
+
+	check_bugs();
+
+#if defined(CONFIG_MTRR)	/* Do this after SMP initialization */
+/*
+ * We should probably create some architecture-dependent "fixup after
+ * everything is up" style function where this would belong better
+ * than in init/main.c..
+ */
+	mtrr_init ();
+#endif
+
+	sock_init();
 #ifdef CONFIG_SYSCTL
 	sysctl_init();
+#endif
+#ifdef CONFIG_DIO
+	dio_init();
 #endif
 
 	/*
@@ -1105,6 +1171,9 @@ __initfunc(asmlinkage void start_kernel(void))
 #endif
 #ifdef CONFIG_MCA
 	mca_init();
+#endif
+#ifdef CONFIG_ARCH_ACORN
+	ecard_init();
 #endif
 
 	/* 

@@ -470,11 +470,12 @@ int ntfs_readwrite_attr(ntfs_inode *ino, ntfs_attribute *attr, int offset,
 		dest->size=l;
 		return 0;
 	}
-	if(attr->compressed)
+	if(attr->compressed) {
 		if(dest->do_read)
 			return ntfs_read_compressed(ino,attr,offset,dest);
 		else
 			return ntfs_write_compressed(ino,attr,offset,dest);
+	}
 	vcn=0;
 	s_vcn = offset/clustersize;
 	for(rnum=0;rnum<attr->d.r.len && 
@@ -732,7 +733,7 @@ layout_attr(ntfs_attribute* attr,char*buf, int size,int *psize)
 /* Try to layout ino into store. Return 0 on success,
    E2BIG if it does not fit, 
    ENOMEM if memory allocation problem,
-   EOPNOTSUP if beyound our capabilities 
+   EOPNOTSUP if beyond our capabilities 
 */
 int 
 layout_inode(ntfs_inode *ino,ntfs_disk_inode *store)

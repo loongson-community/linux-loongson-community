@@ -1,9 +1,6 @@
-/*
- * sgiserial.c: Serial port driver for SGI machines.
+/* sgiserial.c: Serial port driver for SGI machines.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
- *
- * $Id: sgiserial.c,v 1.9 1998/05/04 09:12:59 ralf Exp $
  */
 
 #include <linux/config.h> /* for CONFIG_REMOTE_DEBUG */
@@ -32,6 +29,8 @@
 #include <asm/uaccess.h>
 
 #include "sgiserial.h"
+
+int serial_console;
 
 #define NUM_SERIAL 1     /* One chip on board. */
 #define NUM_CHANNELS (NUM_SERIAL * 2)
@@ -1730,13 +1729,12 @@ static inline struct sgi_zslayout *get_zs(int chip)
 }
 
 
-
 static inline void
 rs_cons_check(struct sgi_serial *ss, int channel)
 {
 	int i, o, io;
-	static consout_registered = 0;
-	static msg_printed = 0;
+	static int consout_registered = 0;
+	static int msg_printed = 0;
 
 	i = o = io = 0;
 

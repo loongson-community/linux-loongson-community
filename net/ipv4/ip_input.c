@@ -5,7 +5,7 @@
  *
  *		The Internet Protocol (IP) module.
  *
- * Version:	$Id: ip_input.c,v 1.3 1998/03/17 22:18:26 ralf Exp $
+ * Version:	$Id: ip_input.c,v 1.31 1998/05/17 02:19:15 freitag Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -97,7 +97,6 @@
  *		Alan Cox	:	Multicast routing hooks
  *		Jos Vos		:	Do accounting *before* call_in_firewall
  *	Willy Konynenberg	:	Transparent proxying support
- *	Mike McLagan		:	Routing by source
  *
  *  
  *
@@ -403,15 +402,6 @@ int ip_rcv(struct sk_buff *skb, struct device *dev, struct packet_type *pt)
 	ip_statistics.IpInReceives++;
 
 	/*
-	 *	Account for the packet (even if the packet is
-	 *	not accepted by the firewall!).
-	 */
-
-#ifdef CONFIG_IP_ACCT
-	ip_fw_chk(iph,dev,NULL,ip_acct_chain,0,IP_FW_MODE_ACCT_IN);
-#endif	
-
-	/*
 	 *	RFC1122: 3.1.2.2 MUST silently discard any IP frame that fails the checksum.
 	 *
 	 *	Is the datagram acceptable?
@@ -479,6 +469,15 @@ int ip_rcv(struct sk_buff *skb, struct device *dev, struct packet_type *pt)
 
 	/*
 	 *	See if the firewall wants to dispose of the packet. 
+	 *
+	 *	Note: the current standard firewall code expects that the 
+	 *	destination address was already checked against the interface 
+	 *	address lists.
+	 *
+	 *	If this code is ever moved in front of ip_route_input() you need
+	 *	to fix the fw code [moving it might be a good idea anyways,
+	 *	so that we can firewall against potentially bugs in the options
+	 *	or routing code]
 	 */
 	
 #ifdef	CONFIG_FIREWALL

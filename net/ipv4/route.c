@@ -5,7 +5,7 @@
  *
  *		ROUTE - implementation of the IP router.
  *
- * Version:	$Id: route.c,v 1.5 1998/03/17 22:18:32 ralf Exp $
+ * Version:	$Id: route.c,v 1.54 1998/07/15 05:05:22 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -144,9 +144,9 @@ struct dst_ops ipv4_dst_ops =
 };
 
 __u8 ip_tos2prio[16] = {
-	TC_PRIO_FILLER,
 	TC_PRIO_BESTEFFORT,
 	TC_PRIO_FILLER,
+	TC_PRIO_BESTEFFORT,
 	TC_PRIO_FILLER,
 	TC_PRIO_BULK,
 	TC_PRIO_FILLER,
@@ -221,7 +221,7 @@ static int rt_cache_get_info(char *buffer, char **start, off_t offset, int lengt
 				r->u.dst.window,
 				(int)r->u.dst.rtt, r->key.tos,
 				r->u.dst.hh ? atomic_read(&r->u.dst.hh->hh_refcnt) : -1,
-				r->u.dst.hh ? (r->u.dst.hh->hh_output == ip_acct_output) : 0,
+				r->u.dst.hh ? (r->u.dst.hh->hh_output == dev_queue_xmit) : 0,
 				r->rt_spec_dst);
 			sprintf(buffer+len,"%-127s\n",temp);
 			len += 128;
@@ -816,7 +816,7 @@ static void rt_set_nexthop(struct rtable *rt, struct fib_result *res)
 		rt->u.dst.window= 0;
 		rt->u.dst.rtt	= TCP_TIMEOUT_INIT;
 	}
-#ifdef CONFIG_NET_CLS_ROUTE
+#if defined(CONFIG_NET_CLS_ROUTE) && defined(CONFIG_IP_MULTIPLE_TABLES)
 	if (rt->u.dst.tclassid == 0)
 		rt->u.dst.tclassid = fib_rules_tclass(res);
 #endif
@@ -1095,11 +1095,12 @@ local_input:
 	rth->rt_gateway	= daddr;
 	rth->rt_spec_dst= spec_dst;
 	rth->u.dst.input= ip_local_deliver;
+	rth->rt_flags 	= flags|RTCF_LOCAL;
 	if (res.type == RTN_UNREACHABLE) {
 		rth->u.dst.input= ip_error;
-		rth->u.dst.error= err;
+		rth->u.dst.error= -err;
+		rth->rt_flags 	&= ~RTCF_LOCAL;
 	}
-	rth->rt_flags 	= flags|RTCF_LOCAL;
 	rth->rt_type	= res.type;
 	skb->dst = (struct dst_entry*)rt_intern_hash(hash, rth);
 	return 0;
@@ -1165,7 +1166,7 @@ int ip_route_input(struct sk_buff *skb, u32 daddr, u32 saddr,
 	}
 
 	/* Multicast recognition logic is moved from route cache to here.
-	   The problem was that too many ethernet cards have broken/missing
+	   The problem was that too many Ethernet cards have broken/missing
 	   hardware multicast filters :-( As result the host on multicasting
 	   network acquires a lot of useless route cache entries, sort of
 	   SDR messages from all the world. Now we try to get rid of them.
@@ -1495,7 +1496,7 @@ static int rt_fill_info(struct sk_buff *skb, pid_t pid, u32 seq, int event, int 
 	nlh->nlmsg_flags = nowait ? NLM_F_MULTI : 0;
 	r->rtm_family = AF_INET;
 	r->rtm_dst_len = 32;
-	r->rtm_src_len = 32;
+	r->rtm_src_len = 0;
 	r->rtm_tos = rt->key.tos;
 	r->rtm_table = RT_TABLE_MAIN;
 	r->rtm_type = rt->rt_type;
@@ -1508,9 +1509,16 @@ static int rt_fill_info(struct sk_buff *skb, pid_t pid, u32 seq, int event, int 
 	o = skb->tail;
 #endif
 	RTA_PUT(skb, RTA_DST, 4, &rt->rt_dst);
-	RTA_PUT(skb, RTA_SRC, 4, &rt->rt_src);
+	if (rt->key.src) {
+		r->rtm_src_len = 32;
+		RTA_PUT(skb, RTA_SRC, 4, &rt->key.src);
+	}
 	if (rt->u.dst.dev)
 		RTA_PUT(skb, RTA_OIF, sizeof(int), &rt->u.dst.dev->ifindex);
+	if (rt->key.iif)
+		RTA_PUT(skb, RTA_PREFSRC, 4, &rt->rt_spec_dst);
+	else if (rt->rt_src != rt->key.src)
+		RTA_PUT(skb, RTA_PREFSRC, 4, &rt->rt_src);
 	if (rt->rt_dst != rt->rt_gateway)
 		RTA_PUT(skb, RTA_GATEWAY, 4, &rt->rt_gateway);
 #ifdef CONFIG_RTNL_OLD_IFINFO
@@ -1532,7 +1540,6 @@ static int rt_fill_info(struct sk_buff *skb, pid_t pid, u32 seq, int event, int 
 	if (mx->rta_len == RTA_LENGTH(0))
 		skb_trim(skb, (u8*)mx - skb->data);
 #endif
-	RTA_PUT(skb, RTA_PREFSRC, 4, &rt->rt_spec_dst);
 	ci.rta_lastuse = jiffies - rt->u.dst.lastuse;
 	ci.rta_used = atomic_read(&rt->u.dst.refcnt);
 	ci.rta_clntref = atomic_read(&rt->u.dst.use);
@@ -1637,7 +1644,7 @@ int inet_rtm_getroute(struct sk_buff *in_skb, struct nlmsghdr* nlh, void *arg)
 	if (rtm->rtm_flags & RTM_F_NOTIFY)
 		rt->rt_flags |= RTCF_NOTIFY;
 
-	NETLINK_CB(skb).pid = NETLINK_CB(in_skb).pid;
+	NETLINK_CB(skb).dst_pid = NETLINK_CB(in_skb).pid;
 
 	err = rt_fill_info(skb, NETLINK_CB(in_skb).pid, nlh->nlmsg_seq, RTM_NEWROUTE, 0);
 	if (err == 0)

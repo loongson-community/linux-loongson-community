@@ -1,4 +1,4 @@
-/* $Id: siginfo.h,v 1.1 1997/12/14 23:24:40 ecd Exp $
+/* $Id: siginfo.h,v 1.2 1998/07/30 11:31:49 davem Exp $
  * siginfo.c:
  */
 
@@ -45,6 +45,7 @@ typedef struct siginfo {
 		/* SIGCHLD */
 		struct {
 			pid_t _pid;		/* which child */
+			uid_t _uid;		/* sender's uid */
 			int _status;		/* exit code */
 			clock_t _utime;
 			clock_t _stime;

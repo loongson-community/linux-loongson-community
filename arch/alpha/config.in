@@ -4,15 +4,6 @@
 #
 mainmenu_name "Kernel configuration of Linux for Alpha machines"
 
-# clear all implied options (don't want default values for those):
-unset CONFIG_CROSSCOMPILE CONFIG_NATIVE
-unset CONFIG_ALPHA_EV4 CONFIG_ALPHA_EV5 CONFIG_ALPHA_EV6
-unset CONFIG_PCI CONFIG_ALPHA_EISA
-unset CONFIG_ALPHA_LCA CONFIG_ALPHA_APECS CONFIG_ALPHA_CIA
-unset CONFIG_ALPHA_T2 CONFIG_ALPHA_PYXIS
-unset CONFIG_ALPHA_TSUNAMI CONFIG_ALPHA_MCPCIA
-unset CONFIG_ALPHA_NEED_ROUNDING_EMULATION
-
 mainmenu_option next_comment
 comment 'Code maturity level options'
 bool 'Prompt for development and/or incomplete code/drivers' CONFIG_EXPERIMENTAL
@@ -31,6 +22,8 @@ endmenu
 mainmenu_option next_comment
 comment 'General setup'
 
+unset CONFIG_CROSSCOMPILE CONFIG_NATIVE
+
 if [ "`uname`" != "Linux" ]; then
   define_bool CONFIG_CROSSCOMPILE y
 else
@@ -38,31 +31,44 @@ else
 fi
 
 choice 'Alpha system type' \
-	"Avanti		CONFIG_ALPHA_AVANTI		\
-	 Alpha-XL	CONFIG_ALPHA_XL			\
-	 Alpha-XLT	CONFIG_ALPHA_XLT		\
-	 Cabriolet	CONFIG_ALPHA_CABRIOLET		\
-	 EB66		CONFIG_ALPHA_EB66		\
-	 EB66+		CONFIG_ALPHA_EB66P		\
-	 EB64+		CONFIG_ALPHA_EB64P		\
-	 EB164		CONFIG_ALPHA_EB164		\
-	 PC164		CONFIG_ALPHA_PC164		\
-	 LX164		CONFIG_ALPHA_LX164		\
-	 SX164		CONFIG_ALPHA_SX164		\
-	 DP264		CONFIG_ALPHA_DP264		\
-	 Jensen		CONFIG_ALPHA_JENSEN		\
-	 Noname		CONFIG_ALPHA_NONAME		\
-	 Takara		CONFIG_ALPHA_TAKARA		\
-	 Mikasa		CONFIG_ALPHA_MIKASA		\
-	 Noritake	CONFIG_ALPHA_NORITAKE		\
-	 Alcor		CONFIG_ALPHA_ALCOR		\
-	 Miata		CONFIG_ALPHA_MIATA		\
-	 Sable		CONFIG_ALPHA_SABLE		\
-	 Rawhide	CONFIG_ALPHA_RAWHIDE		\
-	 AlphaBook1	CONFIG_ALPHA_BOOK1		\
-	 Ruffian	CONFIG_ALPHA_RUFFIAN		\
-	 Platform2000	CONFIG_ALPHA_P2K" Cabriolet
+	"Generic		CONFIG_ALPHA_GENERIC		\
+	 Alcor/Alpha-XLT	CONFIG_ALPHA_ALCOR		\
+	 Alpha-XL		CONFIG_ALPHA_XL			\
+	 AlphaBook1		CONFIG_ALPHA_BOOK1		\
+	 Avanti			CONFIG_ALPHA_AVANTI		\
+	 Cabriolet		CONFIG_ALPHA_CABRIOLET		\
+	 DP264			CONFIG_ALPHA_DP264		\
+	 EB164			CONFIG_ALPHA_EB164		\
+	 EB64+			CONFIG_ALPHA_EB64P		\
+	 EB66			CONFIG_ALPHA_EB66		\
+	 EB66+			CONFIG_ALPHA_EB66P		\
+	 Jensen			CONFIG_ALPHA_JENSEN		\
+	 LX164			CONFIG_ALPHA_LX164		\
+	 Miata			CONFIG_ALPHA_MIATA		\
+	 Mikasa			CONFIG_ALPHA_MIKASA		\
+	 Noname			CONFIG_ALPHA_NONAME		\
+	 Noritake		CONFIG_ALPHA_NORITAKE		\
+	 PC164			CONFIG_ALPHA_PC164		\
+	 Platform2000		CONFIG_ALPHA_P2K		\
+	 Rawhide		CONFIG_ALPHA_RAWHIDE		\
+	 Ruffian		CONFIG_ALPHA_RUFFIAN		\
+	 SX164			CONFIG_ALPHA_SX164		\
+	 Sable			CONFIG_ALPHA_SABLE		\
+	 Takara			CONFIG_ALPHA_TAKARA" Generic
 
+# clear all implied options (don't want default values for those):
+unset CONFIG_ALPHA_EV4 CONFIG_ALPHA_EV5 CONFIG_ALPHA_EV6
+unset CONFIG_PCI CONFIG_ALPHA_EISA
+unset CONFIG_ALPHA_LCA CONFIG_ALPHA_APECS CONFIG_ALPHA_CIA
+unset CONFIG_ALPHA_T2 CONFIG_ALPHA_PYXIS
+unset CONFIG_ALPHA_TSUNAMI CONFIG_ALPHA_MCPCIA
+unset CONFIG_ALPHA_NEED_ROUNDING_EMULATION
+
+if [ "$CONFIG_ALPHA_GENERIC" = "y" ]
+then
+	define_bool CONFIG_PCI y
+	define_bool CONFIG_ALPHA_NEED_ROUNDING_EMULATION y
+fi
 if [ "$CONFIG_ALPHA_BOOK1" = "y" ]
 then
 	define_bool CONFIG_ALPHA_NONAME y
@@ -172,10 +178,6 @@ fi
 #bool 'Echo console messages on /dev/ttyS0 (COM1)' CONFIG_SERIAL_ECHO
 
 if [ "$CONFIG_PCI" = "y" ]; then
-  bool 'TGA Console Support' CONFIG_TGA_CONSOLE
-#  if [ "$CONFIG_TGA_CONSOLE" = "y" ]; then
-#    bool 'VGA Console Support' CONFIG_VGA_CONSOLE
-#  fi
   bool 'PCI quirks' CONFIG_PCI_QUIRKS
   if [ "$CONFIG_PCI_QUIRKS" = "y" -a "$CONFIG_EXPERIMENTAL" = "y" ]; then
     bool 'PCI bridge optimization (experimental)' CONFIG_PCI_OPTIMIZE
@@ -184,6 +186,7 @@ if [ "$CONFIG_PCI" = "y" ]; then
 fi
 bool 'Networking support' CONFIG_NET
 bool 'System V IPC' CONFIG_SYSVIPC
+bool 'BSD Process Accounting' CONFIG_BSD_PROCESS_ACCT
 bool 'Sysctl support' CONFIG_SYSCTL
 tristate 'Kernel support for a.out (ECOFF) binaries' CONFIG_BINFMT_AOUT
 tristate 'Kernel support for ELF binaries' CONFIG_BINFMT_ELF
@@ -250,11 +253,23 @@ if [ "$CONFIG_CD_NO_IDESCSI" != "n" ]; then
 fi
 endmenu
 
+source drivers/char/Config.in
+
 source fs/Config.in
 
 source fs/nls/Config.in
 
-source drivers/char/Config.in
+if [ "$CONFIG_VT" = "y" ]; then
+  mainmenu_option next_comment
+  comment 'Console drivers'
+  bool 'VGA text console' CONFIG_VGA_CONSOLE
+  bool 'Support for frame buffer devices' CONFIG_FB
+  if [ "$CONFIG_FB" = "y" ]; then
+    define_bool CONFIG_PCI_CONSOLE y
+  fi
+  source drivers/video/Config.in
+  endmenu
+fi
 
 mainmenu_option next_comment
 comment 'Sound'
@@ -269,10 +284,6 @@ mainmenu_option next_comment
 comment 'Kernel hacking'
 
 #bool 'Debug kmalloc/kfree' CONFIG_DEBUG_MALLOC
-bool 'Kernel profiling support' CONFIG_PROFILE
-if [ "$CONFIG_PROFILE" = "y" ]; then
-  int ' Profile shift count' CONFIG_PROFILE_SHIFT 2
-fi
 if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
   tristate 'Kernel FP software completion' CONFIG_MATHEMU
 else
@@ -281,7 +292,3 @@ fi
 
 bool 'Magic SysRq key' CONFIG_MAGIC_SYSRQ
 endmenu
-
-if [ "$CONFIG_TGA_CONSOLE" = "n" ]; then
-  define_bool CONFIG_VGA_CONSOLE y
-fi

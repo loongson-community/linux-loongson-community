@@ -1,4 +1,3 @@
-#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/linkage.h>
 #include <linux/sched.h>
@@ -8,7 +7,6 @@
 #include <linux/elfcore.h>
 #include <linux/in6.h>
 #include <linux/interrupt.h>
-#include <linux/pci.h>
 
 #include <asm/setup.h>
 #include <asm/machdep.h>
@@ -44,6 +42,8 @@ EXPORT_SYMBOL(strrchr);
 EXPORT_SYMBOL(strstr);
 EXPORT_SYMBOL(local_irq_count);
 EXPORT_SYMBOL(local_bh_count);
+EXPORT_SYMBOL(enable_irq);
+EXPORT_SYMBOL(disable_irq);
 
 /* Networking helper routines. */
 EXPORT_SYMBOL(csum_partial_copy);
@@ -60,7 +60,3 @@ EXPORT_SYMBOL_NOVERS(memcmp);
 EXPORT_SYMBOL_NOVERS(__down_failed);
 EXPORT_SYMBOL_NOVERS(__down_failed_interruptible);
 EXPORT_SYMBOL_NOVERS(__up_wakeup);
-
-#ifdef CONFIG_PCI
-EXPORT_SYMBOL(pci_devices);
-#endif

@@ -20,7 +20,9 @@
 #include <linux/smp_lock.h>
 #include <linux/module.h>
 #include <linux/slab.h>
+#ifdef CONFIG_BSD_PROCESS_ACCT
 #include <linux/acct.h>
+#endif
 
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
@@ -34,23 +36,31 @@ void release(struct task_struct * p)
 {
 	if (p != current) {
 #ifdef __SMP__
-		/* FIXME! Cheesy, but kills the window... -DaveM */
-		do {
-			barrier();
-		} while (p->has_cpu);
-		spin_unlock_wait(&scheduler_lock);
+		/*
+		 * Wait to make sure the process isn't active on any
+		 * other CPU
+		 */
+		for (;;)  {
+			int has_cpu;
+			spin_lock(&scheduler_lock);
+			has_cpu = p->has_cpu;
+			spin_unlock(&scheduler_lock);
+			if (!has_cpu)
+				break;
+			do {
+				barrier();
+			} while (p->has_cpu);
+		}
 #endif
-		charge_uid(p, -1);
+		free_uid(p);
 		nr_tasks--;
 		add_free_taskslot(p->tarray_ptr);
-		{
-			unsigned long flags;
 
-			write_lock_irqsave(&tasklist_lock, flags);
-			unhash_pid(p);
-			REMOVE_LINKS(p);
-			write_unlock_irqrestore(&tasklist_lock, flags);
-		}
+		write_lock_irq(&tasklist_lock);
+		unhash_pid(p);
+		REMOVE_LINKS(p);
+		write_unlock_irq(&tasklist_lock);
+
 		release_thread(p);
 		current->cmin_flt += p->min_flt + p->cmin_flt;
 		current->cmaj_flt += p->maj_flt + p->cmaj_flt;
@@ -186,7 +196,7 @@ static inline void __exit_files(struct task_struct *tsk)
 
 	if (files) {
 		tsk->files = NULL;
-		if (!--files->count) {
+		if (atomic_dec_and_test(&files->count)) {
 			close_files(files);
 			/*
 			 * Free the fd array as appropriate ...
@@ -211,7 +221,7 @@ static inline void __exit_fs(struct task_struct *tsk)
 
 	if (fs) {
 		tsk->fs = NULL;
-		if (!--fs->count) {
+		if (atomic_dec_and_test(&fs->count)) {
 			dput(fs->root);
 			dput(fs->pwd);
 			kfree(fs);
@@ -340,33 +350,39 @@ static void exit_notify(void)
 
 NORET_TYPE void do_exit(long code)
 {
+	struct task_struct *tsk = current;
+
 	if (in_interrupt())
 		printk("Aiee, killing interrupt handler\n");
-	if (current == task[0])
+	if (!tsk->pid)
 		panic("Attempted to kill the idle task!");
+	tsk->flags |= PF_EXITING;
+	del_timer(&tsk->real_timer);
+
+	lock_kernel();
 fake_volatile:
-	current->flags |= PF_EXITING;
+#ifdef CONFIG_BSD_PROCESS_ACCT
 	acct_process(code);
-	del_timer(&current->real_timer);
-	sem_exit();
-	__exit_mm(current);
-#if CONFIG_AP1000
-	exit_msc(current);
 #endif
-	__exit_files(current);
-	__exit_fs(current);
-	__exit_sighand(current);
+	sem_exit();
+	__exit_mm(tsk);
+#if CONFIG_AP1000
+	exit_msc(tsk);
+#endif
+	__exit_files(tsk);
+	__exit_fs(tsk);
+	__exit_sighand(tsk);
 	exit_thread();
-	current->state = TASK_ZOMBIE;
-	current->exit_code = code;
+	tsk->state = TASK_ZOMBIE;
+	tsk->exit_code = code;
 	exit_notify();
 #ifdef DEBUG_PROC_TREE
 	audit_ptree();
 #endif
-	if (current->exec_domain && current->exec_domain->module)
-		__MOD_DEC_USE_COUNT(current->exec_domain->module);
-	if (current->binfmt && current->binfmt->module)
-		__MOD_DEC_USE_COUNT(current->binfmt->module);
+	if (tsk->exec_domain && tsk->exec_domain->module)
+		__MOD_DEC_USE_COUNT(tsk->exec_domain->module);
+	if (tsk->binfmt && tsk->binfmt->module)
+		__MOD_DEC_USE_COUNT(tsk->binfmt->module);
 	schedule();
 /*
  * In order to get rid of the "volatile function does return" message
@@ -386,9 +402,7 @@ fake_volatile:
 
 asmlinkage int sys_exit(int error_code)
 {
-	lock_kernel();
 	do_exit((error_code&0xff)<<8);
-	unlock_kernel();
 }
 
 asmlinkage int sys_wait4(pid_t pid,unsigned int * stat_addr, int options, struct rusage * ru)
@@ -452,12 +466,11 @@ repeat:
 					__put_user(p->exit_code, stat_addr);
 				retval = p->pid;
 				if (p->p_opptr != p->p_pptr) {
-					/* Note this grabs tasklist_lock
-					 * as a writer... (twice!)
-					 */
+					write_lock_irq(&tasklist_lock);
 					REMOVE_LINKS(p);
 					p->p_pptr = p->p_opptr;
 					SET_LINKS(p);
+					write_unlock_irq(&tasklist_lock);
 					notify_parent(p, SIGCHLD);
 				} else
 					release(p);

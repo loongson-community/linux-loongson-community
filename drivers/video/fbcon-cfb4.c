@@ -32,10 +32,20 @@
      */
 
 static u16 nibbletab_cfb4[] = {
+#if defined(__BIG_ENDIAN)
     0x0000,0x000f,0x00f0,0x00ff,
     0x0f00,0x0f0f,0x0ff0,0x0fff,
     0xf000,0xf00f,0xf0f0,0xf0ff,
     0xff00,0xff0f,0xfff0,0xffff
+#elif defined(__LITTLE_ENDIAN)
+    0x0000,0xf000,0x0f00,0xff00,
+    0x00f0,0xf0f0,0x0ff0,0xfff0,
+    0x000f,0xf00f,0x0f0f,0xff0f,
+    0x00ff,0xf0ff,0x0fff,0xffff
+#else
+#error FIXME: No endianness??
+#endif
+
 };
 
 void fbcon_cfb4_setup(struct display *p)
@@ -120,13 +130,11 @@ void fbcon_cfb4_putc(struct vc_data *conp, struct display *p, int c, int yy,
 	int bytes=p->next_line,rows;
 	u32 eorx,fgx,bgx;
 
-	c &= 0xff;
-
 	dest = p->screen_base + yy * p->fontheight * bytes + xx * 4;
-	cdat = p->fontdata + c * p->fontheight;
+	cdat = p->fontdata + (c & p->charmask) * p->fontheight;
 
-	fgx=15;/*attr_fgcol(p,conp)&0x0F;*/
-	bgx=attr_bgcol(p,conp)&0x0F;
+	fgx=15;/*attr_fgcol(p,c);*/
+	bgx=attr_bgcol(p,c);
 	fgx |= (fgx << 4);
 	fgx |= (fgx << 8);
 	bgx |= (bgx << 4);
@@ -141,16 +149,17 @@ void fbcon_cfb4_putc(struct vc_data *conp, struct display *p, int c, int yy,
 	}
 }
 
-void fbcon_cfb4_putcs(struct vc_data *conp, struct display *p, const char *s,
-		      int count, int yy, int xx)
+void fbcon_cfb4_putcs(struct vc_data *conp, struct display *p, 
+		      const unsigned short *s, int count, int yy, int xx)
 {
-	u8 *cdat, c, *dest, *dest0;
+	u8 *cdat, *dest, *dest0;
+	u16 c;
 	int rows,bytes=p->next_line;
 	u32 eorx, fgx, bgx;
 
 	dest0 = p->screen_base + yy * p->fontheight * bytes + xx * 4;
-	fgx=15/*attr_fgcol(p,conp)*/;
-	bgx=attr_bgcol(p,conp);
+	fgx=15/*attr_fgcol(p,*s)*/;
+	bgx=attr_bgcol(p,*s);
 	fgx |= (fgx << 4);
 	fgx |= (fgx << 8);
 	fgx |= (fgx << 16);
@@ -159,7 +168,7 @@ void fbcon_cfb4_putcs(struct vc_data *conp, struct display *p, const char *s,
 	bgx |= (bgx << 16);
 	eorx = fgx ^ bgx;
 	while (count--) {
-		c = *s++;
+		c = *s++ & p->charmask;
 		cdat = p->fontdata + c * p->fontheight;
 
 		for (rows = p->fontheight, dest = dest0; rows-- ; dest += bytes) {
@@ -190,8 +199,19 @@ void fbcon_cfb4_revc(struct display *p, int xx, int yy)
 
 struct display_switch fbcon_cfb4 = {
     fbcon_cfb4_setup, fbcon_cfb4_bmove, fbcon_cfb4_clear, fbcon_cfb4_putc,
-    fbcon_cfb4_putcs, fbcon_cfb4_revc
+    fbcon_cfb4_putcs, fbcon_cfb4_revc, NULL, NULL, NULL, FONTWIDTH(8)
 };
+
+
+#ifdef MODULE
+int init_module(void)
+{
+    return 0;
+}
+
+void cleanup_module(void)
+{}
+#endif /* MODULE */
 
 
     /*

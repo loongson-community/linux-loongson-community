@@ -46,6 +46,8 @@
 #include <linux/ioport.h>
 #include <linux/config.h>
 #include <linux/init.h>
+#include <linux/smp_lock.h>
+
 #include <asm/system.h>
 #include <asm/io.h>
 #include <asm/uaccess.h>
@@ -142,7 +144,7 @@ static int	stl_nrbrds = sizeof(stl_brdconf) / sizeof(stlconf_t);
  */
 static char	*stl_drvtitle = "Stallion Multiport Serial Driver";
 static char	*stl_drvname = "stallion";
-static char	*stl_drvversion = "5.4.5";
+static char	*stl_drvversion = "5.4.6";
 static char	*stl_serialname = "ttyE";
 static char	*stl_calloutname = "cue";
 
@@ -1082,7 +1084,6 @@ static int stl_write(struct tty_struct *tty, int from_user, const unsigned char 
 {
 	stlport_t	*portp;
 	unsigned int	len, stlen;
-	unsigned long	flags;
 	unsigned char	*chbuf;
 	char		*head, *tail;
 
@@ -1114,12 +1115,9 @@ static int stl_write(struct tty_struct *tty, int from_user, const unsigned char 
 			(tail - head - 1);
 		count = MIN(len, count);
 		
-		save_flags(flags);
-		cli();
 		down(&stl_tmpwritesem);
 		copy_from_user(stl_tmpwritebuf, chbuf, count);
 		up(&stl_tmpwritesem);
-		restore_flags(flags);
 		chbuf = &stl_tmpwritebuf[0];
 	}
 
@@ -2005,7 +2003,6 @@ static void stl_echpci64intr(stlbrd_t *brdp)
 /*
  *	Service an off-level request for some channel.
  */
-
 static void stl_offintr(void *private)
 {
 	stlport_t		*portp;
@@ -2020,10 +2017,12 @@ static void stl_offintr(void *private)
 
 	if (portp == (stlport_t *) NULL)
 		return;
+
 	tty = portp->tty;
 	if (tty == (struct tty_struct *) NULL)
 		return;
 
+	lock_kernel();
 	if (test_bit(ASYI_TXLOW, &portp->istate)) {
 		if ((tty->flags & (1 << TTY_DO_WRITE_WAKEUP)) &&
 		    tty->ldisc.write_wakeup)
@@ -2045,6 +2044,7 @@ static void stl_offintr(void *private)
 			}
 		}
 	}
+	unlock_kernel();
 }
 
 /*****************************************************************************/
@@ -2193,7 +2193,7 @@ static inline int stl_initeio(stlbrd_t *brdp)
 	}
  
 /*
- *	Everything looks OK, so lets go ahead and probe for the hardware.
+ *	Everything looks OK, so let's go ahead and probe for the hardware.
  */
 	brdp->clk = CD1400_CLK;
 	brdp->isr = stl_eiointr;
@@ -2568,7 +2568,7 @@ static inline int stl_initpcibrd(int brdtype, struct pci_dev *dev)
 #endif
 
 /*
- *	We have all resources from the board, so lets setup the actual
+ *	We have all resources from the board, so let's setup the actual
  *	board structure now.
  */
 	switch (brdtype) {

@@ -50,7 +50,7 @@ struct sysinfo;
 extern int shm_swap (int, int);
 
 /* linux/mm/vmscan.c */
-extern int try_to_free_page(int);
+extern int try_to_free_pages(unsigned int gfp_mask, int count);
 
 /* linux/mm/page_io.c */
 extern void rw_swap_page(int, unsigned long, char *, int);
@@ -75,6 +75,11 @@ extern struct swap_info_struct swap_info[];
 void si_swapinfo(struct sysinfo *);
 unsigned long get_swap_page(void);
 extern void FASTCALL(swap_free(unsigned long));
+struct swap_list_t {
+	int head;	/* head of priority-ordered swapfile list */
+	int next;	/* swapfile to be used next */
+};
+extern struct swap_list_t swap_list;
 
 /*
  * vm_ops not present page codes for shared memory.
@@ -121,21 +126,6 @@ static inline int is_page_shared(struct page *page)
 	if (PageFreeAfter(page))
 		count--;
 	return (count > 1);
-}
-
-/*
- * When we're freeing pages from a user application, we want
- * to cluster swapouts too.	-- Rik.
- * linux/mm/page_alloc.c
- */
-static inline int try_to_free_pages(int gfp_mask, int count)
-{
-	int retval = 0;
-	while (count--) {
-		if (try_to_free_page(gfp_mask))
-			retval = 1;
-	}
-	return retval;
 }
 
 /*

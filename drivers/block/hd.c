@@ -73,6 +73,8 @@ static struct wait_queue * busy_wait = NULL;
 static int reset = 0;
 static int hd_error = 0;
 
+#define SUBSECTOR(block) (CURRENT->current_nr_sectors > 0)
+
 /*
  *  This struct defines the HD's and their types.
  */
@@ -688,10 +690,10 @@ static void hd_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 }
 
 /*
- * This is the harddisk IRQ description. The SA_INTERRUPT in sa_flags
- * means we run the IRQ-handler with interrupts disabled: this is bad for
+ * This is the hard disk IRQ description. The SA_INTERRUPT in sa_flags
+ * means we run the IRQ-handler with interrupts disabled:  this is bad for
  * interrupt latency, but anything else has led to problems on some
- * machines...
+ * machines.
  *
  * We enable interrupts in some of the routines after making sure it's
  * safe.
@@ -758,7 +760,7 @@ static void hd_geninit(struct gendisk *ignored)
 	}
 	if (NR_HD) {
 		if (request_irq(HD_IRQ, hd_interrupt, SA_INTERRUPT, "hd", NULL)) {
-			printk("hd: unable to get IRQ%d for the harddisk driver\n",HD_IRQ);
+			printk("hd: unable to get IRQ%d for the hard disk driver\n",HD_IRQ);
 			NR_HD = 0;
 		} else {
 			request_region(HD_DATA, 8, "hd");
@@ -788,7 +790,7 @@ static struct file_operations hd_fops = {
 __initfunc(int hd_init(void))
 {
 	if (register_blkdev(MAJOR_NR,"hd",&hd_fops)) {
-		printk("hd: unable to get major %d for harddisk\n",MAJOR_NR);
+		printk("hd: unable to get major %d for hard disk\n",MAJOR_NR);
 		return -1;
 	}
 	blk_dev[MAJOR_NR].request_fn = DEVICE_REQUEST;
@@ -802,7 +804,7 @@ __initfunc(int hd_init(void))
 #define DEVICE_BUSY busy[target]
 #define USAGE access_count[target]
 #define CAPACITY (hd_info[target].head*hd_info[target].sect*hd_info[target].cyl)
-/* We assume that the the bios parameters do not change, so the disk capacity
+/* We assume that the BIOS parameters do not change, so the disk capacity
    will not change */
 #undef MAYBE_REINIT
 #define GENDISK_STRUCT hd_gendisk

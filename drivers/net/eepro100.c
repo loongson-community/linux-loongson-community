@@ -1,4 +1,4 @@
-/* drivers/net/eepro100.c: An Intel i82557 ethernet driver for linux. */
+/* drivers/net/eepro100.c: An Intel i82557 Ethernet driver for Linux. */
 /*
    NOTICE: this version tested with kernels 1.3.72 and later only!
 	Written 1996-1997 by Donald Becker.
@@ -33,7 +33,23 @@ static int rxdmacount = 0;
 
 /* Set the copy breakpoint for the copy-only-tiny-buffer Rx method.
    Lower values use more memory, but are faster. */
-static int rx_copybreak = 200;
+/*
+ * NOTE! The value of 2000 means that this optimization never gets
+ * used. Rationale: it seems to be broken when in low-memory situations,
+ * apparently when alloc_skb() can return NULL the clever list of
+ * copy-buffers can get buggered. 
+ *
+ * My personal suspicion is that the allocation failure will cause
+ * us to not remove the skb from the list of available buffers, but
+ * we'd already have done a "skb_push()" with the data we got, so
+ * the buffer stays on the list but the available memory in it
+ * shrinks until we panic.
+ *
+ * Donald, when you fix this you can shrink this value again.
+ *
+ *		Linus
+ */
+static int rx_copybreak = 2000;
 
 /* Maximum events (Rx packets, etc.) to handle at each interrupt. */
 static int max_interrupt_work = 200;
@@ -143,7 +159,7 @@ int speedo_debug = 3;
 I. Board Compatibility
 
 This device driver is designed for the Intel i82557 "Speedo3" chip, Intel's
-single-chip fast ethernet controller for PCI, as used on the Intel
+single-chip fast Ethernet controller for PCI, as used on the Intel
 EtherExpress Pro 100 adapter.
 
 II. Board-specific settings
@@ -197,7 +213,7 @@ An additional complexity of these non-transmit commands are that they may be
 added asynchronous to the normal transmit queue, so we disable interrupts
 whenever the Tx descriptor ring is manipulated.
 
-A notable aspect of the these special configure commands is that they do
+A notable aspect of these special configure commands is that they do
 work with the normal Tx ring entry scavenge method.  The Tx ring scavenge
 is done at interrupt time using the 'dirty_tx' index, and checking for the
 command-complete bit.  While the setup frames may have the NoOp command on the
@@ -475,6 +491,7 @@ int eepro100_init(struct device *dev)
 
 	if (pci_present()) {
 		static int pci_index = 0;
+
 		for (; pci_index < 8; pci_index++) {
 			unsigned char pci_bus, pci_device_fn, pci_latency;
 #if (LINUX_VERSION_CODE >= VERSION(2,1,85))
@@ -491,9 +508,9 @@ int eepro100_init(struct device *dev)
 			unsigned short pci_command;
 
 			if (pcibios_find_device(PCI_VENDOR_ID_INTEL,
-									PCI_DEVICE_ID_INTEL_82557,
-									pci_index, &pci_bus,
-									&pci_device_fn))
+						PCI_DEVICE_ID_INTEL_82557,
+						pci_index, &pci_bus,
+						&pci_device_fn))
 			  break;
 #if (LINUX_VERSION_CODE >= VERSION(2,1,85))
 			pdev = pci_find_slot(pci_bus, pci_device_fn);

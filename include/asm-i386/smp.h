@@ -6,6 +6,8 @@
 
 #include <asm/i82489.h>
 #include <asm/bitops.h>
+#include <asm/fixmap.h>
+
 #include <linux/tasks.h>
 #include <linux/ptrace.h>
 
@@ -160,11 +162,10 @@ extern unsigned long cpu_present_map;
 extern volatile int cpu_number_map[NR_CPUS];
 extern volatile unsigned long smp_invalidate_needed;
 extern void smp_flush_tlb(void);
-extern volatile unsigned long kernel_flag, kernel_counter;
+
 extern volatile unsigned long cpu_callin_map[NR_CPUS];
-extern volatile unsigned char active_kernel_processor;
 extern void smp_message_irq(int cpl, void *dev_id, struct pt_regs *regs);
-extern void smp_reschedule_irq(int cpl, struct pt_regs *regs);
+extern void smp_send_reschedule(int cpu);
 extern unsigned long ipi_count;
 extern void smp_invalidate_rcv(void);		/* Process an NMI */
 extern void smp_local_timer_interrupt(struct pt_regs * regs);
@@ -183,7 +184,8 @@ extern inline int cpu_logical_map(int cpu)
  
 extern void smp_callin(void);
 extern void smp_boot_cpus(void);
-extern void smp_store_cpu_info(int id);		/* Store per cpu info (like the initial udelay numbers */
+extern void smp_store_cpu_info(int id);		/* Store per CPU info (like the initial udelay numbers */
+extern void smp_message_pass(int target, int msg, unsigned long data, int wait);
 
 extern volatile unsigned long smp_proc_in_lock[NR_CPUS]; /* for computing process time */
 extern volatile int smp_process_available;
@@ -195,7 +197,7 @@ extern volatile int smp_process_available;
  *	"Back to Back Assertions of HOLD May Cause Lost APIC Write Cycle"
  */
 
-#define APIC_BASE ((char *)0xFEE00000)
+#define APIC_BASE (fix_to_virt(FIX_APIC_BASE))
 
 extern __inline void apic_write(unsigned long reg, unsigned long v)
 {
@@ -239,13 +241,5 @@ extern __inline int hard_smp_processor_id(void)
 
 #define SMP_FROM_INT		1
 #define SMP_FROM_SYSCALL	2
-
-#else
-#ifndef ASSEMBLY
-extern inline int cpu_logical_map(int cpu)
-{
-	return cpu;
-}
-#endif
 #endif
 #endif

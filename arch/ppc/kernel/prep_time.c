@@ -8,7 +8,6 @@
  *  copied and modified from intel version
  *
  */
-#include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
@@ -18,6 +17,7 @@
 #include <linux/interrupt.h>
 #include <linux/timex.h>
 #include <linux/kernel_stat.h>
+#include <linux/init.h>
 
 #include <asm/segment.h>
 #include <asm/io.h>
@@ -44,7 +44,7 @@
 /*
  * translate from mc146818 to m48t18  addresses
  */
-unsigned int clock_transl[] = { MOTO_RTC_SECONDS,0 /* alarm */,
+unsigned int clock_transl[] __prepdata = { MOTO_RTC_SECONDS,0 /* alarm */,
 		       MOTO_RTC_MINUTES,0 /* alarm */,
 		       MOTO_RTC_HOURS,0 /* alarm */,                 /*  4,5 */
 		       MOTO_RTC_DAY_OF_WEEK,
@@ -54,6 +54,7 @@ unsigned int clock_transl[] = { MOTO_RTC_SECONDS,0 /* alarm */,
 		       MOTO_RTC_CONTROLA, MOTO_RTC_CONTROLB /* 10,11 */
 };
 
+__prep
 int prep_cmos_clock_read(int addr)
 {
 	if ( _prep_type == _PREP_IBM )
@@ -69,6 +70,7 @@ int prep_cmos_clock_read(int addr)
 	return -1;
 }
 
+__prep
 void prep_cmos_clock_write(unsigned long val, int addr)
 {
 	if ( _prep_type == _PREP_IBM )
@@ -89,6 +91,7 @@ void prep_cmos_clock_write(unsigned long val, int addr)
 /*
  * Set the hardware clock. -- Cort
  */
+__prep
 int prep_set_rtc_time(unsigned long nowtime)
 {
 	unsigned char save_control, save_freq_select;
@@ -135,6 +138,7 @@ int prep_set_rtc_time(unsigned long nowtime)
 	return 0;
 }
 
+__prep
 unsigned long prep_get_rtc_time(void)
 {
 	unsigned int year, mon, day, hour, min, sec;
@@ -173,67 +177,3 @@ unsigned long prep_get_rtc_time(void)
 		year += 100;
 	return mktime(year, mon, day, hour, min, sec);
 }
-
-#if 0
-void time_init(void)
-{
-	void (*irq_handler)(int, void *,struct pt_regs *);
-	
-	xtime.tv_sec = prep_get_rtc_time();
-	xtime.tv_usec = 0;
-	
-	prep_calibrate_decr();
-	
-	/* If we have the CPU hardware time counters, use them */
-	irq_handler = timer_interrupt;
-	if (request_irq(TIMER_IRQ, irq_handler, 0, "timer", NULL) != 0)
-		panic("Could not allocate timer IRQ!");
-}
-
-/*
- * timer_interrupt() needs to keep up the real-time clock,
- * as well as call the "do_timer()" routine every clocktick
- */
-static inline void timer_interrupt(int irq, void *dev, struct pt_regs * regs)
-{
-	prep_calibrate_decr_handler(irq,dev,regs);
-	do_timer(regs);
-
-	/* update the hw clock if:
-	 * the time is marked out of sync (TIME_ERROR)
-	 * or ~11 minutes have expired since the last update -- Cort
-	 * If we have an externally synchronized Linux clock, then update
-	 * CMOS clock accordingly every ~11 minutes. prep_set_rtc_mmss() has to be
-	 * called as close as possible to 500 ms before the new second starts.
-	 */
-	if ( time_state == TIME_BAD ||
-	     xtime.tv_sec > last_rtc_update + 660 )
-	/*if (time_state != TIME_BAD && xtime.tv_sec > last_rtc_update + 660 &&
-	    xtime.tv_usec > 500000 - (tick >> 1) &&
-	    xtime.tv_usec < 500000 + (tick >> 1))*/
-		if (prep_set_rtc_time(xtime.tv_sec) == 0)
-			last_rtc_update = xtime.tv_sec;
-		else
-			last_rtc_update = xtime.tv_sec - 600; /* do it again in 60 s */
-
-
-#ifdef CONFIG_HEARTBEAT
-	/* use hard disk LED as a heartbeat instead -- much more useful
-	   for debugging -- Cort */
-	switch(kstat_irqs(0) % 101)
-	{
-	/* act like an actual heart beat -- ie thump-thump-pause... */
-	case 0:
-	case 20:
-		outb(1,IBM_HDD_LED);
-		break;
-	case 7:
-	case 27:
-		outb(0,IBM_HDD_LED);
-		break;
-	case 100:
-		break;
-	}
-#endif
-}
-#endif

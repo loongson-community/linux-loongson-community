@@ -12,12 +12,12 @@
 #include <linux/errno.h>
 #include <linux/ptrace.h>
 #include <linux/user.h>
-#include <linux/debugreg.h>
 
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
 #include <asm/system.h>
 #include <asm/processor.h>
+#include <asm/debugreg.h>
 
 /*
  * does not yet catch signals sent when the child dies.
@@ -443,7 +443,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			   addr <= (long) &dummy->u_debugreg[7]){
 				addr -= (long) &dummy->u_debugreg[0];
 				addr = addr >> 2;
-				tmp = child->debugreg[addr];
+				tmp = child->tss.debugreg[addr];
 			};
 			ret = put_user(tmp,(unsigned long *) data);
 			goto out;
@@ -489,7 +489,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 
 			  addr -= (long) &dummy->u_debugreg;
 			  addr = addr >> 2;
-			  child->debugreg[addr] = data;
+			  child->tss.debugreg[addr] = data;
 			  ret = 0;
 			  goto out;
 		  };
@@ -624,14 +624,8 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 #ifdef CONFIG_MATH_EMULATION
 			if ( boot_cpu_data.hard_math ) {
 #endif
-			  if (last_task_used_math == child) {
-			    clts();
-			    __asm__("fnsave %0; fwait":"=m" (child->tss.i387.hard));
-			    last_task_used_math = NULL;
-			    stts();
-			  }
-			  __copy_to_user((void *)data, &child->tss.i387.hard,
-					 sizeof(struct user_i387_struct));
+				__copy_to_user((void *)data, &child->tss.i387.hard,
+						sizeof(struct user_i387_struct));
 #ifdef CONFIG_MATH_EMULATION
 			} else {
 			  save_i387_soft(&child->tss.i387.soft,
@@ -652,13 +646,10 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 #ifdef CONFIG_MATH_EMULATION
 			if ( boot_cpu_data.hard_math ) {
 #endif
-			  if (last_task_used_math == child) {
-			    /* Discard the state of the FPU */
-			    last_task_used_math = NULL;
-			  }
 			  __copy_from_user(&child->tss.i387.hard, (void *)data,
 					   sizeof(struct user_i387_struct));
 			  child->flags &= ~PF_USEDFPU;
+			  stts();
 #ifdef CONFIG_MATH_EMULATION
 			} else {
 			  restore_i387_soft(&child->tss.i387.soft,

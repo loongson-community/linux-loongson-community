@@ -41,8 +41,16 @@
 
 #include "hosts.h"
 
-#if defined(CONFIG_A4000T_SCSI) || defined(CONFIG_WARPENGINE_SCSI) || defined(CONFIG_A4091_SCSI)
+#if defined(CONFIG_A4000T_SCSI) || defined(CONFIG_WARPENGINE_SCSI) || defined(CONFIG_A4091_SCSI) || defined (CONFIG_GVP_TURBO_SCSI)
 #include "amiga7xx.h"
+#endif
+
+#ifdef CONFIG_MVME16x_SCSI
+#include "mvme16x.h"
+#endif
+
+#ifdef CONFIG_BVME6000_SCSI
+#include "bvme6000.h"
 #endif
 
 #ifdef CONFIG_A3000_SCSI
@@ -55,6 +63,26 @@
 
 #ifdef CONFIG_GVP11_SCSI
 #include "gvp11.h"
+#endif
+
+#ifdef CONFIG_CYBERSTORM_SCSI
+#include "cyberstorm.h"
+#endif
+
+#ifdef CONFIG_CYBERSTORMII_SCSI
+#include "cyberstormII.h"
+#endif
+
+#ifdef CONFIG_BLZ2060_SCSI
+#include "blz2060.h"
+#endif
+
+#ifdef CONFIG_BLZ1230_SCSI
+#include "blz1230.h"
+#endif
+
+#ifdef CONFIG_FASTLANE_SCSI
+#include "fastlane.h"
 #endif
 
 #ifdef CONFIG_ATARI_SCSI
@@ -174,7 +202,7 @@
 #endif
 
 #ifdef CONFIG_SCSI_SUNESP
-#include "esp.h"
+#include "sparc_esp.h"
 #endif
 
 #ifdef CONFIG_SCSI_SGIWD93
@@ -225,6 +253,33 @@
 #include "jazz_esp.h"
 #endif
 
+#ifdef CONFIG_SCSI_ACORNSCSI_3
+#include "../acorn/scsi/acornscsi.h"
+#endif
+
+#ifdef CONFIG_SCSI_CUMANA_1
+#include "../acorn/scsi/cumana_1.h"
+#endif
+
+#ifdef CONFIG_SCSI_CUMANA_2
+#include "../acorn/scsi/cumana_2.h"
+#endif
+
+#ifdef CONFIG_SCSI_ECOSCSI
+#include "../acorn/scsi/ecoscsi.h"
+#endif
+
+#ifdef CONFIG_SCSI_OAK1
+#include "../acorn/scsi/oak.h"
+#endif
+
+#ifdef CONFIG_SCSI_POWERTECSCSI
+#include "../acorn/scsi/powertec.h"
+#endif
+
+#ifdef CONFIG_JAZZ_ESP
+#include "jazz_esp.h"
+#endif
 
 /*
 static const char RCSid[] = "$Header: /vger/u4/cvs/linux/drivers/scsi/hosts.c,v 1.20 1996/12/12 19:18:32 davem Exp $";
@@ -260,7 +315,7 @@ Scsi_Host_Template * scsi_hosts = NULL;
 static Scsi_Host_Template builtin_scsi_hosts[] =
 {
 #ifdef CONFIG_AMIGA
-#if defined(CONFIG_WARPENGINE_SCSI) || defined(CONFIG_A4000T_SCSI) || defined(CONFIG_A4091_SCSI)
+#if defined(CONFIG_WARPENGINE_SCSI) || defined(CONFIG_A4000T_SCSI) || defined(CONFIG_A4091_SCSI) || defined (CONFIG_GVP_TURBO_SCSI)
 	AMIGA7XX_SCSI,
 #endif
 #ifdef CONFIG_A3000_SCSI
@@ -272,6 +327,21 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
 #ifdef CONFIG_GVP11_SCSI
 	GVP11_SCSI,
 #endif
+#ifdef CONFIG_CYBERSTORM_SCSI
+	SCSI_CYBERSTORM,
+#endif
+#ifdef CONFIG_CYBERSTORMII_SCSI
+	SCSI_CYBERSTORMII,
+#endif
+#ifdef CONFIG_BLZ2060_SCSI
+	SCSI_BLZ2060,
+#endif
+#ifdef CONFIG_BLZ1230_SCSI
+	SCSI_BLZ1230,
+#endif
+#ifdef CONFIG_FASTLANE_SCSI
+	SCSI_FASTLANE,
+#endif
 #endif
 
 #ifdef CONFIG_ATARI
@@ -280,6 +350,12 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
 #endif
 #endif
 
+#ifdef CONFIG_MVME16x_SCSI
+	MVME16x_SCSI,
+#endif
+#ifdef CONFIG_BVME6000_SCSI
+	BVME6000_SCSI,
+#endif
 #ifdef CONFIG_SCSI_ADVANSYS
 	ADVANSYS,
 #endif
@@ -397,6 +473,26 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
 #ifdef CONFIG_SCSI_PLUTO
     PLUTO,
 #endif
+#ifdef CONFIG_ARCH_ACORN
+#ifdef CONFIG_SCSI_ACORNSCSI_3
+    ACORNSCSI_3,
+#endif
+#ifdef CONFIG_SCSI_CUMANA_1
+    CUMANA_NCR5380,
+#endif
+#ifdef CONFIG_SCSI_CUMANA_2
+    CUMANA_FAS216,
+#endif
+#ifdef CONFIG_SCSI_ECOSCSI
+    ECOSCSI_NCR5380,
+#endif
+#ifdef CONFIG_SCSI_OAK1
+    OAK_NCR5380,
+#endif
+#ifdef CONFIG_SCSI_POWERTECSCSI
+    POWERTECSCSI,
+#endif
+#endif
 #ifdef CONFIG_SCSI_SGIWD93
     SGIWD93_SCSI,
 #endif
@@ -437,7 +533,7 @@ scsi_unregister(struct Scsi_Host * sh){
     /* If we are removing the last host registered, it is safe to reuse
      * its host number (this avoids "holes" at boot time) (DB) 
      */
-    if (max_scsi_hosts == next_scsi_host && !scsi_loadable_module_flag)
+    if (max_scsi_hosts == next_scsi_host)
 	max_scsi_hosts--;
     
     next_scsi_host--;
@@ -525,7 +621,7 @@ scsi_register_device(struct Scsi_Device_Template * sdpnt)
 }
 
 /*
- * Why is this a seperate function?  Because the kernel_thread code
+ * Why is this a separate function?  Because the kernel_thread code
  * effectively does a fork, and there is a builtin exit() call when
  * the child returns.   The difficulty is that scsi_init() is
  * marked __initfunc(), which means the memory is unmapped after bootup
@@ -554,6 +650,7 @@ __initfunc(unsigned int scsi_init(void))
 {
     static int called = 0;
     int i, pcount;
+    unsigned long flags;
     Scsi_Host_Template * tpnt;
     struct Scsi_Host * shpnt;
     const char * name;
@@ -569,9 +666,27 @@ __initfunc(unsigned int scsi_init(void))
 	 */
 	
 	pcount = next_scsi_host;
-	if ((tpnt->detect) &&
-	    (tpnt->present =
-	     tpnt->detect(tpnt)))
+	if (tpnt->detect) {
+
+           /* The detect routine must carefully spinunlock/spinlock if 
+              it enables interrupts, since all interrupt handlers do 
+              spinlock as well.
+              All lame drivers are going to fail due to the following 
+              spinlock. For the time beeing let's use it only for drivers 
+              using the new scsi code. NOTE: the detect routine could
+              redefine the value tpnt->use_new_eh_code. (DB, 13 May 1998) */
+
+           if (tpnt->use_new_eh_code) {
+              spin_lock_irqsave(&io_request_lock, flags);
+              tpnt->present = tpnt->detect(tpnt);
+              spin_unlock_irqrestore(&io_request_lock, flags);
+              }
+           else
+              tpnt->present = tpnt->detect(tpnt);
+
+           }
+
+	if (tpnt->detect && tpnt->present)
 	{
 	    /* The only time this should come up is when people use
 	     * some kind of patched driver of some kind or another. */

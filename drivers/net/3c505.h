@@ -65,7 +65,7 @@
 #define	DMA_BRST	0x01	/* DMA burst */
 
 /*
- * maximum amount of data data allowed in a PCB
+ * maximum amount of data allowed in a PCB
  */
 #define	MAX_PCB_DATA	62
 
@@ -216,7 +216,7 @@ struct Memdump {
 /*
 Primary Command Block. The most important data structure. All communication
 between the host and the adapter is done with these. (Except for the actual
-ethernet data, which has different packaging.)
+Ethernet data, which has different packaging.)
 */
 typedef struct {
 	byte	command;

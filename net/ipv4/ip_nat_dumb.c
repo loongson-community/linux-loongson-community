@@ -5,7 +5,7 @@
  *
  *		Dumb Network Address Translation.
  *
- * Version:	$Id: ip_nat_dumb.c,v 1.2 1997/12/16 05:37:40 ralf Exp $
+ * Version:	$Id: ip_nat_dumb.c,v 1.3 1998/03/15 03:31:44 davem Exp $
  *
  * Authors:	Alexey Kuznetsov, <kuznet@ms2.inr.ac.ru>
  *

@@ -1,4 +1,4 @@
-/* $Id: traps.c,v 1.13 1998/07/10 01:14:48 ralf Exp $
+/* $Id: traps.c,v 1.14 1998/07/16 19:10:02 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -153,10 +153,9 @@ void show_registers(char * str, struct pt_regs * regs, long err)
 	}
 	else
 		printk("(Bad address in epc)\n");
-	do_exit(SIGSEGV);
 }
 
-void die_if_kernel(const char * str, struct pt_regs * regs, long err)
+void die(const char * str, struct pt_regs * regs, unsigned long err)
 {
 	if (user_mode(regs))	/* Just return if in user mode.  */
 		return;
@@ -165,6 +164,12 @@ void die_if_kernel(const char * str, struct pt_regs * regs, long err)
 	printk("%s: %04lx\n", str, err & 0xffff);
 	show_regs(regs);
 	do_exit(SIGSEGV);
+}
+
+void die_if_kernel(const char * str, struct pt_regs * regs, unsigned long err)
+{
+	if (!user_mode(regs))
+		die(str, regs, err);
 }
 
 static void default_be_board_handler(struct pt_regs *regs)
@@ -177,28 +182,21 @@ static void default_be_board_handler(struct pt_regs *regs)
 
 void do_ibe(struct pt_regs *regs)
 {
-	lock_kernel();
 show_regs(regs); while(1);
 	ibe_board_handler(regs);
-	unlock_kernel();
 }
 
 void do_dbe(struct pt_regs *regs)
 {
-	lock_kernel();
 show_regs(regs); while(1);
 	dbe_board_handler(regs);
-	unlock_kernel();
 }
 
 void do_ov(struct pt_regs *regs)
 {
-	lock_kernel();
 	if (compute_return_epc(regs))
-		goto out;
+		return;
 	force_sig(SIGFPE, current);
-out:
-	unlock_kernel();
 }
 
 #ifdef CONFIG_MIPS_FPE_MODULE
@@ -297,28 +295,23 @@ void do_bp(struct pt_regs *regs)
 	 * Gas is bug-compatible ...
 	 */
 	if (get_insn_opcode(regs, &opcode))
-		goto out;
+		return;
 	bcode = ((opcode >> 16) & ((1 << 20) - 1));
 
-	lock_kernel();
 	/*
 	 * (A short test says that IRIX 5.3 sends SIGTRAP for all break
 	 * insns, even for break codes that indicate arithmetic failures.
 	 * Wiered ...)
 	 */
 	force_sig(SIGTRAP, current);
-
-out:
-	unlock_kernel();
 }
 
 void do_tr(struct pt_regs *regs)
 {
 	unsigned int opcode, bcode;
 
-	lock_kernel();
 	if (get_insn_opcode(regs, &opcode))
-		goto out;
+		return;
 	bcode = ((opcode >> 6) & ((1 << 20) - 1));
 
 	/*
@@ -327,8 +320,6 @@ void do_tr(struct pt_regs *regs)
 	 * Wiered ...)
 	 */
 	force_sig(SIGTRAP, current);
-out:
-	unlock_kernel();
 }
 
 void do_ri(struct pt_regs *regs)
@@ -336,11 +327,10 @@ void do_ri(struct pt_regs *regs)
 	lock_kernel();
 	printk("[%s:%ld] Illegal instruction at %08lx ra=%08lx\n",
 	       current->comm, current->pid, regs->cp0_epc, regs->regs[31]);
-	if (compute_return_epc(regs))
-		goto out;
-	force_sig(SIGILL, current);
-out:
 	unlock_kernel();
+	if (compute_return_epc(regs))
+		return;
+	force_sig(SIGILL, current);
 }
 
 void do_cpu(struct pt_regs *regs)
@@ -353,7 +343,7 @@ void do_cpu(struct pt_regs *regs)
 
 	regs->cp0_status |= ST0_CU1;
 	if (last_task_used_math == current)
-		goto out;
+		return;
 
 	if (current->used_math) {		/* Using the FPU again.  */
 		r4xx0_lazy_fpu_switch(last_task_used_math);
@@ -366,56 +356,45 @@ void do_cpu(struct pt_regs *regs)
 	return;
 
 bad_cid:
-	lock_kernel();
 	force_sig(SIGILL, current);
-	unlock_kernel();
-out:
 }
 
 void do_vcei(struct pt_regs *regs)
 {
-	lock_kernel();
 	/*
 	 * Only possible on R4[04]00[SM]C. No handler because I don't have
 	 * such a cpu.  Theory says this exception doesn't happen.
 	 */
 	panic("Caught VCEI exception - should not happen");
-	unlock_kernel();
 }
 
 void do_vced(struct pt_regs *regs)
 {
-	lock_kernel();
 	/*
 	 * Only possible on R4[04]00[SM]C. No handler because I don't have
 	 * such a cpu.  Theory says this exception doesn't happen.
 	 */
 	panic("Caught VCE exception - should not happen");
-	unlock_kernel();
 }
 
 void do_watch(struct pt_regs *regs)
 {
-	lock_kernel();
 	/*
 	 * We use the watch exception where available to detect stack
 	 * overflows.
 	 */
 	show_regs(regs);
 	panic("Caught WATCH exception - probably caused by stack overflow.");
-	unlock_kernel();
 }
 
 void do_reserved(struct pt_regs *regs)
 {
-	lock_kernel();
 	/*
 	 * Game over - no way to handle this if it ever occurs.
 	 * Most probably caused by a new unknown cpu type or
 	 * after another deadly hard/software error.
 	 */
 	panic("Caught reserved exception - should not happen.");
-	unlock_kernel();
 }
 
 static inline void watch_init(unsigned long cputype)

@@ -60,15 +60,12 @@ NORET_TYPE void panic(const char * fmt, ...)
 
 	if (panic_timeout > 0)
 	{
-		int i;
-
 		/*
 	 	 * Delay timeout seconds before rebooting the machine. 
 		 * We can't use the "normal" timers since we just panicked..
 	 	 */
 		printk(KERN_EMERG "Rebooting in %d seconds..",panic_timeout);
-		for(i = 0; i < (panic_timeout*1000); i++)
-			udelay(1000);
+		mdelay(panic_timeout*1000);
 		/*
 		 *	Should we run the reboot notifier. For the moment Im
 		 *	choosing not too. It might crash, be corrupt or do

@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.43 1998/03/09 14:03:34 jj Exp $
+# $Id: Makefile,v 1.45 1998/07/28 16:52:42 jj Exp $
 # Makefile for the linux kernel.
 #
 # Note! Dependencies are done automagically by 'make dep', which also
@@ -7,23 +7,11 @@
 #
 # Note 2! The CFLAGS definitions are now in the main makefile...
 
-ifdef SMP
-
 .S.s:
 	$(CPP) -D__ASSEMBLY__ $(AFLAGS) -ansi $< -o $*.s
 
 .S.o:
 	$(CC) -D__ASSEMBLY__ $(AFLAGS) -ansi -c $< -o $*.o
-
-else
-
-.S.s:
-	$(CPP) -D__ASSEMBLY__ -ansi $< -o $*.s
-
-.S.o:
-	$(CC) -D__ASSEMBLY__ -ansi -c $< -o $*.o
-
-endif
 
 all: kernel.o head.o init_task.o
 
@@ -38,6 +26,10 @@ O_OBJS   := entry.o wof.o wuf.o etrap.o rtrap.o traps.o ${IRQ_OBJS} \
 
 OX_OBJS  := sparc_ksyms.o
 
+ifdef CONFIG_SUN4
+O_OBJS += sun4setup.o
+endif
+
 ifdef SMP
 O_OBJS += trampoline.o smp.o sun4m_smp.o sun4d_smp.o
 endif
@@ -46,17 +38,8 @@ ifdef CONFIG_SUN_AUXIO
 O_OBJS += auxio.o
 endif
 
-ifdef SMP
-
 head.o: head.S
 	$(CC) -D__ASSEMBLY__ $(AFLAGS) -ansi -c $*.S -o $*.o
-
-else
-
-head.o: head.S
-	$(CC) -D__ASSEMBLY__ -ansi -c $*.S -o $*.o
-
-endif
 
 check_asm: dummy
 	@echo "/* Automatically generated. Do not edit. */" > asm_offsets.h

@@ -431,7 +431,7 @@ isdn_net_autohup()
 		if ((l->flags & ISDN_NET_CONNECTED) && (!l->dialstate)) {
 			anymore = 1;
 			l->huptimer++;
-			if ((l->onhtime) && (l->huptimer > l->onhtime))
+			if ((l->onhtime) && (l->huptimer > l->onhtime)) {
 				if (l->hupflags & ISDN_MANCHARGE &&
 				    l->hupflags & ISDN_CHARGEHUP) {
 					while (jiffies - l->chargetime > l->chargeint)
@@ -455,6 +455,7 @@ isdn_net_autohup()
 						isdn_net_hangup(&p->dev);
 				} else if (l->hupflags & ISDN_INHUP)
 					isdn_net_hangup(&p->dev);
+			}
 		}
 		p = (isdn_net_dev *) p->next;
 	}
@@ -792,11 +793,12 @@ isdn_net_dial(void)
 				 * If timeout and max retries not
 				 * reached, switch back to state 3.
 				 */
-				if (lp->dtimer++ > ISDN_TIMER_DTIMEOUT10)
+				if (lp->dtimer++ > ISDN_TIMER_DTIMEOUT10) {
 					if (lp->dialretry < lp->dialmax) {
 						lp->dialstate = 3;
 					} else
 						isdn_net_hangup(&p->dev);
+				}
 				anymore = 1;
 				break;
 			case 5:
@@ -1763,6 +1765,8 @@ isdn_net_init(struct device *ndev)
 	ndev->flags = IFF_NOARP|IFF_POINTOPOINT;
 	ndev->type = ARPHRD_ETHER;
 	ndev->addr_len = ETH_ALEN;
+
+	ndev->tx_queue_len = 10; /* for clients without MPPP 5 is better.  */
 
 	for (i = 0; i < ETH_ALEN; i++)
 		ndev->broadcast[i] = 0xff;

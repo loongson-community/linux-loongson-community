@@ -81,7 +81,6 @@ long time_reftime = 0;		/* time at last adjustment (s) */
 long time_adjust = 0;
 long time_adjust_step = 0;
 
-int need_resched = 0;
 unsigned long event = 0;
 
 extern int do_setitimer(int, struct itimerval *, struct itimerval *);
@@ -98,22 +97,70 @@ unsigned long volatile jiffies=0;
  *	via the SMP irq return path.
  */
  
-struct task_struct *last_task_used_math = NULL;
-
 struct task_struct * task[NR_TASKS] = {&init_task, };
 
 struct kernel_stat kstat = { 0 };
 
 void scheduling_functions_start_here(void) { }
 
+static inline void reschedule_idle(struct task_struct * p)
+{
+
+	/*
+	 * For SMP, we try to see if the CPU the task used
+	 * to run on is idle..
+	 */
+#if 0
+	/*
+	 * Disable this for now. Ingo has some interesting
+	 * code that looks too complex, and I have some ideas,
+	 * but in the meantime.. One problem is that "wakeup()"
+	 * can be (and is) called before we've even initialized
+	 * SMP completely, so..
+	 */
+#ifdef __SMP__
+	int want_cpu = p->processor;
+
+	/*
+	 * Don't even try to find another CPU for us if the task
+	 * ran on this one before..
+	 */
+	if (want_cpu != smp_processor_id()) {
+		struct task_struct **idle = task;
+		int i = smp_num_cpus;
+
+		do {
+			struct task_struct *tsk = *idle;
+			idle++;
+			/* Something like this.. */
+			if (tsk->has_cpu && tsk->processor == want_cpu) {
+				tsk->need_resched = 1;
+				smp_send_reschedule(want_cpu);
+				return;
+			}
+		} while (--i > 0);
+	}
+#endif
+#endif
+	if (p->policy != SCHED_OTHER || p->counter > current->counter + 3)
+		current->need_resched = 1;	
+}
+
+/*
+ * Careful!
+ *
+ * This has to add the process to the _beginning_ of the
+ * run-queue, not the end. See the comment about "This is
+ * subtle" in the scheduler proper..
+ */
 static inline void add_to_runqueue(struct task_struct * p)
 {
-	if (p->policy != SCHED_OTHER || p->counter > current->counter + 3)
-		need_resched = 1;
-	nr_running++;
-	(p->prev_run = init_task.prev_run)->next_run = p;
-	p->next_run = &init_task;
-	init_task.prev_run = p;
+	struct task_struct *next = init_task.next_run;
+
+	p->prev_run = &init_task;
+	init_task.next_run = p;
+	p->next_run = next;
+	next->prev_run = p;
 }
 
 static inline void del_from_runqueue(struct task_struct * p)
@@ -144,6 +191,22 @@ static inline void move_last_runqueue(struct task_struct * p)
 	prev->next_run = p;
 }
 
+static inline void move_first_runqueue(struct task_struct * p)
+{
+	struct task_struct *next = p->next_run;
+	struct task_struct *prev = p->prev_run;
+
+	/* remove from list */
+	next->prev_run = prev;
+	prev->next_run = next;
+	/* add back to list */
+	p->prev_run = &init_task;
+	next = init_task.next_run;
+	init_task.next_run = p;
+	p->next_run = next;
+	next->prev_run = p;
+}
+
 /*
  * The tasklist_lock protects the linked list of processes.
  *
@@ -155,7 +218,7 @@ static inline void move_last_runqueue(struct task_struct * p)
  * The run-queue lock locks the parts that actually access
  * and change the run-queues, and have to be interrupt-safe.
  */
-spinlock_t scheduler_lock = SPIN_LOCK_UNLOCKED;	/* should be aquired first */
+spinlock_t scheduler_lock = SPIN_LOCK_UNLOCKED;	/* should be acquired first */
 spinlock_t runqueue_lock = SPIN_LOCK_UNLOCKED;  /* second */
 rwlock_t tasklist_lock = RW_LOCK_UNLOCKED;	/* third */
 
@@ -173,8 +236,11 @@ inline void wake_up_process(struct task_struct * p)
 
 	spin_lock_irqsave(&runqueue_lock, flags);
 	p->state = TASK_RUNNING;
-	if (!p->next_run)
+	if (!p->next_run) {
 		add_to_runqueue(p);
+		reschedule_idle(p);
+		nr_running++;
+	}
 	spin_unlock_irqrestore(&runqueue_lock, flags);
 }
 
@@ -364,6 +430,9 @@ int del_timer(struct timer_list * timer)
 	ret = detach_timer(timer);
 	timer->next = timer->prev = 0;
 	spin_unlock_irqrestore(&timerlist_lock, flags);
+
+	/* Make sure the timer isn't running in parallell.. */
+	synchronize_bh();
 	return ret;
 }
 
@@ -391,26 +460,26 @@ int del_timer(struct timer_list * timer)
  */
 asmlinkage void schedule(void)
 {
-	int lock_depth;
 	struct task_struct * prev, * next;
 	unsigned long timeout;
 	int this_cpu;
 
-	need_resched = 0;
 	prev = current;
-	this_cpu = smp_processor_id();
-	if (local_irq_count[this_cpu])
+	this_cpu = prev->processor;
+	if (in_interrupt())
 		goto scheduling_in_interrupt;
-	if (local_bh_count[this_cpu])
-		goto scheduling_in_interrupt;
-	release_kernel_lock(prev, this_cpu, lock_depth);
+	release_kernel_lock(prev, this_cpu);
+
+	/* Do "administrative" work here while we don't hold any locks */
 	if (bh_active & bh_mask)
 		do_bottom_half();
+	run_task_queue(&tq_scheduler);
 
 	spin_lock(&scheduler_lock);
 	spin_lock_irq(&runqueue_lock);
 
 	/* move an exhausted RR process to be last.. */
+	prev->need_resched = 0;
 	if (!prev->counter && prev->policy == SCHED_RR) {
 		prev->counter = prev->priority;
 		move_last_runqueue(prev);
@@ -500,9 +569,15 @@ asmlinkage void schedule(void)
 		if (timeout)
 			del_timer(&timer);
 	}
+
 	spin_unlock(&scheduler_lock);
 
-	reacquire_kernel_lock(prev, smp_processor_id(), lock_depth);
+	/*
+	 * At this point "prev" is "current", as we just
+	 * switched into it (from an even more "previous"
+	 * prev)
+	 */
+	reacquire_kernel_lock(prev);
 	return;
 
 scheduling_in_interrupt:
@@ -1046,7 +1121,7 @@ static void update_process_times(unsigned long ticks, unsigned long system)
 		p->counter -= ticks;
 		if (p->counter < 0) {
 			p->counter = 0;
-			need_resched = 1;
+			p->need_resched = 1;
 		}
 		if (p->priority < DEF_PRIORITY)
 			kstat.cpu_nice += user;
@@ -1134,7 +1209,7 @@ asmlinkage unsigned int sys_alarm(unsigned int seconds)
  
 asmlinkage int sys_getpid(void)
 {
-	/* This is SMP safe - current->pid doesnt change */
+	/* This is SMP safe - current->pid doesn't change */
 	return current->pid;
 }
 
@@ -1237,9 +1312,9 @@ asmlinkage int sys_nice(int increment)
 		newprio = 40;
 	/*
 	 * do a "normalization" of the priority (traditionally
-	 * unix nice values are -20..20, linux doesn't really
+	 * Unix nice values are -20 to 20; Linux doesn't really
 	 * use that kind of thing, but uses the length of the
-	 * timeslice instead (default 150 msec). The rounding is
+	 * timeslice instead (default 150 ms). The rounding is
 	 * why we want to avoid negative values.
 	 */
 	newprio = (newprio * DEF_PRIORITY + 10) / 20;
@@ -1292,8 +1367,8 @@ static int setscheduler(pid_t pid, int policy,
 	/*
 	 * We play safe to avoid deadlocks.
 	 */
-	spin_lock_irq(&scheduler_lock);
-	spin_lock(&runqueue_lock);
+	spin_lock(&scheduler_lock);
+	spin_lock_irq(&runqueue_lock);
 	read_lock(&tasklist_lock);
 
 	p = find_process_by_pid(pid);
@@ -1333,14 +1408,14 @@ static int setscheduler(pid_t pid, int policy,
 	p->policy = policy;
 	p->rt_priority = lp.sched_priority;
 	if (p->next_run)
-		move_last_runqueue(p);
+		move_first_runqueue(p);
 
-	need_resched = 1;
+	current->need_resched = 1;
 
 out_unlock:
 	read_unlock(&tasklist_lock);
-	spin_unlock(&runqueue_lock);
-	spin_unlock_irq(&scheduler_lock);
+	spin_unlock_irq(&runqueue_lock);
+	spin_unlock(&scheduler_lock);
 
 out_nounlock:
 	return retval;
@@ -1418,10 +1493,10 @@ asmlinkage int sys_sched_yield(void)
 	spin_lock(&scheduler_lock);
 	spin_lock_irq(&runqueue_lock);
 	current->policy |= SCHED_YIELD;
+	current->need_resched = 1;
 	move_last_runqueue(current);
 	spin_unlock_irq(&runqueue_lock);
 	spin_unlock(&scheduler_lock);
-	need_resched = 1;
 	return 0;
 }
 
@@ -1520,7 +1595,7 @@ static void show_task(int nr,struct task_struct * p)
 		printk(stat_nam[p->state]);
 	else
 		printk(" ");
-#if ((~0UL) == 0xffffffff)
+#if (BITS_PER_LONG == 32)
 	if (p == current)
 		printk(" current  ");
 	else
@@ -1531,13 +1606,13 @@ static void show_task(int nr,struct task_struct * p)
 	else
 		printk(" %016lx ", thread_saved_pc(&p->tss));
 #endif
-#if 0
-	for (free = 1; free < PAGE_SIZE/sizeof(long) ; free++) {
-		if (((unsigned long *)p->kernel_stack_page)[free])
-			break;
+	{
+		unsigned long * n = (unsigned long *) (p+1);
+		while (!*n)
+			n++;
+		free = (unsigned long) n - (unsigned long)(p+1);
 	}
-#endif
-	printk("%5lu %5d %6d ", free*sizeof(long), p->pid, p->p_pptr->pid);
+	printk("%5lu %5d %6d ", free, p->pid, p->p_pptr->pid);
 	if (p->p_cptr)
 		printk("%5d ", p->p_cptr->pid);
 	else
@@ -1552,7 +1627,6 @@ static void show_task(int nr,struct task_struct * p)
 		printk("\n");
 
 	{
-		extern char * render_sigset_t(sigset_t *set, char *buffer);
 		struct signal_queue *q;
 		char s[sizeof(sigset_t)*2+1], b[sizeof(sigset_t)*2+1]; 
 
@@ -1565,11 +1639,26 @@ static void show_task(int nr,struct task_struct * p)
 	}
 }
 
+char * render_sigset_t(sigset_t *set, char *buffer)
+{
+	int i = _NSIG, x;
+	do {
+		i -= 4, x = 0;
+		if (sigismember(set, i+1)) x |= 1;
+		if (sigismember(set, i+2)) x |= 2;
+		if (sigismember(set, i+3)) x |= 4;
+		if (sigismember(set, i+4)) x |= 8;
+		*buffer++ = (x < 10 ? '0' : 'a' - 10) + x;
+	} while (i >= 4);
+	*buffer = 0;
+	return buffer;
+}
+
 void show_state(void)
 {
 	struct task_struct *p;
 
-#if ((~0UL) == 0xffffffff)
+#if (BITS_PER_LONG == 32)
 	printk("\n"
 	       "                         free                        sibling\n");
 	printk("  task             PC    stack   pid father child younger older\n");

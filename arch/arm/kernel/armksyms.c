@@ -5,10 +5,11 @@
 #include <linux/mm.h>
 #include <linux/mman.h>
 #include <linux/pci.h>
+#include <linux/delay.h>
 
 #include <asm/ecard.h>
+#include <asm/elf.h>
 #include <asm/io.h>
-#include <asm/delay.h>
 #include <asm/dma.h>
 #include <asm/pgtable.h>
 #include <asm/uaccess.h>
@@ -73,6 +74,9 @@ EXPORT_SYMBOL(ecard_readchunk);
 EXPORT_SYMBOL(ecard_address);
 #endif
 
+EXPORT_SYMBOL(enable_irq);
+EXPORT_SYMBOL(disable_irq);
+
 /* processor dependencies */
 EXPORT_SYMBOL(processor);
 
@@ -100,36 +104,23 @@ EXPORT_SYMBOL(quicklists);
 EXPORT_SYMBOL(__bad_pmd);
 EXPORT_SYMBOL(__bad_pmd_kernel);
 
-/* dma */
-EXPORT_SYMBOL(dma_str);
-EXPORT_SYMBOL(enable_dma);
-EXPORT_SYMBOL(disable_dma);
-EXPORT_SYMBOL(set_dma_addr);
-EXPORT_SYMBOL(set_dma_count);
-EXPORT_SYMBOL(set_dma_mode);
-EXPORT_SYMBOL(get_dma_residue);
-EXPORT_SYMBOL(set_dma_sg);
-
+#define EXPORT_VERS0(sym,orig) \
+ const char __kstrtab_##sym##[] __attribute__((section(".kstrtab"))) = \
+    __MODULE_STRING(##sym##_R00000000); \
+ const struct module_symbol __ksymtab_##sym __attribute__((section("__ksymtab"))) = \
+    { (unsigned long)&##orig, __kstrtab_##sym };
 /*
  * floating point math emulator support.
  * These symbols will never change their calling convention...
  */
-EXPORT_SYMBOL_NOVERS(fpreturn);
-EXPORT_SYMBOL_NOVERS(fpundefinstr);
-EXPORT_SYMBOL_NOVERS(fp_enter);
-EXPORT_SYMBOL_NOVERS(fp_save);
-EXPORT_SYMBOL_NOVERS(fp_restore);
-EXPORT_SYMBOL_NOVERS(fp_setup);
-
-const char __kstrtab_fp_printk[] __attribute__((section(".kstrtab"))) = __MODULE_STRING(fp_printk);
-const struct module_symbol __ksymtab_fp_printk __attribute__((section("__ksymtab"))) =
-{ (unsigned long)&printk, __kstrtab_fp_printk };
-
-const char __kstrtab_fp_send_sig[] __attribute__((section(".kstrtab"))) = __MODULE_STRING(fp_send_sig);
-const struct module_symbol __ksymtab_fp_send_sig __attribute__((section("__ksymtab"))) =
-{ (unsigned long)&send_sig, __kstrtab_fp_send_sig };
-
-//EXPORT_SYMBOL_NOVERS(fp_current);
+EXPORT_VERS0(fpreturn,fpreturn);
+EXPORT_VERS0(fpundefinstr,fpundefinstr);
+EXPORT_VERS0(fp_enter,fp_enter);
+EXPORT_VERS0(fp_save,fp_save);
+EXPORT_VERS0(fp_restore,fp_restore);
+EXPORT_VERS0(fp_setup,fp_setup);
+EXPORT_VERS0(fp_printk,printk);
+EXPORT_VERS0(fp_send_sig,send_sig);
 
 	/*
 	 * string / mem functions
@@ -155,12 +146,12 @@ EXPORT_SYMBOL_NOVERS(memscan);
 EXPORT_SYMBOL_NOVERS(memzero);
 
 	/* user mem (segment) */
-#if defined(CONFIG_CPU_ARM6) || defined(CONFIG_CPU_SA110)
+#if defined(CONFIG_CPU_32)
 EXPORT_SYMBOL(__arch_copy_from_user);
 EXPORT_SYMBOL(__arch_copy_to_user);
 EXPORT_SYMBOL(__arch_clear_user);
 EXPORT_SYMBOL(__arch_strlen_user);
-#elif defined(CONFIG_CPU_ARM2) || defined(CONFIG_CPU_ARM3)
+#elif defined(CONFIG_CPU_26)
 EXPORT_SYMBOL(uaccess_kernel);
 EXPORT_SYMBOL(uaccess_user);
 #endif
@@ -193,3 +184,8 @@ EXPORT_SYMBOL(change_bit);
 EXPORT_SYMBOL(test_and_change_bit);
 EXPORT_SYMBOL(find_first_zero_bit);
 EXPORT_SYMBOL(find_next_zero_bit);
+
+	/* elf */
+EXPORT_SYMBOL(armidlist);
+EXPORT_SYMBOL(armidindex);
+EXPORT_SYMBOL(elf_platform);

@@ -11,6 +11,7 @@
 #ifndef __VIDEO_FBCON_H
 #define __VIDEO_FBCON_H
 
+#include <linux/config.h>
 #include <linux/console_struct.h>
 
 
@@ -26,31 +27,63 @@ struct display_switch {
 		  int height, int width);
     void (*putc)(struct vc_data *conp, struct display *p, int c, int yy,
     		 int xx);
-    void (*putcs)(struct vc_data *conp, struct display *p, const char *s,
+    void (*putcs)(struct vc_data *conp, struct display *p, const unsigned short *s,
 		  int count, int yy, int xx);     
     void (*revc)(struct display *p, int xx, int yy);
+    void (*cursor)(struct display *p, int mode, int xx, int yy);
+    int  (*set_font)(struct display *p, int width, int height);
+    void (*clear_margins)(struct vc_data *conp, struct display *p);
+    unsigned int fontwidthmask;      /* 1 at (1 << (width - 1)) if width is supported */
 }; 
 
+#ifdef CONFIG_FBCON_FONTWIDTH8_ONLY
+
+/* fontwidth w is supported by dispsw */
+#define FONTWIDTH(w)	(1 << ((8) - 1))
+/* fontwidths w1-w2 inclusive are supported by dispsw */
+#define FONTWIDTHRANGE(w1,w2)	FONTWIDTH(8)
+
+#else
+
+/* fontwidth w is supported by dispsw */
+#define FONTWIDTH(w)	(1 << ((w) - 1))
+/* fontwidths w1-w2 inclusive are supported by dispsw */
+#define FONTWIDTHRANGE(w1,w2)	(FONTWIDTH(w2+1) - FONTWIDTH(w1))
+
+#endif
 
     /*
      *  Attribute Decoding
      */
 
 /* Color */
-#define attr_fgcol(p,conp)    \
-	(((conp)->vc_attr >> ((p)->inverse ? 4 : 0)) & 0x0f)
-#define attr_bgcol(p,conp)    \
-	(((conp)->vc_attr >> ((p)->inverse ? 0 : 4)) & 0x0f)
+#define attr_fgcol(p,s)    \
+	(((s) >> ((p)->fgshift)) & 0x0f)
+#define attr_bgcol(p,s)    \
+	(((s) >> ((p)->bgshift)) & 0x0f)
 #define	attr_bgcol_ec(p,conp) \
-	(((conp)->vc_video_erase_char >> ((p)->inverse ? 8 : 12)) & 0x0f)
+	(((conp)->vc_video_erase_char >> ((p)->bgshift)) & 0x0f)
 
 /* Monochrome */
-#define attr_bold(p,conp)     \
-	(((conp)->vc_attr & 3) == 2)
-#define attr_reverse(p,conp)  \
-	(((conp)->vc_attr & 8) ^ ((p)->inverse ? 8 : 0))
-#define attr_underline(p,conp) \
-	(((conp)->vc_attr) & 4)
+#define attr_bold(p,s) \
+	((s) & 0x200)
+#define attr_reverse(p,s) \
+	(((s) & 0x800) ^ ((p)->inverse ? 0x800 : 0))
+#define attr_underline(p,s) \
+	((s) & 0x400)
+#define attr_blink(p,s) \
+	((s) & 0x8000)
+	
+    /*
+     *  Scroll Method
+     */
+
+#define SCROLL_YWRAP	(0)
+#define SCROLL_YPAN	(1)
+#define SCROLL_YMOVE	(2)
+#define SCROLL_YREDRAW	(3)
+
+extern void fbcon_redraw_bmove(struct display *, int, int, int, int, int, int);
 
 
 /* ================================================================= */
@@ -317,6 +350,54 @@ static __inline__ void *mymemset(void *s, size_t count)
     return(memset(s, 255, count));
 }
 
+#ifdef __i386__
+static __inline__ void fast_memmove(void *d, const void *s, size_t count)
+{
+    if (d < s) {
+__asm__ __volatile__ (
+	"cld\n\t"
+	"shrl $1,%%ecx\n\t"
+	"jnc 1f\n\t"
+	"movsb\n"
+	"1:\tshrl $1,%%ecx\n\t"
+	"jnc 2f\n\t"
+	"movsw\n"
+	"2:\trep\n\t"
+	"movsl"
+	: /* no output */
+	:"c"(count),"D"((long)d),"S"((long)s)
+	:"cx","di","si","memory");
+    } else {
+__asm__ __volatile__ (
+	"std\n\t"
+	"shrl $1,%%ecx\n\t"
+	"jnc 1f\n\t"
+	"movb 3(%%esi),%%al\n\t"
+	"movb %%al,3(%%edi)\n\t"
+	"decl %%esi\n\t"
+	"decl %%edi\n"
+	"1:\tshrl $1,%%ecx\n\t"
+	"jnc 2f\n\t"
+	"movw 2(%%esi),%%ax\n\t"
+	"movw %%ax,2(%%edi)\n\t"
+	"decl %%esi\n\t"
+	"decl %%edi\n\t"
+	"decl %%esi\n\t"
+	"decl %%edi\n"
+	"2:\trep\n\t"
+	"movsl"
+	: /* no output */
+	:"c"(count),"D"(count-4+(long)d),"S"(count-4+(long)s)
+	:"ax","cx","di","si","memory");
+    }
+}
+
+static __inline__ void *mymemmove(char *dst, const char *src, size_t size)
+{
+    fast_memmove(dst, src, size);
+    return dst;
+}
+#else
 static __inline__ void *mymemmove(void *d, const void *s, size_t count)
 {
     return(memmove(d, s, count));
@@ -326,6 +407,7 @@ static __inline__ void fast_memmove(char *dst, const char *src, size_t size)
 {
     memmove(dst, src, size);
 }
+#endif	/* !i386 */
 
 #endif /* !m68k */
 

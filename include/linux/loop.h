@@ -17,7 +17,7 @@
        
 struct loop_device {
 	int		lo_number;
-	struct inode	*lo_inode;
+	struct dentry	*lo_dentry;
 	int		lo_refcnt;
 	kdev_t		lo_device;
 	int		lo_offset;
@@ -36,6 +36,7 @@ struct loop_device {
         idea_key        lo_idea_en_key;
         idea_key        lo_idea_de_key;
 #endif
+	struct file *	lo_backing_file;
 };
 
 typedef	int (* transfer_proc_t)(struct loop_device *, int cmd,

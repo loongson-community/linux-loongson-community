@@ -39,7 +39,7 @@
  *    knows the PREVENT/ALLOW MEDIUM REMOVAL command, the door should
  *    be locked and unlocked when mounting the first or unmounting the
  *    last filesystem on the device. The code is untested, because I
- *    don't have a removable harddisk.
+ *    don't have a removable hard disk.
  *
  */
 
@@ -147,7 +147,7 @@ struct acsi_info_struct {
 #define TYPE_NO_LUN	0x7f
 
 /* The data returned by MODE SENSE differ between the old Atari
- * harddisks and SCSI disks connected to ACSI. In the following, both
+ * hard disks and SCSI disks connected to ACSI. In the following, both
  * formats are defined and some macros to operate on them potably.
  */
 
@@ -1851,7 +1851,7 @@ void cleanup_module(void)
 
 	if (unregister_blkdev( MAJOR_NR, "ad" ) != 0)
 		printk( KERN_ERR "acsi: cleanup_module failed\n");
-	
+
 	for (gdp = &gendisk_head; *gdp; gdp = &((*gdp)->next))
 		if (*gdp == &acsi_gendisk)
 			break;

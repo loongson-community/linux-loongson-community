@@ -630,7 +630,7 @@ static int pms_capture(struct pms_device *dev, char *buf, int rgb555, int count)
 		while (cnt <= 0) 
 		{ 
 			/*
-			 *	Dont copy too far
+			 *	Don't copy too far
 			 */
 			int dt=dw;
 			if(dt+len>count)
@@ -893,6 +893,7 @@ struct video_device pms_template=
 	pms_close,
 	pms_read,
 	pms_write,
+	NULL,		/* FIXME - we can use POLL on this board with the irq */
 	pms_ioctl,
 	NULL,
 	pms_init_done,

@@ -19,8 +19,10 @@
 #include <linux/reboot.h>
 #include <linux/sysrq.h>
 #include <linux/kbd_kern.h>
+#include <linux/quotaops.h>
+#include <linux/smp_lock.h>
+
 #include <asm/ptrace.h>
-#include <asm/smp_lock.h>
 
 #ifdef CONFIG_APM
 #include <linux/apm_bios.h>
@@ -188,7 +190,7 @@ static void go_sync(kdev_t dev, int remount_flag)
 			printk("R/O\n");
 			return;
 		}
-		quota_off(dev, -1);
+		DQUOT_OFF(dev);
 		fsync_dev(dev);
 		flags = MS_RDONLY;
 		if (sb->s_op && sb->s_op->remount_fs) {

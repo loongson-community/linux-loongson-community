@@ -80,8 +80,7 @@ typedef unsigned long pgprot_t;
 #define MAP_NR(addr)		(((unsigned long)addr-PAGE_OFFSET) >> PAGE_SHIFT)
 #define MAP_PAGE_RESERVED	(1<<15)
 
-extern unsigned long get_prezerod_page(void);
-
+extern unsigned long get_zero_page_fast(void);
 #endif /* __KERNEL__ */
 #endif /* __ASSEMBLY__ */
 #endif /* _PPC_PAGE_H */

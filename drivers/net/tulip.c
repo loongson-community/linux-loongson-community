@@ -42,9 +42,9 @@ static int reverse_probe = 0;
 
 /* Set the copy breakpoint for the copy-only-tiny-buffer Rx structure. */
 #ifdef __alpha__
-static const rx_copybreak = 1518;
+static const int rx_copybreak = 1518;
 #else
-static const rx_copybreak = 100;
+static const int rx_copybreak = 100;
 #endif
 
 /* The following example shows how to always use the 10base2 port. */
@@ -472,11 +472,12 @@ int tulip_probe(struct device *dev)
 			if (pcibios_find_class
 				(PCI_CLASS_NETWORK_ETHERNET << 8,
 				 reverse_probe ? 0xfe - pci_index : pci_index,
-				 &pci_bus, &pci_device_fn) != PCIBIOS_SUCCESSFUL)
+				 &pci_bus, &pci_device_fn) != PCIBIOS_SUCCESSFUL) {
 				if (reverse_probe)
 					continue;
 				else
 					break;
+			}
 			pcibios_read_config_word(pci_bus, pci_device_fn,
 									 PCI_VENDOR_ID, &vendor);
 			pcibios_read_config_word(pci_bus, pci_device_fn,
@@ -577,7 +578,7 @@ static struct device *tulip_probe1(struct device *dev, int ioaddr, int irq,
 	/* Stop the chip's Tx and Rx processes. */
 	outl(inl(ioaddr + CSR6) & ~0x2002, ioaddr + CSR6);
 	/* Clear the missed-packet counter. */
-	(volatile)inl(ioaddr + CSR8);
+	(volatile int)inl(ioaddr + CSR8);
 
 	if (chip_id == DC21041) {
 		if (inl(ioaddr + CSR9) & 0x8000) {
@@ -803,7 +804,7 @@ static void parse_eeprom(struct device *dev)
 	/* The last media info list parsed, for multiport boards.  */
 	static struct mediatable *last_mediatable = NULL;
 	static unsigned char *last_ee_data = NULL;
-	static controller_index = 0;
+	static int controller_index = 0;
 	struct tulip_private *tp = (struct tulip_private *)dev->priv;
 	int ioaddr = dev->base_addr;
 	unsigned char *ee_data = tp->eeprom;
@@ -1658,13 +1659,15 @@ static void tulip_tx_timeout(struct device *dev)
 		   dev->name, inl(ioaddr + CSR5), csr12,
 		   inl(ioaddr + CSR13), inl(ioaddr + CSR14));
 	tp->mediasense = 1;
-	if (dev->if_port == 1 || dev->if_port == 2)
+
+	if (dev->if_port == 1 || dev->if_port == 2) {
 		if (csr12 & 0x0004) {
 			dev->if_port = 2 - dev->if_port;
 		} else
 			dev->if_port = 0;
-	else
+	} else
 		dev->if_port = 1;
+
 	select_media(dev, 0);
 	tp->stats.tx_errors++;
 	dev->trans_start = jiffies;

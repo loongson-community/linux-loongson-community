@@ -240,7 +240,7 @@ __initfunc(static void xd_geninit (struct gendisk *ignored))
 
 	}
 	if (xd_drives) {
-		if (!request_irq(xd_irq,xd_interrupt_handler, 0, "XT harddisk", NULL)) {
+		if (!request_irq(xd_irq,xd_interrupt_handler, 0, "XT hard disk", NULL)) {
 			if (request_dma(xd_dma,"xd")) {
 				printk("xd: unable to get DMA%d\n",xd_dma);
 				free_irq(xd_irq, NULL);
@@ -708,8 +708,7 @@ __initfunc(static void xd_dtc_init_controller (unsigned int address))
 	switch (address) {
 		case 0x00000:
 		case 0xC8000:	break;			/*initial: 0x320 */
-		case 0xCA000:	if (xd[3]<=0) xd_iobase = 0x324; 
-				break;
+		case 0xCA000:	xd_iobase = 0x324; 
 		case 0xD0000:				/*5150CX*/
 		case 0xD8000:	break;			/*5150CX & 5150XL*/
 		default:        printk("xd_dtc_init_controller: unsupported BIOS address %06x\n",address);
@@ -873,13 +872,14 @@ __initfunc(static void xd_wd_init_drive (u_char drive))
 			xd_info[drive].ecc = 0x0B;
 #endif /* 0 */
 		}
-		if (!wd_1002)
+		if (!wd_1002) {
 			if (use_jumper_geo)
 				xd_setparam(CMD_WDSETPARAM,drive,xd_info[drive].heads,xd_info[drive].cylinders,
 					geometry_table[n][2],geometry_table[n][3],0x0B);
 			else
 				xd_setparam(CMD_WDSETPARAM,drive,xd_info[drive].heads,xd_info[drive].cylinders,
 					((u_short *) (buf))[0xD8],((u_short *) (buf))[0xDA],buf[0x1B4]);
+		}
 	/* 1002 based RLL controler requests converted adressing, but reports physical 
 	   (physical 26 sec., logical 17 sec.) 
 	   1004 based ???? */

@@ -1,5 +1,5 @@
 /*
- *  $Id: ipconfig.c,v 1.11 1998/02/12 07:43:16 davem Exp $
+ *  $Id: ipconfig.c,v 1.15 1998/06/19 13:22:33 davem Exp $
  *
  *  Automatic Configuration of IP -- use BOOTP or RARP or user-supplied
  *  information to configure own IP address and routes.
@@ -248,6 +248,11 @@ __initfunc(int ic_setup_routes(void))
 
 __initfunc(int ic_defaults(void))
 {
+	/*
+	 *	At this point we have no userspace running so need not
+	 *	claim locks on system_utsname
+	 */
+	 
 	if (!ic_host_name_set)
 		strcpy(system_utsname.nodename, in_ntoa(ic_myaddr));
 
@@ -318,7 +323,7 @@ ic_rarp_recv(struct sk_buff *skb, struct device *dev, struct packet_type *pt))
 	if (rarp->ar_op != htons(ARPOP_RREPLY))
 		goto drop;
 
-	/* If it's not ethernet, delete it. */
+	/* If it's not Ethernet, delete it. */
 	if (rarp->ar_pro != htons(ETH_P_IP))
 		goto drop;
 
@@ -552,7 +557,7 @@ __initfunc(static int ic_udp_open(struct socket **sock))
 {
 	int err;
 
-	if ((err = sock_create(AF_INET, SOCK_DGRAM, IPPROTO_UDP, sock)) < 0)
+	if ((err = sock_create(PF_INET, SOCK_DGRAM, IPPROTO_UDP, sock)) < 0)
 		printk(KERN_ERR "BOOTP: Cannot open UDP socket!\n");
 	return err;
 }
@@ -1072,8 +1077,8 @@ __initfunc(int ip_auto_config(void))
 }
 
 /*
- *  Decode any IP configuration options in the "ipconfig" kernel command
- *  line parameter. It consists of option fields separated by colons in
+ *  Decode any IP configuration options in the "ip=" or "nfsaddrs=" kernel
+ *  command line parameter. It consists of option fields separated by colons in
  *  the following order:
  *
  *  <client-ip>:<server-ip>:<gw-ip>:<netmask>:<host name>:<device>:<bootp|rarp>

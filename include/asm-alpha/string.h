@@ -4,10 +4,8 @@
 #ifdef __KERNEL__
 
 /*
- * GCC of any recent vintage doesn't do stupid things with bcopy.  Of
- * EGCS-devel vintage, it knows all about expanding memcpy inline.
- * For things other than EGCS-devel but still recent, GCC will expand
- * __builtin_memcpy as a simple call to memcpy.
+ * GCC of any recent vintage doesn't do stupid things with bcopy.
+ * EGCS 1.1 knows all about expanding memcpy inline, others don't.
  *
  * Similarly for a memset with data = 0.
  */
@@ -16,15 +14,15 @@
 /* For backward compatibility with modules.  Unused otherwise.  */
 extern void * __memcpy(void *, const void *, size_t);
 
-#if __GNUC__ > 2 || __GNUC_MINOR__ >= 8
+#if __GNUC__ > 2 || __GNUC_MINOR__ >= 91
 #define memcpy __builtin_memcpy
 #endif
 
 #define __HAVE_ARCH_MEMSET
-extern void * __constant_c_memset(void *, unsigned long, long);
-extern void * __memset(void *, char, size_t);
+extern void * __constant_c_memset(void *, unsigned long, size_t);
+extern void * __memset(void *, int, size_t);
 
-#if __GNUC__ > 2 || __GNUC_MINOR__ >= 8
+#if __GNUC__ > 2 || __GNUC_MINOR__ >= 91
 #define memset(s, c, n)							    \
 (__builtin_constant_p(c)						    \
  ? (__builtin_constant_p(n) && (c) == 0					    \
@@ -45,6 +43,20 @@ extern void * __memset(void *, char, size_t);
 #define __HAVE_ARCH_STRCHR
 #define __HAVE_ARCH_STRRCHR
 #define __HAVE_ARCH_STRLEN
+
+/* The following routine is like memset except that it writes 16-bit
+   aligned values.  The DEST and COUNT parameters must be even for 
+   correct operation.  */
+
+#define __HAVE_ARCH_MEMSETW
+extern void * __memsetw(void *dest, unsigned short, size_t count);
+
+#define memsetw(s, c, n)						 \
+(__builtin_constant_p(c)						 \
+ ? __constant_c_memset((s),0x0001000100010001UL*(unsigned short)(c),(n)) \
+ : __memsetw((s),(c),(n)))
+
+extern int strcasecmp(const char *, const char *);
 
 #endif /* __KERNEL__ */
 

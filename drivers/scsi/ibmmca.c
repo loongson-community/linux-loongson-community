@@ -877,6 +877,7 @@ interrupt_handler (int irq, void *dev_id, struct pt_regs *regs)
   unsigned int intr_reg;
   unsigned int cmd_result;
   unsigned int ldn;
+  unsigned long flags;
 
   /* search for one adapter-response on shared interrupt */
   do
@@ -892,14 +893,15 @@ interrupt_handler (int irq, void *dev_id, struct pt_regs *regs)
   ldn = intr_reg & 0x0f;
 
   /*must wait for attention reg not busy, then send EOI to subsystem */
+  save_flags(flags);
   while (1) {
       cli ();
       if (!(inb (IM_STAT_REG) & IM_BUSY)) 
         break;
-      sti ();
+      restore_flags(flags);
     }
   outb (IM_EOI | ldn, IM_ATTN_REG);
-  sti ();
+  restore_flags (flags);
 
   /*these should never happen (hw fails, or a local programming bug) */
   if (cmd_result == IM_ADAPTER_HW_FAILURE)
@@ -1007,19 +1009,21 @@ static void
 issue_cmd (struct Scsi_Host *shpnt, unsigned long cmd_reg, 
            unsigned char attn_reg)
 {
+  unsigned long flags;
   /*must wait for attention reg not busy */
+  save_flags(flags);
   while (1)
     {
       cli ();
       if (!(inb (IM_STAT_REG) & IM_BUSY))
 	break;
-      sti ();
+      restore_flags (flags);
     }
 
   /*write registers and enable system interrupts */
   outl (cmd_reg, IM_CMD_REG);
   outb (attn_reg, IM_ATTN_REG);
-  sti ();
+  restore_flags (flags);
 }
 
 /*--------------------------------------------------------------------*/
@@ -1038,7 +1042,7 @@ static int ibmmca_getinfo (char *buf, int slot, void *dev)
   int len = 0;
 
   len += sprintf (buf + len, "Subsystem PUN: %d\n", subsystem_pun);
-  len += sprintf (buf + len, "I/O base address: 0x%x\n", IM_CMD_REG);
+  len += sprintf (buf + len, "I/O base address: 0x%lx\n", IM_CMD_REG);
   return len;
 }
 
@@ -1265,7 +1269,7 @@ static void check_devices (struct Scsi_Host *shpnt)
 		    issue_cmd (shpnt, IM_RESET_IMM_CMD, IM_IMM_CMD | ldn);
 		    while (reset_status == IM_RESET_IN_PROGRESS && --ticks) 
 		      {
-			udelay(1000000/HZ);
+			mdelay(1+999/HZ);
 			barrier();
 		      }
 		    /* if reset did not complete, just claim */
@@ -2021,7 +2025,7 @@ ibmmca_abort (Scsi_Cmnd * cmd)
   /*if cmd for this ldn has already finished, no need to abort */
   if (!ld[ldn].cmd)
     {
-      sti ();
+      /* sti (); */
       return SCSI_ABORT_NOT_RUNNING;
     }
 
@@ -2068,7 +2072,7 @@ ibmmca_reset (Scsi_Cmnd * cmd, unsigned int reset_flags)
   reset_status = IM_RESET_IN_PROGRESS;
   issue_cmd (shpnt, IM_RESET_IMM_CMD, IM_IMM_CMD | 0xf);
   while (reset_status == IM_RESET_IN_PROGRESS && --ticks) {
-    udelay(1000000/HZ);
+    mdelay(1+999/HZ);
     barrier();
   }
   /* if reset did not complete, just return an error*/
@@ -2133,7 +2137,7 @@ static int ldn_access_load(struct Scsi_Host *shpnt, int ldn)
 {
    if (IBM_DS.total_accesses == 0) return (0);
    if (IBM_DS.ldn_access[ldn] == 0) return (0);
-   return((int)(((float)IBM_DS.ldn_access[ldn]/(float)IBM_DS.total_accesses)*(float)100.000));
+   return (IBM_DS.ldn_access[ldn] * 100) / IBM_DS.total_accesses;
 }
 
 /* calculate total amount of r/w-accesses */
@@ -2174,6 +2178,7 @@ int ibmmca_proc_info (char *buffer, char **start, off_t offset, int length,
    int len=0;
    int i,id,lun;
    struct Scsi_Host *shpnt;
+   unsigned long flags;
 
    for (i = 0; hosts[i] && hosts[i]->host_no != hostno; i++);
    shpnt = hosts[i];
@@ -2182,6 +2187,7 @@ int ibmmca_proc_info (char *buffer, char **start, off_t offset, int length,
        return len;
    }
 
+   save_flags(flags);
    cli();
 
    len += sprintf(buffer+len, "\n             IBM-SCSI-Subsystem-Linux-Driver, Version %s\n\n\n",
@@ -2199,7 +2205,7 @@ int ibmmca_proc_info (char *buffer, char **start, off_t offset, int length,
 #endif
    len += sprintf(buffer+len, "               This Hostnumber..........: %d\n",
 		  hostno);
-   len += sprintf(buffer+len, "               Base I/O-Port............: 0x%x\n",
+   len += sprintf(buffer+len, "               Base I/O-Port............: 0x%lx\n",
 		  IM_CMD_REG);
    len += sprintf(buffer+len, "               (Shared) IRQ.............: %d\n",
 		  IM_IRQ);
@@ -2263,7 +2269,7 @@ int ibmmca_proc_info (char *buffer, char **start, off_t offset, int length,
    if (len > length) 
      len = length;
    
-   sti();
+   restore_flags(flags);
    
    return len;
 }

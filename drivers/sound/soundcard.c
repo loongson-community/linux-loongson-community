@@ -1,7 +1,7 @@
 /*
  * linux/drivers/sound/soundcard.c
  *
- * Soundcard driver for Linux
+ * Sound card driver for Linux
  */
 /*
  * Copyright (C) by Hannu Savolainen 1993-1997
@@ -38,11 +38,10 @@
 #include <linux/delay.h>
 #include <linux/proc_fs.h>
 
-#define SOUND_CORE
-
 #include "soundmodule.h"
+struct notifier_block *sound_locker=(struct notifier_block *)0;
+static int lock_depth = 0;
 
-#include <linux/major.h>
 #ifdef MODULE
 #define modular 1
 #else
@@ -57,8 +56,6 @@
 #endif
 
 static int      chrdev_registered = 0;
-static int      sound_major = SOUND_MAJOR;
-
 static int      is_unloading = 0;
 
 /*
@@ -92,17 +89,19 @@ int *load_mixer_volumes(char *name, int *levels, int present)
 	int             i, n;
 
 	for (i = 0; i < num_mixer_volumes; i++)
+	{
 		if (strcmp(name, mixer_vols[i].name) == 0)
-		  {
-			  if (present)
-				  mixer_vols[i].num = i;
-			  return mixer_vols[i].levels;
-		  }
+		{
+			if (present)
+				mixer_vols[i].num = i;
+			return mixer_vols[i].levels;
+		}
+	}
 	if (num_mixer_volumes >= MAX_MIXER_DEV)
-	  {
-		  printk("Sound: Too many mixers (%s)\n", name);
-		  return levels;
-	  }
+	{
+		printk(KERN_ERR "Sound: Too many mixers (%s)\n", name);
+		return levels;
+	}
 	n = num_mixer_volumes++;
 
 	strcpy(mixer_vols[n].name, name);
@@ -154,13 +153,16 @@ static int sound_proc_get_info(char *buffer, char **start, off_t offset, int len
 #else
 #define MODULEPROCSTRING "Driver compiled into kernel"
 #endif
-	
+
+	down(&uts_sem);	
+
 	len = sprintf(buffer, "OSS/Free:" SOUND_VERSION_STRING "\n"
 		      "Load type: " MODULEPROCSTRING "\n"
 		      "Kernel: %s %s %s %s %s\n"
 		      "Config options: %x\n\nInstalled drivers: \n", 
 		      system_utsname.sysname, system_utsname.nodename, system_utsname.release, 
 		      system_utsname.version, system_utsname.machine, SELECTED_SOUND_OPTIONS);
+	up(&uts_sem);
 	
 	for (i = 0; (i < num_sound_drivers) && (pos <= offset + length); i++) {
 		if (!sound_drivers[i].card_type)
@@ -175,7 +177,8 @@ static int sound_proc_get_info(char *buffer, char **start, off_t offset, int len
 	}
 	len += sprintf(buffer + len, "\nCard config: \n");
 
-	for (i = 0; (i < num_sound_cards) && (pos <= offset + length); i++) {
+	for (i = 0; (i < num_sound_cards) && (pos <= offset + length); i++) 
+	{
 		if (!snd_installed_cards[i].card_type)
 			continue;
 		if (!snd_installed_cards[i].enabled)
@@ -432,12 +435,12 @@ static int sound_open(struct inode *inode, struct file *file)
 	}
 	dev = MINOR(inode->i_rdev);
 	if (!soundcard_configured && dev != SND_DEV_CTL && dev != SND_DEV_STATUS) {
-		/* printk("SoundCard Error: The soundcard system has not been configured\n");*/
+		/* printk("SoundCard Error: The sound system has not been configured\n");*/
 		return -ENXIO;
 	}
 	DEB(printk("sound_open(dev=%d)\n", dev));
 	if ((dev >= SND_NDEVS) || (dev < 0)) {
-		printk(KERN_ERR "Invalid minor device %d\n", dev);
+		/* printk(KERN_ERR "Invalid minor device %d\n", dev);*/
 		return -ENXIO;
 	}
 	switch (dev & 0x0f) {
@@ -447,11 +450,11 @@ static int sound_open(struct inode *inode, struct file *file)
 	case SND_DEV_CTL:
 		dev >>= 4;
 #ifdef CONFIG_KMOD
-	if (dev >= 0 && dev < MAX_MIXER_DEV && mixer_devs[dev] == NULL) {
-		char modname[20];
-		sprintf(modname, "mixer%d", dev);
-		request_module(modname);
-	}
+		if (dev >= 0 && dev < MAX_MIXER_DEV && mixer_devs[dev] == NULL) {
+			char modname[20];
+			sprintf(modname, "mixer%d", dev);
+			request_module(modname);
+		}
 #endif
 		if (dev && (dev >= num_mixers || mixer_devs[dev] == NULL))
 			return -ENXIO;
@@ -486,9 +489,12 @@ static int sound_open(struct inode *inode, struct file *file)
 		return -ENXIO;
 	}
 	in_use++;
-#ifdef MODULE
-	SOUND_INC_USE_COUNT;
+
+#ifdef CONFIG_MODULES
+	notifier_call_chain(&sound_locker, 1, 0);
+	lock_depth++;
 #endif
+
 	return 0;
 }
 
@@ -527,9 +533,12 @@ static int sound_release(struct inode *inode, struct file *file)
 		printk(KERN_ERR "Sound error: Releasing unknown device 0x%02x\n", dev);
 	}
 	in_use--;
-#ifdef MODULE
-	SOUND_DEC_USE_COUNT;
+
+#ifdef CONFIG_MODULES
+	notifier_call_chain(&sound_locker, 0, 0);
+	lock_depth--;
 #endif
+
 	return 0;
 }
 
@@ -662,18 +671,18 @@ static unsigned int sound_poll(struct file *file, poll_table * wait)
 
 	DEB(printk("sound_poll(dev=%d)\n", dev));
 	switch (dev & 0x0f) {
-#if defined(CONFIG_SEQUENCER) || defined(MODULE)
+#ifdef CONFIG_SEQUENCER
 	case SND_DEV_SEQ:
 	case SND_DEV_SEQ2:
 		return sequencer_poll(dev, file, wait);
 #endif
 
-#if defined(CONFIG_MIDI)
+#ifdef CONFIG_MIDI
 	case SND_DEV_MIDIN:
 		return MIDIbuf_poll(dev, file, wait);
 #endif
 
-#if defined(CONFIG_AUDIO) || defined(MODULE)
+#ifdef CONFIG_AUDIO
 	case SND_DEV_DSP:
 	case SND_DEV_DSP16:
 	case SND_DEV_AUDIO:
@@ -750,7 +759,7 @@ static int sound_mmap(struct file *file, struct vm_area_struct *vma)
 	return 0;
 }
 
-static struct file_operations sound_fops =
+struct file_operations oss_sound_fops =
 {
 	sound_lseek,
 	sound_read,
@@ -763,6 +772,36 @@ static struct file_operations sound_fops =
 	sound_release
 };
 
+/*
+ *	Create the required special subdevices
+ */
+ 
+static int create_special_devices(void)
+{
+	int seq1,seq2;
+	int sndstat=register_sound_special(&oss_sound_fops, 6);
+	if(sndstat==-1)
+		goto bad1;
+	seq1=register_sound_special(&oss_sound_fops, 1);
+	if(seq1==-1)
+		goto bad2;
+	seq2=register_sound_special(&oss_sound_fops, 8);
+	if(seq2!=-1)
+		return 0;
+	unregister_sound_special(1);
+bad2:
+	unregister_sound_special(6);		
+bad1:	
+	return -1;
+}
+
+static void destroy_special_devices(void)
+{
+	unregister_sound_special(6);
+	unregister_sound_special(1);
+	unregister_sound_special(8);
+}
+
 #ifdef MODULE
 static void
 #else
@@ -770,8 +809,14 @@ void
 #endif
 soundcard_init(void)
 {
+	/* drag in sound_syms.o */
+	{
+		extern char sound_syms_symbol;
+		sound_syms_symbol = 0;
+	}
+
 #ifndef MODULE
-	register_chrdev(sound_major, "sound", &sound_fops);
+	create_special_devices();
 	chrdev_registered = 1;
 #endif
 
@@ -785,19 +830,21 @@ soundcard_init(void)
 		return;		/* No cards detected */
 #endif
 
-#if defined(CONFIG_AUDIO)
+#ifdef CONFIG_AUDIO
 	if (num_audiodevs || modular)	/* Audio devices present */
 	{
 		audio_init_devices();
 	}
 #endif
-
-
+	if (proc_register(&proc_root, &proc_root_sound))
+		printk(KERN_ERR "sound: registering /proc/sound failed\n");
 }
 
 static int      sound[20] = {
 	0
 };
+
+#ifdef MODULE
 
 int init_module(void)
 {
@@ -816,7 +863,7 @@ int init_module(void)
 	if (i)
 		sound_setup("sound=", ints);
 
-	err = register_chrdev(sound_major, "sound", &sound_fops);
+	err = create_special_devices();
 	if (err)
 	{
 		printk(KERN_ERR "sound: driver already loaded/included in kernel\n");
@@ -828,13 +875,8 @@ int init_module(void)
 	if (sound_nblocks >= 1024)
 		printk(KERN_ERR "Sound warning: Deallocation table was too small.\n");
 	
-	if (proc_register(&proc_root, &proc_root_sound))
-		printk(KERN_ERR "sound: registering /proc/sound failed\n");
 	return 0;
 }
-
-#ifdef MODULE
-
 
 void cleanup_module(void)
 {
@@ -847,9 +889,9 @@ void cleanup_module(void)
         if (proc_unregister(&proc_root, PROC_SOUND))
 		printk(KERN_ERR "sound: unregistering /proc/sound failed\n");
 	if (chrdev_registered)
-		unregister_chrdev(sound_major, "sound");
+		destroy_special_devices();
 
-#if defined(CONFIG_SEQUENCER) || defined(MODULE)
+#ifdef CONFIG_SEQUENCER
 	sound_stop_timer();
 #endif
 
@@ -942,7 +984,7 @@ void sound_close_dma(int chn)
 	restore_flags(flags);
 }
 
-#if defined(CONFIG_SEQUENCER) || defined(MODULE)
+#ifdef CONFIG_SEQUENCER
 
 static void do_sequencer_timer(unsigned long dummy)
 {
@@ -1022,12 +1064,6 @@ void conf_printf2(char *name, int base, int irq, int dma, int dma2)
  *	Module and lock management
  */
  
-struct notifier_block *sound_locker=(struct notifier_block *)0;
-static int lock_depth = 0;
-
-#define SOUND_INC_USE_COUNT	do { notifier_call_chain(&sound_locker, 1, 0); lock_depth++; } while(0);
-#define SOUND_DEC_USE_COUNT	do { notifier_call_chain(&sound_locker, 0, 0); lock_depth--; } while(0);
-
 /*
  *	When a sound module is registered we need to bring it to the current
  *	lock level...

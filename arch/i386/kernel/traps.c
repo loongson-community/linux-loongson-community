@@ -27,6 +27,7 @@
 #include <asm/io.h>
 #include <asm/spinlock.h>
 #include <asm/atomic.h>
+#include <asm/debugreg.h>
 
 asmlinkage int system_call(void);
 asmlinkage void lcall7(void);
@@ -41,12 +42,10 @@ static inline void console_verbose(void)
 #define DO_ERROR(trapnr, signr, str, name, tsk) \
 asmlinkage void do_##name(struct pt_regs * regs, long error_code) \
 { \
-	lock_kernel(); \
 	tsk->tss.error_code = error_code; \
 	tsk->tss.trap_no = trapnr; \
 	force_sig(signr, tsk); \
-	die_if_kernel(str,regs,error_code); \
-	unlock_kernel(); \
+	die_if_no_fixup(str,regs,error_code); \
 }
 
 #define DO_VM86_ERROR(trapnr, signr, str, name, tsk) \
@@ -65,23 +64,6 @@ asmlinkage void do_##name(struct pt_regs * regs, long error_code) \
 out: \
 	unlock_kernel(); \
 }
-
-#define get_seg_byte(seg,addr) ({ \
-register unsigned char __res; \
-__asm__("pushl %%fs;movl %%ax,%%fs;movb %%fs:%2,%%al;popl %%fs" \
-	:"=a" (__res):"0" (seg),"m" (*(addr))); \
-__res;})
-
-#define get_seg_long(seg,addr) ({ \
-register unsigned long __res; \
-__asm__("pushl %%fs;movl %%ax,%%fs;movl %%fs:%2,%%eax;popl %%fs" \
-	:"=a" (__res):"0" (seg),"m" (*(addr))); \
-__res;})
-
-#define _fs() ({ \
-register unsigned short __res; \
-__asm__("movl %%fs,%%ax":"=a" (__res):); \
-__res;})
 
 void page_exception(void);
 
@@ -118,14 +100,16 @@ int kstack_depth_to_print = 24;
 static void show_registers(struct pt_regs *regs)
 {
 	int i;
+	int in_kernel = 1;
 	unsigned long esp;
 	unsigned short ss;
 	unsigned long *stack, addr, module_start, module_end;
 	extern char _stext, _etext;
 
-	esp = (unsigned long) &regs->esp;
+	esp = (unsigned long) (1+regs);
 	ss = __KERNEL_DS;
 	if (regs->xcs & 3) {
+		in_kernel = 0;
 		esp = regs->esp;
 		ss = regs->xss & 0xffff;
 	}
@@ -138,59 +122,85 @@ static void show_registers(struct pt_regs *regs)
 	printk("ds: %04x   es: %04x   ss: %04x\n",
 		regs->xds & 0xffff, regs->xes & 0xffff, ss);
 	store_TR(i);
-	printk("Process %s (pid: %d, process nr: %d, stackpage=%08lx)\nStack: ",
+	printk("Process %s (pid: %d, process nr: %d, stackpage=%08lx)",
 		current->comm, current->pid, 0xffff & i, 4096+(unsigned long)current);
-	stack = (unsigned long *) esp;
-	for(i=0; i < kstack_depth_to_print; i++) {
-		if (((long) stack & 4095) == 0)
-			break;
-		if (i && ((i % 8) == 0))
-			printk("\n       ");
-		printk("%08lx ", get_seg_long(ss,stack++));
-	}
-	printk("\nCall Trace: ");
-	stack = (unsigned long *) esp;
-	i = 1;
-	module_start = PAGE_OFFSET + (max_mapnr << PAGE_SHIFT);
-	module_start = ((module_start + VMALLOC_OFFSET) & ~(VMALLOC_OFFSET-1));
-	module_end = module_start + MODULE_RANGE;
-	while (((long) stack & 4095) != 0) {
-		addr = get_seg_long(ss, stack++);
-		/*
-		 * If the address is either in the text segment of the
-		 * kernel, or in the region which contains vmalloc'ed
-		 * memory, it *may* be the address of a calling
-		 * routine; if so, print it so that someone tracing
-		 * down the cause of the crash will be able to figure
-		 * out the call path that was taken.
-		 */
-		if (((addr >= (unsigned long) &_stext) &&
-		     (addr <= (unsigned long) &_etext)) ||
-		    ((addr >= module_start) && (addr <= module_end))) {
+
+	/*
+	 * When in-kernel, we also print out the stack and code at the
+	 * time of the fault..
+	 */
+	if (in_kernel) {
+		printk("\nStack: ");
+		stack = (unsigned long *) esp;
+		for(i=0; i < kstack_depth_to_print; i++) {
+			if (((long) stack & 4095) == 0)
+				break;
 			if (i && ((i % 8) == 0))
 				printk("\n       ");
-			printk("[<%08lx>] ", addr);
-			i++;
+			printk("%08lx ", *stack++);
 		}
+		printk("\nCall Trace: ");
+		stack = (unsigned long *) esp;
+		i = 1;
+		module_start = PAGE_OFFSET + (max_mapnr << PAGE_SHIFT);
+		module_start = ((module_start + VMALLOC_OFFSET) & ~(VMALLOC_OFFSET-1));
+		module_end = module_start + MODULE_RANGE;
+		while (((long) stack & 4095) != 0) {
+			addr = *stack++;
+			/*
+			 * If the address is either in the text segment of the
+			 * kernel, or in the region which contains vmalloc'ed
+			 * memory, it *may* be the address of a calling
+			 * routine; if so, print it so that someone tracing
+			 * down the cause of the crash will be able to figure
+			 * out the call path that was taken.
+			 */
+			if (((addr >= (unsigned long) &_stext) &&
+			     (addr <= (unsigned long) &_etext)) ||
+			    ((addr >= module_start) && (addr <= module_end))) {
+				if (i && ((i % 8) == 0))
+					printk("\n       ");
+				printk("[<%08lx>] ", addr);
+				i++;
+			}
+		}
+		printk("\nCode: ");
+		for(i=0;i<20;i++)
+			printk("%02x ", ((unsigned char *)regs->eip)[i]);
 	}
-	printk("\nCode: ");
-	for(i=0;i<20;i++)
-		printk("%02x ",0xff & get_seg_byte(regs->xcs & 0xffff,(i+(char *)regs->eip)));
 	printk("\n");
 }	
 
 spinlock_t die_lock;
 
-void die_if_kernel(const char * str, struct pt_regs * regs, long err)
+void die(const char * str, struct pt_regs * regs, long err)
 {
-	if ((regs->eflags & VM_MASK) || (3 & regs->xcs) == 3)
-		return;
 	console_verbose();
 	spin_lock_irq(&die_lock);
 	printk("%s: %04lx\n", str, err & 0xffff);
 	show_registers(regs);
 	spin_unlock_irq(&die_lock);
 	do_exit(SIGSEGV);
+}
+
+static void die_if_kernel(const char * str, struct pt_regs * regs, long err)
+{
+	if (!(regs->eflags & VM_MASK) && !(3 & regs->xcs))
+		die(str, regs, err);
+}
+
+static void die_if_no_fixup(const char * str, struct pt_regs * regs, long err)
+{
+	if (!(regs->eflags & VM_MASK) && !(3 & regs->xcs))
+	{
+		unsigned long fixup;
+		fixup = search_exception_table(regs->eip);
+		if (fixup) {
+			regs->eip = fixup;
+			return;
+		}
+		die(str, regs, err);
+	}
 }
 
 DO_VM86_ERROR( 0, SIGFPE,  "divide error", divide_error, current)
@@ -200,7 +210,7 @@ DO_VM86_ERROR( 5, SIGSEGV, "bounds", bounds, current)
 DO_ERROR( 6, SIGILL,  "invalid operand", invalid_op, current)
 DO_VM86_ERROR( 7, SIGSEGV, "device not available", device_not_available, current)
 DO_ERROR( 8, SIGSEGV, "double fault", double_fault, current)
-DO_ERROR( 9, SIGFPE,  "coprocessor segment overrun", coprocessor_segment_overrun, last_task_used_math)
+DO_ERROR( 9, SIGFPE,  "coprocessor segment overrun", coprocessor_segment_overrun, current)
 DO_ERROR(10, SIGSEGV, "invalid TSS", invalid_TSS, current)
 DO_ERROR(11, SIGBUS,  "segment not present", segment_not_present, current)
 DO_ERROR(12, SIGBUS,  "stack segment", stack_segment, current)
@@ -224,17 +234,33 @@ asmlinkage void cache_flush_denied(struct pt_regs * regs, long error_code)
 
 asmlinkage void do_general_protection(struct pt_regs * regs, long error_code)
 {
-	lock_kernel();
-	if (regs->eflags & VM_MASK) {
-		handle_vm86_fault((struct kernel_vm86_regs *) regs, error_code);
-		goto out;
-	}
-	die_if_kernel("general protection",regs,error_code);
+	if (regs->eflags & VM_MASK)
+		goto gp_in_vm86;
+
+	if (!(regs->xcs & 3))
+		goto gp_in_kernel;
+
 	current->tss.error_code = error_code;
 	current->tss.trap_no = 13;
-	force_sig(SIGSEGV, current);	
-out:
+	force_sig(SIGSEGV, current);
+	return;
+
+gp_in_vm86:
+	lock_kernel();
+	handle_vm86_fault((struct kernel_vm86_regs *) regs, error_code);
 	unlock_kernel();
+	return;
+
+gp_in_kernel:
+	{
+		unsigned long fixup;
+		fixup = search_exception_table(regs->eip);
+		if (fixup) {
+			regs->eip = fixup;
+			return;
+		}
+		die("general protection fault", regs, error_code);
+	}
 }
 
 static void mem_parity_error(unsigned char reason, struct pt_regs * regs)
@@ -280,30 +306,70 @@ asmlinkage void do_nmi(struct pt_regs * regs, long error_code)
 		unknown_nmi_error(reason, regs);
 }
 
+/*
+ * Careful - we must not do a lock-kernel until we have checked that the
+ * debug fault happened in user mode. Getting debug exceptions while
+ * in the kernel has to be handled without locking, to avoid deadlocks..
+ *
+ * Being careful here means that we don't have to be as careful in a
+ * lot of more complicated places (task switching can be a bit lazy
+ * about restoring all the debug state, and ptrace doesn't have to
+ * find every occurrence of the TF bit that could be saved away even
+ * by user code - and we don't have to be careful about what values
+ * can be written to the debug registers because there are no really
+ * bad cases).
+ */
 asmlinkage void do_debug(struct pt_regs * regs, long error_code)
 {
+	unsigned int condition;
+	struct task_struct *tsk = current;
+
+	if (regs->eflags & VM_MASK)
+		goto debug_vm86;
+
+	__asm__ __volatile__("movl %%db6,%0" : "=r" (condition));
+
+	/* Mask out spurious TF errors due to lazy TF clearing */
+	if (condition & DR_STEP) {
+		if ((tsk->flags & PF_PTRACED) == 0)
+			goto clear_TF;
+	}
+
+	/* Mast out spurious debug traps due to lazy DR7 setting */
+	if (condition & (DR_TRAP0|DR_TRAP1|DR_TRAP2|DR_TRAP3)) {
+		if (!tsk->tss.debugreg[7])
+			goto clear_dr7;
+	}
+
+	/* If this is a kernel mode trap, we need to reset db7 to allow us to continue sanely */
+	if ((regs->xcs & 3) == 0)
+		goto clear_dr7;
+
+	/* Ok, finally something we can handle */
+	tsk->tss.trap_no = 1;
+	tsk->tss.error_code = error_code;
+	force_sig(SIGTRAP, tsk);
+	return;
+
+debug_vm86:
 	lock_kernel();
-	if (regs->eflags & VM_MASK) {
-		handle_vm86_trap((struct kernel_vm86_regs *) regs, error_code, 1);
-		goto out;
-	}
-	force_sig(SIGTRAP, current);
-	current->tss.trap_no = 1;
-	current->tss.error_code = error_code;
-	if ((regs->xcs & 3) == 0) {
-		/* If this is a kernel mode trap, then reset db7 and allow us to continue */
-		__asm__("movl %0,%%db7"
-			: /* no output */
-			: "r" (0));
-		goto out;
-	}
-	die_if_kernel("debug",regs,error_code);
-out:
+	handle_vm86_trap((struct kernel_vm86_regs *) regs, error_code, 1);
 	unlock_kernel();
+	return;
+
+clear_dr7:
+	__asm__("movl %0,%%db7"
+		: /* no output */
+		: "r" (0));
+	return;
+
+clear_TF:
+	regs->eflags &= ~TF_MASK;
+	return;
 }
 
 /*
- * Note that we play around with the 'TS' bit to hopefully get
+ * Note that we play around with the 'TS' bit in an attempt to get
  * the correct behaviour even in the presence of the asynchronous
  * IRQ13 behaviour
  */
@@ -313,16 +379,7 @@ void math_error(void)
 
 	lock_kernel();
 	clts();
-#ifdef __SMP__
 	task = current;
-#else
-	task = last_task_used_math;
-	last_task_used_math = NULL;
-	if (!task) {
-		__asm__("fnclex");
-		goto out;
-	}
-#endif
 	/*
 	 *	Save the info for the exception handler
 	 */
@@ -330,12 +387,9 @@ void math_error(void)
 	task->flags&=~PF_USEDFPU;
 	stts();
 
-	force_sig(SIGFPE, task);
 	task->tss.trap_no = 16;
 	task->tss.error_code = 0;
-#ifndef __SMP__
-out:
-#endif
+	force_sig(SIGFPE, task);
 	unlock_kernel();
 }
 
@@ -373,15 +427,6 @@ asmlinkage void math_state_restore(void)
  *	case we swap processors. We also don't use the coprocessor
  *	timer - IRQ 13 mode isn't used with SMP machines (thank god).
  */
-#ifndef __SMP__
-	if (last_task_used_math == current)
-		return;
-	if (last_task_used_math)
-		__asm__("fnsave %0":"=m" (last_task_used_math->tss.i387));
-	else
-		__asm__("fnclex");
-	last_task_used_math = current;
-#endif
 
 	if(current->used_math)
 		__asm__("frstor %0": :"m" (current->tss.i387));
@@ -419,9 +464,7 @@ __initfunc(void trap_init_f00f_bug(void))
 
 	/*
 	 * Allocate a new page in virtual address space, 
-	 * and move the IDT to have entry #7 starting at
-	 * the beginning of the page. We'll force a page
-	 * fault for IDT entries #0-#6..
+	 * move the IDT into it and write protect this page.
 	 */
 	page = (unsigned long) vmalloc(PAGE_SIZE);
 	memcpy((void *) page, idt_table, 256*8);
@@ -443,7 +486,7 @@ __initfunc(void trap_init_f00f_bug(void))
 
 
 
-__initfunc(void trap_init(void))
+void __init trap_init(void)
 {
 	int i;
 	struct desc_struct * p;

@@ -5,6 +5,13 @@
 
 extern unsigned int local_irq_count[NR_CPUS];
 
+/*
+ * Are we in an interrupt context? Either doing bottom half
+ * or hardware interrupt processing?
+ */
+#define in_interrupt() ({ int __cpu = smp_processor_id(); \
+	(local_irq_count[__cpu] + local_bh_count[__cpu] != 0); })
+
 #ifndef __SMP__
 
 #define hardirq_trylock(cpu)	(local_irq_count[cpu] == 0)

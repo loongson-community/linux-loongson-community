@@ -6,7 +6,7 @@
 
 /*
  * This file contains the default values for the opereation of the
- * Linux VM subsystem. Finetuning documentation can be found in
+ * Linux VM subsystem. Fine-tuning documentation can be found in
  * linux/Documentation/sysctl/vm.txt.
  * Started 18.12.91
  * Swap aging added 23.2.95, Stephen Tweedie.
@@ -67,9 +67,9 @@ swap_control_t swap_control = {
 swapstat_t swapstats = {0};
 
 buffer_mem_t buffer_mem = {
-	3,	/* minimum percent buffer */
-	10,	/* borrow percent buffer */
-	30	/* maximum percent buffer */
+	5,	/* minimum percent buffer */
+	25,	/* borrow percent buffer */
+	50	/* maximum percent buffer */
 };
 
 buffer_mem_t page_cache = {

@@ -1,4 +1,4 @@
-/* $Id: elf.h,v 1.15 1998/03/23 08:41:32 jj Exp $ */
+/* $Id: elf.h,v 1.17 1998/05/11 08:40:10 davem Exp $ */
 #ifndef __ASMSPARC_ELF_H
 #define __ASMSPARC_ELF_H
 

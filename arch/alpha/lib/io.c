@@ -3,25 +3,8 @@
  * files..
  */
 #include <linux/kernel.h>
-
+#include <linux/types.h>
 #include <asm/io.h>
-
-/* 
- * Jensen has a separate "local" and "bus" IO space for
- * byte-wide IO.
- */
-#ifdef __is_local
-
-unsigned int _bus_inb(unsigned long addr)
-{
-	return __bus_inb(addr);
-}
-
-void _bus_outb(unsigned char b, unsigned long addr)
-{
-	__bus_outb(b, addr);
-}
-#endif
 
 unsigned int _inb(unsigned long addr)
 {
@@ -70,6 +53,10 @@ unsigned long _readl(unsigned long addr)
 	return __readl(addr);
 }
 
+unsigned long _readq(unsigned long addr)
+{
+	return __readq(addr);
+}
 
 void _writeb(unsigned char b, unsigned long addr)
 {
@@ -84,6 +71,11 @@ void _writew(unsigned short b, unsigned long addr)
 void _writel(unsigned int b, unsigned long addr)
 {
 	__writel(b, addr);
+}
+
+void _writeq(unsigned long b, unsigned long addr)
+{
+	__writeq(b, addr);
 }
 
 /*
@@ -363,12 +355,48 @@ void outsl (unsigned long port, const void *src, unsigned long count)
  * Copy data from IO memory space to "real" memory space.
  * This needs to be optimized.
  */
-void _memcpy_fromio(void * to, unsigned long from, unsigned long count)
+void _memcpy_fromio(void * to, unsigned long from, long count)
 {
-	while (count) {
+	/* Optimize co-aligned transfers.  Everything else gets handled
+	   a byte at a time. */
+
+	if (count >= 8 && ((long)to & 7) == (from & 7)) {
+		count -= 8;
+		do {
+			*(u64 *)to = readq(from);
+			count -= 8;
+			to += 8;
+			from += 8;
+		} while (count >= 0);
+		count += 8;
+	}
+
+	if (count >= 4 && ((long)to & 3) == (from & 3)) {
+		count -= 4;
+		do {
+			*(u32 *)to = readl(from);
+			count -= 4;
+			to += 4;
+			from += 4;
+		} while (count >= 0);
+		count += 4;
+	}
+		
+	if (count >= 2 && ((long)to & 1) == (from & 1)) {
+		count -= 2;
+		do {
+			*(u16 *)to = readw(from);
+			count -= 2;
+			to += 2;
+			from += 2;
+		} while (count >= 0);
+		count += 2;
+	}
+
+	while (count > 0) {
+		*(u8 *) to = readb(from);
 		count--;
-		*(char *) to = readb(from);
-		((char *) to)++;
+		to++;
 		from++;
 	}
 }
@@ -377,25 +405,105 @@ void _memcpy_fromio(void * to, unsigned long from, unsigned long count)
  * Copy data from "real" memory space to IO memory space.
  * This needs to be optimized.
  */
-void _memcpy_toio(unsigned long to, void * from, unsigned long count)
+void _memcpy_toio(unsigned long to, void * from, long count)
 {
-	while (count) {
+	/* Optimize co-aligned transfers.  Everything else gets handled
+	   a byte at a time. */
+
+	if (count >= 8 && (to & 7) == ((long)from & 7)) {
+		count -= 8;
+		do {
+			writeq(*(u64 *)from, to);
+			count -= 8;
+			to += 8;
+			from += 8;
+		} while (count >= 0);
+		count += 8;
+	}
+
+	if (count >= 4 && (to & 3) == ((long)from & 3)) {
+		count -= 4;
+		do {
+			writel(*(u32 *)from, to);
+			count -= 4;
+			to += 4;
+			from += 4;
+		} while (count >= 0);
+		count += 4;
+	}
+		
+	if (count >= 2 && (to & 1) == ((long)from & 1)) {
+		count -= 2;
+		do {
+			writew(*(u16 *)from, to);
+			count -= 2;
+			to += 2;
+			from += 2;
+		} while (count >= 0);
+		count += 2;
+	}
+
+	while (count > 0) {
+		writeb(*(u8 *) from, to);
 		count--;
-		writeb(*(char *) from, to);
-		((char *) from)++;
 		to++;
+		from++;
 	}
 }
 
 /*
  * "memset" on IO memory space.
- * This needs to be optimized.
  */
-void _memset_io(unsigned long dst, int c, unsigned long count)
+void _memset_c_io(unsigned long to, unsigned long c, long count)
 {
-	while (count) {
+	/* Handle any initial odd byte */
+	if (count > 0 && (to & 1)) {
+		writeb(c, to);
+		to++;
 		count--;
-		writeb(c, dst);
-		dst++;
+	}
+
+	/* Handle any initial odd halfword */
+	if (count >= 2 && (to & 2)) {
+		writew(c, to);
+		to += 2;
+		count -= 2;
+	}
+
+	/* Handle any initial odd word */
+	if (count >= 4 && (to & 4)) {
+		writel(c, to);
+		to += 4;
+		count -= 4;
+	}
+
+	/* Handle all full-sized quadwords: we're aligned (or have a small count) */
+	count -= 8;
+	if (count >= 0) {
+		do {
+			writeq(c, to);
+			to += 8;
+			count -= 8;
+		} while (count >= 0);
+	}
+	count += 8;
+
+	/* The tail is word-aligned if we still have count >= 4 */
+	if (count >= 4) {
+		writel(c, to);
+		to += 4;
+		count -= 4;
+	}
+
+	/* The tail is half-word aligned if we have count >= 2 */
+	if (count >= 2) {
+		writew(c, to);
+		to += 2;
+		count -= 2;
+	}
+
+	/* And finally, one last byte.. */
+	if (count) {
+		writeb(c, to);
 	}
 }

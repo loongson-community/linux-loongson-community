@@ -48,10 +48,15 @@ struct inode_operations efs_file_in_ops = {
   NULL,
   NULL
 };
-
-#ifndef MIN 
+ 
 #define MIN(a,b) ((a)<(b)?(a):(b))
-#endif
+
+#define CHECK(num) \
+  eblk = ini->extents[num].ex_bytes[0]; \
+  epos = ini->extents[num].ex_bytes[1] & 0xffffff; \
+  elen = ini->extents[num].ex_bytes[1] >> 24; \
+  if((blk >= epos)&&(blk < (epos+elen))) \
+    result = (blk - epos) + eblk + sbi->fs_start;
 
 
 /* ----- efs_getblknum -----
@@ -66,42 +71,119 @@ static __u32 efs_getblk(struct inode *in,__u32 blk)
 {
   struct efs_sb_info *sbi = &in->i_sb->u.efs_sb;
   struct efs_inode_info *ini = &in->u.efs_i;
+  struct buffer_head *bh;
 
   __u32 result = 0;
-  __u32 eblk,epos,elen; /* used by the CHECK macro */
-  __u16 pos;
+  __u32 eblk,epos,elen;
+  int num,extnum,readahead;
+  __u32 extblk;
+  __u16 extoff,pos,cur,tot;
+  union efs_extent *ptr;
 
 
-  /*
-   * This routine is a linear search of the extents, from zero.
-   * A smarter implementation would:
-   * - check the current extent first
-   * - continue from the current extent forward, and then wrap
-   */
-  
-#define CHECK(num) \
-  eblk = ini->efs_extents[num].ex_bytes[0]; \
-  epos = ini->efs_extents[num].ex_bytes[1] & 0xffffff; \
-  elen = ini->efs_extents[num].ex_bytes[1] >> 24; \
-  if((blk >= epos)&&(blk < (epos+elen))) \
-    result = (blk - epos) + eblk + sbi->fs_start;
+  /* first check the current extend */
+  cur = ini->cur;
+  tot = ini->tot;
+  CHECK(cur)
+  if(result) 
+    return result;
+    
+  /* if only one extent exists and we are here the test failed */
+  if(tot==1) {
+    printk("efs: bmap failed on one extent!\n");
+    return 0;
+  }
 
-  for(pos=0;pos < ini->efs_total; pos++) {
+  /* check the stored extents in the inode */
+  num = MIN(tot,EFS_MAX_EXTENTS);
+  for(pos=0;pos<num;pos++) {
+    /* don't check the current again! */
+    if(pos==cur) 
+      continue;
+
     CHECK(pos)
     if(result) {
-	/* ini->efs_current = pos; */
-#ifdef DEBUG_EFS_EXTENTS_VERBOSE
-	printk("EFS: inode %#0lx blk %d is phys blk %d\n",
-	       in->i_ino, blk, result);
-#endif
-	return result;
+      ini->cur = pos;
+      return result;
     }
   }
 
-  printk("EFS: didn't find physical blk for logical blk %d (inode %0#lx)!\n",
-	 blk, in->i_ino);
-  return 0;
+  /* If the inode has only direct extents, 
+     the above tests must have found the block's extend! */
+  if(tot<=EFS_MAX_EXTENTS) {
+    printk("efs: bmap failed for direct extents!\n");
+    return 0;
+  }  
 
+  /* --- search in the indirect extensions list blocks --- */
+#ifdef DEBUG
+  printk("efs - indirect search for %lu\n",blk);
+#endif
+
+  /* calculate block and offset for begin of extent descr and read it */
+  extblk = ini->extblk;
+  extoff = 0;
+  bh = bread(in->i_dev,extblk,EFS_BLOCK_SIZE);
+  if(!bh) {
+    printk("efs: read error in indirect extents\n");
+    return 0;
+  }
+  ptr = (union efs_extent *)bh->b_data;
+
+  pos = 0; /* number of extend store in the inode */
+  extnum = 0; /* count the extents in the indirect blocks */ 
+  readahead = 10; /* number of extents to read ahead */
+  while(1) {
+
+    /* skip last current extent store in the inode */
+    if(pos==cur) pos++;
+
+    /* read new extent in inode buffer */
+    ini->extents[pos].ex_bytes[0] = efs_swab32(ptr[pos].ex_bytes[0]);
+    ini->extents[pos].ex_bytes[1] = efs_swab32(ptr[pos].ex_bytes[1]);
+
+    /* we must still search */ 
+    if(!result) {
+      CHECK(pos)
+      if(result)
+	ini->cur = pos;
+    }
+    /* we found it already and read ahead */
+    else {
+      readahead--;
+      if(!readahead)
+	break;
+    }
+
+    /* next storage place */
+    pos++;
+    extnum++;
+
+    /* last extent checked -> finished */
+    if(extnum==tot) {
+      if(!result)
+	printk("efs: bmap on indirect failed!\n");
+      break;
+    }
+
+    extoff += 8;
+    /* need new block */
+    if(extoff==EFS_BLOCK_SIZE) {
+      extoff = 0;
+      extblk++;
+	
+      brelse(bh);
+      bh = bread(in->i_dev,extblk,EFS_BLOCK_SIZE);
+      if(!bh) {
+	printk("efs: read error in indirect extents\n");
+	return 0;
+      }
+      ptr = (union efs_extent *)bh->b_data;
+    }
+  }
+  brelse(bh);
+
+  return result;
 }  
 
 
@@ -111,13 +193,13 @@ static __u32 efs_getblk(struct inode *in,__u32 blk)
    in    - inode owning the block
    block - block number
    
-   return - disk block, 0 on error
+   return - disk block
 */
 int efs_bmap(struct inode *in, int block)
 {
   /* quickly reject invalid block numbers */
   if(block<0) {
-#ifdef DEBUG_EFS_BMAP
+#ifdef DEBUG
     printk("efs_bmap: block < 0\n");
 #endif
     return 0;
@@ -125,7 +207,7 @@ int efs_bmap(struct inode *in, int block)
   /* since the kernel wants to read a full page of data, i.e. 8 blocks
      we must check if the block number is not too large */
   if(block>((in->i_size-1)>>EFS_BLOCK_SIZE_BITS)) {
-#ifdef DEBUG_EFS_BMAP
+#ifdef DEBUG
     printk("efs_bmap: block %d > max %d == %d\n",
 	   block,in->i_size>>EFS_BLOCK_SIZE_BITS,in->i_blocks);
 #endif

@@ -1,4 +1,4 @@
-/* $Id: parport.h,v 1.6 1997/12/29 12:31:05 phil Exp $ */
+/* $Id: parport.h,v 1.1 1998/05/17 10:57:52 andrea Exp andrea $ */
 
 #ifndef _PARPORT_H_
 #define _PARPORT_H_
@@ -106,12 +106,18 @@ struct parport_operations {
 	void (*release_resources)(struct parport *);
 	int (*claim_resources)(struct parport *);
 
+	void (*epp_write_data)(struct parport *, unsigned char);
+	unsigned char (*epp_read_data)(struct parport *);
+	void (*epp_write_addr)(struct parport *, unsigned char);
+	unsigned char (*epp_read_addr)(struct parport *);
+	int (*epp_check_timeout)(struct parport *);
 	size_t (*epp_write_block)(struct parport *, void *, size_t);
 	size_t (*epp_read_block)(struct parport *, void *, size_t);
 
 	int (*ecp_write_block)(struct parport *, void *, size_t, void (*fn)(struct parport *, void *, size_t), void *);
 	int (*ecp_read_block)(struct parport *, void *, size_t, void (*fn)(struct parport *, void *, size_t), void *);
 
+	void (*init_state)(struct parport_state *);
 	void (*save_state)(struct parport *, struct parport_state *);
 	void (*restore_state)(struct parport *, struct parport_state *);
 
@@ -121,14 +127,16 @@ struct parport_operations {
 
 	void (*inc_use_count)(void);
 	void (*dec_use_count)(void);
+	void (*fill_inode)(struct inode *inode, int fill);
 };
 
 struct parport_device_info {
 	parport_device_class class;
-	char *mfr;
-	char *model;
-	char *cmdset;
-	char *description;
+	const char *class_name;
+	const char *mfr;
+	const char *model;
+	const char *cmdset;
+	const char *description;
 };
 
 /* Each device can have two callback functions:
@@ -145,7 +153,7 @@ struct parport_device_info {
 
 /* A parallel port device */
 struct pardevice {
-	char *name;
+	const char *name;
 	struct parport *port;
 	int (*preempt)(void *);
 	void (*wakeup)(void *);
@@ -177,7 +185,7 @@ struct parport_dir {
 struct parport {
 	unsigned long base;	/* base address */
 	unsigned int size;	/* IO extent */
-	char *name;
+	const char *name;
 	int irq;		/* interrupt (or -1 for none) */
 	int dma;
 	unsigned int modes;
@@ -329,6 +337,11 @@ extern void (*parport_probe_hook)(struct parport *port);
 #define parport_change_mode(p,m)           parport_pc_change_mode(p,m)
 #define parport_release_resources(p)       parport_pc_release_resources(p)
 #define parport_claim_resources(p)         parport_pc_claim_resources(p)
+#define parport_epp_write_data(p,x)        parport_pc_write_epp(p,x)
+#define parport_epp_read_data(p)           parport_pc_read_epp(p)
+#define parport_epp_write_addr(p,x)        parport_pc_write_epp_addr(p,x)
+#define parport_epp_read_addr(p)           parport_pc_read_epp_addr(p)
+#define parport_epp_check_timeout(p)       parport_pc_check_epp_timeout(p)
 #endif
 
 #ifdef PARPORT_NEED_GENERIC_OPS
@@ -348,6 +361,11 @@ extern void (*parport_probe_hook)(struct parport *port);
 #define parport_change_mode(p,m)           (p)->ops->change_mode(p,m)
 #define parport_release_resources(p)       (p)->ops->release_resources(p)
 #define parport_claim_resources(p)         (p)->ops->claim_resources(p)
+#define parport_epp_write_data(p,x)        (p)->ops->epp_write_data(p,x)
+#define parport_epp_read_data(p)           (p)->ops->epp_read_data(p)
+#define parport_epp_write_addr(p,x)        (p)->ops->epp_write_addr(p,x)
+#define parport_epp_read_addr(p)           (p)->ops->epp_read_addr(p)
+#define parport_epp_check_timeout(p)       (p)->ops->epp_check_timeout(p)
 #endif
 
 #endif /* __KERNEL__ */

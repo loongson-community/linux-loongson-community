@@ -1,4 +1,4 @@
-/* $Id: indy_int.c,v 1.8 1998/05/07 02:57:20 ralf Exp $
+/* $Id: indy_int.c,v 1.9 1998/06/30 00:21:57 ralf Exp $
  *
  * indy_int.c: Routines for generic manipulation of the INT[23] ASIC
  *             found on INDY workstations..
@@ -8,6 +8,7 @@
  */
 #include <linux/config.h>
 #include <linux/init.h>
+
 #include <linux/errno.h>
 #include <linux/kernel_stat.h>
 #include <linux/signal.h>

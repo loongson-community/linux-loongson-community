@@ -1,6 +1,6 @@
 /* linux/net/inet/arp.c
  *
- * Version:	$Id: arp.c,v 1.5 1998/03/17 22:18:21 ralf Exp $
+ * Version:	$Id: arp.c,v 1.67 1998/06/19 13:22:31 davem Exp $
  *
  * Copyright (C) 1994 by Florian  La Roche
  *
@@ -15,7 +15,7 @@
  * 2 of the License, or (at your option) any later version.
  *
  * Fixes:
- *		Alan Cox	:	Removed the ethernet assumptions in 
+ *		Alan Cox	:	Removed the Ethernet assumptions in 
  *					Florian's code
  *		Alan Cox	:	Fixed some small errors in the ARP 
  *					logic
@@ -135,8 +135,8 @@ static struct neigh_ops arp_generic_ops =
 	arp_error_report,
 	neigh_resolve_output,
 	neigh_connected_output,
-	ip_acct_output,
-	ip_acct_output
+	dev_queue_xmit,
+	dev_queue_xmit
 };
 
 static struct neigh_ops arp_hh_ops =
@@ -147,8 +147,8 @@ static struct neigh_ops arp_hh_ops =
 	arp_error_report,
 	neigh_resolve_output,
 	neigh_resolve_output,
-	ip_acct_output,
-	ip_acct_output
+	dev_queue_xmit,
+	dev_queue_xmit
 };
 
 static struct neigh_ops arp_direct_ops =
@@ -157,13 +157,13 @@ static struct neigh_ops arp_direct_ops =
 	NULL,
 	NULL,
 	NULL,
-	ip_acct_output,
-	ip_acct_output,
-	ip_acct_output,
-	ip_acct_output
+	dev_queue_xmit,
+	dev_queue_xmit,
+	dev_queue_xmit,
+	dev_queue_xmit
 };
 
-#if defined(CONFIG_AX25) || defined(CONFIG_AX25) || \
+#if defined(CONFIG_AX25) || defined(CONFIG_AX25_MODULE) || \
     defined(CONFIG_SHAPER) || defined(CONFIG_SHAPER_MODULE)
 struct neigh_ops arp_broken_ops =
 {
@@ -173,8 +173,8 @@ struct neigh_ops arp_broken_ops =
 	arp_error_report,
 	neigh_compat_output,
 	neigh_compat_output,
-	ip_acct_output,
-	ip_acct_output,
+	dev_queue_xmit,
+	dev_queue_xmit,
 };
 #endif
 
@@ -230,7 +230,7 @@ static int arp_constructor(struct neighbour *neigh)
 		neigh->ops = &arp_direct_ops;
 		neigh->output = neigh->ops->queue_xmit;
 	} else {
-		/* Good devices (checked by reading texts, but only ethernet is
+		/* Good devices (checked by reading texts, but only Ethernet is
 		   tested)
 
 		   ARPHRD_ETHER: (ethernet, apfddi)
@@ -240,7 +240,7 @@ static int arp_constructor(struct neighbour *neigh)
 		   ARPHRD_ARCNET:
 		   etc. etc. etc.
 
-		   ARPHRD_IPDDP will also work, if author repaires it.
+		   ARPHRD_IPDDP will also work, if author repairs it.
 		   I did not it, because this driver does not work even
 		   in old paradigm.
 		 */
@@ -261,7 +261,7 @@ static int arp_constructor(struct neighbour *neigh)
 		default:
 			break;
 		case ARPHRD_ROSE:	
-#if defined(CONFIG_AX25) || defined(CONFIG_AX25)
+#if defined(CONFIG_AX25) || defined(CONFIG_AX25_MODULE)
 		case ARPHRD_AX25:
 #if defined(CONFIG_NETROM) || defined(CONFIG_NETROM_MODULE)
 		case ARPHRD_NETROM:
@@ -1099,7 +1099,7 @@ __initfunc(void arp_init (void))
 #ifdef CONFIG_AX25_MODULE
 
 /*
- *	ax25 -> ascii conversion
+ *	ax25 -> ASCII conversion
  */
 char *ax2asc(ax25_address *a)
 {

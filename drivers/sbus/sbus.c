@@ -1,4 +1,5 @@
-/* sbus.c:  SBus support routines.
+/* $Id: sbus.c,v 1.69 1998/07/28 16:53:11 jj Exp $
+ * sbus.c:  SBus support routines.
  *
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
  */
@@ -7,18 +8,21 @@
 #include <linux/malloc.h>
 #include <linux/config.h>
 #include <linux/init.h>
+#include <linux/malloc.h>
 
 #include <asm/system.h>
 #include <asm/sbus.h>
 #include <asm/dma.h>
 #include <asm/oplib.h>
 #include <asm/bpp.h>
+#include <asm/irq.h>
 
 /* This file has been written to be more dynamic and a bit cleaner,
  * but it still needs some spring cleaning.
  */
 
 struct linux_sbus *SBus_chain;
+static struct linux_prom_irqs irqs[PROMINTR_MAX] __initdata = { { 0 } };
 
 static char lbuf[128];
 
@@ -108,51 +112,60 @@ no_regs:
 		len=0;
 	}
 	sbus_dev->num_vaddrs = (len/4);
-  
-	if(sparc_cpu_model == sun4u) {
-		len = prom_getproperty(nd, "interrupts", (void *)&sbus_dev->irqs[0].pri,
-				       sizeof(sbus_dev->irqs[0].pri));
-		if((len == -1) || (len == 0)) {
-			sbus_dev->irqs[0].pri = 0;
-			sbus_dev->num_irqs = 0;
-		} else {
-			sbus_dev->num_irqs = 1;
-			if(sbus_dev->irqs[0].pri < 0x20) {
-				int old_irq = sbus_dev->irqs[0].pri;
 
-				/* Need to do special SLOT fixups in this case. */
-#if 0 /* DEBUGGING */
-				printk("SBUS[%x:%lx]: INO fixup from [%x] to [%x]\n",
-				       sbus_dev->slot, sbus_dev->offset,
-				       old_irq, old_irq + (sbus_dev->slot * 8));
-#endif
-				sbus_dev->irqs[0].pri =
-					(old_irq + (sbus_dev->slot * 8));
-			}
-		}
+#ifdef __sparc_v9__  
+	len = prom_getproperty(nd, "interrupts", (void *)irqs, sizeof(irqs));
+	if((len == -1) || (len == 0)) {
+		sbus_dev->irqs[0] = 0;
+		sbus_dev->num_irqs = 0;
 	} else {
-		len = prom_getproperty(nd, "intr", (void *)sbus_dev->irqs,
-				       sizeof(sbus_dev->irqs));
-		if (len == -1) len=0;
-		if (len&7) {
-			prom_printf("Grrr, I didn't get a multiple of 8 proplen for "
-				    "device %s got %d\n", sbus_dev->prom_name, len);
-			len=0;
-		}
-		sbus_dev->num_irqs=(len/8);
-		if(sbus_dev->num_irqs == 0)
-			sbus_dev->irqs[0].pri=0;
+		sbus_dev->num_irqs = 1;
+		if (irqs[0].pri < 0x20)
+			sbus_dev->irqs[0] = sbus_build_irq(sbus_dev->my_bus, 
+					irqs[0].pri + (sbus_dev->slot * 8));
+		else
+			sbus_dev->irqs[0] = sbus_build_irq(sbus_dev->my_bus, 
+					irqs[0].pri);
 	}
+#else
+	len = prom_getproperty(nd, "intr", (void *)irqs, sizeof(irqs));
+	if (len == -1) len=0;
+	if (len&7) {
+		prom_printf("Grrr, I didn't get a multiple of 8 proplen for "
+			    "device %s got %d\n", sbus_dev->prom_name, len);
+		len=0;
+	}
+	if (len > 4 * 8) {
+		prom_printf("Device %s has more than 4 interrupts\n", sbus_dev->prom_name);
+		len = 4 * 8;
+	}
+	sbus_dev->num_irqs=(len/8);
+	if(sbus_dev->num_irqs == 0)
+		sbus_dev->irqs[0]=0;
+	else if (sparc_cpu_model != sun4d)
+		for (len = 0; len < sbus_dev->num_irqs; len++)
+			sbus_dev->irqs[len] = irqs[len].pri;
+	else {
+		extern unsigned int sun4d_build_irq(struct linux_sbus_device *sdev, int irq);
+		
+		for (len = 0; len < sbus_dev->num_irqs; len++)
+			sbus_dev->irqs[len] = sun4d_build_irq(sbus_dev, irqs[len].pri);
+	}
+#endif
+
 #ifdef DEBUG_FILL
 #ifdef __sparc_v9__
-	prom_printf("Found %s at SBUS slot %x offset %016lx irq-level %d\n",
-	       sbus_dev->prom_name, sbus_dev->slot, sbus_dev->offset,
-	       sbus_dev->irqs[0].pri);
+	prom_printf("Found %s at SBUS slot %x offset %016lx ",
+	       sbus_dev->prom_name, sbus_dev->slot, sbus_dev->offset);
+	if (sbus_dev->irqs[0])
+		prom_printf("irq %s\n", __irq_itoa(sbus_dev->irqs[0]));
+	else
+		prom_printf("\n");
 	prom_printf("Base address %016lx\n", sbus_dev->sbus_addr);
 #else
 	prom_printf("Found %s at SBUS slot %x offset %08lx irq-level %d\n",
 	       sbus_dev->prom_name, sbus_dev->slot, sbus_dev->offset,
-	       sbus_dev->irqs[0].pri);
+	       sbus_dev->irqs[0]);
 	prom_printf("Base address %08lx\n", sbus_dev->sbus_addr);
 #endif
 	prom_printf("REGISTERS: Probed %d register(s)\n", sbus_dev->num_registers);
@@ -181,12 +194,9 @@ no_regs:
  * devices.
  */
 
-extern unsigned long sun_console_init(unsigned long);
-extern unsigned long iommu_init(int iommu_node, unsigned long memstart,
-				unsigned long memend, struct linux_sbus *sbus);
-extern unsigned long iounit_init(int sbi_node, int iounit_node, unsigned long memstart,
-				unsigned long memend, struct linux_sbus *sbus);
-unsigned long sun4_init(unsigned long memory_start, unsigned long memory_end);
+extern void iommu_init(int iommu_node, struct linux_sbus *sbus);
+extern void iounit_init(int sbi_node, int iounit_node, struct linux_sbus *sbus);
+void sun4_init(void);
 #ifdef CONFIG_SUN_OPENPROMIO
 extern int openprom_init(void);
 #endif
@@ -197,9 +207,8 @@ extern void auxio_probe(void);
 extern int flash_init(void);
 #endif
 
-__initfunc(static unsigned long 
-sbus_do_child_siblings(unsigned long memory_start, int start_node,
-		       struct linux_sbus_device *child,
+__initfunc(static void
+sbus_do_child_siblings(int start_node, struct linux_sbus_device *child,
 		       struct linux_sbus *sbus))
 {
 	struct linux_sbus_device *this_dev = child;
@@ -208,32 +217,27 @@ sbus_do_child_siblings(unsigned long memory_start, int start_node,
 	/* Child already filled in, just need to traverse siblings. */
 	child->child = 0;
 	while((this_node = prom_getsibling(this_node)) != 0) {
-		this_dev->next = (struct linux_sbus_device *) memory_start;
-		memory_start += sizeof(struct linux_sbus_device);
+		this_dev->next = kmalloc(sizeof(struct linux_sbus_device), GFP_ATOMIC);
 		this_dev = this_dev->next;
 		this_dev->next = 0;
 
-		fill_sbus_device(this_node, this_dev);
 		this_dev->my_bus = sbus;
+		fill_sbus_device(this_node, this_dev);
 
 		if(prom_getchild(this_node)) {
-			this_dev->child = (struct linux_sbus_device *) memory_start;
-			memory_start += sizeof(struct linux_sbus_device);
-			fill_sbus_device(prom_getchild(this_node), this_dev->child);
+			this_dev->child = kmalloc(sizeof(struct linux_sbus_device),
+						  GFP_ATOMIC);
 			this_dev->child->my_bus = sbus;
-			memory_start = sbus_do_child_siblings(memory_start,
-							      prom_getchild(this_node),
-							      this_dev->child,
-							      sbus);
+			fill_sbus_device(prom_getchild(this_node), this_dev->child);
+			sbus_do_child_siblings(prom_getchild(this_node),
+					       this_dev->child, sbus);
 		} else {
 			this_dev->child = 0;
 		}
 	}
-	return memory_start;
 }
 
-__initfunc(unsigned long
-sbus_init(unsigned long memory_start, unsigned long memory_end))
+__initfunc(void sbus_init(void))
 {
 	register int nd, this_sbus, sbus_devs, topnd, iommund;
 	unsigned int sbus_clock;
@@ -242,10 +246,8 @@ sbus_init(unsigned long memory_start, unsigned long memory_end))
 	int num_sbus = 0;  /* How many did we find? */
 	
 #ifdef CONFIG_SUN4
-	return sun4_init(memory_start, memory_end);
+	return sun4_init();
 #endif
-
-	memory_start = ((memory_start + 7) & (~7));
 
 	topnd = prom_getchild(prom_root_node);
 	
@@ -255,8 +257,8 @@ sbus_init(unsigned long memory_start, unsigned long memory_end))
 		nd = prom_searchsiblings(topnd, "sbus");
 		if(nd == 0) {
 #ifdef CONFIG_PCI
-			printk("SBUS: No SBUS's found.\n");
-			return sun_console_init(memory_start);
+			/* printk("SBUS: No SBUS's found.\n"); */
+			return;
 #else
 			prom_printf("YEEE, UltraSparc sbus not found\n");
 			prom_halt();
@@ -280,28 +282,21 @@ sbus_init(unsigned long memory_start, unsigned long memory_end))
 	/* Ok, we've found the first one, allocate first SBus struct
 	 * and place in chain.
 	 */
-	sbus = SBus_chain = (struct linux_sbus *) memory_start;
-	memory_start += sizeof(struct linux_sbus);
+	sbus = SBus_chain = kmalloc(sizeof(struct linux_sbus), GFP_ATOMIC);
 	sbus->next = 0;
 	this_sbus=nd;
 
 	if(iommund && sparc_cpu_model != sun4u && sparc_cpu_model != sun4d)
-		memory_start = iommu_init(iommund,
-					  memory_start, memory_end,
-					  sbus);
+		iommu_init(iommund, sbus);
 
 	/* Loop until we find no more SBUS's */
 	while(this_sbus) {
 		/* IOMMU hides inside SBUS/SYSIO prom node on Ultra. */
 		if(sparc_cpu_model == sun4u)
-			memory_start = iommu_init(this_sbus,
-						  memory_start, memory_end,
-						  sbus);
+			iommu_init(this_sbus, sbus);
 #ifndef __sparc_v9__						  
 		else if (sparc_cpu_model == sun4d)
-			memory_start = iounit_init(this_sbus, iommund,
-						   memory_start, memory_end,
-						   sbus);
+			iounit_init(this_sbus, iommund, sbus);
 #endif						   
 		printk("sbus%d: ", num_sbus);
 		sbus_clock = prom_getint(this_sbus, "clock-frequency");
@@ -326,65 +321,57 @@ sbus_init(unsigned long memory_start, unsigned long memory_end))
 
 		sbus_devs = prom_getchild(this_sbus);
 
-		sbus->devices = (struct linux_sbus_device *) memory_start;
-		memory_start += sizeof(struct linux_sbus_device);
+		sbus->devices = kmalloc(sizeof(struct linux_sbus_device), GFP_ATOMIC);
 
 		this_dev = sbus->devices;
 		this_dev->next = 0;
 
-		fill_sbus_device(sbus_devs, this_dev);
 		this_dev->my_bus = sbus;
+		fill_sbus_device(sbus_devs, this_dev);
 
 		/* Should we traverse for children? */
 		if(prom_getchild(sbus_devs)) {
 			/* Allocate device node */
-			this_dev->child = (struct linux_sbus_device *) memory_start;
-			memory_start += sizeof(struct linux_sbus_device);
+			this_dev->child = kmalloc(sizeof(struct linux_sbus_device),
+						  GFP_ATOMIC);
 			/* Fill it */
-
-			fill_sbus_device(prom_getchild(sbus_devs), this_dev->child);
 			this_dev->child->my_bus = sbus;
-			memory_start = sbus_do_child_siblings(memory_start,
-							      prom_getchild(sbus_devs),
-							      this_dev->child,
-							      sbus);
+			fill_sbus_device(prom_getchild(sbus_devs), this_dev->child);
+			sbus_do_child_siblings(prom_getchild(sbus_devs),
+					       this_dev->child, sbus);
 		} else {
 			this_dev->child = 0;
 		}
 
 		while((sbus_devs = prom_getsibling(sbus_devs)) != 0) {
 			/* Allocate device node */
-			this_dev->next = (struct linux_sbus_device *) memory_start;
-			memory_start += sizeof(struct linux_sbus_device);
+			this_dev->next = kmalloc(sizeof(struct linux_sbus_device),
+						 GFP_ATOMIC);
 			this_dev=this_dev->next;
 			this_dev->next=0;
 
 			/* Fill it */
-			fill_sbus_device(sbus_devs, this_dev);
 			this_dev->my_bus = sbus;
+			fill_sbus_device(sbus_devs, this_dev);
 
 			/* Is there a child node hanging off of us? */
 			if(prom_getchild(sbus_devs)) {
 				/* Get new device struct */
 				this_dev->child =
-					(struct linux_sbus_device *) memory_start;
-				memory_start += sizeof(struct linux_sbus_device);
-
+					kmalloc(sizeof(struct linux_sbus_device),
+						GFP_ATOMIC);
 				/* Fill it */
+				this_dev->child->my_bus = sbus;
 				fill_sbus_device(prom_getchild(sbus_devs),
 						 this_dev->child);
-				this_dev->child->my_bus = sbus;
-				memory_start = sbus_do_child_siblings(
-						     memory_start,
-						     prom_getchild(sbus_devs),
-						     this_dev->child,
-						     sbus);
+				sbus_do_child_siblings(prom_getchild(sbus_devs),
+						     this_dev->child, sbus);
 			} else {
 				this_dev->child = 0;
 			}
 		}
 
-		memory_start = dvma_init(sbus, memory_start);
+		dvma_init(sbus);
 
 		num_sbus++;
 		if(sparc_cpu_model == sun4u) {
@@ -404,8 +391,7 @@ sbus_init(unsigned long memory_start, unsigned long memory_end))
 			this_sbus = prom_searchsiblings(this_sbus, "sbus");
 		}
 		if(this_sbus) {
-			sbus->next = (struct linux_sbus *) memory_start;
-			memory_start += sizeof(struct linux_sbus);
+			sbus->next = kmalloc(sizeof(struct linux_sbus), GFP_ATOMIC);
 			sbus = sbus->next;
 			sbus->next = 0;
 		} else {
@@ -413,12 +399,10 @@ sbus_init(unsigned long memory_start, unsigned long memory_end))
 		}
 	} /* while(this_sbus) */
 	if (sparc_cpu_model == sun4d) {
-		extern unsigned long sun4d_init_sbi_irq(unsigned long);
-		
-		memory_start = sun4d_init_sbi_irq(memory_start);
+		extern void sun4d_init_sbi_irq(void);
+		sun4d_init_sbi_irq();
 	}
 	
-	memory_start = sun_console_init(memory_start); /* whee... */
 #ifdef CONFIG_SUN_OPENPROMIO
 	openprom_init();
 #endif
@@ -441,22 +425,14 @@ sbus_init(unsigned long memory_start, unsigned long memory_end))
 		clock_probe();
 	}
 #endif
-	return memory_start;
 }
 
 #ifdef CONFIG_SUN4
 
-extern unsigned long sun4_dvma_init(unsigned long);
+extern void sun4_dvma_init(void);
 
-__initfunc(unsigned long
-sun4_init(unsigned long memory_start, unsigned long memory_end))
+__initfunc(void sun4_init(void))
 {
-	memory_start = ((memory_start + 7) & (~7));
-	
-	memory_start = sun_console_init(memory_start);
-	
-	memory_start = sun4_dvma_init(memory_start);
-	
-	return memory_start;
+	sun4_dvma_init();
 }
 #endif

@@ -55,6 +55,27 @@ extern __inline__ unsigned long ffz(unsigned long word)
 
 #ifdef __KERNEL__
 
+/*
+ * ffs: find first bit set. This is defined the same way as
+ * the libc and compiler builtin ffs routines, therefore
+ * differs in spirit from the above ffz (man ffs).
+ */
+
+#define ffs(x) generic_ffs(x)
+
+/*
+ * hweightN: returns the hamming weight (i.e. the number
+ * of bits set) of a N-bit word
+ */
+
+#define hweight32(x) generic_hweight32(x)
+#define hweight16(x) generic_hweight16(x)
+#define hweight8(x) generic_hweight8(x)
+
+#endif /* __KERNEL__ */
+
+#ifdef __KERNEL__
+
 #define ext2_set_bit			test_and_set_bit
 #define ext2_clear_bit			test_and_clear_bit
 #define ext2_test_bit			test_bit

@@ -25,7 +25,7 @@
 #include <linux/ultrasound.h>
 #include "gus_hw.h"
 
-#if defined(CONFIG_GUS) || defined(MODULE)
+#ifdef CONFIG_GUS
 
 #define GUS_BANK_SIZE (((iw_mode) ? 256*1024*1024 : 256*1024))
 
@@ -384,7 +384,7 @@ static void gus_write_addr(int reg, unsigned long address, int frac, int is16bit
 	gus_write16(reg, (unsigned short) ((address >> 7) & 0xffff));
 	gus_write16(reg + 1, (unsigned short) ((address << 9) & 0xffff)
 		    + (frac << 5));
-	/* Could writing twice fix problems with GUS_VOICE_POS() ? Lets try... */
+	/* Could writing twice fix problems with GUS_VOICE_POS()? Let's try. */
 	gus_delay();
 	gus_write16(reg, (unsigned short) ((address >> 7) & 0xffff));
 	gus_write16(reg + 1, (unsigned short) ((address << 9) & 0xffff)
@@ -499,13 +499,15 @@ static void gus_set_voice_pos(int voice, long position)
 {
 	int sample_no;
 
-	if ((sample_no = sample_map[voice]) != -1)
-		if (position < samples[sample_no].len)
+	if ((sample_no = sample_map[voice]) != -1) {
+		if (position < samples[sample_no].len) {
 			if (voices[voice].volume_irq_mode == VMODE_START_NOTE)
 				voices[voice].offset_pending = position;
 			else
 				gus_write_addr(0x0a, sample_ptrs[sample_no] + position, 0,
 				 samples[sample_no].mode & WAVE_16_BITS);
+		}
+	}
 }
 
 static void gus_voice_init(int voice)
@@ -3115,7 +3117,7 @@ void gus_wave_init(struct address_info *hw_config)
 		hw_config->slots[0] = sdev;
 		synth_devs[sdev] = &guswave_operations;
 		sequencer_init();
-#if defined(CONFIG_SEQUENCER) || defined(MODULE)
+#ifdef CONFIG_SEQUENCER
 		gus_tmr_install(gus_base + 8);
 #endif
 	}
@@ -3126,30 +3128,24 @@ void gus_wave_init(struct address_info *hw_config)
 	
 	if ((gus_mem_size > 0) & !gus_no_wave_dma)
 	{
-		if ((dev = sound_alloc_audiodev()) != -1)
+		hw_config->slots[4] = -1;
+		if ((gus_devnum = sound_install_audiodrv(AUDIO_DRIVER_VERSION,
+					"Ultrasound",
+					&gus_audio_driver,
+					sizeof(struct audio_driver),
+					NEEDS_RESTART |
+		                   	((!iw_mode && dma2 != dma && dma2 != -1) ?
+						DMA_DUPLEX : 0),
+					AFMT_U8 | AFMT_S16_LE,
+					NULL, dma, dma2)) < 0)
 		{
-			hw_config->slots[4] = dev;
-			if ((gus_devnum = sound_install_audiodrv(AUDIO_DRIVER_VERSION,
-							    "Ultrasound",
-						       &gus_audio_driver,
-					     sizeof(struct audio_driver),
-							  NEEDS_RESTART |
-								                   ((!iw_mode && dma2 != dma && dma2 != -1) ?
-							 DMA_DUPLEX : 0),
-						   AFMT_U8 | AFMT_S16_LE,
-								   NULL,
-								   dma,
-							      dma2)) < 0)
-			{
-				return;
-			}
+			return;
+		}
 
-			audio_devs[gus_devnum]->min_fragment = 9;	/* 512k */
-			audio_devs[gus_devnum]->max_fragment = 11;	/* 8k (must match size of bounce_buf */
-			audio_devs[gus_devnum]->mixer_dev = -1;	/* Next mixer# */
-			audio_devs[gus_devnum]->flags |= DMA_HARDSTOP;
-		} else
-			printk(KERN_WARNING "GUS: Too many audio devices available\n");
+		audio_devs[gus_devnum]->min_fragment = 9;	/* 512k */
+		audio_devs[gus_devnum]->max_fragment = 11;	/* 8k (must match size of bounce_buf */
+		audio_devs[gus_devnum]->mixer_dev = -1;	/* Next mixer# */
+		audio_devs[gus_devnum]->flags |= DMA_HARDSTOP;
 	}
 	
 	/*
@@ -3442,7 +3438,7 @@ void guswave_dma_irq(void)
 	}
 }
 
-#if defined(CONFIG_SEQUENCER) || defined(MODULE)
+#ifdef CONFIG_SEQUENCER
 
 /*
  * Timer stuff

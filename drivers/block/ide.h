@@ -309,7 +309,7 @@ typedef enum {	ide_unknown,	ide_generic,	ide_pci,
 		ide_cmd640,	ide_dtc2278,	ide_ali14xx,
 		ide_qd6580,	ide_umc8672,	ide_ht6560b,
 		ide_pdc4030,	ide_rz1000,	ide_trm290,
-		ide_4drives
+		ide_cmd646,	ide_4drives
 	} hwif_chipset_t;
 
 typedef struct ide_pci_devid_s {
@@ -345,7 +345,7 @@ typedef struct hwif_s {
 	unsigned	serialized : 1;	/* serialized operation with mate hwif */
 	unsigned	sharing_irq: 1;	/* 1 = sharing irq with another hwif */
 	unsigned	reset      : 1;	/* reset after probe */
-	unsigned	no_autodma : 1;	/* don't automatically enable DMA at boot */
+	unsigned	autodma    : 1;	/* automatically try to enable DMA at boot */
 	byte		channel;	/* for dual-port chips: 0=primary, 1=secondary */
 	struct pci_dev	*pci_dev;	/* for pci chipsets */
 	ide_pci_devid_t	pci_devid;	/* for pci chipsets: {VID,DID} */
@@ -512,10 +512,13 @@ extern  ide_module_t	*ide_modules;
 #endif
 
 /*
- * One final include file, which references some of the data/defns from above
+ * We need blk.h, but we replace its end_request by our own version.
  */
-#define IDE_DRIVER	/* "parameter" for blk.h */
+#define IDE_DRIVER		/* Toggle some magic bits in blk.h */
+#define LOCAL_END_REQUEST	/* Don't generate end_request in blk.h */
 #include <linux/blk.h>
+
+void ide_end_request(byte uptodate, ide_hwgroup_t *hwgroup);
 
 /*
  * This is used for (nearly) all data transfers from/to the IDE interface
@@ -671,7 +674,7 @@ void ide_stall_queue (ide_drive_t *drive, unsigned long timeout);
  */
 struct request **ide_get_queue (kdev_t dev);
 
-int  ide_spin_wait_hwgroup(const char *msg, ide_drive_t *drive, unsigned long *flags);
+int  ide_spin_wait_hwgroup(ide_drive_t *drive, unsigned long *flags);
 void ide_timer_expiry (unsigned long data);
 void ide_intr (int irq, void *dev_id, struct pt_regs *regs);
 void ide_geninit (struct gendisk *gd);

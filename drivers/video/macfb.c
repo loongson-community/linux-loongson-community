@@ -2,7 +2,6 @@
  *	We've been given MAC frame buffer info by the booter. Now go set it up
  */
 
-#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -44,7 +43,7 @@ static struct fb_var_screeninfo macfb_defined={
 	0,		/* standard pixel format */
 	FB_ACTIVATE_NOW,
 	274,195,	/* 14" monitor *Mikael Nykvist's anyway* */
-	FB_ACCEL_NONE,	/* The only way to accelerate a mac is .. */
+	0,		/* The only way to accelerate a mac is .. */
 	0L,0L,0L,0L,0L,
 	0L,0L,0,	/* No sync info */
 	FB_VMODE_NONINTERLACED,
@@ -76,7 +75,7 @@ static unsigned long mac_videosize;
 	 * Open/Release the frame buffer device
 	 */
 
-static int macfb_open(struct fb_info *info)
+static int macfb_open(struct fb_info *info, int user)
 {
 	/*
 	 * Nothing, only a usage count for the moment
@@ -85,7 +84,7 @@ static int macfb_open(struct fb_info *info)
 	return(0);
 }
 
-static int macfb_release(struct fb_info *info)
+static int macfb_release(struct fb_info *info, int user)
 {
 	MOD_DEC_USE_COUNT;
 	return(0);
@@ -94,7 +93,7 @@ static int macfb_release(struct fb_info *info)
 static void macfb_encode_var(struct fb_var_screeninfo *var, 
 				struct macfb_par *par)
 {
-	int i=0;
+	memset(var, 0, sizeof(struct fb_var_screeninfo));
 	var->xres=mac_xres;
 	var->yres=mac_yres;
 	var->xres_virtual=mac_vxres;
@@ -110,7 +109,6 @@ static void macfb_encode_var(struct fb_var_screeninfo *var,
 	var->activate=0;
 	var->height= -1;
 	var->width= -1;
-	var->accel=0;
 	var->vmode=FB_VMODE_NONINTERLACED;
 	var->pixclock=0;
 	var->sync=0;
@@ -120,8 +118,6 @@ static void macfb_encode_var(struct fb_var_screeninfo *var,
 	var->lower_margin=0;
 	var->hsync_len=0;
 	var->vsync_len=0;
-	for(i=0;i<arraysize(var->reserved);i++)
-		var->reserved[i]=0;
 	return;
 }
 
@@ -155,8 +151,6 @@ extern int console_loglevel;
 static void macfb_encode_fix(struct fb_fix_screeninfo *fix, 
 				struct macfb_par *par)
 {
-	int i;
-
 	memset(fix, 0, sizeof(struct fb_fix_screeninfo));
 	strcpy(fix->id,"Macintosh");
 
@@ -210,7 +204,7 @@ static void macfb_set_disp(int con)
 
 	macfb_get_fix(&fix, con, 0);
 
-	display->screen_base = (u_char *)(fix.smem_start+fix.smem_offset);
+	display->screen_base = fix.smem_start+fix.smem_offset;
 	display->visual = fix.visual;
 	display->type = fix.type;
 	display->type_aux = fix.type_aux;
@@ -222,22 +216,22 @@ static void macfb_set_disp(int con)
 	display->inverse = inverse;
 
 	switch (mac_depth) {
-#ifdef CONFIG_FBCON_MFB
+#ifdef FBCON_HAS_MFB
 	    case 1:
 		display->dispsw = &fbcon_mfb;
 		break;
 #endif
-#ifdef CONFIG_FBCON_CFB2
+#ifdef FBCON_HAS_CFB2
 	    case 2:
 		display->dispsw = &fbcon_cfb2;
 		break;
 #endif
-#ifdef CONFIG_FBCON_CFB4
+#ifdef FBCON_HAS_CFB4
 	    case 4:
 		display->dispsw = &fbcon_cfb4;
 		break;
 #endif
-#ifdef CONFIG_FBCON_CFB8
+#ifdef FBCON_HAS_CFB8
 	    case 8:
 		display->dispsw = &fbcon_cfb8;
 		break;
@@ -323,14 +317,12 @@ static struct fb_ops macfb_ops = {
 	macfb_get_cmap,
 	macfb_set_cmap,
 	macfb_pan_display,
-	NULL,
 	macfb_ioctl
 };
 
 void macfb_setup(char *options, int *ints)
 {
     char *this_opt;
-    int temp;
 
     fb_info.fontname[0] = '\0';
 
@@ -372,7 +364,7 @@ static int nubus_video_card(struct nubus_device_specifier *ns, int slot, struct 
 {
 	if(nt->category==NUBUS_CAT_DISPLAY)
 		return 0;
-	/* Claim all video cards. We dont yet do driver specifics tho. */
+	/* Claim all video cards. We don't yet do driver specifics though. */
 	return -ENODEV;
 }
 
@@ -381,13 +373,12 @@ static struct nubus_device_specifier nb_video={
 	NULL
 };
 
-__initfunc(unsigned long macfb_init(unsigned long mem_start))
+__initfunc(void macfb_init(void))
 {
 	/* nubus_remap the video .. */
-	int err;
 
 	if (!MACH_IS_MAC) 
-		return mem_start;
+		return;
 
 	mac_xres=mac_bi_data.dimensions&0xFFFF;
 	mac_yres=(mac_bi_data.dimensions&0xFFFF0000)>>16;
@@ -426,13 +417,6 @@ __initfunc(unsigned long macfb_init(unsigned long mem_start))
 	fb_info.blank=&macfb_blank;
 	do_fb_set_var(&macfb_defined,1);
 
-	err=register_framebuffer(&fb_info);
-	if(err<0)
-	{
-		mac_boom(6);
-		return NULL;
-	}
-
 	macfb_get_var(&disp.var, -1, &fb_info);
 	macfb_set_disp(-1);
 
@@ -442,10 +426,14 @@ __initfunc(unsigned long macfb_init(unsigned long mem_start))
 	 
 	register_nubus_device(&nb_video);
 
+	if (register_framebuffer(&fb_info) < 0)
+	{
+		mac_boom(6);
+		return;
+	}
+
 	printk("fb%d: %s frame buffer device using %ldK of video memory\n",
 	       GET_FB_IDX(fb_info.node), fb_info.modename, mac_videosize>>10);
-
-	return mem_start;
 }
 
 #if 0

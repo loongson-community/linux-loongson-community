@@ -12,14 +12,18 @@ L_OBJS   := auto_irq.o
 M_OBJS   :=
 MOD_LIST_NAME := NET_MODULES
 
-# Need these to keep track of whether the 8390, PPP and SLHC modules should
-# really go in the kernel or a module.
+# Need these to keep track of whether the 7990 (LANCE), 8390, PPP and SLHC 
+# modules should really go in the kernel or a module.
 CONFIG_8390_BUILTIN :=
 CONFIG_8390_MODULE  :=
 CONFIG_SLHC_BUILTIN :=
 CONFIG_SLHC_MODULE  :=
 CONFIG_PPPDEF_BUILTIN :=
 CONFIG_PPPDEF_MODULE  :=
+CONFIG_7990_BUILTIN :=
+CONFIG_7990_MODULE :=
+CONFIG_82596_BUILTIN :=
+CONFIG_82596_MODULE :=
 
 ifeq ($(CONFIG_ISDN),y)
   ifeq ($(CONFIG_ISDN_PPP),y)
@@ -51,6 +55,22 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_IBMLS),y)
+L_OBJS += lanstreamer.o
+else
+  ifeq ($(CONFIG_IBMLS),m)
+  M_OBJS += lanstreamer.o
+  endif
+endif
+
+ifeq ($(CONFIG_SKTR),y)
+L_OBJS += sktr.o
+else
+  ifeq ($(CONFIG_SKTR),m)
+  M_OBJS += sktr.o
+  endif
+endif
+
 ifeq ($(CONFIG_ETHERTAP),y)
 L_OBJS += ethertap.o
 else
@@ -58,6 +78,22 @@ else
   M_OBJS += ethertap.o
   endif
 endif
+
+ifeq ($(CONFIG_DAYNAPORT), y)
+L_OBJS += daynaport.o
+CONFIG_8390_BUILTIN = y
+endif
+
+ifeq ($(CONFIG_APNE),y)
+L_OBJS += apne.o
+CONFIG_8390_BUILTIN = y
+else
+  ifeq ($(CONFIG_APNE),m)
+  M_OBJS += apne.o
+  CONFIG_8390_MODULE = y
+  endif
+endif
+
 
 ifeq ($(CONFIG_SHAPER),y)
 L_OBJS += shaper.o
@@ -70,7 +106,6 @@ endif
 ifeq ($(CONFIG_SK_G16),y)
 L_OBJS += sk_g16.o
 endif
-
 
 ifeq ($(CONFIG_HP100),y)
 L_OBJS += hp100.o
@@ -104,6 +139,13 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_ETHERH),y)
+CONFIG_8390_BUILTIN = y
+else
+  ifeq ($(CONFIG_ETHERH),m)
+  CONFIG_8390_MODULE = y
+  endif
+endif
 
 ifeq ($(CONFIG_WD80x3),y)
 L_OBJS += wd.o
@@ -122,6 +164,24 @@ else
   ifeq ($(CONFIG_EL2),m)
   CONFIG_8390_MODULE = y
   M_OBJS += 3c503.o
+  endif
+endif
+
+ifeq ($(CONFIG_ETHERH),y)
+CONFIG_8390_BUILTIN = y
+else
+  ifeq ($(CONFIG_ETHERH),m)
+  CONFIG_8390_MODULE = y
+  endif
+endif
+
+ifeq ($(CONFIG_NE2K_PCI),y)
+L_OBJS += ne2k-pci.o
+CONFIG_8390_BUILTIN = y
+else
+  ifeq ($(CONFIG_NE2K_PCI),m)
+  CONFIG_8390_MODULE = y
+  M_OBJS += ne2k-pci.o
   endif
 endif
 
@@ -205,6 +265,15 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_LNE390),y)
+L_OBJS += lne390.o
+CONFIG_8390_BUILTIN = y
+else
+  ifeq ($(CONFIG_LNE390),m)
+  CONFIG_8390_MODULE = y
+  M_OBJS += lne390.o
+  endif
+endif
 
 ifeq ($(CONFIG_PLIP),y)
 L_OBJS += plip.o
@@ -234,13 +303,11 @@ ifeq ($(CONFIG_SLIP),y)
 L_OBJS += slip.o
   ifeq ($(CONFIG_SLIP_COMPRESSED),y)
   CONFIG_SLHC_BUILTIN = y
-  CONFIG_PPPDEF_BUILTIN = y
   endif
 else
   ifeq ($(CONFIG_SLIP),m)
     ifeq ($(CONFIG_SLIP_COMPRESSED),y)
     CONFIG_SLHC_MODULE = y
-    CONFIG_PPPDEF_MODULE = y
   endif
   M_OBJS += slip.o
   endif
@@ -297,6 +364,10 @@ endif
 
 ifeq ($(CONFIG_PCNET32),y)
 L_OBJS += pcnet32.o
+else
+  ifeq ($(CONFIG_PCNET32),m)
+  M_OBJS += pcnet32.o
+  endif
 endif
 
 ifeq ($(CONFIG_DEFXX),y)
@@ -419,6 +490,22 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_RTL8139),y)
+L_OBJS += rtl8139.o
+else
+  ifeq ($(CONFIG_RTL8139),m)
+  M_OBJS += rtl8139.o
+  endif
+endif
+
+ifeq ($(CONFIG_YELLOWFIN),y)
+L_OBJS += yellowfin.o
+else
+  ifeq ($(CONFIG_YELLOWFIN),m)
+  M_OBJS += yellowfin.o
+  endif
+endif
+
 ifeq ($(CONFIG_WAVELAN),y)
 L_OBJS += wavelan.o
 else
@@ -510,10 +597,26 @@ else
 endif
 
 ifeq ($(CONFIG_APRICOT),y)
-L_OBJS += apricot.o
+CONFIG_82596_BUILTIN = y
 else
   ifeq ($(CONFIG_APRICOT),m)
-  M_OBJS += apricot.o
+  CONFIG_82596_MODULE = y
+  endif
+endif
+
+ifeq ($(CONFIG_MVME16x_NET),y)
+CONFIG_82596_BUILTIN = y
+else
+  ifeq ($(CONFIG_MVME16x_NET),m)
+  CONFIG_82596_MODULE = y
+  endif
+endif
+
+ifeq ($(CONFIG_BVME6000_NET),y)
+CONFIG_82596_BUILTIN = y
+else
+  ifeq ($(CONFIG_BVME6000_NET),m)
+  CONFIG_82596_MODULE = y
   endif
 endif
 
@@ -621,6 +724,34 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_HPLANCE),y)
+L_OBJS += hplance.o
+CONFIG_7990_BUILTIN = y
+else
+  ifeq ($(CONFIG_HPLANCE),m)
+  CONFIG_7990_MODULE = y
+  M_OBJS += hplance.o
+  endif
+endif
+# If we need generic LANCE support, either in the kernel or as a module,
+# build it in the appropriate way.
+ifdef CONFIG_7990_BUILTIN
+L_OBJS += 7990.o
+else
+  ifdef CONFIG_7990_MODULE
+  M_OBJS += 7990.o
+  endif
+endif
+
+# If anything built-in uses the 82596, then build it into the kernel also.
+# If not, but a module uses it, build as a module.
+ifdef CONFIG_82596_BUILTIN
+L_OBJS += 82596.o
+else
+  ifdef CONFIG_82596_MODULE
+  M_OBJS += 82596.o
+  endif
+endif
 
 ifeq ($(CONFIG_EQUALIZER),y)
 L_OBJS += eql.o
@@ -746,8 +877,12 @@ ifeq ($(CONFIG_MACE),y)
 L_OBJS += mace.o
 endif
 
+ifeq ($(CONFIG_BMAC),y)
+L_OBJS += bmac.o
+endif
+
 ifeq ($(CONFIG_VENDOR_SANGOMA),y)
-  L_OBJS += sdladrv.o
+  LX_OBJS += sdladrv.o
   L_OBJS += sdlamain.o
   ifeq ($(CONFIG_WANPIPE_X25),y)
     L_OBJS += sdla_x25.o

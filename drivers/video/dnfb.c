@@ -5,7 +5,6 @@
 #include <linux/tty.h>
 #include <linux/malloc.h>
 #include <linux/delay.h>
-#include <linux/config.h>
 #include <linux/interrupt.h>
 #include <asm/setup.h>
 #include <asm/segment.h>
@@ -114,8 +113,8 @@
 
 /* frame buffer operations */
 
-static int dnfb_open(struct fb_info *info);
-static int dnfb_release(struct fb_info *info);
+static int dnfb_open(struct fb_info *info, int user);
+static int dnfb_release(struct fb_info *info, int user);
 static int dnfb_get_fix(struct fb_fix_screeninfo *fix, int con,
 			struct fb_info *info);
 static int dnfb_get_var(struct fb_var_screeninfo *var, int con,
@@ -142,14 +141,14 @@ static struct display disp[MAX_NR_CONSOLES];
 static struct fb_info fb_info;
 static struct fb_ops dnfb_ops = { 
 	dnfb_open,dnfb_release, dnfb_get_fix, dnfb_get_var, dnfb_set_var,
-	dnfb_get_cmap, dnfb_set_cmap, dnfb_pan_display, NULL, dnfb_ioctl
+	dnfb_get_cmap, dnfb_set_cmap, dnfb_pan_display, dnfb_ioctl
 };
 
 static int currcon=0;
 
 static char dnfb_name[]="Apollo";
 
-static int dnfb_open(struct fb_info *info)
+static int dnfb_open(struct fb_info *info, int user)
 {
         /*
          * Nothing, only a usage count for the moment
@@ -159,7 +158,7 @@ static int dnfb_open(struct fb_info *info)
         return(0);
 }
 
-static int dnfb_release(struct fb_info *info)
+static int dnfb_release(struct fb_info *info, int user)
 {
         MOD_DEC_USE_COUNT;
         return(0);
@@ -187,6 +186,7 @@ static int dnfb_get_fix(struct fb_fix_screeninfo *fix, int con,
 static int dnfb_get_var(struct fb_var_screeninfo *var, int con,
 			struct fb_info *info)
 {
+	memset(var, 0, sizeof(struct fb_var_screeninfo));
 	var->xres=1280;
 	var->yres=1024;
 	var->xres_virtual=2048;
@@ -206,7 +206,6 @@ static int dnfb_get_var(struct fb_var_screeninfo *var, int con,
 	var->vsync_len=0;
 	var->sync=0;
 	var->vmode=FB_VMODE_NONINTERLACED;
-	var->accel=FB_ACCEL_NONE;
 
 	return 0;
 
@@ -248,8 +247,6 @@ static int dnfb_set_var(struct fb_var_screeninfo *var, int con,
 	if(var->sync!=0)
 		return -EINVAL;
 	if(var->vmode!=FB_VMODE_NONINTERLACED)
-		return -EINVAL;
-	if(var->accel!=FB_ACCEL_NONE)
 		return -EINVAL;
 
 	return 0;
@@ -297,7 +294,7 @@ static void dnfb_set_disp(int con, struct fb_info *info)
   if(con==-1) 
     con=0;
 
-   disp[con].screen_base = (u_char *)fix.smem_start;
+   disp[con].screen_base = fix.smem_start;
    disp[con].visual = fix.visual;
    disp[con].type = fix.type;
    disp[con].type_aux = fix.type_aux;
@@ -306,17 +303,15 @@ static void dnfb_set_disp(int con, struct fb_info *info)
    disp[con].can_soft_blank = 1;
    disp[con].inverse = 0;
    disp[con].line_length = fix.line_length;
-#ifdef CONFIG_FBCON_MFB
+#ifdef FBCON_HAS_MFB
    disp[con].dispsw = &fbcon_mfb;
 #else
    disp[con].dispsw = NULL;
 #endif
 }
   
-unsigned long dnfb_init(unsigned long mem_start)
+void dnfb_init(void)
 {
-	int err;
-       
 	fb_info.changevar=NULL;
 	strcpy(&fb_info.modename[0],dnfb_name);
 	fb_info.fontname[0]=0;
@@ -327,13 +322,6 @@ unsigned long dnfb_init(unsigned long mem_start)
 	fb_info.node = -1;
 	fb_info.fbops = &dnfb_ops;
 	
-	err=register_framebuffer(&fb_info);
-	if(err < 0) {
-		panic("unable to register apollo frame buffer\n");
-	}
- 
-	/* now we have registered we can safely setup the hardware */
-
         outb(RESET_CREG, AP_CONTROL_3A);
         outw(0x0, AP_WRITE_ENABLE);
         outb(NORMAL_MODE,AP_CONTROL_0); 
@@ -341,16 +329,14 @@ unsigned long dnfb_init(unsigned long mem_start)
         outb(S_DATA_PLN, AP_CONTROL_2);
         outw(SWAP(0x3),AP_ROP_1);
 
-        printk("fb%d: apollo frame buffer alive and kicking !\n",
-	       GET_FB_IDX(fb_info.node));
-
-	
         dnfb_get_var(&disp[0].var, 0, &fb_info);
-
 	dnfb_set_disp(-1, &fb_info);
 
-	return mem_start;
-
+	if (register_framebuffer(&fb_info) < 0)
+		panic("unable to register apollo frame buffer\n");
+ 
+        printk("fb%d: apollo frame buffer alive and kicking !\n",
+	       GET_FB_IDX(fb_info.node));
 }	
 
 	
