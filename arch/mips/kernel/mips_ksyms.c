@@ -1,4 +1,4 @@
-/* $Id: mips_ksyms.c,v 1.11 1999/01/27 19:24:54 ulfc Exp $
+/* $Id: mips_ksyms.c,v 1.12 1999/02/06 03:57:40 adevries Exp $
  *
  * Export MIPS-specific functions needed for loadable modules.
  *
@@ -25,7 +25,6 @@
 #include <asm/sgihpc.h>
 #include <asm/softirq.h>
 #include <asm/uaccess.h>
-#include <asm/indy_pbus.h>
 
 extern void *__bzero(void *__s, size_t __count);
 extern long __strncpy_from_user_nocheck_asm(char *__to,
@@ -96,13 +95,6 @@ EXPORT_SYMBOL(vdma_log2phys);
 
 #ifdef CONFIG_SGI
 EXPORT_SYMBOL(hpc3c0);
-
-EXPORT_SYMBOL(sgipbus_request);
-EXPORT_SYMBOL(sgipbus_free);
-EXPORT_SYMBOL(sgipbus_enable);
-EXPORT_SYMBOL(sgipbus_disable);
-EXPORT_SYMBOL(sgipbus_setup);
-EXPORT_SYMBOL(sgipbus_interrupted);
 #endif
 
 /*

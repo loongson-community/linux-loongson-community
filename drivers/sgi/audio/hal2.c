@@ -1,4 +1,4 @@
-/* $Id: hal2.c,v 1.10 1999/02/02 20:24:46 ulfc Exp $
+/* $Id: hal2.c,v 1.11 1999/02/03 23:25:31 tsbogend Exp $
  * 
  * drivers/sgi/audio/hal2.c
  *
@@ -45,19 +45,22 @@ struct hal2_channel {
 	struct hal2_buffer *ring;
 
 	int pbus;
-	int stereo;
-	int little_end;
+
 	int bres_mod;
-	int bres_master;		/* 0=48.0k 1=44.1k */
-
-	enum {DAC, ADC} type;
-
-	int pbus_requested;
-	int pbus_enabled;
-	int hal2_enabled;
+	int bres_master;		
 
 	int bufs;
 	int free_bufs;
+
+	unsigned long flags;
+#define H2_CH_LITTLE_END	(1<<0)
+#define H2_CH_DAC		(1<<1)
+#define H2_CH_STEREO		(1<<2)
+#define H2_CH_MASTER		(1<<3)	/* 0=48.0k 1=44.1k */
+#define H2_CH_PORT_ENBL		(1<<4)
+#define H2_CH_PBUS_SETUP	(1<<5)
+#define H2_CH_PBUS_ENBL		(1<<6)
+
 };
 
 struct hal2_private {
@@ -109,14 +112,12 @@ struct sgiaudio_chan_ops {
 #define INDIRECT_WAIT(regs)						\
 {									\
 	int cnt = 1000;							\
-	udelay(200);							\
 	printk("hal2: waiting isr:%04hx ", regs->isr);			\
-	udelay(200);							\
 	printk("idr0:%04hx idr1:%04hx idr2:%04hx idr3:%04hx\n",		\
 	       regs->idr0, regs->idr1, regs->idr2, regs->idr3);		\
 									\
 	while(regs->isr & H2_ISR_TSTATUS && --cnt)			\
-		udelay(200);						\
+		udelay(5);						\
 	if (!cnt)							\
 		printk("hal2: failed waiting for indirect trans.\n");	\
 									\
@@ -124,14 +125,12 @@ struct sgiaudio_chan_ops {
 	       cnt, regs->isr);						\
 	printk("idr0:%04hx idr1:%04hx idr2:%04hx idr3:%04hx\n",		\
 	       regs->idr0, regs->idr1, regs->idr2, regs->idr3);		\
-	udelay(200);							\
 }									\
 
 static unsigned short ireg_read(unsigned short address)
 {
 	unsigned short tmp;
 
-	udelay(200);
 	h2_ctrl->iar = address;
 	INDIRECT_WAIT(h2_ctrl)
 	tmp = h2_ctrl->idr0;
@@ -140,9 +139,7 @@ static unsigned short ireg_read(unsigned short address)
 
 static void ireg_write(unsigned short address, unsigned short val)
 {
-	udelay(200);
 	h2_ctrl->idr0 = val;
-	udelay(200);
 	h2_ctrl->iar = address;
 	INDIRECT_WAIT(h2_ctrl)
 }
@@ -150,11 +147,8 @@ static void ireg_write(unsigned short address, unsigned short val)
 static void ireg_write2(unsigned short address, unsigned short val0, unsigned
 			short val1)
 {
-	udelay(200);
 	h2_ctrl->idr0 = val0;
-	udelay(200);
 	h2_ctrl->idr1 = val1;
-	udelay(200);
 	h2_ctrl->iar = address;
 	INDIRECT_WAIT(h2_ctrl)
 }
@@ -162,15 +156,10 @@ static void ireg_write2(unsigned short address, unsigned short val0, unsigned
 static void ireg_write4(unsigned short address, unsigned short val0, unsigned
 			short val1, unsigned short val2, unsigned short val3)
 {
-	udelay(200);
 	h2_ctrl->idr0 = val0;
-	udelay(200);
 	h2_ctrl->idr1 = val1;
-	udelay(200);
 	h2_ctrl->idr2 = val2;
-	udelay(200);
 	h2_ctrl->idr3 = val3;
-	udelay(200);
 	h2_ctrl->iar = address;
 	INDIRECT_WAIT(h2_ctrl)
 }
@@ -184,7 +173,6 @@ static void ireg_setbit(unsigned short write_address, unsigned short
 	INDIRECT_WAIT(h2_ctrl);
 	tmp = h2_ctrl->idr0;
 	h2_ctrl->idr0 = tmp | bit;
-	udelay(200);
 	h2_ctrl->iar = write_address;
 	INDIRECT_WAIT(h2_ctrl);
 }
@@ -198,7 +186,6 @@ static void ireg_clearbit(unsigned short write_address, unsigned short
 	INDIRECT_WAIT(h2_ctrl);
 	tmp = h2_ctrl->idr0;
 	h2_ctrl->idr0 = tmp & ~bit;
-	udelay(200);
 	h2_ctrl->iar = write_address;
 	INDIRECT_WAIT(h2_ctrl);
 }
@@ -206,14 +193,37 @@ static void ireg_clearbit(unsigned short write_address, unsigned short
 static void hal2_reset(void)
 {
 	printk("resetting global isr:%04hx\n", h2_ctrl->isr);
-	udelay(200);
 	h2_ctrl->isr = 0;		/* reset the card */
-	udelay(200);
 	printk("reset done isr:%04hx\n", h2_ctrl->isr);
-	udelay(200);
 	h2_ctrl->isr = H2_ISR_GLOBAL_RESET_N | H2_ISR_CODEC_RESET_N;
-	udelay(200);
 	printk("reactivation done isr:%04hx\n", h2_ctrl->isr);
+}
+
+/* enable/disable a specific PBUS dma channel */
+__inline__ void sgipbus_enable(unsigned int channel, unsigned long desc)
+{
+	struct hpc3_pbus_dmacregs *pbus = &hpc3c0->pbdma0;
+
+	pbus[channel].pbdma_dptr = desc;
+	pbus[channel].pbdma_ctrl |= HPC3_PDMACTRL_ACT;
+}
+
+__inline__ void sgipbus_disable(unsigned int channel)
+{
+	struct hpc3_pbus_dmacregs *pbus = &hpc3c0->pbdma0;
+
+	pbus[channel].pbdma_ctrl &= ~HPC3_PDMACTRL_ACT;
+}
+
+__inline__ int sgipbus_interrupted(unsigned int channel)
+{
+	struct hpc3_pbus_dmacregs *pbus = &hpc3c0->pbdma0;
+
+	/* When we read pbdma_ctrl, bit 0 indicates interrupt signal.
+	 * The interrupt signal is also cleared after read
+	 */
+
+	return (pbus[channel].pbdma_ctrl & 0x01);
 }
 
 static int hal2_probe(void)
@@ -234,7 +244,7 @@ static int hal2_probe(void)
 	major = (h2_ctrl->rev & H2_REV_MAJOR_CHIP_M) >> 4;
 	minor = (h2_ctrl->rev & H2_REV_MINOR_CHIP_M);
 
-	printk("SGI HAL2 Processor, Revision %i.%i.%i\n",
+	printk("SGI H2 Processor, Revision %i.%i.%i\n",
 	       board, major, minor);
 
 	if (board != 4 || major != 1 || minor != 0) {
@@ -283,7 +293,7 @@ static int hal2_init(struct sgiaudio *sa)
 
 	if (initialized) {
 		printk("hal2_init: already initialized?\n");
-		goto out;
+		return 0;
 	}
 
 	if (!sa->private) {
@@ -307,7 +317,7 @@ static int hal2_init(struct sgiaudio *sa)
 	printk("hal2 init done..\n");
 
 	initialized = 1;
-out:
+
 	return 0;
 }
 
@@ -405,19 +415,17 @@ static int hal2_init_adc(struct sgiaudio *sa)
 
 static __inline__ int hal2_sample_size(struct hal2_channel *chan)
 {
-	return (chan->stereo ? 4 : 2);
+	return (chan->flags & H2_CH_STEREO ? 4 : 2);
 }
 
 static int hal2_setup_pbus(struct hal2_private *hp, struct hal2_channel *chan)
 {
+	struct hpc3_pbus_dmacregs *pbus = &hpc3c0->pbdma0;
 	int sample_sz, highwater, fifosize;
-	unsigned long dmacfg;
 	unsigned long flags;
-	char *device_id;
-	char *s1 = "hal2 ";
-	char *s2 = (chan->type == ADC ? "adc" : "dac");
-	int i;
-	int err;
+	unsigned long fifobeg, fifoend;
+
+	chan->pbus = (chan->flags & H2_CH_DAC) ? 0 : 1;
 
 	sample_sz = hal2_sample_size(chan);	/* bytes/sample */
 
@@ -427,36 +435,28 @@ static int hal2_setup_pbus(struct hal2_private *hp, struct hal2_channel *chan)
 	fifosize  = (sample_sz * 4) >> 3;	/* doublewords */
 	highwater = (sample_sz * 2) >> 1;	/* halfwords */
 
-	device_id = (char *) kmalloc(strlen(s1) + strlen(s2), GFP_KERNEL);
-	if (!device_id)
-		return -ENOMEM;
+	/* DAC is always before ADC in our PBUS DMA FIFO. Reserve space for the
+	 * maximum fifo length, we might change to stereo later if we're in mono
+	 * now
+	 */
 
-	device_id[0] = 0;
+	if (chan->flags & H2_CH_DAC)
+		fifobeg = 0;
+	else
+		fifobeg = (4 * 4) >> 3;
 
-	strcat(device_id, s1);
-	strcat(device_id, s2);
+	fifoend = fifobeg + fifosize;
 
-	if (!chan->pbus_requested) {
-		for (i = 0; i < MAX_PBUS_CHANNELS; i++) {
-			if(sgipbus_request(i, device_id) == 0) {
-				chan->pbus = i;
-				chan->pbus_requested = 1;
-				printk("got pbus %d\n", chan->pbus);
-				break;
-			}
-		}
+	flags = HPC3_PDMACTRL_RT |
+		(chan->flags & H2_CH_DAC ? 0 : HPC3_PDMACTRL_RCV) |
+		(chan->flags & H2_CH_LITTLE_END ? HPC3_PDMACTRL_SEL : 0);
 
-		if (i == MAX_PBUS_CHANNELS)
-			return -EBUSY;
-	}
+	pbus[chan->pbus].pbdma_ctrl = (highwater << 8) | (fifobeg << 16) |
+		(fifoend << 24) | flags;
 
-	flags = HPC3_PDMACTRL_RT | (chan->type==ADC ? HPC3_PDMACTRL_RCV : 0) |
-		(chan->little_end ? HPC3_PDMACTRL_SEL : 0);
-	dmacfg = 0x8248844; /* realtime, 16-bit, cycles to spend etc.. */
-
-	err = sgipbus_setup(chan->pbus, fifosize, highwater, flags, dmacfg);
-	if (err)
-		return err;
+	/* Realtime, 16-bit, cycles to spend and more default settings for
+	 * soundcards, taken directly from the spec. */
+	hpc3c0->pbus_dmacfgs[chan->pbus][0] = 0x8248844;
 
 	return 0;
 }
@@ -587,40 +587,34 @@ static void hal2_reset_adc_ring(struct hal2_private *hp, struct hal2_channel
 
 static void hal2_enable_port(struct hal2_private *hp, struct hal2_channel *chan)
 {
-	if (!chan->hal2_enabled) {
+	if (!(chan->flags & H2_CH_PORT_ENBL)) {
 		/* pick a dma port */
 		ireg_setbit(H2IW_DMA_DRV, H2IR_DMA_DRV, (1 << chan->pbus));
 
 		/* activate it! */
-		switch (chan->type) {
-		case DAC:
+		if (chan->flags & H2_CH_DAC)
 			ireg_setbit(H2IW_DMA_PORT_EN, H2IR_DMA_PORT_EN,
 				    H2I_DMA_PORT_EN_CODECTX);
-			break;
-		case ADC:
+		else
 			ireg_setbit(H2IW_DMA_PORT_EN, H2IR_DMA_PORT_EN,
 				    H2I_DMA_PORT_EN_CODECR);
-			break;
-		}
-		chan->hal2_enabled = 1;
+
+		chan->flags |= H2_CH_PORT_ENBL;
 	}
 }
 
 static void hal2_disable_port(struct hal2_private *hp,
 			      struct hal2_channel *chan)
 {
-	if (chan->hal2_enabled) {
-		switch (chan->type) {
-		case DAC:
+	if (chan->flags & H2_CH_PORT_ENBL) {
+		if (chan->flags & H2_CH_DAC)
 			ireg_clearbit(H2IW_DMA_PORT_EN, H2IR_DMA_PORT_EN,
 				      H2I_DMA_PORT_EN_CODECTX);
-			break;
-		case ADC:
+		else
 			ireg_clearbit(H2IW_DMA_PORT_EN, H2IR_DMA_PORT_EN,
 				      H2I_DMA_PORT_EN_CODECR);
-			break;
-		}
-		chan->hal2_enabled = 0;
+
+		chan->flags &= ~H2_CH_PORT_ENBL;
 	}
 }
 
@@ -711,7 +705,7 @@ static int hal2_configure_dac(struct sgiaudio *sa)
 {
 	struct hal2_private *hp = (struct hal2_private *) sa->private;
 	struct hal2_channel *chan = &hp->dac_chan;
-	int datatype = (chan->stereo?2:0) << 8;
+	int datatype = ((chan->flags & H2_CH_STEREO)?2:0) << 8;
 	int clock = 1 << 3;
 
 	/* Let's be sure that the dma port is disabled */
@@ -719,7 +713,7 @@ static int hal2_configure_dac(struct sgiaudio *sa)
 
 	hal2_configure_bres1(hp, chan);
 
-	if (chan->little_end)
+	if (chan->flags & H2_CH_LITTLE_END)
 		ireg_setbit(H2IW_DMA_END, H2IR_DMA_END,
 			    H2I_DMA_PORT_EN_CODECTX);
 	else
@@ -742,14 +736,14 @@ static int hal2_configure_adc(struct sgiaudio *sa)
 {
 	struct hal2_private *hp = (struct hal2_private *) sa->private;
 	struct hal2_channel *chan = &hp->dac_chan;
-	int datatype = (chan->stereo?2:0) << 8;
+	int datatype = ((chan->flags & H2_CH_STEREO)?2:0) << 8;
 	int clock = 2 << 3;
 
 	hal2_disable_port(hp, chan);
 
 	hal2_configure_bres2(hp, chan);
 
-	if (chan->little_end)
+	if (chan->flags & H2_CH_LITTLE_END)
 		ireg_setbit(H2IW_DMA_END, H2IR_DMA_END, H2I_DMA_PORT_EN_CODECR);
 	else
 		ireg_clearbit(H2IW_DMA_END, H2IR_DMA_END,
@@ -772,7 +766,7 @@ static int hal2_set_dac_stereo(struct sgiaudio *sa, int stereo)
 	struct hal2_private *hp = (struct hal2_private *) sa->private;
 	struct hal2_channel *chan = &hp->dac_chan;
 
-	chan->stereo = stereo;
+	chan->flags |= H2_CH_STEREO;
 
 	return 0;
 }
@@ -782,7 +776,7 @@ static int hal2_set_adc_stereo(struct sgiaudio *sa, int stereo)
 	struct hal2_private *hp = (struct hal2_private *) sa->private;
 	struct hal2_channel *chan = &hp->dac_chan;
 
-	chan->stereo = stereo;
+	chan->flags |= H2_CH_STEREO;
 
 	return 0;
 }
@@ -792,7 +786,10 @@ static int hal2_set_dac_endian(struct sgiaudio *sa, int little_end)
 	struct hal2_private *hp = (struct hal2_private *) sa->private;
 	struct hal2_channel *chan = &hp->dac_chan;
 
-	chan->little_end = little_end;
+	if (little_end)
+		chan->flags |= H2_CH_LITTLE_END;
+	else
+		chan->flags &= ~H2_CH_LITTLE_END;
 
 	return 0;
 }
@@ -802,7 +799,10 @@ static int hal2_set_adc_endian(struct sgiaudio *sa, int little_end)
 	struct hal2_private *hp = (struct hal2_private *) sa->private;
 	struct hal2_channel *chan = &hp->adc_chan;
 
-	chan->little_end = little_end;
+	if (little_end)
+		chan->flags |= H2_CH_LITTLE_END;
+	else
+		chan->flags &= ~H2_CH_LITTLE_END;
 
 	return 0;
 }
@@ -836,24 +836,24 @@ static void hal2_go(struct hal2_channel *chan)
 {
 	/* The hal2 *has* to be enabled before we enable PBUS DMA transfers,
 	 * atleast I say so.. (we need some kind of "order") */
-	if (!chan->hal2_enabled)
+	if (!(chan->flags & H2_CH_PORT_ENBL))
 		return;
 
-	if (!chan->pbus_enabled) {
+	if (!(chan->flags & H2_CH_PBUS_ENBL)) {
 		sgipbus_enable(chan->pbus, PHYSADDR(&chan->ring->desc));
-		chan->pbus_enabled = 1;
+		chan->flags |= H2_CH_PBUS_ENBL;
 	}
 #ifdef DEBUG
 	else
-		printk("Attempt to enable the HAL2 DMA channel twice\n");
+		printk("Attempt to enable the H2 DMA channel twice\n");
 #endif
 }
 
 static void hal2_stop_pbus(struct hal2_channel *chan)
 {
-	if (chan->pbus_enabled) {
+	if (chan->flags & H2_CH_PBUS_ENBL) {
 		sgipbus_enable(chan->pbus, PHYSADDR(&chan->ring->desc));
-		chan->pbus_enabled = 0;
+		chan->flags &= ~H2_CH_PBUS_ENBL;
 	}
 #ifdef DEBUG
 	else
@@ -911,9 +911,6 @@ static void hal2_free_dac(struct sgiaudio *sa)
 	if (!hp)
 		return;
 
-	if (chan->pbus_requested)
-		sgipbus_free(chan->pbus);
-
 	kfree(hp);
 }
 
@@ -924,9 +921,6 @@ static void hal2_free_adc(struct sgiaudio *sa)
 
 	if (!hp)
 		return;
-
-	if (chan->pbus_requested)
-		sgipbus_free(chan->pbus);
 
 	kfree(hp);
 }
@@ -939,12 +933,12 @@ void hal2_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	struct hal2_channel *chan;
 
 	chan = &hp->dac_chan;
-	if (chan->pbus_enabled && sgipbus_interrupted(chan->pbus))
+	if ((chan->flags & H2_CH_PBUS_ENBL) && sgipbus_interrupted(chan->pbus))
 		while (chan->free_bufs && !hp->dac_underrun)
 			hal2_update_dac_buf(sa, hp);
 
 	chan = &hp->adc_chan;
-	if (chan->pbus_enabled && sgipbus_interrupted(chan->pbus))
+	if ((chan->flags & H2_CH_PBUS_ENBL) && sgipbus_interrupted(chan->pbus))
 		;
 }
 
