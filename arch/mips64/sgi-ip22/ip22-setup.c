@@ -125,6 +125,7 @@ void __init ip22_setup(void)
 #ifdef CONFIG_SERIAL_CONSOLE
 	char *ctype;
 #endif
+	current_cpu_data.asid_cache = ASID_FIRST_VERSION;
 	TLBMISS_HANDLER_SETUP();
 
 	/* Init the INDY HPC I/O controller.  Need to call this before
