@@ -276,7 +276,11 @@ static unsigned int bridge_shutdown(unsigned int irq)
 
 static void bridge_init(void)
 {
-	bridge_t *bridge = (bridge_t *) 0x9200000008000000;
+	bridge_t *bridge;
+	nasid_t   nasid;
+
+	nasid = get_nasid();
+	bridge = (bridge_t *) NODE_SWIN_BASE(nasid, 8); /* bridge is widget 8 on origin */
 
 	/* Hmm...  IRIX sets additional bits in the address which are
 	   documented as reserved in the bridge docs ...  */
@@ -292,7 +296,6 @@ static void bridge_init(void)
 
 	bridge->b_int_enable = 0;
 	bridge->b_widget.w_tflush;			/* Flush */
-	set_cp0_status(SRB_DEV0 | SRB_DEV1, SRB_DEV0 | SRB_DEV1);
 }
 
 void irq_debug(void)
