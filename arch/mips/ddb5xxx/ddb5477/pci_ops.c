@@ -73,9 +73,6 @@ static inline u32 ddb_access_config_base(struct pci_config_swap *swap,
         u32 virt_addr = swap->config_base;
 	u32 option;
 
-	/* [jsun] hack for testing */
-	// if (slot_num == 4) slot_num = 0;
-
 	/* minimum pdar (window) size is 2MB */
 	db_assert(swap->config_size >= (2 << 20));
 
@@ -104,7 +101,6 @@ static inline u32 ddb_access_config_base(struct pci_config_swap *swap,
 	} else {
 		/* type 1 config */
 		pci_addr = (bus << 16) | (slot_num << 11);
-		panic("ddb_access_config_base: we don't support type 1 config Yet");
 	}
 
 	/*
