@@ -266,7 +266,7 @@
 #endif
 
 #ifdef CONFIG_SCSI_SUNESP
-#include "sparc_esp.h"
+#include "esp.h"
 #endif
 
 #ifdef CONFIG_SCSI_SGIWD93
@@ -650,7 +650,7 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
     SCSI_DEC_ESP,
 #endif
 #ifdef CONFIG_BLK_DEV_3W_XXXX_RAID
-    TWXXXX,
+	TWXXXX,
 #endif
 /* "Removable host adapters" below this line (Parallel Port/USB/other) */
 #ifdef CONFIG_SCSI_PPA

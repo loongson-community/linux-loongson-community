@@ -123,9 +123,9 @@ __KINLINE struct cmsghdr * cmsg_nxthdr (struct msghdr *__msg, struct cmsghdr *__
 #define SCM_CONNECT	0x03		/* rw: struct scm_connect	*/
 
 struct ucred {
-	__u32  pid;
-	__u32  uid;
-	__u32  gid;
+	__u32	pid;
+	__u32	uid;
+	__u32	gid;
 };
 
 

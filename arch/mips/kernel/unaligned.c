@@ -1,4 +1,4 @@
-/* $Id: unaligned.c,v 1.8 1999/10/10 18:49:15 ralf Exp $
+/* $Id: unaligned.c,v 1.7 1999/12/04 03:59:00 ralf Exp $
  *
  * Handle unaligned accesses by emulation.
  *
@@ -7,8 +7,7 @@
  * for more details.
  *
  * Copyright (C) 1996, 1998 by Ralf Baechle
- *
- * $Id: unaligned.c,v 1.6 1999/10/09 00:00:58 ralf Exp $
+ * Copyright (C) 1999 Silicon Graphics, Inc.
  *
  * This file contains exception handler for address error exception with the
  * special capability to execute faulting instructions in software.  The

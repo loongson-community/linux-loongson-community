@@ -393,7 +393,7 @@ extern void zap_page_range(struct mm_struct *mm, unsigned long address, unsigned
 extern int copy_page_range(struct mm_struct *dst, struct mm_struct *src, struct vm_area_struct *vma);
 extern int remap_page_range(unsigned long from, unsigned long to, unsigned long size, pgprot_t prot);
 extern int zeromap_page_range(unsigned long from, unsigned long size, pgprot_t prot);
-extern int vmap_page_range (unsigned long from, unsigned long size, unsigned long vaddr);
+
 extern void vmtruncate(struct inode * inode, loff_t offset);
 extern int handle_mm_fault(struct task_struct *tsk,struct vm_area_struct *vma, unsigned long address, int write_access);
 extern int make_pages_present(unsigned long addr, unsigned long end);

@@ -1,12 +1,13 @@
-/* $Id: traps.c,v 1.27 2000/01/16 01:29:05 ralf Exp $
+/* $Id: traps.c,v 1.28 2000/03/13 10:33:02 raiko Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright 1994, 1995, 1996, 1997, 1998 by Ralf Baechle
+ * Copyright (C) 1994 - 1999 by Ralf Baechle
  * Modified for R3000 by Paul M. Antoine, 1995, 1996
  * Complete output from die() by Ulf Carlsson, 1998
+ * Copyright (C) 1999 Silicon Graphics, Inc.
  */
 #include <linux/config.h>
 #include <linux/init.h>

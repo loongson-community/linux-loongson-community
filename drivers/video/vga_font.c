@@ -1,5 +1,6 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/modversions.h>
 
 
 #define cmapsz 8192
