@@ -59,6 +59,9 @@ static void qube_expansion_slot_fixup(struct pci_dev *dev)
 	pci_write_config_byte(dev, PCI_INTERRUPT_LINE, COBALT_QUBE_SLOT_IRQ);
 	dev->irq = COBALT_QUBE_SLOT_IRQ;
 
+	ioaddr_base += 0x2000 * PCI_FUNC(dev->devfn);
+	memaddr_base += 0x2000 * PCI_FUNC(dev->devfn);
+
 	/* Fixup base addresses, we only support I/O at the moment. */
 	for(i = 0; i <= 5; i++) {
 		unsigned int regaddr = (PCI_BASE_ADDRESS_0 + (i * 4));
@@ -124,22 +127,11 @@ static void qube_raq_tulip_fixup(struct pci_dev *dev)
 
 	/* Fixup the first tulip located at device PCICONF_ETH0 */
 	if (PCI_SLOT(dev->devfn) == COBALT_PCICONF_ETH0) {
-		/*
-		 * IRQs of the first Tulip is the same for (at least)
-		 * RAQ2 and QUBE2
-		 */
-		if ((cobalt_board_id == COBALT_BRD_ID_RAQ2) ||
-		    (cobalt_board_id == COBALT_BRD_ID_QUBE2)) {
-			/* Setup the first Tulip on the RAQ2/QUBE2 */
-			pci_write_config_byte(dev, PCI_INTERRUPT_LINE,
-					      COBALT_ETH0_IRQ);
-			dev->irq = COBALT_ETH0_IRQ;
-		} else {
-			/* Possibly only RAQ1/QUBE1 route this way!  */
-			pci_write_config_byte(dev, PCI_INTERRUPT_LINE,
-					      COBALT_RAQ1_ETH_IRQ);
-			dev->irq = COBALT_RAQ1_ETH_IRQ;
-		}
+		/* Setup the first Tulip */
+		pci_write_config_byte(dev, PCI_INTERRUPT_LINE,
+				      COBALT_ETH0_IRQ);
+		dev->irq = COBALT_ETH0_IRQ;
+
 		dev->resource[0].start = 0x100000;
 		dev->resource[0].end = 0x10007f;
 
