@@ -235,66 +235,23 @@ static inline void r3k_flush_cache_all(void)
 	r3k_flush_icache_range(KSEG0, KSEG0 + icache_size);
 }
  
+static inline void r3k___flush_cache_all(void)
+{
+	r3k_flush_icache_range(KSEG0, KSEG0 + icache_size);
+}
+
 static void r3k_flush_cache_mm(struct mm_struct *mm)
 {
-	if (mm->context != 0) {
-
-#ifdef DEBUG_CACHE
-		printk("cmm[%d]", (int)mm->context);
-#endif
-		r3k_flush_cache_all();
-	}
 }
 
 static void r3k_flush_cache_range(struct mm_struct *mm, unsigned long start,
 				  unsigned long end)
 {
-	struct vm_area_struct *vma;
-
-	if (mm->context == 0) 
-		return;
-
-	start &= PAGE_MASK;
-#ifdef DEBUG_CACHE
-	printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
-#endif
-	vma = find_vma(mm, start);
-	if (!vma)
-		return;
-
-	if (mm->context != current->active_mm->context) {
-		flush_cache_all();
-	} else {
-		unsigned long flags, physpage;
-
-		save_and_cli(flags);
-		while (start < end) {
-			if ((physpage = get_phys_page(start, mm)))
-				r3k_flush_icache_range(physpage,
-				                       physpage + PAGE_SIZE);
-			start += PAGE_SIZE;
-		}
-		restore_flags(flags);
-	}
 }
 
 static void r3k_flush_cache_page(struct vm_area_struct *vma,
 				   unsigned long page)
 {
-	struct mm_struct *mm = vma->vm_mm;
-
-	if (mm->context == 0)
-		return;
-
-#ifdef DEBUG_CACHE
-	printk("cpage[%d,%08lx]", (int)mm->context, page);
-#endif
-	if (vma->vm_flags & VM_EXEC) {
-		unsigned long physpage;
-
-		if ((physpage = get_phys_page(page, vma->vm_mm)))
-			r3k_flush_icache_range(physpage, physpage + PAGE_SIZE);
-	}
 }
 
 static void r3k_flush_page_to_ram(struct page * page)
@@ -368,7 +325,7 @@ void __init ld_mmu_r23000(void)
 	r3k_probe_cache();
 
 	_flush_cache_all = r3k_flush_cache_all;
-	___flush_cache_all = r3k_flush_cache_all;
+	___flush_cache_all = r3k___flush_cache_all;
 	_flush_cache_mm = r3k_flush_cache_mm;
 	_flush_cache_range = r3k_flush_cache_range;
 	_flush_cache_page = r3k_flush_cache_page;
