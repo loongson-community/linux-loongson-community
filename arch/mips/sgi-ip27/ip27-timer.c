@@ -36,9 +36,10 @@
  * Ralf: which clock rate is used to feed the counter?
  */
 #define NSEC_PER_CYCLE		800
-#define NSEC_PER_SEC		1000000000
 #define CYCLES_PER_SEC		(NSEC_PER_SEC/NSEC_PER_CYCLE)
 #define CYCLES_PER_JIFFY	(CYCLES_PER_SEC/HZ)
+
+#define TICK_SIZE (tick_nsec / 1000)
 
 static unsigned long ct_cur[NR_CPUS];	/* What counter should be at next timer irq */
 static long last_rtc_update;		/* Last time the rtc clock got updated */
@@ -121,19 +122,16 @@ again:
 	 * called as close as possible to when a second starts.
 	 */
 	if ((time_status & STA_UNSYNC) == 0 &&
-	    xtime.tv_sec > last_rtc_update + 660) {
-		if (xtime.tv_usec >= 1000000 - ((unsigned) tick) / 2) {
-			if (set_rtc_mmss(xtime.tv_sec + 1) == 0)
-				last_rtc_update = xtime.tv_sec;
-			else
-				last_rtc_update = xtime.tv_sec - 600;
-		} else if (xtime.tv_usec <= ((unsigned) tick) / 2) {
-			if (set_rtc_mmss(xtime.tv_sec) == 0)
-				last_rtc_update = xtime.tv_sec;
-			else
-				last_rtc_update = xtime.tv_sec - 600;
+	    xtime.tv_sec > last_rtc_update + 660 &&
+	    (xtime.tv_nsec / 1000) >= 500000 - ((unsigned) TICK_SIZE) / 2 &&
+	    (xtime.tv_nsec / 1000) <= 500000 + ((unsigned) TICK_SIZE) / 2) {
+		if (rtc_set_time(xtime.tv_sec) == 0) {
+			last_rtc_update = xtime.tv_sec;
+		} else {
+			last_rtc_update = xtime.tv_sec - 600;
+			/* do it again in 60 s */
 		}
-        }
+	}
 
 	write_sequnlock(&xtime_lock);
 	irq_exit();
