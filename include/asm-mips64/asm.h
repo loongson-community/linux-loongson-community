@@ -287,6 +287,10 @@ symbol		=	value
 #define LONG_SRLV	srlv
 #define LONG_SRA	sra
 #define LONG_SRAV	srav
+
+#define LONG		.word
+#define LONGSIZE	4
+#define LONGLOG		2
 #endif
 
 #if (_MIPS_SZLONG == 64)
@@ -304,6 +308,10 @@ symbol		=	value
 #define LONG_SRLV	dsrlv
 #define LONG_SRA	dsra
 #define LONG_SRAV	dsrav
+
+#define LONG		.dword
+#define LONGSIZE	8
+#define LONGLOG		3
 #endif
 
 /*
