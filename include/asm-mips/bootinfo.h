@@ -208,7 +208,7 @@ extern unsigned long mips_machgroup;
  */
 struct boot_mem_map {
 	int nr_map;
-	struct {
+	struct boot_mem_map_entry {
 		phys_t addr;	/* start of memory segment */
 		phys_t size;	/* size of memory segment */
 		long type;		/* type of memory segment */
