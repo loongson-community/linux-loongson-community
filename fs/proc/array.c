@@ -339,10 +339,10 @@ int proc_pid_stat(struct task_struct *task, char * buffer)
 		task->cmin_flt,
 		task->maj_flt,
 		task->cmaj_flt,
-		task->times.tms_utime,
-		task->times.tms_stime,
-		task->times.tms_cutime,
-		task->times.tms_cstime,
+		HZ_TO_STD(task->times.tms_utime),
+		HZ_TO_STD(task->times.tms_stime),
+		HZ_TO_STD(task->times.tms_cutime),
+		HZ_TO_STD(task->times.tms_cstime),
 		priority,
 		nice,
 		0UL /* removed */,
@@ -642,14 +642,14 @@ int proc_pid_cpu(struct task_struct *task, char * buffer)
 
 	len = sprintf(buffer,
 		"cpu  %lu %lu\n",
-		task->times.tms_utime,
-		task->times.tms_stime);
+		HZ_TO_STD(task->times.tms_utime),
+		HZ_TO_STD(task->times.tms_stime));
 		
 	for (i = 0 ; i < smp_num_cpus; i++)
 		len += sprintf(buffer + len, "cpu%d %lu %lu\n",
 			i,
-			task->per_cpu_utime[cpu_logical_map(i)],
-			task->per_cpu_stime[cpu_logical_map(i)]);
+			HZ_TO_STD(task->per_cpu_utime[cpu_logical_map(i)]),
+			HZ_TO_STD(task->per_cpu_stime[cpu_logical_map(i)]));
 
 	return len;
 }

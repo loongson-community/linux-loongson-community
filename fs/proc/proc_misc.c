@@ -286,7 +286,7 @@ static int kstat_read_proc(char *page, char **start, off_t off,
 	int i, len;
 	unsigned sum = 0;
 	extern unsigned long total_forks;
-	unsigned long jif = jiffies;
+	unsigned long jif = HZ_TO_STD(jiffies);
 
 	for (i = 0 ; i < NR_IRQS ; i++)
 		sum += kstat_irqs(i);
@@ -327,10 +327,11 @@ static int kstat_read_proc(char *page, char **start, off_t off,
 		"page %u %u\n"
 		"swap %u %u\n"
 		"intr %u",
-		kstat.cpu_user,
-		kstat.cpu_nice,
-		kstat.cpu_system,
-		jif*smp_num_cpus - (kstat.cpu_user + kstat.cpu_nice + kstat.cpu_system),
+		HZ_TO_STD(kstat.cpu_user),
+		HZ_TO_STD(kstat.cpu_nice),
+		HZ_TO_STD(kstat.cpu_system),
+		jif*smp_num_cpus - HZ_TO_STD(kstat.cpu_user + kstat.cpu_nice + kstat.cpu_system),
+
 #endif
 		kstat.dk_drive[0], kstat.dk_drive[1],
 		kstat.dk_drive[2], kstat.dk_drive[3],
