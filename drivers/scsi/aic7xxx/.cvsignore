@@ -1,4 +1,5 @@
 .*.o
+.*.o.d
 .*.cmd
 aic7xxx_reg.h
 aic7xxx_reg_print.c
