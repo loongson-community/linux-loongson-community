@@ -39,8 +39,6 @@
 DEFINE_PER_CPU(struct mmu_gather, mmu_gathers);
 
 unsigned long highstart_pfn, highend_pfn;
-static unsigned long totalram_pages;
-static unsigned long totalhigh_pages;
 
 /*
  * We have upto 8 empty zeroed pages so we can map one of the right colour
