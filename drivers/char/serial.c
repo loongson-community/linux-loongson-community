@@ -258,6 +258,8 @@ static struct rs_multiport_struct rs_multiport[NR_IRQS];
 static int IRQ_timeout[NR_IRQS];
 #ifdef CONFIG_SERIAL_CONSOLE
 static struct console sercons;
+#endif
+#if defined(CONFIG_SERIAL_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ) && !defined(MODULE)
 static unsigned long break_pressed; /* break, really ... */
 #endif
 
@@ -2048,7 +2050,7 @@ static int set_serial_info(struct async_struct * info,
 
 	new_port = new_serial.port;
 	if (HIGH_BITS_OFFSET)
-		new_port += new_serial.port_high << HIGH_BITS_OFFSET;
+		new_port += (unsigned long) new_serial.port_high << HIGH_BITS_OFFSET;
 
 	change_irq = new_serial.irq != state->irq;
 	change_port = (new_port != ((int) state->port)) ||
@@ -5173,7 +5175,7 @@ int register_serial(struct serial_struct *req)
 
 	port = req->port;
 	if (HIGH_BITS_OFFSET)
-		port += req->port_high << HIGH_BITS_OFFSET;
+		port += (unsigned long) req->port_high << HIGH_BITS_OFFSET;
 
 	save_flags(flags); cli();
 	for (i = 0; i < NR_PORTS; i++) {
