@@ -170,12 +170,12 @@ static int __init au1000_pcmcia_driver_init(void)
 	pcmcia_socket = 
 		kmalloc(sizeof(struct au1000_pcmcia_socket) * socket_count, 
 				GFP_KERNEL);
-	memset(pcmcia_socket, 0, 
-			sizeof(struct au1000_pcmcia_socket) * socket_count);
 	if (!pcmcia_socket) {
 		printk(KERN_ERR "Card Services can't get memory \n");
 		return -1;
 	}
+	memset(pcmcia_socket, 0,
+			sizeof(struct au1000_pcmcia_socket) * socket_count);
 			
 	for(i=0; i < socket_count; i++) {
 
