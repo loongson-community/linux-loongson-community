@@ -3,12 +3,21 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 2002 by Ralf Baechle
+ * Copyright (C) 2002, 2004 by Ralf Baechle
  */
 #ifndef _ASM_WAR_H
 #define _ASM_WAR_H
 
 #include <linux/config.h>
+
+/*
+ * Another R4600 erratum.  Due to the lack of errata information the exact
+ * technical details aren't known.  I've experimentally found that disabling
+ * interrupts during indexed I-cache flushes seems to be sufficient to deal
+ * with the issue.
+ *
+ * #define R4600_V1_INDEX_ICACHEOP_WAR 1
+ */
 
 /*
  * Pleasures of the R4600 V1.x.  Cite from the IDT R4600 V1.7 errata:
@@ -59,6 +68,7 @@
  */
 #ifdef CONFIG_SGI_IP22
 
+#define R4600_V1_INDEX_ICACHEOP_WAR	1
 #define R4600_V1_HIT_CACHEOP_WAR	1
 #define R4600_V2_HIT_CACHEOP_WAR	1
 
@@ -161,6 +171,9 @@
 /*
  * Workarounds default to off
  */
+#ifndef R4600_V1_INDEX_ICACHEOP_WAR
+#define R4600_V1_INDEX_ICACHEOP_WAR	0
+#endif
 #ifndef R4600_V1_HIT_CACHEOP_WAR
 #define R4600_V1_HIT_CACHEOP_WAR	0
 #endif
