@@ -326,6 +326,12 @@ LIBS          += arch/mips/hp-lj/hp-lj.o
 LOADADDR      := 0x80030000
 endif
 
+ifdef CONFIG_TOSHIBA_JMR3927
+CORE_FILES    += arch/mips/jmr3927/rbhma3100/jmr3927.o arch/mips/jmr3927/common/tx3927.o
+SUBDIRS       += arch/mips/jmr3927/rbhma3100  arch/mips/jmr3927/common
+LOADADDR      += 0x80050000 
+endif                                                        
+
 #
 # Choosing incompatible machines durings configuration will result in
 # error messages during linking.  Select a default linkscript if

@@ -151,6 +151,17 @@
 #define AU1000_SERIAL_PORT_DEFNS
 #endif
 
+#ifdef CONFIG_TOSHIBA_JMR3927
+#include <asm/jmr3927/jmr3927.h>
+#define TXX927_SERIAL_PORT_DEFNS                              \
+    { baud_base: JMR3927_BASE_BAUD, port: UART0_ADDR, irq: UART0_INT,  \
+      flags: UART0_FLAGS, type: 1 },                        \
+    { baud_base: JMR3927_BASE_BAUD, port: UART1_ADDR, irq: UART1_INT,  \
+      flags: UART1_FLAGS, type: 1 },     
+#else
+#define TXX927_SERIAL_PORT_DEFNS
+#endif
+
 #ifdef CONFIG_HAVE_STD_PC_SERIAL_PORT
 #define STD_SERIAL_PORT_DEFNS			\
 	/* UART CLK   PORT IRQ     FLAGS        */			\
@@ -271,4 +282,5 @@
 	HUB6_SERIAL_PORT_DFNS		\
 	MOMENCO_OCELOT_SERIAL_PORT_DEFNS\
 	AU1000_SERIAL_PORT_DEFNS	\
+        TXX927_SERIAL_PORT_DEFNS        \
 	DDB5477_SERIAL_PORT_DEFNS

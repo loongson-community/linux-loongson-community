@@ -67,16 +67,16 @@ bool 'Support for Olivetti M700-10' CONFIG_OLIVETTI_M700
 bool 'Support for SGI IP22' CONFIG_SGI_IP22
 bool 'Support for SNI RM200 PCI' CONFIG_SNI_RM200_PCI
 bool 'Support for ITE 8172G board' CONFIG_MIPS_ITE8172
-   if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
-       bool '    Support for older IT8172 (Rev C)' CONFIG_IT8172_REVC
-   fi
-   bool 'Support for Globespan IVR board' CONFIG_MIPS_IVR
+if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
+   bool '    Support for older IT8172 (Rev C)' CONFIG_IT8172_REVC
+fi
+bool 'Support for Globespan IVR board' CONFIG_MIPS_IVR
 bool 'Support for Alchemy Semi PB1000 board' CONFIG_MIPS_PB1000
-   if [ "$CONFIG_MIPS_PB1000" = "y" ]; then
-       bool '    Support for PCI AUTO Config' CONFIG_PCI_AUTO
-   fi
+if [ "$CONFIG_MIPS_PB1000" = "y" ]; then
+   bool '    Support for PCI AUTO Config' CONFIG_PCI_AUTO
+fi
+bool 'Support for Toshiba JMR-TX3927 board' CONFIG_TOSHIBA_JMR3927
 bool 'Support for Hewlett Packard LaserJet board' CONFIG_HP_LASERJET
-       
 
 define_bool CONFIG_RWSEM_GENERIC_SPINLOCK y
 define_bool CONFIG_RWSEM_XCHGADD_ALGORITHM n
@@ -281,6 +281,17 @@ if [ "$CONFIG_HP_LASERJET" = "y" ]; then
 fi
 
 
+if [ "$CONFIG_TOSHIBA_JMR3927" = "y" ]; then
+       define_bool CONFIG_TOSHIBA_BOARDS y
+       define_bool CONFIG_PCI y 
+       define_bool CONFIG_NEW_PCI y
+       define_bool CONFIG_PCI_AUTO y
+       define_bool CONFIG_NEW_IRQ y
+       define_bool CONFIG_NEW_TIME_C y
+       define_bool CONFIG_SWAP_IO_SPACE y
+       define_bool CONFIG_PC_KEYB y
+fi                             
+
 if [ "$CONFIG_ISA" != "y" ]; then
    define_bool CONFIG_ISA n
    define_bool CONFIG_EISA n
@@ -338,7 +349,9 @@ if [ "$CONFIG_CPU_ADVANCED" = "y" ]; then
    bool '  lld/scd Instructions available' CONFIG_CPU_HAS_LLDSCD
    bool '  Writeback Buffer available' CONFIG_CPU_HAS_WB
 else
-   if [ "$CONFIG_CPU_R3000" = "y" -o "$CONFIG_CPU_VR41XX" = "y" ]; then
+   if [ "$CONFIG_CPU_R3000" = "y" -o \
+        "$CONFIG_CPU_VR41XX" = "y" -o    \
+        "$CONFIG_CPU_TX39XX" = "y" ]; then
       if [ "$CONFIG_DECSTATION" = "y" ]; then
 	 define_bool CONFIG_CPU_HAS_LLSC n
 	 define_bool CONFIG_CPU_HAS_LLDSCD n
@@ -371,6 +384,10 @@ if [ "$CONFIG_DECSTATION" = "y" -o \
 else
    bool 'Generate little endian code' CONFIG_CPU_LITTLE_ENDIAN
 fi
+
+if [ "$CONFIG_TOSHIBA_JMR3927" = "y" ]; then
+       bool 'DS1742 BRAM/RTC support' CONFIG_RTC_DS1742
+fi                             
 
 if [ "$CONFIG_PROC_FS" = "y" ]; then
    define_bool CONFIG_KCORE_ELF y

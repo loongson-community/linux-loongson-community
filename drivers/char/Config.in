@@ -65,6 +65,10 @@ if [ "$CONFIG_SERIAL_NONSTANDARD" = "y" ]; then
    if [ "$CONFIG_AU1000_UART" = "y" ]; then
       bool '        Enable Au1000 serial console' CONFIG_AU1000_SERIAL_CONSOLE
    fi
+   bool 'TXx927 SIO support' CONFIG_TXX927_SERIAL 
+   if [ "$CONFIG_TXX927_SERIAL" = "y" ]; then
+      bool 'TXx927 SIO Console support' CONFIG_TXX927_SERIAL_CONSOLE  
+   fi                             
    if [ "$CONFIG_SIBYTE_SB1250" = "y" ]; then
       bool '  Support for sb1250 onchip DUART' CONFIG_SIBYTE_SB1250_DUART
       if [ "$CONFIG_SIBYTE_SB1250_DUART" = "y" ]; then

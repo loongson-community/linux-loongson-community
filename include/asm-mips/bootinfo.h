@@ -187,8 +187,9 @@
 #define MACH_PALLAS		0
 #define MACH_TOPAS		1
 #define MACH_JMR		2
+#define MACH_TOSHIBA_JMR3927    3      /* JMR-TX3927 CPU/IO board */
 
-#define GROUP_TOSHIBA_NAMES { "Pallas", "TopasCE", "JMR" }
+#define GROUP_TOSHIBA_NAMES { "Pallas", "TopasCE", "JMR", "JMR TX3927" }
 
 /*
  * Valid machtype for group Alchemy

@@ -656,6 +656,7 @@ void __init setup_arch(char **cmdline_p)
 	void momenco_ocelot_setup(void);
 	void nino_setup(void);
 	void nec_osprey_setup(void);
+	void jmr3927_setup(void);
  	void it8172_setup(void);
 
 	unsigned long bootmap_size;
@@ -766,6 +767,11 @@ void __init setup_arch(char **cmdline_p)
 #ifdef CONFIG_MIPS_PB1000
 	case MACH_GROUP_ALCHEMY:
 		au1000_setup();
+		break;
+#endif
+#ifdef CONFIG_TOSHIBA_JMR3927
+	case MACH_GROUP_TOSHIBA:
+		jmr3927_setup();
 		break;
 #endif
 #ifdef CONFIG_SIBYTE_SWARM
