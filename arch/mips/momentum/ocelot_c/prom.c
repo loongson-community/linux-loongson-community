@@ -147,7 +147,6 @@ char *arg64(unsigned long addrin, int arg_index)
 #endif  /* CONFIG_MIPS64 */
 
 
-/* [jsun@junsun.net] PMON passes arguments in C main() style */
 void __init prom_init(void)
 {
 	int argc = fw_arg0;
