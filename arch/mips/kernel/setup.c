@@ -247,6 +247,7 @@ void __init setup_arch(char **cmdline_p)
 	void ip22_setup(void);
         void ev96100_setup(void);
 	void malta_setup(void);
+	void sead_setup(void);
 	void ikos_setup(void);
 	void momenco_ocelot_setup(void);
 	void nino_setup(void);
@@ -311,6 +312,11 @@ void __init setup_arch(char **cmdline_p)
 #ifdef CONFIG_MIPS_MALTA
 	case MACH_GROUP_UNKNOWN:
 		malta_setup();
+		break;
+#endif
+#ifdef CONFIG_MIPS_SEAD
+	case MACH_GROUP_UNKNOWN:
+		sead_setup();
 		break;
 #endif
 #ifdef CONFIG_MOMENCO_OCELOT

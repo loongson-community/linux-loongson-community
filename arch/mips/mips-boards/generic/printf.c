@@ -32,7 +32,7 @@
 #include <asm/serial.h>
 
 
-#ifdef CONFIG_MIPS_ATLAS 
+#if defined(CONFIG_MIPS_ATLAS) || defined(CONFIG_MIPS_SEAD)
 /* 
  * Atlas registers are memory mapped on 64-bit aligned boundaries and 
  * only word access are allowed.

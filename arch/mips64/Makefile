@@ -103,6 +103,16 @@ SUBDIRS		+= arch/mips/mips-boards/malta arch/mips/mips-boards/generic
 LOADADDR	:= 0x80100000
 endif
 
+ #
+# MIPS SEAD board
+#
+ifdef CONFIG_MIPS_SEAD
+LIBS		+= arch/mips/mips-boards/sead/sead.o \
+		   arch/mips/mips-boards/generic/mipsboards.o
+SUBDIRS		+= arch/mips/mips-boards/generic arch/mips/mips-boards/sead
+LOADADDR	:= 0x80100000
+endif
+
 #
 # SGI IP22 (Indy/Indigo2)
 #

@@ -84,6 +84,16 @@
 #define ATLAS_SERIAL_PORT_DEFNS
 #endif
 
+#ifdef CONFIG_MIPS_SEAD
+#include <asm/mips-boards/sead.h>
+#include <asm/mips-boards/seadint.h>
+#define SEAD_SERIAL_PORT_DEFNS			\
+	/* UART CLK   PORT IRQ     FLAGS        */			\
+	{ 0, SEAD_BASE_BAUD, SEAD_UART0_REGS_BASE, SEADINT_UART0, STD_COM_FLAGS },     /* ttyS0 */
+#else
+#define SEAD_SERIAL_PORT_DEFNS
+#endif
+
 #ifdef CONFIG_MIPS_COBALT
 #define COBALT_BASE_BAUD  (18432000 / 16)
 #define COBALT_SERIAL_PORT_DEFNS		\
@@ -283,6 +293,7 @@
 	IVR_SERIAL_PORT_DEFNS           \
 	ITE_SERIAL_PORT_DEFNS           \
 	ATLAS_SERIAL_PORT_DEFNS		\
+	SEAD_SERIAL_PORT_DEFNS		\
 	COBALT_SERIAL_PORT_DEFNS	\
 	EV96100_SERIAL_PORT_DEFNS	\
 	JAZZ_SERIAL_PORT_DEFNS		\

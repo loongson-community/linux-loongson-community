@@ -20,6 +20,17 @@
  */
 #define BASE_BAUD (1843200 / 16)
 
+#ifdef CONFIG_MIPS_SEAD
+#include <asm/mips-boards/sead.h>
+#include <asm/mips-boards/seadint.h>
+#define SEAD_SERIAL_PORT_DEFNS                  \
+	/* UART CLK   PORT IRQ     FLAGS        */                      \
+	{ 0, SEAD_BASE_BAUD, SEAD_UART0_REGS_BASE, SEADINT_UART0, STD_COM_FLAGS },     /* ttyS0 */
+#else
+#define SEAD_SERIAL_PORT_DEFNS
+#endif
+
+
 #ifdef CONFIG_SGI_IP27
 
 /*
@@ -94,7 +105,8 @@
 
 #define SERIAL_PORT_DFNS				\
 	IP27_SERIAL_PORT_DEFNS				\
-	IP32_SERIAL_PORT_DEFNS
+	IP32_SERIAL_PORT_DEFNS				\
+	SEAD_SERIAL_PORT_DEFNS
 
 #define RS_TABLE_SIZE	64
 

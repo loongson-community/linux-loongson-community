@@ -1,6 +1,8 @@
 #
 # Carsten Langgaard, carstenl@mips.com
-# Copyright (C) 1999,2000 MIPS Technologies, Inc.  All rights reserved.
+# Copyright (C) 2002 MIPS Technologies, Inc.  All rights reserved.
+#
+# ########################################################################
 #
 # This program is free software; you can distribute it and/or modify it
 # under the terms of the GNU General Public License (Version 2) as
@@ -15,7 +17,10 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
 #
-# Makefile for the MIPS boards generic routines under Linux.
+# #######################################################################
+#
+# Makefile for the MIPS SEAD specific kernel interface routines
+# under Linux.
 #
 # Note! Dependencies are done automagically by 'make dep', which also
 # removes any old dependencies. DON'T put your own dependencies here
@@ -25,13 +30,11 @@
 
 USE_STANDARD_AS_RULE := true
 
-O_TARGET := mipsboards.o
+all: sead.o
 
-obj-y				:= mipsIRQ.o pci.o reset.o display.o init.o \
-				   memory.o printf.o cmdline.o
-obj-$(CONFIG_MIPS_ATLAS)	+= time.o
-obj-$(CONFIG_MIPS_MALTA)	+= time.o
-obj-$(CONFIG_PCI)		+= pci.o
-obj-$(CONFIG_REMOTE_DEBUG)	+= gdb_hook.o
+O_TARGET := sead.o
+
+obj-y	:= sead_int.o sead_setup.o sead_time.o
 
 include $(TOPDIR)/Rules.make
+
