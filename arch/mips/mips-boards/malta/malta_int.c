@@ -43,6 +43,12 @@ extern asmlinkage void do_IRQ(int irq, struct pt_regs *regs);
 extern void init_i8259_irqs (void);
 extern int mips_pcibios_iack(void);
 
+#ifdef CONFIG_REMOTE_DEBUG
+extern void breakpoint(void);
+extern void set_debug_traps(void);
+extern int remote_debug;
+#endif
+
 static spinlock_t mips_irq_lock = SPIN_LOCK_UNLOCKED;
 
 static inline int get_int(int *irq)
