@@ -233,7 +233,7 @@ void __init paging_init(void)
 	low = max_low_pfn;
 	high = highend_pfn;
 
-#if defined(CONFIG_PCI) || defined(CONFIG_ISA)
+#ifdef CONFIG_ISA
 	if (low < max_dma)
 		zones_size[ZONE_DMA] = low;
 	else {
