@@ -41,10 +41,16 @@ extern __inline__ void __udelay(unsigned long usecs, unsigned long lpj)
 {
 	unsigned long lo;
 
-#if (HZ == 100)
-	usecs *= 0x00068db8bac710cbUL;		/* 2**64 / (1000000 / HZ) */
-#elif (HZ == 128)
-	usecs *= 0x0008637bd05af6c6UL;		/* 2**64 / (1000000 / HZ) */
+	/*
+	 * The common rates of 1000 and 128 are rounded wrongly by the
+	 * catchall case.  Excessive precission?  Probably ...
+	 */
+#if (HZ == 128)
+	usecs *= 0x0008637bd05af6c7UL;		/* 2**64 / (1000000 / HZ) */
+#elif (HZ == 1000)
+	usecs *= 0x004189374BC6A7f0UL;		/* 2**64 / (1000000 / HZ) */
+#else
+	usecs *= (0x8000000000000000UL / (500000 / HZ));
 #endif
 	__asm__("dmultu\t%2,%3"
 		:"=h" (usecs), "=l" (lo)
