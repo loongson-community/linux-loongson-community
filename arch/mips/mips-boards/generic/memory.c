@@ -54,6 +54,12 @@ static char *mtypes[3] = {
 };
 #endif
 
+/* References to section boundaries */
+extern char _end;
+
+#define PFN_ALIGN(x)    (((unsigned long)(x) + (PAGE_SIZE - 1)) & PAGE_MASK)
+
+
 struct prom_pmemblock * __init prom_getmdesc(void)
 {
 	char *memsize_str;
@@ -96,16 +102,21 @@ struct prom_pmemblock * __init prom_getmdesc(void)
 	mdesc[2].base = 0x000f0000;
 	mdesc[2].size = 0x00010000;
 #endif
-	mdesc[3].type = yamon_free;
-        mdesc[3].base = 0x00100000;
-	mdesc[3].size = memsize - mdesc[3].base;
+
+	mdesc[3].type = yamon_dontuse;
+	mdesc[3].base = 0x00100000;
+	mdesc[3].size = PHYSADDR(PFN_ALIGN(&_end)) - mdesc[3].base;
+
+	mdesc[4].type = yamon_free;
+	mdesc[4].base = PHYSADDR(PFN_ALIGN(&_end));
+	mdesc[4].size = memsize - mdesc[4].base;
 
 	return &mdesc[0];
 }
 
 int __init page_is_ram(unsigned long pagenr)
 {
-	if ((pagenr << PAGE_SHIFT) < mdesc[3].base + mdesc[3].size)
+	if ((pagenr << PAGE_SHIFT) < mdesc[4].base + mdesc[4].size)
 		return 1;
 
 	return 0;
@@ -172,7 +183,7 @@ void __init prom_meminit(void)
 	p = prom_getmdesc();
 	while (p->size) {
 		prom_printf("[%d,%p]: base<%08lx> size<%08lx> type<%s>\n",
-			    i, p, p->base, p->size, memtypes[p->type]);
+			    i, p, p->base, p->size, mtypes[p->type]);
 		p++;
 		i++;
 	}
@@ -182,23 +193,21 @@ void __init prom_meminit(void)
 	p = prom_getmdesc();
 	while (p->size) {
 		pblocks[i].type = prom_memtype_classify (p->type);
-		pblocks[i].base = p->base | 0x80000000;
+		pblocks[i].base = p->base;
 		pblocks[i].size = p->size;
 		switch (pblocks[i].type) {
 		case MEMTYPE_FREE:
 			totram += pblocks[i].size;
 #ifdef DEBUG
 			prom_printf("free_chunk[%d]: base=%08lx size=%d\n",
-				    i, pblocks[i].base,
-				    pblocks[i].size);
+				    i, pblocks[i].base, pblocks[i].size);
 #endif
 			i++;
 			break;
 		case MEMTYPE_PROM:
 #ifdef DEBUG
-			prom_printf("prom_chunk[%d]: base=%08lx size=%d\n",
-				    i, pblocks[i].base,
-				    pblocks[i].size);
+		        prom_printf("prom_chunk[%d]: base=%08lx size=%d\n",
+				    i, pblocks[i].base, pblocks[i].size);
 #endif
 			i++;
 			break;
@@ -229,7 +238,7 @@ void __init prom_meminit(void)
 	reserve_bootmem(largest->base, bootmap_size);
 
 	printk("PROMLIB: Total free ram %d bytes (%dK,%dMB)\n",
-		    totram, (totram/1024), (totram/1024/1024));
+	       totram, (totram/1024), (totram/1024/1024));
 }
 
 void prom_free_prom_memory (void)
@@ -244,12 +253,12 @@ void prom_free_prom_memory (void)
 
 		addr = p->base;
 		while (addr < p->base + p->size) {
-			ClearPageReserved(virt_to_page(addr));
-			set_page_count(virt_to_page(addr), 1);
+		        ClearPageReserved(virt_to_page(phys_to_virt(addr)));
+			set_page_count(virt_to_page(phys_to_virt(addr)), 1);
 			free_page(addr);
 			addr += PAGE_SIZE;
-			freed++;
+			freed += PAGE_SIZE;
 		}
 	}
-	printk("Freeing prom memory: %ldkk freed\n", freed >> 10);
+	printk("Freeing prom memory: %ldkb freed\n", freed >> 10);
 }

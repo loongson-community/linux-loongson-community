@@ -321,7 +321,7 @@ void malta_hw0_irqdispatch(struct pt_regs *regs)
 	if ( action == NULL )
 		return;
 
-	hardirq_enter(cpu);
+	irq_enter(cpu);
 	kstat.irqs[0][irq + 8]++;
 	do {
 	        action->handler(irq, action->dev_id, regs);
@@ -329,9 +329,7 @@ void malta_hw0_irqdispatch(struct pt_regs *regs)
 	} while (action);
 
 	enable_irq(irq);
-	hardirq_exit(cpu);
-
-	return;		
+	irq_exit(cpu);
 }
 
 
@@ -380,9 +378,6 @@ void __init maltaint_init(void)
 	 */
 	outb(cached_int_mask & 0xff, PIIX4_ICTLR1_OCW1);
 	outb((cached_int_mask >> 8) & 0xff, PIIX4_ICTLR2_OCW1);
-
-	request_region(PIIX4_ICTLR1_ICW1, 0x20, "pic1");
-        request_region(PIIX4_ICTLR2_ICW1, 0x20, "pic2");
 
 	/* Now safe to set the exception vector. */
 	set_except_vector(0, mipsIRQ);

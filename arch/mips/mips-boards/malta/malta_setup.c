@@ -27,10 +27,15 @@
 #include <linux/sched.h>
 #include <linux/mc146818rtc.h>
 #include <linux/ioport.h>
+#include <linux/pci.h>
+#ifdef CONFIG_BLK_DEV_IDE
+#include <linux/ide.h>
+#endif
 
 #include <asm/cpu.h>
 #include <asm/bootinfo.h>
 #include <asm/irq.h>
+#include <asm/mips-boards/generic.h>
 #include <asm/mips-boards/prom.h>
 #include <asm/mips-boards/malta.h>
 #include <asm/mips-boards/maltaint.h>
@@ -65,6 +70,16 @@ extern struct rtc_ops malta_rtc_ops;
 
 extern void mips_reboot_setup(void);
 
+struct resource standard_io_resources[] = {
+	{ "dma1", 0x00, 0x1f, IORESOURCE_BUSY },
+	{ "pic1", 0x20, 0x3f, IORESOURCE_BUSY },
+	{ "timer", 0x40, 0x5f, IORESOURCE_BUSY },
+	{ "dma page reg", 0x80, 0x8f, IORESOURCE_BUSY },
+	{ "pic2", 0xa0, 0xbf, IORESOURCE_BUSY },
+	{ "dma2", 0xc0, 0xdf, IORESOURCE_BUSY },
+};
+
+#define STANDARD_IO_RESOURCES (sizeof(standard_io_resources)/sizeof(struct resource))
 
 static void __init malta_irq_setup(void)
 {
@@ -88,14 +103,14 @@ void __init malta_setup(void)
 	extern char (*getDebugChar)(void);
 #endif
 	char *argptr;
+	int i;
 
 	irq_setup = malta_irq_setup;
 	mips_io_port_base = MALTA_PORT_BASE;
 
-	request_region(0x00,0x20,"dma1");
-	request_region(0x40,0x20,"timer");
-	request_region(0x80,0x10,"dma page reg");
-	request_region(0xc0,0x20,"dma2");
+	/* Request I/O space for devices used on the Malta board. */
+	for (i = 0; i < STANDARD_IO_RESOURCES; i++)
+		request_resource(&ioport_resource, standard_io_resources+i);
 
 	/* 
 	 * Enable DMA channel 4 (cascade channel) in the PIIX4 south bridge.
@@ -140,9 +155,6 @@ void __init malta_setup(void)
 		/* Breakpoints and stuff are in malta_irq_setup() */
 	}
 #endif
-	argptr = prom_getcmdline();
-	if ((argptr = strstr(argptr, "nofpu")) != NULL)
-		mips_cpu.options &= ~MIPS_CPU_FPU;
 		
 	rtc_ops = &malta_rtc_ops;
 #ifdef CONFIG_BLK_DEV_IDE
@@ -152,4 +164,16 @@ void __init malta_setup(void)
         fd_ops = &std_fd_ops;
 #endif
 	mips_reboot_setup();
+
+	/*
+	 * Setup the North bridge to do Master byte-lane swapping when
+	 * running in bigendian.
+	 * Be careful to use prom_printf after this.
+	 */
+#if defined(__MIPSEL__)
+	GT_WRITE(GT_PCI0_CMD_OFS, GT_PCI0_CMD_MBYTESWAP_BIT |
+	         GT_PCI0_CMD_SBYTESWAP_BIT);
+#else
+	GT_WRITE(GT_PCI0_CMD_OFS, 0);
+#endif
 }

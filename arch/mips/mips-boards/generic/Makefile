@@ -37,6 +37,6 @@ all: mipsboards.o
 O_TARGET := mipsboards.o
 
 O_OBJS := mipsIRQ.o pci.o reset.o display.o init.o memory.o printf.o \
-	  cmdline.o time.o
+	  cmdline.o time.o pci-dma.o
 
 include $(TOPDIR)/Rules.make

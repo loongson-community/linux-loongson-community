@@ -54,12 +54,17 @@
 #define MIPS_GT_BASE    (KSEG1ADDR(0x1be00000))
 
 /*
- * Because of an error/peculiarity in the Galileo chip, we need to swap the 
- * bytes when running bigendian.
+ * Because of the way the internal register works on the Galileo chip,
+ * we need to swap the bytes when running bigendian.
  */
 #define GT_WRITE(ofs, data)  \
              *(volatile u32 *)(MIPS_GT_BASE+ofs) = cpu_to_le32(data)
 #define GT_READ(ofs, data)   \
              data = le32_to_cpu(*(volatile u32 *)(MIPS_GT_BASE+ofs))
+
+#define GT_PCI_WRITE(ofs, data)  \
+	*(volatile u32 *)(MIPS_GT_BASE+ofs) = data
+#define GT_PCI_READ(ofs, data)   \
+	data = *(volatile u32 *)(MIPS_GT_BASE+ofs)
 
 #endif  /* !(_MIPS_GENERIC_H) */

@@ -26,11 +26,14 @@
 #include <linux/init.h>
 #include <linux/sched.h>
 #include <linux/mc146818rtc.h>
+#include <linux/ioport.h>
 
 #include <asm/cpu.h>
 #include <asm/bootinfo.h>
 #include <asm/irq.h>
+#include <asm/mips-boards/generic.h>
 #include <asm/mips-boards/prom.h>
+#include <asm/mips-boards/gt64120.h>
 #include <asm/mips-boards/atlasint.h>
 
 #if defined(CONFIG_SERIAL_CONSOLE) || defined(CONFIG_PROM_CONSOLE)
@@ -61,6 +64,9 @@ void __init atlas_setup(void)
 	extern char (*getDebugChar)(void);
 #endif
 	char *argptr;
+
+	mips_io_port_base = KSEG1;
+	ioport_resource.end = 0x7fffffff;
 
 #ifdef CONFIG_SERIAL_CONSOLE
 	argptr = prom_getcmdline();
@@ -107,12 +113,20 @@ void __init atlas_setup(void)
 	}
 #endif
 	argptr = prom_getcmdline();
-#if 0 /* Later -- Ralf  */
-	if ((argptr = strstr(argptr, "nofpu")) != NULL)
-		mips_cpu.options &= ~MIPS_CPU_FPU;
-#endif
 
 	rtc_ops = &atlas_rtc_ops;
 
 	mips_reboot_setup();
+
+	/*
+	 * Setup the North bridge to do Master byte-lane swapping when
+	 * running in bigendian.
+	 * Be careful to use prom_printf after this.
+	 */
+#if defined(__MIPSEL__)
+	GT_WRITE(GT_PCI0_CMD_OFS, GT_PCI0_CMD_MBYTESWAP_BIT |
+	         GT_PCI0_CMD_SBYTESWAP_BIT);
+#else
+	GT_WRITE(GT_PCI0_CMD_OFS, 0);
+#endif
 }
