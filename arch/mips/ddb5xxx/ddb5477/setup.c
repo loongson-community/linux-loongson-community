@@ -10,10 +10,7 @@
  * under  the terms of  the GNU General  Public License as published by the
  * Free Software Foundation;  either version 2 of the  License, or (at your
  * option) any later version.
- *
- ***********************************************************************
  */
-
 #include <linux/config.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -133,7 +130,7 @@ void __init ddb_setup(void)
 	extern int panic_timeout;
 
 	irq_setup = ddb5477_irq_setup;
-	mips_io_port_base = KSEG1ADDR(DDB_PCI_IO_BASE);
+	set_io_port_base(KSEG1ADDR(DDB_PCI_IO_BASE));
 
 	board_time_init = ddb_time_init;
 	board_timer_setup = ddb_timer_setup;

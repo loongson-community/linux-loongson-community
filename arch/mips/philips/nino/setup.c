@@ -86,7 +86,7 @@ void __init nino_setup(void)
 	extern void nino_wait(void);
 
 	irq_setup = nino_irq_setup;
-	mips_io_port_base = KSEG1ADDR(0x10c00000);
+	set_io_port_base(KSEG1ADDR(0x10c00000));
 
 	_machine_restart = nino_machine_restart;
 	_machine_halt = nino_machine_halt;

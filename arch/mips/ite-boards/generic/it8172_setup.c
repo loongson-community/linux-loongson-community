@@ -53,7 +53,6 @@ char serial_console[20];
 
 extern struct rtc_ops it8172_rtc_ops;
 extern struct resource ioport_resource;
-extern unsigned long mips_io_port_base;
 #ifdef CONFIG_BLK_DEV_IDE
 extern struct ide_ops std_ide_ops;
 extern struct ide_ops *ide_ops;
@@ -137,7 +136,7 @@ void __init it8172_setup(void)
 	*
 	* revisit this area.
 	*/
-	mips_io_port_base = KSEG1;
+	set_io_port_base(KSEG1);
 	ioport_resource.start = it8172_resources.pci_io.start;
 	ioport_resource.end = it8172_resources.pci_io.end;
 #ifdef CONFIG_IT8172_REVC

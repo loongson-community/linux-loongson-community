@@ -96,7 +96,7 @@ void __init ddb_setup(void)
 	extern int panic_timeout;
 
 	irq_setup = ddb_irq_setup;
-	mips_io_port_base = NILE4_PCI_IO_BASE;
+	set_io_port_base(NILE4_PCI_IO_BASE);
 	isa_slot_offset = NILE4_PCI_MEM_BASE;
 	request_region(0x00, 0x20, "dma1");
 	request_region(0x40, 0x20, "timer");

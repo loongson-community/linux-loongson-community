@@ -15,7 +15,7 @@ all:	kernel.o head.o init_task.o
 
 O_TARGET := kernel.o
 
-export-objs			= pci-dma.o smp.o mips_ksyms.o
+export-objs			= pci-dma.o setup.o smp.o mips_ksyms.o
 
 obj-y				+= branch.o process.o signal.o entry.o \
 				   traps.o ptrace.o vm86.o ioport.o reset.o \

@@ -34,7 +34,7 @@ extern void vr4181_init_time(void);
 
 void __init nec_osprey_setup(void)
 {
-	mips_io_port_base = VR4181_PORT_BASE;
+	set_io_port_base(VR4181_PORT_BASE);
 	isa_slot_offset = VR4181_ISAMEM_BASE;
 
 	vr4181_init_serial();

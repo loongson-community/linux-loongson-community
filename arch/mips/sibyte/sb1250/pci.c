@@ -45,6 +45,8 @@
 #include <asm/sibyte/sb1250_defs.h>
 #include <asm/sibyte/sb1250_regs.h>
 #include <asm/sibyte/sb1250_pci.h>
+#include <asm/io.h>
+
 #include "lib_hssubr.h"
 
 /*
@@ -79,8 +81,6 @@
  * you need to also set CONFIG_SWAP_IO_SPACE, but this is the 
  * combination that works correctly with most of Linux's drivers.
  */
-
-extern unsigned long mips_io_port_base;
 
 #define PCI_BUS_ENABLED	1
 #define LDT_BUS_ENABLED	2
@@ -255,8 +255,7 @@ void __init pcibios_init(void)
 	 * big-endian Linuxes will have CONFIG_SWAP_IO_SPACE set.
 	 */
 
-	mips_io_port_base =
-	    (unsigned long) ioremap(A_PHYS_LDTPCI_IO_MATCH_BYTES, 65536);
+	set_io_port_base(ioremap(A_PHYS_LDTPCI_IO_MATCH_BYTES, 65536));
 
 	/*
 	 * Also check the LDT bridge's enable, just in case we didn't

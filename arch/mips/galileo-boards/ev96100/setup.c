@@ -148,7 +148,7 @@ void __init ev96100_setup(void)
 
 	rtc_ops = &no_rtc_ops;
 	mips_reboot_setup();
-	mips_io_port_base = KSEG1;
+	set_io_port_base(KSEG1);
 	ioport_resource.start = GT_PCI_IO_BASE;
 	ioport_resource.end   = GT_PCI_IO_BASE + 0x01ffffff;
 

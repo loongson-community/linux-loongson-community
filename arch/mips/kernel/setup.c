@@ -17,6 +17,7 @@
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
+#include <linux/module.h>
 #include <linux/stddef.h>
 #include <linux/string.h>
 #include <linux/unistd.h>
@@ -105,13 +106,14 @@ extern char arcs_cmdline[COMMAND_LINE_SIZE];
  * mips_io_port_base is the begin of the address space to which x86 style
  * I/O ports are mapped.
  */
-unsigned long mips_io_port_base;
+unsigned long mips_io_port_base;	EXPORT_SYMBOL(mips_io_port_base);
+
 
 /*
  * isa_slot_offset is the address where E(ISA) busaddress 0 is is mapped
  * for the processor.
  */
-unsigned long isa_slot_offset;
+unsigned long isa_slot_offset;		EXPORT_SYMBOL(isa_slot_offset);
 
 extern void sgi_sysinit(void);
 extern void SetUpBootInfo(void);

@@ -40,12 +40,12 @@
  */
 unsigned int atlas_serial_in(struct async_struct *info, int offset)
 {
-	return (*(volatile unsigned int *)(info->port + mips_io_port_base + offset*8) & 0xff);
+	return inl(info->port + offset*8) & 0xff;
 }
 
 void atlas_serial_out(struct async_struct *info, int offset, int value)
 {
-	*(volatile unsigned int *)(info->port + mips_io_port_base + offset*8) = value;
+	outl(value, info->port + offset*8);
 }
 
 #define serial_in  atlas_serial_in

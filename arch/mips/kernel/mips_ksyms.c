@@ -102,11 +102,6 @@ EXPORT_SYMBOL(__down_trylock);
 EXPORT_SYMBOL(__up);
 
 /*
- * Base address of ports for Intel style I/O.
- */
-EXPORT_SYMBOL(mips_io_port_base);
-
-/*
  * Architecture specific stuff.
  */
 #ifdef CONFIG_MIPS_JAZZ

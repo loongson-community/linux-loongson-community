@@ -26,6 +26,7 @@
 #include <linux/bootmem.h>
 #include <linux/blk.h>
 #include <asm/irq.h>
+#include <asm/io.h>
 #include <asm/bootinfo.h>
 #include <asm/addrspace.h>
 #include <asm/sibyte/swarm.h>
@@ -34,6 +35,7 @@
 #include <asm/sibyte/sb1250_regs.h>
 #include <asm/reboot.h>
 #include <linux/ide.h>
+
 #include "cfe_xiocb.h"
 #include "cfe_api.h"
 #include "cfe_error.h"
@@ -173,9 +175,6 @@ static void swarm_linux_exit(void)
 		while(1);
 	}
 }
-
-
-extern unsigned long mips_io_port_base;
 
 void __init swarm_setup(void)
 {

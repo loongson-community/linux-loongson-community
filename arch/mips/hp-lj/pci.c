@@ -178,9 +178,7 @@ void __init pci_setup(void)
    // by letting both low (illegal) and high (legal) addresses appear in pci io space
    ioport_resource.start = 0x0; 
 
-   mips_io_port_base = IO_PORT_LOGICAL_START + IO_PORT_VIRTUAL_OFFSET;
-   printk("Set IO port base to 0x%lx\n", mips_io_port_base);
-
+   set_io_port_base(IO_PORT_LOGICAL_START + IO_PORT_VIRTUAL_OFFSET);
 
    // map the PCI address space
    // global map - all levels & processes can access

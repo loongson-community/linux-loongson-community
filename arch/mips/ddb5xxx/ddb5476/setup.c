@@ -136,7 +136,7 @@ ddb_setup(void)
 	extern int panic_timeout;
 
 	irq_setup = ddb5476_irq_setup;
-	mips_io_port_base = KSEG1ADDR(DDB_PCI_IO_BASE);
+	set_io_port_base(KSEG1ADDR(DDB_PCI_IO_BASE));
 
 	board_time_init = ddb_time_init;
 	board_timer_setup = ddb_timer_setup;

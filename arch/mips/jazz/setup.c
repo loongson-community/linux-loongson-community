@@ -87,7 +87,7 @@ void __init jazz_setup(void)
 	add_wired_entry (0x01800017, 0x01000017, 0xe4000000, PM_4M);
 
 	irq_setup = jazz_irq_setup;
-	mips_io_port_base = JAZZ_PORT_BASE;
+	set_io_port_base(JAZZ_PORT_BASE);
 	if (mips_machtype == MACH_MIPS_MAGNUM_4000)
 		EISA_bus = 1;
 	isa_slot_offset = 0xe3000000;

@@ -272,11 +272,13 @@ static void __init setup_l3cache(unsigned long size)
 static int io_base_ioremap(void)
 {
 	void *io_remap_range = ioremap(GT_PCI_IO_BASE, GT_PCI_IO_SIZE);
+
 	if (!io_remap_range) {
-		panic("Could not ioremap I/O port range\n");
+		panic("Could not ioremap I/O port range");
 	}
-	mips_io_port_base = io_remap_range - GT_PCI_IO_BASE;
+	set_io_port_base(io_remap_range - GT_PCI_IO_BASE);
+
 	return 0;
 }
-module_init(io_base_ioremap);
 
+module_init(io_base_ioremap);

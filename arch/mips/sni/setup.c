@@ -78,7 +78,7 @@ void __init sni_rm200_pci_setup(void)
 	sni_pcimt_detect();
 	sni_pcimt_sc_init();
 
-	mips_io_port_base = SNI_PORT_BASE;
+	set_io_port_base(SNI_PORT_BASE);
 
 	/*
 	 * Setup (E)ISA I/O memory access stuff

@@ -97,7 +97,7 @@ void __init au1000_setup(void)
 	_machine_power_off = au1000_power_off;
 
 	// IO/MEM resources. 
-	mips_io_port_base = 0;
+	set_io_port_base(0);
 	ioport_resource.start = 0;
 	ioport_resource.end = 0xffffffff;
 	iomem_resource.start = 0;
