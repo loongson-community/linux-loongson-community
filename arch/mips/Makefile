@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.20 1999/08/20 21:59:01 ralf Exp $
+# $Id: Makefile,v 1.21 1999/09/28 22:25:44 ralf Exp $
 #
 # This file is subject to the terms and conditions of the GNU General Public
 # License.  See the file "COPYING" in the main directory of this archive
@@ -37,7 +37,7 @@ endif
 # crossformat linking we rely on the elf2ecoff tool for format conversion.
 #
 CFLAGS		+= -G 0 -mno-abicalls -fno-pic
-LINKFLAGS	+= -static -G 0 -N
+LINKFLAGS	+= -static -G 0
 MODFLAGS	+= -mlong-calls
 
 ifdef CONFIG_REMOTE_DEBUG
@@ -125,6 +125,15 @@ endif
 ifdef CONFIG_BAGET_MIPS
 SUBDIRS       += arch/mips/baget arch/mips/baget/prom
 LIBS          += arch/mips/baget/baget.a arch/mips/baget/prom/bagetlib.a
+endif
+
+#
+# NEC DDB Vrc-5074
+#
+ifdef CONFIG_DDB5074
+SUBDIRS       += arch/mips/ddb5074
+LIBS          += arch/mips/ddb5074/ddb5074.a
+LOADADDR      += 0x80080000
 endif
 
 #

@@ -1,4 +1,4 @@
-/* $Id: bootinfo.h,v 1.8 1999/08/20 21:59:07 ralf Exp $
+/* $Id: bootinfo.h,v 1.9 1999/08/21 22:19:17 ralf Exp $
  *
  * bootinfo.h -- Definition of the Linux/MIPS boot information structure
  *
@@ -26,9 +26,10 @@
 #define MACH_GROUP_ACN		5
 #define MACH_GROUP_SGI          6 /* Silicon Graphics workstations and servers */
 #define MACH_GROUP_COBALT       7 /* Cobalt servers		 	      */
+#define MACH_GROUP_NEC_DDB	8 /* NEC DDB */
 
 #define GROUP_NAMES { "unknown", "Jazz", "Digital", "ARC", \
-                      "SNI", "ACN", "SGI", "Cobalt" }
+                      "SNI", "ACN", "SGI", "Cobalt", "NEC DDB" }
 
 /*
  * Valid machtype values for group unknown (low order halfword of mips_machtype)
@@ -100,6 +101,13 @@
 #define MACH_COBALT_27 		 0	/* Proto "27" hardware */
 
 #define GROUP_COBALT_NAMES { "Microserver 27" }
+
+/*
+ * Valid machtype for group NEC DDB
+ */
+#define MACH_NEC_DDB5074	 0	/* NEC DDB Vrc-5074 */
+
+#define GROUP_NEC_DDB_NAMES { "Vrc-5074" }
 
 /*
  * Valid cputype values

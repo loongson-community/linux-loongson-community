@@ -1,4 +1,4 @@
-/* $Id: irq.h,v 1.4 1998/06/30 00:23:10 ralf Exp $
+/* $Id: irq.h,v 1.5 1999/01/04 16:09:22 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -19,6 +19,7 @@ extern int (*irq_cannonicalize)(int irq);
 struct irqaction;
 extern int i8259_setup_irq(int irq, struct irqaction * new);
 extern void disable_irq(unsigned int);
+#define disable_irq_nosync	disable_irq
 extern void enable_irq(unsigned int);
 
 /* Machine specific interrupt initialization  */

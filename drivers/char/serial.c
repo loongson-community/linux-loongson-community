@@ -196,6 +196,10 @@ static char *serial_version = "4.30";
 #include <asm/irq.h>
 #include <asm/bitops.h>
 
+#ifdef CONFIG_DDB5074
+#include <asm/nile4.h>
+#endif
+
 #ifdef CONFIG_MAC_SERIAL
 #define SERIAL_DEV_OFFSET	2
 #else
@@ -412,6 +416,11 @@ static inline unsigned int serial_in(struct async_struct *info, int offset)
 	 return *((volatile u8 *)info->port + offset);
     } else
 #endif
+#ifdef CONFIG_DDB5074
+    if (info->port == 0)	/* FIXME: kludge */
+	return nile4_in8(NILE4_UART_BASE+offset*8);
+    else
+#endif
 #ifdef CONFIG_HUB6
     if (info->hub6) {
 	outb(info->hub6 - 1 + offset, info->port);
@@ -432,6 +441,11 @@ static inline unsigned int serial_inp(struct async_struct *info, int offset)
     if (info->flags & ASYNC_IOC3) {
 	 return *((volatile u8 *)info->port + offset);
     } else
+#endif
+#ifdef CONFIG_DDB5074
+    if (info->port == 0)	/* FIXME: kludge */
+	return nile4_in8(NILE4_UART_BASE+offset*8);
+    else
 #endif
 #ifdef CONFIG_HUB6
     if (info->hub6) {
@@ -458,6 +472,11 @@ static inline void serial_out(struct async_struct *info, int offset, int value)
 	 *((volatile u8 *)info->port + offset) = value;
     } else
 #endif
+#ifdef CONFIG_DDB5074
+    if (info->port == 0)	/* FIXME: kludge */
+	nile4_out8(NILE4_UART_BASE+offset*8, value);
+    else
+#endif
 #ifdef CONFIG_HUB6
     if (info->hub6) {
 	outb(info->hub6 - 1 + offset, info->port);
@@ -479,6 +498,11 @@ static inline void serial_outp(struct async_struct *info, int offset,
     if (info->flags & ASYNC_IOC3) {
 	 *((volatile u8 *)info->port + offset) = value;
     } else
+#endif
+#ifdef CONFIG_DDB5074
+    if (info->port == 0)	/* FIXME: kludge */
+	nile4_out8(NILE4_UART_BASE+offset*8, value);
+    else
 #endif
 #ifdef CONFIG_HUB6
     if (info->hub6) {
@@ -3427,7 +3451,9 @@ static void autoconfig(struct serial_state * state)
 		scratch = serial_inp(info, UART_IER);
 		serial_outp(info, UART_IER, 0);
 		/* inb / outb don't work properly yet on IP27.  */
+#ifdef CONFIG_SGI_IP27
 		if (!(state->flags & ASYNC_IOC3))
+#endif
 			outb(0xff, 0x080);
 		scratch2 = serial_inp(info, UART_IER);
 		serial_outp(info, UART_IER, scratch);
@@ -3718,6 +3744,13 @@ static struct pci_board pci_boards[] = {
 		PCI_ANY_ID, PCI_ANY_ID,
 		SPCI_FL_BASE2 | SPCI_FL_IOMEM, 2, 921600,
 		0x400, 7, pci_plx9050_fn },
+#if 0	/* FIXME: This doesn't work because the NILE4 registers are not
+		  visible in the PCI device structure :-( */
+	{	PCI_VENDOR_ID_NEC, PCI_DEVICE_ID_NEC_NILE4,
+		PCI_ANY_ID, PCI_ANY_ID,
+		SPCI_FL_BASE0 | SPCI_FL_IOMEM, 1, 520833,
+		0x300, 3 },
+#endif
 	{	0, }
 };
 
@@ -4356,7 +4389,11 @@ static int __init serial_console_setup(struct console *co, char *options)
 	scr_info.port = ser->port;
 	scr_info.flags = ser->flags;
 #ifdef CONFIG_HUB6
-	scr_info.hub6 = state->hub6;
+	scr_info.hub6 = ser->hub6;
+#endif
+#ifdef CONFIG_SERIAL_PCI_MEMMAPPED
+  	scr_info.iomem_base = ser->iomem_base;
+  	scr_info.iomem_reg_shift = ser->iomem_reg_shift;
 #endif
 	quot = ser->baud_base / baud;
 	cval = cflag & (CSIZE | CSTOPB);

@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.19 1999/09/28 22:25:47 ralf Exp $
+/* $Id: setup.c,v 1.20 1999/10/09 00:00:58 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -146,6 +146,7 @@ void __init setup_arch(char **cmdline_p,
 	void jazz_setup(void);
 	void sni_rm200_pci_setup(void);
 	void sgi_setup(void);
+	void ddb_setup(void);
 
 	/* Save defaults for configuration-dependent routines.  */
 	irq_setup = default_irq_setup;
@@ -192,6 +193,11 @@ void __init setup_arch(char **cmdline_p,
 #ifdef CONFIG_SNI_RM200_PCI
 	case MACH_GROUP_SNI_RM:
 		sni_rm200_pci_setup();
+		break;
+#endif
+#ifdef CONFIG_DDB5074
+	case MACH_GROUP_NEC_DDB:
+		ddb_setup();
 		break;
 #endif
 	default:

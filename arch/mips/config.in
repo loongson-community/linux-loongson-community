@@ -1,4 +1,4 @@
-# $Id: config.in,v 1.33 1999/12/04 03:58:59 ralf Exp $
+# $Id: config.in,v 1.34 2000/01/23 21:12:56 ralf Exp $
 # For a description of the syntax of this configuration file,
 # see the Configure script.
 #
@@ -16,6 +16,7 @@ if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
    bool 'Support for Algorithmics P4032 (EXPERIMENTAL)' CONFIG_ALGOR_P4032
    bool 'Support for BAGET MIPS series (EXPERIMENTAL)' CONFIG_BAGET_MIPS
    bool 'Support for DECstations (EXPERIMENTAL)' CONFIG_DECSTATION
+   bool 'Support for NEC DDB Vrc-5074 (EXPERIMENTAL)' CONFIG_DDB5074
 fi
 bool 'Support for Mips Magnum 4000' CONFIG_MIPS_MAGNUM_4000
 bool 'Support for Olivetti M700-10' CONFIG_OLIVETTI_M700
@@ -50,6 +51,10 @@ if [ "$CONFIG_SNI_RM200_PCI" = "y" ]; then
    define_bool CONFIG_ISA y
    define_bool CONFIG_HAVE_IO_PORTS y
    define_bool CONFIG_PCI y
+fi
+if [ "$CONFIG_DDB5074" = "y" ]; then
+   define_bool CONFIG_PCI y
+   define_bool CONFIG_HAVE_IO_PORTS y
 fi
 endmenu
 
@@ -99,7 +104,7 @@ endmenu
 mainmenu_option next_comment
 comment 'General setup'
 
-if [ "$CONFIG_DECSTATION" = "y" ]; then
+if [ "$CONFIG_DECSTATION" = "y" -o "$CONFIG_DDB5074" = "y" ]; then
    define_bool CONFIG_CPU_LITTLE_ENDIAN y
 else
    bool 'Generate little endian code' CONFIG_CPU_LITTLE_ENDIAN

@@ -1,4 +1,4 @@
-/* $Id: init.c,v 1.18 1999/08/21 22:19:12 ralf Exp $
+/* $Id: init.c,v 1.19 1999/10/09 00:00:58 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -38,6 +38,9 @@
 static unsigned long totalram = 0;
 
 extern void show_net_buffers(void);
+extern void prom_fixup_mem_map(unsigned long start, unsigned long end);
+extern void prom_free_prom_memory(void);
+
 
 void __bad_pte_kernel(pmd_t *pmd)
 {

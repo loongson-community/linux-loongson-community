@@ -186,6 +186,7 @@ ENDVENDOR()
 
 VENDOR( NEC, "NEC" )
 	DEVICE( NEC,		NEC_PCX2,	"PowerVR PCX2")
+	DEVICE( NEC,		NEC_NILE4,	"Vrc5074 (Nile 4)")
 ENDVENDOR()
 
 VENDOR( FD, "Future Domain" )

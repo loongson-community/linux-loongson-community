@@ -1,4 +1,4 @@
-/* $Id: serial.h,v 1.1 1998/05/04 12:43:16 ralf Exp $
+/* $Id: serial.h,v 1.5 1998/08/26 22:40:50 tsbogend Exp $
  *
  * include/asm-mips/serial.h
  */
@@ -38,6 +38,9 @@
 #define ACCENT_FLAGS 0
 #define BOCA_FLAGS 0
 #define HUB6_FLAGS 0
+#define RS_TABLE_SIZE	64
+#else
+#define RS_TABLE_SIZE
 #endif
 
 /*
@@ -142,8 +145,18 @@
 #define MCA_SERIAL_PORT_DFNS
 #endif
 
+#ifdef CONFIG_DDB5074
+#define DDB5074_SERIAL_PORT_DEFNS			\
+	{ 0, 520833, 0, 20,				\
+	  STD_COM_FLAGS, 0, 0, 0, 0, 0, 0, 0,		\
+	  (u8 *)0xbfa00300, 3 }
+#else
+#define STD_SERIAL_PORT_DEFNS
+#endif
+
 #define SERIAL_PORT_DFNS		\
 	JAZZ_SERIAL_PORT_DEFNS		\
 	STD_SERIAL_PORT_DEFNS		\
 	EXTRA_SERIAL_PORT_DEFNS		\
-	HUB6_SERIAL_PORT_DFNS
+	HUB6_SERIAL_PORT_DFNS		\
+	DDB5074_SERIAL_PORT_DEFNS

@@ -1353,6 +1353,11 @@ CONFIG_DECSTATION
 
   otherwise choose R3000.
 
+Support for NEC DDB Vrc-5074
+CONFIG_DDB5074
+  This enables support for the VR5000-based NEC DDB Vrc-5074 evaluation
+  board.
+
 IDE card support
 CONFIG_BLK_DEV_IDE_CARDS
   On Acorn systems, say Y here if you wish to use an IDE interface

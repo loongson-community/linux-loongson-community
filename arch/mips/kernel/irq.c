@@ -1,4 +1,4 @@
-/* $Id: irq.c,v 1.16 1999/09/28 22:25:46 ralf Exp $
+/* $Id: irq.c,v 1.17 1999/12/04 03:59:00 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -29,6 +29,7 @@
 #include <asm/mipsregs.h>
 #include <asm/system.h>
 #include <asm/sni.h>
+#include <asm/nile4.h>
 
 /*
  * This contains the irq mask for both 8259A irq controllers, it's an
@@ -72,7 +73,7 @@ static inline void unmask_irq(unsigned int irq)
 	}
 }
 
-void disable_irq(unsigned int irq_nr)
+void i8259_disable_irq(unsigned int irq_nr)
 {
 	unsigned long flags;
 
@@ -81,7 +82,7 @@ void disable_irq(unsigned int irq_nr)
 	restore_flags(flags);
 }
 
-void enable_irq(unsigned int irq_nr)
+void i8259_enable_irq(unsigned int irq_nr)
 {
 	unsigned long flags;
 	save_and_cli(flags);
@@ -243,7 +244,10 @@ int i8259_setup_irq(int irq, struct irqaction * new)
 	*p = new;
 
 	if (!shared) {
-		unmask_irq(irq);
+		if (is_i8259_irq(irq))
+		    unmask_irq(irq);
+		else
+		    nile4_enable_irq(irq_to_nile4(irq));
 	}
 	restore_flags(flags);
 	return 0;
@@ -354,7 +358,7 @@ static int i8259_irq_cannonicalize(int irq)
 	return ((irq == 2) ? 9 : irq);
 }
 
-static void __init i8259_init(void)
+void __init i8259_init(void)
 {
 	/* Init master interrupt controller */
 	outb(0x11, 0x20); /* Start init sequence */
