@@ -153,20 +153,23 @@ static int shrink_slab(unsigned long scanned, unsigned int gfp_mask)
 		delta *= (*shrinker->shrinker)(0, gfp_mask);
 		do_div(delta, pages + 1);
 		shrinker->nr += delta;
-		if (shrinker->nr > SHRINK_BATCH) {
-			long nr_to_scan = shrinker->nr;
+		if (shrinker->nr < 0)
+			shrinker->nr = LONG_MAX;	/* It wrapped! */
 
-			shrinker->nr = 0;
-			mod_page_state(slabs_scanned, nr_to_scan);
-			while (nr_to_scan) {
-				long this_scan = nr_to_scan;
+		if (shrinker->nr <= SHRINK_BATCH)
+			continue;
+		while (shrinker->nr) {
+			long this_scan = shrinker->nr;
+			int shrink_ret;
 
-				if (this_scan > 128)
-					this_scan = 128;
-				(*shrinker->shrinker)(this_scan, gfp_mask);
-				nr_to_scan -= this_scan;
-				cond_resched();
-			}
+			if (this_scan > 128)
+				this_scan = 128;
+			shrink_ret = (*shrinker->shrinker)(this_scan, gfp_mask);
+			mod_page_state(slabs_scanned, this_scan);
+			shrinker->nr -= this_scan;
+			if (shrink_ret == -1)
+				break;
+			cond_resched();
 		}
 	}
 	up(&shrinker_sem);
@@ -244,7 +247,6 @@ static int
 shrink_list(struct list_head *page_list, unsigned int gfp_mask,
 		int *nr_scanned, int do_writepage)
 {
-	struct address_space *mapping;
 	LIST_HEAD(ret_pages);
 	struct pagevec freed_pvec;
 	int pgactivate = 0;
@@ -254,6 +256,7 @@ shrink_list(struct list_head *page_list, unsigned int gfp_mask,
 
 	pagevec_init(&freed_pvec, 1);
 	while (!list_empty(page_list)) {
+		struct address_space *mapping;
 		struct page *page;
 		int may_enter_fs;
 		int referenced;
@@ -273,16 +276,13 @@ shrink_list(struct list_head *page_list, unsigned int gfp_mask,
 		if (PageWriteback(page))
 			goto keep_locked;
 
-		rmap_lock(page);
+		page_map_lock(page);
 		referenced = page_referenced(page);
 		if (referenced && page_mapping_inuse(page)) {
 			/* In active use or really unfreeable.  Activate it. */
-			rmap_unlock(page);
+			page_map_unlock(page);
 			goto activate_locked;
 		}
-
-		mapping = page_mapping(page);
-		may_enter_fs = (gfp_mask & __GFP_FS);
 
 #ifdef CONFIG_SWAP
 		/*
@@ -292,16 +292,16 @@ shrink_list(struct list_head *page_list, unsigned int gfp_mask,
 		 * XXX: implement swap clustering ?
 		 */
 		if (PageAnon(page) && !PageSwapCache(page)) {
-			rmap_unlock(page);
+			page_map_unlock(page);
 			if (!add_to_swap(page))
 				goto activate_locked;
-			rmap_lock(page);
-		}
-		if (PageSwapCache(page)) {
-			mapping = &swapper_space;
-			may_enter_fs = (gfp_mask & __GFP_IO);
+			page_map_lock(page);
 		}
 #endif /* CONFIG_SWAP */
+
+		mapping = page_mapping(page);
+		may_enter_fs = (gfp_mask & __GFP_FS) ||
+			(PageSwapCache(page) && (gfp_mask & __GFP_IO));
 
 		/*
 		 * The page is mapped into the page tables of one or more
@@ -310,16 +310,16 @@ shrink_list(struct list_head *page_list, unsigned int gfp_mask,
 		if (page_mapped(page) && mapping) {
 			switch (try_to_unmap(page)) {
 			case SWAP_FAIL:
-				rmap_unlock(page);
+				page_map_unlock(page);
 				goto activate_locked;
 			case SWAP_AGAIN:
-				rmap_unlock(page);
+				page_map_unlock(page);
 				goto keep_locked;
 			case SWAP_SUCCESS:
 				; /* try to free the page below */
 			}
 		}
-		rmap_unlock(page);
+		page_map_unlock(page);
 
 		/*
 		 * If the page is dirty, only perform writeback if that write
@@ -498,14 +498,16 @@ shrink_cache(struct zone *zone, unsigned int gfp_mask,
 			if (!TestClearPageLRU(page))
 				BUG();
 			list_del(&page->lru);
-			if (page_count(page) == 0) {
-				/* It is currently in pagevec_release() */
+			if (get_page_testone(page)) {
+				/*
+				 * It is being freed elsewhere
+				 */
+				__put_page(page);
 				SetPageLRU(page);
 				list_add(&page->lru, &zone->inactive_list);
 				continue;
 			}
 			list_add(&page->lru, &page_list);
-			page_cache_get(page);
 			nr_taken++;
 		}
 		zone->nr_inactive -= nr_taken;
@@ -571,7 +573,7 @@ done:
  * It is safe to rely on PG_active against the non-LRU pages in here because
  * nobody will play with that bit on a non-LRU page.
  *
- * The downside is that we have to touch page->count against each page.
+ * The downside is that we have to touch page->_count against each page.
  * But we had to alter page->flags anyway.
  */
 static void
@@ -600,12 +602,17 @@ refill_inactive_zone(struct zone *zone, const int nr_pages_in,
 		if (!TestClearPageLRU(page))
 			BUG();
 		list_del(&page->lru);
-		if (page_count(page) == 0) {
-			/* It is currently in pagevec_release() */
+		if (get_page_testone(page)) {
+			/*
+			 * It was already free!  release_pages() or put_page()
+			 * are about to remove it from the LRU and free it. So
+			 * put the refcount back and put the page back on the
+			 * LRU
+			 */
+			__put_page(page);
 			SetPageLRU(page);
 			list_add(&page->lru, &zone->active_list);
 		} else {
-			page_cache_get(page);
 			list_add(&page->lru, &l_hold);
 			pgmoved++;
 		}
@@ -653,13 +660,13 @@ refill_inactive_zone(struct zone *zone, const int nr_pages_in,
 				list_add(&page->lru, &l_active);
 				continue;
 			}
-			rmap_lock(page);
+			page_map_lock(page);
 			if (page_referenced(page)) {
-				rmap_unlock(page);
+				page_map_unlock(page);
 				list_add(&page->lru, &l_active);
 				continue;
 			}
-			rmap_unlock(page);
+			page_map_unlock(page);
 		}
 		/*
 		 * FIXME: need to consider page_count(page) here if/when we
@@ -736,23 +743,33 @@ static int
 shrink_zone(struct zone *zone, int max_scan, unsigned int gfp_mask,
 		int *total_scanned, struct page_state *ps, int do_writepage)
 {
-	unsigned long ratio;
+	unsigned long scan_active;
 	int count;
 
 	/*
 	 * Try to keep the active list 2/3 of the size of the cache.  And
 	 * make sure that refill_inactive is given a decent number of pages.
 	 *
-	 * The "ratio+1" here is important.  With pagecache-intensive workloads
-	 * the inactive list is huge, and `ratio' evaluates to zero all the
-	 * time.  Which pins the active list memory.  So we add one to `ratio'
-	 * just to make sure that the kernel will slowly sift through the
-	 * active list.
+	 * The "scan_active + 1" here is important.  With pagecache-intensive
+	 * workloads the inactive list is huge, and `ratio' evaluates to zero
+	 * all the time.  Which pins the active list memory.  So we add one to
+	 * `scan_active' just to make sure that the kernel will slowly sift
+	 * through the active list.
 	 */
-	ratio = (unsigned long)SWAP_CLUSTER_MAX * zone->nr_active /
-				((zone->nr_inactive | 1) * 2);
+	if (zone->nr_active >= 4*(zone->nr_inactive*2 + 1)) {
+		/* Don't scan more than 4 times the inactive list scan size */
+		scan_active = 4*max_scan;
+	} else {
+		unsigned long long tmp;
 
-	atomic_add(ratio+1, &zone->nr_scan_active);
+		/* Cast to long long so the multiply doesn't overflow */
+
+		tmp = (unsigned long long)max_scan * zone->nr_active;
+		do_div(tmp, zone->nr_inactive*2 + 1);
+		scan_active = (unsigned long)tmp;
+	}
+
+	atomic_add(scan_active + 1, &zone->nr_scan_active);
 	count = atomic_read(&zone->nr_scan_active);
 	if (count >= SWAP_CLUSTER_MAX) {
 		atomic_set(&zone->nr_scan_active, 0);
@@ -802,7 +819,7 @@ shrink_caches(struct zone **zones, int priority, int *total_scanned,
 		if (zone->all_unreclaimable && priority != DEF_PRIORITY)
 			continue;	/* Let kswapd poll it */
 
-		max_scan = zone->nr_inactive >> priority;
+		max_scan = (zone->nr_active + zone->nr_inactive) >> priority;
 		ret += shrink_zone(zone, max_scan, gfp_mask,
 					total_scanned, ps, do_writepage);
 	}
@@ -978,7 +995,8 @@ scan:
 					all_zones_ok = 0;
 			}
 			zone->temp_priority = priority;
-			max_scan = zone->nr_inactive >> priority;
+			max_scan = (zone->nr_active + zone->nr_inactive)
+								>> priority;
 			reclaimed = shrink_zone(zone, max_scan, GFP_KERNEL,
 					&scanned, ps, do_writepage);
 			total_scanned += scanned;

@@ -62,6 +62,19 @@ static inline int uncached_access(struct file *file, unsigned long addr)
 		  test_bit(X86_FEATURE_CYRIX_ARR, boot_cpu_data.x86_capability) ||
 		  test_bit(X86_FEATURE_CENTAUR_MCR, boot_cpu_data.x86_capability) )
 	  && addr >= __pa(high_memory);
+#elif defined(__x86_64__)
+	/* 
+	 * This is broken because it can generate memory type aliases,
+	 * which can cause cache corruptions
+	 * But it is only available for root and we have to be bug-to-bug
+	 * compatible with i386.
+	 */
+	if (file->f_flags & O_SYNC)
+		return 1;
+	/* same behaviour as i386. PAT always set to cached and MTRRs control the
+	   caching behaviour. 
+	   Hopefully a full PAT implementation will fix that soon. */	   
+	return 0;
 #elif defined(CONFIG_IA64)
 	/*
 	 * On ia64, we ignore O_SYNC because we cannot tolerate memory attribute aliases.
@@ -103,7 +116,7 @@ static inline int valid_phys_addr_range(unsigned long addr, size_t *count)
 #endif
 
 static ssize_t do_write_mem(void *p, unsigned long realp,
-			    const char * buf, size_t count, loff_t *ppos)
+			    const char __user * buf, size_t count, loff_t *ppos)
 {
 	ssize_t written;
 	unsigned long copied;
@@ -139,7 +152,7 @@ static ssize_t do_write_mem(void *p, unsigned long realp,
  * This funcion reads the *physical* memory. The f_pos points directly to the 
  * memory location. 
  */
-static ssize_t read_mem(struct file * file, char * buf,
+static ssize_t read_mem(struct file * file, char __user * buf,
 			size_t count, loff_t *ppos)
 {
 	unsigned long p = *ppos;
@@ -171,7 +184,7 @@ static ssize_t read_mem(struct file * file, char * buf,
 	return read;
 }
 
-static ssize_t write_mem(struct file * file, const char * buf, 
+static ssize_t write_mem(struct file * file, const char __user * buf, 
 			 size_t count, loff_t *ppos)
 {
 	unsigned long p = *ppos;
@@ -213,7 +226,7 @@ extern long vwrite(char *buf, char *addr, unsigned long count);
 /*
  * This function reads the *virtual* memory as seen by the kernel.
  */
-static ssize_t read_kmem(struct file *file, char *buf, 
+static ssize_t read_kmem(struct file *file, char __user *buf, 
 			 size_t count, loff_t *ppos)
 {
 	unsigned long p = *ppos;
@@ -276,7 +289,7 @@ static ssize_t read_kmem(struct file *file, char *buf,
 /*
  * This function writes to the *virtual* memory as seen by the kernel.
  */
-static ssize_t write_kmem(struct file * file, const char * buf, 
+static ssize_t write_kmem(struct file * file, const char __user * buf, 
 			  size_t count, loff_t *ppos)
 {
 	unsigned long p = *ppos;
@@ -333,11 +346,11 @@ static ssize_t write_kmem(struct file * file, const char * buf,
 }
 
 #if defined(CONFIG_ISA) || !defined(__mc68000__)
-static ssize_t read_port(struct file * file, char * buf,
+static ssize_t read_port(struct file * file, char __user * buf,
 			 size_t count, loff_t *ppos)
 {
 	unsigned long i = *ppos;
-	char *tmp = buf;
+	char __user *tmp = buf;
 
 	if (verify_area(VERIFY_WRITE,buf,count))
 		return -EFAULT; 
@@ -351,11 +364,11 @@ static ssize_t read_port(struct file * file, char * buf,
 	return tmp-buf;
 }
 
-static ssize_t write_port(struct file * file, const char * buf,
+static ssize_t write_port(struct file * file, const char __user * buf,
 			  size_t count, loff_t *ppos)
 {
 	unsigned long i = *ppos;
-	const char * tmp = buf;
+	const char __user * tmp = buf;
 
 	if (verify_area(VERIFY_READ,buf,count))
 		return -EFAULT;
@@ -372,13 +385,13 @@ static ssize_t write_port(struct file * file, const char * buf,
 }
 #endif
 
-static ssize_t read_null(struct file * file, char * buf,
+static ssize_t read_null(struct file * file, char __user * buf,
 			 size_t count, loff_t *ppos)
 {
 	return 0;
 }
 
-static ssize_t write_null(struct file * file, const char * buf,
+static ssize_t write_null(struct file * file, const char __user * buf,
 			  size_t count, loff_t *ppos)
 {
 	return count;
@@ -388,7 +401,7 @@ static ssize_t write_null(struct file * file, const char * buf,
 /*
  * For fun, we are using the MMU for this.
  */
-static inline size_t read_zero_pagealigned(char * buf, size_t size)
+static inline size_t read_zero_pagealigned(char __user * buf, size_t size)
 {
 	struct mm_struct *mm;
 	struct vm_area_struct * vma;
@@ -438,7 +451,7 @@ out_up:
 	return size;
 }
 
-static ssize_t read_zero(struct file * file, char * buf, 
+static ssize_t read_zero(struct file * file, char __user * buf, 
 			 size_t count, loff_t *ppos)
 {
 	unsigned long left, unwritten, written = 0;
@@ -510,7 +523,7 @@ static int mmap_zero(struct file * file, struct vm_area_struct * vma)
 }
 #endif /* CONFIG_MMU */
 
-static ssize_t write_full(struct file * file, const char * buf,
+static ssize_t write_full(struct file * file, const char __user * buf,
 			  size_t count, loff_t *ppos)
 {
 	return -ENOSPC;
@@ -615,7 +628,7 @@ static struct file_operations full_fops = {
 	.write		= write_full,
 };
 
-static ssize_t kmsg_write(struct file * file, const char * buf,
+static ssize_t kmsg_write(struct file * file, const char __user * buf,
 			  size_t count, loff_t *ppos)
 {
 	char *tmp;

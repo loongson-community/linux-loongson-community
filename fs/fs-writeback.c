@@ -75,8 +75,23 @@ void __mark_inode_dirty(struct inode *inode, int flags)
 	if ((inode->i_state & flags) == flags)
 		return;
 
-	if (unlikely(block_dump))
-		printk("%s(%d): dirtied file\n", current->comm, current->pid);
+	if (unlikely(block_dump)) {
+		struct dentry *dentry = NULL;
+		const char *name = "?";
+
+		if (!list_empty(&inode->i_dentry)) {
+			dentry = list_entry(inode->i_dentry.next,
+					    struct dentry, d_alias);
+			if (dentry && dentry->d_name.name)
+				name = (const char *) dentry->d_name.name;
+		}
+
+		if (inode->i_ino || strcmp(inode->i_sb->s_id, "bdev"))
+			printk(KERN_DEBUG
+			       "%s(%d): dirtied inode %lu (%s) on %s\n",
+			       current->comm, current->pid, inode->i_ino,
+			       name, inode->i_sb->s_id);
+	}
 
 	spin_lock(&inode_lock);
 	if ((inode->i_state & flags) != flags) {
@@ -295,11 +310,6 @@ sync_sb_inodes(struct super_block *sb, struct writeback_control *wbc)
 				list_move(&inode->i_list, &sb->s_dirty);
 				continue;
 			}
-			/*
-			 * Assume that all inodes on this superblock are memory
-			 * backed.  Skip the superblock.
-			 */
-			break;
 		}
 
 		if (wbc->nonblocking && bdi_write_congested(bdi)) {
@@ -382,12 +392,16 @@ writeback_inodes(struct writeback_control *wbc)
 
 	spin_lock(&inode_lock);
 	spin_lock(&sb_lock);
+restart:
 	sb = sb_entry(super_blocks.prev);
 	for (; sb != sb_entry(&super_blocks); sb = sb_entry(sb->s_list.prev)) {
 		if (!list_empty(&sb->s_dirty) || !list_empty(&sb->s_io)) {
+			sb->s_count++;
 			spin_unlock(&sb_lock);
 			sync_sb_inodes(sb, wbc);
 			spin_lock(&sb_lock);
+			if (__put_super(sb))
+				goto restart;
 		}
 		if (wbc->nr_to_write <= 0)
 			break;

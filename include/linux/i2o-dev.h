@@ -41,6 +41,13 @@
 #define I2OHTML 		_IOWR(I2O_MAGIC_NUMBER,9,struct i2o_html)
 #define I2OEVTREG		_IOW(I2O_MAGIC_NUMBER,10,struct i2o_evt_id)
 #define I2OEVTGET		_IOR(I2O_MAGIC_NUMBER,11,struct i2o_evt_info)
+#define I2OPASSTHRU		_IOR(I2O_MAGIC_NUMBER,12,struct i2o_cmd_passthru)
+
+struct i2o_cmd_passthru
+{
+	unsigned int iop;	/* IOP unit number */
+	void *msg;		/* message */
+};
 
 struct i2o_cmd_hrtlct
 {

@@ -31,6 +31,7 @@
 #include <linux/delay.h>
 #include <linux/cache.h>
 #include <linux/interrupt.h>
+#include <linux/cpu.h>
 
 #include <asm/sigp.h>
 #include <asm/pgalloc.h>
@@ -126,6 +127,9 @@ int smp_call_function (void (*func) (void *info), void *info, int nonatomic,
 	/* FIXME: get cpu lock -hc */
 	if (cpus <= 0)
 		return 0;
+
+	/* Can deadlock when called with interrupts disabled */
+	WARN_ON(irqs_disabled());
 
 	data.func = func;
 	data.info = info;
@@ -647,6 +651,24 @@ int setup_profiling_timer(unsigned int multiplier)
 {
         return 0;
 }
+
+static DEFINE_PER_CPU(struct cpu, cpu_devices);
+
+static int __init topology_init(void)
+{
+	int cpu;
+	int ret;
+
+	for_each_cpu(cpu) {
+		ret = register_cpu(&per_cpu(cpu_devices, cpu), cpu, NULL);
+		if (ret)
+			printk(KERN_WARNING "topology_init: register_cpu %d "
+			       "failed (%d)\n", cpu, ret);
+	}
+	return 0;
+}
+
+subsys_initcall(topology_init);
 
 EXPORT_SYMBOL(cpu_possible_map);
 EXPORT_SYMBOL(lowcore_ptr);

@@ -314,7 +314,9 @@ static int ntfs_remount(struct super_block *sb, int *flags, char *opt)
 #else /* ! NTFS_RW */
 	/*
 	 * For the read-write compiled driver, if we are remounting read-write,
-	 * make sure there aren't any volume errors and empty the lofgile.
+	 * make sure there are no volume errors and that no unsupported volume
+	 * flags are set.  Also, empty the logfile journal as it would become
+	 * stale as soon as something is written to the volume.
 	 */
 	if ((sb->s_flags & MS_RDONLY) && !(*flags & MS_RDONLY)) {
 		static const char *es = ".  Cannot remount read-write.";
@@ -322,6 +324,11 @@ static int ntfs_remount(struct super_block *sb, int *flags, char *opt)
 		if (NVolErrors(vol)) {
 			ntfs_error(sb, "Volume has errors and is read-only%s",
 					es);
+			return -EROFS;
+		}
+		if (vol->vol_flags & VOLUME_MUST_MOUNT_RO_MASK) {
+			ntfs_error(sb, "Volume has unsupported flags set and "
+					"is read-only%s", es);
 			return -EROFS;
 		}
 		if (!ntfs_empty_logfile(vol->logfile_ino)) {
@@ -937,12 +944,12 @@ static BOOL load_and_init_upcase(ntfs_volume *vol)
 	}
 	/*
 	 * The upcase size must not be above 64k Unicode characters, must not
-	 * be zero and must be a multiple of sizeof(uchar_t).
+	 * be zero and must be a multiple of sizeof(ntfschar).
 	 */
-	if (!ino->i_size || ino->i_size & (sizeof(uchar_t) - 1) ||
-			ino->i_size > 64ULL * 1024 * sizeof(uchar_t))
+	if (!ino->i_size || ino->i_size & (sizeof(ntfschar) - 1) ||
+			ino->i_size > 64ULL * 1024 * sizeof(ntfschar))
 		goto iput_upcase_failed;
-	vol->upcase = (uchar_t*)ntfs_malloc_nofs(ino->i_size);
+	vol->upcase = (ntfschar*)ntfs_malloc_nofs(ino->i_size);
 	if (!vol->upcase)
 		goto iput_upcase_failed;
 	index = 0;
@@ -965,7 +972,7 @@ read_partial_upcase_page:
 	}
 	vol->upcase_len = ino->i_size >> UCHAR_T_SIZE_BITS;
 	ntfs_debug("Read %llu bytes from $UpCase (expected %u bytes).",
-			ino->i_size, 64 * 1024 * sizeof(uchar_t));
+			ino->i_size, 64 * 1024 * sizeof(ntfschar));
 	iput(ino);
 	down(&ntfs_lock);
 	if (!default_upcase) {
@@ -1133,6 +1140,31 @@ get_ctx_vol_failed:
 	printk(KERN_INFO "NTFS volume version %i.%i.\n", vol->major_ver,
 			vol->minor_ver);
 #ifdef NTFS_RW
+	/* Make sure that no unsupported volume flags are set. */
+	if (vol->vol_flags & VOLUME_MUST_MOUNT_RO_MASK) {
+		static const char *es1 = "Volume has unsupported flags set ";
+		static const char *es2 = ".  Run chkdsk and mount in Windows.";
+
+		/* If a read-write mount, convert it to a read-only mount. */
+		if (!(sb->s_flags & MS_RDONLY)) {
+			if (!(vol->on_errors & (ON_ERRORS_REMOUNT_RO |
+					ON_ERRORS_CONTINUE))) {
+				ntfs_error(sb, "%s and neither on_errors="
+						"continue nor on_errors="
+						"remount-ro was specified%s",
+						es1, es2);
+				goto iput_vol_err_out;
+			}
+			sb->s_flags |= MS_RDONLY | MS_NOATIME | MS_NODIRATIME;
+			ntfs_error(sb, "%s.  Mounting read-only%s", es1, es2);
+		} else
+			ntfs_warning(sb, "%s.  Will not be able to remount "
+					"read-write%s", es1, es2);
+		/*
+		 * Do not set NVolErrors() because ntfs_remount() re-checks the
+		 * flags which we need to do in case any flags have changed.
+		 */
+	}
 	/*
 	 * Get the inode for the logfile, check it and determine if the volume
 	 * was shutdown cleanly.
@@ -1240,6 +1272,7 @@ iput_logfile_err_out:
 #ifdef NTFS_RW
 	if (vol->logfile_ino)
 		iput(vol->logfile_ino);
+iput_vol_err_out:
 #endif /* NTFS_RW */
 	iput(vol->vol_ino);
 iput_lcnbmp_err_out:
@@ -1585,19 +1618,6 @@ static int ntfs_statfs(struct super_block *sb, struct kstatfs *sfs)
 }
 
 /**
- * Super operations for mount time when we don't have enough setup to use the
- * proper functions.
- */
-struct super_operations ntfs_mount_sops = {
-	.alloc_inode	= ntfs_alloc_big_inode,	  /* VFS: Allocate new inode. */
-	.destroy_inode	= ntfs_destroy_big_inode, /* VFS: Deallocate inode. */
-	.read_inode	= ntfs_read_inode_mount,  /* VFS: Load inode from disk,
-						     called from iget(). */
-	.clear_inode	= ntfs_clear_big_inode,	  /* VFS: Called when inode is
-						     removed from memory. */
-};
-
-/**
  * The complete super operations.
  */
 struct super_operations ntfs_sops = {
@@ -1814,28 +1834,20 @@ static int ntfs_fill_super(struct super_block *sb, void *opt, const int silent)
 	 * the inode for $MFT which is sufficient to allow our normal inode
 	 * operations and associated address space operations to function.
 	 */
-	/*
-	 * Poison vol->mft_ino so we know whether iget() called into our
-	 * ntfs_read_inode_mount() method.
-	 */
-#define OGIN	((struct inode*)n2p(le32_to_cpu(0x4e49474f)))	/* OGIN */
-	vol->mft_ino = OGIN;
-	sb->s_op = &ntfs_mount_sops;
-	tmp_ino = iget(vol->sb, FILE_MFT);
-	if (!tmp_ino || tmp_ino != vol->mft_ino || is_bad_inode(tmp_ino)) {
+	sb->s_op = &ntfs_sops;
+	tmp_ino = new_inode(sb);
+	if (!tmp_ino) {
 		if (!silent)
 			ntfs_error(sb, "Failed to load essential metadata.");
-		if (tmp_ino && vol->mft_ino == OGIN)
-			ntfs_error(sb, "BUG: iget() did not call "
-					"ntfs_read_inode_mount() method!\n");
-		if (!tmp_ino)
-			goto cond_iput_mft_ino_err_out_now;
+		goto err_out_now;
+	}
+	tmp_ino->i_ino = FILE_MFT;
+	insert_inode_hash(tmp_ino);
+	if (ntfs_read_inode_mount(tmp_ino) < 0) {
+		if (!silent)
+			ntfs_error(sb, "Failed to load essential metadata.");
 		goto iput_tmp_ino_err_out_now;
 	}
-	/*
-	 * Note: sb->s_op has already been set to &ntfs_sops by our specialized
-	 * ntfs_read_inode_mount() method when it was invoked by iget().
-	 */
 	down(&ntfs_lock);
 	/*
 	 * The current mount is a compression user if the cluster size is
@@ -1931,12 +1943,10 @@ unl_upcase_iput_tmp_ino_err_out_now:
 	up(&ntfs_lock);
 iput_tmp_ino_err_out_now:
 	iput(tmp_ino);
-cond_iput_mft_ino_err_out_now:
-	if (vol->mft_ino && vol->mft_ino != OGIN && vol->mft_ino != tmp_ino) {
+	if (vol->mft_ino && vol->mft_ino != tmp_ino) {
 		iput(vol->mft_ino);
 		vol->mft_ino = NULL;
 	}
-#undef OGIN
 	/*
 	 * This is needed to get ntfs_clear_extent_inode() called for each
 	 * inode we have ever called ntfs_iget()/iput() on, otherwise we A)
@@ -2049,7 +2059,7 @@ static int __init init_ntfs_fs(void)
 	}
 
 	ntfs_name_cache = kmem_cache_create(ntfs_name_cache_name,
-			(NTFS_MAX_NAME_LEN+1) * sizeof(uchar_t), 0,
+			(NTFS_MAX_NAME_LEN+1) * sizeof(ntfschar), 0,
 			SLAB_HWCACHE_ALIGN, NULL, NULL);
 	if (!ntfs_name_cache) {
 		printk(KERN_CRIT "NTFS: Failed to create %s!\n",

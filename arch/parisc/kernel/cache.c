@@ -17,6 +17,7 @@
 #include <linux/mm.h>
 #include <linux/module.h>
 #include <linux/seq_file.h>
+#include <linux/pagemap.h>
 
 #include <asm/pdc.h>
 #include <asm/cache.h>
@@ -230,68 +231,45 @@ void disable_sr_hashing(void)
 void __flush_dcache_page(struct page *page)
 {
 	struct address_space *mapping = page_mapping(page);
-	struct mm_struct *mm = current->active_mm;
-	struct list_head *l;
+	struct vm_area_struct *mpnt = NULL;
+	struct prio_tree_iter iter;
+	unsigned long offset;
+	unsigned long addr;
+	pgoff_t pgoff;
 
 	flush_kernel_dcache_page(page_address(page));
 
 	if (!mapping)
 		return;
-	/* check shared list first if it's not empty...it's usually
-	 * the shortest */
-	list_for_each(l, &mapping->i_mmap_shared) {
-		struct vm_area_struct *mpnt;
-		unsigned long off;
 
-		mpnt = list_entry(l, struct vm_area_struct, shared);
+	pgoff = page->index << (PAGE_CACHE_SHIFT - PAGE_SHIFT);
 
-		/*
-		 * If this VMA is not in our MM, we can ignore it.
-		 */
-		if (mpnt->vm_mm != mm)
+	/* We have carefully arranged in arch_get_unmapped_area() that
+	 * *any* mappings of a file are always congruently mapped (whether
+	 * declared as MAP_PRIVATE or MAP_SHARED), so we only need
+	 * to flush one address here for them all to become coherent */
+
+	flush_dcache_mmap_lock(mapping);
+	while ((mpnt = vma_prio_tree_next(mpnt, &mapping->i_mmap,
+					&iter, pgoff, pgoff)) != NULL) {
+		offset = (pgoff - mpnt->vm_pgoff) << PAGE_SHIFT;
+		addr = mpnt->vm_start + offset;
+
+		/* Flush instructions produce non access tlb misses.
+		 * On PA, we nullify these instructions rather than
+		 * taking a page fault if the pte doesn't exist.
+		 * This is just for speed.  If the page translation
+		 * isn't there, there's no point exciting the
+		 * nadtlb handler into a nullification frenzy */
+
+		if (!translation_exists(mpnt, addr))
 			continue;
 
-		if (page->index < mpnt->vm_pgoff)
-			continue;
+		__flush_cache_page(mpnt, addr);
 
-		off = page->index - mpnt->vm_pgoff;
-		if (off >= (mpnt->vm_end - mpnt->vm_start) >> PAGE_SHIFT)
-			continue;
-
-		flush_cache_page(mpnt, mpnt->vm_start + (off << PAGE_SHIFT));
-
-		/* All user shared mappings should be equivalently mapped,
-		 * so once we've flushed one we should be ok
-		 */
-		return;
-	}
-
-	/* then check private mapping list for read only shared mappings
-	 * which are flagged by VM_MAYSHARE */
-	list_for_each(l, &mapping->i_mmap) {
-		struct vm_area_struct *mpnt;
-		unsigned long off;
-
-		mpnt = list_entry(l, struct vm_area_struct, shared);
-
-
-		if (mpnt->vm_mm != mm || !(mpnt->vm_flags & VM_MAYSHARE))
-			continue;
-
-		if (page->index < mpnt->vm_pgoff)
-			continue;
-
-		off = page->index - mpnt->vm_pgoff;
-		if (off >= (mpnt->vm_end - mpnt->vm_start) >> PAGE_SHIFT)
-			continue;
-
-		flush_cache_page(mpnt, mpnt->vm_start + (off << PAGE_SHIFT));
-
-		/* All user shared mappings should be equivalently mapped,
-		 * so once we've flushed one we should be ok
-		 */
 		break;
 	}
+	flush_dcache_mmap_unlock(mapping);
 }
 EXPORT_SYMBOL(__flush_dcache_page);
 

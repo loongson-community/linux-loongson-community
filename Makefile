@@ -1,7 +1,7 @@
 VERSION = 2
 PATCHLEVEL = 6
-SUBLEVEL = 6
-EXTRAVERSION =
+SUBLEVEL = 7
+EXTRAVERSION =-rc2
 NAME=Zonked Quokka
 
 # *DOCUMENTATION*
@@ -110,7 +110,7 @@ $(if $(wildcard $(KBUILD_OUTPUT)),, \
 $(filter-out _all,$(MAKECMDGOALS)) _all:
 	$(if $(KBUILD_VERBOSE:1=),@)$(MAKE) -C $(KBUILD_OUTPUT)		\
 	KBUILD_SRC=$(CURDIR)	     KBUILD_VERBOSE=$(KBUILD_VERBOSE)	\
-	KBUILD_CHECK=$(KBUILD_CHECK) KBUILD_EXTMOD=$(KBUILD_EXTMOD)     \
+	KBUILD_CHECK=$(KBUILD_CHECK) KBUILD_EXTMOD="$(KBUILD_EXTMOD)"	\
         -f $(CURDIR)/Makefile $@
 
 # Leave processing to above invocation of make
@@ -324,7 +324,7 @@ export AFLAGS AFLAGS_KERNEL AFLAGS_MODULE
 # When compiling out-of-tree modules, put MODVERDIR in the module
 # tree rather than in the kernel tree. The kernel tree might
 # even be read-only.
-export MODVERDIR := $(if $(KBUILD_EXTMOD),$(KBUILD_EXTMOD)/).tmp_versions
+export MODVERDIR := $(if $(KBUILD_EXTMOD),$(firstword $(KBUILD_EXTMOD))/).tmp_versions
 
 # The temporary file to save gcc -MD generated dependencies must not
 # contain a comma
@@ -566,7 +566,7 @@ ifdef CONFIG_KALLSYMS
 kallsyms.o := .tmp_kallsyms2.o
 
 quiet_cmd_kallsyms = KSYM    $@
-cmd_kallsyms = $(NM) -n $< | $(KALLSYMS) > $@
+cmd_kallsyms = $(NM) -n $< | $(KALLSYMS) $(foreach x,$(CONFIG_KALLSYMS_ALL),--all-symbols) > $@
 
 .tmp_kallsyms1.o .tmp_kallsyms2.o: %.o: %.S scripts FORCE
 	$(call if_changed_dep,as_o_S)
@@ -679,7 +679,7 @@ include/config/MARKER: include/linux/autoconf.h
 uts_len := 64
 
 define filechk_version.h
-	if ((`echo -n "$(KERNELRELEASE)" | wc -c ` > $(uts_len))); then \
+	if [ `echo -n "$(KERNELRELEASE)" | wc -c ` -gt $(uts_len) ]; then \
 	  echo '"$(KERNELRELEASE)" exceeds $(uts_len) characters' >&2; \
 	  exit 1; \
 	fi; \
@@ -951,15 +951,15 @@ else # KBUILD_EXTMOD
 # We are always building modules
 KBUILD_MODULES := 1
 .PHONY: crmodverdir
-crmodverdir: FORCE
+crmodverdir:
 	$(Q)mkdir -p $(MODVERDIR)
 
-.PHONY: $(KBUILD_EXTMOD)
-$(KBUILD_EXTMOD): crmodverdir FORCE
-	$(Q)$(MAKE) $(build)=$@
+module-dirs := $(addprefix _module_,$(KBUILD_EXTMOD))
+.PHONY: $(module-dirs) modules
+$(module-dirs): crmodverdir
+	$(Q)$(MAKE) $(build)=$(patsubst _module_%,%,$@)
 
-.PHONY: modules
-modules: $(KBUILD_EXTMOD)
+modules: $(module-dirs)
 	@echo '  Building modules, stage 2.';
 	$(Q)$(MAKE) -rR -f $(srctree)/scripts/Makefile.modpost
 
@@ -967,7 +967,7 @@ modules: $(KBUILD_EXTMOD)
 modules_install:
 	$(Q)$(MAKE) -rR -f $(srctree)/scripts/Makefile.modinst
 
-clean-dirs := _clean_$(KBUILD_EXTMOD)
+clean-dirs := $(addprefix _clean_,$(KBUILD_EXTMOD))
 
 .PHONY: $(clean-dirs) clean
 $(clean-dirs):
@@ -999,6 +999,8 @@ define all-sources
 	       \( -name include -o -name arch \) -prune -o \
 	       -name '*.[chS]' -print; \
 	  find arch/$(ARCH) $(RCS_FIND_IGNORE) \
+	       -name '*.[chS]' -print; \
+	  find security/selinux/include $(RCS_FIND_IGNORE) \
 	       -name '*.[chS]' -print; \
 	  find include $(RCS_FIND_IGNORE) \
 	       \( -name config -o -name 'asm-*' \) -prune \
@@ -1056,8 +1058,16 @@ versioncheck:
 		-name '*.[hcS]' -type f -print | sort \
 		| xargs $(PERL) -w scripts/checkversion.pl
 
+buildcheck:
+	$(PERL) scripts/reference_discarded.pl
+
 endif #ifeq ($(config-targets),1)
 endif #ifeq ($(mixed-targets),1)
+
+.PHONY: checkstack
+checkstack:
+	$(OBJDUMP) -d vmlinux $$(find . -name '*.ko') | \
+	$(PERL) scripts/checkstack.pl $(ARCH)
 
 # FIXME Should go into a make.lib or something 
 # ===========================================================================

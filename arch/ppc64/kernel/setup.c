@@ -476,6 +476,7 @@ static int __init set_preferred_console(void)
 {
 	struct device_node *prom_stdout;
 	char *name;
+	int offset;
 
 	/* The user has requested a console so this is already set up. */
 	if (strstr(saved_command_line, "console="))
@@ -493,7 +494,6 @@ static int __init set_preferred_console(void)
 		int i;
 		u32 *reg = (u32 *)get_property(prom_stdout, "reg", &i);
 		if (i > 8) {
-			int offset;
 			switch (reg[1]) {
 				case 0x3f8:
 					offset = 0;
@@ -511,15 +511,19 @@ static int __init set_preferred_console(void)
 					/* We dont recognise the serial port */
 					return -ENODEV;
 			}
-
-			return add_preferred_console("ttyS", offset, NULL);
 		}
-	} else if (strcmp(name, "vty") == 0) {
+	} else if (strcmp(name, "vty") == 0)
 		/* pSeries LPAR virtual console */
 		return add_preferred_console("hvc", 0, NULL);
-	}
+	else if (strcmp(name, "ch-a") == 0)
+		offset = 0;
+	else if (strcmp(name, "ch-b") == 0)
+		offset = 1;
+	else
+		return -ENODEV;
 
-	return -ENODEV;
+	return add_preferred_console("ttyS", offset, NULL);
+
 }
 console_initcall(set_preferred_console);
 
@@ -568,6 +572,23 @@ void __init ppc64_calibrate_delay(void)
 
 extern void (*calibrate_delay)(void);
 
+#ifdef CONFIG_IRQSTACKS
+static void __init irqstack_early_init(void)
+{
+	int i;
+
+	/* interrupt stacks must be under 256MB, we cannot afford to take SLB misses on them */
+	for (i = 0; i < NR_CPUS; i++) {
+		softirq_ctx[i] = (struct thread_info *)__va(lmb_alloc_base(THREAD_SIZE,
+					THREAD_SIZE, 0x10000000));
+		hardirq_ctx[i] = (struct thread_info *)__va(lmb_alloc_base(THREAD_SIZE,
+					THREAD_SIZE, 0x10000000));
+	}
+}
+#else
+#define irqstack_early_init()
+#endif
+
 /*
  * Called into from start_kernel, after lock_kernel has been called.
  * Initializes bootmem, which is unsed to manage page allocation until
@@ -612,6 +633,8 @@ void __init setup_arch(char **cmdline_p)
 	/* Save unparsed command line copy for /proc/cmdline */
 	strlcpy(saved_command_line, cmd_line, sizeof(saved_command_line));
 	*cmdline_p = cmd_line;
+
+	irqstack_early_init();
 
 	/* set up the bootmem stuff with available memory */
 	do_init_bootmem();

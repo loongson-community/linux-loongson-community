@@ -114,7 +114,7 @@ end:
 static int
 acpi_fan_write_state (
 	struct file		*file,
-	const char		*buffer,
+	const char		__user *buffer,
 	unsigned long		count,
 	void			*data)
 {
@@ -185,6 +185,8 @@ acpi_fan_remove_fs (
 	ACPI_FUNCTION_TRACE("acpi_fan_remove_fs");
 
 	if (acpi_device_dir(device)) {
+		remove_proc_entry(ACPI_FAN_FILE_STATE,
+				  acpi_device_dir(device));
 		remove_proc_entry(acpi_device_bid(device), acpi_fan_dir);
 		acpi_device_dir(device) = NULL;
 	}

@@ -384,6 +384,8 @@
 #define	PV_POWER4p	0x0038
 #define PV_GPUL		0x0039
 #define	PV_POWER5	0x003A
+#define PV_POWER5p	0x003B
+#define PV_GPULp	0x003C
 #define	PV_630        	0x0040
 #define	PV_630p	        0x0041
 
@@ -624,6 +626,11 @@ static inline void prefetchw(const void *x)
 }
 
 #define spin_lock_prefetch(x)	prefetchw(x)
+
+#ifdef CONFIG_SCHED_SMT
+#define ARCH_HAS_SCHED_DOMAIN
+#define ARCH_HAS_SCHED_WAKE_IDLE
+#endif
 
 #endif /* ASSEMBLY */
 

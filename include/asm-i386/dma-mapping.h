@@ -2,6 +2,8 @@
 #define _ASM_I386_DMA_MAPPING_H
 
 #include <asm/cache.h>
+#include <asm/io.h>
+#include <asm/scatterlist.h>
 
 #define dma_alloc_noncoherent(d, s, h, f) dma_alloc_coherent(d, s, h, f)
 #define dma_free_noncoherent(d, s, v, h) dma_free_coherent(d, s, v, h)
@@ -51,7 +53,7 @@ dma_map_page(struct device *dev, struct page *page, unsigned long offset,
 	     size_t size, enum dma_data_direction direction)
 {
 	BUG_ON(direction == DMA_NONE);
-	return (dma_addr_t)(page_to_pfn(page)) * PAGE_SIZE + offset;
+	return page_to_phys(page) + offset;
 }
 
 static inline void

@@ -63,6 +63,7 @@ struct smb_vol {
 	mode_t dir_mode;
 	int rw:1;
 	int retry:1;
+	int intr:1;
 	unsigned int rsize;
 	unsigned int wsize;
 	unsigned int sockopt;
@@ -164,6 +165,7 @@ cifs_reconnect(struct TCP_Server_Info *server)
 		} else {
 			atomic_inc(&tcpSesReconnectCount);
 			server->tcpStatus = CifsGood;
+			atomic_set(&server->inFlight,0);
 			wake_up(&server->response_q);
 		}
 	}
@@ -389,8 +391,14 @@ cifs_demultiplex_thread(struct TCP_Server_Info *server)
 			}
 		}
 	}
-   
 	server->tcpStatus = CifsExiting;
+	atomic_set(&server->inFlight, 0);
+	/* Although there should not be any requests blocked on 
+	this queue it can not hurt to be paranoid and try to wake up requests
+	that may haven been blocked when more than 50 at time were on the wire 
+	to the same server - they now will see the session is in exit state
+	and get out of SendReceive.  */
+	wake_up_all(&server->request_q);   
 	server->tsk = NULL;
 	if(server->ssocket) {
 		sock_release(csocket);
@@ -699,6 +707,7 @@ cifs_parse_mount_options(char *options, const char *devname, struct smb_vol *vol
 				   (strnicmp(data, "exec", 4) == 0) ||
 				   (strnicmp(data, "noexec", 6) == 0) ||
 				   (strnicmp(data, "nodev", 5) == 0) ||
+				   (strnicmp(data, "noauto", 6) == 0) ||
 				   (strnicmp(data, "dev", 3) == 0)) {
 			/*  The mount tool or mount.cifs helper (if present)
 				uses these opts to set flags, and the flags are read
@@ -717,6 +726,12 @@ cifs_parse_mount_options(char *options, const char *devname, struct smb_vol *vol
 			vol->retry = 0;
 		} else if (strnicmp(data, "nosoft", 6) == 0) {
 			vol->retry = 1;
+		} else if (strnicmp(data, "nointr", 6) == 0) {
+			vol->intr = 0;
+		} else if (strnicmp(data, "intr", 4) == 0) {
+			vol->intr = 1;
+		} else if (strnicmp(data, "noac", 4) == 0) {
+			printk(KERN_WARNING "CIFS: Mount option noac not supported. Instead set /proc/fs/cifs/LookupCacheEnabled to 0\n");
 		} else
 			printk(KERN_WARNING "CIFS: Unknown mount option %s\n",data);
 	}
@@ -908,7 +923,7 @@ ipv4_connect(struct sockaddr_in *psin_server, struct socket **csocket,
 		} else {
 		/* BB other socket options to set KEEPALIVE, NODELAY? */
 			cFYI(1,("Socket created"));
-	/*		(*csocket)->sk->allocation = GFP_NOFS; */ /* BB is there equivalent in 2.6 */
+			(*csocket)->sk->sk_allocation = GFP_NOFS; 
 		}
 	}
 
@@ -1015,6 +1030,7 @@ ipv6_connect(struct sockaddr_in6 *psin_server, struct socket **csocket)
 		} else {
 		/* BB other socket options to set KEEPALIVE, NODELAY? */
 			 cFYI(1,("ipv6 Socket created"));
+                        (*csocket)->sk->sk_allocation = GFP_NOFS;
 		}
 	}
 
@@ -1202,11 +1218,13 @@ cifs_mount(struct super_block *sb, struct cifs_sb_info *cifs_sb,
 			return rc;
 		} else {
 			memset(srvTcp, 0, sizeof (struct TCP_Server_Info));
-			memcpy(&srvTcp->addr.sockAddr, &sin_server, sizeof (struct sockaddr_in));	
-            /* BB Add code for ipv6 case too */
+			memcpy(&srvTcp->addr.sockAddr, &sin_server, sizeof (struct sockaddr_in));
+			atomic_set(&srvTcp->inFlight,0);
+			/* BB Add code for ipv6 case too */
 			srvTcp->ssocket = csocket;
 			srvTcp->protocolType = IPV4;
 			init_waitqueue_head(&srvTcp->response_q);
+			init_waitqueue_head(&srvTcp->request_q);
 			INIT_LIST_HEAD(&srvTcp->pending_mid_q);
 			srvTcp->tcpStatus = CifsNew;
 			init_MUTEX(&srvTcp->tcpSem);
@@ -2743,6 +2761,7 @@ cifs_umount(struct super_block *sb, struct cifs_sb_info *cifs_sb)
 				FreeXid(xid);
 				return 0;
 			}
+ 
 			set_current_state(TASK_INTERRUPTIBLE);
 			schedule_timeout(HZ / 4);	/* give captive thread time to exit */
 			if((ses->server) && (ses->server->ssocket)) {            

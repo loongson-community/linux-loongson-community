@@ -102,6 +102,30 @@ _GLOBAL(local_irq_restore)
 	blr
 #endif /* CONFIG_PPC_ISERIES */
 
+#ifdef CONFIG_IRQSTACKS
+_GLOBAL(call_do_softirq)
+	mflr	r0
+	std	r0,16(r1)
+	stdu	r1,THREAD_SIZE-112(r3)
+	mr	r1,r3
+	bl	.__do_softirq
+	ld	r1,0(r1)
+	ld	r0,16(r1)
+	mtlr	r0
+	blr
+
+_GLOBAL(call_handle_irq_event)
+	mflr	r0
+	std	r0,16(r1)
+	stdu	r1,THREAD_SIZE-112(r6)
+	mr	r1,r6
+	bl	.handle_irq_event
+	ld	r1,0(r1)
+	ld	r0,16(r1)
+	mtlr	r0
+	blr
+#endif /* CONFIG_IRQSTACKS */
+
 /*
  * Flush instruction cache.
  */
@@ -316,6 +340,8 @@ _GLOBAL(_insb)
 	eieio
 	stbu	r5,1(r4)
 	bdnz	00b
+	twi	0,r5,0
+	isync
 	blr
 
 _GLOBAL(_outsb)
@@ -325,8 +351,8 @@ _GLOBAL(_outsb)
 	blelr-
 00:	lbzu	r5,1(r4)
 	stb	r5,0(r3)
-	eieio
 	bdnz	00b
+	sync
 	blr	
 
 _GLOBAL(_insw)
@@ -338,6 +364,8 @@ _GLOBAL(_insw)
 	eieio
 	sthu	r5,2(r4)
 	bdnz	00b
+	twi	0,r5,0
+	isync
 	blr
 
 _GLOBAL(_outsw)
@@ -346,9 +374,9 @@ _GLOBAL(_outsw)
 	subi	r4,r4,2
 	blelr-
 00:	lhzu	r5,2(r4)
-	eieio
 	sthbrx	r5,0,r3	
 	bdnz	00b
+	sync
 	blr	
 
 _GLOBAL(_insl)
@@ -360,6 +388,8 @@ _GLOBAL(_insl)
 	eieio
 	stwu	r5,4(r4)
 	bdnz	00b
+	twi	0,r5,0
+	isync
 	blr
 
 _GLOBAL(_outsl)
@@ -369,8 +399,8 @@ _GLOBAL(_outsl)
 	blelr-
 00:	lwzu	r5,4(r4)
 	stwbrx	r5,0,r3
-	eieio
 	bdnz	00b
+	sync
 	blr	
 
 /* _GLOBAL(ide_insw) now in drivers/ide/ide-iops.c */
@@ -383,6 +413,8 @@ _GLOBAL(_insw_ns)
 	eieio
 	sthu	r5,2(r4)
 	bdnz	00b
+	twi	0,r5,0
+	isync
 	blr
 
 /* _GLOBAL(ide_outsw) now in drivers/ide/ide-iops.c */
@@ -393,8 +425,8 @@ _GLOBAL(_outsw_ns)
 	blelr-
 00:	lhzu	r5,2(r4)
 	sth	r5,0(r3)
-	eieio
 	bdnz	00b
+	sync
 	blr	
 
 _GLOBAL(_insl_ns)
@@ -406,6 +438,8 @@ _GLOBAL(_insl_ns)
 	eieio
 	stwu	r5,4(r4)
 	bdnz	00b
+	twi	0,r5,0
+	isync
 	blr
 
 _GLOBAL(_outsl_ns)
@@ -415,8 +449,8 @@ _GLOBAL(_outsl_ns)
 	blelr-
 00:	lwzu	r5,4(r4)
 	stw	r5,0(r3)
-	eieio
 	bdnz	00b
+	sync
 	blr	
 
 _GLOBAL(abs)
@@ -717,8 +751,8 @@ _GLOBAL(sys_call_table32)
 	.llong .ppc32_select
 	.llong .sys_flock
 	.llong .sys_msync
-	.llong .sys32_readv		/* 145 */
-	.llong .sys32_writev
+	.llong .compat_sys_readv	/* 145 */
+	.llong .compat_sys_writev
 	.llong .sys32_getsid
 	.llong .sys_fdatasync
 	.llong .sys32_sysctl
@@ -740,7 +774,7 @@ _GLOBAL(sys_call_table32)
 	.llong .sys_getresuid	        /* 165 */
 	.llong .sys_ni_syscall		/* old query_module syscall */
 	.llong .sys_poll
-	.llong .sys32_nfsservctl
+	.llong .compat_sys_nfsservctl
 	.llong .sys_setresgid
 	.llong .sys_getresgid	        /* 170 */
 	.llong .sys32_prctl
@@ -840,6 +874,7 @@ _GLOBAL(sys_call_table32)
 	.llong .compat_sys_mq_timedreceive /* 265 */
 	.llong .compat_sys_mq_notify
 	.llong .compat_sys_mq_getsetattr
+	.llong .sys_ni_syscall		/* 268 reserved for sys_kexec_load */
 
 	.balign 8
 _GLOBAL(sys_call_table)
@@ -1029,7 +1064,7 @@ _GLOBAL(sys_call_table)
 	.llong .sys_capget
 	.llong .sys_capset
 	.llong .sys_sigaltstack	        /* 185 */
-	.llong .sys_sendfile
+	.llong .sys_sendfile64
 	.llong .sys_ni_syscall		/* reserved for streams1 */
 	.llong .sys_ni_syscall		/* reserved for streams2 */
 	.llong .sys_vfork
@@ -1111,3 +1146,4 @@ _GLOBAL(sys_call_table)
 	.llong .sys_mq_timedreceive	/* 265 */
 	.llong .sys_mq_notify
 	.llong .sys_mq_getsetattr
+	.llong .sys_ni_syscall		/* 268 reserved for sys_kexec_load */

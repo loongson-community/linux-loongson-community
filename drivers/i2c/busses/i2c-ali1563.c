@@ -16,6 +16,7 @@
  */
 
 #include <linux/module.h>
+#include <linux/delay.h>
 #include <linux/i2c.h>
 #include <linux/pci.h>
 #include <linux/init.h>
@@ -82,7 +83,7 @@ static int ali1563_transaction(struct i2c_adapter * a)
 
 	timeout = ALI1563_MAX_TIMEOUT;
 	do
-		i2c_delay(1);
+		msleep(1);
 	while (((data = inb_p(SMB_HST_STS)) & HST_STS_BUSY) && --timeout);
 
 	dev_dbg(&a->dev, "Transaction (post): STS=%02x, CNTL1=%02x, "
@@ -137,7 +138,7 @@ static int ali1563_block_start(struct i2c_adapter * a)
 
 	timeout = ALI1563_MAX_TIMEOUT;
 	do
-		i2c_delay(1);
+		msleep(1);
 	while (!((data = inb_p(SMB_HST_STS)) & HST_STS_DONE) && --timeout);
 
 	dev_dbg(&a->dev, "Block (post): STS=%02x, CNTL1=%02x, "
@@ -357,7 +358,7 @@ static struct i2c_algorithm ali1563_algorithm = {
 
 static struct i2c_adapter ali1563_adapter = {
 	.owner	= THIS_MODULE,
-	.class	= I2C_ADAP_CLASS_SMBUS,
+	.class	= I2C_CLASS_HWMON,
 	.algo	= &ali1563_algorithm,
 };
 

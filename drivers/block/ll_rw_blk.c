@@ -42,6 +42,16 @@ static void blk_unplug_timeout(unsigned long data);
  */
 static kmem_cache_t *request_cachep;
 
+/*
+ * For queue allocation
+ */
+static kmem_cache_t *requestq_cachep;
+
+/*
+ * For io context allocations
+ */
+static kmem_cache_t *iocontext_cachep;
+
 static wait_queue_head_t congestion_wqh[2] = {
 		__WAIT_QUEUE_HEAD_INITIALIZER(congestion_wqh[0]),
 		__WAIT_QUEUE_HEAD_INITIALIZER(congestion_wqh[1])
@@ -70,14 +80,7 @@ EXPORT_SYMBOL(blk_max_pfn);
  */
 static inline int queue_congestion_on_threshold(struct request_queue *q)
 {
-	int ret;
-
-	ret = q->nr_requests - (q->nr_requests / 8) + 1;
-
-	if (ret > q->nr_requests)
-		ret = q->nr_requests;
-
-	return ret;
+	return q->nr_congestion_on;
 }
 
 /*
@@ -85,14 +88,22 @@ static inline int queue_congestion_on_threshold(struct request_queue *q)
  */
 static inline int queue_congestion_off_threshold(struct request_queue *q)
 {
-	int ret;
+	return q->nr_congestion_off;
+}
 
-	ret = q->nr_requests - (q->nr_requests / 8) - 1;
+static void blk_queue_congestion_threshold(struct request_queue *q)
+{
+	int nr;
 
-	if (ret < 1)
-		ret = 1;
+	nr = q->nr_requests - (q->nr_requests / 8) + 1;
+	if (nr > q->nr_requests)
+		nr = q->nr_requests;
+	q->nr_congestion_on = nr;
 
-	return ret;
+	nr = q->nr_requests - (q->nr_requests / 8) - 1;
+	if (nr < 1)
+		nr = 1;
+	q->nr_congestion_off = nr;
 }
 
 /*
@@ -229,6 +240,7 @@ void blk_queue_make_request(request_queue_t * q, make_request_fn * mfn)
 	blk_queue_max_sectors(q, MAX_SECTORS);
 	blk_queue_hardsect_size(q, 512);
 	blk_queue_dma_alignment(q, 511);
+	blk_queue_congestion_threshold(q);
 
 	q->unplug_thresh = 4;		/* hmm */
 	q->unplug_delay = (3 * HZ) / 1000;	/* 3 milliseconds */
@@ -265,8 +277,6 @@ EXPORT_SYMBOL(blk_queue_make_request);
 void blk_queue_bounce_limit(request_queue_t *q, u64 dma_addr)
 {
 	unsigned long bounce_pfn = dma_addr >> PAGE_SHIFT;
-	unsigned long mb = dma_addr >> 20;
-	static request_queue_t *last_q;
 
 	/*
 	 * set appropriate bounce gfp mask -- unfortunately we don't have a
@@ -280,19 +290,7 @@ void blk_queue_bounce_limit(request_queue_t *q, u64 dma_addr)
 	} else
 		q->bounce_gfp = GFP_NOIO;
 
-	/*
-	 * keep this for debugging for now...
-	 */
-	if (dma_addr != BLK_BOUNCE_HIGH && q != last_q) {
-		printk("blk: queue %p, ", q);
-		if (dma_addr == BLK_BOUNCE_ANY)
-			printk("no I/O memory limit\n");
-		else
-			printk("I/O limit %luMb (mask 0x%Lx)\n", mb, (long long) dma_addr);
-	}
-
 	q->bounce_pfn = bounce_pfn;
-	last_q = q;
 }
 
 EXPORT_SYMBOL(blk_queue_bounce_limit);
@@ -1142,7 +1140,7 @@ static inline void __generic_unplug_device(request_queue_t *q)
 
 /**
  * generic_unplug_device - fire a request queue
- * @data:    The &request_queue_t in question
+ * @q:    The &request_queue_t in question
  *
  * Description:
  *   Linux uses plugging to build bigger requests queues before letting
@@ -1159,7 +1157,8 @@ void generic_unplug_device(request_queue_t *q)
 }
 EXPORT_SYMBOL(generic_unplug_device);
 
-static void blk_backing_dev_unplug(struct backing_dev_info *bdi)
+static void blk_backing_dev_unplug(struct backing_dev_info *bdi,
+				   struct page *page)
 {
 	request_queue_t *q = bdi->unplug_io_data;
 
@@ -1206,7 +1205,7 @@ void blk_start_queue(request_queue_t *q)
 		clear_bit(QUEUE_FLAG_REENTER, &q->queue_flags);
 	} else {
 		blk_plug_device(q);
-		schedule_work(&q->unplug_work);
+		kblockd_schedule_work(&q->unplug_work);
 	}
 }
 
@@ -1283,7 +1282,7 @@ void blk_cleanup_queue(request_queue_t * q)
 	if (blk_queue_tagged(q))
 		blk_queue_free_tags(q);
 
-	kfree(q);
+	kmem_cache_free(requestq_cachep, q);
 }
 
 EXPORT_SYMBOL(blk_cleanup_queue);
@@ -1347,7 +1346,7 @@ __setup("elevator=", elevator_setup);
 
 request_queue_t *blk_alloc_queue(int gfp_mask)
 {
-	request_queue_t *q = kmalloc(sizeof(*q), gfp_mask);
+	request_queue_t *q = kmem_cache_alloc(requestq_cachep, gfp_mask);
 
 	if (!q)
 		return NULL;
@@ -1436,7 +1435,7 @@ request_queue_t *blk_init_queue(request_fn_proc *rfn, spinlock_t *lock)
 out_elv:
 	blk_cleanup_queue(q);
 out_init:
-	kfree(q);
+	kmem_cache_free(requestq_cachep, q);
 	return NULL;
 }
 
@@ -1877,6 +1876,7 @@ int blk_execute_rq(request_queue_t *q, struct gendisk *bd_disk,
 	elv_add_request(q, rq, ELEVATOR_INSERT_BACK, 1);
 	generic_unplug_device(q);
 	wait_for_completion(&wait);
+	rq->waiting = NULL;
 
 	if (rq->errors)
 		err = -EIO;
@@ -2444,7 +2444,7 @@ void submit_bio(int rw, struct bio *bio)
 
 	if (unlikely(block_dump)) {
 		char b[BDEVNAME_SIZE];
-		printk("%s(%d): %s block %Lu on %s\n",
+		printk(KERN_DEBUG "%s(%d): %s block %Lu on %s\n",
 			current->comm, current->pid,
 			(rw & WRITE) ? "WRITE" : "READ",
 			(unsigned long long)bio->bi_sector,
@@ -2824,9 +2824,13 @@ int __init blk_dev_init(void)
 		panic("Failed to create kblockd\n");
 
 	request_cachep = kmem_cache_create("blkdev_requests",
-			sizeof(struct request), 0, 0, NULL, NULL);
-	if (!request_cachep)
-		panic("Can't create request pool slab cache\n");
+			sizeof(struct request), 0, SLAB_PANIC, NULL, NULL);
+
+	requestq_cachep = kmem_cache_create("blkdev_queue",
+			sizeof(request_queue_t), 0, SLAB_PANIC, NULL, NULL);
+
+	iocontext_cachep = kmem_cache_create("blkdev_ioc",
+			sizeof(struct io_context), 0, SLAB_PANIC, NULL, NULL);
 
 	blk_max_low_pfn = max_low_pfn;
 	blk_max_pfn = max_pfn;
@@ -2846,7 +2850,7 @@ void put_io_context(struct io_context *ioc)
 	if (atomic_dec_and_test(&ioc->refcount)) {
 		if (ioc->aic && ioc->aic->dtor)
 			ioc->aic->dtor(ioc->aic);
-		kfree(ioc);
+		kmem_cache_free(iocontext_cachep, ioc);
 	}
 }
 
@@ -2885,7 +2889,7 @@ struct io_context *get_io_context(int gfp_flags)
 	local_irq_save(flags);
 	ret = tsk->io_context;
 	if (ret == NULL) {
-		ret = kmalloc(sizeof(*ret), GFP_ATOMIC);
+		ret = kmem_cache_alloc(iocontext_cachep, GFP_ATOMIC);
 		if (ret) {
 			atomic_set(&ret->refcount, 1);
 			ret->pid = tsk->pid;
@@ -2960,6 +2964,7 @@ queue_requests_store(struct request_queue *q, const char *page, size_t count)
 	int ret = queue_var_store(&q->nr_requests, page, count);
 	if (q->nr_requests < BLKDEV_MIN_RQ)
 		q->nr_requests = BLKDEV_MIN_RQ;
+	blk_queue_congestion_threshold(q);
 
 	if (rl->count[READ] >= queue_congestion_on_threshold(q))
 		set_queue_congested(q, READ);
@@ -2987,14 +2992,41 @@ queue_requests_store(struct request_queue *q, const char *page, size_t count)
 	return ret;
 }
 
+static ssize_t queue_ra_show(struct request_queue *q, char *page)
+{
+	int ra_kb = q->backing_dev_info.ra_pages << (PAGE_CACHE_SHIFT - 10);
+
+	return queue_var_show(ra_kb, (page));
+}
+
+static ssize_t
+queue_ra_store(struct request_queue *q, const char *page, size_t count)
+{
+	unsigned long ra_kb;
+	ssize_t ret = queue_var_store(&ra_kb, page, count);
+
+	if (ra_kb > (q->max_sectors >> 1))
+		ra_kb = (q->max_sectors >> 1);
+
+	q->backing_dev_info.ra_pages = ra_kb >> (PAGE_CACHE_SHIFT - 10);
+	return ret;
+}
+
 static struct queue_sysfs_entry queue_requests_entry = {
 	.attr = {.name = "nr_requests", .mode = S_IRUGO | S_IWUSR },
 	.show = queue_requests_show,
 	.store = queue_requests_store,
 };
 
+static struct queue_sysfs_entry queue_ra_entry = {
+	.attr = {.name = "read_ahead_kb", .mode = S_IRUGO | S_IWUSR },
+	.show = queue_ra_show,
+	.store = queue_ra_store,
+};
+
 static struct attribute *default_attrs[] = {
 	&queue_requests_entry.attr,
+	&queue_ra_entry.attr,
 	NULL,
 };
 

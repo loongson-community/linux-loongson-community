@@ -2,6 +2,10 @@
 
     ata_piix.c - Intel PATA/SATA controllers
 
+    Maintained by:  Jeff Garzik <jgarzik@pobox.com>
+    		    Please ALWAYS copy linux-ide@vger.kernel.org
+		    on emails.
+
 
 	Copyright 2003-2004 Red Hat Inc
 	Copyright 2003-2004 Jeff Garzik
@@ -132,6 +136,7 @@ static struct ata_port_operations piix_pata_ops = {
 
 	.phy_reset		= piix_pata_phy_reset,
 
+	.bmdma_setup		= ata_bmdma_setup_pio,
 	.bmdma_start		= ata_bmdma_start_pio,
 	.fill_sg		= ata_fill_sg,
 	.eng_timeout		= ata_eng_timeout,
@@ -154,6 +159,7 @@ static struct ata_port_operations piix_sata_ops = {
 
 	.phy_reset		= piix_sata_phy_reset,
 
+	.bmdma_setup		= ata_bmdma_setup_pio,
 	.bmdma_start		= ata_bmdma_start_pio,
 	.fill_sg		= ata_fill_sg,
 	.eng_timeout		= ata_eng_timeout,
@@ -266,7 +272,7 @@ static void piix_pata_phy_reset(struct ata_port *ap)
 
 /**
  *	piix_sata_probe - Probe PCI device for present SATA devices
- *	@pdev: PCI device to probe
+ *	@ap: Port associated with the PCI device we wish to probe
  *
  *	Reads SATA PCI device's PCI config register Port Configuration
  *	and Status (PCS) to determine port and device availability.

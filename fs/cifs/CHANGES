@@ -1,9 +1,30 @@
+Version 1.16
+------------
+Fix incorrect file size in file handle based setattr on big endian hardware.
+Fix oops in build_path_from_dentry when out of memory.  Add checks for invalid
+and closing file structs in writepage/partialpagewrite.  Add statistics
+for each mounted share (new menuconfig option). Fix endianness problem in
+volume information displayed in /proc/fs/cifs/DebugData (only affects
+affects big endian architectures). Prevent renames while constructing
+path names for open, mkdir and rmdir.
+
+Version 1.15
+------------
+Change to mempools for alloc smb request buffers and multiplex structs
+to better handle low memory problems (and potential deadlocks).
+
+Version 1.14
+------------
+Fix incomplete listings of large directories on Samba servers when Unix
+extensions enabled.  Fix oops when smb_buffer can not be allocated. Fix
+rename deadlock when writing out dirty pages at same time.
+
 Version 1.13
 ------------
 Fix open of files in which O_CREATE can cause the mode to change in
 some cases. Fix case in which retry of write overlaps file close.
 Fix PPC64 build error.  Reduce excessive stack usage in smb password
-hashing.
+hashing. Fix overwrite of Linux user's view of file mode to Windows servers.
 
 Version 1.12
 ------------

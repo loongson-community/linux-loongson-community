@@ -38,6 +38,7 @@ enum {
 
 	ATA_ID_WORDS		= 256,
 	ATA_ID_PROD_OFS		= 27,
+	ATA_ID_FW_REV_OFS	= 23,
 	ATA_ID_SERNO_OFS	= 10,
 	ATA_ID_MAJOR_VER	= 80,
 	ATA_ID_PIO_MODES	= 64,
@@ -103,7 +104,10 @@ enum {
 	ATA_REG_IRQ		= ATA_REG_NSECT,
 
 	/* ATA device commands */
+	ATA_CMD_CHK_POWER	= 0xE5, /* check power mode */
 	ATA_CMD_EDD		= 0x90,	/* execute device diagnostic */
+	ATA_CMD_FLUSH		= 0xE7,
+	ATA_CMD_FLUSH_EXT	= 0xEA,
 	ATA_CMD_ID_ATA		= 0xEC,
 	ATA_CMD_ID_ATAPI	= 0xA1,
 	ATA_CMD_READ		= 0xC8,
@@ -132,6 +136,8 @@ enum {
 
 	/* ATAPI stuff */
 	ATAPI_PKT_DMA		= (1 << 0),
+	ATAPI_DMADIR		= (1 << 2),	/* ATAPI data dir:
+						   0=to device, 1=to host */
 
 	/* cable types */
 	ATA_CBL_NONE		= 0,
@@ -196,9 +202,14 @@ struct ata_taskfile {
 };
 
 #define ata_id_is_ata(dev)	(((dev)->id[0] & (1 << 15)) == 0)
+#define ata_id_rahead_enabled(dev) ((dev)->id[85] & (1 << 6))
+#define ata_id_wcache_enabled(dev) ((dev)->id[85] & (1 << 5))
 #define ata_id_has_lba48(dev)	((dev)->id[83] & (1 << 10))
+#define ata_id_has_wcache(dev)	((dev)->id[82] & (1 << 5))
+#define ata_id_has_pm(dev)	((dev)->id[82] & (1 << 3))
 #define ata_id_has_lba(dev)	((dev)->id[49] & (1 << 8))
 #define ata_id_has_dma(dev)	((dev)->id[49] & (1 << 9))
+#define ata_id_removeable(dev)	((dev)->id[0] & (1 << 7))
 #define ata_id_u32(dev,n)	\
 	(((u32) (dev)->id[(n) + 1] << 16) | ((u32) (dev)->id[(n)]))
 #define ata_id_u64(dev,n)	\
@@ -206,5 +217,11 @@ struct ata_taskfile {
 	  ((u64) dev->id[(n) + 2] << 32) |	\
 	  ((u64) dev->id[(n) + 1] << 16) |	\
 	  ((u64) dev->id[(n) + 0]) )
+
+static inline int is_atapi_taskfile(struct ata_taskfile *tf)
+{
+	return (tf->protocol == ATA_PROT_ATAPI) ||
+	       (tf->protocol == ATA_PROT_ATAPI_DMA);
+}
 
 #endif /* __LINUX_ATA_H__ */

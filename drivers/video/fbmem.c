@@ -114,6 +114,8 @@ extern int valkyriefb_setup(char*);
 extern int chips_init(void);
 extern int g364fb_init(void);
 extern int sa1100fb_init(void);
+extern int pxafb_init(void);
+extern int pxafb_setup(char*);
 extern int fm2fb_init(void);
 extern int fm2fb_setup(char*);
 extern int q40fb_init(void);
@@ -171,6 +173,8 @@ extern int leo_init(void);
 extern int leo_setup(char*);
 extern int kyrofb_init(void);
 extern int kyrofb_setup(char*);
+extern int mc68x328fb_init(void);
+extern int mc68x328fb_setup(char *);
 
 static struct {
 	const char *name;
@@ -348,6 +352,9 @@ static struct {
 #ifdef CONFIG_FB_SA1100
 	{ "sa1100fb", sa1100fb_init, NULL },
 #endif
+#ifdef CONFIG_FB_PXA
+	{ "pxafb", pxafb_init, pxafb_setup },
+#endif
 #ifdef CONFIG_FB_SUN3
 	{ "sun3fb", sun3fb_init, sun3fb_setup },
 #endif
@@ -383,6 +390,9 @@ static struct {
 #endif
 #ifdef CONFIG_FB_KYRO
 	{ "kyrofb", kyrofb_init, kyrofb_setup },
+#endif
+#ifdef CONFIG_FB_68328
+	{ "68328fb", mc68x328fb_init, mc68x328fb_setup },
 #endif
 
 	/*
@@ -425,12 +435,13 @@ static int ofonly __initdata = 0;
 /*
  * Drawing helpers.
  */
-u8 sys_inbuf(struct fb_info *info, u8 *src)
-{	
+static u8 fb_sys_inbuf(struct fb_info *info, u8 *src)
+{
 	return *src;
 }
 
-void sys_outbuf(struct fb_info *info, u8 *dst, u8 *src, unsigned int size)
+static void fb_sys_outbuf(struct fb_info *info, u8 *dst,
+				u8 *src, unsigned int size)
 {
 	memcpy(dst, src, size);
 }	
@@ -1027,7 +1038,7 @@ fb_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 	struct fb_con2fbmap con2fb;
 #endif
 	struct fb_cmap cmap;
-	int i, rc;
+	int i;
 	
 	if (!fb)
 		return -ENODEV;
@@ -1069,9 +1080,9 @@ fb_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		return 0;
 	case FBIO_CURSOR:
 		acquire_console_sem();
-		rc = fb_cursor(info, (struct fb_cursor *) arg);
+		i = fb_cursor(info, (struct fb_cursor *) arg);
 		release_console_sem();
-		return rc;
+		return i;
 #ifdef CONFIG_FRAMEBUFFER_CONSOLE
 	case FBIOGET_CON2FBMAP:
 		if (copy_from_user(&con2fb, (void *)arg, sizeof(con2fb)))
@@ -1299,14 +1310,15 @@ register_framebuffer(struct fb_info *fb_info)
 			fb_info->pixmap.size = FBPIXMAPSIZE;
 			fb_info->pixmap.buf_align = 1;
 			fb_info->pixmap.scan_align = 1;
+			fb_info->pixmap.access_align = 4;
 			fb_info->pixmap.flags = FB_PIXMAP_DEFAULT;
 		}
 	}	
 	fb_info->pixmap.offset = 0;
 	if (fb_info->pixmap.outbuf == NULL)
-		fb_info->pixmap.outbuf = sys_outbuf;
+		fb_info->pixmap.outbuf = fb_sys_outbuf;
 	if (fb_info->pixmap.inbuf == NULL)
-		fb_info->pixmap.inbuf = sys_inbuf;
+		fb_info->pixmap.inbuf = fb_sys_inbuf;
 
 	if (fb_info->sprite.addr == NULL) {
 		fb_info->sprite.addr = kmalloc(FBPIXMAPSIZE, GFP_KERNEL);
@@ -1314,14 +1326,15 @@ register_framebuffer(struct fb_info *fb_info)
 			fb_info->sprite.size = FBPIXMAPSIZE;
 			fb_info->sprite.buf_align = 1;
 			fb_info->sprite.scan_align = 1;
+			fb_info->sprite.access_align = 4;
 			fb_info->sprite.flags = FB_PIXMAP_DEFAULT;
 		}
 	}
 	fb_info->sprite.offset = 0;
 	if (fb_info->sprite.outbuf == NULL)
-		fb_info->sprite.outbuf = sys_outbuf;
+		fb_info->sprite.outbuf = fb_sys_outbuf;
 	if (fb_info->sprite.inbuf == NULL)
-		fb_info->sprite.inbuf = sys_inbuf;
+		fb_info->sprite.inbuf = fb_sys_inbuf;
 
 	registered_fb[i] = fb_info;
 

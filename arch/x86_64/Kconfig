@@ -239,7 +239,16 @@ config PREEMPT
 	  Say Y here if you are feeling brave and building a kernel for a 
 	  desktop, embedded or real-time system.  Say N if you are unsure. 
 
-# someone write a better help text please.
+config SCHED_SMT
+	bool "SMT (Hyperthreading) scheduler support"
+	depends on SMP
+	default off
+	help
+	  SMT scheduler support improves the CPU scheduler's decision making
+	  when dealing with Intel Pentium 4 chips with HyperThreading at a
+	  cost of slightly increased overhead in some places. If unsure say
+	  N here.
+
 config K8_NUMA
        bool "K8 NUMA support"
        depends on SMP
@@ -247,9 +256,9 @@ config K8_NUMA
 	  Enable NUMA (Non Unified Memory Architecture) support for
 	  AMD Opteron Multiprocessor systems. The kernel will try to allocate
 	  memory used by a CPU on the local memory controller of the CPU
-	  and in the future do more optimizations. This may improve performance 
-	  or it may not. Code is still experimental.
-	  Say N if unsure.
+	  and add some more NUMA awareness to the kernel.
+	  This code is recommended on all multiprocessor Opteron systems
+	  and normally doesn't hurt on others.
 
 config DISCONTIGMEM
        bool

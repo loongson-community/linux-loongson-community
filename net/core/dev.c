@@ -220,9 +220,15 @@ int netdev_fastroute;
 int netdev_fastroute_obstacles;
 #endif
 
+#ifdef CONFIG_SYSFS
 extern int netdev_sysfs_init(void);
 extern int netdev_register_sysfs(struct net_device *);
-extern int netdev_unregister_sysfs(struct net_device *);
+extern void netdev_unregister_sysfs(struct net_device *);
+#else
+#define netdev_sysfs_init()	 	(0)
+#define netdev_register_sysfs(dev)	(0)
+#define	netdev_unregister_sysfs(dev)	do { } while(0)
+#endif
 
 
 /*******************************************************************************
@@ -785,13 +791,15 @@ int dev_alloc_name(struct net_device *dev, const char *name)
 /**
  *	dev_change_name - change name of a device
  *	@dev: device
- *	@name: name (or format string) must be at least IFNAMSIZ
+ *	@newname: name (or format string) must be at least IFNAMSIZ
  *
  *	Change name of a device, can pass format strings "eth%d".
  *	for wildcarding.
  */
 int dev_change_name(struct net_device *dev, char *newname)
 {
+	int err = 0;
+
 	ASSERT_RTNL();
 
 	if (dev->flags & IFF_UP)
@@ -801,7 +809,7 @@ int dev_change_name(struct net_device *dev, char *newname)
 		return -EINVAL;
 
 	if (strchr(newname, '%')) {
-		int err = dev_alloc_name(dev, newname);
+		err = dev_alloc_name(dev, newname);
 		if (err < 0)
 			return err;
 		strcpy(newname, dev->name);
@@ -811,12 +819,14 @@ int dev_change_name(struct net_device *dev, char *newname)
 	else
 		strlcpy(dev->name, newname, IFNAMSIZ);
 
-	hlist_del(&dev->name_hlist);
-	hlist_add_head(&dev->name_hlist, dev_name_hash(dev->name));
+	err = class_device_rename(&dev->class_dev, dev->name);
+	if (!err) {
+		hlist_del(&dev->name_hlist);
+		hlist_add_head(&dev->name_hlist, dev_name_hash(dev->name));
+		notifier_call_chain(&netdev_chain, NETDEV_CHANGENAME, dev);
+	}
 
-	class_device_rename(&dev->class_dev, dev->name);
-	notifier_call_chain(&netdev_chain, NETDEV_CHANGENAME, dev);
-	return 0;
+	return err;
 }
 
 /**
@@ -2515,6 +2525,8 @@ static int dev_ifsioc(struct ifreq *ifr, unsigned int cmd)
 			    cmd == SIOCGMIIPHY ||
 			    cmd == SIOCGMIIREG ||
 			    cmd == SIOCSMIIREG ||
+			    cmd == SIOCBRADDIF ||
+			    cmd == SIOCBRDELIF ||
 			    cmd == SIOCWANDEV) {
 				err = -EOPNOTSUPP;
 				if (dev->do_ioctl) {
@@ -2669,6 +2681,8 @@ int dev_ioctl(unsigned int cmd, void __user *arg)
 		case SIOCBONDSLAVEINFOQUERY:
 		case SIOCBONDINFOQUERY:
 		case SIOCBONDCHANGEACTIVE:
+		case SIOCBRADDIF:
+		case SIOCBRDELIF:
 			if (!capable(CAP_NET_ADMIN))
 				return -EPERM;
 			dev_load(ifr.ifr_name);
@@ -2963,15 +2977,19 @@ static DECLARE_MUTEX(net_todo_run_mutex);
 void netdev_run_todo(void)
 {
 	struct list_head list = LIST_HEAD_INIT(list);
+	int err;
 
-	/* Safe outside mutex since we only care about entries that
-	 * this cpu put into queue while under RTNL.
-	 */
-	if (list_empty(&net_todo_list))
-		return;
 
 	/* Need to guard against multiple cpu's getting out of order. */
 	down(&net_todo_run_mutex);
+
+	/* Not safe to do outside the semaphore.  We must not return
+	 * until all unregister events invoked by the local processor
+	 * have been completed (either by this todo run, or one on
+	 * another cpu).
+	 */
+	if (list_empty(&net_todo_list))
+		goto out;
 
 	/* Snapshot list, allow later requests */
 	spin_lock(&net_todo_list_lock);
@@ -2985,7 +3003,10 @@ void netdev_run_todo(void)
 
 		switch(dev->reg_state) {
 		case NETREG_REGISTERING:
-			netdev_register_sysfs(dev);
+			err = netdev_register_sysfs(dev);
+			if (err)
+				printk(KERN_ERR "%s: failed sysfs registration (%d)\n",
+				       dev->name, err);
 			dev->reg_state = NETREG_REGISTERED;
 			break;
 
@@ -3016,6 +3037,7 @@ void netdev_run_todo(void)
 		}
 	}
 
+out:
 	up(&net_todo_run_mutex);
 }
 
@@ -3029,6 +3051,7 @@ void netdev_run_todo(void)
  */
 void free_netdev(struct net_device *dev)
 {
+#ifdef CONFIG_SYSFS
 	/*  Compatiablity with error handling in drivers */
 	if (dev->reg_state == NETREG_UNINITIALIZED) {
 		kfree((char *)dev - dev->padded);
@@ -3040,6 +3063,9 @@ void free_netdev(struct net_device *dev)
 
 	/* will free via class release */
 	class_device_put(&dev->class_dev);
+#else
+	kfree((char *)dev - dev->padded);
+#endif
 }
  
 /* Synchronize with packet receive processing. */

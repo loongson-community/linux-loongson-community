@@ -69,7 +69,7 @@ struct gbefb_par {
 #error GBE Framebuffer cannot use more than 8MB of memory
 #endif
 
-#define TILE_SHIFT 16 
+#define TILE_SHIFT 16
 #define TILE_SIZE (1 << TILE_SHIFT)
 #define TILE_MASK (TILE_SIZE - 1)
 
@@ -322,8 +322,8 @@ static void gbe_turn_on(void)
 	unsigned int val, i;
 
 	/*
-	 * Check if pixel counter is off, for unknown reason this 
-	 * code hangs Visual Workstations 
+	 * Check if pixel counter is off, for unknown reason this
+	 * code hangs Visual Workstations
 	 */
 	if (gbe_revision < 2) {
 		val = gbe->vt_xy;
@@ -407,9 +407,9 @@ static void gbefb_setup_flatpanel(struct gbe_timing_info *timing)
 	int fp_wid, fp_hgt, fp_vbs, fp_vbe;
 	u32 outputVal = 0;
 
-	SET_GBE_FIELD(VT_FLAGS, HDRV_INVERT, outputVal, 
+	SET_GBE_FIELD(VT_FLAGS, HDRV_INVERT, outputVal,
 		(timing->flags & FB_SYNC_HOR_HIGH_ACT) ? 0 : 1);
-	SET_GBE_FIELD(VT_FLAGS, VDRV_INVERT, outputVal, 
+	SET_GBE_FIELD(VT_FLAGS, VDRV_INVERT, outputVal,
 		(timing->flags & FB_SYNC_VERT_HIGH_ACT) ? 0 : 1);
 	gbe->vt_flags = outputVal;
 
@@ -477,7 +477,7 @@ static int compute_gbe_timing(struct fb_var_screeninfo *var,
 					error = -error;
 
 				if (error < best_error &&
-				    pll_m / pll_n > 
+				    pll_m / pll_n >
 				    gbe_pll->fvco_min / gbe_pll->clock_rate &&
  				    pll_m / pll_n <
 				    gbe_pll->fvco_max / gbe_pll->clock_rate) {
@@ -501,7 +501,7 @@ static int compute_gbe_timing(struct fb_var_screeninfo *var,
 		timing->pll_m = best_m;
 		timing->pll_n = best_n;
 		timing->pll_p = best_p;
-		timing->cfreq = gbe_pll->clock_rate * 1000 * timing->pll_m / 
+		timing->cfreq = gbe_pll->clock_rate * 1000 * timing->pll_m /
 			(timing->pll_n << timing->pll_p);
 		timing->htotal = var->left_margin + var->xres +
 				var->right_margin + var->hsync_len;
@@ -677,7 +677,7 @@ static int gbefb_set_par(struct fb_info *info)
 	gbe->vt_intr23 = 0xffffffff;
 
 	/* HACK:
-	   The GBE hardware uses a tiled memory to screen mapping. Tiles are 
+	   The GBE hardware uses a tiled memory to screen mapping. Tiles are
 	   blocks of 512x128, 256x128 or 128x128 pixels, respectively for 8bit,
 	   16bit and 32 bit modes (64 kB). They cover the screen with partial
 	   tiles on the right and/or bottom of the screen if needed.
@@ -699,14 +699,14 @@ static int gbefb_set_par(struct fb_info *info)
 	   32 offscreen
 
 	   Tiles have the advantage that they can be allocated individually in
-	   memory. However, this mapping is not linear at all, which is not 
-	   really convienient. In order to support linear addressing, the GBE 
-	   DMA hardware is fooled into thinking the screen is only one tile 
+	   memory. However, this mapping is not linear at all, which is not
+	   really convienient. In order to support linear addressing, the GBE
+	   DMA hardware is fooled into thinking the screen is only one tile
 	   large and but has a greater height, so that the DMA transfer covers
 	   the same region.
-	   Tiles are still allocated as independent chunks of 64KB of 
+	   Tiles are still allocated as independent chunks of 64KB of
 	   continuous physical memory and remapped so that the kernel sees the
-	   framebuffer as a continuous virtual memory. The GBE tile table is 
+	   framebuffer as a continuous virtual memory. The GBE tile table is
 	   set up so that each tile references one of these 64k blocks:
 
 	   GBE -> tile list    framebuffer           TLB   <------------ CPU
@@ -733,7 +733,7 @@ static int gbefb_set_par(struct fb_info *info)
 	       <      512     >        <  256 >               102*640+256 = 64k
 
 	   NOTE: The only mode for which this is not working is 800x600 8bit,
-	   as 800*600/512 = 937.5 which is not integer and thus causes 
+	   as 800*600/512 = 937.5 which is not integer and thus causes
 	   flickering.
 	   I guess this is not so important as one can use 640x480 8bit or
 	   800x600 16bit anyway.
@@ -999,7 +999,7 @@ static int gbefb_mmap(struct fb_info *info, struct file *file,
 
 	/* remap using the fastest write-through mode on architecture */
 	/* try not polluting the cache when possible */
-	pgprot_val(vma->vm_page_prot) = 
+	pgprot_val(vma->vm_page_prot) =
 		pgprot_fb(pgprot_val(vma->vm_page_prot));
 
 	vma->vm_flags |= VM_IO | VM_RESERVED;
@@ -1156,7 +1156,7 @@ int __init gbefb_init(void)
 		printk(KERN_ERR "gbefb: couldn't register framebuffer\n");
 		goto out_gbe_unmap;
 	}
-	
+
 	printk(KERN_INFO "fb%d: %s rev %d @ 0x%08x using %dkB memory\n",
 	       fb_info.node, fb_info.fix.id, gbe_revision, (unsigned) GBE_BASE,
 	       gbe_mem_size >> 10);
@@ -1166,7 +1166,7 @@ int __init gbefb_init(void)
 out_gbe_unmap:
 	if (gbe_dma_addr)
 		dma_free_coherent(NULL, gbe_mem_size, gbe_mem, gbe_mem_phys);
-	else	       
+	else
 		iounmap(gbe_mem);
 out_tiles_free:
 	dma_free_coherent(NULL, GBE_TLB_SIZE * sizeof(uint16_t),
@@ -1184,7 +1184,7 @@ void __exit gbefb_exit(void)
 	gbe_turn_off();
 	if (gbe_dma_addr)
 		dma_free_coherent(NULL, gbe_mem_size, gbe_mem, gbe_mem_phys);
-	else	       
+	else
 		iounmap(gbe_mem);
 	dma_free_coherent(NULL, GBE_TLB_SIZE * sizeof(uint16_t),
 			  (void *)gbe_tiles.cpu, gbe_tiles.dma);

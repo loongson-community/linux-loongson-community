@@ -1,7 +1,7 @@
 /*
  * logfile.c - NTFS kernel journal handling. Part of the Linux-NTFS project.
  *
- * Copyright (c) 2002-2004 Anton Altaparmakov.
+ * Copyright (c) 2002-2004 Anton Altaparmakov
  *
  * This program/include file is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as published
@@ -25,6 +25,7 @@
 #include <linux/fs.h>
 #include <linux/highmem.h>
 #include <linux/buffer_head.h>
+#include <linux/bitops.h>
 
 #include "logfile.h"
 #include "volume.h"
@@ -455,7 +456,11 @@ BOOL ntfs_check_logfile(struct inode *log_vi)
 	else
 		log_page_size = PAGE_CACHE_SIZE;
 	log_page_mask = log_page_size - 1;
-	log_page_bits = ffs(log_page_size) - 1;
+	/*
+	 * Use generic_ffs() instead of ffs() to enable the compiler to
+	 * optimize log_page_size and log_page_bits into constants.
+	 */
+	log_page_bits = generic_ffs(log_page_size) - 1;
 	size &= ~(log_page_size - 1);
 	/*
 	 * Ensure the log file is big enough to store at least the two restart

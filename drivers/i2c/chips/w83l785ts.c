@@ -32,6 +32,7 @@
 
 #include <linux/config.h>
 #include <linux/module.h>
+#include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/slab.h>
 #include <linux/i2c.h>
@@ -145,7 +146,7 @@ static DEVICE_ATTR(temp1_max, S_IRUGO, show_temp_over, NULL)
 
 static int w83l785ts_attach_adapter(struct i2c_adapter *adapter)
 {
-	if (!(adapter->class & I2C_ADAP_CLASS_SMBUS))
+	if (!(adapter->class & I2C_CLASS_HWMON))
 		return 0;
 	return i2c_detect(adapter, &addr_data, w83l785ts_detect);
 }
@@ -284,7 +285,7 @@ static u8 w83l785ts_read_value(struct i2c_client *client, u8 reg, u8 defval)
 		if (value >= 0)
 			return value;
 		dev_dbg(&client->dev, "Read failed, will retry in %d.\n", i);
-		i2c_delay(i);
+		msleep(i);
 	}
 
 	dev_err(&client->dev, "Couldn't read value from register. "

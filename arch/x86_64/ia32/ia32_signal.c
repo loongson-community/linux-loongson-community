@@ -98,6 +98,7 @@ int ia32_copy_siginfo_to_user(siginfo_t32 __user *to, siginfo_t *from)
 int ia32_copy_siginfo_from_user(siginfo_t *to, siginfo_t32 __user *from)
 {
 	int err;
+	u32 ptr32;
 	if (!access_ok (VERIFY_READ, from, sizeof(siginfo_t32)))
 		return -EFAULT;
 
@@ -107,7 +108,8 @@ int ia32_copy_siginfo_from_user(siginfo_t *to, siginfo_t32 __user *from)
 
 	err |= __get_user(to->si_pid, &from->si_pid);
 	err |= __get_user(to->si_uid, &from->si_uid);
-	err |= __get_user((u32)(u64)to->si_ptr, &from->si_ptr);
+	err |= __get_user(ptr32, &from->si_ptr);
+	to->si_ptr = (void*)(u64)ptr32;
 
 	return err;
 }
@@ -321,16 +323,8 @@ asmlinkage long sys32_rt_sigreturn(struct pt_regs regs)
 	if (ia32_restore_sigcontext(&regs, &frame->uc.uc_mcontext, &eax))
 		goto badframe;
 
-	if (__copy_from_user(&st, &frame->uc.uc_stack, sizeof(st)))
+	if (sys32_sigaltstack(&frame->uc.uc_stack, NULL, regs) == -EFAULT)
 		goto badframe;
-	/* It is more difficult to avoid calling this function than to
-	   call it and ignore errors.  */
-	{
-		mm_segment_t oldds = get_fs(); 
-		set_fs(KERNEL_DS); 
-		do_sigaltstack(&st, NULL, regs.rsp);
-		set_fs(oldds);  
-	}
 
 	return eax;
 

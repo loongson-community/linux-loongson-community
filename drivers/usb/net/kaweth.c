@@ -123,9 +123,10 @@ static int kaweth_probe(
 		const struct usb_device_id *id	/* from id_table */
 	);
 static void kaweth_disconnect(struct usb_interface *intf);
-int kaweth_internal_control_msg(struct usb_device *usb_dev, unsigned int pipe,
-				struct usb_ctrlrequest *cmd, void *data,
-				int len, int timeout);
+static int kaweth_internal_control_msg(struct usb_device *usb_dev,
+				       unsigned int pipe,
+				       struct usb_ctrlrequest *cmd, void *data,
+				       int len, int timeout);
 
 /****************************************************************
  *     usb_device_id
@@ -1239,20 +1240,21 @@ static int usb_start_wait_urb(struct urb *urb, int timeout, int* actual_length)
         init_waitqueue_head(&awd.wqh);
         awd.done = 0;
 
-        set_current_state(TASK_INTERRUPTIBLE);
         add_wait_queue(&awd.wqh, &wait);
         urb->context = &awd;
-        status = usb_submit_urb(urb, GFP_ATOMIC);
+        status = usb_submit_urb(urb, GFP_NOIO);
         if (status) {
                 // something went wrong
                 usb_free_urb(urb);
-                set_current_state(TASK_RUNNING);
                 remove_wait_queue(&awd.wqh, &wait);
                 return status;
         }
 
-	while (timeout && !awd.done)
+	set_current_state(TASK_UNINTERRUPTIBLE);
+	while (timeout && !awd.done) {
 		timeout = schedule_timeout(timeout);
+		set_current_state(TASK_UNINTERRUPTIBLE);
+	}
 
         set_current_state(TASK_RUNNING);
         remove_wait_queue(&awd.wqh, &wait);
@@ -1277,9 +1279,10 @@ static int usb_start_wait_urb(struct urb *urb, int timeout, int* actual_length)
 
 /*-------------------------------------------------------------------*/
 // returns status (negative) or length (positive)
-int kaweth_internal_control_msg(struct usb_device *usb_dev, unsigned int pipe,
-                            struct usb_ctrlrequest *cmd, void *data, int len,
-			    int timeout)
+static int kaweth_internal_control_msg(struct usb_device *usb_dev,
+				       unsigned int pipe,
+				       struct usb_ctrlrequest *cmd, void *data,
+				       int len, int timeout)
 {
         struct urb *urb;
         int retv;
@@ -1305,7 +1308,7 @@ int kaweth_internal_control_msg(struct usb_device *usb_dev, unsigned int pipe,
 /****************************************************************
  *     kaweth_init
  ****************************************************************/
-int __init kaweth_init(void)
+static int __init kaweth_init(void)
 {
 	kaweth_dbg("Driver loading");
 	return usb_register(&kaweth_driver);
@@ -1314,7 +1317,7 @@ int __init kaweth_init(void)
 /****************************************************************
  *     kaweth_exit
  ****************************************************************/
-void __exit kaweth_exit(void)
+static void __exit kaweth_exit(void)
 {
 	usb_deregister(&kaweth_driver);
 }

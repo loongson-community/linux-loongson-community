@@ -182,7 +182,6 @@ CONFIG_TRAD_SIGNALS=y
 #
 # Fusion MPT device support
 #
-# CONFIG_FUSION is not set
 
 #
 # IEEE 1394 (FireWire) support
@@ -270,8 +269,9 @@ CONFIG_MII=y
 # CONFIG_NET_PCI is not set
 
 #
-# Ethernet (1000 Mbit)
+# Gigabit Ethernet (1000/10000 Mbit)
 #
+CONFIG_NET_GIGE=y
 # CONFIG_ACENIC is not set
 # CONFIG_DL2K is not set
 # CONFIG_E1000 is not set
@@ -281,10 +281,6 @@ CONFIG_MII=y
 # CONFIG_SK98LIN is not set
 # CONFIG_TIGON3 is not set
 CONFIG_TITAN_GE=y
-
-#
-# Ethernet (10000 Mbit)
-#
 # CONFIG_IXGB is not set
 # CONFIG_S2IO is not set
 

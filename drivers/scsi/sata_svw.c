@@ -1,5 +1,10 @@
 /*
- *  ata_k2.c - Broadcom (Apple K2) SATA
+ *  sata_svw.c - ServerWorks / Apple K2 SATA
+ *
+ *  Maintained by: Benjamin Herrenschmidt <benh@kernel.crashing.org> and
+ *		   Jeff Garzik <jgarzik@pobox.com>
+ *  		    Please ALWAYS copy linux-ide@vger.kernel.org
+ *		    on emails.
  *
  *  Copyright 2003 Benjamin Herrenschmidt <benh@kernel.crashing.org>
  *
@@ -226,6 +231,7 @@ static struct ata_port_operations k2_sata_ops = {
 	.check_status		= k2_stat_check_status,
 	.exec_command		= ata_exec_command_mmio,
 	.phy_reset		= sata_phy_reset,
+	.bmdma_setup            = ata_bmdma_setup_mmio,
 	.bmdma_start            = ata_bmdma_start_mmio,
 	.fill_sg		= ata_fill_sg,
 	.eng_timeout		= ata_eng_timeout,

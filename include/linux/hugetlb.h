@@ -3,6 +3,8 @@
 
 #ifdef CONFIG_HUGETLB_PAGE
 
+#include <linux/mempolicy.h>
+
 struct ctl_table;
 
 static inline int is_vm_hugetlb_page(struct vm_area_struct *vma)
@@ -30,6 +32,7 @@ void free_huge_page(struct page *);
 
 extern unsigned long max_huge_pages;
 extern const unsigned long hugetlb_zero, hugetlb_infinity;
+extern int sysctl_hugetlb_shm_group;
 
 static inline void
 mark_mm_hugetlb(struct mm_struct *mm, struct vm_area_struct *vma)
@@ -102,6 +105,17 @@ struct hugetlbfs_sb_info {
 	long	free_inodes;  /* inodes free */
 	spinlock_t	stat_lock;
 };
+
+
+struct hugetlbfs_inode_info {
+	struct shared_policy policy;
+	struct inode vfs_inode;
+};
+
+static inline struct hugetlbfs_inode_info *HUGETLBFS_I(struct inode *inode)
+{
+	return container_of(inode, struct hugetlbfs_inode_info, vfs_inode);
+}
 
 static inline struct hugetlbfs_sb_info *HUGETLBFS_SB(struct super_block *sb)
 {

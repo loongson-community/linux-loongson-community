@@ -190,6 +190,7 @@ CONFIG_IDE_TASKFILE_IO=y
 # IDE chipset support/bugfixes
 #
 CONFIG_IDE_GENERIC=y
+# CONFIG_IDE_ARM is not set
 # CONFIG_IDE_CHIPSETS is not set
 # CONFIG_BLK_DEV_IDEDMA is not set
 # CONFIG_IDEDMA_AUTO is not set
@@ -315,11 +316,7 @@ CONFIG_NET_ETHERNET=y
 # CONFIG_NET_POCKET is not set
 
 #
-# Ethernet (1000 Mbit)
-#
-
-#
-# Ethernet (10000 Mbit)
+# Gigabit Ethernet (1000/10000 Mbit)
 #
 
 #
@@ -573,7 +570,6 @@ CONFIG_SUNRPC=y
 # CONFIG_CIFS is not set
 # CONFIG_NCP_FS is not set
 # CONFIG_CODA_FS is not set
-# CONFIG_INTERMEZZO_FS is not set
 # CONFIG_AFS_FS is not set
 
 #

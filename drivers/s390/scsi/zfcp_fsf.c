@@ -29,7 +29,7 @@
  */
 
 /* this drivers version (do not edit !!! generated and updated by cvs) */
-#define ZFCP_FSF_C_REVISION "$Revision: 1.45 $"
+#define ZFCP_FSF_C_REVISION "$Revision: 1.47 $"
 
 #include "zfcp_ext.h"
 
@@ -412,7 +412,7 @@ zfcp_fsf_protstatus_eval(struct zfcp_fsf_req *fsf_req)
 		fsf_req->status |= ZFCP_STATUS_FSFREQ_ERROR;
 		atomic_set_mask(ZFCP_STATUS_ADAPTER_HOST_CON_INIT,
 				&(adapter->status));
-		debug_text_event(adapter->erp_dbf, 4, "prot_con_init");
+		debug_text_event(adapter->erp_dbf, 3, "prot_con_init");
 		break;
 
 	case FSF_PROT_DUPLICATE_REQUEST_ID:
@@ -4809,9 +4809,6 @@ zfcp_fsf_req_create(struct zfcp_adapter *adapter, u32 fsf_cmd, int req_flags,
 	goto success;
 
  failed_sbals:
-#ifdef ZFCP_STAT_QUEUES
-	atomic_inc(&zfcp_data.outbound_queue_full);
-#endif
 /* dequeue new FSF request previously enqueued */
 	zfcp_fsf_req_free(fsf_req);
 	fsf_req = NULL;
@@ -4948,9 +4945,6 @@ zfcp_fsf_req_send(struct zfcp_fsf_req *fsf_req, struct timer_list *timer)
 		}
 		/* count FSF requests pending */
 		atomic_inc(&adapter->fsf_reqs_active);
-#ifdef ZFCP_STAT_QUEUES
-		atomic_inc(&zfcp_data.outbound_total);
-#endif
 	}
 	return retval;
 }

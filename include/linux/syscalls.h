@@ -19,6 +19,7 @@ struct io_event;
 struct iovec;
 struct itimerspec;
 struct itimerval;
+struct kexec_segment;
 struct linux_dirent;
 struct linux_dirent64;
 struct list_head;
@@ -154,10 +155,12 @@ asmlinkage long sys_shutdown(int, int);
 asmlinkage long sys_reboot(int magic1, int magic2, unsigned int cmd,
 				void __user *arg);
 asmlinkage long sys_restart_syscall(void);
+asmlinkage long sys_kexec_load(void *entry, unsigned long nr_segments,
+			struct kexec_segment *segments, unsigned long flags);
 
 asmlinkage long sys_exit(int error_code);
 asmlinkage void sys_exit_group(int error_code);
-asmlinkage long sys_wait4(pid_t pid, unsigned int *stat_addr,
+asmlinkage long sys_wait4(pid_t pid, unsigned int __user *stat_addr,
 				int options, struct rusage __user *ru);
 asmlinkage long sys_waitpid(pid_t pid, unsigned int __user *stat_addr, int options);
 asmlinkage long sys_set_tid_address(int __user *tidptr);
@@ -253,7 +256,7 @@ asmlinkage long sys_mprotect(unsigned long start, size_t len,
 asmlinkage unsigned long sys_mremap(unsigned long addr,
 				unsigned long old_len, unsigned long new_len,
 				unsigned long flags, unsigned long new_addr);
-long sys_remap_file_pages(unsigned long start, unsigned long size,
+asmlinkage long sys_remap_file_pages(unsigned long start, unsigned long size,
 			unsigned long prot, unsigned long pgoff,
 			unsigned long flags);
 asmlinkage long sys_msync(unsigned long start, size_t len, int flags);

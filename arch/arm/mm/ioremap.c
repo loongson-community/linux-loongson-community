@@ -20,6 +20,7 @@
  * We use MMU protection domains to trap any attempt to access the bank
  * that is not currently mapped.  (This isn't fully implemented yet.)
  */
+#include <linux/module.h>
 #include <linux/errno.h>
 #include <linux/mm.h>
 #include <linux/vmalloc.h>
@@ -162,8 +163,10 @@ __ioremap(unsigned long phys_addr, size_t size, unsigned long flags,
 	}
 	return (void *) (offset + (char *)addr);
 }
+EXPORT_SYMBOL(__ioremap);
 
 void __iounmap(void *addr)
 {
 	vfree((void *) (PAGE_MASK & (unsigned long) addr));
 }
+EXPORT_SYMBOL(__iounmap);

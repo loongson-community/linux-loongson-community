@@ -334,6 +334,8 @@ struct request_queue
 	 * queue settings
 	 */
 	unsigned long		nr_requests;	/* Max # of requests */
+	unsigned int		nr_congestion_on;
+	unsigned int		nr_congestion_off;
 
 	unsigned short		max_sectors;
 	unsigned short		max_phys_segments;
@@ -515,7 +517,7 @@ extern int blk_remove_plug(request_queue_t *);
 extern void blk_recount_segments(request_queue_t *, struct bio *);
 extern int blk_phys_contig_segment(request_queue_t *q, struct bio *, struct bio *);
 extern int blk_hw_contig_segment(request_queue_t *q, struct bio *, struct bio *);
-extern int scsi_cmd_ioctl(struct gendisk *, unsigned int, unsigned long);
+extern int scsi_cmd_ioctl(struct gendisk *, unsigned int, void __user *);
 extern void blk_start_queue(request_queue_t *q);
 extern void blk_stop_queue(request_queue_t *q);
 extern void __blk_stop_queue(request_queue_t *q);
@@ -530,16 +532,17 @@ static inline request_queue_t *bdev_get_queue(struct block_device *bdev)
 	return bdev->bd_disk->queue;
 }
 
-static inline void blk_run_backing_dev(struct backing_dev_info *bdi)
+static inline void blk_run_backing_dev(struct backing_dev_info *bdi,
+				       struct page *page)
 {
 	if (bdi && bdi->unplug_io_fn)
-		bdi->unplug_io_fn(bdi);
+		bdi->unplug_io_fn(bdi, page);
 }
 
 static inline void blk_run_address_space(struct address_space *mapping)
 {
 	if (mapping)
-		blk_run_backing_dev(mapping->backing_dev_info);
+		blk_run_backing_dev(mapping->backing_dev_info, NULL);
 }
 
 /*

@@ -105,7 +105,7 @@ static inline run_list_element *ntfs_rl_realloc(run_list_element *rl,
  * It is up to the caller to serialize access to the run lists @dst and @src.
  *
  * Return: TRUE   Success, the run lists can be merged.
- *         FALSE  Failure, the run lists cannot be merged.
+ *	   FALSE  Failure, the run lists cannot be merged.
  */
 static inline BOOL ntfs_are_rl_mergeable(run_list_element *dst,
 		run_list_element *src)
@@ -151,7 +151,7 @@ static inline void __ntfs_rl_merge(run_list_element *dst, run_list_element *src)
  * It is up to the caller to serialize access to the run lists @dst and @src.
  *
  * Return: TRUE   Success, the run lists have been merged.
- *         FALSE  Failure, the run lists cannot be merged and have not been
+ *	   FALSE  Failure, the run lists cannot be merged and have not been
  *		  modified.
  */
 static inline BOOL ntfs_rl_merge(run_list_element *dst, run_list_element *src)
@@ -264,9 +264,9 @@ static inline run_list_element *ntfs_rl_insert(run_list_element *dst,
 	BUG_ON(!src);
 
 	/* disc => Discontinuity between the end of @dst and the start of @src.
-	 *         This means we might need to insert a hole.
+	 *	   This means we might need to insert a hole.
 	 * hole => @dst ends with a hole or an unmapped region which we can
-	 *         extend to match the discontinuity. */
+	 *	   extend to match the discontinuity. */
 	if (loc == 0)
 		disc = (src[0].vcn > 0);
 	else {
@@ -444,7 +444,7 @@ static inline run_list_element *ntfs_rl_split(run_list_element *dst, int dsize,
 	ntfs_rl_mc(dst, loc + 1, src, 0, ssize);
 
 	/* Adjust the size of the holes either size of @src. */
-	dst[loc].length         = dst[loc+1].vcn       - dst[loc].vcn;
+	dst[loc].length		= dst[loc+1].vcn       - dst[loc].vcn;
 	dst[loc+ssize+1].vcn    = dst[loc+ssize].vcn   + dst[loc+ssize].length;
 	dst[loc+ssize+1].length = dst[loc+ssize+2].vcn - dst[loc+ssize+1].vcn;
 
@@ -504,7 +504,7 @@ run_list_element *ntfs_merge_run_lists(run_list_element *drl,
 	ntfs_debug_dump_runlist(srl);
 #endif
 
- 	/* Check for silly calling... */
+	/* Check for silly calling... */
 	if (unlikely(!srl))
 		return drl;
 	if (unlikely(IS_ERR(srl) || IS_ERR(drl)))
@@ -706,9 +706,9 @@ critical_error:
  *
  * The following error codes are defined:
  *	-ENOMEM	- Not enough memory to allocate run list array.
- * 	-EIO	- Corrupt run list.
- * 	-EINVAL	- Invalid parameters were passed in.
- * 	-ERANGE	- The two run lists overlap.
+ *	-EIO	- Corrupt run list.
+ *	-EINVAL	- Invalid parameters were passed in.
+ *	-ERANGE	- The two run lists overlap.
  *
  * FIXME: For now we take the conceptionally simplest approach of creating the
  * new run list disregarding the already existing one and then splicing the
@@ -719,7 +719,7 @@ run_list_element *decompress_mapping_pairs(const ntfs_volume *vol,
 		const ATTR_RECORD *attr, run_list_element *old_rl)
 {
 	VCN vcn;		/* Current vcn. */
-	LCN lcn; 		/* Current lcn. */
+	LCN lcn;		/* Current lcn. */
 	s64 deltaxcn;		/* Change in [vl]cn. */
 	run_list_element *rl;	/* The output run list. */
 	u8 *buf;		/* Current position in mapping pairs array. */
@@ -769,7 +769,7 @@ run_list_element *decompress_mapping_pairs(const ntfs_volume *vol,
 		 */
 		if (((rlpos + 3) * sizeof(*old_rl)) > rlsize) {
 			run_list_element *rl2;
-			
+
 			rl2 = ntfs_malloc_nofs(rlsize + (int)PAGE_SIZE);
 			if (unlikely(!rl2)) {
 				ntfs_free(rl);
@@ -946,7 +946,7 @@ int map_run_list(ntfs_inode *ni, VCN vcn)
 	attr_search_context *ctx;
 	MFT_RECORD *mrec;
 	int err = 0;
-	
+
 	ntfs_debug("Mapping run list part containing vcn 0x%llx.",
 			(unsigned long long)vcn);
 
@@ -983,7 +983,7 @@ int map_run_list(ntfs_inode *ni, VCN vcn)
 			ni->run_list.rl = rl;
 	}
 	up_write(&ni->run_list.lock);
-	
+
 	put_attr_search_ctx(ctx);
 err_out:
 	unmap_mft_record(base_ni);
@@ -1096,13 +1096,13 @@ LCN vcn_to_lcn(const run_list_element *rl, const VCN vcn)
  * Warning: Never use @val when looking for attribute types which can be
  *	    non-resident as this most likely will result in a crash!
  */
-BOOL find_attr(const ATTR_TYPES type, const uchar_t *name, const u32 name_len,
+BOOL find_attr(const ATTR_TYPES type, const ntfschar *name, const u32 name_len,
 		const IGNORE_CASE_BOOL ic, const u8 *val, const u32 val_len,
 		attr_search_context *ctx)
 {
 	ATTR_RECORD *a;
 	ntfs_volume *vol;
-	uchar_t *upcase;
+	ntfschar *upcase;
 	u32 upcase_len;
 
 	if (ic == IGNORE_CASE) {
@@ -1145,12 +1145,12 @@ BOOL find_attr(const ATTR_TYPES type, const uchar_t *name, const u32 name_len,
 			if (a->name_length)
 				return FALSE;
 		} else if (!ntfs_are_names_equal(name, name_len,
-			    (uchar_t*)((u8*)a + le16_to_cpu(a->name_offset)),
+			    (ntfschar*)((u8*)a + le16_to_cpu(a->name_offset)),
 			    a->name_length, ic, upcase, upcase_len)) {
 			register int rc;
-			
+
 			rc = ntfs_collate_names(name, name_len,
-					(uchar_t*)((u8*)a +
+					(ntfschar*)((u8*)a +
 						le16_to_cpu(a->name_offset)),
 					a->name_length, 1, IGNORE_CASE,
 					upcase, upcase_len);
@@ -1162,9 +1162,9 @@ BOOL find_attr(const ATTR_TYPES type, const uchar_t *name, const u32 name_len,
 				return FALSE;
 			/* If the strings are not equal, continue search. */
 			if (rc)
-	 			continue;
+				continue;
 			rc = ntfs_collate_names(name, name_len,
-					(uchar_t*)((u8*)a +
+					(ntfschar*)((u8*)a +
 						le16_to_cpu(a->name_offset)),
 					a->name_length, 1, CASE_SENSITIVE,
 					upcase, upcase_len);
@@ -1354,7 +1354,7 @@ err_out:
  * and if there is not enough space, the attribute should be placed in an
  * extent mft record.
  */
-static BOOL find_external_attr(const ATTR_TYPES type, const uchar_t *name,
+static BOOL find_external_attr(const ATTR_TYPES type, const ntfschar *name,
 		const u32 name_len, const IGNORE_CASE_BOOL ic,
 		const VCN lowest_vcn, const u8 *val, const u32 val_len,
 		attr_search_context *ctx)
@@ -1364,7 +1364,7 @@ static BOOL find_external_attr(const ATTR_TYPES type, const uchar_t *name,
 	ATTR_LIST_ENTRY *al_entry, *next_al_entry;
 	u8 *al_start, *al_end;
 	ATTR_RECORD *a;
-	uchar_t *al_name;
+	ntfschar *al_name;
 	u32 al_name_len;
 
 	ni = ctx->ntfs_ino;
@@ -1417,7 +1417,7 @@ static BOOL find_external_attr(const ATTR_TYPES type, const uchar_t *name,
 		 * missing, assume we want an unnamed attribute.
 		 */
 		al_name_len = al_entry->name_length;
-		al_name = (uchar_t*)((u8*)al_entry + al_entry->name_offset);
+		al_name = (ntfschar*)((u8*)al_entry + al_entry->name_offset);
 		if (!name) {
 			if (al_name_len)
 				goto not_found;
@@ -1461,12 +1461,12 @@ static BOOL find_external_attr(const ATTR_TYPES type, const uchar_t *name,
 		if (lowest_vcn && (u8*)next_al_entry >= al_start	    &&
 				(u8*)next_al_entry + 6 < al_end		    &&
 				(u8*)next_al_entry + le16_to_cpu(
-					next_al_entry->length) <= al_end    &&	
+					next_al_entry->length) <= al_end    &&
 				sle64_to_cpu(next_al_entry->lowest_vcn) <=
 					sle64_to_cpu(lowest_vcn)	    &&
 				next_al_entry->type == al_entry->type	    &&
 				next_al_entry->name_length == al_name_len   &&
-				ntfs_are_names_equal((uchar_t*)((u8*)
+				ntfs_are_names_equal((ntfschar*)((u8*)
 					next_al_entry +
 					next_al_entry->name_offset),
 					next_al_entry->name_length,
@@ -1539,7 +1539,7 @@ do_next_attr_loop:
 		if (name) {
 			if (a->name_length != al_name_len)
 				continue;
-			if (!ntfs_are_names_equal((uchar_t*)((u8*)a +
+			if (!ntfs_are_names_equal((ntfschar*)((u8*)a +
 					le16_to_cpu(a->name_offset)),
 					a->name_length, al_name, al_name_len,
 					CASE_SENSITIVE, vol->upcase,
@@ -1623,9 +1623,10 @@ not_found:
  * being searched for, i.e. if one wants to add the attribute to the mft
  * record this is the correct place to insert it into.
  */
-BOOL lookup_attr(const ATTR_TYPES type, const uchar_t *name, const u32 name_len,
-		const IGNORE_CASE_BOOL ic, const VCN lowest_vcn, const u8 *val,
-		const u32 val_len, attr_search_context *ctx)
+BOOL lookup_attr(const ATTR_TYPES type, const ntfschar *name,
+		const u32 name_len, const IGNORE_CASE_BOOL ic,
+		const VCN lowest_vcn, const u8 *val, const u32 val_len,
+		attr_search_context *ctx)
 {
 	ntfs_inode *base_ni;
 

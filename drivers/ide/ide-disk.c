@@ -358,13 +358,6 @@ ide_startstop_t __ide_do_rw_disk (ide_drive_t *drive, struct request *rq, sector
 
 	nsectors.all		= (u16) rq->nr_sectors;
 
-	if (drive->using_tcq && idedisk_start_tag(drive, rq)) {
-		if (!ata_pending_commands(drive))
-			BUG();
-
-		return ide_started;
-	}
-
 	if (IDE_CONTROL_REG)
 		hwif->OUTB(drive->ctl, IDE_CONTROL_REG);
 
@@ -482,7 +475,7 @@ ide_startstop_t __ide_do_rw_disk (ide_drive_t *drive, struct request *rq, sector
 			   ((lba48) ? WIN_READ_EXT : WIN_READ));
 		ide_execute_command(drive, command, &read_intr, WAIT_CMD, NULL);
 		return ide_started;
-	} else if (rq_data_dir(rq) == WRITE) {
+	} else {
 		ide_startstop_t startstop;
 #ifdef CONFIG_BLK_DEV_IDE_TCQ
 		if (blk_rq_tagged(rq))
@@ -520,9 +513,6 @@ ide_startstop_t __ide_do_rw_disk (ide_drive_t *drive, struct request *rq, sector
 		}
 		return ide_started;
 	}
-	blk_dump_rq_flags(rq, "__ide_do_rw_disk - bad command");
-	ide_end_request(drive, 0, 0);
-	return ide_stopped;
 }
 EXPORT_SYMBOL_GPL(__ide_do_rw_disk);
 
@@ -539,26 +529,11 @@ static ide_startstop_t lba_48_rw_disk(ide_drive_t *, struct request *, unsigned 
  */
 ide_startstop_t __ide_do_rw_disk (ide_drive_t *drive, struct request *rq, sector_t block)
 {
-	BUG_ON(drive->blocked);
-	if (!blk_fs_request(rq)) {
-		blk_dump_rq_flags(rq, "__ide_do_rw_disk - bad command");
-		ide_end_request(drive, 0, 0);
-		return ide_stopped;
-	}
-
 	/*
 	 * 268435455  == 137439 MB or 28bit limit
 	 *
 	 * need to add split taskfile operations based on 28bit threshold.
 	 */
-
-	if (drive->using_tcq && idedisk_start_tag(drive, rq)) {
-		if (!ata_pending_commands(drive))
-			BUG();
-
-		return ide_started;
-	}
-
 	if (drive->addressing == 1)		/* 48-bit LBA */
 		return lba_48_rw_disk(drive, rq, (unsigned long long) block);
 	if (drive->select.b.lba)		/* 28-bit LBA */
@@ -734,13 +709,26 @@ static ide_startstop_t ide_do_rw_disk (ide_drive_t *drive, struct request *rq, s
 {
 	ide_hwif_t *hwif = HWIF(drive);
 
+	BUG_ON(drive->blocked);
+
+	if (!blk_fs_request(rq)) {
+		blk_dump_rq_flags(rq, "ide_do_rw_disk - bad command");
+		ide_end_request(drive, 0, 0);
+		return ide_stopped;
+	}
+
+	if (drive->using_tcq && idedisk_start_tag(drive, rq)) {
+		if (!ata_pending_commands(drive))
+			BUG();
+
+		return ide_started;
+	}
+
 	if (hwif->rw_disk)
 		return hwif->rw_disk(drive, rq, block);
 	else
 		return __ide_do_rw_disk(drive, rq, block);
 }
-
-static int do_idedisk_flushcache(ide_drive_t *drive);
 
 static u8 idedisk_dump_status (ide_drive_t *drive, const char *msg, u8 stat)
 {
@@ -1359,11 +1347,18 @@ static int set_nowerr(ide_drive_t *drive, int arg)
 	return 0;
 }
 
+/* check if CACHE FLUSH (EXT) command is supported (bits defined in ATA-6) */
+#define ide_id_has_flush_cache(id)	((id)->cfs_enable_2 & 0x3000)
+
+/* some Maxtor disks have bit 13 defined incorrectly so check bit 10 too */
+#define ide_id_has_flush_cache_ext(id)	\
+	(((id)->cfs_enable_2 & 0x2400) == 0x2400)
+
 static int write_cache (ide_drive_t *drive, int arg)
 {
 	ide_task_t args;
 
-	if (!(drive->id->cfs_enable_2 & 0x3000))
+	if (!ide_id_has_flush_cache(drive->id))
 		return 1;
 
 	memset(&args, 0, sizeof(ide_task_t));
@@ -1383,7 +1378,7 @@ static int do_idedisk_flushcache (ide_drive_t *drive)
 	ide_task_t args;
 
 	memset(&args, 0, sizeof(ide_task_t));
-	if (drive->id->cfs_enable_2 & 0x2400)
+	if (ide_id_has_flush_cache_ext(drive->id))
 		args.tfRegister[IDE_COMMAND_OFFSET]	= WIN_FLUSH_CACHE_EXT;
 	else
 		args.tfRegister[IDE_COMMAND_OFFSET]	= WIN_FLUSH_CACHE;
@@ -1513,11 +1508,11 @@ static ide_startstop_t idedisk_start_power_step (ide_drive_t *drive, struct requ
 	switch (rq->pm->pm_step) {
 	case idedisk_pm_flush_cache:	/* Suspend step 1 (flush cache) */
 		/* Not supported? Switch to next step now. */
-		if (!drive->wcache) {
+		if (!drive->wcache || !ide_id_has_flush_cache(drive->id)) {
 			idedisk_complete_power_step(drive, rq, 0, 0);
 			return ide_stopped;
 		}
-		if (drive->id->cfs_enable_2 & 0x2400)
+		if (ide_id_has_flush_cache_ext(drive->id))
 			args->tfRegister[IDE_COMMAND_OFFSET] = WIN_FLUSH_CACHE_EXT;
 		else
 			args->tfRegister[IDE_COMMAND_OFFSET] = WIN_FLUSH_CACHE;
@@ -1678,8 +1673,12 @@ static void idedisk_setup (ide_drive_t *drive)
 #endif	/* CONFIG_IDEDISK_MULTI_MODE */
 	}
 	drive->no_io_32bit = id->dword_io ? 1 : 0;
-	if (drive->id->cfs_enable_2 & 0x3000)
-		write_cache(drive, (id->cfs_enable_2 & 0x3000));
+
+	/* write cache enabled? */
+	if ((id->csfo & 1) || (id->cfs_enable_1 & (1 << 5)))
+		drive->wcache = 1;
+
+	write_cache(drive, 1);
 
 #ifdef CONFIG_BLK_DEV_IDE_TCQ_DEFAULT
 	if (drive->using_dma)
@@ -1687,9 +1686,17 @@ static void idedisk_setup (ide_drive_t *drive)
 #endif
 }
 
+static void ide_cacheflush_p(ide_drive_t *drive)
+{
+	if (!drive->wcache || !ide_id_has_flush_cache(drive->id))
+		return;
+
+	if (do_idedisk_flushcache(drive))
+		printk(KERN_INFO "%s: wcache flush failed!\n", drive->name);
+}
+
 static int idedisk_cleanup (ide_drive_t *drive)
 {
-	static int ide_cacheflush_p(ide_drive_t *drive);
 	struct gendisk *g = drive->disk;
 	ide_cacheflush_p(drive);
 	if (ide_unregister_subdriver(drive))
@@ -1705,6 +1712,11 @@ static int idedisk_attach(ide_drive_t *drive);
 static void ide_device_shutdown(struct device *dev)
 {
 	ide_drive_t *drive = container_of(dev, ide_drive_t, gendev);
+
+	if (system_state == SYSTEM_RESTART) {
+		ide_cacheflush_p(drive);
+		return;
+	}
 
 	printk("Shutdown: %s\n", drive->name);
 	dev->bus->suspend(dev, PM_SUSPEND_STANDBY);
@@ -1740,7 +1752,6 @@ static ide_driver_t idedisk_driver = {
 
 static int idedisk_open(struct inode *inode, struct file *filp)
 {
-	u8 cf;
 	ide_drive_t *drive = inode->i_bdev->bd_disk->private_data;
 	drive->usage++;
 	if (drive->removable && drive->usage == 1) {
@@ -1757,35 +1768,6 @@ static int idedisk_open(struct inode *inode, struct file *filp)
 		 */
 		if (drive->doorlocking && ide_raw_taskfile(drive, &args, NULL))
 			drive->doorlocking = 0;
-	}
-	drive->wcache = 0;
-	/* Cache enabled? */
-	if (drive->id->csfo & 1)
-		drive->wcache = 1;
-	/* Cache command set available? */
-	if (drive->id->cfs_enable_1 & (1 << 5))
-		drive->wcache = 1;
-	/* ATA6 cache extended commands */
-	cf = drive->id->command_set_2 >> 24;
-	if ((cf & 0xC0) == 0x40 && (cf & 0x30) != 0)
-		drive->wcache = 1;
-	return 0;
-}
-
-static int ide_cacheflush_p(ide_drive_t *drive)
-{
-	if (!(drive->id->cfs_enable_2 & 0x3000))
-		return 0;
-
-	if(drive->wcache)
-	{
-		if (do_idedisk_flushcache(drive))
-		{
-			printk (KERN_INFO "%s: Write Cache FAILED Flushing!\n",
-				drive->name);
-			return -EIO;
-		}
-		return 1;
 	}
 	return 0;
 }
@@ -1867,10 +1849,7 @@ static int idedisk_attach(ide_drive_t *drive)
 	if ((!drive->head || drive->head > 16) && !drive->select.b.lba) {
 		printk(KERN_ERR "%s: INVALID GEOMETRY: %d PHYSICAL HEADS?\n",
 			drive->name, drive->head);
-		if ((drive->id->cfs_enable_2 & 0x3000) && drive->wcache)
-			if (do_idedisk_flushcache(drive))
-				printk (KERN_INFO "%s: Write Cache FAILED Flushing!\n",
-					drive->name);
+		ide_cacheflush_p(drive);
 		ide_unregister_subdriver(drive);
 		DRIVER(drive)->busy--;
 		goto failed;

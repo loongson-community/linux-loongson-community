@@ -1211,7 +1211,7 @@ struct cpu_spec {
 	unsigned int	cpu_od;		/* Set Config[OD] */
 	unsigned int	cpu_bclk;	/* Enable BCLK switching */
 };
- 
+
 extern struct cpu_spec		cpu_specs[];
 extern struct cpu_spec		*cur_cpu_spec[];
 

@@ -36,6 +36,7 @@ struct systemcfg *systemcfg;
 {									    \
 	.xLpPacaPtr = &paca[number].xLpPaca,				    \
 	.xLpRegSavePtr = &paca[number].xRegSav,				    \
+	.lock_token = 0x8000,						    \
 	.xPacaIndex = (number),		/* Paca Index */		    \
 	.default_decr = 0x00ff0000,	/* Initial Decr */		    \
 	.xStab_data = {							    \
@@ -53,7 +54,7 @@ struct systemcfg *systemcfg;
 		.xFPRegsInUse = 1,					    \
 		.xDynProcStatus = 2,					    \
 		.xDecrVal = 0x00ff0000,					    \
-		.xEndOfQuantum = 0xffffffffffffffff			    \
+		.xEndOfQuantum = 0xfffffffffffffffful			    \
 	},								    \
 	.xRegSav = {							    \
 		.xDesc = 0xd397d9e2,	/* "LpRS" */			    \

@@ -2,13 +2,12 @@
 # Makefile for the Linux network (ethercard) device drivers.
 #
 
-rcpci-objs	:=	rcpci45.o rclanmtl.o
-
 ifeq ($(CONFIG_ISDN_PPP),y)
   obj-$(CONFIG_ISDN) += slhc.o
 endif
 
 obj-$(CONFIG_E1000) += e1000/
+obj-$(CONFIG_IBM_EMAC) += ibm_emac/
 obj-$(CONFIG_IXGB) += ixgb/
 obj-$(CONFIG_BONDING) += bonding/
 
@@ -32,7 +31,6 @@ obj-$(CONFIG_BMAC) += bmac.o
 obj-$(CONFIG_OAKNET) += oaknet.o 8390.o
 
 obj-$(CONFIG_DGRS) += dgrs.o
-obj-$(CONFIG_RCPCI) += rcpci.o
 obj-$(CONFIG_VORTEX) += 3c59x.o
 obj-$(CONFIG_TYPHOON) += typhoon.o
 obj-$(CONFIG_NE2K_PCI) += ne2k-pci.o 8390.o
@@ -95,6 +93,8 @@ obj-$(CONFIG_NE3210) += ne3210.o 8390.o
 obj-$(CONFIG_NET_SB1250_MAC) += sb1250-mac.o
 obj-$(CONFIG_B44) += b44.o
 obj-$(CONFIG_FORCEDETH) += forcedeth.o
+obj-$(CONFIG_NE_H8300) += ne-h8300.o 8390.o
+
 obj-$(CONFIG_GALILEO_64240_ETH) += gt64240eth.o
 obj-$(CONFIG_MV64340_ETH) += mv64340_eth.o
 obj-$(CONFIG_BIG_SUR_FE) += big_sur_ge.o

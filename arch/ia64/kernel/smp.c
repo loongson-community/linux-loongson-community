@@ -28,7 +28,6 @@
 #include <linux/mm.h>
 #include <linux/cache.h>
 #include <linux/delay.h>
-#include <linux/cache.h>
 #include <linux/efi.h>
 
 #include <asm/atomic.h>
@@ -71,10 +70,23 @@ static volatile struct call_data_struct *call_data;
 /* This needs to be cacheline aligned because it is written to by *other* CPUs.  */
 static DEFINE_PER_CPU(u64, ipi_operation) ____cacheline_aligned;
 
+extern void cpu_halt (void);
+
+void
+lock_ipi_calllock(void)
+{
+	spin_lock_irq(&call_lock);
+}
+
+void
+unlock_ipi_calllock(void)
+{
+	spin_unlock_irq(&call_lock);
+}
+
 static void
 stop_this_cpu (void)
 {
-	extern void cpu_halt (void);
 	/*
 	 * Remove this CPU:
 	 */
@@ -82,6 +94,17 @@ stop_this_cpu (void)
 	max_xtp();
 	local_irq_disable();
 	cpu_halt();
+}
+
+void
+cpu_die(void)
+{
+	max_xtp();
+	local_irq_disable();
+	cpu_halt();
+	/* Should never be here */
+	BUG();
+	for (;;);
 }
 
 irqreturn_t
@@ -307,6 +330,9 @@ smp_call_function (void (*func) (void *info), void *info, int nonatomic, int wai
 
 	if (!cpus)
 		return 0;
+
+	/* Can deadlock when called with interrupts disabled */
+	WARN_ON(irqs_disabled());
 
 	data.func = func;
 	data.info = info;

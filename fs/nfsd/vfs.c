@@ -141,10 +141,11 @@ nfsd_lookup(struct svc_rqst *rqstp, struct svc_fh *fhp, const char *name,
 	/* Obtain dentry and export. */
 	err = fh_verify(rqstp, fhp, S_IFDIR, MAY_EXEC);
 	if (err)
-		goto out;
+		return err;
 
 	dparent = fhp->fh_dentry;
 	exp  = fhp->fh_export;
+	exp_get(exp);
 
 	err = nfserr_acces;
 
@@ -208,7 +209,9 @@ nfsd_lookup(struct svc_rqst *rqstp, struct svc_fh *fhp, const char *name,
 	err = fh_compose(resfh, exp, dentry, fhp);
 	if (!err && !dentry->d_inode)
 		err = nfserr_noent;
+	dput(dentry);
 out:
+	exp_put(exp);
 	return err;
 
 out_nfserr:
@@ -859,7 +862,7 @@ nfsd_create(struct svc_rqst *rqstp, struct svc_fh *fhp,
 		char *fname, int flen, struct iattr *iap,
 		int type, dev_t rdev, struct svc_fh *resfhp)
 {
-	struct dentry	*dentry, *dchild;
+	struct dentry	*dentry, *dchild = NULL;
 	struct inode	*dirp;
 	int		err;
 
@@ -896,7 +899,7 @@ nfsd_create(struct svc_rqst *rqstp, struct svc_fh *fhp,
 			goto out;
 	} else {
 		/* called from nfsd_proc_create */
-		dchild = resfhp->fh_dentry;
+		dchild = dget(resfhp->fh_dentry);
 		if (!fhp->fh_locked) {
 			/* not actually possible */
 			printk(KERN_ERR
@@ -965,6 +968,8 @@ nfsd_create(struct svc_rqst *rqstp, struct svc_fh *fhp,
 	if (!err)
 		err = fh_update(resfhp);
 out:
+	if (dchild && !IS_ERR(dchild))
+		dput(dchild);
 	return err;
 
 out_nfserr:
@@ -982,7 +987,7 @@ nfsd_create_v3(struct svc_rqst *rqstp, struct svc_fh *fhp,
 		struct svc_fh *resfhp, int createmode, u32 *verifier,
 	        int *truncp)
 {
-	struct dentry	*dentry, *dchild;
+	struct dentry	*dentry, *dchild = NULL;
 	struct inode	*dirp;
 	int		err;
 	__u32		v_mtime=0, v_atime=0;
@@ -1111,6 +1116,8 @@ nfsd_create_v3(struct svc_rqst *rqstp, struct svc_fh *fhp,
 
  out:
 	fh_unlock(fhp);
+	if (dchild && !IS_ERR(dchild))
+		dput(dchild);
  	return err;
  
  out_nfserr:
@@ -1177,6 +1184,7 @@ nfsd_symlink(struct svc_rqst *rqstp, struct svc_fh *fhp,
 {
 	struct dentry	*dentry, *dnew;
 	int		err, cerr;
+	umode_t		mode;
 
 	err = nfserr_noent;
 	if (!flen || !plen)
@@ -1195,6 +1203,11 @@ nfsd_symlink(struct svc_rqst *rqstp, struct svc_fh *fhp,
 	if (IS_ERR(dnew))
 		goto out_nfserr;
 
+	mode = S_IALLUGO;
+	/* Only the MODE ATTRibute is even vaguely meaningful */
+	if (iap && (iap->ia_valid & ATTR_MODE))
+		mode = iap->ia_mode & S_IALLUGO;
+
 	if (unlikely(path[plen] != 0)) {
 		char *path_alloced = kmalloc(plen+1, GFP_KERNEL);
 		if (path_alloced == NULL)
@@ -1202,34 +1215,21 @@ nfsd_symlink(struct svc_rqst *rqstp, struct svc_fh *fhp,
 		else {
 			strncpy(path_alloced, path, plen);
 			path_alloced[plen] = 0;
-			err = vfs_symlink(dentry->d_inode, dnew, path_alloced);
+			err = vfs_symlink(dentry->d_inode, dnew, path_alloced, mode);
 			kfree(path_alloced);
 		}
 	} else
-		err = vfs_symlink(dentry->d_inode, dnew, path);
+		err = vfs_symlink(dentry->d_inode, dnew, path, mode);
 
 	if (!err) {
 		if (EX_ISSYNC(fhp->fh_export))
 			nfsd_sync_dir(dentry);
-		if (iap) {
-			iap->ia_valid &= ATTR_MODE /* ~(ATTR_MODE|ATTR_UID|ATTR_GID)*/;
-			if (iap->ia_valid) {
-				iap->ia_valid |= ATTR_CTIME;
-				iap->ia_mode = (iap->ia_mode&S_IALLUGO)
-					| S_IFLNK;
-				err = notify_change(dnew, iap);
-				if (err)
-					err = nfserrno(err);
-				else if (EX_ISSYNC(fhp->fh_export))
-					write_inode_now(dentry->d_inode, 1);
-		       }
-		}
 	} else
 		err = nfserrno(err);
 	fh_unlock(fhp);
 
-	/* Compose the fh so the dentry will be freed ... */
 	cerr = fh_compose(resfhp, fhp->fh_export, dnew, fhp);
+	dput(dnew);
 	if (err==0) err = cerr;
 out:
 	return err;

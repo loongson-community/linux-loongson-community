@@ -152,7 +152,7 @@ struct swap_list_t {
 extern void out_of_memory(void);
 
 /* linux/mm/memory.c */
-extern void swapin_readahead(swp_entry_t);
+extern void swapin_readahead(swp_entry_t, unsigned long, struct vm_area_struct *);
 
 /* linux/mm/page_alloc.c */
 extern unsigned long totalram_pages;
@@ -182,6 +182,8 @@ extern int vm_swappiness;
 extern int shmem_unuse(swp_entry_t entry, struct page *page);
 #endif /* CONFIG_MMU */
 
+extern void swap_unplug_io_fn(struct backing_dev_info *, struct page *);
+
 #ifdef CONFIG_SWAP
 /* linux/mm/page_io.c */
 extern int swap_readpage(struct file *, struct page *);
@@ -201,7 +203,8 @@ extern int move_from_swap_cache(struct page *, unsigned long,
 extern void free_page_and_swap_cache(struct page *);
 extern void free_pages_and_swap_cache(struct page **, int);
 extern struct page * lookup_swap_cache(swp_entry_t);
-extern struct page * read_swap_cache_async(swp_entry_t);
+extern struct page * read_swap_cache_async(swp_entry_t, struct vm_area_struct *vma,
+					   unsigned long addr);
 
 /* linux/mm/swapfile.c */
 extern int total_swap_pages;
@@ -217,7 +220,7 @@ extern sector_t map_swap_page(struct swap_info_struct *, pgoff_t);
 extern struct swap_info_struct *get_swap_info_struct(unsigned);
 extern int can_share_swap_page(struct page *);
 extern int remove_exclusive_swap_page(struct page *);
-extern void swap_unplug_io_fn(struct page *);
+struct backing_dev_info;
 
 extern struct swap_list_t swap_list;
 extern spinlock_t swaplock;
@@ -243,7 +246,7 @@ extern spinlock_t swaplock;
 #define free_swap_and_cache(swp)		/*NOTHING*/
 #define swap_duplicate(swp)			/*NOTHING*/
 #define swap_free(swp)				/*NOTHING*/
-#define read_swap_cache_async(swp)		NULL
+#define read_swap_cache_async(swp,vma,addr)	NULL
 #define lookup_swap_cache(swp)			NULL
 #define valid_swaphandles(swp, off)		0
 #define can_share_swap_page(p)			0
@@ -251,7 +254,6 @@ extern spinlock_t swaplock;
 #define move_from_swap_cache(p, i, m)		1
 #define __delete_from_swap_cache(p)		/*NOTHING*/
 #define delete_from_swap_cache(p)		/*NOTHING*/
-#define swap_unplug_io_fn(p)			/*NOTHING*/
 
 static inline int remove_exclusive_swap_page(struct page *p)
 {

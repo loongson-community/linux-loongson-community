@@ -1,6 +1,6 @@
 /*
  *
- * linux/drivers/s390/net/qeth_fs.c ($Revision: 1.5 $)
+ * linux/drivers/s390/net/qeth_fs.c ($Revision: 1.10 $)
  *
  * Linux on zSeries OSA Express and HiperSockets support
  * This file contains code related to procfs.
@@ -20,6 +20,8 @@
 #include "qeth.h"
 #include "qeth_mpc.h"
 #include "qeth_fs.h"
+
+const char *VERSION_QETH_PROC_C = "$Revision: 1.10 $";
 
 /***** /proc/qeth *****/
 #define QETH_PROCFILE_NAME "qeth"
@@ -91,13 +93,19 @@ qeth_get_router_str(struct qeth_card *card, int ipv)
 		return "pri";
 	else if (routing_type == SECONDARY_ROUTER)
 		return "sec";
-	else if (routing_type == MULTICAST_ROUTER)
+	else if (routing_type == MULTICAST_ROUTER) {
+		if (card->info.broadcast_capable == QETH_BROADCAST_WITHOUT_ECHO)
+			return "mc+";
 		return "mc";
-	else if (routing_type == PRIMARY_CONNECTOR)
+	} else if (routing_type == PRIMARY_CONNECTOR) {
+		if (card->info.broadcast_capable == QETH_BROADCAST_WITHOUT_ECHO)
+			return "p+c";
 		return "p.c";
-	else if (routing_type == SECONDARY_CONNECTOR)
+	} else if (routing_type == SECONDARY_CONNECTOR) {
+		if (card->info.broadcast_capable == QETH_BROADCAST_WITHOUT_ECHO)
+			return "s+c";
 		return "s.c";
-	else if (routing_type == NO_ROUTER)
+	} else if (routing_type == NO_ROUTER)
 		return "no";
 	else
 		return "unk";
@@ -229,9 +237,11 @@ qeth_perf_procfile_seq_show(struct seq_file *s, void *it)
 		   card->perf_stats.bufs_sent_pack
 		  );
 	seq_printf(s, "  Packing state changes no pkg.->packing : %i/%i\n"
+		      "  Watermarks L/H                         : %i/%i\n"
 		      "  Current buffer usage (outbound q's)    : "
 		      "%i/%i/%i/%i\n\n",
 		        card->perf_stats.sc_dp_p, card->perf_stats.sc_p_dp,
+			QETH_LOW_WATERMARK_PACK, QETH_HIGH_WATERMARK_PACK,
 			atomic_read(&card->qdio.out_qs[0]->used_buffers),
 			(card->qdio.no_out_queues > 1)?
 				atomic_read(&card->qdio.out_qs[1]->used_buffers)
@@ -243,16 +253,26 @@ qeth_perf_procfile_seq_show(struct seq_file *s, void *it)
 				atomic_read(&card->qdio.out_qs[3]->used_buffers)
 				: 0
 		  );
-	seq_printf(s, "  Inbound time (in us)                   : %i\n"
-		      "  Inbound cnt                            : %i\n"
+	seq_printf(s, "  Inbound handler time (in us)           : %i\n"
+		      "  Inbound handler count                  : %i\n"
+		      "  Inbound do_QDIO time (in us)           : %i\n"
+		      "  Inbound do_QDIO count                  : %i\n\n"
+		      "  Outbound handler time (in us)          : %i\n"
+		      "  Outbound handler count                 : %i\n\n"
 		      "  Outbound time (in us, incl QDIO)       : %i\n"
-		      "  Outbound cnt                           : %i\n"
-		      "  Watermarks L/H                         : %i/%i\n\n",
+		      "  Outbound count                         : %i\n"
+		      "  Outbound do_QDIO time (in us)          : %i\n"
+		      "  Outbound do_QDIO count                 : %i\n",
 		        card->perf_stats.inbound_time,
 			card->perf_stats.inbound_cnt,
+		        card->perf_stats.inbound_do_qdio_time,
+			card->perf_stats.inbound_do_qdio_cnt,
+			card->perf_stats.outbound_handler_time,
+			card->perf_stats.outbound_handler_cnt,
 			card->perf_stats.outbound_time,
 			card->perf_stats.outbound_cnt,
-			QETH_LOW_WATERMARK_PACK, QETH_HIGH_WATERMARK_PACK
+		        card->perf_stats.outbound_do_qdio_time,
+			card->perf_stats.outbound_do_qdio_cnt
 		  );
 
 	return 0;

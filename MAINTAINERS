@@ -168,10 +168,8 @@ S:	Supported
 
 AACRAID SCSI RAID DRIVER
 P:	Adaptec OEM Raid Solutions
-M:	linux-aacraid-devel@dell.com
-L:	linux-aacraid-devel@dell.com
-L:	linux-aacraid-announce@dell.com
-W:	http://domsch.com/linux
+L:	linux-scsi@vger.kernel.org
+W:	http://linux.dell.com/storage.shtml
 S:	Supported
 
 ACPI
@@ -185,6 +183,11 @@ AD1816 SOUND DRIVER
 P:	Thorsten Knabe
 W:	http://www.student.informatik.tu-darmstadt.de/~tek/projects/linux.html
 W:	http://www.tu-darmstadt.de/~tek01/projects/linux.html
+S:	Maintained
+
+ADT746X FAN DRIVER
+P:	Colin Leroy
+M:	colin@colino.net
 S:	Maintained
 
 ADVANSYS SCSI DRIVER
@@ -324,6 +327,12 @@ P:	Thomas Sailer
 M:	t.sailer@alumni.ethz.ch
 L:	linux-hams@vger.kernel.org
 W:	http://www.baycom.org/~tom/ham/ham.html
+S:	Maintained
+
+BEFS FILE SYSTEM
+P:	Sergey S. Kostyliov
+M:	rathamahata@php4.ru
+L:	linux-kernel@vger.kernel.org
 S:	Maintained
 
 BERKSHIRE PRODUCTS PC WATCHDOG DRIVER
@@ -512,11 +521,6 @@ W:	http://www.wittsend.com/computone.html
 L:	linux-computone@lazuli.wittsend.com
 S:	Supported
 
-COMX/MULTIGATE SYNC SERIAL DRIVERS
-P:	Pasztor Szilard
-M:	Pasztor Szilard <don@itc.hu>
-S:	Supported
-
 COSA/SRP SYNC SERIAL DRIVER
 P:	Jan "Yenya" Kasprzak
 M:	kas@fi.muni.cz
@@ -538,11 +542,6 @@ S:	Maintained
 CRAMFS FILESYSTEM
 W:     http://sourceforge.net/projects/cramfs/
 S:     Orphan
-
-CREDITS FILE
-P:	John A. Martin
-M:	jam@acm.org
-S:	Maintained
 
 CRIS PORT
 P:	Bjorn Wesen
@@ -574,14 +573,12 @@ L:	cycsyn-devel@bazar.conectiva.com.br
 S:	Maintained
 
 CYCLADES ASYNC MUX DRIVER
-P:	Henrique Gobbi
-M:	henrique@cyclades.com
+M:	async@cyclades.com
 W:	http://www.cyclades.com/
 S:	Supported
 
 CYCLADES PC300 DRIVER
-P:	Henrique Gobbi
-M:	henrique@cyclades.com
+M:	pc300@cyclades.com
 W:	http://www.cyclades.com/
 S:	Supported
 
@@ -636,10 +633,9 @@ W:	http://www.debian.org/~dz/i8k/
 S:	Maintained
 
 DEVICE-MAPPER
-P:	Joe Thornber
-M:	dm@uk.sistina.com
-L:	linux-lvm@sistina.com
-W:	http://www.sistina.com/lvm
+P:	Alasdair Kergon
+L:	dm-devel@redhat.com
+W:	http://sources.redhat.com/dm
 S:	Maintained
 
 DEVICE NUMBER REGISTRY
@@ -796,7 +792,7 @@ FRAMEBUFFER LAYER
 P:	James Simmons, Geert Uytterhoeven	
 M:	jsimmons@infradead.org, geert@linux-m68k.org	
 L:	linux-fbdev-devel@lists.sourceforge.net	
-W:	http://www.linux-fbdev.org
+W:	http://linux-fbdev.sourceforge.net/
 S:	Supported
 
 FILE LOCKING (flock() and fcntl()/lockf())
@@ -975,6 +971,11 @@ P:	Michael Lang
 M:	langa2@kph.uni-mainz.de
 W:	http://www.uni-mainz.de/~langm000/linux.html
 S:	Maintained
+
+IBM Power Linux RAID adapter
+P:	Brian King
+M:	brking@us.ibm.com
+S:	Supported
 
 IBM ServeRAID RAID DRIVER
 P:	Jack Hammer
@@ -1182,8 +1183,8 @@ L:	autofs@linux.kernel.org
 S:	Odd Fixes
 
 KERNEL AUTOMOUNTER v4 (AUTOFS4)
-P:	Jeremy Fitzhardinge
-M:	jeremy@goop.org
+P:	Ian Kent
+M:	raven@themaw.net
 L:	autofs@linux.kernel.org
 S:	Maintained
 
@@ -1226,6 +1227,13 @@ LASI 53c700 driver for PARISC
 P:	James E.J. Bottomley
 M:	James.Bottomley@HansenPartnership.com
 L:	linux-scsi@vger.kernel.org
+S:	Maintained
+
+LEGO USB Tower driver
+P:	Juergen Stuber
+M:	starblue@users.sourceforge.net
+L:	legousb-devel@lists.sourceforge.net
+W:	http://legousb.sourceforge.net/
 S:	Maintained
 
 LINUX FOR IBM pSERIES (RS/6000)
@@ -1810,6 +1818,12 @@ L: 	selinux@tycho.nsa.gov (general discussion)
 W:	http://www.nsa.gov/selinux
 S:	Supported
 
+SERIAL ATA (SATA) SUBSYSTEM:
+P:	Jeff Garzik
+M:	jgarzik@pobox.com
+L:	linux-ide@vger.kernel.org
+S:	Supported
+
 SGI SN-IA64 (Altix) SERIAL CONSOLE DRIVER
 P:	Pat Gefre
 M:	pfg@sgi.com
@@ -2361,7 +2375,7 @@ S:	Maintained
 
 XFS FILESYSTEM
 P:	Silicon Graphics Inc
-M:	owner-xfs@oss.sgi.com
+M:	xfs-masters@oss.sgi.com
 M:	nathans@sgi.com
 L:	linux-xfs@oss.sgi.com
 W:	http://oss.sgi.com/projects/xfs

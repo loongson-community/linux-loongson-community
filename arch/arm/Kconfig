@@ -84,9 +84,6 @@ config ARCH_CLPS711X
 config ARCH_CO285
 	bool "Co-EBSA285"
 
-config ARCH_PXA
-	bool "PXA250/210-based"
-
 config ARCH_EBSA110
 	bool "EBSA-110"
 	help
@@ -111,6 +108,9 @@ config ARCH_INTEGRATOR
 config ARCH_IOP3XX
 	bool "IOP3xx-based"
 
+config ARCH_IXP4XX
+	bool "IXP4xx-based"
+
 config ARCH_L7200
 	bool "LinkUp-L7200"
 	help
@@ -123,6 +123,9 @@ config ARCH_L7200
 	  If you have any questions or comments about the Linux kernel port
 	  to this board, send e-mail to sjhill@cotw.com.
 
+config ARCH_PXA
+	bool "PXA2xx-based"
+
 config ARCH_RPC
 	bool "RiscPC"
 	help
@@ -132,9 +135,6 @@ config ARCH_RPC
 config ARCH_SA1100
 	bool "SA1100-based"
 
-config ARCH_SHARK
-	bool "Shark"
-
 config ARCH_S3C2410
 	bool "Samsung S3C2410"
 	help
@@ -142,8 +142,8 @@ config ARCH_S3C2410
 	  BAST (http://www.simtec.co.uk/products/EB110ITX/), the IPAQ 1940 or
 	  the Samsung SMDK2410 development board (and derviatives).
 
-config ARCH_OMAP
-	bool "TI OMAP"
+config ARCH_SHARK
+	bool "Shark"
 
 config ARCH_LH7A40X
 	bool "Sharp LH7A40X"
@@ -152,6 +152,9 @@ config ARCH_LH7A40X
 	  System on a Chip processors.  These CPUs include an ARM922T
 	  core with a wide array of integrated devices for
 	  hand-held and low-power applications.
+
+config ARCH_OMAP
+	bool "TI OMAP"
 
 config ARCH_VERSATILE_PB
 	bool "Versatile PB"
@@ -169,6 +172,8 @@ source "arch/arm/mach-footbridge/Kconfig"
 source "arch/arm/mach-integrator/Kconfig"
 
 source "arch/arm/mach-iop3xx/Kconfig"
+
+source "arch/arm/mach-ixp4xx/Kconfig"
 
 source "arch/arm/mach-pxa/Kconfig"
 
@@ -222,7 +227,7 @@ config FORCE_MAX_ZONEORDER
 
 config DMABOUNCE
 	bool
-	depends on SA1111
+	depends on SA1111 || ARCH_IXP4XX
 	default y
 
 source arch/arm/mm/Kconfig
@@ -252,7 +257,7 @@ config DISCONTIGMEM
 # Now handle the bus types
 config PCI
 	bool "PCI support" if ARCH_INTEGRATOR_AP
-	default y if ARCH_FTVPCI || ARCH_SHARK || FOOTBRIDGE_HOST || ARCH_IOP3XX
+	default y if ARCH_FTVPCI || ARCH_SHARK || FOOTBRIDGE_HOST || ARCH_IOP3XX || ARCH_IXP4XX
 	help
 	  Find out whether you have a PCI motherboard. PCI is the name of a
 	  bus system, i.e. the way the CPU talks to the other stuff inside
@@ -534,7 +539,7 @@ config CMDLINE
 
 config LEDS
 	bool "Timer and CPU usage LEDs"
-	depends on ARCH_NETWINDER || ARCH_EBSA110 || ARCH_EBSA285 || ARCH_FTVPCI || ARCH_SHARK || ARCH_CO285 || ARCH_SA1100 || ARCH_LUBBOCK || ARCH_PXA_IDP || ARCH_INTEGRATOR || ARCH_CDB89712 || ARCH_P720T || ARCH_OMAP || ARCH_VERSATILE_PB
+	depends on ARCH_NETWINDER || ARCH_EBSA110 || ARCH_EBSA285 || ARCH_FTVPCI || ARCH_SHARK || ARCH_CO285 || ARCH_SA1100 || ARCH_LUBBOCK || MACH_MAINSTONE || ARCH_PXA_IDP || ARCH_INTEGRATOR || ARCH_CDB89712 || ARCH_P720T || ARCH_OMAP || ARCH_VERSATILE_PB
 	help
 	  If you say Y here, the LEDs on your machine will be used
 	  to provide useful information about your current system status.
@@ -547,8 +552,8 @@ config LEDS
 	  system, but the driver will do nothing.
 
 config LEDS_TIMER
-	bool "Timer LED" if LEDS && (ARCH_NETWINDER || ARCH_EBSA285 || ARCH_SHARK || ARCH_CO285 || ARCH_SA1100 || ARCH_LUBBOCK || ARCH_PXA_IDP || ARCH_INTEGRATOR || ARCH_P720T || ARCH_VERSATILE_PB)
-	depends on ARCH_NETWINDER || ARCH_EBSA110 || ARCH_EBSA285 || ARCH_FTVPCI || ARCH_SHARK || ARCH_CO285 || ARCH_SA1100 || ARCH_LUBBOCK || ARCH_PXA_IDP || ARCH_INTEGRATOR || ARCH_CDB89712 || ARCH_P720T || ARCH_OMAP || ARCH_VERSATILE_PB
+	bool "Timer LED" if LEDS && (ARCH_NETWINDER || ARCH_EBSA285 || ARCH_SHARK || MACH_MAINSTONE || ARCH_CO285 || ARCH_SA1100 || ARCH_LUBBOCK || ARCH_PXA_IDP || ARCH_INTEGRATOR || ARCH_P720T || ARCH_VERSATILE_PB)
+	depends on ARCH_NETWINDER || ARCH_EBSA110 || ARCH_EBSA285 || ARCH_FTVPCI || ARCH_SHARK || ARCH_CO285 || ARCH_SA1100 || ARCH_LUBBOCK || MACH_MAINSTONE || ARCH_PXA_IDP || ARCH_INTEGRATOR || ARCH_CDB89712 || ARCH_P720T || ARCH_OMAP || ARCH_VERSATILE_PB
 	default y if ARCH_EBSA110
 	help
 	  If you say Y here, one of the system LEDs (the green one on the
@@ -563,7 +568,7 @@ config LEDS_TIMER
 
 config LEDS_CPU
 	bool "CPU usage LED"
-	depends on LEDS && (ARCH_NETWINDER || ARCH_EBSA285 || ARCH_SHARK || ARCH_CO285 || ARCH_SA1100 || ARCH_LUBBOCK || ARCH_PXA_IDP || ARCH_INTEGRATOR || ARCH_P720T || ARCH_VERSATILE_PB)
+	depends on LEDS && (ARCH_NETWINDER || ARCH_EBSA285 || ARCH_SHARK || ARCH_CO285 || ARCH_SA1100 || ARCH_LUBBOCK || MACH_MAINSTONE || ARCH_PXA_IDP || ARCH_INTEGRATOR || ARCH_P720T || ARCH_VERSATILE_PB)
 	help
 	  If you say Y here, the red LED will be used to give a good real
 	  time indication of CPU usage, by lighting whenever the idle task
@@ -604,7 +609,9 @@ source "drivers/acorn/block/Kconfig"
 
 source "net/Kconfig"
 
+if ARCH_CLPS7500 || ARCH_IOP3XX || ARCH_IXP4XX || ARCH_L7200 || ARCH_LH7A40X || ARCH_FTVPCI || ARCH_PXA || ARCH_RPC || ARCH_S3C2410 || ARCH_SA1100 || ARCH_SHARK || FOOTBRIDGE
 source "drivers/ide/Kconfig"
+endif
 
 source "drivers/scsi/Kconfig"
 
@@ -791,8 +798,8 @@ config DEBUG_S3C2410_PORT
 	  before it is used.
 
 config DEBUG_S3C2410_UART
-	int
 	depends on DEBUG_LL && ARCH_S3C2410
+	int "S3C2410 UART to use for low-level debug"
 	default "0"
 	help
 	  Choice for UART for kernel low-level using S3C2410 UARTS,

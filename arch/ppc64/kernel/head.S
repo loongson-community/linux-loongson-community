@@ -265,6 +265,9 @@ _GLOBAL(__secondary_hold)
 	mfspr	r23,SPRG2;		/* Save r20 in exc. frame      */ \
 	std	r23,EX_R20(r21);	                                  \
                                                                          \
+	mfmsr	r22;			    /* set MSR.RI		   */ \
+	ori	r22,r22,MSR_RI;						      \
+	mtmsrd	r22,1;							      \
 	mfcr    r23;                        /* save CR in r23              */
 
 /*
@@ -1278,6 +1281,10 @@ _GLOBAL(save_remaining_regs)
 	SAVE_4GPRS(16, r1)
 	SAVE_8GPRS(24, r1)
 
+	/* Set the marker value "regshere" just before the reg values */
+	SET_REG_TO_CONST(r22, 0x7265677368657265)
+	std	r22,STACK_FRAME_OVERHEAD-16(r1)
+
 	/*
 	 * Clear the RESULT field
 	 */
@@ -1948,21 +1955,6 @@ _GLOBAL(enable_64b_mode)
 	li      r12,1
 	rldicr  r12,r12,MSR_ISF_LG,(63-MSR_ISF_LG)
 	or      r11,r11,r12
-	mtmsrd  r11
-	isync
-	blr
-
-/*
- * This subroutine clobbers r11, r12 and the LR
- */
-_GLOBAL(enable_32b_mode)
-	mfmsr   r11                      /* grab the current MSR */
-	li      r12,1
-	rldicr  r12,r12,MSR_SF_LG,(63-MSR_SF_LG)
-	andc	r11,r11,r12
-	li      r12,1
-	rldicr  r12,r12,MSR_ISF_LG,(63-MSR_ISF_LG)
-	andc	r11,r11,r12
 	mtmsrd  r11
 	isync
 	blr

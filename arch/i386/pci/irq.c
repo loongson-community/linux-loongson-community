@@ -476,8 +476,9 @@ static __init int intel_router_probe(struct irq_router *r, struct pci_dev *route
 		case PCI_DEVICE_ID_INTEL_82801DB_0:
 		case PCI_DEVICE_ID_INTEL_82801E_0:
 		case PCI_DEVICE_ID_INTEL_82801EB_0:
-		case PCI_DEVICE_ID_INTEL_ESB_0:
+		case PCI_DEVICE_ID_INTEL_ESB_1:
 		case PCI_DEVICE_ID_INTEL_ICH6_0:
+		case PCI_DEVICE_ID_INTEL_ICH6_1:
 			r->name = "PIIX/ICH";
 			r->get = pirq_piix_get;
 			r->set = pirq_piix_set;
@@ -540,8 +541,6 @@ static __init int sis_router_probe(struct irq_router *r, struct pci_dev *router,
 	r->name = "SIS";
 	r->get = pirq_sis_get;
 	r->set = pirq_sis_set;
-	DBG("PCI: Detecting SiS router at %02x:%02x\n",
-	    rt->rtr_bus, rt->rtr_devfn);
 	return 1;
 }
 
@@ -898,7 +897,7 @@ static int __init pcibios_irq_init(void)
 {
 	DBG("PCI: IRQ init\n");
 
-	if (pcibios_enable_irq)
+	if (pcibios_enable_irq || raw_pci_ops == NULL)
 		return 0;
 
 	pirq_table = pirq_find_routing_table();

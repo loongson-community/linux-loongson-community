@@ -21,6 +21,7 @@
 
 #include <linux/slab.h>
 #include <linux/ctype.h>
+#include <linux/mempool.h>
 #include "cifspdu.h"
 #include "cifsglob.h"
 #include "cifsproto.h"
@@ -28,7 +29,7 @@
 #include "smberr.h"
 #include "nterr.h"
 
-extern kmem_cache_t *cifs_req_cachep;
+extern mempool_t *cifs_req_poolp;
 extern struct task_struct * oplockThread;
 
 __u16 GlobalMid;		/* multiplex id - rotating counter */
@@ -122,6 +123,9 @@ tconInfoAlloc(void)
 		ret_buf->tidStatus = CifsNew;
 		INIT_LIST_HEAD(&ret_buf->openFileList);
 		init_MUTEX(&ret_buf->tconSem);
+#ifdef CONFIG_CIFS_STATS
+		ret_buf->stat_lock = SPIN_LOCK_UNLOCKED;
+#endif
 		write_unlock(&GlobalSMBSeslock);
 	}
 	return ret_buf;
@@ -153,7 +157,7 @@ cifs_buf_get(void)
    albeit slightly larger than necessary and maxbuffersize 
    defaults to this and can not be bigger */
 	ret_buf =
-	    (struct smb_hdr *) kmem_cache_alloc(cifs_req_cachep, SLAB_KERNEL | SLAB_NOFS);
+	    (struct smb_hdr *) mempool_alloc(cifs_req_poolp, SLAB_KERNEL | SLAB_NOFS);
 
 	/* clear the first few header bytes */
 	if (ret_buf) {
@@ -172,7 +176,7 @@ cifs_buf_release(void *buf_to_free)
 		cFYI(1, ("Null buffer passed to cifs_buf_release"));
 		return;
 	}
-	kmem_cache_free(cifs_req_cachep, buf_to_free);
+	mempool_free(buf_to_free,cifs_req_poolp);
 
 	atomic_dec(&bufAllocCount);
 	return;
@@ -391,6 +395,9 @@ is_valid_oplock_break(struct smb_hdr *buf)
 	list_for_each(tmp, &GlobalTreeConnectionList) {
 		tcon = list_entry(tmp, struct cifsTconInfo, cifsConnectionList);
 		if (tcon->tid == buf->Tid) {
+#ifdef CONFIG_CIFS_STATS
+			atomic_inc(&tcon->num_oplock_brks);
+#endif
 			list_for_each(tmp1,&tcon->openFileList){
 				netfile = list_entry(tmp1,struct cifsFileInfo,tlist);
 				if(pSMB->Fid == netfile->netfid) {

@@ -42,6 +42,7 @@
 #include <linux/cpu.h>
 #include <linux/efi.h>
 #include <linux/unistd.h>
+#include <linux/rmap.h>
 
 #include <asm/io.h>
 #include <asm/bugs.h>
@@ -84,7 +85,7 @@ extern void signals_init(void);
 extern void buffer_init(void);
 extern void pidhash_init(void);
 extern void pidmap_init(void);
-extern void pte_chain_init(void);
+extern void prio_tree_init(void);
 extern void radix_tree_init(void);
 extern void free_initmem(void);
 extern void populate_rootfs(void);
@@ -95,7 +96,8 @@ extern void prepare_namespace(void);
 extern void tc_init(void);
 #endif
 
-int system_state;	/* SYSTEM_BOOTING/RUNNING/SHUTDOWN */
+enum system_states system_state;
+EXPORT_SYMBOL(system_state);
 
 /*
  * Boot command-line arguments
@@ -169,16 +171,14 @@ static int __init obsolete_checksetup(char *line)
    still work even if initially too large, it will just take slightly longer */
 unsigned long loops_per_jiffy = (1<<12);
 
-#ifndef __ia64__
 EXPORT_SYMBOL(loops_per_jiffy);
-#endif
 
 /* This is the number of bits of precision for the loops_per_jiffy.  Each
    bit takes on average 1.5/HZ seconds.  This (like the original) is a little
    better than 1% */
 #define LPS_PREC 8
 
-void __init calibrate_delay(void)
+void __devinit calibrate_delay(void)
 {
 	unsigned long ticks, loopbit;
 	int lps_precision = LPS_PREC;
@@ -349,20 +349,17 @@ static void __init setup_per_cpu_areas(void)
 static void __init smp_init(void)
 {
 	unsigned int i;
-	unsigned j = 1;
 
 	/* FIXME: This should be done in userspace --RR */
-	for (i = 0; i < NR_CPUS; i++) {
+	for_each_present_cpu(i) {
 		if (num_online_cpus() >= max_cpus)
 			break;
-		if (cpu_possible(i) && !cpu_online(i)) {
+		if (!cpu_online(i))
 			cpu_up(i);
-			j++;
-		}
 	}
 
 	/* Any cleanup work */
-	printk("Brought up %u CPUs\n", j);
+	printk("Brought up %ld CPUs\n", (long)num_online_cpus());
 	smp_cpus_done(max_cpus);
 #if 0
 	/* Get other processors into their bootup holding patterns. */
@@ -415,6 +412,13 @@ asmlinkage void __init start_kernel(void)
 	 */
 	smp_prepare_boot_cpu();
 
+	/*
+	 * Set up the scheduler prior starting any interrupts (such as the
+	 * timer interrupt). Full topology setup happens at smp_init()
+	 * time - but meanwhile we still have a functioning scheduler.
+	 */
+	sched_init();
+
 	build_all_zonelists();
 	page_alloc_init();
 	printk("Kernel command line: %s\n", saved_command_line);
@@ -426,7 +430,7 @@ asmlinkage void __init start_kernel(void)
 	rcu_init();
 	init_IRQ();
 	pidhash_init();
-	sched_init();
+	init_timers();
 	softirq_init();
 	time_init();
 
@@ -455,7 +459,8 @@ asmlinkage void __init start_kernel(void)
 	calibrate_delay();
 	pidmap_init();
 	pgtable_cache_init();
-	pte_chain_init();
+	prio_tree_init();
+	anon_vma_init();
 #ifdef CONFIG_X86
 	if (efi_enabled)
 		efi_enter_virtual_mode();
@@ -474,7 +479,6 @@ asmlinkage void __init start_kernel(void)
 	proc_root_init();
 #endif
 	check_bugs();
-	printk("POSIX conformance testing by UNIFIX\n");
 
 	/* 
 	 *	We count on the initial thread going ok 
@@ -565,7 +569,6 @@ static void do_pre_smp_initcalls(void)
 
 	migration_init();
 #endif
-	node_nr_running_init();
 	spawn_ksoftirqd();
 }
 
@@ -573,6 +576,24 @@ static void run_init_process(char *init_filename)
 {
 	argv_init[0] = init_filename;
 	execve(init_filename, argv_init, envp_init);
+}
+
+static inline void fixup_cpu_present_map(void)
+{
+#ifdef CONFIG_SMP
+	int i;
+
+	/*
+	 * If arch is not hotplug ready and did not populate
+	 * cpu_present_map, just make cpu_present_map same as cpu_possible_map
+	 * for other cpu bringup code to function as normal. e.g smp_init() etc.
+	 */
+	if (cpus_empty(cpu_present_map)) {
+		for_each_cpu(i) {
+			cpu_set(i, cpu_present_map);
+		}
+	}
+#endif
 }
 
 static int init(void * unused)
@@ -593,7 +614,9 @@ static int init(void * unused)
 
 	do_pre_smp_initcalls();
 
+	fixup_cpu_present_map();
 	smp_init();
+	sched_init_smp();
 
 	/*
 	 * Do this before initcalls, because some drivers want to access

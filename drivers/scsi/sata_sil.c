@@ -1,5 +1,9 @@
 /*
- *  ata_sil.c - Silicon Image SATA
+ *  sata_sil.c - Silicon Image SATA
+ *
+ *  Maintained by:  Jeff Garzik <jgarzik@pobox.com>
+ *  		    Please ALWAYS copy linux-ide@vger.kernel.org
+ *		    on emails.
  *
  *  Copyright 2003 Red Hat, Inc.
  *  Copyright 2003 Benjamin Herrenschmidt <benh@kernel.crashing.org>
@@ -125,6 +129,7 @@ static struct ata_port_operations sil_ops = {
 	.exec_command		= ata_exec_command_mmio,
 	.phy_reset		= sata_phy_reset,
 	.post_set_mode		= sil_post_set_mode,
+	.bmdma_setup            = ata_bmdma_setup_mmio,
 	.bmdma_start            = ata_bmdma_start_mmio,
 	.fill_sg		= ata_fill_sg,
 	.eng_timeout		= ata_eng_timeout,
@@ -262,7 +267,7 @@ static void sil_scr_write (struct ata_port *ap, unsigned int sc_reg, u32 val)
  *
  *	20040111 - Seagate drives affected by the Mod15Write bug are blacklisted
  *	The Maxtor quirk is in the blacklist, but I'm keeping the original
- *	pessimistic fix for the following reasons:
+ *	pessimistic fix for the following reasons...
  *	- There seems to be less info on it, only one device gleaned off the
  *	Windows	driver, maybe only one is affected.  More info would be greatly
  *	appreciated.
@@ -271,8 +276,14 @@ static void sil_scr_write (struct ata_port *ap, unsigned int sc_reg, u32 val)
 static void sil_dev_config(struct ata_port *ap, struct ata_device *dev)
 {
 	unsigned int n, quirks = 0;
-	const char *s = &dev->product[0];
-	unsigned int len = strnlen(s, sizeof(dev->product));
+	unsigned char model_num[40];
+	const char *s;
+	unsigned int len;
+
+	ata_dev_id_string(dev, model_num, ATA_ID_PROD_OFS,
+			  sizeof(model_num));
+	s = &model_num[0];
+	len = strnlen(s, sizeof(model_num));
 
 	/* ATAPI specifies that empty space is blank-filled; remove blanks */
 	while ((len > 0) && (s[len - 1] == ' '))

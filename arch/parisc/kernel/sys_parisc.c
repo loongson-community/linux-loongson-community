@@ -68,17 +68,8 @@ static unsigned long get_unshared_area(unsigned long addr, unsigned long len)
  * existing mapping and use the same offset.  New scheme is to use the
  * address of the kernel data structure as the seed for the offset.
  * We'll see how that works...
- */
-#if 0
-static int get_offset(struct address_space *mapping)
-{
-	struct vm_area_struct *vma = list_entry(mapping->i_mmap_shared.next,
-			struct vm_area_struct, shared);
-	return (vma->vm_start + ((pgoff - vma->vm_pgoff) << PAGE_SHIFT)) &
-		(SHMLBA - 1);
-}
-#else
-/* The mapping is cacheline aligned, so there's no information in the bottom
+ *
+ * The mapping is cacheline aligned, so there's no information in the bottom
  * few bits of the address.  We're looking for 10 bits (4MB / 4k), so let's
  * drop the bottom 8 bits and use bits 8-17.  
  */
@@ -87,13 +78,12 @@ static int get_offset(struct address_space *mapping)
 	int offset = (unsigned long) mapping << (PAGE_SHIFT - 8);
 	return offset & 0x3FF000;
 }
-#endif
 
 static unsigned long get_shared_area(struct address_space *mapping,
 		unsigned long addr, unsigned long len, unsigned long pgoff)
 {
 	struct vm_area_struct *vma;
-	int offset = get_offset(mapping);
+	int offset = mapping ? get_offset(mapping) : 0;
 
 	addr = DCACHE_ALIGN(addr - offset) + offset;
 
@@ -117,8 +107,10 @@ unsigned long arch_get_unmapped_area(struct file *filp, unsigned long addr,
 	if (!addr)
 		addr = TASK_UNMAPPED_BASE;
 
-	if (filp && (flags & MAP_SHARED)) {
+	if (filp) {
 		addr = get_shared_area(filp->f_mapping, addr, len, pgoff);
+	} else if(flags & MAP_SHARED) {
+		addr = get_shared_area(NULL, addr, len, pgoff);
 	} else {
 		addr = get_unshared_area(addr, len);
 	}

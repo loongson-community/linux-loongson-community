@@ -1,5 +1,5 @@
 /* 
- * $Id: iucv.c,v 1.28 2004/04/15 06:34:58 braunu Exp $
+ * $Id: iucv.c,v 1.32 2004/05/18 09:28:43 braunu Exp $
  *
  * IUCV network driver
  *
@@ -29,7 +29,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
- * RELEASE-TAG: IUCV lowlevel driver $Revision: 1.28 $
+ * RELEASE-TAG: IUCV lowlevel driver $Revision: 1.32 $
  *
  */
 
@@ -98,7 +98,7 @@ typedef struct {
 	__u8  res3[24];
 } iucv_GeneralInterrupt;
 
-static iucv_GeneralInterrupt *iucv_external_int_buffer;
+static iucv_GeneralInterrupt *iucv_external_int_buffer = NULL;
 
 /* Spin Lock declaration */
 
@@ -285,6 +285,7 @@ typedef struct {
 		iparml_set_mask p_set_mask;
 	} param;
 	atomic_t in_use;
+	__u32    res;
 }  __attribute__ ((aligned(8))) iucv_param;
 #define PARAM_POOL_SIZE (PAGE_SIZE / sizeof(iucv_param))
 
@@ -351,7 +352,7 @@ do { \
 static void
 iucv_banner(void)
 {
-	char vbuf[] = "$Revision: 1.28 $";
+	char vbuf[] = "$Revision: 1.32 $";
 	char *version = vbuf;
 
 	if ((version = strchr(version, ':'))) {
@@ -403,6 +404,7 @@ iucv_init(void)
 		       "%s: Could not allocate external interrupt buffer\n",
 		       __FUNCTION__);
 		s390_root_dev_unregister(iucv_root);
+		bus_unregister(&iucv_bus);
 		return -ENOMEM;
 	}
 	memset(iucv_external_int_buffer, 0, sizeof(iucv_GeneralInterrupt));
@@ -416,6 +418,7 @@ iucv_init(void)
 		kfree(iucv_external_int_buffer);
 		iucv_external_int_buffer = NULL;
 		s390_root_dev_unregister(iucv_root);
+		bus_unregister(&iucv_bus);
 		return -ENOMEM;
 	}
 	memset(iucv_param_pool, 0, sizeof(iucv_param) * PARAM_POOL_SIZE);
@@ -441,10 +444,14 @@ static void
 iucv_exit(void)
 {
 	iucv_retrieve_buffer();
-      	if (iucv_external_int_buffer)
+      	if (iucv_external_int_buffer) {
 		kfree(iucv_external_int_buffer);
-	if (iucv_param_pool)
+		iucv_external_int_buffer = NULL;
+	}
+	if (iucv_param_pool) {
 		kfree(iucv_param_pool);
+		iucv_param_pool = NULL;
+	}
 	s390_root_dev_unregister(iucv_root);
 	bus_unregister(&iucv_bus);
 	printk(KERN_INFO "IUCV lowlevel driver unloaded\n");
@@ -463,17 +470,19 @@ iucv_exit(void)
 static __inline__ iucv_param *
 grab_param(void)
 {
-	iucv_param *ret;
-	static int i = 0;
+	iucv_param *ptr;
+        static int hint = 0;
 
-	while (atomic_compare_and_swap(0, 1, &iucv_param_pool[i].in_use)) {
-		i++;
-		if (i >= PARAM_POOL_SIZE)
-			i = 0;
-	}
-	ret = &iucv_param_pool[i];
-	memset(&ret->param, 0, sizeof(ret->param));
-	return ret;
+	ptr = iucv_param_pool + hint;
+	do {
+		ptr++;
+		if (ptr >= iucv_param_pool + PARAM_POOL_SIZE)
+			ptr = iucv_param_pool;
+	} while (atomic_compare_and_swap(0, 1, &ptr->in_use));
+	hint = ptr - iucv_param_pool;
+
+	memset(&ptr->param, 0, sizeof(ptr->param));
+	return ptr;
 }
 
 /**

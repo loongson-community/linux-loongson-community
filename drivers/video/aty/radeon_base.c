@@ -1144,6 +1144,7 @@ static void radeon_write_pll_regs(struct radeonfb_info *rinfo, struct radeon_reg
 
 	/* Set PPLL ref. div */
 	if (rinfo->family == CHIP_FAMILY_R300 ||
+	    rinfo->family == CHIP_FAMILY_RS300 ||
 	    rinfo->family == CHIP_FAMILY_R350 ||
 	    rinfo->family == CHIP_FAMILY_RV350) {
 		if (mode->ppll_ref_div & R300_PPLL_REF_DIV_ACC_MASK) {
@@ -1184,7 +1185,7 @@ static void radeon_write_pll_regs(struct radeonfb_info *rinfo, struct radeon_reg
 		~(PPLL_RESET | PPLL_SLEEP | PPLL_ATOMIC_UPDATE_EN | PPLL_VGA_ATOMIC_UPDATE_EN));
 
 	/* We may want some locking ... oh well */
-       	wait_ms(5);
+       	msleep(5);
 
 	/* Switch back VCLK source to PPLL */
 	OUTPLLP(VCLK_ECP_CNTL, VCLK_SRC_SEL_PPLLCLK, ~VCLK_SRC_SEL_MASK);
@@ -1783,7 +1784,6 @@ static int __devinit radeon_set_fbinfo (struct radeonfb_info *rinfo)
 	info->pseudo_palette = rinfo->pseudo_palette;
         info->flags = FBINFO_FLAG_DEFAULT;
         info->fbops = &radeonfb_ops;
-        info->display_fg = NULL;
         info->screen_base = (char *)rinfo->fb_base;
 
 	/* Fill fix common fields */
@@ -1855,7 +1855,8 @@ static int radeon_set_backlight_enable(int on, int level, void *data)
 	     rinfo->family == CHIP_FAMILY_RV280 ||
 	     rinfo->family == CHIP_FAMILY_RV350) &&
 	    !machine_is_compatible("PowerBook4,3") &&
-	    !machine_is_compatible("PowerBook6,3"))
+	    !machine_is_compatible("PowerBook6,3") &&
+	    !machine_is_compatible("PowerBook6,5"))
 		conv_table = backlight_conv_m7;
 	else
 		conv_table = backlight_conv_m6;
@@ -1865,7 +1866,7 @@ static int radeon_set_backlight_enable(int on, int level, void *data)
 	lvds_gen_cntl |= (LVDS_BL_MOD_EN | LVDS_BLON);
 	if (on && (level > BACKLIGHT_OFF)) {
 		lvds_gen_cntl |= LVDS_DIGON;
-		if (!lvds_gen_cntl & LVDS_ON) {
+		if (!(lvds_gen_cntl & LVDS_ON)) {
 			lvds_gen_cntl &= ~LVDS_BLON;
 			OUTREG(LVDS_GEN_CNTL, lvds_gen_cntl);
 			(void)INREG(LVDS_GEN_CNTL);
@@ -2129,7 +2130,31 @@ static int radeonfb_pci_register (struct pci_dev *pdev,
 #endif /* CONFIG_PPC_OF */
 
 	/* framebuffer size */
-	tmp = INREG(CONFIG_MEMSIZE);
+        if ((rinfo->family == CHIP_FAMILY_RS100) ||
+            (rinfo->family == CHIP_FAMILY_RS200) ||
+            (rinfo->family == CHIP_FAMILY_RS300)) {
+          u32 tom = INREG(NB_TOM);
+          tmp = ((((tom >> 16) - (tom & 0xffff) + 1) << 6) * 1024);
+ 
+          OUTREG(MC_FB_LOCATION, tom);
+          OUTREG(DISPLAY_BASE_ADDR, (tom & 0xffff) << 16);
+          OUTREG(CRTC2_DISPLAY_BASE_ADDR, (tom & 0xffff) << 16);
+          OUTREG(OV0_BASE_ADDR, (tom & 0xffff) << 16);
+ 
+          /* This is supposed to fix the crtc2 noise problem. */
+          OUTREG(GRPH2_BUFFER_CNTL, INREG(GRPH2_BUFFER_CNTL) & ~0x7f0000);
+ 
+          if ((rinfo->family == CHIP_FAMILY_RS100) ||
+              (rinfo->family == CHIP_FAMILY_RS200)) {
+             /* This is to workaround the asic bug for RMX, some versions
+                of BIOS dosen't have this register initialized correctly.
+             */
+             OUTREGP(CRTC_MORE_CNTL, CRTC_H_CUTOFF_ACTIVE_EN,
+                     ~CRTC_H_CUTOFF_ACTIVE_EN);
+          }
+        } else {
+          tmp = INREG(CONFIG_MEMSIZE);
+        }
 
 	/* mem size is bits [28:0], mask off the rest */
 	rinfo->video_ram = tmp & CONFIG_MEMSIZE_MASK;
@@ -2204,6 +2229,7 @@ static int radeonfb_pci_register (struct pci_dev *pdev,
 			rinfo->mapped_vram /= 2;
 			continue;
 		}
+		memset_io(rinfo->fb_base, 0, rinfo->mapped_vram);
 		break;
 	}
 

@@ -69,12 +69,10 @@ Caveats
 * If you have your filesystems listed as type "auto" in fstab, like I did, then
   the control script will not recognize them as filesystems that need remounting.
 
-* If you have XFS, make SURE that you set the XFS_HZ value in the control script
-  correctly, to the value of HZ of your running kernel. Laptop mode will not
-  work correctly if it is set too low, and you may lose data if it is set too
-  high. The reason for this problem is that XFS does not export its sysctl
-  variables in centisecs (like most other subsystems do) but in "jiffies",
-  which is an internal kernel measure. Once this is fixed things will get better.
+* It has been reported that some versions of the mutt mail client use file access
+  times to determine whether a folder contains new mail. If you use mutt and
+  experience this, you must disable the noatime remounting in the control script
+  by setting DO_REMOUNT_NOATIME=0.
 
 
 The details
@@ -281,7 +279,13 @@ parse_mount_opts_wfstab () {
 	fi
 }
 
-KLEVEL="$(uname -r | cut -c1-3)"
+KLEVEL=$(
+           uname -r |
+             (
+	       IFS="." read a b c
+	       echo $a.$b
+	     )
+	 )
 case "$KLEVEL" in
 	"2.4"|"2.6")
 		true
@@ -294,6 +298,9 @@ esac
 
 # Shall we remount journaled fs. with appropiate commit interval? (1=yes)
 DO_REMOUNTS=1
+
+# And shall we add the "noatime" option to that as well? (1=yes)
+DO_REMOUNT_NOATIME=1
 
 # age time, in seconds. should be put into a sysconfig file
 MAX_AGE=600
@@ -319,11 +326,15 @@ DEF_DIRTY_BACKGROUND_RATIO=10
 DEF_DIRTY_RATIO=40
 DEF_XFS_AGE_BUFFER=15
 DEF_XFS_SYNC_INTERVAL=30
+DEF_XFS_BUFD_INTERVAL=1
 
-# This must be adjusted manually to the value of HZ in the running kernel,
-# until the XFS people change their external interfaces to work in centisecs
-# like the rest of the external world. Unfortunately this cannot be automated. :(
-XFS_HZ=1000
+# This must be adjusted manually to the value of HZ in the running kernel
+# on 2.4, until the XFS people change their 2.4 external interfaces to work in
+# centisecs. This can be automated, but it's a work in progress that still needs
+# some fixes. On 2.6 kernels, XFS uses USER_HZ instead of HZ for external
+# interfaces, and that is currently always set to 100. So you don't need to
+# change this on 2.6.
+XFS_HZ=100
 
 if [ ! -e /proc/sys/vm/laptop_mode ]; then
 	echo "Kernel is not patched with laptop_mode patch."
@@ -335,6 +346,10 @@ if [ ! -w /proc/sys/vm/laptop_mode ]; then
 	exit 1
 fi
 
+if [ $DO_REMOUNT_NOATIME -eq 1 ]; then
+	NOATIME_OPT=",noatime"
+fi
+
 case "$1" in
 	start)
 		AGE=$((100*$MAX_AGE))
@@ -342,19 +357,29 @@ case "$1" in
 		echo -n "Starting laptop_mode"
 
 		if [ -d /proc/sys/vm/pagebuf ] ; then
+			# (For 2.4 and early 2.6.)
 			# This only needs to be set, not reset -- it is only used when
 			# laptop mode is enabled.
 			echo $XFS_AGE > /proc/sys/vm/pagebuf/lm_flush_age
 			echo $XFS_AGE > /proc/sys/fs/xfs/lm_sync_interval
 		elif [ -f /proc/sys/fs/xfs/lm_age_buffer ] ; then
+			# (A couple of early 2.6 laptop mode patches had these.)
 			# The same goes for these.
 			echo $XFS_AGE > /proc/sys/fs/xfs/lm_age_buffer
 			echo $XFS_AGE > /proc/sys/fs/xfs/lm_sync_interval
 		elif [ -f /proc/sys/fs/xfs/age_buffer ] ; then
+			# (2.6.6)
 			# But not for these -- they are also used in normal
 			# operation.
 			echo $XFS_AGE > /proc/sys/fs/xfs/age_buffer
 			echo $XFS_AGE > /proc/sys/fs/xfs/sync_interval
+		elif [ -f /proc/sys/fs/xfs/age_buffer_centisecs ] ; then
+			# (2.6.7 upwards)
+			# And not for these either. These are in centisecs,
+			# not USER_HZ, so we have to use $AGE, not $XFS_AGE.
+			echo $AGE > /proc/sys/fs/xfs/age_buffer_centisecs
+			echo $AGE > /proc/sys/fs/xfs/xfssyncd_centisecs
+			echo 3000 > /proc/sys/fs/xfs/xfsbufd_centisecs
 		fi
 
 		case "$KLEVEL" in
@@ -376,10 +401,10 @@ case "$1" in
 				case "$FST" in
 					"ext3"|"reiserfs")
 						PARSEDOPTS="$(parse_mount_opts commit "$OPTS")"
-						mount $DEV -t $FST $MP -o remount,$PARSEDOPTS,commit=$MAX_AGE,noatime
+						mount $DEV -t $FST $MP -o remount,$PARSEDOPTS,commit=$MAX_AGE$NOATIME_OPT
 						;;
 					"xfs")
-						mount $DEV -t $FST $MP -o remount,$OPTS,noatime
+						mount $DEV -t $FST $MP -o remount,$OPTS$NOATIME_OPT
 						;;
 				esac
 				if [ -b $DEV ] ; then
@@ -395,9 +420,14 @@ case "$1" in
 		echo -n "Stopping laptop_mode"
 		echo "0" > /proc/sys/vm/laptop_mode
 		if [ -f /proc/sys/fs/xfs/age_buffer ] && [ ! -f /proc/sys/fs/xfs/lm_age_buffer ] ; then
-			# These need to be restored though, if there are no lm_*.
+			# These need to be restored, if there are no lm_*.
 			echo "$(($XFS_HZ*$DEF_XFS_AGE_BUFFER))" 	> /proc/sys/fs/xfs/age_buffer
 			echo "$(($XFS_HZ*$DEF_XFS_SYNC_INTERVAL))" 	> /proc/sys/fs/xfs/sync_interval
+		elif [ -f /proc/sys/fs/xfs/age_buffer_centisecs ] ; then
+			# These need to be restored as well.
+			echo "$((100*$DEF_XFS_AGE_BUFFER))" > /proc/sys/fs/xfs/age_buffer_centisecs
+			echo "$((100*$DEF_XFS_SYNC_INTERVAL))" > /proc/sys/fs/xfs/xfssyncd_centisecs
+			echo "$((100*$DEF_XFS_BUFD_INTERVAL))" > /proc/sys/fs/xfs/xfsbufd_centisecs
 		fi
 		case "$KLEVEL" in
 			"2.4")
@@ -472,16 +502,16 @@ status=`awk '/^state: / { print $2 }' /proc/acpi/ac_adapter/AC/state`
 
 case $status in
         "on-line")
-                echo "Setting HD spindown to 2 hours"
-                /sbin/laptop-mode stop
+                echo "Setting HD spindown for AC mode."
+                /sbin/laptop_mode stop
                 /sbin/hdparm -S $ACAD_HD /dev/hda > /dev/null 2>&1
                 /sbin/hdparm -B 255 /dev/hda > /dev/null 2>&1
                 #echo -n $ACAD_CPU:$ACAD_THR > /proc/acpi/processor/CPU0/limit
                 exit 0
         ;;
         "off-line")
-                echo "Setting HD spindown to 20 seconds"
-                /sbin/laptop-mode start
+                echo "Setting HD spindown for battery mode."
+                /sbin/laptop_mode start
                 /sbin/hdparm -S $BATT_HD /dev/hda > /dev/null 2>&1
                 /sbin/hdparm -B 1 /dev/hda > /dev/null 2>&1
                 #echo -n $BATT_CPU:$BATT_THR > /proc/acpi/processor/CPU0/limit

@@ -142,7 +142,7 @@ struct analog_port {
 
 #ifdef __i386__
 #define GET_TIME(x)	do { if (cpu_has_tsc) rdtscl(x); else x = get_time_pit(); } while (0)
-#define DELTA(x,y)	(cpu_has_tsc?((y)-(x)):((x)-(y)+((x)<(y)?1193182L/HZ:0)))
+#define DELTA(x,y)	(cpu_has_tsc ? ((y) - (x)) : ((x) - (y) + ((x) < (y) ? CLOCK_TICK_RATE / HZ : 0)))
 #define TIME_NAME	(cpu_has_tsc?"TSC":"PIT")
 static unsigned int get_time_pit(void)
 {
@@ -603,18 +603,18 @@ static int analog_init_port(struct gameport *gameport, struct gameport_dev *dev,
 
 		gameport_trigger(gameport);
 		t = gameport_read(gameport);
-		wait_ms(ANALOG_MAX_TIME);
+		msleep(ANALOG_MAX_TIME);
 		port->mask = (gameport_read(gameport) ^ t) & t & 0xf;
 		port->fuzz = (port->speed * ANALOG_FUZZ_MAGIC) / port->loop / 1000 + ANALOG_FUZZ_BITS;
 	
 		for (i = 0; i < ANALOG_INIT_RETRIES; i++) {
 			if (!analog_cooked_read(port)) break;
-			wait_ms(ANALOG_MAX_TIME);
+			msleep(ANALOG_MAX_TIME);
 		}
 
 		u = v = 0;
 
-		wait_ms(ANALOG_MAX_TIME);
+		msleep(ANALOG_MAX_TIME);
 		t = gameport_time(gameport, ANALOG_MAX_TIME * 1000);
 		gameport_trigger(gameport);
 		while ((gameport_read(port->gameport) & port->mask) && (u < t)) u++; 

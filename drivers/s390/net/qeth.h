@@ -23,7 +23,7 @@
 
 #include "qeth_mpc.h"
 
-#define VERSION_QETH_H 		"$Revision: 1.102 $"
+#define VERSION_QETH_H 		"$Revision: 1.108 $"
 
 #ifdef CONFIG_QETH_IPV6
 #define QETH_VERSION_IPV6 	":IPv6"
@@ -179,13 +179,26 @@ struct qeth_perf_stats {
 
 	unsigned int sc_dp_p;
 	unsigned int sc_p_dp;
-
+	/* qdio_input_handler: number of times called, time spent in */
 	__u64 inbound_start_time;
 	unsigned int inbound_cnt;
 	unsigned int inbound_time;
+	/* qeth_send_packet: number of times called, time spent in */
 	__u64 outbound_start_time;
 	unsigned int outbound_cnt;
 	unsigned int outbound_time;
+	/* qdio_output_handler: number of times called, time spent in */
+	__u64 outbound_handler_start_time;
+	unsigned int outbound_handler_cnt;
+	unsigned int outbound_handler_time;
+	/* number of calls to and time spent in do_QDIO for inbound queue */
+	__u64 inbound_do_qdio_start_time;
+	unsigned int inbound_do_qdio_cnt;
+	unsigned int inbound_do_qdio_time;
+	/* number of calls to and time spent in do_QDIO for outbound queues */
+	__u64 outbound_do_qdio_start_time;
+	unsigned int outbound_do_qdio_cnt;
+	unsigned int outbound_do_qdio_time;
 };
 #endif /* CONFIG_QETH_PERF_STATS */
 
@@ -279,7 +292,7 @@ qeth_is_ipa_enabled(struct qeth_ipa_info *ipa, enum qeth_ipa_funcs func)
 #define QETH_IN_BUF_COUNT_MAX 128
 #define QETH_MAX_BUFFER_ELEMENTS(card) ((card)->qdio.in_buf_size >> 12)
 #define QETH_IN_BUF_REQUEUE_THRESHOLD(card) \
-		((card)->qdio.in_buf_pool.buf_count / 4)
+		((card)->qdio.in_buf_pool.buf_count / 2)
 
 /* buffers we have to be behind before we get a PCI */
 #define QETH_PCI_THRESHOLD_A(card) ((card)->qdio.in_buf_pool.buf_count+1)
@@ -606,6 +619,7 @@ struct qeth_reply {
 	wait_queue_head_t wait_q;
 	int (*callback)(struct qeth_card *,struct qeth_reply *,unsigned long);
  	int seqno;
+	unsigned long offset;
 	int received;
 	int rc;
 	void *param;
@@ -613,8 +627,10 @@ struct qeth_reply {
 	atomic_t refcnt;
 };
 
-struct qeth_card_info {
+#define QETH_BROADCAST_WITH_ECHO    1
+#define QETH_BROADCAST_WITHOUT_ECHO 2
 
+struct qeth_card_info {
 	char if_name[IF_NAME_LEN];
 	unsigned short unit_addr2;
 	unsigned short cula;
@@ -646,7 +662,6 @@ struct qeth_card_options {
 	enum qeth_checksum_types checksum_type;
 	int broadcast_mode;
 	int macaddr_mode;
-	int enable_takeover;
 	int fake_broadcast;
 	int add_hhlen;
 	int fake_ll;
@@ -709,6 +724,15 @@ struct qeth_card_list_struct {
 };
 
 extern struct qeth_card_list_struct qeth_card_list;
+
+/*notifier list */
+struct qeth_notify_list_struct {
+	struct list_head list;
+	struct task_struct *task;
+	int signum;
+};
+extern spinlock_t qeth_notify_lock;
+extern struct list_head qeth_notify_list;
 
 /*some helper functions*/
 
@@ -992,6 +1016,12 @@ qeth_add_rxip(struct qeth_card *, enum qeth_prot_versions, const u8 *);
 
 extern void
 qeth_del_rxip(struct qeth_card *, enum qeth_prot_versions, const u8 *);
+
+extern int
+qeth_notifier_register(struct task_struct *, int );
+
+extern int
+qeth_notifier_unregister(struct task_struct * );
 
 extern void
 qeth_schedule_recovery(struct qeth_card *);

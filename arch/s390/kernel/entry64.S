@@ -231,7 +231,7 @@ sysc_noemu:
 #endif
 	tm	__TI_flags+7(%r9),(_TIF_SYSCALL_TRACE|_TIF_SYSCALL_AUDIT)
         lgf     %r8,0(%r7,%r10)   # load address of system call routine
-        jo      sysc_tracesys
+        jnz     sysc_tracesys
         basr    %r14,%r8          # call sys_xxxx
         stg     %r2,SP_R2(%r15)   # store return value (change R2 on stack)
                                   # ATTENTION: check sys_execve_glue before
@@ -319,7 +319,7 @@ sysc_tracego:
         stg     %r2,SP_R2(%r15)     # store return value
 sysc_tracenogo:
 	tm	__TI_flags+7(%r9),(_TIF_SYSCALL_TRACE|_TIF_SYSCALL_AUDIT)
-        jno     sysc_return
+        jz      sysc_return
 	la	%r2,SP_PTREGS(%r15)    # load pt_regs
 	la	%r3,1
 	larl	%r14,sysc_return    # return point is sysc_return
@@ -505,9 +505,10 @@ pgm_per:
 pgm_per_std:
 	SAVE_ALL __LC_PGM_OLD_PSW,__LC_SAVE_AREA,1
 	GET_THREAD_INFO
-	mvc	__THREAD_per+__PER_atmid(2,%r9),__LC_PER_ATMID
-	mvc	__THREAD_per+__PER_address(8,%r9),__LC_PER_ADDRESS
-	mvc	__THREAD_per+__PER_access_id(1,%r9),__LC_PER_ACCESS_ID
+	lg	%r1,__TI_task(%r9)
+	mvc	__THREAD_per+__PER_atmid(2,%r1),__LC_PER_ATMID
+	mvc	__THREAD_per+__PER_address(8,%r1),__LC_PER_ADDRESS
+	mvc	__THREAD_per+__PER_access_id(1,%r1),__LC_PER_ACCESS_ID
 	lghi    %r4,0x7f
 	lgf     %r3,__LC_PGM_ILC	 # load program interruption code
         nr      %r4,%r3			 # clear per-event-bit and ilc
@@ -528,11 +529,12 @@ pgm_per_only:
 pgm_svcper:
 	SAVE_ALL __LC_SVC_OLD_PSW,__LC_SAVE_AREA,1
 	llgh    %r7,__LC_SVC_INT_CODE # get svc number from lowcore
-	stosm   48(%r15),0x03     # reenable interrupts
         GET_THREAD_INFO           # load pointer to task_struct to R9
-	mvc	__THREAD_per+__PER_atmid(2,%r9),__LC_PER_ATMID
-	mvc	__THREAD_per+__PER_address(8,%r9),__LC_PER_ADDRESS
-	mvc	__THREAD_per+__PER_access_id(1,%r9),__LC_PER_ACCESS_ID
+	lg	%r1,__TI_task(%r9)
+	mvc	__THREAD_per+__PER_atmid(2,%r1),__LC_PER_ATMID
+	mvc	__THREAD_per+__PER_address(8,%r1),__LC_PER_ADDRESS
+	mvc	__THREAD_per+__PER_access_id(1,%r1),__LC_PER_ACCESS_ID
+	stosm   48(%r15),0x03     # reenable interrupts
 	slag	%r7,%r7,2         # *4 and test for svc 0
 	jnz	pgm_svcstd
 	# svc 0: system call number in %r1
@@ -549,7 +551,7 @@ pgm_svcper_noemu:
 #endif
 	tm	__TI_flags+7(%r9),(_TIF_SYSCALL_TRACE|_TIF_SYSCALL_AUDIT)
         lgf     %r8,0(%r7,%r10)   # load address of system call routine
-        jo      pgm_tracesys
+        jnz     pgm_tracesys
         basr    %r14,%r8          # call sys_xxxx
         stg     %r2,SP_R2(%r15)   # store return value (change R2 on stack)
                                   # ATTENTION: check sys_execve_glue before
@@ -590,7 +592,7 @@ pgm_svc_go:
         stg     %r2,SP_R2(%r15)     # store return value
 pgm_svc_nogo:
 	tm	__TI_flags+7(%r9),(_TIF_SYSCALL_TRACE|_TIF_SYSCALL_AUDIT)
-        jno     pgm_svcret
+        jz      pgm_svcret
 	la	%r2,SP_PTREGS(%r15)    # load pt_regs
 	la	%r3,1
 	larl	%r14,pgm_svcret     # return point is sysc_return

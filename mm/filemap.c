@@ -55,17 +55,19 @@
 /*
  * Lock ordering:
  *
- *  ->i_shared_sem		(vmtruncate)
+ *  ->i_mmap_lock		(vmtruncate)
  *    ->private_lock		(__free_pte->__set_page_dirty_buffers)
  *      ->swap_list_lock
  *        ->swap_device_lock	(exclusive_swap_page, others)
  *          ->mapping->tree_lock
  *
  *  ->i_sem
- *    ->i_shared_sem		(truncate->unmap_mapping_range)
+ *    ->i_mmap_lock		(truncate->unmap_mapping_range)
  *
  *  ->mmap_sem
- *    ->i_shared_sem		(various places)
+ *    ->i_mmap_lock
+ *      ->page_table_lock	(various places, mainly in mmap.c)
+ *        ->mapping->tree_lock	(arch-dependent flush_dcache_mmap_lock)
  *
  *  ->mmap_sem
  *    ->lock_page		(access_process_vm)
@@ -121,14 +123,13 @@ static inline int sync_page(struct page *page)
 {
 	struct address_space *mapping;
 
+	/*
+	 * FIXME, fercrissake.  What is this barrier here for?
+	 */
 	smp_mb();
 	mapping = page_mapping(page);
-	if (mapping) {
-		if (mapping->a_ops && mapping->a_ops->sync_page)
-			return mapping->a_ops->sync_page(page);
-	} else if (PageSwapCache(page)) {
-		swap_unplug_io_fn(page);
-	}
+	if (mapping && mapping->a_ops && mapping->a_ops->sync_page)
+		return mapping->a_ops->sync_page(page);
 	return 0;
 }
 
@@ -252,17 +253,15 @@ int add_to_page_cache(struct page *page, struct address_space *mapping,
 	int error = radix_tree_preload(gfp_mask & ~__GFP_HIGHMEM);
 
 	if (error == 0) {
-		page_cache_get(page);
 		spin_lock_irq(&mapping->tree_lock);
 		error = radix_tree_insert(&mapping->page_tree, offset, page);
 		if (!error) {
+			page_cache_get(page);
 			SetPageLocked(page);
 			page->mapping = mapping;
 			page->index = offset;
 			mapping->nrpages++;
 			pagecache_acct(1);
-		} else {
-			page_cache_release(page);
 		}
 		spin_unlock_irq(&mapping->tree_lock);
 		radix_tree_preload_end();
@@ -291,6 +290,40 @@ int add_to_page_cache_lru(struct page *page, struct address_space *mapping,
  * at a cost of "thundering herd" phenomena during rare hash
  * collisions.
  */
+struct page_wait_queue {
+	struct page *page;
+	int bit;
+	wait_queue_t wait;
+};
+
+static int page_wake_function(wait_queue_t *wait, unsigned mode, int sync, void *key)
+{
+	struct page *page = key;
+	struct page_wait_queue *wq;
+
+	wq = container_of(wait, struct page_wait_queue, wait);
+	if (wq->page != page || test_bit(wq->bit, &page->flags))
+		return 0;
+	else
+		return autoremove_wake_function(wait, mode, sync, NULL);
+}
+
+#define __DEFINE_PAGE_WAIT(name, p, b, f)				\
+	struct page_wait_queue name = {					\
+		.page	= p,						\
+		.bit	= b,						\
+		.wait	= {						\
+			.task	= current,				\
+			.func	= page_wake_function,			\
+			.flags	= f,					\
+			.task_list = LIST_HEAD_INIT(name.wait.task_list),\
+		},							\
+	}
+
+#define DEFINE_PAGE_WAIT(name, p, b)	__DEFINE_PAGE_WAIT(name, p, b, 0)
+#define DEFINE_PAGE_WAIT_EXCLUSIVE(name, p, b)				\
+		__DEFINE_PAGE_WAIT(name, p, b, WQ_FLAG_EXCLUSIVE)
+
 static wait_queue_head_t *page_waitqueue(struct page *page)
 {
 	const struct zone *zone = page_zone(page);
@@ -298,19 +331,28 @@ static wait_queue_head_t *page_waitqueue(struct page *page)
 	return &zone->wait_table[hash_ptr(page, zone->wait_table_bits)];
 }
 
+static void wake_up_page(struct page *page)
+{
+	const unsigned int mode = TASK_UNINTERRUPTIBLE | TASK_INTERRUPTIBLE;
+	wait_queue_head_t *waitqueue = page_waitqueue(page);
+
+	if (waitqueue_active(waitqueue))
+		__wake_up(waitqueue, mode, 1, page);
+}
+
 void fastcall wait_on_page_bit(struct page *page, int bit_nr)
 {
 	wait_queue_head_t *waitqueue = page_waitqueue(page);
-	DEFINE_WAIT(wait);
+	DEFINE_PAGE_WAIT(wait, page, bit_nr);
 
 	do {
-		prepare_to_wait(waitqueue, &wait, TASK_UNINTERRUPTIBLE);
+		prepare_to_wait(waitqueue, &wait.wait, TASK_UNINTERRUPTIBLE);
 		if (test_bit(bit_nr, &page->flags)) {
 			sync_page(page);
 			io_schedule();
 		}
 	} while (test_bit(bit_nr, &page->flags));
-	finish_wait(waitqueue, &wait);
+	finish_wait(waitqueue, &wait.wait);
 }
 
 EXPORT_SYMBOL(wait_on_page_bit);
@@ -332,13 +374,11 @@ EXPORT_SYMBOL(wait_on_page_bit);
  */
 void fastcall unlock_page(struct page *page)
 {
-	wait_queue_head_t *waitqueue = page_waitqueue(page);
 	smp_mb__before_clear_bit();
 	if (!TestClearPageLocked(page))
 		BUG();
 	smp_mb__after_clear_bit(); 
-	if (waitqueue_active(waitqueue))
-		wake_up_all(waitqueue);
+	wake_up_page(page);
 }
 
 EXPORT_SYMBOL(unlock_page);
@@ -349,15 +389,12 @@ EXPORT_SYMBOL(lock_page);
  */
 void end_page_writeback(struct page *page)
 {
-	wait_queue_head_t *waitqueue = page_waitqueue(page);
-
 	if (!TestClearPageReclaim(page) || rotate_reclaimable_page(page)) {
 		if (!test_clear_page_writeback(page))
 			BUG();
 		smp_mb__after_clear_bit();
 	}
-	if (waitqueue_active(waitqueue))
-		wake_up_all(waitqueue);
+	wake_up_page(page);
 }
 
 EXPORT_SYMBOL(end_page_writeback);
@@ -373,16 +410,16 @@ EXPORT_SYMBOL(end_page_writeback);
 void fastcall __lock_page(struct page *page)
 {
 	wait_queue_head_t *wqh = page_waitqueue(page);
-	DEFINE_WAIT(wait);
+	DEFINE_PAGE_WAIT_EXCLUSIVE(wait, page, PG_locked);
 
 	while (TestSetPageLocked(page)) {
-		prepare_to_wait(wqh, &wait, TASK_UNINTERRUPTIBLE);
+		prepare_to_wait_exclusive(wqh, &wait.wait, TASK_UNINTERRUPTIBLE);
 		if (PageLocked(page)) {
 			sync_page(page);
 			io_schedule();
 		}
 	}
-	finish_wait(wqh, &wait);
+	finish_wait(wqh, &wait.wait);
 }
 
 EXPORT_SYMBOL(__lock_page);
@@ -606,7 +643,7 @@ EXPORT_SYMBOL(grab_cache_page_nowait);
  * - note the struct file * is only passed for the use of readpage
  */
 void do_generic_mapping_read(struct address_space *mapping,
-			     struct file_ra_state *ra,
+			     struct file_ra_state *_ra,
 			     struct file * filp,
 			     loff_t *ppos,
 			     read_descriptor_t * desc,
@@ -616,6 +653,7 @@ void do_generic_mapping_read(struct address_space *mapping,
 	unsigned long index, offset;
 	struct page *cached_page;
 	int error;
+	struct file_ra_state ra = *_ra;
 
 	cached_page = NULL;
 	index = *ppos >> PAGE_CACHE_SHIFT;
@@ -638,13 +676,13 @@ void do_generic_mapping_read(struct address_space *mapping,
 		}
 
 		cond_resched();
-		page_cache_readahead(mapping, ra, filp, index);
+		page_cache_readahead(mapping, &ra, filp, index);
 
 		nr = nr - offset;
 find_page:
 		page = find_get_page(mapping, index);
 		if (unlikely(page == NULL)) {
-			handle_ra_miss(mapping, ra, index);
+			handle_ra_miss(mapping, &ra, index);
 			goto no_cached_page;
 		}
 		if (!PageUptodate(page))
@@ -684,9 +722,6 @@ page_ok:
 		break;
 
 page_not_up_to_date:
-		if (PageUptodate(page))
-			goto page_ok;
-
 		/* Get exclusive access to the page ... */
 		lock_page(page);
 
@@ -745,6 +780,8 @@ no_cached_page:
 		cached_page = NULL;
 		goto readpage;
 	}
+
+	*_ra = ra;
 
 	*ppos = ((loff_t) index << PAGE_CACHE_SHIFT) + offset;
 	if (cached_page)

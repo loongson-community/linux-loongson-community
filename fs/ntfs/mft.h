@@ -2,7 +2,7 @@
  * mft.h - Defines for mft record handling in NTFS Linux kernel driver.
  *	   Part of the Linux-NTFS project.
  *
- * Copyright (c) 2001-2004 Anton Altaparmakov.
+ * Copyright (c) 2001-2004 Anton Altaparmakov
  *
  * This program/include file is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as published
@@ -28,8 +28,6 @@
 #include "inode.h"
 
 extern int format_mft_record(ntfs_inode *ni, MFT_RECORD *m);
-//extern int format_mft_record2(struct super_block *vfs_sb,
-//		const unsigned long inum, MFT_RECORD *m);
 
 extern MFT_RECORD *map_mft_record(ntfs_inode *ni);
 extern void unmap_mft_record(ntfs_inode *ni);

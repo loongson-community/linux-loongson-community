@@ -201,19 +201,20 @@ static int worker_thread(void *__cwq)
 	siginitset(&sa.sa.sa_mask, sigmask(SIGCHLD));
 	do_sigaction(SIGCHLD, &sa, (struct k_sigaction *)0);
 
+	set_current_state(TASK_INTERRUPTIBLE);
 	while (!kthread_should_stop()) {
-		set_task_state(current, TASK_INTERRUPTIBLE);
-
 		add_wait_queue(&cwq->more_work, &wait);
 		if (list_empty(&cwq->worklist))
 			schedule();
 		else
-			set_task_state(current, TASK_RUNNING);
+			__set_current_state(TASK_RUNNING);
 		remove_wait_queue(&cwq->more_work, &wait);
 
 		if (!list_empty(&cwq->worklist))
 			run_workqueue(cwq);
+		set_current_state(TASK_INTERRUPTIBLE);
 	}
+	__set_current_state(TASK_RUNNING);
 	return 0;
 }
 
@@ -324,7 +325,7 @@ struct workqueue_struct *__create_workqueue(const char *name,
 	} else {
 		spin_lock(&workqueue_lock);
 		list_add(&wq->list, &workqueues);
-		spin_unlock_irq(&workqueue_lock);
+		spin_unlock(&workqueue_lock);
 		for_each_online_cpu(cpu) {
 			p = create_workqueue_thread(wq, cpu);
 			if (p) {
@@ -334,6 +335,7 @@ struct workqueue_struct *__create_workqueue(const char *name,
 				destroy = 1;
 		}
 	}
+	unlock_cpu_hotplug();
 
 	/*
 	 * Was there any error during startup? If yes then clean up:
@@ -342,7 +344,6 @@ struct workqueue_struct *__create_workqueue(const char *name,
 		destroy_workqueue(wq);
 		wq = NULL;
 	}
-	unlock_cpu_hotplug();
 	return wq;
 }
 
@@ -376,7 +377,7 @@ void destroy_workqueue(struct workqueue_struct *wq)
 			cleanup_workqueue_thread(wq, cpu);
 		spin_lock(&workqueue_lock);
 		list_del(&wq->list);
-		spin_unlock_irq(&workqueue_lock);
+		spin_unlock(&workqueue_lock);
 	}
 	unlock_cpu_hotplug();
 	kfree(wq);

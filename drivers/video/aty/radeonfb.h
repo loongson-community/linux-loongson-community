@@ -223,8 +223,6 @@ struct radeon_regs {
 
        	/* Palette */
 	int		palette_valid;
-	u32		palette[256];
-	u32		palette2[256];
 };
 
 struct panel_info {
@@ -440,15 +438,6 @@ static inline u32 _INPLL(struct radeonfb_info *rinfo, u32 addr)
 /*
  * Inline utilities
  */
-
-static inline void wait_ms(unsigned long ms)
-{
-	set_current_state(TASK_UNINTERRUPTIBLE);
-	schedule_timeout((ms * HZ + 999) / 1000);
-}
-
-
-
 static inline int round_div(int num, int den)
 {
         return (num + (den / 2)) / den;

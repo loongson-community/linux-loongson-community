@@ -244,6 +244,40 @@ config REISERFS_PROC_INFO
 	  Almost everyone but ReiserFS developers and people fine-tuning
 	  reiserfs or tracing problems should say N.
 
+config REISERFS_FS_XATTR
+	bool "ReiserFS extended attributes"
+	depends on REISERFS_FS
+	help
+	  Extended attributes are name:value pairs associated with inodes by
+	  the kernel or by users (see the attr(5) manual page, or visit
+	  <http://acl.bestbits.at/> for details).
+
+	  If unsure, say N.
+
+config REISERFS_FS_POSIX_ACL
+	bool "ReiserFS POSIX Access Control Lists"
+	depends on REISERFS_FS_XATTR
+	help
+	  Posix Access Control Lists (ACLs) support permissions for users and
+	  groups beyond the owner/group/world scheme.
+
+	  To learn more about Access Control Lists, visit the Posix ACLs for
+	  Linux website <http://acl.bestbits.at/>.
+
+	  If you don't know what Access Control Lists are, say N
+
+config REISERFS_FS_SECURITY
+	bool "ReiserFS Security Labels"
+	depends on REISERFS_FS_XATTR
+	help
+	  Security labels support alternative access control models
+	  implemented by security modules like SELinux.  This option
+	  enables an extended attribute handler for file security
+	  labels in the ReiserFS filesystem.
+
+	  If you are not using a security module that requires using
+	  extended attributes for file security labels, say N.
+
 config JFS_FS
 	tristate "JFS filesystem support"
 	select NLS
@@ -282,13 +316,13 @@ config JFS_STATISTICS
 	  to be made available to the user in the /proc/fs/jfs/ directory.
 
 config FS_POSIX_ACL
-# Posix ACL utility routines (for now, only ext2/ext3/jfs)
+# Posix ACL utility routines (for now, only ext2/ext3/jfs/reiserfs)
 #
 # NOTE: you can implement Posix ACLs without these helpers (XFS does).
 # 	Never use this symbol for ifdefs.
 #
 	bool
-	depends on EXT2_FS_POSIX_ACL || EXT3_FS_POSIX_ACL || JFS_POSIX_ACL
+	depends on EXT2_FS_POSIX_ACL || EXT3_FS_POSIX_ACL || JFS_POSIX_ACL || REISERFS_FS_POSIX_ACL
 	default y
 
 config XFS_FS
@@ -468,7 +502,7 @@ config AUTOFS4_FS
 	  automounter (amd), which is a pure user space daemon.
 
 	  To use the automounter you need the user-space tools from
-	  <ftp://ftp.kernel.org/pub/linux/daemons/autofs/testing-v4/>; you also
+	  <ftp://ftp.kernel.org/pub/linux/daemons/autofs/v4/>; you also
 	  want to answer Y to "NFS file system support", below.
 
 	  To compile this support as a module, choose M here: the module will be
@@ -991,7 +1025,7 @@ config HFSPLUS_FS
 	  style features such as file ownership and permissions.
 
 config BEFS_FS
-	tristate "BeOS file systemv(BeFS) support (read only) (EXPERIMENTAL)"
+	tristate "BeOS file system (BeFS) support (read only) (EXPERIMENTAL)"
 	depends on EXPERIMENTAL
 	select NLS
 	help
@@ -1535,20 +1569,30 @@ config CIFS
 	  This is the client VFS module for the Common Internet File System
 	  (CIFS) protocol which is the successor to the Server Message Block 
 	  (SMB) protocol, the native file sharing mechanism for most early
-	  PC operating systems.  CIFS is fully supported by current network
-	  file servers such as Windows 2000 (including Windows NT version 4 
+	  PC operating systems.  The CIFS protocol is fully supported by 
+	  file servers such as Windows 2000 (including Windows 2003, NT 4  
 	  and Windows XP) as well by Samba (which provides excellent CIFS
-	  server support for Linux and many other operating systems).  For
-	  production systems the smbfs module may be used instead of this
-	  cifs module since smbfs is currently more stable and provides
-	  support for older servers.  The intent of this module is to provide the
-	  most advanced network file system function for CIFS compliant servers, 
+	  server support for Linux and many other operating systems). Currently
+	  you must use the smbfs client filesystem to access older SMB servers
+	  such as Windows 9x and OS/2.
+
+	  The intent of the cifs module is to provide an advanced
+	  network file system client for mounting to CIFS compliant servers, 
 	  including support for dfs (hierarchical name space), secure per-user
 	  session establishment, safe distributed caching (oplock), optional
-	  packet signing, Unicode and other internationalization improvements, and
-	  optional Winbind (nsswitch) integration.  This module is in an early
-	  development stage, so unless you are specifically interested in this
-	  filesystem, just say N.
+	  packet signing, Unicode and other internationalization improvements, 
+	  and optional Winbind (nsswitch) integration. You do not need to enable
+	  cifs if running only a (Samba) server. It is possible to enable both
+	  smbfs and cifs (e.g. if you are using CIFS for accessing Windows 2003
+	  and Samba 3 servers, and smbfs for accessing old servers). If you need 
+	  to mount to Samba or Windows 2003 servers from this machine, say Y.
+
+config CIFS_STATS
+        bool "CIFS statistics"
+        depends on CIFS
+        help
+          Enabling this option will cause statistics for each server share
+	  mounted by the cifs client to be displayed in /proc/fs/cifs/DebugData
 
 config NCP_FS
 	tristate "NCP file system support (to mount NetWare volumes)"
@@ -1608,22 +1652,6 @@ config CODA_FS_OLD_API
 	  cache manager then say Y.
 	  
 	  For most cases you probably want to say N.
-
-#
-# Intermezzo broke when we added the expanded NGROUPS patches
-#
-config INTERMEZZO_FS
-	tristate "InterMezzo file system support (replicating fs) (EXPERIMENTAL)"
-	depends on INET && EXPERIMENTAL 
-	help
-	  InterMezzo is a networked file system with disconnected operation
-	  and kernel level write back caching.  It is most often used for
-	  replicating potentially large trees or keeping laptop/desktop copies
-	  in sync.
-
-	  If you say Y or M your kernel or module will provide InterMezzo
-	  support.  You will also need a file server daemon, which you can get
-	  from <http://www.inter-mezzo.org/>.
 
 config AFS_FS
 # for fs/nls/Config.in

@@ -253,7 +253,7 @@ static int jumpshot_write_data(struct us_data *us,
 			if (result != USB_STOR_TRANSPORT_GOOD) {
 				// I have not experimented to find the smallest value.
 				//
-				wait_ms(50); 
+				msleep(50); 
 			}
 		} while ((result != USB_STOR_TRANSPORT_GOOD) && (waitcount < 10));
 
@@ -416,7 +416,7 @@ static int jumpshot_handle_mode_sense(struct us_data *us,
 }
 
 
-void jumpshot_info_destructor(void *extra)
+static void jumpshot_info_destructor(void *extra)
 {
 	// this routine is a placeholder...
 	// currently, we don't allocate any extra blocks so we're okay

@@ -92,7 +92,7 @@ struct sgi_gbe {
 #define SET_GBE_FIELD(reg, field, v, f)		\
 	SET((v), (f), GBE_##reg##_##field##_MSB, GBE_##reg##_##field##_LSB)
 
-/* 
+/*
  * Bit mask information
  */
 #define GBE_CTRLSTAT_CHIPID_MSB		 3

@@ -55,8 +55,8 @@ int (*board_pci_idsel)(unsigned int devsel, int assert);
 				     "nop; nop; nop; nop;\t" \
 				     ".set reorder\n\t")
 
-void mod_wired_entry(int entry, unsigned long entrylo0, 
-		unsigned long entrylo1, unsigned long entryhi, 
+void mod_wired_entry(int entry, unsigned long entrylo0,
+		unsigned long entrylo1, unsigned long entryhi,
 		unsigned long pagemask)
 {
 	unsigned long old_pagemask;
@@ -103,16 +103,16 @@ static int config_access(unsigned char access_type, struct pci_bus *bus,
 	}
 
 	local_irq_save(flags);
-	au_writel(((0x2000 << 16) | (au_readl(Au1500_PCI_STATCMD) & 0xffff)), 
+	au_writel(((0x2000 << 16) | (au_readl(Au1500_PCI_STATCMD) & 0xffff)),
 			Au1500_PCI_STATCMD);
 	au_sync_udelay(1);
 
 	/*
-	 * We can't ioremap the entire pci config space because it's 
-	 * too large. Nor can we call ioremap dynamically because some 
-	 * device drivers use the pci config routines from within 
+	 * We can't ioremap the entire pci config space because it's
+	 * too large. Nor can we call ioremap dynamically because some
+	 * device drivers use the pci config routines from within
 	 * interrupt handlers and that becomes a problem in get_vm_area().
-	 * We use one wired tlb to handle all config accesses for all 
+	 * We use one wired tlb to handle all config accesses for all
 	 * busses. To improve performance, if the current device
 	 * is the same as the last device accessed, we don't touch the
 	 * tlb.
@@ -121,7 +121,7 @@ static int config_access(unsigned char access_type, struct pci_bus *bus,
 		/* reserve a wired entry for pci config accesses */
 		first_cfg = 0;
 		pci_cfg_vm = get_vm_area(0x2000, 0);
-		if (!pci_cfg_vm) 
+		if (!pci_cfg_vm)
 			panic (KERN_ERR "PCI unable to get vm area\n");
 		pci_cfg_wired_entry = read_c0_wired();
 		add_wired_entry(0, 0, (unsigned long)pci_cfg_vm->addr, PM_4K);
@@ -159,7 +159,7 @@ static int config_access(unsigned char access_type, struct pci_bus *bus,
 	entryLo1 = (6 << 26)  | (cfg_base >> 6) | (0x1000 >> 6) | (2 << 3) | 7;
 
 	if ((entryLo0 != last_entryLo0) || (entryLo1 != last_entryLo1)) {
-		mod_wired_entry(pci_cfg_wired_entry, entryLo0, entryLo1, 
+		mod_wired_entry(pci_cfg_wired_entry, entryLo0, entryLo1,
 				(unsigned long)pci_cfg_vm->addr, PM_4K);
 		last_entryLo0 = entryLo0;
 		last_entryLo1 = entryLo1;
@@ -172,13 +172,13 @@ static int config_access(unsigned char access_type, struct pci_bus *bus,
 	}
 	au_sync_udelay(2);
 
-	DBG("cfg_access %d bus->number %d dev %d at %x *data %x conf %x\n", 
+	DBG("cfg_access %d bus->number %d dev %d at %x *data %x conf %x\n",
 			access_type, bus->number, device, where, *data, offset);
 
 	/* check master abort */
 	status = au_readl(Au1500_PCI_STATCMD);
 
-	if (status & (1<<29)) { 
+	if (status & (1<<29)) {
 		*data = 0xffffffff;
 		error = -1;
 		DBG("Au1x Master Abort\n");
@@ -186,8 +186,8 @@ static int config_access(unsigned char access_type, struct pci_bus *bus,
 		DBG("PCI ERR detected: status %x\n", status);
 		*data = 0xffffffff;
 		error = -1;
-	} 
-	
+	}
+
 	/* Take away the idsel.
 	*/
 	if (board_pci_idsel) {

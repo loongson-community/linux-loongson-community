@@ -56,7 +56,7 @@ struct hw_interrupt_type xics_8259_pic = {
 };
 
 /* This is used to map real irq numbers to virtual */
-static struct radix_tree_root irq_map = RADIX_TREE_INIT(GFP_KERNEL);
+static struct radix_tree_root irq_map = RADIX_TREE_INIT(GFP_ATOMIC);
 
 #define XICS_IPI		2
 #define XICS_IRQ_SPURIOUS	0
@@ -620,7 +620,7 @@ static void xics_set_affinity(unsigned int virq, cpumask_t cpumask)
 	cpumask_t tmp = CPU_MASK_NONE;
 
 	irq = virt_irq_to_real(irq_offset_down(virq));
-	if (irq == XICS_IPI)
+	if (irq == XICS_IPI || irq == NO_IRQ)
 		return;
 
 	status = rtas_call(ibm_get_xive, 1, 3, (void *)&xics_status, irq);

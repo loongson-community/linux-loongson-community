@@ -548,6 +548,16 @@ static inline void ptep_mkdirty(pte_t *ptep)
 	pte_update(ptep, 0, _PAGE_DIRTY);
 }
 
+#define __HAVE_ARCH_PTEP_SET_ACCESS_FLAGS
+static inline void __ptep_set_access_flags(pte_t *ptep, pte_t entry, int dirty)
+{
+	unsigned long bits = pte_val(entry) &
+		(_PAGE_DIRTY | _PAGE_ACCESSED | _PAGE_RW);
+	pte_update(ptep, 0, bits);
+}
+#define  ptep_set_access_flags(__vma, __address, __ptep, __entry, __dirty) \
+        __ptep_set_access_flags(__ptep, __entry, __dirty)
+
 /*
  * Macro to mark a page protection value as "uncacheable".
  */
@@ -670,7 +680,7 @@ extern void kernel_set_cachemode (unsigned long address, unsigned long size,
  */
 #define pgtable_cache_init()	do { } while (0)
 
-typedef pte_t *pte_addr_t;
+extern int get_pteptr(struct mm_struct *mm, unsigned long addr, pte_t **ptep);
 
 #endif /* !__ASSEMBLY__ */
 

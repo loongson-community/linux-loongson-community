@@ -1,10 +1,16 @@
 ToDo:
 	- Find and fix bugs.
+	- Either invalidate quotas or update the quota charges on NTFS 3.x
+	  volumes with quota tracking enabled ($Quota).
+	- Checkpoint or disable the user space journal ($UsnJrnl).
 	- Implement aops->set_page_dirty() in order to take control of buffer
 	  dirtying. Not having it means if page_has_buffers(), all buffers
 	  will be dirtied with the page. And if not they won't be. That is
 	  fine for the moment but will break once we enable metadata updates.
-	- Implement sops->dirty_inode() to implement {a,m,c} time updates and
+	  For now just always using __set_page_dirty_nobuffers() for metadata
+	  pages as nothing can dirty a page other than ourselves. Should this
+	  change, we will really need to roll our own ->set_page_dirty().
+	- Implement sops->dirty_inode() to implement {a,m,c}time updates and
 	  such things.
 	- Implement sops->write_inode().
 	- In between ntfs_prepare/commit_write, need exclusion between
@@ -19,7 +25,46 @@ ToDo:
 	  sufficient for synchronisation here. We then just need to make sure
 	  ntfs_readpage/writepage/truncate interoperate properly with us.
 
-2.1.8 - Handle $MFT mirror and $LogFile, improve time ihandling, and cleanups.
+2.1.11 - Driver internal cleanups.
+
+	- Only build logfile.o if building the driver with read-write support.
+	- Really final white space cleanups.
+	- Use generic_ffs() instead of ffs() in logfile.c which allows the
+	  log_page_size variable to be optimized by gcc into a constant.
+	- Rename uchar_t to ntfschar everywhere as uchar_t is unsigned 1-byte
+	  char as defined by POSIX and as found on some systems.
+
+2.1.10 - Force read-only (re)mounting of volumes with unsupported volume flags.
+
+	- Finish off the white space cleanups (remove trailing spaces, etc).
+	- Clean up ntfs_fill_super() and ntfs_read_inode_mount() by removing
+	  the kludges around the first iget().  Instead of (re)setting ->s_op
+	  we have the $MFT inode set up by explicit new_inode() / set ->i_ino /
+	  insert_inode_hash() / call ntfs_read_inode_mount() directly.  This
+	  kills the need for second super_operations and allows to return error
+	  from ntfs_read_inode_mount() without resorting to ugly "poisoning"
+	  tricks.  (Al Viro)
+	- Force read-only (re)mounting if any of the following bits are set in
+	  the volume information flags:
+	  	VOLUME_IS_DIRTY, VOLUME_RESIZE_LOG_FILE,
+		VOLUME_UPGRADE_ON_MOUNT, VOLUME_DELETE_USN_UNDERWAY,
+		VOLUME_REPAIR_OBJECT_ID, VOLUME_MODIFIED_BY_CHKDSK
+	  To make this easier we define VOLUME_MUST_MOUNT_RO_MASK with all the
+	  above bits set so the test is made easy.
+
+2.1.9 - Fix two bugs in decompression engine.
+
+	- Fix a bug where we would not always detect that we have reached the
+	  end of a compression block because we were ending at minus one byte
+	  which is effectively the same as being at the end.  The fix is to
+	  check whether the uncompressed buffer has been fully filled and if so
+	  we assume we have reached the end of the compression block.  A big
+	  thank you to Marcin Gibuła for the bug report, the assistance in
+	  tracking down the bug and testing the fix.
+	- Fix a possible bug where when a compressed read is truncated to the
+	  end of the file, the offset inside the last page was not truncated.
+
+2.1.8 - Handle $MFT mirror and $LogFile, improve time handling, and cleanups.
 
 	- Use get_bh() instead of manual atomic_inc() in fs/ntfs/compress.c.
 	- Modify fs/ntfs/time.c::ntfs2utc(), get_current_ntfs_time(), and
@@ -570,12 +615,12 @@ tng-0.0.8 - 08/03/2002 - Now using BitKeeper, http://linux-ntfs.bkbits.net/
 	  types of inode names readdir() returns and modify ntfs_filldir()
 	  accordingly. There are several parameters to show_inodes:
 		system:	system files
-	  	win32:	long file names (including POSIX file names) [DEFAULT]
+		win32:	long file names (including POSIX file names) [DEFAULT]
 		long:	same as win32
-	  	dos:	short file names only (excluding POSIX file names)
+		dos:	short file names only (excluding POSIX file names)
 		short:	same as dos
 		posix:	same as both win32 and dos
-	  	all:	all file names
+		all:	all file names
 	  Note that the options are additive, i.e. specifying:
 		-o show_inodes=system,show_inodes=win32,show_inodes=dos
 	  is the same as specifying:
@@ -868,4 +913,3 @@ tng-0.0.0 - Initial version tag.
 	working nicely, too. Proof of inode metadata in the page cache and non-
 	resident file unnamed stream data in the page cache concepts is thus
 	complete.
-
