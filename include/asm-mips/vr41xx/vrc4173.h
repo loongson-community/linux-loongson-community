@@ -77,7 +77,7 @@ extern unsigned long vrc4173_io_offset;
 /*
  * Clock Mask Unit
  */
-enum vrc4173_clock {
+typedef enum vrc4173_clock {
 	VRC4173_PIU_CLOCK,
 	VRC4173_KIU_CLOCK,
 	VRC4173_AIU_CLOCK,
@@ -98,7 +98,7 @@ extern void vrc4173_mask_clock(vrc4173_clock_t clock);
 /*
  * General-Purpose I/O Unit
  */
-enum vrc4173_function {
+typedef enum vrc4173_function {
 	PS2_CHANNEL1,
 	PS2_CHANNEL2,
 	TOUCHPANEL,
