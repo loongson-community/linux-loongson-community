@@ -63,6 +63,7 @@
 
 #define DUART_MAX_LINE 2
 char sb1250_duart_present[DUART_MAX_LINE] = {1,1};
+EXPORT_SYMBOL(sb1250_duart_present);
 
 /*
  * Still not sure what the termios structures set up here are for, 
