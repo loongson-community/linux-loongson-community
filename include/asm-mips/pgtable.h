@@ -164,7 +164,7 @@ extern int add_temporary_entry(unsigned long entrylo0, unsigned long entrylo1,
 #define _PAGE_SILENT_READ           (1<<9)  /* synonym                 */
 #define _PAGE_DIRTY                 (1<<10) /* The MIPS dirty bit      */
 #define _PAGE_SILENT_WRITE          (1<<10)
-#define _CACHE_UNCACHED             (1<<11) /* R4[0246]00              */
+#define _CACHE_UNCACHED             (1<<11)
 #define _CACHE_MASK                 (1<<11)
 #define _CACHE_CACHABLE_NONCOHERENT 0
 
@@ -519,9 +519,19 @@ extern void paging_init(void);
 extern void update_mmu_cache(struct vm_area_struct *vma,
 				unsigned long address, pte_t pte);
 
-#define SWP_TYPE(x)		(((x).val >> 1) & 0x3f)
+/* Swap entries must have VALID and GLOBAL bits cleared. */
+#if defined(CONFIG_CPU_R3000) || defined(CONFIG_CPU_TX39XX)
+
+#define SWP_TYPE(x)		(((x).val >> 1) & 0x7f)
+#define SWP_OFFSET(x)		((x).val >> 10)
+#define SWP_ENTRY(type,offset)	((swp_entry_t) { ((type) << 1) | ((offset) << 10) })
+#else
+
+#define SWP_TYPE(x)		(((x).val >> 1) & 0x1f)
 #define SWP_OFFSET(x)		((x).val >> 8)
 #define SWP_ENTRY(type,offset)	((swp_entry_t) { ((type) << 1) | ((offset) << 8) })
+#endif
+
 #define pte_to_swp_entry(pte)	((swp_entry_t) { pte_val(pte) })
 #define swp_entry_to_pte(x)	((pte_t) { (x).val })
 
